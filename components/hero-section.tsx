@@ -22,6 +22,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { siteContent } from "@/config";
+import { ProfileMenu } from "@/components/auth/profile-menu";
 
 const heroLqipMap = heroLqip as Record<string, string>;
 const fallbackHeroSources = Array.from(
@@ -166,62 +167,66 @@ export default function HeroSection({
             />
           </Link>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-8">
-            {navItems.map((item) => {
-              const baseClass =
-                "relative text-white hover:text-gray-300 transition-colors duration-300 font-normal tracking-wide pb-1 group";
+          <div className="flex items-center gap-3 md:gap-4">
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center space-x-8">
+              {navItems.map((item) => {
+                const baseClass =
+                  "relative text-white hover:text-gray-300 transition-colors duration-300 font-normal tracking-wide pb-1 group";
 
-              if (isHashLink(item.href)) {
-                return (
-                  <button
-                    key={item.label}
-                    onClick={() => scrollToSection(item.href)}
-                    className={baseClass}
-                  >
-                    {item.label}
-                    <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all duration-300 ease-out group-hover:w-full"></span>
-                  </button>
-                );
-              }
+                if (isHashLink(item.href)) {
+                  return (
+                    <button
+                      key={item.label}
+                      onClick={() => scrollToSection(item.href)}
+                      className={baseClass}
+                    >
+                      {item.label}
+                      <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all duration-300 ease-out group-hover:w-full"></span>
+                    </button>
+                  );
+                }
 
-              if (isExternalLink(item.href)) {
+                if (isExternalLink(item.href)) {
+                  return (
+                    <a
+                      key={item.label}
+                      href={item.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={baseClass}
+                    >
+                      {item.label}
+                      <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all duration-300 ease-out group-hover:w-full"></span>
+                    </a>
+                  );
+                }
+
                 return (
-                  <a
+                  <Link
                     key={item.label}
                     href={item.href}
-                    target="_blank"
-                    rel="noreferrer"
                     className={baseClass}
                   >
                     {item.label}
                     <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all duration-300 ease-out group-hover:w-full"></span>
-                  </a>
+                  </Link>
                 );
-              }
+              })}
+            </div>
 
-              return (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className={baseClass}
-                >
-                  {item.label}
-                  <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all duration-300 ease-out group-hover:w-full"></span>
-                </Link>
-              );
-            })}
+            <ProfileMenu />
+
+            {/* Mobile Menu Button */}
+            <SheetTrigger asChild>
+              <button className="md:hidden text-white hover:text-gray-300 transition-colors">
+                {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                <span className="sr-only">
+                  {siteContent.navigation.toggleLabel}
+                </span>
+              </button>
+            </SheetTrigger>
           </div>
-
-          {/* Mobile Menu Button */}
-          <SheetTrigger asChild>
-            <button className="md:hidden text-white hover:text-gray-300 transition-colors">
-              {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-              <span className="sr-only">
-                {siteContent.navigation.toggleLabel}
-              </span>
-            </button>
-          </SheetTrigger>
         </nav>
 
         <SheetContent
