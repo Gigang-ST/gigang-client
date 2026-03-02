@@ -67,7 +67,7 @@ export function MemberOnboardingForm({
   const onSubmit = async (values: MemberOnboardingValues) => {
     const supabase = createClient();
     if (!email) {
-      form.setError("root", { message: "Email is required." });
+      form.setError("root", { message: "이메일이 필요합니다." });
       return;
     }
 
@@ -99,9 +99,9 @@ export function MemberOnboardingForm({
     <div className={cn("flex flex-col gap-6")}>
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">Complete your profile</CardTitle>
+          <CardTitle className="text-2xl">프로필을 완성해주세요</CardTitle>
           <CardDescription>
-            We need a few more details to finish your sign up.
+            가입을 마무리하려면 몇 가지 정보가 더 필요해요.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -110,17 +110,17 @@ export function MemberOnboardingForm({
               <div className="flex flex-col gap-6">
                 {email ? (
                   <div className="grid gap-2">
-                    <Label>Email</Label>
+                    <Label>이메일</Label>
                     <Input value={email} disabled />
                   </div>
                 ) : null}
                 <FormField
                   control={form.control}
                   name="fullName"
-                  rules={{ required: "Full name is required." }}
+                  rules={{ required: "이름을 입력해주세요." }}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Full name</FormLabel>
+                      <FormLabel>이름</FormLabel>
                       <FormControl>
                         <Input {...field} />
                       </FormControl>
@@ -133,22 +133,22 @@ export function MemberOnboardingForm({
                   name="gender"
                   rules={{
                     validate: (value) =>
-                      value !== "" || "Please select a gender.",
+                      value !== "" || "성별을 선택해주세요.",
                   }}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Gender</FormLabel>
+                      <FormLabel>성별</FormLabel>
                       <FormControl>
                         <Select
                           value={field.value}
                           onValueChange={field.onChange}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Select" />
+                            <SelectValue placeholder="선택" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="male">Male</SelectItem>
-                            <SelectItem value="female">Female</SelectItem>
+                            <SelectItem value="male">남성</SelectItem>
+                            <SelectItem value="female">여성</SelectItem>
                           </SelectContent>
                         </Select>
                       </FormControl>
@@ -159,10 +159,10 @@ export function MemberOnboardingForm({
                 <FormField
                   control={form.control}
                   name="birthday"
-                  rules={{ required: "Birthday is required." }}
+                  rules={{ required: "생년월일을 입력해주세요." }}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Birthday</FormLabel>
+                      <FormLabel>생년월일</FormLabel>
                       <FormControl>
                         <Input type="date" {...field} />
                       </FormControl>
@@ -173,10 +173,10 @@ export function MemberOnboardingForm({
                 <FormField
                   control={form.control}
                   name="phone"
-                  rules={{ required: "Phone is required." }}
+                  rules={{ required: "연락처를 입력해주세요." }}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Phone</FormLabel>
+                      <FormLabel>연락처</FormLabel>
                       <FormControl>
                         <Input type="tel" {...field} />
                       </FormControl>
@@ -195,8 +195,8 @@ export function MemberOnboardingForm({
                   disabled={form.formState.isSubmitting}
                 >
                   {form.formState.isSubmitting
-                    ? "Saving..."
-                    : "Save and continue"}
+                    ? "저장 중..."
+                    : "저장하고 계속하기"}
                 </Button>
               </div>
             </form>

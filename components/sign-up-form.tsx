@@ -23,8 +23,13 @@ export function SignUpForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
+  const [otpToken, setOtpToken] = useState("");
+  const [otpStep, setOtpStep] = useState<"request" | "verify">("request");
   const [error, setError] = useState<string | null>(null);
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const router = useRouter();
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -32,6 +37,7 @@ export function SignUpForm({
     const supabase = createClient();
     setIsLoading(true);
     setError(null);
+    setResendMessage(null);
 
     if (password !== repeatPassword) {
       setError("Passwords do not match");
@@ -43,12 +49,10 @@ export function SignUpForm({
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/protected`,
-        },
       });
       if (error) throw error;
-      router.push("/auth/sign-up-success");
+      setOtpStep("verify");
+      setResendMessage("인증 코드가 이메일로 전송됐어요.");
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {
@@ -56,18 +60,65 @@ export function SignUpForm({
     }
   };
 
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const supabase = createClient();
+    setIsVerifying(true);
+    setError(null);
+    setResendMessage(null);
+
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token: otpToken,
+      type: "signup",
+    });
+
+    if (error) {
+      setError(error.message);
+      setIsVerifying(false);
+      return;
+    }
+
+    router.push("/protected");
+  };
+
+  const handleResendOtp = async () => {
+    const supabase = createClient();
+    setIsResending(true);
+    setError(null);
+    setResendMessage(null);
+
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email,
+    });
+
+    if (error) {
+      setError(error.message);
+      setIsResending(false);
+      return;
+    }
+
+    setResendMessage("인증 코드를 다시 보냈어요.");
+    setIsResending(false);
+  };
+
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">Sign up</CardTitle>
-          <CardDescription>Create a new account</CardDescription>
+          <CardDescription>
+            {otpStep === "verify"
+              ? "Enter the verification code sent to your email"
+              : "Create a new account"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSignUp}>
+          <form onSubmit={otpStep === "verify" ? handleVerifyOtp : handleSignUp}>
             <div className="flex flex-col gap-6">
               <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">이메일</Label>
                 <Input
                   id="email"
                   type="email"
@@ -75,36 +126,92 @@ export function SignUpForm({
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  disabled={otpStep === "verify"}
                 />
               </div>
-              <div className="grid gap-2">
-                <div className="flex items-center">
-                  <Label htmlFor="password">Password</Label>
+              {otpStep === "verify" ? (
+                <div className="grid gap-2">
+                  <Label htmlFor="otp-token">인증 코드</Label>
+                  <Input
+                    id="otp-token"
+                    inputMode="numeric"
+                    placeholder="123456"
+                    required
+                    value={otpToken}
+                    onChange={(e) => setOtpToken(e.target.value)}
+                  />
                 </div>
-                <Input
-                  id="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <div className="flex items-center">
-                  <Label htmlFor="repeat-password">Repeat Password</Label>
-                </div>
-                <Input
-                  id="repeat-password"
-                  type="password"
-                  required
-                  value={repeatPassword}
-                  onChange={(e) => setRepeatPassword(e.target.value)}
-                />
-              </div>
+              ) : (
+                <>
+                  <div className="grid gap-2">
+                    <div className="flex items-center">
+                      <Label htmlFor="password">비밀번호</Label>
+                    </div>
+                    <Input
+                      id="password"
+                      type="password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <div className="flex items-center">
+                      <Label htmlFor="repeat-password">비밀번호 확인</Label>
+                    </div>
+                    <Input
+                      id="repeat-password"
+                      type="password"
+                      required
+                      value={repeatPassword}
+                      onChange={(e) => setRepeatPassword(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
               {error && <p className="text-sm text-red-500">{error}</p>}
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Creating an account..." : "Sign up"}
+              {resendMessage && (
+                <p className="text-sm text-emerald-600">{resendMessage}</p>
+              )}
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isLoading || isVerifying || isResending}
+              >
+                {otpStep === "verify"
+                  ? isVerifying
+                    ? "Verifying..."
+                    : "Verify code"
+                  : isLoading
+                    ? "Creating an account..."
+                    : "Send verification code"}
               </Button>
+              {otpStep === "verify" ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={handleResendOtp}
+                    disabled={isLoading || isVerifying || isResending}
+                  >
+                    {isResending ? "재전송 중..." : "인증 코드 재전송"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full"
+                    onClick={() => {
+                      setOtpStep("request");
+                      setOtpToken("");
+                      setResendMessage(null);
+                    }}
+                    disabled={isLoading || isVerifying || isResending}
+                  >
+                  Change email
+                </Button>
+                </>
+              ) : null}
             </div>
             <div className="mt-4 text-center text-sm">
               Already have an account?{" "}

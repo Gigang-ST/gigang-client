@@ -81,37 +81,39 @@ export function LoginForm({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleLogin}>
-            <div className="flex flex-col gap-6">
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={() => handleOAuthLogin("kakao")}
-                disabled={isLoading || oauthProvider !== null}
-              >
-                {oauthProvider === "kakao"
-                  ? "Connecting..."
-                  : "Continue with Kakao"}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={() => handleOAuthLogin("google")}
-                disabled={isLoading || oauthProvider !== null}
-              >
-                {oauthProvider === "google"
-                  ? "Connecting..."
-                  : "Continue with Google"}
-              </Button>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Separator className="flex-1" />
-                <span>or</span>
-                <Separator className="flex-1" />
-              </div>
+          <div className="flex flex-col gap-6">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => handleOAuthLogin("kakao")}
+              disabled={isLoading || oauthProvider !== null}
+            >
+              {oauthProvider === "kakao"
+                ? "Connecting..."
+                : "Continue with Kakao"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => handleOAuthLogin("google")}
+              disabled={isLoading || oauthProvider !== null}
+            >
+              {oauthProvider === "google"
+                ? "Connecting..."
+                : "Continue with Google"}
+            </Button>
+
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Separator className="flex-1" />
+              <span>Password</span>
+              <Separator className="flex-1" />
+            </div>
+
+            <form onSubmit={handleLogin} className="flex flex-col gap-6">
               <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">이메일</Label>
                 <Input
                   id="email"
                   type="email"
@@ -123,7 +125,7 @@ export function LoginForm({
               </div>
               <div className="grid gap-2">
                 <div className="flex items-center">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password">비밀번호</Label>
                   <Link
                     href="/auth/forgot-password"
                     className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
@@ -143,17 +145,15 @@ export function LoginForm({
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? "Logging in..." : "Login"}
               </Button>
-            </div>
-            <div className="mt-4 text-center text-sm">
-              Don&apos;t have an account?{" "}
-              <Link
-                href="/auth/sign-up"
-                className="underline underline-offset-4"
-              >
-                Sign up
-              </Link>
-            </div>
-          </form>
+            </form>
+          </div>
+
+          <div className="mt-4 text-center text-sm">
+            Don&apos;t have an account?{" "}
+            <Link href="/auth/sign-up" className="underline underline-offset-4">
+              Sign up
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>

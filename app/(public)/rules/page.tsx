@@ -20,11 +20,11 @@ export default function RulesPage() {
       {
         id: 3,
         title: "카카오톡 일정 참석여부 표시",
-        details: ["벙주를 위해 당일 변경사항은 댓글 or 태그로 알려주세요"],
+        details: ["벙주를 위해 당일 변경사항은 댓글 또는 태그로 알려주세요"],
       },
       {
         id: 4,
-        title: "Sport Team 입니다",
+        title: "스포츠 팀입니다",
         details: [
           "런닝, 자전거, 수영, 등산, 트레일런, 클라이밍, 탁구, 배드민턴 외 다수 벙 가능",
         ],

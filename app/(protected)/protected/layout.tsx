@@ -16,7 +16,7 @@ export default function ProtectedLayout({
         <nav className="w-full flex justify-center border-b border-white/10 h-16">
           <div className="w-full max-w-5xl flex justify-between items-center p-3 px-5 text-sm text-white/90">
             <div className="flex gap-5 items-center font-semibold">
-              <Link href={"/"}>Next.js Supabase Starter</Link>
+              <Link href={"/"}>Next.js · Supabase 스타터</Link>
               <div className="flex items-center gap-2">
                 <DeployButton />
               </div>
@@ -36,7 +36,7 @@ export default function ProtectedLayout({
 
         <footer className="w-full flex items-center justify-center border-t border-white/10 mx-auto text-center text-xs gap-4 py-6 text-white/70">
           <p>
-            Powered by{" "}
+            Supabase로 구동{" "}
             <a
               href="https://supabase.com/?utm_source=create-next-app&utm_medium=template&utm_term=nextjs"
               target="_blank"

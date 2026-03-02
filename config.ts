@@ -192,7 +192,7 @@ export const siteContent: SiteContent = {
         id: 1,
         title: "JRC 인스타 팔로우 해주세요",
         href: "http://www.instagram.com/team_gigang",
-        description: "Instagram (@team_gigang)",
+        description: "인스타그램 (@team_gigang)",
       },
       {
         id: 2,
@@ -226,11 +226,11 @@ export const siteContent: SiteContent = {
       {
         id: 3,
         title: "카카오톡 일정 참석여부 표시",
-        details: ["벙주를 위해 당일 변경사항은 댓글 or 태그로 알려주세요"],
+        details: ["벙주를 위해 당일 변경사항은 댓글 또는 태그로 알려주세요"],
       },
       {
         id: 4,
-        title: "Sport Team 입니다",
+        title: "스포츠 팀입니다",
         details: [
           "런닝, 자전거, 수영, 등산, 트레일런, 클라이밍, 탁구, 배드민턴 외 다수 벙 가능",
         ],
@@ -270,7 +270,7 @@ export const siteContent: SiteContent = {
         href: "https://www.notion.so/e8e9be02b19a4ad48fd273658546ed5a?pvs=21",
       },
       {
-        label: "기강 공지사항 - November 19, 2025",
+        label: "기강 공지사항 - 2025년 11월 19일",
         href: "https://www.notion.so/15f57183edbf807fbab8d486a22ce7e1?pvs=21",
       },
     ],
