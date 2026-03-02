@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
@@ -57,33 +58,45 @@ export function LoginForm({
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card>
+      <Card className="bg-transparent">
         <CardHeader>
           <CardTitle className="text-2xl">Login</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="bg-transparent">
           <div className="flex flex-col gap-6">
             <Button
               type="button"
               variant="outline"
-              className="w-full"
+              className="w-full justify-between border-[#FEE500] bg-[#FEE500] text-black hover:bg-[#FEE500]/90 hover:text-black"
               onClick={() => handleOAuthLogin("kakao")}
               disabled={oauthProvider !== null}
             >
-              {oauthProvider === "kakao"
-                ? "Connecting..."
-                : "Continue with Kakao"}
+              <span className="flex items-center gap-2">
+                <Image src="/kakao.png" alt="Kakao" width={18} height={18} />
+                <span>
+                  {oauthProvider === "kakao"
+                    ? "Connecting..."
+                    : "Sign in with Kakao"}
+                </span>
+              </span>
+              <span className="w-4" aria-hidden />
             </Button>
             <Button
               type="button"
               variant="outline"
-              className="w-full"
+              className="w-full justify-between"
               onClick={() => handleOAuthLogin("google")}
               disabled={oauthProvider !== null}
             >
-              {oauthProvider === "google"
-                ? "Connecting..."
-                : "Continue with Google"}
+              <span className="flex items-center gap-2">
+                <Image src="/google.webp" alt="Google" width={18} height={18} />
+                <span>
+                  {oauthProvider === "google"
+                    ? "Connecting..."
+                    : "Sign in with Google"}
+                </span>
+              </span>
+              <span className="w-4" aria-hidden />
             </Button>
             {error ? <p className="text-sm text-red-500">{error}</p> : null}
           </div>

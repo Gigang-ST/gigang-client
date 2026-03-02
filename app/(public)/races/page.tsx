@@ -1,7 +1,19 @@
 import { CompetitionCalendar } from "@/components/races/competition-calendar";
 import { Card, CardContent } from "@/components/ui/card";
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 
-export default function RacesPage() {
+export default async function RacesPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error || !user) {
+    redirect("/auth/login?next=%2Fraces");
+  }
+
   return (
     <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col px-4 pb-16 pt-20 text-white md:px-8 md:pt-28">
       <div className="flex flex-col gap-6">
