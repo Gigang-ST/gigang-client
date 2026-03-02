@@ -42,7 +42,6 @@ type MemberOnboardingValues = {
   gender: "" | "male" | "female";
   birthday: string;
   phone: string;
-  accountNumber: string;
 };
 
 export function MemberOnboardingForm({
@@ -57,7 +56,6 @@ export function MemberOnboardingForm({
       gender: "",
       birthday: "",
       phone: "",
-      accountNumber: "",
     },
   });
 
@@ -68,15 +66,19 @@ export function MemberOnboardingForm({
 
   const onSubmit = async (values: MemberOnboardingValues) => {
     const supabase = createClient();
+    if (!email) {
+      form.setError("root", { message: "Email is required." });
+      return;
+    }
 
     const { error } = await supabase.from("member").insert({
       id: userId,
+      email,
       full_name: values.fullName,
       gender: values.gender,
       birthday: values.birthday,
       phone: values.phone,
       status: "active",
-      account_number: values.accountNumber || null,
       admin: false,
       joined_at: joinedAt,
     });
@@ -177,19 +179,6 @@ export function MemberOnboardingForm({
                       <FormLabel>Phone</FormLabel>
                       <FormControl>
                         <Input type="tel" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="accountNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Account number</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
