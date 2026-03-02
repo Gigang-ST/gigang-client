@@ -215,7 +215,9 @@ export default function HeroSection({
               })}
             </div>
 
-            <ProfileMenu />
+            <div className="md:translate-y-[1px]">
+              <ProfileMenu />
+            </div>
 
             {/* Mobile Menu Button */}
             <SheetTrigger asChild>
