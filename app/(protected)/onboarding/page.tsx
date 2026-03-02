@@ -4,13 +4,10 @@ import { MemberOnboardingForm } from "@/components/member-onboarding-form";
 
 export default async function Page() {
   const nextParam = "/onboarding";
-  const normalizedNext =
+  const safeNext =
     nextParam.startsWith("/") && !nextParam.startsWith("//")
       ? nextParam
       : "/";
-  const safeNext = normalizedNext.startsWith("/protected")
-    ? "/"
-    : normalizedNext;
 
   const supabase = await createClient();
   const {

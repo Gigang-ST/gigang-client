@@ -52,15 +52,10 @@ export function MemberOnboardingForm({
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextParam = searchParams.get("next") ?? "/";
-  const normalizedNext =
+  const safeNext =
     nextParam.startsWith("/") && !nextParam.startsWith("//")
       ? nextParam
       : "/";
-  const safeNext =
-    normalizedNext.startsWith("/protected") ||
-    normalizedNext.startsWith("/onboarding")
-      ? "/"
-      : normalizedNext;
   const form = useForm<MemberOnboardingValues>({
     defaultValues: {
       fullName: initialFullName ?? "",

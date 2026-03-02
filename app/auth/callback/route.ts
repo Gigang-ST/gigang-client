@@ -9,9 +9,6 @@ export async function GET(request: Request) {
   if (!next.startsWith("/") || next.startsWith("//")) {
     next = "/";
   }
-  if (next.startsWith("/protected")) {
-    next = "/";
-  }
 
   if (code) {
     const supabase = await createClient();

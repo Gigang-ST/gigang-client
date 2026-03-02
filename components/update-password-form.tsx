@@ -25,13 +25,10 @@ export function UpdatePasswordForm({
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextParam = searchParams.get("next") ?? "/";
-  const normalizedNext =
+  const safeNext =
     nextParam.startsWith("/") && !nextParam.startsWith("//")
       ? nextParam
       : "/";
-  const safeNext = normalizedNext.startsWith("/protected")
-    ? "/"
-    : normalizedNext;
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
