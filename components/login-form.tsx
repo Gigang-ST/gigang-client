@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -24,6 +25,9 @@ export function LoginForm({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [oauthProvider, setOauthProvider] = useState<"kakao" | "google" | null>(
+    null,
+  );
   const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -47,6 +51,26 @@ export function LoginForm({
     }
   };
 
+  const handleOAuthLogin = async (provider: "kakao" | "google") => {
+    const supabase = createClient();
+    setOauthProvider(provider);
+    setError(null);
+
+    const redirectTo = `${window.location.origin}/auth/callback?next=/protected`;
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo,
+      },
+    });
+
+    if (error) {
+      setError(error.message);
+      setOauthProvider(null);
+    }
+  };
+
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
@@ -59,6 +83,33 @@ export function LoginForm({
         <CardContent>
           <form onSubmit={handleLogin}>
             <div className="flex flex-col gap-6">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => handleOAuthLogin("kakao")}
+                disabled={isLoading || oauthProvider !== null}
+              >
+                {oauthProvider === "kakao"
+                  ? "Connecting..."
+                  : "Continue with Kakao"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => handleOAuthLogin("google")}
+                disabled={isLoading || oauthProvider !== null}
+              >
+                {oauthProvider === "google"
+                  ? "Connecting..."
+                  : "Continue with Google"}
+              </Button>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Separator className="flex-1" />
+                <span>or</span>
+                <Separator className="flex-1" />
+              </div>
               <div className="grid gap-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
