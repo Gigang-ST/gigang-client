@@ -42,7 +42,35 @@ type MemberOnboardingValues = {
   gender: "" | "male" | "female";
   birthday: string;
   phone: string;
+  emailInput: string;
+  bankAccount: string;
+  bankName: string;
+  bankNameCustom: string;
 };
+
+const BANK_OPTIONS = [
+  "KB국민은행",
+  "신한은행",
+  "우리은행",
+  "하나은행",
+  "NH농협은행",
+  "IBK기업은행",
+  "SC제일은행",
+  "씨티은행",
+  "케이뱅크",
+  "카카오뱅크",
+  "토스뱅크",
+  "수협은행",
+  "새마을금고",
+  "신협",
+  "우체국",
+  "부산은행",
+  "경남은행",
+  "대구은행",
+  "광주은행",
+  "전북은행",
+  "제주은행",
+];
 
 export function MemberOnboardingForm({
   userId,
@@ -62,6 +90,10 @@ export function MemberOnboardingForm({
       gender: "",
       birthday: "",
       phone: "",
+      emailInput: email ?? "",
+      bankAccount: "",
+      bankName: "",
+      bankNameCustom: "",
     },
   });
 
@@ -72,18 +104,77 @@ export function MemberOnboardingForm({
 
   const onSubmit = async (values: MemberOnboardingValues) => {
     const supabase = createClient();
-    if (!email) {
-      form.setError("root", { message: "Email is required." });
+    const emailValue = (email ?? values.emailInput.trim()) || null;
+    const phoneValue = values.phone.trim();
+    if (!phoneValue) {
+      form.setError("phone", { message: "연락처는 필수야." });
+      return;
+    }
+
+    const bankName =
+      values.bankName === "custom"
+        ? values.bankNameCustom.trim()
+        : values.bankName.trim();
+
+    const { data: existingMember, error: lookupError } = await supabase
+      .from("member")
+      .select("id, auth_user_id, email")
+      .eq("phone", phoneValue)
+      .maybeSingle();
+
+    if (lookupError) {
+      if (lookupError.code === "PGRST116") {
+        form.setError("root", {
+          message: "같은 번호로 등록된 회원이 여러 명이라 관리자 확인이 필요해.",
+        });
+        return;
+      }
+      form.setError("root", { message: "기존 회원 확인에 실패했어." });
+      return;
+    }
+
+    if (existingMember) {
+      if (existingMember.auth_user_id && existingMember.auth_user_id !== userId) {
+        form.setError("root", {
+          message: "이미 다른 계정에 연결된 번호야.",
+        });
+        return;
+      }
+
+      const updatePayload: Record<string, string | null> = {
+        auth_user_id: userId,
+      };
+      if (emailValue && !existingMember.email) {
+        updatePayload.email = emailValue;
+      }
+      const bankNameValue = bankName || null;
+      const bankAccountValue = values.bankAccount.trim() || null;
+      if (bankNameValue) updatePayload.bank_name = bankNameValue;
+      if (bankAccountValue) updatePayload.bank_account = bankAccountValue;
+
+      const { error: updateError } = await supabase
+        .from("member")
+        .update(updatePayload)
+        .eq("id", existingMember.id);
+
+      if (updateError) {
+        form.setError("root", { message: updateError.message });
+        return;
+      }
+
+      router.replace(safeNext);
       return;
     }
 
     const { error } = await supabase.from("member").insert({
-      id: userId,
-      email,
+      auth_user_id: userId,
+      email: emailValue,
       full_name: values.fullName,
       gender: values.gender,
       birthday: values.birthday,
-      phone: values.phone,
+      phone: phoneValue,
+      bank_name: bankName || null,
+      bank_account: values.bankAccount.trim() || null,
       status: "active",
       admin: false,
       joined_at: joinedAt,
@@ -119,6 +210,25 @@ export function MemberOnboardingForm({
                     <Label>이메일</Label>
                     <Input value={email} disabled />
                   </div>
+                ) : null}
+                {!email ? (
+                  <FormField
+                    control={form.control}
+                    name="emailInput"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>이메일 (선택)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="email"
+                            placeholder="example@email.com"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 ) : null}
                 <FormField
                   control={form.control}
@@ -186,6 +296,65 @@ export function MemberOnboardingForm({
                       <FormControl>
                         <Input type="tel" {...field} />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="bankName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>은행</FormLabel>
+                      <FormControl>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="은행 선택" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {BANK_OPTIONS.map((option) => (
+                              <SelectItem key={option} value={option}>
+                                {option}
+                              </SelectItem>
+                            ))}
+                            <SelectItem value="custom">기타(직접 입력)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {form.watch("bankName") === "custom" ? (
+                  <FormField
+                    control={form.control}
+                    name="bankNameCustom"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>은행명 직접 입력</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="예: 지역 농협, 단위 농협" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : null}
+                <FormField
+                  control={form.control}
+                  name="bankAccount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>계좌번호</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="예: 123-456-789012"
+                        />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        회비 및 기타 돈 환급시 사용해.
+                      </p>
                       <FormMessage />
                     </FormItem>
                   )}

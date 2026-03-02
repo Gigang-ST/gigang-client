@@ -119,7 +119,7 @@ export function CompetitionCalendar() {
       const { data: member } = await supabase
         .from("member")
         .select("id, full_name, email")
-        .eq("id", user.id)
+        .eq("auth_user_id", user.id)
         .maybeSingle();
 
       if (!active) return;

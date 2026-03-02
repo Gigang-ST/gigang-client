@@ -22,7 +22,7 @@ export default async function Page() {
   const { data: member } = await supabase
     .from("member")
     .select("id")
-    .eq("id", user.id)
+    .eq("auth_user_id", user.id)
     .maybeSingle();
 
   if (member) {
