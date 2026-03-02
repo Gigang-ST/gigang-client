@@ -10,10 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
@@ -21,10 +17,7 @@ export function LoginForm({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<"div">) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [oauthProvider, setOauthProvider] = useState<"kakao" | "google" | null>(
     null,
   );
@@ -36,34 +29,13 @@ export function LoginForm({
       ? nextParam
       : "/";
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const supabase = createClient();
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) throw error;
-      // Update this route to redirect to an authenticated route. The user already has an active session.
-      router.push(safeNext);
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleOAuthLogin = async (provider: "kakao" | "google") => {
     const supabase = createClient();
     setOauthProvider(provider);
     setError(null);
 
     const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(
-      safeNext,
+      "/onboarding",
     )}`;
 
     const { error } = await supabase.auth.signInWithOAuth({
@@ -76,7 +48,11 @@ export function LoginForm({
     if (error) {
       setError(error.message);
       setOauthProvider(null);
+      return;
     }
+
+    // OAuth는 리다이렉트가 정상 흐름이므로, 여기서 바로 처리 종료.
+    router.prefetch(safeNext);
   };
 
   return (
@@ -84,9 +60,6 @@ export function LoginForm({
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">Login</CardTitle>
-          <CardDescription>
-            Enter your email below to login to your account
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-6">
@@ -95,7 +68,7 @@ export function LoginForm({
               variant="outline"
               className="w-full"
               onClick={() => handleOAuthLogin("kakao")}
-              disabled={isLoading || oauthProvider !== null}
+              disabled={oauthProvider !== null}
             >
               {oauthProvider === "kakao"
                 ? "Connecting..."
@@ -106,61 +79,13 @@ export function LoginForm({
               variant="outline"
               className="w-full"
               onClick={() => handleOAuthLogin("google")}
-              disabled={isLoading || oauthProvider !== null}
+              disabled={oauthProvider !== null}
             >
               {oauthProvider === "google"
                 ? "Connecting..."
                 : "Continue with Google"}
             </Button>
-
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Separator className="flex-1" />
-              <span>Password</span>
-              <Separator className="flex-1" />
-            </div>
-
-            <form onSubmit={handleLogin} className="flex flex-col gap-6">
-              <div className="grid gap-2">
-                <Label htmlFor="email">이메일</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="m@example.com"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <div className="flex items-center">
-                  <Label htmlFor="password">비밀번호</Label>
-                  <Link
-                    href="/auth/forgot-password"
-                    className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
-                  >
-                    Forgot your password?
-                  </Link>
-                </div>
-                <Input
-                  id="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-              {error && <p className="text-sm text-red-500">{error}</p>}
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Logging in..." : "Login"}
-              </Button>
-            </form>
-          </div>
-
-          <div className="mt-4 text-center text-sm">
-            Don&apos;t have an account?{" "}
-            <Link href="/auth/sign-up" className="underline underline-offset-4">
-              Sign up
-            </Link>
+            {error ? <p className="text-sm text-red-500">{error}</p> : null}
           </div>
         </CardContent>
       </Card>
