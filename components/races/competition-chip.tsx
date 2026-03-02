@@ -8,12 +8,16 @@ interface CompetitionChipProps {
   competition: Competition;
   onClick: () => void;
   isRegistered?: boolean;
+  truncate?: boolean;
+  className?: string;
 }
 
 export function CompetitionChip({
   competition,
   onClick,
   isRegistered = false,
+  truncate = true,
+  className,
 }: CompetitionChipProps) {
   return (
     <button
@@ -22,10 +26,12 @@ export function CompetitionChip({
         onClick();
       }}
       className={cn(
-        "w-full truncate rounded-md px-1.5 py-0.5 text-left text-[11px] font-medium leading-tight transition-opacity hover:opacity-80 cursor-pointer",
+        "w-full rounded-md px-1.5 py-0.5 text-left text-[11px] font-medium leading-tight transition-opacity hover:opacity-80 cursor-pointer",
+        truncate ? "truncate" : "whitespace-normal",
         resolveSportConfig(competition.sport).chipClass,
         isRegistered &&
           "bg-primary text-primary-foreground ring-1 ring-offset-1 ring-primary",
+        className,
       )}
       title={competition.title}
     >

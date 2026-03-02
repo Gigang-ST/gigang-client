@@ -27,9 +27,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
       showNavigation
       overlay={
         <div className="h-full overflow-y-auto">
-          <div className="min-h-full flex flex-col">
+          <div className="min-h-screen flex flex-col">
             <div className="flex-1">{children}</div>
-            <footer className="w-full border-t border-white/10 bg-black/30 px-6 py-4 text-white/70">
+            <footer className="mt-auto w-full border-t border-white/10 bg-black/30 px-6 py-4 text-white/70">
               <div className="mx-auto flex max-w-5xl flex-col items-center gap-3 text-center">
                 <div className="flex items-center justify-center gap-4">
                   {socialLabels.map((label) => {

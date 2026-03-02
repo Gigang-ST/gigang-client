@@ -7,6 +7,7 @@ import { CalendarGrid } from "./calendar-grid";
 import { CompetitionDetailDialog } from "./competition-detail-dialog";
 import {
   getGridDateRange,
+  formatDate,
   parseDate,
   toDateStr,
 } from "./date-utils";
@@ -39,6 +40,11 @@ export function CompetitionCalendar() {
   const [selectedCompetition, setSelectedCompetition] =
     useState<Competition | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [expandedDate, setExpandedDate] = useState<string | null>(null);
+  const [selectedDateStr, setSelectedDateStr] = useState(() => {
+    const today = new Date();
+    return toDateStr(today.getFullYear(), today.getMonth(), today.getDate());
+  });
 
   const gridRange = useMemo(() => getGridDateRange(currentDate), [currentDate]);
 
@@ -99,6 +105,16 @@ export function CompetitionCalendar() {
     setSelectedCompetition(competition);
     setDetailOpen(true);
   }, []);
+
+  useEffect(() => {
+    if (
+      selectedDateStr < gridRange.startStr ||
+      selectedDateStr > gridRange.endStr
+    ) {
+      setSelectedDateStr(gridRange.startStr);
+    }
+    setExpandedDate(null);
+  }, [gridRange.endStr, gridRange.startStr, selectedDateStr]);
 
   useEffect(() => {
     let active = true;
@@ -330,7 +346,7 @@ export function CompetitionCalendar() {
   );
 
   return (
-    <div className="flex h-[70vh] flex-col">
+    <div className="flex flex-col">
       <CalendarHeader
         currentDate={currentDate}
         onPrevMonth={handlePrevMonth}
@@ -351,7 +367,43 @@ export function CompetitionCalendar() {
         competitionsByDate={competitionsByDate}
         registrationsByCompetitionId={registrationsByCompetitionId}
         onSelectCompetition={handleSelectCompetition}
+        selectedDateStr={selectedDateStr}
+        onSelectDay={(dateStr) => {
+          setSelectedDateStr(dateStr);
+          setExpandedDate(null);
+        }}
+        expandedDate={expandedDate}
+        onToggleExpanded={(dateStr) =>
+          setExpandedDate((prev) => (prev === dateStr ? null : dateStr))
+        }
       />
+
+      <div className="px-4 pb-4 pt-3 md:hidden">
+        <div className="flex items-center justify-between text-xs text-white/70">
+          <span className="font-semibold text-white">선택한 날짜</span>
+          <span>{formatDate(selectedDateStr)}</span>
+        </div>
+        <div className="mt-3 flex flex-col gap-2">
+          {(competitionsByDate.get(selectedDateStr) ?? []).length === 0 ? (
+            <p className="rounded-md border border-dashed border-white/15 bg-white/[0.03] px-3 py-3 text-xs text-white/60">
+              이 날짜엔 일정이 없어.
+            </p>
+          ) : (
+            (competitionsByDate.get(selectedDateStr) ?? []).map((competition) => (
+              <CompetitionChip
+                key={`${competition.id}-mobile`}
+                competition={competition}
+                onClick={() => handleSelectCompetition(competition)}
+                isRegistered={Boolean(
+                  registrationsByCompetitionId[competition.id],
+                )}
+                truncate={false}
+                className="px-3 py-2 text-sm leading-snug"
+              />
+            ))
+          )}
+        </div>
+      </div>
 
       <CompetitionDetailDialog
         competition={selectedCompetition}

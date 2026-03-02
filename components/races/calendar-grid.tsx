@@ -13,6 +13,10 @@ interface CalendarGridProps {
   competitionsByDate: Map<string, Competition[]>;
   registrationsByCompetitionId: Record<string, CompetitionRegistration>;
   onSelectCompetition: (competition: Competition) => void;
+  selectedDateStr?: string;
+  onSelectDay?: (dateStr: string) => void;
+  expandedDate?: string | null;
+  onToggleExpanded?: (dateStr: string) => void;
 }
 
 export function CalendarGrid({
@@ -20,6 +24,10 @@ export function CalendarGrid({
   competitionsByDate,
   registrationsByCompetitionId,
   onSelectCompetition,
+  selectedDateStr,
+  onSelectDay,
+  expandedDate,
+  onToggleExpanded,
 }: CalendarGridProps) {
   const cells = useMemo(() => getCalendarCells(currentDate), [currentDate]);
 
@@ -41,17 +49,28 @@ export function CalendarGrid({
         ))}
       </div>
 
-      <div className="grid flex-1 grid-cols-7 grid-rows-6 overflow-visible">
+      <div className="grid flex-1 grid-cols-7 grid-rows-[repeat(6,minmax(5rem,auto))] overflow-visible">
         {cells.map((cell) => {
           const competitions = competitionsByDate.get(cell.dateStr) ?? [];
           const dayOfWeek = new Date(`${cell.dateStr}T00:00:00`).getDay();
+          const isSelected = selectedDateStr === cell.dateStr;
 
           return (
             <div
               key={cell.dateStr}
+              role="button"
+              tabIndex={0}
+              onClick={() => onSelectDay?.(cell.dateStr)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelectDay?.(cell.dateStr);
+                }
+              }}
               className={cn(
                 "group relative flex flex-col border-b border-r border-white/10 p-1 text-left transition-colors hover:bg-white/[0.04] lg:p-1.5",
                 !cell.isCurrentMonth && "bg-white/[0.005]",
+                isSelected && "bg-white/[0.08] ring-1 ring-white/30",
               )}
             >
               <span
@@ -80,10 +99,25 @@ export function CalendarGrid({
                 ))}
                 {competitions.length > 3 && (
                   <div className="relative">
-                    <span className="px-1 text-[10px] text-muted-foreground">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSelectDay?.(cell.dateStr);
+                        onToggleExpanded?.(cell.dateStr);
+                      }}
+                      className="px-1 text-[10px] text-muted-foreground transition hover:text-foreground"
+                    >
                       +{competitions.length - 3}
-                    </span>
-                    <div className="pointer-events-none absolute left-0 top-full z-30 mt-1 w-56 max-h-48 overflow-y-auto rounded-md border border-white/40 bg-white/90 p-2 text-foreground shadow-lg opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100">
+                    </button>
+                    <div
+                      className={cn(
+                        "absolute left-0 top-full z-30 mt-1 hidden w-56 max-h-48 overflow-y-auto rounded-md border border-white/40 bg-white/90 p-2 text-foreground shadow-lg transition md:block",
+                        expandedDate === cell.dateStr
+                          ? "pointer-events-auto opacity-100"
+                          : "pointer-events-none opacity-0",
+                      )}
+                    >
                       <div className="mb-1 text-[10px] font-semibold text-muted-foreground">
                         전체 일정
                       </div>
