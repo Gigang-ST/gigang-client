@@ -1,6 +1,6 @@
 import { DeployButton } from "@/components/deploy-button";
-import { EnvVarWarning } from "@/components/env-var-warning";
-import { AuthButton } from "@/components/auth-button";
+import { EnvVarWarning } from "@/components/auth/env-var-warning";
+import { AuthButton } from "@/components/auth/auth-button";
 import { hasEnvVars } from "@/lib/utils";
 import { Suspense } from "react";
 
