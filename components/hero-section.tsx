@@ -62,7 +62,10 @@ export default function HeroSection({
   const slides = baseSlides;
   const heroSubtitleLines = siteContent.hero.subtitleLines ?? [];
 
-  const navItems = siteContent.navigation.items;
+  const socialLabels = ["소모임", "인스타그램", "카카오톡", "가민 그룹"];
+  const navItems = siteContent.navigation.items.filter(
+    (item) => !socialLabels.includes(item.label),
+  );
   const isHashLink = (href: string) => href.startsWith("#");
   const isExternalLink = (href: string) => /^https?:\/\//.test(href);
 
