@@ -3,6 +3,7 @@
 import HeroSection from "@/components/hero-section";
 import { siteContent } from "@/config";
 import Image from "next/image";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
@@ -68,11 +69,17 @@ export default function AppShell({ children }: { children: ReactNode }) {
                   })}
                 </div>
                 <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-white/60">
-                  <span>개인정보처리방침</span>
+                  <Link href="/privacy" className="transition hover:text-white">
+                    개인정보처리방침
+                  </Link>
                   <span className="text-white/20">·</span>
-                  <span>이용약관</span>
+                  <Link href="/terms" className="transition hover:text-white">
+                    이용약관
+                  </Link>
                   <span className="text-white/20">·</span>
-                  <span>운영정책</span>
+                  <Link href="/policy" className="transition hover:text-white">
+                    운영정책
+                  </Link>
                 </div>
                 <div className="text-[10px] text-white/40">
                   © {currentYear} {siteContent.brand.shortName}. All rights reserved.
