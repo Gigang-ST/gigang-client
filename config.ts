@@ -106,9 +106,9 @@ export const siteContent: SiteContent = {
   navigation: {
     items: [
       { label: "회칙", href: "/rules" },
+      { label: "가입안내", href: "/join" },
       { label: "대회참여", href: "/races" },
       { label: "기강의전당", href: "/records" },
-      { label: "가입안내", href: "/join" },
       {
         label: "소모임",
         href: "https://www.somoim.co.kr/3beed52a-0620-11ef-a71d-0aebcbdc4a071",
