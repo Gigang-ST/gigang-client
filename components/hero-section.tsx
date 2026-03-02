@@ -150,7 +150,7 @@ export default function HeroSection({
           <Link
             href="/"
             className="flex items-center gap-3 text-white font-bold text-xl tracking-wider"
-            aria-label={`${siteContent.brand.shortName} 홈으로`}
+            aria-label={`${siteContent.brand.shortName} home`}
           >
             <Image
               src="/logo.webp"
@@ -225,7 +225,7 @@ export default function HeroSection({
           side="right"
           className="w-full border-none bg-black/95 p-0 text-white sm:max-w-none"
         >
-          <SheetTitle className="sr-only">모바일 메뉴</SheetTitle>
+          <SheetTitle className="sr-only">Mobile menu</SheetTitle>
           <div className="relative flex h-full flex-col items-center justify-center gap-8 px-6 py-10">
             {navItems.map((item) => {
               const baseClass =

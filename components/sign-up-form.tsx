@@ -13,7 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 export function SignUpForm({
@@ -31,6 +31,15 @@ export function SignUpForm({
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextParam = searchParams.get("next") ?? "/";
+  const normalizedNext =
+    nextParam.startsWith("/") && !nextParam.startsWith("//")
+      ? nextParam
+      : "/";
+  const safeNext = normalizedNext.startsWith("/protected")
+    ? "/"
+    : normalizedNext;
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,7 +61,7 @@ export function SignUpForm({
       });
       if (error) throw error;
       setOtpStep("verify");
-      setResendMessage("인증 코드가 이메일로 전송됐어요.");
+      setResendMessage("Verification code sent to your email.");
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {
@@ -79,7 +88,7 @@ export function SignUpForm({
       return;
     }
 
-    router.push("/protected");
+    router.push(safeNext);
   };
 
   const handleResendOtp = async () => {
@@ -99,7 +108,7 @@ export function SignUpForm({
       return;
     }
 
-    setResendMessage("인증 코드를 다시 보냈어요.");
+    setResendMessage("Verification code resent.");
     setIsResending(false);
   };
 
@@ -195,7 +204,7 @@ export function SignUpForm({
                     onClick={handleResendOtp}
                     disabled={isLoading || isVerifying || isResending}
                   >
-                    {isResending ? "재전송 중..." : "인증 코드 재전송"}
+                    {isResending ? "Resending..." : "Resend verification code"}
                   </Button>
                   <Button
                     type="button"
@@ -208,8 +217,8 @@ export function SignUpForm({
                     }}
                     disabled={isLoading || isVerifying || isResending}
                   >
-                  Change email
-                </Button>
+                    Change email
+                  </Button>
                 </>
               ) : null}
             </div>

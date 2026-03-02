@@ -61,7 +61,7 @@ const SheetContent = React.forwardRef<
       {children}
       <SheetPrimitive.Close className="absolute right-6 top-6 flex h-11 w-11 items-center justify-center rounded-full opacity-80 transition-opacity hover:opacity-100 focus:outline-none disabled:pointer-events-none">
         <X className="h-6 w-6" />
-        <span className="sr-only">닫기</span>
+        <span className="sr-only">Close</span>
       </SheetPrimitive.Close>
     </SheetPrimitive.Content>
   </SheetPortal>

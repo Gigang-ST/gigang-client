@@ -69,11 +69,11 @@ const rules = {
     {
       id: 3,
       title: "카카오톡 일정 참석여부 표시",
-        details: ["벙주를 위해 당일 변경사항은 댓글 또는 태그로 알려주세요"],
+        details: ["벙주를 위해 당일 변경사항은 댓글 or 태그로 알려주세요"],
     },
     {
       id: 4,
-      title: "스포츠 팀입니다",
+      title: "Sport Team 입니다",
       details: [
         "런닝, 자전거, 수영, 등산, 트레일런, 클라이밍, 탁구, 배드민턴 외 다수 벙 가능",
       ],
@@ -98,7 +98,7 @@ const requests = {
       id: 1,
       title: "JRC 인스타 팔로우 해주세요",
       href: "http://www.instagram.com/team_gigang",
-      description: "인스타그램 (@team_gigang)",
+      description: "Instagram (@team_gigang)",
     },
     {
       id: 2,
@@ -151,116 +151,114 @@ export default function JoinPage() {
     <div className="mx-auto flex min-h-full max-w-xl flex-col px-6 pb-16 pt-20 text-white md:px-12 md:pt-28">
       <h1 className="text-3xl font-bold md:text-4xl">가입안내</h1>
 
-              <section className="mt-8 space-y-3">
-                {intro.paragraphs.map((p, i) => (
-                  <p key={i} className="text-white/80 leading-relaxed">
-                    {p}
-                  </p>
-                ))}
-              </section>
+      <section className="mt-8 space-y-3">
+        {intro.paragraphs.map((p, i) => (
+          <p key={i} className="text-white/80 leading-relaxed">
+            {p}
+          </p>
+        ))}
+      </section>
 
-              <section className="mt-10 space-y-3">
-                <h2 className="text-xl font-semibold">활동 정보</h2>
-                <dl className="space-y-2 text-white/80">
-                  <div className="flex gap-2">
-                    <dt className="font-medium text-white">연령대</dt>
-                    <dd>{highlights.ageRange}</dd>
-                  </div>
-                  <div className="flex gap-2">
-                    <dt className="font-medium text-white">활동지역</dt>
-                    <dd>{highlights.activityArea}</dd>
-                  </div>
-                  <div className="flex gap-2">
-                    <dt className="font-medium text-white">주요 활동</dt>
-                    <dd>{highlights.primaryActivities.join(", ")}</dd>
-                  </div>
-                </dl>
-              </section>
+      <section className="mt-10 space-y-3">
+        <h2 className="text-xl font-semibold">활동 정보</h2>
+        <dl className="space-y-2 text-white/80">
+          <div className="flex gap-2">
+            <dt className="font-medium text-white">연령대</dt>
+            <dd>{highlights.ageRange}</dd>
+          </div>
+          <div className="flex gap-2">
+            <dt className="font-medium text-white">활동지역</dt>
+            <dd>{highlights.activityArea}</dd>
+          </div>
+          <div className="flex gap-2">
+            <dt className="font-medium text-white">주요 활동</dt>
+            <dd>{highlights.primaryActivities.join(", ")}</dd>
+          </div>
+        </dl>
+      </section>
 
-              <section className="mt-10 space-y-4">
-                <h2 className="text-xl font-semibold">
-                  {meetingPlaces.heading}
-                </h2>
-                <div className="space-y-3">
-                  {meetingPlaces.items.map((place) => (
-                    <div
-                      key={place.id}
-                      className="rounded-lg border border-white/10 bg-white/5 p-4"
-                    >
-                      <h3 className="font-medium">{place.title}</h3>
-                      <p className="mt-1 text-sm text-white/70">
-                        {place.description}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </section>
+      <section className="mt-10 space-y-4">
+        <h2 className="text-xl font-semibold">{meetingPlaces.heading}</h2>
+        <div className="space-y-3">
+          {meetingPlaces.items.map((place) => (
+            <div
+              key={place.id}
+              className="rounded-lg border border-white/10 bg-white/5 p-4"
+            >
+              <h3 className="font-medium">{place.title}</h3>
+              <p className="mt-1 text-sm text-white/70">
+                {place.description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
 
-              {feeRule && (
-                <section className="mt-10 space-y-3">
-                  <h2 className="text-xl font-semibold">{feeRule.title}</h2>
-                  <ul className="space-y-1 text-white/80">
-                    {feeRule.details.map((detail, i) => (
-                      <li key={i} className="leading-relaxed">
-                        {detail}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
+      {feeRule && (
+        <section className="mt-10 space-y-3">
+          <h2 className="text-xl font-semibold">{feeRule.title}</h2>
+          <ul className="space-y-1 text-white/80">
+            {feeRule.details.map((detail, i) => (
+              <li key={i} className="leading-relaxed">
+                {detail}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section className="mt-10 space-y-3">
+        <h2 className="text-xl font-semibold">{requests.heading}</h2>
+        <p className="text-sm text-white/50">{requests.note}</p>
+        <ul className="space-y-2">
+          {requests.items.map((item) => (
+            <li key={item.id} className="text-white/80">
+              {item.href ? (
+                <a
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-2 hover:text-white"
+                >
+                  {item.title}
+                </a>
+              ) : (
+                <span>{item.title}</span>
               )}
+              {item.description && (
+                <span className="ml-2 text-sm text-white/50">
+                  ({item.description})
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
 
-              <section className="mt-10 space-y-3">
-                <h2 className="text-xl font-semibold">{requests.heading}</h2>
-                <p className="text-sm text-white/50">{requests.note}</p>
-                <ul className="space-y-2">
-                  {requests.items.map((item) => (
-                    <li key={item.id} className="text-white/80">
-                      {item.href ? (
-                        <a
-                          href={item.href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="underline underline-offset-2 hover:text-white"
-                        >
-                          {item.title}
-                        </a>
-                      ) : (
-                        <span>{item.title}</span>
-                      )}
-                      {item.description && (
-                        <span className="ml-2 text-sm text-white/50">
-                          ({item.description})
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-
-              <section className="mt-10 space-y-3">
-                <h2 className="text-xl font-semibold">{contact.heading}</h2>
-                <p className="text-white/70">{contact.description}</p>
-                <div className="space-y-2">
-                  {contact.people.map((person, i) => (
-                    <div
-                      key={i}
-                      className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm"
-                    >
-                      <span className="font-medium">{person.role}</span>
-                      {person.instagram && (
-                        <span className="ml-3 text-white/60">
-                          인스타 {person.instagram}
-                        </span>
-                      )}
-                      {person.kakaoId && (
-                        <span className="ml-3 text-white/60">
-                          카카오 {person.kakaoId}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </section>
+      <section className="mt-10 space-y-3">
+        <h2 className="text-xl font-semibold">{contact.heading}</h2>
+        <p className="text-white/70">{contact.description}</p>
+        <div className="space-y-2">
+          {contact.people.map((person, i) => (
+            <div
+              key={i}
+              className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm"
+            >
+              <span className="font-medium">{person.role}</span>
+              {person.instagram && (
+                <span className="ml-3 text-white/60">
+                  IG {person.instagram}
+                </span>
+              )}
+              {person.kakaoId && (
+                <span className="ml-3 text-white/60">
+                  카카오 {person.kakaoId}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
 
       <div className="mt-12">
         <Button

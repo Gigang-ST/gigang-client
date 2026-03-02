@@ -18,11 +18,11 @@ export default function RulesPage() {
       {
         id: 3,
         title: "카카오톡 일정 참석여부 표시",
-        details: ["벙주를 위해 당일 변경사항은 댓글 또는 태그로 알려주세요"],
+        details: ["벙주를 위해 당일 변경사항은 댓글 or 태그로 알려주세요"],
       },
       {
         id: 4,
-        title: "스포츠 팀입니다",
+        title: "Sport Team 입니다",
         details: [
           "런닝, 자전거, 수영, 등산, 트레일런, 클라이밍, 탁구, 배드민턴 외 다수 벙 가능",
         ],
@@ -41,24 +41,22 @@ export default function RulesPage() {
 
   return (
     <div className="mx-auto flex min-h-full max-w-3xl flex-col px-6 pb-16 pt-20 text-white md:px-12 md:pt-28">
-      <h1 className="text-3xl font-bold md:text-4xl">
-        {rules.heading}
-      </h1>
+      <h1 className="text-3xl font-bold md:text-4xl">{rules.heading}</h1>
 
-              <ol className="mt-8 space-y-8 text-white/90">
-                {rules.items.map((item) => (
-                  <li key={item.id} className="space-y-3">
-                    <h2 className="text-lg font-semibold md:text-xl">
-                      {item.id}. {item.title}
-                    </h2>
-                    <ul className="list-disc space-y-2 pl-5 text-white/80">
-                      {item.details.map((detail) => (
-                        <li key={detail}>{detail}</li>
-                      ))}
-                    </ul>
-                  </li>
-                ))}
-              </ol>
+      <ol className="mt-8 space-y-8 text-white/90">
+        {rules.items.map((item) => (
+          <li key={item.id} className="space-y-3">
+            <h2 className="text-lg font-semibold md:text-xl">
+              {item.id}. {item.title}
+            </h2>
+            <ul className="list-disc space-y-2 pl-5 text-white/80">
+              {item.details.map((detail) => (
+                <li key={detail}>{detail}</li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

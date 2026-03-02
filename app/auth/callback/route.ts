@@ -6,7 +6,10 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   let next = searchParams.get("next") ?? "/";
 
-  if (!next.startsWith("/")) {
+  if (!next.startsWith("/") || next.startsWith("//")) {
+    next = "/";
+  }
+  if (next.startsWith("/protected")) {
     next = "/";
   }
 

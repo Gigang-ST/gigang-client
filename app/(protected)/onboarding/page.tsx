@@ -3,6 +3,15 @@ import { createClient } from "@/lib/supabase/server";
 import { MemberOnboardingForm } from "@/components/member-onboarding-form";
 
 export default async function Page() {
+  const nextParam = "/onboarding";
+  const normalizedNext =
+    nextParam.startsWith("/") && !nextParam.startsWith("//")
+      ? nextParam
+      : "/";
+  const safeNext = normalizedNext.startsWith("/protected")
+    ? "/"
+    : normalizedNext;
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -10,7 +19,7 @@ export default async function Page() {
   } = await supabase.auth.getUser();
 
   if (error || !user) {
-    redirect("/auth/login");
+    redirect(`/auth/login?next=${encodeURIComponent(safeNext)}`);
   }
 
   const { data: member } = await supabase
@@ -20,7 +29,7 @@ export default async function Page() {
     .maybeSingle();
 
   if (member) {
-    redirect("/protected");
+    redirect(safeNext === "/onboarding" ? "/" : safeNext);
   }
 
   const initialFullName =

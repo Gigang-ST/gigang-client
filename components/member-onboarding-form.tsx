@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 
@@ -50,6 +50,17 @@ export function MemberOnboardingForm({
   email,
 }: MemberOnboardingFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextParam = searchParams.get("next") ?? "/";
+  const normalizedNext =
+    nextParam.startsWith("/") && !nextParam.startsWith("//")
+      ? nextParam
+      : "/";
+  const safeNext =
+    normalizedNext.startsWith("/protected") ||
+    normalizedNext.startsWith("/onboarding")
+      ? "/"
+      : normalizedNext;
   const form = useForm<MemberOnboardingValues>({
     defaultValues: {
       fullName: initialFullName ?? "",
@@ -67,7 +78,7 @@ export function MemberOnboardingForm({
   const onSubmit = async (values: MemberOnboardingValues) => {
     const supabase = createClient();
     if (!email) {
-      form.setError("root", { message: "이메일이 필요합니다." });
+      form.setError("root", { message: "Email is required." });
       return;
     }
 
@@ -85,23 +96,23 @@ export function MemberOnboardingForm({
 
     if (error) {
       if (error.code === "23505") {
-        router.replace("/protected");
+        router.replace(safeNext);
         return;
       }
       form.setError("root", { message: error.message });
       return;
     }
 
-    router.replace("/protected");
+    router.replace(safeNext);
   };
 
   return (
     <div className={cn("flex flex-col gap-6")}>
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">프로필을 완성해주세요</CardTitle>
+          <CardTitle className="text-2xl">Complete your profile</CardTitle>
           <CardDescription>
-            가입을 마무리하려면 몇 가지 정보가 더 필요해요.
+            We need a few more details to finish your sign up.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -117,7 +128,7 @@ export function MemberOnboardingForm({
                 <FormField
                   control={form.control}
                   name="fullName"
-                  rules={{ required: "이름을 입력해주세요." }}
+                  rules={{ required: "Full name is required." }}
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>이름</FormLabel>
@@ -133,7 +144,7 @@ export function MemberOnboardingForm({
                   name="gender"
                   rules={{
                     validate: (value) =>
-                      value !== "" || "성별을 선택해주세요.",
+                      value !== "" || "Please select a gender.",
                   }}
                   render={({ field }) => (
                     <FormItem>
@@ -144,11 +155,11 @@ export function MemberOnboardingForm({
                           onValueChange={field.onChange}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="선택" />
+                            <SelectValue placeholder="Select" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="male">남성</SelectItem>
-                            <SelectItem value="female">여성</SelectItem>
+                            <SelectItem value="male">Male</SelectItem>
+                            <SelectItem value="female">Female</SelectItem>
                           </SelectContent>
                         </Select>
                       </FormControl>
@@ -159,7 +170,7 @@ export function MemberOnboardingForm({
                 <FormField
                   control={form.control}
                   name="birthday"
-                  rules={{ required: "생년월일을 입력해주세요." }}
+                  rules={{ required: "Birthday is required." }}
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>생년월일</FormLabel>
@@ -173,7 +184,7 @@ export function MemberOnboardingForm({
                 <FormField
                   control={form.control}
                   name="phone"
-                  rules={{ required: "연락처를 입력해주세요." }}
+                  rules={{ required: "Phone is required." }}
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>연락처</FormLabel>
@@ -195,8 +206,8 @@ export function MemberOnboardingForm({
                   disabled={form.formState.isSubmitting}
                 >
                   {form.formState.isSubmitting
-                    ? "저장 중..."
-                    : "저장하고 계속하기"}
+                    ? "Saving..."
+                    : "Save and continue"}
                 </Button>
               </div>
             </form>
