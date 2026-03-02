@@ -1,5 +1,3 @@
-import HeroSection from "@/components/hero-section";
-
 export default function RulesPage() {
   const rules = {
     heading: "회칙",
@@ -42,16 +40,10 @@ export default function RulesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black">
-      <HeroSection
-        showHeroContent={false}
-        showSliderNav={false}
-        overlay={
-          <div className="h-full overflow-y-auto">
-            <div className="mx-auto flex min-h-full max-w-3xl flex-col px-6 pb-16 pt-20 text-white md:px-12 md:pt-28">
-              <h1 className="text-3xl font-bold md:text-4xl">
-                {rules.heading}
-              </h1>
+    <div className="mx-auto flex min-h-full max-w-3xl flex-col px-6 pb-16 pt-20 text-white md:px-12 md:pt-28">
+      <h1 className="text-3xl font-bold md:text-4xl">
+        {rules.heading}
+      </h1>
 
               <ol className="mt-8 space-y-8 text-white/90">
                 {rules.items.map((item) => (
@@ -67,10 +59,6 @@ export default function RulesPage() {
                   </li>
                 ))}
               </ol>
-            </div>
-          </div>
-        }
-      />
     </div>
   );
 }

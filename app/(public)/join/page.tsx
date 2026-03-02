@@ -1,4 +1,3 @@
-import HeroSection from "@/components/hero-section";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
@@ -149,14 +148,8 @@ const feeRule = rules.items.find((item) => item.id === 5);
 
 export default function JoinPage() {
   return (
-    <div className="min-h-screen bg-black">
-      <HeroSection
-        showHeroContent={false}
-        showSliderNav={false}
-        overlay={
-          <div className="h-full overflow-y-auto">
-            <div className="mx-auto flex min-h-full max-w-xl flex-col px-6 pb-16 pt-20 text-white md:px-12 md:pt-28">
-              <h1 className="text-3xl font-bold md:text-4xl">가입안내</h1>
+    <div className="mx-auto flex min-h-full max-w-xl flex-col px-6 pb-16 pt-20 text-white md:px-12 md:pt-28">
+      <h1 className="text-3xl font-bold md:text-4xl">가입안내</h1>
 
               <section className="mt-8 space-y-3">
                 {intro.paragraphs.map((p, i) => (
@@ -269,19 +262,15 @@ export default function JoinPage() {
                 </div>
               </section>
 
-              <div className="mt-12">
-                <Button
-                  asChild
-                  size="lg"
-                  className="w-full bg-white text-black hover:bg-white/90 text-base"
-                >
-                  <Link href="/auth/login">가입신청</Link>
-                </Button>
-              </div>
-            </div>
-          </div>
-        }
-      />
+      <div className="mt-12">
+        <Button
+          asChild
+          size="lg"
+          className="w-full bg-white text-black hover:bg-white/90 text-base"
+        >
+          <Link href="/auth/login">가입신청</Link>
+        </Button>
+      </div>
     </div>
   );
 }

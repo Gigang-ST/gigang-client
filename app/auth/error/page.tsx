@@ -12,11 +12,11 @@ async function ErrorContent({
     <>
       {params?.error ? (
         <p className="text-sm text-muted-foreground">
-          오류 코드: {params.error}
+          Code error: {params.error}
         </p>
       ) : (
         <p className="text-sm text-muted-foreground">
-          알 수 없는 오류가 발생했습니다.
+          An unspecified error occurred.
         </p>
       )}
     </>
@@ -35,7 +35,7 @@ export default function Page({
           <Card>
             <CardHeader>
               <CardTitle className="text-2xl">
-                문제가 발생했습니다.
+                Sorry, something went wrong.
               </CardTitle>
             </CardHeader>
             <CardContent>

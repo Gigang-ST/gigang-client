@@ -2,7 +2,6 @@ import { DeployButton } from "@/components/deploy-button";
 import { EnvVarWarning } from "@/components/env-var-warning";
 import { AuthButton } from "@/components/auth-button";
 import { hasEnvVars } from "@/lib/utils";
-import Link from "next/link";
 import { Suspense } from "react";
 
 export default function ProtectedLayout({
@@ -12,31 +11,26 @@ export default function ProtectedLayout({
 }) {
   return (
     <main className="min-h-screen flex flex-col items-center text-white">
-      <div className="flex-1 w-full flex flex-col gap-20 items-center">
-        <nav className="w-full flex justify-center border-b border-white/10 h-16">
-          <div className="w-full max-w-5xl flex justify-between items-center p-3 px-5 text-sm text-white/90">
-            <div className="flex gap-5 items-center font-semibold">
-              <Link href={"/"}>Next.js · Supabase 스타터</Link>
-              <div className="flex items-center gap-2">
-                <DeployButton />
-              </div>
-            </div>
-            {!hasEnvVars ? (
-              <EnvVarWarning />
-            ) : (
-              <Suspense>
-                <AuthButton />
-              </Suspense>
-            )}
+      <div className="flex-1 w-full flex flex-col gap-10 items-center">
+        <div className="w-full max-w-5xl px-5 pt-20 flex items-center justify-between text-sm text-white/90">
+          <div className="flex items-center gap-2">
+            <DeployButton />
           </div>
-        </nav>
-        <div className="flex-1 flex flex-col gap-20 max-w-5xl p-5">
+          {!hasEnvVars ? (
+            <EnvVarWarning />
+          ) : (
+            <Suspense>
+              <AuthButton />
+            </Suspense>
+          )}
+        </div>
+        <div className="flex-1 flex flex-col gap-20 max-w-5xl p-5 w-full">
           {children}
         </div>
 
         <footer className="w-full flex items-center justify-center border-t border-white/10 mx-auto text-center text-xs gap-4 py-6 text-white/70">
           <p>
-            Supabase로 구동{" "}
+            Powered by{" "}
             <a
               href="https://supabase.com/?utm_source=create-next-app&utm_medium=template&utm_term=nextjs"
               target="_blank"
