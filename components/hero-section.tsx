@@ -44,12 +44,14 @@ const baseSlides = heroSources.map((image, index) => ({
 type HeroSectionProps = {
   showHeroContent?: boolean;
   showSliderNav?: boolean;
+  showNavigation?: boolean;
   overlay?: ReactNode;
 };
 
 export default function HeroSection({
   showHeroContent = true,
   showSliderNav = true,
+  showNavigation = true,
   overlay,
 }: HeroSectionProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -141,7 +143,8 @@ export default function HeroSection({
       </Carousel>
 
       {/* Navigation */}
-      <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+      {showNavigation ? (
+        <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
         <nav className="relative z-20 flex items-center justify-between p-6 md:p-8">
           {/* Logo/Brand */}
           <Link
@@ -267,7 +270,8 @@ export default function HeroSection({
             })}
           </div>
         </SheetContent>
-      </Sheet>
+        </Sheet>
+      ) : null}
 
       {showHeroContent ? (
         <div className="absolute inset-0 z-10 flex items-center justify-center px-6 pointer-events-none md:items-start md:justify-start md:px-12 md:pt-36">
