@@ -12,6 +12,17 @@ export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
   title: siteContent.metadata.title,
   description: siteContent.metadata.description,
+  openGraph: {
+    title: siteContent.metadata.title,
+    description: siteContent.metadata.description,
+    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: siteContent.metadata.title,
+    description: siteContent.metadata.description,
+    images: ["/og-image.png"],
+  },
 };
 
 const geistSans = Geist({
