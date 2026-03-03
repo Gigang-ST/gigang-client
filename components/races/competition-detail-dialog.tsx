@@ -104,6 +104,7 @@ export function CompetitionDetailDialog({
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (!competition) return;
 
     if (!canSubmit) {
       setStatusMessage("참가 종목을 선택해줘.");
@@ -122,7 +123,7 @@ export function CompetitionDetailDialog({
   }
 
   async function handleDelete() {
-    if (!registration) return;
+    if (!registration || !competition) return;
     setIsSaving(true);
     const result = await onDelete(registration.id, competition.id);
     setIsSaving(false);

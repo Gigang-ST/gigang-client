@@ -16,6 +16,7 @@ import type {
   CompetitionRegistration,
   MemberStatus,
 } from "./types";
+import { CompetitionChip } from "./competition-chip";
 
 const COMPETITION_FIELDS =
   "id, external_id, sport, title, start_date, end_date, location, event_types, source_url";
