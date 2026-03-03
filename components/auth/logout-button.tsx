@@ -8,7 +8,7 @@ type LogoutButtonProps = Omit<ButtonProps, "onClick"> & {
   label?: string;
 };
 
-export function LogoutButton({ label = "Logout", ...props }: LogoutButtonProps) {
+export function LogoutButton({ label = "로그아웃", ...props }: LogoutButtonProps) {
   const router = useRouter();
 
   const logout = async () => {
