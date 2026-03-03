@@ -16,7 +16,9 @@ import type {
   CompetitionRegistration,
   MemberStatus,
 } from "./types";
-import { CompetitionChip } from "./competition-chip";
+import { resolveSportConfig } from "./sport-config";
+import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const COMPETITION_FIELDS =
   "id, external_id, sport, title, start_date, end_date, location, event_types, source_url";
@@ -383,31 +385,35 @@ export function CompetitionCalendar() {
       />
 
       <div className="px-4 pb-4 pt-3 md:hidden">
-        <div className="flex items-center justify-between text-xs text-white/70">
-          <span className="font-semibold text-white">선택한 날짜</span>
-          <span>{formatDate(selectedDateStr)}</span>
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold text-white">
+            {formatDate(selectedDateStr)}
+          </span>
+          {!competitionsLoading && (
+            <span className="text-xs text-white/50">
+              {(competitionsByDate.get(selectedDateStr) ?? []).length}개 일정
+            </span>
+          )}
         </div>
-        <div className="mt-3 flex flex-col gap-2">
+        <div className="mt-3 flex max-h-[50vh] flex-col gap-2.5 overflow-y-auto">
           {competitionsLoading ? (
             <>
-              <div className="h-8 animate-pulse rounded-md bg-white/10" />
-              <div className="h-8 animate-pulse rounded-md bg-white/10" />
+              <MobileCompetitionCardSkeleton />
+              <MobileCompetitionCardSkeleton />
             </>
           ) : (competitionsByDate.get(selectedDateStr) ?? []).length === 0 ? (
-            <p className="rounded-md border border-dashed border-white/15 bg-white/[0.03] px-3 py-3 text-xs text-white/60">
+            <p className="rounded-lg border border-dashed border-white/15 bg-white/[0.03] px-4 py-6 text-center text-xs text-white/50">
               이 날짜에 일정이 없습니다.
             </p>
           ) : (
             (competitionsByDate.get(selectedDateStr) ?? []).map((competition) => (
-              <CompetitionChip
+              <MobileCompetitionCard
                 key={`${competition.id}-mobile`}
                 competition={competition}
-                onClick={() => handleSelectCompetition(competition)}
                 isRegistered={Boolean(
                   registrationsByCompetitionId[competition.id],
                 )}
-                truncate={false}
-                className="px-3 py-2 text-sm leading-snug"
+                onClick={() => handleSelectCompetition(competition)}
               />
             ))
           )}
@@ -428,6 +434,72 @@ export function CompetitionCalendar() {
         onUpdate={updateRegistration}
         onDelete={deleteRegistration}
       />
+    </div>
+  );
+}
+
+function MobileCompetitionCard({
+  competition,
+  isRegistered,
+  onClick,
+}: {
+  competition: Competition;
+  isRegistered: boolean;
+  onClick: () => void;
+}) {
+  const sportConfig = resolveSportConfig(competition.sport);
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-start gap-3 rounded-lg bg-white/[0.06] px-3 py-2.5 text-left transition-colors hover:bg-white/[0.10]",
+        isRegistered && "ring-1 ring-primary/60",
+      )}
+    >
+      <span
+        className={cn(
+          "mt-0.5 h-8 w-1 shrink-0 rounded-full",
+          sportConfig.dotClass,
+        )}
+      />
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="text-sm font-medium leading-snug text-white">
+          {competition.title}
+        </span>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-white/60">
+          {competition.sport && (
+            <span className="inline-flex items-center gap-1">
+              <span
+                className={cn("size-1.5 rounded-full", sportConfig.dotClass)}
+              />
+              {sportConfig.label}
+            </span>
+          )}
+          {competition.location && (
+            <span className="truncate">{competition.location}</span>
+          )}
+          {competition.event_types && competition.event_types.length > 0 && (
+            <span>{competition.event_types.map((t) => t.toUpperCase()).join(" · ")}</span>
+          )}
+        </div>
+      </div>
+      {isRegistered && (
+        <span className="mt-1 shrink-0 text-[10px] font-medium text-primary">
+          참가
+        </span>
+      )}
+    </button>
+  );
+}
+
+function MobileCompetitionCardSkeleton() {
+  return (
+    <div className="flex items-start gap-3 rounded-lg bg-white/[0.06] px-3 py-2.5">
+      <Skeleton className="mt-0.5 h-8 w-1 rounded-full" />
+      <div className="flex flex-1 flex-col gap-1.5">
+        <Skeleton className="h-3.5 w-3/4 rounded" />
+        <Skeleton className="h-2.5 w-1/2 rounded" />
+      </div>
     </div>
   );
 }

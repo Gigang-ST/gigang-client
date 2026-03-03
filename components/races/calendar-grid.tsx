@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Competition, CompetitionRegistration } from "./types";
 import { CompetitionChip } from "./competition-chip";
+import { resolveSportConfig } from "./sport-config";
 import { getCalendarCells } from "./date-utils";
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -22,6 +23,19 @@ interface CalendarGridProps {
 }
 
 const SKELETON_COUNT = 4;
+
+function getUniqueSportDots(competitions: Competition[]) {
+  const seen = new Set<string>();
+  const dots: string[] = [];
+  for (const comp of competitions) {
+    const config = resolveSportConfig(comp.sport);
+    if (!seen.has(config.key)) {
+      seen.add(config.key);
+      dots.push(config.dotClass);
+    }
+  }
+  return dots;
+}
 
 export function CalendarGrid({
   currentDate,
@@ -54,11 +68,12 @@ export function CalendarGrid({
         ))}
       </div>
 
-      <div className="grid flex-1 grid-cols-7 grid-rows-[repeat(6,minmax(5rem,auto))] overflow-visible">
+      <div className="grid flex-1 grid-cols-7 grid-rows-[repeat(6,minmax(2.5rem,auto))] md:grid-rows-[repeat(6,minmax(5rem,auto))] overflow-visible">
         {cells.map((cell) => {
           const competitions = competitionsByDate.get(cell.dateStr) ?? [];
           const dayOfWeek = new Date(`${cell.dateStr}T00:00:00`).getDay();
           const isSelected = selectedDateStr === cell.dateStr;
+          const sportDots = getUniqueSportDots(competitions);
 
           return (
             <div
@@ -73,7 +88,7 @@ export function CalendarGrid({
                 }
               }}
               className={cn(
-                "group relative flex flex-col border-b border-r border-white/10 p-1 text-left transition-colors hover:bg-white/[0.04] lg:p-1.5",
+                "group relative flex flex-col border-b border-r border-white/10 p-0.5 text-left transition-colors hover:bg-white/[0.04] md:p-1 lg:p-1.5",
                 !cell.isCurrentMonth && "bg-white/[0.005]",
                 isSelected && "bg-white/[0.08] ring-1 ring-white/30",
               )}
@@ -91,7 +106,29 @@ export function CalendarGrid({
                 {cell.day}
               </span>
 
-              <div className="mt-0.5 flex min-h-[4.25rem] flex-col gap-0.5">
+              {/* Mobile: sport color dots */}
+              <div
+                className={cn(
+                  "mt-0.5 flex flex-wrap items-center gap-1 md:hidden",
+                  !cell.isCurrentMonth && "opacity-40",
+                )}
+              >
+                {loading ? (
+                  cell.isCurrentMonth && (
+                    <Skeleton className="h-1.5 w-5 rounded-full" />
+                  )
+                ) : (
+                  sportDots.map((dotClass, i) => (
+                    <span
+                      key={i}
+                      className={cn("size-1.5 rounded-full", dotClass)}
+                    />
+                  ))
+                )}
+              </div>
+
+              {/* Desktop: full competition chips */}
+              <div className="mt-0.5 hidden min-h-[4.25rem] flex-col gap-0.5 md:flex">
                 {loading ? (
                   cell.isCurrentMonth && Array.from({ length: SKELETON_COUNT }).map((_, i) => (
                     <Skeleton key={i} className="h-4 w-full rounded-sm" />
@@ -121,7 +158,7 @@ export function CalendarGrid({
                     </button>
                     <div
                       className={cn(
-                        "absolute left-0 top-full z-30 mt-1 hidden w-56 max-h-48 overflow-y-auto rounded-md border border-white/40 bg-white/90 p-2 text-foreground shadow-lg transition md:block",
+                        "absolute left-0 top-full z-30 mt-1 w-56 max-h-48 overflow-y-auto rounded-md border border-white/40 bg-white/90 p-2 text-foreground shadow-lg transition",
                         expandedDate === cell.dateStr
                           ? "pointer-events-auto opacity-100"
                           : "pointer-events-none opacity-0",

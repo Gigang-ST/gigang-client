@@ -56,7 +56,7 @@ export function CalendarHeader({
         </Button>
       </div>
 
-      <div className="flex flex-col items-end gap-2 text-xs text-white">
+      <div className="hidden flex-col items-end gap-2 text-xs text-white md:flex">
         <span className="font-semibold text-white">색상 구분</span>
         <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-white/90 sm:grid-cols-3">
           {SPORT_LEGEND.map((legend) => (
