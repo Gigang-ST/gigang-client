@@ -21,8 +21,7 @@ interface CalendarGridProps {
   onToggleExpanded?: (dateStr: string) => void;
 }
 
-// Deterministic skeleton counts per cell index to avoid layout shift
-const SKELETON_PATTERN = [1, 0, 2, 0, 1, 0, 0, 0, 1, 0, 0, 2, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0];
+const SKELETON_COUNT = 3;
 
 export function CalendarGrid({
   currentDate,
@@ -92,9 +91,9 @@ export function CalendarGrid({
                 {cell.day}
               </span>
 
-              <div className="mt-0.5 flex flex-col gap-0.5">
-                {loading && cell.isCurrentMonth && SKELETON_PATTERN[cells.indexOf(cell)] > 0 ? (
-                  Array.from({ length: SKELETON_PATTERN[cells.indexOf(cell)] }).map((_, i) => (
+              <div className="mt-0.5 flex min-h-[3.25rem] flex-col gap-0.5">
+                {loading ? (
+                  cell.isCurrentMonth && Array.from({ length: SKELETON_COUNT }).map((_, i) => (
                     <Skeleton key={i} className="h-4 w-full rounded-sm" />
                   ))
                 ) : competitions.slice(0, 3).map((competition) => (
