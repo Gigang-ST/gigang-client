@@ -60,7 +60,7 @@ export function LoginForm({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card className="bg-transparent">
         <CardHeader>
-          <CardTitle className="text-2xl">Login</CardTitle>
+          <CardTitle className="text-2xl">로그인</CardTitle>
         </CardHeader>
         <CardContent className="bg-transparent">
           <div className="flex flex-col gap-6">
@@ -75,8 +75,8 @@ export function LoginForm({
                 <Image src="/kakao.png" alt="Kakao" width={18} height={18} />
                 <span>
                   {oauthProvider === "kakao"
-                    ? "Connecting..."
-                    : "Sign in with Kakao"}
+                    ? "연결 중..."
+                    : "카카오로 로그인"}
                 </span>
               </span>
               <span className="w-4" aria-hidden />
@@ -92,8 +92,8 @@ export function LoginForm({
                 <Image src="/google.webp" alt="Google" width={18} height={18} />
                 <span>
                   {oauthProvider === "google"
-                    ? "Connecting..."
-                    : "Sign in with Google"}
+                    ? "연결 중..."
+                    : "구글로 로그인"}
                 </span>
               </span>
               <span className="w-4" aria-hidden />
