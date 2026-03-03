@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -176,9 +175,6 @@ export function ProfileForm({ userId, initialValues }: ProfileFormProps) {
     <Card className="border border-black/10 bg-white text-foreground shadow-lg">
       <CardHeader>
         <CardTitle className="text-2xl">프로필</CardTitle>
-        <CardDescription>
-          내 정보를 수정하고 OAuth 연결도 여기서 할 수 있습니다.
-        </CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
