@@ -30,7 +30,7 @@ export function CompetitionChip({
         truncate ? "truncate" : "whitespace-normal",
         resolveSportConfig(competition.sport).chipClass,
         isRegistered &&
-          "bg-primary text-primary-foreground ring-1 ring-offset-1 ring-primary",
+          "!bg-primary !text-primary-foreground ring-2 ring-primary ring-offset-1 ring-offset-background font-bold",
         className,
       )}
       title={competition.title}

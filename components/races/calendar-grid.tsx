@@ -74,6 +74,9 @@ export function CalendarGrid({
           const dayOfWeek = new Date(`${cell.dateStr}T00:00:00`).getDay();
           const isSelected = selectedDateStr === cell.dateStr;
           const sportDots = getUniqueSportDots(competitions);
+          const hasRegistration = competitions.some(
+            (c) => Boolean(registrationsByCompetitionId[c.id]),
+          );
 
           return (
             <div
@@ -106,7 +109,7 @@ export function CalendarGrid({
                 {cell.day}
               </span>
 
-              {/* Mobile: sport color dots */}
+              {/* Mobile: sport color dots + registration indicator */}
               <div
                 className={cn(
                   "mt-0.5 flex flex-wrap items-center gap-1 md:hidden",
@@ -117,6 +120,8 @@ export function CalendarGrid({
                   cell.isCurrentMonth && (
                     <Skeleton className="h-1.5 w-5 rounded-full" />
                   )
+                ) : hasRegistration ? (
+                  <span className="size-2 rounded-full bg-primary ring-2 ring-primary/30" />
                 ) : (
                   sportDots.map((dotClass, i) => (
                     <span

@@ -447,20 +447,29 @@ function MobileCompetitionCard({
     <button
       onClick={onClick}
       className={cn(
-        "flex w-full items-start gap-3 rounded-lg bg-white/[0.06] px-3 py-2.5 text-left transition-colors hover:bg-white/[0.10]",
-        isRegistered && "ring-1 ring-primary/60",
+        "flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors",
+        isRegistered
+          ? "bg-primary/15 ring-1 ring-primary/40 hover:bg-primary/20"
+          : "bg-white/[0.06] hover:bg-white/[0.10]",
       )}
     >
       <span
         className={cn(
           "mt-0.5 h-8 w-1 shrink-0 rounded-full",
-          sportConfig.dotClass,
+          isRegistered ? "bg-primary" : sportConfig.dotClass,
         )}
       />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="text-sm font-medium leading-snug text-white">
-          {competition.title}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium leading-snug text-white">
+            {competition.title}
+          </span>
+          {isRegistered && (
+            <span className="shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground">
+              참가중
+            </span>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-white/60">
           {competition.sport && (
             <span className="inline-flex items-center gap-1">
@@ -478,11 +487,6 @@ function MobileCompetitionCard({
           )}
         </div>
       </div>
-      {isRegistered && (
-        <span className="mt-1 shrink-0 text-[10px] font-medium text-primary">
-          참가
-        </span>
-      )}
     </button>
   );
 }
