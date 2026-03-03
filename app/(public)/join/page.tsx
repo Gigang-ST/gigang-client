@@ -1,5 +1,7 @@
 import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import { Suspense } from "react";
 
 const intro = {
   heading: "기강단 소개",
@@ -146,6 +148,41 @@ const contact = {
 
 const feeRule = rules.items.find((item) => item.id === 5);
 
+async function JoinButton() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let isMember = false;
+  if (user) {
+    const { data: member } = await supabase
+      .from("member")
+      .select("id")
+      .eq("auth_user_id", user.id)
+      .maybeSingle();
+    isMember = !!member;
+  }
+
+  if (isMember) {
+    return (
+      <Button size="lg" disabled className="w-full text-base">
+        이미 가입된 회원입니다
+      </Button>
+    );
+  }
+
+  return (
+    <Button
+      asChild
+      size="lg"
+      className="w-full bg-white text-black hover:bg-white/90 text-base"
+    >
+      <Link href="/auth/login">가입신청</Link>
+    </Button>
+  );
+}
+
 export default function JoinPage() {
   return (
     <div className="mx-auto flex min-h-full max-w-xl flex-col px-6 pb-16 pt-20 text-white md:px-12 md:pt-28">
@@ -261,13 +298,15 @@ export default function JoinPage() {
       </section>
 
       <div className="mt-12">
-        <Button
-          asChild
-          size="lg"
-          className="w-full bg-white text-black hover:bg-white/90 text-base"
+        <Suspense
+          fallback={
+            <Button size="lg" disabled className="w-full text-base">
+              가입신청
+            </Button>
+          }
         >
-          <Link href="/auth/login">가입신청</Link>
-        </Button>
+          <JoinButton />
+        </Suspense>
       </div>
     </div>
   );
