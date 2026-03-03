@@ -179,7 +179,7 @@ export function ProfileForm({ userId, initialValues }: ProfileFormProps) {
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(saveProfile)}>
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-3">
               <FormField
                 control={form.control}
                 name="fullName"
