@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ProfileForm } from "@/components/auth/profile-form";
 import { PersonalBestForm } from "@/components/auth/personal-best-form";
+import { UtmbProfileForm } from "@/components/auth/utmb-profile-form";
 import { ProfileTabs } from "@/components/auth/profile-tabs";
 import { Suspense } from "react";
 
@@ -30,8 +31,14 @@ async function ProfileContent() {
 
   const { data: personalBests } = await supabase
     .from("personal_best")
-    .select("event_type, record_time_sec, utmb_index, utmb_profile_url, race_name, race_date")
+    .select("event_type, record_time_sec, race_name, race_date")
     .eq("member_id", member.id);
+
+  const { data: utmbProfile } = await supabase
+    .from("utmb_profile")
+    .select("utmb_profile_url, utmb_index")
+    .eq("member_id", member.id)
+    .maybeSingle();
 
   return (
     <div className="flex min-h-svh w-full items-center justify-center px-6 pb-6 pt-24 md:p-10 md:pt-28">
@@ -55,6 +62,12 @@ async function ProfileContent() {
             <PersonalBestForm
               memberId={member.id}
               initialRecords={personalBests ?? []}
+            />
+          }
+          utmbTab={
+            <UtmbProfileForm
+              memberId={member.id}
+              initialData={utmbProfile}
             />
           }
         />

@@ -2,19 +2,22 @@
 
 import { useState, type ReactNode } from "react";
 
-type Tab = "profile" | "pb";
+type Tab = "profile" | "pb" | "utmb";
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "profile", label: "프로필" },
   { value: "pb", label: "최고기록" },
+  { value: "utmb", label: "UTMB" },
 ];
 
 export function ProfileTabs({
   profileTab,
   pbTab,
+  utmbTab,
 }: {
   profileTab: ReactNode;
   pbTab: ReactNode;
+  utmbTab: ReactNode;
 }) {
   const [active, setActive] = useState<Tab>("profile");
 
@@ -36,7 +39,9 @@ export function ProfileTabs({
           </button>
         ))}
       </div>
-      {active === "profile" ? profileTab : pbTab}
+      {active === "profile" && profileTab}
+      {active === "pb" && pbTab}
+      {active === "utmb" && utmbTab}
     </div>
   );
 }

@@ -7,7 +7,6 @@ type RankingEntry = {
   name: string;
   record: string;
   raceName: string | null;
-  raceDate: string | null;
   utmbProfileUrl: string | null;
 };
 

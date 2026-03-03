@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { fetchUtmbIndex } from "@/app/actions/utmb";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -28,18 +27,15 @@ const EVENT_TYPES = [
   { value: "HALF", label: "하프마라톤" },
   { value: "FULL", label: "풀마라톤" },
   { value: "TRIATHLON", label: "철인3종" },
-  { value: "UTMB", label: "UTMB Index" },
 ] as const;
 
 type EventType = (typeof EVENT_TYPES)[number]["value"];
 
 type PersonalBestRecord = {
   event_type: EventType;
-  record_time_sec: number | null;
-  utmb_index: number | null;
-  utmb_profile_url: string | null;
-  race_name: string | null;
-  race_date: string | null;
+  record_time_sec: number;
+  race_name: string;
+  race_date: string;
 };
 
 type PersonalBestFormProps = {
@@ -303,21 +299,13 @@ export function PersonalBestForm({
   >("idle");
   const [message, setMessage] = useState<string | null>(null);
 
-  // Time-based event fields
   const [timeInput, setTimeInput] = useState("");
   const [raceName, setRaceName] = useState("");
   const [raceDate, setRaceDate] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [manualEntry, setManualEntry] = useState(false);
 
-  // UTMB fields
-  const [utmbUrl, setUtmbUrl] = useState("");
-  const [utmbIndex, setUtmbIndex] = useState<number | null>(null);
-  const [utmbName, setUtmbName] = useState("");
-  const [utmbFetching, setUtmbFetching] = useState(false);
-
   const currentRecord = records.find((r) => r.event_type === selectedEvent);
-  const isUtmb = selectedEvent === "UTMB";
 
   const handleEventChange = (eventType: EventType) => {
     setSelectedEvent(eventType);
@@ -327,29 +315,13 @@ export function PersonalBestForm({
 
     const existing = records.find((r) => r.event_type === eventType);
     if (existing) {
-      if (eventType === "UTMB") {
-        setUtmbUrl(existing.utmb_profile_url ?? "");
-        setUtmbIndex(existing.utmb_index);
-        setUtmbName("");
-        setTimeInput("");
-      } else {
-        setTimeInput(
-          existing.record_time_sec
-            ? secondsToTimeString(existing.record_time_sec)
-            : "",
-        );
-        setUtmbUrl("");
-        setUtmbIndex(null);
-      }
-      setRaceName(existing.race_name ?? "");
-      setRaceDate(existing.race_date ?? "");
+      setTimeInput(secondsToTimeString(existing.record_time_sec));
+      setRaceName(existing.race_name);
+      setRaceDate(existing.race_date);
     } else {
       setTimeInput("");
       setRaceName("");
       setRaceDate("");
-      setUtmbUrl("");
-      setUtmbIndex(null);
-      setUtmbName("");
     }
   };
 
@@ -359,90 +331,10 @@ export function PersonalBestForm({
     setManualEntry(false);
   };
 
-  const handleUtmbFetch = async () => {
-    if (!utmbUrl.trim()) {
-      setMessage("UTMB 프로필 URL을 입력해 주세요.");
-      setSaveState("error");
-      return;
-    }
-
-    setUtmbFetching(true);
-    setMessage(null);
-    setSaveState("idle");
-
-    const result = await fetchUtmbIndex(utmbUrl);
-
-    setUtmbFetching(false);
-
-    if (result.ok) {
-      setUtmbIndex(result.index);
-      setUtmbName(result.name);
-      setMessage(`UTMB Index: ${result.index} (${result.name})`);
-      setSaveState("success");
-    } else {
-      setUtmbIndex(null);
-      setUtmbName("");
-      setMessage(result.error);
-      setSaveState("error");
-    }
-  };
-
   const handleSave = async () => {
     setSaveState("saving");
     setMessage(null);
 
-    if (isUtmb) {
-      if (!utmbUrl.trim()) {
-        setSaveState("error");
-        setMessage("UTMB 프로필 URL을 입력해 주세요.");
-        return;
-      }
-      if (utmbIndex === null) {
-        setSaveState("error");
-        setMessage("먼저 '조회' 버튼으로 UTMB Index를 가져와 주세요.");
-        return;
-      }
-
-      const supabase = createClient();
-      const { error } = await supabase.from("personal_best").upsert(
-        {
-          member_id: memberId,
-          event_type: "UTMB",
-          record_time_sec: null,
-          utmb_index: utmbIndex,
-          utmb_profile_url: utmbUrl.trim(),
-          race_name: null,
-          race_date: null,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "member_id,event_type" },
-      );
-
-      if (error) {
-        setSaveState("error");
-        setMessage(error.message);
-        return;
-      }
-
-      setRecords((prev) => {
-        const next = prev.filter((r) => r.event_type !== "UTMB");
-        next.push({
-          event_type: "UTMB",
-          record_time_sec: null,
-          utmb_index: utmbIndex,
-          utmb_profile_url: utmbUrl.trim(),
-          race_name: null,
-          race_date: null,
-        });
-        return next;
-      });
-
-      setSaveState("success");
-      setMessage("저장 완료");
-      return;
-    }
-
-    // Time-based events
     if (!raceName.trim()) {
       setSaveState("error");
       setMessage("대회를 선택하거나 입력해 주세요.");
@@ -467,8 +359,6 @@ export function PersonalBestForm({
         member_id: memberId,
         event_type: selectedEvent,
         record_time_sec,
-        utmb_index: null,
-        utmb_profile_url: null,
         race_name: raceName.trim(),
         race_date: raceDate,
         updated_at: new Date().toISOString(),
@@ -487,8 +377,6 @@ export function PersonalBestForm({
       next.push({
         event_type: selectedEvent,
         record_time_sec,
-        utmb_index: null,
-        utmb_profile_url: null,
         race_name: raceName.trim(),
         race_date: raceDate,
       });
@@ -522,9 +410,6 @@ export function PersonalBestForm({
     setTimeInput("");
     setRaceName("");
     setRaceDate("");
-    setUtmbUrl("");
-    setUtmbIndex(null);
-    setUtmbName("");
     setSaveState("success");
     setMessage("삭제 완료");
   };
@@ -564,123 +449,79 @@ export function PersonalBestForm({
               })}
             </div>
 
-            {isUtmb ? (
-              <div className="flex flex-col gap-3">
-                <div>
-                  <Label>UTMB 프로필 URL</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="https://utmb.world/runner/1234567.firstname.lastname"
-                      value={utmbUrl}
-                      onChange={(e) => {
-                        setUtmbUrl(e.target.value);
-                        setUtmbIndex(null);
-                        setUtmbName("");
-                      }}
-                      className="flex-1"
-                    />
+            <div className="flex flex-col gap-3">
+              <div>
+                <Label>기록 (MM:SS 또는 HH:MM:SS)</Label>
+                <Input
+                  placeholder="예: 23:45 또는 1:45:30"
+                  value={timeInput}
+                  onChange={(e) => setTimeInput(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <Label>대회</Label>
+                {raceName && !manualEntry ? (
+                  <div className="flex items-center gap-2">
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-md border bg-white/50 px-3 py-2 text-sm">
+                      <span className="font-medium">{raceName}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {raceDate}
+                      </span>
+                    </div>
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={handleUtmbFetch}
-                      disabled={utmbFetching}
+                      size="sm"
+                      onClick={() => setSearchOpen(true)}
                     >
-                      {utmbFetching ? "조회 중..." : "조회"}
+                      변경
                     </Button>
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    utmb.world에서 본인 프로필 페이지 URL을 붙여넣으세요.
-                  </p>
-                </div>
-                {utmbIndex !== null && (
-                  <div className="rounded-md border bg-white/50 px-3 py-2">
-                    <span className="text-sm text-muted-foreground">
-                      UTMB Index:
-                    </span>{" "}
-                    <span className="text-lg font-bold">{utmbIndex}</span>
-                    {utmbName && (
-                      <span className="ml-2 text-sm text-muted-foreground">
-                        ({utmbName})
-                      </span>
-                    )}
+                ) : manualEntry ? (
+                  <div className="flex flex-col gap-2">
+                    <Input
+                      placeholder="대회명"
+                      value={raceName}
+                      onChange={(e) => setRaceName(e.target.value)}
+                    />
+                    <Input
+                      type="date"
+                      value={raceDate}
+                      onChange={(e) => setRaceDate(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setManualEntry(false);
+                        setSearchOpen(true);
+                      }}
+                      className="self-start text-xs text-muted-foreground underline"
+                    >
+                      대회 검색으로 돌아가기
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setSearchOpen(true)}
+                      className="justify-start text-muted-foreground font-normal"
+                    >
+                      대회를 검색하세요...
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => setManualEntry(true)}
+                      className="self-start text-xs text-muted-foreground underline"
+                    >
+                      목록에 없는 대회 직접 입력
+                    </button>
                   </div>
                 )}
               </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                <div>
-                  <Label>기록 (MM:SS 또는 HH:MM:SS)</Label>
-                  <Input
-                    placeholder="예: 23:45 또는 1:45:30"
-                    value={timeInput}
-                    onChange={(e) => setTimeInput(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <Label>대회</Label>
-                  {raceName && !manualEntry ? (
-                    <div className="flex items-center gap-2">
-                      <div className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-md border bg-white/50 px-3 py-2 text-sm">
-                        <span className="font-medium">{raceName}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {raceDate}
-                        </span>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSearchOpen(true)}
-                      >
-                        변경
-                      </Button>
-                    </div>
-                  ) : manualEntry ? (
-                    <div className="flex flex-col gap-2">
-                      <Input
-                        placeholder="대회명"
-                        value={raceName}
-                        onChange={(e) => setRaceName(e.target.value)}
-                      />
-                      <Input
-                        type="date"
-                        value={raceDate}
-                        onChange={(e) => setRaceDate(e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setManualEntry(false);
-                          setSearchOpen(true);
-                        }}
-                        className="self-start text-xs text-muted-foreground underline"
-                      >
-                        대회 검색으로 돌아가기
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setSearchOpen(true)}
-                        className="justify-start text-muted-foreground font-normal"
-                      >
-                        대회를 검색하세요...
-                      </Button>
-                      <button
-                        type="button"
-                        onClick={() => setManualEntry(true)}
-                        className="self-start text-xs text-muted-foreground underline"
-                      >
-                        목록에 없는 대회 직접 입력
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+            </div>
 
             <div className="flex gap-2">
               <Button
