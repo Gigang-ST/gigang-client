@@ -18,8 +18,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
     "가민 그룹": "/garmin.png",
   } as const;
 
-  const currentYear = new Date().getFullYear();
-
   return (
     <HeroSection
       showHeroContent={isHome}
@@ -82,7 +80,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                   </Link>
                 </div>
                 <div className="text-[10px] text-white/40">
-                  © {currentYear} {siteContent.brand.shortName}. All rights reserved.
+                  © 2026 {siteContent.brand.shortName}. All rights reserved.
                 </div>
               </div>
             </footer>
