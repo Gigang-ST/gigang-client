@@ -4,24 +4,23 @@ import "./globals.css";
 import AppShell from "@/components/app-shell";
 import { siteContent } from "@/config";
 
-const defaultUrl = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : "http://localhost:3000";
+const SITE_URL = "https://gigang-client-theta.vercel.app";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(defaultUrl),
+  metadataBase: new URL(SITE_URL),
   title: siteContent.metadata.title,
   description: siteContent.metadata.description,
   openGraph: {
     title: siteContent.metadata.title,
     description: siteContent.metadata.description,
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    siteName: siteContent.brand.fullName,
+    locale: "ko_KR",
+    type: "website",
   },
   twitter: {
     card: "summary_large_image",
     title: siteContent.metadata.title,
     description: siteContent.metadata.description,
-    images: ["/og-image.png"],
   },
 };
 
