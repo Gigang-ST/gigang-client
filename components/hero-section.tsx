@@ -328,7 +328,7 @@ export default function HeroSection({
       ) : null}
 
       {showSliderNav ? (
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-20">
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-20 hidden md:block">
           <div className="flex items-center space-x-4">
             {/* Slide Indicators */}
             <div className="flex space-x-2">
