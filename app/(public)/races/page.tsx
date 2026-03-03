@@ -2,8 +2,9 @@ import { CompetitionCalendar } from "@/components/races/competition-calendar";
 import { Card, CardContent } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
-export default async function RacesPage() {
+async function RacesContent() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -31,5 +32,13 @@ export default async function RacesPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function RacesPage() {
+  return (
+    <Suspense>
+      <RacesContent />
+    </Suspense>
   );
 }

@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { MemberOnboardingForm } from "@/components/auth/member-onboarding-form";
+import { Suspense } from "react";
 
-export default async function Page() {
+async function OnboardingContent() {
   const nextParam = "/onboarding";
   const safeNext =
     nextParam.startsWith("/") && !nextParam.startsWith("//")
@@ -46,5 +47,13 @@ export default async function Page() {
         />
       </div>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense>
+      <OnboardingContent />
+    </Suspense>
   );
 }

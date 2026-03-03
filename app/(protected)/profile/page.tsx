@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
-
 import { createClient } from "@/lib/supabase/server";
 import { ProfileForm } from "@/components/auth/profile-form";
+import { Suspense } from "react";
 
-export default async function Page() {
+async function ProfileContent() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -43,5 +43,13 @@ export default async function Page() {
         />
       </div>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense>
+      <ProfileContent />
+    </Suspense>
   );
 }
