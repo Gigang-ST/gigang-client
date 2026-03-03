@@ -2,10 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { User } from "lucide-react";
+import Link from "next/link";
 import { LogoutButton } from "@/components/auth/logout-button";
+import { createClient } from "@/lib/supabase/client";
 
 export function ProfileMenu() {
   const [isOpen, setIsOpen] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -40,6 +43,32 @@ export function ProfileMenu() {
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    const supabase = createClient();
+
+    const loadUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setHasSession(Boolean(data.user));
+    };
+
+    void loadUser();
+
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      setHasSession(Boolean(session?.user));
+      if (!session?.user) {
+        setIsOpen(false);
+      }
+    });
+
+    return () => {
+      data.subscription.unsubscribe();
+    };
+  }, []);
+
+  if (!hasSession) {
+    return null;
+  }
+
   return (
     <div className="relative">
       <button
@@ -60,6 +89,12 @@ export function ProfileMenu() {
           role="menu"
           className="absolute right-0 mt-3 w-40 rounded-md border border-white/10 bg-black/80 p-2 text-white shadow-lg backdrop-blur"
         >
+          <Link
+            href="/profile"
+            className="flex h-8 w-full items-center rounded-md px-2 text-sm text-white hover:bg-white/10"
+          >
+            프로필
+          </Link>
           <LogoutButton
             variant="ghost"
             size="sm"
