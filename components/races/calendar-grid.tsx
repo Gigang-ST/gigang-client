@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { Competition, CompetitionRegistration } from "./types";
 import { CompetitionChip } from "./competition-chip";
 import { getCalendarCells } from "./date-utils";
@@ -13,17 +14,22 @@ interface CalendarGridProps {
   competitionsByDate: Map<string, Competition[]>;
   registrationsByCompetitionId: Record<string, CompetitionRegistration>;
   onSelectCompetition: (competition: Competition) => void;
+  loading?: boolean;
   selectedDateStr?: string;
   onSelectDay?: (dateStr: string) => void;
   expandedDate?: string | null;
   onToggleExpanded?: (dateStr: string) => void;
 }
 
+// Deterministic skeleton counts per cell index to avoid layout shift
+const SKELETON_PATTERN = [1, 0, 2, 0, 1, 0, 0, 0, 1, 0, 0, 2, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0];
+
 export function CalendarGrid({
   currentDate,
   competitionsByDate,
   registrationsByCompetitionId,
   onSelectCompetition,
+  loading,
   selectedDateStr,
   onSelectDay,
   expandedDate,
@@ -87,7 +93,11 @@ export function CalendarGrid({
               </span>
 
               <div className="mt-0.5 flex flex-col gap-0.5">
-                {competitions.slice(0, 3).map((competition) => (
+                {loading && cell.isCurrentMonth && SKELETON_PATTERN[cells.indexOf(cell)] > 0 ? (
+                  Array.from({ length: SKELETON_PATTERN[cells.indexOf(cell)] }).map((_, i) => (
+                    <Skeleton key={i} className="h-4 w-full rounded-sm" />
+                  ))
+                ) : competitions.slice(0, 3).map((competition) => (
                   <CompetitionChip
                     key={competition.id}
                     competition={competition}
@@ -97,7 +107,7 @@ export function CalendarGrid({
                     )}
                   />
                 ))}
-                {competitions.length > 3 && (
+                {!loading && competitions.length > 3 && (
                   <div className="relative">
                     <button
                       type="button"

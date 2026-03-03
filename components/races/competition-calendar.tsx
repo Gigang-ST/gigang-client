@@ -355,11 +355,10 @@ export function CompetitionCalendar() {
         onToday={handleToday}
       />
 
-      {(competitionsLoading || competitionsError || registrationsError) && (
+      {!competitionsLoading && (competitionsError || registrationsError) && (
         <div className="px-4 pb-2 text-xs text-muted-foreground">
-          {competitionsLoading && "대회 일정을 불러오는 중..."}
-          {!competitionsLoading && competitionsError}
-          {!competitionsLoading && !competitionsError && registrationsError}
+          {competitionsError}
+          {!competitionsError && registrationsError}
         </div>
       )}
 
@@ -368,6 +367,7 @@ export function CompetitionCalendar() {
         competitionsByDate={competitionsByDate}
         registrationsByCompetitionId={registrationsByCompetitionId}
         onSelectCompetition={handleSelectCompetition}
+        loading={competitionsLoading}
         selectedDateStr={selectedDateStr}
         onSelectDay={(dateStr) => {
           setSelectedDateStr(dateStr);
@@ -385,9 +385,14 @@ export function CompetitionCalendar() {
           <span>{formatDate(selectedDateStr)}</span>
         </div>
         <div className="mt-3 flex flex-col gap-2">
-          {(competitionsByDate.get(selectedDateStr) ?? []).length === 0 ? (
+          {competitionsLoading ? (
+            <>
+              <div className="h-8 animate-pulse rounded-md bg-white/10" />
+              <div className="h-8 animate-pulse rounded-md bg-white/10" />
+            </>
+          ) : (competitionsByDate.get(selectedDateStr) ?? []).length === 0 ? (
             <p className="rounded-md border border-dashed border-white/15 bg-white/[0.03] px-3 py-3 text-xs text-white/60">
-              이 날짜엔 일정이 없어.
+              이 날짜에 일정이 없습니다.
             </p>
           ) : (
             (competitionsByDate.get(selectedDateStr) ?? []).map((competition) => (
