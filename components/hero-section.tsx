@@ -60,6 +60,7 @@ export default function HeroSection({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [carouselApi, setCarouselApi] = useState<CarouselApi>();
   const [isAuthed, setIsAuthed] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
   const fadePlugins = useMemo(() => [Fade()], []);
 
   const slides = baseSlides;
@@ -69,6 +70,7 @@ export default function HeroSection({
   const navItems = siteContent.navigation.items.filter(
     (item) =>
       !socialLabels.includes(item.label) &&
+      !(authLoading && (item.label === "가입안내" || item.label === "대회참여")) &&
       !(isAuthed && item.label === "가입안내") &&
       !(!isAuthed && item.label === "대회참여"),
   );
@@ -107,11 +109,8 @@ export default function HeroSection({
 
     supabase.auth.getUser().then(({ data, error }) => {
       if (!active) return;
-      if (error || !data?.user) {
-        setIsAuthed(false);
-        return;
-      }
-      setIsAuthed(true);
+      setIsAuthed(!error && Boolean(data?.user));
+      setAuthLoading(false);
     });
 
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
