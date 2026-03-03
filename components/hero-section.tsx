@@ -159,7 +159,7 @@ export default function HeroSection({
             aria-label={`${siteContent.brand.shortName} home`}
           >
             <Image
-              src="/logo.webp"
+              src="/logo_white.webp"
               alt={`${siteContent.brand.shortName} logo`}
               width={36}
               height={36}
