@@ -180,45 +180,47 @@ export function ProfileForm({ userId, initialValues }: ProfileFormProps) {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(saveProfile)}>
             <div className="flex flex-col gap-3">
-              <FormField
-                control={form.control}
-                name="fullName"
-                rules={{ required: "이름을 입력해 주세요." }}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>이름</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="홍길동" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="gender"
-                rules={{
-                  validate: (value) =>
-                    value !== "" || "성별을 선택해 주세요.",
-                }}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>성별</FormLabel>
-                    <FormControl>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="성별 선택" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="male">남자</SelectItem>
-                          <SelectItem value="female">여자</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="flex gap-3">
+                <FormField
+                  control={form.control}
+                  name="fullName"
+                  rules={{ required: "이름을 입력해 주세요." }}
+                  render={({ field }) => (
+                    <FormItem className="flex-1">
+                      <FormLabel>이름</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="홍길동" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="gender"
+                  rules={{
+                    validate: (value) =>
+                      value !== "" || "성별을 선택해 주세요.",
+                  }}
+                  render={({ field }) => (
+                    <FormItem className="w-28 shrink-0">
+                      <FormLabel>성별</FormLabel>
+                      <FormControl>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="성별 선택" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="male">남자</SelectItem>
+                            <SelectItem value="female">여자</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               <FormField
                 control={form.control}
                 name="birthday"
