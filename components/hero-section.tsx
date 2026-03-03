@@ -135,6 +135,7 @@ export default function HeroSection({
                 fill
                 draggable={false}
                 priority={index === 0}
+                quality={85}
                 sizes="100vw"
                 className="object-cover blur-[2px] scale-105 transition-all duration-1000 ease-in-out"
                 placeholder={slide.blurDataURL ? "blur" : "empty"}
