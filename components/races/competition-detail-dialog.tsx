@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatDateRange } from "./date-utils";
+import { resolveSportConfig } from "./sport-config";
 import type { Competition, CompetitionRegistration, MemberStatus } from "./types";
 
 const roleLabels = {
@@ -71,9 +72,12 @@ export function CompetitionDetailDialog({
   const [isSaving, setIsSaving] = useState(false);
 
   const eventTypeOptions = useMemo(() => {
-    const types = competition?.event_types ?? [];
-    return types.map((type) => type.toUpperCase());
-  }, [competition?.event_types]);
+    const explicit = competition?.event_types ?? [];
+    if (explicit.length > 0) {
+      return explicit.map((type) => type.toUpperCase());
+    }
+    return resolveSportConfig(competition?.sport ?? null).eventTypes;
+  }, [competition?.event_types, competition?.sport]);
 
   useEffect(() => {
     if (!competition || !open) return;
