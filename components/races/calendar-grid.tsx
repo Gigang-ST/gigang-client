@@ -21,7 +21,7 @@ interface CalendarGridProps {
   onToggleExpanded?: (dateStr: string) => void;
 }
 
-const SKELETON_COUNT = 3;
+const SKELETON_COUNT = 4;
 
 export function CalendarGrid({
   currentDate,
@@ -91,7 +91,7 @@ export function CalendarGrid({
                 {cell.day}
               </span>
 
-              <div className="mt-0.5 flex min-h-[3.25rem] flex-col gap-0.5">
+              <div className="mt-0.5 flex min-h-[4.25rem] flex-col gap-0.5">
                 {loading ? (
                   cell.isCurrentMonth && Array.from({ length: SKELETON_COUNT }).map((_, i) => (
                     <Skeleton key={i} className="h-4 w-full rounded-sm" />
