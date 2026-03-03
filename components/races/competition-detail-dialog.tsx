@@ -107,7 +107,7 @@ export function CompetitionDetailDialog({
     if (!competition) return;
 
     if (!canSubmit) {
-      setStatusMessage("참가 종목을 선택해줘.");
+      setStatusMessage("참가 종목을 선택해 주세요.");
       return;
     }
 
@@ -177,10 +177,10 @@ export function CompetitionDetailDialog({
         {showAuthMessage ? (
           <div className="flex flex-col gap-3 text-sm">
             {memberStatus.status === "signed-out" && (
-              <p>로그인 후 참가 신청을 할 수 있어.</p>
+              <p>로그인 후 참가 신청을 할 수 있습니다.</p>
             )}
             {memberStatus.status === "needs-onboarding" && (
-              <p>참가 신청 전에 회원 정보를 먼저 입력해줘.</p>
+              <p>참가 신청 전에 회원 정보를 먼저 입력해 주세요.</p>
             )}
             <Button asChild className="w-full">
               <Link

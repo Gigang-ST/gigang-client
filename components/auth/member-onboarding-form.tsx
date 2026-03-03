@@ -105,18 +105,24 @@ export function MemberOnboardingForm({
     [],
   );
 
-  const normalizePhone = (value: string) => value.replace(/\D/g, "");
-  const isValidPhone = (value: string) => /^010\d{8}$/.test(value);
+  const digitsOnly = (value: string) => value.replace(/\D/g, "");
+  const formatPhone = (value: string) => {
+    const digits = digitsOnly(value);
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
+  };
+  const isValidPhone = (value: string) => /^010\d{8}$/.test(digitsOnly(value));
 
   const handlePhoneSubmit = async (values: MemberOnboardingValues) => {
     const supabase = createClient();
-    const phoneValue = normalizePhone(values.phone.trim());
-    if (!phoneValue) {
-      form.setError("phone", { message: "연락처는 필수야." });
+    const phoneValue = formatPhone(values.phone.trim());
+    if (!digitsOnly(phoneValue)) {
+      form.setError("phone", { message: "연락처를 입력해 주세요." });
       return;
     }
     if (!isValidPhone(phoneValue)) {
-      form.setError("phone", { message: "010부터 시작하는 11자리 번호만 가능해." });
+      form.setError("phone", { message: "010으로 시작하는 11자리 번호를 입력해 주세요." });
       return;
     }
 
@@ -136,18 +142,18 @@ export function MemberOnboardingForm({
     if (lookupError) {
       if (lookupError.code === "PGRST116") {
         form.setError("root", {
-          message: "같은 번호로 등록된 회원이 여러 명이라 관리자 확인이 필요해.",
+          message: "같은 번호로 등록된 회원이 여러 명이라 관리자 확인이 필요합니다.",
         });
         return;
       }
-      form.setError("root", { message: "기존 회원 확인에 실패했어." });
+      form.setError("root", { message: "기존 회원 확인에 실패했습니다." });
       return;
     }
 
     if (existingMember) {
       if (existingMember.auth_user_id && existingMember.auth_user_id !== userId) {
         form.setError("root", {
-          message: "이미 다른 계정에 연결된 번호야.",
+          message: "이미 다른 계정에 연결된 번호입니다.",
         });
         return;
       }
@@ -174,13 +180,13 @@ export function MemberOnboardingForm({
   const onSubmit = async (values: MemberOnboardingValues) => {
     const supabase = createClient();
     const emailValue = (email ?? values.emailInput.trim()) || null;
-    const phoneValue = normalizePhone(values.phone.trim());
-    if (!phoneValue) {
-      form.setError("phone", { message: "연락처는 필수야." });
+    const phoneValue = formatPhone(values.phone.trim());
+    if (!digitsOnly(phoneValue)) {
+      form.setError("phone", { message: "연락처를 입력해 주세요." });
       return;
     }
     if (!isValidPhone(phoneValue)) {
-      form.setError("phone", { message: "010부터 시작하는 11자리 번호만 가능해." });
+      form.setError("phone", { message: "010으로 시작하는 11자리 번호를 입력해 주세요." });
       return;
     }
 
@@ -219,9 +225,9 @@ export function MemberOnboardingForm({
     <div className={cn("flex flex-col gap-6")}>
         <Card className="border border-black/20 bg-white/95 text-foreground shadow-2xl">
         <CardHeader>
-          <CardTitle className="text-2xl">Complete your profile</CardTitle>
+          <CardTitle className="text-2xl">회원 정보 입력</CardTitle>
           <CardDescription>
-            We need a few more details to finish your sign up.
+            가입을 완료하려면 몇 가지 정보가 더 필요합니다.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -238,10 +244,10 @@ export function MemberOnboardingForm({
                       control={form.control}
                       name="phone"
                       rules={{
-                        required: "Phone is required.",
+                        required: "연락처를 입력해 주세요.",
                         validate: (value) =>
-                          isValidPhone(normalizePhone(value)) ||
-                          "010부터 시작하는 11자리 번호만 가능해.",
+                          isValidPhone(value) ||
+                          "010으로 시작하는 11자리 번호를 입력해 주세요.",
                       }}
                       render={({ field }) => (
                         <FormItem>
@@ -250,17 +256,17 @@ export function MemberOnboardingForm({
                             <Input
                               type="tel"
                               inputMode="numeric"
-                              placeholder="01012345678 (하이픈 없이, 11자리)"
+                              placeholder="010-0000-0000"
                               value={field.value}
                               onChange={(event) =>
                                 field.onChange(
-                                  normalizePhone(event.target.value),
+                                  formatPhone(event.target.value),
                                 )
                               }
                             />
                           </FormControl>
                           <p className="text-xs text-muted-foreground">
-                            숫자만 입력해줘. 하이픈 없이 010부터.
+                            010으로 시작하는 휴대폰 번호를 입력해 주세요.
                           </p>
                           <FormMessage />
                         </FormItem>
@@ -310,7 +316,7 @@ export function MemberOnboardingForm({
                     <FormField
                       control={form.control}
                       name="fullName"
-                      rules={{ required: "Full name is required." }}
+                      rules={{ required: "이름을 입력해 주세요." }}
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>이름</FormLabel>
@@ -326,7 +332,7 @@ export function MemberOnboardingForm({
                       name="gender"
                       rules={{
                         validate: (value) =>
-                          value !== "" || "Please select a gender.",
+                          value !== "" || "성별을 선택해 주세요.",
                       }}
                       render={({ field }) => (
                         <FormItem>
@@ -340,8 +346,8 @@ export function MemberOnboardingForm({
                                 <SelectValue placeholder="성별 선택" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="male">Male</SelectItem>
-                                <SelectItem value="female">Female</SelectItem>
+                                <SelectItem value="male">남성</SelectItem>
+                                <SelectItem value="female">여성</SelectItem>
                               </SelectContent>
                             </Select>
                           </FormControl>
@@ -352,7 +358,7 @@ export function MemberOnboardingForm({
                     <FormField
                       control={form.control}
                       name="birthday"
-                      rules={{ required: "Birthday is required." }}
+                      rules={{ required: "생년월일을 입력해 주세요." }}
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>생년월일</FormLabel>
@@ -366,7 +372,7 @@ export function MemberOnboardingForm({
                     <FormField
                       control={form.control}
                       name="phone"
-                      rules={{ required: "Phone is required." }}
+                      rules={{ required: "연락처를 입력해 주세요." }}
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>연락처</FormLabel>
@@ -438,7 +444,7 @@ export function MemberOnboardingForm({
                           />
                           </FormControl>
                           <p className="text-xs text-muted-foreground">
-                            회비 및 기타 돈 환급시 사용해.
+                            회비 및 기타 환급 시 사용됩니다.
                           </p>
                           <FormMessage />
                         </FormItem>
@@ -456,8 +462,8 @@ export function MemberOnboardingForm({
                         disabled={form.formState.isSubmitting}
                       >
                         {form.formState.isSubmitting
-                          ? "Saving..."
-                          : "Save and continue"}
+                          ? "저장 중..."
+                          : "저장하고 계속하기"}
                       </Button>
                       <Button
                         type="button"
