@@ -46,16 +46,13 @@ export function CalendarHeader({
         </div>
       </div>
 
-      <div className="hidden flex-col items-end gap-2 text-xs text-white md:flex">
-        <span className="font-semibold text-white">색상 구분</span>
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-white/90 sm:grid-cols-3">
-          {SPORT_LEGEND.map((legend) => (
-            <span key={legend.key} className="inline-flex items-center gap-1.5">
-              <span className={`h-2 w-2 rounded-full ${legend.dotClass}`} />
-              <span>{legend.label}</span>
-            </span>
-          ))}
-        </div>
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-white/80">
+        {SPORT_LEGEND.map((legend) => (
+          <span key={legend.key} className="inline-flex items-center gap-1">
+            <span className={`size-1.5 rounded-full ${legend.dotClass}`} />
+            <span>{legend.label}</span>
+          </span>
+        ))}
       </div>
     </header>
   );
