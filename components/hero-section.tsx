@@ -23,7 +23,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { siteContent } from "@/config";
 import { ProfileMenu } from "@/components/auth/profile-menu";
-import { createClient } from "@/lib/supabase/client";
 
 const heroLqipMap = heroLqip as Record<string, string>;
 const fallbackHeroSources = Array.from(
@@ -59,8 +58,6 @@ export default function HeroSection({
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [carouselApi, setCarouselApi] = useState<CarouselApi>();
-  const [isAuthed, setIsAuthed] = useState(false);
-  const [authLoading, setAuthLoading] = useState(true);
   const fadePlugins = useMemo(() => [Fade()], []);
 
   const slides = baseSlides;
@@ -68,11 +65,7 @@ export default function HeroSection({
 
   const socialLabels = ["소모임", "인스타그램", "카카오톡", "가민 그룹"];
   const navItems = siteContent.navigation.items.filter(
-    (item) =>
-      !socialLabels.includes(item.label) &&
-      !(authLoading && (item.label === "가입안내" || item.label === "대회참여")) &&
-      !(isAuthed && item.label === "가입안내") &&
-      !(!isAuthed && item.label === "대회참여"),
+    (item) => !socialLabels.includes(item.label),
   );
   const isHashLink = (href: string) => href.startsWith("#");
   const isExternalLink = (href: string) => /^https?:\/\//.test(href);
@@ -103,26 +96,6 @@ export default function HeroSection({
     };
   }, [carouselApi]);
 
-  useEffect(() => {
-    const supabase = createClient();
-    let active = true;
-
-    supabase.auth.getUser().then(({ data, error }) => {
-      if (!active) return;
-      setIsAuthed(!error && Boolean(data?.user));
-      setAuthLoading(false);
-    });
-
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!active) return;
-      setIsAuthed(Boolean(session?.user));
-    });
-
-    return () => {
-      active = false;
-      data.subscription.unsubscribe();
-    };
-  }, []);
 
   useEffect(() => {
     if (!carouselApi) {

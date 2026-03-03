@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 
 export function ProfileMenu() {
   const [isOpen, setIsOpen] = useState(false);
-  const [hasSession, setHasSession] = useState(false);
+  const [hasSession, setHasSession] = useState<boolean | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -65,8 +65,17 @@ export function ProfileMenu() {
     };
   }, []);
 
+  // 로딩 중이거나 비로그인: 클릭 시 로그인 페이지로 이동
   if (!hasSession) {
-    return null;
+    return (
+      <Link
+        href="/auth/login"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-white/5 text-white/80 transition hover:border-white/40 hover:text-white"
+        aria-label="로그인"
+      >
+        <User size={18} />
+      </Link>
+    );
   }
 
   return (
