@@ -181,7 +181,7 @@ export function CompetitionCalendar() {
       if (!active) return;
 
       if (error) {
-        setCompetitionsError("대회 정보를 불러오지 못했어. 잠시 후 다시 시도해줘.");
+        setCompetitionsError("대회 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
         setCompetitions([]);
       } else {
         setCompetitions((data ?? []) as Competition[]);
@@ -223,7 +223,7 @@ export function CompetitionCalendar() {
       if (!active) return;
 
       if (error) {
-        setRegistrationsError("참가 신청 정보를 불러오지 못했어.");
+        setRegistrationsError("참가 신청 정보를 불러오지 못했습니다.");
         setRegistrationsByCompetitionId({});
         return;
       }
@@ -249,7 +249,7 @@ export function CompetitionCalendar() {
       payload: RegistrationPayload,
     ): Promise<MutationResult> => {
       if (memberStatus.status !== "ready") {
-        return { ok: false, message: "로그인이 필요해." };
+        return { ok: false, message: "로그인이 필요합니다." };
       }
 
       const eventType =
@@ -269,7 +269,7 @@ export function CompetitionCalendar() {
         .single();
 
       if (error) {
-        return { ok: false, message: "신청에 실패했어. 다시 시도해줘." };
+        return { ok: false, message: "신청에 실패했습니다. 다시 시도해 주세요." };
       }
 
       setRegistrationsByCompetitionId((prev) => ({
@@ -277,7 +277,7 @@ export function CompetitionCalendar() {
         [competitionId]: data as CompetitionRegistration,
       }));
 
-      return { ok: true, message: "참가 신청이 완료됐어." };
+      return { ok: true, message: "참가 신청이 완료되었습니다." };
     },
     [memberStatus, supabase],
   );
@@ -289,7 +289,7 @@ export function CompetitionCalendar() {
       payload: RegistrationPayload,
     ): Promise<MutationResult> => {
       if (memberStatus.status !== "ready") {
-        return { ok: false, message: "로그인이 필요해." };
+        return { ok: false, message: "로그인이 필요합니다." };
       }
 
       const eventType =
@@ -308,7 +308,7 @@ export function CompetitionCalendar() {
         .single();
 
       if (error) {
-        return { ok: false, message: "수정에 실패했어. 다시 시도해줘." };
+        return { ok: false, message: "수정에 실패했습니다. 다시 시도해 주세요." };
       }
 
       setRegistrationsByCompetitionId((prev) => ({
@@ -316,7 +316,7 @@ export function CompetitionCalendar() {
         [competitionId]: data as CompetitionRegistration,
       }));
 
-      return { ok: true, message: "신청 정보가 업데이트됐어." };
+      return { ok: true, message: "신청 정보가 업데이트되었습니다." };
     },
     [memberStatus, supabase],
   );
@@ -332,7 +332,7 @@ export function CompetitionCalendar() {
         .eq("id", registrationId);
 
       if (error) {
-        return { ok: false, message: "취소에 실패했어. 다시 시도해줘." };
+        return { ok: false, message: "취소에 실패했습니다. 다시 시도해 주세요." };
       }
 
       setRegistrationsByCompetitionId((prev) => {
@@ -341,7 +341,7 @@ export function CompetitionCalendar() {
         return next;
       });
 
-      return { ok: true, message: "참가 신청을 취소했어." };
+      return { ok: true, message: "참가 신청을 취소했습니다." };
     },
     [supabase],
   );

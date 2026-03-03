@@ -177,7 +177,7 @@ export function ProfileForm({ userId, initialValues }: ProfileFormProps) {
       <CardHeader>
         <CardTitle className="text-2xl">프로필</CardTitle>
         <CardDescription>
-          내 정보 수정하고 OAuth 연결도 여기서 할 수 있어.
+          내 정보를 수정하고 OAuth 연결도 여기서 할 수 있습니다.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -187,7 +187,7 @@ export function ProfileForm({ userId, initialValues }: ProfileFormProps) {
               <FormField
                 control={form.control}
                 name="fullName"
-                rules={{ required: "이름은 필수야." }}
+                rules={{ required: "이름을 입력해 주세요." }}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>이름</FormLabel>
@@ -203,7 +203,7 @@ export function ProfileForm({ userId, initialValues }: ProfileFormProps) {
                 name="gender"
                 rules={{
                   validate: (value) =>
-                    value !== "" || "성별을 선택해줘.",
+                    value !== "" || "성별을 선택해 주세요.",
                 }}
                 render={({ field }) => (
                   <FormItem>
@@ -226,7 +226,7 @@ export function ProfileForm({ userId, initialValues }: ProfileFormProps) {
               <FormField
                 control={form.control}
                 name="birthday"
-                rules={{ required: "생년월일은 필수야." }}
+                rules={{ required: "생년월일을 입력해 주세요." }}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>생년월일</FormLabel>
@@ -247,7 +247,7 @@ export function ProfileForm({ userId, initialValues }: ProfileFormProps) {
                       <Input type="tel" value={field.value} disabled />
                     </FormControl>
                     <p className="text-xs text-muted-foreground">
-                      연락처는 변경할 수 없어.
+                      연락처는 변경할 수 없습니다.
                     </p>
                     <FormMessage />
                   </FormItem>
@@ -326,7 +326,7 @@ export function ProfileForm({ userId, initialValues }: ProfileFormProps) {
                       />
                     </FormControl>
                     <p className="text-xs text-muted-foreground">
-                      회비 및 기타 돈 환급시 사용해.
+                      회비 및 기타 환급 시 사용됩니다.
                     </p>
                     <FormMessage />
                   </FormItem>
@@ -353,7 +353,7 @@ export function ProfileForm({ userId, initialValues }: ProfileFormProps) {
               <div className="border-t border-black/10 pt-4">
                 <p className="text-sm font-medium">OAuth 연결</p>
                 <p className="text-xs text-muted-foreground">
-                  구글/카카오 계정을 연결해두면 다음 로그인에서 바로 들어갈 수 있어.
+                  구글/카카오 계정을 연결해두면 다음 로그인에서 바로 들어갈 수 있습니다.
                 </p>
                 <div className="mt-3 flex flex-col gap-2">
                   <Button
