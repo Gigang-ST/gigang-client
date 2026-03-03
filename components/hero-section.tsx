@@ -151,7 +151,7 @@ export default function HeroSection({
       {/* Navigation */}
       {showNavigation ? (
         <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-        <nav className="relative z-20 flex items-center justify-between p-6 md:p-8">
+        <nav className="relative z-20 flex items-center justify-between px-4 py-2 md:px-6 md:py-2 bg-white/10 backdrop-blur-xl border-b border-white/10">
           {/* Logo/Brand */}
           <Link
             href="/"
