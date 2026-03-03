@@ -464,7 +464,7 @@ export function PersonalBestForm({
                 {raceName && !manualEntry ? (
                   <div className="flex items-center gap-2">
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-md border bg-white/50 px-3 py-2 text-sm">
-                      <span className="font-medium">{raceName}</span>
+                      <span className="truncate font-medium">{raceName}</span>
                       <span className="text-xs text-muted-foreground">
                         {raceDate}
                       </span>
