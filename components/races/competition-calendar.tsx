@@ -100,10 +100,6 @@ export function CompetitionCalendar() {
     setCurrentDate((date) => new Date(date.getFullYear(), date.getMonth() + 1, 1));
   }, []);
 
-  const handleToday = useCallback(() => {
-    setCurrentDate(new Date());
-  }, []);
-
   const handleSelectCompetition = useCallback((competition: Competition) => {
     setSelectedCompetition(competition);
     setDetailOpen(true);
@@ -357,7 +353,6 @@ export function CompetitionCalendar() {
         currentDate={currentDate}
         onPrevMonth={handlePrevMonth}
         onNextMonth={handleNextMonth}
-        onToday={handleToday}
       />
 
       {!competitionsLoading && (competitionsError || registrationsError) && (

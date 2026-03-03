@@ -8,14 +8,12 @@ interface CalendarHeaderProps {
   currentDate: Date;
   onPrevMonth: () => void;
   onNextMonth: () => void;
-  onToday: () => void;
 }
 
 export function CalendarHeader({
   currentDate,
   onPrevMonth,
   onNextMonth,
-  onToday,
 }: CalendarHeaderProps) {
   const monthYear = currentDate.toLocaleDateString("ko-KR", {
     year: "numeric",
@@ -46,14 +44,6 @@ export function CalendarHeader({
             <ChevronRight className="size-4" />
           </Button>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onToday}
-          className="text-white/90 hover:text-white hover:bg-white/15"
-        >
-          오늘
-        </Button>
       </div>
 
       <div className="hidden flex-col items-end gap-2 text-xs text-white md:flex">
