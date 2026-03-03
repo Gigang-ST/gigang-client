@@ -27,7 +27,7 @@ async function ProfileContent() {
   }
 
   return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
+    <div className="flex min-h-svh w-full items-center justify-center px-6 pb-6 pt-24 md:p-10 md:pt-28">
       <div className="w-full max-w-xl">
         <ProfileForm
           userId={user.id}
