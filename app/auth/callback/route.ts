@@ -21,7 +21,11 @@ export async function GET(request: Request) {
       }
       return NextResponse.redirect(`${origin}${next}`);
     }
+    console.error("OAuth exchange error:", error.message);
+    return NextResponse.redirect(
+      `${origin}/auth/error?error=${encodeURIComponent(error.message)}`,
+    );
   }
 
-  return NextResponse.redirect(`${origin}/auth/error?error=OAuthCallbackError`);
+  return NextResponse.redirect(`${origin}/auth/error?error=OAuthCallbackError+no+code`);
 }
