@@ -172,7 +172,7 @@ export function ProfileForm({ userId, initialValues }: ProfileFormProps) {
     linkedProviders.has(provider) ? "연결됨" : "연결하기";
 
   return (
-    <Card className="border border-black/10 bg-white text-foreground shadow-lg">
+    <Card className="border border-white/20 bg-white/80 text-foreground shadow-xl backdrop-blur-xl">
       <CardHeader>
         <CardTitle className="text-2xl">프로필</CardTitle>
       </CardHeader>
