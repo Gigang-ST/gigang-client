@@ -100,6 +100,7 @@ export function ProfileMenu() {
         >
           <Link
             href="/profile"
+            onClick={() => setIsOpen(false)}
             className="flex h-8 w-full items-center rounded-md px-2 text-sm text-white hover:bg-white/10"
           >
             프로필
