@@ -171,12 +171,15 @@ export function CompetitionCalendar() {
 
       const { startStr, endStr } = gridRange;
 
-      const { data, error } = await supabase
-        .from("competition")
-        .select(COMPETITION_FIELDS)
-        .lte("start_date", endStr)
-        .or(`end_date.is.null,end_date.gte.${startStr}`)
-        .order("start_date", { ascending: true });
+      const [{ data, error }] = await Promise.all([
+        supabase
+          .from("competition")
+          .select(COMPETITION_FIELDS)
+          .lte("start_date", endStr)
+          .or(`end_date.is.null,end_date.gte.${startStr}`)
+          .order("start_date", { ascending: true }),
+        new Promise((resolve) => setTimeout(resolve, 600)),
+      ]);
 
       if (!active) return;
 
