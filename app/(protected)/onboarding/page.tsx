@@ -36,8 +36,9 @@ export default async function Page() {
     "";
 
   return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
-      <div className="w-full max-w-sm">
+    <div className="relative flex min-h-svh w-full items-center justify-center overflow-hidden bg-black/35 p-6 md:p-10">
+      <div className="absolute inset-0 bg-black/35" aria-hidden />
+      <div className="relative w-full max-w-sm">
         <MemberOnboardingForm
           userId={user.id}
           email={user.email}

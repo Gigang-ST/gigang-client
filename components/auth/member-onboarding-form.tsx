@@ -106,6 +106,7 @@ export function MemberOnboardingForm({
   );
 
   const normalizePhone = (value: string) => value.replace(/\D/g, "");
+  const isValidPhone = (value: string) => /^010\d{8}$/.test(value);
 
   const handlePhoneSubmit = async (values: MemberOnboardingValues) => {
     const supabase = createClient();
@@ -114,8 +115,13 @@ export function MemberOnboardingForm({
       form.setError("phone", { message: "연락처는 필수야." });
       return;
     }
+    if (!isValidPhone(phoneValue)) {
+      form.setError("phone", { message: "010부터 시작하는 11자리 번호만 가능해." });
+      return;
+    }
 
     form.setValue("phone", phoneValue, { shouldValidate: true });
+    form.clearErrors("phone");
     setPhoneLoading(true);
     form.clearErrors("root");
 
@@ -173,6 +179,10 @@ export function MemberOnboardingForm({
       form.setError("phone", { message: "연락처는 필수야." });
       return;
     }
+    if (!isValidPhone(phoneValue)) {
+      form.setError("phone", { message: "010부터 시작하는 11자리 번호만 가능해." });
+      return;
+    }
 
     const bankName =
       values.bankName === "custom"
@@ -207,7 +217,7 @@ export function MemberOnboardingForm({
 
   return (
     <div className={cn("flex flex-col gap-6")}>
-      <Card>
+        <Card className="border border-black/20 bg-white/95 text-foreground shadow-2xl">
         <CardHeader>
           <CardTitle className="text-2xl">Complete your profile</CardTitle>
           <CardDescription>
@@ -227,7 +237,12 @@ export function MemberOnboardingForm({
                     <FormField
                       control={form.control}
                       name="phone"
-                      rules={{ required: "Phone is required." }}
+                      rules={{
+                        required: "Phone is required.",
+                        validate: (value) =>
+                          isValidPhone(normalizePhone(value)) ||
+                          "010부터 시작하는 11자리 번호만 가능해.",
+                      }}
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>연락처</FormLabel>
@@ -235,7 +250,7 @@ export function MemberOnboardingForm({
                             <Input
                               type="tel"
                               inputMode="numeric"
-                              placeholder="01012345678"
+                              placeholder="01012345678 (하이픈 없이, 11자리)"
                               value={field.value}
                               onChange={(event) =>
                                 field.onChange(
@@ -283,7 +298,7 @@ export function MemberOnboardingForm({
                             <FormControl>
                               <Input
                                 type="email"
-                                placeholder="example@email.com"
+                                placeholder="example@email.com (선택)"
                                 {...field}
                               />
                             </FormControl>
@@ -300,7 +315,7 @@ export function MemberOnboardingForm({
                         <FormItem>
                           <FormLabel>이름</FormLabel>
                           <FormControl>
-                            <Input {...field} />
+                        <Input {...field} placeholder="홍길동" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -322,7 +337,7 @@ export function MemberOnboardingForm({
                               onValueChange={field.onChange}
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder="Select" />
+                                <SelectValue placeholder="성별 선택" />
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="male">Male</SelectItem>
@@ -342,7 +357,7 @@ export function MemberOnboardingForm({
                         <FormItem>
                           <FormLabel>생년월일</FormLabel>
                           <FormControl>
-                            <Input type="date" {...field} />
+                        <Input type="date" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -356,7 +371,7 @@ export function MemberOnboardingForm({
                         <FormItem>
                           <FormLabel>연락처</FormLabel>
                           <FormControl>
-                            <Input type="tel" value={field.value} disabled />
+                        <Input type="tel" value={field.value} disabled />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -417,10 +432,10 @@ export function MemberOnboardingForm({
                         <FormItem>
                           <FormLabel>계좌번호</FormLabel>
                           <FormControl>
-                            <Input
-                              {...field}
-                              placeholder="예: 123-456-789012"
-                            />
+                          <Input
+                            {...field}
+                            placeholder="예: 110123456789 (숫자만)"
+                          />
                           </FormControl>
                           <p className="text-xs text-muted-foreground">
                             회비 및 기타 돈 환급시 사용해.
