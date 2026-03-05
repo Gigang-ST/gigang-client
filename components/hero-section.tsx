@@ -174,7 +174,7 @@ export default function HeroSection({
             <div className="hidden md:flex items-center space-x-8">
               {navItems.map((item) => {
                 const baseClass =
-                  "relative text-white hover:text-gray-300 transition-colors duration-300 font-normal tracking-wide pb-1 group";
+                  "relative text-white hover:text-gray-300 transition-colors duration-300 font-normal tracking-wide group";
 
                 if (isHashLink(item.href)) {
                   return (
