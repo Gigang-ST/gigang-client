@@ -29,16 +29,17 @@ async function ProfileContent() {
     redirect("/onboarding?next=/profile");
   }
 
-  const { data: personalBests } = await supabase
-    .from("personal_best")
-    .select("event_type, record_time_sec, race_name, race_date")
-    .eq("member_id", member.id);
-
-  const { data: utmbProfile } = await supabase
-    .from("utmb_profile")
-    .select("utmb_profile_url, utmb_index")
-    .eq("member_id", member.id)
-    .maybeSingle();
+  const [{ data: personalBests }, { data: utmbProfile }] = await Promise.all([
+    supabase
+      .from("personal_best")
+      .select("event_type, record_time_sec, race_name, race_date")
+      .eq("member_id", member.id),
+    supabase
+      .from("utmb_profile")
+      .select("utmb_profile_url, utmb_index")
+      .eq("member_id", member.id)
+      .maybeSingle(),
+  ]);
 
   return (
     <div className="flex min-h-svh w-full items-center justify-center px-6 pb-6 pt-24 md:p-10 md:pt-28">

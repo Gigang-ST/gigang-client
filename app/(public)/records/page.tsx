@@ -24,19 +24,18 @@ function secondsToTimeString(totalSeconds: number): string {
 async function RecordsContent() {
   const supabase = await createClient();
 
-  // Fetch time-based personal bests
-  const { data: pbData } = await supabase
-    .from("personal_best")
-    .select(
-      "event_type, record_time_sec, race_name, member:member_id(full_name, gender)",
-    );
-
-  // Fetch UTMB profiles
-  const { data: utmbData } = await supabase
-    .from("utmb_profile")
-    .select(
-      "utmb_index, utmb_profile_url, member:member_id(full_name, gender)",
-    );
+  const [{ data: pbData }, { data: utmbData }] = await Promise.all([
+    supabase
+      .from("personal_best")
+      .select(
+        "event_type, record_time_sec, race_name, member:member_id(full_name, gender)",
+      ),
+    supabase
+      .from("utmb_profile")
+      .select(
+        "utmb_index, utmb_profile_url, member:member_id(full_name, gender)",
+      ),
+  ]);
 
   // Build time-based rankings
   const timeEvents = TIME_EVENT_TYPES.map((evt) => {
