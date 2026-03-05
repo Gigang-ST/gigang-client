@@ -64,6 +64,7 @@ type ProfileFormValues = {
 
 type ProfileFormProps = {
   userId: string;
+  memberId: string;
   initialValues: {
     fullName: string;
     gender: "" | "male" | "female";
@@ -77,7 +78,7 @@ type ProfileFormProps = {
 
 type ProviderName = "google" | "kakao";
 
-export function ProfileForm({ userId, initialValues }: ProfileFormProps) {
+export function ProfileForm({ userId, memberId, initialValues }: ProfileFormProps) {
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "success" | "error"
   >("idle");
@@ -133,7 +134,7 @@ export function ProfileForm({ userId, initialValues }: ProfileFormProps) {
         bank_name: bankName || null,
         bank_account: values.bankAccount.trim() || null,
       })
-      .eq("auth_user_id", userId);
+      .eq("id", memberId);
 
     if (error) {
       setSaveState("error");

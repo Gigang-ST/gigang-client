@@ -159,7 +159,7 @@ async function JoinButton() {
     const { data: member } = await supabase
       .from("member")
       .select("id")
-      .eq("auth_user_id", user.id)
+      .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
       .maybeSingle();
     isMember = !!member;
   }

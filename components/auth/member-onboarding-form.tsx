@@ -33,6 +33,7 @@ import { useForm } from "react-hook-form";
 
 type MemberOnboardingFormProps = {
   userId: string;
+  provider: "kakao" | "google";
   initialFullName?: string | null;
   email?: string | null;
 };
@@ -74,6 +75,7 @@ const BANK_OPTIONS = [
 
 export function MemberOnboardingForm({
   userId,
+  provider,
   initialFullName,
   email,
 }: MemberOnboardingFormProps) {
@@ -133,7 +135,7 @@ export function MemberOnboardingForm({
 
     const { data: existingMember, error: lookupError } = await supabase
       .from("member")
-      .select("id, auth_user_id")
+      .select("id")
       .eq("phone", phoneValue)
       .maybeSingle();
 
@@ -151,23 +153,15 @@ export function MemberOnboardingForm({
     }
 
     if (existingMember) {
-      if (existingMember.auth_user_id && existingMember.auth_user_id !== userId) {
-        form.setError("root", {
-          message: "이미 다른 계정에 연결된 번호입니다.",
-        });
+      const column = provider === "kakao" ? "kakao_user_id" : "google_user_id";
+      const { error: linkError } = await supabase
+        .from("member")
+        .update({ [column]: userId })
+        .eq("id", existingMember.id);
+
+      if (linkError) {
+        form.setError("root", { message: linkError.message });
         return;
-      }
-
-      if (!existingMember.auth_user_id) {
-        const { error: updateError } = await supabase
-          .from("member")
-          .update({ auth_user_id: userId })
-          .eq("id", existingMember.id);
-
-        if (updateError) {
-          form.setError("root", { message: updateError.message });
-          return;
-        }
       }
 
       router.replace(safeNext);
@@ -195,8 +189,9 @@ export function MemberOnboardingForm({
         ? values.bankNameCustom.trim()
         : values.bankName.trim();
 
+    const column = provider === "kakao" ? "kakao_user_id" : "google_user_id";
     const { error } = await supabase.from("member").insert({
-      auth_user_id: userId,
+      [column]: userId,
       email: emailValue,
       full_name: values.fullName,
       gender: values.gender,
@@ -227,7 +222,7 @@ export function MemberOnboardingForm({
         <CardHeader>
           <CardTitle className="text-2xl">회원 정보 입력</CardTitle>
           <CardDescription>
-            가입을 완료하려면 몇 가지 정보가 더 필요합니다.
+            기존 회원인지 확인하기 위해 연락처를 입력해 주세요.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -265,9 +260,6 @@ export function MemberOnboardingForm({
                               }
                             />
                           </FormControl>
-                          <p className="text-xs text-muted-foreground">
-                            010으로 시작하는 휴대폰 번호를 입력해 주세요.
-                          </p>
                           <FormMessage />
                         </FormItem>
                       )}

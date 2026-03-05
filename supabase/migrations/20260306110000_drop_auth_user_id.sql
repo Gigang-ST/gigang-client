@@ -1,0 +1,1 @@
+ALTER TABLE member DROP COLUMN IF EXISTS auth_user_id;

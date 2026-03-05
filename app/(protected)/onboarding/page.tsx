@@ -23,7 +23,7 @@ async function OnboardingContent() {
   const { data: member } = await supabase
     .from("member")
     .select("id")
-    .eq("auth_user_id", user.id)
+    .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
     .maybeSingle();
 
   if (member) {
@@ -42,6 +42,7 @@ async function OnboardingContent() {
       <div className="relative w-full max-w-sm">
         <MemberOnboardingForm
           userId={user.id}
+          provider={user.app_metadata?.provider as "kakao" | "google"}
           email={user.email}
           initialFullName={initialFullName}
         />

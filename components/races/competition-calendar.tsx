@@ -134,7 +134,7 @@ export function CompetitionCalendar() {
       const { data: member } = await supabase
         .from("member")
         .select("id, full_name, email")
-        .eq("auth_user_id", user.id)
+        .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
         .maybeSingle();
 
       if (!active) return;

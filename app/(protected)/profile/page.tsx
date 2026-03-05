@@ -22,7 +22,7 @@ async function ProfileContent() {
     .select(
       "id, full_name, gender, birthday, phone, email, bank_name, bank_account",
     )
-    .eq("auth_user_id", user.id)
+    .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
     .maybeSingle();
 
   if (!member) {
@@ -48,6 +48,7 @@ async function ProfileContent() {
           profileTab={
             <ProfileForm
               userId={user.id}
+              memberId={member.id}
               initialValues={{
                 fullName: member.full_name ?? "",
                 gender: (member.gender as "male" | "female" | "") ?? "",
