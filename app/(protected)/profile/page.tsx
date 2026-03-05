@@ -47,7 +47,6 @@ async function ProfileContent() {
         <ProfileTabs
           profileTab={
             <ProfileForm
-              userId={user.id}
               memberId={member.id}
               initialValues={{
                 fullName: member.full_name ?? "",

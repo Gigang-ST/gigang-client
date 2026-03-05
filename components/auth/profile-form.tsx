@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -63,7 +63,6 @@ type ProfileFormValues = {
 };
 
 type ProfileFormProps = {
-  userId: string;
   memberId: string;
   initialValues: {
     fullName: string;
@@ -76,17 +75,11 @@ type ProfileFormProps = {
   };
 };
 
-type ProviderName = "google" | "kakao";
-
-export function ProfileForm({ userId, memberId, initialValues }: ProfileFormProps) {
+export function ProfileForm({ memberId, initialValues }: ProfileFormProps) {
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "success" | "error"
   >("idle");
   const [message, setMessage] = useState<string | null>(null);
-  const [linking, setLinking] = useState<ProviderName | null>(null);
-  const [linkedProviders, setLinkedProviders] = useState<Set<ProviderName>>(
-    new Set(),
-  );
 
   const form = useForm<ProfileFormValues>({
     defaultValues: {
@@ -100,19 +93,6 @@ export function ProfileForm({ userId, memberId, initialValues }: ProfileFormProp
       bankNameCustom: "",
     },
   });
-
-  useEffect(() => {
-    const supabase = createClient();
-    void supabase.auth.getUser().then(({ data }) => {
-      const providers = new Set<ProviderName>();
-      data.user?.identities?.forEach((identity) => {
-        if (identity.provider === "google" || identity.provider === "kakao") {
-          providers.add(identity.provider);
-        }
-      });
-      setLinkedProviders(providers);
-    });
-  }, []);
 
   const saveProfile = async (values: ProfileFormValues) => {
     setSaveState("saving");
@@ -145,32 +125,6 @@ export function ProfileForm({ userId, memberId, initialValues }: ProfileFormProp
     setSaveState("success");
     setMessage("저장 완료");
   };
-
-  const handleLink = async (provider: ProviderName) => {
-    if (linkedProviders.has(provider)) {
-      return;
-    }
-
-    setLinking(provider);
-    setMessage(null);
-
-    const supabase = createClient();
-    const origin = window.location.origin;
-    const { error } = await supabase.auth.linkIdentity({
-      provider,
-      options: {
-        redirectTo: `${origin}/auth/callback?flow=link&next=/profile`,
-      },
-    });
-
-    if (error) {
-      setLinking(null);
-      setMessage(error.message);
-    }
-  };
-
-  const providerStatus = (provider: ProviderName) =>
-    linkedProviders.has(provider) ? "연결됨" : "연결하기";
 
   return (
     <Card className="border border-white/20 bg-white/80 text-foreground shadow-xl backdrop-blur-xl">
@@ -349,30 +303,6 @@ export function ProfileForm({ userId, memberId, initialValues }: ProfileFormProp
                 ) : null}
               </div>
 
-              <div className="border-t border-black/10 pt-4">
-                <p className="text-sm font-medium">OAuth 연결</p>
-                <p className="text-xs text-muted-foreground">
-                  구글/카카오 계정을 연결해두면 다음 로그인에서 바로 들어갈 수 있습니다.
-                </p>
-                <div className="mt-3 flex flex-col gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleLink("google")}
-                    disabled={linking === "google" || linkedProviders.has("google")}
-                  >
-                    Google {providerStatus("google")}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleLink("kakao")}
-                    disabled={linking === "kakao" || linkedProviders.has("kakao")}
-                  >
-                    Kakao {providerStatus("kakao")}
-                  </Button>
-                </div>
-              </div>
             </div>
           </form>
         </Form>
