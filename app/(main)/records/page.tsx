@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@supabase/supabase-js";
 import { Suspense } from "react";
 import { RecordsClient } from "./records-client";
@@ -132,25 +133,54 @@ async function RecordsContent() {
     },
   ];
 
+  return <RecordsClient data={serialized} />;
+}
+
+function RecordsSkeleton() {
   return (
-    <div className="flex flex-col gap-0">
-      <div className="flex flex-col gap-1 px-6 pt-4">
-        <h1 className="text-[28px] font-semibold tracking-tight text-foreground">
-          기강의전당
-        </h1>
-        <p className="text-xs text-muted-foreground">
-          기록 변경 시 자동으로 업데이트됩니다.
-        </p>
+    <>
+      {/* Pills */}
+      <div className="flex flex-wrap gap-2 px-6 pt-4">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-9 w-16 rounded-full" />
+        ))}
       </div>
-      <RecordsClient data={serialized} />
-    </div>
+      {/* Gender tabs */}
+      <div className="flex gap-0 px-6 py-2">
+        <Skeleton className="h-9 flex-1 rounded-lg" />
+        <Skeleton className="h-9 flex-1 rounded-lg" />
+      </div>
+      {/* Rank rows */}
+      <div className="flex flex-col px-6 pt-2">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div
+            key={i}
+            className="flex items-center gap-4 border-b border-border py-4 last:border-b-0"
+          >
+            <Skeleton className="size-8 rounded-full" />
+            <div className="flex flex-1 flex-col gap-1.5">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-3 w-32" />
+            </div>
+            <Skeleton className="h-5 w-16" />
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 
 export default function RecordsPage() {
   return (
-    <Suspense>
-      <RecordsContent />
-    </Suspense>
+    <div className="flex flex-col gap-0">
+      <div className="flex h-14 items-center px-6">
+        <h1 className="text-[28px] font-semibold tracking-tight text-foreground">
+          기강의전당
+        </h1>
+      </div>
+      <Suspense fallback={<RecordsSkeleton />}>
+        <RecordsContent />
+      </Suspense>
+    </div>
   );
 }

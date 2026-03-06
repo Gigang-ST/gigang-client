@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Suspense } from "react";
@@ -48,19 +49,7 @@ async function ProfileContent() {
     : "";
 
   return (
-    <div className="flex flex-col gap-0">
-      {/* Header */}
-      <div className="flex h-14 items-center justify-between px-6">
-        <h1 className="text-[28px] font-semibold tracking-tight text-foreground">
-          내 프로필
-        </h1>
-        <Link href="/settings">
-          <Settings className="size-[22px] text-muted-foreground" />
-        </Link>
-      </div>
-
-      {/* Content */}
-      <div className="flex flex-col gap-6 px-6 pb-6">
+    <div className="flex flex-col gap-6 px-6 pb-6">
         {/* Profile Card */}
         <div className="flex items-center gap-4 rounded-2xl border-[1.5px] border-border p-5">
           <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-primary/10">
@@ -91,14 +80,53 @@ async function ProfileContent() {
           initialData={utmbProfile ?? null}
         />
       </div>
+  );
+}
+
+function ProfileSkeleton() {
+  return (
+    <div className="flex flex-col gap-6 px-6 pb-6">
+      {/* Profile Card */}
+      <div className="flex items-center gap-4 rounded-2xl border-[1.5px] border-border p-5">
+        <Skeleton className="size-16 rounded-full" />
+        <div className="flex flex-1 flex-col gap-2">
+          <Skeleton className="h-5 w-24" />
+          <Skeleton className="h-3 w-32" />
+        </div>
+        <Skeleton className="h-8 w-12 rounded-lg" />
+      </div>
+      {/* Personal Best */}
+      <div className="flex flex-col gap-3">
+        <Skeleton className="h-4 w-28" />
+        <div className="grid grid-cols-2 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 rounded-2xl" />
+          ))}
+        </div>
+      </div>
+      {/* UTMB */}
+      <div className="flex flex-col gap-3">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-20 rounded-2xl" />
+      </div>
     </div>
   );
 }
 
 export default function Page() {
   return (
-    <Suspense>
-      <ProfileContent />
-    </Suspense>
+    <div className="flex flex-col gap-0">
+      <div className="flex h-14 items-center justify-between px-6">
+        <h1 className="text-[28px] font-semibold tracking-tight text-foreground">
+          내 프로필
+        </h1>
+        <Link href="/settings">
+          <Settings className="size-[22px] text-muted-foreground" />
+        </Link>
+      </div>
+      <Suspense fallback={<ProfileSkeleton />}>
+        <ProfileContent />
+      </Suspense>
+    </div>
   );
 }
