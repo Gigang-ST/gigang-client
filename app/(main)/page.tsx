@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
 import { Suspense } from "react";
 import { Calendar, MapPin } from "lucide-react";
@@ -57,16 +58,7 @@ async function HomeContent() {
   }
 
   return (
-    <div className="flex flex-col gap-0">
-      {/* Header */}
-      <div className="flex h-14 items-center px-6">
-        <h1 className="text-[28px] font-bold tracking-tight text-foreground">
-          기강
-        </h1>
-      </div>
-
-      {/* Content */}
-      <div className="flex flex-col gap-7 px-6 pb-6">
+    <div className="flex flex-col gap-7 px-6 pb-6">
         {/* Team Overview */}
         <div className="flex flex-col gap-4">
           <span className="text-xs font-semibold tracking-widest text-muted-foreground">
@@ -193,14 +185,48 @@ async function HomeContent() {
           )}
         </div>
       </div>
+  );
+}
+
+
+function HomeSkeleton() {
+  return (
+    <div className="flex flex-col gap-7 px-6 pb-6">
+      {/* Team Overview */}
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-3.5 w-28" />
+        <div className="grid grid-cols-2 gap-3">
+          <Skeleton className="h-20 rounded-2xl" />
+          <Skeleton className="h-20 rounded-2xl" />
+        </div>
+      </div>
+      {/* Social Links */}
+      <div className="grid grid-cols-4 gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-16 rounded-2xl" />
+        ))}
+      </div>
+      {/* Upcoming Races */}
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-3.5 w-32" />
+        <Skeleton className="h-28 rounded-2xl" />
+        <Skeleton className="h-28 rounded-2xl" />
+      </div>
     </div>
   );
 }
 
 export default function HomePage() {
   return (
-    <Suspense>
-      <HomeContent />
-    </Suspense>
+    <div className="flex flex-col gap-0">
+      <div className="flex h-14 items-center px-6">
+        <h1 className="text-[28px] font-bold tracking-tight text-foreground">
+          기강
+        </h1>
+      </div>
+      <Suspense fallback={<HomeSkeleton />}>
+        <HomeContent />
+      </Suspense>
+    </div>
   );
 }
