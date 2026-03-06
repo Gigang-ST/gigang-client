@@ -2,17 +2,11 @@
 
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { SocialLinksRow } from "@/components/social-links";
 
 export function LoginForm({
   className,
@@ -52,56 +46,77 @@ export function LoginForm({
       return;
     }
 
-    // OAuth는 리다이렉트가 정상 흐름이므로, 여기서 바로 처리 종료.
     router.prefetch(safeNext);
   };
 
   return (
-    <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card className="bg-transparent">
-        <CardHeader>
-          <CardTitle className="text-2xl">로그인</CardTitle>
-        </CardHeader>
-        <CardContent className="bg-transparent">
-          <div className="flex flex-col gap-6">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full justify-between border-[#FEE500] bg-[#FEE500] text-black hover:bg-[#FEE500]/90 hover:text-black"
-              onClick={() => handleOAuthLogin("kakao")}
-              disabled={oauthProvider !== null}
-            >
-              <span className="flex items-center gap-2">
-                <Image src="/kakao.png" alt="Kakao" width={18} height={18} />
-                <span>
-                  {oauthProvider === "kakao"
-                    ? "연결 중..."
-                    : "카카오로 로그인"}
-                </span>
-              </span>
-              <span className="w-4" aria-hidden />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full justify-between"
-              onClick={() => handleOAuthLogin("google")}
-              disabled={oauthProvider !== null}
-            >
-              <span className="flex items-center gap-2">
-                <Image src="/google.webp" alt="Google" width={18} height={18} />
-                <span>
-                  {oauthProvider === "google"
-                    ? "연결 중..."
-                    : "구글로 로그인"}
-                </span>
-              </span>
-              <span className="w-4" aria-hidden />
-            </Button>
-            {error ? <p className="text-sm text-red-500">{error}</p> : null}
-          </div>
-        </CardContent>
-      </Card>
+    <div
+      className={cn(
+        "flex w-full flex-col items-center justify-center gap-12 px-8",
+        className,
+      )}
+      {...props}
+    >
+      {/* Logo */}
+      <div className="flex flex-col items-center gap-3">
+        <Image src="/logo.webp" alt="기강" width={80} height={80} priority />
+        <p className="w-[280px] text-center text-[15px] leading-relaxed text-muted-foreground">
+          운동을 좋아하는 사람들이 모여
+          <br />
+          만든 스포츠 팀
+        </p>
+      </div>
+
+      {/* Buttons */}
+      <div className="flex w-full flex-col gap-3">
+        <button
+          type="button"
+          onClick={() => handleOAuthLogin("kakao")}
+          disabled={oauthProvider !== null}
+          className="flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-[#FEE500] text-base font-semibold text-[#191919] transition-opacity disabled:opacity-50"
+        >
+          <Image src="/kakao.png" alt="Kakao" width={20} height={20} />
+          <span>
+            {oauthProvider === "kakao" ? "연결 중..." : "카카오로 시작하기"}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => handleOAuthLogin("google")}
+          disabled={oauthProvider !== null}
+          className="flex h-[52px] w-full items-center justify-center gap-2 rounded-xl border-[1.5px] border-border text-base font-semibold text-foreground transition-opacity disabled:opacity-50"
+        >
+          <Image src="/google.webp" alt="Google" width={20} height={20} />
+          <span>
+            {oauthProvider === "google" ? "연결 중..." : "Google로 시작하기"}
+          </span>
+        </button>
+        {error && <p className="text-center text-sm text-destructive">{error}</p>}
+        <Link
+          href="/"
+          className="mt-1 text-center text-sm font-medium text-muted-foreground underline"
+        >
+          구경할래요
+        </Link>
+      </div>
+
+      {/* Social Links */}
+      <SocialLinksRow />
+
+      {/* Footer */}
+      <p className="w-[300px] text-center text-xs leading-relaxed text-[#A1A1AA]">
+        계속 진행하면{" "}
+        <Link href="/terms" className="underline">
+          이용약관
+        </Link>{" "}
+        및{" "}
+        <Link href="/privacy" className="underline">
+          개인정보 처리방침
+        </Link>
+        에
+        <br />
+        동의하는 것으로 간주합니다.
+      </p>
     </div>
   );
 }

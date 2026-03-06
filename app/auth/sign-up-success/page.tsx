@@ -1,32 +1,25 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { CheckCircle2 } from "lucide-react";
+import Link from "next/link";
 
 export default function Page() {
   return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
-      <div className="w-full max-w-sm">
-        <div className="flex flex-col gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-2xl">
-                Thank you for signing up!
-              </CardTitle>
-              <CardDescription>Check your email to confirm</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                You&apos;ve successfully signed up. Please check your email to
-                confirm your account before signing in.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+    <div className="w-full max-w-sm">
+      <Card className="border-border shadow-sm">
+        <CardHeader className="items-center text-center">
+          <CheckCircle2 className="size-12 text-primary" />
+          <CardTitle className="text-xl">가입이 완료되었습니다!</CardTitle>
+          <CardDescription>기강에 오신 것을 환영합니다.</CardDescription>
+        </CardHeader>
+        <CardContent className="text-center">
+          <Link
+            href="/"
+            className="inline-flex h-10 items-center justify-center rounded-lg bg-primary px-6 text-sm font-medium text-primary-foreground"
+          >
+            홈으로 이동
+          </Link>
+        </CardContent>
+      </Card>
     </div>
   );
 }
