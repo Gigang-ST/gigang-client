@@ -50,7 +50,7 @@ export function RecordsClient({ data }: { data: EventData[] }) {
   const isUtmb = selectedEvent === "UTMB";
 
   return (
-    <div className="flex flex-col gap-0">
+    <div className="flex flex-col gap-4">
       {/* Distance Filter Pills */}
       <div className="flex flex-wrap gap-2 px-6">
         {data.map((evt) => (
