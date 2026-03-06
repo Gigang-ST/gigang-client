@@ -218,7 +218,7 @@ export function MemberOnboardingForm({
 
   return (
     <div className={cn("flex flex-col gap-6")}>
-        <Card className="border border-black/20 bg-white/95 text-foreground shadow-2xl">
+        <Card className="bg-white border-border shadow-sm">
         <CardHeader>
           <CardTitle className="text-2xl">회원 정보 입력</CardTitle>
           <CardDescription>

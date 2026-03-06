@@ -1,7 +1,6 @@
-import type { Metadata } from "next";
-import { Geist } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
-import AppShell from "@/components/app-shell";
 import { siteContent } from "@/config";
 
 const SITE_URL = "https://gigang-client-theta.vercel.app";
@@ -24,8 +23,15 @@ export const metadata: Metadata = {
   },
 };
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+};
+
+const inter = Inter({
+  variable: "--font-inter",
   display: "swap",
   subsets: ["latin"],
 });
@@ -37,8 +43,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
-      <body className={`${geistSans.className} antialiased`}>
-        <AppShell>{children}</AppShell>
+      <body className={`${inter.className} antialiased`}>
+        {children}
       </body>
     </html>
   );
