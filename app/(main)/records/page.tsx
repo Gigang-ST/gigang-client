@@ -1,6 +1,11 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 import { Suspense } from "react";
 import { RecordsClient } from "./records-client";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+);
 
 const TIME_EVENT_TYPES = [
   { value: "5K", label: "5K" },
@@ -21,8 +26,6 @@ function secondsToTimeString(totalSeconds: number): string {
 }
 
 async function RecordsContent() {
-  const supabase = await createClient();
-
   const [{ data: pbData }, { data: utmbData }] = await Promise.all([
     supabase
       .from("personal_best")
@@ -131,10 +134,13 @@ async function RecordsContent() {
 
   return (
     <div className="flex flex-col gap-0">
-      <div className="flex h-14 items-center px-6">
+      <div className="flex flex-col gap-1 px-6 pt-4">
         <h1 className="text-[28px] font-semibold tracking-tight text-foreground">
           기강의전당
         </h1>
+        <p className="text-xs text-muted-foreground">
+          기록 변경 시 자동으로 업데이트됩니다.
+        </p>
       </div>
       <RecordsClient data={serialized} />
     </div>
