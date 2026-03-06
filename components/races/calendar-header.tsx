@@ -46,7 +46,7 @@ export function CalendarHeader({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-white/80">
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-muted-foreground">
         {SPORT_LEGEND.map((legend) => (
           <span key={legend.key} className="inline-flex items-center gap-1">
             <span className={`size-1.5 rounded-full ${legend.dotClass}`} />

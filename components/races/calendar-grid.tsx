@@ -51,8 +51,8 @@ export function CalendarGrid({
   const cells = useMemo(() => getCalendarCells(currentDate), [currentDate]);
 
   return (
-    <div className="flex flex-1 flex-col overflow-visible border-t border-white/10 bg-white/[0.01]">
-      <div className="grid grid-cols-7 border-b border-white/10 bg-white/[0.02]">
+    <div className="flex flex-1 flex-col overflow-visible border-t border-border bg-secondary">
+      <div className="grid grid-cols-7 border-b border-border bg-secondary">
         {DAY_LABELS.map((label, index) => (
           <div
             key={label}
@@ -91,9 +91,9 @@ export function CalendarGrid({
                 }
               }}
               className={cn(
-                "group relative flex flex-col border-b border-r border-white/10 p-0.5 text-left transition-colors hover:bg-white/[0.04] md:p-1 lg:p-1.5",
-                !cell.isCurrentMonth && "bg-white/[0.005]",
-                isSelected && "bg-white/[0.08] ring-1 ring-white/30",
+                "group relative flex flex-col border-b border-r border-border p-0.5 text-left transition-colors hover:bg-secondary/50 md:p-1 lg:p-1.5",
+                !cell.isCurrentMonth && "bg-secondary/50",
+                isSelected && "bg-secondary ring-1 ring-border",
               )}
             >
               <span
@@ -163,7 +163,7 @@ export function CalendarGrid({
                     </button>
                     <div
                       className={cn(
-                        "absolute left-0 top-full z-30 mt-1 w-56 max-h-48 overflow-y-auto rounded-md border border-white/40 bg-white/90 p-2 text-foreground shadow-lg transition",
+                        "absolute left-0 top-full z-30 mt-1 w-56 max-h-48 overflow-y-auto rounded-md border border-border bg-background p-2 text-foreground shadow-lg transition",
                         expandedDate === cell.dateStr
                           ? "pointer-events-auto opacity-100"
                           : "pointer-events-none opacity-0",

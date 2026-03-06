@@ -381,11 +381,11 @@ export function CompetitionCalendar() {
 
       <div className="px-4 pb-4 pt-3 md:hidden">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-white">
+          <span className="text-sm font-semibold text-foreground">
             {formatDate(selectedDateStr)}
           </span>
           {!competitionsLoading && (
-            <span className="text-xs text-white/50">
+            <span className="text-xs text-muted-foreground">
               {(competitionsByDate.get(selectedDateStr) ?? []).length}개 일정
             </span>
           )}
@@ -397,7 +397,7 @@ export function CompetitionCalendar() {
               <MobileCompetitionCardSkeleton />
             </>
           ) : (competitionsByDate.get(selectedDateStr) ?? []).length === 0 ? (
-            <p className="rounded-lg border border-dashed border-white/15 bg-white/[0.03] px-4 py-6 text-center text-xs text-white/50">
+            <p className="rounded-lg border border-dashed border-border bg-secondary/50 px-4 py-6 text-center text-xs text-muted-foreground">
               이 날짜에 일정이 없습니다.
             </p>
           ) : (
@@ -450,7 +450,7 @@ function MobileCompetitionCard({
         "flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors",
         isRegistered
           ? "bg-primary/15 ring-1 ring-primary/40 hover:bg-primary/20"
-          : "bg-white/[0.06] hover:bg-white/[0.10]",
+          : "bg-secondary hover:bg-secondary/80",
       )}
     >
       <span
@@ -461,7 +461,7 @@ function MobileCompetitionCard({
       />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium leading-snug text-white">
+          <span className="text-sm font-medium leading-snug text-foreground">
             {competition.title}
           </span>
           {isRegistered && (
@@ -470,7 +470,7 @@ function MobileCompetitionCard({
             </span>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-white/60">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
           {competition.sport && (
             <span className="inline-flex items-center gap-1">
               <span
@@ -493,7 +493,7 @@ function MobileCompetitionCard({
 
 function MobileCompetitionCardSkeleton() {
   return (
-    <div className="flex items-start gap-3 rounded-lg bg-white/[0.06] px-3 py-2.5">
+    <div className="flex items-start gap-3 rounded-lg bg-secondary px-3 py-2.5">
       <Skeleton className="mt-0.5 h-8 w-1 rounded-full" />
       <div className="flex flex-1 flex-col gap-1.5">
         <Skeleton className="h-3.5 w-3/4 rounded" />

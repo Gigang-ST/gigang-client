@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { Card, CardContent } from "@/components/ui/card";
 import { Suspense } from "react";
 import { RecordsClient } from "./records-client";
 
@@ -131,21 +130,13 @@ async function RecordsContent() {
   ];
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col px-4 pb-16 pt-20 text-white md:px-8 md:pt-28">
-      <div className="flex flex-col gap-6">
-        <div className="space-y-3">
-          <p className="text-sm uppercase tracking-[0.2em] text-white/60">
-            Hall of Fame
-          </p>
-          <h1 className="text-3xl font-bold md:text-4xl">기강의전당</h1>
-        </div>
-
-        <Card className="border-white/20 bg-white/35 text-foreground shadow-xl backdrop-blur-xl">
-          <CardContent className="p-4 md:p-6">
-            <RecordsClient data={serialized} />
-          </CardContent>
-        </Card>
+    <div className="flex flex-col gap-0">
+      <div className="flex h-14 items-center px-6">
+        <h1 className="text-[28px] font-semibold tracking-tight text-foreground">
+          기강의전당
+        </h1>
       </div>
+      <RecordsClient data={serialized} />
     </div>
   );
 }

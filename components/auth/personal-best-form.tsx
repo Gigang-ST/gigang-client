@@ -416,7 +416,7 @@ export function PersonalBestForm({
 
   return (
     <>
-      <Card className="border border-white/20 bg-white/80 text-foreground shadow-xl backdrop-blur-xl">
+      <Card className="border border-border bg-white text-foreground shadow-xl">
         <CardHeader>
           <CardTitle className="text-2xl">최고기록 (PB)</CardTitle>
           <CardDescription>

@@ -31,8 +31,8 @@ export function ProfileTabs({
             onClick={() => setActive(tab.value)}
             className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
               active === tab.value
-                ? "bg-white text-foreground shadow-sm"
-                : "text-white/70 hover:text-white"
+                ? "bg-foreground text-background shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             {tab.label}

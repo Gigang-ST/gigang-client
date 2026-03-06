@@ -1,51 +1,42 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Suspense } from "react";
-
-async function ErrorContent({
-  searchParams,
-}: {
-  searchParams: Promise<{ error: string }>;
-}) {
-  const params = await searchParams;
-
-  return (
-    <>
-      {params?.error ? (
-        <p className="text-sm text-muted-foreground">
-          Code error: {params.error}
-        </p>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          An unspecified error occurred.
-        </p>
-      )}
-    </>
-  );
-}
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { AlertTriangle } from "lucide-react";
+import Link from "next/link";
 
 export default function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ error: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
-      <div className="w-full max-w-sm">
-        <div className="flex flex-col gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-2xl">
-                Sorry, something went wrong.
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Suspense>
-                <ErrorContent searchParams={searchParams} />
-              </Suspense>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+    <div className="w-full max-w-sm">
+      <ErrorContent searchParams={searchParams} />
     </div>
+  );
+}
+
+async function ErrorContent({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
+  return (
+    <Card className="border-border shadow-sm">
+      <CardHeader className="items-center text-center">
+        <AlertTriangle className="size-12 text-destructive" />
+        <CardTitle className="text-xl">오류가 발생했습니다</CardTitle>
+        <CardDescription>
+          {error ? `오류 코드: ${error}` : "알 수 없는 오류가 발생했습니다."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="text-center">
+        <Link
+          href="/auth/login"
+          className="inline-flex h-10 items-center justify-center rounded-lg bg-primary px-6 text-sm font-medium text-primary-foreground"
+        >
+          다시 시도
+        </Link>
+      </CardContent>
+    </Card>
   );
 }

@@ -1,7 +1,4 @@
-import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { Suspense } from "react";
 
 const intro = {
   heading: "기강단 소개",
@@ -148,49 +145,14 @@ const contact = {
 
 const feeRule = rules.items.find((item) => item.id === 5);
 
-async function JoinButton() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  let isMember = false;
-  if (user) {
-    const { data: member } = await supabase
-      .from("member")
-      .select("id")
-      .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
-      .maybeSingle();
-    isMember = !!member;
-  }
-
-  if (isMember) {
-    return (
-      <Button size="lg" disabled className="w-full text-base">
-        이미 가입된 회원입니다
-      </Button>
-    );
-  }
-
-  return (
-    <Button
-      asChild
-      size="lg"
-      className="w-full bg-white text-black hover:bg-white/90 text-base"
-    >
-      <Link href="/auth/login">가입신청</Link>
-    </Button>
-  );
-}
-
 export default function JoinPage() {
   return (
-    <div className="mx-auto flex min-h-full max-w-xl flex-col px-6 pb-16 pt-20 text-white md:px-12 md:pt-28">
+    <div className="mx-auto flex min-h-full max-w-xl flex-col px-6 pb-16 pt-4">
       <h1 className="text-3xl font-bold md:text-4xl">가입안내</h1>
 
       <section className="mt-8 space-y-3">
         {intro.paragraphs.map((p, i) => (
-          <p key={i} className="text-white/80 leading-relaxed">
+          <p key={i} className="text-muted-foreground leading-relaxed">
             {p}
           </p>
         ))}
@@ -198,17 +160,17 @@ export default function JoinPage() {
 
       <section className="mt-10 space-y-3">
         <h2 className="text-xl font-semibold">활동 정보</h2>
-        <dl className="space-y-2 text-white/80">
+        <dl className="space-y-2 text-muted-foreground">
           <div className="flex gap-2">
-            <dt className="font-medium text-white">연령대</dt>
+            <dt className="font-medium text-foreground">연령대</dt>
             <dd>{highlights.ageRange}</dd>
           </div>
           <div className="flex gap-2">
-            <dt className="font-medium text-white">활동지역</dt>
+            <dt className="font-medium text-foreground">활동지역</dt>
             <dd>{highlights.activityArea}</dd>
           </div>
           <div className="flex gap-2">
-            <dt className="font-medium text-white">주요 활동</dt>
+            <dt className="font-medium text-foreground">주요 활동</dt>
             <dd>{highlights.primaryActivities.join(", ")}</dd>
           </div>
         </dl>
@@ -220,10 +182,10 @@ export default function JoinPage() {
           {meetingPlaces.items.map((place) => (
             <div
               key={place.id}
-              className="rounded-lg border border-white/10 bg-white/5 p-4"
+              className="rounded-lg border border-border bg-secondary p-4"
             >
               <h3 className="font-medium">{place.title}</h3>
-              <p className="mt-1 text-sm text-white/70">
+              <p className="mt-1 text-sm text-muted-foreground">
                 {place.description}
               </p>
             </div>
@@ -234,7 +196,7 @@ export default function JoinPage() {
       {feeRule && (
         <section className="mt-10 space-y-3">
           <h2 className="text-xl font-semibold">{feeRule.title}</h2>
-          <ul className="space-y-1 text-white/80">
+          <ul className="space-y-1 text-muted-foreground">
             {feeRule.details.map((detail, i) => (
               <li key={i} className="leading-relaxed">
                 {detail}
@@ -246,16 +208,16 @@ export default function JoinPage() {
 
       <section className="mt-10 space-y-3">
         <h2 className="text-xl font-semibold">{requests.heading}</h2>
-        <p className="text-sm text-white/50">{requests.note}</p>
+        <p className="text-sm text-muted-foreground">{requests.note}</p>
         <ul className="space-y-2">
           {requests.items.map((item) => (
-            <li key={item.id} className="text-white/80">
+            <li key={item.id} className="text-muted-foreground">
               {item.href ? (
                 <a
                   href={item.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="underline underline-offset-2 hover:text-white"
+                  className="underline underline-offset-2 hover:text-foreground"
                 >
                   {item.title}
                 </a>
@@ -263,7 +225,7 @@ export default function JoinPage() {
                 <span>{item.title}</span>
               )}
               {item.description && (
-                <span className="ml-2 text-sm text-white/50">
+                <span className="ml-2 text-sm text-muted-foreground">
                   ({item.description})
                 </span>
               )}
@@ -274,21 +236,21 @@ export default function JoinPage() {
 
       <section className="mt-10 space-y-3">
         <h2 className="text-xl font-semibold">{contact.heading}</h2>
-        <p className="text-white/70">{contact.description}</p>
+        <p className="text-muted-foreground">{contact.description}</p>
         <div className="space-y-2">
           {contact.people.map((person, i) => (
             <div
               key={i}
-              className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm"
+              className="rounded-lg border border-border bg-secondary p-3 text-sm"
             >
               <span className="font-medium">{person.role}</span>
               {person.instagram && (
-                <span className="ml-3 text-white/60">
+                <span className="ml-3 text-muted-foreground">
                   IG {person.instagram}
                 </span>
               )}
               {person.kakaoId && (
-                <span className="ml-3 text-white/60">
+                <span className="ml-3 text-muted-foreground">
                   카카오 {person.kakaoId}
                 </span>
               )}
@@ -297,17 +259,6 @@ export default function JoinPage() {
         </div>
       </section>
 
-      <div className="mt-12">
-        <Suspense
-          fallback={
-            <Button size="lg" disabled className="w-full text-base">
-              가입신청
-            </Button>
-          }
-        >
-          <JoinButton />
-        </Suspense>
-      </div>
     </div>
   );
 }

@@ -52,19 +52,19 @@ export default function PolicyPage() {
   };
 
   return (
-    <div className="mx-auto flex min-h-full max-w-3xl flex-col px-6 pb-16 pt-20 text-white md:px-12 md:pt-28">
+    <div className="mx-auto flex min-h-full max-w-3xl flex-col px-6 pb-16 pt-4">
       <h1 className="text-3xl font-bold md:text-4xl">{policy.heading}</h1>
-      <p className="mt-3 text-sm text-white/70">
+      <p className="mt-3 text-sm text-muted-foreground">
         시행일: {policy.effectiveDate}
       </p>
 
-      <ol className="mt-8 space-y-8 text-white/90">
+      <ol className="mt-8 space-y-8 text-muted-foreground">
         {policy.sections.map((section) => (
           <li key={section.id} className="space-y-3">
             <h2 className="text-lg font-semibold md:text-xl">
               {section.id}. {section.title}
             </h2>
-            <ul className="list-disc space-y-2 pl-5 text-white/80">
+            <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
               {section.details.map((detail) => (
                 <li key={detail}>{detail}</li>
               ))}
