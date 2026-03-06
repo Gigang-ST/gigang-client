@@ -18,26 +18,26 @@ const SPORT_LABEL: Record<string, { label: string; className: string }> = {
   trail_run: { label: "트레일러닝", className: "bg-amber-50 text-amber-600" },
 };
 
-export function RaceListView() {
+export function RaceListView({
+  upcomingCompetitions,
+  today,
+}: {
+  upcomingCompetitions: Competition[];
+  today: string;
+}) {
   const supabase = useMemo(() => createClient(), []);
   const [tab, setTab] = useState<Tab>("upcoming");
   const [completedYear, setCompletedYear] = useState<number | null>(null);
-  const [competitions, setCompetitions] = useState<Competition[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [completedCache, setCompletedCache] = useState<Record<number, Competition[]>>({});
+  const [completedLoading, setCompletedLoading] = useState(false);
   const [memberStatus, setMemberStatus] = useState<MemberStatus>({ status: "loading" });
   const [registrationsByCompetitionId, setRegistrationsByCompetitionId] =
     useState<Record<string, CompetitionRegistration>>({});
   const [selectedCompetition, setSelectedCompetition] = useState<Competition | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
-  const today = useMemo(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  }, []);
+  const currentYear = useMemo(() => Number(today.slice(0, 4)), [today]);
 
-  const currentYear = useMemo(() => new Date().getFullYear(), []);
-
-  // 완료 탭에서 사용 가능한 연도 목록 (2020~올해)
   const completedYears = useMemo(() => {
     const years: number[] = [];
     for (let y = currentYear; y >= 2020; y--) years.push(y);
@@ -63,38 +63,31 @@ export function RaceListView() {
     return () => { active = false; };
   }, [supabase]);
 
-  // Load competitions based on tab
+  // Fetch completed competitions by year (client-side, cached)
+  const activeYear = completedYear ?? completedYears[0];
   useEffect(() => {
+    if (tab !== "completed") return;
+    if (completedCache[activeYear]) return;
     let active = true;
     async function load() {
-      setLoading(true);
-      let query = supabase
+      setCompletedLoading(true);
+      const endDate = today <= `${activeYear}-12-31` ? today : `${activeYear + 1}-01-01`;
+      const { data } = await supabase
         .from("competition")
-        .select("id, external_id, sport, title, start_date, end_date, location, event_types, source_url");
-
-      if (tab === "upcoming") {
-        // 예정: 오늘 ~ 올해 말
-        query = query
-          .gte("start_date", today)
-          .lte("start_date", `${currentYear}-12-31`)
-          .order("start_date", { ascending: true });
-      } else {
-        // 완료: 선택 연도의 오늘 이전 대회
-        const year = completedYear ?? completedYears[0];
-        query = query
-          .gte("start_date", `${year}-01-01`)
-          .lt("start_date", today <= `${year}-12-31` ? today : `${year + 1}-01-01`)
-          .order("start_date", { ascending: false });
-      }
-
-      const { data } = await query.limit(1000);
+        .select("id, external_id, sport, title, start_date, end_date, location, event_types, source_url")
+        .gte("start_date", `${activeYear}-01-01`)
+        .lt("start_date", endDate)
+        .order("start_date", { ascending: false });
       if (!active) return;
-      setCompetitions((data ?? []) as Competition[]);
-      setLoading(false);
+      setCompletedCache(prev => ({ ...prev, [activeYear]: (data ?? []) as Competition[] }));
+      setCompletedLoading(false);
     }
     load();
     return () => { active = false; };
-  }, [supabase, tab, completedYear, completedYears, today, currentYear]);
+  }, [supabase, tab, activeYear, completedCache, today]);
+
+  const competitions = tab === "upcoming" ? upcomingCompetitions : (completedCache[activeYear] ?? []);
+  const loading = tab === "completed" && completedLoading && !completedCache[activeYear];
 
   // Load registrations
   useEffect(() => {
@@ -118,13 +111,10 @@ export function RaceListView() {
     return () => { active = false; };
   }, [competitions, memberStatus, supabase]);
 
-  // DB에서 이미 탭 기준으로 필터링해서 가져오므로 그대로 사용
-  const filtered = competitions;
-
   // Group by year-month
   const grouped = useMemo(() => {
     const map = new Map<string, Competition[]>();
-    filtered.forEach(c => {
+    competitions.forEach(c => {
       const d = new Date(c.start_date);
       const key = `${d.getFullYear()}-${d.getMonth()}`;
       const list = map.get(key) ?? [];
@@ -135,7 +125,7 @@ export function RaceListView() {
       const [year, month] = key.split("-").map(Number);
       return { year, month, label: `${year}년 ${month + 1}월`, items };
     });
-  }, [filtered]);
+  }, [competitions]);
 
   // Registration count per competition
   const [regCounts, setRegCounts] = useState<Record<string, number>>({});

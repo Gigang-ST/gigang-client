@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
@@ -9,6 +10,8 @@ export async function POST(request: NextRequest) {
   }
 
   revalidatePath("/records");
+  revalidatePath("/");
+  revalidateTag("competitions", "max");
 
   return NextResponse.json({ revalidated: true });
 }
