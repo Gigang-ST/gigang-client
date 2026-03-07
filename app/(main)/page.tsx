@@ -41,7 +41,7 @@ async function HomeContent() {
       .select("*", { count: "exact", head: true })
       .gte("start_date", today),
     supabase
-      .from("personal_best")
+      .from("personal_best_view")
       .select(
         "event_type, record_time_sec, race_name, updated_at, member:member_id(full_name)",
       )
