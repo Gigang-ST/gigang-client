@@ -8,11 +8,13 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
 );
 
-const TIME_EVENT_TYPES = [
-  { value: "5K", label: "5K" },
+const MARATHON_EVENTS = [
   { value: "10K", label: "10K" },
   { value: "HALF", label: "하프마라톤" },
   { value: "FULL", label: "풀마라톤" },
+] as const;
+
+const NO_GENDER_EVENTS = [
   { value: "TRIATHLON", label: "철인3종" },
 ] as const;
 
@@ -40,67 +42,69 @@ async function RecordsContent() {
       ),
   ]);
 
-  // Build time-based rankings
-  const timeEvents = TIME_EVENT_TYPES.map((evt) => {
-    const rows = (pbData ?? [])
-      .filter((r) => r.event_type === evt.value)
-      .map((r) => {
-        const member = r.member as unknown as {
-          full_name: string;
-          gender: string;
-        };
-        return {
-          name: member.full_name,
-          gender: member.gender,
-          record: secondsToTimeString(r.record_time_sec),
-          raceName: r.race_name,
-          sortKey: r.record_time_sec,
-        };
+  function buildRows(eventTypes: readonly { value: string; label: string }[]) {
+    return eventTypes.map((evt) => {
+      const rows = (pbData ?? [])
+        .filter((r) => r.event_type === evt.value)
+        .map((r) => {
+          const member = r.member as unknown as {
+            full_name: string;
+            gender: string;
+          };
+          return {
+            name: member.full_name,
+            gender: member.gender,
+            record: secondsToTimeString(r.record_time_sec),
+            raceName: r.race_name,
+            sortKey: r.record_time_sec,
+          };
+        });
+
+      const toEntry = (r: (typeof rows)[number], i: number) => ({
+        rank: i + 1,
+        name: r.name,
+        record: r.record,
+        raceName: r.raceName,
+        utmbProfileUrl: null,
       });
 
-    const male = rows
-      .filter((r) => r.gender === "male")
-      .sort((a, b) => a.sortKey - b.sortKey)
-      .slice(0, 10)
-      .map((r, i) => ({
-        rank: i + 1,
-        name: r.name,
-        record: r.record,
-        raceName: r.raceName,
-        utmbProfileUrl: null,
-      }));
+      return {
+        eventType: evt.value,
+        label: evt.label,
+        male: rows
+          .filter((r) => r.gender === "male")
+          .sort((a, b) => a.sortKey - b.sortKey)
+          .slice(0, 10)
+          .map(toEntry),
+        female: rows
+          .filter((r) => r.gender === "female")
+          .sort((a, b) => a.sortKey - b.sortKey)
+          .slice(0, 10)
+          .map(toEntry),
+        all: rows
+          .sort((a, b) => a.sortKey - b.sortKey)
+          .slice(0, 10)
+          .map(toEntry),
+      };
+    });
+  }
 
-    const female = rows
-      .filter((r) => r.gender === "female")
-      .sort((a, b) => a.sortKey - b.sortKey)
-      .slice(0, 10)
-      .map((r, i) => ({
-        rank: i + 1,
-        name: r.name,
-        record: r.record,
-        raceName: r.raceName,
-        utmbProfileUrl: null,
-      }));
-
-    return { eventType: evt.value, label: evt.label, male, female };
-  });
+  const marathonEvents = buildRows(MARATHON_EVENTS);
+  const noGenderEvents = buildRows(NO_GENDER_EVENTS);
 
   // Build UTMB rankings
-  const utmbRows = (utmbData ?? []).map((r) => {
-    const member = r.member as unknown as {
-      full_name: string;
-      gender: string;
-    };
-    return {
-      name: member.full_name,
-      gender: member.gender,
-      index: r.utmb_index,
-      url: r.utmb_profile_url,
-    };
-  });
-
-  const utmbMale = utmbRows
-    .filter((r) => r.gender === "male")
+  const utmbAll = (utmbData ?? [])
+    .map((r) => {
+      const member = r.member as unknown as {
+        full_name: string;
+        gender: string;
+      };
+      return {
+        name: member.full_name,
+        index: r.utmb_index,
+        url: r.utmb_profile_url,
+      };
+    })
     .sort((a, b) => b.index - a.index)
     .slice(0, 10)
     .map((r, i) => ({
@@ -111,29 +115,38 @@ async function RecordsContent() {
       utmbProfileUrl: r.url,
     }));
 
-  const utmbFemale = utmbRows
-    .filter((r) => r.gender === "female")
-    .sort((a, b) => b.index - a.index)
-    .slice(0, 10)
-    .map((r, i) => ({
-      rank: i + 1,
-      name: r.name,
-      record: String(r.index),
-      raceName: null,
-      utmbProfileUrl: r.url,
-    }));
+  const serialized = {
+    categories: [
+      {
+        key: "marathon",
+        label: "마라톤",
+        hasGender: true,
+        events: marathonEvents,
+      },
+      {
+        key: "triathlon",
+        label: "철인3종",
+        hasGender: false,
+        events: noGenderEvents,
+      },
+      {
+        key: "trail",
+        label: "트레일러닝",
+        hasGender: false,
+        events: [
+          {
+            eventType: "UTMB",
+            label: "UTMB Index",
+            male: [],
+            female: [],
+            all: utmbAll,
+          },
+        ],
+      },
+    ],
+  };
 
-  const serialized = [
-    ...timeEvents,
-    {
-      eventType: "UTMB",
-      label: "UTMB Index",
-      male: utmbMale,
-      female: utmbFemale,
-    },
-  ];
-
-  return <RecordsClient data={serialized} />;
+  return <RecordsClient data={serialized.categories} />;
 }
 
 function RecordsSkeleton() {
