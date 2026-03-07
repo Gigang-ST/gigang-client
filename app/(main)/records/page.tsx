@@ -31,7 +31,7 @@ function secondsToTimeString(totalSeconds: number): string {
 async function RecordsContent() {
   const [{ data: pbData }, { data: utmbData }] = await Promise.all([
     supabase
-      .from("personal_best")
+      .from("personal_best_view")
       .select(
         "event_type, record_time_sec, race_name, member:member_id(full_name, gender)",
       ),

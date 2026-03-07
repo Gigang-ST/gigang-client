@@ -43,3 +43,8 @@ next-env.d.ts
 
 # claude code
 .claude/settings.local.json
+
+# python (uv)
+.venv/
+__pycache__/
+*.pyc
