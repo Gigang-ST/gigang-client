@@ -16,6 +16,14 @@ type EventData = {
   label: string;
   male: RankingEntry[];
   female: RankingEntry[];
+  all: RankingEntry[];
+};
+
+type Category = {
+  key: string;
+  label: string;
+  hasGender: boolean;
+  events: EventData[];
 };
 
 function MedalBadge({ rank }: { rank: number }) {
@@ -36,67 +44,110 @@ function MedalBadge({ rank }: { rank: number }) {
   );
 }
 
-export function RecordsClient({ data }: { data: EventData[] }) {
+export function RecordsClient({ data }: { data: Category[] }) {
+  const [selectedCategory, setSelectedCategory] = useState(
+    data[0]?.key ?? "marathon",
+  );
   const [selectedEvent, setSelectedEvent] = useState(
-    data[0]?.eventType ?? "5K",
+    data[0]?.events[0]?.eventType ?? "10K",
   );
   const [selectedGender, setSelectedGender] = useState<"male" | "female">(
     "male",
   );
 
-  const current = data.find((d) => d.eventType === selectedEvent);
-  const entries =
-    selectedGender === "male" ? current?.male : current?.female;
+  const category = data.find((c) => c.key === selectedCategory);
+  const currentEvent = category?.events.find(
+    (e) => e.eventType === selectedEvent,
+  );
+
+  const entries = category?.hasGender
+    ? selectedGender === "male"
+      ? currentEvent?.male
+      : currentEvent?.female
+    : currentEvent?.all;
+
   const isUtmb = selectedEvent === "UTMB";
+
+  function handleCategoryChange(key: string) {
+    setSelectedCategory(key);
+    const cat = data.find((c) => c.key === key);
+    if (cat?.events[0]) {
+      setSelectedEvent(cat.events[0].eventType);
+    }
+    setSelectedGender("male");
+  }
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Distance Filter Pills */}
-      <div className="flex flex-wrap gap-2 px-6">
-        {data.map((evt) => (
+      {/* Category Tabs */}
+      <div className="flex gap-2 px-6">
+        {data.map((cat) => (
           <button
-            key={evt.eventType}
+            key={cat.key}
             type="button"
-            onClick={() => setSelectedEvent(evt.eventType)}
+            onClick={() => handleCategoryChange(cat.key)}
             className={cn(
               "rounded-full px-4 py-2 text-[13px] font-medium transition-colors",
-              selectedEvent === evt.eventType
+              selectedCategory === cat.key
                 ? "bg-foreground text-background"
                 : "border-[1.5px] border-border text-muted-foreground",
             )}
           >
-            {evt.label}
+            {cat.label}
           </button>
         ))}
       </div>
 
-      {/* Gender Tabs */}
-      <div className="flex items-center gap-0 px-6 py-2">
-        <button
-          type="button"
-          onClick={() => setSelectedGender("male")}
-          className={cn(
-            "flex-1 rounded-lg py-2 text-sm font-medium transition-colors",
-            selectedGender === "male"
-              ? "bg-foreground text-background"
-              : "text-muted-foreground",
-          )}
-        >
-          남성
-        </button>
-        <button
-          type="button"
-          onClick={() => setSelectedGender("female")}
-          className={cn(
-            "flex-1 rounded-lg py-2 text-sm font-medium transition-colors",
-            selectedGender === "female"
-              ? "bg-foreground text-background"
-              : "text-muted-foreground",
-          )}
-        >
-          여성
-        </button>
-      </div>
+      {/* Event Sub-tabs (only if category has multiple events) */}
+      {category && category.events.length > 1 && (
+        <div className="flex gap-2 px-6">
+          {category.events.map((evt) => (
+            <button
+              key={evt.eventType}
+              type="button"
+              onClick={() => setSelectedEvent(evt.eventType)}
+              className={cn(
+                "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                selectedEvent === evt.eventType
+                  ? "bg-muted-foreground/20 text-foreground"
+                  : "text-muted-foreground",
+              )}
+            >
+              {evt.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Gender Tabs (only for categories with gender) */}
+      {category?.hasGender && (
+        <div className="flex items-center gap-0 px-6 py-2">
+          <button
+            type="button"
+            onClick={() => setSelectedGender("male")}
+            className={cn(
+              "flex-1 rounded-lg py-2 text-sm font-medium transition-colors",
+              selectedGender === "male"
+                ? "bg-foreground text-background"
+                : "text-muted-foreground",
+            )}
+          >
+            남성
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedGender("female")}
+            className={cn(
+              "flex-1 rounded-lg py-2 text-sm font-medium transition-colors",
+              selectedGender === "female"
+                ? "bg-foreground text-background"
+                : "text-muted-foreground",
+            )}
+          >
+            여성
+          </button>
+        </div>
+      )}
 
       {/* Rank List */}
       <div className="flex flex-col px-6 pt-2">
@@ -106,7 +157,6 @@ export function RecordsClient({ data }: { data: EventData[] }) {
               key={`${entry.rank}-${entry.name}`}
               className="flex items-center gap-4 border-b border-border py-4 last:border-b-0"
             >
-              {/* Medal or Number */}
               {entry.rank <= 3 ? (
                 <MedalBadge rank={entry.rank} />
               ) : (
@@ -115,7 +165,6 @@ export function RecordsClient({ data }: { data: EventData[] }) {
                 </span>
               )}
 
-              {/* Info */}
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="text-[15px] font-semibold text-foreground">
                   {entry.name}
@@ -140,7 +189,6 @@ export function RecordsClient({ data }: { data: EventData[] }) {
                 )}
               </div>
 
-              {/* Time */}
               <span
                 className={cn(
                   "shrink-0 font-mono text-lg font-bold",
