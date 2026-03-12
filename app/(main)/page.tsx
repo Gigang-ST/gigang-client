@@ -1,20 +1,10 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
 import { Suspense } from "react";
-import { Calendar, MapPin } from "lucide-react";
 import Link from "next/link";
 import { SocialLinksGrid } from "@/components/social-links";
+import { UpcomingRaces } from "@/components/home/upcoming-races";
 
-function formatDDay(dateStr: string) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(dateStr);
-  target.setHours(0, 0, 0, 0);
-  const diff = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  if (diff === 0) return "D-DAY";
-  if (diff > 0) return `D-${diff}`;
-  return `D+${Math.abs(diff)}`;
-}
 
 type UpcomingRace = {
   id: string;
@@ -27,8 +17,9 @@ type UpcomingRace = {
   label?: string;
 };
 
-/** 같은 주말(토-일)이면 true */
-function isSameWeekend(dateA: string, dateB: string) {
+/** 같은 날이거나 같은 주말(토-일)이면 true */
+function isSameSlot(dateA: string, dateB: string) {
+  if (dateA === dateB) return true;
   const a = new Date(dateA);
   const b = new Date(dateB);
   const dayA = a.getDay(); // 0=일, 6=토
@@ -92,9 +83,9 @@ async function HomeContent() {
   let topGigang: UpcomingRace | null = null;
   if (gigangRaces.length > 0) {
     const first = gigangRaces[0];
-    // 같은 주말에 있는 대회들 모으기
+    // 같은 슬롯(같은 날 or 같은 주말)에 있는 대회들 모으기
     const weekendGroup = gigangRaces.filter(
-      (r) => r.start_date === first.start_date || isSameWeekend(r.start_date, first.start_date),
+      (r) => isSameSlot(r.start_date, first.start_date),
     );
     // 참여 인원 많은 순
     weekendGroup.sort((a, b) => (b.regCount ?? 0) - (a.regCount ?? 0));
@@ -129,19 +120,22 @@ async function HomeContent() {
     upcomingCards.push({ ...topGigang, label: "기강 대회" });
   }
 
-  // 카드 2: 내가 나가는 대회 (카드1과 다른 것)
-  const myNext = myRaces.find((r) => r.id !== topGigang?.id);
+  // 카드 2: 내가 나가는 대회 (카드1과 다른 슬롯인 것)
+  const isDifferentSlot = (r: UpcomingRace) =>
+    !topGigang || !isSameSlot(r.start_date, topGigang.start_date);
+
+  const myNext = myRaces.find((r) => isDifferentSlot(r));
   if (myNext) {
     upcomingCards.push({ ...myNext, label: "내 대회" });
-  } else if (myRaces.length > 0 && myRaces[0].id === topGigang?.id) {
-    // 내 대회가 기강1번과 같으면 → 기강대회 그 다음 것
-    const nextGigang = gigangRaces.find((r) => r.id !== topGigang?.id);
+  } else if (myRaces.length > 0 && !isDifferentSlot(myRaces[0])) {
+    // 내 대회가 기강1번과 같은 슬롯뿐 → 기강대회 다음 슬롯
+    const nextGigang = gigangRaces.find((r) => isDifferentSlot(r));
     if (nextGigang) {
       upcomingCards.push({ ...nextGigang, label: "기강 대회" });
     }
   } else if (!user) {
-    // 비로그인: 기강대회 두 번째
-    const nextGigang = gigangRaces.find((r) => r.id !== topGigang?.id);
+    // 비로그인: 기강대회 다음 슬롯
+    const nextGigang = gigangRaces.find((r) => isDifferentSlot(r));
     if (nextGigang) {
       upcomingCards.push({ ...nextGigang, label: "기강 대회" });
     }
@@ -182,71 +176,7 @@ async function HomeContent() {
         <SocialLinksGrid />
 
         {/* Upcoming Races */}
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-              UPCOMING RACES
-            </span>
-            <Link
-              href="/races"
-              className="text-xs font-medium text-primary"
-            >
-              모두 보기
-            </Link>
-          </div>
-          {upcomingCards.length === 0 ? (
-            <p className="rounded-2xl border-[1.5px] border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-              예정된 대회가 없습니다
-            </p>
-          ) : (
-            upcomingCards.map((race) => (
-              <div
-                key={race.id}
-                className="flex flex-col gap-3 rounded-2xl border-[1.5px] border-border p-4"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex flex-col gap-1">
-                    {race.label && (
-                      <span className="text-[11px] font-semibold text-primary">
-                        {race.label}
-                      </span>
-                    )}
-                    <span className="text-[15px] font-semibold text-foreground">
-                      {race.title}
-                    </span>
-                  </div>
-                  <span className="shrink-0 rounded-full bg-destructive/10 px-2.5 py-1 text-[11px] font-bold text-destructive">
-                    {formatDDay(race.start_date)}
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <Calendar className="size-3" />
-                    {race.start_date}
-                  </span>
-                  {race.location && (
-                    <span className="flex items-center gap-1">
-                      <MapPin className="size-3" />
-                      {race.location}
-                    </span>
-                  )}
-                </div>
-                {race.event_types && race.event_types.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {race.event_types.map((et: string) => (
-                      <span
-                        key={et}
-                        className="rounded-full bg-foreground px-2.5 py-0.5 text-[11px] font-bold text-background"
-                      >
-                        {et}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))
-          )}
-        </div>
+        <UpcomingRaces races={upcomingCards} />
 
         {/* Recent Records */}
         <div className="flex flex-col gap-4">
