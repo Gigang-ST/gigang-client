@@ -121,6 +121,7 @@ export function RaceListView({
       .select("id, competition_id, member_id, role, event_type, created_at").single();
     if (error) return { ok: false as const, message: "신청에 실패했습니다." };
     setRegistrationsByCompetitionId(prev => ({ ...prev, [competitionId]: data as CompetitionRegistration }));
+    setRegCounts(prev => ({ ...prev, [competitionId]: (prev[competitionId] ?? 0) + 1 }));
     return { ok: true as const, message: "참가 신청 완료" };
   };
 
@@ -139,6 +140,13 @@ export function RaceListView({
     const { error } = await supabase.from("competition_registration").delete().eq("id", registrationId);
     if (error) return { ok: false as const, message: "취소에 실패했습니다." };
     setRegistrationsByCompetitionId(prev => { const next = { ...prev }; delete next[competitionId]; return next; });
+    const newCount = (regCounts[competitionId] ?? 1) - 1;
+    setRegCounts(prev => ({ ...prev, [competitionId]: newCount }));
+    // 마지막 참가자가 취소하면 기강대회 목록 갱신
+    if (newCount <= 0) {
+      await revalidateCompetitions();
+      window.location.reload();
+    }
     return { ok: true as const, message: "취소 완료" };
   };
 
