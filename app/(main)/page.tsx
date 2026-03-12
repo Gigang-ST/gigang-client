@@ -172,9 +172,6 @@ async function HomeContent() {
           </div>
         </div>
 
-        {/* Social Links */}
-        <SocialLinksGrid />
-
         {/* Upcoming Races */}
         <UpcomingRaces races={upcomingCards} />
 
@@ -219,6 +216,9 @@ async function HomeContent() {
             })
           )}
         </div>
+
+        {/* Social Links */}
+        <SocialLinksGrid />
       </div>
   );
 }
