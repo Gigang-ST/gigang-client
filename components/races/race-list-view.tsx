@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
 import { CompetitionDetailDialog } from "./competition-detail-dialog";
+import { CompetitionRegisterDialog } from "./competition-register-dialog";
 import type { Competition, CompetitionRegistration, MemberStatus } from "./types";
-import { Skeleton } from "@/components/ui/skeleton";
 
-type Tab = "upcoming" | "completed";
+type Tab = "gigang" | "all";
 
 const MONTHS_EN = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
@@ -19,30 +20,20 @@ const SPORT_LABEL: Record<string, { label: string; className: string }> = {
 };
 
 export function RaceListView({
-  upcomingCompetitions,
-  today,
+  gigangCompetitions,
+  allCompetitions,
 }: {
-  upcomingCompetitions: Competition[];
-  today: string;
+  gigangCompetitions: Competition[];
+  allCompetitions: Competition[];
 }) {
   const supabase = useMemo(() => createClient(), []);
-  const [tab, setTab] = useState<Tab>("upcoming");
-  const [completedYear, setCompletedYear] = useState<number | null>(null);
-  const [completedCache, setCompletedCache] = useState<Record<number, Competition[]>>({});
-  const [completedLoading, setCompletedLoading] = useState(false);
+  const [tab, setTab] = useState<Tab>("gigang");
   const [memberStatus, setMemberStatus] = useState<MemberStatus>({ status: "loading" });
   const [registrationsByCompetitionId, setRegistrationsByCompetitionId] =
     useState<Record<string, CompetitionRegistration>>({});
   const [selectedCompetition, setSelectedCompetition] = useState<Competition | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-
-  const currentYear = useMemo(() => Number(today.slice(0, 4)), [today]);
-
-  const completedYears = useMemo(() => {
-    const years: number[] = [];
-    for (let y = currentYear; y >= 2020; y--) years.push(y);
-    return years;
-  }, [currentYear]);
+  const [registerOpen, setRegisterOpen] = useState(false);
 
   // Load member
   useEffect(() => {
@@ -52,42 +43,18 @@ export function RaceListView({
       if (!active) return;
       if (error || !user) { setMemberStatus({ status: "signed-out" }); return; }
       const { data: member } = await supabase
-        .from("member").select("id, full_name, email")
+        .from("member").select("id, full_name, email, admin")
         .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
         .maybeSingle();
       if (!active) return;
       if (!member) { setMemberStatus({ status: "needs-onboarding", userId: user.id }); return; }
-      setMemberStatus({ status: "ready", userId: user.id, memberId: member.id, fullName: member.full_name ?? null, email: member.email ?? null });
+      setMemberStatus({ status: "ready", userId: user.id, memberId: member.id, fullName: member.full_name ?? null, email: member.email ?? null, admin: member.admin ?? false });
     }
     load();
     return () => { active = false; };
   }, [supabase]);
 
-  // Fetch completed competitions by year (client-side, cached)
-  const activeYear = completedYear ?? completedYears[0];
-  useEffect(() => {
-    if (tab !== "completed") return;
-    if (completedCache[activeYear]) return;
-    let active = true;
-    async function load() {
-      setCompletedLoading(true);
-      const endDate = today <= `${activeYear}-12-31` ? today : `${activeYear + 1}-01-01`;
-      const { data } = await supabase
-        .from("competition")
-        .select("id, external_id, sport, title, start_date, end_date, location, event_types, source_url")
-        .gte("start_date", `${activeYear}-01-01`)
-        .lt("start_date", endDate)
-        .order("start_date", { ascending: false });
-      if (!active) return;
-      setCompletedCache(prev => ({ ...prev, [activeYear]: (data ?? []) as Competition[] }));
-      setCompletedLoading(false);
-    }
-    load();
-    return () => { active = false; };
-  }, [supabase, tab, activeYear, completedCache, today]);
-
-  const competitions = tab === "upcoming" ? upcomingCompetitions : (completedCache[activeYear] ?? []);
-  const loading = tab === "completed" && completedLoading && !completedCache[activeYear];
+  const competitions = tab === "gigang" ? gigangCompetitions : allCompetitions;
 
   // Load registrations
   useEffect(() => {
@@ -135,7 +102,8 @@ export function RaceListView({
       if (competitions.length === 0) return;
       const { data } = await supabase
         .from("competition_registration")
-        .select("competition_id");
+        .select("competition_id")
+        .in("competition_id", competitions.map(c => c.id));
       if (!active || !data) return;
       const counts: Record<string, number> = {};
       data.forEach(r => { counts[r.competition_id] = (counts[r.competition_id] ?? 0) + 1; });
@@ -179,8 +147,8 @@ export function RaceListView({
       {/* Segment Control */}
       <div className="flex items-center gap-0 px-6">
         {([
-          { value: "upcoming" as Tab, label: "예정" },
-          { value: "completed" as Tab, label: "완료" },
+          { value: "gigang" as Tab, label: "기강대회" },
+          { value: "all" as Tab, label: "전체" },
         ]).map(seg => (
           <button
             key={seg.value}
@@ -197,35 +165,9 @@ export function RaceListView({
         ))}
       </div>
 
-      {/* 완료 탭: 연도 선택 */}
-      {tab === "completed" && completedYears.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto px-6 pt-3 scrollbar-none">
-          {completedYears.map(year => (
-            <button
-              key={year}
-              onClick={() => setCompletedYear(year)}
-              className={cn(
-                "shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
-                (completedYear ?? completedYears[0]) === year
-                  ? "bg-primary text-primary-foreground"
-                  : "border-[1.5px] border-border text-muted-foreground",
-              )}
-            >
-              {year}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* Race List */}
       <div className="flex flex-col gap-4 px-6 pt-4 pb-6">
-        {loading ? (
-          <>
-            <Skeleton className="h-5 w-24 rounded" />
-            <Skeleton className="h-20 w-full rounded-2xl" />
-            <Skeleton className="h-20 w-full rounded-2xl" />
-          </>
-        ) : grouped.length === 0 ? (
+        {grouped.length === 0 ? (
           <p className="py-12 text-center text-sm text-muted-foreground">
             대회가 없습니다
           </p>
@@ -237,7 +179,6 @@ export function RaceListView({
               </h3>
               {group.items.map(comp => {
                 const d = new Date(comp.start_date);
-                const isPast = comp.start_date < today;
                 const isRegistered = Boolean(registrationsByCompetitionId[comp.id]);
                 const regCount = regCounts[comp.id] ?? 0;
                 return (
@@ -246,11 +187,9 @@ export function RaceListView({
                     onClick={() => { setSelectedCompetition(comp); setDetailOpen(true); }}
                     className={cn(
                       "flex w-full items-center gap-4 rounded-2xl border-[1.5px] p-4 text-left transition-colors",
-                      isPast
-                        ? "border-border opacity-60"
-                        : isRegistered
-                          ? "border-primary bg-primary/5"
-                          : "border-border",
+                      isRegistered
+                        ? "border-primary bg-primary/5"
+                        : "border-border",
                     )}
                   >
                     <div className="flex w-12 shrink-0 flex-col items-center gap-0.5">
@@ -261,10 +200,7 @@ export function RaceListView({
                         {String(d.getDate()).padStart(2, "0")}
                       </span>
                     </div>
-                    <div className={cn(
-                      "h-12 w-px shrink-0",
-                      isPast ? "bg-border" : "bg-primary/20",
-                    )} />
+                    <div className="h-12 w-px shrink-0 bg-primary/20" />
                     <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                       <span className="truncate text-[15px] font-semibold text-foreground">
                         {comp.title}
@@ -301,6 +237,25 @@ export function RaceListView({
         onCreate={createRegistration}
         onUpdate={updateRegistration}
         onDelete={deleteRegistration}
+        onCompetitionUpdated={async () => { await revalidateCompetitions(); window.location.reload(); }}
+      />
+
+      {/* FAB: 대회 등록 */}
+      <button
+        onClick={() => setRegisterOpen(true)}
+        className="fixed bottom-24 right-5 z-40 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95"
+      >
+        <Plus className="size-6" />
+      </button>
+
+      <CompetitionRegisterDialog
+        open={registerOpen}
+        onOpenChange={setRegisterOpen}
+        memberStatus={memberStatus}
+        onCreated={async () => {
+          await revalidateCompetitions();
+          window.location.reload();
+        }}
       />
     </div>
   );

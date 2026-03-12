@@ -1,0 +1,83 @@
+# 코딩 스탠다드
+
+## 일반 규칙
+
+- TypeScript strict 모드 사용
+- ESLint 규칙 준수 (`pnpm run lint`로 검증)
+- 한국어 UI 텍스트, 한국어 주석
+- 경로 별칭 `@/` 사용 (상대 경로 사용 금지)
+
+## 파일 네이밍
+
+| 대상 | 규칙 | 예시 |
+|------|------|------|
+| 컴포넌트 파일 | kebab-case | `race-list-view.tsx` |
+| 페이지 | `page.tsx` | `app/(main)/races/page.tsx` |
+| 레이아웃 | `layout.tsx` | `app/(main)/layout.tsx` |
+| API 라우트 | `route.ts` | `app/api/revalidate/route.ts` |
+| 서버 액션 | 기능명.ts | `app/actions/utmb.ts` |
+| 유틸리티 | kebab-case | `date-utils.ts` |
+| 타입 정의 | `types.ts` | `components/races/types.ts` |
+
+## 임포트 순서
+
+1. React / Next.js
+2. 외부 라이브러리
+3. `@/lib/` 유틸리티
+4. `@/components/` 컴포넌트
+5. 타입 임포트
+
+## Supabase 사용
+
+### 서버 컴포넌트/서버 액션
+```typescript
+import { createClient } from "@/lib/supabase/server";
+const supabase = await createClient(); // await 필수
+```
+
+### 클라이언트 컴포넌트
+```typescript
+import { createClient } from "@/lib/supabase/client";
+const supabase = createClient(); // await 불필요
+```
+
+### RLS (Row Level Security)
+- Supabase RLS 정책이 적용되어 있으므로 별도 권한 체크 불필요
+- 서버에서 `supabase.auth.getUser()`로 현재 사용자 확인
+
+## 에러 처리
+
+- Supabase 쿼리 결과의 `error` 체크
+- 서버 액션에서 에러 발생 시 적절한 에러 메시지 반환
+- 클라이언트에서 toast/alert로 사용자에게 알림
+
+## Git 컨벤션
+
+### 커밋 메시지
+```
+feat: 새 기능 추가
+fix: 버그 수정
+refactor: 리팩토링
+style: 스타일/UI 변경
+docs: 문서 변경
+chore: 설정/빌드 변경
+```
+
+### 브랜치 네이밍
+```
+feat/feature-name
+fix/bug-description
+refactor/target
+```
+
+### PR 규칙
+- main 브랜치에 직접 push 금지
+- PR 생성 후 리뷰 필수
+- 빌드 성공 확인 후 머지
+
+## 보안 규칙
+
+- `.env`, `.env.*`, `secrets/` 파일 접근 금지
+- API 키, 시크릿을 코드에 하드코딩 금지
+- `x-webhook-secret` 등 인증 헤더 검증 필수
+- XSS, SQL Injection 등 OWASP Top 10 방지

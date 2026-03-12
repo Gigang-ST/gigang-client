@@ -23,4 +23,4 @@ export type MemberStatus =
   | { status: "loading" }
   | { status: "signed-out" }
   | { status: "needs-onboarding"; userId: string }
-  | { status: "ready"; userId: string; memberId: string; fullName: string | null; email: string | null };
+  | { status: "ready"; userId: string; memberId: string; fullName: string | null; email: string | null; admin: boolean };

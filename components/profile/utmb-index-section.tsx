@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchUtmbIndex } from "@/app/actions/utmb";
-import { Plus, ExternalLink, Pencil } from "lucide-react";
+import { Plus, Pencil } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,

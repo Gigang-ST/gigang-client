@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
 
   revalidatePath("/records");
   revalidatePath("/");
-  revalidateTag("competitions", "max");
+  revalidateTag("competitions");
 
   return NextResponse.json({ revalidated: true });
 }
