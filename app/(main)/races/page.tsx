@@ -10,6 +10,8 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
 );
 
+const cacheOptions = { revalidate: 86400, tags: ["competitions"] };
+
 const getUpcomingCompetitions = unstable_cache(
   async () => {
     const now = new Date();
@@ -26,12 +28,53 @@ const getUpcomingCompetitions = unstable_cache(
     return { competitions: (data ?? []) as Competition[], today };
   },
   ["competitions-upcoming"],
-  { revalidate: 86400, tags: ["competitions"] },
+  cacheOptions,
+);
+
+const getGigangCompetitions = unstable_cache(
+  async () => {
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const endOfYear = `${now.getFullYear()}-12-31`;
+    const { data } = await supabase
+      .from("competition")
+      .select(
+        "id, external_id, sport, title, start_date, end_date, location, event_types, source_url, competition_registration!inner(id)",
+      )
+      .gte("start_date", today)
+      .lte("start_date", endOfYear)
+      .order("start_date", { ascending: true });
+
+    // competition_registration 필드를 제거하고 Competition 타입으로 반환
+    const competitions = (data ?? []).map(
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      ({ competition_registration, ...rest }) => rest,
+    ) as Competition[];
+
+    // 중복 제거 (같은 대회에 여러 등록이 있으면 중복 반환됨)
+    const seen = new Set<string>();
+    const unique = competitions.filter(c => {
+      if (seen.has(c.id)) return false;
+      seen.add(c.id);
+      return true;
+    });
+    return unique;
+  },
+  ["competitions-gigang"],
+  cacheOptions,
 );
 
 async function RacesContent() {
-  const { competitions, today } = await getUpcomingCompetitions();
-  return <RaceListView upcomingCompetitions={competitions} today={today} />;
+  const [{ competitions }, gigangCompetitions] = await Promise.all([
+    getUpcomingCompetitions(),
+    getGigangCompetitions(),
+  ]);
+  return (
+    <RaceListView
+      allCompetitions={competitions}
+      gigangCompetitions={gigangCompetitions}
+    />
+  );
 }
 
 function RacesSkeleton() {
