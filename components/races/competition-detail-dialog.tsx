@@ -219,17 +219,7 @@ export function CompetitionDetailDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <div className="flex items-start justify-between gap-2">
-            <DialogTitle className="text-balance">{competition.title}</DialogTitle>
-            {isAdmin && !editing && (
-              <button
-                onClick={startEditing}
-                className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-              >
-                <Pencil className="size-4" />
-              </button>
-            )}
-          </div>
+          <DialogTitle className="text-balance">{competition.title}</DialogTitle>
           <DialogDescription className="sr-only">
             대회 상세 정보 및 참가 신청
           </DialogDescription>
@@ -260,15 +250,13 @@ export function CompetitionDetailDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label>시작일</Label>
-                <Input type="date" value={editStartDate} onChange={e => setEditStartDate(e.target.value)} />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label>종료일</Label>
-                <Input type="date" value={editEndDate} onChange={e => setEditEndDate(e.target.value)} />
-              </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>시작일</Label>
+              <Input type="date" value={editStartDate} onChange={e => setEditStartDate(e.target.value)} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>종료일</Label>
+              <Input type="date" value={editEndDate} onChange={e => setEditEndDate(e.target.value)} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>장소</Label>
@@ -338,6 +326,18 @@ export function CompetitionDetailDialog({
             </a>
           )}
         </div>
+        )}
+
+        {isAdmin && !editing && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={startEditing}
+            className="self-start"
+          >
+            <Pencil className="size-3.5 mr-1.5" />
+            대회 정보 수정
+          </Button>
         )}
 
         {/* 참가자 목록 */}
