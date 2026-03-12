@@ -165,25 +165,23 @@ export function CompetitionRegisterDialog({
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="comp-start">시작일 *</Label>
-                <Input
-                  id="comp-start"
-                  type="date"
-                  value={startDate}
-                  onChange={e => setStartDate(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="comp-end">종료일</Label>
-                <Input
-                  id="comp-end"
-                  type="date"
-                  value={endDate}
-                  onChange={e => setEndDate(e.target.value)}
-                />
-              </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="comp-start">시작일 *</Label>
+              <Input
+                id="comp-start"
+                type="date"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="comp-end">종료일</Label>
+              <Input
+                id="comp-end"
+                type="date"
+                value={endDate}
+                onChange={e => setEndDate(e.target.value)}
+              />
             </div>
 
             <div className="flex flex-col gap-1.5">
