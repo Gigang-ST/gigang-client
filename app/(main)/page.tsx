@@ -16,13 +16,38 @@ function formatDDay(dateStr: string) {
   return `D+${Math.abs(diff)}`;
 }
 
+type UpcomingRace = {
+  id: string;
+  title: string;
+  start_date: string;
+  location: string | null;
+  sport: string | null;
+  event_types: string[] | null;
+  regCount?: number;
+  label?: string;
+};
+
+/** 같은 주말(토-일)이면 true */
+function isSameWeekend(dateA: string, dateB: string) {
+  const a = new Date(dateA);
+  const b = new Date(dateB);
+  const dayA = a.getDay(); // 0=일, 6=토
+  const dayB = b.getDay();
+  const diff = Math.abs(a.getTime() - b.getTime()) / (1000 * 60 * 60 * 24);
+  // 토-일 or 일-토, 1일 차이
+  return diff <= 1 && ((dayA === 6 && dayB === 0) || (dayA === 0 && dayB === 6));
+}
+
 async function HomeContent() {
   const supabase = await createClient();
   const today = new Date().toISOString().split("T")[0];
 
+  // 현재 유저 확인
+  const { data: { user } } = await supabase.auth.getUser();
+
   const [
     { count: memberCount },
-    { data: upcomingRaces },
+    { data: gigangRacesRaw },
     { count: upcomingCount },
     { data: recentRecords },
   ] = await Promise.all([
@@ -32,10 +57,9 @@ async function HomeContent() {
       .eq("status", "active"),
     supabase
       .from("competition")
-      .select("id, title, start_date, location, sport, event_types")
+      .select("id, title, start_date, location, sport, event_types, competition_registration(id)")
       .gte("start_date", today)
-      .order("start_date", { ascending: true })
-      .limit(2),
+      .order("start_date", { ascending: true }),
     supabase
       .from("competition")
       .select("*", { count: "exact", head: true })
@@ -48,6 +72,80 @@ async function HomeContent() {
       .order("updated_at", { ascending: false })
       .limit(2),
   ]);
+
+  // 기강대회: 등록자 1명 이상, 중복 제거
+  const seenIds = new Set<string>();
+  const gigangRaces: UpcomingRace[] = (gigangRacesRaw ?? [])
+    .filter((r) => {
+      const regs = r.competition_registration as unknown as { id: string }[];
+      if (!regs || regs.length === 0) return false;
+      if (seenIds.has(r.id)) return false;
+      seenIds.add(r.id);
+      return true;
+    })
+    .map(({ competition_registration, ...rest }) => ({
+      ...rest,
+      regCount: (competition_registration as unknown as { id: string }[]).length,
+    }));
+
+  // 기강대회 1번 카드: 가장 가까운 것 (같은 주말이면 참여 인원 많은 것)
+  let topGigang: UpcomingRace | null = null;
+  if (gigangRaces.length > 0) {
+    const first = gigangRaces[0];
+    // 같은 주말에 있는 대회들 모으기
+    const weekendGroup = gigangRaces.filter(
+      (r) => r.start_date === first.start_date || isSameWeekend(r.start_date, first.start_date),
+    );
+    // 참여 인원 많은 순
+    weekendGroup.sort((a, b) => (b.regCount ?? 0) - (a.regCount ?? 0));
+    topGigang = weekendGroup[0];
+  }
+
+  // 내가 참가하는 대회 가져오기
+  let myRaces: UpcomingRace[] = [];
+  if (user) {
+    const { data: member } = await supabase
+      .from("member")
+      .select("id")
+      .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
+      .maybeSingle();
+    if (member) {
+      const { data: myRegs } = await supabase
+        .from("competition_registration")
+        .select("competition:competition_id(id, title, start_date, location, sport, event_types)")
+        .eq("member_id", member.id);
+      myRaces = (myRegs ?? [])
+        .map((r) => r.competition as unknown as UpcomingRace)
+        .filter((c) => c && c.start_date >= today)
+        .sort((a, b) => a.start_date.localeCompare(b.start_date));
+    }
+  }
+
+  // 2개 카드 결정
+  const upcomingCards: UpcomingRace[] = [];
+
+  // 카드 1: 기강대회 중 가장 가까운 것
+  if (topGigang) {
+    upcomingCards.push({ ...topGigang, label: "기강 대회" });
+  }
+
+  // 카드 2: 내가 나가는 대회 (카드1과 다른 것)
+  const myNext = myRaces.find((r) => r.id !== topGigang?.id);
+  if (myNext) {
+    upcomingCards.push({ ...myNext, label: "내 대회" });
+  } else if (myRaces.length > 0 && myRaces[0].id === topGigang?.id) {
+    // 내 대회가 기강1번과 같으면 → 기강대회 그 다음 것
+    const nextGigang = gigangRaces.find((r) => r.id !== topGigang?.id);
+    if (nextGigang) {
+      upcomingCards.push({ ...nextGigang, label: "기강 대회" });
+    }
+  } else if (!user) {
+    // 비로그인: 기강대회 두 번째
+    const nextGigang = gigangRaces.find((r) => r.id !== topGigang?.id);
+    if (nextGigang) {
+      upcomingCards.push({ ...nextGigang, label: "기강 대회" });
+    }
+  }
 
   function secondsToTime(sec: number) {
     const h = Math.floor(sec / 3600);
@@ -96,20 +194,27 @@ async function HomeContent() {
               모두 보기
             </Link>
           </div>
-          {(upcomingRaces ?? []).length === 0 ? (
+          {upcomingCards.length === 0 ? (
             <p className="rounded-2xl border-[1.5px] border-dashed border-border py-8 text-center text-sm text-muted-foreground">
               예정된 대회가 없습니다
             </p>
           ) : (
-            (upcomingRaces ?? []).map((race) => (
+            upcomingCards.map((race) => (
               <div
                 key={race.id}
                 className="flex flex-col gap-3 rounded-2xl border-[1.5px] border-border p-4"
               >
                 <div className="flex items-start justify-between">
-                  <span className="text-[15px] font-semibold text-foreground">
-                    {race.title}
-                  </span>
+                  <div className="flex flex-col gap-1">
+                    {race.label && (
+                      <span className="text-[11px] font-semibold text-primary">
+                        {race.label}
+                      </span>
+                    )}
+                    <span className="text-[15px] font-semibold text-foreground">
+                      {race.title}
+                    </span>
+                  </div>
                   <span className="shrink-0 rounded-full bg-destructive/10 px-2.5 py-1 text-[11px] font-bold text-destructive">
                     {formatDDay(race.start_date)}
                   </span>
