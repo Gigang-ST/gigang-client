@@ -117,11 +117,8 @@ export function CompetitionDetailDialog({
 
   const eventTypeOptions = useMemo(() => {
     const explicit = competition?.event_types ?? [];
-    if (explicit.length > 0) {
-      return explicit.map((type) => type.toUpperCase());
-    }
-    return resolveSportConfig(competition?.sport ?? null).eventTypes;
-  }, [competition?.event_types, competition?.sport]);
+    return explicit.map((type) => type.toUpperCase());
+  }, [competition?.event_types]);
 
   useEffect(() => {
     if (!competition || !open) return;
