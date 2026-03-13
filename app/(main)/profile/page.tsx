@@ -6,7 +6,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { Settings, User } from "lucide-react";
 import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
-import { UtmbIndexSection } from "@/components/profile/utmb-index-section";
+import { RaceRecordSection } from "@/components/profile/race-record-section";
+import { PaceChart } from "@/components/profile/pace-chart";
 
 async function ProfileContent() {
   const supabase = await createClient();
@@ -23,7 +24,7 @@ async function ProfileContent() {
   const { data: member } = await supabase
     .from("member")
     .select(
-      "id, full_name, gender, birthday, phone, email, bank_name, bank_account, joined_at",
+      "id, full_name, gender, birthday, phone, email, bank_name, bank_account, joined_at, status",
     )
     .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
     .maybeSingle();
@@ -32,22 +33,38 @@ async function ProfileContent() {
     redirect("/onboarding?next=/profile");
   }
 
-  const [{ data: personalBests }, { data: utmbProfile }] =
-    await Promise.all([
-      supabase
-        .from("personal_best")
-        .select("event_type, record_time_sec, race_name, race_date")
-        .eq("member_id", member.id),
-      supabase
-        .from("utmb_profile")
-        .select("utmb_profile_url, utmb_index")
-        .eq("member_id", member.id)
-        .maybeSingle(),
-    ]);
+  if (member.status !== "active") {
+    redirect("/onboarding?next=/profile");
+  }
+
+  const [{ data: raceResults }, { data: utmbProfile }] = await Promise.all([
+    supabase
+      .from("race_result")
+      .select("event_type, record_time_sec, race_name, race_date")
+      .eq("member_id", member.id)
+      .in("event_type", ["FULL", "HALF", "10K"]),
+    supabase
+      .from("utmb_profile")
+      .select("utmb_profile_url, utmb_index")
+      .eq("member_id", member.id)
+      .maybeSingle(),
+  ]);
+
+  // Build best records map: for each event_type, pick the one with lowest record_time_sec
+  const bestRecords: Record<string, { record_time_sec: number; race_name: string }> = {};
+  (raceResults ?? []).forEach((r) => {
+    const existing = bestRecords[r.event_type];
+    if (!existing || r.record_time_sec < existing.record_time_sec) {
+      bestRecords[r.event_type] = { record_time_sec: r.record_time_sec, race_name: r.race_name };
+    }
+  });
 
   const genderLabel = member.gender === "male" ? "남성" : member.gender === "female" ? "여성" : "";
   const joinedDate = member.joined_at
-    ? new Date(member.joined_at).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit" }).replace(". ", ".").replace(".", "")
+    ? (() => {
+        const d = new Date(member.joined_at);
+        return `${d.getFullYear()}. ${d.getMonth() + 1}`;
+      })()
     : "";
 
   return (
@@ -73,14 +90,15 @@ async function ProfileContent() {
         {/* Personal Best */}
         <PersonalBestGrid
           memberId={member.id}
-          initialRecords={personalBests ?? []}
+          bestRecords={bestRecords}
+          utmbData={utmbProfile ?? null}
         />
 
-        {/* UTMB Index */}
-        <UtmbIndexSection
-          memberId={member.id}
-          initialData={utmbProfile ?? null}
-        />
+        {/* 페이스 그래프 */}
+        <PaceChart records={raceResults ?? []} />
+
+        {/* 기록 입력 */}
+        <RaceRecordSection memberId={member.id} />
       </div>
   );
 }

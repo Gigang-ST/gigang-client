@@ -16,7 +16,7 @@ Next.js App Router의 Route Group을 사용하여 레이아웃 분리:
 - `/` - 홈 (팀 통계, 예정 대회, 최근 기록)
 - `/races` - 대회 목록 (예정/완료 탭, 연도 필터, 참가 등록)
 - `/records` - 기록/랭킹 (마라톤/철인3종/트레일러닝 카테고리)
-- `/profile` - 프로필 (개인최고기록, UTMB 인덱스)
+- `/profile` - 프로필 (개인최고기록, UTMB 인덱스, 페이스 차트, 대회 기록 입력/이력)
 - `/settings` - 설정 (프로필 편집, 계좌 정보, 로그아웃)
 
 ## 인증 흐름
@@ -28,6 +28,8 @@ Next.js App Router의 Route Group을 사용하여 레이아웃 분리:
    - next 파라미터가 있으면 해당 경로로 리다이렉트
    - 없으면: 신규 → /onboarding, 기존 → /
 4. 온보딩 완료 후 → next 파라미터 경로 또는 / (홈)
+5. 비활성(inactive) 회원 로그인 시 → 온보딩에서 재가입 신청 플로우 표시
+6. 대기(pending) 회원 로그인 시 → 온보딩에서 승인 대기 메시지 표시
 ```
 
 ### 미들웨어 (proxy.ts)
@@ -74,6 +76,19 @@ const supabase = createClient();
 ## 서버 액션
 - `app/actions/utmb.ts` - UTMB 프로필 관련 서버사이드 로직
 - `app/actions/revalidate-competitions.ts` - 대회 캐시 무효화 (인증 필수)
+
+## 회원 상태 흐름
+```
+active → inactive (관리자가 비활성화)
+inactive → pending (사용자가 재가입 신청)
+pending → active (관리자가 승인)
+```
+
+## 프로필 페이지 구성
+- `PersonalBestGrid`: 읽기 전용 FULL/HALF/10K 카드 + 클릭 가능한 UTMB 카드 (다이얼로그)
+- `PaceChart`: recharts LineChart로 종목별 페이스 추이 표시
+- `RaceRecordSection`: 기록 입력/이력 버튼 (RaceRecordDialog, RaceHistoryDialog 호출)
+- 개인최고기록과 랭킹은 `race_result` 테이블에서 조회 (`personal_best` 미사용)
 
 ## 공유 유틸리티
 - `lib/utils.ts` — `cn()`, `secondsToTime()`, `validateUUID()`, `hasEnvVars`

@@ -76,8 +76,10 @@ export function MemberOnboardingForm({
     },
   });
 
-  const [stage, setStage] = useState<"phone" | "details">("phone");
+  const [stage, setStage] = useState<"phone" | "details" | "inactive" | "pending">("phone");
   const [phoneLoading, setPhoneLoading] = useState(false);
+  const [inactiveMemberId, setInactiveMemberId] = useState<string | null>(null);
+  const [rejoinLoading, setRejoinLoading] = useState(false);
 
   const digitsOnly = (value: string) => value.replace(/\D/g, "");
   const formatPhone = (value: string) => {
@@ -87,6 +89,23 @@ export function MemberOnboardingForm({
     return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
   };
   const isValidPhone = (value: string) => /^010\d{8}$/.test(digitsOnly(value));
+
+  const handleRejoinRequest = async () => {
+    if (!inactiveMemberId) return;
+    setRejoinLoading(true);
+    const supabase = createClient();
+    const column = provider === "kakao" ? "kakao_user_id" : "google_user_id";
+    const { error } = await supabase
+      .from("member")
+      .update({ status: "pending", [column]: userId, updated_at: new Date().toISOString() })
+      .eq("id", inactiveMemberId);
+    setRejoinLoading(false);
+    if (error) {
+      form.setError("root", { message: error.message });
+      return;
+    }
+    setStage("pending");
+  };
 
   const handlePhoneSubmit = async (values: MemberOnboardingValues) => {
     const supabase = createClient();
@@ -107,7 +126,7 @@ export function MemberOnboardingForm({
 
     const { data: existingMember, error: lookupError } = await supabase
       .from("member")
-      .select("id")
+      .select("id, status")
       .eq("phone", phoneValue)
       .maybeSingle();
 
@@ -125,6 +144,16 @@ export function MemberOnboardingForm({
     }
 
     if (existingMember) {
+      if (existingMember.status === "inactive") {
+        setInactiveMemberId(existingMember.id);
+        setStage("inactive");
+        return;
+      }
+      if (existingMember.status === "pending") {
+        setStage("pending");
+        return;
+      }
+
       const column = provider === "kakao" ? "kakao_user_id" : "google_user_id";
       const { error: linkError } = await supabase
         .from("member")
@@ -205,7 +234,41 @@ export function MemberOnboardingForm({
               )}
             >
               <div className="flex flex-col gap-6">
-                {stage === "phone" ? (
+                {stage === "inactive" ? (
+                  <div className="flex flex-col gap-4 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      탈퇴 처리된 계정입니다.<br />
+                      재가입을 신청하면 관리자 승인 후 이용 가능합니다.
+                    </p>
+                    {form.formState.errors.root?.message ? (
+                      <p className="text-sm text-red-500">
+                        {form.formState.errors.root.message}
+                      </p>
+                    ) : null}
+                    <Button
+                      type="button"
+                      className="w-full"
+                      disabled={rejoinLoading}
+                      onClick={handleRejoinRequest}
+                    >
+                      {rejoinLoading ? "신청 중..." : "재가입 신청"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setStage("phone")}
+                    >
+                      번호 다시 입력
+                    </Button>
+                  </div>
+                ) : stage === "pending" ? (
+                  <div className="flex flex-col gap-4 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      재가입 신청이 접수되었습니다.<br />
+                      관리자 승인 후 이용 가능합니다.
+                    </p>
+                  </div>
+                ) : stage === "phone" ? (
                   <>
                     <FormField
                       control={form.control}
