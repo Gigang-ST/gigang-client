@@ -37,6 +37,7 @@ type MemberOnboardingFormProps = {
   provider: "kakao" | "google";
   initialFullName?: string | null;
   email?: string | null;
+  initialAvatarUrl?: string | null;
 };
 
 type MemberOnboardingValues = {
@@ -55,6 +56,7 @@ export function MemberOnboardingForm({
   provider,
   initialFullName,
   email,
+  initialAvatarUrl,
 }: MemberOnboardingFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -95,9 +97,15 @@ export function MemberOnboardingForm({
     setRejoinLoading(true);
     const supabase = createClient();
     const column = provider === "kakao" ? "kakao_user_id" : "google_user_id";
+    const updateFields: Record<string, unknown> = {
+      status: "pending",
+      [column]: userId,
+      updated_at: new Date().toISOString(),
+    };
+    if (initialAvatarUrl) updateFields.avatar_url = initialAvatarUrl;
     const { error } = await supabase
       .from("member")
-      .update({ status: "pending", [column]: userId, updated_at: new Date().toISOString() })
+      .update(updateFields)
       .eq("id", inactiveMemberId);
     setRejoinLoading(false);
     if (error) {
@@ -155,9 +163,12 @@ export function MemberOnboardingForm({
       }
 
       const column = provider === "kakao" ? "kakao_user_id" : "google_user_id";
+      // 기존 회원 연동 시 avatar_url이 없으면 OAuth 프로필 사진 저장
+      const linkFields: Record<string, unknown> = { [column]: userId };
+      if (initialAvatarUrl) linkFields.avatar_url = initialAvatarUrl;
       const { error: linkError } = await supabase
         .from("member")
-        .update({ [column]: userId })
+        .update(linkFields)
         .eq("id", existingMember.id);
 
       if (linkError) {
@@ -203,6 +214,7 @@ export function MemberOnboardingForm({
       status: "active",
       admin: false,
       joined_at: new Date().toISOString().slice(0, 10),
+      avatar_url: initialAvatarUrl,
     });
 
     if (error) {
@@ -390,7 +402,7 @@ export function MemberOnboardingForm({
                         <FormItem>
                           <FormLabel>생년월일</FormLabel>
                           <FormControl>
-                        <Input type="date" {...field} />
+                        <Input type="date" max="9999-12-31" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
