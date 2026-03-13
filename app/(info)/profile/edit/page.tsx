@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { validateUUID } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -43,6 +44,7 @@ export default function ProfileEditPage() {
         return;
       }
 
+      validateUUID(user.id);
       const { data: member } = await supabase
         .from("member")
         .select("id, full_name, gender, birthday, phone, email")
@@ -70,6 +72,10 @@ export default function ProfileEditPage() {
 
   const handleSave = async () => {
     if (!profile) return;
+    if (!profile.full_name.trim()) {
+      setMessage({ type: "error", text: "이름을 입력해 주세요." });
+      return;
+    }
     setSaving(true);
     setMessage(null);
 

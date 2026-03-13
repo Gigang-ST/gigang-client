@@ -1,12 +1,8 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/server";
+import { secondsToTime } from "@/lib/utils";
 import { Suspense } from "react";
 import { RecordsClient } from "./records-client";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-);
 
 const MARATHON_EVENTS = [
   { value: "10K", label: "10K" },
@@ -18,17 +14,8 @@ const NO_GENDER_EVENTS = [
   { value: "TRIATHLON", label: "철인3종" },
 ] as const;
 
-function secondsToTimeString(totalSeconds: number): string {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  if (hours > 0) {
-    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  }
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
-
 async function RecordsContent() {
+  const supabase = await createClient();
   const [{ data: pbData }, { data: utmbData }] = await Promise.all([
     supabase
       .from("personal_best")
@@ -54,7 +41,7 @@ async function RecordsContent() {
           return {
             name: member.full_name,
             gender: member.gender,
-            record: secondsToTimeString(r.record_time_sec),
+            record: secondsToTime(r.record_time_sec),
             raceName: r.race_name,
             sortKey: r.record_time_sec,
           };

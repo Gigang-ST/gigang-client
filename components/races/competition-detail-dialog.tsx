@@ -149,6 +149,10 @@ export function CompetitionDetailDialog({
 
   async function handleEditSave() {
     if (!competition) return;
+    if (editEndDate && editEndDate < editStartDate) {
+      setEditError("종료일은 시작일 이후여야 합니다.");
+      return;
+    }
     setIsSaving(true);
     setEditError(null);
     const { error } = await supabase.from("competition").update({
@@ -224,12 +228,15 @@ export function CompetitionDetailDialog({
             대회 상세 정보 및 참가 신청
           </DialogDescription>
           <div className="flex flex-wrap gap-2 pt-1">
-            {competition.sport && <Badge variant="secondary">{competition.sport}</Badge>}
+            {competition.sport && <Badge variant="secondary">{resolveSportConfig(competition.sport).label}</Badge>}
             {competition.event_types?.slice(0, 3).map((type) => (
               <Badge key={type} variant="outline">
                 {type.toUpperCase()}
               </Badge>
             ))}
+            {(competition.event_types?.length ?? 0) > 3 && (
+              <Badge variant="outline">+{competition.event_types!.length - 3}</Badge>
+            )}
           </div>
         </DialogHeader>
 
@@ -314,7 +321,7 @@ export function CompetitionDetailDialog({
               <span>{competition.location}</span>
             </div>
           )}
-          {competition.source_url && (
+          {competition.source_url && /^https?:\/\//.test(competition.source_url) && (
             <a
               href={competition.source_url}
               target="_blank"

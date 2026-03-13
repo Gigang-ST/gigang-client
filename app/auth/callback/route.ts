@@ -5,7 +5,11 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const flow = searchParams.get("flow");
-  const next = flow === "link" ? "/profile" : "/onboarding";
+  const nextParam = searchParams.get("next");
+  const defaultNext = flow === "link" ? "/profile" : "/onboarding";
+  const next = nextParam?.startsWith("/") && !nextParam.startsWith("//")
+    ? nextParam
+    : defaultNext;
 
   if (code) {
     const supabase = await createClient();

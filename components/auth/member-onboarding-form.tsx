@@ -28,8 +28,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { BANK_OPTIONS } from "@/lib/constants";
 
 type MemberOnboardingFormProps = {
   userId: string;
@@ -48,30 +49,6 @@ type MemberOnboardingValues = {
   bankName: string;
   bankNameCustom: string;
 };
-
-const BANK_OPTIONS = [
-  "KB국민은행",
-  "신한은행",
-  "우리은행",
-  "하나은행",
-  "NH농협은행",
-  "IBK기업은행",
-  "SC제일은행",
-  "씨티은행",
-  "케이뱅크",
-  "카카오뱅크",
-  "토스뱅크",
-  "수협은행",
-  "새마을금고",
-  "신협",
-  "우체국",
-  "부산은행",
-  "경남은행",
-  "대구은행",
-  "광주은행",
-  "전북은행",
-  "제주은행",
-];
 
 export function MemberOnboardingForm({
   userId,
@@ -101,11 +78,6 @@ export function MemberOnboardingForm({
 
   const [stage, setStage] = useState<"phone" | "details">("phone");
   const [phoneLoading, setPhoneLoading] = useState(false);
-
-  const joinedAt = useMemo(
-    () => new Date().toISOString().slice(0, 10),
-    [],
-  );
 
   const digitsOnly = (value: string) => value.replace(/\D/g, "");
   const formatPhone = (value: string) => {
@@ -201,7 +173,7 @@ export function MemberOnboardingForm({
       bank_account: values.bankAccount.trim() || null,
       status: "active",
       admin: false,
-      joined_at: joinedAt,
+      joined_at: new Date().toISOString().slice(0, 10),
     });
 
     if (error) {
@@ -433,6 +405,10 @@ export function MemberOnboardingForm({
                           <Input
                             {...field}
                             placeholder="예: 110123456789 (숫자만)"
+                            onChange={(e) => {
+                              const sanitized = e.target.value.replace(/[^0-9-]/g, "");
+                              field.onChange(sanitized);
+                            }}
                           />
                           </FormControl>
                           <p className="text-xs text-muted-foreground">

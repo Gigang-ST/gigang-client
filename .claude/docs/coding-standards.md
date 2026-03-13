@@ -75,9 +75,21 @@ refactor/target
 - PR 생성 후 리뷰 필수
 - 빌드 성공 확인 후 머지
 
+## 공유 상수/유틸리티
+
+- `lib/utils.ts` — `cn()`, `hasEnvVars`, `secondsToTime()`, `validateUUID()`
+- `lib/constants.ts` — `BANK_OPTIONS` (은행 목록)
+- `components/races/sport-config.ts` — `resolveSportConfig()`, `SPORT_LEGEND` (종목 설정)
+- 중복 코드 방지: 상수/유틸리티는 반드시 공유 파일에서 import
+
 ## 보안 규칙
 
 - `.env`, `.env.*`, `secrets/` 파일 접근 금지
 - API 키, 시크릿을 코드에 하드코딩 금지
 - `x-webhook-secret` 등 인증 헤더 검증 필수
 - XSS, SQL Injection 등 OWASP Top 10 방지
+- PostgREST `.or()` 필터에 사용자 입력 삽입 시 `validateUUID()` 검증 필수
+- `source_url` 등 외부 URL 렌더링 시 `http://` 또는 `https://` 프로토콜 검증
+- 서버 액션에서 데이터 변경 전 `supabase.auth.getUser()` 인증 확인
+- 삭제 쿼리에 `member_id` 조건 포함하여 타 사용자 데이터 보호
+- 은행 계좌 등 입력 필드는 허용 문자만 필터링 (숫자, 하이픈 등)
