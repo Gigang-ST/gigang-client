@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { createCompetition } from "@/app/actions/create-competition";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -40,8 +40,6 @@ export function CompetitionRegisterDialog({
   memberStatus,
   onCreated,
 }: CompetitionRegisterDialogProps) {
-  const supabase = useMemo(() => createClient(), []);
-
   const [title, setTitle] = useState("");
   const [sport, setSport] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -101,21 +99,20 @@ export function CompetitionRegisterDialog({
     setIsSaving(true);
     setError(null);
 
-    const { error: insertError } = await supabase.from("competition").insert({
-      external_id: `manual:${crypto.randomUUID()}`,
+    const result = await createCompetition({
+      title,
       sport,
-      title: title.trim(),
-      start_date: startDate,
-      end_date: endDate || null,
-      location: location.trim(),
-      event_types: selectedEventTypes,
-      source_url: sourceUrl.trim(),
+      startDate,
+      endDate: endDate || null,
+      location,
+      eventTypes: selectedEventTypes,
+      sourceUrl,
     });
 
     setIsSaving(false);
 
-    if (insertError) {
-      setError("등록에 실패했습니다. 다시 시도해주세요.");
+    if (!result.ok) {
+      setError(result.message ?? "등록에 실패했습니다. 다시 시도해주세요.");
       return;
     }
 
