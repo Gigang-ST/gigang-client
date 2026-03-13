@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { InAppBrowserGate } from "@/components/in-app-browser-gate";
 
 /* ─── 토글 섹션 데이터 ─── */
 
@@ -108,6 +109,7 @@ function Toggle({
 
 export default function NewbiePage() {
   return (
+    <InAppBrowserGate>
     <div className="mx-auto max-w-xl pb-28">
       {/* 1. 히어로 */}
       <section className="border-b border-border bg-white px-6 pb-9 pt-12 text-center">
@@ -358,5 +360,6 @@ export default function NewbiePage() {
         </div>
       </div>
     </div>
+    </InAppBrowserGate>
   );
 }
