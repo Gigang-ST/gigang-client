@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { validateUUID } from "@/lib/utils";
 import { Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,35 +14,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-
-const BANK_OPTIONS = [
-  "KB국민은행",
-  "신한은행",
-  "우리은행",
-  "하나은행",
-  "NH농협은행",
-  "IBK기업은행",
-  "SC제일은행",
-  "씨티은행",
-  "케이뱅크",
-  "카카오뱅크",
-  "토스뱅크",
-  "수협은행",
-  "새마을금고",
-  "신협",
-  "우체국",
-  "부산은행",
-  "경남은행",
-  "대구은행",
-  "광주은행",
-  "전북은행",
-  "제주은행",
-];
+import { BANK_OPTIONS } from "@/lib/constants";
 
 type BankData = {
   memberId: string;
   fullName: string;
   bankName: string;
+  bankNameCustom: string;
   bankAccount: string;
 };
 
@@ -66,6 +45,7 @@ export default function BankInfoPage() {
         return;
       }
 
+      validateUUID(user.id);
       const { data: member } = await supabase
         .from("member")
         .select("id, full_name, bank_name, bank_account")
@@ -77,10 +57,13 @@ export default function BankInfoPage() {
         return;
       }
 
+      const savedBank = member.bank_name ?? "";
+      const isCustomBank = savedBank && !BANK_OPTIONS.includes(savedBank as typeof BANK_OPTIONS[number]);
       setData({
         memberId: member.id,
         fullName: member.full_name ?? "",
-        bankName: member.bank_name ?? "",
+        bankName: isCustomBank ? "custom" : savedBank,
+        bankNameCustom: isCustomBank ? savedBank : "",
         bankAccount: member.bank_account ?? "",
       });
       setLoading(false);
@@ -95,10 +78,14 @@ export default function BankInfoPage() {
     setMessage(null);
 
     const supabase = createClient();
+    const resolvedBankName =
+      data.bankName === "custom"
+        ? data.bankNameCustom.trim()
+        : data.bankName.trim();
     const { error } = await supabase
       .from("member")
       .update({
-        bank_name: data.bankName.trim() || null,
+        bank_name: resolvedBankName || null,
         bank_account: data.bankAccount.trim() || null,
       })
       .eq("id", data.memberId);
@@ -155,16 +142,36 @@ export default function BankInfoPage() {
                 {bank}
               </SelectItem>
             ))}
+            <SelectItem value="custom">기타(직접 입력)</SelectItem>
           </SelectContent>
         </Select>
       </div>
+
+      {data.bankName === "custom" && (
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium text-foreground">
+            은행명 직접 입력
+          </label>
+          <Input
+            value={data.bankNameCustom}
+            onChange={(e) =>
+              setData({ ...data, bankNameCustom: e.target.value })
+            }
+            placeholder="예: 지역 농협, 단위 농협"
+            className="h-12 rounded-xl border-[1.5px] text-[15px]"
+          />
+        </div>
+      )}
 
       {/* 계좌번호 */}
       <div className="flex flex-col gap-2">
         <label className="text-sm font-medium text-foreground">계좌번호</label>
         <Input
           value={data.bankAccount}
-          onChange={(e) => setData({ ...data, bankAccount: e.target.value })}
+          onChange={(e) => {
+            const sanitized = e.target.value.replace(/[^0-9-]/g, "");
+            setData({ ...data, bankAccount: sanitized });
+          }}
           placeholder="예: 3333-12-3456789"
           className="h-12 rounded-xl border-[1.5px] text-[15px]"
         />

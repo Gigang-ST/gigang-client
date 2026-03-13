@@ -1,5 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
+import { secondsToTime, validateUUID } from "@/lib/utils";
 import { Suspense } from "react";
 import Link from "next/link";
 import { SocialLinksGrid } from "@/components/social-links";
@@ -58,7 +59,7 @@ async function HomeContent() {
     supabase
       .from("personal_best")
       .select(
-        "event_type, record_time_sec, race_name, updated_at, member:member_id(full_name)",
+        "member_id, event_type, record_time_sec, race_name, updated_at, member:member_id(full_name)",
       )
       .order("updated_at", { ascending: false })
       .limit(2),
@@ -95,6 +96,7 @@ async function HomeContent() {
   // 내가 참가하는 대회 가져오기
   let myRaces: UpcomingRace[] = [];
   if (user) {
+    validateUUID(user.id);
     const { data: member } = await supabase
       .from("member")
       .select("id")
@@ -141,14 +143,6 @@ async function HomeContent() {
     }
   }
 
-  function secondsToTime(sec: number) {
-    const h = Math.floor(sec / 3600);
-    const m = Math.floor((sec % 3600) / 60);
-    const s = sec % 60;
-    if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-    return `${m}:${String(s).padStart(2, "0")}`;
-  }
-
   return (
     <div className="flex flex-col gap-7 px-6 pb-6">
         {/* Team Overview */}
@@ -193,11 +187,11 @@ async function HomeContent() {
               등록된 기록이 없습니다
             </p>
           ) : (
-            (recentRecords ?? []).map((rec, i) => {
+            (recentRecords ?? []).map((rec) => {
               const member = rec.member as unknown as { full_name: string } | null;
               return (
                 <div
-                  key={i}
+                  key={`${rec.member_id}-${rec.event_type}`}
                   className="flex items-center justify-between rounded-2xl border-[1.5px] border-border p-4"
                 >
                   <div className="flex flex-col gap-0.5">
