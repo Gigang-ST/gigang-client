@@ -259,11 +259,11 @@ export function CompetitionDetailDialog({
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>시작일</Label>
-              <Input type="date" value={editStartDate} onChange={e => setEditStartDate(e.target.value)} />
+              <Input type="date" max="9999-12-31" value={editStartDate} onChange={e => setEditStartDate(e.target.value)} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>종료일</Label>
-              <Input type="date" value={editEndDate} onChange={e => setEditEndDate(e.target.value)} />
+              <Input type="date" max="9999-12-31" value={editEndDate} onChange={e => setEditEndDate(e.target.value)} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>장소</Label>
