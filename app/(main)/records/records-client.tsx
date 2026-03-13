@@ -199,25 +199,20 @@ function MarathonContent({ events }: { events: MarathonEvent[] }) {
       )}
 
       {/* 헤더 */}
-      <div className="mx-6 mt-2 flex items-center gap-3 rounded-lg bg-muted/50 px-3 py-2">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <div className="size-10 shrink-0" aria-hidden />
+      <div className="mt-2 flex flex-col px-6">
+        <div className="flex items-center gap-3 rounded-t-lg bg-muted/50 py-2">
           <span className="min-w-0 flex-1 text-center text-xs font-semibold tracking-wide text-muted-foreground">
             남자
           </span>
-        </div>
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <div className="size-10 shrink-0" aria-hidden />
           <span className="min-w-0 flex-1 text-center text-xs font-semibold tracking-wide text-muted-foreground">
             여자
           </span>
         </div>
-      </div>
-
-      {/* 랭킹 리스트: 남자 | 여자 (각 칸에 등수·메달 + 데이터) */}
-      <div className="flex flex-col px-6">
+        {/* 본문 */}
         {maxRows === 0 ? (
-          <EmptyState />
+          <div className="rounded-b-lg border border-t-0 border-border py-12">
+            <EmptyState />
+          </div>
         ) : (
           Array.from({ length: maxRows }).map((_, i) => {
             const rank = i + 1;
@@ -226,7 +221,7 @@ function MarathonContent({ events }: { events: MarathonEvent[] }) {
             return (
               <div
                 key={rank}
-                className="flex items-center gap-3 border-b border-border py-3 last:border-b-0"
+                className="flex items-center gap-3 border-b border-border py-3 last:border-b-0 last:rounded-b-lg"
               >
                 <MarathonCell entry={male} rank={rank} />
                 <MarathonCell entry={female} rank={rank} />
