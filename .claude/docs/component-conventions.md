@@ -8,9 +8,10 @@ components/
   auth/        # 인증 컴포넌트 (LoginForm, OnboardingForm)
   races/       # 대회 도메인 컴포넌트
   profile/     # 프로필 도메인 컴포넌트 (PersonalBestGrid, RaceRecordDialog, RaceHistoryDialog, PaceChart, RaceRecordSection)
-  bottom-tab-bar.tsx   # 하단 네비게이션
-  back-header.tsx      # 뒤로가기 헤더
-  social-links.tsx     # 소셜 링크
+  bottom-tab-bar.tsx        # 하단 네비게이션
+  back-header.tsx           # 뒤로가기 헤더
+  social-links.tsx          # 소셜 링크
+  in-app-browser-gate.tsx   # 인앱브라우저 감지 → 외부 브라우저 유도 래퍼
 ```
 
 ## shadcn/ui 사용법
@@ -36,7 +37,10 @@ badge, button, card, dialog, form, input, label, loading-spinner, select, separa
 - `pace-chart.tsx` — recharts LineChart로 종목별 페이스 추이 차트 표시
 
 ### 인증 도메인 컴포넌트
-- `member-onboarding-form.tsx` — 신규 가입 폼 + inactive 회원 재가입 신청 + pending 회원 승인 대기 메시지 처리
+- `member-onboarding-form.tsx` — 신규 가입 폼 + inactive 회원 재가입 신청 + pending 회원 승인 대기 메시지 처리. OAuth 프로필 사진(avatar_url) 자동 저장
+
+### 공통 컴포넌트
+- `in-app-browser-gate.tsx` — children을 감싸는 래퍼. 카카오톡/인스타/라인/페이스북 인앱 브라우저 감지 시 외부 브라우저 유도 UI 표시. Android는 Chrome intent:// 자동 오픈, iOS는 Safari 안내 + 링크 복사. `<InAppBrowserGate>{children}</InAppBrowserGate>` 형태로 사용
 
 ## 컴포넌트 작성 규칙
 

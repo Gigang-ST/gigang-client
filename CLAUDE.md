@@ -16,9 +16,9 @@
 ```
 app/
   (main)/          # 메인 탭 페이지 (홈, 대회, 기록, 프로필) - BottomTabBar 포함
-  (info)/          # 정보 페이지 (가입안내, 규칙, 약관 등) - BackHeader 포함
+  (info)/          # 정보 페이지 (가입안내, 규칙, 약관, 신규가입 등) - BackHeader 포함
   (protected)/     # 인증 필수 페이지 (온보딩)
-  auth/            # 인증 (로그인, OAuth 콜백, 에러)
+  auth/            # 인증 (로그인, OAuth 콜백, 에러, 가입완료)
   api/             # API 라우트 (revalidate 웹훅)
   actions/         # 서버 액션
 components/
@@ -26,6 +26,7 @@ components/
   auth/            # 인증 관련 컴포넌트
   races/           # 대회 관련 컴포넌트
   profile/         # 프로필 관련 컴포넌트
+  in-app-browser-gate.tsx  # 인앱브라우저 감지 → 외부 브라우저 유도
 lib/
   supabase/        # Supabase 클라이언트 (server/client/proxy)
   utils.ts         # cn() 유틸리티
@@ -51,6 +52,14 @@ lib/
 ## 환경 변수
 
 `.env.example` 참조. `.env`, `.env.*`, `secrets/` 파일은 절대 읽지 않음.
+
+## 환경 변수 (서버 전용)
+
+- `KAKAO_CHAT_PASSWORD` — 카카오 오픈채팅 비밀번호 (가입완료 페이지에서 사용, Vercel 환경변수로 관리)
+
+## 커스텀 커맨드
+
+- `/sync-member-records` — 신규 가입 회원의 대회 기록/참가 등록을 temp 파일 기반으로 DB에 동기화
 
 ## 에이전트 참고 문서
 

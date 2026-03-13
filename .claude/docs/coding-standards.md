@@ -85,7 +85,8 @@ refactor/target
 ## 보안 규칙
 
 - `.env`, `.env.*`, `secrets/` 파일 접근 금지
-- API 키, 시크릿을 코드에 하드코딩 금지
+- API 키, 시크릿을 코드에 하드코딩 금지 → 환경변수 사용 (예: `KAKAO_CHAT_PASSWORD`)
+- 서버 전용 비밀 값은 `process.env`로 서버 컴포넌트에서만 읽기 (클라이언트 번들 노출 방지)
 - `x-webhook-secret` 등 인증 헤더 검증 필수
 - XSS, SQL Injection 등 OWASP Top 10 방지
 - PostgREST `.or()` 필터에 사용자 입력 삽입 시 `validateUUID()` 검증 필수
@@ -93,3 +94,9 @@ refactor/target
 - 서버 액션에서 데이터 변경 전 `supabase.auth.getUser()` 인증 확인
 - 삭제 쿼리에 `member_id` 조건 포함하여 타 사용자 데이터 보호
 - 은행 계좌 등 입력 필드는 허용 문자만 필터링 (숫자, 하이픈 등)
+- 날짜 입력 필드에 `max="9999-12-31"` 속성 추가 (6자리 연도 입력 방지)
+
+## Playwright 스크린샷
+
+- 스크린샷 저장 경로: `temp/playwright/` (gitignore 대상)
+- MCP Playwright로 스크린샷 찍을 때 `filename` 파라미터에 `temp/playwright/` 접두사 사용

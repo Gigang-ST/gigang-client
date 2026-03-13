@@ -17,6 +17,7 @@
 | email | text | 이메일 |
 | bank_name | text | 은행명 |
 | bank_account | text | 계좌번호 |
+| avatar_url | text | 프로필 사진 URL (OAuth에서 자동 추출) |
 | status | text | 상태 (active/inactive/pending) |
 | kakao_user_id | text | 카카오 연동 ID |
 | google_user_id | text | 구글 연동 ID |
@@ -90,7 +91,7 @@
 50K, 80K, 100K, 100M
 
 ### Trail Running
-20K, 50K, 100K, 100M, UTMB
+TRAIL, 20K, 50K, 100K, 100M, UTMB
 
 ### Triathlon
 SPRINT, OLYMPIC, HALF, FULL
