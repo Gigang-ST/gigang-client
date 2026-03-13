@@ -174,12 +174,12 @@ function MarathonContent({ events }: { events: MarathonEvent[] }) {
       )}
 
       {/* 헤더 */}
-      <div className="flex items-center gap-3 px-6 pt-2">
+      <div className="mx-6 mt-2 flex items-center gap-3 rounded-lg bg-muted/50 px-3 py-2">
         <div className="w-8 shrink-0" />
-        <span className="flex-1 text-xs font-semibold tracking-wide text-muted-foreground">
+        <span className="flex-1 text-center text-xs font-semibold tracking-wide text-muted-foreground">
           남자
         </span>
-        <span className="flex-1 text-xs font-semibold tracking-wide text-muted-foreground">
+        <span className="flex-1 text-center text-xs font-semibold tracking-wide text-muted-foreground">
           여자
         </span>
       </div>
