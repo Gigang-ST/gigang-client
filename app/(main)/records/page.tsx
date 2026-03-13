@@ -232,7 +232,7 @@ export default function RecordsPage() {
     <div className="flex flex-col gap-0">
       <div className="flex h-14 items-center px-6">
         <h1 className="text-[28px] font-semibold tracking-tight text-foreground">
-          기강의전당
+          기강의 전당
         </h1>
       </div>
       <Suspense fallback={<RecordsSkeleton />}>

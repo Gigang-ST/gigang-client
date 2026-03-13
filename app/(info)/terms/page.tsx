@@ -33,11 +33,11 @@ export default function TermsPage() {
       },
       {
         id: 5,
-        title: "금지행위",
+        title: "금지 행위",
         details: [
           "타인에게 불쾌감을 주는 행위",
-          "안전수칙 위반",
-          "허위정보 기재",
+          "안전 수칙 위반",
+          "허위 정보 기재",
         ],
       },
       {

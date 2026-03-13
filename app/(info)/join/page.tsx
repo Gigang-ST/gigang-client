@@ -2,16 +2,16 @@
 const intro = {
   heading: "기강단 소개",
   paragraphs: [
-    "운동을 좋아하는 사람들이 모여 만든 스포츠 팀 입니다.",
-    "저희는 같이 운동하고 대회나가고 놀러다니며 즐겁게 노는것이 가장 중요합니다.",
-    "운동이 처음이라면 즐기는데 조금 힘들겠지만 수 많은 초보자를 키워온 다수의 고인물들이 도와드립니다.",
+    "운동을 좋아하는 사람들이 모여 만든 스포츠 팀입니다.",
+    "저희는 같이 운동하고 대회를 나가고 놀러 다니며 즐겁게 노는 것이 가장 중요합니다.",
+    "운동이 처음이라면 즐기는데 조금 힘들겠지만 수많은 초보자를 키워 온 다수의 고인물들이 도와드립니다.",
     "겁날 수 있지만 일단 나와서 즐기다 가세요.",
   ],
 };
 
 const highlights = {
   ageRange: "20-30 러닝크루",
-  activityArea: "강남, 양재천, 교대, 반포, 한강 및 그외",
+  activityArea: "강남, 양재천, 교대, 반포, 한강 및 그 외",
   primaryActivities: ["러닝", "자전거", "수영", "여행"],
 };
 
@@ -22,7 +22,7 @@ const meetingPlaces = {
       id: 1,
       title: "영동2교 집합",
       description:
-        "영동2교 하부 양재천 남쪽방면에서 준비운동을 하고 출발합니다.",
+        "영동2교 하부 양재천 남쪽 방면에서 준비운동을 하고 출발합니다.",
       image:
         "https://prod-files-secure.s3.us-west-2.amazonaws.com/3f9c3cb2-230f-4166-8bcb-d730344dc3da/802b99dd-95e3-42ba-a302-35a07e82563f/image.png",
       alt: "영동2교 집합 위치",
@@ -40,7 +40,7 @@ const meetingPlaces = {
       id: 3,
       title: "교대 트랙",
       description:
-        "트랙 훈련을 할 때는 주로 교대에서 진행하며 구령대 남쪽방면에 집합합니다.",
+        "트랙 훈련을 할 때는 주로 교대에서 진행하며 구령대 남쪽 방면에 집합합니다.",
       image:
         "https://prod-files-secure.s3.us-west-2.amazonaws.com/3f9c3cb2-230f-4166-8bcb-d730344dc3da/a04c4bce-7cd5-4b21-b295-49f8fd88f5ed/image.png",
       alt: "교대 트랙 집합 위치",
@@ -66,12 +66,12 @@ const rules = {
     },
     {
       id: 3,
-      title: "카카오톡 일정 참석여부 표시",
-        details: ["벙주를 위해 당일 변경사항은 댓글 or 태그로 알려주세요"],
+      title: "카카오톡 일정 참석 여부 표시",
+        details: ["벙주를 위해 당일 변경 사항은 댓글 또는 태그로 알려 주세요."],
     },
     {
       id: 4,
-      title: "Sport Team 입니다",
+      title: "Sport Team입니다.",
       details: [
         "런닝, 자전거, 수영, 등산, 트레일런, 클라이밍, 탁구, 배드민턴 외 다수 벙 가능",
       ],
@@ -80,9 +80,9 @@ const rules = {
       id: 5,
       title: "기타",
       details: [
-        "지각시 스쿼트 50회 연속지각시 +10 누적",
-        "참석 취소시 불참으로 누르기",
-        "일정에 🔥 표시가 있으면 중요 일정입니다 (회비 사용 할 수도 있음)",
+        "지각 시 스쿼트 50회, 연속 지각 시 +10 누적",
+        "참석 취소 시 불참으로 누르기",
+        "일정에 🔥 표시가 있으면 중요 일정입니다. (회비 사용가능)",
       ],
     },
   ],
@@ -94,26 +94,26 @@ const requests = {
   items: [
     {
       id: 1,
-      title: "JRC 인스타 팔로우 해주세요",
+      title: "JRC 인스타 팔로우 해 주세요.",
       href: "http://www.instagram.com/team_gigang",
       description: "Instagram (@team_gigang)",
     },
     {
       id: 2,
-      title: "카카오톡 오픈채팅 💟 눌러주세요",
+      title: "카카오톡 오픈채팅 💟 눌러 주세요.",
       description: "이미지 안내 참고",
     },
     {
       id: 3,
-      title: "소모임 가입해주세요",
+      title: "소모임 가입해 주세요.",
       href: "https://www.somoim.co.kr/3beed52a-0620-11ef-a71d-0aebcbdc4a071",
-      description: "가입 후 하트도 눌러주세요",
+      description: "가입 후 하트도 눌러 주세요.",
     },
   ],
 };
 
 const contact = {
-  heading: "문의사항 연락주세요",
+  heading: "문의사항, 연락 주세요.",
   description: "궁금한 점이 있으면 아래로 연락 주세요.",
   people: [
     {
