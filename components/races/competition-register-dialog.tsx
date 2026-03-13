@@ -175,6 +175,7 @@ export function CompetitionRegisterDialog({
               <Input
                 id="comp-start"
                 type="date"
+                max="9999-12-31"
                 value={startDate}
                 onChange={e => setStartDate(e.target.value)}
               />
@@ -184,6 +185,7 @@ export function CompetitionRegisterDialog({
               <Input
                 id="comp-end"
                 type="date"
+                max="9999-12-31"
                 value={endDate}
                 onChange={e => setEndDate(e.target.value)}
               />

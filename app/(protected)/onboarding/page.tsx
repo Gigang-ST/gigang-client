@@ -43,6 +43,12 @@ async function OnboardingContent({
     user.user_metadata?.nickname ??
     "";
 
+  // OAuth 프로필 사진 URL 추출 (카카오: avatar_url/picture, 구글: picture/avatar_url)
+  const initialAvatarUrl =
+    user.user_metadata?.picture ??
+    user.user_metadata?.avatar_url ??
+    null;
+
   return (
     <div className="flex min-h-svh w-full items-center justify-center bg-white px-6">
       <div className="w-full max-w-sm">
@@ -51,6 +57,7 @@ async function OnboardingContent({
           provider={user.app_metadata?.provider as "kakao" | "google"}
           email={user.email}
           initialFullName={initialFullName}
+          initialAvatarUrl={initialAvatarUrl}
         />
       </div>
     </div>

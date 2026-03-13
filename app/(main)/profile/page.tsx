@@ -24,7 +24,7 @@ async function ProfileContent() {
   const { data: member } = await supabase
     .from("member")
     .select(
-      "id, full_name, gender, birthday, phone, email, bank_name, bank_account, joined_at, status",
+      "id, full_name, gender, birthday, phone, email, bank_name, bank_account, joined_at, status, avatar_url",
     )
     .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
     .maybeSingle();
@@ -71,9 +71,18 @@ async function ProfileContent() {
     <div className="flex flex-col gap-6 px-6 pb-6">
         {/* Profile Card */}
         <div className="flex items-center gap-4 rounded-2xl border-[1.5px] border-border p-5">
-          <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-primary/10">
-            <User className="size-7 text-primary" />
-          </div>
+          {member.avatar_url ? (
+            <img
+              src={member.avatar_url}
+              alt={member.full_name}
+              className="size-16 shrink-0 rounded-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-primary/10">
+              <User className="size-7 text-primary" />
+            </div>
+          )}
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="text-[17px] font-bold text-foreground">
               {member.full_name}
