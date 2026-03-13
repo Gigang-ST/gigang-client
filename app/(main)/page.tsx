@@ -161,7 +161,9 @@ async function HomeContent() {
               <span className="text-2xl font-bold text-foreground">
                 {upcomingCount ?? 0}
               </span>
-              <span className="text-xs text-muted-foreground">예정 대회</span>
+              <span className="text-xs text-muted-foreground">
+                예정 대회 중 {gigangRaces.length}개 참가
+              </span>
             </div>
           </div>
         </div>
