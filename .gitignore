@@ -44,3 +44,6 @@ next-env.d.ts
 # claude code
 .claude/settings.local.json
 .mcp.json
+
+# local data
+/temp/
