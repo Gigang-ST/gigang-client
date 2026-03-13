@@ -30,6 +30,9 @@ import { formatDateRange } from "./date-utils";
 import { resolveSportConfig, SPORT_LEGEND } from "./sport-config";
 import type { Competition, CompetitionRegistration, MemberStatus } from "./types";
 
+/** 기타(직접 입력) 선택 시 사용하는 셀렉트 값 */
+const EVENT_TYPE_OTHER = "__OTHER__";
+
 const roleLabels = {
   participant: "참가",
   cheering: "응원",
@@ -82,6 +85,7 @@ export function CompetitionDetailDialog({
     "participant",
   );
   const [eventType, setEventType] = useState("");
+  const [otherEventType, setOtherEventType] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [participants, setParticipants] = useState<RegistrationWithMember[]>([]);
@@ -115,22 +119,39 @@ export function CompetitionDetailDialog({
     loadParticipants(competition.id);
   }, [competition?.id, open, loadParticipants]);
 
+  // 대회에 등록된 종목이 있으면 그대로, 없으면 스포츠별 기본 종목(10K, HALF, FULL 등) + 맨 아래 기타
   const eventTypeOptions = useMemo(() => {
     const explicit = competition?.event_types ?? [];
-    return explicit.map((type) => type.toUpperCase());
-  }, [competition?.event_types]);
+    const list =
+      explicit.length > 0
+        ? explicit.map((t) => t.toUpperCase())
+        : resolveSportConfig(competition?.sport ?? null).eventTypes;
+    return list;
+  }, [competition?.event_types, competition?.sport]);
 
   useEffect(() => {
     if (!competition || !open) return;
 
     const initialRole = registration?.role ?? "participant";
-    const initialEventType =
-      registration?.event_type ?? eventTypeOptions[0] ?? "";
+    const regType = (registration?.event_type ?? "").trim().toUpperCase();
+    const isInOptions =
+      regType && eventTypeOptions.some((o) => o.toUpperCase() === regType);
+    const initialOther = !isInOptions && regType ? regType : "";
+    const defaultSelect =
+      eventTypeOptions.length > 0 ? eventTypeOptions[0] : EVENT_TYPE_OTHER;
 
     setRole(initialRole);
-    setEventType(initialEventType ?? "");
+    setOtherEventType(initialOther);
+    if (isInOptions) {
+      setEventType(regType);
+    } else if (regType) {
+      setEventType(EVENT_TYPE_OTHER);
+    } else {
+      setEventType(defaultSelect);
+    }
     setStatusMessage(null);
   }, [competition?.id, open, registration?.id, registration?.role, registration?.event_type, eventTypeOptions]);
+
 
   function startEditing() {
     if (!competition) return;
@@ -185,7 +206,11 @@ export function CompetitionDetailDialog({
 
   const isParticipant = role === "participant";
   const requiresEventType = isParticipant;
-  const canSubmit = !requiresEventType || eventType.trim().length > 0;
+  const resolvedEventType =
+    eventType === EVENT_TYPE_OTHER ? otherEventType.trim().toUpperCase() : eventType;
+  const canSubmit =
+    !requiresEventType ||
+    (eventType === EVENT_TYPE_OTHER ? otherEventType.trim().length > 0 : eventType.length > 0);
 
   const showAuthMessage = memberStatus.status !== "ready";
 
@@ -199,7 +224,7 @@ export function CompetitionDetailDialog({
     }
 
     setIsSaving(true);
-    const payload = { role, eventType };
+    const payload = { role, eventType: resolvedEventType };
 
     const result = registration
       ? await onUpdate(registration.id, competition.id, payload)
@@ -462,28 +487,30 @@ export function CompetitionDetailDialog({
             {isParticipant && (
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="event-type">참가 종목</Label>
-                {eventTypeOptions.length > 0 ? (
-                  <Select
-                    value={eventType}
-                    onValueChange={(value) => setEventType(value)}
-                  >
-                    <SelectTrigger id="event-type">
-                      <SelectValue placeholder="종목 선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {eventTypeOptions.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
+                <Select
+                  value={eventType}
+                  onValueChange={(value) => setEventType(value)}
+                >
+                  <SelectTrigger id="event-type">
+                    <SelectValue placeholder="종목 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {eventTypeOptions.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={EVENT_TYPE_OTHER}>
+                      기타 (직접 입력)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                {eventType === EVENT_TYPE_OTHER && (
                   <Input
-                    id="event-type"
-                    placeholder="예: 10K"
-                    value={eventType}
-                    onChange={(event) => setEventType(event.target.value)}
+                    placeholder="예: 10K, HALF"
+                    value={otherEventType}
+                    onChange={(e) => setOtherEventType(e.target.value)}
+                    className="mt-1"
                   />
                 )}
               </div>
