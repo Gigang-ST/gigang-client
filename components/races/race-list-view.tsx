@@ -8,12 +8,17 @@ import { cn } from "@/lib/utils";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
 import { CompetitionDetailDialog } from "./competition-detail-dialog";
 import { CompetitionRegisterDialog } from "./competition-register-dialog";
-import { resolveSportConfig } from "./sport-config";
 import type { Competition, CompetitionRegistration, MemberStatus } from "./types";
 
 type Tab = "gigang" | "all";
 
 const MONTHS_EN = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+
+const SPORT_LABEL: Record<string, { label: string; className: string }> = {
+  road_run: { label: "마라톤", className: "bg-blue-50 text-blue-600" },
+  triathlon: { label: "트라이애슬론", className: "bg-emerald-50 text-emerald-600" },
+  trail_run: { label: "트레일러닝", className: "bg-amber-50 text-amber-600" },
+};
 
 export function RaceListView({
   gigangCompetitions,
@@ -214,14 +219,11 @@ export function RaceListView({
                         {comp.title}
                       </span>
                       <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-                        {comp.sport && (() => {
-                          const cfg = resolveSportConfig(comp.sport);
-                          return cfg.key !== "other" ? (
-                            <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", cfg.chipClass)}>
-                              {cfg.label}
-                            </span>
-                          ) : null;
-                        })()}
+                        {comp.sport && SPORT_LABEL[comp.sport] && (
+                          <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", SPORT_LABEL[comp.sport].className)}>
+                            {SPORT_LABEL[comp.sport].label}
+                          </span>
+                        )}
                         {comp.location && <span>{comp.location}</span>}
                         {regCount > 0 && (
                           <span className="font-medium text-primary">
