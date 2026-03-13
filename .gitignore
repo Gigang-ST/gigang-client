@@ -47,3 +47,4 @@ next-env.d.ts
 
 # local data
 /temp/
+/.playwright-mcp/
