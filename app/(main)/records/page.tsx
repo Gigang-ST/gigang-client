@@ -21,12 +21,12 @@ const TRIATHLON_EVENTS = [
 async function RecordsContent() {
   const supabase = await createClient();
 
-  // 마라톤 + 철인3종 개인최고기록, UTMB 프로필 동시 조회
-  const [{ data: pbData }, { data: utmbData }] = await Promise.all([
+  // 마라톤 + 철인3종 기록, UTMB 프로필 동시 조회
+  const [{ data: raceData }, { data: utmbData }] = await Promise.all([
     supabase
-      .from("personal_best")
+      .from("race_result")
       .select(
-        "event_type, record_time_sec, race_name, member:member_id(full_name, gender)",
+        "event_type, record_time_sec, race_name, member:member_id(id, full_name, gender)",
       ),
     supabase
       .from("utmb_profile")
@@ -34,6 +34,18 @@ async function RecordsContent() {
         "utmb_index, utmb_profile_url, member:member_id(full_name, id)",
       ),
   ]);
+
+  // 멤버별 종목별 최고기록만 추출
+  const bestByMemberEvent = new Map<string, { event_type: string; record_time_sec: number; race_name: string; member: { id: string; full_name: string; gender: string } }>();
+  for (const r of raceData ?? []) {
+    const member = r.member as unknown as { id: string; full_name: string; gender: string };
+    const key = `${member.id}_${r.event_type}`;
+    const existing = bestByMemberEvent.get(key);
+    if (!existing || r.record_time_sec < existing.record_time_sec) {
+      bestByMemberEvent.set(key, { event_type: r.event_type, record_time_sec: r.record_time_sec, race_name: r.race_name, member });
+    }
+  }
+  const pbData = Array.from(bestByMemberEvent.values());
 
   // 트레일러닝: UTMB 프로필 보유자의 최근 대회 기록 조회
   const utmbMembers = (utmbData ?? []).map((r) => {

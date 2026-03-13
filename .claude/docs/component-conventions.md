@@ -7,7 +7,7 @@ components/
   ui/          # shadcn/ui 공통 컴포넌트 (Button, Card, Dialog 등)
   auth/        # 인증 컴포넌트 (LoginForm, OnboardingForm)
   races/       # 대회 도메인 컴포넌트
-  profile/     # 프로필 도메인 컴포넌트
+  profile/     # 프로필 도메인 컴포넌트 (PersonalBestGrid, RaceRecordDialog, RaceHistoryDialog, PaceChart, RaceRecordSection)
   bottom-tab-bar.tsx   # 하단 네비게이션
   back-header.tsx      # 뒤로가기 헤더
   social-links.tsx     # 소셜 링크
@@ -27,6 +27,16 @@ pnpm dlx shadcn@latest add [component-name]
 
 ### 기존 컴포넌트 목록
 badge, button, card, dialog, form, input, label, loading-spinner, select, separator, skeleton
+
+### 프로필 도메인 컴포넌트
+- `personal-best-grid.tsx` — 읽기 전용 FULL/HALF/10K 최고기록 카드 + 클릭 가능한 UTMB 카드 (다이얼로그에서 UTMB 프로필 URL 입력/수정)
+- `race-record-dialog.tsx` — 3단계 위저드 (대회 선택 → 코스 선택 → 시간 입력). 기강대회 중 과거 1개월 내 대회만 표시, 시간 입력 시 분/초 0-59 검증, 철인3종 스플릿(swim/bike/run) 지원
+- `race-record-section.tsx` — 기록 입력 버튼 + 이력 보기 버튼 (RaceRecordDialog, RaceHistoryDialog 호출)
+- `race-history-dialog.tsx` — 과거 기록 목록, 인라인 시간 수정, 삭제 기능
+- `pace-chart.tsx` — recharts LineChart로 종목별 페이스 추이 차트 표시
+
+### 인증 도메인 컴포넌트
+- `member-onboarding-form.tsx` — 신규 가입 폼 + inactive 회원 재가입 신청 + pending 회원 승인 대기 메시지 처리
 
 ## 컴포넌트 작성 규칙
 
