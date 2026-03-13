@@ -1,21 +1,27 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
 import { secondsToTime } from "@/lib/utils";
+import { fetchUtmbRecentRace } from "@/app/actions/utmb";
 import { Suspense } from "react";
 import { RecordsClient } from "./records-client";
 
 const MARATHON_EVENTS = [
-  { value: "10K", label: "10K" },
-  { value: "HALF", label: "하프마라톤" },
-  { value: "FULL", label: "풀마라톤" },
+  { eventType: "FULL", label: "풀마라톤" },
+  { eventType: "HALF", label: "하프마라톤" },
+  { eventType: "10K", label: "10K" },
 ] as const;
 
-const NO_GENDER_EVENTS = [
-  { value: "TRIATHLON", label: "철인3종" },
+const TRIATHLON_EVENTS = [
+  { eventType: "TRIATHLON_FULL", label: "킹", filter: null },
+  { eventType: "TRIATHLON_HALF", label: "하프", filter: null },
+  { eventType: "TRIATHLON_OLYMPIC_TY", label: "올림픽 - 통영", filter: (name: string | null) => name?.includes("통영") ?? false },
+  { eventType: "TRIATHLON_OLYMPIC_ETC", label: "올림픽 - 기타", filter: (name: string | null) => !(name?.includes("통영") ?? false) },
 ] as const;
 
 async function RecordsContent() {
   const supabase = await createClient();
+
+  // 마라톤 + 철인3종 개인최고기록, UTMB 프로필 동시 조회
   const [{ data: pbData }, { data: utmbData }] = await Promise.all([
     supabase
       .from("personal_best")
@@ -25,115 +31,154 @@ async function RecordsContent() {
     supabase
       .from("utmb_profile")
       .select(
-        "utmb_index, utmb_profile_url, member:member_id(full_name, gender)",
+        "utmb_index, utmb_profile_url, member:member_id(full_name, id)",
       ),
   ]);
 
-  function buildRows(eventTypes: readonly { value: string; label: string }[]) {
-    return eventTypes.map((evt) => {
-      const rows = (pbData ?? [])
-        .filter((r) => r.event_type === evt.value)
+  // 트레일러닝: UTMB 프로필 보유자의 최근 대회 기록 조회
+  const utmbMembers = (utmbData ?? []).map((r) => {
+    const member = r.member as unknown as { full_name: string; id: string };
+    return { id: member.id, name: member.full_name, index: r.utmb_index, url: r.utmb_profile_url };
+  });
+
+  // UTMB 프로필 페이지에서 멤버별 최근 대회 기록 가져오기
+  const recentRaceMap = new Map<
+    string,
+    { raceName: string; record: string | null }
+  >();
+
+  if (utmbMembers.length > 0) {
+    const recentRaceResults = await Promise.all(
+      utmbMembers.map(async (m) => {
+        const result = await fetchUtmbRecentRace(m.url);
+        return { id: m.id, result };
+      }),
+    );
+
+    for (const { id, result } of recentRaceResults) {
+      if (result.ok) {
+        recentRaceMap.set(id, {
+          raceName: result.raceName,
+          record: result.raceRecord,
+        });
+      }
+    }
+  }
+
+  // --- 마라톤 ---
+  const marathonEvents = MARATHON_EVENTS.map((evt) => {
+    const rows = (pbData ?? [])
+      .filter((r) => r.event_type === evt.eventType)
+      .map((r) => {
+        const member = r.member as unknown as {
+          full_name: string;
+          gender: string;
+        };
+        return {
+          name: member.full_name,
+          gender: member.gender,
+          record: secondsToTime(r.record_time_sec),
+          raceName: r.race_name,
+          sortKey: r.record_time_sec,
+        };
+      });
+
+    const toEntry = (r: (typeof rows)[number], i: number) => ({
+      rank: i + 1,
+      name: r.name,
+      record: r.record,
+      raceName: r.raceName,
+    });
+
+    return {
+      eventType: evt.eventType,
+      label: evt.label,
+      male: rows
+        .filter((r) => r.gender === "male")
+        .sort((a, b) => a.sortKey - b.sortKey)
+        .slice(0, 10)
+        .map(toEntry),
+      female: rows
+        .filter((r) => r.gender === "female")
+        .sort((a, b) => a.sortKey - b.sortKey)
+        .slice(0, 10)
+        .map(toEntry),
+    };
+  });
+
+  // --- 트레일러닝 ---
+  const trailEntries = utmbMembers
+    .sort((a, b) => b.index - a.index)
+    .slice(0, 10)
+    .map((r, i) => {
+      const recent = recentRaceMap.get(r.id);
+      return {
+        rank: i + 1,
+        name: r.name,
+        utmbIndex: r.index,
+        recentRaceName: recent?.raceName ?? null,
+        recentRaceRecord: recent?.record ?? null,
+        utmbProfileUrl: r.url,
+      };
+    });
+
+  // --- 철인3종 ---
+  const olympicRows = (pbData ?? [])
+    .filter((r) => r.event_type === "TRIATHLON_OLYMPIC")
+    .map((r) => {
+      const member = r.member as unknown as { full_name: string; gender: string };
+      return {
+        name: member.full_name,
+        record: secondsToTime(r.record_time_sec),
+        raceName: r.race_name,
+        sortKey: r.record_time_sec,
+      };
+    });
+
+  const triathlonEvents = TRIATHLON_EVENTS.map((evt) => {
+    let rows;
+    if (evt.filter) {
+      // 올림픽 통영/기타: 같은 DB event_type에서 race_name으로 분리
+      rows = olympicRows
+        .filter((r) => evt.filter(r.raceName))
+        .sort((a, b) => a.sortKey - b.sortKey)
+        .slice(0, 10);
+    } else {
+      rows = (pbData ?? [])
+        .filter((r) => r.event_type === evt.eventType)
         .map((r) => {
-          const member = r.member as unknown as {
-            full_name: string;
-            gender: string;
-          };
+          const member = r.member as unknown as { full_name: string; gender: string };
           return {
             name: member.full_name,
-            gender: member.gender,
             record: secondsToTime(r.record_time_sec),
             raceName: r.race_name,
             sortKey: r.record_time_sec,
           };
-        });
+        })
+        .sort((a, b) => a.sortKey - b.sortKey)
+        .slice(0, 10);
+    }
 
-      const toEntry = (r: (typeof rows)[number], i: number) => ({
+    return {
+      eventType: evt.eventType,
+      label: evt.label,
+      entries: rows.map((r, i) => ({
         rank: i + 1,
         name: r.name,
         record: r.record,
         raceName: r.raceName,
-        utmbProfileUrl: null,
-      });
+        isMain: false,
+      })),
+    };
+  });
 
-      return {
-        eventType: evt.value,
-        label: evt.label,
-        male: rows
-          .filter((r) => r.gender === "male")
-          .sort((a, b) => a.sortKey - b.sortKey)
-          .slice(0, 10)
-          .map(toEntry),
-        female: rows
-          .filter((r) => r.gender === "female")
-          .sort((a, b) => a.sortKey - b.sortKey)
-          .slice(0, 10)
-          .map(toEntry),
-        all: rows
-          .sort((a, b) => a.sortKey - b.sortKey)
-          .slice(0, 10)
-          .map(toEntry),
-      };
-    });
-  }
-
-  const marathonEvents = buildRows(MARATHON_EVENTS);
-  const noGenderEvents = buildRows(NO_GENDER_EVENTS);
-
-  // Build UTMB rankings
-  const utmbAll = (utmbData ?? [])
-    .map((r) => {
-      const member = r.member as unknown as {
-        full_name: string;
-        gender: string;
-      };
-      return {
-        name: member.full_name,
-        index: r.utmb_index,
-        url: r.utmb_profile_url,
-      };
-    })
-    .sort((a, b) => b.index - a.index)
-    .slice(0, 10)
-    .map((r, i) => ({
-      rank: i + 1,
-      name: r.name,
-      record: String(r.index),
-      raceName: null,
-      utmbProfileUrl: r.url,
-    }));
-
-  const serialized = {
-    categories: [
-      {
-        key: "marathon",
-        label: "마라톤",
-        hasGender: true,
-        events: marathonEvents,
-      },
-      {
-        key: "triathlon",
-        label: "철인3종",
-        hasGender: false,
-        events: noGenderEvents,
-      },
-      {
-        key: "trail",
-        label: "트레일러닝",
-        hasGender: false,
-        events: [
-          {
-            eventType: "UTMB",
-            label: "UTMB Index",
-            male: [],
-            female: [],
-            all: utmbAll,
-          },
-        ],
-      },
-    ],
+  const serializedData = {
+    marathon: { events: marathonEvents },
+    trail: { entries: trailEntries },
+    triathlon: { events: triathlonEvents },
   };
 
-  return <RecordsClient data={serialized.categories} />;
+  return <RecordsClient data={serializedData} />;
 }
 
 function RecordsSkeleton() {
