@@ -76,12 +76,12 @@ function MedalBadge({ rank }: { rank: number }) {
   return (
     <div
       className={cn(
-        "flex size-10 shrink-0 items-center justify-center rounded-full bg-muted/40",
+        "flex size-8 shrink-0 items-center justify-center rounded-full bg-muted/40",
         color[rank],
       )}
       title={`${rank}등`}
     >
-      <Medal className="size-6" strokeWidth={2} />
+      <Medal className="size-5" strokeWidth={2} />
     </div>
   );
 }
@@ -122,7 +122,7 @@ function MarathonCell({
   if (!entry) {
     return (
       <div className="flex min-w-0 flex-1 items-center gap-3 py-1">
-        {showMedal && <div className="size-10 shrink-0" />}
+        {showMedal && <div className="size-8 shrink-0" />}
         <span className="flex-1 text-center text-xs text-muted-foreground">
           -
         </span>
@@ -130,15 +130,15 @@ function MarathonCell({
     );
   }
   return (
-    <div className="flex min-w-0 flex-1 items-start gap-3 py-1">
+    <div className="flex min-w-0 flex-1 items-center gap-3 py-1">
       {showMedal ? (
         <MedalBadge rank={rank} />
       ) : (
-        <span className="flex size-10 shrink-0 items-center justify-center text-xl font-bold text-muted-foreground">
+        <span className="flex size-8 shrink-0 items-center justify-center text-lg font-bold text-muted-foreground">
           {rank}
         </span>
       )}
-      <div className="min-w-0 flex-1 flex-col gap-0.5">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-baseline justify-between gap-1">
           <span className="truncate text-[13px] font-semibold text-foreground">
             {entry.name}
