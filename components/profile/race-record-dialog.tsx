@@ -55,6 +55,8 @@ interface Competition {
   location: string | null;
   sport: string;
   event_types: string[] | null;
+  /** 참가 신청 시 선택한 종목 (참가한 대회 목록에서만 있음, 검색 결과에는 없음) */
+  registeredEventType?: string | null;
 }
 
 /* ---------- 컴포넌트 ---------- */
@@ -104,7 +106,7 @@ export function RaceRecordDialog({
   // 트라이애슬론 여부 (step 3 시간 입력용)
   const isTriathlon = (selectedComp?.sport ?? "").includes("triathlon");
 
-  // 코스/종목 옵션: 대회 event_types 있으면 그 목록, 없으면 sport-config 기본 + 기타(직접 입력)
+  // 코스/종목 옵션: 검색으로 선택한 대회용. 대회 event_types 있으면 그 목록, 없으면 sport-config 기본 + 기타(직접 입력)
   const eventTypeOptions = useMemo(() => {
     if (!selectedComp) return [];
     const types = selectedComp.event_types;
@@ -154,7 +156,7 @@ export function RaceRecordDialog({
 
     const { data } = await supabase
       .from("competition")
-      .select("id, title, start_date, location, sport, event_types, competition_registration!inner(id)")
+      .select("id, title, start_date, location, sport, event_types, competition_registration!inner(id, event_type)")
       .eq("competition_registration.member_id", memberId)
       .gte("start_date", threeMonthsAgo.toISOString().split("T")[0])
       .lte("start_date", today.toISOString().split("T")[0])
@@ -162,8 +164,14 @@ export function RaceRecordDialog({
       .limit(50);
 
     const seen = new Set<string>();
-    const unique = (data ?? [])
-      .map(({ competition_registration, ...rest }) => rest as Competition)
+    const raw = data ?? [];
+    type Row = (typeof raw)[number] & { competition_registration?: { id: string; event_type: string | null } };
+    const unique = (raw as Row[])
+      .map((row) => {
+        const { competition_registration, ...rest } = row;
+        const reg = Array.isArray(competition_registration) ? competition_registration[0] : competition_registration;
+        return { ...rest, registeredEventType: reg?.event_type ?? null } as Competition;
+      })
       .filter((c) => {
         if (seen.has(c.id)) return false;
         seen.add(c.id);
@@ -189,13 +197,15 @@ export function RaceRecordDialog({
     return () => clearTimeout(t);
   }, [searchQuery]);
 
-  // 대회 선택 (목록 또는 검색 결과에서)
+  // 대회 선택 — 참가한 대회면 참가 종목 고정으로 바로 step 3, 검색 대회는 step 2(종목 선택)
   function handleSelectCompetition(comp: Competition) {
     setSelectedComp(comp);
     setSearchQuery("");
     setSearchResults([]);
-    setSelectedEventType("");
-    setStep(2);
+    const registered = (comp.registeredEventType ?? "").trim().toUpperCase();
+    setSelectedEventType(registered);
+    setCustomEventType("");
+    setStep(comp.registeredEventType ? 3 : 2);
   }
 
   // 코스 선택
@@ -209,11 +219,16 @@ export function RaceRecordDialog({
     setStep(3);
   }
 
-  // 뒤로가기
+  // 뒤로가기 (참가한 대회는 step 2 없이 3으로 왔으므로 step 3에서 뒤로가면 대회 선택으로)
   function handleBack() {
     setError(null);
     if (step === 3) {
-      setStep(2);
+      if (selectedComp?.registeredEventType) {
+        setSelectedComp(null);
+        setStep(1);
+      } else {
+        setStep(2);
+      }
     } else if (step === 2) {
       setSelectedComp(null);
       setStep(1);
@@ -379,7 +394,7 @@ export function RaceRecordDialog({
           </div>
         )}
 
-        {/* 단계 2: 코스/종목 선택 — event_types 있으면 그 목록, 없으면 sport-config 기본 + 기타 */}
+        {/* 단계 2: 검색으로 선택한 대회만 종목 선택 (참가한 대회는 step 3으로 직행) */}
         {step === 2 && selectedComp && (
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-3">
@@ -389,52 +404,53 @@ export function RaceRecordDialog({
                 {selectedComp.location ?? "-"}
               </p>
 
+              {/* 종목 선택 */}
               <div className="flex flex-wrap gap-1.5">
-                {eventTypeOptions.map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => {
-                      if (opt === EVENT_TYPE_OTHER) {
-                        setSelectedEventType(EVENT_TYPE_OTHER);
-                        setCustomEventType("");
-                      } else {
-                        setCustomEventType("");
-                        handleSelectEventType(opt);
-                      }
-                    }}
-                    className={cn(
-                      "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                      selectedEventType === opt
-                        ? "bg-foreground text-background border-foreground"
-                        : "border-border text-muted-foreground hover:border-primary/50",
-                    )}
-                  >
-                    {opt === EVENT_TYPE_OTHER ? "기타 (직접 입력)" : opt}
-                  </button>
-                ))}
-              </div>
-              {selectedEventType === EVENT_TYPE_OTHER && (
-                <div className="flex flex-col gap-1.5">
-                  <Input
-                    placeholder="예: 10K, HALF"
-                    value={customEventType}
-                    onChange={(e) => setCustomEventType(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    disabled={!customEventType.trim()}
-                    onClick={() => {
-                      setTotalTime("");
-                      setError(null);
-                      setStep(3);
-                    }}
-                    className="h-[48px] w-full rounded-xl bg-primary text-primary-foreground font-semibold text-sm disabled:opacity-50"
-                  >
-                    다음
-                  </button>
-                </div>
-              )}
+                    {eventTypeOptions.map((opt) => (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => {
+                          if (opt === EVENT_TYPE_OTHER) {
+                            setSelectedEventType(EVENT_TYPE_OTHER);
+                            setCustomEventType("");
+                          } else {
+                            setCustomEventType("");
+                            handleSelectEventType(opt);
+                          }
+                        }}
+                        className={cn(
+                          "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                          selectedEventType === opt
+                            ? "bg-foreground text-background border-foreground"
+                            : "border-border text-muted-foreground hover:border-primary/50",
+                        )}
+                      >
+                        {opt === EVENT_TYPE_OTHER ? "기타 (직접 입력)" : opt}
+                      </button>
+                    ))}
+                  </div>
+                  {selectedEventType === EVENT_TYPE_OTHER && (
+                    <div className="flex flex-col gap-1.5">
+                      <Input
+                        placeholder="예: 10K, HALF"
+                        value={customEventType}
+                        onChange={(e) => setCustomEventType(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        disabled={!customEventType.trim()}
+                        onClick={() => {
+                          setTotalTime("");
+                          setError(null);
+                          setStep(3);
+                        }}
+                        className="h-[48px] w-full rounded-xl bg-primary text-primary-foreground font-semibold text-sm disabled:opacity-50"
+                      >
+                        다음
+                      </button>
+                    </div>
+                  )}
             </div>
           </div>
         )}
