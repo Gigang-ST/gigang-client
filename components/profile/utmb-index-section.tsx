@@ -122,6 +122,7 @@ export function UtmbIndexSection({
   };
 
   const handleDelete = async () => {
+    if (!window.confirm("UTMB Index 정보를 삭제하시겠습니까?")) return;
     setSaving(true);
     const supabase = createClient();
     const { error } = await supabase.from("utmb_profile").delete().eq("member_id", memberId);
@@ -217,7 +218,7 @@ export function UtmbIndexSection({
                 utmb.world 프로필의 번호.이름 형식으로 입력하세요.
               </p>
               <a
-                href="https://accounts.utmb.world/auth/realms/utmb-world/protocol/openid-connect/auth?client_id=utmb-world&redirect_uri=https%3A%2F%2Futmb.world%2F%2Fmy-utmb%2Fmy-dashboard%2F&state=76b3100e-28a0-44c8-8171-c1565b6e2f8b&response_mode=fragment&response_type=code&scope=openid&nonce=cfd2878c-e432-4b2d-8c94-7a5ba1596c5c&ui_locales=en&code_challenge=i05NEfg3AfJvYoh7vwpYkqW-IcHNqfmLOqk4iLdzYe8&code_challenge_method=S256"
+                href="https://utmb.world/runner-search"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs font-medium text-primary underline"

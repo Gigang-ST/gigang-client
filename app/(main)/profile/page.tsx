@@ -1,6 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { validateUUID } from "@/lib/utils";
 import { Suspense } from "react";
 import Link from "next/link";
 import { Settings, User } from "lucide-react";
@@ -18,6 +19,7 @@ async function ProfileContent() {
     redirect("/auth/login?next=/profile");
   }
 
+  validateUUID(user.id);
   const { data: member } = await supabase
     .from("member")
     .select(

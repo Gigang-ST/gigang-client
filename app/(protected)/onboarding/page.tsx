@@ -1,10 +1,16 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { validateUUID } from "@/lib/utils";
 import { MemberOnboardingForm } from "@/components/auth/member-onboarding-form";
 import { Suspense } from "react";
 
-async function OnboardingContent() {
-  const nextParam = "/onboarding";
+async function OnboardingContent({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const params = await searchParams;
+  const nextParam = params.next ?? "/";
   const safeNext =
     nextParam.startsWith("/") && !nextParam.startsWith("//")
       ? nextParam
@@ -20,6 +26,7 @@ async function OnboardingContent() {
     redirect(`/auth/login?next=${encodeURIComponent(safeNext)}`);
   }
 
+  validateUUID(user.id);
   const { data: member } = await supabase
     .from("member")
     .select("id")
@@ -50,10 +57,27 @@ async function OnboardingContent() {
   );
 }
 
-export default function Page() {
+export default function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
   return (
-    <Suspense>
-      <OnboardingContent />
+    <Suspense fallback={<OnboardingFallback />}>
+      <OnboardingContent searchParams={searchParams} />
     </Suspense>
+  );
+}
+
+function OnboardingFallback() {
+  return (
+    <div className="flex min-h-svh w-full items-center justify-center bg-white px-6">
+      <div className="flex w-full max-w-sm flex-col gap-4">
+        <div className="h-8 w-48 animate-pulse rounded bg-muted" />
+        <div className="h-4 w-64 animate-pulse rounded bg-muted" />
+        <div className="mt-4 h-12 w-full animate-pulse rounded-xl bg-muted" />
+        <div className="h-12 w-full animate-pulse rounded-xl bg-muted" />
+      </div>
+    </div>
   );
 }

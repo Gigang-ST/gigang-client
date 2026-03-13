@@ -93,6 +93,11 @@ export function CompetitionRegisterDialog({
     e.preventDefault();
     if (!canSubmit) return;
 
+    if (endDate && endDate < startDate) {
+      setError("종료일은 시작일 이후여야 합니다.");
+      return;
+    }
+
     setIsSaving(true);
     setError(null);
 

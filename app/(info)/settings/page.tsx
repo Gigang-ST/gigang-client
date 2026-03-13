@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -37,10 +38,18 @@ const infoItems: MenuItem[] = [
 
 export default function SettingsPage() {
   const router = useRouter();
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
     const supabase = createClient();
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      setLoggingOut(false);
+      alert("로그아웃에 실패했습니다. 다시 시도해 주세요.");
+      return;
+    }
     router.push("/auth/login");
   };
 
@@ -108,20 +117,26 @@ export default function SettingsPage() {
         <button
           type="button"
           onClick={handleLogout}
-          className="flex items-center gap-3 border-b border-border py-4"
+          disabled={loggingOut}
+          className="flex items-center gap-3 border-b border-border py-4 disabled:opacity-50"
         >
           <LogOut className="size-5 text-destructive" />
           <span className="text-[15px] font-medium text-destructive">
-            로그아웃
+            {loggingOut ? "로그아웃 중..." : "로그아웃"}
           </span>
         </button>
         <button
           type="button"
-          className="flex items-center gap-3 py-4"
+          disabled
+          onClick={() => alert("준비 중입니다.")}
+          className="flex items-center gap-3 py-4 opacity-50"
         >
           <Trash2 className="size-5 text-destructive" />
           <span className="text-[15px] font-medium text-destructive">
             회원 탈퇴
+          </span>
+          <span className="ml-auto text-xs text-muted-foreground">
+            준비 중입니다
           </span>
         </button>
       </div>
@@ -129,7 +144,7 @@ export default function SettingsPage() {
       {/* Footer */}
       <div className="flex flex-col items-center gap-1.5 pt-6">
         <span className="text-sm font-bold text-muted-foreground">기강</span>
-        <span className="text-xs text-muted-foreground/70">© 2024 기강 스포츠 팀</span>
+        <span className="text-xs text-muted-foreground/70">{`© ${new Date().getFullYear()} 기강 스포츠 팀`}</span>
         <span className="text-[11px] text-muted-foreground/70">
           운동을 좋아하는 사람들이 함께 만드는 팀
         </span>

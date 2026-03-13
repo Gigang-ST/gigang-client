@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { SocialLinksRow } from "@/components/social-links";
 
@@ -16,7 +16,6 @@ export function LoginForm({
   const [oauthProvider, setOauthProvider] = useState<"kakao" | "google" | null>(
     null,
   );
-  const router = useRouter();
   const searchParams = useSearchParams();
   const nextParam = searchParams.get("next") ?? "/";
   const safeNext =
@@ -29,9 +28,7 @@ export function LoginForm({
     setOauthProvider(provider);
     setError(null);
 
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(
-      "/onboarding",
-    )}`;
+    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNext)}`;
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
@@ -43,10 +40,7 @@ export function LoginForm({
     if (error) {
       setError(error.message);
       setOauthProvider(null);
-      return;
     }
-
-    router.prefetch(safeNext);
   };
 
   return (

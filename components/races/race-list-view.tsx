@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ChevronRight, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ export function RaceListView({
   gigangCompetitions: Competition[];
   allCompetitions: Competition[];
 }) {
+  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [tab, setTab] = useState<Tab>("gigang");
   const [memberStatus, setMemberStatus] = useState<MemberStatus>({ status: "loading" });
@@ -137,15 +139,18 @@ export function RaceListView({
   };
 
   const deleteRegistration = async (registrationId: string, competitionId: string) => {
-    const { error } = await supabase.from("competition_registration").delete().eq("id", registrationId);
+    if (memberStatus.status !== "ready") return { ok: false as const, message: "로그인이 필요합니다." };
+    const { error } = await supabase.from("competition_registration").delete().eq("id", registrationId).eq("member_id", memberStatus.memberId);
     if (error) return { ok: false as const, message: "취소에 실패했습니다." };
     setRegistrationsByCompetitionId(prev => { const next = { ...prev }; delete next[competitionId]; return next; });
     const newCount = (regCounts[competitionId] ?? 1) - 1;
-    setRegCounts(prev => ({ ...prev, [competitionId]: newCount }));
-    // 마지막 참가자가 취소하면 기강대회 목록 갱신
+    setRegCounts(prev => {
+      const updated = (prev[competitionId] ?? 1) - 1;
+      return { ...prev, [competitionId]: updated };
+    });
     if (newCount <= 0) {
       await revalidateCompetitions();
-      window.location.reload();
+      router.refresh();
     }
     return { ok: true as const, message: "취소 완료" };
   };
@@ -245,7 +250,7 @@ export function RaceListView({
         onCreate={createRegistration}
         onUpdate={updateRegistration}
         onDelete={deleteRegistration}
-        onCompetitionUpdated={async () => { await revalidateCompetitions(); window.location.reload(); }}
+        onCompetitionUpdated={async () => { await revalidateCompetitions(); router.refresh(); }}
       />
 
       {/* FAB: 대회 등록 */}
@@ -262,7 +267,7 @@ export function RaceListView({
         memberStatus={memberStatus}
         onCreated={async () => {
           await revalidateCompetitions();
-          window.location.reload();
+          router.refresh();
         }}
       />
     </div>
