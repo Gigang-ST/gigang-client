@@ -292,7 +292,7 @@ export function CompetitionDetailDialog({
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">종목을 먼저 선택해주세요</p>
+                <p className="text-xs text-muted-foreground">종목을 먼저 선택해 주세요.</p>
               )}
             </div>
             <div className="flex flex-col gap-1.5">

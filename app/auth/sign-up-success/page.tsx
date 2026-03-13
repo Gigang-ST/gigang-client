@@ -25,7 +25,7 @@ export default function Page() {
           {/* 카카오톡 오픈채팅 안내 */}
           <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
             <p className="text-center text-sm font-bold text-amber-900">
-              💬 카카오톡 오픈채팅에 참여해주세요!
+              💬 카카오톡 오픈채팅에 참여해 주세요!
             </p>
             <a
               href={KAKAO_OPEN_CHAT_URL}

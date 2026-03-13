@@ -8,7 +8,7 @@ const announcements = {
   icon: "📋",
   sections: [
     {
-      heading: "📅 정기러닝",
+      heading: "📅 정기 러닝",
       items: [
         "격주 수요일 저녁 7:30 PM",
         "장소: 양재천 영동1교",
@@ -19,8 +19,8 @@ const announcements = {
       heading: "🙏 요청사항",
       items: [
         "카카오톡 오픈채팅 참여 필수",
-        "정기런닝 참석 시 카톡에 미리 표시",
-        "모임 후 뒷정리 함께 해주세요",
+        "정기 러닝 참석 시 카톡에 미리 표시",
+        "모임 후 뒷정리 참여해 주세요.",
       ],
     },
   ],
@@ -28,13 +28,13 @@ const announcements = {
 };
 
 const rules = [
-  { label: "자유 모임 개설", desc: "누구나 자유롭게 모임을 만들 수 있습니다" },
+  { label: "자유 모임 개설", desc: "누구나 자유롭게 모임을 만들 수 있습니다." },
   { label: "나이 제한", desc: "89년생부터 가입 가능 (88년생 이상은 불가)" },
   {
     label: "카톡 참석 표시",
-    desc: "정기런닝 참석 시 카카오톡에 미리 표시",
+    desc: "정기 러닝 참석 시 카카오톡에 미리 표시",
   },
-  { label: "Sport Team 활동", desc: "팀 활동에 적극 참여해주세요" },
+  { label: "Sport Team 활동", desc: "팀 활동에 적극 참여해 주세요." },
   { label: "회비", desc: "월 2,000원" },
   { label: "기타", desc: "지각 시 스쿼트 등 재밌는 벌칙이 있어요 😄" },
 ];
@@ -317,7 +317,7 @@ export default function NewbiePage() {
         <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-xs leading-relaxed text-amber-800">
           🔑{" "}
           <strong className="text-amber-900">
-            가입 완료 시 오픈채팅 링크와 비밀번호가 안내됩니다
+            가입 완료 시 오픈채팅 링크와 비밀번호가 안내됩니다.
           </strong>
         </div>
 
@@ -341,7 +341,7 @@ export default function NewbiePage() {
         <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">
           카카오톡 ID: <strong className="text-foreground">winsu</strong>
           <br />
-          링크가 안 열리면 카카오톡으로 연락주세요
+          링크가 열리지 않으면 카카오톡으로 연락바랍니다.
         </p>
       </section>
 

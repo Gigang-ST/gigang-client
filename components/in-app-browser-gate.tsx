@@ -110,7 +110,7 @@ export function InAppBrowserGate({ children }: { children: React.ReactNode }) {
           type="button"
           onClick={() => {
             navigator.clipboard.writeText(currentUrl);
-            alert("링크가 복사되었습니다. 브라우저에 붙여넣기 해주세요.");
+            alert("링크가 복사되었습니다.");
           }}
           className="mt-3 w-full rounded-xl border border-border py-3 text-sm font-medium text-muted-foreground"
         >

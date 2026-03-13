@@ -51,7 +51,7 @@ export async function createCompetition(input: CreateCompetitionInput) {
 
   if (error) {
     console.error("대회 등록 실패:", error);
-    return { ok: false, message: "등록에 실패했습니다. 다시 시도해주세요." };
+    return { ok: false, message: "등록에 실패했습니다. 다시 시도해 주세요." };
   }
 
   revalidateTag("competitions", "max");

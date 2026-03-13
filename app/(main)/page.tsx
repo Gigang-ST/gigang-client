@@ -184,7 +184,7 @@ async function HomeContent() {
           </div>
           {(recentRecords ?? []).length === 0 ? (
             <p className="rounded-2xl border-[1.5px] border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-              등록된 기록이 없습니다
+              등록된 기록이 없습니다.
             </p>
           ) : (
             (recentRecords ?? []).map((rec) => {

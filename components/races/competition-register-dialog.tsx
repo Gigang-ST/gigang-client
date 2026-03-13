@@ -112,7 +112,7 @@ export function CompetitionRegisterDialog({
     setIsSaving(false);
 
     if (!result.ok) {
-      setError(result.message ?? "등록에 실패했습니다. 다시 시도해주세요.");
+      setError(result.message ?? "등록에 실패했습니다. 다시 시도해 주세요.");
       return;
     }
 
@@ -128,7 +128,7 @@ export function CompetitionRegisterDialog({
         <DialogHeader>
           <DialogTitle>대회 등록</DialogTitle>
           <DialogDescription>
-            크롤링되지 않은 대회를 직접 등록합니다
+            등록되지 않은 대회를 직접 등록합니다.
           </DialogDescription>
         </DialogHeader>
 
@@ -219,7 +219,7 @@ export function CompetitionRegisterDialog({
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">종목을 먼저 선택해주세요</p>
+                <p className="text-xs text-muted-foreground">종목을 먼저 선택해 주세요.</p>
               )}
             </div>
 
