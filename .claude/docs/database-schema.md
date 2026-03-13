@@ -28,7 +28,7 @@
 |------|------|------|
 | id | uuid (PK) | 대회 ID |
 | external_id | text | 외부 시스템 ID |
-| sport | text | 종목 (road_running, trail_running, triathlon, cycling 등) |
+| sport | text | 종목 (road_run, ultra, trail_run, triathlon, cycling) |
 | title | text | 대회명 |
 | start_date | date | 시작일 |
 | end_date | date | 종료일 |

@@ -148,6 +148,7 @@ export function PersonalBestGrid({
 
   const handleDelete = async () => {
     if (!editingEvent) return;
+    if (!window.confirm("이 기록을 삭제하시겠습니까?")) return;
     setSaving(true);
 
     const supabase = createClient();

@@ -23,10 +23,11 @@ Next.js App Router의 Route Group을 사용하여 레이아웃 분리:
 
 ```
 1. 로그인 페이지 → 카카오/구글 OAuth 선택
-2. Supabase OAuth → 외부 인증
+2. Supabase OAuth → 외부 인증 (redirectTo에 next 파라미터 포함)
 3. /auth/callback → code를 session으로 교환
-4. 신규 사용자 → /onboarding (전화번호 → 회원정보 입력)
-5. 기존 사용자 → / (홈)
+   - next 파라미터가 있으면 해당 경로로 리다이렉트
+   - 없으면: 신규 → /onboarding, 기존 → /
+4. 온보딩 완료 후 → next 파라미터 경로 또는 / (홈)
 ```
 
 ### 미들웨어 (proxy.ts)
@@ -72,3 +73,9 @@ const supabase = createClient();
 
 ## 서버 액션
 - `app/actions/utmb.ts` - UTMB 프로필 관련 서버사이드 로직
+- `app/actions/revalidate-competitions.ts` - 대회 캐시 무효화 (인증 필수)
+
+## 공유 유틸리티
+- `lib/utils.ts` — `cn()`, `secondsToTime()`, `validateUUID()`, `hasEnvVars`
+- `lib/constants.ts` — `BANK_OPTIONS` (은행 목록 상수)
+- 종목 설정: `components/races/sport-config.ts`의 `resolveSportConfig()` 사용
