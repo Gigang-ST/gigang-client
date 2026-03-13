@@ -124,6 +124,9 @@ export function RaceListView({
     if (error) return { ok: false as const, message: "신청에 실패했습니다." };
     setRegistrationsByCompetitionId(prev => ({ ...prev, [competitionId]: data as CompetitionRegistration }));
     setRegCounts(prev => ({ ...prev, [competitionId]: (prev[competitionId] ?? 0) + 1 }));
+    await revalidateCompetitions();
+    router.refresh();
+
     return { ok: true as const, message: "참가 신청 완료" };
   };
 
