@@ -362,6 +362,7 @@ export function RaceRecordDialog({
                   <label className="text-sm font-medium">대회 날짜</label>
                   <Input
                     type="date"
+                    max="9999-12-31"
                     value={manualDate}
                     onChange={(e) => setManualDate(e.target.value)}
                   />
