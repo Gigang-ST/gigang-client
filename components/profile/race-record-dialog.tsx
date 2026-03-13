@@ -11,6 +11,11 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { resolveSportConfig } from "@/components/races/sport-config";
+import { searchCompetitions } from "@/app/actions/search-competitions";
+
+/** 기타(직접 입력) 선택 시 사용 */
+const EVENT_TYPE_OTHER = "__OTHER__";
 
 /* ---------- 시간 유틸리티 ---------- */
 
@@ -47,21 +52,10 @@ interface Competition {
   id: string;
   title: string;
   start_date: string;
-  location: string;
+  location: string | null;
   sport: string;
-  event_types: string[];
+  event_types: string[] | null;
 }
-
-const TRIATHLON_COURSES = ["SPRINT", "OLYMPIC", "HALF", "FULL"] as const;
-const DEFAULT_COURSES = ["FULL", "HALF", "10K"] as const;
-
-const SPORT_OPTIONS = [
-  { key: "running", label: "러닝" },
-  { key: "cycling", label: "자전거" },
-  { key: "swimming", label: "수영" },
-  { key: "triathlon", label: "트라이애슬론" },
-  { key: "trail_running", label: "트레일러닝" },
-];
 
 /* ---------- 컴포넌트 ---------- */
 
@@ -88,12 +82,10 @@ export function RaceRecordDialog({
   // 선택된 대회
   const [selectedComp, setSelectedComp] = useState<Competition | null>(null);
 
-  // 직접 입력 모드
-  const [manualMode, setManualMode] = useState(false);
-  const [manualName, setManualName] = useState("");
-  const [manualDate, setManualDate] = useState("");
-  const [manualSport, setManualSport] = useState("");
-  const [manualEventType, setManualEventType] = useState("");
+  // 전체 대회 검색 (자동완성)
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Competition[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   // 코스/이벤트 선택
   const [selectedEventType, setSelectedEventType] = useState("");
@@ -109,10 +101,19 @@ export function RaceRecordDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 트라이애슬론 여부
-  const isTriathlon = manualMode
-    ? manualSport.includes("triathlon")
-    : (selectedComp?.sport ?? "").includes("triathlon");
+  // 트라이애슬론 여부 (step 3 시간 입력용)
+  const isTriathlon = (selectedComp?.sport ?? "").includes("triathlon");
+
+  // 코스/종목 옵션: 대회 event_types 있으면 그 목록, 없으면 sport-config 기본 + 기타(직접 입력)
+  const eventTypeOptions = useMemo(() => {
+    if (!selectedComp) return [];
+    const types = selectedComp.event_types;
+    const list =
+      types != null && types.length > 0
+        ? types.map((t) => String(t).toUpperCase())
+        : resolveSportConfig(selectedComp.sport).eventTypes;
+    return [...list, EVENT_TYPE_OTHER];
+  }, [selectedComp?.id, selectedComp?.event_types, selectedComp?.sport]);
 
   // 트랜지션 자동 계산
   const transitionSeconds = useMemo(() => {
@@ -131,11 +132,8 @@ export function RaceRecordDialog({
     if (open) {
       setStep(1);
       setSelectedComp(null);
-      setManualMode(false);
-      setManualName("");
-      setManualDate("");
-      setManualSport("");
-      setManualEventType("");
+      setSearchQuery("");
+      setSearchResults([]);
       setSelectedEventType("");
       setCustomEventType("");
       setTotalTime("");
@@ -151,18 +149,18 @@ export function RaceRecordDialog({
   async function fetchCompetitions() {
     setLoadingComps(true);
     const today = new Date();
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setMonth(today.getMonth() - 1);
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(today.getMonth() - 3);
 
     const { data } = await supabase
       .from("competition")
       .select("id, title, start_date, location, sport, event_types, competition_registration!inner(id)")
-      .gte("start_date", oneMonthAgo.toISOString().split("T")[0])
+      .eq("competition_registration.member_id", memberId)
+      .gte("start_date", threeMonthsAgo.toISOString().split("T")[0])
       .lte("start_date", today.toISOString().split("T")[0])
       .order("start_date", { ascending: false })
-      .limit(30);
+      .limit(50);
 
-    // competition_registration 필드 제거 + 중복 제거
     const seen = new Set<string>();
     const unique = (data ?? [])
       .map(({ competition_registration, ...rest }) => rest as Competition)
@@ -176,18 +174,26 @@ export function RaceRecordDialog({
     setLoadingComps(false);
   }
 
-  // 대회 선택
+  // 검색어 디바운스 후 전체 대회 검색
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      setSearchLoading(true);
+      const list = await searchCompetitions(searchQuery);
+      setSearchResults(list as Competition[]);
+      setSearchLoading(false);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  // 대회 선택 (목록 또는 검색 결과에서)
   function handleSelectCompetition(comp: Competition) {
     setSelectedComp(comp);
-    setManualMode(false);
-    setSelectedEventType("");
-    setStep(2);
-  }
-
-  // 직접 입력 모드 전환
-  function handleManualMode() {
-    setManualMode(true);
-    setSelectedComp(null);
+    setSearchQuery("");
+    setSearchResults([]);
     setSelectedEventType("");
     setStep(2);
   }
@@ -209,23 +215,17 @@ export function RaceRecordDialog({
     if (step === 3) {
       setStep(2);
     } else if (step === 2) {
-      setManualMode(false);
       setSelectedComp(null);
       setStep(1);
     }
   }
 
-  // 대회 정보 (선택 or 직접입력)
-  const competitionTitle = manualMode
-    ? manualName.trim()
-    : (selectedComp?.title ?? "");
-  const competitionDate = manualMode
-    ? manualDate
-    : (selectedComp?.start_date ?? "");
-  const eventType = manualMode
-    ? manualEventType.trim()
-    : selectedEventType === "CUSTOM"
-      ? customEventType.trim()
+  // 대회 정보 (DB에서 선택한 대회만)
+  const competitionTitle = selectedComp?.title ?? "";
+  const competitionDate = selectedComp?.start_date ?? "";
+  const eventType =
+    selectedEventType === EVENT_TYPE_OTHER
+      ? customEventType.trim().toUpperCase()
       : selectedEventType;
 
   // 저장 가능 여부
@@ -244,7 +244,7 @@ export function RaceRecordDialog({
   })();
 
   async function handleSave() {
-    if (!canSave) return;
+    if (!canSave || !selectedComp) return;
     setIsSaving(true);
     setError(null);
 
@@ -253,10 +253,9 @@ export function RaceRecordDialog({
     const bikeSeconds = isTriathlon ? timeStringToSeconds(bikeTime) : null;
     const runSeconds = isTriathlon ? timeStringToSeconds(runTime) : null;
 
-    const finalEventType = isTriathlon
-      ? `TRIATHLON_${eventType}`
-      : eventType;
+    const finalEventType = (isTriathlon ? `TRIATHLON_${eventType}` : eventType).trim().toUpperCase();
 
+    // 기록 저장
     const { error: insertError } = await supabase
       .from("race_result")
       .insert({
@@ -270,13 +269,26 @@ export function RaceRecordDialog({
         run_time_sec: runSeconds,
       });
 
-    setIsSaving(false);
-
     if (insertError) {
-      setError("저장에 실패했습니다. 다시 시도해주세요.");
+      setIsSaving(false);
+      setError("저장에 실패했습니다. 다시 시도해 주세요.");
       return;
     }
 
+    // 검색으로 골랐을 수 있으므로, 해당 대회에 참가 신청이 없으면 참가로 추가 (정합성)
+    await supabase
+      .from("competition_registration")
+      .upsert(
+        {
+          competition_id: selectedComp.id,
+          member_id: memberId,
+          role: "participant",
+          event_type: finalEventType,
+        },
+        { onConflict: "competition_id,member_id" },
+      );
+
+    setIsSaving(false);
     onSaved();
     onOpenChange(false);
   }
@@ -289,9 +301,9 @@ export function RaceRecordDialog({
         <DialogHeader>
           <DialogTitle>기록 입력</DialogTitle>
           <DialogDescription>
-            {step === 1 && "대회를 선택해주세요"}
-            {step === 2 && "코스를 선택해주세요"}
-            {step === 3 && "기록을 입력해주세요"}
+            {step === 1 && "대회를 선택해 주세요."}
+            {step === 2 && "코스를 선택해 주세요."}
+            {step === 3 && "기록을 입력해 주세요."}
           </DialogDescription>
         </DialogHeader>
 
@@ -305,7 +317,7 @@ export function RaceRecordDialog({
           </button>
         )}
 
-        {/* 단계 1: 대회 선택 */}
+        {/* 단계 1: 최근 3개월 참가 대회 + 전체 대회 검색 */}
         {step === 1 && (
           <div className="flex flex-col gap-3">
             {loadingComps ? (
@@ -314,218 +326,116 @@ export function RaceRecordDialog({
               </p>
             ) : competitions.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                최근 1개월 내 대회가 없습니다
+                최근 3개월 내 참가한 대회가 없습니다. 아래에서 검색해 보세요.
               </p>
             ) : (
-              competitions.map((comp) => (
-                <button
-                  key={comp.id}
-                  type="button"
-                  onClick={() => handleSelectCompetition(comp)}
-                  className="rounded-lg px-4 py-3 border-[1.5px] border-border text-left transition-colors hover:border-primary/50"
-                >
-                  <p className="text-sm font-medium">{comp.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {comp.start_date} &middot; {comp.location}
-                  </p>
-                </button>
-              ))
+              <>
+                <p className="text-xs font-medium text-muted-foreground">최근 3개월 내 참가한 대회</p>
+                {competitions.map((comp) => (
+                  <button
+                    key={comp.id}
+                    type="button"
+                    onClick={() => handleSelectCompetition(comp)}
+                    className="rounded-lg px-4 py-3 border-[1.5px] border-border text-left transition-colors hover:border-primary/50"
+                  >
+                    <p className="text-sm font-medium">{comp.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {comp.start_date} &middot; {comp.location ?? "-"}
+                    </p>
+                  </button>
+                ))}
+              </>
             )}
 
             <div className="border-t border-border pt-3">
-              <button
-                type="button"
-                onClick={handleManualMode}
-                className="h-[48px] w-full rounded-xl bg-primary text-primary-foreground font-semibold text-sm"
-              >
-                직접 입력
-              </button>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">대회 검색</label>
+              <Input
+                placeholder="대회명으로 검색 (전체 목록)"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="mb-2"
+              />
+              {searchLoading && (
+                <p className="text-xs text-muted-foreground">검색 중...</p>
+              )}
+              {!searchLoading && searchResults.length > 0 && (
+                <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
+                  {searchResults.map((comp) => (
+                    <button
+                      key={comp.id}
+                      type="button"
+                      onClick={() => handleSelectCompetition(comp)}
+                      className="w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50"
+                    >
+                      <p className="font-medium">{comp.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {comp.start_date} &middot; {comp.location ?? "-"}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* 단계 2: 코스 선택 */}
-        {step === 2 && (
+        {/* 단계 2: 코스/종목 선택 — event_types 있으면 그 목록, 없으면 sport-config 기본 + 기타 */}
+        {step === 2 && selectedComp && (
           <div className="flex flex-col gap-4">
-            {manualMode ? (
-              /* 직접 입력 모드 */
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium">대회명</label>
-                  <Input
-                    placeholder="예: 2026 서울마라톤"
-                    value={manualName}
-                    onChange={(e) => setManualName(e.target.value)}
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium">대회 날짜</label>
-                  <Input
-                    type="date"
-                    max="9999-12-31"
-                    value={manualDate}
-                    onChange={(e) => setManualDate(e.target.value)}
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium">종목</label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {SPORT_OPTIONS.map((s) => (
-                      <button
-                        key={s.key}
-                        type="button"
-                        onClick={() => setManualSport(s.key)}
-                        className={cn(
-                          "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                          manualSport === s.key
-                            ? "bg-foreground text-background border-foreground"
-                            : "border-border text-muted-foreground hover:border-primary/50",
-                        )}
-                      >
-                        {s.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium">코스/이벤트</label>
-                  {manualSport.includes("triathlon") ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {TRIATHLON_COURSES.map((course) => (
-                        <button
-                          key={course}
-                          type="button"
-                          onClick={() => setManualEventType(course)}
-                          className={cn(
-                            "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                            manualEventType === course
-                              ? "bg-foreground text-background border-foreground"
-                              : "border-border text-muted-foreground hover:border-primary/50",
-                          )}
-                        >
-                          {course}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <Input
-                      placeholder="예: FULL, HALF, 10K"
-                      value={manualEventType}
-                      onChange={(e) => setManualEventType(e.target.value)}
-                    />
-                  )}
-                </div>
+            <div className="flex flex-col gap-3">
+              <p className="text-sm font-medium">{selectedComp.title}</p>
+              <p className="text-xs text-muted-foreground">
+                {selectedComp.start_date} &middot;{" "}
+                {selectedComp.location ?? "-"}
+              </p>
 
-                <button
-                  type="button"
-                  disabled={
-                    !manualName.trim() ||
-                    !manualDate ||
-                    !manualSport ||
-                    !manualEventType.trim()
-                  }
-                  onClick={() => {
-                    setTotalTime("");
-                    setSwimTime("");
-                    setBikeTime("");
-                    setRunTime("");
-                    setError(null);
-                    setStep(3);
-                  }}
-                  className="h-[48px] w-full rounded-xl bg-primary text-primary-foreground font-semibold text-sm disabled:opacity-50"
-                >
-                  다음
-                </button>
-              </div>
-            ) : (
-              /* 대회 선택 모드 - 코스 pill 표시 */
-              <div className="flex flex-col gap-3">
-                <p className="text-sm font-medium">{selectedComp?.title}</p>
-                <p className="text-xs text-muted-foreground">
-                  {selectedComp?.start_date} &middot;{" "}
-                  {selectedComp?.location}
-                </p>
-
-                {isTriathlon ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {TRIATHLON_COURSES.map((course) => (
-                      <button
-                        key={course}
-                        type="button"
-                        onClick={() => handleSelectEventType(course)}
-                        className={cn(
-                          "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                          selectedEventType === course
-                            ? "bg-foreground text-background border-foreground"
-                            : "border-border text-muted-foreground hover:border-primary/50",
-                        )}
-                      >
-                        {course}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-3">
-                    <div className="flex flex-wrap gap-1.5">
-                      {DEFAULT_COURSES.map((course) => (
-                        <button
-                          key={course}
-                          type="button"
-                          onClick={() => {
-                            setCustomEventType("");
-                            handleSelectEventType(course);
-                          }}
-                          className={cn(
-                            "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                            selectedEventType === course
-                              ? "bg-foreground text-background border-foreground"
-                              : "border-border text-muted-foreground hover:border-primary/50",
-                          )}
-                        >
-                          {course}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedEventType("CUSTOM");
-                          setCustomEventType("");
-                        }}
-                        className={cn(
-                          "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                          selectedEventType === "CUSTOM"
-                            ? "bg-foreground text-background border-foreground"
-                            : "border-border text-muted-foreground hover:border-primary/50",
-                        )}
-                      >
-                        기타
-                      </button>
-                    </div>
-                    {selectedEventType === "CUSTOM" && (
-                      <div className="flex flex-col gap-1.5">
-                        <Input
-                          placeholder="예: 5K, 100K 등"
-                          value={customEventType}
-                          onChange={(e) => setCustomEventType(e.target.value)}
-                        />
-                        <button
-                          type="button"
-                          disabled={!customEventType.trim()}
-                          onClick={() => {
-                            setTotalTime("");
-                            setError(null);
-                            setStep(3);
-                          }}
-                          className="h-[48px] w-full rounded-xl bg-primary text-primary-foreground font-semibold text-sm disabled:opacity-50"
-                        >
-                          다음
-                        </button>
-                      </div>
+              <div className="flex flex-wrap gap-1.5">
+                {eventTypeOptions.map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => {
+                      if (opt === EVENT_TYPE_OTHER) {
+                        setSelectedEventType(EVENT_TYPE_OTHER);
+                        setCustomEventType("");
+                      } else {
+                        setCustomEventType("");
+                        handleSelectEventType(opt);
+                      }
+                    }}
+                    className={cn(
+                      "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                      selectedEventType === opt
+                        ? "bg-foreground text-background border-foreground"
+                        : "border-border text-muted-foreground hover:border-primary/50",
                     )}
-                  </div>
-                )}
+                  >
+                    {opt === EVENT_TYPE_OTHER ? "기타 (직접 입력)" : opt}
+                  </button>
+                ))}
               </div>
-            )}
+              {selectedEventType === EVENT_TYPE_OTHER && (
+                <div className="flex flex-col gap-1.5">
+                  <Input
+                    placeholder="예: 10K, HALF"
+                    value={customEventType}
+                    onChange={(e) => setCustomEventType(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    disabled={!customEventType.trim()}
+                    onClick={() => {
+                      setTotalTime("");
+                      setError(null);
+                      setStep(3);
+                    }}
+                    className="h-[48px] w-full rounded-xl bg-primary text-primary-foreground font-semibold text-sm disabled:opacity-50"
+                  >
+                    다음
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -585,7 +495,7 @@ export function RaceRecordDialog({
                   </div>
                   {transitionSeconds != null && transitionSeconds < 0 && (
                     <p className="text-xs text-destructive">
-                      트랜지션이 음수입니다. 시간을 다시 확인해주세요.
+                      트랜지션이 음수입니다. 시간을 다시 확인해 주세요.
                     </p>
                   )}
                 </div>
