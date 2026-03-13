@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Medal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -67,19 +68,20 @@ type CategoryKey = (typeof CATEGORIES)[number]["key"];
 /* ------------------------------------------------------------------ */
 
 function MedalBadge({ rank }: { rank: number }) {
-  const colors: Record<number, string> = {
-    1: "bg-gradient-to-b from-[#FFD700] to-[#FFA500]",
-    2: "bg-gradient-to-b from-[#D1D5DB] to-[#9CA3AF]",
-    3: "bg-gradient-to-b from-[#D97706] to-[#B45309]",
+  const color: Record<number, string> = {
+    1: "text-amber-500",
+    2: "text-slate-400",
+    3: "text-amber-700",
   };
   return (
     <div
       className={cn(
-        "flex size-8 shrink-0 items-center justify-center rounded-full",
-        colors[rank],
+        "flex size-10 shrink-0 items-center justify-center rounded-full bg-muted/40",
+        color[rank],
       )}
+      title={`${rank}등`}
     >
-      <span className="text-sm font-extrabold text-white">{rank}</span>
+      <Medal className="size-6" strokeWidth={2} />
     </div>
   );
 }
@@ -109,28 +111,51 @@ function EmptyState() {
 /*  마라톤 셀 (남자/여자 각 칸)                                          */
 /* ------------------------------------------------------------------ */
 
-function MarathonCell({ entry }: { entry?: RankingEntry }) {
+function MarathonCell({
+  entry,
+  rank,
+}: {
+  entry?: RankingEntry;
+  rank: number;
+}) {
+  const showMedal = rank <= 3;
   if (!entry) {
-    return <div className="flex-1 py-1 text-center text-xs text-muted-foreground">-</div>;
-  }
-  return (
-    <div className="flex min-w-0 flex-1 flex-col gap-0.5 py-1">
-      <div className="flex items-baseline justify-between gap-1">
-        <span className="truncate text-[13px] font-semibold text-foreground">
-          {entry.name}
-        </span>
-        <span
-          className={cn(
-            "shrink-0 font-mono text-xs font-bold",
-            entry.rank === 1 ? "text-primary" : "text-foreground",
-          )}
-        >
-          {entry.record}
+    return (
+      <div className="flex min-w-0 flex-1 items-center gap-3 py-1">
+        {showMedal && <div className="size-10 shrink-0" />}
+        <span className="flex-1 text-center text-xs text-muted-foreground">
+          -
         </span>
       </div>
-      <span className="truncate text-[11px] text-muted-foreground">
-        {entry.raceName ?? "-"}
-      </span>
+    );
+  }
+  return (
+    <div className="flex min-w-0 flex-1 items-start gap-3 py-1">
+      {showMedal ? (
+        <MedalBadge rank={rank} />
+      ) : (
+        <span className="flex size-10 shrink-0 items-center justify-center text-xl font-bold text-muted-foreground">
+          {rank}
+        </span>
+      )}
+      <div className="min-w-0 flex-1 flex-col gap-0.5">
+        <div className="flex items-baseline justify-between gap-1">
+          <span className="truncate text-[13px] font-semibold text-foreground">
+            {entry.name}
+          </span>
+          <span
+            className={cn(
+              "shrink-0 font-mono text-xs font-bold",
+              entry.rank === 1 ? "text-primary" : "text-foreground",
+            )}
+          >
+            {entry.record}
+          </span>
+        </div>
+        <span className="truncate text-[11px] text-muted-foreground">
+          {entry.raceName ?? "-"}
+        </span>
+      </div>
     </div>
   );
 }
@@ -175,16 +200,21 @@ function MarathonContent({ events }: { events: MarathonEvent[] }) {
 
       {/* 헤더 */}
       <div className="mx-6 mt-2 flex items-center gap-3 rounded-lg bg-muted/50 px-3 py-2">
-        <div className="w-8 shrink-0" />
-        <span className="flex-1 text-center text-xs font-semibold tracking-wide text-muted-foreground">
-          남자
-        </span>
-        <span className="flex-1 text-center text-xs font-semibold tracking-wide text-muted-foreground">
-          여자
-        </span>
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div className="size-10 shrink-0" aria-hidden />
+          <span className="min-w-0 flex-1 text-center text-xs font-semibold tracking-wide text-muted-foreground">
+            남자
+          </span>
+        </div>
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div className="size-10 shrink-0" aria-hidden />
+          <span className="min-w-0 flex-1 text-center text-xs font-semibold tracking-wide text-muted-foreground">
+            여자
+          </span>
+        </div>
       </div>
 
-      {/* 랭킹 리스트: 등수 | 남자 | 여자 */}
+      {/* 랭킹 리스트: 남자 | 여자 (각 칸에 등수·메달 + 데이터) */}
       <div className="flex flex-col px-6">
         {maxRows === 0 ? (
           <EmptyState />
@@ -198,9 +228,8 @@ function MarathonContent({ events }: { events: MarathonEvent[] }) {
                 key={rank}
                 className="flex items-center gap-3 border-b border-border py-3 last:border-b-0"
               >
-                <RankBadge rank={rank} />
-                <MarathonCell entry={male} />
-                <MarathonCell entry={female} />
+                <MarathonCell entry={male} rank={rank} />
+                <MarathonCell entry={female} rank={rank} />
               </div>
             );
           })
