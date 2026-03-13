@@ -29,11 +29,11 @@ async function OnboardingContent({
   validateUUID(user.id);
   const { data: member } = await supabase
     .from("member")
-    .select("id")
+    .select("id, status")
     .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
     .maybeSingle();
 
-  if (member) {
+  if (member && member.status === "active") {
     redirect(safeNext === "/onboarding" ? "/" : safeNext);
   }
 

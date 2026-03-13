@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Search } from "lucide-react";
+import { fetchUtmbIndex } from "@/app/actions/utmb";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
@@ -11,29 +11,21 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Skeleton } from "@/components/ui/skeleton";
 
-const PB_EVENTS = [
-  { type: "FULL", label: "FULL" },
-  { type: "HALF", label: "HALF" },
-  { type: "10K", label: "10K" },
-  { type: "5K", label: "5K" },
-] as const;
-
-type EventType = (typeof PB_EVENTS)[number]["type"];
-
-type PbRecord = {
-  event_type: string;
+type BestRecord = {
   record_time_sec: number;
   race_name: string;
-  race_date: string;
 };
 
-type CompetitionRow = {
-  id: string;
-  title: string;
-  start_date: string;
-  location: string | null;
+type UtmbData = {
+  utmb_profile_url: string;
+  utmb_index: number;
+} | null;
+
+type Props = {
+  bestRecords: Record<string, BestRecord>;
+  utmbData: UtmbData;
+  memberId: string;
 };
 
 function secondsToTime(sec: number) {
@@ -45,408 +37,258 @@ function secondsToTime(sec: number) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-function timeStringToSeconds(timeStr: string): number | null {
-  const trimmed = timeStr.trim();
-  if (!trimmed) return null;
-  const parts = trimmed.split(":").map(Number);
-  if (parts.some(isNaN)) return null;
-  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-  if (parts.length === 2) return parts[0] * 60 + parts[1];
-  return null;
-}
+const PB_EVENTS = ["FULL", "HALF", "10K"] as const;
 
-export function PersonalBestGrid({
-  memberId,
-  initialRecords,
-}: {
-  memberId: string;
-  initialRecords: PbRecord[];
-}) {
-  const [records, setRecords] = useState<PbRecord[]>(initialRecords);
-  const [editingEvent, setEditingEvent] = useState<EventType | null>(null);
-  const [timeInput, setTimeInput] = useState("");
-  const [raceName, setRaceName] = useState("");
-  const [raceDate, setRaceDate] = useState("");
+export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
+  const [utmb, setUtmb] = useState(utmbData);
+  const [utmbOpen, setUtmbOpen] = useState(false);
+
+  // UTMB dialog form state
+  const [utmbUrl, setUtmbUrl] = useState("");
+  const [utmbIndex, setUtmbIndex] = useState<number | null>(null);
+  const [utmbName, setUtmbName] = useState("");
+  const [fetching, setFetching] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [manualEntry, setManualEntry] = useState(false);
+  const [isError, setIsError] = useState(false);
 
-  const pbMap = new Map<string, PbRecord>();
-  records.forEach((r) => pbMap.set(r.event_type, r));
+  const toShortId = (url: string) => {
+    const match = url.match(/\/runner\/(.+)$/);
+    return match ? match[1] : url;
+  };
 
-  const openEdit = (eventType: EventType) => {
-    const existing = pbMap.get(eventType);
-    setEditingEvent(eventType);
+  const resetUtmbForm = () => {
+    setUtmbUrl(utmb?.utmb_profile_url ? toShortId(utmb.utmb_profile_url) : "");
+    setUtmbIndex(utmb?.utmb_index ?? null);
+    setUtmbName("");
     setMessage(null);
-    setManualEntry(false);
-    if (existing) {
-      setTimeInput(secondsToTime(existing.record_time_sec));
-      setRaceName(existing.race_name);
-      setRaceDate(existing.race_date);
+    setIsError(false);
+  };
+
+  const handleUtmbOpenChange = (v: boolean) => {
+    setUtmbOpen(v);
+    if (v) resetUtmbForm();
+  };
+
+  const handleFetch = async () => {
+    if (!utmbUrl.trim()) {
+      setMessage("번호와 이름을 입력해 주세요.");
+      setIsError(true);
+      return;
+    }
+    setFetching(true);
+    setMessage(null);
+    const fullUrl = utmbUrl.trim().startsWith("http")
+      ? utmbUrl.trim()
+      : `https://utmb.world/runner/${utmbUrl.trim()}`;
+    const result = await fetchUtmbIndex(fullUrl);
+    setFetching(false);
+    if (result.ok) {
+      setUtmbIndex(result.index);
+      setUtmbName(result.name);
+      setMessage(`UTMB Index: ${result.index} (${result.name})`);
+      setIsError(false);
     } else {
-      setTimeInput("");
-      setRaceName("");
-      setRaceDate("");
+      setUtmbIndex(null);
+      setUtmbName("");
+      setMessage(result.error);
+      setIsError(true);
     }
   };
 
   const handleSave = async () => {
-    if (!editingEvent) return;
+    if (!utmbUrl.trim()) {
+      setMessage("번호와 이름을 입력해 주세요.");
+      setIsError(true);
+      return;
+    }
+    if (utmbIndex === null) {
+      setMessage("먼저 '조회' 버튼으로 UTMB Index를 가져와 주세요.");
+      setIsError(true);
+      return;
+    }
     setSaving(true);
     setMessage(null);
-
-    if (!raceName.trim()) {
-      setMessage("대회를 선택하거나 입력해 주세요.");
-      setSaving(false);
-      return;
-    }
-    if (!raceDate) {
-      setMessage("대회 날짜를 입력해 주세요.");
-      setSaving(false);
-      return;
-    }
-    const sec = timeStringToSeconds(timeInput);
-    if (!sec || sec <= 0) {
-      setMessage("기록을 MM:SS 또는 HH:MM:SS 형식으로 입력해 주세요.");
-      setSaving(false);
-      return;
-    }
-
+    const fullUrl = utmbUrl.trim().startsWith("http")
+      ? utmbUrl.trim()
+      : `https://utmb.world/runner/${utmbUrl.trim()}`;
     const supabase = createClient();
-    const { error } = await supabase.from("personal_best").upsert(
+    const { error } = await supabase.from("utmb_profile").upsert(
       {
         member_id: memberId,
-        event_type: editingEvent,
-        record_time_sec: sec,
-        race_name: raceName.trim(),
-        race_date: raceDate,
+        utmb_profile_url: fullUrl,
+        utmb_index: utmbIndex,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "member_id,event_type" },
+      { onConflict: "member_id" },
     );
-
+    setSaving(false);
     if (error) {
-      setMessage("저장에 실패했습니다.");
-      setSaving(false);
+      setMessage(error.message);
+      setIsError(true);
       return;
     }
-
-    setRecords((prev) => {
-      const next = prev.filter((r) => r.event_type !== editingEvent);
-      next.push({
-        event_type: editingEvent,
-        record_time_sec: sec,
-        race_name: raceName.trim(),
-        race_date: raceDate,
-      });
-      return next;
-    });
-    setEditingEvent(null);
-    setSaving(false);
+    setUtmb({ utmb_profile_url: fullUrl, utmb_index: utmbIndex });
+    setUtmbOpen(false);
   };
 
   const handleDelete = async () => {
-    if (!editingEvent) return;
-    if (!window.confirm("이 기록을 삭제하시겠습니까?")) return;
+    if (!window.confirm("UTMB Index 정보를 삭제하시겠습니까?")) return;
     setSaving(true);
-
     const supabase = createClient();
     const { error } = await supabase
-      .from("personal_best")
+      .from("utmb_profile")
       .delete()
-      .eq("member_id", memberId)
-      .eq("event_type", editingEvent);
-
+      .eq("member_id", memberId);
+    setSaving(false);
     if (error) {
-      setMessage("삭제에 실패했습니다.");
-      setSaving(false);
+      setMessage(error.message);
+      setIsError(true);
       return;
     }
-
-    setRecords((prev) => prev.filter((r) => r.event_type !== editingEvent));
-    setEditingEvent(null);
-    setSaving(false);
+    setUtmb(null);
+    setUtmbOpen(false);
   };
-
-  const hasRecord = editingEvent ? pbMap.has(editingEvent) : false;
 
   return (
     <>
-      <div className="flex flex-col gap-4">
-        <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-          PERSONAL BEST
-        </span>
-        <div className="grid grid-cols-2 gap-3">
-          {PB_EVENTS.map((evt, i) => {
-            const pb = pbMap.get(evt.type);
-            return (
-              <button
-                key={evt.type}
-                type="button"
-                onClick={() => openEdit(evt.type)}
-                className={`flex flex-col gap-1 rounded-xl p-4 text-left transition-colors active:scale-[0.98] ${i < 2 ? "border-[1.5px] border-border" : "bg-secondary"}`}
-              >
-                <span className="text-xs font-semibold text-primary">
-                  {evt.label}
-                </span>
-                <span className="font-mono text-xl font-bold text-foreground">
-                  {pb ? secondsToTime(pb.record_time_sec) : "--:--"}
-                </span>
-                <span className="truncate text-[11px] text-muted-foreground">
-                  {pb?.race_name ?? "탭하여 기록 추가"}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+      <div className="grid grid-cols-2 gap-3">
+        {/* FULL / HALF / 10K cards (read-only) */}
+        {PB_EVENTS.map((evt, i) => {
+          const pb = bestRecords[evt];
+          return (
+            <div
+              key={evt}
+              className={`flex flex-col gap-1 rounded-xl p-4 ${i < 2 ? "border-[1.5px] border-border" : "bg-secondary"}`}
+            >
+              <span className="text-xs font-semibold text-primary">
+                {evt}
+              </span>
+              <span className="font-mono text-xl font-bold text-foreground">
+                {pb ? secondsToTime(pb.record_time_sec) : "--:--"}
+              </span>
+              <span className="truncate text-[11px] text-muted-foreground">
+                {pb?.race_name ?? ""}
+              </span>
+            </div>
+          );
+        })}
+
+        {/* UTMB card (clickable) */}
+        <button
+          type="button"
+          onClick={() => handleUtmbOpenChange(true)}
+          className="flex flex-col gap-1 rounded-xl bg-secondary p-4 text-left transition-colors active:scale-[0.98]"
+        >
+          <span className="text-xs font-semibold text-primary">UTMB</span>
+          <span className="font-mono text-xl font-bold text-foreground">
+            {utmb ? utmb.utmb_index : "--"}
+          </span>
+          <span className="truncate text-[11px] text-muted-foreground">
+            {utmb ? "" : "탭하여 연동"}
+          </span>
+        </button>
       </div>
 
-      {/* Edit Dialog */}
-      <Dialog
-        open={editingEvent !== null}
-        onOpenChange={(open) => {
-          if (!open) setEditingEvent(null);
-        }}
-      >
-        <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden">
+      {/* UTMB Dialog */}
+      <Dialog open={utmbOpen} onOpenChange={handleUtmbOpenChange}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingEvent} 기록 편집</DialogTitle>
+            <DialogTitle>UTMB Index</DialogTitle>
             <DialogDescription>
-              기록과 대회 정보를 입력하세요.
+              UTMB 프로필 번호와 이름을 입력하세요.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="-mx-1 flex flex-col gap-4 overflow-y-auto px-1">
-            {/* 기록 입력 */}
+          <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
               <label className="text-sm font-medium text-foreground">
-                기록 (MM:SS 또는 HH:MM:SS)
+                UTMB 프로필
               </label>
-              <Input
-                placeholder="예: 23:45 또는 1:45:30"
-                value={timeInput}
-                onChange={(e) => setTimeInput(e.target.value)}
-                className="h-12 rounded-xl border-[1.5px] text-[15px]"
-              />
+              <div className="flex gap-2">
+                <Input
+                  placeholder="123456.gildong.hong"
+                  value={utmbUrl}
+                  onChange={(e) => {
+                    setUtmbUrl(e.target.value);
+                    setUtmbIndex(null);
+                    setUtmbName("");
+                  }}
+                  className="flex-1"
+                />
+                <button
+                  type="button"
+                  onClick={handleFetch}
+                  disabled={fetching}
+                  className="shrink-0 rounded-lg border-[1.5px] border-border px-4 py-2 text-sm font-medium text-foreground disabled:opacity-50"
+                >
+                  {fetching ? "조회 중..." : "조회"}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                utmb.world 프로필의 번호.이름 형식으로 입력하세요.
+              </p>
+              <a
+                href="https://utmb.world/runner-search"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-medium text-primary underline"
+              >
+                내 UTMB 프로필 찾기
+              </a>
             </div>
 
-            {/* 대회 */}
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-foreground">
-                대회
-              </label>
-              {raceName && !manualEntry ? (
-                <div className="flex items-center gap-2">
-                  <div className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-xl border-[1.5px] border-border px-4 py-3">
-                    <span className="truncate text-sm font-medium text-foreground">
-                      {raceName}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {raceDate}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSearchOpen(true)}
-                    className="shrink-0 rounded-lg border-[1.5px] border-border px-3 py-2 text-sm font-medium text-foreground"
-                  >
-                    변경
-                  </button>
-                </div>
-              ) : manualEntry ? (
-                <div className="flex flex-col gap-2">
-                  <Input
-                    placeholder="대회명"
-                    value={raceName}
-                    onChange={(e) => setRaceName(e.target.value)}
-                    className="h-12 rounded-xl border-[1.5px] text-[15px]"
-                  />
-                  <Input
-                    type="date"
-                    value={raceDate}
-                    onChange={(e) => setRaceDate(e.target.value)}
-                    className="h-12 rounded-xl border-[1.5px] text-[15px]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setManualEntry(false);
-                      setSearchOpen(true);
-                    }}
-                    className="self-start text-xs text-muted-foreground underline"
-                  >
-                    대회 검색으로 돌아가기
-                  </button>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSearchOpen(true)}
-                    className="flex h-12 items-center gap-2 rounded-xl border-[1.5px] border-border px-4 text-[15px] text-muted-foreground"
-                  >
-                    <Search className="size-4" />
-                    대회를 검색하세요...
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setManualEntry(true)}
-                    className="self-start text-xs text-muted-foreground underline"
-                  >
-                    목록에 없는 대회 직접 입력
-                  </button>
-                </div>
-              )}
-            </div>
+            {utmbIndex !== null && (
+              <div className="flex items-center gap-2 rounded-xl bg-secondary px-4 py-3">
+                <span className="text-sm text-muted-foreground">
+                  UTMB Index:
+                </span>
+                <span className="text-lg font-bold text-foreground">
+                  {utmbIndex}
+                </span>
+                {utmbName && (
+                  <span className="text-sm text-muted-foreground">
+                    ({utmbName})
+                  </span>
+                )}
+              </div>
+            )}
 
-            {/* 버튼 */}
-            <div className="flex gap-2 pt-2">
+            {message && (
+              <p
+                className={
+                  isError
+                    ? "text-sm text-destructive"
+                    : "text-sm text-emerald-600"
+                }
+              >
+                {message}
+              </p>
+            )}
+
+            <div className="flex gap-2">
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="h-[48px] flex-1 rounded-xl bg-primary text-base font-semibold text-primary-foreground disabled:opacity-50"
+                className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
               >
                 {saving ? "저장 중..." : "저장"}
               </button>
-              {hasRecord && (
+              {utmb && (
                 <button
                   type="button"
                   onClick={handleDelete}
                   disabled={saving}
-                  className="h-[48px] rounded-xl border-[1.5px] border-border px-5 text-base font-medium text-destructive disabled:opacity-50"
+                  className="rounded-xl border-[1.5px] border-border px-4 py-3 text-sm font-medium text-destructive disabled:opacity-50"
                 >
                   삭제
                 </button>
               )}
             </div>
-
-            {message && (
-              <p className="text-sm text-destructive">{message}</p>
-            )}
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Competition Search Dialog */}
-      <CompetitionSearchDialog
-        open={searchOpen}
-        onOpenChange={setSearchOpen}
-        onSelect={(title, date) => {
-          setRaceName(title);
-          setRaceDate(date);
-          setManualEntry(false);
-        }}
-      />
     </>
-  );
-}
-
-function CompetitionSearchDialog({
-  open,
-  onOpenChange,
-  onSelect,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSelect: (title: string, date: string) => void;
-}) {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<CompetitionRow[]>([]);
-  const [loading, setLoading] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const search = useCallback(async (q: string) => {
-    if (!q.trim()) {
-      setResults([]);
-      return;
-    }
-    setLoading(true);
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("competition")
-      .select("id, title, start_date, location")
-      .ilike("title", `%${q.trim()}%`)
-      .order("start_date", { ascending: false })
-      .limit(20);
-    setResults(data ?? []);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    if (!open) return;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => search(query), 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [query, open, search]);
-
-  useEffect(() => {
-    if (open) {
-      setQuery("");
-      setResults([]);
-    }
-  }, [open]);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[80vh] flex-col overflow-hidden">
-        <DialogHeader>
-          <DialogTitle>대회 검색</DialogTitle>
-          <DialogDescription>대회명을 검색하세요.</DialogDescription>
-        </DialogHeader>
-
-        <Input
-          placeholder="대회명을 입력하세요..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          autoFocus
-          className="h-12 rounded-xl border-[1.5px] text-[15px]"
-        />
-
-        <div className="-mx-6 h-[300px] overflow-y-auto px-6">
-          {loading ? (
-            <div className="flex flex-col gap-1">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="px-3 py-2.5">
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="mt-1.5 h-3 w-1/2" />
-                </div>
-              ))}
-            </div>
-          ) : results.length > 0 ? (
-            <div className="flex flex-col">
-              {results.map((comp) => (
-                <button
-                  key={comp.id}
-                  type="button"
-                  onClick={() => {
-                    onSelect(comp.title, comp.start_date);
-                    onOpenChange(false);
-                  }}
-                  className="flex flex-col gap-0.5 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-secondary"
-                >
-                  <span className="text-sm font-medium">{comp.title}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {comp.start_date}
-                    {comp.location ? ` · ${comp.location}` : ""}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : !query.trim() ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">
-              대회명을 입력해 주세요.
-            </p>
-          ) : (
-            <p className="py-4 text-center text-sm text-muted-foreground">
-              검색 결과가 없습니다.
-            </p>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
