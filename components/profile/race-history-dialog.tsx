@@ -148,8 +148,8 @@ export function RaceHistoryDialog({
             {records.map((r) => (
               <div key={r.id} className="flex items-center gap-3 py-3">
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-sm font-semibold text-foreground truncate">
+                  <div className="flex items-start gap-2">
+                    <span className="min-w-0 flex-1 text-sm font-semibold text-foreground line-clamp-2 break-words">
                       {r.race_name}
                     </span>
                     <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
