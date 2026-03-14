@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import "./globals.css";
 import { siteContent } from "@/config";
 
@@ -56,6 +57,7 @@ export default function RootLayout({
       <body className={`${inter.className} antialiased`}>
         {children}
       </body>
+      <GoogleAnalytics gaId="G-H9LXJH97CZ" />
     </html>
   );
 }
