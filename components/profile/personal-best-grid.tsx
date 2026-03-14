@@ -229,7 +229,7 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
                 utmb.world 프로필의 번호.이름 형식으로 입력하세요.
               </p>
               <a
-                href="https://utmb.world/runner-search"
+                href="https://utmb.world/utmb-index/runner-search"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs font-medium text-primary underline"
