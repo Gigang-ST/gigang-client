@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Input } from "@/components/ui/input";
 import {
@@ -88,6 +88,8 @@ export function RaceRecordDialog({
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Competition[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const dialogContentRef = useRef<HTMLDivElement | null>(null);
 
   // 코스/이벤트 선택
   const [selectedEventType, setSelectedEventType] = useState("");
@@ -309,10 +311,30 @@ export function RaceRecordDialog({
   }
 
   /* ---------- 렌더링 ---------- */
+  const scrollSearchInputAboveKeyboard = useRef(() => {
+    const input = searchInputRef.current;
+    const container = dialogContentRef.current;
+    if (!input || !container || document.activeElement !== input) return;
+    const vv = window.visualViewport;
+    const rect = input.getBoundingClientRect();
+    const padding = 12;
+    const visibleBottom = vv ? vv.height : window.innerHeight;
+    if (rect.bottom > visibleBottom - padding) {
+      const scrollAmount = rect.bottom - (visibleBottom - padding);
+      container.scrollTop += scrollAmount;
+    }
+  }).current;
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    vv.addEventListener("resize", scrollSearchInputAboveKeyboard);
+    return () => vv.removeEventListener("resize", scrollSearchInputAboveKeyboard);
+  }, [scrollSearchInputAboveKeyboard]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent ref={dialogContentRef} className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>기록 입력</DialogTitle>
           <DialogDescription>
@@ -365,9 +387,14 @@ export function RaceRecordDialog({
             <div className="border-t border-border pt-3">
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">대회 검색</label>
               <Input
+                ref={searchInputRef}
                 placeholder="대회명으로 검색 (전체 목록)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => {
+                  setTimeout(scrollSearchInputAboveKeyboard, 350);
+                  setTimeout(scrollSearchInputAboveKeyboard, 600);
+                }}
                 className="mb-2"
               />
               {searchLoading && (
