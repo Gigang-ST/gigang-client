@@ -17,11 +17,11 @@ export function LoginForm({
     null,
   );
   const searchParams = useSearchParams();
-  const nextParam = searchParams.get("next") ?? "/";
+  const nextParam = searchParams.get("next");
   const safeNext =
-    nextParam.startsWith("/") && !nextParam.startsWith("//")
+    nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//")
       ? nextParam
-      : "/";
+      : "/onboarding";
 
   const handleOAuthLogin = async (provider: "kakao" | "google") => {
     const supabase = createClient();
