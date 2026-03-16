@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -15,6 +15,10 @@ import {
   Info,
   LogOut,
   Trash2,
+  Users,
+  Trophy,
+  Timer,
+  UserCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -29,6 +33,13 @@ const accountItems: MenuItem[] = [
   { label: "계좌 정보", href: "/profile/bank", icon: CreditCard },
 ];
 
+const adminItems: MenuItem[] = [
+  { label: "가입 승인", href: "/admin/approvals", icon: UserCheck },
+  { label: "회원 관리", href: "/admin/members", icon: Users },
+  { label: "대회 관리", href: "/admin/competitions", icon: Trophy },
+  { label: "기록 관리", href: "/admin/records", icon: Timer },
+];
+
 const infoItems: MenuItem[] = [
   { label: "이용약관", href: "/terms", icon: FileText },
   { label: "개인정보 처리방침", href: "/privacy", icon: ShieldCheck },
@@ -39,6 +50,26 @@ const infoItems: MenuItem[] = [
 export default function SettingsPage() {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    async function checkAdmin() {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: member } = await supabase
+        .from("member")
+        .select("admin")
+        .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
+        .maybeSingle();
+
+      if (member?.admin) setIsAdmin(true);
+    }
+    checkAdmin();
+  }, []);
 
   const handleLogout = async () => {
     if (loggingOut) return;
@@ -76,6 +107,30 @@ export default function SettingsPage() {
           </Link>
         ))}
       </div>
+
+      {/* ADMIN */}
+      {isAdmin && (
+        <div className="flex flex-col">
+          <span className="text-xs font-semibold tracking-widest text-muted-foreground">
+            ADMIN
+          </span>
+          {adminItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="flex items-center justify-between border-b border-border py-4"
+            >
+              <div className="flex items-center gap-3">
+                <item.icon className="size-5 text-primary" />
+                <span className="text-[15px] font-medium text-foreground">
+                  {item.label}
+                </span>
+              </div>
+              <ChevronRight className="size-5 text-border" />
+            </Link>
+          ))}
+        </div>
+      )}
 
       {/* INFORMATION */}
       <div className="flex flex-col">
