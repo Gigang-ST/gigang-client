@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { validateUUID } from "@/lib/utils";
+import { uploadAvatar } from "@/app/actions/upload-avatar";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -13,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Camera, User } from "lucide-react";
 
 type ProfileData = {
   id: string;
@@ -21,6 +23,7 @@ type ProfileData = {
   birthday: string;
   phone: string;
   email: string;
+  avatar_url: string;
 };
 
 export default function ProfileEditPage() {
@@ -32,6 +35,8 @@ export default function ProfileEditPage() {
     text: string;
   } | null>(null);
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function load() {
@@ -47,7 +52,7 @@ export default function ProfileEditPage() {
       validateUUID(user.id);
       const { data: member } = await supabase
         .from("member")
-        .select("id, full_name, gender, birthday, phone, email")
+        .select("id, full_name, gender, birthday, phone, email, avatar_url")
         .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
         .maybeSingle();
 
@@ -63,12 +68,40 @@ export default function ProfileEditPage() {
         birthday: member.birthday ?? "",
         phone: member.phone ?? "",
         email: member.email ?? "",
+        avatar_url: member.avatar_url ?? "",
       });
       setLoading(false);
     }
 
     load();
   }, [router]);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !profile) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setMessage({ type: "error", text: "이미지는 10MB 이하만 가능합니다." });
+      return;
+    }
+
+    setUploading(true);
+    setMessage(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("memberId", profile.id);
+
+    const result = await uploadAvatar(formData);
+
+    if (result.error) {
+      setMessage({ type: "error", text: result.error });
+    } else if (result.url) {
+      setProfile({ ...profile, avatar_url: result.url });
+      setMessage({ type: "success", text: "프로필 사진이 변경되었습니다." });
+    }
+    setUploading(false);
+  };
 
   const handleSave = async () => {
     if (!profile) return;
@@ -115,6 +148,42 @@ export default function ProfileEditPage() {
 
   return (
     <div className="flex flex-col gap-6 px-6 pb-6 pt-4">
+      {/* 프로필 사진 */}
+      <div className="flex flex-col items-center gap-2">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="group relative size-24 overflow-hidden rounded-full disabled:opacity-50"
+        >
+          {profile.avatar_url ? (
+            <img
+              src={profile.avatar_url}
+              alt="프로필"
+              className="size-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="flex size-full items-center justify-center bg-primary/10">
+              <User className="size-10 text-primary" />
+            </div>
+          )}
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
+            <Camera className="size-6 text-white" />
+          </div>
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+          onChange={handleAvatarUpload}
+          className="hidden"
+        />
+        <span className="text-xs text-muted-foreground">
+          {uploading ? "업로드 중..." : "사진을 탭하여 변경"}
+        </span>
+      </div>
+
       {/* 이름 + 성별 */}
       <div className="flex gap-3">
         <div className="flex flex-1 flex-col gap-2">
