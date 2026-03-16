@@ -79,6 +79,7 @@ export async function uploadAvatar(formData: FormData) {
   let resized: Buffer;
   try {
     resized = await sharp(buffer)
+      .rotate()
       .resize(MAX_SIZE, MAX_SIZE, { fit: "cover" })
       .webp({ quality: QUALITY })
       .toBuffer();
