@@ -84,4 +84,15 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Safari date input 정규화 */
+  input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-height: auto;
+    line-height: normal;
+  }
+  input[type="date"]::-webkit-date-and-time-value {
+    text-align: left;
+  }
 }
