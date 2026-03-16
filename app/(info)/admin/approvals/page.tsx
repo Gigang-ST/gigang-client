@@ -1,0 +1,146 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { approveMember, rejectMember } from "@/app/actions/admin/manage-member";
+import { Check, X, UserRound } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+
+type PendingMember = {
+  id: string;
+  full_name: string | null;
+  phone: string | null;
+  avatar_url: string | null;
+  joined_at: string | null;
+};
+
+export default function ApprovalsPage() {
+  const [members, setMembers] = useState<PendingMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actioning, setActioning] = useState<string | null>(null);
+
+  const loadMembers = useCallback(async () => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("member")
+      .select("id, full_name, phone, avatar_url, joined_at")
+      .eq("status", "pending")
+      .order("joined_at", { ascending: false });
+    setMembers(data ?? []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    loadMembers();
+  }, [loadMembers]);
+
+  const handleApprove = async (id: string) => {
+    setActioning(id);
+    const result = await approveMember(id);
+    if (result.ok) {
+      setMembers((prev) => prev.filter((m) => m.id !== id));
+    } else {
+      alert(result.message);
+    }
+    setActioning(null);
+  };
+
+  const handleReject = async (id: string) => {
+    if (!confirm("정말 거절하시겠습니까?")) return;
+    setActioning(id);
+    const result = await rejectMember(id);
+    if (result.ok) {
+      setMembers((prev) => prev.filter((m) => m.id !== id));
+    } else {
+      alert(result.message);
+    }
+    setActioning(null);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-3 px-6 pt-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-20 w-full rounded-2xl" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4 px-6 pb-6 pt-4">
+      <h1 className="text-[22px] font-bold tracking-tight text-foreground">
+        가입 승인
+      </h1>
+
+      {members.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 py-16">
+          <UserRound className="size-12 text-muted-foreground/30" />
+          <p className="text-[15px] text-muted-foreground">
+            승인 대기 중인 회원이 없습니다
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {members.map((member) => {
+            const isActioning = actioning === member.id;
+            return (
+              <div
+                key={member.id}
+                className="flex items-center gap-4 rounded-2xl border-[1.5px] border-border p-4"
+              >
+                {/* 아바타 */}
+                <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-secondary">
+                  {member.avatar_url ? (
+                    <img
+                      src={member.avatar_url}
+                      alt=""
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    <UserRound className="size-5 text-muted-foreground" />
+                  )}
+                </div>
+
+                {/* 정보 */}
+                <div className="flex flex-1 flex-col gap-0.5">
+                  <span className="text-[15px] font-semibold text-foreground">
+                    {member.full_name ?? "이름 없음"}
+                  </span>
+                  <span className="text-[13px] text-muted-foreground">
+                    {member.phone ?? "연락처 없음"}
+                  </span>
+                  {member.joined_at && (
+                    <span className="text-[11px] text-muted-foreground/60">
+                      {new Date(member.joined_at).toLocaleDateString("ko-KR")}
+                    </span>
+                  )}
+                </div>
+
+                {/* 액션 버튼 */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleReject(member.id)}
+                    disabled={isActioning}
+                    className="flex size-10 items-center justify-center rounded-xl border-[1.5px] border-border text-muted-foreground transition-colors active:bg-secondary disabled:opacity-50"
+                    aria-label="거절"
+                  >
+                    <X className="size-4" />
+                  </button>
+                  <button
+                    onClick={() => handleApprove(member.id)}
+                    disabled={isActioning}
+                    className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-colors active:bg-primary/90 disabled:opacity-50"
+                    aria-label="승인"
+                  >
+                    <Check className="size-4" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
