@@ -224,7 +224,8 @@ export default function ProfileEditPage() {
         <label className="text-sm font-medium text-foreground">생년월일</label>
         <Input
           type="date"
-          max="9999-12-31"
+          min="1986-01-01"
+          max="2008-12-31"
           value={profile.birthday}
           onChange={(e) =>
             setProfile({ ...profile, birthday: e.target.value })
