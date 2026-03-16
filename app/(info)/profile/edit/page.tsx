@@ -92,13 +92,25 @@ export default function ProfileEditPage() {
     formData.append("file", file);
     formData.append("memberId", profile.id);
 
-    const result = await uploadAvatar(formData);
+    try {
+      const result = await Promise.race([
+        uploadAvatar(formData),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("timeout")), 15_000),
+        ),
+      ]);
 
-    if (result.error) {
-      setMessage({ type: "error", text: result.error });
-    } else if (result.url) {
-      setProfile({ ...profile, avatar_url: result.url });
-      setMessage({ type: "success", text: "프로필 사진이 변경되었습니다." });
+      if (result.error) {
+        setMessage({ type: "error", text: result.error });
+      } else if (result.url) {
+        setProfile({ ...profile, avatar_url: result.url });
+        setMessage({ type: "success", text: "프로필 사진이 변경되었습니다." });
+      }
+    } catch {
+      setMessage({
+        type: "error",
+        text: "업로드 시간이 초과되었습니다. 다른 형식(JPG, PNG)이나 다른 사진으로 다시 시도해 주세요.",
+      });
     }
     setUploading(false);
   };
