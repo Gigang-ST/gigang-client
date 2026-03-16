@@ -58,6 +58,7 @@ async function OnboardingContent({
           email={user.email}
           initialFullName={initialFullName}
           initialAvatarUrl={initialAvatarUrl}
+          kakaoChatPassword={process.env.KAKAO_CHAT_PASSWORD ?? ""}
         />
       </div>
     </div>

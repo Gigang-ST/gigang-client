@@ -28,8 +28,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { CheckCircle2 } from "lucide-react";
+import Confetti from "react-confetti";
 import { BANK_OPTIONS } from "@/lib/constants";
 
 type MemberOnboardingFormProps = {
@@ -38,6 +41,7 @@ type MemberOnboardingFormProps = {
   initialFullName?: string | null;
   email?: string | null;
   initialAvatarUrl?: string | null;
+  kakaoChatPassword?: string;
 };
 
 type MemberOnboardingValues = {
@@ -51,12 +55,15 @@ type MemberOnboardingValues = {
   bankNameCustom: string;
 };
 
+const KAKAO_OPEN_CHAT_URL = "https://open.kakao.com/o/grnMFGng";
+
 export function MemberOnboardingForm({
   userId,
   provider,
   initialFullName,
   email,
   initialAvatarUrl,
+  kakaoChatPassword,
 }: MemberOnboardingFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -78,7 +85,7 @@ export function MemberOnboardingForm({
     },
   });
 
-  const [stage, setStage] = useState<"phone" | "details" | "inactive" | "pending">("phone");
+  const [stage, setStage] = useState<"phone" | "details" | "inactive" | "pending" | "success">("phone");
   const [phoneLoading, setPhoneLoading] = useState(false);
   const [inactiveMemberId, setInactiveMemberId] = useState<string | null>(null);
   const [rejoinLoading, setRejoinLoading] = useState(false);
@@ -226,8 +233,62 @@ export function MemberOnboardingForm({
       return;
     }
 
-    router.replace(safeNext);
+    setStage("success");
   };
+
+  if (stage === "success") {
+    return (
+      <div className="flex flex-col gap-6">
+        <Confetti
+          width={typeof window !== "undefined" ? window.innerWidth : 400}
+          height={typeof window !== "undefined" ? window.innerHeight : 800}
+          recycle={false}
+          numberOfPieces={500}
+          gravity={0.15}
+          style={{ position: "fixed", top: 0, left: 0, zIndex: 50 }}
+        />
+        <Card className="border-border bg-white shadow-sm">
+          <CardContent className="flex flex-col items-center gap-5 pt-8 pb-8">
+            <div className="flex size-16 items-center justify-center rounded-full bg-green-100">
+              <CheckCircle2 className="size-9 text-green-600" />
+            </div>
+            <div className="text-center">
+              <h3 className="text-2xl font-bold">가입 완료! 🎉</h3>
+              <p className="mt-1.5 text-sm text-muted-foreground">
+                기강에 오신 것을 환영합니다.
+              </p>
+            </div>
+
+            {kakaoChatPassword ? (
+              <div className="w-full rounded-2xl border border-border bg-secondary/50 px-5 py-4 text-center">
+                <p className="text-xs text-muted-foreground">오픈채팅 비밀번호</p>
+                <p className="mt-1 text-2xl font-bold tracking-widest text-foreground">
+                  {kakaoChatPassword}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="flex w-full flex-col gap-2.5">
+              <a
+                href={KAKAO_OPEN_CHAT_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#FEE500] text-[15px] font-bold text-neutral-900 shadow-sm transition-colors hover:bg-[#fdd835]"
+              >
+                💬 카카오톡 오픈채팅 참여하기
+              </a>
+              <Link
+                href="/"
+                className="flex h-12 items-center justify-center rounded-xl bg-primary text-[15px] font-semibold text-primary-foreground"
+              >
+                홈으로 이동
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("flex flex-col gap-6")}>
