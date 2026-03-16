@@ -114,15 +114,21 @@ export default function CompetitionsPage() {
   }, [loadCompetitions]);
 
   const today = new Date().toISOString().split("T")[0];
-  const filtered = competitions.filter((c) => {
-    if (filter === "upcoming" && c.start_date < today) return false;
-    if (filter === "past" && c.start_date >= today) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      if (!c.title.toLowerCase().includes(q)) return false;
-    }
-    return true;
-  });
+  const filtered = competitions
+    .filter((c) => {
+      if (filter === "upcoming" && c.start_date < today) return false;
+      if (filter === "past" && c.start_date >= today) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        if (!c.title.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    })
+    .sort((a, b) =>
+      filter === "upcoming"
+        ? a.start_date.localeCompare(b.start_date)
+        : b.start_date.localeCompare(a.start_date),
+    );
 
   const loadRegistrations = async (competitionId: string) => {
     setRegLoading(true);
