@@ -244,7 +244,15 @@ export function MemberOnboardingForm({
           height={typeof window !== "undefined" ? window.innerHeight : 800}
           recycle={false}
           numberOfPieces={500}
-          gravity={0.15}
+          gravity={0.25}
+          initialVelocityY={{ min: -30, max: -10 }}
+          initialVelocityX={{ min: -10, max: 10 }}
+          confettiSource={{
+            x: typeof window !== "undefined" ? window.innerWidth / 2 - 50 : 150,
+            y: typeof window !== "undefined" ? window.innerHeight : 800,
+            w: 100,
+            h: 0,
+          }}
           style={{ position: "fixed", top: 0, left: 0, zIndex: 50 }}
         />
         <Card className="border-border bg-white shadow-sm">
