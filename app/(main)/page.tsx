@@ -95,6 +95,7 @@ async function HomeContent() {
 
   // 내가 참가하는 대회 가져오기
   let myRaces: UpcomingRace[] = [];
+  let isMember = false;
   if (user) {
     validateUUID(user.id);
     const { data: member } = await supabase
@@ -103,6 +104,7 @@ async function HomeContent() {
       .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
       .maybeSingle();
     if (member) {
+      isMember = true;
       const { data: myRegs } = await supabase
         .from("competition_registration")
         .select("competition:competition_id(id, title, start_date, location, sport, event_types)")
@@ -214,7 +216,9 @@ async function HomeContent() {
         </div>
 
         {/* Social Links */}
-        <SocialLinksGrid />
+        <SocialLinksGrid
+          kakaoChatPassword={isMember ? (process.env.KAKAO_CHAT_PASSWORD ?? "") : undefined}
+        />
       </div>
   );
 }
