@@ -402,7 +402,7 @@ export function MemberOnboardingForm({
                         <FormItem>
                           <FormLabel>생년월일</FormLabel>
                           <FormControl>
-                        <Input type="date" max="9999-12-31" {...field} />
+                        <Input type="date" min="1986-01-01" max="2008-12-31" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
