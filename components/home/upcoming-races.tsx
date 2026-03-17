@@ -15,6 +15,8 @@ type UpcomingRace = {
   location: string | null;
   sport: string | null;
   event_types: string[] | null;
+  /** 참가자들이 참가 시 입력한 이벤트 타입 (표시용) */
+  registered_event_types?: string[];
   label?: string;
 };
 
@@ -106,6 +108,9 @@ export function UpcomingRaces({ races }: { races: UpcomingRace[] }) {
 
   function handleCardClick(race: UpcomingRace) {
     // UpcomingRace → Competition 변환 (필수 필드 채우기)
+    const displayEventTypes = race.registered_event_types?.length
+      ? race.registered_event_types
+      : race.event_types;
     const comp: Competition = {
       id: race.id,
       external_id: "",
@@ -114,7 +119,7 @@ export function UpcomingRaces({ races }: { races: UpcomingRace[] }) {
       start_date: race.start_date,
       end_date: null,
       location: race.location,
-      event_types: race.event_types,
+      event_types: displayEventTypes ?? null,
       source_url: null,
     };
     setSelectedCompetition(comp);
@@ -136,53 +141,56 @@ export function UpcomingRaces({ races }: { races: UpcomingRace[] }) {
           예정된 대회가 없습니다
         </p>
       ) : (
-        races.map((race) => (
-          <button
-            key={race.id}
-            onClick={() => handleCardClick(race)}
-            className="flex w-full flex-col gap-3 rounded-2xl border-[1.5px] border-border p-4 text-left transition-colors hover:bg-muted/50"
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex flex-col gap-1">
-                {race.label && (
-                  <span className="text-[11px] font-semibold text-primary">
-                    {race.label}
+        races.map((race) => {
+          const eventTypes = race.registered_event_types ?? race.event_types;
+          return (
+            <button
+              key={race.id}
+              onClick={() => handleCardClick(race)}
+              className="flex w-full flex-col gap-3 rounded-2xl border-[1.5px] border-border p-4 text-left transition-colors hover:bg-muted/50"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex flex-col gap-1">
+                  {race.label && (
+                    <span className="text-[11px] font-semibold text-primary">
+                      {race.label}
+                    </span>
+                  )}
+                  <span className="text-[15px] font-semibold text-foreground">
+                    {race.title}
+                  </span>
+                </div>
+                <span className="shrink-0 rounded-full bg-destructive/10 px-2.5 py-1 text-[11px] font-bold text-destructive">
+                  {formatDDay(race.start_date)}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Calendar className="size-3" />
+                  {race.start_date}
+                </span>
+                {race.location && (
+                  <span className="flex items-center gap-1">
+                    <MapPin className="size-3" />
+                    {race.location}
                   </span>
                 )}
-                <span className="text-[15px] font-semibold text-foreground">
-                  {race.title}
-                </span>
               </div>
-              <span className="shrink-0 rounded-full bg-destructive/10 px-2.5 py-1 text-[11px] font-bold text-destructive">
-                {formatDDay(race.start_date)}
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Calendar className="size-3" />
-                {race.start_date}
-              </span>
-              {race.location && (
-                <span className="flex items-center gap-1">
-                  <MapPin className="size-3" />
-                  {race.location}
-                </span>
+              {eventTypes && eventTypes.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {eventTypes.map((et: string) => (
+                    <span
+                      key={et}
+                      className="rounded-full bg-foreground px-2.5 py-0.5 text-[11px] font-bold text-background"
+                    >
+                      {et}
+                    </span>
+                  ))}
+                </div>
               )}
-            </div>
-            {race.event_types && race.event_types.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {race.event_types.map((et: string) => (
-                  <span
-                    key={et}
-                    className="rounded-full bg-foreground px-2.5 py-0.5 text-[11px] font-bold text-background"
-                  >
-                    {et}
-                  </span>
-                ))}
-              </div>
-            )}
-          </button>
-        ))
+            </button>
+          );
+        })
       )}
 
       <CompetitionDetailDialog
