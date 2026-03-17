@@ -69,7 +69,7 @@ const runTypes = [
 ];
 
 const activityChips = [
-  { label: "🏃 런닝", color: "bg-blue-50 text-blue-600" },
+  { label: "🏃 러닝", color: "bg-blue-50 text-blue-600" },
   { label: "🚴 자전거", color: "bg-green-50 text-green-600" },
   { label: "🏊 수영", color: "bg-cyan-50 text-cyan-600" },
   { label: "⛰️ 등산", color: "bg-orange-50 text-orange-600" },
@@ -110,256 +110,256 @@ function Toggle({
 export default function NewbiePage() {
   return (
     <InAppBrowserGate>
-    <div className="mx-auto max-w-xl pb-28">
-      {/* 1. 히어로 */}
-      <section className="border-b border-border bg-white px-6 pb-9 pt-12 text-center">
-        <p className="text-xs tracking-[3px] text-muted-foreground">
-          WELCOME TO
-        </p>
-        <h1 className="mt-2 text-3xl font-extrabold">기강 🙌🏻</h1>
-        <p className="mt-3.5 text-[15px] leading-relaxed text-muted-foreground">
-          양재천에서 같이 즐겁게 운동하는 사람들의 모임
-          <br />
-          언제든 모임을 만들거나 참여할 수 있습니다
-        </p>
-      </section>
-
-      {/* 2. 활동 소개 */}
-      <section className="mx-4 mt-3 rounded-2xl border border-border bg-white p-6">
-        <h2 className="text-sm font-bold">✨ 이런 활동을 해요</h2>
-        <div className="mt-3.5 flex flex-wrap gap-2">
-          {activityChips.map((c) => (
-            <span
-              key={c.label}
-              className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold ${c.color}`}
-            >
-              {c.label}
-            </span>
-          ))}
-        </div>
-        <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
-          런닝베이스 2030 운동모임!
-          <br />
-          기억에 남을만한 하루를 만들어봐요
-        </p>
-      </section>
-
-      {/* 3. 알아두면 좋은 것들 */}
-      <section className="mx-4 mt-3 rounded-2xl border border-border bg-white p-6">
-        <h2 className="text-sm font-bold">💬 알아두면 좋은 것들</h2>
-        <div className="mt-3.5 text-[13px] leading-loose text-muted-foreground">
-          <p>• 카카오톡에 사람이 더 많아요</p>
-          <p>
-            • 모임장은 언제나 놀고있으니 카톡 답변이 빠릅니다!
+      <div className="mx-auto max-w-xl pb-28">
+        {/* 1. 히어로 */}
+        <section className="border-b border-border bg-white px-6 pb-9 pt-12 text-center">
+          <p className="text-xs tracking-[3px] text-muted-foreground">
+            WELCOME TO
+          </p>
+          <h1 className="mt-2 text-3xl font-extrabold">기강 🙌🏻</h1>
+          <p className="mt-3.5 text-[15px] leading-relaxed text-muted-foreground">
+            양재천에서 같이 즐겁게 운동하는 사람들의 모임
             <br />
-            <span className="ml-3">
-              카카오톡 ID: <strong className="text-foreground">winsu</strong>
-            </span>
+            언제든 모임을 만들거나 참여할 수 있습니다.
           </p>
-        </div>
+        </section>
 
-        <div className="mt-4 flex flex-col gap-2">
-          {/* 토글 1: 신입회원 안내말씀 */}
-          <Toggle icon={announcements.icon} title={announcements.title}>
-            {announcements.sections.map((s) => (
-              <div key={s.heading} className="mb-3 last:mb-0">
-                <h4 className="mb-1 text-[13px] font-bold text-foreground">
-                  {s.heading}
-                </h4>
-                <ul className="list-disc pl-4">
-                  {s.items.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </div>
+        {/* 2. 활동 소개 */}
+        <section className="mx-4 mt-3 rounded-2xl border border-border bg-white p-6">
+          <h2 className="text-sm font-bold">✨ 이런 활동을 해요.</h2>
+          <div className="mt-3.5 flex flex-wrap gap-2">
+            {activityChips.map((c) => (
+              <span
+                key={c.label}
+                className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold ${c.color}`}
+              >
+                {c.label}
+              </span>
             ))}
-            <p className="mt-2 text-xs">{announcements.footer}</p>
-          </Toggle>
-
-          {/* 토글 2: 회칙 */}
-          <Toggle icon="📜" title="회칙">
-            <ul className="space-y-1.5">
-              {rules.map((r) => (
-                <li key={r.label}>
-                  <strong className="text-foreground">{r.label}</strong> —{" "}
-                  {r.desc}
-                </li>
-              ))}
-            </ul>
-          </Toggle>
-
-          {/* 토글 3: 러닝크루 안전수칙 */}
-          <Toggle icon="🦺" title="러닝크루 안전수칙">
-            <ul className="space-y-1.5">
-              {safetyRules.map((r) => (
-                <li key={r.label}>
-                  <strong className="text-foreground">{r.label}</strong> —{" "}
-                  {r.desc}
-                </li>
-              ))}
-              <li>
-                <strong className="text-foreground">필수 준비물</strong> —
-                일정에 따라 꼭 챙겨주세요
-                <br />
-                <span className="ml-3">🚴 자전거 → 헬멧</span>
-                <br />
-                <span className="ml-3">🌙 야간 등산 → 랜턴, 등산화 등</span>
-              </li>
-            </ul>
-          </Toggle>
-
-          {/* 토글 4: 러닝팁 */}
-          <Toggle icon="💡" title="러닝팁">
-            {/* 등급표 */}
-            <h4 className="mb-1.5 text-[13px] font-bold text-foreground">
-              🏅 등급표
-            </h4>
-            <table className="mb-4 w-full border-collapse text-[11px]">
-              <thead>
-                <tr className="bg-secondary/70">
-                  <th className="border border-border px-2 py-1.5 text-left font-semibold">
-                    등급
-                  </th>
-                  <th className="border border-border px-2 py-1.5 text-left font-semibold">
-                    기준
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {grades.map((g) => (
-                  <tr key={g.grade}>
-                    <td className="border border-border px-2 py-1.5">
-                      {g.grade}
-                    </td>
-                    <td className="border border-border px-2 py-1.5">
-                      {g.criteria}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* 심박수 & 페이스 */}
-            <h4 className="mb-1.5 text-[13px] font-bold text-foreground">
-              ❤️ 심박수 &amp; 페이스
-            </h4>
-            <p className="mb-4">
-              심박수는 운동 강도의 지표입니다.
-              <br />
-              최대 심박수의 60~70% → 유산소 구간
-              <br />
-              최대 심박수의 80% 이상 → 무산소 구간
-              <br />
-              <br />
-              페이스(min/km)는 1km를 달리는 데 걸리는 시간입니다.
-            </p>
-
-            {/* 러닝의 종류 */}
-            <h4 className="mb-1.5 text-[13px] font-bold text-foreground">
-              🏃 러닝의 종류
-            </h4>
-            <ul className="mb-4 list-disc space-y-1 pl-4">
-              {runTypes.map((t) => (
-                <li key={t.name}>
-                  <strong className="text-foreground">{t.name}</strong> —{" "}
-                  {t.desc}
-                </li>
-              ))}
-            </ul>
-
-            {/* 난이도 설정 */}
-            <h4 className="mb-1.5 text-[13px] font-bold text-foreground">
-              🎯 난이도 설정 방법
-            </h4>
-            <p className="mb-4">
-              대화가 가능하면 → <strong className="text-foreground">Easy</strong>
-              <br />
-              문장이 끊기면 →{" "}
-              <strong className="text-foreground">Moderate</strong>
-              <br />
-              단어만 나오면 → <strong className="text-foreground">Hard</strong>
-              <br />
-              <br />
-              초보자는 Easy 70% + Moderate 30%로 시작하세요.
-            </p>
-
-            {/* 러닝화 */}
-            <h4 className="mb-1.5 text-[13px] font-bold text-foreground">
-              👟 러닝화
-            </h4>
-            <p>
-              입문자에게는 쿠셔닝이 충분한 데일리 러닝화를 추천합니다.
-              <br />
-              나이키 페가수스, 아식스 노바블라스트, 호카 클리프톤 등이
-              대표적이에요.
-              <br />
-              <br />
-              자세한 건 모임에서 알려드릴게요! 👟
-            </p>
-          </Toggle>
-        </div>
-      </section>
-
-      {/* 4. 채널 바로가기 */}
-      <section className="mx-4 mt-3 rounded-2xl border border-border bg-white p-6">
-        <h2 className="text-sm font-bold">🔗 채널 바로가기</h2>
-
-        <div className="mt-3.5 flex items-center gap-3 rounded-xl bg-[#FEE500] px-4 py-3.5">
-          <span className="text-xl">💬</span>
-          <div>
-            <p className="text-[13px] font-bold">카카오톡 오픈채팅</p>
-            <p className="text-[11px] text-neutral-600">
-              가장 활발한 소통 채널
-            </p>
           </div>
-        </div>
-
-        <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-xs leading-relaxed text-amber-800">
-          🔑{" "}
-          <strong className="text-amber-900">
-            가입 완료 시 오픈채팅 링크와 비밀번호가 안내됩니다.
-          </strong>
-        </div>
-
-        <a
-          href="https://www.instagram.com/team_gigang"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2.5 flex items-center gap-3 rounded-xl bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045] px-4 py-3.5 text-white"
-        >
-          <span className="text-xl">📸</span>
-          <div>
-            <p className="text-[13px] font-bold">인스타그램</p>
-            <p className="text-[11px] text-white/85">@team_gigang</p>
-          </div>
-        </a>
-      </section>
-
-      {/* 5. 문의 */}
-      <section className="mx-4 mt-3 rounded-2xl border border-border bg-white p-6">
-        <h2 className="text-sm font-bold">📞 문의</h2>
-        <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">
-          카카오톡 ID: <strong className="text-foreground">winsu</strong>
-          <br />
-          링크가 열리지 않으면 카카오톡으로 연락바랍니다.
-        </p>
-      </section>
-
-      {/* 6. 하단 고정 CTA */}
-      <div className="fixed inset-x-0 bottom-0 z-50 bg-gradient-to-t from-white via-white/90 to-transparent px-4 pb-4 pt-6">
-        <div className="mx-auto max-w-xl">
-          <Link
-            href="/auth/login?next=%2Fnewbie"
-            className="block rounded-2xl bg-blue-600 py-4 text-center text-base font-bold text-white shadow-[0_4px_16px_rgba(37,99,235,0.3)]"
-          >
-            가입하기 →
-          </Link>
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            카카오 또는 구글로 간편 가입
+          <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
+            러닝 기반 2030 운동모임!
+            <br />
+            기억에 남을 만한 하루를 만들어봐요.
           </p>
+        </section>
+
+        {/* 3. 알아두면 좋은 것들 */}
+        <section className="mx-4 mt-3 rounded-2xl border border-border bg-white p-6">
+          <h2 className="text-sm font-bold">💬 알아두면 좋은 것들</h2>
+          <div className="mt-3.5 text-[13px] leading-loose text-muted-foreground">
+            <p>• 카카오톡에 사람이 더 많아요.</p>
+            <p>
+              • 모임장은 언제나 놀고 있으니 카톡 답변이 빠릅니다!
+              <br />
+              <span className="ml-3">
+                카카오톡 ID: <strong className="text-foreground">winsu</strong>
+              </span>
+            </p>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-2">
+            {/* 토글 1: 신입회원 안내말씀 */}
+            <Toggle icon={announcements.icon} title={announcements.title}>
+              {announcements.sections.map((s) => (
+                <div key={s.heading} className="mb-3 last:mb-0">
+                  <h4 className="mb-1 text-[13px] font-bold text-foreground">
+                    {s.heading}
+                  </h4>
+                  <ul className="list-disc pl-4">
+                    {s.items.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+              <p className="mt-2 text-xs">{announcements.footer}</p>
+            </Toggle>
+
+            {/* 토글 2: 회칙 */}
+            <Toggle icon="📜" title="회칙">
+              <ul className="space-y-1.5">
+                {rules.map((r) => (
+                  <li key={r.label}>
+                    <strong className="text-foreground">{r.label}</strong> —{" "}
+                    {r.desc}
+                  </li>
+                ))}
+              </ul>
+            </Toggle>
+
+            {/* 토글 3: 러닝크루 안전수칙 */}
+            <Toggle icon="🦺" title="러닝크루 안전수칙">
+              <ul className="space-y-1.5">
+                {safetyRules.map((r) => (
+                  <li key={r.label}>
+                    <strong className="text-foreground">{r.label}</strong> —{" "}
+                    {r.desc}
+                  </li>
+                ))}
+                <li>
+                  <strong className="text-foreground">필수 준비물</strong> —
+                  일정에 따라 꼭 챙겨주세요.
+                  <br />
+                  <span className="ml-3">🚴 자전거 → 헬멧</span>
+                  <br />
+                  <span className="ml-3">🌙 야간 등산 → 랜턴, 등산화 등</span>
+                </li>
+              </ul>
+            </Toggle>
+
+            {/* 토글 4: 러닝팁 */}
+            <Toggle icon="💡" title="러닝팁">
+              {/* 등급표 */}
+              <h4 className="mb-1.5 text-[13px] font-bold text-foreground">
+                🏅 등급표
+              </h4>
+              <table className="mb-4 w-full border-collapse text-[11px]">
+                <thead>
+                  <tr className="bg-secondary/70">
+                    <th className="border border-border px-2 py-1.5 text-left font-semibold">
+                      등급
+                    </th>
+                    <th className="border border-border px-2 py-1.5 text-left font-semibold">
+                      기준
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {grades.map((g) => (
+                    <tr key={g.grade}>
+                      <td className="border border-border px-2 py-1.5">
+                        {g.grade}
+                      </td>
+                      <td className="border border-border px-2 py-1.5">
+                        {g.criteria}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* 심박수 & 페이스 */}
+              <h4 className="mb-1.5 text-[13px] font-bold text-foreground">
+                ❤️ 심박수 &amp; 페이스
+              </h4>
+              <p className="mb-4">
+                심박수는 운동 강도의 지표입니다.
+                <br />
+                최대 심박수의 60~70% → 유산소 구간
+                <br />
+                최대 심박수의 80% 이상 → 무산소 구간
+                <br />
+                <br />
+                페이스(min/km)는 1km를 달리는 데 걸리는 시간입니다.
+              </p>
+
+              {/* 러닝의 종류 */}
+              <h4 className="mb-1.5 text-[13px] font-bold text-foreground">
+                🏃 러닝의 종류
+              </h4>
+              <ul className="mb-4 list-disc space-y-1 pl-4">
+                {runTypes.map((t) => (
+                  <li key={t.name}>
+                    <strong className="text-foreground">{t.name}</strong> —{" "}
+                    {t.desc}
+                  </li>
+                ))}
+              </ul>
+
+              {/* 난이도 설정 */}
+              <h4 className="mb-1.5 text-[13px] font-bold text-foreground">
+                🎯 난이도 설정 방법
+              </h4>
+              <p className="mb-4">
+                대화가 가능하면 → <strong className="text-foreground">Easy</strong>
+                <br />
+                문장이 끊기면 →{" "}
+                <strong className="text-foreground">Moderate</strong>
+                <br />
+                단어만 나오면 → <strong className="text-foreground">Hard</strong>
+                <br />
+                <br />
+                초보자는 Easy 70% + Moderate 30%로 시작하세요.
+              </p>
+
+              {/* 러닝화 */}
+              <h4 className="mb-1.5 text-[13px] font-bold text-foreground">
+                👟 러닝화
+              </h4>
+              <p>
+                입문자에게는 쿠셔닝이 충분한 데일리 러닝화를 추천합니다.
+                <br />
+                나이키 페가수스, 아식스 노바블라스트, 호카 클리프톤 등이
+                대표적이에요.
+                <br />
+                <br />
+                자세한 건 모임에서 알려드릴게요! 👟
+              </p>
+            </Toggle>
+          </div>
+        </section>
+
+        {/* 4. 채널 바로가기 */}
+        <section className="mx-4 mt-3 rounded-2xl border border-border bg-white p-6">
+          <h2 className="text-sm font-bold">🔗 채널 바로가기</h2>
+
+          <div className="mt-3.5 flex items-center gap-3 rounded-xl bg-[#FEE500] px-4 py-3.5">
+            <span className="text-xl">💬</span>
+            <div>
+              <p className="text-[13px] font-bold">카카오톡 오픈채팅</p>
+              <p className="text-[11px] text-neutral-600">
+                가장 활발한 소통 채널
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-xs leading-relaxed text-amber-800">
+            🔑{" "}
+            <strong className="text-amber-900">
+              가입 완료 시 오픈채팅 링크와 비밀번호가 안내됩니다.
+            </strong>
+          </div>
+
+          <a
+            href="https://www.instagram.com/team_gigang"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2.5 flex items-center gap-3 rounded-xl bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045] px-4 py-3.5 text-white"
+          >
+            <span className="text-xl">📸</span>
+            <div>
+              <p className="text-[13px] font-bold">인스타그램</p>
+              <p className="text-[11px] text-white/85">@team_gigang</p>
+            </div>
+          </a>
+        </section>
+
+        {/* 5. 문의 */}
+        <section className="mx-4 mt-3 rounded-2xl border border-border bg-white p-6">
+          <h2 className="text-sm font-bold">📞 문의</h2>
+          <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">
+            카카오톡 ID: <strong className="text-foreground">winsu</strong>
+            <br />
+            링크가 열리지 않으면 카카오톡으로 연락 바랍니다.
+          </p>
+        </section>
+
+        {/* 6. 하단 고정 CTA */}
+        <div className="fixed inset-x-0 bottom-0 z-50 bg-gradient-to-t from-white via-white/90 to-transparent px-4 pb-4 pt-6">
+          <div className="mx-auto max-w-xl">
+            <Link
+              href="/auth/login?next=%2Fnewbie"
+              className="block rounded-2xl bg-blue-600 py-4 text-center text-base font-bold text-white shadow-[0_4px_16px_rgba(37,99,235,0.3)]"
+            >
+              가입하기 →
+            </Link>
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              카카오 또는 구글로 간편 가입
+            </p>
+          </div>
         </div>
       </div>
-    </div>
     </InAppBrowserGate>
   );
 }
