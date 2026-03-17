@@ -8,6 +8,7 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
+  ReferenceLine,
 } from "recharts";
 
 /* ---------- 종목별 거리 (km) ---------- */
@@ -176,19 +177,45 @@ export function PaceChart({ records }: { records: RaceRecord[] }) {
   const chartDataToRender =
     hiddenEventTypes.size === 0
       ? chartData
-      : (() => {
-          const rows = chartData.filter((row) =>
-            visibleEventTypes.some((et) => row[et] != null),
-          );
-          // 끊김 방지: 보이는 종목에 값이 없으면 null로 채우기
-          return rows.map((row) => {
-            const filled: ChartRow = { ...row };
-            for (const et of visibleEventTypes) {
-              if (filled[et] === undefined) filled[et] = null;
-            }
-            return filled;
-          });
-        })();
+      : chartData.filter((row) =>
+          visibleEventTypes.some((et) => row[et] != null),
+        );
+
+  /** 표시 중인 데이터의 페이스 최솟값·최댓값 → Y축에 반드시 포함, 그 사이 균등 눈금 */
+  const { yAxisMin, yAxisMax, yAxisTicks } = (() => {
+    let min = Infinity;
+    let max = -Infinity;
+    for (const row of chartDataToRender) {
+      for (const et of visibleEventTypes) {
+        const v = row[et];
+        if (typeof v === "number") {
+          if (v < min) min = v;
+          if (v > max) max = v;
+        }
+      }
+    }
+    if (min === Infinity) min = 0;
+    if (max === -Infinity) max = min;
+    if (min === max) max = min + 1;
+
+    const range = max - min;
+    const padding = Math.max(0.1, range * 0.05);
+    const domainMin = min - padding;
+    const domainMax = max + padding;
+
+    const count = 5;
+    const ticks: number[] = [min];
+    for (let i = 1; i < count - 1; i++) {
+      ticks.push(min + ((max - min) * i) / (count - 1));
+    }
+    ticks.push(max);
+
+    return {
+      yAxisMin: domainMin,
+      yAxisMax: domainMax,
+      yAxisTicks: ticks,
+    };
+  })();
 
   const toggleLegend = (et: string) => {
     setHiddenEventTypes((prev) => {
@@ -286,13 +313,22 @@ export function PaceChart({ records }: { records: RaceRecord[] }) {
                   tickLine={false}
                   axisLine={false}
                 />
+                {yAxisTicks.map((y) => (
+                  <ReferenceLine
+                    key={y}
+                    y={y}
+                    stroke="#e5e7eb"
+                    strokeOpacity={0.6}
+                  />
+                ))}
                 <YAxis
                   reversed
                   tick={{ fontSize: 11 }}
+                  ticks={yAxisTicks}
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={(v: number) => paceToString(v)}
-                  domain={["dataMin - 0.2", "dataMax + 0.2"]}
+                  domain={[yAxisMin, yAxisMax]}
                 />
                 <Tooltip content={<CustomTooltip />} />
                 {visibleEventTypes.map((et) => (
