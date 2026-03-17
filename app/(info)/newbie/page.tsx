@@ -349,7 +349,7 @@ export default function NewbiePage() {
         <div className="fixed inset-x-0 bottom-0 z-50 bg-gradient-to-t from-white via-white/90 to-transparent px-4 pb-4 pt-6">
           <div className="mx-auto max-w-xl">
             <Link
-              href="/auth/login?next=%2Fnewbie"
+              href="/auth/login?next=%2Fonboarding"
               className="block rounded-2xl bg-blue-600 py-4 text-center text-base font-bold text-white shadow-[0_4px_16px_rgba(37,99,235,0.3)]"
             >
               가입하기 →
