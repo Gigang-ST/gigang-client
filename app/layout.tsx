@@ -4,7 +4,7 @@ import { GoogleAnalytics } from "@next/third-parties/google";
 import "./globals.css";
 import { siteContent } from "@/config";
 
-const SITE_URL = "https://gigang-client-theta.vercel.app";
+const SITE_URL = "https://gigang.team";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
