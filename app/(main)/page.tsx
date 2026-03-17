@@ -14,6 +14,8 @@ type UpcomingRace = {
   location: string | null;
   sport: string | null;
   event_types: string[] | null;
+  /** 참가자들이 참가 시 입력한 이벤트 타입 (표시용, 없으면 event_types 사용) */
+  registered_event_types?: string[];
   regCount?: number;
   label?: string;
 };
@@ -49,7 +51,7 @@ async function HomeContent() {
       .eq("status", "active"),
     supabase
       .from("competition")
-      .select("id, title, start_date, location, sport, event_types, competition_registration(id)")
+      .select("id, title, start_date, location, sport, event_types, competition_registration(id, event_type)")
       .gte("start_date", today)
       .order("start_date", { ascending: true }),
     supabase
@@ -65,20 +67,28 @@ async function HomeContent() {
       .limit(2),
   ]);
 
-  // 기강대회: 등록자 1명 이상, 중복 제거
+  // 기강대회: 등록자 1명 이상, 중복 제거 + 참가자 등록 event_type 수집
+  type RegRow = { id: string; event_type: string | null };
   const seenIds = new Set<string>();
   const gigangRaces: UpcomingRace[] = (gigangRacesRaw ?? [])
     .filter((r) => {
-      const regs = r.competition_registration as unknown as { id: string }[];
+      const regs = r.competition_registration as unknown as RegRow[] | null;
       if (!regs || regs.length === 0) return false;
       if (seenIds.has(r.id)) return false;
       seenIds.add(r.id);
       return true;
     })
-    .map(({ competition_registration, ...rest }) => ({
-      ...rest,
-      regCount: (competition_registration as unknown as { id: string }[]).length,
-    }));
+    .map(({ competition_registration, ...rest }) => {
+      const regs = (competition_registration ?? []) as unknown as RegRow[];
+      const registered_event_types = [
+        ...new Set(regs.map((re) => re.event_type).filter((et): et is string => Boolean(et?.trim()))),
+      ].sort();
+      return {
+        ...rest,
+        regCount: regs.length,
+        registered_event_types: registered_event_types.length > 0 ? registered_event_types : undefined,
+      };
+    });
 
   // 기강대회 1번 카드: 가장 가까운 것 (같은 주말이면 참여 인원 많은 것)
   let topGigang: UpcomingRace | null = null;
@@ -113,6 +123,25 @@ async function HomeContent() {
         .map((r) => r.competition as unknown as UpcomingRace)
         .filter((c) => c && c.start_date >= today)
         .sort((a, b) => a.start_date.localeCompare(b.start_date));
+      // 내 대회 각 competition에 대해 참가자들이 등록한 event_type 수집
+      if (myRaces.length > 0) {
+        const { data: regsByComp } = await supabase
+          .from("competition_registration")
+          .select("competition_id, event_type")
+          .in("competition_id", myRaces.map((r) => r.id));
+        const byCompId = new Map<string, Set<string>>();
+        (regsByComp ?? []).forEach((row) => {
+          if (!row.event_type?.trim()) return;
+          let set = byCompId.get(row.competition_id);
+          if (!set) { set = new Set(); byCompId.set(row.competition_id, set); }
+          set.add(row.event_type!.trim());
+        });
+        myRaces = myRaces.map((r) => {
+          const set = byCompId.get(r.id);
+          const registered_event_types = set ? [...set].sort() : undefined;
+          return { ...r, registered_event_types };
+        });
+      }
     }
   }
 
