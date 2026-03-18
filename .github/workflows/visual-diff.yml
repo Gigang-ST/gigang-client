@@ -46,8 +46,8 @@ jobs:
         with:
           version: 2.75.0
 
-      - name: Start Supabase
-        run: supabase start
+      - name: Start Supabase (필수 서비스만)
+        run: supabase start --exclude "storage,edge-runtime,imgproxy,vector,logflare,realtime,inbucket,postgrest-caller-id"
 
       - name: Set Supabase env vars
         run: |
