@@ -72,6 +72,7 @@ jobs:
           pnpm build
           pnpm start &
           npx wait-on http://localhost:3000 --timeout 30000
+          sleep 3
 
       - name: Capture baseline screenshots
         run: |
@@ -89,6 +90,7 @@ jobs:
           pnpm build
           pnpm start &
           npx wait-on http://localhost:3000 --timeout 30000
+          sleep 3
 
       - name: Capture PR screenshots + diff
         run: |
