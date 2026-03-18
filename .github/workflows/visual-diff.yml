@@ -19,34 +19,27 @@ env:
 jobs:
   visual-diff:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
-      - name: Checkout PR branch
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install chromium
 
-      - name: Install Playwright Chromium
-        run: pnpm exec playwright install chromium
-
-      # ── Supabase 로컬 환경 ──
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
+      # ── Supabase ──
+      - uses: supabase/setup-cli@v1
         with:
           version: 2.75.0
 
-      - name: Start Supabase (필수 서비스만)
+      - name: Start Supabase
         run: supabase start --exclude "storage,edge-runtime,imgproxy,vector,logflare,realtime,inbucket,postgrest-caller-id"
 
       - name: Set Supabase env vars
@@ -58,42 +51,22 @@ jobs:
       - name: Seed test user
         run: pnpm tsx scripts/create-test-user.ts
 
-      # ── main 브랜치 스크린샷 (before) ──
-      - name: Checkout main branch
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          path: __main-branch
-
-      - name: Build & start main branch
-        working-directory: __main-branch
+      # ── baseline 다운로드 ──
+      - name: Download baseline from gh-pages
         run: |
-          pnpm install --frozen-lockfile
-          pnpm build
-          pnpm start &
-          npx wait-on http://localhost:3000 --timeout 30000
-          sleep 3
+          git fetch origin gh-pages || true
+          git worktree add gh-pages-dir origin/gh-pages 2>/dev/null || true
+          if [ -d "gh-pages-dir/baseline" ]; then
+            mkdir -p screenshots/before
+            cp -r gh-pages-dir/baseline/* screenshots/before/
+            echo "✅ Baseline 다운로드 완료 ($(ls screenshots/before/*.png 2>/dev/null | wc -l)개)"
+          else
+            echo "⚠️ Baseline이 없습니다. main에 머지 후 첫 실행이 필요합니다."
+          fi
+          git worktree remove gh-pages-dir 2>/dev/null || true
 
-      - name: Capture baseline screenshots
-        run: |
-          pnpm run screenshots:login
-          pnpm run screenshots:before
-
-      - name: Stop main branch server
-        run: |
-          fuser -k 3000/tcp 2>/dev/null || kill -9 $(lsof -ti:3000) 2>/dev/null || true
-          sleep 3
-          # 포트 해제 확인
-          for i in $(seq 1 10); do
-            if ! ss -tlnp | grep -q ':3000 '; then break; fi
-            sleep 1
-          done
-
-      # ── PR 브랜치 스크린샷 (after) ──
-      - name: Clean up main branch checkout
-        run: rm -rf __main-branch
-
-      - name: Build & start PR branch
+      # ── PR 스크린샷 ──
+      - name: Build & start
         run: |
           pnpm build
           pnpm start &
@@ -105,26 +78,23 @@ jobs:
           pnpm run screenshots:login
           pnpm run screenshots:after
 
-      # ── GitHub Pages에 이미지 업로드 ──
-      - name: Deploy screenshots to gh-pages
+      # ── gh-pages에 결과 업로드 ──
+      - name: Deploy diff to gh-pages
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
           DEST_DIR="visual-diff/pr-${PR_NUMBER}"
 
-          # gh-pages 브랜치 체크아웃 (없으면 새로 생성)
           git fetch origin gh-pages || true
           git worktree add gh-pages-dir origin/gh-pages 2>/dev/null || {
             git worktree add --orphan gh-pages-dir
           }
 
-          # 기존 이미지 삭제 후 새로 복사
           rm -rf "gh-pages-dir/${DEST_DIR}"
           mkdir -p "gh-pages-dir/${DEST_DIR}"
           cp -r screenshots/before "gh-pages-dir/${DEST_DIR}/"
           cp -r screenshots/after "gh-pages-dir/${DEST_DIR}/"
           cp -r screenshots/diff "gh-pages-dir/${DEST_DIR}/"
 
-          # 커밋 & 푸시
           cd gh-pages-dir
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -132,8 +102,8 @@ jobs:
           git commit -m "visual-diff: PR #${PR_NUMBER}" --allow-empty
           git push origin HEAD:gh-pages
 
-      # ── PR 코멘트 (이미지 인라인) ──
-      - name: Post PR comment with inline images
+      # ── PR 코멘트 ──
+      - name: Post PR comment
         uses: actions/github-script@v7
         with:
           script: |
@@ -146,15 +116,10 @@ jobs:
             if (files.length === 0) return;
 
             const prNumber = context.issue.number;
-            const repo = `${context.repo.owner}/${context.repo.repo}`;
-
-            // GitHub Pages 기본 URL
-            // {owner}.github.io/{repo} 또는 커스텀 도메인
-            const pagesBase = `https://${context.repo.owner}.github.io/${context.repo.repo}`;
             const runId = context.runId;
+            const pagesBase = `https://${context.repo.owner}.github.io/${context.repo.repo}`;
             const imgBase = `${pagesBase}/visual-diff/pr-${prNumber}`;
 
-            // diff 요약
             let summary = '';
             try {
               summary = execSync('pnpm tsx scripts/screenshots-diff.ts 2>&1').toString();
@@ -181,7 +146,6 @@ jobs:
 
             body += `\n---\n*Generated by Visual Diff — ${new Date().toISOString().split('T')[0]}*`;
 
-            // 기존 코멘트 업데이트 또는 새로 생성
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
