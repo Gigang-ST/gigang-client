@@ -78,10 +78,16 @@ jobs:
         run: |
           pnpm run screenshots:login
           pnpm run screenshots:before
-          kill -9 $(lsof -ti:3000) 2>/dev/null || true
-          sleep 5
-          # 포트가 확실히 해제됐는지 확인
-          while lsof -ti:3000 >/dev/null 2>&1; do sleep 1; done
+
+      - name: Stop main branch server
+        run: |
+          fuser -k 3000/tcp 2>/dev/null || kill -9 $(lsof -ti:3000) 2>/dev/null || true
+          sleep 3
+          # 포트 해제 확인
+          for i in $(seq 1 10); do
+            if ! ss -tlnp | grep -q ':3000 '; then break; fi
+            sleep 1
+          done
 
       # ── PR 브랜치 스크린샷 (after) ──
       - name: Clean up main branch checkout
