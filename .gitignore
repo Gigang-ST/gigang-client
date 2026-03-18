@@ -50,6 +50,7 @@ next-env.d.ts
 
 # screenshots (visual diff)
 /screenshots/
+/__main-branch/
 
 # local data
 /temp/
