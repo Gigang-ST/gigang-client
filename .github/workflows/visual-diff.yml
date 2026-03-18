@@ -81,6 +81,9 @@ jobs:
           sleep 2
 
       # ── PR 브랜치 스크린샷 (after) ──
+      - name: Clean up main branch checkout
+        run: rm -rf __main-branch
+
       - name: Build & start PR branch
         run: |
           pnpm build
