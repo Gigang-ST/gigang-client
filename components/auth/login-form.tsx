@@ -2,15 +2,11 @@
 
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-import { Input } from "@/components/ui/input";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { SocialLinksRow } from "@/components/social-links";
-
-/** 로컬(개발)에서만 true — 빌드 시 인라인되므로 프로덕션 번들에는 이메일 로그인 UI가 안 나옴 */
-const isLocalDev = process.env.NODE_ENV === "development";
 
 export function LoginForm({
   className,
@@ -20,9 +16,6 @@ export function LoginForm({
   const [oauthProvider, setOauthProvider] = useState<"kakao" | "google" | null>(
     null,
   );
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [emailLoading, setEmailLoading] = useState(false);
 
   const searchParams = useSearchParams();
   const nextParam = searchParams.get("next");
@@ -49,23 +42,6 @@ export function LoginForm({
       setError(error.message);
       setOauthProvider(null);
     }
-  };
-
-  const handleEmailLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const supabase = createClient();
-    setEmailLoading(true);
-    setError(null);
-    const { error: err } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    if (err) {
-      setError(err.message);
-      setEmailLoading(false);
-      return;
-    }
-    window.location.assign(safeNext);
   };
 
   return (
@@ -118,41 +94,6 @@ export function LoginForm({
           구경할래요
         </Link>
       </div>
-
-      {/* 로컬 전용: 이메일 로그인 (pnpm dev 시에만 노출) */}
-      {isLocalDev && (
-        <form
-          onSubmit={handleEmailLogin}
-          className="w-full max-w-sm rounded-xl border border-dashed border-amber-300 bg-amber-50/50 p-4 text-left"
-        >
-          <p className="mb-2 text-xs font-medium text-amber-800">
-            로컬 전용 · 이메일 로그인
-          </p>
-          <div className="flex flex-col gap-2">
-            <Input
-              type="email"
-              placeholder="이메일"
-              autoComplete="off"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <Input
-              type="password"
-              placeholder="비밀번호"
-              autoComplete="off"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <button
-              type="submit"
-              disabled={emailLoading}
-              className="h-9 w-full rounded-lg bg-amber-600 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {emailLoading ? "로그인 중..." : "이메일로 로그인"}
-            </button>
-          </div>
-        </form>
-      )}
 
       {/* Social Links */}
       <SocialLinksRow />
