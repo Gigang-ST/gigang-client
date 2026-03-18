@@ -43,6 +43,8 @@ jobs:
       # ── Supabase 로컬 환경 ──
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
+        with:
+          version: 2.75.0
 
       - name: Start Supabase
         run: supabase start
