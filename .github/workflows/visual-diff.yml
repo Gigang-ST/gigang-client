@@ -63,11 +63,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: main
-          path: main-branch
+          path: /tmp/main-branch
 
       - name: Build & start main branch
+        working-directory: /tmp/main-branch
         run: |
-          cd main-branch
           pnpm install --frozen-lockfile
           pnpm build
           pnpm start &
