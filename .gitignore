@@ -48,6 +48,9 @@ next-env.d.ts
 # storybook
 /storybook-static
 
+# screenshots (visual diff)
+/screenshots/
+
 # local data
 /temp/
 /.playwright-mcp/
