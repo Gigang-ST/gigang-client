@@ -109,7 +109,8 @@ jobs:
             git worktree add --orphan gh-pages-dir
           }
 
-          # 이 PR의 이미지 디렉토리 생성
+          # 기존 이미지 삭제 후 새로 복사
+          rm -rf "gh-pages-dir/${DEST_DIR}"
           mkdir -p "gh-pages-dir/${DEST_DIR}"
           cp -r screenshots/before "gh-pages-dir/${DEST_DIR}/"
           cp -r screenshots/after "gh-pages-dir/${DEST_DIR}/"
@@ -142,6 +143,7 @@ jobs:
             // GitHub Pages 기본 URL
             // {owner}.github.io/{repo} 또는 커스텀 도메인
             const pagesBase = `https://${context.repo.owner}.github.io/${context.repo.repo}`;
+            const runId = context.runId;
             const imgBase = `${pagesBase}/visual-diff/pr-${prNumber}`;
 
             // diff 요약
@@ -163,9 +165,9 @@ jobs:
               body += `<details><summary><b>${name}</b></summary>\n\n`;
               body += `| Before (main) | After (PR) | Diff |\n`;
               body += `|:---:|:---:|:---:|\n`;
-              body += `| <img src="${imgBase}/before/${file}" width="250" /> `;
-              body += `| <img src="${imgBase}/after/${file}" width="250" /> `;
-              body += `| <img src="${imgBase}/diff/${file}" width="250" /> |\n\n`;
+              body += `| <img src="${imgBase}/before/${file}?v=${runId}" width="250" /> `;
+              body += `| <img src="${imgBase}/after/${file}?v=${runId}" width="250" /> `;
+              body += `| <img src="${imgBase}/diff/${file}?v=${runId}" width="250" /> |\n\n`;
               body += `</details>\n\n`;
             }
 
