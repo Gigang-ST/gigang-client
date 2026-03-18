@@ -67,8 +67,14 @@ async function capture(targetDir: string) {
         waitUntil: "networkidle",
         timeout: 15000,
       });
-      // 추가 렌더링 대기
-      await page.waitForTimeout(1000);
+
+      // CSS 로드 + 렌더링 완료 대기
+      await page.waitForLoadState("domcontentloaded");
+      await page.waitForFunction(() => {
+        const styles = document.querySelectorAll('link[rel="stylesheet"], style');
+        return styles.length > 0 && document.fonts.ready;
+      }, { timeout: 10000 }).catch(() => {});
+      await page.waitForTimeout(2000);
 
       // 인증 필요 페이지에서 로그인으로 리다이렉트되면 경고
       const currentUrl = page.url();
