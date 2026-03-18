@@ -30,11 +30,27 @@
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
 
-  --color-chart-1: hsl(var(--chart-1));
-  --color-chart-2: hsl(var(--chart-2));
-  --color-chart-3: hsl(var(--chart-3));
-  --color-chart-4: hsl(var(--chart-4));
-  --color-chart-5: hsl(var(--chart-5));
+  /* 상태 색상 (Status) */
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-info: hsl(var(--info));
+  --color-info-foreground: hsl(var(--info-foreground));
+
+  /* 종목별 색상 (Sport) — chart-* 의 시맨틱 토큰 */
+  --color-sport-road-run: hsl(var(--sport-road-run));
+  --color-sport-ultra: hsl(var(--sport-ultra));
+  --color-sport-trail-run: hsl(var(--sport-trail-run));
+  --color-sport-triathlon: hsl(var(--sport-triathlon));
+  --color-sport-cycling: hsl(var(--sport-cycling));
+
+  /* chart-* 은 sport-* 참조 (하위호환) */
+  --color-chart-1: hsl(var(--sport-road-run));
+  --color-chart-2: hsl(var(--sport-triathlon));
+  --color-chart-3: hsl(var(--sport-cycling));
+  --color-chart-4: hsl(var(--sport-trail-run));
+  --color-chart-5: hsl(var(--sport-ultra));
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
@@ -61,11 +77,21 @@
   --border: 0 0% 89.8%;
   --input: 0 0% 89.8%;
   --ring: 217.2 91.2% 59.8%;
-  --chart-1: 12 76% 61%;
-  --chart-2: 173 58% 39%;
-  --chart-3: 197 37% 24%;
-  --chart-4: 43 74% 66%;
-  --chart-5: 27 87% 67%;
+  /* 상태 색상 */
+  --success: 142 71% 45%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 9%;
+  --info: 217.2 91.2% 59.8%;
+  --info-foreground: 0 0% 100%;
+
+  /* 종목별 색상 (= 차트 색상의 시맨틱 이름) */
+  --sport-road-run: 12 76% 61%;
+  --sport-ultra: 27 87% 67%;
+  --sport-trail-run: 43 74% 66%;
+  --sport-triathlon: 173 58% 39%;
+  --sport-cycling: 197 37% 24%;
+
   --radius: 0.75rem;
 }
 
