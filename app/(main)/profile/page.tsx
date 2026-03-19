@@ -8,6 +8,7 @@ import { Settings, User } from "lucide-react";
 import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
 import { RaceRecordSection } from "@/components/profile/race-record-section";
 import { PaceChart } from "@/components/profile/pace-chart";
+import { TabLoadProbe } from "@/components/perf/tab-load-probe";
 
 async function ProfileContent() {
   const supabase = await createClient();
@@ -145,6 +146,7 @@ function ProfileSkeleton() {
 export default function Page() {
   return (
     <div className="flex flex-col gap-0">
+      <TabLoadProbe href="/profile" label="프로필" />
       <div className="flex h-14 items-center justify-between px-6">
         <h1 className="text-[28px] font-semibold tracking-tight text-foreground">
           내 프로필

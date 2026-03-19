@@ -4,6 +4,7 @@ import { secondsToTime } from "@/lib/utils";
 import { fetchUtmbRecentRace } from "@/app/actions/utmb";
 import { Suspense } from "react";
 import { RecordsClient } from "./records-client";
+import { TabLoadProbe } from "@/components/perf/tab-load-probe";
 
 const MARATHON_EVENTS = [
   { eventType: "FULL", label: "풀마라톤" },
@@ -230,6 +231,7 @@ function RecordsSkeleton() {
 export default function RecordsPage() {
   return (
     <div className="flex flex-col gap-0">
+      <TabLoadProbe href="/records" label="랭킹" />
       <div className="flex h-14 items-center px-6">
         <h1 className="text-[28px] font-semibold tracking-tight text-foreground">
           기강의 전당
