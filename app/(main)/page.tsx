@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { SocialLinksGrid } from "@/components/social-links";
 import { UpcomingRaces } from "@/components/home/upcoming-races";
+import type { CompetitionRegistration, MemberStatus } from "@/components/races/types";
 
 
 type UpcomingRace = {
@@ -38,6 +39,7 @@ async function HomeContent() {
 
   // 현재 유저 확인
   const { data: { user } } = await supabase.auth.getUser();
+  let initialMemberStatus: MemberStatus = { status: "signed-out" };
 
   const [
     { count: memberCount },
@@ -105,20 +107,39 @@ async function HomeContent() {
 
   // 내가 참가하는 대회 가져오기
   let myRaces: UpcomingRace[] = [];
+  let myRegistrations: CompetitionRegistration[] = [];
   let isMember = false;
   if (user) {
     validateUUID(user.id);
     const { data: member } = await supabase
       .from("member")
-      .select("id")
+      .select("id, full_name, email, admin")
       .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
       .maybeSingle();
     if (member) {
       isMember = true;
+      initialMemberStatus = {
+        status: "ready",
+        userId: user.id,
+        memberId: member.id,
+        fullName: member.full_name ?? null,
+        email: member.email ?? null,
+        admin: member.admin ?? false,
+      };
       const { data: myRegs } = await supabase
         .from("competition_registration")
-        .select("competition:competition_id(id, title, start_date, location, sport, event_types)")
+        .select(
+          "id, competition_id, member_id, role, event_type, created_at, competition:competition_id(id, title, start_date, location, sport, event_types)",
+        )
         .eq("member_id", member.id);
+      myRegistrations = (myRegs ?? []).map((r) => ({
+        id: r.id,
+        competition_id: r.competition_id,
+        member_id: r.member_id,
+        role: r.role,
+        event_type: r.event_type,
+        created_at: r.created_at,
+      })) as CompetitionRegistration[];
       myRaces = (myRegs ?? [])
         .map((r) => r.competition as unknown as UpcomingRace)
         .filter((c) => c && c.start_date >= today)
@@ -142,6 +163,8 @@ async function HomeContent() {
           return { ...r, registered_event_types };
         });
       }
+    } else {
+      initialMemberStatus = { status: "needs-onboarding", userId: user.id };
     }
   }
 
@@ -174,6 +197,13 @@ async function HomeContent() {
     }
   }
 
+  const initialRegistrationsByCompetitionId: Record<string, CompetitionRegistration> = {};
+  myRegistrations.forEach((reg) => {
+    if (upcomingCards.some((card) => card.id === reg.competition_id)) {
+      initialRegistrationsByCompetitionId[reg.competition_id] = reg;
+    }
+  });
+
   return (
     <div className="flex flex-col gap-7 px-6 pb-6">
         {/* Team Overview */}
@@ -200,7 +230,11 @@ async function HomeContent() {
         </div>
 
         {/* Upcoming Races */}
-        <UpcomingRaces races={upcomingCards} />
+        <UpcomingRaces
+          races={upcomingCards}
+          initialMemberStatus={initialMemberStatus}
+          initialRegistrationsByCompetitionId={initialRegistrationsByCompetitionId}
+        />
 
         {/* Recent Records */}
         <div className="flex flex-col gap-4">

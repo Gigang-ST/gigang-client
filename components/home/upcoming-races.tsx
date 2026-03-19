@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Calendar, MapPin } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -31,51 +31,23 @@ function formatDDay(dateStr: string) {
   return `D+${Math.abs(diff)}`;
 }
 
-export function UpcomingRaces({ races }: { races: UpcomingRace[] }) {
+type UpcomingRacesProps = {
+  races: UpcomingRace[];
+  initialMemberStatus: MemberStatus;
+  initialRegistrationsByCompetitionId: Record<string, CompetitionRegistration>;
+};
+
+export function UpcomingRaces({
+  races,
+  initialMemberStatus,
+  initialRegistrationsByCompetitionId,
+}: UpcomingRacesProps) {
   const supabase = useMemo(() => createClient(), []);
-  const [memberStatus, setMemberStatus] = useState<MemberStatus>({ status: "loading" });
+  const memberStatus = initialMemberStatus;
   const [selectedCompetition, setSelectedCompetition] = useState<Competition | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [registrationsByCompetitionId, setRegistrationsByCompetitionId] =
-    useState<Record<string, CompetitionRegistration>>({});
-
-  // 멤버 로드
-  useEffect(() => {
-    let active = true;
-    async function load() {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      if (!active) return;
-      if (error || !user) { setMemberStatus({ status: "signed-out" }); return; }
-      const { data: member } = await supabase
-        .from("member").select("id, full_name, email, admin")
-        .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
-        .maybeSingle();
-      if (!active) return;
-      if (!member) { setMemberStatus({ status: "needs-onboarding", userId: user.id }); return; }
-      setMemberStatus({ status: "ready", userId: user.id, memberId: member.id, fullName: member.full_name ?? null, email: member.email ?? null, admin: member.admin ?? false });
-    }
-    load();
-    return () => { active = false; };
-  }, [supabase]);
-
-  // 내 등록 정보 로드
-  useEffect(() => {
-    let active = true;
-    async function load() {
-      if (memberStatus.status !== "ready" || races.length === 0) return;
-      const { data } = await supabase
-        .from("competition_registration")
-        .select("id, competition_id, member_id, role, event_type, created_at")
-        .eq("member_id", memberStatus.memberId)
-        .in("competition_id", races.map(r => r.id));
-      if (!active) return;
-      const map: Record<string, CompetitionRegistration> = {};
-      (data ?? []).forEach((r) => { map[r.competition_id] = r as CompetitionRegistration; });
-      setRegistrationsByCompetitionId(map);
-    }
-    load();
-    return () => { active = false; };
-  }, [races, memberStatus, supabase]);
+    useState<Record<string, CompetitionRegistration>>(initialRegistrationsByCompetitionId);
 
   const createRegistration = async (competitionId: string, payload: { role: "participant" | "cheering" | "volunteer"; eventType: string }) => {
     if (memberStatus.status !== "ready") return { ok: false as const, message: "로그인이 필요합니다." };
