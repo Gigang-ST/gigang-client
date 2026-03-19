@@ -283,6 +283,8 @@ async function HomeContent() {
         <SocialLinksGrid
           kakaoChatPassword={isMember ? (process.env.KAKAO_CHAT_PASSWORD ?? "") : undefined}
         />
+
+        <TabLoadProbe href="/" label="홈" />
       </div>
   );
 }
@@ -318,7 +320,6 @@ function HomeSkeleton() {
 export default function HomePage() {
   return (
     <div className="flex flex-col gap-0">
-      <TabLoadProbe href="/" label="홈" />
       <div className="flex h-14 items-center px-6">
         <h1 className="text-[28px] font-bold tracking-tight text-foreground">
           기강

@@ -191,7 +191,12 @@ async function RecordsContent() {
     triathlon: { events: triathlonEvents },
   };
 
-  return <RecordsClient data={serializedData} />;
+  return (
+    <>
+      <RecordsClient data={serializedData} />
+      <TabLoadProbe href="/records" label="랭킹" />
+    </>
+  );
 }
 
 function RecordsSkeleton() {
@@ -231,7 +236,6 @@ function RecordsSkeleton() {
 export default function RecordsPage() {
   return (
     <div className="flex flex-col gap-0">
-      <TabLoadProbe href="/records" label="랭킹" />
       <div className="flex h-14 items-center px-6">
         <h1 className="text-[28px] font-semibold tracking-tight text-foreground">
           기강의 전당

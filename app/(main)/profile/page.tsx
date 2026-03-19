@@ -109,6 +109,8 @@ async function ProfileContent() {
 
         {/* 기록 입력 */}
         <RaceRecordSection memberId={member.id} />
+
+        <TabLoadProbe href="/profile" label="프로필" />
       </div>
   );
 }
@@ -146,7 +148,6 @@ function ProfileSkeleton() {
 export default function Page() {
   return (
     <div className="flex flex-col gap-0">
-      <TabLoadProbe href="/profile" label="프로필" />
       <div className="flex h-14 items-center justify-between px-6">
         <h1 className="text-[28px] font-semibold tracking-tight text-foreground">
           내 프로필
