@@ -1,11 +1,13 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { createClient } from "@supabase/supabase-js";
+import { createClient as createPublicClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/server";
 import { unstable_cache } from "next/cache";
 import { Suspense } from "react";
 import { RaceListView } from "@/components/races/race-list-view";
-import type { Competition } from "@/components/races/types";
+import { validateUUID } from "@/lib/utils";
+import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
 
-const supabase = createClient(
+const supabase = createPublicClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
 );
@@ -69,10 +71,64 @@ async function RacesContent() {
     getUpcomingCompetitions(),
     getGigangCompetitions(),
   ]);
+  const serverSupabase = await createClient();
+  const { data: { user } } = await serverSupabase.auth.getUser();
+
+  let initialMemberStatus: MemberStatus = { status: "signed-out" };
+  let initialRegistrationsByCompetitionId: Record<string, CompetitionRegistration> = {};
+  let initialRegCounts: Record<string, number> = {};
+
+  const allCompetitionIds = [...new Set([...competitions, ...gigangCompetitions].map((c) => c.id))];
+  if (allCompetitionIds.length > 0) {
+    const { data: regCountRows } = await serverSupabase
+      .from("competition_registration")
+      .select("competition_id")
+      .in("competition_id", allCompetitionIds);
+    (regCountRows ?? []).forEach((r) => {
+      initialRegCounts[r.competition_id] = (initialRegCounts[r.competition_id] ?? 0) + 1;
+    });
+  }
+
+  if (user) {
+    validateUUID(user.id);
+    const { data: member } = await serverSupabase
+      .from("member")
+      .select("id, full_name, email, admin")
+      .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
+      .maybeSingle();
+
+    if (member) {
+      initialMemberStatus = {
+        status: "ready",
+        userId: user.id,
+        memberId: member.id,
+        fullName: member.full_name ?? null,
+        email: member.email ?? null,
+        admin: member.admin ?? false,
+      };
+      if (allCompetitionIds.length > 0) {
+        const { data: myRegs } = await serverSupabase
+          .from("competition_registration")
+          .select("id, competition_id, member_id, role, event_type, created_at")
+          .eq("member_id", member.id)
+          .in("competition_id", allCompetitionIds);
+        initialRegistrationsByCompetitionId = {};
+        (myRegs ?? []).forEach((r) => {
+          initialRegistrationsByCompetitionId[r.competition_id] = r as CompetitionRegistration;
+        });
+      }
+    } else {
+      initialMemberStatus = { status: "needs-onboarding", userId: user.id };
+    }
+  }
+
   return (
     <RaceListView
       allCompetitions={competitions}
       gigangCompetitions={gigangCompetitions}
+      initialMemberStatus={initialMemberStatus}
+      initialRegistrationsByCompetitionId={initialRegistrationsByCompetitionId}
+      initialRegCounts={initialRegCounts}
     />
   );
 }
