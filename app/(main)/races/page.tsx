@@ -68,35 +68,57 @@ const getGigangCompetitions = unstable_cache(
 );
 
 async function RacesContent() {
-  const [{ competitions }, gigangCompetitions] = await Promise.all([
+  const serverSupabase = await createClient();
+  // 목록(unstable_cache)과 인증은 병렬 — 순차 대기 시간 단축
+  const [
+    { competitions },
+    gigangCompetitions,
+    { data: { user } },
+  ] = await Promise.all([
     getUpcomingCompetitions(),
     getGigangCompetitions(),
+    serverSupabase.auth.getUser(),
   ]);
-  const serverSupabase = await createClient();
-  const { data: { user } } = await serverSupabase.auth.getUser();
 
   let initialMemberStatus: MemberStatus = { status: "signed-out" };
   let initialRegistrationsByCompetitionId: Record<string, CompetitionRegistration> = {};
   let initialRegCounts: Record<string, number> = {};
 
   const allCompetitionIds = [...new Set([...competitions, ...gigangCompetitions].map((c) => c.id))];
-  if (allCompetitionIds.length > 0) {
-    const { data: regCountRows } = await serverSupabase
-      .from("competition_registration")
-      .select("competition_id")
-      .in("competition_id", allCompetitionIds);
-    (regCountRows ?? []).forEach((r) => {
-      initialRegCounts[r.competition_id] = (initialRegCounts[r.competition_id] ?? 0) + 1;
-    });
-  }
 
-  if (user) {
+  if (!user) {
+    if (allCompetitionIds.length > 0) {
+      const { data: regCountRows } = await serverSupabase
+        .from("competition_registration")
+        .select("competition_id")
+        .in("competition_id", allCompetitionIds);
+      (regCountRows ?? []).forEach((r) => {
+        initialRegCounts[r.competition_id] = (initialRegCounts[r.competition_id] ?? 0) + 1;
+      });
+    }
+  } else {
     validateUUID(user.id);
-    const { data: member } = await serverSupabase
+    const regCountPromise =
+      allCompetitionIds.length > 0
+        ? serverSupabase
+            .from("competition_registration")
+            .select("competition_id")
+            .in("competition_id", allCompetitionIds)
+        : Promise.resolve({ data: [] as { competition_id: string }[] });
+    const memberPromise = serverSupabase
       .from("member")
       .select("id, full_name, email, admin")
       .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
       .maybeSingle();
+
+    const [{ data: regCountRows }, { data: member }] = await Promise.all([
+      regCountPromise,
+      memberPromise,
+    ]);
+
+    (regCountRows ?? []).forEach((r) => {
+      initialRegCounts[r.competition_id] = (initialRegCounts[r.competition_id] ?? 0) + 1;
+    });
 
     if (member) {
       initialMemberStatus = {
@@ -113,7 +135,6 @@ async function RacesContent() {
           .select("id, competition_id, member_id, role, event_type, created_at")
           .eq("member_id", member.id)
           .in("competition_id", allCompetitionIds);
-        initialRegistrationsByCompetitionId = {};
         (myRegs ?? []).forEach((r) => {
           initialRegistrationsByCompetitionId[r.competition_id] = r as CompetitionRegistration;
         });
