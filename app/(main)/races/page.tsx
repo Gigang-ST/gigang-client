@@ -124,13 +124,16 @@ async function RacesContent() {
   }
 
   return (
-    <RaceListView
-      allCompetitions={competitions}
-      gigangCompetitions={gigangCompetitions}
-      initialMemberStatus={initialMemberStatus}
-      initialRegistrationsByCompetitionId={initialRegistrationsByCompetitionId}
-      initialRegCounts={initialRegCounts}
-    />
+    <>
+      <RaceListView
+        allCompetitions={competitions}
+        gigangCompetitions={gigangCompetitions}
+        initialMemberStatus={initialMemberStatus}
+        initialRegistrationsByCompetitionId={initialRegistrationsByCompetitionId}
+        initialRegCounts={initialRegCounts}
+      />
+      <TabLoadProbe href="/races" label="대회" />
+    </>
   );
 }
 
@@ -154,7 +157,6 @@ function RacesSkeleton() {
 export default function RacesPage() {
   return (
     <div className="flex flex-col gap-0">
-      <TabLoadProbe href="/races" label="대회" />
       <div className="flex h-14 items-center px-6">
         <h1 className="text-[28px] font-semibold tracking-tight text-foreground">
           대회
