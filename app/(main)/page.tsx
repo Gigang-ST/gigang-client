@@ -6,6 +6,7 @@ import Link from "next/link";
 import { SocialLinksGrid } from "@/components/social-links";
 import { UpcomingRaces } from "@/components/home/upcoming-races";
 import type { CompetitionRegistration, MemberStatus } from "@/components/races/types";
+import { TabLoadProbe } from "@/components/perf/tab-load-probe";
 
 
 type UpcomingRace = {
@@ -317,6 +318,7 @@ function HomeSkeleton() {
 export default function HomePage() {
   return (
     <div className="flex flex-col gap-0">
+      <TabLoadProbe href="/" label="홈" />
       <div className="flex h-14 items-center px-6">
         <h1 className="text-[28px] font-bold tracking-tight text-foreground">
           기강

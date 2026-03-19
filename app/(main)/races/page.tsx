@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { RaceListView } from "@/components/races/race-list-view";
 import { validateUUID } from "@/lib/utils";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
+import { TabLoadProbe } from "@/components/perf/tab-load-probe";
 
 const supabase = createPublicClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -153,6 +154,7 @@ function RacesSkeleton() {
 export default function RacesPage() {
   return (
     <div className="flex flex-col gap-0">
+      <TabLoadProbe href="/races" label="대회" />
       <div className="flex h-14 items-center px-6">
         <h1 className="text-[28px] font-semibold tracking-tight text-foreground">
           대회
