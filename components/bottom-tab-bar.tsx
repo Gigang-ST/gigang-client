@@ -29,7 +29,6 @@ export function BottomTabBar() {
             <Link
               key={tab.href}
               href={tab.href}
-              prefetch={false}
               onClick={() => markTabClickStart(tab.href, tab.label)}
               className={cn(
                 "flex flex-col items-center gap-1 px-3 py-1",
