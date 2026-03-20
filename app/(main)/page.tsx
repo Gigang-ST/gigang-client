@@ -322,6 +322,9 @@ export default function HomePage() {
           기강
         </h1>
       </div>
+      <h1 className="text-[28px] font-bold tracking-tight text-foreground">
+          테스트
+        </h1>
       <Suspense fallback={<HomeSkeleton />}>
         <HomeContent />
       </Suspense>
