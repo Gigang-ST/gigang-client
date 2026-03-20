@@ -1,8 +1,9 @@
 name: Visual Diff
 
 on:
-  pull_request:
-    branches: [main]
+  workflow_dispatch: # 임시 비활성화 — 수동 실행만 가능
+  # pull_request:
+  #   branches: [main]
 
 concurrency:
   group: visual-diff-${{ github.head_ref }}
