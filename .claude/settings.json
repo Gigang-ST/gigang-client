@@ -6,7 +6,11 @@
     "allow": [
       "Bash(*)"
     ],
-    "deny": []
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(secrets/**)"
+    ]
   },
   "attribution": {
     "commit": "",
