@@ -6,7 +6,6 @@ import Link from "next/link";
 import { SocialLinksGrid } from "@/components/social-links";
 import { UpcomingRaces } from "@/components/home/upcoming-races";
 import type { CompetitionRegistration, MemberStatus } from "@/components/races/types";
-import { TabLoadProbe } from "@/components/perf/tab-load-probe";
 
 
 type UpcomingRace = {
@@ -283,8 +282,6 @@ async function HomeContent() {
         <SocialLinksGrid
           kakaoChatPassword={isMember ? (process.env.KAKAO_CHAT_PASSWORD ?? "") : undefined}
         />
-
-        <TabLoadProbe href="/" label="홈" />
       </div>
   );
 }
@@ -325,7 +322,6 @@ export default function HomePage() {
           기강
         </h1>
       </div>
-        <h1 className="text-[28px] font-bold tracking-tight text-foreground px-10">테스트</h1>
       <Suspense fallback={<HomeSkeleton />}>
         <HomeContent />
       </Suspense>

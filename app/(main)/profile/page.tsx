@@ -8,7 +8,6 @@ import { Settings, User } from "lucide-react";
 import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
 import { RaceRecordSection } from "@/components/profile/race-record-section";
 import { PaceChart } from "@/components/profile/pace-chart";
-import { TabLoadProbe } from "@/components/perf/tab-load-probe";
 
 async function ProfileContent() {
   const supabase = await createClient();
@@ -109,8 +108,6 @@ async function ProfileContent() {
 
         {/* 기록 입력 */}
         <RaceRecordSection memberId={member.id} />
-
-        <TabLoadProbe href="/profile" label="프로필" />
       </div>
   );
 }

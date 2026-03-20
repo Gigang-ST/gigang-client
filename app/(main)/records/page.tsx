@@ -4,7 +4,6 @@ import { secondsToTime } from "@/lib/utils";
 import { fetchUtmbRecentRace } from "@/app/actions/utmb";
 import { Suspense } from "react";
 import { RecordsClient } from "./records-client";
-import { TabLoadProbe } from "@/components/perf/tab-load-probe";
 
 const MARATHON_EVENTS = [
   { eventType: "FULL", label: "풀마라톤" },
@@ -191,12 +190,7 @@ async function RecordsContent() {
     triathlon: { events: triathlonEvents },
   };
 
-  return (
-    <>
-      <RecordsClient data={serializedData} />
-      <TabLoadProbe href="/records" label="랭킹" />
-    </>
-  );
+  return <RecordsClient data={serializedData} />;
 }
 
 function RecordsSkeleton() {
