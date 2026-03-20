@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { House, Trophy, Medal, User } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { markTabClickStart } from "@/lib/perf-tab";
 
 const TABS = [
   { label: "홈", href: "/", icon: House },
@@ -29,7 +28,7 @@ export function BottomTabBar() {
             <Link
               key={tab.href}
               href={tab.href}
-              onClick={() => markTabClickStart(tab.href, tab.label)}
+              prefetch={false}
               className={cn(
                 "flex flex-col items-center gap-1 px-3 py-1",
                 isActive
