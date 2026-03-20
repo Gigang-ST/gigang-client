@@ -1,8 +1,9 @@
 name: Baseline Screenshots
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch: # 임시 비활성화 — 수동 실행만 가능
+  # push:
+  #   branches: [main]
 
 concurrency:
   group: baseline-screenshots
