@@ -46,7 +46,7 @@ lib/
 ## 브랜치 전략 & 커밋 컨벤션
 
 ### 브랜치 전략
-```
+```text
 feature/* ──squash merge──▶ dev (승인 1명, CODEOWNERS 리뷰)
 dev ──merge commit──▶ main (승인 2명, 스레드 해결 필수, CODEOWNERS 리뷰)
 ```
@@ -57,6 +57,7 @@ PR 제목은 반드시 Conventional Commits 형식을 따라야 한다. GitHub A
 **형식**: `type(scope): 설명` (scope는 선택사항)
 
 **허용 타입**:
+
 | 타입 | 용도 |
 |------|------|
 | `feat` | 새로운 기능 |
@@ -78,6 +79,7 @@ PR 제목은 반드시 Conventional Commits 형식을 따라야 한다. GitHub A
 - `chore: Netlify 관련 설정 제거`
 
 ### 배포 환경
+
 | 환경 | Vercel 프로젝트 | 플랜 | 트리거 브랜치 |
 |------|----------------|------|--------------|
 | 프로덕션 | `gigang-client` | Hobby | `main` |
