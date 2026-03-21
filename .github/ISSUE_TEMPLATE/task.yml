@@ -1,0 +1,56 @@
+name: "Task"
+description: "일반 작업 (인프라, 기획, DB, 리팩토링 등)"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 작업 요청
+
+  - type: textarea
+    id: background
+    attributes:
+      label: "배경"
+      description: "이 작업이 필요한 이유와 맥락을 설명해주세요."
+      placeholder: "현재 상황, 왜 이 작업이 필요한지..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: "목표"
+      description: "이 작업이 완료되면 어떤 상태가 되어야 하는지 설명해주세요."
+      placeholder: "~가 ~한 상태가 된다"
+    validations:
+      required: true
+
+  - type: textarea
+    id: detail
+    attributes:
+      label: "상세 내용 (선택)"
+      description: "구조도, 테이블 설계, 기술적 내용 등을 mermaid나 코드블록으로 설명할 수 있어요."
+      placeholder: |
+        ```mermaid
+        erDiagram
+          MEMBER ||--o{ RECORD : has
+          MEMBER { string name }
+        ```
+
+        또는
+
+        ```sql
+        CREATE TABLE example (
+          id UUID PRIMARY KEY,
+          name TEXT NOT NULL
+        );
+        ```
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: "참고 사항 (선택)"
+      description: "관련 이슈, 의존관계, 마감일 등"
+    validations:
+      required: false
