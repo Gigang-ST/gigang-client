@@ -86,6 +86,12 @@ PR 제목은 반드시 Conventional Commits 형식을 따라야 한다. GitHub A
 | 개발계 | `gigang-client-dev` | Hobby | `dev` |
 | 테스트 | `gigang-client-test` | Hobby | — |
 
+### 릴리스 (자동)
+
+`main`에 머지되면 GitHub Action이 자동으로:
+1. Conventional commits 분석 → semver 태그 자동 생성 (`feat` → minor, `fix` → patch)
+2. GitHub Release 생성 (PR 기반 릴리스 노트 자동 분류)
+
 ## 명령어
 
 - `pnpm run dev` - 개발 서버
