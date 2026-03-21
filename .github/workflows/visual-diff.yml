@@ -83,14 +83,16 @@ jobs:
       - name: Deploy diff to gh-pages
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
-          DEST_DIR="visual-diff/pr-${PR_NUMBER}"
+          RUN_ID=${{ github.run_id }}
+          DEST_DIR="visual-diff/pr-${PR_NUMBER}/${RUN_ID}"
 
           git fetch origin gh-pages || true
           git worktree add gh-pages-dir origin/gh-pages 2>/dev/null || {
             git worktree add --orphan gh-pages-dir
           }
 
-          rm -rf "gh-pages-dir/${DEST_DIR}"
+          # 이전 run 이미지 삭제 후 새 경로에 복사
+          rm -rf "gh-pages-dir/visual-diff/pr-${PR_NUMBER}"
           mkdir -p "gh-pages-dir/${DEST_DIR}"
           cp -r screenshots/before "gh-pages-dir/${DEST_DIR}/"
           cp -r screenshots/after "gh-pages-dir/${DEST_DIR}/"
@@ -99,8 +101,8 @@ jobs:
           cd gh-pages-dir
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add "${DEST_DIR}"
-          git commit -m "visual-diff: PR #${PR_NUMBER}" --allow-empty
+          git add -A
+          git commit -m "visual-diff: PR #${PR_NUMBER} run ${RUN_ID}" --allow-empty
           git push origin HEAD:gh-pages
 
       # ── PR 코멘트 ──
@@ -119,7 +121,7 @@ jobs:
             const prNumber = context.issue.number;
             const runId = context.runId;
             const pagesBase = `https://${context.repo.owner}.github.io/${context.repo.repo}`;
-            const imgBase = `${pagesBase}/visual-diff/pr-${prNumber}`;
+            const imgBase = `${pagesBase}/visual-diff/pr-${prNumber}/${runId}`;
 
             let summary = '';
             try {
@@ -139,9 +141,9 @@ jobs:
               body += `<details><summary><b>${name}</b></summary>\n\n`;
               body += `| Before (main) | After (PR) | Diff |\n`;
               body += `|:---:|:---:|:---:|\n`;
-              body += `| <img src="${imgBase}/before/${file}?v=${runId}" width="250" /> `;
-              body += `| <img src="${imgBase}/after/${file}?v=${runId}" width="250" /> `;
-              body += `| <img src="${imgBase}/diff/${file}?v=${runId}" width="250" /> |\n\n`;
+              body += `| <img src="${imgBase}/before/${file}" width="250" /> `;
+              body += `| <img src="${imgBase}/after/${file}" width="250" /> `;
+              body += `| <img src="${imgBase}/diff/${file}" width="250" /> |\n\n`;
               body += `</details>\n\n`;
             }
 
