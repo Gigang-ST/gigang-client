@@ -33,11 +33,11 @@ Border Radius: 0.75rem (12px) / 카드는 rounded-2xl (24px)
 ```
 
 종목별 색상:
-- 로드러닝: `chart-1` (파란)
-- 트레일러닝: `chart-2` (초록)
-- 철인3종: `chart-3` (주황)
-- 사이클링: `chart-4` (보라)
-- 울트라마라톤: `chart-5` (분홍)
+- 로드 러닝: `sport-road-run`
+- 울트라마라톤: `sport-ultra`
+- 트레일 러닝: `sport-trail-run`
+- 철인3종: `sport-triathlon`
+- 사이클: `sport-cycling`
 
 ## 작업 원칙
 
