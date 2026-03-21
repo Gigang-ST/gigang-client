@@ -48,6 +48,8 @@ lib/
 - `pnpm run dev` - 개발 서버
 - `pnpm run build` - 프로덕션 빌드
 - `pnpm run lint` - ESLint 검사
+- `pnpm run release` - 릴리스 (main 브랜치에서만, 버전 bump + CHANGELOG + GitHub Release)
+- `pnpm run release:dry` - 릴리스 드라이런 (실제 실행 없이 미리보기)
 
 ## 환경 변수
 
