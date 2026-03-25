@@ -1,9 +1,10 @@
-import { Skeleton } from "@/components/ui/skeleton";
-import { createClient } from "@/lib/supabase/server";
+import { cacheLife } from "next/cache";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { secondsToTime } from "@/lib/utils";
-import { fetchUtmbRecentRace } from "@/app/actions/utmb";
-import { Suspense } from "react";
+import { fetchUtmbRecentRace } from "@/lib/utmb";
 import { RecordsClient } from "./records-client";
+import { Suspense } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const MARATHON_EVENTS = [
   { eventType: "FULL", label: "풀마라톤" },
@@ -19,7 +20,10 @@ const TRIATHLON_EVENTS = [
 ] as const;
 
 async function RecordsContent() {
-  const supabase = await createClient();
+  "use cache";
+  cacheLife("days");
+
+  const supabase = createAdminClient();
 
   // 마라톤 + 철인3종 기록, UTMB 프로필 동시 조회
   const [{ data: raceData }, { data: utmbData }] = await Promise.all([
@@ -59,21 +63,13 @@ async function RecordsContent() {
     { raceName: string; record: string | null }
   >();
 
-  if (utmbMembers.length > 0) {
-    const recentRaceResults = await Promise.all(
-      utmbMembers.map(async (m) => {
-        const result = await fetchUtmbRecentRace(m.url);
-        return { id: m.id, result };
-      }),
-    );
-
-    for (const { id, result } of recentRaceResults) {
-      if (result.ok) {
-        recentRaceMap.set(id, {
-          raceName: result.raceName,
-          record: result.raceRecord,
-        });
-      }
+  for (const m of utmbMembers) {
+    const result = await fetchUtmbRecentRace(m.url);
+    if (result.ok) {
+      recentRaceMap.set(m.id, {
+        raceName: result.raceName,
+        record: result.raceRecord,
+      });
     }
   }
 
@@ -196,18 +192,15 @@ async function RecordsContent() {
 function RecordsSkeleton() {
   return (
     <>
-      {/* Pills */}
       <div className="flex flex-wrap gap-2 px-6 pt-4">
         {Array.from({ length: 6 }).map((_, i) => (
           <Skeleton key={i} className="h-9 w-16 rounded-full" />
         ))}
       </div>
-      {/* Gender tabs */}
       <div className="flex gap-0 px-6 py-2">
         <Skeleton className="h-9 flex-1 rounded-lg" />
         <Skeleton className="h-9 flex-1 rounded-lg" />
       </div>
-      {/* Rank rows */}
       <div className="flex flex-col px-6 pt-2">
         {Array.from({ length: 5 }).map((_, i) => (
           <div
