@@ -69,12 +69,19 @@ jobs:
             git worktree add --orphan gh-pages-dir
           }
 
+          # baseline 갱신
           rm -rf gh-pages-dir/baseline
           cp -r screenshots/before gh-pages-dir/baseline
+
+          # 머지된 PR의 visual-diff 이미지 정리
+          if [ -d "gh-pages-dir/visual-diff" ]; then
+            rm -rf gh-pages-dir/visual-diff
+            echo "🗑️ 머지된 PR visual-diff 이미지 삭제"
+          fi
 
           cd gh-pages-dir
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add baseline
+          git add -A
           git commit -m "baseline: $(date -u +%Y-%m-%dT%H:%M:%SZ)" --allow-empty
           git push origin HEAD:gh-pages
