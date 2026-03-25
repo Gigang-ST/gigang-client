@@ -98,17 +98,29 @@ ALTER TYPE "public"."participation_role" OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."revalidate_records"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
+    SET search_path = pg_catalog, public, extensions, vault
     AS $$
 DECLARE
   _secret text;
+  _revalidate_url text;
 BEGIN
   SELECT decrypted_secret INTO _secret
   FROM vault.decrypted_secrets
   WHERE name = 'revalidate_secret'
   LIMIT 1;
 
+  SELECT decrypted_secret INTO _revalidate_url
+  FROM vault.decrypted_secrets
+  WHERE name = 'revalidate_url'
+  LIMIT 1;
+
+  IF _revalidate_url IS NULL THEN
+    RAISE WARNING 'revalidate_records: revalidate_url not found in vault';
+    RETURN NULL;
+  END IF;
+
   PERFORM extensions.http_post(
-    url := 'https://gigang.team/api/revalidate',
+    url := _revalidate_url,
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'x-webhook-secret', _secret
@@ -117,7 +129,7 @@ BEGIN
   );
   RETURN NULL;
 EXCEPTION WHEN OTHERS THEN
-  -- Silently ignore errors in dev (vault secret may not exist)
+  RAISE WARNING 'revalidate_records failed: %', SQLERRM;
   RETURN NULL;
 END;
 $$;
