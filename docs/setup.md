@@ -114,18 +114,19 @@ pnpm install
 
 ## 환경변수 설정
 
-환경변수 파일은 3종류입니다:
+환경변수 파일은 3종류이며, `mise run env:all` 한 번으로 모두 생성됩니다:
 
-| 파일 | 용도 | 생성 방법 |
-|------|------|-----------|
-| `.env.development.local` | Supabase 로컬 개발 | `mise run env:local` |
-| `.env.development` | Vercel preview 환경 | `mise run env:preview` |
-| `.env.production` | Vercel production 환경 | `mise run env:production` |
+| 파일 | 용도 |
+|------|------|
+| `.env.development.local` | Supabase 로컬 개발 |
+| `.env.development` | Vercel preview 환경 |
+| `.env.production` | Vercel production 환경 |
 
 ```bash
 # Docker Desktop 실행 후
 supabase start
 vercel login
+vercel link          # Vercel 프로젝트 연결 (최초 1회)
 mise run env:all
 ```
 
