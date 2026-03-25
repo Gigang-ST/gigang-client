@@ -8,7 +8,7 @@
 | [Docker Desktop](https://www.docker.com/products/docker-desktop/) | O | Supabase 로컬 실행 |
 | [mise](https://mise.jdx.dev/) | O | 도구 버전 관리 (Node, Supabase CLI 등) |
 | [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started) | O | 로컬 DB 및 마이그레이션 관리 |
-| [Vercel CLI](https://vercel.com/docs/cli) | 선택 | 환경변수 pull (팀 Vercel 접근 권한 필요) |
+| [Vercel CLI](https://vercel.com/docs/cli) | O | 환경변수 pull (팀 Vercel 접근 권한 필요) |
 
 > **mise**를 설치하면 Node.js, Supabase CLI 등 필요한 도구가 `mise install` 한 번으로 자동 설치됩니다.
 
@@ -114,18 +114,19 @@ pnpm install
 
 ## 환경변수 설정
 
-환경변수 파일은 3종류입니다:
+환경변수 파일은 3종류이며, `mise run env:all` 한 번으로 모두 생성됩니다:
 
-| 파일 | 용도 | 생성 방법 |
-|------|------|-----------|
-| `.env.development.local` | Supabase 로컬 개발 | `mise run env:local` |
-| `.env.development` | Vercel preview 환경 | `mise run env:preview` |
-| `.env.production` | Vercel production 환경 | `mise run env:production` |
+| 파일 | 용도 |
+|------|------|
+| `.env.development.local` | Supabase 로컬 개발 |
+| `.env.development` | Vercel preview 환경 |
+| `.env.production` | Vercel production 환경 |
 
 ```bash
 # Docker Desktop 실행 후
 supabase start
 vercel login
+vercel link          # Vercel 프로젝트 연결 (최초 1회)
 mise run env:all
 ```
 
