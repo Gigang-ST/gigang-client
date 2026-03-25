@@ -2,9 +2,13 @@ import { cacheLife } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { secondsToTime } from "@/lib/utils";
 import { fetchUtmbRecentRace } from "@/lib/utmb";
-import { RecordsClient } from "./records-client";
+import dynamic from "next/dynamic";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+
+const RecordsClient = dynamic(() =>
+  import("./records-client").then((m) => m.RecordsClient),
+);
 
 const MARATHON_EVENTS = [
   { eventType: "FULL", label: "풀마라톤" },
