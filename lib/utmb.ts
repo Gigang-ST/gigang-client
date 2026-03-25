@@ -27,9 +27,15 @@ export async function fetchUtmbRecentRace(
   if (!match) return { ok: false };
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+
     const res = await fetch(trimmed, {
       headers: { "User-Agent": "Mozilla/5.0" },
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!res.ok) return { ok: false };
 
