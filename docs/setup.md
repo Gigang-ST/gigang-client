@@ -8,7 +8,7 @@
 | [Docker Desktop](https://www.docker.com/products/docker-desktop/) | O | Supabase 로컬 실행 |
 | [mise](https://mise.jdx.dev/) | O | 도구 버전 관리 (Node, Supabase CLI 등) |
 | [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started) | O | 로컬 DB 및 마이그레이션 관리 |
-| [Vercel CLI](https://vercel.com/docs/cli) | 선택 | 환경변수 pull (팀 Vercel 접근 권한 필요) |
+| [Vercel CLI](https://vercel.com/docs/cli) | O | 환경변수 pull (팀 Vercel 접근 권한 필요) |
 
 > **mise**를 설치하면 Node.js, Supabase CLI 등 필요한 도구가 `mise install` 한 번으로 자동 설치됩니다.
 
