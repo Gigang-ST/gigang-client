@@ -43,7 +43,6 @@ next-env.d.ts
 
 # claude code
 .claude/settings.local.json
-.mcp.json
 
 # storybook
 /storybook-static
