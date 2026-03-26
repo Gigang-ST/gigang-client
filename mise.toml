@@ -71,3 +71,10 @@ echo "✅ .env.development.local 생성 완료"
 echo ""
 echo "✅ 모든 환경변수 파일 생성 완료"
 """
+
+[tasks."env:all:pwsh"]
+description = "모든 환경변수 파일 생성 (PowerShell)"
+shell = "pwsh"
+run = """
+./scripts/env-all.ps1
+"""
