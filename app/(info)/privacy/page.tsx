@@ -1,3 +1,8 @@
+/**
+ * Render the privacy policy page showing the policy heading, effective date, and numbered sections with their details.
+ *
+ * @returns The JSX element representing the privacy policy page
+ */
 export default function PrivacyPage() {
   const policy = {
     heading: "개인정보처리방침",
