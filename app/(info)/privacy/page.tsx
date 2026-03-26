@@ -7,7 +7,7 @@
 export default function PrivacyPage() {
   const policy = {
     heading: "개인정보처리방침",
-    effectiveDate: "2026-03-02",
+    effectiveDate: "2026-03-26",
     sections: [
       {
         id: 1,
@@ -22,7 +22,7 @@ export default function PrivacyPage() {
       {
         id: 2,
         title: "처리하는 개인정보 항목",
-        details: ["이름, 연락처, 생년, 성별, 사진, 계좌번호, 은행명"],
+        details: ["이름, 연락처, 생년, 성별, 프로필 사진, 이메일(선택), 계좌번호(선택), 은행명(선택)"],
       },
       {
         id: 3,
