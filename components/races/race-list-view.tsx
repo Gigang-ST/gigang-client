@@ -57,14 +57,18 @@ export function RaceListView({
   const loadCompetitionMetaForIds = async (competitionIds: string[]) => {
     if (competitionIds.length === 0) return;
     const { data: countRows } = await supabase
-      .from("competition_registration")
-      .select("competition_id")
-      .in("competition_id", competitionIds);
+      .from("competition")
+      .select("id, competition_registration(count)")
+      .in("id", competitionIds);
     setRegCounts((prev) => {
       const next = { ...prev };
       competitionIds.forEach((id) => { next[id] = 0; });
       (countRows ?? []).forEach((row) => {
-        next[row.competition_id] = (next[row.competition_id] ?? 0) + 1;
+        const comp = row as unknown as {
+          id: string;
+          competition_registration?: { count: number }[];
+        };
+        next[comp.id] = comp.competition_registration?.[0]?.count ?? 0;
       });
       return next;
     });
