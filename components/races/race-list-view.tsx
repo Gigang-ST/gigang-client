@@ -54,12 +54,13 @@ export function RaceListView({
   const [pastNextBefore, setPastNextBefore] = useState<string | null>(null);
   const [regCounts, setRegCounts] = useState<Record<string, number>>(initialRegCounts);
 
-  const loadCompetitionMetaForIds = async (competitionIds: string[]) => {
+  const loadRegCountsForIds = async (competitionIds: string[]) => {
     if (competitionIds.length === 0) return;
     const { data: countRows } = await supabase
       .from("competition")
       .select("id, competition_registration(count)")
       .in("id", competitionIds);
+
     setRegCounts((prev) => {
       const next = { ...prev };
       competitionIds.forEach((id) => { next[id] = 0; });
@@ -72,20 +73,25 @@ export function RaceListView({
       });
       return next;
     });
+  };
 
-    if (memberStatus.status !== "ready") return;
+  const loadMyRegsForIds = async (competitionIds: string[], memberId: string) => {
+    if (competitionIds.length === 0) {
+      setRegistrationsByCompetitionId({});
+      return;
+    }
+
     const { data: myRegs } = await supabase
       .from("competition_registration")
       .select("id, competition_id, member_id, role, event_type, created_at")
-      .eq("member_id", memberStatus.memberId)
+      .eq("member_id", memberId)
       .in("competition_id", competitionIds);
-    setRegistrationsByCompetitionId((prev) => {
-      const next = { ...prev };
-      (myRegs ?? []).forEach((reg) => {
-        next[reg.competition_id] = reg as CompetitionRegistration;
-      });
-      return next;
+
+    const next: Record<string, CompetitionRegistration> = {};
+    (myRegs ?? []).forEach((reg) => {
+      next[reg.competition_id] = reg as CompetitionRegistration;
     });
+    setRegistrationsByCompetitionId(next);
   };
 
   const loadPastChunk = async (before: string) => {
@@ -96,7 +102,6 @@ export function RaceListView({
       const prevIds = new Set(pastCompetitions.map((c) => c.id));
       const added = list.filter((c) => !prevIds.has(c.id));
       setPastCompetitions((prev) => [...prev, ...added].sort((a, b) => b.start_date.localeCompare(a.start_date)));
-      await loadCompetitionMetaForIds(added.map((c) => c.id));
     } finally {
       setPastLoading(false);
     }
@@ -169,7 +174,15 @@ export function RaceListView({
   }, [supabase]);
 
   useEffect(() => {
-    loadCompetitionMetaForIds(allCompetitionIds);
+    loadRegCountsForIds(allCompetitionIds);
+  }, [allCompetitionIds]);
+
+  useEffect(() => {
+    if (memberStatus.status !== "ready") {
+      setRegistrationsByCompetitionId({});
+      return;
+    }
+    loadMyRegsForIds(allCompetitionIds, memberStatus.memberId);
   }, [allCompetitionIds, memberStatus.status, memberStatus.status === "ready" ? memberStatus.memberId : null]);
 
 
