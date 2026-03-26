@@ -39,7 +39,10 @@ export default function PrivacyPage() {
       {
         id: 5,
         title: "개인정보 처리의 위탁",
-        details: ["현재 위탁 없음"],
+        details: [
+          "수탁업체: Supabase Inc.",
+          "위탁 내용: 데이터베이스 및 인증 인프라 운영",
+        ],
       },
       {
         id: 6,
