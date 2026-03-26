@@ -126,7 +126,20 @@ supabase db diff -f <migration_name>
 winget install Git.Git
 ```
 
-**2. Docker Desktop**
+**2. WSL2 설치 (권장)**
+
+Docker Desktop은 Windows에서 일반적으로 WSL2 백엔드를 사용합니다.  
+WSL2가 없으면 Docker Desktop 실행 시 오류가 발생할 수 있습니다.
+
+```powershell
+winget install Microsoft.WSL
+```
+
+설치 후 PC를 재시작하고, `wsl --status`로 상태를 확인합니다.
+
+> 참고: Hyper-V 백엔드로도 구성할 수 있지만, 팀 기본 가이드는 WSL2 기준입니다.
+
+**3. Docker Desktop**
 
 [공식 사이트](https://www.docker.com/products/docker-desktop/)에서 설치하거나:
 
@@ -134,7 +147,7 @@ winget install Git.Git
 winget install Docker.DockerDesktop
 ```
 
-**3. Scoop + mise 설치**
+**4. Scoop + mise 설치**
 
 PowerShell에서(권장: 일반 권한):
 
@@ -147,7 +160,7 @@ irm get.scoop.sh | iex
 scoop install mise
 ```
 
-**4. PowerShell 7(pwsh) 설치(미설치 시)**
+**5. PowerShell 7(pwsh) 설치(미설치 시)**
 
 `mise run env:all:pwsh`는 `pwsh`가 필요합니다.
 
@@ -157,13 +170,13 @@ winget install Microsoft.PowerShell
 
 설치 후 새 터미널을 열고 `pwsh --version`으로 확인합니다.
 
-**5. mise 활성화 (PowerShell)**
+**6. mise 활성화 (PowerShell)**
 
 ```powershell
 mise activate pwsh | Out-String | Invoke-Expression
 ```
 
-**6. mise 실행 (도구 설치)**
+**7. mise 실행 (도구 설치)**
 
 저장소 루트에서 `mise.toml`에 정의된 도구(Node, Supabase CLI, Vercel CLI 등)를 설치합니다:
 
@@ -183,9 +196,11 @@ notepad $PROFILE
 mise activate pwsh | Out-String | Invoke-Expression
 ```
 
-**7. 환경변수 파일 생성 (Windows PowerShell)**
+**8. 환경변수 파일 생성 (Windows PowerShell)**
 
-Docker Desktop 실행 후, Supabase 로컬을 켜고 Vercel 인증/링크를 마친 다음 `mise.toml`에 정의된 PowerShell 태스크로 환경변수 파일을 생성합니다:
+Docker Desktop 실행 후, Supabase 로컬을 켜고 Vercel 인증/링크를 마친 다음 `mise.toml`에 정의된 PowerShell 태스크로 환경변수 파일을 생성합니다.
+
+`env:all:pwsh` 단계 자체는 WSL 없이도 동작하지만, `supabase start`를 위해 Docker Desktop이 정상 실행되어야 합니다.
 
 ```powershell
 supabase start
