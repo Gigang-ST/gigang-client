@@ -43,6 +43,17 @@ export default function PrivacyPage() {
       },
       {
         id: 6,
+        title: "개인정보의 국외 이전",
+        details: [
+          "이전 국가: 미국",
+          "이전 업체: Supabase Inc.",
+          "이전 목적: 데이터베이스 및 인증 인프라 운영",
+          "이전 항목: 서비스 이용에 필요한 개인정보 전체",
+          "보유·이용 기간: 회원 탈퇴 후 1년",
+        ],
+      },
+      {
+        id: 7,
         title: "개인정보의 파기 절차 및 방법",
         details: [
           "보유 기간 종료 또는 목적 달성 시 지체 없이 파기",
@@ -50,7 +61,7 @@ export default function PrivacyPage() {
         ],
       },
       {
-        id: 7,
+        id: 8,
         title: "정보주체의 권리",
         details: [
           "개인정보 열람, 정정, 삭제, 처리정지 요구 가능",
@@ -58,7 +69,7 @@ export default function PrivacyPage() {
         ],
       },
       {
-        id: 8,
+        id: 9,
         title: "안전성 확보 조치",
         details: [
           "개인정보 접근 권한 최소화",
@@ -67,12 +78,12 @@ export default function PrivacyPage() {
         ],
       },
       {
-        id: 9,
+        id: 10,
         title: "개인정보 보호 책임자",
         details: ["이현근 (크루장)", "카카오톡 아이디: winsu"],
       },
       {
-        id: 10,
+        id: 11,
         title: "고지의 의무",
         details: ["본 방침은 변경될 수 있으며 변경 시 사전 공지"],
       },
