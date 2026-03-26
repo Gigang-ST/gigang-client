@@ -98,23 +98,38 @@ ALTER TYPE "public"."participation_role" OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."revalidate_records"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
+    SET search_path = pg_catalog, public, extensions, vault
     AS $$
 DECLARE
   _secret text;
+  _revalidate_url text;
 BEGIN
   SELECT decrypted_secret INTO _secret
   FROM vault.decrypted_secrets
   WHERE name = 'revalidate_secret'
   LIMIT 1;
 
-  PERFORM net.http_post(
-    url := 'https://gigang.team/api/revalidate',
+  SELECT decrypted_secret INTO _revalidate_url
+  FROM vault.decrypted_secrets
+  WHERE name = 'revalidate_url'
+  LIMIT 1;
+
+  IF _revalidate_url IS NULL THEN
+    RAISE WARNING 'revalidate_records: revalidate_url not found in vault';
+    RETURN NULL;
+  END IF;
+
+  PERFORM extensions.http_post(
+    url := _revalidate_url,
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'x-webhook-secret', _secret
     ),
     body := '{}'::jsonb
   );
+  RETURN NULL;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'revalidate_records failed: %', SQLERRM;
   RETURN NULL;
 END;
 $$;
@@ -152,7 +167,7 @@ CREATE TABLE IF NOT EXISTS "public"."competition" (
     "raw" "jsonb",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "external_id" "text" NOT NULL
+    "external_id" "text"
 );
 
 
@@ -232,19 +247,6 @@ CREATE TABLE IF NOT EXISTS "public"."race_result" (
 ALTER TABLE "public"."race_result" OWNER TO "postgres";
 
 
-CREATE OR REPLACE VIEW "public"."personal_best_view" AS
- SELECT DISTINCT ON ("member_id", "event_type") "member_id",
-    "event_type",
-    "record_time_sec",
-    "race_name",
-    "race_date"
-   FROM "public"."race_result"
-  ORDER BY "member_id", "event_type", "record_time_sec";
-
-
-ALTER VIEW "public"."personal_best_view" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."utmb_profile" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "member_id" "uuid" NOT NULL,
@@ -280,7 +282,7 @@ ALTER TABLE ONLY "public"."competition_registration"
 
 
 ALTER TABLE ONLY "public"."member"
-    ADD CONSTRAINT "member_email_unique" UNIQUE ("email");
+    ADD CONSTRAINT "member_email_key" UNIQUE ("email");
 
 
 
@@ -349,27 +351,27 @@ CREATE OR REPLACE TRIGGER "revalidate_records_on_utmb_profile" AFTER INSERT OR D
 
 
 ALTER TABLE ONLY "public"."competition_registration"
-    ADD CONSTRAINT "competition_registration_competition_id_fkey" FOREIGN KEY ("competition_id") REFERENCES "public"."competition"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "competition_registration_competition_id_fkey" FOREIGN KEY ("competition_id") REFERENCES "public"."competition"("id");
 
 
 
 ALTER TABLE ONLY "public"."competition_registration"
-    ADD CONSTRAINT "competition_registration_member_id_fkey" FOREIGN KEY ("member_id") REFERENCES "public"."member"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "competition_registration_member_id_fkey" FOREIGN KEY ("member_id") REFERENCES "public"."member"("id");
 
 
 
 ALTER TABLE ONLY "public"."personal_best"
-    ADD CONSTRAINT "personal_best_member_id_fkey" FOREIGN KEY ("member_id") REFERENCES "public"."member"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "personal_best_member_id_fkey" FOREIGN KEY ("member_id") REFERENCES "public"."member"("id");
 
 
 
 ALTER TABLE ONLY "public"."race_result"
-    ADD CONSTRAINT "race_result_member_id_fkey" FOREIGN KEY ("member_id") REFERENCES "public"."member"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "race_result_member_id_fkey" FOREIGN KEY ("member_id") REFERENCES "public"."member"("id");
 
 
 
 ALTER TABLE ONLY "public"."utmb_profile"
-    ADD CONSTRAINT "utmb_profile_member_id_fkey" FOREIGN KEY ("member_id") REFERENCES "public"."member"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "utmb_profile_member_id_fkey" FOREIGN KEY ("member_id") REFERENCES "public"."member"("id");
 
 
 
@@ -944,12 +946,6 @@ GRANT ALL ON TABLE "public"."personal_best" TO "service_role";
 GRANT ALL ON TABLE "public"."race_result" TO "anon";
 GRANT ALL ON TABLE "public"."race_result" TO "authenticated";
 GRANT ALL ON TABLE "public"."race_result" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."personal_best_view" TO "anon";
-GRANT ALL ON TABLE "public"."personal_best_view" TO "authenticated";
-GRANT ALL ON TABLE "public"."personal_best_view" TO "service_role";
 
 
 
