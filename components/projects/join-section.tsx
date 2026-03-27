@@ -50,20 +50,25 @@ export function JoinSection({ project, participation }: Props) {
   async function handleJoin() {
     setSubmitting(true);
     setError(null);
-    const result = await joinProject(project.id, parseInt(goal), singlet);
-    if (result.error) {
-      setError(result.error);
-    } else {
-      setDone(true);
+    try {
+      const result = await joinProject(project.id, parseInt(goal), singlet);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setDone(true);
+      }
+    } catch {
+      setError("오류가 발생했습니다. 다시 시도해 주세요.");
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
   }
 
   const months = 5; // 5~9월, TODO: 실제 프로젝트 기간에서 계산
   const depositAmount = months * 10000;
   const participationFee = 10000;
   const singletFee = singlet ? 0 : 10000;
-  const totalAmount = depositAmount + participationFee + (singlet ? 0 : singletFee);
+  const totalAmount = depositAmount + participationFee + singletFee;
 
   return (
     <div className="space-y-6">
