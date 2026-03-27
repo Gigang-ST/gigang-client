@@ -53,7 +53,9 @@ export function ActivityLogForm({
   const [error, setError] = useState<string | null>(null);
   const [previewMileage, setPreviewMileage] = useState<number>(0);
 
-  const today = new Date().toLocaleDateString("sv", { timeZone: "Asia/Seoul" });
+  const today = process.env.NEXT_PUBLIC_DEBUG_DATE
+    ? new Date(process.env.NEXT_PUBLIC_DEBUG_DATE).toLocaleDateString("sv")
+    : new Date().toLocaleDateString("sv", { timeZone: "Asia/Seoul" });
 
   const { register, handleSubmit, watch, control } = useForm<FormValues>({
     defaultValues: defaultValues ?? {

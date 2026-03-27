@@ -56,6 +56,10 @@ export function calcNextMonthGoal(currentGoal: number, achieved: boolean): numbe
  * KST 기준 현재 시간을 Date 객체로 반환 (내부 헬퍼)
  */
 function getKSTDate(): Date {
+  // DEBUG: 디버그용 날짜 오버라이드 — 배포 전 제거할 것
+  if (process.env.NEXT_PUBLIC_DEBUG_DATE) {
+    return new Date(process.env.NEXT_PUBLIC_DEBUG_DATE);
+  }
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
 }
 

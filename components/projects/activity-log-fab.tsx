@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +20,7 @@ export function ActivityLogFab({
   projectId: string;
 }) {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
 
   return (
     <>
@@ -40,7 +42,7 @@ export function ActivityLogFab({
             key={open ? "open" : "closed"}
             participationId={participationId}
             projectId={projectId}
-            onSuccess={() => setOpen(false)}
+            onSuccess={() => { setOpen(false); router.refresh(); }}
           />
         </SheetContent>
       </Sheet>
