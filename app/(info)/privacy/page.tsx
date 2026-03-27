@@ -1,7 +1,7 @@
 export default function PrivacyPage() {
   const policy = {
     heading: "개인정보처리방침",
-    effectiveDate: "2026-03-02",
+    effectiveDate: "2026-03-26",
     sections: [
       {
         id: 1,
@@ -16,14 +16,13 @@ export default function PrivacyPage() {
       {
         id: 2,
         title: "처리하는 개인정보 항목",
-        details: ["이름, 연락처, 생년, 성별, 사진"],
+        details: ["이름, 연락처, 생년월일, 성별, 프로필 사진, 이메일, 계좌번호(선택), 은행명(선택)"],
       },
       {
         id: 3,
         title: "개인정보의 보유 및 이용 기간",
         details: [
-          "회원 탈퇴 시까지 보유",
-          "관련 법령에 따라 보관이 필요한 경우 해당 기간 동안 보관",
+          "회원 탈퇴 후 1년간 보유 후 파기",
         ],
       },
       {
@@ -34,10 +33,24 @@ export default function PrivacyPage() {
       {
         id: 5,
         title: "개인정보 처리의 위탁",
-        details: ["현재 위탁 없음"],
+        details: [
+          "수탁업체: Supabase Inc.",
+          "위탁 내용: 데이터베이스 및 인증 인프라 운영",
+        ],
       },
       {
         id: 6,
+        title: "개인정보의 국외 이전",
+        details: [
+          "이전 국가: 미국",
+          "이전 업체: Supabase Inc.",
+          "이전 목적: 데이터베이스 및 인증 인프라 운영",
+          "이전 항목: 이름, 연락처, 생년월일, 성별, 프로필 사진, 이메일, 계좌번호(선택), 은행명(선택), 회원 식별자(UUID), 가입일시, OAuth 제공자 정보",
+          "보유·이용 기간: 회원 탈퇴 후 1년",
+        ],
+      },
+      {
+        id: 7,
         title: "개인정보의 파기 절차 및 방법",
         details: [
           "보유 기간 종료 또는 목적 달성 시 지체 없이 파기",
@@ -45,7 +58,7 @@ export default function PrivacyPage() {
         ],
       },
       {
-        id: 7,
+        id: 8,
         title: "정보주체의 권리",
         details: [
           "개인정보 열람, 정정, 삭제, 처리정지 요구 가능",
@@ -53,21 +66,21 @@ export default function PrivacyPage() {
         ],
       },
       {
-        id: 8,
+        id: 9,
         title: "안전성 확보 조치",
         details: [
           "개인정보 접근 권한 최소화",
-          "엑셀 파일 비밀번호 설정 및 접근 제한",
+          "데이터베이스 접근 제어 및 보안 정책 적용",
           "기기 잠금 및 기본 보안 조치 적용",
         ],
       },
       {
-        id: 9,
+        id: 10,
         title: "개인정보 보호 책임자",
-        details: ["이현근 (크루장)", "연락처: 010-1234-5678"],
+        details: ["이현근 (크루장)", "이메일: team.gigang@gmail.com"],
       },
       {
-        id: 10,
+        id: 11,
         title: "고지의 의무",
         details: ["본 방침은 변경될 수 있으며 변경 시 사전 공지"],
       },
