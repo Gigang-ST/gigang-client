@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,7 +55,7 @@ export function ActivityLogForm({
 
   const today = new Date().toLocaleDateString("sv", { timeZone: "Asia/Seoul" });
 
-  const { register, handleSubmit, watch } = useForm<FormValues>({
+  const { register, handleSubmit, watch, control } = useForm<FormValues>({
     defaultValues: defaultValues ?? {
       activityDate: today,
       sport: "running",
@@ -65,7 +65,9 @@ export function ActivityLogForm({
     },
   });
 
-  const watchedValues = watch(["sport", "distanceKm", "elevationM"]);
+  const sport = watch("sport");
+  const distanceKm = watch("distanceKm");
+  const elevationM = watch("elevationM");
 
   // 활성 이벤트 로드
   useEffect(() => {
@@ -79,11 +81,10 @@ export function ActivityLogForm({
 
   // 마일리지 미리보기
   useEffect(() => {
-    const [sport, distStr, elevStr] = watchedValues;
-    const dist = parseFloat(distStr ?? "0") || 0;
-    const elev = parseInt(elevStr ?? "0") || 0;
+    const dist = parseFloat(distanceKm ?? "0") || 0;
+    const elev = parseInt(elevationM ?? "0") || 0;
     if (dist > 0) {
-      const base = calcBaseMileage(sport as Sport, dist, elev);
+      const base = calcBaseMileage(sport, dist, elev);
       const multipliers = events
         .filter((e) => selectedEvents.includes(e.id))
         .map((e) => e.multiplier);
@@ -91,30 +92,35 @@ export function ActivityLogForm({
     } else {
       setPreviewMileage(0);
     }
-  }, [watchedValues, selectedEvents, events]);
+  }, [sport, distanceKm, elevationM, selectedEvents, events]);
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitting(true);
     setError(null);
-    const input = {
-      participationId,
-      activityDate: values.activityDate,
-      sport: values.sport as Sport,
-      distanceKm: parseFloat(values.distanceKm),
-      elevationM: parseInt(values.elevationM) || 0,
-      eventMultiplierIds: selectedEvents,
-      review: values.review || undefined,
-    };
-    const result = defaultValues?.id
-      ? await updateActivity(defaultValues.id, input)
-      : await logActivity(input);
+    try {
+      const input = {
+        participationId,
+        activityDate: values.activityDate,
+        sport: values.sport,
+        distanceKm: parseFloat(values.distanceKm),
+        elevationM: parseInt(values.elevationM) || 0,
+        eventMultiplierIds: selectedEvents,
+        review: values.review || undefined,
+      };
+      const result = defaultValues?.id
+        ? await updateActivity(defaultValues.id, input)
+        : await logActivity(input);
 
-    if (result.error) {
-      setError(result.error);
-    } else {
-      onSuccess();
+      if (result.error) {
+        setError(result.error);
+      } else {
+        onSuccess();
+      }
+    } catch {
+      setError("오류가 발생했습니다. 다시 시도해 주세요.");
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
   });
 
   return (
@@ -131,21 +137,26 @@ export function ActivityLogForm({
 
       <div className="space-y-2">
         <Label htmlFor="sport">종목</Label>
-        <Select defaultValue={defaultValues?.sport ?? "running"}>
-          <SelectTrigger id="sport">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(Object.entries(SPORT_LABELS) as [Sport, string][]).map(
-              ([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              ),
-            )}
-          </SelectContent>
-        </Select>
-        <input type="hidden" {...register("sport")} />
+        <Controller
+          control={control}
+          name="sport"
+          render={({ field }) => (
+            <Select value={field.value} onValueChange={field.onChange}>
+              <SelectTrigger id="sport">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.entries(SPORT_LABELS) as [Sport, string][]).map(
+                  ([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ),
+                )}
+              </SelectContent>
+            </Select>
+          )}
+        />
       </div>
 
       <div className="space-y-2">
