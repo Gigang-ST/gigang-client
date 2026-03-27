@@ -53,6 +53,13 @@ export function calcNextMonthGoal(currentGoal: number, achieved: boolean): numbe
 }
 
 /**
+ * KST 기준 현재 시간을 Date 객체로 반환 (내부 헬퍼)
+ */
+function getKSTDate(): Date {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+}
+
+/**
  * date를 KST 기준 'YYYY-MM-01' 문자열로 변환
  */
 export function toMonthStart(date: Date): string {
@@ -66,9 +73,7 @@ export function toMonthStart(date: Date): string {
  * KST 기준 오늘 날짜를 'YYYY-MM-DD' 문자열로 반환
  */
 export function todayKST(): string {
-  const kst = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }),
-  );
+  const kst = getKSTDate();
   return `${kst.getFullYear()}-${String(kst.getMonth() + 1).padStart(2, "0")}-${String(kst.getDate()).padStart(2, "0")}`;
 }
 
@@ -76,10 +81,7 @@ export function todayKST(): string {
  * KST 기준 오늘의 일(day) 반환
  */
 export function todayDayKST(): number {
-  const kst = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }),
-  );
-  return kst.getDate();
+  return getKSTDate().getDate();
 }
 
 /**
@@ -111,7 +113,7 @@ export function calcDailyNeeded(
   if (currentMileage >= goalKm) return "done";
   const remaining = goalKm - currentMileage;
   const remainingDays = totalDays - todayDay + 1;
-  if (remainingDays <= 0) return remaining;
+  if (remainingDays <= 0) return 0;
   return remaining / remainingDays;
 }
 
