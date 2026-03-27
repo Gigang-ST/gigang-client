@@ -126,13 +126,14 @@ export async function logActivity(input: {
   if (logError || !log) return { error: "기록 저장 중 오류가 발생했습니다." };
 
   if (multipliers.length > 0) {
-    await supabase.from("activity_log_event").insert(
+    const { error: eventError } = await supabase.from("activity_log_event").insert(
       multipliers.map((m) => ({
         activity_log_id: log.id,
         event_multiplier_id: m.id,
         multiplier_snapshot: m.multiplier,
       })),
     );
+    if (eventError) return { error: "이벤트 배율 저장 중 오류가 발생했습니다." };
   }
 
   revalidatePath("/projects");
@@ -171,6 +172,13 @@ export async function updateActivity(
     }
   }
 
+  const { data: existingLog } = await supabase
+    .from("activity_log")
+    .select("id")
+    .eq("id", logId)
+    .maybeSingle();
+  if (!existingLog) return { error: "기록을 찾을 수 없거나 권한이 없습니다." };
+
   let multipliers: { id: string; multiplier: number }[] = [];
   if (input.eventMultiplierIds.length > 0) {
     const { data } = await supabase
@@ -200,13 +208,14 @@ export async function updateActivity(
 
   await supabase.from("activity_log_event").delete().eq("activity_log_id", logId);
   if (multipliers.length > 0) {
-    await supabase.from("activity_log_event").insert(
+    const { error: eventError } = await supabase.from("activity_log_event").insert(
       multipliers.map((m) => ({
         activity_log_id: logId,
         event_multiplier_id: m.id,
         multiplier_snapshot: m.multiplier,
       })),
     );
+    if (eventError) return { error: "이벤트 배율 저장 중 오류가 발생했습니다." };
   }
 
   revalidatePath("/projects");
@@ -235,6 +244,13 @@ export async function deleteActivity(
       return { error: "전월 기록은 매월 3일까지만 삭제 가능합니다." };
     }
   }
+
+  const { data: existingLog } = await supabase
+    .from("activity_log")
+    .select("id")
+    .eq("id", logId)
+    .maybeSingle();
+  if (!existingLog) return { error: "기록을 찾을 수 없거나 권한이 없습니다." };
 
   const { error } = await supabase.from("activity_log").delete().eq("id", logId);
   if (error) return { error: "기록 삭제 중 오류가 발생했습니다." };
@@ -284,8 +300,7 @@ export async function updateMonthlyGoal(
 
 // ── 내부 헬퍼 ─────────────────────────────────────────────
 async function checkIsAdmin(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
 ): Promise<boolean> {
   const { data: member } = await supabase
