@@ -1,9 +1,3 @@
-/**
- * 개인정보처리방침 페이지를 렌더링합니다.
- * 방침 제목, 시행일, 번호가 매겨진 섹션과 세부 내용을 표시합니다.
- *
- * @returns 개인정보처리방침 페이지 JSX
- */
 export default function PrivacyPage() {
   const policy = {
     heading: "개인정보처리방침",
@@ -22,7 +16,7 @@ export default function PrivacyPage() {
       {
         id: 2,
         title: "처리하는 개인정보 항목",
-        details: ["이름, 연락처, 생년, 성별, 프로필 사진, 이메일(선택), 계좌번호(선택), 은행명(선택)"],
+        details: ["이름, 연락처, 생년월일, 성별, 프로필 사진, 이메일, 계좌번호(선택), 은행명(선택)"],
       },
       {
         id: 3,
