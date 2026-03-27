@@ -7,11 +7,17 @@ import {
   calcDailyNeeded,
 } from "@/lib/mileage";
 
-export async function MyStatus({ participationId }: { participationId: string }) {
+export async function MyStatus({
+  participationId,
+  month,
+}: {
+  participationId: string;
+  month?: string;
+}) {
   const supabase = await createClient();
   const today = todayKST();
   const todayDay = todayDayKST();
-  const thisMonth = toMonthStart(new Date());
+  const thisMonth = month ?? toMonthStart(new Date());
 
   const { data: goal } = await supabase
     .from("mileage_goal")
@@ -20,19 +26,37 @@ export async function MyStatus({ participationId }: { participationId: string })
     .eq("month", thisMonth)
     .maybeSingle();
 
+  // 목표가 없으면 initial_goal을 fallback으로 사용
+  let goalKm = goal?.goal_km ? Number(goal.goal_km) : 0;
+  if (!goal) {
+    const { data: pp } = await supabase
+      .from("project_participation")
+      .select("initial_goal")
+      .eq("id", participationId)
+      .single();
+    if (pp) goalKm = pp.initial_goal;
+  }
+
+  // 해당 월의 마지막 날 계산
+  const [viewY, viewM] = thisMonth.split("-").map(Number);
+  const monthLastDay = `${viewY}-${String(viewM).padStart(2, "0")}-${String(new Date(viewY, viewM, 0).getDate()).padStart(2, "0")}`;
+  const debugMonth = toMonthStart(new Date());
+  const currentKSTMonth = process.env.NEXT_PUBLIC_DEBUG_DATE
+    ? toMonthStart(new Date(process.env.NEXT_PUBLIC_DEBUG_DATE))
+    : debugMonth;
+  const queryEnd = thisMonth <= currentKSTMonth ? monthLastDay : today;
+
   const { data: logs } = await supabase
     .from("activity_log")
     .select("final_mileage")
     .eq("participation_id", participationId)
     .gte("activity_date", thisMonth)
-    .lte("activity_date", today);
+    .lte("activity_date", queryEnd);
 
   const currentMileage = (logs ?? []).reduce(
     (sum, l) => sum + Number(l.final_mileage),
     0,
   );
-
-  const goalKm = goal?.goal_km ? Number(goal.goal_km) : 0;
 
   const now = new Date(thisMonth);
   const totalDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();

@@ -7,6 +7,7 @@ import {
   type Sport,
   calcBaseMileage,
   calcFinalMileage,
+  calcNextMonthGoal,
   toMonthStart,
   todayKST,
   todayDayKST,
@@ -296,6 +297,119 @@ export async function updateMonthlyGoal(
 
   revalidatePath("/projects");
   return {};
+}
+
+// ── 월별 목표 자동 생성 (lazy) ────────────────────────────
+/**
+ * 현재 월의 mileage_goal이 없으면 이전 월 달성 여부를 확인하여 자동 생성.
+ * 프로젝트 페이지 진입 시 서버 컴포넌트에서 호출한다.
+ */
+export async function ensureCurrentMonthGoal(
+  participationId: string,
+  projectEndMonth: string,
+): Promise<void> {
+  const supabase = await createClient();
+  const thisMonth = toMonthStart(new Date());
+
+  // 프로젝트 종료월 이후이면 생성하지 않음
+  if (thisMonth > projectEndMonth) return;
+
+  // 이미 당월 목표가 있으면 스킵
+  const { data: existing } = await supabase
+    .from("mileage_goal")
+    .select("id")
+    .eq("participation_id", participationId)
+    .eq("month", thisMonth)
+    .maybeSingle();
+
+  if (existing) return;
+
+  // 이전 월 목표 조회 (가장 최근 것)
+  const { data: prevGoal } = await supabase
+    .from("mileage_goal")
+    .select("goal_km, month")
+    .eq("participation_id", participationId)
+    .lt("month", thisMonth)
+    .order("month", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!prevGoal) {
+    // 이전 목표가 없으면 initial_goal로 첫 목표 생성
+    const { data: pp } = await supabase
+      .from("project_participation")
+      .select("initial_goal")
+      .eq("id", participationId)
+      .single();
+    if (!pp) return;
+    await supabase.from("mileage_goal").insert({
+      participation_id: participationId,
+      month: thisMonth,
+      goal_km: pp.initial_goal,
+    });
+    revalidatePath("/projects");
+    return;
+  }
+
+  // 이전 월 달성 마일리지 합산
+  const prevMonth = prevGoal.month as string;
+  const prevMonthEnd = nextMonthStr(prevMonth);
+  const { data: logs } = await supabase
+    .from("activity_log")
+    .select("final_mileage")
+    .eq("participation_id", participationId)
+    .gte("activity_date", prevMonth)
+    .lt("activity_date", prevMonthEnd);
+
+  const achieved = (logs ?? []).reduce(
+    (sum, l) => sum + Number(l.final_mileage),
+    0,
+  );
+  const prevGoalKm = Number(prevGoal.goal_km);
+  const wasAchieved = achieved >= prevGoalKm;
+
+  const newGoal = calcNextMonthGoal(prevGoalKm, wasAchieved);
+
+  await supabase.from("mileage_goal").insert({
+    participation_id: participationId,
+    month: thisMonth,
+    goal_km: newGoal,
+  });
+}
+
+/**
+ * 프로젝트의 전체 참여자에 대해 당월 목표를 일괄 생성.
+ * 프로젝트 페이지 진입 시 호출하여 누구든 접속하면 전원의 목표가 생성됨.
+ */
+export async function ensureAllCurrentMonthGoals(
+  projectId: string,
+  projectEndMonth: string,
+): Promise<void> {
+  const supabase = await createClient();
+  const thisMonth = toMonthStart(new Date());
+
+  if (thisMonth > projectEndMonth) return;
+
+  // 해당 월 이전에 참가한 전체 참여자 조회
+  const { data: participations } = await supabase
+    .from("project_participation")
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("deposit_confirmed", true)
+    .lte("start_month", thisMonth);
+
+  if (!participations?.length) return;
+
+  for (const p of participations) {
+    await ensureCurrentMonthGoal(p.id, projectEndMonth);
+  }
+}
+
+/** 'YYYY-MM-01' → 다음 달 'YYYY-MM-01' */
+function nextMonthStr(monthStr: string): string {
+  const [y, m] = monthStr.split("-").map(Number);
+  const next = new Date(y, m, 1); // m은 0-indexed에서 +1이므로 다음 달
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
 // ── 내부 헬퍼 ─────────────────────────────────────────────

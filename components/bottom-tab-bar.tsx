@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils";
 const TABS = [
   { label: "홈", href: "/", icon: House },
   { label: "대회", href: "/races", icon: Trophy },
-  { label: "랭킹", href: "/records", icon: Medal },
   { label: "프로젝트", href: "/projects", icon: Zap },
+  { label: "랭킹", href: "/records", icon: Medal },
   { label: "프로필", href: "/profile", icon: User },
 ] as const;
 
