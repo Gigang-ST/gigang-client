@@ -9,8 +9,8 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT id FROM public.member
-  WHERE kakao_user_id = auth.uid()::text
-     OR google_user_id = auth.uid()::text
+  WHERE kakao_user_id = auth.uid()
+     OR google_user_id = auth.uid()
   LIMIT 1;
 $$;
 
@@ -23,8 +23,8 @@ SET search_path = public
 AS $$
   SELECT COALESCE(
     (SELECT admin FROM public.member
-     WHERE kakao_user_id = auth.uid()::text
-        OR google_user_id = auth.uid()::text
+     WHERE kakao_user_id = auth.uid()
+        OR google_user_id = auth.uid()
      LIMIT 1),
     false
   );
@@ -64,8 +64,8 @@ CREATE TABLE public.project_participation (
 ALTER TABLE public.project_participation ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "participation_select" ON public.project_participation
   FOR SELECT USING (member_id = public.get_member_id() OR public.is_admin());
-CREATE POLICY "participation_insert" ON public.project_participation
-  FOR INSERT WITH CHECK (member_id = public.get_member_id());
+CREATE POLICY "participation_insert_self" ON public.project_participation
+  FOR INSERT WITH CHECK (member_id = public.get_member_id() AND NOT public.is_admin());
 CREATE POLICY "participation_admin"  ON public.project_participation
   FOR ALL USING (public.is_admin());
 
@@ -100,7 +100,8 @@ CREATE TABLE public.event_multiplier (
   is_active  boolean NOT NULL DEFAULT true,
   start_date date,
   end_date   date,
-  created_at timestamptz NOT NULL DEFAULT now()
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT end_after_start CHECK (end_date IS NULL OR start_date IS NULL OR end_date >= start_date)
 );
 
 ALTER TABLE public.event_multiplier ENABLE ROW LEVEL SECURITY;
@@ -154,17 +155,14 @@ CREATE POLICY "activity_log_event_own" ON public.activity_log_event
   );
 
 -- updated_at 자동 갱신 트리거
-CREATE OR REPLACE FUNCTION public.set_updated_at()
-RETURNS trigger
-LANGUAGE plpgsql
-SET search_path = public
-AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
-$$;
-
 CREATE TRIGGER activity_log_updated_at
   BEFORE UPDATE ON public.activity_log
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+-- 성능을 위한 인덱스
+CREATE INDEX ON public.project_participation(member_id);
+CREATE INDEX ON public.project_participation(project_id);
+CREATE INDEX ON public.mileage_goal(participation_id);
+CREATE INDEX ON public.activity_log(participation_id);
+CREATE INDEX ON public.activity_log(activity_date);
+CREATE INDEX ON public.activity_log_event(event_multiplier_id);
