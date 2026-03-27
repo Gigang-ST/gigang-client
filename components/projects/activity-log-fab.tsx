@@ -37,6 +37,7 @@ export function ActivityLogFab({
             <SheetTitle>기록 입력</SheetTitle>
           </SheetHeader>
           <ActivityLogForm
+            key={open ? "open" : "closed"}
             participationId={participationId}
             projectId={projectId}
             onSuccess={() => setOpen(false)}
