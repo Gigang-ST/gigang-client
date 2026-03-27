@@ -77,7 +77,7 @@ export default function PrivacyPage() {
       {
         id: 10,
         title: "개인정보 보호 책임자",
-        details: ["이현근 (크루장)", "카카오톡 아이디: winsu"],
+        details: ["이현근 (크루장)", "이메일: team.gigang@gmail.com"],
       },
       {
         id: 11,
