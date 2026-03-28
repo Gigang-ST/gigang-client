@@ -24,8 +24,8 @@
 .DS_Store
 *.pem
 
-# Cursor 에디터 (로컬 MCP 등)
-.cursor/
+# Cursor 에디터
+.cursor/plans/
 
 # debug
 npm-debug.log*
