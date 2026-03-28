@@ -23,8 +23,8 @@ export async function RandomReview({ projectId }: { projectId: string }) {
   if (!reviews || reviews.length === 0) return null;
 
   const pick = reviews[Math.floor(Math.random() * reviews.length)];
-  const member = (pick as any).project_participation?.member;
-  const name = member?.full_name ?? "익명";
+  const pp = pick.project_participation as unknown as { member: { full_name: string | null }[] } | undefined;
+  const name = pp?.member?.[0]?.full_name ?? "익명";
   const sport = SPORT_LABEL[pick.sport as string] ?? pick.sport;
 
   return (

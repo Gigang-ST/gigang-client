@@ -129,6 +129,28 @@ export function calcDailyNeeded(
   return remaining / remainingDays;
 }
 
+// ── 비즈니스 상수 ─────────────────────────────────────────
+export const DEPOSIT_PER_MONTH = 10_000;
+export const ENTRY_FEE_PER_PERSON = 10_000;
+
+/**
+ * 'YYYY-MM-01' → 다음 달 'YYYY-MM-01'
+ */
+export function nextMonthStr(monthStr: string): string {
+  const [y, m] = monthStr.split("-").map(Number);
+  const next = new Date(y, m, 1);
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+/**
+ * 두 월 사이의 개월 수 (from ~ to, 양쪽 포함)
+ */
+export function countMonths(from: string, to: string): number {
+  const [fy, fm] = from.split("-").map(Number);
+  const [ty, tm] = to.split("-").map(Number);
+  return Math.max((ty - fy) * 12 + (tm - fm) + 1, 0);
+}
+
 /**
  * 월 환급률 (0.0 ~ 1.0)
  */

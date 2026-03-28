@@ -8,7 +8,7 @@ import {
   calcBaseMileage,
   calcFinalMileage,
   calcNextMonthGoal,
-  toMonthStart,
+  nextMonthStr,
   currentMonthKST,
   todayKST,
   todayDayKST,
@@ -401,17 +401,11 @@ export async function ensureAllCurrentMonthGoals(
 
   if (!participations?.length) return;
 
-  for (const p of participations) {
-    await ensureCurrentMonthGoal(p.id, projectEndMonth);
-  }
+  await Promise.all(
+    participations.map((p) => ensureCurrentMonthGoal(p.id, projectEndMonth)),
+  );
 }
 
-/** 'YYYY-MM-01' → 다음 달 'YYYY-MM-01' */
-function nextMonthStr(monthStr: string): string {
-  const [y, m] = monthStr.split("-").map(Number);
-  const next = new Date(y, m, 1); // m은 0-indexed에서 +1이므로 다음 달
-  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-01`;
-}
 
 
 // ── 내부 헬퍼 ─────────────────────────────────────────────

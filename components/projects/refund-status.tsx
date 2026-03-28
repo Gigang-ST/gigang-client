@@ -1,14 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { currentMonthKST, calcMonthRefundRate } from "@/lib/mileage";
-
-const DEPOSIT_PER_MONTH = 10000;
-const ENTRY_FEE_PER_PERSON = 10000;
-
-function nextMonth(monthStr: string): string {
-  const [y, m] = monthStr.split("-").map(Number);
-  const next = new Date(y, m, 1);
-  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-01`;
-}
+import { currentMonthKST, calcMonthRefundRate, nextMonthStr as nextMonth, DEPOSIT_PER_MONTH, ENTRY_FEE_PER_PERSON } from "@/lib/mileage";
 
 /**
  * 특정 참여자의 월별 환급액 합산 계산
