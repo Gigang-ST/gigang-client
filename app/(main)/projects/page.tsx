@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
-import { toMonthStart } from "@/lib/mileage";
+import { currentMonthKST } from "@/lib/mileage";
 import { validateUUID } from "@/lib/utils";
 import { MonthNavigator } from "@/components/projects/month-navigator";
 import { CrewProgressChart } from "@/components/projects/crew-progress-chart";
@@ -9,10 +9,13 @@ import { CrewMonthlyStats } from "@/components/projects/crew-monthly-stats";
 import { MyStatus } from "@/components/projects/my-status";
 import { RefundStatus } from "@/components/projects/refund-status";
 import { MyActivityList } from "@/components/projects/my-activity-list";
+import { MySportChart } from "@/components/projects/my-sport-chart";
 import { ActivityLogFab } from "@/components/projects/activity-log-fab";
+import { MileageRulesButton } from "@/components/projects/mileage-rules-button";
 import { JoinSection } from "@/components/projects/join-section";
 import { ensureAllCurrentMonthGoals } from "@/app/actions/mileage-run";
 import { ChartModeProvider } from "@/components/projects/chart-mode-context";
+import { RandomReview } from "@/components/projects/random-review";
 
 export default async function ProjectsPage({
   searchParams,
@@ -40,7 +43,7 @@ export default async function ProjectsPage({
 
   // 현재 월 결정 — 시작월 1달 전(연습 기간)부터 조회 가능
   const params = await searchParams;
-  const currentKSTMonth = toMonthStart(new Date());
+  const currentKSTMonth = currentMonthKST();
   const [sy, sm] = (project.start_month as string).split("-").map(Number);
   const practiceMonth = `${new Date(sy, sm - 2, 1).getFullYear()}-${String(new Date(sy, sm - 2, 1).getMonth() + 1).padStart(2, "0")}-01`;
   const selectedMonth =
@@ -116,6 +119,9 @@ export default async function ProjectsPage({
               refreshKey={Date.now()}
             />
           </Suspense>
+          <Suspense fallback={null}>
+            <RandomReview projectId={project.id} />
+          </Suspense>
           <Suspense fallback={<Skeleton className="h-32 w-full" />}>
             <CrewMonthlyStats
               projectId={project.id}
@@ -129,14 +135,19 @@ export default async function ProjectsPage({
       {/* 참여자 전용 영역 */}
       {isParticipant && (
         <>
-          {/* 내 현황 */}
+          {/* 내 현황 + 환급/회식지원비 */}
           <Suspense fallback={<Skeleton className="h-40 w-full rounded-xl" />}>
-            <MyStatus participationId={participation!.id} month={selectedMonth} />
+            <MyStatus
+              participationId={participation!.id}
+              projectId={project.id}
+              month={selectedMonth}
+              projectStartMonth={project.start_month}
+            />
           </Suspense>
 
-          {/* 환급 / 회식비 */}
-          <Suspense fallback={<Skeleton className="h-24 w-full rounded-xl" />}>
-            <RefundStatus participationId={participation!.id} projectId={project.id} month={selectedMonth} projectStartMonth={project.start_month} />
+          {/* 종목별 마일리지 차트 */}
+          <Suspense fallback={<Skeleton className="h-40 w-full rounded-xl" />}>
+            <MySportChart participationId={participation!.id} month={selectedMonth} />
           </Suspense>
 
           {/* 내 기록 (최신 5개 + 더보기) */}
@@ -147,6 +158,8 @@ export default async function ProjectsPage({
           <ActivityLogFab participationId={participation!.id} projectId={project.id} />
         </>
       )}
+
+      <MileageRulesButton />
     </div>
   );
 }

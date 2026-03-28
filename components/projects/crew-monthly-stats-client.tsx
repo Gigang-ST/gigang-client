@@ -11,6 +11,7 @@ export function CrewMonthlyStatsClient({
   achievedCount,
   totalRefunds,
   partyPool,
+  totalCollected,
 }: {
   displayMonth: number;
   isPractice: boolean;
@@ -20,6 +21,7 @@ export function CrewMonthlyStatsClient({
   achievedCount: number;
   totalRefunds: number;
   partyPool: number;
+  totalCollected: number;
 }) {
   const { mode } = useChartMode();
 
@@ -34,10 +36,14 @@ export function CrewMonthlyStatsClient({
         )}
       </h2>
 
-      <div className="grid grid-cols-2 gap-4 text-sm">
+      <div className="grid grid-cols-3 gap-4 text-sm">
         <div>
-          <p className="text-muted-foreground">참여 인원</p>
+          <p className="text-muted-foreground">참가 인원</p>
           <p className="text-xl font-bold">{activeMemberCount}명</p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">달성 인원</p>
+          <p className="text-xl font-bold">{achievedCount}명</p>
         </div>
         <div>
           <p className="text-muted-foreground">
@@ -49,30 +55,29 @@ export function CrewMonthlyStatsClient({
               : `${avgRate.toFixed(1)}%`}
           </p>
         </div>
-        <div>
-          <p className="text-muted-foreground">달성 인원</p>
-          <p className="text-xl font-bold">
-            {achievedCount} / {activeMemberCount}명
-          </p>
-        </div>
         {!isPractice && (
-          <div>
-            <p className="text-muted-foreground">환급 예상 총액</p>
-            <p className="text-xl font-bold">
-              {Math.floor(totalRefunds).toLocaleString()}원
-            </p>
-          </div>
+          <>
+            <div>
+              <p className="text-muted-foreground">총 참가비</p>
+              <p className="text-xl font-bold">
+                {Math.floor(totalCollected).toLocaleString()}원
+              </p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">총 회식비</p>
+              <p className="text-xl font-bold">
+                {Math.floor(partyPool).toLocaleString()}원
+              </p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">총 환급금</p>
+              <p className="text-xl font-bold">
+                {Math.floor(totalRefunds).toLocaleString()}원
+              </p>
+            </div>
+          </>
         )}
       </div>
-
-      {!isPractice && (
-        <div className="border-t pt-3">
-          <p className="text-muted-foreground text-sm">회식비 풀</p>
-          <p className="text-xl font-bold">
-            {Math.floor(partyPool).toLocaleString()}원
-          </p>
-        </div>
-      )}
     </section>
   );
 }

@@ -74,6 +74,14 @@ export function toMonthStart(date: Date): string {
 }
 
 /**
+ * KST 기준 이번 달 'YYYY-MM-01' 반환 (디버그 날짜 지원)
+ */
+export function currentMonthKST(): string {
+  const kst = getKSTDate();
+  return `${kst.getFullYear()}-${String(kst.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+/**
  * KST 기준 오늘 날짜를 'YYYY-MM-DD' 문자열로 반환
  */
 export function todayKST(): string {

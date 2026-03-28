@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { joinProject } from "@/app/actions/mileage-run";
+import { MileageRulesContent } from "./mileage-rules-content";
 
 type Props = {
   project: { id: string; name: string; start_month: string; end_month: string };
@@ -105,6 +106,11 @@ export function JoinSection({ project, participation }: Props) {
 
   return (
     <div className="space-y-6">
+      <div className="rounded-xl border p-6 space-y-4">
+        <h2 className="font-semibold text-lg">마일리지런 규칙</h2>
+        <MileageRulesContent />
+      </div>
+
       <div className="rounded-xl border p-6 space-y-4">
         <h2 className="font-semibold text-lg">참여 신청</h2>
 

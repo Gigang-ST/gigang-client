@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { todayKST, toMonthStart, calcMonthRefundRate } from "@/lib/mileage";
+import { todayKST, currentMonthKST, calcMonthRefundRate } from "@/lib/mileage";
 import { CrewMonthlyStatsClient } from "./crew-monthly-stats-client";
 
 const DEPOSIT_PER_MONTH = 10000;
@@ -22,7 +22,7 @@ export async function CrewMonthlyStats({
 }) {
   const supabase = await createClient();
   const today = todayKST();
-  const thisMonth = month ?? toMonthStart(new Date());
+  const thisMonth = month ?? currentMonthKST();
   const displayMonth = Number(thisMonth.split("-")[1]);
   const isPractice = projectStartMonth ? thisMonth < projectStartMonth : false;
 
@@ -104,6 +104,7 @@ export async function CrewMonthlyStats({
   // 환급/회식비는 실전 기간만
   let totalRefunds = 0;
   let partyPool = 0;
+  let totalCollected = 0;
 
   if (!isPractice) {
     for (const p of activeMembers) {
@@ -131,12 +132,38 @@ export async function CrewMonthlyStats({
       });
     }
 
+    // 참가자별 start_month 조회 (보증금 개월 수 계산용)
+    const { data: allStartMonths } = await supabase
+      .from("project_participation")
+      .select("id, start_month")
+      .eq("project_id", projectId)
+      .eq("deposit_confirmed", true);
+
+    const startMonthById = new Map<string, string>();
+    for (const p of allStartMonths ?? []) {
+      startMonthById.set(p.id, p.start_month as string);
+    }
+
+    // 두 월 사이의 개월 수 계산 (start_month ~ thisMonth)
+    function countMonths(from: string, to: string): number {
+      const [fy, fm] = from.split("-").map(Number);
+      const [ty, tm] = to.split("-").map(Number);
+      return Math.max((ty - fy) * 12 + (tm - fm) + 1, 0);
+    }
+
     let totalDeposits = 0;
     let totalAllRefunds = 0;
+    let activeMemberCountForFee = 0;
 
     for (const p of members) {
+      const pStart = startMonthById.get(p.id);
+      if (!pStart || pStart > thisMonth) continue;
+      activeMemberCountForFee++;
+      const effectiveStart = pStart < projectStartMonth! ? projectStartMonth! : pStart;
+      const months = countMonths(effectiveStart, thisMonth);
+      totalDeposits += months * DEPOSIT_PER_MONTH;
+
       const pGoals = goalsByParticipant.get(p.id) ?? [];
-      totalDeposits += pGoals.length * DEPOSIT_PER_MONTH;
 
       for (const goal of pGoals) {
         const monthStart = goal.month;
@@ -158,7 +185,9 @@ export async function CrewMonthlyStats({
       }
     }
 
-    partyPool = totalDeposits - totalAllRefunds + totalMembers * ENTRY_FEE_PER_PERSON;
+    totalCollected = totalDeposits + activeMemberCountForFee * ENTRY_FEE_PER_PERSON;
+    totalRefunds = totalAllRefunds;
+    partyPool = totalCollected - totalRefunds;
   }
 
   return (
@@ -171,6 +200,7 @@ export async function CrewMonthlyStats({
       achievedCount={achievedCount}
       totalRefunds={totalRefunds}
       partyPool={partyPool}
+      totalCollected={totalCollected}
     />
   );
 }
