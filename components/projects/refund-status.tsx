@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { toMonthStart, calcMonthRefundRate } from "@/lib/mileage";
+import { currentMonthKST, calcMonthRefundRate } from "@/lib/mileage";
 
 const DEPOSIT_PER_MONTH = 10000;
 const ENTRY_FEE_PER_PERSON = 10000;
@@ -61,7 +61,7 @@ export async function RefundStatus({
   projectStartMonth?: string;
 }) {
   const supabase = await createClient();
-  const currentMonth = month ?? toMonthStart(new Date());
+  const currentMonth = month ?? currentMonthKST();
   const isPractice = projectStartMonth ? currentMonth < projectStartMonth : false;
 
   if (isPractice) {
@@ -203,34 +203,21 @@ export async function RefundStatus({
       : 0;
 
   return (
-    <section className="rounded-xl border p-5 space-y-3">
-      <h2 className="font-semibold text-lg">환급 / 회식비</h2>
+    <section className="rounded-xl border p-5">
       <div className="grid grid-cols-2 gap-4 text-sm">
         <div>
-          <p className="text-muted-foreground">확정 환급액</p>
+          <p className="text-muted-foreground">내 환급금</p>
           <p className="text-xl font-bold">
             {Math.floor(confirmedRefund + currentMonthProjected).toLocaleString()}원
           </p>
         </div>
         <div>
-          <p className="text-muted-foreground">회식비 지원 예상금액</p>
+          <p className="text-muted-foreground">내 회식지원비</p>
           <p className="text-xl font-bold">
             {myPartyBudget.toLocaleString()}원
           </p>
         </div>
       </div>
-      <div className="border-t pt-3">
-        <p className="text-muted-foreground text-sm">회식비 잔여 총액</p>
-        <p className="text-xl font-bold">
-          {Math.floor(partyPool).toLocaleString()}원
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          내 지분: 참여 {myShareMonths}개월 / 전체 {totalShareMonths}개월
-        </p>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        * 최종 환급 및 회식비는 9월 종료 후 일괄 지급
-      </p>
     </section>
   );
 }

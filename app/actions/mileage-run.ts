@@ -9,6 +9,7 @@ import {
   calcFinalMileage,
   calcNextMonthGoal,
   toMonthStart,
+  currentMonthKST,
   todayKST,
   todayDayKST,
 } from "@/lib/mileage";
@@ -32,7 +33,7 @@ export async function joinProject(
     .maybeSingle();
   if (!member) return { error: "회원 정보를 찾을 수 없습니다." };
 
-  const startMonth = toMonthStart(new Date());
+  const startMonth = currentMonthKST();
 
   const { data: participation, error: insertError } = await supabase
     .from("project_participation")
@@ -175,7 +176,7 @@ export async function updateActivity(
 
   const { data: existingLog } = await supabase
     .from("activity_log")
-    .select("id")
+    .select("id, participation_id")
     .eq("id", logId)
     .maybeSingle();
   if (!existingLog) return { error: "기록을 찾을 수 없거나 권한이 없습니다." };
@@ -248,7 +249,7 @@ export async function deleteActivity(
 
   const { data: existingLog } = await supabase
     .from("activity_log")
-    .select("id")
+    .select("id, participation_id")
     .eq("id", logId)
     .maybeSingle();
   if (!existingLog) return { error: "기록을 찾을 수 없거나 권한이 없습니다." };
@@ -309,7 +310,7 @@ export async function ensureCurrentMonthGoal(
   projectEndMonth: string,
 ): Promise<void> {
   const supabase = await createClient();
-  const thisMonth = toMonthStart(new Date());
+  const thisMonth = currentMonthKST();
 
   // 프로젝트 종료월 이후이면 생성하지 않음
   if (thisMonth > projectEndMonth) return;
@@ -386,7 +387,7 @@ export async function ensureAllCurrentMonthGoals(
   projectEndMonth: string,
 ): Promise<void> {
   const supabase = await createClient();
-  const thisMonth = toMonthStart(new Date());
+  const thisMonth = currentMonthKST();
 
   if (thisMonth > projectEndMonth) return;
 
@@ -411,6 +412,7 @@ function nextMonthStr(monthStr: string): string {
   const next = new Date(y, m, 1); // m은 0-indexed에서 +1이므로 다음 달
   return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-01`;
 }
+
 
 // ── 내부 헬퍼 ─────────────────────────────────────────────
 async function checkIsAdmin(
