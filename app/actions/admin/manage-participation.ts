@@ -123,7 +123,8 @@ export async function rejectParticipation(participationId: string) {
   const { error } = await db
     .from("project_participation")
     .delete()
-    .eq("id", participationId);
+    .eq("id", participationId)
+    .eq("deposit_confirmed", false);
 
   if (error) return { ok: false, message: "거절에 실패했습니다" };
   return { ok: true, message: null };
