@@ -70,16 +70,32 @@ export function ActivityLogForm({
   const sport = watch("sport");
   const distanceKm = watch("distanceKm");
   const elevationM = watch("elevationM");
+  const activityDate = watch("activityDate");
 
-  // 활성 이벤트 로드
+  // 선택된 날짜에 유효한 이벤트만 로드
   useEffect(() => {
-    createClient()
+    let query = createClient()
       .from("event_multiplier")
-      .select("id, name, multiplier")
+      .select("id, name, multiplier, start_date, end_date")
       .eq("project_id", projectId)
-      .eq("is_active", true)
-      .then(({ data }) => setEvents(data ?? []));
-  }, [projectId]);
+      .eq("is_active", true);
+
+    if (activityDate) {
+      query = query
+        .or(`start_date.is.null,start_date.lte.${activityDate}`)
+        .or(`end_date.is.null,end_date.gte.${activityDate}`);
+    }
+
+    query.then(({ data }) => {
+      setEvents(data ?? []);
+      // 날짜 변경 시 더 이상 유효하지 않은 이벤트 선택 해제
+      setSelectedEventIds((prev) => {
+        const validIds = new Set((data ?? []).map((e) => e.id));
+        const filtered = prev.filter((id) => validIds.has(id));
+        return filtered.length !== prev.length ? filtered : prev;
+      });
+    });
+  }, [projectId, activityDate]);
 
   // 마일리지 미리보기
   useEffect(() => {
