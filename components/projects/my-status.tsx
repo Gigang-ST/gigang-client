@@ -55,10 +55,7 @@ export async function MyStatus({
   // 해당 월의 마지막 날 계산
   const [viewY, viewM] = thisMonth.split("-").map(Number);
   const monthLastDay = `${viewY}-${String(viewM).padStart(2, "0")}-${String(new Date(viewY, viewM, 0).getDate()).padStart(2, "0")}`;
-  const debugMonth = currentMonthKST();
-  const currentKSTMonth = process.env.NEXT_PUBLIC_DEBUG_DATE
-    ? toMonthStart(new Date(process.env.NEXT_PUBLIC_DEBUG_DATE))
-    : debugMonth;
+  const currentKSTMonth = currentMonthKST();
   const queryEnd = thisMonth <= currentKSTMonth ? monthLastDay : today;
 
   const { data: logs } = await supabase
