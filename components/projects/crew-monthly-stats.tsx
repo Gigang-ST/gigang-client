@@ -1,15 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
-import { todayKST, currentMonthKST, calcMonthRefundRate } from "@/lib/mileage";
+import {
+  todayKST,
+  currentMonthKST,
+  calcMonthRefundRate,
+  nextMonthStr,
+  countMonths,
+  DEPOSIT_PER_MONTH,
+  ENTRY_FEE_PER_PERSON,
+} from "@/lib/mileage";
 import { CrewMonthlyStatsClient } from "./crew-monthly-stats-client";
-
-const DEPOSIT_PER_MONTH = 10000;
-const ENTRY_FEE_PER_PERSON = 10000;
-
-function nextMonth(monthStr: string): string {
-  const [y, m] = monthStr.split("-").map(Number);
-  const next = new Date(y, m, 1);
-  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-01`;
-}
 
 export async function CrewMonthlyStats({
   projectId,
@@ -23,20 +22,20 @@ export async function CrewMonthlyStats({
   const supabase = await createClient();
   const today = todayKST();
   const thisMonth = month ?? currentMonthKST();
+  const curMonth = currentMonthKST();
   const displayMonth = Number(thisMonth.split("-")[1]);
   const isPractice = projectStartMonth ? thisMonth < projectStartMonth : false;
 
   // 보증금 확인된 참여자 조회
   const { data: participations } = await supabase
     .from("project_participation")
-    .select("id")
+    .select("id, start_month")
     .eq("project_id", projectId)
     .eq("deposit_confirmed", true);
 
   const members = participations ?? [];
-  const totalMembers = members.length;
 
-  if (totalMembers === 0) return null;
+  if (members.length === 0) return null;
 
   const allPIds = members.map((p) => p.id);
 
@@ -47,11 +46,10 @@ export async function CrewMonthlyStats({
     .in("participation_id", allPIds)
     .eq("month", thisMonth);
 
-  // 해당 월 활동 기록 일괄 조회 (해당 월 범위만)
+  // 해당 월 활동 기록 일괄 조회
   const [viewY, viewM] = thisMonth.split("-").map(Number);
   const monthLastDay = `${viewY}-${String(viewM).padStart(2, "0")}-${String(new Date(viewY, viewM, 0).getDate()).padStart(2, "0")}`;
-  const currentKSTMonth = todayKST().slice(0, 7) + "-01";
-  const queryEnd = thisMonth < currentKSTMonth ? monthLastDay : (thisMonth === currentKSTMonth ? today : monthLastDay);
+  const queryEnd = thisMonth < curMonth ? monthLastDay : today;
 
   const { data: allLogs } = await supabase
     .from("activity_log")
@@ -107,14 +105,7 @@ export async function CrewMonthlyStats({
   let totalCollected = 0;
 
   if (!isPractice) {
-    for (const p of activeMembers) {
-      const goalKm = goalByPId.get(p.id) ?? p.initial_goal;
-      const mileage = mileageByPId.get(p.id) ?? 0;
-      const refundRate = calcMonthRefundRate(mileage, goalKm);
-      totalRefunds += refundRate * DEPOSIT_PER_MONTH;
-    }
-
-    // 회식비 풀 계산
+    // 전체 월 목표 일괄 조회
     const { data: allMonthGoals } = await supabase
       .from("mileage_goal")
       .select("participation_id, month, goal_km")
@@ -132,23 +123,23 @@ export async function CrewMonthlyStats({
       });
     }
 
-    // 참가자별 start_month 조회 (보증금 개월 수 계산용)
-    const { data: allStartMonths } = await supabase
-      .from("project_participation")
-      .select("id, start_month")
-      .eq("project_id", projectId)
-      .eq("deposit_confirmed", true);
+    // 전체 활동 기록 일괄 조회 (시작월 ~ 현재월)
+    const startMonth = projectStartMonth ?? thisMonth;
+    const endDate = thisMonth < curMonth ? monthLastDay : today;
+    const { data: allActivityLogs } = await supabase
+      .from("activity_log")
+      .select("participation_id, activity_date, final_mileage")
+      .in("participation_id", allPIds)
+      .gte("activity_date", startMonth)
+      .lte("activity_date", endDate);
 
-    const startMonthById = new Map<string, string>();
-    for (const p of allStartMonths ?? []) {
-      startMonthById.set(p.id, p.start_month as string);
-    }
-
-    // 두 월 사이의 개월 수 계산 (start_month ~ thisMonth)
-    function countMonths(from: string, to: string): number {
-      const [fy, fm] = from.split("-").map(Number);
-      const [ty, tm] = to.split("-").map(Number);
-      return Math.max((ty - fy) * 12 + (tm - fm) + 1, 0);
+    // (participation_id, month) 별 마일리지 합산 맵
+    const mileageByPIdMonth = new Map<string, number>();
+    for (const l of allActivityLogs ?? []) {
+      const pid = l.participation_id as string;
+      const m = (l.activity_date as string).slice(0, 7) + "-01";
+      const key = `${pid}:${m}`;
+      mileageByPIdMonth.set(key, (mileageByPIdMonth.get(key) ?? 0) + Number(l.final_mileage));
     }
 
     let totalDeposits = 0;
@@ -156,30 +147,17 @@ export async function CrewMonthlyStats({
     let activeMemberCountForFee = 0;
 
     for (const p of members) {
-      const pStart = startMonthById.get(p.id);
-      if (!pStart || pStart > thisMonth) continue;
+      const pStart = p.start_month as string;
+      if (pStart > thisMonth) continue;
       activeMemberCountForFee++;
       const effectiveStart = pStart < projectStartMonth! ? projectStartMonth! : pStart;
       const months = countMonths(effectiveStart, thisMonth);
       totalDeposits += months * DEPOSIT_PER_MONTH;
 
       const pGoals = goalsByParticipant.get(p.id) ?? [];
-
       for (const goal of pGoals) {
-        const monthStart = goal.month;
-        const monthEnd = nextMonth(monthStart);
-
-        const { data: logs } = await supabase
-          .from("activity_log")
-          .select("final_mileage")
-          .eq("participation_id", p.id)
-          .gte("activity_date", monthStart)
-          .lt("activity_date", monthEnd);
-
-        const achieved = (logs ?? []).reduce(
-          (sum, l) => sum + Number(l.final_mileage),
-          0,
-        );
+        const key = `${p.id}:${goal.month}`;
+        const achieved = mileageByPIdMonth.get(key) ?? 0;
         const rate = calcMonthRefundRate(achieved, goal.goal_km);
         totalAllRefunds += rate * DEPOSIT_PER_MONTH;
       }
