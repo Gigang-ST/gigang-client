@@ -6,6 +6,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
+import {
+  DevEmailLogin,
+  isDevEmailLoginEnabled,
+} from "@/components/auth/dev-email-login";
 import { SocialLinksRow } from "@/components/social-links";
 
 export function LoginForm({
@@ -86,6 +90,13 @@ export function LoginForm({
             {oauthProvider === "google" ? "연결 중..." : "Google로 시작하기"}
           </span>
         </button>
+        {isDevEmailLoginEnabled() ? (
+          <DevEmailLogin
+            redirectPath={safeNext}
+            oauthBusy={oauthProvider !== null}
+            className="mt-1"
+          />
+        ) : null}
         {error && <p className="text-center text-sm text-destructive">{error}</p>}
         <Link
           href="/"
