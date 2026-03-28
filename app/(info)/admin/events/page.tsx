@@ -19,6 +19,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -307,98 +308,81 @@ export default function EventMultipliersPage() {
       )}
 
       {/* 추가/수정 시트 */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex flex-col">
-          {/* 오버레이 */}
-          <div className="flex-1 bg-black/40" onClick={resetForm} />
-          {/* 시트 */}
-          <div className="flex max-h-[80vh] flex-col overflow-y-auto rounded-t-3xl bg-white pb-8 dark:bg-background">
-            {/* 핸들 */}
-            <div className="flex justify-center py-3">
-              <div className="h-1 w-10 rounded-full bg-border" />
+      <Sheet open={showForm} onOpenChange={(open) => { if (!open) resetForm(); }}>
+        <SheetContent side="bottom" className="max-h-[80vh] overflow-y-auto rounded-t-3xl">
+          <SheetHeader>
+            <SheetTitle>
+              {editingEvent ? "이벤트 배율 수정" : "이벤트 배율 추가"}
+            </SheetTitle>
+          </SheetHeader>
+
+          <div className="flex flex-col gap-5 px-4 pt-4 pb-8">
+            {/* 이름 */}
+            <div className="flex flex-col gap-2">
+              <label className="text-[13px] font-medium text-muted-foreground">
+                이벤트 이름
+              </label>
+              <Input
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                placeholder="예: 주말 더블 포인트"
+                className="h-12 rounded-xl border-[1.5px] text-[15px]"
+              />
             </div>
 
-            <div className="flex flex-col gap-5 px-6">
-              {/* 헤더 */}
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold text-foreground">
-                  {editingEvent ? "이벤트 배율 수정" : "이벤트 배율 추가"}
-                </h2>
-                <button
-                  onClick={resetForm}
-                  className="flex size-8 items-center justify-center rounded-lg text-muted-foreground"
-                >
-                  <X className="size-5" />
-                </button>
-              </div>
-
-              {/* 이름 */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[13px] font-medium text-muted-foreground">
-                  이벤트 이름
-                </label>
-                <Input
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  placeholder="예: 주말 더블 포인트"
-                  className="h-12 rounded-xl border-[1.5px] text-[15px]"
-                />
-              </div>
-
-              {/* 배율 */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[13px] font-medium text-muted-foreground">
-                  배율
-                </label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  value={formMultiplier}
-                  onChange={(e) => setFormMultiplier(e.target.value)}
-                  placeholder="예: 2.00"
-                  className="h-12 rounded-xl border-[1.5px] text-[15px]"
-                />
-              </div>
-
-              {/* 시작일 */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[13px] font-medium text-muted-foreground">
-                  시작일 (선택)
-                </label>
-                <Input
-                  type="date"
-                  value={formStartDate}
-                  onChange={(e) => setFormStartDate(e.target.value)}
-                  className="h-12 rounded-xl border-[1.5px] text-[15px]"
-                />
-              </div>
-
-              {/* 종료일 */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[13px] font-medium text-muted-foreground">
-                  종료일 (선택)
-                </label>
-                <Input
-                  type="date"
-                  value={formEndDate}
-                  onChange={(e) => setFormEndDate(e.target.value)}
-                  className="h-12 rounded-xl border-[1.5px] text-[15px]"
-                />
-              </div>
-
-              {/* 제출 버튼 */}
-              <button
-                onClick={handleSubmit}
-                disabled={actioning || !formName.trim() || !formMultiplier}
-                className="mt-2 flex h-12 items-center justify-center rounded-xl bg-primary text-[15px] font-semibold text-primary-foreground transition-colors active:bg-primary/90 disabled:opacity-50"
-              >
-                {editingEvent ? "수정" : "추가"}
-              </button>
+            {/* 배율 */}
+            <div className="flex flex-col gap-2">
+              <label className="text-[13px] font-medium text-muted-foreground">
+                배율
+              </label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={formMultiplier}
+                onChange={(e) => setFormMultiplier(e.target.value)}
+                placeholder="예: 2.00"
+                className="h-12 rounded-xl border-[1.5px] text-[15px]"
+              />
             </div>
+
+            {/* 시작일 */}
+            <div className="flex flex-col gap-2">
+              <label className="text-[13px] font-medium text-muted-foreground">
+                시작일 (선택)
+              </label>
+              <Input
+                type="date"
+                value={formStartDate}
+                onChange={(e) => setFormStartDate(e.target.value)}
+                className="h-12 rounded-xl border-[1.5px] text-[15px]"
+              />
+            </div>
+
+            {/* 종료일 */}
+            <div className="flex flex-col gap-2">
+              <label className="text-[13px] font-medium text-muted-foreground">
+                종료일 (선택)
+              </label>
+              <Input
+                type="date"
+                value={formEndDate}
+                onChange={(e) => setFormEndDate(e.target.value)}
+                className="h-12 rounded-xl border-[1.5px] text-[15px]"
+              />
+            </div>
+
+            {/* 제출 버튼 */}
+            <button
+              onClick={handleSubmit}
+              disabled={actioning || !formName.trim() || !formMultiplier}
+              className="mt-2 flex h-12 items-center justify-center rounded-xl bg-primary text-[15px] font-semibold text-primary-foreground transition-colors active:bg-primary/90 disabled:opacity-50"
+            >
+              {editingEvent ? "수정" : "추가"}
+            </button>
           </div>
-        </div>
-      )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

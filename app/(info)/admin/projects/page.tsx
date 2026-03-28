@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
 export default function ProjectsPage() {
@@ -255,82 +256,65 @@ export default function ProjectsPage() {
       )}
 
       {/* 추가/수정 시트 */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex flex-col">
-          {/* 오버레이 */}
-          <div className="flex-1 bg-black/40" onClick={resetForm} />
-          {/* 시트 */}
-          <div className="flex max-h-[80vh] flex-col overflow-y-auto rounded-t-3xl bg-white pb-8 dark:bg-background">
-            {/* 핸들 */}
-            <div className="flex justify-center py-3">
-              <div className="h-1 w-10 rounded-full bg-border" />
+      <Sheet open={showForm} onOpenChange={(open) => { if (!open) resetForm(); }}>
+        <SheetContent side="bottom" className="max-h-[80vh] overflow-y-auto rounded-t-3xl">
+          <SheetHeader>
+            <SheetTitle>
+              {editingProject ? "프로젝트 수정" : "프로젝트 추가"}
+            </SheetTitle>
+          </SheetHeader>
+
+          <div className="flex flex-col gap-5 px-4 pt-4 pb-8">
+            {/* 이름 */}
+            <div className="flex flex-col gap-2">
+              <label className="text-[13px] font-medium text-muted-foreground">
+                프로젝트 이름
+              </label>
+              <Input
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                placeholder="예: 2026 시즌 1"
+                className="h-12 rounded-xl border-[1.5px] text-[15px]"
+              />
             </div>
 
-            <div className="flex flex-col gap-5 px-6">
-              {/* 헤더 */}
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold text-foreground">
-                  {editingProject ? "프로젝트 수정" : "프로젝트 추가"}
-                </h2>
-                <button
-                  onClick={resetForm}
-                  className="flex size-8 items-center justify-center rounded-lg text-muted-foreground"
-                >
-                  <X className="size-5" />
-                </button>
-              </div>
-
-              {/* 이름 */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[13px] font-medium text-muted-foreground">
-                  프로젝트 이름
-                </label>
-                <Input
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  placeholder="예: 2026 시즌 1"
-                  className="h-12 rounded-xl border-[1.5px] text-[15px]"
-                />
-              </div>
-
-              {/* 시작월 */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[13px] font-medium text-muted-foreground">
-                  시작월
-                </label>
-                <Input
-                  type="month"
-                  value={formStartMonth}
-                  onChange={(e) => setFormStartMonth(e.target.value)}
-                  className="h-12 rounded-xl border-[1.5px] text-[15px]"
-                />
-              </div>
-
-              {/* 종료월 */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[13px] font-medium text-muted-foreground">
-                  종료월
-                </label>
-                <Input
-                  type="month"
-                  value={formEndMonth}
-                  onChange={(e) => setFormEndMonth(e.target.value)}
-                  className="h-12 rounded-xl border-[1.5px] text-[15px]"
-                />
-              </div>
-
-              {/* 제출 버튼 */}
-              <button
-                onClick={handleSubmit}
-                disabled={actioning || !formName.trim() || !formStartMonth || !formEndMonth}
-                className="mt-2 flex h-12 items-center justify-center rounded-xl bg-primary text-[15px] font-semibold text-primary-foreground transition-colors active:bg-primary/90 disabled:opacity-50"
-              >
-                {editingProject ? "수정" : "추가"}
-              </button>
+            {/* 시작월 */}
+            <div className="flex flex-col gap-2">
+              <label className="text-[13px] font-medium text-muted-foreground">
+                시작월
+              </label>
+              <Input
+                type="month"
+                value={formStartMonth}
+                onChange={(e) => setFormStartMonth(e.target.value)}
+                className="h-12 rounded-xl border-[1.5px] text-[15px]"
+              />
             </div>
+
+            {/* 종료월 */}
+            <div className="flex flex-col gap-2">
+              <label className="text-[13px] font-medium text-muted-foreground">
+                종료월
+              </label>
+              <Input
+                type="month"
+                value={formEndMonth}
+                onChange={(e) => setFormEndMonth(e.target.value)}
+                className="h-12 rounded-xl border-[1.5px] text-[15px]"
+              />
+            </div>
+
+            {/* 제출 버튼 */}
+            <button
+              onClick={handleSubmit}
+              disabled={actioning || !formName.trim() || !formStartMonth || !formEndMonth}
+              className="mt-2 flex h-12 items-center justify-center rounded-xl bg-primary text-[15px] font-semibold text-primary-foreground transition-colors active:bg-primary/90 disabled:opacity-50"
+            >
+              {editingProject ? "수정" : "추가"}
+            </button>
           </div>
-        </div>
-      )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
