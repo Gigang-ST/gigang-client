@@ -45,18 +45,21 @@ export function DevEmailLogin({
     e.preventDefault();
     setError(null);
     setBusy(true);
-    const supabase = createClient();
-    const { error: signError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    setBusy(false);
-    if (signError) {
-      setError(signError.message);
-      return;
+    try {
+      const supabase = createClient();
+      const { error: signError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      if (signError) {
+        setError(signError.message);
+        return;
+      }
+      router.push(redirectPath);
+      router.refresh();
+    } finally {
+      setBusy(false);
     }
-    router.push(redirectPath);
-    router.refresh();
   };
 
   return (
