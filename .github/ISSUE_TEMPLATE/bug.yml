@@ -1,0 +1,62 @@
+name: "Bug"
+description: "버그 리포트"
+labels: ["priority/high"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 버그 리포트
+
+  - type: textarea
+    id: current
+    attributes:
+      label: "현재 동작"
+      description: "지금 어떤 문제가 발생하는지 설명해주세요."
+      placeholder: "~를 하면 ~가 발생한다"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: "기대 동작"
+      description: "원래 어떻게 동작해야 하는지 설명해주세요."
+      placeholder: "~를 하면 ~가 되어야 한다"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: "재현 방법"
+      description: "버그를 재현하는 단계를 적어주세요."
+      placeholder: |
+        1. ~ 페이지에 접속
+        2. ~ 버튼 클릭
+        3. 에러 발생
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: "에러 로그 / 코드 (선택)"
+      description: "콘솔 에러, 네트워크 응답, 관련 코드 등을 코드블록으로 첨부해주세요."
+      placeholder: |
+        ```
+        Error: Something went wrong
+          at Component (app/page.tsx:42)
+        ```
+    validations:
+      required: false
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: "환경"
+      options:
+        - 프로덕션 (main)
+        - 개발계 (dev)
+        - 로컬
+    validations:
+      required: true
