@@ -9,16 +9,16 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 /**
- * 개발/스테이징에서만 이메일·비밀번호 로그인 UI를 노출할 때 사용합니다.
- * - 로컬: `pnpm dev` (NODE_ENV=development)면 자동 허용
- * - Vercel 개발계: `NEXT_PUBLIC_ENABLE_DEV_EMAIL_LOGIN=true`
- * 운영에는 위 변수를 두지 않으면 UI가 렌더되지 않습니다.
+ * 클라이언트에서 개발 전용 UI(이메일 로그인 등)를 켤지 여부.
+ * - 로컬: `pnpm dev` (NODE_ENV=development)면 자동 true
+ * - Vercel 개발계: `NEXT_PUBLIC_ENABLE_DEV_MODE=true`
+ * 운영 프로젝트에는 변수를 두지 않으면 false.
  */
-export function isDevEmailLoginEnabled(): boolean {
+export function isDevModeEnabled(): boolean {
   if (process.env.NODE_ENV === "development") {
     return true;
   }
-  return process.env.NEXT_PUBLIC_ENABLE_DEV_EMAIL_LOGIN === "true";
+  return process.env.NEXT_PUBLIC_ENABLE_DEV_MODE === "true";
 }
 
 type DevEmailLoginProps = {
@@ -29,7 +29,7 @@ type DevEmailLoginProps = {
   className?: string;
 };
 
-/** Supabase 이메일·비밀번호 로그인. `isDevEmailLoginEnabled()`가 true일 때만 마운트합니다. */
+/** Supabase 이메일·비밀번호 로그인. `isDevModeEnabled()`가 true일 때만 마운트합니다. */
 export function DevEmailLogin({
   redirectPath,
   oauthBusy,
