@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
@@ -39,7 +39,7 @@ export function RaceListView({
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [tab, setTab] = useState<Tab>("gigang");
-  const memberStatus = initialMemberStatus;
+  const [memberStatus, setMemberStatus] = useState<MemberStatus>(initialMemberStatus);
   const [registrationsByCompetitionId, setRegistrationsByCompetitionId] =
     useState<Record<string, CompetitionRegistration>>(initialRegistrationsByCompetitionId);
   const [selectedCompetition, setSelectedCompetition] = useState<Competition | null>(null);
@@ -54,34 +54,44 @@ export function RaceListView({
   const [pastNextBefore, setPastNextBefore] = useState<string | null>(null);
   const [regCounts, setRegCounts] = useState<Record<string, number>>(initialRegCounts);
 
-  const loadCompetitionMetaForIds = async (competitionIds: string[]) => {
+  const loadRegCountsForIds = async (competitionIds: string[]) => {
     if (competitionIds.length === 0) return;
     const { data: countRows } = await supabase
-      .from("competition_registration")
-      .select("competition_id")
-      .in("competition_id", competitionIds);
+      .from("competition")
+      .select("id, competition_registration(count)")
+      .in("id", competitionIds);
+
     setRegCounts((prev) => {
       const next = { ...prev };
       competitionIds.forEach((id) => { next[id] = 0; });
       (countRows ?? []).forEach((row) => {
-        next[row.competition_id] = (next[row.competition_id] ?? 0) + 1;
+        const comp = row as unknown as {
+          id: string;
+          competition_registration?: { count: number }[];
+        };
+        next[comp.id] = comp.competition_registration?.[0]?.count ?? 0;
       });
       return next;
     });
+  };
 
-    if (memberStatus.status !== "ready") return;
+  const loadMyRegsForIds = async (competitionIds: string[], memberId: string) => {
+    if (competitionIds.length === 0) {
+      setRegistrationsByCompetitionId({});
+      return;
+    }
+
     const { data: myRegs } = await supabase
       .from("competition_registration")
       .select("id, competition_id, member_id, role, event_type, created_at")
-      .eq("member_id", memberStatus.memberId)
+      .eq("member_id", memberId)
       .in("competition_id", competitionIds);
-    setRegistrationsByCompetitionId((prev) => {
-      const next = { ...prev };
-      (myRegs ?? []).forEach((reg) => {
-        next[reg.competition_id] = reg as CompetitionRegistration;
-      });
-      return next;
+
+    const next: Record<string, CompetitionRegistration> = {};
+    (myRegs ?? []).forEach((reg) => {
+      next[reg.competition_id] = reg as CompetitionRegistration;
     });
+    setRegistrationsByCompetitionId(next);
   };
 
   const loadPastChunk = async (before: string) => {
@@ -92,7 +102,6 @@ export function RaceListView({
       const prevIds = new Set(pastCompetitions.map((c) => c.id));
       const added = list.filter((c) => !prevIds.has(c.id));
       setPastCompetitions((prev) => [...prev, ...added].sort((a, b) => b.start_date.localeCompare(a.start_date)));
-      await loadCompetitionMetaForIds(added.map((c) => c.id));
     } finally {
       setPastLoading(false);
     }
@@ -119,6 +128,62 @@ export function RaceListView({
   };
 
   const competitions = tab === "gigang" ? gigangCompetitions : allCompetitions;
+  const allCompetitionIds = useMemo(
+    () => [...new Set([...competitions.map((c) => c.id), ...(pastOpen ? pastCompetitions.map((c) => c.id) : [])])],
+    [competitions, pastOpen, pastCompetitions],
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadMember() {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (!active) return;
+
+      if (error || !user) {
+        setMemberStatus({ status: "signed-out" });
+        return;
+      }
+
+      const { data: member } = await supabase
+        .from("member")
+        .select("id, full_name, email, admin")
+        .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
+        .maybeSingle();
+      if (!active) return;
+
+      if (!member) {
+        setMemberStatus({ status: "needs-onboarding", userId: user.id });
+        return;
+      }
+
+      setMemberStatus({
+        status: "ready",
+        userId: user.id,
+        memberId: member.id,
+        fullName: member.full_name ?? null,
+        email: member.email ?? null,
+        admin: member.admin ?? false,
+      });
+    }
+
+    loadMember();
+    return () => {
+      active = false;
+    };
+  }, [supabase]);
+
+  useEffect(() => {
+    loadRegCountsForIds(allCompetitionIds);
+  }, [allCompetitionIds]);
+
+  useEffect(() => {
+    if (memberStatus.status !== "ready") {
+      setRegistrationsByCompetitionId({});
+      return;
+    }
+    loadMyRegsForIds(allCompetitionIds, memberStatus.memberId);
+  }, [allCompetitionIds, memberStatus.status, memberStatus.status === "ready" ? memberStatus.memberId : null]);
 
 
   // Group by year-month

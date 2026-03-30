@@ -6,12 +6,7 @@
     "start": "next start",
     "lint": "eslint .",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build",
-    "screenshots:login": "tsx scripts/screenshots-login.ts",
-    "screenshots:login:manual": "tsx scripts/screenshots-login.ts manual",
-    "screenshots:before": "tsx scripts/screenshots-capture.ts before",
-    "screenshots:after": "tsx scripts/screenshots-capture.ts after && tsx scripts/screenshots-diff.ts",
-    "screenshots:diff": "tsx scripts/screenshots-diff.ts"
+    "build-storybook": "storybook build"
   },
   "dependencies": {
     "@next/third-parties": "^16.1.6",
@@ -44,7 +39,6 @@
   "devDependencies": {
     "@chromatic-com/storybook": "^5.0.1",
     "@eslint/eslintrc": "^3",
-    "@playwright/test": "^1.58.2",
     "@storybook/addon-a11y": "^10.2.19",
     "@storybook/addon-docs": "^10.2.19",
     "@storybook/nextjs-vite": "^10.2.19",
@@ -55,8 +49,6 @@
     "eslint": "^9",
     "eslint-config-next": "15.3.1",
     "eslint-plugin-storybook": "^10.2.19",
-    "pixelmatch": "^7.1.0",
-    "pngjs": "^7.0.0",
     "postcss": "^8",
     "storybook": "^10.2.19",
     "tailwindcss": "^4.2.1",
@@ -64,5 +56,10 @@
     "tsx": "^4.21.0",
     "typescript": "^5"
   },
+  "browserslist": [
+    "chrome 100",
+    "safari 15",
+    "firefox 100"
+  ],
   "packageManager": "pnpm@10.28.0+sha512.05df71d1421f21399e053fde567cea34d446fa02c76571441bfc1c7956e98e363088982d940465fd34480d4d90a0668bc12362f8aa88000a64e83d0b0e47be48"
 }

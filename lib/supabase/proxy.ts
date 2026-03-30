@@ -2,19 +2,40 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { hasEnvVars } from "../utils";
 
+/**
+ * 모든 요청에서 실행되는 인증 미들웨어.
+ * 세션 쿠키 검사 → Supabase 토큰 검증 → 비인증 유저 리다이렉트 순서로 동작한다.
+ */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   });
 
-  // If the env vars are not set, skip proxy check. You can remove this
-  // once you setup the project.
+  // 환경변수 미설정 시 인증 검사 생략
   if (!hasEnvVars) {
     return supabaseResponse;
   }
 
-  // With Fluid compute, don't put this client in a global environment
-  // variable. Always create a new one on each request.
+  // 비로그인 상태에서도 접근 가능한 공개 경로 목록
+  const pathname = request.nextUrl.pathname;
+  const publicPaths = ["/", "/rules", "/join", "/newbie", "/races", "/records", "/terms", "/privacy", "/policy", "/settings"];
+  const isPublic =
+    publicPaths.includes(pathname) || pathname.startsWith("/auth");
+
+  // 세션 쿠키가 아예 없으면 Supabase 서버 호출 없이 즉시 리다이렉트 (100~700ms 절약)
+  // Supabase는 토큰이 크면 쿠키를 청크 분할함 (sb-*-auth-token.0, .1, ...)
+  const hasSessionCookie = request.cookies.getAll().some(
+    (c) => c.name.startsWith("sb-") && c.name.includes("-auth-token"),
+  );
+
+  if (!hasSessionCookie && !isPublic) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/login";
+    return NextResponse.redirect(url);
+  }
+
+  // 쿠키가 존재하면 Supabase 서버 클라이언트를 생성하여 토큰 유효성 검증
+  // Fluid compute 환경에서는 매 요청마다 새 클라이언트를 생성해야 함
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
@@ -23,6 +44,7 @@ export async function updateSession(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
+        // 토큰 갱신 시 요청/응답 양쪽 쿠키를 동기화하여 브라우저-서버 불일치 방지
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value),
@@ -38,39 +60,17 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // Do not run code between createServerClient and
-  // supabase.auth.getClaims(). A simple mistake could make it very hard to debug
-  // issues with users being randomly logged out.
-
-  // IMPORTANT: If you remove getClaims() and you use server-side rendering
-  // with the Supabase client, your users may be randomly logged out.
+  // createServerClient와 getClaims() 사이에 다른 코드를 넣지 말 것.
+  // 세션 갱신 타이밍이 꼬여서 유저가 랜덤하게 로그아웃될 수 있음.
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
 
-  const pathname = request.nextUrl.pathname;
-  const publicPaths = ["/", "/rules", "/join", "/newbie", "/races", "/records", "/terms", "/privacy", "/policy", "/settings"];
-  const isPublic =
-    publicPaths.includes(pathname) || pathname.startsWith("/auth");
-
+  // 쿠키는 있지만 토큰이 만료/무효한 경우 리다이렉트
   if (!user && !isPublic) {
-    // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";
     return NextResponse.redirect(url);
   }
-
-  // IMPORTANT: You *must* return the supabaseResponse object as it is.
-  // If you're creating a new response object with NextResponse.next() make sure to:
-  // 1. Pass the request in it, like so:
-  //    const myNewResponse = NextResponse.next({ request })
-  // 2. Copy over the cookies, like so:
-  //    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
-  // 3. Change the myNewResponse object to fit your needs, but avoid changing
-  //    the cookies!
-  // 4. Finally:
-  //    return myNewResponse
-  // If this is not done, you may be causing the browser and server to go out
-  // of sync and terminate the user's session prematurely!
 
   return supabaseResponse;
 }

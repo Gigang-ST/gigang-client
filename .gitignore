@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 
+# Cursor 에디터
+.cursor/plans/
+
 # debug
 npm-debug.log*
 yarn-debug.log*
@@ -43,15 +46,14 @@ next-env.d.ts
 
 # claude code
 .claude/settings.local.json
-.mcp.json
 
 # storybook
 /storybook-static
 
-# screenshots (visual diff)
-/screenshots/
-/__main-branch/
-
 # local data
 /temp/
 /.playwright-mcp/
+
+# environment variable 
+.env
+.env.*
