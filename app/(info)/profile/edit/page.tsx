@@ -125,6 +125,10 @@ export default function ProfileEditPage() {
       setMessage({ type: "error", text: "이름을 입력해 주세요." });
       return;
     }
+    if (!profile.birthday) {
+      setMessage({ type: "error", text: "생년월일을 입력해 주세요." });
+      return;
+    }
     setSaving(true);
     setMessage(null);
 
