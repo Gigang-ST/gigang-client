@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { CardItem } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { secondsToTime, validateUUID } from "@/lib/utils";
 import { Suspense } from "react";
@@ -212,20 +213,20 @@ async function HomeContent() {
             TEAM OVERVIEW
           </span>
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1 rounded-2xl border-[1.5px] border-border p-4">
+            <CardItem className="flex flex-col gap-1">
               <span className="text-2xl font-bold text-foreground">
                 {memberCount ?? 0}
               </span>
               <span className="text-xs text-muted-foreground">활동 멤버</span>
-            </div>
-            <div className="flex flex-col gap-1 rounded-2xl border-[1.5px] border-border p-4">
+            </CardItem>
+            <CardItem className="flex flex-col gap-1">
               <span className="text-2xl font-bold text-foreground">
                 {upcomingCount ?? 0}
               </span>
               <span className="text-xs text-muted-foreground">
                 예정 대회 중 {gigangRaces.length}개 참가
               </span>
-            </div>
+            </CardItem>
           </div>
         </div>
 
@@ -250,16 +251,16 @@ async function HomeContent() {
             </Link>
           </div>
           {(recentRecords ?? []).length === 0 ? (
-            <p className="rounded-2xl border-[1.5px] border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+            <CardItem variant="dashed" className="py-8 text-center text-sm text-muted-foreground">
               등록된 기록이 없습니다.
-            </p>
+            </CardItem>
           ) : (
             (recentRecords ?? []).map((rec) => {
               const member = rec.member as unknown as { full_name: string } | null;
               return (
-                <div
+                <CardItem
                   key={`${rec.member_id}-${rec.event_type}`}
-                  className="flex items-center justify-between rounded-2xl border-[1.5px] border-border p-4"
+                  className="flex items-center justify-between"
                 >
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[15px] font-semibold text-foreground">
@@ -272,7 +273,7 @@ async function HomeContent() {
                   <span className="font-mono text-lg font-bold text-foreground">
                     {secondsToTime(rec.record_time_sec)}
                   </span>
-                </div>
+                </CardItem>
               );
             })
           )}
