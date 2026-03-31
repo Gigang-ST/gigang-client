@@ -11,6 +11,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { secondsToTime } from "@/lib/dayjs";
 
 type BestRecord = {
   record_time_sec: number;
@@ -27,15 +28,6 @@ type Props = {
   utmbData: UtmbData;
   memberId: string;
 };
-
-function secondsToTime(sec: number) {
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  if (h > 0)
-    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
 
 const PB_EVENTS = ["FULL", "HALF", "10K"] as const;
 
