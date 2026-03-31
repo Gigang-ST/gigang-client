@@ -1,5 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient as createPublicClient } from "@supabase/supabase-js";
+import { todayKST } from "@/lib/dayjs";
 import { unstable_cache } from "next/cache";
 import { Suspense } from "react";
 import { RaceListView } from "@/components/races/race-list-view";
@@ -14,9 +15,8 @@ const cacheOptions = { revalidate: 86400, tags: ["competitions"] };
 
 const getUpcomingCompetitions = unstable_cache(
   async () => {
-    const now = new Date();
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    const endOfYear = `${now.getFullYear()}-12-31`;
+    const today = todayKST();
+    const endOfYear = `${today.slice(0, 4)}-12-31`;
     const { data } = await supabase
       .from("competition")
       .select(
@@ -33,9 +33,8 @@ const getUpcomingCompetitions = unstable_cache(
 
 const getGigangCompetitions = unstable_cache(
   async () => {
-    const now = new Date();
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    const endOfYear = `${now.getFullYear()}-12-31`;
+    const today = todayKST();
+    const endOfYear = `${today.slice(0, 4)}-12-31`;
     const { data } = await supabase
       .from("competition")
       .select(

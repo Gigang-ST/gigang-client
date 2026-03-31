@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { CardItem } from "@/components/ui/card";
 import { resolveSportConfig, SPORT_LEGEND } from "@/components/races/sport-config";
 
 type Competition = {
@@ -427,7 +428,7 @@ export default function CompetitionsPage() {
         </div>
 
         {/* 대회 정보 카드 */}
-        <div className="flex flex-col gap-3 rounded-2xl border-[1.5px] border-border p-5">
+        <CardItem className="flex flex-col gap-3 p-5">
           <div className="flex items-center gap-2">
             <Badge className={cn("text-[11px]", sportConfig.chipClass)}>
               {sportConfig.label}
@@ -473,7 +474,7 @@ export default function CompetitionsPage() {
               삭제
             </button>
           </div>
-        </div>
+        </CardItem>
 
         {/* 참가자 목록 */}
         <div className="flex flex-col gap-3">
@@ -578,11 +579,11 @@ export default function CompetitionsPage() {
         {filtered.map((comp) => {
           const sportConfig = resolveSportConfig(comp.sport);
           return (
-            <button
-              key={comp.id}
-              onClick={() => openDetail(comp)}
-              className="flex flex-col gap-2.5 rounded-2xl border-[1.5px] border-border p-4 text-left transition-colors active:bg-secondary"
-            >
+            <CardItem asChild key={comp.id} className="flex flex-col gap-2.5">
+              <button
+                onClick={() => openDetail(comp)}
+                className="text-left transition-colors active:bg-secondary"
+              >
               <div className="flex items-center gap-2">
                 <Badge
                   className={cn(
@@ -617,7 +618,8 @@ export default function CompetitionsPage() {
                   <span>{comp.registration_count}</span>
                 </div>
               </div>
-            </button>
+              </button>
+            </CardItem>
           );
         })}
       </div>
