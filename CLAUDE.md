@@ -29,6 +29,7 @@ components/
   in-app-browser-gate.tsx  # 인앱브라우저 감지 → 외부 브라우저 유도
 lib/
   supabase/        # Supabase 클라이언트 (server/client/proxy)
+  dayjs.ts         # 날짜/시간 유틸리티 (KST 기준, dayjs 기반)
   utils.ts         # cn() 유틸리티
 ```
 
@@ -42,6 +43,7 @@ lib/
 - Supabase 브라우저 클라이언트: `lib/supabase/client.ts`의 `createClient()` 사용
 - 스타일: Tailwind CSS 유틸리티 클래스 사용, `cn()` 으로 클래스 병합
 - 컴포넌트: shadcn/ui 기반, `components/ui/`에 위치
+- **날짜/시간**: 반드시 `lib/dayjs.ts` 유틸리티 사용. 네이티브 `new Date()` 직접 사용 금지. Locale은 항상 KST(Asia/Seoul) 기준
 
 ## 브랜치 전략 & 커밋 컨벤션
 
