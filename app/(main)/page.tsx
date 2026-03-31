@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardItem } from "@/components/ui/card";
-import { secondsToTime } from "@/lib/utils";
+import { secondsToTime } from "@/lib/dayjs";
 import { Suspense } from "react";
 import Link from "next/link";
 import { SocialLinksGrid } from "@/components/social-links";

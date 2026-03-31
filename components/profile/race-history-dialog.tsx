@@ -11,17 +11,9 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Trash2, Pencil } from "lucide-react";
+import { secondsToTime } from "@/lib/dayjs";
 
 /* ---------- 유틸 ---------- */
-
-function secondsToTime(sec: number): string {
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  if (h > 0)
-    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
 
 function timeStringToSeconds(timeStr: string): number | null {
   const trimmed = timeStr.trim();

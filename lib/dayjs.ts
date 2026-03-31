@@ -115,3 +115,27 @@ export function formatDateRange(start: string, end?: string | null): string {
 export function parseDate(dateStr: string): Date {
   return dayjs(dateStr).toDate();
 }
+
+// ---------- D-Day ----------
+
+/** "YYYY-MM-DD" 날짜의 D-Day 문자열 반환 (예: "D-3", "D-DAY", "D+1") */
+export function formatDDay(dateStr: string): string {
+  const today = dayjs().startOf("day");
+  const target = dayjs(dateStr).startOf("day");
+  const diff = target.diff(today, "day");
+  if (diff === 0) return "D-DAY";
+  if (diff > 0) return `D-${diff}`;
+  return `D+${Math.abs(diff)}`;
+}
+
+// ---------- 시간 유틸 ----------
+
+/** 초 단위를 "H:MM:SS" 또는 "M:SS" 형식으로 변환 */
+export function secondsToTime(totalSeconds: number): string {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  if (h > 0)
+    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
