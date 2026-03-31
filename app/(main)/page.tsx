@@ -1,13 +1,12 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardItem } from "@/components/ui/card";
-import { createClient } from "@/lib/supabase/server";
-import { validateUUID } from "@/lib/utils";
 import { secondsToTime } from "@/lib/dayjs";
 import { Suspense } from "react";
 import Link from "next/link";
 import { SocialLinksGrid } from "@/components/social-links";
 import { UpcomingRaces } from "@/components/home/upcoming-races";
 import type { CompetitionRegistration, MemberStatus } from "@/components/races/types";
+import { getCurrentMember } from "@/lib/queries/member";
 
 
 type UpcomingRace = {
@@ -36,11 +35,9 @@ function isSameSlot(dateA: string, dateB: string) {
 }
 
 async function HomeContent() {
-  const supabase = await createClient();
+  const { user, member: currentMember, supabase } = await getCurrentMember();
   const today = new Date().toISOString().split("T")[0];
 
-  // 현재 유저 확인
-  const { data: { user } } = await supabase.auth.getUser();
   let initialMemberStatus: MemberStatus = { status: "signed-out" };
 
   const [
@@ -112,13 +109,8 @@ async function HomeContent() {
   let myRegistrations: CompetitionRegistration[] = [];
   let isMember = false;
   if (user) {
-    validateUUID(user.id);
-    const { data: member } = await supabase
-      .from("member")
-      .select("id, full_name, email, admin")
-      .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
-      .maybeSingle();
-    if (member) {
+    if (currentMember) {
+      const member = currentMember;
       isMember = true;
       initialMemberStatus = {
         status: "ready",
