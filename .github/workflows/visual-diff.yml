@@ -120,6 +120,12 @@ jobs:
               --baseline "screenshots/before/$name.png" \
               --output "screenshots/diff/$name.png" 2>&1) || true
             DIFF_SUMMARY="$DIFF_SUMMARY\n$name: $DIFF_OUTPUT"
+
+            # agent-browser는 0%/100% diff일 때 파일을 생성하지 않음
+            # fallback: diff 파일이 없으면 빈 placeholder 생성
+            if [ ! -f "screenshots/diff/$name.png" ]; then
+              cp "screenshots/after/$name.png" "screenshots/diff/$name.png"
+            fi
           done
 
           echo -e "$DIFF_SUMMARY" | tee screenshots/diff-summary.txt
