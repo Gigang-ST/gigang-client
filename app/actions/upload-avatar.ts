@@ -3,8 +3,7 @@
 import sharp from "sharp";
 // @ts-expect-error -- heic-convert에 타입 선언 없음
 import convert from "heic-convert";
-import { createClient } from "@/lib/supabase/server";
-import { validateUUID } from "@/lib/utils";
+import { getCurrentMember } from "@/lib/queries/member";
 
 const MAX_SIZE = 256;
 const QUALITY = 80;
@@ -34,26 +33,10 @@ export async function uploadAvatar(formData: FormData) {
     return { error: "JPG, PNG, WebP, HEIC 형식만 가능합니다." };
   }
 
-  // 인증 확인
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // 인증 + 본인 확인
+  const { member, supabase } = await getCurrentMember();
 
-  if (!user) {
-    return { error: "로그인이 필요합니다." };
-  }
-
-  // 본인 확인
-  validateUUID(user.id);
-  const { data: member } = await supabase
-    .from("member")
-    .select("id, avatar_url")
-    .eq("id", memberId)
-    .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
-    .maybeSingle();
-
-  if (!member) {
+  if (!member || member.id !== memberId) {
     return { error: "권한이 없습니다." };
   }
 

@@ -1,7 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { verifyAdmin } from "@/lib/queries/member";
 import { currentMonthKST, nextMonthStr } from "@/lib/dayjs";
 
 export type AdminStats = {
@@ -13,18 +13,8 @@ export type AdminStats = {
 };
 
 export async function getAdminStats(): Promise<AdminStats> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("인증이 필요합니다");
-
-  const { data: me } = await supabase
-    .from("member")
-    .select("admin")
-    .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
-    .maybeSingle();
-  if (!me?.admin) throw new Error("권한이 없습니다");
+  const me = await verifyAdmin();
+  if (!me) throw new Error("권한이 없습니다");
 
   const admin = createAdminClient();
 
