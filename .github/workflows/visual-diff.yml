@@ -53,7 +53,7 @@ jobs:
 
       # ── 뷰포트 설정 (모바일 393x852) ──
       - name: Configure viewport
-        run: agent-browser resize 393 852
+        run: agent-browser set viewport 393 852
 
       # ── Before: dev 사이트 스크린샷 ──
       - name: Login to dev site
