@@ -94,6 +94,7 @@ jobs:
       - name: Capture after screenshots + diff
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.url }}
+          NO_COLOR: "1"
         run: |
           mkdir -p screenshots/after screenshots/diff
           PAGES=(
