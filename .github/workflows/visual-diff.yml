@@ -44,7 +44,7 @@ jobs:
       # ── Vercel Preview 배포 대기 ──
       - name: Wait for Vercel Preview
         id: preview
-        uses: patrickedqvist/wait-for-vercel-preview@v1.3.2
+        uses: patrickedqvist/wait-for-vercel-preview@v1.3.3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           max_timeout: 300

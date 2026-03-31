@@ -11,7 +11,7 @@
  *   E2E_TEST_EMAIL
  *   E2E_TEST_PASSWORD
  */
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -75,23 +75,24 @@ for (let i = 0; i < encoded.length; i += CHUNK_SIZE) {
   chunks.push(encoded.slice(i, i + CHUNK_SIZE));
 }
 
-// 4) agent-browser cookies set으로 쿠키 주입
-const run = (cmd) => execSync(cmd, { stdio: "inherit" });
-const siteHost = new URL(SITE_URL).hostname;
+// 4) agent-browser cookies set으로 쿠키 주입 (execFileSync로 shell injection 방지)
+const ab = (...args) =>
+  execFileSync("agent-browser", args, { stdio: "inherit" });
+
 const expires = Math.floor(Date.now() / 1000) + session.expires_in;
 
 for (let i = 0; i < chunks.length; i++) {
   const name = chunks.length === 1 ? cookieBase : `${cookieBase}.${i}`;
-  run(
-    `agent-browser cookies set "${name}" "${chunks[i]}" ` +
-      `--url "${SITE_URL}" --path / --sameSite Lax --expires ${expires}`,
+  ab(
+    "cookies", "set", name, chunks[i],
+    "--url", SITE_URL, "--path", "/", "--sameSite", "Lax", "--expires", String(expires),
   );
 }
 
 // 5) 사이트 열어서 세션 확인
-run(`agent-browser open "${SITE_URL}"`);
-run(`agent-browser wait --load networkidle`);
+ab("open", SITE_URL);
+ab("wait", "--load", "networkidle");
 
 console.log(
-  `  쿠키 주입 완료 (${chunks.length}개 청크, ${cookieBase}, domain=${siteHost})`,
+  `  쿠키 주입 완료 (${chunks.length}개 청크, ${cookieBase})`,
 );
