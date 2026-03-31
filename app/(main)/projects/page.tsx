@@ -1,5 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
+import { currentMonthKST, prevMonthStr } from "@/lib/dayjs";
 import { MonthNavigator } from "@/components/projects/month-navigator";
 
 // TODO: DB 연동 후 제거 — 임시 하드코딩 프로젝트 정보
@@ -10,14 +11,6 @@ const MOCK_PROJECT = {
   end_month: "2026-09-01",
   status: "active" as const,
 };
-
-/** KST 기준 현재 월 (yyyy-MM-01) */
-function currentMonthKST() {
-  const now = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }),
-  );
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-}
 
 export default async function ProjectsPage({
   searchParams,
@@ -40,8 +33,7 @@ export default async function ProjectsPage({
   // 현재 월 결정 — 시작월 1달 전(연습 기간)부터 조회 가능
   const params = await searchParams;
   const currentKST = currentMonthKST();
-  const [sy, sm] = project.start_month.split("-").map(Number);
-  const practiceMonth = `${new Date(sy, sm - 2, 1).getFullYear()}-${String(new Date(sy, sm - 2, 1).getMonth() + 1).padStart(2, "0")}-01`;
+  const practiceMonth = prevMonthStr(project.start_month);
   const selectedMonth =
     params.month &&
     params.month >= practiceMonth &&

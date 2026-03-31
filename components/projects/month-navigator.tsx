@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { prevMonthStr, nextMonthStr } from "@/lib/dayjs";
 
 export function MonthNavigator({
   currentMonth,
@@ -15,28 +16,15 @@ export function MonthNavigator({
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [y, m] = currentMonth.split("-").map(Number);
-  const label = `${m}월`;
+  const displayMonth = Number(currentMonth.split("-")[1]);
+  const label = `${displayMonth}월`;
 
-  const prevMonth = (() => {
-    const d = new Date(y, m - 2, 1);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-  })();
-
-  const nextMonthStr = (() => {
-    const d = new Date(y, m, 1);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-  })();
-
-  // 시작월 1달 전(연습 기간)부터 탐색 가능
-  const practiceMonth = (() => {
-    const [sy, sm] = startMonth.split("-").map(Number);
-    const d = new Date(sy, sm - 2, 1);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-  })();
+  const prevMonth = prevMonthStr(currentMonth);
+  const nextMonth = nextMonthStr(currentMonth);
+  const practiceMonth = prevMonthStr(startMonth);
 
   const hasPrev = prevMonth >= practiceMonth;
-  const hasNext = nextMonthStr <= endMonth;
+  const hasNext = nextMonth <= endMonth;
 
   function navigate(month: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -58,7 +46,7 @@ export function MonthNavigator({
         {label}
       </span>
       <button
-        onClick={() => navigate(nextMonthStr)}
+        onClick={() => navigate(nextMonth)}
         disabled={!hasNext}
         className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors active:bg-secondary disabled:opacity-30"
         aria-label="다음 달"

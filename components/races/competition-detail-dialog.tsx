@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
-import { formatDateRange } from "./date-utils";
+import { formatDateRange } from "@/lib/dayjs";
 import { resolveSportConfig, SPORT_LEGEND } from "./sport-config";
 import type { Competition, CompetitionRegistration, MemberStatus } from "./types";
 
