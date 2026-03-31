@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
+import { formatDDay } from "@/lib/dayjs";
 import { CardItem } from "@/components/ui/card";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
 
@@ -20,17 +21,6 @@ type UpcomingRace = {
   registered_event_types?: string[];
   label?: string;
 };
-
-function formatDDay(dateStr: string) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(dateStr);
-  target.setHours(0, 0, 0, 0);
-  const diff = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  if (diff === 0) return "D-DAY";
-  if (diff > 0) return `D-${diff}`;
-  return `D+${Math.abs(diff)}`;
-}
 
 type UpcomingRacesProps = {
   races: UpcomingRace[];
