@@ -1,4 +1,5 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { type Database } from "@/lib/supabase/database.types";
 
 /**
  * Service Role 키를 사용하는 관리자 Supabase 클라이언트.
@@ -13,5 +14,5 @@ export function createAdminClient() {
     throw new Error("SUPABASE_SERVICE_ROLE_KEY가 설정되지 않았습니다.");
   }
 
-  return createSupabaseClient(url, key);
+  return createSupabaseClient<Database>(url, key);
 }
