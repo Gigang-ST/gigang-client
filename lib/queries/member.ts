@@ -3,10 +3,14 @@ import { validateUUID } from "@/lib/utils";
 
 /**
  * 현재 로그인한 유저의 member 레코드를 조회한다.
- * 인증되지 않았거나 member가 없으면 null을 반환한다.
+ * OAuth ID(카카오/구글)로 member를 매칭하며, 전체 컬럼(`*`)을 조회한다.
  *
- * 전체 컬럼(*)을 조회하므로 호출 측에서 필요한 필드만 사용하면 된다.
- * supabase 클라이언트도 함께 반환하여 후속 쿼리에 재사용할 수 있다.
+ * @returns `{ user, member, supabase }` — `user`·`member`는 미인증이거나 member가 없으면 `null`.
+ *   `supabase` 클라이언트는 항상 반환되어 후속 쿼리에 재사용 가능.
+ *
+ * @example
+ * const { user, member, supabase } = await getCurrentMember();
+ * if (!member) redirect("/auth/login");
  */
 export async function getCurrentMember() {
   const supabase = await createClient();
@@ -28,9 +32,13 @@ export async function getCurrentMember() {
 
 /**
  * 현재 로그인한 유저가 admin인지 확인한다.
- * admin이면 member 레코드({ id, admin })를, 아니면 null을 반환한다.
+ * 미인증·member 미존재·admin이 아닌 경우 모두 `null`을 반환한다.
  *
- * 서버 액션에서 admin 권한이 필요한 작업 전에 호출한다.
+ * @returns `{ id, admin }` 형태의 member 레코드, 또는 `null`
+ *
+ * @example
+ * const admin = await verifyAdmin();
+ * if (!admin) return { ok: false, message: "권한이 없습니다" };
  */
 export async function verifyAdmin() {
   const supabase = await createClient();
