@@ -28,11 +28,13 @@ export async function getCurrentMember() {
   if (!user) return { user: null, member: null, supabase };
 
   validateUUID(user.id);
-  const { data: member } = await supabase
+  const { data: member, error } = await supabase
     .from("member")
     .select("*")
     .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
     .maybeSingle();
+
+  if (error) throw error;
 
   return { user, member, supabase };
 }
@@ -57,12 +59,13 @@ export async function verifyAdmin() {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: member } = await supabase
+  const { data: member, error } = await supabase
     .from("member")
     .select("id, admin")
     .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
     .maybeSingle();
 
+  if (error) throw error;
   if (!member?.admin) return null;
   return member;
 }
