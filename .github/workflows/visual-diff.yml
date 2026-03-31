@@ -14,12 +14,9 @@ permissions:
   deployments: read
 
 env:
-  # Vercel 개발계 기본 도메인 (프로덕션 배포 URL)
   DEV_SITE_URL: https://dev.gigang.team
-  # Supabase dev 프로젝트
   NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-  # 테스트 계정 (visual-diff-bot@gigang.team)
   E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
   E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
 
@@ -74,10 +71,11 @@ jobs:
           for entry in "${PAGES[@]}"; do
             name="${entry%%:*}"
             path="${entry#*:}"
-            echo "📸 [before] $name ($DEV_SITE_URL$path)"
+            echo "📸 [before] $name"
             agent-browser open "$DEV_SITE_URL$path"
-            sleep 3
-            agent-browser screenshot "screenshots/before/$name.png" --full
+            agent-browser wait --load networkidle
+            sleep 2
+            agent-browser screenshot "screenshots/before/$name.png"
           done
 
       # ── Preview용 Vercel Protection bypass 헤더 설정 ──
@@ -110,10 +108,11 @@ jobs:
           for entry in "${PAGES[@]}"; do
             name="${entry%%:*}"
             path="${entry#*:}"
-            echo "📸 [after] $name ($PREVIEW_URL$path)"
+            echo "📸 [after] $name"
             agent-browser open "$PREVIEW_URL$path"
-            sleep 3
-            agent-browser screenshot "screenshots/after/$name.png" --full
+            agent-browser wait --load networkidle
+            sleep 2
+            agent-browser screenshot "screenshots/after/$name.png"
 
             # diff (baseline = before 이미지)
             DIFF_OUTPUT=$(agent-browser diff screenshot \
@@ -122,7 +121,6 @@ jobs:
             DIFF_SUMMARY="$DIFF_SUMMARY\n$name: $DIFF_OUTPUT"
 
             # agent-browser는 0%/100% diff일 때 파일을 생성하지 않음
-            # fallback: diff 파일이 없으면 빈 placeholder 생성
             if [ ! -f "screenshots/diff/$name.png" ]; then
               cp "screenshots/after/$name.png" "screenshots/diff/$name.png"
             fi
@@ -179,72 +177,50 @@ jobs:
 
             const pages = ['home', 'races', 'records', 'profile', 'join', 'settings', 'login'];
 
-            // diff 요약 파싱 → { name: { match, percent } }
+            // diff 요약 파싱
             const diffInfo = {};
             try {
               const raw = fs.readFileSync('screenshots/diff-summary.txt', 'utf-8');
               for (const line of raw.split('\n')) {
-                const matchOk = line.match(/^(\w+):\s*✓\s*Images match/);
-                const matchFail = line.match(/^(\w+):\s*✗\s*([\d.]+)%/);
-                if (matchOk) diffInfo[matchOk[1]] = { match: true, percent: '0' };
-                else if (matchFail) diffInfo[matchFail[1]] = { match: false, percent: matchFail[2] };
+                const ok = line.match(/^(\w+):\s*✓\s*Images match/);
+                const fail = line.match(/^(\w+):\s*✗\s*([\d.]+)%/);
+                if (ok) diffInfo[ok[1]] = { match: true, percent: '0' };
+                else if (fail) diffInfo[fail[1]] = { match: false, percent: fail[2] };
               }
             } catch {}
 
-            // 요약 테이블
+            let body = '## Visual Diff\n\n';
+
+            // 요약 한 줄
             const changed = pages.filter(p => diffInfo[p] && !diffInfo[p].match);
-            const unchanged = pages.filter(p => !diffInfo[p] || diffInfo[p].match);
+            if (changed.length === 0) {
+              body += '> 모든 페이지가 동일합니다.\n\n';
+            } else {
+              body += `> **${changed.length}개 페이지**에서 차이가 발견되었습니다: ${changed.map(p => '`' + p + '`').join(', ')}\n\n`;
+            }
 
-            let body = '## 📊 Visual Diff Report\n\n';
-            body += `| 페이지 | 상태 | 변경률 |\n`;
-            body += `|--------|:----:|-------:|\n`;
+            // 모든 페이지 이미지
             for (const name of pages) {
+              const file = `${name}.png`;
               const info = diffInfo[name];
-              if (!info || info.match) {
-                body += `| ${name} | ✅ | 0% |\n`;
-              } else {
-                body += `| ${name} | ❌ | ${info.percent}% |\n`;
-              }
-            }
+              const status = (!info || info.match) ? '✅' : `❌ ${info.percent}%`;
 
-            // 변경된 페이지 이미지 (펼쳐서 표시)
-            if (changed.length > 0) {
-              body += `\n### 변경된 페이지\n\n`;
-              for (const name of changed) {
-                const file = `${name}.png`;
-                body += `#### ${name}\n\n`;
-                body += `| Before (dev) | After (PR) | Diff |\n`;
-                body += `|:---:|:---:|:---:|\n`;
-                body += `| <img src="${imgBase}/before/${file}?v=${runId}" width="250" /> `;
-                body += `| <img src="${imgBase}/after/${file}?v=${runId}" width="250" /> `;
-                body += `| <img src="${imgBase}/diff/${file}?v=${runId}" width="250" /> |\n\n`;
-              }
-            }
-
-            // 변경 없는 페이지 이미지 (접혀서 표시)
-            if (unchanged.length > 0) {
-              body += `<details><summary>변경 없는 페이지 (${unchanged.length})</summary>\n\n`;
-              for (const name of unchanged) {
-                const file = `${name}.png`;
-                body += `#### ${name}\n\n`;
-                body += `| Before (dev) | After (PR) | Diff |\n`;
-                body += `|:---:|:---:|:---:|\n`;
-                body += `| <img src="${imgBase}/before/${file}?v=${runId}" width="250" /> `;
-                body += `| <img src="${imgBase}/after/${file}?v=${runId}" width="250" /> `;
-                body += `| <img src="${imgBase}/diff/${file}?v=${runId}" width="250" /> |\n\n`;
-              }
+              body += `<details><summary><b>${name}</b> ${status}</summary>\n\n`;
+              body += `| Before (dev) | After (PR) |\n`;
+              body += `|:---:|:---:|\n`;
+              body += `| <img src="${imgBase}/before/${file}?v=${runId}" width="300" /> `;
+              body += `| <img src="${imgBase}/after/${file}?v=${runId}" width="300" /> |\n\n`;
               body += `</details>\n\n`;
             }
 
-            body += `---\n*Visual Diff · [Run #${runId}](https://github.com/${owner}/${repo}/actions/runs/${runId})*`;
+            body += `---\n<sub>Visual Diff · <a href="https://github.com/${owner}/${repo}/actions/runs/${runId}">Run #${runId}</a></sub>`;
 
-            // 기존 코멘트 업데이트 또는 새로 생성
             const { data: comments } = await github.rest.issues.listComments({
               owner, repo, issue_number: prNumber,
             });
             const existing = comments.find(c =>
               c.user?.login === 'github-actions[bot]' &&
-              c.body?.includes('Visual Diff Report')
+              c.body?.includes('Visual Diff')
             );
 
             if (existing) {
