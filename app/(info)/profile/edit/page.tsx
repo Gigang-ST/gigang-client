@@ -64,7 +64,7 @@ export default function ProfileEditPage() {
       setProfile({
         id: member.id,
         full_name: member.full_name ?? "",
-        gender: member.gender ?? "",
+        gender: (member.gender ?? "") as ProfileData["gender"],
         birthday: member.birthday ?? "",
         phone: member.phone ?? "",
         email: member.email ?? "",

@@ -56,10 +56,12 @@ async function RecordsContent() {
   const pbData = Array.from(bestByMemberEvent.values());
 
   // 트레일러닝: UTMB 프로필 보유자의 최근 대회 기록 조회
-  const utmbMembers = (utmbData ?? []).map((r) => {
-    const member = r.member as unknown as { full_name: string; id: string };
-    return { id: member.id, name: member.full_name, index: r.utmb_index, url: r.utmb_profile_url };
-  });
+  const utmbMembers = (utmbData ?? [])
+    .filter((r): r is typeof r & { utmb_index: number; utmb_profile_url: string } => r.utmb_index != null && r.utmb_profile_url != null)
+    .map((r) => {
+      const member = r.member as unknown as { full_name: string; id: string };
+      return { id: member.id, name: member.full_name, index: r.utmb_index, url: r.utmb_profile_url };
+    });
 
   // UTMB 프로필 페이지에서 멤버별 최근 대회 기록 가져오기
   const recentRaceMap = new Map<

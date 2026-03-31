@@ -208,9 +208,7 @@ export function MemberOnboardingForm({
         ? values.bankNameCustom.trim()
         : values.bankName.trim();
 
-    const column = provider === "kakao" ? "kakao_user_id" : "google_user_id";
-    const { error } = await supabase.from("member").insert({
-      [column]: userId,
+    const memberData = {
       email: emailValue,
       full_name: values.fullName,
       gender: values.gender,
@@ -222,7 +220,11 @@ export function MemberOnboardingForm({
       admin: false,
       joined_at: new Date().toISOString().slice(0, 10),
       avatar_url: initialAvatarUrl,
-    });
+      ...(provider === "kakao"
+        ? { kakao_user_id: userId }
+        : { google_user_id: userId }),
+    };
+    const { error } = await supabase.from("member").insert(memberData);
 
     if (error) {
       if (error.code === "23505") {
