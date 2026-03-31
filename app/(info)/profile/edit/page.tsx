@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { type Enums } from "@/lib/supabase/database.types";
 import { validateUUID } from "@/lib/utils";
 import { uploadAvatar } from "@/app/actions/upload-avatar";
 import { Input } from "@/components/ui/input";
@@ -20,7 +19,7 @@ import { Camera, User } from "lucide-react";
 type ProfileData = {
   id: string;
   full_name: string;
-  gender: Enums<"gender">;
+  gender: "male" | "female" | "";
   birthday: string;
   phone: string;
   email: string;
@@ -65,7 +64,7 @@ export default function ProfileEditPage() {
       setProfile({
         id: member.id,
         full_name: member.full_name ?? "",
-        gender: member.gender,
+        gender: member.gender ?? "",
         birthday: member.birthday ?? "",
         phone: member.phone ?? "",
         email: member.email ?? "",
@@ -130,8 +129,8 @@ export default function ProfileEditPage() {
       .from("member")
       .update({
         full_name: profile.full_name.trim(),
-        gender: profile.gender,
-        birthday: profile.birthday,
+        gender: profile.gender || null,
+        birthday: profile.birthday || null,
         email: profile.email.trim() || null,
       })
       .eq("id", profile.id);
@@ -217,7 +216,7 @@ export default function ProfileEditPage() {
             onValueChange={(v) =>
               setProfile({
                 ...profile,
-                gender: v as Enums<"gender">,
+                gender: v as "male" | "female",
               })
             }
           >

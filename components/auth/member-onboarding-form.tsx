@@ -1,7 +1,6 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { getKSTDate, todayKST } from "@/lib/dayjs";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -104,14 +103,13 @@ export function MemberOnboardingForm({
     if (!inactiveMemberId) return;
     setRejoinLoading(true);
     const supabase = createClient();
-    const updateFields = {
-      status: "pending" as const,
-      updated_at: getKSTDate().toISOString(),
-      ...(initialAvatarUrl && { avatar_url: initialAvatarUrl }),
-      ...(provider === "kakao"
-        ? { kakao_user_id: userId }
-        : { google_user_id: userId }),
+    const column = provider === "kakao" ? "kakao_user_id" : "google_user_id";
+    const updateFields: Record<string, unknown> = {
+      status: "pending",
+      [column]: userId,
+      updated_at: new Date().toISOString(),
     };
+    if (initialAvatarUrl) updateFields.avatar_url = initialAvatarUrl;
     const { error } = await supabase
       .from("member")
       .update(updateFields)
@@ -171,13 +169,10 @@ export function MemberOnboardingForm({
         return;
       }
 
+      const column = provider === "kakao" ? "kakao_user_id" : "google_user_id";
       // 기존 회원 연동 시 avatar_url이 없으면 OAuth 프로필 사진 저장
-      const linkFields = {
-        ...(initialAvatarUrl && { avatar_url: initialAvatarUrl }),
-        ...(provider === "kakao"
-          ? { kakao_user_id: userId }
-          : { google_user_id: userId }),
-      };
+      const linkFields: Record<string, unknown> = { [column]: userId };
+      if (initialAvatarUrl) linkFields.avatar_url = initialAvatarUrl;
       const { error: linkError } = await supabase
         .from("member")
         .update(linkFields)
@@ -213,23 +208,21 @@ export function MemberOnboardingForm({
         ? values.bankNameCustom.trim()
         : values.bankName.trim();
 
-    const memberData = {
+    const column = provider === "kakao" ? "kakao_user_id" : "google_user_id";
+    const { error } = await supabase.from("member").insert({
+      [column]: userId,
       email: emailValue,
       full_name: values.fullName,
-      gender: values.gender as "male" | "female",
+      gender: values.gender,
       birthday: values.birthday,
       phone: phoneValue,
       bank_name: bankName || null,
       bank_account: values.bankAccount.trim() || null,
-      status: "active" as const,
+      status: "active",
       admin: false,
-      joined_at: todayKST(),
+      joined_at: new Date().toISOString().slice(0, 10),
       avatar_url: initialAvatarUrl,
-      ...(provider === "kakao"
-        ? { kakao_user_id: userId }
-        : { google_user_id: userId }),
-    };
-    const { error } = await supabase.from("member").insert(memberData);
+    });
 
     if (error) {
       if (error.code === "23505") {
