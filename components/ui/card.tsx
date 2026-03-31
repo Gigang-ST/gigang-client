@@ -1,6 +1,37 @@
 import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
 
 import { cn } from "@/lib/utils";
+
+/* ---------- CardItem: 프로젝트 공통 카드 스타일 ---------- */
+
+const cardItemVariants = {
+  /** 기본: 실선 테두리 카드 */
+  outlined: "rounded-2xl border-[1.5px] border-border p-4",
+  /** 빈 상태: 점선 테두리 */
+  dashed: "rounded-2xl border-[1.5px] border-dashed border-border p-4",
+} as const;
+
+type CardItemProps = React.HTMLAttributes<HTMLDivElement> & {
+  /** 카드 스타일 variant (기본: "outlined") */
+  variant?: keyof typeof cardItemVariants;
+  /** true이면 자식 요소를 루트로 사용 (Slot 패턴 — button, a, Link 등) */
+  asChild?: boolean;
+};
+
+const CardItem = React.forwardRef<HTMLDivElement, CardItemProps>(
+  ({ className, variant = "outlined", asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : "div";
+    return (
+      <Comp
+        ref={ref}
+        className={cn(cardItemVariants[variant], className)}
+        {...props}
+      />
+    );
+  },
+);
+CardItem.displayName = "CardItem";
 
 const Card = React.forwardRef<
   HTMLDivElement,
@@ -75,6 +106,7 @@ CardFooter.displayName = "CardFooter";
 
 export {
   Card,
+  CardItem,
   CardHeader,
   CardFooter,
   CardTitle,

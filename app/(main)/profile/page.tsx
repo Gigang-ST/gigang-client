@@ -1,7 +1,9 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { CardItem } from "@/components/ui/card";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { validateUUID } from "@/lib/utils";
+import dayjs from "dayjs";
 import { Suspense } from "react";
 import Link from "next/link";
 import { Settings, User } from "lucide-react";
@@ -61,16 +63,13 @@ async function ProfileContent() {
 
   const genderLabel = member.gender === "male" ? "남성" : member.gender === "female" ? "여성" : "";
   const joinedDate = member.joined_at
-    ? (() => {
-        const d = new Date(member.joined_at);
-        return `${d.getFullYear()}. ${d.getMonth() + 1}`;
-      })()
+    ? dayjs(member.joined_at).format("YYYY. M")
     : "";
 
   return (
     <div className="flex flex-col gap-6 px-6 pb-6">
         {/* Profile Card */}
-        <div className="flex items-center gap-4 rounded-2xl border-[1.5px] border-border p-5">
+        <CardItem className="flex items-center gap-4 p-5">
           {member.avatar_url ? (
             <img
               src={member.avatar_url}
@@ -94,7 +93,7 @@ async function ProfileContent() {
           <span className="shrink-0 rounded-lg bg-primary/10 px-2.5 py-1.5 text-xs font-semibold text-primary">
             활동
           </span>
-        </div>
+        </CardItem>
 
         {/* Personal Best */}
         <PersonalBestGrid
@@ -116,14 +115,14 @@ function ProfileSkeleton() {
   return (
     <div className="flex flex-col gap-6 px-6 pb-6">
       {/* Profile Card */}
-      <div className="flex items-center gap-4 rounded-2xl border-[1.5px] border-border p-5">
+      <CardItem className="flex items-center gap-4 p-5">
         <Skeleton className="size-16 rounded-full" />
         <div className="flex flex-1 flex-col gap-2">
           <Skeleton className="h-5 w-24" />
           <Skeleton className="h-3 w-32" />
         </div>
         <Skeleton className="h-8 w-12 rounded-lg" />
-      </div>
+      </CardItem>
       {/* Personal Best */}
       <div className="flex flex-col gap-3">
         <Skeleton className="h-4 w-28" />

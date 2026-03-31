@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CardItem } from "@/components/ui/card";
 import { getPastGigangCompetitions } from "@/app/actions/get-past-gigang-competitions";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
 import { CompetitionDetailDialog } from "./competition-detail-dialog";
@@ -285,16 +286,20 @@ export function RaceListView({
                 const isRegistered = Boolean(registrationsByCompetitionId[comp.id]);
                 const regCount = regCounts[comp.id] ?? 0;
                 return (
-                  <button
+                  <CardItem
+                    asChild
                     key={comp.id}
-                    onClick={() => { setSelectedCompetition(comp); setDetailOpen(true); }}
                     className={cn(
-                      "flex w-full items-center gap-4 rounded-2xl border-[1.5px] p-4 text-left transition-colors",
+                      "flex w-full items-center gap-4",
                       isRegistered
                         ? "border-primary bg-primary/5"
                         : "border-border",
                     )}
                   >
+                    <button
+                      onClick={() => { setSelectedCompetition(comp); setDetailOpen(true); }}
+                      className="text-left transition-colors"
+                    >
                     <div className="flex w-12 shrink-0 flex-col items-center gap-0.5">
                       <span className="text-[11px] font-semibold text-primary">
                         {MONTHS_EN[d.getMonth()]}
@@ -323,7 +328,8 @@ export function RaceListView({
                       </div>
                     </div>
                     <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
-                  </button>
+                    </button>
+                  </CardItem>
                 );
               })}
             </div>
@@ -387,14 +393,18 @@ export function RaceListView({
                     const isRegistered = Boolean(registrationsByCompetitionId[comp.id]);
                     const regCount = regCounts[comp.id] ?? 0;
                     return (
-                      <button
+                      <CardItem
+                        asChild
                         key={comp.id}
-                        onClick={() => { setSelectedCompetition(comp); setDetailOpen(true); }}
                         className={cn(
-                          "flex w-full items-center gap-4 rounded-2xl border-[1.5px] p-4 text-left transition-colors",
+                          "flex w-full items-center gap-4",
                           isRegistered ? "border-primary bg-primary/5" : "border-border",
                         )}
                       >
+                        <button
+                          onClick={() => { setSelectedCompetition(comp); setDetailOpen(true); }}
+                          className="text-left transition-colors"
+                        >
                         <div className="flex w-12 shrink-0 flex-col items-center gap-0.5">
                           <span className="text-[11px] font-semibold text-primary">{MONTHS_EN[d.getMonth()]}</span>
                           <span className="text-xl font-bold text-foreground">{String(d.getDate()).padStart(2, "0")}</span>
@@ -415,7 +425,8 @@ export function RaceListView({
                           </div>
                         </div>
                         <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
-                      </button>
+                        </button>
+                      </CardItem>
                     );
                   })}
                 </div>
