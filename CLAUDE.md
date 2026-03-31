@@ -86,7 +86,6 @@ PR 제목은 반드시 Conventional Commits 형식을 따라야 한다. GitHub A
 |------|----------------|------|--------------|
 | 프로덕션 | `gigang-client` | Hobby | `main` |
 | 개발계 | `gigang-client-dev` | Hobby | `dev` |
-| 테스트 | `gigang-client-test` | Hobby | — |
 
 ### 릴리스 (자동)
 
