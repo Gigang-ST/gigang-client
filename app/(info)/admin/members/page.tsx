@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CardItem } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 type Member = {
@@ -185,11 +186,11 @@ export default function MembersPage() {
         {filtered.map((member) => {
           const badge = STATUS_BADGE[member.status ?? ""] ?? STATUS_BADGE.active;
           return (
-            <button
-              key={member.id}
-              onClick={() => setSelectedMember(member)}
-              className="flex items-center gap-3 rounded-2xl border-[1.5px] border-border p-4 text-left transition-colors active:bg-secondary"
-            >
+            <CardItem asChild key={member.id} className="flex items-center gap-3">
+              <button
+                onClick={() => setSelectedMember(member)}
+                className="text-left transition-colors active:bg-secondary"
+              >
               <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-secondary">
                 {member.avatar_url ? (
                   <img
@@ -218,7 +219,8 @@ export default function MembersPage() {
                 {badge.label}
               </Badge>
               <ChevronRight className="size-4 shrink-0 text-border" />
-            </button>
+              </button>
+            </CardItem>
           );
         })}
       </div>

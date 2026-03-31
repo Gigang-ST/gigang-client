@@ -6,6 +6,7 @@ import { approveMember, rejectMember } from "@/app/actions/admin/manage-member";
 import { formatKoreanDate } from "@/lib/dayjs";
 import { Check, X, UserRound } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CardItem } from "@/components/ui/card";
 
 type PendingMember = {
   id: string;
@@ -86,9 +87,9 @@ export default function ApprovalsPage() {
           {members.map((member) => {
             const isActioning = actioning === member.id;
             return (
-              <div
+              <CardItem
                 key={member.id}
-                className="flex items-center gap-4 rounded-2xl border-[1.5px] border-border p-4"
+                className="flex items-center gap-4"
               >
                 {/* 아바타 */}
                 <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-secondary">
@@ -137,7 +138,7 @@ export default function ApprovalsPage() {
                     <Check className="size-4" />
                   </button>
                 </div>
-              </div>
+              </CardItem>
             );
           })}
         </div>
