@@ -1,5 +1,5 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { type Database } from "./database.types";
+import { type Database } from "@/lib/supabase/database.types";
 
 /**
  * Service Role 키를 사용하는 관리자 Supabase 클라이언트.

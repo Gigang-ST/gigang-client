@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import dayjs from "@/lib/dayjs";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -103,13 +104,14 @@ export function MemberOnboardingForm({
     if (!inactiveMemberId) return;
     setRejoinLoading(true);
     const supabase = createClient();
-    const column = provider === "kakao" ? "kakao_user_id" : "google_user_id";
-    const updateFields: Record<string, unknown> = {
-      status: "pending",
-      [column]: userId,
-      updated_at: new Date().toISOString(),
+    const updateFields = {
+      status: "pending" as const,
+      updated_at: dayjs().toISOString(),
+      ...(initialAvatarUrl && { avatar_url: initialAvatarUrl }),
+      ...(provider === "kakao"
+        ? { kakao_user_id: userId }
+        : { google_user_id: userId }),
     };
-    if (initialAvatarUrl) updateFields.avatar_url = initialAvatarUrl;
     const { error } = await supabase
       .from("member")
       .update(updateFields)
@@ -169,10 +171,13 @@ export function MemberOnboardingForm({
         return;
       }
 
-      const column = provider === "kakao" ? "kakao_user_id" : "google_user_id";
       // 기존 회원 연동 시 avatar_url이 없으면 OAuth 프로필 사진 저장
-      const linkFields: Record<string, unknown> = { [column]: userId };
-      if (initialAvatarUrl) linkFields.avatar_url = initialAvatarUrl;
+      const linkFields = {
+        ...(initialAvatarUrl && { avatar_url: initialAvatarUrl }),
+        ...(provider === "kakao"
+          ? { kakao_user_id: userId }
+          : { google_user_id: userId }),
+      };
       const { error: linkError } = await supabase
         .from("member")
         .update(linkFields)
@@ -218,7 +223,7 @@ export function MemberOnboardingForm({
       bank_account: values.bankAccount.trim() || null,
       status: "active",
       admin: false,
-      joined_at: new Date().toISOString().slice(0, 10),
+      joined_at: dayjs().format("YYYY-MM-DD"),
       avatar_url: initialAvatarUrl,
       ...(provider === "kakao"
         ? { kakao_user_id: userId }
