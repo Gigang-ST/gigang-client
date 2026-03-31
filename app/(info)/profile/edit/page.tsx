@@ -27,9 +27,6 @@ type ProfileData = {
   avatar_url: string;
 };
 
-const isGender = (v: string): v is Enums<"gender"> =>
-  v === "male" || v === "female";
-
 export default function ProfileEditPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -217,9 +214,12 @@ export default function ProfileEditPage() {
           <label className="text-sm font-medium text-foreground">성별</label>
           <Select
             value={profile.gender}
-            onValueChange={(v) => {
-              if (isGender(v)) setProfile({ ...profile, gender: v });
-            }}
+            onValueChange={(v) =>
+              setProfile({
+                ...profile,
+                gender: v as Enums<"gender">,
+              })
+            }
           >
             <SelectTrigger className="h-12 rounded-xl border-[1.5px] text-[15px]">
               <SelectValue placeholder="선택" />
