@@ -208,6 +208,11 @@ export function MemberOnboardingForm({
       return;
     }
 
+    if (values.gender !== "male" && values.gender !== "female") {
+      form.setError("gender", { message: "성별을 선택해 주세요." });
+      return;
+    }
+
     const bankName =
       values.bankName === "custom"
         ? values.bankNameCustom.trim()
@@ -216,7 +221,7 @@ export function MemberOnboardingForm({
     const memberData = {
       email: emailValue,
       full_name: values.fullName,
-      gender: values.gender as "male" | "female",
+      gender: values.gender,
       birthday: values.birthday,
       phone: phoneValue,
       bank_name: bankName || null,
