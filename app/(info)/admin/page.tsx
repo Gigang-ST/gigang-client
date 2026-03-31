@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { UserCheck, Users, Trophy, Timer } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CardItem } from "@/components/ui/card";
 import { getAdminStats, type AdminStats } from "@/app/actions/admin/get-admin-stats";
 
 const cards = [
@@ -56,11 +57,11 @@ export default function AdminDashboardPage() {
 
       <div className="grid grid-cols-2 gap-3">
         {cards.map((card) => (
-          <Link
-            key={card.key}
-            href={card.href}
-            className="flex flex-col gap-3 rounded-2xl border-[1.5px] border-border p-4 transition-colors active:bg-secondary"
-          >
+          <CardItem asChild key={card.key} className="flex flex-col gap-3">
+            <Link
+              href={card.href}
+              className="transition-colors active:bg-secondary"
+            >
             <div className="flex items-center gap-2">
               <card.icon className="size-4 text-muted-foreground" />
               <span className="text-[13px] font-medium text-muted-foreground">
@@ -80,7 +81,8 @@ export default function AdminDashboardPage() {
             ) : (
               <Skeleton className="h-8 w-12 rounded" />
             )}
-          </Link>
+            </Link>
+          </CardItem>
         ))}
       </div>
     </div>
