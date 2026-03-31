@@ -189,28 +189,47 @@ jobs:
               }
             } catch {}
 
-            let body = '## Visual Diff\n\n';
-
-            // 요약 한 줄
             const changed = pages.filter(p => diffInfo[p] && !diffInfo[p].match);
+            const unchanged = pages.filter(p => !diffInfo[p] || diffInfo[p].match);
+            const total = pages.length;
+
+            let body = `## Visual Diff\n\n`;
+
+            // ── 요약 배너 ──
             if (changed.length === 0) {
-              body += '> 모든 페이지가 동일합니다.\n\n';
+              body += `> **✅ 모든 페이지가 동일합니다** (${total}/${total} unchanged)\n\n`;
             } else {
-              body += `> **${changed.length}개 페이지**에서 차이가 발견되었습니다: ${changed.map(p => '`' + p + '`').join(', ')}\n\n`;
+              body += `> **⚠️ ${changed.length}개 페이지에서 변경 감지** (${changed.length}/${total} changed)\n\n`;
             }
 
-            // 모든 페이지 이미지
-            for (const name of pages) {
-              const file = `${name}.png`;
-              const info = diffInfo[name];
-              const status = (!info || info.match) ? '✅' : `❌ ${info.percent}%`;
+            // ── Changed: 자동 펼침 + Before/After/Diff 3열 ──
+            if (changed.length > 0) {
+              body += `### Changed\n\n`;
+              for (const name of changed) {
+                const file = `${name}.png`;
+                const info = diffInfo[name];
+                const pct = info ? info.percent : '?';
+                body += `<details open><summary><b>${name}</b> — ⚠️ ${pct}% diff</summary>\n\n`;
+                body += `| Before (dev) | After (PR) | Diff |\n`;
+                body += `|:---:|:---:|:---:|\n`;
+                body += `| <img src="${imgBase}/before/${file}?v=${runId}" width="240" /> `;
+                body += `| <img src="${imgBase}/after/${file}?v=${runId}" width="240" /> `;
+                body += `| <img src="${imgBase}/diff/${file}?v=${runId}" width="240" /> |\n\n`;
+                body += `</details>\n\n`;
+              }
+            }
 
-              body += `<details><summary><b>${name}</b> ${status}</summary>\n\n`;
-              body += `| Before (dev) | After (PR) |\n`;
-              body += `|:---:|:---:|\n`;
-              body += `| <img src="${imgBase}/before/${file}?v=${runId}" width="300" /> `;
-              body += `| <img src="${imgBase}/after/${file}?v=${runId}" width="300" /> |\n\n`;
-              body += `</details>\n\n`;
+            // ── Unchanged: 간결한 테이블 ──
+            if (unchanged.length > 0) {
+              if (changed.length > 0) {
+                body += `### Unchanged (${unchanged.length})\n\n`;
+              }
+              body += `| Page | Status |\n`;
+              body += `|------|--------|\n`;
+              for (const name of unchanged) {
+                body += `| ${name} | ✅ No change |\n`;
+              }
+              body += `\n`;
             }
 
             body += `---\n<sub>Visual Diff · <a href="https://github.com/${owner}/${repo}/actions/runs/${runId}">Run #${runId}</a></sub>`;
