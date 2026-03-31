@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CardItem } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { secondsToTime as formatTime } from "@/lib/dayjs";
 
@@ -146,9 +147,9 @@ export default function RecordsPage() {
       {/* 기록 목록 */}
       <div className="flex flex-col gap-2">
         {filtered.map((record) => (
-          <div
+          <CardItem
             key={record.id}
-            className="flex flex-col gap-2 rounded-2xl border-[1.5px] border-border p-4"
+            className="flex flex-col gap-2"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -215,7 +216,7 @@ export default function RecordsPage() {
                 {formatTime(record.record_time_sec)}
               </span>
             )}
-          </div>
+          </CardItem>
         ))}
       </div>
 

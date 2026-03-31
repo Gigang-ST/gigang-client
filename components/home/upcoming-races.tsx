@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
 import { formatDDay } from "@/lib/dayjs";
+import { CardItem } from "@/components/ui/card";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
 
 type UpcomingRace = {
@@ -99,18 +100,18 @@ export function UpcomingRaces({
         </Link>
       </div>
       {races.length === 0 ? (
-        <p className="rounded-2xl border-[1.5px] border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+        <CardItem variant="dashed" className="py-8 text-center text-sm text-muted-foreground">
           예정된 대회가 없습니다
-        </p>
+        </CardItem>
       ) : (
         races.map((race) => {
           const eventTypes = race.registered_event_types ?? race.event_types;
           return (
-            <button
-              key={race.id}
-              onClick={() => handleCardClick(race)}
-              className="flex w-full flex-col gap-3 rounded-2xl border-[1.5px] border-border p-4 text-left transition-colors hover:bg-muted/50"
-            >
+            <CardItem asChild key={race.id}>
+              <button
+                onClick={() => handleCardClick(race)}
+                className="flex w-full flex-col gap-3 text-left transition-colors hover:bg-muted/50"
+              >
               <div className="flex items-start justify-between">
                 <div className="flex flex-col gap-1">
                   {race.label && (
@@ -150,7 +151,8 @@ export function UpcomingRaces({
                   ))}
                 </div>
               )}
-            </button>
+              </button>
+            </CardItem>
           );
         })
       )}

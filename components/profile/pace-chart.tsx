@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { CardItem } from "@/components/ui/card";
 import {
   LineChart,
   Line,
@@ -258,7 +259,7 @@ export function PaceChart({ records }: { records: RaceRecord[] }) {
         </div>
       </div>
 
-      <div className="rounded-2xl border-[1.5px] border-border p-4 outline-none **:outline-none">
+      <CardItem className="outline-none **:outline-none">
         {!hasChartData ? (
           <div className="flex h-[220px] items-center justify-center text-xs text-muted-foreground">
             {chartData.length === 0 && period === "1y"
@@ -340,7 +341,7 @@ export function PaceChart({ records }: { records: RaceRecord[] }) {
             </ResponsiveContainer>
           </>
         )}
-      </div>
+      </CardItem>
     </div>
   );
 }
