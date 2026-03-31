@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { approveMember, rejectMember } from "@/app/actions/admin/manage-member";
+import { formatKoreanDate } from "@/lib/dayjs";
 import { Check, X, UserRound } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -112,7 +113,7 @@ export default function ApprovalsPage() {
                   </span>
                   {member.joined_at && (
                     <span className="text-[11px] text-muted-foreground/60">
-                      {new Date(member.joined_at).toLocaleDateString("ko-KR")}
+                      {formatKoreanDate(member.joined_at.slice(0, 10), { year: "numeric", month: "long", day: "numeric" })}
                     </span>
                   )}
                 </div>

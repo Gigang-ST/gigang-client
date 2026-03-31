@@ -2,6 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { validateUUID } from "@/lib/utils";
+import dayjs from "dayjs";
 import { Suspense } from "react";
 import Link from "next/link";
 import { Settings, User } from "lucide-react";
@@ -61,10 +62,7 @@ async function ProfileContent() {
 
   const genderLabel = member.gender === "male" ? "남성" : member.gender === "female" ? "여성" : "";
   const joinedDate = member.joined_at
-    ? (() => {
-        const d = new Date(member.joined_at);
-        return `${d.getFullYear()}. ${d.getMonth() + 1}`;
-      })()
+    ? dayjs(member.joined_at).format("YYYY. M")
     : "";
 
   return (

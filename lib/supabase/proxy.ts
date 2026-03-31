@@ -18,7 +18,7 @@ export async function updateSession(request: NextRequest) {
 
   // 비로그인 상태에서도 접근 가능한 공개 경로 목록
   const pathname = request.nextUrl.pathname;
-  const publicPaths = ["/", "/rules", "/join", "/newbie", "/races", "/records", "/terms", "/privacy", "/policy", "/settings"];
+  const publicPaths = ["/", "/rules", "/join", "/newbie", "/races", "/records", "/projects", "/terms", "/privacy", "/policy", "/settings"];
   const isPublic =
     publicPaths.includes(pathname) || pathname.startsWith("/auth");
 

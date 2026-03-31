@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { currentMonthKST, nextMonthStr } from "@/lib/dayjs";
 
 export type AdminStats = {
   pendingCount: number;
@@ -38,10 +39,8 @@ export async function getAdminStats(): Promise<AdminStats> {
       .eq("status", "active"),
     admin.from("member").select("*", { count: "exact", head: true }),
     (() => {
-      const now = new Date();
-      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-      const monthEnd = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}-01`;
+      const monthStart = currentMonthKST();
+      const monthEnd = nextMonthStr(monthStart);
       return admin
         .from("competition")
         .select("*", { count: "exact", head: true })
