@@ -1,6 +1,6 @@
 import { cacheLife } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { secondsToTime } from "@/lib/utils";
+import { secondsToTime } from "@/lib/dayjs";
 import { fetchUtmbRecentRace } from "@/lib/utmb";
 import dynamic from "next/dynamic";
 import { Suspense } from "react";

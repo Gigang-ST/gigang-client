@@ -1,7 +1,8 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardItem } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
-import { secondsToTime, validateUUID } from "@/lib/utils";
+import { validateUUID } from "@/lib/utils";
+import { secondsToTime } from "@/lib/dayjs";
 import { Suspense } from "react";
 import Link from "next/link";
 import { SocialLinksGrid } from "@/components/social-links";
