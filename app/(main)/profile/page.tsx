@@ -59,7 +59,7 @@ async function ProfileContent() {
           {member.avatar_url ? (
             <img
               src={member.avatar_url}
-              alt={member.full_name}
+              alt={member.full_name ?? ""}
               className="size-16 shrink-0 rounded-full object-cover"
               referrerPolicy="no-referrer"
             />
@@ -85,7 +85,7 @@ async function ProfileContent() {
         <PersonalBestGrid
           memberId={member.id}
           bestRecords={bestRecords}
-          utmbData={utmbProfile ?? null}
+          utmbData={utmbProfile?.utmb_profile_url && utmbProfile?.utmb_index != null ? { utmb_profile_url: utmbProfile.utmb_profile_url, utmb_index: utmbProfile.utmb_index } : null}
         />
 
         {/* 페이스 그래프 */}

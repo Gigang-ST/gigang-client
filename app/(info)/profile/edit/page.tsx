@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { type Enums } from "@/lib/supabase/database.types";
 import { validateUUID } from "@/lib/utils";
 import { uploadAvatar } from "@/app/actions/upload-avatar";
 import { Input } from "@/components/ui/input";
@@ -19,12 +20,15 @@ import { Camera, User } from "lucide-react";
 type ProfileData = {
   id: string;
   full_name: string;
-  gender: "male" | "female" | "";
+  gender: Enums<"gender">;
   birthday: string;
   phone: string;
   email: string;
   avatar_url: string;
 };
+
+const isGender = (v: string): v is Enums<"gender"> =>
+  v === "male" || v === "female";
 
 export default function ProfileEditPage() {
   const router = useRouter();
@@ -64,7 +68,7 @@ export default function ProfileEditPage() {
       setProfile({
         id: member.id,
         full_name: member.full_name ?? "",
-        gender: member.gender ?? "",
+        gender: member.gender,
         birthday: member.birthday ?? "",
         phone: member.phone ?? "",
         email: member.email ?? "",
@@ -121,6 +125,10 @@ export default function ProfileEditPage() {
       setMessage({ type: "error", text: "이름을 입력해 주세요." });
       return;
     }
+    if (!profile.birthday) {
+      setMessage({ type: "error", text: "생년월일을 입력해 주세요." });
+      return;
+    }
     setSaving(true);
     setMessage(null);
 
@@ -129,8 +137,8 @@ export default function ProfileEditPage() {
       .from("member")
       .update({
         full_name: profile.full_name.trim(),
-        gender: profile.gender || null,
-        birthday: profile.birthday || null,
+        gender: profile.gender,
+        birthday: profile.birthday,
         email: profile.email.trim() || null,
       })
       .eq("id", profile.id);
@@ -213,12 +221,9 @@ export default function ProfileEditPage() {
           <label className="text-sm font-medium text-foreground">성별</label>
           <Select
             value={profile.gender}
-            onValueChange={(v) =>
-              setProfile({
-                ...profile,
-                gender: v as "male" | "female",
-              })
-            }
+            onValueChange={(v) => {
+              if (isGender(v)) setProfile({ ...profile, gender: v });
+            }}
           >
             <SelectTrigger className="h-12 rounded-xl border-[1.5px] text-[15px]">
               <SelectValue placeholder="선택" />

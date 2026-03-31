@@ -264,7 +264,7 @@ async function HomeContent() {
                     </span>
                   </div>
                   <span className="font-mono text-lg font-bold text-foreground">
-                    {secondsToTime(rec.record_time_sec)}
+                    {secondsToTime(rec.record_time_sec ?? 0)}
                   </span>
                 </CardItem>
               );
