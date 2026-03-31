@@ -130,8 +130,8 @@ export default function ProfileEditPage() {
       .from("member")
       .update({
         full_name: profile.full_name.trim(),
-        gender: profile.gender || null,
-        birthday: profile.birthday || null,
+        gender: profile.gender,
+        birthday: profile.birthday,
         email: profile.email.trim() || null,
       })
       .eq("id", profile.id);

@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import dayjs from "@/lib/dayjs";
+import { getKSTDate, todayKST } from "@/lib/dayjs";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -106,7 +106,7 @@ export function MemberOnboardingForm({
     const supabase = createClient();
     const updateFields = {
       status: "pending" as const,
-      updated_at: dayjs().toISOString(),
+      updated_at: getKSTDate().toISOString(),
       ...(initialAvatarUrl && { avatar_url: initialAvatarUrl }),
       ...(provider === "kakao"
         ? { kakao_user_id: userId }
@@ -216,14 +216,14 @@ export function MemberOnboardingForm({
     const memberData = {
       email: emailValue,
       full_name: values.fullName,
-      gender: values.gender,
+      gender: values.gender as "male" | "female",
       birthday: values.birthday,
       phone: phoneValue,
       bank_name: bankName || null,
       bank_account: values.bankAccount.trim() || null,
-      status: "active",
+      status: "active" as const,
       admin: false,
-      joined_at: dayjs().format("YYYY-MM-DD"),
+      joined_at: todayKST(),
       avatar_url: initialAvatarUrl,
       ...(provider === "kakao"
         ? { kakao_user_id: userId }
