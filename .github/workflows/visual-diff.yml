@@ -1,0 +1,215 @@
+name: Visual Diff
+
+on:
+  pull_request:
+    branches: [dev]
+
+concurrency:
+  group: visual-diff-${{ github.head_ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  deployments: read
+
+env:
+  # Vercel 개발계 기본 도메인 (프로덕션 배포 URL)
+  DEV_SITE_URL: https://dev.gigang.team
+  # Supabase dev 프로젝트
+  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+  # 테스트 계정 (visual-diff-bot@gigang.team)
+  E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+  E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+
+jobs:
+  visual-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # ── agent-browser 설치 ──
+      - name: Install agent-browser
+        run: |
+          npm install -g agent-browser
+          agent-browser install
+
+      # ── Vercel Preview 배포 대기 ──
+      - name: Wait for Vercel Preview
+        id: preview
+        uses: patrickedqvist/wait-for-vercel-preview@v1.3.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          max_timeout: 300
+          check_interval: 10
+
+      # ── 뷰포트 설정 (모바일 393x852) ──
+      - name: Configure viewport
+        run: agent-browser resize 393 852
+
+      # ── Before: dev 사이트 스크린샷 ──
+      - name: Login to dev site
+        run: node scripts/visual-diff-auth.mjs "$DEV_SITE_URL"
+
+      - name: Capture before screenshots (dev)
+        run: |
+          mkdir -p screenshots/before
+          PAGES=(
+            "home:/"
+            "races:/races"
+            "records:/records"
+            "profile:/profile"
+            "join:/join"
+            "settings:/settings"
+            "login:/auth/login"
+          )
+          for entry in "${PAGES[@]}"; do
+            name="${entry%%:*}"
+            path="${entry#*:}"
+            echo "📸 [before] $name ($DEV_SITE_URL$path)"
+            agent-browser open "$DEV_SITE_URL$path"
+            sleep 3
+            agent-browser screenshot "screenshots/before/$name.png" --full
+          done
+
+      # ── After: preview 사이트 스크린샷 + diff ──
+      - name: Login to preview site
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        run: node scripts/visual-diff-auth.mjs "$PREVIEW_URL"
+
+      - name: Capture after screenshots + diff
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        run: |
+          mkdir -p screenshots/after screenshots/diff
+          PAGES=(
+            "home:/"
+            "races:/races"
+            "records:/records"
+            "profile:/profile"
+            "join:/join"
+            "settings:/settings"
+            "login:/auth/login"
+          )
+          DIFF_SUMMARY=""
+          for entry in "${PAGES[@]}"; do
+            name="${entry%%:*}"
+            path="${entry#*:}"
+            echo "📸 [after] $name ($PREVIEW_URL$path)"
+            agent-browser open "$PREVIEW_URL$path"
+            sleep 3
+            agent-browser screenshot "screenshots/after/$name.png" --full
+
+            # diff (baseline = before 이미지)
+            DIFF_OUTPUT=$(agent-browser diff screenshot \
+              --baseline "screenshots/before/$name.png" \
+              --output "screenshots/diff/$name.png" 2>&1) || true
+            DIFF_SUMMARY="$DIFF_SUMMARY\n$name: $DIFF_OUTPUT"
+          done
+
+          echo -e "$DIFF_SUMMARY" | tee screenshots/diff-summary.txt
+
+      # ── gh-pages에 이미지 업로드 ──
+      - name: Deploy images to gh-pages
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          RUN_ID=${{ github.run_id }}
+          DEST_DIR="visual-diff/pr-${PR_NUMBER}"
+
+          git fetch origin gh-pages 2>/dev/null || true
+
+          if git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
+            git worktree add gh-pages-dir origin/gh-pages
+          else
+            git worktree add --orphan gh-pages-dir
+            cd gh-pages-dir && git checkout --orphan gh-pages && cd ..
+          fi
+
+          rm -rf "gh-pages-dir/${DEST_DIR}"
+          mkdir -p "gh-pages-dir/${DEST_DIR}"
+          cp -r screenshots/before "gh-pages-dir/${DEST_DIR}/"
+          cp -r screenshots/after "gh-pages-dir/${DEST_DIR}/"
+          cp -r screenshots/diff "gh-pages-dir/${DEST_DIR}/"
+
+          cd gh-pages-dir
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "${DEST_DIR}"
+          git commit -m "visual-diff: PR #${PR_NUMBER} (run ${RUN_ID})" --allow-empty
+          git push origin HEAD:gh-pages
+
+      # ── PR 코멘트 ──
+      - name: Post visual diff comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            const prNumber = context.issue.number;
+            const runId = context.runId;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pagesBase = `https://${owner}.github.io/${repo}`;
+            const imgBase = `${pagesBase}/visual-diff/pr-${prNumber}`;
+
+            // diff 요약 읽기
+            let summary = '';
+            try {
+              summary = fs.readFileSync('screenshots/diff-summary.txt', 'utf-8').trim();
+            } catch {}
+
+            // diff 이미지 목록
+            const diffDir = 'screenshots/diff';
+            const files = fs.existsSync(diffDir)
+              ? fs.readdirSync(diffDir).filter(f => f.endsWith('.png'))
+              : [];
+
+            let body = '## Visual Diff Report\n\n';
+
+            if (summary) {
+              body += '```\n' + summary + '\n```\n\n';
+            }
+
+            if (files.length === 0) {
+              body += '변경된 페이지가 없습니다.\n';
+            } else {
+              for (const file of files) {
+                const name = file.replace('.png', '');
+                body += `<details><summary><b>${name}</b></summary>\n\n`;
+                body += `| Before (dev) | After (PR) | Diff |\n`;
+                body += `|:---:|:---:|:---:|\n`;
+                body += `| <img src="${imgBase}/before/${file}?v=${runId}" width="250" /> `;
+                body += `| <img src="${imgBase}/after/${file}?v=${runId}" width="250" /> `;
+                body += `| <img src="${imgBase}/diff/${file}?v=${runId}" width="250" /> |\n\n`;
+                body += `</details>\n\n`;
+              }
+            }
+
+            body += `\n---\n*Visual Diff \u00b7 [Run #${runId}](https://github.com/${owner}/${repo}/actions/runs/${runId})*`;
+
+            // 기존 코멘트 업데이트 또는 새로 생성
+            const { data: comments } = await github.rest.issues.listComments({
+              owner, repo, issue_number: prNumber,
+            });
+            const existing = comments.find(c =>
+              c.user?.login === 'github-actions[bot]' &&
+              c.body?.includes('Visual Diff Report')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner, repo, comment_id: existing.id, body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: prNumber, body,
+              });
+            }
