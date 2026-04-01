@@ -14,9 +14,10 @@
       "Read(secrets/**)"
     ]
   },
-  "language": "korean",
-  "alwaysThinkingEnabled": true,
   "enabledPlugins": {
-    "typescript-lsp@claude-plugins-official": true
-  }
+    "typescript-lsp@claude-plugins-official": true,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true
+  },
+  "language": "korean",
+  "alwaysThinkingEnabled": true
 }
