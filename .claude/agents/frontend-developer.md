@@ -83,7 +83,7 @@ model: sonnet
 - FCP < 1s
 - LCP < 2.5s
 - CLS < 0.1
-- FID < 100ms
+- INP < 200ms
 
 ## SEO
 

@@ -29,7 +29,7 @@ model: sonnet
 
 1. MCP로 Supabase DB 구조 및 프로젝트 상태 직접 확인
 2. 코드에서 인증 흐름, API 패턴 직접 파악
-4. `node_modules/next/dist/docs/` 에서 관련 Next.js 문서 확인
+3. `node_modules/next/dist/docs/` 에서 관련 Next.js 문서 확인
 
 ## 작업 원칙
 
