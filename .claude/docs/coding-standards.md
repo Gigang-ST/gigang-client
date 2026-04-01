@@ -2,10 +2,9 @@
 
 ## 일반 규칙
 
-- TypeScript strict 모드 사용
 - ESLint 규칙 준수 (`pnpm run lint`로 검증)
 - 한국어 UI 텍스트, 한국어 주석
-- 경로 별칭 `@/` 사용 (상대 경로 사용 금지)
+- import 순서, 상대 경로 금지 등은 ESLint가 자동 강제 (`eslint-plugin-import`)
 
 ## 파일 네이밍
 
@@ -18,14 +17,6 @@
 | 서버 액션 | 기능명.ts | `app/actions/utmb.ts` |
 | 유틸리티 | kebab-case | `date-utils.ts` |
 | 타입 정의 | `types.ts` | `components/races/types.ts` |
-
-## 임포트 순서
-
-1. React / Next.js
-2. 외부 라이브러리
-3. `@/lib/` 유틸리티
-4. `@/components/` 컴포넌트
-5. 타입 임포트
 
 ## Supabase 사용
 
@@ -50,37 +41,6 @@ const supabase = createClient(); // await 불필요
 - Supabase 쿼리 결과의 `error` 체크
 - 서버 액션에서 에러 발생 시 적절한 에러 메시지 반환
 - 클라이언트에서 toast/alert로 사용자에게 알림
-
-## Git 컨벤션
-
-### 커밋 메시지
-```
-feat: 새 기능 추가
-fix: 버그 수정
-refactor: 리팩토링
-style: 스타일/UI 변경
-docs: 문서 변경
-chore: 설정/빌드 변경
-```
-
-### 브랜치 네이밍
-```
-feat/feature-name
-fix/bug-description
-refactor/target
-```
-
-### PR 규칙
-- main 브랜치에 직접 push 금지
-- PR 생성 후 리뷰 필수
-- 빌드 성공 확인 후 머지
-
-## 공유 상수/유틸리티
-
-- `lib/utils.ts` — `cn()`, `hasEnvVars`, `secondsToTime()`, `validateUUID()`
-- `lib/constants.ts` — `BANK_OPTIONS` (은행 목록)
-- `components/races/sport-config.ts` — `resolveSportConfig()`, `SPORT_LEGEND` (종목 설정)
-- 중복 코드 방지: 상수/유틸리티는 반드시 공유 파일에서 import
 
 ## 보안 규칙
 
