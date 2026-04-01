@@ -100,3 +100,25 @@ refactor/target
 
 - 스크린샷 저장 경로: `temp/playwright/` (gitignore 대상)
 - MCP Playwright로 스크린샷 찍을 때 `filename` 파라미터에 `temp/playwright/` 접두사 사용
+
+## JSDoc 규칙
+
+### 작성 대상
+- **필수**: export 함수, 사이드 이펙트가 있는 함수, 복잡한 반환 구조를 가진 함수
+- **생략 가능**: 이름만으로 의미가 명확한 trivial 함수 (e.g. `cn()`, 단순 getter)
+
+### 태그 규칙
+
+| 태그 | 사용 시점 | 비고 |
+|------|----------|------|
+| `@param` | 파라미터가 있으면 항상 | 타입 생략 (TS가 처리). 의미·제약·기본값을 기술 |
+| `@returns` | 반환값이 있으면 항상 | 반환 구조, `null`/`undefined` 조건, Promise resolve 값 명시 |
+| `@throws` | 에러를 throw하면 항상 | 조건과 에러 종류 기술 |
+| `@example` | 사용법이 비자명한 함수 | 실제 호출 코드 포함 |
+| `@see` | 관련 함수/모듈 참조 시 | `@see {@link functionName}` 형태 |
+| `@deprecated` | 폐기 예정 함수 | 대체 함수 안내 필수 |
+
+### 설명 원칙
+- "what/when"을 쓰고, "how"는 쓰지 않는다
+- 함수명·파라미터명을 그대로 반복하지 않는다
+- 타입을 JSDoc에 중복 기재하지 않는다 (TypeScript가 처리)
