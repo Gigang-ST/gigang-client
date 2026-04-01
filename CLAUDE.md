@@ -90,6 +90,7 @@ PR 제목은 반드시 Conventional Commits 형식을 따라야 한다. GitHub A
 ## 커스텀 커맨드
 
 - `/sync-member-records` — 신규 가입 회원의 대회 기록/참가 등록을 temp 파일 기반으로 DB에 동기화
+- `/pr` — PR 생성 시 반드시 이 스킬을 사용할 것
 
 ## JSDoc 규칙
 
