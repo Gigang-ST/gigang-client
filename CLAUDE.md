@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # 기강 (Gigang) 프로젝트
 
 스포츠 팀 "기강"의 공식 웹 애플리케이션. 러닝, 자전거, 수영, 트레일러닝 등을 함께하는 스포츠 팀 멤버 관리 및 대회/기록 플랫폼.
@@ -10,28 +12,6 @@
 - **폼**: React Hook Form
 - **배포**: PWA (standalone 모드)
 - **폰트**: Pretendard (본문), Nanum Myeongjo (제목)
-
-## 프로젝트 구조
-
-```
-app/
-  (main)/          # 메인 탭 페이지 (홈, 대회, 기록, 프로필) - BottomTabBar 포함
-  (info)/          # 정보 페이지 (가입안내, 규칙, 약관, 신규가입 등) - BackHeader 포함
-  (protected)/     # 인증 필수 페이지 (온보딩)
-  auth/            # 인증 (로그인, OAuth 콜백, 에러, 가입완료)
-  api/             # API 라우트 (revalidate 웹훅)
-  actions/         # 서버 액션
-components/
-  ui/              # shadcn/ui 공통 컴포넌트
-  auth/            # 인증 관련 컴포넌트
-  races/           # 대회 관련 컴포넌트
-  profile/         # 프로필 관련 컴포넌트
-  in-app-browser-gate.tsx  # 인앱브라우저 감지 → 외부 브라우저 유도
-lib/
-  supabase/        # Supabase 클라이언트 (server/client/proxy)
-  dayjs.ts         # 날짜/시간 유틸리티 (KST 기준, dayjs 기반)
-  utils.ts         # cn() 유틸리티
-```
 
 ## 주요 규칙
 
@@ -168,10 +148,20 @@ PR 제목은 반드시 Conventional Commits 형식을 따라야 한다. GitHub A
  */
 ```
 
+## MCP 서버
+
+`.mcp.json`(Claude Code)과 `.cursor/mcp.json`(Cursor)은 동일한 MCP 설정을 공유한다. 변경 시 반드시 양쪽 모두 동기화할 것.
+
+| MCP 서버 | 용도 |
+|----------|------|
+| `supabase-gigang-dev` | Supabase 개발 환경 |
+| `supabase-gigang-prd` | Supabase 프로덕션 환경 |
+| `vercel` | Vercel 배포 관리 |
+| `chrome-devtools` | 브라우저 테스트/QA |
+| `shadcn` | shadcn/ui 컴포넌트 검색 |
+
 ## 에이전트 참고 문서
 
 상세 가이드는 `.claude/docs/` 디렉토리 참조:
-- `architecture.md` - 라우팅, 레이아웃, 인증 흐름 상세
-- `database-schema.md` - DB 테이블, 관계, 쿼리 패턴
 - `component-conventions.md` - 컴포넌트 작성 규칙, shadcn/ui 사용법
 - `coding-standards.md` - 코딩 컨벤션, PR 규칙
