@@ -1,4 +1,5 @@
 @AGENTS.md
+@DESIGN.md
 
 # 기강 (Gigang) 프로젝트
 
@@ -58,5 +59,6 @@ feature/* ──squash merge──▶ dev ──merge commit──▶ main
 
 ## 참고 문서
 
+- `DESIGN.md` — 디자인 시스템 (토큰, 컴포넌트 카탈로그, AI 규칙)
 - `.claude/docs/coding-standards.md` — 코딩 컨벤션, 보안, JSDoc, Git 규칙
 - `.claude/docs/component-conventions.md` — 컴포넌트 작성 규칙, shadcn/ui 사용법
