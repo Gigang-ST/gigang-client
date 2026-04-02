@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { BANK_OPTIONS } from "@/lib/constants";
 
 type BankData = {
@@ -194,14 +195,14 @@ export default function BankInfoPage() {
       </div>
 
       {/* 저장 버튼 */}
-      <button
+      <Button
         type="button"
         onClick={handleSave}
         disabled={saving}
-        className="h-[52px] w-full rounded-xl bg-primary text-base font-semibold text-primary-foreground disabled:opacity-50"
+        className="h-[52px] w-full rounded-xl text-base font-semibold"
       >
         {saving ? "저장 중..." : "저장"}
-      </button>
+      </Button>
 
       {message && (
         <p

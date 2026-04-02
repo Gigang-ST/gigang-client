@@ -1,5 +1,7 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+
 export default function GlobalError({
   reset,
 }: {
@@ -14,12 +16,9 @@ export default function GlobalError({
           <p style={{ fontSize: "0.875rem", color: "#a1a1aa" }}>
             문제가 발생했습니다. 잠시 후 다시 시도해주세요.
           </p>
-          <button
-            onClick={reset}
-            style={{ height: "2.5rem", padding: "0 1.5rem", borderRadius: "0.5rem", backgroundColor: "#18181b", color: "#fafafa", fontSize: "0.875rem", fontWeight: 500, border: "none", cursor: "pointer" }}
-          >
+          <Button size="lg" onClick={reset}>
             다시 시도
-          </button>
+          </Button>
         </div>
       </body>
     </html>

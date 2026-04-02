@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Avatar } from "@/components/common/avatar";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { H2 } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -161,18 +162,20 @@ export default function MembersPage() {
       {/* 필터 탭 */}
       <div className="flex gap-0 rounded-xl bg-secondary p-1">
         {FILTERS.map((f) => (
-          <button
+          <Button
             key={f.value}
+            variant="ghost"
+            size="sm"
             onClick={() => setFilter(f.value)}
             className={cn(
-              "flex-1 rounded-lg py-2 text-[13px] font-medium transition-colors",
+              "flex-1 rounded-lg text-[13px] font-medium",
               filter === f.value
-                ? "bg-foreground text-background"
+                ? "bg-foreground text-background hover:bg-foreground hover:text-background"
                 : "text-muted-foreground",
             )}
           >
             {f.label}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -269,12 +272,14 @@ export default function MembersPage() {
                     }
                   </Badge>
                 </div>
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
                   onClick={() => setSelectedMember(null)}
-                  className="flex size-8 items-center justify-center rounded-lg text-muted-foreground"
+                  className="text-muted-foreground"
                 >
                   <X className="size-5" />
-                </button>
+                </Button>
               </div>
 
               {/* 정보 */}
@@ -307,59 +312,63 @@ export default function MembersPage() {
               {/* 액션 버튼 */}
               <div className="flex flex-col gap-2">
                 {selectedMember.status === "active" && (
-                  <button
+                  <Button
+                    variant="outline"
                     onClick={() =>
                       handleStatusChange(selectedMember.id, "inactive")
                     }
                     disabled={actioning}
-                    className="flex items-center gap-3 rounded-xl border-[1.5px] border-border px-4 py-3.5 text-left transition-colors active:bg-secondary disabled:opacity-50"
+                    className="h-auto justify-start gap-3 rounded-xl px-4 py-3.5 text-left"
                   >
                     <UserX className="size-4 text-destructive" />
                     <span className="text-[15px] font-medium text-destructive">
                       비활성화
                     </span>
-                  </button>
+                  </Button>
                 )}
                 {selectedMember.status === "inactive" && (
-                  <button
+                  <Button
+                    variant="outline"
                     onClick={() =>
                       handleStatusChange(selectedMember.id, "active")
                     }
                     disabled={actioning}
-                    className="flex items-center gap-3 rounded-xl border-[1.5px] border-border px-4 py-3.5 text-left transition-colors active:bg-secondary disabled:opacity-50"
+                    className="h-auto justify-start gap-3 rounded-xl px-4 py-3.5 text-left"
                   >
                     <UserCheck className="size-4 text-primary" />
                     <span className="text-[15px] font-medium text-primary">
                       활성화
                     </span>
-                  </button>
+                  </Button>
                 )}
                 {selectedMember.admin ? (
-                  <button
+                  <Button
+                    variant="outline"
                     onClick={() =>
                       handleToggleAdmin(selectedMember.id, false)
                     }
                     disabled={actioning}
-                    className="flex items-center gap-3 rounded-xl border-[1.5px] border-border px-4 py-3.5 text-left transition-colors active:bg-secondary disabled:opacity-50"
+                    className="h-auto justify-start gap-3 rounded-xl px-4 py-3.5 text-left"
                   >
                     <ShieldOff className="size-4 text-muted-foreground" />
                     <span className="text-[15px] font-medium text-foreground">
                       관리자 해제
                     </span>
-                  </button>
+                  </Button>
                 ) : (
-                  <button
+                  <Button
+                    variant="outline"
                     onClick={() =>
                       handleToggleAdmin(selectedMember.id, true)
                     }
                     disabled={actioning}
-                    className="flex items-center gap-3 rounded-xl border-[1.5px] border-border px-4 py-3.5 text-left transition-colors active:bg-secondary disabled:opacity-50"
+                    className="h-auto justify-start gap-3 rounded-xl px-4 py-3.5 text-left"
                   >
                     <Shield className="size-4 text-primary" />
                     <span className="text-[15px] font-medium text-foreground">
                       관리자 지정
                     </span>
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>

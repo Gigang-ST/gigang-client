@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Camera, UserRound } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 type ProfileData = {
   id: string;
@@ -171,11 +172,12 @@ export default function ProfileEditPage() {
     <div className="flex flex-col gap-6 px-6 pb-6 pt-4">
       {/* 프로필 사진 */}
       <div className="flex flex-col items-center gap-2">
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
-          className="group relative size-24 overflow-hidden rounded-full disabled:opacity-50"
+          className="group relative size-24 overflow-hidden rounded-full p-0"
         >
           {profile.avatar_url ? (
             <img
@@ -192,7 +194,7 @@ export default function ProfileEditPage() {
           <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/10 transition-opacity group-hover:bg-black/30">
             <Camera className="size-6 text-white" />
           </div>
-        </button>
+        </Button>
         <input
           ref={fileInputRef}
           type="file"
@@ -280,14 +282,14 @@ export default function ProfileEditPage() {
       </div>
 
       {/* 저장 버튼 */}
-      <button
+      <Button
         type="button"
         onClick={handleSave}
         disabled={saving}
-        className="h-[52px] w-full rounded-xl bg-primary text-base font-semibold text-primary-foreground disabled:opacity-50"
+        className="h-[52px] w-full rounded-xl text-base font-semibold"
       >
         {saving ? "저장 중..." : "저장"}
-      </button>
+      </Button>
 
       {message && (
         <p
