@@ -92,6 +92,11 @@
   --sport-triathlon: 173 58% 39%;
   --sport-cycling: 197 37% 24%;
 
+  /* 이벤트 타입(거리) 색상 — 페이스 차트 등 거리별 구분용 */
+  --event-full: 217 92% 60%;
+  --event-half: 142 71% 45%;
+  --event-10k: 21 90% 48%;
+
   --radius: 0.75rem;
 }
 

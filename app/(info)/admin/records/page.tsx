@@ -13,6 +13,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { H2 } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardItem } from "@/components/ui/card";
@@ -125,9 +126,7 @@ export default function RecordsPage() {
 
   return (
     <div className="flex flex-col gap-4 px-6 pb-6 pt-4">
-      <h1 className="text-[22px] font-bold tracking-tight text-foreground">
-        기록 관리
-      </h1>
+      <H2>기록 관리</H2>
 
       {/* 검색 */}
       <div className="relative">

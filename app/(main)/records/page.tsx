@@ -5,6 +5,7 @@ import { fetchUtmbRecentRace } from "@/lib/utmb";
 import dynamic from "next/dynamic";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { H1 } from "@/components/common/typography";
 
 const RecordsClient = dynamic(() =>
   import("./records-client").then((m) => m.RecordsClient),
@@ -230,9 +231,7 @@ export default function RecordsPage() {
   return (
     <div className="flex flex-col gap-0">
       <div className="flex h-14 items-center px-6">
-        <h1 className="text-[28px] font-semibold tracking-tight text-foreground">
-          기강의 전당
-        </h1>
+        <H1 className="font-semibold">기강의 전당</H1>
       </div>
       <Suspense fallback={<RecordsSkeleton />}>
         <RecordsContent />

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, History } from "lucide-react";
 import { CardItem } from "@/components/ui/card";
+import { SectionLabel } from "@/components/common/typography";
 import { RaceRecordDialog } from "./race-record-dialog";
 import { RaceHistoryDialog } from "./race-history-dialog";
 
@@ -13,9 +14,7 @@ export function RaceRecordSection({ memberId }: { memberId: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-        대회 기록
-      </span>
+      <SectionLabel>대회 기록</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
         <CardItem variant="dashed" asChild className="py-6">
           <button

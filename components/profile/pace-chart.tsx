@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { CardItem } from "@/components/ui/card";
+import { SectionLabel } from "@/components/common/typography";
 import {
   LineChart,
   Line,
@@ -24,9 +25,9 @@ const DISTANCE_KM: Record<string, number> = {
 const EVENT_ORDER = ["10K", "HALF", "FULL"] as const;
 
 const EVENT_CONFIG: Record<string, { label: string; color: string }> = {
-  FULL: { label: "FULL", color: "#2563eb" },
-  HALF: { label: "HALF", color: "#16a34a" },
-  "10K": { label: "10K", color: "#ea580c" },
+  FULL: { label: "FULL", color: "hsl(var(--event-full))" },
+  HALF: { label: "HALF", color: "hsl(var(--event-half))" },
+  "10K": { label: "10K", color: "hsl(var(--event-10k))" },
 };
 
 type RaceRecord = {
@@ -230,9 +231,7 @@ export function PaceChart({ records }: { records: RaceRecord[] }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-          페이스 추이
-        </span>
+        <SectionLabel>페이스 추이</SectionLabel>
         <div className="flex rounded-lg border border-border p-0.5">
           <button
             type="button"
@@ -311,7 +310,7 @@ export function PaceChart({ records }: { records: RaceRecord[] }) {
                   <ReferenceLine
                     key={y}
                     y={y}
-                    stroke="#e5e7eb"
+                    stroke="hsl(var(--border))"
                     strokeOpacity={0.6}
                   />
                 ))}

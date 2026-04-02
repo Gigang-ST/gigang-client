@@ -21,6 +21,7 @@ import {
   Trophy,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { H2 } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -269,9 +270,7 @@ export default function CompetitionsPage() {
     return (
       <div className="flex flex-col gap-6 px-6 pb-6 pt-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-[22px] font-bold tracking-tight text-foreground">
-            {mode === "create" ? "대회 등록" : "대회 수정"}
-          </h1>
+          <H2>{mode === "create" ? "대회 등록" : "대회 수정"}</H2>
           <button
             onClick={() => setMode("list")}
             className="flex size-8 items-center justify-center rounded-lg text-muted-foreground"
@@ -416,9 +415,7 @@ export default function CompetitionsPage() {
     return (
       <div className="flex flex-col gap-6 px-6 pb-6 pt-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-[22px] font-bold tracking-tight text-foreground">
-            대회 상세
-          </h1>
+          <H2>대회 상세</H2>
           <button
             onClick={() => setMode("list")}
             className="flex size-8 items-center justify-center rounded-lg text-muted-foreground"
@@ -530,9 +527,7 @@ export default function CompetitionsPage() {
   return (
     <div className="flex flex-col gap-4 px-6 pb-6 pt-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-[22px] font-bold tracking-tight text-foreground">
-          대회 관리
-        </h1>
+        <H2>대회 관리</H2>
         <button
           onClick={openCreate}
           className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground"
