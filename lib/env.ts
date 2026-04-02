@@ -28,10 +28,8 @@ export const env = createEnv({
     NEXT_PUBLIC_DEBUG_DATE: process.env.NEXT_PUBLIC_DEBUG_DATE,
     NEXT_PUBLIC_ENABLE_DEV_MODE: process.env.NEXT_PUBLIC_ENABLE_DEV_MODE,
   },
-  /**
-   * 빌드 타임에 서버 환경변수 검증을 건너뛸지 여부.
-   * CI에서 클라이언트 빌드만 할 때 SKIP_ENV_VALIDATION=true로 설정.
-   */
-  skipValidation: !!process.env.SKIP_ENV_VALIDATION,
+  /** CI 환경(GitHub Actions 등)이거나 SKIP_ENV_VALIDATION=true면 검증 스킵 */
+  skipValidation:
+    !!process.env.SKIP_ENV_VALIDATION || !!process.env.CI,
   emptyStringAsUndefined: true,
 });
