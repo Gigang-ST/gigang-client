@@ -6,7 +6,10 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
+import { formatDDay } from "@/lib/dayjs";
+import { CardItem } from "@/components/ui/card";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
+import { SectionLabel } from "@/components/common/typography";
 
 type UpcomingRace = {
   id: string;
@@ -19,17 +22,6 @@ type UpcomingRace = {
   registered_event_types?: string[];
   label?: string;
 };
-
-function formatDDay(dateStr: string) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(dateStr);
-  target.setHours(0, 0, 0, 0);
-  const diff = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  if (diff === 0) return "D-DAY";
-  if (diff > 0) return `D-${diff}`;
-  return `D+${Math.abs(diff)}`;
-}
 
 type UpcomingRacesProps = {
   races: UpcomingRace[];
@@ -101,26 +93,24 @@ export function UpcomingRaces({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-          UPCOMING RACES
-        </span>
+        <SectionLabel>UPCOMING RACES</SectionLabel>
         <Link href="/races" className="text-xs font-medium text-primary">
           모두 보기
         </Link>
       </div>
       {races.length === 0 ? (
-        <p className="rounded-2xl border-[1.5px] border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+        <CardItem variant="dashed" className="py-8 text-center text-sm text-muted-foreground">
           예정된 대회가 없습니다
-        </p>
+        </CardItem>
       ) : (
         races.map((race) => {
           const eventTypes = race.registered_event_types ?? race.event_types;
           return (
-            <button
-              key={race.id}
-              onClick={() => handleCardClick(race)}
-              className="flex w-full flex-col gap-3 rounded-2xl border-[1.5px] border-border p-4 text-left transition-colors hover:bg-muted/50"
-            >
+            <CardItem asChild key={race.id}>
+              <button
+                onClick={() => handleCardClick(race)}
+                className="flex w-full flex-col gap-3 text-left transition-colors hover:bg-muted/50"
+              >
               <div className="flex items-start justify-between">
                 <div className="flex flex-col gap-1">
                   {race.label && (
@@ -160,7 +150,8 @@ export function UpcomingRaces({
                   ))}
                 </div>
               )}
-            </button>
+              </button>
+            </CardItem>
           );
         })
       )}

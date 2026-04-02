@@ -1,12 +1,15 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { createClient } from "@/lib/supabase/server";
-import { getMember } from "@/lib/get-member";
-import { secondsToTime } from "@/lib/utils";
+import { CardItem } from "@/components/ui/card";
+import { H1 } from "@/components/common/typography";
+import { secondsToTime } from "@/lib/dayjs";
 import { Suspense } from "react";
 import Link from "next/link";
 import { SocialLinksGrid } from "@/components/social-links";
 import { UpcomingRaces } from "@/components/home/upcoming-races";
 import type { CompetitionRegistration, MemberStatus } from "@/components/races/types";
+import { getCurrentMember } from "@/lib/queries/member";
+import { env } from "@/lib/env";
+import { SectionLabel } from "@/components/common/typography";
 
 
 type UpcomingRace = {
@@ -35,11 +38,9 @@ function isSameSlot(dateA: string, dateB: string) {
 }
 
 async function HomeContent() {
-  const supabase = await createClient();
+  const { user, member: currentMember, supabase } = await getCurrentMember();
   const today = new Date().toISOString().split("T")[0];
 
-  // 캐시된 member 조회 (레이아웃과 공유, DB 쿼리 1회)
-  const { userId, member } = await getMember();
   let initialMemberStatus: MemberStatus = { status: "signed-out" };
 
   const [
@@ -109,17 +110,20 @@ async function HomeContent() {
   // 내가 참가하는 대회 가져오기
   let myRaces: UpcomingRace[] = [];
   let myRegistrations: CompetitionRegistration[] = [];
-  const isMember = !!member;
-  if (member && userId) {
-    initialMemberStatus = {
-      status: "ready",
-      userId,
-      memberId: member.id,
-      fullName: member.full_name || null,
-      email: member.email || null,
-      admin: member.admin,
-    };
-    const { data: myRegs } = await supabase
+  let isMember = false;
+  if (user) {
+    if (currentMember) {
+      const member = currentMember;
+      isMember = true;
+      initialMemberStatus = {
+        status: "ready",
+        userId: user.id,
+        memberId: member.id,
+        fullName: member.full_name ?? null,
+        email: member.email ?? null,
+        admin: member.admin ?? false,
+      };
+      const { data: myRegs } = await supabase
         .from("competition_registration")
         .select(
           "id, competition_id, member_id, role, event_type, created_at, competition:competition_id(id, title, start_date, location, sport, event_types)",
@@ -156,9 +160,10 @@ async function HomeContent() {
           return { ...r, registered_event_types };
         });
       }
-  } else if (userId) {
-    // 인증됐지만 member가 없으면 온보딩 필요
-    initialMemberStatus = { status: "needs-onboarding", userId };
+    } else {
+      // 인증됐지만 member가 없으면 온보딩 필요
+      initialMemberStatus = { status: "needs-onboarding", userId: user.id };
+    }
   }
 
   // 2개 카드 결정
@@ -182,7 +187,7 @@ async function HomeContent() {
     if (nextGigang) {
       upcomingCards.push({ ...nextGigang, label: "기강 대회" });
     }
-  } else if (!member) {
+  } else if (!currentMember) {
     // 비로그인 또는 미가입: 기강대회 다음 슬롯
     const nextGigang = gigangRaces.find((r) => isDifferentSlot(r));
     if (nextGigang) {
@@ -201,24 +206,22 @@ async function HomeContent() {
     <div className="flex flex-col gap-7 px-6 pb-6">
         {/* Team Overview */}
         <div className="flex flex-col gap-4">
-          <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-            TEAM OVERVIEW
-          </span>
+          <SectionLabel>TEAM OVERVIEW</SectionLabel>
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1 rounded-2xl border-[1.5px] border-border p-4">
+            <CardItem className="flex flex-col gap-1">
               <span className="text-2xl font-bold text-foreground">
                 {memberCount ?? 0}
               </span>
               <span className="text-xs text-muted-foreground">활동 멤버</span>
-            </div>
-            <div className="flex flex-col gap-1 rounded-2xl border-[1.5px] border-border p-4">
+            </CardItem>
+            <CardItem className="flex flex-col gap-1">
               <span className="text-2xl font-bold text-foreground">
                 {upcomingCount ?? 0}
               </span>
               <span className="text-xs text-muted-foreground">
                 예정 대회 중 {gigangRaces.length}개 참가
               </span>
-            </div>
+            </CardItem>
           </div>
         </div>
 
@@ -232,9 +235,7 @@ async function HomeContent() {
         {/* Recent Records */}
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-              RECENT RECORDS
-            </span>
+            <SectionLabel>RECENT RECORDS</SectionLabel>
             <Link
               href="/records"
               className="text-xs font-medium text-primary"
@@ -243,16 +244,16 @@ async function HomeContent() {
             </Link>
           </div>
           {(recentRecords ?? []).length === 0 ? (
-            <p className="rounded-2xl border-[1.5px] border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+            <CardItem variant="dashed" className="py-8 text-center text-sm text-muted-foreground">
               등록된 기록이 없습니다.
-            </p>
+            </CardItem>
           ) : (
             (recentRecords ?? []).map((rec) => {
               const member = rec.member as unknown as { full_name: string } | null;
               return (
-                <div
+                <CardItem
                   key={`${rec.member_id}-${rec.event_type}`}
-                  className="flex items-center justify-between rounded-2xl border-[1.5px] border-border p-4"
+                  className="flex items-center justify-between"
                 >
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[15px] font-semibold text-foreground">
@@ -263,9 +264,9 @@ async function HomeContent() {
                     </span>
                   </div>
                   <span className="font-mono text-lg font-bold text-foreground">
-                    {secondsToTime(rec.record_time_sec)}
+                    {secondsToTime(rec.record_time_sec ?? 0)}
                   </span>
-                </div>
+                </CardItem>
               );
             })
           )}
@@ -273,7 +274,7 @@ async function HomeContent() {
 
         {/* Social Links */}
         <SocialLinksGrid
-          kakaoChatPassword={isMember ? (process.env.KAKAO_CHAT_PASSWORD ?? "") : undefined}
+          kakaoChatPassword={isMember ? (env.KAKAO_CHAT_PASSWORD ?? "") : undefined}
         />
       </div>
   );
@@ -311,9 +312,7 @@ export default function HomePage() {
   return (
     <div className="flex flex-col gap-0">
       <div className="flex h-14 items-center px-6">
-        <h1 className="text-[28px] font-bold tracking-tight text-foreground">
-          기강
-        </h1>
+        <H1>기강</H1>
       </div>
       <Suspense fallback={<HomeSkeleton />}>
         <HomeContent />

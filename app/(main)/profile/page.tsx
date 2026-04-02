@@ -1,26 +1,27 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { H1 } from "@/components/common/typography";
+import { CardItem } from "@/components/ui/card";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { getMember } from "@/lib/get-member";
+import dayjs from "dayjs";
 import { Suspense } from "react";
 import Link from "next/link";
-import { Settings, User } from "lucide-react";
+import { Settings } from "lucide-react";
+import { Avatar } from "@/components/common/avatar";
 import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
 import { RaceRecordSection } from "@/components/profile/race-record-section";
 import { PaceChart } from "@/components/profile/pace-chart";
+import { getCurrentMember } from "@/lib/queries/member";
 
 async function ProfileContent() {
-  const { userId, member } = await getMember();
+  const { user, member, supabase } = await getCurrentMember();
 
-  if (!userId) {
+  if (!user) {
     redirect("/auth/login?next=/profile");
   }
 
-  if (!member || member.status !== "active") {
+  if (!member) {
     redirect("/onboarding?next=/profile");
   }
-
-  const supabase = await createClient();
 
   const [{ data: raceResults }, { data: utmbProfile }] = await Promise.all([
     supabase
@@ -46,28 +47,14 @@ async function ProfileContent() {
 
   const genderLabel = member.gender === "male" ? "남성" : member.gender === "female" ? "여성" : "";
   const joinedDate = member.joined_at
-    ? (() => {
-        const d = new Date(member.joined_at);
-        return `${d.getFullYear()}. ${d.getMonth() + 1}`;
-      })()
+    ? dayjs(member.joined_at).format("YYYY. M")
     : "";
 
   return (
     <div className="flex flex-col gap-6 px-6 pb-6">
         {/* Profile Card */}
-        <div className="flex items-center gap-4 rounded-2xl border-[1.5px] border-border p-5">
-          {member.avatar_url ? (
-            <img
-              src={member.avatar_url}
-              alt={member.full_name}
-              className="size-16 shrink-0 rounded-full object-cover"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-primary/10">
-              <User className="size-7 text-primary" />
-            </div>
-          )}
+        <CardItem className="flex items-center gap-4 p-5">
+          <Avatar src={member.avatar_url} alt={member.full_name ?? ""} size="xl" />
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="text-[17px] font-bold text-foreground">
               {member.full_name}
@@ -79,13 +66,13 @@ async function ProfileContent() {
           <span className="shrink-0 rounded-lg bg-primary/10 px-2.5 py-1.5 text-xs font-semibold text-primary">
             활동
           </span>
-        </div>
+        </CardItem>
 
         {/* Personal Best */}
         <PersonalBestGrid
           memberId={member.id}
           bestRecords={bestRecords}
-          utmbData={utmbProfile ?? null}
+          utmbData={utmbProfile?.utmb_profile_url && utmbProfile?.utmb_index != null ? { utmb_profile_url: utmbProfile.utmb_profile_url, utmb_index: utmbProfile.utmb_index } : null}
         />
 
         {/* 페이스 그래프 */}
@@ -101,14 +88,14 @@ function ProfileSkeleton() {
   return (
     <div className="flex flex-col gap-6 px-6 pb-6">
       {/* Profile Card */}
-      <div className="flex items-center gap-4 rounded-2xl border-[1.5px] border-border p-5">
+      <CardItem className="flex items-center gap-4 p-5">
         <Skeleton className="size-16 rounded-full" />
         <div className="flex flex-1 flex-col gap-2">
           <Skeleton className="h-5 w-24" />
           <Skeleton className="h-3 w-32" />
         </div>
         <Skeleton className="h-8 w-12 rounded-lg" />
-      </div>
+      </CardItem>
       {/* Personal Best */}
       <div className="flex flex-col gap-3">
         <Skeleton className="h-4 w-28" />
@@ -131,9 +118,7 @@ export default function Page() {
   return (
     <div className="flex flex-col gap-0">
       <div className="flex h-14 items-center justify-between px-6">
-        <h1 className="text-[28px] font-semibold tracking-tight text-foreground">
-          내 프로필
-        </h1>
+        <H1 className="font-semibold">내 프로필</H1>
         <Link href="/settings">
           <Settings className="size-[22px] text-muted-foreground" />
         </Link>

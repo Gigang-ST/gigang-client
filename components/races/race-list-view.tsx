@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { CardItem } from "@/components/ui/card";
 import { getPastGigangCompetitions } from "@/app/actions/get-past-gigang-competitions";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
 import { CompetitionDetailDialog } from "./competition-detail-dialog";
@@ -285,16 +287,20 @@ export function RaceListView({
                 const isRegistered = Boolean(registrationsByCompetitionId[comp.id]);
                 const regCount = regCounts[comp.id] ?? 0;
                 return (
-                  <button
+                  <CardItem
+                    asChild
                     key={comp.id}
-                    onClick={() => { setSelectedCompetition(comp); setDetailOpen(true); }}
                     className={cn(
-                      "flex w-full items-center gap-4 rounded-2xl border-[1.5px] p-4 text-left transition-colors",
+                      "flex w-full items-center gap-4",
                       isRegistered
                         ? "border-primary bg-primary/5"
                         : "border-border",
                     )}
                   >
+                    <button
+                      onClick={() => { setSelectedCompetition(comp); setDetailOpen(true); }}
+                      className="text-left transition-colors"
+                    >
                     <div className="flex w-12 shrink-0 flex-col items-center gap-0.5">
                       <span className="text-[11px] font-semibold text-primary">
                         {MONTHS_EN[d.getMonth()]}
@@ -323,7 +329,8 @@ export function RaceListView({
                       </div>
                     </div>
                     <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
-                  </button>
+                    </button>
+                  </CardItem>
                 );
               })}
             </div>
@@ -333,11 +340,13 @@ export function RaceListView({
         {/* 지난 대회 토글 — 기강대회 탭에서만 (지난 대회는 기강 참가만 조회) */}
         {tab === "gigang" && (
           <div className="pt-2">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={handlePastToggle}
               disabled={pastLoading}
-              className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+              className="h-auto gap-1 px-0 py-0 text-xs text-muted-foreground hover:bg-transparent hover:text-foreground"
             >
               {pastOpen ? (
                 <>
@@ -350,7 +359,7 @@ export function RaceListView({
                   지난 대회 보기
                 </>
               )}
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -387,14 +396,18 @@ export function RaceListView({
                     const isRegistered = Boolean(registrationsByCompetitionId[comp.id]);
                     const regCount = regCounts[comp.id] ?? 0;
                     return (
-                      <button
+                      <CardItem
+                        asChild
                         key={comp.id}
-                        onClick={() => { setSelectedCompetition(comp); setDetailOpen(true); }}
                         className={cn(
-                          "flex w-full items-center gap-4 rounded-2xl border-[1.5px] p-4 text-left transition-colors",
+                          "flex w-full items-center gap-4",
                           isRegistered ? "border-primary bg-primary/5" : "border-border",
                         )}
                       >
+                        <button
+                          onClick={() => { setSelectedCompetition(comp); setDetailOpen(true); }}
+                          className="text-left transition-colors"
+                        >
                         <div className="flex w-12 shrink-0 flex-col items-center gap-0.5">
                           <span className="text-[11px] font-semibold text-primary">{MONTHS_EN[d.getMonth()]}</span>
                           <span className="text-xl font-bold text-foreground">{String(d.getDate()).padStart(2, "0")}</span>
@@ -415,7 +428,8 @@ export function RaceListView({
                           </div>
                         </div>
                         <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
-                      </button>
+                        </button>
+                      </CardItem>
                     );
                   })}
                 </div>
@@ -424,14 +438,15 @@ export function RaceListView({
           )}
           {/* 목록이 비어 있어도 다음 구간이 있으면 버튼 표시 (작년 7월 등 더 과거 로드 가능) */}
           {pastNextBefore !== null && (
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={loadMorePast}
               disabled={pastLoading}
-              className="rounded-xl border border-dashed border-border py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground disabled:opacity-50"
+              className="w-full rounded-xl border-dashed py-2.5 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
             >
               {pastLoading ? "불러오는 중..." : "이전 3개월 더 보기"}
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -449,12 +464,13 @@ export function RaceListView({
       />
 
       {/* FAB: 대회 등록 */}
-      <button
+      <Button
         onClick={() => setRegisterOpen(true)}
-        className="fixed bottom-24 right-5 z-40 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95"
+        size="icon-lg"
+        className="fixed bottom-24 right-5 z-40 size-14 rounded-full shadow-lg active:scale-95"
       >
         <Plus className="size-6" />
-      </button>
+      </Button>
 
       <CompetitionRegisterDialog
         open={registerOpen}

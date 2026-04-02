@@ -4,7 +4,8 @@
 
 ```
 components/
-  ui/          # shadcn/ui 공통 컴포넌트 (Button, Card, Dialog 등)
+  ui/          # shadcn/ui primitive 컴포넌트만 (Button, Card, Dialog 등)
+  common/      # 프로젝트 공통 컴포넌트 (Typography, PageHeader, Avatar 등)
   auth/        # 인증 컴포넌트 (LoginForm, OnboardingForm)
   races/       # 대회 도메인 컴포넌트
   profile/     # 프로필 도메인 컴포넌트 (PersonalBestGrid, RaceRecordDialog, RaceHistoryDialog, PaceChart, RaceRecordSection)
@@ -26,8 +27,23 @@ components/
 pnpm dlx shadcn@latest add [component-name]
 ```
 
-### 기존 컴포넌트 목록
+### 기존 컴포넌트 목록 (shadcn/ui)
 badge, button, card, dialog, form, input, label, loading-spinner, select, separator, skeleton
+
+### 프로젝트 공통 컴포넌트 (`components/common/`)
+
+> 상세 사용법은 `DESIGN.md` 참조
+
+| 컴포넌트 | 파일 | 용도 |
+|----------|------|------|
+| H1, H2, Body, Caption, Micro, SectionLabel | `typography.tsx` | 시맨틱 타이포그래피 |
+| PageHeader | `page-header.tsx` | 메인 페이지 상단 h-14 헤더 (`title`, `action?`) |
+| SectionHeader | `section-header.tsx` | 섹션 라벨 + 액션 링크 (`label`, `action?`) |
+| EmptyState | `empty-state.tsx` | 빈 상태 표시 (`message`, `icon?`, `variant?: "card" \| "inline"`) |
+| SegmentControl | `segment-control.tsx` | 탭 전환 (`segments`, `value`, `onValueChange`) |
+| InfoRow | `info-row.tsx` | label-value 행 (`label`, `value?`) |
+| Avatar | `avatar.tsx` | 프로필 사진 + 폴백 (`src?`, `size?: "sm"\|"md"\|"lg"\|"xl"`) |
+| StatCard | `stat-card.tsx` | 통계 수치 카드 (`value`, `label`, `valueClassName?`) |
 
 ### 프로필 도메인 컴포넌트
 - `personal-best-grid.tsx` — 읽기 전용 FULL/HALF/10K 최고기록 카드 + 클릭 가능한 UTMB 카드 (다이얼로그에서 UTMB 프로필 URL 입력/수정)
@@ -75,6 +91,19 @@ import { cn } from "@/lib/utils";
 --border: 240 5.9% 90%;         /* 테두리 */
 --radius: 0.75rem;              /* 12px */
 ```
+
+### 타이포그래피 (`components/common/typography.tsx`)
+
+**매직넘버(`text-[28px]` 등) 대신 타이포그래피 컴포넌트 사용 필수:**
+
+| 컴포넌트 | 사이즈 | 용도 |
+|----------|--------|------|
+| `<H1>` | 28px bold | 메인 탭 페이지 제목 |
+| `<H2>` | 22px bold | 서브 페이지 제목 |
+| `<Body>` | 15px | 리스트 이름, 본문 |
+| `<Caption>` | 13px muted | 서브 정보, 필터 |
+| `<Micro>` | 11px muted | 배지, 날짜 세부 |
+| `<SectionLabel>` | 12px semibold muted | 영문 섹션 라벨 |
 
 ### 종목별 색상 (Sport Tokens)
 ```css

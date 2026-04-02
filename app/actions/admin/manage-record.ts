@@ -1,24 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-async function verifyAdmin() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data: member } = await supabase
-    .from("member")
-    .select("id, admin")
-    .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
-    .maybeSingle();
-
-  if (!member?.admin) return null;
-  return member;
-}
+import { verifyAdmin } from "@/lib/queries/member";
 
 export async function deleteRecord(recordId: string) {
   const admin = await verifyAdmin();

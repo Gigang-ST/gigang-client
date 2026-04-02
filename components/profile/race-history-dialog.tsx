@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
@@ -11,17 +12,9 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Trash2, Pencil } from "lucide-react";
+import { secondsToTime } from "@/lib/dayjs";
 
 /* ---------- 유틸 ---------- */
-
-function secondsToTime(sec: number): string {
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  if (h > 0)
-    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
 
 function timeStringToSeconds(timeStr: string): number | null {
   const trimmed = timeStr.trim();
@@ -166,21 +159,24 @@ export function RaceHistoryDialog({
                         placeholder="HH:MM:SS"
                         className="h-8 w-32 font-mono text-sm"
                       />
-                      <button
+                      <Button
                         type="button"
+                        size="xs"
                         disabled={saving || timeStringToSeconds(editTime) === null}
                         onClick={() => handleSaveEdit(r.id)}
-                        className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+                        className="font-semibold"
                       >
                         {saving ? "..." : "저장"}
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="xs"
                         onClick={() => setEditingId(null)}
-                        className="text-xs text-muted-foreground"
+                        className="text-muted-foreground"
                       >
                         취소
-                      </button>
+                      </Button>
                     </div>
                   ) : (
                     <span className="font-mono text-base font-bold text-foreground">
@@ -191,20 +187,24 @@ export function RaceHistoryDialog({
 
                 {editingId !== r.id && (
                   <div className="flex shrink-0 gap-1">
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => startEdit(r)}
-                      className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted"
+                      className="text-muted-foreground"
                     >
                       <Pencil className="size-4" />
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => handleDelete(r.id)}
-                      className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                     >
                       <Trash2 className="size-4" />
-                    </button>
+                    </Button>
                   </div>
                 )}
               </div>

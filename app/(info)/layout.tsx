@@ -7,10 +7,10 @@ export default async function InfoLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { member } = await getMember();
+  const { userId, member } = await getMember();
 
   return (
-    <MemberProvider member={member}>
+    <MemberProvider userId={userId} member={member}>
       <div className="min-h-svh bg-white">
         <BackHeader />
         <main>{children}</main>

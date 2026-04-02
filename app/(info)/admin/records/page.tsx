@@ -10,12 +10,14 @@ import {
   X,
   Check,
   Timer,
-  UserRound,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { H2 } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+import { CardItem } from "@/components/ui/card";
+import { secondsToTime as formatTime } from "@/lib/dayjs";
 
 type RaceRecord = {
   id: string;
@@ -25,16 +27,6 @@ type RaceRecord = {
   race_date: string | null;
   member: { full_name: string | null } | null;
 };
-
-function formatTime(sec: number): string {
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  if (h > 0) {
-    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  }
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
 
 function parseTime(str: string): number | null {
   const parts = str.split(":").map(Number);
@@ -133,9 +125,7 @@ export default function RecordsPage() {
 
   return (
     <div className="flex flex-col gap-4 px-6 pb-6 pt-4">
-      <h1 className="text-[22px] font-bold tracking-tight text-foreground">
-        기록 관리
-      </h1>
+      <H2>기록 관리</H2>
 
       {/* 검색 */}
       <div className="relative">
@@ -155,9 +145,9 @@ export default function RecordsPage() {
       {/* 기록 목록 */}
       <div className="flex flex-col gap-2">
         {filtered.map((record) => (
-          <div
+          <CardItem
             key={record.id}
-            className="flex flex-col gap-2 rounded-2xl border-[1.5px] border-border p-4"
+            className="flex flex-col gap-2"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -171,34 +161,42 @@ export default function RecordsPage() {
               <div className="flex gap-1">
                 {editingId === record.id ? (
                   <>
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => setEditingId(null)}
-                      className="flex size-8 items-center justify-center rounded-lg text-muted-foreground"
+                      className="text-muted-foreground"
                     >
                       <X className="size-3.5" />
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => handleUpdate(record)}
                       disabled={saving}
-                      className="flex size-8 items-center justify-center rounded-lg text-primary disabled:opacity-50"
+                      className="text-primary"
                     >
                       <Check className="size-3.5" />
-                    </button>
+                    </Button>
                   </>
                 ) : (
                   <>
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => startEdit(record)}
-                      className="flex size-8 items-center justify-center rounded-lg text-muted-foreground"
+                      className="text-muted-foreground"
                     >
                       <Pencil className="size-3.5" />
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => handleDelete(record.id)}
-                      className="flex size-8 items-center justify-center rounded-lg text-muted-foreground active:text-destructive"
+                      className="text-muted-foreground active:text-destructive"
                     >
                       <Trash2 className="size-3.5" />
-                    </button>
+                    </Button>
                   </>
                 )}
               </div>
@@ -224,7 +222,7 @@ export default function RecordsPage() {
                 {formatTime(record.record_time_sec)}
               </span>
             )}
-          </div>
+          </CardItem>
         ))}
       </div>
 
