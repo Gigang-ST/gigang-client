@@ -3,10 +3,12 @@
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
+import duration from "dayjs/plugin/duration";
 import "dayjs/locale/ko";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
+dayjs.extend(duration);
 dayjs.locale("ko");
 
 const KST = "Asia/Seoul";
@@ -131,12 +133,42 @@ export function formatDDay(dateStr: string): string {
 
 // ---------- 시간 유틸 ----------
 
-/** 초 단위를 "H:MM:SS" 또는 "M:SS" 형식으로 변환 */
+/** 초 → "H:MM:SS" 또는 "M:SS" */
 export function secondsToTime(totalSeconds: number): string {
-  const h = Math.floor(totalSeconds / 3600);
-  const m = Math.floor((totalSeconds % 3600) / 60);
-  const s = totalSeconds % 60;
+  const d = dayjs.duration(totalSeconds, "seconds");
+  const h = Math.floor(d.asHours());
+  const m = d.minutes();
+  const s = d.seconds();
   if (h > 0)
     return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/** "H:MM:SS" 또는 "M:SS" → 초 (유효하지 않으면 null) */
+export function timeStringToSeconds(timeStr: string): number | null {
+  const parts = timeStr.trim().split(":").map(Number);
+  if (parts.some(isNaN)) return null;
+  if (parts.length === 3) {
+    const [h, m, s] = parts;
+    if (h < 0 || m < 0 || m > 59 || s < 0 || s > 59) return null;
+    return dayjs.duration({ hours: h, minutes: m, seconds: s }).asSeconds();
+  }
+  if (parts.length === 2) {
+    const [m, s] = parts;
+    if (m < 0 || s < 0 || s > 59) return null;
+    return dayjs.duration({ minutes: m, seconds: s }).asSeconds();
+  }
+  return null;
+}
+
+/** 페이스(분/km) → "M'SS"" */
+export function paceToString(paceMin: number): string {
+  const m = Math.floor(paceMin);
+  const s = Math.round((paceMin - m) * 60);
+  return `${m}'${String(s).padStart(2, "0")}"`;
+}
+
+/** 1년 전 날짜 문자열 (YYYY-MM-DD) */
+export function oneYearAgoDateString(): string {
+  return dayjs().subtract(1, "year").format("YYYY-MM-DD");
 }

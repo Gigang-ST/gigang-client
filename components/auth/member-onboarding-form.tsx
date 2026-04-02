@@ -35,6 +35,7 @@ import { useForm } from "react-hook-form";
 import { CheckCircle2 } from "lucide-react";
 import Confetti from "react-confetti";
 import { BANK_OPTIONS } from "@/lib/constants";
+import { digitsOnly, formatPhone, isValidPhone } from "@/lib/phone-utils";
 
 type MemberOnboardingFormProps = {
   userId: string;
@@ -91,14 +92,6 @@ export function MemberOnboardingForm({
   const [inactiveMemberId, setInactiveMemberId] = useState<string | null>(null);
   const [rejoinLoading, setRejoinLoading] = useState(false);
 
-  const digitsOnly = (value: string) => value.replace(/\D/g, "");
-  const formatPhone = (value: string) => {
-    const digits = digitsOnly(value);
-    if (digits.length <= 3) return digits;
-    if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
-  };
-  const isValidPhone = (value: string) => /^010\d{8}$/.test(digitsOnly(value));
 
   const handleRejoinRequest = async () => {
     if (!inactiveMemberId) return;
