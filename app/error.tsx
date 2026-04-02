@@ -1,5 +1,7 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+
 export default function Error({
   reset,
 }: {
@@ -12,12 +14,9 @@ export default function Error({
       <p className="text-sm text-muted-foreground">
         문제가 발생했습니다. 잠시 후 다시 시도해주세요.
       </p>
-      <button
-        onClick={reset}
-        className="inline-flex h-10 items-center justify-center rounded-lg bg-primary px-6 text-sm font-medium text-primary-foreground"
-      >
+      <Button size="lg" onClick={reset}>
         다시 시도
-      </button>
+      </Button>
     </div>
   );
 }

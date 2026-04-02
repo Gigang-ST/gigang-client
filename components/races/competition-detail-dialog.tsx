@@ -299,21 +299,21 @@ export function CompetitionDetailDialog({
               {editEventTypeOptions.length > 0 ? (
                 <div className="flex flex-wrap gap-1.5">
                   {editEventTypeOptions.map(type => (
-                    <button
+                    <Button
                       key={type}
                       type="button"
+                      size="xs"
                       onClick={() => setEditEventTypes(prev =>
                         prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
                       )}
+                      variant={editEventTypes.includes(type) ? "default" : "outline"}
                       className={cn(
-                        "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                        editEventTypes.includes(type)
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border text-muted-foreground hover:border-primary/50",
+                        "rounded-full",
+                        !editEventTypes.includes(type) && "text-muted-foreground hover:border-primary/50",
                       )}
                     >
                       {type}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               ) : (

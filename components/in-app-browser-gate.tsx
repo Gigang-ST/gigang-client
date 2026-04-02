@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 
 type InAppEnv = "kakao" | "line" | "instagram" | "facebook" | "other" | null;
 
@@ -74,13 +75,14 @@ export function InAppBrowserGate({ children }: { children: React.ReactNode }) {
 
         {/* Android: 자동 열기 버튼 */}
         {!isIOS() && (
-          <button
+          <Button
             type="button"
+            size="lg"
             onClick={() => openExternalBrowser(currentUrl)}
-            className="mt-6 w-full rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground"
+            className="mt-6 w-full rounded-xl font-bold"
           >
             Chrome에서 열기
-          </button>
+          </Button>
         )}
 
         {/* iOS: 안내 */}
@@ -106,16 +108,18 @@ export function InAppBrowserGate({ children }: { children: React.ReactNode }) {
         )}
 
         {/* URL 복사 폴백 */}
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="lg"
           onClick={() => {
             navigator.clipboard.writeText(currentUrl);
             alert("링크가 복사되었습니다.");
           }}
-          className="mt-3 w-full rounded-xl border border-border py-3 text-sm font-medium text-muted-foreground"
+          className="mt-3 w-full rounded-xl text-muted-foreground"
         >
           링크 복사하기
-        </button>
+        </Button>
       </div>
     </div>
   );
