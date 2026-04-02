@@ -1,6 +1,4 @@
-import { Suspense } from "react";
 import { BackHeader } from "@/components/back-header";
-import { MemberProviderServer } from "@/components/member-provider-server";
 
 export default function InfoLayout({
   children,
@@ -8,13 +6,9 @@ export default function InfoLayout({
   children: React.ReactNode;
 }) {
   return (
-    <Suspense>
-      <MemberProviderServer>
-        <div className="min-h-svh bg-white">
-          <BackHeader />
-          <main>{children}</main>
-        </div>
-      </MemberProviderServer>
-    </Suspense>
+    <div className="min-h-svh bg-white">
+      <BackHeader />
+      <main>{children}</main>
+    </div>
   );
 }
