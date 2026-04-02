@@ -6,9 +6,7 @@ export const env = createEnv({
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
     REVALIDATE_SECRET: z.string().min(1),
     KAKAO_CHAT_PASSWORD: z.string().optional(),
-    NODE_ENV: z
-      .enum(["development", "production", "test"])
-      .default("development"),
+    NODE_ENV: z.enum(["development", "production", "test"]),
   },
   client: {
     NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
