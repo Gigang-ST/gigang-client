@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import dayjs from "dayjs";
 import { Suspense } from "react";
 import Link from "next/link";
-import { Settings, User } from "lucide-react";
+import { Settings } from "lucide-react";
+import { Avatar } from "@/components/common/avatar";
 import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
 import { RaceRecordSection } from "@/components/profile/race-record-section";
 import { PaceChart } from "@/components/profile/pace-chart";
@@ -57,18 +58,7 @@ async function ProfileContent() {
     <div className="flex flex-col gap-6 px-6 pb-6">
         {/* Profile Card */}
         <CardItem className="flex items-center gap-4 p-5">
-          {member.avatar_url ? (
-            <img
-              src={member.avatar_url}
-              alt={member.full_name ?? ""}
-              className="size-16 shrink-0 rounded-full object-cover"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-primary/10">
-              <User className="size-7 text-primary" />
-            </div>
-          )}
+          <Avatar src={member.avatar_url} alt={member.full_name ?? ""} size="xl" />
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="text-[17px] font-bold text-foreground">
               {member.full_name}

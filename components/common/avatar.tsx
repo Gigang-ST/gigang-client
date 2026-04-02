@@ -1,4 +1,7 @@
+"use client";
+
 import * as React from "react";
+import Image from "next/image";
 import { UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -9,11 +12,18 @@ const SIZE_MAP = {
   xl: "size-16",
 } as const;
 
+const SIZE_PX: Record<AvatarSize, number> = {
+  sm: 32,
+  md: 40,
+  lg: 56,
+  xl: 64,
+};
+
 const ICON_SIZE_MAP = {
-  sm: "size-3.5",
-  md: "size-4",
-  lg: "size-6",
-  xl: "size-7",
+  sm: "size-4",
+  md: "size-5",
+  lg: "size-7",
+  xl: "size-8",
 } as const;
 
 type AvatarSize = keyof typeof SIZE_MAP;
@@ -33,28 +43,42 @@ const Avatar = React.forwardRef<HTMLDivElement, AvatarProps>(
   (
     { className, src, alt, size = "md", fallbackIcon: Icon = UserRound, ...props },
     ref,
-  ) => (
-    <div
-      ref={ref}
-      className={cn(
-        "flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-secondary",
-        SIZE_MAP[size],
-        className,
-      )}
-      {...props}
-    >
-      {src ? (
-        <img
-          src={src}
-          alt={alt ?? ""}
-          className="size-full object-cover"
-          referrerPolicy="no-referrer"
-        />
-      ) : (
-        <Icon className={cn("text-muted-foreground", ICON_SIZE_MAP[size])} />
-      )}
-    </div>
-  ),
+  ) => {
+    const [imgError, setImgError] = React.useState(false);
+    const showImage = src && src.length > 0 && !imgError;
+
+    // src가 변경되면 에러 상태 리셋
+    React.useEffect(() => {
+      setImgError(false);
+    }, [src]);
+
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          "flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-secondary",
+          SIZE_MAP[size],
+          className,
+        )}
+        {...props}
+      >
+        {showImage ? (
+          <Image
+            src={src}
+            alt={alt ?? ""}
+            width={SIZE_PX[size]}
+            height={SIZE_PX[size]}
+            className="size-full object-cover"
+            referrerPolicy="no-referrer"
+            unoptimized
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <Icon className={cn("text-foreground/50", ICON_SIZE_MAP[size])} />
+        )}
+      </div>
+    );
+  },
 );
 Avatar.displayName = "Avatar";
 
