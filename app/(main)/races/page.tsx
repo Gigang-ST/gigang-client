@@ -6,10 +6,11 @@ import { unstable_cache } from "next/cache";
 import { Suspense } from "react";
 import { RaceListView } from "@/components/races/race-list-view";
 import type { Competition } from "@/components/races/types";
+import { env } from "@/lib/env";
 
 const supabase = createPublicClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+  env.NEXT_PUBLIC_SUPABASE_URL,
+  env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
 );
 
 const cacheOptions = { revalidate: 86400, tags: ["competitions"] };

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { MemberOnboardingForm } from "@/components/auth/member-onboarding-form";
 import { Suspense } from "react";
 import { getCurrentMember } from "@/lib/queries/member";
+import { env } from "@/lib/env";
 
 async function OnboardingContent({
   searchParams,
@@ -46,7 +47,7 @@ async function OnboardingContent({
           email={user.email}
           initialFullName={initialFullName}
           initialAvatarUrl={initialAvatarUrl}
-          kakaoChatPassword={process.env.KAKAO_CHAT_PASSWORD ?? ""}
+          kakaoChatPassword={env.KAKAO_CHAT_PASSWORD ?? ""}
         />
       </div>
     </div>

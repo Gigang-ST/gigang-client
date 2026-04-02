@@ -8,6 +8,7 @@ import { SocialLinksGrid } from "@/components/social-links";
 import { UpcomingRaces } from "@/components/home/upcoming-races";
 import type { CompetitionRegistration, MemberStatus } from "@/components/races/types";
 import { getCurrentMember } from "@/lib/queries/member";
+import { env } from "@/lib/env";
 import { SectionLabel } from "@/components/common/typography";
 
 
@@ -272,7 +273,7 @@ async function HomeContent() {
 
         {/* Social Links */}
         <SocialLinksGrid
-          kakaoChatPassword={isMember ? (process.env.KAKAO_CHAT_PASSWORD ?? "") : undefined}
+          kakaoChatPassword={isMember ? (env.KAKAO_CHAT_PASSWORD ?? "") : undefined}
         />
       </div>
   );
