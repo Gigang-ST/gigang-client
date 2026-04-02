@@ -13,6 +13,7 @@ const KST = "Asia/Seoul";
 
 /** KST 기준 현재 dayjs 인스턴스 (디버그 날짜 지원) */
 function nowKST() {
+  // NEXT_PUBLIC_ 변수는 Next.js 빌드타임에 인라인 치환되므로 process.env 직접 참조
   if (process.env.NEXT_PUBLIC_DEBUG_DATE) {
     return dayjs(process.env.NEXT_PUBLIC_DEBUG_DATE).tz(KST);
   }

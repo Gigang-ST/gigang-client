@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { hasEnvVars } from "../utils";
+import { env } from "@/lib/env";
 
 /**
  * 모든 요청에서 실행되는 인증 미들웨어.
@@ -11,8 +11,8 @@ export async function updateSession(request: NextRequest) {
     request,
   });
 
-  // 환경변수 미설정 시 인증 검사 생략
-  if (!hasEnvVars) {
+  // 환경변수 미설정 시 인증 검사 생략 (skipValidation 모드에서 발생 가능)
+  if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
     return supabaseResponse;
   }
 
@@ -37,8 +37,8 @@ export async function updateSession(request: NextRequest) {
   // 쿠키가 존재하면 Supabase 서버 클라이언트를 생성하여 토큰 유효성 검증
   // Fluid compute 환경에서는 매 요청마다 새 클라이언트를 생성해야 함
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     {
       cookies: {
         getAll() {
