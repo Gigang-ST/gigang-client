@@ -78,6 +78,28 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 
 ---
 
+## 앱 네비게이션
+
+### 하단 탭바 (5탭)
+
+| 순서 | 탭 | 아이콘 | 경로 |
+|------|-----|--------|------|
+| 1 | 홈 | House | `/` |
+| 2 | 대회 | Trophy | `/races` |
+| 3 | 프로젝트 | Zap | `/projects` |
+| 4 | 랭킹 | Medal | `/records` |
+| 5 | 프로필 | User | `/profile` |
+
+### Route Group
+
+| 그룹 | 레이아웃 | 용도 |
+|------|---------|------|
+| `(main)` | 하단 탭바 (`BottomTabBar`) | 메인 탭 페이지 |
+| `(info)` | 뒤로가기 헤더 (`BackHeader`) | 설정, 관리, 프로필 편집 |
+| `(protected)` | 인증 필수 | 온보딩 |
+
+---
+
 ## 컴포넌트 카탈로그
 
 ### shadcn/ui 기본 (`components/ui/`)
@@ -220,3 +242,5 @@ import { InfoRow } from "@/components/common/info-row";
 9. **카드 래퍼**: 모든 카드는 `CardItem` (outlined/dashed) 사용, 커스텀 border 작성 금지
 10. **색상**: CSS 변수 토큰만 사용, 하드코딩 RGB/hex 금지
 11. **컴포넌트 위치**: shadcn 설치 컴포넌트 → `ui/`, 프로젝트 공통 → `common/`, 도메인별 → `auth/`, `races/` 등
+12. **환경변수**: `process.env` 직접 접근 금지 → `lib/env.ts`에서 import
+13. **폼 검증**: Zod 스키마는 `lib/validations/`에 정의, React Hook Form의 `zodResolver`와 통합

@@ -22,10 +22,11 @@ model: sonnet
 
 - Next.js App Router (서버 컴포넌트 기본)
 - React 19 + TypeScript
-- React Hook Form (폼 처리)
+- React Hook Form + Zod (폼 처리 + 스키마 검증, `lib/validations/`)
 - Supabase JS 클라이언트
 - shadcn/ui 컴포넌트
 - Tailwind CSS v4
+- t3-env (`lib/env.ts`) — 타입 안전한 환경변수
 
 ## 작업 시작 시
 
@@ -39,17 +40,20 @@ model: sonnet
 - **모바일 퍼스트**: 항상 모바일 뷰를 기준으로 먼저 구현하고, 필요시 데스크톱 대응
 - 서버 컴포넌트 우선, 클라이언트는 필요시에만 `"use client"` 선언
 - 데이터 패칭은 서버 컴포넌트에서 수행
+- **멤버 데이터**: 서버에서 `getCurrentMember()` (`lib/queries/member.ts`) — 클라이언트 폼은 서버 wrapper + client form 패턴
 - `Suspense` + `Skeleton`으로 부분별 로딩 처리 (페이지 전체가 아닌 개별 섹션 단위 Partial Rendering)
 - 경로 별칭 `@/` 사용 (상대 경로 금지)
+- **환경변수**: `lib/env.ts`에서 import (`process.env` 직접 접근 금지)
 - 정적으로 처리할 수 있는 데이터는 최대한 캐시 활용 (Static Generation, ISR, fetch cache)
 - 새 UI 컴포넌트 필요 시 shadcn/ui 먼저 확인 (shadcn MCP 서버 활용 — `.mcp.json` 참조)
+- **폼**: Zod 스키마를 `lib/validations/`에 정의하고 `zodResolver`로 React Hook Form과 통합
 
 ## App Router 아키텍처
 
 - Layout/Template 패턴 활용
 - Route Group으로 레이아웃 분리 (`(main)`, `(info)`, `(protected)`)
 - Parallel Routes / Intercepting Routes (필요시)
-- Loading/Error Boundary 활용
+- Loading/Error Boundary 활용 (`error.tsx`, `global-error.tsx`, `not-found.tsx` 존재)
 - Streaming SSR + Suspense
 
 ## 서버 컴포넌트 & 서버 액션
