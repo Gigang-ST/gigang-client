@@ -21,6 +21,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { SectionLabel } from "@/components/common/typography";
 
 type MenuItem = {
   label: string;
@@ -88,9 +89,7 @@ export default function SettingsPage() {
     <div className="flex flex-col gap-8 px-6 pb-6 pt-4">
       {/* ACCOUNT */}
       <div className="flex flex-col">
-        <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-          ACCOUNT
-        </span>
+        <SectionLabel>ACCOUNT</SectionLabel>
         {accountItems.map((item) => (
           <Link
             key={item.href}
@@ -111,9 +110,7 @@ export default function SettingsPage() {
       {/* ADMIN */}
       {isAdmin && (
         <div className="flex flex-col">
-          <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-            ADMIN
-          </span>
+          <SectionLabel>ADMIN</SectionLabel>
           {adminItems.map((item) => (
             <Link
               key={item.href}
@@ -134,9 +131,7 @@ export default function SettingsPage() {
 
       {/* INFORMATION */}
       <div className="flex flex-col">
-        <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-          INFORMATION
-        </span>
+        <SectionLabel>INFORMATION</SectionLabel>
         {infoItems.map((item) => (
           <Link
             key={item.href}
@@ -166,9 +161,7 @@ export default function SettingsPage() {
 
       {/* DANGER ZONE */}
       <div className="flex flex-col">
-        <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-          DANGER ZONE
-        </span>
+        <SectionLabel>DANGER ZONE</SectionLabel>
         <button
           type="button"
           onClick={handleLogout}
