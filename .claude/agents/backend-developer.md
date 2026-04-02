@@ -36,7 +36,7 @@ model: sonnet
 - 서버 컴포넌트/서버 액션에서는 `await createClient()` 사용 (`lib/supabase/server.ts`)
 - RLS 정책으로 데이터 접근 제어 (애플리케이션 레벨 권한 체크 최소화)
 - API 라우트에서 인증 헤더/시크릿 검증 필수
-- 환경 변수는 `process.env`에서만 접근, 하드코딩 금지
+- 환경 변수는 `lib/env.ts`에서 import (`process.env` 직접 접근 금지, t3-env 사용)
 - Supabase 마이그레이션은 `supabase/` 디렉토리에서 관리
 - **Supabase 관련 작업은 반드시 MCP 서버를 통해 수행** (DB 조회, 스키마 확인, 마이그레이션, RLS, 테이블 구조, 데이터 확인 등 모든 Supabase/DB 작업)
 - 정적 데이터는 적극적으로 캐시 활용 (fetch cache, ISR, revalidation)

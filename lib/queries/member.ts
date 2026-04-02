@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { validateUUID } from "@/lib/utils";
 
@@ -19,7 +20,7 @@ import { validateUUID } from "@/lib/utils";
  *
  * @see {@link verifyAdmin} 관리자 권한 확인이 필요한 경우
  */
-export async function getCurrentMember() {
+export const getCurrentMember = cache(async () => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -37,7 +38,7 @@ export async function getCurrentMember() {
   if (error) throw error;
 
   return { user, member, supabase };
-}
+});
 
 /**
  * 현재 로그인한 유저가 admin인지 확인한다.
