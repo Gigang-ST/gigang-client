@@ -17,7 +17,7 @@ import { H2 } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardItem } from "@/components/ui/card";
-import { secondsToTime as formatTime } from "@/lib/dayjs";
+import { secondsToTime as formatTime, timeStringToSeconds as parseTime } from "@/lib/dayjs";
 
 type RaceRecord = {
   id: string;
@@ -27,14 +27,6 @@ type RaceRecord = {
   race_date: string | null;
   member: { full_name: string | null } | null;
 };
-
-function parseTime(str: string): number | null {
-  const parts = str.split(":").map(Number);
-  if (parts.some(isNaN)) return null;
-  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-  if (parts.length === 2) return parts[0] * 60 + parts[1];
-  return null;
-}
 
 export default function RecordsPage() {
   const [records, setRecords] = useState<RaceRecord[]>([]);

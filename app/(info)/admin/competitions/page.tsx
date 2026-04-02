@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useQueryState, parseAsStringLiteral, parseAsString } from "nuqs";
 import { createClient } from "@/lib/supabase/client";
 import { createCompetition } from "@/app/actions/create-competition";
 import {
@@ -66,13 +67,39 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: "all", label: "전체" },
 ];
 
+const modes = ["list", "create", "edit", "detail"] as const;
+
 export default function CompetitionsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-col gap-4 px-6 pt-4">
+          <Skeleton className="h-8 w-32 rounded" />
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 w-full rounded-2xl" />
+          ))}
+        </div>
+      }
+    >
+      <CompetitionsContent />
+    </Suspense>
+  );
+}
+
+function CompetitionsContent() {
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("upcoming");
   const [search, setSearch] = useState("");
-  const [mode, setMode] = useState<Mode>("list");
-  const [selected, setSelected] = useState<Competition | null>(null);
+  const [mode, setMode] = useQueryState(
+    "mode",
+    parseAsStringLiteral(modes).withDefault("list"),
+  );
+  const [selectedId, setSelectedId] = useQueryState(
+    "id",
+    parseAsString.withDefault(""),
+  );
+  const selected = competitions.find((c) => c.id === selectedId) ?? null;
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [regLoading, setRegLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -144,14 +171,44 @@ export default function CompetitionsPage() {
     setRegLoading(false);
   };
 
+  // URL로 직접 접근 시 대회를 찾을 수 없으면 목록으로 복귀
+  useEffect(() => {
+    if ((mode === "detail" || mode === "edit") && selectedId && !selected && !loading) {
+      setMode("list");
+      setSelectedId("");
+    }
+  }, [mode, selectedId, selected, loading, setMode, setSelectedId]);
+
+  // URL로 edit 모드 직접 접근 시 폼 데이터 채우기
+  useEffect(() => {
+    if (mode === "edit" && selected) {
+      setForm({
+        title: selected.title,
+        sport: selected.sport ?? "road_run",
+        startDate: selected.start_date,
+        endDate: selected.end_date ?? "",
+        location: selected.location ?? "",
+        eventTypes: selected.event_types ?? [],
+        sourceUrl: selected.source_url ?? "",
+      });
+    }
+  }, [mode, selected]);
+
+  // URL로 detail 모드 직접 접근 시 참가자 로드
+  useEffect(() => {
+    if (mode === "detail" && selected) {
+      loadRegistrations(selected.id);
+    }
+  }, [mode, selected]);
+
   const openDetail = (comp: Competition) => {
-    setSelected(comp);
+    setSelectedId(comp.id);
     setMode("detail");
     loadRegistrations(comp.id);
   };
 
   const openEdit = (comp: Competition) => {
-    setSelected(comp);
+    setSelectedId(comp.id);
     setForm({
       title: comp.title,
       sport: comp.sport ?? "road_run",
@@ -165,7 +222,7 @@ export default function CompetitionsPage() {
   };
 
   const openCreate = () => {
-    setSelected(null);
+    setSelectedId("");
     setForm({
       title: "",
       sport: "road_run",
@@ -230,6 +287,7 @@ export default function CompetitionsPage() {
 
     setSaving(false);
     setMode("list");
+    setSelectedId("");
     loadCompetitions();
   };
 
@@ -239,6 +297,7 @@ export default function CompetitionsPage() {
     const result = await deleteCompetition(id);
     if (result.ok) {
       setMode("list");
+      setSelectedId("");
       loadCompetitions();
     } else {
       alert(result.message);
@@ -275,7 +334,7 @@ export default function CompetitionsPage() {
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={() => setMode("list")}
+            onClick={() => { setMode("list"); setSelectedId(""); }}
             className="text-muted-foreground"
           >
             <X className="size-5" />
@@ -424,7 +483,7 @@ export default function CompetitionsPage() {
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={() => setMode("list")}
+            onClick={() => { setMode("list"); setSelectedId(""); }}
             className="text-muted-foreground"
           >
             <X className="size-5" />

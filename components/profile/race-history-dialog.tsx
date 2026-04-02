@@ -12,27 +12,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Trash2, Pencil } from "lucide-react";
-import { secondsToTime } from "@/lib/dayjs";
-
-/* ---------- 유틸 ---------- */
-
-function timeStringToSeconds(timeStr: string): number | null {
-  const trimmed = timeStr.trim();
-  if (!trimmed) return null;
-  const parts = trimmed.split(":").map(Number);
-  if (parts.some(isNaN)) return null;
-  if (parts.length === 3) {
-    const [h, m, s] = parts;
-    if (h < 0 || m < 0 || m > 59 || s < 0 || s > 59) return null;
-    return h * 3600 + m * 60 + s;
-  }
-  if (parts.length === 2) {
-    const [m, s] = parts;
-    if (m < 0 || s < 0 || s > 59) return null;
-    return m * 60 + s;
-  }
-  return null;
-}
+import { secondsToTime, timeStringToSeconds } from "@/lib/dayjs";
 
 /* ---------- 타입 ---------- */
 
