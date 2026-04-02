@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
 import { type Enums } from "@/lib/supabase/database.types";
 import { profileEditSchema, type ProfileEditValues } from "@/lib/validations/member";
-import { uploadAvatar } from "@/app/actions/upload-avatar";
+import { uploadAvatar } from "@/app/actions/member/upload-avatar";
 import { Input } from "@/components/ui/input";
 import {
   Select,

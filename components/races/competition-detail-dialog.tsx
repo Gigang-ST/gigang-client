@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
+import { revalidateCompetitions } from "@/app/actions/competition/revalidate";
 import {
   competitionEditSchema,
   type CompetitionEditValues,

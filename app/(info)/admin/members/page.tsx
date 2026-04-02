@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   updateMemberStatus,
   toggleAdmin,
-} from "@/app/actions/admin/manage-member";
+} from "@/app/actions/member/manage";
 import {
   Search,
   Shield,

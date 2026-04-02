@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { deleteRecord, updateRecord } from "@/app/actions/admin/manage-record";
+import { deleteRecord, updateRecord } from "@/app/actions/record/manage";
 import {
   Search,
   Trash2,

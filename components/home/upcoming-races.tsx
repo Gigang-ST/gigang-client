@@ -5,7 +5,7 @@ import { Calendar, MapPin } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
-import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
+import { revalidateCompetitions } from "@/app/actions/competition/revalidate";
 import { formatDDay } from "@/lib/dayjs";
 import { CardItem } from "@/components/ui/card";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";

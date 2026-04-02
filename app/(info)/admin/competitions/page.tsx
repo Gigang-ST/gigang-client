@@ -3,12 +3,12 @@
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useQueryState, parseAsStringLiteral, parseAsString } from "nuqs";
 import { createClient } from "@/lib/supabase/client";
-import { createCompetition } from "@/app/actions/create-competition";
+import { createCompetition } from "@/app/actions/competition/create";
 import {
   deleteCompetition,
   updateCompetition,
   deleteRegistration,
-} from "@/app/actions/admin/manage-competition";
+} from "@/app/actions/competition/manage";
 import {
   Plus,
   Search,
