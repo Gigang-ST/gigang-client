@@ -161,6 +161,7 @@ async function HomeContent() {
         });
       }
     } else {
+      // 인증됐지만 member가 없으면 온보딩 필요
       initialMemberStatus = { status: "needs-onboarding", userId: user.id };
     }
   }
@@ -186,8 +187,8 @@ async function HomeContent() {
     if (nextGigang) {
       upcomingCards.push({ ...nextGigang, label: "기강 대회" });
     }
-  } else if (!user) {
-    // 비로그인: 기강대회 다음 슬롯
+  } else if (!currentMember) {
+    // 비로그인 또는 미가입: 기강대회 다음 슬롯
     const nextGigang = gigangRaces.find((r) => isDifferentSlot(r));
     if (nextGigang) {
       upcomingCards.push({ ...nextGigang, label: "기강 대회" });

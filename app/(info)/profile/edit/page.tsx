@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
 import { type Enums } from "@/lib/supabase/database.types";
-import { validateUUID } from "@/lib/utils";
 import { profileEditSchema, type ProfileEditValues } from "@/lib/validations/member";
+import { useMember } from "@/contexts/member-context";
 import { uploadAvatar } from "@/app/actions/upload-avatar";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Camera, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -32,8 +31,7 @@ const isGender = (v: string): v is Enums<"gender"> =>
 
 export default function ProfileEditPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [meta, setMeta] = useState<ProfileMeta | null>(null);
+  const { userId, member } = useMember();
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -41,59 +39,35 @@ export default function ProfileEditPage() {
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [meta, setMeta] = useState<ProfileMeta | null>(
+    member
+      ? {
+          id: member.id,
+          phone: member.phone,
+          avatar_url: member.avatar_url,
+        }
+      : null,
+  );
+
   const {
     register,
     setValue,
     watch,
-    reset,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<ProfileEditValues>({
-    defaultValues: { full_name: "", gender: "", birthday: "", email: "" },
+    defaultValues: member
+      ? {
+          full_name: member.full_name ?? "",
+          gender: member.gender,
+          birthday: member.birthday ?? "",
+          email: member.email ?? "",
+        }
+      : { full_name: "", gender: "", birthday: "", email: "" },
     resolver: zodResolver(profileEditSchema),
   });
 
   const avatarUrl = meta?.avatar_url ?? "";
-
-  useEffect(() => {
-    async function load() {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        router.push("/auth/login");
-        return;
-      }
-
-      validateUUID(user.id);
-      const { data: member } = await supabase
-        .from("member")
-        .select("id, full_name, gender, birthday, phone, email, avatar_url")
-        .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
-        .maybeSingle();
-
-      if (!member) {
-        router.push("/onboarding");
-        return;
-      }
-
-      setMeta({
-        id: member.id,
-        phone: member.phone ?? "",
-        avatar_url: member.avatar_url ?? "",
-      });
-      reset({
-        full_name: member.full_name ?? "",
-        gender: member.gender,
-        birthday: member.birthday ?? "",
-        email: member.email ?? "",
-      });
-      setLoading(false);
-    }
-
-    load();
-  }, [router, reset]);
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -153,23 +127,14 @@ export default function ProfileEditPage() {
       setMessage({ type: "error", text: "저장에 실패했습니다." });
     } else {
       setMessage({ type: "success", text: "저장 완료" });
+      router.refresh();
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-6 px-6 pt-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="flex flex-col gap-2">
-            <Skeleton className="h-4 w-16 rounded" />
-            <Skeleton className="h-12 w-full rounded-xl" />
-          </div>
-        ))}
-      </div>
-    );
+  if (!meta) {
+    router.push(userId ? "/onboarding" : "/auth/login");
+    return null;
   }
-
-  if (!meta) return null;
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6 px-6 pb-6 pt-4">
