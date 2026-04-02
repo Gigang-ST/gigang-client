@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { H1 } from "@/components/common/typography";
 import { createClient as createPublicClient } from "@supabase/supabase-js";
 import { todayKST } from "@/lib/dayjs";
 import { unstable_cache } from "next/cache";
@@ -102,9 +103,7 @@ export default function RacesPage() {
   return (
     <div className="flex flex-col gap-0">
       <div className="flex h-14 items-center px-6">
-        <h1 className="text-[28px] font-semibold tracking-tight text-foreground">
-          대회
-        </h1>
+        <H1 className="font-semibold">대회</H1>
       </div>
       <Suspense fallback={<RacesSkeleton />}>
         <RacesContent />

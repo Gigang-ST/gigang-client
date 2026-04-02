@@ -1,5 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardItem } from "@/components/ui/card";
+import { H1 } from "@/components/common/typography";
 import { secondsToTime } from "@/lib/dayjs";
 import { Suspense } from "react";
 import Link from "next/link";
@@ -8,6 +9,7 @@ import { UpcomingRaces } from "@/components/home/upcoming-races";
 import type { CompetitionRegistration, MemberStatus } from "@/components/races/types";
 import { getCurrentMember } from "@/lib/queries/member";
 import { env } from "@/lib/env";
+import { SectionLabel } from "@/components/common/typography";
 
 
 type UpcomingRace = {
@@ -203,9 +205,7 @@ async function HomeContent() {
     <div className="flex flex-col gap-7 px-6 pb-6">
         {/* Team Overview */}
         <div className="flex flex-col gap-4">
-          <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-            TEAM OVERVIEW
-          </span>
+          <SectionLabel>TEAM OVERVIEW</SectionLabel>
           <div className="grid grid-cols-2 gap-3">
             <CardItem className="flex flex-col gap-1">
               <span className="text-2xl font-bold text-foreground">
@@ -234,9 +234,7 @@ async function HomeContent() {
         {/* Recent Records */}
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-              RECENT RECORDS
-            </span>
+            <SectionLabel>RECENT RECORDS</SectionLabel>
             <Link
               href="/records"
               className="text-xs font-medium text-primary"
@@ -313,9 +311,7 @@ export default function HomePage() {
   return (
     <div className="flex flex-col gap-0">
       <div className="flex h-14 items-center px-6">
-        <h1 className="text-[28px] font-bold tracking-tight text-foreground">
-          기강
-        </h1>
+        <H1>기강</H1>
       </div>
       <Suspense fallback={<HomeSkeleton />}>
         <HomeContent />
