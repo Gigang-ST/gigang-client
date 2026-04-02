@@ -14,7 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { timeStringToSeconds, secondsToTime } from "@/lib/dayjs";
 import { resolveSportConfig } from "@/components/races/sport-config";
-import { searchCompetitions } from "@/app/actions/search-competitions";
+import { searchCompetitions } from "@/app/actions/competition/search";
 
 /** 기타(직접 입력) 선택 시 사용 */
 const EVENT_TYPE_OTHER = "__OTHER__";

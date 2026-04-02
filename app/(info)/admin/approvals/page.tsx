@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { approveMember, rejectMember } from "@/app/actions/admin/manage-member";
+import { approveMember, rejectMember } from "@/app/actions/member/manage";
 import { formatKoreanDate } from "@/lib/dayjs";
 import { Check, X, UserRound } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";

@@ -6,7 +6,7 @@ import { UserCheck, Users, Trophy, Timer } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { H2 } from "@/components/common/typography";
 import { CardItem } from "@/components/ui/card";
-import { getAdminStats, type AdminStats } from "@/app/actions/admin/get-admin-stats";
+import { getAdminStats, type AdminStats } from "@/app/actions/admin/get-stats";
 
 const cards = [
   {
