@@ -6,6 +6,7 @@ import { approveMember, rejectMember } from "@/app/actions/admin/manage-member";
 import { formatKoreanDate } from "@/lib/dayjs";
 import { Check, X, UserRound } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { H2 } from "@/components/common/typography";
 import { CardItem } from "@/components/ui/card";
 
 type PendingMember = {
@@ -71,9 +72,7 @@ export default function ApprovalsPage() {
 
   return (
     <div className="flex flex-col gap-4 px-6 pb-6 pt-4">
-      <h1 className="text-[22px] font-bold tracking-tight text-foreground">
-        가입 승인
-      </h1>
+      <H2>가입 승인</H2>
 
       {members.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-16">

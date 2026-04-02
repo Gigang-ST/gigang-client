@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { CardItem } from "@/components/ui/card";
+import { SectionLabel } from "@/components/common/typography";
 
 const KAKAO_OPEN_CHAT_URL = "https://open.kakao.com/o/grnMFGng";
 
@@ -110,9 +111,7 @@ export function SocialLinksGrid({
   return (
     <>
       <div className="flex flex-col gap-4">
-        <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-          SOCIAL
-        </span>
+        <SectionLabel>SOCIAL</SectionLabel>
         <div className="grid grid-cols-4 gap-2.5">
           {SOCIAL_LINKS.map(({ key, label, href, logo }) =>
             key === "kakao" ? (

@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { H1 } from "@/components/common/typography";
 import { CardItem } from "@/components/ui/card";
 import { redirect } from "next/navigation";
 import dayjs from "dayjs";
@@ -131,9 +132,7 @@ export default function Page() {
   return (
     <div className="flex flex-col gap-0">
       <div className="flex h-14 items-center justify-between px-6">
-        <h1 className="text-[28px] font-semibold tracking-tight text-foreground">
-          내 프로필
-        </h1>
+        <H1 className="font-semibold">내 프로필</H1>
         <Link href="/settings">
           <Settings className="size-[22px] text-muted-foreground" />
         </Link>
