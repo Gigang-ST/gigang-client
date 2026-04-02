@@ -7,15 +7,16 @@ import {
   toggleAdmin,
 } from "@/app/actions/admin/manage-member";
 import {
-  UserRound,
   Search,
   Shield,
   ShieldOff,
+  UserRound,
   UserX,
   UserCheck,
   ChevronRight,
   X,
 } from "lucide-react";
+import { Avatar } from "@/components/common/avatar";
 import { Input } from "@/components/ui/input";
 import { H2 } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
@@ -190,17 +191,7 @@ export default function MembersPage() {
                 onClick={() => setSelectedMember(member)}
                 className="text-left transition-colors active:bg-secondary"
               >
-              <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-secondary">
-                {member.avatar_url ? (
-                  <img
-                    src={member.avatar_url}
-                    alt=""
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <UserRound className="size-4 text-muted-foreground" />
-                )}
-              </div>
+              <Avatar src={member.avatar_url} size="md" />
               <div className="flex flex-1 flex-col gap-0.5">
                 <div className="flex items-center gap-2">
                   <span className="text-[15px] font-semibold text-foreground">
@@ -251,17 +242,7 @@ export default function MembersPage() {
             <div className="flex flex-col gap-6 px-6">
               {/* 헤더 */}
               <div className="flex items-center gap-4">
-                <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-secondary">
-                  {selectedMember.avatar_url ? (
-                    <img
-                      src={selectedMember.avatar_url}
-                      alt=""
-                      className="size-full object-cover"
-                    />
-                  ) : (
-                    <UserRound className="size-6 text-muted-foreground" />
-                  )}
-                </div>
+                <Avatar src={selectedMember.avatar_url} size="lg" />
                 <div className="flex flex-1 flex-col gap-1">
                   <div className="flex items-center gap-2">
                     <span className="text-lg font-bold text-foreground">
