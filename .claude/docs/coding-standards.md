@@ -14,7 +14,7 @@
 | 페이지 | `page.tsx` | `app/(main)/races/page.tsx` |
 | 레이아웃 | `layout.tsx` | `app/(main)/layout.tsx` |
 | API 라우트 | `route.ts` | `app/api/revalidate/route.ts` |
-| 서버 액션 | 기능명.ts | `app/actions/utmb.ts` |
+| 서버 액션 | 기능명.ts | `app/actions/upload-avatar.ts` |
 | 유틸리티 | kebab-case | `date-utils.ts` |
 | 타입 정의 | `types.ts` | `components/races/types.ts` |
 
