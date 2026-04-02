@@ -19,6 +19,8 @@
 | `birth_dt` | `date` | N | 생년월일 |
 | `phone_no` | `text` | N | 전화번호 |
 | `email_addr` | `text` | N | 이메일(유니크) |
+| `bank_nm` | `text` | N | 계좌 은행명 |
+| `bank_acct_no` | `text` | N | 계좌번호(정규화 저장값) |
 | `avatar_url` | `text` | N | 프로필 이미지 URL |
 | `oauth_kakao_id` | `uuid` | N | 카카오 사용자 ID(유니크) |
 | `oauth_google_id` | `uuid` | N | 구글 사용자 ID(유니크) |
