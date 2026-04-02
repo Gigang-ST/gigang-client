@@ -23,10 +23,6 @@ async function ProfileContent() {
     redirect("/onboarding?next=/profile");
   }
 
-  if (member.status !== "active") {
-    redirect("/onboarding?next=/profile");
-  }
-
   const [{ data: raceResults }, { data: utmbProfile }] = await Promise.all([
     supabase
       .from("race_result")
