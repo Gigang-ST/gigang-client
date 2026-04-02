@@ -1,20 +1,20 @@
+import { Suspense } from "react";
 import { BackHeader } from "@/components/back-header";
-import { MemberProvider } from "@/contexts/member-context";
-import { getMember } from "@/lib/get-member";
+import { MemberProviderServer } from "@/components/member-provider-server";
 
-export default async function InfoLayout({
+export default function InfoLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { userId, member } = await getMember();
-
   return (
-    <MemberProvider userId={userId} member={member}>
-      <div className="min-h-svh bg-white">
-        <BackHeader />
-        <main>{children}</main>
-      </div>
-    </MemberProvider>
+    <Suspense>
+      <MemberProviderServer>
+        <div className="min-h-svh bg-white">
+          <BackHeader />
+          <main>{children}</main>
+        </div>
+      </MemberProviderServer>
+    </Suspense>
   );
 }

@@ -1,22 +1,22 @@
+import { Suspense } from "react";
 import { BottomTabBar } from "@/components/bottom-tab-bar";
-import { MemberProvider } from "@/contexts/member-context";
-import { getMember } from "@/lib/get-member";
+import { MemberProviderServer } from "@/components/member-provider-server";
 
-export default async function MainLayout({
+export default function MainLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { userId, member } = await getMember();
-
   return (
-    <MemberProvider userId={userId} member={member}>
-      <div className="min-h-svh bg-white">
-        <main className="pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))]">
-          {children}
-        </main>
-        <BottomTabBar />
-      </div>
-    </MemberProvider>
+    <Suspense>
+      <MemberProviderServer>
+        <div className="min-h-svh bg-white">
+          <main className="pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))]">
+            {children}
+          </main>
+          <BottomTabBar />
+        </div>
+      </MemberProviderServer>
+    </Suspense>
   );
 }
