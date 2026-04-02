@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useMember } from "@/contexts/member-context";
 import {
   ChevronRight,
   UserPen,
@@ -50,26 +51,8 @@ const infoItems: MenuItem[] = [
 export default function SettingsPage() {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    async function checkAdmin() {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: member } = await supabase
-        .from("member")
-        .select("admin")
-        .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
-        .maybeSingle();
-
-      if (member?.admin) setIsAdmin(true);
-    }
-    checkAdmin();
-  }, []);
+  const { member } = useMember();
+  const isAdmin = member?.admin ?? false;
 
   const handleLogout = async () => {
     if (loggingOut) return;

@@ -1,6 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
-import { secondsToTime, validateUUID } from "@/lib/utils";
+import { getMember } from "@/lib/get-member";
+import { secondsToTime } from "@/lib/utils";
 import { Suspense } from "react";
 import Link from "next/link";
 import { SocialLinksGrid } from "@/components/social-links";
@@ -37,8 +38,8 @@ async function HomeContent() {
   const supabase = await createClient();
   const today = new Date().toISOString().split("T")[0];
 
-  // 현재 유저 확인
-  const { data: { user } } = await supabase.auth.getUser();
+  // 캐시된 member 조회 (레이아웃과 공유, DB 쿼리 1회)
+  const member = await getMember();
   let initialMemberStatus: MemberStatus = { status: "signed-out" };
 
   const [
@@ -108,25 +109,20 @@ async function HomeContent() {
   // 내가 참가하는 대회 가져오기
   let myRaces: UpcomingRace[] = [];
   let myRegistrations: CompetitionRegistration[] = [];
-  let isMember = false;
-  if (user) {
-    validateUUID(user.id);
-    const { data: member } = await supabase
-      .from("member")
-      .select("id, full_name, email, admin")
-      .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
-      .maybeSingle();
-    if (member) {
-      isMember = true;
-      initialMemberStatus = {
-        status: "ready",
-        userId: user.id,
-        memberId: member.id,
-        fullName: member.full_name ?? null,
-        email: member.email ?? null,
-        admin: member.admin ?? false,
-      };
-      const { data: myRegs } = await supabase
+  const isMember = !!member;
+  if (member) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    initialMemberStatus = {
+      status: "ready",
+      userId: user!.id,
+      memberId: member.id,
+      fullName: member.full_name || null,
+      email: member.email || null,
+      admin: member.admin,
+    };
+    const { data: myRegs } = await supabase
         .from("competition_registration")
         .select(
           "id, competition_id, member_id, role, event_type, created_at, competition:competition_id(id, title, start_date, location, sport, event_types)",
@@ -163,7 +159,12 @@ async function HomeContent() {
           return { ...r, registered_event_types };
         });
       }
-    } else {
+  } else {
+    // member가 없으면 로그인 상태 확인 (needs-onboarding 판별)
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
       initialMemberStatus = { status: "needs-onboarding", userId: user.id };
     }
   }
@@ -189,8 +190,8 @@ async function HomeContent() {
     if (nextGigang) {
       upcomingCards.push({ ...nextGigang, label: "기강 대회" });
     }
-  } else if (!user) {
-    // 비로그인: 기강대회 다음 슬롯
+  } else if (!member) {
+    // 비로그인 또는 미가입: 기강대회 다음 슬롯
     const nextGigang = gigangRaces.find((r) => isDifferentSlot(r));
     if (nextGigang) {
       upcomingCards.push({ ...nextGigang, label: "기강 대회" });

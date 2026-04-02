@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { validateUUID } from "@/lib/utils";
+import { getMember } from "@/lib/get-member";
 import { Suspense } from "react";
 import Link from "next/link";
 import { Settings, User } from "lucide-react";
@@ -10,32 +10,17 @@ import { RaceRecordSection } from "@/components/profile/race-record-section";
 import { PaceChart } from "@/components/profile/pace-chart";
 
 async function ProfileContent() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error || !user) {
-    redirect("/auth/login?next=/profile");
-  }
-
-  validateUUID(user.id);
-  const { data: member } = await supabase
-    .from("member")
-    .select(
-      "id, full_name, gender, birthday, phone, email, bank_name, bank_account, joined_at, status, avatar_url",
-    )
-    .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
-    .maybeSingle();
+  const member = await getMember();
 
   if (!member) {
-    redirect("/onboarding?next=/profile");
+    redirect("/auth/login?next=/profile");
   }
 
   if (member.status !== "active") {
     redirect("/onboarding?next=/profile");
   }
+
+  const supabase = await createClient();
 
   const [{ data: raceResults }, { data: utmbProfile }] = await Promise.all([
     supabase

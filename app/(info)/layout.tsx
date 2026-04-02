@@ -1,14 +1,20 @@
 import { BackHeader } from "@/components/back-header";
+import { MemberProvider } from "@/contexts/member-context";
+import { getMember } from "@/lib/get-member";
 
-export default function InfoLayout({
+export default async function InfoLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const member = await getMember();
+
   return (
-    <div className="min-h-svh bg-white">
-      <BackHeader />
-      <main>{children}</main>
-    </div>
+    <MemberProvider member={member}>
+      <div className="min-h-svh bg-white">
+        <BackHeader />
+        <main>{children}</main>
+      </div>
+    </MemberProvider>
   );
 }
