@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Camera, User } from "lucide-react";
+import { Camera, UserRound } from "lucide-react";
 
 type ProfileData = {
   id: string;
@@ -41,6 +41,7 @@ export default function ProfileEditPage() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   useEffect(() => {
     async function load() {
@@ -184,11 +185,11 @@ export default function ProfileEditPage() {
               referrerPolicy="no-referrer"
             />
           ) : (
-            <div className="flex size-full items-center justify-center bg-primary/10">
-              <User className="size-10 text-primary" />
+            <div className="flex size-full items-center justify-center bg-muted">
+              <UserRound className="size-10 text-foreground/50" />
             </div>
           )}
-          <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/10 transition-opacity group-hover:bg-black/30">
             <Camera className="size-6 text-white" />
           </div>
         </button>
