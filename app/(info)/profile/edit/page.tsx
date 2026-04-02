@@ -16,10 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Camera, UserRound } from "lucide-react";
-<<<<<<< feature/avatar-fallback
 import { Button } from "@/components/ui/button";
-=======
->>>>>>> dev
 
 type ProfileData = {
   id: string;
