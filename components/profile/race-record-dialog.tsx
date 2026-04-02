@@ -12,32 +12,12 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { timeStringToSeconds, secondsToTime } from "@/lib/dayjs";
 import { resolveSportConfig } from "@/components/races/sport-config";
 import { searchCompetitions } from "@/app/actions/search-competitions";
-import { secondsToTime } from "@/lib/dayjs";
 
 /** 기타(직접 입력) 선택 시 사용 */
 const EVENT_TYPE_OTHER = "__OTHER__";
-
-/* ---------- 시간 유틸리티 ---------- */
-
-function timeStringToSeconds(timeStr: string): number | null {
-  const trimmed = timeStr.trim();
-  if (!trimmed) return null;
-  const parts = trimmed.split(":").map(Number);
-  if (parts.some(isNaN)) return null;
-  if (parts.length === 3) {
-    const [h, m, s] = parts;
-    if (h < 0 || m < 0 || m > 59 || s < 0 || s > 59) return null;
-    return h * 3600 + m * 60 + s;
-  }
-  if (parts.length === 2) {
-    const [m, s] = parts;
-    if (m < 0 || s < 0 || s > 59) return null;
-    return m * 60 + s;
-  }
-  return null;
-}
 
 /* ---------- 타입 ---------- */
 

@@ -38,21 +38,7 @@ type RaceRecord = {
   race_date: string;
 };
 
-import { secondsToTime } from "@/lib/dayjs";
-
-/* ---------- 유틸 ---------- */
-
-function paceToString(paceMin: number): string {
-  const m = Math.floor(paceMin);
-  const s = Math.round((paceMin - m) * 60);
-  return `${m}'${String(s).padStart(2, "0")}"`;
-}
-
-function oneYearAgoDateString(): string {
-  const d = new Date();
-  d.setFullYear(d.getFullYear() - 1);
-  return d.toISOString().slice(0, 10);
-}
+import { secondsToTime, paceToString, oneYearAgoDateString } from "@/lib/dayjs";
 
 /* ---------- 커스텀 Tooltip ---------- */
 
