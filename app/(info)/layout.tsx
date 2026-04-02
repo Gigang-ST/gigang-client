@@ -7,7 +7,7 @@ export default async function InfoLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const member = await getMember();
+  const { member } = await getMember();
 
   return (
     <MemberProvider member={member}>

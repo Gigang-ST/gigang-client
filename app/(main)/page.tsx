@@ -39,7 +39,7 @@ async function HomeContent() {
   const today = new Date().toISOString().split("T")[0];
 
   // 캐시된 member 조회 (레이아웃과 공유, DB 쿼리 1회)
-  const member = await getMember();
+  const { userId, member } = await getMember();
   let initialMemberStatus: MemberStatus = { status: "signed-out" };
 
   const [
@@ -110,13 +110,10 @@ async function HomeContent() {
   let myRaces: UpcomingRace[] = [];
   let myRegistrations: CompetitionRegistration[] = [];
   const isMember = !!member;
-  if (member) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  if (member && userId) {
     initialMemberStatus = {
       status: "ready",
-      userId: user!.id,
+      userId,
       memberId: member.id,
       fullName: member.full_name || null,
       email: member.email || null,
@@ -159,14 +156,9 @@ async function HomeContent() {
           return { ...r, registered_event_types };
         });
       }
-  } else {
-    // member가 없으면 로그인 상태 확인 (needs-onboarding 판별)
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      initialMemberStatus = { status: "needs-onboarding", userId: user.id };
-    }
+  } else if (userId) {
+    // 인증됐지만 member가 없으면 온보딩 필요
+    initialMemberStatus = { status: "needs-onboarding", userId };
   }
 
   // 2개 카드 결정

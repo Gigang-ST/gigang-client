@@ -10,13 +10,13 @@ import { RaceRecordSection } from "@/components/profile/race-record-section";
 import { PaceChart } from "@/components/profile/pace-chart";
 
 async function ProfileContent() {
-  const member = await getMember();
+  const { userId, member } = await getMember();
 
-  if (!member) {
+  if (!userId) {
     redirect("/auth/login?next=/profile");
   }
 
-  if (member.status !== "active") {
+  if (!member || member.status !== "active") {
     redirect("/onboarding?next=/profile");
   }
 

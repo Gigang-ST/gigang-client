@@ -69,6 +69,7 @@ export default function BankInfoPage() {
       setMessage({ type: "error", text: "저장에 실패했습니다." });
     } else {
       setMessage({ type: "success", text: "저장 완료" });
+      router.refresh();
     }
     setSaving(false);
   };
