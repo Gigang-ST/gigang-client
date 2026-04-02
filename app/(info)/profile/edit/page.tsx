@@ -2,8 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
 import { validateUUID } from "@/lib/utils";
+import { profileEditSchema, type ProfileEditValues } from "@/lib/validations/member";
 import { uploadAvatar } from "@/app/actions/upload-avatar";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,27 +19,36 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Camera, User } from "lucide-react";
 
-type ProfileData = {
+type ProfileMeta = {
   id: string;
-  full_name: string;
-  gender: "male" | "female" | "";
-  birthday: string;
   phone: string;
-  email: string;
   avatar_url: string;
 };
 
 export default function ProfileEditPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [meta, setMeta] = useState<ProfileMeta | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
-  const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const {
+    register,
+    setValue,
+    watch,
+    reset,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<ProfileEditValues>({
+    defaultValues: { full_name: "", gender: "", birthday: "", email: "" },
+    resolver: zodResolver(profileEditSchema),
+  });
+
+  const avatarUrl = meta?.avatar_url ?? "";
 
   useEffect(() => {
     async function load() {
@@ -61,24 +73,26 @@ export default function ProfileEditPage() {
         return;
       }
 
-      setProfile({
+      setMeta({
         id: member.id,
+        phone: member.phone ?? "",
+        avatar_url: member.avatar_url ?? "",
+      });
+      reset({
         full_name: member.full_name ?? "",
         gender: member.gender ?? "",
         birthday: member.birthday ?? "",
-        phone: member.phone ?? "",
         email: member.email ?? "",
-        avatar_url: member.avatar_url ?? "",
       });
       setLoading(false);
     }
 
     load();
-  }, [router]);
+  }, [router, reset]);
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !profile) return;
+    if (!file || !meta) return;
 
     if (file.size > 10 * 1024 * 1024) {
       setMessage({ type: "error", text: "이미지는 10MB 이하만 가능합니다." });
@@ -90,7 +104,7 @@ export default function ProfileEditPage() {
 
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("memberId", profile.id);
+    formData.append("memberId", meta.id);
 
     try {
       const result = await Promise.race([
@@ -103,7 +117,7 @@ export default function ProfileEditPage() {
       if (result.error) {
         setMessage({ type: "error", text: result.error });
       } else if (result.url) {
-        setProfile({ ...profile, avatar_url: result.url });
+        setMeta({ ...meta, avatar_url: result.url });
         setMessage({ type: "success", text: "프로필 사진이 변경되었습니다." });
       }
     } catch {
@@ -115,33 +129,27 @@ export default function ProfileEditPage() {
     setUploading(false);
   };
 
-  const handleSave = async () => {
-    if (!profile) return;
-    if (!profile.full_name.trim()) {
-      setMessage({ type: "error", text: "이름을 입력해 주세요." });
-      return;
-    }
-    setSaving(true);
+  async function onSubmit(data: ProfileEditValues) {
+    if (!meta) return;
     setMessage(null);
 
     const supabase = createClient();
     const { error } = await supabase
       .from("member")
       .update({
-        full_name: profile.full_name.trim(),
-        gender: profile.gender || null,
-        birthday: profile.birthday || null,
-        email: profile.email.trim() || null,
+        full_name: data.full_name.trim(),
+        gender: data.gender || null,
+        birthday: data.birthday || null,
+        email: data.email.trim() || null,
       })
-      .eq("id", profile.id);
+      .eq("id", meta.id);
 
     if (error) {
       setMessage({ type: "error", text: "저장에 실패했습니다." });
     } else {
       setMessage({ type: "success", text: "저장 완료" });
     }
-    setSaving(false);
-  };
+  }
 
   if (loading) {
     return (
@@ -156,10 +164,10 @@ export default function ProfileEditPage() {
     );
   }
 
-  if (!profile) return null;
+  if (!meta) return null;
 
   return (
-    <div className="flex flex-col gap-6 px-6 pb-6 pt-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6 px-6 pb-6 pt-4">
       {/* 프로필 사진 */}
       <div className="flex flex-col items-center gap-2">
         <button
@@ -168,9 +176,9 @@ export default function ProfileEditPage() {
           disabled={uploading}
           className="group relative size-24 overflow-hidden rounded-full disabled:opacity-50"
         >
-          {profile.avatar_url ? (
+          {avatarUrl ? (
             <img
-              src={profile.avatar_url}
+              src={avatarUrl}
               alt="프로필"
               className="size-full object-cover"
               referrerPolicy="no-referrer"
@@ -201,24 +209,17 @@ export default function ProfileEditPage() {
         <div className="flex flex-1 flex-col gap-2">
           <label className="text-sm font-medium text-foreground">이름</label>
           <Input
-            value={profile.full_name}
-            onChange={(e) =>
-              setProfile({ ...profile, full_name: e.target.value })
-            }
+            {...register("full_name")}
             placeholder="홍길동"
             className="h-12 rounded-xl border-[1.5px] text-[15px]"
           />
+          {errors.full_name && <p className="text-xs text-destructive">{errors.full_name.message}</p>}
         </div>
         <div className="flex w-[120px] shrink-0 flex-col gap-2">
           <label className="text-sm font-medium text-foreground">성별</label>
           <Select
-            value={profile.gender}
-            onValueChange={(v) =>
-              setProfile({
-                ...profile,
-                gender: v as "male" | "female",
-              })
-            }
+            value={watch("gender")}
+            onValueChange={(v) => setValue("gender", v as "male" | "female")}
           >
             <SelectTrigger className="h-12 rounded-xl border-[1.5px] text-[15px]">
               <SelectValue placeholder="선택" />
@@ -238,10 +239,7 @@ export default function ProfileEditPage() {
           type="date"
           min="1986-01-01"
           max="2008-12-31"
-          value={profile.birthday}
-          onChange={(e) =>
-            setProfile({ ...profile, birthday: e.target.value })
-          }
+          {...register("birthday")}
           className="h-12 rounded-xl border-[1.5px] text-[15px]"
         />
       </div>
@@ -250,7 +248,7 @@ export default function ProfileEditPage() {
       <div className="flex flex-col gap-2">
         <label className="text-sm font-medium text-foreground">연락처</label>
         <Input
-          value={profile.phone}
+          value={meta.phone}
           disabled
           className="h-12 rounded-xl border-[1.5px] bg-secondary text-[15px] text-muted-foreground"
         />
@@ -266,21 +264,20 @@ export default function ProfileEditPage() {
         </label>
         <Input
           type="email"
-          value={profile.email}
-          onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+          {...register("email")}
           placeholder="example@email.com"
           className="h-12 rounded-xl border-[1.5px] text-[15px]"
         />
+        {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
       </div>
 
       {/* 저장 버튼 */}
       <button
-        type="button"
-        onClick={handleSave}
-        disabled={saving}
+        type="submit"
+        disabled={isSubmitting}
         className="h-[52px] w-full rounded-xl bg-primary text-base font-semibold text-primary-foreground disabled:opacity-50"
       >
-        {saving ? "저장 중..." : "저장"}
+        {isSubmitting ? "저장 중..." : "저장"}
       </button>
 
       {message && (
@@ -294,6 +291,6 @@ export default function ProfileEditPage() {
           {message.text}
         </p>
       )}
-    </div>
+    </form>
   );
 }

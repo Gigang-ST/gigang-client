@@ -1,8 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { createCompetition } from "@/app/actions/create-competition";
+import {
+  competitionRegisterSchema,
+  type CompetitionRegisterValues,
+} from "@/lib/validations/competition";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,6 +33,16 @@ import type { MemberStatus } from "./types";
 
 const SPORT_OPTIONS = SPORT_LEGEND.filter(s => s.key !== "other");
 
+const defaultValues: CompetitionRegisterValues = {
+  title: "",
+  sport: "" as CompetitionRegisterValues["sport"],
+  startDate: "",
+  endDate: "",
+  location: "",
+  sourceUrl: "",
+  selectedEventTypes: [],
+};
+
 interface CompetitionRegisterDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -40,15 +56,21 @@ export function CompetitionRegisterDialog({
   memberStatus,
   onCreated,
 }: CompetitionRegisterDialogProps) {
-  const [title, setTitle] = useState("");
-  const [sport, setSport] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [location, setLocation] = useState("");
-  const [sourceUrl, setSourceUrl] = useState("");
-  const [selectedEventTypes, setSelectedEventTypes] = useState<string[]>([]);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    reset,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<CompetitionRegisterValues>({
+    defaultValues,
+    resolver: zodResolver(competitionRegisterSchema),
+  });
+
+  const sport = watch("sport");
+  const selectedEventTypes = watch("selectedEventTypes");
 
   // 종목 변경 시 코스 선택 초기화
   const eventTypeOptions = useMemo(() => {
@@ -56,63 +78,35 @@ export function CompetitionRegisterDialog({
   }, [sport]);
 
   useEffect(() => {
-    setSelectedEventTypes([]);
-  }, [sport]);
+    setValue("selectedEventTypes", []);
+  }, [sport, setValue]);
 
   // 다이얼로그 열릴 때 폼 초기화
   useEffect(() => {
-    if (open) {
-      setTitle("");
-      setSport("");
-      setStartDate("");
-      setEndDate("");
-      setLocation("");
-      setSourceUrl("");
-      setSelectedEventTypes([]);
-      setError(null);
-    }
-  }, [open]);
+    if (open) reset(defaultValues);
+  }, [open, reset]);
 
   const toggleEventType = (type: string) => {
-    setSelectedEventTypes(prev =>
-      prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type],
+    const current = selectedEventTypes;
+    setValue(
+      "selectedEventTypes",
+      current.includes(type) ? current.filter(t => t !== type) : [...current, type],
     );
   };
 
-  const canSubmit =
-    title.trim() &&
-    sport &&
-    startDate &&
-    location.trim() &&
-    selectedEventTypes.length > 0 &&
-    sourceUrl.trim();
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!canSubmit) return;
-
-    if (endDate && endDate < startDate) {
-      setError("종료일은 시작일 이후여야 합니다.");
-      return;
-    }
-
-    setIsSaving(true);
-    setError(null);
-
+  async function onSubmit(data: CompetitionRegisterValues) {
     const result = await createCompetition({
-      title,
-      sport,
-      startDate,
-      endDate: endDate || null,
-      location,
-      eventTypes: selectedEventTypes,
-      sourceUrl,
+      title: data.title,
+      sport: data.sport,
+      startDate: data.startDate,
+      endDate: data.endDate || null,
+      location: data.location,
+      eventTypes: data.selectedEventTypes,
+      sourceUrl: data.sourceUrl,
     });
 
-    setIsSaving(false);
-
     if (!result.ok) {
-      setError(result.message ?? "등록에 실패했습니다. 다시 시도해 주세요.");
+      setError("root", { message: result.message ?? "등록에 실패했습니다. 다시 시도해 주세요." });
       return;
     }
 
@@ -140,20 +134,20 @@ export function CompetitionRegisterDialog({
             </Button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="comp-title">대회명 *</Label>
               <Input
                 id="comp-title"
                 placeholder="예: 2026 서울마라톤"
-                value={title}
-                onChange={e => setTitle(e.target.value)}
+                {...register("title")}
               />
+              {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
             </div>
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="comp-sport">종목 *</Label>
-              <Select value={sport} onValueChange={setSport}>
+              <Select value={sport} onValueChange={v => setValue("sport", v as CompetitionRegisterValues["sport"], { shouldValidate: true })}>
                 <SelectTrigger id="comp-sport">
                   <SelectValue placeholder="종목 선택" />
                 </SelectTrigger>
@@ -165,6 +159,7 @@ export function CompetitionRegisterDialog({
                   ))}
                 </SelectContent>
               </Select>
+              {errors.sport && <p className="text-xs text-destructive">{errors.sport.message}</p>}
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -173,9 +168,9 @@ export function CompetitionRegisterDialog({
                 id="comp-start"
                 type="date"
                 max="9999-12-31"
-                value={startDate}
-                onChange={e => setStartDate(e.target.value)}
+                {...register("startDate")}
               />
+              {errors.startDate && <p className="text-xs text-destructive">{errors.startDate.message}</p>}
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="comp-end">종료일</Label>
@@ -183,9 +178,9 @@ export function CompetitionRegisterDialog({
                 id="comp-end"
                 type="date"
                 max="9999-12-31"
-                value={endDate}
-                onChange={e => setEndDate(e.target.value)}
+                {...register("endDate")}
               />
+              {errors.endDate && <p className="text-xs text-destructive">{errors.endDate.message}</p>}
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -193,9 +188,9 @@ export function CompetitionRegisterDialog({
               <Input
                 id="comp-location"
                 placeholder="예: 서울 여의도"
-                value={location}
-                onChange={e => setLocation(e.target.value)}
+                {...register("location")}
               />
+              {errors.location && <p className="text-xs text-destructive">{errors.location.message}</p>}
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -221,6 +216,7 @@ export function CompetitionRegisterDialog({
               ) : (
                 <p className="text-xs text-muted-foreground">종목을 먼저 선택해 주세요.</p>
               )}
+              {errors.selectedEventTypes && <p className="text-xs text-destructive">{errors.selectedEventTypes.message}</p>}
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -229,18 +225,18 @@ export function CompetitionRegisterDialog({
                 id="comp-url"
                 type="url"
                 placeholder="https://..."
-                value={sourceUrl}
-                onChange={e => setSourceUrl(e.target.value)}
+                {...register("sourceUrl")}
               />
+              {errors.sourceUrl && <p className="text-xs text-destructive">{errors.sourceUrl.message}</p>}
             </div>
 
-            {error && (
-              <p className="text-xs text-destructive">{error}</p>
+            {errors.root && (
+              <p className="text-xs text-destructive">{errors.root.message}</p>
             )}
 
             <DialogFooter>
-              <Button type="submit" disabled={!canSubmit || isSaving} className="w-full">
-                {isSaving ? "등록 중..." : "대회 등록"}
+              <Button type="submit" disabled={isSubmitting} className="w-full">
+                {isSubmitting ? "등록 중..." : "대회 등록"}
               </Button>
             </DialogFooter>
           </form>

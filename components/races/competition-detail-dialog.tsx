@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Calendar, ExternalLink, MapPin, Pencil, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -26,6 +28,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
+import {
+  competitionEditSchema,
+  type CompetitionEditValues,
+} from "@/lib/validations/competition";
 import { formatDateRange } from "./date-utils";
 import { resolveSportConfig, SPORT_LEGEND } from "./sport-config";
 import type { Competition, CompetitionRegistration, MemberStatus } from "./types";
@@ -93,14 +99,11 @@ export function CompetitionDetailDialog({
   // 관리자 수정 모드
   const isAdmin = memberStatus.status === "ready" && memberStatus.admin;
   const [editing, setEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState("");
-  const [editSport, setEditSport] = useState("");
-  const [editStartDate, setEditStartDate] = useState("");
-  const [editEndDate, setEditEndDate] = useState("");
-  const [editLocation, setEditLocation] = useState("");
-  const [editSourceUrl, setEditSourceUrl] = useState("");
-  const [editEventTypes, setEditEventTypes] = useState<string[]>([]);
-  const [editError, setEditError] = useState<string | null>(null);
+
+  const editForm = useForm<CompetitionEditValues>({
+    defaultValues: { title: "", sport: "", startDate: "", endDate: "", location: "", sourceUrl: "", eventTypes: [] },
+    resolver: zodResolver(competitionEditSchema),
+  });
 
   const supabase = useMemo(() => createClient(), []);
 
@@ -155,39 +158,35 @@ export function CompetitionDetailDialog({
 
   function startEditing() {
     if (!competition) return;
-    setEditTitle(competition.title);
-    setEditSport(competition.sport ?? "");
-    setEditStartDate(competition.start_date);
-    setEditEndDate(competition.end_date ?? "");
-    setEditLocation(competition.location ?? "");
-    setEditSourceUrl(competition.source_url ?? "");
-    setEditEventTypes(competition.event_types?.map(t => t.toUpperCase()) ?? []);
-    setEditError(null);
+    editForm.reset({
+      title: competition.title,
+      sport: competition.sport ?? "",
+      startDate: competition.start_date,
+      endDate: competition.end_date ?? "",
+      location: competition.location ?? "",
+      sourceUrl: competition.source_url ?? "",
+      eventTypes: competition.event_types?.map(t => t.toUpperCase()) ?? [],
+    });
     setEditing(true);
   }
 
+  const editSport = editForm.watch("sport");
+  const editEventTypes = editForm.watch("eventTypes");
   const editEventTypeOptions = resolveSportConfig(editSport || null).eventTypes;
 
-  async function handleEditSave() {
+  async function handleEditSave(data: CompetitionEditValues) {
     if (!competition) return;
-    if (editEndDate && editEndDate < editStartDate) {
-      setEditError("종료일은 시작일 이후여야 합니다.");
-      return;
-    }
-    setIsSaving(true);
-    setEditError(null);
     const { error } = await supabase.from("competition").update({
-      title: editTitle.trim(),
-      sport: editSport,
-      start_date: editStartDate,
-      end_date: editEndDate || null,
-      location: editLocation.trim(),
-      source_url: editSourceUrl.trim() || null,
-      event_types: editEventTypes.length > 0 ? editEventTypes : null,
+      title: data.title.trim(),
+      sport: data.sport,
+      start_date: data.startDate,
+      end_date: data.endDate || null,
+      location: data.location.trim(),
+      source_url: data.sourceUrl.trim() || null,
+      event_types: data.eventTypes.length > 0 ? data.eventTypes : null,
     }).eq("id", competition.id);
-    setIsSaving(false);
     if (error) {
-      setEditError("수정에 실패했습니다.");
+      editForm.setError("root", { message: "수정에 실패했습니다." });
       return;
     }
     setEditing(false);
@@ -266,14 +265,14 @@ export function CompetitionDetailDialog({
         </DialogHeader>
 
         {editing ? (
-          <div className="flex flex-col gap-3">
+          <form onSubmit={editForm.handleSubmit(handleEditSave)} className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
               <Label>대회명</Label>
-              <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} />
+              <Input {...editForm.register("title")} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>종목</Label>
-              <Select value={editSport} onValueChange={(v) => { setEditSport(v); setEditEventTypes([]); }}>
+              <Select value={editSport} onValueChange={(v) => { editForm.setValue("sport", v); editForm.setValue("eventTypes", []); }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {SPORT_OPTIONS.map(s => (
@@ -284,15 +283,15 @@ export function CompetitionDetailDialog({
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>시작일</Label>
-              <Input type="date" max="9999-12-31" value={editStartDate} onChange={e => setEditStartDate(e.target.value)} />
+              <Input type="date" max="9999-12-31" {...editForm.register("startDate")} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>종료일</Label>
-              <Input type="date" max="9999-12-31" value={editEndDate} onChange={e => setEditEndDate(e.target.value)} />
+              <Input type="date" max="9999-12-31" {...editForm.register("endDate")} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>장소</Label>
-              <Input value={editLocation} onChange={e => setEditLocation(e.target.value)} />
+              <Input {...editForm.register("location")} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>참가 코스</Label>
@@ -302,8 +301,8 @@ export function CompetitionDetailDialog({
                     <button
                       key={type}
                       type="button"
-                      onClick={() => setEditEventTypes(prev =>
-                        prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
+                      onClick={() => editForm.setValue("eventTypes",
+                        editEventTypes.includes(type) ? editEventTypes.filter(t => t !== type) : [...editEventTypes, type]
                       )}
                       className={cn(
                         "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
@@ -322,18 +321,19 @@ export function CompetitionDetailDialog({
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>대회 링크</Label>
-              <Input type="url" value={editSourceUrl} onChange={e => setEditSourceUrl(e.target.value)} />
+              <Input type="url" {...editForm.register("sourceUrl")} />
             </div>
-            {editError && <p className="text-xs text-destructive">{editError}</p>}
+            {editForm.formState.errors.endDate && <p className="text-xs text-destructive">{editForm.formState.errors.endDate.message}</p>}
+            {editForm.formState.errors.root && <p className="text-xs text-destructive">{editForm.formState.errors.root.message}</p>}
             <div className="flex gap-2">
-              <Button onClick={handleEditSave} disabled={isSaving || !editTitle.trim() || !editSport || !editStartDate} className="flex-1">
-                {isSaving ? "저장 중..." : "저장"}
+              <Button type="submit" disabled={editForm.formState.isSubmitting} className="flex-1">
+                {editForm.formState.isSubmitting ? "저장 중..." : "저장"}
               </Button>
-              <Button variant="outline" onClick={() => setEditing(false)} disabled={isSaving} className="flex-1">
+              <Button type="button" variant="outline" onClick={() => setEditing(false)} disabled={editForm.formState.isSubmitting} className="flex-1">
                 취소
               </Button>
             </div>
-          </div>
+          </form>
         ) : (
         <div className="flex flex-col gap-3 text-sm">
           <div className="flex items-center gap-2 text-muted-foreground">
