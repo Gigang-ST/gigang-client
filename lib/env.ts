@@ -9,7 +9,7 @@ export const env = createEnv({
     NODE_ENV: z.enum(["development", "production", "test"]),
   },
   client: {
-    NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
+    NEXT_PUBLIC_SUPABASE_URL: z.url(),
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
     NEXT_PUBLIC_DEBUG_DATE: z.string().optional(),
     NEXT_PUBLIC_ENABLE_DEV_MODE: z
