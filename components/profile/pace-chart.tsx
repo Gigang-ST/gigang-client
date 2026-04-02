@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { CardItem } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/common/typography";
 import {
   LineChart,
@@ -233,28 +234,24 @@ export function PaceChart({ records }: { records: RaceRecord[] }) {
       <div className="flex items-center justify-between">
         <SectionLabel>페이스 추이</SectionLabel>
         <div className="flex rounded-lg border border-border p-0.5">
-          <button
+          <Button
             type="button"
+            variant={period === "1y" ? "default" : "ghost"}
+            size="xs"
             onClick={() => setPeriod("1y")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-              period === "1y"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground"
-            }`}
+            className="px-2.5"
           >
             최근 1년
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant={period === "all" ? "default" : "ghost"}
+            size="xs"
             onClick={() => setPeriod("all")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-              period === "all"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground"
-            }`}
+            className="px-2.5"
           >
             전체
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -272,11 +269,13 @@ export function PaceChart({ records }: { records: RaceRecord[] }) {
                 const config = EVENT_CONFIG[et];
                 const isVisible = !hiddenEventTypes.has(et);
                 return (
-                  <button
+                  <Button
                     key={et}
                     type="button"
+                    variant="ghost"
+                    size="xs"
                     onClick={() => toggleLegend(et)}
-                    className="flex items-center gap-1.5 transition-opacity focus:outline-none"
+                    className="flex items-center gap-1.5 px-0 transition-opacity"
                     style={{ opacity: isVisible ? 1 : 0.4 }}
                   >
                     <span
@@ -286,7 +285,7 @@ export function PaceChart({ records }: { records: RaceRecord[] }) {
                     <span className={isVisible ? "font-semibold" : "font-normal"}>
                       {config?.label ?? et}
                     </span>
-                  </button>
+                  </Button>
                 );
               })}
             </div>

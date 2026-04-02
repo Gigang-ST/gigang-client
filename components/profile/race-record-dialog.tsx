@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
@@ -337,13 +338,15 @@ export function RaceRecordDialog({
         </DialogHeader>
 
         {step > 1 && (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={handleBack}
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="w-fit px-0 text-muted-foreground hover:text-foreground"
           >
             &larr; 뒤로
-          </button>
+          </Button>
         )}
 
         {/* 단계 1: 최근 3개월 참가 대회 + 전체 대회 검색 */}
@@ -361,17 +364,18 @@ export function RaceRecordDialog({
               <>
                 <p className="text-xs font-medium text-muted-foreground">최근 3개월 내 참가한 대회</p>
                 {competitions.map((comp) => (
-                  <button
+                  <Button
                     key={comp.id}
                     type="button"
+                    variant="outline"
                     onClick={() => handleSelectCompetition(comp)}
-                    className="rounded-lg px-4 py-3 border-[1.5px] border-border text-left transition-colors hover:border-primary/50"
+                    className="h-auto w-full flex-col items-start gap-0.5 border-[1.5px] px-4 py-3 hover:border-primary/50"
                   >
                     <p className="text-sm font-medium">{comp.title}</p>
                     <p className="text-xs text-muted-foreground">
                       {comp.start_date} &middot; {comp.location ?? "-"}
                     </p>
-                  </button>
+                  </Button>
                 ))}
               </>
             )}
@@ -395,17 +399,18 @@ export function RaceRecordDialog({
               {!searchLoading && searchResults.length > 0 && (
                 <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
                   {searchResults.map((comp) => (
-                    <button
+                    <Button
                       key={comp.id}
                       type="button"
+                      variant="ghost"
                       onClick={() => handleSelectCompetition(comp)}
-                      className="w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50"
+                      className="h-auto w-full flex-col items-start gap-0.5 px-3 py-2 hover:bg-muted/50"
                     >
                       <p className="font-medium">{comp.title}</p>
                       <p className="text-xs text-muted-foreground">
                         {comp.start_date} &middot; {comp.location ?? "-"}
                       </p>
-                    </button>
+                    </Button>
                   ))}
                 </div>
               )}
@@ -426,9 +431,11 @@ export function RaceRecordDialog({
               {/* 종목 선택 */}
               <div className="flex flex-wrap gap-1.5">
                     {eventTypeOptions.map((opt) => (
-                      <button
+                      <Button
                         key={opt}
                         type="button"
+                        variant={selectedEventType === opt ? "default" : "outline"}
+                        size="xs"
                         onClick={() => {
                           if (opt === EVENT_TYPE_OTHER) {
                             setSelectedEventType(EVENT_TYPE_OTHER);
@@ -439,14 +446,14 @@ export function RaceRecordDialog({
                           }
                         }}
                         className={cn(
-                          "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                          "rounded-full px-3",
                           selectedEventType === opt
-                            ? "bg-foreground text-background border-foreground"
-                            : "border-border text-muted-foreground hover:border-primary/50",
+                            ? ""
+                            : "text-muted-foreground hover:border-primary/50",
                         )}
                       >
                         {opt === EVENT_TYPE_OTHER ? "기타 (직접 입력)" : opt}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                   {selectedEventType === EVENT_TYPE_OTHER && (
@@ -456,18 +463,19 @@ export function RaceRecordDialog({
                         value={customEventType}
                         onChange={(e) => setCustomEventType(e.target.value)}
                       />
-                      <button
+                      <Button
                         type="button"
+                        size="lg"
                         disabled={!customEventType.trim()}
                         onClick={() => {
                           setTotalTime("");
                           setError(null);
                           setStep(3);
                         }}
-                        className="h-[48px] w-full rounded-xl bg-primary text-primary-foreground font-semibold text-sm disabled:opacity-50"
+                        className="h-12 w-full rounded-xl font-semibold"
                       >
                         다음
-                      </button>
+                      </Button>
                     </div>
                   )}
             </div>
@@ -551,14 +559,15 @@ export function RaceRecordDialog({
               <p className="text-xs text-destructive">{error}</p>
             )}
 
-            <button
+            <Button
               type="button"
+              size="lg"
               disabled={!canSave || isSaving}
               onClick={handleSave}
-              className="h-[48px] w-full rounded-xl bg-primary text-primary-foreground font-semibold text-sm disabled:opacity-50"
+              className="h-12 w-full rounded-xl font-semibold"
             >
               {isSaving ? "저장 중..." : "기록 저장"}
-            </button>
+            </Button>
           </div>
         )}
       </DialogContent>

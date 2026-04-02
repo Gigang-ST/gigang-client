@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { prevMonthStr, nextMonthStr } from "@/lib/dayjs";
+import { Button } from "@/components/ui/button";
 
 export function MonthNavigator({
   currentMonth,
@@ -34,25 +35,29 @@ export function MonthNavigator({
 
   return (
     <div className="flex items-center justify-center gap-4">
-      <button
+      <Button
+        variant="ghost"
+        size="icon-sm"
         onClick={() => navigate(prevMonth)}
         disabled={!hasPrev}
-        className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors active:bg-secondary disabled:opacity-30"
+        className="text-muted-foreground active:bg-secondary disabled:opacity-30"
         aria-label="이전 달"
       >
         <ChevronLeft className="size-5" />
-      </button>
+      </Button>
       <span className="min-w-[3rem] text-center text-lg font-bold">
         {label}
       </span>
-      <button
+      <Button
+        variant="ghost"
+        size="icon-sm"
         onClick={() => navigate(nextMonth)}
         disabled={!hasNext}
-        className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors active:bg-secondary disabled:opacity-30"
+        className="text-muted-foreground active:bg-secondary disabled:opacity-30"
         aria-label="다음 달"
       >
         <ChevronRight className="size-5" />
-      </button>
+      </Button>
     </div>
   );
 }
