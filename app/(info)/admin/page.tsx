@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { UserCheck, Users, Trophy, Timer } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { H2 } from "@/components/common/typography";
 import { CardItem } from "@/components/ui/card";
 import { getAdminStats, type AdminStats } from "@/app/actions/admin/get-admin-stats";
 
@@ -51,9 +52,7 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="flex flex-col gap-6 px-6 pb-6 pt-4">
-      <h1 className="text-[22px] font-bold tracking-tight text-foreground">
-        관리
-      </h1>
+      <H2>관리</H2>
 
       <div className="grid grid-cols-2 gap-3">
         {cards.map((card) => (

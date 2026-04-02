@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 
 const meta = {
-  title: "ui/Form",
+  title: "UI/Form",
   parameters: {
     layout: "centered",
   },

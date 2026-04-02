@@ -61,7 +61,7 @@ function TypographyShowcase() {
 }
 
 const meta = {
-  title: "Common/Typography",
+  title: "Design Tokens/Typography",
   component: TypographyShowcase,
   parameters: { layout: "centered" },
 } satisfies Meta<typeof TypographyShowcase>;

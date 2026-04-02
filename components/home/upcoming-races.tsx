@@ -9,6 +9,7 @@ import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
 import { formatDDay } from "@/lib/dayjs";
 import { CardItem } from "@/components/ui/card";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
+import { SectionLabel } from "@/components/common/typography";
 
 type UpcomingRace = {
   id: string;
@@ -92,9 +93,7 @@ export function UpcomingRaces({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-          UPCOMING RACES
-        </span>
+        <SectionLabel>UPCOMING RACES</SectionLabel>
         <Link href="/races" className="text-xs font-medium text-primary">
           모두 보기
         </Link>
