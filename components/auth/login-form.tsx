@@ -8,6 +8,7 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { DevEmailLogin, isDevModeEnabled } from "@/components/auth/dev-email-login";
 import { SocialLinksRow } from "@/components/social-links";
+import { Button } from "@/components/ui/button";
 
 export function LoginForm({
   className,
@@ -65,28 +66,29 @@ export function LoginForm({
 
       {/* Buttons */}
       <div className="flex w-full flex-col gap-3">
-        <button
+        <Button
           type="button"
           onClick={() => handleOAuthLogin("kakao")}
           disabled={oauthProvider !== null}
-          className="flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-[#FEE500] text-base font-semibold text-[#191919] transition-opacity disabled:opacity-50"
+          className="h-[52px] w-full rounded-xl bg-[#FEE500] text-base font-semibold text-[#191919] hover:bg-[#FEE500]/90"
         >
           <Image src="/kakao.png" alt="Kakao" width={20} height={20} />
           <span>
             {oauthProvider === "kakao" ? "연결 중..." : "카카오로 시작하기"}
           </span>
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="outline"
           onClick={() => handleOAuthLogin("google")}
           disabled={oauthProvider !== null}
-          className="flex h-[52px] w-full items-center justify-center gap-2 rounded-xl border-[1.5px] border-border text-base font-semibold text-foreground transition-opacity disabled:opacity-50"
+          className="h-[52px] w-full rounded-xl border-[1.5px] text-base font-semibold"
         >
           <Image src="/google.webp" alt="Google" width={20} height={20} />
           <span>
             {oauthProvider === "google" ? "연결 중..." : "Google로 시작하기"}
           </span>
-        </button>
+        </Button>
         {isDevModeEnabled() ? (
           <DevEmailLogin
             redirectPath={safeNext}

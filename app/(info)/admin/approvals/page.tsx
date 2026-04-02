@@ -6,6 +6,7 @@ import { approveMember, rejectMember } from "@/app/actions/admin/manage-member";
 import { formatKoreanDate } from "@/lib/dayjs";
 import { Check, X, UserRound } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { H2 } from "@/components/common/typography";
 import { CardItem } from "@/components/ui/card";
 
@@ -120,22 +121,25 @@ export default function ApprovalsPage() {
 
                 {/* 액션 버튼 */}
                 <div className="flex gap-2">
-                  <button
+                  <Button
+                    variant="outline"
+                    size="icon"
                     onClick={() => handleReject(member.id)}
                     disabled={isActioning}
-                    className="flex size-10 items-center justify-center rounded-xl border-[1.5px] border-border text-muted-foreground transition-colors active:bg-secondary disabled:opacity-50"
+                    className="rounded-xl text-muted-foreground"
                     aria-label="거절"
                   >
                     <X className="size-4" />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    size="icon"
                     onClick={() => handleApprove(member.id)}
                     disabled={isActioning}
-                    className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-colors active:bg-primary/90 disabled:opacity-50"
+                    className="rounded-xl"
                     aria-label="승인"
                   >
                     <Check className="size-4" />
-                  </button>
+                  </Button>
                 </div>
               </CardItem>
             );

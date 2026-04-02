@@ -10,14 +10,13 @@ import {
   X,
   Check,
   Timer,
-  UserRound,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { H2 } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardItem } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import { secondsToTime as formatTime } from "@/lib/dayjs";
 
 type RaceRecord = {
@@ -162,34 +161,42 @@ export default function RecordsPage() {
               <div className="flex gap-1">
                 {editingId === record.id ? (
                   <>
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => setEditingId(null)}
-                      className="flex size-8 items-center justify-center rounded-lg text-muted-foreground"
+                      className="text-muted-foreground"
                     >
                       <X className="size-3.5" />
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => handleUpdate(record)}
                       disabled={saving}
-                      className="flex size-8 items-center justify-center rounded-lg text-primary disabled:opacity-50"
+                      className="text-primary"
                     >
                       <Check className="size-3.5" />
-                    </button>
+                    </Button>
                   </>
                 ) : (
                   <>
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => startEdit(record)}
-                      className="flex size-8 items-center justify-center rounded-lg text-muted-foreground"
+                      className="text-muted-foreground"
                     >
                       <Pencil className="size-3.5" />
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => handleDelete(record.id)}
-                      className="flex size-8 items-center justify-center rounded-lg text-muted-foreground active:text-destructive"
+                      className="text-muted-foreground active:text-destructive"
                     >
                       <Trash2 className="size-3.5" />
-                    </button>
+                    </Button>
                   </>
                 )}
               </div>
