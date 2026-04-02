@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
+import { type Enums } from "@/lib/supabase/database.types";
 import { validateUUID } from "@/lib/utils";
 import { profileEditSchema, type ProfileEditValues } from "@/lib/validations/member";
 import { uploadAvatar } from "@/app/actions/upload-avatar";
@@ -17,13 +18,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Camera, User } from "lucide-react";
+import { Camera, UserRound } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 type ProfileMeta = {
   id: string;
   phone: string;
   avatar_url: string;
 };
+
+const isGender = (v: string): v is Enums<"gender"> =>
+  v === "male" || v === "female";
 
 export default function ProfileEditPage() {
   const router = useRouter();
@@ -80,7 +85,7 @@ export default function ProfileEditPage() {
       });
       reset({
         full_name: member.full_name ?? "",
-        gender: member.gender ?? "",
+        gender: member.gender,
         birthday: member.birthday ?? "",
         email: member.email ?? "",
       });
@@ -138,8 +143,8 @@ export default function ProfileEditPage() {
       .from("member")
       .update({
         full_name: data.full_name.trim(),
-        gender: data.gender || null,
-        birthday: data.birthday || null,
+        gender: data.gender || undefined,
+        birthday: data.birthday || undefined,
         email: data.email.trim() || null,
       })
       .eq("id", meta.id);
@@ -170,11 +175,12 @@ export default function ProfileEditPage() {
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6 px-6 pb-6 pt-4">
       {/* 프로필 사진 */}
       <div className="flex flex-col items-center gap-2">
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
-          className="group relative size-24 overflow-hidden rounded-full disabled:opacity-50"
+          className="group relative size-24 overflow-hidden rounded-full p-0"
         >
           {avatarUrl ? (
             <img
@@ -184,14 +190,14 @@ export default function ProfileEditPage() {
               referrerPolicy="no-referrer"
             />
           ) : (
-            <div className="flex size-full items-center justify-center bg-primary/10">
-              <User className="size-10 text-primary" />
+            <div className="flex size-full items-center justify-center bg-muted">
+              <UserRound className="size-10 text-foreground/50" />
             </div>
           )}
-          <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/10 transition-opacity group-hover:bg-black/30">
             <Camera className="size-6 text-white" />
           </div>
-        </button>
+        </Button>
         <input
           ref={fileInputRef}
           type="file"
@@ -272,13 +278,13 @@ export default function ProfileEditPage() {
       </div>
 
       {/* 저장 버튼 */}
-      <button
+      <Button
         type="submit"
         disabled={isSubmitting}
-        className="h-[52px] w-full rounded-xl bg-primary text-base font-semibold text-primary-foreground disabled:opacity-50"
+        className="h-[52px] w-full rounded-xl text-base font-semibold"
       >
         {isSubmitting ? "저장 중..." : "저장"}
-      </button>
+      </Button>
 
       {message && (
         <p

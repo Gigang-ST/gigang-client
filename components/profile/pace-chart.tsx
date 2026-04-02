@@ -1,6 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { CardItem } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { SectionLabel } from "@/components/common/typography";
 import {
   LineChart,
   Line,
@@ -23,9 +26,9 @@ const DISTANCE_KM: Record<string, number> = {
 const EVENT_ORDER = ["10K", "HALF", "FULL"] as const;
 
 const EVENT_CONFIG: Record<string, { label: string; color: string }> = {
-  FULL: { label: "FULL", color: "#2563eb" },
-  HALF: { label: "HALF", color: "#16a34a" },
-  "10K": { label: "10K", color: "#ea580c" },
+  FULL: { label: "FULL", color: "hsl(var(--event-full))" },
+  HALF: { label: "HALF", color: "hsl(var(--event-half))" },
+  "10K": { label: "10K", color: "hsl(var(--event-10k))" },
 };
 
 type RaceRecord = {
@@ -35,21 +38,14 @@ type RaceRecord = {
   race_date: string;
 };
 
+import { secondsToTime } from "@/lib/dayjs";
+
 /* ---------- 유틸 ---------- */
 
 function paceToString(paceMin: number): string {
   const m = Math.floor(paceMin);
   const s = Math.round((paceMin - m) * 60);
   return `${m}'${String(s).padStart(2, "0")}"`;
-}
-
-function secondsToTime(sec: number): string {
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  if (h > 0)
-    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 function oneYearAgoDateString(): string {
@@ -236,36 +232,30 @@ export function PaceChart({ records }: { records: RaceRecord[] }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-          페이스 추이
-        </span>
+        <SectionLabel>페이스 추이</SectionLabel>
         <div className="flex rounded-lg border border-border p-0.5">
-          <button
+          <Button
             type="button"
+            variant={period === "1y" ? "default" : "ghost"}
+            size="xs"
             onClick={() => setPeriod("1y")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-              period === "1y"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground"
-            }`}
+            className="px-2.5"
           >
             최근 1년
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant={period === "all" ? "default" : "ghost"}
+            size="xs"
             onClick={() => setPeriod("all")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-              period === "all"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground"
-            }`}
+            className="px-2.5"
           >
             전체
-          </button>
+          </Button>
         </div>
       </div>
 
-      <div className="rounded-2xl border-[1.5px] border-border p-4 outline-none **:outline-none">
+      <CardItem className="outline-none **:outline-none">
         {!hasChartData ? (
           <div className="flex h-[220px] items-center justify-center text-xs text-muted-foreground">
             {chartData.length === 0 && period === "1y"
@@ -279,11 +269,13 @@ export function PaceChart({ records }: { records: RaceRecord[] }) {
                 const config = EVENT_CONFIG[et];
                 const isVisible = !hiddenEventTypes.has(et);
                 return (
-                  <button
+                  <Button
                     key={et}
                     type="button"
+                    variant="ghost"
+                    size="xs"
                     onClick={() => toggleLegend(et)}
-                    className="flex items-center gap-1.5 transition-opacity focus:outline-none"
+                    className="flex items-center gap-1.5 px-0 transition-opacity"
                     style={{ opacity: isVisible ? 1 : 0.4 }}
                   >
                     <span
@@ -293,7 +285,7 @@ export function PaceChart({ records }: { records: RaceRecord[] }) {
                     <span className={isVisible ? "font-semibold" : "font-normal"}>
                       {config?.label ?? et}
                     </span>
-                  </button>
+                  </Button>
                 );
               })}
             </div>
@@ -317,7 +309,7 @@ export function PaceChart({ records }: { records: RaceRecord[] }) {
                   <ReferenceLine
                     key={y}
                     y={y}
-                    stroke="#e5e7eb"
+                    stroke="hsl(var(--border))"
                     strokeOpacity={0.6}
                   />
                 ))}
@@ -347,7 +339,7 @@ export function PaceChart({ records }: { records: RaceRecord[] }) {
             </ResponsiveContainer>
           </>
         )}
-      </div>
+      </CardItem>
     </div>
   );
 }

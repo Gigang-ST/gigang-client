@@ -198,19 +198,19 @@ export function CompetitionRegisterDialog({
               {eventTypeOptions.length > 0 ? (
                 <div className="flex flex-wrap gap-1.5">
                   {eventTypeOptions.map(type => (
-                    <button
+                    <Button
                       key={type}
                       type="button"
+                      size="xs"
                       onClick={() => toggleEventType(type)}
+                      variant={selectedEventTypes.includes(type) ? "default" : "outline"}
                       className={cn(
-                        "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                        selectedEventTypes.includes(type)
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border text-muted-foreground hover:border-primary/50",
+                        "rounded-full",
+                        !selectedEventTypes.includes(type) && "text-muted-foreground hover:border-primary/50",
                       )}
                     >
                       {type}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               ) : (

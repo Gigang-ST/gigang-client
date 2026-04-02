@@ -32,7 +32,7 @@ import {
   competitionEditSchema,
   type CompetitionEditValues,
 } from "@/lib/validations/competition";
-import { formatDateRange } from "./date-utils";
+import { formatDateRange } from "@/lib/dayjs";
 import { resolveSportConfig, SPORT_LEGEND } from "./sport-config";
 import type { Competition, CompetitionRegistration, MemberStatus } from "./types";
 
@@ -298,21 +298,22 @@ export function CompetitionDetailDialog({
               {editEventTypeOptions.length > 0 ? (
                 <div className="flex flex-wrap gap-1.5">
                   {editEventTypeOptions.map(type => (
-                    <button
+                    <Button
                       key={type}
                       type="button"
-                      onClick={() => editForm.setValue("eventTypes",
-                        editEventTypes.includes(type) ? editEventTypes.filter(t => t !== type) : [...editEventTypes, type]
-                      )}
+                      size="xs"
+                      onClick={() => {
+                        const current = editForm.getValues("eventTypes");
+                        editForm.setValue("eventTypes", current.includes(type) ? current.filter(t => t !== type) : [...current, type]);
+                      }}
+                      variant={editEventTypes.includes(type) ? "default" : "outline"}
                       className={cn(
-                        "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                        editEventTypes.includes(type)
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border text-muted-foreground hover:border-primary/50",
+                        "rounded-full",
+                        !editEventTypes.includes(type) && "text-muted-foreground hover:border-primary/50",
                       )}
                     >
                       {type}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               ) : (

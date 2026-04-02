@@ -21,6 +21,8 @@ import {
   Trophy,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { H2 } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -31,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { CardItem } from "@/components/ui/card";
 import { resolveSportConfig, SPORT_LEGEND } from "@/components/races/sport-config";
 
 type Competition = {
@@ -268,15 +271,15 @@ export default function CompetitionsPage() {
     return (
       <div className="flex flex-col gap-6 px-6 pb-6 pt-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-[22px] font-bold tracking-tight text-foreground">
-            {mode === "create" ? "대회 등록" : "대회 수정"}
-          </h1>
-          <button
+          <H2>{mode === "create" ? "대회 등록" : "대회 수정"}</H2>
+          <Button
+            variant="ghost"
+            size="icon-sm"
             onClick={() => setMode("list")}
-            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground"
+            className="text-muted-foreground"
           >
             <X className="size-5" />
-          </button>
+          </Button>
         </div>
 
         {/* 대회명 */}
@@ -358,18 +361,20 @@ export default function CompetitionsPage() {
           </label>
           <div className="flex flex-wrap gap-2">
             {currentSportConfig.eventTypes.map((et) => (
-              <button
+              <Button
                 key={et}
+                variant="outline"
+                size="sm"
                 onClick={() => toggleEventType(et)}
                 className={cn(
-                  "rounded-lg border-[1.5px] px-3 py-2 text-[13px] font-medium transition-colors",
+                  "rounded-lg text-[13px] font-medium",
                   form.eventTypes.includes(et)
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border text-muted-foreground",
+                    ? "border-primary bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary"
+                    : "text-muted-foreground",
                 )}
               >
                 {et}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -388,17 +393,17 @@ export default function CompetitionsPage() {
         </div>
 
         {/* 저장 */}
-        <button
+        <Button
           onClick={handleSave}
           disabled={saving}
-          className="h-[52px] w-full rounded-xl bg-primary text-base font-semibold text-primary-foreground disabled:opacity-50"
+          className="h-[52px] w-full rounded-xl text-base font-semibold"
         >
           {saving
             ? "저장 중..."
             : mode === "create"
               ? "등록"
               : "수정"}
-        </button>
+        </Button>
       </div>
     );
   }
@@ -415,19 +420,19 @@ export default function CompetitionsPage() {
     return (
       <div className="flex flex-col gap-6 px-6 pb-6 pt-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-[22px] font-bold tracking-tight text-foreground">
-            대회 상세
-          </h1>
-          <button
+          <H2>대회 상세</H2>
+          <Button
+            variant="ghost"
+            size="icon-sm"
             onClick={() => setMode("list")}
-            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground"
+            className="text-muted-foreground"
           >
             <X className="size-5" />
-          </button>
+          </Button>
         </div>
 
         {/* 대회 정보 카드 */}
-        <div className="flex flex-col gap-3 rounded-2xl border-[1.5px] border-border p-5">
+        <CardItem className="flex flex-col gap-3 p-5">
           <div className="flex items-center gap-2">
             <Badge className={cn("text-[11px]", sportConfig.chipClass)}>
               {sportConfig.label}
@@ -458,22 +463,24 @@ export default function CompetitionsPage() {
           </div>
 
           <div className="flex gap-2 pt-2">
-            <button
+            <Button
+              variant="outline"
               onClick={() => openEdit(selected)}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl border-[1.5px] border-border py-3 text-[14px] font-medium text-foreground transition-colors active:bg-secondary"
+              className="flex-1 rounded-xl py-3 text-[14px] font-medium"
             >
               <Pencil className="size-3.5" />
               수정
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
               onClick={() => handleDelete(selected.id)}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl border-[1.5px] border-border py-3 text-[14px] font-medium text-destructive transition-colors active:bg-secondary"
+              className="flex-1 rounded-xl py-3 text-[14px] font-medium text-destructive hover:text-destructive"
             >
               <Trash2 className="size-3.5" />
               삭제
-            </button>
+            </Button>
           </div>
-        </div>
+        </CardItem>
 
         {/* 참가자 목록 */}
         <div className="flex flex-col gap-3">
@@ -511,12 +518,14 @@ export default function CompetitionsPage() {
                     </Badge>
                   )}
                 </div>
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
                   onClick={() => handleDeleteRegistration(reg.id)}
-                  className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors active:text-destructive"
+                  className="text-muted-foreground active:text-destructive"
                 >
                   <X className="size-3.5" />
-                </button>
+                </Button>
               </div>
             ))
           )}
@@ -529,15 +538,14 @@ export default function CompetitionsPage() {
   return (
     <div className="flex flex-col gap-4 px-6 pb-6 pt-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-[22px] font-bold tracking-tight text-foreground">
-          대회 관리
-        </h1>
-        <button
+        <H2>대회 관리</H2>
+        <Button
+          size="icon"
           onClick={openCreate}
-          className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground"
+          className="rounded-xl"
         >
           <Plus className="size-5" />
-        </button>
+        </Button>
       </div>
 
       {/* 검색 */}
@@ -554,18 +562,20 @@ export default function CompetitionsPage() {
       {/* 필터 */}
       <div className="flex gap-0 rounded-xl bg-secondary p-1">
         {FILTERS.map((f) => (
-          <button
+          <Button
             key={f.value}
+            variant="ghost"
+            size="sm"
             onClick={() => setFilter(f.value)}
             className={cn(
-              "flex-1 rounded-lg py-2 text-[13px] font-medium transition-colors",
+              "flex-1 rounded-lg text-[13px] font-medium",
               filter === f.value
-                ? "bg-foreground text-background"
+                ? "bg-foreground text-background hover:bg-foreground hover:text-background"
                 : "text-muted-foreground",
             )}
           >
             {f.label}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -578,11 +588,11 @@ export default function CompetitionsPage() {
         {filtered.map((comp) => {
           const sportConfig = resolveSportConfig(comp.sport);
           return (
-            <button
-              key={comp.id}
-              onClick={() => openDetail(comp)}
-              className="flex flex-col gap-2.5 rounded-2xl border-[1.5px] border-border p-4 text-left transition-colors active:bg-secondary"
-            >
+            <CardItem asChild key={comp.id} className="flex flex-col gap-2.5">
+              <button
+                onClick={() => openDetail(comp)}
+                className="text-left transition-colors active:bg-secondary"
+              >
               <div className="flex items-center gap-2">
                 <Badge
                   className={cn(
@@ -617,7 +627,8 @@ export default function CompetitionsPage() {
                   <span>{comp.registration_count}</span>
                 </div>
               </div>
-            </button>
+              </button>
+            </CardItem>
           );
         })}
       </div>

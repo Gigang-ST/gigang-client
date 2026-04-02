@@ -21,6 +21,8 @@ import {
   UserCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { SectionLabel } from "@/components/common/typography";
+import { Button } from "@/components/ui/button";
 
 type MenuItem = {
   label: string;
@@ -88,9 +90,7 @@ export default function SettingsPage() {
     <div className="flex flex-col gap-8 px-6 pb-6 pt-4">
       {/* ACCOUNT */}
       <div className="flex flex-col">
-        <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-          ACCOUNT
-        </span>
+        <SectionLabel>ACCOUNT</SectionLabel>
         {accountItems.map((item) => (
           <Link
             key={item.href}
@@ -111,9 +111,7 @@ export default function SettingsPage() {
       {/* ADMIN */}
       {isAdmin && (
         <div className="flex flex-col">
-          <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-            ADMIN
-          </span>
+          <SectionLabel>ADMIN</SectionLabel>
           {adminItems.map((item) => (
             <Link
               key={item.href}
@@ -134,9 +132,7 @@ export default function SettingsPage() {
 
       {/* INFORMATION */}
       <div className="flex flex-col">
-        <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-          INFORMATION
-        </span>
+        <SectionLabel>INFORMATION</SectionLabel>
         {infoItems.map((item) => (
           <Link
             key={item.href}
@@ -166,25 +162,25 @@ export default function SettingsPage() {
 
       {/* DANGER ZONE */}
       <div className="flex flex-col">
-        <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-          DANGER ZONE
-        </span>
-        <button
+        <SectionLabel>DANGER ZONE</SectionLabel>
+        <Button
           type="button"
+          variant="ghost"
           onClick={handleLogout}
           disabled={loggingOut}
-          className="flex items-center gap-3 border-b border-border py-4 disabled:opacity-50"
+          className="h-auto w-full justify-start gap-3 rounded-none border-b border-border px-0 py-4"
         >
           <LogOut className="size-5 text-destructive" />
           <span className="text-[15px] font-medium text-destructive">
             {loggingOut ? "로그아웃 중..." : "로그아웃"}
           </span>
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="ghost"
           disabled
           onClick={() => alert("준비 중입니다.")}
-          className="flex items-center gap-3 py-4 opacity-50"
+          className="h-auto w-full justify-start gap-3 rounded-none px-0 py-4"
         >
           <Trash2 className="size-5 text-destructive" />
           <span className="text-[15px] font-medium text-destructive">
@@ -193,7 +189,7 @@ export default function SettingsPage() {
           <span className="ml-auto text-xs text-muted-foreground">
             준비 중입니다
           </span>
-        </button>
+        </Button>
       </div>
 
       {/* Footer */}
