@@ -99,17 +99,15 @@
   - SELECT: 팀 멤버만
   - UPDATE: 팀 관리자만
 
-## 6) 마이그레이션 매핑 (AS-IS -> v2)
-- `member.id` -> `mem_mst.mem_id`
-- `member.full_name` -> `mem_mst.mem_nm`
-- `member.status` -> `team_mem_rel.mem_st_cd` (팀 컨텍스트 상태로 이관)
-- `member.admin` -> `team_mem_rel.team_role_cd`로 전환(전역 admin 제거)
+## 6) 마이그레이션 매핑 참조
+- 상세 컬럼 매핑/변환 규칙은 `database-schema-v2-migration-map.md`를 기준으로 한다.
+- 본 문서는 회원 도메인 설계(목적/관계/규약) 정의에 집중한다.
 
 ## 7) 오픈 이슈
 - 팀 선택 컨텍스트를 JWT claim으로 처리할지, 앱 세션 상태로 처리할지 확정 필요
 - 전역 회원 상태를 별도로 둘지(예: 플랫폼 제재용), 현재처럼 팀 상태만으로 운영할지 추후 확정 필요
 
-## 8) 상태 코드 기준 (v1)
+## 8) 상태 코드 기준 (v2)
 `team_mem_rel.mem_st_cd`는 아래 코드만 사용한다.
 
 | 코드 | 의미 |

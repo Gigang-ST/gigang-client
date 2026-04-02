@@ -5,13 +5,14 @@
 - [ ] 배포 창구/롤백 담당자/승인자 지정
 - [ ] 앱 코드가 v1/v2 동시 읽기 가능한지 확인
 - [ ] 데이터 동결 시간대(필요 시) 공지
+- [ ] 상세 이관 규칙은 `database-schema-v2-migration-map.md` 기준으로 동결
 
 ## 2) 정합성 검증
 
 ### 2.1 행 수/키 무결성
 - [ ] `member` -> `mem_mst` 1:1 매핑 검증
 - [ ] `race_result.member_id`가 모두 `mem_mst.mem_id`로 매핑되는지 검증
-- [ ] `competition_registration`가 `cmp_reg_rel`로 누락 없이 이관되는지 검증
+- [ ] `competition_registration`가 `comp_reg_rel`로 누락 없이 이관되는지 검증
 
 권장 검증 쿼리 예시:
 ```sql

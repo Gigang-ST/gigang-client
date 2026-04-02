@@ -86,7 +86,7 @@
 필수 컬럼:
 - `race_result_id` (PK)
 - `mem_id` (FK -> `mem_mst`)
-- `comp_reg_id` (FK -> `comp_reg_rel`)
+- `comp_id` (FK -> `comp_mst`)
 - `comp_evt_id` (FK -> `comp_evt_cfg`)
 - `rec_time_sec`, `race_nm`, `race_dt`
 - `swim_time_sec`, `bike_time_sec`, `run_time_sec` (선택)
@@ -98,7 +98,13 @@
 - (`comp_evt_id`, `rec_time_sec`)
 
 제약:
-- 1개 참가 등록(`comp_reg_id`)에는 1개 결과만 저장(`unique`)
+- 개인 기록은 참가(`comp_reg_rel`)와 별도 관리한다.
+- 대회 데이터 정합성은 `comp_id`/`comp_evt_id` FK로 검증한다.
+- 중복 입력 방지를 위해 개인+경기 식별 유니크를 둔다(예: `mem_id`, `comp_evt_id`, `race_dt`, `race_nm`).
+
+노출 정책(현재):
+- 기록은 개인 원본 기준으로 관리하며, 현재는 팀별 노출 제어 테이블 없이 소속 팀 화면(예: 랭킹)에서 공통 노출한다.
+- 추후 "특정 팀에만 노출/비노출" 요구가 생기면 팀-기록 노출 관계 테이블을 별도로 추가해 확장한다.
 
 ### `rec_pb_mat`
 개인 최고기록 물리 테이블(선택) 또는 뷰/머터리얼라이즈드 뷰.
@@ -176,6 +182,7 @@
 
 ### `fee_txn_hist` (은행 원시 거래 이력)
 **역할:** 업로드 파일에서 파싱한 **원본 거래 한 줄**을 보존한다. 입금/출금·매칭·분류·확정 여부는 모두 여기서 관리하며, **회비 잔액·미납 표시는 이 테이블을 직접 집계하지 않는다**(확정 후 `fee_due_pay_hist`·스냅샷 사용).
+원시 은행 거래는 수정 대상이 아니므로 append-only(불변)로 관리한다.
 
 필수 컬럼:
 - `txn_id` (PK)
@@ -195,10 +202,10 @@
 - `is_cfm_yn` (관리자 확정 여부)
 - `cfm_by_mem_id` (FK -> `mem_mst`, nullable)
 - `cfm_at` (nullable)
-- `crt_at`, `upd_at`, `del_yn`, `vers`
+- `crt_at`, `upd_at`, `del_yn`
 
 유니크(거래 중복 방지):
-- (`team_id`, `txn_dt`, `txn_tm`, `txn_amt`, `raw_name`, `vers`)
+- (`team_id`, `txn_dt`, `txn_tm`, `txn_amt`, `raw_name`)
 
 비고:
 - `raw_name` 유니크 제약은 두지 않는다.
@@ -206,6 +213,7 @@
 - 입출금 방향은 공통코드가 아닌 enum(`txn_io_enm`)으로 관리한다.
 - `raw_memo`는 은행 파일 그대로 두고, 화면용 설명은 `adm_memo_txt`에만 기록한다.
 - 출금은 요구사항상 지출 후보로 두고 `fee_item_cd = expense` 등으로 분류한다(최종 확정은 관리자).
+- 원시 거래 정정이 필요하면 UPDATE 대신 정정 이력을 추가하거나 업로드 롤백/재처리로 대응한다.
 
 ### `fee_policy_cfg`
 **역할:** 팀별 **월 회비 단가** 등 기간 적용 규칙. 정산 시 `pay_dt`·부과월이 속하는 구간의 `monthly_fee_amt`를 조회한다.
@@ -348,7 +356,7 @@
 - 멀티팀에서도 개인 기록 중복이 없다.
 - 팀별 운영 데이터만 분리되어 권한/RLS 적용이 단순해진다.
 - 회비 같은 신규 기능이 팀 스코프로 독립 확장 가능하다.
-- 기록이 참가(`comp_reg_rel`)와 직접 연결되어 데이터 추적성이 높다.
+- 기록은 개인 원본으로 분리해 팀 컨텍스트 변화와 독립적으로 보존된다.
 
 ## 8) PR 리뷰 포인트 (혼동 방지)
 - 회비 잔액은 `fee_txn_hist`가 아니라 `fee_due_pay_hist`·면제·스냅샷 조합으로 본다. 원시 테이블은 확정 전·비회비 거래를 포함한다.
