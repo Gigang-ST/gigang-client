@@ -9,10 +9,12 @@ components/
   auth/        # 인증 컴포넌트 (LoginForm, OnboardingForm)
   races/       # 대회 도메인 컴포넌트
   profile/     # 프로필 도메인 컴포넌트 (PersonalBestGrid, RaceRecordDialog, RaceHistoryDialog, PaceChart, RaceRecordSection)
-  bottom-tab-bar.tsx        # 하단 네비게이션
-  back-header.tsx           # 뒤로가기 헤더
-  social-links.tsx          # 소셜 링크
-  in-app-browser-gate.tsx   # 인앱브라우저 감지 → 외부 브라우저 유도 래퍼
+  projects/    # 프로젝트 도메인 컴포넌트 (MonthNavigator)
+  home/        # 홈 도메인 컴포넌트 (UpcomingRaces)
+  bottom-tab-bar.tsx           # 하단 네비게이션 (5탭: 홈/대회/프로젝트/랭킹/프로필)
+  back-header.tsx              # 뒤로가기 헤더
+  social-links.tsx             # 소셜 링크
+  in-app-browser-gate.tsx      # 인앱브라우저 감지 → 외부 브라우저 유도 래퍼
 ```
 
 ## shadcn/ui 사용법
@@ -120,7 +122,7 @@ import { cn } from "@/lib/utils";
 ### 메인 레이아웃 (`(main)/layout.tsx`)
 - 하단에 `BottomTabBar` 고정
 - 콘텐츠 영역 `pb-20`으로 탭바 공간 확보
-- 4개 탭: 홈, 대회, 기록, 프로필
+- 5개 탭: 홈, 대회, 프로젝트, 랭킹, 프로필
 
 ### 정보 레이아웃 (`(info)/layout.tsx`)
 - 상단에 `BackHeader` (뒤로가기)
@@ -138,13 +140,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 ## 폼 패턴
 
-### React Hook Form + shadcn Form
+### React Hook Form + Zod + shadcn Form
 ```typescript
 "use client";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { profileEditSchema } from "@/lib/validations/member";
 import { Form, FormField, FormItem, FormLabel, FormControl } from "@/components/ui/form";
 
-const form = useForm({ defaultValues: { ... } });
+const form = useForm({
+  resolver: zodResolver(profileEditSchema),
+  defaultValues: { ... },
+});
 
 <Form {...form}>
   <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -157,6 +164,10 @@ const form = useForm({ defaultValues: { ... } });
   </form>
 </Form>
 ```
+
+### Zod 스키마 위치
+- `lib/validations/member.ts` — 프로필 편집 스키마
+- `lib/validations/competition.ts` — 대회 등록/수정, 참가 신청 스키마
 
 ## 반응형 디자인
 - 모바일 퍼스트 (기본 모바일, `md:` 이상에서 확장)
