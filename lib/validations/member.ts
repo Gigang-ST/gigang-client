@@ -16,10 +16,10 @@ export const profileEditSchema = z.object({
 
 export type ProfileEditValues = z.infer<typeof profileEditSchema>;
 
-/** 타입 안전성 확인: gender enum이 DB와 일치하는지 컴파일 타임에 체크 */
+/** 타입 안전성 확인: DB gender enum 값들이 스키마에 포함되어 있는지 체크 */
 type _DbGender = Enums<"gender">;
-type _AssertGenderSubset = _DbGender extends (typeof genderValues)[number]
+type _AssertDbGenderCovered = _DbGender extends Exclude<(typeof genderValues)[number], "">
   ? true
   : never;
-const _genderCheck: _AssertGenderSubset = true;
+const _genderCheck: _AssertDbGenderCovered = true;
 void _genderCheck;

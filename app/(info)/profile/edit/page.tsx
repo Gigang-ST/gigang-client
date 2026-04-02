@@ -143,7 +143,7 @@ export default function ProfileEditPage() {
       .from("member")
       .update({
         full_name: data.full_name.trim(),
-        gender: data.gender || undefined,
+        ...(data.gender && { gender: data.gender }),
         birthday: data.birthday || undefined,
         email: data.email.trim() || null,
       })
