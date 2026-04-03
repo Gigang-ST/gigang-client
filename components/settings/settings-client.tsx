@@ -15,10 +15,6 @@ import {
   Info,
   LogOut,
   Trash2,
-  Users,
-  Trophy,
-  Timer,
-  UserCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { SectionLabel } from "@/components/common/typography";
@@ -36,10 +32,7 @@ const accountItems: MenuItem[] = [
 ];
 
 const adminItems: MenuItem[] = [
-  { label: "가입 승인", href: "/admin/approvals", icon: UserCheck },
-  { label: "회원 관리", href: "/admin/members", icon: Users },
-  { label: "대회 관리", href: "/admin/competitions", icon: Trophy },
-  { label: "기록 관리", href: "/admin/records", icon: Timer },
+  { label: "관리자 페이지", href: "/admin", icon: ShieldCheck },
 ];
 
 const infoItems: MenuItem[] = [
