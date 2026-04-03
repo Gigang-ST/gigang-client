@@ -55,81 +55,51 @@ function ColorTokensPage() {
         </p>
       </div>
 
-      {/* 기본 색상 */}
-      <ColorGroup title="기본 (Base)">
+      {/* 이벤트 타입(거리) 색상 */}
+      <ColorGroup title="이벤트 타입 (Event Type)">
         <ColorSwatch
-          label="Background"
-          variable="bg-background"
-          className="bg-background"
+          label="FULL (풀마라톤)"
+          variable="--event-full"
+          className="bg-[hsl(var(--event-full))]"
         />
         <ColorSwatch
-          label="Foreground"
-          variable="bg-foreground"
-          className="bg-foreground"
+          label="HALF (하프마라톤)"
+          variable="--event-half"
+          className="bg-[hsl(var(--event-half))]"
         />
         <ColorSwatch
-          label="Card"
-          variable="bg-card"
-          className="bg-card"
-        />
-        <ColorSwatch
-          label="Card Foreground"
-          variable="bg-card-foreground"
-          className="bg-card-foreground"
-        />
-        <ColorSwatch
-          label="Popover"
-          variable="bg-popover"
-          className="bg-popover"
-        />
-        <ColorSwatch
-          label="Popover Foreground"
-          variable="bg-popover-foreground"
-          className="bg-popover-foreground"
+          label="10K"
+          variable="--event-10k"
+          className="bg-[hsl(var(--event-10k))]"
         />
       </ColorGroup>
 
-      {/* 주요 색상 */}
-      <ColorGroup title="주요 (Primary / Secondary)">
+      {/* 종목별 색상 (= 차트 색상) */}
+      <ColorGroup title="종목 / 차트 (Sport / Chart)">
         <ColorSwatch
-          label="Primary"
-          variable="bg-primary"
-          className="bg-primary"
+          label="로드 러닝"
+          variable="bg-sport-road-run (= chart-1)"
+          className="bg-sport-road-run"
         />
         <ColorSwatch
-          label="Primary Foreground"
-          variable="bg-primary-foreground"
-          className="bg-primary-foreground"
+          label="울트라마라톤"
+          variable="bg-sport-ultra (= chart-5)"
+          className="bg-sport-ultra"
         />
         <ColorSwatch
-          label="Secondary"
-          variable="bg-secondary"
-          className="bg-secondary"
+          label="트레일 러닝"
+          variable="bg-sport-trail-run (= chart-4)"
+          className="bg-sport-trail-run"
         />
         <ColorSwatch
-          label="Secondary Foreground"
-          variable="bg-secondary-foreground"
-          className="bg-secondary-foreground"
+          label="철인3종"
+          variable="bg-sport-triathlon (= chart-2)"
+          className="bg-sport-triathlon"
         />
         <ColorSwatch
-          label="Accent"
-          variable="bg-accent"
-          className="bg-accent"
-        />
-        <ColorSwatch
-          label="Accent Foreground"
-          variable="bg-accent-foreground"
-          className="bg-accent-foreground"
-        />
-        <ColorSwatch
-          label="Muted"
-          variable="bg-muted"
-          className="bg-muted"
-        />
-        <ColorSwatch
-          label="Muted Foreground"
-          variable="bg-muted-foreground"
-          className="bg-muted-foreground"
+          label="사이클"
+          variable="bg-sport-cycling (= chart-3)"
+          className="bg-sport-cycling"
         />
       </ColorGroup>
 
@@ -196,32 +166,81 @@ function ColorTokensPage() {
         />
       </ColorGroup>
 
-      {/* 종목별 색상 (= 차트 색상) */}
-      <ColorGroup title="종목 / 차트 (Sport / Chart)">
+      {/* 주요 색상 */}
+      <ColorGroup title="주요 (Primary / Secondary)">
         <ColorSwatch
-          label="로드 러닝"
-          variable="bg-sport-road-run (= chart-1)"
-          className="bg-sport-road-run"
+          label="Primary"
+          variable="bg-primary"
+          className="bg-primary"
         />
         <ColorSwatch
-          label="울트라마라톤"
-          variable="bg-sport-ultra (= chart-5)"
-          className="bg-sport-ultra"
+          label="Primary Foreground"
+          variable="bg-primary-foreground"
+          className="bg-primary-foreground"
         />
         <ColorSwatch
-          label="트레일 러닝"
-          variable="bg-sport-trail-run (= chart-4)"
-          className="bg-sport-trail-run"
+          label="Secondary"
+          variable="bg-secondary"
+          className="bg-secondary"
         />
         <ColorSwatch
-          label="철인3종"
-          variable="bg-sport-triathlon (= chart-2)"
-          className="bg-sport-triathlon"
+          label="Secondary Foreground"
+          variable="bg-secondary-foreground"
+          className="bg-secondary-foreground"
         />
         <ColorSwatch
-          label="사이클"
-          variable="bg-sport-cycling (= chart-3)"
-          className="bg-sport-cycling"
+          label="Accent"
+          variable="bg-accent"
+          className="bg-accent"
+        />
+        <ColorSwatch
+          label="Accent Foreground"
+          variable="bg-accent-foreground"
+          className="bg-accent-foreground"
+        />
+        <ColorSwatch
+          label="Muted"
+          variable="bg-muted"
+          className="bg-muted"
+        />
+        <ColorSwatch
+          label="Muted Foreground"
+          variable="bg-muted-foreground"
+          className="bg-muted-foreground"
+        />
+      </ColorGroup>
+
+      {/* 기본 색상 */}
+      <ColorGroup title="기본 (Base)">
+        <ColorSwatch
+          label="Background"
+          variable="bg-background"
+          className="bg-background"
+        />
+        <ColorSwatch
+          label="Foreground"
+          variable="bg-foreground"
+          className="bg-foreground"
+        />
+        <ColorSwatch
+          label="Card"
+          variable="bg-card"
+          className="bg-card"
+        />
+        <ColorSwatch
+          label="Card Foreground"
+          variable="bg-card-foreground"
+          className="bg-card-foreground"
+        />
+        <ColorSwatch
+          label="Popover"
+          variable="bg-popover"
+          className="bg-popover"
+        />
+        <ColorSwatch
+          label="Popover Foreground"
+          variable="bg-popover-foreground"
+          className="bg-popover-foreground"
         />
       </ColorGroup>
 

@@ -4,14 +4,17 @@
 
 ```
 components/
-  ui/          # shadcn/ui 공통 컴포넌트 (Button, Card, Dialog 등)
+  ui/          # shadcn/ui primitive 컴포넌트만 (Button, Card, Dialog 등)
+  common/      # 프로젝트 공통 컴포넌트 (Typography, PageHeader, Avatar 등)
   auth/        # 인증 컴포넌트 (LoginForm, OnboardingForm)
   races/       # 대회 도메인 컴포넌트
   profile/     # 프로필 도메인 컴포넌트 (PersonalBestGrid, RaceRecordDialog, RaceHistoryDialog, PaceChart, RaceRecordSection)
-  bottom-tab-bar.tsx        # 하단 네비게이션
-  back-header.tsx           # 뒤로가기 헤더
-  social-links.tsx          # 소셜 링크
-  in-app-browser-gate.tsx   # 인앱브라우저 감지 → 외부 브라우저 유도 래퍼
+  projects/    # 프로젝트 도메인 컴포넌트 (MonthNavigator)
+  home/        # 홈 도메인 컴포넌트 (UpcomingRaces)
+  bottom-tab-bar.tsx           # 하단 네비게이션 (5탭: 홈/대회/프로젝트/랭킹/프로필)
+  back-header.tsx              # 뒤로가기 헤더
+  social-links.tsx             # 소셜 링크
+  in-app-browser-gate.tsx      # 인앱브라우저 감지 → 외부 브라우저 유도 래퍼
 ```
 
 ## shadcn/ui 사용법
@@ -26,8 +29,23 @@ components/
 pnpm dlx shadcn@latest add [component-name]
 ```
 
-### 기존 컴포넌트 목록
+### 기존 컴포넌트 목록 (shadcn/ui)
 badge, button, card, dialog, form, input, label, loading-spinner, select, separator, skeleton
+
+### 프로젝트 공통 컴포넌트 (`components/common/`)
+
+> 상세 사용법은 `DESIGN.md` 참조
+
+| 컴포넌트 | 파일 | 용도 |
+|----------|------|------|
+| H1, H2, Body, Caption, Micro, SectionLabel | `typography.tsx` | 시맨틱 타이포그래피 |
+| PageHeader | `page-header.tsx` | 메인 페이지 상단 h-14 헤더 (`title`, `action?`) |
+| SectionHeader | `section-header.tsx` | 섹션 라벨 + 액션 링크 (`label`, `action?`) |
+| EmptyState | `empty-state.tsx` | 빈 상태 표시 (`message`, `icon?`, `variant?: "card" \| "inline"`) |
+| SegmentControl | `segment-control.tsx` | 탭 전환 (`segments`, `value`, `onValueChange`) |
+| InfoRow | `info-row.tsx` | label-value 행 (`label`, `value?`) |
+| Avatar | `avatar.tsx` | 프로필 사진 + 폴백 (`src?`, `size?: "sm"\|"md"\|"lg"\|"xl"`) |
+| StatCard | `stat-card.tsx` | 통계 수치 카드 (`value`, `label`, `valueClassName?`) |
 
 ### 프로필 도메인 컴포넌트
 - `personal-best-grid.tsx` — 읽기 전용 FULL/HALF/10K 최고기록 카드 + 클릭 가능한 UTMB 카드 (다이얼로그에서 UTMB 프로필 URL 입력/수정)
@@ -76,6 +94,19 @@ import { cn } from "@/lib/utils";
 --radius: 0.75rem;              /* 12px */
 ```
 
+### 타이포그래피 (`components/common/typography.tsx`)
+
+**매직넘버(`text-[28px]` 등) 대신 타이포그래피 컴포넌트 사용 필수:**
+
+| 컴포넌트 | 사이즈 | 용도 |
+|----------|--------|------|
+| `<H1>` | 28px bold | 메인 탭 페이지 제목 |
+| `<H2>` | 22px bold | 서브 페이지 제목 |
+| `<Body>` | 15px | 리스트 이름, 본문 |
+| `<Caption>` | 13px muted | 서브 정보, 필터 |
+| `<Micro>` | 11px muted | 배지, 날짜 세부 |
+| `<SectionLabel>` | 12px semibold muted | 영문 섹션 라벨 |
+
 ### 종목별 색상 (Sport Tokens)
 ```css
 --sport-road-run: 12 76% 61%;     /* 로드 러닝 */
@@ -91,7 +122,7 @@ import { cn } from "@/lib/utils";
 ### 메인 레이아웃 (`(main)/layout.tsx`)
 - 하단에 `BottomTabBar` 고정
 - 콘텐츠 영역 `pb-20`으로 탭바 공간 확보
-- 4개 탭: 홈, 대회, 기록, 프로필
+- 5개 탭: 홈, 대회, 프로젝트, 랭킹, 프로필
 
 ### 정보 레이아웃 (`(info)/layout.tsx`)
 - 상단에 `BackHeader` (뒤로가기)
@@ -109,13 +140,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 ## 폼 패턴
 
-### React Hook Form + shadcn Form
+### React Hook Form + Zod + shadcn Form
 ```typescript
 "use client";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { profileEditSchema } from "@/lib/validations/member";
 import { Form, FormField, FormItem, FormLabel, FormControl } from "@/components/ui/form";
 
-const form = useForm({ defaultValues: { ... } });
+const form = useForm({
+  resolver: zodResolver(profileEditSchema),
+  defaultValues: { ... },
+});
 
 <Form {...form}>
   <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -128,6 +164,10 @@ const form = useForm({ defaultValues: { ... } });
   </form>
 </Form>
 ```
+
+### Zod 스키마 위치
+- `lib/validations/member.ts` — 프로필 편집 스키마
+- `lib/validations/competition.ts` — 대회 등록/수정, 참가 신청 스키마
 
 ## 반응형 디자인
 - 모바일 퍼스트 (기본 모바일, `md:` 이상에서 확장)
