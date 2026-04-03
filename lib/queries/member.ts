@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { validateUUID } from "@/lib/utils";
 
@@ -69,4 +70,15 @@ export async function verifyAdmin() {
   if (error) throw error;
   if (!member?.admin) return null;
   return member;
+}
+
+/**
+ * 관리자 전용 페이지의 서버 컴포넌트에서 사용하는 인증 가드.
+ * 비로그인 시 /auth/login, 비관리자 시 /settings로 redirect한다.
+ */
+export async function requireAdmin() {
+  const { user, member } = await getCurrentMember();
+  if (!user) redirect("/auth/login");
+  if (!member?.admin) redirect("/settings");
+  return { user, member };
 }
