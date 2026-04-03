@@ -129,7 +129,7 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
 
   useEffect(() => {
-    getAdminStats().then(setStats);
+    getAdminStats().then(setStats).catch(() => setStats(null));
   }, []);
 
   return (
