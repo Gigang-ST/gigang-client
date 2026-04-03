@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchUtmbIndex } from "@/app/actions/utmb";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
@@ -11,6 +12,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { secondsToTime } from "@/lib/dayjs";
 
 type BestRecord = {
   record_time_sec: number;
@@ -27,15 +29,6 @@ type Props = {
   utmbData: UtmbData;
   memberId: string;
 };
-
-function secondsToTime(sec: number) {
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  if (h > 0)
-    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
 
 const PB_EVENTS = ["FULL", "HALF", "10K"] as const;
 
@@ -175,10 +168,11 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
         })}
 
         {/* UTMB card (clickable) */}
-        <button
+        <Button
           type="button"
+          variant="secondary"
           onClick={() => handleUtmbOpenChange(true)}
-          className="flex flex-col gap-1 rounded-xl bg-secondary p-4 text-left transition-colors active:scale-[0.98]"
+          className="h-auto flex-col items-start gap-1 rounded-xl p-4 active:scale-[0.98]"
         >
           <span className="text-xs font-semibold text-primary">UTMB</span>
           <span className="font-mono text-xl font-bold text-foreground">
@@ -187,7 +181,7 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
           <span className="truncate text-[11px] text-muted-foreground">
             {utmb ? "" : "탭하여 연동"}
           </span>
-        </button>
+        </Button>
       </div>
 
       {/* UTMB Dialog */}
@@ -216,14 +210,16 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
                   }}
                   className="flex-1"
                 />
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={handleFetch}
                   disabled={fetching}
-                  className="shrink-0 rounded-lg border-[1.5px] border-border px-4 py-2 text-sm font-medium text-foreground disabled:opacity-50"
+                  className="shrink-0 border-[1.5px]"
                 >
                   {fetching ? "조회 중..." : "조회"}
-                </button>
+                </Button>
               </div>
               <p className="text-xs text-muted-foreground">
                 utmb.world 프로필의 번호.이름 형식으로 입력하세요.
@@ -267,23 +263,24 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
             )}
 
             <div className="flex gap-2">
-              <button
+              <Button
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                className="h-12 flex-1 rounded-xl font-semibold"
               >
                 {saving ? "저장 중..." : "저장"}
-              </button>
+              </Button>
               {utmb && (
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   onClick={handleDelete}
                   disabled={saving}
-                  className="rounded-xl border-[1.5px] border-border px-4 py-3 text-sm font-medium text-destructive disabled:opacity-50"
+                  className="h-12 rounded-xl border-[1.5px] px-4 text-destructive hover:text-destructive"
                 >
                   삭제
-                </button>
+                </Button>
               )}
             </div>
           </div>

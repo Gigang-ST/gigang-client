@@ -1,10 +1,11 @@
 import { cacheLife } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { secondsToTime } from "@/lib/utils";
+import { secondsToTime } from "@/lib/dayjs";
 import { fetchUtmbRecentRace } from "@/lib/utmb";
 import dynamic from "next/dynamic";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { H1 } from "@/components/common/typography";
 
 const RecordsClient = dynamic(() =>
   import("./records-client").then((m) => m.RecordsClient),
@@ -56,10 +57,12 @@ async function RecordsContent() {
   const pbData = Array.from(bestByMemberEvent.values());
 
   // 트레일러닝: UTMB 프로필 보유자의 최근 대회 기록 조회
-  const utmbMembers = (utmbData ?? []).map((r) => {
-    const member = r.member as unknown as { full_name: string; id: string };
-    return { id: member.id, name: member.full_name, index: r.utmb_index, url: r.utmb_profile_url };
-  });
+  const utmbMembers = (utmbData ?? [])
+    .filter((r): r is typeof r & { utmb_index: number; utmb_profile_url: string } => r.utmb_index != null && r.utmb_profile_url != null)
+    .map((r) => {
+      const member = r.member as unknown as { full_name: string; id: string };
+      return { id: member.id, name: member.full_name, index: r.utmb_index, url: r.utmb_profile_url };
+    });
 
   // UTMB 프로필 페이지에서 멤버별 최근 대회 기록 가져오기
   const recentRaceMap = new Map<
@@ -228,9 +231,7 @@ export default function RecordsPage() {
   return (
     <div className="flex flex-col gap-0">
       <div className="flex h-14 items-center px-6">
-        <h1 className="text-[28px] font-semibold tracking-tight text-foreground">
-          기강의 전당
-        </h1>
+        <H1 className="font-semibold">기강의 전당</H1>
       </div>
       <Suspense fallback={<RecordsSkeleton />}>
         <RecordsContent />

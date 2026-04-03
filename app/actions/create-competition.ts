@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidateTag } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getCurrentMember } from "@/lib/queries/member";
 
 interface CreateCompetitionInput {
   title: string;
@@ -15,22 +15,8 @@ interface CreateCompetitionInput {
 }
 
 export async function createCompetition(input: CreateCompetitionInput) {
-  // 1. 사용자 인증 확인
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { ok: false, message: "로그인이 필요합니다." };
-  }
-
-  // 2. active 회원인지 확인
-  const { data: member } = await supabase
-    .from("member")
-    .select("id, status")
-    .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
-    .single();
+  // 1. 사용자 인증 + active 회원 확인
+  const { member } = await getCurrentMember();
 
   if (!member || member.status !== "active") {
     return { ok: false, message: "활성 회원만 대회를 등록할 수 있습니다." };

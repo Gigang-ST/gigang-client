@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { GoogleAnalytics } from "@next/third-parties/google";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import "./globals.css";
 import { siteContent } from "@/config";
 
@@ -55,7 +56,7 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className={`${inter.className} antialiased`}>
-        {children}
+        <NuqsAdapter>{children}</NuqsAdapter>
       </body>
       <GoogleAnalytics gaId="G-H9LXJH97CZ" />
     </html>

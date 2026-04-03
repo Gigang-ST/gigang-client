@@ -1,22 +1,24 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { H1 } from "@/components/common/typography";
 import { createClient as createPublicClient } from "@supabase/supabase-js";
+import { todayKST } from "@/lib/dayjs";
 import { unstable_cache } from "next/cache";
 import { Suspense } from "react";
 import { RaceListView } from "@/components/races/race-list-view";
 import type { Competition } from "@/components/races/types";
+import { env } from "@/lib/env";
 
 const supabase = createPublicClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+  env.NEXT_PUBLIC_SUPABASE_URL,
+  env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
 );
 
 const cacheOptions = { revalidate: 86400, tags: ["competitions"] };
 
 const getUpcomingCompetitions = unstable_cache(
   async () => {
-    const now = new Date();
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    const endOfYear = `${now.getFullYear()}-12-31`;
+    const today = todayKST();
+    const endOfYear = `${today.slice(0, 4)}-12-31`;
     const { data } = await supabase
       .from("competition")
       .select(
@@ -33,9 +35,8 @@ const getUpcomingCompetitions = unstable_cache(
 
 const getGigangCompetitions = unstable_cache(
   async () => {
-    const now = new Date();
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    const endOfYear = `${now.getFullYear()}-12-31`;
+    const today = todayKST();
+    const endOfYear = `${today.slice(0, 4)}-12-31`;
     const { data } = await supabase
       .from("competition")
       .select(
@@ -102,9 +103,7 @@ export default function RacesPage() {
   return (
     <div className="flex flex-col gap-0">
       <div className="flex h-14 items-center px-6">
-        <h1 className="text-[28px] font-semibold tracking-tight text-foreground">
-          대회
-        </h1>
+        <H1 className="font-semibold">대회</H1>
       </div>
       <Suspense fallback={<RacesSkeleton />}>
         <RacesContent />

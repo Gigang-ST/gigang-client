@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Medal } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 /* ------------------------------------------------------------------ */
 /*  타입 정의                                                          */
@@ -181,19 +182,21 @@ function MarathonContent({ events }: { events: MarathonEvent[] }) {
       {events.length > 1 && (
         <div className="flex gap-2 px-6">
           {events.map((evt) => (
-            <button
+            <Button
               key={evt.eventType}
               type="button"
+              variant="ghost"
+              size="xs"
               onClick={() => setSelectedEvent(evt.eventType)}
               className={cn(
-                "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                "rounded-full px-3",
                 selectedEvent === evt.eventType
                   ? "bg-muted-foreground/20 text-foreground"
                   : "text-muted-foreground",
               )}
             >
               {evt.label}
-            </button>
+            </Button>
           ))}
         </div>
       )}
@@ -364,19 +367,20 @@ export function RecordsClient({ data }: { data: RecordsData }) {
       {/* 카테고리 탭 */}
       <div className="flex gap-2 px-6">
         {CATEGORIES.map((cat) => (
-          <button
+          <Button
             key={cat.key}
             type="button"
+            size="sm"
             onClick={() => setSelectedCategory(cat.key)}
             className={cn(
-              "rounded-full px-4 py-2 text-[13px] font-medium transition-colors",
+              "rounded-full px-4 text-[13px] font-medium",
               selectedCategory === cat.key
-                ? "bg-foreground text-background"
-                : "border-[1.5px] border-border text-muted-foreground",
+                ? "bg-foreground text-background hover:bg-foreground/90"
+                : "border-[1.5px] border-border bg-transparent text-muted-foreground hover:bg-transparent hover:text-foreground",
             )}
           >
             {cat.label}
-          </button>
+          </Button>
         ))}
       </div>
 
