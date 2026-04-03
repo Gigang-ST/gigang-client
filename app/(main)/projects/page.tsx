@@ -2,6 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
 import { currentMonthKST, prevMonthStr } from "@/lib/dayjs";
 import { MonthNavigator } from "@/components/projects/month-navigator";
+import { MileageIntro } from "@/components/projects/mileage-intro";
 
 // TODO: DB 연동 후 제거 — 임시 하드코딩 프로젝트 정보
 const MOCK_PROJECT = {
@@ -58,6 +59,9 @@ export default async function ProjectsPage({
           endMonth={project.end_month}
         />
       </div>
+
+      {/* 마일리지런 소개 */}
+      <MileageIntro />
 
       {/* TODO: 참가 신청 섹션 (#105) */}
       {user && !isParticipant && (
