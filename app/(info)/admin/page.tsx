@@ -84,12 +84,16 @@ const projectCards: Card[] = [
   },
 ];
 
+type FetchStatus = "loading" | "success" | "error";
+
 function CardGrid({
   cards,
   stats,
+  status,
 }: {
   cards: Card[];
   stats: AdminStats | null;
+  status: FetchStatus;
 }) {
   return (
     <div className="grid grid-cols-2 gap-3">
@@ -105,7 +109,13 @@ function CardGrid({
                 {card.label}
               </span>
             </div>
-            {stats ? (
+            {status === "loading" && (
+              <Skeleton className="h-8 w-12 rounded" />
+            )}
+            {status === "error" && (
+              <span className="text-sm text-destructive">불러오기 실패</span>
+            )}
+            {status === "success" && stats && (
               <span
                 className={`text-2xl font-bold ${
                   card.getAccentValue && card.getAccentValue(stats) > 0
@@ -115,8 +125,6 @@ function CardGrid({
               >
                 {card.getValue(stats)}
               </span>
-            ) : (
-              <Skeleton className="h-8 w-12 rounded" />
             )}
           </Link>
         </CardItem>
@@ -127,9 +135,17 @@ function CardGrid({
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
+  const [status, setStatus] = useState<FetchStatus>("loading");
 
   useEffect(() => {
-    getAdminStats().then(setStats).catch(() => setStats(null));
+    getAdminStats()
+      .then((data) => {
+        setStats(data);
+        setStatus("success");
+      })
+      .catch(() => {
+        setStatus("error");
+      });
   }, []);
 
   return (
@@ -137,13 +153,13 @@ export default function AdminDashboardPage() {
       <H2>관리</H2>
 
       <section className="flex flex-col gap-3">
-        <SectionLabel>GENERAL</SectionLabel>
-        <CardGrid cards={generalCards} stats={stats} />
+        <SectionLabel>일반</SectionLabel>
+        <CardGrid cards={generalCards} stats={stats} status={status} />
       </section>
 
       <section className="flex flex-col gap-3">
-        <SectionLabel>PROJECTS</SectionLabel>
-        <CardGrid cards={projectCards} stats={stats} />
+        <SectionLabel>프로젝트</SectionLabel>
+        <CardGrid cards={projectCards} stats={stats} status={status} />
       </section>
     </div>
   );
