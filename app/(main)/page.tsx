@@ -1,11 +1,15 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { createClient } from "@/lib/supabase/server";
-import { secondsToTime, validateUUID } from "@/lib/utils";
+import { CardItem } from "@/components/ui/card";
+import { H1 } from "@/components/common/typography";
+import { secondsToTime } from "@/lib/dayjs";
 import { Suspense } from "react";
 import Link from "next/link";
 import { SocialLinksGrid } from "@/components/social-links";
 import { UpcomingRaces } from "@/components/home/upcoming-races";
 import type { CompetitionRegistration, MemberStatus } from "@/components/races/types";
+import { getCurrentMember } from "@/lib/queries/member";
+import { env } from "@/lib/env";
+import { SectionLabel } from "@/components/common/typography";
 
 
 type UpcomingRace = {
@@ -34,11 +38,9 @@ function isSameSlot(dateA: string, dateB: string) {
 }
 
 async function HomeContent() {
-  const supabase = await createClient();
+  const { user, member: currentMember, supabase } = await getCurrentMember();
   const today = new Date().toISOString().split("T")[0];
 
-  // 현재 유저 확인
-  const { data: { user } } = await supabase.auth.getUser();
   let initialMemberStatus: MemberStatus = { status: "signed-out" };
 
   const [
@@ -110,13 +112,8 @@ async function HomeContent() {
   let myRegistrations: CompetitionRegistration[] = [];
   let isMember = false;
   if (user) {
-    validateUUID(user.id);
-    const { data: member } = await supabase
-      .from("member")
-      .select("id, full_name, email, admin")
-      .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
-      .maybeSingle();
-    if (member) {
+    if (currentMember) {
+      const member = currentMember;
       isMember = true;
       initialMemberStatus = {
         status: "ready",
@@ -164,6 +161,7 @@ async function HomeContent() {
         });
       }
     } else {
+      // 인증됐지만 member가 없으면 온보딩 필요
       initialMemberStatus = { status: "needs-onboarding", userId: user.id };
     }
   }
@@ -189,8 +187,8 @@ async function HomeContent() {
     if (nextGigang) {
       upcomingCards.push({ ...nextGigang, label: "기강 대회" });
     }
-  } else if (!user) {
-    // 비로그인: 기강대회 다음 슬롯
+  } else if (!currentMember) {
+    // 비로그인 또는 미가입: 기강대회 다음 슬롯
     const nextGigang = gigangRaces.find((r) => isDifferentSlot(r));
     if (nextGigang) {
       upcomingCards.push({ ...nextGigang, label: "기강 대회" });
@@ -208,24 +206,22 @@ async function HomeContent() {
     <div className="flex flex-col gap-7 px-6 pb-6">
         {/* Team Overview */}
         <div className="flex flex-col gap-4">
-          <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-            TEAM OVERVIEW
-          </span>
+          <SectionLabel>TEAM OVERVIEW</SectionLabel>
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1 rounded-2xl border-[1.5px] border-border p-4">
+            <CardItem className="flex flex-col gap-1">
               <span className="text-2xl font-bold text-foreground">
                 {memberCount ?? 0}
               </span>
               <span className="text-xs text-muted-foreground">활동 멤버</span>
-            </div>
-            <div className="flex flex-col gap-1 rounded-2xl border-[1.5px] border-border p-4">
+            </CardItem>
+            <CardItem className="flex flex-col gap-1">
               <span className="text-2xl font-bold text-foreground">
                 {upcomingCount ?? 0}
               </span>
               <span className="text-xs text-muted-foreground">
                 예정 대회 중 {gigangRaces.length}개 참가
               </span>
-            </div>
+            </CardItem>
           </div>
         </div>
 
@@ -239,9 +235,7 @@ async function HomeContent() {
         {/* Recent Records */}
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-              RECENT RECORDS
-            </span>
+            <SectionLabel>RECENT RECORDS</SectionLabel>
             <Link
               href="/records"
               className="text-xs font-medium text-primary"
@@ -250,16 +244,16 @@ async function HomeContent() {
             </Link>
           </div>
           {(recentRecords ?? []).length === 0 ? (
-            <p className="rounded-2xl border-[1.5px] border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+            <CardItem variant="dashed" className="py-8 text-center text-sm text-muted-foreground">
               등록된 기록이 없습니다.
-            </p>
+            </CardItem>
           ) : (
             (recentRecords ?? []).map((rec) => {
               const member = rec.member as unknown as { full_name: string } | null;
               return (
-                <div
+                <CardItem
                   key={`${rec.member_id}-${rec.event_type}`}
-                  className="flex items-center justify-between rounded-2xl border-[1.5px] border-border p-4"
+                  className="flex items-center justify-between"
                 >
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[15px] font-semibold text-foreground">
@@ -270,9 +264,9 @@ async function HomeContent() {
                     </span>
                   </div>
                   <span className="font-mono text-lg font-bold text-foreground">
-                    {secondsToTime(rec.record_time_sec)}
+                    {secondsToTime(rec.record_time_sec ?? 0)}
                   </span>
-                </div>
+                </CardItem>
               );
             })
           )}
@@ -280,7 +274,7 @@ async function HomeContent() {
 
         {/* Social Links */}
         <SocialLinksGrid
-          kakaoChatPassword={isMember ? (process.env.KAKAO_CHAT_PASSWORD ?? "") : undefined}
+          kakaoChatPassword={isMember ? (env.KAKAO_CHAT_PASSWORD ?? "") : undefined}
         />
       </div>
   );
@@ -318,9 +312,7 @@ export default function HomePage() {
   return (
     <div className="flex flex-col gap-0">
       <div className="flex h-14 items-center px-6">
-        <h1 className="text-[28px] font-bold tracking-tight text-foreground">
-          기강
-        </h1>
+        <H1>기강</H1>
       </div>
       <Suspense fallback={<HomeSkeleton />}>
         <HomeContent />

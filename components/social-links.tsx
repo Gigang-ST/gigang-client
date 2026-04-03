@@ -9,6 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { CardItem } from "@/components/ui/card";
+import { SectionLabel } from "@/components/common/typography";
 
 const KAKAO_OPEN_CHAT_URL = "https://open.kakao.com/o/grnMFGng";
 
@@ -109,36 +111,34 @@ export function SocialLinksGrid({
   return (
     <>
       <div className="flex flex-col gap-4">
-        <span className="text-xs font-semibold tracking-widest text-muted-foreground">
-          SOCIAL
-        </span>
+        <SectionLabel>SOCIAL</SectionLabel>
         <div className="grid grid-cols-4 gap-2.5">
           {SOCIAL_LINKS.map(({ key, label, href, logo }) =>
             key === "kakao" ? (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setOpen(true)}
-                className="flex flex-col items-center gap-2 rounded-2xl border-[1.5px] border-border py-3"
-              >
-                <Image src={logo} alt={label} width={28} height={28} />
-                <span className="text-xs font-semibold text-foreground">
-                  {label}
-                </span>
-              </button>
+              <CardItem asChild key={key} className="flex flex-col items-center gap-2 py-3">
+                <button
+                  type="button"
+                  onClick={() => setOpen(true)}
+                >
+                  <Image src={logo} alt={label} width={28} height={28} />
+                  <span className="text-xs font-semibold text-foreground">
+                    {label}
+                  </span>
+                </button>
+              </CardItem>
             ) : (
-              <a
-                key={key}
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex flex-col items-center gap-2 rounded-2xl border-[1.5px] border-border py-3"
-              >
-                <Image src={logo} alt={label} width={28} height={28} />
-                <span className="text-xs font-semibold text-foreground">
-                  {label}
-                </span>
-              </a>
+              <CardItem asChild key={key} className="flex flex-col items-center gap-2 py-3">
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Image src={logo} alt={label} width={28} height={28} />
+                  <span className="text-xs font-semibold text-foreground">
+                    {label}
+                  </span>
+                </a>
+              </CardItem>
             ),
           )}
         </div>

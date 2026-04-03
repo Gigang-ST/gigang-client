@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { validateUUID } from "@/lib/utils";
 import { MemberOnboardingForm } from "@/components/auth/member-onboarding-form";
 import { Suspense } from "react";
+import { getCurrentMember } from "@/lib/queries/member";
+import { env } from "@/lib/env";
 
 async function OnboardingContent({
   searchParams,
@@ -16,22 +16,11 @@ async function OnboardingContent({
       ? nextParam
       : "/";
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+  const { user, member } = await getCurrentMember();
 
-  if (error || !user) {
+  if (!user) {
     redirect(`/auth/login?next=${encodeURIComponent(safeNext)}`);
   }
-
-  validateUUID(user.id);
-  const { data: member } = await supabase
-    .from("member")
-    .select("id, status")
-    .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
-    .maybeSingle();
 
   if (member && member.status === "active") {
     redirect(safeNext === "/onboarding" ? "/" : safeNext);
@@ -58,7 +47,7 @@ async function OnboardingContent({
           email={user.email}
           initialFullName={initialFullName}
           initialAvatarUrl={initialAvatarUrl}
-          kakaoChatPassword={process.env.KAKAO_CHAT_PASSWORD ?? ""}
+          kakaoChatPassword={env.KAKAO_CHAT_PASSWORD ?? ""}
         />
       </div>
     </div>

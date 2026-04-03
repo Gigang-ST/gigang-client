@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { getKSTDate, todayKST } from "@/lib/dayjs";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +35,7 @@ import { useForm } from "react-hook-form";
 import { CheckCircle2 } from "lucide-react";
 import Confetti from "react-confetti";
 import { BANK_OPTIONS } from "@/lib/constants";
+import { digitsOnly, formatPhone, isValidPhone } from "@/lib/phone-utils";
 
 type MemberOnboardingFormProps = {
   userId: string;
@@ -90,26 +92,19 @@ export function MemberOnboardingForm({
   const [inactiveMemberId, setInactiveMemberId] = useState<string | null>(null);
   const [rejoinLoading, setRejoinLoading] = useState(false);
 
-  const digitsOnly = (value: string) => value.replace(/\D/g, "");
-  const formatPhone = (value: string) => {
-    const digits = digitsOnly(value);
-    if (digits.length <= 3) return digits;
-    if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
-  };
-  const isValidPhone = (value: string) => /^010\d{8}$/.test(digitsOnly(value));
 
   const handleRejoinRequest = async () => {
     if (!inactiveMemberId) return;
     setRejoinLoading(true);
     const supabase = createClient();
-    const column = provider === "kakao" ? "kakao_user_id" : "google_user_id";
-    const updateFields: Record<string, unknown> = {
-      status: "pending",
-      [column]: userId,
-      updated_at: new Date().toISOString(),
+    const updateFields = {
+      status: "pending" as const,
+      updated_at: getKSTDate().toISOString(),
+      ...(initialAvatarUrl && { avatar_url: initialAvatarUrl }),
+      ...(provider === "kakao"
+        ? { kakao_user_id: userId }
+        : { google_user_id: userId }),
     };
-    if (initialAvatarUrl) updateFields.avatar_url = initialAvatarUrl;
     const { error } = await supabase
       .from("member")
       .update(updateFields)
@@ -169,10 +164,13 @@ export function MemberOnboardingForm({
         return;
       }
 
-      const column = provider === "kakao" ? "kakao_user_id" : "google_user_id";
       // 기존 회원 연동 시 avatar_url이 없으면 OAuth 프로필 사진 저장
-      const linkFields: Record<string, unknown> = { [column]: userId };
-      if (initialAvatarUrl) linkFields.avatar_url = initialAvatarUrl;
+      const linkFields = {
+        ...(initialAvatarUrl && { avatar_url: initialAvatarUrl }),
+        ...(provider === "kakao"
+          ? { kakao_user_id: userId }
+          : { google_user_id: userId }),
+      };
       const { error: linkError } = await supabase
         .from("member")
         .update(linkFields)
@@ -203,14 +201,17 @@ export function MemberOnboardingForm({
       return;
     }
 
+    if (values.gender !== "male" && values.gender !== "female") {
+      form.setError("gender", { message: "성별을 선택해 주세요." });
+      return;
+    }
+
     const bankName =
       values.bankName === "custom"
         ? values.bankNameCustom.trim()
         : values.bankName.trim();
 
-    const column = provider === "kakao" ? "kakao_user_id" : "google_user_id";
-    const { error } = await supabase.from("member").insert({
-      [column]: userId,
+    const memberData = {
       email: emailValue,
       full_name: values.fullName,
       gender: values.gender,
@@ -218,11 +219,15 @@ export function MemberOnboardingForm({
       phone: phoneValue,
       bank_name: bankName || null,
       bank_account: values.bankAccount.trim() || null,
-      status: "active",
+      status: "active" as const,
       admin: false,
-      joined_at: new Date().toISOString().slice(0, 10),
+      joined_at: todayKST(),
       avatar_url: initialAvatarUrl,
-    });
+      ...(provider === "kakao"
+        ? { kakao_user_id: userId }
+        : { google_user_id: userId }),
+    };
+    const { error } = await supabase.from("member").insert(memberData);
 
     if (error) {
       if (error.code === "23505") {

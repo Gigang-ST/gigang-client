@@ -1,0 +1,431 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.4"
+  }
+  public: {
+    Tables: {
+      competition: {
+        Row: {
+          created_at: string
+          end_date: string | null
+          event_types: string[] | null
+          external_id: string | null
+          id: string
+          location: string | null
+          raw: Json | null
+          source_url: string | null
+          sport: string | null
+          start_date: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          end_date?: string | null
+          event_types?: string[] | null
+          external_id?: string | null
+          id?: string
+          location?: string | null
+          raw?: Json | null
+          source_url?: string | null
+          sport?: string | null
+          start_date: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string | null
+          event_types?: string[] | null
+          external_id?: string | null
+          id?: string
+          location?: string | null
+          raw?: Json | null
+          source_url?: string | null
+          sport?: string | null
+          start_date?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      competition_registration: {
+        Row: {
+          competition_id: string
+          created_at: string
+          event_type: string | null
+          id: string
+          member_id: string
+          role: Database["public"]["Enums"]["participation_role"]
+          updated_at: string
+        }
+        Insert: {
+          competition_id: string
+          created_at?: string
+          event_type?: string | null
+          id?: string
+          member_id: string
+          role: Database["public"]["Enums"]["participation_role"]
+          updated_at?: string
+        }
+        Update: {
+          competition_id?: string
+          created_at?: string
+          event_type?: string | null
+          id?: string
+          member_id?: string
+          role?: Database["public"]["Enums"]["participation_role"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competition_registration_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competition"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competition_registration_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "member"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      member: {
+        Row: {
+          admin: boolean
+          avatar_url: string | null
+          bank_account: string | null
+          bank_name: string | null
+          birthday: string
+          created_at: string
+          email: string | null
+          full_name: string
+          gender: Database["public"]["Enums"]["gender"]
+          google_user_id: string | null
+          id: string
+          joined_at: string
+          kakao_user_id: string | null
+          phone: string
+          status: Database["public"]["Enums"]["member_status"]
+          updated_at: string
+        }
+        Insert: {
+          admin?: boolean
+          avatar_url?: string | null
+          bank_account?: string | null
+          bank_name?: string | null
+          birthday: string
+          created_at?: string
+          email?: string | null
+          full_name: string
+          gender: Database["public"]["Enums"]["gender"]
+          google_user_id?: string | null
+          id?: string
+          joined_at: string
+          kakao_user_id?: string | null
+          phone: string
+          status: Database["public"]["Enums"]["member_status"]
+          updated_at?: string
+        }
+        Update: {
+          admin?: boolean
+          avatar_url?: string | null
+          bank_account?: string | null
+          bank_name?: string | null
+          birthday?: string
+          created_at?: string
+          email?: string | null
+          full_name?: string
+          gender?: Database["public"]["Enums"]["gender"]
+          google_user_id?: string | null
+          id?: string
+          joined_at?: string
+          kakao_user_id?: string | null
+          phone?: string
+          status?: Database["public"]["Enums"]["member_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      personal_best: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          member_id: string
+          race_date: string
+          race_name: string
+          record_time_sec: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          member_id: string
+          race_date: string
+          race_name: string
+          record_time_sec?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          member_id?: string
+          race_date?: string
+          race_name?: string
+          record_time_sec?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "personal_best_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "member"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      race_result: {
+        Row: {
+          bike_time_sec: number | null
+          created_at: string
+          event_type: string
+          id: string
+          member_id: string
+          race_date: string
+          race_name: string
+          record_time_sec: number
+          run_time_sec: number | null
+          swim_time_sec: number | null
+        }
+        Insert: {
+          bike_time_sec?: number | null
+          created_at?: string
+          event_type: string
+          id?: string
+          member_id: string
+          race_date: string
+          race_name: string
+          record_time_sec: number
+          run_time_sec?: number | null
+          swim_time_sec?: number | null
+        }
+        Update: {
+          bike_time_sec?: number | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          member_id?: string
+          race_date?: string
+          race_name?: string
+          record_time_sec?: number
+          run_time_sec?: number | null
+          swim_time_sec?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "race_result_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "member"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      utmb_profile: {
+        Row: {
+          created_at: string
+          id: string
+          member_id: string
+          updated_at: string
+          utmb_index: number
+          utmb_profile_url: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          member_id: string
+          updated_at?: string
+          utmb_index: number
+          utmb_profile_url: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          member_id?: string
+          updated_at?: string
+          utmb_index?: number
+          utmb_profile_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "utmb_profile_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: true
+            referencedRelation: "member"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
+    }
+    Enums: {
+      gender: "male" | "female"
+      member_status: "active" | "inactive" | "banned" | "pending"
+      participation_role: "participant" | "cheering" | "volunteer"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      gender: ["male", "female"],
+      member_status: ["active", "inactive", "banned", "pending"],
+      participation_role: ["participant", "cheering", "volunteer"],
+    },
+  },
+} as const

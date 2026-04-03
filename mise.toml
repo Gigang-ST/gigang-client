@@ -1,7 +1,7 @@
 [tools]
 claude-code = "latest"
 node = "22"
-supabase = "2.75.0"
+supabase = "latest"
 vercel = "latest"
 
 [env]
