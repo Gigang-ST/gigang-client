@@ -89,18 +89,6 @@ export async function uploadAvatar(formData: FormData) {
     .from("avatars")
     .getPublicUrl(filePath);
 
-  const { error: updateMst } = await supabase
-    .from("mem_mst")
-    .update({ avatar_url: urlData.publicUrl })
-    .eq("mem_id", memberId)
-    .eq("vers", 0)
-    .eq("del_yn", false);
-
-  if (updateMst) {
-    console.error("[upload-avatar] mem_mst error:", updateMst);
-    return { error: `DB 저장 실패: ${updateMst.message}` };
-  }
-
   const { error: updateError } = await supabase
     .from("member")
     .update({ avatar_url: urlData.publicUrl })
