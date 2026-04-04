@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyAdmin } from "@/lib/queries/member";
 import { currentMonthKST, nextMonthStr } from "@/lib/dayjs";
+import { GIGANG_TEAM_ID } from "@/lib/constants/gigang-team";
 
 export type AdminStats = {
   pendingCount: number;
@@ -20,14 +21,25 @@ export async function getAdminStats(): Promise<AdminStats> {
 
   const [pending, active, total, competitions, records] = await Promise.all([
     admin
-      .from("member")
+      .from("team_mem_rel")
       .select("*", { count: "exact", head: true })
-      .eq("status", "pending"),
+      .eq("team_id", GIGANG_TEAM_ID)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .eq("mem_st_cd", "pending"),
     admin
-      .from("member")
+      .from("team_mem_rel")
       .select("*", { count: "exact", head: true })
-      .eq("status", "active"),
-    admin.from("member").select("*", { count: "exact", head: true }),
+      .eq("team_id", GIGANG_TEAM_ID)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .eq("mem_st_cd", "active"),
+    admin
+      .from("team_mem_rel")
+      .select("*", { count: "exact", head: true })
+      .eq("team_id", GIGANG_TEAM_ID)
+      .eq("vers", 0)
+      .eq("del_yn", false),
     (() => {
       const monthStart = currentMonthKST();
       const monthEnd = nextMonthStr(monthStart);
