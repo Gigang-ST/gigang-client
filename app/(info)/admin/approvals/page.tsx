@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { H2 } from "@/components/common/typography";
 import { CardItem } from "@/components/ui/card";
+import { GIGANG_TEAM_ID } from "@/lib/constants/gigang-team";
 
 type PendingMember = {
   id: string;
@@ -26,11 +27,29 @@ export default function ApprovalsPage() {
   const loadMembers = useCallback(async () => {
     const supabase = createClient();
     const { data } = await supabase
-      .from("member")
-      .select("id, full_name, phone, avatar_url, joined_at")
-      .eq("status", "pending")
-      .order("joined_at", { ascending: false });
-    setMembers(data ?? []);
+      .from("team_mem_rel")
+      .select(
+        "mem_id, join_dt, mem_mst!inner(mem_nm, phone_no, avatar_url)",
+      )
+      .eq("team_id", GIGANG_TEAM_ID)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .eq("mem_st_cd", "pending")
+      .order("join_dt", { ascending: false });
+
+    type Mst = { mem_nm: string; phone_no: string | null; avatar_url: string | null };
+    setMembers(
+      (data ?? []).map((r) => {
+        const m = r.mem_mst as unknown as Mst;
+        return {
+          id: r.mem_id,
+          full_name: m.mem_nm,
+          phone: m.phone_no,
+          avatar_url: m.avatar_url,
+          joined_at: r.join_dt,
+        };
+      }),
+    );
     setLoading(false);
   }, []);
 

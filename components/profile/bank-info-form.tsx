@@ -56,6 +56,25 @@ export function BankInfoForm({ member }: { member: MemberBankData }) {
       data.bankName === "custom"
         ? data.bankNameCustom.trim()
         : data.bankName.trim();
+    const acctDigits = data.bankAccount.replace(/\D/g, "");
+    const acctStore = acctDigits || null;
+
+    const { error: eMst } = await supabase
+      .from("mem_mst")
+      .update({
+        bank_nm: resolvedBankName || null,
+        bank_acct_no: acctStore,
+      })
+      .eq("mem_id", member.id)
+      .eq("vers", 0)
+      .eq("del_yn", false);
+
+    if (eMst) {
+      setMessage({ type: "error", text: "저장에 실패했습니다." });
+      setSaving(false);
+      return;
+    }
+
     const { error } = await supabase
       .from("member")
       .update({

@@ -30,9 +30,10 @@ async function ProfileContent() {
       .eq("member_id", member.id)
       .in("event_type", ["FULL", "HALF", "10K"]),
     supabase
-      .from("utmb_profile")
-      .select("utmb_profile_url, utmb_index")
-      .eq("member_id", member.id)
+      .from("mem_utmb_prf")
+      .select("utmb_prf_url, utmb_idx")
+      .eq("mem_id", member.id)
+      .eq("vers", 0)
       .maybeSingle(),
   ]);
 
@@ -72,7 +73,7 @@ async function ProfileContent() {
         <PersonalBestGrid
           memberId={member.id}
           bestRecords={bestRecords}
-          utmbData={utmbProfile?.utmb_profile_url && utmbProfile?.utmb_index != null ? { utmb_profile_url: utmbProfile.utmb_profile_url, utmb_index: utmbProfile.utmb_index } : null}
+          utmbData={utmbProfile?.utmb_prf_url && utmbProfile?.utmb_idx != null ? { utmb_prf_url: utmbProfile.utmb_prf_url, utmb_idx: utmbProfile.utmb_idx } : null}
         />
 
         {/* 페이스 그래프 */}
