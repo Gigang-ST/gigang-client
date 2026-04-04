@@ -1,4 +1,5 @@
--- 레거시(v1) 테이블 시점 스냅샷: 동일 구조·데이터를 zold_* 로 복제
+-- 레거시(v1) 시점 스냅샷 (이전 방식): public.zold_*
+-- 후속: `20260404164840_archive_old_snapshot_replace_zold.sql` 가 zold 를 제거하고 `archive.old_*` 로 이전한다.
 -- 파일명 타임스탬프는 supabase-gigang-dev `schema_migrations`(MCP/대시보드 적용 시각)와 맞춤.
 --
 -- 네이밍: z → 객체 목록에서 이름순 하단으로 모으기, old → 과거 데이터 보존용.

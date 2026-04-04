@@ -30,7 +30,7 @@
 
 | 항목 | 값 |
 |------|-----|
-| 진행 상태 요약 | 웨이브 6 DDL 완료 → **백필 P0–P7(dev) 완료** → **§6.5 `zold_*` dev 적용 완료**(`20260404163840`) → **prd `zold_*` 는 컷오버 시** → 앱 전환·QA |
+| 진행 상태 요약 | 웨이브 6 DDL 완료 → **백필 P0–P7(dev) 완료** → **§6.5 `archive.old_*` 스냅샷 dev 완료**(`64840`) → **prd 컷오버 시 동일 세트** → 앱 전환·QA |
 | DB 담당 | (이름) |
 | 앱 담당 | (이름) |
 | 최종 갱신일 | 2026-04-05 (§6.5 적용 상태 구분 명시) |
@@ -365,36 +365,46 @@ select
 | C-2 | `team_role_cd` 코드그룹 일치 | 0건 위반 | dev 2026-04-05: 위반 행 **0건** (MCP `execute_sql`) | ☑ |
 | D-1/D-2 | 해시 샘플 10명 + 화면 검수 | 체크리스트 첨부 | | ☐ |
 
-## 6.5) 레거시 `zold_*` 시점 스냅샷 (원본 v1 DROP 전 보존)
+## 6.5) 레거시 v1 시점 스냅샷 — 스키마 `archive`, 테이블 `old_*` (원본 v1 DROP 전 보존)
 
-**목적:** v1 테이블(`member`, `competition`, `competition_registration`, `race_result`, `personal_best`, `utmb_profile`)을 나중에 **물리 삭제**할 때, 그 시점 데이터를 **`zold_` 접두** 테이블에 남긴다. `z`는 목록 정렬상 아래로 모으기, `old`는 과거 데이터 보존 의미.
+**목적:** v1 `public` 테이블(`member`, `competition`, …)을 나중에 **물리 삭제**해도, 그 시점 데이터를 **`archive` 스키마** 아래 **`old_*` 접두 테이블**에 남긴다. `public` 목록과 섞이지 않고 Supabase Table Editor 에서 스키마 단위로 접을 수 있다.
 
-**마이그레이션 파일(레포):** `supabase/migrations/20260404163840_v2_legacy_zold_snapshot.sql`  
-**버전 정합:** MCP `apply_migration`·대시보드 적용 시 **타임스탬프가 로컬 파일명과 달라질 수 있다.** dev 기록은 `20260404163840` — 레포 파일명을 이에 맞춰 두었다(`rollout` §2 원칙).
+**마이그레이션(레포, 순서):**
+
+| 버전 | 파일 | 설명 |
+|------|------|------|
+| `20260404163840` | `v2_legacy_zold_snapshot.sql` | (과거) `public.zold_*` — **후속 마이그레이션에서 제거됨** |
+| `20260404164840` | `archive_old_snapshot_replace_zold.sql` | **`public.zold_*` DROP** → **`archive.old_*` 생성·복제·FK 자립** |
+
+**prd:** `zold` 를 한 번도 두지 않은 DB 는 **`64840` 만 적용**해도 된다(`DROP zold_*` 는 no-op). dev 와 동일 이력을 맞추려면 `63840` → `64840` 순으로 적용.
+
+**버전 정합:** MCP 적용 시각과 파일명 타임스탬프가 다를 수 있다. dev `schema_migrations` 기준 확정본은 **`20260404164840`** (`rollout` §2).
 
 ### 6.5.1 적용 체크리스트
 
-- [x] 레포에 `20260404163840_v2_legacy_zold_snapshot.sql` 추가됨
-- [x] **dev:** `schema_migrations` 에 `20260404163840` · `public.zold_*` 6테이블 적용됨 (2026-04-05 MCP)
-- [ ] **prd:** 백업·창구 후 동일 마이그레이션 적용 (`cutover-checklist` §6·§8)
+- [x] 레포: `20260404163840_v2_legacy_zold_snapshot.sql` (역사적·선행 zold)
+- [x] 레포: `20260404164840_archive_old_snapshot_replace_zold.sql`
+- [x] **dev:** `schema_migrations` 에 `20260404164840` · `archive.old_*` 6테이블·`public.zold_*` 없음 (2026-04-05 MCP)
+- [ ] **prd:** 백업·창구 후 위 마이그레이션 세트 적용 (`cutover-checklist` §6·§8)
 
-**적용 후 확인 SQL 예시 (dev/prd 공통):**
+**적용 후 확인 SQL 예시:**
 
 ```sql
-select table_name
+select table_schema, table_name
 from information_schema.tables
-where table_schema = 'public' and table_name like 'zold\_%' escape '\'
-order by 1;
--- 기대: zold_competition, zold_competition_registration, zold_member, zold_personal_best, zold_race_result, zold_utmb_profile (6행)
+where table_schema = 'archive' and table_name like 'old\_%' escape '\'
+order by 1, 2;
+-- 기대: archive.old_competition, archive.old_competition_registration, archive.old_member,
+--       archive.old_personal_best, archive.old_race_result, archive.old_utmb_profile (6행)
 ```
 
 | 단계 | 내용 |
 |------|------|
-| 구조·데이터 | `CREATE TABLE zold_* (LIKE 원본 INCLUDING ALL)` 후 `INSERT … SELECT` · PK 기준 `ON CONFLICT DO NOTHING` (멱등) |
-| FK 정책 | `LIKE`만 하면 FK 가 **public.member / public.competition** 을 가리켜, 원본 DROP 시 깨진다. 스크립트는 데이터 적재 뒤 그 FK 를 제거하고 **`zold_*` 끼리만** 참조하도록 재부착한다(`fk_zold_*` 이름). |
-| 접근 | RLS ON·정책 없음, `anon`/`authenticated` REVOKE, **`service_role`만 GRANT** (대시보드/소유자 조회는 환경에 따라 가능). |
-| dev / prd | **dev에 적용했다면 prd 컷오버 시에도 동일 마이그레이션**을 돌릴지 팀에서 결정한다. prd는 **백업·창구** 후 실행 (`cutover-checklist` §6·§8). |
-| 원본 삭제 순서 | **§8** — `zold_*` 적재·FK 자립 확인 후에만 v1 테이블 DROP(또는 RENAME). v2·RLS·함수가 아직 `member` 등을 참조하면 DROP 불가이므로 **앱·DB 의존성 제거가 선행**이다. |
+| 구조·데이터 | `CREATE TABLE archive.old_* (LIKE public.* INCLUDING ALL)` 후 `INSERT … SELECT` · PK 기준 `ON CONFLICT DO NOTHING` (멱등) |
+| FK 정책 | 데이터 적재 후 **public** 참조 FK 제거 → **`archive.old_*` 간만** 참조(`fk_archive_old_*` 이름). |
+| 접근 | 스키마 `USAGE` + 테이블 RLS ON·정책 없음, `anon`/`authenticated` REVOKE, **`service_role`만 GRANT**. |
+| dev / prd | prd는 **백업·창구** 후 실행 (`cutover-checklist` §6·§8). |
+| 원본 삭제 순서 | **§8** — `archive.old_*` 적재·FK 자립 확인 후에만 v1 `public` 테이블 DROP. 앱·함수·RLS 가 `member` 등을 참조하면 선행 제거. |
 
 ## 7) 애플리케이션 전환 (dev)
 
@@ -408,7 +418,7 @@ order by 1;
 ## 8) 레거시 정리 (앱 v2 단일화 이후)
 
 - [ ] v1 테이블 의존 코드·DB 함수(`is_legacy_platform_admin` 등)·RLS 정책에서의 `member` 참조 제거 확인
-- [ ] **§6.5 `zold_*` 스냅샷** 적용 여부·행 수 스모크 확인 후에만 v1 **물리 DROP** 검토(스냅샷 FK 는 `zold_*` 간만 참조)
+- [ ] **§6.5 `archive.old_*` 스냅샷** 적용 여부·행 수 스모크 확인 후에만 v1 **물리 DROP** 검토(FK 는 `archive.old_*` 간만 참조)
 - [ ] v1 테이블 `legacy_` 등 prefix RENAME 또는 읽기 전용 정책(중간 단계)
 - [ ] 물리 DROP 일정·승인
 
@@ -448,3 +458,4 @@ order by 1;
 | 2026-04-05 | §7: `database-schema-v2-app-migration-plan.md` 추가 — 앱 v2 슬라이스·코드 인벤토리·dev/prd 공통 검증 절차 | — |
 | 2026-04-05 | §6.5: `zold_*` 는 **마이그레이션 파일만 추가된 상태**와 **원격 적용 완료**를 구분(§6.5.1 체크리스트·확인 SQL·`db push` 안내) | — |
 | 2026-04-05 | §6.5: dev `zold_*` MCP 적용 완료·로컬 마이그레이션 파일 `20260404163840` 로 정합·§6.5.1 dev 체크 | — |
+| 2026-04-05 | §6.5: `public.zold_*` 제거·스키마 **`archive`** + **`archive.old_*`** 로 이전 — `20260404164840_archive_old_snapshot_replace_zold.sql`, dev MCP 적용·문서·`app-migration-plan` 용어 갱신 | — |
