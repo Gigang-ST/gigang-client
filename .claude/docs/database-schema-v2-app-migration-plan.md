@@ -190,3 +190,154 @@
 | 2026-04-06 | UTMB: `mem_utmb_prf` 앱 반영·P9(`20260404165809`) 문서 연계. §2.1 진행 상태·슬라이스 5 인벤토리 분리(UTMB 완료 / PB 미완). 앱 전환은 슬라이스 1→4 순 권장 명시 |
 | 2026-04-06 | 슬라이스 1 앱: `mem_mst`·`team_mem_rel` 조회·온보딩(서버 액션)·프로필·관리자·RLS(`20260406120000`). `member` 이중 기록 유지 |
 | 2026-04-06 | §7 TODO: `GIGANG_TEAM_ID` 하드코딩·추후 팀 선택 시 제거 (`member-domain` §7 연계) |
+| 2026-04-06 | §9: 슬라이스별 수정 포인트·수동 테스트 목록·전체 회귀 체크리스트 추가 |
+
+---
+
+## 9. 슬라이스별 수정 포인트·수동 테스트 체크리스트
+
+**쓰는 방법:** 슬라이스 작업이 끝날 때마다 해당 절의 **테스트**만 순서대로 체크. **전체 앱 전환(슬라이스 1~4·5 잔여까지) 후**에는 **§9.8** 을 한 번에 수행한다.  
+**자동 검증:** 매 슬라이스 끝에 `pnpm run lint` · `pnpm run build`. DB 게이트는 `migration-map` §5.2·`rollout-progress` §5.2와 병행.
+
+### 9.0 슬라이스 0 — 준비
+
+| 수정/확인 | 내용 |
+|-----------|------|
+| 타입 | `pnpm exec supabase gen types …` 로 `lib/supabase/database.types.ts` 갱신(또는 수동 보강 후 빌드) |
+| 문서 | `migration-map`·본 문서 §2·§3 인벤토리 최신화 |
+
+**테스트**
+
+- [ ] `pnpm run build` 성공
+- [ ] `pnpm run lint` 성공(팀 정책 기준)
+
+### 9.1 슬라이스 1 — 회원·인증·관리자 (앱 반영 완료 시점 기준)
+
+**주로 건드린 소스(회고용)**
+
+| 구분 | 경로 |
+|------|------|
+| 조회·관리자 | `lib/queries/member.ts`, `lib/queries/app-member.ts`, `lib/get-member.ts` |
+| 상수 | `lib/constants/gigang-team.ts` |
+| 온보딩 | `app/actions/onboarding-mem-v2.ts`, `components/auth/member-onboarding-form.tsx` |
+| 프로필 | `components/profile/profile-edit-form.tsx`, `bank-info-form.tsx`, `app/actions/upload-avatar.ts` |
+| 관리자 | `app/actions/admin/manage-member.ts`, `get-admin-stats.ts`, `app/(info)/admin/members/page.tsx`, `approvals/page.tsx` |
+| 교차 | `app/(main)/page.tsx`(활동 인원 `team_mem_rel`), `components/races/race-list-view.tsx`(멤버 상태) |
+| DB | `supabase/migrations/20260406120000_mem_mst_rls_oauth_and_teammates.sql` |
+
+**남은 레거시:** `member` 테이블은 **이중 기록**으로 여전히 갱신됨(FK·기존 RLS 정책 호환).
+
+**테스트 — 일반 회원**
+
+- [ ] 비로그인: 홈·대회·기록 공개 화면 정상
+- [ ] 로그인 + 미가입: 온보딩 진입, **신규 전화** → 상세 입력 → 가입 완료 후 홈/프로필 이동
+- [ ] 로그인 + 기존 전화(활동): 연동 후 리다이렉트
+- [ ] 로그인 + 비활성: 재가입 요청 → pending 단계 표시
+- [ ] 로그인 + pending: pending 안내 노출
+- [ ] `/profile`: PB 카드·UTMB·기록 섹션 로드(기록은 아직 v1 `race_result`)
+- [ ] `/profile/edit`: 이름·성별·생일·이메일 저장 후 새로고침 반영
+- [ ] `/profile/bank`: 은행·계좌 저장 반영
+- [ ] 프로필 사진 업로드(용량·형식 제한 메시지 포함)
+
+**테스트 — 관리자(owner/admin)**
+
+- [ ] `/admin` 진입: 비관리자는 리다이렉트
+- [ ] `/admin/members`: 목록·검색·필터(활동/비활성/대기)
+- [ ] 멤버 상세에서 활성/비활성 전환
+- [ ] 관리자 지정/해제(본인·크루장은 정책대로 막히는지)
+- [ ] `/admin/approvals`: 대기 목록, 승인·거절 후 목록 갱신
+- [ ] 관리자 대시보드 통계(대기/활동/전원 수가 팀 기준으로 이상 없는지)
+
+**테스트 — 대회 탭 연동**
+
+- [ ] `/races`: 로그인 시 멤버 상태(ready / 온보딩 필요) 표시 정상
+
+### 9.2 슬라이스 2 — 대회 (`competition` → `comp_mst`·`comp_evt_cfg`)
+
+**바꿀 예정인 주요 소스(§3 기준)**
+
+`app/actions/create-competition.ts`, `search-competitions.ts`, `get-past-gigang-competitions.ts`, `admin/manage-competition.ts`(일부), `app/(main)/races/page.tsx`, `app/(info)/admin/competitions/page.tsx`, `components/races/race-list-view.tsx`, `competition-detail-dialog.tsx`, `components/profile/race-record-dialog.tsx`, `app/(main)/page.tsx`의 대회 조회 구간
+
+**테스트**
+
+- [ ] 대회 목록·기강/전체 탭·지난 대회 펼침
+- [ ] 대회 상세·메타 수정(권한 있는 계정)
+- [ ] 대회 생성(관리자)
+- [ ] 홈 카드의 예정 대회·참가 인원 집계(슬라이스 3과 겹치면 3 완료 후 재확인)
+
+### 9.3 슬라이스 3 — 참가 (`competition_registration` → `comp_reg_rel` 등)
+
+**바꿀 예정인 주요 소스**
+
+`components/home/upcoming-races.tsx`, `race-list-view.tsx`, `competition-detail-dialog.tsx`, `race-record-dialog.tsx`, `app/(main)/page.tsx`, `app/actions/admin/manage-competition.ts`
+
+**테스트**
+
+- [ ] 참가 신청·중복/검증 메시지
+- [ ] 참가 취소
+- [ ] 홈·대회 목록의 참가 수·내 참가 표시
+- [ ] 관리자 화면에서 참가자 목록·연계
+
+### 9.4 슬라이스 4 — 기록 (`race_result` → `rec_race_hist`)
+
+**바꿀 예정인 주요 소스**
+
+`components/profile/race-record-dialog.tsx`, `race-history-dialog.tsx`, `app/(main)/records/page.tsx`, `app/(main)/profile/page.tsx`, `app/actions/admin/manage-record.ts`, `app/(info)/admin/records/page.tsx`, `get-admin-stats.ts`의 기록 카운트
+
+**테스트**
+
+- [ ] 기록 추가·수정·삭제(본인 RLS)
+- [ ] `/records` 마라톤·철인·UTMB 트레일 구간(UTMB는 v2 유지)
+- [ ] `/profile` PB 카드 데이터 소스가 v2와 일치하는지
+- [ ] 관리자 기록 화면 검색·삭제
+
+### 9.5 슬라이스 5 — 부가
+
+**UTMB (`mem_utmb_prf`) — 이미 반영된 경우**
+
+| 경로 | 확인 |
+|------|------|
+| `personal-best-grid.tsx`, `profile/page.tsx`, `records/page.tsx` | 저장·삭제·랭킹용 조회 |
+
+**테스트**
+
+- [ ] UTMB 연동·조회·삭제
+- [ ] 전당 트레일 탭에 UTMB 보유자 표시
+
+**PB(`personal_best`) — 미반영 시**
+
+| 경로 | 확인 |
+|------|------|
+| `app/(main)/page.tsx` | 홈 최근 PB 위젯 |
+
+**테스트(반영 후)**
+
+- [ ] 홈 PB 위젯이 v2 설계(파생 저장 또는 조인)와 맞는지
+
+### 9.8 전체 완료 후 — 회귀(한 번에)
+
+슬라이스 1~4·5(잔여)까지 끝난 뒤, **로직 누락·오류 없음**을 목표로 다음을 순서 없이 전부 통과시킨다.
+
+**자동**
+
+- [ ] `pnpm run lint`
+- [ ] `pnpm run build`
+- [ ] (선택) E2E·스토리북 팀 정책이 있으면 동일 파이프라인
+
+**계정·플로우**
+
+- [ ] U1 비로그인: 홈·대회·기록(공개)·로그인 페이지
+- [ ] U2 일반 회원: 온보딩 생략 경로, 프로필·설정·은행·아바타·UTMB·기록 CRUD
+- [ ] U3 온보딩 전체(신규·기존·비활성·pending)
+- [ ] U4 참가 신청/취소·홈·대회 UI 연계
+- [ ] U5 기록 CRUD·전당·관리자 기록
+- [ ] U6 관리자: 멤버·승인·대회·참가·기록·통계
+
+**데이터·보안**
+
+- [ ] `migration-map` §5.2·`rollout-progress` §6 게이트에 해당하는 검증 SQL 최종 실행(환경별)
+- [ ] 타 팀/비소속 RLS 시나리오(`cutover-checklist` §3.2)
+
+**검색(레거시 잔재)**
+
+- [ ] 저장소에서 `from("member")`·`from("competition")` 등 v1 테이블 참조가 **의도된 예외만** 남았는지(`rg '\\.from\\(\"(member|competition|…)'` 등으로 확인, 이중 기록·아카이브만 문서화)
