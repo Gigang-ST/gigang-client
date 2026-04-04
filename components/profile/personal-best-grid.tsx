@@ -20,8 +20,8 @@ type BestRecord = {
 };
 
 type UtmbData = {
-  utmb_prf_url: string;
-  utmb_idx: number;
+  utmb_profile_url: string;
+  utmb_index: number;
 } | null;
 
 type Props = {
@@ -51,8 +51,8 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
   };
 
   const resetUtmbForm = () => {
-    setUtmbUrl(utmb?.utmb_prf_url ? toShortId(utmb.utmb_prf_url) : "");
-    setUtmbIndex(utmb?.utmb_idx ?? null);
+    setUtmbUrl(utmb?.utmb_profile_url ? toShortId(utmb.utmb_profile_url) : "");
+    setUtmbIndex(utmb?.utmb_index ?? null);
     setUtmbName("");
     setMessage(null);
     setIsError(false);
@@ -106,14 +106,14 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
       ? utmbUrl.trim()
       : `https://utmb.world/runner/${utmbUrl.trim()}`;
     const supabase = createClient();
-    const { error } = await supabase.from("mem_utmb_prf").upsert(
+    const { error } = await supabase.from("utmb_profile").upsert(
       {
-        mem_id: memberId,
-        utmb_prf_url: fullUrl,
-        utmb_idx: utmbIndex,
-        vers: 0,
+        member_id: memberId,
+        utmb_profile_url: fullUrl,
+        utmb_index: utmbIndex,
+        updated_at: new Date().toISOString(),
       },
-      { onConflict: "mem_id,vers" },
+      { onConflict: "member_id" },
     );
     setSaving(false);
     if (error) {
@@ -121,7 +121,7 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
       setIsError(true);
       return;
     }
-    setUtmb({ utmb_prf_url: fullUrl, utmb_idx: utmbIndex });
+    setUtmb({ utmb_profile_url: fullUrl, utmb_index: utmbIndex });
     setUtmbOpen(false);
   };
 
@@ -130,10 +130,9 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
     setSaving(true);
     const supabase = createClient();
     const { error } = await supabase
-      .from("mem_utmb_prf")
+      .from("utmb_profile")
       .delete()
-      .eq("mem_id", memberId)
-      .eq("vers", 0);
+      .eq("member_id", memberId);
     setSaving(false);
     if (error) {
       setMessage(error.message);
@@ -177,7 +176,7 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
         >
           <span className="text-xs font-semibold text-primary">UTMB</span>
           <span className="font-mono text-xl font-bold text-foreground">
-            {utmb ? utmb.utmb_idx : "--"}
+            {utmb ? utmb.utmb_index : "--"}
           </span>
           <span className="truncate text-[11px] text-muted-foreground">
             {utmb ? "" : "탭하여 연동"}

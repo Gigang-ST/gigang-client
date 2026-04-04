@@ -9,7 +9,6 @@ import { UpcomingRaces } from "@/components/home/upcoming-races";
 import type { CompetitionRegistration, MemberStatus } from "@/components/races/types";
 import { getCurrentMember } from "@/lib/queries/member";
 import { env } from "@/lib/env";
-import { GIGANG_TEAM_ID } from "@/lib/constants/gigang-team";
 import { SectionLabel } from "@/components/common/typography";
 
 
@@ -51,12 +50,9 @@ async function HomeContent() {
     { data: recentRecords },
   ] = await Promise.all([
     supabase
-      .from("team_mem_rel")
+      .from("member")
       .select("*", { count: "exact", head: true })
-      .eq("team_id", GIGANG_TEAM_ID)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .eq("mem_st_cd", "active"),
+      .eq("status", "active"),
     supabase
       .from("competition")
       .select("id, title, start_date, location, sport, event_types, competition_registration(id, event_type)")
