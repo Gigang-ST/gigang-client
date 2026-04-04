@@ -63,7 +63,7 @@
 | `competition_registration` | `id`, `competition_id`, `member_id`, `role`, `event_type`, `created_at`, `updated_at` | 전부 | **있음** — 동일 `coalesce` |
 | `race_result` | `id`, `member_id`, `event_type`, `record_time_sec`, `race_name`, `race_date`, `created_at`, `swim_time_sec`, `bike_time_sec`, `run_time_sec` | 위 중 백필용 전부 | **없음** — `rec_race_hist.crt_at`·`upd_at` 모두 `created_at`만 사용 |
 
-- `personal_best`, `utmb_profile`는 본 백필 마이그레이션에서 **읽지 않음** (매핑 문서 §3.5·3.6).
+- `personal_best`는 본 백필 마이그레이션에서 **읽지 않음** (§3.5). `utmb_profile` → `mem_utmb_prf` 는 **`20260404165809_v2_mem_utmb_prf.sql`** (§3.6).
 - 나중에 `race_result`에 `updated_at`을 추가한 DB에서는 백필 SQL을 `coalesce(rr.updated_at, rr.created_at)`로 바꿀 수 있음(컬럼이 존재할 때만 유효).
 
 ### 3.1 `member` -> `mem_mst` + `team_mem_rel`
@@ -254,20 +254,21 @@ AS-IS 참가등록을 팀 운영 컨텍스트 + 참가 관계로 분리한다.
 
 ---
 
-### 3.6 `utmb_profile`
-`utmb_profile`은 현재 v2 범위에 미포함이며, 전 컬럼을 "미이관(보류)"으로 관리한다.
+### 3.6 `utmb_profile` → `mem_utmb_prf`
+회원당 0~1행(`member_id` 유니크). v2 는 `mem_mst` 1:1 확장 테이블 `mem_utmb_prf` 로 이관한다.
 
-| AS-IS | v2 | 규칙 |
+| AS-IS | v2 (`mem_utmb_prf`) | 규칙 |
 |---|---|---|
-| `id` | - | v2 범위 미포함(보류) |
-| `member_id` | - | v2 범위 미포함(보류) |
-| `utmb_profile_url` | - | v2 범위 미포함(보류) |
-| `utmb_index` | - | v2 범위 미포함(보류) |
-| `created_at` | - | v2 범위 미포함(보류) |
-| `updated_at` | - | v2 범위 미포함(보류) |
+| `id` | `utmb_prf_id` | **1:1 유지**(백필 시 동일 UUID) |
+| `member_id` | `mem_id` | `mem_mst` 정본(`vers=0`, `del_yn=false`)에 존재하는 행만 삽입 |
+| `utmb_profile_url` | `utmb_prf_url` | 그대로 |
+| `utmb_index` | `utmb_idx` | `CHECK (utmb_idx >= 0)` |
+| `created_at` | `crt_at` | 그대로 |
+| `updated_at` | `upd_at` | 그대로 |
+| (없음) | `vers` | `0` |
+| (없음) | `del_yn` | `false` |
 
-후속:
-- 보존 필요가 확정되면 별도 도메인 문서에서 목적/권한/RLS를 정의 후 신규 테이블로 이관한다.
+마이그레이션: `supabase/migrations/20260404165809_v2_mem_utmb_prf.sql` (DDL·RLS·백필 동일 파일). 선행: P1 `mem_mst`.
 
 ## 4) 회비 도메인 이관 원칙
 AS-IS 스키마(`database-schema.md`)에는 회비 테이블이 없으므로 **신규 생성 + 초기 데이터 준비**로 간주한다.
@@ -378,6 +379,16 @@ select
 from rec_race_hist;
 ```
 
+```sql
+-- B-4. utmb_profile -> mem_utmb_prf 누락 (mem_mst 정본에 맞는 소스만 대상)
+select u.id as missing_utmb_prf_id
+from utmb_profile u
+inner join mem_mst mm
+  on mm.mem_id = u.member_id and mm.vers = 0 and mm.del_yn = false
+left join mem_utmb_prf p on p.utmb_prf_id = u.id
+where p.utmb_prf_id is null;
+```
+
 #### C) 코드 매핑 검증
 ```sql
 -- C-1. team_mem_rel.mem_st_cd가 코드그룹 정책 외 값을 가지는지 확인
@@ -448,7 +459,7 @@ order by s.mem_id;
 ```
 
 ### 5.3 합격 기준
-- A-2, A-3, A-4, B-1, B-2, C-1, C-2 결과는 모두 **0건**이어야 한다.
+- A-2, A-3, A-4, B-1, B-2, B-4, C-1, C-2 결과는 모두 **0건**이어야 한다. (B-3·`rec_race_hist` null 집계는 별도 합의)
 - B-3의 `*_null_cnt`는 허용 기준(수동 보정 대상)과 함께 별도 리포트로 남긴다.
 - D-2 결과는 프로필/참가/기록 화면 표본 검수 결과와 함께 체크리스트에 첨부한다.
 

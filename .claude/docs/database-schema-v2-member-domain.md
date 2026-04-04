@@ -54,6 +54,26 @@
 - `team_cd`: 외부/업무 식별 코드(유니크). 관리자 화면, URL, 운영 식별자에 사용한다.
 - 현재 단계에서는 `team_st_cd`를 두지 않는다(팀 수가 적고 비활성/보관 운영 요구가 없음).
 
+### `mem_utmb_prf` (회원 UTMB 프로필 확장)
+`mem_mst`와 **1:1**(정본 `vers = 0`)인 선택적 부가 정보. 레거시 `utmb_profile` 대응.
+
+| 컬럼 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `utmb_prf_id` | `uuid` | Y | PK. 레거시 `utmb_profile.id` 백필 시 동일 값 유지 |
+| `mem_id` | `uuid` | Y | FK → `mem_mst.mem_id` |
+| `utmb_prf_url` | `text` | Y | UTMB 프로필 URL |
+| `utmb_idx` | `int` | Y | UTMB 인덱스, `>= 0` |
+| `vers` | `int` | Y | 기본값 0(정본) |
+| `del_yn` | `boolean` | Y | 기본값 false |
+| `crt_at` | `timestamptz` | Y | 기본값 now() |
+| `upd_at` | `timestamptz` | Y | 기본값 now(), `set_v2_upd_at` |
+
+핵심 제약:
+- `pk_mem_utmb_prf` (`utmb_prf_id`)
+- `fk_mem_utmb_prf__mem_mst` (`mem_id` → `mem_mst`)
+- `uk_mem_utmb_prf_mem_vers` (`mem_id`, `vers`)
+- `ck_mem_utmb_prf_utmb_idx` (`utmb_idx >= 0`)
+
 ### `team_mem_rel` (팀-회원 관계)
 다중 소속/팀별 권한/팀별 가입상태를 관리한다.
 
@@ -77,6 +97,7 @@
 
 ## 3) 컬럼 필요유무 판단 기준
 - 전역 고유값(이메일, OAuth ID)은 `mem_mst`에 둔다.
+- 회원당 선택적·1:1 부가 프로필(UTMB 등)은 **`mem_mst`에 넣지 않고** `mem_utmb_prf` 같은 확장 테이블에 둔다.
 - 팀별로 달라질 수 있는 값(권한, 가입상태, 가입/탈퇴일)은 `team_mem_rel`에 둔다.
 - 기록/운영 데이터는 팀 격리를 위해 `team_id`를 반드시 포함한다.
 
@@ -86,6 +107,7 @@
 
 ## 4) 관계/조회 모델
 - 개인 프로필 조회: `mem_mst`
+- UTMB 등 확장: `mem_utmb_prf` (`mem_id`, `vers = 0`, `del_yn = false`)
 - 로그인 팀 컨텍스트 조회: `team_mem_rel` + `team_mst`
 - 내 소속 팀 목록: `team_mem_rel` 기준
 - 팀 관리자 목록: `team_mem_rel.team_role_cd in ('owner', 'admin')`
@@ -94,6 +116,9 @@
 - `mem_mst`
   - SELECT/UPDATE: 본인 `mem_id = auth.uid()`
   - DELETE: 원칙적 금지(soft delete)
+- `mem_utmb_prf`
+  - SELECT: 레거시와 동등하게 **공개 조회**(`del_yn = false`) — 기록/랭킹 UI 호환
+  - INSERT/UPDATE/DELETE: 본인 `mem_id = auth.uid()`
 - `team_mem_rel`
   - SELECT: 같은 팀 멤버는 조회 가능
   - INSERT/UPDATE: 팀 관리자(`owner`, `admin`)만 허용

@@ -38,10 +38,11 @@ async function RecordsContent() {
         "event_type, record_time_sec, race_name, member:member_id(id, full_name, gender)",
       ),
     supabase
-      .from("utmb_profile")
+      .from("mem_utmb_prf")
       .select(
-        "utmb_index, utmb_profile_url, member:member_id(full_name, id)",
-      ),
+        "utmb_idx, utmb_prf_url, mem_mst!inner(mem_nm, mem_id)",
+      )
+      .eq("vers", 0),
   ]);
 
   // 멤버별 종목별 최고기록만 추출
@@ -58,11 +59,24 @@ async function RecordsContent() {
 
   // 트레일러닝: UTMB 프로필 보유자의 최근 대회 기록 조회
   const utmbMembers = (utmbData ?? [])
-    .filter((r): r is typeof r & { utmb_index: number; utmb_profile_url: string } => r.utmb_index != null && r.utmb_profile_url != null)
-    .map((r) => {
-      const member = r.member as unknown as { full_name: string; id: string };
-      return { id: member.id, name: member.full_name, index: r.utmb_index, url: r.utmb_profile_url };
-    });
+    .filter(
+      (r): r is typeof r & {
+        utmb_idx: number;
+        utmb_prf_url: string;
+        mem_mst: { mem_nm: string; mem_id: string };
+      } =>
+        r.utmb_idx != null &&
+        r.utmb_prf_url != null &&
+        r.mem_mst != null &&
+        typeof r.mem_mst === "object" &&
+        !Array.isArray(r.mem_mst),
+    )
+    .map((r) => ({
+      id: r.mem_mst.mem_id,
+      name: r.mem_mst.mem_nm,
+      index: r.utmb_idx,
+      url: r.utmb_prf_url,
+    }));
 
   // UTMB 프로필 페이지에서 멤버별 최근 대회 기록 가져오기
   const recentRaceMap = new Map<
