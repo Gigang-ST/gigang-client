@@ -25,11 +25,11 @@
 필수 컬럼:
 - `comp_evt_id` (PK)
 - `comp_id` (FK -> `comp_mst`)
-- `evt_cd`
+- `comp_evt_cd` (`COMP_EVT_CD` 공통코드 `cmm_cd_mst.cd` 와 동일 문자열)
 - `vers`, `del_yn`, `crt_at`, `upd_at`
 
 유니크:
-- (`comp_id`, `evt_cd`, `vers`)
+- (`comp_id`, `comp_evt_cd`, `vers`)
 
 분리 이유(과설계 방지 관점):
 - 배열 컬럼(`event_types`)은 초기엔 단순하지만, 운영 단계에서 누락/중복/정렬 문제를 자주 만든다.
@@ -83,15 +83,17 @@
 ### `rec_race_hist`
 개인 기록을 개인 귀속으로 관리한다(팀 비공유 원칙 적용 안 함).
 
-필수 컬럼:
+컬럼(현행 DDL 기준):
 - `race_result_id` (PK)
-- `mem_id` (FK -> `mem_mst`)
-- `comp_id` (FK -> `comp_mst`)
-- `comp_evt_id` (FK -> `comp_evt_cfg`)
-- `rec_time_sec`, `race_nm`, `race_dt`
+- `mem_id` (FK -> `mem_mst`, NOT NULL)
+- `comp_id` (FK -> `comp_mst`, **nullable** — 백필·레거시 자유입력 시 매칭 실패 허용, B-3)
+- `comp_evt_id` (FK -> `comp_evt_cfg`, **nullable**)
+- `rec_time_sec`, `race_nm`, `race_dt` (NOT NULL 기록 식별용)
 - `swim_time_sec`, `bike_time_sec`, `run_time_sec` (선택)
 - `rec_src_cd` (manual/imported/api, 선택)
 - `crt_at`, `upd_at`
+
+**`race_nm`의 위치:** AS-IS `race_name` **자유 입력** 이력을 그대로 옮긴 컬럼이다. 초기에는 대회 마스터 선택 없이 입력되어 `comp_mst.comp_nm`과 문자열이 어긋나기 쉽다. 장기적으로는 `comp_id`·`comp_evt_id` 정합 후 **`race_nm` 중복을 제거**(컬럼 DROP 검토)하고, 표시명은 **`comp_mst` 조인·VIEW**로 두는 방향이 `mem_nm` 비정규화를 피하는 것과 같은 논리다. 상세 절차는 `database-schema-v2-migration-map.md` §3.4 “데이터 정합 후 운영 방향”.
 
 인덱스:
 - (`mem_id`, `race_dt`)
@@ -99,7 +101,7 @@
 
 제약:
 - 개인 기록은 참가(`comp_reg_rel`)와 별도 관리한다.
-- 대회 데이터 정합성은 `comp_id`/`comp_evt_id` FK로 검증한다.
+- `comp_id`/`comp_evt_id`가 채워지면 FK로 대회·종목 정합성이 검증된다(null 행은 정합 전·매핑 실패).
 - 중복 입력 방지를 위해 개인+경기 식별 유니크를 둔다(예: `mem_id`, `comp_evt_id`, `race_dt`, `race_nm`).
 
 노출 정책(현재):

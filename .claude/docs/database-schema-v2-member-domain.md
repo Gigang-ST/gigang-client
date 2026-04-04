@@ -31,6 +31,7 @@
 
 핵심 제약:
 - `pk_mem_mst` (`mem_id`)
+- `fk_mem_mst__auth_users` (`mem_id` → `auth.users(id)`, `ON DELETE RESTRICT`) — 웨이브2 DDL. 백필 중 일시 `DROP` 할 수 있음; prd 컷오버 시 재부착 절차는 `database-schema-v2-rollout-progress.md` **§5.6**·`scripts/sql/prd_cutover_mem_mst_fk_auth.sql`
 - `uk_mem_mst_email_addr` (`email_addr`, `vers`)
 - `uk_mem_mst_oauth_kakao_id` (`oauth_kakao_id`, `vers`)
 - `uk_mem_mst_oauth_google_id` (`oauth_google_id`, `vers`)

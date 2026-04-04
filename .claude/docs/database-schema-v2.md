@@ -182,7 +182,7 @@
 
 **대회·참가**
 - `comp_mst.comp_sprt_cd` (대회 스포츠/형태 분류)
-- `comp_evt_cfg.evt_cd` (대회 내 코스·종목 코드)
+- `comp_evt_cfg.comp_evt_cd` (대회 내 코스·종목 코드, `COMP_EVT_CD`·`cmm_cd_mst.cd` 와 동일 문자열)
 - `comp_reg_rel.prt_role_cd` (참가 역할: 참가자/응원/봉사 등)
 
 **기록**

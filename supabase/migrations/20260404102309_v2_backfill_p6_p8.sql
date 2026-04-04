@@ -34,7 +34,7 @@ INNER JOIN public.team_comp_plan_rel tcp
  AND tcp.del_yn = false
 LEFT JOIN public.comp_evt_cfg e
   ON e.comp_id = cr.competition_id
- AND e.evt_cd = public.migration_v2_map_evt_cd(cr.event_type)
+ AND e.comp_evt_cd = public.migration_v2_map_evt_cd(cr.event_type)
  AND e.vers = 0
  AND e.del_yn = false
 WHERE NOT EXISTS (
@@ -92,12 +92,13 @@ LEFT JOIN LATERAL (
 ) cm ON true
 LEFT JOIN public.comp_evt_cfg e
   ON e.comp_id = cm.comp_id
- AND e.evt_cd = public.migration_v2_map_evt_cd(rr.event_type::text)
+ AND e.comp_evt_cd = public.migration_v2_map_evt_cd(rr.event_type::text)
  AND e.vers = 0
  AND e.del_yn = false
 WHERE NOT EXISTS (
   SELECT 1 FROM public.rec_race_hist h WHERE h.race_result_id = rr.id
-);
+)
+ON CONFLICT (mem_id, comp_evt_id, race_dt, race_nm, vers) DO NOTHING;
 
 INSERT INTO public.fee_policy_cfg (
   team_id,
