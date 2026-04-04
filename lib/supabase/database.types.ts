@@ -199,6 +199,93 @@ export type Database = {
           },
         ]
       }
+      team_mst: {
+        Row: {
+          crt_at: string
+          del_yn: boolean
+          team_cd: string
+          team_id: string
+          team_nm: string
+          upd_at: string
+          vers: number
+        }
+        Insert: {
+          crt_at?: string
+          del_yn?: boolean
+          team_cd: string
+          team_id?: string
+          team_nm: string
+          upd_at?: string
+          vers?: number
+        }
+        Update: {
+          crt_at?: string
+          del_yn?: boolean
+          team_cd?: string
+          team_id?: string
+          team_nm?: string
+          upd_at?: string
+          vers?: number
+        }
+        Relationships: []
+      }
+      team_mem_rel: {
+        Row: {
+          crt_at: string
+          del_yn: boolean
+          join_dt: string | null
+          leave_dt: string | null
+          mem_id: string
+          mem_st_cd: string
+          team_id: string
+          team_mem_id: string
+          team_role_cd: string
+          upd_at: string
+          vers: number
+        }
+        Insert: {
+          crt_at?: string
+          del_yn?: boolean
+          join_dt?: string | null
+          leave_dt?: string | null
+          mem_id: string
+          mem_st_cd: string
+          team_id: string
+          team_mem_id?: string
+          team_role_cd: string
+          upd_at?: string
+          vers?: number
+        }
+        Update: {
+          crt_at?: string
+          del_yn?: boolean
+          join_dt?: string | null
+          leave_dt?: string | null
+          mem_id?: string
+          mem_st_cd?: string
+          team_id?: string
+          team_mem_id?: string
+          team_role_cd?: string
+          upd_at?: string
+          vers?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_team_mem_rel__mem_mst"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "fk_team_mem_rel__team_mst"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
       member: {
         Row: {
           admin: boolean

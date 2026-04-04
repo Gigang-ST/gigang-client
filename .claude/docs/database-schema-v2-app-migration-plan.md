@@ -39,7 +39,7 @@
 | 슬라이스 | 앱(이 저장소) | 비고 |
 |----------|----------------|------|
 | 0 | 필요 시 `supabase gen types` | v2 테이블은 수동 보강·재생성 병행 가능 |
-| 1 | 미완 | `member` → `mem_mst` / `team_mem_rel` — **다음 작업 후보** |
+| 1 | **앱 전환 완료** | 조회·온보딩·프로필·관리자: `mem_mst` + 기강 `team_mem_rel`. 레거시 `member`는 FK 호환용 **이중 기록**(온보딩·프로필 저장 시). DB: `20260406120000_mem_mst_rls_oauth_and_teammates.sql` 선행 권장 |
 | 2 | 미완 | `competition` → `comp_mst`·`comp_evt_cfg` |
 | 3 | 미완 | `competition_registration` → `comp_reg_rel` 등 |
 | 4 | 미완 | `race_result` → `rec_race_hist` (`records`·`profile`·관리자 기록 화면 등) |
@@ -183,3 +183,4 @@
 |------|------|
 | 2026-04-05 | 초안: 슬라이스·인벤토리·dev/prd 공통 절차 |
 | 2026-04-06 | UTMB: `mem_utmb_prf` 앱 반영·P9(`20260404165809`) 문서 연계. §2.1 진행 상태·슬라이스 5 인벤토리 분리(UTMB 완료 / PB 미완). 앱 전환은 슬라이스 1→4 순 권장 명시 |
+| 2026-04-06 | 슬라이스 1 앱: `mem_mst`·`team_mem_rel` 조회·온보딩(서버 액션)·프로필·관리자·RLS(`20260406120000`). `member` 이중 기록 유지 |
