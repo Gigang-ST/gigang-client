@@ -1,6 +1,7 @@
 -- v2 웨이브 1: 공통코드 (cmm_cd_grp_mst, cmm_cd_mst) + 시드
 -- 기준: .claude/docs/database-schema-v2.md §10, database-schema-v2-migration-map.md §2.1
 -- 대상: supabase-gigang-dev
+-- 버전: supabase_migrations.schema_migrations 와 동일한 타임스탬프 (CLI·원격 동기화용)
 
 -- v2 공통 컬럼 upd_at 자동 갱신 (기존 set_updated_at은 updated_at 전용)
 CREATE OR REPLACE FUNCTION public.set_v2_upd_at()

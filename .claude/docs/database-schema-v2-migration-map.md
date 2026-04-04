@@ -50,6 +50,20 @@
 
 ## 3) 테이블별 매핑
 
+### 3.0 레거시 `public` 컬럼 점검 (백필 SQL ↔ 실제 스키마)
+
+기준 스냅샷: `supabase/migrations/20260325091708_remote_schema.sql`. **prd/dev에서 컬럼이 다르면** 백필 전 `information_schema.columns`로 재확인할 것.
+
+| 테이블 | DDL에 있는 컬럼(요약) | 백필에서 참조하는 컬럼 | `updated_at` |
+|--------|-------------------------|-------------------------|--------------|
+| `member` | `id`, `full_name`, `gender`, `birthday`, `phone`, `status`, `admin`, `joined_at`, `created_at`, `updated_at`, `email`, `bank_account`, `bank_name`, `kakao_user_id`, `google_user_id`, `avatar_url` | 위 전부 중 백필용: `id`, `full_name`, `gender`, `birthday`, `phone`, `email`, `bank_name`, `bank_account`, `avatar_url`, `kakao_user_id`, `google_user_id`, `created_at`, `updated_at`, `admin`, `status`, `joined_at` | **있음** — `upd_at`은 `coalesce(updated_at, created_at)` |
+| `competition` | `id`, `sport`, `title`, `start_date`, `end_date`, `location`, `event_types`, `source_url`, `raw`, `created_at`, `updated_at`, `external_id` | `id`, `sport`, `title`, `start_date`, `end_date`, `location`, `source_url`, `external_id`, `created_at`, `updated_at`, `event_types` | **있음** — 동일 `coalesce` |
+| `competition_registration` | `id`, `competition_id`, `member_id`, `role`, `event_type`, `created_at`, `updated_at` | 전부 | **있음** — 동일 `coalesce` |
+| `race_result` | `id`, `member_id`, `event_type`, `record_time_sec`, `race_name`, `race_date`, `created_at`, `swim_time_sec`, `bike_time_sec`, `run_time_sec` | 위 중 백필용 전부 | **없음** — `rec_race_hist.crt_at`·`upd_at` 모두 `created_at`만 사용 |
+
+- `personal_best`, `utmb_profile`는 본 백필 마이그레이션에서 **읽지 않음** (매핑 문서 §3.5·3.6).
+- 나중에 `race_result`에 `updated_at`을 추가한 DB에서는 백필 SQL을 `coalesce(rr.updated_at, rr.created_at)`로 바꿀 수 있음(컬럼이 존재할 때만 유효).
+
 ### 3.1 `member` -> `mem_mst` + `team_mem_rel`
 AS-IS의 전역 회원 정보를 v2 전역 회원/팀소속으로 분리한다.
 
