@@ -1,12 +1,8 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import {
-  onboardingCheckPhone,
-  onboardingCreateMember,
-  onboardingLinkExistingMember,
-  onboardingRejoinFromInactive,
-} from "@/app/actions/onboarding-mem-v2";
+import { getKSTDate, todayKST } from "@/lib/dayjs";
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -64,7 +60,7 @@ type MemberOnboardingValues = {
 const KAKAO_OPEN_CHAT_URL = "https://open.kakao.com/o/grnMFGng";
 
 export function MemberOnboardingForm({
-  userId: _userId,
+  userId,
   provider,
   initialFullName,
   email,
@@ -100,20 +96,29 @@ export function MemberOnboardingForm({
   const handleRejoinRequest = async () => {
     if (!inactiveMemberId) return;
     setRejoinLoading(true);
-    const res = await onboardingRejoinFromInactive({
-      memId: inactiveMemberId,
-      provider,
-      initialAvatarUrl,
-    });
+    const supabase = createClient();
+    const updateFields = {
+      status: "pending" as const,
+      updated_at: getKSTDate().toISOString(),
+      ...(initialAvatarUrl && { avatar_url: initialAvatarUrl }),
+      ...(provider === "kakao"
+        ? { kakao_user_id: userId }
+        : { google_user_id: userId }),
+    };
+    const { error } = await supabase
+      .from("member")
+      .update(updateFields)
+      .eq("id", inactiveMemberId);
     setRejoinLoading(false);
-    if (!res.ok) {
-      form.setError("root", { message: res.message ?? "처리에 실패했습니다." });
+    if (error) {
+      form.setError("root", { message: error.message });
       return;
     }
     setStage("pending");
   };
 
   const handlePhoneSubmit = async (values: MemberOnboardingValues) => {
+    const supabase = createClient();
     const phoneValue = formatPhone(values.phone.trim());
     if (!digitsOnly(phoneValue)) {
       form.setError("phone", { message: "연락처를 입력해 주세요." });
@@ -129,41 +134,62 @@ export function MemberOnboardingForm({
     setPhoneLoading(true);
     form.clearErrors("root");
 
-    const check = await onboardingCheckPhone(phoneValue);
+    const { data: existingMember, error: lookupError } = await supabase
+      .from("member")
+      .select("id, status")
+      .eq("phone", phoneValue)
+      .maybeSingle();
+
     setPhoneLoading(false);
 
-    if (!check.ok) {
-      form.setError("root", { message: check.message });
+    if (lookupError) {
+      if (lookupError.code === "PGRST116") {
+        form.setError("root", {
+          message: "같은 번호로 등록된 회원이 여러 명이라 관리자 확인이 필요합니다.",
+        });
+        return;
+      }
+      form.setError("root", { message: "기존 회원 확인에 실패했습니다." });
       return;
     }
 
-    if (check.kind === "new") {
-      setStage("details");
-      return;
-    }
-    if (check.kind === "inactive") {
-      setInactiveMemberId(check.memId);
-      setStage("inactive");
-      return;
-    }
-    if (check.kind === "pending") {
-      setStage("pending");
+    if (existingMember) {
+      if (existingMember.status === "inactive") {
+        setInactiveMemberId(existingMember.id);
+        setStage("inactive");
+        return;
+      }
+      if (existingMember.status === "pending") {
+        setStage("pending");
+        return;
+      }
+
+      // 기존 회원 연동 시 avatar_url이 없으면 OAuth 프로필 사진 저장
+      const linkFields = {
+        ...(initialAvatarUrl && { avatar_url: initialAvatarUrl }),
+        ...(provider === "kakao"
+          ? { kakao_user_id: userId }
+          : { google_user_id: userId }),
+      };
+      const { error: linkError } = await supabase
+        .from("member")
+        .update(linkFields)
+        .eq("id", existingMember.id);
+
+      if (linkError) {
+        form.setError("root", { message: linkError.message });
+        return;
+      }
+
+      router.replace(safeNext);
       return;
     }
 
-    const link = await onboardingLinkExistingMember({
-      memId: check.memId,
-      provider,
-      initialAvatarUrl,
-    });
-    if (!link.ok) {
-      form.setError("root", { message: link.message ?? "연동에 실패했습니다." });
-      return;
-    }
-    router.replace(safeNext);
+    setStage("details");
   };
 
   const onSubmit = async (values: MemberOnboardingValues) => {
+    const supabase = createClient();
     const emailValue = (email ?? values.emailInput.trim()) || null;
     const phoneValue = formatPhone(values.phone.trim());
     if (!digitsOnly(phoneValue)) {
@@ -185,25 +211,30 @@ export function MemberOnboardingForm({
         ? values.bankNameCustom.trim()
         : values.bankName.trim();
 
-    const res = await onboardingCreateMember({
-      fullName: values.fullName,
+    const memberData = {
+      email: emailValue,
+      full_name: values.fullName,
       gender: values.gender,
       birthday: values.birthday,
-      phoneDigits: digitsOnly(phoneValue),
-      email: emailValue,
-      bankName: bankName || null,
-      bankAccountRaw: values.bankAccount,
-      provider,
-      initialAvatarUrl,
-    });
+      phone: phoneValue,
+      bank_name: bankName || null,
+      bank_account: values.bankAccount.trim() || null,
+      status: "active" as const,
+      admin: false,
+      joined_at: todayKST(),
+      avatar_url: initialAvatarUrl,
+      ...(provider === "kakao"
+        ? { kakao_user_id: userId }
+        : { google_user_id: userId }),
+    };
+    const { error } = await supabase.from("member").insert(memberData);
 
-    if (!res.ok) {
-      form.setError("root", { message: res.message ?? "가입에 실패했습니다." });
-      return;
-    }
-
-    if (res.alreadyRegistered) {
-      router.replace(safeNext);
+    if (error) {
+      if (error.code === "23505") {
+        router.replace(safeNext);
+        return;
+      }
+      form.setError("root", { message: error.message });
       return;
     }
 

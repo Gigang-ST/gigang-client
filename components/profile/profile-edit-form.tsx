@@ -98,33 +98,13 @@ export function ProfileEditForm({ member }: { member: MemberData }) {
     setMessage(null);
 
     const supabase = createClient();
-    const emailTrim = data.email.trim();
-    const emailNorm = emailTrim ? emailTrim.toLowerCase() : null;
-
-    const { error: eMst } = await supabase
-      .from("mem_mst")
-      .update({
-        mem_nm: data.full_name.trim(),
-        ...(data.gender && { gdr_enm: data.gender }),
-        birth_dt: data.birthday || null,
-        email_addr: emailNorm,
-      })
-      .eq("mem_id", member.id)
-      .eq("vers", 0)
-      .eq("del_yn", false);
-
-    if (eMst) {
-      setMessage({ type: "error", text: "저장에 실패했습니다." });
-      return;
-    }
-
     const { error } = await supabase
       .from("member")
       .update({
         full_name: data.full_name.trim(),
         ...(data.gender && { gender: data.gender }),
         birthday: data.birthday || undefined,
-        email: emailNorm,
+        email: data.email.trim() || null,
       })
       .eq("id", member.id);
 
