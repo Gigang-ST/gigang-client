@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardItem } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { GIGANG_TEAM_ID } from "@/lib/constants/gigang-team";
 
 type Member = {
   id: string;
@@ -67,12 +68,41 @@ export default function MembersPage() {
   const loadMembers = useCallback(async () => {
     const supabase = createClient();
     const { data } = await supabase
-      .from("member")
+      .from("team_mem_rel")
       .select(
-        "id, full_name, phone, email, gender, birthday, avatar_url, status, admin, joined_at",
+        "mem_id, team_role_cd, mem_st_cd, join_dt, mem_mst!inner(mem_nm, phone_no, email_addr, gdr_enm, birth_dt, avatar_url)",
       )
-      .order("joined_at", { ascending: false });
-    setMembers(data ?? []);
+      .eq("team_id", GIGANG_TEAM_ID)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .order("join_dt", { ascending: false });
+
+    type Mst = {
+      mem_nm: string;
+      phone_no: string | null;
+      email_addr: string | null;
+      gdr_enm: string | null;
+      birth_dt: string | null;
+      avatar_url: string | null;
+    };
+    setMembers(
+      (data ?? []).map((r) => {
+        const m = r.mem_mst as unknown as Mst;
+        return {
+          id: r.mem_id,
+          full_name: m.mem_nm,
+          phone: m.phone_no,
+          email: m.email_addr,
+          gender: m.gdr_enm,
+          birthday: m.birth_dt,
+          avatar_url: m.avatar_url,
+          status: r.mem_st_cd,
+          admin:
+            r.team_role_cd === "admin" || r.team_role_cd === "owner",
+          joined_at: r.join_dt,
+        };
+      }),
+    );
     setLoading(false);
   }, []);
 
