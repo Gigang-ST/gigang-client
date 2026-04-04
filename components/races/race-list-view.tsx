@@ -3,10 +3,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import {
-  fetchMemMstWithGigangRel,
-  mapMstRelToAppMemberProfile,
-} from "@/lib/queries/app-member";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -151,22 +147,25 @@ export function RaceListView({
         return;
       }
 
-      const bundle = await fetchMemMstWithGigangRel(supabase, user.id);
+      const { data: member } = await supabase
+        .from("member")
+        .select("id, full_name, email, admin")
+        .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
+        .maybeSingle();
       if (!active) return;
 
-      if (!bundle) {
+      if (!member) {
         setMemberStatus({ status: "needs-onboarding", userId: user.id });
         return;
       }
 
-      const profile = mapMstRelToAppMemberProfile(bundle.mst, bundle.rel);
       setMemberStatus({
         status: "ready",
         userId: user.id,
-        memberId: profile.id,
-        fullName: profile.full_name ?? null,
-        email: profile.email ?? null,
-        admin: profile.admin ?? false,
+        memberId: member.id,
+        fullName: member.full_name ?? null,
+        email: member.email ?? null,
+        admin: member.admin ?? false,
       });
     }
 
