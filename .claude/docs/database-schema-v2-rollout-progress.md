@@ -120,6 +120,16 @@ where table_schema = 'public'
 order by 1;
 ```
 
+### 웨이브 2a (보강) — `mem_mst` RLS: OAuth 매칭·팀원 디렉터리 (앱 슬라이스 1)
+
+웨이브 2 DDL의 `mem_mst` RLS 초안은 **`mem_id = auth.uid()`** 중심이다. 레거시는 `member.kakao_user_id` / `google_user_id`에 Supabase `auth.uid()`를 넣어 연동하므로 **`mem_mst.mem_id` ≠ `auth.uid()`** 인 행이 있다. 앱 슬라이스 1이 `mem_mst`를 직접 읽기 전에 아래 마이그레이션을 적용한다.
+
+- [ ] 마이그레이션 `supabase/migrations/20260406120000_mem_mst_rls_oauth_and_teammates.sql`
+  - `mem_mst` SELECT/UPDATE: `oauth_kakao_id` / `oauth_google_id` = `auth.uid()` 도 본인 행으로 인정
+  - `mem_mst` SELECT: 동일 팀(`team_mem_rel` 정본) 소속끼리 프로필 조회(기존 `member` 비RLS 수준의 목록 UX에 대응)
+- [ ] **prd / 운영계 테이블 신규 생성:** Git 저장소의 `supabase/migrations/` 를 **버전 순으로 전부 적용**하는 절차(`cutover-checklist` §8)를 따르면, 웨이브 2 파일 다음 타임스탬프로 본 파일이 포함되어 **자동 반영**된다. 수동으로 웨이브 2만 떼어 적용하는 경우에는 **반드시 본 파일을 같은 순서로 추가 적용**할 것.
+- [ ] **검증:** 로그인 후 본인 프로필 조회·온보딩·관리자 멤버 목록(동일 팀)이 RLS 오류 없이 동작하는지 스모크
+
 ### 웨이브 2b — 회원 UTMB 확장 (`mem_utmb_prf`)
 
 - [x] 마이그레이션 `supabase/migrations/20260404165809_v2_mem_utmb_prf.sql` — DDL·RLS·`utmb_profile` 백필(선행: P1 `mem_mst`)
@@ -470,3 +480,4 @@ order by 1, 2;
 | 2026-04-05 | §6.5: dev `zold_*` MCP 적용 완료·로컬 마이그레이션 파일 `20260404163840` 로 정합·§6.5.1 dev 체크 | — |
 | 2026-04-05 | §6.5: `public.zold_*` 제거·스키마 **`archive`** + **`archive.old_*`** 로 이전 — `20260404164840_archive_old_snapshot_replace_zold.sql`, dev MCP 적용·문서·`app-migration-plan` 용어 갱신 | — |
 | 2026-04-05 | 웨이브 2b·P9: `mem_utmb_prf` DDL·RLS·`utmb_profile` 백필 — `20260404165809_v2_mem_utmb_prf.sql`(dev MCP), `member-domain`·`migration-map` §3.6·B-4·rollout §5·§6 | — |
+| 2026-04-06 | 웨이브 **2a**: 앱 슬라이스 1용 `mem_mst` RLS 보강 `20260406120000_mem_mst_rls_oauth_and_teammates.sql` — 문서화(본 절·`cutover-checklist` §8)·prd 전체 마이그레이션 순 적용 시 자동 포함 안내 | — |

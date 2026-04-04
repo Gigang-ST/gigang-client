@@ -133,6 +133,7 @@
 
 ## 7) 오픈 이슈
 - 팀 선택 컨텍스트를 JWT claim으로 처리할지, 앱 세션 상태로 처리할지 확정 필요
+- **TODO (앱):** 현재는 기강 단일 팀만 전제로 `team_id`가 `lib/constants/gigang-team.ts`의 `GIGANG_TEAM_ID`에 하드코딩되어 있다. 멀티팀·사용자 팀 선택 UI가 생기면 해당 컨텍스트로 `team_id`를 주입하고 상수 직참조를 걷어낸다(`database-schema-v2-app-migration-plan.md`와 동기).
 - 전역 회원 상태를 별도로 둘지(예: 플랫폼 제재용), 현재처럼 팀 상태만으로 운영할지 추후 확정 필요
 
 ## 8) 상태 코드 기준 (v2)
