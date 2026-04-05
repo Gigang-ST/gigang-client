@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import dayjs from "@/lib/dayjs";
+import dayjs from "dayjs";
 import { fetchUtmbIndex } from "@/app/actions/utmb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
