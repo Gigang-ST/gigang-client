@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import dayjs from "@/lib/dayjs";
 import { fetchUtmbIndex } from "@/app/actions/utmb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -123,7 +124,7 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
         utmb_index: utmbIndex,
         recent_race_name: recentRaceName.trim() || null,
         recent_race_record: recentRaceRecord.trim() || null,
-        updated_at: new Date().toISOString(),
+        updated_at: dayjs().toISOString(),
       },
       { onConflict: "member_id" },
     );
