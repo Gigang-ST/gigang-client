@@ -31,7 +31,7 @@ async function ProfileContent() {
       .in("event_type", ["FULL", "HALF", "10K"]),
     supabase
       .from("utmb_profile")
-      .select("utmb_profile_url, utmb_index")
+      .select("utmb_profile_url, utmb_index, recent_race_name, recent_race_record")
       .eq("member_id", member.id)
       .maybeSingle(),
   ]);
@@ -72,7 +72,7 @@ async function ProfileContent() {
         <PersonalBestGrid
           memberId={member.id}
           bestRecords={bestRecords}
-          utmbData={utmbProfile?.utmb_profile_url && utmbProfile?.utmb_index != null ? { utmb_profile_url: utmbProfile.utmb_profile_url, utmb_index: utmbProfile.utmb_index } : null}
+          utmbData={utmbProfile?.utmb_profile_url && utmbProfile?.utmb_index != null ? { utmb_profile_url: utmbProfile.utmb_profile_url, utmb_index: utmbProfile.utmb_index, recent_race_name: utmbProfile.recent_race_name, recent_race_record: utmbProfile.recent_race_record } : null}
         />
 
         {/* 페이스 그래프 */}

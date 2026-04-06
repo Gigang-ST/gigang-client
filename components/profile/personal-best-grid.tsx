@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import dayjs from "dayjs";
 import { fetchUtmbIndex } from "@/app/actions/utmb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,8 @@ type BestRecord = {
 type UtmbData = {
   utmb_profile_url: string;
   utmb_index: number;
+  recent_race_name?: string | null;
+  recent_race_record?: string | null;
 } | null;
 
 type Props = {
@@ -50,10 +53,16 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
     return match ? match[1] : url;
   };
 
+  // 최근 대회 폼 state
+  const [recentRaceName, setRecentRaceName] = useState("");
+  const [recentRaceRecord, setRecentRaceRecord] = useState("");
+
   const resetUtmbForm = () => {
     setUtmbUrl(utmb?.utmb_profile_url ? toShortId(utmb.utmb_profile_url) : "");
     setUtmbIndex(utmb?.utmb_index ?? null);
     setUtmbName("");
+    setRecentRaceName(utmb?.recent_race_name ?? "");
+    setRecentRaceRecord(utmb?.recent_race_record ?? "");
     setMessage(null);
     setIsError(false);
   };
@@ -73,13 +82,15 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
     setMessage(null);
     const fullUrl = utmbUrl.trim().startsWith("http")
       ? utmbUrl.trim()
-      : `https://utmb.world/runner/${utmbUrl.trim()}`;
+      : `https://utmb.world/en/runner/${utmbUrl.trim()}`;
     const result = await fetchUtmbIndex(fullUrl);
     setFetching(false);
     if (result.ok) {
       setUtmbIndex(result.index);
       setUtmbName(result.name);
-      setMessage(`UTMB Index: ${result.index} (${result.name})`);
+      if (result.recentRaceName) setRecentRaceName(result.recentRaceName);
+      if (result.recentRaceRecord) setRecentRaceRecord(result.recentRaceRecord);
+      setMessage(null);
       setIsError(false);
     } else {
       setUtmbIndex(null);
@@ -104,14 +115,16 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
     setMessage(null);
     const fullUrl = utmbUrl.trim().startsWith("http")
       ? utmbUrl.trim()
-      : `https://utmb.world/runner/${utmbUrl.trim()}`;
+      : `https://utmb.world/en/runner/${utmbUrl.trim()}`;
     const supabase = createClient();
     const { error } = await supabase.from("utmb_profile").upsert(
       {
         member_id: memberId,
         utmb_profile_url: fullUrl,
         utmb_index: utmbIndex,
-        updated_at: new Date().toISOString(),
+        recent_race_name: recentRaceName.trim() || null,
+        recent_race_record: recentRaceRecord.trim() || null,
+        updated_at: dayjs().toISOString(),
       },
       { onConflict: "member_id" },
     );
@@ -121,7 +134,12 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
       setIsError(true);
       return;
     }
-    setUtmb({ utmb_profile_url: fullUrl, utmb_index: utmbIndex });
+    setUtmb({
+      utmb_profile_url: fullUrl,
+      utmb_index: utmbIndex,
+      recent_race_name: recentRaceName.trim() || null,
+      recent_race_record: recentRaceRecord.trim() || null,
+    });
     setUtmbOpen(false);
   };
 
@@ -179,7 +197,7 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
             {utmb ? utmb.utmb_index : "--"}
           </span>
           <span className="truncate text-[11px] text-muted-foreground">
-            {utmb ? "" : "탭하여 연동"}
+            {utmb?.recent_race_name ? utmb.recent_race_name : utmb ? "" : "탭하여 연동"}
           </span>
         </Button>
       </div>
@@ -196,9 +214,6 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
 
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-foreground">
-                UTMB 프로필
-              </label>
               <div className="flex gap-2">
                 <Input
                   placeholder="123456.gildong.hong"
@@ -213,39 +228,62 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
                   onClick={handleFetch}
                   disabled={fetching}
                   className="shrink-0 border-[1.5px]"
                 >
-                  {fetching ? "조회 중..." : "조회"}
+                  {fetching ? "조회 중..." : utmb ? "새로고침" : "조회"}
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
                 utmb.world 프로필의 번호.이름 형식으로 입력하세요.
               </p>
-              <a
-                href="https://utmb.world/utmb-index/runner-search"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs font-medium text-primary underline"
-              >
-                내 UTMB 프로필 찾기
-              </a>
+              {utmbIndex === null && (
+                <a
+                  href="https://utmb.world/utmb-index/runner-search"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-medium text-primary underline"
+                >
+                  내 UTMB 프로필 찾기
+                </a>
+              )}
             </div>
 
             {utmbIndex !== null && (
-              <div className="flex items-center gap-2 rounded-xl bg-secondary px-4 py-3">
-                <span className="text-sm text-muted-foreground">
-                  UTMB Index:
-                </span>
-                <span className="text-lg font-bold text-foreground">
-                  {utmbIndex}
-                </span>
-                {utmbName && (
-                  <span className="text-sm text-muted-foreground">
-                    ({utmbName})
-                  </span>
+              <div className="flex flex-col gap-3 rounded-xl border-[1.5px] border-border p-4">
+                <div className="flex items-baseline justify-between">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-mono text-2xl font-bold text-foreground">
+                      {utmbIndex}
+                    </span>
+                    {utmbName && (
+                      <span className="text-sm text-muted-foreground">
+                        {utmbName}
+                      </span>
+                    )}
+                  </div>
+                  <a
+                    href={`https://utmb.world/en/runner/${utmbUrl.trim()}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary underline"
+                  >
+                    프로필 보기
+                  </a>
+                </div>
+                {recentRaceName && (
+                  <div className="flex flex-col gap-0.5 border-t border-border pt-3">
+                    <span className="text-xs text-muted-foreground">최근 대회</span>
+                    <span className="text-sm font-medium text-foreground">
+                      {recentRaceName}
+                    </span>
+                    {recentRaceRecord && (
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {recentRaceRecord}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
             )}
