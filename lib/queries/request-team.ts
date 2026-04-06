@@ -8,6 +8,8 @@ type RequestTeamContext = {
   teamCd: string;
 };
 
+const ENV_HOST_PREFIXES = new Set(["dev", "stg", "stage", "www", "preview"]);
+
 function extractTeamCdFromHost(host: string | null): string {
   if (!host) return "gigang";
   const hostNoPort = host.split(":")[0].toLowerCase();
@@ -19,7 +21,14 @@ function extractTeamCdFromHost(host: string | null): string {
     return "gigang";
   }
   const labels = hostNoPort.split(".").filter(Boolean);
-  return labels[0] ?? "gigang";
+  if (labels.length === 0) return "gigang";
+
+  // dev.gigang.team / stg.gigang.team 같은 환경 prefix는 팀코드에서 제외한다.
+  if (labels.length >= 2 && ENV_HOST_PREFIXES.has(labels[0])) {
+    return labels[1];
+  }
+
+  return labels[0];
 }
 
 /**
