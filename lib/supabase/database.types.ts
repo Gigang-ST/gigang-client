@@ -163,6 +163,8 @@ export type Database = {
           crt_at: string
           del_yn: boolean
           mem_id: string
+          rct_race_nm: string | null
+          rct_race_rec: string | null
           upd_at: string
           utmb_idx: number
           utmb_prf_id: string
@@ -173,6 +175,8 @@ export type Database = {
           crt_at?: string
           del_yn?: boolean
           mem_id: string
+          rct_race_nm?: string | null
+          rct_race_rec?: string | null
           upd_at?: string
           utmb_idx: number
           utmb_prf_id?: string
@@ -183,6 +187,8 @@ export type Database = {
           crt_at?: string
           del_yn?: boolean
           mem_id?: string
+          rct_race_nm?: string | null
+          rct_race_rec?: string | null
           utmb_idx?: number
           utmb_prf_id?: string
           utmb_prf_url?: string
