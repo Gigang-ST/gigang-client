@@ -483,6 +483,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_public_team_member_stats: {
+        Args: { p_team_id: string }
+        Returns: {
+          active_count: number
+          total_count: number
+        }[]
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
     }

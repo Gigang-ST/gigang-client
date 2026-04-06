@@ -45,18 +45,12 @@ async function HomeContent() {
   let initialMemberStatus: MemberStatus = { status: "signed-out" };
 
   const [
-    { count: memberCount },
+    { data: memberStats },
     { data: gigangRacesRaw },
     { count: upcomingCount },
     { data: recentRecords },
   ] = await Promise.all([
-    supabase
-      .from("team_mem_rel")
-      .select("*", { count: "exact", head: true })
-      .eq("team_id", GIGANG_TEAM_ID)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .eq("mem_st_cd", "active"),
+    supabase.rpc("get_public_team_member_stats", { p_team_id: GIGANG_TEAM_ID }),
     supabase
       .from("competition")
       .select("id, title, start_date, location, sport, event_types, competition_registration(id, event_type)")
@@ -74,6 +68,8 @@ async function HomeContent() {
       .order("updated_at", { ascending: false })
       .limit(2),
   ]);
+
+  const memberCount = memberStats?.[0]?.active_count ?? 0;
 
   // 기강대회: 등록자 1명 이상, 중복 제거 + 참가자 등록 event_type 수집
   type RegRow = { id: string; event_type: string | null };

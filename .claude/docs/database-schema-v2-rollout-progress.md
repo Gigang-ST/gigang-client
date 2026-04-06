@@ -129,6 +129,9 @@ order by 1;
   - `mem_mst` SELECT: 동일 팀(`team_mem_rel` 정본) 소속끼리 프로필 조회(기존 `member` 비RLS 수준의 목록 UX에 대응)
 - [ ] **prd / 운영계 테이블 신규 생성:** Git 저장소의 `supabase/migrations/` 를 **버전 순으로 전부 적용**하는 절차(`cutover-checklist` §8)를 따르면, 웨이브 2 파일 다음 타임스탬프로 본 파일이 포함되어 **자동 반영**된다. 수동으로 웨이브 2만 떼어 적용하는 경우에는 **반드시 본 파일을 같은 순서로 추가 적용**할 것.
 - [ ] **검증:** 로그인 후 본인 프로필 조회·온보딩·관리자 멤버 목록(동일 팀)이 RLS 오류 없이 동작하는지 스모크
+- [x] 마이그레이션 `supabase/migrations/20260406203000_v2_public_team_member_stats_rpc.sql`
+  - 공개 홈 지표용 RPC `get_public_team_member_stats(p_team_id uuid)` 추가
+  - `anon`/`authenticated`는 RPC 실행만 허용, 원본 `team_mem_rel` 행 직접 조회는 유지 차단
 
 ### 웨이브 2b — 회원 UTMB 확장 (`utmb_profile` 기준 재정의)
 
@@ -482,3 +485,4 @@ order by 1, 2;
 | 2026-04-05 | §6.5: `public.zold_*` 제거·스키마 **`archive`** + **`archive.old_*`** 로 이전 — `20260404164840_archive_old_snapshot_replace_zold.sql`, dev MCP 적용·문서·`app-migration-plan` 용어 갱신 | — |
 | 2026-04-05 | 웨이브 2b·P9: `mem_utmb_prf` DDL·RLS·`utmb_profile` 백필 — `20260404165809_v2_mem_utmb_prf.sql`(dev MCP), `member-domain`·`migration-map` §3.6·B-4·rollout §5·§6 | — |
 | 2026-04-06 | 웨이브 **2a**: 앱 슬라이스 1용 `mem_mst` RLS 보강 `20260406120000_mem_mst_rls_oauth_and_teammates.sql` — 문서화(본 절·`cutover-checklist` §8)·prd 전체 마이그레이션 순 적용 시 자동 포함 안내 | — |
+| 2026-04-06 | 공개 홈 지표 RPC `20260406203000_v2_public_team_member_stats_rpc.sql` 추가 — 활동/전체 멤버 수를 RPC로 노출하고 `team_mem_rel` 원본 행 직접 공개는 유지 차단 | — |

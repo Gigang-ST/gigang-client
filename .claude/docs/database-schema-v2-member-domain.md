@@ -129,6 +129,8 @@
   - SELECT: 같은 팀 멤버는 조회 가능
   - INSERT/UPDATE: 팀 관리자(`owner`, `admin`)만 허용
   - 본인 탈퇴 시 제한된 self-update 허용
+  - 공개 홈 지표(활동/전체 멤버 수)는 원본 행 직접 조회 대신
+    `get_public_team_member_stats(p_team_id uuid)` RPC로 제공
 - `team_mst`
   - SELECT: 팀 멤버만
   - UPDATE: 팀 관리자만
