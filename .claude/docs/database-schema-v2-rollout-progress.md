@@ -445,7 +445,7 @@ order by 1, 2;
 - [ ] v1 테이블 의존 코드·DB 함수(`is_legacy_platform_admin` 등)·RLS 정책에서의 `member` 참조 제거 확인
 - [ ] **§6.5 `archive.old_*` 스냅샷** 적용 여부·행 수 스모크 확인 후에만 v1 **물리 DROP** 검토(FK 는 `archive.old_*` 간만 참조)
 - [ ] v1 테이블 `legacy_` 등 prefix RENAME 또는 읽기 전용 정책(중간 단계)
-- [ ] 물리 DROP 일정·승인
+- [x] 물리 DROP 마이그레이션 추가: `20260406233000_v2_drop_unused_legacy_public_tables.sql` (`member`, `competition`, `competition_registration`, `race_result`, `utmb_profile`, `personal_best`)
 
 ## 9) 컷오버 체크리스트 상호 참조
 
@@ -488,3 +488,4 @@ order by 1, 2;
 | 2026-04-06 | 웨이브 **2a**: 앱 슬라이스 1용 `mem_mst` RLS 보강 `20260406120000_mem_mst_rls_oauth_and_teammates.sql` — 문서화(본 절·`cutover-checklist` §8)·prd 전체 마이그레이션 순 적용 시 자동 포함 안내 | — |
 | 2026-04-06 | 공개 홈 지표 RPC `20260406203000_v2_public_team_member_stats_rpc.sql` 추가 — 활동/전체 멤버 수를 RPC로 노출하고 `team_mem_rel` 원본 행 직접 공개는 유지 차단 | — |
 | 2026-04-06 | 대회 관리자 정책 v2-only 전환 `20260406230000_v2_comp_admin_policy_team_role.sql` — `is_legacy_platform_admin` 제거, `team_mem_rel` 권한 기반으로 통합 | — |
+| 2026-04-06 | `public` 미사용 레거시 테이블 제거 마이그레이션 `20260406233000_v2_drop_unused_legacy_public_tables.sql` 추가 | — |
