@@ -1,15 +1,10 @@
 import { cacheLife } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { secondsToTime } from "@/lib/dayjs";
-import { fetchUtmbRecentRace } from "@/lib/utmb";
-import dynamic from "next/dynamic";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { H1 } from "@/components/common/typography";
-
-const RecordsClient = dynamic(() =>
-  import("./records-client").then((m) => m.RecordsClient),
-);
+import { RecordsClient } from "./records-client";
 
 const MARATHON_EVENTS = [
   { eventType: "FULL", label: "풀마라톤" },
@@ -40,7 +35,7 @@ async function RecordsContent() {
     supabase
       .from("utmb_profile")
       .select(
-        "utmb_index, utmb_profile_url, member:member_id(full_name, id)",
+        "utmb_index, utmb_profile_url, recent_race_name, recent_race_record, member:member_id(full_name, id)",
       ),
   ]);
 
@@ -61,24 +56,15 @@ async function RecordsContent() {
     .filter((r): r is typeof r & { utmb_index: number; utmb_profile_url: string } => r.utmb_index != null && r.utmb_profile_url != null)
     .map((r) => {
       const member = r.member as unknown as { full_name: string; id: string };
-      return { id: member.id, name: member.full_name, index: r.utmb_index, url: r.utmb_profile_url };
+      return {
+        id: member.id,
+        name: member.full_name,
+        index: r.utmb_index,
+        url: r.utmb_profile_url,
+        recentRaceName: r.recent_race_name as string | null,
+        recentRaceRecord: r.recent_race_record as string | null,
+      };
     });
-
-  // UTMB 프로필 페이지에서 멤버별 최근 대회 기록 가져오기
-  const recentRaceMap = new Map<
-    string,
-    { raceName: string; record: string | null }
-  >();
-
-  for (const m of utmbMembers) {
-    const result = await fetchUtmbRecentRace(m.url);
-    if (result.ok) {
-      recentRaceMap.set(m.id, {
-        raceName: result.raceName,
-        record: result.raceRecord,
-      });
-    }
-  }
 
   // --- 마라톤 ---
   const marathonEvents = MARATHON_EVENTS.map((evt) => {
@@ -125,17 +111,14 @@ async function RecordsContent() {
   const trailEntries = utmbMembers
     .sort((a, b) => b.index - a.index)
     .slice(0, 10)
-    .map((r, i) => {
-      const recent = recentRaceMap.get(r.id);
-      return {
-        rank: i + 1,
-        name: r.name,
-        utmbIndex: r.index,
-        recentRaceName: recent?.raceName ?? null,
-        recentRaceRecord: recent?.record ?? null,
-        utmbProfileUrl: r.url,
-      };
-    });
+    .map((r, i) => ({
+      rank: i + 1,
+      name: r.name,
+      utmbIndex: r.index,
+      recentRaceName: r.recentRaceName,
+      recentRaceRecord: r.recentRaceRecord,
+      utmbProfileUrl: r.url,
+    }));
 
   // --- 철인3종 ---
   const olympicRows = (pbData ?? [])
