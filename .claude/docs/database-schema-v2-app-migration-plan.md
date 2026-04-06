@@ -1,6 +1,6 @@
 # 애플리케이션 v2 전환 계획 (dev·prd 공통)
 
-레거시 테이블(`member`, `competition`, `competition_registration`, `race_result`, `personal_best`, `utmb_profile`) 의존 코드를 v2 스키마(`mem_mst`, `mem_utmb_prf`, `comp_mst`, `comp_reg_rel`, `rec_race_hist` 등)로 옮길 때의 **슬라이스 순서·인벤토리·검증·운영 절차**를 정리한다.
+레거시 테이블(`member`, `competition`, `competition_registration`, `race_result`, `personal_best`, `utmb_profile`) 의존 코드를 v2 스키마(`mem_mst`, `team_utmb_prf`, `comp_mst`, `comp_reg_rel`, `rec_race_hist` 등)로 옮길 때의 **슬라이스 순서·인벤토리·검증·운영 절차**를 정리한다.
 
 | 참고 문서 | 용도 |
 |-----------|------|
@@ -30,7 +30,7 @@
 | **2 대회** | `competition` | `comp_mst`, `comp_evt_cfg` | 종목·날짜 컬럼명 변경 |
 | **3 참가** | `competition_registration` | `comp_reg_rel`, `team_comp_plan_rel` | `comp_reg_id`·`comp_evt_id` 조인 |
 | **4 기록** | `race_result` | `rec_race_hist` | B-2/B-3·UK 중복 스크립트: `scripts/sql/v2_p7_race_result_uk_duplicate_list.sql` |
-| **5 부가** | `personal_best`, ~~`utmb_profile`~~ | `mem_utmb_prf`(UTMB), PB는 파생·별도 | **UTMB:** DB `20260404165809_v2_mem_utmb_prf.sql`(P9)·B-4 + **앱 전환 완료**(`utmb_prf_url`·`utmb_idx`·`mem_id`·정본 `vers=0`). **PB:** 홈 등 `personal_best` 잔존 — 제품·슬라이스 범위 별도 확정 |
+| **5 부가** | `personal_best`, `utmb_profile` | `team_utmb_prf`(UTMB), PB는 파생·별도 | **UTMB:** `utmb_profile`의 `recent_race_name`·`recent_race_record`를 `rct_race_nm`·`rct_race_rec`로 매핑하고, 팀 컨텍스트(`team_id`)가 있는 `team_utmb_prf`로 이관. **PB:** 홈 등 `personal_best` 잔존 — 제품·슬라이스 범위 별도 확정 |
 
 ### 2.1 현재 앱 전환 상태 (기준일 갱신)
 
@@ -43,7 +43,7 @@
 | 2 | 미완 | `competition` → `comp_mst`·`comp_evt_cfg` |
 | 3 | 미완 | `competition_registration` → `comp_reg_rel` 등 |
 | 4 | 미완 | `race_result` → `rec_race_hist` (`records`·`profile`·관리자 기록 화면 등) |
-| 5 | **UTMB만 완료** | `mem_utmb_prf`: `personal-best-grid`, `profile/page`, `records/page`(트레일 랭킹용 UTMB 조회). **PB(`personal_best`)는 미완** |
+| 5 | 진행 예정 | `utmb_profile`은 최근 대회 컬럼까지 반영됨(`recent_race_name`, `recent_race_record`). 앱은 우선 레거시 사용 후 `team_utmb_prf`(`rct_race_nm`, `rct_race_rec`) 생성/전환 예정 |
 
 ---
 
@@ -105,15 +105,24 @@
 | `app/(info)/admin/records/page.tsx` | `race_result` |
 | `app/actions/admin/get-admin-stats.ts` | `race_result` count |
 
-### 슬라이스 5 — 부가(UTMB 완료 / PB·복합 잔여)
+### 슬라이스 5 — 부가(UTMB 재정의 / PB·복합 잔여)
 
-**UTMB — 앱 전환 완료 (`mem_utmb_prf`)**
+**UTMB — 기준 변경 (`utmb_profile` 확장 → `team_utmb_prf` 생성)**
 
 | 경로 | 상태 | 비고 |
 |------|------|------|
-| `components/profile/personal-best-grid.tsx` | v2 | `mem_utmb_prf` upsert·delete, `onConflict: mem_id,vers`(정본 `vers=0`) |
-| `app/(main)/profile/page.tsx` | UTMB v2 / 기록 v1 | UTMB: `mem_utmb_prf`. 마라톤 PB 카드용 데이터는 여전히 `race_result`(슬라이스 4) |
-| `app/(main)/records/page.tsx` | UTMB v2 / 랭킹 v1 | 트레일(UTMB) 구간: `mem_utmb_prf` + `mem_mst!inner`. 마라톤·철인: 여전히 `race_result`(슬라이스 4) |
+| `components/profile/personal-best-grid.tsx` | 레거시 사용 | `utmb_profile` upsert·delete, 최근 대회(`recent_race_*`) 저장 |
+| `app/(main)/profile/page.tsx` | 레거시 사용 | UTMB: `utmb_profile` 조회(최근 대회 포함). 마라톤 PB 카드용 데이터는 `race_result`(슬라이스 4) |
+| `app/(main)/records/page.tsx` | 레거시 사용 | 트레일 구간: `utmb_profile` + `member` 조인. 최근 대회는 DB 저장값 사용 |
+
+**`team_utmb_prf` 생성 시 컬럼 기준 (앱 로직 점검 반영)**
+
+필수:
+- `team_id`, `mem_id`, `utmb_prf_url`, `utmb_idx`, `rct_race_nm`, `rct_race_rec`, `vers`, `del_yn`, `crt_at`, `upd_at`
+
+앱 로직에서 현재 직접 쓰지 않는 컬럼(우선순위 낮음):
+- 별도 러너명 저장 컬럼(UTMB 페이지에서 파생 가능)
+- 최근 대회 날짜/거리/고도 등 세부 속성(현재 UI/랭킹 미사용)
 
 **PB·홈 — 미완 (`personal_best` + 레거시 조인)**
 
@@ -293,16 +302,16 @@
 
 ### 9.5 슬라이스 5 — 부가
 
-**UTMB (`mem_utmb_prf`) — 이미 반영된 경우**
+**UTMB (`utmb_profile` → `team_utmb_prf`) — 반영 예정**
 
 | 경로 | 확인 |
 |------|------|
-| `personal-best-grid.tsx`, `profile/page.tsx`, `records/page.tsx` | 저장·삭제·랭킹용 조회 |
+| `personal-best-grid.tsx`, `profile/page.tsx`, `records/page.tsx` | `utmb_profile` 유지 동작 확인 후 `team_utmb_prf`로 동일 동작 이관 |
 
 **테스트**
 
-- [ ] UTMB 연동·조회·삭제
-- [ ] 전당 트레일 탭에 UTMB 보유자 표시
+- [ ] UTMB 연동·조회·삭제 (`rct_race_nm`, `rct_race_rec`로 매핑 저장)
+- [ ] 전당 트레일 탭에 UTMB 보유자 + 최근 대회 표시
 
 **PB(`personal_best`) — 미반영 시**
 

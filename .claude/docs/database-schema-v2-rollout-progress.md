@@ -130,10 +130,11 @@ order by 1;
 - [ ] **prd / 운영계 테이블 신규 생성:** Git 저장소의 `supabase/migrations/` 를 **버전 순으로 전부 적용**하는 절차(`cutover-checklist` §8)를 따르면, 웨이브 2 파일 다음 타임스탬프로 본 파일이 포함되어 **자동 반영**된다. 수동으로 웨이브 2만 떼어 적용하는 경우에는 **반드시 본 파일을 같은 순서로 추가 적용**할 것.
 - [ ] **검증:** 로그인 후 본인 프로필 조회·온보딩·관리자 멤버 목록(동일 팀)이 RLS 오류 없이 동작하는지 스모크
 
-### 웨이브 2b — 회원 UTMB 확장 (`mem_utmb_prf`)
+### 웨이브 2b — 회원 UTMB 확장 (`utmb_profile` 기준 재정의)
 
-- [x] 마이그레이션 `supabase/migrations/20260404165809_v2_mem_utmb_prf.sql` — DDL·RLS·`utmb_profile` 백필(선행: P1 `mem_mst`)
-- [x] **(검증)** `migration-map` §5.2 **B-4** 0건 목표
+- [x] 커밋 `f7d0b62` 기준 앱 로직 반영: `utmb_profile`에 `recent_race_name`, `recent_race_record` 사용 (v2 이관 시 `rct_race_nm`, `rct_race_rec`로 매핑)
+- [ ] `team_utmb_prf` 신규 테이블 설계/DDL 문서화(팀 컨텍스트 `team_id` 포함)
+- [ ] `utmb_profile` → `team_utmb_prf` 백필/검증 SQL 추가 (`migration-map`에 B-4 후속 항목으로 분리 예정)
 
 ### 웨이브 3 — 대회·참가
 
