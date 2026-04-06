@@ -12,263 +12,8 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
-      cmm_cd_grp_mst: {
-        Row: {
-          cd_grp_cd: string
-          cd_grp_id: string
-          cd_grp_nm: string
-          crt_at: string
-          del_yn: boolean
-          sort_ord: number
-          upd_at: string
-          use_yn: boolean
-          vers: number
-        }
-        Insert: {
-          cd_grp_cd: string
-          cd_grp_id?: string
-          cd_grp_nm: string
-          crt_at?: string
-          del_yn?: boolean
-          sort_ord?: number
-          upd_at?: string
-          use_yn?: boolean
-          vers?: number
-        }
-        Update: {
-          cd_grp_cd?: string
-          cd_grp_id?: string
-          cd_grp_nm?: string
-          crt_at?: string
-          del_yn?: boolean
-          sort_ord?: number
-          upd_at?: string
-          use_yn?: boolean
-          vers?: number
-        }
-        Relationships: []
-      }
-      cmm_cd_mst: {
-        Row: {
-          cd: string
-          cd_desc: string | null
-          cd_grp_id: string
-          cd_id: string
-          cd_nm: string
-          crt_at: string
-          del_yn: boolean
-          is_default_yn: boolean
-          sort_ord: number
-          upd_at: string
-          use_yn: boolean
-          vers: number
-        }
-        Insert: {
-          cd: string
-          cd_desc?: string | null
-          cd_grp_id: string
-          cd_id?: string
-          cd_nm: string
-          crt_at?: string
-          del_yn?: boolean
-          is_default_yn?: boolean
-          sort_ord?: number
-          upd_at?: string
-          use_yn?: boolean
-          vers?: number
-        }
-        Update: {
-          cd?: string
-          cd_desc?: string | null
-          cd_grp_id?: string
-          cd_id?: string
-          cd_nm?: string
-          crt_at?: string
-          del_yn?: boolean
-          is_default_yn?: boolean
-          sort_ord?: number
-          upd_at?: string
-          use_yn?: boolean
-          vers?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "cmm_cd_mst_cd_grp_id_fkey"
-            columns: ["cd_grp_id"]
-            isOneToOne: false
-            referencedRelation: "cmm_cd_grp_mst"
-            referencedColumns: ["cd_grp_id"]
-          },
-        ]
-      }
-      comp_evt_cfg: {
-        Row: {
-          comp_evt_cd: string
-          comp_evt_id: string
-          comp_id: string
-          crt_at: string
-          del_yn: boolean
-          upd_at: string
-          vers: number
-        }
-        Insert: {
-          comp_evt_cd: string
-          comp_evt_id?: string
-          comp_id: string
-          crt_at?: string
-          del_yn?: boolean
-          upd_at?: string
-          vers?: number
-        }
-        Update: {
-          comp_evt_cd?: string
-          comp_evt_id?: string
-          comp_id?: string
-          crt_at?: string
-          del_yn?: boolean
-          upd_at?: string
-          vers?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_comp_evt_cfg__comp_mst"
-            columns: ["comp_id"]
-            isOneToOne: false
-            referencedRelation: "comp_mst"
-            referencedColumns: ["comp_id"]
-          },
-        ]
-      }
-      comp_mst: {
-        Row: {
-          comp_id: string
-          comp_nm: string
-          comp_sprt_cd: string | null
-          crt_at: string
-          del_yn: boolean
-          end_dt: string | null
-          ext_id: string | null
-          loc_nm: string | null
-          src_url: string | null
-          stt_dt: string
-          upd_at: string
-          vers: number
-        }
-        Insert: {
-          comp_id?: string
-          comp_nm: string
-          comp_sprt_cd?: string | null
-          crt_at?: string
-          del_yn?: boolean
-          end_dt?: string | null
-          ext_id?: string | null
-          loc_nm?: string | null
-          src_url?: string | null
-          stt_dt: string
-          upd_at?: string
-          vers?: number
-        }
-        Update: {
-          comp_id?: string
-          comp_nm?: string
-          comp_sprt_cd?: string | null
-          crt_at?: string
-          del_yn?: boolean
-          end_dt?: string | null
-          ext_id?: string | null
-          loc_nm?: string | null
-          src_url?: string | null
-          stt_dt?: string
-          upd_at?: string
-          vers?: number
-        }
-        Relationships: []
-      }
-      comp_reg_rel: {
-        Row: {
-          comp_evt_id: string | null
-          comp_reg_id: string
-          crt_at: string
-          del_yn: boolean
-          mem_id: string
-          prt_role_cd: string
-          team_comp_id: string
-          upd_at: string
-          vers: number
-        }
-        Insert: {
-          comp_evt_id?: string | null
-          comp_reg_id?: string
-          crt_at?: string
-          del_yn?: boolean
-          mem_id: string
-          prt_role_cd: string
-          team_comp_id: string
-          upd_at?: string
-          vers?: number
-        }
-        Update: {
-          comp_evt_id?: string | null
-          comp_reg_id?: string
-          crt_at?: string
-          del_yn?: boolean
-          mem_id?: string
-          prt_role_cd?: string
-          team_comp_id?: string
-          upd_at?: string
-          vers?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_comp_reg_rel__comp_evt_cfg"
-            columns: ["comp_evt_id"]
-            isOneToOne: false
-            referencedRelation: "comp_evt_cfg"
-            referencedColumns: ["comp_evt_id"]
-          },
-          {
-            foreignKeyName: "fk_comp_reg_rel__mem_mst"
-            columns: ["mem_id"]
-            isOneToOne: false
-            referencedRelation: "mem_mst"
-            referencedColumns: ["mem_id"]
-          },
-          {
-            foreignKeyName: "fk_comp_reg_rel__team_comp"
-            columns: ["team_comp_id"]
-            isOneToOne: false
-            referencedRelation: "team_comp_plan_rel"
-            referencedColumns: ["team_comp_id"]
-          },
-        ]
-      }
       competition: {
         Row: {
           created_at: string
@@ -359,490 +104,6 @@ export type Database = {
           },
         ]
       }
-      fee_due_exm_cfg: {
-        Row: {
-          aply_end_dt: string
-          aply_stt_dt: string
-          crt_at: string
-          del_yn: boolean
-          exm_amt: number | null
-          exm_cfg_id: string
-          exm_tp_enm: Database["public"]["Enums"]["fee_exm_tp_enm"]
-          mem_id: string
-          reg_by_mem_id: string
-          rsn_txt: string
-          team_id: string
-          upd_at: string
-          vers: number
-        }
-        Insert: {
-          aply_end_dt: string
-          aply_stt_dt: string
-          crt_at?: string
-          del_yn?: boolean
-          exm_amt?: number | null
-          exm_cfg_id?: string
-          exm_tp_enm: Database["public"]["Enums"]["fee_exm_tp_enm"]
-          mem_id: string
-          reg_by_mem_id: string
-          rsn_txt: string
-          team_id: string
-          upd_at?: string
-          vers?: number
-        }
-        Update: {
-          aply_end_dt?: string
-          aply_stt_dt?: string
-          crt_at?: string
-          del_yn?: boolean
-          exm_amt?: number | null
-          exm_cfg_id?: string
-          exm_tp_enm?: Database["public"]["Enums"]["fee_exm_tp_enm"]
-          mem_id?: string
-          reg_by_mem_id?: string
-          rsn_txt?: string
-          team_id?: string
-          upd_at?: string
-          vers?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_fee_due_exm_cfg__mem_mst"
-            columns: ["mem_id"]
-            isOneToOne: false
-            referencedRelation: "mem_mst"
-            referencedColumns: ["mem_id"]
-          },
-          {
-            foreignKeyName: "fk_fee_due_exm_cfg__reg_mem_mst"
-            columns: ["reg_by_mem_id"]
-            isOneToOne: false
-            referencedRelation: "mem_mst"
-            referencedColumns: ["mem_id"]
-          },
-          {
-            foreignKeyName: "fk_fee_due_exm_cfg__team_mst"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "team_mst"
-            referencedColumns: ["team_id"]
-          },
-        ]
-      }
-      fee_due_exm_hist: {
-        Row: {
-          aply_ym: string
-          aprv_at: string | null
-          aprv_by_mem_id: string | null
-          crt_at: string
-          del_yn: boolean
-          exm_amt: number
-          exm_cfg_id: string | null
-          exm_hist_id: string
-          grant_src_enm: Database["public"]["Enums"]["fee_grant_src_enm"]
-          mem_id: string
-          rsn_txt: string | null
-          team_id: string
-          upd_at: string
-          vers: number
-        }
-        Insert: {
-          aply_ym: string
-          aprv_at?: string | null
-          aprv_by_mem_id?: string | null
-          crt_at?: string
-          del_yn?: boolean
-          exm_amt: number
-          exm_cfg_id?: string | null
-          exm_hist_id?: string
-          grant_src_enm: Database["public"]["Enums"]["fee_grant_src_enm"]
-          mem_id: string
-          rsn_txt?: string | null
-          team_id: string
-          upd_at?: string
-          vers?: number
-        }
-        Update: {
-          aply_ym?: string
-          aprv_at?: string | null
-          aprv_by_mem_id?: string | null
-          crt_at?: string
-          del_yn?: boolean
-          exm_amt?: number
-          exm_cfg_id?: string | null
-          exm_hist_id?: string
-          grant_src_enm?: Database["public"]["Enums"]["fee_grant_src_enm"]
-          mem_id?: string
-          rsn_txt?: string | null
-          team_id?: string
-          upd_at?: string
-          vers?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_fee_due_exm_hist__aprv_mem_mst"
-            columns: ["aprv_by_mem_id"]
-            isOneToOne: false
-            referencedRelation: "mem_mst"
-            referencedColumns: ["mem_id"]
-          },
-          {
-            foreignKeyName: "fk_fee_due_exm_hist__exm_cfg"
-            columns: ["exm_cfg_id"]
-            isOneToOne: false
-            referencedRelation: "fee_due_exm_cfg"
-            referencedColumns: ["exm_cfg_id"]
-          },
-          {
-            foreignKeyName: "fk_fee_due_exm_hist__mem_mst"
-            columns: ["mem_id"]
-            isOneToOne: false
-            referencedRelation: "mem_mst"
-            referencedColumns: ["mem_id"]
-          },
-          {
-            foreignKeyName: "fk_fee_due_exm_hist__team_mst"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "team_mst"
-            referencedColumns: ["team_id"]
-          },
-        ]
-      }
-      fee_due_pay_hist: {
-        Row: {
-          crt_at: string
-          del_yn: boolean
-          mem_id: string
-          pay_amt: number
-          pay_dt: string
-          pay_id: string
-          pay_st_cd: string
-          src_txn_id: string | null
-          team_id: string
-          upd_at: string
-          vers: number
-        }
-        Insert: {
-          crt_at?: string
-          del_yn?: boolean
-          mem_id: string
-          pay_amt: number
-          pay_dt: string
-          pay_id?: string
-          pay_st_cd: string
-          src_txn_id?: string | null
-          team_id: string
-          upd_at?: string
-          vers?: number
-        }
-        Update: {
-          crt_at?: string
-          del_yn?: boolean
-          mem_id?: string
-          pay_amt?: number
-          pay_dt?: string
-          pay_id?: string
-          pay_st_cd?: string
-          src_txn_id?: string | null
-          team_id?: string
-          upd_at?: string
-          vers?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_fee_due_pay_hist__fee_txn_hist"
-            columns: ["src_txn_id"]
-            isOneToOne: false
-            referencedRelation: "fee_txn_hist"
-            referencedColumns: ["txn_id"]
-          },
-          {
-            foreignKeyName: "fk_fee_due_pay_hist__mem_mst"
-            columns: ["mem_id"]
-            isOneToOne: false
-            referencedRelation: "mem_mst"
-            referencedColumns: ["mem_id"]
-          },
-          {
-            foreignKeyName: "fk_fee_due_pay_hist__team_mst"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "team_mst"
-            referencedColumns: ["team_id"]
-          },
-        ]
-      }
-      fee_mem_bal_snap: {
-        Row: {
-          bal_amt: number
-          bal_snap_id: string
-          crt_at: string
-          del_yn: boolean
-          last_calc_at: string
-          last_calc_dt: string
-          last_ref_exm_hist_id: string | null
-          last_ref_pay_id: string | null
-          mem_id: string
-          team_id: string
-          upd_at: string
-          vers: number
-        }
-        Insert: {
-          bal_amt: number
-          bal_snap_id?: string
-          crt_at?: string
-          del_yn?: boolean
-          last_calc_at: string
-          last_calc_dt: string
-          last_ref_exm_hist_id?: string | null
-          last_ref_pay_id?: string | null
-          mem_id: string
-          team_id: string
-          upd_at?: string
-          vers?: number
-        }
-        Update: {
-          bal_amt?: number
-          bal_snap_id?: string
-          crt_at?: string
-          del_yn?: boolean
-          last_calc_at?: string
-          last_calc_dt?: string
-          last_ref_exm_hist_id?: string | null
-          last_ref_pay_id?: string | null
-          mem_id?: string
-          team_id?: string
-          upd_at?: string
-          vers?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_fee_mem_bal_snap__exm_hist"
-            columns: ["last_ref_exm_hist_id"]
-            isOneToOne: false
-            referencedRelation: "fee_due_exm_hist"
-            referencedColumns: ["exm_hist_id"]
-          },
-          {
-            foreignKeyName: "fk_fee_mem_bal_snap__mem_mst"
-            columns: ["mem_id"]
-            isOneToOne: false
-            referencedRelation: "mem_mst"
-            referencedColumns: ["mem_id"]
-          },
-          {
-            foreignKeyName: "fk_fee_mem_bal_snap__pay"
-            columns: ["last_ref_pay_id"]
-            isOneToOne: false
-            referencedRelation: "fee_due_pay_hist"
-            referencedColumns: ["pay_id"]
-          },
-          {
-            foreignKeyName: "fk_fee_mem_bal_snap__team_mst"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "team_mst"
-            referencedColumns: ["team_id"]
-          },
-        ]
-      }
-      fee_policy_cfg: {
-        Row: {
-          aply_end_dt: string
-          aply_stt_dt: string
-          crt_at: string
-          del_yn: boolean
-          fee_policy_id: string
-          monthly_fee_amt: number
-          team_id: string
-          upd_at: string
-          vers: number
-        }
-        Insert: {
-          aply_end_dt: string
-          aply_stt_dt: string
-          crt_at?: string
-          del_yn?: boolean
-          fee_policy_id?: string
-          monthly_fee_amt: number
-          team_id: string
-          upd_at?: string
-          vers?: number
-        }
-        Update: {
-          aply_end_dt?: string
-          aply_stt_dt?: string
-          crt_at?: string
-          del_yn?: boolean
-          fee_policy_id?: string
-          monthly_fee_amt?: number
-          team_id?: string
-          upd_at?: string
-          vers?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_fee_policy_cfg__team_mst"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "team_mst"
-            referencedColumns: ["team_id"]
-          },
-        ]
-      }
-      fee_txn_hist: {
-        Row: {
-          adm_memo_txt: string | null
-          cfm_at: string | null
-          cfm_by_mem_id: string | null
-          crt_at: string
-          del_yn: boolean
-          fee_item_cd: string | null
-          is_cfm_yn: boolean
-          match_st_cd: string
-          mem_id: string | null
-          raw_memo: string | null
-          raw_name: string
-          team_id: string
-          txn_amt: number
-          txn_dt: string
-          txn_id: string
-          txn_io_enm: Database["public"]["Enums"]["fee_txn_io_enm"]
-          txn_tm: string | null
-          txn_tp_txt: string
-          upd_at: string
-          upd_id: string
-        }
-        Insert: {
-          adm_memo_txt?: string | null
-          cfm_at?: string | null
-          cfm_by_mem_id?: string | null
-          crt_at?: string
-          del_yn?: boolean
-          fee_item_cd?: string | null
-          is_cfm_yn?: boolean
-          match_st_cd: string
-          mem_id?: string | null
-          raw_memo?: string | null
-          raw_name: string
-          team_id: string
-          txn_amt: number
-          txn_dt: string
-          txn_id?: string
-          txn_io_enm: Database["public"]["Enums"]["fee_txn_io_enm"]
-          txn_tm?: string | null
-          txn_tp_txt: string
-          upd_at?: string
-          upd_id: string
-        }
-        Update: {
-          adm_memo_txt?: string | null
-          cfm_at?: string | null
-          cfm_by_mem_id?: string | null
-          crt_at?: string
-          del_yn?: boolean
-          fee_item_cd?: string | null
-          is_cfm_yn?: boolean
-          match_st_cd?: string
-          mem_id?: string | null
-          raw_memo?: string | null
-          raw_name?: string
-          team_id?: string
-          txn_amt?: number
-          txn_dt?: string
-          txn_id?: string
-          txn_io_enm?: Database["public"]["Enums"]["fee_txn_io_enm"]
-          txn_tm?: string | null
-          txn_tp_txt?: string
-          upd_at?: string
-          upd_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_fee_txn_hist__cfm_mem_mst"
-            columns: ["cfm_by_mem_id"]
-            isOneToOne: false
-            referencedRelation: "mem_mst"
-            referencedColumns: ["mem_id"]
-          },
-          {
-            foreignKeyName: "fk_fee_txn_hist__fee_xlsx_upd_hist"
-            columns: ["upd_id"]
-            isOneToOne: false
-            referencedRelation: "fee_xlsx_upd_hist"
-            referencedColumns: ["upd_id"]
-          },
-          {
-            foreignKeyName: "fk_fee_txn_hist__mem_mst"
-            columns: ["mem_id"]
-            isOneToOne: false
-            referencedRelation: "mem_mst"
-            referencedColumns: ["mem_id"]
-          },
-          {
-            foreignKeyName: "fk_fee_txn_hist__team_mst"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "team_mst"
-            referencedColumns: ["team_id"]
-          },
-        ]
-      }
-      fee_xlsx_upd_hist: {
-        Row: {
-          crt_at: string
-          del_yn: boolean
-          file_hash: string
-          file_nm: string
-          team_id: string
-          upd_at: string
-          upd_by_mem_id: string
-          upd_id: string
-          upd_st_cd: string
-          vers: number
-        }
-        Insert: {
-          crt_at?: string
-          del_yn?: boolean
-          file_hash: string
-          file_nm: string
-          team_id: string
-          upd_at?: string
-          upd_by_mem_id: string
-          upd_id?: string
-          upd_st_cd: string
-          vers?: number
-        }
-        Update: {
-          crt_at?: string
-          del_yn?: boolean
-          file_hash?: string
-          file_nm?: string
-          team_id?: string
-          upd_at?: string
-          upd_by_mem_id?: string
-          upd_id?: string
-          upd_st_cd?: string
-          vers?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_fee_xlsx_upd_hist__mem_mst"
-            columns: ["upd_by_mem_id"]
-            isOneToOne: false
-            referencedRelation: "mem_mst"
-            referencedColumns: ["mem_id"]
-          },
-          {
-            foreignKeyName: "fk_fee_xlsx_upd_hist__team_mst"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "team_mst"
-            referencedColumns: ["team_id"]
-          },
-        ]
-      }
       mem_mst: {
         Row: {
           avatar_url: string | null
@@ -922,10 +183,10 @@ export type Database = {
           crt_at?: string
           del_yn?: boolean
           mem_id?: string
-          upd_at?: string
           utmb_idx?: number
           utmb_prf_id?: string
           utmb_prf_url?: string
+          upd_at?: string
           vers?: number
         }
         Relationships: [
@@ -935,6 +196,93 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "mem_mst"
             referencedColumns: ["mem_id"]
+          },
+        ]
+      }
+      team_mst: {
+        Row: {
+          crt_at: string
+          del_yn: boolean
+          team_cd: string
+          team_id: string
+          team_nm: string
+          upd_at: string
+          vers: number
+        }
+        Insert: {
+          crt_at?: string
+          del_yn?: boolean
+          team_cd: string
+          team_id?: string
+          team_nm: string
+          upd_at?: string
+          vers?: number
+        }
+        Update: {
+          crt_at?: string
+          del_yn?: boolean
+          team_cd?: string
+          team_id?: string
+          team_nm?: string
+          upd_at?: string
+          vers?: number
+        }
+        Relationships: []
+      }
+      team_mem_rel: {
+        Row: {
+          crt_at: string
+          del_yn: boolean
+          join_dt: string | null
+          leave_dt: string | null
+          mem_id: string
+          mem_st_cd: string
+          team_id: string
+          team_mem_id: string
+          team_role_cd: string
+          upd_at: string
+          vers: number
+        }
+        Insert: {
+          crt_at?: string
+          del_yn?: boolean
+          join_dt?: string | null
+          leave_dt?: string | null
+          mem_id: string
+          mem_st_cd: string
+          team_id: string
+          team_mem_id?: string
+          team_role_cd: string
+          upd_at?: string
+          vers?: number
+        }
+        Update: {
+          crt_at?: string
+          del_yn?: boolean
+          join_dt?: string | null
+          leave_dt?: string | null
+          mem_id?: string
+          mem_st_cd?: string
+          team_id?: string
+          team_mem_id?: string
+          team_role_cd?: string
+          upd_at?: string
+          vers?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_team_mem_rel__mem_mst"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "fk_team_mem_rel__team_mst"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
           },
         ]
       }
@@ -1083,217 +431,6 @@ export type Database = {
           },
         ]
       }
-      rec_race_hist: {
-        Row: {
-          bike_time_sec: number | null
-          comp_evt_id: string | null
-          comp_id: string | null
-          crt_at: string
-          del_yn: boolean
-          mem_id: string
-          race_dt: string
-          race_nm: string
-          race_result_id: string
-          rec_src_cd: string | null
-          rec_time_sec: number
-          run_time_sec: number | null
-          swim_time_sec: number | null
-          upd_at: string
-          vers: number
-        }
-        Insert: {
-          bike_time_sec?: number | null
-          comp_evt_id?: string | null
-          comp_id?: string | null
-          crt_at?: string
-          del_yn?: boolean
-          mem_id: string
-          race_dt: string
-          race_nm: string
-          race_result_id?: string
-          rec_src_cd?: string | null
-          rec_time_sec: number
-          run_time_sec?: number | null
-          swim_time_sec?: number | null
-          upd_at?: string
-          vers?: number
-        }
-        Update: {
-          bike_time_sec?: number | null
-          comp_evt_id?: string | null
-          comp_id?: string | null
-          crt_at?: string
-          del_yn?: boolean
-          mem_id?: string
-          race_dt?: string
-          race_nm?: string
-          race_result_id?: string
-          rec_src_cd?: string | null
-          rec_time_sec?: number
-          run_time_sec?: number | null
-          swim_time_sec?: number | null
-          upd_at?: string
-          vers?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_rec_race_hist__comp_evt_cfg"
-            columns: ["comp_evt_id"]
-            isOneToOne: false
-            referencedRelation: "comp_evt_cfg"
-            referencedColumns: ["comp_evt_id"]
-          },
-          {
-            foreignKeyName: "fk_rec_race_hist__comp_mst"
-            columns: ["comp_id"]
-            isOneToOne: false
-            referencedRelation: "comp_mst"
-            referencedColumns: ["comp_id"]
-          },
-          {
-            foreignKeyName: "fk_rec_race_hist__mem_mst"
-            columns: ["mem_id"]
-            isOneToOne: false
-            referencedRelation: "mem_mst"
-            referencedColumns: ["mem_id"]
-          },
-        ]
-      }
-      team_comp_plan_rel: {
-        Row: {
-          comp_id: string
-          crt_at: string
-          del_yn: boolean
-          note_txt: string | null
-          team_comp_id: string
-          team_id: string
-          upd_at: string
-          vers: number
-        }
-        Insert: {
-          comp_id: string
-          crt_at?: string
-          del_yn?: boolean
-          note_txt?: string | null
-          team_comp_id?: string
-          team_id: string
-          upd_at?: string
-          vers?: number
-        }
-        Update: {
-          comp_id?: string
-          crt_at?: string
-          del_yn?: boolean
-          note_txt?: string | null
-          team_comp_id?: string
-          team_id?: string
-          upd_at?: string
-          vers?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_team_comp_plan_rel__comp_mst"
-            columns: ["comp_id"]
-            isOneToOne: false
-            referencedRelation: "comp_mst"
-            referencedColumns: ["comp_id"]
-          },
-          {
-            foreignKeyName: "fk_team_comp_plan_rel__team_mst"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "team_mst"
-            referencedColumns: ["team_id"]
-          },
-        ]
-      }
-      team_mem_rel: {
-        Row: {
-          crt_at: string
-          del_yn: boolean
-          join_dt: string | null
-          leave_dt: string | null
-          mem_id: string
-          mem_st_cd: string
-          team_id: string
-          team_mem_id: string
-          team_role_cd: string
-          upd_at: string
-          vers: number
-        }
-        Insert: {
-          crt_at?: string
-          del_yn?: boolean
-          join_dt?: string | null
-          leave_dt?: string | null
-          mem_id: string
-          mem_st_cd: string
-          team_id: string
-          team_mem_id?: string
-          team_role_cd: string
-          upd_at?: string
-          vers?: number
-        }
-        Update: {
-          crt_at?: string
-          del_yn?: boolean
-          join_dt?: string | null
-          leave_dt?: string | null
-          mem_id?: string
-          mem_st_cd?: string
-          team_id?: string
-          team_mem_id?: string
-          team_role_cd?: string
-          upd_at?: string
-          vers?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_team_mem_rel__mem_mst"
-            columns: ["mem_id"]
-            isOneToOne: false
-            referencedRelation: "mem_mst"
-            referencedColumns: ["mem_id"]
-          },
-          {
-            foreignKeyName: "fk_team_mem_rel__team_mst"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "team_mst"
-            referencedColumns: ["team_id"]
-          },
-        ]
-      }
-      team_mst: {
-        Row: {
-          crt_at: string
-          del_yn: boolean
-          team_cd: string
-          team_id: string
-          team_nm: string
-          upd_at: string
-          vers: number
-        }
-        Insert: {
-          crt_at?: string
-          del_yn?: boolean
-          team_cd: string
-          team_id?: string
-          team_nm: string
-          upd_at?: string
-          vers?: number
-        }
-        Update: {
-          crt_at?: string
-          del_yn?: boolean
-          team_cd?: string
-          team_id?: string
-          team_nm?: string
-          upd_at?: string
-          vers?: number
-        }
-        Relationships: []
-      }
       utmb_profile: {
         Row: {
           created_at: string
@@ -1340,21 +477,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      is_legacy_platform_admin: { Args: never; Returns: boolean }
-      migration_v2_map_evt_cd: { Args: { p_raw: string }; Returns: string }
-      migration_v2_map_mem_st_cd: {
-        Args: { p_status: Database["public"]["Enums"]["member_status"] }
-        Returns: string
-      }
-      migration_v2_norm_email: { Args: { p_input: string }; Returns: string }
-      migration_v2_norm_phone: { Args: { p_input: string }; Returns: string }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
-      fee_exm_tp_enm: "full" | "part"
-      fee_grant_src_enm: "manual" | "rule_attd"
-      fee_txn_io_enm: "deposit" | "withdrawal"
       gender: "male" | "female"
       member_status: "active" | "inactive" | "banned" | "pending"
       participation_role: "participant" | "cheering" | "volunteer"
@@ -1483,14 +609,8 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
-      fee_exm_tp_enm: ["full", "part"],
-      fee_grant_src_enm: ["manual", "rule_attd"],
-      fee_txn_io_enm: ["deposit", "withdrawal"],
       gender: ["male", "female"],
       member_status: ["active", "inactive", "banned", "pending"],
       participation_role: ["participant", "cheering", "volunteer"],
