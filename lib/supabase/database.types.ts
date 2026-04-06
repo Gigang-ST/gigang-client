@@ -104,6 +104,117 @@ export type Database = {
           },
         ]
       }
+      comp_evt_cfg: {
+        Row: {
+          comp_evt_id: string
+          comp_id: string
+          evt_cd: string
+          vers: number
+          del_yn: boolean
+          crt_at: string
+          upd_at: string
+        }
+        Insert: {
+          comp_evt_id?: string
+          comp_id: string
+          evt_cd: string
+          vers?: number
+          del_yn?: boolean
+          crt_at?: string
+          upd_at?: string
+        }
+        Update: {
+          comp_evt_id?: string
+          comp_id?: string
+          evt_cd?: string
+          vers?: number
+          del_yn?: boolean
+          crt_at?: string
+          upd_at?: string
+        }
+        Relationships: []
+      }
+      comp_mst: {
+        Row: {
+          comp_id: string
+          comp_sprt_cd: string | null
+          comp_nm: string
+          stt_dt: string
+          end_dt: string | null
+          loc_nm: string | null
+          src_url: string | null
+          ext_id: string | null
+          vers: number
+          del_yn: boolean
+          crt_at: string
+          upd_at: string
+        }
+        Insert: {
+          comp_id?: string
+          comp_sprt_cd?: string | null
+          comp_nm: string
+          stt_dt: string
+          end_dt?: string | null
+          loc_nm?: string | null
+          src_url?: string | null
+          ext_id?: string | null
+          vers?: number
+          del_yn?: boolean
+          crt_at?: string
+          upd_at?: string
+        }
+        Update: {
+          comp_id?: string
+          comp_sprt_cd?: string | null
+          comp_nm?: string
+          stt_dt?: string
+          end_dt?: string | null
+          loc_nm?: string | null
+          src_url?: string | null
+          ext_id?: string | null
+          vers?: number
+          del_yn?: boolean
+          crt_at?: string
+          upd_at?: string
+        }
+        Relationships: []
+      }
+      comp_reg_rel: {
+        Row: {
+          comp_reg_id: string
+          team_comp_id: string
+          mem_id: string
+          comp_evt_id: string | null
+          prt_role_cd: string
+          vers: number
+          del_yn: boolean
+          crt_at: string
+          upd_at: string
+        }
+        Insert: {
+          comp_reg_id?: string
+          team_comp_id: string
+          mem_id: string
+          comp_evt_id?: string | null
+          prt_role_cd: string
+          vers?: number
+          del_yn?: boolean
+          crt_at?: string
+          upd_at?: string
+        }
+        Update: {
+          comp_reg_id?: string
+          team_comp_id?: string
+          mem_id?: string
+          comp_evt_id?: string | null
+          prt_role_cd?: string
+          vers?: number
+          del_yn?: boolean
+          crt_at?: string
+          upd_at?: string
+        }
+        Relationships: []
+      }
       mem_mst: {
         Row: {
           avatar_url: string | null
@@ -291,6 +402,93 @@ export type Database = {
             referencedColumns: ["team_id"]
           },
         ]
+      }
+      team_comp_plan_rel: {
+        Row: {
+          team_comp_id: string
+          team_id: string
+          comp_id: string
+          note_txt: string | null
+          vers: number
+          del_yn: boolean
+          crt_at: string
+          upd_at: string
+        }
+        Insert: {
+          team_comp_id?: string
+          team_id: string
+          comp_id: string
+          note_txt?: string | null
+          vers?: number
+          del_yn?: boolean
+          crt_at?: string
+          upd_at?: string
+        }
+        Update: {
+          team_comp_id?: string
+          team_id?: string
+          comp_id?: string
+          note_txt?: string | null
+          vers?: number
+          del_yn?: boolean
+          crt_at?: string
+          upd_at?: string
+        }
+        Relationships: []
+      }
+      rec_race_hist: {
+        Row: {
+          race_result_id: string
+          mem_id: string
+          comp_id: string | null
+          comp_evt_id: string | null
+          rec_time_sec: number
+          race_nm: string
+          race_dt: string
+          swim_time_sec: number | null
+          bike_time_sec: number | null
+          run_time_sec: number | null
+          rec_src_cd: string | null
+          vers: number
+          del_yn: boolean
+          crt_at: string
+          upd_at: string
+        }
+        Insert: {
+          race_result_id?: string
+          mem_id: string
+          comp_id?: string | null
+          comp_evt_id?: string | null
+          rec_time_sec: number
+          race_nm: string
+          race_dt: string
+          swim_time_sec?: number | null
+          bike_time_sec?: number | null
+          run_time_sec?: number | null
+          rec_src_cd?: string | null
+          vers?: number
+          del_yn?: boolean
+          crt_at?: string
+          upd_at?: string
+        }
+        Update: {
+          race_result_id?: string
+          mem_id?: string
+          comp_id?: string | null
+          comp_evt_id?: string | null
+          rec_time_sec?: number
+          race_nm?: string
+          race_dt?: string
+          swim_time_sec?: number | null
+          bike_time_sec?: number | null
+          run_time_sec?: number | null
+          rec_src_cd?: string | null
+          vers?: number
+          del_yn?: boolean
+          crt_at?: string
+          upd_at?: string
+        }
+        Relationships: []
       }
       member: {
         Row: {

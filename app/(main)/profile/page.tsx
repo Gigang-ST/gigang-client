@@ -25,23 +25,28 @@ async function ProfileContent() {
 
   const [{ data: raceResults }, { data: utmbProfile }] = await Promise.all([
     supabase
-      .from("race_result")
-      .select("event_type, record_time_sec, race_name, race_date")
-      .eq("member_id", member.id)
-      .in("event_type", ["FULL", "HALF", "10K"]),
+      .from("rec_race_hist")
+      .select("comp_evt_cfg(evt_cd), rec_time_sec, race_nm, race_dt")
+      .eq("mem_id", member.id)
+      .eq("vers", 0)
+      .eq("del_yn", false),
     supabase
-      .from("utmb_profile")
-      .select("utmb_profile_url, utmb_index, recent_race_name, recent_race_record")
-      .eq("member_id", member.id)
+      .from("mem_utmb_prf")
+      .select("utmb_prf_url, utmb_idx, rct_race_nm, rct_race_rec")
+      .eq("mem_id", member.id)
+      .eq("vers", 0)
+      .eq("del_yn", false)
       .maybeSingle(),
   ]);
 
   // Build best records map: for each event_type, pick the one with lowest record_time_sec
   const bestRecords: Record<string, { record_time_sec: number; race_name: string }> = {};
   (raceResults ?? []).forEach((r) => {
-    const existing = bestRecords[r.event_type];
-    if (!existing || r.record_time_sec < existing.record_time_sec) {
-      bestRecords[r.event_type] = { record_time_sec: r.record_time_sec, race_name: r.race_name };
+    const evt = (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.evt_cd?.toUpperCase() ?? "";
+    if (!["FULL", "HALF", "10K"].includes(evt)) return;
+    const existing = bestRecords[evt];
+    if (!existing || r.rec_time_sec < existing.record_time_sec) {
+      bestRecords[evt] = { record_time_sec: r.rec_time_sec, race_name: r.race_nm };
     }
   });
 
@@ -72,11 +77,11 @@ async function ProfileContent() {
         <PersonalBestGrid
           memberId={member.id}
           bestRecords={bestRecords}
-          utmbData={utmbProfile?.utmb_profile_url && utmbProfile?.utmb_index != null ? { utmb_profile_url: utmbProfile.utmb_profile_url, utmb_index: utmbProfile.utmb_index, recent_race_name: utmbProfile.recent_race_name, recent_race_record: utmbProfile.recent_race_record } : null}
+          utmbData={utmbProfile?.utmb_prf_url && utmbProfile?.utmb_idx != null ? { utmb_profile_url: utmbProfile.utmb_prf_url, utmb_index: utmbProfile.utmb_idx, recent_race_name: utmbProfile.rct_race_nm, recent_race_record: utmbProfile.rct_race_rec } : null}
         />
 
         {/* 페이스 그래프 */}
-        <PaceChart records={raceResults ?? []} />
+        <PaceChart records={(raceResults ?? []).map((r) => ({ event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.evt_cd?.toUpperCase() ?? "", record_time_sec: r.rec_time_sec, race_name: r.race_nm, race_date: r.race_dt }))} />
 
         {/* 기록 입력 */}
         <RaceRecordSection memberId={member.id} />

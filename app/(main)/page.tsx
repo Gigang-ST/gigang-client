@@ -52,46 +52,57 @@ async function HomeContent() {
   ] = await Promise.all([
     supabase.rpc("get_public_team_member_stats", { p_team_id: GIGANG_TEAM_ID }),
     supabase
-      .from("competition")
-      .select("id, title, start_date, location, sport, event_types, competition_registration(id, event_type)")
-      .gte("start_date", today)
-      .order("start_date", { ascending: true }),
+      .from("team_comp_plan_rel")
+      .select("team_comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(evt_cd)), comp_reg_rel(comp_reg_id, comp_evt_cfg(evt_cd))")
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .gte("comp_mst.stt_dt", today)
+      .order("stt_dt", { foreignTable: "comp_mst", ascending: true }),
     supabase
-      .from("competition")
+      .from("comp_mst")
       .select("*", { count: "exact", head: true })
-      .gte("start_date", today),
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .gte("stt_dt", today),
     supabase
-      .from("personal_best")
+      .from("rec_race_hist")
       .select(
-        "member_id, event_type, record_time_sec, race_name, updated_at, member:member_id(full_name)",
+        "mem_id, comp_evt_cfg(evt_cd), rec_time_sec, race_nm, upd_at, mem_mst!rec_race_hist_mem_id_fkey(mem_nm)",
       )
-      .order("updated_at", { ascending: false })
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .order("upd_at", { ascending: false })
       .limit(2),
   ]);
 
   const memberCount = memberStats?.[0]?.active_count ?? 0;
 
   // 기강대회: 등록자 1명 이상, 중복 제거 + 참가자 등록 event_type 수집
-  type RegRow = { id: string; event_type: string | null };
   const seenIds = new Set<string>();
   const gigangRaces: UpcomingRace[] = (gigangRacesRaw ?? [])
+    .map((row) => {
+      const comp = Array.isArray(row.comp_mst) ? row.comp_mst[0] : row.comp_mst;
+      const regs = (row.comp_reg_rel ?? []) as unknown as { comp_reg_id: string; comp_evt_cfg?: { evt_cd: string | null }[] }[];
+      const registered_event_types = [
+        ...new Set(regs.map((re) => re.comp_evt_cfg?.[0]?.evt_cd).filter((et): et is string => Boolean(et?.trim()))),
+      ].sort();
+      return {
+        id: comp.comp_id,
+        title: comp.comp_nm,
+        start_date: comp.stt_dt,
+        location: comp.loc_nm,
+        sport: comp.comp_sprt_cd,
+        event_types: (comp.comp_evt_cfg ?? []).map((e: { evt_cd: string | null }) => e.evt_cd?.toUpperCase()).filter(Boolean),
+        regCount: regs.length,
+        registered_event_types: registered_event_types.length > 0 ? registered_event_types : undefined,
+      } as UpcomingRace;
+    })
     .filter((r) => {
-      const regs = r.competition_registration as unknown as RegRow[] | null;
-      if (!regs || regs.length === 0) return false;
+      const regs = r.regCount ?? 0;
+      if (regs === 0) return false;
       if (seenIds.has(r.id)) return false;
       seenIds.add(r.id);
       return true;
-    })
-    .map(({ competition_registration, ...rest }) => {
-      const regs = (competition_registration ?? []) as unknown as RegRow[];
-      const registered_event_types = [
-        ...new Set(regs.map((re) => re.event_type).filter((et): et is string => Boolean(et?.trim()))),
-      ].sort();
-      return {
-        ...rest,
-        regCount: regs.length,
-        registered_event_types: registered_event_types.length > 0 ? registered_event_types : undefined,
-      };
     });
 
   // 기강대회 1번 카드: 가장 가까운 것 (같은 주말이면 참여 인원 많은 것)
@@ -124,35 +135,50 @@ async function HomeContent() {
         admin: member.admin ?? false,
       };
       const { data: myRegs } = await supabase
-        .from("competition_registration")
+        .from("comp_reg_rel")
         .select(
-          "id, competition_id, member_id, role, event_type, created_at, competition:competition_id(id, title, start_date, location, sport, event_types)",
+          "comp_reg_id, mem_id, prt_role_cd, crt_at, team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(evt_cd))), comp_evt_cfg(evt_cd)",
         )
-        .eq("member_id", member.id);
+        .eq("mem_id", member.id)
+        .eq("vers", 0)
+        .eq("del_yn", false);
       myRegistrations = (myRegs ?? []).map((r) => ({
-        id: r.id,
-        competition_id: r.competition_id,
-        member_id: r.member_id,
-        role: r.role,
-        event_type: r.event_type,
-        created_at: r.created_at,
+        id: r.comp_reg_id,
+        competition_id: (Array.isArray(r.team_comp_plan_rel) ? r.team_comp_plan_rel[0] : r.team_comp_plan_rel).comp_id,
+        member_id: r.mem_id,
+        role: r.prt_role_cd,
+        event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.evt_cd?.toUpperCase() ?? null,
+        created_at: r.crt_at,
       })) as CompetitionRegistration[];
       myRaces = (myRegs ?? [])
-        .map((r) => r.competition as unknown as UpcomingRace)
+        .map((r) => {
+          const plan = Array.isArray(r.team_comp_plan_rel) ? r.team_comp_plan_rel[0] : r.team_comp_plan_rel;
+          const comp = Array.isArray(plan.comp_mst) ? plan.comp_mst[0] : plan.comp_mst;
+          return {
+            id: comp.comp_id,
+            title: comp.comp_nm,
+            start_date: comp.stt_dt,
+            location: comp.loc_nm,
+            sport: comp.comp_sprt_cd,
+            event_types: (comp.comp_evt_cfg ?? []).map((e: { evt_cd: string | null }) => e.evt_cd?.toUpperCase()).filter(Boolean),
+          } as UpcomingRace;
+        })
         .filter((c) => c && c.start_date >= today)
         .sort((a, b) => a.start_date.localeCompare(b.start_date));
       // 내 대회 각 competition에 대해 참가자들이 등록한 event_type 수집
       if (myRaces.length > 0) {
         const { data: regsByComp } = await supabase
-          .from("competition_registration")
-          .select("competition_id, event_type")
-          .in("competition_id", myRaces.map((r) => r.id));
+          .from("comp_reg_rel")
+          .select("team_comp_plan_rel!inner(comp_id), comp_evt_cfg(evt_cd)")
+          .in("team_comp_plan_rel.comp_id", myRaces.map((r) => r.id));
         const byCompId = new Map<string, Set<string>>();
         (regsByComp ?? []).forEach((row) => {
-          if (!row.event_type?.trim()) return;
-          let set = byCompId.get(row.competition_id);
-          if (!set) { set = new Set(); byCompId.set(row.competition_id, set); }
-          set.add(row.event_type!.trim());
+          const compId = (Array.isArray(row.team_comp_plan_rel) ? row.team_comp_plan_rel[0] : row.team_comp_plan_rel)?.comp_id;
+          const evtCd = (Array.isArray(row.comp_evt_cfg) ? row.comp_evt_cfg[0] : row.comp_evt_cfg)?.evt_cd;
+          if (!compId || !evtCd?.trim()) return;
+          let set = byCompId.get(compId);
+          if (!set) { set = new Set(); byCompId.set(compId, set); }
+          set.add(evtCd.trim().toUpperCase());
         });
         myRaces = myRaces.map((r) => {
           const set = byCompId.get(r.id);
@@ -249,22 +275,22 @@ async function HomeContent() {
             </CardItem>
           ) : (
             (recentRecords ?? []).map((rec) => {
-              const member = rec.member as unknown as { full_name: string } | null;
+              const member = rec.mem_mst as unknown as { mem_nm: string } | null;
               return (
                 <CardItem
-                  key={`${rec.member_id}-${rec.event_type}`}
+                  key={`${rec.mem_id}-${rec.race_nm}`}
                   className="flex items-center justify-between"
                 >
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[15px] font-semibold text-foreground">
-                      {member?.full_name ?? "멤버"}
+                      {member?.mem_nm ?? "멤버"}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {rec.event_type} · {rec.race_name}
+                      {((Array.isArray(rec.comp_evt_cfg) ? rec.comp_evt_cfg[0] : rec.comp_evt_cfg)?.evt_cd ?? "UNKNOWN").toUpperCase()} · {rec.race_nm}
                     </span>
                   </div>
                   <span className="font-mono text-lg font-bold text-foreground">
-                    {secondsToTime(rec.record_time_sec ?? 0)}
+                    {secondsToTime(rec.rec_time_sec ?? 0)}
                   </span>
                 </CardItem>
               );

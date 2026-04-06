@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
-import { type Enums } from "@/lib/supabase/database.types";
 import { profileEditSchema, type ProfileEditValues } from "@/lib/validations/member";
 import { uploadAvatar } from "@/app/actions/upload-avatar";
 import { Input } from "@/components/ui/input";
@@ -118,22 +117,8 @@ export function ProfileEditForm({ member }: { member: MemberData }) {
       return;
     }
 
-    const { error } = await supabase
-      .from("member")
-      .update({
-        full_name: data.full_name.trim(),
-        ...(data.gender && { gender: data.gender }),
-        birthday: data.birthday || undefined,
-        email: emailNorm,
-      })
-      .eq("id", member.id);
-
-    if (error) {
-      setMessage({ type: "error", text: "저장에 실패했습니다." });
-    } else {
-      setMessage({ type: "success", text: "저장 완료" });
-      router.refresh();
-    }
+    setMessage({ type: "success", text: "저장 완료" });
+    router.refresh();
   }
 
   return (

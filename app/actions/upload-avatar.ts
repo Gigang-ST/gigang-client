@@ -101,16 +101,6 @@ export async function uploadAvatar(formData: FormData) {
     return { error: `DB 저장 실패: ${updateMst.message}` };
   }
 
-  const { error: updateError } = await supabase
-    .from("member")
-    .update({ avatar_url: urlData.publicUrl })
-    .eq("id", memberId);
-
-  if (updateError) {
-    console.error("[upload-avatar] db error:", updateError);
-    return { error: `DB 저장 실패: ${updateError.message}` };
-  }
-
   // 기존 아바타가 같은 버킷에 있으면 삭제
   if (member.avatar_url) {
     const bucketUrl = supabase.storage.from("avatars").getPublicUrl("").data.publicUrl;

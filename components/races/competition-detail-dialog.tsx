@@ -49,7 +49,7 @@ type RegistrationWithMember = {
   role: string;
   event_type: string | null;
   created_at: string;
-  member: { full_name: string | null };
+  member: { mem_nm: string | null };
 };
 
 const SPORT_OPTIONS = SPORT_LEGEND.filter(s => s.key !== "other");
@@ -109,12 +109,41 @@ export function CompetitionDetailDialog({
 
   // 참가자 목록 로드
   const loadParticipants = useCallback(async (competitionId: string) => {
+    const { data: plan } = await supabase
+      .from("team_comp_plan_rel")
+      .select("team_comp_id")
+      .eq("comp_id", competitionId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .maybeSingle();
+    if (!plan) {
+      setParticipants([]);
+      return;
+    }
     const { data } = await supabase
-      .from("competition_registration")
-      .select("role, event_type, created_at, member:member_id(full_name)")
-      .eq("competition_id", competitionId)
-      .order("created_at", { ascending: true });
-    setParticipants((data ?? []) as unknown as RegistrationWithMember[]);
+      .from("comp_reg_rel")
+      .select("prt_role_cd, crt_at, comp_evt_cfg(evt_cd), mem_mst!comp_reg_rel_mem_id_fkey(mem_nm)")
+      .eq("team_comp_id", plan.team_comp_id)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .order("crt_at", { ascending: true });
+    const mapped = (data ?? []).map((r) => {
+      const row = r as unknown as {
+        prt_role_cd: string;
+        crt_at: string;
+        comp_evt_cfg?: { evt_cd: string | null }[] | { evt_cd: string | null };
+        mem_mst?: { mem_nm: string | null }[] | { mem_nm: string | null };
+      };
+      const evt = Array.isArray(row.comp_evt_cfg) ? row.comp_evt_cfg[0] : row.comp_evt_cfg;
+      const mem = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst;
+      return {
+        role: row.prt_role_cd,
+        event_type: evt?.evt_cd?.toUpperCase() ?? null,
+        created_at: row.crt_at,
+        member: { mem_nm: mem?.mem_nm ?? null },
+      };
+    });
+    setParticipants(mapped);
   }, [supabase]);
 
   useEffect(() => {
@@ -176,15 +205,14 @@ export function CompetitionDetailDialog({
 
   async function handleEditSave(data: CompetitionEditValues) {
     if (!competition) return;
-    const { error } = await supabase.from("competition").update({
-      title: data.title.trim(),
-      sport: data.sport,
-      start_date: data.startDate,
-      end_date: data.endDate || null,
-      location: data.location.trim(),
-      source_url: data.sourceUrl.trim() || null,
-      event_types: data.eventTypes.length > 0 ? data.eventTypes : null,
-    }).eq("id", competition.id);
+    const { error } = await supabase.from("comp_mst").update({
+      comp_nm: data.title.trim(),
+      comp_sprt_cd: data.sport,
+      stt_dt: data.startDate,
+      end_dt: data.endDate || null,
+      loc_nm: data.location.trim() || null,
+      src_url: data.sourceUrl.trim() || null,
+    }).eq("comp_id", competition.id);
     if (error) {
       editForm.setError("root", { message: "수정에 실패했습니다." });
       return;
@@ -436,7 +464,7 @@ export function CompetitionDetailDialog({
                       <div key={event} className="flex items-baseline gap-2">
                         <span className="shrink-0 font-semibold text-foreground">{event}</span>
                         <span className="text-muted-foreground">
-                          {group.map(p => p.member?.full_name ?? "이름 없음").join(", ")}
+                          {group.map(p => p.member?.mem_nm ?? "이름 없음").join(", ")}
                         </span>
                       </div>
                     );

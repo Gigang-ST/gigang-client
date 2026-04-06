@@ -3,6 +3,7 @@
 import { revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyAdmin } from "@/lib/queries/member";
+import { GIGANG_TEAM_ID } from "@/lib/constants/gigang-team";
 
 export async function deleteCompetition(competitionId: string) {
   const admin = await verifyAdmin();
@@ -10,16 +11,29 @@ export async function deleteCompetition(competitionId: string) {
 
   const db = createAdminClient();
 
-  // 참가 등록도 함께 삭제
-  await db
-    .from("competition_registration")
-    .delete()
-    .eq("competition_id", competitionId);
+  const { data: plans } = await db
+    .from("team_comp_plan_rel")
+    .select("team_comp_id")
+    .eq("comp_id", competitionId)
+    .eq("team_id", GIGANG_TEAM_ID)
+    .eq("vers", 0)
+    .eq("del_yn", false);
+
+  if (plans && plans.length > 0) {
+    await db
+      .from("comp_reg_rel")
+      .delete()
+      .in("team_comp_id", plans.map((p) => p.team_comp_id));
+    await db
+      .from("team_comp_plan_rel")
+      .delete()
+      .in("team_comp_id", plans.map((p) => p.team_comp_id));
+  }
 
   const { error } = await db
-    .from("competition")
+    .from("comp_mst")
     .delete()
-    .eq("id", competitionId);
+    .eq("comp_id", competitionId);
 
   if (error) return { ok: false, message: "삭제에 실패했습니다" };
 
@@ -44,17 +58,16 @@ export async function updateCompetition(
 
   const db = createAdminClient();
   const { error } = await db
-    .from("competition")
+    .from("comp_mst")
     .update({
-      title: input.title.trim(),
-      sport: input.sport,
-      start_date: input.startDate,
-      end_date: input.endDate || null,
-      location: input.location.trim(),
-      event_types: input.eventTypes,
-      source_url: input.sourceUrl.trim() || null,
+      comp_nm: input.title.trim(),
+      comp_sprt_cd: input.sport,
+      stt_dt: input.startDate,
+      end_dt: input.endDate || null,
+      loc_nm: input.location.trim() || null,
+      src_url: input.sourceUrl.trim() || null,
     })
-    .eq("id", competitionId);
+    .eq("comp_id", competitionId);
 
   if (error) return { ok: false, message: "수정에 실패했습니다" };
 
@@ -68,9 +81,9 @@ export async function deleteRegistration(registrationId: string) {
 
   const db = createAdminClient();
   const { error } = await db
-    .from("competition_registration")
+    .from("comp_reg_rel")
     .delete()
-    .eq("id", registrationId);
+    .eq("comp_reg_id", registrationId);
 
   if (error) return { ok: false, message: "삭제에 실패했습니다" };
   return { ok: true, message: null };

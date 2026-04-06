@@ -44,27 +44,35 @@ export function UpcomingRaces({
   const createRegistration = async (competitionId: string, payload: { role: "participant" | "cheering" | "volunteer"; eventType: string }) => {
     if (memberStatus.status !== "ready") return { ok: false as const, message: "로그인이 필요합니다." };
     const eventType = payload.role === "participant" ? payload.eventType.trim().toUpperCase() : null;
-    const { data, error } = await supabase.from("competition_registration")
-      .insert({ competition_id: competitionId, member_id: memberStatus.memberId, role: payload.role, event_type: eventType })
-      .select("id, competition_id, member_id, role, event_type, created_at").single();
+    const { data: plan, error: planErr } = await supabase
+      .from("team_comp_plan_rel")
+      .select("team_comp_id")
+      .eq("comp_id", competitionId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .maybeSingle();
+    if (planErr || !plan) return { ok: false as const, message: "신청에 실패했습니다." };
+    const { data, error } = await supabase.from("comp_reg_rel")
+      .insert({ team_comp_id: plan.team_comp_id, mem_id: memberStatus.memberId, prt_role_cd: payload.role, vers: 0, del_yn: false })
+      .select("comp_reg_id, mem_id, prt_role_cd, crt_at").single();
     if (error) return { ok: false as const, message: "신청에 실패했습니다." };
-    setRegistrationsByCompetitionId(prev => ({ ...prev, [competitionId]: data as CompetitionRegistration }));
+    setRegistrationsByCompetitionId(prev => ({ ...prev, [competitionId]: { id: data.comp_reg_id, competition_id: competitionId, member_id: data.mem_id, role: data.prt_role_cd as "participant" | "cheering" | "volunteer", event_type: eventType, created_at: data.crt_at } }));
     return { ok: true as const, message: "참가 신청 완료" };
   };
 
   const updateRegistration = async (registrationId: string, competitionId: string, payload: { role: "participant" | "cheering" | "volunteer"; eventType: string }) => {
     if (memberStatus.status !== "ready") return { ok: false as const, message: "로그인이 필요합니다." };
     const eventType = payload.role === "participant" ? payload.eventType.trim().toUpperCase() : null;
-    const { data, error } = await supabase.from("competition_registration")
-      .update({ role: payload.role, event_type: eventType }).eq("id", registrationId)
-      .select("id, competition_id, member_id, role, event_type, created_at").single();
+    const { data, error } = await supabase.from("comp_reg_rel")
+      .update({ prt_role_cd: payload.role }).eq("comp_reg_id", registrationId)
+      .select("comp_reg_id, mem_id, prt_role_cd, crt_at").single();
     if (error) return { ok: false as const, message: "수정에 실패했습니다." };
-    setRegistrationsByCompetitionId(prev => ({ ...prev, [competitionId]: data as CompetitionRegistration }));
+    setRegistrationsByCompetitionId(prev => ({ ...prev, [competitionId]: { id: data.comp_reg_id, competition_id: competitionId, member_id: data.mem_id, role: data.prt_role_cd as "participant" | "cheering" | "volunteer", event_type: eventType, created_at: data.crt_at } }));
     return { ok: true as const, message: "업데이트 완료" };
   };
 
   const deleteRegistration = async (registrationId: string, competitionId: string) => {
-    const { error } = await supabase.from("competition_registration").delete().eq("id", registrationId);
+    const { error } = await supabase.from("comp_reg_rel").delete().eq("comp_reg_id", registrationId);
     if (error) return { ok: false as const, message: "취소에 실패했습니다." };
     setRegistrationsByCompetitionId(prev => { const next = { ...prev }; delete next[competitionId]; return next; });
     return { ok: true as const, message: "취소 완료" };

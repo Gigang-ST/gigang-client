@@ -63,19 +63,21 @@ export function RaceListView({
   const loadRegCountsForIds = async (competitionIds: string[]) => {
     if (competitionIds.length === 0) return;
     const { data: countRows } = await supabase
-      .from("competition")
-      .select("id, competition_registration(count)")
-      .in("id", competitionIds);
+      .from("team_comp_plan_rel")
+      .select("comp_id, comp_reg_rel(count)")
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .in("comp_id", competitionIds);
 
     setRegCounts((prev) => {
       const next = { ...prev };
       competitionIds.forEach((id) => { next[id] = 0; });
       (countRows ?? []).forEach((row) => {
         const comp = row as unknown as {
-          id: string;
-          competition_registration?: { count: number }[];
+          comp_id: string;
+          comp_reg_rel?: { count: number }[];
         };
-        next[comp.id] = comp.competition_registration?.[0]?.count ?? 0;
+        next[comp.comp_id] = comp.comp_reg_rel?.[0]?.count ?? 0;
       });
       return next;
     });
@@ -88,14 +90,34 @@ export function RaceListView({
     }
 
     const { data: myRegs } = await supabase
-      .from("competition_registration")
-      .select("id, competition_id, member_id, role, event_type, created_at")
-      .eq("member_id", memberId)
-      .in("competition_id", competitionIds);
+      .from("comp_reg_rel")
+      .select("comp_reg_id, mem_id, prt_role_cd, comp_evt_id, crt_at, team_comp_plan_rel!inner(comp_id), comp_evt_cfg(evt_cd)")
+      .eq("mem_id", memberId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .in("team_comp_plan_rel.comp_id", competitionIds);
 
     const next: Record<string, CompetitionRegistration> = {};
     (myRegs ?? []).forEach((reg) => {
-      next[reg.competition_id] = reg as CompetitionRegistration;
+      const row = reg as unknown as {
+        comp_reg_id: string;
+        mem_id: string;
+        prt_role_cd: "participant" | "cheering" | "volunteer";
+        crt_at: string;
+        team_comp_plan_rel: { comp_id: string }[] | { comp_id: string };
+        comp_evt_cfg?: { evt_cd: string | null }[] | { evt_cd: string | null };
+      };
+      const plan = Array.isArray(row.team_comp_plan_rel) ? row.team_comp_plan_rel[0] : row.team_comp_plan_rel;
+      const evt = Array.isArray(row.comp_evt_cfg) ? row.comp_evt_cfg[0] : row.comp_evt_cfg;
+      if (!plan?.comp_id) return;
+      next[plan.comp_id] = {
+        id: row.comp_reg_id,
+        competition_id: plan.comp_id,
+        member_id: row.mem_id,
+        role: row.prt_role_cd,
+        event_type: evt?.evt_cd?.toUpperCase() ?? null,
+        created_at: row.crt_at,
+      };
     });
     setRegistrationsByCompetitionId(next);
   };
@@ -208,11 +230,20 @@ export function RaceListView({
   const createRegistration = async (competitionId: string, payload: { role: "participant" | "cheering" | "volunteer"; eventType: string }) => {
     if (memberStatus.status !== "ready") return { ok: false as const, message: "로그인이 필요합니다." };
     const eventType = payload.role === "participant" ? payload.eventType.trim().toUpperCase() : null;
-    const { data, error } = await supabase.from("competition_registration")
-      .insert({ competition_id: competitionId, member_id: memberStatus.memberId, role: payload.role, event_type: eventType })
-      .select("id, competition_id, member_id, role, event_type, created_at").single();
+    const { data: plan, error: planErr } = await supabase
+      .from("team_comp_plan_rel")
+      .select("team_comp_id")
+      .eq("comp_id", competitionId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .maybeSingle();
+    if (planErr || !plan) return { ok: false as const, message: "신청에 실패했습니다." };
+    const { data, error } = await supabase
+      .from("comp_reg_rel")
+      .insert({ team_comp_id: plan.team_comp_id, mem_id: memberStatus.memberId, prt_role_cd: payload.role, vers: 0, del_yn: false })
+      .select("comp_reg_id, mem_id, prt_role_cd, crt_at").single();
     if (error) return { ok: false as const, message: "신청에 실패했습니다." };
-    setRegistrationsByCompetitionId(prev => ({ ...prev, [competitionId]: data as CompetitionRegistration }));
+    setRegistrationsByCompetitionId(prev => ({ ...prev, [competitionId]: { id: data.comp_reg_id, competition_id: competitionId, member_id: data.mem_id, role: data.prt_role_cd as "participant" | "cheering" | "volunteer", event_type: eventType, created_at: data.crt_at } }));
     setRegCounts(prev => ({ ...prev, [competitionId]: (prev[competitionId] ?? 0) + 1 }));
     await revalidateCompetitions();
     router.refresh();
@@ -223,17 +254,17 @@ export function RaceListView({
   const updateRegistration = async (registrationId: string, competitionId: string, payload: { role: "participant" | "cheering" | "volunteer"; eventType: string }) => {
     if (memberStatus.status !== "ready") return { ok: false as const, message: "로그인이 필요합니다." };
     const eventType = payload.role === "participant" ? payload.eventType.trim().toUpperCase() : null;
-    const { data, error } = await supabase.from("competition_registration")
-      .update({ role: payload.role, event_type: eventType }).eq("id", registrationId)
-      .select("id, competition_id, member_id, role, event_type, created_at").single();
+    const { data, error } = await supabase.from("comp_reg_rel")
+      .update({ prt_role_cd: payload.role }).eq("comp_reg_id", registrationId)
+      .select("comp_reg_id, mem_id, prt_role_cd, crt_at").single();
     if (error) return { ok: false as const, message: "수정에 실패했습니다." };
-    setRegistrationsByCompetitionId(prev => ({ ...prev, [competitionId]: data as CompetitionRegistration }));
+    setRegistrationsByCompetitionId(prev => ({ ...prev, [competitionId]: { id: data.comp_reg_id, competition_id: competitionId, member_id: data.mem_id, role: data.prt_role_cd as "participant" | "cheering" | "volunteer", event_type: eventType, created_at: data.crt_at } }));
     return { ok: true as const, message: "업데이트 완료" };
   };
 
   const deleteRegistration = async (registrationId: string, competitionId: string) => {
     if (memberStatus.status !== "ready") return { ok: false as const, message: "로그인이 필요합니다." };
-    const { error } = await supabase.from("competition_registration").delete().eq("id", registrationId).eq("member_id", memberStatus.memberId);
+    const { error } = await supabase.from("comp_reg_rel").delete().eq("comp_reg_id", registrationId).eq("mem_id", memberStatus.memberId);
     if (error) return { ok: false as const, message: "취소에 실패했습니다." };
     setRegistrationsByCompetitionId(prev => { const next = { ...prev }; delete next[competitionId]; return next; });
     const newCount = (regCounts[competitionId] ?? 1) - 1;

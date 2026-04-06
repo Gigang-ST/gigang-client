@@ -25,7 +25,7 @@ type RaceRecord = {
   record_time_sec: number;
   race_name: string | null;
   race_date: string | null;
-  member: { full_name: string | null } | null;
+  member: { mem_nm: string | null } | null;
 };
 
 export default function RecordsPage() {
@@ -39,13 +39,21 @@ export default function RecordsPage() {
   const loadRecords = useCallback(async () => {
     const supabase = createClient();
     const { data } = await supabase
-      .from("race_result")
+      .from("rec_race_hist")
       .select(
-        "id, event_type, record_time_sec, race_name, race_date, member:member_id(full_name)",
+        "race_result_id, comp_evt_cfg(evt_cd), rec_time_sec, race_nm, race_dt, mem_mst!rec_race_hist_mem_id_fkey(mem_nm)",
       )
-      .order("race_date", { ascending: false })
+      .order("race_dt", { ascending: false })
       .limit(200);
-    setRecords((data as unknown as RaceRecord[]) ?? []);
+    const mapped = (data ?? []).map((r) => ({
+      id: r.race_result_id,
+      event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.evt_cd ?? "UNKNOWN",
+      record_time_sec: r.rec_time_sec,
+      race_name: r.race_nm,
+      race_date: r.race_dt,
+      member: { mem_nm: (Array.isArray(r.mem_mst) ? r.mem_mst[0] : r.mem_mst)?.mem_nm ?? null },
+    }));
+    setRecords(mapped as RaceRecord[]);
     setLoading(false);
   }, []);
 
@@ -56,7 +64,7 @@ export default function RecordsPage() {
   const filtered = records.filter((r) => {
     if (!search) return true;
     const q = search.toLowerCase();
-    const nameMatch = r.member?.full_name?.toLowerCase().includes(q);
+    const nameMatch = r.member?.mem_nm?.toLowerCase().includes(q);
     const raceMatch = r.race_name?.toLowerCase().includes(q);
     const typeMatch = r.event_type.toLowerCase().includes(q);
     return nameMatch || raceMatch || typeMatch;
@@ -144,7 +152,7 @@ export default function RecordsPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-[15px] font-semibold text-foreground">
-                  {record.member?.full_name ?? "이름 없음"}
+                  {record.member?.mem_nm ?? "이름 없음"}
                 </span>
                 <Badge variant="outline" className="text-[11px]">
                   {record.event_type}

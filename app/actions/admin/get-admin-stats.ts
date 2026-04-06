@@ -44,14 +44,18 @@ export async function getAdminStats(): Promise<AdminStats> {
       const monthStart = currentMonthKST();
       const monthEnd = nextMonthStr(monthStart);
       return admin
-        .from("competition")
+        .from("comp_mst")
         .select("*", { count: "exact", head: true })
-        .gte("start_date", monthStart)
-        .lt("start_date", monthEnd);
+        .eq("vers", 0)
+        .eq("del_yn", false)
+        .gte("stt_dt", monthStart)
+        .lt("stt_dt", monthEnd);
     })(),
     admin
-      .from("race_result")
-      .select("*", { count: "exact", head: true }),
+      .from("rec_race_hist")
+      .select("*", { count: "exact", head: true })
+      .eq("vers", 0)
+      .eq("del_yn", false),
   ]);
 
   return {

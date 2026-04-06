@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { GIGANG_TEAM_ID } from "@/lib/constants/gigang-team";
 import { digitsOnly, formatPhone, isValidPhone } from "@/lib/phone-utils";
-import { getKSTDate, todayKST } from "@/lib/dayjs";
+import { todayKST } from "@/lib/dayjs";
 
 async function requireAuthUser() {
   const supabase = await createClient();
@@ -76,7 +76,7 @@ export async function onboardingCheckPhone(
   return { ok: true, kind: "active", memId: mst.mem_id };
 }
 
-/** 기존 활동 회원: OAuth만 연결(mem_mst + member 동기화) */
+/** 기존 활동 회원: OAuth만 연결(mem_mst) */
 export async function onboardingLinkExistingMember(args: {
   memId: string;
   provider: "kakao" | "google";
@@ -103,23 +103,10 @@ export async function onboardingLinkExistingMember(args: {
 
   if (e1) return { ok: false, message: e1.message };
 
-  const linkFields = {
-    ...(args.initialAvatarUrl && { avatar_url: args.initialAvatarUrl }),
-    ...(args.provider === "kakao"
-      ? { kakao_user_id: user.id }
-      : { google_user_id: user.id }),
-  };
-
-  const { error: e2 } = await admin
-    .from("member")
-    .update(linkFields)
-    .eq("id", args.memId);
-
-  if (e2) return { ok: false, message: e2.message };
   return { ok: true };
 }
 
-/** 비활성 재가입 요청: 팀·레거시 상태를 pending 으로, OAuth 연결 */
+/** 비활성 재가입 요청: 팀 상태를 pending 으로, OAuth 연결 */
 export async function onboardingRejoinFromInactive(args: {
   memId: string;
   provider: "kakao" | "google";
@@ -156,25 +143,10 @@ export async function onboardingRejoinFromInactive(args: {
 
   if (e1) return { ok: false, message: e1.message };
 
-  const linkFields = {
-    status: "pending" as const,
-    updated_at: getKSTDate().toISOString(),
-    ...(args.initialAvatarUrl && { avatar_url: args.initialAvatarUrl }),
-    ...(args.provider === "kakao"
-      ? { kakao_user_id: user.id }
-      : { google_user_id: user.id }),
-  };
-
-  const { error: e2 } = await admin
-    .from("member")
-    .update(linkFields)
-    .eq("id", args.memId);
-
-  if (e2) return { ok: false, message: e2.message };
   return { ok: true };
 }
 
-/** 신규 가입: mem_mst(mem_id = auth.uid()) + member(동일 id) + 기강 team_mem_rel */
+/** 신규 가입: mem_mst(mem_id = auth.uid()) + 기강 team_mem_rel */
 export async function onboardingCreateMember(args: {
   fullName: string;
   gender: "male" | "female";
@@ -217,30 +189,6 @@ export async function onboardingCreateMember(args: {
     return { ok: false, message: em.message };
   }
 
-  const phoneDisplay = formatPhone(args.phoneDigits);
-  const { error: eMem } = await admin.from("member").insert({
-    id: uid,
-    email: args.email,
-    full_name: args.fullName,
-    gender: args.gender,
-    birthday: args.birthday,
-    phone: phoneDisplay,
-    bank_name: args.bankName,
-    bank_account: args.bankAccountRaw.trim() || null,
-    status: "active",
-    admin: false,
-    joined_at: todayKST(),
-    avatar_url: args.initialAvatarUrl ?? null,
-    kakao_user_id: args.provider === "kakao" ? uid : null,
-    google_user_id: args.provider === "google" ? uid : null,
-  });
-
-  if (eMem) {
-    await admin.from("mem_mst").delete().eq("mem_id", uid);
-    if (eMem.code === "23505") return { ok: true, alreadyRegistered: true };
-    return { ok: false, message: eMem.message };
-  }
-
   const { error: eRel } = await admin.from("team_mem_rel").insert({
     team_id: GIGANG_TEAM_ID,
     mem_id: uid,
@@ -252,7 +200,10 @@ export async function onboardingCreateMember(args: {
   });
 
   if (eRel) {
-    return { ok: false, message: eRel.message };
+    if (eRel.code !== "23505") {
+      await admin.from("mem_mst").delete().eq("mem_id", uid);
+      return { ok: false, message: eRel.message };
+    }
   }
 
   return { ok: true };

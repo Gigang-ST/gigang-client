@@ -210,6 +210,7 @@ order by 1;
 - [x] 기록 `rec_race_hist` RLS·GRANT — **웨이브 4** (`20260404085737_v2_wave4_rec_race_hist.sql`): 공개 SELECT, 본인 `mem_id` CUD
 - [x] 회비(`fee_*`) RLS·GRANT — **웨이브 5b** (`20260404093853_v2_wave5_fee_snap_rls.sql`)
 - [x] **웨이브 6 마이그레이션** `20260404094818_v2_wave6_rls_refine.sql`: `is_legacy_platform_admin()`로 `comp_mst`/`comp_evt_cfg` 관리자 정책 통합, `set_v2_upd_at()`·신규 함수 COMMENT (v2는 `upd_at` + `set_v2_upd_at` 관례 고정)
+- [x] **컷오버 정책 교체** `20260406230000_v2_comp_admin_policy_team_role.sql`: `is_legacy_platform_admin()` 제거, `team_mem_rel.team_role_cd in ('owner','admin')` 기반으로 `comp_mst`/`comp_evt_cfg` CUD 정책 교체
 - [ ] (검증·수동) 역할별 시나리오 — `database-schema-v2-cutover-checklist.md` §3 (단일팀/다중팀/owner·admin/비소속 등)
 
 ```sql
@@ -486,3 +487,4 @@ order by 1, 2;
 | 2026-04-05 | 웨이브 2b·P9: `mem_utmb_prf` DDL·RLS·`utmb_profile` 백필 — `20260404165809_v2_mem_utmb_prf.sql`(dev MCP), `member-domain`·`migration-map` §3.6·B-4·rollout §5·§6 | — |
 | 2026-04-06 | 웨이브 **2a**: 앱 슬라이스 1용 `mem_mst` RLS 보강 `20260406120000_mem_mst_rls_oauth_and_teammates.sql` — 문서화(본 절·`cutover-checklist` §8)·prd 전체 마이그레이션 순 적용 시 자동 포함 안내 | — |
 | 2026-04-06 | 공개 홈 지표 RPC `20260406203000_v2_public_team_member_stats_rpc.sql` 추가 — 활동/전체 멤버 수를 RPC로 노출하고 `team_mem_rel` 원본 행 직접 공개는 유지 차단 | — |
+| 2026-04-06 | 대회 관리자 정책 v2-only 전환 `20260406230000_v2_comp_admin_policy_team_role.sql` — `is_legacy_platform_admin` 제거, `team_mem_rel` 권한 기반으로 통합 | — |

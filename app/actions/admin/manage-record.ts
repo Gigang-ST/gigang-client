@@ -8,7 +8,7 @@ export async function deleteRecord(recordId: string) {
   if (!admin) return { ok: false, message: "권한이 없습니다" };
 
   const db = createAdminClient();
-  const { error } = await db.from("race_result").delete().eq("id", recordId);
+  const { error } = await db.from("rec_race_hist").delete().eq("race_result_id", recordId);
 
   if (error) return { ok: false, message: "삭제에 실패했습니다" };
   return { ok: true, message: null };
@@ -28,14 +28,13 @@ export async function updateRecord(
 
   const db = createAdminClient();
   const { error } = await db
-    .from("race_result")
+    .from("rec_race_hist")
     .update({
-      event_type: input.eventType,
-      record_time_sec: input.recordTimeSec,
-      race_name: input.raceName.trim(),
-      race_date: input.raceDate,
+      rec_time_sec: input.recordTimeSec,
+      race_nm: input.raceName.trim(),
+      race_dt: input.raceDate,
     })
-    .eq("id", recordId);
+    .eq("race_result_id", recordId);
 
   if (error) return { ok: false, message: "수정에 실패했습니다" };
   return { ok: true, message: null };

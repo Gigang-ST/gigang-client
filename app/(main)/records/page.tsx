@@ -28,43 +28,47 @@ async function RecordsContent() {
   // 마라톤 + 철인3종 기록, UTMB 프로필 동시 조회
   const [{ data: raceData }, { data: utmbData }] = await Promise.all([
     supabase
-      .from("race_result")
+      .from("rec_race_hist")
       .select(
-        "event_type, record_time_sec, race_name, member:member_id(id, full_name, gender)",
+        "comp_evt_cfg(evt_cd), rec_time_sec, race_nm, mem_mst!rec_race_hist_mem_id_fkey(mem_id, mem_nm, gdr_enm)",
       ),
     supabase
-      .from("utmb_profile")
+      .from("mem_utmb_prf")
       .select(
-        "utmb_index, utmb_profile_url, recent_race_name, recent_race_record, member:member_id(full_name, id)",
+        "utmb_idx, utmb_prf_url, rct_race_nm, rct_race_rec, mem_mst!fk_mem_utmb_prf__mem_mst(mem_nm, mem_id)",
       ),
   ]);
 
   // 멤버별 종목별 최고기록만 추출
   const bestByMemberEvent = new Map<string, { event_type: string; record_time_sec: number; race_name: string; member: { id: string; full_name: string; gender: string } }>();
   for (const r of raceData ?? []) {
-    const member = r.member as unknown as { id: string; full_name: string; gender: string };
-    const key = `${member.id}_${r.event_type}`;
+    const member = r.mem_mst as unknown as { mem_id: string; mem_nm: string; gdr_enm: string };
+    const evt = (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.evt_cd?.toUpperCase() ?? "";
+    const key = `${member.mem_id}_${evt}`;
     const existing = bestByMemberEvent.get(key);
-    if (!existing || r.record_time_sec < existing.record_time_sec) {
-      bestByMemberEvent.set(key, { event_type: r.event_type, record_time_sec: r.record_time_sec, race_name: r.race_name, member });
+    if (!evt) continue;
+    if (!existing || r.rec_time_sec < existing.record_time_sec) {
+      bestByMemberEvent.set(key, { event_type: evt, record_time_sec: r.rec_time_sec, race_name: r.race_nm, member: { id: member.mem_id, full_name: member.mem_nm, gender: member.gdr_enm } });
     }
   }
   const pbData = Array.from(bestByMemberEvent.values());
 
   // 트레일러닝: UTMB 프로필 보유자의 최근 대회 기록 조회
   const utmbMembers = (utmbData ?? [])
-    .filter((r): r is typeof r & { utmb_index: number; utmb_profile_url: string } => r.utmb_index != null && r.utmb_profile_url != null)
+    .filter((r): r is typeof r & { utmb_idx: number; utmb_prf_url: string } => r.utmb_idx != null && r.utmb_prf_url != null)
     .map((r) => {
-      const member = r.member as unknown as { full_name: string; id: string };
+      const member = r.mem_mst as unknown as { mem_nm: string; mem_id: string } | null;
+      if (!member) return null;
       return {
-        id: member.id,
-        name: member.full_name,
-        index: r.utmb_index,
-        url: r.utmb_profile_url,
-        recentRaceName: r.recent_race_name as string | null,
-        recentRaceRecord: r.recent_race_record as string | null,
+        id: member.mem_id,
+        name: member.mem_nm,
+        index: r.utmb_idx,
+        url: r.utmb_prf_url,
+        recentRaceName: r.rct_race_nm as string | null,
+        recentRaceRecord: r.rct_race_rec as string | null,
       };
-    });
+    })
+    .filter((v): v is { id: string; name: string; index: number; url: string; recentRaceName: string | null; recentRaceRecord: string | null } => v !== null);
 
   // --- 마라톤 ---
   const marathonEvents = MARATHON_EVENTS.map((evt) => {

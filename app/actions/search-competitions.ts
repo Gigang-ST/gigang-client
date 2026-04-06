@@ -17,13 +17,20 @@ export type SearchCompetition = {
 export async function searchCompetitions(query: string): Promise<SearchCompetition[]> {
   if (!query.trim()) return [];
   const supabase = await createClient();
-  const today = new Date().toISOString().slice(0, 10);
   const { data } = await supabase
-    .from("competition")
-    .select("id, title, start_date, location, sport, event_types")
-    .ilike("title", `%${query.trim()}%`)
-    .lte("start_date", today)
-    .order("start_date", { ascending: false })
+    .from("comp_mst")
+    .select("comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(evt_cd)")
+    .ilike("comp_nm", `%${query.trim()}%`)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .order("stt_dt", { ascending: false })
     .limit(20);
-  return (data ?? []) as SearchCompetition[];
+  return (data ?? []).map((row) => ({
+    id: row.comp_id,
+    title: row.comp_nm,
+    start_date: row.stt_dt,
+    location: row.loc_nm,
+    sport: row.comp_sprt_cd,
+    event_types: (((row as unknown as { comp_evt_cfg?: { evt_cd: string | null }[] }).comp_evt_cfg ?? []).map((e) => e.evt_cd?.toUpperCase()).filter(Boolean) as string[]),
+  }));
 }

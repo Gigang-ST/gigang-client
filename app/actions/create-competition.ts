@@ -3,6 +3,7 @@
 import { revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentMember } from "@/lib/queries/member";
+import { GIGANG_TEAM_ID } from "@/lib/constants/gigang-team";
 
 interface CreateCompetitionInput {
   title: string;
@@ -24,20 +25,51 @@ export async function createCompetition(input: CreateCompetitionInput) {
 
   // 3. admin 클라이언트로 대회 INSERT (RLS 우회)
   const admin = createAdminClient();
-  const { error } = await admin.from("competition").insert({
-    external_id: `manual:${crypto.randomUUID()}`,
-    sport: input.sport,
-    title: input.title.trim(),
-    start_date: input.startDate,
-    end_date: input.endDate || null,
-    location: input.location.trim(),
-    event_types: input.eventTypes,
-    source_url: input.sourceUrl.trim(),
+  const { data: comp, error: compErr } = await admin
+    .from("comp_mst")
+    .insert({
+      ext_id: `manual:${crypto.randomUUID()}`,
+      comp_sprt_cd: input.sport,
+      comp_nm: input.title.trim(),
+      stt_dt: input.startDate,
+      end_dt: input.endDate || null,
+      loc_nm: input.location.trim() || null,
+      src_url: input.sourceUrl.trim() || null,
+      vers: 0,
+      del_yn: false,
+    })
+    .select("comp_id")
+    .single();
+
+  if (compErr || !comp) {
+    console.error("대회 등록 실패(comp_mst):", compErr);
+    return { ok: false, message: "등록에 실패했습니다. 다시 시도해 주세요." };
+  }
+
+  const { error: planErr } = await admin.from("team_comp_plan_rel").insert({
+    team_id: GIGANG_TEAM_ID,
+    comp_id: comp.comp_id,
+    vers: 0,
+    del_yn: false,
   });
 
-  if (error) {
-    console.error("대회 등록 실패:", error);
+  if (planErr) {
+    console.error("대회 등록 실패(team_comp_plan_rel):", planErr);
     return { ok: false, message: "등록에 실패했습니다. 다시 시도해 주세요." };
+  }
+
+  if (input.eventTypes.length > 0) {
+    const eventRows = input.eventTypes.map((evt) => ({
+      comp_id: comp.comp_id,
+      evt_cd: evt.toLowerCase(),
+      vers: 0,
+      del_yn: false,
+    }));
+    const { error: evtErr } = await admin.from("comp_evt_cfg").insert(eventRows);
+    if (evtErr) {
+      console.error("대회 등록 실패(comp_evt_cfg):", evtErr);
+      return { ok: false, message: "등록에 실패했습니다. 다시 시도해 주세요." };
+    }
   }
 
   revalidateTag("competitions", "max");

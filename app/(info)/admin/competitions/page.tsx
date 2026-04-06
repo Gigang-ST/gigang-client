@@ -18,7 +18,6 @@ import {
   Trash2,
   Pencil,
   X,
-  ChevronDown,
   Trophy,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -57,8 +56,6 @@ type Registration = {
 };
 
 type Filter = "upcoming" | "past" | "all";
-type Mode = "list" | "create" | "edit" | "detail";
-
 const SPORT_OPTIONS = SPORT_LEGEND.filter((s) => s.key !== "other");
 
 const FILTERS: { value: Filter; label: string }[] = [
@@ -118,22 +115,24 @@ function CompetitionsContent() {
   const loadCompetitions = useCallback(async () => {
     const supabase = createClient();
     const { data } = await supabase
-      .from("competition")
-      .select("*, competition_registration(count)")
-      .order("start_date", { ascending: false });
+      .from("comp_mst")
+      .select("comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(evt_cd), team_comp_plan_rel(comp_reg_rel(count))")
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .order("stt_dt", { ascending: false });
 
     setCompetitions(
       (data ?? []).map((c: Record<string, unknown>) => ({
-        id: c.id as string,
-        title: c.title as string,
-        sport: c.sport as string | null,
-        start_date: c.start_date as string,
-        end_date: c.end_date as string | null,
-        location: c.location as string | null,
-        event_types: c.event_types as string[] | null,
-        source_url: c.source_url as string | null,
+        id: c.comp_id as string,
+        title: c.comp_nm as string,
+        sport: c.comp_sprt_cd as string | null,
+        start_date: c.stt_dt as string,
+        end_date: c.end_dt as string | null,
+        location: c.loc_nm as string | null,
+        event_types: ((c.comp_evt_cfg as { evt_cd: string }[] | null) ?? []).map((e) => e.evt_cd?.toUpperCase()),
+        source_url: c.src_url as string | null,
         registration_count:
-          (c.competition_registration as { count: number }[])?.[0]?.count ?? 0,
+          ((((c.team_comp_plan_rel as { comp_reg_rel?: { count: number }[] }[] | null) ?? [])[0]?.comp_reg_rel) ?? [])[0]?.count ?? 0,
       })),
     );
     setLoading(false);
@@ -163,11 +162,41 @@ function CompetitionsContent() {
   const loadRegistrations = async (competitionId: string) => {
     setRegLoading(true);
     const supabase = createClient();
+    const { data: plan } = await supabase
+      .from("team_comp_plan_rel")
+      .select("team_comp_id")
+      .eq("comp_id", competitionId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .maybeSingle();
+    if (!plan) {
+      setRegistrations([]);
+      setRegLoading(false);
+      return;
+    }
     const { data } = await supabase
-      .from("competition_registration")
-      .select("id, role, event_type, member:member_id(full_name)")
-      .eq("competition_id", competitionId);
-    setRegistrations((data as unknown as Registration[]) ?? []);
+      .from("comp_reg_rel")
+      .select("comp_reg_id, prt_role_cd, mem_id, comp_evt_id")
+      .eq("team_comp_id", plan.team_comp_id)
+      .eq("vers", 0)
+      .eq("del_yn", false);
+    const memIds = [...new Set((data ?? []).map((r) => r.mem_id).filter(Boolean))];
+    const evtIds = [...new Set((data ?? []).map((r) => r.comp_evt_id).filter((v): v is string => Boolean(v)))];
+    const { data: members } = memIds.length
+      ? await supabase.from("mem_mst").select("mem_id, mem_nm").in("mem_id", memIds)
+      : { data: [] as { mem_id: string; mem_nm: string | null }[] };
+    const { data: evts } = evtIds.length
+      ? await supabase.from("comp_evt_cfg").select("comp_evt_id, evt_cd").in("comp_evt_id", evtIds)
+      : { data: [] as { comp_evt_id: string; evt_cd: string | null }[] };
+    const memNameById = new Map((members ?? []).map((m) => [m.mem_id, m.mem_nm]));
+    const evtCdById = new Map((evts ?? []).map((e) => [e.comp_evt_id, e.evt_cd]));
+    const mapped = (data ?? []).map((r) => ({
+      id: r.comp_reg_id,
+      role: r.prt_role_cd,
+      event_type: r.comp_evt_id ? (evtCdById.get(r.comp_evt_id) ?? null) : null,
+      member: { full_name: memNameById.get(r.mem_id) ?? null },
+    }));
+    setRegistrations(mapped);
     setRegLoading(false);
   };
 

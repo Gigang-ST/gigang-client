@@ -130,22 +130,37 @@ export function RaceRecordDialog({
     threeMonthsAgo.setMonth(today.getMonth() - 3);
 
     const { data } = await supabase
-      .from("competition")
-      .select("id, title, start_date, location, sport, event_types, competition_registration!inner(id, event_type)")
-      .eq("competition_registration.member_id", memberId)
-      .gte("start_date", threeMonthsAgo.toISOString().split("T")[0])
-      .lte("start_date", today.toISOString().split("T")[0])
-      .order("start_date", { ascending: false })
+      .from("comp_reg_rel")
+      .select("comp_reg_id, comp_evt_cfg(evt_cd), team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(evt_cd)))")
+      .eq("mem_id", memberId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .gte("team_comp_plan_rel.comp_mst.stt_dt", threeMonthsAgo.toISOString().split("T")[0])
+      .lte("team_comp_plan_rel.comp_mst.stt_dt", today.toISOString().split("T")[0])
+      .order("crt_at", { ascending: false })
       .limit(50);
 
     const seen = new Set<string>();
     const raw = data ?? [];
-    type Row = (typeof raw)[number] & { competition_registration?: { id: string; event_type: string | null } };
+    type Row = (typeof raw)[number];
     const unique = (raw as Row[])
       .map((row) => {
-        const { competition_registration, ...rest } = row;
-        const reg = Array.isArray(competition_registration) ? competition_registration[0] : competition_registration;
-        return { ...rest, registeredEventType: reg?.event_type ?? null } as Competition;
+        const rowAny = row as unknown as {
+          team_comp_plan_rel: { comp_mst: { comp_id: string; comp_nm: string; stt_dt: string; loc_nm: string | null; comp_sprt_cd: string; comp_evt_cfg?: { evt_cd: string }[] }[] | { comp_id: string; comp_nm: string; stt_dt: string; loc_nm: string | null; comp_sprt_cd: string; comp_evt_cfg?: { evt_cd: string }[] } }[] | { comp_mst: { comp_id: string; comp_nm: string; stt_dt: string; loc_nm: string | null; comp_sprt_cd: string; comp_evt_cfg?: { evt_cd: string }[] }[] | { comp_id: string; comp_nm: string; stt_dt: string; loc_nm: string | null; comp_sprt_cd: string; comp_evt_cfg?: { evt_cd: string }[] } };
+          comp_evt_cfg?: { evt_cd: string | null }[] | { evt_cd: string | null };
+        };
+        const plan = Array.isArray(rowAny.team_comp_plan_rel) ? rowAny.team_comp_plan_rel[0] : rowAny.team_comp_plan_rel;
+        const comp = Array.isArray(plan.comp_mst) ? plan.comp_mst[0] : plan.comp_mst;
+        const evt = Array.isArray(rowAny.comp_evt_cfg) ? rowAny.comp_evt_cfg[0] : rowAny.comp_evt_cfg;
+        return {
+          id: comp.comp_id,
+          title: comp.comp_nm,
+          start_date: comp.stt_dt,
+          location: comp.loc_nm,
+          sport: comp.comp_sprt_cd,
+          event_types: (comp.comp_evt_cfg ?? []).map((e) => e.evt_cd?.toUpperCase()),
+          registeredEventType: evt?.evt_cd ?? null,
+        } as Competition;
       })
       .filter((c) => {
         if (seen.has(c.id)) return false;
@@ -243,20 +258,20 @@ export function RaceRecordDialog({
     const bikeSeconds = isTriathlon ? timeStringToSeconds(bikeTime) : null;
     const runSeconds = isTriathlon ? timeStringToSeconds(runTime) : null;
 
-    const finalEventType = (isTriathlon ? `TRIATHLON_${eventType}` : eventType).trim().toUpperCase();
-
     // 기록 저장
     const { error: insertError } = await supabase
-      .from("race_result")
+      .from("rec_race_hist")
       .insert({
-        member_id: memberId,
-        event_type: finalEventType,
-        record_time_sec: totalSeconds,
-        race_name: competitionTitle,
-        race_date: competitionDate,
+        mem_id: memberId,
+        rec_time_sec: totalSeconds,
+        race_nm: competitionTitle,
+        race_dt: competitionDate,
         swim_time_sec: swimSeconds,
         bike_time_sec: bikeSeconds,
         run_time_sec: runSeconds,
+        rec_src_cd: "manual",
+        vers: 0,
+        del_yn: false,
       });
 
     if (insertError) {
@@ -266,17 +281,27 @@ export function RaceRecordDialog({
     }
 
     // 검색으로 골랐을 수 있으므로, 해당 대회에 참가 신청이 없으면 참가로 추가 (정합성)
-    await supabase
-      .from("competition_registration")
-      .upsert(
-        {
-          competition_id: selectedComp.id,
-          member_id: memberId,
-          role: "participant",
-          event_type: finalEventType,
-        },
-        { onConflict: "competition_id,member_id" },
-      );
+    const { data: plan } = await supabase
+      .from("team_comp_plan_rel")
+      .select("team_comp_id")
+      .eq("comp_id", selectedComp.id)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .maybeSingle();
+    if (plan) {
+      await supabase
+        .from("comp_reg_rel")
+        .upsert(
+          {
+            team_comp_id: plan.team_comp_id,
+            mem_id: memberId,
+            prt_role_cd: "participant",
+            vers: 0,
+            del_yn: false,
+          },
+          { onConflict: "team_comp_id,mem_id,vers" },
+        );
+    }
 
     setIsSaving(false);
     onSaved();

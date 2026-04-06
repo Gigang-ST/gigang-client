@@ -20,13 +20,6 @@ export async function approveMember(memberId: string) {
 
   if (e1) return { ok: false, message: "승인에 실패했습니다" };
 
-  const { error: e2 } = await db
-    .from("member")
-    .update({ status: "active" })
-    .eq("id", memberId)
-    .eq("status", "pending");
-
-  if (e2) return { ok: false, message: "승인에 실패했습니다" };
   return { ok: true, message: null };
 }
 
@@ -46,13 +39,6 @@ export async function rejectMember(memberId: string) {
 
   if (e1) return { ok: false, message: "거절에 실패했습니다" };
 
-  const { error: e2 } = await db
-    .from("member")
-    .update({ status: "inactive" })
-    .eq("id", memberId)
-    .eq("status", "pending");
-
-  if (e2) return { ok: false, message: "거절에 실패했습니다" };
   return { ok: true, message: null };
 }
 
@@ -76,12 +62,6 @@ export async function updateMemberStatus(
 
   if (e1) return { ok: false, message: "상태 변경에 실패했습니다" };
 
-  const { error: e2 } = await db
-    .from("member")
-    .update({ status })
-    .eq("id", memberId);
-
-  if (e2) return { ok: false, message: "상태 변경에 실패했습니다" };
   return { ok: true, message: null };
 }
 
@@ -119,11 +99,5 @@ export async function toggleAdmin(memberId: string, isAdmin: boolean) {
 
   if (e1) return { ok: false, message: "변경에 실패했습니다" };
 
-  const { error: e2 } = await db
-    .from("member")
-    .update({ admin: isAdmin })
-    .eq("id", memberId);
-
-  if (e2) return { ok: false, message: "변경에 실패했습니다" };
   return { ok: true, message: null };
 }

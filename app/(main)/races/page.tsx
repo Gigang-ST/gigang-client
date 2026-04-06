@@ -20,14 +20,27 @@ const getUpcomingCompetitions = unstable_cache(
     const today = todayKST();
     const endOfYear = `${today.slice(0, 4)}-12-31`;
     const { data } = await supabase
-      .from("competition")
+      .from("comp_mst")
       .select(
-        "id, external_id, sport, title, start_date, end_date, location, event_types, source_url",
+        "comp_id, ext_id, comp_sprt_cd, comp_nm, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(evt_cd)",
       )
-      .gte("start_date", today)
-      .lte("start_date", endOfYear)
-      .order("start_date", { ascending: true });
-    return { competitions: (data ?? []) as Competition[], today };
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .gte("stt_dt", today)
+      .lte("stt_dt", endOfYear)
+      .order("stt_dt", { ascending: true });
+    const competitions: Competition[] = (data ?? []).map((row) => ({
+      id: row.comp_id,
+      external_id: row.ext_id ?? "",
+      sport: row.comp_sprt_cd,
+      title: row.comp_nm,
+      start_date: row.stt_dt,
+      end_date: row.end_dt,
+      location: row.loc_nm,
+      event_types: (row.comp_evt_cfg ?? []).map((e) => e.evt_cd?.toUpperCase()).filter(Boolean) as string[],
+      source_url: row.src_url,
+    }));
+    return { competitions, today };
   },
   ["competitions-upcoming"],
   cacheOptions,
@@ -38,19 +51,30 @@ const getGigangCompetitions = unstable_cache(
     const today = todayKST();
     const endOfYear = `${today.slice(0, 4)}-12-31`;
     const { data } = await supabase
-      .from("competition")
+      .from("team_comp_plan_rel")
       .select(
-        "id, external_id, sport, title, start_date, end_date, location, event_types, source_url, competition_registration!inner(id)",
+        "team_comp_id, comp_mst!inner(comp_id, ext_id, comp_sprt_cd, comp_nm, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(evt_cd)), comp_reg_rel!inner(comp_reg_id)",
       )
-      .gte("start_date", today)
-      .lte("start_date", endOfYear)
-      .order("start_date", { ascending: true });
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .gte("comp_mst.stt_dt", today)
+      .lte("comp_mst.stt_dt", endOfYear)
+      .order("stt_dt", { foreignTable: "comp_mst", ascending: true });
 
-    // competition_registration 필드를 제거하고 Competition 타입으로 반환
-    const competitions = (data ?? []).map(
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      ({ competition_registration, ...rest }) => rest,
-    ) as Competition[];
+    const competitions = (data ?? []).map((row) => {
+      const comp = Array.isArray(row.comp_mst) ? row.comp_mst[0] : row.comp_mst;
+      return {
+        id: comp.comp_id,
+        external_id: comp.ext_id ?? "",
+        sport: comp.comp_sprt_cd,
+        title: comp.comp_nm,
+        start_date: comp.stt_dt,
+        end_date: comp.end_dt,
+        location: comp.loc_nm,
+        event_types: (comp.comp_evt_cfg ?? []).map((e) => e.evt_cd?.toUpperCase()).filter(Boolean),
+        source_url: comp.src_url,
+      } as Competition;
+    });
 
     // 중복 제거 (같은 대회에 여러 등록이 있으면 중복 반환됨)
     const seen = new Set<string>();

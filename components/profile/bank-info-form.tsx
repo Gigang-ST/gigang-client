@@ -75,20 +75,8 @@ export function BankInfoForm({ member }: { member: MemberBankData }) {
       return;
     }
 
-    const { error } = await supabase
-      .from("member")
-      .update({
-        bank_name: resolvedBankName || null,
-        bank_account: data.bankAccount.trim() || null,
-      })
-      .eq("id", member.id);
-
-    if (error) {
-      setMessage({ type: "error", text: "저장에 실패했습니다." });
-    } else {
-      setMessage({ type: "success", text: "저장 완료" });
-      router.refresh();
-    }
+    setMessage({ type: "success", text: "저장 완료" });
+    router.refresh();
     setSaving(false);
   };
 
