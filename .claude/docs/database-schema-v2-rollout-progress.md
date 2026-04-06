@@ -132,9 +132,9 @@ order by 1;
 
 ### 웨이브 2b — 회원 UTMB 확장 (`utmb_profile` 기준 재정의)
 
-- [x] 커밋 `f7d0b62` 기준 앱 로직 반영: `utmb_profile`에 `recent_race_name`, `recent_race_record` 사용 (v2 이관 시 `rct_race_nm`, `rct_race_rec`로 매핑)
-- [ ] `team_utmb_prf` 신규 테이블 설계/DDL 문서화(팀 컨텍스트 `team_id` 포함)
-- [ ] `utmb_profile` → `team_utmb_prf` 백필/검증 SQL 추가 (`migration-map`에 B-4 후속 항목으로 분리 예정)
+- [x] 커밋 `f7d0b62` 기준 앱 로직 반영: `utmb_profile`에 `recent_race_name`, `recent_race_record` 사용
+- [x] 마이그레이션 `supabase/migrations/20260406190000_v2_mem_utmb_prf_add_recent_race_cols.sql` — `mem_utmb_prf`에 `rct_race_nm`, `rct_race_rec` 추가 + `utmb_profile.recent_race_*` 백필
+- [ ] `migration-map`에 P9 후속(B-4 확장) 검증 SQL 반영
 
 ### 웨이브 3 — 대회·참가
 
