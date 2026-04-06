@@ -7,13 +7,6 @@ import { env } from "@/lib/env";
  * 세션 쿠키 검사 → Supabase 토큰 검증 → 비인증 유저 리다이렉트 순서로 동작한다.
  */
 export async function updateSession(request: NextRequest) {
-  // OAuth 제공자/프록시 설정 차이로 code가 루트(/)로 떨어지는 경우를 안전하게 콜백 라우트로 보정한다.
-  if (request.nextUrl.pathname === "/" && request.nextUrl.searchParams.has("code")) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/auth/callback";
-    return NextResponse.redirect(url);
-  }
-
   let supabaseResponse = NextResponse.next({
     request,
   });
