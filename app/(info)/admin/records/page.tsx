@@ -41,7 +41,7 @@ export default function RecordsPage() {
     const { data } = await supabase
       .from("rec_race_hist")
       .select(
-        "race_result_id, comp_evt_cfg(evt_cd), rec_time_sec, race_nm, race_dt, mem_mst!rec_race_hist_mem_id_fkey(mem_nm)",
+        "race_result_id, comp_evt_cfg(comp_evt_cd), rec_time_sec, race_nm, race_dt, mem_mst!rec_race_hist_mem_id_fkey(mem_nm)",
       )
       .order("race_dt", { ascending: false })
       .limit(200);

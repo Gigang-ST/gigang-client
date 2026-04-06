@@ -688,6 +688,55 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_public_team_competitions: {
+        Args: { p_team_id: string; p_start?: string | null; p_end?: string | null }
+        Returns: {
+          comp_id: string
+          ext_id: string | null
+          comp_sprt_cd: string | null
+          comp_nm: string
+          stt_dt: string
+          end_dt: string | null
+          loc_nm: string | null
+          src_url: string | null
+          comp_evt_cds: string[]
+          reg_evt_cds: string[]
+          reg_count: number
+        }[]
+      }
+      get_public_team_recent_records: {
+        Args: { p_team_id: string; p_limit?: number | null }
+        Returns: {
+          mem_id: string
+          mem_nm: string
+          evt_cd: string
+          rec_time_sec: number
+          race_nm: string
+          upd_at: string
+        }[]
+      }
+      get_public_team_race_rankings: {
+        Args: { p_team_id: string }
+        Returns: {
+          mem_id: string
+          mem_nm: string
+          gdr_enm: Database["public"]["Enums"]["gender"] | null
+          evt_cd: string
+          rec_time_sec: number
+          race_nm: string
+        }[]
+      }
+      get_public_team_utmb_rankings: {
+        Args: { p_team_id: string }
+        Returns: {
+          mem_id: string
+          mem_nm: string
+          utmb_idx: number
+          utmb_prf_url: string
+          rct_race_nm: string | null
+          rct_race_rec: string | null
+        }[]
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
     }

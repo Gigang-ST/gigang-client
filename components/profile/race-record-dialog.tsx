@@ -131,7 +131,7 @@ export function RaceRecordDialog({
 
     const { data } = await supabase
       .from("comp_reg_rel")
-      .select("comp_reg_id, comp_evt_cfg(evt_cd), team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(evt_cd)))")
+      .select("comp_reg_id, comp_evt_cfg(comp_evt_cd), team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(comp_evt_cd)))")
       .eq("mem_id", memberId)
       .eq("vers", 0)
       .eq("del_yn", false)
@@ -146,8 +146,8 @@ export function RaceRecordDialog({
     const unique = (raw as Row[])
       .map((row) => {
         const rowAny = row as unknown as {
-          team_comp_plan_rel: { comp_mst: { comp_id: string; comp_nm: string; stt_dt: string; loc_nm: string | null; comp_sprt_cd: string; comp_evt_cfg?: { evt_cd: string }[] }[] | { comp_id: string; comp_nm: string; stt_dt: string; loc_nm: string | null; comp_sprt_cd: string; comp_evt_cfg?: { evt_cd: string }[] } }[] | { comp_mst: { comp_id: string; comp_nm: string; stt_dt: string; loc_nm: string | null; comp_sprt_cd: string; comp_evt_cfg?: { evt_cd: string }[] }[] | { comp_id: string; comp_nm: string; stt_dt: string; loc_nm: string | null; comp_sprt_cd: string; comp_evt_cfg?: { evt_cd: string }[] } };
-          comp_evt_cfg?: { evt_cd: string | null }[] | { evt_cd: string | null };
+          team_comp_plan_rel: { comp_mst: { comp_id: string; comp_nm: string; stt_dt: string; loc_nm: string | null; comp_sprt_cd: string; comp_evt_cfg?: { comp_evt_cd: string }[] }[] | { comp_id: string; comp_nm: string; stt_dt: string; loc_nm: string | null; comp_sprt_cd: string; comp_evt_cfg?: { comp_evt_cd: string }[] } }[] | { comp_mst: { comp_id: string; comp_nm: string; stt_dt: string; loc_nm: string | null; comp_sprt_cd: string; comp_evt_cfg?: { comp_evt_cd: string }[] }[] | { comp_id: string; comp_nm: string; stt_dt: string; loc_nm: string | null; comp_sprt_cd: string; comp_evt_cfg?: { comp_evt_cd: string }[] } };
+          comp_evt_cfg?: { comp_evt_cd: string | null }[] | { comp_evt_cd: string | null };
         };
         const plan = Array.isArray(rowAny.team_comp_plan_rel) ? rowAny.team_comp_plan_rel[0] : rowAny.team_comp_plan_rel;
         const comp = Array.isArray(plan.comp_mst) ? plan.comp_mst[0] : plan.comp_mst;
@@ -158,8 +158,8 @@ export function RaceRecordDialog({
           start_date: comp.stt_dt,
           location: comp.loc_nm,
           sport: comp.comp_sprt_cd,
-          event_types: (comp.comp_evt_cfg ?? []).map((e) => e.evt_cd?.toUpperCase()),
-          registeredEventType: evt?.evt_cd ?? null,
+          event_types: (comp.comp_evt_cfg ?? []).map((e) => e.comp_evt_cd?.toUpperCase()),
+          registeredEventType: evt?.comp_evt_cd ?? null,
         } as Competition;
       })
       .filter((c) => {

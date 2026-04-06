@@ -26,7 +26,7 @@ async function ProfileContent() {
   const [{ data: raceResults }, { data: utmbProfile }] = await Promise.all([
     supabase
       .from("rec_race_hist")
-      .select("comp_evt_cfg(evt_cd), rec_time_sec, race_nm, race_dt")
+      .select("comp_evt_cfg(comp_evt_cd), rec_time_sec, race_nm, race_dt")
       .eq("mem_id", member.id)
       .eq("vers", 0)
       .eq("del_yn", false),

@@ -116,7 +116,7 @@ function CompetitionsContent() {
     const supabase = createClient();
     const { data } = await supabase
       .from("comp_mst")
-      .select("comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(evt_cd), team_comp_plan_rel(comp_reg_rel(count))")
+      .select("comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_cd), team_comp_plan_rel(comp_reg_rel(count))")
       .eq("vers", 0)
       .eq("del_yn", false)
       .order("stt_dt", { ascending: false });

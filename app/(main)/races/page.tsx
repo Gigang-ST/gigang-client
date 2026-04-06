@@ -7,6 +7,8 @@ import { Suspense } from "react";
 import { RaceListView } from "@/components/races/race-list-view";
 import type { Competition } from "@/components/races/types";
 import { env } from "@/lib/env";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
+import type { Database } from "@/lib/supabase/database.types";
 
 const supabase = createPublicClient(
   env.NEXT_PUBLIC_SUPABASE_URL,
@@ -22,7 +24,7 @@ const getUpcomingCompetitions = unstable_cache(
     const { data } = await supabase
       .from("comp_mst")
       .select(
-        "comp_id, ext_id, comp_sprt_cd, comp_nm, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(evt_cd)",
+        "comp_id, ext_id, comp_sprt_cd, comp_nm, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_cd)",
       )
       .eq("vers", 0)
       .eq("del_yn", false)
@@ -37,7 +39,7 @@ const getUpcomingCompetitions = unstable_cache(
       start_date: row.stt_dt,
       end_date: row.end_dt,
       location: row.loc_nm,
-      event_types: (row.comp_evt_cfg ?? []).map((e) => e.evt_cd?.toUpperCase()).filter(Boolean) as string[],
+      event_types: (row.comp_evt_cfg ?? []).map((e) => e.comp_evt_cd?.toUpperCase()).filter(Boolean) as string[],
       source_url: row.src_url,
     }));
     return { competitions, today };
@@ -46,53 +48,43 @@ const getUpcomingCompetitions = unstable_cache(
   cacheOptions,
 );
 
-const getGigangCompetitions = unstable_cache(
-  async () => {
+const getTeamCompetitions = unstable_cache(
+  async (teamId: string) => {
     const today = todayKST();
     const endOfYear = `${today.slice(0, 4)}-12-31`;
-    const { data } = await supabase
-      .from("team_comp_plan_rel")
-      .select(
-        "team_comp_id, comp_mst!inner(comp_id, ext_id, comp_sprt_cd, comp_nm, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(evt_cd)), comp_reg_rel!inner(comp_reg_id)",
-      )
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .gte("comp_mst.stt_dt", today)
-      .lte("comp_mst.stt_dt", endOfYear)
-      .order("stt_dt", { foreignTable: "comp_mst", ascending: true });
+    const { data } = await supabase.rpc("get_public_team_competitions", {
+      p_team_id: teamId,
+      p_start: today,
+      p_end: endOfYear,
+    });
 
-    const competitions = (data ?? []).map((row) => {
-      const comp = Array.isArray(row.comp_mst) ? row.comp_mst[0] : row.comp_mst;
+    const rows = (data ?? []) as Database["public"]["Functions"]["get_public_team_competitions"]["Returns"];
+    const competitions = rows
+      .filter((row) => (row.reg_count ?? 0) > 0)
+      .map((row) => {
       return {
-        id: comp.comp_id,
-        external_id: comp.ext_id ?? "",
-        sport: comp.comp_sprt_cd,
-        title: comp.comp_nm,
-        start_date: comp.stt_dt,
-        end_date: comp.end_dt,
-        location: comp.loc_nm,
-        event_types: (comp.comp_evt_cfg ?? []).map((e) => e.evt_cd?.toUpperCase()).filter(Boolean),
-        source_url: comp.src_url,
+        id: row.comp_id,
+        external_id: row.ext_id ?? "",
+        sport: row.comp_sprt_cd,
+        title: row.comp_nm,
+        start_date: row.stt_dt,
+        end_date: row.end_dt,
+        location: row.loc_nm,
+        event_types: (row.comp_evt_cds ?? []).map((e) => e?.toUpperCase()).filter(Boolean),
+        source_url: row.src_url,
       } as Competition;
     });
-
-    // 중복 제거 (같은 대회에 여러 등록이 있으면 중복 반환됨)
-    const seen = new Set<string>();
-    const unique = competitions.filter(c => {
-      if (seen.has(c.id)) return false;
-      seen.add(c.id);
-      return true;
-    });
-    return unique;
+    return competitions;
   },
-  ["competitions-gigang"],
+  ["competitions-team"],
   cacheOptions,
 );
 
 async function RacesContent() {
+  const { teamId } = await getRequestTeamContext();
   const [{ competitions }, gigangCompetitions] = await Promise.all([
     getUpcomingCompetitions(),
-    getGigangCompetitions(),
+    getTeamCompetitions(teamId),
   ]);
 
   return (

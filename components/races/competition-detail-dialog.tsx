@@ -122,7 +122,7 @@ export function CompetitionDetailDialog({
     }
     const { data } = await supabase
       .from("comp_reg_rel")
-      .select("prt_role_cd, crt_at, comp_evt_cfg(evt_cd), mem_mst!comp_reg_rel_mem_id_fkey(mem_nm)")
+      .select("prt_role_cd, crt_at, comp_evt_cfg(comp_evt_cd), mem_mst!comp_reg_rel_mem_id_fkey(mem_nm)")
       .eq("team_comp_id", plan.team_comp_id)
       .eq("vers", 0)
       .eq("del_yn", false)
@@ -131,14 +131,14 @@ export function CompetitionDetailDialog({
       const row = r as unknown as {
         prt_role_cd: string;
         crt_at: string;
-        comp_evt_cfg?: { evt_cd: string | null }[] | { evt_cd: string | null };
+        comp_evt_cfg?: { comp_evt_cd: string | null }[] | { comp_evt_cd: string | null };
         mem_mst?: { mem_nm: string | null }[] | { mem_nm: string | null };
       };
       const evt = Array.isArray(row.comp_evt_cfg) ? row.comp_evt_cfg[0] : row.comp_evt_cfg;
       const mem = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst;
       return {
         role: row.prt_role_cd,
-        event_type: evt?.evt_cd?.toUpperCase() ?? null,
+        event_type: evt?.comp_evt_cd?.toUpperCase() ?? null,
         created_at: row.crt_at,
         member: { mem_nm: mem?.mem_nm ?? null },
       };

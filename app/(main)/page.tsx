@@ -9,7 +9,7 @@ import { UpcomingRaces } from "@/components/home/upcoming-races";
 import type { CompetitionRegistration, MemberStatus } from "@/components/races/types";
 import { getCurrentMember } from "@/lib/queries/member";
 import { env } from "@/lib/env";
-import { GIGANG_TEAM_ID } from "@/lib/constants/gigang-team";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { SectionLabel } from "@/components/common/typography";
 
 
@@ -40,60 +40,47 @@ function isSameSlot(dateA: string, dateB: string) {
 
 async function HomeContent() {
   const { user, member: currentMember, supabase } = await getCurrentMember();
+  const { teamId } = await getRequestTeamContext();
   const today = new Date().toISOString().split("T")[0];
 
   let initialMemberStatus: MemberStatus = { status: "signed-out" };
 
   const [
     { data: memberStats },
-    { data: gigangRacesRaw },
+    { data: teamComps },
     { count: upcomingCount },
-    { data: recentRecords },
+    { data: recentRecordsRaw },
   ] = await Promise.all([
-    supabase.rpc("get_public_team_member_stats", { p_team_id: GIGANG_TEAM_ID }),
-    supabase
-      .from("team_comp_plan_rel")
-      .select("team_comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(evt_cd)), comp_reg_rel(comp_reg_id, comp_evt_cfg(evt_cd))")
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .gte("comp_mst.stt_dt", today)
-      .order("stt_dt", { foreignTable: "comp_mst", ascending: true }),
+    supabase.rpc("get_public_team_member_stats", { p_team_id: teamId }),
+    supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: today, p_end: null }),
     supabase
       .from("comp_mst")
       .select("*", { count: "exact", head: true })
       .eq("vers", 0)
       .eq("del_yn", false)
       .gte("stt_dt", today),
-    supabase
-      .from("rec_race_hist")
-      .select(
-        "mem_id, comp_evt_cfg(evt_cd), rec_time_sec, race_nm, upd_at, mem_mst!rec_race_hist_mem_id_fkey(mem_nm)",
-      )
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .order("upd_at", { ascending: false })
-      .limit(2),
+    supabase.rpc("get_public_team_recent_records", { p_team_id: teamId, p_limit: 2 }),
   ]);
 
   const memberCount = memberStats?.[0]?.active_count ?? 0;
 
   // 기강대회: 등록자 1명 이상, 중복 제거 + 참가자 등록 event_type 수집
   const seenIds = new Set<string>();
-  const gigangRaces: UpcomingRace[] = (gigangRacesRaw ?? [])
+  const gigangRaces: UpcomingRace[] = (teamComps ?? [])
+    .filter((row) => (row.reg_count ?? 0) > 0)
     .map((row) => {
-      const comp = Array.isArray(row.comp_mst) ? row.comp_mst[0] : row.comp_mst;
-      const regs = (row.comp_reg_rel ?? []) as unknown as { comp_reg_id: string; comp_evt_cfg?: { evt_cd: string | null }[] }[];
+      const regs = (row.reg_evt_cds ?? []).map((evt) => ({ evt_cd: evt }));
       const registered_event_types = [
-        ...new Set(regs.map((re) => re.comp_evt_cfg?.[0]?.evt_cd).filter((et): et is string => Boolean(et?.trim()))),
+        ...new Set(regs.map((re) => re.evt_cd).filter((et): et is string => Boolean(et?.trim()))),
       ].sort();
       return {
-        id: comp.comp_id,
-        title: comp.comp_nm,
-        start_date: comp.stt_dt,
-        location: comp.loc_nm,
-        sport: comp.comp_sprt_cd,
-        event_types: (comp.comp_evt_cfg ?? []).map((e: { evt_cd: string | null }) => e.evt_cd?.toUpperCase()).filter(Boolean),
-        regCount: regs.length,
+        id: row.comp_id,
+        title: row.comp_nm,
+        start_date: row.stt_dt,
+        location: row.loc_nm,
+        sport: row.comp_sprt_cd,
+        event_types: (row.comp_evt_cds ?? []).map((e) => e?.toUpperCase()).filter(Boolean),
+        regCount: row.reg_count ?? 0,
         registered_event_types: registered_event_types.length > 0 ? registered_event_types : undefined,
       } as UpcomingRace;
     })
@@ -137,9 +124,10 @@ async function HomeContent() {
       const { data: myRegs } = await supabase
         .from("comp_reg_rel")
         .select(
-          "comp_reg_id, mem_id, prt_role_cd, crt_at, team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(evt_cd))), comp_evt_cfg(evt_cd)",
+          "comp_reg_id, mem_id, prt_role_cd, crt_at, team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(comp_evt_cd))), comp_evt_cfg(comp_evt_cd)",
         )
         .eq("mem_id", member.id)
+        .eq("team_comp_plan_rel.team_id", teamId)
         .eq("vers", 0)
         .eq("del_yn", false);
       myRegistrations = (myRegs ?? []).map((r) => ({
@@ -147,7 +135,7 @@ async function HomeContent() {
         competition_id: (Array.isArray(r.team_comp_plan_rel) ? r.team_comp_plan_rel[0] : r.team_comp_plan_rel).comp_id,
         member_id: r.mem_id,
         role: r.prt_role_cd,
-        event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.evt_cd?.toUpperCase() ?? null,
+        event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_cd?.toUpperCase() ?? null,
         created_at: r.crt_at,
       })) as CompetitionRegistration[];
       myRaces = (myRegs ?? [])
@@ -160,7 +148,7 @@ async function HomeContent() {
             start_date: comp.stt_dt,
             location: comp.loc_nm,
             sport: comp.comp_sprt_cd,
-            event_types: (comp.comp_evt_cfg ?? []).map((e: { evt_cd: string | null }) => e.evt_cd?.toUpperCase()).filter(Boolean),
+            event_types: (comp.comp_evt_cfg ?? []).map((e: { comp_evt_cd: string | null }) => e.comp_evt_cd?.toUpperCase()).filter(Boolean),
           } as UpcomingRace;
         })
         .filter((c) => c && c.start_date >= today)
@@ -169,12 +157,13 @@ async function HomeContent() {
       if (myRaces.length > 0) {
         const { data: regsByComp } = await supabase
           .from("comp_reg_rel")
-          .select("team_comp_plan_rel!inner(comp_id), comp_evt_cfg(evt_cd)")
+          .select("team_comp_plan_rel!inner(comp_id), comp_evt_cfg(comp_evt_cd)")
+          .eq("team_comp_plan_rel.team_id", teamId)
           .in("team_comp_plan_rel.comp_id", myRaces.map((r) => r.id));
         const byCompId = new Map<string, Set<string>>();
         (regsByComp ?? []).forEach((row) => {
           const compId = (Array.isArray(row.team_comp_plan_rel) ? row.team_comp_plan_rel[0] : row.team_comp_plan_rel)?.comp_id;
-          const evtCd = (Array.isArray(row.comp_evt_cfg) ? row.comp_evt_cfg[0] : row.comp_evt_cfg)?.evt_cd;
+          const evtCd = (Array.isArray(row.comp_evt_cfg) ? row.comp_evt_cfg[0] : row.comp_evt_cfg)?.comp_evt_cd;
           if (!compId || !evtCd?.trim()) return;
           let set = byCompId.get(compId);
           if (!set) { set = new Set(); byCompId.set(compId, set); }
@@ -228,6 +217,8 @@ async function HomeContent() {
     }
   });
 
+  const recentRecords = recentRecordsRaw ?? [];
+
   return (
     <div className="flex flex-col gap-7 px-6 pb-6">
         {/* Team Overview */}
@@ -269,13 +260,13 @@ async function HomeContent() {
               모두 보기
             </Link>
           </div>
-          {(recentRecords ?? []).length === 0 ? (
+          {recentRecords.length === 0 ? (
             <CardItem variant="dashed" className="py-8 text-center text-sm text-muted-foreground">
               등록된 기록이 없습니다.
             </CardItem>
           ) : (
-            (recentRecords ?? []).map((rec) => {
-              const member = rec.mem_mst as unknown as { mem_nm: string } | null;
+            recentRecords.map((rec) => {
+              const member = { mem_nm: rec.mem_nm } as { mem_nm: string } | null;
               return (
                 <CardItem
                   key={`${rec.mem_id}-${rec.race_nm}`}
@@ -286,7 +277,7 @@ async function HomeContent() {
                       {member?.mem_nm ?? "멤버"}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {((Array.isArray(rec.comp_evt_cfg) ? rec.comp_evt_cfg[0] : rec.comp_evt_cfg)?.evt_cd ?? "UNKNOWN").toUpperCase()} · {rec.race_nm}
+                      {(rec.evt_cd ?? "UNKNOWN").toUpperCase()} · {rec.race_nm}
                     </span>
                   </div>
                   <span className="font-mono text-lg font-bold text-foreground">

@@ -91,7 +91,7 @@ export function RaceListView({
 
     const { data: myRegs } = await supabase
       .from("comp_reg_rel")
-      .select("comp_reg_id, mem_id, prt_role_cd, comp_evt_id, crt_at, team_comp_plan_rel!inner(comp_id), comp_evt_cfg(evt_cd)")
+      .select("comp_reg_id, mem_id, prt_role_cd, comp_evt_id, crt_at, team_comp_plan_rel!inner(comp_id), comp_evt_cfg(comp_evt_cd)")
       .eq("mem_id", memberId)
       .eq("vers", 0)
       .eq("del_yn", false)
@@ -105,7 +105,7 @@ export function RaceListView({
         prt_role_cd: "participant" | "cheering" | "volunteer";
         crt_at: string;
         team_comp_plan_rel: { comp_id: string }[] | { comp_id: string };
-        comp_evt_cfg?: { evt_cd: string | null }[] | { evt_cd: string | null };
+        comp_evt_cfg?: { comp_evt_cd: string | null }[] | { comp_evt_cd: string | null };
       };
       const plan = Array.isArray(row.team_comp_plan_rel) ? row.team_comp_plan_rel[0] : row.team_comp_plan_rel;
       const evt = Array.isArray(row.comp_evt_cfg) ? row.comp_evt_cfg[0] : row.comp_evt_cfg;
@@ -115,7 +115,7 @@ export function RaceListView({
         competition_id: plan.comp_id,
         member_id: row.mem_id,
         role: row.prt_role_cd,
-        event_type: evt?.evt_cd?.toUpperCase() ?? null,
+        event_type: evt?.comp_evt_cd?.toUpperCase() ?? null,
         created_at: row.crt_at,
       };
     });
