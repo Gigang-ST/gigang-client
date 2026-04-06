@@ -61,7 +61,7 @@ export async function createCompetition(input: CreateCompetitionInput) {
   if (input.eventTypes.length > 0) {
     const eventRows = input.eventTypes.map((evt) => ({
       comp_id: comp.comp_id,
-      evt_cd: evt.toLowerCase(),
+      comp_evt_type: evt.trim().toUpperCase(),
       vers: 0,
       del_yn: false,
     }));

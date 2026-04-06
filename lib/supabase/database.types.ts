@@ -108,7 +108,7 @@ export type Database = {
         Row: {
           comp_evt_id: string
           comp_id: string
-          evt_cd: string
+          comp_evt_type: string
           vers: number
           del_yn: boolean
           crt_at: string
@@ -117,7 +117,7 @@ export type Database = {
         Insert: {
           comp_evt_id?: string
           comp_id: string
-          evt_cd: string
+          comp_evt_type: string
           vers?: number
           del_yn?: boolean
           crt_at?: string
@@ -126,7 +126,7 @@ export type Database = {
         Update: {
           comp_evt_id?: string
           comp_id?: string
-          evt_cd?: string
+          comp_evt_type?: string
           vers?: number
           del_yn?: boolean
           crt_at?: string
@@ -699,8 +699,8 @@ export type Database = {
           end_dt: string | null
           loc_nm: string | null
           src_url: string | null
-          comp_evt_cds: string[]
-          reg_evt_cds: string[]
+          comp_evt_types: string[]
+          reg_evt_types: string[]
           reg_count: number
         }[]
       }

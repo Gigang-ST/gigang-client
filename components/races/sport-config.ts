@@ -12,7 +12,7 @@ const SPORT_CONFIG: SportConfig[] = [
     label: "로드 러닝",
     chipClass: "bg-sport-road-run text-foreground",
     dotClass: "bg-sport-road-run",
-    eventTypes: ["3K", "5K", "10K", "HALF", "FULL"],
+    eventTypes: ["5K", "10K", "HALF", "FULL"],
   },
   {
     key: "ultra",

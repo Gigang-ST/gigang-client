@@ -24,7 +24,7 @@ const getUpcomingCompetitions = unstable_cache(
     const { data } = await supabase
       .from("comp_mst")
       .select(
-        "comp_id, ext_id, comp_sprt_cd, comp_nm, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_cd)",
+        "comp_id, ext_id, comp_sprt_cd, comp_nm, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)",
       )
       .eq("vers", 0)
       .eq("del_yn", false)
@@ -39,7 +39,7 @@ const getUpcomingCompetitions = unstable_cache(
       start_date: row.stt_dt,
       end_date: row.end_dt,
       location: row.loc_nm,
-      event_types: (row.comp_evt_cfg ?? []).map((e) => e.comp_evt_cd?.toUpperCase()).filter(Boolean) as string[],
+      event_types: (row.comp_evt_cfg ?? []).map((e) => e.comp_evt_type?.toUpperCase()).filter(Boolean) as string[],
       source_url: row.src_url,
     }));
     return { competitions, today };
@@ -70,11 +70,18 @@ const getTeamCompetitions = unstable_cache(
         start_date: row.stt_dt,
         end_date: row.end_dt,
         location: row.loc_nm,
-        event_types: (row.comp_evt_cds ?? []).map((e) => e?.toUpperCase()).filter(Boolean),
+        event_types: (row.comp_evt_types ?? []).map((e) => e?.toUpperCase()).filter(Boolean),
         source_url: row.src_url,
       } as Competition;
     });
-    return competitions;
+
+    const regCounts: Record<string, number> = {};
+    rows.forEach((row) => {
+      if (!row.comp_id) return;
+      regCounts[row.comp_id] = Number(row.reg_count ?? 0);
+    });
+
+    return { competitions, regCounts };
   },
   ["competitions-team"],
   cacheOptions,
@@ -82,7 +89,7 @@ const getTeamCompetitions = unstable_cache(
 
 async function RacesContent() {
   const { teamId } = await getRequestTeamContext();
-  const [{ competitions }, gigangCompetitions] = await Promise.all([
+  const [{ competitions }, gigangData] = await Promise.all([
     getUpcomingCompetitions(),
     getTeamCompetitions(teamId),
   ]);
@@ -90,10 +97,10 @@ async function RacesContent() {
   return (
     <RaceListView
       allCompetitions={competitions}
-      gigangCompetitions={gigangCompetitions}
+      gigangCompetitions={gigangData.competitions}
       initialMemberStatus={{ status: "loading" }}
       initialRegistrationsByCompetitionId={{}}
-      initialRegCounts={{}}
+      initialRegCounts={gigangData.regCounts}
     />
   );
 }

@@ -62,16 +62,18 @@ export function RaceListView({
 
   const loadRegCountsForIds = async (competitionIds: string[]) => {
     if (competitionIds.length === 0) return;
-    const { data: countRows } = await supabase
+    const { data: countRows, error } = await supabase
       .from("team_comp_plan_rel")
       .select("comp_id, comp_reg_rel(count)")
       .eq("vers", 0)
       .eq("del_yn", false)
       .in("comp_id", competitionIds);
 
+    // 비로그인/RLS 등으로 조회 실패하면 서버 초기값을 유지한다.
+    if (error || !countRows) return;
+
     setRegCounts((prev) => {
       const next = { ...prev };
-      competitionIds.forEach((id) => { next[id] = 0; });
       (countRows ?? []).forEach((row) => {
         const comp = row as unknown as {
           comp_id: string;
@@ -91,7 +93,7 @@ export function RaceListView({
 
     const { data: myRegs } = await supabase
       .from("comp_reg_rel")
-      .select("comp_reg_id, mem_id, prt_role_cd, comp_evt_id, crt_at, team_comp_plan_rel!inner(comp_id), comp_evt_cfg(comp_evt_cd)")
+      .select("comp_reg_id, mem_id, prt_role_cd, comp_evt_id, crt_at, team_comp_plan_rel!inner(comp_id), comp_evt_cfg(comp_evt_type)")
       .eq("mem_id", memberId)
       .eq("vers", 0)
       .eq("del_yn", false)
@@ -105,7 +107,7 @@ export function RaceListView({
         prt_role_cd: "participant" | "cheering" | "volunteer";
         crt_at: string;
         team_comp_plan_rel: { comp_id: string }[] | { comp_id: string };
-        comp_evt_cfg?: { comp_evt_cd: string | null }[] | { comp_evt_cd: string | null };
+        comp_evt_cfg?: { comp_evt_type: string | null }[] | { comp_evt_type: string | null };
       };
       const plan = Array.isArray(row.team_comp_plan_rel) ? row.team_comp_plan_rel[0] : row.team_comp_plan_rel;
       const evt = Array.isArray(row.comp_evt_cfg) ? row.comp_evt_cfg[0] : row.comp_evt_cfg;
@@ -115,7 +117,7 @@ export function RaceListView({
         competition_id: plan.comp_id,
         member_id: row.mem_id,
         role: row.prt_role_cd,
-        event_type: evt?.comp_evt_cd?.toUpperCase() ?? null,
+        event_type: evt?.comp_evt_type?.toUpperCase() ?? null,
         created_at: row.crt_at,
       };
     });

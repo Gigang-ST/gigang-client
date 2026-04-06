@@ -59,14 +59,14 @@ export function RaceHistoryDialog({
     setLoading(true);
     const { data } = await supabase
       .from("rec_race_hist")
-      .select("race_result_id, comp_evt_cfg(comp_evt_cd), rec_time_sec, race_nm, race_dt, swim_time_sec, bike_time_sec, run_time_sec")
+      .select("race_result_id, comp_evt_cfg(comp_evt_type), rec_time_sec, race_nm, race_dt, swim_time_sec, bike_time_sec, run_time_sec")
       .eq("mem_id", memberId)
       .eq("vers", 0)
       .eq("del_yn", false)
       .order("race_dt", { ascending: false });
     const mapped = (data ?? []).map((r) => ({
       id: r.race_result_id,
-      event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_cd ?? "UNKNOWN",
+      event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type ?? "UNKNOWN",
       record_time_sec: r.rec_time_sec,
       race_name: r.race_nm,
       race_date: r.race_dt,
@@ -134,7 +134,7 @@ export function RaceHistoryDialog({
               <div key={r.id} className="flex items-center gap-3 py-3">
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <div className="flex items-start gap-2">
-                    <span className="min-w-0 flex-1 text-sm font-semibold text-foreground line-clamp-2 break-words">
+                    <span className="min-w-0 flex-1 text-sm font-semibold text-foreground line-clamp-2 wrap-break-word">
                       {r.race_name}
                     </span>
                     <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">

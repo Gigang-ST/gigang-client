@@ -41,13 +41,13 @@ export default function RecordsPage() {
     const { data } = await supabase
       .from("rec_race_hist")
       .select(
-        "race_result_id, comp_evt_cfg(comp_evt_cd), rec_time_sec, race_nm, race_dt, mem_mst!rec_race_hist_mem_id_fkey(mem_nm)",
+        "race_result_id, comp_evt_cfg(comp_evt_type), rec_time_sec, race_nm, race_dt, mem_mst!rec_race_hist_mem_id_fkey(mem_nm)",
       )
       .order("race_dt", { ascending: false })
       .limit(200);
     const mapped = (data ?? []).map((r) => ({
       id: r.race_result_id,
-      event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.evt_cd ?? "UNKNOWN",
+      event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type ?? "UNKNOWN",
       record_time_sec: r.rec_time_sec,
       race_name: r.race_nm,
       race_date: r.race_dt,

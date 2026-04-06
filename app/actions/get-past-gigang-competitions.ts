@@ -40,7 +40,7 @@ export async function getPastGigangCompetitions(
       start_date: row.stt_dt,
       end_date: row.end_dt,
       location: row.loc_nm,
-      event_types: (row.comp_evt_cds ?? []).map((e) => e?.toUpperCase()).filter(Boolean),
+      event_types: (row.comp_evt_types ?? []).map((e) => e?.toUpperCase()).filter(Boolean),
       source_url: row.src_url,
     }))
     .sort((a, b) => b.start_date.localeCompare(a.start_date));

@@ -1,4 +1,7 @@
--- v2 공개 페이지용: 팀 스코프 공개 데이터 RPC
+-- 공개 팀 스코프 RPC: comp_evt_type 전환 대응
+-- 기존 get_public_team_competitions 반환 컬럼명(comp_evt_cds/reg_evt_cds) 변경이 있으므로 DROP 후 재생성
+
+DROP FUNCTION IF EXISTS public.get_public_team_competitions(uuid, date, date);
 
 CREATE OR REPLACE FUNCTION public.get_public_team_competitions(
   p_team_id uuid,

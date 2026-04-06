@@ -26,7 +26,7 @@ async function ProfileContent() {
   const [{ data: raceResults }, { data: utmbProfile }] = await Promise.all([
     supabase
       .from("rec_race_hist")
-      .select("comp_evt_cfg(comp_evt_cd), rec_time_sec, race_nm, race_dt")
+      .select("comp_evt_cfg(comp_evt_type), rec_time_sec, race_nm, race_dt")
       .eq("mem_id", member.id)
       .eq("vers", 0)
       .eq("del_yn", false),
@@ -42,7 +42,7 @@ async function ProfileContent() {
   // Build best records map: for each event_type, pick the one with lowest record_time_sec
   const bestRecords: Record<string, { record_time_sec: number; race_name: string }> = {};
   (raceResults ?? []).forEach((r) => {
-    const evt = (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.evt_cd?.toUpperCase() ?? "";
+    const evt = (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type?.toUpperCase() ?? "";
     if (!["FULL", "HALF", "10K"].includes(evt)) return;
     const existing = bestRecords[evt];
     if (!existing || r.rec_time_sec < existing.record_time_sec) {
@@ -81,7 +81,7 @@ async function ProfileContent() {
         />
 
         {/* 페이스 그래프 */}
-        <PaceChart records={(raceResults ?? []).map((r) => ({ event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.evt_cd?.toUpperCase() ?? "", record_time_sec: r.rec_time_sec, race_name: r.race_nm, race_date: r.race_dt }))} />
+        <PaceChart records={(raceResults ?? []).map((r) => ({ event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type?.toUpperCase() ?? "", record_time_sec: r.rec_time_sec, race_name: r.race_nm, race_date: r.race_dt }))} />
 
         {/* 기록 입력 */}
         <RaceRecordSection memberId={member.id} />

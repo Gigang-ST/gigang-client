@@ -116,7 +116,7 @@ function CompetitionsContent() {
     const supabase = createClient();
     const { data } = await supabase
       .from("comp_mst")
-      .select("comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_cd), team_comp_plan_rel(comp_reg_rel(count))")
+      .select("comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type), team_comp_plan_rel(comp_reg_rel(count))")
       .eq("vers", 0)
       .eq("del_yn", false)
       .order("stt_dt", { ascending: false });
@@ -129,7 +129,7 @@ function CompetitionsContent() {
         start_date: c.stt_dt as string,
         end_date: c.end_dt as string | null,
         location: c.loc_nm as string | null,
-        event_types: ((c.comp_evt_cfg as { evt_cd: string }[] | null) ?? []).map((e) => e.evt_cd?.toUpperCase()),
+        event_types: ((c.comp_evt_cfg as { comp_evt_type: string }[] | null) ?? []).map((e) => e.comp_evt_type?.toUpperCase()),
         source_url: c.src_url as string | null,
         registration_count:
           ((((c.team_comp_plan_rel as { comp_reg_rel?: { count: number }[] }[] | null) ?? [])[0]?.comp_reg_rel) ?? [])[0]?.count ?? 0,
@@ -186,10 +186,10 @@ function CompetitionsContent() {
       ? await supabase.from("mem_mst").select("mem_id, mem_nm").in("mem_id", memIds)
       : { data: [] as { mem_id: string; mem_nm: string | null }[] };
     const { data: evts } = evtIds.length
-      ? await supabase.from("comp_evt_cfg").select("comp_evt_id, evt_cd").in("comp_evt_id", evtIds)
-      : { data: [] as { comp_evt_id: string; evt_cd: string | null }[] };
+      ? await supabase.from("comp_evt_cfg").select("comp_evt_id, comp_evt_type").in("comp_evt_id", evtIds)
+      : { data: [] as { comp_evt_id: string; comp_evt_type: string | null }[] };
     const memNameById = new Map((members ?? []).map((m) => [m.mem_id, m.mem_nm]));
-    const evtCdById = new Map((evts ?? []).map((e) => [e.comp_evt_id, e.evt_cd]));
+    const evtCdById = new Map((evts ?? []).map((e) => [e.comp_evt_id, e.comp_evt_type]));
     const mapped = (data ?? []).map((r) => ({
       id: r.comp_reg_id,
       role: r.prt_role_cd,

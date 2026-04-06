@@ -69,7 +69,7 @@ async function HomeContent() {
   const gigangRaces: UpcomingRace[] = (teamComps ?? [])
     .filter((row) => (row.reg_count ?? 0) > 0)
     .map((row) => {
-      const regs = (row.reg_evt_cds ?? []).map((evt) => ({ evt_cd: evt }));
+      const regs = (row.reg_evt_types ?? []).map((evt) => ({ evt_cd: evt }));
       const registered_event_types = [
         ...new Set(regs.map((re) => re.evt_cd).filter((et): et is string => Boolean(et?.trim()))),
       ].sort();
@@ -79,7 +79,7 @@ async function HomeContent() {
         start_date: row.stt_dt,
         location: row.loc_nm,
         sport: row.comp_sprt_cd,
-        event_types: (row.comp_evt_cds ?? []).map((e) => e?.toUpperCase()).filter(Boolean),
+        event_types: (row.comp_evt_types ?? []).map((e) => e?.toUpperCase()).filter(Boolean),
         regCount: row.reg_count ?? 0,
         registered_event_types: registered_event_types.length > 0 ? registered_event_types : undefined,
       } as UpcomingRace;
@@ -124,7 +124,7 @@ async function HomeContent() {
       const { data: myRegs } = await supabase
         .from("comp_reg_rel")
         .select(
-          "comp_reg_id, mem_id, prt_role_cd, crt_at, team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(comp_evt_cd))), comp_evt_cfg(comp_evt_cd)",
+          "comp_reg_id, mem_id, prt_role_cd, crt_at, team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(comp_evt_type))), comp_evt_cfg(comp_evt_type)",
         )
         .eq("mem_id", member.id)
         .eq("team_comp_plan_rel.team_id", teamId)
@@ -135,7 +135,7 @@ async function HomeContent() {
         competition_id: (Array.isArray(r.team_comp_plan_rel) ? r.team_comp_plan_rel[0] : r.team_comp_plan_rel).comp_id,
         member_id: r.mem_id,
         role: r.prt_role_cd,
-        event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_cd?.toUpperCase() ?? null,
+        event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type?.toUpperCase() ?? null,
         created_at: r.crt_at,
       })) as CompetitionRegistration[];
       myRaces = (myRegs ?? [])
@@ -148,7 +148,7 @@ async function HomeContent() {
             start_date: comp.stt_dt,
             location: comp.loc_nm,
             sport: comp.comp_sprt_cd,
-            event_types: (comp.comp_evt_cfg ?? []).map((e: { comp_evt_cd: string | null }) => e.comp_evt_cd?.toUpperCase()).filter(Boolean),
+            event_types: (comp.comp_evt_cfg ?? []).map((e: { comp_evt_type: string | null }) => e.comp_evt_type?.toUpperCase()).filter(Boolean),
           } as UpcomingRace;
         })
         .filter((c) => c && c.start_date >= today)
@@ -157,13 +157,13 @@ async function HomeContent() {
       if (myRaces.length > 0) {
         const { data: regsByComp } = await supabase
           .from("comp_reg_rel")
-          .select("team_comp_plan_rel!inner(comp_id), comp_evt_cfg(comp_evt_cd)")
+          .select("team_comp_plan_rel!inner(comp_id), comp_evt_cfg(comp_evt_type)")
           .eq("team_comp_plan_rel.team_id", teamId)
           .in("team_comp_plan_rel.comp_id", myRaces.map((r) => r.id));
         const byCompId = new Map<string, Set<string>>();
         (regsByComp ?? []).forEach((row) => {
           const compId = (Array.isArray(row.team_comp_plan_rel) ? row.team_comp_plan_rel[0] : row.team_comp_plan_rel)?.comp_id;
-          const evtCd = (Array.isArray(row.comp_evt_cfg) ? row.comp_evt_cfg[0] : row.comp_evt_cfg)?.comp_evt_cd;
+          const evtCd = (Array.isArray(row.comp_evt_cfg) ? row.comp_evt_cfg[0] : row.comp_evt_cfg)?.comp_evt_type;
           if (!compId || !evtCd?.trim()) return;
           let set = byCompId.get(compId);
           if (!set) { set = new Set(); byCompId.set(compId, set); }
