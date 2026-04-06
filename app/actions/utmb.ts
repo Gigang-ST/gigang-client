@@ -1,7 +1,7 @@
 "use server";
 
 type UtmbResult =
-  | { ok: true; index: number; name: string }
+  | { ok: true; index: number; name: string; recentRaceName: string | null; recentRaceRecord: string | null }
   | { ok: false; error: string };
 
 export async function fetchUtmbIndex(profileUrl: string): Promise<UtmbResult> {
@@ -21,7 +21,7 @@ export async function fetchUtmbIndex(profileUrl: string): Promise<UtmbResult> {
   try {
     const res = await fetch(trimmed, {
       headers: { "User-Agent": "Mozilla/5.0" },
-      next: { revalidate: 3600 },
+      cache: "no-store",
     });
 
     if (!res.ok) {
@@ -41,9 +41,11 @@ export async function fetchUtmbIndex(profileUrl: string): Promise<UtmbResult> {
 
     const desc = descMatch[1];
     const indexMatch = desc.match(/Index is (\d+)/);
-    if (!indexMatch) {
-      return { ok: false, error: "UTMB Index 점수를 파싱할 수 없습니다." };
+    if (!indexMatch || parseInt(indexMatch[1], 10) === 0) {
+      return { ok: false, error: "아직 UTMB Index가 부여되지 않은 프로필입니다. 대회 참여 후 점수가 반영되면 다시 시도해 주세요." };
     }
+
+    const index = parseInt(indexMatch[1], 10);
 
     // Extract name from meta title
     // Format: "{Name} - His/Her Trail results and UTMB® Index"
@@ -54,7 +56,31 @@ export async function fetchUtmbIndex(profileUrl: string): Promise<UtmbResult> {
       ? titleMatch[1].replace(/ - (?:His|Her) Trail results.*/, "").trim()
       : "";
 
-    return { ok: true, index: parseInt(indexMatch[1], 10), name };
+    // Extract recent race from __NEXT_DATA__
+    let recentRaceName: string | null = null;
+    let recentRaceRecord: string | null = null;
+    try {
+      const nextDataMatch = html.match(
+        /<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/,
+      );
+      if (nextDataMatch) {
+        const nextData = JSON.parse(nextDataMatch[1]);
+        const results = nextData?.props?.pageProps?.results?.results;
+        if (Array.isArray(results) && results.length > 0) {
+          const sorted = [...results].sort(
+            (a: { dateIso: string }, b: { dateIso: string }) =>
+              new Date(b.dateIso).getTime() - new Date(a.dateIso).getTime(),
+          );
+          const latest = sorted[0];
+          recentRaceName = latest.race ?? null;
+          recentRaceRecord = latest.isDnf ? "DNF" : (latest.time ?? null);
+        }
+      }
+    } catch {
+      // 최근 대회 파싱 실패해도 Index는 반환
+    }
+
+    return { ok: true, index, name, recentRaceName, recentRaceRecord };
   } catch {
     return { ok: false, error: "UTMB 서버에 연결할 수 없습니다." };
   }
