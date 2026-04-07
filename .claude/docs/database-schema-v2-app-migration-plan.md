@@ -39,7 +39,7 @@
 | 슬라이스 | 앱(이 저장소) | 비고 |
 |----------|----------------|------|
 | 0 | 필요 시 `supabase gen types` | v2 테이블은 수동 보강·재생성 병행 가능 |
-| 1 | **앱 전환 완료** | 조회·온보딩·프로필·관리자: `mem_mst` + 기강 `team_mem_rel`. 레거시 `member`는 FK 호환용 **이중 기록**(온보딩·프로필 저장 시). DB: `20260406120000_mem_mst_rls_oauth_and_teammates.sql` 선행 권장 |
+| 1 | **앱 전환 완료** | 조회·온보딩·프로필·관리자: `mem_mst` + 기강 `team_mem_rel`. 레거시 `member`는 FK 호환용 **이중 기록**(온보딩·프로필 저장 시). DB: `20260406120000_mem_mst_rls_oauth_and_teammates.sql` + **`20260407120000_v2_team_mem_rel_rls_no_recursion.sql`**(RLS 42P17 재귀 제거, prd도 동일 순서 적용) |
 | 2 | 미완 | `competition` → `comp_mst`·`comp_evt_cfg` |
 | 3 | 미완 | `competition_registration` → `comp_reg_rel` 등 |
 | 4 | 미완 | `race_result` → `rec_race_hist` (`records`·`profile`·관리자 기록 화면 등) |
@@ -194,6 +194,7 @@
 | 2026-04-05 | 초안: 슬라이스·인벤토리·dev/prd 공통 절차 |
 | 2026-04-06 | UTMB: `mem_utmb_prf` 앱 반영·P9(`20260404165809`) 문서 연계. §2.1 진행 상태·슬라이스 5 인벤토리 분리(UTMB 완료 / PB 미완). 앱 전환은 슬라이스 1→4 순 권장 명시 |
 | 2026-04-06 | 슬라이스 1 앱: `mem_mst`·`team_mem_rel` 조회·온보딩(서버 액션)·프로필·관리자·RLS(`20260406120000`). `member` 이중 기록 유지 |
+| 2026-04-07 | 슬라이스 1 DB: `20260407120000_v2_team_mem_rel_rls_no_recursion.sql` — `team_mem_rel`/`team_mst`/`mem_mst_select_same_team` RLS 무한 재귀(42P17) 제거. `rollout-progress` 웨이브 2a·`cutover-checklist` §8에 prd 필수 포함 명시 |
 | 2026-04-06 | §7 TODO: `GIGANG_TEAM_ID` 하드코딩·추후 팀 선택 시 제거 (`member-domain` §7 연계) |
 | 2026-04-06 | §9: 슬라이스별 수정 포인트·수동 테스트 목록·전체 회귀 체크리스트 추가 |
 
@@ -228,7 +229,7 @@
 | 프로필 | `components/profile/profile-edit-form.tsx`, `bank-info-form.tsx`, `app/actions/upload-avatar.ts` |
 | 관리자 | `app/actions/admin/manage-member.ts`, `get-admin-stats.ts`, `app/(info)/admin/members/page.tsx`, `approvals/page.tsx` |
 | 교차 | `app/(main)/page.tsx`(활동 인원 `team_mem_rel`), `components/races/race-list-view.tsx`(멤버 상태) |
-| DB | `supabase/migrations/20260406120000_mem_mst_rls_oauth_and_teammates.sql` |
+| DB | `supabase/migrations/20260406120000_mem_mst_rls_oauth_and_teammates.sql`, `20260407120000_v2_team_mem_rel_rls_no_recursion.sql` |
 
 **남은 레거시:** `member` 테이블은 **이중 기록**으로 여전히 갱신됨(FK·기존 RLS 정책 호환).
 

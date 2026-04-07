@@ -33,7 +33,7 @@
 | 진행 상태 요약 | 웨이브 6 DDL 완료 → **백필 P0–P7(dev) 완료** → **§6.5 `archive.old_*` 스냅샷 dev 완료**(`64840`) → **prd 컷오버 시 동일 세트** → 앱 전환·QA |
 | DB 담당 | (이름) |
 | 앱 담당 | (이름) |
-| 최종 갱신일 | 2026-04-05 (§6.5 적용 상태 구분 명시) |
+| 최종 갱신일 | 2026-04-07 (`20260407120000` RLS 재귀 수정·prd 동일 세트 반영 안내) |
 
 ## 3.1) 웨이브 0 — 완료 기록 (2026-04-04)
 
@@ -129,6 +129,11 @@ order by 1;
   - `mem_mst` SELECT: 동일 팀(`team_mem_rel` 정본) 소속끼리 프로필 조회(기존 `member` 비RLS 수준의 목록 UX에 대응)
 - [ ] **prd / 운영계 테이블 신규 생성:** Git 저장소의 `supabase/migrations/` 를 **버전 순으로 전부 적용**하는 절차(`cutover-checklist` §8)를 따르면, 웨이브 2 파일 다음 타임스탬프로 본 파일이 포함되어 **자동 반영**된다. 수동으로 웨이브 2만 떼어 적용하는 경우에는 **반드시 본 파일을 같은 순서로 추가 적용**할 것.
 - [ ] **검증:** 로그인 후 본인 프로필 조회·온보딩·관리자 멤버 목록(동일 팀)이 RLS 오류 없이 동작하는지 스모크
+- [x] 마이그레이션 `supabase/migrations/20260407120000_v2_team_mem_rel_rls_no_recursion.sql`
+  - **필수(슬라이스 1):** 웨이브 2의 `team_mem_rel_select_teammate` 등이 **정책 본문에서 `team_mem_rel`를 다시 읽어** `mem_mst_select_same_team`( `20260406120000` )과 연쇄 시 PostgreSQL **42P17 infinite recursion** 이 난다. 본 마이그레이션은 **`v2_rls_auth_in_team` / `v2_rls_auth_team_owner_or_admin` / `v2_rls_auth_shares_team_with_mem`** (`SECURITY DEFINER`, `SET row_security = off`)로 소속·권한 검증을 옮기고, `team_mem_rel`·`team_mst`·`mem_mst_select_same_team` 정책을 교체한다.
+  - **prd:** Git `supabase/migrations/` 를 **버전 순 전체 적용**(`cutover-checklist` §8)하면 `20260406120000` 다음 타임스탬프로 **자동 포함**된다. `20260406120000` 만 적용하고 본 파일을 빼면 로그인·동료 조회에서 재귀 오류가 남을 수 있다.
+  - [x] **dev:** 적용 완료 (2026-04-07, MCP `apply_migration` 또는 이후 `db push` 로 `schema_migrations` 정합)
+  - [ ] **prd:** 컷오버 창구에서 동일 파일 적용·`schema_migrations` 에 `20260407120000` 확인
 - [x] 마이그레이션 `supabase/migrations/20260406203000_v2_public_team_member_stats_rpc.sql`
   - 공개 홈 지표용 RPC `get_public_team_member_stats(p_team_id uuid)` 추가
   - `anon`/`authenticated`는 RPC 실행만 허용, 원본 `team_mem_rel` 행 직접 조회는 유지 차단
@@ -336,6 +341,7 @@ select
 | 2026-04-05 | dev | P6 | `20260404102207`: `migration_v2_map_evt_cd` 복구 후 `mem_mst`·`team_comp_plan_rel`·`comp_evt_cfg` 조인으로 `comp_reg_rel` 삽입(`comp_reg_id` 1:1). dev **76**건 = **76**, **B-1 누락 0건**. MCP `20260404154451` 삭제 후 `20260404102207` 기록 | B-1 | — |
 | 2026-04-05 | dev | P7 | `20260404102208`: `race_result` → `rec_race_hist`, `ON CONFLICT (mem_id, comp_evt_id, race_dt, race_nm, vers) DO NOTHING`. dev `race_result` **178** / `rec_race_hist` 정본 **177**, **B-2 누락 1건**(UK 중복) — 미삽입 `race_result.id` 샘플: `7c91d345-8680-47db-b5b6-4e5fa5db4474`. B-3: `comp_id` null **136**, `comp_evt_id` null **166**. `02309` 동일 INSERT 에도 동일 `ON CONFLICT` 추가. MCP `20260404155517` 삭제 후 `20260404102208` 기록 | B-2, B-3 | — |
 | 2026-04-05 | dev | P9 | `20260404165809`: `mem_utmb_prf` DDL·RLS·`utmb_profile` 백필. dev `utmb_profile` **8** = 정본 **8**, **B-4 0건**. MCP 적용 버전 `20260404165809` | B-4 | — |
+| 2026-04-07 | dev | (정책) | `20260407120000`: 슬라이스 1 RLS **42P17**(`team_mem_rel` 정책 자기 참조 + `mem_mst_select_same_team`) 제거. prd 동일 파일·순서 적용 | `cutover-checklist` §3·§8 | — |
 | | | | | | |
 
 ### 5.6 prd 컷오버: `mem_mst` ↔ `auth.users` FK 재부착
@@ -490,3 +496,4 @@ order by 1, 2;
 | 2026-04-06 | 공개 홈 지표 RPC `20260406203000_v2_public_team_member_stats_rpc.sql` 추가 — 활동/전체 멤버 수를 RPC로 노출하고 `team_mem_rel` 원본 행 직접 공개는 유지 차단 | — |
 | 2026-04-06 | 대회 관리자 정책 v2-only 전환 `20260406230000_v2_comp_admin_policy_team_role.sql` — `is_legacy_platform_admin` 제거, `team_mem_rel` 권한 기반으로 통합 | — |
 | 2026-04-06 | `public` 미사용 레거시 테이블 제거 마이그레이션 `20260406233000_v2_drop_unused_legacy_public_tables.sql` 추가 | — |
+| 2026-04-07 | 웨이브 **2a 보강:** `20260407120000_v2_team_mem_rel_rls_no_recursion.sql` — `team_mem_rel`·`team_mst`·`mem_mst_select_same_team` RLS **무한 재귀(42P17)** 제거(`SECURITY DEFINER` 헬퍼 3종). dev 적용 완료·prd는 `supabase/migrations/` 버전 순 전체 적용으로 동일 포함(`cutover-checklist` §8) | — |
