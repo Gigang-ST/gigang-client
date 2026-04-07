@@ -119,8 +119,13 @@
 - 팀 관리자 목록: `team_mem_rel.team_role_cd in ('owner', 'admin')`
 
 ## 5) RLS 원칙 (초안)
+
+이 절은 **제품 권한·노출이 어떻게 되어야 하는지(의미)** 만 정의한다. **실제 `ENABLE ROW LEVEL SECURITY`·`CREATE POLICY`·헬퍼 함수 SQL** 은 `supabase/migrations/` 에 있으며, 운영(prd)에 적용할 **파일 전체·이름 순**은 `database-schema-v2-rollout-progress.md` **§2.1** 이 정본이다.  
+롤아웃/컷오버 문서에 마이그레이션 파일명이 많이 보이는 이유는 **적용 순서·운영 절차**를 적어 두기 위함이고, **권한 의미가 `member-domain` 과 별개로 새로 정의된 것은 아니다**(구현이 보강·수정된 것).
+
 - `mem_mst`
-  - SELECT/UPDATE: 본인 `mem_id = auth.uid()`
+  - SELECT/UPDATE: 본인 `mem_id = auth.uid()` (레거시 OAuth 연동 행은 `oauth_kakao_id` / `oauth_google_id` = `auth.uid()` 도 본인으로 인정 — 구현: `20260406120000_mem_mst_rls_oauth_and_teammates.sql`)
+  - SELECT: 동일 팀(정본 `team_mem_rel`) 소속끼리 프로필 조회 허용 — 구현상 `mem_mst_select_same_team` + `team_mem_rel` 조인; **팀 관계 정책과 연계**됨
   - DELETE: 원칙적 금지(soft delete)
 - `mem_utmb_prf`
   - SELECT: 레거시와 동등하게 **공개 조회**(`del_yn = false`) — 기록/랭킹 UI 호환
@@ -131,6 +136,7 @@
   - 본인 탈퇴 시 제한된 self-update 허용
   - 공개 홈 지표(활동/전체 멤버 수)는 원본 행 직접 조회 대신
     `get_public_team_member_stats(p_team_id uuid)` RPC로 제공
+  - **구현 유의(PostgreSQL):** 위 “같은 팀이면 SELECT”를 정책 본문에서 `EXISTS (SELECT … FROM team_mem_rel …)` 로만 풀면, 내부 스캔에도 동일 SELECT 정책이 붙어 **42P17 infinite recursion** 이 난다. **의미는 그대로 두고** 소속 검증만 `SECURITY DEFINER` + `SET row_security = off` 헬퍼로 옮긴 것이 `20260407120000_v2_team_mem_rel_rls_no_recursion.sql` 이다(초기 DDL: `20260404081732_v2_wave2_member_team.sql`).
 - `team_mst`
   - SELECT: 팀 멤버만
   - UPDATE: 팀 관리자만

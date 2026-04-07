@@ -109,4 +109,11 @@ where p.mem_id is null;
   - `20260407120000_v2_team_mem_rel_rls_no_recursion.sql` — 웨이브 2 `team_mem_rel` 정책이 `team_mem_rel`를 다시 읽어 **`mem_mst_select_same_team`과 연쇄 시 42P17(infinite recursion)** 이 나는 문제 수정(`SECURITY DEFINER` 헬퍼). **`20260406120000`만 있고 본 파일이 없으면** 로그인·온보딩·동료 조회에서 동일 오류가 남을 수 있음.
 - [ ] 공통코드·`*_cd` 컬럼 대응은 **`migration-map` §2.1 표**만 단일 기준으로 삼는다(컬럼명이 `cd_grp_cd`와 다르더라도 표에 있으면 정상; 표 밖은 설계 변경으로 처리)
 
+### 8.1) 마지막 확인 — dev와 같은 방식으로 마이그레이션했는지
+
+- [ ] **Git이 유일한 정본:** dev에만 실행해 두고 **커밋되지 않은** 마이그레이션 SQL이 없다. prd에 적용한 내용은 **전부** 고정한 Git 리비전의 `supabase/migrations/*.sql` 과 대응한다.
+- [ ] **적용 방식 동일:** prd도 dev와 같이 **폴더 내 모든 `*.sql`을 파일명(타임스탬프) 오름차순**으로 적용했고, 선별·순서 변경을 하지 않았다(`rollout-progress` §2.1).
+- [ ] **`schema_migrations` 대조:** prd DB의 `schema_migrations.version` 집합이 위 리비전의 마이그레이션 파일명 접두와 **일치**함을 확인했다.
+- [ ] **데이터는 다를 수 있음:** dev/prd **데이터(행)** 는 소스가 다르므로 달라도 된다. 검증 대상은 **구조·정책 동등**(마이그레이션 결과)이지 테이블 내용의 동일 복제가 아니다.
+
 실행 후 **§2.1 정합성·`rollout-progress` §5.2 검증 SQL 결과**를 prd에도 남긴다.
