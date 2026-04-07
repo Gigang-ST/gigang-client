@@ -11,6 +11,7 @@ import { getCurrentMember } from "@/lib/queries/member";
 import { env } from "@/lib/env";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { SectionLabel } from "@/components/common/typography";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 
 type UpcomingRace = {
@@ -40,6 +41,7 @@ function isSameSlot(dateA: string, dateB: string) {
 
 async function HomeContent() {
   const { user, member: currentMember, supabase } = await getCurrentMember();
+  const admin = createAdminClient();
   const { teamId } = await getRequestTeamContext();
   const today = new Date().toISOString().split("T")[0];
 
@@ -51,7 +53,7 @@ async function HomeContent() {
     { count: upcomingCount },
     { data: recentRecordsRaw },
   ] = await Promise.all([
-    supabase.rpc("get_public_team_member_stats", { p_team_id: teamId }),
+    admin.rpc("get_public_team_member_stats", { p_team_id: teamId }),
     supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: today, p_end: null }),
     supabase
       .from("comp_mst")
@@ -244,6 +246,7 @@ async function HomeContent() {
 
         {/* Upcoming Races */}
         <UpcomingRaces
+          teamId={teamId}
           races={upcomingCards}
           initialMemberStatus={initialMemberStatus}
           initialRegistrationsByCompetitionId={initialRegistrationsByCompetitionId}

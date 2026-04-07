@@ -107,6 +107,7 @@ where p.mem_id is null;
 - [ ] **앱 슬라이스 1(회원 `mem_mst`·`team_mem_rel`) 배포 전:** 아래가 **둘 다** 적용됐는지 확인한다. prd는 **저장소 `supabase/migrations/` 전체를 버전 순으로 적용**하면 자동 포함된다(`rollout-progress` **웨이브 2a**). 일부만 선별 적용하지 말 것.
   - `20260406120000_mem_mst_rls_oauth_and_teammates.sql` — OAuth·본인 행 매칭, 동료 `mem_mst` 조회 정책. 누락 시 프로필/목록이 RLS에 막힐 수 있음.
   - `20260407120000_v2_team_mem_rel_rls_no_recursion.sql` — 웨이브 2 `team_mem_rel` 정책이 `team_mem_rel`를 다시 읽어 **`mem_mst_select_same_team`과 연쇄 시 42P17(infinite recursion)** 이 나는 문제 수정(`SECURITY DEFINER` 헬퍼). **`20260406120000`만 있고 본 파일이 없으면** 로그인·온보딩·동료 조회에서 동일 오류가 남을 수 있음.
+- [ ] `20260407123000_v2_public_team_member_stats_rpc_service_role_only.sql` 적용 여부 확인 — `get_public_team_member_stats(uuid)`는 **`service_role`만 EXECUTE** 허용되어야 한다(`anon`/`authenticated` REVOKE). 홈 지표 호출은 서버 admin 클라이언트 경로를 사용한다.
 - [ ] 공통코드·`*_cd` 컬럼 대응은 **`migration-map` §2.1 표**만 단일 기준으로 삼는다(컬럼명이 `cd_grp_cd`와 다르더라도 표에 있으면 정상; 표 밖은 설계 변경으로 처리)
 
 ### 8.1) 마지막 확인 — dev와 같은 방식으로 마이그레이션했는지

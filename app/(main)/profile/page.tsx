@@ -11,9 +11,11 @@ import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
 import { RaceRecordSection } from "@/components/profile/race-record-section";
 import { PaceChart } from "@/components/profile/pace-chart";
 import { getCurrentMember } from "@/lib/queries/member";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 
 async function ProfileContent() {
   const { user, member, supabase } = await getCurrentMember();
+  const { teamId } = await getRequestTeamContext();
 
   if (!user) {
     redirect("/auth/login?next=/profile");
@@ -84,7 +86,7 @@ async function ProfileContent() {
         <PaceChart records={(raceResults ?? []).map((r) => ({ event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type?.toUpperCase() ?? "", record_time_sec: r.rec_time_sec, race_name: r.race_nm, race_date: r.race_dt }))} />
 
         {/* 기록 입력 */}
-        <RaceRecordSection memberId={member.id} />
+        <RaceRecordSection memberId={member.id} teamId={teamId} />
       </div>
   );
 }

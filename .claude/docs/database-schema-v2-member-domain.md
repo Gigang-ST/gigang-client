@@ -147,7 +147,8 @@
 
 ## 7) 오픈 이슈
 - 팀 선택 컨텍스트를 JWT claim으로 처리할지, 앱 세션 상태로 처리할지 확정 필요
-- **TODO (앱):** 현재는 기강 단일 팀만 전제로 `team_id`가 `lib/constants/gigang-team.ts`의 `GIGANG_TEAM_ID`에 하드코딩되어 있다. 멀티팀·사용자 팀 선택 UI가 생기면 해당 컨텍스트로 `team_id`를 주입하고 상수 직참조를 걷어낸다(`database-schema-v2-app-migration-plan.md`와 동기).
+- **앱 팀 컨텍스트 (현재):** 요청 **Host**(`x-forwarded-host` / `host`)에서 `team_cd`를 해석하고 `team_mst` 정본으로 `team_id`를 조회한다. 진입점은 `lib/queries/request-team.ts`의 `getRequestTeamContext()`(서버 컴포넌트·서버 액션)와 `resolveTeamContextFromHost(host)`(OAuth `route.ts` 등 `headers()` 미사용 경로). `team_mst` 매칭 실패·localhost 등에서는 `lib/constants/gigang-team.ts`의 **`DEFAULT_FALLBACK_TEAM_ID`**(`team_cd = gigang` 정본 UUID)로 폴백한다. 업무 코드에서 이 UUID를 직접 쓰지 않는다.
+- **추후:** 한 사용자가 **여러 팀**에 소속되거나 URL이 아닌 **UI로 팀을 전환**하는 경우, 활성 `team_id`를 세션·쿠키·라우트 등으로 정하고 `getRequestTeamContext`를 그에 맞게 확장한다(`database-schema-v2-app-migration-plan.md` §7과 동기).
 - 전역 회원 상태를 별도로 둘지(예: 플랫폼 제재용), 현재처럼 팀 상태만으로 운영할지 추후 확정 필요
 
 ## 8) 상태 코드 기준 (v2)

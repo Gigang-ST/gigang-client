@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { GIGANG_TEAM_ID } from "@/lib/constants/gigang-team";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { digitsOnly, formatPhone, isValidPhone } from "@/lib/phone-utils";
 import { todayKST } from "@/lib/dayjs";
 
@@ -61,11 +61,12 @@ export async function onboardingCheckPhone(
   const mst = list?.[0];
   if (!mst) return { ok: true, kind: "new" };
 
+  const { teamId } = await getRequestTeamContext();
   const { data: rel } = await admin
     .from("team_mem_rel")
     .select("mem_st_cd")
     .eq("mem_id", mst.mem_id)
-    .eq("team_id", GIGANG_TEAM_ID)
+    .eq("team_id", teamId)
     .eq("vers", 0)
     .eq("del_yn", false)
     .maybeSingle();
@@ -133,11 +134,12 @@ export async function onboardingRejoinFromInactive(args: {
 
   if (e0) return { ok: false, message: e0.message };
 
+  const { teamId } = await getRequestTeamContext();
   const { error: e1 } = await admin
     .from("team_mem_rel")
     .update({ mem_st_cd: "pending" })
     .eq("mem_id", args.memId)
-    .eq("team_id", GIGANG_TEAM_ID)
+    .eq("team_id", teamId)
     .eq("vers", 0)
     .eq("del_yn", false);
 
@@ -146,7 +148,7 @@ export async function onboardingRejoinFromInactive(args: {
   return { ok: true };
 }
 
-/** 신규 가입: mem_mst(mem_id = auth.uid()) + 기강 team_mem_rel */
+/** 신규 가입: mem_mst(mem_id = auth.uid()) + 요청 Host 기준 팀 team_mem_rel */
 export async function onboardingCreateMember(args: {
   fullName: string;
   gender: "male" | "female";
@@ -189,8 +191,9 @@ export async function onboardingCreateMember(args: {
     return { ok: false, message: em.message };
   }
 
+  const { teamId } = await getRequestTeamContext();
   const { error: eRel } = await admin.from("team_mem_rel").insert({
-    team_id: GIGANG_TEAM_ID,
+    team_id: teamId,
     mem_id: uid,
     team_role_cd: "member",
     mem_st_cd: "active",

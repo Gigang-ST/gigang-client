@@ -55,6 +55,7 @@ type RegistrationWithMember = {
 const SPORT_OPTIONS = SPORT_LEGEND.filter(s => s.key !== "other");
 
 interface CompetitionDetailDialogProps {
+  teamId: string;
   competition: Competition | null;
   registration?: CompetitionRegistration;
   memberStatus: MemberStatus;
@@ -77,6 +78,7 @@ interface CompetitionDetailDialogProps {
 }
 
 export function CompetitionDetailDialog({
+  teamId,
   competition,
   registration,
   memberStatus,
@@ -113,6 +115,7 @@ export function CompetitionDetailDialog({
       .from("team_comp_plan_rel")
       .select("team_comp_id")
       .eq("comp_id", competitionId)
+      .eq("team_id", teamId)
       .eq("vers", 0)
       .eq("del_yn", false)
       .maybeSingle();
@@ -144,7 +147,7 @@ export function CompetitionDetailDialog({
       };
     });
     setParticipants(mapped);
-  }, [supabase]);
+  }, [supabase, teamId]);
 
   useEffect(() => {
     if (!competition || !open) return;
@@ -485,17 +488,30 @@ export function CompetitionDetailDialog({
             {memberStatus.status === "needs-onboarding" && (
               <p>참가 신청 전에 회원 정보를 먼저 입력해 주세요.</p>
             )}
-            <Button asChild className="w-full">
-              <Link
-                href={
-                  memberStatus.status === "signed-out"
-                    ? "/auth/login?next=%2Fraces"
-                    : "/onboarding"
-                }
+            {memberStatus.status === "member-fetch-error" && (
+              <p>회원 정보를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.</p>
+            )}
+            {memberStatus.status === "member-fetch-error" ? (
+              <Button
+                type="button"
+                className="w-full"
+                onClick={() => window.location.reload()}
               >
-                {memberStatus.status === "signed-out" ? "로그인" : "회원정보 입력"}
-              </Link>
-            </Button>
+                새로고침
+              </Button>
+            ) : (
+              <Button asChild className="w-full">
+                <Link
+                  href={
+                    memberStatus.status === "signed-out"
+                      ? "/auth/login?next=%2Fraces"
+                      : "/onboarding"
+                  }
+                >
+                  {memberStatus.status === "signed-out" ? "로그인" : "회원정보 입력"}
+                </Link>
+              </Button>
+            )}
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">

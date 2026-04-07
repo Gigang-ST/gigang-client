@@ -180,10 +180,10 @@
 - **슬라이스 단위로 요청:** “슬라이스 1만, `getCurrentMember`·`verifyAdmin`·`getMember` 를 `mem_mst` 기준으로 바꿔줘”처럼 범위를 고정.
 - **아키텍처·순서 논쟁이 필요하면** 짧은 Plan으로 슬라이스 순서만 고정한 뒤, 구현은 슬라이스별 Agent 가 적합.
 
-### TODO (팀 컨텍스트)
+### 팀 컨텍스트 (앱)
 
-- **현재:** 기강 단일 팀만 가정하고 `GIGANG_TEAM_ID`(`lib/constants/gigang-team.ts`)를 소스 전역에서 참조한다. P0/P2 백필의 `team_cd = gigang` 정본 UUID와 동일하다.
-- **추후:** 사용자가 팀을 선택하거나 여러 팀에 소속되면, 세션·JWT·라우트 등으로 활성 `team_id`를 정하고 쿼리/RLS 경로를 그에 맞게 바꾼 뒤 상수 직참조를 제거한다. 상세는 `database-schema-v2-member-domain.md` §7.
+- **현재:** `team_id`는 **요청 Host → `team_cd` → `team_mst`** 로 해석한다(`lib/queries/request-team.ts`). `getCurrentMember`·`verifyAdmin`·온보딩·관리자 액션·OAuth 콜백·클라이언트는 서버에서 넘긴 `teamId` 또는 동일 Host 규칙을 따른다. 폴백 UUID는 **`lib/constants/gigang-team.ts`의 `DEFAULT_FALLBACK_TEAM_ID` 한 곳**이며, P0/P2 백필의 `team_cd = gigang` 정본과 동일하다.
+- **추후:** 사용자 **팀 선택 UI**·**한 계정 다중 팀**이 필요하면 활성 `team_id` 소스(Host만이 아닌 세션·JWT·경로 등)를 확장하고, `getRequestTeamContext`/`resolveTeamContextFromHost`를 그에 맞게 조정한다. 상세는 `database-schema-v2-member-domain.md` §7.
 
 ---
 
@@ -196,7 +196,8 @@
 | 2026-04-06 | 슬라이스 1 앱: `mem_mst`·`team_mem_rel` 조회·온보딩(서버 액션)·프로필·관리자·RLS(`20260406120000`). `member` 이중 기록 유지 |
 | 2026-04-07 | 슬라이스 1 DB: `20260407120000_v2_team_mem_rel_rls_no_recursion.sql` — `team_mem_rel`/`team_mst`/`mem_mst_select_same_team` RLS 무한 재귀(42P17) 제거. `rollout-progress` 웨이브 2a·`cutover-checklist` §8에 prd 필수 포함 명시 |
 | 2026-04-07 | prd 담당자용: `rollout-progress` **§2.1** 완성본 정의·참고 표(§1·원칙 2) 교차 참조 — 히스토리와 절차서 분리 |
-| 2026-04-06 | §7 TODO: `GIGANG_TEAM_ID` 하드코딩·추후 팀 선택 시 제거 (`member-domain` §7 연계) |
+| 2026-04-06 | §7: 팀 컨텍스트 TODO 정리(당시 `GIGANG_TEAM_ID` 전역 참조 전제) |
+| 2026-04-07 | §7: Host 기반 `getRequestTeamContext`·`DEFAULT_FALLBACK_TEAM_ID` 반영. `member-domain` §7 동기 |
 | 2026-04-06 | §9: 슬라이스별 수정 포인트·수동 테스트 목록·전체 회귀 체크리스트 추가 |
 
 ---
@@ -225,7 +226,8 @@
 | 구분 | 경로 |
 |------|------|
 | 조회·관리자 | `lib/queries/member.ts`, `lib/queries/app-member.ts`, `lib/get-member.ts` |
-| 상수 | `lib/constants/gigang-team.ts` |
+| 팀 컨텍스트(Host) | `lib/queries/request-team.ts` (`getRequestTeamContext`, `resolveTeamContextFromHost`, `extractTeamCdFromHost`) |
+| 폴백 팀 UUID | `lib/constants/gigang-team.ts` (`DEFAULT_FALLBACK_TEAM_ID` — 업무 코드 직참조 금지, `request-team` 폴백만) |
 | 온보딩 | `app/actions/onboarding-mem-v2.ts`, `components/auth/member-onboarding-form.tsx` |
 | 프로필 | `components/profile/profile-edit-form.tsx`, `bank-info-form.tsx`, `app/actions/upload-avatar.ts` |
 | 관리자 | `app/actions/admin/manage-member.ts`, `get-admin-stats.ts`, `app/(info)/admin/members/page.tsx`, `approvals/page.tsx` |

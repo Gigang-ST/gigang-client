@@ -3,7 +3,7 @@
 import { revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentMember } from "@/lib/queries/member";
-import { GIGANG_TEAM_ID } from "@/lib/constants/gigang-team";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 
 interface CreateCompetitionInput {
   title: string;
@@ -46,8 +46,9 @@ export async function createCompetition(input: CreateCompetitionInput) {
     return { ok: false, message: "등록에 실패했습니다. 다시 시도해 주세요." };
   }
 
+  const { teamId } = await getRequestTeamContext();
   const { error: planErr } = await admin.from("team_comp_plan_rel").insert({
-    team_id: GIGANG_TEAM_ID,
+    team_id: teamId,
     comp_id: comp.comp_id,
     vers: 0,
     del_yn: false,
@@ -55,6 +56,8 @@ export async function createCompetition(input: CreateCompetitionInput) {
 
   if (planErr) {
     console.error("대회 등록 실패(team_comp_plan_rel):", planErr);
+    // 보상 트랜잭션: plan 생성 실패 시 방금 만든 comp_mst 정리
+    await admin.from("comp_mst").delete().eq("comp_id", comp.comp_id);
     return { ok: false, message: "등록에 실패했습니다. 다시 시도해 주세요." };
   }
 
@@ -68,6 +71,15 @@ export async function createCompetition(input: CreateCompetitionInput) {
     const { error: evtErr } = await admin.from("comp_evt_cfg").insert(eventRows);
     if (evtErr) {
       console.error("대회 등록 실패(comp_evt_cfg):", evtErr);
+      // 보상 트랜잭션: 이벤트 생성 실패 시 같은 팀 plan + comp_mst 정리
+      await admin
+        .from("team_comp_plan_rel")
+        .delete()
+        .eq("comp_id", comp.comp_id)
+        .eq("team_id", teamId)
+        .eq("vers", 0)
+        .eq("del_yn", false);
+      await admin.from("comp_mst").delete().eq("comp_id", comp.comp_id);
       return { ok: false, message: "등록에 실패했습니다. 다시 시도해 주세요." };
     }
   }

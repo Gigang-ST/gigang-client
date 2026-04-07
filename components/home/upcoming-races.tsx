@@ -24,12 +24,14 @@ type UpcomingRace = {
 };
 
 type UpcomingRacesProps = {
+  teamId: string;
   races: UpcomingRace[];
   initialMemberStatus: MemberStatus;
   initialRegistrationsByCompetitionId: Record<string, CompetitionRegistration>;
 };
 
 export function UpcomingRaces({
+  teamId,
   races,
   initialMemberStatus,
   initialRegistrationsByCompetitionId,
@@ -41,6 +43,23 @@ export function UpcomingRaces({
   const [registrationsByCompetitionId, setRegistrationsByCompetitionId] =
     useState<Record<string, CompetitionRegistration>>(initialRegistrationsByCompetitionId);
 
+  async function resolveCompEvtId(args: {
+    competitionId: string;
+    eventType: string | null;
+  }): Promise<string | null> {
+    if (!args.eventType) return null;
+    const { data, error } = await supabase
+      .from("comp_evt_cfg")
+      .select("comp_evt_id")
+      .eq("comp_id", args.competitionId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .eq("comp_evt_type", args.eventType)
+      .maybeSingle();
+    if (error) throw error;
+    return data?.comp_evt_id ?? null;
+  }
+
   const createRegistration = async (competitionId: string, payload: { role: "participant" | "cheering" | "volunteer"; eventType: string }) => {
     if (memberStatus.status !== "ready") return { ok: false as const, message: "로그인이 필요합니다." };
     const eventType = payload.role === "participant" ? payload.eventType.trim().toUpperCase() : null;
@@ -48,12 +67,21 @@ export function UpcomingRaces({
       .from("team_comp_plan_rel")
       .select("team_comp_id")
       .eq("comp_id", competitionId)
+      .eq("team_id", teamId)
       .eq("vers", 0)
       .eq("del_yn", false)
       .maybeSingle();
     if (planErr || !plan) return { ok: false as const, message: "신청에 실패했습니다." };
+
+    let compEvtId: string | null = null;
+    try {
+      compEvtId = await resolveCompEvtId({ competitionId, eventType });
+    } catch {
+      return { ok: false as const, message: "신청에 실패했습니다." };
+    }
+
     const { data, error } = await supabase.from("comp_reg_rel")
-      .insert({ team_comp_id: plan.team_comp_id, mem_id: memberStatus.memberId, prt_role_cd: payload.role, vers: 0, del_yn: false })
+      .insert({ team_comp_id: plan.team_comp_id, mem_id: memberStatus.memberId, prt_role_cd: payload.role, comp_evt_id: compEvtId, vers: 0, del_yn: false })
       .select("comp_reg_id, mem_id, prt_role_cd, crt_at").single();
     if (error) return { ok: false as const, message: "신청에 실패했습니다." };
     setRegistrationsByCompetitionId(prev => ({ ...prev, [competitionId]: { id: data.comp_reg_id, competition_id: competitionId, member_id: data.mem_id, role: data.prt_role_cd as "participant" | "cheering" | "volunteer", event_type: eventType, created_at: data.crt_at } }));
@@ -63,8 +91,16 @@ export function UpcomingRaces({
   const updateRegistration = async (registrationId: string, competitionId: string, payload: { role: "participant" | "cheering" | "volunteer"; eventType: string }) => {
     if (memberStatus.status !== "ready") return { ok: false as const, message: "로그인이 필요합니다." };
     const eventType = payload.role === "participant" ? payload.eventType.trim().toUpperCase() : null;
+
+    let compEvtId: string | null = null;
+    try {
+      compEvtId = await resolveCompEvtId({ competitionId, eventType });
+    } catch {
+      return { ok: false as const, message: "수정에 실패했습니다." };
+    }
+
     const { data, error } = await supabase.from("comp_reg_rel")
-      .update({ prt_role_cd: payload.role }).eq("comp_reg_id", registrationId)
+      .update({ prt_role_cd: payload.role, comp_evt_id: compEvtId }).eq("comp_reg_id", registrationId)
       .select("comp_reg_id, mem_id, prt_role_cd, crt_at").single();
     if (error) return { ok: false as const, message: "수정에 실패했습니다." };
     setRegistrationsByCompetitionId(prev => ({ ...prev, [competitionId]: { id: data.comp_reg_id, competition_id: competitionId, member_id: data.mem_id, role: data.prt_role_cd as "participant" | "cheering" | "volunteer", event_type: eventType, created_at: data.crt_at } }));
@@ -165,6 +201,7 @@ export function UpcomingRaces({
       )}
 
       <CompetitionDetailDialog
+        teamId={teamId}
         competition={selectedCompetition}
         registration={selectedCompetition ? registrationsByCompetitionId[selectedCompetition.id] : undefined}
         memberStatus={memberStatus}

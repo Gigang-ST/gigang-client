@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
-  fetchMemMstWithGigangRel,
+  fetchMemMstWithTeamRel,
   mapMstRelToAppMemberProfile,
 } from "@/lib/queries/app-member";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
@@ -30,12 +30,14 @@ const SPORT_LABEL: Record<string, { label: string; className: string }> = {
 };
 
 export function RaceListView({
+  teamId,
   gigangCompetitions,
   allCompetitions,
   initialMemberStatus,
   initialRegistrationsByCompetitionId,
   initialRegCounts,
 }: {
+  teamId: string;
   gigangCompetitions: Competition[];
   allCompetitions: Competition[];
   initialMemberStatus: MemberStatus;
@@ -65,6 +67,7 @@ export function RaceListView({
     const { data: countRows, error } = await supabase
       .from("team_comp_plan_rel")
       .select("comp_id, comp_reg_rel(count)")
+      .eq("team_id", teamId)
       .eq("vers", 0)
       .eq("del_yn", false)
       .in("comp_id", competitionIds);
@@ -74,12 +77,17 @@ export function RaceListView({
 
     setRegCounts((prev) => {
       const next = { ...prev };
+      const byComp = new Map<string, number>();
       (countRows ?? []).forEach((row) => {
         const comp = row as unknown as {
           comp_id: string;
           comp_reg_rel?: { count: number }[];
         };
-        next[comp.comp_id] = comp.comp_reg_rel?.[0]?.count ?? 0;
+        const n = comp.comp_reg_rel?.[0]?.count ?? 0;
+        byComp.set(comp.comp_id, (byComp.get(comp.comp_id) ?? 0) + n);
+      });
+      byComp.forEach((n, compId) => {
+        next[compId] = n;
       });
       return next;
     });
@@ -97,6 +105,7 @@ export function RaceListView({
       .eq("mem_id", memberId)
       .eq("vers", 0)
       .eq("del_yn", false)
+      .eq("team_comp_plan_rel.team_id", teamId)
       .in("team_comp_plan_rel.comp_id", competitionIds);
 
     const next: Record<string, CompetitionRegistration> = {};
@@ -175,34 +184,40 @@ export function RaceListView({
         return;
       }
 
-      const bundle = await fetchMemMstWithGigangRel(supabase, user.id);
-      if (!active) return;
+      try {
+        const bundle = await fetchMemMstWithTeamRel(supabase, user.id, teamId);
+        if (!active) return;
 
-      if (!bundle) {
-        setMemberStatus({ status: "needs-onboarding", userId: user.id });
-        return;
+        if (!bundle) {
+          setMemberStatus({ status: "needs-onboarding", userId: user.id });
+          return;
+        }
+
+        const profile = mapMstRelToAppMemberProfile(bundle.mst, bundle.rel);
+        if (!active) return;
+        setMemberStatus({
+          status: "ready",
+          userId: user.id,
+          memberId: profile.id,
+          fullName: profile.full_name ?? null,
+          email: profile.email ?? null,
+          admin: profile.admin ?? false,
+        });
+      } catch {
+        if (!active) return;
+        setMemberStatus({ status: "member-fetch-error", userId: user.id });
       }
-
-      const profile = mapMstRelToAppMemberProfile(bundle.mst, bundle.rel);
-      setMemberStatus({
-        status: "ready",
-        userId: user.id,
-        memberId: profile.id,
-        fullName: profile.full_name ?? null,
-        email: profile.email ?? null,
-        admin: profile.admin ?? false,
-      });
     }
 
-    loadMember();
+    void loadMember();
     return () => {
       active = false;
     };
-  }, [supabase]);
+  }, [supabase, teamId]);
 
   useEffect(() => {
     loadRegCountsForIds(allCompetitionIds);
-  }, [allCompetitionIds]);
+  }, [allCompetitionIds, teamId]);
 
   useEffect(() => {
     if (memberStatus.status !== "ready") {
@@ -236,6 +251,7 @@ export function RaceListView({
       .from("team_comp_plan_rel")
       .select("team_comp_id")
       .eq("comp_id", competitionId)
+      .eq("team_id", teamId)
       .eq("vers", 0)
       .eq("del_yn", false)
       .maybeSingle();
@@ -486,6 +502,7 @@ export function RaceListView({
       )}
 
       <CompetitionDetailDialog
+        teamId={teamId}
         competition={selectedCompetition}
         registration={selectedCompetition ? registrationsByCompetitionId[selectedCompetition.id] : undefined}
         memberStatus={memberStatus}

@@ -83,6 +83,7 @@ Get-ChildItem supabase/migrations -Filter *.sql | Sort-Object Name | ForEach-Obj
 | 28 | `20260407013000_comp_evt_type_and_sport_event_code_groups.sql` |
 | 29 | `20260407014000_v2_public_team_scoped_rpc_comp_evt_type.sql` |
 | 30 | `20260407120000_v2_team_mem_rel_rls_no_recursion.sql` |
+| 31 | `20260407123000_v2_public_team_member_stats_rpc_service_role_only.sql` |
 
 각 파일이 하는 일의 맥락(웨이브·백필 페이즈)은 본 문서 **§4·§5** 와 파일 머리 주석을 보면 된다. prd 담당자는 **위 순서 전체 적용**만 확실히 하면 되고, §4의 체크박스 연혁은 dev 진행용이다.
 
@@ -196,7 +197,9 @@ order by 1;
   - [ ] **prd:** 컷오버 창구에서 동일 파일 적용·`schema_migrations` 에 `20260407120000` 확인
 - [x] 마이그레이션 `supabase/migrations/20260406203000_v2_public_team_member_stats_rpc.sql`
   - 공개 홈 지표용 RPC `get_public_team_member_stats(p_team_id uuid)` 추가
-  - `anon`/`authenticated`는 RPC 실행만 허용, 원본 `team_mem_rel` 행 직접 조회는 유지 차단
+- [x] 마이그레이션 `supabase/migrations/20260407123000_v2_public_team_member_stats_rpc_service_role_only.sql`
+  - `get_public_team_member_stats` 실행 권한을 `service_role`만 허용(`anon`/`authenticated` REVOKE)
+  - 멀티팀 전환 시 `p_team_id` 임의 입력으로 타팀 집계를 조회하는 경로 차단
 
 ### 웨이브 2b — 회원 UTMB 확장 (`utmb_profile` 기준 재정의)
 
@@ -554,6 +557,7 @@ order by 1, 2;
 | 2026-04-05 | 웨이브 2b·P9: `mem_utmb_prf` DDL·RLS·`utmb_profile` 백필 — `20260404165809_v2_mem_utmb_prf.sql`(dev MCP), `member-domain`·`migration-map` §3.6·B-4·rollout §5·§6 | — |
 | 2026-04-06 | 웨이브 **2a**: 앱 슬라이스 1용 `mem_mst` RLS 보강 `20260406120000_mem_mst_rls_oauth_and_teammates.sql` — 문서화(본 절·`cutover-checklist` §8)·prd 전체 마이그레이션 순 적용 시 자동 포함 안내 | — |
 | 2026-04-06 | 공개 홈 지표 RPC `20260406203000_v2_public_team_member_stats_rpc.sql` 추가 — 활동/전체 멤버 수를 RPC로 노출하고 `team_mem_rel` 원본 행 직접 공개는 유지 차단 | — |
+| 2026-04-07 | RPC 권한 보강 `20260407123000_v2_public_team_member_stats_rpc_service_role_only.sql` — `get_public_team_member_stats`를 `service_role` 전용으로 제한(anon/authenticated REVOKE) | — |
 | 2026-04-06 | 대회 관리자 정책 v2-only 전환 `20260406230000_v2_comp_admin_policy_team_role.sql` — `is_legacy_platform_admin` 제거, `team_mem_rel` 권한 기반으로 통합 | — |
 | 2026-04-06 | `public` 미사용 레거시 테이블 제거 마이그레이션 `20260406233000_v2_drop_unused_legacy_public_tables.sql` 추가 | — |
 | 2026-04-07 | 웨이브 **2a 보강:** `20260407120000_v2_team_mem_rel_rls_no_recursion.sql` — `team_mem_rel`·`team_mst`·`mem_mst_select_same_team` RLS **무한 재귀(42P17)** 제거(`SECURITY DEFINER` 헬퍼 3종). dev 적용 완료·prd는 `supabase/migrations/` 버전 순 전체 적용으로 동일 포함(`cutover-checklist` §8) | — |

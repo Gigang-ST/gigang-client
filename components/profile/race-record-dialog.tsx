@@ -36,11 +36,13 @@ interface Competition {
 
 export function RaceRecordDialog({
   memberId,
+  teamId,
   open,
   onOpenChange,
   onSaved,
 }: {
   memberId: string;
+  teamId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
@@ -135,6 +137,7 @@ export function RaceRecordDialog({
       .eq("mem_id", memberId)
       .eq("vers", 0)
       .eq("del_yn", false)
+      .eq("team_comp_plan_rel.team_id", teamId)
       .gte("team_comp_plan_rel.comp_mst.stt_dt", threeMonthsAgo.toISOString().split("T")[0])
       .lte("team_comp_plan_rel.comp_mst.stt_dt", today.toISOString().split("T")[0])
       .order("crt_at", { ascending: false })
@@ -285,6 +288,7 @@ export function RaceRecordDialog({
       .from("team_comp_plan_rel")
       .select("team_comp_id")
       .eq("comp_id", selectedComp.id)
+      .eq("team_id", teamId)
       .eq("vers", 0)
       .eq("del_yn", false)
       .maybeSingle();

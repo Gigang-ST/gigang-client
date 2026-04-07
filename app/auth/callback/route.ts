@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
-import { GIGANG_TEAM_ID } from "@/lib/constants/gigang-team";
+import { resolveTeamContextFromHost } from "@/lib/queries/request-team";
 
 function readCookie(rawCookie: string | null, key: string) {
   if (!rawCookie) return null;
@@ -17,6 +17,13 @@ function readCookie(rawCookie: string | null, key: string) {
   } catch {
     return value;
   }
+}
+
+/** OAuth 콜백 후 `oauth_next`를 항상 비워 이전 시도 경로가 재사용되지 않게 한다. */
+function redirectClearingOAuthNext(url: string | URL) {
+  const response = NextResponse.redirect(url);
+  response.cookies.set("oauth_next", "", { path: "/", maxAge: 0 });
+  return response;
 }
 
 export async function GET(request: Request) {
@@ -42,6 +49,10 @@ export async function GET(request: Request) {
 
       // 로그인 직후 비회원은 next 유실 여부와 무관하게 온보딩으로 고정
       if (flow !== "link" && user) {
+        const forwarded = request.headers.get("x-forwarded-host");
+        const hostFromUrl = new URL(request.url).host;
+        const { teamId } = await resolveTeamContextFromHost(forwarded ?? hostFromUrl);
+
         const admin = createAdminClient();
         const { data: mst } = await admin
           .from("mem_mst")
@@ -59,7 +70,7 @@ export async function GET(request: Request) {
             .from("team_mem_rel")
             .select("team_mem_id")
             .eq("mem_id", mst.mem_id)
-            .eq("team_id", GIGANG_TEAM_ID)
+            .eq("team_id", teamId)
             .eq("vers", 0)
             .eq("del_yn", false)
             .maybeSingle();
@@ -80,15 +91,15 @@ export async function GET(request: Request) {
         : forwardedHost
           ? `https://${forwardedHost}${resolvedNext}`
           : `${origin}${resolvedNext}`;
-      const response = NextResponse.redirect(location);
-      response.cookies.set("oauth_next", "", { path: "/", maxAge: 0 });
-      return response;
+      return redirectClearingOAuthNext(location);
     }
     console.error("OAuth exchange error:", error.message);
-    return NextResponse.redirect(
+    return redirectClearingOAuthNext(
       `${origin}/auth/error?error=${encodeURIComponent(error.message)}`,
     );
   }
 
-  return NextResponse.redirect(`${origin}/auth/error?error=OAuthCallbackError+no+code`);
+  return redirectClearingOAuthNext(
+    `${origin}/auth/error?error=OAuthCallbackError+no+code`,
+  );
 }

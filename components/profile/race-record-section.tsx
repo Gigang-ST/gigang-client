@@ -7,7 +7,13 @@ import { SectionLabel } from "@/components/common/typography";
 import { RaceRecordDialog } from "./race-record-dialog";
 import { RaceHistoryDialog } from "./race-history-dialog";
 
-export function RaceRecordSection({ memberId }: { memberId: string }) {
+export function RaceRecordSection({
+  memberId,
+  teamId,
+}: {
+  memberId: string;
+  teamId: string;
+}) {
   const [recordOpen, setRecordOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const router = useRouter();
@@ -39,6 +45,7 @@ export function RaceRecordSection({ memberId }: { memberId: string }) {
       </div>
       <RaceRecordDialog
         memberId={memberId}
+        teamId={teamId}
         open={recordOpen}
         onOpenChange={setRecordOpen}
         onSaved={() => {

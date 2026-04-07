@@ -2,9 +2,10 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { validateUUID } from "@/lib/utils";
 import {
-  fetchMemMstWithGigangRel,
+  fetchMemMstWithTeamRel,
   mapMstRelToAppMemberProfile,
 } from "@/lib/queries/app-member";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 
 export type Member = {
   id: string;
@@ -27,7 +28,7 @@ export type GetMemberResult = {
 };
 
 /**
- * 현재 요청의 인증 유저에 해당하는 회원 프로필(mem_mst + 기강 소속)을 가져온다.
+ * 현재 요청의 인증 유저에 해당하는 회원 프로필(mem_mst + 요청 Host 기준 팀 소속)을 가져온다.
  */
 export const getMember = cache(async (): Promise<GetMemberResult> => {
   const supabase = await createClient();
@@ -39,7 +40,8 @@ export const getMember = cache(async (): Promise<GetMemberResult> => {
 
   validateUUID(user.id);
 
-  const bundle = await fetchMemMstWithGigangRel(supabase, user.id);
+  const { teamId } = await getRequestTeamContext();
+  const bundle = await fetchMemMstWithTeamRel(supabase, user.id, teamId);
   if (!bundle) return { userId: user.id, member: null };
 
   const p = mapMstRelToAppMemberProfile(bundle.mst, bundle.rel);

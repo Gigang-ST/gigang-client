@@ -48,20 +48,19 @@ const getUpcomingCompetitions = unstable_cache(
   cacheOptions,
 );
 
-const getTeamCompetitions = unstable_cache(
-  async (teamId: string) => {
-    const today = todayKST();
-    const endOfYear = `${today.slice(0, 4)}-12-31`;
-    const { data } = await supabase.rpc("get_public_team_competitions", {
-      p_team_id: teamId,
-      p_start: today,
-      p_end: endOfYear,
-    });
+async function fetchTeamCompetitionsForTeam(teamId: string) {
+  const today = todayKST();
+  const endOfYear = `${today.slice(0, 4)}-12-31`;
+  const { data } = await supabase.rpc("get_public_team_competitions", {
+    p_team_id: teamId,
+    p_start: today,
+    p_end: endOfYear,
+  });
 
-    const rows = (data ?? []) as Database["public"]["Functions"]["get_public_team_competitions"]["Returns"];
-    const competitions = rows
-      .filter((row) => (row.reg_count ?? 0) > 0)
-      .map((row) => {
+  const rows = (data ?? []) as Database["public"]["Functions"]["get_public_team_competitions"]["Returns"];
+  const competitions = rows
+    .filter((row) => (row.reg_count ?? 0) > 0)
+    .map((row) => {
       return {
         id: row.comp_id,
         external_id: row.ext_id ?? "",
@@ -75,27 +74,25 @@ const getTeamCompetitions = unstable_cache(
       } as Competition;
     });
 
-    const regCounts: Record<string, number> = {};
-    rows.forEach((row) => {
-      if (!row.comp_id) return;
-      regCounts[row.comp_id] = Number(row.reg_count ?? 0);
-    });
+  const regCounts: Record<string, number> = {};
+  rows.forEach((row) => {
+    if (!row.comp_id) return;
+    regCounts[row.comp_id] = Number(row.reg_count ?? 0);
+  });
 
-    return { competitions, regCounts };
-  },
-  ["competitions-team"],
-  cacheOptions,
-);
+  return { competitions, regCounts };
+}
 
 async function RacesContent() {
   const { teamId } = await getRequestTeamContext();
   const [{ competitions }, gigangData] = await Promise.all([
     getUpcomingCompetitions(),
-    getTeamCompetitions(teamId),
+    fetchTeamCompetitionsForTeam(teamId),
   ]);
 
   return (
     <RaceListView
+      teamId={teamId}
       allCompetitions={competitions}
       gigangCompetitions={gigangData.competitions}
       initialMemberStatus={{ status: "loading" }}
