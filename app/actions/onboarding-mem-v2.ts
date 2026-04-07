@@ -170,6 +170,16 @@ export async function onboardingCreateMember(args: {
   const admin = createAdminClient();
   const acctDigits = digitsOnly(args.bankAccountRaw);
   const bankAcctNo = acctDigits.length ? acctDigits : null;
+  const oauthKakaoId = args.provider === "kakao" ? uid : null;
+  const oauthGoogleId = args.provider === "google" ? uid : null;
+
+  console.log("[onboardingCreateMember] insert payload", {
+    userId: uid,
+    provider: args.provider,
+    memId,
+    hasOauthKakaoId: oauthKakaoId !== null,
+    hasOauthGoogleId: oauthGoogleId !== null,
+  });
 
   const { error: em } = await admin.from("mem_mst").insert({
     mem_id: memId,
@@ -181,8 +191,8 @@ export async function onboardingCreateMember(args: {
     bank_nm: args.bankName,
     bank_acct_no: bankAcctNo,
     avatar_url: args.initialAvatarUrl ?? null,
-    oauth_kakao_id: args.provider === "kakao" ? uid : null,
-    oauth_google_id: args.provider === "google" ? uid : null,
+    oauth_kakao_id: oauthKakaoId,
+    oauth_google_id: oauthGoogleId,
     vers: 0,
     del_yn: false,
   });
