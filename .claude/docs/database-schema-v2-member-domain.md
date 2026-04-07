@@ -61,8 +61,10 @@
 |------|------|------|------|
 | `utmb_prf_id` | `uuid` | Y | PK. 레거시 `utmb_profile.id` 백필 시 동일 값 유지 |
 | `mem_id` | `uuid` | Y | FK → `mem_mst.mem_id` |
-| `utmb_prf_url` | `text` | Y | UTMB 프로필 URL |
+| `utmb_prf_url` | `text` | Y | UTMB 프로필 URL (`utmb_profile.utmb_profile_url`) |
 | `utmb_idx` | `int` | Y | UTMB 인덱스, `>= 0` |
+| `rct_race_nm` | `text` | N | 최근 대회명 (`utmb_profile.recent_race_name`) |
+| `rct_race_rec` | `text` | N | 최근 대회 기록 (`utmb_profile.recent_race_record`) |
 | `vers` | `int` | Y | 기본값 0(정본) |
 | `del_yn` | `boolean` | Y | 기본값 false |
 | `crt_at` | `timestamptz` | Y | 기본값 now() |
@@ -73,6 +75,10 @@
 - `fk_mem_utmb_prf__mem_mst` (`mem_id` → `mem_mst`)
 - `uk_mem_utmb_prf_mem_vers` (`mem_id`, `vers`)
 - `ck_mem_utmb_prf_utmb_idx` (`utmb_idx >= 0`)
+
+비고:
+- `rct_race_nm`, `rct_race_rec`는 `20260406190000_v2_mem_utmb_prf_add_recent_race_cols.sql`로 추가되며,
+  레거시 `utmb_profile.recent_race_*`를 `utmb_prf_id = utmb_profile.id` 기준으로 백필한다.
 
 ### `team_mem_rel` (팀-회원 관계)
 다중 소속/팀별 권한/팀별 가입상태를 관리한다.
@@ -113,8 +119,13 @@
 - 팀 관리자 목록: `team_mem_rel.team_role_cd in ('owner', 'admin')`
 
 ## 5) RLS 원칙 (초안)
+
+이 절은 **제품 권한·노출이 어떻게 되어야 하는지(의미)** 만 정의한다. **실제 `ENABLE ROW LEVEL SECURITY`·`CREATE POLICY`·헬퍼 함수 SQL** 은 `supabase/migrations/` 에 있으며, 운영(prd)에 적용할 **파일 전체·이름 순**은 `database-schema-v2-rollout-progress.md` **§2.1** 이 정본이다.  
+롤아웃/컷오버 문서에 마이그레이션 파일명이 많이 보이는 이유는 **적용 순서·운영 절차**를 적어 두기 위함이고, **권한 의미가 `member-domain` 과 별개로 새로 정의된 것은 아니다**(구현이 보강·수정된 것).
+
 - `mem_mst`
-  - SELECT/UPDATE: 본인 `mem_id = auth.uid()`
+  - SELECT/UPDATE: 본인 `mem_id = auth.uid()` (레거시 OAuth 연동 행은 `oauth_kakao_id` / `oauth_google_id` = `auth.uid()` 도 본인으로 인정 — 구현: `20260406120000_mem_mst_rls_oauth_and_teammates.sql`)
+  - SELECT: 동일 팀(정본 `team_mem_rel`) 소속끼리 프로필 조회 허용 — 구현상 `mem_mst_select_same_team` + `team_mem_rel` 조인; **팀 관계 정책과 연계**됨
   - DELETE: 원칙적 금지(soft delete)
 - `mem_utmb_prf`
   - SELECT: 레거시와 동등하게 **공개 조회**(`del_yn = false`) — 기록/랭킹 UI 호환
@@ -123,6 +134,9 @@
   - SELECT: 같은 팀 멤버는 조회 가능
   - INSERT/UPDATE: 팀 관리자(`owner`, `admin`)만 허용
   - 본인 탈퇴 시 제한된 self-update 허용
+  - 공개 홈 지표(활동/전체 멤버 수)는 원본 행 직접 조회 대신
+    `get_public_team_member_stats(p_team_id uuid)` RPC로 제공
+  - **구현 유의(PostgreSQL):** 위 “같은 팀이면 SELECT”를 정책 본문에서 `EXISTS (SELECT … FROM team_mem_rel …)` 로만 풀면, 내부 스캔에도 동일 SELECT 정책이 붙어 **42P17 infinite recursion** 이 난다. **의미는 그대로 두고** 소속 검증만 `SECURITY DEFINER` + `SET row_security = off` 헬퍼로 옮긴 것이 `20260407120000_v2_team_mem_rel_rls_no_recursion.sql` 이다(초기 DDL: `20260404081732_v2_wave2_member_team.sql`).
 - `team_mst`
   - SELECT: 팀 멤버만
   - UPDATE: 팀 관리자만
@@ -133,7 +147,8 @@
 
 ## 7) 오픈 이슈
 - 팀 선택 컨텍스트를 JWT claim으로 처리할지, 앱 세션 상태로 처리할지 확정 필요
-- **TODO (앱):** 현재는 기강 단일 팀만 전제로 `team_id`가 `lib/constants/gigang-team.ts`의 `GIGANG_TEAM_ID`에 하드코딩되어 있다. 멀티팀·사용자 팀 선택 UI가 생기면 해당 컨텍스트로 `team_id`를 주입하고 상수 직참조를 걷어낸다(`database-schema-v2-app-migration-plan.md`와 동기).
+- **앱 팀 컨텍스트 (현재):** 요청 **Host**(`x-forwarded-host` / `host`)에서 `team_cd`를 해석하고 `team_mst` 정본으로 `team_id`를 조회한다. 진입점은 `lib/queries/request-team.ts`의 `getRequestTeamContext()`(서버 컴포넌트·서버 액션)와 `resolveTeamContextFromHost(host)`(OAuth `route.ts` 등 `headers()` 미사용 경로). `team_mst` 매칭 실패·localhost 등에서는 `lib/constants/gigang-team.ts`의 **`DEFAULT_FALLBACK_TEAM_ID`**(`team_cd = gigang` 정본 UUID)로 폴백한다. 업무 코드에서 이 UUID를 직접 쓰지 않는다.
+- **추후:** 한 사용자가 **여러 팀**에 소속되거나 URL이 아닌 **UI로 팀을 전환**하는 경우, 활성 `team_id`를 세션·쿠키·라우트 등으로 정하고 `getRequestTeamContext`를 그에 맞게 확장한다(`database-schema-v2-app-migration-plan.md` §7과 동기).
 - 전역 회원 상태를 별도로 둘지(예: 플랫폼 제재용), 현재처럼 팀 상태만으로 운영할지 추후 확정 필요
 
 ## 8) 상태 코드 기준 (v2)

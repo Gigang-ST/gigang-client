@@ -1,6 +1,11 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { validateUUID } from "@/lib/utils";
+import {
+  fetchMemMstWithTeamRel,
+  mapMstRelToAppMemberProfile,
+} from "@/lib/queries/app-member";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 
 export type Member = {
   id: string;
@@ -18,16 +23,12 @@ export type Member = {
 };
 
 export type GetMemberResult = {
-  /** 인증된 유저 ID (비로그인이면 null) */
   userId: string | null;
-  /** member 행 (인증됐지만 미가입이면 null) */
   member: Member | null;
 };
 
 /**
- * 현재 요청의 인증 유저에 해당하는 member를 가져온다.
- * React cache()로 같은 서버 렌더 내에서 여러 번 호출해도 DB 쿼리는 1회만 실행.
- * 인증 상태와 멤버 존재 여부를 구분하여 반환한다.
+ * 현재 요청의 인증 유저에 해당하는 회원 프로필(mem_mst + 요청 Host 기준 팀 소속)을 가져온다.
  */
 export const getMember = cache(async (): Promise<GetMemberResult> => {
   const supabase = await createClient();
@@ -38,31 +39,28 @@ export const getMember = cache(async (): Promise<GetMemberResult> => {
   if (!user) return { userId: null, member: null };
 
   validateUUID(user.id);
-  const { data } = await supabase
-    .from("member")
-    .select(
-      "id, full_name, gender, birthday, phone, email, avatar_url, bank_name, bank_account, joined_at, status, admin",
-    )
-    .or(`kakao_user_id.eq.${user.id},google_user_id.eq.${user.id}`)
-    .maybeSingle();
 
-  if (!data) return { userId: user.id, member: null };
+  const { teamId } = await getRequestTeamContext();
+  const bundle = await fetchMemMstWithTeamRel(supabase, user.id, teamId);
+  if (!bundle) return { userId: user.id, member: null };
+
+  const p = mapMstRelToAppMemberProfile(bundle.mst, bundle.rel);
 
   return {
     userId: user.id,
     member: {
-      id: data.id,
-      full_name: data.full_name ?? "",
-      gender: (data.gender ?? "") as "male" | "female" | "",
-      birthday: data.birthday ?? "",
-      phone: data.phone ?? "",
-      email: data.email ?? "",
-      avatar_url: data.avatar_url ?? "",
-      bank_name: data.bank_name ?? "",
-      bank_account: data.bank_account ?? "",
-      joined_at: data.joined_at ?? "",
-      status: data.status ?? "",
-      admin: data.admin ?? false,
+      id: p.id,
+      full_name: p.full_name ?? "",
+      gender: (bundle.mst.gdr_enm ?? "") as "" | "male" | "female",
+      birthday: p.birthday ?? "",
+      phone: p.phone ?? "",
+      email: p.email ?? "",
+      avatar_url: p.avatar_url ?? "",
+      bank_name: p.bank_name ?? "",
+      bank_account: p.bank_account ?? "",
+      joined_at: p.joined_at ?? "",
+      status: p.status ?? "",
+      admin: p.admin ?? false,
     },
   };
 });

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
-import { type Enums } from "@/lib/supabase/database.types";
 import { profileEditSchema, type ProfileEditValues } from "@/lib/validations/member";
 import { uploadAvatar } from "@/app/actions/upload-avatar";
 import { Input } from "@/components/ui/input";
@@ -98,22 +97,28 @@ export function ProfileEditForm({ member }: { member: MemberData }) {
     setMessage(null);
 
     const supabase = createClient();
-    const { error } = await supabase
-      .from("member")
-      .update({
-        full_name: data.full_name.trim(),
-        ...(data.gender && { gender: data.gender }),
-        birthday: data.birthday || undefined,
-        email: data.email.trim() || null,
-      })
-      .eq("id", member.id);
+    const emailTrim = data.email.trim();
+    const emailNorm = emailTrim ? emailTrim.toLowerCase() : null;
 
-    if (error) {
+    const { error: eMst } = await supabase
+      .from("mem_mst")
+      .update({
+        mem_nm: data.full_name.trim(),
+        ...(data.gender && { gdr_enm: data.gender }),
+        birth_dt: data.birthday || null,
+        email_addr: emailNorm,
+      })
+      .eq("mem_id", member.id)
+      .eq("vers", 0)
+      .eq("del_yn", false);
+
+    if (eMst) {
       setMessage({ type: "error", text: "저장에 실패했습니다." });
-    } else {
-      setMessage({ type: "success", text: "저장 완료" });
-      router.refresh();
+      return;
     }
+
+    setMessage({ type: "success", text: "저장 완료" });
+    router.refresh();
   }
 
   return (

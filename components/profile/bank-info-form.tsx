@@ -56,20 +56,27 @@ export function BankInfoForm({ member }: { member: MemberBankData }) {
       data.bankName === "custom"
         ? data.bankNameCustom.trim()
         : data.bankName.trim();
-    const { error } = await supabase
-      .from("member")
-      .update({
-        bank_name: resolvedBankName || null,
-        bank_account: data.bankAccount.trim() || null,
-      })
-      .eq("id", member.id);
+    const acctDigits = data.bankAccount.replace(/\D/g, "");
+    const acctStore = acctDigits || null;
 
-    if (error) {
+    const { error: eMst } = await supabase
+      .from("mem_mst")
+      .update({
+        bank_nm: resolvedBankName || null,
+        bank_acct_no: acctStore,
+      })
+      .eq("mem_id", member.id)
+      .eq("vers", 0)
+      .eq("del_yn", false);
+
+    if (eMst) {
       setMessage({ type: "error", text: "저장에 실패했습니다." });
-    } else {
-      setMessage({ type: "success", text: "저장 완료" });
-      router.refresh();
+      setSaving(false);
+      return;
     }
+
+    setMessage({ type: "success", text: "저장 완료" });
+    router.refresh();
     setSaving(false);
   };
 

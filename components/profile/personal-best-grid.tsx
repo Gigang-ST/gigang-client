@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import dayjs from "dayjs";
 import { fetchUtmbIndex } from "@/app/actions/utmb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,16 +116,17 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
       ? utmbUrl.trim()
       : `https://utmb.world/en/runner/${utmbUrl.trim()}`;
     const supabase = createClient();
-    const { error } = await supabase.from("utmb_profile").upsert(
+    const { error } = await supabase.from("mem_utmb_prf").upsert(
       {
-        member_id: memberId,
-        utmb_profile_url: fullUrl,
-        utmb_index: utmbIndex,
-        recent_race_name: recentRaceName.trim() || null,
-        recent_race_record: recentRaceRecord.trim() || null,
-        updated_at: dayjs().toISOString(),
+        mem_id: memberId,
+        utmb_prf_url: fullUrl,
+        utmb_idx: utmbIndex,
+        rct_race_nm: recentRaceName.trim() || null,
+        rct_race_rec: recentRaceRecord.trim() || null,
+        vers: 0,
+        del_yn: false,
       },
-      { onConflict: "member_id" },
+      { onConflict: "mem_id,vers" },
     );
     setSaving(false);
     if (error) {
@@ -148,9 +148,10 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
     setSaving(true);
     const supabase = createClient();
     const { error } = await supabase
-      .from("utmb_profile")
+      .from("mem_utmb_prf")
       .delete()
-      .eq("member_id", memberId);
+      .eq("mem_id", memberId)
+      .eq("vers", 0);
     setSaving(false);
     if (error) {
       setMessage(error.message);

@@ -128,10 +128,25 @@ export function CompetitionRegisterDialog({
 
         {showAuthMessage ? (
           <div className="flex flex-col gap-3 text-sm">
-            <p>로그인 후 대회를 등록할 수 있습니다.</p>
-            <Button asChild className="w-full">
-              <Link href="/auth/login?next=%2Fraces">로그인</Link>
-            </Button>
+            {memberStatus.status === "member-fetch-error" ? (
+              <>
+                <p>회원 정보를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.</p>
+                <Button
+                  type="button"
+                  className="w-full"
+                  onClick={() => window.location.reload()}
+                >
+                  새로고침
+                </Button>
+              </>
+            ) : (
+              <>
+                <p>로그인 후 대회를 등록할 수 있습니다.</p>
+                <Button asChild className="w-full">
+                  <Link href="/auth/login?next=%2Fraces">로그인</Link>
+                </Button>
+              </>
+            )}
           </div>
         ) : (
           <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
