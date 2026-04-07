@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Trash2, Pencil } from "lucide-react";
 import { secondsToTime, timeStringToSeconds } from "@/lib/dayjs";
+import { deleteRaceRecord, updateRaceRecord } from "@/app/actions/save-race-record";
 
 /* ---------- 타입 ---------- */
 
@@ -80,11 +81,8 @@ export function RaceHistoryDialog({
 
   async function handleDelete(id: string) {
     if (!window.confirm("이 기록을 삭제하시겠습니까?")) return;
-    const { error } = await supabase
-      .from("rec_race_hist")
-      .delete()
-      .eq("race_result_id", id);
-    if (error) return;
+    const result = await deleteRaceRecord(id);
+    if (!result.ok) return;
     setRecords((prev) => prev.filter((r) => r.id !== id));
     onChanged();
   }
@@ -98,12 +96,9 @@ export function RaceHistoryDialog({
     const seconds = timeStringToSeconds(editTime);
     if (seconds === null) return;
     setSaving(true);
-    const { error } = await supabase
-      .from("rec_race_hist")
-      .update({ rec_time_sec: seconds })
-      .eq("race_result_id", id);
+    const result = await updateRaceRecord(id, seconds);
     setSaving(false);
-    if (error) return;
+    if (!result.ok) return;
     setRecords((prev) =>
       prev.map((r) => (r.id === id ? { ...r, record_time_sec: seconds } : r)),
     );
