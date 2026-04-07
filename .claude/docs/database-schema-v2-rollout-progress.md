@@ -183,7 +183,7 @@ order by 1;
 
 ### 웨이브 2a (보강) — `mem_mst` RLS: OAuth 매칭·팀원 디렉터리 (앱 슬라이스 1)
 
-웨이브 2 DDL의 `mem_mst` RLS 초안은 **`mem_id = auth.uid()`** 중심이다. 레거시는 `member.kakao_user_id` / `google_user_id`에 Supabase `auth.uid()`를 넣어 연동하므로 **`mem_mst.mem_id` ≠ `auth.uid()`** 인 행이 있다. 앱 슬라이스 1이 `mem_mst`를 직접 읽기 전에 아래 마이그레이션을 적용한다.
+웨이브 2 DDL의 `mem_mst` RLS 초안은 이후 보강되었으며, 운영 백필 데이터와 신규 가입 경로를 함께 고려해 **OAuth 컬럼(`oauth_kakao_id` / `oauth_google_id`) 기준 매칭**을 사용한다. 앱 슬라이스 1이 `mem_mst`를 직접 읽기 전에 아래 마이그레이션을 적용한다.
 
 - [ ] 마이그레이션 `supabase/migrations/20260406120000_mem_mst_rls_oauth_and_teammates.sql`
   - `mem_mst` SELECT/UPDATE: `oauth_kakao_id` / `oauth_google_id` = `auth.uid()` 도 본인 행으로 인정

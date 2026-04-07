@@ -60,7 +60,7 @@ export async function GET(request: Request) {
           .eq("vers", 0)
           .eq("del_yn", false)
           .or(
-            `mem_id.eq.${user.id},oauth_kakao_id.eq.${user.id},oauth_google_id.eq.${user.id}`,
+            `oauth_kakao_id.eq.${user.id},oauth_google_id.eq.${user.id}`,
           )
           .maybeSingle();
 

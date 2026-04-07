@@ -124,12 +124,12 @@
 롤아웃/컷오버 문서에 마이그레이션 파일명이 많이 보이는 이유는 **적용 순서·운영 절차**를 적어 두기 위함이고, **권한 의미가 `member-domain` 과 별개로 새로 정의된 것은 아니다**(구현이 보강·수정된 것).
 
 - `mem_mst`
-  - SELECT/UPDATE: 본인 `mem_id = auth.uid()` (레거시 OAuth 연동 행은 `oauth_kakao_id` / `oauth_google_id` = `auth.uid()` 도 본인으로 인정 — 구현: `20260406120000_mem_mst_rls_oauth_and_teammates.sql`)
+  - SELECT/UPDATE: 본인 OAuth 연동 기준(`oauth_kakao_id` / `oauth_google_id` = `auth.uid()`)으로 허용 — 구현: `20260406120000_mem_mst_rls_oauth_and_teammates.sql`
   - SELECT: 동일 팀(정본 `team_mem_rel`) 소속끼리 프로필 조회 허용 — 구현상 `mem_mst_select_same_team` + `team_mem_rel` 조인; **팀 관계 정책과 연계**됨
   - DELETE: 원칙적 금지(soft delete)
 - `mem_utmb_prf`
   - SELECT: 레거시와 동등하게 **공개 조회**(`del_yn = false`) — 기록/랭킹 UI 호환
-  - INSERT/UPDATE/DELETE: 본인 `mem_id = auth.uid()`
+  - INSERT/UPDATE/DELETE: 본인 행 기준(운영 데이터의 `mem_id` 체계와 OAuth 매칭 규칙을 함께 고려해 정책 유지·보강)
 - `team_mem_rel`
   - SELECT: 같은 팀 멤버는 조회 가능
   - INSERT/UPDATE: 팀 관리자(`owner`, `admin`)만 허용

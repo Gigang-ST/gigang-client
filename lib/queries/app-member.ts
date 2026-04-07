@@ -30,7 +30,7 @@ export async function fetchMemMstWithTeamRel(
   authUserId: string,
   teamId: string,
 ): Promise<{ mst: MemMstRow; rel: TeamMemRelRow } | null> {
-  const orFilter = `oauth_kakao_id.eq.${authUserId},oauth_google_id.eq.${authUserId},mem_id.eq.${authUserId}`;
+  const orFilter = `oauth_kakao_id.eq.${authUserId},oauth_google_id.eq.${authUserId}`;
 
   const { data: mst, error: errM } = await supabase
     .from("mem_mst")

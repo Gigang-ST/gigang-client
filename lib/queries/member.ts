@@ -12,7 +12,7 @@ export type { AppMemberProfile };
 
 /**
  * 현재 로그인한 유저의 회원 프로필(mem_mst + 요청 Host 기준 팀의 team_mem_rel)을 조회한다.
- * 레거시 OAuth 연동(oauth_* = auth.uid()) 또는 mem_id = auth.uid() 로 매칭한다.
+ * OAuth 연동(oauth_* = auth.uid()) 기준으로 mem_mst를 매칭한다.
  *
  * @returns `{ user, member, supabase }`
  *   - `member` — `AppMemberProfile`. 미인증·mem_mst 없음·해당 팀 `team_mem_rel` 없음 시 `null`

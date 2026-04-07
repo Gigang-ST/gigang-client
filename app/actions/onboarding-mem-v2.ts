@@ -148,7 +148,7 @@ export async function onboardingRejoinFromInactive(args: {
   return { ok: true };
 }
 
-/** 신규 가입: mem_mst(mem_id = auth.uid()) + 요청 Host 기준 팀 team_mem_rel */
+/** 신규 가입: mem_mst 신규 mem_id 발급 + 요청 Host 기준 팀 team_mem_rel */
 export async function onboardingCreateMember(args: {
   fullName: string;
   gender: "male" | "female";
@@ -166,12 +166,13 @@ export async function onboardingCreateMember(args: {
   if (!user) return { ok: false, message: "로그인이 필요합니다." };
 
   const uid = user.id;
+  const memId = crypto.randomUUID();
   const admin = createAdminClient();
   const acctDigits = digitsOnly(args.bankAccountRaw);
   const bankAcctNo = acctDigits.length ? acctDigits : null;
 
   const { error: em } = await admin.from("mem_mst").insert({
-    mem_id: uid,
+    mem_id: memId,
     mem_nm: args.fullName,
     gdr_enm: args.gender,
     birth_dt: args.birthday,
@@ -194,7 +195,7 @@ export async function onboardingCreateMember(args: {
   const { teamId } = await getRequestTeamContext();
   const { error: eRel } = await admin.from("team_mem_rel").insert({
     team_id: teamId,
-    mem_id: uid,
+    mem_id: memId,
     team_role_cd: "member",
     mem_st_cd: "active",
     join_dt: todayKST(),
@@ -204,7 +205,7 @@ export async function onboardingCreateMember(args: {
 
   if (eRel) {
     if (eRel.code !== "23505") {
-      await admin.from("mem_mst").delete().eq("mem_id", uid);
+      await admin.from("mem_mst").delete().eq("mem_id", memId);
       return { ok: false, message: eRel.message };
     }
   }
