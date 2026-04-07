@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { timeStringToSeconds, secondsToTime } from "@/lib/dayjs";
 import { resolveSportConfig } from "@/components/races/sport-config";
 import { searchCompetitions } from "@/app/actions/search-competitions";
+import { saveRaceRecord } from "@/app/actions/save-race-record";
 
 /** 기타(직접 입력) 선택 시 사용 */
 const EVENT_TYPE_OTHER = "__OTHER__";
@@ -261,50 +262,21 @@ export function RaceRecordDialog({
     const bikeSeconds = isTriathlon ? timeStringToSeconds(bikeTime) : null;
     const runSeconds = isTriathlon ? timeStringToSeconds(runTime) : null;
 
-    // 기록 저장
-    const { error: insertError } = await supabase
-      .from("rec_race_hist")
-      .insert({
-        mem_id: memberId,
-        rec_time_sec: totalSeconds,
-        race_nm: competitionTitle,
-        race_dt: competitionDate,
-        swim_time_sec: swimSeconds,
-        bike_time_sec: bikeSeconds,
-        run_time_sec: runSeconds,
-        rec_src_cd: "manual",
-        vers: 0,
-        del_yn: false,
-      });
+    const result = await saveRaceRecord({
+      competitionId: selectedComp.id,
+      competitionTitle,
+      competitionDate,
+      eventType,
+      totalSeconds,
+      swimSeconds,
+      bikeSeconds,
+      runSeconds,
+    });
 
-    if (insertError) {
+    if (!result.ok) {
       setIsSaving(false);
-      setError("저장에 실패했습니다. 다시 시도해 주세요.");
+      setError(result.message);
       return;
-    }
-
-    // 검색으로 골랐을 수 있으므로, 해당 대회에 참가 신청이 없으면 참가로 추가 (정합성)
-    const { data: plan } = await supabase
-      .from("team_comp_plan_rel")
-      .select("team_comp_id")
-      .eq("comp_id", selectedComp.id)
-      .eq("team_id", teamId)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .maybeSingle();
-    if (plan) {
-      await supabase
-        .from("comp_reg_rel")
-        .upsert(
-          {
-            team_comp_id: plan.team_comp_id,
-            mem_id: memberId,
-            prt_role_cd: "participant",
-            vers: 0,
-            del_yn: false,
-          },
-          { onConflict: "team_comp_id,mem_id,vers" },
-        );
     }
 
     setIsSaving(false);
