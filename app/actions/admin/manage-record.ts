@@ -17,7 +17,6 @@ export async function deleteRecord(recordId: string) {
 export async function updateRecord(
   recordId: string,
   input: {
-    eventType: string;
     recordTimeSec: number;
     raceName: string;
     raceDate: string;

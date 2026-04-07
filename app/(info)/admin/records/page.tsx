@@ -93,7 +93,6 @@ export default function RecordsPage() {
     }
     setSaving(true);
     const result = await updateRecord(record.id, {
-      eventType: record.event_type,
       recordTimeSec: timeSec,
       raceName: record.race_name ?? "",
       raceDate: record.race_date ?? "",

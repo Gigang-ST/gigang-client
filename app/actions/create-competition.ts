@@ -2,7 +2,7 @@
 
 import { revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentMember } from "@/lib/queries/member";
+import { verifyAdmin } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 
 interface CreateCompetitionInput {
@@ -16,11 +16,9 @@ interface CreateCompetitionInput {
 }
 
 export async function createCompetition(input: CreateCompetitionInput) {
-  // 1. 사용자 인증 + active 회원 확인
-  const { member } = await getCurrentMember();
-
-  if (!member || member.status !== "active") {
-    return { ok: false, message: "활성 회원만 대회를 등록할 수 있습니다." };
+  const adminUser = await verifyAdmin();
+  if (!adminUser) {
+    return { ok: false, message: "권한이 없습니다" };
   }
 
   // 3. admin 클라이언트로 대회 INSERT (RLS 우회)

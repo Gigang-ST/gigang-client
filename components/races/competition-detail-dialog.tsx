@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
+import { updateCompetition } from "@/app/actions/admin/manage-competition";
 import {
   competitionEditSchema,
   type CompetitionEditValues,
@@ -208,15 +209,16 @@ export function CompetitionDetailDialog({
 
   async function handleEditSave(data: CompetitionEditValues) {
     if (!competition) return;
-    const { error } = await supabase.from("comp_mst").update({
-      comp_nm: data.title.trim(),
-      comp_sprt_cd: data.sport,
-      stt_dt: data.startDate,
-      end_dt: data.endDate || null,
-      loc_nm: data.location.trim() || null,
-      src_url: data.sourceUrl.trim() || null,
-    }).eq("comp_id", competition.id);
-    if (error) {
+    const result = await updateCompetition(competition.id, {
+      title: data.title,
+      sport: data.sport,
+      startDate: data.startDate,
+      endDate: data.endDate || null,
+      location: data.location,
+      eventTypes: data.eventTypes,
+      sourceUrl: data.sourceUrl,
+    });
+    if (!result.ok) {
       editForm.setError("root", { message: "수정에 실패했습니다." });
       return;
     }

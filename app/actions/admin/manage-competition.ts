@@ -73,7 +73,7 @@ export async function updateCompetition(
   if (!admin) return { ok: false, message: "권한이 없습니다" };
 
   const db = createAdminClient();
-  const { error } = await db
+  const { error: compErr } = await db
     .from("comp_mst")
     .update({
       comp_nm: input.title.trim(),
@@ -85,7 +85,32 @@ export async function updateCompetition(
     })
     .eq("comp_id", competitionId);
 
-  if (error) return { ok: false, message: "수정에 실패했습니다" };
+  if (compErr) return { ok: false, message: "수정에 실패했습니다" };
+
+  // 세부종목(eventTypes)은 comp_evt_cfg에 저장한다.
+  const { error: delErr } = await db
+    .from("comp_evt_cfg")
+    .delete()
+    .eq("comp_id", competitionId)
+    .eq("vers", 0)
+    .eq("del_yn", false);
+  if (delErr) return { ok: false, message: "수정에 실패했습니다" };
+
+  const nextTypes = (input.eventTypes ?? [])
+    .map((t) => t.trim().toUpperCase())
+    .filter((t) => t.length > 0);
+
+  if (nextTypes.length > 0) {
+    const { error: insErr } = await db.from("comp_evt_cfg").insert(
+      nextTypes.map((t) => ({
+        comp_id: competitionId,
+        comp_evt_type: t,
+        vers: 0,
+        del_yn: false,
+      })),
+    );
+    if (insErr) return { ok: false, message: "수정에 실패했습니다" };
+  }
 
   revalidateTag("competitions", "max");
   return { ok: true, message: null };
@@ -102,5 +127,6 @@ export async function deleteRegistration(registrationId: string) {
     .eq("comp_reg_id", registrationId);
 
   if (error) return { ok: false, message: "삭제에 실패했습니다" };
+  revalidateTag("competitions", "max");
   return { ok: true, message: null };
 }

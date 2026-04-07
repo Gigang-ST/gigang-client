@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardItem } from "@/components/ui/card";
 import { H1 } from "@/components/common/typography";
-import { secondsToTime } from "@/lib/dayjs";
+import { secondsToTime, todayKST } from "@/lib/dayjs";
 import { Suspense } from "react";
 import Link from "next/link";
 import { SocialLinksGrid } from "@/components/social-links";
@@ -43,7 +43,7 @@ async function HomeContent() {
   const { user, member: currentMember, supabase } = await getCurrentMember();
   const admin = createAdminClient();
   const { teamId } = await getRequestTeamContext();
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayKST();
 
   let initialMemberStatus: MemberStatus = { status: "signed-out" };
 
