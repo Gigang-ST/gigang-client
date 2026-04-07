@@ -95,6 +95,8 @@ where p.mem_id is null;
 
 **원칙:** 운영에서는 **dev에서 이미 검증·동결된 마이그레이션 세트와 절차만** 재현한다. 컬럼명·공통코드 값·백필 순서를 prd에서 다시 “맞춰 보기”하지 않는다.
 
+**완성본 정의(히스토리와 구분):** prd에 적용할 DDL·RLS의 **단일 기준**은 `database-schema-v2-rollout-progress.md` **§2.1** — 저장소 `supabase/migrations/*.sql` 전체를 파일명 순으로 적용한 결과다. §5.5·§10 등 연표는 dev 추적용이며, 운영 절차서는 **§2.1 + 본 절(§8)** 이다.
+
 - [ ] 적용 대상이 **`supabase-gigang-prd`**(또는 팀이 지정한 prod)인지 대시보드·연결 문자열로 **이중 확인**
 - [ ] **동일 Git 리비전**의 `supabase/migrations/` 전체를 기준으로 적용 순서를 정한다(임의로 통합 백필만 발췌하거나 순서 재배열 금지)
 - [ ] **`schema_migrations.version`** 이 로컬 파일 타임스탬프와 일치하는지 확인한다. MCP 등으로 적용 시 버전이 어긋난 전례가 있으므로, prd는 **`supabase db push`** 또는 팀이 합의한 **단일 적용 경로**를 쓴다(수동 `repair`/정렬 절차를 문서에 남긴 뒤에만 예외)

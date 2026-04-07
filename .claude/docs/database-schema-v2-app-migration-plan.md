@@ -5,7 +5,7 @@
 | 참고 문서 | 용도 |
 |-----------|------|
 | `database-schema-v2-migration-map.md` | 컬럼·FK·검증 SQL |
-| `database-schema-v2-rollout-progress.md` | DB 백필·§6.5 `archive.old_*`·§7 앱 전환 체크 |
+| `database-schema-v2-rollout-progress.md` | **prd DDL 완성본 §2.1**(`migrations/*.sql` 전체·이름 순) · DB 백필·§6.5·§7 (§5.5·§10은 dev 히스토리) |
 | `database-schema-v2-cutover-checklist.md` | prd 컷오버·백업·RLS·§8 시행착오 방지 |
 | `database-schema-v2-member-domain.md` | 회원·팀·관리자 필드 매핑 |
 
@@ -14,7 +14,7 @@
 ## 1. 원칙 (dev와 prd 동일)
 
 1. **한 번에 전부 교체하지 않는다.** 도메인 슬라이스 단위로 나누고, 슬라이스마다 **인벤토리 → 쿼리 교체 → 스모크 → PR** 을 반복한다.
-2. **prd도 dev와 같은 순서·같은 슬라이스 경계를 쓴다.** 차이는 **DB 컷오버 창구·백업·마이그레이션 적용 시점**뿐이다.
+2. **prd도 dev와 같은 순서·같은 슬라이스 경계를 쓴다.** 차이는 **DB 컷오버 창구·백업·마이그레이션 적용 시점**뿐이다. **prd DB 스키마**는 `rollout-progress` **§2.1**에 정의된 대로, 고정한 Git 리비전의 **`supabase/migrations/*.sql` 전체를 파일명 순**으로 적용한 것이 완성본이다(연혁 표를 따라 읽을 필요 없음).
 3. **교차 화면은 슬라이스 완료 후 통합 스모크한다.** 홈·대회 목록 등은 여러 테이블을 한 번에 쓰므로, 각 슬라이스가 끝난 뒤 해당 플로우를 다시 본다.
 4. **타입 정합:** 슬라이스 진행 중 `pnpm exec supabase gen types` 로 `lib/supabase/database.types.ts` 를 v2 반영 상태로 맞춘다(로컬은 `supabase link` dev 기준).
 5. **롤백:** 슬라이스별 브랜치·PR을 유지하고, 문제 시 해당 PR만 revert 하거나 환경변수 플래그(선택)로 v1 쿼리 경로를 잠시 되살린다.
@@ -195,6 +195,7 @@
 | 2026-04-06 | UTMB: `mem_utmb_prf` 앱 반영·P9(`20260404165809`) 문서 연계. §2.1 진행 상태·슬라이스 5 인벤토리 분리(UTMB 완료 / PB 미완). 앱 전환은 슬라이스 1→4 순 권장 명시 |
 | 2026-04-06 | 슬라이스 1 앱: `mem_mst`·`team_mem_rel` 조회·온보딩(서버 액션)·프로필·관리자·RLS(`20260406120000`). `member` 이중 기록 유지 |
 | 2026-04-07 | 슬라이스 1 DB: `20260407120000_v2_team_mem_rel_rls_no_recursion.sql` — `team_mem_rel`/`team_mst`/`mem_mst_select_same_team` RLS 무한 재귀(42P17) 제거. `rollout-progress` 웨이브 2a·`cutover-checklist` §8에 prd 필수 포함 명시 |
+| 2026-04-07 | prd 담당자용: `rollout-progress` **§2.1** 완성본 정의·참고 표(§1·원칙 2) 교차 참조 — 히스토리와 절차서 분리 |
 | 2026-04-06 | §7 TODO: `GIGANG_TEAM_ID` 하드코딩·추후 팀 선택 시 제거 (`member-domain` §7 연계) |
 | 2026-04-06 | §9: 슬라이스별 수정 포인트·수동 테스트 목록·전체 회귀 체크리스트 추가 |
 

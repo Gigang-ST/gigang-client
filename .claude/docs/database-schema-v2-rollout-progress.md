@@ -4,6 +4,7 @@
 
 - v2 DDL·시드·백필·앱 전환·레거시 정리까지의 **진행 상태를 한곳에서 추적**한다.
 - 상세 설계·매핑·검증 쿼리는 아래 문서를 단일 기준으로 두고, 본 문서는 **체크리스트·웨이브·게이트**만 담는다.
+- **읽는 사람별:** **운영(prd) 컷오버**는 **§2.1(완성본 마이그레이션 세트)** + `database-schema-v2-cutover-checklist.md` §8 만 보면 된다. **§5.5·§10** 등은 dev 테스트·원인 추적용 **히스토리**이지 prd 절차서가 아니다.
 
 | 참고 문서 | 용도 |
 |-----------|------|
@@ -25,6 +26,59 @@
 | `vers` 정본 | 마이그레이션 검증 SQL은 **`vers = 0` + `del_yn = false`** 기준 — DDL/백필과 반드시 일치시킬 것 |
 | ID 보존 | `comp_reg_rel.comp_reg_id` = AS-IS `competition_registration.id`, `rec_race_hist.race_result_id` = `race_result.id` (1:1) |
 | 마이그레이션 파일 ↔ 원격 | `supabase/migrations/<version>_*.sql` 의 `<version>` 은 원격 `schema_migrations.version` 과 맞춘다. **MCP `apply_migration`은 적용 시각 기준 버전이 생겨 로컬 타임스탬프와 어긋나기 쉬우므로**, 기록·재현은 **`supabase db push` / CLI** 를 정본으로 두고, MCP로 돌린 뒤에는 `schema_migrations` 정리 또는 `migration repair` 로 맞춘다. |
+
+### 2.1) 운영(prd) 마이그레이션 완성본 — 단일 기준
+
+**정의:** prd에 올릴 DB 스키마·정책의 **완성본**은 Git 저장소 **`supabase/migrations/` 아래 모든 `*.sql` 파일**을 **파일명(앞 14자리 타임스탬프) 오름차순**으로 **빠짐없이 한 번씩** 적용한 결과와 동일하다.  
+dev에서 테스트하며 파일이 추가·수정되면, **완성본 정의도 그 커밋의 폴더 내용으로 같이 갱신**된다. “보강”·“후속”은 **새 타임스탬프 파일**으로 들어오며, 운영은 **연표를 읽지 않고 아래 순서대로 전부 적용**하면 된다.
+
+**prd 절차(요약):**
+
+1. 컷오버에 쓸 **Git 리비전(태그/커밋)을 고정**한다.
+2. 그 리비전의 `supabase/migrations/*.sql` 를 **이름 순**으로 적용한다(도구는 `supabase db push` 등 팀 합의 경로, `cutover-checklist` §8).
+3. 원격 `schema_migrations` 의 `version` 목록이 **로컬 파일 타임스탬프와 동일 집합**인지 확인한다.
+4. 데이터 백필·검증·앱 게이트는 `migration-map` §5.2·본 문서 §5·`cutover-checklist` 를 따른다(데이터는 별도 페이즈).
+
+**현재 리비전 기준 파일 목록(스냅샷):** 새 마이그레이션을 merge 할 때마다 **표를 한 번 갱신**하거나, 아래 명령으로 목록을 뽑아 diff 한다.
+
+```powershell
+Get-ChildItem supabase/migrations -Filter *.sql | Sort-Object Name | ForEach-Object Name
+```
+
+| 순서 | 파일명 |
+|------|--------|
+| 1 | `20260325091708_remote_schema.sql` |
+| 2 | `20260404064718_v2_wave1_common_code.sql` |
+| 3 | `20260404081732_v2_wave2_member_team.sql` |
+| 4 | `20260404083704_v2_wave3_competition.sql` |
+| 5 | `20260404085737_v2_wave4_rec_race_hist.sql` |
+| 6 | `20260404093618_v2_wave5_fee_core.sql` |
+| 7 | `20260404093853_v2_wave5_fee_snap_rls.sql` |
+| 8 | `20260404094818_v2_wave6_rls_refine.sql` |
+| 9 | `20260404102200_v2_backfill_p0_p5.sql` |
+| 10 | `20260404102201_v2_backfill_p1_mem_mst.sql` |
+| 11 | `20260404102202_v2_backfill_p2_team_mem_rel.sql` |
+| 12 | `20260404102203_v2_backfill_p3_comp_mst.sql` |
+| 13 | `20260404102204_v2_backfill_p4_comp_evt_cfg.sql` |
+| 14 | `20260404102205_v2_comp_evt_cfg_rename_uppercase.sql` |
+| 15 | `20260404102206_v2_backfill_p5_team_comp_plan_rel.sql` |
+| 16 | `20260404102207_v2_backfill_p6_comp_reg_rel.sql` |
+| 17 | `20260404102208_v2_backfill_p7_rec_race_hist.sql` |
+| 18 | `20260404102309_v2_backfill_p6_p8.sql` |
+| 19 | `20260404163840_v2_legacy_zold_snapshot.sql` |
+| 20 | `20260404164840_archive_old_snapshot_replace_zold.sql` |
+| 21 | `20260404165809_v2_mem_utmb_prf.sql` |
+| 22 | `20260406120000_mem_mst_rls_oauth_and_teammates.sql` |
+| 23 | `20260406190000_v2_mem_utmb_prf_add_recent_race_cols.sql` |
+| 24 | `20260406203000_v2_public_team_member_stats_rpc.sql` |
+| 25 | `20260406230000_v2_comp_admin_policy_team_role.sql` |
+| 26 | `20260406233000_v2_drop_unused_legacy_public_tables.sql` |
+| 27 | `20260407001000_v2_public_team_scoped_rpc.sql` |
+| 28 | `20260407013000_comp_evt_type_and_sport_event_code_groups.sql` |
+| 29 | `20260407014000_v2_public_team_scoped_rpc_comp_evt_type.sql` |
+| 30 | `20260407120000_v2_team_mem_rel_rls_no_recursion.sql` |
+
+각 파일이 하는 일의 맥락(웨이브·백필 페이즈)은 본 문서 **§4·§5** 와 파일 머리 주석을 보면 된다. prd 담당자는 **위 순서 전체 적용**만 확실히 하면 되고, §4의 체크박스 연혁은 dev 진행용이다.
 
 ## 3) 메타 (담당·일정)
 
@@ -497,3 +551,4 @@ order by 1, 2;
 | 2026-04-06 | 대회 관리자 정책 v2-only 전환 `20260406230000_v2_comp_admin_policy_team_role.sql` — `is_legacy_platform_admin` 제거, `team_mem_rel` 권한 기반으로 통합 | — |
 | 2026-04-06 | `public` 미사용 레거시 테이블 제거 마이그레이션 `20260406233000_v2_drop_unused_legacy_public_tables.sql` 추가 | — |
 | 2026-04-07 | 웨이브 **2a 보강:** `20260407120000_v2_team_mem_rel_rls_no_recursion.sql` — `team_mem_rel`·`team_mst`·`mem_mst_select_same_team` RLS **무한 재귀(42P17)** 제거(`SECURITY DEFINER` 헬퍼 3종). dev 적용 완료·prd는 `supabase/migrations/` 버전 순 전체 적용으로 동일 포함(`cutover-checklist` §8) | — |
+| 2026-04-07 | **§2.1 추가:** prd용 **마이그레이션 완성본 = `migrations/*.sql` 전체·이름 순**을 문서 상단에 단일 기준으로 명시. §5.5·§10은 dev 히스토리로 구분. `cutover-checklist` §8에서 §2.1 교차 참조 | — |
