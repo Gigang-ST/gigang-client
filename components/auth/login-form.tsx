@@ -31,6 +31,9 @@ export function LoginForm({
     setOauthProvider(provider);
     setError(null);
 
+    // OAuth 제공자가 query string(next)를 누락하는 경우를 대비해 임시 보관
+    document.cookie = `oauth_next=${encodeURIComponent(safeNext)}; Path=/; Max-Age=600; SameSite=Lax`;
+
     const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNext)}`;
 
     const { error } = await supabase.auth.signInWithOAuth({

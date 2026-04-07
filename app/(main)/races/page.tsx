@@ -7,6 +7,8 @@ import { Suspense } from "react";
 import { RaceListView } from "@/components/races/race-list-view";
 import type { Competition } from "@/components/races/types";
 import { env } from "@/lib/env";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
+import type { Database } from "@/lib/supabase/database.types";
 
 const supabase = createPublicClient(
   env.NEXT_PUBLIC_SUPABASE_URL,
@@ -20,64 +22,82 @@ const getUpcomingCompetitions = unstable_cache(
     const today = todayKST();
     const endOfYear = `${today.slice(0, 4)}-12-31`;
     const { data } = await supabase
-      .from("competition")
+      .from("comp_mst")
       .select(
-        "id, external_id, sport, title, start_date, end_date, location, event_types, source_url",
+        "comp_id, ext_id, comp_sprt_cd, comp_nm, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)",
       )
-      .gte("start_date", today)
-      .lte("start_date", endOfYear)
-      .order("start_date", { ascending: true });
-    return { competitions: (data ?? []) as Competition[], today };
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .gte("stt_dt", today)
+      .lte("stt_dt", endOfYear)
+      .order("stt_dt", { ascending: true });
+    const competitions: Competition[] = (data ?? []).map((row) => ({
+      id: row.comp_id,
+      external_id: row.ext_id ?? "",
+      sport: row.comp_sprt_cd,
+      title: row.comp_nm,
+      start_date: row.stt_dt,
+      end_date: row.end_dt,
+      location: row.loc_nm,
+      event_types: (row.comp_evt_cfg ?? []).map((e) => e.comp_evt_type?.toUpperCase()).filter(Boolean) as string[],
+      source_url: row.src_url,
+    }));
+    return { competitions, today };
   },
   ["competitions-upcoming"],
   cacheOptions,
 );
 
-const getGigangCompetitions = unstable_cache(
-  async () => {
-    const today = todayKST();
-    const endOfYear = `${today.slice(0, 4)}-12-31`;
-    const { data } = await supabase
-      .from("competition")
-      .select(
-        "id, external_id, sport, title, start_date, end_date, location, event_types, source_url, competition_registration!inner(id)",
-      )
-      .gte("start_date", today)
-      .lte("start_date", endOfYear)
-      .order("start_date", { ascending: true });
+async function fetchTeamCompetitionsForTeam(teamId: string) {
+  const today = todayKST();
+  const endOfYear = `${today.slice(0, 4)}-12-31`;
+  const { data } = await supabase.rpc("get_public_team_competitions", {
+    p_team_id: teamId,
+    p_start: today,
+    p_end: endOfYear,
+  });
 
-    // competition_registration 필드를 제거하고 Competition 타입으로 반환
-    const competitions = (data ?? []).map(
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      ({ competition_registration, ...rest }) => rest,
-    ) as Competition[];
-
-    // 중복 제거 (같은 대회에 여러 등록이 있으면 중복 반환됨)
-    const seen = new Set<string>();
-    const unique = competitions.filter(c => {
-      if (seen.has(c.id)) return false;
-      seen.add(c.id);
-      return true;
+  const rows = (data ?? []) as Database["public"]["Functions"]["get_public_team_competitions"]["Returns"];
+  const competitions = rows
+    .filter((row) => (row.reg_count ?? 0) > 0)
+    .map((row) => {
+      return {
+        id: row.comp_id,
+        external_id: row.ext_id ?? "",
+        sport: row.comp_sprt_cd,
+        title: row.comp_nm,
+        start_date: row.stt_dt,
+        end_date: row.end_dt,
+        location: row.loc_nm,
+        event_types: (row.comp_evt_types ?? []).map((e) => e?.toUpperCase()).filter(Boolean),
+        source_url: row.src_url,
+      } as Competition;
     });
-    return unique;
-  },
-  ["competitions-gigang"],
-  cacheOptions,
-);
+
+  const regCounts: Record<string, number> = {};
+  rows.forEach((row) => {
+    if (!row.comp_id) return;
+    regCounts[row.comp_id] = Number(row.reg_count ?? 0);
+  });
+
+  return { competitions, regCounts };
+}
 
 async function RacesContent() {
-  const [{ competitions }, gigangCompetitions] = await Promise.all([
+  const { teamId } = await getRequestTeamContext();
+  const [{ competitions }, gigangData] = await Promise.all([
     getUpcomingCompetitions(),
-    getGigangCompetitions(),
+    fetchTeamCompetitionsForTeam(teamId),
   ]);
 
   return (
     <RaceListView
+      teamId={teamId}
       allCompetitions={competitions}
-      gigangCompetitions={gigangCompetitions}
+      gigangCompetitions={gigangData.competitions}
       initialMemberStatus={{ status: "loading" }}
       initialRegistrationsByCompetitionId={{}}
-      initialRegCounts={{}}
+      initialRegCounts={gigangData.regCounts}
     />
   );
 }

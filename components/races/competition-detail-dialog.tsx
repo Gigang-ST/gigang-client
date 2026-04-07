@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
+import { updateCompetition } from "@/app/actions/admin/manage-competition";
 import {
   competitionEditSchema,
   type CompetitionEditValues,
@@ -49,12 +50,13 @@ type RegistrationWithMember = {
   role: string;
   event_type: string | null;
   created_at: string;
-  member: { full_name: string | null };
+  member: { mem_nm: string | null };
 };
 
 const SPORT_OPTIONS = SPORT_LEGEND.filter(s => s.key !== "other");
 
 interface CompetitionDetailDialogProps {
+  teamId: string;
   competition: Competition | null;
   registration?: CompetitionRegistration;
   memberStatus: MemberStatus;
@@ -77,6 +79,7 @@ interface CompetitionDetailDialogProps {
 }
 
 export function CompetitionDetailDialog({
+  teamId,
   competition,
   registration,
   memberStatus,
@@ -109,13 +112,43 @@ export function CompetitionDetailDialog({
 
   // 참가자 목록 로드
   const loadParticipants = useCallback(async (competitionId: string) => {
+    const { data: plan } = await supabase
+      .from("team_comp_plan_rel")
+      .select("team_comp_id")
+      .eq("comp_id", competitionId)
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .maybeSingle();
+    if (!plan) {
+      setParticipants([]);
+      return;
+    }
     const { data } = await supabase
-      .from("competition_registration")
-      .select("role, event_type, created_at, member:member_id(full_name)")
-      .eq("competition_id", competitionId)
-      .order("created_at", { ascending: true });
-    setParticipants((data ?? []) as unknown as RegistrationWithMember[]);
-  }, [supabase]);
+      .from("comp_reg_rel")
+      .select("prt_role_cd, crt_at, comp_evt_cfg(comp_evt_type), mem_mst!comp_reg_rel_mem_id_fkey(mem_nm)")
+      .eq("team_comp_id", plan.team_comp_id)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .order("crt_at", { ascending: true });
+    const mapped = (data ?? []).map((r) => {
+      const row = r as unknown as {
+        prt_role_cd: string;
+        crt_at: string;
+        comp_evt_cfg?: { comp_evt_type: string | null }[] | { comp_evt_type: string | null };
+        mem_mst?: { mem_nm: string | null }[] | { mem_nm: string | null };
+      };
+      const evt = Array.isArray(row.comp_evt_cfg) ? row.comp_evt_cfg[0] : row.comp_evt_cfg;
+      const mem = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst;
+      return {
+        role: row.prt_role_cd,
+        event_type: evt?.comp_evt_type?.toUpperCase() ?? null,
+        created_at: row.crt_at,
+        member: { mem_nm: mem?.mem_nm ?? null },
+      };
+    });
+    setParticipants(mapped);
+  }, [supabase, teamId]);
 
   useEffect(() => {
     if (!competition || !open) return;
@@ -176,16 +209,16 @@ export function CompetitionDetailDialog({
 
   async function handleEditSave(data: CompetitionEditValues) {
     if (!competition) return;
-    const { error } = await supabase.from("competition").update({
-      title: data.title.trim(),
+    const result = await updateCompetition(competition.id, {
+      title: data.title,
       sport: data.sport,
-      start_date: data.startDate,
-      end_date: data.endDate || null,
-      location: data.location.trim(),
-      source_url: data.sourceUrl.trim() || null,
-      event_types: data.eventTypes.length > 0 ? data.eventTypes : null,
-    }).eq("id", competition.id);
-    if (error) {
+      startDate: data.startDate,
+      endDate: data.endDate || null,
+      location: data.location,
+      eventTypes: data.eventTypes,
+      sourceUrl: data.sourceUrl,
+    });
+    if (!result.ok) {
       editForm.setError("root", { message: "수정에 실패했습니다." });
       return;
     }
@@ -436,7 +469,7 @@ export function CompetitionDetailDialog({
                       <div key={event} className="flex items-baseline gap-2">
                         <span className="shrink-0 font-semibold text-foreground">{event}</span>
                         <span className="text-muted-foreground">
-                          {group.map(p => p.member?.full_name ?? "이름 없음").join(", ")}
+                          {group.map(p => p.member?.mem_nm ?? "이름 없음").join(", ")}
                         </span>
                       </div>
                     );
@@ -457,17 +490,30 @@ export function CompetitionDetailDialog({
             {memberStatus.status === "needs-onboarding" && (
               <p>참가 신청 전에 회원 정보를 먼저 입력해 주세요.</p>
             )}
-            <Button asChild className="w-full">
-              <Link
-                href={
-                  memberStatus.status === "signed-out"
-                    ? "/auth/login?next=%2Fraces"
-                    : "/onboarding"
-                }
+            {memberStatus.status === "member-fetch-error" && (
+              <p>회원 정보를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.</p>
+            )}
+            {memberStatus.status === "member-fetch-error" ? (
+              <Button
+                type="button"
+                className="w-full"
+                onClick={() => window.location.reload()}
               >
-                {memberStatus.status === "signed-out" ? "로그인" : "회원정보 입력"}
-              </Link>
-            </Button>
+                새로고침
+              </Button>
+            ) : (
+              <Button asChild className="w-full">
+                <Link
+                  href={
+                    memberStatus.status === "signed-out"
+                      ? "/auth/login?next=%2Fraces"
+                      : "/onboarding"
+                  }
+                >
+                  {memberStatus.status === "signed-out" ? "로그인" : "회원정보 입력"}
+                </Link>
+              </Button>
+            )}
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">

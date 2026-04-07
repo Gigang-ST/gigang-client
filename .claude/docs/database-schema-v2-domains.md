@@ -25,11 +25,11 @@
 필수 컬럼:
 - `comp_evt_id` (PK)
 - `comp_id` (FK -> `comp_mst`)
-- `comp_evt_cd` (`COMP_EVT_CD` 공통코드 `cmm_cd_mst.cd` 와 동일 문자열)
+- `comp_evt_type` (대회 이벤트 타입 자유 문자열. 예: `12K`, `OLYMPIC`, `FULL`)
 - `vers`, `del_yn`, `crt_at`, `upd_at`
 
 유니크:
-- (`comp_id`, `comp_evt_cd`, `vers`)
+- (`comp_id`, `comp_evt_type`, `vers`)
 
 분리 이유(과설계 방지 관점):
 - 배열 컬럼(`event_types`)은 초기엔 단순하지만, 운영 단계에서 누락/중복/정렬 문제를 자주 만든다.
