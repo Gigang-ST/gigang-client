@@ -170,7 +170,7 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
           return (
             <div
               key={evt}
-              className={`flex flex-col gap-1 rounded-xl p-4 ${i < 2 ? "border-[1.5px] border-border" : "bg-secondary"}`}
+              className={`flex min-w-0 flex-col gap-1 rounded-xl p-4 ${i < 2 ? "border-[1.5px] border-border" : "bg-secondary"}`}
             >
               <span className="text-xs font-semibold text-primary">
                 {evt}
@@ -190,13 +190,13 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
           type="button"
           variant="secondary"
           onClick={() => handleUtmbOpenChange(true)}
-          className="h-auto flex-col items-start gap-1 rounded-xl p-4 active:scale-[0.98]"
+          className="h-auto min-w-0 flex-col items-start gap-1 rounded-xl p-4 active:scale-[0.98]"
         >
           <span className="text-xs font-semibold text-primary">UTMB</span>
           <span className="font-mono text-xl font-bold text-foreground">
             {utmb ? utmb.utmb_index : "--"}
           </span>
-          <span className="truncate text-[11px] text-muted-foreground">
+          <span className="w-full truncate text-[11px] text-muted-foreground">
             {utmb?.recent_race_name ? utmb.recent_race_name : utmb ? "" : "탭하여 연동"}
           </span>
         </Button>
@@ -275,7 +275,7 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
                 {recentRaceName && (
                   <div className="flex flex-col gap-0.5 border-t border-border pt-3">
                     <span className="text-xs text-muted-foreground">최근 대회</span>
-                    <span className="text-sm font-medium text-foreground">
+                    <span className="truncate text-sm font-medium text-foreground">
                       {recentRaceName}
                     </span>
                     {recentRaceRecord && (
