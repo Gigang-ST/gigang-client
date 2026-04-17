@@ -132,8 +132,11 @@
   - INSERT/UPDATE/DELETE: 본인 `mem_id = auth.uid()`
 - `team_mem_rel`
   - SELECT: 같은 팀 멤버는 조회 가능
-  - INSERT/UPDATE: 팀 관리자(`owner`, `admin`)만 허용
-  - 본인 탈퇴 시 제한된 self-update 허용
+  - INSERT:
+    - 기본: 팀 관리자(`owner`, `admin`) 허용
+    - 온보딩 예외: 본인(`mem_id = auth.uid()`)이 `team_role_cd = 'member'`, `vers = 0`, `del_yn = false`로
+      자기 팀 합류 1회 INSERT 허용 (`team_mem_rel_insert_self_onboarding`, `20260417120000`)
+  - UPDATE: 팀 관리자(`owner`, `admin`) 중심 + 본인 탈퇴 시 제한된 self-update 허용
   - 공개 홈 지표(활동/전체 멤버 수)는 원본 행 직접 조회 대신
     `get_public_team_member_stats(p_team_id uuid)` RPC로 제공
   - **구현 유의(PostgreSQL):** 위 “같은 팀이면 SELECT”를 정책 본문에서 `EXISTS (SELECT … FROM team_mem_rel …)` 로만 풀면, 내부 스캔에도 동일 SELECT 정책이 붙어 **42P17 infinite recursion** 이 난다. **의미는 그대로 두고** 소속 검증만 `SECURITY DEFINER` + `SET row_security = off` 헬퍼로 옮긴 것이 `20260407120000_v2_team_mem_rel_rls_no_recursion.sql` 이다(초기 DDL: `20260404081732_v2_wave2_member_team.sql`).

@@ -195,6 +195,12 @@ order by 1;
   - **prd:** Git `supabase/migrations/` 를 **버전 순 전체 적용**(`cutover-checklist` §8)하면 `20260406120000` 다음 타임스탬프로 **자동 포함**된다. `20260406120000` 만 적용하고 본 파일을 빼면 로그인·동료 조회에서 재귀 오류가 남을 수 있다.
   - [x] **dev:** 적용 완료 (2026-04-07, MCP `apply_migration` 또는 이후 `db push` 로 `schema_migrations` 정합)
   - [ ] **prd:** 컷오버 창구에서 동일 파일 적용·`schema_migrations` 에 `20260407120000` 확인
+- [x] 마이그레이션 `supabase/migrations/20260417120000_team_mem_rel_insert_self_onboarding.sql`
+  - 배경: `team_mem_rel_insert_admin`만 있으면 신규 온보딩 사용자는 본인 팀 합류 INSERT가 RLS에 막힌다.
+  - 정책: `authenticated` 본인이 `mem_id = auth.uid()`, `team_role_cd = 'member'`, `vers = 0`, `del_yn = false` 조건에서
+    `team_mem_rel` self-insert 허용(중복 활성 관계는 `NOT EXISTS`로 차단).
+  - [x] **dev:** 적용 완료 (MCP `apply_migration`, 2026-04-17)
+  - [ ] **prd:** 컷오버 시 동일 파일 적용·`schema_migrations` 에 `20260417120000` 확인
 - [x] 마이그레이션 `supabase/migrations/20260406203000_v2_public_team_member_stats_rpc.sql`
   - 공개 홈 지표용 RPC `get_public_team_member_stats(p_team_id uuid)` 추가
 - [x] 마이그레이션 `supabase/migrations/20260407123000_v2_public_team_member_stats_rpc_service_role_only.sql`
