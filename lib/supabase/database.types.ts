@@ -681,6 +681,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      mem_mst_mem_ids_by_norm_phone: {
+        Args: { p_input: string }
+        Returns: string[]
+      },
       get_public_team_member_stats: {
         Args: { p_team_id: string }
         Returns: {
