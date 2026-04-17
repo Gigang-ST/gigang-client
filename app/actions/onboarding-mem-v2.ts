@@ -40,41 +40,40 @@ export async function onboardingCheckPhone(
   }
 
   const admin = createAdminClient();
-  const { data: list, error: listErr } = await admin
-    .from("mem_mst")
-    .select("mem_id")
-    .eq("vers", 0)
-    .eq("del_yn", false)
-    .eq("phone_no", digits)
-    .limit(2);
+  // DB phone_no 표기(하이픈·+82 등)와 무관하게 백필과 동일한 migration_v2_norm_phone 으로 매칭
+  const { data: memIds, error: rpcErr } = await admin.rpc(
+    "mem_mst_mem_ids_by_norm_phone",
+    { p_input: phoneRaw.trim() },
+  );
 
-  if (listErr) {
+  if (rpcErr) {
     return { ok: false, message: "기존 회원 확인에 실패했습니다." };
   }
-  if (list && list.length > 1) {
+  const ids = (memIds ?? []).filter(Boolean);
+  if (ids.length > 1) {
     return {
       ok: false,
       message:
         "같은 번호로 등록된 회원이 여러 명이라 관리자 확인이 필요합니다.",
     };
   }
-  const mst = list?.[0];
-  if (!mst) return { ok: true, kind: "new" };
+  const memId = ids[0];
+  if (!memId) return { ok: true, kind: "new" };
 
   const { teamId } = await getRequestTeamContext();
   const { data: rel } = await admin
     .from("team_mem_rel")
     .select("mem_st_cd")
-    .eq("mem_id", mst.mem_id)
+    .eq("mem_id", memId)
     .eq("team_id", teamId)
     .eq("vers", 0)
     .eq("del_yn", false)
     .maybeSingle();
 
   const st = rel?.mem_st_cd ?? "pending";
-  if (st === "inactive") return { ok: true, kind: "inactive", memId: mst.mem_id };
+  if (st === "inactive") return { ok: true, kind: "inactive", memId };
   if (st === "pending") return { ok: true, kind: "pending" };
-  return { ok: true, kind: "active", memId: mst.mem_id };
+  return { ok: true, kind: "active", memId };
 }
 
 /** 기존 활동 회원: OAuth만 연결(mem_mst) */
