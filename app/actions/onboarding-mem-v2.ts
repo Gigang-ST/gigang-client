@@ -162,15 +162,20 @@ export async function onboardingCreateMember(args: {
 }): Promise<
   { ok: true; alreadyRegistered?: boolean } | { ok: false; message: string }
 > {
-  const { user } = await requireAuthUser();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { ok: false, message: "로그인이 필요합니다." };
 
   const uid = user.id;
+  /** mem_mst DELETE 정책이 없어 롤백은 service_role 만 안전하다. */
   const admin = createAdminClient();
   const acctDigits = digitsOnly(args.bankAccountRaw);
   const bankAcctNo = acctDigits.length ? acctDigits : null;
 
-  const { error: em } = await admin.from("mem_mst").insert({
+  // 본인 행 INSERT 는 authenticated + mem_mst_insert_own 로 처리(서비스 롤 키 미설정/오설정 시에도 동작)
+  const { error: em } = await supabase.from("mem_mst").insert({
     mem_id: uid,
     mem_nm: args.fullName,
     gdr_enm: args.gender,
@@ -192,7 +197,8 @@ export async function onboardingCreateMember(args: {
   }
 
   const { teamId } = await getRequestTeamContext();
-  const { error: eRel } = await admin.from("team_mem_rel").insert({
+  // team_mem_rel_insert_admin 은 owner/admin 전용 → 신규는 authenticated 정책(team_mem_rel_insert_self_onboarding) 사용
+  const { error: eRel } = await supabase.from("team_mem_rel").insert({
     team_id: teamId,
     mem_id: uid,
     team_role_cd: "member",
