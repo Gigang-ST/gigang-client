@@ -70,7 +70,6 @@ t3-env로 관리되며 `lib/env.ts`에서 import:
 | `NEXT_PUBLIC_SUPABASE_URL` | 클라이언트 | Supabase 프로젝트 URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | 클라이언트 | Supabase 공개 키 |
 | `NEXT_PUBLIC_ENABLE_DEV_MODE` | 클라이언트 | 개발 모드 활성화 (이메일 로그인 등) |
-| `NEXT_PUBLIC_DEBUG_DATE` | 클라이언트 | 디버그용 날짜 오버라이드 |
 
 ## 커스텀 커맨드
 
