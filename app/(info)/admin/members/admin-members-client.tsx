@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  updateMemberStatus,
   toggleAdmin,
 } from "@/app/actions/admin/manage-member";
 import {
@@ -11,8 +10,6 @@ import {
   Shield,
   ShieldOff,
   UserRound,
-  UserX,
-  UserCheck,
   ChevronRight,
   X,
 } from "lucide-react";
@@ -38,21 +35,19 @@ type Member = {
   joined_at: string | null;
 };
 
-type Filter = "all" | "active" | "inactive" | "pending";
+type Filter = "all" | "active" | "pending";
 
 const STATUS_BADGE: Record<
   string,
   { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
 > = {
   active: { label: "활동", variant: "default" },
-  inactive: { label: "비활성", variant: "destructive" },
   pending: { label: "대기", variant: "outline" },
 };
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: "all", label: "전체" },
   { value: "active", label: "활동" },
-  { value: "inactive", label: "비활성" },
   { value: "pending", label: "대기" },
 ];
 
@@ -121,27 +116,6 @@ export function AdminMembersClient({ teamId }: { teamId: string }) {
     }
     return true;
   });
-
-  const handleStatusChange = async (
-    memberId: string,
-    status: "active" | "inactive",
-  ) => {
-    const label = status === "active" ? "활성화" : "비활성화";
-    if (!confirm(`${label}하시겠습니까?`)) return;
-    setActioning(true);
-    const result = await updateMemberStatus(memberId, status);
-    if (result.ok) {
-      setMembers((prev) =>
-        prev.map((m) => (m.id === memberId ? { ...m, status } : m)),
-      );
-      setSelectedMember((prev) =>
-        prev?.id === memberId ? { ...prev, status } : prev,
-      );
-    } else {
-      alert(result.message);
-    }
-    setActioning(false);
-  };
 
   const handleToggleAdmin = async (memberId: string, isAdmin: boolean) => {
     const label = isAdmin ? "관리자로 지정" : "관리자 해제";
@@ -342,36 +316,6 @@ export function AdminMembersClient({ teamId }: { teamId: string }) {
 
               {/* 액션 버튼 */}
               <div className="flex flex-col gap-2">
-                {selectedMember.status === "active" && (
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      handleStatusChange(selectedMember.id, "inactive")
-                    }
-                    disabled={actioning}
-                    className="h-auto justify-start gap-3 rounded-xl px-4 py-3.5 text-left"
-                  >
-                    <UserX className="size-4 text-destructive" />
-                    <span className="text-[15px] font-medium text-destructive">
-                      비활성화
-                    </span>
-                  </Button>
-                )}
-                {selectedMember.status === "inactive" && (
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      handleStatusChange(selectedMember.id, "active")
-                    }
-                    disabled={actioning}
-                    className="h-auto justify-start gap-3 rounded-xl px-4 py-3.5 text-left"
-                  >
-                    <UserCheck className="size-4 text-primary" />
-                    <span className="text-[15px] font-medium text-primary">
-                      활성화
-                    </span>
-                  </Button>
-                )}
                 {selectedMember.admin ? (
                   <Button
                     variant="outline"

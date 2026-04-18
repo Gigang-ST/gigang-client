@@ -44,30 +44,6 @@ export async function rejectMember(memberId: string) {
   return { ok: true, message: null };
 }
 
-export async function updateMemberStatus(
-  memberId: string,
-  status: "active" | "inactive",
-) {
-  const adminUser = await verifyAdmin();
-  if (!adminUser) return { ok: false, message: "권한이 없습니다" };
-
-  const { teamId } = await getRequestTeamContext();
-  const db = createAdminClient();
-  const memSt = status;
-
-  const { error: e1 } = await db
-    .from("team_mem_rel")
-    .update({ mem_st_cd: memSt })
-    .eq("mem_id", memberId)
-    .eq("team_id", teamId)
-    .eq("vers", 0)
-    .eq("del_yn", false);
-
-  if (e1) return { ok: false, message: "상태 변경에 실패했습니다" };
-
-  return { ok: true, message: null };
-}
-
 export async function toggleAdmin(memberId: string, isAdmin: boolean) {
   const adminUser = await verifyAdmin();
   if (!adminUser) return { ok: false, message: "권한이 없습니다" };
