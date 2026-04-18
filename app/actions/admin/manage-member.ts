@@ -91,3 +91,40 @@ export async function toggleAdmin(memberId: string, isAdmin: boolean) {
 
   return { ok: true, message: null };
 }
+
+export async function deleteMember(memberId: string) {
+  const adminUser = await verifyAdmin();
+  if (!adminUser) return { ok: false, message: "권한이 없습니다" };
+
+  if (adminUser.id === memberId) {
+    return { ok: false, message: "본인은 삭제할 수 없습니다" };
+  }
+
+  const { teamId } = await getRequestTeamContext();
+  const db = createAdminClient();
+
+  const { data: rel } = await db
+    .from("team_mem_rel")
+    .select("team_role_cd")
+    .eq("mem_id", memberId)
+    .eq("team_id", teamId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+
+  if (rel?.team_role_cd === "owner") {
+    return { ok: false, message: "크루장은 삭제할 수 없습니다" };
+  }
+
+  const { error } = await db
+    .from("team_mem_rel")
+    .update({ del_yn: true })
+    .eq("mem_id", memberId)
+    .eq("team_id", teamId)
+    .eq("vers", 0)
+    .eq("del_yn", false);
+
+  if (error) return { ok: false, message: "삭제에 실패했습니다" };
+
+  return { ok: true, message: null };
+}

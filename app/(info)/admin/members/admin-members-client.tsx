@@ -4,12 +4,14 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   toggleAdmin,
+  deleteMember,
 } from "@/app/actions/admin/manage-member";
 import {
   Search,
   Shield,
   ShieldOff,
   UserRound,
+  UserX,
   ChevronRight,
   X,
 } from "lucide-react";
@@ -94,6 +96,19 @@ export function AdminMembersClient({ teamId }: { teamId: string }) {
     const q = search.toLowerCase();
     return m.full_name?.toLowerCase().includes(q) || m.phone?.includes(q);
   });
+
+  const handleDeleteMember = async (memberId: string, name: string) => {
+    if (!confirm(`${name} 회원을 삭제하시겠습니까?`)) return;
+    setActioning(true);
+    const result = await deleteMember(memberId);
+    if (result.ok) {
+      setMembers((prev) => prev.filter((m) => m.id !== memberId));
+      setSelectedMember(null);
+    } else {
+      alert(result.message);
+    }
+    setActioning(false);
+  };
 
   const handleToggleAdmin = async (memberId: string, isAdmin: boolean) => {
     const label = isAdmin ? "관리자로 지정" : "관리자 해제";
@@ -283,6 +298,22 @@ export function AdminMembersClient({ teamId }: { teamId: string }) {
                     </span>
                   </Button>
                 )}
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    handleDeleteMember(
+                      selectedMember.id,
+                      selectedMember.full_name ?? "이름 없음",
+                    )
+                  }
+                  disabled={actioning}
+                  className="h-auto justify-start gap-3 rounded-xl px-4 py-3.5 text-left"
+                >
+                  <UserX className="size-4 text-destructive" />
+                  <span className="text-[15px] font-medium text-destructive">
+                    회원 삭제
+                  </span>
+                </Button>
               </div>
             </div>
           </div>
