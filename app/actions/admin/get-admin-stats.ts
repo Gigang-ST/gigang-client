@@ -18,7 +18,8 @@ export async function getAdminStats(): Promise<AdminStats> {
   const me = await verifyAdmin();
   if (!me) throw new Error("권한이 없습니다");
 
-  const { teamId } = await getRequestTeamContext();
+  const { teamId, teamCd } = await getRequestTeamContext();
+  console.log("[getAdminStats] teamId:", teamId, "teamCd:", teamCd);
   const admin = createAdminClient();
 
   const [total, competitions, records, activeProjects, activeEvents, pendingPrt] = await Promise.all([
@@ -27,7 +28,11 @@ export async function getAdminStats(): Promise<AdminStats> {
       .select("*", { count: "exact", head: true })
       .eq("team_id", teamId)
       .eq("vers", 0)
-      .eq("del_yn", false),
+      .eq("del_yn", false)
+      .then((res) => {
+        if (res.error) console.error("[getAdminStats] team_mem_rel error:", res.error, "teamId:", teamId);
+        return res;
+      }),
     (() => {
       const monthStart = currentMonthKST();
       const monthEnd = nextMonthStr(monthStart);
@@ -61,7 +66,7 @@ export async function getAdminStats(): Promise<AdminStats> {
       .eq("evt_team_mst.team_id", teamId),
   ]);
 
-  return {
+  const result = {
     totalCount: total.count ?? 0,
     monthlyCompetitionCount: competitions.count ?? 0,
     recentRecordCount: records.count ?? 0,
@@ -69,4 +74,11 @@ export async function getAdminStats(): Promise<AdminStats> {
     activeEventCount: activeEvents.count ?? 0,
     pendingParticipationCount: pendingPrt.count ?? 0,
   };
+  console.log("[getAdminStats] results:", result, "errors:", {
+    total: total.error,
+    activeProjects: activeProjects.error,
+    activeEvents: activeEvents.error,
+    pendingPrt: pendingPrt.error,
+  });
+  return result;
 }
