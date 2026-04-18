@@ -84,6 +84,7 @@ t3-env로 관리되며 `lib/env.ts`에서 import:
 |----------|------|
 | `supabase-gigang-dev` | Supabase 개발 환경 |
 | `supabase-gigang-prd` | Supabase 프로덕션 환경 |
+| `supabase-gigang-local` | Supabase 로컬 개발 환경 |
 | `vercel` | Vercel 배포 관리 |
 | `chrome-devtools` | 브라우저 테스트/QA |
 | `shadcn` | shadcn/ui 컴포넌트 검색 |
