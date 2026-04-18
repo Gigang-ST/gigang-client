@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  updateMemberStatus,
   toggleAdmin,
+  deleteMember,
 } from "@/app/actions/admin/manage-member";
 import {
   Search,
@@ -12,7 +12,6 @@ import {
   ShieldOff,
   UserRound,
   UserX,
-  UserCheck,
   ChevronRight,
   X,
 } from "lucide-react";
@@ -23,7 +22,6 @@ import { H2 } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardItem } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 
 type Member = {
   id: string;
@@ -38,28 +36,10 @@ type Member = {
   joined_at: string | null;
 };
 
-type Filter = "all" | "active" | "inactive" | "pending";
-
-const STATUS_BADGE: Record<
-  string,
-  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
-> = {
-  active: { label: "활동", variant: "default" },
-  inactive: { label: "비활성", variant: "destructive" },
-  pending: { label: "대기", variant: "outline" },
-};
-
-const FILTERS: { value: Filter; label: string }[] = [
-  { value: "all", label: "전체" },
-  { value: "active", label: "활동" },
-  { value: "inactive", label: "비활성" },
-  { value: "pending", label: "대기" },
-];
 
 export function AdminMembersClient({ teamId }: { teamId: string }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [actioning, setActioning] = useState(false);
@@ -112,31 +92,18 @@ export function AdminMembersClient({ teamId }: { teamId: string }) {
   }, [loadMembers]);
 
   const filtered = members.filter((m) => {
-    if (filter !== "all" && m.status !== filter) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      const nameMatch = m.full_name?.toLowerCase().includes(q);
-      const phoneMatch = m.phone?.includes(q);
-      if (!nameMatch && !phoneMatch) return false;
-    }
-    return true;
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return m.full_name?.toLowerCase().includes(q) || m.phone?.includes(q);
   });
 
-  const handleStatusChange = async (
-    memberId: string,
-    status: "active" | "inactive",
-  ) => {
-    const label = status === "active" ? "활성화" : "비활성화";
-    if (!confirm(`${label}하시겠습니까?`)) return;
+  const handleDeleteMember = async (memberId: string, name: string) => {
+    if (!confirm(`${name} 회원을 삭제하시겠습니까?`)) return;
     setActioning(true);
-    const result = await updateMemberStatus(memberId, status);
+    const result = await deleteMember(memberId);
     if (result.ok) {
-      setMembers((prev) =>
-        prev.map((m) => (m.id === memberId ? { ...m, status } : m)),
-      );
-      setSelectedMember((prev) =>
-        prev?.id === memberId ? { ...prev, status } : prev,
-      );
+      setMembers((prev) => prev.filter((m) => m.id !== memberId));
+      setSelectedMember(null);
     } else {
       alert(result.message);
     }
@@ -190,26 +157,6 @@ export function AdminMembersClient({ teamId }: { teamId: string }) {
         />
       </div>
 
-      {/* 필터 탭 */}
-      <div className="flex gap-0 rounded-xl bg-secondary p-1">
-        {FILTERS.map((f) => (
-          <Button
-            key={f.value}
-            variant="ghost"
-            size="sm"
-            onClick={() => setFilter(f.value)}
-            className={cn(
-              "flex-1 rounded-lg text-[13px] font-medium",
-              filter === f.value
-                ? "bg-foreground text-background hover:bg-foreground hover:text-background"
-                : "text-muted-foreground",
-            )}
-          >
-            {f.label}
-          </Button>
-        ))}
-      </div>
-
       {/* 회원 수 */}
       <span className="text-[13px] text-muted-foreground">
         {filtered.length}명
@@ -217,9 +164,7 @@ export function AdminMembersClient({ teamId }: { teamId: string }) {
 
       {/* 회원 목록 */}
       <div className="flex flex-col gap-2">
-        {filtered.map((member) => {
-          const badge = STATUS_BADGE[member.status ?? ""] ?? STATUS_BADGE.active;
-          return (
+        {filtered.map((member) => (
             <CardItem asChild key={member.id} className="flex items-center gap-3">
               <button
                 onClick={() => setSelectedMember(member)}
@@ -239,14 +184,10 @@ export function AdminMembersClient({ teamId }: { teamId: string }) {
                   {member.phone ?? "연락처 없음"}
                 </span>
               </div>
-              <Badge variant={badge.variant} className="shrink-0 text-[11px]">
-                {badge.label}
-              </Badge>
               <ChevronRight className="size-4 shrink-0 text-border" />
               </button>
             </CardItem>
-          );
-        })}
+        ))}
       </div>
 
       {filtered.length === 0 && (
@@ -288,20 +229,6 @@ export function AdminMembersClient({ teamId }: { teamId: string }) {
                       </Badge>
                     )}
                   </div>
-                  <Badge
-                    variant={
-                      (STATUS_BADGE[selectedMember.status ?? ""] ??
-                        STATUS_BADGE.active
-                      ).variant
-                    }
-                    className="w-fit text-[11px]"
-                  >
-                    {
-                      (STATUS_BADGE[selectedMember.status ?? ""] ??
-                        STATUS_BADGE.active
-                      ).label
-                    }
-                  </Badge>
                 </div>
                 <Button
                   variant="ghost"
@@ -342,36 +269,6 @@ export function AdminMembersClient({ teamId }: { teamId: string }) {
 
               {/* 액션 버튼 */}
               <div className="flex flex-col gap-2">
-                {selectedMember.status === "active" && (
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      handleStatusChange(selectedMember.id, "inactive")
-                    }
-                    disabled={actioning}
-                    className="h-auto justify-start gap-3 rounded-xl px-4 py-3.5 text-left"
-                  >
-                    <UserX className="size-4 text-destructive" />
-                    <span className="text-[15px] font-medium text-destructive">
-                      비활성화
-                    </span>
-                  </Button>
-                )}
-                {selectedMember.status === "inactive" && (
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      handleStatusChange(selectedMember.id, "active")
-                    }
-                    disabled={actioning}
-                    className="h-auto justify-start gap-3 rounded-xl px-4 py-3.5 text-left"
-                  >
-                    <UserCheck className="size-4 text-primary" />
-                    <span className="text-[15px] font-medium text-primary">
-                      활성화
-                    </span>
-                  </Button>
-                )}
                 {selectedMember.admin ? (
                   <Button
                     variant="outline"
@@ -401,6 +298,22 @@ export function AdminMembersClient({ teamId }: { teamId: string }) {
                     </span>
                   </Button>
                 )}
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    handleDeleteMember(
+                      selectedMember.id,
+                      selectedMember.full_name ?? "이름 없음",
+                    )
+                  }
+                  disabled={actioning}
+                  className="h-auto justify-start gap-3 rounded-xl px-4 py-3.5 text-left"
+                >
+                  <UserX className="size-4 text-destructive" />
+                  <span className="text-[15px] font-medium text-destructive">
+                    회원 삭제
+                  </span>
+                </Button>
               </div>
             </div>
           </div>
