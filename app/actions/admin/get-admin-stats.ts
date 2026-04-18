@@ -12,6 +12,11 @@ export type AdminStats = {
   activeProjectCount: number;
   activeEventCount: number;
   pendingParticipationCount: number;
+  _debug?: {
+    teamId: string;
+    teamCd: string;
+    errors: Record<string, unknown>;
+  };
 };
 
 export async function getAdminStats(): Promise<AdminStats> {
@@ -66,19 +71,23 @@ export async function getAdminStats(): Promise<AdminStats> {
       .eq("evt_team_mst.team_id", teamId),
   ]);
 
-  const result = {
+  const result: AdminStats = {
     totalCount: total.count ?? 0,
     monthlyCompetitionCount: competitions.count ?? 0,
     recentRecordCount: records.count ?? 0,
     activeProjectCount: activeProjects.count ?? 0,
     activeEventCount: activeEvents.count ?? 0,
     pendingParticipationCount: pendingPrt.count ?? 0,
+    _debug: {
+      teamId,
+      teamCd,
+      errors: {
+        total: total.error,
+        activeProjects: activeProjects.error,
+        activeEvents: activeEvents.error,
+        pendingPrt: pendingPrt.error,
+      },
+    },
   };
-  console.log("[getAdminStats] results:", result, "errors:", {
-    total: total.error,
-    activeProjects: activeProjects.error,
-    activeEvents: activeEvents.error,
-    pendingPrt: pendingPrt.error,
-  });
   return result;
 }
