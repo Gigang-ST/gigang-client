@@ -5,7 +5,6 @@ import {
   onboardingCheckPhone,
   onboardingCreateMember,
   onboardingLinkExistingMember,
-  onboardingRejoinFromInactive,
 } from "@/app/actions/onboarding-mem-v2";
 import { Button } from "@/components/ui/button";
 import {
@@ -91,27 +90,9 @@ export function MemberOnboardingForm({
     },
   });
 
-  const [stage, setStage] = useState<"phone" | "details" | "inactive" | "pending" | "success">("phone");
+  const [stage, setStage] = useState<"phone" | "details" | "pending" | "success">("phone");
   const [phoneLoading, setPhoneLoading] = useState(false);
-  const [inactiveMemberId, setInactiveMemberId] = useState<string | null>(null);
-  const [rejoinLoading, setRejoinLoading] = useState(false);
 
-
-  const handleRejoinRequest = async () => {
-    if (!inactiveMemberId) return;
-    setRejoinLoading(true);
-    const res = await onboardingRejoinFromInactive({
-      memId: inactiveMemberId,
-      provider,
-      initialAvatarUrl,
-    });
-    setRejoinLoading(false);
-    if (!res.ok) {
-      form.setError("root", { message: res.message ?? "처리에 실패했습니다." });
-      return;
-    }
-    setStage("pending");
-  };
 
   const handlePhoneSubmit = async (values: MemberOnboardingValues) => {
     const phoneValue = formatPhone(values.phone.trim());
@@ -139,11 +120,6 @@ export function MemberOnboardingForm({
 
     if (check.kind === "new") {
       setStage("details");
-      return;
-    }
-    if (check.kind === "inactive") {
-      setInactiveMemberId(check.memId);
-      setStage("inactive");
       return;
     }
     if (check.kind === "pending") {
@@ -289,34 +265,7 @@ export function MemberOnboardingForm({
               )}
             >
               <div className="flex flex-col gap-6">
-                {stage === "inactive" ? (
-                  <div className="flex flex-col gap-4 text-center">
-                    <p className="text-sm text-muted-foreground">
-                      탈퇴 처리된 계정입니다.<br />
-                      재가입을 신청하면 관리자 승인 후 이용 가능합니다.
-                    </p>
-                    {form.formState.errors.root?.message ? (
-                      <p className="text-sm text-red-500">
-                        {form.formState.errors.root.message}
-                      </p>
-                    ) : null}
-                    <Button
-                      type="button"
-                      className="w-full"
-                      disabled={rejoinLoading}
-                      onClick={handleRejoinRequest}
-                    >
-                      {rejoinLoading ? "신청 중..." : "재가입 신청"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => setStage("phone")}
-                    >
-                      번호 다시 입력
-                    </Button>
-                  </div>
-                ) : stage === "pending" ? (
+                {stage === "pending" ? (
                   <div className="flex flex-col gap-4 text-center">
                     <p className="text-sm text-muted-foreground">
                       재가입 신청이 접수되었습니다.<br />

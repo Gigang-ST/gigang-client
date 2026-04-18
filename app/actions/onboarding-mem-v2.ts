@@ -22,7 +22,6 @@ function normEmail(s: string | null | undefined): string | null {
 
 export type OnboardingPhoneResult =
   | { ok: true; kind: "new" }
-  | { ok: true; kind: "inactive"; memId: string }
   | { ok: true; kind: "pending" }
   | { ok: true; kind: "active"; memId: string }
   | { ok: false; message: string };
@@ -71,7 +70,6 @@ export async function onboardingCheckPhone(
     .maybeSingle();
 
   const st = rel?.mem_st_cd ?? "pending";
-  if (st === "inactive") return { ok: true, kind: "inactive", memId };
   if (st === "pending") return { ok: true, kind: "pending" };
   return { ok: true, kind: "active", memId };
 }
@@ -98,47 +96,6 @@ export async function onboardingLinkExistingMember(args: {
       ...(args.initialAvatarUrl ? { avatar_url: args.initialAvatarUrl } : {}),
     })
     .eq("mem_id", args.memId)
-    .eq("vers", 0)
-    .eq("del_yn", false);
-
-  if (e1) return { ok: false, message: e1.message };
-
-  return { ok: true };
-}
-
-/** 비활성 재가입 요청: 팀 상태를 pending 으로, OAuth 연결 */
-export async function onboardingRejoinFromInactive(args: {
-  memId: string;
-  provider: "kakao" | "google";
-  initialAvatarUrl?: string | null;
-}): Promise<{ ok: boolean; message?: string }> {
-  const { user } = await requireAuthUser();
-  if (!user) return { ok: false, message: "로그인이 필요합니다." };
-
-  const admin = createAdminClient();
-  const oauthMst =
-    args.provider === "kakao"
-      ? { oauth_kakao_id: user.id }
-      : { oauth_google_id: user.id };
-
-  const { error: e0 } = await admin
-    .from("mem_mst")
-    .update({
-      ...oauthMst,
-      ...(args.initialAvatarUrl ? { avatar_url: args.initialAvatarUrl } : {}),
-    })
-    .eq("mem_id", args.memId)
-    .eq("vers", 0)
-    .eq("del_yn", false);
-
-  if (e0) return { ok: false, message: e0.message };
-
-  const { teamId } = await getRequestTeamContext();
-  const { error: e1 } = await admin
-    .from("team_mem_rel")
-    .update({ mem_st_cd: "pending" })
-    .eq("mem_id", args.memId)
-    .eq("team_id", teamId)
     .eq("vers", 0)
     .eq("del_yn", false);
 
