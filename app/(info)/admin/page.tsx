@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  UserCheck,
   Users,
   Trophy,
   Timer,
@@ -30,19 +29,11 @@ type Card = {
 
 const generalCards: Card[] = [
   {
-    key: "approvals",
-    label: "가입 승인 대기",
-    href: "/admin/approvals",
-    icon: UserCheck,
-    getValue: (s) => s.pendingCount,
-    getAccentValue: (s) => s.pendingCount,
-  },
-  {
     key: "members",
-    label: "활성 회원",
+    label: "회원 관리",
     href: "/admin/members",
     icon: Users,
-    getValue: (s) => `${s.activeCount} / ${s.totalCount}`,
+    getValue: (s) => s.totalCount,
   },
   {
     key: "competitions",

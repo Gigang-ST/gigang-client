@@ -44,30 +44,6 @@ export async function rejectMember(memberId: string) {
   return { ok: true, message: null };
 }
 
-export async function updateMemberStatus(
-  memberId: string,
-  status: "active" | "inactive",
-) {
-  const adminUser = await verifyAdmin();
-  if (!adminUser) return { ok: false, message: "권한이 없습니다" };
-
-  const { teamId } = await getRequestTeamContext();
-  const db = createAdminClient();
-  const memSt = status;
-
-  const { error: e1 } = await db
-    .from("team_mem_rel")
-    .update({ mem_st_cd: memSt })
-    .eq("mem_id", memberId)
-    .eq("team_id", teamId)
-    .eq("vers", 0)
-    .eq("del_yn", false);
-
-  if (e1) return { ok: false, message: "상태 변경에 실패했습니다" };
-
-  return { ok: true, message: null };
-}
-
 export async function toggleAdmin(memberId: string, isAdmin: boolean) {
   const adminUser = await verifyAdmin();
   if (!adminUser) return { ok: false, message: "권한이 없습니다" };
@@ -112,6 +88,43 @@ export async function toggleAdmin(memberId: string, isAdmin: boolean) {
         "변경이 반영되지 않았습니다. 크루장이거나 다른 작업과 겹쳤을 수 있으니 새로고침 후 다시 시도해 주세요.",
     };
   }
+
+  return { ok: true, message: null };
+}
+
+export async function deleteMember(memberId: string) {
+  const adminUser = await verifyAdmin();
+  if (!adminUser) return { ok: false, message: "권한이 없습니다" };
+
+  if (adminUser.id === memberId) {
+    return { ok: false, message: "본인은 삭제할 수 없습니다" };
+  }
+
+  const { teamId } = await getRequestTeamContext();
+  const db = createAdminClient();
+
+  const { data: rel } = await db
+    .from("team_mem_rel")
+    .select("team_role_cd")
+    .eq("mem_id", memberId)
+    .eq("team_id", teamId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+
+  if (rel?.team_role_cd === "owner") {
+    return { ok: false, message: "크루장은 삭제할 수 없습니다" };
+  }
+
+  const { error } = await db
+    .from("team_mem_rel")
+    .update({ del_yn: true })
+    .eq("mem_id", memberId)
+    .eq("team_id", teamId)
+    .eq("vers", 0)
+    .eq("del_yn", false);
+
+  if (error) return { ok: false, message: "삭제에 실패했습니다" };
 
   return { ok: true, message: null };
 }
