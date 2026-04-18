@@ -64,5 +64,6 @@ export async function resolveTeamContextFromHost(
 export const getRequestTeamContext = cache(async (): Promise<RequestTeamContext> => {
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
+  console.log("[getRequestTeamContext] host:", host, "x-forwarded-host:", h.get("x-forwarded-host"), "host-header:", h.get("host"));
   return resolveTeamContextFromHost(host);
 });
