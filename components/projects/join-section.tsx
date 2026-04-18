@@ -7,7 +7,7 @@ import {
   countMonths,
   DEPOSIT_PER_MONTH,
   ENTRY_FEE,
-  SINGLET_FEE,
+  ENTRY_FEE_WITH_SINGLET,
 } from "@/lib/mileage";
 import { currentMonthKST } from "@/lib/dayjs";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ type GoalPreset = "50" | "100" | "custom";
 
 export function JoinSection({
   evtId,
+  evtStartMonth,
   evtEndMonth,
   existingPrt,
 }: JoinSectionProps) {
@@ -56,10 +57,13 @@ export function JoinSection({
   const initGoal =
     goalPreset === "custom" ? parseInt(customGoal) || 0 : parseInt(goalPreset);
 
-  const months = countMonths(currentMonthKST(), evtEndMonth);
+  // 보증금은 이벤트 시작월부터 계산 (연습기간 제외)
+  const now = currentMonthKST();
+  const depositStart = now < evtStartMonth ? evtStartMonth : now;
+  const months = countMonths(depositStart, evtEndMonth);
   const depositTotal = months * DEPOSIT_PER_MONTH;
-  const singletFee = hasSinglet ? 0 : SINGLET_FEE;
-  const totalAmount = depositTotal + ENTRY_FEE + singletFee;
+  const entryFee = hasSinglet ? ENTRY_FEE_WITH_SINGLET : ENTRY_FEE;
+  const totalAmount = depositTotal + entryFee;
 
   async function handleJoin() {
     if (goalPreset === "custom") {
@@ -152,19 +156,11 @@ export function JoinSection({
           </Caption>
         </div>
         <div className="flex justify-between">
-          <Caption>참가비</Caption>
+          <Caption>참가비{hasSinglet ? " (싱글렛 보유)" : ""}</Caption>
           <Caption className="text-foreground">
-            {ENTRY_FEE.toLocaleString()}원
+            {entryFee.toLocaleString()}원
           </Caption>
         </div>
-        {!hasSinglet && (
-          <div className="flex justify-between">
-            <Caption>싱글렛</Caption>
-            <Caption className="text-foreground">
-              {SINGLET_FEE.toLocaleString()}원
-            </Caption>
-          </div>
-        )}
         <div className="flex justify-between pt-2 border-t border-border">
           <Caption className="text-foreground font-semibold">합계</Caption>
           <Caption className="text-foreground font-semibold">

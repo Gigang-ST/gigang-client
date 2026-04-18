@@ -123,3 +123,10 @@ alter table public.evt_team_prt_rel enable row level security;
 alter table public.evt_mlg_goal_cfg enable row level security;
 alter table public.evt_mlg_act_hist enable row level security;
 alter table public.evt_mlg_mult_cfg enable row level security;
+
+-- RLS 정책: 인증된 사용자 읽기 허용
+create policy "evt_team_mst_select" on public.evt_team_mst for select to authenticated using (true);
+create policy "evt_team_prt_rel_select" on public.evt_team_prt_rel for select to authenticated using (true);
+create policy "evt_mlg_goal_cfg_select" on public.evt_mlg_goal_cfg for select to authenticated using (true);
+create policy "evt_mlg_act_hist_select" on public.evt_mlg_act_hist for select to authenticated using (true);
+create policy "evt_mlg_mult_cfg_select" on public.evt_mlg_mult_cfg for select to authenticated using (true);

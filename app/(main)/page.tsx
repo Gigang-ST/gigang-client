@@ -54,7 +54,7 @@ async function HomeContent() {
     { data: recentRecordsRaw },
   ] = await Promise.all([
     admin.rpc("get_public_team_member_stats", { p_team_id: teamId }),
-    supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: today, p_end: null }),
+    supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: today }),
     supabase
       .from("comp_mst")
       .select("*", { count: "exact", head: true })

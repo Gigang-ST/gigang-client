@@ -1,9 +1,7 @@
 // 서버 컴포넌트 — 내 현황 카드
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  todayKST,
   todayDayKST,
-  currentMonthKST,
   nextMonthStr,
   daysInMonth,
 } from "@/lib/dayjs";
@@ -19,16 +17,11 @@ type MyStatusProps = {
 
 export async function MyStatus({ evtId, memId, month }: MyStatusProps) {
   const supabase = createAdminClient();
-  const today = todayKST();
-  const curMonth = currentMonthKST();
   const todayDay = todayDayKST();
 
   const [y, m] = month.split("-").map(Number);
   const totalDays = daysInMonth(y, m);
   const nextMonth = nextMonthStr(month);
-
-  // 쿼리 종료일: 과거 월이면 월말 하루 전(nextMonth 미만), 이번 달이면 오늘
-  const queryEndDate = month < curMonth ? nextMonth : `${today}T23:59:59`;
 
   const [{ data: goalRow }, { data: logs }] = await Promise.all([
     supabase
@@ -44,8 +37,7 @@ export async function MyStatus({ evtId, memId, month }: MyStatusProps) {
       .eq("evt_id", evtId)
       .eq("mem_id", memId)
       .gte("act_dt", month)
-      .lt("act_dt", nextMonth)
-      .lte("act_dt", month < curMonth ? nextMonth : today),
+      .lt("act_dt", nextMonth),
   ]);
 
   if (!goalRow) {

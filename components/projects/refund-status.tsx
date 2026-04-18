@@ -5,7 +5,6 @@ import {
   calcMonthRefundRate,
   countMonths,
   DEPOSIT_PER_MONTH,
-  ENTRY_FEE,
 } from "@/lib/mileage";
 import { StatCard } from "@/components/common/stat-card";
 
@@ -27,8 +26,8 @@ export async function RefundStatus({
   const supabase = createAdminClient();
   const curMonth = currentMonthKST();
 
-  // 조회 기준: month가 미래면 현재 월까지만, 이벤트 종료 월까지만
-  const viewMonth = month > curMonth ? curMonth : month > evtEndMonth ? evtEndMonth : month;
+  // 조회 기준: 이벤트 종료 월까지만 (미래 월도 예상치로 표시)
+  const viewMonth = month > evtEndMonth ? evtEndMonth : month;
 
   // 1. 전체 참여자 조회 (approve_yn=true)
   const { data: allParticipants } = await supabase
@@ -123,9 +122,9 @@ export async function RefundStatus({
     }
   }
 
-  // 5. 회식비 풀 = (전체 보증금 - 전체 환급액) + 전원 참가비
+  // 5. 회식비 풀 = (전체 보증금 - 전체 환급액) + 참가비(1만원/인 고정, 싱글렛비 제외)
   const partyPool =
-    totalDepositPool - totalRefundSum + participants.length * ENTRY_FEE;
+    totalDepositPool - totalRefundSum + participants.length * DEPOSIT_PER_MONTH;
 
   // 6. 1인 회식비 상한 = 풀 × (본인 지분 / 전체 지분)
   const myPartyBudget =
@@ -141,7 +140,7 @@ export async function RefundStatus({
       />
       <StatCard
         value={`₩${myPartyBudget.toLocaleString()}`}
-        label="회식비 상한"
+        label="회식비 지원금(예상)"
       />
     </div>
   );

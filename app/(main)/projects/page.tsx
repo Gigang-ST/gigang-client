@@ -4,7 +4,6 @@ import { PageHeader } from "@/components/common/page-header";
 import { getCurrentMember } from "@/lib/queries/member";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { currentMonthKST, prevMonthStr } from "@/lib/dayjs";
-import { ensureAllCurrentMonthGoals } from "@/app/actions/mileage-run";
 import { MileageIntro } from "@/components/projects/mileage-intro";
 import { MileageRulesButton } from "@/components/projects/mileage-rules-button";
 import { MonthNavigator } from "@/components/projects/month-navigator";
@@ -75,11 +74,6 @@ export default async function ProjectsPage({
 
   const isParticipant = participation !== null && participation.approve_yn === true;
 
-  // 승인된 참여자이면 당월 목표 자동 생성 (fire-and-forget 형태로 await)
-  if (isParticipant && member) {
-    await ensureAllCurrentMonthGoals(event.evt_id, event.end_dt);
-  }
-
   // 비로그인이면 신청 섹션 미표시
   const showJoin = user !== null && !isParticipant;
 
@@ -123,7 +117,7 @@ export default async function ProjectsPage({
             <RandomReview evtId={event.evt_id} />
           </Suspense>
           <Suspense fallback={<Skeleton className="h-32 w-full rounded-2xl" />}>
-            <CrewMonthlyStats evtId={event.evt_id} month={selectedMonth} />
+            <CrewMonthlyStats evtId={event.evt_id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
           </Suspense>
         </ChartModeProvider>
 

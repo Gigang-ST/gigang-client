@@ -1,23 +1,20 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { todayKST, currentMonthKST, monthLastDay } from "@/lib/dayjs";
+import { monthLastDay, nextMonthStr } from "@/lib/dayjs";
+import { calcMonthRefundRate, countMonths, DEPOSIT_PER_MONTH } from "@/lib/mileage";
 import { StatCard } from "@/components/common/stat-card";
 
 type CrewMonthlyStatsProps = {
   evtId: string;
   month: string; // "2026-05-01"
+  evtStartMonth: string;
+  evtEndMonth: string;
 };
 
-export async function CrewMonthlyStats({ evtId, month }: CrewMonthlyStatsProps) {
+export async function CrewMonthlyStats({ evtId, month, evtStartMonth, evtEndMonth }: CrewMonthlyStatsProps) {
   const supabase = createAdminClient();
-
-  const today = todayKST();
-  const curMonth = currentMonthKST();
 
   const [y, m] = month.split("-").map(Number);
   const monthEnd = monthLastDay(y, m);
-
-  // 쿼리 종료일: 과거 월이면 말일, 이번 달이면 오늘
-  const queryEnd = month < curMonth ? monthEnd : today;
 
   // 참여자 + 활동 기록 + 목표 병렬 조회 (async-parallel)
   const [
@@ -29,13 +26,14 @@ export async function CrewMonthlyStats({ evtId, month }: CrewMonthlyStatsProps) 
       .from("evt_team_prt_rel")
       .select("mem_id, init_goal")
       .eq("evt_id", evtId)
-      .eq("approve_yn", true),
+      .eq("approve_yn", true)
+      .lte("stt_month", month),
     supabase
       .from("evt_mlg_act_hist")
       .select("mem_id, final_mlg")
       .eq("evt_id", evtId)
       .gte("act_dt", month)
-      .lte("act_dt", queryEnd),
+      .lte("act_dt", monthEnd),
     supabase
       .from("evt_mlg_goal_cfg")
       .select("mem_id, goal_val")
@@ -84,11 +82,59 @@ export async function CrewMonthlyStats({ evtId, month }: CrewMonthlyStatsProps) 
 
   const avgMileage = participantCount > 0 ? totalMileage / participantCount : 0;
 
+  // 회식비 풀 계산 (evtStartMonth ~ 선택 월까지 누적)
+  const viewMonth = month > evtEndMonth ? evtEndMonth : month;
+
+  // 전체 참여자의 실전 기간 목표/기록 조회 (누적)
+  const allMemIds = activeParticipants.map((p) => p.mem_id);
+  const [{ data: allGoals }, { data: allLogs }] = await Promise.all([
+    supabase
+      .from("evt_mlg_goal_cfg")
+      .select("mem_id, goal_month, goal_val")
+      .eq("evt_id", evtId)
+      .in("mem_id", allMemIds)
+      .gte("goal_month", evtStartMonth)
+      .lte("goal_month", viewMonth),
+    supabase
+      .from("evt_mlg_act_hist")
+      .select("mem_id, act_dt, final_mlg")
+      .eq("evt_id", evtId)
+      .in("mem_id", allMemIds)
+      .gte("act_dt", evtStartMonth)
+      .lt("act_dt", nextMonthStr(viewMonth)),
+  ]);
+
+  const mlgMap = new Map<string, number>();
+  for (const l of allLogs ?? []) {
+    const gm = (l.act_dt as string).slice(0, 7) + "-01";
+    const key = `${l.mem_id}:${gm}`;
+    mlgMap.set(key, (mlgMap.get(key) ?? 0) + Number(l.final_mlg));
+  }
+
+  let totalDepositPool = 0;
+  let totalRefundSum = 0;
+
+  for (const p of activeParticipants) {
+    const effectiveStart = evtStartMonth;
+    if (effectiveStart > viewMonth) continue;
+    const months = countMonths(effectiveStart, viewMonth);
+    totalDepositPool += months * DEPOSIT_PER_MONTH;
+
+    const pGoals = (allGoals ?? []).filter((g) => g.mem_id === p.mem_id);
+    for (const g of pGoals) {
+      const key = `${p.mem_id}:${g.goal_month}`;
+      const achieved = mlgMap.get(key) ?? 0;
+      totalRefundSum += calcMonthRefundRate(achieved, Number(g.goal_val)) * DEPOSIT_PER_MONTH;
+    }
+  }
+
+  const partyPool = totalDepositPool - totalRefundSum + participantCount * DEPOSIT_PER_MONTH;
+
   return (
     <div className="grid grid-cols-2 gap-3">
       <StatCard
-        value={`${participantCount}명`}
-        label="참여 인원"
+        value={`${achievedCount} / ${participantCount}`}
+        label="달성인원 / 참가자수"
       />
       <StatCard
         value={`${totalMileage.toFixed(0)} km`}
@@ -99,8 +145,8 @@ export async function CrewMonthlyStats({ evtId, month }: CrewMonthlyStatsProps) 
         label="평균 마일리지"
       />
       <StatCard
-        value={`${achievedCount} / ${participantCount}`}
-        label="목표 달성"
+        value={`₩${Math.floor(partyPool).toLocaleString()}`}
+        label="총 회식비 풀"
       />
     </div>
   );

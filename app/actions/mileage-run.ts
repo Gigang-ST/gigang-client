@@ -9,6 +9,7 @@ import {
   todayKST,
   todayDayKST,
   nextMonthStr,
+  prevMonthStr,
 } from "@/lib/dayjs";
 import {
   calcBaseMileage,
@@ -18,7 +19,7 @@ import {
   countMonths,
   DEPOSIT_PER_MONTH,
   ENTRY_FEE,
-  SINGLET_FEE,
+  ENTRY_FEE_WITH_SINGLET,
   type MileageSport,
 } from "@/lib/mileage";
 
@@ -153,12 +154,15 @@ export async function joinProject(
   if (evtError || !evt) return { ok: false, message: "이벤트를 찾을 수 없습니다" };
 
   const curMonth = currentMonthKST();
+  const evtStartMonth = evt.stt_dt.slice(0, 7) + "-01";
   const evtEndMonth = evt.end_dt.slice(0, 7) + "-01";
-  const remainMonths = countMonths(curMonth, evtEndMonth);
+  // 보증금은 이벤트 시작월부터 계산 (연습기간 제외)
+  const depositStart = curMonth < evtStartMonth ? evtStartMonth : curMonth;
+  const remainMonths = countMonths(depositStart, evtEndMonth);
 
   const depositAmt = remainMonths * DEPOSIT_PER_MONTH;
-  const entryFeeAmt = ENTRY_FEE;
-  const singletFeeAmt = hasSinglet ? SINGLET_FEE : 0;
+  const entryFeeAmt = hasSinglet ? ENTRY_FEE_WITH_SINGLET : ENTRY_FEE;
+  const singletFeeAmt = 0;
 
   // evt_team_prt_rel INSERT
   const { error: prtError } = await db.from("evt_team_prt_rel").insert({
@@ -180,17 +184,23 @@ export async function joinProject(
     return { ok: false, message: "참여 신청에 실패했습니다" };
   }
 
-  // 첫 월별 목표 INSERT
-  const { error: goalError } = await db.from("evt_mlg_goal_cfg").insert({
-    evt_id: evtId,
-    mem_id: member.id,
-    goal_month: curMonth,
-    goal_val: initGoal,
-    achieved_yn: false,
-  });
+  // 시작월~종료월까지 전체 목표 미리 생성 (init_goal)
+  const goalRows: { evt_id: string; mem_id: string; goal_month: string; goal_val: number; achieved_yn: boolean }[] = [];
+  let m = curMonth;
+  while (m <= evtEndMonth) {
+    goalRows.push({
+      evt_id: evtId,
+      mem_id: member.id,
+      goal_month: m,
+      goal_val: initGoal,
+      achieved_yn: false,
+    });
+    m = nextMonthStr(m);
+  }
+
+  const { error: goalError } = await db.from("evt_mlg_goal_cfg").insert(goalRows);
 
   if (goalError) {
-    // 목표 생성 실패 시 참여 신청 롤백
     await db
       .from("evt_team_prt_rel")
       .delete()
@@ -252,6 +262,9 @@ export async function logActivity(
   });
 
   if (error) return { ok: false, message: "활동 기록 추가에 실패했습니다" };
+
+  // 기록이 속한 월 이후 목표 연쇄 재계산
+  await recalcGoalsFromMonth(evtId, member.id);
 
   revalidatePath("/projects");
   return { ok: true, message: null };
@@ -322,6 +335,8 @@ export async function updateActivity(
 
   if (error) return { ok: false, message: "활동 기록 수정에 실패했습니다" };
 
+  await recalcGoalsFromMonth(existing.evt_id, existing.mem_id);
+
   revalidatePath("/projects");
   return { ok: true, message: null };
 }
@@ -350,7 +365,7 @@ export async function deleteActivity(
   // 기존 기록 조회 → 본인 확인
   const { data: existing, error: fetchErr } = await db
     .from("evt_mlg_act_hist")
-    .select("act_id, mem_id")
+    .select("act_id, mem_id, evt_id")
     .eq("act_id", actId)
     .single();
 
@@ -368,6 +383,8 @@ export async function deleteActivity(
     .eq("act_id", actId);
 
   if (error) return { ok: false, message: "활동 기록 삭제에 실패했습니다" };
+
+  await recalcGoalsFromMonth(existing.evt_id, existing.mem_id);
 
   revalidatePath("/projects");
   return { ok: true, message: null };
@@ -402,11 +419,12 @@ export async function updateMonthlyGoal(
   // 기존 목표 조회 → 본인 확인
   const { data: existing, error: fetchErr } = await db
     .from("evt_mlg_goal_cfg")
-    .select("goal_id, mem_id, goal_val")
+    .select("goal_id, evt_id, mem_id, goal_val")
     .eq("goal_id", goalId)
     .single();
 
   if (fetchErr || !existing) return { ok: false, message: "목표를 찾을 수 없습니다" };
+  const evtId = existing.evt_id;
   if (!isAdmin && existing.mem_id !== member.id) {
     return { ok: false, message: "본인 목표만 수정할 수 있습니다" };
   }
@@ -425,143 +443,89 @@ export async function updateMonthlyGoal(
 
   if (error) return { ok: false, message: "목표 수정에 실패했습니다" };
 
+  await recalcGoalsFromMonth(evtId, existing.mem_id);
+
   revalidatePath("/projects");
   return { ok: true, message: null };
 }
 
 // ─────────────────────────────────────────
-// 6. 당월 목표 자동 생성 (단일 참여자)
+// 6. 목표 연쇄 재계산
 // ─────────────────────────────────────────
 
 /**
- * 특정 참여자의 당월 목표가 없으면 자동 생성.
- * - 이미 있으면 스킵
- * - 이벤트 종료월 이후면 스킵
- * - 전월 기록 합산 >= goal_val 이면 달성으로 간주 → calcNextMonthGoal 상향
- * - 전월 목표 없으면 init_goal 사용
- * - createAdminClient() 사용 (시스템 호출)
+ * 특정 참여자의 전체 목표를 연쇄 재계산.
+ * - 이벤트 시작월 이전(연습기간)은 달성 여부가 다음 월 목표에 영향 없음
+ * - 실전 기간: 달성 시 다음 월 목표 상향 (calcNextMonthGoal)
+ * - 기록 추가/수정/삭제/목표 수정 후 호출
  */
-export async function ensureCurrentMonthGoal(
+async function recalcGoalsFromMonth(
   evtId: string,
   memId: string,
-  evtEndDt: string,
-): Promise<ActionResult> {
-  const curMonth = currentMonthKST(); // 'YYYY-MM-01'
-
-  // 이벤트 종료월 이후면 스킵
-  const evtEndMonth = evtEndDt.slice(0, 7) + "-01";
-  if (curMonth > evtEndMonth) return { ok: true, message: null };
-
+): Promise<void> {
   const db = createAdminClient();
 
-  // 당월 목표 이미 존재하면 스킵
-  const { data: existing } = await db
+  // 이벤트 정보 조회
+  const { data: evt } = await db
+    .from("evt_team_mst")
+    .select("stt_dt, end_dt")
+    .eq("evt_id", evtId)
+    .single();
+  if (!evt) return;
+
+  const evtStartMonth = evt.stt_dt.slice(0, 7) + "-01";
+  const evtEndMonth = evt.end_dt.slice(0, 7) + "-01";
+
+  // 해당 참여자의 전체 목표 조회 (월순)
+  const { data: goals } = await db
     .from("evt_mlg_goal_cfg")
-    .select("goal_id")
+    .select("goal_id, goal_month, goal_val")
     .eq("evt_id", evtId)
     .eq("mem_id", memId)
-    .eq("goal_month", curMonth)
-    .maybeSingle();
+    .order("goal_month", { ascending: true });
 
-  if (existing) return { ok: true, message: null };
+  if (!goals || goals.length === 0) return;
 
-  // 전월 목표 조회
-  const prevMonth = (() => {
-    const d = new Date(curMonth);
-    d.setMonth(d.getMonth() - 1);
-    return d.toISOString().slice(0, 7) + "-01";
-  })();
-
-  const { data: prevGoal } = await db
-    .from("evt_mlg_goal_cfg")
-    .select("goal_val")
+  // 해당 참여자의 전체 기록 조회
+  const { data: allLogs } = await db
+    .from("evt_mlg_act_hist")
+    .select("act_dt, final_mlg")
     .eq("evt_id", evtId)
-    .eq("mem_id", memId)
-    .eq("goal_month", prevMonth)
-    .maybeSingle();
+    .eq("mem_id", memId);
 
-  let baseGoal: number;
-
-  if (prevGoal) {
-    baseGoal = Number(prevGoal.goal_val);
-
-    // 전월 활동 기록 합산 (final_mlg 기준)
-    const { data: acts } = await db
-      .from("evt_mlg_act_hist")
-      .select("final_mlg")
-      .eq("evt_id", evtId)
-      .eq("mem_id", memId)
-      .gte("act_dt", prevMonth)
-      .lt("act_dt", curMonth);
-
-    const totalMlg = (acts ?? []).reduce(
-      (sum, a) => sum + Number(a.final_mlg),
-      0,
-    );
-    const achieved = totalMlg >= baseGoal;
-    baseGoal = calcNextMonthGoal(baseGoal, achieved);
-  } else {
-    // 전월 목표 없으면 init_goal 사용
-    const { data: prt } = await db
-      .from("evt_team_prt_rel")
-      .select("init_goal")
-      .eq("evt_id", evtId)
-      .eq("mem_id", memId)
-      .maybeSingle();
-
-    baseGoal = prt ? Number(prt.init_goal) : 30;
+  // 월별 마일리지 합산 맵
+  const mlgByMonth = new Map<string, number>();
+  for (const log of allLogs ?? []) {
+    const m = (log.act_dt as string).slice(0, 7) + "-01";
+    mlgByMonth.set(m, (mlgByMonth.get(m) ?? 0) + Number(log.final_mlg));
   }
 
-  const { error } = await db.from("evt_mlg_goal_cfg").insert({
-    evt_id: evtId,
-    mem_id: memId,
-    goal_month: curMonth,
-    goal_val: baseGoal,
-    achieved_yn: false,
-  });
+  // 첫 번째 목표는 기준점 (init_goal 또는 사용자가 수정한 값) — 변경 안 함
+  // 두 번째부터 이전 월 달성 여부에 따라 재계산
+  for (let i = 1; i < goals.length; i++) {
+    const prev = goals[i - 1];
+    const cur = goals[i];
+    const prevMonth = prev.goal_month as string;
+    const prevGoalVal = Number(prev.goal_val);
 
-  if (error) {
-    // 동시 실행으로 인한 중복 INSERT(23505)는 무시
-    if (error.code === "23505") return { ok: true, message: null };
-    return { ok: false, message: "월별 목표 생성에 실패했습니다" };
+    // 연습기간이면 목표 상향 없이 이전 값 유지
+    const isPractice = prevMonth < evtStartMonth;
+    let newGoal: number;
+
+    if (isPractice) {
+      newGoal = prevGoalVal;
+    } else {
+      const achieved = (mlgByMonth.get(prevMonth) ?? 0) >= prevGoalVal;
+      newGoal = calcNextMonthGoal(prevGoalVal, achieved);
+    }
+
+    if (Number(cur.goal_val) !== newGoal) {
+      await db
+        .from("evt_mlg_goal_cfg")
+        .update({ goal_val: newGoal, updated_at: new Date().toISOString() })
+        .eq("goal_id", cur.goal_id);
+      // 업데이트된 값으로 다음 반복에 반영
+      cur.goal_val = newGoal;
+    }
   }
-
-  return { ok: true, message: null };
-}
-
-// ─────────────────────────────────────────
-// 7. 당월 목표 자동 생성 (전체 참여자)
-// ─────────────────────────────────────────
-
-/**
- * 이벤트의 승인된 참여자 전원에 대해 당월 목표 자동 생성.
- * - approve_yn = true 이고 stt_month <= 당월인 참여자 대상
- * - Promise.all 병렬 처리
- * - createAdminClient() 사용 (시스템 호출)
- */
-export async function ensureAllCurrentMonthGoals(
-  evtId: string,
-  evtEndDt: string,
-): Promise<ActionResult> {
-  const curMonth = currentMonthKST();
-  const db = createAdminClient();
-
-  const { data: participants, error } = await db
-    .from("evt_team_prt_rel")
-    .select("mem_id")
-    .eq("evt_id", evtId)
-    .eq("approve_yn", true)
-    .lte("stt_month", curMonth);
-
-  if (error) return { ok: false, message: "참여자 조회에 실패했습니다" };
-  if (!participants || participants.length === 0) return { ok: true, message: null };
-
-  const results = await Promise.all(
-    participants.map((p) => ensureCurrentMonthGoal(evtId, p.mem_id, evtEndDt)),
-  );
-
-  const failed = results.find((r) => !r.ok);
-  if (failed) return { ok: false, message: failed.message };
-
-  return { ok: true, message: null };
 }

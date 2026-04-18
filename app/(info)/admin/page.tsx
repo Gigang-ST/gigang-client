@@ -63,24 +63,25 @@ const generalCards: Card[] = [
 const projectCards: Card[] = [
   {
     key: "participations",
-    label: "참여자 관리",
+    label: "승인 대기 참여자",
     href: "/admin/participations",
     icon: HandCoins,
-    getValue: () => "-",
+    getValue: (s) => s.pendingParticipationCount,
+    getAccentValue: (s) => s.pendingParticipationCount,
   },
   {
     key: "projects",
     label: "활성 프로젝트",
     href: "/admin/projects",
     icon: FolderKanban,
-    getValue: () => "-",
+    getValue: (s) => s.activeProjectCount,
   },
   {
     key: "events",
     label: "활성 이벤트",
     href: "/admin/events",
     icon: Sparkles,
-    getValue: () => "-",
+    getValue: (s) => s.activeEventCount,
   },
 ];
 

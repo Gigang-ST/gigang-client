@@ -21,11 +21,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 type DailyPoint = { day: number; [key: string]: number };
 
 const CHART_COLORS = [
-  "var(--sport-road-run)",
-  "var(--sport-trail-run)",
-  "var(--sport-cycling)",
-  "var(--sport-triathlon)",
-  "var(--sport-ultra)",
+  "hsl(var(--sport-road-run))",
+  "hsl(var(--sport-trail-run))",
+  "hsl(var(--sport-cycling))",
+  "hsl(var(--sport-triathlon))",
+  "hsl(var(--sport-ultra))",
   "#6366f1",
   "#ec4899",
   "#14b8a6",
@@ -105,7 +105,8 @@ export function CrewProgressChart({ evtId, memId, month }: CrewProgressChartProp
       .from("evt_team_prt_rel")
       .select("mem_id, init_goal, mem_mst!inner(mem_nm)")
       .eq("evt_id", evtId)
-      .eq("approve_yn", true);
+      .eq("approve_yn", true)
+      .lte("stt_month", month);
 
     if (!participants || participants.length === 0) {
       setLoading(false);

@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { todayKST } from "@/lib/dayjs";
 import dayjs from "dayjs";
 import { Caption } from "@/components/common/typography";
+import { MILEAGE_SPORT_LABELS, type MileageSport } from "@/lib/mileage";
 
 type RandomReviewProps = { evtId: string };
 
@@ -13,7 +14,7 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
 
   const { data: reviews } = await supabase
     .from("evt_mlg_act_hist")
-    .select("act_id, review, mem_id, act_dt, mem_mst!inner(mem_nm)")
+    .select("act_id, review, mem_id, act_dt, sport_cd, distance_km, mem_mst!inner(mem_nm)")
     .eq("evt_id", evtId)
     .not("review", "is", null)
     .neq("review", "")
@@ -31,6 +32,8 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
     <div className="flex flex-col gap-2">
       {picks.map((item) => {
         const name = (item.mem_mst as unknown as { mem_nm: string }).mem_nm;
+        const sport = MILEAGE_SPORT_LABELS[item.sport_cd as MileageSport] ?? item.sport_cd;
+        const dist = Number(item.distance_km);
         return (
           <div
             key={item.act_id}
@@ -39,7 +42,12 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
             <Caption className="font-semibold text-foreground">
               {name}
             </Caption>
-            <Caption className="ml-1 text-muted-foreground">: {item.review}</Caption>
+            <Caption className="text-muted-foreground">
+              {" : "}
+              {item.review}
+              {" / "}
+              {sport} {dist % 1 === 0 ? dist : dist.toFixed(1)}km
+            </Caption>
           </div>
         );
       })}

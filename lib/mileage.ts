@@ -98,5 +98,7 @@ export function roundMileage(value: number): number {
 
 // 비즈니스 상수
 export const DEPOSIT_PER_MONTH = 10_000;
-export const ENTRY_FEE = 10_000;
-export const SINGLET_FEE = 10_000;
+/** 참가비: 싱글렛 미보유 */
+export const ENTRY_FEE = 20_000;
+/** 참가비: 싱글렛 보유 */
+export const ENTRY_FEE_WITH_SINGLET = 10_000;
