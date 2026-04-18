@@ -76,7 +76,7 @@ function getCachedRecordsData(teamId: string) {
             recentRaceRecord: r.rct_race_rec ?? null,
           };
         })
-        .filter((v): v is { id: string; name: string; index: number; url: string; recentRaceName: string | null; recentRaceRecord: string | null } => v !== null);
+        .filter((v): v is NonNullable<typeof v> => v !== null);
 
       // --- 마라톤 ---
       const marathonEvents = MARATHON_EVENTS.map((evt) => {

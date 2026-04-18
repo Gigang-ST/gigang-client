@@ -1,6 +1,7 @@
-import { Sparkles } from "lucide-react";
-import { AdminPlaceholder } from "../_components/admin-placeholder";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { AdminEventsClient } from "./admin-events-client";
 
-export default function EventsPage() {
-  return <AdminPlaceholder icon={Sparkles} title="이벤트 관리" />;
+export default async function EventsPage() {
+  const { teamId } = await getRequestTeamContext();
+  return <AdminEventsClient teamId={teamId} />;
 }
