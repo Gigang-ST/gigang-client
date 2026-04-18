@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentMember } from "@/lib/queries/member";
 import { verifyAdmin } from "@/lib/queries/member";
+import dayjs from "dayjs";
 import {
   currentMonthKST,
   todayKST,
@@ -60,9 +61,7 @@ function validateActivityDate(actDt: string, isAdmin: boolean): string | null {
   if (actMonth < currentMonth) {
     // 전월 이전 기록: 이번 달 3일까지만
     const dayOfMonth = todayDayKST();
-    const prevMonth = new Date(today.slice(0, 7) + "-01");
-    prevMonth.setMonth(prevMonth.getMonth() - 1);
-    const prevMonthStr2 = prevMonth.toISOString().slice(0, 7);
+    const prevMonthStr2 = prevMonthStr(currentMonthKST()).slice(0, 7);
 
     if (actMonth < prevMonthStr2) {
       return "2개월 이전 기록은 추가할 수 없습니다";
@@ -329,7 +328,7 @@ export async function updateActivity(
       applied_mults: appliedMults,
       final_mlg: finalMlg,
       review: input.review?.trim() || null,
-      updated_at: new Date().toISOString(),
+      updated_at: dayjs().toISOString(),
     })
     .eq("act_id", actId);
 
@@ -352,7 +351,6 @@ export async function updateActivity(
  */
 export async function deleteActivity(
   actId: string,
-  actDt: string,
 ): Promise<ActionResult> {
   const { member } = await getCurrentMember();
   if (!member) return { ok: false, message: "로그인이 필요합니다" };
@@ -362,10 +360,10 @@ export async function deleteActivity(
 
   const db = createAdminClient();
 
-  // 기존 기록 조회 → 본인 확인
+  // 기존 기록 조회 → 본인 확인 + DB의 실제 날짜로 검증
   const { data: existing, error: fetchErr } = await db
     .from("evt_mlg_act_hist")
-    .select("act_id, mem_id, evt_id")
+    .select("act_id, mem_id, evt_id, act_dt")
     .eq("act_id", actId)
     .single();
 
@@ -374,7 +372,7 @@ export async function deleteActivity(
     return { ok: false, message: "본인 기록만 삭제할 수 있습니다" };
   }
 
-  const dateErr = validateActivityDate(actDt, isAdmin);
+  const dateErr = validateActivityDate(existing.act_dt, isAdmin);
   if (dateErr) return { ok: false, message: dateErr };
 
   const { error } = await db
@@ -437,7 +435,7 @@ export async function updateMonthlyGoal(
     .from("evt_mlg_goal_cfg")
     .update({
       goal_val: newGoal,
-      updated_at: new Date().toISOString(),
+      updated_at: dayjs().toISOString(),
     })
     .eq("goal_id", goalId);
 
@@ -522,7 +520,7 @@ async function recalcGoalsFromMonth(
     if (Number(cur.goal_val) !== newGoal) {
       await db
         .from("evt_mlg_goal_cfg")
-        .update({ goal_val: newGoal, updated_at: new Date().toISOString() })
+        .update({ goal_val: newGoal, updated_at: dayjs().toISOString() })
         .eq("goal_id", cur.goal_id);
       // 업데이트된 값으로 다음 반복에 반영
       cur.goal_val = newGoal;

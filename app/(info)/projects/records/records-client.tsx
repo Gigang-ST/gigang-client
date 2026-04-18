@@ -126,7 +126,7 @@ export function RecordsClient({ evtId, memId, evtStartDt, evtEndDt }: Props) {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    const result = await deleteActivity(deleteTarget.act_id, deleteTarget.act_dt);
+    const result = await deleteActivity(deleteTarget.act_id);
     if (result.ok) {
       loadRecords();
     } else {

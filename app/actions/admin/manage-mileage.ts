@@ -1,5 +1,6 @@
 "use server";
 
+import dayjs from "dayjs";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyAdmin } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -61,7 +62,7 @@ export async function updateEvent(
       end_dt: input.end_dt,
       status_cd: input.status_cd,
       desc: input.desc?.trim() || null,
-      updated_at: new Date().toISOString(),
+      updated_at: dayjs().toISOString(),
     })
     .eq("evt_id", evtId);
 
@@ -140,7 +141,7 @@ export async function updateMultiplier(
       stt_dt: input.stt_dt || null,
       end_dt: input.end_dt || null,
       active_yn: input.active_yn,
-      updated_at: new Date().toISOString(),
+      updated_at: dayjs().toISOString(),
     })
     .eq("mult_id", multId);
 
@@ -177,8 +178,8 @@ export async function approveParticipation(prtId: string) {
     .from("evt_team_prt_rel")
     .update({
       approve_yn: true,
-      approved_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      approved_at: dayjs().toISOString(),
+      updated_at: dayjs().toISOString(),
     })
     .eq("prt_id", prtId);
 
@@ -241,7 +242,7 @@ export async function updateParticipation(
       entry_fee_amt: input.entry_fee_amt,
       singlet_fee_amt: input.singlet_fee_amt,
       has_singlet_yn: input.has_singlet_yn,
-      updated_at: new Date().toISOString(),
+      updated_at: dayjs().toISOString(),
     })
     .eq("prt_id", prtId);
 
@@ -260,7 +261,7 @@ export async function revokeApproval(prtId: string) {
     .update({
       approve_yn: false,
       approved_at: null,
-      updated_at: new Date().toISOString(),
+      updated_at: dayjs().toISOString(),
     })
     .eq("prt_id", prtId);
 

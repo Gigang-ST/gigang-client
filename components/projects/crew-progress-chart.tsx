@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import type { TooltipContentProps, TooltipValueType } from "recharts";
 import { createClient } from "@/lib/supabase/client";
+import { daysInMonth as getDaysInMonth } from "@/lib/dayjs";
 import { useChartMode } from "@/components/projects/chart-mode-context";
 import { SegmentControl } from "@/components/common/segment-control";
 import { Body } from "@/components/common/typography";
@@ -96,9 +97,9 @@ export function CrewProgressChart({ evtId, memId, month }: CrewProgressChartProp
     const supabase = createClient();
 
     const [y, m] = month.split("-").map(Number);
-    const daysInMonth = new Date(y, m, 0).getDate();
-    setTotalDays(daysInMonth);
-    const monthEnd = `${y}-${String(m).padStart(2, "0")}-${String(daysInMonth).padStart(2, "0")}`;
+    const totalDaysInMonth = getDaysInMonth(y, m);
+    setTotalDays(totalDaysInMonth);
+    const monthEnd = `${y}-${String(m).padStart(2, "0")}-${String(totalDaysInMonth).padStart(2, "0")}`;
 
     // 승인된 참여자 + 이름 조회
     const { data: participants } = await supabase
@@ -182,7 +183,7 @@ export function CrewProgressChart({ evtId, memId, month }: CrewProgressChartProp
     const mPoints: DailyPoint[] = [];
     const pPoints: DailyPoint[] = [];
 
-    for (let d = 1; d <= daysInMonth; d++) {
+    for (let d = 1; d <= totalDaysInMonth; d++) {
       const mPoint: DailyPoint = { day: d };
       const pPoint: DailyPoint = { day: d };
 
