@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyAdmin } from "@/lib/queries/member";
 import { currentMonthKST, nextMonthStr } from "@/lib/dayjs";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { env } from "@/lib/env";
 
 export type AdminStats = {
   totalCount: number;
@@ -12,11 +13,7 @@ export type AdminStats = {
   activeProjectCount: number;
   activeEventCount: number;
   pendingParticipationCount: number;
-  _debug?: {
-    teamId: string;
-    teamCd: string;
-    errors: Record<string, unknown>;
-  };
+  _debug?: Record<string, unknown>;
 };
 
 export async function getAdminStats(): Promise<AdminStats> {
@@ -24,8 +21,12 @@ export async function getAdminStats(): Promise<AdminStats> {
   if (!me) throw new Error("권한이 없습니다");
 
   const { teamId, teamCd } = await getRequestTeamContext();
-  console.log("[getAdminStats] teamId:", teamId, "teamCd:", teamCd);
   const admin = createAdminClient();
+
+  // 디버그: RLS 역할 확인 — team_id 필터 없이 카운트
+  const noFilter = await admin.from("team_mem_rel").select("*", { count: "exact", head: true });
+  const keyPrefix = env.SUPABASE_SERVICE_ROLE_KEY.slice(0, 20);
+  console.log("[getAdminStats] teamId:", teamId, "keyPrefix:", keyPrefix, "noFilterCount:", noFilter.count, "noFilterError:", noFilter.error);
 
   const [total, competitions, records, activeProjects, activeEvents, pendingPrt] = await Promise.all([
     admin
@@ -81,6 +82,9 @@ export async function getAdminStats(): Promise<AdminStats> {
     _debug: {
       teamId,
       teamCd,
+      keyPrefix,
+      noFilterCount: noFilter.count,
+      noFilterError: noFilter.error,
       errors: {
         total: total.error,
         activeProjects: activeProjects.error,
