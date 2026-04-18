@@ -31,6 +31,8 @@ interface Competition {
   event_types: string[] | null;
   /** 참가 신청 시 선택한 종목 (참가한 대회 목록에서만 있음, 검색 결과에는 없음) */
   registeredEventType?: string | null;
+  /** 참가 신청 행의 comp_evt_cfg PK (서버에서 종목 정합 검증용) */
+  registrationCompEvtId?: string | null;
 }
 
 /* ---------- 컴포넌트 ---------- */
@@ -134,7 +136,9 @@ export function RaceRecordDialog({
 
     const { data } = await supabase
       .from("comp_reg_rel")
-      .select("comp_reg_id, comp_evt_cfg(comp_evt_type), team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(comp_evt_type)))")
+      .select(
+        "comp_reg_id, comp_evt_id, comp_evt_cfg(comp_evt_type), team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(comp_evt_type)))",
+      )
       .eq("mem_id", memberId)
       .eq("vers", 0)
       .eq("del_yn", false)
@@ -150,6 +154,7 @@ export function RaceRecordDialog({
     const unique = (raw as Row[])
       .map((row) => {
         const rowAny = row as unknown as {
+          comp_evt_id?: string | null;
           team_comp_plan_rel: { comp_mst: { comp_id: string; comp_nm: string; stt_dt: string; loc_nm: string | null; comp_sprt_cd: string; comp_evt_cfg?: { comp_evt_type: string }[] }[] | { comp_id: string; comp_nm: string; stt_dt: string; loc_nm: string | null; comp_sprt_cd: string; comp_evt_cfg?: { comp_evt_type: string }[] } }[] | { comp_mst: { comp_id: string; comp_nm: string; stt_dt: string; loc_nm: string | null; comp_sprt_cd: string; comp_evt_cfg?: { comp_evt_type: string }[] }[] | { comp_id: string; comp_nm: string; stt_dt: string; loc_nm: string | null; comp_sprt_cd: string; comp_evt_cfg?: { comp_evt_type: string }[] } };
           comp_evt_cfg?: { comp_evt_type: string | null }[] | { comp_evt_type: string | null };
         };
@@ -164,6 +169,7 @@ export function RaceRecordDialog({
           sport: comp.comp_sprt_cd,
           event_types: (comp.comp_evt_cfg ?? []).map((e) => e.comp_evt_type?.toUpperCase()),
           registeredEventType: evt?.comp_evt_type ?? null,
+          registrationCompEvtId: rowAny.comp_evt_id ?? null,
         } as Competition;
       })
       .filter((c) => {
@@ -264,6 +270,7 @@ export function RaceRecordDialog({
 
     const result = await saveRaceRecord({
       competitionId: selectedComp.id,
+      registrationCompEvtId: selectedComp.registrationCompEvtId,
       competitionTitle,
       competitionDate,
       eventType,

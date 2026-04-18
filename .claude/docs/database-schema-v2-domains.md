@@ -93,8 +93,8 @@
 컬럼(현행 DDL 기준):
 - `race_result_id` (PK)
 - `mem_id` (FK -> `mem_mst`, NOT NULL)
-- `comp_id` (FK -> `comp_mst`, **nullable** — 백필·레거시 자유입력 시 매칭 실패 허용, B-3)
-- `comp_evt_id` (FK -> `comp_evt_cfg`, **nullable**)
+- `comp_id` (FK -> `comp_mst`, **NOT NULL**, 삭제 시 RESTRICT)
+- `comp_evt_id` (FK -> `comp_evt_cfg`, **NOT NULL**, 삭제 시 RESTRICT)
 - `rec_time_sec`, `race_nm`, `race_dt` (NOT NULL 기록 식별용)
 - `swim_time_sec`, `bike_time_sec`, `run_time_sec` (선택)
 - `rec_src_cd` (manual/imported/api, 선택)
@@ -108,7 +108,7 @@
 
 제약:
 - 개인 기록은 참가(`comp_reg_rel`)와 별도 관리한다. **기록 저장 앱 동작은 `comp_reg_rel`·`team_comp_plan_rel`을 자동 생성하지 않는다.**
-- `comp_id`/`comp_evt_id`가 채워지면 FK로 대회·종목 정합성이 검증된다(null 행은 정합 전·매핑 실패).
+- `comp_id`/`comp_evt_id`는 항상 채운다. 앱은 기록 등록 시 대회를 선택하고, 해당 `comp_id`에 맞는 `comp_evt_cfg` 행이 없으면 서버(서비스 롤)에서 `comp_evt_cfg`를 추가한 뒤 `rec_race_hist`를 삽입한다.
 - 중복 입력 방지를 위해 개인+경기 식별 유니크를 둔다(예: `mem_id`, `comp_evt_id`, `race_dt`, `race_nm`).
 
 노출 정책(현재):

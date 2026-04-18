@@ -1,12 +1,19 @@
 "use server";
 
 import { revalidateTag } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/admin";
+
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import {
+  normalizeCompEvtType,
+  resolveCompEvtIdForRaceRecord,
+} from "@/lib/server/comp-evt-cfg";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type SaveRaceRecordInput = {
   competitionId: string;
+  /** 참가 신청 행의 comp_evt_id(있으면 검증 후 사용, 없으면 종목명으로 조회·생성) */
+  registrationCompEvtId?: string | null;
   competitionTitle: string;
   competitionDate: string;
   eventType: string;
@@ -17,10 +24,6 @@ type SaveRaceRecordInput = {
 };
 
 const MARATHON_EVENTS = new Set(["FULL", "HALF", "10K"]);
-
-function normalizeEventType(eventType: string) {
-  return eventType.trim().toUpperCase();
-}
 
 type TeamRaceRow = {
   mem_id: string;
@@ -34,7 +37,7 @@ function pickRankingCandidates(
   eventType: string,
   memberGender: string | null,
 ) {
-  const normalizedEventType = normalizeEventType(eventType);
+  const normalizedEventType = normalizeCompEvtType(eventType);
   const isMarathon = MARATHON_EVENTS.has(normalizedEventType);
   const normalizedGender =
     memberGender === "female" ? "female" : memberGender === "male" ? "male" : null;
@@ -103,12 +106,25 @@ export async function saveRaceRecord(input: SaveRaceRecordInput) {
   if (!member) return { ok: false as const, message: "로그인이 필요합니다." };
 
   const { teamId } = await getRequestTeamContext();
-  const normalizedEventType = normalizeEventType(input.eventType);
+  const normalizedEventType = normalizeCompEvtType(input.eventType);
+
+  const admin = createAdminClient();
+  const resolved = await resolveCompEvtIdForRaceRecord(
+    admin,
+    input.competitionId,
+    normalizedEventType,
+    input.registrationCompEvtId,
+  );
+  if (!resolved.ok) {
+    return { ok: false as const, message: resolved.message };
+  }
 
   // 기록만 저장한다. 팀 대회 참가(comp_reg_rel / team_comp_plan_rel)와는 연동하지 않는다.
 
   const { error: insertError } = await supabase.from("rec_race_hist").insert({
     mem_id: member.id,
+    comp_id: input.competitionId,
+    comp_evt_id: resolved.compEvtId,
     rec_time_sec: input.totalSeconds,
     race_nm: input.competitionTitle,
     race_dt: input.competitionDate,
@@ -121,6 +137,12 @@ export async function saveRaceRecord(input: SaveRaceRecordInput) {
   });
 
   if (insertError) {
+    if (insertError.code === "23505") {
+      return {
+        ok: false as const,
+        message: "동일 대회·종목·날짜·대회명의 기록이 이미 있습니다.",
+      };
+    }
     return { ok: false as const, message: "저장에 실패했습니다. 다시 시도해 주세요." };
   }
 

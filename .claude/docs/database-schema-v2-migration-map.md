@@ -222,6 +222,8 @@ AS-IS 참가등록을 팀 운영 컨텍스트 + 참가 관계로 분리한다.
 
 **prd 게이트:** 수동 정합·검증 완료 후 **`rec_race_hist.comp_id`는 null 없음**을 목표로 하고, 필요 시 **`SET NOT NULL`** 마이그레이션으로 고정한다(FK는 기존 DDL에 있으나 nullable).
 
+**적용됨(2026-04-19):** `20260419180000_rec_race_hist_comp_required.sql` — `comp_id`·`comp_evt_id` **NOT NULL**, FK **`ON DELETE RESTRICT`**. 신규 기록은 `saveRaceRecord`에서 `comp_evt_cfg` 행이 없으면 서비스 롤로 추가 후 삽입한다.
+
 | AS-IS | v2 | 규칙 |
 |---|---|---|
 | `id` | `race_result_id` | 1:1 유지 |
@@ -379,7 +381,7 @@ where rh.race_result_id is null;
   (`comp_evt_id` 가 NULL 로 매핑되는 행은 PostgreSQL UNIQUE 규칙상 UK 충돌 대상에서 제외될 수 있음 — 파일 주석 참고.)
 
 ```sql
--- B-3. rec_race_hist 매핑 실패 집계
+-- B-3. rec_race_hist 매핑 실패 집계(백필·nullable 시절 진단용. 컷오버 후 스키마는 NOT NULL)
 select
   count(*) filter (where comp_id is null) as comp_id_null_cnt,
   count(*) filter (where comp_evt_id is null) as comp_evt_id_null_cnt
