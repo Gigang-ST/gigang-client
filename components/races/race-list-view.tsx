@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 import { getPastGigangCompetitions } from "@/app/actions/get-past-gigang-competitions";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
+import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
 import { CompetitionDetailDialog } from "./competition-detail-dialog";
 import { CompetitionRegisterDialog } from "./competition-register-dialog";
 import type { Competition, CompetitionRegistration, MemberStatus } from "./types";
@@ -247,15 +248,9 @@ export function RaceListView({
   const createRegistration = async (competitionId: string, payload: { role: "participant" | "cheering" | "volunteer"; eventType: string }) => {
     if (memberStatus.status !== "ready") return { ok: false as const, message: "로그인이 필요합니다." };
     const eventType = payload.role === "participant" ? payload.eventType.trim().toUpperCase() : null;
-    const { data: plan, error: planErr } = await supabase
-      .from("team_comp_plan_rel")
-      .select("team_comp_id")
-      .eq("comp_id", competitionId)
-      .eq("team_id", teamId)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .maybeSingle();
-    if (planErr || !plan) return { ok: false as const, message: "신청에 실패했습니다." };
+    const ensured = await ensureTeamCompPlanRel(supabase, teamId, competitionId);
+    if (!ensured.ok) return { ok: false as const, message: "신청에 실패했습니다." };
+    const plan = { team_comp_id: ensured.teamCompId };
     const { data, error } = await supabase
       .from("comp_reg_rel")
       .insert({ team_comp_id: plan.team_comp_id, mem_id: memberStatus.memberId, prt_role_cd: payload.role, vers: 0, del_yn: false })

@@ -3,6 +3,7 @@
 import { revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentMember } from "@/lib/queries/member";
+import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 
 type SaveRaceRecordInput = {
@@ -105,6 +106,11 @@ export async function saveRaceRecord(input: SaveRaceRecordInput) {
   const { teamId } = await getRequestTeamContext();
   const normalizedEventType = normalizeEventType(input.eventType);
 
+  const ensured = await ensureTeamCompPlanRel(supabase, teamId, input.competitionId);
+  if (!ensured.ok) {
+    return { ok: false as const, message: "저장에 실패했습니다. 다시 시도해 주세요." };
+  }
+
   const { error: insertError } = await supabase.from("rec_race_hist").insert({
     mem_id: member.id,
     rec_time_sec: input.totalSeconds,
@@ -123,27 +129,16 @@ export async function saveRaceRecord(input: SaveRaceRecordInput) {
   }
 
   // 검색으로 선택한 대회도 정합성 유지를 위해 참가 신청 관계를 맞춘다.
-  const { data: plan } = await supabase
-    .from("team_comp_plan_rel")
-    .select("team_comp_id")
-    .eq("comp_id", input.competitionId)
-    .eq("team_id", teamId)
-    .eq("vers", 0)
-    .eq("del_yn", false)
-    .maybeSingle();
-
-  if (plan) {
-    await supabase.from("comp_reg_rel").upsert(
-      {
-        team_comp_id: plan.team_comp_id,
-        mem_id: member.id,
-        prt_role_cd: "participant",
-        vers: 0,
-        del_yn: false,
-      },
-      { onConflict: "team_comp_id,mem_id,vers" },
-    );
-  }
+  await supabase.from("comp_reg_rel").upsert(
+    {
+      team_comp_id: ensured.teamCompId,
+      mem_id: member.id,
+      prt_role_cd: "participant",
+      vers: 0,
+      del_yn: false,
+    },
+    { onConflict: "team_comp_id,mem_id,vers" },
+  );
 
   const shouldInvalidate = await shouldInvalidateRecordsCacheOnSave({
     teamId,

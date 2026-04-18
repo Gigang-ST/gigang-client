@@ -10,6 +10,7 @@ import { formatDDay } from "@/lib/dayjs";
 import { CardItem } from "@/components/ui/card";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
 import { SectionLabel } from "@/components/common/typography";
+import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
 
 type UpcomingRace = {
   id: string;
@@ -63,15 +64,9 @@ export function UpcomingRaces({
   const createRegistration = async (competitionId: string, payload: { role: "participant" | "cheering" | "volunteer"; eventType: string }) => {
     if (memberStatus.status !== "ready") return { ok: false as const, message: "로그인이 필요합니다." };
     const eventType = payload.role === "participant" ? payload.eventType.trim().toUpperCase() : null;
-    const { data: plan, error: planErr } = await supabase
-      .from("team_comp_plan_rel")
-      .select("team_comp_id")
-      .eq("comp_id", competitionId)
-      .eq("team_id", teamId)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .maybeSingle();
-    if (planErr || !plan) return { ok: false as const, message: "신청에 실패했습니다." };
+    const ensured = await ensureTeamCompPlanRel(supabase, teamId, competitionId);
+    if (!ensured.ok) return { ok: false as const, message: "신청에 실패했습니다." };
+    const plan = { team_comp_id: ensured.teamCompId };
 
     let compEvtId: string | null = null;
     try {
