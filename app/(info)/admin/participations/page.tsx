@@ -1,6 +1,7 @@
-import { HandCoins } from "lucide-react";
-import { AdminPlaceholder } from "../_components/admin-placeholder";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { AdminParticipationsClient } from "./admin-participations-client";
 
-export default function ParticipationsPage() {
-  return <AdminPlaceholder icon={HandCoins} title="참여자 관리" />;
+export default async function ParticipationsPage() {
+  const { teamId } = await getRequestTeamContext();
+  return <AdminParticipationsClient teamId={teamId} />;
 }

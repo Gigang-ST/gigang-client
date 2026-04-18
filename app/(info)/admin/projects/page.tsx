@@ -1,6 +1,7 @@
-import { FolderKanban } from "lucide-react";
-import { AdminPlaceholder } from "../_components/admin-placeholder";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { AdminProjectsClient } from "./admin-projects-client";
 
-export default function ProjectsPage() {
-  return <AdminPlaceholder icon={FolderKanban} title="프로젝트 관리" />;
+export default async function ProjectsPage() {
+  const { teamId } = await getRequestTeamContext();
+  return <AdminProjectsClient teamId={teamId} />;
 }
