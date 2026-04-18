@@ -2,6 +2,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   todayDayKST,
+  currentMonthKST,
   nextMonthStr,
   daysInMonth,
 } from "@/lib/dayjs";
@@ -17,10 +18,19 @@ type MyStatusProps = {
 
 export async function MyStatus({ evtId, memId, month }: MyStatusProps) {
   const supabase = createAdminClient();
-  const todayDay = todayDayKST();
 
   const [y, m] = month.split("-").map(Number);
   const totalDays = daysInMonth(y, m);
+
+  const curMonth = currentMonthKST();
+  let todayDay: number;
+  if (month < curMonth) {
+    todayDay = totalDays; // 과거 월: 월 종료
+  } else if (month > curMonth) {
+    todayDay = 0; // 미래 월: 아직 시작 안 함
+  } else {
+    todayDay = todayDayKST(); // 현재 월
+  }
   const nextMonth = nextMonthStr(month);
 
   const [{ data: goalRow }, { data: logs }] = await Promise.all([

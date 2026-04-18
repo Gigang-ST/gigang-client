@@ -2,26 +2,27 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCurrentMember } from "@/lib/queries/member";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { RecordsClient } from "./records-client";
 
 export default async function ProjectRecordsPage() {
-  const { user, member } = await getCurrentMember();
+  const { user, member, supabase } = await getCurrentMember();
   if (!user || !member) redirect("/auth/login");
 
-  const db = createAdminClient();
+  const { teamId } = await getRequestTeamContext();
 
   // ACTIVE 이벤트 조회
-  const { data: event } = await db
+  const { data: event } = await supabase
     .from("evt_team_mst")
     .select("evt_id, evt_nm, stt_dt, end_dt")
+    .eq("team_id", teamId)
     .eq("status_cd", "ACTIVE")
     .maybeSingle();
 
   if (!event) redirect("/projects");
 
   // 참여 여부 확인
-  const { data: prt } = await db
+  const { data: prt } = await supabase
     .from("evt_team_prt_rel")
     .select("approve_yn")
     .eq("evt_id", event.evt_id)

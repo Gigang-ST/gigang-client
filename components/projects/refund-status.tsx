@@ -5,6 +5,7 @@ import {
   calcMonthRefundRate,
   countMonths,
   DEPOSIT_PER_MONTH,
+  ENTRY_FEE_WITH_SINGLET,
 } from "@/lib/mileage";
 import { StatCard } from "@/components/common/stat-card";
 
@@ -124,7 +125,7 @@ export async function RefundStatus({
 
   // 5. 회식비 풀 = (전체 보증금 - 전체 환급액) + 참가비(1만원/인 고정, 싱글렛비 제외)
   const partyPool =
-    totalDepositPool - totalRefundSum + participants.length * DEPOSIT_PER_MONTH;
+    totalDepositPool - totalRefundSum + participants.length * ENTRY_FEE_WITH_SINGLET;
 
   // 6. 1인 회식비 상한 = 풀 × (본인 지분 / 전체 지분)
   const myPartyBudget =

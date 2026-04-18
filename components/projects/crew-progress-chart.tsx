@@ -14,7 +14,6 @@ import {
 import type { TooltipContentProps, TooltipValueType } from "recharts";
 import { createClient } from "@/lib/supabase/client";
 import { daysInMonth as getDaysInMonth } from "@/lib/dayjs";
-import { useChartMode } from "@/components/projects/chart-mode-context";
 import { SegmentControl } from "@/components/common/segment-control";
 import { Body } from "@/components/common/typography";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -83,7 +82,7 @@ type CrewProgressChartProps = {
 };
 
 export function CrewProgressChart({ evtId, memId, month }: CrewProgressChartProps) {
-  const { mode, setMode } = useChartMode();
+  const [mode, setMode] = useState<"mileage" | "percent">("mileage");
   const [mileageData, setMileageData] = useState<DailyPoint[]>([]);
   const [percentData, setPercentData] = useState<DailyPoint[]>([]);
   const [members, setMembers] = useState<{ id: string; name: string }[]>([]);

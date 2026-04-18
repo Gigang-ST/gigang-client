@@ -2,13 +2,12 @@ import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/common/page-header";
 import { getCurrentMember } from "@/lib/queries/member";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { currentMonthKST, prevMonthStr } from "@/lib/dayjs";
 import { MileageIntro } from "@/components/projects/mileage-intro";
 import { MileageRulesButton } from "@/components/projects/mileage-rules-button";
 import { MonthNavigator } from "@/components/projects/month-navigator";
 import { JoinSection } from "@/components/projects/join-section";
-import { ChartModeProvider } from "@/components/projects/chart-mode-context";
 import { CrewProgressChart } from "@/components/projects/crew-progress-chart";
 import { RandomReview } from "@/components/projects/random-review";
 import { CrewMonthlyStats } from "@/components/projects/crew-monthly-stats";
@@ -23,13 +22,14 @@ export default async function ProjectsPage({
 }: {
   searchParams: Promise<{ month?: string }>;
 }) {
-  const { user, member } = await getCurrentMember();
-  const db = createAdminClient();
+  const { user, member, supabase } = await getCurrentMember();
+  const { teamId } = await getRequestTeamContext();
 
   // ACTIVE 이벤트 조회 (1개)
-  const { data: event } = await db
+  const { data: event } = await supabase
     .from("evt_team_mst")
     .select("evt_id, evt_nm, stt_dt, end_dt, status_cd")
+    .eq("team_id", teamId)
     .eq("status_cd", "ACTIVE")
     .maybeSingle();
 
@@ -63,7 +63,7 @@ export default async function ProjectsPage({
   // 로그인한 멤버의 참여 정보 조회
   let participation: { approve_yn: boolean } | null = null;
   if (member) {
-    const { data: prt } = await db
+    const { data: prt } = await supabase
       .from("evt_team_prt_rel")
       .select("approve_yn")
       .eq("evt_id", event.evt_id)
@@ -105,21 +105,19 @@ export default async function ProjectsPage({
         )}
 
         {/* 크루 진행현황 */}
-        <ChartModeProvider>
-          <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
-            <CrewProgressChart
-              evtId={event.evt_id}
-              memId={isParticipant ? member!.id : undefined}
-              month={selectedMonth}
-            />
-          </Suspense>
-          <Suspense fallback={null}>
-            <RandomReview evtId={event.evt_id} />
-          </Suspense>
-          <Suspense fallback={<Skeleton className="h-32 w-full rounded-2xl" />}>
-            <CrewMonthlyStats evtId={event.evt_id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
-          </Suspense>
-        </ChartModeProvider>
+        <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
+          <CrewProgressChart
+            evtId={event.evt_id}
+            memId={isParticipant ? member!.id : undefined}
+            month={selectedMonth}
+          />
+        </Suspense>
+        <Suspense fallback={null}>
+          <RandomReview evtId={event.evt_id} />
+        </Suspense>
+        <Suspense fallback={<Skeleton className="h-32 w-full rounded-2xl" />}>
+          <CrewMonthlyStats evtId={event.evt_id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
+        </Suspense>
 
         {/* 참여자 전용 */}
         {isParticipant && member && (

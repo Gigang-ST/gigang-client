@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { monthLastDay, nextMonthStr } from "@/lib/dayjs";
-import { calcMonthRefundRate, countMonths, DEPOSIT_PER_MONTH } from "@/lib/mileage";
+import { calcMonthRefundRate, countMonths, DEPOSIT_PER_MONTH, ENTRY_FEE_WITH_SINGLET } from "@/lib/mileage";
 import { StatCard } from "@/components/common/stat-card";
 
 type CrewMonthlyStatsProps = {
@@ -24,7 +24,7 @@ export async function CrewMonthlyStats({ evtId, month, evtStartMonth, evtEndMont
   ] = await Promise.all([
     supabase
       .from("evt_team_prt_rel")
-      .select("mem_id, init_goal")
+      .select("mem_id, init_goal, stt_month")
       .eq("evt_id", evtId)
       .eq("approve_yn", true)
       .lte("stt_month", month),
@@ -115,7 +115,10 @@ export async function CrewMonthlyStats({ evtId, month, evtStartMonth, evtEndMont
   let totalRefundSum = 0;
 
   for (const p of activeParticipants) {
-    const effectiveStart = evtStartMonth;
+    const effectiveStart =
+      (p.stt_month as string) > evtStartMonth
+        ? (p.stt_month as string)
+        : evtStartMonth;
     if (effectiveStart > viewMonth) continue;
     const months = countMonths(effectiveStart, viewMonth);
     totalDepositPool += months * DEPOSIT_PER_MONTH;
@@ -128,7 +131,7 @@ export async function CrewMonthlyStats({ evtId, month, evtStartMonth, evtEndMont
     }
   }
 
-  const partyPool = totalDepositPool - totalRefundSum + participantCount * DEPOSIT_PER_MONTH;
+  const partyPool = totalDepositPool - totalRefundSum + participantCount * ENTRY_FEE_WITH_SINGLET;
 
   return (
     <div className="grid grid-cols-2 gap-3">

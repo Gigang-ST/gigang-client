@@ -23,6 +23,7 @@ import {
   ENTRY_FEE_WITH_SINGLET,
   type MileageSport,
 } from "@/lib/mileage";
+import { activityLogSchema } from "@/lib/validations/mileage";
 
 // ─────────────────────────────────────────
 // 타입
@@ -225,24 +226,28 @@ export async function logActivity(
   evtId: string,
   input: ActivityLogInput,
 ): Promise<ActionResult> {
+  const parsed = activityLogSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: "입력값이 올바르지 않습니다" };
+  const validInput = parsed.data;
+
   const { member } = await getCurrentMember();
   if (!member) return { ok: false, message: "로그인이 필요합니다" };
 
   const admin = await verifyAdmin();
   const isAdmin = admin !== null;
 
-  const dateErr = validateActivityDate(input.act_dt, isAdmin);
+  const dateErr = validateActivityDate(validInput.act_dt, isAdmin);
   if (dateErr) return { ok: false, message: dateErr };
 
   const { appliedMults, multValues, error: multErr } = await buildAppliedMults(
     evtId,
-    input.applied_mult_ids,
-    input.act_dt,
+    validInput.applied_mult_ids,
+    validInput.act_dt,
   );
   if (multErr) return { ok: false, message: multErr };
 
   const baseMlg = roundMileage(
-    calcBaseMileage(input.sport_cd, input.distance_km, input.elevation_m),
+    calcBaseMileage(validInput.sport_cd, validInput.distance_km, validInput.elevation_m),
   );
   const finalMlg = roundMileage(calcFinalMileage(baseMlg, multValues));
 
@@ -250,14 +255,14 @@ export async function logActivity(
   const { error } = await db.from("evt_mlg_act_hist").insert({
     evt_id: evtId,
     mem_id: member.id,
-    act_dt: input.act_dt,
-    sport_cd: input.sport_cd,
-    distance_km: input.distance_km,
-    elevation_m: input.elevation_m,
+    act_dt: validInput.act_dt,
+    sport_cd: validInput.sport_cd,
+    distance_km: validInput.distance_km,
+    elevation_m: validInput.elevation_m,
     base_mlg: baseMlg,
     applied_mults: appliedMults,
     final_mlg: finalMlg,
-    review: input.review?.trim() || null,
+    review: validInput.review?.trim() || null,
   });
 
   if (error) return { ok: false, message: "활동 기록 추가에 실패했습니다" };
@@ -282,6 +287,10 @@ export async function updateActivity(
   actId: string,
   input: ActivityLogInput,
 ): Promise<ActionResult> {
+  const parsed = activityLogSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: "입력값이 올바르지 않습니다" };
+  const validInput = parsed.data;
+
   const { member } = await getCurrentMember();
   if (!member) return { ok: false, message: "로그인이 필요합니다" };
 
@@ -302,32 +311,32 @@ export async function updateActivity(
     return { ok: false, message: "본인 기록만 수정할 수 있습니다" };
   }
 
-  const dateErr = validateActivityDate(input.act_dt, isAdmin);
+  const dateErr = validateActivityDate(validInput.act_dt, isAdmin);
   if (dateErr) return { ok: false, message: dateErr };
 
   const { appliedMults, multValues, error: multErr } = await buildAppliedMults(
     existing.evt_id,
-    input.applied_mult_ids,
-    input.act_dt,
+    validInput.applied_mult_ids,
+    validInput.act_dt,
   );
   if (multErr) return { ok: false, message: multErr };
 
   const baseMlg = roundMileage(
-    calcBaseMileage(input.sport_cd, input.distance_km, input.elevation_m),
+    calcBaseMileage(validInput.sport_cd, validInput.distance_km, validInput.elevation_m),
   );
   const finalMlg = roundMileage(calcFinalMileage(baseMlg, multValues));
 
   const { error } = await db
     .from("evt_mlg_act_hist")
     .update({
-      act_dt: input.act_dt,
-      sport_cd: input.sport_cd,
-      distance_km: input.distance_km,
-      elevation_m: input.elevation_m,
+      act_dt: validInput.act_dt,
+      sport_cd: validInput.sport_cd,
+      distance_km: validInput.distance_km,
+      elevation_m: validInput.elevation_m,
       base_mlg: baseMlg,
       applied_mults: appliedMults,
       final_mlg: finalMlg,
-      review: input.review?.trim() || null,
+      review: validInput.review?.trim() || null,
       updated_at: dayjs().toISOString(),
     })
     .eq("act_id", actId);

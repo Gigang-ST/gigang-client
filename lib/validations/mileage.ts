@@ -12,7 +12,7 @@ export const activityLogSchema = z.object({
   distance_km: z.number().positive("거리를 입력해주세요"),
   elevation_m: z.number().min(0).default(0),
   applied_mult_ids: z.array(z.string().uuid()).default([]),
-  review: z.string().max(200).optional(),
+  review: z.string().max(200).nullable().optional(),
 });
 
 export type ActivityLogInput = z.infer<typeof activityLogSchema>;
