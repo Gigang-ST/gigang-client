@@ -8,6 +8,10 @@
       "type": "http",
       "url": "https://mcp.supabase.com/mcp?project_ref=zzeoqaxekgfstjrpafud"
     },
+    "supabase-gigang-local": {
+      "type": "http",
+      "url": "http://127.0.0.1:54321/mcp"
+    },
     "vercel": {
       "type": "http",
       "url": "https://mcp.vercel.com"
