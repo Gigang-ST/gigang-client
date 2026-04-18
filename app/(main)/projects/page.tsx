@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/common/page-header";
@@ -23,6 +24,7 @@ export default async function ProjectsPage({
   searchParams: Promise<{ month?: string }>;
 }) {
   const { user, member, supabase } = await getCurrentMember();
+  if (!user) redirect("/auth/login");
   const { teamId } = await getRequestTeamContext();
 
   // ACTIVE 이벤트 조회 (1개)
