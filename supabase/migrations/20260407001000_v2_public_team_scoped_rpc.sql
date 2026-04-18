@@ -14,7 +14,7 @@ RETURNS TABLE (
   end_dt date,
   loc_nm text,
   src_url text,
-  comp_evt_types text[],
+  comp_evt_cds text[],
   reg_evt_types text[],
   reg_count bigint
 )
@@ -32,8 +32,8 @@ AS $$
     c.end_dt,
     c.loc_nm,
     c.src_url,
-    COALESCE(array_agg(DISTINCT ce.comp_evt_type) FILTER (WHERE ce.comp_evt_type IS NOT NULL), '{}') AS comp_evt_types,
-    COALESCE(array_agg(DISTINCT re.comp_evt_type) FILTER (WHERE re.comp_evt_type IS NOT NULL), '{}') AS reg_evt_types,
+    COALESCE(array_agg(DISTINCT ce.comp_evt_cd) FILTER (WHERE ce.comp_evt_cd IS NOT NULL), '{}') AS comp_evt_cds,
+    COALESCE(array_agg(DISTINCT re.comp_evt_cd) FILTER (WHERE re.comp_evt_cd IS NOT NULL), '{}') AS reg_evt_types,
     count(DISTINCT cr.comp_reg_id) AS reg_count
   FROM public.team_comp_plan_rel tcp
   INNER JOIN public.comp_mst c
@@ -81,7 +81,7 @@ AS $$
   SELECT
     rr.mem_id,
     mm.mem_nm,
-    COALESCE(ce.comp_evt_type, 'UNKNOWN') AS evt_cd,
+    COALESCE(ce.comp_evt_cd, 'UNKNOWN') AS evt_cd,
     rr.rec_time_sec,
     rr.race_nm,
     rr.upd_at
@@ -125,7 +125,7 @@ AS $$
     rr.mem_id,
     mm.mem_nm,
     mm.gdr_enm,
-    COALESCE(ce.comp_evt_type, 'UNKNOWN') AS evt_cd,
+    COALESCE(ce.comp_evt_cd, 'UNKNOWN') AS evt_cd,
     rr.rec_time_sec,
     rr.race_nm
   FROM public.rec_race_hist rr
