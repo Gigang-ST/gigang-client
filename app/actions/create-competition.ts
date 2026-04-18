@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidateTag } from "next/cache";
+import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyAdmin } from "@/lib/queries/member";
 
@@ -46,6 +47,9 @@ export async function createCompetition(input: CreateCompetitionInput) {
   // team_comp_plan_rel은 멤버가 참가 신청할 때만 생성한다 (카탈로그만 등록).
 
   if (input.eventTypes.length > 0) {
+    if (input.eventTypes.some((evt) => compEvtTypeContainsHangul(evt))) {
+      return { ok: false, message: "종목은 한글을 사용할 수 없습니다. 영문·숫자로 입력해 주세요." };
+    }
     const eventRows = input.eventTypes.map((evt) => ({
       comp_id: comp.comp_id,
       comp_evt_type: evt.trim().toUpperCase(),

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { timeStringToSeconds, secondsToTime } from "@/lib/dayjs";
+import { buildEventTypeOptionList, sanitizeAsciiUpperCompEvtTypeInput } from "@/lib/comp-evt-type";
 import { resolveSportConfig } from "@/components/races/sport-config";
 import { searchCompetitions } from "@/app/actions/search-competitions";
 import { saveRaceRecord } from "@/app/actions/save-race-record";
@@ -86,14 +87,11 @@ export function RaceRecordDialog({
   // 트라이애슬론 여부 (step 3 시간 입력용)
   const isTriathlon = (selectedComp?.sport ?? "").includes("triathlon");
 
-  // 코스/종목 옵션: 검색으로 선택한 대회용. 대회 event_types 있으면 그 목록, 없으면 sport-config 기본 + 기타(직접 입력)
+  // 종목: comp_evt_cfg 기준 + 스포츠 기본값 중 아직 없는 것만 합침 + 기타(직접 입력, 영문·숫자만)
   const eventTypeOptions = useMemo(() => {
     if (!selectedComp) return [];
-    const types = selectedComp.event_types;
-    const list =
-      types != null && types.length > 0
-        ? types.map((t) => String(t).toUpperCase())
-        : resolveSportConfig(selectedComp.sport).eventTypes;
+    const sportDefaults = resolveSportConfig(selectedComp.sport).eventTypes;
+    const list = buildEventTypeOptionList(selectedComp.event_types, sportDefaults);
     return [...list, EVENT_TYPE_OTHER];
   }, [selectedComp?.id, selectedComp?.event_types, selectedComp?.sport]);
 
@@ -240,12 +238,18 @@ export function RaceRecordDialog({
   const competitionDate = selectedComp?.start_date ?? "";
   const eventType =
     selectedEventType === EVENT_TYPE_OTHER
-      ? customEventType.trim().toUpperCase()
+      ? sanitizeAsciiUpperCompEvtTypeInput(customEventType).trim()
       : selectedEventType;
 
   // 저장 가능 여부
   const canSave = (() => {
     if (!competitionTitle || !competitionDate || !eventType) return false;
+    if (
+      selectedEventType === EVENT_TYPE_OTHER &&
+      sanitizeAsciiUpperCompEvtTypeInput(customEventType).trim().length === 0
+    ) {
+      return false;
+    }
     if (!timeStringToSeconds(totalTime)) return false;
     if (isTriathlon) {
       if (
@@ -447,9 +451,11 @@ export function RaceRecordDialog({
                   {selectedEventType === EVENT_TYPE_OTHER && (
                     <div className="flex flex-col gap-1.5">
                       <Input
-                        placeholder="예: 10K, HALF"
+                        placeholder="예: 10K, HALF (영문·숫자만)"
                         value={customEventType}
-                        onChange={(e) => setCustomEventType(e.target.value)}
+                        onChange={(e) =>
+                          setCustomEventType(sanitizeAsciiUpperCompEvtTypeInput(e.target.value))
+                        }
                       />
                       <Button
                         type="button"

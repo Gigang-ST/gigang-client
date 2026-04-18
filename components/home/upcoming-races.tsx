@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { Calendar, MapPin } from "lucide-react";
 import Link from "next/link";
+import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { createClient } from "@/lib/supabase/client";
 import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
@@ -64,6 +65,9 @@ export function UpcomingRaces({
   const createRegistration = async (competitionId: string, payload: { role: "participant" | "cheering" | "volunteer"; eventType: string }) => {
     if (memberStatus.status !== "ready") return { ok: false as const, message: "로그인이 필요합니다." };
     const eventType = payload.role === "participant" ? payload.eventType.trim().toUpperCase() : null;
+    if (payload.role === "participant" && eventType && compEvtTypeContainsHangul(eventType)) {
+      return { ok: false as const, message: "종목은 한글을 사용할 수 없습니다. 영문·숫자로 입력해 주세요." };
+    }
     const ensured = await ensureTeamCompPlanRel(supabase, teamId, competitionId);
     if (!ensured.ok) return { ok: false as const, message: "신청에 실패했습니다." };
     const plan = { team_comp_id: ensured.teamCompId };
@@ -86,6 +90,9 @@ export function UpcomingRaces({
   const updateRegistration = async (registrationId: string, competitionId: string, payload: { role: "participant" | "cheering" | "volunteer"; eventType: string }) => {
     if (memberStatus.status !== "ready") return { ok: false as const, message: "로그인이 필요합니다." };
     const eventType = payload.role === "participant" ? payload.eventType.trim().toUpperCase() : null;
+    if (payload.role === "participant" && eventType && compEvtTypeContainsHangul(eventType)) {
+      return { ok: false as const, message: "종목은 한글을 사용할 수 없습니다. 영문·숫자로 입력해 주세요." };
+    }
 
     let compEvtId: string | null = null;
     try {

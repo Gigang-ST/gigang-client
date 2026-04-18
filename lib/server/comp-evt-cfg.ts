@@ -1,4 +1,6 @@
+import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import type { Database } from "@/lib/supabase/database.types";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type AdminClient = SupabaseClient<Database>;
@@ -13,6 +15,13 @@ export async function resolveOrCreateCompEvtId(
   compId: string,
   eventTypeUpper: string,
 ): Promise<{ ok: true; compEvtId: string } | { ok: false; message: string }> {
+  if (compEvtTypeContainsHangul(eventTypeUpper)) {
+    return {
+      ok: false,
+      message: "종목은 한글을 사용할 수 없습니다. 영문·숫자로 입력해 주세요.",
+    };
+  }
+
   const { data: compRow, error: compErr } = await admin
     .from("comp_mst")
     .select("comp_id")

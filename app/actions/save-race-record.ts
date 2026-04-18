@@ -4,6 +4,7 @@ import { revalidateTag } from "next/cache";
 
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import {
   normalizeCompEvtType,
   resolveCompEvtIdForRaceRecord,
@@ -106,6 +107,12 @@ export async function saveRaceRecord(input: SaveRaceRecordInput) {
   if (!member) return { ok: false as const, message: "로그인이 필요합니다." };
 
   const { teamId } = await getRequestTeamContext();
+  if (compEvtTypeContainsHangul(input.eventType)) {
+    return {
+      ok: false as const,
+      message: "종목은 한글을 사용할 수 없습니다. 영문·숫자로 입력해 주세요. (예: HALF, 10K)",
+    };
+  }
   const normalizedEventType = normalizeCompEvtType(input.eventType);
 
   const admin = createAdminClient();
