@@ -28,7 +28,7 @@
 | **0 준비** | — | 타입·문서 | `database.types` 재생성, 매핑표 확인 |
 | **1 회원·인증·관리자** | `member` | `mem_mst`, `team_mem_rel` | `admin`·`status` 등은 `migration-map`·`member-domain` 과 일치시킬 것 |
 | **2 대회** | `competition` | `comp_mst`, `comp_evt_cfg` | 종목·날짜 컬럼명 변경 |
-| **3 참가** | `competition_registration` | `comp_reg_rel`, `team_comp_plan_rel` | `comp_reg_id`·`comp_evt_id` 조인 |
+| **3 참가** | `competition_registration` | `comp_reg_rel`, `team_comp_plan_rel` | `comp_reg_id`·`comp_evt_id` 조인. `team_comp_plan_rel`은 참가 신청 시 없으면 생성(카탈로그만 등록 시에는 행 없음). 기록 저장과는 무관(`domains` §2·§3). |
 | **4 기록** | `race_result` | `rec_race_hist` | B-2/B-3·UK 중복 스크립트: `scripts/sql/v2_p7_race_result_uk_duplicate_list.sql` |
 | **5 부가** | `personal_best`, ~~`utmb_profile`~~ | `mem_utmb_prf`(UTMB), PB는 파생·별도 | **UTMB:** DB `20260404165809_v2_mem_utmb_prf.sql`(P9) + `20260406190000_v2_mem_utmb_prf_add_recent_race_cols.sql`로 `rct_race_nm`·`rct_race_rec`까지 반영. **PB:** 홈 등 `personal_best` 잔존 — 제품·슬라이스 범위 별도 확정 |
 

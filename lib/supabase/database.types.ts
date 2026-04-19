@@ -1097,8 +1097,8 @@ export type Database = {
       rec_race_hist: {
         Row: {
           bike_time_sec: number | null
-          comp_evt_id: string | null
-          comp_id: string | null
+          comp_evt_id: string
+          comp_id: string
           crt_at: string
           del_yn: boolean
           mem_id: string
@@ -1114,8 +1114,8 @@ export type Database = {
         }
         Insert: {
           bike_time_sec?: number | null
-          comp_evt_id?: string | null
-          comp_id?: string | null
+          comp_evt_id: string
+          comp_id: string
           crt_at?: string
           del_yn?: boolean
           mem_id: string
@@ -1131,8 +1131,8 @@ export type Database = {
         }
         Update: {
           bike_time_sec?: number | null
-          comp_evt_id?: string | null
-          comp_id?: string | null
+          comp_evt_id?: string
+          comp_id?: string
           crt_at?: string
           del_yn?: boolean
           mem_id?: string
@@ -1148,11 +1148,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "fk_rec_race_hist__comp_evt_cfg"
-            columns: ["comp_evt_id"]
+            foreignKeyName: "fk_rec_race_hist__comp_evt_cfg_pair"
+            columns: ["comp_id", "comp_evt_id"]
             isOneToOne: false
             referencedRelation: "comp_evt_cfg"
-            referencedColumns: ["comp_evt_id"]
+            referencedColumns: ["comp_id", "comp_evt_id"]
           },
           {
             foreignKeyName: "fk_rec_race_hist__comp_mst"

@@ -52,7 +52,7 @@
 | `team_mem_rel` | 팀-회원 관계 |
 | `comp_mst` | 대회 마스터 |
 | `comp_evt_cfg` | 대회 종목 설정 |
-| `team_comp_plan_rel` | 팀 대회 운영 관계 |
+| `team_comp_plan_rel` | 팀·대회 참가 맥락(플랜). 참가(`comp_reg_rel`)가 생길 때만 행 존재; 카탈로그 전체와 1:1 아님 |
 | `comp_reg_rel` | 대회 참가 관계 |
 | `rec_race_hist` | 기록 이력 |
 | `fee_policy_cfg` | 회비 정책 |
