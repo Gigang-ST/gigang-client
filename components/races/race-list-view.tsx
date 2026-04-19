@@ -10,11 +10,12 @@ import {
 } from "@/lib/queries/app-member";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { CardItem } from "@/components/ui/card";
+import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
+import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-create-comp-evt-for-participation";
 import { getPastGigangCompetitions } from "@/app/actions/get-past-gigang-competitions";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
-import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
+import { Button } from "@/components/ui/button";
+import { CardItem } from "@/components/ui/card";
 import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
 import { CompetitionDetailDialog } from "./competition-detail-dialog";
 import { CompetitionRegisterDialog } from "./competition-register-dialog";
@@ -258,9 +259,32 @@ export function RaceListView({
     const ensured = await ensureTeamCompPlanRel(supabase, teamId, competitionId);
     if (!ensured.ok) return { ok: false as const, message: "신청에 실패했습니다." };
     const plan = { team_comp_id: ensured.teamCompId };
+
+    let compEvtId: string | null = null;
+    if (payload.role === "participant") {
+      if (!eventType) {
+        return { ok: false as const, message: "참가 종목을 선택해 주세요." };
+      }
+      const resolved = await getOrCreateCompEvtIdForParticipation(
+        competitionId,
+        eventType,
+      );
+      if (!resolved.ok) {
+        return { ok: false as const, message: resolved.message };
+      }
+      compEvtId = resolved.compEvtId;
+    }
+
     const { data, error } = await supabase
       .from("comp_reg_rel")
-      .insert({ team_comp_id: plan.team_comp_id, mem_id: memberStatus.memberId, prt_role_cd: payload.role, vers: 0, del_yn: false })
+      .insert({
+        team_comp_id: plan.team_comp_id,
+        mem_id: memberStatus.memberId,
+        prt_role_cd: payload.role,
+        comp_evt_id: compEvtId,
+        vers: 0,
+        del_yn: false,
+      })
       .select("comp_reg_id, mem_id, prt_role_cd, crt_at").single();
     if (error) return { ok: false as const, message: "신청에 실패했습니다." };
     setRegistrationsByCompetitionId(prev => ({ ...prev, [competitionId]: { id: data.comp_reg_id, competition_id: competitionId, member_id: data.mem_id, role: data.prt_role_cd as "participant" | "cheering" | "volunteer", event_type: eventType, created_at: data.crt_at } }));
@@ -277,8 +301,26 @@ export function RaceListView({
     if (payload.role === "participant" && eventType && compEvtTypeContainsHangul(eventType)) {
       return { ok: false as const, message: "종목은 한글을 사용할 수 없습니다. 영문·숫자로 입력해 주세요." };
     }
-    const { data, error } = await supabase.from("comp_reg_rel")
-      .update({ prt_role_cd: payload.role }).eq("comp_reg_id", registrationId)
+
+    let compEvtId: string | null = null;
+    if (payload.role === "participant") {
+      if (!eventType) {
+        return { ok: false as const, message: "참가 종목을 선택해 주세요." };
+      }
+      const resolved = await getOrCreateCompEvtIdForParticipation(
+        competitionId,
+        eventType,
+      );
+      if (!resolved.ok) {
+        return { ok: false as const, message: resolved.message };
+      }
+      compEvtId = resolved.compEvtId;
+    }
+
+    const { data, error } = await supabase
+      .from("comp_reg_rel")
+      .update({ prt_role_cd: payload.role, comp_evt_id: compEvtId })
+      .eq("comp_reg_id", registrationId)
       .select("comp_reg_id, mem_id, prt_role_cd, crt_at").single();
     if (error) return { ok: false as const, message: "수정에 실패했습니다." };
     setRegistrationsByCompetitionId(prev => ({ ...prev, [competitionId]: { id: data.comp_reg_id, competition_id: competitionId, member_id: data.mem_id, role: data.prt_role_cd as "participant" | "cheering" | "volunteer", event_type: eventType, created_at: data.crt_at } }));
