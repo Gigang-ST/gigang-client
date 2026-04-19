@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { prevMonthStr, nextMonthStr } from "@/lib/dayjs";
 import { Button } from "@/components/ui/button";
+import { useMonthTransition } from "./month-transition";
 
 export function MonthNavigator({
   currentMonth,
@@ -16,6 +17,7 @@ export function MonthNavigator({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { isPending, startTransition } = useMonthTransition();
 
   const displayMonth = Number(currentMonth.split("-")[1]);
   const label = `${displayMonth}월`;
@@ -30,7 +32,9 @@ export function MonthNavigator({
   function navigate(month: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("month", month);
-    router.push(`?${params.toString()}`, { scroll: false });
+    startTransition(() => {
+      router.push(`?${params.toString()}`, { scroll: false });
+    });
   }
 
   return (
@@ -39,20 +43,24 @@ export function MonthNavigator({
         variant="ghost"
         size="icon-sm"
         onClick={() => navigate(prevMonth)}
-        disabled={!hasPrev}
+        disabled={!hasPrev || isPending}
         className="text-muted-foreground active:bg-secondary disabled:opacity-30"
         aria-label="이전 달"
       >
         <ChevronLeft className="size-5" />
       </Button>
       <span className="min-w-[3rem] text-center text-lg font-bold">
-        {label}
+        {isPending ? (
+          <Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" />
+        ) : (
+          label
+        )}
       </span>
       <Button
         variant="ghost"
         size="icon-sm"
         onClick={() => navigate(nextMonth)}
-        disabled={!hasNext}
+        disabled={!hasNext || isPending}
         className="text-muted-foreground active:bg-secondary disabled:opacity-30"
         aria-label="다음 달"
       >
