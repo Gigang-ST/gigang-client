@@ -1,20 +1,17 @@
 import { z } from "zod";
 import type { Enums } from "@/lib/supabase/database.types";
+import {
+  COMP_EVT_TYPE_OTHER,
+  compEvtTypeContainsHangul,
+  normalizeCompEvtTypeKey,
+  sanitizeAsciiUpperCompEvtTypeInput,
+} from "@/lib/comp-evt-type";
 
-/** DB sport 컬럼에 들어갈 수 있는 값 */
-const SPORT_KEYS = [
-  "road_run",
-  "ultra",
-  "trail_run",
-  "triathlon",
-  "cycling",
-] as const;
-
-/** 대회 등록 폼 */
+/** 대회 등록 폼 — 종목은 COMP_SPRT_CD, 코스는 공통코드+기타(직접입력) */
 export const competitionRegisterSchema = z
   .object({
     title: z.string().min(1, "대회명을 입력해 주세요"),
-    sport: z.enum(SPORT_KEYS, { message: "종목을 선택해 주세요" }),
+    sport: z.string().min(1, "종목을 선택해 주세요"),
     startDate: z.string().min(1, "시작일을 입력해 주세요"),
     endDate: z.string(),
     location: z.string().min(1, "장소를 입력해 주세요"),
@@ -22,14 +19,33 @@ export const competitionRegisterSchema = z
       .string()
       .min(1, "대회 링크를 입력해 주세요")
       .url("올바른 URL을 입력해 주세요"),
-    selectedEventTypes: z
-      .array(z.string())
-      .min(1, "참가 코스를 1개 이상 선택해 주세요"),
+    selectedEventTypes: z.array(z.string()),
+    /** 기타(직접 입력) 선택 시 입력값 (원문; 검증은 refine) */
+    customEventType: z.string(),
   })
   .refine((data) => !data.endDate || data.endDate >= data.startDate, {
     message: "종료일은 시작일 이후여야 합니다.",
     path: ["endDate"],
-  });
+  })
+  .refine(
+    (data) => {
+      const base = data.selectedEventTypes.filter((t) => t !== COMP_EVT_TYPE_OTHER);
+      const otherOn = data.selectedEventTypes.includes(COMP_EVT_TYPE_OTHER);
+      const custom = sanitizeAsciiUpperCompEvtTypeInput(data.customEventType).trim();
+      if (otherOn && compEvtTypeContainsHangul(data.customEventType)) return false;
+      if (otherOn && !custom) return false;
+      if (!otherOn && base.length === 0) return false;
+      if (otherOn && custom) {
+        const ck = normalizeCompEvtTypeKey(custom);
+        if (base.some((t) => normalizeCompEvtTypeKey(t) === ck)) return false;
+      }
+      return true;
+    },
+    {
+      message: "참가 코스를 1개 이상 선택하거나, 기타 입력을 완료해 주세요.",
+      path: ["selectedEventTypes"],
+    },
+  );
 
 export type CompetitionRegisterValues = z.infer<
   typeof competitionRegisterSchema

@@ -5,7 +5,7 @@
 | 참고 문서 | 용도 |
 |-----------|------|
 | `database-schema-v2-migration-map.md` | 컬럼·FK·검증 SQL |
-| `database-schema-v2-rollout-progress.md` | DB 백필·§6.5 `archive.old_*`·§7 앱 전환 체크 |
+| `database-schema-v2-rollout-progress.md` | **prd DDL 완성본 §2.1**(`migrations/*.sql` 전체·이름 순) · DB 백필·§6.5·§7 (§5.5·§10은 dev 히스토리) |
 | `database-schema-v2-cutover-checklist.md` | prd 컷오버·백업·RLS·§8 시행착오 방지 |
 | `database-schema-v2-member-domain.md` | 회원·팀·관리자 필드 매핑 |
 
@@ -14,7 +14,7 @@
 ## 1. 원칙 (dev와 prd 동일)
 
 1. **한 번에 전부 교체하지 않는다.** 도메인 슬라이스 단위로 나누고, 슬라이스마다 **인벤토리 → 쿼리 교체 → 스모크 → PR** 을 반복한다.
-2. **prd도 dev와 같은 순서·같은 슬라이스 경계를 쓴다.** 차이는 **DB 컷오버 창구·백업·마이그레이션 적용 시점**뿐이다.
+2. **prd도 dev와 같은 순서·같은 슬라이스 경계를 쓴다.** 차이는 **DB 컷오버 창구·백업·마이그레이션 적용 시점**뿐이다. **prd DB 스키마**는 `rollout-progress` **§2.1**에 정의된 대로, 고정한 Git 리비전의 **`supabase/migrations/*.sql` 전체를 파일명 순**으로 적용한 것이 완성본이다(연혁 표를 따라 읽을 필요 없음).
 3. **교차 화면은 슬라이스 완료 후 통합 스모크한다.** 홈·대회 목록 등은 여러 테이블을 한 번에 쓰므로, 각 슬라이스가 끝난 뒤 해당 플로우를 다시 본다.
 4. **타입 정합:** 슬라이스 진행 중 `pnpm exec supabase gen types` 로 `lib/supabase/database.types.ts` 를 v2 반영 상태로 맞춘다(로컬은 `supabase link` dev 기준).
 5. **롤백:** 슬라이스별 브랜치·PR을 유지하고, 문제 시 해당 PR만 revert 하거나 환경변수 플래그(선택)로 v1 쿼리 경로를 잠시 되살린다.
@@ -28,9 +28,9 @@
 | **0 준비** | — | 타입·문서 | `database.types` 재생성, 매핑표 확인 |
 | **1 회원·인증·관리자** | `member` | `mem_mst`, `team_mem_rel` | `admin`·`status` 등은 `migration-map`·`member-domain` 과 일치시킬 것 |
 | **2 대회** | `competition` | `comp_mst`, `comp_evt_cfg` | 종목·날짜 컬럼명 변경 |
-| **3 참가** | `competition_registration` | `comp_reg_rel`, `team_comp_plan_rel` | `comp_reg_id`·`comp_evt_id` 조인 |
+| **3 참가** | `competition_registration` | `comp_reg_rel`, `team_comp_plan_rel` | `comp_reg_id`·`comp_evt_id` 조인. `team_comp_plan_rel`은 참가 신청 시 없으면 생성(카탈로그만 등록 시에는 행 없음). 기록 저장과는 무관(`domains` §2·§3). |
 | **4 기록** | `race_result` | `rec_race_hist` | B-2/B-3·UK 중복 스크립트: `scripts/sql/v2_p7_race_result_uk_duplicate_list.sql` |
-| **5 부가** | `personal_best`, ~~`utmb_profile`~~ | `mem_utmb_prf`(UTMB), PB는 파생·별도 | **UTMB:** DB `20260404165809_v2_mem_utmb_prf.sql`(P9)·B-4 + **앱 전환 완료**(`utmb_prf_url`·`utmb_idx`·`mem_id`·정본 `vers=0`). **PB:** 홈 등 `personal_best` 잔존 — 제품·슬라이스 범위 별도 확정 |
+| **5 부가** | `personal_best`, ~~`utmb_profile`~~ | `mem_utmb_prf`(UTMB), PB는 파생·별도 | **UTMB:** DB `20260404165809_v2_mem_utmb_prf.sql`(P9) + `20260406190000_v2_mem_utmb_prf_add_recent_race_cols.sql`로 `rct_race_nm`·`rct_race_rec`까지 반영. **PB:** 홈 등 `personal_best` 잔존 — 제품·슬라이스 범위 별도 확정 |
 
 ### 2.1 현재 앱 전환 상태 (기준일 갱신)
 
@@ -39,11 +39,11 @@
 | 슬라이스 | 앱(이 저장소) | 비고 |
 |----------|----------------|------|
 | 0 | 필요 시 `supabase gen types` | v2 테이블은 수동 보강·재생성 병행 가능 |
-| 1 | **앱 전환 완료** | 조회·온보딩·프로필·관리자: `mem_mst` + 기강 `team_mem_rel`. 레거시 `member`는 FK 호환용 **이중 기록**(온보딩·프로필 저장 시). DB: `20260406120000_mem_mst_rls_oauth_and_teammates.sql` 선행 권장 |
+| 1 | **앱 전환 완료** | 조회·온보딩·프로필·관리자: `mem_mst` + 기강 `team_mem_rel`. 레거시 `member`는 FK 호환용 **이중 기록**(온보딩·프로필 저장 시). DB: `20260406120000_mem_mst_rls_oauth_and_teammates.sql` + **`20260407120000_v2_team_mem_rel_rls_no_recursion.sql`**(RLS 42P17 재귀 제거, prd도 동일 순서 적용) |
 | 2 | 미완 | `competition` → `comp_mst`·`comp_evt_cfg` |
 | 3 | 미완 | `competition_registration` → `comp_reg_rel` 등 |
 | 4 | 미완 | `race_result` → `rec_race_hist` (`records`·`profile`·관리자 기록 화면 등) |
-| 5 | **UTMB만 완료** | `mem_utmb_prf`: `personal-best-grid`, `profile/page`, `records/page`(트레일 랭킹용 UTMB 조회). **PB(`personal_best`)는 미완** |
+| 5 | 진행 예정 | `utmb_profile`은 최근 대회 컬럼까지 반영됨(`recent_race_name`, `recent_race_record`). v2 `mem_utmb_prf`도 `rct_race_nm`, `rct_race_rec` 컬럼 반영 완료(마이그레이션 적용 필요) |
 
 ---
 
@@ -105,15 +105,20 @@
 | `app/(info)/admin/records/page.tsx` | `race_result` |
 | `app/actions/admin/get-admin-stats.ts` | `race_result` count |
 
-### 슬라이스 5 — 부가(UTMB 완료 / PB·복합 잔여)
+### 슬라이스 5 — 부가(UTMB 재정의 / PB·복합 잔여)
 
-**UTMB — 앱 전환 완료 (`mem_utmb_prf`)**
+**UTMB — 기준 (`mem_utmb_prf`)**
 
 | 경로 | 상태 | 비고 |
 |------|------|------|
-| `components/profile/personal-best-grid.tsx` | v2 | `mem_utmb_prf` upsert·delete, `onConflict: mem_id,vers`(정본 `vers=0`) |
-| `app/(main)/profile/page.tsx` | UTMB v2 / 기록 v1 | UTMB: `mem_utmb_prf`. 마라톤 PB 카드용 데이터는 여전히 `race_result`(슬라이스 4) |
-| `app/(main)/records/page.tsx` | UTMB v2 / 랭킹 v1 | 트레일(UTMB) 구간: `mem_utmb_prf` + `mem_mst!inner`. 마라톤·철인: 여전히 `race_result`(슬라이스 4) |
+| `components/profile/personal-best-grid.tsx` | 레거시 사용 | `utmb_profile` upsert·delete, 최근 대회(`recent_race_*`) 저장 |
+| `app/(main)/profile/page.tsx` | 레거시 사용 | UTMB: `utmb_profile` 조회(최근 대회 포함). 마라톤 PB 카드용 데이터는 `race_result`(슬라이스 4) |
+| `app/(main)/records/page.tsx` | 레거시 사용 | 트레일 구간: `utmb_profile` + `member` 조인. 최근 대회는 DB 저장값 사용 |
+
+**`mem_utmb_prf` 점검 기준 (앱 로직 점검 반영)**
+
+- 현재 `mem_utmb_prf`는 회원 1:1 확장으로 팀 컨텍스트(`team_id`)를 포함하지 않는다.
+- `recent_race_*`는 v2에서 `rct_race_nm`, `rct_race_rec`로 저장한다.
 
 **PB·홈 — 미완 (`personal_best` + 레거시 조인)**
 
@@ -175,10 +180,10 @@
 - **슬라이스 단위로 요청:** “슬라이스 1만, `getCurrentMember`·`verifyAdmin`·`getMember` 를 `mem_mst` 기준으로 바꿔줘”처럼 범위를 고정.
 - **아키텍처·순서 논쟁이 필요하면** 짧은 Plan으로 슬라이스 순서만 고정한 뒤, 구현은 슬라이스별 Agent 가 적합.
 
-### TODO (팀 컨텍스트)
+### 팀 컨텍스트 (앱)
 
-- **현재:** 기강 단일 팀만 가정하고 `GIGANG_TEAM_ID`(`lib/constants/gigang-team.ts`)를 소스 전역에서 참조한다. P0/P2 백필의 `team_cd = gigang` 정본 UUID와 동일하다.
-- **추후:** 사용자가 팀을 선택하거나 여러 팀에 소속되면, 세션·JWT·라우트 등으로 활성 `team_id`를 정하고 쿼리/RLS 경로를 그에 맞게 바꾼 뒤 상수 직참조를 제거한다. 상세는 `database-schema-v2-member-domain.md` §7.
+- **현재:** `team_id`는 **요청 Host → `team_cd` → `team_mst`** 로 해석한다(`lib/queries/request-team.ts`). `getCurrentMember`·`verifyAdmin`·온보딩·관리자 액션·OAuth 콜백·클라이언트는 서버에서 넘긴 `teamId` 또는 동일 Host 규칙을 따른다. 폴백 UUID는 **`lib/constants/gigang-team.ts`의 `DEFAULT_FALLBACK_TEAM_ID` 한 곳**이며, P0/P2 백필의 `team_cd = gigang` 정본과 동일하다.
+- **추후:** 사용자 **팀 선택 UI**·**한 계정 다중 팀**이 필요하면 활성 `team_id` 소스(Host만이 아닌 세션·JWT·경로 등)를 확장하고, `getRequestTeamContext`/`resolveTeamContextFromHost`를 그에 맞게 조정한다. 상세는 `database-schema-v2-member-domain.md` §7.
 
 ---
 
@@ -189,7 +194,10 @@
 | 2026-04-05 | 초안: 슬라이스·인벤토리·dev/prd 공통 절차 |
 | 2026-04-06 | UTMB: `mem_utmb_prf` 앱 반영·P9(`20260404165809`) 문서 연계. §2.1 진행 상태·슬라이스 5 인벤토리 분리(UTMB 완료 / PB 미완). 앱 전환은 슬라이스 1→4 순 권장 명시 |
 | 2026-04-06 | 슬라이스 1 앱: `mem_mst`·`team_mem_rel` 조회·온보딩(서버 액션)·프로필·관리자·RLS(`20260406120000`). `member` 이중 기록 유지 |
-| 2026-04-06 | §7 TODO: `GIGANG_TEAM_ID` 하드코딩·추후 팀 선택 시 제거 (`member-domain` §7 연계) |
+| 2026-04-07 | 슬라이스 1 DB: `20260407120000_v2_team_mem_rel_rls_no_recursion.sql` — `team_mem_rel`/`team_mst`/`mem_mst_select_same_team` RLS 무한 재귀(42P17) 제거. `rollout-progress` 웨이브 2a·`cutover-checklist` §8에 prd 필수 포함 명시 |
+| 2026-04-07 | prd 담당자용: `rollout-progress` **§2.1** 완성본 정의·참고 표(§1·원칙 2) 교차 참조 — 히스토리와 절차서 분리 |
+| 2026-04-06 | §7: 팀 컨텍스트 TODO 정리(당시 `GIGANG_TEAM_ID` 전역 참조 전제) |
+| 2026-04-07 | §7: Host 기반 `getRequestTeamContext`·`DEFAULT_FALLBACK_TEAM_ID` 반영. `member-domain` §7 동기 |
 | 2026-04-06 | §9: 슬라이스별 수정 포인트·수동 테스트 목록·전체 회귀 체크리스트 추가 |
 
 ---
@@ -218,12 +226,13 @@
 | 구분 | 경로 |
 |------|------|
 | 조회·관리자 | `lib/queries/member.ts`, `lib/queries/app-member.ts`, `lib/get-member.ts` |
-| 상수 | `lib/constants/gigang-team.ts` |
+| 팀 컨텍스트(Host) | `lib/queries/request-team.ts` (`getRequestTeamContext`, `resolveTeamContextFromHost`, `extractTeamCdFromHost`) |
+| 폴백 팀 UUID | `lib/constants/gigang-team.ts` (`DEFAULT_FALLBACK_TEAM_ID` — 업무 코드 직참조 금지, `request-team` 폴백만) |
 | 온보딩 | `app/actions/onboarding-mem-v2.ts`, `components/auth/member-onboarding-form.tsx` |
 | 프로필 | `components/profile/profile-edit-form.tsx`, `bank-info-form.tsx`, `app/actions/upload-avatar.ts` |
 | 관리자 | `app/actions/admin/manage-member.ts`, `get-admin-stats.ts`, `app/(info)/admin/members/page.tsx`, `approvals/page.tsx` |
 | 교차 | `app/(main)/page.tsx`(활동 인원 `team_mem_rel`), `components/races/race-list-view.tsx`(멤버 상태) |
-| DB | `supabase/migrations/20260406120000_mem_mst_rls_oauth_and_teammates.sql` |
+| DB | `supabase/migrations/20260406120000_mem_mst_rls_oauth_and_teammates.sql`, `20260407120000_v2_team_mem_rel_rls_no_recursion.sql` |
 
 **남은 레거시:** `member` 테이블은 **이중 기록**으로 여전히 갱신됨(FK·기존 RLS 정책 호환).
 
@@ -231,6 +240,7 @@
 
 - [ ] 비로그인: 홈·대회·기록 공개 화면 정상
 - [ ] 로그인 + 미가입: 온보딩 진입, **신규 전화** → 상세 입력 → 가입 완료 후 홈/프로필 이동
+FAIL 프로필에서 카카오로그인시 홈화면으로 감, 프로필탭을 다시 누르면 온보딩 회원정보 입력(연락처) 화면이 뜸. 추후 테스트 불가.
 - [ ] 로그인 + 기존 전화(활동): 연동 후 리다이렉트
 - [ ] 로그인 + 비활성: 재가입 요청 → pending 단계 표시
 - [ ] 로그인 + pending: pending 안내 노출
@@ -293,16 +303,16 @@
 
 ### 9.5 슬라이스 5 — 부가
 
-**UTMB (`mem_utmb_prf`) — 이미 반영된 경우**
+**UTMB (`utmb_profile` → `mem_utmb_prf`) — 반영 예정**
 
 | 경로 | 확인 |
 |------|------|
-| `personal-best-grid.tsx`, `profile/page.tsx`, `records/page.tsx` | 저장·삭제·랭킹용 조회 |
+| `personal-best-grid.tsx`, `profile/page.tsx`, `records/page.tsx` | `utmb_profile` 유지 동작 확인 후 `mem_utmb_prf`로 동일 동작 이관 |
 
 **테스트**
 
-- [ ] UTMB 연동·조회·삭제
-- [ ] 전당 트레일 탭에 UTMB 보유자 표시
+- [ ] UTMB 연동·조회·삭제 (`rct_race_nm`, `rct_race_rec` 기준 저장/표시 포함)
+- [ ] 전당 트레일 탭에 UTMB 보유자 + 최근 대회 표시
 
 **PB(`personal_best`) — 미반영 시**
 
