@@ -44,9 +44,15 @@ async function loadAllCmmCdRows(): Promise<CachedCmmCdRow[]> {
       .eq("use_yn", true),
   ]);
 
-  if (gErr || cErr || !grps || !cds) {
-    console.error("공통코드(cmm_cd) 전체 조회 실패:", gErr ?? cErr);
-    return [];
+  if (gErr || cErr) {
+    const err = gErr ?? cErr;
+    console.error("공통코드(cmm_cd) 전체 조회 실패:", err);
+    throw new Error("공통코드(cmm_cd) 전체 조회에 실패했습니다.", { cause: err });
+  }
+
+  if (grps == null || cds == null) {
+    console.error("공통코드(cmm_cd) 전체 조회: 응답 데이터 없음");
+    throw new Error("공통코드(cmm_cd) 조회 응답이 없습니다.");
   }
 
   const idToGrpCd = new Map(grps.map((g) => [g.cd_grp_id, g.cd_grp_cd]));
