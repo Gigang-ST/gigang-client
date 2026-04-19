@@ -5,8 +5,9 @@ import { Calendar, MapPin } from "lucide-react";
 import Link from "next/link";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { createClient } from "@/lib/supabase/client";
-import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
+import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-create-comp-evt-for-participation";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
+import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
 import { formatDDay } from "@/lib/dayjs";
 import { CardItem } from "@/components/ui/card";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
@@ -48,23 +49,6 @@ export function UpcomingRaces({
   const [registrationsByCompetitionId, setRegistrationsByCompetitionId] =
     useState<Record<string, CompetitionRegistration>>(initialRegistrationsByCompetitionId);
 
-  async function resolveCompEvtId(args: {
-    competitionId: string;
-    eventType: string | null;
-  }): Promise<string | null> {
-    if (!args.eventType) return null;
-    const { data, error } = await supabase
-      .from("comp_evt_cfg")
-      .select("comp_evt_id")
-      .eq("comp_id", args.competitionId)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .eq("comp_evt_type", args.eventType)
-      .maybeSingle();
-    if (error) throw error;
-    return data?.comp_evt_id ?? null;
-  }
-
   const createRegistration = async (competitionId: string, payload: { role: "participant" | "cheering" | "volunteer"; eventType: string }) => {
     if (memberStatus.status !== "ready") return { ok: false as const, message: "로그인이 필요합니다." };
     const eventType = payload.role === "participant" ? payload.eventType.trim().toUpperCase() : null;
@@ -76,10 +60,18 @@ export function UpcomingRaces({
     const plan = { team_comp_id: ensured.teamCompId };
 
     let compEvtId: string | null = null;
-    try {
-      compEvtId = await resolveCompEvtId({ competitionId, eventType });
-    } catch {
-      return { ok: false as const, message: "신청에 실패했습니다." };
+    if (payload.role === "participant") {
+      if (!eventType) {
+        return { ok: false as const, message: "참가 종목을 선택해 주세요." };
+      }
+      const resolved = await getOrCreateCompEvtIdForParticipation(
+        competitionId,
+        eventType,
+      );
+      if (!resolved.ok) {
+        return { ok: false as const, message: resolved.message };
+      }
+      compEvtId = resolved.compEvtId;
     }
 
     const { data, error } = await supabase.from("comp_reg_rel")
@@ -98,10 +90,18 @@ export function UpcomingRaces({
     }
 
     let compEvtId: string | null = null;
-    try {
-      compEvtId = await resolveCompEvtId({ competitionId, eventType });
-    } catch {
-      return { ok: false as const, message: "수정에 실패했습니다." };
+    if (payload.role === "participant") {
+      if (!eventType) {
+        return { ok: false as const, message: "참가 종목을 선택해 주세요." };
+      }
+      const resolved = await getOrCreateCompEvtIdForParticipation(
+        competitionId,
+        eventType,
+      );
+      if (!resolved.ok) {
+        return { ok: false as const, message: resolved.message };
+      }
+      compEvtId = resolved.compEvtId;
     }
 
     const { data, error } = await supabase.from("comp_reg_rel")
