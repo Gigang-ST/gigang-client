@@ -1,61 +1,69 @@
-import { createAdminClient } from "@/lib/supabase/admin";
 import { monthLastDay, nextMonthStr } from "@/lib/dayjs";
-import { calcMonthRefundRate, countMonths, DEPOSIT_PER_MONTH, ENTRY_FEE_WITH_SINGLET } from "@/lib/mileage";
+import {
+  calcMonthRefundRate,
+  countMonths,
+  DEPOSIT_PER_MONTH,
+  ENTRY_FEE_WITH_SINGLET,
+} from "@/lib/mileage";
 import { StatCard } from "@/components/common/stat-card";
+import {
+  getEventParticipants,
+  getEventGoals,
+  getEventLogs,
+} from "@/lib/queries/project-data";
 
 type CrewMonthlyStatsProps = {
   evtId: string;
-  month: string; // "2026-05-01"
+  month: string;
   evtStartMonth: string;
   evtEndMonth: string;
 };
 
-export async function CrewMonthlyStats({ evtId, month, evtStartMonth, evtEndMonth }: CrewMonthlyStatsProps) {
-  const supabase = createAdminClient();
+export async function CrewMonthlyStats({
+  evtId,
+  month,
+  evtStartMonth,
+  evtEndMonth,
+}: CrewMonthlyStatsProps) {
+  const viewMonth = month > evtEndMonth ? evtEndMonth : month;
+
+  // 공유 캐시 쿼리 (같은 요청 내 다른 컴포넌트와 중복 제거)
+  const [allParticipants, allGoals, allLogs] = await Promise.all([
+    getEventParticipants(evtId),
+    getEventGoals(evtId, evtStartMonth, viewMonth),
+    getEventLogs(evtId, evtStartMonth, viewMonth),
+  ]);
+
+  // 선택 월 기준 활성 참여자
+  const activeParticipants = allParticipants.filter(
+    (p) => (p.stt_month as string) <= month,
+  );
+  if (activeParticipants.length === 0) return null;
 
   const [y, m] = month.split("-").map(Number);
   const monthEnd = monthLastDay(y, m);
+  const nextMonth = nextMonthStr(month);
 
-  // 참여자 + 활동 기록 + 목표 병렬 조회 (async-parallel)
-  const [
-    { data: participants },
-    { data: logs },
-    { data: goals },
-  ] = await Promise.all([
-    supabase
-      .from("evt_team_prt_rel")
-      .select("mem_id, init_goal, stt_month")
-      .eq("evt_id", evtId)
-      .eq("approve_yn", true)
-      .lte("stt_month", month),
-    supabase
-      .from("evt_mlg_act_hist")
-      .select("mem_id, final_mlg")
-      .eq("evt_id", evtId)
-      .gte("act_dt", month)
-      .lte("act_dt", monthEnd),
-    supabase
-      .from("evt_mlg_goal_cfg")
-      .select("mem_id, goal_val")
-      .eq("evt_id", evtId)
-      .eq("goal_month", month),
-  ]);
+  // 당월 로그만 필터
+  const monthLogs = allLogs.filter(
+    (l) => (l.act_dt as string) >= month && (l.act_dt as string) <= monthEnd,
+  );
 
-  const activeParticipants = participants ?? [];
-  if (activeParticipants.length === 0) return null;
+  // 당월 목표만 필터
+  const monthGoals = allGoals.filter((g) => g.goal_month === month);
 
-  // 참여자별 마일리지 합산
+  // 참여자별 당월 마일리지 합산
   const mileageByMem = new Map<string, number>();
-  for (const log of logs ?? []) {
+  for (const log of monthLogs) {
     mileageByMem.set(
       log.mem_id,
       (mileageByMem.get(log.mem_id) ?? 0) + Number(log.final_mlg),
     );
   }
 
-  // 참여자별 목표 맵 (없으면 init_goal 폴백)
+  // 참여자별 당월 목표 맵
   const goalByMem = new Map<string, number>();
-  for (const g of goals ?? []) {
+  for (const g of monthGoals) {
     goalByMem.set(g.mem_id, Number(g.goal_val));
   }
 
@@ -73,39 +81,19 @@ export async function CrewMonthlyStats({ evtId, month, evtStartMonth, evtEndMont
     if (goal > 0 && mlg >= goal) achievedCount++;
   }
 
-  // 활동 건수 (전체 로그 수)
-  for (const log of logs ?? []) {
-    if (activeParticipants.some((p) => p.mem_id === log.mem_id)) {
+  const activeMemIds = new Set(activeParticipants.map((p) => p.mem_id));
+  for (const log of monthLogs) {
+    if (activeMemIds.has(log.mem_id)) {
       totalActivities++;
     }
   }
 
-  const avgMileage = participantCount > 0 ? totalMileage / participantCount : 0;
+  const avgMileage =
+    participantCount > 0 ? totalMileage / participantCount : 0;
 
-  // 회식비 풀 계산 (evtStartMonth ~ 선택 월까지 누적)
-  const viewMonth = month > evtEndMonth ? evtEndMonth : month;
-
-  // 전체 참여자의 실전 기간 목표/기록 조회 (누적)
-  const allMemIds = activeParticipants.map((p) => p.mem_id);
-  const [{ data: allGoals }, { data: allLogs }] = await Promise.all([
-    supabase
-      .from("evt_mlg_goal_cfg")
-      .select("mem_id, goal_month, goal_val")
-      .eq("evt_id", evtId)
-      .in("mem_id", allMemIds)
-      .gte("goal_month", evtStartMonth)
-      .lte("goal_month", viewMonth),
-    supabase
-      .from("evt_mlg_act_hist")
-      .select("mem_id, act_dt, final_mlg")
-      .eq("evt_id", evtId)
-      .in("mem_id", allMemIds)
-      .gte("act_dt", evtStartMonth)
-      .lt("act_dt", nextMonthStr(viewMonth)),
-  ]);
-
+  // 회식비 풀 계산 — 전체 기간 누적 (캐시 데이터 재사용)
   const mlgMap = new Map<string, number>();
-  for (const l of allLogs ?? []) {
+  for (const l of allLogs) {
     const gm = (l.act_dt as string).slice(0, 7) + "-01";
     const key = `${l.mem_id}:${gm}`;
     mlgMap.set(key, (mlgMap.get(key) ?? 0) + Number(l.final_mlg));
@@ -123,15 +111,19 @@ export async function CrewMonthlyStats({ evtId, month, evtStartMonth, evtEndMont
     const months = countMonths(effectiveStart, viewMonth);
     totalDepositPool += months * DEPOSIT_PER_MONTH;
 
-    const pGoals = (allGoals ?? []).filter((g) => g.mem_id === p.mem_id);
+    const pGoals = allGoals.filter((g) => g.mem_id === p.mem_id);
     for (const g of pGoals) {
       const key = `${p.mem_id}:${g.goal_month}`;
       const achieved = mlgMap.get(key) ?? 0;
-      totalRefundSum += calcMonthRefundRate(achieved, Number(g.goal_val)) * DEPOSIT_PER_MONTH;
+      totalRefundSum +=
+        calcMonthRefundRate(achieved, Number(g.goal_val)) * DEPOSIT_PER_MONTH;
     }
   }
 
-  const partyPool = totalDepositPool - totalRefundSum + participantCount * ENTRY_FEE_WITH_SINGLET;
+  const partyPool =
+    totalDepositPool -
+    totalRefundSum +
+    participantCount * ENTRY_FEE_WITH_SINGLET;
 
   return (
     <div className="grid grid-cols-2 gap-3">
@@ -139,10 +131,7 @@ export async function CrewMonthlyStats({ evtId, month, evtStartMonth, evtEndMont
         value={`${achievedCount} / ${participantCount}`}
         label="달성인원 / 참가자수"
       />
-      <StatCard
-        value={`${totalMileage.toFixed(0)} km`}
-        label="총 마일리지"
-      />
+      <StatCard value={`${totalMileage.toFixed(0)} km`} label="총 마일리지" />
       <StatCard
         value={`₩${Math.floor(partyPool).toLocaleString()}`}
         label="총 회식비 풀"

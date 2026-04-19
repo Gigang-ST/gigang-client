@@ -1,40 +1,47 @@
-import { createAdminClient } from "@/lib/supabase/admin";
 import { nextMonthStr } from "@/lib/dayjs";
-import { MyActivityListClient, type ActivityRecord } from "./my-activity-list-client";
+import { getEventLogs } from "@/lib/queries/project-data";
+import {
+  MyActivityListClient,
+  type ActivityRecord,
+} from "./my-activity-list-client";
 
 type Props = {
   evtId: string;
   memId: string;
   month: string;
+  evtStartMonth: string;
+  evtEndMonth: string;
 };
 
-export async function MyActivityList({ evtId, memId, month }: Props) {
-  const db = createAdminClient();
-  const monthEnd = nextMonthStr(month);
+export async function MyActivityList({
+  evtId,
+  memId,
+  month,
+  evtStartMonth,
+  evtEndMonth,
+}: Props) {
+  const nextMonth = nextMonthStr(month);
+  const viewMonth = month > evtEndMonth ? evtEndMonth : month;
 
-  const [{ data: logs }, { count }] = await Promise.all([
-    db
-      .from("evt_mlg_act_hist")
-      .select("act_id, act_dt, sport_cd, distance_km, elevation_m, base_mlg, applied_mults, final_mlg, review")
-      .eq("evt_id", evtId)
-      .eq("mem_id", memId)
-      .gte("act_dt", month)
-      .lt("act_dt", monthEnd)
-      .order("act_dt", { ascending: false })
-      .limit(5),
-    db
-      .from("evt_mlg_act_hist")
-      .select("*", { count: "exact", head: true })
-      .eq("evt_id", evtId)
-      .eq("mem_id", memId)
-      .gte("act_dt", month)
-      .lt("act_dt", monthEnd),
-  ]);
+  // 공유 캐시에서 필터
+  const allLogs = await getEventLogs(evtId, evtStartMonth, viewMonth);
 
-  const records: ActivityRecord[] = (logs ?? []).map((log) => ({
+  const myMonthLogs = allLogs
+    .filter(
+      (l) =>
+        l.mem_id === memId &&
+        (l.act_dt as string) >= month &&
+        (l.act_dt as string) < nextMonth,
+    )
+    .sort((a, b) => (b.act_dt as string).localeCompare(a.act_dt as string));
+
+  const totalCount = myMonthLogs.length;
+  const top5 = myMonthLogs.slice(0, 5);
+
+  const records: ActivityRecord[] = top5.map((log) => ({
     act_id: log.act_id,
-    act_dt: log.act_dt,
-    sport_cd: log.sport_cd,
+    act_dt: log.act_dt as string,
+    sport_cd: log.sport_cd as string,
     distance_km: Number(log.distance_km),
     elevation_m: Number(log.elevation_m),
     base_mlg: Number(log.base_mlg),
@@ -49,7 +56,7 @@ export async function MyActivityList({ evtId, memId, month }: Props) {
       evtId={evtId}
       memId={memId}
       month={month}
-      totalCount={count ?? 0}
+      totalCount={totalCount}
     />
   );
 }
