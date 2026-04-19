@@ -1,54 +1,56 @@
-// 서버 컴포넌트 — 내 현황 카드
-import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  todayDayKST,
   currentMonthKST,
-  nextMonthStr,
   daysInMonth,
+  todayDayKST,
+  nextMonthStr,
 } from "@/lib/dayjs";
 import { calcPaceRatio, calcDailyNeeded } from "@/lib/mileage";
 import { CardItem } from "@/components/ui/card";
 import { Body, Caption } from "@/components/common/typography";
+import {
+  getEventGoals,
+  getEventLogs,
+} from "@/lib/queries/project-data";
 
 type MyStatusProps = {
   evtId: string;
   memId: string;
-  month: string; // "YYYY-MM-01"
+  month: string;
+  evtStartMonth: string;
+  evtEndMonth: string;
 };
 
-export async function MyStatus({ evtId, memId, month }: MyStatusProps) {
-  const supabase = createAdminClient();
-
+export async function MyStatus({
+  evtId,
+  memId,
+  month,
+  evtStartMonth,
+  evtEndMonth,
+}: MyStatusProps) {
   const [y, m] = month.split("-").map(Number);
   const totalDays = daysInMonth(y, m);
 
   const curMonth = currentMonthKST();
   let todayDay: number;
   if (month < curMonth) {
-    todayDay = totalDays; // 과거 월: 월 종료
+    todayDay = totalDays;
   } else if (month > curMonth) {
-    todayDay = 0; // 미래 월: 아직 시작 안 함
+    todayDay = 0;
   } else {
-    todayDay = todayDayKST(); // 현재 월
+    todayDay = todayDayKST();
   }
   const nextMonth = nextMonthStr(month);
+  const viewMonth = month > evtEndMonth ? evtEndMonth : month;
 
-  const [{ data: goalRow }, { data: logs }] = await Promise.all([
-    supabase
-      .from("evt_mlg_goal_cfg")
-      .select("goal_val, achieved_yn")
-      .eq("evt_id", evtId)
-      .eq("mem_id", memId)
-      .eq("goal_month", month)
-      .maybeSingle(),
-    supabase
-      .from("evt_mlg_act_hist")
-      .select("final_mlg")
-      .eq("evt_id", evtId)
-      .eq("mem_id", memId)
-      .gte("act_dt", month)
-      .lt("act_dt", nextMonth),
+  // 공유 캐시에서 필터
+  const [allGoals, allLogs] = await Promise.all([
+    getEventGoals(evtId, evtStartMonth, viewMonth),
+    getEventLogs(evtId, evtStartMonth, viewMonth),
   ]);
+
+  const goalRow = allGoals.find(
+    (g) => g.mem_id === memId && g.goal_month === month,
+  );
 
   if (!goalRow) {
     return (
@@ -59,20 +61,31 @@ export async function MyStatus({ evtId, memId, month }: MyStatusProps) {
   }
 
   const goalKm = Number(goalRow.goal_val);
-  const currentMileage = (logs ?? []).reduce(
+  const myMonthLogs = allLogs.filter(
+    (l) =>
+      l.mem_id === memId &&
+      (l.act_dt as string) >= month &&
+      (l.act_dt as string) < nextMonth,
+  );
+  const currentMileage = myMonthLogs.reduce(
     (sum, l) => sum + Number(l.final_mlg),
     0,
   );
 
-  const progressPct = goalKm > 0 ? Math.min((currentMileage / goalKm) * 100, 100) : 0;
+  const progressPct =
+    goalKm > 0 ? Math.min((currentMileage / goalKm) * 100, 100) : 0;
   const paceRatio = calcPaceRatio(currentMileage, goalKm, todayDay, totalDays);
-  const dailyNeeded = calcDailyNeeded(currentMileage, goalKm, todayDay, totalDays);
+  const dailyNeeded = calcDailyNeeded(
+    currentMileage,
+    goalKm,
+    todayDay,
+    totalDays,
+  );
 
   const isPaceAhead = paceRatio >= 1.0;
 
   return (
     <CardItem className="flex flex-col gap-4">
-      {/* 수치 행 */}
       <div className="grid grid-cols-3 gap-2">
         <div className="flex flex-col gap-0.5">
           <Caption>당월 목표</Caption>
@@ -88,7 +101,6 @@ export async function MyStatus({ evtId, memId, month }: MyStatusProps) {
         </div>
       </div>
 
-      {/* 프로그레스 바 */}
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
         <div
           className="h-full rounded-full bg-primary transition-all"
@@ -96,13 +108,14 @@ export async function MyStatus({ evtId, memId, month }: MyStatusProps) {
         />
       </div>
 
-      {/* 기간 대비 + 일일 필요 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1">
           <Caption>기간 대비</Caption>
           <Caption
             className={
-              isPaceAhead ? "text-success font-semibold" : "text-destructive font-semibold"
+              isPaceAhead
+                ? "text-success font-semibold"
+                : "text-destructive font-semibold"
             }
           >
             {(paceRatio * 100).toFixed(0)}%
