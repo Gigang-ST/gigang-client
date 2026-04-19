@@ -9,6 +9,17 @@ import {
   competitionRegisterSchema,
   type CompetitionRegisterValues,
 } from "@/lib/validations/competition";
+import {
+  buildEventTypeOptionList,
+  COMP_EVT_TYPE_OTHER,
+  normalizeCompEvtTypeKey,
+  sanitizeAsciiUpperCompEvtTypeInput,
+} from "@/lib/comp-evt-type";
+import {
+  cmmCdRowsForGrp,
+  eventTypeCodesForSprtFromCmmRows,
+  type CachedCmmCdRow,
+} from "@/lib/queries/cmm-cd-cached";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -28,22 +39,41 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { resolveSportConfig, SPORT_LEGEND } from "./sport-config";
 import type { MemberStatus } from "./types";
-
-const SPORT_OPTIONS = SPORT_LEGEND.filter(s => s.key !== "other");
 
 const defaultValues: CompetitionRegisterValues = {
   title: "",
-  sport: "" as CompetitionRegisterValues["sport"],
+  sport: "",
   startDate: "",
   endDate: "",
   location: "",
   sourceUrl: "",
   selectedEventTypes: [],
+  customEventType: "",
 };
 
+function resolveSubmittedEventTypes(data: CompetitionRegisterValues): string[] {
+  const base = data.selectedEventTypes.filter((t) => t !== COMP_EVT_TYPE_OTHER);
+  const otherOn = data.selectedEventTypes.includes(COMP_EVT_TYPE_OTHER);
+  const custom = otherOn
+    ? sanitizeAsciiUpperCompEvtTypeInput(data.customEventType).trim()
+    : "";
+  const merged = [...base];
+  if (custom) merged.push(custom);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of merged) {
+    const k = normalizeCompEvtTypeKey(String(raw));
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(k);
+  }
+  return out;
+}
+
 interface CompetitionRegisterDialogProps {
+  /** 공통코드 캐시 행 전체 (`getCachedCmmCdRows`) */
+  cmmCdRows: CachedCmmCdRow[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   memberStatus: MemberStatus;
@@ -55,6 +85,7 @@ interface CompetitionRegisterDialogProps {
 }
 
 export function CompetitionRegisterDialog({
+  cmmCdRows,
   open,
   onOpenChange,
   memberStatus,
@@ -77,42 +108,76 @@ export function CompetitionRegisterDialog({
 
   const sport = watch("sport");
   const selectedEventTypes = watch("selectedEventTypes");
+  const customEventType = watch("customEventType");
 
-  // 종목 변경 시 코스 선택 초기화
-  const eventTypeOptions = useMemo(() => {
-    return resolveSportConfig(sport || null).eventTypes;
-  }, [sport]);
+  const sportOptions = useMemo(
+    () => cmmCdRowsForGrp(cmmCdRows, "COMP_SPRT_CD"),
+    [cmmCdRows],
+  );
+
+  /** 신규 대회: comp_evt_cfg 없음 → 기본 공통코드만 + 기타 (기록 입력과 동일 `buildEventTypeOptionList` 규칙) */
+  const eventChipList = useMemo(() => {
+    const defaults = eventTypeCodesForSprtFromCmmRows(cmmCdRows, sport || null);
+    const merged = buildEventTypeOptionList([], defaults);
+    return [...merged, COMP_EVT_TYPE_OTHER];
+  }, [cmmCdRows, sport]);
 
   useEffect(() => {
     setValue("selectedEventTypes", []);
+    setValue("customEventType", "");
   }, [sport, setValue]);
 
-  // 다이얼로그 열릴 때 폼 초기화
   useEffect(() => {
     if (open) {
+      const firstSprt = sportOptions[0]?.cd ?? "";
       reset({
         ...defaultValues,
+        sport: firstSprt,
         ...(prefillStartDate?.trim() ? { startDate: prefillStartDate.trim() } : {}),
       });
     }
-  }, [open, prefillStartDate, reset]);
+  }, [open, prefillStartDate, reset, sportOptions]);
+
+  const otherSelected = selectedEventTypes.includes(COMP_EVT_TYPE_OTHER);
+
+  const selectedCourseCount = useMemo(() => {
+    const pre = selectedEventTypes.filter((t) => t !== COMP_EVT_TYPE_OTHER).length;
+    const other =
+      otherSelected && sanitizeAsciiUpperCompEvtTypeInput(customEventType).trim()
+        ? 1
+        : 0;
+    return pre + other;
+  }, [selectedEventTypes, otherSelected, customEventType]);
 
   const toggleEventType = (type: string) => {
     const current = selectedEventTypes;
+    if (type === COMP_EVT_TYPE_OTHER) {
+      if (current.includes(COMP_EVT_TYPE_OTHER)) {
+        setValue(
+          "selectedEventTypes",
+          current.filter((t) => t !== COMP_EVT_TYPE_OTHER),
+        );
+        setValue("customEventType", "");
+      } else {
+        setValue("selectedEventTypes", [...current, COMP_EVT_TYPE_OTHER]);
+      }
+      return;
+    }
     setValue(
       "selectedEventTypes",
-      current.includes(type) ? current.filter(t => t !== type) : [...current, type],
+      current.includes(type) ? current.filter((t) => t !== type) : [...current, type],
     );
   };
 
   async function onSubmit(data: CompetitionRegisterValues) {
+    const eventTypes = resolveSubmittedEventTypes(data);
     const result = await createCompetition({
       title: data.title,
       sport: data.sport,
       startDate: data.startDate,
       endDate: data.endDate || null,
       location: data.location,
-      eventTypes: data.selectedEventTypes,
+      eventTypes,
       sourceUrl: data.sourceUrl,
     });
 
@@ -179,14 +244,17 @@ export function CompetitionRegisterDialog({
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="comp-sport">종목 *</Label>
-              <Select value={sport} onValueChange={v => setValue("sport", v as CompetitionRegisterValues["sport"], { shouldValidate: true })}>
+              <Select
+                value={sport}
+                onValueChange={(v) => setValue("sport", v, { shouldValidate: true })}
+              >
                 <SelectTrigger id="comp-sport">
                   <SelectValue placeholder="종목 선택" />
                 </SelectTrigger>
-                <SelectContent>
-                  {SPORT_OPTIONS.map(s => (
-                    <SelectItem key={s.key} value={s.key}>
-                      {s.label}
+                <SelectContent className={cn(stackElevated && "z-[100]")}>
+                  {sportOptions.map((s) => (
+                    <SelectItem key={s.cd} value={s.cd}>
+                      {s.cd_nm}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -226,29 +294,62 @@ export function CompetitionRegisterDialog({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label>참가 코스 * {selectedEventTypes.length > 0 && `(${selectedEventTypes.length}개 선택)`}</Label>
-              {eventTypeOptions.length > 0 ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {eventTypeOptions.map(type => (
-                    <Button
-                      key={type}
-                      type="button"
-                      size="xs"
-                      onClick={() => toggleEventType(type)}
-                      variant={selectedEventTypes.includes(type) ? "default" : "outline"}
-                      className={cn(
-                        "rounded-full",
-                        !selectedEventTypes.includes(type) && "text-muted-foreground hover:border-primary/50",
-                      )}
-                    >
-                      {type}
-                    </Button>
-                  ))}
+              <Label>
+                참가 코스 *
+                {selectedCourseCount > 0 ? ` (${selectedCourseCount}개 선택)` : ""}
+              </Label>
+              {eventChipList.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {eventChipList.map((type) => (
+                      <Button
+                        key={type}
+                        type="button"
+                        size="xs"
+                        onClick={() => toggleEventType(type)}
+                        variant={
+                          type === COMP_EVT_TYPE_OTHER
+                            ? selectedEventTypes.includes(COMP_EVT_TYPE_OTHER)
+                              ? "default"
+                              : "outline"
+                            : selectedEventTypes.includes(type)
+                              ? "default"
+                              : "outline"
+                        }
+                        className={cn(
+                          "rounded-full",
+                          type !== COMP_EVT_TYPE_OTHER &&
+                            !selectedEventTypes.includes(type) &&
+                            "text-muted-foreground hover:border-primary/50",
+                          type === COMP_EVT_TYPE_OTHER &&
+                            !selectedEventTypes.includes(COMP_EVT_TYPE_OTHER) &&
+                            "text-muted-foreground hover:border-primary/50",
+                        )}
+                      >
+                        {type === COMP_EVT_TYPE_OTHER ? "기타 (직접 입력)" : type}
+                      </Button>
+                    ))}
+                  </div>
+                  {otherSelected && (
+                    <Input
+                      placeholder="예: 12K, HALF (영문·숫자만)"
+                      value={customEventType}
+                      onChange={(e) =>
+                        setValue(
+                          "customEventType",
+                          sanitizeAsciiUpperCompEvtTypeInput(e.target.value),
+                          { shouldValidate: true },
+                        )
+                      }
+                    />
+                  )}
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground">종목을 먼저 선택해 주세요.</p>
               )}
-              {errors.selectedEventTypes && <p className="text-xs text-destructive">{errors.selectedEventTypes.message}</p>}
+              {errors.selectedEventTypes && (
+                <p className="text-xs text-destructive">{errors.selectedEventTypes.message}</p>
+              )}
             </div>
 
             <div className="flex flex-col gap-1.5">

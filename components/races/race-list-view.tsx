@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 import { getPastGigangCompetitions } from "@/app/actions/get-past-gigang-competitions";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
+import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
 import { CompetitionDetailDialog } from "./competition-detail-dialog";
 import { CompetitionRegisterDialog } from "./competition-register-dialog";
@@ -32,6 +33,7 @@ const SPORT_LABEL: Record<string, { label: string; className: string }> = {
 };
 
 export function RaceListView({
+  cmmCdRows,
   teamId,
   gigangCompetitions,
   allCompetitions,
@@ -39,6 +41,7 @@ export function RaceListView({
   initialRegistrationsByCompetitionId,
   initialRegCounts,
 }: {
+  cmmCdRows: CachedCmmCdRow[];
   teamId: string;
   gigangCompetitions: Competition[];
   allCompetitions: Competition[];
@@ -526,6 +529,7 @@ export function RaceListView({
       </Button>
 
       <CompetitionRegisterDialog
+        cmmCdRows={cmmCdRows}
         open={registerOpen}
         onOpenChange={setRegisterOpen}
         memberStatus={memberStatus}
