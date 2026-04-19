@@ -26,12 +26,6 @@ async function OnboardingContent({
     redirect(safeNext === "/onboarding" ? "/" : safeNext);
   }
 
-  const initialFullName =
-    user.user_metadata?.full_name ??
-    user.user_metadata?.name ??
-    user.user_metadata?.nickname ??
-    "";
-
   // OAuth 프로필 사진 URL 추출 (카카오: avatar_url/picture, 구글: picture/avatar_url)
   const initialAvatarUrl =
     user.user_metadata?.picture ??
@@ -45,7 +39,7 @@ async function OnboardingContent({
           userId={user.id}
           provider={user.app_metadata?.provider as "kakao" | "google"}
           email={user.email}
-          initialFullName={initialFullName}
+
           initialAvatarUrl={initialAvatarUrl}
           kakaoChatPassword={env.KAKAO_CHAT_PASSWORD ?? ""}
         />
