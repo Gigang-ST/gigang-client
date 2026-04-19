@@ -43,7 +43,6 @@ import { digitsOnly, formatPhone, isValidPhone } from "@/lib/phone-utils";
 type MemberOnboardingFormProps = {
   userId: string;
   provider: "kakao" | "google";
-  initialFullName?: string | null;
   email?: string | null;
   initialAvatarUrl?: string | null;
   kakaoChatPassword?: string;
@@ -65,7 +64,7 @@ const KAKAO_OPEN_CHAT_URL = "https://open.kakao.com/o/grnMFGng";
 export function MemberOnboardingForm({
   userId: _userId,
   provider,
-  initialFullName,
+
   email,
   initialAvatarUrl,
   kakaoChatPassword,
@@ -79,7 +78,7 @@ export function MemberOnboardingForm({
       : "/";
   const form = useForm<MemberOnboardingValues>({
     defaultValues: {
-      fullName: initialFullName ?? "",
+      fullName: "",
       gender: "",
       birthday: "",
       phone: "",
@@ -347,7 +346,19 @@ export function MemberOnboardingForm({
                     <FormField
                       control={form.control}
                       name="fullName"
-                      rules={{ required: "이름을 입력해 주세요." }}
+                      rules={{
+                        required: "이름을 입력해 주세요.",
+                        validate: (value) => {
+                          const trimmed = value.trim();
+                          if (!/^[가-힣]+$/.test(trimmed))
+                            return "한글 이름만 입력해 주세요";
+                          if (trimmed.length < 2)
+                            return "이름은 2자 이상 입력해 주세요";
+                          if (trimmed.length > 5)
+                            return "이름은 5자 이하로 입력해 주세요";
+                          return true;
+                        },
+                      }}
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>이름</FormLabel>
