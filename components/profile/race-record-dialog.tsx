@@ -78,6 +78,8 @@ export function RaceRecordDialog({
   const [searchResults, setSearchResults] = useState<Competition[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
+  /** 날짜 검색 목록에서 대회를 고를 때 선택한 달력일(race_dt). 비어 있으면 대회 시작일 사용 */
+  const [recordRaceDayFromCalendar, setRecordRaceDayFromCalendar] = useState("");
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const dialogContentRef = useRef<HTMLDivElement | null>(null);
 
@@ -129,6 +131,7 @@ export function RaceRecordDialog({
       setSearchQuery("");
       setSearchResults([]);
       setRegisterOpen(false);
+      setRecordRaceDayFromCalendar("");
       setSelectedEventType("");
       setCustomEventType("");
       setTotalTime("");
@@ -243,7 +246,15 @@ export function RaceRecordDialog({
   }, [compsForRaceDate, searchQuery]);
 
   // 대회 선택 — 참가한 대회면 참가 종목 고정으로 바로 step 3, 검색 대회는 step 2(종목 선택)
-  function handleSelectCompetition(comp: Competition) {
+  function handleSelectCompetition(
+    comp: Competition,
+    opts?: { useCalendarPickForRecordDate?: boolean },
+  ) {
+    const pickedDay =
+      opts?.useCalendarPickForRecordDate && raceDate.trim()
+        ? raceDate.trim()
+        : "";
+    setRecordRaceDayFromCalendar(pickedDay);
     setSelectedComp(comp);
     setRaceDate("");
     setCompsForRaceDate([]);
@@ -272,19 +283,22 @@ export function RaceRecordDialog({
     if (step === 3) {
       if (selectedComp?.registeredEventType) {
         setSelectedComp(null);
+        setRecordRaceDayFromCalendar("");
         setStep(1);
       } else {
         setStep(2);
       }
     } else if (step === 2) {
       setSelectedComp(null);
+      setRecordRaceDayFromCalendar("");
       setStep(1);
     }
   }
 
   // 대회 정보 (DB에서 선택한 대회만)
   const competitionTitle = selectedComp?.title ?? "";
-  const competitionDate = selectedComp?.start_date ?? "";
+  const competitionDate =
+    recordRaceDayFromCalendar.trim() || selectedComp?.start_date || "";
   const eventType =
     selectedEventType === EVENT_TYPE_OTHER
       ? sanitizeAsciiUpperCompEvtTypeInput(customEventType).trim()
@@ -452,27 +466,31 @@ export function RaceRecordDialog({
                 className="mb-2"
               />
 
+              {competitionRegisterMemberStatus && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="mb-2 w-full"
+                  onClick={() => setRegisterOpen(true)}
+                >
+                  대회 추가
+                </Button>
+              )}
+
               {raceDate.trim() ? (
                 <>
                   {dateListLoading && (
                     <p className="text-xs text-muted-foreground">목록 불러오는 중...</p>
                   )}
                   {!dateListLoading && compsForRaceDate.length === 0 && (
-                    <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
+                    <div className="rounded-lg border border-dashed border-border p-3">
                       <p className="text-xs text-muted-foreground">
-                        이 날짜에 해당하는 대회가 없습니다. 대회를 추가한 뒤 다시 선택해 주세요.
+                        이 날짜에 해당하는 대회가 없습니다.
+                        {competitionRegisterMemberStatus
+                          ? " 대회 추가로 등록한 뒤 다시 선택해 주세요."
+                          : ""}
                       </p>
-                      {competitionRegisterMemberStatus && (
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          className="w-full"
-                          onClick={() => setRegisterOpen(true)}
-                        >
-                          대회 추가
-                        </Button>
-                      )}
                     </div>
                   )}
                   {!dateListLoading &&
@@ -480,6 +498,9 @@ export function RaceRecordDialog({
                     filteredByDateAndName.length === 0 && (
                       <p className="text-xs text-muted-foreground">
                         이름과 일치하는 대회가 없습니다. 검색어를 바꿔 보세요.
+                        {competitionRegisterMemberStatus
+                          ? " 원하는 대회가 없으면 대회 추가를 이용해 주세요."
+                          : ""}
                       </p>
                     )}
                   {!dateListLoading && filteredByDateAndName.length > 0 && (
@@ -489,7 +510,11 @@ export function RaceRecordDialog({
                           key={comp.id}
                           type="button"
                           variant="ghost"
-                          onClick={() => handleSelectCompetition(comp)}
+                          onClick={() =>
+                            handleSelectCompetition(comp, {
+                              useCalendarPickForRecordDate: true,
+                            })
+                          }
                           className="h-auto w-full flex-col items-start gap-0.5 px-3 py-2 hover:bg-muted/50"
                         >
                           <p className="font-medium">{comp.title}</p>
@@ -507,21 +532,13 @@ export function RaceRecordDialog({
                     <p className="text-xs text-muted-foreground">검색 중...</p>
                   )}
                   {!searchLoading && searchQuery.trim() && searchResults.length === 0 && (
-                    <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
+                    <div className="rounded-lg border border-dashed border-border p-3">
                       <p className="text-xs text-muted-foreground">
                         검색 결과가 없습니다.
+                        {competitionRegisterMemberStatus
+                          ? " 대회 추가로 등록해 보세요."
+                          : ""}
                       </p>
-                      {competitionRegisterMemberStatus && (
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          className="w-full"
-                          onClick={() => setRegisterOpen(true)}
-                        >
-                          대회 추가
-                        </Button>
-                      )}
                     </div>
                   )}
                   {!searchLoading && searchResults.length > 0 && (
@@ -554,8 +571,7 @@ export function RaceRecordDialog({
             <div className="flex flex-col gap-3">
               <p className="text-sm font-medium">{selectedComp.title}</p>
               <p className="text-xs text-muted-foreground">
-                {selectedComp.start_date} &middot;{" "}
-                {selectedComp.location ?? "-"}
+                {competitionDate} &middot; {selectedComp.location ?? "-"}
               </p>
 
               {/* 종목 선택 */}
@@ -715,11 +731,17 @@ export function RaceRecordDialog({
           onCreated={() => {
             void (async () => {
               const d = raceDate.trim();
+              const q = searchQuery.trim();
               if (d) {
                 setDateListLoading(true);
                 const list = await listCompetitionsByRaceDate(d);
                 setCompsForRaceDate(list as Competition[]);
                 setDateListLoading(false);
+              } else if (q) {
+                setSearchLoading(true);
+                const list = await searchCompetitions(q);
+                setSearchResults(list as Competition[]);
+                setSearchLoading(false);
               }
               router.refresh();
             })();
