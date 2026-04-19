@@ -224,6 +224,12 @@ export function CrewProgressChart({ evtId, memId, month }: CrewProgressChartProp
     load();
   }, [load]);
 
+  useEffect(() => {
+    const handler = () => load();
+    window.addEventListener("mileage:refresh", handler);
+    return () => window.removeEventListener("mileage:refresh", handler);
+  }, [load]);
+
   if (loading) {
     return <Skeleton className="h-64 w-full rounded-2xl" />;
   }
