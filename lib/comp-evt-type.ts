@@ -3,6 +3,9 @@
  * DB `comp_evt_cfg.comp_evt_type` 은 대문자·ASCII 중심 문자열을 전제로 한다.
  */
 
+/** 기타(직접 입력) 칩/폼용 구분값 (DB에 저장하지 않음) */
+export const COMP_EVT_TYPE_OTHER = "__OTHER__";
+
 /** 종목 비교·중복 제거용 키 (대소문자·앞뒤 공백 무시) */
 export function normalizeCompEvtTypeKey(value: string): string {
   return value.trim().toUpperCase();

@@ -10,6 +10,7 @@ import { Avatar } from "@/components/common/avatar";
 import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
 import { RaceRecordSection } from "@/components/profile/race-record-section";
 import { PaceChart } from "@/components/profile/pace-chart";
+import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 
@@ -25,7 +26,7 @@ async function ProfileContent() {
     redirect("/onboarding?next=/profile");
   }
 
-  const [{ data: raceResults }, { data: utmbProfile }] = await Promise.all([
+  const [{ data: raceResults }, { data: utmbProfile }, cmmCdRows] = await Promise.all([
     supabase
       .from("rec_race_hist")
       .select("comp_evt_cfg(comp_evt_type), rec_time_sec, race_nm, race_dt")
@@ -39,6 +40,7 @@ async function ProfileContent() {
       .eq("vers", 0)
       .eq("del_yn", false)
       .maybeSingle(),
+    getCachedCmmCdRows(),
   ]);
 
   // Build best records map: for each event_type, pick the one with lowest record_time_sec
@@ -89,6 +91,7 @@ async function ProfileContent() {
         <RaceRecordSection
           memberId={member.id}
           teamId={teamId}
+          cmmCdRows={cmmCdRows}
           competitionRegisterMemberStatus={{
             status: "ready",
             userId: user.id,

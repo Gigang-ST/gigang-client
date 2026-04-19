@@ -7,14 +7,17 @@ import { SectionLabel } from "@/components/common/typography";
 import { RaceRecordDialog } from "./race-record-dialog";
 import { RaceHistoryDialog } from "./race-history-dialog";
 import type { MemberStatus } from "@/components/races/types";
+import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 
 export function RaceRecordSection({
   memberId,
   teamId,
+  cmmCdRows,
   competitionRegisterMemberStatus,
 }: {
   memberId: string;
   teamId: string;
+  cmmCdRows: CachedCmmCdRow[];
   competitionRegisterMemberStatus?: MemberStatus;
 }) {
   const [recordOpen, setRecordOpen] = useState(false);
@@ -49,6 +52,7 @@ export function RaceRecordSection({
       <RaceRecordDialog
         memberId={memberId}
         teamId={teamId}
+        cmmCdRows={cmmCdRows}
         open={recordOpen}
         onOpenChange={setRecordOpen}
         competitionRegisterMemberStatus={competitionRegisterMemberStatus}

@@ -14,15 +14,19 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { timeStringToSeconds, secondsToTime } from "@/lib/dayjs";
-import { buildEventTypeOptionList, sanitizeAsciiUpperCompEvtTypeInput } from "@/lib/comp-evt-type";
-import { resolveSportConfig } from "@/components/races/sport-config";
+import {
+  buildEventTypeOptionList,
+  COMP_EVT_TYPE_OTHER as EVENT_TYPE_OTHER,
+  sanitizeAsciiUpperCompEvtTypeInput,
+} from "@/lib/comp-evt-type";
+import {
+  eventTypeCodesForSprtFromCmmRows,
+  type CachedCmmCdRow,
+} from "@/lib/queries/cmm-cd-cached";
 import { listCompetitionsByRaceDate, searchCompetitions } from "@/app/actions/search-competitions";
 import { saveRaceRecord } from "@/app/actions/save-race-record";
 import { CompetitionRegisterDialog } from "@/components/races/competition-register-dialog";
 import type { MemberStatus } from "@/components/races/types";
-
-/** 기타(직접 입력) 선택 시 사용 */
-const EVENT_TYPE_OTHER = "__OTHER__";
 
 /* ---------- 타입 ---------- */
 
@@ -44,6 +48,7 @@ interface Competition {
 export function RaceRecordDialog({
   memberId,
   teamId,
+  cmmCdRows,
   open,
   onOpenChange,
   onSaved,
@@ -51,6 +56,8 @@ export function RaceRecordDialog({
 }: {
   memberId: string;
   teamId: string;
+  /** 대회 등록 팝업용 공통코드 캐시 행 */
+  cmmCdRows: CachedCmmCdRow[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
@@ -103,10 +110,13 @@ export function RaceRecordDialog({
   // 종목: comp_evt_cfg 기준 + 스포츠 기본값 중 아직 없는 것만 합침 + 기타(직접 입력, 영문·숫자만)
   const eventTypeOptions = useMemo(() => {
     if (!selectedComp) return [];
-    const sportDefaults = resolveSportConfig(selectedComp.sport).eventTypes;
+    const sportDefaults = eventTypeCodesForSprtFromCmmRows(
+      cmmCdRows,
+      selectedComp.sport || null,
+    );
     const list = buildEventTypeOptionList(selectedComp.event_types, sportDefaults);
     return [...list, EVENT_TYPE_OTHER];
-  }, [selectedComp?.id, selectedComp?.event_types, selectedComp?.sport]);
+  }, [cmmCdRows, selectedComp?.id, selectedComp?.event_types, selectedComp?.sport]);
 
   // 트랜지션 자동 계산
   const transitionSeconds = useMemo(() => {
@@ -382,7 +392,7 @@ export function RaceRecordDialog({
 
   return (
     <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange} modal={!registerOpen}>
       <DialogContent ref={dialogContentRef} className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>기록 입력</DialogTitle>
@@ -723,6 +733,7 @@ export function RaceRecordDialog({
 
       {competitionRegisterMemberStatus && (
         <CompetitionRegisterDialog
+          cmmCdRows={cmmCdRows}
           open={registerOpen}
           onOpenChange={setRegisterOpen}
           memberStatus={competitionRegisterMemberStatus}

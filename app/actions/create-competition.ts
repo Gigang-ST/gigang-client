@@ -3,6 +3,7 @@
 import { revalidateTag } from "next/cache";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getCachedCmmCdRows, isValidCompSprtCd } from "@/lib/queries/cmm-cd-cached";
 import { verifyAdmin } from "@/lib/queries/member";
 
 interface CreateCompetitionInput {
@@ -19,6 +20,11 @@ export async function createCompetition(input: CreateCompetitionInput) {
   const adminUser = await verifyAdmin();
   if (!adminUser) {
     return { ok: false, message: "권한이 없습니다" };
+  }
+
+  const cmmRows = await getCachedCmmCdRows();
+  if (!isValidCompSprtCd(cmmRows, input.sport.trim())) {
+    return { ok: false, message: "유효하지 않은 종목입니다." };
   }
 
   // 3. admin 클라이언트로 대회 INSERT (RLS 우회)
