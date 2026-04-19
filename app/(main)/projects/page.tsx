@@ -8,8 +8,8 @@ import { currentMonthKST, prevMonthStr } from "@/lib/dayjs";
 import { MileageIntro } from "@/components/projects/mileage-intro";
 import { MileageRulesButton } from "@/components/projects/mileage-rules-button";
 import { MonthNavigator } from "@/components/projects/month-navigator";
+import { CrewProgressChartServer } from "@/components/projects/crew-progress-chart-server";
 import { JoinSection } from "@/components/projects/join-section";
-import { CrewProgressChart } from "@/components/projects/crew-progress-chart";
 import { RandomReview } from "@/components/projects/random-review";
 import { CrewMonthlyStats } from "@/components/projects/crew-monthly-stats";
 import { MyStatus } from "@/components/projects/my-status";
@@ -23,9 +23,11 @@ export default async function ProjectsPage({
 }: {
   searchParams: Promise<{ month?: string }>;
 }) {
-  const { user, member, supabase } = await getCurrentMember();
+  const [{ user, member, supabase }, { teamId }] = await Promise.all([
+    getCurrentMember(),
+    getRequestTeamContext(),
+  ]);
   if (!user) redirect("/auth/login");
-  const { teamId } = await getRequestTeamContext();
 
   // ACTIVE 이벤트 조회 (1개)
   const { data: event } = await supabase
@@ -108,10 +110,12 @@ export default async function ProjectsPage({
 
         {/* 크루 진행현황 */}
         <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
-          <CrewProgressChart
+          <CrewProgressChartServer
             evtId={event.evt_id}
             memId={isParticipant ? member!.id : undefined}
             month={selectedMonth}
+            evtStartMonth={event.stt_dt}
+            evtEndMonth={event.end_dt}
           />
         </Suspense>
         <Suspense fallback={null}>
@@ -125,7 +129,7 @@ export default async function ProjectsPage({
         {isParticipant && member && (
           <>
             <Suspense fallback={<Skeleton className="h-40 w-full rounded-2xl" />}>
-              <MyStatus evtId={event.evt_id} memId={member.id} month={selectedMonth} />
+              <MyStatus evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
             </Suspense>
             <Suspense fallback={<Skeleton className="h-20 w-full rounded-2xl" />}>
               <RefundStatus
@@ -137,10 +141,10 @@ export default async function ProjectsPage({
               />
             </Suspense>
             <Suspense fallback={<Skeleton className="h-40 w-full rounded-2xl" />}>
-              <MySportChart evtId={event.evt_id} memId={member.id} month={selectedMonth} />
+              <MySportChart evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
             </Suspense>
             <Suspense fallback={<Skeleton className="h-48 w-full rounded-2xl" />}>
-              <MyActivityList evtId={event.evt_id} memId={member.id} month={selectedMonth} />
+              <MyActivityList evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
             </Suspense>
             <ActivityLogFab evtId={event.evt_id} memId={member.id} />
           </>
