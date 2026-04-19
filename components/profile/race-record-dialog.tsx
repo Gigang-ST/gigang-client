@@ -19,12 +19,14 @@ import {
   COMP_EVT_TYPE_OTHER as EVENT_TYPE_OTHER,
   sanitizeAsciiUpperCompEvtTypeInput,
 } from "@/lib/comp-evt-type";
-import { resolveSportConfig } from "@/components/races/sport-config";
+import {
+  eventTypeCodesForSprtFromCmmRows,
+  type CachedCmmCdRow,
+} from "@/lib/queries/cmm-cd-cached";
 import { listCompetitionsByRaceDate, searchCompetitions } from "@/app/actions/search-competitions";
 import { saveRaceRecord } from "@/app/actions/save-race-record";
 import { CompetitionRegisterDialog } from "@/components/races/competition-register-dialog";
 import type { MemberStatus } from "@/components/races/types";
-import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 
 /* ---------- 타입 ---------- */
 
@@ -108,10 +110,13 @@ export function RaceRecordDialog({
   // 종목: comp_evt_cfg 기준 + 스포츠 기본값 중 아직 없는 것만 합침 + 기타(직접 입력, 영문·숫자만)
   const eventTypeOptions = useMemo(() => {
     if (!selectedComp) return [];
-    const sportDefaults = resolveSportConfig(selectedComp.sport).eventTypes;
+    const sportDefaults = eventTypeCodesForSprtFromCmmRows(
+      cmmCdRows,
+      selectedComp.sport || null,
+    );
     const list = buildEventTypeOptionList(selectedComp.event_types, sportDefaults);
     return [...list, EVENT_TYPE_OTHER];
-  }, [selectedComp?.id, selectedComp?.event_types, selectedComp?.sport]);
+  }, [cmmCdRows, selectedComp?.id, selectedComp?.event_types, selectedComp?.sport]);
 
   // 트랜지션 자동 계산
   const transitionSeconds = useMemo(() => {
