@@ -136,7 +136,9 @@ export function CompetitionRegisterDialog({
         ...(prefillStartDate?.trim() ? { startDate: prefillStartDate.trim() } : {}),
       });
     }
-  }, [open, prefillStartDate, reset, sportOptions]);
+    // sportOptions는 열릴 때 기본 종목만 채우면 됨. 열려 있는 동안 cmmCdRows 참조 변경으로 reset이 재실행되면 입력 중 값이 날아갈 수 있음.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, prefillStartDate, reset]);
 
   const otherSelected = selectedEventTypes.includes(COMP_EVT_TYPE_OTHER);
 
