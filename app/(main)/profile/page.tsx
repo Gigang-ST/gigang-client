@@ -86,7 +86,18 @@ async function ProfileContent() {
         <PaceChart records={(raceResults ?? []).map((r) => ({ event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type?.toUpperCase() ?? "", record_time_sec: r.rec_time_sec, race_name: r.race_nm, race_date: r.race_dt }))} />
 
         {/* 기록 입력 */}
-        <RaceRecordSection memberId={member.id} teamId={teamId} />
+        <RaceRecordSection
+          memberId={member.id}
+          teamId={teamId}
+          competitionRegisterMemberStatus={{
+            status: "ready",
+            userId: user.id,
+            memberId: member.id,
+            fullName: member.full_name,
+            email: user.email ?? null,
+            admin: member.admin,
+          }}
+        />
       </div>
   );
 }

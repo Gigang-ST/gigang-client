@@ -6,13 +6,16 @@ import { CardItem } from "@/components/ui/card";
 import { SectionLabel } from "@/components/common/typography";
 import { RaceRecordDialog } from "./race-record-dialog";
 import { RaceHistoryDialog } from "./race-history-dialog";
+import type { MemberStatus } from "@/components/races/types";
 
 export function RaceRecordSection({
   memberId,
   teamId,
+  competitionRegisterMemberStatus,
 }: {
   memberId: string;
   teamId: string;
+  competitionRegisterMemberStatus?: MemberStatus;
 }) {
   const [recordOpen, setRecordOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -48,6 +51,7 @@ export function RaceRecordSection({
         teamId={teamId}
         open={recordOpen}
         onOpenChange={setRecordOpen}
+        competitionRegisterMemberStatus={competitionRegisterMemberStatus}
         onSaved={() => {
           setRecordOpen(false);
           router.refresh();
