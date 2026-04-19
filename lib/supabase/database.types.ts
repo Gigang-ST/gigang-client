@@ -1326,6 +1326,13 @@ export type Database = {
           stt_dt: string
         }[]
       }
+      get_public_team_comp_reg_display_counts: {
+        Args: { p_comp_id: string; p_team_id: string }
+        Returns: {
+          cnt: number
+          display_key: string
+        }[]
+      }
       get_public_team_member_stats: {
         Args: { p_team_id: string }
         Returns: {

@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getPublicTeamCompRegDisplayCounts } from "@/app/actions/get-public-team-comp-reg-display-counts";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
 import { updateCompetition } from "@/app/actions/admin/manage-competition";
 import {
@@ -110,6 +111,10 @@ export function CompetitionDetailDialog({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [participants, setParticipants] = useState<RegistrationWithMember[]>([]);
+  /** 비회원 등: RLS 우회 RPC로 표시 키별 인원만 (이름 없음) */
+  const [publicDisplayCounts, setPublicDisplayCounts] = useState<
+    { display_key: string; cnt: number }[]
+  >([]);
 
   // 관리자 수정 모드
   const isAdmin = memberStatus.status === "ready" && memberStatus.admin;
@@ -124,7 +129,7 @@ export function CompetitionDetailDialog({
 
   // 참가자 목록 로드
   const loadParticipants = useCallback(async (competitionId: string) => {
-    const { data: plan } = await supabase
+    const { data: plan, error: planErr } = await supabase
       .from("team_comp_plan_rel")
       .select("team_comp_id")
       .eq("comp_id", competitionId)
@@ -132,17 +137,29 @@ export function CompetitionDetailDialog({
       .eq("vers", 0)
       .eq("del_yn", false)
       .maybeSingle();
+    if (planErr) {
+      console.error("team_comp_plan_rel 조회 실패:", planErr);
+      setParticipants([]);
+      return;
+    }
     if (!plan) {
       setParticipants([]);
       return;
     }
-    const { data } = await supabase
+    const { data, error: regErr } = await supabase
       .from("comp_reg_rel")
-      .select("prt_role_cd, crt_at, comp_evt_cfg(comp_evt_type), mem_mst!comp_reg_rel_mem_id_fkey(mem_nm)")
+      .select(
+        "prt_role_cd, crt_at, comp_evt_cfg(comp_evt_type), mem_mst!fk_comp_reg_rel__mem_mst(mem_nm)",
+      )
       .eq("team_comp_id", plan.team_comp_id)
       .eq("vers", 0)
       .eq("del_yn", false)
       .order("crt_at", { ascending: true });
+    if (regErr) {
+      console.error("comp_reg_rel 참가자 조회 실패:", regErr);
+      setParticipants([]);
+      return;
+    }
     const mapped = (data ?? []).map((r) => {
       const row = r as unknown as {
         prt_role_cd: string;
@@ -166,6 +183,27 @@ export function CompetitionDetailDialog({
     if (!competition || !open) return;
     loadParticipants(competition.id);
   }, [competition?.id, open, loadParticipants]);
+
+  useEffect(() => {
+    if (!competition || !open) {
+      setPublicDisplayCounts([]);
+      return;
+    }
+    if (memberStatus.status === "ready") {
+      setPublicDisplayCounts([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const res = await getPublicTeamCompRegDisplayCounts(teamId, competition.id);
+      if (cancelled) return;
+      if (res.ok) setPublicDisplayCounts(res.rows);
+      else setPublicDisplayCounts([]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [competition?.id, open, memberStatus.status, teamId]);
 
   // comp_evt_cfg 종목 + 스포츠 기본값 중 아직 없는 것만 (맨 아래 기타는 SelectItem 별도)
   const eventTypeOptions = useMemo(() => {
@@ -436,20 +474,22 @@ export function CompetitionDetailDialog({
           </Button>
         )}
 
-        {/* 참가자 목록 */}
-        {participants.length > 0 && (() => {
-          // 종목별 난이도 순서 (역순: 힘든 것부터)
+        {/* 참가 현황: 회원은 상세 행·이름, 비회원·온보딩 전 등은 RPC 집계만(이름 없음) */}
+        {(() => {
+          if (!competition) return null;
+
           const sportEvents = eventTypeCodesForSprtFromCmmRows(
             cmmCdRows,
             competition.sport,
           );
           const hardestFirst = [...sportEvents].reverse();
 
-          // 참가자의 표시 키 결정
           const getDisplayKey = (p: RegistrationWithMember) =>
-            p.event_type ?? (p.role === "participant" ? "미정" : roleLabels[p.role as keyof typeof roleLabels] ?? p.role);
+            p.event_type ??
+            (p.role === "participant"
+              ? "미정"
+              : roleLabels[p.role as keyof typeof roleLabels] ?? p.role);
 
-          // 정렬 우선순위: 힘든 코스 → 미정 → 응원/봉사
           const sortOrder = (key: string) => {
             const idx = hardestFirst.indexOf(key);
             if (idx !== -1) return idx;
@@ -459,21 +499,36 @@ export function CompetitionDetailDialog({
             return hardestFirst.length + 3;
           };
 
-          // 코스별 인원 집계 + 정렬
-          const eventCounts = new Map<string, number>();
-          participants.forEach(p => {
-            const key = getDisplayKey(p);
-            eventCounts.set(key, (eventCounts.get(key) ?? 0) + 1);
-          });
-          const sortedCounts = Array.from(eventCounts.entries())
-            .sort((a, b) => sortOrder(a[0]) - sortOrder(b[0]));
+          const publicTotal = publicDisplayCounts.reduce((s, r) => s + r.cnt, 0);
+          const hasMemberRows = participants.length > 0;
+          const showPublicOnly = !hasMemberRows && publicTotal > 0;
+          if (!hasMemberRows && !showPublicOnly) return null;
 
-          // 참가자를 코스별 그룹 + 선착순 정렬
-          const sortedParticipants = [...participants].sort((a, b) => {
-            const orderDiff = sortOrder(getDisplayKey(a)) - sortOrder(getDisplayKey(b));
-            if (orderDiff !== 0) return orderDiff;
-            return a.created_at.localeCompare(b.created_at);
-          });
+          let sortedCounts: [string, number][] = [];
+          let sortedParticipants: RegistrationWithMember[] = [];
+
+          if (hasMemberRows) {
+            const eventCounts = new Map<string, number>();
+            participants.forEach((p) => {
+              const key = getDisplayKey(p);
+              eventCounts.set(key, (eventCounts.get(key) ?? 0) + 1);
+            });
+            sortedCounts = Array.from(eventCounts.entries()).sort(
+              (a, b) => sortOrder(a[0]) - sortOrder(b[0]),
+            );
+            sortedParticipants = [...participants].sort((a, b) => {
+              const orderDiff = sortOrder(getDisplayKey(a)) - sortOrder(getDisplayKey(b));
+              if (orderDiff !== 0) return orderDiff;
+              return a.created_at.localeCompare(b.created_at);
+            });
+          } else {
+            sortedCounts = [...publicDisplayCounts]
+              .map((r) => [r.display_key, r.cnt] as [string, number])
+              .sort((a, b) => sortOrder(a[0]) - sortOrder(b[0]));
+          }
+
+          const totalPeople = hasMemberRows ? participants.length : publicTotal;
+          const showNameRows = memberStatus.status === "ready" && hasMemberRows;
 
           return (
             <>
@@ -481,9 +536,8 @@ export function CompetitionDetailDialog({
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                   <Users className="size-4" />
-                  참가 현황 ({participants.length}명)
+                  참가 현황 ({totalPeople}명)
                 </div>
-                {/* 코스별 인원 (힘든 순) */}
                 <div className="flex flex-wrap gap-1.5">
                   {sortedCounts.map(([event, count]) => (
                     <span
@@ -494,20 +548,21 @@ export function CompetitionDetailDialog({
                     </span>
                   ))}
                 </div>
-                {/* 참가자 이름 목록 (코스별 그룹 + 선착순) */}
-                <div className="flex flex-col gap-1.5 text-xs">
-                  {sortedCounts.map(([event]) => {
-                    const group = sortedParticipants.filter(p => getDisplayKey(p) === event);
-                    return (
-                      <div key={event} className="flex items-baseline gap-2">
-                        <span className="shrink-0 font-semibold text-foreground">{event}</span>
-                        <span className="text-muted-foreground">
-                          {group.map(p => p.member?.mem_nm ?? "이름 없음").join(", ")}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
+                {showNameRows && (
+                  <div className="flex flex-col gap-1.5 text-xs">
+                    {sortedCounts.map(([event]) => {
+                      const group = sortedParticipants.filter((p) => getDisplayKey(p) === event);
+                      return (
+                        <div key={event} className="flex items-baseline gap-2">
+                          <span className="shrink-0 font-semibold text-foreground">{event}</span>
+                          <span className="text-muted-foreground">
+                            {group.map((p) => p.member?.mem_nm ?? "이름 없음").join(", ")}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </>
           );
