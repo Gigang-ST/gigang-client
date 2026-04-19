@@ -144,12 +144,12 @@ export async function CrewMonthlyStats({ evtId, month, evtStartMonth, evtEndMont
         label="총 마일리지"
       />
       <StatCard
-        value={`${avgMileage.toFixed(1)} km`}
-        label="평균 마일리지"
-      />
-      <StatCard
         value={`₩${Math.floor(partyPool).toLocaleString()}`}
         label="총 회식비 풀"
+      />
+      <StatCard
+        value={`${avgMileage.toFixed(1)} km`}
+        label="평균 마일리지"
       />
     </div>
   );
