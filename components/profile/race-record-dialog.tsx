@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,7 +63,6 @@ export function RaceRecordDialog({
   /** 대회 등록 다이얼로그용. 없으면 「대회 추가」는 표시하지 않는다. */
   competitionRegisterMemberStatus?: MemberStatus;
 }) {
-  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
   // 단계 관리
@@ -739,24 +737,7 @@ export function RaceRecordDialog({
           memberStatus={competitionRegisterMemberStatus}
           stackElevated
           prefillStartDate={raceDate.trim() || undefined}
-          onCreated={() => {
-            void (async () => {
-              const d = raceDate.trim();
-              const q = searchQuery.trim();
-              if (d) {
-                setDateListLoading(true);
-                const list = await listCompetitionsByRaceDate(d);
-                setCompsForRaceDate(list as Competition[]);
-                setDateListLoading(false);
-              } else if (q) {
-                setSearchLoading(true);
-                const list = await searchCompetitions(q);
-                setSearchResults(list as Competition[]);
-                setSearchLoading(false);
-              }
-              router.refresh();
-            })();
-          }}
+          onCreated={() => {}}
         />
       )}
     </>
