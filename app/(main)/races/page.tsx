@@ -7,6 +7,7 @@ import { Suspense } from "react";
 import { RaceListView } from "@/components/races/race-list-view";
 import type { Competition } from "@/components/races/types";
 import { env } from "@/lib/env";
+import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -85,13 +86,15 @@ async function fetchTeamCompetitionsForTeam(teamId: string) {
 
 async function RacesContent() {
   const { teamId } = await getRequestTeamContext();
-  const [{ competitions }, gigangData] = await Promise.all([
+  const [{ competitions }, gigangData, cmmCdRows] = await Promise.all([
     getUpcomingCompetitions(),
     fetchTeamCompetitionsForTeam(teamId),
+    getCachedCmmCdRows(),
   ]);
 
   return (
     <RaceListView
+      cmmCdRows={cmmCdRows}
       teamId={teamId}
       allCompetitions={competitions}
       gigangCompetitions={gigangData.competitions}
