@@ -266,8 +266,8 @@ export function RecordsClient({ evtId, memId, evtStartDt, evtEndDt }: Props) {
 
       {/* 수정 Sheet */}
       <Sheet open={editTarget !== null} onOpenChange={(open) => !open && setEditTarget(null)}>
-        <SheetContent side="bottom" className="max-h-[90svh] overflow-y-auto rounded-t-2xl">
-          <SheetHeader>
+        <SheetContent side="bottom" className="max-h-[90svh] overflow-y-auto rounded-t-2xl px-6" showCloseButton={false}>
+          <SheetHeader className="px-0 pt-4 pb-0">
             <SheetTitle>기록 수정</SheetTitle>
           </SheetHeader>
           {editTarget && (
