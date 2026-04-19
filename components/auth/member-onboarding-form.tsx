@@ -43,7 +43,6 @@ import { digitsOnly, formatPhone, isValidPhone } from "@/lib/phone-utils";
 type MemberOnboardingFormProps = {
   userId: string;
   provider: "kakao" | "google";
-  initialFullName?: string | null;
   email?: string | null;
   initialAvatarUrl?: string | null;
   kakaoChatPassword?: string;
@@ -65,7 +64,7 @@ const KAKAO_OPEN_CHAT_URL = "https://open.kakao.com/o/grnMFGng";
 export function MemberOnboardingForm({
   userId: _userId,
   provider,
-  initialFullName,
+
   email,
   initialAvatarUrl,
   kakaoChatPassword,
@@ -79,7 +78,7 @@ export function MemberOnboardingForm({
       : "/";
   const form = useForm<MemberOnboardingValues>({
     defaultValues: {
-      fullName: initialFullName ?? "",
+      fullName: "",
       gender: "",
       birthday: "",
       phone: "",
