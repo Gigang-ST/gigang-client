@@ -1,14 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useQueryState, parseAsStringLiteral, parseAsString } from "nuqs";
-import { createClient } from "@/lib/supabase/client";
-import { createCompetition } from "@/app/actions/create-competition";
-import {
-  deleteCompetition,
-  updateCompetition,
-  deleteRegistration,
-} from "@/app/actions/admin/manage-competition";
+import { useEffect, useState, useCallback, useMemo } from "react";
+
 import {
   Plus,
   Search,
@@ -20,11 +13,30 @@ import {
   X,
   Trophy,
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { useQueryState, parseAsStringLiteral, parseAsString } from "nuqs";
+
+import { sprtCdChipClassName } from "@/lib/comp-sprt-chip-class";
+import {
+  cmmCdRowsForGrp,
+  eventTypeCodesForSprtFromCmmRows,
+  sprtCdDisplayName,
+  type CachedCmmCdRow,
+} from "@/lib/queries/cmm-cd-cached";
+import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
+
+import {
+  deleteCompetition,
+  updateCompetition,
+  deleteRegistration,
+} from "@/app/actions/admin/manage-competition";
+import { createCompetition } from "@/app/actions/create-competition";
+
 import { H2 } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { CardItem } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -32,9 +44,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
-import { CardItem } from "@/components/ui/card";
-import { resolveSportConfig, SPORT_LEGEND } from "@/components/races/sport-config";
+import { Skeleton } from "@/components/ui/skeleton";
+
 
 type Competition = {
   id: string;
@@ -62,7 +73,6 @@ type Registration = {
 };
 
 type Filter = "upcoming" | "past" | "all";
-const SPORT_OPTIONS = SPORT_LEGEND.filter((s) => s.key !== "other");
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: "upcoming", label: "다가오는" },
@@ -72,11 +82,29 @@ const FILTERS: { value: Filter; label: string }[] = [
 
 const modes = ["list", "create", "edit", "detail"] as const;
 
-export function AdminCompetitionsClient({ teamId }: { teamId: string }) {
-  return <CompetitionsContent teamId={teamId} />;
+export function AdminCompetitionsClient({
+  teamId,
+  cmmCdRows,
+}: {
+  teamId: string;
+  cmmCdRows: CachedCmmCdRow[];
+}) {
+  return <CompetitionsContent teamId={teamId} cmmCdRows={cmmCdRows} />;
 }
 
-function CompetitionsContent({ teamId }: { teamId: string }) {
+function CompetitionsContent({
+  teamId,
+  cmmCdRows,
+}: {
+  teamId: string;
+  cmmCdRows: CachedCmmCdRow[];
+}) {
+  const sportSelectOptions = useMemo(
+    () => cmmCdRowsForGrp(cmmCdRows, "COMP_SPRT_CD"),
+    [cmmCdRows],
+  );
+  const defaultSportCd = sportSelectOptions[0]?.cd ?? "road_run";
+
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("upcoming");
@@ -97,7 +125,7 @@ function CompetitionsContent({ teamId }: { teamId: string }) {
   // 폼 상태
   const [form, setForm] = useState({
     title: "",
-    sport: "road_run",
+    sport: defaultSportCd,
     startDate: "",
     endDate: "",
     location: "",
@@ -249,7 +277,7 @@ function CompetitionsContent({ teamId }: { teamId: string }) {
     setSelectedId(comp.id);
     setForm({
       title: comp.title,
-      sport: comp.sport ?? "road_run",
+      sport: comp.sport ?? defaultSportCd,
       startDate: comp.start_date,
       endDate: comp.end_date ?? "",
       location: comp.location ?? "",
@@ -263,7 +291,7 @@ function CompetitionsContent({ teamId }: { teamId: string }) {
     setSelectedId("");
     setForm({
       title: "",
-      sport: "road_run",
+      sport: sportSelectOptions[0]?.cd ?? "road_run",
       startDate: "",
       endDate: "",
       location: "",
@@ -273,7 +301,7 @@ function CompetitionsContent({ teamId }: { teamId: string }) {
     setMode("create");
   };
 
-  const currentSportConfig = resolveSportConfig(form.sport);
+  const formEventTypeCodes = eventTypeCodesForSprtFromCmmRows(cmmCdRows, form.sport);
 
   const toggleEventType = (et: string) => {
     setForm((prev) => ({
@@ -403,9 +431,9 @@ function CompetitionsContent({ teamId }: { teamId: string }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {SPORT_OPTIONS.map((s) => (
-                <SelectItem key={s.key} value={s.key}>
-                  {s.label}
+              {sportSelectOptions.map((s) => (
+                <SelectItem key={s.cd} value={s.cd}>
+                  {s.cd_nm}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -457,7 +485,7 @@ function CompetitionsContent({ teamId }: { teamId: string }) {
             세부종목
           </label>
           <div className="flex flex-wrap gap-2">
-            {currentSportConfig.eventTypes.map((et) => (
+            {formEventTypeCodes.map((et) => (
               <Button
                 key={et}
                 variant="outline"
@@ -507,7 +535,8 @@ function CompetitionsContent({ teamId }: { teamId: string }) {
 
   // 대회 상세 (참가자 포함)
   if (mode === "detail" && selected) {
-    const sportConfig = resolveSportConfig(selected.sport);
+    const sportChipClass = sprtCdChipClassName(selected.sport);
+    const sportLabel = sprtCdDisplayName(cmmCdRows, selected.sport);
     const roleLabels: Record<string, string> = {
       participant: "참가",
       cheering: "응원",
@@ -531,8 +560,8 @@ function CompetitionsContent({ teamId }: { teamId: string }) {
         {/* 대회 정보 카드 */}
         <CardItem className="flex flex-col gap-3 p-5">
           <div className="flex items-center gap-2">
-            <Badge className={cn("text-[11px]", sportConfig.chipClass)}>
-              {sportConfig.label}
+            <Badge className={cn("text-[11px]", sportChipClass)}>
+              {sportLabel}
             </Badge>
             {selected.event_types?.map((et) => (
               <Badge key={et} variant="outline" className="text-[11px]">
@@ -683,7 +712,8 @@ function CompetitionsContent({ teamId }: { teamId: string }) {
       {/* 대회 목록 */}
       <div className="flex flex-col gap-3">
         {filtered.map((comp) => {
-          const sportConfig = resolveSportConfig(comp.sport);
+          const sportChipClass = sprtCdChipClassName(comp.sport);
+          const sportLabel = sprtCdDisplayName(cmmCdRows, comp.sport);
           return (
             <CardItem asChild key={comp.id} className="flex flex-col gap-2.5">
               <button
@@ -694,10 +724,10 @@ function CompetitionsContent({ teamId }: { teamId: string }) {
                 <Badge
                   className={cn(
                     "border-transparent text-[11px]",
-                    sportConfig.chipClass,
+                    sportChipClass,
                   )}
                 >
-                  {sportConfig.label}
+                  {sportLabel}
                 </Badge>
                 {comp.start_date < today && (
                   <Badge variant="secondary" className="text-[11px]">
