@@ -3,6 +3,7 @@
 import { revalidateTag } from "next/cache";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getCachedCmmCdRows, isValidCompSprtCd } from "@/lib/queries/cmm-cd-cached";
 import { verifyAdmin } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 
@@ -73,12 +74,17 @@ export async function updateCompetition(
   const admin = await verifyAdmin();
   if (!admin) return { ok: false, message: "권한이 없습니다" };
 
+  const cmmRows = await getCachedCmmCdRows();
+  if (!isValidCompSprtCd(cmmRows, input.sport.trim())) {
+    return { ok: false, message: "유효하지 않은 종목입니다." };
+  }
+
   const db = createAdminClient();
   const { error: compErr } = await db
     .from("comp_mst")
     .update({
       comp_nm: input.title.trim(),
-      comp_sprt_cd: input.sport,
+      comp_sprt_cd: input.sport.trim(),
       stt_dt: input.startDate,
       end_dt: input.endDate || null,
       loc_nm: input.location.trim() || null,

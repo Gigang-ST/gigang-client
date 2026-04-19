@@ -11,6 +11,7 @@ import { formatDDay } from "@/lib/dayjs";
 import { CardItem } from "@/components/ui/card";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
 import { SectionLabel } from "@/components/common/typography";
+import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
 
 type UpcomingRace = {
@@ -27,6 +28,7 @@ type UpcomingRace = {
 
 type UpcomingRacesProps = {
   teamId: string;
+  cmmCdRows: CachedCmmCdRow[];
   races: UpcomingRace[];
   initialMemberStatus: MemberStatus;
   initialRegistrationsByCompetitionId: Record<string, CompetitionRegistration>;
@@ -34,6 +36,7 @@ type UpcomingRacesProps = {
 
 export function UpcomingRaces({
   teamId,
+  cmmCdRows,
   races,
   initialMemberStatus,
   initialRegistrationsByCompetitionId,
@@ -203,6 +206,7 @@ export function UpcomingRaces({
       )}
 
       <CompetitionDetailDialog
+        cmmCdRows={cmmCdRows}
         teamId={teamId}
         competition={selectedCompetition}
         registration={selectedCompetition ? registrationsByCompetitionId[selectedCompetition.id] : undefined}

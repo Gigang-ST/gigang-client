@@ -507,6 +507,7 @@ export function RaceListView({
       )}
 
       <CompetitionDetailDialog
+        cmmCdRows={cmmCdRows}
         teamId={teamId}
         competition={selectedCompetition}
         registration={selectedCompetition ? registrationsByCompetitionId[selectedCompetition.id] : undefined}

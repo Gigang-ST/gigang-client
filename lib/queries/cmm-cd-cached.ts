@@ -110,3 +110,13 @@ export function eventTypeCodesForSprtFromCmmRows(
   if (!grp) return [];
   return cmmCdRowsForGrp(rows, grp).map(({ cd }) => normalizeCompEvtTypeKey(cd));
 }
+
+/** COMP_SPRT_CD 표시명 (캐시에 없으면 코드 그대로) */
+export function sprtCdDisplayName(
+  rows: readonly CachedCmmCdRow[],
+  sprtCd: string | null | undefined,
+): string {
+  if (!sprtCd) return "";
+  const row = cmmCdRowsForGrp(rows, "COMP_SPRT_CD").find((r) => r.cd === sprtCd);
+  return row?.cd_nm ?? sprtCd;
+}

@@ -35,14 +35,17 @@ import {
 } from "@/lib/validations/competition";
 import {
   buildEventTypeOptionList,
+  COMP_EVT_TYPE_OTHER as EVENT_TYPE_OTHER,
   sanitizeAsciiUpperCompEvtTypeInput,
 } from "@/lib/comp-evt-type";
 import { formatDateRange } from "@/lib/dayjs";
-import { resolveSportConfig, SPORT_LEGEND } from "./sport-config";
+import {
+  cmmCdRowsForGrp,
+  eventTypeCodesForSprtFromCmmRows,
+  sprtCdDisplayName,
+  type CachedCmmCdRow,
+} from "@/lib/queries/cmm-cd-cached";
 import type { Competition, CompetitionRegistration, MemberStatus } from "./types";
-
-/** 기타(직접 입력) 선택 시 사용하는 셀렉트 값 */
-const EVENT_TYPE_OTHER = "__OTHER__";
 
 const roleLabels = {
   participant: "참가",
@@ -57,9 +60,8 @@ type RegistrationWithMember = {
   member: { mem_nm: string | null };
 };
 
-const SPORT_OPTIONS = SPORT_LEGEND.filter(s => s.key !== "other");
-
 interface CompetitionDetailDialogProps {
+  cmmCdRows: CachedCmmCdRow[];
   teamId: string;
   competition: Competition | null;
   registration?: CompetitionRegistration;
@@ -83,6 +85,7 @@ interface CompetitionDetailDialogProps {
 }
 
 export function CompetitionDetailDialog({
+  cmmCdRows,
   teamId,
   competition,
   registration,
@@ -94,6 +97,11 @@ export function CompetitionDetailDialog({
   onDelete,
   onCompetitionUpdated,
 }: CompetitionDetailDialogProps) {
+  const sportSprtOptions = useMemo(
+    () => cmmCdRowsForGrp(cmmCdRows, "COMP_SPRT_CD"),
+    [cmmCdRows],
+  );
+
   const [role, setRole] = useState<"participant" | "cheering" | "volunteer">(
     "participant",
   );
@@ -162,9 +170,12 @@ export function CompetitionDetailDialog({
   // comp_evt_cfg 종목 + 스포츠 기본값 중 아직 없는 것만 (맨 아래 기타는 SelectItem 별도)
   const eventTypeOptions = useMemo(() => {
     const explicit = competition?.event_types ?? [];
-    const sportDefaults = resolveSportConfig(competition?.sport ?? null).eventTypes;
+    const sportDefaults = eventTypeCodesForSprtFromCmmRows(
+      cmmCdRows,
+      competition?.sport ?? null,
+    );
     return buildEventTypeOptionList(explicit, sportDefaults);
-  }, [competition?.event_types, competition?.sport]);
+  }, [cmmCdRows, competition?.event_types, competition?.sport]);
 
   useEffect(() => {
     if (!competition || !open) return;
@@ -211,9 +222,9 @@ export function CompetitionDetailDialog({
     () =>
       buildEventTypeOptionList(
         competition?.event_types ?? [],
-        resolveSportConfig(editSport || null).eventTypes,
+        eventTypeCodesForSprtFromCmmRows(cmmCdRows, editSport || null),
       ),
-    [competition?.event_types, editSport],
+    [cmmCdRows, competition?.event_types, editSport],
   );
 
   async function handleEditSave(data: CompetitionEditValues) {
@@ -298,7 +309,11 @@ export function CompetitionDetailDialog({
             대회 상세 정보 및 참가 신청
           </DialogDescription>
           <div className="flex flex-wrap gap-2 pt-1">
-            {competition.sport && <Badge variant="secondary">{resolveSportConfig(competition.sport).label}</Badge>}
+            {competition.sport && (
+              <Badge variant="secondary">
+                {sprtCdDisplayName(cmmCdRows, competition.sport)}
+              </Badge>
+            )}
             {competition.event_types?.slice(0, 3).map((type) => (
               <Badge key={type} variant="outline">
                 {type.toUpperCase()}
@@ -321,8 +336,10 @@ export function CompetitionDetailDialog({
               <Select value={editSport} onValueChange={(v) => { editForm.setValue("sport", v); editForm.setValue("eventTypes", []); }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {SPORT_OPTIONS.map(s => (
-                    <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>
+                  {sportSprtOptions.map((s) => (
+                    <SelectItem key={s.cd} value={s.cd}>
+                      {s.cd_nm}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -422,7 +439,10 @@ export function CompetitionDetailDialog({
         {/* 참가자 목록 */}
         {participants.length > 0 && (() => {
           // 종목별 난이도 순서 (역순: 힘든 것부터)
-          const sportEvents = resolveSportConfig(competition.sport).eventTypes;
+          const sportEvents = eventTypeCodesForSprtFromCmmRows(
+            cmmCdRows,
+            competition.sport,
+          );
           const hardestFirst = [...sportEvents].reverse();
 
           // 참가자의 표시 키 결정

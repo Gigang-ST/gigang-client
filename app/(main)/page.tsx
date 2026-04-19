@@ -7,6 +7,7 @@ import Link from "next/link";
 import { SocialLinksGrid } from "@/components/social-links";
 import { UpcomingRaces } from "@/components/home/upcoming-races";
 import type { CompetitionRegistration, MemberStatus } from "@/components/races/types";
+import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
 import { env } from "@/lib/env";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -52,6 +53,7 @@ async function HomeContent() {
     { data: teamComps },
     { count: upcomingCount },
     { data: recentRecordsRaw },
+    cmmCdRows,
   ] = await Promise.all([
     admin.rpc("get_public_team_member_stats", { p_team_id: teamId }),
     supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: today }),
@@ -62,6 +64,7 @@ async function HomeContent() {
       .eq("del_yn", false)
       .gte("stt_dt", today),
     supabase.rpc("get_public_team_recent_records", { p_team_id: teamId, p_limit: 2 }),
+    getCachedCmmCdRows(),
   ]);
 
   const memberCount = memberStats?.[0]?.active_count ?? 0;
@@ -247,6 +250,7 @@ async function HomeContent() {
         {/* Upcoming Races */}
         <UpcomingRaces
           teamId={teamId}
+          cmmCdRows={cmmCdRows}
           races={upcomingCards}
           initialMemberStatus={initialMemberStatus}
           initialRegistrationsByCompetitionId={initialRegistrationsByCompetitionId}
