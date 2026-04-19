@@ -41,9 +41,10 @@ export function ActivityLogFab({ evtId, memId }: ActivityLogFabProps) {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
           side="bottom"
-          className="max-h-[90svh] overflow-y-auto rounded-t-2xl"
+          className="max-h-[90svh] overflow-y-auto rounded-t-2xl px-6"
+          showCloseButton={false}
         >
-          <SheetHeader className="mb-4">
+          <SheetHeader className="px-0 pt-4 pb-0">
             <SheetTitle>기록 입력</SheetTitle>
           </SheetHeader>
           <ActivityLogForm

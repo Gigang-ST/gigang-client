@@ -18,59 +18,62 @@ import { SegmentControl } from "@/components/common/segment-control";
 import { Body } from "@/components/common/typography";
 import { Skeleton } from "@/components/ui/skeleton";
 
-type DailyPoint = { day: number; [key: string]: number };
+export type DailyPoint = Record<string, number | string> & { day: number };
+
+export type ChartInitialData = {
+  mileageData: DailyPoint[];
+  percentData: DailyPoint[];
+  members: { id: string; name: string }[];
+  myGoalKm: number;
+  myName: string | null;
+  totalDays: number;
+};
 
 const CHART_COLORS = [
-  "hsl(var(--sport-road-run))",
-  "hsl(var(--sport-trail-run))",
-  "hsl(var(--sport-cycling))",
-  "hsl(var(--sport-triathlon))",
-  "hsl(var(--sport-ultra))",
-  "#6366f1",
-  "#ec4899",
-  "#14b8a6",
-  "#f97316",
-  "#06b6d4",
+  "var(--sport-road-run)",
+  "var(--sport-ultra)",
+  "var(--sport-trail-run)",
+  "var(--sport-triathlon)",
+  "var(--sport-cycling)",
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
 ];
 
-// recharts NameType = string | number
 type ChartTooltipProps = TooltipContentProps<TooltipValueType, string | number> & {
   myName: string | null;
   mode: "mileage" | "percent";
 };
 
-/** Tooltip 인라인 컴포넌트 방지 — 컴포넌트 외부에서 정의 (rerender-no-inline-components) */
+/** recharts NameType = string | number — Tooltip 인라인 컴포넌트 방지 */
 function ChartTooltip({ active, payload, label, myName, mode }: ChartTooltipProps) {
   if (!active || !payload?.length) return null;
-  // readonly 배열을 mutable로 복사 후 정렬
-  const sorted = [...payload].sort((a, b) => Number(b.value ?? 0) - Number(a.value ?? 0));
-  const top = sorted.slice(0, 5);
-  const meEntry =
-    myName && !top.find((e) => e.name === myName)
-      ? sorted.find((e) => e.name === myName)
-      : null;
-  if (meEntry) top.push(meEntry);
-  const rest = sorted.length - top.length;
+
+  const sorted = [...payload].sort((a, b) => {
+    const va = typeof a.value === "number" ? a.value : 0;
+    const vb = typeof b.value === "number" ? b.value : 0;
+    return vb - va;
+  });
+
   return (
-    <div className="rounded-xl border bg-background p-2 text-xs shadow-md">
-      <p className="mb-1 font-semibold text-foreground">{label}일</p>
-      {top.map((entry) => (
-        <div
-          key={String(entry.name)}
-          className="flex justify-between gap-3"
+    <div className="rounded-md border bg-background p-2 text-xs shadow-md">
+      <p className="mb-1 font-semibold">{label}일</p>
+      {sorted.map((entry) => (
+        <p
+          key={String(entry.dataKey)}
+          className={
+            entry.name === myName ? "font-bold" : "text-muted-foreground"
+          }
           style={{ color: entry.color }}
         >
-          <span className="max-w-[80px] truncate">{entry.name}</span>
-          <span className="font-medium">
-            {mode === "percent"
-              ? `${entry.value}%`
-              : `${Number(entry.value).toFixed(1)}`}
-          </span>
-        </div>
+          {entry.name}:{" "}
+          {mode === "percent"
+            ? `${Number(entry.value).toFixed(1)}%`
+            : `${Number(entry.value).toFixed(1)} km`}
+        </p>
       ))}
-      {rest > 0 && (
-        <p className="mt-1 text-muted-foreground">외 {rest}명</p>
-      )}
     </div>
   );
 }
@@ -78,18 +81,34 @@ function ChartTooltip({ active, payload, label, myName, mode }: ChartTooltipProp
 type CrewProgressChartProps = {
   evtId: string;
   memId?: string;
-  month: string; // "2026-05-01"
+  month: string;
+  initialData?: ChartInitialData | null;
 };
 
-export function CrewProgressChart({ evtId, memId, month }: CrewProgressChartProps) {
+export function CrewProgressChart({
+  evtId,
+  memId,
+  month,
+  initialData,
+}: CrewProgressChartProps) {
   const [mode, setMode] = useState<"mileage" | "percent">("mileage");
-  const [mileageData, setMileageData] = useState<DailyPoint[]>([]);
-  const [percentData, setPercentData] = useState<DailyPoint[]>([]);
-  const [members, setMembers] = useState<{ id: string; name: string }[]>([]);
-  const [myGoalKm, setMyGoalKm] = useState<number>(0);
-  const [myName, setMyName] = useState<string | null>(null);
-  const [totalDays, setTotalDays] = useState(30);
-  const [loading, setLoading] = useState(true);
+  const [mileageData, setMileageData] = useState<DailyPoint[]>(
+    initialData?.mileageData ?? [],
+  );
+  const [percentData, setPercentData] = useState<DailyPoint[]>(
+    initialData?.percentData ?? [],
+  );
+  const [members, setMembers] = useState<{ id: string; name: string }[]>(
+    initialData?.members ?? [],
+  );
+  const [myGoalKm, setMyGoalKm] = useState<number>(
+    initialData?.myGoalKm ?? 0,
+  );
+  const [myName, setMyName] = useState<string | null>(
+    initialData?.myName ?? null,
+  );
+  const [totalDays, setTotalDays] = useState(initialData?.totalDays ?? 30);
+  const [loading, setLoading] = useState(!initialData);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -100,7 +119,6 @@ export function CrewProgressChart({ evtId, memId, month }: CrewProgressChartProp
     setTotalDays(totalDaysInMonth);
     const monthEnd = `${y}-${String(m).padStart(2, "0")}-${String(totalDaysInMonth).padStart(2, "0")}`;
 
-    // 승인된 참여자 + 이름 조회
     const { data: participants } = await supabase
       .from("evt_team_prt_rel")
       .select("mem_id, init_goal, mem_mst!inner(mem_nm)")
@@ -115,7 +133,6 @@ export function CrewProgressChart({ evtId, memId, month }: CrewProgressChartProp
 
     const memIds = participants.map((p) => p.mem_id);
 
-    // 활동 기록 + 목표 병렬 조회 (async-parallel)
     const [{ data: logs }, { data: goals }] = await Promise.all([
       supabase
         .from("evt_mlg_act_hist")
@@ -137,7 +154,6 @@ export function CrewProgressChart({ evtId, memId, month }: CrewProgressChartProp
       goalByMemId.set(g.mem_id, Number(g.goal_val));
     }
 
-    // 본인 정보
     if (memId) {
       const myP = participants.find((p) => p.mem_id === memId);
       if (myP) {
@@ -149,13 +165,11 @@ export function CrewProgressChart({ evtId, memId, month }: CrewProgressChartProp
       }
     }
 
-    // 기록이 있거나 목표가 있는 참여자만 차트에 표시
     const memIdsWithLogs = new Set((logs ?? []).map((l) => l.mem_id));
     const activeParticipants = participants.filter(
       (p) => memIdsWithLogs.has(p.mem_id) || goalByMemId.has(p.mem_id),
     );
 
-    // 참여자별 일별 누적 마일리지 계산
     const logsByMem = new Map<string, { day: number; val: number }[]>();
     for (const log of logs ?? []) {
       const day = Number(log.act_dt.split("-")[2]);
@@ -164,7 +178,6 @@ export function CrewProgressChart({ evtId, memId, month }: CrewProgressChartProp
       logsByMem.set(log.mem_id, existing);
     }
 
-    // 참여자별 일별 누적 맵 생성
     const dailyCumByMem = new Map<string, Map<number, number>>();
     for (const p of activeParticipants) {
       const entries = logsByMem.get(p.mem_id) ?? [];
@@ -178,7 +191,6 @@ export function CrewProgressChart({ evtId, memId, month }: CrewProgressChartProp
       dailyCumByMem.set(p.mem_id, dayMap);
     }
 
-    // 1일~말일 데이터 포인트 생성
     const mPoints: DailyPoint[] = [];
     const pPoints: DailyPoint[] = [];
 
@@ -199,10 +211,12 @@ export function CrewProgressChart({ evtId, memId, month }: CrewProgressChartProp
           }
         }
         mPoint[name] = Number(val.toFixed(1));
-        const goal = goalByMemId.get(p.mem_id) ?? Number(p.init_goal ?? 0);
-        pPoint[name] = goal > 0
-          ? Number(Math.min((val / goal) * 100, 100).toFixed(1))
-          : 0;
+        const goal =
+          goalByMemId.get(p.mem_id) ?? Number(p.init_goal ?? 0);
+        pPoint[name] =
+          goal > 0
+            ? Number(Math.min((val / goal) * 100, 100).toFixed(1))
+            : 0;
       }
 
       mPoints.push(mPoint);
@@ -220,10 +234,14 @@ export function CrewProgressChart({ evtId, memId, month }: CrewProgressChartProp
     setLoading(false);
   }, [evtId, memId, month]);
 
+  // initialData 없을 때만 초기 fetch
   useEffect(() => {
-    load();
-  }, [load]);
+    if (!initialData) {
+      load();
+    }
+  }, [initialData, load]);
 
+  // mileage:refresh 이벤트 → 클라이언트 재조회
   useEffect(() => {
     const handler = () => load();
     window.addEventListener("mileage:refresh", handler);
@@ -273,14 +291,9 @@ export function CrewProgressChart({ evtId, memId, month }: CrewProgressChartProp
           />
           <Tooltip
             content={(props) => (
-              <ChartTooltip
-                {...props}
-                myName={myName}
-                mode={mode}
-              />
+              <ChartTooltip {...props} myName={myName} mode={mode} />
             )}
           />
-          {/* 목표 기준선 */}
           {mode === "mileage" && myGoalKm > 0 && (
             <ReferenceLine
               y={myGoalKm}

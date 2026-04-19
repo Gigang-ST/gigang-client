@@ -129,7 +129,7 @@ export function SettingsClient({ isAdmin }: { isAdmin: boolean }) {
               버전 정보
             </span>
           </div>
-          <span className="text-sm text-muted-foreground">v1.0.0</span>
+          <span className="text-sm text-muted-foreground">{process.env.NEXT_PUBLIC_APP_VERSION ?? "v0.0.0"}</span>
         </div>
       </div>
 
