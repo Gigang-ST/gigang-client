@@ -155,6 +155,7 @@
 
 ### 9.2 도메인 테이블에 남길 항목 (예시)
 - 실제 회비 납부 원장 (`fee_due_pay_hist`), 원시 거래 (`fee_txn_hist`), 면제 규칙/이력 (`fee_due_exm_cfg`, `fee_due_exm_hist`), 누적 스냅샷 (`fee_mem_bal_snap`)
+- 팀·대회 참가 맥락 (`team_comp_plan_rel` — **참가가 생긴 대회만** 행 존재; 팀이 참가한 대회 수는 이 테이블의 해당 `team_id` 행 수로 보면 됨. 상세는 `database-schema-v2-domains.md` §2)
 - 실제 대회 참가 내역 (`comp_reg_rel`)
 - 실제 기록 데이터 (`rec_race_hist`, `comp_id`/`comp_evt_id` 정합성 검증)
 - 칭호·팀 이벤트 등은 도메인 설계가 확정되면 동일 원칙으로 추가한다(현재 `database-schema-v2-domains.md`는 해당 섹션 작성 보류).
@@ -182,7 +183,7 @@
 
 **대회·참가**
 - `comp_mst.comp_sprt_cd` (대회 스포츠/형태 분류)
-- `comp_evt_cfg.comp_evt_cd` (대회 내 코스·종목 코드, `COMP_EVT_CD`·`cmm_cd_mst.cd` 와 동일 문자열)
+- `comp_evt_cfg.comp_evt_type` (대회 내 코스·종목 타입 자유 문자열. 예: `12K`, `OLYMPIC`, `FULL`)
 - `comp_reg_rel.prt_role_cd` (참가 역할: 참가자/응원/봉사 등)
 
 **기록**

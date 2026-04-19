@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { Calendar, MapPin } from "lucide-react";
 import Link from "next/link";
+import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { createClient } from "@/lib/supabase/client";
 import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
@@ -10,6 +11,8 @@ import { formatDDay } from "@/lib/dayjs";
 import { CardItem } from "@/components/ui/card";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
 import { SectionLabel } from "@/components/common/typography";
+import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
+import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
 
 type UpcomingRace = {
   id: string;
@@ -24,12 +27,16 @@ type UpcomingRace = {
 };
 
 type UpcomingRacesProps = {
+  teamId: string;
+  cmmCdRows: CachedCmmCdRow[];
   races: UpcomingRace[];
   initialMemberStatus: MemberStatus;
   initialRegistrationsByCompetitionId: Record<string, CompetitionRegistration>;
 };
 
 export function UpcomingRaces({
+  teamId,
+  cmmCdRows,
   races,
   initialMemberStatus,
   initialRegistrationsByCompetitionId,
@@ -41,30 +48,72 @@ export function UpcomingRaces({
   const [registrationsByCompetitionId, setRegistrationsByCompetitionId] =
     useState<Record<string, CompetitionRegistration>>(initialRegistrationsByCompetitionId);
 
+  async function resolveCompEvtId(args: {
+    competitionId: string;
+    eventType: string | null;
+  }): Promise<string | null> {
+    if (!args.eventType) return null;
+    const { data, error } = await supabase
+      .from("comp_evt_cfg")
+      .select("comp_evt_id")
+      .eq("comp_id", args.competitionId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .eq("comp_evt_type", args.eventType)
+      .maybeSingle();
+    if (error) throw error;
+    return data?.comp_evt_id ?? null;
+  }
+
   const createRegistration = async (competitionId: string, payload: { role: "participant" | "cheering" | "volunteer"; eventType: string }) => {
     if (memberStatus.status !== "ready") return { ok: false as const, message: "로그인이 필요합니다." };
     const eventType = payload.role === "participant" ? payload.eventType.trim().toUpperCase() : null;
-    const { data, error } = await supabase.from("competition_registration")
-      .insert({ competition_id: competitionId, member_id: memberStatus.memberId, role: payload.role, event_type: eventType })
-      .select("id, competition_id, member_id, role, event_type, created_at").single();
+    if (payload.role === "participant" && eventType && compEvtTypeContainsHangul(eventType)) {
+      return { ok: false as const, message: "종목은 한글을 사용할 수 없습니다. 영문·숫자로 입력해 주세요." };
+    }
+    const ensured = await ensureTeamCompPlanRel(supabase, teamId, competitionId);
+    if (!ensured.ok) return { ok: false as const, message: "신청에 실패했습니다." };
+    const plan = { team_comp_id: ensured.teamCompId };
+
+    let compEvtId: string | null = null;
+    try {
+      compEvtId = await resolveCompEvtId({ competitionId, eventType });
+    } catch {
+      return { ok: false as const, message: "신청에 실패했습니다." };
+    }
+
+    const { data, error } = await supabase.from("comp_reg_rel")
+      .insert({ team_comp_id: plan.team_comp_id, mem_id: memberStatus.memberId, prt_role_cd: payload.role, comp_evt_id: compEvtId, vers: 0, del_yn: false })
+      .select("comp_reg_id, mem_id, prt_role_cd, crt_at").single();
     if (error) return { ok: false as const, message: "신청에 실패했습니다." };
-    setRegistrationsByCompetitionId(prev => ({ ...prev, [competitionId]: data as CompetitionRegistration }));
+    setRegistrationsByCompetitionId(prev => ({ ...prev, [competitionId]: { id: data.comp_reg_id, competition_id: competitionId, member_id: data.mem_id, role: data.prt_role_cd as "participant" | "cheering" | "volunteer", event_type: eventType, created_at: data.crt_at } }));
     return { ok: true as const, message: "참가 신청 완료" };
   };
 
   const updateRegistration = async (registrationId: string, competitionId: string, payload: { role: "participant" | "cheering" | "volunteer"; eventType: string }) => {
     if (memberStatus.status !== "ready") return { ok: false as const, message: "로그인이 필요합니다." };
     const eventType = payload.role === "participant" ? payload.eventType.trim().toUpperCase() : null;
-    const { data, error } = await supabase.from("competition_registration")
-      .update({ role: payload.role, event_type: eventType }).eq("id", registrationId)
-      .select("id, competition_id, member_id, role, event_type, created_at").single();
+    if (payload.role === "participant" && eventType && compEvtTypeContainsHangul(eventType)) {
+      return { ok: false as const, message: "종목은 한글을 사용할 수 없습니다. 영문·숫자로 입력해 주세요." };
+    }
+
+    let compEvtId: string | null = null;
+    try {
+      compEvtId = await resolveCompEvtId({ competitionId, eventType });
+    } catch {
+      return { ok: false as const, message: "수정에 실패했습니다." };
+    }
+
+    const { data, error } = await supabase.from("comp_reg_rel")
+      .update({ prt_role_cd: payload.role, comp_evt_id: compEvtId }).eq("comp_reg_id", registrationId)
+      .select("comp_reg_id, mem_id, prt_role_cd, crt_at").single();
     if (error) return { ok: false as const, message: "수정에 실패했습니다." };
-    setRegistrationsByCompetitionId(prev => ({ ...prev, [competitionId]: data as CompetitionRegistration }));
+    setRegistrationsByCompetitionId(prev => ({ ...prev, [competitionId]: { id: data.comp_reg_id, competition_id: competitionId, member_id: data.mem_id, role: data.prt_role_cd as "participant" | "cheering" | "volunteer", event_type: eventType, created_at: data.crt_at } }));
     return { ok: true as const, message: "업데이트 완료" };
   };
 
   const deleteRegistration = async (registrationId: string, competitionId: string) => {
-    const { error } = await supabase.from("competition_registration").delete().eq("id", registrationId);
+    const { error } = await supabase.from("comp_reg_rel").delete().eq("comp_reg_id", registrationId);
     if (error) return { ok: false as const, message: "취소에 실패했습니다." };
     setRegistrationsByCompetitionId(prev => { const next = { ...prev }; delete next[competitionId]; return next; });
     return { ok: true as const, message: "취소 완료" };
@@ -157,6 +206,8 @@ export function UpcomingRaces({
       )}
 
       <CompetitionDetailDialog
+        cmmCdRows={cmmCdRows}
+        teamId={teamId}
         competition={selectedCompetition}
         registration={selectedCompetition ? registrationsByCompetitionId[selectedCompetition.id] : undefined}
         memberStatus={memberStatus}
