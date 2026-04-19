@@ -1,0 +1,56 @@
+name: Promote dev → main
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: pr-promotion
+  cancel-in-progress: true
+
+jobs:
+  create-or-update-pr:
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create or update PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 기존 dev→main PR 찾기
+          EXISTING_PR=$(gh pr list --base main --head dev --state open --json number --jq '.[0].number')
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "✅ 기존 PR #$EXISTING_PR 발견 — 본문 업데이트"
+          else
+            echo "📝 새 PR 생성"
+            # dev→main 간 커밋 요약 생성
+            BODY=$(cat <<'EOF'
+          ## Summary
+
+          dev 브랜치의 변경사항을 main으로 머지합니다.
+
+          ### Commits
+
+          EOF
+          )
+            COMMITS_LOG=$(git log origin/main..origin/dev --oneline --no-merges)
+            BODY="${BODY}
+          ${COMMITS_LOG}"
+
+            gh pr create \
+              --base main \
+              --head dev \
+              --title "chore: merge dev into main" \
+              --body "$BODY"
+          fi
