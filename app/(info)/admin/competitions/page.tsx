@@ -1,6 +1,10 @@
 import { Suspense } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
+
+import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+
+import { Skeleton } from "@/components/ui/skeleton";
+
 import { AdminCompetitionsClient } from "./admin-competitions-client";
 
 function CompetitionsFallback() {
@@ -15,10 +19,13 @@ function CompetitionsFallback() {
 }
 
 export default async function CompetitionsPage() {
-  const { teamId } = await getRequestTeamContext();
+  const [{ teamId }, cmmCdRows] = await Promise.all([
+    getRequestTeamContext(),
+    getCachedCmmCdRows(),
+  ]);
   return (
     <Suspense fallback={<CompetitionsFallback />}>
-      <AdminCompetitionsClient teamId={teamId} />
+      <AdminCompetitionsClient teamId={teamId} cmmCdRows={cmmCdRows} />
     </Suspense>
   );
 }
