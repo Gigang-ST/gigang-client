@@ -33,6 +33,10 @@ import {
   competitionEditSchema,
   type CompetitionEditValues,
 } from "@/lib/validations/competition";
+import {
+  buildEventTypeOptionList,
+  sanitizeAsciiUpperCompEvtTypeInput,
+} from "@/lib/comp-evt-type";
 import { formatDateRange } from "@/lib/dayjs";
 import { resolveSportConfig, SPORT_LEGEND } from "./sport-config";
 import type { Competition, CompetitionRegistration, MemberStatus } from "./types";
@@ -155,14 +159,11 @@ export function CompetitionDetailDialog({
     loadParticipants(competition.id);
   }, [competition?.id, open, loadParticipants]);
 
-  // 대회에 등록된 종목이 있으면 그대로, 없으면 스포츠별 기본 종목(10K, HALF, FULL 등) + 맨 아래 기타
+  // comp_evt_cfg 종목 + 스포츠 기본값 중 아직 없는 것만 (맨 아래 기타는 SelectItem 별도)
   const eventTypeOptions = useMemo(() => {
     const explicit = competition?.event_types ?? [];
-    const list =
-      explicit.length > 0
-        ? explicit.map((t) => t.toUpperCase())
-        : resolveSportConfig(competition?.sport ?? null).eventTypes;
-    return list;
+    const sportDefaults = resolveSportConfig(competition?.sport ?? null).eventTypes;
+    return buildEventTypeOptionList(explicit, sportDefaults);
   }, [competition?.event_types, competition?.sport]);
 
   useEffect(() => {
@@ -172,7 +173,8 @@ export function CompetitionDetailDialog({
     const regType = (registration?.event_type ?? "").trim().toUpperCase();
     const isInOptions =
       regType && eventTypeOptions.some((o) => o.toUpperCase() === regType);
-    const initialOther = !isInOptions && regType ? regType : "";
+    const initialOther =
+      !isInOptions && regType ? sanitizeAsciiUpperCompEvtTypeInput(regType) : "";
     const defaultSelect =
       eventTypeOptions.length > 0 ? eventTypeOptions[0] : EVENT_TYPE_OTHER;
 
@@ -205,7 +207,14 @@ export function CompetitionDetailDialog({
 
   const editSport = editForm.watch("sport");
   const editEventTypes = editForm.watch("eventTypes");
-  const editEventTypeOptions = resolveSportConfig(editSport || null).eventTypes;
+  const editEventTypeOptions = useMemo(
+    () =>
+      buildEventTypeOptionList(
+        competition?.event_types ?? [],
+        resolveSportConfig(editSport || null).eventTypes,
+      ),
+    [competition?.event_types, editSport],
+  );
 
   async function handleEditSave(data: CompetitionEditValues) {
     if (!competition) return;
@@ -239,10 +248,14 @@ export function CompetitionDetailDialog({
   const isParticipant = role === "participant";
   const requiresEventType = isParticipant;
   const resolvedEventType =
-    eventType === EVENT_TYPE_OTHER ? otherEventType.trim().toUpperCase() : eventType;
+    eventType === EVENT_TYPE_OTHER
+      ? sanitizeAsciiUpperCompEvtTypeInput(otherEventType).trim()
+      : eventType;
   const canSubmit =
     !requiresEventType ||
-    (eventType === EVENT_TYPE_OTHER ? otherEventType.trim().length > 0 : eventType.length > 0);
+    (eventType === EVENT_TYPE_OTHER
+      ? sanitizeAsciiUpperCompEvtTypeInput(otherEventType).trim().length > 0
+      : eventType.length > 0);
 
   const showAuthMessage = memberStatus.status !== "ready";
 
@@ -554,9 +567,11 @@ export function CompetitionDetailDialog({
                 </Select>
                 {eventType === EVENT_TYPE_OTHER && (
                   <Input
-                    placeholder="예: 10K, HALF"
+                    placeholder="예: 10K, HALF (영문·숫자만)"
                     value={otherEventType}
-                    onChange={(e) => setOtherEventType(e.target.value)}
+                    onChange={(e) =>
+                      setOtherEventType(sanitizeAsciiUpperCompEvtTypeInput(e.target.value))
+                    }
                     className="mt-1"
                   />
                 )}

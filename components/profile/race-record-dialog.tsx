@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { timeStringToSeconds, secondsToTime } from "@/lib/dayjs";
+import { buildEventTypeOptionList, sanitizeAsciiUpperCompEvtTypeInput } from "@/lib/comp-evt-type";
 import { resolveSportConfig } from "@/components/races/sport-config";
 import { searchCompetitions } from "@/app/actions/search-competitions";
 import { saveRaceRecord } from "@/app/actions/save-race-record";
@@ -31,6 +32,8 @@ interface Competition {
   event_types: string[] | null;
   /** 참가 신청 시 선택한 종목 (참가한 대회 목록에서만 있음, 검색 결과에는 없음) */
   registeredEventType?: string | null;
+  /** 참가 신청 행의 comp_evt_cfg PK (서버에서 종목 정합 검증용) */
+  registrationCompEvtId?: string | null;
 }
 
 /* ---------- 컴포넌트 ---------- */
@@ -84,14 +87,11 @@ export function RaceRecordDialog({
   // 트라이애슬론 여부 (step 3 시간 입력용)
   const isTriathlon = (selectedComp?.sport ?? "").includes("triathlon");
 
-  // 코스/종목 옵션: 검색으로 선택한 대회용. 대회 event_types 있으면 그 목록, 없으면 sport-config 기본 + 기타(직접 입력)
+  // 종목: comp_evt_cfg 기준 + 스포츠 기본값 중 아직 없는 것만 합침 + 기타(직접 입력, 영문·숫자만)
   const eventTypeOptions = useMemo(() => {
     if (!selectedComp) return [];
-    const types = selectedComp.event_types;
-    const list =
-      types != null && types.length > 0
-        ? types.map((t) => String(t).toUpperCase())
-        : resolveSportConfig(selectedComp.sport).eventTypes;
+    const sportDefaults = resolveSportConfig(selectedComp.sport).eventTypes;
+    const list = buildEventTypeOptionList(selectedComp.event_types, sportDefaults);
     return [...list, EVENT_TYPE_OTHER];
   }, [selectedComp?.id, selectedComp?.event_types, selectedComp?.sport]);
 
@@ -134,7 +134,9 @@ export function RaceRecordDialog({
 
     const { data } = await supabase
       .from("comp_reg_rel")
-      .select("comp_reg_id, comp_evt_cfg(comp_evt_type), team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(comp_evt_type)))")
+      .select(
+        "comp_reg_id, comp_evt_id, comp_evt_cfg(comp_evt_type), team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(comp_evt_type)))",
+      )
       .eq("mem_id", memberId)
       .eq("vers", 0)
       .eq("del_yn", false)
@@ -150,6 +152,7 @@ export function RaceRecordDialog({
     const unique = (raw as Row[])
       .map((row) => {
         const rowAny = row as unknown as {
+          comp_evt_id?: string | null;
           team_comp_plan_rel: { comp_mst: { comp_id: string; comp_nm: string; stt_dt: string; loc_nm: string | null; comp_sprt_cd: string; comp_evt_cfg?: { comp_evt_type: string }[] }[] | { comp_id: string; comp_nm: string; stt_dt: string; loc_nm: string | null; comp_sprt_cd: string; comp_evt_cfg?: { comp_evt_type: string }[] } }[] | { comp_mst: { comp_id: string; comp_nm: string; stt_dt: string; loc_nm: string | null; comp_sprt_cd: string; comp_evt_cfg?: { comp_evt_type: string }[] }[] | { comp_id: string; comp_nm: string; stt_dt: string; loc_nm: string | null; comp_sprt_cd: string; comp_evt_cfg?: { comp_evt_type: string }[] } };
           comp_evt_cfg?: { comp_evt_type: string | null }[] | { comp_evt_type: string | null };
         };
@@ -164,6 +167,7 @@ export function RaceRecordDialog({
           sport: comp.comp_sprt_cd,
           event_types: (comp.comp_evt_cfg ?? []).map((e) => e.comp_evt_type?.toUpperCase()),
           registeredEventType: evt?.comp_evt_type ?? null,
+          registrationCompEvtId: rowAny.comp_evt_id ?? null,
         } as Competition;
       })
       .filter((c) => {
@@ -234,12 +238,18 @@ export function RaceRecordDialog({
   const competitionDate = selectedComp?.start_date ?? "";
   const eventType =
     selectedEventType === EVENT_TYPE_OTHER
-      ? customEventType.trim().toUpperCase()
+      ? sanitizeAsciiUpperCompEvtTypeInput(customEventType).trim()
       : selectedEventType;
 
   // 저장 가능 여부
   const canSave = (() => {
     if (!competitionTitle || !competitionDate || !eventType) return false;
+    if (
+      selectedEventType === EVENT_TYPE_OTHER &&
+      sanitizeAsciiUpperCompEvtTypeInput(customEventType).trim().length === 0
+    ) {
+      return false;
+    }
     if (!timeStringToSeconds(totalTime)) return false;
     if (isTriathlon) {
       if (
@@ -264,6 +274,7 @@ export function RaceRecordDialog({
 
     const result = await saveRaceRecord({
       competitionId: selectedComp.id,
+      registrationCompEvtId: selectedComp.registrationCompEvtId,
       competitionTitle,
       competitionDate,
       eventType,
@@ -440,9 +451,11 @@ export function RaceRecordDialog({
                   {selectedEventType === EVENT_TYPE_OTHER && (
                     <div className="flex flex-col gap-1.5">
                       <Input
-                        placeholder="예: 10K, HALF"
+                        placeholder="예: 10K, HALF (영문·숫자만)"
                         value={customEventType}
-                        onChange={(e) => setCustomEventType(e.target.value)}
+                        onChange={(e) =>
+                          setCustomEventType(sanitizeAsciiUpperCompEvtTypeInput(e.target.value))
+                        }
                       />
                       <Button
                         type="button"

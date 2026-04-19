@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidateTag } from "next/cache";
+import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyAdmin } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -95,6 +96,10 @@ export async function updateCompetition(
     .eq("vers", 0)
     .eq("del_yn", false);
   if (delErr) return { ok: false, message: "수정에 실패했습니다" };
+
+  if ((input.eventTypes ?? []).some((t) => compEvtTypeContainsHangul(t))) {
+    return { ok: false, message: "종목은 한글을 사용할 수 없습니다. 영문·숫자로 입력해 주세요." };
+  }
 
   const nextTypes = (input.eventTypes ?? [])
     .map((t) => t.trim().toUpperCase())

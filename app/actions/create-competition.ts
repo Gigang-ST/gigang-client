@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidateTag } from "next/cache";
+import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyAdmin } from "@/lib/queries/member";
-import { getRequestTeamContext } from "@/lib/queries/request-team";
 
 interface CreateCompetitionInput {
   title: string;
@@ -44,22 +44,12 @@ export async function createCompetition(input: CreateCompetitionInput) {
     return { ok: false, message: "등록에 실패했습니다. 다시 시도해 주세요." };
   }
 
-  const { teamId } = await getRequestTeamContext();
-  const { error: planErr } = await admin.from("team_comp_plan_rel").insert({
-    team_id: teamId,
-    comp_id: comp.comp_id,
-    vers: 0,
-    del_yn: false,
-  });
-
-  if (planErr) {
-    console.error("대회 등록 실패(team_comp_plan_rel):", planErr);
-    // 보상 트랜잭션: plan 생성 실패 시 방금 만든 comp_mst 정리
-    await admin.from("comp_mst").delete().eq("comp_id", comp.comp_id);
-    return { ok: false, message: "등록에 실패했습니다. 다시 시도해 주세요." };
-  }
+  // team_comp_plan_rel은 멤버가 참가 신청할 때만 생성한다 (카탈로그만 등록).
 
   if (input.eventTypes.length > 0) {
+    if (input.eventTypes.some((evt) => compEvtTypeContainsHangul(evt))) {
+      return { ok: false, message: "종목은 한글을 사용할 수 없습니다. 영문·숫자로 입력해 주세요." };
+    }
     const eventRows = input.eventTypes.map((evt) => ({
       comp_id: comp.comp_id,
       comp_evt_type: evt.trim().toUpperCase(),
@@ -69,14 +59,6 @@ export async function createCompetition(input: CreateCompetitionInput) {
     const { error: evtErr } = await admin.from("comp_evt_cfg").insert(eventRows);
     if (evtErr) {
       console.error("대회 등록 실패(comp_evt_cfg):", evtErr);
-      // 보상 트랜잭션: 이벤트 생성 실패 시 같은 팀 plan + comp_mst 정리
-      await admin
-        .from("team_comp_plan_rel")
-        .delete()
-        .eq("comp_id", comp.comp_id)
-        .eq("team_id", teamId)
-        .eq("vers", 0)
-        .eq("del_yn", false);
       await admin.from("comp_mst").delete().eq("comp_id", comp.comp_id);
       return { ok: false, message: "등록에 실패했습니다. 다시 시도해 주세요." };
     }
