@@ -13,6 +13,8 @@ export async function POST(request: NextRequest) {
   revalidatePath("/records");
   revalidatePath("/");
   revalidateTag("competitions", "max");
+  // /records 의 unstable_cache(tags: "records", `records:${teamId}`)
+  revalidateTag("records", "max");
 
   return NextResponse.json({ revalidated: true });
 }
