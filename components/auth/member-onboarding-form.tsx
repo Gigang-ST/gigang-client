@@ -347,7 +347,19 @@ export function MemberOnboardingForm({
                     <FormField
                       control={form.control}
                       name="fullName"
-                      rules={{ required: "이름을 입력해 주세요." }}
+                      rules={{
+                        required: "이름을 입력해 주세요.",
+                        validate: (value) => {
+                          const trimmed = value.trim();
+                          if (!/^[가-힣]+$/.test(trimmed))
+                            return "한글 이름만 입력해 주세요";
+                          if (trimmed.length < 2)
+                            return "이름은 2자 이상 입력해 주세요";
+                          if (trimmed.length > 5)
+                            return "이름은 5자 이하로 입력해 주세요";
+                          return true;
+                        },
+                      }}
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>이름</FormLabel>
