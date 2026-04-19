@@ -1148,11 +1148,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "fk_rec_race_hist__comp_evt_cfg"
-            columns: ["comp_evt_id"]
+            foreignKeyName: "fk_rec_race_hist__comp_evt_cfg_pair"
+            columns: ["comp_id", "comp_evt_id"]
             isOneToOne: false
             referencedRelation: "comp_evt_cfg"
-            referencedColumns: ["comp_evt_id"]
+            referencedColumns: ["comp_id", "comp_evt_id"]
           },
           {
             foreignKeyName: "fk_rec_race_hist__comp_mst"
