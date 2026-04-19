@@ -48,6 +48,10 @@ interface CompetitionRegisterDialogProps {
   onOpenChange: (open: boolean) => void;
   memberStatus: MemberStatus;
   onCreated: () => void;
+  /** 다른 다이얼로그 위에 겹쳐 표시할 때 오버레이·콘텐츠 z-index 상향 */
+  stackElevated?: boolean;
+  /** 열 때 시작일(YYYY-MM-DD) 미리 채움 */
+  prefillStartDate?: string;
 }
 
 export function CompetitionRegisterDialog({
@@ -55,6 +59,8 @@ export function CompetitionRegisterDialog({
   onOpenChange,
   memberStatus,
   onCreated,
+  stackElevated = false,
+  prefillStartDate,
 }: CompetitionRegisterDialogProps) {
   const {
     register,
@@ -83,8 +89,13 @@ export function CompetitionRegisterDialog({
 
   // 다이얼로그 열릴 때 폼 초기화
   useEffect(() => {
-    if (open) reset(defaultValues);
-  }, [open, reset]);
+    if (open) {
+      reset({
+        ...defaultValues,
+        ...(prefillStartDate?.trim() ? { startDate: prefillStartDate.trim() } : {}),
+      });
+    }
+  }, [open, prefillStartDate, reset]);
 
   const toggleEventType = (type: string) => {
     const current = selectedEventTypes;
@@ -118,7 +129,13 @@ export function CompetitionRegisterDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent
+        overlayClassName={stackElevated ? "z-[60]" : undefined}
+        className={cn(
+          "max-h-[85vh] overflow-y-auto sm:max-w-lg",
+          stackElevated && "z-[60]",
+        )}
+      >
         <DialogHeader>
           <DialogTitle>대회 등록</DialogTitle>
           <DialogDescription>
