@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       cmm_cd_grp_mst: {
@@ -130,8 +105,8 @@ export type Database = {
       }
       comp_evt_cfg: {
         Row: {
-          comp_evt_cd: string
           comp_evt_id: string
+          comp_evt_type: string
           comp_id: string
           crt_at: string
           del_yn: boolean
@@ -139,8 +114,8 @@ export type Database = {
           vers: number
         }
         Insert: {
-          comp_evt_cd: string
           comp_evt_id?: string
+          comp_evt_type: string
           comp_id: string
           crt_at?: string
           del_yn?: boolean
@@ -148,8 +123,8 @@ export type Database = {
           vers?: number
         }
         Update: {
-          comp_evt_cd?: string
           comp_evt_id?: string
+          comp_evt_type?: string
           comp_id?: string
           crt_at?: string
           del_yn?: boolean
@@ -269,93 +244,268 @@ export type Database = {
           },
         ]
       }
-      competition: {
+      evt_mlg_act_hist: {
         Row: {
+          act_dt: string
+          act_id: string
+          applied_mults: Json | null
+          base_mlg: number
           created_at: string
-          end_date: string | null
-          event_types: string[] | null
-          external_id: string | null
-          id: string
-          location: string | null
-          raw: Json | null
-          source_url: string | null
-          sport: string | null
-          start_date: string
-          title: string
+          distance_km: number
+          elevation_m: number | null
+          evt_id: string
+          final_mlg: number
+          mem_id: string
+          review: string | null
+          sport_cd: string
           updated_at: string
         }
         Insert: {
+          act_dt: string
+          act_id?: string
+          applied_mults?: Json | null
+          base_mlg: number
           created_at?: string
-          end_date?: string | null
-          event_types?: string[] | null
-          external_id?: string | null
-          id?: string
-          location?: string | null
-          raw?: Json | null
-          source_url?: string | null
-          sport?: string | null
-          start_date: string
-          title: string
+          distance_km: number
+          elevation_m?: number | null
+          evt_id: string
+          final_mlg: number
+          mem_id: string
+          review?: string | null
+          sport_cd: string
           updated_at?: string
         }
         Update: {
+          act_dt?: string
+          act_id?: string
+          applied_mults?: Json | null
+          base_mlg?: number
           created_at?: string
-          end_date?: string | null
-          event_types?: string[] | null
-          external_id?: string | null
-          id?: string
-          location?: string | null
-          raw?: Json | null
-          source_url?: string | null
-          sport?: string | null
-          start_date?: string
-          title?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      competition_registration: {
-        Row: {
-          competition_id: string
-          created_at: string
-          event_type: string | null
-          id: string
-          member_id: string
-          role: Database["public"]["Enums"]["participation_role"]
-          updated_at: string
-        }
-        Insert: {
-          competition_id: string
-          created_at?: string
-          event_type?: string | null
-          id?: string
-          member_id: string
-          role: Database["public"]["Enums"]["participation_role"]
-          updated_at?: string
-        }
-        Update: {
-          competition_id?: string
-          created_at?: string
-          event_type?: string | null
-          id?: string
-          member_id?: string
-          role?: Database["public"]["Enums"]["participation_role"]
+          distance_km?: number
+          elevation_m?: number | null
+          evt_id?: string
+          final_mlg?: number
+          mem_id?: string
+          review?: string | null
+          sport_cd?: string
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "competition_registration_competition_id_fkey"
-            columns: ["competition_id"]
+            foreignKeyName: "evt_mlg_act_hist_evt_id_fkey"
+            columns: ["evt_id"]
             isOneToOne: false
-            referencedRelation: "competition"
-            referencedColumns: ["id"]
+            referencedRelation: "evt_team_mst"
+            referencedColumns: ["evt_id"]
           },
           {
-            foreignKeyName: "competition_registration_member_id_fkey"
-            columns: ["member_id"]
+            foreignKeyName: "evt_mlg_act_hist_mem_id_fkey"
+            columns: ["mem_id"]
             isOneToOne: false
-            referencedRelation: "member"
-            referencedColumns: ["id"]
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
+      evt_mlg_goal_cfg: {
+        Row: {
+          achieved_yn: boolean
+          created_at: string
+          evt_id: string
+          goal_id: string
+          goal_month: string
+          goal_val: number
+          mem_id: string
+          updated_at: string
+        }
+        Insert: {
+          achieved_yn?: boolean
+          created_at?: string
+          evt_id: string
+          goal_id?: string
+          goal_month: string
+          goal_val: number
+          mem_id: string
+          updated_at?: string
+        }
+        Update: {
+          achieved_yn?: boolean
+          created_at?: string
+          evt_id?: string
+          goal_id?: string
+          goal_month?: string
+          goal_val?: number
+          mem_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evt_mlg_goal_cfg_evt_id_fkey"
+            columns: ["evt_id"]
+            isOneToOne: false
+            referencedRelation: "evt_team_mst"
+            referencedColumns: ["evt_id"]
+          },
+          {
+            foreignKeyName: "evt_mlg_goal_cfg_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
+      evt_mlg_mult_cfg: {
+        Row: {
+          active_yn: boolean
+          created_at: string
+          end_dt: string | null
+          evt_id: string
+          mult_id: string
+          mult_nm: string
+          mult_val: number
+          stt_dt: string | null
+          updated_at: string
+        }
+        Insert: {
+          active_yn?: boolean
+          created_at?: string
+          end_dt?: string | null
+          evt_id: string
+          mult_id?: string
+          mult_nm: string
+          mult_val: number
+          stt_dt?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active_yn?: boolean
+          created_at?: string
+          end_dt?: string | null
+          evt_id?: string
+          mult_id?: string
+          mult_nm?: string
+          mult_val?: number
+          stt_dt?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evt_mlg_mult_cfg_evt_id_fkey"
+            columns: ["evt_id"]
+            isOneToOne: false
+            referencedRelation: "evt_team_mst"
+            referencedColumns: ["evt_id"]
+          },
+        ]
+      }
+      evt_team_mst: {
+        Row: {
+          created_at: string
+          desc: string | null
+          end_dt: string
+          evt_id: string
+          evt_nm: string
+          evt_type_cd: string
+          status_cd: string
+          stt_dt: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          desc?: string | null
+          end_dt: string
+          evt_id?: string
+          evt_nm: string
+          evt_type_cd: string
+          status_cd?: string
+          stt_dt: string
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          desc?: string | null
+          end_dt?: string
+          evt_id?: string
+          evt_nm?: string
+          evt_type_cd?: string
+          status_cd?: string
+          stt_dt?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evt_team_mst_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
+      evt_team_prt_rel: {
+        Row: {
+          approve_yn: boolean
+          approved_at: string | null
+          created_at: string
+          deposit_amt: number
+          entry_fee_amt: number
+          evt_id: string
+          has_singlet_yn: boolean
+          init_goal: number
+          mem_id: string
+          prt_id: string
+          singlet_fee_amt: number
+          stt_month: string
+          updated_at: string
+        }
+        Insert: {
+          approve_yn?: boolean
+          approved_at?: string | null
+          created_at?: string
+          deposit_amt: number
+          entry_fee_amt: number
+          evt_id: string
+          has_singlet_yn?: boolean
+          init_goal: number
+          mem_id: string
+          prt_id?: string
+          singlet_fee_amt?: number
+          stt_month: string
+          updated_at?: string
+        }
+        Update: {
+          approve_yn?: boolean
+          approved_at?: string | null
+          created_at?: string
+          deposit_amt?: number
+          entry_fee_amt?: number
+          evt_id?: string
+          has_singlet_yn?: boolean
+          init_goal?: number
+          mem_id?: string
+          prt_id?: string
+          singlet_fee_amt?: number
+          stt_month?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evt_team_prt_rel_evt_id_fkey"
+            columns: ["evt_id"]
+            isOneToOne: false
+            referencedRelation: "evt_team_mst"
+            referencedColumns: ["evt_id"]
+          },
+          {
+            foreignKeyName: "evt_team_prt_rel_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
           },
         ]
       }
@@ -902,6 +1052,8 @@ export type Database = {
           crt_at: string
           del_yn: boolean
           mem_id: string
+          rct_race_nm: string | null
+          rct_race_rec: string | null
           upd_at: string
           utmb_idx: number
           utmb_prf_id: string
@@ -912,6 +1064,8 @@ export type Database = {
           crt_at?: string
           del_yn?: boolean
           mem_id: string
+          rct_race_nm?: string | null
+          rct_race_rec?: string | null
           upd_at?: string
           utmb_idx: number
           utmb_prf_id?: string
@@ -922,6 +1076,8 @@ export type Database = {
           crt_at?: string
           del_yn?: boolean
           mem_id?: string
+          rct_race_nm?: string | null
+          rct_race_rec?: string | null
           upd_at?: string
           utmb_idx?: number
           utmb_prf_id?: string
@@ -938,156 +1094,11 @@ export type Database = {
           },
         ]
       }
-      member: {
-        Row: {
-          admin: boolean
-          avatar_url: string | null
-          bank_account: string | null
-          bank_name: string | null
-          birthday: string
-          created_at: string
-          email: string | null
-          full_name: string
-          gender: Database["public"]["Enums"]["gender"]
-          google_user_id: string | null
-          id: string
-          joined_at: string
-          kakao_user_id: string | null
-          phone: string
-          status: Database["public"]["Enums"]["member_status"]
-          updated_at: string
-        }
-        Insert: {
-          admin?: boolean
-          avatar_url?: string | null
-          bank_account?: string | null
-          bank_name?: string | null
-          birthday: string
-          created_at?: string
-          email?: string | null
-          full_name: string
-          gender: Database["public"]["Enums"]["gender"]
-          google_user_id?: string | null
-          id?: string
-          joined_at: string
-          kakao_user_id?: string | null
-          phone: string
-          status: Database["public"]["Enums"]["member_status"]
-          updated_at?: string
-        }
-        Update: {
-          admin?: boolean
-          avatar_url?: string | null
-          bank_account?: string | null
-          bank_name?: string | null
-          birthday?: string
-          created_at?: string
-          email?: string | null
-          full_name?: string
-          gender?: Database["public"]["Enums"]["gender"]
-          google_user_id?: string | null
-          id?: string
-          joined_at?: string
-          kakao_user_id?: string | null
-          phone?: string
-          status?: Database["public"]["Enums"]["member_status"]
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      personal_best: {
-        Row: {
-          created_at: string
-          event_type: string
-          id: string
-          member_id: string
-          race_date: string
-          race_name: string
-          record_time_sec: number | null
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          event_type: string
-          id?: string
-          member_id: string
-          race_date: string
-          race_name: string
-          record_time_sec?: number | null
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          event_type?: string
-          id?: string
-          member_id?: string
-          race_date?: string
-          race_name?: string
-          record_time_sec?: number | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "personal_best_member_id_fkey"
-            columns: ["member_id"]
-            isOneToOne: false
-            referencedRelation: "member"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      race_result: {
-        Row: {
-          bike_time_sec: number | null
-          created_at: string
-          event_type: string
-          id: string
-          member_id: string
-          race_date: string
-          race_name: string
-          record_time_sec: number
-          run_time_sec: number | null
-          swim_time_sec: number | null
-        }
-        Insert: {
-          bike_time_sec?: number | null
-          created_at?: string
-          event_type: string
-          id?: string
-          member_id: string
-          race_date: string
-          race_name: string
-          record_time_sec: number
-          run_time_sec?: number | null
-          swim_time_sec?: number | null
-        }
-        Update: {
-          bike_time_sec?: number | null
-          created_at?: string
-          event_type?: string
-          id?: string
-          member_id?: string
-          race_date?: string
-          race_name?: string
-          record_time_sec?: number
-          run_time_sec?: number | null
-          swim_time_sec?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "race_result_member_id_fkey"
-            columns: ["member_id"]
-            isOneToOne: false
-            referencedRelation: "member"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       rec_race_hist: {
         Row: {
           bike_time_sec: number | null
-          comp_evt_id: string | null
-          comp_id: string | null
+          comp_evt_id: string
+          comp_id: string
           crt_at: string
           del_yn: boolean
           mem_id: string
@@ -1103,8 +1114,8 @@ export type Database = {
         }
         Insert: {
           bike_time_sec?: number | null
-          comp_evt_id?: string | null
-          comp_id?: string | null
+          comp_evt_id: string
+          comp_id: string
           crt_at?: string
           del_yn?: boolean
           mem_id: string
@@ -1120,8 +1131,8 @@ export type Database = {
         }
         Update: {
           bike_time_sec?: number | null
-          comp_evt_id?: string | null
-          comp_id?: string | null
+          comp_evt_id?: string
+          comp_id?: string
           crt_at?: string
           del_yn?: boolean
           mem_id?: string
@@ -1137,11 +1148,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "fk_rec_race_hist__comp_evt_cfg"
-            columns: ["comp_evt_id"]
+            foreignKeyName: "fk_rec_race_hist__comp_evt_cfg_pair"
+            columns: ["comp_id", "comp_evt_id"]
             isOneToOne: false
             referencedRelation: "comp_evt_cfg"
-            referencedColumns: ["comp_evt_id"]
+            referencedColumns: ["comp_id", "comp_evt_id"]
           },
           {
             foreignKeyName: "fk_rec_race_hist__comp_mst"
@@ -1294,53 +1305,79 @@ export type Database = {
         }
         Relationships: []
       }
-      utmb_profile: {
-        Row: {
-          created_at: string
-          id: string
-          member_id: string
-          recent_race_name: string | null
-          recent_race_record: string | null
-          updated_at: string
-          utmb_index: number
-          utmb_profile_url: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          member_id: string
-          recent_race_name?: string | null
-          recent_race_record?: string | null
-          updated_at?: string
-          utmb_index: number
-          utmb_profile_url: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          member_id?: string
-          recent_race_name?: string | null
-          recent_race_record?: string | null
-          updated_at?: string
-          utmb_index?: number
-          utmb_profile_url?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "utmb_profile_member_id_fkey"
-            columns: ["member_id"]
-            isOneToOne: true
-            referencedRelation: "member"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      get_public_team_competitions: {
+        Args: { p_end?: string; p_start?: string; p_team_id: string }
+        Returns: {
+          comp_evt_types: string[]
+          comp_id: string
+          comp_nm: string
+          comp_sprt_cd: string
+          end_dt: string
+          ext_id: string
+          loc_nm: string
+          reg_count: number
+          reg_evt_types: string[]
+          src_url: string
+          stt_dt: string
+        }[]
+      }
+      get_public_team_comp_reg_display_counts: {
+        Args: { p_comp_id: string; p_team_id: string }
+        Returns: {
+          cnt: number
+          display_key: string
+        }[]
+      }
+      get_public_team_member_stats: {
+        Args: { p_team_id: string }
+        Returns: {
+          active_count: number
+          total_count: number
+        }[]
+      }
+      get_public_team_race_rankings: {
+        Args: { p_team_id: string }
+        Returns: {
+          evt_cd: string
+          gdr_enm: Database["public"]["Enums"]["gender"]
+          mem_id: string
+          mem_nm: string
+          race_nm: string
+          rec_time_sec: number
+        }[]
+      }
+      get_public_team_recent_records: {
+        Args: { p_limit?: number; p_team_id: string }
+        Returns: {
+          evt_cd: string
+          mem_id: string
+          mem_nm: string
+          race_nm: string
+          rec_time_sec: number
+          upd_at: string
+        }[]
+      }
+      get_public_team_utmb_rankings: {
+        Args: { p_team_id: string }
+        Returns: {
+          mem_id: string
+          mem_nm: string
+          rct_race_nm: string
+          rct_race_rec: string
+          utmb_idx: number
+          utmb_prf_url: string
+        }[]
+      }
       is_legacy_platform_admin: { Args: never; Returns: boolean }
+      mem_mst_mem_ids_by_norm_phone: {
+        Args: { p_input: string }
+        Returns: string[]
+      }
       migration_v2_map_evt_cd: { Args: { p_raw: string }; Returns: string }
       migration_v2_map_mem_st_cd: {
         Args: { p_status: Database["public"]["Enums"]["member_status"] }
@@ -1348,8 +1385,28 @@ export type Database = {
       }
       migration_v2_norm_email: { Args: { p_input: string }; Returns: string }
       migration_v2_norm_phone: { Args: { p_input: string }; Returns: string }
+      rls_is_team_admin: { Args: { p_team_id: string }; Returns: boolean }
+      rls_is_team_comp_admin: {
+        Args: { p_team_comp_id: string }
+        Returns: boolean
+      }
+      rls_is_team_comp_member: {
+        Args: { p_team_comp_id: string }
+        Returns: boolean
+      }
+      rls_is_team_member: { Args: { p_team_id: string }; Returns: boolean }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      v2_rls_auth_in_team: { Args: { p_team_id: string }; Returns: boolean }
+      v2_rls_auth_shares_team_with_mem: {
+        Args: { p_peer_mem_id: string }
+        Returns: boolean
+      }
+      v2_rls_auth_team_owner_or_admin: {
+        Args: { p_team_id: string }
+        Returns: boolean
+      }
+      v2_rls_resolve_mem_id: { Args: never; Returns: string }
     }
     Enums: {
       fee_exm_tp_enm: "full" | "part"
@@ -1483,9 +1540,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       fee_exm_tp_enm: ["full", "part"],

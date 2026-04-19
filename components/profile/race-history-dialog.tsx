@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Trash2, Pencil } from "lucide-react";
 import { secondsToTime, timeStringToSeconds } from "@/lib/dayjs";
+import { deleteRaceRecord, updateRaceRecord } from "@/app/actions/save-race-record";
 
 /* ---------- 타입 ---------- */
 
@@ -58,21 +59,30 @@ export function RaceHistoryDialog({
   async function fetchRecords() {
     setLoading(true);
     const { data } = await supabase
-      .from("race_result")
-      .select("id, event_type, record_time_sec, race_name, race_date, swim_time_sec, bike_time_sec, run_time_sec")
-      .eq("member_id", memberId)
-      .order("race_date", { ascending: false });
-    setRecords((data as RaceRecord[]) ?? []);
+      .from("rec_race_hist")
+      .select("race_result_id, comp_evt_cfg(comp_evt_type), rec_time_sec, race_nm, race_dt, swim_time_sec, bike_time_sec, run_time_sec")
+      .eq("mem_id", memberId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .order("race_dt", { ascending: false });
+    const mapped = (data ?? []).map((r) => ({
+      id: r.race_result_id,
+      event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type ?? "UNKNOWN",
+      record_time_sec: r.rec_time_sec,
+      race_name: r.race_nm,
+      race_date: r.race_dt,
+      swim_time_sec: r.swim_time_sec,
+      bike_time_sec: r.bike_time_sec,
+      run_time_sec: r.run_time_sec,
+    }));
+    setRecords(mapped as RaceRecord[]);
     setLoading(false);
   }
 
   async function handleDelete(id: string) {
     if (!window.confirm("이 기록을 삭제하시겠습니까?")) return;
-    const { error } = await supabase
-      .from("race_result")
-      .delete()
-      .eq("id", id);
-    if (error) return;
+    const result = await deleteRaceRecord(id);
+    if (!result.ok) return;
     setRecords((prev) => prev.filter((r) => r.id !== id));
     onChanged();
   }
@@ -86,12 +96,9 @@ export function RaceHistoryDialog({
     const seconds = timeStringToSeconds(editTime);
     if (seconds === null) return;
     setSaving(true);
-    const { error } = await supabase
-      .from("race_result")
-      .update({ record_time_sec: seconds })
-      .eq("id", id);
+    const result = await updateRaceRecord(id, seconds);
     setSaving(false);
-    if (error) return;
+    if (!result.ok) return;
     setRecords((prev) =>
       prev.map((r) => (r.id === id ? { ...r, record_time_sec: seconds } : r)),
     );
@@ -122,7 +129,7 @@ export function RaceHistoryDialog({
               <div key={r.id} className="flex items-center gap-3 py-3">
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <div className="flex items-start gap-2">
-                    <span className="min-w-0 flex-1 text-sm font-semibold text-foreground line-clamp-2 break-words">
+                    <span className="min-w-0 flex-1 text-sm font-semibold text-foreground line-clamp-2 wrap-break-word">
                       {r.race_name}
                     </span>
                     <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">

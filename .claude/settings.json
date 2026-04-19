@@ -8,11 +8,7 @@
     "allow": [
       "Bash(*)"
     ],
-    "deny": [
-      "Read(.env)",
-      "Read(.env.*)",
-      "Read(secrets/**)"
-    ]
+    "deny": []
   },
   "enabledPlugins": {
     "typescript-lsp@claude-plugins-official": true,

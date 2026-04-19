@@ -25,11 +25,11 @@
 필수 컬럼:
 - `comp_evt_id` (PK)
 - `comp_id` (FK -> `comp_mst`)
-- `comp_evt_cd` (`COMP_EVT_CD` 공통코드 `cmm_cd_mst.cd` 와 동일 문자열)
+- `comp_evt_type` (대회 이벤트 타입 자유 문자열. 예: `12K`, `OLYMPIC`, `FULL`)
 - `vers`, `del_yn`, `crt_at`, `upd_at`
 
 유니크:
-- (`comp_id`, `comp_evt_cd`, `vers`)
+- (`comp_id`, `comp_evt_type`, `vers`)
 
 분리 이유(과설계 방지 관점):
 - 배열 컬럼(`event_types`)은 초기엔 단순하지만, 운영 단계에서 누락/중복/정렬 문제를 자주 만든다.
@@ -51,6 +51,13 @@
 유니크:
 - (`team_id`, `comp_id`, `vers`)
 
+행 생성·수명(운영 정책, 2026-04 기준):
+- **팀이 해당 대회에 참가 맥락을 가질 때만** `(team_id, comp_id, vers=0)` 행이 존재한다. 앱에서는 **최초 참가 신청(`comp_reg_rel` insert) 직전**에 해당 조합의 행이 없으면 `team_comp_plan_rel`을 한 건 생성한다(`ensureTeamCompPlanRel`).
+- 관리자가 **`comp_mst`에 대회만 등록**하는 경우 **`team_comp_plan_rel`은 만들지 않는다.** (전역 카탈로그 ≠ 팀 참가)
+- **개인 기록(`rec_race_hist`) 저장은 팀 참가와 연동하지 않는다.** 기록만 올리는 경로는 `comp_reg_rel`/`team_comp_plan_rel`을 건드리지 않는다.
+- **“팀이 참가한 대회 수”**는 해당 팀에 대해 `vers=0`·`del_yn=false`인 **`team_comp_plan_rel` 행 수**로 보면 된다(고아 플랜 제거 후 `comp_reg_rel`이 없는 플랜 행은 DB에 남기지 않음. `comp_reg_rel` 행이 남아 있으면 FK 때문에 플랜을 지울 수 없으므로, 소프트삭제된 참가만 있는 경우 등은 별도 정리 정책이 필요할 수 있다).
+- v2 초기 **P5 백필**은 레거시 `competition` 전량에 기본 팀 플랜을 넣는 절차였다. 이후 **`20260419120000_team_comp_plan_rel_teammate_insert_and_prune.sql`** 에서 `comp_reg_rel`이 한 건도 없는 플랜은 삭제하고, 팀 소속 멤버가 플랜 행을 INSERT할 수 있는 RLS(`team_comp_plan_rel_insert_teammate`)를 추가했다. 과거 문서의 “P5 완료 후 플랜 건수 = competition 건수” 검증은 **이 정책 적용 후에는 성립하지 않을 수 있다.**
+
 ### `comp_reg_rel` (대회 참가 관계)
 개인의 참가 등록을 팀 컨텍스트와 연결한다.
 
@@ -67,7 +74,7 @@
 
 비고:
 - `comp_mst`는 팀과 분리된 전역 대회 마스터로 유지한다.
-- 팀별 운영/노출은 `team_comp_plan_rel`에서 관리한다.
+- 팀별 참가 운영(플랜·참가자 목록 등)은 `team_comp_plan_rel` + `comp_reg_rel` 조합으로 관리한다. 플랜 행 자체는 “카탈로그 전체”가 아니라 **참가가 생긴 대회에 한해** 둔다(위 `team_comp_plan_rel` 절 참고).
 - `raw_json`은 v2 대상에서 제거한다.
 - 팀 간 참가 데이터는 기본적으로 공유하지 않는다(팀 스코프 분리).
 - 동일 사용자가 여러 팀에 노출하고 싶으면 선택한 팀 수만큼 `comp_reg_rel`을 생성한다.
@@ -86,8 +93,8 @@
 컬럼(현행 DDL 기준):
 - `race_result_id` (PK)
 - `mem_id` (FK -> `mem_mst`, NOT NULL)
-- `comp_id` (FK -> `comp_mst`, **nullable** — 백필·레거시 자유입력 시 매칭 실패 허용, B-3)
-- `comp_evt_id` (FK -> `comp_evt_cfg`, **nullable**)
+- `comp_id` (FK -> `comp_mst`, **NOT NULL**, 삭제 시 RESTRICT)
+- `comp_evt_id` (FK -> `comp_evt_cfg`, **NOT NULL**, 삭제 시 RESTRICT)
 - `rec_time_sec`, `race_nm`, `race_dt` (NOT NULL 기록 식별용)
 - `swim_time_sec`, `bike_time_sec`, `run_time_sec` (선택)
 - `rec_src_cd` (manual/imported/api, 선택)
@@ -100,8 +107,8 @@
 - (`comp_evt_id`, `rec_time_sec`)
 
 제약:
-- 개인 기록은 참가(`comp_reg_rel`)와 별도 관리한다.
-- `comp_id`/`comp_evt_id`가 채워지면 FK로 대회·종목 정합성이 검증된다(null 행은 정합 전·매핑 실패).
+- 개인 기록은 참가(`comp_reg_rel`)와 별도 관리한다. **기록 저장 앱 동작은 `comp_reg_rel`·`team_comp_plan_rel`을 자동 생성하지 않는다.**
+- `comp_id`/`comp_evt_id`는 항상 채운다. 앱은 기록 등록 시 대회를 선택하고, 해당 `comp_id`에 맞는 `comp_evt_cfg` 행이 없으면 서버(서비스 롤)에서 `comp_evt_cfg`를 추가한 뒤 `rec_race_hist`를 삽입한다.
 - 중복 입력 방지를 위해 개인+경기 식별 유니크를 둔다(예: `mem_id`, `comp_evt_id`, `race_dt`, `race_nm`).
 
 노출 정책(현재):

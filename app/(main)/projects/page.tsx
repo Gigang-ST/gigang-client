@@ -1,98 +1,153 @@
+import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { createClient } from "@/lib/supabase/server";
+import { PageHeader } from "@/components/common/page-header";
+import { getCurrentMember } from "@/lib/queries/member";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { currentMonthKST, prevMonthStr } from "@/lib/dayjs";
-import { MonthNavigator } from "@/components/projects/month-navigator";
 import { MileageIntro } from "@/components/projects/mileage-intro";
-
-// TODO: DB 연동 후 제거 — 임시 하드코딩 프로젝트 정보
-const MOCK_PROJECT = {
-  id: "00000000-0000-0000-0000-000000000000",
-  name: "마일리지런",
-  start_month: "2026-05-01",
-  end_month: "2026-09-01",
-  status: "active" as const,
-};
+import { MileageRulesButton } from "@/components/projects/mileage-rules-button";
+import { MonthNavigator } from "@/components/projects/month-navigator";
+import { JoinSection } from "@/components/projects/join-section";
+import { CrewProgressChart } from "@/components/projects/crew-progress-chart";
+import { RandomReview } from "@/components/projects/random-review";
+import { CrewMonthlyStats } from "@/components/projects/crew-monthly-stats";
+import { MyStatus } from "@/components/projects/my-status";
+import { RefundStatus } from "@/components/projects/refund-status";
+import { MySportChart } from "@/components/projects/my-sport-chart-server";
+import { MyActivityList } from "@/components/projects/my-activity-list";
+import { ActivityLogFab } from "@/components/projects/activity-log-fab";
 
 export default async function ProjectsPage({
   searchParams,
 }: {
   searchParams: Promise<{ month?: string }>;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user, member, supabase } = await getCurrentMember();
+  if (!user) redirect("/auth/login");
+  const { teamId } = await getRequestTeamContext();
 
-  // TODO: DB 연동 후 실제 프로젝트 조회로 교체
-  // const { data: project } = await supabase
-  //   .from("project")
-  //   .select("id, name, start_month, end_month, status")
-  //   .eq("status", "active")
-  //   .maybeSingle();
-  const project = MOCK_PROJECT;
+  // ACTIVE 이벤트 조회 (1개)
+  const { data: event } = await supabase
+    .from("evt_team_mst")
+    .select("evt_id, evt_nm, stt_dt, end_dt, status_cd")
+    .eq("team_id", teamId)
+    .eq("status_cd", "ACTIVE")
+    .maybeSingle();
 
-  // 현재 월 결정 — 시작월 1달 전(연습 기간)부터 조회 가능
+  // 이벤트 없음 — 소개 + 규칙만 표시
+  if (!event) {
+    return (
+      <div className="flex flex-col gap-0">
+        <PageHeader title="프로젝트" />
+        <div className="flex flex-col gap-7 px-6 pb-24">
+          <MileageIntro />
+          <MileageRulesButton />
+        </div>
+      </div>
+    );
+  }
+
+  // 월 결정 — 연습월(시작 -1)부터 종료월까지
   const params = await searchParams;
   const currentKST = currentMonthKST();
-  const practiceMonth = prevMonthStr(project.start_month);
+  const practiceMonth = prevMonthStr(event.stt_dt);
+
   const selectedMonth =
     params.month &&
     params.month >= practiceMonth &&
-    params.month <= project.end_month
+    params.month <= event.end_dt
       ? params.month
-      : currentKST >= practiceMonth && currentKST <= project.end_month
+      : currentKST >= practiceMonth && currentKST <= event.end_dt
         ? currentKST
-        : project.start_month;
+        : event.stt_dt;
 
-  // TODO: DB 연동 후 참여 정보 조회
-  // 현재는 무조건 미참여 상태로 처리
-  const isParticipant = false;
+  // 로그인한 멤버의 참여 정보 조회
+  let participation: { approve_yn: boolean } | null = null;
+  if (member) {
+    const { data: prt } = await supabase
+      .from("evt_team_prt_rel")
+      .select("approve_yn")
+      .eq("evt_id", event.evt_id)
+      .eq("mem_id", member.id)
+      .maybeSingle();
+    participation = prt ?? null;
+  }
+
+  const isParticipant = participation !== null && participation.approve_yn === true;
+
+  // 비로그인이면 신청 섹션 미표시
+  const showJoin = user !== null && !isParticipant;
 
   return (
-    <div className="mx-auto max-w-3xl px-6 pb-24 pt-6 space-y-8">
-      {/* 제목 + 월 네비게이터 */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{project.name}</h1>
-        <MonthNavigator
-          currentMonth={selectedMonth}
-          startMonth={project.start_month}
-          endMonth={project.end_month}
-        />
+    <div className="flex flex-col gap-0">
+      <PageHeader title="프로젝트" />
+      <div className="flex flex-col gap-7 px-6 pb-24">
+        {/* 이벤트명 + 월 네비게이터 */}
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold">{event.evt_nm}</h2>
+          <MonthNavigator
+            currentMonth={selectedMonth}
+            startMonth={event.stt_dt}
+            endMonth={event.end_dt}
+          />
+        </div>
+
+        {/* 미참여 시 소개 */}
+        {!isParticipant && <MileageIntro />}
+
+        {/* 참여 신청 섹션 */}
+        {showJoin && (
+          <JoinSection
+            evtId={event.evt_id}
+            evtStartMonth={event.stt_dt}
+            evtEndMonth={event.end_dt}
+            existingPrt={participation}
+          />
+        )}
+
+        {/* 크루 진행현황 */}
+        <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
+          <CrewProgressChart
+            evtId={event.evt_id}
+            memId={isParticipant ? member!.id : undefined}
+            month={selectedMonth}
+          />
+        </Suspense>
+        <Suspense fallback={null}>
+          <RandomReview evtId={event.evt_id} />
+        </Suspense>
+        <Suspense fallback={<Skeleton className="h-32 w-full rounded-2xl" />}>
+          <CrewMonthlyStats evtId={event.evt_id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
+        </Suspense>
+
+        {/* 참여자 전용 */}
+        {isParticipant && member && (
+          <>
+            <Suspense fallback={<Skeleton className="h-40 w-full rounded-2xl" />}>
+              <MyStatus evtId={event.evt_id} memId={member.id} month={selectedMonth} />
+            </Suspense>
+            <Suspense fallback={<Skeleton className="h-20 w-full rounded-2xl" />}>
+              <RefundStatus
+                evtId={event.evt_id}
+                memId={member.id}
+                evtStartMonth={event.stt_dt}
+                evtEndMonth={event.end_dt}
+                month={selectedMonth}
+              />
+            </Suspense>
+            <Suspense fallback={<Skeleton className="h-40 w-full rounded-2xl" />}>
+              <MySportChart evtId={event.evt_id} memId={member.id} month={selectedMonth} />
+            </Suspense>
+            <Suspense fallback={<Skeleton className="h-48 w-full rounded-2xl" />}>
+              <MyActivityList evtId={event.evt_id} memId={member.id} month={selectedMonth} />
+            </Suspense>
+            <ActivityLogFab evtId={event.evt_id} memId={member.id} />
+          </>
+        )}
+
+        <MileageRulesButton />
       </div>
-
-      {/* 마일리지런 소개 */}
-      <MileageIntro />
-
-      {/* TODO: 참가 신청 섹션 (#105) */}
-      {user && !isParticipant && (
-        <section className="rounded-xl border border-dashed border-border p-6 text-center text-muted-foreground">
-          참가 신청 섹션 (구현 예정)
-        </section>
-      )}
-
-      {/* TODO: 크루 진행현황 그래프 + 통계/후기 (#106, #107) */}
-      <section className="rounded-xl border p-5 space-y-4">
-        <Skeleton className="h-64 w-full" />
-        <p className="text-sm text-muted-foreground text-center">
-          크루 진행현황 (구현 예정)
-        </p>
-      </section>
-
-      {/* 참여자 전용 영역 */}
-      {isParticipant && (
-        <>
-          {/* TODO: 내 현황 + 환급/회식비 (#108) */}
-          <Skeleton className="h-40 w-full rounded-xl" />
-
-          {/* TODO: 종목별 마일리지 차트 (#109) */}
-          <Skeleton className="h-40 w-full rounded-xl" />
-
-          {/* TODO: 내 기록 목록 (#110) */}
-          <Skeleton className="h-48 w-full rounded-xl" />
-        </>
-      )}
-
-      {/* TODO: 마일리지런 규칙 Sheet (#111) */}
     </div>
   );
 }

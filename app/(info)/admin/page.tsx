@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  UserCheck,
   Users,
   Trophy,
   Timer,
@@ -30,19 +29,11 @@ type Card = {
 
 const generalCards: Card[] = [
   {
-    key: "approvals",
-    label: "가입 승인 대기",
-    href: "/admin/approvals",
-    icon: UserCheck,
-    getValue: (s) => s.pendingCount,
-    getAccentValue: (s) => s.pendingCount,
-  },
-  {
     key: "members",
-    label: "활성 회원",
+    label: "회원 관리",
     href: "/admin/members",
     icon: Users,
-    getValue: (s) => `${s.activeCount} / ${s.totalCount}`,
+    getValue: (s) => s.totalCount,
   },
   {
     key: "competitions",
@@ -63,24 +54,25 @@ const generalCards: Card[] = [
 const projectCards: Card[] = [
   {
     key: "participations",
-    label: "참여자 관리",
+    label: "승인 대기 참여자",
     href: "/admin/participations",
     icon: HandCoins,
-    getValue: () => "-",
+    getValue: (s) => s.pendingParticipationCount,
+    getAccentValue: (s) => s.pendingParticipationCount,
   },
   {
     key: "projects",
     label: "활성 프로젝트",
     href: "/admin/projects",
     icon: FolderKanban,
-    getValue: () => "-",
+    getValue: (s) => s.activeProjectCount,
   },
   {
     key: "events",
     label: "활성 이벤트",
     href: "/admin/events",
     icon: Sparkles,
-    getValue: () => "-",
+    getValue: (s) => s.activeEventCount,
   },
 ];
 

@@ -70,11 +70,18 @@ t3-env로 관리되며 `lib/env.ts`에서 import:
 | `NEXT_PUBLIC_SUPABASE_URL` | 클라이언트 | Supabase 프로젝트 URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | 클라이언트 | Supabase 공개 키 |
 | `NEXT_PUBLIC_ENABLE_DEV_MODE` | 클라이언트 | 개발 모드 활성화 (이메일 로그인 등) |
-| `NEXT_PUBLIC_DEBUG_DATE` | 클라이언트 | 디버그용 날짜 오버라이드 |
 
 ## 커스텀 커맨드
 
 - `/pr` — PR 생성 시 반드시 이 스킬을 사용할 것
+
+## 에이전트/스킬/MCP 동기화 규칙
+
+- `.claude/skills`를 이 저장소의 스킬 source of truth로 사용한다.
+- 스킬을 추가하거나 수정하면 Codex 호환을 위해 동일 내용을 `.agents/skills`에도 반드시 반영한다.
+- Codex 프로젝트 설정 파일은 `.agents`가 아니라 `.codex/config.toml`에 둔다.
+- MCP 서버를 추가하거나 변경하면 `.mcp.json`, `.cursor/mcp.json`, `.codex/config.toml`을 함께 갱신한다.
+- Cursor는 Codex의 `.agents/skills`나 `.codex/config.toml`을 직접 읽지 않으므로 Cursor 전용 설정은 `.cursor/*`에서 별도로 관리한다.
 
 ## MCP 서버
 
@@ -84,6 +91,7 @@ t3-env로 관리되며 `lib/env.ts`에서 import:
 |----------|------|
 | `supabase-gigang-dev` | Supabase 개발 환경 |
 | `supabase-gigang-prd` | Supabase 프로덕션 환경 |
+| `supabase-gigang-local` | Supabase 로컬 개발 환경 |
 | `vercel` | Vercel 배포 관리 |
 | `chrome-devtools` | 브라우저 테스트/QA |
 | `shadcn` | shadcn/ui 컴포넌트 검색 |
