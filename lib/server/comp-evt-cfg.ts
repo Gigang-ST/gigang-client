@@ -72,17 +72,26 @@ export async function resolveOrCreateCompEvtId(
     .single();
 
   if (insErr?.code === "23505") {
-    const { data: again } = await admin
+    const { data: again, error: againErr } = await admin
       .from("comp_evt_cfg")
       .select("comp_evt_id, del_yn")
       .eq("comp_id", compId)
       .eq("vers", 0)
       .eq("comp_evt_type", eventTypeUpper)
       .limit(1);
+    if (againErr) {
+      return { ok: false, message: "종목 정보를 확인하지 못했습니다." };
+    }
     const row = again?.[0];
     if (row) {
       if (row.del_yn) {
-        await admin.from("comp_evt_cfg").update({ del_yn: false }).eq("comp_evt_id", row.comp_evt_id);
+        const { error: reviveErr } = await admin
+          .from("comp_evt_cfg")
+          .update({ del_yn: false })
+          .eq("comp_evt_id", row.comp_evt_id);
+        if (reviveErr) {
+          return { ok: false, message: "종목 설정을 복구하지 못했습니다." };
+        }
       }
       return { ok: true, compEvtId: row.comp_evt_id };
     }
