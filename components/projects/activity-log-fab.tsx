@@ -24,6 +24,7 @@ export function ActivityLogFab({ evtId, memId }: ActivityLogFabProps) {
   const handleSuccess = () => {
     setOpen(false);
     router.refresh();
+    window.dispatchEvent(new Event("mileage:refresh"));
   };
 
   return (
