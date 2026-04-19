@@ -8,6 +8,7 @@ import { currentMonthKST, prevMonthStr } from "@/lib/dayjs";
 import { MileageIntro } from "@/components/projects/mileage-intro";
 import { MileageRulesButton } from "@/components/projects/mileage-rules-button";
 import { MonthNavigator } from "@/components/projects/month-navigator";
+import { MonthTransitionProvider, TransitionOverlay } from "@/components/projects/month-transition";
 import { CrewProgressChartServer } from "@/components/projects/crew-progress-chart-server";
 import { JoinSection } from "@/components/projects/join-section";
 import { RandomReview } from "@/components/projects/random-review";
@@ -85,72 +86,76 @@ export default async function ProjectsPage({
     <div className="flex flex-col gap-0">
       <PageHeader title="프로젝트" />
       <div className="flex flex-col gap-7 px-6 pb-24">
-        {/* 이벤트명 + 월 네비게이터 */}
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold">{event.evt_nm}</h2>
-          <MonthNavigator
-            currentMonth={selectedMonth}
-            startMonth={event.stt_dt}
-            endMonth={event.end_dt}
-          />
-        </div>
+        <MonthTransitionProvider>
+          {/* 이벤트명 + 월 네비게이터 */}
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold">{event.evt_nm}</h2>
+            <MonthNavigator
+              currentMonth={selectedMonth}
+              startMonth={event.stt_dt}
+              endMonth={event.end_dt}
+            />
+          </div>
 
-        {/* 미참여 시 소개 */}
-        {!isParticipant && <MileageIntro />}
+          {/* 미참여 시 소개 */}
+          {!isParticipant && <MileageIntro />}
 
-        {/* 참여 신청 섹션 */}
-        {showJoin && (
-          <JoinSection
-            evtId={event.evt_id}
-            evtStartMonth={event.stt_dt}
-            evtEndMonth={event.end_dt}
-            existingPrt={participation}
-          />
-        )}
+          {/* 참여 신청 섹션 */}
+          {showJoin && (
+            <JoinSection
+              evtId={event.evt_id}
+              evtStartMonth={event.stt_dt}
+              evtEndMonth={event.end_dt}
+              existingPrt={participation}
+            />
+          )}
 
-        {/* 크루 진행현황 */}
-        <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
-          <CrewProgressChartServer
-            evtId={event.evt_id}
-            memId={isParticipant ? member!.id : undefined}
-            month={selectedMonth}
-            evtStartMonth={event.stt_dt}
-            evtEndMonth={event.end_dt}
-          />
-        </Suspense>
-        <Suspense fallback={null}>
-          <RandomReview evtId={event.evt_id} />
-        </Suspense>
-        <Suspense fallback={<Skeleton className="h-32 w-full rounded-2xl" />}>
-          <CrewMonthlyStats evtId={event.evt_id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
-        </Suspense>
-
-        {/* 참여자 전용 */}
-        {isParticipant && member && (
-          <>
-            <Suspense fallback={<Skeleton className="h-40 w-full rounded-2xl" />}>
-              <MyStatus evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
-            </Suspense>
-            <Suspense fallback={<Skeleton className="h-20 w-full rounded-2xl" />}>
-              <RefundStatus
+          {/* 월별 동적 콘텐츠 — 전환 시 opacity 처리 */}
+          <TransitionOverlay className="flex flex-col gap-7">
+            <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
+              <CrewProgressChartServer
                 evtId={event.evt_id}
-                memId={member.id}
+                memId={isParticipant ? member!.id : undefined}
+                month={selectedMonth}
                 evtStartMonth={event.stt_dt}
                 evtEndMonth={event.end_dt}
-                month={selectedMonth}
               />
             </Suspense>
-            <Suspense fallback={<Skeleton className="h-40 w-full rounded-2xl" />}>
-              <MySportChart evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
+            <Suspense fallback={null}>
+              <RandomReview evtId={event.evt_id} />
             </Suspense>
-            <Suspense fallback={<Skeleton className="h-48 w-full rounded-2xl" />}>
-              <MyActivityList evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
+            <Suspense fallback={<Skeleton className="h-32 w-full rounded-2xl" />}>
+              <CrewMonthlyStats evtId={event.evt_id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
             </Suspense>
-            <ActivityLogFab evtId={event.evt_id} memId={member.id} />
-          </>
-        )}
 
-        <MileageRulesButton />
+            {/* 참여자 전용 */}
+            {isParticipant && member && (
+              <>
+                <Suspense fallback={<Skeleton className="h-40 w-full rounded-2xl" />}>
+                  <MyStatus evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
+                </Suspense>
+                <Suspense fallback={<Skeleton className="h-20 w-full rounded-2xl" />}>
+                  <RefundStatus
+                    evtId={event.evt_id}
+                    memId={member.id}
+                    evtStartMonth={event.stt_dt}
+                    evtEndMonth={event.end_dt}
+                    month={selectedMonth}
+                  />
+                </Suspense>
+                <Suspense fallback={<Skeleton className="h-40 w-full rounded-2xl" />}>
+                  <MySportChart evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
+                </Suspense>
+                <Suspense fallback={<Skeleton className="h-48 w-full rounded-2xl" />}>
+                  <MyActivityList evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
+                </Suspense>
+                <ActivityLogFab evtId={event.evt_id} memId={member.id} />
+              </>
+            )}
+          </TransitionOverlay>
+
+          <MileageRulesButton />
+        </MonthTransitionProvider>
       </div>
     </div>
   );
