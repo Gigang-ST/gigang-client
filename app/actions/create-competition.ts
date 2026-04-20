@@ -5,7 +5,7 @@ import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { todayKST } from "@/lib/dayjs";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCachedCmmCdRows, isValidCompSprtCd } from "@/lib/queries/cmm-cd-cached";
-import { verifyAdmin } from "@/lib/queries/member";
+import { getCurrentMember } from "@/lib/queries/member";
 
 interface CreateCompetitionInput {
   title: string;
@@ -19,9 +19,9 @@ interface CreateCompetitionInput {
 }
 
 export async function createCompetition(input: CreateCompetitionInput) {
-  const adminUser = await verifyAdmin();
-  if (!adminUser) {
-    return { ok: false, message: "권한이 없습니다" };
+  const { member } = await getCurrentMember();
+  if (!member) {
+    return { ok: false, message: "로그인 후 팀에 가입한 회원만 등록할 수 있습니다." };
   }
 
   const cmmRows = await getCachedCmmCdRows();
