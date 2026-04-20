@@ -113,6 +113,8 @@ type MemberPercentBar = {
   memId: string;
   name: string;
   percent: number;
+  currentKm: number;
+  goalKm: number;
 };
 
 export function CrewProgressChart({
@@ -297,12 +299,20 @@ export function CrewProgressChart({
   const mileageYAxisMax = mileageTicks[mileageTicks.length - 1];
   const memberPercentData: MemberPercentBar[] = members
     .map((member) => {
+      const latestMileage = mileageData[mileageData.length - 1];
       const latest = percentData[percentData.length - 1];
+      const currentKmRaw = latestMileage?.[member.name];
       const value = latest?.[member.name];
+      const currentKm = typeof currentKmRaw === "number" ? currentKmRaw : 0;
+      const percent = typeof value === "number" ? value : 0;
+      const goalKm =
+        percent > 0 ? Number((currentKm / (percent / 100)).toFixed(1)) : 0;
       return {
         memId: member.id,
         name: member.name,
-        percent: typeof value === "number" ? value : 0,
+        percent,
+        currentKm: Number(currentKm.toFixed(1)),
+        goalKm,
       };
     })
     .sort((a, b) => b.percent - a.percent);
@@ -383,7 +393,7 @@ export function CrewProgressChart({
           </LineChart>
         ) : (
           <BarChart data={memberPercentData} margin={{ top: 4, right: 8, left: 0, bottom: 24 }}>
-            {[0, 25, 50, 75, 100].map((tick) => (
+            {[0, 20, 40, 60, 80, 100].map((tick) => (
               <ReferenceLine
                 key={tick}
                 y={tick}
@@ -406,7 +416,12 @@ export function CrewProgressChart({
               domain={[0, 100]}
             />
             <Tooltip
-              formatter={(value: number) => `${Number(value).toFixed(1)}%`}
+              formatter={(value: number, _name, item) => {
+                const row = item?.payload as MemberPercentBar | undefined;
+                if (!row) return `${Number(value).toFixed(1)}%`;
+                const goalText = row.goalKm > 0 ? `${row.goalKm.toFixed(1)}km` : "-";
+                return `${Number(value).toFixed(1)}% (${row.currentKm.toFixed(1)}km/${goalText})`;
+              }}
               labelFormatter={(label) => `${label}`}
             />
             <ReferenceLine
