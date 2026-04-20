@@ -14,7 +14,7 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
 
   const { data: reviews } = await supabase
     .from("evt_mlg_act_hist")
-    .select("act_id, review, mem_id, act_dt, sport_cd, distance_km, mem_mst!inner(mem_nm)")
+    .select("act_id, review, mem_id, act_dt, sprt_enm, distance_km, mem_mst!inner(mem_nm)")
     .eq("evt_id", evtId)
     .not("review", "is", null)
     .neq("review", "")
@@ -32,7 +32,7 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
     <div className="flex flex-col gap-2">
       {picks.map((item) => {
         const name = (item.mem_mst as unknown as { mem_nm: string }).mem_nm;
-        const sport = MILEAGE_SPORT_LABELS[item.sport_cd as MileageSport] ?? item.sport_cd;
+        const sport = MILEAGE_SPORT_LABELS[item.sprt_enm as MileageSport] ?? item.sprt_enm;
         const dist = Number(item.distance_km);
         return (
           <div

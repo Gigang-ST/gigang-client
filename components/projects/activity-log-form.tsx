@@ -47,7 +47,7 @@ export type ActivityLogFormProps = {
   editData?: {
     act_id: string;
     act_dt: string;
-    sport_cd: string;
+    sprt_enm: string;
     distance_km: number;
     elevation_m: number | null;
     applied_mults: { mult_id: string; mult_nm: string; mult_val: number }[] | null;
@@ -97,7 +97,7 @@ export function ActivityLogForm({
     resolver: zodResolver(activityLogSchema),
     defaultValues: {
       act_dt: editData?.act_dt ?? today,
-      sport_cd: (editData?.sport_cd as MileageSport) ?? "RUNNING",
+      sprt_enm: (editData?.sprt_enm as MileageSport) ?? "RUNNING",
       distance_km: editData?.distance_km ?? (undefined as unknown as number),
       elevation_m: editData?.elevation_m ?? 0,
       applied_mult_ids: initialMultIds,
@@ -105,7 +105,7 @@ export function ActivityLogForm({
     },
   });
 
-  const sportCd = watch("sport_cd");
+  const sprtEnm = watch("sprt_enm");
   const distanceKm = watch("distance_km");
   const elevationM = watch("elevation_m");
   const actDt = watch("act_dt");
@@ -141,7 +141,7 @@ export function ActivityLogForm({
 
   const dist = Number(distanceKm) || 0;
   const elev = Number(elevationM) || 0;
-  const baseMileage = dist > 0 ? roundMileage(calcBaseMileage(sportCd, dist, elev)) : 0;
+  const baseMileage = dist > 0 ? roundMileage(calcBaseMileage(sprtEnm, dist, elev)) : 0;
   const finalMileage =
     dist > 0
       ? roundMileage(calcFinalMileage(baseMileage, activeMults.map((m) => m.mult_val)))
@@ -159,7 +159,7 @@ export function ActivityLogForm({
       // 서버 액션 타입으로 변환 (default 값 명시 적용)
       const input: ActivityLogInput = {
         act_dt: values.act_dt,
-        sport_cd: values.sport_cd as MileageSport,
+        sprt_enm: values.sprt_enm as MileageSport,
         distance_km: values.distance_km as number,
         elevation_m: values.elevation_m ?? 0,
         applied_mult_ids: selectedMultIds,
@@ -201,14 +201,14 @@ export function ActivityLogForm({
 
       {/* 종목 */}
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="sport_cd">종목</Label>
+        <Label htmlFor="sprt_enm">종목</Label>
         <Controller
           control={control}
-          name="sport_cd"
+          name="sprt_enm"
           render={({ field }) => (
             <Select value={field.value} onValueChange={field.onChange}>
               <SelectTrigger
-                id="sport_cd"
+                id="sprt_enm"
                 className="h-12 rounded-xl border-[1.5px] text-[15px]"
               >
                 <SelectValue />
@@ -225,8 +225,8 @@ export function ActivityLogForm({
             </Select>
           )}
         />
-        {errors.sport_cd && (
-          <p className="text-sm text-destructive">{errors.sport_cd.message}</p>
+        {errors.sprt_enm && (
+          <p className="text-sm text-destructive">{errors.sprt_enm.message}</p>
         )}
       </div>
 
@@ -248,7 +248,7 @@ export function ActivityLogForm({
       </div>
 
       {/* 상승고도 — 수영 선택 시 hidden */}
-      {sportCd !== "SWIMMING" && (
+      {sprtEnm !== "SWIMMING" && (
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="elevation_m">상승고도 (m, 선택)</Label>
           <Input

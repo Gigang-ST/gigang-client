@@ -35,8 +35,8 @@ evt_mlg_goal_cfg  evt_mlg_act_hist
 | `evt_type_cd` | `varchar(20)` | Y | 이벤트 유형 코드 (`MILEAGE_RUN` 등) |
 | `stt_dt` | `date` | Y | 시작일 |
 | `end_dt` | `date` | Y | 종료일 |
-| `status_cd` | `varchar(20)` | Y | 상태 (`READY` / `ACTIVE` / `CLOSED`), 기본값 `READY` |
-| `desc` | `text` | N | 설명 |
+| `stts_enm` | `evt_stts_enm` | Y | 상태 enum (`READY` / `ACTIVE` / `CLOSED`), 기본값 `READY` |
+| `desc_txt` | `text` | N | 설명 |
 | `created_at` | `timestamptz` | Y | 기본값 `now()` |
 | `updated_at` | `timestamptz` | Y | 기본값 `now()` |
 
@@ -52,14 +52,14 @@ evt_mlg_goal_cfg  evt_mlg_act_hist
 | `prt_id` | `uuid` | Y | PK |
 | `evt_id` | `uuid` | Y | FK → `evt_team_mst.evt_id` |
 | `mem_id` | `uuid` | Y | FK → `mem_mst.mem_id` |
-| `stt_month` | `date` | Y | 참여 시작월 (ex: `2026-04-01`). 연습기간 가입이면 연습월부터 |
+| `stt_mth` | `date` | Y | 참여 시작월 (ex: `2026-04-01`). 연습기간 가입이면 연습월부터 |
 | `init_goal` | `integer` | Y | 초기 목표 마일리지 (50/100/자유) |
 | `deposit_amt` | `integer` | Y | 보증금 (잔여 실전 개월 × 1만원) |
 | `entry_fee_amt` | `integer` | Y | 참가비 (싱글렛 보유: 1만, 미보유: 2만) |
 | `singlet_fee_amt` | `integer` | Y | 싱글렛비 (현재 미사용, 0 고정) |
 | `has_singlet_yn` | `boolean` | Y | 싱글렛 보유 여부, 기본값 `false` |
-| `approve_yn` | `boolean` | Y | 운영진 승인 여부, 기본값 `false` |
-| `approved_at` | `timestamptz` | N | 승인 일시 |
+| `aprv_yn` | `boolean` | Y | 운영진 승인 여부, 기본값 `false` |
+| `aprv_at` | `timestamptz` | N | 승인 일시 |
 | `created_at` | `timestamptz` | Y | 기본값 `now()` |
 | `updated_at` | `timestamptz` | Y | 기본값 `now()` |
 
@@ -76,7 +76,7 @@ evt_mlg_goal_cfg  evt_mlg_act_hist
 | `goal_id` | `uuid` | Y | PK |
 | `evt_id` | `uuid` | Y | FK → `evt_team_mst.evt_id` |
 | `mem_id` | `uuid` | Y | FK → `mem_mst.mem_id` |
-| `goal_month` | `date` | Y | 대상월 (ex: `2026-05-01`) |
+| `goal_mth` | `date` | Y | 대상월 (ex: `2026-05-01`) |
 | `goal_val` | `integer` | Y | 목표 마일리지 (정수) |
 | `achieved_yn` | `boolean` | Y | 달성 여부, 기본값 `false` |
 | `created_at` | `timestamptz` | Y | 기본값 `now()` |
@@ -85,7 +85,7 @@ evt_mlg_goal_cfg  evt_mlg_act_hist
 핵심 제약:
 - PK: `goal_id`
 - FK: `evt_id` → `evt_team_mst(evt_id)`, `mem_id` → `mem_mst(mem_id)`
-- UK: `(evt_id, mem_id, goal_month)` — 이벤트 × 회원 × 월 유일
+- UK: `(evt_id, mem_id, goal_mth)` — 이벤트 × 회원 × 월 유일
 
 목표 자동상향 규칙 (연습기간 제외, 실전 기간만):
 - 달성 시: 목표 < 50 → +10, 50~99 → +15, 100+ → +20
@@ -100,7 +100,7 @@ evt_mlg_goal_cfg  evt_mlg_act_hist
 | `evt_id` | `uuid` | Y | FK → `evt_team_mst.evt_id` |
 | `mem_id` | `uuid` | Y | FK → `mem_mst.mem_id` |
 | `act_dt` | `date` | Y | 활동 날짜 |
-| `sport_cd` | `varchar(20)` | Y | 종목 (`RUNNING` / `TRAIL` / `CYCLING` / `SWIMMING`) |
+| `sprt_enm` | `evt_mlg_sprt_enm` | Y | 종목 enum (`RUNNING` / `TRAIL` / `CYCLING` / `SWIMMING`) |
 | `distance_km` | `numeric(6,2)` | Y | 거리 (km) |
 | `elevation_m` | `numeric(7,1)` | N | 상승고도 (m), 수영은 null |
 | `base_mlg` | `numeric(6,2)` | Y | 기본 마일리지 (배율 적용 전) |
