@@ -29,7 +29,7 @@ export async function CrewProgressChartServer({
 
   // 선택 월 기준 활성 참여자
   const participants = allParticipants.filter(
-    (p) => (p.stt_month as string) <= month,
+    (p) => (p.stt_mth as string) <= month,
   );
 
   if (participants.length === 0) {
@@ -41,7 +41,7 @@ export async function CrewProgressChartServer({
   const mEnd = monthLastDay(y, m);
 
   // 당월 목표
-  const monthGoals = allGoals.filter((g) => g.goal_month === month);
+  const monthGoals = allGoals.filter((g) => g.goal_mth === month);
   const goalByMemId = new Map<string, number>();
   for (const g of monthGoals) {
     goalByMemId.set(g.mem_id, Number(g.goal_val));

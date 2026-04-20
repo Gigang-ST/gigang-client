@@ -45,7 +45,7 @@ export async function MyStatus({
   ]);
 
   const goalRow = allGoals.find(
-    (g) => g.mem_id === memId && g.goal_month === month,
+    (g) => g.mem_id === memId && g.goal_mth === month,
   );
 
   if (!goalRow) {

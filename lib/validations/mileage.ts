@@ -1,14 +1,14 @@
 import { z } from "zod";
 
-/** 마일리지런 활동 종목 코드 */
-const SPORT_CD_KEYS = ["RUNNING", "TRAIL", "CYCLING", "SWIMMING"] as const;
+/** 마일리지런 활동 종목 enum 값 */
+const SPRT_ENM_KEYS = ["RUNNING", "TRAIL", "CYCLING", "SWIMMING"] as const;
 
 /** 활동 로그 등록 폼 */
 export const activityLogSchema = z.object({
   act_dt: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "날짜 형식이 올바르지 않습니다"),
-  sport_cd: z.enum(SPORT_CD_KEYS, { message: "종목을 선택해 주세요" }),
+  sprt_enm: z.enum(SPRT_ENM_KEYS, { message: "종목을 선택해 주세요" }),
   distance_km: z.number().positive("거리를 입력해주세요"),
   elevation_m: z.number().min(0).default(0),
   applied_mult_ids: z.array(z.string().uuid()).default([]),

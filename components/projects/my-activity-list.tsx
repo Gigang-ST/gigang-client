@@ -38,7 +38,7 @@ export async function MyActivityList({
   const records: ActivityRecord[] = top5.map((log) => ({
     act_id: log.act_id,
     act_dt: log.act_dt as string,
-    sport_cd: log.sport_cd as string,
+    sprt_enm: log.sprt_enm as string,
     distance_km: Number(log.distance_km),
     elevation_m: Number(log.elevation_m),
     base_mlg: Number(log.base_mlg),

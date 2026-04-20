@@ -123,8 +123,8 @@ export function CrewProgressChart({
       .from("evt_team_prt_rel")
       .select("mem_id, init_goal, mem_mst!inner(mem_nm)")
       .eq("evt_id", evtId)
-      .eq("approve_yn", true)
-      .lte("stt_month", month);
+      .eq("aprv_yn", true)
+      .lte("stt_mth", month);
 
     if (!participants || participants.length === 0) {
       setLoading(false);
@@ -146,7 +146,7 @@ export function CrewProgressChart({
         .select("mem_id, goal_val")
         .eq("evt_id", evtId)
         .in("mem_id", memIds)
-        .eq("goal_month", month),
+        .eq("goal_mth", month),
     ]);
 
     const goalByMemId = new Map<string, number>();

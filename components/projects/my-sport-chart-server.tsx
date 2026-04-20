@@ -33,10 +33,10 @@ export async function MySportChart({
     return <MySportChartClient data={[]} />;
   }
 
-  // sport_cd별 final_mlg 합산
+  // sprt_enm별 final_mlg 합산
   const sportMap = new Map<MileageSport, number>();
   for (const log of myMonthLogs) {
-    const sport = log.sport_cd as MileageSport;
+    const sport = log.sprt_enm as MileageSport;
     const prev = sportMap.get(sport) ?? 0;
     sportMap.set(sport, prev + Number(log.final_mlg));
   }

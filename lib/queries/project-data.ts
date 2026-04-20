@@ -9,10 +9,10 @@ export const getEventParticipants = cache(async (evtId: string) => {
   const { data } = await db
     .from("evt_team_prt_rel")
     .select(
-      "mem_id, init_goal, stt_month, deposit_amt, entry_fee_amt, mem_mst!inner(mem_nm)",
+      "mem_id, init_goal, stt_mth, deposit_amt, entry_fee_amt, mem_mst!inner(mem_nm)",
     )
     .eq("evt_id", evtId)
-    .eq("approve_yn", true);
+    .eq("aprv_yn", true);
   return data ?? [];
 });
 
@@ -21,9 +21,9 @@ export const getEventGoalsMonthly = cache(async (evtId: string, month: string) =
   const db = createAdminClient();
   const { data } = await db
     .from("evt_mlg_goal_cfg")
-    .select("mem_id, goal_month, goal_val, achieved_yn")
+    .select("mem_id, goal_mth, goal_val, achieved_yn")
     .eq("evt_id", evtId)
-    .eq("goal_month", month);
+    .eq("goal_mth", month);
   return data ?? [];
 });
 
@@ -34,10 +34,10 @@ export const getEventGoalsCumulative = cache(
     const queryStart = startMonth <= endMonth ? startMonth : endMonth;
     const { data } = await db
       .from("evt_mlg_goal_cfg")
-      .select("mem_id, goal_month, goal_val, achieved_yn")
+      .select("mem_id, goal_mth, goal_val, achieved_yn")
       .eq("evt_id", evtId)
-      .gte("goal_month", queryStart)
-      .lte("goal_month", endMonth);
+      .gte("goal_mth", queryStart)
+      .lte("goal_mth", endMonth);
     return data ?? [];
   },
 );
@@ -48,7 +48,7 @@ export const getEventLogsMonthly = cache(async (evtId: string, month: string) =>
   const { data } = await db
     .from("evt_mlg_act_hist")
     .select(
-      "act_id, mem_id, act_dt, final_mlg, sport_cd, distance_km, elevation_m, base_mlg, applied_mults, review",
+      "act_id, mem_id, act_dt, final_mlg, sprt_enm, distance_km, elevation_m, base_mlg, applied_mults, review",
     )
     .eq("evt_id", evtId)
     .gte("act_dt", month)
@@ -64,7 +64,7 @@ export const getEventLogsCumulative = cache(
     const { data } = await db
       .from("evt_mlg_act_hist")
       .select(
-        "act_id, mem_id, act_dt, final_mlg, sport_cd, distance_km, elevation_m, base_mlg, applied_mults, review",
+        "act_id, mem_id, act_dt, final_mlg, sprt_enm, distance_km, elevation_m, base_mlg, applied_mults, review",
       )
       .eq("evt_id", evtId)
       .gte("act_dt", queryStart)

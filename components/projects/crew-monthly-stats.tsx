@@ -40,7 +40,7 @@ export async function CrewMonthlyStats({
 
   // 선택 월 기준 활성 참여자
   const activeParticipants = allParticipants.filter(
-    (p) => (p.stt_month as string) <= month,
+    (p) => (p.stt_mth as string) <= month,
   );
   if (activeParticipants.length === 0) return null;
 
@@ -88,8 +88,8 @@ export async function CrewMonthlyStats({
 
   for (const p of activeParticipants) {
     const effectiveStart =
-      (p.stt_month as string) > evtStartMonth
-        ? (p.stt_month as string)
+      (p.stt_mth as string) > evtStartMonth
+        ? (p.stt_mth as string)
         : evtStartMonth;
     if (effectiveStart > viewMonth) continue;
     const months = countMonths(effectiveStart, viewMonth);
@@ -97,8 +97,8 @@ export async function CrewMonthlyStats({
 
     const pGoals = cumulativeGoals.filter((g) => g.mem_id === p.mem_id);
     for (const g of pGoals) {
-      if (g.goal_month < effectiveStart || g.goal_month > viewMonth) continue;
-      const key = `${p.mem_id}:${g.goal_month}`;
+      if (g.goal_mth < effectiveStart || g.goal_mth > viewMonth) continue;
+      const key = `${p.mem_id}:${g.goal_mth}`;
       const achieved = mlgMap.get(key) ?? 0;
       totalRefundSum +=
         calcMonthRefundRate(achieved, Number(g.goal_val)) * DEPOSIT_PER_MONTH;
