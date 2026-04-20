@@ -123,8 +123,8 @@ export function CrewProgressChart({
       .from("evt_team_prt_rel")
       .select("mem_id, init_goal, mem_mst!inner(mem_nm)")
       .eq("evt_id", evtId)
-      .eq("approve_yn", true)
-      .lte("stt_month", month);
+      .eq("aprv_yn", true)
+      .lte("stt_mth", month);
 
     if (!participants || participants.length === 0) {
       setLoading(false);
@@ -146,7 +146,7 @@ export function CrewProgressChart({
         .select("mem_id, goal_val")
         .eq("evt_id", evtId)
         .in("mem_id", memIds)
-        .eq("goal_month", month),
+        .eq("goal_mth", month),
     ]);
 
     const goalByMemId = new Map<string, number>();
@@ -263,7 +263,7 @@ export function CrewProgressChart({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 outline-none **:outline-none">
       <SegmentControl
         segments={[
           { value: "mileage", label: "마일리지" },
@@ -273,7 +273,7 @@ export function CrewProgressChart({
         onValueChange={setMode}
       />
 
-      <ResponsiveContainer width="100%" height={240}>
+      <ResponsiveContainer width="100%" height={240} className="outline-none">
         <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
           <XAxis

@@ -30,8 +30,8 @@ type Event = {
   evt_type_cd: string;
   stt_dt: string;
   end_dt: string;
-  status_cd: string;
-  desc: string | null;
+  stts_enm: string;
+  desc_txt: string | null;
   created_at: string;
 };
 
@@ -71,8 +71,8 @@ export function AdminProjectsClient({ teamId }: { teamId: string }) {
     evt_type_cd: "MILEAGE_RUN",
     stt_dt: "",
     end_dt: "",
-    status_cd: "READY",
-    desc: "",
+    stts_enm: "READY",
+    desc_txt: "",
   });
 
   const loadEvents = useCallback(async () => {
@@ -80,7 +80,7 @@ export function AdminProjectsClient({ teamId }: { teamId: string }) {
     const supabase = createClient();
     const { data } = await supabase
       .from("evt_team_mst")
-      .select("evt_id, evt_nm, evt_type_cd, stt_dt, end_dt, status_cd, desc, created_at")
+      .select("evt_id, evt_nm, evt_type_cd, stt_dt, end_dt, stts_enm, desc_txt, created_at")
       .eq("team_id", teamId)
       .order("created_at", { ascending: false });
 
@@ -100,8 +100,8 @@ export function AdminProjectsClient({ teamId }: { teamId: string }) {
         evt_type_cd: selected.evt_type_cd,
         stt_dt: selected.stt_dt,
         end_dt: selected.end_dt,
-        status_cd: selected.status_cd,
-        desc: selected.desc ?? "",
+        stts_enm: selected.stts_enm,
+        desc_txt: selected.desc_txt ?? "",
       });
     }
   }, [mode, selected]);
@@ -121,8 +121,8 @@ export function AdminProjectsClient({ teamId }: { teamId: string }) {
       evt_type_cd: "MILEAGE_RUN",
       stt_dt: "",
       end_dt: "",
-      status_cd: "READY",
-      desc: "",
+      stts_enm: "READY",
+      desc_txt: "",
     });
     setMode("create");
   };
@@ -134,8 +134,8 @@ export function AdminProjectsClient({ teamId }: { teamId: string }) {
       evt_type_cd: evt.evt_type_cd,
       stt_dt: evt.stt_dt,
       end_dt: evt.end_dt,
-      status_cd: evt.status_cd,
-      desc: evt.desc ?? "",
+      stts_enm: evt.stts_enm,
+      desc_txt: evt.desc_txt ?? "",
     });
     setMode("edit");
   };
@@ -161,8 +161,8 @@ export function AdminProjectsClient({ teamId }: { teamId: string }) {
       evt_type_cd: form.evt_type_cd,
       stt_dt: form.stt_dt,
       end_dt: form.end_dt,
-      status_cd: form.status_cd,
-      desc: form.desc || null,
+      stts_enm: form.stts_enm,
+      desc_txt: form.desc_txt || null,
     };
 
     const result =
@@ -274,8 +274,8 @@ export function AdminProjectsClient({ teamId }: { teamId: string }) {
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium text-foreground">상태</label>
           <Select
-            value={form.status_cd}
-            onValueChange={(v) => setForm({ ...form, status_cd: v })}
+            value={form.stts_enm}
+            onValueChange={(v) => setForm({ ...form, stts_enm: v })}
           >
             <SelectTrigger className="h-12 rounded-xl border-[1.5px] text-[15px]">
               <SelectValue />
@@ -294,8 +294,8 @@ export function AdminProjectsClient({ teamId }: { teamId: string }) {
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium text-foreground">설명 (선택)</label>
           <textarea
-            value={form.desc}
-            onChange={(e) => setForm({ ...form, desc: e.target.value })}
+            value={form.desc_txt}
+            onChange={(e) => setForm({ ...form, desc_txt: e.target.value })}
             placeholder="이벤트 설명을 입력하세요"
             rows={3}
             className={cn(
@@ -333,7 +333,7 @@ export function AdminProjectsClient({ teamId }: { teamId: string }) {
 
       <div className="flex flex-col gap-3">
         {events.map((evt) => {
-          const badge = STATUS_BADGE[evt.status_cd] ?? STATUS_BADGE.READY;
+          const badge = STATUS_BADGE[evt.stts_enm] ?? STATUS_BADGE.READY;
           return (
             <CardItem key={evt.evt_id} className="flex flex-col gap-3">
               <div className="flex items-start justify-between gap-3">
@@ -352,9 +352,9 @@ export function AdminProjectsClient({ teamId }: { teamId: string }) {
                   <span className="text-[13px] text-muted-foreground">
                     {evt.stt_dt} ~ {evt.end_dt}
                   </span>
-                  {evt.desc && (
+                  {evt.desc_txt && (
                     <span className="line-clamp-2 text-[13px] text-muted-foreground">
-                      {evt.desc}
+                      {evt.desc_txt}
                     </span>
                   )}
                 </div>

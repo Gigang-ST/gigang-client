@@ -8,8 +8,8 @@ import { calcPaceRatio, calcDailyNeeded } from "@/lib/mileage";
 import { CardItem } from "@/components/ui/card";
 import { Body, Caption } from "@/components/common/typography";
 import {
-  getEventGoals,
-  getEventLogs,
+  getEventGoalsMonthly,
+  getEventLogsMonthly,
 } from "@/lib/queries/project-data";
 
 type MyStatusProps = {
@@ -24,8 +24,6 @@ export async function MyStatus({
   evtId,
   memId,
   month,
-  evtStartMonth,
-  evtEndMonth,
 }: MyStatusProps) {
   const [y, m] = month.split("-").map(Number);
   const totalDays = daysInMonth(y, m);
@@ -40,16 +38,14 @@ export async function MyStatus({
     todayDay = todayDayKST();
   }
   const nextMonth = nextMonthStr(month);
-  const viewMonth = month > evtEndMonth ? evtEndMonth : month;
-
-  // 공유 캐시에서 필터
+  // 당월 데이터만 조회
   const [allGoals, allLogs] = await Promise.all([
-    getEventGoals(evtId, evtStartMonth, viewMonth),
-    getEventLogs(evtId, evtStartMonth, viewMonth),
+    getEventGoalsMonthly(evtId, month),
+    getEventLogsMonthly(evtId, month),
   ]);
 
   const goalRow = allGoals.find(
-    (g) => g.mem_id === memId && g.goal_month === month,
+    (g) => g.mem_id === memId && g.goal_mth === month,
   );
 
   if (!goalRow) {

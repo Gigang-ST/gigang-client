@@ -16,7 +16,7 @@ export default async function ProjectRecordsPage() {
     .from("evt_team_mst")
     .select("evt_id, evt_nm, stt_dt, end_dt")
     .eq("team_id", teamId)
-    .eq("status_cd", "ACTIVE")
+    .eq("stts_enm", "ACTIVE")
     .maybeSingle();
 
   if (!event) redirect("/projects");
@@ -24,10 +24,10 @@ export default async function ProjectRecordsPage() {
   // 참여 여부 확인
   const { data: prt } = await supabase
     .from("evt_team_prt_rel")
-    .select("approve_yn")
+    .select("aprv_yn")
     .eq("evt_id", event.evt_id)
     .eq("mem_id", member.id)
-    .eq("approve_yn", true)
+    .eq("aprv_yn", true)
     .maybeSingle();
 
   if (!prt) redirect("/projects");
