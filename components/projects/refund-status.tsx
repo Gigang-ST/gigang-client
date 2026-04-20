@@ -9,8 +9,8 @@ import {
 import { StatCard } from "@/components/common/stat-card";
 import {
   getEventParticipants,
-  getEventGoals,
-  getEventLogs,
+  getEventGoalsCumulative,
+  getEventLogsCumulative,
 } from "@/lib/queries/project-data";
 
 type RefundStatusProps = {
@@ -33,8 +33,8 @@ export async function RefundStatus({
   // 공유 캐시 쿼리 (CrewMonthlyStats와 동일 쿼리 → cache hit)
   const [allParticipants, allGoals, allLogs] = await Promise.all([
     getEventParticipants(evtId),
-    getEventGoals(evtId, evtStartMonth, viewMonth),
-    getEventLogs(evtId, evtStartMonth, viewMonth),
+    getEventGoalsCumulative(evtId, evtStartMonth, viewMonth),
+    getEventLogsCumulative(evtId, evtStartMonth, viewMonth),
   ]);
 
   const participants = allParticipants;
@@ -47,7 +47,7 @@ export async function RefundStatus({
     );
   }
 
-  // (mem_id, goal_month) 별 마일리지 합산 맵
+  // (mem_id, goal_mth) 별 마일리지 합산 맵
   const mileageMap = new Map<string, number>();
   for (const log of allLogs) {
     const goalMonth = (log.act_dt as string).slice(0, 7) + "-01";
@@ -58,12 +58,12 @@ export async function RefundStatus({
   // mem_id 별 목표 그룹핑
   const goalsByMem = new Map<
     string,
-    { goal_month: string; goal_val: number }[]
+    { goal_mth: string; goal_val: number }[]
   >();
   for (const g of allGoals) {
     if (!goalsByMem.has(g.mem_id)) goalsByMem.set(g.mem_id, []);
     goalsByMem.get(g.mem_id)!.push({
-      goal_month: g.goal_month as string,
+      goal_mth: g.goal_mth as string,
       goal_val: Number(g.goal_val),
     });
   }
@@ -77,8 +77,8 @@ export async function RefundStatus({
 
   for (const p of participants) {
     const effectiveStart =
-      (p.stt_month as string) > evtStartMonth
-        ? (p.stt_month as string)
+      (p.stt_mth as string) > evtStartMonth
+        ? (p.stt_mth as string)
         : evtStartMonth;
 
     if (effectiveStart > viewMonth) continue;
@@ -91,8 +91,8 @@ export async function RefundStatus({
     let participantRefund = 0;
 
     for (const g of goals) {
-      if (g.goal_month < effectiveStart || g.goal_month > viewMonth) continue;
-      const key = `${p.mem_id}:${g.goal_month}`;
+      if (g.goal_mth < effectiveStart || g.goal_mth > viewMonth) continue;
+      const key = `${p.mem_id}:${g.goal_mth}`;
       const achieved = mileageMap.get(key) ?? 0;
       participantRefund +=
         calcMonthRefundRate(achieved, g.goal_val) * DEPOSIT_PER_MONTH;
