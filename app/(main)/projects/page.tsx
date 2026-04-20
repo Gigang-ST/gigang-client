@@ -88,8 +88,8 @@ export default async function ProjectsPage({
       <div className="flex flex-col gap-7 px-6 pb-24">
         <MonthTransitionProvider>
           {/* 이벤트명 + 월 네비게이터 */}
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold">{event.evt_nm}</h2>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-xl font-bold break-keep">{event.evt_nm}</h2>
             <MonthNavigator
               currentMonth={selectedMonth}
               startMonth={event.stt_dt}
