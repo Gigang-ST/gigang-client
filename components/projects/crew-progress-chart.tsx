@@ -30,16 +30,16 @@ export type ChartInitialData = {
 };
 
 const CHART_COLORS = [
-  "var(--sport-road-run)",
-  "var(--sport-ultra)",
-  "var(--sport-trail-run)",
-  "var(--sport-triathlon)",
-  "var(--sport-cycling)",
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
+  "hsl(var(--sport-road-run))",
+  "hsl(var(--sport-ultra))",
+  "hsl(var(--sport-trail-run))",
+  "hsl(var(--sport-triathlon))",
+  "hsl(var(--sport-cycling))",
+  "var(--color-chart-1)",
+  "var(--color-chart-2)",
+  "var(--color-chart-3)",
+  "var(--color-chart-4)",
+  "var(--color-chart-5)",
 ];
 
 type ChartTooltipProps = TooltipContentProps<TooltipValueType, string | number> & {
