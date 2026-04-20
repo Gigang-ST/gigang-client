@@ -576,6 +576,7 @@ export function RaceListView({
         open={registerOpen}
         onOpenChange={setRegisterOpen}
         memberStatus={memberStatus}
+        datePolicy="future-only"
         onCreated={async () => {
           await revalidateCompetitions();
           router.refresh();
