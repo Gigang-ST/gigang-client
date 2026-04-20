@@ -263,7 +263,7 @@ export function CrewProgressChart({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 outline-none **:outline-none">
       <SegmentControl
         segments={[
           { value: "mileage", label: "마일리지" },
@@ -273,7 +273,7 @@ export function CrewProgressChart({
         onValueChange={setMode}
       />
 
-      <ResponsiveContainer width="100%" height={240}>
+      <ResponsiveContainer width="100%" height={240} className="outline-none">
         <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
           <XAxis
