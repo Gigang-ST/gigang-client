@@ -38,7 +38,7 @@ export function MonthNavigator({
   }
 
   return (
-    <div className="flex items-center justify-center gap-4">
+    <div className="shrink-0 flex items-center justify-center gap-4">
       <Button
         variant="ghost"
         size="icon-sm"
