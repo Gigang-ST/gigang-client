@@ -9,8 +9,8 @@ import {
 import { StatCard } from "@/components/common/stat-card";
 import {
   getEventParticipants,
-  getEventGoals,
-  getEventLogs,
+  getEventGoalsCumulative,
+  getEventLogsCumulative,
 } from "@/lib/queries/project-data";
 
 type RefundStatusProps = {
@@ -33,8 +33,8 @@ export async function RefundStatus({
   // 공유 캐시 쿼리 (CrewMonthlyStats와 동일 쿼리 → cache hit)
   const [allParticipants, allGoals, allLogs] = await Promise.all([
     getEventParticipants(evtId),
-    getEventGoals(evtId, evtStartMonth, viewMonth),
-    getEventLogs(evtId, evtStartMonth, viewMonth),
+    getEventGoalsCumulative(evtId, evtStartMonth, viewMonth),
+    getEventLogsCumulative(evtId, evtStartMonth, viewMonth),
   ]);
 
   const participants = allParticipants;

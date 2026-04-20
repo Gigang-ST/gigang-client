@@ -114,6 +114,7 @@ export default async function ProjectsPage({
           <TransitionOverlay className="flex flex-col gap-7">
             <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
               <CrewProgressChartServer
+                key={selectedMonth}
                 evtId={event.evt_id}
                 memId={isParticipant ? member!.id : undefined}
                 month={selectedMonth}

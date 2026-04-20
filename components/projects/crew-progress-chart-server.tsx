@@ -1,8 +1,8 @@
-import { daysInMonth as getDaysInMonth, nextMonthStr, monthLastDay } from "@/lib/dayjs";
+import { daysInMonth as getDaysInMonth, monthLastDay } from "@/lib/dayjs";
 import {
   getEventParticipants,
-  getEventGoals,
-  getEventLogs,
+  getEventGoalsMonthly,
+  getEventLogsMonthly,
 } from "@/lib/queries/project-data";
 import { CrewProgressChart } from "./crew-progress-chart";
 import type { ChartInitialData, DailyPoint } from "./crew-progress-chart";
@@ -19,16 +19,12 @@ export async function CrewProgressChartServer({
   evtId,
   memId,
   month,
-  evtStartMonth,
-  evtEndMonth,
 }: Props) {
-  const viewMonth = month > evtEndMonth ? evtEndMonth : month;
-
-  // 공유 캐시 쿼리 재사용
+  // 당월 데이터만 조회
   const [allParticipants, allGoals, allLogs] = await Promise.all([
     getEventParticipants(evtId),
-    getEventGoals(evtId, evtStartMonth, viewMonth),
-    getEventLogs(evtId, evtStartMonth, viewMonth),
+    getEventGoalsMonthly(evtId, month),
+    getEventLogsMonthly(evtId, month),
   ]);
 
   // 선택 월 기준 활성 참여자

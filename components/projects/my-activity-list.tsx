@@ -1,5 +1,5 @@
 import { nextMonthStr } from "@/lib/dayjs";
-import { getEventLogs } from "@/lib/queries/project-data";
+import { getEventLogsMonthly } from "@/lib/queries/project-data";
 import {
   MyActivityListClient,
   type ActivityRecord,
@@ -17,14 +17,11 @@ export async function MyActivityList({
   evtId,
   memId,
   month,
-  evtStartMonth,
-  evtEndMonth,
 }: Props) {
   const nextMonth = nextMonthStr(month);
-  const viewMonth = month > evtEndMonth ? evtEndMonth : month;
 
-  // 공유 캐시에서 필터
-  const allLogs = await getEventLogs(evtId, evtStartMonth, viewMonth);
+  // 당월 로그만 조회
+  const allLogs = await getEventLogsMonthly(evtId, month);
 
   const myMonthLogs = allLogs
     .filter(

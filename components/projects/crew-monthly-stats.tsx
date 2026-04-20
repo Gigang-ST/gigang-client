@@ -1,4 +1,3 @@
-import { monthLastDay, nextMonthStr } from "@/lib/dayjs";
 import {
   calcMonthRefundRate,
   countMonths,
@@ -8,8 +7,10 @@ import {
 import { StatCard } from "@/components/common/stat-card";
 import {
   getEventParticipants,
-  getEventGoals,
-  getEventLogs,
+  getEventGoalsCumulative,
+  getEventGoalsMonthly,
+  getEventLogsCumulative,
+  getEventLogsMonthly,
 } from "@/lib/queries/project-data";
 
 type CrewMonthlyStatsProps = {
@@ -27,30 +28,21 @@ export async function CrewMonthlyStats({
 }: CrewMonthlyStatsProps) {
   const viewMonth = month > evtEndMonth ? evtEndMonth : month;
 
-  // 공유 캐시 쿼리 (같은 요청 내 다른 컴포넌트와 중복 제거)
-  const [allParticipants, allGoals, allLogs] = await Promise.all([
-    getEventParticipants(evtId),
-    getEventGoals(evtId, evtStartMonth, viewMonth),
-    getEventLogs(evtId, evtStartMonth, viewMonth),
-  ]);
+  // 당월 지표 + 누적 금액 지표를 분리 조회
+  const [allParticipants, monthGoals, monthLogs, cumulativeGoals, cumulativeLogs] =
+    await Promise.all([
+      getEventParticipants(evtId),
+      getEventGoalsMonthly(evtId, month),
+      getEventLogsMonthly(evtId, month),
+      getEventGoalsCumulative(evtId, evtStartMonth, viewMonth),
+      getEventLogsCumulative(evtId, evtStartMonth, viewMonth),
+    ]);
 
   // 선택 월 기준 활성 참여자
   const activeParticipants = allParticipants.filter(
     (p) => (p.stt_month as string) <= month,
   );
   if (activeParticipants.length === 0) return null;
-
-  const [y, m] = month.split("-").map(Number);
-  const monthEnd = monthLastDay(y, m);
-  const nextMonth = nextMonthStr(month);
-
-  // 당월 로그만 필터
-  const monthLogs = allLogs.filter(
-    (l) => (l.act_dt as string) >= month && (l.act_dt as string) <= monthEnd,
-  );
-
-  // 당월 목표만 필터
-  const monthGoals = allGoals.filter((g) => g.goal_month === month);
 
   // 참여자별 당월 마일리지 합산
   const mileageByMem = new Map<string, number>();
@@ -70,7 +62,6 @@ export async function CrewMonthlyStats({
   // 통계 계산
   const participantCount = activeParticipants.length;
   let totalMileage = 0;
-  let totalActivities = 0;
   let achievedCount = 0;
 
   for (const p of activeParticipants) {
@@ -81,19 +72,12 @@ export async function CrewMonthlyStats({
     if (goal > 0 && mlg >= goal) achievedCount++;
   }
 
-  const activeMemIds = new Set(activeParticipants.map((p) => p.mem_id));
-  for (const log of monthLogs) {
-    if (activeMemIds.has(log.mem_id)) {
-      totalActivities++;
-    }
-  }
-
   const avgMileage =
     participantCount > 0 ? totalMileage / participantCount : 0;
 
   // 회식비 풀 계산 — 전체 기간 누적 (캐시 데이터 재사용)
   const mlgMap = new Map<string, number>();
-  for (const l of allLogs) {
+  for (const l of cumulativeLogs) {
     const gm = (l.act_dt as string).slice(0, 7) + "-01";
     const key = `${l.mem_id}:${gm}`;
     mlgMap.set(key, (mlgMap.get(key) ?? 0) + Number(l.final_mlg));
@@ -111,7 +95,7 @@ export async function CrewMonthlyStats({
     const months = countMonths(effectiveStart, viewMonth);
     totalDepositPool += months * DEPOSIT_PER_MONTH;
 
-    const pGoals = allGoals.filter((g) => g.mem_id === p.mem_id);
+    const pGoals = cumulativeGoals.filter((g) => g.mem_id === p.mem_id);
     for (const g of pGoals) {
       const key = `${p.mem_id}:${g.goal_month}`;
       const achieved = mlgMap.get(key) ?? 0;

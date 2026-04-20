@@ -1,6 +1,6 @@
 import { nextMonthStr } from "@/lib/dayjs";
 import type { MileageSport } from "@/lib/mileage";
-import { getEventLogs } from "@/lib/queries/project-data";
+import { getEventLogsMonthly } from "@/lib/queries/project-data";
 import { MySportChartClient } from "./my-sport-chart";
 import type { SportChartData } from "./my-sport-chart";
 
@@ -16,14 +16,11 @@ export async function MySportChart({
   evtId,
   memId,
   month,
-  evtStartMonth,
-  evtEndMonth,
 }: Props) {
-  const viewMonth = month > evtEndMonth ? evtEndMonth : month;
   const nextMonth = nextMonthStr(month);
 
-  // 공유 캐시에서 필터
-  const allLogs = await getEventLogs(evtId, evtStartMonth, viewMonth);
+  // 당월 로그만 조회
+  const allLogs = await getEventLogsMonthly(evtId, month);
 
   const myMonthLogs = allLogs.filter(
     (l) =>
