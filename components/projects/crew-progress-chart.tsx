@@ -4,9 +4,11 @@ import { useEffect, useState, useCallback } from "react";
 import {
   LineChart,
   Line,
+  BarChart,
+  Bar,
+  Cell,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
@@ -30,17 +32,39 @@ export type ChartInitialData = {
 };
 
 const CHART_COLORS = [
-  "hsl(var(--sport-road-run))",
-  "hsl(var(--sport-ultra))",
-  "hsl(var(--sport-trail-run))",
-  "hsl(var(--sport-triathlon))",
-  "hsl(var(--sport-cycling))",
-  "var(--color-chart-1)",
-  "var(--color-chart-2)",
-  "var(--color-chart-3)",
-  "var(--color-chart-4)",
-  "var(--color-chart-5)",
+  "#EF4444",
+  "#F59E0B",
+  "#EAB308",
+  "#84CC16",
+  "#10B981",
+  "#06B6D4",
+  "#3B82F6",
+  "#6366F1",
+  "#8B5CF6",
+  "#A855F7",
+  "#D946EF",
+  "#EC4899",
+  "#F43F5E",
+  "#FB7185",
+  "#22C55E",
+  "#14B8A6",
+  "#0EA5E9",
+  "#60A5FA",
+  "#818CF8",
+  "#C084FC",
 ];
+
+function hashString(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
+function colorByMemberId(memId: string): string {
+  return CHART_COLORS[hashString(memId) % CHART_COLORS.length];
+}
 
 type ChartTooltipProps = TooltipContentProps<TooltipValueType, string | number> & {
   myName: string | null;
@@ -83,6 +107,14 @@ type CrewProgressChartProps = {
   memId?: string;
   month: string;
   initialData?: ChartInitialData | null;
+};
+
+type MemberPercentBar = {
+  memId: string;
+  name: string;
+  percent: number;
+  currentKm: number;
+  goalKm: number;
 };
 
 export function CrewProgressChart({
@@ -253,6 +285,37 @@ export function CrewProgressChart({
   }
 
   const chartData = mode === "mileage" ? mileageData : percentData;
+  const mileageMax = members.reduce((max, member) => {
+    const memberMax = mileageData.reduce((m, row) => {
+      const value = row[member.name];
+      return typeof value === "number" ? Math.max(m, value) : m;
+    }, 0);
+    return Math.max(max, memberMax);
+  }, 0);
+  const mileageTicks =
+    mileageMax > 0
+      ? Array.from({ length: 5 }, (_, i) => Number(((mileageMax * i) / 4).toFixed(1)))
+      : [0, 20, 40, 60, 80];
+  const mileageYAxisMax = mileageTicks[mileageTicks.length - 1];
+  const memberPercentData: MemberPercentBar[] = members
+    .map((member) => {
+      const latestMileage = mileageData[mileageData.length - 1];
+      const latest = percentData[percentData.length - 1];
+      const currentKmRaw = latestMileage?.[member.name];
+      const value = latest?.[member.name];
+      const currentKm = typeof currentKmRaw === "number" ? currentKmRaw : 0;
+      const percent = typeof value === "number" ? value : 0;
+      const goalKm =
+        percent > 0 ? Number((currentKm / (percent / 100)).toFixed(1)) : 0;
+      return {
+        memId: member.id,
+        name: member.name,
+        percent,
+        currentKm: Number(currentKm.toFixed(1)),
+        goalKm,
+      };
+    })
+    .sort((a, b) => b.percent - a.percent);
 
   if (chartData.length === 0 || members.length === 0) {
     return (
@@ -274,41 +337,95 @@ export function CrewProgressChart({
       />
 
       <ResponsiveContainer width="100%" height={240} className="outline-none">
-        <LineChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-          <XAxis
-            dataKey="day"
-            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-            domain={[1, totalDays]}
-            tickFormatter={(d: number) => `${d}일`}
-          />
-          <YAxis
-            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-            tickFormatter={(v: number) =>
-              mode === "percent" ? `${v}%` : `${v}`
-            }
-            width={36}
-          />
-          <Tooltip
-            content={(props) => (
-              <ChartTooltip {...props} myName={myName} mode={mode} />
-            )}
-          />
-          {mode === "mileage" && myGoalKm > 0 && (
-            <ReferenceLine
-              y={myGoalKm}
-              stroke="var(--muted-foreground)"
-              strokeDasharray="6 4"
-              strokeWidth={1.5}
-              label={{
-                value: `목표 ${myGoalKm}`,
-                position: "right",
-                fontSize: 10,
-                fill: "var(--muted-foreground)",
-              }}
+        {mode === "mileage" ? (
+          <LineChart data={chartData}>
+            {mileageTicks.map((tick) => (
+              <ReferenceLine
+                key={tick}
+                y={tick}
+                stroke="hsl(var(--border))"
+                strokeOpacity={0.65}
+              />
+            ))}
+            <XAxis
+              dataKey="day"
+              tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+              domain={[1, totalDays]}
+              tickFormatter={(d: number) => `${d}일`}
             />
-          )}
-          {mode === "percent" && (
+            <YAxis
+              tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+              tickFormatter={(v: number) => `${v}`}
+              width={36}
+              ticks={mileageTicks}
+              domain={[0, mileageYAxisMax]}
+            />
+            <Tooltip
+              content={(props) => (
+                <ChartTooltip {...props} myName={myName} mode={mode} />
+              )}
+            />
+            {myGoalKm > 0 && (
+              <ReferenceLine
+                y={myGoalKm}
+                stroke="var(--muted-foreground)"
+                strokeDasharray="6 4"
+                strokeWidth={1.5}
+                label={{
+                  value: `목표 ${myGoalKm}`,
+                  position: "right",
+                  fontSize: 10,
+                  fill: "var(--muted-foreground)",
+                }}
+              />
+            )}
+            {members.map((member) => (
+              <Line
+                key={member.id}
+                type="monotone"
+                dataKey={member.name}
+                stroke={colorByMemberId(member.id)}
+                dot={false}
+                strokeWidth={member.name === myName ? 3 : 1.5}
+                opacity={member.name === myName ? 1 : 0.65}
+              />
+            ))}
+          </LineChart>
+        ) : (
+          <BarChart data={memberPercentData} margin={{ top: 4, right: 8, left: 0, bottom: 24 }}>
+            {[0, 20, 40, 60, 80, 100].map((tick) => (
+              <ReferenceLine
+                key={tick}
+                y={tick}
+                stroke="hsl(var(--border))"
+                strokeOpacity={0.65}
+              />
+            ))}
+            <XAxis
+              dataKey="name"
+              tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+              interval={0}
+              angle={-20}
+              textAnchor="end"
+              height={44}
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+              tickFormatter={(v: number) => `${v}%`}
+              width={36}
+              domain={[0, 100]}
+            />
+            <Tooltip
+              formatter={(value, _name, item) => {
+                const percent =
+                  typeof value === "number" ? value : Number(value ?? 0);
+                const row = item?.payload as MemberPercentBar | undefined;
+                if (!row) return `${percent.toFixed(1)}%`;
+                const goalText = row.goalKm > 0 ? `${row.goalKm.toFixed(1)}km` : "-";
+                return `${percent.toFixed(1)}% (${row.currentKm.toFixed(1)}km/${goalText})`;
+              }}
+              labelFormatter={(label) => `${label}`}
+            />
             <ReferenceLine
               y={100}
               stroke="var(--muted-foreground)"
@@ -321,19 +438,17 @@ export function CrewProgressChart({
                 fill: "var(--muted-foreground)",
               }}
             />
-          )}
-          {members.map((member, i) => (
-            <Line
-              key={member.id}
-              type="monotone"
-              dataKey={member.name}
-              stroke={CHART_COLORS[i % CHART_COLORS.length]}
-              dot={false}
-              strokeWidth={member.name === myName ? 3 : 1.5}
-              opacity={member.name === myName ? 1 : 0.65}
-            />
-          ))}
-        </LineChart>
+            <Bar dataKey="percent" radius={[6, 6, 0, 0]}>
+              {memberPercentData.map((item) => (
+                <Cell
+                  key={item.memId}
+                  fill={colorByMemberId(item.memId)}
+                  fillOpacity={item.name === myName ? 1 : 0.72}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        )}
       </ResponsiveContainer>
     </div>
   );
