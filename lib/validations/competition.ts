@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Enums } from "@/lib/supabase/database.types";
+import { todayKST } from "@/lib/dayjs";
 import {
   COMP_EVT_TYPE_OTHER,
   compEvtTypeContainsHangul,
@@ -7,8 +8,11 @@ import {
   sanitizeAsciiUpperCompEvtTypeInput,
 } from "@/lib/comp-evt-type";
 
+export type CompetitionRegisterDatePolicy = "future-only" | "allow-past";
+
 /** 대회 등록 폼 — 종목은 COMP_SPRT_CD, 코스는 공통코드+기타(직접입력) */
-export const competitionRegisterSchema = z
+function buildCompetitionRegisterSchema(datePolicy: CompetitionRegisterDatePolicy) {
+  const baseSchema = z
   .object({
     title: z.string().min(1, "대회명을 입력해 주세요"),
     sport: z.string().min(1, "종목을 선택해 주세요"),
@@ -46,6 +50,19 @@ export const competitionRegisterSchema = z
       path: ["selectedEventTypes"],
     },
   );
+
+  if (datePolicy === "allow-past") {
+    return baseSchema;
+  }
+
+  return baseSchema.refine((data) => data.startDate >= todayKST(), {
+    message: "지난 대회는 기록 입력에서 추가해 주세요.",
+    path: ["startDate"],
+  });
+}
+
+export const competitionRegisterSchema = buildCompetitionRegisterSchema("future-only");
+export const competitionRegisterSchemaAllowPast = buildCompetitionRegisterSchema("allow-past");
 
 export type CompetitionRegisterValues = z.infer<
   typeof competitionRegisterSchema
