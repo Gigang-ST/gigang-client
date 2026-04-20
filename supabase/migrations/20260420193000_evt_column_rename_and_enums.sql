@@ -27,9 +27,10 @@ END $$;
 -- evt_team_mst
 ALTER TABLE public.evt_team_mst RENAME COLUMN "desc" TO desc_txt;
 ALTER TABLE public.evt_team_mst RENAME COLUMN status_cd TO stts_enm;
+ALTER TABLE public.evt_team_mst ALTER COLUMN stts_enm DROP DEFAULT;
 ALTER TABLE public.evt_team_mst
   ALTER COLUMN stts_enm TYPE public.evt_stts_enm
-  USING stts_enm::public.evt_stts_enm;
+  USING stts_enm::text::public.evt_stts_enm;
 ALTER TABLE public.evt_team_mst
   ALTER COLUMN stts_enm SET DEFAULT 'READY'::public.evt_stts_enm;
 
@@ -45,7 +46,7 @@ ALTER TABLE public.evt_mlg_goal_cfg RENAME COLUMN goal_month TO goal_mth;
 ALTER TABLE public.evt_mlg_act_hist RENAME COLUMN sport_cd TO sprt_enm;
 ALTER TABLE public.evt_mlg_act_hist
   ALTER COLUMN sprt_enm TYPE public.evt_mlg_sprt_enm
-  USING sprt_enm::public.evt_mlg_sprt_enm;
+  USING sprt_enm::text::public.evt_mlg_sprt_enm;
 
 -- comments
 COMMENT ON COLUMN public.evt_team_mst.stts_enm IS '상태 enum (READY/ACTIVE/CLOSED)';
