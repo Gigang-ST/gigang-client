@@ -7,8 +7,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { createCompetition } from "@/app/actions/create-competition";
 import {
   competitionRegisterSchema,
+  competitionRegisterSchemaAllowPast,
+  type CompetitionRegisterDatePolicy,
   type CompetitionRegisterValues,
 } from "@/lib/validations/competition";
+import { todayKST } from "@/lib/dayjs";
 import {
   buildEventTypeOptionList,
   COMP_EVT_TYPE_OTHER,
@@ -82,6 +85,8 @@ interface CompetitionRegisterDialogProps {
   stackElevated?: boolean;
   /** 열 때 시작일(YYYY-MM-DD) 미리 채움 */
   prefillStartDate?: string;
+  /** 날짜 정책: 대회 탭은 미래/당일만, 기록 입력은 과거 허용 */
+  datePolicy?: CompetitionRegisterDatePolicy;
 }
 
 export function CompetitionRegisterDialog({
@@ -92,7 +97,16 @@ export function CompetitionRegisterDialog({
   onCreated,
   stackElevated = false,
   prefillStartDate,
+  datePolicy = "future-only",
 }: CompetitionRegisterDialogProps) {
+  const registerSchema = useMemo(
+    () =>
+      datePolicy === "allow-past"
+        ? competitionRegisterSchemaAllowPast
+        : competitionRegisterSchema,
+    [datePolicy],
+  );
+
   const {
     register,
     handleSubmit,
@@ -103,7 +117,7 @@ export function CompetitionRegisterDialog({
     formState: { errors, isSubmitting },
   } = useForm<CompetitionRegisterValues>({
     defaultValues,
-    resolver: zodResolver(competitionRegisterSchema),
+    resolver: zodResolver(registerSchema),
   });
 
   const sport = watch("sport");
@@ -181,6 +195,7 @@ export function CompetitionRegisterDialog({
       location: data.location,
       eventTypes,
       sourceUrl: data.sourceUrl,
+      datePolicy,
     });
 
     if (!result.ok) {
@@ -204,9 +219,13 @@ export function CompetitionRegisterDialog({
         )}
       >
         <DialogHeader>
-          <DialogTitle>대회 등록</DialogTitle>
+          <DialogTitle>
+            {datePolicy === "allow-past" ? "대회 추가" : "대회 등록"}
+          </DialogTitle>
           <DialogDescription>
-            등록되지 않은 대회를 직접 등록합니다.
+            {datePolicy === "allow-past"
+              ? "기록 입력을 위해 등록되지 않은 대회를 추가합니다."
+              : "앞으로 참가할 대회를 등록합니다."}
           </DialogDescription>
         </DialogHeader>
 
@@ -269,10 +288,16 @@ export function CompetitionRegisterDialog({
               <Input
                 id="comp-start"
                 type="date"
+                min={datePolicy === "future-only" ? todayKST() : undefined}
                 max="9999-12-31"
                 {...register("startDate")}
               />
               {errors.startDate && <p className="text-xs text-destructive">{errors.startDate.message}</p>}
+              {datePolicy === "future-only" && (
+                <p className="text-xs text-muted-foreground">
+                  지난 대회는 기록 입력에서 추가해 주세요.
+                </p>
+              )}
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="comp-end">종료일</Label>
