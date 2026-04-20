@@ -21,7 +21,7 @@ interface CreateCompetitionInput {
 export async function createCompetition(input: CreateCompetitionInput) {
   const { member } = await getCurrentMember();
   if (!member) {
-    return { ok: false, message: "로그인 후 팀에 가입한 회원만 등록할 수 있습니다." };
+    return { ok: false, message: "회원만 등록할 수 있습니다." };
   }
 
   const cmmRows = await getCachedCmmCdRows();
