@@ -416,11 +416,13 @@ export function CrewProgressChart({
               domain={[0, 100]}
             />
             <Tooltip
-              formatter={(value: number, _name, item) => {
+              formatter={(value, _name, item) => {
+                const percent =
+                  typeof value === "number" ? value : Number(value ?? 0);
                 const row = item?.payload as MemberPercentBar | undefined;
-                if (!row) return `${Number(value).toFixed(1)}%`;
+                if (!row) return `${percent.toFixed(1)}%`;
                 const goalText = row.goalKm > 0 ? `${row.goalKm.toFixed(1)}km` : "-";
-                return `${Number(value).toFixed(1)}% (${row.currentKm.toFixed(1)}km/${goalText})`;
+                return `${percent.toFixed(1)}% (${row.currentKm.toFixed(1)}km/${goalText})`;
               }}
               labelFormatter={(label) => `${label}`}
             />
