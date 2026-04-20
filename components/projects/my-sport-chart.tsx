@@ -80,9 +80,9 @@ export function MySportChartClient({ data }: MySportChartClientProps) {
   }));
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 outline-none **:outline-none">
       {/* 도넛 차트 */}
-      <ResponsiveContainer width="100%" height={200}>
+      <ResponsiveContainer width="100%" height={200} className="outline-none">
         <PieChart>
           <Pie
             data={chartData}

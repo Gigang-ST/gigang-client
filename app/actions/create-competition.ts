@@ -2,9 +2,10 @@
 
 import { revalidateTag } from "next/cache";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
+import { todayKST } from "@/lib/dayjs";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCachedCmmCdRows, isValidCompSprtCd } from "@/lib/queries/cmm-cd-cached";
-import { verifyAdmin } from "@/lib/queries/member";
+import { getCurrentMember } from "@/lib/queries/member";
 
 interface CreateCompetitionInput {
   title: string;
@@ -14,17 +15,26 @@ interface CreateCompetitionInput {
   location: string;
   eventTypes: string[];
   sourceUrl: string;
+  datePolicy?: "future-only" | "allow-past";
 }
 
 export async function createCompetition(input: CreateCompetitionInput) {
-  const adminUser = await verifyAdmin();
-  if (!adminUser) {
-    return { ok: false, message: "권한이 없습니다" };
+  const { member } = await getCurrentMember();
+  if (!member) {
+    return { ok: false, message: "회원만 등록할 수 있습니다." };
   }
 
   const cmmRows = await getCachedCmmCdRows();
   if (!isValidCompSprtCd(cmmRows, input.sport.trim())) {
     return { ok: false, message: "유효하지 않은 종목입니다." };
+  }
+
+  const datePolicy = input.datePolicy ?? "future-only";
+  if (datePolicy === "future-only" && input.startDate < todayKST()) {
+    return {
+      ok: false,
+      message: "지난 대회는 기록 입력에서 추가해 주세요.",
+    };
   }
 
   // 3. admin 클라이언트로 대회 INSERT (RLS 우회)

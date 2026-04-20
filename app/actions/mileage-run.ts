@@ -31,7 +31,7 @@ import { activityLogSchema } from "@/lib/validations/mileage";
 
 export interface ActivityLogInput {
   act_dt: string; // 'YYYY-MM-DD'
-  sport_cd: MileageSport;
+  sprt_enm: MileageSport;
   distance_km: number;
   elevation_m: number;
   applied_mult_ids: string[]; // evt_mlg_mult_cfg.mult_id 배열
@@ -130,7 +130,7 @@ async function buildAppliedMults(
 
 /**
  * 마일리지런 프로젝트 참여 신청.
- * - approve_yn: false 로 INSERT (관리자 승인 대기)
+ * - aprv_yn: false 로 INSERT (관리자 승인 대기)
  * - 잔여 개월 × DEPOSIT_PER_MONTH + ENTRY_FEE (+ singlet fee) 로 deposit_amt 계산
  * - 당월 initGoal 목표 자동 생성
  */
@@ -168,8 +168,8 @@ export async function joinProject(
   const { error: prtError } = await db.from("evt_team_prt_rel").insert({
     evt_id: evtId,
     mem_id: member.id,
-    approve_yn: false,
-    stt_month: curMonth,
+    aprv_yn: false,
+    stt_mth: curMonth,
     init_goal: initGoal,
     deposit_amt: depositAmt,
     entry_fee_amt: entryFeeAmt,
@@ -185,13 +185,13 @@ export async function joinProject(
   }
 
   // 시작월~종료월까지 전체 목표 미리 생성 (init_goal)
-  const goalRows: { evt_id: string; mem_id: string; goal_month: string; goal_val: number; achieved_yn: boolean }[] = [];
+  const goalRows: { evt_id: string; mem_id: string; goal_mth: string; goal_val: number; achieved_yn: boolean }[] = [];
   let m = curMonth;
   while (m <= evtEndMonth) {
     goalRows.push({
       evt_id: evtId,
       mem_id: member.id,
-      goal_month: m,
+      goal_mth: m,
       goal_val: initGoal,
       achieved_yn: false,
     });
@@ -247,7 +247,7 @@ export async function logActivity(
   if (multErr) return { ok: false, message: multErr };
 
   const baseMlg = roundMileage(
-    calcBaseMileage(validInput.sport_cd, validInput.distance_km, validInput.elevation_m),
+    calcBaseMileage(validInput.sprt_enm, validInput.distance_km, validInput.elevation_m),
   );
   const finalMlg = roundMileage(calcFinalMileage(baseMlg, multValues));
 
@@ -256,7 +256,7 @@ export async function logActivity(
     evt_id: evtId,
     mem_id: member.id,
     act_dt: validInput.act_dt,
-    sport_cd: validInput.sport_cd,
+    sprt_enm: validInput.sprt_enm,
     distance_km: validInput.distance_km,
     elevation_m: validInput.elevation_m,
     base_mlg: baseMlg,
@@ -322,7 +322,7 @@ export async function updateActivity(
   if (multErr) return { ok: false, message: multErr };
 
   const baseMlg = roundMileage(
-    calcBaseMileage(validInput.sport_cd, validInput.distance_km, validInput.elevation_m),
+    calcBaseMileage(validInput.sprt_enm, validInput.distance_km, validInput.elevation_m),
   );
   const finalMlg = roundMileage(calcFinalMileage(baseMlg, multValues));
 
@@ -330,7 +330,7 @@ export async function updateActivity(
     .from("evt_mlg_act_hist")
     .update({
       act_dt: validInput.act_dt,
-      sport_cd: validInput.sport_cd,
+      sprt_enm: validInput.sprt_enm,
       distance_km: validInput.distance_km,
       elevation_m: validInput.elevation_m,
       base_mlg: baseMlg,
@@ -486,10 +486,10 @@ async function recalcGoalsFromMonth(
   // 해당 참여자의 전체 목표 조회 (월순)
   const { data: goals } = await db
     .from("evt_mlg_goal_cfg")
-    .select("goal_id, goal_month, goal_val")
+    .select("goal_id, goal_mth, goal_val")
     .eq("evt_id", evtId)
     .eq("mem_id", memId)
-    .order("goal_month", { ascending: true });
+    .order("goal_mth", { ascending: true });
 
   if (!goals || goals.length === 0) return;
 
@@ -512,7 +512,7 @@ async function recalcGoalsFromMonth(
   for (let i = 1; i < goals.length; i++) {
     const prev = goals[i - 1];
     const cur = goals[i];
-    const prevMonth = prev.goal_month as string;
+    const prevMonth = prev.goal_mth as string;
     const prevGoalVal = Number(prev.goal_val);
 
     // 연습기간이면 목표 상향 없이 이전 값 유지

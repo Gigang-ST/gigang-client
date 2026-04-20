@@ -22,7 +22,7 @@ import {
   eventTypeCodesForSprtFromCmmRows,
   type CachedCmmCdRow,
 } from "@/lib/queries/cmm-cd-cached";
-import { listCompetitionsByRaceDate, searchCompetitions } from "@/app/actions/search-competitions";
+import { listCompetitionsByRaceDate } from "@/app/actions/search-competitions";
 import { saveRaceRecord } from "@/app/actions/save-race-record";
 import { CompetitionRegisterDialog } from "@/components/races/competition-register-dialog";
 import type { MemberStatus } from "@/components/races/types";
@@ -80,8 +80,6 @@ export function RaceRecordDialog({
   const [compsForRaceDate, setCompsForRaceDate] = useState<Competition[]>([]);
   const [dateListLoading, setDateListLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<Competition[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
   /** 날짜 검색 목록에서 대회를 고를 때 선택한 달력일(race_dt). 비어 있으면 대회 시작일 사용 */
   const [recordRaceDayFromCalendar, setRecordRaceDayFromCalendar] = useState("");
@@ -137,7 +135,6 @@ export function RaceRecordDialog({
       setCompsForRaceDate([]);
       setDateListLoading(false);
       setSearchQuery("");
-      setSearchResults([]);
       setRegisterOpen(false);
       setRecordRaceDayFromCalendar("");
       setSelectedEventType("");
@@ -228,25 +225,6 @@ export function RaceRecordDialog({
     };
   }, [raceDate]);
 
-  // 날짜 미선택일 때만 이름으로 전체 대회 검색(자동완성)
-  useEffect(() => {
-    if (raceDate.trim()) {
-      setSearchResults([]);
-      return;
-    }
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      return;
-    }
-    const t = setTimeout(async () => {
-      setSearchLoading(true);
-      const list = await searchCompetitions(searchQuery);
-      setSearchResults(list as Competition[]);
-      setSearchLoading(false);
-    }, 300);
-    return () => clearTimeout(t);
-  }, [searchQuery, raceDate]);
-
   const filteredByDateAndName = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return compsForRaceDate;
@@ -267,7 +245,6 @@ export function RaceRecordDialog({
     setRaceDate("");
     setCompsForRaceDate([]);
     setSearchQuery("");
-    setSearchResults([]);
     const registered = (comp.registeredEventType ?? "").trim().toUpperCase();
     setSelectedEventType(registered);
     setCustomEventType("");
@@ -307,6 +284,7 @@ export function RaceRecordDialog({
   const competitionTitle = selectedComp?.title ?? "";
   const competitionDate =
     recordRaceDayFromCalendar.trim() || selectedComp?.start_date || "";
+  const hasRaceDate = Boolean(raceDate.trim());
   const eventType =
     selectedEventType === EVENT_TYPE_OTHER
       ? sanitizeAsciiUpperCompEvtTypeInput(customEventType).trim()
@@ -461,9 +439,9 @@ export function RaceRecordDialog({
               <Input
                 ref={searchInputRef}
                 placeholder={
-                  raceDate.trim()
+                  hasRaceDate
                     ? "대회명으로 목록 좁히기 (선택)"
-                    : "대회명으로 검색 (전체 목록)"
+                    : "대회 날짜를 먼저 선택해 주세요"
                 }
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -471,6 +449,7 @@ export function RaceRecordDialog({
                   setTimeout(scrollSearchInputAboveKeyboard, 350);
                   setTimeout(scrollSearchInputAboveKeyboard, 600);
                 }}
+                disabled={!hasRaceDate}
                 className="mb-2"
               />
 
@@ -481,12 +460,21 @@ export function RaceRecordDialog({
                   size="sm"
                   className="mb-2 w-full"
                   onClick={() => setRegisterOpen(true)}
+                  disabled={!hasRaceDate}
                 >
                   대회 추가
                 </Button>
               )}
 
-              {raceDate.trim() ? (
+              {!hasRaceDate && (
+                <div className="rounded-lg border border-dashed border-border p-3">
+                  <p className="text-xs text-muted-foreground">
+                    대회 날짜를 먼저 선택해 주세요. 날짜 선택 후 대회 검색과 추가가 가능합니다.
+                  </p>
+                </div>
+              )}
+
+              {hasRaceDate && (
                 <>
                   {dateListLoading && (
                     <p className="text-xs text-muted-foreground">목록 불러오는 중...</p>
@@ -523,40 +511,6 @@ export function RaceRecordDialog({
                               useCalendarPickForRecordDate: true,
                             })
                           }
-                          className="h-auto w-full flex-col items-start gap-0.5 px-3 py-2 hover:bg-muted/50"
-                        >
-                          <p className="font-medium">{comp.title}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {comp.start_date} &middot; {comp.location ?? "-"}
-                          </p>
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  {searchLoading && (
-                    <p className="text-xs text-muted-foreground">검색 중...</p>
-                  )}
-                  {!searchLoading && searchQuery.trim() && searchResults.length === 0 && (
-                    <div className="rounded-lg border border-dashed border-border p-3">
-                      <p className="text-xs text-muted-foreground">
-                        검색 결과가 없습니다.
-                        {competitionRegisterMemberStatus
-                          ? " 대회 추가로 등록해 보세요."
-                          : ""}
-                      </p>
-                    </div>
-                  )}
-                  {!searchLoading && searchResults.length > 0 && (
-                    <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
-                      {searchResults.map((comp) => (
-                        <Button
-                          key={comp.id}
-                          type="button"
-                          variant="ghost"
-                          onClick={() => handleSelectCompetition(comp)}
                           className="h-auto w-full flex-col items-start gap-0.5 px-3 py-2 hover:bg-muted/50"
                         >
                           <p className="font-medium">{comp.title}</p>
@@ -735,6 +689,7 @@ export function RaceRecordDialog({
           open={registerOpen}
           onOpenChange={setRegisterOpen}
           memberStatus={competitionRegisterMemberStatus}
+          datePolicy="allow-past"
           stackElevated
           prefillStartDate={raceDate.trim() || undefined}
           onCreated={() => {}}

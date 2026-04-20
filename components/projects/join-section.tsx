@@ -59,7 +59,7 @@ type JoinSectionProps = {
   evtStartMonth: string; // "2026-05-01"
   evtEndMonth: string;   // "2026-09-01"
   existingPrt: {
-    approve_yn: boolean;
+    aprv_yn: boolean;
   } | null;
 };
 
@@ -78,7 +78,7 @@ export function JoinSection({
   const [submitting, setSubmitting] = useState(false);
 
   // 승인 대기 중
-  if (existingPrt && !existingPrt.approve_yn) {
+  if (existingPrt && !existingPrt.aprv_yn) {
     return (
       <CardItem className="p-5 space-y-4">
         <div className="text-center">

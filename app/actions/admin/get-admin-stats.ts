@@ -59,7 +59,7 @@ export async function getAdminStats(): Promise<AdminStats> {
       .from("evt_team_mst")
       .select("*", { count: "exact", head: true })
       .eq("team_id", teamId)
-      .eq("status_cd", "ACTIVE"),
+      .eq("stts_enm", "ACTIVE"),
     admin
       .from("evt_mlg_mult_cfg")
       .select("evt_id, evt_team_mst!inner(team_id)", { count: "exact", head: true })
@@ -68,7 +68,7 @@ export async function getAdminStats(): Promise<AdminStats> {
     admin
       .from("evt_team_prt_rel")
       .select("evt_id, evt_team_mst!inner(team_id)", { count: "exact", head: true })
-      .eq("approve_yn", false)
+      .eq("aprv_yn", false)
       .eq("evt_team_mst.team_id", teamId),
   ]);
 

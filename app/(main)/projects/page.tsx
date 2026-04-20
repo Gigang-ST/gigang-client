@@ -33,9 +33,9 @@ export default async function ProjectsPage({
   // ACTIVE 이벤트 조회 (1개)
   const { data: event } = await supabase
     .from("evt_team_mst")
-    .select("evt_id, evt_nm, stt_dt, end_dt, status_cd")
+    .select("evt_id, evt_nm, stt_dt, end_dt, stts_enm")
     .eq("team_id", teamId)
-    .eq("status_cd", "ACTIVE")
+    .eq("stts_enm", "ACTIVE")
     .maybeSingle();
 
   // 이벤트 없음 — 소개 + 규칙만 표시
@@ -66,18 +66,18 @@ export default async function ProjectsPage({
         : event.stt_dt;
 
   // 로그인한 멤버의 참여 정보 조회
-  let participation: { approve_yn: boolean } | null = null;
+  let participation: { aprv_yn: boolean } | null = null;
   if (member) {
     const { data: prt } = await supabase
       .from("evt_team_prt_rel")
-      .select("approve_yn")
+      .select("aprv_yn")
       .eq("evt_id", event.evt_id)
       .eq("mem_id", member.id)
       .maybeSingle();
     participation = prt ?? null;
   }
 
-  const isParticipant = participation !== null && participation.approve_yn === true;
+  const isParticipant = participation !== null && participation.aprv_yn === true;
 
   // 비로그인이면 신청 섹션 미표시
   const showJoin = user !== null && !isParticipant;
@@ -114,6 +114,7 @@ export default async function ProjectsPage({
           <TransitionOverlay className="flex flex-col gap-7">
             <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
               <CrewProgressChartServer
+                key={selectedMonth}
                 evtId={event.evt_id}
                 memId={isParticipant ? member!.id : undefined}
                 month={selectedMonth}
