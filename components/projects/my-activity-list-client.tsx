@@ -11,7 +11,7 @@ import { ChevronRight } from "lucide-react";
 export type ActivityRecord = {
   act_id: string;
   act_dt: string;
-  sport_cd: string;
+  sprt_enm: string;
   distance_km: number;
   elevation_m: number;
   base_mlg: number;
@@ -55,7 +55,7 @@ export function MyActivityListClient({
                 <div className="flex items-center gap-2">
                   <Caption className="text-foreground">{record.act_dt}</Caption>
                   <Badge variant="secondary" className="text-[11px]">
-                    {MILEAGE_SPORT_LABELS[record.sport_cd as MileageSport] ?? record.sport_cd}
+                    {MILEAGE_SPORT_LABELS[record.sprt_enm as MileageSport] ?? record.sprt_enm}
                   </Badge>
                 </div>
                 {record.review && (

@@ -23,7 +23,7 @@ type ActiveEvent = {
   evt_type_cd: string;
   stt_dt: string;
   end_dt: string;
-  status_cd: string;
+  stts_enm: string;
 };
 
 type Multiplier = {
@@ -70,12 +70,12 @@ export function AdminEventsClient({ teamId }: { teamId: string }) {
     // 활성 이벤트 조회 (ACTIVE 우선, 없으면 최근 이벤트)
     const { data: evts } = await supabase
       .from("evt_team_mst")
-      .select("evt_id, evt_nm, evt_type_cd, stt_dt, end_dt, status_cd")
+      .select("evt_id, evt_nm, evt_type_cd, stt_dt, end_dt, stts_enm")
       .eq("team_id", teamId)
       .order("created_at", { ascending: false });
 
     const activeEvt =
-      (evts ?? []).find((e) => e.status_cd === "ACTIVE") ??
+      (evts ?? []).find((e) => e.stts_enm === "ACTIVE") ??
       (evts ?? [])[0] ??
       null;
 
@@ -321,17 +321,17 @@ export function AdminEventsClient({ teamId }: { teamId: string }) {
             <Body className="font-semibold">{activeEvent.evt_nm}</Body>
             <Badge
               variant={
-                activeEvent.status_cd === "ACTIVE"
+                activeEvent.stts_enm === "ACTIVE"
                   ? "default"
-                  : activeEvent.status_cd === "CLOSED"
+                  : activeEvent.stts_enm === "CLOSED"
                     ? "outline"
                     : "secondary"
               }
               className="text-[11px]"
             >
-              {activeEvent.status_cd === "ACTIVE"
+              {activeEvent.stts_enm === "ACTIVE"
                 ? "진행중"
-                : activeEvent.status_cd === "CLOSED"
+                : activeEvent.stts_enm === "CLOSED"
                   ? "종료"
                   : "준비중"}
             </Badge>
