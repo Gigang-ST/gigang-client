@@ -16,9 +16,12 @@
 | `dt` | 날짜 |
 | `at` | 일시 |
 | `stt` | start 시작 |
+| `stts` | status 상태 |
 | `aply` | apply 적용 |
+| `aprv` | approve 승인 |
 | `yn` | 불리언 플래그 |
 | `amt` | 금액 |
+| `mth` | month 월 |
 | `id` | 식별자 |
 
 ## 도메인 약어
@@ -30,6 +33,8 @@
 | `rec` | record (기록) |
 | `fee` | fee (회비) |
 | `evt` | event (이벤트) |
+| `mlg` | mileage (마일리지) |
+| `sprt` | sport (종목/스포츠) |
 | `ttl` | title (칭호) |
 | `pay` | payment (납부) |
 | `attd` | attendance (출석/참석) |
@@ -72,4 +77,5 @@
 - `title`은 `ttl`로 통일한다.
 - `payment`는 `pay`로 통일한다.
 - `*_cd` 기본 의미는 공통코드 참조다.
+- 고정된 폐쇄형 값셋은 `*_enm`을 우선 사용한다.
 - 단, `team_cd`처럼 외부/업무 식별 목적의 유니크 코드는 예외로 허용한다.

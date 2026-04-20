@@ -257,7 +257,7 @@ export type Database = {
           final_mlg: number
           mem_id: string
           review: string | null
-          sport_cd: string
+          sprt_enm: string
           updated_at: string
         }
         Insert: {
@@ -272,7 +272,7 @@ export type Database = {
           final_mlg: number
           mem_id: string
           review?: string | null
-          sport_cd: string
+          sprt_enm: string
           updated_at?: string
         }
         Update: {
@@ -287,7 +287,7 @@ export type Database = {
           final_mlg?: number
           mem_id?: string
           review?: string | null
-          sport_cd?: string
+          sprt_enm?: string
           updated_at?: string
         }
         Relationships: [
@@ -313,7 +313,7 @@ export type Database = {
           created_at: string
           evt_id: string
           goal_id: string
-          goal_month: string
+          goal_mth: string
           goal_val: number
           mem_id: string
           updated_at: string
@@ -323,7 +323,7 @@ export type Database = {
           created_at?: string
           evt_id: string
           goal_id?: string
-          goal_month: string
+          goal_mth: string
           goal_val: number
           mem_id: string
           updated_at?: string
@@ -333,7 +333,7 @@ export type Database = {
           created_at?: string
           evt_id?: string
           goal_id?: string
-          goal_month?: string
+          goal_mth?: string
           goal_val?: number
           mem_id?: string
           updated_at?: string
@@ -402,36 +402,36 @@ export type Database = {
       evt_team_mst: {
         Row: {
           created_at: string
-          desc: string | null
+          desc_txt: string | null
           end_dt: string
           evt_id: string
           evt_nm: string
           evt_type_cd: string
-          status_cd: string
+          stts_enm: string
           stt_dt: string
           team_id: string
           updated_at: string
         }
         Insert: {
           created_at?: string
-          desc?: string | null
+          desc_txt?: string | null
           end_dt: string
           evt_id?: string
           evt_nm: string
           evt_type_cd: string
-          status_cd?: string
+          stts_enm?: string
           stt_dt: string
           team_id: string
           updated_at?: string
         }
         Update: {
           created_at?: string
-          desc?: string | null
+          desc_txt?: string | null
           end_dt?: string
           evt_id?: string
           evt_nm?: string
           evt_type_cd?: string
-          status_cd?: string
+          stts_enm?: string
           stt_dt?: string
           team_id?: string
           updated_at?: string
@@ -448,8 +448,8 @@ export type Database = {
       }
       evt_team_prt_rel: {
         Row: {
-          approve_yn: boolean
-          approved_at: string | null
+          aprv_at: string | null
+          aprv_yn: boolean
           created_at: string
           deposit_amt: number
           entry_fee_amt: number
@@ -459,12 +459,12 @@ export type Database = {
           mem_id: string
           prt_id: string
           singlet_fee_amt: number
-          stt_month: string
+          stt_mth: string
           updated_at: string
         }
         Insert: {
-          approve_yn?: boolean
-          approved_at?: string | null
+          aprv_at?: string | null
+          aprv_yn?: boolean
           created_at?: string
           deposit_amt: number
           entry_fee_amt: number
@@ -474,12 +474,12 @@ export type Database = {
           mem_id: string
           prt_id?: string
           singlet_fee_amt?: number
-          stt_month: string
+          stt_mth: string
           updated_at?: string
         }
         Update: {
-          approve_yn?: boolean
-          approved_at?: string | null
+          aprv_at?: string | null
+          aprv_yn?: boolean
           created_at?: string
           deposit_amt?: number
           entry_fee_amt?: number
@@ -489,7 +489,7 @@ export type Database = {
           mem_id?: string
           prt_id?: string
           singlet_fee_amt?: number
-          stt_month?: string
+          stt_mth?: string
           updated_at?: string
         }
         Relationships: [

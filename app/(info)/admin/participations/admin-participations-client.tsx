@@ -31,7 +31,7 @@ type ActiveEvent = {
   evt_nm: string;
   stt_dt: string;
   end_dt: string;
-  status_cd: string;
+  stts_enm: string;
 };
 
 type Participant = {
@@ -39,14 +39,14 @@ type Participant = {
   evt_id: string;
   mem_id: string;
   mem_nm: string | null;
-  stt_month: string;
+  stt_mth: string;
   init_goal: number;
   deposit_amt: number;
   entry_fee_amt: number;
   singlet_fee_amt: number;
   has_singlet_yn: boolean;
-  approve_yn: boolean;
-  approved_at: string | null;
+  aprv_yn: boolean;
+  aprv_at: string | null;
   created_at: string;
 };
 
@@ -65,7 +65,7 @@ export function AdminParticipationsClient({ teamId }: { teamId: string }) {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [editingPrt, setEditingPrt] = useState<Participant | null>(null);
   const [editForm, setEditForm] = useState({
-    stt_month: "",
+    stt_mth: "",
     init_goal: 0,
     deposit_amt: 0,
     entry_fee_amt: 0,
@@ -80,12 +80,12 @@ export function AdminParticipationsClient({ teamId }: { teamId: string }) {
     // 활성 이벤트 조회
     const { data: evts } = await supabase
       .from("evt_team_mst")
-      .select("evt_id, evt_nm, stt_dt, end_dt, status_cd")
+      .select("evt_id, evt_nm, stt_dt, end_dt, stts_enm")
       .eq("team_id", teamId)
       .order("created_at", { ascending: false });
 
     const activeEvt =
-      (evts ?? []).find((e) => e.status_cd === "ACTIVE") ??
+      (evts ?? []).find((e) => e.stts_enm === "ACTIVE") ??
       (evts ?? [])[0] ??
       null;
 
@@ -96,7 +96,7 @@ export function AdminParticipationsClient({ teamId }: { teamId: string }) {
       const { data: prtData } = await supabase
         .from("evt_team_prt_rel")
         .select(
-          "prt_id, evt_id, mem_id, stt_month, init_goal, deposit_amt, entry_fee_amt, singlet_fee_amt, has_singlet_yn, approve_yn, approved_at, created_at",
+          "prt_id, evt_id, mem_id, stt_mth, init_goal, deposit_amt, entry_fee_amt, singlet_fee_amt, has_singlet_yn, aprv_yn, aprv_at, created_at",
         )
         .eq("evt_id", activeEvt.evt_id)
         .order("created_at", { ascending: false });
@@ -140,7 +140,7 @@ export function AdminParticipationsClient({ teamId }: { teamId: string }) {
       setParticipants((prev) =>
         prev.map((p) =>
           p.prt_id === prtId
-            ? { ...p, approve_yn: true, approved_at: new Date().toISOString() }
+            ? { ...p, aprv_yn: true, aprv_at: new Date().toISOString() }
             : p,
         ),
       );
@@ -169,7 +169,7 @@ export function AdminParticipationsClient({ teamId }: { teamId: string }) {
     if (result.ok) {
       setParticipants((prev) =>
         prev.map((p) =>
-          p.prt_id === prtId ? { ...p, approve_yn: false, approved_at: null } : p,
+          p.prt_id === prtId ? { ...p, aprv_yn: false, aprv_at: null } : p,
         ),
       );
     } else {
@@ -193,7 +193,7 @@ export function AdminParticipationsClient({ teamId }: { teamId: string }) {
   const openEdit = (prt: Participant) => {
     setEditingPrt(prt);
     setEditForm({
-      stt_month: prt.stt_month,
+      stt_mth: prt.stt_mth,
       init_goal: prt.init_goal,
       deposit_amt: prt.deposit_amt,
       entry_fee_amt: prt.entry_fee_amt,
@@ -220,7 +220,7 @@ export function AdminParticipationsClient({ teamId }: { teamId: string }) {
   };
 
   const filteredList = participants.filter((p) =>
-    tab === "pending" ? !p.approve_yn : p.approve_yn,
+    tab === "pending" ? !p.aprv_yn : p.aprv_yn,
   );
 
   if (loading) {
@@ -248,17 +248,17 @@ export function AdminParticipationsClient({ teamId }: { teamId: string }) {
             <Body className="font-semibold">{activeEvent.evt_nm}</Body>
             <Badge
               variant={
-                activeEvent.status_cd === "ACTIVE"
+                activeEvent.stts_enm === "ACTIVE"
                   ? "default"
-                  : activeEvent.status_cd === "CLOSED"
+                  : activeEvent.stts_enm === "CLOSED"
                     ? "outline"
                     : "secondary"
               }
               className="text-[11px]"
             >
-              {activeEvent.status_cd === "ACTIVE"
+              {activeEvent.stts_enm === "ACTIVE"
                 ? "진행중"
-                : activeEvent.status_cd === "CLOSED"
+                : activeEvent.stts_enm === "CLOSED"
                   ? "종료"
                   : "준비중"}
             </Badge>
@@ -300,7 +300,7 @@ export function AdminParticipationsClient({ teamId }: { teamId: string }) {
                       </Badge>
                     )}
                   </div>
-                  {!prt.approve_yn && (
+                  {!prt.aprv_yn && (
                     <div className="flex gap-1.5">
                       <Button
                         size="sm"
@@ -323,7 +323,7 @@ export function AdminParticipationsClient({ teamId }: { teamId: string }) {
                       </Button>
                     </div>
                   )}
-                  {prt.approve_yn && (
+                  {prt.aprv_yn && (
                     <div className="flex items-center gap-1.5">
                       <Badge variant="default" className="text-[11px]">
                         승인완료
@@ -366,7 +366,7 @@ export function AdminParticipationsClient({ teamId }: { teamId: string }) {
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                   <ParticipantInfoItem
                     label="시작월"
-                    value={prt.stt_month?.slice(0, 7) ?? "-"}
+                    value={prt.stt_mth?.slice(0, 7) ?? "-"}
                   />
                   <ParticipantInfoItem
                     label="초기 목표"
@@ -384,10 +384,10 @@ export function AdminParticipationsClient({ teamId }: { teamId: string }) {
                     label="싱글렛"
                     value={prt.has_singlet_yn ? "있음" : "없음"}
                   />
-                  {prt.approve_yn && prt.approved_at && (
+                  {prt.aprv_yn && prt.aprv_at && (
                     <ParticipantInfoItem
                       label="승인일"
-                      value={prt.approved_at.slice(0, 10)}
+                      value={prt.aprv_at.slice(0, 10)}
                     />
                   )}
                 </div>
@@ -420,8 +420,8 @@ export function AdminParticipationsClient({ teamId }: { teamId: string }) {
                 <Input
                   type="date"
                   max="9999-12-31"
-                  value={editForm.stt_month}
-                  onChange={(e) => setEditForm({ ...editForm, stt_month: e.target.value })}
+                  value={editForm.stt_mth}
+                  onChange={(e) => setEditForm({ ...editForm, stt_mth: e.target.value })}
                   className="h-12 rounded-xl border-[1.5px] text-[15px]"
                 />
               </div>

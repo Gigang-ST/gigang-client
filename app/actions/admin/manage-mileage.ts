@@ -14,8 +14,8 @@ export async function createEvent(input: {
   evt_type_cd: string;
   stt_dt: string;
   end_dt: string;
-  status_cd: string;
-  desc: string | null;
+  stts_enm: string;
+  desc_txt: string | null;
 }) {
   const admin = await verifyAdmin();
   if (!admin) return { ok: false, message: "권한이 없습니다" };
@@ -29,8 +29,8 @@ export async function createEvent(input: {
     evt_type_cd: input.evt_type_cd,
     stt_dt: input.stt_dt,
     end_dt: input.end_dt,
-    status_cd: input.status_cd,
-    desc: input.desc?.trim() || null,
+    stts_enm: input.stts_enm,
+    desc_txt: input.desc_txt?.trim() || null,
   });
 
   if (error) return { ok: false, message: "이벤트 생성에 실패했습니다" };
@@ -44,8 +44,8 @@ export async function updateEvent(
     evt_type_cd: string;
     stt_dt: string;
     end_dt: string;
-    status_cd: string;
-    desc: string | null;
+    stts_enm: string;
+    desc_txt: string | null;
   },
 ) {
   const admin = await verifyAdmin();
@@ -60,8 +60,8 @@ export async function updateEvent(
       evt_type_cd: input.evt_type_cd,
       stt_dt: input.stt_dt,
       end_dt: input.end_dt,
-      status_cd: input.status_cd,
-      desc: input.desc?.trim() || null,
+      stts_enm: input.stts_enm,
+      desc_txt: input.desc_txt?.trim() || null,
       updated_at: dayjs().toISOString(),
     })
     .eq("evt_id", evtId);
@@ -177,8 +177,8 @@ export async function approveParticipation(prtId: string) {
   const { error } = await db
     .from("evt_team_prt_rel")
     .update({
-      approve_yn: true,
-      approved_at: dayjs().toISOString(),
+      aprv_yn: true,
+      aprv_at: dayjs().toISOString(),
       updated_at: dayjs().toISOString(),
     })
     .eq("prt_id", prtId);
@@ -220,7 +220,7 @@ export async function rejectParticipation(prtId: string) {
 export async function updateParticipation(
   prtId: string,
   input: {
-    stt_month: string;
+    stt_mth: string;
     init_goal: number;
     deposit_amt: number;
     entry_fee_amt: number;
@@ -236,7 +236,7 @@ export async function updateParticipation(
   const { error } = await db
     .from("evt_team_prt_rel")
     .update({
-      stt_month: input.stt_month,
+      stt_mth: input.stt_mth,
       init_goal: input.init_goal,
       deposit_amt: input.deposit_amt,
       entry_fee_amt: input.entry_fee_amt,
@@ -259,8 +259,8 @@ export async function revokeApproval(prtId: string) {
   const { error } = await db
     .from("evt_team_prt_rel")
     .update({
-      approve_yn: false,
-      approved_at: null,
+      aprv_yn: false,
+      aprv_at: null,
       updated_at: dayjs().toISOString(),
     })
     .eq("prt_id", prtId);

@@ -32,7 +32,7 @@ import { ActivityLogForm } from "@/components/projects/activity-log-form";
 type ActivityRecord = {
   act_id: string;
   act_dt: string;
-  sport_cd: string;
+  sprt_enm: string;
   distance_km: number;
   elevation_m: number | null;
   base_mlg: number;
@@ -98,7 +98,7 @@ export function RecordsClient({ evtId, memId, evtStartDt, evtEndDt }: Props) {
 
     const { data } = await supabase
       .from("evt_mlg_act_hist")
-      .select("act_id, act_dt, sport_cd, distance_km, elevation_m, base_mlg, applied_mults, final_mlg, review")
+      .select("act_id, act_dt, sprt_enm, distance_km, elevation_m, base_mlg, applied_mults, final_mlg, review")
       .eq("evt_id", evtId)
       .eq("mem_id", memId)
       .gte("act_dt", month)
@@ -182,7 +182,7 @@ export function RecordsClient({ evtId, memId, evtStartDt, evtEndDt }: Props) {
                     <div className="flex items-center gap-2">
                       <Body className="font-semibold">{record.act_dt}</Body>
                       <Badge variant="secondary" className="text-[11px]">
-                        {MILEAGE_SPORT_LABELS[record.sport_cd as MileageSport] ?? record.sport_cd}
+                        {MILEAGE_SPORT_LABELS[record.sprt_enm as MileageSport] ?? record.sprt_enm}
                       </Badge>
                     </div>
                     <Body className="font-semibold">{record.final_mlg.toFixed(1)}</Body>
@@ -247,7 +247,7 @@ export function RecordsClient({ evtId, memId, evtStartDt, evtEndDt }: Props) {
               {deleteTarget && (
                 <>
                   {deleteTarget.act_dt}{" "}
-                  {MILEAGE_SPORT_LABELS[deleteTarget.sport_cd as MileageSport]}{" "}
+                  {MILEAGE_SPORT_LABELS[deleteTarget.sprt_enm as MileageSport]}{" "}
                   {deleteTarget.distance_km.toFixed(1)}km 기록을 삭제하시겠습니까?
                 </>
               )}
