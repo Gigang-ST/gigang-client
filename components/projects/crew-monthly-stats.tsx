@@ -97,6 +97,7 @@ export async function CrewMonthlyStats({
 
     const pGoals = cumulativeGoals.filter((g) => g.mem_id === p.mem_id);
     for (const g of pGoals) {
+      if (g.goal_month < effectiveStart || g.goal_month > viewMonth) continue;
       const key = `${p.mem_id}:${g.goal_month}`;
       const achieved = mlgMap.get(key) ?? 0;
       totalRefundSum +=
