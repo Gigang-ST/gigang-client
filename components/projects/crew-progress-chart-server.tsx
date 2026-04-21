@@ -127,6 +127,7 @@ export async function CrewProgressChartServer({
   const members = activeParticipants.map((p) => ({
     id: p.mem_id,
     name: (p.mem_mst as unknown as { mem_nm: string }).mem_nm,
+    goalKm: goalByMemId.get(p.mem_id) ?? Number(p.init_goal ?? 0),
   }));
 
   const initialData: ChartInitialData = {
