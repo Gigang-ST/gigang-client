@@ -31,39 +31,28 @@ export type ChartInitialData = {
   totalDays: number;
 };
 
-const CHART_COLORS = [
-  "#EF4444",
-  "#F59E0B",
-  "#EAB308",
-  "#84CC16",
-  "#10B981",
-  "#06B6D4",
-  "#3B82F6",
-  "#6366F1",
-  "#8B5CF6",
-  "#A855F7",
-  "#D946EF",
-  "#EC4899",
-  "#F43F5E",
-  "#FB7185",
-  "#22C55E",
-  "#14B8A6",
-  "#0EA5E9",
-  "#60A5FA",
-  "#818CF8",
-  "#C084FC",
-];
-
-function hashString(value: string): number {
-  let hash = 0;
-  for (let i = 0; i < value.length; i++) {
-    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+/** FNV-1a — mem_id(UUID 등) 문자열에서 인덱스 클러스터링을 줄임 */
+function fnv1a32(input: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
   }
-  return hash;
+  return hash >>> 0;
 }
 
+/**
+ * 멤버별 고정 색 (같은 mem_id → 항상 동일).
+ * 고정 HEX 팔레트 대신 색상환을 황금각(≈137.5°) 스텝으로 훑어 비슷한 파랑·보라만 연속되지 않게 함.
+ * 30명 규모에서도 채도·명도를 약간만 바꿔 구분도 유지.
+ */
 function colorByMemberId(memId: string): string {
-  return CHART_COLORS[hashString(memId) % CHART_COLORS.length];
+  const h = fnv1a32(memId);
+  const goldenDeg = 137.508;
+  const hue = ((h * goldenDeg) % 360 + 360) % 360;
+  const sat = 58 + (h % 14);
+  const light = 42 + ((h >>> 11) % 14);
+  return `hsl(${hue.toFixed(1)} ${sat}% ${light}%)`;
 }
 
 type ChartTooltipProps = TooltipContentProps<TooltipValueType, string | number> & {
