@@ -517,7 +517,7 @@ export function CrewProgressChart({
       {mode === "stats" ? (
         <div className="rounded-2xl border bg-card">
           <div className="max-h-[52vh] overflow-auto">
-            <table className="min-w-[560px] w-full border-collapse text-xs [font-variant-numeric:tabular-nums]">
+            <table className="min-w-[560px] w-full border-collapse text-[13px] [font-variant-numeric:tabular-nums]">
               <thead className="sticky top-0 z-30 bg-muted/70">
                 <tr className="border-b text-muted-foreground">
                   <th className="sticky left-0 z-40 w-11 bg-muted/70 px-1.5 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border">
@@ -535,7 +535,9 @@ export function CrewProgressChart({
                   <th className="w-24 border-r px-2 py-2 text-center">
                     <button
                       type="button"
-                      className="w-full text-center font-medium"
+                      className={`w-full text-center font-medium ${
+                        statsSortKey === "goalKm" ? "text-foreground" : ""
+                      }`}
                       onClick={() => toggleStatsSort("goalKm")}
                     >
                       목표거리 {sortIndicator("goalKm")}
@@ -544,7 +546,9 @@ export function CrewProgressChart({
                   <th className="w-24 border-r px-2 py-2 text-center">
                     <button
                       type="button"
-                      className="w-full text-center font-medium"
+                      className={`w-full text-center font-medium ${
+                        statsSortKey === "currentKm" ? "text-foreground" : ""
+                      }`}
                       onClick={() => toggleStatsSort("currentKm")}
                     >
                       누적거리 {sortIndicator("currentKm")}
@@ -553,7 +557,9 @@ export function CrewProgressChart({
                   <th className="w-20 border-r px-2 py-2 text-center">
                     <button
                       type="button"
-                      className="w-full text-center font-medium"
+                      className={`w-full text-center font-medium ${
+                        statsSortKey === "percent" ? "text-foreground" : ""
+                      }`}
                       onClick={() => toggleStatsSort("percent")}
                     >
                       달성률 {sortIndicator("percent")}
@@ -575,14 +581,24 @@ export function CrewProgressChart({
                     >
                       {row.name}
                     </td>
-                    <td className="border-r px-2 py-2 text-center whitespace-nowrap">
+                    <td
+                      className={`border-r px-2 py-2.5 text-center whitespace-nowrap ${
+                        statsSortKey === "goalKm" ? "bg-muted/25 font-medium" : ""
+                      }`}
+                    >
                       {row.goalKm.toFixed(1)} km
                     </td>
-                    <td className="border-r px-2 py-2 text-center whitespace-nowrap">
+                    <td
+                      className={`border-r px-2 py-2.5 text-center whitespace-nowrap ${
+                        statsSortKey === "currentKm" ? "bg-muted/25 font-medium" : ""
+                      }`}
+                    >
                       {row.currentKm.toFixed(1)} km
                     </td>
                     <td
-                      className="border-r px-2 py-2 text-center whitespace-nowrap"
+                      className={`border-r px-2 py-2.5 text-center whitespace-nowrap ${
+                        statsSortKey === "percent" ? "font-semibold" : ""
+                      }`}
                       style={getPercentCellStyle(row.percent)}
                     >
                       {row.percent.toFixed(1)}%
@@ -592,7 +608,7 @@ export function CrewProgressChart({
                         </span>
                       ) : null}
                     </td>
-                    <td className="px-2 py-2 text-center whitespace-nowrap">
+                    <td className="px-2 py-2.5 text-center whitespace-nowrap">
                       {row.dailyNeed === "done" ? "완료" : `${Number(row.dailyNeed).toFixed(1)} km`}
                     </td>
                   </tr>

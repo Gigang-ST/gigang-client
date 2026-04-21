@@ -1,7 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { todayKST } from "@/lib/dayjs";
 import dayjs from "dayjs";
-import { MILEAGE_SPORT_LABELS, type MileageSport } from "@/lib/mileage";
+import { type MileageSport } from "@/lib/mileage";
 import { RandomReviewRotator, type ReviewLine } from "@/components/projects/random-review-rotator";
 
 type RandomReviewProps = { evtId: string };
@@ -26,12 +26,22 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
 
   const lines: ReviewLine[] = reviews.map((item) => {
     const name = (item.mem_mst as unknown as { mem_nm: string }).mem_nm;
-    const sport = MILEAGE_SPORT_LABELS[item.sprt_enm as MileageSport] ?? item.sprt_enm;
+    const sport = item.sprt_enm as MileageSport;
+    const sportEmoji =
+      sport === "RUNNING"
+        ? "🏃"
+        : sport === "TRAIL"
+          ? "🏔️"
+          : sport === "CYCLING"
+            ? "🚴"
+            : sport === "SWIMMING"
+              ? "🏊"
+              : "🏃";
     const dist = Number(item.distance_km);
     return {
       id: item.act_id,
       quote: item.review,
-      meta: `🏃 ${name} · ${sport} ${dist % 1 === 0 ? dist : dist.toFixed(1)}km`,
+      meta: `${name} · ${sportEmoji} ${dist % 1 === 0 ? dist : dist.toFixed(1)}km`,
     };
   });
 

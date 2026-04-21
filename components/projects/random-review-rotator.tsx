@@ -22,9 +22,10 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
   const picks = useMemo(() => pickRandomFive(lines), [lines]);
   const [index, setIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
-    if (picks.length <= 1) return;
+    if (picks.length <= 1 || isPaused) return;
     let timeoutId: number | undefined;
     const timer = window.setInterval(() => {
       setIsTransitioning(true);
@@ -37,7 +38,7 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
       window.clearInterval(timer);
       if (timeoutId) window.clearTimeout(timeoutId);
     };
-  }, [picks.length]);
+  }, [isPaused, picks.length]);
 
   if (picks.length === 0) return null;
 
@@ -45,13 +46,22 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
   if (!current) return null;
 
   return (
-    <div className="rounded-2xl bg-muted px-4 py-3">
+    <div
+      className="rounded-2xl bg-muted px-4 py-3"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onFocus={() => setIsPaused(true)}
+      onBlur={() => setIsPaused(false)}
+    >
       <div
         className={`transition-all duration-300 ease-out motion-reduce:transition-none ${
           isTransitioning ? "-translate-y-1 opacity-0" : "translate-y-0 opacity-100"
         }`}
       >
-        <Caption className="line-clamp-1 text-foreground">✨ "{current.quote}"</Caption>
+        <Caption className="line-clamp-1 text-foreground">"{current.quote}"</Caption>
         <Caption className="line-clamp-1 text-muted-foreground">{current.meta}</Caption>
       </div>
     </div>
