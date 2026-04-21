@@ -33,7 +33,7 @@ export type ChartInitialData = {
   totalDays: number;
 };
 
-/** FNV-1a — mem_id(UUID 등) 문자열에서 인덱스 클러스터링을 줄임 */
+/** FNV-1a — mem_id 문자열을 팔레트 인덱스에 고르게 퍼뜨림 */
 function fnv1a32(input: string): number {
   let hash = 2166136261;
   for (let i = 0; i < input.length; i++) {
@@ -44,17 +44,17 @@ function fnv1a32(input: string): number {
 }
 
 /**
- * 멤버별 고정 색 (같은 mem_id → 항상 동일).
- * 고정 HEX 팔레트 대신 색상환을 황금각(≈137.5°) 스텝으로 훑어 비슷한 파랑·보라만 연속되지 않게 함.
- * 30명 규모에서도 채도·명도를 약간만 바꿔 구분도 유지.
+ * 선/막대 색: 슬롯마다 hue를 황금각으로 벌린 고정 팔레트 + FNV로 슬롯 선택 (동일 mem_id → 동일 색).
  */
+const LINE_PALETTE: readonly string[] = Array.from({ length: 28 }, (_, i) => {
+  const hue = ((i * 137.508) % 360 + 360) % 360;
+  const sat = 68 + (i % 4) * 2.5;
+  const light = 43 + (i % 3) * 3.5;
+  return `hsl(${hue.toFixed(0)} ${sat.toFixed(0)}% ${light.toFixed(0)}%)`;
+});
+
 function colorByMemberId(memId: string): string {
-  const h = fnv1a32(memId);
-  const goldenDeg = 137.508;
-  const hue = ((h * goldenDeg) % 360 + 360) % 360;
-  const sat = 58 + (h % 14);
-  const light = 42 + ((h >>> 11) % 14);
-  return `hsl(${hue.toFixed(1)} ${sat}% ${light}%)`;
+  return LINE_PALETTE[fnv1a32(memId) % LINE_PALETTE.length]!;
 }
 
 type ChartTooltipProps = TooltipContentProps<TooltipValueType, string | number> & {
@@ -114,37 +114,6 @@ type PercentBarTooltipProps = {
   payload?: any[];
   myName: string | null;
 };
-
-/** 달성률 막대 X축 — 인원 많을 때 폰트 축소 + 줄 지그재그로 겹침 완화 */
-function PercentBarCategoryTick(props: {
-  x: number;
-  y: number;
-  payload: { value?: string | number };
-  index: number;
-  fontSize: number;
-  stagger: boolean;
-}) {
-  const { x, y, payload, index, fontSize, stagger } = props;
-  const staggerDy =
-    stagger && index % 2 === 1 ? (fontSize <= 9 ? 12 : 13) : 0;
-  const label = payload.value ?? "";
-
-  return (
-    <g transform={`translate(${x},${y})`}>
-      <text
-        x={0}
-        y={0}
-        dy={14 + staggerDy}
-        textAnchor="end"
-        fill="var(--muted-foreground)"
-        fontSize={fontSize}
-        transform="rotate(-20)"
-      >
-        {label}
-      </text>
-    </g>
-  );
-}
 
 /** 달성률 막대 — dataKey 이름(percent)이 노출되지 않도록 전용 툴팁 */
 function PercentBarTooltip({
@@ -377,25 +346,8 @@ export function CrewProgressChart({
   const percentBarCount = memberPercentData.length;
   const percentBarLabelFont =
     percentBarCount > 26 ? 8 : percentBarCount > 18 ? 9 : percentBarCount > 12 ? 10 : 11;
-  const percentBarUseStagger = percentBarCount >= 10;
-  const percentBarBottomMargin =
-    percentBarUseStagger && percentBarCount > 16
-      ? 56
-      : percentBarUseStagger
-        ? 48
-        : percentBarCount > 12
-          ? 36
-          : 28;
-  const percentBarXAxisHeight =
-    percentBarUseStagger && percentBarCount > 16
-      ? 58
-      : percentBarUseStagger
-        ? 50
-        : 42;
-  const percentBarChartHeight =
-    percentBarUseStagger || percentBarCount > 12
-      ? Math.min(292, 232 + percentBarXAxisHeight)
-      : 240;
+  const percentBarBottomMargin = percentBarCount > 12 ? 36 : 28;
+  const percentBarXAxisHeight = percentBarCount > 12 ? 48 : 44;
 
   if (chartData.length === 0 || members.length === 0) {
     return (
@@ -418,7 +370,7 @@ export function CrewProgressChart({
 
       <ResponsiveContainer
         width="100%"
-        height={mode === "percent" ? percentBarChartHeight : 240}
+        height={mode === "percent" && percentBarCount > 14 ? 256 : 240}
         className="outline-none"
       >
         {mode === "mileage" ? (
@@ -490,22 +442,14 @@ export function CrewProgressChart({
             ))}
             <XAxis
               dataKey="name"
+              tick={{
+                fontSize: percentBarLabelFont,
+                fill: "var(--muted-foreground)",
+              }}
               interval={0}
+              angle={-20}
+              textAnchor="end"
               height={percentBarXAxisHeight}
-              tick={(tickProps) => (
-                <PercentBarCategoryTick
-                  x={Number(tickProps.x)}
-                  y={Number(tickProps.y)}
-                  payload={
-                    (tickProps.payload ?? {}) as {
-                      value?: string | number;
-                    }
-                  }
-                  index={tickProps.index ?? 0}
-                  fontSize={percentBarLabelFont}
-                  stagger={percentBarUseStagger}
-                />
-              )}
             />
             <YAxis
               tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
