@@ -108,6 +108,7 @@ type MemberPercentBar = {
 
 type StatsSortKey = "rank" | "goalKm" | "currentKm" | "percent";
 type StatsSortDir = "asc" | "desc";
+type AriaSortValue = "none" | "ascending" | "descending";
 
 type PercentBarTooltipProps = {
   active?: boolean;
@@ -467,6 +468,13 @@ export function CrewProgressChart({
       statsSortKey === key ? (statsSortDir === "desc" ? "▼" : "▲") : "",
     [statsSortDir, statsSortKey],
   );
+  const getAriaSort = useCallback(
+    (key: StatsSortKey): AriaSortValue => {
+      if (statsSortKey !== key) return "none";
+      return statsSortDir === "asc" ? "ascending" : "descending";
+    },
+    [statsSortDir, statsSortKey],
+  );
 
   if (loading) {
     return <Skeleton className="h-64 w-full rounded-2xl" />;
@@ -520,7 +528,10 @@ export function CrewProgressChart({
             <table className="min-w-[560px] w-full border-collapse text-[13px] [font-variant-numeric:tabular-nums]">
               <thead className="sticky top-0 z-30 bg-muted/70">
                 <tr className="border-b text-muted-foreground">
-                  <th className="sticky left-0 z-40 w-11 bg-muted/70 px-1.5 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border">
+                  <th
+                    aria-sort={getAriaSort("rank")}
+                    className="sticky left-0 z-40 w-11 bg-muted/70 px-1.5 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border"
+                  >
                     <button
                       type="button"
                       className="w-full text-center font-medium"
@@ -532,7 +543,7 @@ export function CrewProgressChart({
                   <th className="sticky left-11 z-40 w-16 bg-muted/70 px-1.5 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border">
                     이름
                   </th>
-                  <th className="w-24 border-r px-2 py-2 text-center">
+                  <th aria-sort={getAriaSort("goalKm")} className="w-24 border-r px-2 py-2 text-center">
                     <button
                       type="button"
                       className={`w-full text-center font-medium ${
@@ -543,7 +554,7 @@ export function CrewProgressChart({
                       목표거리 {sortIndicator("goalKm")}
                     </button>
                   </th>
-                  <th className="w-24 border-r px-2 py-2 text-center">
+                  <th aria-sort={getAriaSort("currentKm")} className="w-24 border-r px-2 py-2 text-center">
                     <button
                       type="button"
                       className={`w-full text-center font-medium ${
@@ -554,7 +565,7 @@ export function CrewProgressChart({
                       누적거리 {sortIndicator("currentKm")}
                     </button>
                   </th>
-                  <th className="w-20 border-r px-2 py-2 text-center">
+                  <th aria-sort={getAriaSort("percent")} className="w-20 border-r px-2 py-2 text-center">
                     <button
                       type="button"
                       className={`w-full text-center font-medium ${
