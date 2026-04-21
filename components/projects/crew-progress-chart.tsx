@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+  useTransition,
+} from "react";
 import {
   LineChart,
   Line,
@@ -15,7 +22,20 @@ import {
 } from "recharts";
 import type { TooltipContentProps, TooltipValueType } from "recharts";
 import { createClient } from "@/lib/supabase/client";
-import { daysInMonth as getDaysInMonth } from "@/lib/dayjs";
+import {
+  currentMonthKST,
+  daysInMonth as getDaysInMonth,
+  todayDayKST,
+} from "@/lib/dayjs";
+import {
+  buildRoleColorMap,
+  buildStatsRows,
+  rankMembers,
+  ROLE_COLORS,
+  selectMembersForChart,
+  type RankedMember,
+  type StatsRow,
+} from "@/lib/projects/crew-progress-chart";
 import { SegmentControl } from "@/components/common/segment-control";
 import { Body } from "@/components/common/typography";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,33 +53,9 @@ export type ChartInitialData = {
   totalDays: number;
 };
 
-/** FNV-1a — mem_id 문자열을 팔레트 인덱스에 고르게 퍼뜨림 */
-function fnv1a32(input: string): number {
-  let hash = 2166136261;
-  for (let i = 0; i < input.length; i++) {
-    hash ^= input.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
-
-/**
- * 선/막대 색: 슬롯마다 hue를 황금각으로 벌린 고정 팔레트 + FNV로 슬롯 선택 (동일 mem_id → 동일 색).
- */
-const LINE_PALETTE: readonly string[] = Array.from({ length: 28 }, (_, i) => {
-  const hue = ((i * 137.508) % 360 + 360) % 360;
-  const sat = 68 + (i % 4) * 2.5;
-  const light = 43 + (i % 3) * 3.5;
-  return `hsl(${hue.toFixed(0)} ${sat.toFixed(0)}% ${light.toFixed(0)}%)`;
-});
-
-function colorByMemberId(memId: string): string {
-  return LINE_PALETTE[fnv1a32(memId) % LINE_PALETTE.length]!;
-}
-
 type ChartTooltipProps = TooltipContentProps<TooltipValueType, string | number> & {
   myName: string | null;
-  mode: "mileage" | "percent";
+  mode: "mileage" | "percent" | "stats";
 };
 
 /** recharts NameType = string | number — Tooltip 인라인 컴포넌트 방지 */
@@ -147,7 +143,7 @@ export function CrewProgressChart({
   month,
   initialData,
 }: CrewProgressChartProps) {
-  const [mode, setMode] = useState<"mileage" | "percent">("mileage");
+  const [mode, setMode] = useState<"mileage" | "percent" | "stats">("mileage");
   const [mileageData, setMileageData] = useState<DailyPoint[]>(
     initialData?.mileageData ?? [],
   );
@@ -165,9 +161,17 @@ export function CrewProgressChart({
   );
   const [totalDays, setTotalDays] = useState(initialData?.totalDays ?? 30);
   const [loading, setLoading] = useState(!initialData);
+  const [refreshing, setRefreshing] = useState(false);
+  const didPreloadSecondary = useRef(false);
+  const [isPending, startTransition] = useTransition();
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const hasExistingData = mileageData.length > 0 && members.length > 0;
+    if (hasExistingData) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     const supabase = createClient();
 
     const [y, m] = month.split("-").map(Number);
@@ -184,6 +188,7 @@ export function CrewProgressChart({
 
     if (!participants || participants.length === 0) {
       setLoading(false);
+      setRefreshing(false);
       return;
     }
 
@@ -292,7 +297,8 @@ export function CrewProgressChart({
     setMileageData(mPoints);
     setPercentData(pPoints);
     setLoading(false);
-  }, [evtId, memId, month]);
+    setRefreshing(false);
+  }, [evtId, memId, month, members.length, mileageData.length]);
 
   // initialData 없을 때만 초기 fetch
   useEffect(() => {
@@ -300,6 +306,16 @@ export function CrewProgressChart({
       load();
     }
   }, [initialData, load]);
+
+  // 서버 초기 렌더에서 비기본 탭(달성률/통계) 데이터가 비어 있으면 백그라운드 재조회
+  useEffect(() => {
+    if (!initialData || didPreloadSecondary.current) return;
+    if (initialData.percentData.length > 0) return;
+    didPreloadSecondary.current = true;
+    startTransition(() => {
+      void load();
+    });
+  }, [initialData, load, startTransition]);
 
   // mileage:refresh 이벤트 → 클라이언트 재조회
   useEffect(() => {
@@ -312,10 +328,53 @@ export function CrewProgressChart({
     return <Skeleton className="h-64 w-full rounded-2xl" />;
   }
 
-  const chartData = mode === "mileage" ? mileageData : percentData;
-  const mileageMax = members.reduce((max, member) => {
+  const isCurrentMonth = month === currentMonthKST();
+  const dayRef = isCurrentMonth ? Math.min(todayDayKST(), totalDays) : totalDays;
+
+  const rankedByMileage = useMemo(() => {
+    const sourcePercent = percentData.length > 0 ? percentData : mileageData;
+    return rankMembers(members, mileageData, sourcePercent, dayRef, "mileage");
+  }, [members, mileageData, percentData, dayRef]);
+  const rankedByPercent = useMemo(
+    () => rankMembers(members, mileageData, percentData, dayRef, "percent"),
+    [members, mileageData, percentData, dayRef],
+  );
+  const rankedForMode = mode === "percent" ? rankedByPercent : rankedByMileage;
+
+  const { selected: selectedMembers, top, bottom, near } = useMemo(
+    () => selectMembersForChart(rankedForMode, memId),
+    [rankedForMode, memId],
+  );
+
+  const selectedIdSet = useMemo(
+    () => new Set(selectedMembers.map((item) => item.member.id)),
+    [selectedMembers],
+  );
+  const selectedNameSet = useMemo(
+    () => new Set(selectedMembers.map((item) => item.member.name)),
+    [selectedMembers],
+  );
+  const selectedChartData = useMemo(() => {
+    const base = mode === "percent" ? percentData : mileageData;
+    return base.map((row) => {
+      const filtered: DailyPoint = { day: row.day };
+      for (const key of Object.keys(row)) {
+        if (key === "day" || selectedNameSet.has(key)) {
+          filtered[key] = row[key] as number | string;
+        }
+      }
+      return filtered;
+    });
+  }, [mode, percentData, mileageData, selectedNameSet]);
+
+  const roleColorMap = useMemo(
+    () => buildRoleColorMap(selectedMembers, top, bottom, near, memId),
+    [selectedMembers, top, bottom, near, memId],
+  );
+
+  const mileageMax = selectedMembers.reduce((max, item) => {
     const memberMax = mileageData.reduce((m, row) => {
-      const value = row[member.name];
+      const value = row[item.member.name];
       return typeof value === "number" ? Math.max(m, value) : m;
     }, 0);
     return Math.max(max, memberMax);
@@ -325,23 +384,29 @@ export function CrewProgressChart({
       ? Array.from({ length: 5 }, (_, i) => Number(((mileageMax * i) / 4).toFixed(1)))
       : [0, 20, 40, 60, 80];
   const mileageYAxisMax = mileageTicks[mileageTicks.length - 1];
-  const memberPercentData: MemberPercentBar[] = members
+  const memberPercentData: MemberPercentBar[] = rankedByPercent
+    .filter((item) => selectedIdSet.has(item.member.id))
     .map((member) => {
       const latestMileage = mileageData[mileageData.length - 1];
       const latest = percentData[percentData.length - 1];
-      const currentKmRaw = latestMileage?.[member.name];
-      const value = latest?.[member.name];
+      const currentKmRaw = latestMileage?.[member.member.name];
+      const value = latest?.[member.member.name];
       const currentKm = typeof currentKmRaw === "number" ? currentKmRaw : 0;
       const percent = typeof value === "number" ? value : 0;
       return {
-        memId: member.id,
-        name: member.name,
+        memId: member.member.id,
+        name: member.member.name,
         percent,
         currentKm: Number(currentKm.toFixed(1)),
-        goalKm: member.goalKm ?? 0,
+        goalKm: member.member.goalKm ?? 0,
       };
     })
     .sort((a, b) => b.percent - a.percent);
+
+  const statsRows: StatsRow[] = useMemo(
+    () => buildStatsRows(rankedByMileage, dayRef, totalDays),
+    [rankedByMileage, dayRef, totalDays],
+  );
 
   const percentBarCount = memberPercentData.length;
   const percentBarLabelFont =
@@ -349,7 +414,24 @@ export function CrewProgressChart({
   const percentBarBottomMargin = percentBarCount > 12 ? 36 : 28;
   const percentBarXAxisHeight = percentBarCount > 12 ? 48 : 44;
 
-  if (chartData.length === 0 || members.length === 0) {
+  if (mode === "percent" && percentData.length === 0) {
+    return (
+      <div className="flex flex-col gap-3">
+        <SegmentControl
+          segments={[
+            { value: "mileage", label: "마일리지" },
+            { value: "percent", label: "달성률" },
+            { value: "stats", label: "전체 통계" },
+          ]}
+          value={mode}
+          onValueChange={(v) => setMode(v as "mileage" | "percent" | "stats")}
+        />
+        <Skeleton className="h-56 w-full rounded-2xl" />
+      </div>
+    );
+  }
+
+  if (selectedChartData.length === 0 || selectedMembers.length === 0) {
     return (
       <div className="flex h-40 items-center justify-center rounded-2xl bg-muted">
         <Body className="text-muted-foreground">아직 기록이 없습니다</Body>
@@ -363,18 +445,58 @@ export function CrewProgressChart({
         segments={[
           { value: "mileage", label: "마일리지" },
           { value: "percent", label: "달성률" },
+          { value: "stats", label: "전체 통계" },
         ]}
         value={mode}
-        onValueChange={setMode}
+        onValueChange={(v) => setMode(v as "mileage" | "percent" | "stats")}
       />
+      {(refreshing || isPending) && (
+        <Body className="text-xs text-muted-foreground" aria-live="polite">
+          데이터 동기화 중...
+        </Body>
+      )}
 
-      <ResponsiveContainer
-        width="100%"
-        height={mode === "percent" && percentBarCount > 14 ? 256 : 240}
-        className="outline-none"
-      >
-        {mode === "mileage" ? (
-          <LineChart data={chartData}>
+      {mode === "stats" ? (
+        <div className="rounded-2xl border bg-card">
+          <div className="max-h-[52vh] overflow-auto">
+            <table className="w-full border-collapse text-xs">
+              <thead className="sticky top-0 bg-card">
+                <tr className="border-b text-muted-foreground">
+                  <th className="px-3 py-2 text-left">순위</th>
+                  <th className="px-3 py-2 text-left">이름</th>
+                  <th className="px-3 py-2 text-right">목표거리</th>
+                  <th className="px-3 py-2 text-right">누적거리</th>
+                  <th className="px-3 py-2 text-right">달성률</th>
+                  <th className="px-3 py-2 text-right">추천거리(일)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {statsRows.map((row) => (
+                  <tr key={row.name} className="border-b last:border-b-0">
+                    <td className="px-3 py-2">{row.rank}</td>
+                    <td className={`px-3 py-2 ${row.name === myName ? "font-semibold text-primary" : ""}`}>
+                      {row.name}
+                    </td>
+                    <td className="px-3 py-2 text-right">{row.goalKm.toFixed(1)} km</td>
+                    <td className="px-3 py-2 text-right">{row.currentKm.toFixed(1)} km</td>
+                    <td className="px-3 py-2 text-right">{row.percent.toFixed(1)}%</td>
+                    <td className="px-3 py-2 text-right">
+                      {row.dailyNeed === "done" ? "완료" : `${Number(row.dailyNeed).toFixed(1)} km`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <ResponsiveContainer
+          width="100%"
+          height={mode === "percent" && percentBarCount > 14 ? 256 : 240}
+          className="outline-none"
+        >
+          {mode === "mileage" ? (
+            <LineChart data={selectedChartData}>
             {mileageTicks.map((tick) => (
               <ReferenceLine
                 key={tick}
@@ -415,23 +537,23 @@ export function CrewProgressChart({
                 }}
               />
             )}
-            {members.map((member) => (
+            {selectedMembers.map((item) => (
               <Line
-                key={member.id}
+                key={item.member.id}
                 type="monotone"
-                dataKey={member.name}
-                stroke={colorByMemberId(member.id)}
+                dataKey={item.member.name}
+                stroke={roleColorMap.get(item.member.id) ?? ROLE_COLORS.near[0]}
                 dot={false}
-                strokeWidth={member.name === myName ? 3 : 1.5}
-                opacity={member.name === myName ? 1 : 0.65}
+                strokeWidth={item.member.name === myName ? 3 : 1.5}
+                opacity={item.member.name === myName ? 1 : 0.82}
               />
             ))}
-          </LineChart>
-        ) : (
-          <BarChart
-            data={memberPercentData}
-            margin={{ top: 4, right: 8, left: 0, bottom: percentBarBottomMargin }}
-          >
+            </LineChart>
+          ) : (
+            <BarChart
+              data={memberPercentData}
+              margin={{ top: 4, right: 8, left: 0, bottom: percentBarBottomMargin }}
+            >
             {[0, 20, 40, 60, 80, 100].map((tick) => (
               <ReferenceLine
                 key={tick}
@@ -474,14 +596,15 @@ export function CrewProgressChart({
               {memberPercentData.map((item) => (
                 <Cell
                   key={item.memId}
-                  fill={colorByMemberId(item.memId)}
+                  fill={roleColorMap.get(item.memId) ?? ROLE_COLORS.near[0]}
                   fillOpacity={item.name === myName ? 1 : 0.72}
                 />
               ))}
             </Bar>
-          </BarChart>
-        )}
-      </ResponsiveContainer>
+            </BarChart>
+          )}
+        </ResponsiveContainer>
+      )}
     </div>
   );
 }
