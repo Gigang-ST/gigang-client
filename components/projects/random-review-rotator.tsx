@@ -70,13 +70,21 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
       onTouchEnd={() => setIsPaused(false)}
       onTouchCancel={() => setIsPaused(false)}
     >
-      <div className="overflow-hidden">
+      <div className="h-[44px] overflow-hidden">
         <div
-          className="transition-transform duration-500 ease-in-out motion-reduce:transition-none"
+          className={
+            isAnimating
+              ? "transition-transform duration-500 ease-in-out motion-reduce:transition-none"
+              : "transition-none motion-reduce:transition-none"
+          }
           style={{ transform: isAnimating ? "translateY(-50%)" : "translateY(0%)" }}
         >
           {[current, next].map((line, idx) => (
-            <div key={`${line.id}-${idx}`} className="flex min-h-[44px] flex-col justify-center">
+            <div
+              key={`${line.id}-${idx}`}
+              className="flex h-[44px] flex-col justify-center"
+              aria-hidden={idx === 1}
+            >
               <Caption className="line-clamp-1 text-foreground">"{line.quote}"</Caption>
               <Caption className="line-clamp-1 text-muted-foreground">{line.meta}</Caption>
             </div>
