@@ -526,11 +526,11 @@ export function CrewProgressChart({
         <div className="overflow-hidden rounded-2xl border bg-card">
           <div className="max-h-[52vh] overflow-auto">
             <table className="min-w-[540px] w-full border-collapse text-[13px] [font-variant-numeric:tabular-nums]">
-              <thead className="sticky top-0 z-30 bg-[#DEE1E4]">
-                <tr className="border-b bg-[#DEE1E4] text-muted-foreground">
+              <thead className="sticky top-0 z-30 bg-[#F1F3F5]">
+                <tr className="border-b bg-[#F1F3F5] text-muted-foreground">
                   <th
                     aria-sort={getAriaSort("rank")}
-                    className="sticky left-0 z-40 w-[112px] min-w-[112px] max-w-[112px] bg-[#DEE1E4] px-2 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border"
+                    className="sticky left-0 z-40 w-[112px] min-w-[112px] max-w-[112px] bg-[#F1F3F5] px-2 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border"
                   >
                     <button
                       type="button"
@@ -543,7 +543,7 @@ export function CrewProgressChart({
                       <span className="inline-block w-2 text-center">{sortIndicator("rank")}</span>
                     </button>
                   </th>
-                  <th aria-sort={getAriaSort("goalKm")} className="w-24 border-r bg-[#DEE1E4] px-2 py-2 text-center">
+                  <th aria-sort={getAriaSort("goalKm")} className="w-24 border-r bg-[#F1F3F5] px-2 py-2 text-center">
                     <button
                       type="button"
                       className={`inline-flex w-full items-center justify-center gap-1 text-center font-medium ${
@@ -555,7 +555,7 @@ export function CrewProgressChart({
                       <span className="inline-block w-2 text-center">{sortIndicator("goalKm")}</span>
                     </button>
                   </th>
-                  <th aria-sort={getAriaSort("currentKm")} className="w-24 border-r bg-[#DEE1E4] px-2 py-2 text-center">
+                  <th aria-sort={getAriaSort("currentKm")} className="w-24 border-r bg-[#F1F3F5] px-2 py-2 text-center">
                     <button
                       type="button"
                       className={`inline-flex w-full items-center justify-center gap-1 text-center font-medium ${
@@ -567,7 +567,7 @@ export function CrewProgressChart({
                       <span className="inline-block w-2 text-center">{sortIndicator("currentKm")}</span>
                     </button>
                   </th>
-                  <th aria-sort={getAriaSort("percent")} className="w-20 border-r bg-[#DEE1E4] px-2 py-2 text-center">
+                  <th aria-sort={getAriaSort("percent")} className="w-20 border-r bg-[#F1F3F5] px-2 py-2 text-center">
                     <button
                       type="button"
                       className={`inline-flex w-full items-center justify-center gap-1 text-center font-medium ${
@@ -579,14 +579,14 @@ export function CrewProgressChart({
                       <span className="inline-block w-2 text-center">{sortIndicator("percent")}</span>
                     </button>
                   </th>
-                  <th className="w-24 bg-[#DEE1E4] px-2 py-2 text-center">추천거리(일)</th>
+                  <th className="w-24 bg-[#F1F3F5] px-2 py-2 text-center">추천거리(일)</th>
                 </tr>
               </thead>
               <tbody>
                 {sortedStatsRows.map((row) => (
                   <tr key={row.id} className="border-b last:border-b-0">
                     <td
-                      className={`sticky left-0 z-20 w-[112px] min-w-[112px] max-w-[112px] bg-[#DEE1E4] px-2 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border ${
+                      className={`sticky left-0 z-20 w-[112px] min-w-[112px] max-w-[112px] bg-[#F1F3F5] px-2 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border ${
                         row.name === myName ? "font-semibold text-primary" : ""
                       }`}
                     >
