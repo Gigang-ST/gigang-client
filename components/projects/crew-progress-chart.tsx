@@ -101,14 +101,15 @@ type MemberPercentBar = {
   memId: string;
   name: string;
   percent: number;
-  displayPercent: number;
-  overGoal: boolean;
+  barPercent: number;
+  boosted: boolean;
   currentKm: number;
   goalKm: number;
 };
 
-type StatsSortKey = "currentKm" | "goalKm" | "percent";
+type StatsSortKey = "rank" | "goalKm" | "currentKm" | "percent";
 type StatsSortDir = "asc" | "desc";
+type AriaSortValue = "none" | "ascending" | "descending";
 
 type PercentBarTooltipProps = {
   active?: boolean;
@@ -138,24 +139,22 @@ function PercentBarTooltip({
       </p>
       <p className={isMe ? "" : "text-muted-foreground"}>
         {row.percent.toFixed(1)}% ({row.currentKm.toFixed(1)}km/{goalText})
+        {row.boosted ? (
+          <span className="ml-1 inline-flex items-center rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+            🚀 초과
+          </span>
+        ) : null}
       </p>
     </div>
   );
 }
 
-function rankAccentClass(rank: number): string {
-  if (rank === 1) return "text-amber-500";
-  if (rank === 2) return "text-slate-400";
-  if (rank === 3) return "text-amber-700";
-  return "text-muted-foreground";
-}
-
-function getPercentCellStyle(percent: number): { backgroundColor: string } {
-  const clamped = Math.max(0, percent);
-  if (clamped < 25) return { backgroundColor: "rgba(185, 20, 20, 0.12)" };
-  if (clamped < 50) return { backgroundColor: "rgba(255, 115, 0, 0.14)" };
-  if (clamped <= 100) return { backgroundColor: "rgba(34, 139, 34, 0.14)" };
-  return { backgroundColor: "rgba(34, 139, 34, 0.22)" };
+function getPercentCellClass(percent: number): string {
+  if (percent < 20) return "bg-red-500/15 dark:bg-red-400/20";
+  if (percent < 40) return "bg-orange-500/15 dark:bg-orange-400/20";
+  if (percent < 60) return "bg-yellow-500/20 dark:bg-yellow-400/25";
+  if (percent < 80) return "bg-lime-500/20 dark:bg-lime-400/25";
+  return "bg-emerald-500/15 dark:bg-emerald-400/20";
 }
 
 export function CrewProgressChart({
@@ -426,8 +425,8 @@ export function CrewProgressChart({
         memId: member.member.id,
         name: member.member.name,
         percent,
-        displayPercent: Number(Math.min(percent, 100).toFixed(1)),
-        overGoal: percent > 100,
+        barPercent: Number(Math.min(percent, 100).toFixed(1)),
+        boosted: percent >= 120,
         currentKm: Number(currentKm.toFixed(1)),
         goalKm: member.member.goalKm ?? 0,
       };
@@ -440,7 +439,7 @@ export function CrewProgressChart({
   );
 
   const percentBarCount = memberPercentData.length;
-  const hasPercentOverGoal = memberPercentData.some((item) => item.overGoal);
+  const hasBoostedPercent = memberPercentData.some((item) => item.boosted);
   const percentBarLabelFont =
     percentBarCount > 26 ? 8 : percentBarCount > 18 ? 9 : percentBarCount > 12 ? 10 : 11;
   const percentBarBottomMargin = percentBarCount > 12 ? 36 : 28;
@@ -451,24 +450,31 @@ export function CrewProgressChart({
     sorted.sort((a, b) => {
       const lhs = a[statsSortKey];
       const rhs = b[statsSortKey];
-      const delta = lhs - rhs;
-      return statsSortDir === "asc" ? delta : -delta;
+      const diff = lhs - rhs;
+      return statsSortDir === "asc" ? diff : -diff;
     });
     return sorted;
-  }, [statsRows, statsSortKey, statsSortDir]);
+  }, [statsRows, statsSortDir, statsSortKey]);
   const toggleStatsSort = useCallback((key: StatsSortKey) => {
     setStatsSortKey((prevKey) => {
       if (prevKey === key) {
         setStatsSortDir((prev) => (prev === "desc" ? "asc" : "desc"));
         return prevKey;
       }
-      setStatsSortDir("desc");
+      setStatsSortDir(key === "rank" ? "asc" : "desc");
       return key;
     });
   }, []);
   const sortIndicator = useCallback(
     (key: StatsSortKey) =>
       statsSortKey === key ? (statsSortDir === "desc" ? "▼" : "▲") : "",
+    [statsSortDir, statsSortKey],
+  );
+  const getAriaSort = useCallback(
+    (key: StatsSortKey): AriaSortValue => {
+      if (statsSortKey !== key) return "none";
+      return statsSortDir === "asc" ? "ascending" : "descending";
+    },
     [statsSortDir, statsSortKey],
   );
 
@@ -521,68 +527,106 @@ export function CrewProgressChart({
       {mode === "stats" ? (
         <div className="rounded-2xl border bg-card">
           <div className="max-h-[52vh] overflow-auto">
-              <table className="min-w-[620px] w-full border-collapse text-xs [font-variant-numeric:tabular-nums]">
-                <thead className="sticky top-0 z-30 bg-muted/60 backdrop-blur-sm">
-                  <tr className="border-b text-muted-foreground">
-                    <th className="sticky left-0 z-30 w-[56px] border-r bg-muted/70 px-2 py-2 text-center">순위</th>
-                    <th className="sticky left-[56px] z-30 w-[88px] border-r bg-muted/70 px-2 py-2 text-left">이름</th>
-                    <th className="w-[84px] border-r px-2 py-2 text-right">
-                      <button
-                        type="button"
-                        className="w-full text-right font-medium"
-                        onClick={() => toggleStatsSort("goalKm")}
-                      >
-                        목표거리 {sortIndicator("goalKm")}
-                      </button>
-                    </th>
-                    <th className="w-[90px] border-r px-2 py-2 text-right">
-                      <button
-                        type="button"
-                        className="w-full text-right font-medium"
-                        onClick={() => toggleStatsSort("currentKm")}
-                      >
-                        누적거리 {sortIndicator("currentKm")}
-                      </button>
-                    </th>
-                    <th className="w-[84px] border-r px-2 py-2 text-right">
-                      <button
-                        type="button"
-                        className="w-full text-right font-medium"
-                        onClick={() => toggleStatsSort("percent")}
-                      >
-                        달성률 {sortIndicator("percent")}
-                      </button>
-                    </th>
-                    <th className="w-[90px] px-2 py-2 text-right">추천거리(일)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedStatsRows.map((row) => (
-                    <tr key={row.id} className="border-b last:border-b-0">
-                      <td className="sticky left-0 z-20 border-r bg-muted/50 px-2 py-2 text-center">
-                        {row.rank <= 3 ? (
-                          <span className={`inline-flex items-center ${rankAccentClass(row.rank)}`} title={`${row.rank}위`}>
-                            <Medal className="size-4" strokeWidth={2} />
-                          </span>
-                        ) : (
-                          row.rank
-                        )}
-                      </td>
-                      <td className={`sticky left-[56px] z-20 border-r bg-muted/35 px-2 py-2 ${row.name === myName ? "font-semibold text-primary" : ""}`}>
+            <table className="min-w-[560px] w-full border-collapse text-[13px] [font-variant-numeric:tabular-nums]">
+              <thead className="sticky top-0 z-30 bg-muted/70">
+                <tr className="border-b text-muted-foreground">
+                  <th
+                    aria-sort={getAriaSort("rank")}
+                    className="sticky left-0 z-40 w-11 bg-muted/70 px-1.5 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border"
+                  >
+                    <button
+                      type="button"
+                      className="w-full text-center font-medium"
+                      onClick={() => toggleStatsSort("rank")}
+                    >
+                      순위 {sortIndicator("rank")}
+                    </button>
+                  </th>
+                  <th className="sticky left-11 z-40 w-16 bg-muted/70 px-1.5 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border">
+                    이름
+                  </th>
+                  <th aria-sort={getAriaSort("goalKm")} className="w-24 border-r px-2 py-2 text-center">
+                    <button
+                      type="button"
+                      className={`w-full text-center font-medium ${
+                        statsSortKey === "goalKm" ? "text-foreground" : ""
+                      }`}
+                      onClick={() => toggleStatsSort("goalKm")}
+                    >
+                      목표거리 {sortIndicator("goalKm")}
+                    </button>
+                  </th>
+                  <th aria-sort={getAriaSort("currentKm")} className="w-24 border-r px-2 py-2 text-center">
+                    <button
+                      type="button"
+                      className={`w-full text-center font-medium ${
+                        statsSortKey === "currentKm" ? "text-foreground" : ""
+                      }`}
+                      onClick={() => toggleStatsSort("currentKm")}
+                    >
+                      누적거리 {sortIndicator("currentKm")}
+                    </button>
+                  </th>
+                  <th aria-sort={getAriaSort("percent")} className="w-20 border-r px-2 py-2 text-center">
+                    <button
+                      type="button"
+                      className={`w-full text-center font-medium ${
+                        statsSortKey === "percent" ? "text-foreground" : ""
+                      }`}
+                      onClick={() => toggleStatsSort("percent")}
+                    >
+                      달성률 {sortIndicator("percent")}
+                    </button>
+                  </th>
+                  <th className="w-24 px-2 py-2 text-center">추천거리(일)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedStatsRows.map((row) => (
+                  <tr key={row.id} className="border-b last:border-b-0">
+                    <td className="sticky left-0 z-20 bg-card px-1.5 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border">
+                      {row.rank}
+                    </td>
+                    <td
+                      className={`sticky left-11 z-20 bg-card px-1.5 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border ${
+                        row.name === myName ? "font-semibold text-primary" : ""
+                      }`}
+                    >
                       {row.name}
-                      </td>
-                      <td className="border-r px-2 py-2 text-right">{row.goalKm.toFixed(1)} km</td>
-                      <td className="border-r px-2 py-2 text-right">{row.currentKm.toFixed(1)} km</td>
-                      <td className="border-r px-2 py-2 text-right" style={getPercentCellStyle(row.percent)}>
-                        {row.percent.toFixed(1)}%
-                      </td>
-                      <td className="px-2 py-2 text-right">
-                        {row.dailyNeed === "done" ? "완료" : `${Number(row.dailyNeed).toFixed(1)} km`}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                    </td>
+                    <td
+                      className={`border-r px-2 py-2.5 text-center whitespace-nowrap ${
+                        statsSortKey === "goalKm" ? "bg-muted/25 font-medium" : ""
+                      }`}
+                    >
+                      {row.goalKm.toFixed(1)} km
+                    </td>
+                    <td
+                      className={`border-r px-2 py-2.5 text-center whitespace-nowrap ${
+                        statsSortKey === "currentKm" ? "bg-muted/25 font-medium" : ""
+                      }`}
+                    >
+                      {row.currentKm.toFixed(1)} km
+                    </td>
+                    <td
+                      className={`border-r px-2 py-2.5 text-center whitespace-nowrap ${
+                        statsSortKey === "percent" ? "font-semibold" : ""
+                      } ${getPercentCellClass(row.percent)}`}
+                    >
+                      {row.percent.toFixed(1)}%
+                      {row.percent >= 120 ? (
+                        <span className="ml-1 inline-flex items-center rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                          🚀 초과
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-2 py-2.5 text-center whitespace-nowrap">
+                      {row.dailyNeed === "done" ? "완료" : `${Number(row.dailyNeed).toFixed(1)} km`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       ) : (
@@ -684,13 +728,13 @@ export function CrewProgressChart({
               strokeDasharray="6 4"
               strokeWidth={1.5}
               label={{
-                value: hasPercentOverGoal ? "100%+ 🚀" : "100%",
+                value: hasBoostedPercent ? "100% 기준 · 120%+ 🚀" : "100%",
                 position: "right",
                 fontSize: 10,
                 fill: "var(--muted-foreground)",
               }}
             />
-            <Bar dataKey="displayPercent" radius={[6, 6, 0, 0]}>
+            <Bar dataKey="barPercent" radius={[6, 6, 0, 0]}>
               {memberPercentData.map((item) => (
                 <Cell
                   key={item.memId}
