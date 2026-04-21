@@ -327,10 +327,6 @@ export function CrewProgressChart({
     return () => window.removeEventListener("mileage:refresh", handler);
   }, [load]);
 
-  if (loading) {
-    return <Skeleton className="h-64 w-full rounded-2xl" />;
-  }
-
   const isCurrentMonth = month === currentMonthKST();
   const dayRef = isCurrentMonth ? Math.min(todayDayKST(), totalDays) : totalDays;
 
@@ -423,6 +419,10 @@ export function CrewProgressChart({
     percentBarCount > 26 ? 8 : percentBarCount > 18 ? 9 : percentBarCount > 12 ? 10 : 11;
   const percentBarBottomMargin = percentBarCount > 12 ? 36 : 28;
   const percentBarXAxisHeight = percentBarCount > 12 ? 48 : 44;
+
+  if (loading) {
+    return <Skeleton className="h-64 w-full rounded-2xl" />;
+  }
 
   if (mode === "percent" && percentData.length === 0) {
     return (
