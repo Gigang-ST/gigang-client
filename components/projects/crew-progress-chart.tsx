@@ -147,12 +147,12 @@ function PercentBarTooltip({
   );
 }
 
-function getPercentCellStyle(percent: number): { backgroundColor: string } {
-  if (percent < 20) return { backgroundColor: "rgba(185, 20, 20, 0.14)" }; // red
-  if (percent < 40) return { backgroundColor: "rgba(255, 115, 0, 0.14)" }; // orange
-  if (percent < 60) return { backgroundColor: "rgba(230, 199, 74, 0.16)" }; // yellow
-  if (percent < 80) return { backgroundColor: "rgba(170, 220, 0, 0.16)" }; // yellow-green
-  return { backgroundColor: "rgba(34, 139, 34, 0.16)" }; // green
+function getPercentCellClass(percent: number): string {
+  if (percent < 20) return "bg-red-500/15 dark:bg-red-400/20";
+  if (percent < 40) return "bg-orange-500/15 dark:bg-orange-400/20";
+  if (percent < 60) return "bg-yellow-500/20 dark:bg-yellow-400/25";
+  if (percent < 80) return "bg-lime-500/20 dark:bg-lime-400/25";
+  return "bg-emerald-500/15 dark:bg-emerald-400/20";
 }
 
 export function CrewProgressChart({
@@ -598,8 +598,7 @@ export function CrewProgressChart({
                     <td
                       className={`border-r px-2 py-2.5 text-center whitespace-nowrap ${
                         statsSortKey === "percent" ? "font-semibold" : ""
-                      }`}
-                      style={getPercentCellStyle(row.percent)}
+                      } ${getPercentCellClass(row.percent)}`}
                     >
                       {row.percent.toFixed(1)}%
                       {row.percent >= 120 ? (
