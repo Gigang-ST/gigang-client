@@ -566,7 +566,7 @@ export function CrewProgressChart({
                 <tbody>
                   {sortedStatsRows.map((row) => (
                     <tr key={row.id} className="border-b last:border-b-0">
-                      <td className="sticky left-0 z-20 border-r bg-card px-2 py-2 text-center">
+                      <td className="sticky left-0 z-20 border-r bg-muted/50 px-2 py-2 text-center">
                         {row.rank <= 3 ? (
                           <span className={`inline-flex items-center ${rankAccentClass(row.rank)}`} title={`${row.rank}위`}>
                             <Medal className="size-4" strokeWidth={2} />
@@ -575,7 +575,7 @@ export function CrewProgressChart({
                           row.rank
                         )}
                       </td>
-                      <td className={`sticky left-[56px] z-20 border-r bg-card px-2 py-2 ${row.name === myName ? "font-semibold text-primary" : ""}`}>
+                      <td className={`sticky left-[56px] z-20 border-r bg-muted/35 px-2 py-2 ${row.name === myName ? "font-semibold text-primary" : ""}`}>
                       {row.name}
                       </td>
                       <td className="border-r px-2 py-2 text-right">{row.goalKm.toFixed(1)} km</td>
