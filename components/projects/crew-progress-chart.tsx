@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+  useTransition,
+} from "react";
+import { Medal } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -15,60 +23,40 @@ import {
 } from "recharts";
 import type { TooltipContentProps, TooltipValueType } from "recharts";
 import { createClient } from "@/lib/supabase/client";
-import { daysInMonth as getDaysInMonth } from "@/lib/dayjs";
+import {
+  currentMonthKST,
+  daysInMonth as getDaysInMonth,
+  todayDayKST,
+} from "@/lib/dayjs";
+import {
+  buildRoleColorMap,
+  buildStatsRows,
+  rankMembers,
+  ROLE_COLORS,
+  selectMembersForChart,
+  type RankedMember,
+  type StatsRow,
+} from "@/lib/projects/crew-progress-chart";
 import { SegmentControl } from "@/components/common/segment-control";
 import { Body } from "@/components/common/typography";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export type DailyPoint = Record<string, number | string> & { day: number };
 
+export type ChartMember = { id: string; name: string; goalKm: number };
+
 export type ChartInitialData = {
   mileageData: DailyPoint[];
   percentData: DailyPoint[];
-  members: { id: string; name: string }[];
+  members: ChartMember[];
   myGoalKm: number;
   myName: string | null;
   totalDays: number;
 };
 
-const CHART_COLORS = [
-  "#EF4444",
-  "#F59E0B",
-  "#EAB308",
-  "#84CC16",
-  "#10B981",
-  "#06B6D4",
-  "#3B82F6",
-  "#6366F1",
-  "#8B5CF6",
-  "#A855F7",
-  "#D946EF",
-  "#EC4899",
-  "#F43F5E",
-  "#FB7185",
-  "#22C55E",
-  "#14B8A6",
-  "#0EA5E9",
-  "#60A5FA",
-  "#818CF8",
-  "#C084FC",
-];
-
-function hashString(value: string): number {
-  let hash = 0;
-  for (let i = 0; i < value.length; i++) {
-    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
-  }
-  return hash;
-}
-
-function colorByMemberId(memId: string): string {
-  return CHART_COLORS[hashString(memId) % CHART_COLORS.length];
-}
-
 type ChartTooltipProps = TooltipContentProps<TooltipValueType, string | number> & {
   myName: string | null;
-  mode: "mileage" | "percent";
+  mode: "mileage" | "percent" | "stats";
 };
 
 /** recharts NameType = string | number — Tooltip 인라인 컴포넌트 방지 */
@@ -113,9 +101,59 @@ type MemberPercentBar = {
   memId: string;
   name: string;
   percent: number;
+  barPercent: number;
+  boosted: boolean;
   currentKm: number;
   goalKm: number;
 };
+
+type StatsSortKey = "rank" | "goalKm" | "currentKm" | "percent";
+type StatsSortDir = "asc" | "desc";
+type AriaSortValue = "none" | "ascending" | "descending";
+
+type PercentBarTooltipProps = {
+  active?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload?: any[];
+  myName: string | null;
+};
+
+/** 달성률 막대 — dataKey 이름(percent)이 노출되지 않도록 전용 툴팁 */
+function PercentBarTooltip({
+  active,
+  payload,
+  myName,
+}: PercentBarTooltipProps) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload as MemberPercentBar | undefined;
+  if (!row) return null;
+
+  const isMe = row.name === myName;
+  const goalText =
+    row.goalKm > 0 ? `${row.goalKm.toFixed(1)}km` : "-";
+
+  return (
+    <div className="rounded-md border bg-background p-2 text-xs shadow-md">
+      <p className={`mb-0.5 font-semibold ${isMe ? "" : "text-muted-foreground"}`}>
+        {row.name}
+      </p>
+      <p className={isMe ? "" : "text-muted-foreground"}>
+        {row.percent.toFixed(1)}% ({row.currentKm.toFixed(1)}km/{goalText})
+        {row.boosted ? (
+          <span className="ml-1">🚀</span>
+        ) : null}
+      </p>
+    </div>
+  );
+}
+
+function getPercentCellClass(percent: number): string {
+  if (percent <= 20) return "bg-[#EF9A9A]";
+  if (percent <= 40) return "bg-[#FFCC80]";
+  if (percent <= 60) return "bg-[#FFF59D]";
+  if (percent <= 80) return "bg-[#C5E1A5]";
+  return "bg-[#A5D6A7]";
+}
 
 export function CrewProgressChart({
   evtId,
@@ -123,14 +161,16 @@ export function CrewProgressChart({
   month,
   initialData,
 }: CrewProgressChartProps) {
-  const [mode, setMode] = useState<"mileage" | "percent">("mileage");
+  const [mode, setMode] = useState<"mileage" | "percent" | "stats">("mileage");
+  const [statsSortKey, setStatsSortKey] = useState<StatsSortKey>("currentKm");
+  const [statsSortDir, setStatsSortDir] = useState<StatsSortDir>("desc");
   const [mileageData, setMileageData] = useState<DailyPoint[]>(
     initialData?.mileageData ?? [],
   );
   const [percentData, setPercentData] = useState<DailyPoint[]>(
     initialData?.percentData ?? [],
   );
-  const [members, setMembers] = useState<{ id: string; name: string }[]>(
+  const [members, setMembers] = useState<ChartMember[]>(
     initialData?.members ?? [],
   );
   const [myGoalKm, setMyGoalKm] = useState<number>(
@@ -141,9 +181,20 @@ export function CrewProgressChart({
   );
   const [totalDays, setTotalDays] = useState(initialData?.totalDays ?? 30);
   const [loading, setLoading] = useState(!initialData);
+  const [refreshing, setRefreshing] = useState(false);
+  const didPreloadSecondary = useRef(false);
+  const hasLoadedDataRef = useRef(
+    (initialData?.mileageData.length ?? 0) > 0 && (initialData?.members.length ?? 0) > 0,
+  );
+  const [isPending, startTransition] = useTransition();
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const hasExistingData = hasLoadedDataRef.current;
+    if (hasExistingData) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     const supabase = createClient();
 
     const [y, m] = month.split("-").map(Number);
@@ -160,6 +211,7 @@ export function CrewProgressChart({
 
     if (!participants || participants.length === 0) {
       setLoading(false);
+      setRefreshing(false);
       return;
     }
 
@@ -199,7 +251,10 @@ export function CrewProgressChart({
 
     const memIdsWithLogs = new Set((logs ?? []).map((l) => l.mem_id));
     const activeParticipants = participants.filter(
-      (p) => memIdsWithLogs.has(p.mem_id) || goalByMemId.has(p.mem_id),
+      (p) =>
+        memIdsWithLogs.has(p.mem_id) ||
+        goalByMemId.has(p.mem_id) ||
+        Number(p.init_goal ?? 0) > 0,
     );
 
     const logsByMem = new Map<string, { day: number; val: number }[]>();
@@ -231,7 +286,6 @@ export function CrewProgressChart({
       const pPoint: DailyPoint = { day: d };
 
       for (const p of activeParticipants) {
-        const name = (p.mem_mst as unknown as { mem_nm: string }).mem_nm;
         const dayMap = dailyCumByMem.get(p.mem_id);
         let val = 0;
         if (dayMap) {
@@ -242,12 +296,12 @@ export function CrewProgressChart({
             }
           }
         }
-        mPoint[name] = Number(val.toFixed(1));
+        mPoint[p.mem_id] = Number(val.toFixed(1));
         const goal =
           goalByMemId.get(p.mem_id) ?? Number(p.init_goal ?? 0);
-        pPoint[name] =
+        pPoint[p.mem_id] =
           goal > 0
-            ? Number(Math.min((val / goal) * 100, 100).toFixed(1))
+            ? Number(((val / goal) * 100).toFixed(1))
             : 0;
       }
 
@@ -255,15 +309,18 @@ export function CrewProgressChart({
       pPoints.push(pPoint);
     }
 
-    const memberList = activeParticipants.map((p) => ({
+    const memberList: ChartMember[] = activeParticipants.map((p) => ({
       id: p.mem_id,
       name: (p.mem_mst as unknown as { mem_nm: string }).mem_nm,
+      goalKm: goalByMemId.get(p.mem_id) ?? Number(p.init_goal ?? 0),
     }));
 
     setMembers(memberList);
     setMileageData(mPoints);
     setPercentData(pPoints);
+    hasLoadedDataRef.current = memberList.length > 0 && mPoints.length > 0;
     setLoading(false);
+    setRefreshing(false);
   }, [evtId, memId, month]);
 
   // initialData 없을 때만 초기 fetch
@@ -273,6 +330,16 @@ export function CrewProgressChart({
     }
   }, [initialData, load]);
 
+  // 서버 초기 렌더에서 비기본 탭(달성률/통계) 데이터가 비어 있으면 백그라운드 재조회
+  useEffect(() => {
+    if (!initialData || didPreloadSecondary.current) return;
+    if (initialData.percentData.length > 0) return;
+    didPreloadSecondary.current = true;
+    startTransition(() => {
+      void load();
+    });
+  }, [initialData, load, startTransition]);
+
   // mileage:refresh 이벤트 → 클라이언트 재조회
   useEffect(() => {
     const handler = () => load();
@@ -280,14 +347,60 @@ export function CrewProgressChart({
     return () => window.removeEventListener("mileage:refresh", handler);
   }, [load]);
 
-  if (loading) {
-    return <Skeleton className="h-64 w-full rounded-2xl" />;
-  }
+  const isCurrentMonth = month === currentMonthKST();
+  const dayRef = isCurrentMonth ? Math.min(todayDayKST(), totalDays) : totalDays;
 
-  const chartData = mode === "mileage" ? mileageData : percentData;
-  const mileageMax = members.reduce((max, member) => {
+  const rankedByMileage = useMemo(
+    () => rankMembers(members, mileageData, percentData, dayRef, "mileage"),
+    [members, mileageData, percentData, dayRef],
+  );
+  const rankedByPercent = useMemo(
+    () => rankMembers(members, mileageData, percentData, dayRef, "percent"),
+    [members, mileageData, percentData, dayRef],
+  );
+  const rankedForStats = useMemo(
+    () =>
+      rankMembers(members, mileageData, percentData, dayRef, "mileage", {
+        includeZeroKm: true,
+      }),
+    [members, mileageData, percentData, dayRef],
+  );
+  const rankedForMode = mode === "percent" ? rankedByPercent : rankedByMileage;
+
+  const { selected: selectedMembers, top, bottom, near } = useMemo(
+    () => selectMembersForChart(rankedForMode, memId),
+    [rankedForMode, memId],
+  );
+
+  const selectedIdSet = useMemo(
+    () => new Set(selectedMembers.map((item) => item.member.id)),
+    [selectedMembers],
+  );
+  const selectedMemberIdSet = useMemo(
+    () => new Set(selectedMembers.map((item) => item.member.id)),
+    [selectedMembers],
+  );
+  const selectedChartData = useMemo(() => {
+    const base = mode === "percent" ? percentData : mileageData;
+    return base.map((row) => {
+      const filtered: DailyPoint = { day: row.day };
+      for (const key of Object.keys(row)) {
+        if (key === "day" || selectedMemberIdSet.has(key)) {
+          filtered[key] = row[key] as number | string;
+        }
+      }
+      return filtered;
+    });
+  }, [mode, percentData, mileageData, selectedMemberIdSet]);
+
+  const roleColorMap = useMemo(
+    () => buildRoleColorMap(selectedMembers, top, bottom, near, memId),
+    [selectedMembers, top, bottom, near, memId],
+  );
+
+  const mileageMax = selectedMembers.reduce((max, item) => {
     const memberMax = mileageData.reduce((m, row) => {
-      const value = row[member.name];
+      const value = row[item.member.id];
       return typeof value === "number" ? Math.max(m, value) : m;
     }, 0);
     return Math.max(max, memberMax);
@@ -297,27 +410,94 @@ export function CrewProgressChart({
       ? Array.from({ length: 5 }, (_, i) => Number(((mileageMax * i) / 4).toFixed(1)))
       : [0, 20, 40, 60, 80];
   const mileageYAxisMax = mileageTicks[mileageTicks.length - 1];
-  const memberPercentData: MemberPercentBar[] = members
+  const memberPercentData: MemberPercentBar[] = rankedByPercent
+    .filter((item) => selectedIdSet.has(item.member.id))
     .map((member) => {
       const latestMileage = mileageData[mileageData.length - 1];
       const latest = percentData[percentData.length - 1];
-      const currentKmRaw = latestMileage?.[member.name];
-      const value = latest?.[member.name];
+      const currentKmRaw = latestMileage?.[member.member.id];
+      const value = latest?.[member.member.id];
       const currentKm = typeof currentKmRaw === "number" ? currentKmRaw : 0;
       const percent = typeof value === "number" ? value : 0;
-      const goalKm =
-        percent > 0 ? Number((currentKm / (percent / 100)).toFixed(1)) : 0;
       return {
-        memId: member.id,
-        name: member.name,
+        memId: member.member.id,
+        name: member.member.name,
         percent,
+        barPercent: Number(Math.min(percent, 100).toFixed(1)),
+        boosted: percent >= 120,
         currentKm: Number(currentKm.toFixed(1)),
-        goalKm,
+        goalKm: member.member.goalKm ?? 0,
       };
     })
     .sort((a, b) => b.percent - a.percent);
 
-  if (chartData.length === 0 || members.length === 0) {
+  const statsRows: StatsRow[] = useMemo(
+    () => buildStatsRows(rankedForStats, dayRef, totalDays),
+    [rankedForStats, dayRef, totalDays],
+  );
+
+  const percentBarCount = memberPercentData.length;
+  const hasBoostedPercent = memberPercentData.some((item) => item.boosted);
+  const percentBarLabelFont =
+    percentBarCount > 26 ? 8 : percentBarCount > 18 ? 9 : percentBarCount > 12 ? 10 : 11;
+  const percentBarBottomMargin = percentBarCount > 12 ? 36 : 28;
+  const percentBarXAxisHeight = percentBarCount > 12 ? 48 : 44;
+  const percentTicks = [0, 20, 40, 60, 80, 100];
+  const sortedStatsRows = useMemo(() => {
+    const sorted = [...statsRows];
+    sorted.sort((a, b) => {
+      const lhs = a[statsSortKey];
+      const rhs = b[statsSortKey];
+      const diff = lhs - rhs;
+      return statsSortDir === "asc" ? diff : -diff;
+    });
+    return sorted;
+  }, [statsRows, statsSortDir, statsSortKey]);
+  const toggleStatsSort = useCallback((key: StatsSortKey) => {
+    setStatsSortKey((prevKey) => {
+      if (prevKey === key) {
+        setStatsSortDir((prev) => (prev === "desc" ? "asc" : "desc"));
+        return prevKey;
+      }
+      setStatsSortDir(key === "rank" ? "asc" : "desc");
+      return key;
+    });
+  }, []);
+  const sortIndicator = useCallback(
+    (key: StatsSortKey) =>
+      statsSortKey === key ? (statsSortDir === "desc" ? "▼" : "▲") : "",
+    [statsSortDir, statsSortKey],
+  );
+  const getAriaSort = useCallback(
+    (key: StatsSortKey): AriaSortValue => {
+      if (statsSortKey !== key) return "none";
+      return statsSortDir === "asc" ? "ascending" : "descending";
+    },
+    [statsSortDir, statsSortKey],
+  );
+
+  if (loading) {
+    return <Skeleton className="h-64 w-full rounded-2xl" />;
+  }
+
+  if (mode === "percent" && percentData.length === 0) {
+    return (
+      <div className="flex flex-col gap-3">
+        <SegmentControl
+          segments={[
+            { value: "mileage", label: "마일리지" },
+            { value: "percent", label: "달성률" },
+            { value: "stats", label: "전체 통계" },
+          ]}
+          value={mode}
+          onValueChange={(v) => setMode(v as "mileage" | "percent" | "stats")}
+        />
+        <Skeleton className="h-56 w-full rounded-2xl" />
+      </div>
+    );
+  }
+
+  if (selectedChartData.length === 0 || selectedMembers.length === 0) {
     return (
       <div className="flex h-40 items-center justify-center rounded-2xl bg-muted">
         <Body className="text-muted-foreground">아직 기록이 없습니다</Body>
@@ -331,14 +511,148 @@ export function CrewProgressChart({
         segments={[
           { value: "mileage", label: "마일리지" },
           { value: "percent", label: "달성률" },
+          { value: "stats", label: "전체 통계" },
         ]}
         value={mode}
-        onValueChange={setMode}
+        onValueChange={(v) => setMode(v as "mileage" | "percent" | "stats")}
       />
+      {(refreshing || isPending) && (
+        <Body className="text-xs text-muted-foreground" aria-live="polite">
+          데이터 동기화 중...
+        </Body>
+      )}
 
-      <ResponsiveContainer width="100%" height={240} className="outline-none">
-        {mode === "mileage" ? (
-          <LineChart data={chartData}>
+      {mode === "stats" ? (
+        <div className="overflow-hidden rounded-2xl border bg-card">
+          <div className="max-h-[52vh] overflow-auto">
+            <table className="min-w-[540px] w-full border-collapse text-[13px] [font-variant-numeric:tabular-nums]">
+              <thead className="sticky top-0 z-30 bg-[#F1F3F5]">
+                <tr className="border-b bg-[#F1F3F5] text-muted-foreground">
+                  <th
+                    aria-sort={getAriaSort("rank")}
+                    className="sticky left-0 z-40 w-[112px] min-w-[112px] max-w-[112px] bg-[#F1F3F5] px-2 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border"
+                  >
+                    <button
+                      type="button"
+                      className={`inline-flex w-full items-center justify-center gap-1 text-center font-medium ${
+                        statsSortKey === "rank" ? "text-foreground" : ""
+                      }`}
+                      onClick={() => toggleStatsSort("rank")}
+                    >
+                      <span>순위</span>
+                      <span className="inline-block w-2 text-center">{sortIndicator("rank")}</span>
+                    </button>
+                  </th>
+                  <th aria-sort={getAriaSort("goalKm")} className="w-24 border-r bg-[#F1F3F5] px-2 py-2 text-center">
+                    <button
+                      type="button"
+                      className={`inline-flex w-full items-center justify-center gap-1 text-center font-medium ${
+                        statsSortKey === "goalKm" ? "text-foreground" : ""
+                      }`}
+                      onClick={() => toggleStatsSort("goalKm")}
+                    >
+                      <span>목표거리</span>
+                      <span className="inline-block w-2 text-center">{sortIndicator("goalKm")}</span>
+                    </button>
+                  </th>
+                  <th aria-sort={getAriaSort("currentKm")} className="w-24 border-r bg-[#F1F3F5] px-2 py-2 text-center">
+                    <button
+                      type="button"
+                      className={`inline-flex w-full items-center justify-center gap-1 text-center font-medium ${
+                        statsSortKey === "currentKm" ? "text-foreground" : ""
+                      }`}
+                      onClick={() => toggleStatsSort("currentKm")}
+                    >
+                      <span>누적거리</span>
+                      <span className="inline-block w-2 text-center">{sortIndicator("currentKm")}</span>
+                    </button>
+                  </th>
+                  <th aria-sort={getAriaSort("percent")} className="w-20 border-r bg-[#F1F3F5] px-2 py-2 text-center">
+                    <button
+                      type="button"
+                      className={`inline-flex w-full items-center justify-center gap-1 text-center font-medium ${
+                        statsSortKey === "percent" ? "text-foreground" : ""
+                      }`}
+                      onClick={() => toggleStatsSort("percent")}
+                    >
+                      <span>달성률</span>
+                      <span className="inline-block w-2 text-center">{sortIndicator("percent")}</span>
+                    </button>
+                  </th>
+                  <th className="w-24 bg-[#F1F3F5] px-2 py-2 text-center">추천거리(일)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedStatsRows.map((row) => (
+                  <tr key={row.id} className="border-b last:border-b-0">
+                    <td
+                      className={`sticky left-0 z-20 w-[112px] min-w-[112px] max-w-[112px] bg-[#F1F3F5] px-2 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border ${
+                        row.name === myName ? "font-semibold text-primary" : ""
+                      }`}
+                    >
+                      <div className="inline-flex items-center justify-center gap-2">
+                        <span className="inline-flex min-w-[20px] items-center justify-center text-center">
+                          {row.rank <= 3 ? (
+                            <span
+                              className={
+                                row.rank === 1
+                                  ? "inline-flex items-center text-amber-500"
+                                  : row.rank === 2
+                                    ? "inline-flex items-center text-slate-400"
+                                    : "inline-flex items-center text-amber-700"
+                              }
+                              title={`${row.rank}위`}
+                            >
+                              <Medal className="size-4" strokeWidth={2} />
+                            </span>
+                          ) : (
+                            row.rank
+                          )}
+                        </span>
+                        <span className="truncate leading-none">{row.name}</span>
+                      </div>
+                    </td>
+                    <td
+                      className={`border-r px-2 py-2.5 text-center whitespace-nowrap ${
+                        statsSortKey === "goalKm" ? "bg-muted/25 font-medium" : ""
+                      }`}
+                    >
+                      {row.goalKm.toFixed(1)} km
+                    </td>
+                    <td
+                      className={`border-r px-2 py-2.5 text-center whitespace-nowrap ${
+                        statsSortKey === "currentKm" ? "bg-muted/25 font-medium" : ""
+                      }`}
+                    >
+                      {row.currentKm.toFixed(1)} km
+                    </td>
+                    <td
+                      className={`border-r px-2 py-2.5 text-center whitespace-nowrap ${
+                        statsSortKey === "percent" ? "font-semibold" : ""
+                      } ${getPercentCellClass(row.percent)}`}
+                    >
+                      {row.percent.toFixed(1)}%
+                      {row.percent >= 120 ? (
+                        <span className="ml-1">🚀</span>
+                      ) : null}
+                    </td>
+                    <td className="px-2 py-2.5 text-center whitespace-nowrap">
+                      {row.dailyNeed === "done" ? "완료" : `${Number(row.dailyNeed).toFixed(1)} km`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <ResponsiveContainer
+          width="100%"
+          height={mode === "percent" && percentBarCount > 14 ? 256 : 240}
+          className="outline-none"
+        >
+          {mode === "mileage" ? (
+            <LineChart data={selectedChartData}>
             {mileageTicks.map((tick) => (
               <ReferenceLine
                 key={tick}
@@ -379,21 +693,25 @@ export function CrewProgressChart({
                 }}
               />
             )}
-            {members.map((member) => (
+            {selectedMembers.map((item) => (
               <Line
-                key={member.id}
+                key={item.member.id}
                 type="monotone"
-                dataKey={member.name}
-                stroke={colorByMemberId(member.id)}
+                dataKey={item.member.id}
+                name={item.member.name}
+                stroke={roleColorMap.get(item.member.id) ?? ROLE_COLORS.near[0]}
                 dot={false}
-                strokeWidth={member.name === myName ? 3 : 1.5}
-                opacity={member.name === myName ? 1 : 0.65}
+                strokeWidth={item.member.name === myName ? 3 : 1.5}
+                opacity={item.member.name === myName ? 1 : 0.82}
               />
             ))}
-          </LineChart>
-        ) : (
-          <BarChart data={memberPercentData} margin={{ top: 4, right: 8, left: 0, bottom: 24 }}>
-            {[0, 20, 40, 60, 80, 100].map((tick) => (
+            </LineChart>
+          ) : (
+            <BarChart
+              data={memberPercentData}
+              margin={{ top: 4, right: 8, left: 0, bottom: percentBarBottomMargin }}
+            >
+            {percentTicks.map((tick) => (
               <ReferenceLine
                 key={tick}
                 y={tick}
@@ -403,53 +721,42 @@ export function CrewProgressChart({
             ))}
             <XAxis
               dataKey="name"
-              tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+              tick={{
+                fontSize: percentBarLabelFont,
+                fill: "var(--muted-foreground)",
+              }}
               interval={0}
               angle={-20}
               textAnchor="end"
-              height={44}
+              height={percentBarXAxisHeight}
             />
             <YAxis
               tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
               tickFormatter={(v: number) => `${v}%`}
               width={36}
+              ticks={percentTicks}
               domain={[0, 100]}
             />
-            <Tooltip
-              formatter={(value, _name, item) => {
-                const percent =
-                  typeof value === "number" ? value : Number(value ?? 0);
-                const row = item?.payload as MemberPercentBar | undefined;
-                if (!row) return `${percent.toFixed(1)}%`;
-                const goalText = row.goalKm > 0 ? `${row.goalKm.toFixed(1)}km` : "-";
-                return `${percent.toFixed(1)}% (${row.currentKm.toFixed(1)}km/${goalText})`;
-              }}
-              labelFormatter={(label) => `${label}`}
-            />
+            <Tooltip content={<PercentBarTooltip myName={myName} />} />
             <ReferenceLine
               y={100}
               stroke="var(--muted-foreground)"
               strokeDasharray="6 4"
               strokeWidth={1.5}
-              label={{
-                value: "100%",
-                position: "right",
-                fontSize: 10,
-                fill: "var(--muted-foreground)",
-              }}
             />
-            <Bar dataKey="percent" radius={[6, 6, 0, 0]}>
+            <Bar dataKey="barPercent" radius={[6, 6, 0, 0]}>
               {memberPercentData.map((item) => (
                 <Cell
                   key={item.memId}
-                  fill={colorByMemberId(item.memId)}
+                  fill={roleColorMap.get(item.memId) ?? ROLE_COLORS.near[0]}
                   fillOpacity={item.name === myName ? 1 : 0.72}
                 />
               ))}
             </Bar>
-          </BarChart>
-        )}
-      </ResponsiveContainer>
+            </BarChart>
+          )}
+        </ResponsiveContainer>
+      )}
     </div>
   );
 }
