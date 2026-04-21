@@ -8,6 +8,7 @@ import {
   useRef,
   useTransition,
 } from "react";
+import { Medal } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -100,9 +101,14 @@ type MemberPercentBar = {
   memId: string;
   name: string;
   percent: number;
+  displayPercent: number;
+  overGoal: boolean;
   currentKm: number;
   goalKm: number;
 };
+
+type StatsSortKey = "currentKm" | "goalKm" | "percent";
+type StatsSortDir = "asc" | "desc";
 
 type PercentBarTooltipProps = {
   active?: boolean;
@@ -137,6 +143,21 @@ function PercentBarTooltip({
   );
 }
 
+function rankAccentClass(rank: number): string {
+  if (rank === 1) return "text-amber-500";
+  if (rank === 2) return "text-slate-400";
+  if (rank === 3) return "text-amber-700";
+  return "text-muted-foreground";
+}
+
+function getPercentCellStyle(percent: number): { backgroundColor: string } {
+  const clamped = Math.max(0, percent);
+  if (clamped < 25) return { backgroundColor: "rgba(185, 20, 20, 0.12)" };
+  if (clamped < 50) return { backgroundColor: "rgba(255, 115, 0, 0.14)" };
+  if (clamped <= 100) return { backgroundColor: "rgba(34, 139, 34, 0.14)" };
+  return { backgroundColor: "rgba(34, 139, 34, 0.22)" };
+}
+
 export function CrewProgressChart({
   evtId,
   memId,
@@ -144,6 +165,8 @@ export function CrewProgressChart({
   initialData,
 }: CrewProgressChartProps) {
   const [mode, setMode] = useState<"mileage" | "percent" | "stats">("mileage");
+  const [statsSortKey, setStatsSortKey] = useState<StatsSortKey>("currentKm");
+  const [statsSortDir, setStatsSortDir] = useState<StatsSortDir>("desc");
   const [mileageData, setMileageData] = useState<DailyPoint[]>(
     initialData?.mileageData ?? [],
   );
@@ -281,7 +304,7 @@ export function CrewProgressChart({
           goalByMemId.get(p.mem_id) ?? Number(p.init_goal ?? 0);
         pPoint[p.mem_id] =
           goal > 0
-            ? Number(Math.min((val / goal) * 100, 100).toFixed(1))
+            ? Number(((val / goal) * 100).toFixed(1))
             : 0;
       }
 
@@ -380,7 +403,7 @@ export function CrewProgressChart({
 
   const mileageMax = selectedMembers.reduce((max, item) => {
     const memberMax = mileageData.reduce((m, row) => {
-      const value = row[item.member.name];
+      const value = row[item.member.id];
       return typeof value === "number" ? Math.max(m, value) : m;
     }, 0);
     return Math.max(max, memberMax);
@@ -403,6 +426,8 @@ export function CrewProgressChart({
         memId: member.member.id,
         name: member.member.name,
         percent,
+        displayPercent: Number(Math.min(percent, 100).toFixed(1)),
+        overGoal: percent > 100,
         currentKm: Number(currentKm.toFixed(1)),
         goalKm: member.member.goalKm ?? 0,
       };
@@ -415,10 +440,37 @@ export function CrewProgressChart({
   );
 
   const percentBarCount = memberPercentData.length;
+  const hasPercentOverGoal = memberPercentData.some((item) => item.overGoal);
   const percentBarLabelFont =
     percentBarCount > 26 ? 8 : percentBarCount > 18 ? 9 : percentBarCount > 12 ? 10 : 11;
   const percentBarBottomMargin = percentBarCount > 12 ? 36 : 28;
   const percentBarXAxisHeight = percentBarCount > 12 ? 48 : 44;
+  const percentTicks = [0, 20, 40, 60, 80, 100];
+  const sortedStatsRows = useMemo(() => {
+    const sorted = [...statsRows];
+    sorted.sort((a, b) => {
+      const lhs = a[statsSortKey];
+      const rhs = b[statsSortKey];
+      const delta = lhs - rhs;
+      return statsSortDir === "asc" ? delta : -delta;
+    });
+    return sorted;
+  }, [statsRows, statsSortKey, statsSortDir]);
+  const toggleStatsSort = useCallback((key: StatsSortKey) => {
+    setStatsSortKey((prevKey) => {
+      if (prevKey === key) {
+        setStatsSortDir((prev) => (prev === "desc" ? "asc" : "desc"));
+        return prevKey;
+      }
+      setStatsSortDir("desc");
+      return key;
+    });
+  }, []);
+  const sortIndicator = useCallback(
+    (key: StatsSortKey) =>
+      statsSortKey === key ? (statsSortDir === "desc" ? "▼" : "▲") : "",
+    [statsSortDir, statsSortKey],
+  );
 
   if (loading) {
     return <Skeleton className="h-64 w-full rounded-2xl" />;
@@ -469,36 +521,68 @@ export function CrewProgressChart({
       {mode === "stats" ? (
         <div className="rounded-2xl border bg-card">
           <div className="max-h-[52vh] overflow-auto">
-            <div className="min-w-[540px] overflow-x-auto">
-              <table className="w-full border-collapse text-xs [font-variant-numeric:tabular-nums]">
-              <thead className="sticky top-0 bg-card">
-                <tr className="border-b text-muted-foreground">
-                  <th className="px-3 py-2 text-left">순위</th>
-                  <th className="px-3 py-2 text-left">이름</th>
-                  <th className="px-3 py-2 text-right">목표거리</th>
-                  <th className="px-3 py-2 text-right">누적거리</th>
-                  <th className="px-3 py-2 text-right">달성률</th>
-                  <th className="px-3 py-2 text-right">추천거리(일)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {statsRows.map((row) => (
-                  <tr key={row.id} className="border-b last:border-b-0">
-                    <td className="px-3 py-2">{row.rank}</td>
-                    <td className={`px-3 py-2 ${row.name === myName ? "font-semibold text-primary" : ""}`}>
-                      {row.name}
-                    </td>
-                    <td className="px-3 py-2 text-right">{row.goalKm.toFixed(1)} km</td>
-                    <td className="px-3 py-2 text-right">{row.currentKm.toFixed(1)} km</td>
-                    <td className="px-3 py-2 text-right">{row.percent.toFixed(1)}%</td>
-                    <td className="px-3 py-2 text-right">
-                      {row.dailyNeed === "done" ? "완료" : `${Number(row.dailyNeed).toFixed(1)} km`}
-                    </td>
+              <table className="min-w-[620px] w-full border-collapse text-xs [font-variant-numeric:tabular-nums]">
+                <thead className="sticky top-0 z-30 bg-muted/60 backdrop-blur-sm">
+                  <tr className="border-b text-muted-foreground">
+                    <th className="sticky left-0 z-30 w-[56px] border-r bg-muted/70 px-2 py-2 text-center">순위</th>
+                    <th className="sticky left-[56px] z-30 w-[88px] border-r bg-muted/70 px-2 py-2 text-left">이름</th>
+                    <th className="w-[84px] border-r px-2 py-2 text-right">
+                      <button
+                        type="button"
+                        className="w-full text-right font-medium"
+                        onClick={() => toggleStatsSort("goalKm")}
+                      >
+                        목표거리 {sortIndicator("goalKm")}
+                      </button>
+                    </th>
+                    <th className="w-[90px] border-r px-2 py-2 text-right">
+                      <button
+                        type="button"
+                        className="w-full text-right font-medium"
+                        onClick={() => toggleStatsSort("currentKm")}
+                      >
+                        누적거리 {sortIndicator("currentKm")}
+                      </button>
+                    </th>
+                    <th className="w-[84px] border-r px-2 py-2 text-right">
+                      <button
+                        type="button"
+                        className="w-full text-right font-medium"
+                        onClick={() => toggleStatsSort("percent")}
+                      >
+                        달성률 {sortIndicator("percent")}
+                      </button>
+                    </th>
+                    <th className="w-[90px] px-2 py-2 text-right">추천거리(일)</th>
                   </tr>
-                ))}
-              </tbody>
+                </thead>
+                <tbody>
+                  {sortedStatsRows.map((row) => (
+                    <tr key={row.id} className="border-b last:border-b-0">
+                      <td className="sticky left-0 z-20 border-r bg-muted/50 px-2 py-2 text-center">
+                        {row.rank <= 3 ? (
+                          <span className={`inline-flex items-center ${rankAccentClass(row.rank)}`} title={`${row.rank}위`}>
+                            <Medal className="size-4" strokeWidth={2} />
+                          </span>
+                        ) : (
+                          row.rank
+                        )}
+                      </td>
+                      <td className={`sticky left-[56px] z-20 border-r bg-muted/35 px-2 py-2 ${row.name === myName ? "font-semibold text-primary" : ""}`}>
+                      {row.name}
+                      </td>
+                      <td className="border-r px-2 py-2 text-right">{row.goalKm.toFixed(1)} km</td>
+                      <td className="border-r px-2 py-2 text-right">{row.currentKm.toFixed(1)} km</td>
+                      <td className="border-r px-2 py-2 text-right" style={getPercentCellStyle(row.percent)}>
+                        {row.percent.toFixed(1)}%
+                      </td>
+                      <td className="px-2 py-2 text-right">
+                        {row.dailyNeed === "done" ? "완료" : `${Number(row.dailyNeed).toFixed(1)} km`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
               </table>
-            </div>
           </div>
         </div>
       ) : (
@@ -567,7 +651,7 @@ export function CrewProgressChart({
               data={memberPercentData}
               margin={{ top: 4, right: 8, left: 0, bottom: percentBarBottomMargin }}
             >
-            {[0, 20, 40, 60, 80, 100].map((tick) => (
+            {percentTicks.map((tick) => (
               <ReferenceLine
                 key={tick}
                 y={tick}
@@ -590,6 +674,7 @@ export function CrewProgressChart({
               tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
               tickFormatter={(v: number) => `${v}%`}
               width={36}
+              ticks={percentTicks}
               domain={[0, 100]}
             />
             <Tooltip content={<PercentBarTooltip myName={myName} />} />
@@ -599,13 +684,13 @@ export function CrewProgressChart({
               strokeDasharray="6 4"
               strokeWidth={1.5}
               label={{
-                value: "100%",
+                value: hasPercentOverGoal ? "100%+ 🚀" : "100%",
                 position: "right",
                 fontSize: 10,
                 fill: "var(--muted-foreground)",
               }}
             />
-            <Bar dataKey="percent" radius={[6, 6, 0, 0]}>
+            <Bar dataKey="displayPercent" radius={[6, 6, 0, 0]}>
               {memberPercentData.map((item) => (
                 <Cell
                   key={item.memId}

@@ -1,4 +1,4 @@
-import { calcDailyNeeded, calcMonthRefundRate } from "@/lib/mileage";
+import { calcDailyNeeded } from "@/lib/mileage";
 
 export type CrewChartMember = {
   id: string;
@@ -28,8 +28,8 @@ export type StatsRow = {
 export const ROLE_COLORS = {
   me: "#0064DC",
   top: ["#B91414", "#FF4600", "#FF7300"] as const,
-  bottom: ["#7864E6", "#8C32DC", "#46AAC8"] as const,
-  near: ["#FFD200", "#AADC00", "#32B450", "#82D2B4"] as const,
+  bottom: ["#46AAC8", "#7864E6", "#8C32DC"] as const,
+  near: ["#E6C74A", "#AADC00", "#228B22", "#82D2B4"] as const,
 };
 
 export function round1(value: number): number {
@@ -202,7 +202,7 @@ export function buildStatsRows(
     name: item.member.name,
     goalKm: item.member.goalKm,
     currentKm: item.currentKm,
-    percent: round1(calcMonthRefundRate(item.currentKm, item.member.goalKm) * 100),
+    percent: round1(item.member.goalKm > 0 ? (item.currentKm / item.member.goalKm) * 100 : 0),
     dailyNeed: calcDailyNeeded(item.currentKm, item.member.goalKm, dayRef, totalDays),
   }));
 }
