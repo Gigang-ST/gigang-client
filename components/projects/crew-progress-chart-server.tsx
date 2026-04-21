@@ -94,16 +94,13 @@ export async function CrewProgressChartServer({
     dailyCumByMem.set(p.mem_id, dayMap);
   }
 
-  // 데이터 포인트 생성
+  // 데이터 포인트 생성 (초기 렌더는 마일리지 우선)
   const mileageData: DailyPoint[] = [];
-  const percentData: DailyPoint[] = [];
 
   for (let d = 1; d <= totalDays; d++) {
     const mPoint: DailyPoint = { day: d };
-    const pPoint: DailyPoint = { day: d };
 
     for (const p of activeParticipants) {
-      const name = (p.mem_mst as unknown as { mem_nm: string }).mem_nm;
       const dayMap = dailyCumByMem.get(p.mem_id);
       let val = 0;
       if (dayMap) {
@@ -114,17 +111,10 @@ export async function CrewProgressChartServer({
           }
         }
       }
-      mPoint[name] = Number(val.toFixed(1));
-      const goal =
-        goalByMemId.get(p.mem_id) ?? Number(p.init_goal ?? 0);
-      pPoint[name] =
-        goal > 0
-          ? Number(Math.min((val / goal) * 100, 100).toFixed(1))
-          : 0;
+      mPoint[p.mem_id] = Number(val.toFixed(1));
     }
 
     mileageData.push(mPoint);
-    percentData.push(pPoint);
   }
 
   const members = activeParticipants.map((p) => ({
@@ -135,7 +125,7 @@ export async function CrewProgressChartServer({
 
   const initialData: ChartInitialData = {
     mileageData,
-    percentData,
+    percentData: [],
     members,
     myGoalKm,
     myName,
