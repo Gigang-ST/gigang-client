@@ -101,7 +101,6 @@ export async function CrewProgressChartServer({
     const mPoint: DailyPoint = { day: d };
 
     for (const p of activeParticipants) {
-      const name = (p.mem_mst as unknown as { mem_nm: string }).mem_nm;
       const dayMap = dailyCumByMem.get(p.mem_id);
       let val = 0;
       if (dayMap) {
@@ -112,7 +111,7 @@ export async function CrewProgressChartServer({
           }
         }
       }
-      mPoint[name] = Number(val.toFixed(1));
+      mPoint[p.mem_id] = Number(val.toFixed(1));
     }
 
     mileageData.push(mPoint);
