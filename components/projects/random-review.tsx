@@ -1,8 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { todayKST } from "@/lib/dayjs";
 import dayjs from "dayjs";
-import { Caption } from "@/components/common/typography";
 import { MILEAGE_SPORT_LABELS, type MileageSport } from "@/lib/mileage";
+import { RandomReviewRotator, type ReviewLine } from "@/components/projects/random-review-rotator";
 
 type RandomReviewProps = { evtId: string };
 
@@ -24,33 +24,16 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
 
   if (!reviews || reviews.length === 0) return null;
 
-  // 랜덤 최대 3건 선택
-  const shuffled = [...reviews].sort(() => Math.random() - 0.5);
-  const picks = shuffled.slice(0, 3);
+  const lines: ReviewLine[] = reviews.map((item) => {
+    const name = (item.mem_mst as unknown as { mem_nm: string }).mem_nm;
+    const sport = MILEAGE_SPORT_LABELS[item.sprt_enm as MileageSport] ?? item.sprt_enm;
+    const dist = Number(item.distance_km);
+    return {
+      id: item.act_id,
+      quote: item.review,
+      meta: `🏃 ${name} · ${sport} ${dist % 1 === 0 ? dist : dist.toFixed(1)}km`,
+    };
+  });
 
-  return (
-    <div className="flex flex-col gap-2">
-      {picks.map((item) => {
-        const name = (item.mem_mst as unknown as { mem_nm: string }).mem_nm;
-        const sport = MILEAGE_SPORT_LABELS[item.sprt_enm as MileageSport] ?? item.sprt_enm;
-        const dist = Number(item.distance_km);
-        return (
-          <div
-            key={item.act_id}
-            className="rounded-2xl bg-muted px-4 py-3"
-          >
-            <Caption className="font-semibold text-foreground">
-              {name}
-            </Caption>
-            <Caption className="text-muted-foreground">
-              {" : "}
-              {item.review}
-              {" / "}
-              {sport} {dist % 1 === 0 ? dist : dist.toFixed(1)}km
-            </Caption>
-          </div>
-        );
-      })}
-    </div>
-  );
+  return <RandomReviewRotator lines={lines} />;
 }
