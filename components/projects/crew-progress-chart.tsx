@@ -266,7 +266,6 @@ export function CrewProgressChart({
       const pPoint: DailyPoint = { day: d };
 
       for (const p of activeParticipants) {
-        const name = (p.mem_mst as unknown as { mem_nm: string }).mem_nm;
         const dayMap = dailyCumByMem.get(p.mem_id);
         let val = 0;
         if (dayMap) {
@@ -277,10 +276,10 @@ export function CrewProgressChart({
             }
           }
         }
-        mPoint[name] = Number(val.toFixed(1));
+        mPoint[p.mem_id] = Number(val.toFixed(1));
         const goal =
           goalByMemId.get(p.mem_id) ?? Number(p.init_goal ?? 0);
-        pPoint[name] =
+        pPoint[p.mem_id] =
           goal > 0
             ? Number(Math.min((val / goal) * 100, 100).toFixed(1))
             : 0;
@@ -335,10 +334,10 @@ export function CrewProgressChart({
   const isCurrentMonth = month === currentMonthKST();
   const dayRef = isCurrentMonth ? Math.min(todayDayKST(), totalDays) : totalDays;
 
-  const rankedByMileage = useMemo(() => {
-    const sourcePercent = percentData.length > 0 ? percentData : mileageData;
-    return rankMembers(members, mileageData, sourcePercent, dayRef, "mileage");
-  }, [members, mileageData, percentData, dayRef]);
+  const rankedByMileage = useMemo(
+    () => rankMembers(members, mileageData, percentData, dayRef, "mileage"),
+    [members, mileageData, percentData, dayRef],
+  );
   const rankedByPercent = useMemo(
     () => rankMembers(members, mileageData, percentData, dayRef, "percent"),
     [members, mileageData, percentData, dayRef],
@@ -361,8 +360,8 @@ export function CrewProgressChart({
     () => new Set(selectedMembers.map((item) => item.member.id)),
     [selectedMembers],
   );
-  const selectedNameSet = useMemo(
-    () => new Set(selectedMembers.map((item) => item.member.name)),
+  const selectedMemberIdSet = useMemo(
+    () => new Set(selectedMembers.map((item) => item.member.id)),
     [selectedMembers],
   );
   const selectedChartData = useMemo(() => {
@@ -370,13 +369,13 @@ export function CrewProgressChart({
     return base.map((row) => {
       const filtered: DailyPoint = { day: row.day };
       for (const key of Object.keys(row)) {
-        if (key === "day" || selectedNameSet.has(key)) {
+        if (key === "day" || selectedMemberIdSet.has(key)) {
           filtered[key] = row[key] as number | string;
         }
       }
       return filtered;
     });
-  }, [mode, percentData, mileageData, selectedNameSet]);
+  }, [mode, percentData, mileageData, selectedMemberIdSet]);
 
   const roleColorMap = useMemo(
     () => buildRoleColorMap(selectedMembers, top, bottom, near, memId),
@@ -400,8 +399,8 @@ export function CrewProgressChart({
     .map((member) => {
       const latestMileage = mileageData[mileageData.length - 1];
       const latest = percentData[percentData.length - 1];
-      const currentKmRaw = latestMileage?.[member.member.name];
-      const value = latest?.[member.member.name];
+      const currentKmRaw = latestMileage?.[member.member.id];
+      const value = latest?.[member.member.id];
       const currentKm = typeof currentKmRaw === "number" ? currentKmRaw : 0;
       const percent = typeof value === "number" ? value : 0;
       return {
@@ -484,7 +483,7 @@ export function CrewProgressChart({
               </thead>
               <tbody>
                 {statsRows.map((row) => (
-                  <tr key={row.name} className="border-b last:border-b-0">
+                  <tr key={row.id} className="border-b last:border-b-0">
                     <td className="px-3 py-2">{row.rank}</td>
                     <td className={`px-3 py-2 ${row.name === myName ? "font-semibold text-primary" : ""}`}>
                       {row.name}
@@ -554,7 +553,8 @@ export function CrewProgressChart({
               <Line
                 key={item.member.id}
                 type="monotone"
-                dataKey={item.member.name}
+                dataKey={item.member.id}
+                name={item.member.name}
                 stroke={roleColorMap.get(item.member.id) ?? ROLE_COLORS.near[0]}
                 dot={false}
                 strokeWidth={item.member.name === myName ? 3 : 1.5}

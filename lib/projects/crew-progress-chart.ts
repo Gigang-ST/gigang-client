@@ -16,6 +16,7 @@ export type RankedMember = {
 };
 
 export type StatsRow = {
+  id: string;
   rank: number;
   name: string;
   goalKm: number;
@@ -48,14 +49,16 @@ export function rankMembers(
   const rowIdx = Math.max(dayRef - 1, 0);
   const mRow = mileageData[rowIdx];
   const pRow = percentData[rowIdx];
-  if (!mRow || !pRow) return [];
+  if (!mRow) return [];
+  if (mode === "percent" && !pRow) return [];
 
   const includeZeroKm = options?.includeZeroKm ?? false;
 
   return members
+    .filter((member) => (mode === "percent" ? member.goalKm > 0 : true))
     .map((member) => {
-      const currentKmRaw = mRow[member.name];
-      const percentRaw = pRow[member.name];
+      const currentKmRaw = mRow[member.id];
+      const percentRaw = pRow?.[member.id];
       const currentKm = typeof currentKmRaw === "number" ? currentKmRaw : 0;
       const percent = typeof percentRaw === "number" ? percentRaw : 0;
       const rankValue = mode === "mileage" ? currentKm : percent;
@@ -194,6 +197,7 @@ export function buildStatsRows(
   totalDays: number,
 ): StatsRow[] {
   return rankedByMileage.map((item, idx) => ({
+    id: item.member.id,
     rank: idx + 1,
     name: item.member.name,
     goalKm: item.member.goalKm,
