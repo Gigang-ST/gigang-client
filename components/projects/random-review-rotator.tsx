@@ -14,7 +14,11 @@ type RandomReviewRotatorProps = {
 };
 
 function pickRandomFive(lines: ReviewLine[]): ReviewLine[] {
-  const shuffled = [...lines].sort(() => Math.random() - 0.5);
+  const shuffled = [...lines];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
+  }
   return shuffled.slice(0, 5);
 }
 
@@ -55,6 +59,9 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
       onMouseLeave={() => setIsPaused(false)}
       onFocus={() => setIsPaused(true)}
       onBlur={() => setIsPaused(false)}
+      onTouchStart={() => setIsPaused(true)}
+      onTouchEnd={() => setIsPaused(false)}
+      onTouchCancel={() => setIsPaused(false)}
     >
       <div
         className={`transition-all duration-300 ease-out motion-reduce:transition-none ${
