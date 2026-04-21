@@ -46,6 +46,7 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
     return () => {
       window.clearInterval(timer);
       if (timeoutId) window.clearTimeout(timeoutId);
+      setIsAnimating(false);
     };
   }, [isPaused, picks.length]);
 
