@@ -115,6 +115,37 @@ type PercentBarTooltipProps = {
   myName: string | null;
 };
 
+/** 달성률 막대 X축 — 인원 많을 때 폰트 축소 + 줄 지그재그로 겹침 완화 */
+function PercentBarCategoryTick(props: {
+  x: number;
+  y: number;
+  payload: { value?: string | number };
+  index: number;
+  fontSize: number;
+  stagger: boolean;
+}) {
+  const { x, y, payload, index, fontSize, stagger } = props;
+  const staggerDy =
+    stagger && index % 2 === 1 ? (fontSize <= 9 ? 12 : 13) : 0;
+  const label = payload.value ?? "";
+
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text
+        x={0}
+        y={0}
+        dy={14 + staggerDy}
+        textAnchor="end"
+        fill="var(--muted-foreground)"
+        fontSize={fontSize}
+        transform="rotate(-20)"
+      >
+        {label}
+      </text>
+    </g>
+  );
+}
+
 /** 달성률 막대 — dataKey 이름(percent)이 노출되지 않도록 전용 툴팁 */
 function PercentBarTooltip({
   active,
@@ -340,6 +371,29 @@ export function CrewProgressChart({
     })
     .sort((a, b) => b.percent - a.percent);
 
+  const percentBarCount = memberPercentData.length;
+  const percentBarLabelFont =
+    percentBarCount > 26 ? 8 : percentBarCount > 18 ? 9 : percentBarCount > 12 ? 10 : 11;
+  const percentBarUseStagger = percentBarCount >= 10;
+  const percentBarBottomMargin =
+    percentBarUseStagger && percentBarCount > 16
+      ? 56
+      : percentBarUseStagger
+        ? 48
+        : percentBarCount > 12
+          ? 36
+          : 28;
+  const percentBarXAxisHeight =
+    percentBarUseStagger && percentBarCount > 16
+      ? 58
+      : percentBarUseStagger
+        ? 50
+        : 42;
+  const percentBarChartHeight =
+    percentBarUseStagger || percentBarCount > 12
+      ? Math.min(292, 232 + percentBarXAxisHeight)
+      : 240;
+
   if (chartData.length === 0 || members.length === 0) {
     return (
       <div className="flex h-40 items-center justify-center rounded-2xl bg-muted">
@@ -359,7 +413,11 @@ export function CrewProgressChart({
         onValueChange={setMode}
       />
 
-      <ResponsiveContainer width="100%" height={240} className="outline-none">
+      <ResponsiveContainer
+        width="100%"
+        height={mode === "percent" ? percentBarChartHeight : 240}
+        className="outline-none"
+      >
         {mode === "mileage" ? (
           <LineChart data={chartData}>
             {mileageTicks.map((tick) => (
@@ -415,7 +473,10 @@ export function CrewProgressChart({
             ))}
           </LineChart>
         ) : (
-          <BarChart data={memberPercentData} margin={{ top: 4, right: 8, left: 0, bottom: 24 }}>
+          <BarChart
+            data={memberPercentData}
+            margin={{ top: 4, right: 8, left: 0, bottom: percentBarBottomMargin }}
+          >
             {[0, 20, 40, 60, 80, 100].map((tick) => (
               <ReferenceLine
                 key={tick}
@@ -426,11 +487,20 @@ export function CrewProgressChart({
             ))}
             <XAxis
               dataKey="name"
-              tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
               interval={0}
-              angle={-20}
-              textAnchor="end"
-              height={44}
+              height={percentBarXAxisHeight}
+              tick={(tickProps: {
+                x: number;
+                y: number;
+                payload: { value?: string | number };
+                index: number;
+              }) => (
+                <PercentBarCategoryTick
+                  {...tickProps}
+                  fontSize={percentBarLabelFont}
+                  stagger={percentBarUseStagger}
+                />
+              )}
             />
             <YAxis
               tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
