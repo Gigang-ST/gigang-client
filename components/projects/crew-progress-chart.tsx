@@ -534,7 +534,9 @@ export function CrewProgressChart({
                   >
                     <button
                       type="button"
-                      className="inline-flex w-full items-center justify-center gap-1 text-center font-medium"
+                      className={`inline-flex w-full items-center justify-center gap-1 text-center font-medium ${
+                        statsSortKey === "rank" ? "text-foreground" : ""
+                      }`}
                       onClick={() => toggleStatsSort("rank")}
                     >
                       <span>순위</span>
