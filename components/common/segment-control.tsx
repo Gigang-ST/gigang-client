@@ -27,15 +27,17 @@ function SegmentControl<T extends string = string>({
 }: SegmentControlProps<T>) {
   return (
     <div className={cn("flex gap-0 rounded-xl bg-secondary p-1", className)}>
-      {segments.map((seg) => (
+      {segments.map((seg, idx) => (
         <button
           key={seg.value}
           type="button"
           onClick={() => onValueChange(seg.value)}
           className={cn(
-            "flex-1 rounded-lg py-2 text-[13px] font-medium transition-colors",
+            "relative flex-1 rounded-lg border border-transparent py-2 text-[13px] font-medium transition-colors",
+            idx > 0 &&
+              "before:absolute before:-left-1 before:top-1.5 before:h-[calc(100%-12px)] before:w-px before:bg-border/55",
             value === seg.value
-              ? "bg-foreground text-background"
+              ? "bg-foreground text-background ring-1 ring-foreground/20"
               : "text-muted-foreground",
           )}
         >
