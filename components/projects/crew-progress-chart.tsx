@@ -489,14 +489,16 @@ export function CrewProgressChart({
               dataKey="name"
               interval={0}
               height={percentBarXAxisHeight}
-              tick={(tickProps: {
-                x: number;
-                y: number;
-                payload: { value?: string | number };
-                index: number;
-              }) => (
+              tick={(tickProps) => (
                 <PercentBarCategoryTick
-                  {...tickProps}
+                  x={Number(tickProps.x)}
+                  y={Number(tickProps.y)}
+                  payload={
+                    (tickProps.payload ?? {}) as {
+                      value?: string | number;
+                    }
+                  }
+                  index={tickProps.index ?? 0}
                   fontSize={percentBarLabelFont}
                   stagger={percentBarUseStagger}
                 />
