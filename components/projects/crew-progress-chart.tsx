@@ -33,39 +33,30 @@ export type ChartInitialData = {
   totalDays: number;
 };
 
-const CHART_COLORS = [
-  "#EF4444",
-  "#F59E0B",
-  "#EAB308",
-  "#84CC16",
-  "#10B981",
-  "#06B6D4",
-  "#3B82F6",
-  "#6366F1",
-  "#8B5CF6",
-  "#A855F7",
-  "#D946EF",
-  "#EC4899",
-  "#F43F5E",
-  "#FB7185",
-  "#22C55E",
-  "#14B8A6",
-  "#0EA5E9",
-  "#60A5FA",
-  "#818CF8",
-  "#C084FC",
-];
-
-function hashString(value: string): number {
-  let hash = 0;
-  for (let i = 0; i < value.length; i++) {
-    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+/** FNV-1a — mem_id 문자열을 팔레트 인덱스에 고르게 퍼뜨림 */
+function fnv1a32(input: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
   }
-  return hash;
+  return hash >>> 0;
 }
 
+/**
+ * 선/막대 색: 실무에서 쓰는 방식에 가깝게 **슬롯마다 hue를 황금각으로 벌려** 둔 고정 팔레트.
+ * (해시에 황금각을 곱해 hue를 만드는 방식과 달리, 인접 인덱스가 색상환에서 멀리 떨어짐.)
+ * 멤버는 FNV로 슬롯만 고르고, 같은 mem_id → 항상 동일 색.
+ */
+const LINE_PALETTE: readonly string[] = Array.from({ length: 28 }, (_, i) => {
+  const hue = ((i * 137.508) % 360 + 360) % 360;
+  const sat = 68 + (i % 4) * 2.5;
+  const light = 43 + (i % 3) * 3.5;
+  return `hsl(${hue.toFixed(0)} ${sat.toFixed(0)}% ${light.toFixed(0)}%)`;
+});
+
 function colorByMemberId(memId: string): string {
-  return CHART_COLORS[hashString(memId) % CHART_COLORS.length];
+  return LINE_PALETTE[fnv1a32(memId) % LINE_PALETTE.length]!;
 }
 
 type ChartTooltipProps = TooltipContentProps<TooltipValueType, string | number> & {
