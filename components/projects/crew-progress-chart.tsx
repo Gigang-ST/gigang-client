@@ -506,8 +506,7 @@ export function CrewProgressChart({
       {mode === "stats" ? (
         <div className="rounded-2xl border bg-card">
           <div className="max-h-[52vh] overflow-auto">
-            <div className="min-w-[620px] overflow-x-auto">
-              <table className="w-full border-collapse text-xs [font-variant-numeric:tabular-nums]">
+              <table className="min-w-[620px] w-full border-collapse text-xs [font-variant-numeric:tabular-nums]">
                 <thead className="sticky top-0 z-30 bg-muted/60 backdrop-blur-sm">
                   <tr className="border-b text-muted-foreground">
                     <th className="sticky left-0 z-30 w-[56px] border-r bg-muted/70 px-2 py-2 text-center">순위</th>
@@ -590,7 +589,6 @@ export function CrewProgressChart({
                   ))}
                 </tbody>
               </table>
-            </div>
           </div>
         </div>
       ) : (
