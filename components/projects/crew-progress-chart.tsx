@@ -444,6 +444,7 @@ export function CrewProgressChart({
     percentBarCount > 26 ? 8 : percentBarCount > 18 ? 9 : percentBarCount > 12 ? 10 : 11;
   const percentBarBottomMargin = percentBarCount > 12 ? 36 : 28;
   const percentBarXAxisHeight = percentBarCount > 12 ? 48 : 44;
+  const percentTicks = [0, 20, 40, 60, 80, 100];
   const sortedStatsRows = useMemo(() => {
     const sorted = [...statsRows];
     sorted.sort((a, b) => {
