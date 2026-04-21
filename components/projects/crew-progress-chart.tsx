@@ -22,48 +22,39 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export type DailyPoint = Record<string, number | string> & { day: number };
 
+export type ChartMember = { id: string; name: string; goalKm: number };
+
 export type ChartInitialData = {
   mileageData: DailyPoint[];
   percentData: DailyPoint[];
-  members: { id: string; name: string }[];
+  members: ChartMember[];
   myGoalKm: number;
   myName: string | null;
   totalDays: number;
 };
 
-const CHART_COLORS = [
-  "#EF4444",
-  "#F59E0B",
-  "#EAB308",
-  "#84CC16",
-  "#10B981",
-  "#06B6D4",
-  "#3B82F6",
-  "#6366F1",
-  "#8B5CF6",
-  "#A855F7",
-  "#D946EF",
-  "#EC4899",
-  "#F43F5E",
-  "#FB7185",
-  "#22C55E",
-  "#14B8A6",
-  "#0EA5E9",
-  "#60A5FA",
-  "#818CF8",
-  "#C084FC",
-];
-
-function hashString(value: string): number {
-  let hash = 0;
-  for (let i = 0; i < value.length; i++) {
-    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+/** FNV-1a — mem_id(UUID 등) 문자열에서 인덱스 클러스터링을 줄임 */
+function fnv1a32(input: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
   }
-  return hash;
+  return hash >>> 0;
 }
 
+/**
+ * 멤버별 고정 색 (같은 mem_id → 항상 동일).
+ * 고정 HEX 팔레트 대신 색상환을 황금각(≈137.5°) 스텝으로 훑어 비슷한 파랑·보라만 연속되지 않게 함.
+ * 30명 규모에서도 채도·명도를 약간만 바꿔 구분도 유지.
+ */
 function colorByMemberId(memId: string): string {
-  return CHART_COLORS[hashString(memId) % CHART_COLORS.length];
+  const h = fnv1a32(memId);
+  const goldenDeg = 137.508;
+  const hue = ((h * goldenDeg) % 360 + 360) % 360;
+  const sat = 58 + (h % 14);
+  const light = 42 + ((h >>> 11) % 14);
+  return `hsl(${hue.toFixed(1)} ${sat}% ${light}%)`;
 }
 
 type ChartTooltipProps = TooltipContentProps<TooltipValueType, string | number> & {
@@ -117,6 +108,70 @@ type MemberPercentBar = {
   goalKm: number;
 };
 
+type PercentBarTooltipProps = {
+  active?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload?: any[];
+  myName: string | null;
+};
+
+/** 달성률 막대 X축 — 인원 많을 때 폰트 축소 + 줄 지그재그로 겹침 완화 */
+function PercentBarCategoryTick(props: {
+  x: number;
+  y: number;
+  payload: { value?: string | number };
+  index: number;
+  fontSize: number;
+  stagger: boolean;
+}) {
+  const { x, y, payload, index, fontSize, stagger } = props;
+  const staggerDy =
+    stagger && index % 2 === 1 ? (fontSize <= 9 ? 12 : 13) : 0;
+  const label = payload.value ?? "";
+
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text
+        x={0}
+        y={0}
+        dy={14 + staggerDy}
+        textAnchor="end"
+        fill="var(--muted-foreground)"
+        fontSize={fontSize}
+        transform="rotate(-20)"
+      >
+        {label}
+      </text>
+    </g>
+  );
+}
+
+/** 달성률 막대 — dataKey 이름(percent)이 노출되지 않도록 전용 툴팁 */
+function PercentBarTooltip({
+  active,
+  payload,
+  myName,
+}: PercentBarTooltipProps) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload as MemberPercentBar | undefined;
+  if (!row) return null;
+
+  const isMe = row.name === myName;
+  const goalText =
+    row.goalKm > 0 ? `${row.goalKm.toFixed(1)}km` : "-";
+
+  return (
+    <div className="rounded-md border bg-background p-2 text-xs shadow-md">
+      <p className={`mb-0.5 font-semibold ${isMe ? "" : "text-muted-foreground"}`}>
+        {row.name}
+      </p>
+      <p className={isMe ? "" : "text-muted-foreground"}>
+        {row.percent.toFixed(1)}% ({row.currentKm.toFixed(1)}km/{goalText})
+      </p>
+    </div>
+  );
+}
+
 export function CrewProgressChart({
   evtId,
   memId,
@@ -130,7 +185,7 @@ export function CrewProgressChart({
   const [percentData, setPercentData] = useState<DailyPoint[]>(
     initialData?.percentData ?? [],
   );
-  const [members, setMembers] = useState<{ id: string; name: string }[]>(
+  const [members, setMembers] = useState<ChartMember[]>(
     initialData?.members ?? [],
   );
   const [myGoalKm, setMyGoalKm] = useState<number>(
@@ -199,7 +254,10 @@ export function CrewProgressChart({
 
     const memIdsWithLogs = new Set((logs ?? []).map((l) => l.mem_id));
     const activeParticipants = participants.filter(
-      (p) => memIdsWithLogs.has(p.mem_id) || goalByMemId.has(p.mem_id),
+      (p) =>
+        memIdsWithLogs.has(p.mem_id) ||
+        goalByMemId.has(p.mem_id) ||
+        Number(p.init_goal ?? 0) > 0,
     );
 
     const logsByMem = new Map<string, { day: number; val: number }[]>();
@@ -255,9 +313,10 @@ export function CrewProgressChart({
       pPoints.push(pPoint);
     }
 
-    const memberList = activeParticipants.map((p) => ({
+    const memberList: ChartMember[] = activeParticipants.map((p) => ({
       id: p.mem_id,
       name: (p.mem_mst as unknown as { mem_nm: string }).mem_nm,
+      goalKm: goalByMemId.get(p.mem_id) ?? Number(p.init_goal ?? 0),
     }));
 
     setMembers(memberList);
@@ -305,17 +364,38 @@ export function CrewProgressChart({
       const value = latest?.[member.name];
       const currentKm = typeof currentKmRaw === "number" ? currentKmRaw : 0;
       const percent = typeof value === "number" ? value : 0;
-      const goalKm =
-        percent > 0 ? Number((currentKm / (percent / 100)).toFixed(1)) : 0;
       return {
         memId: member.id,
         name: member.name,
         percent,
         currentKm: Number(currentKm.toFixed(1)),
-        goalKm,
+        goalKm: member.goalKm ?? 0,
       };
     })
     .sort((a, b) => b.percent - a.percent);
+
+  const percentBarCount = memberPercentData.length;
+  const percentBarLabelFont =
+    percentBarCount > 26 ? 8 : percentBarCount > 18 ? 9 : percentBarCount > 12 ? 10 : 11;
+  const percentBarUseStagger = percentBarCount >= 10;
+  const percentBarBottomMargin =
+    percentBarUseStagger && percentBarCount > 16
+      ? 56
+      : percentBarUseStagger
+        ? 48
+        : percentBarCount > 12
+          ? 36
+          : 28;
+  const percentBarXAxisHeight =
+    percentBarUseStagger && percentBarCount > 16
+      ? 58
+      : percentBarUseStagger
+        ? 50
+        : 42;
+  const percentBarChartHeight =
+    percentBarUseStagger || percentBarCount > 12
+      ? Math.min(292, 232 + percentBarXAxisHeight)
+      : 240;
 
   if (chartData.length === 0 || members.length === 0) {
     return (
@@ -336,7 +416,11 @@ export function CrewProgressChart({
         onValueChange={setMode}
       />
 
-      <ResponsiveContainer width="100%" height={240} className="outline-none">
+      <ResponsiveContainer
+        width="100%"
+        height={mode === "percent" ? percentBarChartHeight : 240}
+        className="outline-none"
+      >
         {mode === "mileage" ? (
           <LineChart data={chartData}>
             {mileageTicks.map((tick) => (
@@ -392,7 +476,10 @@ export function CrewProgressChart({
             ))}
           </LineChart>
         ) : (
-          <BarChart data={memberPercentData} margin={{ top: 4, right: 8, left: 0, bottom: 24 }}>
+          <BarChart
+            data={memberPercentData}
+            margin={{ top: 4, right: 8, left: 0, bottom: percentBarBottomMargin }}
+          >
             {[0, 20, 40, 60, 80, 100].map((tick) => (
               <ReferenceLine
                 key={tick}
@@ -403,11 +490,22 @@ export function CrewProgressChart({
             ))}
             <XAxis
               dataKey="name"
-              tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
               interval={0}
-              angle={-20}
-              textAnchor="end"
-              height={44}
+              height={percentBarXAxisHeight}
+              tick={(tickProps) => (
+                <PercentBarCategoryTick
+                  x={Number(tickProps.x)}
+                  y={Number(tickProps.y)}
+                  payload={
+                    (tickProps.payload ?? {}) as {
+                      value?: string | number;
+                    }
+                  }
+                  index={tickProps.index ?? 0}
+                  fontSize={percentBarLabelFont}
+                  stagger={percentBarUseStagger}
+                />
+              )}
             />
             <YAxis
               tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
@@ -415,17 +513,7 @@ export function CrewProgressChart({
               width={36}
               domain={[0, 100]}
             />
-            <Tooltip
-              formatter={(value, _name, item) => {
-                const percent =
-                  typeof value === "number" ? value : Number(value ?? 0);
-                const row = item?.payload as MemberPercentBar | undefined;
-                if (!row) return `${percent.toFixed(1)}%`;
-                const goalText = row.goalKm > 0 ? `${row.goalKm.toFixed(1)}km` : "-";
-                return `${percent.toFixed(1)}% (${row.currentKm.toFixed(1)}km/${goalText})`;
-              }}
-              labelFormatter={(label) => `${label}`}
-            />
+            <Tooltip content={<PercentBarTooltip myName={myName} />} />
             <ReferenceLine
               y={100}
               stroke="var(--muted-foreground)"
