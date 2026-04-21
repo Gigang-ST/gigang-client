@@ -8,6 +8,7 @@ import {
   useRef,
   useTransition,
 } from "react";
+import { Medal } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -401,7 +402,7 @@ export function CrewProgressChart({
 
   const mileageMax = selectedMembers.reduce((max, item) => {
     const memberMax = mileageData.reduce((m, row) => {
-      const value = row[item.member.name];
+      const value = row[item.member.id];
       return typeof value === "number" ? Math.max(m, value) : m;
     }, 0);
     return Math.max(max, memberMax);
@@ -693,7 +694,7 @@ export function CrewProgressChart({
               data={memberPercentData}
               margin={{ top: 4, right: 8, left: 0, bottom: percentBarBottomMargin }}
             >
-            {[0, 20, 40, 60, 80, 100].map((tick) => (
+            {percentTicks.map((tick) => (
               <ReferenceLine
                 key={tick}
                 y={tick}
@@ -716,6 +717,7 @@ export function CrewProgressChart({
               tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
               tickFormatter={(v: number) => `${v}%`}
               width={36}
+              ticks={percentTicks}
               domain={[0, 100]}
             />
             <Tooltip content={<PercentBarTooltip myName={myName} />} />
