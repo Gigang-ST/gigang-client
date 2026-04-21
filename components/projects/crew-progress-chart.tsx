@@ -343,6 +343,13 @@ export function CrewProgressChart({
     () => rankMembers(members, mileageData, percentData, dayRef, "percent"),
     [members, mileageData, percentData, dayRef],
   );
+  const rankedForStats = useMemo(
+    () =>
+      rankMembers(members, mileageData, percentData, dayRef, "mileage", {
+        includeZeroKm: true,
+      }),
+    [members, mileageData, percentData, dayRef],
+  );
   const rankedForMode = mode === "percent" ? rankedByPercent : rankedByMileage;
 
   const { selected: selectedMembers, top, bottom, near } = useMemo(
@@ -408,8 +415,8 @@ export function CrewProgressChart({
     .sort((a, b) => b.percent - a.percent);
 
   const statsRows: StatsRow[] = useMemo(
-    () => buildStatsRows(rankedByMileage, dayRef, totalDays),
-    [rankedByMileage, dayRef, totalDays],
+    () => buildStatsRows(rankedForStats, dayRef, totalDays),
+    [rankedForStats, dayRef, totalDays],
   );
 
   const percentBarCount = memberPercentData.length;

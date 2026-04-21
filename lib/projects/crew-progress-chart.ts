@@ -41,11 +41,16 @@ export function rankMembers(
   percentData: CrewDailyPoint[],
   dayRef: number,
   mode: "mileage" | "percent",
+  options?: {
+    includeZeroKm?: boolean;
+  },
 ): RankedMember[] {
   const rowIdx = Math.max(dayRef - 1, 0);
   const mRow = mileageData[rowIdx];
   const pRow = percentData[rowIdx];
   if (!mRow || !pRow) return [];
+
+  const includeZeroKm = options?.includeZeroKm ?? false;
 
   return members
     .map((member) => {
@@ -61,7 +66,7 @@ export function rankMembers(
         roundedRankValue: round1(rankValue),
       };
     })
-    .filter((item) => item.currentKm > 0)
+    .filter((item) => includeZeroKm || item.currentKm > 0)
     .sort((a, b) => {
       if (b.roundedRankValue !== a.roundedRankValue) {
         return b.roundedRankValue - a.roundedRankValue;
