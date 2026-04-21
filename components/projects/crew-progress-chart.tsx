@@ -163,10 +163,13 @@ export function CrewProgressChart({
   const [loading, setLoading] = useState(!initialData);
   const [refreshing, setRefreshing] = useState(false);
   const didPreloadSecondary = useRef(false);
+  const hasLoadedDataRef = useRef(
+    (initialData?.mileageData.length ?? 0) > 0 && (initialData?.members.length ?? 0) > 0,
+  );
   const [isPending, startTransition] = useTransition();
 
   const load = useCallback(async () => {
-    const hasExistingData = mileageData.length > 0 && members.length > 0;
+    const hasExistingData = hasLoadedDataRef.current;
     if (hasExistingData) {
       setRefreshing(true);
     } else {
@@ -296,9 +299,10 @@ export function CrewProgressChart({
     setMembers(memberList);
     setMileageData(mPoints);
     setPercentData(pPoints);
+    hasLoadedDataRef.current = memberList.length > 0 && mPoints.length > 0;
     setLoading(false);
     setRefreshing(false);
-  }, [evtId, memId, month, members.length, mileageData.length]);
+  }, [evtId, memId, month]);
 
   // initialData 없을 때만 초기 fetch
   useEffect(() => {
@@ -459,7 +463,8 @@ export function CrewProgressChart({
       {mode === "stats" ? (
         <div className="rounded-2xl border bg-card">
           <div className="max-h-[52vh] overflow-auto">
-            <table className="w-full border-collapse text-xs">
+            <div className="min-w-[540px] overflow-x-auto">
+              <table className="w-full border-collapse text-xs [font-variant-numeric:tabular-nums]">
               <thead className="sticky top-0 bg-card">
                 <tr className="border-b text-muted-foreground">
                   <th className="px-3 py-2 text-left">순위</th>
@@ -486,7 +491,8 @@ export function CrewProgressChart({
                   </tr>
                 ))}
               </tbody>
-            </table>
+              </table>
+            </div>
           </div>
         </div>
       ) : (
