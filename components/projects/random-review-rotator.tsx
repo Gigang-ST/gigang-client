@@ -29,6 +29,11 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
   const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
+    setIndex(0);
+    setIsTransitioning(false);
+  }, [picks]);
+
+  useEffect(() => {
     if (picks.length <= 1 || isPaused) return;
     let timeoutId: number | undefined;
     const timer = window.setInterval(() => {
