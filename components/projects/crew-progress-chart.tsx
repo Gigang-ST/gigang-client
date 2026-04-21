@@ -44,9 +44,7 @@ function fnv1a32(input: string): number {
 }
 
 /**
- * 선/막대 색: 실무에서 쓰는 방식에 가깝게 **슬롯마다 hue를 황금각으로 벌려** 둔 고정 팔레트.
- * (해시에 황금각을 곱해 hue를 만드는 방식과 달리, 인접 인덱스가 색상환에서 멀리 떨어짐.)
- * 멤버는 FNV로 슬롯만 고르고, 같은 mem_id → 항상 동일 색.
+ * 선/막대 색: 슬롯마다 hue를 황금각으로 벌린 고정 팔레트 + FNV로 슬롯 선택 (동일 mem_id → 동일 색).
  */
 const LINE_PALETTE: readonly string[] = Array.from({ length: 28 }, (_, i) => {
   const hue = ((i * 137.508) % 360 + 360) % 360;
@@ -345,6 +343,12 @@ export function CrewProgressChart({
     })
     .sort((a, b) => b.percent - a.percent);
 
+  const percentBarCount = memberPercentData.length;
+  const percentBarLabelFont =
+    percentBarCount > 26 ? 8 : percentBarCount > 18 ? 9 : percentBarCount > 12 ? 10 : 11;
+  const percentBarBottomMargin = percentBarCount > 12 ? 36 : 28;
+  const percentBarXAxisHeight = percentBarCount > 12 ? 48 : 44;
+
   if (chartData.length === 0 || members.length === 0) {
     return (
       <div className="flex h-40 items-center justify-center rounded-2xl bg-muted">
@@ -364,7 +368,11 @@ export function CrewProgressChart({
         onValueChange={setMode}
       />
 
-      <ResponsiveContainer width="100%" height={240} className="outline-none">
+      <ResponsiveContainer
+        width="100%"
+        height={mode === "percent" && percentBarCount > 14 ? 256 : 240}
+        className="outline-none"
+      >
         {mode === "mileage" ? (
           <LineChart data={chartData}>
             {mileageTicks.map((tick) => (
@@ -420,7 +428,10 @@ export function CrewProgressChart({
             ))}
           </LineChart>
         ) : (
-          <BarChart data={memberPercentData} margin={{ top: 4, right: 8, left: 0, bottom: 24 }}>
+          <BarChart
+            data={memberPercentData}
+            margin={{ top: 4, right: 8, left: 0, bottom: percentBarBottomMargin }}
+          >
             {[0, 20, 40, 60, 80, 100].map((tick) => (
               <ReferenceLine
                 key={tick}
@@ -431,11 +442,14 @@ export function CrewProgressChart({
             ))}
             <XAxis
               dataKey="name"
-              tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+              tick={{
+                fontSize: percentBarLabelFont,
+                fill: "var(--muted-foreground)",
+              }}
               interval={0}
               angle={-20}
               textAnchor="end"
-              height={44}
+              height={percentBarXAxisHeight}
             />
             <YAxis
               tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
