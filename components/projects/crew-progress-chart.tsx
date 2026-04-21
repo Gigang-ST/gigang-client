@@ -22,10 +22,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export type DailyPoint = Record<string, number | string> & { day: number };
 
+export type ChartMember = { id: string; name: string; goalKm: number };
+
 export type ChartInitialData = {
   mileageData: DailyPoint[];
   percentData: DailyPoint[];
-  members: { id: string; name: string }[];
+  members: ChartMember[];
   myGoalKm: number;
   myName: string | null;
   totalDays: number;
@@ -117,6 +119,39 @@ type MemberPercentBar = {
   goalKm: number;
 };
 
+type PercentBarTooltipProps = {
+  active?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload?: any[];
+  myName: string | null;
+};
+
+/** 달성률 막대 — dataKey 이름(percent)이 노출되지 않도록 전용 툴팁 */
+function PercentBarTooltip({
+  active,
+  payload,
+  myName,
+}: PercentBarTooltipProps) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload as MemberPercentBar | undefined;
+  if (!row) return null;
+
+  const isMe = row.name === myName;
+  const goalText =
+    row.goalKm > 0 ? `${row.goalKm.toFixed(1)}km` : "-";
+
+  return (
+    <div className="rounded-md border bg-background p-2 text-xs shadow-md">
+      <p className={`mb-0.5 font-semibold ${isMe ? "" : "text-muted-foreground"}`}>
+        {row.name}
+      </p>
+      <p className={isMe ? "" : "text-muted-foreground"}>
+        {row.percent.toFixed(1)}% ({row.currentKm.toFixed(1)}km/{goalText})
+      </p>
+    </div>
+  );
+}
+
 export function CrewProgressChart({
   evtId,
   memId,
@@ -130,7 +165,7 @@ export function CrewProgressChart({
   const [percentData, setPercentData] = useState<DailyPoint[]>(
     initialData?.percentData ?? [],
   );
-  const [members, setMembers] = useState<{ id: string; name: string }[]>(
+  const [members, setMembers] = useState<ChartMember[]>(
     initialData?.members ?? [],
   );
   const [myGoalKm, setMyGoalKm] = useState<number>(
@@ -255,9 +290,10 @@ export function CrewProgressChart({
       pPoints.push(pPoint);
     }
 
-    const memberList = activeParticipants.map((p) => ({
+    const memberList: ChartMember[] = activeParticipants.map((p) => ({
       id: p.mem_id,
       name: (p.mem_mst as unknown as { mem_nm: string }).mem_nm,
+      goalKm: goalByMemId.get(p.mem_id) ?? Number(p.init_goal ?? 0),
     }));
 
     setMembers(memberList);
@@ -305,14 +341,12 @@ export function CrewProgressChart({
       const value = latest?.[member.name];
       const currentKm = typeof currentKmRaw === "number" ? currentKmRaw : 0;
       const percent = typeof value === "number" ? value : 0;
-      const goalKm =
-        percent > 0 ? Number((currentKm / (percent / 100)).toFixed(1)) : 0;
       return {
         memId: member.id,
         name: member.name,
         percent,
         currentKm: Number(currentKm.toFixed(1)),
-        goalKm,
+        goalKm: member.goalKm ?? 0,
       };
     })
     .sort((a, b) => b.percent - a.percent);
@@ -415,17 +449,7 @@ export function CrewProgressChart({
               width={36}
               domain={[0, 100]}
             />
-            <Tooltip
-              formatter={(value, _name, item) => {
-                const percent =
-                  typeof value === "number" ? value : Number(value ?? 0);
-                const row = item?.payload as MemberPercentBar | undefined;
-                if (!row) return `${percent.toFixed(1)}%`;
-                const goalText = row.goalKm > 0 ? `${row.goalKm.toFixed(1)}km` : "-";
-                return `${percent.toFixed(1)}% (${row.currentKm.toFixed(1)}km/${goalText})`;
-              }}
-              labelFormatter={(label) => `${label}`}
-            />
+            <Tooltip content={<PercentBarTooltip myName={myName} />} />
             <ReferenceLine
               y={100}
               stroke="var(--muted-foreground)"
