@@ -6,6 +6,13 @@ import { RandomReviewRotator, type ReviewLine } from "@/components/projects/rand
 
 type RandomReviewProps = { evtId: string };
 
+const SPORT_EMOJI_MAP: Record<MileageSport, string> = {
+  RUNNING: "🏃",
+  TRAIL: "🏔️",
+  CYCLING: "🚴",
+  SWIMMING: "🏊",
+};
+
 export async function RandomReview({ evtId }: RandomReviewProps) {
   const supabase = createAdminClient();
 
@@ -27,16 +34,7 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
   const lines: ReviewLine[] = reviews.map((item) => {
     const name = (item.mem_mst as unknown as { mem_nm: string }).mem_nm;
     const sport = item.sprt_enm as MileageSport;
-    const sportEmoji =
-      sport === "RUNNING"
-        ? "🏃"
-        : sport === "TRAIL"
-          ? "🏔️"
-          : sport === "CYCLING"
-            ? "🚴"
-            : sport === "SWIMMING"
-              ? "🏊"
-              : "🏃";
+    const sportEmoji = SPORT_EMOJI_MAP[sport] ?? "🏃";
     const dist = Number(item.distance_km);
     return {
       id: item.act_id,
