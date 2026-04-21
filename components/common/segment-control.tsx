@@ -31,6 +31,7 @@ function SegmentControl<T extends string = string>({
         <button
           key={seg.value}
           type="button"
+          aria-pressed={value === seg.value}
           onClick={() => onValueChange(seg.value)}
           className={cn(
             "relative flex-1 rounded-lg border border-transparent py-2 text-[13px] font-medium transition-colors",
