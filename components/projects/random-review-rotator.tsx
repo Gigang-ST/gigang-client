@@ -25,24 +25,24 @@ function pickRandomFive(lines: ReviewLine[]): ReviewLine[] {
 export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
   const picks = useMemo(() => pickRandomFive(lines), [lines]);
   const [index, setIndex] = useState(0);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
     setIndex(0);
-    setIsTransitioning(false);
+    setIsAnimating(false);
   }, [picks]);
 
   useEffect(() => {
     if (picks.length <= 1 || isPaused) return;
     let timeoutId: number | undefined;
     const timer = window.setInterval(() => {
-      setIsTransitioning(true);
+      setIsAnimating(true);
       timeoutId = window.setTimeout(() => {
         setIndex((prev) => (prev + 1) % picks.length);
-        setIsTransitioning(false);
-      }, 280);
-    }, 3000);
+        setIsAnimating(false);
+      }, 560);
+    }, 4200);
     return () => {
       window.clearInterval(timer);
       if (timeoutId) window.clearTimeout(timeoutId);
@@ -52,6 +52,7 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
   if (picks.length === 0) return null;
 
   const current = picks[index] ?? picks[0];
+  const next = picks[(index + 1) % picks.length] ?? current;
   if (!current) return null;
 
   return (
@@ -68,13 +69,18 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
       onTouchEnd={() => setIsPaused(false)}
       onTouchCancel={() => setIsPaused(false)}
     >
-      <div
-        className={`transition-all duration-300 ease-out motion-reduce:transition-none ${
-          isTransitioning ? "-translate-y-1 opacity-0" : "translate-y-0 opacity-100"
-        }`}
-      >
-        <Caption className="line-clamp-1 text-foreground">"{current.quote}"</Caption>
-        <Caption className="line-clamp-1 text-muted-foreground">{current.meta}</Caption>
+      <div className="overflow-hidden">
+        <div
+          className="transition-transform duration-500 ease-in-out motion-reduce:transition-none"
+          style={{ transform: isAnimating ? "translateY(-50%)" : "translateY(0%)" }}
+        >
+          {[current, next].map((line, idx) => (
+            <div key={`${line.id}-${idx}`} className="flex min-h-[44px] flex-col justify-center">
+              <Caption className="line-clamp-1 text-foreground">"{line.quote}"</Caption>
+              <Caption className="line-clamp-1 text-muted-foreground">{line.meta}</Caption>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

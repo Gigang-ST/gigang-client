@@ -140,9 +140,7 @@ function PercentBarTooltip({
       <p className={isMe ? "" : "text-muted-foreground"}>
         {row.percent.toFixed(1)}% ({row.currentKm.toFixed(1)}km/{goalText})
         {row.boosted ? (
-          <span className="ml-1 inline-flex items-center rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
-            🚀 초과
-          </span>
+          <span className="ml-1">🚀</span>
         ) : null}
       </p>
     </div>
@@ -150,11 +148,11 @@ function PercentBarTooltip({
 }
 
 function getPercentCellClass(percent: number): string {
-  if (percent < 20) return "bg-red-500/15 dark:bg-red-400/20";
-  if (percent < 40) return "bg-orange-500/15 dark:bg-orange-400/20";
-  if (percent < 60) return "bg-yellow-500/20 dark:bg-yellow-400/25";
-  if (percent < 80) return "bg-lime-500/20 dark:bg-lime-400/25";
-  return "bg-emerald-500/15 dark:bg-emerald-400/20";
+  if (percent <= 20) return "bg-[#EF9A9A]";
+  if (percent <= 40) return "bg-[#FFCC80]";
+  if (percent <= 60) return "bg-[#FFF59D]";
+  if (percent <= 80) return "bg-[#C5E1A5]";
+  return "bg-[#A5D6A7]";
 }
 
 export function CrewProgressChart({
@@ -527,72 +525,90 @@ export function CrewProgressChart({
       {mode === "stats" ? (
         <div className="rounded-2xl border bg-card">
           <div className="max-h-[52vh] overflow-auto">
-            <table className="min-w-[560px] w-full border-collapse text-[13px] [font-variant-numeric:tabular-nums]">
-              <thead className="sticky top-0 z-30 bg-muted/70">
-                <tr className="border-b text-muted-foreground">
+            <table className="min-w-[540px] w-full border-collapse text-[13px] [font-variant-numeric:tabular-nums]">
+              <thead className="sticky top-0 z-30 bg-card">
+                <tr className="border-b bg-card text-muted-foreground">
                   <th
                     aria-sort={getAriaSort("rank")}
-                    className="sticky left-0 z-40 w-11 bg-muted/70 px-1.5 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border"
+                    className="sticky left-0 z-40 w-[128px] min-w-[128px] max-w-[128px] bg-card px-2 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border"
                   >
                     <button
                       type="button"
-                      className="w-full text-center font-medium"
+                      className="inline-flex w-full items-center justify-center gap-1 text-center font-medium"
                       onClick={() => toggleStatsSort("rank")}
                     >
-                      순위 {sortIndicator("rank")}
+                      <span>순위</span>
+                      <span className="inline-block w-2 text-center">{sortIndicator("rank")}</span>
                     </button>
                   </th>
-                  <th className="sticky left-11 z-40 w-16 bg-muted/70 px-1.5 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border">
-                    이름
-                  </th>
-                  <th aria-sort={getAriaSort("goalKm")} className="w-24 border-r px-2 py-2 text-center">
+                  <th aria-sort={getAriaSort("goalKm")} className="w-24 border-r bg-card px-2 py-2 text-center">
                     <button
                       type="button"
-                      className={`w-full text-center font-medium ${
+                      className={`inline-flex w-full items-center justify-center gap-1 text-center font-medium ${
                         statsSortKey === "goalKm" ? "text-foreground" : ""
                       }`}
                       onClick={() => toggleStatsSort("goalKm")}
                     >
-                      목표거리 {sortIndicator("goalKm")}
+                      <span>목표거리</span>
+                      <span className="inline-block w-2 text-center">{sortIndicator("goalKm")}</span>
                     </button>
                   </th>
-                  <th aria-sort={getAriaSort("currentKm")} className="w-24 border-r px-2 py-2 text-center">
+                  <th aria-sort={getAriaSort("currentKm")} className="w-24 border-r bg-card px-2 py-2 text-center">
                     <button
                       type="button"
-                      className={`w-full text-center font-medium ${
+                      className={`inline-flex w-full items-center justify-center gap-1 text-center font-medium ${
                         statsSortKey === "currentKm" ? "text-foreground" : ""
                       }`}
                       onClick={() => toggleStatsSort("currentKm")}
                     >
-                      누적거리 {sortIndicator("currentKm")}
+                      <span>누적거리</span>
+                      <span className="inline-block w-2 text-center">{sortIndicator("currentKm")}</span>
                     </button>
                   </th>
-                  <th aria-sort={getAriaSort("percent")} className="w-20 border-r px-2 py-2 text-center">
+                  <th aria-sort={getAriaSort("percent")} className="w-20 border-r bg-card px-2 py-2 text-center">
                     <button
                       type="button"
-                      className={`w-full text-center font-medium ${
+                      className={`inline-flex w-full items-center justify-center gap-1 text-center font-medium ${
                         statsSortKey === "percent" ? "text-foreground" : ""
                       }`}
                       onClick={() => toggleStatsSort("percent")}
                     >
-                      달성률 {sortIndicator("percent")}
+                      <span>달성률</span>
+                      <span className="inline-block w-2 text-center">{sortIndicator("percent")}</span>
                     </button>
                   </th>
-                  <th className="w-24 px-2 py-2 text-center">추천거리(일)</th>
+                  <th className="w-24 bg-card px-2 py-2 text-center">추천거리(일)</th>
                 </tr>
               </thead>
               <tbody>
                 {sortedStatsRows.map((row) => (
                   <tr key={row.id} className="border-b last:border-b-0">
-                    <td className="sticky left-0 z-20 bg-card px-1.5 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border">
-                      {row.rank}
-                    </td>
                     <td
-                      className={`sticky left-11 z-20 bg-card px-1.5 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border ${
+                      className={`sticky left-0 z-20 w-[128px] min-w-[128px] max-w-[128px] bg-card px-2 py-2 text-left after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border ${
                         row.name === myName ? "font-semibold text-primary" : ""
                       }`}
                     >
-                      {row.name}
+                      <div className="inline-flex items-center gap-2">
+                        <span className="inline-flex min-w-[20px] items-center justify-center text-center">
+                          {row.rank <= 3 ? (
+                            <span
+                              className={
+                                row.rank === 1
+                                  ? "inline-flex items-center text-amber-500"
+                                  : row.rank === 2
+                                    ? "inline-flex items-center text-slate-400"
+                                    : "inline-flex items-center text-amber-700"
+                              }
+                              title={`${row.rank}위`}
+                            >
+                              <Medal className="size-4" strokeWidth={2} />
+                            </span>
+                          ) : (
+                            row.rank
+                          )}
+                        </span>
+                        <span className="truncate leading-none">{row.name}</span>
+                      </div>
                     </td>
                     <td
                       className={`border-r px-2 py-2.5 text-center whitespace-nowrap ${
@@ -615,9 +631,7 @@ export function CrewProgressChart({
                     >
                       {row.percent.toFixed(1)}%
                       {row.percent >= 120 ? (
-                        <span className="ml-1 inline-flex items-center rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
-                          🚀 초과
-                        </span>
+                        <span className="ml-1">🚀</span>
                       ) : null}
                     </td>
                     <td className="px-2 py-2.5 text-center whitespace-nowrap">
@@ -727,12 +741,6 @@ export function CrewProgressChart({
               stroke="var(--muted-foreground)"
               strokeDasharray="6 4"
               strokeWidth={1.5}
-              label={{
-                value: hasBoostedPercent ? "100% 기준 · 120%+ 🚀" : "100%",
-                position: "right",
-                fontSize: 10,
-                fill: "var(--muted-foreground)",
-              }}
             />
             <Bar dataKey="barPercent" radius={[6, 6, 0, 0]}>
               {memberPercentData.map((item) => (
