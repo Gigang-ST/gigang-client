@@ -456,6 +456,21 @@ export function CrewProgressChart({
     });
     return sorted;
   }, [statsRows, statsSortKey, statsSortDir]);
+  const toggleStatsSort = useCallback((key: StatsSortKey) => {
+    setStatsSortKey((prevKey) => {
+      if (prevKey === key) {
+        setStatsSortDir((prev) => (prev === "desc" ? "asc" : "desc"));
+        return prevKey;
+      }
+      setStatsSortDir("desc");
+      return key;
+    });
+  }, []);
+  const sortIndicator = useCallback(
+    (key: StatsSortKey) =>
+      statsSortKey === key ? (statsSortDir === "desc" ? "▼" : "▲") : "",
+    [statsSortDir, statsSortKey],
+  );
 
   if (loading) {
     return <Skeleton className="h-64 w-full rounded-2xl" />;
@@ -515,48 +530,27 @@ export function CrewProgressChart({
                       <button
                         type="button"
                         className="w-full text-right font-medium"
-                        onClick={() => {
-                          if (statsSortKey === "goalKm") {
-                            setStatsSortDir((prev) => (prev === "desc" ? "asc" : "desc"));
-                          } else {
-                            setStatsSortKey("goalKm");
-                            setStatsSortDir("desc");
-                          }
-                        }}
+                        onClick={() => toggleStatsSort("goalKm")}
                       >
-                        목표거리 {statsSortKey === "goalKm" ? (statsSortDir === "desc" ? "▼" : "▲") : ""}
+                        목표거리 {sortIndicator("goalKm")}
                       </button>
                     </th>
                     <th className="w-[90px] border-r px-2 py-2 text-right">
                       <button
                         type="button"
                         className="w-full text-right font-medium"
-                        onClick={() => {
-                          if (statsSortKey === "currentKm") {
-                            setStatsSortDir((prev) => (prev === "desc" ? "asc" : "desc"));
-                          } else {
-                            setStatsSortKey("currentKm");
-                            setStatsSortDir("desc");
-                          }
-                        }}
+                        onClick={() => toggleStatsSort("currentKm")}
                       >
-                        누적거리 {statsSortKey === "currentKm" ? (statsSortDir === "desc" ? "▼" : "▲") : ""}
+                        누적거리 {sortIndicator("currentKm")}
                       </button>
                     </th>
                     <th className="w-[84px] border-r px-2 py-2 text-right">
                       <button
                         type="button"
                         className="w-full text-right font-medium"
-                        onClick={() => {
-                          if (statsSortKey === "percent") {
-                            setStatsSortDir((prev) => (prev === "desc" ? "asc" : "desc"));
-                          } else {
-                            setStatsSortKey("percent");
-                            setStatsSortDir("desc");
-                          }
-                        }}
+                        onClick={() => toggleStatsSort("percent")}
                       >
-                        달성률 {statsSortKey === "percent" ? (statsSortDir === "desc" ? "▼" : "▲") : ""}
+                        달성률 {sortIndicator("percent")}
                       </button>
                     </th>
                     <th className="w-[90px] px-2 py-2 text-right">추천거리(일)</th>
