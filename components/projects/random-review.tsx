@@ -31,19 +31,25 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
 
   if (!reviews || reviews.length === 0) return null;
 
-  const lines: ReviewLine[] = reviews.map((item) => {
-    const name = (item.mem_mst as unknown as { mem_nm: string }).mem_nm;
-    const sport = item.sprt_enm as MileageSport;
-    const sportEmoji = SPORT_EMOJI_MAP[sport] ?? "🏃";
-    const dist = Number(item.distance_km);
-    const safeDist = Number.isFinite(dist) ? dist : 0;
-    const formattedDist = safeDist % 1 === 0 ? safeDist : safeDist.toFixed(1);
-    return {
-      id: item.act_id,
-      quote: item.review,
-      meta: `${name} · ${sportEmoji} ${formattedDist}km`,
-    };
-  });
+  const lines: ReviewLine[] = reviews
+    .map((item) => {
+      const quote = item.review?.trim();
+      if (!quote) return null;
+      const name = (item.mem_mst as unknown as { mem_nm: string }).mem_nm;
+      const sport = item.sprt_enm as MileageSport;
+      const sportEmoji = SPORT_EMOJI_MAP[sport] ?? "🏃";
+      const dist = Number(item.distance_km);
+      const safeDist = Number.isFinite(dist) ? dist : 0;
+      const formattedDist = safeDist % 1 === 0 ? safeDist : safeDist.toFixed(1);
+      return {
+        id: item.act_id,
+        quote,
+        meta: `${name} · ${sportEmoji} ${formattedDist}km`,
+      };
+    })
+    .filter((line): line is ReviewLine => line !== null);
+
+  if (lines.length === 0) return null;
 
   return <RandomReviewRotator lines={lines} />;
 }
