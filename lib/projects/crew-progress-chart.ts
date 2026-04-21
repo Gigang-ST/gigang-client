@@ -1,4 +1,4 @@
-import { calcDailyNeeded, calcMonthRefundRate } from "@/lib/mileage";
+import { calcDailyNeeded } from "@/lib/mileage";
 
 export type CrewChartMember = {
   id: string;
@@ -202,7 +202,7 @@ export function buildStatsRows(
     name: item.member.name,
     goalKm: item.member.goalKm,
     currentKm: item.currentKm,
-    percent: round1(calcMonthRefundRate(item.currentKm, item.member.goalKm) * 100),
+    percent: round1(item.member.goalKm > 0 ? (item.currentKm / item.member.goalKm) * 100 : 0),
     dailyNeed: calcDailyNeeded(item.currentKm, item.member.goalKm, dayRef, totalDays),
   }));
 }
