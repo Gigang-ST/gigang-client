@@ -254,7 +254,10 @@ export function CrewProgressChart({
 
     const memIdsWithLogs = new Set((logs ?? []).map((l) => l.mem_id));
     const activeParticipants = participants.filter(
-      (p) => memIdsWithLogs.has(p.mem_id) || goalByMemId.has(p.mem_id),
+      (p) =>
+        memIdsWithLogs.has(p.mem_id) ||
+        goalByMemId.has(p.mem_id) ||
+        Number(p.init_goal ?? 0) > 0,
     );
 
     const logsByMem = new Map<string, { day: number; val: number }[]>();
