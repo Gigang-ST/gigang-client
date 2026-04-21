@@ -36,10 +36,12 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
     const sport = item.sprt_enm as MileageSport;
     const sportEmoji = SPORT_EMOJI_MAP[sport] ?? "🏃";
     const dist = Number(item.distance_km);
+    const safeDist = Number.isFinite(dist) ? dist : 0;
+    const formattedDist = safeDist % 1 === 0 ? safeDist : safeDist.toFixed(1);
     return {
       id: item.act_id,
       quote: item.review,
-      meta: `${name} · ${sportEmoji} ${dist % 1 === 0 ? dist : dist.toFixed(1)}km`,
+      meta: `${name} · ${sportEmoji} ${formattedDist}km`,
     };
   });
 
