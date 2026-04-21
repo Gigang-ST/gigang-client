@@ -66,7 +66,10 @@ export async function CrewProgressChartServer({
   // 기록 또는 목표가 있는 참여자만
   const memIdsWithLogs = new Set(monthLogs.map((l) => l.mem_id));
   const activeParticipants = participants.filter(
-    (p) => memIdsWithLogs.has(p.mem_id) || goalByMemId.has(p.mem_id),
+    (p) =>
+      memIdsWithLogs.has(p.mem_id) ||
+      goalByMemId.has(p.mem_id) ||
+      Number(p.init_goal ?? 0) > 0,
   );
 
   // 참여자별 일별 누적 마일리지
