@@ -68,9 +68,29 @@
 | `fee_due_exm_hist` | 회비 면제 적용 이력 |
 | `fee_mem_bal_snap` | 회원 회비 누적 스냅샷 |
 | `evt_team_mst` | 팀 이벤트 마스터 |
-| `evt_team_attd_rel` | 팀 이벤트 참석 관계 |
+| `evt_team_prt_rel` | 이벤트 참가 관계(참가자 기준 루트) |
+| `evt_mlg_mth_snap` | 마일리지 월별 목표/집계 스냅샷 |
+| `evt_mlg_act_hist` | 마일리지 활동 기록 이력 |
+| `evt_mlg_mult_cfg` | 마일리지 배율 설정 |
 | `ttl_mst` | 칭호 마스터 |
 | `mem_ttl_rel` | 회원-칭호 관계 |
+
+## 마일리지런 컬럼 약어 (현재 기준)
+| 컬럼 | 의미 |
+|------|------|
+| `prt_id` | participation ID (이벤트 참가 식별자) |
+| `base_dt` | 기준월 날짜 (`YYYY-MM-01`) |
+| `goal_mlg` | 월 목표 마일리지 |
+| `achv_yn` | 월 목표 달성 여부 |
+| `achv_mlg` | 월 누적 달성 마일리지 |
+| `act_cnt` | 월 활동 건수 |
+| `lst_act_dt` | 월 마지막 활동일 |
+| `sprt_enm` | 종목 enum |
+| `dst_km` | 활동 거리(km) |
+| `elv_m` | 상승고도(m) |
+| `base_mlg` | 배율 적용 전 기본 마일리지 |
+| `aply_mults` | 적용 배율 스냅샷(jsonb 배열) |
+| `final_mlg` | 배율 적용 후 최종 마일리지 |
 
 ## 네이밍 통일 규칙
 - `usr`는 사용하지 않고 `mem`으로 통일한다.
