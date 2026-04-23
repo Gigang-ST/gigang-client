@@ -41,7 +41,7 @@ export async function CrewProgressChartServer({
   const mEnd = monthLastDay(y, m);
 
   // 당월 목표
-  const monthGoals = allGoals.filter((g) => g.std_mth === month);
+  const monthGoals = allGoals.filter((g) => g.base_dt === month);
   const goalByMemId = new Map<string, number>();
   for (const g of monthGoals) {
     goalByMemId.set(g.mem_id, Number(g.goal_mlg));

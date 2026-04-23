@@ -248,11 +248,11 @@ export type Database = {
         Row: {
           act_dt: string
           act_id: string
-          applied_mults: Json | null
+          aply_mults: Json | null
           base_mlg: number
           created_at: string
-          distance_km: number
-          elevation_m: number | null
+          dst_km: number
+          elv_m: number | null
           final_mlg: number
           prt_id: string
           review: string | null
@@ -262,11 +262,11 @@ export type Database = {
         Insert: {
           act_dt: string
           act_id?: string
-          applied_mults?: Json | null
+          aply_mults?: Json | null
           base_mlg: number
           created_at?: string
-          distance_km: number
-          elevation_m?: number | null
+          dst_km: number
+          elv_m?: number | null
           final_mlg: number
           prt_id: string
           review?: string | null
@@ -276,11 +276,11 @@ export type Database = {
         Update: {
           act_dt?: string
           act_id?: string
-          applied_mults?: Json | null
+          aply_mults?: Json | null
           base_mlg?: number
           created_at?: string
-          distance_km?: number
-          elevation_m?: number | null
+          dst_km?: number
+          elv_m?: number | null
           final_mlg?: number
           prt_id?: string
           review?: string | null
@@ -303,58 +303,38 @@ export type Database = {
           achv_yn: boolean
           act_cnt: number
           created_at: string
-          evt_id: string
+          base_dt: string
           goal_id: string
           goal_mlg: number
           lst_act_dt: string | null
-          mem_id: string
           prt_id: string
-          std_mth: string
           updated_at: string
         }
         Insert: {
           achv_mlg?: number
           achv_yn?: boolean
           act_cnt?: number
+          base_dt: string
           created_at?: string
-          evt_id: string
           goal_id?: string
           goal_mlg: number
           lst_act_dt?: string | null
-          mem_id: string
           prt_id: string
-          std_mth: string
           updated_at?: string
         }
         Update: {
           achv_mlg?: number
           achv_yn?: boolean
           act_cnt?: number
+          base_dt?: string
           created_at?: string
-          evt_id?: string
           goal_id?: string
           goal_mlg?: number
           lst_act_dt?: string | null
-          mem_id?: string
           prt_id?: string
-          std_mth?: string
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "evt_mlg_mth_snap_evt_id_fkey"
-            columns: ["evt_id"]
-            isOneToOne: false
-            referencedRelation: "evt_team_mst"
-            referencedColumns: ["evt_id"]
-          },
-          {
-            foreignKeyName: "evt_mlg_mth_snap_mem_id_fkey"
-            columns: ["mem_id"]
-            isOneToOne: false
-            referencedRelation: "mem_mst"
-            referencedColumns: ["mem_id"]
-          },
           {
             foreignKeyName: "evt_mlg_mth_snap_prt_id_fkey"
             columns: ["prt_id"]

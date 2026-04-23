@@ -22,7 +22,7 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
   const { data: reviews } = await supabase
     .from("evt_mlg_act_hist")
     .select(
-      "act_id, review, act_dt, sprt_enm, distance_km, evt_team_prt_rel!inner(evt_id, mem_mst!inner(mem_nm))",
+      "act_id, review, act_dt, sprt_enm, dst_km, evt_team_prt_rel!inner(evt_id, mem_mst!inner(mem_nm))",
     )
     .eq("evt_team_prt_rel.evt_id", evtId)
     .not("review", "is", null)
@@ -41,7 +41,7 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
       const name = rel.mem_mst.mem_nm;
       const sport = item.sprt_enm as MileageSport;
       const sportEmoji = SPORT_EMOJI_MAP[sport] ?? "🏃";
-      const dist = Number(item.distance_km);
+      const dist = Number(item.dst_km);
       const safeDist = Number.isFinite(dist) ? dist : 0;
       const formattedDist = safeDist % 1 === 0 ? safeDist : safeDist.toFixed(1);
       return {

@@ -215,8 +215,6 @@ export function CrewProgressChart({
       return;
     }
 
-    const memIds = participants.map((p) => p.mem_id);
-
     const [{ data: logs }, { data: goals }] = await Promise.all([
       supabase
         .from("evt_mlg_act_hist")
@@ -226,15 +224,21 @@ export function CrewProgressChart({
         .lte("act_dt", monthEnd),
       supabase
         .from("evt_mlg_mth_snap")
-        .select("mem_id, goal_mlg")
-        .eq("evt_id", evtId)
-        .in("mem_id", memIds)
-        .eq("std_mth", month),
+        .select("prt_id, goal_mlg")
+        .in("prt_id", participants.map((p) => p.prt_id))
+        .eq("base_dt", month),
     ]);
+
+    const memIdByPrtId = new Map<string, string>();
+    for (const p of participants) {
+      memIdByPrtId.set(p.prt_id, p.mem_id);
+    }
 
     const goalByMemId = new Map<string, number>();
     for (const g of goals ?? []) {
-      goalByMemId.set(g.mem_id, Number(g.goal_mlg));
+      const mappedMemId = memIdByPrtId.get(g.prt_id);
+      if (!mappedMemId) continue;
+      goalByMemId.set(mappedMemId, Number(g.goal_mlg));
     }
 
     if (memId) {
@@ -248,18 +252,17 @@ export function CrewProgressChart({
       }
     }
 
-    const memIdsWithLogs = new Set((logs ?? []).map((l) => l.mem_id));
+    const memIdsWithLogs = new Set(
+      (logs ?? [])
+        .map((l) => memIdByPrtId.get(l.prt_id))
+        .filter((id): id is string => Boolean(id)),
+    );
     const activeParticipants = participants.filter(
       (p) =>
         memIdsWithLogs.has(p.mem_id) ||
         goalByMemId.has(p.mem_id) ||
         Number(p.init_goal ?? 0) > 0,
     );
-
-    const memIdByPrtId = new Map<string, string>();
-    for (const p of participants) {
-      memIdByPrtId.set(p.prt_id, p.mem_id);
-    }
 
     const logsByMem = new Map<string, { day: number; val: number }[]>();
     for (const log of logs ?? []) {
