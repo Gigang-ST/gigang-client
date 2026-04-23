@@ -2,15 +2,6 @@ import { Suspense } from "react";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { MonthNavigator } from "@/components/projects/month-navigator";
 
-const meta = {
-  title: "Projects/MonthNavigator",
-  component: MonthNavigator,
-  parameters: { layout: "centered" },
-} satisfies Meta<typeof MonthNavigator>;
-
-export default meta;
-type Story = StoryObj<typeof meta>;
-
 function Wrapped(props: React.ComponentProps<typeof MonthNavigator>) {
   return (
     <Suspense fallback={null}>
@@ -18,6 +9,14 @@ function Wrapped(props: React.ComponentProps<typeof MonthNavigator>) {
     </Suspense>
   );
 }
+
+const meta = {
+  title: "Projects/MonthNavigator",
+  parameters: { layout: "centered" },
+} satisfies Meta;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
   render: () => (

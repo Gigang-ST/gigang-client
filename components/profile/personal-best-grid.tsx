@@ -294,7 +294,7 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
                 className={
                   isError
                     ? "text-sm text-destructive"
-                    : "text-sm text-emerald-600"
+                    : "text-sm text-success"
                 }
               >
                 {message}

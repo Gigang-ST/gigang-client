@@ -65,11 +65,11 @@ export function DevEmailLogin({
   return (
     <div
       className={cn(
-        "w-full rounded-xl border border-dashed border-amber-500/40 bg-amber-500/5 p-4",
+        "w-full rounded-xl border border-dashed border-warning/40 bg-warning/5 p-4",
         className,
       )}
     >
-      <p className="mb-3 text-center text-xs font-medium text-amber-800 dark:text-amber-200">
+      <p className="mb-3 text-center text-xs font-medium text-warning">
         개발 환경 전용 · 이메일 로그인
       </p>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">

@@ -46,7 +46,7 @@ function AccountCopyButton() {
         {MEETING_ACCOUNT.bank} {MEETING_ACCOUNT.displayNumber}
       </span>
       {copied ? (
-        <Check className="size-4 text-green-600" />
+        <Check className="size-4 text-success" />
       ) : (
         <Copy className="size-4 text-muted-foreground" />
       )}

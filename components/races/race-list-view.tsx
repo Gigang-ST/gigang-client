@@ -28,9 +28,9 @@ type Tab = "gigang" | "all";
 const MONTHS_EN = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
 const SPORT_LABEL: Record<string, { label: string; className: string }> = {
-  road_run: { label: "마라톤", className: "bg-blue-50 text-blue-600" },
-  triathlon: { label: "트라이애슬론", className: "bg-emerald-50 text-emerald-600" },
-  trail_run: { label: "트레일러닝", className: "bg-amber-50 text-amber-600" },
+  road_run: { label: "마라톤", className: "bg-primary/10 text-primary" },
+  triathlon: { label: "트라이애슬론", className: "bg-info/10 text-info" },
+  trail_run: { label: "트레일러닝", className: "bg-warning/10 text-warning" },
 };
 
 export function RaceListView({

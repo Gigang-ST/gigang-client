@@ -206,8 +206,8 @@ export function MemberOnboardingForm({
         />
         <Card className="border-border bg-white shadow-sm">
           <CardContent className="flex flex-col items-center gap-5 pt-8 pb-8">
-            <div className="flex size-16 items-center justify-center rounded-full bg-green-100">
-              <CheckCircle2 className="size-9 text-green-600" />
+            <div className="flex size-16 items-center justify-center rounded-full bg-success/10">
+              <CheckCircle2 className="size-9 text-success" />
             </div>
             <div className="text-center">
               <h3 className="text-2xl font-bold">가입 완료! 🎉</h3>
@@ -303,7 +303,7 @@ export function MemberOnboardingForm({
                       )}
                     />
                     {form.formState.errors.root?.message ? (
-                      <p className="text-sm text-red-500">
+                      <p className="text-sm text-destructive">
                         {form.formState.errors.root.message}
                       </p>
                     ) : null}
@@ -497,7 +497,7 @@ export function MemberOnboardingForm({
                       )}
                     />
                     {form.formState.errors.root?.message ? (
-                      <p className="text-sm text-red-500">
+                      <p className="text-sm text-destructive">
                         {form.formState.errors.root.message}
                       </p>
                     ) : null}

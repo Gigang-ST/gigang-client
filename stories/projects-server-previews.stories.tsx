@@ -121,9 +121,8 @@ function MyStatusPreview({
 
 const meta = {
   title: "Projects/ServerPreviews",
-  component: RefundStatusPreview,
   parameters: { layout: "centered" },
-} satisfies Meta<typeof RefundStatusPreview>;
+} satisfies Meta;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

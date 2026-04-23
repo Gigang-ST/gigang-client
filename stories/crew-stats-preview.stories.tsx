@@ -31,39 +31,24 @@ function CrewMonthlyStatsPreview({
 
 const meta = {
   title: "Projects/CrewStatsPreview",
-  component: CrewMonthlyStatsPreview,
   parameters: { layout: "centered" },
-} satisfies Meta<typeof CrewMonthlyStatsPreview>;
+} satisfies Meta;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Active: Story = {
-  args: {
-    achievedCount: 8,
-    participantCount: 15,
-    totalMileage: 1240,
-    partyPool: 750000,
-    avgMileage: 82.7,
-  },
-  render: (args) => (
+  render: () => (
     <div className="w-[375px] p-4">
-      <CrewMonthlyStatsPreview {...args} />
+      <CrewMonthlyStatsPreview achievedCount={8} participantCount={15} totalMileage={1240} partyPool={750000} avgMileage={82.7} />
     </div>
   ),
 };
 
 export const EarlyMonth: Story = {
-  args: {
-    achievedCount: 2,
-    participantCount: 15,
-    totalMileage: 320,
-    partyPool: 750000,
-    avgMileage: 21.3,
-  },
-  render: (args) => (
+  render: () => (
     <div className="w-[375px] p-4">
-      <CrewMonthlyStatsPreview {...args} />
+      <CrewMonthlyStatsPreview achievedCount={2} participantCount={15} totalMileage={320} partyPool={750000} avgMileage={21.3} />
     </div>
   ),
 };
