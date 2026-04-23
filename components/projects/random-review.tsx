@@ -21,8 +21,10 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
 
   const { data: reviews } = await supabase
     .from("evt_mlg_act_hist")
-    .select("act_id, review, mem_id, act_dt, sprt_enm, distance_km, mem_mst!inner(mem_nm)")
-    .eq("evt_id", evtId)
+    .select(
+      "act_id, review, act_dt, sprt_enm, dst_km, evt_team_prt_rel!inner(evt_id, mem_mst!inner(mem_nm))",
+    )
+    .eq("evt_team_prt_rel.evt_id", evtId)
     .not("review", "is", null)
     .neq("review", "")
     .gte("act_dt", sevenDaysAgo)
@@ -35,10 +37,11 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
     .map((item) => {
       const quote = item.review?.trim();
       if (!quote) return null;
-      const name = (item.mem_mst as unknown as { mem_nm: string }).mem_nm;
+      const rel = item.evt_team_prt_rel as { mem_mst: { mem_nm: string } };
+      const name = rel.mem_mst.mem_nm;
       const sport = item.sprt_enm as MileageSport;
       const sportEmoji = SPORT_EMOJI_MAP[sport] ?? "🏃";
-      const dist = Number(item.distance_km);
+      const dist = Number(item.dst_km);
       const safeDist = Number.isFinite(dist) ? dist : 0;
       const formattedDist = safeDist % 1 === 0 ? safeDist : safeDist.toFixed(1);
       return {

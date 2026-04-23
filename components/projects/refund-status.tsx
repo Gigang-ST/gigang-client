@@ -47,7 +47,7 @@ export async function RefundStatus({
     );
   }
 
-  // (mem_id, goal_mth) 별 마일리지 합산 맵
+  // (mem_id, base_dt) 별 마일리지 합산 맵
   const mileageMap = new Map<string, number>();
   for (const log of allLogs) {
     const goalMonth = (log.act_dt as string).slice(0, 7) + "-01";
@@ -58,13 +58,13 @@ export async function RefundStatus({
   // mem_id 별 목표 그룹핑
   const goalsByMem = new Map<
     string,
-    { goal_mth: string; goal_val: number }[]
+    { base_dt: string; goal_mlg: number }[]
   >();
   for (const g of allGoals) {
     if (!goalsByMem.has(g.mem_id)) goalsByMem.set(g.mem_id, []);
     goalsByMem.get(g.mem_id)!.push({
-      goal_mth: g.goal_mth as string,
-      goal_val: Number(g.goal_val),
+      base_dt: g.base_dt as string,
+      goal_mlg: Number(g.goal_mlg),
     });
   }
 
@@ -91,11 +91,12 @@ export async function RefundStatus({
     let participantRefund = 0;
 
     for (const g of goals) {
-      if (g.goal_mth < effectiveStart || g.goal_mth > viewMonth) continue;
-      const key = `${p.mem_id}:${g.goal_mth}`;
+      const goalMonth = g.base_dt.slice(0, 7) + "-01";
+      if (goalMonth < effectiveStart || goalMonth > viewMonth) continue;
+      const key = `${p.mem_id}:${goalMonth}`;
       const achieved = mileageMap.get(key) ?? 0;
       participantRefund +=
-        calcMonthRefundRate(achieved, g.goal_val) * DEPOSIT_PER_MONTH;
+        calcMonthRefundRate(achieved, g.goal_mlg) * DEPOSIT_PER_MONTH;
     }
 
     totalRefundSum += participantRefund;

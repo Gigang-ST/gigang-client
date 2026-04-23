@@ -18,8 +18,8 @@ team_mst (1) ──< evt_team_mst (N)
          │
     ┌────┴────┐
     ▼         ▼
-evt_mlg_goal_cfg  evt_mlg_act_hist
-(월별 목표)       (활동 기록, applied_mults jsonb)
+evt_mlg_mth_snap  evt_mlg_act_hist
+(월별 스냅샷)      (활동 기록, aply_mults jsonb)
 ```
 
 ## 3) 엔터티 정의
@@ -68,43 +68,44 @@ evt_mlg_goal_cfg  evt_mlg_act_hist
 - FK: `evt_id` → `evt_team_mst(evt_id)`, `mem_id` → `mem_mst(mem_id)`
 - UK: `(evt_id, mem_id)` — 한 이벤트에 한 회원 1회 참여
 
-### `evt_mlg_goal_cfg` (마일리지 월별 목표 설정)
-회원의 월별 마일리지 목표를 관리한다. 참가 신청 시 시작월~종료월까지 init_goal로 일괄 생성되며, 기록 추가/수정/삭제 시 연쇄 재계산된다.
+### `evt_mlg_mth_snap` (마일리지 월별 스냅샷)
+회원의 월별 목표와 집계 스냅샷을 함께 관리한다. 참가 신청 시 시작월~종료월까지 init_goal로 일괄 생성되며, 기록 추가/수정/삭제 시 연쇄 재계산된다.
 
 | 컬럼 | 타입 | 필수 | 설명 |
 |------|------|------|------|
 | `goal_id` | `uuid` | Y | PK |
-| `evt_id` | `uuid` | Y | FK → `evt_team_mst.evt_id` |
-| `mem_id` | `uuid` | Y | FK → `mem_mst.mem_id` |
-| `goal_mth` | `date` | Y | 대상월 (ex: `2026-05-01`) |
-| `goal_val` | `integer` | Y | 목표 마일리지 (정수) |
-| `achieved_yn` | `boolean` | Y | 달성 여부, 기본값 `false` |
+| `prt_id` | `uuid` | Y | FK → `evt_team_prt_rel.prt_id` |
+| `base_dt` | `date` | Y | 기준월 (ex: `2026-05-01`) |
+| `goal_mlg` | `integer` | Y | 목표 마일리지 (정수) |
+| `achv_yn` | `boolean` | Y | 월 목표 달성 여부, 기본값 `false` |
+| `act_cnt` | `integer` | Y | 해당 월 활동 건수, 기본값 `0` |
+| `achv_mlg` | `numeric(8,2)` | Y | 해당 월 누적 마일리지, 기본값 `0` |
+| `lst_act_dt` | `date` | N | 해당 월 마지막 활동일 |
 | `created_at` | `timestamptz` | Y | 기본값 `now()` |
 | `updated_at` | `timestamptz` | Y | 기본값 `now()` |
 
 핵심 제약:
 - PK: `goal_id`
-- FK: `evt_id` → `evt_team_mst(evt_id)`, `mem_id` → `mem_mst(mem_id)`
-- UK: `(evt_id, mem_id, goal_mth)` — 이벤트 × 회원 × 월 유일
+- FK: `prt_id` → `evt_team_prt_rel(prt_id)`
+- UK: `(prt_id, base_dt)` — 참여자 × 기준월 유일
 
 목표 자동상향 규칙 (연습기간 제외, 실전 기간만):
 - 달성 시: 목표 < 50 → +10, 50~99 → +15, 100+ → +20
 - 미달성 시: 유지
 
 ### `evt_mlg_act_hist` (마일리지 활동 기록)
-회원의 개별 운동 기록. 배율 적용 내역은 `applied_mults` jsonb 스냅샷으로 보존한다.
+회원의 개별 운동 기록. 배율 적용 내역은 `aply_mults` jsonb 스냅샷으로 보존한다.
 
 | 컬럼 | 타입 | 필수 | 설명 |
 |------|------|------|------|
 | `act_id` | `uuid` | Y | PK |
-| `evt_id` | `uuid` | Y | FK → `evt_team_mst.evt_id` |
-| `mem_id` | `uuid` | Y | FK → `mem_mst.mem_id` |
+| `prt_id` | `uuid` | Y | FK → `evt_team_prt_rel.prt_id` |
 | `act_dt` | `date` | Y | 활동 날짜 |
 | `sprt_enm` | `evt_mlg_sprt_enm` | Y | 종목 enum (`RUNNING` / `TRAIL` / `CYCLING` / `SWIMMING`) |
-| `distance_km` | `numeric(6,2)` | Y | 거리 (km) |
-| `elevation_m` | `numeric(7,1)` | N | 상승고도 (m), 수영은 null |
+| `dst_km` | `numeric(6,2)` | Y | 거리 (km) |
+| `elv_m` | `numeric(7,1)` | N | 상승고도 (m), 수영은 null |
 | `base_mlg` | `numeric(6,2)` | Y | 기본 마일리지 (배율 적용 전) |
-| `applied_mults` | `jsonb` | N | 적용 배율 스냅샷 `[{"mult_id", "mult_nm", "mult_val"}]` |
+| `aply_mults` | `jsonb` | N | 적용 배율 스냅샷 `[{"mult_id", "mult_nm", "mult_val"}]` |
 | `final_mlg` | `numeric(6,2)` | Y | 최종 마일리지 (배율 적용 후) |
 | `review` | `text` | N | 한 줄 후기 |
 | `created_at` | `timestamptz` | Y | 기본값 `now()` |
@@ -112,12 +113,12 @@ evt_mlg_goal_cfg  evt_mlg_act_hist
 
 핵심 제약:
 - PK: `act_id`
-- FK: `evt_id` → `evt_team_mst(evt_id)`, `mem_id` → `mem_mst(mem_id)`
+- FK: `prt_id` → `evt_team_prt_rel(prt_id)`
 
 마일리지 계산 공식:
-- 러닝/트레일: `distance_km + elevation_m / 100`
-- 자전거: `distance_km / 4 + elevation_m / 100`
-- 수영: `distance_km × 3`
+- 러닝/트레일: `dst_km + elv_m / 100`
+- 자전거: `dst_km / 4 + elv_m / 100`
+- 수영: `dst_km × 3`
 - 최종: `base_mlg × mult_val1 × mult_val2 × ...`
 
 ### `evt_mlg_mult_cfg` (마일리지 이벤트 배율 설정)
