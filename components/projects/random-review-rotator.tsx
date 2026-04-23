@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Caption } from "@/components/common/typography";
 
 export type ReviewLine = {
@@ -23,15 +23,17 @@ function pickRandomFive(lines: ReviewLine[]): ReviewLine[] {
 }
 
 export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
-  const picks = useMemo(() => pickRandomFive(lines), [lines]);
+  // SSR/CSR 첫 렌더를 동일하게 맞추기 위해 초기값은 고정 순서로 자른다.
+  const [picks, setPicks] = useState<ReviewLine[]>(() => lines.slice(0, 5));
   const [index, setIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
+    setPicks(pickRandomFive(lines));
     setIndex(0);
     setIsAnimating(false);
-  }, [picks]);
+  }, [lines]);
 
   useEffect(() => {
     if (picks.length <= 1 || isPaused) return;
