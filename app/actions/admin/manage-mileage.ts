@@ -204,8 +204,7 @@ export async function rejectParticipation(prtId: string) {
     await db
       .from("evt_mlg_goal_cfg")
       .delete()
-      .eq("evt_id", prt.evt_id)
-      .eq("mem_id", prt.mem_id);
+      .eq("prt_id", prtId);
   }
 
   const { error } = await db
@@ -282,8 +281,8 @@ export async function deleteParticipation(prtId: string) {
     .single();
 
   if (prt) {
-    await db.from("evt_mlg_act_hist").delete().eq("evt_id", prt.evt_id).eq("mem_id", prt.mem_id);
-    await db.from("evt_mlg_goal_cfg").delete().eq("evt_id", prt.evt_id).eq("mem_id", prt.mem_id);
+    await db.from("evt_mlg_act_hist").delete().eq("prt_id", prtId);
+    await db.from("evt_mlg_goal_cfg").delete().eq("prt_id", prtId);
   }
 
   const { error } = await db.from("evt_team_prt_rel").delete().eq("prt_id", prtId);

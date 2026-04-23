@@ -165,17 +165,21 @@ export async function joinProject(
   const singletFeeAmt = 0;
 
   // evt_team_prt_rel INSERT
-  const { error: prtError } = await db.from("evt_team_prt_rel").insert({
-    evt_id: evtId,
-    mem_id: member.id,
-    aprv_yn: false,
-    stt_mth: curMonth,
-    init_goal: initGoal,
-    deposit_amt: depositAmt,
-    entry_fee_amt: entryFeeAmt,
-    singlet_fee_amt: singletFeeAmt,
-    has_singlet_yn: hasSinglet,
-  });
+  const { data: prt, error: prtError } = await db
+    .from("evt_team_prt_rel")
+    .insert({
+      evt_id: evtId,
+      mem_id: member.id,
+      aprv_yn: false,
+      stt_mth: curMonth,
+      init_goal: initGoal,
+      deposit_amt: depositAmt,
+      entry_fee_amt: entryFeeAmt,
+      singlet_fee_amt: singletFeeAmt,
+      has_singlet_yn: hasSinglet,
+    })
+    .select("prt_id")
+    .single();
 
   if (prtError) {
     if (prtError.code === "23505") {
@@ -183,14 +187,23 @@ export async function joinProject(
     }
     return { ok: false, message: "참여 신청에 실패했습니다" };
   }
+  if (!prt) return { ok: false, message: "참여 신청 처리에 실패했습니다" };
 
   // 시작월~종료월까지 전체 목표 미리 생성 (init_goal)
-  const goalRows: { evt_id: string; mem_id: string; goal_mth: string; goal_val: number; achieved_yn: boolean }[] = [];
+  const goalRows: {
+    evt_id: string;
+    mem_id: string;
+    prt_id: string;
+    goal_mth: string;
+    goal_val: number;
+    achieved_yn: boolean;
+  }[] = [];
   let m = curMonth;
   while (m <= evtEndMonth) {
     goalRows.push({
       evt_id: evtId,
       mem_id: member.id,
+      prt_id: prt.prt_id,
       goal_mth: m,
       goal_val: initGoal,
       achieved_yn: false,
@@ -201,11 +214,7 @@ export async function joinProject(
   const { error: goalError } = await db.from("evt_mlg_goal_cfg").insert(goalRows);
 
   if (goalError) {
-    await db
-      .from("evt_team_prt_rel")
-      .delete()
-      .eq("evt_id", evtId)
-      .eq("mem_id", member.id);
+    await db.from("evt_team_prt_rel").delete().eq("prt_id", prt.prt_id);
     return { ok: false, message: "월별 목표 생성에 실패했습니다" };
   }
 
@@ -239,6 +248,18 @@ export async function logActivity(
   const dateErr = validateActivityDate(validInput.act_dt, isAdmin);
   if (dateErr) return { ok: false, message: dateErr };
 
+  const db = createAdminClient();
+  const { data: participant, error: participantErr } = await db
+    .from("evt_team_prt_rel")
+    .select("prt_id")
+    .eq("evt_id", evtId)
+    .eq("mem_id", member.id)
+    .single();
+
+  if (participantErr || !participant) {
+    return { ok: false, message: "참여 신청 정보를 찾을 수 없습니다" };
+  }
+
   const { appliedMults, multValues, error: multErr } = await buildAppliedMults(
     evtId,
     validInput.applied_mult_ids,
@@ -251,10 +272,10 @@ export async function logActivity(
   );
   const finalMlg = roundMileage(calcFinalMileage(baseMlg, multValues));
 
-  const db = createAdminClient();
   const { error } = await db.from("evt_mlg_act_hist").insert({
     evt_id: evtId,
     mem_id: member.id,
+    prt_id: participant.prt_id,
     act_dt: validInput.act_dt,
     sprt_enm: validInput.sprt_enm,
     distance_km: validInput.distance_km,
@@ -268,7 +289,7 @@ export async function logActivity(
   if (error) return { ok: false, message: "활동 기록 추가에 실패했습니다" };
 
   // 기록이 속한 월 이후 목표 연쇄 재계산
-  await recalcGoalsFromMonth(evtId, member.id);
+  await recalcGoalsFromMonth(evtId, participant.prt_id);
 
   revalidatePath("/projects");
   return { ok: true, message: null };
@@ -302,7 +323,7 @@ export async function updateActivity(
   // 기존 기록 조회 → 본인 확인
   const { data: existing, error: fetchErr } = await db
     .from("evt_mlg_act_hist")
-    .select("act_id, mem_id, evt_id")
+    .select("act_id, mem_id, evt_id, prt_id")
     .eq("act_id", actId)
     .single();
 
@@ -343,7 +364,7 @@ export async function updateActivity(
 
   if (error) return { ok: false, message: "활동 기록 수정에 실패했습니다" };
 
-  await recalcGoalsFromMonth(existing.evt_id, existing.mem_id);
+  await recalcGoalsFromMonth(existing.evt_id, existing.prt_id);
 
   revalidatePath("/projects");
   return { ok: true, message: null };
@@ -372,7 +393,7 @@ export async function deleteActivity(
   // 기존 기록 조회 → 본인 확인 + DB의 실제 날짜로 검증
   const { data: existing, error: fetchErr } = await db
     .from("evt_mlg_act_hist")
-    .select("act_id, mem_id, evt_id, act_dt")
+    .select("act_id, mem_id, evt_id, prt_id, act_dt")
     .eq("act_id", actId)
     .single();
 
@@ -391,7 +412,7 @@ export async function deleteActivity(
 
   if (error) return { ok: false, message: "활동 기록 삭제에 실패했습니다" };
 
-  await recalcGoalsFromMonth(existing.evt_id, existing.mem_id);
+  await recalcGoalsFromMonth(existing.evt_id, existing.prt_id);
 
   revalidatePath("/projects");
   return { ok: true, message: null };
@@ -426,7 +447,7 @@ export async function updateMonthlyGoal(
   // 기존 목표 조회 → 본인 확인
   const { data: existing, error: fetchErr } = await db
     .from("evt_mlg_goal_cfg")
-    .select("goal_id, evt_id, mem_id, goal_val")
+    .select("goal_id, evt_id, mem_id, prt_id, goal_val")
     .eq("goal_id", goalId)
     .single();
 
@@ -450,7 +471,7 @@ export async function updateMonthlyGoal(
 
   if (error) return { ok: false, message: "목표 수정에 실패했습니다" };
 
-  await recalcGoalsFromMonth(evtId, existing.mem_id);
+  await recalcGoalsFromMonth(evtId, existing.prt_id);
 
   revalidatePath("/projects");
   return { ok: true, message: null };
@@ -468,7 +489,7 @@ export async function updateMonthlyGoal(
  */
 async function recalcGoalsFromMonth(
   evtId: string,
-  memId: string,
+  prtId: string,
 ): Promise<void> {
   const db = createAdminClient();
 
@@ -488,7 +509,7 @@ async function recalcGoalsFromMonth(
     .from("evt_mlg_goal_cfg")
     .select("goal_id, goal_mth, goal_val")
     .eq("evt_id", evtId)
-    .eq("mem_id", memId)
+    .eq("prt_id", prtId)
     .order("goal_mth", { ascending: true });
 
   if (!goals || goals.length === 0) return;
@@ -498,7 +519,7 @@ async function recalcGoalsFromMonth(
     .from("evt_mlg_act_hist")
     .select("act_dt, final_mlg")
     .eq("evt_id", evtId)
-    .eq("mem_id", memId);
+    .eq("prt_id", prtId);
 
   // 월별 마일리지 합산 맵
   const mlgByMonth = new Map<string, number>();

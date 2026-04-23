@@ -256,6 +256,7 @@ export type Database = {
           evt_id: string
           final_mlg: number
           mem_id: string
+          prt_id: string
           review: string | null
           sprt_enm: string
           updated_at: string
@@ -271,6 +272,7 @@ export type Database = {
           evt_id: string
           final_mlg: number
           mem_id: string
+          prt_id: string
           review?: string | null
           sprt_enm: string
           updated_at?: string
@@ -286,6 +288,7 @@ export type Database = {
           evt_id?: string
           final_mlg?: number
           mem_id?: string
+          prt_id?: string
           review?: string | null
           sprt_enm?: string
           updated_at?: string
@@ -305,6 +308,13 @@ export type Database = {
             referencedRelation: "mem_mst"
             referencedColumns: ["mem_id"]
           },
+          {
+            foreignKeyName: "evt_mlg_act_hist_prt_id_fkey"
+            columns: ["prt_id"]
+            isOneToOne: false
+            referencedRelation: "evt_team_prt_rel"
+            referencedColumns: ["prt_id"]
+          },
         ]
       }
       evt_mlg_goal_cfg: {
@@ -316,6 +326,7 @@ export type Database = {
           goal_mth: string
           goal_val: number
           mem_id: string
+          prt_id: string
           updated_at: string
         }
         Insert: {
@@ -326,6 +337,7 @@ export type Database = {
           goal_mth: string
           goal_val: number
           mem_id: string
+          prt_id: string
           updated_at?: string
         }
         Update: {
@@ -336,6 +348,7 @@ export type Database = {
           goal_mth?: string
           goal_val?: number
           mem_id?: string
+          prt_id?: string
           updated_at?: string
         }
         Relationships: [
@@ -352,6 +365,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "mem_mst"
             referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "evt_mlg_goal_cfg_prt_id_fkey"
+            columns: ["prt_id"]
+            isOneToOne: false
+            referencedRelation: "evt_team_prt_rel"
+            referencedColumns: ["prt_id"]
           },
         ]
       }
