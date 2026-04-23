@@ -11,17 +11,25 @@ const withTheme: Decorator = (Story, context) => {
   // 다크모드 클래스 토글
   root.classList.toggle("dark", darkMode);
 
-  // primary/secondary 색상 주입
+  // primary 계열만 주입 (surface 토큰은 .dark 블록이 담당)
   root.style.setProperty("--primary", theme.primary);
   root.style.setProperty("--primary-foreground", theme.primaryForeground);
-  root.style.setProperty("--secondary", theme.secondary);
-  root.style.setProperty("--secondary-foreground", theme.secondaryForeground);
-  // ring, accent, info는 primary/secondary 따라감
   root.style.setProperty("--ring", theme.primary);
-  root.style.setProperty("--accent", theme.secondary);
-  root.style.setProperty("--accent-foreground", theme.secondaryForeground);
   root.style.setProperty("--info", theme.primary);
   root.style.setProperty("--info-foreground", theme.primaryForeground);
+
+  // 라이트모드에서만 secondary/accent 주입 (다크모드는 .dark 블록 사용)
+  if (!darkMode) {
+    root.style.setProperty("--secondary", theme.secondary);
+    root.style.setProperty("--secondary-foreground", theme.secondaryForeground);
+    root.style.setProperty("--accent", theme.secondary);
+    root.style.setProperty("--accent-foreground", theme.secondaryForeground);
+  } else {
+    root.style.removeProperty("--secondary");
+    root.style.removeProperty("--secondary-foreground");
+    root.style.removeProperty("--accent");
+    root.style.removeProperty("--accent-foreground");
+  }
 
   return Story();
 };

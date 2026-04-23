@@ -346,7 +346,7 @@ export default function NewbiePage() {
         </section>
 
         {/* 6. 하단 고정 CTA */}
-        <div className="fixed inset-x-0 bottom-0 z-50 bg-gradient-to-t from-white via-white/90 to-transparent px-4 pb-4 pt-6">
+        <div className="fixed inset-x-0 bottom-0 z-50 bg-gradient-to-t from-background via-background/90 to-transparent px-4 pb-4 pt-6">
           <div className="mx-auto max-w-xl">
             <Link
               href="/auth/login?next=%2Fonboarding"
