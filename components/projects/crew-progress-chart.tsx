@@ -682,13 +682,13 @@ export function CrewProgressChart({
             {isCurrentMonth && dayRef > 0 && (
               <ReferenceLine
                 x={dayRef}
-                stroke="hsl(var(--primary))"
+                stroke="var(--primary)"
                 strokeOpacity={0.75}
                 strokeDasharray="4 4"
                 label={{
                   value: "오늘",
                   position: "top",
-                  fill: "hsl(var(--primary))",
+                  fill: "var(--primary)",
                   fontSize: 11,
                   fontWeight: 600,
                 }}
@@ -698,7 +698,7 @@ export function CrewProgressChart({
               <ReferenceLine
                 key={tick}
                 y={tick}
-                stroke="hsl(var(--border))"
+                stroke="var(--border)"
                 strokeOpacity={0.65}
               />
             ))}
@@ -759,7 +759,7 @@ export function CrewProgressChart({
               <ReferenceLine
                 key={tick}
                 y={tick}
-                stroke="hsl(var(--border))"
+                stroke="var(--border)"
                 strokeOpacity={0.65}
               />
             ))}

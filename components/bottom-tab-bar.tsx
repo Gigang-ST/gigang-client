@@ -17,7 +17,7 @@ export function BottomTabBar() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-white pb-[env(safe-area-inset-bottom,0px)]">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background pb-[env(safe-area-inset-bottom,0px)]">
       <div className="flex h-14 items-center justify-around">
         {TABS.map((tab) => {
           const isActive =

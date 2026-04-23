@@ -209,7 +209,7 @@ export function MemberOnboardingForm({
 					}}
 					style={{ position: "fixed", top: 0, left: 0, zIndex: 50 }}
 				/>
-				<Card className="border-border bg-white shadow-sm">
+				<Card className="border-border bg-card shadow-sm">
 					<CardContent className="flex flex-col items-center gap-5 pt-8 pb-8">
 						<div className="flex size-16 items-center justify-center rounded-full bg-success/10">
 							<CheckCircle2 className="size-9 text-success" />
@@ -256,7 +256,7 @@ export function MemberOnboardingForm({
 
 	return (
 		<div className={cn("flex flex-col gap-6")}>
-			<Card className="bg-white border-border shadow-sm">
+			<Card className="bg-card border-border shadow-sm">
 				<CardHeader>
 					<CardTitle className="text-2xl">회원 정보 입력</CardTitle>
 					<CardDescription>
