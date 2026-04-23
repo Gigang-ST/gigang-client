@@ -23,7 +23,7 @@ import {
   ENTRY_FEE_WITH_SINGLET,
   type MileageSport,
 } from "@/lib/mileage";
-import { activityLogSchema } from "@/lib/validations/mileage";
+import { activityLogBatchSchema, activityLogSchema } from "@/lib/validations/mileage";
 
 // ─────────────────────────────────────────
 // 타입
@@ -292,6 +292,88 @@ export async function logActivity(
   // 기록이 속한 월 이후 목표 연쇄 재계산
   await recalcGoalsFromMonth(evtId, participant.prt_id);
 
+  revalidatePath("/projects");
+  return { ok: true, message: null };
+}
+
+/**
+ * 마일리지런 활동 기록 다건 추가.
+ * - 건별 유효성 검증 후 단일 INSERT로 원자적 저장
+ * - 전체 성공 시에만 목표 연쇄 재계산
+ */
+export async function logActivitiesBatch(
+  evtId: string,
+  inputs: ActivityLogInput[],
+): Promise<ActionResult> {
+  const parsed = activityLogBatchSchema.safeParse(inputs);
+  if (!parsed.success) return { ok: false, message: "입력값이 올바르지 않습니다" };
+  const validInputs = parsed.data;
+
+  const { member } = await getCurrentMember();
+  if (!member) return { ok: false, message: "로그인이 필요합니다" };
+
+  const admin = await verifyAdmin();
+  const isAdmin = admin !== null;
+
+  const db = createAdminClient();
+  const { data: participant, error: participantErr } = await db
+    .from("evt_team_prt_rel")
+    .select("prt_id")
+    .eq("evt_id", evtId)
+    .eq("mem_id", member.id)
+    .eq("aprv_yn", true)
+    .single();
+
+  if (participantErr || !participant) {
+    return { ok: false, message: "참여 신청 정보를 찾을 수 없습니다" };
+  }
+
+  const rows: {
+    prt_id: string;
+    act_dt: string;
+    sprt_enm: MileageSport;
+    dst_km: number;
+    elv_m: number;
+    base_mlg: number;
+    aply_mults: { mult_id: string; mult_nm: string; mult_val: number }[];
+    final_mlg: number;
+    review: string | null;
+  }[] = [];
+
+  for (let i = 0; i < validInputs.length; i++) {
+    const input = validInputs[i];
+    const dateErr = validateActivityDate(input.act_dt, isAdmin);
+    if (dateErr) return { ok: false, message: `${i + 1}번째 기록: ${dateErr}` };
+
+    const { appliedMults, multValues, error: multErr } = await buildAppliedMults(
+      evtId,
+      input.applied_mult_ids,
+      input.act_dt,
+    );
+    if (multErr) return { ok: false, message: `${i + 1}번째 기록: ${multErr}` };
+
+    const baseMlg = roundMileage(
+      calcBaseMileage(input.sprt_enm, input.distance_km, input.elevation_m),
+    );
+    const finalMlg = roundMileage(calcFinalMileage(baseMlg, multValues));
+
+    rows.push({
+      prt_id: participant.prt_id,
+      act_dt: input.act_dt,
+      sprt_enm: input.sprt_enm,
+      dst_km: input.distance_km,
+      elv_m: input.elevation_m,
+      base_mlg: baseMlg,
+      aply_mults: appliedMults,
+      final_mlg: finalMlg,
+      review: input.review?.trim() || null,
+    });
+  }
+
+  const { error } = await db.from("evt_mlg_act_hist").insert(rows);
+  if (error) return { ok: false, message: "활동 기록 저장에 실패했습니다" };
+
+  await recalcGoalsFromMonth(evtId, participant.prt_id);
   revalidatePath("/projects");
   return { ok: true, message: null };
 }

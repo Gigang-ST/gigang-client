@@ -37,11 +37,11 @@ export function MileageRulesContent() {
         </p>
         <div className="rounded-lg bg-muted/50 p-3 space-y-1 text-[13px]">
           <div className="flex justify-between">
-            <span>50km 미만</span>
+            <span>50km 이하</span>
             <span className="font-medium">+10km</span>
           </div>
           <div className="flex justify-between">
-            <span>50 ~ 100km</span>
+            <span>50km 초과 ~ 100km 미만</span>
             <span className="font-medium">+15km</span>
           </div>
           <div className="flex justify-between">
