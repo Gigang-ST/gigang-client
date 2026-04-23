@@ -17,6 +17,14 @@ export const activityLogSchema = z.object({
 
 export type ActivityLogInput = z.infer<typeof activityLogSchema>;
 
+/** 마일리지런 활동 로그 다건 등록 폼 */
+export const activityLogBatchSchema = z
+  .array(activityLogSchema)
+  .min(1, "최소 1건 이상 입력해 주세요")
+  .max(20, "한 번에 최대 20건까지 입력할 수 있습니다");
+
+export type ActivityLogBatchInput = z.infer<typeof activityLogBatchSchema>;
+
 /** 마일리지런 프로젝트 참가 신청 폼 */
 export const joinProjectSchema = z.object({
   evt_id: z.string().uuid(),
