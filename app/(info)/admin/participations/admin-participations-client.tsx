@@ -6,18 +6,9 @@ import {
   approveParticipation,
   rejectParticipation,
   revokeApproval,
-  updateParticipation,
   deleteParticipation,
 } from "@/app/actions/admin/manage-mileage";
-import { Check, X, HandCoins, Sparkles, Pencil, Trash2, Undo2 } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Check, X, HandCoins, Sparkles, Trash2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { H2, Body, Caption } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
@@ -63,15 +54,6 @@ export function AdminParticipationsClient({ teamId }: { teamId: string }) {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("pending");
   const [processingId, setProcessingId] = useState<string | null>(null);
-  const [editingPrt, setEditingPrt] = useState<Participant | null>(null);
-  const [editForm, setEditForm] = useState({
-    stt_mth: "",
-    init_goal: 0,
-    deposit_amt: 0,
-    entry_fee_amt: 0,
-    singlet_fee_amt: 0,
-    has_singlet_yn: false,
-  });
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -190,35 +172,6 @@ export function AdminParticipationsClient({ teamId }: { teamId: string }) {
     setProcessingId(null);
   };
 
-  const openEdit = (prt: Participant) => {
-    setEditingPrt(prt);
-    setEditForm({
-      stt_mth: prt.stt_mth,
-      init_goal: prt.init_goal,
-      deposit_amt: prt.deposit_amt,
-      entry_fee_amt: prt.entry_fee_amt,
-      singlet_fee_amt: prt.singlet_fee_amt,
-      has_singlet_yn: prt.has_singlet_yn,
-    });
-  };
-
-  const handleEditSave = async () => {
-    if (!editingPrt) return;
-    setProcessingId(editingPrt.prt_id);
-    const result = await updateParticipation(editingPrt.prt_id, editForm);
-    if (result.ok) {
-      setParticipants((prev) =>
-        prev.map((p) =>
-          p.prt_id === editingPrt.prt_id ? { ...p, ...editForm } : p,
-        ),
-      );
-      setEditingPrt(null);
-    } else {
-      alert(result.message);
-    }
-    setProcessingId(null);
-  };
-
   const filteredList = participants.filter((p) =>
     tab === "pending" ? !p.aprv_yn : p.aprv_yn,
   );
@@ -331,16 +284,6 @@ export function AdminParticipationsClient({ teamId }: { teamId: string }) {
                       <Button
                         size="icon-sm"
                         variant="outline"
-                        onClick={() => openEdit(prt)}
-                        disabled={processingId === prt.prt_id}
-                        className="rounded-lg"
-                        aria-label="수정"
-                      >
-                        <Pencil className="size-3.5" />
-                      </Button>
-                      <Button
-                        size="icon-sm"
-                        variant="outline"
                         onClick={() => handleRevoke(prt.prt_id)}
                         disabled={processingId === prt.prt_id}
                         className="rounded-lg"
@@ -407,71 +350,6 @@ export function AdminParticipationsClient({ teamId }: { teamId: string }) {
           )}
         </>
       )}
-      {/* 수정 Sheet */}
-      <Sheet open={editingPrt !== null} onOpenChange={(open) => !open && setEditingPrt(null)}>
-        <SheetContent side="bottom" className="max-h-[80svh] overflow-y-auto rounded-t-2xl">
-          <SheetHeader>
-            <SheetTitle>참여 정보 수정</SheetTitle>
-          </SheetHeader>
-          {editingPrt && (
-            <div className="flex flex-col gap-4 pt-4">
-              <div className="flex flex-col gap-2">
-                <Label>시작월</Label>
-                <Input
-                  type="date"
-                  max="9999-12-31"
-                  value={editForm.stt_mth}
-                  onChange={(e) => setEditForm({ ...editForm, stt_mth: e.target.value })}
-                  className="h-12 rounded-xl border-[1.5px] text-[15px]"
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label>초기 목표 (km)</Label>
-                <Input
-                  type="number"
-                  value={editForm.init_goal}
-                  onChange={(e) => setEditForm({ ...editForm, init_goal: Number(e.target.value) })}
-                  className="h-12 rounded-xl border-[1.5px] text-[15px]"
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label>보증금 (원)</Label>
-                <Input
-                  type="number"
-                  value={editForm.deposit_amt}
-                  onChange={(e) => setEditForm({ ...editForm, deposit_amt: Number(e.target.value) })}
-                  className="h-12 rounded-xl border-[1.5px] text-[15px]"
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label>참가비 (원)</Label>
-                <Input
-                  type="number"
-                  value={editForm.entry_fee_amt}
-                  onChange={(e) => setEditForm({ ...editForm, entry_fee_amt: Number(e.target.value) })}
-                  className="h-12 rounded-xl border-[1.5px] text-[15px]"
-                />
-              </div>
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={editForm.has_singlet_yn}
-                  onChange={(e) => setEditForm({ ...editForm, has_singlet_yn: e.target.checked })}
-                  className="accent-primary w-4 h-4"
-                />
-                <Caption className="text-foreground">싱글렛 보유</Caption>
-              </label>
-              <Button
-                onClick={handleEditSave}
-                disabled={processingId === editingPrt.prt_id}
-                className="h-[52px] w-full rounded-xl text-base font-semibold"
-              >
-                {processingId === editingPrt.prt_id ? "저장 중..." : "저장"}
-              </Button>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }

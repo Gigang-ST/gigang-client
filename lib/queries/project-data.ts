@@ -20,11 +20,14 @@ export const getEventParticipants = cache(async (evtId: string) => {
 export const getEventGoalsMonthly = cache(async (evtId: string, month: string) => {
   const db = createAdminClient();
   const { data } = await db
-    .from("evt_mlg_goal_cfg")
-    .select("mem_id, goal_mth, goal_val, achieved_yn")
-    .eq("evt_id", evtId)
-    .eq("goal_mth", month);
-  return data ?? [];
+    .from("evt_mlg_mth_snap")
+    .select("prt_id, base_dt, goal_mlg, achv_yn, act_cnt, achv_mlg, lst_act_dt, evt_team_prt_rel!inner(mem_id, evt_id)")
+    .eq("evt_team_prt_rel.evt_id", evtId)
+    .eq("base_dt", month);
+  return (data ?? []).map((row) => {
+    const rel = row.evt_team_prt_rel as { mem_id: string; evt_id: string };
+    return { ...row, mem_id: rel.mem_id, evt_id: rel.evt_id };
+  });
 });
 
 /** 이벤트 누적 목표 (startMonth ~ endMonth 포함) */
@@ -33,12 +36,15 @@ export const getEventGoalsCumulative = cache(
     const db = createAdminClient();
     const queryStart = startMonth <= endMonth ? startMonth : endMonth;
     const { data } = await db
-      .from("evt_mlg_goal_cfg")
-      .select("mem_id, goal_mth, goal_val, achieved_yn")
-      .eq("evt_id", evtId)
-      .gte("goal_mth", queryStart)
-      .lte("goal_mth", endMonth);
-    return data ?? [];
+      .from("evt_mlg_mth_snap")
+      .select("prt_id, base_dt, goal_mlg, achv_yn, act_cnt, achv_mlg, lst_act_dt, evt_team_prt_rel!inner(mem_id, evt_id)")
+      .eq("evt_team_prt_rel.evt_id", evtId)
+      .gte("base_dt", queryStart)
+      .lte("base_dt", endMonth);
+    return (data ?? []).map((row) => {
+      const rel = row.evt_team_prt_rel as { mem_id: string; evt_id: string };
+      return { ...row, mem_id: rel.mem_id, evt_id: rel.evt_id };
+    });
   },
 );
 
@@ -48,12 +54,22 @@ export const getEventLogsMonthly = cache(async (evtId: string, month: string) =>
   const { data } = await db
     .from("evt_mlg_act_hist")
     .select(
-      "act_id, mem_id, act_dt, final_mlg, sprt_enm, distance_km, elevation_m, base_mlg, applied_mults, review",
+      "act_id, prt_id, act_dt, final_mlg, sprt_enm, dst_km, elv_m, base_mlg, aply_mults, review, evt_team_prt_rel!inner(mem_id, evt_id)",
     )
-    .eq("evt_id", evtId)
+    .eq("evt_team_prt_rel.evt_id", evtId)
     .gte("act_dt", month)
     .lt("act_dt", nextMonthStr(month));
-  return data ?? [];
+  return (data ?? []).map((row) => {
+    const rel = row.evt_team_prt_rel as { mem_id: string; evt_id: string };
+    return {
+      ...row,
+      mem_id: rel.mem_id,
+      evt_id: rel.evt_id,
+      distance_km: row.dst_km,
+      elevation_m: row.elv_m,
+      applied_mults: row.aply_mults,
+    };
+  });
 });
 
 /** 이벤트 누적 활동 로그 (startDate ~ endMonth 1일 exclusive) */
@@ -64,11 +80,21 @@ export const getEventLogsCumulative = cache(
     const { data } = await db
       .from("evt_mlg_act_hist")
       .select(
-        "act_id, mem_id, act_dt, final_mlg, sprt_enm, distance_km, elevation_m, base_mlg, applied_mults, review",
+        "act_id, prt_id, act_dt, final_mlg, sprt_enm, dst_km, elv_m, base_mlg, aply_mults, review, evt_team_prt_rel!inner(mem_id, evt_id)",
       )
-      .eq("evt_id", evtId)
+      .eq("evt_team_prt_rel.evt_id", evtId)
       .gte("act_dt", queryStart)
       .lt("act_dt", nextMonthStr(endMonth));
-    return data ?? [];
+    return (data ?? []).map((row) => {
+      const rel = row.evt_team_prt_rel as { mem_id: string; evt_id: string };
+      return {
+        ...row,
+        mem_id: rel.mem_id,
+        evt_id: rel.evt_id,
+        distance_km: row.dst_km,
+        elevation_m: row.elv_m,
+        applied_mults: row.aply_mults,
+      };
+    });
   },
 );
