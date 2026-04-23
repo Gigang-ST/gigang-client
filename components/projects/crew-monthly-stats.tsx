@@ -56,7 +56,7 @@ export async function CrewMonthlyStats({
   // 참여자별 당월 목표 맵
   const goalByMem = new Map<string, number>();
   for (const g of monthGoals) {
-    goalByMem.set(g.mem_id, Number(g.goal_val));
+    goalByMem.set(g.mem_id, Number(g.goal_mlg));
   }
 
   // 통계 계산
@@ -97,11 +97,11 @@ export async function CrewMonthlyStats({
 
     const pGoals = cumulativeGoals.filter((g) => g.mem_id === p.mem_id);
     for (const g of pGoals) {
-      if (g.goal_mth < effectiveStart || g.goal_mth > viewMonth) continue;
-      const key = `${p.mem_id}:${g.goal_mth}`;
+      if (g.std_mth < effectiveStart || g.std_mth > viewMonth) continue;
+      const key = `${p.mem_id}:${g.std_mth}`;
       const achieved = mlgMap.get(key) ?? 0;
       totalRefundSum +=
-        calcMonthRefundRate(achieved, Number(g.goal_val)) * DEPOSIT_PER_MONTH;
+        calcMonthRefundRate(achieved, Number(g.goal_mlg)) * DEPOSIT_PER_MONTH;
     }
   }
 

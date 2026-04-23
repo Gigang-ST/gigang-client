@@ -96,11 +96,23 @@ export function RecordsClient({ evtId, memId, evtStartDt, evtEndDt }: Props) {
     const nextY = m === 12 ? y + 1 : y;
     const monthEnd = `${nextY}-${String(nextM).padStart(2, "0")}-01`;
 
+    const { data: participant } = await supabase
+      .from("evt_team_prt_rel")
+      .select("prt_id")
+      .eq("evt_id", evtId)
+      .eq("mem_id", memId)
+      .maybeSingle();
+
+    if (!participant) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
     const { data } = await supabase
       .from("evt_mlg_act_hist")
       .select("act_id, act_dt, sprt_enm, distance_km, elevation_m, base_mlg, applied_mults, final_mlg, review")
-      .eq("evt_id", evtId)
-      .eq("mem_id", memId)
+      .eq("prt_id", participant.prt_id)
       .gte("act_dt", month)
       .lt("act_dt", monthEnd)
       .order("act_dt", { ascending: false });

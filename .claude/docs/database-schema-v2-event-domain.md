@@ -76,8 +76,8 @@ evt_mlg_mth_snap  evt_mlg_act_hist
 | `goal_id` | `uuid` | Y | PK |
 | `evt_id` | `uuid` | Y | FK → `evt_team_mst.evt_id` |
 | `mem_id` | `uuid` | Y | FK → `mem_mst.mem_id` |
-| `goal_mth` | `date` | Y | 대상월 (ex: `2026-05-01`) |
-| `goal_val` | `integer` | Y | 목표 마일리지 (정수) |
+| `std_mth` | `date` | Y | 기준월 (ex: `2026-05-01`) |
+| `goal_mlg` | `integer` | Y | 목표 마일리지 (정수) |
 | `achv_yn` | `boolean` | Y | 월 목표 달성 여부, 기본값 `false` |
 | `act_cnt` | `integer` | Y | 해당 월 활동 건수, 기본값 `0` |
 | `achv_mlg` | `numeric(8,2)` | Y | 해당 월 누적 마일리지, 기본값 `0` |
@@ -88,7 +88,7 @@ evt_mlg_mth_snap  evt_mlg_act_hist
 핵심 제약:
 - PK: `goal_id`
 - FK: `evt_id` → `evt_team_mst(evt_id)`, `mem_id` → `mem_mst(mem_id)`
-- UK: `(prt_id, goal_mth)` — 참여자 × 월 유일
+- UK: `(prt_id, std_mth)` — 참여자 × 기준월 유일
 
 목표 자동상향 규칙 (연습기간 제외, 실전 기간만):
 - 달성 시: 목표 < 50 → +10, 50~99 → +15, 100+ → +20
@@ -100,8 +100,7 @@ evt_mlg_mth_snap  evt_mlg_act_hist
 | 컬럼 | 타입 | 필수 | 설명 |
 |------|------|------|------|
 | `act_id` | `uuid` | Y | PK |
-| `evt_id` | `uuid` | Y | FK → `evt_team_mst.evt_id` |
-| `mem_id` | `uuid` | Y | FK → `mem_mst.mem_id` |
+| `prt_id` | `uuid` | Y | FK → `evt_team_prt_rel.prt_id` |
 | `act_dt` | `date` | Y | 활동 날짜 |
 | `sprt_enm` | `evt_mlg_sprt_enm` | Y | 종목 enum (`RUNNING` / `TRAIL` / `CYCLING` / `SWIMMING`) |
 | `distance_km` | `numeric(6,2)` | Y | 거리 (km) |
@@ -115,7 +114,7 @@ evt_mlg_mth_snap  evt_mlg_act_hist
 
 핵심 제약:
 - PK: `act_id`
-- FK: `evt_id` → `evt_team_mst(evt_id)`, `mem_id` → `mem_mst(mem_id)`
+- FK: `prt_id` → `evt_team_prt_rel(prt_id)`
 
 마일리지 계산 공식:
 - 러닝/트레일: `distance_km + elevation_m / 100`

@@ -253,9 +253,7 @@ export type Database = {
           created_at: string
           distance_km: number
           elevation_m: number | null
-          evt_id: string
           final_mlg: number
-          mem_id: string
           prt_id: string
           review: string | null
           sprt_enm: string
@@ -269,9 +267,7 @@ export type Database = {
           created_at?: string
           distance_km: number
           elevation_m?: number | null
-          evt_id: string
           final_mlg: number
-          mem_id: string
           prt_id: string
           review?: string | null
           sprt_enm: string
@@ -285,29 +281,13 @@ export type Database = {
           created_at?: string
           distance_km?: number
           elevation_m?: number | null
-          evt_id?: string
           final_mlg?: number
-          mem_id?: string
           prt_id?: string
           review?: string | null
           sprt_enm?: string
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "evt_mlg_act_hist_evt_id_fkey"
-            columns: ["evt_id"]
-            isOneToOne: false
-            referencedRelation: "evt_team_mst"
-            referencedColumns: ["evt_id"]
-          },
-          {
-            foreignKeyName: "evt_mlg_act_hist_mem_id_fkey"
-            columns: ["mem_id"]
-            isOneToOne: false
-            referencedRelation: "mem_mst"
-            referencedColumns: ["mem_id"]
-          },
           {
             foreignKeyName: "evt_mlg_act_hist_prt_id_fkey"
             columns: ["prt_id"]
@@ -325,11 +305,11 @@ export type Database = {
           created_at: string
           evt_id: string
           goal_id: string
-          goal_mth: string
-          goal_val: number
+          goal_mlg: number
           lst_act_dt: string | null
           mem_id: string
           prt_id: string
+          std_mth: string
           updated_at: string
         }
         Insert: {
@@ -339,11 +319,11 @@ export type Database = {
           created_at?: string
           evt_id: string
           goal_id?: string
-          goal_mth: string
-          goal_val: number
+          goal_mlg: number
           lst_act_dt?: string | null
           mem_id: string
           prt_id: string
+          std_mth: string
           updated_at?: string
         }
         Update: {
@@ -353,11 +333,11 @@ export type Database = {
           created_at?: string
           evt_id?: string
           goal_id?: string
-          goal_mth?: string
-          goal_val?: number
+          goal_mlg?: number
           lst_act_dt?: string | null
           mem_id?: string
           prt_id?: string
+          std_mth?: string
           updated_at?: string
         }
         Relationships: [

@@ -21,9 +21,9 @@ export const getEventGoalsMonthly = cache(async (evtId: string, month: string) =
   const db = createAdminClient();
   const { data } = await db
     .from("evt_mlg_mth_snap")
-    .select("mem_id, prt_id, goal_mth, goal_val, achv_yn, act_cnt, achv_mlg, lst_act_dt")
+    .select("mem_id, prt_id, std_mth, goal_mlg, achv_yn, act_cnt, achv_mlg, lst_act_dt")
     .eq("evt_id", evtId)
-    .eq("goal_mth", month);
+    .eq("std_mth", month);
   return data ?? [];
 });
 
@@ -34,10 +34,10 @@ export const getEventGoalsCumulative = cache(
     const queryStart = startMonth <= endMonth ? startMonth : endMonth;
     const { data } = await db
       .from("evt_mlg_mth_snap")
-      .select("mem_id, prt_id, goal_mth, goal_val, achv_yn, act_cnt, achv_mlg, lst_act_dt")
+      .select("mem_id, prt_id, std_mth, goal_mlg, achv_yn, act_cnt, achv_mlg, lst_act_dt")
       .eq("evt_id", evtId)
-      .gte("goal_mth", queryStart)
-      .lte("goal_mth", endMonth);
+      .gte("std_mth", queryStart)
+      .lte("std_mth", endMonth);
     return data ?? [];
   },
 );
@@ -48,12 +48,19 @@ export const getEventLogsMonthly = cache(async (evtId: string, month: string) =>
   const { data } = await db
     .from("evt_mlg_act_hist")
     .select(
-      "act_id, mem_id, act_dt, final_mlg, sprt_enm, distance_km, elevation_m, base_mlg, applied_mults, review",
+      "act_id, prt_id, act_dt, final_mlg, sprt_enm, distance_km, elevation_m, base_mlg, applied_mults, review, evt_team_prt_rel!inner(mem_id, evt_id)",
     )
-    .eq("evt_id", evtId)
+    .eq("evt_team_prt_rel.evt_id", evtId)
     .gte("act_dt", month)
     .lt("act_dt", nextMonthStr(month));
-  return data ?? [];
+  return (data ?? []).map((row) => {
+    const rel = row.evt_team_prt_rel as { mem_id: string; evt_id: string };
+    return {
+      ...row,
+      mem_id: rel.mem_id,
+      evt_id: rel.evt_id,
+    };
+  });
 });
 
 /** 이벤트 누적 활동 로그 (startDate ~ endMonth 1일 exclusive) */
@@ -64,11 +71,18 @@ export const getEventLogsCumulative = cache(
     const { data } = await db
       .from("evt_mlg_act_hist")
       .select(
-        "act_id, mem_id, act_dt, final_mlg, sprt_enm, distance_km, elevation_m, base_mlg, applied_mults, review",
+        "act_id, prt_id, act_dt, final_mlg, sprt_enm, distance_km, elevation_m, base_mlg, applied_mults, review, evt_team_prt_rel!inner(mem_id, evt_id)",
       )
-      .eq("evt_id", evtId)
+      .eq("evt_team_prt_rel.evt_id", evtId)
       .gte("act_dt", queryStart)
       .lt("act_dt", nextMonthStr(endMonth));
-    return data ?? [];
+    return (data ?? []).map((row) => {
+      const rel = row.evt_team_prt_rel as { mem_id: string; evt_id: string };
+      return {
+        ...row,
+        mem_id: rel.mem_id,
+        evt_id: rel.evt_id,
+      };
+    });
   },
 );

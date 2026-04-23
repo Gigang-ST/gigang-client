@@ -45,7 +45,7 @@ export async function MyStatus({
   ]);
 
   const goalRow = allGoals.find(
-    (g) => g.mem_id === memId && g.goal_mth === month,
+    (g) => g.mem_id === memId && g.std_mth === month,
   );
 
   if (!goalRow) {
@@ -56,7 +56,7 @@ export async function MyStatus({
     );
   }
 
-  const goalKm = Number(goalRow.goal_val);
+  const goalKm = Number(goalRow.goal_mlg);
   const myMonthLogs = allLogs.filter(
     (l) =>
       l.mem_id === memId &&

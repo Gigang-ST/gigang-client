@@ -194,8 +194,8 @@ export async function joinProject(
     evt_id: string;
     mem_id: string;
     prt_id: string;
-    goal_mth: string;
-    goal_val: number;
+    std_mth: string;
+    goal_mlg: number;
     achv_yn: boolean;
     act_cnt: number;
     achv_mlg: number;
@@ -207,8 +207,8 @@ export async function joinProject(
       evt_id: evtId,
       mem_id: member.id,
       prt_id: prt.prt_id,
-      goal_mth: m,
-      goal_val: initGoal,
+      std_mth: m,
+      goal_mlg: initGoal,
       achv_yn: false,
       act_cnt: 0,
       achv_mlg: 0,
@@ -279,8 +279,6 @@ export async function logActivity(
   const finalMlg = roundMileage(calcFinalMileage(baseMlg, multValues));
 
   const { error } = await db.from("evt_mlg_act_hist").insert({
-    evt_id: evtId,
-    mem_id: member.id,
     prt_id: participant.prt_id,
     act_dt: validInput.act_dt,
     sprt_enm: validInput.sprt_enm,
@@ -329,12 +327,13 @@ export async function updateActivity(
   // 기존 기록 조회 → 본인 확인
   const { data: existing, error: fetchErr } = await db
     .from("evt_mlg_act_hist")
-    .select("act_id, mem_id, evt_id, prt_id")
+    .select("act_id, prt_id, evt_team_prt_rel!inner(mem_id, evt_id)")
     .eq("act_id", actId)
     .single();
 
   if (fetchErr || !existing) return { ok: false, message: "기록을 찾을 수 없습니다" };
-  if (!isAdmin && existing.mem_id !== member.id) {
+  const existingParticipant = existing.evt_team_prt_rel as { mem_id: string; evt_id: string };
+  if (!isAdmin && existingParticipant.mem_id !== member.id) {
     return { ok: false, message: "본인 기록만 수정할 수 있습니다" };
   }
 
@@ -342,7 +341,7 @@ export async function updateActivity(
   if (dateErr) return { ok: false, message: dateErr };
 
   const { appliedMults, multValues, error: multErr } = await buildAppliedMults(
-    existing.evt_id,
+    existingParticipant.evt_id,
     validInput.applied_mult_ids,
     validInput.act_dt,
   );
@@ -370,7 +369,7 @@ export async function updateActivity(
 
   if (error) return { ok: false, message: "활동 기록 수정에 실패했습니다" };
 
-  await recalcGoalsFromMonth(existing.evt_id, existing.prt_id);
+  await recalcGoalsFromMonth(existingParticipant.evt_id, existing.prt_id);
 
   revalidatePath("/projects");
   return { ok: true, message: null };
@@ -399,12 +398,13 @@ export async function deleteActivity(
   // 기존 기록 조회 → 본인 확인 + DB의 실제 날짜로 검증
   const { data: existing, error: fetchErr } = await db
     .from("evt_mlg_act_hist")
-    .select("act_id, mem_id, evt_id, prt_id, act_dt")
+    .select("act_id, prt_id, act_dt, evt_team_prt_rel!inner(mem_id, evt_id)")
     .eq("act_id", actId)
     .single();
 
   if (fetchErr || !existing) return { ok: false, message: "기록을 찾을 수 없습니다" };
-  if (!isAdmin && existing.mem_id !== member.id) {
+  const existingParticipant = existing.evt_team_prt_rel as { mem_id: string; evt_id: string };
+  if (!isAdmin && existingParticipant.mem_id !== member.id) {
     return { ok: false, message: "본인 기록만 삭제할 수 있습니다" };
   }
 
@@ -418,7 +418,7 @@ export async function deleteActivity(
 
   if (error) return { ok: false, message: "활동 기록 삭제에 실패했습니다" };
 
-  await recalcGoalsFromMonth(existing.evt_id, existing.prt_id);
+  await recalcGoalsFromMonth(existingParticipant.evt_id, existing.prt_id);
 
   revalidatePath("/projects");
   return { ok: true, message: null };
@@ -453,7 +453,7 @@ export async function updateMonthlyGoal(
   // 기존 목표 조회 → 본인 확인
   const { data: existing, error: fetchErr } = await db
     .from("evt_mlg_mth_snap")
-    .select("goal_id, evt_id, mem_id, prt_id, goal_val")
+    .select("goal_id, evt_id, mem_id, prt_id, goal_mlg")
     .eq("goal_id", goalId)
     .single();
 
@@ -463,14 +463,14 @@ export async function updateMonthlyGoal(
     return { ok: false, message: "본인 목표만 수정할 수 있습니다" };
   }
 
-  if (newGoal < Number(existing.goal_val)) {
+  if (newGoal < Number(existing.goal_mlg)) {
     return { ok: false, message: "목표는 현재 값 이상으로만 설정할 수 있습니다" };
   }
 
   const { error } = await db
     .from("evt_mlg_mth_snap")
     .update({
-      goal_val: newGoal,
+      goal_mlg: newGoal,
       updated_at: dayjs().toISOString(),
     })
     .eq("goal_id", goalId);
@@ -513,10 +513,10 @@ async function recalcGoalsFromMonth(
   // 해당 참여자의 전체 목표 조회 (월순)
   const { data: goals } = await db
     .from("evt_mlg_mth_snap")
-    .select("goal_id, goal_mth, goal_val")
+    .select("goal_id, std_mth, goal_mlg")
     .eq("evt_id", evtId)
     .eq("prt_id", prtId)
-    .order("goal_mth", { ascending: true });
+    .order("std_mth", { ascending: true });
 
   if (!goals || goals.length === 0) return;
 
@@ -524,7 +524,6 @@ async function recalcGoalsFromMonth(
   const { data: allLogs } = await db
     .from("evt_mlg_act_hist")
     .select("act_dt, final_mlg")
-    .eq("evt_id", evtId)
     .eq("prt_id", prtId);
 
   // 월별 마일리지/건수/마지막 활동일 집계 맵
@@ -544,11 +543,11 @@ async function recalcGoalsFromMonth(
 
   // 모든 월의 집계 스냅샷을 먼저 갱신한다.
   for (const g of goals) {
-    const month = g.goal_mth as string;
+    const month = g.std_mth as string;
     const achvMlg = roundMileage(mlgByMonth.get(month) ?? 0);
     const actCnt = cntByMonth.get(month) ?? 0;
     const lstActDt = lastDtByMonth.get(month) ?? null;
-    const achvYn = achvMlg >= Number(g.goal_val);
+    const achvYn = achvMlg >= Number(g.goal_mlg);
 
     await db
       .from("evt_mlg_mth_snap")
@@ -567,8 +566,8 @@ async function recalcGoalsFromMonth(
   for (let i = 1; i < goals.length; i++) {
     const prev = goals[i - 1];
     const cur = goals[i];
-    const prevMonth = prev.goal_mth as string;
-    const prevGoalVal = Number(prev.goal_val);
+    const prevMonth = prev.std_mth as string;
+    const prevGoalVal = Number(prev.goal_mlg);
 
     // 연습기간이면 목표 상향 없이 이전 값 유지
     const isPractice = prevMonth < evtStartMonth;
@@ -581,17 +580,17 @@ async function recalcGoalsFromMonth(
       newGoal = calcNextMonthGoal(prevGoalVal, achieved);
     }
 
-    if (Number(cur.goal_val) !== newGoal) {
+    if (Number(cur.goal_mlg) !== newGoal) {
       await db
         .from("evt_mlg_mth_snap")
         .update({
-          goal_val: newGoal,
-          achv_yn: (mlgByMonth.get(cur.goal_mth as string) ?? 0) >= newGoal,
+          goal_mlg: newGoal,
+          achv_yn: (mlgByMonth.get(cur.std_mth as string) ?? 0) >= newGoal,
           updated_at: dayjs().toISOString(),
         })
         .eq("goal_id", cur.goal_id);
       // 업데이트된 값으로 다음 반복에 반영
-      cur.goal_val = newGoal;
+      cur.goal_mlg = newGoal;
     }
   }
 }

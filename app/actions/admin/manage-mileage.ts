@@ -77,7 +77,6 @@ export async function deleteEvent(evtId: string) {
   const db = createAdminClient();
 
   // 연관 데이터 순서대로 삭제
-  await db.from("evt_mlg_act_hist").delete().eq("evt_id", evtId);
   await db.from("evt_mlg_mth_snap").delete().eq("evt_id", evtId);
   await db.from("evt_mlg_mult_cfg").delete().eq("evt_id", evtId);
   await db.from("evt_team_prt_rel").delete().eq("evt_id", evtId);
