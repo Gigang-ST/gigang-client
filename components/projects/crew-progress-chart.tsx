@@ -396,11 +396,11 @@ export function CrewProgressChart({
       const isFutureInCurrentMonth =
         mode === "mileage" && isCurrentMonth && row.day > dayRef;
       for (const key of Object.keys(row)) {
-        if (key === "day" || selectedMemberIdSet.has(key)) {
-          filtered[key] = isFutureInCurrentMonth
-            ? Number.NaN
-            : (row[key] as number | string);
-        }
+        if (key === "day") continue;
+        if (!selectedMemberIdSet.has(key)) continue;
+        filtered[key] = isFutureInCurrentMonth
+          ? Number.NaN
+          : (row[key] as number | string);
       }
       return filtered;
     });
@@ -613,7 +613,7 @@ export function CrewProgressChart({
                         row.name === myName ? "font-semibold text-primary" : ""
                       }`}
                     >
-                      <div className="inline-flex items-center justify-center gap-1">
+                      <div className="flex w-full min-w-0 items-center justify-center gap-1">
                         <span className="inline-flex min-w-[20px] items-center justify-center text-center">
                           {row.rank <= 3 ? (
                             <span
@@ -632,7 +632,7 @@ export function CrewProgressChart({
                             row.rank
                           )}
                         </span>
-                        <span className="truncate text-[10px] leading-none">{row.name}</span>
+                        <span className="min-w-0 flex-1 truncate text-[10px] leading-none">{row.name}</span>
                       </div>
                     </td>
                     <td

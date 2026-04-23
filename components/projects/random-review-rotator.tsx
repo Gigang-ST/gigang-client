@@ -28,7 +28,7 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
   const [index, setIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [tooltipLineId, setTooltipLineId] = useState<string | null>(null);
+  const [tooltipText, setTooltipText] = useState<string | null>(null);
 
   useEffect(() => {
     setPicks(pickRandomFive(lines));
@@ -61,7 +61,7 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
 
   return (
     <div
-      className="rounded-2xl bg-muted px-4 py-3"
+      className="relative rounded-2xl bg-muted px-4 py-3"
       role="status"
       aria-live="polite"
       aria-atomic="true"
@@ -72,13 +72,18 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
       onTouchStart={() => setIsPaused(true)}
       onTouchEnd={() => {
         setIsPaused(false);
-        setTooltipLineId(null);
+        setTooltipText(null);
       }}
       onTouchCancel={() => {
         setIsPaused(false);
-        setTooltipLineId(null);
+        setTooltipText(null);
       }}
     >
+      {tooltipText && (
+        <div className="pointer-events-none absolute bottom-[calc(100%+6px)] left-4 right-4 z-20 rounded-lg border bg-popover px-2 py-1 text-xs leading-4 text-popover-foreground shadow-md">
+          {tooltipText}
+        </div>
+      )}
       <div className="h-[64px] overflow-hidden">
         <div
           className={
@@ -94,21 +99,14 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
               className="flex h-[64px] flex-col justify-center"
               aria-hidden={idx === 1}
             >
-              <div className="relative">
-                <Caption
-                  className="line-clamp-2 wrap-break-word leading-4 text-foreground"
-                  onTouchStart={() => setTooltipLineId(line.id)}
-                  onTouchEnd={() => setTooltipLineId(null)}
-                  onTouchCancel={() => setTooltipLineId(null)}
-                >
-                  "{line.quote}"
-                </Caption>
-                {tooltipLineId === line.id && (
-                  <div className="pointer-events-none absolute bottom-[calc(100%+6px)] left-0 z-20 max-w-[92%] rounded-lg border bg-popover px-2 py-1 text-xs leading-4 text-popover-foreground shadow-md">
-                    {line.quote}
-                  </div>
-                )}
-              </div>
+              <Caption
+                className="line-clamp-2 wrap-break-word leading-4 text-foreground"
+                onTouchStart={() => setTooltipText(line.quote)}
+                onTouchEnd={() => setTooltipText(null)}
+                onTouchCancel={() => setTooltipText(null)}
+              >
+                "{line.quote}"
+              </Caption>
               <Caption className="mt-0.5 line-clamp-1 text-muted-foreground">{line.meta}</Caption>
             </div>
           ))}
