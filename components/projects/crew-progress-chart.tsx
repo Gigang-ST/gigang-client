@@ -148,11 +148,11 @@ function PercentBarTooltip({
 }
 
 function getPercentCellClass(percent: number): string {
-  if (percent <= 20) return "bg-[#EF9A9A]";
-  if (percent <= 40) return "bg-[#FFCC80]";
-  if (percent <= 60) return "bg-[#FFF59D]";
-  if (percent <= 80) return "bg-[#C5E1A5]";
-  return "bg-[#A5D6A7]";
+  if (percent <= 20) return "bg-[#EF9A9A] !text-black";
+  if (percent <= 40) return "bg-[#FFCC80] !text-black";
+  if (percent <= 60) return "bg-[#FFF59D] !text-black";
+  if (percent <= 80) return "bg-[#C5E1A5] !text-black";
+  return "bg-[#A5D6A7] !text-black";
 }
 
 export function CrewProgressChart({
