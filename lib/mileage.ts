@@ -42,7 +42,7 @@ export function calcFinalMileage(
 /** 달성 여부에 따른 다음 달 목표 계산 */
 export function calcNextMonthGoal(currentGoal: number, achieved: boolean): number {
   if (!achieved) return currentGoal;
-  if (currentGoal < 50) return currentGoal + 10;
+  if (currentGoal <= 50) return currentGoal + 10;
   if (currentGoal < 100) return currentGoal + 15;
   return currentGoal + 20;
 }

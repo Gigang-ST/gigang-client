@@ -10,14 +10,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { ActivityLogForm } from "./activity-log-form";
+import { ActivityLogBatchForm } from "./activity-log-batch-form";
 
 type ActivityLogFabProps = {
   evtId: string;
   memId: string;
 };
 
-export function ActivityLogFab({ evtId, memId }: ActivityLogFabProps) {
+export function ActivityLogFab({ evtId, memId: _memId }: ActivityLogFabProps) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
 
@@ -47,10 +47,9 @@ export function ActivityLogFab({ evtId, memId }: ActivityLogFabProps) {
           <SheetHeader className="px-0 pt-4 pb-0">
             <SheetTitle>기록 입력</SheetTitle>
           </SheetHeader>
-          <ActivityLogForm
-            key={open ? "open" : "closed"}
+          <ActivityLogBatchForm
+            key={open ? "open-batch" : "closed-batch"}
             evtId={evtId}
-            memId={memId}
             onSuccess={handleSuccess}
           />
         </SheetContent>
