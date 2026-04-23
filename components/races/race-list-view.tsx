@@ -491,7 +491,7 @@ export function RaceListView({
 						className={cn(
 							"flex-1 rounded-lg py-2 text-sm font-medium transition-colors",
 							tab === seg.value
-								? "bg-foreground text-background"
+								? "bg-primary text-primary-foreground"
 								: "text-muted-foreground",
 						)}
 					>
