@@ -226,7 +226,7 @@ export function CrewProgressChart({
         .gte("act_dt", month)
         .lte("act_dt", monthEnd),
       supabase
-        .from("evt_mlg_goal_cfg")
+        .from("evt_mlg_mth_snap")
         .select("mem_id, goal_val")
         .eq("evt_id", evtId)
         .in("mem_id", memIds)

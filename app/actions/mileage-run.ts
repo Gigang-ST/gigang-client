@@ -217,7 +217,7 @@ export async function joinProject(
     m = nextMonthStr(m);
   }
 
-  const { error: goalError } = await db.from("evt_mlg_goal_cfg").insert(goalRows);
+  const { error: goalError } = await db.from("evt_mlg_mth_snap").insert(goalRows);
 
   if (goalError) {
     await db.from("evt_team_prt_rel").delete().eq("prt_id", prt.prt_id);
@@ -452,7 +452,7 @@ export async function updateMonthlyGoal(
 
   // 기존 목표 조회 → 본인 확인
   const { data: existing, error: fetchErr } = await db
-    .from("evt_mlg_goal_cfg")
+    .from("evt_mlg_mth_snap")
     .select("goal_id, evt_id, mem_id, prt_id, goal_val")
     .eq("goal_id", goalId)
     .single();
@@ -468,7 +468,7 @@ export async function updateMonthlyGoal(
   }
 
   const { error } = await db
-    .from("evt_mlg_goal_cfg")
+    .from("evt_mlg_mth_snap")
     .update({
       goal_val: newGoal,
       updated_at: dayjs().toISOString(),
@@ -512,7 +512,7 @@ async function recalcGoalsFromMonth(
 
   // 해당 참여자의 전체 목표 조회 (월순)
   const { data: goals } = await db
-    .from("evt_mlg_goal_cfg")
+    .from("evt_mlg_mth_snap")
     .select("goal_id, goal_mth, goal_val")
     .eq("evt_id", evtId)
     .eq("prt_id", prtId)
@@ -551,7 +551,7 @@ async function recalcGoalsFromMonth(
     const achvYn = achvMlg >= Number(g.goal_val);
 
     await db
-      .from("evt_mlg_goal_cfg")
+      .from("evt_mlg_mth_snap")
       .update({
         achv_mlg: achvMlg,
         act_cnt: actCnt,
@@ -583,7 +583,7 @@ async function recalcGoalsFromMonth(
 
     if (Number(cur.goal_val) !== newGoal) {
       await db
-        .from("evt_mlg_goal_cfg")
+        .from("evt_mlg_mth_snap")
         .update({
           goal_val: newGoal,
           achv_yn: (mlgByMonth.get(cur.goal_mth as string) ?? 0) >= newGoal,

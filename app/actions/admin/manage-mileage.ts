@@ -78,7 +78,7 @@ export async function deleteEvent(evtId: string) {
 
   // 연관 데이터 순서대로 삭제
   await db.from("evt_mlg_act_hist").delete().eq("evt_id", evtId);
-  await db.from("evt_mlg_goal_cfg").delete().eq("evt_id", evtId);
+  await db.from("evt_mlg_mth_snap").delete().eq("evt_id", evtId);
   await db.from("evt_mlg_mult_cfg").delete().eq("evt_id", evtId);
   await db.from("evt_team_prt_rel").delete().eq("evt_id", evtId);
 
@@ -202,7 +202,7 @@ export async function rejectParticipation(prtId: string) {
 
   if (prt) {
     await db
-      .from("evt_mlg_goal_cfg")
+      .from("evt_mlg_mth_snap")
       .delete()
       .eq("prt_id", prtId);
   }
@@ -282,7 +282,7 @@ export async function deleteParticipation(prtId: string) {
 
   if (prt) {
     await db.from("evt_mlg_act_hist").delete().eq("prt_id", prtId);
-    await db.from("evt_mlg_goal_cfg").delete().eq("prt_id", prtId);
+    await db.from("evt_mlg_mth_snap").delete().eq("prt_id", prtId);
   }
 
   const { error } = await db.from("evt_team_prt_rel").delete().eq("prt_id", prtId);

@@ -317,7 +317,7 @@ export type Database = {
           },
         ]
       }
-      evt_mlg_goal_cfg: {
+      evt_mlg_mth_snap: {
         Row: {
           achv_mlg: number
           achv_yn: boolean
@@ -362,21 +362,21 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "evt_mlg_goal_cfg_evt_id_fkey"
+            foreignKeyName: "evt_mlg_mth_snap_evt_id_fkey"
             columns: ["evt_id"]
             isOneToOne: false
             referencedRelation: "evt_team_mst"
             referencedColumns: ["evt_id"]
           },
           {
-            foreignKeyName: "evt_mlg_goal_cfg_mem_id_fkey"
+            foreignKeyName: "evt_mlg_mth_snap_mem_id_fkey"
             columns: ["mem_id"]
             isOneToOne: false
             referencedRelation: "mem_mst"
             referencedColumns: ["mem_id"]
           },
           {
-            foreignKeyName: "evt_mlg_goal_cfg_prt_id_fkey"
+            foreignKeyName: "evt_mlg_mth_snap_prt_id_fkey"
             columns: ["prt_id"]
             isOneToOne: false
             referencedRelation: "evt_team_prt_rel"
