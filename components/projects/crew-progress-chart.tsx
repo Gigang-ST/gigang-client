@@ -542,10 +542,10 @@ export function CrewProgressChart({
             <table className="min-w-[310px] w-full table-fixed border-collapse text-[11px] [font-variant-numeric:tabular-nums]">
               <colgroup>
                 <col style={{ width: "60px" }} />
-                <col style={{ width: "50px" }} />
-                <col style={{ width: "50px" }} />
-                <col style={{ width: "50px" }} />
                 <col style={{ width: "40px" }} />
+                <col style={{ width: "50px" }} />
+                <col style={{ width: "55px" }} />
+                <col style={{ width: "50px" }} />
               </colgroup>
               <thead className="sticky top-0 z-30 bg-[#F1F3F5]">
                 <tr className="border-b bg-[#F1F3F5] text-[10px] text-muted-foreground">
@@ -564,7 +564,7 @@ export function CrewProgressChart({
                       <span className="inline-block w-1.5 text-center text-[9px]">{sortIndicator("rank")}</span>
                     </button>
                   </th>
-                  <th aria-sort={getAriaSort("goalKm")} className="w-[50px] border-r bg-[#F1F3F5] px-1 py-1.5 text-center">
+                  <th aria-sort={getAriaSort("goalKm")} className="w-[40px] border-r bg-[#F1F3F5] px-1 py-1.5 text-center">
                     <button
                       type="button"
                       className={`inline-flex w-full items-center justify-center gap-0.5 text-center font-medium leading-none ${
@@ -588,7 +588,7 @@ export function CrewProgressChart({
                       <span className="inline-block w-1.5 text-center text-[9px]">{sortIndicator("currentKm")}</span>
                     </button>
                   </th>
-                  <th aria-sort={getAriaSort("percent")} className="w-[50px] border-r bg-[#F1F3F5] px-1 py-1.5 text-center">
+                  <th aria-sort={getAriaSort("percent")} className="w-[55px] border-r bg-[#F1F3F5] px-1 py-1.5 text-center">
                     <button
                       type="button"
                       className={`inline-flex w-full items-center justify-center gap-0.5 text-center font-medium leading-none ${
@@ -600,7 +600,7 @@ export function CrewProgressChart({
                       <span className="inline-block w-1.5 text-center text-[9px]">{sortIndicator("percent")}</span>
                     </button>
                   </th>
-                  <th className="w-[40px] bg-[#F1F3F5] px-1 py-1.5 text-center">
+                  <th className="w-[50px] bg-[#F1F3F5] px-1 py-1.5 text-center">
                     추천<span className="text-[9px]">(km)</span>
                   </th>
                 </tr>
@@ -640,7 +640,7 @@ export function CrewProgressChart({
                         statsSortKey === "goalKm" ? "bg-muted/25 font-medium" : ""
                       }`}
                     >
-                      {row.goalKm.toFixed(1)}
+                      {row.goalKm.toFixed(0)}
                     </td>
                     <td
                       className={`border-r px-1 py-1.5 text-center whitespace-nowrap ${
