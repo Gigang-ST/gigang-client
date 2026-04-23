@@ -248,14 +248,13 @@ export type Database = {
         Row: {
           act_dt: string
           act_id: string
-          applied_mults: Json | null
+          aply_mults: Json | null
           base_mlg: number
           created_at: string
-          distance_km: number
-          elevation_m: number | null
-          evt_id: string
+          dst_km: number
+          elv_m: number | null
           final_mlg: number
-          mem_id: string
+          prt_id: string
           review: string | null
           sprt_enm: string
           updated_at: string
@@ -263,14 +262,13 @@ export type Database = {
         Insert: {
           act_dt: string
           act_id?: string
-          applied_mults?: Json | null
+          aply_mults?: Json | null
           base_mlg: number
           created_at?: string
-          distance_km: number
-          elevation_m?: number | null
-          evt_id: string
+          dst_km: number
+          elv_m?: number | null
           final_mlg: number
-          mem_id: string
+          prt_id: string
           review?: string | null
           sprt_enm: string
           updated_at?: string
@@ -278,80 +276,71 @@ export type Database = {
         Update: {
           act_dt?: string
           act_id?: string
-          applied_mults?: Json | null
+          aply_mults?: Json | null
           base_mlg?: number
           created_at?: string
-          distance_km?: number
-          elevation_m?: number | null
-          evt_id?: string
+          dst_km?: number
+          elv_m?: number | null
           final_mlg?: number
-          mem_id?: string
+          prt_id?: string
           review?: string | null
           sprt_enm?: string
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "evt_mlg_act_hist_evt_id_fkey"
-            columns: ["evt_id"]
+            foreignKeyName: "evt_mlg_act_hist_prt_id_fkey"
+            columns: ["prt_id"]
             isOneToOne: false
-            referencedRelation: "evt_team_mst"
-            referencedColumns: ["evt_id"]
-          },
-          {
-            foreignKeyName: "evt_mlg_act_hist_mem_id_fkey"
-            columns: ["mem_id"]
-            isOneToOne: false
-            referencedRelation: "mem_mst"
-            referencedColumns: ["mem_id"]
+            referencedRelation: "evt_team_prt_rel"
+            referencedColumns: ["prt_id"]
           },
         ]
       }
-      evt_mlg_goal_cfg: {
+      evt_mlg_mth_snap: {
         Row: {
-          achieved_yn: boolean
+          achv_mlg: number
+          achv_yn: boolean
+          act_cnt: number
           created_at: string
-          evt_id: string
+          base_dt: string
           goal_id: string
-          goal_mth: string
-          goal_val: number
-          mem_id: string
+          goal_mlg: number
+          lst_act_dt: string | null
+          prt_id: string
           updated_at: string
         }
         Insert: {
-          achieved_yn?: boolean
+          achv_mlg?: number
+          achv_yn?: boolean
+          act_cnt?: number
+          base_dt: string
           created_at?: string
-          evt_id: string
           goal_id?: string
-          goal_mth: string
-          goal_val: number
-          mem_id: string
+          goal_mlg: number
+          lst_act_dt?: string | null
+          prt_id: string
           updated_at?: string
         }
         Update: {
-          achieved_yn?: boolean
+          achv_mlg?: number
+          achv_yn?: boolean
+          act_cnt?: number
+          base_dt?: string
           created_at?: string
-          evt_id?: string
           goal_id?: string
-          goal_mth?: string
-          goal_val?: number
-          mem_id?: string
+          goal_mlg?: number
+          lst_act_dt?: string | null
+          prt_id?: string
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "evt_mlg_goal_cfg_evt_id_fkey"
-            columns: ["evt_id"]
+            foreignKeyName: "evt_mlg_mth_snap_prt_id_fkey"
+            columns: ["prt_id"]
             isOneToOne: false
-            referencedRelation: "evt_team_mst"
-            referencedColumns: ["evt_id"]
-          },
-          {
-            foreignKeyName: "evt_mlg_goal_cfg_mem_id_fkey"
-            columns: ["mem_id"]
-            isOneToOne: false
-            referencedRelation: "mem_mst"
-            referencedColumns: ["mem_id"]
+            referencedRelation: "evt_team_prt_rel"
+            referencedColumns: ["prt_id"]
           },
         ]
       }
