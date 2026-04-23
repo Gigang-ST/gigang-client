@@ -196,7 +196,10 @@ export async function joinProject(
     prt_id: string;
     goal_mth: string;
     goal_val: number;
-    achieved_yn: boolean;
+    achv_yn: boolean;
+    act_cnt: number;
+    achv_mlg: number;
+    lst_act_dt: string | null;
   }[] = [];
   let m = curMonth;
   while (m <= evtEndMonth) {
@@ -206,7 +209,10 @@ export async function joinProject(
       prt_id: prt.prt_id,
       goal_mth: m,
       goal_val: initGoal,
-      achieved_yn: false,
+      achv_yn: false,
+      act_cnt: 0,
+      achv_mlg: 0,
+      lst_act_dt: null,
     });
     m = nextMonthStr(m);
   }
@@ -521,11 +527,39 @@ async function recalcGoalsFromMonth(
     .eq("evt_id", evtId)
     .eq("prt_id", prtId);
 
-  // 월별 마일리지 합산 맵
+  // 월별 마일리지/건수/마지막 활동일 집계 맵
   const mlgByMonth = new Map<string, number>();
+  const cntByMonth = new Map<string, number>();
+  const lastDtByMonth = new Map<string, string>();
   for (const log of allLogs ?? []) {
     const m = (log.act_dt as string).slice(0, 7) + "-01";
     mlgByMonth.set(m, (mlgByMonth.get(m) ?? 0) + Number(log.final_mlg));
+    cntByMonth.set(m, (cntByMonth.get(m) ?? 0) + 1);
+    const prevLast = lastDtByMonth.get(m);
+    const actDt = log.act_dt as string;
+    if (!prevLast || actDt > prevLast) {
+      lastDtByMonth.set(m, actDt);
+    }
+  }
+
+  // 모든 월의 집계 스냅샷을 먼저 갱신한다.
+  for (const g of goals) {
+    const month = g.goal_mth as string;
+    const achvMlg = roundMileage(mlgByMonth.get(month) ?? 0);
+    const actCnt = cntByMonth.get(month) ?? 0;
+    const lstActDt = lastDtByMonth.get(month) ?? null;
+    const achvYn = achvMlg >= Number(g.goal_val);
+
+    await db
+      .from("evt_mlg_goal_cfg")
+      .update({
+        achv_mlg: achvMlg,
+        act_cnt: actCnt,
+        lst_act_dt: lstActDt,
+        achv_yn: achvYn,
+        updated_at: dayjs().toISOString(),
+      })
+      .eq("goal_id", g.goal_id);
   }
 
   // 첫 번째 목표는 기준점 (init_goal 또는 사용자가 수정한 값) — 변경 안 함
@@ -550,7 +584,11 @@ async function recalcGoalsFromMonth(
     if (Number(cur.goal_val) !== newGoal) {
       await db
         .from("evt_mlg_goal_cfg")
-        .update({ goal_val: newGoal, updated_at: dayjs().toISOString() })
+        .update({
+          goal_val: newGoal,
+          achv_yn: (mlgByMonth.get(cur.goal_mth as string) ?? 0) >= newGoal,
+          updated_at: dayjs().toISOString(),
+        })
         .eq("goal_id", cur.goal_id);
       // 업데이트된 값으로 다음 반복에 반영
       cur.goal_val = newGoal;

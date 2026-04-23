@@ -21,7 +21,7 @@ export const getEventGoalsMonthly = cache(async (evtId: string, month: string) =
   const db = createAdminClient();
   const { data } = await db
     .from("evt_mlg_goal_cfg")
-    .select("mem_id, goal_mth, goal_val, achieved_yn")
+    .select("mem_id, prt_id, goal_mth, goal_val, achv_yn, act_cnt, achv_mlg, lst_act_dt")
     .eq("evt_id", evtId)
     .eq("goal_mth", month);
   return data ?? [];
@@ -34,7 +34,7 @@ export const getEventGoalsCumulative = cache(
     const queryStart = startMonth <= endMonth ? startMonth : endMonth;
     const { data } = await db
       .from("evt_mlg_goal_cfg")
-      .select("mem_id, goal_mth, goal_val, achieved_yn")
+      .select("mem_id, prt_id, goal_mth, goal_val, achv_yn, act_cnt, achv_mlg, lst_act_dt")
       .eq("evt_id", evtId)
       .gte("goal_mth", queryStart)
       .lte("goal_mth", endMonth);

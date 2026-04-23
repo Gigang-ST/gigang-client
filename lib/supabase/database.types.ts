@@ -319,34 +319,43 @@ export type Database = {
       }
       evt_mlg_goal_cfg: {
         Row: {
-          achieved_yn: boolean
+          achv_mlg: number
+          achv_yn: boolean
+          act_cnt: number
           created_at: string
           evt_id: string
           goal_id: string
           goal_mth: string
           goal_val: number
+          lst_act_dt: string | null
           mem_id: string
           prt_id: string
           updated_at: string
         }
         Insert: {
-          achieved_yn?: boolean
+          achv_mlg?: number
+          achv_yn?: boolean
+          act_cnt?: number
           created_at?: string
           evt_id: string
           goal_id?: string
           goal_mth: string
           goal_val: number
+          lst_act_dt?: string | null
           mem_id: string
           prt_id: string
           updated_at?: string
         }
         Update: {
-          achieved_yn?: boolean
+          achv_mlg?: number
+          achv_yn?: boolean
+          act_cnt?: number
           created_at?: string
           evt_id?: string
           goal_id?: string
           goal_mth?: string
           goal_val?: number
+          lst_act_dt?: string | null
           mem_id?: string
           prt_id?: string
           updated_at?: string
