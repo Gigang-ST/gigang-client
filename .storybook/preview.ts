@@ -3,6 +3,9 @@ import "../app/globals.css";
 
 const preview: Preview = {
   parameters: {
+    nextjs: {
+      appDirectory: true,
+    },
     controls: {
       matchers: {
         color: /(background|color)$/i,
@@ -12,7 +15,17 @@ const preview: Preview = {
     layout: "centered",
     options: {
       storySort: {
-        order: ["Design Tokens", "UI", "Common", "Profile"],
+        order: [
+          "Design Tokens",
+          "Navigation",
+          "UI",
+          "Common",
+          "Home",
+          "Profile",
+          "Projects",
+          "Races",
+          "Settings",
+        ],
       },
     },
   },
