@@ -4,7 +4,6 @@ import {
   DEPOSIT_PER_MONTH,
   ENTRY_FEE_WITH_SINGLET,
 } from "@/lib/mileage";
-import { StatCard } from "@/components/common/stat-card";
 import {
   getEventParticipants,
   getEventGoalsCumulative,
@@ -111,21 +110,23 @@ export async function CrewMonthlyStats({
     totalRefundSum +
     participantCount * ENTRY_FEE_WITH_SINGLET;
 
+  const stats = [
+    { label: "달성/참가", value: `${achievedCount} / ${participantCount}` },
+    { label: "총 마일리지", value: `${totalMileage.toFixed(0)} km` },
+    { label: "회식비 풀", value: `₩${Math.floor(partyPool).toLocaleString()}` },
+    { label: "평균", value: `${avgMileage.toFixed(1)} km` },
+  ];
+
   return (
-    <div className="grid grid-cols-2 gap-3">
-      <StatCard
-        value={`${achievedCount} / ${participantCount}`}
-        label="달성인원 / 참가자수"
-      />
-      <StatCard value={`${totalMileage.toFixed(0)} km`} label="총 마일리지" />
-      <StatCard
-        value={`₩${Math.floor(partyPool).toLocaleString()}`}
-        label="총 회식비 풀"
-      />
-      <StatCard
-        value={`${avgMileage.toFixed(1)} km`}
-        label="평균 마일리지"
-      />
+    <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-2xl bg-muted/35 px-4 py-3">
+      {stats.map((stat) => (
+        <div key={stat.label} className="space-y-0.5">
+          <p className="text-[11px] text-muted-foreground">{stat.label}</p>
+          <p className="text-2xl leading-tight font-bold text-foreground">
+            {stat.value}
+          </p>
+        </div>
+      ))}
     </div>
   );
 }

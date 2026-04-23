@@ -191,7 +191,7 @@ export function ActivityLogForm({
           id="act_dt"
           type="date"
           max={today}
-          className="h-12 rounded-xl border-[1.5px] text-[15px]"
+          className="date-no-icon h-12 rounded-xl border-[1.5px] pr-3 text-[15px]"
           {...register("act_dt")}
         />
         {errors.act_dt && (

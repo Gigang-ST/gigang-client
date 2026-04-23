@@ -88,8 +88,10 @@ export default async function ProjectsPage({
       <div className="flex flex-col gap-7 px-6 pb-24">
         <MonthTransitionProvider>
           {/* 이벤트명 + 월 네비게이터 */}
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-xl font-bold break-keep">{event.evt_nm}</h2>
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <h2 className="min-w-0 flex-1 truncate whitespace-nowrap text-lg font-bold tracking-tight sm:text-xl">
+              {event.evt_nm}
+            </h2>
             <MonthNavigator
               currentMonth={selectedMonth}
               startMonth={event.stt_dt}
@@ -111,7 +113,7 @@ export default async function ProjectsPage({
           )}
 
           {/* 월별 동적 콘텐츠 — 전환 시 opacity 처리 */}
-          <TransitionOverlay className="flex flex-col gap-7">
+          <TransitionOverlay className="-mt-2 flex flex-col gap-7">
             <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
               <CrewProgressChartServer
                 key={selectedMonth}
@@ -122,6 +124,11 @@ export default async function ProjectsPage({
                 evtEndMonth={event.end_dt}
               />
             </Suspense>
+            {isParticipant && member && (
+              <Suspense fallback={<Skeleton className="h-40 w-full rounded-2xl" />}>
+                <MyStatus evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
+              </Suspense>
+            )}
             <Suspense fallback={null}>
               <RandomReview evtId={event.evt_id} />
             </Suspense>
@@ -132,9 +139,6 @@ export default async function ProjectsPage({
             {/* 참여자 전용 */}
             {isParticipant && member && (
               <>
-                <Suspense fallback={<Skeleton className="h-40 w-full rounded-2xl" />}>
-                  <MyStatus evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
-                </Suspense>
                 <Suspense fallback={<Skeleton className="h-20 w-full rounded-2xl" />}>
                   <RefundStatus
                     evtId={event.evt_id}

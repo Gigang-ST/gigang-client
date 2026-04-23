@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Caption } from "@/components/common/typography";
 
 export type ReviewLine = {
@@ -23,15 +23,18 @@ function pickRandomFive(lines: ReviewLine[]): ReviewLine[] {
 }
 
 export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
-  const picks = useMemo(() => pickRandomFive(lines), [lines]);
+  // SSR/CSR 첫 렌더를 동일하게 맞추기 위해 초기값은 고정 순서로 자른다.
+  const [picks, setPicks] = useState<ReviewLine[]>(() => lines.slice(0, 5));
   const [index, setIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [tooltipText, setTooltipText] = useState<string | null>(null);
 
   useEffect(() => {
+    setPicks(pickRandomFive(lines));
     setIndex(0);
     setIsAnimating(false);
-  }, [picks]);
+  }, [lines]);
 
   useEffect(() => {
     if (picks.length <= 1 || isPaused) return;
@@ -58,7 +61,7 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
 
   return (
     <div
-      className="rounded-2xl bg-muted px-4 py-3"
+      className="relative rounded-2xl bg-muted px-4 py-3"
       role="status"
       aria-live="polite"
       aria-atomic="true"
@@ -67,10 +70,21 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
       onFocus={() => setIsPaused(true)}
       onBlur={() => setIsPaused(false)}
       onTouchStart={() => setIsPaused(true)}
-      onTouchEnd={() => setIsPaused(false)}
-      onTouchCancel={() => setIsPaused(false)}
+      onTouchEnd={() => {
+        setIsPaused(false);
+        setTooltipText(null);
+      }}
+      onTouchCancel={() => {
+        setIsPaused(false);
+        setTooltipText(null);
+      }}
     >
-      <div className="h-[44px] overflow-hidden">
+      {tooltipText && (
+        <div className="pointer-events-none absolute bottom-[calc(100%+6px)] left-4 right-4 z-20 rounded-lg border bg-popover px-2 py-1 text-xs leading-4 text-popover-foreground shadow-md">
+          {tooltipText}
+        </div>
+      )}
+      <div className="h-[64px] overflow-hidden">
         <div
           className={
             isAnimating
@@ -82,11 +96,18 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
           {[current, next].map((line, idx) => (
             <div
               key={`${line.id}-${idx}`}
-              className="flex h-[44px] flex-col justify-center"
+              className="flex h-[64px] flex-col justify-center"
               aria-hidden={idx === 1}
             >
-              <Caption className="line-clamp-1 text-foreground">"{line.quote}"</Caption>
-              <Caption className="line-clamp-1 text-muted-foreground">{line.meta}</Caption>
+              <Caption
+                className="line-clamp-2 wrap-break-word leading-4 text-foreground"
+                onTouchStart={() => setTooltipText(line.quote)}
+                onTouchEnd={() => setTooltipText(null)}
+                onTouchCancel={() => setTooltipText(null)}
+              >
+                "{line.quote}"
+              </Caption>
+              <Caption className="mt-0.5 line-clamp-1 text-muted-foreground">{line.meta}</Caption>
             </div>
           ))}
         </div>
