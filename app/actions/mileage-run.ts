@@ -256,6 +256,7 @@ export async function logActivity(
     .select("prt_id")
     .eq("evt_id", evtId)
     .eq("mem_id", member.id)
+    .eq("aprv_yn", true)
     .single();
 
   if (participantErr || !participant) {
@@ -536,11 +537,15 @@ async function recalcGoalsFromMonth(
       lastDtByMonth.set(m, actDt);
     }
   }
+  const roundedAchvByMonth = new Map<string, number>();
+  for (const [month, totalMlg] of mlgByMonth.entries()) {
+    roundedAchvByMonth.set(month, roundMileage(totalMlg));
+  }
 
   // 모든 월의 집계 스냅샷을 먼저 갱신한다.
   for (const g of goals) {
     const month = g.base_dt as string;
-    const achvMlg = roundMileage(mlgByMonth.get(month) ?? 0);
+    const achvMlg = roundedAchvByMonth.get(month) ?? 0;
     const actCnt = cntByMonth.get(month) ?? 0;
     const lstActDt = lastDtByMonth.get(month) ?? null;
     const achvYn = achvMlg >= Number(g.goal_mlg);
@@ -572,7 +577,7 @@ async function recalcGoalsFromMonth(
     if (isPractice) {
       newGoal = prevGoalVal;
     } else {
-      const achieved = (mlgByMonth.get(prevMonth) ?? 0) >= prevGoalVal;
+      const achieved = (roundedAchvByMonth.get(prevMonth) ?? 0) >= prevGoalVal;
       newGoal = calcNextMonthGoal(prevGoalVal, achieved);
     }
 
@@ -581,7 +586,7 @@ async function recalcGoalsFromMonth(
         .from("evt_mlg_mth_snap")
         .update({
           goal_mlg: newGoal,
-          achv_yn: (mlgByMonth.get(cur.base_dt as string) ?? 0) >= newGoal,
+          achv_yn: (roundedAchvByMonth.get(cur.base_dt as string) ?? 0) >= newGoal,
           updated_at: dayjs().toISOString(),
         })
         .eq("goal_id", cur.goal_id);

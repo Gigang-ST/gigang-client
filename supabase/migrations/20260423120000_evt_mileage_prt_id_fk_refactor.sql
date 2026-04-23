@@ -23,6 +23,13 @@ WHERE a.evt_id = p.evt_id
   AND a.mem_id = p.mem_id
   AND a.prt_id IS NULL;
 
+-- 기존 참여자 매핑이 불가능한 고아 데이터 정리 후 NOT NULL 적용
+DELETE FROM public.evt_mlg_goal_cfg
+WHERE prt_id IS NULL;
+
+DELETE FROM public.evt_mlg_act_hist
+WHERE prt_id IS NULL;
+
 ALTER TABLE public.evt_mlg_goal_cfg
   ALTER COLUMN prt_id SET NOT NULL;
 

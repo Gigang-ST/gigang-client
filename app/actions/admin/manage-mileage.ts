@@ -191,20 +191,6 @@ export async function rejectParticipation(prtId: string) {
 
   const db = createAdminClient();
 
-  // 연관 목표 삭제
-  const { data: prt } = await db
-    .from("evt_team_prt_rel")
-    .select("evt_id, mem_id")
-    .eq("prt_id", prtId)
-    .single();
-
-  if (prt) {
-    await db
-      .from("evt_mlg_mth_snap")
-      .delete()
-      .eq("prt_id", prtId);
-  }
-
   const { error } = await db
     .from("evt_team_prt_rel")
     .delete()
@@ -271,17 +257,6 @@ export async function deleteParticipation(prtId: string) {
   if (!admin) return { ok: false, message: "권한이 없습니다" };
 
   const db = createAdminClient();
-
-  const { data: prt } = await db
-    .from("evt_team_prt_rel")
-    .select("evt_id, mem_id")
-    .eq("prt_id", prtId)
-    .single();
-
-  if (prt) {
-    await db.from("evt_mlg_act_hist").delete().eq("prt_id", prtId);
-    await db.from("evt_mlg_mth_snap").delete().eq("prt_id", prtId);
-  }
 
   const { error } = await db.from("evt_team_prt_rel").delete().eq("prt_id", prtId);
 

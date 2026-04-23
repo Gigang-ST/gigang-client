@@ -91,8 +91,9 @@ export async function RefundStatus({
     let participantRefund = 0;
 
     for (const g of goals) {
-      if (g.base_dt < effectiveStart || g.base_dt > viewMonth) continue;
-      const key = `${p.mem_id}:${g.base_dt}`;
+      const goalMonth = g.base_dt.slice(0, 7) + "-01";
+      if (goalMonth < effectiveStart || goalMonth > viewMonth) continue;
+      const key = `${p.mem_id}:${goalMonth}`;
       const achieved = mileageMap.get(key) ?? 0;
       participantRefund +=
         calcMonthRefundRate(achieved, g.goal_mlg) * DEPOSIT_PER_MONTH;
