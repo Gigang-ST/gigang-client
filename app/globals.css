@@ -118,12 +118,16 @@
 
   /* Safari date input 정규화 */
   input[type="date"] {
-    -webkit-appearance: none;
-    appearance: none;
     min-height: auto;
     line-height: normal;
   }
   input[type="date"]::-webkit-date-and-time-value {
     text-align: left;
+  }
+
+  /* 특정 date input에서 기본 달력 아이콘 숨김 */
+  .date-no-icon::-webkit-calendar-picker-indicator {
+    display: none;
+    -webkit-appearance: none;
   }
 }
