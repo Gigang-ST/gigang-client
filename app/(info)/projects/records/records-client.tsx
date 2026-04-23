@@ -96,11 +96,23 @@ export function RecordsClient({ evtId, memId, evtStartDt, evtEndDt }: Props) {
     const nextY = m === 12 ? y + 1 : y;
     const monthEnd = `${nextY}-${String(nextM).padStart(2, "0")}-01`;
 
-    const { data } = await supabase
-      .from("evt_mlg_act_hist")
-      .select("act_id, act_dt, sprt_enm, distance_km, elevation_m, base_mlg, applied_mults, final_mlg, review")
+    const { data: participant } = await supabase
+      .from("evt_team_prt_rel")
+      .select("prt_id")
       .eq("evt_id", evtId)
       .eq("mem_id", memId)
+      .maybeSingle();
+
+    if (!participant) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data } = await supabase
+      .from("evt_mlg_act_hist")
+      .select("act_id, act_dt, sprt_enm, dst_km, elv_m, base_mlg, aply_mults, final_mlg, review")
+      .eq("prt_id", participant.prt_id)
       .gte("act_dt", month)
       .lt("act_dt", monthEnd)
       .order("act_dt", { ascending: false });
@@ -108,10 +120,10 @@ export function RecordsClient({ evtId, memId, evtStartDt, evtEndDt }: Props) {
     setRecords(
       (data ?? []).map((r) => ({
         ...r,
-        distance_km: Number(r.distance_km),
-        elevation_m: r.elevation_m ? Number(r.elevation_m) : null,
+        distance_km: Number(r.dst_km),
+        elevation_m: r.elv_m ? Number(r.elv_m) : null,
         base_mlg: Number(r.base_mlg),
-        applied_mults: (r.applied_mults ?? null) as ActivityRecord["applied_mults"],
+        applied_mults: (r.aply_mults ?? null) as ActivityRecord["applied_mults"],
         final_mlg: Number(r.final_mlg),
         review: r.review ?? null,
       })),
