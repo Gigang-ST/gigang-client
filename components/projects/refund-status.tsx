@@ -6,7 +6,6 @@ import {
   DEPOSIT_PER_MONTH,
   ENTRY_FEE_WITH_SINGLET,
 } from "@/lib/mileage";
-import { StatCard } from "@/components/common/stat-card";
 import {
   getEventParticipants,
   getEventGoalsCumulative,
@@ -40,9 +39,15 @@ export async function RefundStatus({
   const participants = allParticipants;
   if (participants.length === 0) {
     return (
-      <div className="grid grid-cols-2 gap-3">
-        <StatCard value="₩0" label="환급 예정금" />
-        <StatCard value="₩0" label="회식비 상한" />
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-2xl bg-muted/35 px-4 py-3">
+        <div className="space-y-0.5">
+          <p className="text-[11px] text-muted-foreground">환급 예정</p>
+          <p className="text-2xl leading-tight font-bold text-foreground">₩0</p>
+        </div>
+        <div className="space-y-0.5">
+          <p className="text-[11px] text-muted-foreground">회식비 지원</p>
+          <p className="text-2xl leading-tight font-bold text-foreground">₩0</p>
+        </div>
       </div>
     );
   }
@@ -120,15 +125,19 @@ export async function RefundStatus({
       : 0;
 
   return (
-    <div className="grid grid-cols-2 gap-3">
-      <StatCard
-        value={`₩${Math.floor(myRefund).toLocaleString()}`}
-        label="환급 예정금"
-      />
-      <StatCard
-        value={`₩${myPartyBudget.toLocaleString()}`}
-        label="회식비 지원금(예상)"
-      />
+    <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-2xl bg-muted/35 px-4 py-3">
+      <div className="space-y-0.5">
+        <p className="text-[11px] text-muted-foreground">환급 예정</p>
+        <p className="text-2xl leading-tight font-bold text-foreground">
+          {`₩${Math.floor(myRefund).toLocaleString()}`}
+        </p>
+      </div>
+      <div className="space-y-0.5">
+        <p className="text-[11px] text-muted-foreground">회식비 지원</p>
+        <p className="text-2xl leading-tight font-bold text-foreground">
+          {`₩${myPartyBudget.toLocaleString()}`}
+        </p>
+      </div>
     </div>
   );
 }
