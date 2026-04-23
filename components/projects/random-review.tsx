@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { todayKST } from "@/lib/dayjs";
+import { formatKoreanShortDate, todayKST } from "@/lib/dayjs";
 import dayjs from "dayjs";
 import { type MileageSport } from "@/lib/mileage";
 import { RandomReviewRotator, type ReviewLine } from "@/components/projects/random-review-rotator";
@@ -44,10 +44,11 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
       const dist = Number(item.dst_km);
       const safeDist = Number.isFinite(dist) ? dist : 0;
       const formattedDist = safeDist % 1 === 0 ? safeDist : safeDist.toFixed(1);
+      const actDate = formatKoreanShortDate(item.act_dt);
       return {
         id: item.act_id,
         quote,
-        meta: `${name} · ${sportEmoji} ${formattedDist}km`,
+        meta: `${name} · ${sportEmoji} ${formattedDist}km · ${actDate}`,
       };
     })
     .filter((line): line is ReviewLine => line !== null);

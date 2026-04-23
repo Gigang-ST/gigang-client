@@ -393,14 +393,18 @@ export function CrewProgressChart({
     const base = mode === "percent" ? percentData : mileageData;
     return base.map((row) => {
       const filtered: DailyPoint = { day: row.day };
+      const isFutureInCurrentMonth =
+        mode === "mileage" && isCurrentMonth && row.day > dayRef;
       for (const key of Object.keys(row)) {
         if (key === "day" || selectedMemberIdSet.has(key)) {
-          filtered[key] = row[key] as number | string;
+          filtered[key] = isFutureInCurrentMonth
+            ? Number.NaN
+            : (row[key] as number | string);
         }
       }
       return filtered;
     });
-  }, [mode, percentData, mileageData, selectedMemberIdSet]);
+  }, [mode, percentData, mileageData, selectedMemberIdSet, isCurrentMonth, dayRef]);
 
   const roleColorMap = useMemo(
     () => buildRoleColorMap(selectedMembers, top, bottom, near, memId),
@@ -449,8 +453,9 @@ export function CrewProgressChart({
   const hasBoostedPercent = memberPercentData.some((item) => item.boosted);
   const percentBarLabelFont =
     percentBarCount > 26 ? 8 : percentBarCount > 18 ? 9 : percentBarCount > 12 ? 10 : 11;
-  const percentBarBottomMargin = percentBarCount > 12 ? 36 : 28;
-  const percentBarXAxisHeight = percentBarCount > 12 ? 48 : 44;
+  // 차트 높이는 유지하고, X축 라벨 영역/하단 마진만 줄여 의미 없는 빈 공간을 압축한다.
+  const percentBarBottomMargin = percentBarCount > 12 ? 30 : 22;
+  const percentBarXAxisHeight = percentBarCount > 12 ? 40 : 36;
   const percentTicks = [0, 20, 40, 60, 80, 100];
   const sortedStatsRows = useMemo(() => {
     const sorted = [...statsRows];
@@ -534,72 +539,81 @@ export function CrewProgressChart({
       {mode === "stats" ? (
         <div className="overflow-hidden rounded-2xl border bg-card">
           <div className="max-h-[52vh] overflow-auto">
-            <table className="min-w-[540px] w-full border-collapse text-[13px] [font-variant-numeric:tabular-nums]">
+            <table className="min-w-[310px] w-full table-fixed border-collapse text-[11px] [font-variant-numeric:tabular-nums]">
+              <colgroup>
+                <col style={{ width: "60px" }} />
+                <col style={{ width: "50px" }} />
+                <col style={{ width: "50px" }} />
+                <col style={{ width: "50px" }} />
+                <col style={{ width: "40px" }} />
+              </colgroup>
               <thead className="sticky top-0 z-30 bg-[#F1F3F5]">
-                <tr className="border-b bg-[#F1F3F5] text-muted-foreground">
+                <tr className="border-b bg-[#F1F3F5] text-[10px] text-muted-foreground">
                   <th
                     aria-sort={getAriaSort("rank")}
-                    className="sticky left-0 z-40 w-[112px] min-w-[112px] max-w-[112px] bg-[#F1F3F5] px-2 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border"
+                    className="sticky left-0 z-40 w-[60px] min-w-[60px] max-w-[60px] bg-[#F1F3F5] px-1 py-1.5 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border"
                   >
                     <button
                       type="button"
-                      className={`inline-flex w-full items-center justify-center gap-1 text-center font-medium ${
+                      className={`inline-flex w-full items-center justify-center gap-0.5 text-center font-medium leading-none ${
                         statsSortKey === "rank" ? "text-foreground" : ""
                       }`}
                       onClick={() => toggleStatsSort("rank")}
                     >
                       <span>순위</span>
-                      <span className="inline-block w-2 text-center">{sortIndicator("rank")}</span>
+                      <span className="inline-block w-1.5 text-center text-[9px]">{sortIndicator("rank")}</span>
                     </button>
                   </th>
-                  <th aria-sort={getAriaSort("goalKm")} className="w-24 border-r bg-[#F1F3F5] px-2 py-2 text-center">
+                  <th aria-sort={getAriaSort("goalKm")} className="w-[50px] border-r bg-[#F1F3F5] px-1 py-1.5 text-center">
                     <button
                       type="button"
-                      className={`inline-flex w-full items-center justify-center gap-1 text-center font-medium ${
+                      className={`inline-flex w-full items-center justify-center gap-0.5 text-center font-medium leading-none ${
                         statsSortKey === "goalKm" ? "text-foreground" : ""
                       }`}
                       onClick={() => toggleStatsSort("goalKm")}
                     >
-                      <span>목표거리</span>
-                      <span className="inline-block w-2 text-center">{sortIndicator("goalKm")}</span>
+                      <span>목표<span className="text-[9px]">(km)</span></span>
+                      <span className="inline-block w-1.5 text-center text-[9px]">{sortIndicator("goalKm")}</span>
                     </button>
                   </th>
-                  <th aria-sort={getAriaSort("currentKm")} className="w-24 border-r bg-[#F1F3F5] px-2 py-2 text-center">
+                  <th aria-sort={getAriaSort("currentKm")} className="w-[50px] border-r bg-[#F1F3F5] px-1 py-1.5 text-center">
                     <button
                       type="button"
-                      className={`inline-flex w-full items-center justify-center gap-1 text-center font-medium ${
+                      className={`inline-flex w-full items-center justify-center gap-0.5 text-center font-medium leading-none ${
                         statsSortKey === "currentKm" ? "text-foreground" : ""
                       }`}
                       onClick={() => toggleStatsSort("currentKm")}
                     >
-                      <span>누적거리</span>
-                      <span className="inline-block w-2 text-center">{sortIndicator("currentKm")}</span>
+                      <span>누적<span className="text-[9px]">(km)</span></span>
+                      <span className="inline-block w-1.5 text-center text-[9px]">{sortIndicator("currentKm")}</span>
                     </button>
                   </th>
-                  <th aria-sort={getAriaSort("percent")} className="w-20 border-r bg-[#F1F3F5] px-2 py-2 text-center">
+                  <th aria-sort={getAriaSort("percent")} className="w-[50px] border-r bg-[#F1F3F5] px-1 py-1.5 text-center">
                     <button
                       type="button"
-                      className={`inline-flex w-full items-center justify-center gap-1 text-center font-medium ${
+                      className={`inline-flex w-full items-center justify-center gap-0.5 text-center font-medium leading-none ${
                         statsSortKey === "percent" ? "text-foreground" : ""
                       }`}
                       onClick={() => toggleStatsSort("percent")}
                     >
-                      <span>달성률</span>
-                      <span className="inline-block w-2 text-center">{sortIndicator("percent")}</span>
+                      <span>달성률<span className="text-[9px]">(%)</span></span>
+                      <span className="inline-block w-1.5 text-center text-[9px]">{sortIndicator("percent")}</span>
                     </button>
                   </th>
-                  <th className="w-24 bg-[#F1F3F5] px-2 py-2 text-center">추천거리(일)</th>
+                  <th className="w-[40px] bg-[#F1F3F5] px-1 py-1.5 text-center">
+                    추천<span className="text-[9px]">(km)</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {sortedStatsRows.map((row) => (
                   <tr key={row.id} className="border-b last:border-b-0">
                     <td
-                      className={`sticky left-0 z-20 w-[112px] min-w-[112px] max-w-[112px] bg-[#F1F3F5] px-2 py-2 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border ${
+                      className={`sticky left-0 z-20 w-[60px] min-w-[60px] max-w-[60px] bg-[#F1F3F5] px-1 py-1 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border ${
                         row.name === myName ? "font-semibold text-primary" : ""
                       }`}
                     >
-                      <div className="inline-flex items-center justify-center gap-2">
+                      <div className="inline-flex items-center justify-center gap-1">
                         <span className="inline-flex min-w-[20px] items-center justify-center text-center">
                           {row.rank <= 3 ? (
                             <span
@@ -612,31 +626,31 @@ export function CrewProgressChart({
                               }
                               title={`${row.rank}위`}
                             >
-                              <Medal className="size-4" strokeWidth={2} />
+                              <Medal className="size-3.5" strokeWidth={2} />
                             </span>
                           ) : (
                             row.rank
                           )}
                         </span>
-                        <span className="truncate leading-none">{row.name}</span>
+                        <span className="truncate text-[10px] leading-none">{row.name}</span>
                       </div>
                     </td>
                     <td
-                      className={`border-r px-2 py-2.5 text-center whitespace-nowrap ${
+                      className={`border-r px-1 py-1.5 text-center whitespace-nowrap ${
                         statsSortKey === "goalKm" ? "bg-muted/25 font-medium" : ""
                       }`}
                     >
-                      {row.goalKm.toFixed(1)} km
+                      {row.goalKm.toFixed(1)}
                     </td>
                     <td
-                      className={`border-r px-2 py-2.5 text-center whitespace-nowrap ${
+                      className={`border-r px-1 py-1.5 text-center whitespace-nowrap ${
                         statsSortKey === "currentKm" ? "bg-muted/25 font-medium" : ""
                       }`}
                     >
-                      {row.currentKm.toFixed(1)} km
+                      {row.currentKm.toFixed(1)}
                     </td>
                     <td
-                      className={`border-r px-2 py-2.5 text-center whitespace-nowrap ${
+                      className={`border-r px-1 py-1.5 text-center whitespace-nowrap ${
                         statsSortKey === "percent" ? "font-semibold" : ""
                       } ${getPercentCellClass(row.percent)}`}
                     >
@@ -645,8 +659,8 @@ export function CrewProgressChart({
                         <span className="ml-1">🚀</span>
                       ) : null}
                     </td>
-                    <td className="px-2 py-2.5 text-center whitespace-nowrap">
-                      {row.dailyNeed === "done" ? "완료" : `${Number(row.dailyNeed).toFixed(1)} km`}
+                    <td className="px-1 py-1.5 text-center whitespace-nowrap">
+                      {row.dailyNeed === "done" ? "완료" : Number(row.dailyNeed).toFixed(1)}
                     </td>
                   </tr>
                 ))}
@@ -661,7 +675,25 @@ export function CrewProgressChart({
           className="outline-none"
         >
           {mode === "mileage" ? (
-            <LineChart data={selectedChartData}>
+            <LineChart
+              data={selectedChartData}
+              margin={{ top: 2, right: 8, left: 0, bottom: 6 }}
+            >
+            {isCurrentMonth && dayRef > 0 && (
+              <ReferenceLine
+                x={dayRef}
+                stroke="hsl(var(--primary))"
+                strokeOpacity={0.75}
+                strokeDasharray="4 4"
+                label={{
+                  value: "오늘",
+                  position: "top",
+                  fill: "hsl(var(--primary))",
+                  fontSize: 11,
+                  fontWeight: 600,
+                }}
+              />
+            )}
             {mileageTicks.map((tick) => (
               <ReferenceLine
                 key={tick}
@@ -671,10 +703,13 @@ export function CrewProgressChart({
               />
             ))}
             <XAxis
+              type="number"
               dataKey="day"
               tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
               domain={[1, totalDays]}
+              allowDataOverflow
               tickFormatter={(d: number) => `${d}일`}
+              height={24}
             />
             <YAxis
               tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}

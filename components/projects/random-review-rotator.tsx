@@ -28,6 +28,7 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
   const [index, setIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [tooltipLineId, setTooltipLineId] = useState<string | null>(null);
 
   useEffect(() => {
     setPicks(pickRandomFive(lines));
@@ -69,10 +70,16 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
       onFocus={() => setIsPaused(true)}
       onBlur={() => setIsPaused(false)}
       onTouchStart={() => setIsPaused(true)}
-      onTouchEnd={() => setIsPaused(false)}
-      onTouchCancel={() => setIsPaused(false)}
+      onTouchEnd={() => {
+        setIsPaused(false);
+        setTooltipLineId(null);
+      }}
+      onTouchCancel={() => {
+        setIsPaused(false);
+        setTooltipLineId(null);
+      }}
     >
-      <div className="h-[44px] overflow-hidden">
+      <div className="h-[64px] overflow-hidden">
         <div
           className={
             isAnimating
@@ -84,11 +91,25 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
           {[current, next].map((line, idx) => (
             <div
               key={`${line.id}-${idx}`}
-              className="flex h-[44px] flex-col justify-center"
+              className="flex h-[64px] flex-col justify-center"
               aria-hidden={idx === 1}
             >
-              <Caption className="line-clamp-1 text-foreground">"{line.quote}"</Caption>
-              <Caption className="line-clamp-1 text-muted-foreground">{line.meta}</Caption>
+              <div className="relative">
+                <Caption
+                  className="line-clamp-2 wrap-break-word leading-4 text-foreground"
+                  onTouchStart={() => setTooltipLineId(line.id)}
+                  onTouchEnd={() => setTooltipLineId(null)}
+                  onTouchCancel={() => setTooltipLineId(null)}
+                >
+                  "{line.quote}"
+                </Caption>
+                {tooltipLineId === line.id && (
+                  <div className="pointer-events-none absolute bottom-[calc(100%+6px)] left-0 z-20 max-w-[92%] rounded-lg border bg-popover px-2 py-1 text-xs leading-4 text-popover-foreground shadow-md">
+                    {line.quote}
+                  </div>
+                )}
+              </div>
+              <Caption className="mt-0.5 line-clamp-1 text-muted-foreground">{line.meta}</Caption>
             </div>
           ))}
         </div>
