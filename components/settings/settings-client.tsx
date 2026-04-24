@@ -15,10 +15,12 @@ import {
   Info,
   LogOut,
   Trash2,
+  Moon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { SectionLabel } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/common/theme-toggle";
 
 type MenuItem = {
   label: string;
@@ -79,6 +81,18 @@ export function SettingsClient({ isAdmin }: { isAdmin: boolean }) {
             <ChevronRight className="size-5 text-border" />
           </Link>
         ))}
+      </div>
+
+      {/* DISPLAY */}
+      <div className="flex flex-col">
+        <SectionLabel>DISPLAY</SectionLabel>
+        <div className="flex items-center justify-between border-b border-border py-4">
+          <div className="flex items-center gap-3">
+            <Moon className="size-5 text-muted-foreground" />
+            <span className="text-[15px] font-medium text-foreground">다크모드</span>
+          </div>
+          <ThemeToggle />
+        </div>
       </div>
 
       {/* ADMIN */}

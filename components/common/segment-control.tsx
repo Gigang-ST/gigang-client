@@ -26,7 +26,7 @@ function SegmentControl<T extends string = string>({
   onValueChange,
 }: SegmentControlProps<T>) {
   return (
-    <div className={cn("flex gap-0 rounded-xl bg-secondary p-1", className)}>
+    <div className={cn("flex gap-0 rounded-xl border border-border bg-secondary p-1", className)}>
       {segments.map((seg, idx) => (
         <button
           key={seg.value}
@@ -34,9 +34,9 @@ function SegmentControl<T extends string = string>({
           aria-pressed={value === seg.value}
           onClick={() => onValueChange(seg.value)}
           className={cn(
-            "relative flex-1 rounded-lg border border-transparent py-2 text-[13px] font-medium transition-colors",
+            "relative flex-1 rounded-lg py-2 text-[13px] font-medium transition-colors",
             value === seg.value
-              ? "bg-foreground text-background ring-1 ring-foreground/20"
+              ? "bg-background text-foreground shadow-sm dark:bg-card dark:shadow-none"
               : "text-muted-foreground",
           )}
         >

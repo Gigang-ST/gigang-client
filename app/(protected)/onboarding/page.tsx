@@ -33,7 +33,7 @@ async function OnboardingContent({
     null;
 
   return (
-    <div className="flex min-h-svh w-full items-center justify-center bg-white px-6">
+    <div className="flex min-h-svh w-full items-center justify-center bg-background px-6">
       <div className="w-full max-w-sm">
         <MemberOnboardingForm
           userId={user.id}
@@ -62,7 +62,7 @@ export default function Page({
 
 function OnboardingFallback() {
   return (
-    <div className="flex min-h-svh w-full items-center justify-center bg-white px-6">
+    <div className="flex min-h-svh w-full items-center justify-center bg-background px-6">
       <div className="flex w-full max-w-sm flex-col gap-4">
         <div className="h-8 w-48 animate-pulse rounded bg-muted" />
         <div className="h-4 w-64 animate-pulse rounded bg-muted" />

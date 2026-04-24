@@ -1,103 +1,151 @@
 @import "tailwindcss";
-@plugin "tailwindcss-animate";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-@theme {
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
+@custom-variant dark (&:is(.dark *));
 
-  --color-card: hsl(var(--card));
-  --color-card-foreground: hsl(var(--card-foreground));
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
 
-  --color-popover: hsl(var(--popover));
-  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
 
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
 
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
 
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
 
-  --color-accent: hsl(var(--accent));
-  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
 
-  --color-destructive: hsl(var(--destructive));
-  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
 
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
 
   /* 상태 색상 (Status) */
-  --color-success: hsl(var(--success));
-  --color-success-foreground: hsl(var(--success-foreground));
-  --color-warning: hsl(var(--warning));
-  --color-warning-foreground: hsl(var(--warning-foreground));
-  --color-info: hsl(var(--info));
-  --color-info-foreground: hsl(var(--info-foreground));
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
 
   /* 종목별 색상 (Sport) — chart-* 의 시맨틱 토큰 */
-  --color-sport-road-run: hsl(var(--sport-road-run));
-  --color-sport-ultra: hsl(var(--sport-ultra));
-  --color-sport-trail-run: hsl(var(--sport-trail-run));
-  --color-sport-triathlon: hsl(var(--sport-triathlon));
-  --color-sport-cycling: hsl(var(--sport-cycling));
+  --color-sport-road-run: var(--sport-road-run);
+  --color-sport-ultra: var(--sport-ultra);
+  --color-sport-trail-run: var(--sport-trail-run);
+  --color-sport-triathlon: var(--sport-triathlon);
+  --color-sport-cycling: var(--sport-cycling);
 
   /* chart-* 은 sport-* 참조 (하위호환) */
-  --color-chart-1: hsl(var(--sport-road-run));
-  --color-chart-2: hsl(var(--sport-triathlon));
-  --color-chart-3: hsl(var(--sport-cycling));
-  --color-chart-4: hsl(var(--sport-trail-run));
-  --color-chart-5: hsl(var(--sport-ultra));
+  --color-chart-1: var(--sport-road-run);
+  --color-chart-2: var(--sport-triathlon);
+  --color-chart-3: var(--sport-cycling);
+  --color-chart-4: var(--sport-trail-run);
+  --color-chart-5: var(--sport-ultra);
 
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
 }
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 0 0% 3.9%;
-  --card: 0 0% 100%;
-  --card-foreground: 0 0% 3.9%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 0 0% 3.9%;
-  --primary: 217.2 91.2% 59.8%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 0 0% 96.1%;
-  --secondary-foreground: 0 0% 9%;
-  --muted: 0 0% 96.1%;
-  --muted-foreground: 0 0% 45.1%;
-  --accent: 0 0% 96.1%;
-  --accent-foreground: 0 0% 9%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 0 0% 98%;
-  --border: 0 0% 89.8%;
-  --input: 0 0% 89.8%;
-  --ring: 217.2 91.2% 59.8%;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.623 0.188 260);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.961 0 0);
+  --secondary-foreground: oklch(0.21 0 0);
+  --muted: oklch(0.961 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.961 0 0);
+  --accent-foreground: oklch(0.21 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.623 0.188 260);
+
   /* 상태 색상 */
-  --success: 142 71% 45%;
-  --success-foreground: 0 0% 100%;
-  --warning: 38 92% 50%;
-  --warning-foreground: 0 0% 9%;
-  --info: 217.2 91.2% 59.8%;
-  --info-foreground: 0 0% 100%;
+  --success: oklch(0.527 0.154 150);
+  --success-foreground: oklch(1 0 0);
+  --warning: oklch(0.699 0.189 60);
+  --warning-foreground: oklch(0.21 0 0);
+  --info: oklch(0.623 0.188 260);
+  --info-foreground: oklch(1 0 0);
 
   /* 종목별 색상 (= 차트 색상의 시맨틱 이름) */
-  --sport-road-run: 12 76% 61%;
-  --sport-ultra: 27 87% 67%;
-  --sport-trail-run: 43 74% 66%;
-  --sport-triathlon: 173 58% 39%;
-  --sport-cycling: 197 37% 24%;
+  --sport-road-run: oklch(0.655 0.162 32);
+  --sport-ultra: oklch(0.731 0.168 58);
+  --sport-trail-run: oklch(0.762 0.134 82);
+  --sport-triathlon: oklch(0.521 0.095 179);
+  --sport-cycling: oklch(0.322 0.052 220);
 
   /* 이벤트 타입(거리) 색상 — 페이스 차트 등 거리별 구분용 */
-  --event-full: 217 92% 60%;
-  --event-half: 142 71% 45%;
-  --event-10k: 21 90% 48%;
+  --event-full: oklch(0.623 0.188 260);
+  --event-half: oklch(0.527 0.154 150);
+  --event-10k: oklch(0.618 0.181 44);
 
   --radius: 0.75rem;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.27 0 0);       /* 카드: background보다 밝은 elevated surface */
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.27 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.7 0.188 260);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.2 0 0);   /* secondary: background와 card 사이 (컨테이너용) */
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.2 0 0);
+  --muted-foreground: oklch(0.6 0 0);
+  --accent: oklch(0.27 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.5 0.1 260);
+
+  /* 상태 색상 */
+  --success: oklch(0.62 0.154 150);
+  --success-foreground: oklch(1 0 0);
+  --warning: oklch(0.75 0.189 60);
+  --warning-foreground: oklch(0.145 0 0);
+  --info: oklch(0.7 0.188 260);
+  --info-foreground: oklch(1 0 0);
+
+  /* 종목별 색상 */
+  --sport-road-run: oklch(0.72 0.162 32);
+  --sport-ultra: oklch(0.78 0.168 58);
+  --sport-trail-run: oklch(0.8 0.134 82);
+  --sport-triathlon: oklch(0.62 0.095 179);
+  --sport-cycling: oklch(0.48 0.052 220);
+
+  /* 이벤트 타입 색상 */
+  --event-full: oklch(0.7 0.188 260);
+  --event-half: oklch(0.62 0.154 150);
+  --event-10k: oklch(0.68 0.181 44);
 }
 
 @utility scrollbar-none {
@@ -125,9 +173,36 @@
     text-align: left;
   }
 
-  /* 특정 date input에서 기본 달력 아이콘 숨김 */
-  .date-no-icon::-webkit-calendar-picker-indicator {
-    display: none;
-    -webkit-appearance: none;
+  /* 모바일 브라우저별 date input 크기 편차 축소 */
+  .date-stable {
+    position: relative;
+    font-size: 14px;
+    line-height: 1.25rem;
+    font-variant-numeric: tabular-nums;
+    padding-right: 1.75rem;
+  }
+  .date-stable::-webkit-datetime-edit,
+  .date-stable::-webkit-datetime-edit-fields-wrapper,
+  .date-stable::-webkit-date-and-time-value {
+    font-size: 14px;
+    padding: 0;
+    line-height: 1.25rem;
+  }
+  .date-stable::-webkit-calendar-picker-indicator {
+    position: absolute;
+    right: 0.5rem;
+    margin: 0;
+    padding: 0;
+  }
+
+  input[type="date"].date-stable-xs {
+    font-size: 12px !important;
+    line-height: 1rem !important;
+  }
+  input[type="date"].date-stable-xs::-webkit-datetime-edit,
+  input[type="date"].date-stable-xs::-webkit-datetime-edit-fields-wrapper,
+  input[type="date"].date-stable-xs::-webkit-date-and-time-value {
+    font-size: 12px !important;
+    line-height: 1rem !important;
   }
 }
