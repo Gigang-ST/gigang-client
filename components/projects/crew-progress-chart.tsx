@@ -718,7 +718,7 @@ export function CrewProgressChart({
             />
             <YAxis
               tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-              tickFormatter={(v: number) => `${v}`}
+              tickFormatter={(v: number) => `${Math.round(v)}`}
               width={36}
               ticks={mileageTicks}
               domain={[0, mileageYAxisMax]}
@@ -728,14 +728,6 @@ export function CrewProgressChart({
                 <ChartTooltip {...props} myName={myName} mode={mode} />
               )}
             />
-            {myGoalKm > 0 && (
-              <ReferenceLine
-                y={myGoalKm}
-                stroke="var(--muted-foreground)"
-                strokeDasharray="6 4"
-                strokeWidth={1.5}
-              />
-            )}
             {selectedMembers.map((item) => (
               <Line
                 key={item.member.id}
@@ -780,14 +772,8 @@ export function CrewProgressChart({
               ticks={percentTicks}
               domain={[0, 100]}
             />
-            <Tooltip content={<PercentBarTooltip myName={myName} />} />
-            <ReferenceLine
-              y={100}
-              stroke="var(--muted-foreground)"
-              strokeDasharray="6 4"
-              strokeWidth={1.5}
-            />
-            <Bar dataKey="barPercent" radius={[6, 6, 0, 0]}>
+            <Tooltip cursor={false} content={<PercentBarTooltip myName={myName} />} />
+            <Bar dataKey="barPercent" radius={[6, 6, 0, 0]} activeBar={false}>
               {memberPercentData.map((item) => (
                 <Cell
                   key={item.memId}
