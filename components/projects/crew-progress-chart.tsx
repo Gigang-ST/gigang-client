@@ -69,8 +69,8 @@ function ChartTooltip({ active, payload, label, myName, mode }: ChartTooltipProp
   if (finiteEntries.length === 0) return null;
 
   const sorted = [...finiteEntries].sort((a, b) => {
-    const va = typeof a.value === "number" ? a.value : 0;
-    const vb = typeof b.value === "number" ? b.value : 0;
+    const va = Number(a.value);
+    const vb = Number(b.value);
     return vb - va;
   });
 

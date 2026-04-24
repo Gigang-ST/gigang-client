@@ -125,12 +125,6 @@
     text-align: left;
   }
 
-  /* 특정 date input에서 기본 달력 아이콘 숨김 */
-  .date-no-icon::-webkit-calendar-picker-indicator {
-    display: none;
-    -webkit-appearance: none;
-  }
-
   /* 모바일 브라우저별 date input 크기 편차 축소 */
   .date-stable {
     font-size: 16px;
