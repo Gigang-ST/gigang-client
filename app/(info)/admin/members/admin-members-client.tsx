@@ -208,7 +208,7 @@ export function AdminMembersClient({ teamId }: { teamId: string }) {
             onClick={() => setSelectedMember(null)}
           />
           {/* 시트 */}
-          <div className="flex max-h-[80vh] flex-col overflow-y-auto rounded-t-3xl bg-white pb-8">
+          <div className="flex max-h-[80vh] flex-col overflow-y-auto rounded-t-3xl bg-background pb-8">
             {/* 핸들 */}
             <div className="flex justify-center py-3">
               <div className="h-1 w-10 rounded-full bg-border" />

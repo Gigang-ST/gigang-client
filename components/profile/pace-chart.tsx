@@ -26,9 +26,9 @@ const DISTANCE_KM: Record<string, number> = {
 const EVENT_ORDER = ["10K", "HALF", "FULL"] as const;
 
 const EVENT_CONFIG: Record<string, { label: string; color: string }> = {
-  FULL: { label: "FULL", color: "hsl(var(--event-full))" },
-  HALF: { label: "HALF", color: "hsl(var(--event-half))" },
-  "10K": { label: "10K", color: "hsl(var(--event-10k))" },
+  FULL: { label: "FULL", color: "var(--event-full)" },
+  HALF: { label: "HALF", color: "var(--event-half)" },
+  "10K": { label: "10K", color: "var(--event-10k)" },
 };
 
 type RaceRecord = {
@@ -295,7 +295,7 @@ export function PaceChart({ records }: { records: RaceRecord[] }) {
                   <ReferenceLine
                     key={y}
                     y={y}
-                    stroke="hsl(var(--border))"
+                    stroke="var(--border)"
                     strokeOpacity={0.6}
                   />
                 ))}
