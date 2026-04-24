@@ -192,7 +192,7 @@ export function UpcomingRaces({
                   {eventTypes.map((et: string) => (
                     <span
                       key={et}
-                      className="rounded-full bg-foreground px-2.5 py-0.5 text-[11px] font-bold text-background"
+                      className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-bold text-secondary-foreground"
                     >
                       {et}
                     </span>

@@ -29,7 +29,7 @@ export const ROLE_COLORS = {
   me: "#0064DC",
   top: ["#B91414", "#FF4600", "#FF7300"] as const,
   bottom: ["#46AAC8", "#7864E6", "#8C32DC"] as const,
-  near: ["#E6C74A", "#AADC00", "#228B22", "#82D2B4"] as const,
+  near: ["#E6C74A", "#AADC00", "#228B22", "#82D2B4", "#785046"] as const,
 };
 
 export function round1(value: number): number {
@@ -176,12 +176,19 @@ export function buildRoleColorMap(
       colorMap.set(item.member.id, ROLE_COLORS.bottom[idx % ROLE_COLORS.bottom.length]!);
     }
   });
-  near.forEach((item, idx) => {
+  let nearAssignedCount = 0;
+  let nearColorIdx = 0;
+  near.forEach((item) => {
     if (item.member.id !== meId && !colorMap.has(item.member.id)) {
-      colorMap.set(item.member.id, ROLE_COLORS.near[idx % ROLE_COLORS.near.length]!);
+      colorMap.set(
+        item.member.id,
+        ROLE_COLORS.near[nearColorIdx % ROLE_COLORS.near.length]!,
+      );
+      nearColorIdx += 1;
+      nearAssignedCount += 1;
     }
   });
-  let fallbackIdx = 0;
+  let fallbackIdx = nearAssignedCount;
   for (const item of selected) {
     if (!colorMap.has(item.member.id)) {
       colorMap.set(item.member.id, ROLE_COLORS.near[fallbackIdx % ROLE_COLORS.near.length]!);

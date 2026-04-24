@@ -10,7 +10,7 @@ export default function InfoLayout({
   return (
     <Suspense>
       <MemberProviderServer>
-        <div className="min-h-svh bg-white">
+        <div className="min-h-svh bg-background">
           <BackHeader />
           <main>{children}</main>
         </div>

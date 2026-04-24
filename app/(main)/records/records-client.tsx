@@ -375,7 +375,7 @@ export function RecordsClient({ data }: { data: RecordsData }) {
             className={cn(
               "rounded-full px-4 text-[13px] font-medium",
               selectedCategory === cat.key
-                ? "bg-foreground text-background hover:bg-foreground/90"
+                ? "bg-primary text-primary-foreground hover:bg-primary/90"
                 : "border-[1.5px] border-border bg-transparent text-muted-foreground hover:bg-transparent hover:text-foreground",
             )}
           >

@@ -24,10 +24,10 @@ export type SportChartData = {
 // ─────────────────────────────────────────
 
 const SPORT_COLORS: Record<MileageSport, string> = {
-  RUNNING: "hsl(var(--sport-road-run))",
-  TRAIL: "hsl(var(--sport-trail-run))",
-  CYCLING: "hsl(var(--sport-cycling))",
-  SWIMMING: "hsl(var(--sport-triathlon))",
+  RUNNING: "var(--sport-road-run)",
+  TRAIL: "var(--sport-trail-run)",
+  CYCLING: "var(--sport-cycling)",
+  SWIMMING: "var(--sport-triathlon)",
 };
 
 // ─────────────────────────────────────────
