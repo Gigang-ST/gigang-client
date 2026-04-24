@@ -55,6 +55,43 @@ function AccountCopyButton() {
   );
 }
 
+const MEETING_ACCOUNT = {
+  bank: "카카오뱅크",
+  number: "3333096788223",
+  displayNumber: "3333-09-6788223",
+};
+
+function AccountCopyButton() {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(MEETING_ACCOUNT.number);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      alert("복사에 실패했습니다.");
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+    >
+      <span>
+        {MEETING_ACCOUNT.bank} {MEETING_ACCOUNT.displayNumber}
+      </span>
+      {copied ? (
+        <Check className="size-4 text-green-600" />
+      ) : (
+        <Copy className="size-4 text-muted-foreground" />
+      )}
+    </button>
+  );
+}
+
 type JoinSectionProps = {
 	evtId: string;
 	evtStartMonth: string; // "2026-05-01"
@@ -218,6 +255,14 @@ export function JoinSection({
 					</Caption>
 				</div>
 			</div>
+
+      {/* 모임 계좌 안내 */}
+      <div className="rounded-xl bg-muted p-4 space-y-3 text-center">
+        <Caption className="text-foreground font-semibold block">
+          모임 계좌로 참가비를 입금하셔야 합니다
+        </Caption>
+        <AccountCopyButton />
+      </div>
 
       {/* 모임 계좌 안내 */}
       <div className="rounded-xl bg-muted p-4 space-y-3 text-center">
