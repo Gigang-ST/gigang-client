@@ -718,7 +718,7 @@ export function CrewProgressChart({
             />
             <YAxis
               tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-              tickFormatter={(v: number) => `${v}`}
+              tickFormatter={(v: number) => `${Math.round(v)}`}
               width={36}
               ticks={mileageTicks}
               domain={[0, mileageYAxisMax]}
