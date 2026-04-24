@@ -112,7 +112,7 @@ export default function NewbiePage() {
     <InAppBrowserGate>
       <div className="mx-auto max-w-xl pb-28">
         {/* 1. 히어로 */}
-        <section className="border-b border-border bg-white px-6 pb-9 pt-12 text-center">
+        <section className="border-b border-border bg-card px-6 pb-9 pt-12 text-center">
           <p className="text-xs tracking-[3px] text-muted-foreground">
             WELCOME TO
           </p>
@@ -125,7 +125,7 @@ export default function NewbiePage() {
         </section>
 
         {/* 2. 활동 소개 */}
-        <section className="mx-4 mt-3 rounded-2xl border border-border bg-white p-6">
+        <section className="mx-4 mt-3 rounded-2xl border border-border bg-card p-6">
           <h2 className="text-sm font-bold">✨ 이런 활동을 해요.</h2>
           <div className="mt-3.5 flex flex-wrap gap-2">
             {activityChips.map((c) => (
@@ -145,7 +145,7 @@ export default function NewbiePage() {
         </section>
 
         {/* 3. 알아두면 좋은 것들 */}
-        <section className="mx-4 mt-3 rounded-2xl border border-border bg-white p-6">
+        <section className="mx-4 mt-3 rounded-2xl border border-border bg-card p-6">
           <h2 className="text-sm font-bold">💬 알아두면 좋은 것들</h2>
           <div className="mt-3.5 text-[13px] leading-loose text-muted-foreground">
             <p>• 카카오톡에 사람이 더 많아요.</p>
@@ -301,7 +301,7 @@ export default function NewbiePage() {
         </section>
 
         {/* 4. 채널 바로가기 */}
-        <section className="mx-4 mt-3 rounded-2xl border border-border bg-white p-6">
+        <section className="mx-4 mt-3 rounded-2xl border border-border bg-card p-6">
           <h2 className="text-sm font-bold">🔗 채널 바로가기</h2>
 
           <div className="mt-3.5 flex items-center gap-3 rounded-xl bg-[#FEE500] px-4 py-3.5">
@@ -336,7 +336,7 @@ export default function NewbiePage() {
         </section>
 
         {/* 5. 문의 */}
-        <section className="mx-4 mt-3 rounded-2xl border border-border bg-white p-6">
+        <section className="mx-4 mt-3 rounded-2xl border border-border bg-card p-6">
           <h2 className="text-sm font-bold">📞 문의</h2>
           <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">
             카카오톡 ID: <strong className="text-foreground">winsu</strong>
@@ -346,7 +346,7 @@ export default function NewbiePage() {
         </section>
 
         {/* 6. 하단 고정 CTA */}
-        <div className="fixed inset-x-0 bottom-0 z-50 bg-gradient-to-t from-white via-white/90 to-transparent px-4 pb-4 pt-6">
+        <div className="fixed inset-x-0 bottom-0 z-50 bg-gradient-to-t from-background via-background/90 to-transparent px-4 pb-4 pt-6">
           <div className="mx-auto max-w-xl">
             <Link
               href="/auth/login?next=%2Fonboarding"
