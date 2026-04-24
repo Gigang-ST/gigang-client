@@ -162,48 +162,46 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
 		setUtmbOpen(false);
 	};
 
-	return (
-		<>
-			<div className="grid grid-cols-2 gap-3">
-				{/* FULL / HALF / 10K cards (read-only) */}
-				{PB_EVENTS.map((evt, i) => {
-					const pb = bestRecords[evt];
-					return (
-						<div
-							key={evt}
-							className={`flex min-w-0 flex-col gap-1 rounded-xl p-4 ${i < 2 ? "border-[1.5px] border-border" : "bg-secondary"}`}
-						>
-							<span className="text-xs font-semibold text-primary">{evt}</span>
-							<span className="font-mono text-xl font-bold text-foreground">
-								{pb ? secondsToTime(pb.record_time_sec) : "--:--"}
-							</span>
-							<span className="truncate text-[11px] text-muted-foreground">
-								{pb?.race_name ?? ""}
-							</span>
-						</div>
-					);
-				})}
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3">
+        {/* FULL / HALF / 10K cards (read-only) */}
+        {PB_EVENTS.map((evt, i) => {
+          const pb = bestRecords[evt];
+          return (
+            <div
+              key={evt}
+              className={`flex min-w-0 flex-col gap-1 rounded-xl p-4 ${i < 2 ? "border-[1.5px] border-border" : "bg-secondary"}`}
+            >
+              <span className="text-xs font-semibold text-primary">
+                {evt}
+              </span>
+              <span className="font-mono text-xl font-bold text-foreground">
+                {pb ? secondsToTime(pb.record_time_sec) : "--:--"}
+              </span>
+              <span className="truncate text-[11px] text-muted-foreground">
+                {pb?.race_name ?? ""}
+              </span>
+            </div>
+          );
+        })}
 
-				{/* UTMB card (clickable) */}
-				<Button
-					type="button"
-					variant="secondary"
-					onClick={() => handleUtmbOpenChange(true)}
-					className="h-auto min-w-0 flex-col items-start gap-1 rounded-xl p-4 active:scale-[0.98]"
-				>
-					<span className="text-xs font-semibold text-primary">UTMB</span>
-					<span className="font-mono text-xl font-bold text-foreground">
-						{utmb ? utmb.utmb_index : "--"}
-					</span>
-					<span className="w-full truncate text-[11px] text-muted-foreground">
-						{utmb?.recent_race_name
-							? utmb.recent_race_name
-							: utmb
-								? ""
-								: "탭하여 연동"}
-					</span>
-				</Button>
-			</div>
+        {/* UTMB card (clickable) */}
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => handleUtmbOpenChange(true)}
+          className="h-auto min-w-0 flex-col items-start gap-1 rounded-xl p-4 active:scale-[0.98]"
+        >
+          <span className="text-xs font-semibold text-primary">UTMB</span>
+          <span className="font-mono text-xl font-bold text-foreground">
+            {utmb ? utmb.utmb_index : "--"}
+          </span>
+          <span className="w-full truncate text-[11px] text-muted-foreground">
+            {utmb?.recent_race_name ? utmb.recent_race_name : utmb ? "" : "탭하여 연동"}
+          </span>
+        </Button>
+      </div>
 
 			{/* UTMB Dialog */}
 			<Dialog open={utmbOpen} onOpenChange={handleUtmbOpenChange}>
@@ -253,45 +251,43 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
 							)}
 						</div>
 
-						{utmbIndex !== null && (
-							<div className="flex flex-col gap-3 rounded-xl border-[1.5px] border-border p-4">
-								<div className="flex items-baseline justify-between">
-									<div className="flex items-baseline gap-2">
-										<span className="font-mono text-2xl font-bold text-foreground">
-											{utmbIndex}
-										</span>
-										{utmbName && (
-											<span className="text-sm text-muted-foreground">
-												{utmbName}
-											</span>
-										)}
-									</div>
-									<a
-										href={`https://utmb.world/en/runner/${utmbUrl.trim()}`}
-										target="_blank"
-										rel="noopener noreferrer"
-										className="text-xs text-primary underline"
-									>
-										프로필 보기
-									</a>
-								</div>
-								{recentRaceName && (
-									<div className="flex flex-col gap-0.5 border-t border-border pt-3">
-										<span className="text-xs text-muted-foreground">
-											최근 대회
-										</span>
-										<span className="truncate text-sm font-medium text-foreground">
-											{recentRaceName}
-										</span>
-										{recentRaceRecord && (
-											<span className="font-mono text-xs text-muted-foreground">
-												{recentRaceRecord}
-											</span>
-										)}
-									</div>
-								)}
-							</div>
-						)}
+            {utmbIndex !== null && (
+              <div className="flex flex-col gap-3 rounded-xl border-[1.5px] border-border p-4">
+                <div className="flex items-baseline justify-between">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-mono text-2xl font-bold text-foreground">
+                      {utmbIndex}
+                    </span>
+                    {utmbName && (
+                      <span className="text-sm text-muted-foreground">
+                        {utmbName}
+                      </span>
+                    )}
+                  </div>
+                  <a
+                    href={`https://utmb.world/en/runner/${utmbUrl.trim()}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary underline"
+                  >
+                    프로필 보기
+                  </a>
+                </div>
+                {recentRaceName && (
+                  <div className="flex flex-col gap-0.5 border-t border-border pt-3">
+                    <span className="text-xs text-muted-foreground">최근 대회</span>
+                    <span className="truncate text-sm font-medium text-foreground">
+                      {recentRaceName}
+                    </span>
+                    {recentRaceRecord && (
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {recentRaceRecord}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
 						{message && (
 							<p
