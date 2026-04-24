@@ -772,8 +772,8 @@ export function CrewProgressChart({
               ticks={percentTicks}
               domain={[0, 100]}
             />
-            <Tooltip content={<PercentBarTooltip myName={myName} />} />
-            <Bar dataKey="barPercent" radius={[6, 6, 0, 0]}>
+            <Tooltip cursor={false} content={<PercentBarTooltip myName={myName} />} />
+            <Bar dataKey="barPercent" radius={[6, 6, 0, 0]} activeBar={false}>
               {memberPercentData.map((item) => (
                 <Cell
                   key={item.memId}
