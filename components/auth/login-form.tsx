@@ -59,7 +59,7 @@ export function LoginForm({
     >
       {/* Logo */}
       <div className="flex flex-col items-center gap-3">
-        <Image src="/logo.webp" alt="기강" width={80} height={80} priority />
+        <Image src="/logo.webp" alt="기강" width={80} height={80} priority className="dark:invert" />
         <p className="w-[280px] text-center text-[15px] leading-relaxed text-muted-foreground">
           운동을 좋아하는 사람들이 모여
           <br />

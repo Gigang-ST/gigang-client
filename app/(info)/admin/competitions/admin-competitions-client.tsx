@@ -696,7 +696,7 @@ function CompetitionsContent({
             className={cn(
               "flex-1 rounded-lg text-[13px] font-medium",
               filter === f.value
-                ? "bg-foreground text-background hover:bg-foreground hover:text-background"
+                ? "bg-primary text-primary-foreground hover:bg-primary/90"
                 : "text-muted-foreground",
             )}
           >
