@@ -728,14 +728,6 @@ export function CrewProgressChart({
                 <ChartTooltip {...props} myName={myName} mode={mode} />
               )}
             />
-            {myGoalKm > 0 && (
-              <ReferenceLine
-                y={myGoalKm}
-                stroke="var(--muted-foreground)"
-                strokeDasharray="6 4"
-                strokeWidth={1.5}
-              />
-            )}
             {selectedMembers.map((item) => (
               <Line
                 key={item.member.id}
@@ -781,12 +773,6 @@ export function CrewProgressChart({
               domain={[0, 100]}
             />
             <Tooltip content={<PercentBarTooltip myName={myName} />} />
-            <ReferenceLine
-              y={100}
-              stroke="var(--muted-foreground)"
-              strokeDasharray="6 4"
-              strokeWidth={1.5}
-            />
             <Bar dataKey="barPercent" radius={[6, 6, 0, 0]}>
               {memberPercentData.map((item) => (
                 <Cell
