@@ -63,9 +63,14 @@ type ChartTooltipProps = TooltipContentProps<TooltipValueType, string | number> 
 function ChartTooltip({ active, payload, label, myName, mode }: ChartTooltipProps) {
   if (!active || !payload?.length) return null;
 
-  const sorted = [...payload].sort((a, b) => {
-    const va = typeof a.value === "number" ? a.value : 0;
-    const vb = typeof b.value === "number" ? b.value : 0;
+  const finiteEntries = payload.filter((entry) =>
+    Number.isFinite(typeof entry.value === "number" ? entry.value : Number(entry.value)),
+  );
+  if (finiteEntries.length === 0) return null;
+
+  const sorted = [...finiteEntries].sort((a, b) => {
+    const va = Number(a.value);
+    const vb = Number(b.value);
     return vb - va;
   });
 
@@ -729,12 +734,6 @@ export function CrewProgressChart({
                 stroke="var(--muted-foreground)"
                 strokeDasharray="6 4"
                 strokeWidth={1.5}
-                label={{
-                  value: `목표 ${myGoalKm}`,
-                  position: "right",
-                  fontSize: 10,
-                  fill: "var(--muted-foreground)",
-                }}
               />
             )}
             {selectedMembers.map((item) => (
