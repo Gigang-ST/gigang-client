@@ -194,4 +194,15 @@
     margin: 0;
     padding: 0;
   }
+
+  input[type="date"].date-stable-xs {
+    font-size: 12px !important;
+    line-height: 1rem !important;
+  }
+  input[type="date"].date-stable-xs::-webkit-datetime-edit,
+  input[type="date"].date-stable-xs::-webkit-datetime-edit-fields-wrapper,
+  input[type="date"].date-stable-xs::-webkit-date-and-time-value {
+    font-size: 12px !important;
+    line-height: 1rem !important;
+  }
 }
