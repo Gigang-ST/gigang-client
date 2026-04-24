@@ -10,7 +10,7 @@ export default function MainLayout({
   return (
     <Suspense>
       <MemberProviderServer>
-        <div className="min-h-svh bg-white">
+        <div className="min-h-svh bg-background">
           <main className="pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))]">
             {children}
           </main>

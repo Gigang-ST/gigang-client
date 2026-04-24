@@ -153,11 +153,11 @@ function PercentBarTooltip({
 }
 
 function getPercentCellClass(percent: number): string {
-  if (percent <= 20) return "bg-[#EF9A9A]";
-  if (percent <= 40) return "bg-[#FFCC80]";
-  if (percent <= 60) return "bg-[#FFF59D]";
-  if (percent <= 80) return "bg-[#C5E1A5]";
-  return "bg-[#A5D6A7]";
+  if (percent <= 20) return "bg-[#EF9A9A] !text-black";
+  if (percent <= 40) return "bg-[#FFCC80] !text-black";
+  if (percent <= 60) return "bg-[#FFF59D] !text-black";
+  if (percent <= 80) return "bg-[#C5E1A5] !text-black";
+  return "bg-[#A5D6A7] !text-black";
 }
 
 export function CrewProgressChart({
@@ -552,11 +552,11 @@ export function CrewProgressChart({
                 <col style={{ width: "55px" }} />
                 <col style={{ width: "50px" }} />
               </colgroup>
-              <thead className="sticky top-0 z-30 bg-[#F1F3F5]">
-                <tr className="border-b bg-[#F1F3F5] text-[10px] text-muted-foreground">
+              <thead className="sticky top-0 z-30 bg-muted">
+                <tr className="border-b bg-muted text-[10px] text-muted-foreground">
                   <th
                     aria-sort={getAriaSort("rank")}
-                    className="sticky left-0 z-40 w-[60px] min-w-[60px] max-w-[60px] bg-[#F1F3F5] px-1 py-1.5 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border"
+                    className="sticky left-0 z-40 w-[60px] min-w-[60px] max-w-[60px] bg-muted px-1 py-1.5 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border"
                   >
                     <button
                       type="button"
@@ -569,7 +569,7 @@ export function CrewProgressChart({
                       <span className="inline-block w-1.5 text-center text-[9px]">{sortIndicator("rank")}</span>
                     </button>
                   </th>
-                  <th aria-sort={getAriaSort("goalKm")} className="w-[40px] border-r bg-[#F1F3F5] px-1 py-1.5 text-center">
+                  <th aria-sort={getAriaSort("goalKm")} className="w-[40px] border-r bg-muted px-1 py-1.5 text-center">
                     <button
                       type="button"
                       className={`inline-flex w-full items-center justify-center gap-0.5 text-center font-medium leading-none ${
@@ -581,7 +581,7 @@ export function CrewProgressChart({
                       <span className="inline-block w-1.5 text-center text-[9px]">{sortIndicator("goalKm")}</span>
                     </button>
                   </th>
-                  <th aria-sort={getAriaSort("currentKm")} className="w-[50px] border-r bg-[#F1F3F5] px-1 py-1.5 text-center">
+                  <th aria-sort={getAriaSort("currentKm")} className="w-[50px] border-r bg-muted px-1 py-1.5 text-center">
                     <button
                       type="button"
                       className={`inline-flex w-full items-center justify-center gap-0.5 text-center font-medium leading-none ${
@@ -593,7 +593,7 @@ export function CrewProgressChart({
                       <span className="inline-block w-1.5 text-center text-[9px]">{sortIndicator("currentKm")}</span>
                     </button>
                   </th>
-                  <th aria-sort={getAriaSort("percent")} className="w-[55px] border-r bg-[#F1F3F5] px-1 py-1.5 text-center">
+                  <th aria-sort={getAriaSort("percent")} className="w-[55px] border-r bg-muted px-1 py-1.5 text-center">
                     <button
                       type="button"
                       className={`inline-flex w-full items-center justify-center gap-0.5 text-center font-medium leading-none ${
@@ -605,7 +605,7 @@ export function CrewProgressChart({
                       <span className="inline-block w-1.5 text-center text-[9px]">{sortIndicator("percent")}</span>
                     </button>
                   </th>
-                  <th className="w-[50px] bg-[#F1F3F5] px-1 py-1.5 text-center">
+                  <th className="w-[50px] bg-muted px-1 py-1.5 text-center">
                     추천<span className="text-[9px]">(km)</span>
                   </th>
                 </tr>
@@ -614,7 +614,7 @@ export function CrewProgressChart({
                 {sortedStatsRows.map((row) => (
                   <tr key={row.id} className="border-b last:border-b-0">
                     <td
-                      className={`sticky left-0 z-20 w-[60px] min-w-[60px] max-w-[60px] bg-[#F1F3F5] px-1 py-1 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border ${
+                      className={`sticky left-0 z-20 w-[60px] min-w-[60px] max-w-[60px] bg-muted px-1 py-1 text-center after:absolute after:right-0 after:top-0 after:h-full after:w-px after:bg-border ${
                         row.name === myName ? "font-semibold text-primary" : ""
                       }`}
                     >
@@ -687,13 +687,13 @@ export function CrewProgressChart({
             {isCurrentMonth && dayRef > 0 && (
               <ReferenceLine
                 x={dayRef}
-                stroke="hsl(var(--primary))"
+                stroke="var(--primary)"
                 strokeOpacity={0.75}
                 strokeDasharray="4 4"
                 label={{
                   value: "오늘",
                   position: "top",
-                  fill: "hsl(var(--primary))",
+                  fill: "var(--primary)",
                   fontSize: 11,
                   fontWeight: 600,
                 }}
@@ -703,7 +703,7 @@ export function CrewProgressChart({
               <ReferenceLine
                 key={tick}
                 y={tick}
-                stroke="hsl(var(--border))"
+                stroke="var(--border)"
                 strokeOpacity={0.65}
               />
             ))}
@@ -758,7 +758,7 @@ export function CrewProgressChart({
               <ReferenceLine
                 key={tick}
                 y={tick}
-                stroke="hsl(var(--border))"
+                stroke="var(--border)"
                 strokeOpacity={0.65}
               />
             ))}

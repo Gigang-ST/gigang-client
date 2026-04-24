@@ -61,7 +61,7 @@ export function InAppBrowserGate({ children }: { children: React.ReactNode }) {
   const currentUrl = typeof window !== "undefined" ? window.location.href : "";
 
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center bg-white px-6">
+    <div className="flex min-h-svh flex-col items-center justify-center bg-background px-6">
       <div className="w-full max-w-sm text-center">
         <div className="text-5xl">🌐</div>
         <h1 className="mt-4 text-xl font-bold text-foreground">

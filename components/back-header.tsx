@@ -8,7 +8,7 @@ export function BackHeader({ title }: { title?: string }) {
   const router = useRouter();
 
   return (
-    <header className="sticky top-0 z-40 flex h-12 items-center border-b border-border bg-white px-4">
+    <header className="sticky top-0 z-40 flex h-12 items-center border-b border-border bg-background px-4">
       <Button
         variant="ghost"
         size="icon-sm"
