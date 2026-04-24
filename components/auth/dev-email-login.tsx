@@ -44,6 +44,10 @@ export function DevEmailLogin({
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setError(null);
+		if (!email.trim() || !password) {
+			setError("이메일과 비밀번호를 입력해 주세요.");
+			return;
+		}
 		setBusy(true);
 		try {
 			const supabase = createClient();
@@ -105,7 +109,7 @@ export function DevEmailLogin({
 					type="submit"
 					variant="secondary"
 					className="h-10 w-full"
-					disabled={busy || oauthBusy || !email.trim() || !password}
+					disabled={busy || oauthBusy}
 				>
 					{busy ? "로그인 중..." : "이메일로 로그인"}
 				</Button>

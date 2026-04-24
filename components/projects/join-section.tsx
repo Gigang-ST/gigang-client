@@ -227,14 +227,6 @@ export function JoinSection({
         <AccountCopyButton />
       </div>
 
-      {/* 모임 계좌 안내 */}
-      <div className="rounded-xl bg-muted p-4 space-y-3 text-center">
-        <Caption className="text-foreground font-semibold block">
-          모임 계좌로 참가비를 입금하셔야 합니다
-        </Caption>
-        <AccountCopyButton />
-      </div>
-
       {/* 참여하기 버튼 */}
       <Button
         onClick={handleJoin}

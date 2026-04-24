@@ -218,7 +218,7 @@ export function ActivityLogBatchForm({ evtId, onSuccess }: ActivityLogBatchFormP
                   max={today}
                   value={d.act_dt}
                   onChange={(e) => updateDraft(d.id, { act_dt: e.target.value })}
-                  className="date-stable h-10 rounded-lg border pr-3"
+                  className="date-stable date-stable-xs h-10 rounded-lg border pr-3"
                 />
               </div>
 
