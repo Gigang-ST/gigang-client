@@ -130,4 +130,21 @@
     display: none;
     -webkit-appearance: none;
   }
+
+  /* 모바일 브라우저별 date input 크기 편차 축소 */
+  .date-stable {
+    font-size: 16px;
+    line-height: 1.25rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .date-stable::-webkit-datetime-edit,
+  .date-stable::-webkit-datetime-edit-fields-wrapper,
+  .date-stable::-webkit-date-and-time-value {
+    padding: 0;
+    line-height: 1.25rem;
+  }
+  .date-stable::-webkit-calendar-picker-indicator {
+    margin: 0;
+    padding: 0;
+  }
 }
