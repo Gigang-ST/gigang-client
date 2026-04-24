@@ -17,42 +17,42 @@ import {
 	ENTRY_FEE_WITH_SINGLET,
 } from "@/lib/mileage";
 
+
 const MEETING_ACCOUNT = {
-	bank: "카카오뱅크",
-	number: "3333096788223",
-	displayNumber: "3333-09-6788223",
+  bank: "카카오뱅크",
+  number: "3333096788223",
+  displayNumber: "3333-09-6788223",
 };
 
 function AccountCopyButton() {
-	const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-	async function handleCopy() {
-		try {
-			await navigator.clipboard.writeText(MEETING_ACCOUNT.number);
-			setCopied(true);
-			setTimeout(() => setCopied(false), 1500);
-		} catch {
-			alert("복사에 실패했습니다.");
-		}
-	}
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(MEETING_ACCOUNT.number);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      alert("복사에 실패했습니다.");
+    }
+  }
 
-	return (
-		<button
-			type="button"
-			onClick={handleCopy}
-			aria-label="계좌번호 복사"
-			className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-		>
-			<span>
-				{MEETING_ACCOUNT.bank} {MEETING_ACCOUNT.displayNumber}
-			</span>
-			{copied ? (
-				<Check className="size-4 text-success" />
-			) : (
-				<Copy className="size-4 text-muted-foreground" />
-			)}
-		</button>
-	);
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+    >
+      <span>
+        {MEETING_ACCOUNT.bank} {MEETING_ACCOUNT.displayNumber}
+      </span>
+      {copied ? (
+        <Check className="size-4 text-green-600" />
+      ) : (
+        <Copy className="size-4 text-muted-foreground" />
+      )}
+    </button>
+  );
 }
 
 type JoinSectionProps = {
@@ -78,28 +78,28 @@ export function JoinSection({
 	const [hasSinglet, setHasSinglet] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
 
-	// 승인 대기 중
-	if (existingPrt && !existingPrt.aprv_yn) {
-		return (
-			<CardItem className="p-5 space-y-4">
-				<div className="text-center">
-					<Caption className="text-foreground font-semibold block mb-1">
-						참여 신청 완료!
-					</Caption>
-					<Caption>운영진 승인을 기다려주세요.</Caption>
-				</div>
-				<div className="rounded-xl bg-muted p-4 space-y-3">
-					<div className="text-center">
-						<Caption className="text-foreground font-semibold block mb-1">
-							모임 계좌로 참가비를 입금해 주세요
-						</Caption>
-						<Caption>입금 확인 후 승인이 진행됩니다.</Caption>
-					</div>
-					<AccountCopyButton />
-				</div>
-			</CardItem>
-		);
-	}
+  // 승인 대기 중
+  if (existingPrt && !existingPrt.aprv_yn) {
+    return (
+      <CardItem className="p-5 space-y-4">
+        <div className="text-center">
+          <Caption className="text-foreground font-semibold block mb-1">
+            참여 신청 완료!
+          </Caption>
+          <Caption>운영진 승인을 기다려주세요.</Caption>
+        </div>
+        <div className="rounded-xl bg-muted p-4 space-y-3">
+          <div className="text-center">
+            <Caption className="text-foreground font-semibold block mb-1">
+              모임 계좌로 참가비를 입금해 주세요
+            </Caption>
+            <Caption>입금 확인 후 승인이 진행됩니다.</Caption>
+          </div>
+          <AccountCopyButton />
+        </div>
+      </CardItem>
+    );
+  }
 
 	// 이미 승인된 경우는 상위 컴포넌트에서 처리
 	if (existingPrt) return null;
@@ -139,41 +139,35 @@ export function JoinSection({
 		}
 	}
 
-	return (
-		<CardItem className="p-5 space-y-5">
-			{/* 목표 선택 */}
-			<div className="space-y-3">
-				<Label className="text-sm font-semibold">초기 목표 설정</Label>
-				<div className="space-y-2">
-					{(
-						[
-							{
-								value: "50",
-								label: "초보 — 50 km/월 (하프 마라톤 안 뛰어본 사람)",
-							},
-							{
-								value: "100",
-								label: "고수 — 100 km/월 (풀 마라톤 계획인 사람)",
-							},
-							{ value: "custom", label: "자유 입력" },
-						] as { value: GoalPreset; label: string }[]
-					).map(({ value, label }) => (
-						<label
-							key={value}
-							className="flex items-center gap-3 cursor-pointer"
-						>
-							<input
-								type="radio"
-								name="goal-preset"
-								value={value}
-								checked={goalPreset === value}
-								onChange={() => setGoalPreset(value)}
-								className="accent-primary"
-							/>
-							<Caption className="text-foreground">{label}</Caption>
-						</label>
-					))}
-				</div>
+  return (
+    <CardItem className="p-5 space-y-5">
+      {/* 목표 선택 */}
+      <div className="space-y-3">
+        <Label className="text-sm font-semibold">초기 목표 설정</Label>
+        <div className="space-y-2">
+          {(
+            [
+              { value: "50", label: "초보 — 50 km/월 (하프 마라톤 안 뛰어본 사람)" },
+              { value: "100", label: "고수 — 100 km/월 (풀 마라톤 계획인 사람)" },
+              { value: "custom", label: "자유 입력" },
+            ] as { value: GoalPreset; label: string }[]
+          ).map(({ value, label }) => (
+            <label
+              key={value}
+              className="flex items-center gap-3 cursor-pointer"
+            >
+              <input
+                type="radio"
+                name="goal-preset"
+                value={value}
+                checked={goalPreset === value}
+                onChange={() => setGoalPreset(value)}
+                className="accent-primary"
+              />
+              <Caption className="text-foreground">{label}</Caption>
+            </label>
+          ))}
+        </div>
 
 				{goalPreset === "custom" && (
 					<div className="flex items-center gap-2 pt-1">
@@ -225,22 +219,24 @@ export function JoinSection({
 				</div>
 			</div>
 
-			{/* 모임 계좌 안내 */}
-			<div className="rounded-xl bg-muted p-4 space-y-3 text-center">
-				<Caption className="text-foreground font-semibold block">
-					모임 계좌로 참가비를 입금하셔야 합니다
-				</Caption>
-				<AccountCopyButton />
-			</div>
+      {/* 모임 계좌 안내 */}
+      <div className="rounded-xl bg-muted p-4 space-y-3 text-center">
+        <Caption className="text-foreground font-semibold block">
+          모임 계좌로 참가비를 입금하셔야 합니다
+        </Caption>
+        <AccountCopyButton />
+      </div>
 
-			{/* 참여하기 버튼 */}
-			<Button
-				onClick={handleJoin}
-				disabled={submitting || (goalPreset === "custom" && !customGoal)}
-				className="h-[52px] w-full rounded-xl text-base font-semibold"
-			>
-				{submitting ? "신청 중..." : "참여하기"}
-			</Button>
-		</CardItem>
-	);
+      {/* 참여하기 버튼 */}
+      <Button
+        onClick={handleJoin}
+        disabled={
+          submitting || (goalPreset === "custom" && !customGoal)
+        }
+        className="h-[52px] w-full rounded-xl text-base font-semibold"
+      >
+        {submitting ? "신청 중..." : "참여하기"}
+      </Button>
+    </CardItem>
+  );
 }
