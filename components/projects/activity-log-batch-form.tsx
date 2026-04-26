@@ -210,7 +210,7 @@ export function ActivityLogBatchForm({ evtId, onSuccess }: ActivityLogBatchFormP
 
             {isExpanded && (
               <>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2 [&>*]:min-w-0">
               <div className="flex flex-col gap-1">
                 <Label className="text-xs">날짜</Label>
                 <Input
