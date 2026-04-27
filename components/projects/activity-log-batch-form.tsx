@@ -210,67 +210,83 @@ export function ActivityLogBatchForm({ evtId, onSuccess }: ActivityLogBatchFormP
 
             {isExpanded && (
               <>
-                <div className="grid grid-cols-2 gap-2">
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">날짜</Label>
-                <Input
-                  type="date"
-                  max={today}
-                  value={d.act_dt}
-                  onChange={(e) => updateDraft(d.id, { act_dt: e.target.value })}
-                  className="date-stable date-stable-xs h-10 rounded-lg border pr-3"
-                />
+                <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs">날짜</Label>
+                  <Input
+                    type="text"
+                    readOnly
+                    value={d.act_dt}
+                    onClick={(e) => {
+                      const hidden = (e.target as HTMLElement).nextElementSibling as HTMLInputElement;
+                      hidden?.showPicker?.();
+                      hidden?.focus();
+                    }}
+                    className="h-10 cursor-pointer rounded-lg border text-sm"
+                  />
+                  <input
+                    type="date"
+                    max={today}
+                    value={d.act_dt}
+                    onChange={(e) => updateDraft(d.id, { act_dt: e.target.value })}
+                    className="sr-only"
+                    tabIndex={-1}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs">종목</Label>
+                  <Select
+                    value={d.sprt_enm}
+                    onValueChange={(value) =>
+                      updateDraft(d.id, { sprt_enm: value as MileageSport })
+                    }
+                  >
+                    <SelectTrigger className="h-10 rounded-lg border text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(Object.entries(MILEAGE_SPORT_LABELS) as [MileageSport, string][]).map(
+                        ([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ),
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">종목</Label>
-                <Select
-                  value={d.sprt_enm}
-                  onValueChange={(value) =>
-                    updateDraft(d.id, { sprt_enm: value as MileageSport })
-                  }
-                >
-                  <SelectTrigger className="h-10 rounded-lg border text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(Object.entries(MILEAGE_SPORT_LABELS) as [MileageSport, string][]).map(
-                      ([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ),
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs">거리 (km)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    placeholder="예: 10.5"
+                    value={d.distance_km}
+                    onChange={(e) => updateDraft(d.id, { distance_km: e.target.value })}
+                    className="h-10 rounded-lg border text-sm"
+                  />
+                </div>
 
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">거리 (km)</Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  min="0.1"
-                  placeholder="예: 10.5"
-                  value={d.distance_km}
-                  onChange={(e) => updateDraft(d.id, { distance_km: e.target.value })}
-                  className="h-10 rounded-lg border text-sm"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">
-                  상승고도 (m{d.sprt_enm === "SWIMMING" ? ", 수영 제외" : ""})
-                </Label>
-                <Input
-                  type="number"
-                  step="1"
-                  min="0"
-                  value={d.sprt_enm === "SWIMMING" ? "0" : d.elevation_m}
-                  disabled={d.sprt_enm === "SWIMMING"}
-                  onChange={(e) => updateDraft(d.id, { elevation_m: e.target.value })}
-                  className="h-10 rounded-lg border text-sm"
-                />
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs">
+                    상승고도 (m{d.sprt_enm === "SWIMMING" ? ", 수영 제외" : ""})
+                  </Label>
+                  <Input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={d.sprt_enm === "SWIMMING" ? "0" : d.elevation_m}
+                    disabled={d.sprt_enm === "SWIMMING"}
+                    onChange={(e) => updateDraft(d.id, { elevation_m: e.target.value })}
+                    className="h-10 rounded-lg border text-sm"
+                  />
+                </div>
               </div>
                 </div>
 
