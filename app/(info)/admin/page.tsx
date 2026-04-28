@@ -9,6 +9,7 @@ import {
   Sparkles,
   FolderKanban,
   HandCoins,
+  RefreshCw,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { H2, SectionLabel } from "@/components/common/typography";
@@ -125,6 +126,34 @@ function CardGrid({
   );
 }
 
+function ToolCard({
+  href,
+  icon: Icon,
+  label,
+  hint,
+}: {
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  hint?: string;
+}) {
+  return (
+    <CardItem asChild className="flex flex-col gap-2">
+      <Link href={href} className="transition-colors active:bg-secondary">
+        <div className="flex items-center gap-2">
+          <Icon className="size-4 text-muted-foreground" />
+          <span className="text-[13px] font-medium text-muted-foreground">
+            {label}
+          </span>
+        </div>
+        {hint && (
+          <span className="text-sm text-foreground">{hint}</span>
+        )}
+      </Link>
+    </CardItem>
+  );
+}
+
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [status, setStatus] = useState<FetchStatus>("loading");
@@ -152,6 +181,16 @@ export default function AdminDashboardPage() {
       <section className="flex flex-col gap-3">
         <SectionLabel>프로젝트</SectionLabel>
         <CardGrid cards={projectCards} stats={stats} status={status} />
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <SectionLabel>도구</SectionLabel>
+        <ToolCard
+          href="/admin/utmb-refresh"
+          icon={RefreshCw}
+          label="UTMB 인덱스 갱신"
+          hint="등록된 회원 전체 재조회"
+        />
       </section>
     </div>
   );
