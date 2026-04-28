@@ -330,9 +330,10 @@
 - 과거 정정이 필요한 경우 "스냅샷 재생성(초기화 후 전체 재계산)" 경로로만 처리한다.
 - 면제 반영이 pay와 다른 키로 쌓이므로 증분 시 **`fee_due_exm_hist` 미반영분**도 워터마크(`last_ref_exm_hist_id` 등)와 함께 고려한다(실제 구현은 단일 시퀀스·시각으로 단순화 가능).
 
-## 5) 팀 이벤트/칭호 도메인 (작성 보류)
-- 팀 이벤트/칭호 도메인 상세는 추후 별도 문서를 기준으로 재작성한다.
-- 현재 문서는 회비 도메인 확정까지를 범위로 한다.
+## 5) 팀 이벤트/칭호 도메인
+
+- **칭호 도메인**: `database-schema-v2-title-domain.md` 참조. `ttl_mst` / `mem_ttl_rel` 테이블, `TTL_CTGR_CD` 코드그룹, `ttl_kind_enm` enum 정의 포함. 팀 스코프 + 자동/수여 구분 + 동적 포인트 계산 정책을 본 문서 §1·§6 멀티팀 규약에 맞춰 정리했다.
+- **팀 이벤트 도메인**: 마일리지런(`evt_mlg_*`) 외 일반 팀 이벤트(`evt_team_mst`, `evt_team_prt_rel` 등 약어 사전 정의분)는 작성 보류. 요구 확정 후 별도 문서로 추가한다.
 
 ## 6) 관계 요약
 - `mem_mst 1:N team_mem_rel`
@@ -359,6 +360,10 @@
 - `fee_due_exm_cfg 1:N fee_due_exm_hist`
 - `team_mst 1:N fee_mem_bal_snap`
 - `mem_mst 1:N fee_mem_bal_snap`
+- `team_mst 1:N ttl_mst`
+- `team_mst 1:N mem_ttl_rel`
+- `mem_mst 1:N mem_ttl_rel`
+- `ttl_mst 1:N mem_ttl_rel`
 
 ## 7) 운영상 이점
 - 회비는 원시(`fee_txn_hist`)·확정(`fee_due_pay_hist`)·면제(cfg/hist)·스냅샷으로 역할이 나뉘어 소규모 운영에 맞는 단순함과 감사 추적을 동시에 확보한다.
