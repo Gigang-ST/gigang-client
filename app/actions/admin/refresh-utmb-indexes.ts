@@ -88,10 +88,11 @@ export async function refreshUtmbIndexes(): Promise<RefreshResult> {
     const after = result.index;
 
     if (after === before) {
-      // 값 동일 — upd_at만 갱신 (마지막 시도 시각 추적)
+      // 값 동일 — utmb_idx에 동일값을 다시 써서 BEFORE UPDATE 트리거(set_v2_upd_at)가
+      // 마지막 시도 시각을 갱신하도록 한다.
       const { error: updErr } = await admin
         .from("mem_utmb_prf")
-        .update({ upd_at: new Date().toISOString() })
+        .update({ utmb_idx: before })
         .eq("mem_id", memId)
         .eq("vers", 0);
       rows.push({
@@ -109,7 +110,6 @@ export async function refreshUtmbIndexes(): Promise<RefreshResult> {
           utmb_idx: after,
           rct_race_nm: result.recentRaceName,
           rct_race_rec: result.recentRaceRecord,
-          upd_at: new Date().toISOString(),
         })
         .eq("mem_id", memId)
         .eq("vers", 0);
