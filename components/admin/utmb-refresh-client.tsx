@@ -13,6 +13,7 @@ import {
   type RefreshRow,
 } from "@/app/actions/admin/refresh-utmb-indexes";
 import type { UtmbRefreshMeta } from "@/app/actions/admin/get-utmb-last-refreshed-at";
+import { formatKSTDateTime } from "@/lib/dayjs";
 
 type Props = { meta: UtmbRefreshMeta };
 
@@ -22,17 +23,6 @@ const STATUS_LABEL: Record<RefreshRow["status"], string> = {
   failed: "실패",
 };
 
-function formatDateTime(iso: string | null): string {
-  if (!iso) return "기록 없음";
-  const d = new Date(iso);
-  return d.toLocaleString("ko-KR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 export function UtmbRefreshClient({ meta }: Props) {
   const router = useRouter();
@@ -61,7 +51,7 @@ export function UtmbRefreshClient({ meta }: Props) {
         <Caption>대상</Caption>
         <Body className="font-semibold">등록된 {meta.memberCount}명</Body>
         <Caption className="mt-1">마지막 갱신</Caption>
-        <Body>{formatDateTime(meta.lastRefreshedAt)}</Body>
+        <Body>{formatKSTDateTime(meta.lastRefreshedAt)}</Body>
       </CardItem>
 
       <div className="flex flex-col gap-2">

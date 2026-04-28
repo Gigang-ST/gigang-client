@@ -168,3 +168,9 @@ export function paceToString(paceMin: number): string {
 export function oneYearAgoDateString(): string {
   return dayjs().subtract(1, "year").format("YYYY-MM-DD");
 }
+
+/** ISO 문자열을 KST 기준 'YYYY-MM-DD HH:mm' 포맷으로 변환 */
+export function formatKSTDateTime(iso: string | null | undefined): string {
+  if (!iso) return "기록 없음";
+  return dayjs(iso).tz(KST).format("YYYY-MM-DD HH:mm");
+}
