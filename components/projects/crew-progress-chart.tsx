@@ -411,6 +411,21 @@ export function CrewProgressChart({
     });
   }, [mode, percentData, mileageData, selectedMemberIdSet, isCurrentMonth, dayRef]);
 
+  const validPointCountByMember = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of selectedMembers) {
+      let count = 0;
+      for (const row of selectedChartData) {
+        const value = row[item.member.id];
+        if (typeof value === "number" && Number.isFinite(value)) {
+          count += 1;
+        }
+      }
+      counts.set(item.member.id, count);
+    }
+    return counts;
+  }, [selectedMembers, selectedChartData]);
+
   const roleColorMap = useMemo(
     () => buildRoleColorMap(selectedMembers, top, bottom, near, memId),
     [selectedMembers, top, bottom, near, memId],
@@ -735,7 +750,15 @@ export function CrewProgressChart({
                 dataKey={item.member.id}
                 name={item.member.name}
                 stroke={roleColorMap.get(item.member.id) ?? ROLE_COLORS.near[0]}
-                dot={false}
+                dot={
+                  (validPointCountByMember.get(item.member.id) ?? 0) <= 1
+                    ? {
+                        r: item.member.name === myName ? 4 : 3,
+                        strokeWidth: 0,
+                        fill: roleColorMap.get(item.member.id) ?? ROLE_COLORS.near[0],
+                      }
+                    : false
+                }
                 strokeWidth={item.member.name === myName ? 3 : 1.5}
                 opacity={item.member.name === myName ? 1 : 0.82}
               />
