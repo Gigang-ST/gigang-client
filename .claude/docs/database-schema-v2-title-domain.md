@@ -3,6 +3,18 @@
 멀티팀 v2에서 칭호 도메인을 `ttl_mst`, `mem_ttl_rel` 2개 테이블로 설계한다.  
 핵심 목표는 **팀 경계 정합성(FK 강제)**, **관리자 운영 편의성**, **자동/수여 칭호 공존**이다.
 
+## 0) 진행상황 (2026-05-01)
+
+- [x] 설계 합의 완료 (`ttl_mst`, `mem_ttl_rel`, `team_mem_id` 정합 기준)
+- [x] DDL/코드시드 마이그레이션 작성
+  - `supabase/migrations/20260430104000_v2_title_domain_and_common_codes.sql`
+- [x] RLS 초안 마이그레이션 작성
+  - `supabase/migrations/20260430105000_v2_title_domain_rls_draft.sql`
+- [x] dev 반영 및 검증 SQL 통과 (테이블/enum/FK/코드/RLS 존재 확인)
+- [ ] 칭호 관리 UI(`ttl_mst` CRUD) 구현
+- [ ] 수여 칭호 수동 부여/회수 플로우 구현
+- [ ] 자동 부여 엔진(기록 등록 시 멤버 단위 즉시 재계산) 구현
+
 ## 1) 설계 원칙
 - 팀별 칭호 카탈로그는 `ttl_mst`에서 관리한다.
 - 회원 보유 칭호는 `mem_ttl_rel`에서 관리한다.

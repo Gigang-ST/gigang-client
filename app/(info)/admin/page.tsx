@@ -10,6 +10,8 @@ import {
   FolderKanban,
   HandCoins,
   RefreshCw,
+  Code2,
+  BadgeCheck,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { H2, SectionLabel } from "@/components/common/typography";
@@ -191,6 +193,22 @@ export default function AdminDashboardPage() {
           label="UTMB 인덱스 갱신"
           hint="등록된 회원 전체 재조회"
         />
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <SectionLabel>시스템</SectionLabel>
+        <div className="grid grid-cols-2 gap-3">
+          <ToolCard
+            href="/admin/system/common-codes"
+            icon={Code2}
+            label="공통코드 관리"
+          />
+          <ToolCard
+            href="/admin/system/titles"
+            icon={BadgeCheck}
+            label="칭호 관리"
+          />
+        </div>
       </section>
     </div>
   );
