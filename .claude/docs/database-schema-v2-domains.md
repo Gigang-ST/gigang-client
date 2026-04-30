@@ -1,6 +1,6 @@
-# 도메인 확장 설계 v2 (대회·참가·기록·회비)
+# 도메인 확장 설계 v2 (대회·참가·기록·회비·칭호)
 
-멀티팀 v2에서 **대회/참가/기록/회비** 도메인을 정의한다. 팀 이벤트·칭호는 본 문서 하단에 **작성 보류**로 두었으며, 별도 요구 확정 후 동일 규약으로 추가한다.
+멀티팀 v2에서 **대회/참가/기록/회비/칭호** 도메인을 정의한다. 칭호 도메인 상세는 `database-schema-v2-title-domain.md`를 기준으로 한다.
 
 ## 1) 설계 원칙
 - 개인 원본 데이터는 `mem_id` 기준으로 전역 관리
@@ -330,9 +330,24 @@
 - 과거 정정이 필요한 경우 "스냅샷 재생성(초기화 후 전체 재계산)" 경로로만 처리한다.
 - 면제 반영이 pay와 다른 키로 쌓이므로 증분 시 **`fee_due_exm_hist` 미반영분**도 워터마크(`last_ref_exm_hist_id` 등)와 함께 고려한다(실제 구현은 단일 시퀀스·시각으로 단순화 가능).
 
-## 5) 팀 이벤트/칭호 도메인 (작성 보류)
-- 팀 이벤트/칭호 도메인 상세는 추후 별도 문서를 기준으로 재작성한다.
-- 현재 문서는 회비 도메인 확정까지를 범위로 한다.
+## 5) 칭호 도메인
+
+### 5.1 테이블 구성
+- `ttl_mst`: 팀별 칭호 카탈로그(자동/수여 정의)
+- `mem_ttl_rel`: 회원-칭호 보유/부여 관계
+
+### 5.2 정합성 원칙 (패턴 A)
+- `mem_ttl_rel(team_id, mem_id)` -> `team_mem_rel(team_id, mem_id)` 복합 FK
+- `mem_ttl_rel(team_id, ttl_id)` -> `ttl_mst(team_id, ttl_id)` 복합 FK
+- 목적:
+  - 팀 미소속 회원에게 칭호를 부여하는 오류 차단
+  - 다른 팀 칭호를 잘못 부여하는 오류 차단
+
+### 5.3 컬럼/메타 규약
+- 공통 메타 컬럼은 `crt_at`, `upd_at`, `del_yn`, `vers`를 사용한다.
+- 생성자/수정자 추적은 선택 공통 컬럼 `crt_by`, `upd_by`를 사용한다.
+- `created_at`, `updated_at` 같은 컬럼명은 사용하지 않는다.
+- 상세 컬럼 정의/제약/인덱스/RLS 초안은 `database-schema-v2-title-domain.md`를 따른다.
 
 ## 6) 관계 요약
 - `mem_mst 1:N team_mem_rel`
@@ -359,6 +374,10 @@
 - `fee_due_exm_cfg 1:N fee_due_exm_hist`
 - `team_mst 1:N fee_mem_bal_snap`
 - `mem_mst 1:N fee_mem_bal_snap`
+- `team_mst 1:N ttl_mst`
+- `ttl_mst 1:N mem_ttl_rel`
+- `mem_mst 1:N mem_ttl_rel`
+- `team_mem_rel 1:N mem_ttl_rel`
 
 ## 7) 운영상 이점
 - 회비는 원시(`fee_txn_hist`)·확정(`fee_due_pay_hist`)·면제(cfg/hist)·스냅샷으로 역할이 나뉘어 소규모 운영에 맞는 단순함과 감사 추적을 동시에 확보한다.

@@ -48,6 +48,15 @@
 | `due` | due (회비 부과·납부 대상) |
 | `txn` | transaction (거래) |
 | `xlsx` | Excel 업로드 원본 |
+| `desc` | description (설명) |
+| `ord` | order (정렬 순서) |
+| `prmy` | primary (대표) |
+| `rsn` | reason (사유) |
+| `calc` | calculation (계산) |
+| `bsis` | basis (근거) |
+| `grnt` | grant/granted (부여) |
+| `exp` | expire/expires (만료) |
+| `chg` | change (변경) |
 
 ## 현재 v2 주요 테이블 약어
 | 테이블 | 의미 |
@@ -75,6 +84,28 @@
 | `ttl_mst` | 칭호 마스터 |
 | `mem_ttl_rel` | 회원-칭호 관계 |
 
+## 칭호 도메인 컬럼 약어 (v2)
+| 컬럼 | 의미 |
+|------|------|
+| `ttl_kind_enm` | 칭호 유형 enum (`auto`/`awarded`) |
+| `ttl_ctgr_cd` | 칭호 카테고리 코드 |
+| `ttl_nm` | 칭호 이름 |
+| `ttl_desc` | 칭호 설명 |
+| `ttl_rank` | 자동 칭호 등급 |
+| `cond_rule_json` | 자동 부여 조건 JSON |
+| `base_pt` | 기본 점수 |
+| `sort_ord` | 관리자 목록 정렬 순서 |
+| `grnt_at` | 부여 시각 |
+| `exp_at` | 만료 시각 |
+| `grnt_by_mem_id` | 수여자 회원 ID |
+| `grnt_pt` | 부여 시점 점수 |
+| `aply_pt` | 현재 적용 점수 |
+| `pt_calc_at` | 점수 계산 시각 |
+| `pt_calc_bsis_json` | 점수 계산 근거 JSON |
+| `pt_chg_rsn_cd` | 점수/상태 변경 사유 코드 |
+| `grnt_rsn_txt` | 부여 사유 텍스트 |
+| `is_prmy_yn` | 대표 칭호 여부 |
+
 ## 마일리지런 컬럼 약어 (현재 기준)
 | 컬럼 | 의미 |
 |------|------|
@@ -96,6 +127,7 @@
 - `usr`는 사용하지 않고 `mem`으로 통일한다.
 - `title`은 `ttl`로 통일한다.
 - `payment`는 `pay`로 통일한다.
+- 공통 메타 컬럼은 `crt_at`, `upd_at`, `del_yn`, `vers`를 기본으로 사용한다.
 - `*_cd` 기본 의미는 공통코드 참조다.
 - 고정된 폐쇄형 값셋은 `*_enm`을 우선 사용한다.
 - 단, `team_cd`처럼 외부/업무 식별 목적의 유니크 코드는 예외로 허용한다.
