@@ -336,8 +336,8 @@
 - `ttl_mst`: 팀별 칭호 카탈로그(자동/수여 정의)
 - `mem_ttl_rel`: 회원-칭호 보유/부여 관계
 
-### 5.2 정합성 원칙 (패턴 A)
-- `mem_ttl_rel(team_id, mem_id)` -> `team_mem_rel(team_id, mem_id)` 복합 FK
+### 5.2 정합성 원칙
+- `mem_ttl_rel(team_mem_id)` -> `team_mem_rel(team_mem_id)` FK
 - `mem_ttl_rel(team_id, ttl_id)` -> `ttl_mst(team_id, ttl_id)` 복합 FK
 - 목적:
   - 팀 미소속 회원에게 칭호를 부여하는 오류 차단

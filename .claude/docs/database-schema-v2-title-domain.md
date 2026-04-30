@@ -6,7 +6,7 @@
 ## 1) 설계 원칙
 - 팀별 칭호 카탈로그는 `ttl_mst`에서 관리한다.
 - 회원 보유 칭호는 `mem_ttl_rel`에서 관리한다.
-- 팀-회원-칭호의 소속 일치를 FK로 강제한다(패턴 A).
+- 팀-회원 정합성은 `team_mem_id` FK로 강제하고, 칭호 팀 스코프는 `team_id + ttl_id` FK로 강제한다.
 - 공통 메타 컬럼은 `crt_at`, `upd_at`, `del_yn`, `vers`를 사용한다.
 - `created_at`, `updated_at` 같은 표기는 사용하지 않는다.
 
@@ -52,7 +52,7 @@
 필수 컬럼:
 - `mem_ttl_id` (PK)
 - `team_id` (FK 스코프)
-- `mem_id` (FK -> `mem_mst`)
+- `team_mem_id` (FK -> `team_mem_rel.team_mem_id`)
 - `ttl_id` (FK -> `ttl_mst`)
 - `grnt_at` (기본 `now()`)
 - `exp_at` (nullable, 수여 칭호 만료 시각)
@@ -68,17 +68,17 @@
 
 핵심 FK (정합성 강제):
 - `fk_mem_ttl_rel__team_mem_rel`:  
-  (`team_id`, `mem_id`) -> `team_mem_rel`(`team_id`, `mem_id`)
+  (`team_mem_id`) -> `team_mem_rel`(`team_mem_id`)
 - `fk_mem_ttl_rel__ttl_mst`:  
   (`team_id`, `ttl_id`) -> `ttl_mst`(`team_id`, `ttl_id`)
 
 권장 유니크:
-- `uk_mem_ttl_rel_team_mem_ttl_vers`: (`team_id`, `mem_id`, `ttl_id`, `vers`)
+- `uk_mem_ttl_rel_team_mem_ttl_vers`: (`team_mem_id`, `ttl_id`, `vers`)
 - 대표 칭호 1건 제한(부분 유니크):
-  - (`team_id`, `mem_id`) where `is_prmy_yn = true and vers = 0 and del_yn = false`
+  - (`team_mem_id`) where `is_prmy_yn = true and vers = 0 and del_yn = false`
 
 권장 인덱스:
-- `ix_mem_ttl_rel_team_mem`: (`team_id`, `mem_id`, `vers`, `del_yn`)
+- `ix_mem_ttl_rel_team_mem`: (`team_mem_id`, `vers`, `del_yn`)
 - `ix_mem_ttl_rel_team_ttl`: (`team_id`, `ttl_id`, `vers`, `del_yn`)
 - `ix_mem_ttl_rel_exp`: (`team_id`, `exp_at`) where `exp_at is not null`
 - `ix_mem_ttl_rel_pt_calc_at`: (`team_id`, `pt_calc_at`)
@@ -88,16 +88,16 @@
 - 수여 칭호 회수는 소프트삭제(`del_yn=true`) 또는 버전 이력화 방식 중 하나로 통일한다.
 - 점수/상태 변경 시 UPDATE 대신 정본 교체(기존 `vers=0` -> `vers>0`, 신규 `vers=0` INSERT)를 권장한다.
 
-## 3) 관계 요약 (패턴 A)
+## 3) 관계 요약
 - `team_mst 1:N ttl_mst`
 - `team_mst 1:N team_mem_rel`
 - `ttl_mst 1:N mem_ttl_rel`
 - `mem_mst 1:N mem_ttl_rel`
-- `team_mem_rel 1:N mem_ttl_rel` (복합 FK 기준)
+- `team_mem_rel 1:N mem_ttl_rel` (`team_mem_id` FK 기준)
 
 핵심 보장:
 - 다른 팀 칭호를 잘못 부여하는 케이스를 DB FK에서 차단한다.
-- 팀 미소속 회원에게 칭호 부여를 DB FK에서 차단한다.
+- 팀 미소속 회원에게 칭호 부여를 DB FK(`team_mem_id`)에서 차단한다.
 
 ## 4) 공통코드/enum
 - enum: `ttl_kind_enm` (`auto`, `awarded`)

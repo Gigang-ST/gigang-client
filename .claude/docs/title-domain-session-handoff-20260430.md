@@ -5,10 +5,10 @@
 ## 1) 스코프 결정
 - 칭호 도메인은 우선 `ttl_mst`, `mem_ttl_rel` 2개 테이블로 시작한다.
 - 팀별 칭호 카탈로그(`ttl_mst`)와 회원 보유/이력(`mem_ttl_rel`)을 분리한다.
-- 팀별 정합성은 패턴 A 복합 FK로 강제한다.
+- 팀별 정합성은 `team_mem_id` FK + `team_id, ttl_id` FK로 강제한다.
 
-## 2) FK/정합성 결정 (패턴 A)
-- `mem_ttl_rel(team_id, mem_id)` -> `team_mem_rel(team_id, mem_id)`
+## 2) FK/정합성 결정
+- `mem_ttl_rel(team_mem_id)` -> `team_mem_rel(team_mem_id)`
 - `mem_ttl_rel(team_id, ttl_id)` -> `ttl_mst(team_id, ttl_id)`
 - 목표:
   - 타 팀 칭호 오부여 차단
