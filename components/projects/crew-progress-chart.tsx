@@ -411,6 +411,8 @@ export function CrewProgressChart({
     });
   }, [mode, percentData, mileageData, selectedMemberIdSet, isCurrentMonth, dayRef]);
 
+  const showSingleDayDot = isCurrentMonth && dayRef <= 1;
+
   const roleColorMap = useMemo(
     () => buildRoleColorMap(selectedMembers, top, bottom, near, memId),
     [selectedMembers, top, bottom, near, memId],
@@ -735,7 +737,15 @@ export function CrewProgressChart({
                 dataKey={item.member.id}
                 name={item.member.name}
                 stroke={roleColorMap.get(item.member.id) ?? ROLE_COLORS.near[0]}
-                dot={false}
+                dot={
+                  showSingleDayDot
+                    ? {
+                        r: item.member.name === myName ? 4 : 3,
+                        strokeWidth: 0,
+                        fill: roleColorMap.get(item.member.id) ?? ROLE_COLORS.near[0],
+                      }
+                    : false
+                }
                 strokeWidth={item.member.name === myName ? 3 : 1.5}
                 opacity={item.member.name === myName ? 1 : 0.82}
               />
