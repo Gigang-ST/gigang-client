@@ -79,7 +79,6 @@ async function ProfileContent() {
 
         {/* Personal Best */}
         <PersonalBestGrid
-          memberId={member.id}
           bestRecords={bestRecords}
           utmbData={utmbProfile?.utmb_prf_url && utmbProfile?.utmb_idx != null ? { utmb_profile_url: utmbProfile.utmb_prf_url, utmb_index: utmbProfile.utmb_idx, recent_race_name: utmbProfile.rct_race_nm, recent_race_record: utmbProfile.rct_race_rec } : null}
         />

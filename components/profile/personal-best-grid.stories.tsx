@@ -27,7 +27,6 @@ export const WithAllRecords: Story = {
   args: {
     bestRecords: mockBestRecords,
     utmbData: mockUtmb,
-    memberId: "member-001",
   },
   render: (args) => (
     <div className="w-[375px] p-4">
@@ -40,7 +39,6 @@ export const NoRecords: Story = {
   args: {
     bestRecords: {},
     utmbData: null,
-    memberId: "member-001",
   },
   render: (args) => (
     <div className="w-[375px] p-4">
@@ -55,7 +53,6 @@ export const PartialRecords: Story = {
       FULL: { record_time_sec: 13200, race_name: "2024 동아 마라톤" },
     },
     utmbData: null,
-    memberId: "member-001",
   },
   render: (args) => (
     <div className="w-[375px] p-4">

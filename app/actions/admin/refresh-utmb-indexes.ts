@@ -1,5 +1,7 @@
 "use server";
 
+import { revalidateTag } from "next/cache";
+
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyAdmin } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -137,6 +139,10 @@ export async function refreshUtmbIndexes(): Promise<RefreshResult> {
     },
     { updated: 0, unchanged: 0, failed: 0 },
   );
+
+  if (summary.updated > 0) {
+    revalidateTag(`records:${teamId}`, "max");
+  }
 
   return { rows, summary };
 }
