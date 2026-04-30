@@ -124,7 +124,7 @@ export async function MyStatus({
             <Caption>월 종료</Caption>
           ) : (
             <Caption>
-              일일 필요{" "}
+              잔여 일평균{" "}
               <span className="font-semibold text-foreground">
                 {(dailyNeeded as number).toFixed(1)} km
               </span>
