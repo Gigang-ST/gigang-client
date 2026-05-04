@@ -23,18 +23,22 @@ export async function createEvent(input: {
   const { teamId } = await getRequestTeamContext();
   const db = createAdminClient();
 
-  const { error } = await db.from("evt_team_mst").insert({
-    team_id: teamId,
-    evt_nm: input.evt_nm.trim(),
-    evt_type_cd: input.evt_type_cd,
-    stt_dt: input.stt_dt,
-    end_dt: input.end_dt,
-    stts_enm: input.stts_enm,
-    desc_txt: input.desc_txt?.trim() || null,
-  });
+  const { data, error } = await db
+    .from("evt_team_mst")
+    .insert({
+      team_id: teamId,
+      evt_nm: input.evt_nm.trim(),
+      evt_type_cd: input.evt_type_cd,
+      stt_dt: input.stt_dt,
+      end_dt: input.end_dt,
+      stts_enm: input.stts_enm,
+      desc_txt: input.desc_txt?.trim() || null,
+    })
+    .select("evt_id")
+    .single();
 
   if (error) return { ok: false, message: "이벤트 생성에 실패했습니다" };
-  return { ok: true, message: null };
+  return { ok: true, message: null, evt_id: data.evt_id };
 }
 
 export async function updateEvent(
@@ -263,3 +267,4 @@ export async function deleteParticipation(prtId: string) {
   if (error) return { ok: false, message: "삭제에 실패했습니다" };
   return { ok: true, message: null };
 }
+
