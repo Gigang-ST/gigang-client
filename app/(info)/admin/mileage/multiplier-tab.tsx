@@ -61,6 +61,9 @@ export function MultiplierTab({ evtId }: { evtId: string }) {
   }, [evtId]);
 
   useEffect(() => {
+    setMode("list");
+    setSelectedId("");
+    setForm({ mult_nm: "", mult_val: "", stt_dt: "", end_dt: "", active_yn: true });
     loadMultipliers();
   }, [loadMultipliers]);
 

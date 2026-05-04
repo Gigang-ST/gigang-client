@@ -71,19 +71,22 @@ export function AdminMileageClient({ teamId }: { teamId: string }) {
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("evt_team_mst")
-      .select(
-        "evt_id, evt_nm, evt_type_cd, stt_dt, end_dt, stts_enm, desc_txt",
-      )
-      .eq("team_id", teamId)
-      .order("created_at", { ascending: false });
+    try {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("evt_team_mst")
+        .select(
+          "evt_id, evt_nm, evt_type_cd, stt_dt, end_dt, stts_enm, desc_txt",
+        )
+        .eq("team_id", teamId)
+        .order("created_at", { ascending: false });
 
-    const list = (data ?? []) as Project[];
-    setProjects(list);
-    setLoading(false);
-    return list;
+      const list = (data ?? []) as Project[];
+      setProjects(list);
+      return list;
+    } finally {
+      setLoading(false);
+    }
   }, [teamId]);
 
   // 초기 로드: project 쿼리파람 없으면 자동 선택
