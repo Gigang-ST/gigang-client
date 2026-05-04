@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   createEvent,
   updateEvent,
@@ -71,6 +71,18 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
     desc_txt: project?.desc_txt ?? "",
   });
 
+  useEffect(() => {
+    setEditing(project === null);
+    setForm({
+      evt_nm: project?.evt_nm ?? "",
+      evt_type_cd: project?.evt_type_cd ?? "MILEAGE_RUN",
+      stt_dt: project?.stt_dt ?? "",
+      end_dt: project?.end_dt ?? "",
+      stts_enm: project?.stts_enm ?? "READY",
+      desc_txt: project?.desc_txt ?? "",
+    });
+  }, [project]);
+
   const handleSave = async () => {
     if (!form.evt_nm.trim()) {
       alert("이벤트명은 필수입니다");
@@ -78,6 +90,10 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
     }
     if (!form.stt_dt || !form.end_dt) {
       alert("시작일과 종료일은 필수입니다");
+      return;
+    }
+    if (form.stt_dt > form.end_dt) {
+      alert("종료일은 시작일 이후여야 합니다");
       return;
     }
     setSaving(true);
