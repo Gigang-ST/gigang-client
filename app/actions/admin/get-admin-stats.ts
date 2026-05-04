@@ -11,7 +11,6 @@ export type AdminStats = {
   monthlyCompetitionCount: number;
   recentRecordCount: number;
   activeProjectCount: number;
-  activeEventCount: number;
   pendingParticipationCount: number;
   _debug?: Record<string, unknown>;
 };
@@ -28,7 +27,7 @@ export async function getAdminStats(): Promise<AdminStats> {
   const keyPrefix = env.SUPABASE_SERVICE_ROLE_KEY.slice(0, 20);
   console.log("[getAdminStats] teamId:", teamId, "keyPrefix:", keyPrefix, "noFilterCount:", noFilter.count, "noFilterError:", noFilter.error);
 
-  const [total, competitions, records, activeProjects, activeEvents, pendingPrt] = await Promise.all([
+  const [total, competitions, records, activeProjects, pendingPrt] = await Promise.all([
     admin
       .from("team_mem_rel")
       .select("*", { count: "exact", head: true })
@@ -61,11 +60,6 @@ export async function getAdminStats(): Promise<AdminStats> {
       .eq("team_id", teamId)
       .eq("stts_enm", "ACTIVE"),
     admin
-      .from("evt_mlg_mult_cfg")
-      .select("evt_id, evt_team_mst!inner(team_id)", { count: "exact", head: true })
-      .eq("active_yn", true)
-      .eq("evt_team_mst.team_id", teamId),
-    admin
       .from("evt_team_prt_rel")
       .select("evt_id, evt_team_mst!inner(team_id)", { count: "exact", head: true })
       .eq("aprv_yn", false)
@@ -77,7 +71,6 @@ export async function getAdminStats(): Promise<AdminStats> {
     monthlyCompetitionCount: competitions.count ?? 0,
     recentRecordCount: records.count ?? 0,
     activeProjectCount: activeProjects.count ?? 0,
-    activeEventCount: activeEvents.count ?? 0,
     pendingParticipationCount: pendingPrt.count ?? 0,
     _debug: {
       teamId,
@@ -88,7 +81,6 @@ export async function getAdminStats(): Promise<AdminStats> {
       errors: {
         total: total.error,
         activeProjects: activeProjects.error,
-        activeEvents: activeEvents.error,
         pendingPrt: pendingPrt.error,
       },
     },
