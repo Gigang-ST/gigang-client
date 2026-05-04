@@ -1,30 +1,21 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useQueryState, parseAsStringLiteral, parseAsString } from "nuqs";
 import { createClient } from "@/lib/supabase/client";
 import {
   createMultiplier,
   updateMultiplier,
   deleteMultiplier,
 } from "@/app/actions/admin/manage-mileage";
-import { Plus, Pencil, Trash2, X, Sparkles } from "lucide-react";
+import { Plus, Pencil, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { H2, Body, Caption } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardItem } from "@/components/ui/card";
+import { Caption } from "@/components/common/typography";
+import { SectionLabel } from "@/components/common/typography";
 import { EmptyState } from "@/components/common/empty-state";
-
-type ActiveEvent = {
-  evt_id: string;
-  evt_nm: string;
-  evt_type_cd: string;
-  stt_dt: string;
-  end_dt: string;
-  stts_enm: string;
-};
 
 type Multiplier = {
   mult_id: string;
@@ -37,23 +28,14 @@ type Multiplier = {
   created_at: string;
 };
 
-const modes = ["list", "create", "edit"] as const;
+type Mode = "list" | "create" | "edit";
 
-export function AdminEventsClient({ teamId }: { teamId: string }) {
-  const [activeEvent, setActiveEvent] = useState<ActiveEvent | null>(null);
+export function MultiplierTab({ evtId }: { evtId: string }) {
   const [multipliers, setMultipliers] = useState<Multiplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
-  const [mode, setMode] = useQueryState(
-    "mode",
-    parseAsStringLiteral(modes).withDefault("list"),
-  );
-  const [selectedId, setSelectedId] = useQueryState(
-    "id",
-    parseAsString.withDefault(""),
-  );
-  const selected = multipliers.find((m) => m.mult_id === selectedId) ?? null;
+  const [mode, setMode] = useState<Mode>("list");
+  const [selectedId, setSelectedId] = useState("");
 
   const [form, setForm] = useState({
     mult_nm: "",
@@ -63,65 +45,24 @@ export function AdminEventsClient({ teamId }: { teamId: string }) {
     active_yn: true,
   });
 
-  const loadData = useCallback(async () => {
+  const loadMultipliers = useCallback(async () => {
     setLoading(true);
     const supabase = createClient();
-
-    // 활성 이벤트 조회 (ACTIVE 우선, 없으면 최근 이벤트)
-    const { data: evts } = await supabase
-      .from("evt_team_mst")
-      .select("evt_id, evt_nm, evt_type_cd, stt_dt, end_dt, stts_enm")
-      .eq("team_id", teamId)
+    const { data } = await supabase
+      .from("evt_mlg_mult_cfg")
+      .select(
+        "mult_id, evt_id, mult_nm, mult_val, stt_dt, end_dt, active_yn, created_at",
+      )
+      .eq("evt_id", evtId)
       .order("created_at", { ascending: false });
 
-    const activeEvt =
-      (evts ?? []).find((e) => e.stts_enm === "ACTIVE") ??
-      (evts ?? [])[0] ??
-      null;
-
-    setActiveEvent(activeEvt as ActiveEvent | null);
-
-    if (activeEvt) {
-      const { data: mults } = await supabase
-        .from("evt_mlg_mult_cfg")
-        .select(
-          "mult_id, evt_id, mult_nm, mult_val, stt_dt, end_dt, active_yn, created_at",
-        )
-        .eq("evt_id", activeEvt.evt_id)
-        .order("created_at", { ascending: false });
-
-      setMultipliers((mults ?? []) as Multiplier[]);
-    } else {
-      setMultipliers([]);
-    }
-
+    setMultipliers((data ?? []) as Multiplier[]);
     setLoading(false);
-  }, [teamId]);
+  }, [evtId]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  // URL로 edit 직접 접근 시 폼 채우기
-  useEffect(() => {
-    if (mode === "edit" && selected) {
-      setForm({
-        mult_nm: selected.mult_nm,
-        mult_val: String(selected.mult_val),
-        stt_dt: selected.stt_dt ?? "",
-        end_dt: selected.end_dt ?? "",
-        active_yn: selected.active_yn,
-      });
-    }
-  }, [mode, selected]);
-
-  // 유효하지 않은 selectedId 처리
-  useEffect(() => {
-    if (mode === "edit" && selectedId && !selected && !loading) {
-      setMode("list");
-      setSelectedId("");
-    }
-  }, [mode, selectedId, selected, loading, setMode, setSelectedId]);
+    loadMultipliers();
+  }, [loadMultipliers]);
 
   const openCreate = () => {
     setSelectedId("");
@@ -156,8 +97,6 @@ export function AdminEventsClient({ teamId }: { teamId: string }) {
       alert("배율값은 0보다 큰 숫자여야 합니다");
       return;
     }
-    if (!activeEvent) return;
-
     setSaving(true);
 
     const input = {
@@ -170,7 +109,7 @@ export function AdminEventsClient({ teamId }: { teamId: string }) {
 
     const result =
       mode === "create"
-        ? await createMultiplier({ evt_id: activeEvent.evt_id, ...input })
+        ? await createMultiplier({ evt_id: evtId, ...input })
         : await updateMultiplier(selectedId, input);
 
     setSaving(false);
@@ -181,7 +120,7 @@ export function AdminEventsClient({ teamId }: { teamId: string }) {
     }
 
     goBack();
-    loadData();
+    loadMultipliers();
   };
 
   const handleDelete = async (multId: string) => {
@@ -196,9 +135,7 @@ export function AdminEventsClient({ teamId }: { teamId: string }) {
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-4 px-6 pt-4">
-        <Skeleton className="h-8 w-36 rounded" />
-        <Skeleton className="h-20 w-full rounded-2xl" />
+      <div className="flex flex-col gap-3">
         {Array.from({ length: 3 }).map((_, i) => (
           <Skeleton key={i} className="h-16 w-full rounded-2xl" />
         ))}
@@ -206,12 +143,13 @@ export function AdminEventsClient({ teamId }: { teamId: string }) {
     );
   }
 
-  // 생성/수정 폼
   if (mode === "create" || mode === "edit") {
     return (
-      <div className="flex flex-col gap-6 px-6 pb-6 pt-4">
+      <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
-          <H2>{mode === "create" ? "배율 추가" : "배율 수정"}</H2>
+          <span className="text-[18px] font-semibold text-foreground">
+            {mode === "create" ? "배율 추가" : "배율 수정"}
+          </span>
           <Button
             variant="ghost"
             size="icon-sm"
@@ -222,7 +160,6 @@ export function AdminEventsClient({ teamId }: { teamId: string }) {
           </Button>
         </div>
 
-        {/* 배율명 */}
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium text-foreground">배율명</label>
           <Input
@@ -233,7 +170,6 @@ export function AdminEventsClient({ teamId }: { teamId: string }) {
           />
         </div>
 
-        {/* 배율값 */}
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium text-foreground">
             배율값 (예: 1.2 = 120%)
@@ -249,7 +185,6 @@ export function AdminEventsClient({ teamId }: { teamId: string }) {
           />
         </div>
 
-        {/* 기간 */}
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-2">
             <label className="text-sm font-medium text-foreground">
@@ -277,7 +212,6 @@ export function AdminEventsClient({ teamId }: { teamId: string }) {
           </div>
         </div>
 
-        {/* 활성 여부 */}
         <div className="flex items-center justify-between rounded-xl border-[1.5px] border-border px-4 py-3.5">
           <span className="text-[15px] font-medium text-foreground">활성화</span>
           <button
@@ -308,97 +242,52 @@ export function AdminEventsClient({ teamId }: { teamId: string }) {
     );
   }
 
-  // 목록
   return (
-    <div className="flex flex-col gap-4 px-6 pb-6 pt-4">
-      <H2>이벤트 관리</H2>
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <span className="text-[15px] font-semibold text-foreground">
+          배율 목록 ({multipliers.length})
+        </span>
+        <Button size="sm" onClick={openCreate} className="gap-1.5 rounded-xl">
+          <Plus className="size-4" />
+          배율 추가
+        </Button>
+      </div>
 
-      {/* 현재 이벤트 정보 */}
-      {activeEvent ? (
-        <CardItem className="flex flex-col gap-2 bg-secondary/40">
-          <div className="flex items-center gap-2">
-            <Sparkles className="size-4 text-primary" />
-            <Body className="font-semibold">{activeEvent.evt_nm}</Body>
-            <Badge
-              variant={
-                activeEvent.stts_enm === "ACTIVE"
-                  ? "default"
-                  : activeEvent.stts_enm === "CLOSED"
-                    ? "outline"
-                    : "secondary"
-              }
-              className="text-[11px]"
-            >
-              {activeEvent.stts_enm === "ACTIVE"
-                ? "진행중"
-                : activeEvent.stts_enm === "CLOSED"
-                  ? "종료"
-                  : "준비중"}
-            </Badge>
-          </div>
-          <Caption>
-            {activeEvent.stt_dt} ~ {activeEvent.end_dt}
-          </Caption>
-        </CardItem>
-      ) : (
-        <EmptyState message="등록된 이벤트가 없습니다. 프로젝트 관리에서 먼저 이벤트를 생성하세요." />
+      {multipliers.filter((m) => m.active_yn).length > 0 && (
+        <div className="flex flex-col gap-2">
+          <SectionLabel>활성</SectionLabel>
+          {multipliers
+            .filter((m) => m.active_yn)
+            .map((mult) => (
+              <MultiplierRow
+                key={mult.mult_id}
+                mult={mult}
+                onEdit={openEdit}
+                onDelete={handleDelete}
+              />
+            ))}
+        </div>
       )}
 
-      {activeEvent && (
-        <>
-          {/* 배율 목록 헤더 */}
-          <div className="flex items-center justify-between">
-            <span className="text-[15px] font-semibold text-foreground">
-              배율 목록 ({multipliers.length})
-            </span>
-            <Button size="sm" onClick={openCreate} className="rounded-xl gap-1.5">
-              <Plus className="size-4" />
-              배율 추가
-            </Button>
-          </div>
+      {multipliers.filter((m) => !m.active_yn).length > 0 && (
+        <div className="flex flex-col gap-2">
+          <SectionLabel>비활성</SectionLabel>
+          {multipliers
+            .filter((m) => !m.active_yn)
+            .map((mult) => (
+              <MultiplierRow
+                key={mult.mult_id}
+                mult={mult}
+                onEdit={openEdit}
+                onDelete={handleDelete}
+              />
+            ))}
+        </div>
+      )}
 
-          {/* 활성 배율 */}
-          {multipliers.filter((m) => m.active_yn).length > 0 && (
-            <div className="flex flex-col gap-2">
-              <span className="text-[12px] font-semibold uppercase tracking-widest text-muted-foreground">
-                활성
-              </span>
-              {multipliers
-                .filter((m) => m.active_yn)
-                .map((mult) => (
-                  <MultiplierRow
-                    key={mult.mult_id}
-                    mult={mult}
-                    onEdit={openEdit}
-                    onDelete={handleDelete}
-                  />
-                ))}
-            </div>
-          )}
-
-          {/* 비활성 배율 */}
-          {multipliers.filter((m) => !m.active_yn).length > 0 && (
-            <div className="flex flex-col gap-2">
-              <span className="text-[12px] font-semibold uppercase tracking-widest text-muted-foreground">
-                비활성
-              </span>
-              {multipliers
-                .filter((m) => !m.active_yn)
-                .map((mult) => (
-                  <MultiplierRow
-                    key={mult.mult_id}
-                    mult={mult}
-                    onEdit={openEdit}
-                    onDelete={handleDelete}
-                  />
-                ))}
-            </div>
-          )}
-
-          {multipliers.length === 0 && (
-            <EmptyState variant="card" message="등록된 배율이 없습니다." />
-          )}
-        </>
+      {multipliers.length === 0 && (
+        <EmptyState variant="card" message="등록된 배율이 없습니다." />
       )}
     </div>
   );
