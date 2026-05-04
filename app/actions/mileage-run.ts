@@ -543,7 +543,7 @@ export async function updateMonthlyGoal(
     return { ok: false, message: "본인 목표만 수정할 수 있습니다" };
   }
 
-  if (newGoal < Number(existing.goal_mlg)) {
+  if (!isAdmin && newGoal < Number(existing.goal_mlg)) {
     return { ok: false, message: "목표는 현재 값 이상으로만 설정할 수 있습니다" };
   }
 
@@ -557,7 +557,7 @@ export async function updateMonthlyGoal(
 
   if (error) return { ok: false, message: "목표 수정에 실패했습니다" };
 
-  await recalcGoalsFromMonth(evtId, existing.prt_id);
+  await recalcGoalsFromMonth(evtId, existing.prt_id, goalId);
 
   revalidatePath("/projects");
   return { ok: true, message: null };
@@ -576,6 +576,7 @@ export async function updateMonthlyGoal(
 async function recalcGoalsFromMonth(
   evtId: string,
   prtId: string,
+  anchorGoalId?: string, // 수동 편집한 달의 goal_id. 이 달부터 cascade 시작 (이전 달 goal_mlg 불변)
 ): Promise<void> {
   const db = createAdminClient();
 
@@ -644,9 +645,15 @@ async function recalcGoalsFromMonth(
       .eq("goal_id", g.goal_id);
   }
 
-  // 첫 번째 목표는 기준점 (init_goal 또는 사용자가 수정한 값) — 변경 안 함
-  // 두 번째부터 이전 월 달성 여부에 따라 재계산
-  for (let i = 1; i < goals.length; i++) {
+  // anchorGoalId가 있으면 해당 달을 기준점으로, 없으면 첫 번째 달이 기준점
+  let anchorIdx = 0;
+  if (anchorGoalId) {
+    const found = goals.findIndex((g) => g.goal_id === anchorGoalId);
+    if (found > 0) anchorIdx = found;
+  }
+
+  // 기준점 이후 달부터 이전 월 달성 여부에 따라 재계산
+  for (let i = anchorIdx + 1; i < goals.length; i++) {
     const prev = goals[i - 1];
     const cur = goals[i];
     const prevMonth = prev.base_dt as string;

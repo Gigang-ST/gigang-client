@@ -6,9 +6,7 @@ import {
   Users,
   Trophy,
   Timer,
-  Sparkles,
   FolderKanban,
-  HandCoins,
   RefreshCw,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -54,26 +52,12 @@ const generalCards: Card[] = [
 
 const projectCards: Card[] = [
   {
-    key: "participations",
-    label: "승인 대기 참여자",
-    href: "/admin/participations",
-    icon: HandCoins,
+    key: "mileage",
+    label: "마일리지런 관리",
+    href: "/admin/mileage",
+    icon: FolderKanban,
     getValue: (s) => s.pendingParticipationCount,
     getAccentValue: (s) => s.pendingParticipationCount,
-  },
-  {
-    key: "projects",
-    label: "활성 프로젝트",
-    href: "/admin/projects",
-    icon: FolderKanban,
-    getValue: (s) => s.activeProjectCount,
-  },
-  {
-    key: "events",
-    label: "활성 이벤트",
-    href: "/admin/events",
-    icon: Sparkles,
-    getValue: (s) => s.activeEventCount,
   },
 ];
 
