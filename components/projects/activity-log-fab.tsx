@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -51,11 +51,20 @@ export function ActivityLogFab({ evtId, memId: _memId }: ActivityLogFabProps) {
   return (
     <>
       {showSuccessNotice && (
-        <div className="fixed bottom-40 left-1/2 z-50 w-[calc(100%-3rem)] max-w-md -translate-x-1/2 rounded-xl border border-primary/25 bg-background/95 px-4 py-3 shadow-lg backdrop-blur-sm">
-          <p className="text-sm font-semibold text-primary">[ {savedCount}건 등록완료 ]</p>
-          <p className="mt-1 text-sm text-foreground">
-          동기부여를 위해 러닝기록을 단톡방에 올려주세요!
-          </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="mx-6 w-full max-w-sm rounded-2xl bg-primary px-6 py-7 text-primary-foreground shadow-2xl">
+            <div className="flex flex-col items-center gap-4 text-center">
+              <div className="flex size-14 items-center justify-center rounded-full bg-white/20">
+                <Check className="size-7" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <p className="text-sm opacity-70">{savedCount}건 등록완료</p>
+                <p className="text-xl font-bold leading-snug">
+                  동기부여를 위해<br />러닝기록을 단톡방에<br />올려주세요!
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
