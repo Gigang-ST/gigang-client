@@ -4,6 +4,8 @@ import type { Database } from "@/lib/supabase/database.types";
 /** 앱 전역에서 쓰는 회원 프로필(레거시 `member` 행과 동일 역할, id = mem_mst.mem_id). */
 export type AppMemberProfile = {
   id: string;
+  /** team_mem_rel.team_mem_id — 칭호 부여 등 팀 스코프 FK 참조에 사용 */
+  team_mem_id: string;
   full_name: string;
   gender: Database["public"]["Enums"]["gender"];
   birthday: string;
@@ -67,6 +69,7 @@ export function mapMstRelToAppMemberProfile(
 
   return {
     id: mst.mem_id,
+    team_mem_id: rel.team_mem_id,
     full_name: mst.mem_nm,
     gender,
     birthday: mst.birth_dt ?? "",

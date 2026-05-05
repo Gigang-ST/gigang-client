@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Save } from "lucide-react";
+import { Plus, RefreshCw, Save } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { createTitle, updateTitle } from "@/app/actions/admin/manage-title";
-import { H2 } from "@/components/common/typography";
+import { sweepAllTitles } from "@/app/actions/admin/sweep-titles";
+import { H2, SectionLabel } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -15,8 +17,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { EmptyState } from "@/components/common/empty-state";
 import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { cmmCdRowsForGrp } from "@/lib/queries/cmm-cd-cached";
+
+type GrantRow = {
+  mem_ttl_id: string;
+  grnt_at: string;
+  grnt_by_mem_id: string | null;
+  grnt_rsn_txt: string | null;
+  is_prmy_yn: boolean;
+  del_yn: boolean;
+  team_mem_rel: {
+    mem_mst: {
+      mem_nm: string;
+    };
+  };
+};
 
 type TitleRow = {
   ttl_id: string;
@@ -99,6 +116,7 @@ export function AdminTitlesClient({
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [sweeping, setSweeping] = useState(false);
 
   const loadTitles = useCallback(async () => {
     setLoading(true);
@@ -145,9 +163,23 @@ export function AdminTitlesClient({
     }));
   };
 
+  const validateForm = (form: TitleForm): string | null => {
+    if (!form.ttlNm.trim()) return "칭호명은 필수입니다.";
+    if (!form.ttlKindEnm) return "칭호 유형은 필수입니다.";
+    if (!form.ttlCtgrCd) return "카테고리는 필수입니다.";
+    if (!form.ttlRank.trim()) return "등급은 필수입니다.";
+    if (!form.basePt.trim()) return "기본 점수는 필수입니다.";
+    if (!form.sortOrd.trim()) return "정렬 순서는 필수입니다.";
+    if (!form.useYn) return "사용 여부는 필수입니다.";
+    if (form.ttlKindEnm === "auto" && !form.condRuleJson.trim()) return "자동 유형은 자동 조건(JSON)이 필수입니다.";
+    return null;
+  };
+
   const saveRow = async (ttlId: string) => {
     const form = forms[ttlId];
     if (!form) return;
+    const validationError = validateForm(form);
+    if (validationError) { alert(validationError); return; }
     setSavingId(ttlId);
     const result = await updateTitle(ttlId, form);
     if (!result.ok) {
@@ -160,6 +192,8 @@ export function AdminTitlesClient({
   };
 
   const createRow = async () => {
+    const validationError = validateForm(newForm);
+    if (validationError) { alert(validationError); return; }
     setCreating(true);
     const result = await createTitle(newForm);
     if (!result.ok) {
@@ -180,17 +214,35 @@ export function AdminTitlesClient({
     <div className="flex flex-col gap-4 px-6 pb-6 pt-4">
       <div className="flex items-center justify-between">
         <H2>칭호 관리</H2>
-        <Button
-          size="sm"
-          onClick={() => {
-            setShowCreateForm((prev) => !prev);
-            setNewForm(buildEmptyForm(defaultCategory));
-          }}
-          className="h-8 rounded-lg"
-        >
-          <Plus className="size-4" />
-          신규
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              if (!confirm("전체 활성 멤버를 대상으로 자동 칭호를 재평가합니다. 계속할까요?")) return;
+              setSweeping(true);
+              const result = await sweepAllTitles();
+              setSweeping(false);
+              alert(result.message ?? (result.ok ? "완료" : "실패"));
+            }}
+            disabled={sweeping}
+            className="h-8 rounded-lg"
+          >
+            <RefreshCw className={`size-4 ${sweeping ? "animate-spin" : ""}`} />
+            {sweeping ? "재계산 중..." : "일괄 재계산"}
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              setShowCreateForm((prev) => !prev);
+              setNewForm(buildEmptyForm(defaultCategory));
+            }}
+            className="h-8 rounded-lg"
+          >
+            <Plus className="size-4" />
+            신규
+          </Button>
+        </div>
       </div>
 
       {showCreateForm && (
@@ -228,25 +280,16 @@ export function AdminTitlesClient({
       ) : (
         <CardItem className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] table-fixed border-collapse text-[11px] [font-variant-numeric:tabular-nums]">
-              <colgroup>
-                <col style={{ width: "34%" }} />
-                <col style={{ width: "11%" }} />
-                <col style={{ width: "17%" }} />
-                <col style={{ width: "8%" }} />
-                <col style={{ width: "10%" }} />
-                <col style={{ width: "10%" }} />
-                <col style={{ width: "10%" }} />
-              </colgroup>
+            <table className="w-full border-collapse text-[11px] [font-variant-numeric:tabular-nums]">
               <thead className="bg-muted/40">
                 <tr className="border-b">
-                  <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">칭호명</th>
-                  <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">유형</th>
-                  <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">카테고리</th>
-                  <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">등급</th>
-                  <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">점수</th>
-                  <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">정렬</th>
-                  <th className="px-2 py-1.5 text-center font-medium text-muted-foreground">사용</th>
+                  <th className="px-2 py-1.5 text-center font-medium text-muted-foreground">칭호명</th>
+                  <th className="w-10 px-2 py-1.5 text-center font-medium text-muted-foreground">유형</th>
+                  <th className="w-16 px-2 py-1.5 text-center font-medium text-muted-foreground">카테고리</th>
+                  <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">등급</th>
+                  <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">점수</th>
+                  <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">정렬</th>
+                  <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">사용</th>
                 </tr>
               </thead>
               <tbody>
@@ -269,12 +312,12 @@ export function AdminTitlesClient({
                         active ? "bg-primary/5" : ""
                       }`}
                     >
-                      <td className="truncate px-2 py-1.5 font-medium text-foreground">{row.ttl_nm}</td>
-                      <td className="px-2 py-1.5 text-muted-foreground">{row.ttl_kind_enm === "auto" ? "자동" : "수여"}</td>
-                      <td className="truncate px-2 py-1.5 text-muted-foreground">{categoryOptions.find((c) => c.cd === row.ttl_ctgr_cd)?.cd_nm ?? row.ttl_ctgr_cd}</td>
-                      <td className="px-2 py-1.5 text-right text-muted-foreground">{row.ttl_rank}</td>
-                      <td className="px-2 py-1.5 text-right text-muted-foreground">{row.base_pt}</td>
-                      <td className="px-2 py-1.5 text-right text-muted-foreground">{row.sort_ord}</td>
+                      <td className="truncate px-2 py-1.5 text-center font-medium text-foreground">{row.ttl_nm}</td>
+                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_kind_enm === "auto" ? "자동" : "수여"}</td>
+                      <td className="truncate px-2 py-1.5 text-center text-muted-foreground">{categoryOptions.find((c) => c.cd === row.ttl_ctgr_cd)?.cd_nm ?? row.ttl_ctgr_cd}</td>
+                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_rank}</td>
+                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.base_pt}</td>
+                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.sort_ord}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.use_yn ? "사용" : "미사용"}</td>
                     </tr>
                   );
@@ -310,6 +353,103 @@ export function AdminTitlesClient({
           />
         </CardItem>
       )}
+
+      {selectedRow && (
+        <TitleGrantList ttlId={selectedRow.ttl_id} />
+      )}
+    </div>
+  );
+}
+
+function TitleGrantList({ ttlId }: { ttlId: string }) {
+  const [grants, setGrants] = useState<GrantRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setGrants([]);
+
+    const supabase = createClient();
+    void supabase
+      .from("mem_ttl_rel")
+      .select(`
+        mem_ttl_id,
+        grnt_at,
+        grnt_by_mem_id,
+        grnt_rsn_txt,
+        is_prmy_yn,
+        del_yn,
+        team_mem_rel!inner(
+          mem_mst!inner(mem_nm)
+        )
+      `)
+      .eq("ttl_id", ttlId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .order("grnt_at", { ascending: false })
+      .then(({ data }) => {
+        if (cancelled) return;
+        setGrants((data ?? []) as unknown as GrantRow[]);
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ttlId]);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <SectionLabel>수여 내역</SectionLabel>
+        {!loading && (
+          <span className="text-[11px] text-muted-foreground">{grants.length}명</span>
+        )}
+      </div>
+
+      {loading ? (
+        <CardItem className="flex flex-col gap-2 p-3">
+          <Skeleton className="h-8 w-full rounded-lg" />
+          <Skeleton className="h-8 w-full rounded-lg" />
+          <Skeleton className="h-8 w-full rounded-lg" />
+        </CardItem>
+      ) : grants.length === 0 ? (
+        <EmptyState message="수여 내역이 없습니다." />
+      ) : (
+        <CardItem className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-[11px] [font-variant-numeric:tabular-nums]">
+              <thead className="bg-muted/40">
+                <tr className="border-b">
+                  <th className="px-2 py-1.5 text-center font-medium text-muted-foreground">멤버명</th>
+                  <th className="w-24 px-2 py-1.5 text-center font-medium text-muted-foreground">수여일</th>
+                  <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">획득방식</th>
+                  <th className="px-2 py-1.5 text-center font-medium text-muted-foreground">사유</th>
+                </tr>
+              </thead>
+              <tbody>
+                {grants.map((grant) => (
+                  <tr key={grant.mem_ttl_id} className="border-b last:border-0">
+                    <td className="px-2 py-1.5 text-center font-medium text-foreground">
+                      {grant.team_mem_rel.mem_mst.mem_nm}
+                    </td>
+                    <td className="px-2 py-1.5 text-center text-muted-foreground">
+                      {new Date(grant.grnt_at).toLocaleDateString("ko-KR")}
+                    </td>
+                    <td className="px-2 py-1.5 text-center text-muted-foreground">
+                      {grant.grnt_by_mem_id === null ? "자동" : "수동"}
+                    </td>
+                    <td className="truncate px-2 py-1.5 text-center text-muted-foreground">
+                      {grant.grnt_rsn_txt ?? "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardItem>
+      )}
     </div>
   );
 }
@@ -324,76 +464,92 @@ function TitleFormFields({
   onChange: (key: keyof TitleForm, value: string) => void;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-      <LabeledInput
-        label="칭호명"
-        value={form.ttlNm}
-        onChange={(v) => onChange("ttlNm", v)}
-      />
-
-      <LabeledSelect
-        label="칭호 유형"
-        value={form.ttlKindEnm}
-        onChange={(v) => onChange("ttlKindEnm", v)}
-        items={TITLE_KIND_OPTIONS.map((item) => ({
-          value: item.value,
-          label: item.label,
-        }))}
-      />
-
+    <div className="grid grid-cols-2 gap-2">
+      {/* 행 1: 카테고리 / 사용여부 */}
       <LabeledSelect
         label="카테고리"
         value={form.ttlCtgrCd}
         onChange={(v) => onChange("ttlCtgrCd", v)}
+        required
         items={categoryOptions.map((item) => ({
           value: item.cd,
           label: item.cd_nm,
         }))}
       />
-
       <LabeledSelect
         label="사용 여부"
         value={form.useYn}
         onChange={(v) => onChange("useYn", v)}
+        required
         items={[
           { value: "true", label: "사용" },
           { value: "false", label: "미사용" },
         ]}
       />
 
-      <LabeledInput
-        label="등급"
-        type="number"
-        value={form.ttlRank}
-        onChange={(v) => onChange("ttlRank", v)}
+      {/* 행 2: 칭호유형 (단독) */}
+      <LabeledSelect
+        label="칭호 유형"
+        value={form.ttlKindEnm}
+        onChange={(v) => onChange("ttlKindEnm", v)}
+        required
+        items={TITLE_KIND_OPTIONS.map((item) => ({
+          value: item.value,
+          label: item.label,
+        }))}
       />
+      <div />
 
+      {/* 행 3: 칭호명 / 정렬순서 */}
       <LabeledInput
-        label="기본 점수"
-        type="number"
-        value={form.basePt}
-        onChange={(v) => onChange("basePt", v)}
+        label="칭호명"
+        value={form.ttlNm}
+        onChange={(v) => onChange("ttlNm", v)}
+        required
       />
-
       <LabeledInput
         label="정렬 순서"
         type="number"
         value={form.sortOrd}
         onChange={(v) => onChange("sortOrd", v)}
+        required
       />
 
+      {/* 행 4: 등급 / 기본점수 */}
       <LabeledInput
-        label="설명"
-        value={form.ttlDesc}
-        onChange={(v) => onChange("ttlDesc", v)}
+        label="등급"
+        type="number"
+        value={form.ttlRank}
+        onChange={(v) => onChange("ttlRank", v)}
+        required
+      />
+      <LabeledInput
+        label="기본 점수"
+        type="number"
+        value={form.basePt}
+        onChange={(v) => onChange("basePt", v)}
+        required
       />
 
-      <div className="sm:col-span-2">
+      {/* 행 5: 자동조건(JSON) — auto일 때만 필수, 한 줄 전체 */}
+      {form.ttlKindEnm === "auto" && (
+        <div className="col-span-2">
+          <LabeledInput
+            label="자동 조건(JSON)"
+            value={form.condRuleJson}
+            onChange={(v) => onChange("condRuleJson", v)}
+            required
+            placeholder='예: {"type":"race_pb_under_sec","sport":"FULL","sec":10800}'
+          />
+        </div>
+      )}
+
+      {/* 행 6: 설명 (full-width) */}
+      <div className="col-span-2">
         <LabeledInput
-          label="자동 조건(JSON)"
-          value={form.condRuleJson}
-          onChange={(v) => onChange("condRuleJson", v)}
-          placeholder='예: {"full_pb_sec":12600}'
+          label="설명"
+          value={form.ttlDesc}
+          onChange={(v) => onChange("ttlDesc", v)}
         />
       </div>
     </div>
@@ -406,16 +562,21 @@ function LabeledInput({
   onChange,
   type = "text",
   placeholder,
+  required,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: "text" | "number";
   placeholder?: string;
+  required?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      <label className="text-xs font-medium text-muted-foreground">
+        {label}
+        {required && <span className="ml-0.5 text-destructive">*</span>}
+      </label>
       <Input
         type={type}
         value={value}
@@ -432,15 +593,20 @@ function LabeledSelect({
   value,
   onChange,
   items,
+  required,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   items: { value: string; label: string }[];
+  required?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      <label className="text-xs font-medium text-muted-foreground">
+        {label}
+        {required && <span className="ml-0.5 text-destructive">*</span>}
+      </label>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger className="h-10 rounded-lg">
           <SelectValue />

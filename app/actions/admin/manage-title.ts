@@ -83,6 +83,8 @@ async function normalizePayload(payload: TitlePayload): Promise<TitleNormalized>
     } catch {
       throw new Error("자동 조건 JSON 형식이 올바르지 않습니다");
     }
+  } else if (ttlKindEnm === "auto") {
+    throw new Error("자동 유형은 자동 조건(JSON)이 필수입니다");
   }
 
   return {
