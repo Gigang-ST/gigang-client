@@ -33,11 +33,11 @@ model: sonnet
 | 퍼블리싱/UI·UX 디자인/비주얼 QA | `ui-ux-pro-max` 스킬 사용 |
 | API/DB/인증/RLS/서버 액션 | 백엔드 개발자 |
 | QA/테스트/검증 | `chrome-devtools` MCP 활용 |
+| 보안 감사/취약점 검토 | 보안 감사관 |
 | 배포/CI·CD/인프라/환경변수 | DevOps 엔지니어 |
 
 ## 참고 문서
 
 - `CLAUDE.md` — 프로젝트 개요, 주요 규칙, 브랜치 전략
-- `.claude/docs/coding-standards.md` — 코딩 컨벤션
-- `.claude/docs/component-conventions.md` — 컴포넌트 작성 규칙
+- `.claude/rules/` — 컨텍스트별 규칙 (frontend / database / api)
 - 아키텍처/DB 구조는 코드 및 MCP에서 직접 확인

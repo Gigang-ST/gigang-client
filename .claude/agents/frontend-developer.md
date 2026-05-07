@@ -30,10 +30,9 @@ model: sonnet
 
 ## 작업 시작 시
 
-1. `.claude/docs/component-conventions.md` 읽기 - 컴포넌트 규칙
-2. 코드에서 라우팅/레이아웃 구조 직접 파악
-3. 기존 유사 컴포넌트 확인하여 패턴 일치시키기
-4. `node_modules/next/dist/docs/` 에서 관련 Next.js 문서 확인
+1. 코드에서 라우팅/레이아웃 구조 직접 파악
+2. 기존 유사 컴포넌트 확인하여 패턴 일치시키기
+3. `node_modules/next/dist/docs/` 에서 관련 Next.js 문서 확인
 
 ## 작업 원칙
 
