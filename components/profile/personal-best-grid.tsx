@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import { fetchUtmbIndex } from "@/app/actions/utmb";
+import {
+	deleteUtmbProfile,
+	saveUtmbProfile,
+} from "@/app/actions/save-utmb-profile";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -12,7 +16,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { secondsToTime } from "@/lib/dayjs";
-import { createClient } from "@/lib/supabase/client";
 
 type BestRecord = {
 	record_time_sec: number;
@@ -29,12 +32,11 @@ type UtmbData = {
 type Props = {
 	bestRecords: Record<string, BestRecord>;
 	utmbData: UtmbData;
-	memberId: string;
 };
 
 const PB_EVENTS = ["FULL", "HALF", "10K"] as const;
 
-export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
+export function PersonalBestGrid({ bestRecords, utmbData }: Props) {
 	const [utmb, setUtmb] = useState(utmbData);
 	const [utmbOpen, setUtmbOpen] = useState(false);
 
@@ -115,30 +117,25 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
 		const fullUrl = utmbUrl.trim().startsWith("http")
 			? utmbUrl.trim()
 			: `https://utmb.world/en/runner/${utmbUrl.trim()}`;
-		const supabase = createClient();
-		const { error } = await supabase.from("mem_utmb_prf").upsert(
-			{
-				mem_id: memberId,
-				utmb_prf_url: fullUrl,
-				utmb_idx: utmbIndex,
-				rct_race_nm: recentRaceName.trim() || null,
-				rct_race_rec: recentRaceRecord.trim() || null,
-				vers: 0,
-				del_yn: false,
-			},
-			{ onConflict: "mem_id,vers" },
-		);
+		const trimmedRaceName = recentRaceName.trim() || null;
+		const trimmedRaceRecord = recentRaceRecord.trim() || null;
+		const result = await saveUtmbProfile({
+			profileUrl: fullUrl,
+			utmbIndex,
+			recentRaceName: trimmedRaceName,
+			recentRaceRecord: trimmedRaceRecord,
+		});
 		setSaving(false);
-		if (error) {
-			setMessage(error.message);
+		if (!result.ok) {
+			setMessage(result.message);
 			setIsError(true);
 			return;
 		}
 		setUtmb({
 			utmb_profile_url: fullUrl,
 			utmb_index: utmbIndex,
-			recent_race_name: recentRaceName.trim() || null,
-			recent_race_record: recentRaceRecord.trim() || null,
+			recent_race_name: trimmedRaceName,
+			recent_race_record: trimmedRaceRecord,
 		});
 		setUtmbOpen(false);
 	};
@@ -146,15 +143,10 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId }: Props) {
 	const handleDelete = async () => {
 		if (!window.confirm("UTMB Index 정보를 삭제하시겠습니까?")) return;
 		setSaving(true);
-		const supabase = createClient();
-		const { error } = await supabase
-			.from("mem_utmb_prf")
-			.delete()
-			.eq("mem_id", memberId)
-			.eq("vers", 0);
+		const result = await deleteUtmbProfile();
 		setSaving(false);
-		if (error) {
-			setMessage(error.message);
+		if (!result.ok) {
+			setMessage(result.message);
 			setIsError(true);
 			return;
 		}
