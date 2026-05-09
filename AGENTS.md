@@ -40,8 +40,8 @@ Before any Next.js work, find and read the relevant doc in `node_modules/next/di
 
 ## Codex/Claude 호환 규칙
 
-- `.claude/skills`를 이 저장소의 스킬 source of truth로 사용한다.
-- 스킬을 추가하거나 수정하면 Codex가 읽을 수 있도록 동일 내용을 `.agents/skills`에도 반드시 반영한다.
+- `.skillshare/skills`를 이 저장소의 스킬 source of truth로 사용한다.
+- 스킬을 추가하거나 수정한 후 `skillshare sync`를 실행하면 `.claude/skills`와 `.agents/skills`에 자동 동기화된다.
 - Codex 프로젝트 설정 파일은 `.agents`가 아니라 `.codex/config.toml`에 둔다.
 - MCP 서버를 추가하거나 변경하면 Codex용 프로젝트 설정인 `.codex/config.toml`을 반드시 함께 갱신한다.
 - Claude/Cursor도 함께 쓰는 설정이면 `.mcp.json`, `.cursor/mcp.json`과 `.codex/config.toml`을 서로 일관되게 유지한다.
