@@ -1,13 +1,25 @@
 {
   "private": true,
   "scripts": {
+    "prepare": "husky",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "cz": "cz",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "db:types": "pnpm exec supabase gen types typescript --project-id $SUPABASE_PROJECT_ID --schema public > lib/supabase/database.types.ts"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix"
+    ]
+  },
+  "config": {
+    "commitizen": {
+      "path": "@commitlint/cz-commitlint"
+    }
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -46,6 +58,10 @@
   },
   "devDependencies": {
     "@chromatic-com/storybook": "^5.1.1",
+    "@commitlint/cli": "^21.0.0",
+    "@commitlint/config-conventional": "^21.0.0",
+    "@commitlint/cz-commitlint": "^21.0.0",
+    "@commitlint/types": "^21.0.0",
     "@eslint/eslintrc": "^3",
     "@storybook/addon-a11y": "^10.3.4",
     "@storybook/addon-docs": "^10.3.4",
@@ -55,10 +71,13 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@typescript-eslint/parser": "^8.58.0",
+    "commitizen": "^4.3.1",
     "eslint": "^9",
     "eslint-config-next": "15.3.1",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-storybook": "^10.3.4",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.3",
     "postcss": "^8",
     "storybook": "^10.3.4",
     "supabase": "^2.84.5",
