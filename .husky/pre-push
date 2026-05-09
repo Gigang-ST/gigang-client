@@ -1,0 +1,22 @@
+#!/bin/sh
+echo "🪝 [husky] pre-push hook running..."
+
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+# 환경 브랜치는 항상 허용
+case "$BRANCH" in
+  dev|main) exit 0 ;;
+esac
+
+# 허용된 브랜치 prefix (CLAUDE.md 브랜치 전략 기준)
+ALLOWED="feature/ feat/ fix/ bugfix/ test/ tests/ chore/ build/ deps/ dep/ config/ ci/ cd/ cicd/ docs/ refactor/ perf/ style/ lint/ format/ hotfix/ renovate/ dependabot/"
+
+for prefix in $ALLOWED; do
+  case "$BRANCH" in
+    "$prefix"*) exit 0 ;;
+  esac
+done
+
+echo "❌ Branch name '$BRANCH' does not match any allowed prefix."
+echo "   Allowed: feature/ feat/ fix/ bugfix/ test/ tests/ chore/ build/ deps/ dep/ config/ ci/ cd/ cicd/ docs/ refactor/ perf/ style/ lint/ format/ hotfix/ renovate/ dependabot/"
+exit 1
