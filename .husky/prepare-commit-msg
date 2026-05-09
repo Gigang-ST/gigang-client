@@ -1,3 +1,4 @@
+#!/bin/sh
 echo "🪝 [husky] prepare-commit-msg hook running..."
 # git commit -m 명령어를 사용할 때는 스킵
 if [ -z "${2}" ]; then

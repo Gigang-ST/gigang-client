@@ -1,2 +1,3 @@
+#!/bin/sh
 echo "🪝 [husky] commit-msg hook running..."
 npx commitlint --edit ${1}

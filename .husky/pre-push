@@ -18,5 +18,5 @@ for prefix in $ALLOWED; do
 done
 
 echo "❌ Branch name '$BRANCH' does not match any allowed prefix."
-echo "   Allowed: feature/ feat/ fix/ bugfix/ test/ tests/ chore/ build/ deps/ dep/ config/ ci/ cd/ cicd/ docs/ refactor/ perf/ style/ lint/ format/ hotfix/"
+echo "   Allowed: feature/ feat/ fix/ bugfix/ test/ tests/ chore/ build/ deps/ dep/ config/ ci/ cd/ cicd/ docs/ refactor/ perf/ style/ lint/ format/ hotfix/ renovate/ dependabot/"
 exit 1
