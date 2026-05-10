@@ -299,7 +299,8 @@ select obj_description('public.set_v2_upd_at()'::regprocedure);
 
 - [ ] 확인함: `personal_best` 물리 이관 없음 → `rec_race_hist` 파생
 - [x] 확인함: `utmb_profile` → `mem_utmb_prf` (`20260404165809_v2_mem_utmb_prf.sql`, `member-domain` §`mem_utmb_prf`)
-- [ ] 확인함: 팀 이벤트·칭호 도메인은 설계 보류 구간
+- [x] 확인함: 칭호 도메인 설계 문서 작성 완료 (`database-schema-v2-title-domain.md`)
+- [ ] 확인함: 팀 이벤트 도메인은 요구 확정 후 별도 설계
 
 ## 5) 데이터 백필
 
