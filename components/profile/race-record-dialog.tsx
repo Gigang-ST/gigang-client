@@ -42,6 +42,15 @@ interface Competition {
   registrationCompEvtId?: string | null;
 }
 
+/* ---------- 시간 입력 자동 포맷 ---------- */
+
+function formatTimeInput(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 6);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}:${digits.slice(2, 4)}:${digits.slice(4)}`;
+}
+
 /* ---------- 컴포넌트 ---------- */
 
 export function RaceRecordDialog({
@@ -609,32 +618,36 @@ export function RaceRecordDialog({
                   <label className="text-sm font-medium">대회 총 시간</label>
                   <Input
                     placeholder="HH:MM:SS"
+                    inputMode="numeric"
                     value={totalTime}
-                    onChange={(e) => setTotalTime(e.target.value)}
+                    onChange={(e) => setTotalTime(formatTimeInput(e.target.value))}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium">수영</label>
                   <Input
                     placeholder="HH:MM:SS"
+                    inputMode="numeric"
                     value={swimTime}
-                    onChange={(e) => setSwimTime(e.target.value)}
+                    onChange={(e) => setSwimTime(formatTimeInput(e.target.value))}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium">자전거</label>
                   <Input
                     placeholder="HH:MM:SS"
+                    inputMode="numeric"
                     value={bikeTime}
-                    onChange={(e) => setBikeTime(e.target.value)}
+                    onChange={(e) => setBikeTime(formatTimeInput(e.target.value))}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium">러닝</label>
                   <Input
                     placeholder="HH:MM:SS"
+                    inputMode="numeric"
                     value={runTime}
-                    onChange={(e) => setRunTime(e.target.value)}
+                    onChange={(e) => setRunTime(formatTimeInput(e.target.value))}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -659,8 +672,9 @@ export function RaceRecordDialog({
                 <label className="text-sm font-medium">완주 시간</label>
                 <Input
                   placeholder="HH:MM:SS"
+                  inputMode="numeric"
                   value={totalTime}
-                  onChange={(e) => setTotalTime(e.target.value)}
+                  onChange={(e) => setTotalTime(formatTimeInput(e.target.value))}
                 />
               </div>
             )}
