@@ -109,12 +109,10 @@ function getCachedRecordsData(teamId: string) {
           male: rows
             .filter((r) => r.gender === "male")
             .sort((a, b) => a.sortKey - b.sortKey)
-            .slice(0, 10)
             .map(toEntry),
           female: rows
             .filter((r) => r.gender === "female")
             .sort((a, b) => a.sortKey - b.sortKey)
-            .slice(0, 10)
             .map(toEntry),
         };
       });
@@ -122,7 +120,6 @@ function getCachedRecordsData(teamId: string) {
       // --- 트레일러닝 ---
       const trailEntries = utmbMembers
         .sort((a, b) => b.index - a.index)
-        .slice(0, 10)
         .map((r, i) => ({
           rank: i + 1,
           name: r.name,
@@ -151,8 +148,7 @@ function getCachedRecordsData(teamId: string) {
           // 올림픽 통영/기타: 같은 DB event_type에서 race_name으로 분리
           rows = olympicRows
             .filter((r) => evt.filter(r.raceName))
-            .sort((a, b) => a.sortKey - b.sortKey)
-            .slice(0, 10);
+            .sort((a, b) => a.sortKey - b.sortKey);
         } else {
           rows = (pbData ?? [])
             .filter((r) => r.event_type === evt.eventType)
@@ -165,8 +161,7 @@ function getCachedRecordsData(teamId: string) {
                 sortKey: r.record_time_sec,
               };
             })
-            .sort((a, b) => a.sortKey - b.sortKey)
-            .slice(0, 10);
+            .sort((a, b) => a.sortKey - b.sortKey);
         }
 
         return {

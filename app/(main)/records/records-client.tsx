@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Medal } from "lucide-react";
+import { Medal, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 /* ------------------------------------------------------------------ */
 /*  타입 정의                                                          */
@@ -218,16 +219,16 @@ function MarathonContent({ events }: { events: MarathonEvent[] }) {
           </div>
         ) : (
           Array.from({ length: maxRows }).map((_, i) => {
-            const rank = i + 1;
             const male = currentEvent?.male[i];
             const female = currentEvent?.female[i];
+            const rank = male?.rank ?? female?.rank ?? i + 1;
             return (
               <div
                 key={rank}
                 className="flex items-center gap-3 border-b border-border py-3 last:border-b-0 last:rounded-b-lg"
               >
-                <MarathonCell entry={male} rank={rank} />
-                <MarathonCell entry={female} rank={rank} />
+                <MarathonCell entry={male} rank={male?.rank ?? rank} />
+                <MarathonCell entry={female} rank={female?.rank ?? rank} />
               </div>
             );
           })
@@ -361,6 +362,30 @@ function TriathlonContent({ events }: { events: TriathlonEvent[] }) {
 export function RecordsClient({ data }: { data: RecordsData }) {
   const [selectedCategory, setSelectedCategory] =
     useState<CategoryKey>("marathon");
+  const [query, setQuery] = useState("");
+
+  const q = query.trim().toLowerCase();
+
+  const filteredMarathon = {
+    events: data.marathon.events.map((evt) => ({
+      ...evt,
+      male: evt.male.filter((e) => e.name.toLowerCase().includes(q)),
+      female: evt.female.filter((e) => e.name.toLowerCase().includes(q)),
+    })),
+  };
+
+  const filteredTrail = {
+    entries: data.trail.entries.filter((e) =>
+      e.name.toLowerCase().includes(q),
+    ),
+  };
+
+  const filteredTriathlon = {
+    events: data.triathlon.events.map((evt) => ({
+      ...evt,
+      entries: evt.entries.filter((e) => e.name.toLowerCase().includes(q)),
+    })),
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -384,15 +409,26 @@ export function RecordsClient({ data }: { data: RecordsData }) {
         ))}
       </div>
 
+      {/* 검색창 */}
+      <div className="relative px-6">
+        <Search className="absolute left-9 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="이름으로 검색"
+          className="pl-9"
+        />
+      </div>
+
       {/* 카테고리별 콘텐츠 */}
       {selectedCategory === "marathon" && (
-        <MarathonContent events={data.marathon.events} />
+        <MarathonContent events={filteredMarathon.events} />
       )}
       {selectedCategory === "trail" && (
-        <TrailContent entries={data.trail.entries} />
+        <TrailContent entries={filteredTrail.entries} />
       )}
       {selectedCategory === "triathlon" && (
-        <TriathlonContent events={data.triathlon.events} />
+        <TriathlonContent events={filteredTriathlon.events} />
       )}
     </div>
   );
