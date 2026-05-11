@@ -127,8 +127,8 @@ t3-env로 관리되며 `lib/env.ts`에서 import:
 
 ## 에이전트/스킬/MCP 동기화 규칙
 
-- `.claude/skills`를 이 저장소의 스킬 source of truth로 사용한다.
-- 스킬을 추가하거나 수정하면 Codex가 읽을 수 있도록 동일 내용을 `.agents/skills`에도 반드시 반영한다.
+- `.skillshare/skills`를 이 저장소의 스킬 source of truth로 사용한다.
+- 스킬을 추가하거나 수정한 후 `skillshare sync`를 실행하면 `.claude/skills`와 `.agents/skills`에 자동 동기화된다.
 - Codex 프로젝트 설정 파일은 `.agents`가 아니라 `.codex/config.toml`에 둔다.
 - MCP 서버를 추가하거나 변경하면 `.mcp.json`, `.cursor/mcp.json`, `.codex/config.toml`을 함께 갱신한다.
 - Cursor는 Codex의 `.agents/skills`나 `.codex/config.toml`을 직접 읽지 않으므로, Cursor 전용 설정은 `.cursor/*`에서 별도로 관리한다.
