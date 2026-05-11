@@ -3,10 +3,37 @@ claude-code = "latest"
 node = "22"
 supabase = "latest"
 vercel = "latest"
+"aqua:runkids/skillshare" = "latest"
 
 [env]
 _.file = [".env.development.local", ".env.development"]
 
+[hooks]
+enter = { task = "skills:sync" }
+
+[tasks."skills:sync"]
+description = "스킬이 동기화되지 않은 경우 자동 sync"
+run = """
+#!/usr/bin/env bash
+src=$(ls .skillshare/skills 2>/dev/null | wc -l | tr -d ' ')
+dst=$(ls .claude/skills 2>/dev/null | wc -l | tr -d ' ')
+if [ "$src" != "$dst" ]; then
+  echo "🔄 스킬 동기화 중..."
+  skillshare sync
+fi
+"""
+
+[tasks."skills:sync:pwsh"]
+description = "스킬이 동기화되지 않은 경우 자동 sync (PowerShell)"
+shell = "pwsh"
+run = """
+$src = (Get-ChildItem .skillshare/skills -ErrorAction SilentlyContinue | Measure-Object).Count
+$dst = (Get-ChildItem .claude/skills -ErrorAction SilentlyContinue | Measure-Object).Count
+if ($src -ne $dst) {
+  Write-Output "🔄 스킬 동기화 중..."
+  skillshare sync
+}
+"""
 
 [tasks."env:all"]
 description = "모든 환경변수 파일 생성"
