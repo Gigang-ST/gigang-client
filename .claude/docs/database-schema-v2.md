@@ -158,7 +158,8 @@
 - 팀·대회 참가 맥락 (`team_comp_plan_rel` — **참가가 생긴 대회만** 행 존재; 팀이 참가한 대회 수는 이 테이블의 해당 `team_id` 행 수로 보면 됨. 상세는 `database-schema-v2-domains.md` §2)
 - 실제 대회 참가 내역 (`comp_reg_rel`)
 - 실제 기록 데이터 (`rec_race_hist`, `comp_id`/`comp_evt_id` 정합성 검증)
-- 칭호·팀 이벤트 등은 도메인 설계가 확정되면 동일 원칙으로 추가한다(현재 `database-schema-v2-domains.md`는 해당 섹션 작성 보류).
+- 칭호 도메인 데이터는 `ttl_mst`, `mem_ttl_rel`을 사용한다(상세: `database-schema-v2-title-domain.md`).
+- 팀 이벤트는 요구 확정 시 동일 원칙으로 별도 도메인 문서를 추가한다.
 
 ### 9.3 의사결정 규칙
 - 이력/트랜잭션이 핵심이면 도메인 테이블
