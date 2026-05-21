@@ -136,12 +136,12 @@ JOIN (
     ('TTL_CTGR_CD', 'trail', '트레일', '트레일 러닝 관련 자동 칭호 카테고리', 3, false),
     ('TTL_CTGR_CD', 'cycling', '자전거', '자전거 관련 자동 칭호 카테고리', 4, false),
     ('TTL_CTGR_CD', 'awarded', '수여', '관리자 수여 칭호 카테고리', 5, true),
-    -- TTL_PT_CHG_RSN_CD (배치 제외 5종)
+    -- TTL_PT_CHG_RSN_CD
     ('TTL_PT_CHG_RSN_CD', 'initial_grant', '최초 부여', '칭호 최초 획득 시점', 1, true),
-    ('TTL_PT_CHG_RSN_CD', 'manual_adjust', '관리자 조정', '관리자가 점수/상태를 수동 조정', 2, false),
-    ('TTL_PT_CHG_RSN_CD', 'expire', '만료', '만료 시각 도달로 효력 종료', 3, false),
-    ('TTL_PT_CHG_RSN_CD', 'revoke', '회수', '운영 정책에 따른 칭호 회수/박탈', 4, false),
-    ('TTL_PT_CHG_RSN_CD', 'policy_change', '정책 변경', '운영 정책 변경에 따른 일괄 반영', 5, false)
+    ('TTL_PT_CHG_RSN_CD', 'rarity_recalc', '희귀도 보정', '주 1회 배치 희귀도 재계산에 따른 점수 조정', 2, false),
+    ('TTL_PT_CHG_RSN_CD', 'manual_adjust', '관리자 조정', '관리자가 점수/상태를 수동 조정', 3, false),
+    ('TTL_PT_CHG_RSN_CD', 'expire', '만료', '만료 시각 도달로 효력 종료', 4, false),
+    ('TTL_PT_CHG_RSN_CD', 'revoke', '회수', '운영 정책에 따른 칭호 회수/박탈', 5, false)
 ) AS v(grp_cd, cd, cd_nm, cd_desc, sort_ord, is_default_yn)
   ON g.cd_grp_cd = v.grp_cd
   AND g.vers = 0

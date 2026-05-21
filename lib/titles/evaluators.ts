@@ -37,17 +37,13 @@ export async function evalRacePbUnderSecInternal(
     .eq("mem_id", memId)
     .eq("del_yn", false)
     .eq("vers", 0)
+    .eq("comp_evt_cfg.comp_evt_type", rule.sport.toUpperCase())
     .order("rec_time_sec", { ascending: true })
     .limit(1);
 
   if (!data || data.length === 0) return false;
 
-  const row = data[0];
-  const evtCfg = Array.isArray(row.comp_evt_cfg) ? row.comp_evt_cfg[0] : row.comp_evt_cfg;
-  const evtType = (evtCfg as { comp_evt_type?: string } | null)?.comp_evt_type?.toUpperCase() ?? "";
-
-  if (evtType !== rule.sport.toUpperCase()) return false;
-  return row.rec_time_sec <= rule.sec;
+  return data[0].rec_time_sec <= rule.sec;
 }
 
 export async function evalRaceFinishCountInternal(

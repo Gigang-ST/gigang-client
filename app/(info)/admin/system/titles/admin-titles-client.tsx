@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, RefreshCw, Save } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { formatKSTDateTime } from "@/lib/dayjs";
 import { createTitle, updateTitle } from "@/app/actions/admin/manage-title";
 import { sweepAllTitles } from "@/app/actions/admin/sweep-titles";
 import { H2, SectionLabel } from "@/components/common/typography";
@@ -388,8 +389,9 @@ function TitleGrantList({ ttlId }: { ttlId: string }) {
       .eq("vers", 0)
       .eq("del_yn", false)
       .order("grnt_at", { ascending: false })
-      .then(({ data }) => {
+      .then(({ data, error }) => {
         if (cancelled) return;
+        if (error) console.error("수여 내역 조회 실패:", error);
         setGrants((data ?? []) as unknown as GrantRow[]);
         setLoading(false);
       });
@@ -435,7 +437,7 @@ function TitleGrantList({ ttlId }: { ttlId: string }) {
                       {grant.team_mem_rel.mem_mst.mem_nm}
                     </td>
                     <td className="px-2 py-1.5 text-center text-muted-foreground">
-                      {new Date(grant.grnt_at).toLocaleDateString("ko-KR")}
+                      {formatKSTDateTime(grant.grnt_at).slice(0, 10)}
                     </td>
                     <td className="px-2 py-1.5 text-center text-muted-foreground">
                       {grant.grnt_by_mem_id === null ? "자동" : "수동"}

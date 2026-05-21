@@ -103,7 +103,9 @@ export async function evaluateAndGrantTitles(
     if (!passed) continue;
 
     // 재수여: vers=0으로 새 행 INSERT (회수된 이력은 vers>=1로 보존되어 충돌 없음)
-    const { error } = await db.from("mem_ttl_rel").insert({
+    // uk_mem_ttl_rel_team_mem_ttl_active 덕분에 동시 호출 시 중복 수여가 DB 레벨에서 차단된다
+    // uk_mem_ttl_rel_team_mem_ttl_active 충돌 시 무시 (동시 호출로 인한 중복 수여 방지)
+    const { error } = await db.from("mem_ttl_rel").upsert({
       team_id: ctx.teamId,
       team_mem_id: ctx.teamMemId,
       ttl_id: title.ttl_id,
@@ -114,7 +116,7 @@ export async function evaluateAndGrantTitles(
       is_prmy_yn: false,
       vers: 0,
       del_yn: false,
-    });
+    }, { onConflict: "team_mem_id,ttl_id", ignoreDuplicates: true });
 
     if (error) {
       console.error(`[title-engine] 칭호 부여 실패 ttl_id=${title.ttl_id}`, error);

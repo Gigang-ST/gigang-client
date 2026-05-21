@@ -145,7 +145,7 @@ export async function updateTitle(ttlId: string, payload: TitlePayload) {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
 
-    const { error } = await db
+    const { data, error } = await db
       .from("ttl_mst")
       .update({
         ttl_kind_enm: normalized.ttlKindEnm,
@@ -162,9 +162,11 @@ export async function updateTitle(ttlId: string, payload: TitlePayload) {
       .eq("ttl_id", ttlId)
       .eq("team_id", teamId)
       .eq("vers", 0)
-      .eq("del_yn", false);
+      .eq("del_yn", false)
+      .select("ttl_id");
 
     if (error) return { ok: false, message: "칭호 수정에 실패했습니다" };
+    if (!data || data.length === 0) return { ok: false, message: "수정할 칭호를 찾을 수 없습니다" };
     return { ok: true, message: null };
   } catch (error) {
     return {
