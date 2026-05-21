@@ -10,6 +10,7 @@ import {
   resolveCompEvtIdForRaceRecord,
 } from "@/lib/server/comp-evt-cfg";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 
 type SaveRaceRecordInput = {
   competitionId: string;
@@ -164,6 +165,14 @@ export async function saveRaceRecord(input: SaveRaceRecordInput) {
   if (shouldInvalidate) {
     revalidateTag(`records:${teamId}`, "max");
   }
+
+  // 칭호 자동 평가 — 기록 저장 성공 후 fire-and-forget
+  // 실패해도 기록 저장 결과에 영향을 주지 않는다.
+  evaluateAndGrantTitles({
+    trigger: "race_record",
+    teamId,
+    teamMemId: member.team_mem_id,
+  }).catch((e) => console.error("[title-engine] race_record 평가 실패", e));
 
   return { ok: true as const, message: null };
 }
