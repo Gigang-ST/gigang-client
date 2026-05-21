@@ -19,7 +19,7 @@ export async function revokeTitle(memTtlId: string) {
 
   if (!row) return { ok: false as const, message: "보유 칭호를 찾을 수 없습니다." };
 
-  // 회수: del_yn=true, vers+1 (이력 보존 컨벤션)
+  // 회수: vers+1 + del_yn=true — vers=0 슬롯을 비워야 재수여 시 UNIQUE 충돌이 없다
   const { error } = await db
     .from("mem_ttl_rel")
     .update({ del_yn: true, vers: row.vers + 1, pt_chg_rsn_cd: "revoke" })
