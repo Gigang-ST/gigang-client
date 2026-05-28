@@ -4,17 +4,19 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { cmmCdRowsForGrp, getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { verifyAdmin } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import type { Json } from "@/lib/supabase/database.types";
 
 type TitlePayload = {
   ttlNm: string;
   ttlKindEnm: string;
   ttlCtgrCd: string;
   ttlDesc: string | null;
-  ttlRank: number | string;
   basePt: number | string;
   sortOrd: number | string;
   useYn: boolean | string;
   condRuleJson: string | null;
+  rarityLevel?: number | string;
+  isEventYn?: boolean | string;
 };
 
 type TitleNormalized = {
@@ -22,11 +24,12 @@ type TitleNormalized = {
   ttlKindEnm: "auto" | "awarded";
   ttlCtgrCd: string;
   ttlDesc: string | null;
-  ttlRank: number;
   basePt: number;
   sortOrd: number;
   useYn: boolean;
   condRuleJson: unknown | null;
+  rarityLevel: number;
+  isEventYn: boolean;
 };
 
 function parseNonNegativeInt(value: number | string, label: string): number {
@@ -71,7 +74,6 @@ async function normalizePayload(payload: TitlePayload): Promise<TitleNormalized>
   }
 
   const ttlDesc = payload.ttlDesc?.trim() ? payload.ttlDesc.trim() : null;
-  const ttlRank = parseNonNegativeInt(payload.ttlRank, "등급");
   const basePt = parseNonNegativeInt(payload.basePt, "기본 점수");
   const sortOrd = parseNonNegativeInt(payload.sortOrd, "정렬 순서");
   const useYn = parseUseYn(payload.useYn);
@@ -87,16 +89,26 @@ async function normalizePayload(payload: TitlePayload): Promise<TitleNormalized>
     throw new Error("자동 유형은 자동 조건(JSON)이 필수입니다");
   }
 
+  const rarityLevelRaw = typeof payload.rarityLevel === "string"
+    ? Number(payload.rarityLevel)
+    : (payload.rarityLevel ?? 1);
+  const rarityLevel = Number.isInteger(rarityLevelRaw) && rarityLevelRaw >= 1 && rarityLevelRaw <= 10
+    ? rarityLevelRaw
+    : 1;
+
+  const isEventYn = payload.isEventYn === true || payload.isEventYn === "true";
+
   return {
     ttlNm,
     ttlKindEnm,
     ttlCtgrCd,
     ttlDesc,
-    ttlRank,
     basePt,
     sortOrd,
     useYn,
     condRuleJson,
+    rarityLevel,
+    isEventYn,
   };
 }
 
@@ -115,11 +127,12 @@ export async function createTitle(payload: TitlePayload) {
       ttl_ctgr_cd: normalized.ttlCtgrCd,
       ttl_nm: normalized.ttlNm,
       ttl_desc: normalized.ttlDesc,
-      ttl_rank: normalized.ttlRank,
-      cond_rule_json: normalized.condRuleJson,
+      cond_rule_json: normalized.condRuleJson as Json,
       base_pt: normalized.basePt,
       sort_ord: normalized.sortOrd,
       use_yn: normalized.useYn,
+      rarity_level: normalized.rarityLevel,
+      is_event_yn: normalized.isEventYn,
       crt_by: admin.id,
       upd_by: admin.id,
       vers: 0,
@@ -152,11 +165,12 @@ export async function updateTitle(ttlId: string, payload: TitlePayload) {
         ttl_ctgr_cd: normalized.ttlCtgrCd,
         ttl_nm: normalized.ttlNm,
         ttl_desc: normalized.ttlDesc,
-        ttl_rank: normalized.ttlRank,
-        cond_rule_json: normalized.condRuleJson,
+        cond_rule_json: normalized.condRuleJson as Json,
         base_pt: normalized.basePt,
         sort_ord: normalized.sortOrd,
         use_yn: normalized.useYn,
+        rarity_level: normalized.rarityLevel,
+        is_event_yn: normalized.isEventYn,
         upd_by: admin.id,
       })
       .eq("ttl_id", ttlId)

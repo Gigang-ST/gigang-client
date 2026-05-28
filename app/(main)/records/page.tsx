@@ -32,11 +32,28 @@ function getCachedRecordsData(teamId: string) {
     async () => {
       const supabase = createAdminClient();
 
-      // 마라톤 + 철인3종 기록, UTMB 프로필 동시 조회
-      const [{ data: raceData }, { data: utmbData }] = await Promise.all([
+      // 마라톤 + 철인3종 기록, UTMB 프로필, 대표 칭호 동시 조회
+      const [{ data: raceData }, { data: utmbData }, { data: titleData }] = await Promise.all([
         supabase.rpc("get_public_team_race_rankings", { p_team_id: teamId }),
         supabase.rpc("get_public_team_utmb_rankings", { p_team_id: teamId }),
+        supabase
+          .from("mem_ttl_rel")
+          .select("team_mem_rel!inner(mem_id), ttl_mst!inner(ttl_nm)")
+          .eq("team_mem_rel.team_id", teamId)
+          .eq("is_prmy_yn", true)
+          .eq("vers", 0)
+          .eq("del_yn", false),
       ]);
+
+      // mem_id → { ttl_nm } 맵
+      const memberTitleMap = new Map<string, { ttl_nm: string; effect_cd: string }>();
+      for (const row of titleData ?? []) {
+        const rel = Array.isArray(row.team_mem_rel) ? row.team_mem_rel[0] : row.team_mem_rel;
+        const ttl = Array.isArray(row.ttl_mst) ? row.ttl_mst[0] : row.ttl_mst;
+        if (rel?.mem_id && ttl?.ttl_nm) {
+          memberTitleMap.set(rel.mem_id, { ttl_nm: ttl.ttl_nm, effect_cd: "none" });
+        }
+      }
 
       // 멤버별 종목별 최고기록만 추출
       const bestByMemberEvent = new Map<string, { event_type: string; record_time_sec: number; race_name: string; member: { id: string; full_name: string; gender: string } }>();
@@ -58,6 +75,7 @@ function getCachedRecordsData(teamId: string) {
             },
           });
         }
+
       }
       const pbData = Array.from(bestByMemberEvent.values());
 
@@ -65,11 +83,10 @@ function getCachedRecordsData(teamId: string) {
       const utmbMembers = (utmbData ?? [])
         .filter((r): r is typeof r & { utmb_idx: number; utmb_prf_url: string } => r.utmb_idx != null && r.utmb_prf_url != null)
         .map((r) => {
-          const member = { mem_nm: r.mem_nm, mem_id: r.mem_id } as { mem_nm: string; mem_id: string } | null;
-          if (!member) return null;
+          if (!r.mem_nm || !r.mem_id) return null;
           return {
-            id: member.mem_id,
-            name: member.mem_nm,
+            id: r.mem_id as string,
+            name: r.mem_nm as string,
             index: r.utmb_idx,
             url: r.utmb_prf_url,
             recentRaceName: r.rct_race_nm ?? null,
@@ -84,10 +101,12 @@ function getCachedRecordsData(teamId: string) {
           .filter((r) => r.event_type === evt.eventType)
           .map((r) => {
             const member = r.member as unknown as {
+              id: string;
               full_name: string;
               gender: string;
             };
             return {
+              memId: member.id,
               name: member.full_name,
               gender: member.gender,
               record: secondsToTime(r.record_time_sec),
@@ -98,6 +117,7 @@ function getCachedRecordsData(teamId: string) {
 
         const toEntry = (r: (typeof rows)[number], i: number) => ({
           rank: i + 1,
+          memId: r.memId,
           name: r.name,
           record: r.record,
           raceName: r.raceName,
@@ -122,6 +142,7 @@ function getCachedRecordsData(teamId: string) {
         .sort((a, b) => b.index - a.index)
         .map((r, i) => ({
           rank: i + 1,
+          memId: r.id,
           name: r.name,
           utmbIndex: r.index,
           recentRaceName: r.recentRaceName,
@@ -133,8 +154,9 @@ function getCachedRecordsData(teamId: string) {
       const olympicRows = (pbData ?? [])
         .filter((r) => r.event_type === "TRIATHLON_OLYMPIC")
         .map((r) => {
-          const member = r.member as unknown as { full_name: string; gender: string };
+          const member = r.member as unknown as { id: string; full_name: string; gender: string };
           return {
+            memId: member.id,
             name: member.full_name,
             record: secondsToTime(r.record_time_sec),
             raceName: r.race_name,
@@ -145,7 +167,6 @@ function getCachedRecordsData(teamId: string) {
       const triathlonEvents = TRIATHLON_EVENTS.map((evt) => {
         let rows;
         if (evt.filter) {
-          // 올림픽 통영/기타: 같은 DB event_type에서 race_name으로 분리
           rows = olympicRows
             .filter((r) => evt.filter(r.raceName))
             .sort((a, b) => a.sortKey - b.sortKey);
@@ -153,8 +174,9 @@ function getCachedRecordsData(teamId: string) {
           rows = (pbData ?? [])
             .filter((r) => r.event_type === evt.eventType)
             .map((r) => {
-              const member = r.member as unknown as { full_name: string; gender: string };
+              const member = r.member as unknown as { id: string; full_name: string; gender: string };
               return {
+                memId: member.id,
                 name: member.full_name,
                 record: secondsToTime(r.record_time_sec),
                 raceName: r.race_name,
@@ -169,6 +191,7 @@ function getCachedRecordsData(teamId: string) {
           label: evt.label,
           entries: rows.map((r, i) => ({
             rank: i + 1,
+            memId: r.memId,
             name: r.name,
             record: r.record,
             raceName: r.raceName,
@@ -177,10 +200,15 @@ function getCachedRecordsData(teamId: string) {
         };
       });
 
+      // mem_id → 칭호 맵 직렬화 (unstable_cache는 plain object만 반환 가능)
+      const memberTitles: Record<string, { ttl_nm: string; effect_cd: string }> =
+        Object.fromEntries(memberTitleMap.entries());
+
       return {
         marathon: { events: marathonEvents },
         trail: { entries: trailEntries },
         triathlon: { events: triathlonEvents },
+        memberTitles,
       };
     },
     [`records-team-${teamId}`],

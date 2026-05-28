@@ -1,0 +1,94 @@
+"use client";
+
+import { useState } from "react";
+import { Avatar } from "@/components/common/avatar";
+import { CardItem } from "@/components/ui/card";
+import { TitleBadge } from "@/components/common/title-badge";
+import { CollectionSheet } from "@/components/profile/collection-sheet";
+import { Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const FRAME_CSS: Record<string, string> = {
+  "frame-none": "", "frame-subtle": "card-frame-subtle",
+  "frame-soft-white": "card-frame-soft-white", "frame-silver": "card-frame-silver",
+  "frame-bronze": "card-frame-bronze", "frame-neon": "card-frame-neon",
+  "frame-emerald": "card-frame-emerald", "frame-sapphire": "card-frame-sapphire",
+  "frame-ice": "card-frame-ice", "frame-gold": "card-frame-gold",
+  "frame-aurora": "card-frame-aurora", "frame-shimmer": "card-frame-shimmer",
+  "frame-dusk": "card-frame-dusk", "frame-crimson": "card-frame-crimson",
+  "frame-fire": "card-frame-fire", "frame-void": "card-frame-void",
+  "frame-obsidian": "card-frame-obsidian", "frame-glitch": "card-frame-glitch",
+  "frame-scan": "card-frame-scan", "frame-lightning": "card-frame-lightning",
+  "frame-heartbeat": "card-frame-heartbeat", "frame-rainbow": "card-frame-rainbow",
+  "frame-plasma": "card-frame-plasma",
+};
+
+export function ProfileCard({
+  fullName,
+  avatarUrl,
+  genderLabel,
+  joinedDate,
+  teamMemId,
+  teamId,
+  primaryTtlId,
+  primaryTtlNm,
+  selectedBadgeEffect,
+  selectedFrameCd,
+  maxRarityLevel,
+}: {
+  fullName: string;
+  avatarUrl: string | null;
+  genderLabel: string;
+  joinedDate: string;
+  teamMemId: string;
+  teamId: string;
+  primaryTtlId: string | null;
+  primaryTtlNm: string | null;
+  selectedBadgeEffect: string | null;
+  selectedFrameCd: string | null;
+  maxRarityLevel: number;
+}) {
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const frameCls = selectedFrameCd ? (FRAME_CSS[selectedFrameCd] ?? "") : "";
+
+  return (
+    <>
+      <CardItem className={cn("flex items-center gap-4 p-5", frameCls)}>
+        <Avatar src={avatarUrl} alt={fullName} size="xl" />
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[17px] font-bold text-foreground">{fullName}</span>
+            {primaryTtlNm && (
+              <TitleBadge
+                name={primaryTtlNm}
+                effect={selectedBadgeEffect ?? "none"}
+                size="sm"
+              />
+            )}
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {genderLabel}{joinedDate ? ` · ${joinedDate} 가입` : ""}
+          </span>
+        </div>
+        <button
+          onClick={() => setSheetOpen(true)}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
+        >
+          <Sparkles className="size-3.5" />
+          내 컬렉션
+        </button>
+      </CardItem>
+
+      <CollectionSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        teamMemId={teamMemId}
+        teamId={teamId}
+        currentPrimaryTtlId={primaryTtlId}
+        currentBadgeEffect={selectedBadgeEffect}
+        currentFrameCd={selectedFrameCd}
+        maxRarityLevel={maxRarityLevel}
+      />
+    </>
+  );
+}

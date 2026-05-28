@@ -5,13 +5,17 @@ import { Medal, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TitleBadge } from "@/components/common/title-badge";
 
 /* ------------------------------------------------------------------ */
 /*  타입 정의                                                          */
 /* ------------------------------------------------------------------ */
 
+type MemberTitle = { ttl_nm: string; effect_cd: string };
+
 type RankingEntry = {
   rank: number;
+  memId: string;
   name: string;
   record: string;
   raceName: string | null;
@@ -26,6 +30,7 @@ type MarathonEvent = {
 
 type TrailEntry = {
   rank: number;
+  memId: string;
   name: string;
   utmbIndex: number;
   recentRaceName: string | null;
@@ -35,6 +40,7 @@ type TrailEntry = {
 
 type TriathlonEntry = {
   rank: number;
+  memId: string;
   name: string;
   record: string;
   raceName: string | null;
@@ -51,6 +57,7 @@ type RecordsData = {
   marathon: { events: MarathonEvent[] };
   trail: { entries: TrailEntry[] };
   triathlon: { events: TriathlonEvent[] };
+  memberTitles: Record<string, MemberTitle>;
 };
 
 /* ------------------------------------------------------------------ */
@@ -116,9 +123,11 @@ function EmptyState() {
 function MarathonCell({
   entry,
   rank,
+  memberTitles,
 }: {
   entry?: RankingEntry;
   rank: number;
+  memberTitles: Record<string, MemberTitle>;
 }) {
   const showMedal = rank <= 3;
   if (!entry) {
@@ -131,6 +140,7 @@ function MarathonCell({
       </div>
     );
   }
+  const title = memberTitles[entry.memId];
   return (
     <div className="flex min-w-0 flex-1 items-center gap-3 py-1">
       {showMedal ? (
@@ -141,10 +151,15 @@ function MarathonCell({
         </span>
       )}
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex items-baseline justify-between gap-1">
-          <span className="truncate text-[13px] font-semibold text-foreground">
-            {entry.name}
-          </span>
+        <div className="flex items-center justify-between gap-1">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate text-[13px] font-semibold text-foreground">
+              {entry.name}
+            </span>
+            {title && (
+              <TitleBadge name={title.ttl_nm} effect={title.effect_cd} size="xs" />
+            )}
+          </div>
           <span
             className={cn(
               "shrink-0 font-mono text-xs font-bold",
@@ -166,7 +181,7 @@ function MarathonCell({
 /*  마라톤 탭 콘텐츠                                                    */
 /* ------------------------------------------------------------------ */
 
-function MarathonContent({ events }: { events: MarathonEvent[] }) {
+function MarathonContent({ events, memberTitles }: { events: MarathonEvent[]; memberTitles: Record<string, MemberTitle> }) {
   const [selectedEvent, setSelectedEvent] = useState(
     events[0]?.eventType ?? "",
   );
@@ -227,8 +242,8 @@ function MarathonContent({ events }: { events: MarathonEvent[] }) {
                 key={rank}
                 className="flex items-center gap-3 border-b border-border py-3 last:border-b-0 last:rounded-b-lg"
               >
-                <MarathonCell entry={male} rank={male?.rank ?? rank} />
-                <MarathonCell entry={female} rank={female?.rank ?? rank} />
+                <MarathonCell entry={male} rank={male?.rank ?? rank} memberTitles={memberTitles} />
+                <MarathonCell entry={female} rank={female?.rank ?? rank} memberTitles={memberTitles} />
               </div>
             );
           })
@@ -242,7 +257,7 @@ function MarathonContent({ events }: { events: MarathonEvent[] }) {
 /*  트레일러닝 탭 콘텐츠                                                */
 /* ------------------------------------------------------------------ */
 
-function TrailContent({ entries }: { entries: TrailEntry[] }) {
+function TrailContent({ entries, memberTitles }: { entries: TrailEntry[]; memberTitles: Record<string, MemberTitle> }) {
   if (entries.length === 0) {
     return (
       <div className="px-6">
@@ -261,20 +276,29 @@ function TrailContent({ entries }: { entries: TrailEntry[] }) {
           <RankBadge rank={entry.rank} />
 
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            {entry.utmbProfileUrl ? (
-              <a
-                href={entry.utmbProfileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[15px] font-semibold text-primary hover:underline"
-              >
-                {entry.name}
-              </a>
-            ) : (
-              <span className="text-[15px] font-semibold text-foreground">
-                {entry.name}
-              </span>
-            )}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {entry.utmbProfileUrl ? (
+                <a
+                  href={entry.utmbProfileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[15px] font-semibold text-primary hover:underline"
+                >
+                  {entry.name}
+                </a>
+              ) : (
+                <span className="text-[15px] font-semibold text-foreground">
+                  {entry.name}
+                </span>
+              )}
+              {memberTitles[entry.memId] && (
+                <TitleBadge
+                  name={memberTitles[entry.memId].ttl_nm}
+                  effect={memberTitles[entry.memId].effect_cd}
+                  size="xs"
+                />
+              )}
+            </div>
             <span className="truncate text-xs text-muted-foreground">
               {entry.recentRaceName ?? "-"}
             </span>
@@ -303,7 +327,7 @@ function TrailContent({ entries }: { entries: TrailEntry[] }) {
 /*  철인3종 탭 콘텐츠                                                   */
 /* ------------------------------------------------------------------ */
 
-function TriathlonContent({ events }: { events: TriathlonEvent[] }) {
+function TriathlonContent({ events, memberTitles }: { events: TriathlonEvent[]; memberTitles: Record<string, MemberTitle> }) {
   const hasAny = events.some((e) => e.entries.length > 0);
 
   if (!hasAny) {
@@ -331,9 +355,18 @@ function TriathlonContent({ events }: { events: TriathlonEvent[] }) {
               >
                 <RankBadge rank={entry.rank} />
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="text-[15px] font-semibold text-foreground">
-                    {entry.name}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[15px] font-semibold text-foreground">
+                      {entry.name}
+                    </span>
+                    {memberTitles[entry.memId] && (
+                      <TitleBadge
+                        name={memberTitles[entry.memId].ttl_nm}
+                        effect={memberTitles[entry.memId].effect_cd}
+                        size="xs"
+                      />
+                    )}
+                  </div>
                   <span className="truncate text-xs text-muted-foreground">
                     {entry.raceName ?? "-"}
                   </span>
@@ -422,13 +455,13 @@ export function RecordsClient({ data }: { data: RecordsData }) {
 
       {/* 카테고리별 콘텐츠 */}
       {selectedCategory === "marathon" && (
-        <MarathonContent events={filteredMarathon.events} />
+        <MarathonContent events={filteredMarathon.events} memberTitles={data.memberTitles} />
       )}
       {selectedCategory === "trail" && (
-        <TrailContent entries={filteredTrail.entries} />
+        <TrailContent entries={filteredTrail.entries} memberTitles={data.memberTitles} />
       )}
       {selectedCategory === "triathlon" && (
-        <TriathlonContent events={filteredTriathlon.events} />
+        <TriathlonContent events={filteredTriathlon.events} memberTitles={data.memberTitles} />
       )}
     </div>
   );
