@@ -103,6 +103,7 @@ t3-env로 관리되며 `lib/env.ts`에서 import:
 
 | 스킬 | 경로 | 용도 |
 |------|------|------|
+| 개발 통합 루프 | `.claude/skills/gigang-dev-loop/` | 개발+문서+다관점 리뷰+자기개선 통합 워크플로우 (T1~T5 라우팅, Phase A~F) |
 | PR 생성 | `.claude/skills/pr/` | feature → dev PR 생성 (이슈 연동, AS-IS/TO-BE) |
 | Next.js 베스트 프랙티스 | `.claude/skills/next-best-practices/` | Next.js 코딩 패턴 가이드 |
 | Supabase Postgres | `.claude/skills/supabase-postgres-best-practices/` | DB 성능 최적화 가이드 |
