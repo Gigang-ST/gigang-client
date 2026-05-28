@@ -19,6 +19,7 @@ type OwnedTitle = {
 type AllTitle = {
   ttl_id: string;
   ttl_nm: string;
+  ttl_desc: string | null;
   rarity_level: number;
   is_event_yn: boolean;
   ttl_ctgr_cd: string;
@@ -141,6 +142,7 @@ export function CollectionSheet({
   currentBadgeEffect,
   currentFrameCd,
   maxRarityLevel,
+  memberName,
 }: {
   open: boolean;
   onClose: () => void;
@@ -150,6 +152,7 @@ export function CollectionSheet({
   currentBadgeEffect: string | null;
   currentFrameCd: string | null;
   maxRarityLevel: number;
+  memberName: string;
 }) {
   const [tab, setTab] = useState<Tab>("title");
   const [ownedTitleIds, setOwnedTitleIds] = useState<Set<string>>(new Set());
@@ -163,8 +166,9 @@ export function CollectionSheet({
 
   const [isPending, startTransition] = useTransition();
 
-  // 미리보기용 칭호명
-  const previewName = allTitles.find((t) => t.ttl_id === selectedTtlId)?.ttl_nm ?? "GIGANG";
+  // 선택된 칭호 정보
+  const selectedTitle = allTitles.find((t) => t.ttl_id === selectedTtlId);
+  const previewName = selectedTitle?.ttl_nm ?? "GIGANG";
 
   // 데이터 로드
   useEffect(() => {
@@ -175,7 +179,7 @@ export function CollectionSheet({
       // 전체 칭호 목록
       supabase
         .from("ttl_mst")
-        .select("ttl_id, ttl_nm, rarity_level, is_event_yn, ttl_ctgr_cd")
+        .select("ttl_id, ttl_nm, ttl_desc, rarity_level, is_event_yn, ttl_ctgr_cd")
         .eq("team_id", teamId)
         .eq("vers", 0)
         .eq("del_yn", false)
@@ -337,6 +341,16 @@ export function CollectionSheet({
                       </div>
                     </div>
                   )}
+
+                  {/* 선택된 칭호 설명 */}
+                  {selectedTitle && (
+                    <div className="rounded-xl border border-border bg-muted/50 px-4 py-3">
+                      <p className="text-[11px] font-semibold text-muted-foreground mb-1">획득 방법</p>
+                      <p className="text-xs text-foreground leading-relaxed">
+                        {selectedTitle.ttl_desc ?? "획득 방법 정보가 없습니다."}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -387,6 +401,23 @@ export function CollectionSheet({
               {/* ── 프레임 탭 ── */}
               {tab === "frame" && (
                 <div className="flex flex-col gap-5">
+                  {/* 미리보기 카드 */}
+                  <div className={cn(
+                    "flex items-center gap-3 rounded-2xl border bg-card p-4 transition-all",
+                    selectedFrame ? (FRAME_CSS[selectedFrame] ?? "border-border") : "border-border"
+                  )}>
+                    <div className="size-10 shrink-0 rounded-full bg-secondary" />
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-foreground">{memberName}</span>
+                        {selectedTitle && (
+                          <BadgePreview effectCd={selectedBadge ?? "none"} name={selectedTitle.ttl_nm} />
+                        )}
+                      </div>
+                      <span className="text-[11px] text-muted-foreground">미리보기</span>
+                    </div>
+                  </div>
+
                   <div className="flex flex-col gap-2">
                     <span className="text-[10px] font-semibold tracking-widest text-muted-foreground">
                       해금 ({unlockedFrames.length}종)

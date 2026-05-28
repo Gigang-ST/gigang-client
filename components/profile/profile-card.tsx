@@ -88,6 +88,7 @@ export function ProfileCard({
         currentBadgeEffect={selectedBadgeEffect}
         currentFrameCd={selectedFrameCd}
         maxRarityLevel={maxRarityLevel}
+        memberName={fullName}
       />
     </>
   );
