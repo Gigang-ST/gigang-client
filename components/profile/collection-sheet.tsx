@@ -272,6 +272,24 @@ export function CollectionSheet({
           </button>
         </div>
 
+        {/* 고정 미리보기 영역 */}
+        {!loading && (
+          <div className="shrink-0 border-b border-border px-6 py-3">
+            <div className={cn(
+              "flex items-center gap-3 rounded-2xl border bg-card p-3 transition-all",
+              selectedFrame ? (FRAME_CSS[selectedFrame] ?? "border-border") : "border-border"
+            )}>
+              <div className="size-8 shrink-0 rounded-full bg-secondary" />
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <span className="text-sm font-bold text-foreground">{memberName}</span>
+                {selectedTitle && (
+                  <BadgePreview effectCd={selectedBadge ?? "none"} name={selectedTitle.ttl_nm} />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 콘텐츠 */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {loading ? (
@@ -401,23 +419,6 @@ export function CollectionSheet({
               {/* ── 프레임 탭 ── */}
               {tab === "frame" && (
                 <div className="flex flex-col gap-5">
-                  {/* 미리보기 카드 */}
-                  <div className={cn(
-                    "flex items-center gap-3 rounded-2xl border bg-card p-4 transition-all",
-                    selectedFrame ? (FRAME_CSS[selectedFrame] ?? "border-border") : "border-border"
-                  )}>
-                    <div className="size-10 shrink-0 rounded-full bg-secondary" />
-                    <div className="flex flex-col gap-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-foreground">{memberName}</span>
-                        {selectedTitle && (
-                          <BadgePreview effectCd={selectedBadge ?? "none"} name={selectedTitle.ttl_nm} />
-                        )}
-                      </div>
-                      <span className="text-[11px] text-muted-foreground">미리보기</span>
-                    </div>
-                  </div>
-
                   <div className="flex flex-col gap-2">
                     <span className="text-[10px] font-semibold tracking-widest text-muted-foreground">
                       해금 ({unlockedFrames.length}종)
