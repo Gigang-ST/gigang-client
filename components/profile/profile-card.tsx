@@ -1,13 +1,16 @@
 "use client";
 
 import { useState } from "react";
+
+import { Sparkles } from "lucide-react";
+
+import { getFrameCls } from "@/lib/title-effects";
+import { cn } from "@/lib/utils";
+
 import { Avatar } from "@/components/common/avatar";
-import { CardItem } from "@/components/ui/card";
 import { TitleBadge } from "@/components/common/title-badge";
 import { CollectionSheet } from "@/components/profile/collection-sheet";
-import { Sparkles } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { getFrameCls } from "@/lib/title-effects";
+import { CardItem } from "@/components/ui/card";
 
 export function ProfileCard({
   fullName,

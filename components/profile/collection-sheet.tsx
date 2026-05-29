@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+
+import { Check, X } from "lucide-react";
+
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { FRAME_CSS } from "@/lib/title-effects";
+
 import { setPrimaryTitle, setSelectedEffect } from "@/app/actions/profile/update-collection";
-import { Check, X } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /*  타입                                                                */
@@ -90,21 +94,6 @@ const BADGE_BORDER: Record<string, string> = {
   spark: "border-violet-400/50 text-violet-300",
 };
 
-const FRAME_CSS: Record<string, string> = {
-  "frame-none": "", "frame-subtle": "card-frame-subtle",
-  "frame-soft-white": "card-frame-soft-white", "frame-silver": "card-frame-silver",
-  "frame-bronze": "card-frame-bronze", "frame-neon": "card-frame-neon",
-  "frame-emerald": "card-frame-emerald", "frame-sapphire": "card-frame-sapphire",
-  "frame-ice": "card-frame-ice", "frame-gold": "card-frame-gold",
-  "frame-aurora": "card-frame-aurora", "frame-shimmer": "card-frame-shimmer",
-  "frame-dusk": "card-frame-dusk", "frame-crimson": "card-frame-crimson",
-  "frame-fire": "card-frame-fire", "frame-void": "card-frame-void",
-  "frame-obsidian": "card-frame-obsidian", "frame-glitch": "card-frame-glitch",
-  "frame-scan": "card-frame-scan", "frame-lightning": "card-frame-lightning",
-  "frame-heartbeat": "card-frame-heartbeat", "frame-rainbow": "card-frame-rainbow",
-  "frame-plasma": "card-frame-plasma",
-};
-
 /* ------------------------------------------------------------------ */
 /*  BadgePreview                                                        */
 /* ------------------------------------------------------------------ */
@@ -162,6 +151,16 @@ export function CollectionSheet({
 
   const [isPending, startTransition] = useTransition();
 
+  // 시트 재오픈 시 선택 상태를 현재 저장값으로 리셋
+  useEffect(() => {
+    if (open) {
+      setSelectedTtlId(currentPrimaryTtlId);
+      setSelectedBadge(currentBadgeEffect);
+      setSelectedFrame(currentFrameCd);
+      setPreviewTtlId(null);
+    }
+  }, [open, currentPrimaryTtlId, currentBadgeEffect, currentFrameCd]);
+
   // 뱃지 미리보기는 저장될 selectedTtlId 기준
   const selectedTitle = allTitles.find((t) => t.ttl_id === selectedTtlId);
   const previewName = selectedTitle?.ttl_nm ?? "GIGANG";
@@ -202,6 +201,9 @@ export function CollectionSheet({
       setAllTitles((titlesRes.data ?? []) as unknown as AllTitle[]);
       setOwnedTitleIds(new Set((ownedRes.data ?? []).map((r) => r.ttl_id)));
       setAllEffects((effectsRes.data ?? []) as EffectRow[]);
+    }).catch((e) => {
+      console.error("[CollectionSheet] 데이터 로드 실패", e);
+    }).finally(() => {
       setLoading(false);
     });
   }, [open, teamMemId, teamId]);
@@ -235,10 +237,12 @@ export function CollectionSheet({
   const handleSave = () => {
     startTransition(async () => {
       if (selectedTtlId !== currentPrimaryTtlId) {
-        await setPrimaryTitle(selectedTtlId);
+        const r = await setPrimaryTitle(selectedTtlId);
+        if (r && !r.ok) return;
       }
       if (selectedBadge !== currentBadgeEffect || selectedFrame !== currentFrameCd) {
-        await setSelectedEffect(selectedBadge, selectedFrame);
+        const r = await setSelectedEffect(selectedBadge, selectedFrame);
+        if (r && !r.ok) return;
       }
       onClose();
     });
@@ -254,7 +258,7 @@ export function CollectionSheet({
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4">
           <h2 className="text-base font-bold text-foreground">내 컬렉션</h2>
-          <button onClick={onClose} className="text-muted-foreground">
+          <button onClick={onClose} aria-label="닫기" className="text-muted-foreground">
             <X className="size-5" />
           </button>
         </div>

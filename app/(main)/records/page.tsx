@@ -1,11 +1,16 @@
-import { unstable_cache } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { secondsToTime } from "@/lib/dayjs";
 import { Suspense } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { H1 } from "@/components/common/typography";
-import { RecordsClient } from "./records-client";
+
+import { unstable_cache } from "next/cache";
+
+import { secondsToTime } from "@/lib/dayjs";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+import { H1 } from "@/components/common/typography";
+import { Skeleton } from "@/components/ui/skeleton";
+
+import { RecordsClient } from "./records-client";
+
 
 const MARATHON_EVENTS = [
   { eventType: "FULL", label: "풀마라톤" },

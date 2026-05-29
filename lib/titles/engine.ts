@@ -13,8 +13,10 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
+
 import { evaluateCondition } from "./evaluators";
 import { TRIGGER_COND_MAP } from "./types";
+
 import type { CondRule, TitleEvalContext } from "./types";
 
 type TtlMstRow = {

@@ -1,16 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+
 import { Plus, RefreshCw, Save } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+
 import { formatKSTDateTime } from "@/lib/dayjs";
+import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
+import { cmmCdRowsForGrp } from "@/lib/queries/cmm-cd-cached";
+import { createClient } from "@/lib/supabase/client";
+
 import { createTitle, updateTitle } from "@/app/actions/admin/manage-title";
 import { sweepAllTitles } from "@/app/actions/admin/sweep-titles";
+
+import { EmptyState } from "@/components/common/empty-state";
 import { H2, SectionLabel } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -18,9 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { EmptyState } from "@/components/common/empty-state";
-import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
-import { cmmCdRowsForGrp } from "@/lib/queries/cmm-cd-cached";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type GrantRow = {
   mem_ttl_id: string;
@@ -300,14 +304,14 @@ export function AdminTitlesClient({
                   <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">사용</th>
                   <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">희귀도</th>
                   <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">그룹</th>
-                  <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">Event</th>
+                  <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">이벤트</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={8}
                       className="px-2 py-6 text-center text-xs text-muted-foreground"
                     >
                       등록된 칭호가 없습니다.

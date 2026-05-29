@@ -181,7 +181,7 @@ export function AdminEffectsClient() {
           {(typeFilter === "all" || typeFilter === "badge") && badgeRows.length > 0 && (
             <div className="flex flex-col gap-2">
               {typeFilter === "all" && (
-                <p className="text-[10px] font-semibold tracking-widest text-muted-foreground">BADGE — {badgeRows.length}종</p>
+                <p className="text-[10px] font-semibold tracking-widest text-muted-foreground">배지 이펙트 — {badgeRows.length}종</p>
               )}
               <CardItem className="p-0">
                 <table className="w-full border-collapse text-[11px]">
@@ -240,7 +240,7 @@ export function AdminEffectsClient() {
           {(typeFilter === "all" || typeFilter === "frame") && frameRows.length > 0 && (
             <div className="flex flex-col gap-2">
               {typeFilter === "all" && (
-                <p className="text-[10px] font-semibold tracking-widest text-muted-foreground">FRAME — {frameRows.length}종</p>
+                <p className="text-[10px] font-semibold tracking-widest text-muted-foreground">카드 프레임 — {frameRows.length}종</p>
               )}
               <CardItem className="p-0">
                 <table className="w-full border-collapse text-[11px]">

@@ -1,13 +1,16 @@
 "use client";
 
 import { useState } from "react";
+
 import { Medal, Search } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { CardItem } from "@/components/ui/card";
-import { TitleBadge } from "@/components/common/title-badge";
+
 import { getFrameCls } from "@/lib/title-effects";
+import { cn } from "@/lib/utils";
+
+import { TitleBadge } from "@/components/common/title-badge";
+import { Button } from "@/components/ui/button";
+import { CardItem } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 /* ------------------------------------------------------------------ */
 /*  타입 정의                                                          */

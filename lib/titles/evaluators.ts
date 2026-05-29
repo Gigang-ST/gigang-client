@@ -8,8 +8,8 @@
  * 새 CondRule 타입을 추가하면 evaluateCondition() switch 에 케이스를 추가한다.
  */
 
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
+
 import type {
   CondRule,
   TitleEvalContext,
@@ -20,6 +20,7 @@ import type {
   CondMembershipDays,
   CondRacePbFasterThanMember,
 } from "./types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type DB = SupabaseClient<Database>;
 
@@ -32,26 +33,22 @@ export async function evalRacePbUnderSecInternal(
   memId: string,
   db: DB,
 ): Promise<boolean> {
-  // rec_race_hist.comp_id → comp_mst (평행 조인, 중첩 아님)
-  // rec_race_hist.comp_evt_id → comp_evt_cfg
-  const { data } = await db
+  // sport_ctgr 조건을 limit(1) 이전에 쿼리 레벨에서 적용해 올바른 PB를 조회
+  let query = db
     .from("rec_race_hist")
     .select("rec_time_sec, comp_evt_cfg!inner(comp_evt_type), comp_mst!inner(comp_sprt_cd)")
     .eq("mem_id", memId)
     .eq("del_yn", false)
     .eq("vers", 0)
-    .eq("comp_evt_cfg.comp_evt_type", rule.sport.toUpperCase())
-    .order("rec_time_sec", { ascending: true })
-    .limit(1);
-
-  if (!data || data.length === 0) return false;
+    .eq("comp_evt_cfg.comp_evt_type", rule.sport.toUpperCase());
 
   if (rule.sport_ctgr) {
-    const mst = Array.isArray(data[0].comp_mst) ? data[0].comp_mst[0] : data[0].comp_mst;
-    const sprtCd = (mst as { comp_sprt_cd?: string } | null)?.comp_sprt_cd ?? null;
-    if (sprtCd !== rule.sport_ctgr) return false;
+    query = query.eq("comp_mst.comp_sprt_cd", rule.sport_ctgr);
   }
 
+  const { data } = await query.order("rec_time_sec", { ascending: true }).limit(1);
+
+  if (!data || data.length === 0) return false;
   return data[0].rec_time_sec <= rule.sec;
 }
 

@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Caption } from "@/components/common/typography";
-import { TitleBadge } from "@/components/common/title-badge";
+
 import { getFrameCls } from "@/lib/title-effects";
 import { cn } from "@/lib/utils";
+
+import { TitleBadge } from "@/components/common/title-badge";
+import { Caption } from "@/components/common/typography";
 
 export type ReviewLine = {
   id: string;

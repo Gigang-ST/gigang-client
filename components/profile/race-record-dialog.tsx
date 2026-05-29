@@ -1,9 +1,26 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+
+import {
+  buildEventTypeOptionList,
+  COMP_EVT_TYPE_OTHER as EVENT_TYPE_OTHER,
+  sanitizeAsciiUpperCompEvtTypeInput,
+} from "@/lib/comp-evt-type";
+import { timeStringToSeconds, secondsToTime } from "@/lib/dayjs";
+import {
+  eventTypeCodesForSprtFromCmmRows,
+  type CachedCmmCdRow,
+} from "@/lib/queries/cmm-cd-cached";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
+
+import { saveRaceRecord } from "@/app/actions/save-race-record";
+import { listCompetitionsByRaceDate } from "@/app/actions/search-competitions";
+
+import { CompetitionRegisterDialog } from "@/components/races/competition-register-dialog";
+import type { MemberStatus } from "@/components/races/types";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -11,21 +28,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
-import { timeStringToSeconds, secondsToTime } from "@/lib/dayjs";
-import {
-  buildEventTypeOptionList,
-  COMP_EVT_TYPE_OTHER as EVENT_TYPE_OTHER,
-  sanitizeAsciiUpperCompEvtTypeInput,
-} from "@/lib/comp-evt-type";
-import {
-  eventTypeCodesForSprtFromCmmRows,
-  type CachedCmmCdRow,
-} from "@/lib/queries/cmm-cd-cached";
-import { listCompetitionsByRaceDate } from "@/app/actions/search-competitions";
-import { saveRaceRecord } from "@/app/actions/save-race-record";
-import { CompetitionRegisterDialog } from "@/components/races/competition-register-dialog";
-import type { MemberStatus } from "@/components/races/types";
+import { Input } from "@/components/ui/input";
 
 /* ---------- 타입 ---------- */
 

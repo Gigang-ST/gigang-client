@@ -1,18 +1,22 @@
-import { Skeleton } from "@/components/ui/skeleton";
-import { CardItem } from "@/components/ui/card";
-import { H1 } from "@/components/common/typography";
-import { redirect } from "next/navigation";
-import dayjs from "dayjs";
 import { Suspense } from "react";
+
 import Link from "next/link";
+import { redirect } from "next/navigation";
+
+import dayjs from "dayjs";
 import { Settings } from "lucide-react";
-import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
-import { RaceRecordSection } from "@/components/profile/race-record-section";
-import { PaceChart } from "@/components/profile/pace-chart";
+
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+
+import { H1 } from "@/components/common/typography";
+import { PaceChart } from "@/components/profile/pace-chart";
+import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
 import { ProfileCard } from "@/components/profile/profile-card";
+import { RaceRecordSection } from "@/components/profile/race-record-section";
+import { CardItem } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 async function ProfileContent() {
   const { user, member, supabase } = await getCurrentMember();

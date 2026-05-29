@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
 import Link from "next/link";
+
 import {
   Users,
   Trophy,
@@ -12,14 +14,16 @@ import {
   BadgeCheck,
   Trash2,
 } from "lucide-react";
-import { revalidateRecordsCache } from "@/app/actions/admin/revalidate-cache";
-import { Skeleton } from "@/components/ui/skeleton";
-import { H2, SectionLabel } from "@/components/common/typography";
-import { CardItem } from "@/components/ui/card";
+
 import {
   getAdminStats,
   type AdminStats,
 } from "@/app/actions/admin/get-admin-stats";
+import { revalidateRecordsCache } from "@/app/actions/admin/revalidate-cache";
+
+import { H2, SectionLabel } from "@/components/common/typography";
+import { CardItem } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Card = {
   key: string;

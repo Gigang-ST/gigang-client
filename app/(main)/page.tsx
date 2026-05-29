@@ -1,21 +1,24 @@
-import { Skeleton } from "@/components/ui/skeleton";
-import { CardItem } from "@/components/ui/card";
-import { H1 } from "@/components/common/typography";
-import { secondsToTime, todayKST } from "@/lib/dayjs";
 import { Suspense } from "react";
+
 import Link from "next/link";
-import { SocialLinksGrid } from "@/components/social-links";
-import { UpcomingRaces } from "@/components/home/upcoming-races";
-import type { CompetitionRegistration, MemberStatus } from "@/components/races/types";
+
+import { secondsToTime, todayKST } from "@/lib/dayjs";
+import { env } from "@/lib/env";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
-import { env } from "@/lib/env";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { SectionLabel } from "@/components/common/typography";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { TitleBadge } from "@/components/common/title-badge";
 import { getFrameCls } from "@/lib/title-effects";
 import { cn } from "@/lib/utils";
+
+import { TitleBadge } from "@/components/common/title-badge";
+import { SectionLabel } from "@/components/common/typography";
+import { H1 } from "@/components/common/typography";
+import { UpcomingRaces } from "@/components/home/upcoming-races";
+import type { CompetitionRegistration, MemberStatus } from "@/components/races/types";
+import { SocialLinksGrid } from "@/components/social-links";
+import { CardItem } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 
 type UpcomingRace = {

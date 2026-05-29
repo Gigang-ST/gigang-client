@@ -1,7 +1,9 @@
-import { createAdminClient } from "@/lib/supabase/admin";
-import { formatKoreanShortDate, todayKST } from "@/lib/dayjs";
 import dayjs from "dayjs";
+
+import { formatKoreanShortDate, todayKST } from "@/lib/dayjs";
 import { type MileageSport } from "@/lib/mileage";
+import { createAdminClient } from "@/lib/supabase/admin";
+
 import { RandomReviewRotator, type ReviewLine } from "@/components/projects/random-review-rotator";
 
 type RandomReviewProps = { evtId: string };

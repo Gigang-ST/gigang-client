@@ -2,9 +2,9 @@
 
 import { revalidateTag } from "next/cache";
 
+import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import {
   normalizeCompEvtType,
   resolveCompEvtIdForRaceRecord,
