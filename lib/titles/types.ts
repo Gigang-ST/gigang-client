@@ -150,6 +150,12 @@ export type CondHasTitleInCategories = {
   categories: string[];
 };
 
+/** 팀 내 UTMB 인덱스 전체 1위인 경우 (예: 山神) */
+export type CondUtmbIdxRank = {
+  type: "utmb_idx_rank";
+  rank: number;
+};
+
 /** 모든 조건 유형의 유니온 — 새 조건 추가 시 여기에 타입을 추가한다 */
 export type CondRule =
   | CondRacePersonalBestUnderSec
@@ -167,7 +173,8 @@ export type CondRule =
   | CondRaceRankByGender
   | CondRaceRankLast
   | CondRacePbWithinSecOfTarget
-  | CondHasTitleInCategories;
+  | CondHasTitleInCategories
+  | CondUtmbIdxRank;
 
 // ---------------------------------------------------------------------------
 // TriggerKind — 트리거 종류
@@ -224,6 +231,7 @@ export const TRIGGER_COND_MAP = {
     "race_rank_last",
     "race_pb_within_sec_of_target",
     "has_title_in_categories",
+    "utmb_idx_rank",
   ],
 } satisfies Record<TriggerKind, CondRule["type"][]>;
 
