@@ -26,7 +26,6 @@
 | `ttl_ctgr_cd` | 카테고리 (running, triathlon, trail, cycling, awarded) |
 | `ttl_nm` | 칭호명 |
 | `cond_rule_json` | 자동 칭호 조건 JSON. awarded는 null |
-| `base_pt` | 기본 점수 |
 | `use_yn` | false면 엔진이 평가하지 않음 |
 | `vers` / `del_yn` | 소프트 삭제 컨벤션 |
 
@@ -39,7 +38,6 @@
 | `ttl_id` | 칭호 |
 | `vers` | 0 = 활성, 1 이상 = 회수된 이력 |
 | `del_yn` | true = 회수됨 |
-| `pt_chg_rsn_cd` | `initial_grant` / `revoke` / `manual_adjust` 등 |
 | `grnt_by_mem_id` | 수여한 관리자 ID (자동 수여 시 null) |
 | `grnt_rsn_txt` | 수여 사유 텍스트 |
 
@@ -301,7 +299,6 @@ evaluateAndGrantTitles({
 | `mileage_run_complete` 평가 함수 | `lib/titles/evaluators.ts`의 `evalMileageRunCompleteInternal`이 stub. 마일리지런 스키마 확정 후 구현 |
 | `attendance` 트리거 연결 | 로그인 액션에 호출부 추가 필요 (평가 함수는 완성) |
 | 칭호 획득 알림 | 신규 칭호 획득 시 토스트 알림 |
-| 희귀도 보정 배치 | 주 1회 `aply_pt` 재계산 |
 
 ---
 

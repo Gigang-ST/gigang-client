@@ -11,7 +11,6 @@ type TitlePayload = {
   ttlKindEnm: string;
   ttlCtgrCd: string;
   ttlDesc: string | null;
-  basePt: number | string;
   sortOrd: number | string;
   useYn: boolean | string;
   condRuleJson: string | null;
@@ -24,7 +23,6 @@ type TitleNormalized = {
   ttlKindEnm: "auto" | "awarded";
   ttlCtgrCd: string;
   ttlDesc: string | null;
-  basePt: number;
   sortOrd: number;
   useYn: boolean;
   condRuleJson: unknown | null;
@@ -74,7 +72,6 @@ async function normalizePayload(payload: TitlePayload): Promise<TitleNormalized>
   }
 
   const ttlDesc = payload.ttlDesc?.trim() ? payload.ttlDesc.trim() : null;
-  const basePt = parseNonNegativeInt(payload.basePt, "기본 점수");
   const sortOrd = parseNonNegativeInt(payload.sortOrd, "정렬 순서");
   const useYn = parseUseYn(payload.useYn);
 
@@ -108,7 +105,6 @@ async function normalizePayload(payload: TitlePayload): Promise<TitleNormalized>
     ttlKindEnm,
     ttlCtgrCd,
     ttlDesc,
-    basePt,
     sortOrd,
     useYn,
     condRuleJson,
@@ -133,7 +129,6 @@ export async function createTitle(payload: TitlePayload) {
       ttl_nm: normalized.ttlNm,
       ttl_desc: normalized.ttlDesc,
       cond_rule_json: normalized.condRuleJson as Json,
-      base_pt: normalized.basePt,
       sort_ord: normalized.sortOrd,
       use_yn: normalized.useYn,
       rarity_level: normalized.rarityLevel,
@@ -171,7 +166,6 @@ export async function updateTitle(ttlId: string, payload: TitlePayload) {
         ttl_nm: normalized.ttlNm,
         ttl_desc: normalized.ttlDesc,
         cond_rule_json: normalized.condRuleJson as Json,
-        base_pt: normalized.basePt,
         sort_ord: normalized.sortOrd,
         use_yn: normalized.useYn,
         rarity_level: normalized.rarityLevel,
@@ -193,4 +187,25 @@ export async function updateTitle(ttlId: string, payload: TitlePayload) {
       message: error instanceof Error ? error.message : "칭호 수정에 실패했습니다",
     };
   }
+}
+
+export async function toggleTitleUseYn(ttlId: string, useYn: boolean) {
+  const admin = await verifyAdmin();
+  if (!admin) return { ok: false, message: "권한이 없습니다" };
+
+  const { teamId } = await getRequestTeamContext();
+  const db = createAdminClient();
+
+  const { data, error } = await db
+    .from("ttl_mst")
+    .update({ use_yn: useYn, upd_by: admin.id })
+    .eq("ttl_id", ttlId)
+    .eq("team_id", teamId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .select("ttl_id");
+
+  if (error) return { ok: false, message: "저장에 실패했습니다" };
+  if (!data?.length) return { ok: false, message: "대상 칭호를 찾을 수 없습니다" };
+  return { ok: true, message: null };
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 
-import { Check, X } from "lucide-react";
+import { Check, Lock, X } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,7 @@ type AllTitle = {
   rarity_level: number;
   ttl_ctgr_cd: string;
   ttl_group_cd: number | null;
+  use_yn: boolean;
 };
 
 type EffectRow = {
@@ -28,6 +29,7 @@ type EffectRow = {
   effect_nm: string;
   effect_type: "badge" | "frame";
   rarity_level: number;
+  use_yn: boolean;
 };
 
 type Tab = "title" | "badge" | "frame";
@@ -102,7 +104,7 @@ function BadgePreview({ effectCd, name }: { effectCd: string; name: string }) {
   const cls = BADGE_CSS[effectCd] ?? "";
   const border = BADGE_BORDER[effectCd] ?? "border-zinc-700 text-zinc-300";
   return (
-    <span className={cn("inline-flex items-center rounded-full border bg-zinc-900 px-2 py-0.5 text-[11px] font-medium", border)}>
+    <span className={cn("inline-flex items-center rounded-full border bg-zinc-900 dark:bg-transparent px-2 py-0.5 text-[11px] font-medium", border)}>
       {effectCd === "glitch"
         ? <span className={cn("inline-block", cls)} data-text={name}>{name}</span>
         : cls ? <span className={cn("inline-block", cls)}>{name}</span>
@@ -176,11 +178,10 @@ export function CollectionSheet({
       // 전체 칭호 목록
       supabase
         .from("ttl_mst")
-        .select("ttl_id, ttl_nm, ttl_desc, rarity_level, ttl_ctgr_cd, ttl_group_cd")
+        .select("ttl_id, ttl_nm, ttl_desc, rarity_level, ttl_ctgr_cd, ttl_group_cd, use_yn")
         .eq("team_id", teamId)
         .eq("vers", 0)
         .eq("del_yn", false)
-        .eq("use_yn", true)
         .order("ttl_ctgr_cd")
         .order("ttl_group_cd", { nullsFirst: false })
         .order("sort_ord"),
@@ -191,11 +192,10 @@ export function CollectionSheet({
         .eq("team_mem_id", teamMemId)
         .eq("vers", 0)
         .eq("del_yn", false),
-      // 이펙트 목록
+      // 이펙트 목록 (use_yn=false도 포함 — 표시하되 선택 불가)
       supabase
         .from("effect_mst")
-        .select("effect_cd, effect_nm, effect_type, rarity_level")
-        .eq("use_yn", true)
+        .select("effect_cd, effect_nm, effect_type, rarity_level, use_yn")
         .order("rarity_level").order("sort_ord"),
     ]).then(([titlesRes, ownedRes, effectsRes]) => {
       setAllTitles((titlesRes.data ?? []) as unknown as AllTitle[]);
@@ -210,7 +210,7 @@ export function CollectionSheet({
 
   // 칭호 분리
   const regularTitles = allTitles.filter((t) => t.ttl_ctgr_cd !== "event");
-  const eventTitles = allTitles.filter((t) => t.ttl_ctgr_cd === "event");
+  const eventTitles = allTitles.filter((t) => t.ttl_ctgr_cd === "event" && t.use_yn);
 
   // 그룹별 보유 최고 rarity — 같은 ttl_group_cd 내 최고 rarity만 선택 가능
   // ttl_group_cd가 NULL이면 독립 선택 (기강킹, 수여 칭호 등)
@@ -228,11 +228,12 @@ export function CollectionSheet({
     return t.rarity_level < (maxRarityByGroup.get(t.ttl_group_cd) ?? 0);
   };
 
-  // 해금된 이펙트
-  const unlockedBadges = allEffects.filter((e) => e.effect_type === "badge" && e.rarity_level <= maxRarityLevel);
-  const unlockedFrames = allEffects.filter((e) => e.effect_type === "frame" && e.rarity_level <= maxRarityLevel);
-  const lockedBadges = allEffects.filter((e) => e.effect_type === "badge" && e.rarity_level > maxRarityLevel);
-  const lockedFrames = allEffects.filter((e) => e.effect_type === "frame" && e.rarity_level > maxRarityLevel);
+  // 선택 가능한 이펙트: 등급 해금 + use_yn=true
+  const unlockedBadges = allEffects.filter((e) => e.effect_type === "badge" && e.rarity_level <= maxRarityLevel && e.use_yn);
+  const unlockedFrames = allEffects.filter((e) => e.effect_type === "frame" && e.rarity_level <= maxRarityLevel && e.use_yn);
+  // 선택 불가: 등급 미달 또는 use_yn=false (표시는 함)
+  const lockedBadges = allEffects.filter((e) => e.effect_type === "badge" && (e.rarity_level > maxRarityLevel || !e.use_yn));
+  const lockedFrames = allEffects.filter((e) => e.effect_type === "frame" && (e.rarity_level > maxRarityLevel || !e.use_yn));
 
   const handleSave = () => {
     startTransition(async () => {
@@ -324,7 +325,7 @@ export function CollectionSheet({
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-semibold tracking-widest text-muted-foreground">일반</span>
                       <span className="text-[11px] text-muted-foreground">
-                        {regularTitles.filter((t) => ownedTitleIds.has(t.ttl_id)).length} / {regularTitles.length}
+                        획득 {regularTitles.filter((t) => ownedTitleIds.has(t.ttl_id)).length} / {regularTitles.length}
                       </span>
                     </div>
                     {descTitle?.ttl_desc && (
@@ -335,14 +336,15 @@ export function CollectionSheet({
                     <div className="flex flex-wrap gap-2">
                       {regularTitles.map((t) => {
                         const owned = ownedTitleIds.has(t.ttl_id);
-                        const blocked = owned && isBlockedByHigher(t);
-                        const selectable = owned && !blocked;
+                        const masked = !owned || !t.use_yn;
+                        const blocked = owned && t.use_yn && isBlockedByHigher(t);
+                        const selectable = owned && t.use_yn && !blocked;
                         const isSelected = selectedTtlId === t.ttl_id;
                         const isPreviewing = previewTtlId === t.ttl_id;
                         return (
                           <button
                             key={t.ttl_id}
-                            disabled={!owned}
+                            disabled={masked}
                             onClick={() => {
                               if (selectable) {
                                 setSelectedTtlId(isSelected ? null : t.ttl_id);
@@ -361,12 +363,21 @@ export function CollectionSheet({
                               blocked && isPreviewing && "border-primary/40 bg-muted text-muted-foreground opacity-65",
                               // 보유 + 차단 (흐림)
                               blocked && !isPreviewing && "border-border bg-muted text-muted-foreground opacity-50",
-                              // 미보유 (매우 흐림)
-                              !owned && "border-border bg-muted text-muted-foreground opacity-25 cursor-default",
+                              // 미보유 or use_yn=false 마스킹
+                              masked && "border-dashed border-border/50 bg-muted/50 text-muted-foreground/40 cursor-default select-none",
                             )}
                           >
-                            {owned ? t.ttl_nm : "???"}
-                            {isSelected && <Check className="size-3" />}
+                            {masked ? (
+                              <>
+                                <Lock className="size-2.5 shrink-0" />
+                                <span className="blur-[2px]">{t.ttl_nm}</span>
+                              </>
+                            ) : (
+                              <>
+                                {t.ttl_nm}
+                                {isSelected && <Check className="size-3" />}
+                              </>
+                            )}
                           </button>
                         );
                       })}
@@ -437,10 +448,10 @@ export function CollectionSheet({
                       <span className="text-[10px] font-semibold tracking-widest text-muted-foreground">
                         잠김 ({lockedBadges.length}종)
                       </span>
-                      <div className="flex flex-wrap gap-2 opacity-30">
+                      <div className="flex flex-wrap gap-2">
                         {lockedBadges.map((e) => (
-                          <span key={e.effect_cd} className="rounded-full border border-border bg-secondary px-3 py-1.5 text-xs text-muted-foreground">
-                            🔒 {e.effect_nm}
+                          <span key={e.effect_cd} className="cursor-default opacity-40">
+                            <BadgePreview effectCd={e.effect_cd} name={previewName} />
                           </span>
                         ))}
                       </div>
@@ -486,13 +497,17 @@ export function CollectionSheet({
                       <span className="text-[10px] font-semibold tracking-widest text-muted-foreground">
                         잠김 ({lockedFrames.length}종)
                       </span>
-                      <div className="grid grid-cols-2 gap-2 opacity-30">
+                      <div className="grid grid-cols-2 gap-2">
                         {lockedFrames.map((e) => {
                           const frameCls = FRAME_CSS[e.effect_cd] ?? "";
                           return (
-                            <div key={e.effect_cd} className={cn("flex h-16 items-center justify-center rounded-2xl border bg-card", frameCls || "border-border")}>
-                              <span className="text-base">🔒</span>
-                            </div>
+                            <div
+                              key={e.effect_cd}
+                              className={cn(
+                                "flex h-16 items-center justify-center rounded-2xl border bg-card opacity-40",
+                                frameCls || "border-border"
+                              )}
+                            />
                           );
                         })}
                       </div>

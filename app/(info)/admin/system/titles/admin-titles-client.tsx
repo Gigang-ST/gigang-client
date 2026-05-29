@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import Link from "next/link";
+
 import { Plus, RefreshCw, Save } from "lucide-react";
 
 import { formatKSTDateTime } from "@/lib/dayjs";
@@ -9,7 +11,7 @@ import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { cmmCdRowsForGrp } from "@/lib/queries/cmm-cd-cached";
 import { createClient } from "@/lib/supabase/client";
 
-import { createTitle, updateTitle } from "@/app/actions/admin/manage-title";
+import { createTitle, toggleTitleUseYn, updateTitle } from "@/app/actions/admin/manage-title";
 import { sweepAllTitles } from "@/app/actions/admin/sweep-titles";
 
 import { EmptyState } from "@/components/common/empty-state";
@@ -28,6 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 type GrantRow = {
   mem_ttl_id: string;
+  team_mem_id: string;
   grnt_at: string;
   grnt_by_mem_id: string | null;
   grnt_rsn_txt: string | null;
@@ -46,7 +49,6 @@ type TitleRow = {
   ttl_kind_enm: "auto" | "awarded";
   ttl_ctgr_cd: string;
   ttl_desc: string | null;
-  base_pt: number;
   sort_ord: number;
   use_yn: boolean;
   cond_rule_json: unknown | null;
@@ -59,7 +61,6 @@ type TitleForm = {
   ttlKindEnm: "auto" | "awarded";
   ttlCtgrCd: string;
   ttlDesc: string;
-  basePt: string;
   sortOrd: string;
   useYn: "true" | "false";
   condRuleJson: string;
@@ -83,7 +84,6 @@ function toForm(row: TitleRow): TitleForm {
     ttlKindEnm: row.ttl_kind_enm,
     ttlCtgrCd: row.ttl_ctgr_cd ?? "",
     ttlDesc: row.ttl_desc ?? "",
-    basePt: String(row.base_pt ?? 0),
     sortOrd: String(row.sort_ord ?? 100),
     useYn: row.use_yn ? "true" : "false",
     condRuleJson: row.cond_rule_json ? JSON.stringify(row.cond_rule_json) : "",
@@ -98,7 +98,6 @@ function buildEmptyForm(defaultCategory: string): TitleForm {
     ttlKindEnm: "auto",
     ttlCtgrCd: defaultCategory,
     ttlDesc: "",
-    basePt: "0",
     sortOrd: "100",
     useYn: "true",
     condRuleJson: "",
@@ -131,6 +130,7 @@ export function AdminTitlesClient({
   const [savingId, setSavingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [sweeping, setSweeping] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const loadTitles = useCallback(async () => {
     setLoading(true);
@@ -138,7 +138,7 @@ export function AdminTitlesClient({
     const { data } = await supabase
       .from("ttl_mst")
       .select(
-        "ttl_id, ttl_nm, ttl_kind_enm, ttl_ctgr_cd, ttl_desc, base_pt, sort_ord, use_yn, cond_rule_json, rarity_level, ttl_group_cd",
+        "ttl_id, ttl_nm, ttl_kind_enm, ttl_ctgr_cd, ttl_desc, sort_ord, use_yn, cond_rule_json, rarity_level, ttl_group_cd",
       )
       .eq("team_id", teamId)
       .eq("vers", 0)
@@ -181,7 +181,6 @@ export function AdminTitlesClient({
     if (!form.ttlNm.trim()) return "칭호명은 필수입니다.";
     if (!form.ttlKindEnm) return "칭호 유형은 필수입니다.";
     if (!form.ttlCtgrCd) return "카테고리는 필수입니다.";
-    if (!form.basePt.trim()) return "기본 점수는 필수입니다.";
     if (!form.sortOrd.trim()) return "정렬 순서는 필수입니다.";
     if (!form.useYn) return "사용 여부는 필수입니다.";
     if (form.ttlKindEnm === "auto" && !form.condRuleJson.trim()) return "자동 유형은 자동 조건(JSON)이 필수입니다.";
@@ -202,6 +201,23 @@ export function AdminTitlesClient({
     }
     await loadTitles();
     setSavingId(null);
+  };
+
+  const toggleUseYn = async (ttlId: string, currentUseYn: boolean) => {
+    setTogglingId(ttlId);
+    const result = await toggleTitleUseYn(ttlId, !currentUseYn);
+    if (result.ok) {
+      setRows((prev) =>
+        prev.map((r) => r.ttl_id === ttlId ? { ...r, use_yn: !currentUseYn } : r)
+      );
+      setForms((prev) => ({
+        ...prev,
+        [ttlId]: { ...prev[ttlId], useYn: (!currentUseYn ? "true" : "false") },
+      }));
+    } else {
+      alert(result.message ?? "저장에 실패했습니다");
+    }
+    setTogglingId(null);
   };
 
   const createRow = async () => {
@@ -299,9 +315,8 @@ export function AdminTitlesClient({
                   <th className="px-2 py-1.5 text-center font-medium text-muted-foreground">칭호명</th>
                   <th className="w-10 px-2 py-1.5 text-center font-medium text-muted-foreground">유형</th>
                   <th className="w-16 px-2 py-1.5 text-center font-medium text-muted-foreground">카테고리</th>
-                  <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">점수</th>
                   <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">정렬</th>
-                  <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">사용</th>
+                  <th className="w-14 px-2 py-1.5 text-center font-medium text-muted-foreground">사용</th>
                   <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">희귀도</th>
                   <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">그룹</th>
                   <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">이벤트</th>
@@ -325,14 +340,25 @@ export function AdminTitlesClient({
                       onClick={() => setSelectedId(row.ttl_id)}
                       className={`cursor-pointer border-b transition-colors hover:bg-muted/30 ${
                         active ? "bg-primary/5" : ""
-                      }`}
+                      } ${!row.use_yn ? "opacity-40" : ""}`}
                     >
                       <td className="truncate px-2 py-1.5 text-center font-medium text-foreground">{row.ttl_nm}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_kind_enm === "auto" ? "자동" : "수여"}</td>
                       <td className="truncate px-2 py-1.5 text-center text-muted-foreground">{categoryOptions.find((c) => c.cd === row.ttl_ctgr_cd)?.cd_nm ?? row.ttl_ctgr_cd}</td>
-                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.base_pt}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.sort_ord}</td>
-                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.use_yn ? "사용" : "미사용"}</td>
+                      <td className="px-2 py-1.5 text-center" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => void toggleUseYn(row.ttl_id, row.use_yn)}
+                          disabled={togglingId === row.ttl_id}
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
+                            row.use_yn
+                              ? "bg-success/10 text-success hover:bg-success/20"
+                              : "bg-destructive/10 text-destructive hover:bg-destructive/20"
+                          }`}
+                        >
+                          {togglingId === row.ttl_id ? "..." : row.use_yn ? "사용" : "잠금"}
+                        </button>
+                      </td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.rarity_level ?? 1}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_group_cd ?? "-"}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_ctgr_cd === "event" ? "✓" : ""}</td>
@@ -392,6 +418,7 @@ function TitleGrantList({ ttlId }: { ttlId: string }) {
       .from("mem_ttl_rel")
       .select(`
         mem_ttl_id,
+        team_mem_id,
         grnt_at,
         grnt_by_mem_id,
         grnt_rsn_txt,
@@ -450,7 +477,12 @@ function TitleGrantList({ ttlId }: { ttlId: string }) {
                 {grants.map((grant) => (
                   <tr key={grant.mem_ttl_id} className="border-b last:border-0">
                     <td className="px-2 py-1.5 text-center font-medium text-foreground">
-                      {grant.team_mem_rel.mem_mst.mem_nm}
+                      <Link
+                        href={`/admin/members?member=${grant.team_mem_id}`}
+                        className="hover:text-primary hover:underline"
+                      >
+                        {grant.team_mem_rel.mem_mst.mem_nm}
+                      </Link>
                     </td>
                     <td className="px-2 py-1.5 text-center text-muted-foreground">
                       {formatKSTDateTime(grant.grnt_at).slice(0, 10)}
@@ -532,16 +564,6 @@ function TitleFormFields({
         onChange={(v) => onChange("sortOrd", v)}
         required
       />
-
-      {/* 행 4: 기본점수 */}
-      <LabeledInput
-        label="기본 점수"
-        type="number"
-        value={form.basePt}
-        onChange={(v) => onChange("basePt", v)}
-        required
-      />
-      <div />
 
       {/* 행 5: 자동조건(JSON) — auto일 때만 필수, 한 줄 전체 */}
       {form.ttlKindEnm === "auto" && (
