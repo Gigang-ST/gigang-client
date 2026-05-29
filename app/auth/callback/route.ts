@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
 import { resolveTeamContextFromHost } from "@/lib/queries/request-team";
+import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 
 function readCookie(rawCookie: string | null, key: string) {
   if (!rawCookie) return null;
@@ -81,6 +82,21 @@ export async function GET(request: Request) {
         if (!isMember) {
           const afterOnboarding = resolvedNext === "/onboarding" ? "/" : resolvedNext;
           resolvedNext = `/onboarding?next=${encodeURIComponent(afterOnboarding)}`;
+        } else if (mst?.mem_id) {
+          // 로그인 시점 칭호 평가 (1년차, 고인물, 화석, 런린이 등 시간 기반)
+          const { data: relRow } = await admin
+            .from("team_mem_rel")
+            .select("team_mem_id")
+            .eq("mem_id", mst.mem_id)
+            .eq("team_id", teamId)
+            .eq("vers", 0)
+            .eq("del_yn", false)
+            .maybeSingle();
+
+          if (relRow?.team_mem_id) {
+            evaluateAndGrantTitles({ trigger: "attendance", teamId, teamMemId: relRow.team_mem_id })
+              .catch((e) => console.error("[title-engine] 로그인 attendance 평가 실패", e));
+          }
         }
       }
 
