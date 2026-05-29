@@ -21,7 +21,7 @@ export type RaceHistRow = {
   rec_time_sec: number;
   comp_evt_type: string;   // comp_evt_cfg.comp_evt_type (정규화 후)
   comp_sprt_cd: string;    // comp_mst.comp_sprt_cd (정규화 후)
-  comp_date: string | null; // comp_mst.comp_date (월범위/연도 조건용)
+  comp_date: string | null; // comp_mst.stt_dt (월범위/연도 조건용)
 };
 
 /** 멤버 한 명의 평가에 필요한 데이터 */
@@ -90,10 +90,10 @@ export async function loadMemberSnapshots(
     genderMap.set(r.mem_id, r.gdr_enm ?? "");
   }
 
-  // 3. rec_race_hist: 전체 멤버 기록 한 번에 (comp_date 포함)
+  // 3. rec_race_hist: 전체 멤버 기록 한 번에 (stt_dt 포함)
   const { data: histRows } = await db
     .from("rec_race_hist")
-    .select("mem_id, rec_time_sec, comp_evt_cfg!inner(comp_evt_type), comp_mst!inner(comp_sprt_cd, comp_date)")
+    .select("mem_id, rec_time_sec, comp_evt_cfg!inner(comp_evt_type), comp_mst!inner(comp_sprt_cd, stt_dt)")
     .in("mem_id", memIds)
     .eq("del_yn", false)
     .eq("vers", 0);
@@ -103,8 +103,8 @@ export async function loadMemberSnapshots(
     const evtCfg = Array.isArray(row.comp_evt_cfg) ? row.comp_evt_cfg[0] : row.comp_evt_cfg;
     const mst = Array.isArray(row.comp_mst) ? row.comp_mst[0] : row.comp_mst;
     const evtType = (evtCfg as { comp_evt_type?: string } | null)?.comp_evt_type?.toUpperCase() ?? "";
-    const sprtCd = (mst as { comp_sprt_cd?: string; comp_date?: string } | null)?.comp_sprt_cd ?? "";
-    const compDate = (mst as { comp_sprt_cd?: string; comp_date?: string } | null)?.comp_date ?? null;
+    const sprtCd = (mst as { comp_sprt_cd?: string; stt_dt?: string } | null)?.comp_sprt_cd ?? "";
+    const compDate = (mst as { comp_sprt_cd?: string; stt_dt?: string } | null)?.stt_dt ?? null;
 
     if (!histMap.has(row.mem_id)) histMap.set(row.mem_id, []);
     histMap.get(row.mem_id)!.push({

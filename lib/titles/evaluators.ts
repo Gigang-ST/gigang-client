@@ -204,7 +204,7 @@ export async function evalRaceFinishInMonthRangeInternal(
 ): Promise<boolean> {
   const { data } = await db
     .from("rec_race_hist")
-    .select("race_result_id, comp_mst!inner(comp_date, comp_sprt_cd), comp_evt_cfg!inner(comp_evt_type)")
+    .select("race_result_id, comp_mst!inner(stt_dt, comp_sprt_cd), comp_evt_cfg!inner(comp_evt_type)")
     .eq("mem_id", memId)
     .eq("del_yn", false)
     .eq("vers", 0);
@@ -213,7 +213,7 @@ export async function evalRaceFinishInMonthRangeInternal(
 
   return data.some((row) => {
     const mst = Array.isArray(row.comp_mst) ? row.comp_mst[0] : row.comp_mst;
-    const compDate = (mst as { comp_date?: string; comp_sprt_cd?: string } | null)?.comp_date;
+    const compDate = (mst as { stt_dt?: string; comp_sprt_cd?: string } | null)?.stt_dt;
     const sprtCd = (mst as { comp_sprt_cd?: string } | null)?.comp_sprt_cd ?? null;
     const evtCfg = Array.isArray(row.comp_evt_cfg) ? row.comp_evt_cfg[0] : row.comp_evt_cfg;
     const evtType = (evtCfg as { comp_evt_type?: string } | null)?.comp_evt_type?.toUpperCase() ?? "";
@@ -310,7 +310,7 @@ export async function evalRaceFinishInYearInternal(
 
   const { data } = await db
     .from("rec_race_hist")
-    .select("race_result_id, comp_mst!inner(comp_date)")
+    .select("race_result_id, comp_mst!inner(stt_dt)")
     .eq("mem_id", memId)
     .eq("del_yn", false)
     .eq("vers", 0);
@@ -319,7 +319,7 @@ export async function evalRaceFinishInYearInternal(
 
   const count = data.filter((row) => {
     const mst = Array.isArray(row.comp_mst) ? row.comp_mst[0] : row.comp_mst;
-    const compDate = (mst as { comp_date?: string } | null)?.comp_date ?? "";
+    const compDate = (mst as { stt_dt?: string } | null)?.stt_dt ?? "";
     return compDate >= from && compDate <= to;
   }).length;
 
