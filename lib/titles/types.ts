@@ -65,6 +65,91 @@ export type CondRacePbFasterThanMember = {
   target_mem_id: string;
 };
 
+/** 특정 날짜(월/일)에 가입한 경우 (예: 7월 7일 가입) */
+export type CondJoinedOnDate = {
+  type: "joined_on_date";
+  month: number;
+  day: number;
+};
+
+/** 특정 월 범위 내에 대회를 완주한 적 있는 경우 (예: 봄 3~4월) */
+export type CondRaceFinishInMonthRange = {
+  type: "race_finish_in_month_range";
+  /** 해당하는 월 목록. 예: [3,4] (봄), [12,1] (겨울) */
+  months: number[];
+  /** 종목 필터. 생략 시 전체 */
+  sport?: string;
+  sport_ctgr?: string;
+};
+
+/** 지정한 칭호명 목록을 모두 보유한 경우 (예: 사계절 — 봄·여름·가을·겨울 전부) */
+export type CondRaceFinishAllTitles = {
+  type: "race_finish_all_titles";
+  /** 모두 보유해야 하는 ttl_nm 목록 */
+  ttl_nms: string[];
+};
+
+/** 복수 종목을 모두 N회 이상 완주한 경우 (예: 멀티러너 — 10K·하프·풀 각 1회) */
+export type CondRaceFinishAllOf = {
+  type: "race_finish_all_of";
+  sports: string[];
+  count: number;
+  sport_ctgr?: string;
+};
+
+/** 종목 무관 전체 완주 횟수가 N회 이상인 경우 (예: 대회왕) */
+export type CondRaceFinishTotal = {
+  type: "race_finish_total";
+  count: number;
+};
+
+/** 한 해(연도) 내 완주 횟수가 N회 이상인 경우 (예: 시즌러너, 돈을 달린다) */
+export type CondRaceFinishInYear = {
+  type: "race_finish_in_year";
+  count: number;
+  /** 기준 연도. 생략 시 현재 연도 */
+  year?: number;
+};
+
+/**
+ * 팀 내 성별 종목 PB 순위가 N위 이하인 경우 (예: 기강1황, Queen, 하프킹, 단거리왕)
+ * gender: "male" | "female" | "any" — "any"는 남녀 각각 1명씩 부여 (山神, 단거리왕, 마지막영웅)
+ */
+export type CondRaceRankByGender = {
+  type: "race_rank_by_gender";
+  sport: string;
+  sport_ctgr?: string;
+  /** "male" | "female" | "any" */
+  gender: "male" | "female" | "any";
+  rank: number;
+};
+
+/**
+ * 팀 내 성별 종목 PB 꼴찌인 경우 (예: 마지막영웅)
+ * gender: "any" — 남녀 각각 꼴찌 1명씩 부여
+ */
+export type CondRaceRankLast = {
+  type: "race_rank_last";
+  sports: string[];
+  sport_ctgr?: string;
+  gender: "male" | "female" | "any";
+};
+
+/** 풀코스 PB가 목표 기록(초) 중 하나와 N초 이내 차이로 미달인 경우 (예: 억울해?) */
+export type CondRacePbWithinSecOfTarget = {
+  type: "race_pb_within_sec_of_target";
+  sport: string;
+  /** 목표 기록(초) 목록. 예: [14400, 12600, 11400, 10800] */
+  targets: number[];
+  within_sec: number;
+};
+
+/** 지정한 카테고리 각각에서 칭호를 1개 이상 보유한 경우 (예: 전천후) */
+export type CondHasTitleInCategories = {
+  type: "has_title_in_categories";
+  categories: string[];
+};
+
 /** 모든 조건 유형의 유니온 — 새 조건 추가 시 여기에 타입을 추가한다 */
 export type CondRule =
   | CondRacePersonalBestUnderSec
@@ -72,7 +157,17 @@ export type CondRule =
   | CondMileageRunComplete
   | CondAttendanceCount
   | CondMembershipDays
-  | CondRacePbFasterThanMember;
+  | CondRacePbFasterThanMember
+  | CondJoinedOnDate
+  | CondRaceFinishInMonthRange
+  | CondRaceFinishAllTitles
+  | CondRaceFinishAllOf
+  | CondRaceFinishTotal
+  | CondRaceFinishInYear
+  | CondRaceRankByGender
+  | CondRaceRankLast
+  | CondRacePbWithinSecOfTarget
+  | CondHasTitleInCategories;
 
 // ---------------------------------------------------------------------------
 // TriggerKind — 트리거 종류
@@ -96,9 +191,22 @@ export type TriggerKind =
 // satisfies 키워드가 누락된 TriggerKind 를 컴파일 타임에 잡아준다.
 // ---------------------------------------------------------------------------
 export const TRIGGER_COND_MAP = {
-  race_record:  ["race_pb_under_sec", "race_finish_count", "race_pb_faster_than_member"],
-  mileage_run:  ["mileage_run_complete"],
-  attendance:   ["attendance_count", "membership_days"],
+  race_record: [
+    "race_pb_under_sec",
+    "race_finish_count",
+    "race_pb_faster_than_member",
+    "race_finish_in_month_range",
+    "race_finish_all_of",
+    "race_finish_total",
+    "race_finish_in_year",
+    "race_rank_by_gender",
+    "race_rank_last",
+    "race_pb_within_sec_of_target",
+    "race_finish_all_titles",
+    "has_title_in_categories",
+  ],
+  mileage_run: ["mileage_run_complete"],
+  attendance:  ["attendance_count", "membership_days", "joined_on_date"],
   manual_sweep: [
     "race_pb_under_sec",
     "race_finish_count",
@@ -106,6 +214,16 @@ export const TRIGGER_COND_MAP = {
     "attendance_count",
     "membership_days",
     "race_pb_faster_than_member",
+    "joined_on_date",
+    "race_finish_in_month_range",
+    "race_finish_all_titles",
+    "race_finish_all_of",
+    "race_finish_total",
+    "race_finish_in_year",
+    "race_rank_by_gender",
+    "race_rank_last",
+    "race_pb_within_sec_of_target",
+    "has_title_in_categories",
   ],
 } satisfies Record<TriggerKind, CondRule["type"][]>;
 
