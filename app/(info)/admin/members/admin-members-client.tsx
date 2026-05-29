@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { grantTitle } from "@/app/actions/admin/grant-title";
 import {
   toggleAdmin,
   deleteMember,
 } from "@/app/actions/admin/manage-member";
+import { revokeTitle } from "@/app/actions/admin/revoke-title";
 import {
   Search,
   Shield,
@@ -18,13 +20,19 @@ import {
 import { Avatar } from "@/components/common/avatar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { H2 } from "@/components/common/typography";
+import { H2, Body, Caption, SectionLabel } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardItem } from "@/components/ui/card";
+import { EmptyState } from "@/components/common/empty-state";
+
+// ---------------------------------------------------------------------------
+// 타입
+// ---------------------------------------------------------------------------
 
 type Member = {
   id: string;
+  team_mem_id: string;
   full_name: string | null;
   phone: string | null;
   email: string | null;
@@ -36,8 +44,264 @@ type Member = {
   joined_at: string | null;
 };
 
+type MemberTitle = {
+  mem_ttl_id: string;
+  ttl_nm: string;
+  grnt_at: string;
+  grnt_by_mem_id: string | null;
+};
 
-export function AdminMembersClient({ teamId }: { teamId: string }) {
+type AwardableTitle = {
+  ttl_id: string;
+  ttl_nm: string;
+};
+
+// ---------------------------------------------------------------------------
+// 수여 패널 — 검색 필터 + 선택
+// ---------------------------------------------------------------------------
+
+function GrantPanel({
+  awardableTitles,
+  loadingAwardable,
+  selectedTtlId,
+  onSelect,
+  granting,
+  onGrant,
+  onCancel,
+}: {
+  awardableTitles: AwardableTitle[];
+  loadingAwardable: boolean;
+  selectedTtlId: string;
+  onSelect: (id: string) => void;
+  granting: boolean;
+  onGrant: () => void;
+  onCancel: () => void;
+}) {
+  const [query, setQuery] = useState("");
+
+  const filtered = awardableTitles.filter((t) =>
+    t.ttl_nm.toLowerCase().includes(query.toLowerCase()),
+  );
+
+  return (
+    <CardItem className="flex flex-col gap-3 p-4">
+      {loadingAwardable ? (
+        <Skeleton className="h-10 w-full rounded-lg" />
+      ) : awardableTitles.length === 0 ? (
+        <Caption>수여 가능한 칭호가 없습니다.</Caption>
+      ) : (
+        <>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="칭호명 검색"
+              className="h-9 w-full rounded-lg border border-border bg-background pl-8 pr-3 text-[13px] outline-none focus:border-primary"
+            />
+          </div>
+          <div className="flex max-h-40 flex-col gap-1 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <Caption className="py-2 text-center">검색 결과 없음</Caption>
+            ) : (
+              filtered.map((t) => (
+                <button
+                  key={t.ttl_id}
+                  onClick={() => onSelect(t.ttl_id)}
+                  className={
+                    "rounded-lg px-3 py-2 text-left text-[13px] transition-colors " +
+                    (selectedTtlId === t.ttl_id
+                      ? "bg-primary/10 font-semibold text-primary"
+                      : "text-foreground hover:bg-secondary")
+                  }
+                >
+                  {t.ttl_nm}
+                </button>
+              ))
+            )}
+          </div>
+        </>
+      )}
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" className="flex-1" onClick={onCancel}>
+          취소
+        </Button>
+        <Button
+          size="sm"
+          className="flex-1"
+          disabled={!selectedTtlId || granting}
+          onClick={onGrant}
+        >
+          {granting ? "수여 중..." : "확인"}
+        </Button>
+      </div>
+    </CardItem>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 칭호 섹션 컴포넌트
+// ---------------------------------------------------------------------------
+
+function TitleSection({
+  member,
+  teamId,
+}: {
+  member: Member;
+  teamId: string;
+}) {
+  const [titles, setTitles] = useState<MemberTitle[]>([]);
+  const [loadingTitles, setLoadingTitles] = useState(true);
+  const [showGrantPanel, setShowGrantPanel] = useState(false);
+  const [awardableTitles, setAwardableTitles] = useState<AwardableTitle[]>([]);
+  const [loadingAwardable, setLoadingAwardable] = useState(false);
+  const [selectedTtlId, setSelectedTtlId] = useState<string>("");
+  const [granting, setGranting] = useState(false);
+  const [revoking, setRevoking] = useState<string | null>(null);
+
+  const loadTitles = useCallback(async () => {
+    setLoadingTitles(true);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("mem_ttl_rel")
+      .select(
+        "mem_ttl_id, grnt_at, grnt_by_mem_id, ttl_mst!inner(ttl_nm)",
+      )
+      .eq("team_mem_id", member.team_mem_id)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .order("grnt_at", { ascending: false });
+
+    type TtlMst = { ttl_nm: string };
+    setTitles(
+      (data ?? []).map((r) => ({
+        mem_ttl_id: r.mem_ttl_id,
+        ttl_nm: (r.ttl_mst as unknown as TtlMst).ttl_nm,
+        grnt_at: r.grnt_at,
+        grnt_by_mem_id: r.grnt_by_mem_id,
+      })),
+    );
+    setLoadingTitles(false);
+  }, [member.team_mem_id]);
+
+  const loadAwardableTitles = useCallback(async () => {
+    setLoadingAwardable(true);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("ttl_mst")
+      .select("ttl_id, ttl_nm")
+      .eq("team_id", teamId)
+      .eq("ttl_kind_enm", "awarded")
+      .eq("use_yn", true)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .order("sort_ord", { ascending: true });
+
+    setAwardableTitles(data ?? []);
+    setLoadingAwardable(false);
+  }, [teamId]);
+
+  useEffect(() => {
+    loadTitles();
+  }, [loadTitles]);
+
+  const handleOpenGrantPanel = () => {
+    setShowGrantPanel(true);
+    setSelectedTtlId("");
+    loadAwardableTitles();
+  };
+
+  const handleGrant = async () => {
+    if (!selectedTtlId) return;
+    setGranting(true);
+    const result = await grantTitle(member.team_mem_id, selectedTtlId, teamId);
+    if (result.ok) {
+      setShowGrantPanel(false);
+      await loadTitles();
+    } else {
+      alert(result.message);
+    }
+    setGranting(false);
+  };
+
+  const handleRevoke = async (memTtlId: string, ttlNm: string) => {
+    if (!confirm(`"${ttlNm}" 칭호를 회수하시겠습니까?`)) return;
+    setRevoking(memTtlId);
+    const result = await revokeTitle(memTtlId);
+    if (result.ok) {
+      setTitles((prev) => prev.filter((t) => t.mem_ttl_id !== memTtlId));
+    } else {
+      alert(result.message);
+    }
+    setRevoking(null);
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* 섹션 헤더 */}
+      <div className="flex items-center justify-between">
+        <SectionLabel>보유 칭호</SectionLabel>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-primary"
+          onClick={handleOpenGrantPanel}
+        >
+          수여
+        </Button>
+      </div>
+
+      {/* 수여 패널 */}
+      {showGrantPanel && (
+        <GrantPanel
+          awardableTitles={awardableTitles}
+          loadingAwardable={loadingAwardable}
+          selectedTtlId={selectedTtlId}
+          onSelect={setSelectedTtlId}
+          granting={granting}
+          onGrant={handleGrant}
+          onCancel={() => setShowGrantPanel(false)}
+        />
+      )}
+
+      {/* 칭호 목록 — 배지 형태로 가로 나열 */}
+      {loadingTitles ? (
+        <div className="flex flex-wrap gap-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-7 w-20 rounded-full" />
+          ))}
+        </div>
+      ) : titles.length === 0 ? (
+        <EmptyState variant="inline" message="보유 칭호 없음" />
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {titles.map((t) => (
+            <div
+              key={t.mem_ttl_id}
+              className="flex items-center gap-1 rounded-full border border-border bg-secondary px-3 py-1"
+            >
+              <span className="text-[12px] font-medium text-foreground">{t.ttl_nm}</span>
+              <button
+                onClick={() => handleRevoke(t.mem_ttl_id, t.ttl_nm)}
+                disabled={revoking === t.mem_ttl_id}
+                className="ml-0.5 rounded-full text-muted-foreground transition-colors hover:text-destructive disabled:opacity-40"
+                aria-label={`"${t.ttl_nm}" 회수`}
+              >
+                <X className="size-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 메인 컴포넌트
+// ---------------------------------------------------------------------------
+
+export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: string; initialTeamMemId?: string }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -49,7 +313,7 @@ export function AdminMembersClient({ teamId }: { teamId: string }) {
     const { data } = await supabase
       .from("team_mem_rel")
       .select(
-        "mem_id, team_role_cd, mem_st_cd, join_dt, mem_mst!inner(mem_nm, phone_no, email_addr, gdr_enm, birth_dt, avatar_url)",
+        "team_mem_id, mem_id, team_role_cd, mem_st_cd, join_dt, mem_mst!inner(mem_nm, phone_no, email_addr, gdr_enm, birth_dt, avatar_url)",
       )
       .eq("team_id", teamId)
       .eq("vers", 0)
@@ -71,6 +335,7 @@ export function AdminMembersClient({ teamId }: { teamId: string }) {
         const m = r.mem_mst as unknown as Mst;
         return {
           id: r.mem_id,
+          team_mem_id: r.team_mem_id,
           full_name: m.mem_nm,
           phone: m.phone_no,
           email: m.email_addr,
@@ -90,6 +355,17 @@ export function AdminMembersClient({ teamId }: { teamId: string }) {
   useEffect(() => {
     loadMembers();
   }, [loadMembers]);
+
+  // initialTeamMemId가 있으면 최초 1회만 자동 선택
+  const initialSelectDone = useRef(false);
+  useEffect(() => {
+    if (!initialTeamMemId || loading || initialSelectDone.current) return;
+    const found = members.find((m) => m.team_mem_id === initialTeamMemId);
+    if (found) {
+      setSelectedMember(found);
+      initialSelectDone.current = true;
+    }
+  }, [initialTeamMemId, loading, members]);
 
   const filtered = members.filter((m) => {
     if (!search) return true;
@@ -158,44 +434,38 @@ export function AdminMembersClient({ teamId }: { teamId: string }) {
       </div>
 
       {/* 회원 수 */}
-      <span className="text-[13px] text-muted-foreground">
-        {filtered.length}명
-      </span>
+      <Caption>{filtered.length}명</Caption>
 
       {/* 회원 목록 */}
       <div className="flex flex-col gap-2">
         {filtered.map((member) => (
-            <CardItem asChild key={member.id} className="flex items-center gap-3">
-              <button
-                onClick={() => setSelectedMember(member)}
-                className="text-left transition-colors active:bg-secondary"
-              >
+          <CardItem asChild key={member.id} className="flex items-center gap-3">
+            <button
+              onClick={() => setSelectedMember(member)}
+              className="text-left transition-colors active:bg-secondary"
+            >
               <Avatar src={member.avatar_url} size="md" />
               <div className="flex flex-1 flex-col gap-0.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-[15px] font-semibold text-foreground">
+                  <Body className="font-semibold">
                     {member.full_name ?? "이름 없음"}
-                  </span>
+                  </Body>
                   {member.admin && (
                     <Shield className="size-3.5 text-primary" />
                   )}
                 </div>
-                <span className="text-[13px] text-muted-foreground">
-                  {member.phone ?? "연락처 없음"}
-                </span>
+                <Caption>{member.phone ?? "연락처 없음"}</Caption>
               </div>
               <ChevronRight className="size-4 shrink-0 text-border" />
-              </button>
-            </CardItem>
+            </button>
+          </CardItem>
         ))}
       </div>
 
       {filtered.length === 0 && (
         <div className="flex flex-col items-center gap-3 py-12">
           <UserRound className="size-12 text-muted-foreground/30" />
-          <p className="text-[15px] text-muted-foreground">
-            검색 결과가 없습니다
-          </p>
+          <Body className="text-muted-foreground">검색 결과가 없습니다</Body>
         </div>
       )}
 
@@ -267,6 +537,9 @@ export function AdminMembersClient({ teamId }: { teamId: string }) {
                 />
               </div>
 
+              {/* 칭호 관리 */}
+              <TitleSection member={selectedMember} teamId={teamId} />
+
               {/* 액션 버튼 */}
               <div className="flex flex-col gap-2">
                 {selectedMember.admin ? (
@@ -332,10 +605,8 @@ function InfoRow({
 }) {
   return (
     <div className="flex items-center justify-between border-b border-border py-2.5">
-      <span className="text-[13px] text-muted-foreground">{label}</span>
-      <span className="text-[14px] font-medium text-foreground">
-        {value ?? "-"}
-      </span>
+      <Caption>{label}</Caption>
+      <Body className="font-medium">{value ?? "-"}</Body>
     </div>
   );
 }

@@ -27,7 +27,7 @@ type Project = {
   evt_type_cd: string;
   stt_dt: string;
   end_dt: string;
-  stts_enm: string;
+  stts_enm: "READY" | "ACTIVE" | "CLOSED";
   desc_txt: string | null;
 };
 

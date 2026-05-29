@@ -1,5 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# 개발용 쇼케이스 페이지 (로컬 전용)
+/app/(info)/dev/
+
 # dependencies
 /node_modules
 /.pnp
@@ -46,6 +49,10 @@ next-env.d.ts
 
 # claude code
 .claude/settings.local.json
+
+# skillshare로 자동 생성되는 스킬 디렉토리 (source: .skillshare/skills/)
+.claude/skills/
+.agents/skills/
 
 # storybook
 /storybook-static
