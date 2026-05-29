@@ -38,6 +38,7 @@ import type {
   CondRacePbWithinSecOfTarget,
   CondHasTitleInCategories,
 } from "./types";
+import type { MemberSnapshot, RaceHistRow } from "./snapshot";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type DB = SupabaseClient<Database>;
@@ -535,4 +536,114 @@ export async function evaluateCondition(
       rule satisfies never;
       return false;
   }
+}
+
+// ---------------------------------------------------------------------------
+// 공개 진입점 2 — bulk sweep 전용 (MemberSnapshot 메모리 평가, DB 쿼리 없음)
+// ---------------------------------------------------------------------------
+
+/**
+ * CondRule 하나를 스냅샷 데이터만으로 평가한다. (manual_sweep 전용)
+ * DB 왕복 없이 메모리 내에서만 연산한다.
+ *
+ * @param allSnapshots  race_pb_faster_than_member 처럼 타 멤버 데이터가 필요한 조건을 위해 전체 맵을 전달한다.
+ */
+export function evaluateConditionFromSnapshot(
+  rule: CondRule,
+  snapshot: MemberSnapshot,
+  allSnapshots: Map<string, MemberSnapshot>,
+): boolean {
+  switch (rule.type) {
+    case "race_pb_under_sec":
+      return evalRacePbUnderSecFromSnapshot(rule, snapshot.raceHist);
+
+    case "race_finish_count":
+      return evalRaceFinishCountFromSnapshot(rule, snapshot.raceHist);
+
+    case "mileage_run_complete":
+      return false; // TODO: 마일리지런 스냅샷 구현 전까지 false
+
+    case "attendance_count":
+      return snapshot.raceHist.length >= rule.count;
+
+    case "membership_days": {
+      if (!snapshot.joinDt) return false;
+      const diffDays = Math.floor(
+        (Date.now() - new Date(snapshot.joinDt).getTime()) / (1000 * 60 * 60 * 24),
+      );
+      return diffDays >= rule.days;
+    }
+
+    case "race_pb_faster_than_member":
+      return evalRacePbFasterThanMemberFromSnapshot(rule, snapshot, allSnapshots);
+
+    // 아래 조건들은 snapshot에 필요한 데이터가 없어 DB 조회 필요 — sweep 시 false 처리
+    case "joined_on_date":
+    case "race_finish_in_month_range":
+    case "race_finish_all_titles":
+    case "race_finish_all_of":
+    case "race_finish_total":
+    case "race_finish_in_year":
+    case "race_rank_by_gender":
+    case "race_rank_last":
+    case "race_pb_within_sec_of_target":
+    case "has_title_in_categories":
+      return false;
+
+    default:
+      rule satisfies never;
+      return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// snapshot 기반 내부 평가 함수 (메모리 전용)
+// ---------------------------------------------------------------------------
+
+function evalRacePbUnderSecFromSnapshot(
+  rule: CondRacePersonalBestUnderSec,
+  raceHist: RaceHistRow[],
+): boolean {
+  const candidates = raceHist.filter((r) => {
+    const typeMatch = r.comp_evt_type === rule.sport.toUpperCase();
+    const ctgrMatch = !rule.sport_ctgr || r.comp_sprt_cd === rule.sport_ctgr;
+    return typeMatch && ctgrMatch;
+  });
+  if (candidates.length === 0) return false;
+  const pb = Math.min(...candidates.map((r) => r.rec_time_sec));
+  return pb <= rule.sec;
+}
+
+function evalRaceFinishCountFromSnapshot(
+  rule: CondRaceFinishCount,
+  raceHist: RaceHistRow[],
+): boolean {
+  const count = raceHist.filter((r) => {
+    const typeMatch = !rule.sport || r.comp_evt_type === rule.sport.toUpperCase();
+    const ctgrMatch = !rule.sport_ctgr || r.comp_sprt_cd === rule.sport_ctgr;
+    return typeMatch && ctgrMatch;
+  }).length;
+  return count >= rule.count;
+}
+
+function evalRacePbFasterThanMemberFromSnapshot(
+  rule: CondRacePbFasterThanMember,
+  snapshot: MemberSnapshot,
+  allSnapshots: Map<string, MemberSnapshot>,
+): boolean {
+  if (snapshot.memId === rule.target_mem_id) return false;
+
+  const targetSnapshot = [...allSnapshots.values()].find((s) => s.memId === rule.target_mem_id);
+  const sport = rule.sport.toUpperCase();
+
+  const myPb = snapshot.raceHist
+    .filter((r) => r.comp_evt_type === sport)
+    .reduce<number | null>((min, r) => (min === null || r.rec_time_sec < min ? r.rec_time_sec : min), null);
+
+  const targetPb = (targetSnapshot?.raceHist ?? [])
+    .filter((r) => r.comp_evt_type === sport)
+    .reduce<number | null>((min, r) => (min === null || r.rec_time_sec < min ? r.rec_time_sec : min), null);
+
+  if (myPb === null || targetPb === null) return false;
+  return myPb < targetPb;
 }
