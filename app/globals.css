@@ -148,6 +148,1131 @@
   --event-10k: oklch(0.68 0.181 44);
 }
 
+/* ------------------------------------------------------------------ */
+/*  칭호 이펙트 애니메이션                                              */
+/* ------------------------------------------------------------------ */
+
+@keyframes title-neon-pulse {
+  0%, 100% {
+    text-shadow: 0 0 4px currentColor, 0 0 10px currentColor, 0 0 20px currentColor;
+    box-shadow: 0 0 4px currentColor;
+  }
+  50% {
+    text-shadow: 0 0 2px currentColor, 0 0 6px currentColor;
+    box-shadow: 0 0 2px currentColor;
+  }
+}
+
+@keyframes title-hologram-sweep {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes title-gold-sheen {
+  0% { background-position: -200% center; }
+  100% { background-position: 300% center; }
+}
+
+@keyframes title-spark-float {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.9; }
+  33% { transform: translateY(-3px) scale(1.05); opacity: 1; }
+  66% { transform: translateY(1px) scale(0.97); opacity: 0.7; }
+}
+
+@keyframes title-spark-star1 {
+  0%, 100% { transform: translate(0, 0) scale(0); opacity: 0; }
+  25% { transform: translate(-6px, -5px) scale(1); opacity: 1; }
+  50% { transform: translate(-10px, -8px) scale(0.6); opacity: 0.6; }
+  75% { transform: translate(-8px, -3px) scale(0.2); opacity: 0.2; }
+}
+
+@keyframes title-spark-star2 {
+  0%, 100% { transform: translate(0, 0) scale(0); opacity: 0; }
+  20% { opacity: 0; }
+  40% { transform: translate(6px, -6px) scale(1); opacity: 1; }
+  65% { transform: translate(9px, -10px) scale(0.5); opacity: 0.5; }
+  80% { transform: translate(7px, -4px) scale(0.1); opacity: 0; }
+}
+
+.title-effect-neon {
+  animation: title-neon-pulse 3.5s ease-in-out infinite;
+}
+
+.title-effect-hologram {
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    #a78bfa 20%,
+    #7dd3fc 30%,
+    #86efac 40%,
+    #a78bfa 50%,
+    transparent 60%,
+    #a78bfa 80%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-hologram-sweep 5s linear infinite;
+}
+
+.title-effect-gold {
+  background: linear-gradient(
+    100deg,
+    #92681a 0%,
+    #d4a331 18%,
+    #f5e07a 28%,
+    #d4a331 38%,
+    #92681a 55%,
+    #c49428 72%,
+    #f5e07a 82%,
+    #92681a 100%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-gold-sheen 5s ease-in-out infinite;
+}
+
+.title-effect-spark {
+  position: relative;
+  animation: title-spark-float 4s ease-in-out infinite;
+}
+
+.title-effect-spark::before,
+.title-effect-spark::after {
+  content: "✦";
+  position: absolute;
+  top: -1px;
+  font-size: 7px;
+  line-height: 1;
+  color: currentColor;
+  pointer-events: none;
+}
+
+.title-effect-spark::before {
+  left: -2px;
+  animation: title-spark-star1 4s ease-in-out infinite;
+}
+
+.title-effect-spark::after {
+  right: -2px;
+  animation: title-spark-star2 4s ease-in-out infinite 0.6s;
+}
+
+/* ── 배지 추가 이펙트 ─────────────────────────────────────────────── */
+
+/* dim — 살짝 어두워졌다 밝아지는 페이드 (Common용) */
+@keyframes title-dim {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.55; }
+}
+.title-effect-dim {
+  animation: title-dim 4s ease-in-out infinite;
+  color: #94a3b8;
+}
+
+/* breathe — 숨쉬듯 아주 살짝 커졌다 작아짐 (Common용) */
+@keyframes title-breathe {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.04); }
+}
+.title-effect-breathe {
+  display: inline-block;
+  animation: title-breathe 5s ease-in-out infinite;
+  color: #cbd5e1;
+}
+
+/* italic-drift — 살짝 기울어졌다 돌아옴 (Common용) */
+@keyframes title-italic-drift {
+  0%, 100% { transform: skewX(0deg); }
+  40%       { transform: skewX(-6deg); }
+  60%       { transform: skewX(-6deg); }
+}
+.title-effect-italic-drift {
+  display: inline-block;
+  animation: title-italic-drift 5s ease-in-out infinite;
+  color: #94a3b8;
+}
+
+/* dot-blink — 배지 앞에 작은 점이 깜빡 (Common~Uncommon용) */
+@keyframes title-dot-blink {
+  0%, 45%, 100% { opacity: 1; }
+  50%, 95%      { opacity: 0.15; }
+}
+.title-effect-dot-blink::before {
+  content: "•";
+  margin-right: 3px;
+  font-size: 0.7em;
+  animation: title-dot-blink 3s ease-in-out infinite;
+  display: inline-block;
+  color: currentColor;
+}
+.title-effect-dot-blink {
+  color: #94a3b8;
+}
+
+/* underline-fade — 아래 선이 페이드인아웃 (Uncommon용) */
+@keyframes title-underline-fade {
+  0%, 100% { text-decoration-color: transparent; }
+  50%       { text-decoration-color: currentColor; }
+}
+.title-effect-underline-fade {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: transparent;
+  animation: title-underline-fade 3.5s ease-in-out infinite;
+  color: #7dd3fc;
+}
+
+/* soft-shine — 배경이 아주 살짝 밝아지는 shimmer (Uncommon용) */
+@keyframes title-soft-shine {
+  0%   { background-position: -300% center; }
+  100% { background-position: 300% center; }
+}
+.title-effect-soft-shine {
+  background: linear-gradient(
+    110deg,
+    #64748b 0%, #94a3b8 30%, #cbd5e1 50%, #94a3b8 70%, #64748b 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-soft-shine 7s linear infinite;
+}
+
+/* silver — 은색 shimmer (Uncommon용) */
+@keyframes title-silver-shimmer {
+  0%   { background-position: -300% center; }
+  100% { background-position: 300% center; }
+}
+.title-effect-silver {
+  background: linear-gradient(
+    110deg,
+    #94a3b8 0%, #cbd5e1 15%, #f1f5f9 28%,
+    #94a3b8 40%, #cbd5e1 55%,
+    #f1f5f9 68%, #94a3b8 80%, #cbd5e1 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-silver-shimmer 6s linear infinite;
+}
+
+/* bronze — 구릿빛 shimmer (Uncommon~Rare용) */
+@keyframes title-bronze-shimmer {
+  0%   { background-position: -300% center; }
+  100% { background-position: 300% center; }
+}
+.title-effect-bronze {
+  background: linear-gradient(
+    110deg,
+    #92400e 0%, #b45309 15%, #d97706 28%,
+    #92400e 40%, #b45309 55%,
+    #fbbf24 65%, #b45309 75%, #92400e 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-bronze-shimmer 5s linear infinite;
+}
+
+/* glow-soft — 은은한 백색 발광 (Common~Uncommon용) */
+@keyframes title-glow-soft {
+  0%, 100% { text-shadow: 0 0 3px #cbd5e1aa, 0 0 6px #94a3b855; }
+  50%       { text-shadow: 0 0 6px #e2e8f0cc, 0 0 12px #cbd5e188; }
+}
+.title-effect-glow-soft {
+  color: #e2e8f0;
+  animation: title-glow-soft 4s ease-in-out infinite;
+}
+
+/* emerald — 에메랄드 shimmer (Rare용) */
+@keyframes title-emerald-shimmer {
+  0%   { background-position: -300% center; }
+  100% { background-position: 300% center; }
+}
+.title-effect-emerald {
+  background: linear-gradient(
+    110deg,
+    #065f46 0%, #059669 18%, #34d399 30%,
+    #065f46 42%, #059669 56%,
+    #6ee7b7 66%, #059669 76%, #065f46 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-emerald-shimmer 5s linear infinite;
+  filter: drop-shadow(0 0 4px #34d39966);
+}
+
+/* sapphire — 사파이어 shimmer (Rare용) */
+.title-effect-sapphire {
+  background: linear-gradient(
+    110deg,
+    #1e3a5f 0%, #1d4ed8 18%, #60a5fa 30%,
+    #1e3a5f 42%, #1d4ed8 56%,
+    #bfdbfe 66%, #1d4ed8 76%, #1e3a5f 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-silver-shimmer 5s linear infinite;
+  filter: drop-shadow(0 0 4px #60a5fa66);
+}
+
+/* pulse-color — 색상이 서서히 바뀌는 soft glow (Epic용) */
+@keyframes title-pulse-color {
+  0%   { color: #a78bfa; text-shadow: 0 0 8px #a78bfa88; }
+  33%  { color: #f472b6; text-shadow: 0 0 8px #f472b688; }
+  66%  { color: #38bdf8; text-shadow: 0 0 8px #38bdf888; }
+  100% { color: #a78bfa; text-shadow: 0 0 8px #a78bfa88; }
+}
+.title-effect-pulse-color {
+  animation: title-pulse-color 5s ease-in-out infinite;
+}
+
+/* flare — 한 방향으로 빛이 훑고 지나가는 단순 flare (Rare용) */
+@keyframes title-flare {
+  0%   { background-position: -200% center; }
+  60%  { background-position: 200% center; }
+  100% { background-position: 200% center; }
+}
+.title-effect-flare {
+  background: linear-gradient(
+    100deg,
+    currentColor 0%,
+    currentColor 35%,
+    #ffffff 50%,
+    currentColor 65%,
+    currentColor 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: #93c5fd;
+  animation: title-flare 4s ease-in-out infinite;
+}
+
+/* void-text — 어두운 보라+인디고 흐름 (Epic~Master용) */
+.title-effect-void-text {
+  background: linear-gradient(
+    90deg,
+    #312e81 0%, #4f46e5 20%, #7c3aed 35%,
+    #6d28d9 50%, #4f46e5 65%, #818cf8 80%, #312e81 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-rainbow-shift 5s linear infinite;
+  filter: drop-shadow(0 0 6px #7c3aed66);
+}
+
+/* crimson — 핏빛 발광 (Master~Grandmaster용) */
+@keyframes title-crimson-pulse {
+  0%, 100% { color: #dc2626; text-shadow: 0 0 6px #dc262688, 0 0 12px #dc262644; }
+  50%       { color: #ef4444; text-shadow: 0 0 10px #ef4444aa, 0 0 20px #dc262666; }
+}
+.title-effect-crimson {
+  animation: title-crimson-pulse 3.5s ease-in-out infinite;
+}
+
+/* obsidian — 검정+보라 어두운 shimmer (Grandmaster용) */
+@keyframes title-obsidian-shift {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.title-effect-obsidian {
+  background: linear-gradient(
+    90deg,
+    #0f0f1a, #2d1b69, #4c1d95, #1e1b4b, #2d1b69, #0f0f1a
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-obsidian-shift 6s linear infinite;
+  filter: drop-shadow(0 0 8px #7c3aed99);
+}
+
+/* glitch */
+@keyframes title-glitch-clip1 {
+  0%, 100% { clip-path: inset(0 0 90% 0); transform: translate(-2px, 0); }
+  20%       { clip-path: inset(30% 0 50% 0); transform: translate(2px, 0); }
+  40%       { clip-path: inset(60% 0 20% 0); transform: translate(-1px, 0); }
+  60%       { clip-path: inset(10% 0 75% 0); transform: translate(1px, 0); }
+  80%       { clip-path: inset(80% 0 5% 0);  transform: translate(-2px, 0); }
+}
+@keyframes title-glitch-clip2 {
+  0%, 100% { clip-path: inset(50% 0 30% 0); transform: translate(2px, 0); }
+  25%       { clip-path: inset(10% 0 60% 0); transform: translate(-2px, 0); }
+  50%       { clip-path: inset(70% 0 10% 0); transform: translate(1px, 0); }
+  75%       { clip-path: inset(20% 0 55% 0); transform: translate(-1px, 0); }
+}
+.title-effect-glitch {
+  position: relative;
+  color: #e2e8f0;
+}
+.title-effect-glitch::before,
+.title-effect-glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.title-effect-glitch::before {
+  color: #f472b6;
+  animation: title-glitch-clip1 4s steps(1) infinite;
+}
+.title-effect-glitch::after {
+  color: #38bdf8;
+  animation: title-glitch-clip2 4s steps(1) infinite 0.15s;
+}
+
+/* ice */
+@keyframes title-ice-shimmer {
+  0%   { background-position: -300% center; }
+  100% { background-position: 300% center; }
+}
+.title-effect-ice {
+  background: linear-gradient(
+    110deg,
+    #bae6fd 0%, #e0f2fe 15%, #ffffff 25%,
+    #7dd3fc 35%, #bae6fd 45%,
+    #ffffff 55%, #e0f2fe 65%,
+    #7dd3fc 80%, #bae6fd 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-ice-shimmer 6s linear infinite;
+  filter: drop-shadow(0 0 6px #7dd3fc88);
+}
+
+/* fire */
+@keyframes title-fire-shift {
+  0%   { background-position: 0% 100%; }
+  50%  { background-position: 100% 0%; }
+  100% { background-position: 0% 100%; }
+}
+@keyframes title-fire-flicker {
+  0%, 100% { filter: drop-shadow(0 0 4px #f97316) drop-shadow(0 0 8px #ef4444); }
+  33%       { filter: drop-shadow(0 0 8px #fb923c) drop-shadow(0 0 16px #f97316); }
+  66%       { filter: drop-shadow(0 0 3px #ef4444) drop-shadow(0 0 6px #dc2626); }
+}
+.title-effect-fire {
+  background: linear-gradient(180deg, #fde68a 0%, #fb923c 30%, #ef4444 60%, #dc2626 100%);
+  background-size: 100% 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-fire-shift 3s ease-in-out infinite, title-fire-flicker 3s ease-in-out infinite;
+}
+
+/* plasma */
+@keyframes title-plasma-hue {
+  0%   { filter: hue-rotate(0deg) drop-shadow(0 0 6px #a855f7); }
+  50%  { filter: hue-rotate(180deg) drop-shadow(0 0 12px #ec4899); }
+  100% { filter: hue-rotate(360deg) drop-shadow(0 0 6px #a855f7); }
+}
+.title-effect-plasma {
+  background: linear-gradient(90deg, #a855f7, #ec4899, #6366f1, #a855f7);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-hologram-sweep 4s linear infinite, title-plasma-hue 5s linear infinite;
+}
+
+/* matrix */
+@keyframes title-matrix-flicker {
+  0%, 90%, 100% { opacity: 1; color: #4ade80; text-shadow: 0 0 6px #4ade80, 0 0 12px #4ade80; }
+  92%            { opacity: 0.4; }
+  95%            { opacity: 1; }
+  97%            { opacity: 0.6; }
+}
+.title-effect-matrix {
+  color: #4ade80;
+  animation: title-matrix-flicker 5s steps(1) infinite;
+  font-variant-numeric: tabular-nums;
+}
+
+/* rainbow */
+@keyframes title-rainbow-shift {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.title-effect-rainbow {
+  background: linear-gradient(
+    90deg,
+    #f87171, #fb923c, #fbbf24, #4ade80,
+    #38bdf8, #818cf8, #e879f9, #f87171
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-rainbow-shift 4s linear infinite;
+}
+
+/* ruby — 루비 빨강 shimmer (5등급) */
+@keyframes title-ruby-shimmer {
+  0%   { background-position: -300% center; }
+  100% { background-position: 300% center; }
+}
+.title-effect-ruby {
+  background: linear-gradient(
+    110deg,
+    #9f1239 0%, #e11d48 18%, #fb7185 30%,
+    #9f1239 42%, #e11d48 56%,
+    #fda4af 66%, #e11d48 76%, #9f1239 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-ruby-shimmer 5s linear infinite;
+  filter: drop-shadow(0 0 4px #e11d4866);
+}
+
+/* amethyst — 자수정 보라 shimmer (5등급) */
+.title-effect-amethyst {
+  background: linear-gradient(
+    110deg,
+    #581c87 0%, #7e22ce 18%, #a855f7 30%,
+    #581c87 42%, #7e22ce 56%,
+    #d8b4fe 66%, #7e22ce 76%, #581c87 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-ruby-shimmer 5s linear infinite;
+  filter: drop-shadow(0 0 4px #a855f766);
+}
+
+/* pearl — 진주빛 흰색 shimmer (5등급) */
+@keyframes title-pearl-shimmer {
+  0%   { background-position: -300% center; }
+  100% { background-position: 300% center; }
+}
+.title-effect-pearl {
+  background: linear-gradient(
+    110deg,
+    #cbd5e1 0%, #f1f5f9 20%, #ffffff 30%,
+    #e2e8f0 42%, #f8fafc 55%,
+    #ffffff 65%, #e2e8f0 75%, #cbd5e1 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-pearl-shimmer 6s linear infinite;
+  filter: drop-shadow(0 0 3px #f1f5f966);
+}
+
+/* titanium — 티타늄 회청색 shimmer (5등급) */
+.title-effect-titanium {
+  background: linear-gradient(
+    110deg,
+    #374151 0%, #4b5563 15%, #9ca3af 28%,
+    #6b7280 40%, #374151 54%,
+    #9ca3af 65%, #4b5563 76%, #374151 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-pearl-shimmer 5s linear infinite;
+  filter: drop-shadow(0 0 3px #9ca3af44);
+}
+
+/* aurora-text — 오로라 3색 그라디언트 흐름 (6등급) */
+@keyframes title-aurora-text {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.title-effect-aurora-text {
+  background: linear-gradient(
+    90deg,
+    #34d399, #60a5fa, #a78bfa, #f472b6, #34d399
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-aurora-text 6s ease-in-out infinite;
+}
+
+/* chromatic — RGB 채널 미세 분리 (9등급) */
+@keyframes title-chromatic {
+  0%, 85%, 100% { text-shadow: none; }
+  87%  { text-shadow: -2px 0 #ff0080, 2px 0 #00ffff; }
+  89%  { text-shadow: 2px 0 #ff0080, -2px 0 #00ffff; }
+  91%  { text-shadow: -1px 0 #ff0080, 1px 0 #00ffff; }
+  93%  { text-shadow: none; }
+  96%  { text-shadow: -2px 0 #ff0080, 2px 0 #00ffff; }
+  98%  { text-shadow: none; }
+}
+.title-effect-chromatic {
+  color: #e2e8f0;
+  animation: title-chromatic 4s steps(1) infinite;
+}
+
+/* ── 배지 조합 이펙트 ────────────────────────────────────────────── */
+
+.title-effect-bounce-rainbow {
+  display: inline-block;
+  background: linear-gradient(90deg, #f87171, #fbbf24, #4ade80, #38bdf8, #818cf8, #f87171);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-bounce 2s ease-in-out infinite, title-rainbow-shift 4s linear infinite;
+}
+
+.title-effect-shake-fire {
+  display: inline-block;
+  background: linear-gradient(90deg, #dc2626, #ea580c, #f59e0b, #ea580c, #dc2626);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-shake 2.5s ease-in-out infinite, title-fire-shift 3s ease-in-out infinite;
+  filter: drop-shadow(0 2px 6px #ef444466);
+}
+
+.title-effect-zoom-plasma {
+  display: inline-block;
+  background: linear-gradient(90deg, #a855f7, #ec4899, #6366f1, #38bdf8, #a855f7);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-zoom 2.8s ease-in-out infinite, title-hologram-sweep 4s linear infinite;
+}
+
+.title-effect-wave-hologram {
+  display: inline-block;
+  background: linear-gradient(105deg, transparent 0%, #a78bfa 20%, #7dd3fc 30%, #86efac 40%, #a78bfa 50%, transparent 60%, #a78bfa 80%, transparent 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-wave-char 2s ease-in-out infinite, title-hologram-sweep 5s linear infinite;
+}
+
+.title-effect-flip-gold {
+  display: inline-block;
+  background: linear-gradient(100deg, #92681a 0%, #d4a331 18%, #f5e07a 28%, #d4a331 38%, #92681a 55%, #f5e07a 82%, #92681a 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-flip 4s ease-in-out infinite, title-gold-sheen 5s ease-in-out infinite;
+}
+
+.title-effect-bounce-ice {
+  display: inline-block;
+  background: linear-gradient(110deg, #bae6fd 0%, #e0f2fe 15%, #ffffff 25%, #7dd3fc 35%, #bae6fd 45%, #ffffff 55%, #e0f2fe 65%, #7dd3fc 80%, #bae6fd 100%);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-bounce 2s ease-in-out infinite, title-ice-shimmer 6s linear infinite;
+  filter: drop-shadow(0 0 4px #7dd3fc66);
+}
+
+.title-effect-shake-lava {
+  display: inline-block;
+  background: linear-gradient(90deg, #dc2626, #ea580c, #f59e0b, #ea580c, #dc2626, #b91c1c);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-shake 2.5s ease-in-out infinite, title-lava-flow 3.5s ease-in-out infinite;
+  filter: drop-shadow(0 3px 8px #ef444488);
+}
+
+.title-effect-zoom-rainbow {
+  display: inline-block;
+  background: linear-gradient(90deg, #f87171, #fb923c, #fbbf24, #4ade80, #38bdf8, #818cf8, #e879f9, #f87171);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-zoom 2.8s ease-in-out infinite, title-rainbow-shift 4s linear infinite;
+}
+
+.title-effect-wave-fire {
+  display: inline-block;
+  background: linear-gradient(180deg, #fde68a 0%, #fb923c 40%, #ef4444 100%);
+  background-size: 100% 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-wave-char 2s ease-in-out infinite, title-fire-shift 3s ease-in-out infinite;
+  filter: drop-shadow(0 2px 4px #f9731666);
+}
+
+/* shake */
+@keyframes title-shake {
+  0%, 100% { transform: translateX(0); }
+  15%       { transform: translateX(-4px) rotate(-1deg); }
+  30%       { transform: translateX(4px) rotate(1deg); }
+  45%       { transform: translateX(-3px) rotate(-0.5deg); }
+  60%       { transform: translateX(3px) rotate(0.5deg); }
+  75%       { transform: translateX(-2px); }
+  90%       { transform: translateX(2px); }
+}
+.title-effect-shake {
+  display: inline-block;
+  animation: title-shake 2.5s ease-in-out infinite;
+  color: #f87171;
+  text-shadow: 0 0 6px #f8717188;
+}
+
+/* bounce */
+@keyframes title-bounce {
+  0%, 100% { transform: translateY(0) scaleY(1); animation-timing-function: cubic-bezier(0.215,0.61,0.355,1); }
+  40%       { transform: translateY(-8px) scaleY(1.1); animation-timing-function: cubic-bezier(0.755,0.05,0.855,0.06); }
+  70%       { transform: translateY(-3px) scaleY(0.95); }
+  90%       { transform: translateY(1px) scaleY(1.02); }
+}
+.title-effect-bounce {
+  display: inline-block;
+  animation: title-bounce 2s ease-in-out infinite;
+  color: #fb923c;
+}
+
+/* flip */
+@keyframes title-flip {
+  0%, 100% { transform: perspective(200px) rotateY(0deg); }
+  40%       { transform: perspective(200px) rotateY(180deg); }
+  60%       { transform: perspective(200px) rotateY(180deg); }
+}
+.title-effect-flip {
+  display: inline-block;
+  animation: title-flip 4s ease-in-out infinite;
+  background: linear-gradient(90deg, #a78bfa, #38bdf8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* zoom */
+@keyframes title-zoom {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px currentColor); }
+  50%       { transform: scale(1.18); filter: drop-shadow(0 0 8px currentColor) drop-shadow(0 0 16px currentColor); }
+}
+.title-effect-zoom {
+  display: inline-block;
+  animation: title-zoom 2.8s ease-in-out infinite;
+  color: #e879f9;
+}
+
+/* lava */
+@keyframes title-lava-flow {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes title-lava-drip {
+  0%, 100% { filter: drop-shadow(0 2px 4px #ef444488) drop-shadow(0 0 8px #f9731655); }
+  50%       { filter: drop-shadow(0 4px 8px #dc262699) drop-shadow(0 0 16px #ef444466); }
+}
+.title-effect-lava {
+  background: linear-gradient(90deg, #dc2626, #ea580c, #f59e0b, #ea580c, #dc2626, #b91c1c);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-lava-flow 3.5s ease-in-out infinite, title-lava-drip 3.5s ease-in-out infinite;
+}
+
+/* typewriter */
+@keyframes title-type-cursor {
+  0%, 49%   { border-right-color: currentColor; }
+  50%, 100% { border-right-color: transparent; }
+}
+.title-effect-typewriter {
+  display: inline-block;
+  color: #4ade80;
+  border-right: 2px solid #4ade80;
+  animation: title-type-cursor 1.2s step-end infinite;
+  text-shadow: 0 0 8px #4ade8088;
+  padding-right: 2px;
+}
+
+/* wave */
+@keyframes title-wave-char {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-5px); }
+}
+.title-effect-wave {
+  display: inline-block;
+  animation: title-wave-char 2s ease-in-out infinite;
+  color: #38bdf8;
+  text-shadow: 0 0 6px #38bdf888;
+}
+
+/* ── 이름 glow ───────────────────────────────────────────────────── */
+
+@keyframes name-glow-pulse {
+  0%, 100% { text-shadow: 0 0 4px currentColor, 0 0 8px currentColor; }
+  50%       { text-shadow: 0 0 2px currentColor, 0 0 4px currentColor; }
+}
+.name-glow {
+  animation: name-glow-pulse 4s ease-in-out infinite;
+}
+
+/* ── 카드 프레임 이펙트 ───────────────────────────────────────────── */
+
+/* neon frame */
+@keyframes frame-neon-pulse {
+  0%, 100% { box-shadow: 0 0 6px 1px #38bdf8, 0 0 16px 2px #38bdf866, inset 0 0 6px #38bdf822; }
+  50%       { box-shadow: 0 0 3px 1px #38bdf8, 0 0 8px 1px #38bdf844, inset 0 0 3px #38bdf811; }
+}
+.card-frame-neon {
+  border: 1.5px solid #38bdf8 !important;
+  animation: frame-neon-pulse 3.5s ease-in-out infinite;
+}
+
+/* rainbow frame */
+@keyframes frame-rainbow-rotate {
+  0%   { --frame-angle: 0deg; }
+  100% { --frame-angle: 360deg; }
+}
+.card-frame-rainbow {
+  position: relative;
+  border: none !important;
+  isolation: isolate;
+}
+.card-frame-rainbow::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--frame-angle, 0deg),
+    #f87171, #fb923c, #fbbf24, #4ade80,
+    #38bdf8, #818cf8, #e879f9, #f87171
+  );
+  animation: frame-rainbow-rotate 5s linear infinite;
+  z-index: -1;
+}
+.card-frame-rainbow::after {
+  content: "";
+  position: absolute;
+  inset: 1.5px;
+  border-radius: calc(var(--radius-2xl) - 2px);
+  background: var(--card);
+  z-index: -1;
+}
+@property --frame-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+/* gold frame */
+@keyframes frame-gold-pulse {
+  0%, 100% { box-shadow: 0 0 8px 2px #d4a33166, 0 0 20px 4px #d4a33133; }
+  50%       { box-shadow: 0 0 4px 1px #d4a33144, 0 0 10px 2px #d4a33122; }
+}
+.card-frame-gold {
+  border: 1.5px solid #d4a331 !important;
+  animation: frame-gold-pulse 4s ease-in-out infinite;
+}
+
+/* fire frame */
+@keyframes frame-fire-glow {
+  0%, 100% { box-shadow: 0 0 8px 2px #f9731666, 0 0 20px 6px #ef444433, 0 2px 20px 4px #f9731644; }
+  33%       { box-shadow: 0 0 12px 4px #fb923c88, 0 0 28px 8px #f9731644, 0 4px 28px 6px #ef444455; }
+  66%       { box-shadow: 0 0 6px 2px #ef444455, 0 0 16px 4px #dc262633, 0 1px 16px 3px #f9731633; }
+}
+@keyframes frame-fire-border {
+  0%, 100% { border-color: #f97316; }
+  50%       { border-color: #ef4444; }
+}
+.card-frame-fire {
+  border: 1.5px solid #f97316 !important;
+  animation: frame-fire-glow 3s ease-in-out infinite, frame-fire-border 3s ease-in-out infinite;
+}
+
+/* aurora frame */
+@keyframes frame-aurora-shift {
+  0%   { box-shadow: 0 0 20px 6px #a855f733, -4px 0 20px 4px #38bdf822, 4px 0 20px 4px #4ade8022; }
+  33%  { box-shadow: 0 0 24px 8px #38bdf733, -4px 0 24px 6px #4ade8033, 4px 0 20px 4px #a855f722; }
+  66%  { box-shadow: 0 0 20px 6px #4ade8033, -4px 0 20px 4px #a855f722, 4px 0 24px 6px #38bdf833; }
+  100% { box-shadow: 0 0 20px 6px #a855f733, -4px 0 20px 4px #38bdf822, 4px 0 20px 4px #4ade8022; }
+}
+.card-frame-aurora {
+  border: 1.5px solid #a855f766 !important;
+  animation: frame-aurora-shift 6s ease-in-out infinite;
+}
+
+/* ice frame */
+@keyframes frame-ice-shimmer {
+  0%, 100% { box-shadow: 0 0 8px 2px #7dd3fc55, 0 0 20px 4px #bae6fd33; border-color: #7dd3fc; }
+  50%       { box-shadow: 0 0 14px 4px #e0f2fe88, 0 0 28px 8px #7dd3fc44; border-color: #e0f2fe; }
+}
+.card-frame-ice {
+  border: 1.5px solid #7dd3fc !important;
+  animation: frame-ice-shimmer 5s ease-in-out infinite;
+}
+
+/* plasma frame */
+@keyframes frame-plasma-rotate {
+  0%   { --frame-angle: 0deg; }
+  100% { --frame-angle: 360deg; }
+}
+.card-frame-plasma {
+  position: relative;
+  border: none !important;
+  isolation: isolate;
+}
+.card-frame-plasma::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--frame-angle, 0deg),
+    #a855f7, #ec4899, #6366f1, #38bdf8, #a855f7
+  );
+  animation: frame-plasma-rotate 4s linear infinite;
+  z-index: -1;
+  filter: blur(1px);
+}
+.card-frame-plasma::after {
+  content: "";
+  position: absolute;
+  inset: 1.5px;
+  border-radius: calc(var(--radius-2xl) - 2px);
+  background: var(--card);
+  z-index: -1;
+}
+
+/* void frame (어둠 균열) */
+@keyframes frame-void-crack {
+  0%, 100% { box-shadow: 0 0 10px 3px #6366f155, inset 0 0 8px #6366f122; border-color: #6366f1; }
+  25%       { box-shadow: 0 0 20px 6px #7c3aed88, inset 0 0 16px #7c3aed33; border-color: #7c3aed; }
+  50%       { box-shadow: 0 0 8px 2px #4f46e544, inset 0 0 6px #4f46e511; border-color: #818cf8; }
+  75%       { box-shadow: 0 0 24px 8px #6366f177, inset 0 0 20px #6366f144; border-color: #6366f1; }
+}
+.card-frame-void {
+  border: 1.5px solid #6366f1 !important;
+  animation: frame-void-crack 5s ease-in-out infinite;
+}
+
+/* 라이트모드: 카드 프레임 테두리 두껍게, 다크모드: 기본 */
+[class*="card-frame-"] {
+  border-width: 2.5px !important;
+}
+:is(.dark *)[class*="card-frame-"] {
+  border-width: 1.5px !important;
+}
+
+/* subtle frame — 테두리가 아주 살짝 밝아졌다 어두워짐 (Common용) */
+@keyframes frame-subtle {
+  0%, 100% { border-color: #334155; }
+  50%       { border-color: #64748b; }
+}
+.card-frame-subtle {
+  border: 1.5px solid #334155 !important;
+  animation: frame-subtle 5s ease-in-out infinite;
+}
+
+/* soft-white frame — 흰빛이 아주 은은하게 번짐 (Common~Uncommon용) */
+@keyframes frame-soft-white {
+  0%, 100% { box-shadow: 0 0 4px 1px #ffffff11; }
+  50%       { box-shadow: 0 0 10px 2px #ffffff22, 0 0 20px 4px #ffffff0a; }
+}
+.card-frame-soft-white {
+  border: 1.5px solid #ffffff22 !important;
+  animation: frame-soft-white 5s ease-in-out infinite;
+}
+
+/* silver frame — 은은한 은색 테두리 (Uncommon용) */
+@keyframes frame-silver-pulse {
+  0%, 100% { box-shadow: 0 0 4px 1px #94a3b844; border-color: #94a3b8; }
+  50%       { box-shadow: 0 0 8px 2px #cbd5e166, 0 0 16px 3px #94a3b833; border-color: #e2e8f0; }
+}
+.card-frame-silver {
+  border: 1.5px solid #94a3b8 !important;
+  animation: frame-silver-pulse 5s ease-in-out infinite;
+}
+
+/* bronze frame — 구릿빛 테두리 (Uncommon~Rare용) */
+@keyframes frame-bronze-pulse {
+  0%, 100% { box-shadow: 0 0 4px 1px #b4530944; border-color: #b45309; }
+  50%       { box-shadow: 0 0 8px 2px #d9770666, 0 0 16px 3px #b4530933; border-color: #fbbf24; }
+}
+.card-frame-bronze {
+  border: 1.5px solid #b45309 !important;
+  animation: frame-bronze-pulse 4.5s ease-in-out infinite;
+}
+
+/* emerald frame — 에메랄드 (Rare용) */
+@keyframes frame-emerald-pulse {
+  0%, 100% { box-shadow: 0 0 6px 1px #05966955, 0 0 14px 2px #34d39933; border-color: #059669; }
+  50%       { box-shadow: 0 0 10px 3px #34d39977, 0 0 22px 4px #05966944; border-color: #34d399; }
+}
+.card-frame-emerald {
+  border: 1.5px solid #059669 !important;
+  animation: frame-emerald-pulse 4s ease-in-out infinite;
+}
+
+/* sapphire frame — 사파이어 (Rare용) */
+@keyframes frame-sapphire-pulse {
+  0%, 100% { box-shadow: 0 0 6px 1px #1d4ed855, 0 0 14px 2px #60a5fa33; border-color: #1d4ed8; }
+  50%       { box-shadow: 0 0 10px 3px #60a5fa77, 0 0 22px 4px #1d4ed844; border-color: #93c5fd; }
+}
+.card-frame-sapphire {
+  border: 1.5px solid #1d4ed8 !important;
+  animation: frame-sapphire-pulse 4s ease-in-out infinite;
+}
+
+/* crimson frame — 핏빛 (Master용) */
+@keyframes frame-crimson-pulse {
+  0%, 100% { box-shadow: 0 0 8px 2px #dc262655, 0 0 18px 4px #dc262633; border-color: #dc2626; }
+  50%       { box-shadow: 0 0 14px 4px #ef444477, 0 0 28px 6px #dc262644; border-color: #f87171; }
+}
+.card-frame-crimson {
+  border: 1.5px solid #dc2626 !important;
+  animation: frame-crimson-pulse 3.5s ease-in-out infinite;
+}
+
+/* void frame2 — 어두운 인디고+블랙 (Grandmaster용) */
+@keyframes frame-obsidian-pulse {
+  0%, 100% { box-shadow: 0 0 10px 3px #4f46e566, inset 0 0 10px #4f46e522; border-color: #4f46e5; }
+  33%       { box-shadow: 0 0 18px 5px #7c3aed88, inset 0 0 18px #7c3aed33; border-color: #7c3aed; }
+  66%       { box-shadow: 0 0 8px 2px #312e8155, inset 0 0 8px #312e8122; border-color: #6366f1; }
+}
+.card-frame-obsidian {
+  border: 1.5px solid #4f46e5 !important;
+  animation: frame-obsidian-pulse 5s ease-in-out infinite;
+}
+
+/* shimmer frame — 배경에 빛이 대각선으로 훑고 지나감 (Epic용) */
+@keyframes frame-shimmer-sweep {
+  0%   { background-position: -200% -200%; }
+  100% { background-position: 200% 200%; }
+}
+.card-frame-shimmer {
+  position: relative;
+  border: 1.5px solid #a78bfa66 !important;
+  overflow: hidden;
+}
+.card-frame-shimmer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    transparent 30%,
+    rgba(167,139,250,0.08) 45%,
+    rgba(255,255,255,0.12) 50%,
+    rgba(167,139,250,0.08) 55%,
+    transparent 70%
+  );
+  background-size: 200% 200%;
+  animation: frame-shimmer-sweep 4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* dusk frame — 석양빛 그라디언트 테두리 (Epic용) */
+@keyframes frame-dusk-shift {
+  0%   { border-color: #f97316; box-shadow: 0 0 8px 2px #f9731644; }
+  33%  { border-color: #ec4899; box-shadow: 0 0 8px 2px #ec489944; }
+  66%  { border-color: #8b5cf6; box-shadow: 0 0 8px 2px #8b5cf644; }
+  100% { border-color: #f97316; box-shadow: 0 0 8px 2px #f9731644; }
+}
+.card-frame-dusk {
+  border: 1.5px solid #f97316 !important;
+  animation: frame-dusk-shift 6s ease-in-out infinite;
+}
+
+/* heartbeat frame */
+@keyframes frame-heartbeat {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 6px 1px #f4364688; }
+  14%       { transform: scale(1.03); box-shadow: 0 0 16px 4px #f43646bb; }
+  28%       { transform: scale(1); box-shadow: 0 0 6px 1px #f4364688; }
+  42%       { transform: scale(1.02); box-shadow: 0 0 12px 3px #f4364699; }
+  70%       { transform: scale(1); }
+}
+.card-frame-heartbeat {
+  border: 1.5px solid #f43646 !important;
+  animation: frame-heartbeat 2s ease-in-out infinite;
+}
+
+/* scan frame — 스캔 라인이 위→아래 훑음 */
+@keyframes frame-scan-line {
+  0%   { top: -10%; opacity: 0; }
+  5%   { opacity: 1; }
+  95%  { opacity: 0.6; }
+  100% { top: 110%; opacity: 0; }
+}
+.card-frame-scan {
+  position: relative;
+  border: 1.5px solid #22d3ee !important;
+  box-shadow: 0 0 8px 1px #22d3ee44;
+  overflow: hidden;
+}
+.card-frame-scan::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #22d3ee, #67e8f9, #22d3ee, transparent);
+  box-shadow: 0 0 8px 2px #22d3ee88;
+  animation: frame-scan-line 3.5s linear infinite;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* glitch frame — 카드 자체가 좌우로 어긋남 */
+@keyframes frame-glitch-shift {
+  0%, 90%, 100% { transform: translate(0, 0); filter: none; }
+  92%            { transform: translate(-3px, 0); filter: hue-rotate(90deg); }
+  94%            { transform: translate(3px, 1px); filter: hue-rotate(-90deg); }
+  96%            { transform: translate(-2px, -1px); }
+  98%            { transform: translate(1px, 0); }
+}
+.card-frame-glitch {
+  border: 1.5px solid #e879f9 !important;
+  box-shadow: 0 0 8px 2px #e879f944;
+  animation: frame-glitch-shift 5s steps(1) infinite;
+}
+
+/* lightning frame — 테두리를 번개가 탁탁 */
+@keyframes frame-lightning {
+  0%, 89%, 100% { box-shadow: 0 0 4px 1px #fde04744; border-color: #fde047; }
+  90%            { box-shadow: 0 0 20px 6px #fde047cc, 0 0 40px 10px #fde04744; border-color: #fff; }
+  91%            { box-shadow: 0 0 4px 1px #fde04744; border-color: #fde047; }
+  93%            { box-shadow: 0 0 24px 8px #fde047ee, 0 0 48px 12px #fde04766; border-color: #fff; }
+  95%            { box-shadow: 0 0 4px 1px #fde04744; border-color: #fde047; }
+}
+.card-frame-lightning {
+  border: 1.5px solid #fde047 !important;
+  animation: frame-lightning 4s ease-in-out infinite;
+}
+
 @utility scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;

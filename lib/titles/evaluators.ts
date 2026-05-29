@@ -8,8 +8,8 @@
  * 새 CondRule 타입을 추가하면 evaluateCondition() switch 에 케이스를 추가한다.
  */
 
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
+
 import type {
   CondRule,
   TitleEvalContext,
@@ -18,7 +18,9 @@ import type {
   CondMileageRunComplete,
   CondAttendanceCount,
   CondMembershipDays,
+  CondRacePbFasterThanMember,
 } from "./types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type DB = SupabaseClient<Database>;
 
@@ -31,18 +33,22 @@ export async function evalRacePbUnderSecInternal(
   memId: string,
   db: DB,
 ): Promise<boolean> {
-  const { data } = await db
+  // sport_ctgr 조건을 limit(1) 이전에 쿼리 레벨에서 적용해 올바른 PB를 조회
+  let query = db
     .from("rec_race_hist")
-    .select("rec_time_sec, comp_evt_cfg!inner(comp_evt_type)")
+    .select("rec_time_sec, comp_evt_cfg!inner(comp_evt_type), comp_mst!inner(comp_sprt_cd)")
     .eq("mem_id", memId)
     .eq("del_yn", false)
     .eq("vers", 0)
-    .eq("comp_evt_cfg.comp_evt_type", rule.sport.toUpperCase())
-    .order("rec_time_sec", { ascending: true })
-    .limit(1);
+    .eq("comp_evt_cfg.comp_evt_type", rule.sport.toUpperCase());
+
+  if (rule.sport_ctgr) {
+    query = query.eq("comp_mst.comp_sprt_cd", rule.sport_ctgr);
+  }
+
+  const { data } = await query.order("rec_time_sec", { ascending: true }).limit(1);
 
   if (!data || data.length === 0) return false;
-
   return data[0].rec_time_sec <= rule.sec;
 }
 
@@ -51,9 +57,11 @@ export async function evalRaceFinishCountInternal(
   memId: string,
   db: DB,
 ): Promise<boolean> {
+  // rec_race_hist.comp_id → comp_mst (평행 조인, 중첩 아님)
+  // rec_race_hist.comp_evt_id → comp_evt_cfg
   const { data } = await db
     .from("rec_race_hist")
-    .select("race_result_id, comp_evt_cfg!inner(comp_evt_type)")
+    .select("race_result_id, comp_evt_cfg!inner(comp_evt_type), comp_mst!inner(comp_sprt_cd)")
     .eq("mem_id", memId)
     .eq("del_yn", false)
     .eq("vers", 0);
@@ -63,7 +71,12 @@ export async function evalRaceFinishCountInternal(
   const matchCount = data.filter((row) => {
     const evtCfg = Array.isArray(row.comp_evt_cfg) ? row.comp_evt_cfg[0] : row.comp_evt_cfg;
     const evtType = (evtCfg as { comp_evt_type?: string } | null)?.comp_evt_type?.toUpperCase() ?? "";
-    return evtType === rule.sport.toUpperCase();
+    const mst = Array.isArray(row.comp_mst) ? row.comp_mst[0] : row.comp_mst;
+    const sprtCd = (mst as { comp_sprt_cd?: string } | null)?.comp_sprt_cd ?? null;
+
+    const typeMatch = !rule.sport || evtType === rule.sport.toUpperCase();
+    const ctgrMatch = !rule.sport_ctgr || sprtCd === rule.sport_ctgr;
+    return typeMatch && ctgrMatch;
   }).length;
 
   return matchCount >= rule.count;
@@ -119,6 +132,41 @@ export async function evalMembershipDaysInternal(
   return diffDays >= rule.days;
 }
 
+export async function evalRacePbFasterThanMemberInternal(
+  rule: CondRacePbFasterThanMember,
+  memId: string,
+  db: DB,
+): Promise<boolean> {
+  // 본인이 비교 대상이면 항상 false
+  if (memId === rule.target_mem_id) return false;
+
+  const sport = rule.sport.toUpperCase();
+
+  const [{ data: targetData }, { data: myData }] = await Promise.all([
+    db
+      .from("rec_race_hist")
+      .select("rec_time_sec, comp_evt_cfg!inner(comp_evt_type)")
+      .eq("mem_id", rule.target_mem_id)
+      .eq("del_yn", false)
+      .eq("vers", 0)
+      .eq("comp_evt_cfg.comp_evt_type", sport)
+      .order("rec_time_sec", { ascending: true })
+      .limit(1),
+    db
+      .from("rec_race_hist")
+      .select("rec_time_sec, comp_evt_cfg!inner(comp_evt_type)")
+      .eq("mem_id", memId)
+      .eq("del_yn", false)
+      .eq("vers", 0)
+      .eq("comp_evt_cfg.comp_evt_type", sport)
+      .order("rec_time_sec", { ascending: true })
+      .limit(1),
+  ]);
+
+  if (!targetData?.[0] || !myData?.[0]) return false;
+  return myData[0].rec_time_sec < targetData[0].rec_time_sec;
+}
+
 // ---------------------------------------------------------------------------
 // 공개 진입점 — engine.ts 에서 호출
 // ---------------------------------------------------------------------------
@@ -149,6 +197,9 @@ export async function evaluateCondition(
 
     case "membership_days":
       return evalMembershipDaysInternal(rule, ctx.teamMemId, db);
+
+    case "race_pb_faster_than_member":
+      return evalRacePbFasterThanMemberInternal(rule, memId, db);
 
     default:
       // 타입 exhaustiveness 체크 — 새 CondRule 타입 추가 시 컴파일 에러로 알려준다

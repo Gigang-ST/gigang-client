@@ -1,18 +1,24 @@
-import { Skeleton } from "@/components/ui/skeleton";
-import { CardItem } from "@/components/ui/card";
-import { H1 } from "@/components/common/typography";
-import { secondsToTime, todayKST } from "@/lib/dayjs";
 import { Suspense } from "react";
+
 import Link from "next/link";
-import { SocialLinksGrid } from "@/components/social-links";
-import { UpcomingRaces } from "@/components/home/upcoming-races";
-import type { CompetitionRegistration, MemberStatus } from "@/components/races/types";
+
+import { secondsToTime, todayKST } from "@/lib/dayjs";
+import { env } from "@/lib/env";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
-import { env } from "@/lib/env";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { SectionLabel } from "@/components/common/typography";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getFrameCls } from "@/lib/title-effects";
+import { cn } from "@/lib/utils";
+
+import { TitleBadge } from "@/components/common/title-badge";
+import { SectionLabel } from "@/components/common/typography";
+import { H1 } from "@/components/common/typography";
+import { UpcomingRaces } from "@/components/home/upcoming-races";
+import type { CompetitionRegistration, MemberStatus } from "@/components/races/types";
+import { SocialLinksGrid } from "@/components/social-links";
+import { CardItem } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 
 type UpcomingRace = {
@@ -224,6 +230,32 @@ async function HomeContent() {
 
   const recentRecords = recentRecordsRaw ?? [];
 
+  // 최근 기록 멤버들의 칭호/프레임 조회
+  const recentMemberIds = recentRecords.map((r) => r.mem_id).filter((id): id is string => Boolean(id));
+  const memberTitleMap = new Map<string, { ttl_nm: string; badge_effect: string; frame_cd: string }>();
+  if (recentMemberIds.length > 0) {
+    const { data: titleData } = await admin
+      .from("mem_ttl_rel")
+      .select("team_mem_rel!inner(mem_id, selected_badge_effect, selected_frame_cd), ttl_mst!inner(ttl_nm)")
+      .in("team_mem_rel.mem_id", recentMemberIds)
+      .eq("team_mem_rel.team_id", teamId)
+      .eq("is_prmy_yn", true)
+      .eq("vers", 0)
+      .eq("del_yn", false);
+    for (const row of titleData ?? []) {
+      const rel = Array.isArray(row.team_mem_rel) ? row.team_mem_rel[0] : row.team_mem_rel;
+      const ttl = Array.isArray(row.ttl_mst) ? row.ttl_mst[0] : row.ttl_mst;
+      if (rel?.mem_id && ttl?.ttl_nm) {
+        const r = rel as { mem_id: string; selected_badge_effect?: string | null; selected_frame_cd?: string | null };
+        memberTitleMap.set(r.mem_id, {
+          ttl_nm: ttl.ttl_nm,
+          badge_effect: r.selected_badge_effect ?? "none",
+          frame_cd: r.selected_frame_cd ?? "frame-none",
+        });
+      }
+    }
+  }
+
   return (
     <div className="flex flex-col gap-7 px-6 pb-6">
         {/* Team Overview */}
@@ -273,16 +305,22 @@ async function HomeContent() {
             </CardItem>
           ) : (
             recentRecords.map((rec) => {
-              const member = { mem_nm: rec.mem_nm } as { mem_nm: string } | null;
+              const title = rec.mem_id ? memberTitleMap.get(rec.mem_id) : undefined;
+              const frameCls = getFrameCls(title?.frame_cd);
               return (
                 <CardItem
                   key={`${rec.mem_id}-${rec.race_nm}`}
-                  className="flex items-center justify-between"
+                  className={cn("flex items-center justify-between", frameCls)}
                 >
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[15px] font-semibold text-foreground">
-                      {member?.mem_nm ?? "멤버"}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[15px] font-semibold text-foreground">
+                        {rec.mem_nm ?? "멤버"}
+                      </span>
+                      {title && (
+                        <TitleBadge name={title.ttl_nm} effect={title.badge_effect} size="xs" />
+                      )}
+                    </div>
                     <span className="text-xs text-muted-foreground">
                       {(rec.evt_cd ?? "UNKNOWN").toUpperCase()} · {rec.race_nm}
                     </span>
