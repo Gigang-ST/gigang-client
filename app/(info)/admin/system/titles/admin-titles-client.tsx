@@ -319,18 +319,17 @@ export function AdminTitlesClient({
                   <th className="w-16 px-2 py-1.5 text-center font-medium text-muted-foreground">카테고리</th>
                   <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">점수</th>
                   <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">정렬</th>
-                  <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">사용</th>
+                  <th className="w-14 px-2 py-1.5 text-center font-medium text-muted-foreground">사용</th>
                   <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">희귀도</th>
                   <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">그룹</th>
                   <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">이벤트</th>
-                  <th className="w-14 px-2 py-1.5 text-center font-medium text-muted-foreground">잠금</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="px-2 py-6 text-center text-xs text-muted-foreground"
                     >
                       등록된 칭호가 없습니다.
@@ -351,10 +350,6 @@ export function AdminTitlesClient({
                       <td className="truncate px-2 py-1.5 text-center text-muted-foreground">{categoryOptions.find((c) => c.cd === row.ttl_ctgr_cd)?.cd_nm ?? row.ttl_ctgr_cd}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.base_pt}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.sort_ord}</td>
-                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.use_yn ? "사용" : "미사용"}</td>
-                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.rarity_level ?? 1}</td>
-                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_group_cd ?? "-"}</td>
-                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_ctgr_cd === "event" ? "✓" : ""}</td>
                       <td className="px-2 py-1.5 text-center" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => void toggleUseYn(row.ttl_id, row.use_yn)}
@@ -365,9 +360,12 @@ export function AdminTitlesClient({
                               : "bg-destructive/10 text-destructive hover:bg-destructive/20"
                           }`}
                         >
-                          {togglingId === row.ttl_id ? "..." : row.use_yn ? "해제" : "잠금"}
+                          {togglingId === row.ttl_id ? "..." : row.use_yn ? "사용" : "잠금"}
                         </button>
                       </td>
+                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.rarity_level ?? 1}</td>
+                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_group_cd ?? "-"}</td>
+                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_ctgr_cd === "event" ? "✓" : ""}</td>
                     </tr>
                   );
                 })}
