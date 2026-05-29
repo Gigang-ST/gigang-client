@@ -16,7 +16,7 @@ type TitlePayload = {
   useYn: boolean | string;
   condRuleJson: string | null;
   rarityLevel?: number | string;
-  isEventYn?: boolean | string;
+  ttlGroupCd?: string;
 };
 
 type TitleNormalized = {
@@ -29,7 +29,7 @@ type TitleNormalized = {
   useYn: boolean;
   condRuleJson: unknown | null;
   rarityLevel: number;
-  isEventYn: boolean;
+  ttlGroupCd: number | null;
 };
 
 function parseNonNegativeInt(value: number | string, label: string): number {
@@ -96,7 +96,12 @@ async function normalizePayload(payload: TitlePayload): Promise<TitleNormalized>
     ? rarityLevelRaw
     : 1;
 
-  const isEventYn = payload.isEventYn === true || payload.isEventYn === "true";
+  const ttlGroupCd = payload.ttlGroupCd?.trim()
+    ? (() => {
+        const n = Number(payload.ttlGroupCd);
+        return Number.isInteger(n) && n > 0 ? n : null;
+      })()
+    : null;
 
   return {
     ttlNm,
@@ -108,7 +113,7 @@ async function normalizePayload(payload: TitlePayload): Promise<TitleNormalized>
     useYn,
     condRuleJson,
     rarityLevel,
-    isEventYn,
+    ttlGroupCd,
   };
 }
 
@@ -132,7 +137,7 @@ export async function createTitle(payload: TitlePayload) {
       sort_ord: normalized.sortOrd,
       use_yn: normalized.useYn,
       rarity_level: normalized.rarityLevel,
-      is_event_yn: normalized.isEventYn,
+      ttl_group_cd: normalized.ttlGroupCd,
       crt_by: admin.id,
       upd_by: admin.id,
       vers: 0,
@@ -170,7 +175,7 @@ export async function updateTitle(ttlId: string, payload: TitlePayload) {
         sort_ord: normalized.sortOrd,
         use_yn: normalized.useYn,
         rarity_level: normalized.rarityLevel,
-        is_event_yn: normalized.isEventYn,
+        ttl_group_cd: normalized.ttlGroupCd,
         upd_by: admin.id,
       })
       .eq("ttl_id", ttlId)

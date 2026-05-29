@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,6 +76,10 @@ export function RaceRecordDialog({
 
   // 단계 관리
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [grantedTitles, setGrantedTitles] = useState<string[]>([]);
+  const [grantedDismissable, setGrantedDismissable] = useState(false);
+  const grantedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const grantedDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 대회 목록
   const [competitions, setCompetitions] = useState<Competition[]>([]);
@@ -351,7 +355,30 @@ export function RaceRecordDialog({
     setIsSaving(false);
     onSaved();
     onOpenChange(false);
+
+    if (result.grantedTitles && result.grantedTitles.length > 0) {
+      setGrantedTitles(result.grantedTitles);
+      setGrantedDismissable(false);
+      if (grantedTimerRef.current) clearTimeout(grantedTimerRef.current);
+      if (grantedDismissTimerRef.current) clearTimeout(grantedDismissTimerRef.current);
+      // 2초 후 탭 닫기 활성화
+      grantedDismissTimerRef.current = setTimeout(() => setGrantedDismissable(true), 2000);
+      // 4초 후 자동 닫기
+      grantedTimerRef.current = setTimeout(() => {
+        setGrantedTitles([]);
+        setGrantedDismissable(false);
+        grantedTimerRef.current = null;
+      }, 4000);
+    }
   }
+
+  const dismissGranted = useCallback(() => {
+    if (!grantedDismissable) return;
+    if (grantedTimerRef.current) clearTimeout(grantedTimerRef.current);
+    if (grantedDismissTimerRef.current) clearTimeout(grantedDismissTimerRef.current);
+    setGrantedTitles([]);
+    setGrantedDismissable(false);
+  }, [grantedDismissable]);
 
   /* ---------- 렌더링 ---------- */
   const scrollSearchInputAboveKeyboard = useRef(() => {
@@ -708,6 +735,31 @@ export function RaceRecordDialog({
           prefillStartDate={raceDate.trim() || undefined}
           onCreated={() => {}}
         />
+      )}
+
+      {grantedTitles.length > 0 && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={dismissGranted}
+        >
+          <div className="mx-6 w-full max-w-sm rounded-2xl border border-border bg-background px-6 py-6 shadow-2xl">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <span className="text-2xl">🏅</span>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs text-muted-foreground">칭호 획득</p>
+                <p className="text-base font-bold text-foreground">
+                  {grantedTitles.length === 1
+                    ? <>「{grantedTitles[0]}」 칭호를 획득했습니다!</>
+                    : <>{grantedTitles.map((t) => `「${t}」`).join(", ")} 칭호를 획득했습니다!</>
+                  }
+                </p>
+              </div>
+              <p className={cn("text-[11px] transition-opacity duration-300", grantedDismissable ? "text-muted-foreground opacity-100" : "opacity-0")}>
+                탭하면 닫힙니다
+              </p>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

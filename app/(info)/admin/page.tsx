@@ -10,7 +10,9 @@ import {
   RefreshCw,
   Code2,
   BadgeCheck,
+  Trash2,
 } from "lucide-react";
+import { revalidateRecordsCache } from "@/app/actions/admin/revalidate-cache";
 import { Skeleton } from "@/components/ui/skeleton";
 import { H2, SectionLabel } from "@/components/common/typography";
 import { CardItem } from "@/components/ui/card";
@@ -143,6 +145,7 @@ function ToolCard({
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [status, setStatus] = useState<FetchStatus>("loading");
+  const [revalidating, setRevalidating] = useState(false);
 
   useEffect(() => {
     getAdminStats()
@@ -177,6 +180,24 @@ export default function AdminDashboardPage() {
           label="UTMB 인덱스 갱신"
           hint="등록된 회원 전체 재조회"
         />
+        <CardItem
+          className="flex cursor-pointer flex-col gap-2 transition-colors active:bg-secondary"
+          onClick={async () => {
+            if (revalidating) return;
+            setRevalidating(true);
+            const result = await revalidateRecordsCache();
+            setRevalidating(false);
+            alert(result.message);
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <Trash2 className={`size-4 text-muted-foreground ${revalidating ? "animate-pulse" : ""}`} />
+            <span className="text-[13px] font-medium text-muted-foreground">
+              {revalidating ? "초기화 중..." : "랭킹 캐시 초기화"}
+            </span>
+          </div>
+          <span className="text-sm text-foreground">랭킹 탭 24시간 캐시 즉시 만료</span>
+        </CardItem>
       </section>
 
       <section className="flex flex-col gap-3">

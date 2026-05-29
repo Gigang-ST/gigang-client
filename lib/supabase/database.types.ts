@@ -1419,7 +1419,6 @@ export type Database = {
           crt_at: string
           crt_by: string | null
           del_yn: boolean
-          is_event_yn: boolean
           rarity_level: number
           sort_ord: number
           team_id: string
@@ -1439,7 +1438,6 @@ export type Database = {
           crt_at?: string
           crt_by?: string | null
           del_yn?: boolean
-          is_event_yn?: boolean
           rarity_level?: number
           sort_ord?: number
           team_id: string
@@ -1459,7 +1457,6 @@ export type Database = {
           crt_at?: string
           crt_by?: string | null
           del_yn?: boolean
-          is_event_yn?: boolean
           rarity_level?: number
           sort_ord?: number
           team_id?: string

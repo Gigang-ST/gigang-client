@@ -10,19 +10,13 @@ import { Check, X } from "lucide-react";
 /*  타입                                                                */
 /* ------------------------------------------------------------------ */
 
-type OwnedTitle = {
-  mem_ttl_id: string;
-  ttl_id: string;
-  is_prmy_yn: boolean;
-};
-
 type AllTitle = {
   ttl_id: string;
   ttl_nm: string;
   ttl_desc: string | null;
   rarity_level: number;
-  is_event_yn: boolean;
   ttl_ctgr_cd: string;
+  ttl_group_cd: number | null;
 };
 
 type EffectRow = {
@@ -163,12 +157,16 @@ export function CollectionSheet({
   const [selectedTtlId, setSelectedTtlId] = useState<string | null>(currentPrimaryTtlId);
   const [selectedBadge, setSelectedBadge] = useState<string | null>(currentBadgeEffect);
   const [selectedFrame, setSelectedFrame] = useState<string | null>(currentFrameCd);
+  // 설명 보기 전용 — 차단된 칭호 클릭 시 저장 없이 설명만 표시
+  const [previewTtlId, setPreviewTtlId] = useState<string | null>(null);
 
   const [isPending, startTransition] = useTransition();
 
-  // 선택된 칭호 정보
+  // 뱃지 미리보기는 저장될 selectedTtlId 기준
   const selectedTitle = allTitles.find((t) => t.ttl_id === selectedTtlId);
   const previewName = selectedTitle?.ttl_nm ?? "GIGANG";
+  // 설명 라인은 previewTtlId 우선, 없으면 selectedTtlId
+  const descTitle = allTitles.find((t) => t.ttl_id === (previewTtlId ?? selectedTtlId));
 
   // 데이터 로드
   useEffect(() => {
@@ -179,11 +177,13 @@ export function CollectionSheet({
       // 전체 칭호 목록
       supabase
         .from("ttl_mst")
-        .select("ttl_id, ttl_nm, ttl_desc, rarity_level, is_event_yn, ttl_ctgr_cd")
+        .select("ttl_id, ttl_nm, ttl_desc, rarity_level, ttl_ctgr_cd, ttl_group_cd")
         .eq("team_id", teamId)
         .eq("vers", 0)
         .eq("del_yn", false)
         .eq("use_yn", true)
+        .order("ttl_ctgr_cd")
+        .order("ttl_group_cd", { nullsFirst: false })
         .order("sort_ord"),
       // 내가 보유한 칭호 id 목록
       supabase
@@ -199,7 +199,7 @@ export function CollectionSheet({
         .eq("use_yn", true)
         .order("rarity_level").order("sort_ord"),
     ]).then(([titlesRes, ownedRes, effectsRes]) => {
-      setAllTitles((titlesRes.data ?? []) as AllTitle[]);
+      setAllTitles((titlesRes.data ?? []) as unknown as AllTitle[]);
       setOwnedTitleIds(new Set((ownedRes.data ?? []).map((r) => r.ttl_id)));
       setAllEffects((effectsRes.data ?? []) as EffectRow[]);
       setLoading(false);
@@ -207,8 +207,24 @@ export function CollectionSheet({
   }, [open, teamMemId, teamId]);
 
   // 칭호 분리
-  const regularTitles = allTitles.filter((t) => !t.is_event_yn);
-  const eventTitles = allTitles.filter((t) => t.is_event_yn);
+  const regularTitles = allTitles.filter((t) => t.ttl_ctgr_cd !== "event");
+  const eventTitles = allTitles.filter((t) => t.ttl_ctgr_cd === "event");
+
+  // 그룹별 보유 최고 rarity — 같은 ttl_group_cd 내 최고 rarity만 선택 가능
+  // ttl_group_cd가 NULL이면 독립 선택 (기강킹, 수여 칭호 등)
+  const maxRarityByGroup = new Map<number, number>();
+  for (const t of allTitles) {
+    if (!ownedTitleIds.has(t.ttl_id) || t.ttl_group_cd === null) continue;
+    const cur = maxRarityByGroup.get(t.ttl_group_cd) ?? 0;
+    if (t.rarity_level > cur) maxRarityByGroup.set(t.ttl_group_cd, t.rarity_level);
+  }
+
+  // 같은 그룹에 더 높은 rarity 칭호를 보유 중이면 선택 불가 (도감에는 표시)
+  // ttl_group_cd가 NULL이면 항상 독립 선택 가능
+  const isBlockedByHigher = (t: AllTitle) => {
+    if (t.ttl_group_cd === null) return false;
+    return t.rarity_level < (maxRarityByGroup.get(t.ttl_group_cd) ?? 0);
+  };
 
   // 해금된 이펙트
   const unlockedBadges = allEffects.filter((e) => e.effect_type === "badge" && e.rarity_level <= maxRarityLevel);
@@ -232,9 +248,9 @@ export function CollectionSheet({
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
+      <div className="fixed inset-0 z-[99] bg-black/50" onClick={onClose} />
 
-      <div className="fixed inset-x-0 bottom-0 z-50 flex h-[55dvh] flex-col rounded-t-2xl bg-background">
+      <div className="fixed inset-x-0 bottom-0 z-[100] flex h-[70dvh] flex-col rounded-t-2xl bg-background">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4">
           <h2 className="text-base font-bold text-foreground">내 컬렉션</h2>
@@ -307,20 +323,42 @@ export function CollectionSheet({
                         {regularTitles.filter((t) => ownedTitleIds.has(t.ttl_id)).length} / {regularTitles.length}
                       </span>
                     </div>
+                    {descTitle?.ttl_desc && (
+                      <p className="truncate text-[11px] text-muted-foreground">
+                        {descTitle.ttl_desc}
+                      </p>
+                    )}
                     <div className="flex flex-wrap gap-2">
                       {regularTitles.map((t) => {
                         const owned = ownedTitleIds.has(t.ttl_id);
+                        const blocked = owned && isBlockedByHigher(t);
+                        const selectable = owned && !blocked;
                         const isSelected = selectedTtlId === t.ttl_id;
+                        const isPreviewing = previewTtlId === t.ttl_id;
                         return (
                           <button
                             key={t.ttl_id}
-                            onClick={() => owned && setSelectedTtlId(isSelected ? null : t.ttl_id)}
                             disabled={!owned}
+                            onClick={() => {
+                              if (selectable) {
+                                setSelectedTtlId(isSelected ? null : t.ttl_id);
+                                setPreviewTtlId(null);
+                              } else if (blocked) {
+                                setPreviewTtlId(isPreviewing ? null : t.ttl_id);
+                              }
+                            }}
                             className={cn(
                               "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
-                              owned && isSelected && "border-primary bg-primary/10 text-primary",
-                              owned && !isSelected && "border-border bg-secondary text-foreground",
-                              !owned && "border-border bg-muted text-muted-foreground opacity-40 cursor-default",
+                              // 선택됨 (저장 대상)
+                              selectable && isSelected && "border-primary bg-primary/10 text-primary",
+                              // 선택 가능, 미선택
+                              selectable && !isSelected && "border-border bg-secondary text-foreground",
+                              // 보유 + 차단 + 설명보기 중 (파란 테두리 살짝)
+                              blocked && isPreviewing && "border-primary/40 bg-muted text-muted-foreground opacity-65",
+                              // 보유 + 차단 (흐림)
+                              blocked && !isPreviewing && "border-border bg-muted text-muted-foreground opacity-50",
+                              // 미보유 (매우 흐림)
+                              !owned && "border-border bg-muted text-muted-foreground opacity-25 cursor-default",
                             )}
                           >
                             {owned ? t.ttl_nm : "???"}
@@ -360,15 +398,6 @@ export function CollectionSheet({
                     </div>
                   )}
 
-                  {/* 선택된 칭호 설명 */}
-                  {selectedTitle && (
-                    <div className="rounded-xl border border-border bg-muted/50 px-4 py-3">
-                      <p className="text-[11px] font-semibold text-muted-foreground mb-1">획득 방법</p>
-                      <p className="text-xs text-foreground leading-relaxed">
-                        {selectedTitle.ttl_desc ?? "획득 방법 정보가 없습니다."}
-                      </p>
-                    </div>
-                  )}
                 </div>
               )}
 

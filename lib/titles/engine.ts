@@ -71,15 +71,50 @@ export async function evaluateAndGrantTitles(
 
   if (titles.length === 0) return [];
 
-  // 4. 현재 활성 보유 칭호 ID (vers=0, del_yn=false) — 중복 수여 방지
+  // 4. 현재 활성 보유 칭호 ID (vers=0, del_yn=false) — 중복 수여 방지 및 회수 대상 파악
   const { data: existing } = await db
     .from("mem_ttl_rel")
-    .select("ttl_id")
+    .select("mem_ttl_id, ttl_id, vers")
     .eq("team_mem_id", ctx.teamMemId)
     .eq("vers", 0)
     .eq("del_yn", false);
 
   const activeIds = new Set((existing ?? []).map((r) => r.ttl_id));
+
+  // 4-1. manual_sweep 전용: 보유 중인 auto 칭호 조건 재평가 → 미충족 시 자동 회수
+  //      트리거마다 회수를 실행하면 과부하이므로 일괄 재계산 시에만 수행한다.
+  if (ctx.trigger === "manual_sweep") {
+    const autoTitleIds = new Set(titles.map((t) => t.ttl_id));
+
+    for (const held of existing ?? []) {
+      if (!autoTitleIds.has(held.ttl_id)) continue; // auto 칭호가 아니면 회수 대상 제외
+
+      const title = titles.find((t) => t.ttl_id === held.ttl_id);
+      if (!title) continue;
+
+      let passed = false;
+      try {
+        passed = await evaluateCondition(title.cond_rule_json as CondRule, ctx, memId, db);
+      } catch (e) {
+        console.error(`[title-engine] 회수 평가 실패 ttl_id=${held.ttl_id}`, e);
+        continue;
+      }
+
+      if (!passed) {
+        const { error } = await db
+          .from("mem_ttl_rel")
+          .update({ del_yn: true, vers: held.vers + 1, pt_chg_rsn_cd: "auto_revoke" })
+          .eq("mem_ttl_id", held.mem_ttl_id)
+          .eq("vers", held.vers)
+          .eq("del_yn", false);
+
+        if (!error) {
+          activeIds.delete(held.ttl_id); // 회수 완료 → 재부여 대상으로 재평가 가능
+          console.info(`[title-engine] 칭호 자동 회수: ttl_id=${held.ttl_id} → team_mem_id=${ctx.teamMemId}`);
+        }
+      }
+    }
+  }
 
   // 5. 조건 평가 → 통과한 미보유 칭호 수여
   const granted: string[] = [];
@@ -102,9 +137,8 @@ export async function evaluateAndGrantTitles(
 
     if (!passed) continue;
 
-    // 재수여: vers=0으로 새 행 INSERT (회수된 이력은 vers>=1로 보존되어 충돌 없음)
-    // uk_mem_ttl_rel_team_mem_ttl_active 덕분에 동시 호출 시 중복 수여가 DB 레벨에서 차단된다
-    // uk_mem_ttl_rel_team_mem_ttl_active 충돌 시 무시 (동시 호출로 인한 중복 수여 방지)
+    // uk_mem_ttl_rel_team_mem_ttl_vers: UNIQUE(team_mem_id, ttl_id, vers)
+    // vers=0으로 INSERT — 이미 활성 보유 중이면 충돌 무시 (동시 호출 중복 수여 방지)
     const { error } = await db.from("mem_ttl_rel").upsert({
       team_id: ctx.teamId,
       team_mem_id: ctx.teamMemId,
@@ -116,7 +150,7 @@ export async function evaluateAndGrantTitles(
       is_prmy_yn: false,
       vers: 0,
       del_yn: false,
-    }, { onConflict: "team_mem_id,ttl_id", ignoreDuplicates: true });
+    }, { onConflict: "team_mem_id,ttl_id,vers", ignoreDuplicates: true });
 
     if (error) {
       console.error(`[title-engine] 칭호 부여 실패 ttl_id=${title.ttl_id}`, error);

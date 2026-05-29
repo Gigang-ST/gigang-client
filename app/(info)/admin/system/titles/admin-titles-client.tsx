@@ -47,7 +47,7 @@ type TitleRow = {
   use_yn: boolean;
   cond_rule_json: unknown | null;
   rarity_level: number;
-  is_event_yn: boolean;
+  ttl_group_cd: number | null;
 };
 
 type TitleForm = {
@@ -60,7 +60,7 @@ type TitleForm = {
   useYn: "true" | "false";
   condRuleJson: string;
   rarityLevel: string;
-  isEventYn: "true" | "false";
+  ttlGroupCd: string;
 };
 
 const TITLE_KIND_OPTIONS: { value: "auto" | "awarded"; label: string }[] = [
@@ -84,7 +84,7 @@ function toForm(row: TitleRow): TitleForm {
     useYn: row.use_yn ? "true" : "false",
     condRuleJson: row.cond_rule_json ? JSON.stringify(row.cond_rule_json) : "",
     rarityLevel: String(row.rarity_level ?? 1),
-    isEventYn: row.is_event_yn ? "true" : "false",
+    ttlGroupCd: row.ttl_group_cd !== null ? String(row.ttl_group_cd) : "",
   };
 }
 
@@ -99,7 +99,7 @@ function buildEmptyForm(defaultCategory: string): TitleForm {
     useYn: "true",
     condRuleJson: "",
     rarityLevel: "1",
-    isEventYn: "false",
+    ttlGroupCd: "",
   };
 }
 
@@ -134,7 +134,7 @@ export function AdminTitlesClient({
     const { data } = await supabase
       .from("ttl_mst")
       .select(
-        "ttl_id, ttl_nm, ttl_kind_enm, ttl_ctgr_cd, ttl_desc, base_pt, sort_ord, use_yn, cond_rule_json, rarity_level, is_event_yn",
+        "ttl_id, ttl_nm, ttl_kind_enm, ttl_ctgr_cd, ttl_desc, base_pt, sort_ord, use_yn, cond_rule_json, rarity_level, ttl_group_cd",
       )
       .eq("team_id", teamId)
       .eq("vers", 0)
@@ -142,7 +142,7 @@ export function AdminTitlesClient({
       .order("sort_ord", { ascending: true })
       .order("rarity_level", { ascending: true });
 
-    const nextRows = (data ?? []) as TitleRow[];
+    const nextRows = (data ?? []) as unknown as TitleRow[];
     setRows(nextRows);
     setForms(
       Object.fromEntries(nextRows.map((row) => [row.ttl_id, toForm(row)])),
@@ -288,7 +288,7 @@ export function AdminTitlesClient({
         <p className="text-sm text-muted-foreground">불러오는 중...</p>
       ) : (
         <CardItem className="p-0">
-          <div className="overflow-x-auto">
+          <div className="max-h-60 overflow-y-auto overflow-x-auto">
             <table className="w-full border-collapse text-[11px] [font-variant-numeric:tabular-nums]">
               <thead className="bg-muted/40">
                 <tr className="border-b">
@@ -299,6 +299,7 @@ export function AdminTitlesClient({
                   <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">정렬</th>
                   <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">사용</th>
                   <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">희귀도</th>
+                  <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">그룹</th>
                   <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">Event</th>
                 </tr>
               </thead>
@@ -329,7 +330,8 @@ export function AdminTitlesClient({
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.sort_ord}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.use_yn ? "사용" : "미사용"}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.rarity_level ?? 1}</td>
-                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.is_event_yn ? "✓" : ""}</td>
+                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_group_cd ?? "-"}</td>
+                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_ctgr_cd === "event" ? "✓" : ""}</td>
                     </tr>
                   );
                 })}
@@ -550,7 +552,7 @@ function TitleFormFields({
         </div>
       )}
 
-      {/* 행 6: 희귀도 등급 / Event 여부 */}
+      {/* 행 6: 희귀도 등급 / 그룹 코드 */}
       <LabeledSelect
         label="희귀도 등급 (1~10)"
         value={form.rarityLevel}
@@ -558,14 +560,13 @@ function TitleFormFields({
         required
         items={RARITY_LEVEL_OPTIONS}
       />
-      <LabeledSelect
-        label="Event 칭호"
-        value={form.isEventYn}
-        onChange={(v) => onChange("isEventYn", v)}
-        items={[
-          { value: "false", label: "일반" },
-          { value: "true", label: "Event (등급 없음)" },
-        ]}
+      {/* 그룹 코드 */}
+      <LabeledInput
+        label="그룹 코드"
+        type="number"
+        value={form.ttlGroupCd}
+        onChange={(v) => onChange("ttlGroupCd", v)}
+        placeholder="예: 1, 2, 10 (없으면 독립 선택)"
       />
 
       {/* 행 7: 설명 (full-width) */}
