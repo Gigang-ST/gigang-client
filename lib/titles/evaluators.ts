@@ -577,18 +577,68 @@ export function evaluateConditionFromSnapshot(
     case "race_pb_faster_than_member":
       return evalRacePbFasterThanMemberFromSnapshot(rule, snapshot, allSnapshots);
 
-    // 아래 조건들은 snapshot에 필요한 데이터가 없어 DB 조회 필요 — sweep 시 false 처리
-    case "joined_on_date":
+    case "joined_on_date": {
+      if (!snapshot.joinDt) return false;
+      const joinKST = new Date(new Date(snapshot.joinDt).toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+      return joinKST.getMonth() + 1 === rule.month && joinKST.getDate() === rule.day;
+    }
+
     case "race_finish_in_month_range":
+      return snapshot.raceHist.some((r) => {
+        if (!r.comp_date) return false;
+        const month = new Date(r.comp_date).getMonth() + 1;
+        const typeMatch = !rule.sport || r.comp_evt_type === rule.sport.toUpperCase();
+        const ctgrMatch = !rule.sport_ctgr || r.comp_sprt_cd === rule.sport_ctgr;
+        return rule.months.includes(month) && typeMatch && ctgrMatch;
+      });
+
     case "race_finish_all_titles":
-    case "race_finish_all_of":
-    case "race_finish_total":
-    case "race_finish_in_year":
-    case "race_rank_by_gender":
-    case "race_rank_last":
-    case "race_pb_within_sec_of_target":
-    case "has_title_in_categories":
+      // race_finish_all_titles: 지정 칭호명 목록을 전부 보유 — snapshot 미지원, false 처리
       return false;
+
+    case "race_finish_all_of": {
+      // sports 목록 각각에서 최소 count번 완주
+      return rule.sports.every((sport) => {
+        const cnt = snapshot.raceHist.filter((r) => {
+          const typeMatch = r.comp_evt_type === sport.toUpperCase();
+          const ctgrMatch = !rule.sport_ctgr || r.comp_sprt_cd === rule.sport_ctgr;
+          return typeMatch && ctgrMatch;
+        }).length;
+        return cnt >= rule.count;
+      });
+    }
+
+    case "race_finish_total":
+      return snapshot.raceHist.length >= rule.count;
+
+    case "race_finish_in_year": {
+      const targetYear = rule.year ?? new Date().getFullYear();
+      const count = snapshot.raceHist.filter((r) => {
+        if (!r.comp_date) return false;
+        return new Date(r.comp_date).getFullYear() === targetYear;
+      }).length;
+      return count >= rule.count;
+    }
+
+    case "race_rank_by_gender":
+      return evalRaceRankByGenderFromSnapshot(rule, snapshot, allSnapshots);
+
+    case "race_rank_last":
+      return evalRaceRankLastFromSnapshot(rule, snapshot, allSnapshots);
+
+    case "race_pb_within_sec_of_target": {
+      const sport = rule.sport.toUpperCase();
+      const myPb = snapshot.raceHist
+        .filter((r) => r.comp_evt_type === sport)
+        .reduce<number | null>((min, r) => (min === null || r.rec_time_sec < min ? r.rec_time_sec : min), null);
+      if (myPb === null) return false;
+      return rule.targets.some((target) => myPb > target && myPb - target <= rule.within_sec);
+    }
+
+    case "has_title_in_categories": {
+      const heldCtgrs = new Set([...snapshot.heldTitleMeta.values()].map((m) => m.ttl_ctgr_cd));
+      return rule.categories.every((c: string) => heldCtgrs.has(c));
+    }
 
     default:
       rule satisfies never;
@@ -646,4 +696,74 @@ function evalRacePbFasterThanMemberFromSnapshot(
 
   if (myPb === null || targetPb === null) return false;
   return myPb < targetPb;
+}
+
+function evalRaceRankByGenderFromSnapshot(
+  rule: CondRaceRankByGender,
+  snapshot: MemberSnapshot,
+  allSnapshots: Map<string, MemberSnapshot>,
+): boolean {
+  const sport = rule.sport?.toUpperCase();
+
+  // 멤버별 PB 추출 (전체 snapshot 기준)
+  const pbMap = new Map<string, { sec: number; gender: string }>();
+  for (const s of allSnapshots.values()) {
+    const candidates = s.raceHist.filter((r) => {
+      const typeMatch = !sport || r.comp_evt_type === sport;
+      const ctgrMatch = !rule.sport_ctgr || r.comp_sprt_cd === rule.sport_ctgr;
+      return typeMatch && ctgrMatch;
+    });
+    if (candidates.length === 0) continue;
+    const pb = Math.min(...candidates.map((r) => r.rec_time_sec));
+    pbMap.set(s.memId, { sec: pb, gender: s.gender });
+  }
+
+  if (!pbMap.has(snapshot.memId)) return false;
+
+  const checkGender = (gender: string) => {
+    const filtered = [...pbMap.entries()]
+      .filter(([, v]) => v.gender === gender)
+      .sort(([, a], [, b]) => a.sec - b.sec);
+    const myRank = filtered.findIndex(([id]) => id === snapshot.memId) + 1;
+    if (myRank === 0) return false;
+    return myRank === rule.rank;
+  };
+
+  if (rule.gender === "any") return checkGender("male") || checkGender("female");
+  return checkGender(rule.gender);
+}
+
+function evalRaceRankLastFromSnapshot(
+  rule: CondRaceRankLast,
+  snapshot: MemberSnapshot,
+  allSnapshots: Map<string, MemberSnapshot>,
+): boolean {
+  // sports 목록 중 하나라도 꼴찌면 true
+  return rule.sports.some((sport) => {
+    const pbMap = new Map<string, { sec: number; gender: string }>();
+    for (const s of allSnapshots.values()) {
+      const candidates = s.raceHist.filter((r) => {
+        const typeMatch = r.comp_evt_type === sport.toUpperCase();
+        const ctgrMatch = !rule.sport_ctgr || r.comp_sprt_cd === rule.sport_ctgr;
+        return typeMatch && ctgrMatch;
+      });
+      if (candidates.length === 0) continue;
+      const pb = Math.min(...candidates.map((r) => r.rec_time_sec));
+      pbMap.set(s.memId, { sec: pb, gender: s.gender });
+    }
+
+    if (!pbMap.has(snapshot.memId)) return false;
+
+    const checkGender = (gender: string) => {
+      const filtered = [...pbMap.entries()]
+        .filter(([, v]) => v.gender === gender)
+        .sort(([, a], [, b]) => a.sec - b.sec);
+      const myRank = filtered.findIndex(([id]) => id === snapshot.memId) + 1;
+      if (myRank === 0) return false;
+      return myRank === filtered.length;
+    };
+
+    if (rule.gender === "any") return checkGender("male") || checkGender("female");
+    return checkGender(rule.gender);
+  });
 }
