@@ -216,7 +216,7 @@ export function AdminEffectsClient() {
                         <td className="px-3 py-1.5 font-medium text-foreground">{row.effect_nm}</td>
                         <td className="px-3 py-1.5 font-mono text-[10px] text-muted-foreground">{row.effect_cd}</td>
                         <td className="px-3 py-1.5 text-center">
-                          <span className={cn("inline-flex items-center rounded-full border bg-zinc-900 px-2 py-0.5 text-[11px] font-medium", BADGE_BORDER[row.effect_cd] ?? "border-zinc-700 text-zinc-300")}>
+                          <span className={cn("inline-flex items-center rounded-full border bg-zinc-900 dark:bg-transparent px-2 py-0.5 text-[11px] font-medium", BADGE_BORDER[row.effect_cd] ?? "border-zinc-700 text-zinc-300")}>
                             {row.effect_cd === "glitch"
                               ? <span className={cn("inline-block", cls)} data-text="미리보기">미리보기</span>
                               : cls

@@ -104,7 +104,7 @@ function BadgePreview({ effectCd, name }: { effectCd: string; name: string }) {
   const cls = BADGE_CSS[effectCd] ?? "";
   const border = BADGE_BORDER[effectCd] ?? "border-zinc-700 text-zinc-300";
   return (
-    <span className={cn("inline-flex items-center rounded-full border bg-zinc-900 px-2 py-0.5 text-[11px] font-medium", border)}>
+    <span className={cn("inline-flex items-center rounded-full border bg-zinc-900 dark:bg-transparent px-2 py-0.5 text-[11px] font-medium", border)}>
       {effectCd === "glitch"
         ? <span className={cn("inline-block", cls)} data-text={name}>{name}</span>
         : cls ? <span className={cn("inline-block", cls)}>{name}</span>

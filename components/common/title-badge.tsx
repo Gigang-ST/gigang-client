@@ -83,7 +83,7 @@ export function TitleBadge({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center rounded-full border bg-zinc-900 font-medium leading-none",
+        "inline-flex shrink-0 items-center rounded-full border bg-zinc-900 dark:bg-transparent font-medium leading-none",
         SIZE_CLASS[size],
         border,
         className,

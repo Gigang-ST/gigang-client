@@ -740,7 +740,7 @@
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: title-bounce 2s ease-in-out infinite, title-rainbow-shift 4s linear infinite;
+  animation: title-bounce 4s ease-in-out infinite, title-rainbow-shift 4s linear infinite;
 }
 
 .title-effect-shake-fire {
@@ -750,7 +750,7 @@
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: title-shake 2.5s ease-in-out infinite, title-fire-shift 3s ease-in-out infinite;
+  animation: title-shake 3.5s ease-in-out infinite, title-fire-shift 3s ease-in-out infinite;
   filter: drop-shadow(0 2px 6px #ef444466);
 }
 
@@ -761,7 +761,7 @@
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: title-zoom 2.8s ease-in-out infinite, title-hologram-sweep 4s linear infinite;
+  animation: title-zoom 4s ease-in-out infinite, title-hologram-sweep 4s linear infinite;
 }
 
 .title-effect-wave-hologram {
@@ -771,7 +771,7 @@
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: title-wave-char 2s ease-in-out infinite, title-hologram-sweep 5s linear infinite;
+  animation: title-wave-char 4s ease-in-out infinite, title-hologram-sweep 5s linear infinite;
 }
 
 .title-effect-flip-gold {
@@ -781,7 +781,7 @@
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: title-flip 4s ease-in-out infinite, title-gold-sheen 5s ease-in-out infinite;
+  animation: title-flip 4.5s ease-in-out infinite, title-gold-sheen 5s ease-in-out infinite;
 }
 
 .title-effect-bounce-ice {
@@ -791,7 +791,7 @@
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: title-bounce 2s ease-in-out infinite, title-ice-shimmer 6s linear infinite;
+  animation: title-bounce 4s ease-in-out infinite, title-ice-shimmer 6s linear infinite;
   filter: drop-shadow(0 0 4px #7dd3fc66);
 }
 
@@ -802,7 +802,7 @@
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: title-shake 2.5s ease-in-out infinite, title-lava-flow 3.5s ease-in-out infinite;
+  animation: title-shake 3.5s ease-in-out infinite, title-lava-flow 3.5s ease-in-out infinite;
   filter: drop-shadow(0 3px 8px #ef444488);
 }
 
@@ -813,7 +813,7 @@
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: title-zoom 2.8s ease-in-out infinite, title-rainbow-shift 4s linear infinite;
+  animation: title-zoom 4s ease-in-out infinite, title-rainbow-shift 4s linear infinite;
 }
 
 .title-effect-wave-fire {
@@ -823,63 +823,64 @@
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: title-wave-char 2s ease-in-out infinite, title-fire-shift 3s ease-in-out infinite;
+  animation: title-wave-char 4s ease-in-out infinite, title-fire-shift 3s ease-in-out infinite;
   filter: drop-shadow(0 2px 4px #f9731666);
 }
 
-/* shake */
+/* shake — 0~14% 동작, 나머지 휴지 (총 3.5s) */
 @keyframes title-shake {
-  0%, 100% { transform: translateX(0); }
-  15%       { transform: translateX(-4px) rotate(-1deg); }
-  30%       { transform: translateX(4px) rotate(1deg); }
-  45%       { transform: translateX(-3px) rotate(-0.5deg); }
-  60%       { transform: translateX(3px) rotate(0.5deg); }
-  75%       { transform: translateX(-2px); }
-  90%       { transform: translateX(2px); }
+  0%, 14%, 100% { transform: translateX(0); }
+  2%  { transform: translateX(-4px) rotate(-1deg); }
+  4%  { transform: translateX(4px) rotate(1deg); }
+  6%  { transform: translateX(-3px) rotate(-0.5deg); }
+  8%  { transform: translateX(3px) rotate(0.5deg); }
+  10% { transform: translateX(-2px); }
+  12% { transform: translateX(2px); }
 }
 .title-effect-shake {
   display: inline-block;
-  animation: title-shake 2.5s ease-in-out infinite;
+  animation: title-shake 3.5s ease-in-out infinite;
   color: #f87171;
   text-shadow: 0 0 6px #f8717188;
 }
 
-/* bounce */
+/* bounce — 0~20% 동작, 나머지 휴지 (총 4s) */
 @keyframes title-bounce {
-  0%, 100% { transform: translateY(0) scaleY(1); animation-timing-function: cubic-bezier(0.215,0.61,0.355,1); }
-  40%       { transform: translateY(-8px) scaleY(1.1); animation-timing-function: cubic-bezier(0.755,0.05,0.855,0.06); }
-  70%       { transform: translateY(-3px) scaleY(0.95); }
-  90%       { transform: translateY(1px) scaleY(1.02); }
+  0%, 20%, 100% { transform: translateY(0) scaleY(1); }
+  8%  { transform: translateY(-8px) scaleY(1.1); }
+  14% { transform: translateY(-3px) scaleY(0.95); }
+  18% { transform: translateY(1px) scaleY(1.02); }
 }
 .title-effect-bounce {
   display: inline-block;
-  animation: title-bounce 2s ease-in-out infinite;
+  animation: title-bounce 4s ease-in-out infinite;
   color: #fb923c;
 }
 
-/* flip */
+/* flip — 0~20% 동작, 나머지 휴지 (총 4.5s) */
 @keyframes title-flip {
   0%, 100% { transform: perspective(200px) rotateY(0deg); }
-  40%       { transform: perspective(200px) rotateY(180deg); }
-  60%       { transform: perspective(200px) rotateY(180deg); }
+  8%        { transform: perspective(200px) rotateY(180deg); }
+  15%       { transform: perspective(200px) rotateY(180deg); }
+  22%       { transform: perspective(200px) rotateY(0deg); }
 }
 .title-effect-flip {
   display: inline-block;
-  animation: title-flip 4s ease-in-out infinite;
+  animation: title-flip 4.5s ease-in-out infinite;
   background: linear-gradient(90deg, #a78bfa, #38bdf8);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
-/* zoom */
+/* zoom — 0~18% 동작, 나머지 휴지 (총 4s) */
 @keyframes title-zoom {
-  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px currentColor); }
-  50%       { transform: scale(1.18); filter: drop-shadow(0 0 8px currentColor) drop-shadow(0 0 16px currentColor); }
+  0%, 18%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px currentColor); }
+  9%            { transform: scale(1.18); filter: drop-shadow(0 0 8px currentColor) drop-shadow(0 0 16px currentColor); }
 }
 .title-effect-zoom {
   display: inline-block;
-  animation: title-zoom 2.8s ease-in-out infinite;
+  animation: title-zoom 4s ease-in-out infinite;
   color: #e879f9;
 }
 
@@ -916,14 +917,14 @@
   padding-right: 2px;
 }
 
-/* wave */
+/* wave — 0~15% 동작, 나머지 휴지 (총 4s) */
 @keyframes title-wave-char {
-  0%, 100% { transform: translateY(0); }
-  50%       { transform: translateY(-5px); }
+  0%, 15%, 100% { transform: translateY(0); }
+  7%            { transform: translateY(-5px); }
 }
 .title-effect-wave {
   display: inline-block;
-  animation: title-wave-char 2s ease-in-out infinite;
+  animation: title-wave-char 4s ease-in-out infinite;
   color: #38bdf8;
   text-shadow: 0 0 6px #38bdf888;
 }
