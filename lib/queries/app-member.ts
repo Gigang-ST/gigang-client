@@ -17,6 +17,10 @@ export type AppMemberProfile = {
   joined_at: string;
   status: string;
   admin: boolean;
+  /** 선택한 배지 이펙트 코드 (effect_mst.effect_cd) */
+  selected_badge_effect: string | null;
+  /** 선택한 카드 프레임 코드 (effect_mst.effect_cd) */
+  selected_frame_cd: string | null;
 };
 
 type MemMstRow = Database["public"]["Tables"]["mem_mst"]["Row"];
@@ -81,5 +85,7 @@ export function mapMstRelToAppMemberProfile(
     joined_at: rel.join_dt ?? "",
     status: rel.mem_st_cd,
     admin,
+    selected_badge_effect: rel.selected_badge_effect ?? null,
+    selected_frame_cd: rel.selected_frame_cd ?? null,
   };
 }

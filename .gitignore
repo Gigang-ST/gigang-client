@@ -1,5 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# 개발용 쇼케이스 페이지 (로컬 전용)
+/app/(info)/dev/
+
 # dependencies
 /node_modules
 /.pnp

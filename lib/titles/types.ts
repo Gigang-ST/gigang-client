@@ -8,22 +8,33 @@
  */
 
 // ---------------------------------------------------------------------------
+// 이펙트 타입 — effect_mst.effect_cd 값 (배지/프레임 공통)
+// TitleEffect는 하위호환을 위해 유지, 실제 값은 effect_mst에서 관리
+// ---------------------------------------------------------------------------
+export type TitleEffect = string;
+
+// ---------------------------------------------------------------------------
 // CondRule — DB(cond_rule_json)에 저장되는 조건 규칙 스키마
 // ---------------------------------------------------------------------------
 
 /** 특정 종목 PB(최고 기록)이 N초 이하인 경우 */
 export type CondRacePersonalBestUnderSec = {
   type: "race_pb_under_sec";
-  /** comp_evt_type 값. 예: "FULL", "HALF", "10K", "IRONMAN" */
+  /** comp_evt_type 값. 예: "FULL", "HALF", "10K" */
   sport: string;
   sec: number;
+  /** comp_mst.comp_sprt_cd 값. 생략 시 sport(comp_evt_type)만으로 필터 */
+  sport_ctgr?: string;
 };
 
 /** 특정 종목 완주 횟수가 N회 이상인 경우 */
 export type CondRaceFinishCount = {
   type: "race_finish_count";
-  sport: string;
+  /** comp_evt_type 값. 없으면 sport_ctgr 내 전체 거리 허용 */
+  sport?: string;
   count: number;
+  /** comp_mst.comp_sprt_cd 값 (road_run | trail_run | triathlon | cycling | ultra) */
+  sport_ctgr?: string;
 };
 
 /** 마일리지런 프로젝트 완주(목표 달성)인 경우 */
@@ -45,13 +56,23 @@ export type CondMembershipDays = {
   days: number;
 };
 
+/** 특정 멤버의 종목 PB보다 빠른 경우 (예: 서브현근) */
+export type CondRacePbFasterThanMember = {
+  type: "race_pb_faster_than_member";
+  /** comp_evt_type 값. 예: "FULL" */
+  sport: string;
+  /** 비교 대상 mem_mst.mem_id */
+  target_mem_id: string;
+};
+
 /** 모든 조건 유형의 유니온 — 새 조건 추가 시 여기에 타입을 추가한다 */
 export type CondRule =
   | CondRacePersonalBestUnderSec
   | CondRaceFinishCount
   | CondMileageRunComplete
   | CondAttendanceCount
-  | CondMembershipDays;
+  | CondMembershipDays
+  | CondRacePbFasterThanMember;
 
 // ---------------------------------------------------------------------------
 // TriggerKind — 트리거 종류
@@ -75,7 +96,7 @@ export type TriggerKind =
 // satisfies 키워드가 누락된 TriggerKind 를 컴파일 타임에 잡아준다.
 // ---------------------------------------------------------------------------
 export const TRIGGER_COND_MAP = {
-  race_record:  ["race_pb_under_sec", "race_finish_count"],
+  race_record:  ["race_pb_under_sec", "race_finish_count", "race_pb_faster_than_member"],
   mileage_run:  ["mileage_run_complete"],
   attendance:   ["attendance_count", "membership_days"],
   manual_sweep: [
@@ -84,6 +105,7 @@ export const TRIGGER_COND_MAP = {
     "mileage_run_complete",
     "attendance_count",
     "membership_days",
+    "race_pb_faster_than_member",
   ],
 } satisfies Record<TriggerKind, CondRule["type"][]>;
 
