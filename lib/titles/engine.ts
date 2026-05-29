@@ -14,10 +14,12 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 
-import { evaluateCondition } from "./evaluators";
+import { evaluateCondition, evaluateConditionFromSnapshot } from "./evaluators";
+import { loadMemberSnapshots } from "./snapshot";
 import { TRIGGER_COND_MAP } from "./types";
 
 import type { CondRule, TitleEvalContext } from "./types";
+import type { MemberSnapshot } from "./snapshot";
 
 type TtlMstRow = {
   ttl_id: string;
@@ -171,4 +173,129 @@ export async function evaluateAndGrantTitles(
   }
 
   return granted;
+}
+
+// ---------------------------------------------------------------------------
+// bulk sweep 전용 엔진 — sweepAllTitles() 에서만 호출
+// ---------------------------------------------------------------------------
+
+/**
+ * 팀 전체 멤버를 대상으로 auto 칭호를 일괄 재평가하고 부여/회수한다.
+ *
+ * DB 쿼리 수: 멤버·칭호 수에 무관하게 약 7번 고정.
+ *   - loadMemberSnapshots: 3번 (team_mem_rel, rec_race_hist, mem_ttl_rel)
+ *   - ttl_mst 조회: 1번
+ *   - bulk UPDATE (회수): 1번
+ *   - bulk UPSERT (부여): 1번
+ */
+export async function sweepEvaluateAndGrant(
+  teamId: string,
+  teamMemIds: string[],
+): Promise<{ granted: number; revoked: number }> {
+  if (teamMemIds.length === 0) return { granted: 0, revoked: 0 };
+
+  const db = createAdminClient();
+
+  // 1. 멤버 전체 스냅샷 로드
+  const snapshots = await loadMemberSnapshots(db, teamId, teamMemIds);
+  if (snapshots.size === 0) return { granted: 0, revoked: 0 };
+
+  // 2. 팀의 auto 칭호 전체 조회 (1번 — 멤버 수와 무관)
+  const { data: allTitles } = await db
+    .from("ttl_mst")
+    .select("ttl_id, ttl_nm, cond_rule_json")
+    .eq("team_id", teamId)
+    .eq("ttl_kind_enm", "auto")
+    .eq("use_yn", true)
+    .eq("vers", 0)
+    .eq("del_yn", false);
+
+  const titles = (allTitles as TtlMstRow[] ?? []).filter((t) => t.cond_rule_json != null);
+  if (titles.length === 0) return { granted: 0, revoked: 0 };
+
+  const autoTitleIds = new Set(titles.map((t) => t.ttl_id));
+  const allowedCondTypes = new Set(TRIGGER_COND_MAP["manual_sweep"]);
+  const snapshotsByMemId = new Map<string, MemberSnapshot>(
+    [...snapshots.values()].map((s) => [s.teamMemId, s]),
+  );
+
+  type GrantRow = {
+    team_id: string;
+    team_mem_id: string;
+    ttl_id: string;
+    grnt_rsn_txt: string;
+    is_prmy_yn: boolean;
+    vers: number;
+    del_yn: boolean;
+  };
+
+  const toRevoke: { mem_ttl_id: string }[] = [];
+  const toGrant: GrantRow[] = [];
+
+  // 3. 메모리 내 평가 — DB 쿼리 없음
+  for (const snapshot of snapshots.values()) {
+    const eligibleTitles = titles.filter((t) => {
+      const rule = t.cond_rule_json as CondRule;
+      return allowedCondTypes.has(rule.type);
+    });
+
+    // 3-1. 회수: 보유 중인 auto 칭호 조건 미충족 → 회수 대상 수집
+    for (const held of snapshot.heldRows) {
+      if (!autoTitleIds.has(held.ttl_id)) continue;
+      const title = eligibleTitles.find((t) => t.ttl_id === held.ttl_id);
+      if (!title) continue;
+
+      const passed = evaluateConditionFromSnapshot(
+        title.cond_rule_json as CondRule,
+        snapshot,
+        snapshotsByMemId,
+      );
+      if (!passed) {
+        toRevoke.push({ mem_ttl_id: held.mem_ttl_id });
+        snapshot.heldTitleIds.delete(held.ttl_id);
+      }
+    }
+
+    // 3-2. 부여: 미보유 칭호 조건 충족 → 부여 대상 수집
+    for (const title of eligibleTitles) {
+      if (snapshot.heldTitleIds.has(title.ttl_id)) continue;
+
+      const passed = evaluateConditionFromSnapshot(
+        title.cond_rule_json as CondRule,
+        snapshot,
+        snapshotsByMemId,
+      );
+      if (!passed) continue;
+
+      toGrant.push({
+        team_id: teamId,
+        team_mem_id: snapshot.teamMemId,
+        ttl_id: title.ttl_id,
+        grnt_rsn_txt: "자동수여 (trigger=manual_sweep)",
+        is_prmy_yn: false,
+        vers: 0,
+        del_yn: false,
+      });
+    }
+  }
+
+  // 4. bulk 회수
+  if (toRevoke.length > 0) {
+    await db
+      .from("mem_ttl_rel")
+      .update({ del_yn: true })
+      .in("mem_ttl_id", toRevoke.map((r) => r.mem_ttl_id))
+      .eq("del_yn", false);
+    console.info(`[sweep] 칭호 자동 회수 ${toRevoke.length}건`);
+  }
+
+  // 5. bulk 부여
+  if (toGrant.length > 0) {
+    await db
+      .from("mem_ttl_rel")
+      .upsert(toGrant, { onConflict: "team_mem_id,ttl_id,vers", ignoreDuplicates: true });
+    console.info(`[sweep] 칭호 신규 부여 ${toGrant.length}건`);
+  }
+
+  return { granted: toGrant.length, revoked: toRevoke.length };
 }
