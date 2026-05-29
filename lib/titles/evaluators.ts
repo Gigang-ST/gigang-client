@@ -5,7 +5,11 @@
  * DB 조회만 하고 INSERT/UPDATE는 하지 않는다.
  * ctx(트리거 컨텍스트)에 의존하지 않는다 — 트리거 필터링은 engine.ts 의 TRIGGER_COND_MAP 이 담당한다.
  *
- * 새 CondRule 타입을 추가하면 evaluateCondition() switch 에 케이스를 추가한다.
+ * 두 가지 평가 경로:
+ *   - evaluateCondition()         — 단건 트리거용 (DB 직접 조회). race_record, attendance 등에서 사용.
+ *   - evaluateConditionFromSnapshot() — bulk sweep 전용 (MemberSnapshot 메모리 평가). DB 쿼리 없음.
+ *
+ * 새 CondRule 타입을 추가하면 두 switch 모두에 케이스를 추가한다.
  */
 
 import dayjs from "dayjs";
@@ -38,6 +42,7 @@ import type {
   CondRacePbWithinSecOfTarget,
   CondHasTitleInCategories,
 } from "./types";
+import type { MemberSnapshot, RaceHistRow } from "./snapshot";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type DB = SupabaseClient<Database>;
@@ -473,7 +478,7 @@ export async function evalHasTitleInCategoriesInternal(
 }
 
 // ---------------------------------------------------------------------------
-// 공개 진입점 — engine.ts 에서 호출
+// 공개 진입점 1 — 단건 트리거용 (DB 직접 조회)
 // ---------------------------------------------------------------------------
 
 export async function evaluateCondition(
@@ -535,4 +540,104 @@ export async function evaluateCondition(
       rule satisfies never;
       return false;
   }
+}
+
+// ---------------------------------------------------------------------------
+// 공개 진입점 2 — bulk sweep 전용 (MemberSnapshot 메모리 평가, DB 쿼리 없음)
+// ---------------------------------------------------------------------------
+
+/**
+ * CondRule 하나를 스냅샷 데이터만으로 평가한다. (manual_sweep 전용)
+ * DB 왕복 없이 메모리 내에서만 연산한다.
+ *
+ * @param allSnapshots  race_pb_faster_than_member 처럼 타 멤버 데이터가 필요한 조건을 위해 전체 맵을 전달한다.
+ */
+export function evaluateConditionFromSnapshot(
+  rule: CondRule,
+  snapshot: MemberSnapshot,
+  allSnapshots: Map<string, MemberSnapshot>,
+): boolean {
+  switch (rule.type) {
+    case "race_pb_under_sec":
+      return evalRacePbUnderSecFromSnapshot(rule, snapshot.raceHist);
+
+    case "race_finish_count":
+      return evalRaceFinishCountFromSnapshot(rule, snapshot.raceHist);
+
+    case "mileage_run_complete":
+      // TODO: 마일리지런 스냅샷 구현 전까지 false
+      return false;
+
+    case "attendance_count":
+      return snapshot.raceHist.length >= rule.count;
+
+    case "membership_days": {
+      if (!snapshot.joinDt) return false;
+      const diffDays = Math.floor(
+        (Date.now() - new Date(snapshot.joinDt).getTime()) / (1000 * 60 * 60 * 24),
+      );
+      return diffDays >= rule.days;
+    }
+
+    case "race_pb_faster_than_member":
+      return evalRacePbFasterThanMemberFromSnapshot(rule, snapshot, allSnapshots);
+
+    default:
+      rule satisfies never;
+      return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// snapshot 기반 내부 평가 함수 (메모리 전용)
+// ---------------------------------------------------------------------------
+
+function evalRacePbUnderSecFromSnapshot(
+  rule: CondRacePersonalBestUnderSec,
+  raceHist: RaceHistRow[],
+): boolean {
+  const candidates = raceHist.filter((r) => {
+    const typeMatch = r.comp_evt_type === rule.sport.toUpperCase();
+    const ctgrMatch = !rule.sport_ctgr || r.comp_sprt_cd === rule.sport_ctgr;
+    return typeMatch && ctgrMatch;
+  });
+  if (candidates.length === 0) return false;
+  const pb = Math.min(...candidates.map((r) => r.rec_time_sec));
+  return pb <= rule.sec;
+}
+
+function evalRaceFinishCountFromSnapshot(
+  rule: CondRaceFinishCount,
+  raceHist: RaceHistRow[],
+): boolean {
+  const count = raceHist.filter((r) => {
+    const typeMatch = !rule.sport || r.comp_evt_type === rule.sport.toUpperCase();
+    const ctgrMatch = !rule.sport_ctgr || r.comp_sprt_cd === rule.sport_ctgr;
+    return typeMatch && ctgrMatch;
+  }).length;
+  return count >= rule.count;
+}
+
+function evalRacePbFasterThanMemberFromSnapshot(
+  rule: CondRacePbFasterThanMember,
+  snapshot: MemberSnapshot,
+  allSnapshots: Map<string, MemberSnapshot>,
+): boolean {
+  if (snapshot.memId === rule.target_mem_id) return false;
+
+  // allSnapshots는 memId가 아닌 teamMemId 기준이므로 memId로 찾아야 한다
+  const targetSnapshot = [...allSnapshots.values()].find((s) => s.memId === rule.target_mem_id);
+
+  const sport = rule.sport.toUpperCase();
+
+  const myPb = snapshot.raceHist
+    .filter((r) => r.comp_evt_type === sport)
+    .reduce<number | null>((min, r) => (min === null || r.rec_time_sec < min ? r.rec_time_sec : min), null);
+
+  const targetPb = (targetSnapshot?.raceHist ?? [])
+    .filter((r) => r.comp_evt_type === sport)
+    .reduce<number | null>((min, r) => (min === null || r.rec_time_sec < min ? r.rec_time_sec : min), null);
+
+  if (myPb === null || targetPb === null) return false;
+  return myPb < targetPb;
 }

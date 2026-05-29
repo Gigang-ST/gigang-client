@@ -36,6 +36,21 @@ const supabase = createClient(); // await 불필요
 - Supabase RLS 정책이 적용되어 있으므로 별도 권한 체크 불필요
 - 서버에서 `supabase.auth.getUser()`로 현재 사용자 확인
 
+### `use_yn` 필드 의미 (칭호·이펙트)
+
+`ttl_mst.use_yn` / `effect_mst.use_yn` 은 **조회와 완전히 무관**하다.
+
+| 대상 | `use_yn=true` | `use_yn=false` |
+|------|--------------|----------------|
+| 유저 컬렉션 | 목록에 보임, 선택 가능 | **목록에 보임**, 선택 불가 |
+| 관리자 페이지 | 목록에 보임, 수정 가능 | **목록에 보임**, 수정 가능 |
+| 칭호 자동 부여 엔진 | 평가 대상 | 평가 제외 (선택 불가이므로 부여 의미 없음) |
+
+- 쿼리에서 `.eq("use_yn", true)` 필터를 **절대 사용하지 않는다** (엔진 제외).
+- 잠금(use_yn=false)은 "선택·사용 불가" 상태일 뿐, 목록에서 숨기는 것이 아니다.
+- 유저 입장: 미보유 칭호는 마스킹, `use_yn=false` 이펙트는 잠금 표시 — 둘 다 목록엔 노출.
+- RLS: `effect_mst` SELECT 정책은 `USING (true)` — `use_yn` 조건 없음.
+
 ## 에러 처리
 
 - Supabase 쿼리 결과의 `error` 체크

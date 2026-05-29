@@ -40,4 +40,4 @@ CREATE POLICY "effect_mst_select_authenticated"
   ON public.effect_mst
   FOR SELECT
   TO authenticated
-  USING (use_yn = true);
+  USING (true);
