@@ -84,51 +84,6 @@ export async function evaluateAndGrantTitles(
 
   const activeIds = new Set((existing ?? []).map((r) => r.ttl_id));
 
-  // 4-1. manual_sweep 전용: 보유 중인 auto 칭호 조건 재평가 → 미충족 시 자동 회수
-  //      트리거마다 회수를 실행하면 과부하이므로 일괄 재계산 시에만 수행한다.
-  if (ctx.trigger === "manual_sweep") {
-    const autoTitleIds = new Set(titles.map((t) => t.ttl_id));
-
-    for (const held of existing ?? []) {
-      if (!autoTitleIds.has(held.ttl_id)) continue; // auto 칭호가 아니면 회수 대상 제외
-
-      const title = titles.find((t) => t.ttl_id === held.ttl_id);
-      if (!title) continue;
-
-      let passed = false;
-      try {
-        passed = await evaluateCondition(title.cond_rule_json as CondRule, ctx, memId, db);
-      } catch (e) {
-        console.error(`[title-engine] 회수 평가 실패 ttl_id=${held.ttl_id}`, e);
-        continue;
-      }
-
-      if (!passed) {
-        // 현재 최대 vers를 기준으로 다음 vers 계산 — 재부여/재회수 반복 시 충돌 방지
-        const { data: maxVersRow } = await db
-          .from("mem_ttl_rel")
-          .select("vers")
-          .eq("team_mem_id", ctx.teamMemId)
-          .eq("ttl_id", held.ttl_id)
-          .order("vers", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        const nextVers = (maxVersRow?.vers ?? 0) + 1;
-
-        const { error } = await db
-          .from("mem_ttl_rel")
-          .update({ del_yn: true, vers: nextVers })
-          .eq("mem_ttl_id", held.mem_ttl_id)
-          .eq("vers", held.vers)
-          .eq("del_yn", false);
-
-        if (!error) {
-          activeIds.delete(held.ttl_id); // 회수 완료 → 재부여 대상으로 재평가 가능
-          console.info(`[title-engine] 칭호 자동 회수: ttl_id=${held.ttl_id} → team_mem_id=${ctx.teamMemId}`);
-        }
-      }
-    }
-  }
 
   // 5. 조건 평가 → 통과한 미보유 칭호 수여
   const granted: string[] = [];
@@ -213,7 +168,6 @@ export async function sweepEvaluateAndGrant(
   const titles = (allTitles as TtlMstRow[] ?? []).filter((t) => t.cond_rule_json != null);
   if (titles.length === 0) return { granted: 0, revoked: 0 };
 
-  const autoTitleIds = new Set(titles.map((t) => t.ttl_id));
   const allowedCondTypes = new Set(TRIGGER_COND_MAP["manual_sweep"]);
   const snapshotsByMemId = new Map<string, MemberSnapshot>(
     [...snapshots.values()].map((s) => [s.teamMemId, s]),
@@ -229,7 +183,6 @@ export async function sweepEvaluateAndGrant(
     del_yn: boolean;
   };
 
-  const toRevoke: { mem_ttl_id: string }[] = [];
   const toGrant: GrantRow[] = [];
 
   // 3. 메모리 내 평가 — DB 쿼리 없음
@@ -239,24 +192,7 @@ export async function sweepEvaluateAndGrant(
       return allowedCondTypes.has(rule.type);
     });
 
-    // 3-1. 회수: 보유 중인 auto 칭호 조건 미충족 → 회수 대상 수집
-    for (const held of snapshot.heldRows) {
-      if (!autoTitleIds.has(held.ttl_id)) continue;
-      const title = eligibleTitles.find((t) => t.ttl_id === held.ttl_id);
-      if (!title) continue;
-
-      const passed = evaluateConditionFromSnapshot(
-        title.cond_rule_json as CondRule,
-        snapshot,
-        snapshotsByMemId,
-      );
-      if (!passed) {
-        toRevoke.push({ mem_ttl_id: held.mem_ttl_id });
-        snapshot.heldTitleIds.delete(held.ttl_id);
-      }
-    }
-
-    // 3-2. 부여: 미보유 칭호 조건 충족 → 부여 대상 수집
+    // 부여: 미보유 칭호 조건 충족 → 부여 대상 수집
     for (const title of eligibleTitles) {
       if (snapshot.heldTitleIds.has(title.ttl_id)) continue;
 
@@ -279,17 +215,7 @@ export async function sweepEvaluateAndGrant(
     }
   }
 
-  // 4. bulk 회수
-  if (toRevoke.length > 0) {
-    await db
-      .from("mem_ttl_rel")
-      .update({ del_yn: true })
-      .in("mem_ttl_id", toRevoke.map((r) => r.mem_ttl_id))
-      .eq("del_yn", false);
-    console.info(`[sweep] 칭호 자동 회수 ${toRevoke.length}건`);
-  }
-
-  // 5. bulk 부여
+  // 4. bulk 부여
   if (toGrant.length > 0) {
     await db
       .from("mem_ttl_rel")
@@ -297,5 +223,5 @@ export async function sweepEvaluateAndGrant(
     console.info(`[sweep] 칭호 신규 부여 ${toGrant.length}건`);
   }
 
-  return { granted: toGrant.length, revoked: toRevoke.length };
+  return { granted: toGrant.length, revoked: 0 };
 }
