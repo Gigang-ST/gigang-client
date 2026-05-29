@@ -16,7 +16,7 @@ export async function grantTitle(
   // 칭호 존재 여부 확인
   const { data: title } = await db
     .from("ttl_mst")
-    .select("ttl_id, base_pt")
+    .select("ttl_id")
     .eq("ttl_id", ttlId)
     .eq("team_id", teamId)
     .eq("vers", 0)
@@ -43,9 +43,6 @@ export async function grantTitle(
     team_mem_id: teamMemId,
     ttl_id: ttlId,
     grnt_by_mem_id: adminUser.id,
-    grnt_pt: title.base_pt,
-    aply_pt: title.base_pt,
-    pt_chg_rsn_cd: "initial_grant",
     grnt_rsn_txt: "관리자 수동 수여",
     is_prmy_yn: false,
     vers: 0,
