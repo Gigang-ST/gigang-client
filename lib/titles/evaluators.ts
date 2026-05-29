@@ -37,6 +37,7 @@ import type {
   CondRaceRankLast,
   CondRacePbWithinSecOfTarget,
   CondHasTitleInCategories,
+  CondUtmbIdxRank,
 } from "./types";
 import type { MemberSnapshot, RaceHistRow } from "./snapshot";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -473,6 +474,38 @@ export async function evalHasTitleInCategoriesInternal(
   return rule.categories.every((cat) => heldCategories.has(cat));
 }
 
+/** 팀 내 UTMB 인덱스 전체 N위인 경우 (예: 山神 — rank=1) */
+export async function evalUtmbIdxRankInternal(
+  rule: CondUtmbIdxRank,
+  memId: string,
+  teamId: string,
+  db: DB,
+): Promise<boolean> {
+  const { data: teamMembers } = await db
+    .from("team_mem_rel")
+    .select("mem_id")
+    .eq("team_id", teamId)
+    .eq("vers", 0)
+    .eq("del_yn", false);
+
+  if (!teamMembers?.length) return false;
+  const teamMemIds = teamMembers.map((r) => r.mem_id);
+
+  const { data } = await db
+    .from("mem_utmb_prf")
+    .select("mem_id, utmb_idx")
+    .in("mem_id", teamMemIds)
+    .eq("vers", 0)
+    .eq("del_yn", false);
+
+  if (!data?.length) return false;
+
+  const sorted = [...data].sort((a, b) => b.utmb_idx - a.utmb_idx);
+  const myRank = sorted.findIndex((r) => r.mem_id === memId) + 1;
+  if (myRank === 0) return false;
+  return myRank === rule.rank;
+}
+
 // ---------------------------------------------------------------------------
 // 공개 진입점 — engine.ts 에서 호출
 // ---------------------------------------------------------------------------
@@ -531,6 +564,9 @@ export async function evaluateCondition(
 
     case "has_title_in_categories":
       return evalHasTitleInCategoriesInternal(rule, ctx.teamMemId, ctx.teamId, db);
+
+    case "utmb_idx_rank":
+      return evalUtmbIdxRankInternal(rule, memId, ctx.teamId, db);
 
     default:
       rule satisfies never;
@@ -638,6 +674,16 @@ export function evaluateConditionFromSnapshot(
     case "has_title_in_categories": {
       const heldCtgrs = new Set([...snapshot.heldTitleMeta.values()].map((m) => m.ttl_ctgr_cd));
       return rule.categories.every((c: string) => heldCtgrs.has(c));
+    }
+
+    case "utmb_idx_rank": {
+      if (snapshot.utmbIdx === null) return false;
+      const sorted = [...allSnapshots.values()]
+        .filter((s) => s.utmbIdx !== null)
+        .sort((a, b) => b.utmbIdx! - a.utmbIdx!);
+      const myRank = sorted.findIndex((s) => s.memId === snapshot.memId) + 1;
+      if (myRank === 0) return false;
+      return myRank === rule.rank;
     }
 
     default:

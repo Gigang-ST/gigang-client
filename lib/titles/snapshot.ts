@@ -31,6 +31,7 @@ export type MemberSnapshot = {
   joinDt: string | null;
   gender: string;          // mem_mst.gdr_enm (race_rank_by_gender 조건용)
   raceHist: RaceHistRow[];
+  utmbIdx: number | null;  // mem_utmb_prf.utmb_idx (utmb_idx_rank 조건용)
   heldTitleIds: Set<string>;
   /** 보유 칭호 ID → { ttl_nm, ttl_ctgr_cd } 맵 (race_finish_all_titles, has_title_in_categories 조건용) */
   heldTitleMeta: Map<string, { ttl_nm: string; ttl_ctgr_cd: string }>;
@@ -116,7 +117,20 @@ export async function loadMemberSnapshots(
     });
   }
 
-  // 4. mem_ttl_rel: 전체 멤버 보유 칭호 한 번에
+  // 4. mem_utmb_prf: UTMB 인덱스 한 번에 (utmb_idx_rank 조건용)
+  const { data: utmbRows } = await db
+    .from("mem_utmb_prf")
+    .select("mem_id, utmb_idx")
+    .in("mem_id", memIds)
+    .eq("vers", 0)
+    .eq("del_yn", false);
+
+  const utmbIdxMap = new Map<string, number>();
+  for (const r of utmbRows ?? []) {
+    utmbIdxMap.set(r.mem_id, r.utmb_idx);
+  }
+
+  // 5. mem_ttl_rel: 전체 멤버 보유 칭호 한 번에
   const { data: heldRows } = await db
     .from("mem_ttl_rel")
     .select("team_mem_id, mem_ttl_id, ttl_id, vers")
@@ -134,7 +148,7 @@ export async function loadMemberSnapshots(
     });
   }
 
-  // 5. ttl_mst: 팀 칭호 메타 한 번에 (ttl_nm, ttl_ctgr_cd — race_finish_all_titles, has_title_in_categories 조건용)
+  // 6. ttl_mst: 팀 칭호 메타 한 번에 (ttl_nm, ttl_ctgr_cd — race_finish_all_titles, has_title_in_categories 조건용)
   const allHeldTtlIds = [...new Set([...(heldRows ?? []).map((r) => r.ttl_id)])];
   const titleMetaMap = new Map<string, { ttl_nm: string; ttl_ctgr_cd: string }>();
 
@@ -151,7 +165,7 @@ export async function loadMemberSnapshots(
     }
   }
 
-  // 6. 조합
+  // 7. 조합
   const result = new Map<string, MemberSnapshotWithHeld>();
   for (const teamMemId of teamMemIds) {
     const rel = relMap.get(teamMemId);
@@ -170,6 +184,7 @@ export async function loadMemberSnapshots(
       joinDt: rel.joinDt,
       gender: genderMap.get(rel.memId) ?? "",
       raceHist: histMap.get(rel.memId) ?? [],
+      utmbIdx: utmbIdxMap.get(rel.memId) ?? null,
       heldTitleIds: new Set(held.map((h) => h.ttl_id)),
       heldTitleMeta,
       heldRows: held,
