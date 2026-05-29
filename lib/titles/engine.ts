@@ -22,7 +22,6 @@ import type { CondRule, TitleEvalContext } from "./types";
 type TtlMstRow = {
   ttl_id: string;
   ttl_nm: string;
-  base_pt: number;
   cond_rule_json: unknown;
 };
 
@@ -59,7 +58,7 @@ export async function evaluateAndGrantTitles(
   // 3. 이 팀의 사용 중인 auto 칭호 전체 조회 후 이 트리거에서 평가할 조건 유형만 필터링
   const { data: allTitles } = await db
     .from("ttl_mst")
-    .select("ttl_id, ttl_nm, base_pt, cond_rule_json")
+    .select("ttl_id, ttl_nm, cond_rule_json")
     .eq("team_id", ctx.teamId)
     .eq("ttl_kind_enm", "auto")
     .eq("use_yn", true)
@@ -105,7 +104,7 @@ export async function evaluateAndGrantTitles(
       if (!passed) {
         const { error } = await db
           .from("mem_ttl_rel")
-          .update({ del_yn: true, vers: held.vers + 1, pt_chg_rsn_cd: "auto_revoke" })
+          .update({ del_yn: true, vers: held.vers + 1 })
           .eq("mem_ttl_id", held.mem_ttl_id)
           .eq("vers", held.vers)
           .eq("del_yn", false);
@@ -145,9 +144,6 @@ export async function evaluateAndGrantTitles(
       team_id: ctx.teamId,
       team_mem_id: ctx.teamMemId,
       ttl_id: title.ttl_id,
-      grnt_pt: title.base_pt,
-      aply_pt: title.base_pt,
-      pt_chg_rsn_cd: "initial_grant",
       grnt_rsn_txt: `자동수여 (trigger=${ctx.trigger})`,
       is_prmy_yn: false,
       vers: 0,

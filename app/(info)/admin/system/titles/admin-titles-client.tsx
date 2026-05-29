@@ -49,7 +49,6 @@ type TitleRow = {
   ttl_kind_enm: "auto" | "awarded";
   ttl_ctgr_cd: string;
   ttl_desc: string | null;
-  base_pt: number;
   sort_ord: number;
   use_yn: boolean;
   cond_rule_json: unknown | null;
@@ -62,7 +61,6 @@ type TitleForm = {
   ttlKindEnm: "auto" | "awarded";
   ttlCtgrCd: string;
   ttlDesc: string;
-  basePt: string;
   sortOrd: string;
   useYn: "true" | "false";
   condRuleJson: string;
@@ -86,7 +84,6 @@ function toForm(row: TitleRow): TitleForm {
     ttlKindEnm: row.ttl_kind_enm,
     ttlCtgrCd: row.ttl_ctgr_cd ?? "",
     ttlDesc: row.ttl_desc ?? "",
-    basePt: String(row.base_pt ?? 0),
     sortOrd: String(row.sort_ord ?? 100),
     useYn: row.use_yn ? "true" : "false",
     condRuleJson: row.cond_rule_json ? JSON.stringify(row.cond_rule_json) : "",
@@ -101,7 +98,6 @@ function buildEmptyForm(defaultCategory: string): TitleForm {
     ttlKindEnm: "auto",
     ttlCtgrCd: defaultCategory,
     ttlDesc: "",
-    basePt: "0",
     sortOrd: "100",
     useYn: "true",
     condRuleJson: "",
@@ -142,7 +138,7 @@ export function AdminTitlesClient({
     const { data } = await supabase
       .from("ttl_mst")
       .select(
-        "ttl_id, ttl_nm, ttl_kind_enm, ttl_ctgr_cd, ttl_desc, base_pt, sort_ord, use_yn, cond_rule_json, rarity_level, ttl_group_cd",
+        "ttl_id, ttl_nm, ttl_kind_enm, ttl_ctgr_cd, ttl_desc, sort_ord, use_yn, cond_rule_json, rarity_level, ttl_group_cd",
       )
       .eq("team_id", teamId)
       .eq("vers", 0)
@@ -185,7 +181,6 @@ export function AdminTitlesClient({
     if (!form.ttlNm.trim()) return "칭호명은 필수입니다.";
     if (!form.ttlKindEnm) return "칭호 유형은 필수입니다.";
     if (!form.ttlCtgrCd) return "카테고리는 필수입니다.";
-    if (!form.basePt.trim()) return "기본 점수는 필수입니다.";
     if (!form.sortOrd.trim()) return "정렬 순서는 필수입니다.";
     if (!form.useYn) return "사용 여부는 필수입니다.";
     if (form.ttlKindEnm === "auto" && !form.condRuleJson.trim()) return "자동 유형은 자동 조건(JSON)이 필수입니다.";
@@ -320,7 +315,6 @@ export function AdminTitlesClient({
                   <th className="px-2 py-1.5 text-center font-medium text-muted-foreground">칭호명</th>
                   <th className="w-10 px-2 py-1.5 text-center font-medium text-muted-foreground">유형</th>
                   <th className="w-16 px-2 py-1.5 text-center font-medium text-muted-foreground">카테고리</th>
-                  <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">점수</th>
                   <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">정렬</th>
                   <th className="w-14 px-2 py-1.5 text-center font-medium text-muted-foreground">사용</th>
                   <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">희귀도</th>
@@ -332,7 +326,7 @@ export function AdminTitlesClient({
                 {rows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={8}
                       className="px-2 py-6 text-center text-xs text-muted-foreground"
                     >
                       등록된 칭호가 없습니다.
@@ -351,7 +345,6 @@ export function AdminTitlesClient({
                       <td className="truncate px-2 py-1.5 text-center font-medium text-foreground">{row.ttl_nm}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_kind_enm === "auto" ? "자동" : "수여"}</td>
                       <td className="truncate px-2 py-1.5 text-center text-muted-foreground">{categoryOptions.find((c) => c.cd === row.ttl_ctgr_cd)?.cd_nm ?? row.ttl_ctgr_cd}</td>
-                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.base_pt}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.sort_ord}</td>
                       <td className="px-2 py-1.5 text-center" onClick={(e) => e.stopPropagation()}>
                         <button
@@ -571,16 +564,6 @@ function TitleFormFields({
         onChange={(v) => onChange("sortOrd", v)}
         required
       />
-
-      {/* 행 4: 기본점수 */}
-      <LabeledInput
-        label="기본 점수"
-        type="number"
-        value={form.basePt}
-        onChange={(v) => onChange("basePt", v)}
-        required
-      />
-      <div />
 
       {/* 행 5: 자동조건(JSON) — auto일 때만 필수, 한 줄 전체 */}
       {form.ttlKindEnm === "auto" && (

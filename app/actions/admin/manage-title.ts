@@ -11,7 +11,6 @@ type TitlePayload = {
   ttlKindEnm: string;
   ttlCtgrCd: string;
   ttlDesc: string | null;
-  basePt: number | string;
   sortOrd: number | string;
   useYn: boolean | string;
   condRuleJson: string | null;
@@ -24,7 +23,6 @@ type TitleNormalized = {
   ttlKindEnm: "auto" | "awarded";
   ttlCtgrCd: string;
   ttlDesc: string | null;
-  basePt: number;
   sortOrd: number;
   useYn: boolean;
   condRuleJson: unknown | null;
@@ -74,7 +72,6 @@ async function normalizePayload(payload: TitlePayload): Promise<TitleNormalized>
   }
 
   const ttlDesc = payload.ttlDesc?.trim() ? payload.ttlDesc.trim() : null;
-  const basePt = parseNonNegativeInt(payload.basePt, "기본 점수");
   const sortOrd = parseNonNegativeInt(payload.sortOrd, "정렬 순서");
   const useYn = parseUseYn(payload.useYn);
 
@@ -108,7 +105,6 @@ async function normalizePayload(payload: TitlePayload): Promise<TitleNormalized>
     ttlKindEnm,
     ttlCtgrCd,
     ttlDesc,
-    basePt,
     sortOrd,
     useYn,
     condRuleJson,
@@ -133,7 +129,6 @@ export async function createTitle(payload: TitlePayload) {
       ttl_nm: normalized.ttlNm,
       ttl_desc: normalized.ttlDesc,
       cond_rule_json: normalized.condRuleJson as Json,
-      base_pt: normalized.basePt,
       sort_ord: normalized.sortOrd,
       use_yn: normalized.useYn,
       rarity_level: normalized.rarityLevel,
@@ -171,7 +166,6 @@ export async function updateTitle(ttlId: string, payload: TitlePayload) {
         ttl_nm: normalized.ttlNm,
         ttl_desc: normalized.ttlDesc,
         cond_rule_json: normalized.condRuleJson as Json,
-        base_pt: normalized.basePt,
         sort_ord: normalized.sortOrd,
         use_yn: normalized.useYn,
         rarity_level: normalized.rarityLevel,
