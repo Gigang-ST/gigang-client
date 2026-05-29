@@ -21,6 +21,7 @@ type AllTitle = {
   rarity_level: number;
   ttl_ctgr_cd: string;
   ttl_group_cd: number | null;
+  use_yn: boolean;
 };
 
 type EffectRow = {
@@ -177,11 +178,10 @@ export function CollectionSheet({
       // 전체 칭호 목록
       supabase
         .from("ttl_mst")
-        .select("ttl_id, ttl_nm, ttl_desc, rarity_level, ttl_ctgr_cd, ttl_group_cd")
+        .select("ttl_id, ttl_nm, ttl_desc, rarity_level, ttl_ctgr_cd, ttl_group_cd, use_yn")
         .eq("team_id", teamId)
         .eq("vers", 0)
         .eq("del_yn", false)
-        .eq("use_yn", true)
         .order("ttl_ctgr_cd")
         .order("ttl_group_cd", { nullsFirst: false })
         .order("sort_ord"),
@@ -336,14 +336,15 @@ export function CollectionSheet({
                     <div className="flex flex-wrap gap-2">
                       {regularTitles.map((t) => {
                         const owned = ownedTitleIds.has(t.ttl_id);
-                        const blocked = owned && isBlockedByHigher(t);
-                        const selectable = owned && !blocked;
+                        const masked = !owned || !t.use_yn;
+                        const blocked = owned && t.use_yn && isBlockedByHigher(t);
+                        const selectable = owned && t.use_yn && !blocked;
                         const isSelected = selectedTtlId === t.ttl_id;
                         const isPreviewing = previewTtlId === t.ttl_id;
                         return (
                           <button
                             key={t.ttl_id}
-                            disabled={!owned}
+                            disabled={masked}
                             onClick={() => {
                               if (selectable) {
                                 setSelectedTtlId(isSelected ? null : t.ttl_id);
@@ -362,19 +363,19 @@ export function CollectionSheet({
                               blocked && isPreviewing && "border-primary/40 bg-muted text-muted-foreground opacity-65",
                               // 보유 + 차단 (흐림)
                               blocked && !isPreviewing && "border-border bg-muted text-muted-foreground opacity-50",
-                              // 미보유 마스킹
-                              !owned && "border-dashed border-border/50 bg-muted/50 text-muted-foreground/40 cursor-default select-none",
+                              // 미보유 or use_yn=false 마스킹
+                              masked && "border-dashed border-border/50 bg-muted/50 text-muted-foreground/40 cursor-default select-none",
                             )}
                           >
-                            {owned ? (
-                              <>
-                                {t.ttl_nm}
-                                {isSelected && <Check className="size-3" />}
-                              </>
-                            ) : (
+                            {masked ? (
                               <>
                                 <Lock className="size-2.5 shrink-0" />
                                 <span className="blur-[2px]">{t.ttl_nm}</span>
+                              </>
+                            ) : (
+                              <>
+                                {t.ttl_nm}
+                                {isSelected && <Check className="size-3" />}
                               </>
                             )}
                           </button>
