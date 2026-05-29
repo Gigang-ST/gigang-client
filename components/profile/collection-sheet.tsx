@@ -28,6 +28,7 @@ type EffectRow = {
   effect_nm: string;
   effect_type: "badge" | "frame";
   rarity_level: number;
+  use_yn: boolean;
 };
 
 type Tab = "title" | "badge" | "frame";
@@ -191,11 +192,10 @@ export function CollectionSheet({
         .eq("team_mem_id", teamMemId)
         .eq("vers", 0)
         .eq("del_yn", false),
-      // 이펙트 목록
+      // 이펙트 목록 (use_yn=false도 포함 — 표시하되 선택 불가)
       supabase
         .from("effect_mst")
-        .select("effect_cd, effect_nm, effect_type, rarity_level")
-        .eq("use_yn", true)
+        .select("effect_cd, effect_nm, effect_type, rarity_level, use_yn")
         .order("rarity_level").order("sort_ord"),
     ]).then(([titlesRes, ownedRes, effectsRes]) => {
       setAllTitles((titlesRes.data ?? []) as unknown as AllTitle[]);
@@ -228,11 +228,12 @@ export function CollectionSheet({
     return t.rarity_level < (maxRarityByGroup.get(t.ttl_group_cd) ?? 0);
   };
 
-  // 해금된 이펙트
-  const unlockedBadges = allEffects.filter((e) => e.effect_type === "badge" && e.rarity_level <= maxRarityLevel);
-  const unlockedFrames = allEffects.filter((e) => e.effect_type === "frame" && e.rarity_level <= maxRarityLevel);
-  const lockedBadges = allEffects.filter((e) => e.effect_type === "badge" && e.rarity_level > maxRarityLevel);
-  const lockedFrames = allEffects.filter((e) => e.effect_type === "frame" && e.rarity_level > maxRarityLevel);
+  // 선택 가능한 이펙트: 등급 해금 + use_yn=true
+  const unlockedBadges = allEffects.filter((e) => e.effect_type === "badge" && e.rarity_level <= maxRarityLevel && e.use_yn);
+  const unlockedFrames = allEffects.filter((e) => e.effect_type === "frame" && e.rarity_level <= maxRarityLevel && e.use_yn);
+  // 선택 불가: 등급 미달 또는 use_yn=false (표시는 함)
+  const lockedBadges = allEffects.filter((e) => e.effect_type === "badge" && (e.rarity_level > maxRarityLevel || !e.use_yn));
+  const lockedFrames = allEffects.filter((e) => e.effect_type === "frame" && (e.rarity_level > maxRarityLevel || !e.use_yn));
 
   const handleSave = () => {
     startTransition(async () => {
