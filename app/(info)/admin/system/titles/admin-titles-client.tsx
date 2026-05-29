@@ -1,16 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+
 import { Plus, RefreshCw, Save } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+
 import { formatKSTDateTime } from "@/lib/dayjs";
+import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
+import { cmmCdRowsForGrp } from "@/lib/queries/cmm-cd-cached";
+import { createClient } from "@/lib/supabase/client";
+
 import { createTitle, updateTitle } from "@/app/actions/admin/manage-title";
 import { sweepAllTitles } from "@/app/actions/admin/sweep-titles";
+
+import { EmptyState } from "@/components/common/empty-state";
 import { H2, SectionLabel } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -18,9 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { EmptyState } from "@/components/common/empty-state";
-import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
-import { cmmCdRowsForGrp } from "@/lib/queries/cmm-cd-cached";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type GrantRow = {
   mem_ttl_id: string;
@@ -42,11 +46,12 @@ type TitleRow = {
   ttl_kind_enm: "auto" | "awarded";
   ttl_ctgr_cd: string;
   ttl_desc: string | null;
-  ttl_rank: number;
   base_pt: number;
   sort_ord: number;
   use_yn: boolean;
   cond_rule_json: unknown | null;
+  rarity_level: number;
+  ttl_group_cd: number | null;
 };
 
 type TitleForm = {
@@ -54,11 +59,12 @@ type TitleForm = {
   ttlKindEnm: "auto" | "awarded";
   ttlCtgrCd: string;
   ttlDesc: string;
-  ttlRank: string;
   basePt: string;
   sortOrd: string;
   useYn: "true" | "false";
   condRuleJson: string;
+  rarityLevel: string;
+  ttlGroupCd: string;
 };
 
 const TITLE_KIND_OPTIONS: { value: "auto" | "awarded"; label: string }[] = [
@@ -66,17 +72,23 @@ const TITLE_KIND_OPTIONS: { value: "auto" | "awarded"; label: string }[] = [
   { value: "awarded", label: "수여" },
 ];
 
+const RARITY_LEVEL_OPTIONS = Array.from({ length: 10 }, (_, i) => ({
+  value: String(i + 1),
+  label: `${i + 1}등급`,
+}));
+
 function toForm(row: TitleRow): TitleForm {
   return {
     ttlNm: row.ttl_nm ?? "",
     ttlKindEnm: row.ttl_kind_enm,
     ttlCtgrCd: row.ttl_ctgr_cd ?? "",
     ttlDesc: row.ttl_desc ?? "",
-    ttlRank: String(row.ttl_rank ?? 0),
     basePt: String(row.base_pt ?? 0),
     sortOrd: String(row.sort_ord ?? 100),
     useYn: row.use_yn ? "true" : "false",
     condRuleJson: row.cond_rule_json ? JSON.stringify(row.cond_rule_json) : "",
+    rarityLevel: String(row.rarity_level ?? 1),
+    ttlGroupCd: row.ttl_group_cd !== null ? String(row.ttl_group_cd) : "",
   };
 }
 
@@ -86,11 +98,12 @@ function buildEmptyForm(defaultCategory: string): TitleForm {
     ttlKindEnm: "auto",
     ttlCtgrCd: defaultCategory,
     ttlDesc: "",
-    ttlRank: "0",
     basePt: "0",
     sortOrd: "100",
     useYn: "true",
     condRuleJson: "",
+    rarityLevel: "1",
+    ttlGroupCd: "",
   };
 }
 
@@ -125,15 +138,15 @@ export function AdminTitlesClient({
     const { data } = await supabase
       .from("ttl_mst")
       .select(
-        "ttl_id, ttl_nm, ttl_kind_enm, ttl_ctgr_cd, ttl_desc, ttl_rank, base_pt, sort_ord, use_yn, cond_rule_json",
+        "ttl_id, ttl_nm, ttl_kind_enm, ttl_ctgr_cd, ttl_desc, base_pt, sort_ord, use_yn, cond_rule_json, rarity_level, ttl_group_cd",
       )
       .eq("team_id", teamId)
       .eq("vers", 0)
       .eq("del_yn", false)
       .order("sort_ord", { ascending: true })
-      .order("ttl_rank", { ascending: true });
+      .order("rarity_level", { ascending: true });
 
-    const nextRows = (data ?? []) as TitleRow[];
+    const nextRows = (data ?? []) as unknown as TitleRow[];
     setRows(nextRows);
     setForms(
       Object.fromEntries(nextRows.map((row) => [row.ttl_id, toForm(row)])),
@@ -168,7 +181,6 @@ export function AdminTitlesClient({
     if (!form.ttlNm.trim()) return "칭호명은 필수입니다.";
     if (!form.ttlKindEnm) return "칭호 유형은 필수입니다.";
     if (!form.ttlCtgrCd) return "카테고리는 필수입니다.";
-    if (!form.ttlRank.trim()) return "등급은 필수입니다.";
     if (!form.basePt.trim()) return "기본 점수는 필수입니다.";
     if (!form.sortOrd.trim()) return "정렬 순서는 필수입니다.";
     if (!form.useYn) return "사용 여부는 필수입니다.";
@@ -280,24 +292,26 @@ export function AdminTitlesClient({
         <p className="text-sm text-muted-foreground">불러오는 중...</p>
       ) : (
         <CardItem className="p-0">
-          <div className="overflow-x-auto">
+          <div className="max-h-60 overflow-y-auto overflow-x-auto">
             <table className="w-full border-collapse text-[11px] [font-variant-numeric:tabular-nums]">
               <thead className="bg-muted/40">
                 <tr className="border-b">
                   <th className="px-2 py-1.5 text-center font-medium text-muted-foreground">칭호명</th>
                   <th className="w-10 px-2 py-1.5 text-center font-medium text-muted-foreground">유형</th>
                   <th className="w-16 px-2 py-1.5 text-center font-medium text-muted-foreground">카테고리</th>
-                  <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">등급</th>
                   <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">점수</th>
                   <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">정렬</th>
                   <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">사용</th>
+                  <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">희귀도</th>
+                  <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">그룹</th>
+                  <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">이벤트</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       className="px-2 py-6 text-center text-xs text-muted-foreground"
                     >
                       등록된 칭호가 없습니다.
@@ -316,10 +330,12 @@ export function AdminTitlesClient({
                       <td className="truncate px-2 py-1.5 text-center font-medium text-foreground">{row.ttl_nm}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_kind_enm === "auto" ? "자동" : "수여"}</td>
                       <td className="truncate px-2 py-1.5 text-center text-muted-foreground">{categoryOptions.find((c) => c.cd === row.ttl_ctgr_cd)?.cd_nm ?? row.ttl_ctgr_cd}</td>
-                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_rank}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.base_pt}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.sort_ord}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.use_yn ? "사용" : "미사용"}</td>
+                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.rarity_level ?? 1}</td>
+                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_group_cd ?? "-"}</td>
+                      <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_ctgr_cd === "event" ? "✓" : ""}</td>
                     </tr>
                   );
                 })}
@@ -517,14 +533,7 @@ function TitleFormFields({
         required
       />
 
-      {/* 행 4: 등급 / 기본점수 */}
-      <LabeledInput
-        label="등급"
-        type="number"
-        value={form.ttlRank}
-        onChange={(v) => onChange("ttlRank", v)}
-        required
-      />
+      {/* 행 4: 기본점수 */}
       <LabeledInput
         label="기본 점수"
         type="number"
@@ -532,6 +541,7 @@ function TitleFormFields({
         onChange={(v) => onChange("basePt", v)}
         required
       />
+      <div />
 
       {/* 행 5: 자동조건(JSON) — auto일 때만 필수, 한 줄 전체 */}
       {form.ttlKindEnm === "auto" && (
@@ -546,7 +556,24 @@ function TitleFormFields({
         </div>
       )}
 
-      {/* 행 6: 설명 (full-width) */}
+      {/* 행 6: 희귀도 등급 / 그룹 코드 */}
+      <LabeledSelect
+        label="희귀도 등급 (1~10)"
+        value={form.rarityLevel}
+        onChange={(v) => onChange("rarityLevel", v)}
+        required
+        items={RARITY_LEVEL_OPTIONS}
+      />
+      {/* 그룹 코드 */}
+      <LabeledInput
+        label="그룹 코드"
+        type="number"
+        value={form.ttlGroupCd}
+        onChange={(v) => onChange("ttlGroupCd", v)}
+        placeholder="예: 1, 2, 10 (없으면 독립 선택)"
+      />
+
+      {/* 행 7: 설명 (full-width) */}
       <div className="col-span-2">
         <LabeledInput
           label="설명"

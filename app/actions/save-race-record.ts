@@ -2,9 +2,9 @@
 
 import { revalidateTag } from "next/cache";
 
+import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import {
   normalizeCompEvtType,
   resolveCompEvtIdForRaceRecord,
@@ -166,15 +166,17 @@ export async function saveRaceRecord(input: SaveRaceRecordInput) {
     revalidateTag(`records:${teamId}`, "max");
   }
 
-  // 칭호 자동 평가 — 기록 저장 성공 후 fire-and-forget
-  // 실패해도 기록 저장 결과에 영향을 주지 않는다.
-  evaluateAndGrantTitles({
+  // 칭호 자동 평가 — 실패해도 기록 저장 결과에 영향을 주지 않는다.
+  const grantedTitles = await evaluateAndGrantTitles({
     trigger: "race_record",
     teamId,
     teamMemId: member.team_mem_id,
-  }).catch((e) => console.error("[title-engine] race_record 평가 실패", e));
+  }).catch((e) => {
+    console.error("[title-engine] race_record 평가 실패", e);
+    return [] as string[];
+  });
 
-  return { ok: true as const, message: null };
+  return { ok: true as const, message: null, grantedTitles };
 }
 
 export async function updateRaceRecord(

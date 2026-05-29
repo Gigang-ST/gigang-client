@@ -3,8 +3,10 @@ import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AdminTitlesClient } from "./admin-titles-client";
+import { AdminEffectsClient } from "./admin-effects-client";
+import { AdminTitlesPageClient } from "./admin-titles-page-client";
 
-function TitlesFallback() {
+function Fallback() {
   return (
     <div className="flex flex-col gap-3 px-6 pt-4">
       {Array.from({ length: 3 }).map((_, i) => (
@@ -14,15 +16,23 @@ function TitlesFallback() {
   );
 }
 
-export default async function AdminTitlesPage() {
+async function TitlesTabContent() {
   const [{ teamId }, cmmCdRows] = await Promise.all([
     getRequestTeamContext(),
     getCachedCmmCdRows(),
   ]);
+  return <AdminTitlesClient teamId={teamId} cmmCdRows={cmmCdRows} />;
+}
 
+export default function AdminTitlesPage() {
   return (
-    <Suspense fallback={<TitlesFallback />}>
-      <AdminTitlesClient teamId={teamId} cmmCdRows={cmmCdRows} />
-    </Suspense>
+    <AdminTitlesPageClient
+      titlesContent={
+        <Suspense fallback={<Fallback />}>
+          <TitlesTabContent />
+        </Suspense>
+      }
+      effectsContent={<AdminEffectsClient />}
+    />
   );
 }

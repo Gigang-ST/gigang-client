@@ -1,18 +1,22 @@
-import { Skeleton } from "@/components/ui/skeleton";
-import { H1 } from "@/components/common/typography";
-import { CardItem } from "@/components/ui/card";
-import { redirect } from "next/navigation";
-import dayjs from "dayjs";
 import { Suspense } from "react";
+
 import Link from "next/link";
+import { redirect } from "next/navigation";
+
+import dayjs from "dayjs";
 import { Settings } from "lucide-react";
-import { Avatar } from "@/components/common/avatar";
-import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
-import { RaceRecordSection } from "@/components/profile/race-record-section";
-import { PaceChart } from "@/components/profile/pace-chart";
+
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+
+import { H1 } from "@/components/common/typography";
+import { PaceChart } from "@/components/profile/pace-chart";
+import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
+import { ProfileCard } from "@/components/profile/profile-card";
+import { RaceRecordSection } from "@/components/profile/race-record-section";
+import { CardItem } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 async function ProfileContent() {
   const { user, member, supabase } = await getCurrentMember();
@@ -26,7 +30,7 @@ async function ProfileContent() {
     redirect("/onboarding?next=/profile");
   }
 
-  const [{ data: raceResults }, { data: utmbProfile }, cmmCdRows] = await Promise.all([
+  const [{ data: raceResults }, { data: utmbProfile }, cmmCdRows, { data: primaryTitle }] = await Promise.all([
     supabase
       .from("rec_race_hist")
       .select("comp_evt_cfg(comp_evt_type), rec_time_sec, race_nm, race_dt")
@@ -41,6 +45,12 @@ async function ProfileContent() {
       .eq("del_yn", false)
       .maybeSingle(),
     getCachedCmmCdRows(),
+    supabase
+      .from("mem_ttl_rel")
+      .select("ttl_id, is_prmy_yn, ttl_mst(ttl_nm, rarity_level, ttl_ctgr_cd)")
+      .eq("team_mem_id", member.team_mem_id)
+      .eq("vers", 0)
+      .eq("del_yn", false),
   ]);
 
   // Build best records map: for each event_type, pick the one with lowest record_time_sec
@@ -59,23 +69,33 @@ async function ProfileContent() {
     ? dayjs(member.joined_at).format("YYYY. M")
     : "";
 
+  // 보유 칭호 목록에서 대표 칭호와 최고 등급 계산
+  const allTitles = (primaryTitle ?? []) as { ttl_id: string; is_prmy_yn: boolean; ttl_mst: { ttl_nm: string; rarity_level: number; ttl_ctgr_cd: string } | null }[];
+  const primaryTitleRow = allTitles.find((t) => t.is_prmy_yn);
+  const primaryTtlNm = primaryTitleRow?.ttl_mst?.ttl_nm ?? null;
+  const primaryTtlId = primaryTitleRow?.ttl_id ?? null;
+  const maxRarityLevel = allTitles.reduce((max, t) => {
+    if (t.ttl_mst?.ttl_ctgr_cd === "event") return max; // Event 칭호는 해금에 영향 없음
+    const lvl = t.ttl_mst?.rarity_level ?? 1;
+    return lvl > max ? lvl : max;
+  }, 1);
+
   return (
     <div className="flex flex-col gap-6 px-6 pb-6">
         {/* Profile Card */}
-        <CardItem className="flex items-center gap-4 p-5">
-          <Avatar src={member.avatar_url} alt={member.full_name ?? ""} size="xl" />
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="text-[17px] font-bold text-foreground">
-              {member.full_name}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {genderLabel}{joinedDate ? ` · ${joinedDate} 가입` : ""}
-            </span>
-          </div>
-          <span className="shrink-0 rounded-lg bg-primary/10 px-2.5 py-1.5 text-xs font-semibold text-primary">
-            활동
-          </span>
-        </CardItem>
+        <ProfileCard
+          fullName={member.full_name}
+          avatarUrl={member.avatar_url}
+          genderLabel={genderLabel}
+          joinedDate={joinedDate}
+          teamMemId={member.team_mem_id}
+          teamId={teamId}
+          primaryTtlId={primaryTtlId}
+          primaryTtlNm={primaryTtlNm}
+          selectedBadgeEffect={member.selected_badge_effect}
+          selectedFrameCd={member.selected_frame_cd}
+          maxRarityLevel={maxRarityLevel}
+        />
 
         {/* Personal Best */}
         <PersonalBestGrid

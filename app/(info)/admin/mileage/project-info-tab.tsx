@@ -27,7 +27,7 @@ type Project = {
   evt_type_cd: string;
   stt_dt: string;
   end_dt: string;
-  stts_enm: string;
+  stts_enm: "READY" | "ACTIVE" | "CLOSED";
   desc_txt: string | null;
 };
 
@@ -62,7 +62,14 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
   const [editing, setEditing] = useState(isCreate);
   const [saving, setSaving] = useState(false);
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    evt_nm: string;
+    evt_type_cd: string;
+    stt_dt: string;
+    end_dt: string;
+    stts_enm: "READY" | "ACTIVE" | "CLOSED";
+    desc_txt: string;
+  }>({
     evt_nm: project?.evt_nm ?? "",
     evt_type_cd: project?.evt_type_cd ?? "MILEAGE_RUN",
     stt_dt: project?.stt_dt ?? "",
@@ -275,7 +282,7 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
         <label className="text-sm font-medium text-foreground">상태</label>
         <Select
           value={form.stts_enm}
-          onValueChange={(v) => setForm({ ...form, stts_enm: v })}
+          onValueChange={(v) => setForm({ ...form, stts_enm: v as "READY" | "ACTIVE" | "CLOSED" })}
         >
           <SelectTrigger className="h-12 rounded-xl border-[1.5px] text-[15px]">
             <SelectValue />
