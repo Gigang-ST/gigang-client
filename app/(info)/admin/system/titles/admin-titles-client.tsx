@@ -9,7 +9,7 @@ import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { cmmCdRowsForGrp } from "@/lib/queries/cmm-cd-cached";
 import { createClient } from "@/lib/supabase/client";
 
-import { createTitle, updateTitle } from "@/app/actions/admin/manage-title";
+import { createTitle, toggleTitleUseYn, updateTitle } from "@/app/actions/admin/manage-title";
 import { sweepAllTitles } from "@/app/actions/admin/sweep-titles";
 
 import { EmptyState } from "@/components/common/empty-state";
@@ -131,6 +131,7 @@ export function AdminTitlesClient({
   const [savingId, setSavingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [sweeping, setSweeping] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const loadTitles = useCallback(async () => {
     setLoading(true);
@@ -202,6 +203,23 @@ export function AdminTitlesClient({
     }
     await loadTitles();
     setSavingId(null);
+  };
+
+  const toggleUseYn = async (ttlId: string, currentUseYn: boolean) => {
+    setTogglingId(ttlId);
+    const result = await toggleTitleUseYn(ttlId, !currentUseYn);
+    if (result.ok) {
+      setRows((prev) =>
+        prev.map((r) => r.ttl_id === ttlId ? { ...r, use_yn: !currentUseYn } : r)
+      );
+      setForms((prev) => ({
+        ...prev,
+        [ttlId]: { ...prev[ttlId], useYn: (!currentUseYn ? "true" : "false") },
+      }));
+    } else {
+      alert(result.message ?? "저장에 실패했습니다");
+    }
+    setTogglingId(null);
   };
 
   const createRow = async () => {
@@ -305,6 +323,7 @@ export function AdminTitlesClient({
                   <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">희귀도</th>
                   <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">그룹</th>
                   <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">이벤트</th>
+                  <th className="w-14 px-2 py-1.5 text-center font-medium text-muted-foreground">잠금</th>
                 </tr>
               </thead>
               <tbody>
@@ -325,7 +344,7 @@ export function AdminTitlesClient({
                       onClick={() => setSelectedId(row.ttl_id)}
                       className={`cursor-pointer border-b transition-colors hover:bg-muted/30 ${
                         active ? "bg-primary/5" : ""
-                      }`}
+                      } ${!row.use_yn ? "opacity-40" : ""}`}
                     >
                       <td className="truncate px-2 py-1.5 text-center font-medium text-foreground">{row.ttl_nm}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_kind_enm === "auto" ? "자동" : "수여"}</td>
@@ -336,6 +355,19 @@ export function AdminTitlesClient({
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.rarity_level ?? 1}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_group_cd ?? "-"}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_ctgr_cd === "event" ? "✓" : ""}</td>
+                      <td className="px-2 py-1.5 text-center" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => void toggleUseYn(row.ttl_id, row.use_yn)}
+                          disabled={togglingId === row.ttl_id}
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
+                            row.use_yn
+                              ? "bg-success/10 text-success hover:bg-success/20"
+                              : "bg-destructive/10 text-destructive hover:bg-destructive/20"
+                          }`}
+                        >
+                          {togglingId === row.ttl_id ? "..." : row.use_yn ? "해제" : "잠금"}
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}

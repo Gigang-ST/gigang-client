@@ -194,3 +194,22 @@ export async function updateTitle(ttlId: string, payload: TitlePayload) {
     };
   }
 }
+
+export async function toggleTitleUseYn(ttlId: string, useYn: boolean) {
+  const admin = await verifyAdmin();
+  if (!admin) return { ok: false, message: "권한이 없습니다" };
+
+  const { teamId } = await getRequestTeamContext();
+  const db = createAdminClient();
+
+  const { error } = await db
+    .from("ttl_mst")
+    .update({ use_yn: useYn, upd_by: admin.id })
+    .eq("ttl_id", ttlId)
+    .eq("team_id", teamId)
+    .eq("vers", 0)
+    .eq("del_yn", false);
+
+  if (error) return { ok: false, message: "저장에 실패했습니다" };
+  return { ok: true, message: null };
+}

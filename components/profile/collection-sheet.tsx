@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 
-import { Check, X } from "lucide-react";
+import { Check, Lock, X } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -324,7 +324,7 @@ export function CollectionSheet({
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-semibold tracking-widest text-muted-foreground">일반</span>
                       <span className="text-[11px] text-muted-foreground">
-                        {regularTitles.filter((t) => ownedTitleIds.has(t.ttl_id)).length} / {regularTitles.length}
+                        획득 {regularTitles.filter((t) => ownedTitleIds.has(t.ttl_id)).length} / {regularTitles.length}
                       </span>
                     </div>
                     {descTitle?.ttl_desc && (
@@ -361,12 +361,21 @@ export function CollectionSheet({
                               blocked && isPreviewing && "border-primary/40 bg-muted text-muted-foreground opacity-65",
                               // 보유 + 차단 (흐림)
                               blocked && !isPreviewing && "border-border bg-muted text-muted-foreground opacity-50",
-                              // 미보유 (매우 흐림)
-                              !owned && "border-border bg-muted text-muted-foreground opacity-25 cursor-default",
+                              // 미보유 마스킹
+                              !owned && "border-dashed border-border/50 bg-muted/50 text-muted-foreground/40 cursor-default select-none",
                             )}
                           >
-                            {owned ? t.ttl_nm : "???"}
-                            {isSelected && <Check className="size-3" />}
+                            {owned ? (
+                              <>
+                                {t.ttl_nm}
+                                {isSelected && <Check className="size-3" />}
+                              </>
+                            ) : (
+                              <>
+                                <Lock className="size-2.5 shrink-0" />
+                                <span className="blur-[2px]">{t.ttl_nm}</span>
+                              </>
+                            )}
                           </button>
                         );
                       })}
