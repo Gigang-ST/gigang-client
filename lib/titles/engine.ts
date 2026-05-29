@@ -231,7 +231,6 @@ export async function sweepEvaluateAndGrant(
     team_id: string;
     team_mem_id: string;
     ttl_id: string;
-    pt_chg_rsn_cd: string;
     grnt_rsn_txt: string;
     is_prmy_yn: boolean;
     vers: number;
@@ -279,7 +278,6 @@ export async function sweepEvaluateAndGrant(
         team_id: teamId,
         team_mem_id: snapshot.teamMemId,
         ttl_id: title.ttl_id,
-        pt_chg_rsn_cd: "initial_grant",
         grnt_rsn_txt: "자동수여 (trigger=manual_sweep)",
         is_prmy_yn: false,
         vers: 0,
@@ -293,7 +291,7 @@ export async function sweepEvaluateAndGrant(
     const revokeIds = toRevoke.map((r) => r.mem_ttl_id);
     await db
       .from("mem_ttl_rel")
-      .update({ del_yn: true, pt_chg_rsn_cd: "auto_revoke" })
+      .update({ del_yn: true })
       .in("mem_ttl_id", revokeIds)
       .eq("del_yn", false);
     console.info(`[sweep] 칭호 자동 회수 ${toRevoke.length}건`);
