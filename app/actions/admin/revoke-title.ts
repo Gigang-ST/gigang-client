@@ -22,7 +22,7 @@ export async function revokeTitle(memTtlId: string) {
   // 회수: vers+1 + del_yn=true — vers=0 슬롯을 비워야 재수여 시 UNIQUE 충돌이 없다
   const { data: updated, error } = await db
     .from("mem_ttl_rel")
-    .update({ del_yn: true, vers: row.vers + 1, pt_chg_rsn_cd: "revoke" })
+    .update({ del_yn: true, vers: row.vers + 1 })
     .eq("mem_ttl_id", memTtlId)
     .eq("vers", row.vers)
     .eq("del_yn", false)

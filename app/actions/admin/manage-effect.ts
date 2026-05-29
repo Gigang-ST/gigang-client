@@ -20,3 +20,17 @@ export async function updateEffectLevel(effectCd: string, rarityLevel: number) {
   if (error) return { ok: false, message: "저장에 실패했습니다" };
   return { ok: true, message: null };
 }
+
+export async function toggleEffectUseYn(effectCd: string, useYn: boolean) {
+  const admin = await verifyAdmin();
+  if (!admin) return { ok: false, message: "권한이 없습니다" };
+
+  const db = createAdminClient();
+  const { error } = await db
+    .from("effect_mst")
+    .update({ use_yn: useYn })
+    .eq("effect_cd", effectCd);
+
+  if (error) return { ok: false, message: "저장에 실패했습니다" };
+  return { ok: true, message: null };
+}

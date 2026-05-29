@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { updateEffectLevel } from "@/app/actions/admin/manage-effect";
+import { toggleEffectUseYn, updateEffectLevel } from "@/app/actions/admin/manage-effect";
 
 // 배지 이펙트 CSS 클래스 매핑
 const BADGE_CSS: Record<string, string> = {
@@ -112,6 +112,7 @@ export function AdminEffectsClient() {
   const [rows, setRows] = useState<EffectRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const [toggling, setToggling] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<"all" | "badge" | "frame">("all");
 
   const load = useCallback(async () => {
@@ -140,6 +141,19 @@ export function AdminEffectsClient() {
       alert(result.message ?? "저장에 실패했습니다");
     }
     setSaving(null);
+  };
+
+  const toggleUseYn = async (effectCd: string, currentUseYn: boolean) => {
+    setToggling(effectCd);
+    const result = await toggleEffectUseYn(effectCd, !currentUseYn);
+    if (result.ok) {
+      setRows((prev) =>
+        prev.map((r) => r.effect_cd === effectCd ? { ...r, use_yn: !currentUseYn } : r)
+      );
+    } else {
+      alert(result.message ?? "저장에 실패했습니다");
+    }
+    setToggling(null);
   };
 
   const filtered = typeFilter === "all" ? rows : rows.filter((r) => r.effect_type === typeFilter);
@@ -191,17 +205,18 @@ export function AdminEffectsClient() {
                       <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">코드</th>
                       <th className="w-32 px-3 py-1.5 text-center font-medium text-muted-foreground">미리보기</th>
                       <th className="w-28 px-3 py-1.5 text-center font-medium text-muted-foreground">등급</th>
+                      <th className="w-16 px-3 py-1.5 text-center font-medium text-muted-foreground">사용</th>
                     </tr>
                   </thead>
                   <tbody>
                     {badgeRows.map((row) => {
                       const cls = BADGE_CSS[row.effect_cd] ?? "";
                       return (
-                      <tr key={row.effect_cd} className="border-b last:border-0 hover:bg-muted/20">
+                      <tr key={row.effect_cd} className={cn("border-b last:border-0 hover:bg-muted/20", !row.use_yn && "opacity-40")}>
                         <td className="px-3 py-1.5 font-medium text-foreground">{row.effect_nm}</td>
                         <td className="px-3 py-1.5 font-mono text-[10px] text-muted-foreground">{row.effect_cd}</td>
                         <td className="px-3 py-1.5 text-center">
-                          <span className={cn("inline-flex items-center rounded-full border bg-zinc-900 px-2 py-0.5 text-[11px] font-medium", BADGE_BORDER[row.effect_cd] ?? "border-zinc-700 text-zinc-300")}>
+                          <span className={cn("inline-flex items-center rounded-full border bg-zinc-900 dark:bg-transparent px-2 py-0.5 text-[11px] font-medium", BADGE_BORDER[row.effect_cd] ?? "border-zinc-700 text-zinc-300")}>
                             {row.effect_cd === "glitch"
                               ? <span className={cn("inline-block", cls)} data-text="미리보기">미리보기</span>
                               : cls
@@ -228,6 +243,20 @@ export function AdminEffectsClient() {
                             </SelectContent>
                           </Select>
                         </td>
+                        <td className="px-3 py-1.5 text-center">
+                          <button
+                            onClick={() => void toggleUseYn(row.effect_cd, row.use_yn)}
+                            disabled={toggling === row.effect_cd}
+                            className={cn(
+                              "rounded-md px-2 py-1 text-[10px] font-medium transition-colors",
+                              row.use_yn
+                                ? "bg-success/10 text-success hover:bg-success/20"
+                                : "bg-destructive/10 text-destructive hover:bg-destructive/20"
+                            )}
+                          >
+                            {toggling === row.effect_cd ? "..." : row.use_yn ? "사용" : "잠금"}
+                          </button>
+                        </td>
                       </tr>
                     )})}
                   </tbody>
@@ -250,13 +279,14 @@ export function AdminEffectsClient() {
                       <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">코드</th>
                       <th className="w-48 px-3 py-1.5 text-center font-medium text-muted-foreground">미리보기</th>
                       <th className="w-28 px-3 py-1.5 text-center font-medium text-muted-foreground">등급</th>
+                      <th className="w-16 px-3 py-1.5 text-center font-medium text-muted-foreground">사용</th>
                     </tr>
                   </thead>
                   <tbody>
                     {frameRows.map((row) => {
                       const cls = FRAME_CSS[row.effect_cd] ?? "";
                       return (
-                      <tr key={row.effect_cd} className="border-b last:border-0 hover:bg-muted/20">
+                      <tr key={row.effect_cd} className={cn("border-b last:border-0 hover:bg-muted/20", !row.use_yn && "opacity-40")}>
                         <td className="px-3 py-1.5 font-medium text-foreground">{row.effect_nm}</td>
                         <td className="px-3 py-1.5 font-mono text-[10px] text-muted-foreground">{row.effect_cd}</td>
                         <td className="px-3 py-2">
@@ -281,6 +311,20 @@ export function AdminEffectsClient() {
                               ))}
                             </SelectContent>
                           </Select>
+                        </td>
+                        <td className="px-3 py-1.5 text-center">
+                          <button
+                            onClick={() => void toggleUseYn(row.effect_cd, row.use_yn)}
+                            disabled={toggling === row.effect_cd}
+                            className={cn(
+                              "rounded-md px-2 py-1 text-[10px] font-medium transition-colors",
+                              row.use_yn
+                                ? "bg-success/10 text-success hover:bg-success/20"
+                                : "bg-destructive/10 text-destructive hover:bg-destructive/20"
+                            )}
+                          >
+                            {toggling === row.effect_cd ? "..." : row.use_yn ? "사용" : "잠금"}
+                          </button>
                         </td>
                       </tr>
                     )})}

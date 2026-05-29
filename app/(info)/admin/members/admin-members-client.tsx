@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { grantTitle } from "@/app/actions/admin/grant-title";
 import {
@@ -301,7 +301,7 @@ function TitleSection({
 // 메인 컴포넌트
 // ---------------------------------------------------------------------------
 
-export function AdminMembersClient({ teamId }: { teamId: string }) {
+export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: string; initialTeamMemId?: string }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -355,6 +355,17 @@ export function AdminMembersClient({ teamId }: { teamId: string }) {
   useEffect(() => {
     loadMembers();
   }, [loadMembers]);
+
+  // initialTeamMemId가 있으면 최초 1회만 자동 선택
+  const initialSelectDone = useRef(false);
+  useEffect(() => {
+    if (!initialTeamMemId || loading || initialSelectDone.current) return;
+    const found = members.find((m) => m.team_mem_id === initialTeamMemId);
+    if (found) {
+      setSelectedMember(found);
+      initialSelectDone.current = true;
+    }
+  }, [initialTeamMemId, loading, members]);
 
   const filtered = members.filter((m) => {
     if (!search) return true;
