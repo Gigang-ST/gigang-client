@@ -208,7 +208,7 @@ export async function sweepEvaluateAndGrant(
   // 2. 팀의 auto 칭호 전체 조회 (1번 — 멤버 수와 무관)
   const { data: allTitles } = await db
     .from("ttl_mst")
-    .select("ttl_id, ttl_nm, base_pt, cond_rule_json")
+    .select("ttl_id, ttl_nm, cond_rule_json")
     .eq("team_id", teamId)
     .eq("ttl_kind_enm", "auto")
     .eq("use_yn", true)
@@ -231,8 +231,6 @@ export async function sweepEvaluateAndGrant(
     team_id: string;
     team_mem_id: string;
     ttl_id: string;
-    grnt_pt: number;
-    aply_pt: number;
     pt_chg_rsn_cd: string;
     grnt_rsn_txt: string;
     is_prmy_yn: boolean;
@@ -281,8 +279,6 @@ export async function sweepEvaluateAndGrant(
         team_id: teamId,
         team_mem_id: snapshot.teamMemId,
         ttl_id: title.ttl_id,
-        grnt_pt: title.base_pt,
-        aply_pt: title.base_pt,
         pt_chg_rsn_cd: "initial_grant",
         grnt_rsn_txt: "자동수여 (trigger=manual_sweep)",
         is_prmy_yn: false,

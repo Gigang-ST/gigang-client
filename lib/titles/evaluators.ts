@@ -582,6 +582,19 @@ export function evaluateConditionFromSnapshot(
     case "race_pb_faster_than_member":
       return evalRacePbFasterThanMemberFromSnapshot(rule, snapshot, allSnapshots);
 
+    // 아래 조건들은 snapshot에 필요한 데이터가 없어 DB 조회가 필요 — sweep 시 false 처리
+    case "joined_on_date":
+    case "race_finish_in_month_range":
+    case "race_finish_all_titles":
+    case "race_finish_all_of":
+    case "race_finish_total":
+    case "race_finish_in_year":
+    case "race_rank_by_gender":
+    case "race_rank_last":
+    case "race_pb_within_sec_of_target":
+    case "has_title_in_categories":
+      return false;
+
     default:
       rule satisfies never;
       return false;
