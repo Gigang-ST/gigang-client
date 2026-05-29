@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import Link from "next/link";
+
 import { Plus, RefreshCw, Save } from "lucide-react";
 
 import { formatKSTDateTime } from "@/lib/dayjs";
@@ -28,6 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 type GrantRow = {
   mem_ttl_id: string;
+  team_mem_id: string;
   grnt_at: string;
   grnt_by_mem_id: string | null;
   grnt_rsn_txt: string | null;
@@ -422,6 +425,7 @@ function TitleGrantList({ ttlId }: { ttlId: string }) {
       .from("mem_ttl_rel")
       .select(`
         mem_ttl_id,
+        team_mem_id,
         grnt_at,
         grnt_by_mem_id,
         grnt_rsn_txt,
@@ -480,7 +484,12 @@ function TitleGrantList({ ttlId }: { ttlId: string }) {
                 {grants.map((grant) => (
                   <tr key={grant.mem_ttl_id} className="border-b last:border-0">
                     <td className="px-2 py-1.5 text-center font-medium text-foreground">
-                      {grant.team_mem_rel.mem_mst.mem_nm}
+                      <Link
+                        href={`/admin/members?member=${grant.team_mem_id}`}
+                        className="hover:text-primary hover:underline"
+                      >
+                        {grant.team_mem_rel.mem_mst.mem_nm}
+                      </Link>
                     </td>
                     <td className="px-2 py-1.5 text-center text-muted-foreground">
                       {formatKSTDateTime(grant.grnt_at).slice(0, 10)}

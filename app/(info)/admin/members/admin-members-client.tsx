@@ -301,7 +301,7 @@ function TitleSection({
 // 메인 컴포넌트
 // ---------------------------------------------------------------------------
 
-export function AdminMembersClient({ teamId }: { teamId: string }) {
+export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: string; initialTeamMemId?: string }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -355,6 +355,13 @@ export function AdminMembersClient({ teamId }: { teamId: string }) {
   useEffect(() => {
     loadMembers();
   }, [loadMembers]);
+
+  // initialTeamMemId가 있으면 멤버 로드 후 자동 선택
+  useEffect(() => {
+    if (!initialTeamMemId || loading) return;
+    const found = members.find((m) => m.team_mem_id === initialTeamMemId);
+    if (found) setSelectedMember(found);
+  }, [initialTeamMemId, loading, members]);
 
   const filtered = members.filter((m) => {
     if (!search) return true;
