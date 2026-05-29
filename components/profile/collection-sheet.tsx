@@ -446,10 +446,10 @@ export function CollectionSheet({
                       <span className="text-[10px] font-semibold tracking-widest text-muted-foreground">
                         잠김 ({lockedBadges.length}종)
                       </span>
-                      <div className="flex flex-wrap gap-2 opacity-30">
+                      <div className="flex flex-wrap gap-2">
                         {lockedBadges.map((e) => (
-                          <span key={e.effect_cd} className="rounded-full border border-border bg-secondary px-3 py-1.5 text-xs text-muted-foreground">
-                            🔒 {e.effect_nm}
+                          <span key={e.effect_cd} className="cursor-default opacity-40">
+                            <BadgePreview effectCd={e.effect_cd} name={previewName} />
                           </span>
                         ))}
                       </div>
@@ -495,13 +495,17 @@ export function CollectionSheet({
                       <span className="text-[10px] font-semibold tracking-widest text-muted-foreground">
                         잠김 ({lockedFrames.length}종)
                       </span>
-                      <div className="grid grid-cols-2 gap-2 opacity-30">
+                      <div className="grid grid-cols-2 gap-2">
                         {lockedFrames.map((e) => {
                           const frameCls = FRAME_CSS[e.effect_cd] ?? "";
                           return (
-                            <div key={e.effect_cd} className={cn("flex h-16 items-center justify-center rounded-2xl border bg-card", frameCls || "border-border")}>
-                              <span className="text-base">🔒</span>
-                            </div>
+                            <div
+                              key={e.effect_cd}
+                              className={cn(
+                                "flex h-16 items-center justify-center rounded-2xl border bg-card opacity-40",
+                                frameCls || "border-border"
+                              )}
+                            />
                           );
                         })}
                       </div>
