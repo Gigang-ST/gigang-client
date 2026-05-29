@@ -1,5 +1,6 @@
 "use server";
 
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -172,7 +173,7 @@ export async function onboardingCreateMember(args: {
     }
   }
 
-  // 가입 직후 칭호 평가 (뉴비, 7월7일 등 가입 시점 기반)
+  // 가입 직후 칭호 평가 (뉴비, 7월7일 등 가입 시점 기반) — 응답 완료 후 실행
   const { data: relRow } = await admin
     .from("team_mem_rel")
     .select("team_mem_id")
@@ -183,8 +184,11 @@ export async function onboardingCreateMember(args: {
     .maybeSingle();
 
   if (relRow?.team_mem_id) {
-    evaluateAndGrantTitles({ trigger: "attendance", teamId, teamMemId: relRow.team_mem_id })
-      .catch((e) => console.error("[title-engine] 온보딩 attendance 평가 실패", e));
+    const { teamMemId } = { teamMemId: relRow.team_mem_id };
+    after(() =>
+      evaluateAndGrantTitles({ trigger: "attendance", teamId, teamMemId })
+        .catch((e) => console.error("[title-engine] 온보딩 attendance 평가 실패", e))
+    );
   }
 
   return { ok: true };

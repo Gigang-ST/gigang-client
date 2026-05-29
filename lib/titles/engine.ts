@@ -102,9 +102,20 @@ export async function evaluateAndGrantTitles(
       }
 
       if (!passed) {
+        // 현재 최대 vers를 기준으로 다음 vers 계산 — 재부여/재회수 반복 시 충돌 방지
+        const { data: maxVersRow } = await db
+          .from("mem_ttl_rel")
+          .select("vers")
+          .eq("team_mem_id", ctx.teamMemId)
+          .eq("ttl_id", held.ttl_id)
+          .order("vers", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const nextVers = (maxVersRow?.vers ?? 0) + 1;
+
         const { error } = await db
           .from("mem_ttl_rel")
-          .update({ del_yn: true, vers: held.vers + 1 })
+          .update({ del_yn: true, vers: nextVers })
           .eq("mem_ttl_id", held.mem_ttl_id)
           .eq("vers", held.vers)
           .eq("del_yn", false);

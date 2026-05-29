@@ -8,8 +8,16 @@
  * 새 CondRule 타입을 추가하면 evaluateCondition() switch 에 케이스를 추가한다.
  */
 
-import type { Database } from "@/lib/supabase/database.types";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const KST = "Asia/Seoul";
+
+import type { Database } from "@/lib/supabase/database.types";
 import type {
   CondRule,
   TitleEvalContext,
@@ -43,7 +51,6 @@ export async function evalRacePbUnderSecInternal(
   memId: string,
   db: DB,
 ): Promise<boolean> {
-  // sport_ctgr 조건을 limit(1) 이전에 쿼리 레벨에서 적용해 올바른 PB를 조회
   let query = db
     .from("rec_race_hist")
     .select("rec_time_sec, comp_evt_cfg!inner(comp_evt_type), comp_mst!inner(comp_sprt_cd)")
@@ -67,8 +74,6 @@ export async function evalRaceFinishCountInternal(
   memId: string,
   db: DB,
 ): Promise<boolean> {
-  // rec_race_hist.comp_id → comp_mst (평행 조인, 중첩 아님)
-  // rec_race_hist.comp_evt_id → comp_evt_cfg
   const { data } = await db
     .from("rec_race_hist")
     .select("race_result_id, comp_evt_cfg!inner(comp_evt_type), comp_mst!inner(comp_sprt_cd)")
@@ -98,8 +103,6 @@ export async function evalMileageRunCompleteInternal(
   db: DB,
 ): Promise<boolean> {
   // TODO: 마일리지런 완주 판정 로직은 실제 스키마 확정 후 구현한다.
-  // 현재 evt_team_prt_rel, evt_mlg_act_hist 등 테이블 구조 파악이 필요하다.
-  // 참고: app/actions/mileage-run.ts
   void rule; void teamMemId; void db;
   return false;
 }
@@ -109,8 +112,6 @@ export async function evalAttendanceCountInternal(
   memId: string,
   db: DB,
 ): Promise<boolean> {
-  // 기록 등록 횟수를 출석 지표로 사용한다.
-  // 추후 별도 출석 테이블이 생기면 이 함수만 교체하면 된다.
   const { count } = await db
     .from("rec_race_hist")
     .select("*", { count: "exact", head: true })
@@ -136,9 +137,7 @@ export async function evalMembershipDaysInternal(
 
   if (!data?.join_dt) return false;
 
-  const joinDate = new Date(data.join_dt);
-  const now = new Date();
-  const diffDays = Math.floor((now.getTime() - joinDate.getTime()) / (1000 * 60 * 60 * 24));
+  const diffDays = dayjs().tz(KST).diff(dayjs(data.join_dt).tz(KST), "day");
   return diffDays >= rule.days;
 }
 
@@ -147,7 +146,6 @@ export async function evalRacePbFasterThanMemberInternal(
   memId: string,
   db: DB,
 ): Promise<boolean> {
-  // 본인이 비교 대상이면 항상 false
   if (memId === rule.target_mem_id) return false;
 
   const sport = rule.sport.toUpperCase();
@@ -193,8 +191,8 @@ export async function evalJoinedOnDateInternal(
 
   if (!data?.join_dt) return false;
 
-  const joinDate = new Date(data.join_dt);
-  return joinDate.getMonth() + 1 === rule.month && joinDate.getDate() === rule.day;
+  const joinKST = dayjs(data.join_dt).tz(KST);
+  return joinKST.month() + 1 === rule.month && joinKST.date() === rule.day;
 }
 
 /** 특정 월 범위 내에 대회를 완주한 적 있는 경우 */
@@ -220,7 +218,7 @@ export async function evalRaceFinishInMonthRangeInternal(
     const evtType = (evtCfg as { comp_evt_type?: string } | null)?.comp_evt_type?.toUpperCase() ?? "";
 
     if (!compDate) return false;
-    const month = new Date(compDate).getMonth() + 1;
+    const month = dayjs(compDate).tz(KST).month() + 1;
     const monthMatch = rule.months.includes(month);
     const typeMatch = !rule.sport || evtType === rule.sport.toUpperCase();
     const ctgrMatch = !rule.sport_ctgr || sprtCd === rule.sport_ctgr;
@@ -305,7 +303,7 @@ export async function evalRaceFinishInYearInternal(
   memId: string,
   db: DB,
 ): Promise<boolean> {
-  const year = rule.year ?? new Date().getFullYear();
+  const year = rule.year ?? dayjs().tz(KST).year();
   const from = `${year}-01-01`;
   const to = `${year}-12-31`;
 
@@ -337,19 +335,28 @@ export async function evalRaceRankByGenderInternal(
   teamId: string,
   db: DB,
 ): Promise<boolean> {
-  const sport = rule.sport.toUpperCase();
+  const sport = rule.sport?.toUpperCase();
 
-  // 팀 전체 멤버의 해당 종목 PB 조회
+  // 팀 소속 mem_id 목록 조회 — 팀 외 멤버 PB가 섞이지 않도록 필터
+  const { data: teamMembers } = await db
+    .from("team_mem_rel")
+    .select("mem_id")
+    .eq("team_id", teamId)
+    .eq("vers", 0)
+    .eq("del_yn", false);
+
+  if (!teamMembers?.length) return false;
+  const teamMemIds = teamMembers.map((r) => r.mem_id);
+
   let query = db
     .from("rec_race_hist")
     .select("mem_id, rec_time_sec, comp_evt_cfg!inner(comp_evt_type), comp_mst!inner(comp_sprt_cd), mem_mst!inner(gdr_enm)")
+    .in("mem_id", teamMemIds)
     .eq("del_yn", false)
-    .eq("vers", 0)
-    .eq("comp_evt_cfg.comp_evt_type", sport);
+    .eq("vers", 0);
 
-  if (rule.sport_ctgr) {
-    query = query.eq("comp_mst.comp_sprt_cd", rule.sport_ctgr);
-  }
+  if (sport) query = query.eq("comp_evt_cfg.comp_evt_type", sport);
+  if (rule.sport_ctgr) query = query.eq("comp_mst.comp_sprt_cd", rule.sport_ctgr);
 
   const { data } = await query;
   if (!data) return false;
@@ -365,8 +372,7 @@ export async function evalRaceRankByGenderInternal(
     }
   }
 
-  const myPb = pbMap.get(memId);
-  if (!myPb) return false;
+  if (!pbMap.has(memId)) return false;
 
   const checkGender = (gender: string) => {
     const filtered = [...pbMap.entries()]
@@ -402,7 +408,7 @@ export async function evalRaceRankLastInternal(
         sport,
         sport_ctgr: rule.sport_ctgr,
         gender: rule.gender,
-        rank: -1, // 꼴찌 특수값
+        rank: -1,
       },
       memId,
       teamId,
@@ -470,11 +476,6 @@ export async function evalHasTitleInCategoriesInternal(
 // 공개 진입점 — engine.ts 에서 호출
 // ---------------------------------------------------------------------------
 
-/**
- * CondRule 하나를 평가한다.
- * engine.ts 가 TRIGGER_COND_MAP 필터링과 team_mem_id → mem_id 변환을 완료한 뒤 호출한다.
- * 각 평가 함수는 ctx(트리거 종류)에 의존하지 않는다.
- */
 export async function evaluateCondition(
   rule: CondRule,
   ctx: TitleEvalContext,
@@ -531,7 +532,6 @@ export async function evaluateCondition(
       return evalHasTitleInCategoriesInternal(rule, ctx.teamMemId, ctx.teamId, db);
 
     default:
-      // 타입 exhaustiveness 체크 — 새 CondRule 타입 추가 시 컴파일 에러로 알려준다
       rule satisfies never;
       return false;
   }

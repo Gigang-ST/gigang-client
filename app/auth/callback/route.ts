@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
@@ -65,7 +65,7 @@ export async function GET(request: Request) {
           )
           .maybeSingle();
 
-        let hasTeamRel = false;
+        let teamMemId: string | null = null;
         if (mst?.mem_id) {
           const { data: rel } = await admin
             .from("team_mem_rel")
@@ -75,28 +75,21 @@ export async function GET(request: Request) {
             .eq("vers", 0)
             .eq("del_yn", false)
             .maybeSingle();
-          hasTeamRel = Boolean(rel);
+          teamMemId = rel?.team_mem_id ?? null;
         }
 
-        const isMember = Boolean(mst?.mem_id) && hasTeamRel;
+        const isMember = Boolean(mst?.mem_id) && Boolean(teamMemId);
         if (!isMember) {
           const afterOnboarding = resolvedNext === "/onboarding" ? "/" : resolvedNext;
           resolvedNext = `/onboarding?next=${encodeURIComponent(afterOnboarding)}`;
-        } else if (mst?.mem_id) {
-          // 로그인 시점 칭호 평가 (1년차, 고인물, 화석, 런린이 등 시간 기반)
-          const { data: relRow } = await admin
-            .from("team_mem_rel")
-            .select("team_mem_id")
-            .eq("mem_id", mst.mem_id)
-            .eq("team_id", teamId)
-            .eq("vers", 0)
-            .eq("del_yn", false)
-            .maybeSingle();
-
-          if (relRow?.team_mem_id) {
-            evaluateAndGrantTitles({ trigger: "attendance", teamId, teamMemId: relRow.team_mem_id })
-              .catch((e) => console.error("[title-engine] 로그인 attendance 평가 실패", e));
-          }
+        } else if (teamMemId) {
+          // 로그인 시점 칭호 평가 (1년차, 고인물, 화석, 런린이 등 시간 기반) — 응답 완료 후 실행
+          const tid = teamId;
+          const tmid = teamMemId;
+          after(() =>
+            evaluateAndGrantTitles({ trigger: "attendance", teamId: tid, teamMemId: tmid })
+              .catch((e) => console.error("[title-engine] 로그인 attendance 평가 실패", e))
+          );
         }
       }
 

@@ -210,7 +210,7 @@ export function CollectionSheet({
 
   // 칭호 분리
   const regularTitles = allTitles.filter((t) => t.ttl_ctgr_cd !== "event");
-  const eventTitles = allTitles.filter((t) => t.ttl_ctgr_cd === "event");
+  const eventTitles = allTitles.filter((t) => t.ttl_ctgr_cd === "event" && t.use_yn);
 
   // 그룹별 보유 최고 rarity — 같은 ttl_group_cd 내 최고 rarity만 선택 가능
   // ttl_group_cd가 NULL이면 독립 선택 (기강킹, 수여 칭호 등)

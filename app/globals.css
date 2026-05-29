@@ -154,12 +154,12 @@
 
 @keyframes title-neon-pulse {
   0%, 100% {
-    text-shadow: 0 0 4px currentColor, 0 0 10px currentColor, 0 0 20px currentColor;
-    box-shadow: 0 0 4px currentColor;
+    text-shadow: 0 0 4px currentcolor, 0 0 10px currentcolor, 0 0 20px currentcolor;
+    box-shadow: 0 0 4px currentcolor;
   }
   50% {
-    text-shadow: 0 0 2px currentColor, 0 0 6px currentColor;
-    box-shadow: 0 0 2px currentColor;
+    text-shadow: 0 0 2px currentcolor, 0 0 6px currentcolor;
+    box-shadow: 0 0 2px currentcolor;
   }
 }
 
@@ -248,7 +248,7 @@
   top: -1px;
   font-size: 7px;
   line-height: 1;
-  color: currentColor;
+  color: currentcolor;
   pointer-events: none;
 }
 
@@ -308,7 +308,7 @@
   font-size: 0.7em;
   animation: title-dot-blink 3s ease-in-out infinite;
   display: inline-block;
-  color: currentColor;
+  color: currentcolor;
 }
 .title-effect-dot-blink {
   color: #94a3b8;
@@ -317,7 +317,7 @@
 /* underline-fade — 아래 선이 페이드인아웃 (Uncommon용) */
 @keyframes title-underline-fade {
   0%, 100% { text-decoration-color: transparent; }
-  50%       { text-decoration-color: currentColor; }
+  50%       { text-decoration-color: currentcolor; }
 }
 .title-effect-underline-fade {
   text-decoration: underline;
@@ -449,11 +449,11 @@
 .title-effect-flare {
   background: linear-gradient(
     100deg,
-    currentColor 0%,
-    currentColor 35%,
+    currentcolor 0%,
+    currentcolor 35%,
     #ffffff 50%,
-    currentColor 65%,
-    currentColor 100%
+    currentcolor 65%,
+    currentcolor 100%
   );
   background-size: 200% 100%;
   -webkit-background-clip: text;
@@ -875,8 +875,8 @@
 
 /* zoom — 0~18% 동작, 나머지 휴지 (총 4s) */
 @keyframes title-zoom {
-  0%, 18%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px currentColor); }
-  9%            { transform: scale(1.18); filter: drop-shadow(0 0 8px currentColor) drop-shadow(0 0 16px currentColor); }
+  0%, 18%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px currentcolor); }
+  9%            { transform: scale(1.18); filter: drop-shadow(0 0 8px currentcolor) drop-shadow(0 0 16px currentcolor); }
 }
 .title-effect-zoom {
   display: inline-block;
@@ -905,7 +905,7 @@
 
 /* typewriter */
 @keyframes title-type-cursor {
-  0%, 49%   { border-right-color: currentColor; }
+  0%, 49%   { border-right-color: currentcolor; }
   50%, 100% { border-right-color: transparent; }
 }
 .title-effect-typewriter {
@@ -932,8 +932,8 @@
 /* ── 이름 glow ───────────────────────────────────────────────────── */
 
 @keyframes name-glow-pulse {
-  0%, 100% { text-shadow: 0 0 4px currentColor, 0 0 8px currentColor; }
-  50%       { text-shadow: 0 0 2px currentColor, 0 0 4px currentColor; }
+  0%, 100% { text-shadow: 0 0 4px currentcolor, 0 0 8px currentcolor; }
+  50%       { text-shadow: 0 0 2px currentcolor, 0 0 4px currentcolor; }
 }
 .name-glow {
   animation: name-glow-pulse 4s ease-in-out infinite;

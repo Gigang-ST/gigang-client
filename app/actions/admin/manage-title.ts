@@ -196,14 +196,16 @@ export async function toggleTitleUseYn(ttlId: string, useYn: boolean) {
   const { teamId } = await getRequestTeamContext();
   const db = createAdminClient();
 
-  const { error } = await db
+  const { data, error } = await db
     .from("ttl_mst")
     .update({ use_yn: useYn, upd_by: admin.id })
     .eq("ttl_id", ttlId)
     .eq("team_id", teamId)
     .eq("vers", 0)
-    .eq("del_yn", false);
+    .eq("del_yn", false)
+    .select("ttl_id");
 
   if (error) return { ok: false, message: "저장에 실패했습니다" };
+  if (!data?.length) return { ok: false, message: "대상 칭호를 찾을 수 없습니다" };
   return { ok: true, message: null };
 }
