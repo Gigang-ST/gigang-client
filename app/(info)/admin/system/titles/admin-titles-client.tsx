@@ -11,7 +11,7 @@ import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { cmmCdRowsForGrp } from "@/lib/queries/cmm-cd-cached";
 import { createClient } from "@/lib/supabase/client";
 
-import { createTitle, toggleTitleUseYn, updateTitle } from "@/app/actions/admin/manage-title";
+import { createTitle, grantTitle, revokeTitle, toggleTitleUseYn, updateTitle } from "@/app/actions/admin/manage-title";
 import { sweepAllTitles } from "@/app/actions/admin/sweep-titles";
 
 import { EmptyState } from "@/components/common/empty-state";
@@ -54,7 +54,11 @@ type TitleRow = {
   cond_rule_json: unknown | null;
   rarity_level: number;
   ttl_group_cd: number | null;
+  prmy_cnt: number;
 };
+
+type SortKey = "ttl_kind_enm" | "ttl_ctgr_cd" | "rarity_level" | "ttl_group_cd" | "event" | "prmy_cnt";
+type SortDir = "asc" | "desc";
 
 type TitleForm = {
   ttlNm: string;
@@ -120,6 +124,8 @@ export function AdminTitlesClient({
   const defaultCategory = categoryOptions[0]?.cd ?? "awarded";
 
   const [rows, setRows] = useState<TitleRow[]>([]);
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [forms, setForms] = useState<Record<string, TitleForm>>({});
   const [newForm, setNewForm] = useState<TitleForm>(() =>
     buildEmptyForm(defaultCategory),
@@ -138,15 +144,19 @@ export function AdminTitlesClient({
     const { data } = await supabase
       .from("ttl_mst")
       .select(
-        "ttl_id, ttl_nm, ttl_kind_enm, ttl_ctgr_cd, ttl_desc, sort_ord, use_yn, cond_rule_json, rarity_level, ttl_group_cd",
+        "ttl_id, ttl_nm, ttl_kind_enm, ttl_ctgr_cd, ttl_desc, sort_ord, use_yn, cond_rule_json, rarity_level, ttl_group_cd, mem_ttl_rel(ttl_id)",
       )
       .eq("team_id", teamId)
       .eq("vers", 0)
       .eq("del_yn", false)
+      .eq("mem_ttl_rel.is_prmy_yn", true)
+      .eq("mem_ttl_rel.del_yn", false)
       .order("sort_ord", { ascending: true })
       .order("rarity_level", { ascending: true });
 
-    const nextRows = (data ?? []) as unknown as TitleRow[];
+    const nextRows = ((data ?? []) as unknown as (Omit<TitleRow, "prmy_cnt"> & { mem_ttl_rel: { ttl_id: string }[] })[]).map(
+      (row) => ({ ...row, prmy_cnt: row.mem_ttl_rel?.length ?? 0 }),
+    ) as TitleRow[];
     setRows(nextRows);
     setForms(
       Object.fromEntries(nextRows.map((row) => [row.ttl_id, toForm(row)])),
@@ -236,6 +246,44 @@ export function AdminTitlesClient({
     setCreating(false);
   };
 
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows;
+    return [...rows].sort((a, b) => {
+      let av: string | number | boolean;
+      let bv: string | number | boolean;
+      if (sortKey === "event") {
+        av = a.ttl_ctgr_cd === "event" ? 1 : 0;
+        bv = b.ttl_ctgr_cd === "event" ? 1 : 0;
+      } else if (sortKey === "prmy_cnt") {
+        av = a.prmy_cnt;
+        bv = b.prmy_cnt;
+      } else if (sortKey === "ttl_group_cd") {
+        av = a.ttl_group_cd ?? -1;
+        bv = b.ttl_group_cd ?? -1;
+      } else {
+        av = a[sortKey] ?? "";
+        bv = b[sortKey] ?? "";
+      }
+      if (av < bv) return sortDir === "asc" ? -1 : 1;
+      if (av > bv) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [rows, sortKey, sortDir]);
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
+  const SortIcon = ({ k }: { k: SortKey }) => {
+    if (sortKey !== k) return <span className="ml-0.5 text-muted-foreground/40">↕</span>;
+    return <span className="ml-0.5 text-primary">{sortDir === "asc" ? "↑" : "↓"}</span>;
+  };
+
   const selectedRow = rows.find((row) => row.ttl_id === selectedId) ?? null;
   const selectedForm = selectedRow ? forms[selectedRow.ttl_id] ?? toForm(selectedRow) : null;
 
@@ -313,13 +361,32 @@ export function AdminTitlesClient({
               <thead className="bg-muted/40">
                 <tr className="border-b">
                   <th className="px-2 py-1.5 text-center font-medium text-muted-foreground">칭호명</th>
-                  <th className="w-10 px-2 py-1.5 text-center font-medium text-muted-foreground">유형</th>
-                  <th className="w-16 px-2 py-1.5 text-center font-medium text-muted-foreground">카테고리</th>
+                  <th
+                    className="w-10 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
+                    onClick={() => handleSort("ttl_kind_enm")}
+                  >유형<SortIcon k="ttl_kind_enm" /></th>
+                  <th
+                    className="w-16 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
+                    onClick={() => handleSort("ttl_ctgr_cd")}
+                  >카테고리<SortIcon k="ttl_ctgr_cd" /></th>
                   <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">정렬</th>
                   <th className="w-14 px-2 py-1.5 text-center font-medium text-muted-foreground">사용</th>
-                  <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">희귀도</th>
-                  <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">그룹</th>
-                  <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">이벤트</th>
+                  <th
+                    className="w-12 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
+                    onClick={() => handleSort("rarity_level")}
+                  >희귀도<SortIcon k="rarity_level" /></th>
+                  <th
+                    className="w-8 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
+                    onClick={() => handleSort("ttl_group_cd")}
+                  >그룹<SortIcon k="ttl_group_cd" /></th>
+                  <th
+                    className="w-12 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
+                    onClick={() => handleSort("event")}
+                  >이벤트<SortIcon k="event" /></th>
+                  <th
+                    className="w-10 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
+                    onClick={() => handleSort("prmy_cnt")}
+                  >대표<SortIcon k="prmy_cnt" /></th>
                 </tr>
               </thead>
               <tbody>
@@ -332,7 +399,7 @@ export function AdminTitlesClient({
                       등록된 칭호가 없습니다.
                     </td>
                   </tr>
-                ) : rows.map((row) => {
+                ) : sortedRows.map((row) => {
                   const active = row.ttl_id === selectedId;
                   return (
                     <tr
@@ -362,6 +429,9 @@ export function AdminTitlesClient({
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.rarity_level ?? 1}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_group_cd ?? "-"}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_ctgr_cd === "event" ? "✓" : ""}</td>
+                      <td className="px-2 py-1.5 text-center tabular-nums text-muted-foreground">
+                        {row.prmy_cnt > 0 ? <span className="font-medium text-foreground">{row.prmy_cnt}</span> : "-"}
+                      </td>
                     </tr>
                   );
                 })}
@@ -398,23 +468,46 @@ export function AdminTitlesClient({
       )}
 
       {selectedRow && (
-        <TitleGrantList ttlId={selectedRow.ttl_id} />
+        <TitleGrantList
+          ttlId={selectedRow.ttl_id}
+          teamId={teamId}
+          isAwarded={selectedRow.ttl_kind_enm === "awarded"}
+        />
       )}
     </div>
   );
 }
 
-function TitleGrantList({ ttlId }: { ttlId: string }) {
+type MemberSearchRow = {
+  team_mem_id: string;
+  mem_mst: { mem_nm: string };
+};
+
+function TitleGrantList({
+  ttlId,
+  teamId,
+  isAwarded,
+}: {
+  ttlId: string;
+  teamId: string;
+  isAwarded: boolean;
+}) {
   const [grants, setGrants] = useState<GrantRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setGrants([]);
+  // 수여 패널 상태
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<MemberSearchRow[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<MemberSearchRow | null>(null);
+  const [grantRsn, setGrantRsn] = useState("");
+  const [granting, setGranting] = useState(false);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
+  const loadGrants = useCallback(async () => {
+    setLoading(true);
     const supabase = createClient();
-    void supabase
+    const { data, error } = await supabase
       .from("mem_ttl_rel")
       .select(`
         mem_ttl_id,
@@ -431,27 +524,134 @@ function TitleGrantList({ ttlId }: { ttlId: string }) {
       .eq("ttl_id", ttlId)
       .eq("vers", 0)
       .eq("del_yn", false)
-      .order("grnt_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) console.error("수여 내역 조회 실패:", error);
-        setGrants((data ?? []) as unknown as GrantRow[]);
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+      .order("grnt_at", { ascending: false });
+    if (error) console.error("수여 내역 조회 실패:", error);
+    setGrants((data ?? []) as unknown as GrantRow[]);
+    setLoading(false);
   }, [ttlId]);
+
+  useEffect(() => {
+    void loadGrants();
+    // 칭호 바뀌면 검색 초기화
+    setSearchQuery("");
+    setSearchResults([]);
+    setSelectedMember(null);
+    setGrantRsn("");
+  }, [loadGrants]);
+
+  const searchMembers = async (q: string) => {
+    setSearchQuery(q);
+    setSelectedMember(null);
+    if (!q.trim()) { setSearchResults([]); return; }
+    setSearching(true);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("team_mem_rel")
+      .select("team_mem_id, mem_mst!inner(mem_nm)")
+      .eq("team_id", teamId)
+      .eq("del_yn", false)
+      .ilike("mem_mst.mem_nm", `%${q.trim()}%`)
+      .limit(10);
+    setSearchResults((data ?? []) as unknown as MemberSearchRow[]);
+    setSearching(false);
+  };
+
+  const handleGrant = async () => {
+    if (!selectedMember) return;
+    setGranting(true);
+    const result = await grantTitle(ttlId, selectedMember.team_mem_id, grantRsn || null);
+    if (!result.ok) {
+      alert(result.message ?? "수여에 실패했습니다");
+    } else {
+      setSearchQuery("");
+      setSearchResults([]);
+      setSelectedMember(null);
+      setGrantRsn("");
+      await loadGrants();
+    }
+    setGranting(false);
+  };
+
+  const handleRevoke = async (memTtlId: string) => {
+    if (!confirm("이 멤버의 칭호를 회수하시겠습니까?")) return;
+    setRevokingId(memTtlId);
+    const result = await revokeTitle(memTtlId);
+    if (!result.ok) alert(result.message ?? "회수에 실패했습니다");
+    else await loadGrants();
+    setRevokingId(null);
+  };
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <SectionLabel>수여 내역</SectionLabel>
+        <SectionLabel>획득 내역</SectionLabel>
         {!loading && (
           <span className="text-[11px] text-muted-foreground">{grants.length}명</span>
         )}
       </div>
+
+      {/* 수여 칭호일 때만 수여 패널 노출 */}
+      {isAwarded && (
+        <CardItem className="flex flex-col gap-2">
+          <p className="text-xs font-semibold text-foreground">멤버 수여</p>
+          <div className="relative">
+            <Input
+              placeholder="멤버 이름 검색"
+              value={searchQuery}
+              onChange={(e) => void searchMembers(e.target.value)}
+              className="h-9 rounded-lg text-sm"
+            />
+            {searchResults.length > 0 && !selectedMember && (
+              <div className="absolute left-0 right-0 top-full z-10 mt-1 overflow-hidden rounded-lg border border-border bg-popover shadow-md">
+                {searchResults.map((m) => (
+                  <button
+                    key={m.team_mem_id}
+                    onClick={() => {
+                      setSelectedMember(m);
+                      setSearchQuery(m.mem_mst.mem_nm);
+                      setSearchResults([]);
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                  >
+                    {m.mem_mst.mem_nm}
+                  </button>
+                ))}
+              </div>
+            )}
+            {searching && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">검색 중...</span>
+            )}
+          </div>
+          {selectedMember && (
+            <div className="flex flex-col gap-2">
+              <Input
+                placeholder="수여 사유 (선택)"
+                value={grantRsn}
+                onChange={(e) => setGrantRsn(e.target.value)}
+                className="h-9 rounded-lg text-sm"
+              />
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 rounded-lg"
+                  onClick={() => { setSelectedMember(null); setSearchQuery(""); setGrantRsn(""); }}
+                >
+                  취소
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-8 rounded-lg"
+                  onClick={() => void handleGrant()}
+                  disabled={granting}
+                >
+                  {granting ? "수여 중..." : `${selectedMember.mem_mst.mem_nm}에게 수여`}
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardItem>
+      )}
 
       {loading ? (
         <CardItem className="flex flex-col gap-2 p-3">
@@ -469,8 +669,11 @@ function TitleGrantList({ ttlId }: { ttlId: string }) {
                 <tr className="border-b">
                   <th className="px-2 py-1.5 text-center font-medium text-muted-foreground">멤버명</th>
                   <th className="w-24 px-2 py-1.5 text-center font-medium text-muted-foreground">수여일</th>
-                  <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">획득방식</th>
+                  <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">방식</th>
                   <th className="px-2 py-1.5 text-center font-medium text-muted-foreground">사유</th>
+                  {isAwarded && (
+                    <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">회수</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -490,9 +693,20 @@ function TitleGrantList({ ttlId }: { ttlId: string }) {
                     <td className="px-2 py-1.5 text-center text-muted-foreground">
                       {grant.grnt_by_mem_id === null ? "자동" : "수동"}
                     </td>
-                    <td className="truncate px-2 py-1.5 text-center text-muted-foreground">
+                    <td className="max-w-[120px] truncate px-2 py-1.5 text-center text-muted-foreground">
                       {grant.grnt_rsn_txt ?? "-"}
                     </td>
+                    {isAwarded && (
+                      <td className="px-2 py-1.5 text-center">
+                        <button
+                          onClick={() => void handleRevoke(grant.mem_ttl_id)}
+                          disabled={revokingId === grant.mem_ttl_id}
+                          className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-destructive/70 transition-colors hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          {revokingId === grant.mem_ttl_id ? "..." : "회수"}
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

@@ -251,6 +251,7 @@ export type Database = {
           effect_type: string
           rarity_level: number
           sort_ord: number
+          unlock_cond_json: Json | null
           use_yn: boolean
         }
         Insert: {
@@ -259,6 +260,7 @@ export type Database = {
           effect_type: string
           rarity_level: number
           sort_ord?: number
+          unlock_cond_json?: Json | null
           use_yn?: boolean
         }
         Update: {
@@ -267,6 +269,7 @@ export type Database = {
           effect_type?: string
           rarity_level?: number
           sort_ord?: number
+          unlock_cond_json?: Json | null
           use_yn?: boolean
         }
         Relationships: []

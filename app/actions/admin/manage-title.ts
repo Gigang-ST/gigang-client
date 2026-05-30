@@ -189,6 +189,61 @@ export async function updateTitle(ttlId: string, payload: TitlePayload) {
   }
 }
 
+export async function grantTitle(ttlId: string, teamMemId: string, rsn: string | null) {
+  const admin = await verifyAdmin();
+  if (!admin) return { ok: false, message: "권한이 없습니다" };
+
+  const { teamId } = await getRequestTeamContext();
+  const db = createAdminClient();
+
+  // 이미 보유 여부 확인
+  const { data: existing } = await db
+    .from("mem_ttl_rel")
+    .select("mem_ttl_id")
+    .eq("ttl_id", ttlId)
+    .eq("team_mem_id", teamMemId)
+    .eq("del_yn", false)
+    .limit(1);
+
+  if (existing && existing.length > 0) {
+    return { ok: false, message: "이미 보유 중인 칭호입니다" };
+  }
+
+  const { error } = await db.from("mem_ttl_rel").insert({
+    team_id: teamId,
+    ttl_id: ttlId,
+    team_mem_id: teamMemId,
+    grnt_by_mem_id: admin.id,
+    grnt_rsn_txt: rsn?.trim() || null,
+    is_prmy_yn: false,
+    vers: 0,
+    del_yn: false,
+  });
+
+  if (error) return { ok: false, message: "수여에 실패했습니다" };
+  return { ok: true, message: null };
+}
+
+export async function revokeTitle(memTtlId: string) {
+  const admin = await verifyAdmin();
+  if (!admin) return { ok: false, message: "권한이 없습니다" };
+
+  const { teamId } = await getRequestTeamContext();
+  const db = createAdminClient();
+
+  const { data, error } = await db
+    .from("mem_ttl_rel")
+    .update({ del_yn: true, upd_by: admin.id })
+    .eq("mem_ttl_id", memTtlId)
+    .eq("team_id", teamId)
+    .eq("del_yn", false)
+    .select("mem_ttl_id");
+
+  if (error) return { ok: false, message: "회수에 실패했습니다" };
+  if (!data?.length) return { ok: false, message: "수여 내역을 찾을 수 없습니다" };
+  return { ok: true, message: null };
+}
+
 export async function toggleTitleUseYn(ttlId: string, useYn: boolean) {
   const admin = await verifyAdmin();
   if (!admin) return { ok: false, message: "권한이 없습니다" };

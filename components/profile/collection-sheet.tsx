@@ -24,12 +24,19 @@ type AllTitle = {
   use_yn: boolean;
 };
 
+type UnlockCond =
+  | { type: "rarity"; level: number }
+  | { type: "title"; ttl_nm: string }
+  | { type: "point"; amount: number }
+  | null;
+
 type EffectRow = {
   effect_cd: string;
   effect_nm: string;
   effect_type: "badge" | "frame";
   rarity_level: number;
   use_yn: boolean;
+  unlock_cond_json: UnlockCond;
 };
 
 type Tab = "title" | "badge" | "frame";
@@ -195,7 +202,7 @@ export function CollectionSheet({
       // 이펙트 목록 (use_yn=false도 포함 — 표시하되 선택 불가)
       supabase
         .from("effect_mst")
-        .select("effect_cd, effect_nm, effect_type, rarity_level, use_yn")
+        .select("effect_cd, effect_nm, effect_type, rarity_level, use_yn, unlock_cond_json")
         .order("rarity_level").order("sort_ord"),
     ]).then(([titlesRes, ownedRes, effectsRes]) => {
       setAllTitles((titlesRes.data ?? []) as unknown as AllTitle[]);
@@ -228,12 +235,21 @@ export function CollectionSheet({
     return t.rarity_level < (maxRarityByGroup.get(t.ttl_group_cd) ?? 0);
   };
 
-  // 선택 가능한 이펙트: 등급 해금 + use_yn=true
-  const unlockedBadges = allEffects.filter((e) => e.effect_type === "badge" && e.rarity_level <= maxRarityLevel && e.use_yn);
-  const unlockedFrames = allEffects.filter((e) => e.effect_type === "frame" && e.rarity_level <= maxRarityLevel && e.use_yn);
-  // 선택 불가: 등급 미달 또는 use_yn=false (표시는 함)
-  const lockedBadges = allEffects.filter((e) => e.effect_type === "badge" && (e.rarity_level > maxRarityLevel || !e.use_yn));
-  const lockedFrames = allEffects.filter((e) => e.effect_type === "frame" && (e.rarity_level > maxRarityLevel || !e.use_yn));
+  // unlock_cond_json 기반 해금 판단
+  // null = 해금 불가, {"type":"rarity","level":N} = N등급 이상 보유 시 해금
+  // title/point 타입은 미구현 — 조건 있으면 일단 잠금 처리
+  const isUnlocked = (e: EffectRow): boolean => {
+    if (!e.use_yn) return false;
+    const cond = e.unlock_cond_json;
+    if (!cond) return false;
+    if (cond.type === "rarity") return maxRarityLevel >= cond.level;
+    return false; // title/point 미구현
+  };
+
+  const unlockedBadges = allEffects.filter((e) => e.effect_type === "badge" && isUnlocked(e));
+  const unlockedFrames = allEffects.filter((e) => e.effect_type === "frame" && isUnlocked(e));
+  const lockedBadges = allEffects.filter((e) => e.effect_type === "badge" && !isUnlocked(e));
+  const lockedFrames = allEffects.filter((e) => e.effect_type === "frame" && !isUnlocked(e));
 
   const handleSave = () => {
     startTransition(async () => {
