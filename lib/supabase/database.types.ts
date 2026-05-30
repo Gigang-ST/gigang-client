@@ -14,6 +14,96 @@ export type Database = {
   }
   public: {
     Tables: {
+      batch_job_mst: {
+        Row: {
+          cron_expr: string | null
+          crt_at: string
+          job_cd: string
+          job_desc: string | null
+          job_id: string
+          job_nm: string
+          param_schema_json: Json | null
+          upd_at: string | null
+          use_yn: boolean
+        }
+        Insert: {
+          cron_expr?: string | null
+          crt_at?: string
+          job_cd: string
+          job_desc?: string | null
+          job_id?: string
+          job_nm: string
+          param_schema_json?: Json | null
+          upd_at?: string | null
+          use_yn?: boolean
+        }
+        Update: {
+          cron_expr?: string | null
+          crt_at?: string
+          job_cd?: string
+          job_desc?: string | null
+          job_id?: string
+          job_nm?: string
+          param_schema_json?: Json | null
+          upd_at?: string | null
+          use_yn?: boolean
+        }
+        Relationships: []
+      }
+      batch_run_hist: {
+        Row: {
+          duration_ms: number | null
+          finished_at: string | null
+          job_id: string
+          param_json: Json | null
+          result_msg: string | null
+          run_id: string
+          started_at: string
+          status: string
+          trig_by: string | null
+          trig_type: string
+        }
+        Insert: {
+          duration_ms?: number | null
+          finished_at?: string | null
+          job_id: string
+          param_json?: Json | null
+          result_msg?: string | null
+          run_id?: string
+          started_at?: string
+          status: string
+          trig_by?: string | null
+          trig_type: string
+        }
+        Update: {
+          duration_ms?: number | null
+          finished_at?: string | null
+          job_id?: string
+          param_json?: Json | null
+          result_msg?: string | null
+          run_id?: string
+          started_at?: string
+          status?: string
+          trig_by?: string | null
+          trig_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "batch_run_hist_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "batch_job_mst"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "batch_run_hist_trig_by_fkey"
+            columns: ["trig_by"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
       cmm_cd_grp_mst: {
         Row: {
           cd_grp_cd: string
@@ -1068,19 +1158,14 @@ export type Database = {
       }
       mem_ttl_rel: {
         Row: {
-          aply_pt: number
           crt_at: string
           del_yn: boolean
           exp_at: string | null
           grnt_at: string
           grnt_by_mem_id: string | null
-          grnt_pt: number
           grnt_rsn_txt: string | null
           is_prmy_yn: boolean
           mem_ttl_id: string
-          pt_calc_at: string | null
-          pt_calc_bsis_json: Json | null
-          pt_chg_rsn_cd: string | null
           team_id: string
           team_mem_id: string
           ttl_id: string
@@ -1088,19 +1173,14 @@ export type Database = {
           vers: number
         }
         Insert: {
-          aply_pt?: number
           crt_at?: string
           del_yn?: boolean
           exp_at?: string | null
           grnt_at?: string
           grnt_by_mem_id?: string | null
-          grnt_pt?: number
           grnt_rsn_txt?: string | null
           is_prmy_yn?: boolean
           mem_ttl_id?: string
-          pt_calc_at?: string | null
-          pt_calc_bsis_json?: Json | null
-          pt_chg_rsn_cd?: string | null
           team_id: string
           team_mem_id: string
           ttl_id: string
@@ -1108,19 +1188,14 @@ export type Database = {
           vers?: number
         }
         Update: {
-          aply_pt?: number
           crt_at?: string
           del_yn?: boolean
           exp_at?: string | null
           grnt_at?: string
           grnt_by_mem_id?: string | null
-          grnt_pt?: number
           grnt_rsn_txt?: string | null
           is_prmy_yn?: boolean
           mem_ttl_id?: string
-          pt_calc_at?: string | null
-          pt_calc_bsis_json?: Json | null
-          pt_chg_rsn_cd?: string | null
           team_id?: string
           team_mem_id?: string
           ttl_id?: string
@@ -1417,7 +1492,6 @@ export type Database = {
       }
       ttl_mst: {
         Row: {
-          base_pt: number
           cond_rule_json: Json | null
           crt_at: string
           crt_by: string | null
@@ -1427,6 +1501,7 @@ export type Database = {
           team_id: string
           ttl_ctgr_cd: string
           ttl_desc: string | null
+          ttl_group_cd: number | null
           ttl_id: string
           ttl_kind_enm: Database["public"]["Enums"]["ttl_kind_enm"]
           ttl_nm: string
@@ -1436,7 +1511,6 @@ export type Database = {
           vers: number
         }
         Insert: {
-          base_pt?: number
           cond_rule_json?: Json | null
           crt_at?: string
           crt_by?: string | null
@@ -1446,6 +1520,7 @@ export type Database = {
           team_id: string
           ttl_ctgr_cd: string
           ttl_desc?: string | null
+          ttl_group_cd?: number | null
           ttl_id?: string
           ttl_kind_enm: Database["public"]["Enums"]["ttl_kind_enm"]
           ttl_nm: string
@@ -1455,7 +1530,6 @@ export type Database = {
           vers?: number
         }
         Update: {
-          base_pt?: number
           cond_rule_json?: Json | null
           crt_at?: string
           crt_by?: string | null
@@ -1465,6 +1539,7 @@ export type Database = {
           team_id?: string
           ttl_ctgr_cd?: string
           ttl_desc?: string | null
+          ttl_group_cd?: number | null
           ttl_id?: string
           ttl_kind_enm?: Database["public"]["Enums"]["ttl_kind_enm"]
           ttl_nm?: string
@@ -1749,3 +1824,4 @@ export const Constants = {
     },
   },
 } as const
+

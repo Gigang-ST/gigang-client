@@ -501,6 +501,7 @@ function TitleGrantList({
   const [searching, setSearching] = useState(false);
   const [selectedMember, setSelectedMember] = useState<MemberSearchRow | null>(null);
   const [grantRsn, setGrantRsn] = useState("");
+  const [grantAsPrmy, setGrantAsPrmy] = useState(false);
   const [granting, setGranting] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
@@ -537,6 +538,7 @@ function TitleGrantList({
     setSearchResults([]);
     setSelectedMember(null);
     setGrantRsn("");
+    setGrantAsPrmy(false);
   }, [loadGrants]);
 
   const searchMembers = async (q: string) => {
@@ -559,7 +561,7 @@ function TitleGrantList({
   const handleGrant = async () => {
     if (!selectedMember) return;
     setGranting(true);
-    const result = await grantTitle(ttlId, selectedMember.team_mem_id, grantRsn || null);
+    const result = await grantTitle(ttlId, selectedMember.team_mem_id, grantRsn || null, grantAsPrmy);
     if (!result.ok) {
       alert(result.message ?? "수여에 실패했습니다");
     } else {
@@ -567,6 +569,7 @@ function TitleGrantList({
       setSearchResults([]);
       setSelectedMember(null);
       setGrantRsn("");
+      setGrantAsPrmy(false);
       await loadGrants();
     }
     setGranting(false);
@@ -630,12 +633,21 @@ function TitleGrantList({
                 onChange={(e) => setGrantRsn(e.target.value)}
                 className="h-9 rounded-lg text-sm"
               />
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={grantAsPrmy}
+                  onChange={(e) => setGrantAsPrmy(e.target.checked)}
+                  className="rounded"
+                />
+                대표 칭호로 바로 설정
+              </label>
               <div className="flex gap-2">
                 <Button
                   size="sm"
                   variant="outline"
                   className="h-8 rounded-lg"
-                  onClick={() => { setSelectedMember(null); setSearchQuery(""); setGrantRsn(""); }}
+                  onClick={() => { setSelectedMember(null); setSearchQuery(""); setGrantRsn(""); setGrantAsPrmy(false); }}
                 >
                   취소
                 </Button>

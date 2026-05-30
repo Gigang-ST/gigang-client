@@ -223,6 +223,35 @@
 
 ---
 
+## 8. 마일리지런 (ttl_ctgr_cd: `mileage`)
+
+> 마일리지런 이벤트(`evt_team_mst`) 참여 및 활동 기록(`evt_mlg_act_hist`) 기반 칭호.
+> 조건 평가 소스가 `rec_race_hist`가 아닌 `evt_mlg_act_hist`이므로 별도 evaluator 필요.
+> 모두 `ttl_group_cd: null` — 계열 비교 없이 각각 독립 선택 가능. 복수 선택 가능.
+> 회수 없음. 중복 부여 없음.
+> 2025년 마일리지런: 5월~9월 (5개월) 운영.
+>
+> **트리거 방식**
+> - ✅ 즉시 평가: 기록 입력 시 해당 멤버만 평가 (참가·달성·로켓·종목비율·4종목·월말)
+> - ⚠️ 월초 배치: 매월 1일 자정 전월 집계 후 평가 (실패·연속실패·전월달성 누적)
+
+| 칭호명 | rarity_level | 설명 | cond_rule_json |
+|--------|-------------|------|---------------|
+| 시작이반 | 2 | [마일리지런] 이벤트에 참가 신청한 멤버 | `{"type":"mileage_joined"}` |
+| 목표달성 | 4 | [마일리지런] 월 목표를 1번이라도 달성한 멤버 | `{"type":"mileage_goal_achieved_months","count":1}` |
+| 내돈내놔 | 7 | [마일리지런] 5개월 누적 전월 달성 | `{"type":"mileage_goal_achieved_months","count":5}` |
+| 막판스퍼트 | 4 | [마일리지런] 마지막 날 기록입력으로 월 목표를 달성한 멤버 | `{"type":"mileage_goal_achieved_on_last_day"}` |
+| 올라운더 | 5 | [마일리지런] 한 달 안에 러닝·트레일·자전거·수영 4종목 모두 1회 이상 기록한 멤버 | `{"type":"mileage_all_sports_in_month","sports":["RUNNING","TRAIL","CYCLING","SWIMMING"]}` |
+| 보증금증발 | 2 | [마일리지런] 월 목표 달성 실패 | `{"type":"mileage_goal_failed_months","count":1}` |
+| ATM | 3 | [마일리지런] 목표 달성 실패 누적 3개월 이상인 멤버 | `{"type":"mileage_goal_failed_months","count":3}` |
+| 마지막불꽃 | 6 | [마일리지런] 후반에 월 목표 대비 120% 이상 달성한 멤버 | `{"type":"mileage_rocket_in_months","position":["last","second_last"],"threshold":1.2}` |
+| 러닝원툴 | 4 | [마일리지런] 한 달 목표를 러닝 기록만으로 달성한 멤버 | `{"type":"mileage_goal_achieved_by_single_sport","sport":"RUNNING"}` |
+| 수달 | 4 | [마일리지런] 한 달 목표 50% 이상을 수영으로 달성한 멤버 | `{"type":"mileage_sport_ratio","sport":"SWIMMING","min_ratio":0.5}` |
+| 두바퀴인생 | 4 | [마일리지런] 한 달 목표 50% 이상을 자전거로 달성한 멤버 | `{"type":"mileage_sport_ratio","sport":"CYCLING","min_ratio":0.5}` |
+| 흙이좋아 | 4 | [마일리지런] 한 달 목표 50% 이상을 트레일러닝으로 달성한 멤버 | `{"type":"mileage_sport_ratio","sport":"TRAIL","min_ratio":0.5}` |
+
+---
+
 ## 구현 로드맵
 
 | 단계 | 작업 | 상태 |
@@ -244,9 +273,12 @@
 | 12 | Event 칭호 등록 | 칭호명 확정 후 |
 | 13 | 트레일 칭호 | sport 컬럼 추가 선행 필요 |
 | 14 | 사이클 칭호 | MEDIOFONDO event_type 추가 선행 필요 |
-| 15 | 프로필 "내 컬렉션" UI 구현 | Phase 2 |
-| 16 | 칭호 선택 + 대표 설정 UI | Phase 2 |
-| 17 | 카드 프레임 수집·선택 UI | Phase 2 |
+| 15 | 마일리지런 CondRule 타입 구현 (`mileage_joined`, `mileage_goal_achieved_months`, `mileage_goal_achieved_on_last_day`, `mileage_all_sports_in_month`, `mileage_goal_failed_months`, `mileage_rocket_in_months`, `mileage_goal_achieved_by_single_sport`, `mileage_sport_ratio`) | 개발 필요 |
+| 16 | 마일리지런 칭호 12종 DB 등록 | 칭호명 확정 후 + 15 완료 후 |
+| 17 | 월초 배치 pg_cron 등록 (실패·연속실패·전월달성 누적 평가) | 15 완료 후 |
+| 18 | 프로필 "내 컬렉션" UI 구현 | Phase 2 |
+| 19 | 칭호 선택 + 대표 설정 UI | Phase 2 |
+| 20 | 카드 프레임 수집·선택 UI | Phase 2 |
 
 
 

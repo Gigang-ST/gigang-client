@@ -189,7 +189,12 @@ export async function updateTitle(ttlId: string, payload: TitlePayload) {
   }
 }
 
-export async function grantTitle(ttlId: string, teamMemId: string, rsn: string | null) {
+export async function grantTitle(
+  ttlId: string,
+  teamMemId: string,
+  rsn: string | null,
+  isPrmy: boolean = false,
+) {
   const admin = await verifyAdmin();
   if (!admin) return { ok: false, message: "권한이 없습니다" };
 
@@ -209,13 +214,23 @@ export async function grantTitle(ttlId: string, teamMemId: string, rsn: string |
     return { ok: false, message: "이미 보유 중인 칭호입니다" };
   }
 
+  // 대표로 설정할 경우 기존 대표 칭호 먼저 해제
+  if (isPrmy) {
+    await db
+      .from("mem_ttl_rel")
+      .update({ is_prmy_yn: false })
+      .eq("team_mem_id", teamMemId)
+      .eq("is_prmy_yn", true)
+      .eq("del_yn", false);
+  }
+
   const { error } = await db.from("mem_ttl_rel").insert({
     team_id: teamId,
     ttl_id: ttlId,
     team_mem_id: teamMemId,
     grnt_by_mem_id: admin.id,
     grnt_rsn_txt: rsn?.trim() || null,
-    is_prmy_yn: false,
+    is_prmy_yn: isPrmy,
     vers: 0,
     del_yn: false,
   });

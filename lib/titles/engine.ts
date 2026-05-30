@@ -168,7 +168,7 @@ export async function sweepEvaluateAndGrant(
   const titles = (allTitles as TtlMstRow[] ?? []).filter((t) => t.cond_rule_json != null);
   if (titles.length === 0) return { granted: 0, revoked: 0 };
 
-  const allowedCondTypes = new Set(TRIGGER_COND_MAP["manual_sweep"]);
+  const allowedCondTypes = new Set<string>(TRIGGER_COND_MAP["manual_sweep"]);
   const snapshotsByMemId = new Map<string, MemberSnapshot>(
     [...snapshots.values()].map((s) => [s.teamMemId, s]),
   );

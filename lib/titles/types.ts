@@ -156,6 +156,62 @@ export type CondUtmbIdxRank = {
   rank: number;
 };
 
+// ---------------------------------------------------------------------------
+// 마일리지런 전용 CondRule 타입
+// 평가 소스: evt_mlg_act_hist, evt_mlg_mth_snap, evt_team_prt_rel, evt_team_mst
+// ---------------------------------------------------------------------------
+
+/** 마일리지런 이벤트에 참가 신청한 경우 (예: 시작이반) */
+export type CondMileageJoined = {
+  type: "mileage_joined";
+};
+
+/** 마일리지런에서 월 목표를 N번 이상 달성한 경우 (예: 목표달성=1, 내돈내놔=5) */
+export type CondMileageGoalAchievedMonths = {
+  type: "mileage_goal_achieved_months";
+  count: number;
+};
+
+/** 마일리지런에서 act_dt가 해당 월 마지막 날인 기록으로 처음 월 목표를 달성한 경우 (예: 막판스퍼트) */
+export type CondMileageGoalAchievedOnLastDay = {
+  type: "mileage_goal_achieved_on_last_day";
+};
+
+/** 마일리지런에서 한 달 안에 지정 종목을 모두 1회 이상 기록한 경우 (예: 올라운더) */
+export type CondMileageAllSportsInMonth = {
+  type: "mileage_all_sports_in_month";
+  sports: string[];
+};
+
+/** 마일리지런에서 월 목표 달성 실패 누적 N개월 이상인 경우 (예: 보증금증발=1, ATM=3) */
+export type CondMileageGoalFailedMonths = {
+  type: "mileage_goal_failed_months";
+  count: number;
+};
+
+/**
+ * 이벤트 마지막달/마지막전달 중 하나라도 월 목표 대비 N% 이상 달성한 경우 (예: 마지막불꽃)
+ * position: "last" = end_dt 월, "second_last" = end_dt 전월
+ */
+export type CondMileageRocketInMonths = {
+  type: "mileage_rocket_in_months";
+  position: ("last" | "second_last")[];
+  threshold: number;
+};
+
+/** 마일리지런에서 한 달 목표를 지정 종목 기록만으로 달성한 경우 (예: 러닝원툴) */
+export type CondMileageGoalAchievedBySingleSport = {
+  type: "mileage_goal_achieved_by_single_sport";
+  sport: string;
+};
+
+/** 마일리지런에서 한 달 마일리지의 N% 이상을 지정 종목으로 달성한 경우 (예: 수달·두바퀴인생·흙이좋아) */
+export type CondMileageSportRatio = {
+  type: "mileage_sport_ratio";
+  sport: string;
+  min_ratio: number;
+};
+
 /** 모든 조건 유형의 유니온 — 새 조건 추가 시 여기에 타입을 추가한다 */
 export type CondRule =
   | CondRacePersonalBestUnderSec
@@ -174,17 +230,26 @@ export type CondRule =
   | CondRaceRankLast
   | CondRacePbWithinSecOfTarget
   | CondHasTitleInCategories
-  | CondUtmbIdxRank;
+  | CondUtmbIdxRank
+  | CondMileageJoined
+  | CondMileageGoalAchievedMonths
+  | CondMileageGoalAchievedOnLastDay
+  | CondMileageAllSportsInMonth
+  | CondMileageGoalFailedMonths
+  | CondMileageRocketInMonths
+  | CondMileageGoalAchievedBySingleSport
+  | CondMileageSportRatio;
 
 // ---------------------------------------------------------------------------
 // TriggerKind — 트리거 종류
 // 새 트리거 추가 시 여기에 문자열 리터럴 하나를 추가한다.
 // ---------------------------------------------------------------------------
 export type TriggerKind =
-  | "race_record"   // 대회 기록 등록/수정
-  | "mileage_run"   // 마일리지런 기록 등록
-  | "attendance"    // 로그인 / 출석 체크
-  | "manual_sweep"; // 관리자 수동 전체 재계산
+  | "race_record"    // 대회 기록 등록/수정
+  | "mileage_run"    // 마일리지런 기록 등록
+  | "mileage_batch"  // 마일리지런 월초 배치 (전월 마감 후 확정 조건)
+  | "attendance"     // 로그인 / 출석 체크
+  | "manual_sweep";  // 관리자 수동 전체 재계산
 
 // ---------------------------------------------------------------------------
 // TRIGGER_COND_MAP — 트리거별로 평가할 CondRule 타입 목록
@@ -212,7 +277,20 @@ export const TRIGGER_COND_MAP = {
     "race_finish_all_titles",
     "has_title_in_categories",
   ],
-  mileage_run: ["mileage_run_complete"],
+  mileage_run: [
+    "mileage_run_complete",
+    "mileage_joined",
+    "mileage_goal_achieved_months",
+    "mileage_goal_achieved_on_last_day",
+    "mileage_all_sports_in_month",
+    "mileage_rocket_in_months",
+  ],
+  mileage_batch: [
+    "mileage_goal_achieved_months",
+    "mileage_goal_failed_months",
+    "mileage_goal_achieved_by_single_sport",
+    "mileage_sport_ratio",
+  ],
   attendance:  ["attendance_count", "membership_days", "joined_on_date"],
   manual_sweep: [
     "race_pb_under_sec",
@@ -232,6 +310,15 @@ export const TRIGGER_COND_MAP = {
     "race_pb_within_sec_of_target",
     "has_title_in_categories",
     "utmb_idx_rank",
+    // 마일리지런 즉시 평가 조건 (시점 무관하게 재계산 가능)
+    "mileage_joined",
+    "mileage_goal_achieved_months", // count:1(목표달성)만 해당 — count:5(내돈내놔)는 배치 전용
+    "mileage_goal_achieved_on_last_day",
+    "mileage_all_sports_in_month",
+    "mileage_rocket_in_months",
+    // 배치 전용 조건은 manual_sweep 제외 — 월 마감 후 고정 시점에만 의미있음
+    // mileage_goal_achieved_months(count:5), mileage_goal_failed_months,
+    // mileage_goal_achieved_by_single_sport, mileage_sport_ratio
   ],
 } satisfies Record<TriggerKind, CondRule["type"][]>;
 
@@ -253,6 +340,20 @@ export type TitleEvalContextMileageRun = {
   teamId: string;
   teamMemId: string;
   projectId: string;
+  /** 입력한 기록의 운동 날짜 (YYYY-MM-DD). 막판스퍼트 판단에 사용 */
+  actDt: string;
+  /** 기록 입력 전 당월 achv_yn 상태. 막판스퍼트 판단에 사용 */
+  prevAchvYn: boolean;
+};
+
+/** 마일리지런 월초 배치 — 전월 기준 확정 조건 평가 */
+export type TitleEvalContextMileageBatch = {
+  trigger: "mileage_batch";
+  teamId: string;
+  teamMemId: string;
+  projectId: string;
+  /** 평가 기준 월의 마지막 날짜 (YYYY-MM-DD). 전월 데이터 조회에 사용 */
+  actDt: string;
 };
 
 /** 로그인 / 출석 체크 시 */
@@ -272,5 +373,6 @@ export type TitleEvalContextManualSweep = {
 export type TitleEvalContext =
   | TitleEvalContextRaceRecord
   | TitleEvalContextMileageRun
+  | TitleEvalContextMileageBatch
   | TitleEvalContextAttendance
   | TitleEvalContextManualSweep;

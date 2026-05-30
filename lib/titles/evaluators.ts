@@ -38,6 +38,14 @@ import type {
   CondRacePbWithinSecOfTarget,
   CondHasTitleInCategories,
   CondUtmbIdxRank,
+  CondMileageJoined,
+  CondMileageGoalAchievedMonths,
+  CondMileageGoalAchievedOnLastDay,
+  CondMileageAllSportsInMonth,
+  CondMileageGoalFailedMonths,
+  CondMileageRocketInMonths,
+  CondMileageGoalAchievedBySingleSport,
+  CondMileageSportRatio,
 } from "./types";
 import type { MemberSnapshot, RaceHistRow } from "./snapshot";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -507,6 +515,326 @@ export async function evalUtmbIdxRankInternal(
 }
 
 // ---------------------------------------------------------------------------
+// 마일리지런 전용 evaluator 함수 (즉시 평가용, DB 기반)
+// ---------------------------------------------------------------------------
+
+/** 마일리지런 이벤트에 참가 신청한 경우 (예: 시작이반) */
+export async function evalMileageJoinedInternal(
+  _rule: CondMileageJoined,
+  teamMemId: string,
+  db: DB,
+): Promise<boolean> {
+  const { data } = await db
+    .from("evt_team_prt_rel")
+    .select("prt_id")
+    .eq("mem_id", (await db.from("team_mem_rel").select("mem_id").eq("team_mem_id", teamMemId).eq("vers", 0).eq("del_yn", false).maybeSingle()).data?.mem_id ?? "")
+    .limit(1)
+    .maybeSingle();
+  return data !== null;
+}
+
+/** 마일리지런에서 월 목표를 N번 이상 달성한 경우 (예: 목표달성, 내돈내놔) */
+export async function evalMileageGoalAchievedMonthsInternal(
+  rule: CondMileageGoalAchievedMonths,
+  teamMemId: string,
+  db: DB,
+): Promise<boolean> {
+  const { data: memRow } = await db
+    .from("team_mem_rel")
+    .select("mem_id")
+    .eq("team_mem_id", teamMemId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (!memRow?.mem_id) return false;
+
+  const { data: prtRows } = await db
+    .from("evt_team_prt_rel")
+    .select("prt_id")
+    .eq("mem_id", memRow.mem_id)
+    .eq("aprv_yn", true);
+  if (!prtRows?.length) return false;
+
+  const prtIds = prtRows.map((r) => r.prt_id);
+  const { count } = await db
+    .from("evt_mlg_mth_snap")
+    .select("*", { count: "exact", head: true })
+    .in("prt_id", prtIds)
+    .eq("achv_yn", true);
+
+  return (count ?? 0) >= rule.count;
+}
+
+/**
+ * act_dt가 해당 월 마지막 날인 기록으로 처음 월 목표를 달성한 경우 (예: 막판스퍼트)
+ * ctx.prevAchvYn: 기록 입력 전 당월 achv_yn (engine에서 주입)
+ * ctx.actDt: 입력한 기록의 운동 날짜
+ */
+export async function evalMileageGoalAchievedOnLastDayInternal(
+  _rule: CondMileageGoalAchievedOnLastDay,
+  ctx: TitleEvalContext,
+  teamMemId: string,
+  db: DB,
+): Promise<boolean> {
+  if (ctx.trigger !== "mileage_run") return false;
+  if (ctx.prevAchvYn) return false; // 이미 달성 상태였으면 해당 없음
+
+  const actDt = ctx.actDt; // YYYY-MM-DD
+  const actDay = dayjs(actDt).tz(KST);
+  const lastDayOfMonth = actDay.endOf("month").date();
+  if (actDay.date() !== lastDayOfMonth) return false;
+
+  // 기록 입력 후 당월 achv_yn 확인
+  const actMonth = actDt.slice(0, 7) + "-01";
+  const { data: memRow } = await db
+    .from("team_mem_rel")
+    .select("mem_id")
+    .eq("team_mem_id", teamMemId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (!memRow?.mem_id) return false;
+
+  const { data: prtRows } = await db
+    .from("evt_team_prt_rel")
+    .select("prt_id")
+    .eq("mem_id", memRow.mem_id)
+    .eq("aprv_yn", true);
+  if (!prtRows?.length) return false;
+
+  const prtIds = prtRows.map((r) => r.prt_id);
+  const { data: snap } = await db
+    .from("evt_mlg_mth_snap")
+    .select("achv_yn")
+    .in("prt_id", prtIds)
+    .eq("base_dt", actMonth)
+    .maybeSingle();
+
+  return snap?.achv_yn === true;
+}
+
+/** 한 달 안에 지정 종목을 모두 1회 이상 기록한 경우 (예: 올라운더) */
+export async function evalMileageAllSportsInMonthInternal(
+  rule: CondMileageAllSportsInMonth,
+  teamMemId: string,
+  actDt: string,
+  db: DB,
+): Promise<boolean> {
+  const { data: memRow } = await db
+    .from("team_mem_rel")
+    .select("mem_id")
+    .eq("team_mem_id", teamMemId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (!memRow?.mem_id) return false;
+
+  const { data: prtRows } = await db
+    .from("evt_team_prt_rel")
+    .select("prt_id")
+    .eq("mem_id", memRow.mem_id)
+    .eq("aprv_yn", true);
+  if (!prtRows?.length) return false;
+
+  const prtIds = prtRows.map((r) => r.prt_id);
+  const monthPrefix = actDt.slice(0, 7); // YYYY-MM
+  const { data } = await db
+    .from("evt_mlg_act_hist")
+    .select("sprt_enm")
+    .in("prt_id", prtIds)
+    .gte("act_dt", `${monthPrefix}-01`)
+    .lte("act_dt", `${monthPrefix}-31`);
+
+  if (!data) return false;
+  const sportsInMonth = new Set(data.map((r) => r.sprt_enm as string));
+  return rule.sports.every((s) => sportsInMonth.has(s));
+}
+
+/** 월 목표 달성 실패 누적 N개월 이상인 경우 (예: 보증금증발, ATM) — 월초 배치 전용 */
+export async function evalMileageGoalFailedMonthsInternal(
+  rule: CondMileageGoalFailedMonths,
+  teamMemId: string,
+  db: DB,
+): Promise<boolean> {
+  const { data: memRow } = await db
+    .from("team_mem_rel")
+    .select("mem_id")
+    .eq("team_mem_id", teamMemId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (!memRow?.mem_id) return false;
+
+  const { data: prtRows } = await db
+    .from("evt_team_prt_rel")
+    .select("prt_id, evt_team_mst!inner(stt_dt, end_dt)")
+    .eq("mem_id", memRow.mem_id)
+    .eq("aprv_yn", true);
+  if (!prtRows?.length) return false;
+
+  const today = dayjs().tz(KST).format("YYYY-MM-01");
+  let failCount = 0;
+  for (const prt of prtRows) {
+    const evtMst = Array.isArray(prt.evt_team_mst) ? prt.evt_team_mst[0] : prt.evt_team_mst;
+    const { stt_dt, end_dt } = evtMst as { stt_dt: string; end_dt: string };
+    const { data: snaps } = await db
+      .from("evt_mlg_mth_snap")
+      .select("achv_yn, base_dt")
+      .eq("prt_id", prt.prt_id)
+      .gte("base_dt", stt_dt.slice(0, 7) + "-01")
+      .lt("base_dt", today < end_dt.slice(0, 7) + "-01" ? today : end_dt.slice(0, 7) + "-01");
+
+    failCount += (snaps ?? []).filter((s) => !s.achv_yn).length;
+  }
+
+  return failCount >= rule.count;
+}
+
+/** 이벤트 마지막달/마지막전달에 목표 대비 N% 이상 달성한 경우 (예: 마지막불꽃) */
+export async function evalMileageRocketInMonthsInternal(
+  rule: CondMileageRocketInMonths,
+  teamMemId: string,
+  actDt: string,
+  db: DB,
+): Promise<boolean> {
+  const { data: memRow } = await db
+    .from("team_mem_rel")
+    .select("mem_id")
+    .eq("team_mem_id", teamMemId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (!memRow?.mem_id) return false;
+
+  const { data: prtRows } = await db
+    .from("evt_team_prt_rel")
+    .select("prt_id, evt_team_mst!inner(end_dt)")
+    .eq("mem_id", memRow.mem_id)
+    .eq("aprv_yn", true);
+  if (!prtRows?.length) return false;
+
+  const actMonth = actDt.slice(0, 7) + "-01"; // YYYY-MM-01
+
+  for (const prt of prtRows) {
+    const evtMst = Array.isArray(prt.evt_team_mst) ? prt.evt_team_mst[0] : prt.evt_team_mst;
+    const endDt = (evtMst as { end_dt: string }).end_dt;
+    const lastMonth = endDt.slice(0, 7) + "-01";
+    const secondLastMonth = dayjs(lastMonth).tz(KST).subtract(1, "month").format("YYYY-MM-01");
+
+    const targetMonths: string[] = [];
+    if (rule.position.includes("last")) targetMonths.push(lastMonth);
+    if (rule.position.includes("second_last")) targetMonths.push(secondLastMonth);
+
+    if (!targetMonths.includes(actMonth)) continue;
+
+    const { data: snap } = await db
+      .from("evt_mlg_mth_snap")
+      .select("achv_mlg, goal_mlg")
+      .eq("prt_id", prt.prt_id)
+      .eq("base_dt", actMonth)
+      .maybeSingle();
+
+    if (!snap) continue;
+    const ratio = Number(snap.achv_mlg) / Number(snap.goal_mlg);
+    if (ratio >= rule.threshold) return true;
+  }
+
+  return false;
+}
+
+/** 한 달 목표를 지정 종목 기록만으로 달성한 경우 (예: 러닝원툴) */
+export async function evalMileageGoalAchievedBySingleSportInternal(
+  rule: CondMileageGoalAchievedBySingleSport,
+  teamMemId: string,
+  actDt: string,
+  db: DB,
+): Promise<boolean> {
+  const { data: memRow } = await db
+    .from("team_mem_rel")
+    .select("mem_id")
+    .eq("team_mem_id", teamMemId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (!memRow?.mem_id) return false;
+
+  const { data: prtRows } = await db
+    .from("evt_team_prt_rel")
+    .select("prt_id")
+    .eq("mem_id", memRow.mem_id)
+    .eq("aprv_yn", true);
+  if (!prtRows?.length) return false;
+
+  const prtIds = prtRows.map((r) => r.prt_id);
+  const monthPrefix = actDt.slice(0, 7);
+  const actMonth = monthPrefix + "-01";
+
+  // 당월 달성 여부 확인
+  const { data: snap } = await db
+    .from("evt_mlg_mth_snap")
+    .select("achv_yn")
+    .in("prt_id", prtIds)
+    .eq("base_dt", actMonth)
+    .maybeSingle();
+  if (!snap?.achv_yn) return false;
+
+  // 당월 기록 중 지정 종목 외 기록이 있는지 확인
+  const { data: otherRecords } = await db
+    .from("evt_mlg_act_hist")
+    .select("act_id")
+    .in("prt_id", prtIds)
+    .gte("act_dt", `${monthPrefix}-01`)
+    .lte("act_dt", `${monthPrefix}-31`)
+    .neq("sprt_enm", rule.sport as "RUNNING" | "TRAIL" | "CYCLING" | "SWIMMING")
+    .limit(1);
+
+  return !otherRecords?.length;
+}
+
+/** 한 달 마일리지의 N% 이상을 지정 종목으로 달성한 경우 (예: 수달·두바퀴인생·흙이좋아) */
+export async function evalMileageSportRatioInternal(
+  rule: CondMileageSportRatio,
+  teamMemId: string,
+  actDt: string,
+  db: DB,
+): Promise<boolean> {
+  const { data: memRow } = await db
+    .from("team_mem_rel")
+    .select("mem_id")
+    .eq("team_mem_id", teamMemId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (!memRow?.mem_id) return false;
+
+  const { data: prtRows } = await db
+    .from("evt_team_prt_rel")
+    .select("prt_id")
+    .eq("mem_id", memRow.mem_id)
+    .eq("aprv_yn", true);
+  if (!prtRows?.length) return false;
+
+  const prtIds = prtRows.map((r) => r.prt_id);
+  const monthPrefix = actDt.slice(0, 7);
+  const { data } = await db
+    .from("evt_mlg_act_hist")
+    .select("sprt_enm, final_mlg")
+    .in("prt_id", prtIds)
+    .gte("act_dt", `${monthPrefix}-01`)
+    .lte("act_dt", `${monthPrefix}-31`);
+
+  if (!data?.length) return false;
+
+  const total = data.reduce((sum, r) => sum + Number(r.final_mlg), 0);
+  if (total === 0) return false;
+  const sportTotal = data
+    .filter((r) => r.sprt_enm === rule.sport)
+    .reduce((sum, r) => sum + Number(r.final_mlg), 0);
+
+  return sportTotal / total >= rule.min_ratio;
+}
+
+// ---------------------------------------------------------------------------
 // 공개 진입점 — engine.ts 에서 호출
 // ---------------------------------------------------------------------------
 
@@ -567,6 +895,38 @@ export async function evaluateCondition(
 
     case "utmb_idx_rank":
       return evalUtmbIdxRankInternal(rule, memId, ctx.teamId, db);
+
+    case "mileage_joined":
+      return evalMileageJoinedInternal(rule, ctx.teamMemId, db);
+
+    case "mileage_goal_achieved_months":
+      return evalMileageGoalAchievedMonthsInternal(rule, ctx.teamMemId, db);
+
+    case "mileage_goal_achieved_on_last_day":
+      return evalMileageGoalAchievedOnLastDayInternal(rule, ctx, ctx.teamMemId, db);
+
+    case "mileage_all_sports_in_month":
+      return ctx.trigger === "mileage_run"
+        ? evalMileageAllSportsInMonthInternal(rule, ctx.teamMemId, ctx.actDt, db)
+        : false;
+
+    case "mileage_goal_failed_months":
+      return evalMileageGoalFailedMonthsInternal(rule, ctx.teamMemId, db);
+
+    case "mileage_rocket_in_months":
+      return ctx.trigger === "mileage_run"
+        ? evalMileageRocketInMonthsInternal(rule, ctx.teamMemId, ctx.actDt, db)
+        : false;
+
+    case "mileage_goal_achieved_by_single_sport":
+      return (ctx.trigger === "mileage_run" || ctx.trigger === "mileage_batch")
+        ? evalMileageGoalAchievedBySingleSportInternal(rule, ctx.teamMemId, ctx.actDt, db)
+        : false;
+
+    case "mileage_sport_ratio":
+      return (ctx.trigger === "mileage_run" || ctx.trigger === "mileage_batch")
+        ? evalMileageSportRatioInternal(rule, ctx.teamMemId, ctx.actDt, db)
+        : false;
 
     default:
       rule satisfies never;
@@ -684,6 +1044,73 @@ export function evaluateConditionFromSnapshot(
       const myRank = sorted.findIndex((s) => s.memId === snapshot.memId) + 1;
       if (myRank === 0) return false;
       return myRank === rule.rank;
+    }
+
+    case "mileage_joined":
+      return snapshot.mileageParticipant;
+
+    case "mileage_goal_achieved_months": {
+      const achieved = snapshot.mileageMthSnaps.filter((s) => s.achv_yn).length;
+      return achieved >= rule.count;
+    }
+
+    case "mileage_goal_achieved_on_last_day":
+      // sweep은 실시간 입력 이벤트가 아니므로 평가 불가 — false
+      return false;
+
+    case "mileage_all_sports_in_month": {
+      // 어느 한 달이라도 지정 종목 전부 기록한 달이 있으면 true
+      const months = [...new Set(snapshot.mileageActHist.map((r) => r.act_dt.slice(0, 7)))];
+      return months.some((month) => {
+        const sportsInMonth = new Set(
+          snapshot.mileageActHist.filter((r) => r.act_dt.startsWith(month)).map((r) => r.sprt_enm),
+        );
+        return rule.sports.every((s) => sportsInMonth.has(s));
+      });
+    }
+
+    case "mileage_goal_failed_months": {
+      const failed = snapshot.mileageMthSnaps.filter((s) => !s.achv_yn).length;
+      return failed >= rule.count;
+    }
+
+    case "mileage_rocket_in_months": {
+      if (!snapshot.mileageEvtEndDt) return false;
+      const lastMonth = snapshot.mileageEvtEndDt.slice(0, 7) + "-01";
+      const secondLastMonth = (() => {
+        const [y, m] = lastMonth.slice(0, 7).split("-").map(Number);
+        const pm = m - 1 === 0 ? 12 : m - 1;
+        const py = m - 1 === 0 ? y - 1 : y;
+        return `${py}-${String(pm).padStart(2, "0")}-01`;
+      })();
+      const targets = rule.position.map((p) => p === "last" ? lastMonth : secondLastMonth);
+      return snapshot.mileageMthSnaps.some((s) => {
+        if (!targets.includes(s.base_dt)) return false;
+        if (s.goal_mlg === 0) return false;
+        return s.achv_mlg / s.goal_mlg >= rule.threshold;
+      });
+    }
+
+    case "mileage_goal_achieved_by_single_sport": {
+      // 어느 한 달이라도 지정 종목만으로 목표를 달성한 달이 있으면 true
+      return snapshot.mileageMthSnaps.some((snap) => {
+        if (!snap.achv_yn) return false;
+        const month = snap.base_dt.slice(0, 7);
+        const monthActs = snapshot.mileageActHist.filter((r) => r.act_dt.startsWith(month));
+        return monthActs.length > 0 && monthActs.every((r) => r.sprt_enm === rule.sport);
+      });
+    }
+
+    case "mileage_sport_ratio": {
+      // 어느 한 달이라도 해당 종목 비율이 min_ratio 이상인 달이 있으면 true
+      const months = [...new Set(snapshot.mileageActHist.map((r) => r.act_dt.slice(0, 7)))];
+      return months.some((month) => {
+        const acts = snapshot.mileageActHist.filter((r) => r.act_dt.startsWith(month));
+        const total = acts.reduce((s, r) => s + r.final_mlg, 0);
+        if (total === 0) return false;
+        const sportTotal = acts.filter((r) => r.sprt_enm === rule.sport).reduce((s, r) => s + r.final_mlg, 0);
+        return sportTotal / total >= rule.min_ratio;
+      });
     }
 
     default:
