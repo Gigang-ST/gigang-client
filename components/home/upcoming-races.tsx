@@ -208,27 +208,29 @@ export function UpcomingRaces({
                 onClick={() => handleRowClick(race)}
                 className="flex w-full items-center gap-3 py-2 text-left transition-colors hover:bg-muted/40 first:pt-0.5 last:pb-0.5"
               >
-                {/* D-day 뱃지 */}
+                {/* D-day 뱃지 — 너비 고정 */}
                 <span
                   className={cn(
-                    "shrink-0 rounded-md px-2 py-0.5 font-mono text-[11px] font-bold",
+                    "w-14 shrink-0 rounded-md px-2 py-0.5 text-center font-mono text-[11px] font-bold",
                     ddayCls,
                   )}
                 >
                   {dday}
                 </span>
 
-                {/* 대회명 + 라벨 */}
-                <div className="flex flex-1 items-center gap-1.5 min-w-0">
-                  <Caption className="truncate text-foreground font-medium">
-                    {race.title}
-                  </Caption>
+                {/* 라벨 — 너비 고정 */}
+                <span className="w-14 shrink-0 text-center">
                   {race.label && (
-                    <span className="shrink-0 rounded px-1 py-px text-[10px] font-medium bg-secondary text-muted-foreground">
+                    <span className="rounded px-1 py-px text-[10px] font-medium bg-secondary text-muted-foreground">
                       {race.label}
                     </span>
                   )}
-                </div>
+                </span>
+
+                {/* 대회명 */}
+                <Caption className="flex-1 truncate text-foreground font-medium">
+                  {race.title}
+                </Caption>
 
                 {/* 날짜 */}
                 <Micro className="shrink-0 tabular-nums">

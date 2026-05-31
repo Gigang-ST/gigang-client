@@ -48,22 +48,20 @@ export function RecentTitles({ grants, initialCount = 4, myTitleNames = [] }: Re
           const mm = String(date.getMonth() + 1).padStart(2, "0");
           const dd = String(date.getDate()).padStart(2, "0");
           return (
-            <div key={`${g.mem_id}-${g.ttl_nm}-${idx}`} className="flex min-h-9 items-center justify-between gap-1">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <span className="shrink-0 truncate text-[12px] font-medium text-foreground">{g.mem_nm}</span>
-                <TitleBadge
-                  name={g.ttl_nm}
-                  effect={g.badge_effect}
-                  size="xs"
-                  tooltip={{
-                    desc: g.ttl_desc,
-                    visibility: g.desc_visibility,
-                    isHeld: myTitleNameSet.has(g.ttl_nm),
-                    isOwner: false,
-                  }}
-                />
-              </div>
-              <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">{mm}/{dd}</span>
+            <div key={`${g.mem_id}-${g.ttl_nm}-${idx}`} className="flex min-h-9 items-center gap-1.5">
+              <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-foreground">{g.mem_nm}</span>
+              <TitleBadge
+                name={g.ttl_nm}
+                effect={g.badge_effect}
+                size="xs"
+                tooltip={{
+                  desc: g.ttl_desc,
+                  visibility: g.desc_visibility,
+                  isHeld: myTitleNameSet.has(g.ttl_nm),
+                  isOwner: false,
+                }}
+              />
+              <span className="w-8 shrink-0 text-right font-mono text-[10px] text-muted-foreground tabular-nums">{mm}/{dd}</span>
             </div>
           );
         })}

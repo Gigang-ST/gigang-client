@@ -41,15 +41,13 @@ export function RecentJoiners({ joiners, initialCount = 4 }: RecentJoinersProps)
           {visible.map((j) => {
             const [, mm, dd] = j.join_dt.split("-");
             return (
-              <div key={j.mem_id} className="flex min-h-9 items-center justify-between gap-1">
-                <div className="flex min-w-0 items-center gap-1.5">
-                  <span className="text-[11px]">🎉</span>
-                  <span className="truncate text-[12px] font-medium text-foreground">{j.mem_nm}</span>
-                  <span className="shrink-0 rounded px-1 py-px text-[9px] font-bold tracking-wide bg-primary/15 text-primary">
-                    NEW
-                  </span>
-                </div>
-                <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
+              <div key={j.mem_id} className="flex min-h-9 items-center gap-1.5">
+                <span className="text-[11px]">🎉</span>
+                <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-foreground">{j.mem_nm}</span>
+                <span className="shrink-0 rounded px-1 py-px text-[9px] font-bold tracking-wide bg-primary/15 text-primary">
+                  NEW
+                </span>
+                <span className="w-8 shrink-0 text-right font-mono text-[10px] text-muted-foreground tabular-nums">
                   {mm}/{dd}
                 </span>
               </div>
