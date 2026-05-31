@@ -232,7 +232,7 @@ async function HomeContent() {
 
   // 최근 기록 멤버들의 칭호/프레임 조회
   const recentMemberIds = recentRecords.map((r) => r.mem_id).filter((id): id is string => Boolean(id));
-  const memberTitleMap = new Map<string, { ttl_nm: string; ttl_desc: string | null; desc_visibility: string; badge_effect: string; frame_cd: string }>();
+  const memberTitleMap = new Map<string, { ttl_nm: string; ttl_desc: string | null; desc_visibility: "always" | "others" | "held" | "never"; badge_effect: string; frame_cd: string }>();
   if (recentMemberIds.length > 0) {
     const { data: titleData } = await admin
       .from("mem_ttl_rel")
@@ -251,7 +251,7 @@ async function HomeContent() {
         memberTitleMap.set(r.mem_id, {
           ttl_nm: t.ttl_nm,
           ttl_desc: t.ttl_desc ?? null,
-          desc_visibility: t.desc_visibility ?? "others",
+          desc_visibility: (t.desc_visibility ?? "others") as "always" | "others" | "held" | "never",
           badge_effect: r.selected_badge_effect ?? "none",
           frame_cd: r.selected_frame_cd ?? "frame-none",
         });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Caption } from "@/components/common/typography";
@@ -145,6 +145,12 @@ export function TitleBadge({
   const [hoverOpen, setHoverOpen] = useState(false);
   const tooltipOpen = clickOpen || hoverOpen;
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+    };
+  }, []);
 
   const effectKey = effect ?? "none";
   const cls = BADGE_CSS[effectKey] ?? "";

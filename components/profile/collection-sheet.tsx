@@ -157,7 +157,6 @@ export function CollectionSheet({
   const [selectedTtlId, setSelectedTtlId] = useState<string | null>(currentPrimaryTtlId);
   const [selectedBadge, setSelectedBadge] = useState<string | null>(currentBadgeEffect);
   const [selectedFrame, setSelectedFrame] = useState<string | null>(currentFrameCd);
-  // 설명 보기 전용 — 차단된 칭호 클릭 시 저장 없이 설명만 표시
   const [previewTtlId, setPreviewTtlId] = useState<string | null>(null);
 
   const [isPending, startTransition] = useTransition();
@@ -175,8 +174,6 @@ export function CollectionSheet({
   // 뱃지 미리보기는 저장될 selectedTtlId 기준
   const selectedTitle = allTitles.find((t) => t.ttl_id === selectedTtlId);
   const previewName = selectedTitle?.ttl_nm ?? "GIGANG";
-  // 설명 라인은 previewTtlId 우선, 없으면 selectedTtlId
-  const descTitle = allTitles.find((t) => t.ttl_id === (previewTtlId ?? selectedTtlId));
 
   // 데이터 로드
   useEffect(() => {

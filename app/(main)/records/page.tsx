@@ -51,7 +51,7 @@ function getCachedRecordsData(teamId: string) {
       ]);
 
       // mem_id → { ttl_nm, badge_effect, frame_cd } 맵
-      const memberTitleMap = new Map<string, { ttl_nm: string; ttl_desc: string | null; desc_visibility: string; badge_effect: string; frame_cd: string }>();
+      const memberTitleMap = new Map<string, { ttl_nm: string; ttl_desc: string | null; desc_visibility: "always" | "others" | "held" | "never"; badge_effect: string; frame_cd: string }>();
       for (const row of titleData ?? []) {
         const rel = Array.isArray(row.team_mem_rel) ? row.team_mem_rel[0] : row.team_mem_rel;
         const ttl = Array.isArray(row.ttl_mst) ? row.ttl_mst[0] : row.ttl_mst;
@@ -59,7 +59,7 @@ function getCachedRecordsData(teamId: string) {
           memberTitleMap.set(rel.mem_id, {
             ttl_nm: ttl.ttl_nm,
             ttl_desc: (ttl as { ttl_nm: string; ttl_desc?: string | null; desc_visibility?: string }).ttl_desc ?? null,
-            desc_visibility: (ttl as { ttl_nm: string; ttl_desc?: string | null; desc_visibility?: string }).desc_visibility ?? "others",
+            desc_visibility: ((ttl as { ttl_nm: string; ttl_desc?: string | null; desc_visibility?: string }).desc_visibility ?? "others") as "always" | "others" | "held" | "never",
             badge_effect: (rel as { mem_id: string; selected_badge_effect?: string | null; selected_frame_cd?: string | null }).selected_badge_effect ?? "none",
             frame_cd: (rel as { mem_id: string; selected_badge_effect?: string | null; selected_frame_cd?: string | null }).selected_frame_cd ?? "frame-none",
           });
@@ -212,7 +212,7 @@ function getCachedRecordsData(teamId: string) {
       });
 
       // mem_id → 칭호 맵 직렬화 (unstable_cache는 plain object만 반환 가능)
-      const memberTitles: Record<string, { ttl_nm: string; ttl_desc: string | null; desc_visibility: string; badge_effect: string; frame_cd: string }> =
+      const memberTitles: Record<string, { ttl_nm: string; ttl_desc: string | null; desc_visibility: "always" | "others" | "held" | "never"; badge_effect: string; frame_cd: string }> =
         Object.fromEntries(memberTitleMap.entries());
 
       return {

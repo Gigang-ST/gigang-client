@@ -15,7 +15,7 @@ export type ReviewLine = {
   metaSuffix: string;
   ttlNm: string | null;
   ttlDesc: string | null;
-  descVisibility: string;
+  descVisibility: "always" | "others" | "held" | "never";
   badgeEffect: string | null;
   frameCd: string | null;
 };
