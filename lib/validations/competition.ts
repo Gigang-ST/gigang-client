@@ -32,21 +32,9 @@ function buildCompetitionRegisterSchema(datePolicy: CompetitionRegisterDatePolic
     path: ["endDate"],
   })
   .refine(
-    (data) => {
-      const base = data.selectedEventTypes.filter((t) => t !== COMP_EVT_TYPE_OTHER);
-      const otherOn = data.selectedEventTypes.includes(COMP_EVT_TYPE_OTHER);
-      const custom = sanitizeAsciiUpperCompEvtTypeInput(data.customEventType).trim();
-      if (otherOn && compEvtTypeContainsHangul(data.customEventType)) return false;
-      if (otherOn && !custom) return false;
-      if (!otherOn && base.length === 0) return false;
-      if (otherOn && custom) {
-        const ck = normalizeCompEvtTypeKey(custom);
-        if (base.some((t) => normalizeCompEvtTypeKey(t) === ck)) return false;
-      }
-      return true;
-    },
+    (data) => data.selectedEventTypes.filter(t => t !== COMP_EVT_TYPE_OTHER).length > 0,
     {
-      message: "참가 코스를 1개 이상 선택하거나, 기타 입력을 완료해 주세요.",
+      message: "참가 코스를 1개 이상 선택해 주세요.",
       path: ["selectedEventTypes"],
     },
   );

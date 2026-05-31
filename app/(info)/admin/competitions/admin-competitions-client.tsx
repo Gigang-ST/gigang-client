@@ -22,6 +22,7 @@ import {
   sprtCdDisplayName,
   type CachedCmmCdRow,
 } from "@/lib/queries/cmm-cd-cached";
+import { sanitizeAsciiUpperCompEvtTypeInput } from "@/lib/comp-evt-type";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -121,6 +122,7 @@ function CompetitionsContent({
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [regLoading, setRegLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [customEtInput, setCustomEtInput] = useState("");
 
   // 폼 상태
   const [form, setForm] = useState({
@@ -424,7 +426,7 @@ function CompetitionsContent({
           <Select
             value={form.sport}
             onValueChange={(v) =>
-              setForm({ ...form, sport: v, eventTypes: [] })
+              { setForm({ ...form, sport: v, eventTypes: [] }); setCustomEtInput(""); }
             }
           >
             <SelectTrigger className="h-12 rounded-xl border-[1.5px] text-[15px]">
@@ -484,6 +486,7 @@ function CompetitionsContent({
           <label className="text-sm font-medium text-foreground">
             세부종목
           </label>
+          {/* 기본 목록 토글 */}
           <div className="flex flex-wrap gap-2">
             {formEventTypeCodes.map((et) => (
               <Button
@@ -501,6 +504,51 @@ function CompetitionsContent({
                 {et}
               </Button>
             ))}
+          </div>
+          {/* 직접 추가한 커스텀 코스 태그 */}
+          {form.eventTypes.filter(t => !formEventTypeCodes.includes(t)).length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {form.eventTypes.filter(t => !formEventTypeCodes.includes(t)).map(type => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setForm({ ...form, eventTypes: form.eventTypes.filter(t2 => t2 !== type) })}
+                  className="flex items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-medium text-primary-foreground"
+                >
+                  {type} ×
+                </button>
+              ))}
+            </div>
+          )}
+          {/* 직접 입력 */}
+          <div className="flex gap-1.5">
+            <Input
+              placeholder="직접 입력 (예: 12K, TRAIL100)"
+              value={customEtInput}
+              onChange={(e) => setCustomEtInput(sanitizeAsciiUpperCompEvtTypeInput(e.target.value))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const val = customEtInput.trim();
+                  if (!val || form.eventTypes.includes(val)) return;
+                  setForm({ ...form, eventTypes: [...form.eventTypes, val] });
+                  setCustomEtInput("");
+                }
+              }}
+              className="h-10 rounded-xl border-[1.5px] text-[13px]"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                const val = customEtInput.trim();
+                if (!val || form.eventTypes.includes(val)) return;
+                setForm({ ...form, eventTypes: [...form.eventTypes, val] });
+                setCustomEtInput("");
+              }}
+            >
+              추가
+            </Button>
           </div>
         </div>
 
