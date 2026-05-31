@@ -377,27 +377,33 @@ async function HomeContent() {
 
   return (
     <div className="flex flex-col gap-0">
-      {/* 헤더 */}
-      <div className="flex items-end gap-3 px-6 pb-4 pt-4">
-        <H1>기강</H1>
-        <div className="flex flex-col gap-0 pb-1">
-          <span className="text-[14px] leading-[1.4] text-muted-foreground">
-            멤버 <span className="font-semibold text-foreground">{memberCount}명</span>
-          </span>
-          <span className="text-[14px] leading-[1.4] text-muted-foreground">
-            예정대회 <span className="font-semibold text-foreground">{gigangRaces.length}개</span>
-          </span>
+      {/* 헤더 — 좌: 기강+오버뷰 / 중: 슬로건 / 우: 알림(추후) */}
+      <div className="relative flex h-20 items-center px-6">
+        {/* 좌 */}
+        <div className="flex flex-1 items-center gap-2.5">
+          <H1>기강</H1>
+          <div className="flex flex-col gap-0 text-[12px] leading-[1.5]">
+            <div className="flex text-muted-foreground">
+              <span className="w-7">멤버</span>
+              <span className="w-10 text-right font-semibold tabular-nums text-foreground">{memberCount}명</span>
+            </div>
+            <div className="flex text-muted-foreground">
+              <span className="w-7">대회</span>
+              <span className="w-10 text-right font-semibold tabular-nums text-foreground">{gigangRaces.length}개</span>
+            </div>
+          </div>
         </div>
-      </div>
-
-      {/* 슬로건 */}
-      <div className="mx-6 mb-5 border-y border-foreground/10 py-3">
-        <p className="font-sans text-[10px] font-normal uppercase tracking-[0.3em] text-muted-foreground">
-          Running based · Sports Team
-        </p>
-        <p className="font-sans text-[20px] font-black italic uppercase leading-tight tracking-[-0.03em] text-foreground">
-          No time to be weak
-        </p>
+        {/* 중: 슬로건 — 화면 전체 기준 중앙 */}
+        <div className="absolute left-0 right-0 flex flex-col items-center justify-center pointer-events-none">
+          <p className="font-sans text-[9px] uppercase tracking-[0.15em] text-muted-foreground">
+            Since 2024.04.23
+          </p>
+          <p className="font-sans text-[18px] font-black italic uppercase leading-tight tracking-[-0.03em] text-foreground">
+            No time to be weak
+          </p>
+        </div>
+        {/* 우: 알림 아이콘 자리 — 추후 구현 */}
+        <div className="size-8 shrink-0" />
       </div>
 
       <div className="flex flex-col gap-7 px-6 pb-6">
