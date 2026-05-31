@@ -71,24 +71,30 @@ async function HomeContent() {
     myTitleNames,
   ] = await Promise.all([
     supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: today }),
-    supabase.rpc("get_public_team_recent_records", { p_team_id: teamId, p_limit: 12 }),
+    SHOW_EXTRA_SECTIONS
+      ? supabase.rpc("get_public_team_recent_records", { p_team_id: teamId, p_limit: 12 })
+      : Promise.resolve({ data: null }),
     supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: monthStart, p_end: monthLastDayStr }),
-    admin
-      .from("team_mem_rel")
-      .select("mem_id, join_dt, mem_mst!inner(mem_nm)")
-      .eq("team_id", teamId)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .order("join_dt", { ascending: false })
-      .limit(10),
-    admin
-      .from("mem_ttl_rel")
-      .select("grnt_at, ttl_mst!inner(ttl_nm, ttl_desc, desc_visibility), team_mem_rel!inner(mem_id, selected_badge_effect, mem_mst!inner(mem_nm))")
-      .eq("team_id", teamId)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .order("grnt_at", { ascending: false })
-      .limit(10),
+    SHOW_EXTRA_SECTIONS
+      ? admin
+          .from("team_mem_rel")
+          .select("mem_id, join_dt, mem_mst!inner(mem_nm)")
+          .eq("team_id", teamId)
+          .eq("vers", 0)
+          .eq("del_yn", false)
+          .order("join_dt", { ascending: false })
+          .limit(10)
+      : Promise.resolve({ data: null }),
+    SHOW_EXTRA_SECTIONS
+      ? admin
+          .from("mem_ttl_rel")
+          .select("grnt_at, ttl_mst!inner(ttl_nm, ttl_desc, desc_visibility), team_mem_rel!inner(mem_id, selected_badge_effect, mem_mst!inner(mem_nm))")
+          .eq("team_id", teamId)
+          .eq("vers", 0)
+          .eq("del_yn", false)
+          .order("grnt_at", { ascending: false })
+          .limit(10)
+      : Promise.resolve({ data: null }),
     getCachedCmmCdRows(),
     getMyTitleNames(),
   ]);
@@ -458,30 +464,6 @@ function HomeSkeleton() {
         <Skeleton className="h-3.5 w-32" />
         <Skeleton className="h-10 rounded-lg" />
         <Skeleton className="h-10 rounded-lg" />
-      </div>
-      {/* Recent Records */}
-      <div className="flex flex-col gap-3">
-        <Skeleton className="h-3.5 w-32" />
-        <div className="grid grid-cols-2 gap-2">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 rounded-xl" />
-          ))}
-        </div>
-      </div>
-      {/* New Members + Recent Titles */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-3.5 w-24" />
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-9 rounded-lg" />
-          ))}
-        </div>
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-3.5 w-24" />
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-9 rounded-lg" />
-          ))}
-        </div>
       </div>
       {/* Social Links */}
       <div className="grid grid-cols-4 gap-3">

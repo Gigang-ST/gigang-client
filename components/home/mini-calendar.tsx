@@ -2,7 +2,12 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { todayKST, currentMonthKST } from "@/lib/dayjs";
+import { todayKST, currentMonthKST, daysInMonth } from "@/lib/dayjs";
+import dayjs from "dayjs";
+import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc";
+dayjs.extend(utc);
+dayjs.extend(timezone);
 import { createClient } from "@/lib/supabase/client";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-create-comp-evt-for-participation";
@@ -34,7 +39,7 @@ type MiniCalendarProps = {
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"] as const;
 
 function monthLastDayStr(year: number, month: number): string {
-  const d = new Date(year, month, 0).getDate();
+  const d = daysInMonth(year, month);
   return `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
@@ -67,8 +72,8 @@ export function MiniCalendar({
   const year = parseInt(yearStr, 10);
   const month = parseInt(monthStr, 10);
 
-  const totalDays = new Date(year, month, 0).getDate();
-  const firstDayOfWeek = new Date(`${year}-${String(month).padStart(2, "0")}-01`).getDay();
+  const totalDays = daysInMonth(year, month);
+  const firstDayOfWeek = dayjs.tz(`${year}-${String(month).padStart(2, "0")}-01`, "Asia/Seoul").day();
 
   // 날짜별 이벤트 목록 (mine 우선, 중복 제거)
   const eventsByDate = useMemo(() => {
