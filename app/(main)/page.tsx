@@ -62,7 +62,6 @@ async function HomeContent() {
   let initialMemberStatus: MemberStatus = { status: "signed-out" };
 
   const [
-    { data: memberStats },
     { data: teamComps },
     { data: recentRecordsRaw },
     { data: calendarComps },
@@ -71,7 +70,6 @@ async function HomeContent() {
     cmmCdRows,
     myTitleNames,
   ] = await Promise.all([
-    admin.rpc("get_public_team_member_stats", { p_team_id: teamId }),
     supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: today }),
     supabase.rpc("get_public_team_recent_records", { p_team_id: teamId, p_limit: 12 }),
     supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: monthStart, p_end: monthLastDayStr }),
@@ -94,8 +92,6 @@ async function HomeContent() {
     getCachedCmmCdRows(),
     getMyTitleNames(),
   ]);
-
-  const memberCount = memberStats?.[0]?.active_count ?? 0;
 
   // 기강대회: 등록자 1명 이상, 중복 제거 + 참가자 등록 event_type 수집
   const seenIds = new Set<string>();
@@ -380,25 +376,15 @@ async function HomeContent() {
       {/* 헤더 — 좌: 기강+오버뷰 / 중: 슬로건 / 우: 알림(추후) */}
       <div className="relative flex h-20 items-center px-6">
         {/* 좌 */}
-        <div className="flex flex-1 items-center gap-2.5">
+        <div className="flex flex-1 items-center">
           <H1>기강</H1>
-          <div className="flex flex-col gap-0 text-[12px] leading-[1.5]">
-            <div className="flex text-muted-foreground">
-              <span className="w-7">멤버</span>
-              <span className="w-10 text-right font-semibold tabular-nums text-foreground">{memberCount}명</span>
-            </div>
-            <div className="flex text-muted-foreground">
-              <span className="w-7">대회</span>
-              <span className="w-10 text-right font-semibold tabular-nums text-foreground">{gigangRaces.length}개</span>
-            </div>
-          </div>
         </div>
         {/* 중: 슬로건 — 화면 전체 기준 중앙 */}
         <div className="absolute left-0 right-0 flex flex-col items-center justify-center pointer-events-none">
-          <p className="font-sans text-[9px] uppercase tracking-[0.15em] text-muted-foreground">
+          <p className="font-sans text-[6px] uppercase tracking-[0.15em] text-muted-foreground">
             Since 2024.04.23
           </p>
-          <p className="font-sans text-[18px] font-black italic uppercase leading-tight tracking-[-0.03em] text-foreground">
+          <p className="font-sans text-[13px] font-black italic uppercase leading-tight tracking-[-0.03em] text-foreground">
             No time to be weak
           </p>
         </div>

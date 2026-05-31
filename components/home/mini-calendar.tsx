@@ -318,7 +318,7 @@ export function MiniCalendar({
         <div className="grid grid-cols-7">
           {weeks.flat().map((day, idx) => {
             if (day === null) {
-              return <div key={`empty-${idx}`} className="h-24 border-t border-border/40" />;
+              return <div key={`empty-${idx}`} className="h-20 border-t border-border/40" />;
             }
             const dateStr = formatCellDate(day);
             const isToday = dateStr === today;
@@ -331,7 +331,7 @@ export function MiniCalendar({
                 key={dateStr}
                 onClick={() => setSelectedDate(dateStr)}
                 className={cn(
-                  "flex h-24 flex-col gap-px border-t border-border/40 px-0.5 pt-1 text-left transition-colors",
+                  "flex h-20 flex-col gap-px border-t border-border/40 px-0.5 pt-1 text-left transition-colors",
                   isSelected && "bg-secondary/60",
                 )}
                 aria-pressed={isSelected}
@@ -357,7 +357,7 @@ export function MiniCalendar({
                     <span
                       key={race.id}
                       className={cn(
-                        "w-full truncate rounded-sm px-0.5 text-left text-[9px] font-medium leading-[1.6]",
+                        "w-full truncate rounded-sm px-0.5 text-left text-[7px] font-medium leading-[1.5]",
                         race.type === "mine"
                           ? "bg-success/20 text-success"
                           : "bg-warning/15 text-warning",
@@ -383,32 +383,32 @@ export function MiniCalendar({
         const panelRaces = eventsByDate.get(selectedDate) ?? [];
         const [, mm, dd] = selectedDate.split("-");
         return (
-          <div className="mt-1 flex flex-col gap-2 rounded-xl bg-secondary/50 px-4 py-3">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-[28px] font-bold leading-none text-foreground tabular-nums">
+          <div className="mt-1 flex items-center gap-3 rounded-xl bg-secondary/50 px-3 py-2">
+            <div className="flex items-baseline gap-1 shrink-0">
+              <span className="text-[18px] font-bold leading-none text-foreground tabular-nums">
                 {parseInt(dd, 10)}
               </span>
-              <span className="text-[13px] text-muted-foreground">
+              <span className="text-[11px] text-muted-foreground">
                 {parseInt(mm, 10)}월
               </span>
             </div>
             {panelRaces.length === 0 ? (
-              <span className="text-[13px] text-muted-foreground">일정 없음</span>
+              <span className="text-[11px] text-muted-foreground">일정 없음</span>
             ) : (
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1">
                 {panelRaces.map((race) => (
                   <button
                     key={race.id}
                     onClick={() => handleRaceClick(race)}
-                    className="flex items-center gap-2 text-left transition-opacity hover:opacity-70"
+                    className="flex items-center gap-1.5 text-left transition-opacity hover:opacity-70"
                   >
                     <span
                       className={cn(
-                        "h-5 w-1 shrink-0 rounded-full",
+                        "h-3 w-0.5 shrink-0 rounded-full",
                         race.type === "mine" ? "bg-success" : "bg-warning",
                       )}
                     />
-                    <span className="text-[14px] font-medium text-foreground">{race.title}</span>
+                    <span className="text-[11px] font-medium text-foreground">{race.title}</span>
                   </button>
                 ))}
               </div>
