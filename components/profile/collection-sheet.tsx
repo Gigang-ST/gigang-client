@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { Check, X } from "lucide-react";
 
@@ -158,8 +158,16 @@ export function CollectionSheet({
   const [selectedBadge, setSelectedBadge] = useState<string | null>(currentBadgeEffect);
   const [selectedFrame, setSelectedFrame] = useState<string | null>(currentFrameCd);
   const [previewTtlId, setPreviewTtlId] = useState<string | null>(null);
+  const [openTooltipTtlId, setOpenTooltipTtlId] = useState<string | null>(null);
+  const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [isPending, startTransition] = useTransition();
+
+  function openTooltip(ttlId: string) {
+    if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
+    setOpenTooltipTtlId(ttlId);
+    tooltipTimerRef.current = setTimeout(() => setOpenTooltipTtlId(null), 3000);
+  }
 
   // 시트 재오픈 시 선택 상태를 현재 저장값으로 리셋
   useEffect(() => {
@@ -169,7 +177,12 @@ export function CollectionSheet({
       setSelectedFrame(currentFrameCd);
       setPreviewTtlId(null);
     }
+    // 시트 닫힐 때 툴팁 초기화
+    if (!open) setOpenTooltipTtlId(null);
   }, [open, currentPrimaryTtlId, currentBadgeEffect, currentFrameCd]);
+
+  // 탭 변경 시 툴팁 닫기
+  useEffect(() => { setOpenTooltipTtlId(null); }, [tab]);
 
   // 뱃지 미리보기는 저장될 selectedTtlId 기준
   const selectedTitle = allTitles.find((t) => t.ttl_id === selectedTtlId);
@@ -346,10 +359,11 @@ export function CollectionSheet({
                     <div className="flex flex-wrap gap-2">
                       {regularTitles.map((t) => {
                         const owned = ownedTitleIds.has(t.ttl_id);
-                        const masked = !owned || !t.use_yn;
+                        const masked = t.desc_visibility !== "always" && (!owned || !t.use_yn);
                         const blocked = owned && t.use_yn && isBlockedByHigher(t);
                         const selectable = owned && t.use_yn && !blocked;
                         const isSelected = selectedTtlId === t.ttl_id;
+                        const dimmed = !masked && !owned; // always라 마스킹은 없지만 미보유
                         return (
                           <TitleBadge
                             key={t.ttl_id}
@@ -363,7 +377,9 @@ export function CollectionSheet({
                               isHeld: owned,
                               isOwner: true,
                             }}
-                            className={cn(blocked && "opacity-50")}
+                            tooltipOpen={openTooltipTtlId === t.ttl_id}
+                            onTooltipOpen={() => openTooltip(t.ttl_id)}
+                            className={cn((blocked || dimmed) && "opacity-50")}
                             onClick={() => {
                               if (selectable) {
                                 setSelectedTtlId(isSelected ? null : t.ttl_id);
@@ -401,6 +417,8 @@ export function CollectionSheet({
                                   isHeld: true,
                                   isOwner: true,
                                 }}
+                                tooltipOpen={openTooltipTtlId === t.ttl_id}
+                                onTooltipOpen={() => openTooltip(t.ttl_id)}
                                 onClick={() => setSelectedTtlId(isSelected ? null : t.ttl_id)}
                               />
                             );
