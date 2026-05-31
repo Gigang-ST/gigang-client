@@ -171,7 +171,37 @@ CREATE TABLE noti_pref_cfg (
 );
 ```
 
-### 4-4. `team_mem_rel` 컬럼 추가 — 게시 권한
+### 4-4. `brd_post_read_hist` — 게시글 읽음 이력
+
+```sql
+CREATE TABLE brd_post_read_hist (
+  post_id   uuid NOT NULL REFERENCES brd_post_mst(post_id),
+  mem_id    uuid NOT NULL REFERENCES mem_mst(mem_id),
+  read_at   timestamptz DEFAULT now(),
+  PRIMARY KEY (post_id, mem_id)
+);
+
+CREATE INDEX idx_brd_post_read_hist_mem
+  ON brd_post_read_hist(mem_id, post_id);
+```
+
+- `/board/[id]` 진입 시 INSERT (이미 있으면 무시 — `ON CONFLICT DO NOTHING`)
+- 앱 진입 시 미읽음 공지 체크에 사용:
+
+```sql
+-- 내가 안 읽은 공지/업데이트가 있는지 확인 (앱 진입 시 1회)
+SELECT EXISTS (
+  SELECT 1 FROM brd_post_mst bp
+  WHERE bp.team_id = $1
+    AND bp.del_yn = false
+    AND NOT EXISTS (
+      SELECT 1 FROM brd_post_read_hist
+      WHERE post_id = bp.post_id AND mem_id = $2
+    )
+);
+```
+
+### 4-5. `team_mem_rel` 컬럼 추가 — 게시 권한
 
 ```sql
 -- 작성권한은 team_mem_rel에 컬럼으로 관리 (단일 팀 구조라 별도 테이블 불필요)
@@ -269,20 +299,37 @@ SELECT cron.schedule(
 
 ## 7. 컴포넌트 설계
 
-### 7-1. 홈탭 헤더 (`app/(main)/page.tsx`)
+### 7-1. 홈탭 헤더 + 미읽음 공지 토스트 (`app/(main)/page.tsx`)
 
 ```tsx
+// 서버에서 미읽음 공지 여부 조회
+const hasUnreadPost = await hasUnreadBoardPost(member?.id, teamId);
+
 // PageHeader action prop 활용
 <PageHeader
   title="기강"
   action={
     <div className="flex items-center gap-2">
-      <BoardHeaderIcon hasNew={hasNewPost} />
+      <BoardHeaderIcon hasNew={hasUnreadPost} />
       <NotificationBell initialCount={unreadCount} />
     </div>
   }
 />
+
+// 클라이언트 컴포넌트로 토스트 처리
+<UnreadPostToast show={hasUnreadPost} />
 ```
+
+**`UnreadPostToast`** — 클라이언트 컴포넌트.  
+앱 진입(홈탭 마운트) 시 `show=true`이면 하단에 토스트 노출:
+
+```
+📢 읽지 않은 공지가 있습니다   →
+```
+
+- 3~4초 후 자동으로 사라짐
+- 클릭 시 `/board`로 이동
+- 세션당 1회만 노출 (sessionStorage로 중복 방지)
 
 ### 7-2. `NotificationBell` (클라이언트 컴포넌트)
 

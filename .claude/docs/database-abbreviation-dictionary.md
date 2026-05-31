@@ -92,6 +92,7 @@
 | `ttl_mst` | 칭호 마스터 |
 | `mem_ttl_rel` | 회원-칭호 관계 |
 | `brd_post_mst` | 게시글 마스터 (공지/업데이트) |
+| `brd_post_read_hist` | 게시글 읽음 이력 |
 | `noti_mst` | 알림 마스터 |
 | `noti_pref_cfg` | 알림 수신 설정 |
 
