@@ -17,7 +17,8 @@ import { Input } from "@/components/ui/input";
 /* ------------------------------------------------------------------ */
 
 type DescVisibility = "always" | "others" | "held" | "never";
-type MemberTitle = { ttl_nm: string; ttl_desc: string | null; desc_visibility: DescVisibility; badge_effect: string; frame_cd: string; isHeld: boolean };
+type MemberTitleBase = { ttl_nm: string; ttl_desc: string | null; desc_visibility: DescVisibility; badge_effect: string; frame_cd: string };
+type MemberTitle = MemberTitleBase & { isHeld: boolean };
 
 type RankingEntry = {
   rank: number;
@@ -63,7 +64,7 @@ type RecordsData = {
   marathon: { events: MarathonEvent[] };
   trail: { entries: TrailEntry[] };
   triathlon: { events: TriathlonEvent[] };
-  memberTitles: Record<string, MemberTitle>;
+  memberTitles: Record<string, MemberTitleBase>;
 };
 
 /* ------------------------------------------------------------------ */
