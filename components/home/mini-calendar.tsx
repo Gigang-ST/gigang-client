@@ -52,9 +52,9 @@ export function MiniCalendar({
   const [viewMonth, setViewMonth] = useState(initialMonth);
   const [gigangRaces, setGigangRaces] = useState(initGigang);
   const [myRaces, setMyRaces] = useState(initMine);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const [selectedDate, setSelectedDate] = useState<string>(() => todayKST());
   const [selectedCompetition, setSelectedCompetition] = useState<Competition | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [registrationsByCompetitionId, setRegistrationsByCompetitionId] =
@@ -70,54 +70,37 @@ export function MiniCalendar({
   const totalDays = new Date(year, month, 0).getDate();
   const firstDayOfWeek = new Date(`${year}-${String(month).padStart(2, "0")}-01`).getDay();
 
-  const eventMap = useMemo(() => {
-    const gigangIdsByDate = new Map<string, Set<string>>();
-    const mineIdsByDate = new Map<string, Set<string>>();
-
-    for (const race of gigangRaces) {
-      const s = gigangIdsByDate.get(race.start_date) ?? new Set<string>();
-      s.add(race.id);
-      gigangIdsByDate.set(race.start_date, s);
+  // 날짜별 이벤트 목록 (mine 우선, 중복 제거)
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, CalendarRace[]>();
+    const allRaces = [...myRaces, ...gigangRaces];
+    const seen = new Set<string>();
+    for (const race of allRaces) {
+      const key = `${race.start_date}:${race.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const list = map.get(race.start_date) ?? [];
+      list.push(race);
+      map.set(race.start_date, list);
     }
-    for (const race of myRaces) {
-      const s = mineIdsByDate.get(race.start_date) ?? new Set<string>();
-      s.add(race.id);
-      mineIdsByDate.set(race.start_date, s);
-    }
-
-    const map = new Map<string, { gigang: boolean; mine: boolean }>();
-    for (const [date, gigangIds] of gigangIdsByDate) {
-      const mineIds = mineIdsByDate.get(date) ?? new Set<string>();
-      const hasGigangWithoutMe = [...gigangIds].some((id) => !mineIds.has(id));
-      map.set(date, { gigang: hasGigangWithoutMe, mine: mineIds.size > 0 });
-    }
-
     return map;
   }, [gigangRaces, myRaces]);
 
-  const selectedEvents = useMemo(() => {
-    if (!selectedDate) return [];
-    const seen = new Set<string>();
-    // myRaces 먼저 — 같은 대회가 기강+내 대회 둘 다면 mine 타입으로 표시
-    return [...myRaces, ...gigangRaces].filter((r) => {
-      if (r.start_date !== selectedDate || seen.has(r.id)) return false;
-      seen.add(r.id);
-      return true;
-    });
-  }, [selectedDate, gigangRaces, myRaces]);
-
-  const cells: (number | null)[] = [
-    ...Array.from<null>({ length: firstDayOfWeek }).fill(null),
-    ...Array.from({ length: totalDays }, (_, i) => i + 1),
-  ];
+  // 주차별로 날짜 그룹핑
+  const weeks = useMemo(() => {
+    const cells: (number | null)[] = [
+      ...Array.from<null>({ length: firstDayOfWeek }).fill(null),
+      ...Array.from({ length: totalDays }, (_, i) => i + 1),
+    ];
+    const result: (number | null)[][] = [];
+    for (let i = 0; i < cells.length; i += 7) {
+      result.push(cells.slice(i, i + 7).concat(Array(7).fill(null)).slice(0, 7));
+    }
+    return result;
+  }, [firstDayOfWeek, totalDays]);
 
   function formatCellDate(day: number): string {
     return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  }
-
-  function handleDayClick(day: number) {
-    const dateStr = formatCellDate(day);
-    setSelectedDate((prev) => (prev === dateStr ? null : dateStr));
   }
 
   async function handleRaceClick(race: CalendarRace) {
@@ -279,7 +262,6 @@ export function MiniCalendar({
       d.setMonth(d.getMonth() + dir);
       const newMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
       const { gigang, mine } = await fetchMonthData(newMonth);
-      setSelectedDate(null);
       setViewMonth(newMonth);
       setGigangRaces(gigang);
       setMyRaces(mine);
@@ -288,23 +270,13 @@ export function MiniCalendar({
 
   return (
     <div className="flex flex-col gap-2">
-      {/* 헤더: SCHEDULE + 범례 + 월 이동 한 줄에 */}
+      {/* 헤더 */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <SectionLabel>SCHEDULE</SectionLabel>
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center gap-1">
-              <span className="size-1.5 rounded-full bg-warning" />
-              <Micro>기강</Micro>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="size-1.5 rounded-full bg-primary" />
-              <Micro>내 대회</Micro>
-            </div>
-          </div>
-        </div>
+        <SectionLabel>SCHEDULE</SectionLabel>
         <div className="flex items-center gap-1">
-          <Micro className="text-foreground font-medium tabular-nums">{year}.{String(month).padStart(2, "0")}</Micro>
+          <Micro className="font-medium tabular-nums text-foreground">
+            {year}.{String(month).padStart(2, "0")}
+          </Micro>
           <button
             onClick={() => navigate(-1)}
             disabled={isPending}
@@ -324,7 +296,7 @@ export function MiniCalendar({
         </div>
       </div>
 
-      {/* 달력 그리드 */}
+      {/* 달력 + 이벤트 */}
       <div className={cn("flex flex-col transition-opacity", isPending && "opacity-50")}>
         {/* 요일 헤더 */}
         <div className="grid grid-cols-7 text-center">
@@ -332,7 +304,7 @@ export function MiniCalendar({
             <Micro
               key={wd}
               className={cn(
-                "pb-0.5",
+                "pb-1",
                 wd === "일" && "text-destructive",
                 wd === "토" && "text-primary",
               )}
@@ -342,77 +314,108 @@ export function MiniCalendar({
           ))}
         </div>
 
-        {/* 날짜 셀 */}
-        <div className="grid grid-cols-7 text-center">
-          {cells.map((day, idx) => {
-            if (day === null) return <div key={`empty-${idx}`} />;
+        {/* 바둑판 그리드 — 셀 고정 높이 */}
+        <div className="grid grid-cols-7">
+          {weeks.flat().map((day, idx) => {
+            if (day === null) {
+              return <div key={`empty-${idx}`} className="h-24 border-t border-border/40" />;
+            }
             const dateStr = formatCellDate(day);
-            const events = eventMap.get(dateStr);
             const isToday = dateStr === today;
             const isSelected = selectedDate === dateStr;
-            const colIndex = (firstDayOfWeek + day - 1) % 7;
+            const colIndex = idx % 7;
+            const races = eventsByDate.get(dateStr) ?? [];
 
             return (
               <button
                 key={dateStr}
-                onClick={() => handleDayClick(day)}
+                onClick={() => setSelectedDate(dateStr)}
                 className={cn(
-                  "flex items-center justify-center rounded transition-colors",
-                  isSelected && "bg-secondary",
-                  !isSelected && "hover:bg-secondary/60",
+                  "flex h-24 flex-col gap-px border-t border-border/40 px-0.5 pt-1 text-left transition-colors",
+                  isSelected && "bg-secondary/60",
                 )}
-                aria-label={`${month}월 ${day}일`}
                 aria-pressed={isSelected}
               >
-                <span className="flex items-center gap-0.5">
+                {/* 날짜 숫자 */}
+                <div className="flex justify-center pb-px">
                   <span
                     className={cn(
                       "flex size-6 items-center justify-center rounded-full text-[12px] font-medium",
                       isToday && "bg-primary text-primary-foreground font-bold",
                       !isToday && colIndex === 0 && "text-destructive",
                       !isToday && colIndex === 6 && "text-primary",
-                      !isToday && "text-foreground",
+                      !isToday && colIndex !== 0 && colIndex !== 6 && "text-foreground",
                     )}
                   >
                     {day}
                   </span>
-                  <span className="grid grid-cols-2 gap-px" aria-hidden>
-                    <span className={cn("size-1 rounded-full", events?.gigang ? "bg-warning" : "bg-transparent")} />
-                    <span className={cn("size-1 rounded-full", events?.mine   ? "bg-primary" : "bg-transparent")} />
-                    <span className="size-1 rounded-full bg-transparent" />
-                    <span className="size-1 rounded-full bg-transparent" />
-                  </span>
-                </span>
+                </div>
+
+                {/* 이벤트 목록 — 최대 3개, 나머지는 +N */}
+                <div className="flex flex-col gap-px overflow-hidden">
+                  {races.slice(0, 3).map((race) => (
+                    <span
+                      key={race.id}
+                      className={cn(
+                        "w-full truncate rounded-sm px-0.5 text-left text-[9px] font-medium leading-[1.6]",
+                        race.type === "mine"
+                          ? "bg-success/20 text-success"
+                          : "bg-warning/15 text-warning",
+                      )}
+                    >
+                      {race.title}
+                    </span>
+                  ))}
+                  {races.length > 3 && (
+                    <span className="px-0.5 text-[9px] text-muted-foreground">
+                      +{races.length - 3}
+                    </span>
+                  )}
+                </div>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* 선택된 날짜 이벤트 */}
-      {selectedDate && (
-        <div className="flex items-start gap-2 rounded-lg bg-secondary/60 px-3 py-1.5">
-          <Micro className="shrink-0 pt-px text-muted-foreground tabular-nums">
-            {parseInt(selectedDate.split("-")[1], 10)}/{parseInt(selectedDate.split("-")[2], 10)}
-          </Micro>
-          {selectedEvents.length === 0 ? (
-            <Micro className="text-muted-foreground">일정 없음</Micro>
-          ) : (
-            <div className="flex flex-col gap-1">
-              {selectedEvents.map((race) => (
-                <button
-                  key={race.id}
-                  onClick={() => handleRaceClick(race)}
-                  className="flex items-center gap-1.5 text-left hover:opacity-70 transition-opacity"
-                >
-                  <span className={cn("size-1.5 shrink-0 rounded-full", race.type === "mine" ? "bg-primary" : "bg-warning")} />
-                  <Micro className="text-foreground underline-offset-2 hover:underline">{race.title}</Micro>
-                </button>
-              ))}
+      {/* 날짜 패널 — 항상 표시, 클릭으로 날짜 변경 */}
+      {(() => {
+        const panelRaces = eventsByDate.get(selectedDate) ?? [];
+        const [, mm, dd] = selectedDate.split("-");
+        return (
+          <div className="mt-1 flex flex-col gap-2 rounded-xl bg-secondary/50 px-4 py-3">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[28px] font-bold leading-none text-foreground tabular-nums">
+                {parseInt(dd, 10)}
+              </span>
+              <span className="text-[13px] text-muted-foreground">
+                {parseInt(mm, 10)}월
+              </span>
             </div>
-          )}
-        </div>
-      )}
+            {panelRaces.length === 0 ? (
+              <span className="text-[13px] text-muted-foreground">일정 없음</span>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {panelRaces.map((race) => (
+                  <button
+                    key={race.id}
+                    onClick={() => handleRaceClick(race)}
+                    className="flex items-center gap-2 text-left transition-opacity hover:opacity-70"
+                  >
+                    <span
+                      className={cn(
+                        "h-5 w-1 shrink-0 rounded-full",
+                        race.type === "mine" ? "bg-success" : "bg-warning",
+                      )}
+                    />
+                    <span className="text-[14px] font-medium text-foreground">{race.title}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* 대회 상세 다이얼로그 */}
       <CompetitionDetailDialog

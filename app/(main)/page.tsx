@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+﻿import { Suspense } from "react";
 
 import { todayKST, currentMonthKST, monthLastDay } from "@/lib/dayjs";
 import { env } from "@/lib/env";
@@ -7,7 +7,6 @@ import { getCurrentMember, getMyTitleNames } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { H1 } from "@/components/common/typography";
-import { Caption } from "@/components/common/typography";
 import { MiniCalendar } from "@/components/home/mini-calendar";
 import type { CalendarRace } from "@/components/home/mini-calendar";
 import { RecentJoiners } from "@/components/home/recent-joiners";
@@ -46,6 +45,8 @@ function isSameSlot(dateA: string, dateB: string) {
   // 토-일 or 일-토, 1일 차이
   return diff <= 1 && ((dayA === 6 && dayB === 0) || (dayA === 0 && dayB === 6));
 }
+
+const SHOW_EXTRA_SECTIONS = false;
 
 async function HomeContent() {
   const { user, member: currentMember, supabase } = await getCurrentMember();
@@ -375,15 +376,31 @@ async function HomeContent() {
   }).filter((g) => g.mem_id && g.ttl_nm);
 
   return (
-    <div className="flex flex-col gap-5 px-6 pb-6">
-      {/* 1. 오버뷰 한 줄 */}
-      <Caption>
-        <span className="font-semibold text-foreground">{memberCount}</span>명 활동 중
-        {" · "}
-        <span className="font-semibold text-foreground">{gigangRaces.length}</span>개 대회
-        참가 예정
-      </Caption>
+    <div className="flex flex-col gap-0">
+      {/* 헤더 */}
+      <div className="flex items-end gap-3 px-6 pb-4 pt-4">
+        <H1>기강</H1>
+        <div className="flex flex-col gap-0 pb-1">
+          <span className="text-[14px] leading-[1.4] text-muted-foreground">
+            멤버 <span className="font-semibold text-foreground">{memberCount}명</span>
+          </span>
+          <span className="text-[14px] leading-[1.4] text-muted-foreground">
+            예정대회 <span className="font-semibold text-foreground">{gigangRaces.length}개</span>
+          </span>
+        </div>
+      </div>
 
+      {/* 슬로건 */}
+      <div className="mx-6 mb-5 border-y border-foreground/10 py-3">
+        <p className="font-sans text-[10px] font-normal uppercase tracking-[0.3em] text-muted-foreground">
+          Running based · Sports Team
+        </p>
+        <p className="font-sans text-[20px] font-black italic uppercase leading-tight tracking-[-0.03em] text-foreground">
+          No time to be weak
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-7 px-6 pb-6">
       {/* 2. SCHEDULE 캘린더 */}
       <MiniCalendar
         gigangRaces={calendarGigangRaces}
@@ -404,24 +421,27 @@ async function HomeContent() {
         initialRegistrationsByCompetitionId={initialRegistrationsByCompetitionId}
       />
 
-      {/* 4. RECENT RECORDS 2열 그리드 + 더보기 */}
-      <RecentRecordsGrid
-        records={recentRecords}
-        titleMap={titleMap}
-        myTitleNames={[...myTitleNames]}
-        initialCount={2}
-      />
-
-      {/* 5. 최근 가입자 + 최근 칭호 */}
-      <div className="grid grid-cols-2 gap-4">
-        <RecentJoiners joiners={recentJoiners} initialCount={4} />
-        <RecentTitles grants={recentTitleGrants} initialCount={4} myTitleNames={[...myTitleNames]} />
-      </div>
+      {/* 4. RECENT RECORDS + 최근 가입자 + 최근 칭호 (기획 재설계 전까지 비노출) */}
+      {SHOW_EXTRA_SECTIONS && (
+        <>
+          <RecentRecordsGrid
+            records={recentRecords}
+            titleMap={titleMap}
+            myTitleNames={[...myTitleNames]}
+            initialCount={2}
+          />
+          <div className="grid grid-cols-2 gap-4">
+            <RecentJoiners joiners={recentJoiners} initialCount={4} />
+            <RecentTitles grants={recentTitleGrants} initialCount={4} myTitleNames={[...myTitleNames]} />
+          </div>
+        </>
+      )}
 
       {/* 7. Social Links */}
       <SocialLinksGrid
         kakaoChatPassword={isMember ? (env.KAKAO_CHAT_PASSWORD ?? "") : undefined}
       />
+      </div>
     </div>
   );
 }
@@ -429,9 +449,13 @@ async function HomeContent() {
 
 function HomeSkeleton() {
   return (
-    <div className="flex flex-col gap-7 px-6 pb-6">
-      {/* 오버뷰 한 줄 */}
-      <Skeleton className="h-4 w-48" />
+    <div className="flex flex-col gap-0">
+      {/* 헤더 스켈레톤 */}
+      <div className="flex flex-col gap-2 px-6 pb-6 pt-4">
+        <Skeleton className="h-8 w-16" />
+        <Skeleton className="h-4 w-48" />
+      </div>
+      <div className="flex flex-col gap-7 px-6 pb-6">
       {/* 캘린더 */}
       <div className="flex flex-col gap-3">
         <Skeleton className="h-3.5 w-20" />
@@ -473,6 +497,7 @@ function HomeSkeleton() {
           <Skeleton key={i} className="h-16 rounded-2xl" />
         ))}
       </div>
+      </div>
     </div>
   );
 }
@@ -480,9 +505,6 @@ function HomeSkeleton() {
 export default function HomePage() {
   return (
     <div className="flex flex-col gap-0">
-      <div className="flex h-14 items-center px-6">
-        <H1>기강</H1>
-      </div>
       <Suspense fallback={<HomeSkeleton />}>
         <HomeContent />
       </Suspense>
