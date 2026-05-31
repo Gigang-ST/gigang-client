@@ -21,6 +21,8 @@ export function ProfileCard({
   teamId,
   primaryTtlId,
   primaryTtlNm,
+  primaryTtlDesc,
+  primaryTtlDescVisibility,
   selectedBadgeEffect,
   selectedFrameCd,
   maxRarityLevel,
@@ -33,6 +35,8 @@ export function ProfileCard({
   teamId: string;
   primaryTtlId: string | null;
   primaryTtlNm: string | null;
+  primaryTtlDesc: string | null;
+  primaryTtlDescVisibility: "always" | "others" | "held" | "never";
   selectedBadgeEffect: string | null;
   selectedFrameCd: string | null;
   maxRarityLevel: number;
@@ -52,6 +56,7 @@ export function ProfileCard({
                 name={primaryTtlNm}
                 effect={selectedBadgeEffect ?? "none"}
                 size="sm"
+                tooltip={{ desc: primaryTtlDesc, visibility: primaryTtlDescVisibility, isHeld: true, isOwner: true }}
               />
             )}
           </div>

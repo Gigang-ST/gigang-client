@@ -1,9 +1,11 @@
 "use server";
 
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentMember } from "@/lib/queries/member";
 import { verifyAdmin } from "@/lib/queries/member";
+import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 import dayjs from "dayjs";
 import {
   currentMonthKST,
@@ -221,6 +223,27 @@ export async function joinProject(
   }
 
   revalidatePath("/projects");
+
+  // 칭호 평가 — 시작이반 (참가 신청 시 즉시)
+  const { data: teamMemRow } = await db
+    .from("team_mem_rel")
+    .select("team_mem_id, team_id")
+    .eq("mem_id", member.id)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (teamMemRow) {
+    const ctx = {
+      trigger: "mileage_run" as const,
+      teamId: teamMemRow.team_id,
+      teamMemId: teamMemRow.team_mem_id,
+      projectId: evtId,
+      actDt: currentMonthKST(),
+      prevAchvYn: false,
+    };
+    after(() => evaluateAndGrantTitles(ctx).catch((e) => console.error("[title-engine] mileage_run(join) 평가 실패", e)));
+  }
+
   return { ok: true, message: null };
 }
 
@@ -275,6 +298,16 @@ export async function logActivity(
   );
   const finalMlg = roundMileage(calcFinalMileage(baseMlg, multValues));
 
+  // 막판스퍼트 판단을 위해 기록 INSERT 전 당월 achv_yn 읽기
+  const actMonth = validInput.act_dt.slice(0, 7) + "-01";
+  const { data: prevSnap } = await db
+    .from("evt_mlg_mth_snap")
+    .select("achv_yn")
+    .eq("prt_id", participant.prt_id)
+    .eq("base_dt", actMonth)
+    .maybeSingle();
+  const prevAchvYn = prevSnap?.achv_yn ?? false;
+
   const { error } = await db.from("evt_mlg_act_hist").insert({
     prt_id: participant.prt_id,
     act_dt: validInput.act_dt,
@@ -291,6 +324,26 @@ export async function logActivity(
 
   // 기록이 속한 월 이후 목표 연쇄 재계산
   await recalcGoalsFromMonth(evtId, participant.prt_id);
+
+  // 칭호 평가 — 즉시 평가 대상 (목표달성·막판스퍼트·올라운더·마지막불꽃)
+  const { data: teamMemRow } = await db
+    .from("team_mem_rel")
+    .select("team_mem_id, team_id")
+    .eq("mem_id", member.id)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (teamMemRow) {
+    const ctx = {
+      trigger: "mileage_run" as const,
+      teamId: teamMemRow.team_id,
+      teamMemId: teamMemRow.team_mem_id,
+      projectId: evtId,
+      actDt: validInput.act_dt,
+      prevAchvYn,
+    };
+    after(() => evaluateAndGrantTitles(ctx).catch((e) => console.error("[title-engine] mileage_run(log) 평가 실패", e)));
+  }
 
   revalidatePath("/projects");
   return { ok: true, message: null };

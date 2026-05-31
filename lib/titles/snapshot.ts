@@ -24,6 +24,21 @@ export type RaceHistRow = {
   comp_date: string | null; // comp_mst.stt_dt (월범위/연도 조건용)
 };
 
+/** 마일리지런 월별 스냅샷 (mileage_* 조건용) */
+export type MileageMthSnapRow = {
+  base_dt: string;   // YYYY-MM-01
+  achv_yn: boolean;
+  achv_mlg: number;
+  goal_mlg: number;
+};
+
+/** 마일리지런 활동 기록 (mileage_all_sports_in_month, mileage_sport_ratio 조건용) */
+export type MileageActRow = {
+  act_dt: string;    // YYYY-MM-DD
+  sprt_enm: string;
+  final_mlg: number;
+};
+
 /** 멤버 한 명의 평가에 필요한 데이터 */
 export type MemberSnapshot = {
   teamMemId: string;
@@ -35,6 +50,14 @@ export type MemberSnapshot = {
   heldTitleIds: Set<string>;
   /** 보유 칭호 ID → { ttl_nm, ttl_ctgr_cd } 맵 (race_finish_all_titles, has_title_in_categories 조건용) */
   heldTitleMeta: Map<string, { ttl_nm: string; ttl_ctgr_cd: string }>;
+  /** 마일리지런 참가 여부 (mileage_joined 조건용) */
+  mileageParticipant: boolean;
+  /** 마일리지런 월별 목표/달성 스냅샷 (mileage_goal_* 조건용) */
+  mileageMthSnaps: MileageMthSnapRow[];
+  /** 마일리지런 활동 기록 (mileage_all_sports_in_month, mileage_sport_ratio 조건용) */
+  mileageActHist: MileageActRow[];
+  /** 이벤트 end_dt (mileage_rocket_in_months 조건용) */
+  mileageEvtEndDt: string | null;
 };
 
 export type HeldTitleRow = {
@@ -165,7 +188,62 @@ export async function loadMemberSnapshots(
     }
   }
 
-  // 7. 조합
+  // 7. 마일리지런 데이터 로드 (mileage_* 조건용)
+  // 7-1. 참여자 조회 (mem_id → prt_id, evt_id)
+  const { data: prtRows } = await db
+    .from("evt_team_prt_rel")
+    .select("prt_id, mem_id, evt_id, evt_team_mst!inner(end_dt)")
+    .in("mem_id", memIds)
+    .eq("aprv_yn", true);
+
+  const prtByMemId = new Map<string, { prtId: string; evtEndDt: string }>();
+  const allPrtIds: string[] = [];
+  for (const r of prtRows ?? []) {
+    const evtMst = Array.isArray(r.evt_team_mst) ? r.evt_team_mst[0] : r.evt_team_mst;
+    const endDt = (evtMst as { end_dt: string }).end_dt;
+    prtByMemId.set(r.mem_id, { prtId: r.prt_id, evtEndDt: endDt });
+    allPrtIds.push(r.prt_id);
+  }
+
+  // 7-2. 월별 목표/달성 스냅샷
+  const mthSnapByPrtId = new Map<string, MileageMthSnapRow[]>();
+  if (allPrtIds.length > 0) {
+    const { data: mthRows } = await db
+      .from("evt_mlg_mth_snap")
+      .select("prt_id, base_dt, achv_yn, achv_mlg, goal_mlg")
+      .in("prt_id", allPrtIds)
+      .order("base_dt", { ascending: true });
+
+    for (const r of mthRows ?? []) {
+      if (!mthSnapByPrtId.has(r.prt_id)) mthSnapByPrtId.set(r.prt_id, []);
+      mthSnapByPrtId.get(r.prt_id)!.push({
+        base_dt: r.base_dt as string,
+        achv_yn: r.achv_yn ?? false,
+        achv_mlg: Number(r.achv_mlg),
+        goal_mlg: Number(r.goal_mlg),
+      });
+    }
+  }
+
+  // 7-3. 활동 기록
+  const actHistByPrtId = new Map<string, MileageActRow[]>();
+  if (allPrtIds.length > 0) {
+    const { data: actRows } = await db
+      .from("evt_mlg_act_hist")
+      .select("prt_id, act_dt, sprt_enm, final_mlg")
+      .in("prt_id", allPrtIds);
+
+    for (const r of actRows ?? []) {
+      if (!actHistByPrtId.has(r.prt_id)) actHistByPrtId.set(r.prt_id, []);
+      actHistByPrtId.get(r.prt_id)!.push({
+        act_dt: r.act_dt as string,
+        sprt_enm: r.sprt_enm as string,
+        final_mlg: Number(r.final_mlg),
+      });
+    }
+  }
+
+  // 8. 조합
   const result = new Map<string, MemberSnapshotWithHeld>();
   for (const teamMemId of teamMemIds) {
     const rel = relMap.get(teamMemId);
@@ -178,6 +256,10 @@ export async function loadMemberSnapshots(
       if (meta) heldTitleMeta.set(h.ttl_id, meta);
     }
 
+    const prtInfo = prtByMemId.get(rel.memId);
+    const mthSnaps = prtInfo ? (mthSnapByPrtId.get(prtInfo.prtId) ?? []) : [];
+    const actHist = prtInfo ? (actHistByPrtId.get(prtInfo.prtId) ?? []) : [];
+
     result.set(teamMemId, {
       teamMemId,
       memId: rel.memId,
@@ -188,6 +270,10 @@ export async function loadMemberSnapshots(
       heldTitleIds: new Set(held.map((h) => h.ttl_id)),
       heldTitleMeta,
       heldRows: held,
+      mileageParticipant: prtInfo !== undefined,
+      mileageMthSnaps: mthSnaps,
+      mileageActHist: actHist,
+      mileageEvtEndDt: prtInfo?.evtEndDt ?? null,
     });
   }
 

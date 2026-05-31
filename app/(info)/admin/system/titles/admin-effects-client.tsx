@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { CardItem } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,7 +12,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { toggleEffectUseYn, updateEffectLevel } from "@/app/actions/admin/manage-effect";
+import { type UnlockCond, toggleEffectUseYn, updateEffectLevel, updateEffectUnlockCond } from "@/app/actions/admin/manage-effect";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { SectionLabel } from "@/components/common/typography";
 
 // 배지 이펙트 CSS 클래스 매핑
 const BADGE_CSS: Record<string, string> = {
@@ -95,6 +98,8 @@ type EffectRow = {
   rarity_level: number;
   sort_ord: number;
   use_yn: boolean;
+  use_cnt: number;
+  unlock_cond_json: UnlockCond;
 };
 
 const LEVEL_OPTIONS = Array.from({ length: 10 }, (_, i) => ({
@@ -114,17 +119,38 @@ export function AdminEffectsClient() {
   const [saving, setSaving] = useState<string | null>(null);
   const [toggling, setToggling] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<"all" | "badge" | "frame">("all");
+  const [selectedCd, setSelectedCd] = useState<string | null>(null);
+  const [savingCond, setSavingCond] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     const supabase = createClient();
-    const { data } = await supabase
-      .from("effect_mst")
-      .select("effect_cd, effect_nm, effect_type, rarity_level, sort_ord, use_yn")
-      .order("effect_type", { ascending: true })
-      .order("rarity_level", { ascending: true })
-      .order("sort_ord", { ascending: true });
-    setRows((data ?? []) as EffectRow[]);
+    const [{ data: effects }, { data: profiles }] = await Promise.all([
+      supabase
+        .from("effect_mst")
+        .select("effect_cd, effect_nm, effect_type, rarity_level, sort_ord, use_yn, unlock_cond_json")
+        .order("effect_type", { ascending: true })
+        .order("rarity_level", { ascending: true })
+        .order("sort_ord", { ascending: true }),
+      supabase
+        .from("team_mem_rel")
+        .select("selected_badge_effect, selected_frame_cd")
+        .eq("del_yn", false),
+    ]);
+
+    const badgeCnt: Record<string, number> = {};
+    const frameCnt: Record<string, number> = {};
+    for (const p of profiles ?? []) {
+      if (p.selected_badge_effect) badgeCnt[p.selected_badge_effect] = (badgeCnt[p.selected_badge_effect] ?? 0) + 1;
+      if (p.selected_frame_cd) frameCnt[p.selected_frame_cd] = (frameCnt[p.selected_frame_cd] ?? 0) + 1;
+    }
+
+    setRows(
+      ((effects ?? []) as unknown as Omit<EffectRow, "use_cnt">[]).map((e) => ({
+        ...e,
+        use_cnt: e.effect_type === "badge" ? (badgeCnt[e.effect_cd] ?? 0) : (frameCnt[e.effect_cd] ?? 0),
+      })),
+    );
     setLoading(false);
   }, []);
 
@@ -198,69 +224,100 @@ export function AdminEffectsClient() {
                 <p className="text-[10px] font-semibold tracking-widest text-muted-foreground">배지 이펙트 — {badgeRows.length}종</p>
               )}
               <CardItem className="p-0">
-                <table className="w-full border-collapse text-[11px]">
-                  <thead className="bg-muted/40">
-                    <tr className="border-b">
-                      <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">이펙트</th>
-                      <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">코드</th>
-                      <th className="w-32 px-3 py-1.5 text-center font-medium text-muted-foreground">미리보기</th>
-                      <th className="w-28 px-3 py-1.5 text-center font-medium text-muted-foreground">등급</th>
-                      <th className="w-16 px-3 py-1.5 text-center font-medium text-muted-foreground">사용</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {badgeRows.map((row) => {
-                      const cls = BADGE_CSS[row.effect_cd] ?? "";
-                      return (
-                      <tr key={row.effect_cd} className={cn("border-b last:border-0 hover:bg-muted/20", !row.use_yn && "opacity-40")}>
-                        <td className="px-3 py-1.5 font-medium text-foreground">{row.effect_nm}</td>
-                        <td className="px-3 py-1.5 font-mono text-[10px] text-muted-foreground">{row.effect_cd}</td>
-                        <td className="px-3 py-1.5 text-center">
-                          <span className={cn("inline-flex items-center rounded-full border bg-zinc-900 dark:bg-transparent px-2 py-0.5 text-[11px] font-medium", BADGE_BORDER[row.effect_cd] ?? "border-zinc-700 text-zinc-300")}>
-                            {row.effect_cd === "glitch"
-                              ? <span className={cn("inline-block", cls)} data-text="미리보기">미리보기</span>
-                              : cls
-                                ? <span className={cn("inline-block", cls)}>미리보기</span>
-                                : "미리보기"
-                            }
-                          </span>
-                        </td>
-                        <td className="px-3 py-1.5">
-                          <Select
-                            value={String(row.rarity_level)}
-                            onValueChange={(v) => void updateLevel(row.effect_cd, Number(v))}
-                            disabled={saving === row.effect_cd}
-                          >
-                            <SelectTrigger className={cn("h-7 rounded-lg text-[11px]", LEVEL_COLOR[row.rarity_level])}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {LEVEL_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value} className={cn("text-[11px]", LEVEL_COLOR[Number(opt.value)])}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </td>
-                        <td className="px-3 py-1.5 text-center">
-                          <button
-                            onClick={() => void toggleUseYn(row.effect_cd, row.use_yn)}
-                            disabled={toggling === row.effect_cd}
-                            className={cn(
-                              "rounded-md px-2 py-1 text-[10px] font-medium transition-colors",
-                              row.use_yn
-                                ? "bg-success/10 text-success hover:bg-success/20"
-                                : "bg-destructive/10 text-destructive hover:bg-destructive/20"
-                            )}
-                          >
-                            {toggling === row.effect_cd ? "..." : row.use_yn ? "사용" : "잠금"}
-                          </button>
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[360px] border-collapse text-[11px]">
+                    <thead className="bg-muted/40">
+                      <tr className="border-b">
+                        <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">이펙트</th>
+                        <th className="hidden px-3 py-1.5 text-left font-medium text-muted-foreground sm:table-cell">코드</th>
+                        <th className="w-24 px-2 py-1.5 text-center font-medium text-muted-foreground">미리보기</th>
+                        <th className="w-20 px-2 py-1.5 text-center font-medium text-muted-foreground">등급</th>
+                        <th className="w-10 px-2 py-1.5 text-center font-medium text-muted-foreground">인원</th>
+                        <th className="w-14 px-2 py-1.5 text-center font-medium text-muted-foreground">사용</th>
                       </tr>
-                    )})}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {badgeRows.map((row) => {
+                        const cls = BADGE_CSS[row.effect_cd] ?? "";
+                        const isSelected = selectedCd === row.effect_cd;
+                        return (
+                        <React.Fragment key={row.effect_cd}>
+                        <tr onClick={() => setSelectedCd(isSelected ? null : row.effect_cd)} className={cn("cursor-pointer border-b hover:bg-muted/20", !row.use_yn && "opacity-40", isSelected && "bg-primary/5")}>
+                          <td className="px-3 py-1.5 font-medium text-foreground">{row.effect_nm}</td>
+                          <td className="hidden px-3 py-1.5 font-mono text-[10px] text-muted-foreground sm:table-cell">{row.effect_cd}</td>
+                          <td className="px-2 py-1.5 text-center">
+                            <span className={cn("inline-flex items-center rounded-full border bg-zinc-900 dark:bg-transparent px-2 py-0.5 text-[11px] font-medium", BADGE_BORDER[row.effect_cd] ?? "border-zinc-700 text-zinc-300")}>
+                              {row.effect_cd === "glitch"
+                                ? <span className={cn("inline-block", cls)} data-text="미리보기">미리보기</span>
+                                : cls
+                                  ? <span className={cn("inline-block", cls)}>미리보기</span>
+                                  : "미리보기"
+                              }
+                            </span>
+                          </td>
+                          <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                            <Select
+                              value={String(row.rarity_level)}
+                              onValueChange={(v) => void updateLevel(row.effect_cd, Number(v))}
+                              disabled={saving === row.effect_cd}
+                            >
+                              <SelectTrigger className={cn("h-7 w-20 rounded-lg text-[11px] text-muted-foreground", LEVEL_COLOR[row.rarity_level])}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {LEVEL_OPTIONS.map((opt) => (
+                                  <SelectItem key={opt.value} value={opt.value} className={cn("text-[11px]", LEVEL_COLOR[Number(opt.value)])}>
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          <td className="px-2 py-1.5 text-center tabular-nums text-muted-foreground">
+                            {row.use_cnt > 0 ? <span className="font-medium text-foreground">{row.use_cnt}</span> : "-"}
+                          </td>
+                          <td className="px-2 py-1.5 text-center" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => void toggleUseYn(row.effect_cd, row.use_yn)}
+                              disabled={toggling === row.effect_cd}
+                              className={cn(
+                                "rounded-md px-2 py-1 text-[10px] font-medium transition-colors",
+                                row.use_yn
+                                  ? "bg-success/10 text-success hover:bg-success/20"
+                                  : "bg-destructive/10 text-destructive hover:bg-destructive/20"
+                              )}
+                            >
+                              {toggling === row.effect_cd ? "..." : row.use_yn ? "사용" : "잠금"}
+                            </button>
+                          </td>
+                        </tr>
+                        {isSelected && (
+                          <tr>
+                            <td colSpan={6} className="bg-muted/30 px-3 py-3">
+                              <EffectUnlockPanel
+                                row={row}
+                                saving={savingCond}
+                                onSave={async (cond) => {
+                                  setSavingCond(true);
+                                  const result = await updateEffectUnlockCond(row.effect_cd, cond);
+                                  if (!result.ok) {
+                                    alert(result.message ?? "저장에 실패했습니다");
+                                  } else {
+                                    setRows((prev) => prev.map((r) => r.effect_cd === row.effect_cd ? { ...r, unlock_cond_json: cond } : r));
+                                    setSelectedCd(null);
+                                  }
+                                  setSavingCond(false);
+                                }}
+                                onClose={() => setSelectedCd(null)}
+                              />
+                            </td>
+                          </tr>
+                        )}
+                        </React.Fragment>
+                      )})}
+                    </tbody>
+                  </table>
+                </div>
               </CardItem>
             </div>
           )}
@@ -272,69 +329,231 @@ export function AdminEffectsClient() {
                 <p className="text-[10px] font-semibold tracking-widest text-muted-foreground">카드 프레임 — {frameRows.length}종</p>
               )}
               <CardItem className="p-0">
-                <table className="w-full border-collapse text-[11px]">
-                  <thead className="bg-muted/40">
-                    <tr className="border-b">
-                      <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">이펙트</th>
-                      <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">코드</th>
-                      <th className="w-48 px-3 py-1.5 text-center font-medium text-muted-foreground">미리보기</th>
-                      <th className="w-28 px-3 py-1.5 text-center font-medium text-muted-foreground">등급</th>
-                      <th className="w-16 px-3 py-1.5 text-center font-medium text-muted-foreground">사용</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {frameRows.map((row) => {
-                      const cls = FRAME_CSS[row.effect_cd] ?? "";
-                      return (
-                      <tr key={row.effect_cd} className={cn("border-b last:border-0 hover:bg-muted/20", !row.use_yn && "opacity-40")}>
-                        <td className="px-3 py-1.5 font-medium text-foreground">{row.effect_nm}</td>
-                        <td className="px-3 py-1.5 font-mono text-[10px] text-muted-foreground">{row.effect_cd}</td>
-                        <td className="px-3 py-2">
-                          <div className={cn("flex items-center justify-center rounded-xl bg-card px-3 py-1.5 text-[11px] text-foreground", cls || "border border-border")}>
-                            프레임 미리보기
-                          </div>
-                        </td>
-                        <td className="px-3 py-1.5">
-                          <Select
-                            value={String(row.rarity_level)}
-                            onValueChange={(v) => void updateLevel(row.effect_cd, Number(v))}
-                            disabled={saving === row.effect_cd}
-                          >
-                            <SelectTrigger className={cn("h-7 rounded-lg text-[11px]", LEVEL_COLOR[row.rarity_level])}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {LEVEL_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value} className={cn("text-[11px]", LEVEL_COLOR[Number(opt.value)])}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </td>
-                        <td className="px-3 py-1.5 text-center">
-                          <button
-                            onClick={() => void toggleUseYn(row.effect_cd, row.use_yn)}
-                            disabled={toggling === row.effect_cd}
-                            className={cn(
-                              "rounded-md px-2 py-1 text-[10px] font-medium transition-colors",
-                              row.use_yn
-                                ? "bg-success/10 text-success hover:bg-success/20"
-                                : "bg-destructive/10 text-destructive hover:bg-destructive/20"
-                            )}
-                          >
-                            {toggling === row.effect_cd ? "..." : row.use_yn ? "사용" : "잠금"}
-                          </button>
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[360px] border-collapse text-[11px]">
+                    <thead className="bg-muted/40">
+                      <tr className="border-b">
+                        <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">이펙트</th>
+                        <th className="hidden px-3 py-1.5 text-left font-medium text-muted-foreground sm:table-cell">코드</th>
+                        <th className="w-28 px-2 py-1.5 text-center font-medium text-muted-foreground">미리보기</th>
+                        <th className="w-20 px-2 py-1.5 text-center font-medium text-muted-foreground">등급</th>
+                        <th className="w-10 px-2 py-1.5 text-center font-medium text-muted-foreground">인원</th>
+                        <th className="w-14 px-2 py-1.5 text-center font-medium text-muted-foreground">사용</th>
                       </tr>
-                    )})}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {frameRows.map((row) => {
+                        const cls = FRAME_CSS[row.effect_cd] ?? "";
+                        const isSelected = selectedCd === row.effect_cd;
+                        return (
+                        <React.Fragment key={row.effect_cd}>
+                        <tr onClick={() => setSelectedCd(isSelected ? null : row.effect_cd)} className={cn("cursor-pointer border-b hover:bg-muted/20", !row.use_yn && "opacity-40", isSelected && "bg-primary/5")}>
+                          <td className="px-3 py-1.5 font-medium text-foreground">{row.effect_nm}</td>
+                          <td className="hidden px-3 py-1.5 font-mono text-[10px] text-muted-foreground sm:table-cell">{row.effect_cd}</td>
+                          <td className="px-2 py-2">
+                            <div className={cn("flex items-center justify-center rounded-xl bg-card px-2 py-1 text-[11px] text-foreground", cls || "border border-border")}>
+                              프레임 미리보기
+                            </div>
+                          </td>
+                          <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                            <Select
+                              value={String(row.rarity_level)}
+                              onValueChange={(v) => void updateLevel(row.effect_cd, Number(v))}
+                              disabled={saving === row.effect_cd}
+                            >
+                              <SelectTrigger className={cn("h-7 w-20 rounded-lg text-[11px] text-muted-foreground", LEVEL_COLOR[row.rarity_level])}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {LEVEL_OPTIONS.map((opt) => (
+                                  <SelectItem key={opt.value} value={opt.value} className={cn("text-[11px]", LEVEL_COLOR[Number(opt.value)])}>
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          <td className="px-2 py-1.5 text-center tabular-nums text-muted-foreground">
+                            {row.use_cnt > 0 ? <span className="font-medium text-foreground">{row.use_cnt}</span> : "-"}
+                          </td>
+                          <td className="px-2 py-1.5 text-center" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => void toggleUseYn(row.effect_cd, row.use_yn)}
+                              disabled={toggling === row.effect_cd}
+                              className={cn(
+                                "rounded-md px-2 py-1 text-[10px] font-medium transition-colors",
+                                row.use_yn
+                                  ? "bg-success/10 text-success hover:bg-success/20"
+                                  : "bg-destructive/10 text-destructive hover:bg-destructive/20"
+                              )}
+                            >
+                              {toggling === row.effect_cd ? "..." : row.use_yn ? "사용" : "잠금"}
+                            </button>
+                          </td>
+                        </tr>
+                        {isSelected && (
+                          <tr>
+                            <td colSpan={6} className="bg-muted/30 px-3 py-3">
+                              <EffectUnlockPanel
+                                row={row}
+                                saving={savingCond}
+                                onSave={async (cond) => {
+                                  setSavingCond(true);
+                                  const result = await updateEffectUnlockCond(row.effect_cd, cond);
+                                  if (!result.ok) {
+                                    alert(result.message ?? "저장에 실패했습니다");
+                                  } else {
+                                    setRows((prev) => prev.map((r) => r.effect_cd === row.effect_cd ? { ...r, unlock_cond_json: cond } : r));
+                                    setSelectedCd(null);
+                                  }
+                                  setSavingCond(false);
+                                }}
+                                onClose={() => setSelectedCd(null)}
+                              />
+                            </td>
+                          </tr>
+                        )}
+                        </React.Fragment>
+                      )})}
+                    </tbody>
+                  </table>
+                </div>
               </CardItem>
             </div>
           )}
         </div>
       )}
+
     </div>
+  );
+}
+
+function EffectUnlockPanel({
+  row,
+  saving,
+  onSave,
+  onClose,
+}: {
+  row: EffectRow;
+  saving: boolean;
+  onSave: (cond: UnlockCond) => Promise<void>;
+  onClose: () => void;
+}) {
+  const cond = row.unlock_cond_json;
+  const initType = cond?.type ?? "none";
+  const initLevel = cond?.type === "rarity" ? String(cond.level) : "1";
+  const initTtlNm = cond?.type === "title" ? cond.ttl_nm : "";
+  const initPoint = cond?.type === "point" ? String(cond.amount) : "0";
+
+  const [condType, setCondType] = useState<"none" | "rarity" | "title" | "point">(initType as "none" | "rarity" | "title" | "point");
+  const [rarityLevel, setRarityLevel] = useState(initLevel);
+  const [ttlNm, setTtlNm] = useState(initTtlNm);
+  const [pointAmount, setPointAmount] = useState(initPoint);
+
+  const buildCond = (): UnlockCond => {
+    if (condType === "none") return null;
+    if (condType === "rarity") return { type: "rarity", level: Number(rarityLevel) };
+    if (condType === "title") return { type: "title", ttl_nm: ttlNm };
+    if (condType === "point") return { type: "point", amount: Number(pointAmount) };
+    return null;
+  };
+
+  const condLabel = (c: UnlockCond): string => {
+    if (!c) return "해금 불가 (미설정)";
+    if (c.type === "rarity") return `${c.level}등급 이상`;
+    if (c.type === "title") return `칭호 보유: ${c.ttl_nm}`;
+    if (c.type === "point") return `포인트 ${c.amount} 이상`;
+    return "알 수 없음";
+  };
+
+  return (
+    <CardItem className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <SectionLabel>해금 조건 편집</SectionLabel>
+          <span className="text-xs font-medium text-foreground">{row.effect_nm}</span>
+          <span className="text-[11px] text-muted-foreground">({row.effect_cd})</span>
+        </div>
+        <button onClick={onClose} className="text-[11px] text-muted-foreground hover:text-foreground">✕ 닫기</button>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <p className="text-[11px] text-muted-foreground">
+          현재: <span className="font-medium text-foreground">{condLabel(row.unlock_cond_json)}</span>
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {/* 조건 타입 */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-muted-foreground">조건 타입</label>
+          <Select value={condType} onValueChange={(v) => setCondType(v as typeof condType)}>
+            <SelectTrigger className="h-8 rounded-lg text-[11px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none" className="text-[11px]">해금 불가 (미설정)</SelectItem>
+              <SelectItem value="rarity" className="text-[11px]">등급 이상</SelectItem>
+              <SelectItem value="title" className="text-[11px]">칭호 보유 (미구현)</SelectItem>
+              <SelectItem value="point" className="text-[11px]">포인트 (미구현)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* 조건 값 */}
+        {condType === "rarity" && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-muted-foreground">최소 등급</label>
+            <Select value={rarityLevel} onValueChange={setRarityLevel}>
+              <SelectTrigger className="h-8 rounded-lg text-[11px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 10 }, (_, i) => (
+                  <SelectItem key={i + 1} value={String(i + 1)} className="text-[11px]">{i + 1}등급 이상</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        {condType === "title" && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-muted-foreground">칭호명</label>
+            <Input
+              value={ttlNm}
+              onChange={(e) => setTtlNm(e.target.value)}
+              placeholder="예: SUB4"
+              className="h-10 rounded-lg"
+            />
+          </div>
+        )}
+        {condType === "point" && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-muted-foreground">필요 포인트</label>
+            <Input
+              type="number"
+              value={pointAmount}
+              onChange={(e) => setPointAmount(e.target.value)}
+              placeholder="예: 500"
+              className="h-10 rounded-lg"
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" size="sm" className="h-8 rounded-lg" onClick={onClose}>
+          취소
+        </Button>
+        <Button
+          size="sm"
+          className="h-8 rounded-lg"
+          disabled={saving}
+          onClick={() => void onSave(buildCond())}
+        >
+          {saving ? "저장 중..." : "저장"}
+        </Button>
+      </div>
+    </CardItem>
   );
 }

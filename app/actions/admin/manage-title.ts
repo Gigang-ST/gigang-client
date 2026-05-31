@@ -6,11 +6,14 @@ import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 
+type DescVisibility = "always" | "others" | "held" | "never";
+
 type TitlePayload = {
   ttlNm: string;
   ttlKindEnm: string;
   ttlCtgrCd: string;
   ttlDesc: string | null;
+  descVisibility?: DescVisibility;
   sortOrd: number | string;
   useYn: boolean | string;
   condRuleJson: string | null;
@@ -23,6 +26,7 @@ type TitleNormalized = {
   ttlKindEnm: "auto" | "awarded";
   ttlCtgrCd: string;
   ttlDesc: string | null;
+  descVisibility: DescVisibility;
   sortOrd: number;
   useYn: boolean;
   condRuleJson: unknown | null;
@@ -100,11 +104,17 @@ async function normalizePayload(payload: TitlePayload): Promise<TitleNormalized>
       })()
     : null;
 
+  const validVisibilities: DescVisibility[] = ["always", "others", "held", "never"];
+  const descVisibility: DescVisibility = validVisibilities.includes(payload.descVisibility as DescVisibility)
+    ? (payload.descVisibility as DescVisibility)
+    : "others";
+
   return {
     ttlNm,
     ttlKindEnm,
     ttlCtgrCd,
     ttlDesc,
+    descVisibility,
     sortOrd,
     useYn,
     condRuleJson,
@@ -128,6 +138,7 @@ export async function createTitle(payload: TitlePayload) {
       ttl_ctgr_cd: normalized.ttlCtgrCd,
       ttl_nm: normalized.ttlNm,
       ttl_desc: normalized.ttlDesc,
+      desc_visibility: normalized.descVisibility,
       cond_rule_json: normalized.condRuleJson as Json,
       sort_ord: normalized.sortOrd,
       use_yn: normalized.useYn,
@@ -165,6 +176,7 @@ export async function updateTitle(ttlId: string, payload: TitlePayload) {
         ttl_ctgr_cd: normalized.ttlCtgrCd,
         ttl_nm: normalized.ttlNm,
         ttl_desc: normalized.ttlDesc,
+        desc_visibility: normalized.descVisibility,
         cond_rule_json: normalized.condRuleJson as Json,
         sort_ord: normalized.sortOrd,
         use_yn: normalized.useYn,
@@ -187,6 +199,76 @@ export async function updateTitle(ttlId: string, payload: TitlePayload) {
       message: error instanceof Error ? error.message : "칭호 수정에 실패했습니다",
     };
   }
+}
+
+export async function grantTitle(
+  ttlId: string,
+  teamMemId: string,
+  rsn: string | null,
+  isPrmy: boolean = false,
+) {
+  const admin = await verifyAdmin();
+  if (!admin) return { ok: false, message: "권한이 없습니다" };
+
+  const { teamId } = await getRequestTeamContext();
+  const db = createAdminClient();
+
+  // 이미 보유 여부 확인
+  const { data: existing } = await db
+    .from("mem_ttl_rel")
+    .select("mem_ttl_id")
+    .eq("ttl_id", ttlId)
+    .eq("team_mem_id", teamMemId)
+    .eq("del_yn", false)
+    .limit(1);
+
+  if (existing && existing.length > 0) {
+    return { ok: false, message: "이미 보유 중인 칭호입니다" };
+  }
+
+  // 대표로 설정할 경우 기존 대표 칭호 먼저 해제
+  if (isPrmy) {
+    await db
+      .from("mem_ttl_rel")
+      .update({ is_prmy_yn: false })
+      .eq("team_mem_id", teamMemId)
+      .eq("is_prmy_yn", true)
+      .eq("del_yn", false);
+  }
+
+  const { error } = await db.from("mem_ttl_rel").insert({
+    team_id: teamId,
+    ttl_id: ttlId,
+    team_mem_id: teamMemId,
+    grnt_by_mem_id: admin.id,
+    grnt_rsn_txt: rsn?.trim() || null,
+    is_prmy_yn: isPrmy,
+    vers: 0,
+    del_yn: false,
+  });
+
+  if (error) return { ok: false, message: "수여에 실패했습니다" };
+  return { ok: true, message: null };
+}
+
+export async function revokeTitle(memTtlId: string) {
+  const admin = await verifyAdmin();
+  if (!admin) return { ok: false, message: "권한이 없습니다" };
+
+  const { teamId } = await getRequestTeamContext();
+  const db = createAdminClient();
+
+  const { data, error } = await db
+    .from("mem_ttl_rel")
+    .update({ del_yn: true, upd_by: admin.id })
+    .eq("mem_ttl_id", memTtlId)
+    .eq("team_id", teamId)
+    .eq("del_yn", false)
+    .select("mem_ttl_id");
+
+  if (error) return { ok: false, message: "회수에 실패했습니다" };
+  if (!data?.length) return { ok: false, message: "수여 내역을 찾을 수 없습니다" };
+  return { ok: true, message: null };
 }
 
 export async function toggleTitleUseYn(ttlId: string, useYn: boolean) {

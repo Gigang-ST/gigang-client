@@ -1,4 +1,13 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { Check, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Caption } from "@/components/common/typography";
+
+// ---------------------------------------------------------------------------
+// 이펙트 CSS 맵
+// ---------------------------------------------------------------------------
 
 const BADGE_CSS: Record<string, string> = {
   none: "", dim: "title-effect-dim", breathe: "title-effect-breathe",
@@ -65,36 +74,165 @@ const SIZE_CLASS: Record<TitleBadgeSize, string> = {
   md: "text-xs px-2.5 py-1",
 };
 
+// ---------------------------------------------------------------------------
+// desc_visibility 설명 공개 여부 판단
+// ---------------------------------------------------------------------------
+
+export type TitleDescVisibility = "always" | "others" | "held" | "never";
+
+function resolveDescVisible(
+  visibility: TitleDescVisibility,
+  isHeld: boolean,
+  isOwner: boolean,
+): boolean {
+  switch (visibility) {
+    case "always": return true;
+    case "others": return isHeld || !isOwner;
+    case "held":   return isHeld;
+    case "never":  return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// TitleBadge — 이펙트 렌더링 + 툴팁 통합 컴포넌트
+// ---------------------------------------------------------------------------
+
+/**
+ * 칭호 배지 컴포넌트.
+ *
+ * 기본 사용 (이펙트만, 툴팁 없음):
+ *   <TitleBadge name="SUB4" effect="gold" size="sm" />
+ *
+ * 툴팁 포함 사용:
+ *   <TitleBadge
+ *     name="SUB4" effect="gold"
+ *     tooltip={{ desc: "풀코스 4시간 벽을 넘은 러너", visibility: "others", isHeld: true, isOwner: false }}
+ *   />
+ *
+ * 컬렉션 선택 모드 (선택 상태 + 마스킹):
+ *   <TitleBadge name="???" effect={null} masked selected onClick={...} />
+ */
 export function TitleBadge({
   name,
   effect,
   size = "sm",
   className,
+  // 툴팁 관련
+  tooltip,
+  // 컬렉션 선택 모드
+  selected,
+  masked,
+  onClick,
 }: {
   name: string;
   effect: string | null;
   size?: TitleBadgeSize;
   className?: string;
+  /** 툴팁 설명 표시 옵션. 생략 시 툴팁 없음 */
+  tooltip?: {
+    desc: string | null;
+    visibility: TitleDescVisibility;
+    isHeld: boolean;
+    isOwner: boolean;
+  };
+  /** 컬렉션 선택 상태 */
+  selected?: boolean;
+  /** 미보유 마스킹 (칭호명 blur + 자물쇠) */
+  masked?: boolean;
+  onClick?: () => void;
 }) {
+  const [clickOpen, setClickOpen] = useState(false);
+  const [hoverOpen, setHoverOpen] = useState(false);
+  const tooltipOpen = clickOpen || hoverOpen;
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+    };
+  }, []);
+
   const effectKey = effect ?? "none";
   const cls = BADGE_CSS[effectKey] ?? "";
   const border = BADGE_BORDER[effectKey] ?? "border-zinc-700 text-zinc-300";
 
-  return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center rounded-full border bg-zinc-900 dark:bg-transparent font-medium leading-none",
-        SIZE_CLASS[size],
-        border,
-        className,
-      )}
-    >
+  const descVisible = tooltip
+    ? resolveDescVisible(tooltip.visibility, tooltip.isHeld, tooltip.isOwner)
+    : false;
+  const descText = descVisible ? tooltip?.desc : null;
+
+  const isInteractive = !!tooltip || !!onClick;
+
+  function handleClick() {
+    if (tooltip) {
+      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+      setClickOpen(true);
+      clickTimerRef.current = setTimeout(() => setClickOpen(false), 5000);
+    }
+    onClick?.();
+  }
+
+  // 컬렉션 선택 모드일 때 스타일 오버라이드
+  const collectionStyle = masked
+    ? "cursor-default select-none border-dashed border-border/50 bg-muted/50 text-muted-foreground/40"
+    : selected
+      ? "border-primary bg-primary/10 text-primary"
+      : undefined;
+
+  const inner = masked ? (
+    <>
+      <Lock className="size-2.5 shrink-0" />
+      <span className="blur-[2px]">{name}</span>
+    </>
+  ) : (
+    <>
       {effectKey === "glitch"
         ? <span className={cn("inline-block", cls)} data-text={name}>{name}</span>
         : cls
           ? <span className={cn("inline-block", cls)}>{name}</span>
           : name
       }
-    </span>
+      {selected && <Check className="size-3 ml-0.5" />}
+    </>
+  );
+
+  if (!isInteractive) {
+    return (
+      <span
+        className={cn(
+          "inline-flex shrink-0 items-center rounded-full border bg-zinc-900 dark:bg-transparent font-medium leading-none",
+          SIZE_CLASS[size],
+          collectionStyle ?? border,
+          className,
+        )}
+      >
+        {inner}
+      </span>
+    );
+  }
+
+  return (
+    <div className="relative inline-flex">
+      <button
+        onClick={handleClick}
+        onMouseEnter={() => tooltip && setHoverOpen(true)}
+        onMouseLeave={() => setHoverOpen(false)}
+        disabled={masked}
+        className={cn(
+          "inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-zinc-900 dark:bg-transparent font-medium leading-none",
+          SIZE_CLASS[size],
+          collectionStyle ?? border,
+          className,
+        )}
+      >
+        {inner}
+      </button>
+
+      {tooltip && tooltipOpen && !masked && (
+        <span className="ml-1.5 max-w-[180px] truncate text-[10px] text-muted-foreground">
+          {descText ?? "???"}
+        </span>
+      )}
+    </div>
   );
 }
