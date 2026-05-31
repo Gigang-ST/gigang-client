@@ -777,6 +777,8 @@ export function RaceListView({
 					setLocalAllCompetitions((prev) =>
 						[...prev, newComp].sort((a, b) => a.start_date.localeCompare(b.start_date)),
 					);
+					setSelectedCompetition(newComp);
+					setDetailOpen(true);
 					await revalidateCompetitions();
 					router.refresh();
 				}}

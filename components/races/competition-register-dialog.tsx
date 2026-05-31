@@ -46,7 +46,7 @@ import type { Competition, MemberStatus } from "./types";
 
 const defaultValues: CompetitionRegisterValues = {
   title: "",
-  sport: "",
+  sport: "road_run",
   startDate: "",
   endDate: "",
   location: "",
@@ -136,10 +136,10 @@ export function CompetitionRegisterDialog({
 
   useEffect(() => {
     if (open) {
-      const firstSprt = sportOptions[0]?.cd ?? "";
+      const defaultSport = sportOptions.find((o) => o.cd === "road_run")?.cd ?? sportOptions[0]?.cd ?? "";
       reset({
         ...defaultValues,
-        sport: firstSprt,
+        sport: defaultSport,
         ...(prefillStartDate?.trim() ? { startDate: prefillStartDate.trim() } : {}),
       });
     }

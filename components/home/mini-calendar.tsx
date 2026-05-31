@@ -336,13 +336,13 @@ export function MiniCalendar({
                 key={dateStr}
                 onClick={() => setSelectedDate(dateStr)}
                 className={cn(
-                  "flex h-15 flex-col gap-px border-t border-border/40 px-0.5 pt-1 text-left transition-colors",
+                  "flex h-15 flex-col gap-px overflow-hidden border-t border-border/40 px-0.5 pt-0.5 text-left transition-colors",
                   isSelected && "bg-secondary/60",
                 )}
                 aria-pressed={isSelected}
               >
                 {/* 날짜 숫자 + 초과 개수 */}
-                <div className="flex items-center justify-center gap-0.5 pb-px">
+                <div className="flex items-center justify-center gap-0.5">
                   <span
                     className={cn(
                       "flex size-6 items-center justify-center rounded-full text-[12px] font-medium",
@@ -390,12 +390,9 @@ export function MiniCalendar({
         const [, mm, dd] = selectedDate.split("-");
         return (
           <div className="mt-1 flex items-center gap-3 rounded-xl bg-secondary/50 px-3 py-2">
-            <div className="flex items-baseline gap-1 shrink-0">
+            <div className="flex items-baseline shrink-0">
               <span className="text-[18px] font-bold leading-none text-foreground tabular-nums">
                 {parseInt(dd, 10)}
-              </span>
-              <span className="text-[11px] text-muted-foreground">
-                {parseInt(mm, 10)}월
               </span>
             </div>
             {panelRaces.length === 0 ? (
