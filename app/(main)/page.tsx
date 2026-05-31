@@ -232,11 +232,11 @@ async function HomeContent() {
 
   // 최근 기록 멤버들의 칭호/프레임 조회
   const recentMemberIds = recentRecords.map((r) => r.mem_id).filter((id): id is string => Boolean(id));
-  const memberTitleMap = new Map<string, { ttl_nm: string; badge_effect: string; frame_cd: string }>();
+  const memberTitleMap = new Map<string, { ttl_nm: string; ttl_desc: string | null; desc_visibility: "always" | "others" | "held" | "never"; badge_effect: string; frame_cd: string }>();
   if (recentMemberIds.length > 0) {
     const { data: titleData } = await admin
       .from("mem_ttl_rel")
-      .select("team_mem_rel!inner(mem_id, selected_badge_effect, selected_frame_cd), ttl_mst!inner(ttl_nm)")
+      .select("team_mem_rel!inner(mem_id, selected_badge_effect, selected_frame_cd), ttl_mst!inner(ttl_nm, ttl_desc, desc_visibility)")
       .in("team_mem_rel.mem_id", recentMemberIds)
       .eq("team_mem_rel.team_id", teamId)
       .eq("is_prmy_yn", true)
@@ -247,8 +247,11 @@ async function HomeContent() {
       const ttl = Array.isArray(row.ttl_mst) ? row.ttl_mst[0] : row.ttl_mst;
       if (rel?.mem_id && ttl?.ttl_nm) {
         const r = rel as { mem_id: string; selected_badge_effect?: string | null; selected_frame_cd?: string | null };
+        const t = ttl as { ttl_nm: string; ttl_desc?: string | null; desc_visibility?: string };
         memberTitleMap.set(r.mem_id, {
-          ttl_nm: ttl.ttl_nm,
+          ttl_nm: t.ttl_nm,
+          ttl_desc: t.ttl_desc ?? null,
+          desc_visibility: (t.desc_visibility ?? "others") as "always" | "others" | "held" | "never",
           badge_effect: r.selected_badge_effect ?? "none",
           frame_cd: r.selected_frame_cd ?? "frame-none",
         });
@@ -318,7 +321,12 @@ async function HomeContent() {
                         {rec.mem_nm ?? "멤버"}
                       </span>
                       {title && (
-                        <TitleBadge name={title.ttl_nm} effect={title.badge_effect} size="xs" />
+                        <TitleBadge
+                          name={title.ttl_nm}
+                          effect={title.badge_effect}
+                          size="xs"
+                          tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility as "always" | "others" | "held" | "never", isHeld: true, isOwner: false }}
+                        />
                       )}
                     </div>
                     <span className="text-xs text-muted-foreground">
