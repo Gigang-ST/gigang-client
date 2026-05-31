@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentMember, verifyAdmin } from "@/lib/queries/member";
+import { verifyAdmin } from "@/lib/queries/member";
 import { batchMileageTitles } from "./batch-mileage-titles";
 
 type BatchParams = Record<string, string>;
@@ -22,8 +22,8 @@ const BATCH_ACTION_MAP: Record<string, (params: BatchParams) => Promise<string>>
  * 3. 결과(success/failed)로 이력 업데이트
  */
 export async function runBatch(jobId: string, params: BatchParams): Promise<ActionResult> {
-  await verifyAdmin();
-  const { member } = await getCurrentMember();
+  const admin = await verifyAdmin();
+  if (!admin) return { ok: false, message: "관리자 권한이 필요합니다", runId: null };
 
   const db = createAdminClient();
 
@@ -45,18 +45,23 @@ export async function runBatch(jobId: string, params: BatchParams): Promise<Acti
 
   // running 이력 INSERT
   const startedAt = new Date().toISOString();
-  const { data: runRow } = await db
+  const { data: runRow, error: insertError } = await db
     .from("batch_run_hist")
     .insert({
       job_id: jobId,
       trig_type: "manual",
-      trig_by: member?.id ?? null,
+      trig_by: admin.id ?? null,
       param_json: params,
       status: "running",
       started_at: startedAt,
     })
     .select("run_id")
     .single();
+
+  if (insertError) {
+    console.error("[run-batch] batch_run_hist INSERT 실패", insertError);
+    return { ok: false, message: `이력 생성 실패: ${insertError.message}`, runId: null };
+  }
 
   const runId = runRow?.run_id ?? null;
 
@@ -94,7 +99,8 @@ export async function runBatch(jobId: string, params: BatchParams): Promise<Acti
  * 배치 목록 조회 (최근 실행 이력 포함).
  */
 export async function getBatchJobs() {
-  await verifyAdmin();
+  const admin = await verifyAdmin();
+  if (!admin) return [];
 
   const db = createAdminClient();
 
@@ -132,7 +138,8 @@ export async function getBatchJobs() {
  * 특정 배치의 실행 이력 조회.
  */
 export async function getBatchRunHist(jobId: string, limit = 20) {
-  await verifyAdmin();
+  const admin = await verifyAdmin();
+  if (!admin) return [];
 
   const db = createAdminClient();
 
