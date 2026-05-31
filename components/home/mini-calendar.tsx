@@ -323,7 +323,7 @@ export function MiniCalendar({
         <div className="grid grid-cols-7">
           {weeks.flat().map((day, idx) => {
             if (day === null) {
-              return <div key={`empty-${idx}`} className="h-20 border-t border-border/40" />;
+              return <div key={`empty-${idx}`} className="h-15 border-t border-border/40" />;
             }
             const dateStr = formatCellDate(day);
             const isToday = dateStr === today;
@@ -336,13 +336,13 @@ export function MiniCalendar({
                 key={dateStr}
                 onClick={() => setSelectedDate(dateStr)}
                 className={cn(
-                  "flex h-20 flex-col gap-px border-t border-border/40 px-0.5 pt-1 text-left transition-colors",
+                  "flex h-15 flex-col gap-px border-t border-border/40 px-0.5 pt-1 text-left transition-colors",
                   isSelected && "bg-secondary/60",
                 )}
                 aria-pressed={isSelected}
               >
-                {/* 날짜 숫자 */}
-                <div className="flex justify-center pb-px">
+                {/* 날짜 숫자 + 초과 개수 */}
+                <div className="flex items-center justify-center gap-0.5 pb-px">
                   <span
                     className={cn(
                       "flex size-6 items-center justify-center rounded-full text-[12px] font-medium",
@@ -354,28 +354,29 @@ export function MiniCalendar({
                   >
                     {day}
                   </span>
+                  {races.length > 3 && (
+                    <span className="text-[8px] font-medium text-muted-foreground leading-none">
+                      +{races.length - 3}
+                    </span>
+                  )}
                 </div>
 
-                {/* 이벤트 목록 — 최대 3개, 나머지는 +N */}
-                <div className="flex flex-col gap-px overflow-hidden">
+                {/* 이벤트 목록 — 최대 3개 */}
+                <div className="flex flex-col gap-px">
                   {races.slice(0, 3).map((race) => (
                     <span
                       key={race.id}
                       className={cn(
-                        "w-full truncate rounded-sm px-0.5 text-left text-[7px] font-medium leading-[1.5]",
+                        "w-full overflow-hidden rounded-sm px-0.5 text-left text-[7px] font-medium leading-[1.5]",
                         race.type === "mine"
                           ? "bg-success/20 text-success"
                           : "bg-warning/15 text-warning",
                       )}
+                      style={{ whiteSpace: "nowrap", textOverflow: "clip" }}
                     >
                       {race.title}
                     </span>
                   ))}
-                  {races.length > 3 && (
-                    <span className="px-0.5 text-[9px] text-muted-foreground">
-                      +{races.length - 3}
-                    </span>
-                  )}
                 </div>
               </button>
             );
