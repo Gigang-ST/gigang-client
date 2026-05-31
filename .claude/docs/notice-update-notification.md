@@ -19,10 +19,10 @@
 
 ---
 
-## 2. 홈탭 노출 전략 (핵심 고민 해결)
+## 2. 홈탭 노출 전략
 
 홈탭에 정보가 이미 가득하므로 **새 섹션을 추가하지 않는다.**  
-대신 기존 `PageHeader`의 우측에 아이콘 2개를 배치한다.
+기존 `PageHeader`의 `action` prop에 아이콘 2개를 배치한다.
 
 ```
 [기강]                    🔔  📋
@@ -33,11 +33,36 @@
 | 아이콘 | 역할 | 클릭 시 |
 |--------|------|---------|
 | 🔔 Bell | 알림함 | `/notifications` 페이지로 이동 |
-| 📋 Megaphone (또는 Newspaper) | 공지/업데이트 | `/board` 페이지로 이동 |
+| 📋 Megaphone | 공지/업데이트 | `/board` 페이지로 이동 |
 
 ### 미읽음 뱃지
 - 알림: 미읽음 개수 빨간 뱃지 (최대 99+)
 - 공지/업데이트: 마지막 확인 시각 이후 새 글 있으면 파란 점 표시
+
+### 서버/클라이언트 경계
+```tsx
+// app/(main)/page.tsx — 서버 컴포넌트
+// 초기 미읽음 count를 서버에서 fetch → props로 전달
+const unreadCount = await getUnreadNotificationCount(member?.id);
+const hasNewPost = await hasNewBoardPost(member?.id);
+
+// PageHeader action prop 활용 (직접 div 대신 PageHeader 컴포넌트로 교체)
+<PageHeader
+  title="기강"
+  action={
+    <div className="flex items-center gap-2">
+      <BoardHeaderIcon hasNew={hasNewPost} />
+      <NotificationBell initialCount={unreadCount} />
+    </div>
+  }
+/>
+```
+
+`NotificationBell` — 클라이언트 컴포넌트. `initialCount`로 초기 렌더 후  
+Supabase Realtime `notification` 테이블 구독으로 실시간 업데이트.
+
+`BoardHeaderIcon` — 클라이언트 컴포넌트. 클릭 시 `/board`로 이동하며  
+`last_seen_board_at` (localStorage 또는 DB) 기준으로 새글 dot 표시.
 
 ---
 
@@ -46,7 +71,7 @@
 ```
 app/
 ├── (main)/
-│   └── page.tsx                    ← PageHeader에 아이콘 추가
+│   └── page.tsx                    ← PageHeader action에 아이콘 추가
 │
 └── (info)/
     ├── notifications/
@@ -57,93 +82,220 @@ app/
         ├── [id]/
         │   └── page.tsx            ← 게시글 상세
         └── write/
-            └── page.tsx            ← 작성 (관리자 + 작성권한 멤버)
+            └── page.tsx            ← 작성 (관리자 + can_post 멤버)
 ```
 
 ---
 
 ## 4. DB 스키마
 
-### 4-1. `board_post` — 게시글
+### 신규 도메인 약어 (이 시스템에서 추가)
+| 약어 | 의미 |
+|------|------|
+| `brd` | board (게시판) |
+| `noti` | notification (알림) |
+| `cont` | content (본문 내용) |
+| `pref` | preference (수신 설정) |
+| `pin` | pinned (상단 고정) |
+| `read` | read (읽음 여부) |
+| `ref` | reference (연관 리소스 참조) |
+| `writ` | writer (작성자) |
+> **주의**: `post_nm`은 게시글 제목. `ttl`은 칭호(`ttl_mst`) 전용으로 예약되어 있으므로 게시글 제목에 사용하지 않는다.
+
+### 4-1. `brd_post_mst` — 게시글
 
 ```sql
-CREATE TABLE board_post (
+CREATE TABLE brd_post_mst (
   post_id       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   team_id       uuid NOT NULL REFERENCES team_mst(team_id),
-  post_type     text NOT NULL CHECK (post_type IN ('notice', 'update')),
-  title         text NOT NULL,
-  content       text NOT NULL,          -- Markdown
-  author_mem_id uuid REFERENCES mem_mst(mem_id),
-  is_pinned     boolean DEFAULT false,  -- 상단 고정
+  post_type_enm text NOT NULL CHECK (post_type_enm IN ('notice', 'update')),
+  post_nm       text NOT NULL,          -- 게시글 제목
+  post_cont     text NOT NULL,          -- 게시글 본문 (Markdown)
+  writ_mem_id   uuid REFERENCES mem_mst(mem_id),
+  pin_yn        boolean DEFAULT false,  -- 상단 고정
   vers          integer DEFAULT 0,
   del_yn        boolean DEFAULT false,
   crt_at        timestamptz DEFAULT now(),
   upd_at        timestamptz DEFAULT now()
 );
+
+-- soft delete 제외 목록 조회용 인덱스
+CREATE INDEX idx_brd_post_mst_active
+  ON brd_post_mst(team_id, post_type_enm, crt_at DESC)
+  WHERE del_yn = false;
 ```
 
-### 4-2. `notification` — 알림
+### 4-2. `noti_mst` — 알림
 
 ```sql
-CREATE TABLE notification (
+CREATE TABLE noti_mst (
   noti_id       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   team_id       uuid NOT NULL REFERENCES team_mst(team_id),
   mem_id        uuid NOT NULL REFERENCES mem_mst(mem_id),
-  noti_type     text NOT NULL,          -- 아래 타입 목록 참조
-  title         text NOT NULL,
-  body          text,
+  noti_type_enm text NOT NULL,          -- 아래 타입 목록 참조
+  noti_nm       text NOT NULL,          -- 알림 제목
+  noti_cont     text,                   -- 알림 본문 (선택)
   ref_id        uuid,                   -- 연관 리소스 ID (post_id, comp_id 등)
-  ref_type      text,                   -- 'post' | 'competition' | 'title' | 'schedule' ...
-  is_read       boolean DEFAULT false,
+  ref_type_enm  text,                   -- 'brd_post' | 'comp' | 'ttl' | 'sched'
+  read_yn       boolean DEFAULT false,
   vers          integer DEFAULT 0,
   del_yn        boolean DEFAULT false,
   crt_at        timestamptz DEFAULT now()
 );
+
+-- 미읽음 count 조회용 인덱스
+CREATE INDEX idx_noti_mst_unread
+  ON noti_mst(mem_id, crt_at DESC)
+  WHERE del_yn = false AND read_yn = false;
 ```
 
-### 알림 타입 (`noti_type`) 목록
-| 값 | 설명 | ref_type |
+### 알림 타입 (`noti_type_enm`) 목록
+| 값 | 설명 | ref_type_enm |
 |----|------|----------|
-| `notice_posted` | 공지 등록 | `post` |
-| `update_posted` | 업데이트 등록 | `post` |
-| `comp_registered` | 대회 등록됨 | `competition` |
-| `title_granted` | 칭호 획득 | `title` |
-| `schedule_posted` | 모임/일정 등록 (향후) | `schedule` |
-| `admin_custom` | 관리자 수동 알림 | - |
+| `notice_post` | 공지 등록 | `brd_post` |
+| `update_post` | 업데이트 등록 | `brd_post` |
+| `comp_reg` | 대회 등록됨 | `comp` |
+| `ttl_grnt` | 칭호 획득 | `ttl` |
+| `sched_post` | 모임/일정 등록 (향후) | `sched` |
+| `adm_cust` | 관리자 수동 알림 | - |
 
-### 4-3. `notification_pref` — 알림 수신 설정
+### 4-3. `noti_pref_cfg` — 알림 수신 설정
 
 ```sql
-CREATE TABLE notification_pref (
+CREATE TABLE noti_pref_cfg (
   pref_id       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   mem_id        uuid NOT NULL REFERENCES mem_mst(mem_id),
-  noti_type     text NOT NULL,
-  enabled       boolean DEFAULT true,
-  UNIQUE (mem_id, noti_type)
+  noti_type_enm text NOT NULL,
+  enabled_yn    boolean DEFAULT true,
+  UNIQUE (mem_id, noti_type_enm)
 );
+```
+
+### 4-4. `team_mem_rel` 컬럼 추가 — 게시 권한
+
+```sql
+-- 작성권한은 team_mem_rel에 컬럼으로 관리 (단일 팀 구조라 별도 테이블 불필요)
+ALTER TABLE team_mem_rel ADD COLUMN post_yn boolean DEFAULT false;
 ```
 
 ---
 
-## 5. 컴포넌트 설계
+## 5. 알림 생성 — DB 함수 방식
 
-### 5-1. 홈탭 헤더 (`app/(main)/page.tsx`)
+서버 액션에서 N명 개별 INSERT 대신 **DB 함수 한 번 호출**로 처리.  
+네트워크 왕복 최소화 + 원자성 보장.
 
-```tsx
-// PageHeader에 action 슬롯 활용
-<div className="flex h-14 items-center justify-between px-6">
-  <H1>기강</H1>
-  <div className="flex items-center gap-2">
-    <BoardHeaderIcon />    {/* 공지/업데이트 아이콘 + 새글 dot */}
-    <NotificationBell />   {/* 종 아이콘 + 미읽음 뱃지 */}
-  </div>
-</div>
+```sql
+CREATE OR REPLACE FUNCTION create_noti_for_team(
+  p_team_id        uuid,
+  p_noti_type_enm  text,
+  p_noti_nm        text,
+  p_noti_cont      text DEFAULT NULL,
+  p_ref_id         uuid DEFAULT NULL,
+  p_ref_type_enm   text DEFAULT NULL
+) RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  INSERT INTO noti_mst (team_id, mem_id, noti_type_enm, noti_nm, noti_cont, ref_id, ref_type_enm)
+  SELECT
+    p_team_id,
+    tmr.mem_id,
+    p_noti_type_enm,
+    p_noti_nm,
+    p_noti_cont,
+    p_ref_id,
+    p_ref_type_enm
+  FROM team_mem_rel tmr
+  WHERE tmr.team_id = p_team_id
+    AND tmr.vers = 0
+    AND tmr.del_yn = false
+    -- noti_pref_cfg에서 disabled면 제외
+    AND NOT EXISTS (
+      SELECT 1 FROM noti_pref_cfg npc
+      WHERE npc.mem_id = tmr.mem_id
+        AND npc.noti_type_enm = p_noti_type_enm
+        AND npc.enabled_yn = false
+    );
+END;
+$$;
 ```
 
-`NotificationBell`, `BoardHeaderIcon` — 클라이언트 컴포넌트.  
-미읽음 수는 Supabase realtime 또는 페이지 진입 시 fetch.
+### 서버 액션 호출 예시
+```typescript
+// app/actions/create-post.ts
+await adminClient.rpc("create_noti_for_team", {
+  p_team_id: teamId,
+  p_noti_type_enm: postTypeEnm === "notice" ? "notice_post" : "update_post",
+  p_noti_nm: postNm,
+  p_noti_cont: `새 ${postTypeEnm === "notice" ? "공지" : "업데이트"}가 등록됐습니다.`,
+  p_ref_id: postId,
+  p_ref_type_enm: "brd_post",
+});
+```
 
-### 5-2. 알림함 (`/notifications`)
+### 단일 멤버 대상 알림 (칭호 부여 등)
+```typescript
+await adminClient.from("noti_mst").insert({
+  team_id: teamId,
+  mem_id: targetMemId,
+  noti_type_enm: "ttl_grnt",
+  noti_nm: `'${ttlNm}' 칭호를 획득했습니다!`,
+  ref_id: ttlId,
+  ref_type_enm: "ttl",
+});
+```
+
+---
+
+## 6. 알림 90일 자동 삭제 — pg_cron
+
+```sql
+-- pg_cron 확장 활성화 (Supabase 기본 제공)
+SELECT cron.schedule(
+  'delete-old-noti-mst',
+  '0 18 * * *',   -- 매일 KST 03:00 (UTC 18:00)
+  $$
+    DELETE FROM noti_mst
+    WHERE crt_at < now() - interval '90 days';
+  $$
+);
+```
+
+> 마이그레이션 파일에 `cron.schedule` 등록 포함.
+
+---
+
+## 7. 컴포넌트 설계
+
+### 7-1. 홈탭 헤더 (`app/(main)/page.tsx`)
+
+```tsx
+// PageHeader action prop 활용
+<PageHeader
+  title="기강"
+  action={
+    <div className="flex items-center gap-2">
+      <BoardHeaderIcon hasNew={hasNewPost} />
+      <NotificationBell initialCount={unreadCount} />
+    </div>
+  }
+/>
+```
+
+### 7-2. `NotificationBell` (클라이언트 컴포넌트)
+
+```tsx
+// components/common/notification-bell.tsx
+"use client";
+
+// initialCount: 서버에서 전달받은 초기 미읽음 수
+// Supabase Realtime으로 notification 테이블 구독 → 실시간 업데이트
+export function NotificationBell({ initialCount }: { initialCount: number }) { ... }
+```
+
+### 7-3. 알림함 (`/notifications`)
 
 ```
 [뒤로가기 헤더: 알림]          [모두 읽음]
@@ -159,11 +311,12 @@ CREATE TABLE notification_pref (
 - 타입별 아이콘: 공지 📢, 업데이트 🆕, 대회 🏁, 칭호 🏆, 모임 👟, 관리자 📣
 - 클릭 시 `ref_type` + `ref_id`로 라우팅
   - `post` → `/board/[ref_id]`
-  - `competition` → `/races` (대회 다이얼로그 오픈)
+  - `competition` → `/races`
   - `title` → `/profile`
 - 읽음 처리: 클릭 시 `is_read = true`
+- 페이지 진입 시 전체 읽음 처리 버튼 (서버 액션)
 
-### 5-3. 게시판 (`/board`)
+### 7-4. 게시판 (`/board`)
 
 ```
 [뒤로가기 헤더: 공지 / 업데이트]     [✏️ 작성] (권한자만)
@@ -177,11 +330,11 @@ CREATE TABLE notification_pref (
      [v1.3] 칭호 시스템 도입             05/15
 ```
 
-- 상단 고정(`is_pinned`) 게시글은 📌 아이콘
-- 업데이트 탭은 버전 태그 표시 (선택)
-- 무한스크롤 또는 페이지네이션 (초기엔 20개 고정)
+- `is_pinned` 게시글 최상단 고정
+- 초기 20개 fetch, 무한스크롤 (intersection observer)
+- 작성 버튼: `member.admin === true || teamMemRel.can_post === true` 조건
 
-### 5-4. 게시글 상세 (`/board/[id]`)
+### 7-5. 게시글 상세 (`/board/[id]`)
 
 ```
 [뒤로가기]
@@ -190,42 +343,51 @@ CREATE TABLE notification_pref (
 작성자 · 05/31
 
 ─────────────
-Markdown 렌더링 (react-markdown 또는 remark)
+Markdown 렌더링 (react-markdown)
 ─────────────
 ```
 
-### 5-5. 알림 설정 (`/settings` 내 추가)
+- `react-markdown` 사용 (SSR 친화적, 가벼움)
+- 관리자/작성자에게만 삭제 버튼 노출
 
-설정 페이지에 `NOTIFICATIONS` 섹션 추가:
+### 7-6. 알림 설정 (`/settings` 내 NOTIFICATIONS 섹션 추가)
 
-```
-NOTIFICATIONS
-  공지사항          [ON/OFF]
-  업데이트          [ON/OFF]
-  대회 등록         [ON/OFF]
-  칭호 획득         [ON/OFF]
-  모임 일정 (예정)  [ON/OFF]
+```tsx
+// components/settings/settings-client.tsx에 섹션 추가
+// NOTIFICATIONS 섹션
+<SectionLabel>NOTIFICATIONS</SectionLabel>
+// Bell + 각 noti_type별 Switch 토글
+// notification_pref upsert 서버 액션 연동
 ```
 
 ---
 
-## 6. 알림 생성 트리거
+## 8. RLS 정책
 
-알림은 **서버 액션 또는 DB 트리거**로 생성.  
-초기엔 서버 액션에서 명시적으로 생성, 향후 pg trigger로 이전 가능.
+| 테이블 | SELECT | INSERT | UPDATE | DELETE |
+|--------|--------|--------|--------|--------|
+| `brd_post_mst` | 팀 멤버 전체 | `admin=true` 또는 `post_yn=true` | 작성자 + 관리자 | 관리자 |
+| `noti_mst` | `mem_id = auth.uid()` | service role만 | `mem_id = auth.uid()` (`read_yn` 업데이트) | - |
+| `noti_pref_cfg` | `mem_id = auth.uid()` | `mem_id = auth.uid()` | `mem_id = auth.uid()` | `mem_id = auth.uid()` |
 
-| 이벤트 | 생성 시점 | 대상 |
-|--------|----------|------|
-| 게시글 등록 | `createPost` 서버 액션 | 팀 전체 멤버 |
-| 대회 등록 | `createCompetition` 서버 액션 | 팀 전체 멤버 |
-| 칭호 부여 | `grantTitle` 서버 액션 | 해당 멤버 1명 |
-| 관리자 직접 발송 | 관리자 페이지 | 선택한 대상 |
-
-`notification_pref`에서 `enabled = false`면 해당 타입 INSERT 스킵.
+`brd_post_mst` INSERT 정책:
+```sql
+CREATE POLICY "brd_post_mst_insert" ON brd_post_mst
+  FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM team_mem_rel
+      WHERE mem_id = auth.uid()
+        AND team_id = brd_post_mst.team_id
+        AND (admin = true OR post_yn = true)
+        AND vers = 0 AND del_yn = false
+    )
+  );
+```
 
 ---
 
-## 7. 파일 구조
+## 9. 파일 구조
 
 ```
 app/
@@ -242,10 +404,14 @@ app/actions/
 ├── delete-post.ts
 └── mark-notifications-read.ts
 
+lib/queries/
+├── notification.ts          ← getUnreadNotificationCount, getNotifications
+└── board.ts                 ← getBoardPosts, getBoardPost
+
 components/
 ├── common/
-│   ├── notification-bell.tsx      ← 헤더 알림 아이콘
-│   └── board-header-icon.tsx      ← 헤더 게시판 아이콘
+│   ├── notification-bell.tsx      ← 헤더 알림 아이콘 (클라이언트)
+│   └── board-header-icon.tsx      ← 헤더 게시판 아이콘 (클라이언트)
 ├── notifications/
 │   └── notification-item.tsx
 └── board/
@@ -259,46 +425,26 @@ supabase/migrations/
 
 ---
 
-## 8. RLS 정책
-
-| 테이블 | SELECT | INSERT | UPDATE | DELETE |
-|--------|--------|--------|--------|--------|
-| `board_post` | 팀 멤버 전체 | 관리자 + 작성권한 멤버 | 작성자 + 관리자 | 관리자 |
-| `notification` | 본인 것만 | 서버(service role) | 본인 것만 | - |
-| `notification_pref` | 본인 것만 | 본인 | 본인 | 본인 |
-
-작성권한 멤버는 `team_mem_rel`에 `can_post boolean` 컬럼 추가 또는  
-별도 `board_author_rel` 테이블로 관리.
-
----
-
-## 9. 단계별 구현 순서
+## 10. 단계별 구현 순서
 
 ### Phase 1 — 게시판 (공지/업데이트)
-1. DB 마이그레이션: `board_post` 테이블 + RLS
-2. 서버 액션: `createPost`, `deletePost`
-3. 게시판 목록/상세 페이지
-4. 관리자 작성 폼
-5. 홈탭 헤더에 📋 아이콘 + 새글 dot
+1. DB 마이그레이션: `board_post` + `team_mem_rel.can_post` + RLS
+2. `lib/queries/board.ts` 쿼리 함수
+3. 서버 액션: `create-post.ts`, `delete-post.ts`
+4. 게시판 목록/상세 페이지 (`/board`, `/board/[id]`)
+5. 관리자 작성 폼 (`/board/write`)
+6. 홈탭 `PageHeader` 교체 + `BoardHeaderIcon` 컴포넌트
 
 ### Phase 2 — 인앱 알림
-1. DB 마이그레이션: `notification`, `notification_pref` + RLS
-2. 기존 서버 액션에 알림 생성 로직 추가 (칭호, 대회, 게시글)
-3. 알림함 페이지 (`/notifications`)
-4. 홈탭 헤더 🔔 아이콘 + 미읽음 뱃지
-5. 설정 페이지 알림 수신 ON/OFF
+1. DB 마이그레이션: `notification` + `notification_pref` + RLS + `create_notifications_for_team` 함수 + pg_cron
+2. `lib/queries/notification.ts` 쿼리 함수
+3. 기존 서버 액션에 알림 생성 로직 추가 (칭호, 대회, 게시글)
+4. 알림함 페이지 (`/notifications`) + `mark-notifications-read.ts` 서버 액션
+5. `NotificationBell` 컴포넌트 (Realtime 구독)
+6. 설정 페이지 NOTIFICATIONS 섹션 + `notification_pref` 토글
 
 ### Phase 3 — 향후 확장
 - 모임/일정 이벤트 알림
 - PWA Web Push
 - 멤버 게시판 (자유게시판 확장)
 - 관리자 수동 알림 발송 UI
-
----
-
-## 10. 미결 사항
-
-- Markdown 렌더링 라이브러리 선택 (`react-markdown` vs `@uiw/react-md-editor`)
-- 작성권한 멤버 관리 방식: `team_mem_rel` 컬럼 추가 vs 별도 테이블
-- 알림 보존 기간 정책 (예: 90일 후 자동 삭제)
-- 미읽음 수 실시간 업데이트: Supabase Realtime vs 폴링

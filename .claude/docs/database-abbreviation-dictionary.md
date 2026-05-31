@@ -57,6 +57,14 @@
 | `grnt` | grant/granted (부여) |
 | `exp` | expire/expires (만료) |
 | `chg` | change (변경) |
+| `brd` | board (게시판) |
+| `noti` | notification (알림) |
+| `cont` | content (본문 내용) |
+| `pref` | preference (수신 설정) |
+| `pin` | pinned (상단 고정) |
+| `read` | read (읽음 여부) |
+| `ref` | reference (연관 리소스 참조) |
+| `writ` | writer (작성자) |
 
 ## 현재 v2 주요 테이블 약어
 | 테이블 | 의미 |
@@ -83,6 +91,9 @@
 | `evt_mlg_mult_cfg` | 마일리지 배율 설정 |
 | `ttl_mst` | 칭호 마스터 |
 | `mem_ttl_rel` | 회원-칭호 관계 |
+| `brd_post_mst` | 게시글 마스터 (공지/업데이트) |
+| `noti_mst` | 알림 마스터 |
+| `noti_pref_cfg` | 알림 수신 설정 |
 
 ## 칭호 도메인 컬럼 약어 (v2)
 | 컬럼 | 의미 |
