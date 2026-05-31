@@ -6,11 +6,14 @@ import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 
+type DescVisibility = "always" | "others" | "held" | "never";
+
 type TitlePayload = {
   ttlNm: string;
   ttlKindEnm: string;
   ttlCtgrCd: string;
   ttlDesc: string | null;
+  descVisibility?: DescVisibility;
   sortOrd: number | string;
   useYn: boolean | string;
   condRuleJson: string | null;
@@ -23,6 +26,7 @@ type TitleNormalized = {
   ttlKindEnm: "auto" | "awarded";
   ttlCtgrCd: string;
   ttlDesc: string | null;
+  descVisibility: DescVisibility;
   sortOrd: number;
   useYn: boolean;
   condRuleJson: unknown | null;
@@ -100,11 +104,17 @@ async function normalizePayload(payload: TitlePayload): Promise<TitleNormalized>
       })()
     : null;
 
+  const validVisibilities: DescVisibility[] = ["always", "others", "held", "never"];
+  const descVisibility: DescVisibility = validVisibilities.includes(payload.descVisibility as DescVisibility)
+    ? (payload.descVisibility as DescVisibility)
+    : "others";
+
   return {
     ttlNm,
     ttlKindEnm,
     ttlCtgrCd,
     ttlDesc,
+    descVisibility,
     sortOrd,
     useYn,
     condRuleJson,
@@ -128,6 +138,7 @@ export async function createTitle(payload: TitlePayload) {
       ttl_ctgr_cd: normalized.ttlCtgrCd,
       ttl_nm: normalized.ttlNm,
       ttl_desc: normalized.ttlDesc,
+      desc_visibility: normalized.descVisibility,
       cond_rule_json: normalized.condRuleJson as Json,
       sort_ord: normalized.sortOrd,
       use_yn: normalized.useYn,
@@ -165,6 +176,7 @@ export async function updateTitle(ttlId: string, payload: TitlePayload) {
         ttl_ctgr_cd: normalized.ttlCtgrCd,
         ttl_nm: normalized.ttlNm,
         ttl_desc: normalized.ttlDesc,
+        desc_visibility: normalized.descVisibility,
         cond_rule_json: normalized.condRuleJson as Json,
         sort_ord: normalized.sortOrd,
         use_yn: normalized.useYn,

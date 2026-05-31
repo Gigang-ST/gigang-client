@@ -43,12 +43,15 @@ type GrantRow = {
   };
 };
 
+type DescVisibility = "always" | "others" | "held" | "never";
+
 type TitleRow = {
   ttl_id: string;
   ttl_nm: string;
   ttl_kind_enm: "auto" | "awarded";
   ttl_ctgr_cd: string;
   ttl_desc: string | null;
+  desc_visibility: DescVisibility;
   sort_ord: number;
   use_yn: boolean;
   cond_rule_json: unknown | null;
@@ -57,7 +60,7 @@ type TitleRow = {
   prmy_cnt: number;
 };
 
-type SortKey = "ttl_kind_enm" | "ttl_ctgr_cd" | "rarity_level" | "ttl_group_cd" | "event" | "prmy_cnt";
+type SortKey = "ttl_kind_enm" | "ttl_ctgr_cd" | "rarity_level" | "ttl_group_cd" | "event" | "prmy_cnt" | "desc_visibility";
 type SortDir = "asc" | "desc";
 
 type TitleForm = {
@@ -65,6 +68,7 @@ type TitleForm = {
   ttlKindEnm: "auto" | "awarded";
   ttlCtgrCd: string;
   ttlDesc: string;
+  descVisibility: DescVisibility;
   sortOrd: string;
   useYn: "true" | "false";
   condRuleJson: string;
@@ -88,6 +92,7 @@ function toForm(row: TitleRow): TitleForm {
     ttlKindEnm: row.ttl_kind_enm,
     ttlCtgrCd: row.ttl_ctgr_cd ?? "",
     ttlDesc: row.ttl_desc ?? "",
+    descVisibility: (row.desc_visibility as DescVisibility | undefined) ?? "others",
     sortOrd: String(row.sort_ord ?? 100),
     useYn: row.use_yn ? "true" : "false",
     condRuleJson: row.cond_rule_json ? JSON.stringify(row.cond_rule_json) : "",
@@ -102,6 +107,7 @@ function buildEmptyForm(defaultCategory: string): TitleForm {
     ttlKindEnm: "auto",
     ttlCtgrCd: defaultCategory,
     ttlDesc: "",
+    descVisibility: "others",
     sortOrd: "100",
     useYn: "true",
     condRuleJson: "",
@@ -144,7 +150,7 @@ export function AdminTitlesClient({
     const { data } = await supabase
       .from("ttl_mst")
       .select(
-        "ttl_id, ttl_nm, ttl_kind_enm, ttl_ctgr_cd, ttl_desc, sort_ord, use_yn, cond_rule_json, rarity_level, ttl_group_cd, mem_ttl_rel(ttl_id)",
+        "ttl_id, ttl_nm, ttl_kind_enm, ttl_ctgr_cd, ttl_desc, desc_visibility, sort_ord, use_yn, cond_rule_json, rarity_level, ttl_group_cd, mem_ttl_rel(ttl_id)",
       )
       .eq("team_id", teamId)
       .eq("vers", 0)
@@ -260,6 +266,10 @@ export function AdminTitlesClient({
       } else if (sortKey === "ttl_group_cd") {
         av = a.ttl_group_cd ?? -1;
         bv = b.ttl_group_cd ?? -1;
+      } else if (sortKey === "desc_visibility") {
+        const order = { always: 0, others: 1, held: 2, never: 3 };
+        av = order[a.desc_visibility as DescVisibility] ?? 1;
+        bv = order[b.desc_visibility as DescVisibility] ?? 1;
       } else {
         av = a[sortKey] ?? "";
         bv = b[sortKey] ?? "";
@@ -384,6 +394,10 @@ export function AdminTitlesClient({
                     onClick={() => handleSort("event")}
                   >이벤트<SortIcon k="event" /></th>
                   <th
+                    className="w-8 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
+                    onClick={() => handleSort("desc_visibility")}
+                  >공개<SortIcon k="desc_visibility" /></th>
+                  <th
                     className="w-10 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
                     onClick={() => handleSort("prmy_cnt")}
                   >대표<SortIcon k="prmy_cnt" /></th>
@@ -393,7 +407,7 @@ export function AdminTitlesClient({
                 {rows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="px-2 py-6 text-center text-xs text-muted-foreground"
                     >
                       등록된 칭호가 없습니다.
@@ -429,6 +443,9 @@ export function AdminTitlesClient({
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.rarity_level ?? 1}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_group_cd ?? "-"}</td>
                       <td className="px-2 py-1.5 text-center text-muted-foreground">{row.ttl_ctgr_cd === "event" ? "✓" : ""}</td>
+                      <td className="px-2 py-1.5 text-center font-mono text-xs font-medium text-muted-foreground">
+                        {({ always: "A", others: "O", held: "H", never: "N" } as Record<string, string>)[row.desc_visibility] ?? "O"}
+                      </td>
                       <td className="px-2 py-1.5 text-center tabular-nums text-muted-foreground">
                         {row.prmy_cnt > 0 ? <span className="font-medium text-foreground">{row.prmy_cnt}</span> : "-"}
                       </td>
@@ -827,6 +844,22 @@ function TitleFormFields({
           label="설명"
           value={form.ttlDesc}
           onChange={(v) => onChange("ttlDesc", v)}
+        />
+      </div>
+
+      {/* 행 8: 설명 공개 범위 */}
+      <div className="col-span-2">
+        <LabeledSelect
+          label="설명 공개 범위"
+          value={form.descVisibility}
+          onChange={(v) => onChange("descVisibility", v as DescVisibility)}
+          required
+          items={[
+            { value: "always", label: "always — 미보유여도 내 컬렉션에서 설명 공개" },
+            { value: "others", label: "others — 다른 사람이 보유 시 설명 공개 (기본)" },
+            { value: "held", label: "held — 본인 보유 시만 설명 공개" },
+            { value: "never", label: "never — 보유해도 항상 ???" },
+          ]}
         />
       </div>
     </div>

@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 /*  타입 정의                                                          */
 /* ------------------------------------------------------------------ */
 
-type MemberTitle = { ttl_nm: string; badge_effect: string; frame_cd: string };
+type MemberTitle = { ttl_nm: string; ttl_desc: string | null; desc_visibility: string; badge_effect: string; frame_cd: string };
 
 type RankingEntry = {
   rank: number;
@@ -169,7 +169,7 @@ function MarathonHalfCard({
             {entry.name}
           </span>
           {title && (
-            <TitleBadge name={title.ttl_nm} effect={title.badge_effect} size="xs" />
+            <TitleBadge name={title.ttl_nm} effect={title.badge_effect} size="xs" tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility as "always" | "others" | "held" | "never", isHeld: true, isOwner: false }} />
           )}
         </div>
       </div>
@@ -314,6 +314,7 @@ function TrailContent({
                     name={title.ttl_nm}
                     effect={title.badge_effect}
                     size="xs"
+                    tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility as "always" | "others" | "held" | "never", isHeld: true, isOwner: false }}
                   />
                 )}
               </div>

@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useTransition } from "react";
 
-import { Check, Lock, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { FRAME_CSS } from "@/lib/title-effects";
 
 import { setPrimaryTitle, setSelectedEffect } from "@/app/actions/profile/update-collection";
+import { TitleBadge } from "@/components/common/title-badge";
 
 /* ------------------------------------------------------------------ */
 /*  타입                                                                */
@@ -18,6 +19,7 @@ type AllTitle = {
   ttl_id: string;
   ttl_nm: string;
   ttl_desc: string | null;
+  desc_visibility: "always" | "others" | "held" | "never";
   rarity_level: number;
   ttl_ctgr_cd: string;
   ttl_group_cd: number | null;
@@ -185,7 +187,7 @@ export function CollectionSheet({
       // 전체 칭호 목록
       supabase
         .from("ttl_mst")
-        .select("ttl_id, ttl_nm, ttl_desc, rarity_level, ttl_ctgr_cd, ttl_group_cd, use_yn")
+        .select("ttl_id, ttl_nm, ttl_desc, desc_visibility, rarity_level, ttl_ctgr_cd, ttl_group_cd, use_yn")
         .eq("team_id", teamId)
         .eq("vers", 0)
         .eq("del_yn", false)
@@ -344,11 +346,6 @@ export function CollectionSheet({
                         획득 {regularTitles.filter((t) => ownedTitleIds.has(t.ttl_id)).length} / {regularTitles.length}
                       </span>
                     </div>
-                    {descTitle?.ttl_desc && (
-                      <p className="truncate text-[11px] text-muted-foreground">
-                        {descTitle.ttl_desc}
-                      </p>
-                    )}
                     <div className="flex flex-wrap gap-2">
                       {regularTitles.map((t) => {
                         const owned = ownedTitleIds.has(t.ttl_id);
@@ -356,45 +353,29 @@ export function CollectionSheet({
                         const blocked = owned && t.use_yn && isBlockedByHigher(t);
                         const selectable = owned && t.use_yn && !blocked;
                         const isSelected = selectedTtlId === t.ttl_id;
-                        const isPreviewing = previewTtlId === t.ttl_id;
                         return (
-                          <button
+                          <TitleBadge
                             key={t.ttl_id}
-                            disabled={masked}
+                            name={t.ttl_nm}
+                            effect={null}
+                            masked={masked}
+                            selected={isSelected}
+                            tooltip={{
+                              desc: t.ttl_desc,
+                              visibility: t.desc_visibility,
+                              isHeld: owned,
+                              isOwner: true,
+                            }}
+                            className={cn(blocked && "opacity-50")}
                             onClick={() => {
                               if (selectable) {
                                 setSelectedTtlId(isSelected ? null : t.ttl_id);
                                 setPreviewTtlId(null);
                               } else if (blocked) {
-                                setPreviewTtlId(isPreviewing ? null : t.ttl_id);
+                                setPreviewTtlId(t.ttl_id);
                               }
                             }}
-                            className={cn(
-                              "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
-                              // 선택됨 (저장 대상)
-                              selectable && isSelected && "border-primary bg-primary/10 text-primary",
-                              // 선택 가능, 미선택
-                              selectable && !isSelected && "border-border bg-secondary text-foreground",
-                              // 보유 + 차단 + 설명보기 중 (파란 테두리 살짝)
-                              blocked && isPreviewing && "border-primary/40 bg-muted text-muted-foreground opacity-65",
-                              // 보유 + 차단 (흐림)
-                              blocked && !isPreviewing && "border-border bg-muted text-muted-foreground opacity-50",
-                              // 미보유 or use_yn=false 마스킹
-                              masked && "border-dashed border-border/50 bg-muted/50 text-muted-foreground/40 cursor-default select-none",
-                            )}
-                          >
-                            {masked ? (
-                              <>
-                                <Lock className="size-2.5 shrink-0" />
-                                <span className="blur-[2px]">{t.ttl_nm}</span>
-                              </>
-                            ) : (
-                              <>
-                                {t.ttl_nm}
-                                {isSelected && <Check className="size-3" />}
-                              </>
-                            )}
-                          </button>
+                          />
                         );
                       })}
                     </div>
@@ -412,17 +393,19 @@ export function CollectionSheet({
                           .map((t) => {
                             const isSelected = selectedTtlId === t.ttl_id;
                             return (
-                              <button
+                              <TitleBadge
                                 key={t.ttl_id}
+                                name={t.ttl_nm}
+                                effect={null}
+                                selected={isSelected}
+                                tooltip={{
+                                  desc: t.ttl_desc,
+                                  visibility: t.desc_visibility,
+                                  isHeld: true,
+                                  isOwner: true,
+                                }}
                                 onClick={() => setSelectedTtlId(isSelected ? null : t.ttl_id)}
-                                className={cn(
-                                  "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
-                                  isSelected ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary text-foreground",
-                                )}
-                              >
-                                {t.ttl_nm}
-                                {isSelected && <Check className="size-3" />}
-                              </button>
+                              />
                             );
                           })}
                       </div>

@@ -1496,6 +1496,7 @@ export type Database = {
           crt_at: string
           crt_by: string | null
           del_yn: boolean
+          desc_visibility: string
           rarity_level: number
           sort_ord: number
           team_id: string
@@ -1515,6 +1516,7 @@ export type Database = {
           crt_at?: string
           crt_by?: string | null
           del_yn?: boolean
+          desc_visibility?: string
           rarity_level?: number
           sort_ord?: number
           team_id: string
@@ -1534,6 +1536,7 @@ export type Database = {
           crt_at?: string
           crt_by?: string | null
           del_yn?: boolean
+          desc_visibility?: string
           rarity_level?: number
           sort_ord?: number
           team_id?: string
@@ -1640,28 +1643,13 @@ export type Database = {
           utmb_prf_url: string
         }[]
       }
-      is_legacy_platform_admin: { Args: never; Returns: boolean }
       mem_mst_mem_ids_by_norm_phone: {
         Args: { p_input: string }
         Returns: string[]
       }
       migration_v2_map_evt_cd: { Args: { p_raw: string }; Returns: string }
-      migration_v2_map_mem_st_cd: {
-        Args: { p_status: Database["public"]["Enums"]["member_status"] }
-        Returns: string
-      }
       migration_v2_norm_email: { Args: { p_input: string }; Returns: string }
       migration_v2_norm_phone: { Args: { p_input: string }; Returns: string }
-      rls_is_team_admin: { Args: { p_team_id: string }; Returns: boolean }
-      rls_is_team_comp_admin: {
-        Args: { p_team_comp_id: string }
-        Returns: boolean
-      }
-      rls_is_team_comp_member: {
-        Args: { p_team_comp_id: string }
-        Returns: boolean
-      }
-      rls_is_team_member: { Args: { p_team_id: string }; Returns: boolean }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       v2_rls_auth_in_team: { Args: { p_team_id: string }; Returns: boolean }
