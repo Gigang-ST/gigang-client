@@ -5,10 +5,8 @@ import { secondsToTime } from "@/lib/dayjs";
 import { getFrameCls } from "@/lib/title-effects";
 import { cn } from "@/lib/utils";
 import { TitleBadge } from "@/components/common/title-badge";
-import { Body, Caption, Micro } from "@/components/common/typography";
 import { SectionHeader } from "@/components/common/section-header";
 import { EmptyState } from "@/components/common/empty-state";
-import { Button } from "@/components/ui/button";
 
 export type RecentRecord = {
   mem_id: string | null;
@@ -47,30 +45,39 @@ export function RecentRecordsGrid({
   const hasMore = records.length > initialCount;
 
   return (
-    <div className="flex flex-col gap-4">
-      <SectionHeader label="RECENT RECORDS" />
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <SectionHeader label="RECENT RECORDS" />
+        {hasMore && (
+          <button
+            onClick={() => setExpanded((prev) => !prev)}
+            className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {expanded ? "접기" : "더 보기"}
+          </button>
+        )}
+      </div>
 
       {records.length === 0 ? (
         <EmptyState variant="card" message="등록된 기록이 없습니다." />
       ) : (
-        <>
-          <div className="grid grid-cols-2 gap-2">
-            {visibleRecords.map((rec, idx) => {
+        <div className="grid grid-cols-2 gap-2">
+          {visibleRecords.map((rec, idx) => {
               const title = rec.mem_id ? titleMap[rec.mem_id] : undefined;
               const frameCls = getFrameCls(title?.frame_cd);
               return (
                 <div
                   key={`${rec.mem_id ?? "unknown"}-${rec.race_nm ?? idx}`}
                   className={cn(
-                    "flex flex-col gap-1 rounded-xl border border-border bg-card p-3",
+                    "flex flex-col gap-0.5 rounded-xl border border-border bg-card p-2",
                     frameCls,
                   )}
                 >
-                  {/* 이름 + 칭호 */}
-                  <div className="flex items-center gap-1 overflow-visible">
-                    <Body className="shrink-0 font-semibold leading-none">
+                  {/* 줄 1: 이름 + 칭호 */}
+                  <div className="flex min-w-0 items-center gap-1">
+                    <span className="truncate text-[12px] font-semibold text-foreground">
                       {rec.mem_nm ?? "멤버"}
-                    </Body>
+                    </span>
                     {title && (
                       <TitleBadge
                         name={title.ttl_nm}
@@ -85,32 +92,19 @@ export function RecentRecordsGrid({
                       />
                     )}
                   </div>
-
-                  {/* 기록 시간 */}
-                  <span className="font-mono text-base font-bold leading-none text-foreground">
-                    {secondsToTime(rec.rec_time_sec ?? 0)}
-                  </span>
-
-                  {/* 종목 · 대회명 */}
-                  <Caption className="truncate leading-tight">
-                    {(rec.evt_cd ?? "UNKNOWN").toUpperCase()} · {rec.race_nm}
-                  </Caption>
+                  {/* 줄 2: 대회명 + 기록 */}
+                  <div className="flex min-w-0 items-center gap-1">
+                    <span className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
+                      {rec.race_nm ?? "-"}
+                    </span>
+                    <span className="shrink-0 font-mono text-[11px] font-bold text-foreground">
+                      {secondsToTime(rec.rec_time_sec ?? 0)}
+                    </span>
+                  </div>
                 </div>
               );
             })}
           </div>
-
-          {hasMore && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full text-muted-foreground"
-              onClick={() => setExpanded((prev) => !prev)}
-            >
-              {expanded ? "접기" : `더 보기 (${records.length - initialCount}개)`}
-            </Button>
-          )}
-        </>
       )}
     </div>
   );

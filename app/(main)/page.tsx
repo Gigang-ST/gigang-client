@@ -10,8 +10,12 @@ import { H1 } from "@/components/common/typography";
 import { Caption } from "@/components/common/typography";
 import { MiniCalendar } from "@/components/home/mini-calendar";
 import type { CalendarRace } from "@/components/home/mini-calendar";
+import { RecentJoiners } from "@/components/home/recent-joiners";
+import type { RecentJoiner } from "@/components/home/recent-joiners";
 import { RecentRecordsGrid } from "@/components/home/recent-records-grid";
 import type { RecentRecord, RecordTitleInfo } from "@/components/home/recent-records-grid";
+import { RecentTitles } from "@/components/home/recent-titles";
+import type { RecentTitleGrant } from "@/components/home/recent-titles";
 import { UpcomingRaces } from "@/components/home/upcoming-races";
 import type { CompetitionRegistration, MemberStatus } from "@/components/races/types";
 import { SocialLinksGrid } from "@/components/social-links";
@@ -61,13 +65,31 @@ async function HomeContent() {
     { data: teamComps },
     { data: recentRecordsRaw },
     { data: calendarComps },
+    { data: recentJoinersRaw },
+    { data: recentTitleGrantsRaw },
     cmmCdRows,
     myTitleNames,
   ] = await Promise.all([
     admin.rpc("get_public_team_member_stats", { p_team_id: teamId }),
     supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: today }),
     supabase.rpc("get_public_team_recent_records", { p_team_id: teamId, p_limit: 12 }),
-    supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: monthStart }),
+    supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: monthStart, p_end: monthLastDayStr }),
+    admin
+      .from("team_mem_rel")
+      .select("mem_id, join_dt, mem_mst!inner(mem_nm)")
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .order("crt_at", { ascending: false })
+      .limit(10),
+    admin
+      .from("mem_ttl_rel")
+      .select("grnt_at, ttl_mst!inner(ttl_nm, ttl_desc, desc_visibility), team_mem_rel!inner(mem_id, selected_badge_effect, mem_mst!inner(mem_nm))")
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .order("grnt_at", { ascending: false })
+      .limit(10),
     getCachedCmmCdRows(),
     getMyTitleNames(),
   ]);
@@ -191,15 +213,15 @@ async function HomeContent() {
         .filter((c) => c && c.start_date >= today)
         .sort((a, b) => a.start_date.localeCompare(b.start_date));
 
-      // 캘린더용 내 대회 (이번 달)
-      calendarMyRaces = myRaces
-        .filter((r) => r.start_date >= monthStart && r.start_date <= monthLastDayStr)
-        .map((r) => ({
-          id: r.id,
-          title: r.title,
-          start_date: r.start_date,
-          type: "mine" as const,
-        }));
+      // 캘린더용 내 대회 (이번 달) — today 필터 없이 myRegs 원본에서 직접 추출
+      calendarMyRaces = (myRegs ?? [])
+        .flatMap((r) => {
+          const plan = Array.isArray(r.team_comp_plan_rel) ? r.team_comp_plan_rel[0] : r.team_comp_plan_rel;
+          const comp = Array.isArray(plan.comp_mst) ? plan.comp_mst[0] : plan.comp_mst;
+          if (!comp) return [];
+          const race: CalendarRace = { id: comp.comp_id, title: comp.comp_nm, start_date: comp.stt_dt, type: "mine" };
+          return race.start_date >= monthStart && race.start_date <= monthLastDayStr ? [race] : [];
+        });
 
       // 내 대회 각 competition에 대해 참가자들이 등록한 event_type 수집
       if (myRaces.length > 0) {
@@ -268,9 +290,7 @@ async function HomeContent() {
 
   const initialRegistrationsByCompetitionId: Record<string, CompetitionRegistration> = {};
   myRegistrations.forEach((reg) => {
-    if (upcomingCards.some((card) => card.id === reg.competition_id)) {
-      initialRegistrationsByCompetitionId[reg.competition_id] = reg;
-    }
+    initialRegistrationsByCompetitionId[reg.competition_id] = reg;
   });
 
   const recentRecords: RecentRecord[] = (recentRecordsRaw ?? []).map((r) => ({
@@ -326,8 +346,36 @@ async function HomeContent() {
     }
   }
 
+  // 최근 가입자 가공
+  const recentJoiners: RecentJoiner[] = (recentJoinersRaw ?? []).map((row) => {
+    const mem = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst;
+    return {
+      mem_id: row.mem_id as string,
+      mem_nm: (mem as { mem_nm: string })?.mem_nm ?? "멤버",
+      join_dt: row.join_dt as string,
+    };
+  });
+
+  // 최근 칭호 획득 가공
+  const recentTitleGrants: RecentTitleGrant[] = (recentTitleGrantsRaw ?? []).map((row) => {
+    const rel = Array.isArray(row.team_mem_rel) ? row.team_mem_rel[0] : row.team_mem_rel;
+    const ttl = Array.isArray(row.ttl_mst) ? row.ttl_mst[0] : row.ttl_mst;
+    const memInfo = rel as { mem_id: string; selected_badge_effect?: string | null; mem_mst: { mem_nm: string } | { mem_nm: string }[] } | null;
+    const memMst = memInfo ? (Array.isArray(memInfo.mem_mst) ? memInfo.mem_mst[0] : memInfo.mem_mst) : null;
+    const ttlInfo = ttl as { ttl_nm: string; ttl_desc?: string | null; desc_visibility?: string } | null;
+    return {
+      mem_id: memInfo?.mem_id ?? "",
+      mem_nm: (memMst as { mem_nm: string } | null)?.mem_nm ?? "멤버",
+      ttl_nm: ttlInfo?.ttl_nm ?? "",
+      ttl_desc: ttlInfo?.ttl_desc ?? null,
+      desc_visibility: (ttlInfo?.desc_visibility ?? "others") as "always" | "others" | "held" | "never",
+      badge_effect: memInfo?.selected_badge_effect ?? "none",
+      grnt_at: row.grnt_at as string,
+    };
+  }).filter((g) => g.mem_id && g.ttl_nm);
+
   return (
-    <div className="flex flex-col gap-7 px-6 pb-6">
+    <div className="flex flex-col gap-5 px-6 pb-6">
       {/* 1. 오버뷰 한 줄 */}
       <Caption>
         <span className="font-semibold text-foreground">{memberCount}</span>명 활동 중
@@ -340,6 +388,11 @@ async function HomeContent() {
       <MiniCalendar
         gigangRaces={calendarGigangRaces}
         myRaces={calendarMyRaces}
+        teamId={teamId}
+        memberId={currentMember?.id}
+        cmmCdRows={cmmCdRows}
+        initialMemberStatus={initialMemberStatus}
+        initialRegistrationsByCompetitionId={initialRegistrationsByCompetitionId}
       />
 
       {/* 3. UPCOMING RACES 압축 리스트 */}
@@ -356,10 +409,16 @@ async function HomeContent() {
         records={recentRecords}
         titleMap={titleMap}
         myTitleNames={[...myTitleNames]}
-        initialCount={4}
+        initialCount={2}
       />
 
-      {/* 5. Social Links */}
+      {/* 5. 최근 가입자 + 최근 칭호 */}
+      <div className="grid grid-cols-2 gap-4">
+        <RecentJoiners joiners={recentJoiners} initialCount={4} />
+        <RecentTitles grants={recentTitleGrants} initialCount={4} myTitleNames={[...myTitleNames]} />
+      </div>
+
+      {/* 7. Social Links */}
       <SocialLinksGrid
         kakaoChatPassword={isMember ? (env.KAKAO_CHAT_PASSWORD ?? "") : undefined}
       />

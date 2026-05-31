@@ -206,7 +206,7 @@ export function UpcomingRaces({
               <button
                 key={race.id}
                 onClick={() => handleRowClick(race)}
-                className="flex w-full items-center gap-3 py-2.5 text-left transition-colors hover:bg-muted/40 first:pt-1 last:pb-1"
+                className="flex w-full items-center gap-3 py-2 text-left transition-colors hover:bg-muted/40 first:pt-0.5 last:pb-0.5"
               >
                 {/* D-day 뱃지 */}
                 <span
@@ -218,10 +218,17 @@ export function UpcomingRaces({
                   {dday}
                 </span>
 
-                {/* 대회명 */}
-                <Caption className="flex-1 truncate text-foreground font-medium">
-                  {race.title}
-                </Caption>
+                {/* 대회명 + 라벨 */}
+                <div className="flex flex-1 items-center gap-1.5 min-w-0">
+                  <Caption className="truncate text-foreground font-medium">
+                    {race.title}
+                  </Caption>
+                  {race.label && (
+                    <span className="shrink-0 rounded px-1 py-px text-[10px] font-medium bg-secondary text-muted-foreground">
+                      {race.label}
+                    </span>
+                  )}
+                </div>
 
                 {/* 날짜 */}
                 <Micro className="shrink-0 tabular-nums">
