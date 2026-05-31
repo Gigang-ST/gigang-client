@@ -1,4 +1,56 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { usePathname } from "next/navigation";
+import { Check, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+function TooltipBubble({ anchorRef, text }: { anchorRef: React.RefObject<HTMLButtonElement | null>; text: string }) {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const bubbleRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const anchor = anchorRef.current;
+    const bubble = bubbleRef.current;
+    if (!anchor || !bubble || pos !== null) return;
+
+    const aRect = anchor.getBoundingClientRect();
+    const bRect = bubble.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const MARGIN = 8;
+
+    let left = aRect.left + aRect.width / 2 - bRect.width / 2;
+    const top = aRect.top - bRect.height - 6;
+
+    if (left + bRect.width + MARGIN > vw) left = vw - bRect.width - MARGIN;
+    if (left < MARGIN) left = MARGIN;
+
+    setPos({ top, left });
+  });
+
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div
+      ref={bubbleRef}
+      style={pos ? { position: "fixed", top: pos.top, left: pos.left } : { position: "fixed", visibility: "hidden" }}
+      className={cn(
+        "z-[9999] max-w-[200px] break-words rounded-md px-2.5 py-1.5",
+        "bg-zinc-800 text-[11px] leading-relaxed text-zinc-100",
+        "dark:bg-zinc-700 dark:text-zinc-50",
+        "pointer-events-none select-none",
+        "animate-in fade-in-0 zoom-in-95 duration-150",
+      )}
+    >
+      {text}
+    </div>,
+    document.body,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 이펙트 CSS 맵
+// ---------------------------------------------------------------------------
 
 const BADGE_CSS: Record<string, string> = {
   none: "", dim: "title-effect-dim", breathe: "title-effect-breathe",
@@ -65,36 +117,180 @@ const SIZE_CLASS: Record<TitleBadgeSize, string> = {
   md: "text-xs px-2.5 py-1",
 };
 
+// ---------------------------------------------------------------------------
+// desc_visibility 설명 공개 여부 판단
+// ---------------------------------------------------------------------------
+
+export type TitleDescVisibility = "always" | "others" | "held" | "never";
+
+function resolveDescVisible(
+  visibility: TitleDescVisibility,
+  isHeld: boolean,
+  isOwner: boolean,
+): boolean {
+  switch (visibility) {
+    case "always": return true;
+    case "others": return true;
+    case "held":   return isHeld;
+    case "never":  return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// TitleBadge — 이펙트 렌더링 + 툴팁 통합 컴포넌트
+// ---------------------------------------------------------------------------
+
+/**
+ * 칭호 배지 컴포넌트.
+ *
+ * 기본 사용 (이펙트만, 툴팁 없음):
+ *   <TitleBadge name="SUB4" effect="gold" size="sm" />
+ *
+ * 툴팁 포함 사용:
+ *   <TitleBadge
+ *     name="SUB4" effect="gold"
+ *     tooltip={{ desc: "풀코스 4시간 벽을 넘은 러너", visibility: "others", isHeld: true, isOwner: false }}
+ *   />
+ *
+ * 컬렉션 선택 모드 (선택 상태 + 마스킹):
+ *   <TitleBadge name="???" effect={null} masked selected onClick={...} />
+ */
 export function TitleBadge({
   name,
   effect,
   size = "sm",
   className,
+  // 툴팁 관련
+  tooltip,
+  // 컬렉션 선택 모드
+  selected,
+  masked,
+  onClick,
+  tooltipOpen,
+  onTooltipOpen,
 }: {
   name: string;
   effect: string | null;
   size?: TitleBadgeSize;
   className?: string;
+  /** 툴팁 설명 표시 옵션. 생략 시 툴팁 없음 */
+  tooltip?: {
+    desc: string | null;
+    visibility: TitleDescVisibility;
+    isHeld: boolean;
+    isOwner: boolean;
+  };
+  /** 컬렉션 선택 상태 */
+  selected?: boolean;
+  /** 미보유 마스킹 (칭호명 blur + 자물쇠) */
+  masked?: boolean;
+  onClick?: () => void;
+  /** 외부에서 툴팁 열림 상태를 제어할 때 사용 (컬렉션 등 여러 배지가 공존하는 경우) */
+  tooltipOpen?: boolean;
+  onTooltipOpen?: () => void;
 }) {
+  const [tipOpenInternal, setTipOpenInternal] = useState(false);
+  const tipOpen = tooltipOpen !== undefined ? tooltipOpen : tipOpenInternal;
+  const setTipOpen = tooltipOpen !== undefined ? () => {} : setTipOpenInternal;
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const pathname = usePathname();
+
+  // 타이머 클린업
+  useEffect(() => {
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, []);
+
+  // 탭 이동 시 닫기
+  useEffect(() => { setTipOpen(false); }, [pathname]);
+
+  // 스크롤 시 닫기
+  useEffect(() => {
+    if (!tipOpen) return;
+    const close = () => setTipOpen(false);
+    window.addEventListener("scroll", close, { passive: true, capture: true });
+    return () => window.removeEventListener("scroll", close, { capture: true });
+  }, [tipOpen]);
+
   const effectKey = effect ?? "none";
   const cls = BADGE_CSS[effectKey] ?? "";
   const border = BADGE_BORDER[effectKey] ?? "border-zinc-700 text-zinc-300";
 
-  return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center rounded-full border bg-zinc-900 dark:bg-transparent font-medium leading-none",
-        SIZE_CLASS[size],
-        border,
-        className,
-      )}
-    >
+  // 말풍선 텍스트: visibility 조건 통과하면 desc, 아니면 "???"
+  // 말풍선 표시 여부는 tooltip prop 존재 여부로만 결정
+  const descText = tooltip
+    ? resolveDescVisible(tooltip.visibility, tooltip.isHeld, tooltip.isOwner)
+      ? (tooltip.desc ?? "???")
+      : "???"
+    : null;
+
+  const isInteractive = !!tooltip || !!onClick;
+
+  function openTip() {
+    if (tooltipOpen !== undefined) {
+      onTooltipOpen?.();
+    } else {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      setTipOpenInternal(true);
+      timerRef.current = setTimeout(() => setTipOpenInternal(false), 3000);
+    }
+  }
+
+  function handleClick() {
+    if (tooltip && !masked) openTip();
+    onClick?.();
+  }
+
+  // 컬렉션 선택 모드일 때 스타일 오버라이드
+  const collectionStyle = masked
+    ? "cursor-default select-none border-dashed border-border/50 bg-muted/50 text-muted-foreground/40"
+    : selected
+      ? "border-primary bg-primary/10 text-primary"
+      : undefined;
+
+  const inner = masked ? (
+    <>
+      <Lock className="size-2.5 shrink-0" />
+      <span className="blur-[2px]">{name}</span>
+    </>
+  ) : (
+    <>
       {effectKey === "glitch"
         ? <span className={cn("inline-block", cls)} data-text={name}>{name}</span>
         : cls
           ? <span className={cn("inline-block", cls)}>{name}</span>
           : name
       }
-    </span>
+      {selected && <Check className="size-3 ml-0.5" />}
+    </>
+  );
+
+  const badgeCls = cn(
+    "inline-flex shrink-0 items-center rounded-full border bg-zinc-900 dark:bg-transparent font-medium leading-none",
+    SIZE_CLASS[size],
+    collectionStyle ?? border,
+    className,
+  );
+
+  if (!isInteractive) {
+    return <span className={badgeCls}>{inner}</span>;
+  }
+
+  return (
+    <div className="relative inline-flex overflow-visible">
+      <button
+        ref={btnRef}
+        onClick={handleClick}
+        disabled={masked}
+        className={badgeCls}
+      >
+        {inner}
+      </button>
+
+      {/* 말풍선 툴팁 — 배지 위에 떠서 3초 후 자동 소멸 */}
+      {tooltip && tipOpen && !masked && (
+        <TooltipBubble anchorRef={btnRef} text={descText ?? "???"} />
+      )}
+    </div>
   );
 }

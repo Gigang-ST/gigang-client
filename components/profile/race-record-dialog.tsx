@@ -736,7 +736,7 @@ export function RaceRecordDialog({
           datePolicy="allow-past"
           stackElevated
           prefillStartDate={raceDate.trim() || undefined}
-          onCreated={() => {}}
+          onCreated={(_comp) => {}}
         />
       )}
 

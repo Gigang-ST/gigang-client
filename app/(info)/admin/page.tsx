@@ -13,6 +13,7 @@ import {
   Code2,
   BadgeCheck,
   Trash2,
+  ServerCog,
 } from "lucide-react";
 
 import {
@@ -216,6 +217,11 @@ export default function AdminDashboardPage() {
             href="/admin/system/titles"
             icon={BadgeCheck}
             label="칭호 관리"
+          />
+          <ToolCard
+            href="/admin/system/batch"
+            icon={ServerCog}
+            label="배치 관리"
           />
         </div>
       </section>

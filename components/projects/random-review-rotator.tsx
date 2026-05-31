@@ -14,8 +14,11 @@ export type ReviewLine = {
   name: string;
   metaSuffix: string;
   ttlNm: string | null;
+  ttlDesc: string | null;
+  descVisibility: "always" | "others" | "held" | "never";
   badgeEffect: string | null;
   frameCd: string | null;
+  isHeld: boolean;
 };
 
 type RandomReviewRotatorProps = {
@@ -140,7 +143,12 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
               <Caption className="mt-0.5 line-clamp-1 text-muted-foreground flex items-center gap-1 flex-wrap">
                 <span>{line.name}</span>
                 {line.ttlNm && (
-                  <TitleBadge name={line.ttlNm} effect={line.badgeEffect} size="xs" />
+                  <TitleBadge
+                    name={line.ttlNm}
+                    effect={line.badgeEffect}
+                    size="xs"
+                    tooltip={{ desc: line.ttlDesc, visibility: line.descVisibility as "always" | "others" | "held" | "never", isHeld: line.isHeld, isOwner: false }}
+                  />
                 )}
                 <span>{line.metaSuffix}</span>
               </Caption>

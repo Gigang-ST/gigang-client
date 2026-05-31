@@ -16,7 +16,9 @@ import { Input } from "@/components/ui/input";
 /*  타입 정의                                                          */
 /* ------------------------------------------------------------------ */
 
-type MemberTitle = { ttl_nm: string; badge_effect: string; frame_cd: string };
+type DescVisibility = "always" | "others" | "held" | "never";
+type MemberTitleBase = { ttl_nm: string; ttl_desc: string | null; desc_visibility: DescVisibility; badge_effect: string; frame_cd: string };
+type MemberTitle = MemberTitleBase & { isHeld: boolean };
 
 type RankingEntry = {
   rank: number;
@@ -62,7 +64,7 @@ type RecordsData = {
   marathon: { events: MarathonEvent[] };
   trail: { entries: TrailEntry[] };
   triathlon: { events: TriathlonEvent[] };
-  memberTitles: Record<string, MemberTitle>;
+  memberTitles: Record<string, MemberTitleBase>;
 };
 
 /* ------------------------------------------------------------------ */
@@ -169,7 +171,7 @@ function MarathonHalfCard({
             {entry.name}
           </span>
           {title && (
-            <TitleBadge name={title.ttl_nm} effect={title.badge_effect} size="xs" />
+            <TitleBadge name={title.ttl_nm} effect={title.badge_effect} size="xs" tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility as "always" | "others" | "held" | "never", isHeld: title.isHeld, isOwner: false }} />
           )}
         </div>
       </div>
@@ -314,6 +316,7 @@ function TrailContent({
                     name={title.ttl_nm}
                     effect={title.badge_effect}
                     size="xs"
+                    tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility as "always" | "others" | "held" | "never", isHeld: title.isHeld, isOwner: false }}
                   />
                 )}
               </div>
@@ -392,6 +395,7 @@ function TriathlonContent({
                           name={title.ttl_nm}
                           effect={title.badge_effect}
                           size="xs"
+                          tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility, isHeld: title.isHeld, isOwner: false }}
                         />
                       )}
                     </div>
@@ -421,7 +425,16 @@ function TriathlonContent({
 /*  메인 컴포넌트                                                       */
 /* ------------------------------------------------------------------ */
 
-export function RecordsClient({ data }: { data: RecordsData }) {
+export function RecordsClient({ data, myTitleNames = [] }: { data: RecordsData; myTitleNames?: string[] }) {
+  const myTitleNameSet = new Set(myTitleNames);
+
+  // memberTitles에 isHeld 주입
+  const memberTitles: Record<string, MemberTitle> = Object.fromEntries(
+    Object.entries(data.memberTitles).map(([memId, t]) => [
+      memId,
+      { ...t, isHeld: myTitleNameSet.has(t.ttl_nm) },
+    ])
+  );
   const [selectedCategory, setSelectedCategory] =
     useState<CategoryKey>("marathon");
   const [query, setQuery] = useState("");
@@ -484,13 +497,13 @@ export function RecordsClient({ data }: { data: RecordsData }) {
 
       {/* 카테고리별 콘텐츠 */}
       {selectedCategory === "marathon" && (
-        <MarathonContent events={filteredMarathon.events} memberTitles={data.memberTitles} />
+        <MarathonContent events={filteredMarathon.events} memberTitles={memberTitles} />
       )}
       {selectedCategory === "trail" && (
-        <TrailContent entries={filteredTrail.entries} memberTitles={data.memberTitles} />
+        <TrailContent entries={filteredTrail.entries} memberTitles={memberTitles} />
       )}
       {selectedCategory === "triathlon" && (
-        <TriathlonContent events={filteredTriathlon.events} memberTitles={data.memberTitles} />
+        <TriathlonContent events={filteredTriathlon.events} memberTitles={memberTitles} />
       )}
     </div>
   );

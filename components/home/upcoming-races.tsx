@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Calendar, MapPin } from "lucide-react";
 import Link from "next/link";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { createClient } from "@/lib/supabase/client";
@@ -9,11 +8,13 @@ import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-creat
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
 import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
 import { formatDDay } from "@/lib/dayjs";
-import { CardItem } from "@/components/ui/card";
+import { Micro, Caption } from "@/components/common/typography";
+import { SectionHeader } from "@/components/common/section-header";
+import { EmptyState } from "@/components/common/empty-state";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
-import { SectionLabel } from "@/components/common/typography";
 import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
+import { cn } from "@/lib/utils";
 
 type UpcomingRace = {
   id: string;
@@ -49,7 +50,10 @@ export function UpcomingRaces({
   const [registrationsByCompetitionId, setRegistrationsByCompetitionId] =
     useState<Record<string, CompetitionRegistration>>(initialRegistrationsByCompetitionId);
 
-  const createRegistration = async (competitionId: string, payload: { role: "participant" | "cheering" | "volunteer"; eventType: string }) => {
+  const createRegistration = async (
+    competitionId: string,
+    payload: { role: "participant" | "cheering" | "volunteer"; eventType: string },
+  ) => {
     if (memberStatus.status !== "ready") return { ok: false as const, message: "로그인이 필요합니다." };
     const eventType = payload.role === "participant" ? payload.eventType.trim().toUpperCase() : null;
     if (payload.role === "participant" && eventType && compEvtTypeContainsHangul(eventType)) {
@@ -64,25 +68,45 @@ export function UpcomingRaces({
       if (!eventType) {
         return { ok: false as const, message: "참가 종목을 선택해 주세요." };
       }
-      const resolved = await getOrCreateCompEvtIdForParticipation(
-        competitionId,
-        eventType,
-      );
+      const resolved = await getOrCreateCompEvtIdForParticipation(competitionId, eventType);
       if (!resolved.ok) {
         return { ok: false as const, message: resolved.message };
       }
       compEvtId = resolved.compEvtId;
     }
 
-    const { data, error } = await supabase.from("comp_reg_rel")
-      .insert({ team_comp_id: plan.team_comp_id, mem_id: memberStatus.memberId, prt_role_cd: payload.role, comp_evt_id: compEvtId, vers: 0, del_yn: false })
-      .select("comp_reg_id, mem_id, prt_role_cd, crt_at").single();
+    const { data, error } = await supabase
+      .from("comp_reg_rel")
+      .insert({
+        team_comp_id: plan.team_comp_id,
+        mem_id: memberStatus.memberId,
+        prt_role_cd: payload.role,
+        comp_evt_id: compEvtId,
+        vers: 0,
+        del_yn: false,
+      })
+      .select("comp_reg_id, mem_id, prt_role_cd, crt_at")
+      .single();
     if (error) return { ok: false as const, message: "신청에 실패했습니다." };
-    setRegistrationsByCompetitionId(prev => ({ ...prev, [competitionId]: { id: data.comp_reg_id, competition_id: competitionId, member_id: data.mem_id, role: data.prt_role_cd as "participant" | "cheering" | "volunteer", event_type: eventType, created_at: data.crt_at } }));
+    setRegistrationsByCompetitionId((prev) => ({
+      ...prev,
+      [competitionId]: {
+        id: data.comp_reg_id,
+        competition_id: competitionId,
+        member_id: data.mem_id,
+        role: data.prt_role_cd as "participant" | "cheering" | "volunteer",
+        event_type: eventType,
+        created_at: data.crt_at,
+      },
+    }));
     return { ok: true as const, message: "참가 신청 완료" };
   };
 
-  const updateRegistration = async (registrationId: string, competitionId: string, payload: { role: "participant" | "cheering" | "volunteer"; eventType: string }) => {
+  const updateRegistration = async (
+    registrationId: string,
+    competitionId: string,
+    payload: { role: "participant" | "cheering" | "volunteer"; eventType: string },
+  ) => {
     if (memberStatus.status !== "ready") return { ok: false as const, message: "로그인이 필요합니다." };
     const eventType = payload.role === "participant" ? payload.eventType.trim().toUpperCase() : null;
     if (payload.role === "participant" && eventType && compEvtTypeContainsHangul(eventType)) {
@@ -94,33 +118,49 @@ export function UpcomingRaces({
       if (!eventType) {
         return { ok: false as const, message: "참가 종목을 선택해 주세요." };
       }
-      const resolved = await getOrCreateCompEvtIdForParticipation(
-        competitionId,
-        eventType,
-      );
+      const resolved = await getOrCreateCompEvtIdForParticipation(competitionId, eventType);
       if (!resolved.ok) {
         return { ok: false as const, message: resolved.message };
       }
       compEvtId = resolved.compEvtId;
     }
 
-    const { data, error } = await supabase.from("comp_reg_rel")
-      .update({ prt_role_cd: payload.role, comp_evt_id: compEvtId }).eq("comp_reg_id", registrationId)
-      .select("comp_reg_id, mem_id, prt_role_cd, crt_at").single();
+    const { data, error } = await supabase
+      .from("comp_reg_rel")
+      .update({ prt_role_cd: payload.role, comp_evt_id: compEvtId })
+      .eq("comp_reg_id", registrationId)
+      .select("comp_reg_id, mem_id, prt_role_cd, crt_at")
+      .single();
     if (error) return { ok: false as const, message: "수정에 실패했습니다." };
-    setRegistrationsByCompetitionId(prev => ({ ...prev, [competitionId]: { id: data.comp_reg_id, competition_id: competitionId, member_id: data.mem_id, role: data.prt_role_cd as "participant" | "cheering" | "volunteer", event_type: eventType, created_at: data.crt_at } }));
+    setRegistrationsByCompetitionId((prev) => ({
+      ...prev,
+      [competitionId]: {
+        id: data.comp_reg_id,
+        competition_id: competitionId,
+        member_id: data.mem_id,
+        role: data.prt_role_cd as "participant" | "cheering" | "volunteer",
+        event_type: eventType,
+        created_at: data.crt_at,
+      },
+    }));
     return { ok: true as const, message: "업데이트 완료" };
   };
 
   const deleteRegistration = async (registrationId: string, competitionId: string) => {
-    const { error } = await supabase.from("comp_reg_rel").delete().eq("comp_reg_id", registrationId);
+    const { error } = await supabase
+      .from("comp_reg_rel")
+      .delete()
+      .eq("comp_reg_id", registrationId);
     if (error) return { ok: false as const, message: "취소에 실패했습니다." };
-    setRegistrationsByCompetitionId(prev => { const next = { ...prev }; delete next[competitionId]; return next; });
+    setRegistrationsByCompetitionId((prev) => {
+      const next = { ...prev };
+      delete next[competitionId];
+      return next;
+    });
     return { ok: true as const, message: "취소 완료" };
   };
 
-  function handleCardClick(race: UpcomingRace) {
-    // UpcomingRace → Competition 변환 (필수 필드 채우기)
+  function handleRowClick(race: UpcomingRace) {
     const displayEventTypes = race.registered_event_types?.length
       ? race.registered_event_types
       : race.event_types;
@@ -140,83 +180,87 @@ export function UpcomingRaces({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <SectionLabel>UPCOMING RACES</SectionLabel>
-        <Link href="/races" className="text-xs font-medium text-primary">
-          모두 보기
-        </Link>
-      </div>
+    <div className="flex flex-col gap-3">
+      <SectionHeader
+        label="UPCOMING RACES"
+        action={{ label: "모두 보기", href: "/races" }}
+      />
+
       {races.length === 0 ? (
-        <CardItem variant="dashed" className="py-8 text-center text-sm text-muted-foreground">
-          예정된 대회가 없습니다
-        </CardItem>
+        <EmptyState variant="inline" message="예정된 대회가 없습니다" />
       ) : (
-        races.map((race) => {
-          const eventTypes = race.registered_event_types ?? race.event_types;
-          return (
-            <CardItem asChild key={race.id}>
+        <div className="flex flex-col divide-y divide-border">
+          {races.map((race) => {
+            const dday = formatDDay(race.start_date);
+            // D-day 뱃지 색상: D-DAY 또는 D+는 destructive, D-7 이하는 warning, 나머지 muted
+            const ddayNum = dday.startsWith("D-") && dday !== "D-DAY"
+              ? parseInt(dday.slice(2), 10)
+              : null;
+            const ddayCls = dday === "D-DAY" || dday.startsWith("D+")
+              ? "bg-destructive/10 text-destructive"
+              : ddayNum !== null && ddayNum <= 7
+                ? "bg-warning/15 text-warning"
+                : "bg-secondary text-muted-foreground";
+
+            return (
               <button
-                onClick={() => handleCardClick(race)}
-                className="flex w-full flex-col gap-3 text-left transition-colors hover:bg-muted/50"
+                key={race.id}
+                onClick={() => handleRowClick(race)}
+                className="flex w-full items-center gap-3 py-2 text-left transition-colors hover:bg-muted/40 first:pt-0.5 last:pb-0.5"
               >
-              <div className="flex items-start justify-between">
-                <div className="flex flex-col gap-1">
+                {/* D-day 뱃지 — 너비 고정 */}
+                <span
+                  className={cn(
+                    "w-14 shrink-0 rounded-md px-2 py-0.5 text-center font-mono text-[11px] font-bold",
+                    ddayCls,
+                  )}
+                >
+                  {dday}
+                </span>
+
+                {/* 라벨 — 너비 고정 */}
+                <span className="w-14 shrink-0 text-center">
                   {race.label && (
-                    <span className="text-[11px] font-semibold text-primary">
+                    <span className="rounded px-1 py-px text-[10px] font-medium bg-secondary text-muted-foreground">
                       {race.label}
                     </span>
                   )}
-                  <span className="text-[15px] font-semibold text-foreground">
-                    {race.title}
-                  </span>
-                </div>
-                <span className="shrink-0 rounded-full bg-destructive/10 px-2.5 py-1 text-[11px] font-bold text-destructive">
-                  {formatDDay(race.start_date)}
                 </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Calendar className="size-3" />
-                  {race.start_date}
-                </span>
-                {race.location && (
-                  <span className="flex items-center gap-1">
-                    <MapPin className="size-3" />
-                    {race.location}
-                  </span>
-                )}
-              </div>
-              {eventTypes && eventTypes.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {eventTypes.map((et: string) => (
-                    <span
-                      key={et}
-                      className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-bold text-secondary-foreground"
-                    >
-                      {et}
-                    </span>
-                  ))}
-                </div>
-              )}
+
+                {/* 대회명 */}
+                <Caption className="flex-1 truncate text-foreground font-medium">
+                  {race.title}
+                </Caption>
+
+                {/* 날짜 */}
+                <Micro className="shrink-0 tabular-nums">
+                  {race.start_date.slice(5).replace("-", "/")}
+                </Micro>
               </button>
-            </CardItem>
-          );
-        })
+            );
+          })}
+        </div>
       )}
 
       <CompetitionDetailDialog
         cmmCdRows={cmmCdRows}
         teamId={teamId}
         competition={selectedCompetition}
-        registration={selectedCompetition ? registrationsByCompetitionId[selectedCompetition.id] : undefined}
+        registration={
+          selectedCompetition
+            ? registrationsByCompetitionId[selectedCompetition.id]
+            : undefined
+        }
         memberStatus={memberStatus}
         open={detailOpen}
         onOpenChange={setDetailOpen}
         onCreate={createRegistration}
         onUpdate={updateRegistration}
         onDelete={deleteRegistration}
-        onCompetitionUpdated={async () => { await revalidateCompetitions(); window.location.reload(); }}
+        onCompetitionUpdated={async () => {
+          await revalidateCompetitions();
+          window.location.reload();
+        }}
       />
     </div>
   );
