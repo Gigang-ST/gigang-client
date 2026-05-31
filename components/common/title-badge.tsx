@@ -130,7 +130,7 @@ function resolveDescVisible(
 ): boolean {
   switch (visibility) {
     case "always": return true;
-    case "others": return isHeld || !isOwner;
+    case "others": return true;
     case "held":   return isHeld;
     case "never":  return false;
   }
@@ -166,6 +166,8 @@ export function TitleBadge({
   selected,
   masked,
   onClick,
+  tooltipOpen,
+  onTooltipOpen,
 }: {
   name: string;
   effect: string | null;
@@ -183,8 +185,13 @@ export function TitleBadge({
   /** 미보유 마스킹 (칭호명 blur + 자물쇠) */
   masked?: boolean;
   onClick?: () => void;
+  /** 외부에서 툴팁 열림 상태를 제어할 때 사용 (컬렉션 등 여러 배지가 공존하는 경우) */
+  tooltipOpen?: boolean;
+  onTooltipOpen?: () => void;
 }) {
-  const [tipOpen, setTipOpen] = useState(false);
+  const [tipOpenInternal, setTipOpenInternal] = useState(false);
+  const tipOpen = tooltipOpen !== undefined ? tooltipOpen : tipOpenInternal;
+  const setTipOpen = tooltipOpen !== undefined ? () => {} : setTipOpenInternal;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
@@ -220,9 +227,13 @@ export function TitleBadge({
   const isInteractive = !!tooltip || !!onClick;
 
   function openTip() {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setTipOpen(true);
-    timerRef.current = setTimeout(() => setTipOpen(false), 3000);
+    if (tooltipOpen !== undefined) {
+      onTooltipOpen?.();
+    } else {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      setTipOpenInternal(true);
+      timerRef.current = setTimeout(() => setTipOpenInternal(false), 3000);
+    }
   }
 
   function handleClick() {

@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { unstable_cache } from "next/cache";
 
 import { secondsToTime } from "@/lib/dayjs";
+import { getMyTitleNames } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -27,9 +28,12 @@ const TRIATHLON_EVENTS = [
 
 async function RecordsContent() {
   const { teamId } = await getRequestTeamContext();
-  const serializedData = await getCachedRecordsData(teamId);
+  const [serializedData, myTitleNames] = await Promise.all([
+    getCachedRecordsData(teamId),
+    getMyTitleNames(),
+  ]);
 
-  return <RecordsClient data={serializedData} />;
+  return <RecordsClient data={serializedData} myTitleNames={[...myTitleNames]} />;
 }
 
 function getCachedRecordsData(teamId: string) {

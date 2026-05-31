@@ -29,6 +29,7 @@ export type RecordTitleInfo = {
 type RecentRecordsGridProps = {
   records: RecentRecord[];
   titleMap: Record<string, RecordTitleInfo>;
+  myTitleNames?: string[];
   /** 처음 표시할 개수 (기본 4) */
   initialCount?: number;
 };
@@ -36,8 +37,10 @@ type RecentRecordsGridProps = {
 export function RecentRecordsGrid({
   records,
   titleMap,
+  myTitleNames = [],
   initialCount = 4,
 }: RecentRecordsGridProps) {
+  const myTitleNameSet = new Set(myTitleNames);
   const [expanded, setExpanded] = useState(false);
 
   const visibleRecords = expanded ? records : records.slice(0, initialCount);
@@ -76,7 +79,7 @@ export function RecentRecordsGrid({
                         tooltip={{
                           desc: title.ttl_desc,
                           visibility: title.desc_visibility,
-                          isHeld: true,
+                          isHeld: myTitleNameSet.has(title.ttl_nm),
                           isOwner: false,
                         }}
                       />

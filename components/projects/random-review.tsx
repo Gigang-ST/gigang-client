@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 
 import { formatKoreanShortDate, todayKST } from "@/lib/dayjs";
 import { type MileageSport } from "@/lib/mileage";
+import { getMyTitleNames } from "@/lib/queries/member";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import { RandomReviewRotator, type ReviewLine } from "@/components/projects/random-review-rotator";
@@ -21,7 +22,8 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
   const today = todayKST();
   const sevenDaysAgo = dayjs(today).subtract(7, "day").format("YYYY-MM-DD");
 
-  const { data: reviews } = await supabase
+  const [{ data: reviews }, myTitleNames] = await Promise.all([
+    supabase
     .from("evt_mlg_act_hist")
     .select(
       "act_id, review, act_dt, sprt_enm, dst_km, evt_team_prt_rel!inner(evt_id, mem_mst!inner(mem_id, mem_nm))",
@@ -31,9 +33,12 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
     .neq("review", "")
     .gte("act_dt", sevenDaysAgo)
     .lte("act_dt", today)
-    .order("act_dt", { ascending: false });
+      .order("act_dt", { ascending: false }),
+    getMyTitleNames(),
+  ]);
 
   if (!reviews || reviews.length === 0) return null;
+  const myTitleNameSet = new Set(myTitleNames);
 
   // 멤버 ID 목록 추출
   const memIds: string[] = [];
@@ -95,6 +100,7 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
         descVisibility: titleInfo?.desc_visibility ?? "others",
         badgeEffect: titleInfo?.badge_effect ?? null,
         frameCd: titleInfo?.frame_cd ?? null,
+        isHeld: titleInfo ? myTitleNameSet.has(titleInfo.ttl_nm) : false,
       };
     })
     .filter((line): line is ReviewLine => line !== null);

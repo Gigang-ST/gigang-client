@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { todayKST, currentMonthKST, monthLastDay } from "@/lib/dayjs";
 import { env } from "@/lib/env";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
-import { getCurrentMember } from "@/lib/queries/member";
+import { getCurrentMember, getMyTitleNames } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { H1 } from "@/components/common/typography";
@@ -62,16 +62,14 @@ async function HomeContent() {
     { data: recentRecordsRaw },
     { data: calendarComps },
     cmmCdRows,
+    myTitleNames,
   ] = await Promise.all([
     admin.rpc("get_public_team_member_stats", { p_team_id: teamId }),
     supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: today }),
     supabase.rpc("get_public_team_recent_records", { p_team_id: teamId, p_limit: 12 }),
-    // 이번 달 전체 대회 (캘린더용) — 이달 1일부터 말일까지
-    supabase.rpc("get_public_team_competitions", {
-      p_team_id: teamId,
-      p_start: monthStart,
-    }),
+    supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: monthStart }),
     getCachedCmmCdRows(),
+    getMyTitleNames(),
   ]);
 
   const memberCount = memberStats?.[0]?.active_count ?? 0;
@@ -357,6 +355,7 @@ async function HomeContent() {
       <RecentRecordsGrid
         records={recentRecords}
         titleMap={titleMap}
+        myTitleNames={[...myTitleNames]}
         initialCount={4}
       />
 
