@@ -948,6 +948,8 @@ export function evaluateConditionFromSnapshot(
   rule: CondRule,
   snapshot: MemberSnapshot,
   allSnapshots: Map<string, MemberSnapshot>,
+  /** mileage_batch 전용: 평가 기준 월 (YYYY-MM). 월 고정 조건 필터링에 사용. */
+  baseMonth?: string,
 ): boolean {
   switch (rule.type) {
     case "race_pb_under_sec":
@@ -1050,7 +1052,11 @@ export function evaluateConditionFromSnapshot(
       return snapshot.mileageParticipant;
 
     case "mileage_goal_achieved_months": {
-      const achieved = snapshot.mileageMthSnaps.filter((s) => s.achv_yn).length;
+      // baseMonth 지정 시 해당 월까지만 집계 (미래 달 제외)
+      const snaps = baseMonth
+        ? snapshot.mileageMthSnaps.filter((s) => s.base_dt.slice(0, 7) <= baseMonth)
+        : snapshot.mileageMthSnaps;
+      const achieved = snaps.filter((s) => s.achv_yn).length;
       return achieved >= rule.count;
     }
 
@@ -1070,7 +1076,11 @@ export function evaluateConditionFromSnapshot(
     }
 
     case "mileage_goal_failed_months": {
-      const failed = snapshot.mileageMthSnaps.filter((s) => !s.achv_yn).length;
+      // baseMonth 지정 시 해당 월까지만 집계 (미래 달 제외)
+      const snaps = baseMonth
+        ? snapshot.mileageMthSnaps.filter((s) => s.base_dt.slice(0, 7) <= baseMonth)
+        : snapshot.mileageMthSnaps;
+      const failed = snaps.filter((s) => !s.achv_yn).length;
       return failed >= rule.count;
     }
 
@@ -1092,8 +1102,11 @@ export function evaluateConditionFromSnapshot(
     }
 
     case "mileage_goal_achieved_by_single_sport": {
-      // 어느 한 달이라도 지정 종목만으로 목표를 달성한 달이 있으면 true
-      return snapshot.mileageMthSnaps.some((snap) => {
+      // baseMonth 지정 시 해당 월만, 없으면 어느 한 달이라도
+      const snaps = baseMonth
+        ? snapshot.mileageMthSnaps.filter((s) => s.base_dt.startsWith(baseMonth))
+        : snapshot.mileageMthSnaps;
+      return snaps.some((snap) => {
         if (!snap.achv_yn) return false;
         const month = snap.base_dt.slice(0, 7);
         const monthActs = snapshot.mileageActHist.filter((r) => r.act_dt.startsWith(month));
@@ -1102,8 +1115,10 @@ export function evaluateConditionFromSnapshot(
     }
 
     case "mileage_sport_ratio": {
-      // 어느 한 달이라도 해당 종목 비율이 min_ratio 이상인 달이 있으면 true
-      const months = [...new Set(snapshot.mileageActHist.map((r) => r.act_dt.slice(0, 7)))];
+      // baseMonth 지정 시 해당 월만, 없으면 어느 한 달이라도
+      const months = baseMonth
+        ? [baseMonth]
+        : [...new Set(snapshot.mileageActHist.map((r) => r.act_dt.slice(0, 7)))];
       return months.some((month) => {
         const acts = snapshot.mileageActHist.filter((r) => r.act_dt.startsWith(month));
         const total = acts.reduce((s, r) => s + r.final_mlg, 0);

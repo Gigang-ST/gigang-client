@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import { Play, Clock, CheckCircle2, XCircle, Loader2, ChevronDown, ChevronUp } from "lucide-react";
@@ -105,7 +105,10 @@ function cronLabel(expr: string | null) {
 
 export function AdminBatchClient({ initialJobs }: { initialJobs: BatchJob[] }) {
   const router = useRouter();
-  const [jobs] = useState<BatchJob[]>(initialJobs);
+  const [jobs, setJobs] = useState<BatchJob[]>(initialJobs);
+
+  // router.refresh() 후 서버에서 새 initialJobs가 오면 동기화
+  useEffect(() => { setJobs(initialJobs); }, [initialJobs]);
   const [selectedJob, setSelectedJob] = useState<BatchJob | null>(null);
   const [params, setParams] = useState<Record<string, string>>({});
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -135,6 +138,14 @@ export function AdminBatchClient({ initialJobs }: { initialJobs: BatchJob[] }) {
       } else {
         toast.error(result.message);
       }
+      // 이력 캐시 초기화 후 열려있는 패널 즉시 재조회
+      setHistMap({});
+      if (expandedJobId) {
+        setHistLoading(expandedJobId);
+        const rows = await getBatchRunHist(expandedJobId);
+        setHistMap({ [expandedJobId]: rows as HistRow[] });
+        setHistLoading(null);
+      }
       router.refresh();
     });
   }
@@ -156,7 +167,10 @@ export function AdminBatchClient({ initialJobs }: { initialJobs: BatchJob[] }) {
   return (
     <div className="flex flex-col gap-7 px-6 pb-6 pt-4">
       <div className="flex flex-col gap-4">
-        <SectionHeader label="배치 목록" />
+        <div className="flex items-center gap-2">
+          <SectionHeader label="배치 목록" />
+          <Caption className="text-muted-foreground">· 자동 스케줄 배치 미구현</Caption>
+        </div>
         <div className="flex flex-col gap-3">
           {jobs.map((job) => (
             <div key={job.job_id} className="flex flex-col gap-0">

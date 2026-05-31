@@ -225,3 +225,91 @@ export async function sweepEvaluateAndGrant(
 
   return { granted: toGrant.length, revoked: 0 };
 }
+
+/**
+ * 마일리지런 월초 배치 전용 bulk 평가 엔진.
+ * sweepEvaluateAndGrant와 동일한 스냅샷 기반 구조 — DB 쿼리 수 고정.
+ *
+ * @param teamId   팀 ID
+ * @param teamMemIds 평가할 팀 멤버 ID 목록
+ * @param baseMonth  기준 월 (YYYY-MM) — 월 고정 조건 평가에 사용
+ */
+export async function batchEvaluateAndGrant(
+  teamId: string,
+  teamMemIds: string[],
+  baseMonth: string,
+): Promise<{ granted: number }> {
+  if (teamMemIds.length === 0) return { granted: 0 };
+
+  const db = createAdminClient();
+
+  const snapshots = await loadMemberSnapshots(db, teamId, teamMemIds);
+  if (snapshots.size === 0) return { granted: 0 };
+
+  const { data: allTitles } = await db
+    .from("ttl_mst")
+    .select("ttl_id, ttl_nm, cond_rule_json")
+    .eq("team_id", teamId)
+    .eq("ttl_kind_enm", "auto")
+    .eq("use_yn", true)
+    .eq("vers", 0)
+    .eq("del_yn", false);
+
+  const titles = (allTitles as TtlMstRow[] ?? []).filter((t) => t.cond_rule_json != null);
+  if (titles.length === 0) return { granted: 0 };
+
+  const allowedCondTypes = new Set<string>(TRIGGER_COND_MAP["mileage_batch"]);
+  const snapshotsByMemId = new Map<string, MemberSnapshot>(
+    [...snapshots.values()].map((s) => [s.teamMemId, s]),
+  );
+
+  type GrantRow = {
+    team_id: string;
+    team_mem_id: string;
+    ttl_id: string;
+    grnt_rsn_txt: string;
+    is_prmy_yn: boolean;
+    vers: number;
+    del_yn: boolean;
+  };
+
+  const toGrant: GrantRow[] = [];
+
+  for (const snapshot of snapshots.values()) {
+    const eligibleTitles = titles.filter((t) => {
+      const rule = t.cond_rule_json as CondRule;
+      return allowedCondTypes.has(rule.type);
+    });
+
+    for (const title of eligibleTitles) {
+      if (snapshot.heldTitleIds.has(title.ttl_id)) continue;
+
+      const passed = evaluateConditionFromSnapshot(
+        title.cond_rule_json as CondRule,
+        snapshot,
+        snapshotsByMemId,
+        baseMonth,
+      );
+      if (!passed) continue;
+
+      toGrant.push({
+        team_id: teamId,
+        team_mem_id: snapshot.teamMemId,
+        ttl_id: title.ttl_id,
+        grnt_rsn_txt: `자동수여 (trigger=mileage_batch, base_month=${baseMonth})`,
+        is_prmy_yn: false,
+        vers: 0,
+        del_yn: false,
+      });
+    }
+  }
+
+  if (toGrant.length > 0) {
+    await db
+      .from("mem_ttl_rel")
+      .upsert(toGrant, { onConflict: "team_mem_id,ttl_id,vers", ignoreDuplicates: true });
+    console.info(`[mileage_batch] 칭호 신규 부여 ${toGrant.length}건 (base_month=${baseMonth})`);
+  }
+
+  return { granted: toGrant.length };
+}

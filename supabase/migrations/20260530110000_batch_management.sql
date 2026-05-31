@@ -58,7 +58,7 @@ INSERT INTO batch_job_mst (job_nm, job_cd, job_desc, cron_expr, param_schema_jso
 VALUES (
   '마일리지런 칭호 배치',
   'MILEAGE_TITLE_BATCH',
-  '전월 마감 후 확정되는 마일리지런 칭호를 평가하고 부여합니다. 월초(1일) 수동 또는 자동 실행.',
+  '전월 마감 후 확정되는 마일리지런 칭호를 평가하고 부여합니다. 현재월,미래월 시행금지',
   '0 15 1 * *',
   '[
     {
