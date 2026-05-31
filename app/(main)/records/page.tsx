@@ -222,7 +222,7 @@ function getCachedRecordsData(teamId: string) {
         memberTitles,
       };
     },
-    [`records-team-${teamId}`],
+    [`records-team-v2-${teamId}`],
     { revalidate: 60 * 60 * 24, tags: ["records", `records:${teamId}`] },
   )();
 }

@@ -1,9 +1,52 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { usePathname } from "next/navigation";
 import { Check, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Caption } from "@/components/common/typography";
+
+function TooltipBubble({ anchorRef, text }: { anchorRef: React.RefObject<HTMLButtonElement | null>; text: string }) {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const bubbleRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const anchor = anchorRef.current;
+    const bubble = bubbleRef.current;
+    if (!anchor || !bubble || pos !== null) return;
+
+    const aRect = anchor.getBoundingClientRect();
+    const bRect = bubble.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const MARGIN = 8;
+
+    let left = aRect.left + aRect.width / 2 - bRect.width / 2;
+    const top = aRect.top - bRect.height - 6;
+
+    if (left + bRect.width + MARGIN > vw) left = vw - bRect.width - MARGIN;
+    if (left < MARGIN) left = MARGIN;
+
+    setPos({ top, left });
+  });
+
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div
+      ref={bubbleRef}
+      style={pos ? { position: "fixed", top: pos.top, left: pos.left } : { position: "fixed", visibility: "hidden" }}
+      className={cn(
+        "z-[9999] max-w-[200px] break-words rounded-md px-2.5 py-1.5",
+        "bg-zinc-800 text-[11px] leading-relaxed text-zinc-100",
+        "dark:bg-zinc-700 dark:text-zinc-50",
+        "pointer-events-none select-none",
+        "animate-in fade-in-0 zoom-in-95 duration-150",
+      )}
+    >
+      {text}
+    </div>,
+    document.body,
+  );
+}
 
 // ---------------------------------------------------------------------------
 // 이펙트 CSS 맵
@@ -141,34 +184,49 @@ export function TitleBadge({
   masked?: boolean;
   onClick?: () => void;
 }) {
-  const [clickOpen, setClickOpen] = useState(false);
-  const [hoverOpen, setHoverOpen] = useState(false);
-  const tooltipOpen = clickOpen || hoverOpen;
-  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [tipOpen, setTipOpen] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const pathname = usePathname();
 
+  // 타이머 클린업
   useEffect(() => {
-    return () => {
-      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
-    };
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, []);
+
+  // 탭 이동 시 닫기
+  useEffect(() => { setTipOpen(false); }, [pathname]);
+
+  // 스크롤 시 닫기
+  useEffect(() => {
+    if (!tipOpen) return;
+    const close = () => setTipOpen(false);
+    window.addEventListener("scroll", close, { passive: true, capture: true });
+    return () => window.removeEventListener("scroll", close, { capture: true });
+  }, [tipOpen]);
 
   const effectKey = effect ?? "none";
   const cls = BADGE_CSS[effectKey] ?? "";
   const border = BADGE_BORDER[effectKey] ?? "border-zinc-700 text-zinc-300";
 
-  const descVisible = tooltip
+  // 말풍선 텍스트: visibility 조건 통과하면 desc, 아니면 "???"
+  // 말풍선 표시 여부는 tooltip prop 존재 여부로만 결정
+  const descText = tooltip
     ? resolveDescVisible(tooltip.visibility, tooltip.isHeld, tooltip.isOwner)
-    : false;
-  const descText = descVisible ? tooltip?.desc : null;
+      ? (tooltip.desc ?? "???")
+      : "???"
+    : null;
 
   const isInteractive = !!tooltip || !!onClick;
 
+  function openTip() {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setTipOpen(true);
+    timerRef.current = setTimeout(() => setTipOpen(false), 3000);
+  }
+
   function handleClick() {
-    if (tooltip) {
-      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
-      setClickOpen(true);
-      clickTimerRef.current = setTimeout(() => setClickOpen(false), 5000);
-    }
+    if (tooltip && !masked) openTip();
     onClick?.();
   }
 
@@ -196,42 +254,31 @@ export function TitleBadge({
     </>
   );
 
+  const badgeCls = cn(
+    "inline-flex shrink-0 items-center rounded-full border bg-zinc-900 dark:bg-transparent font-medium leading-none",
+    SIZE_CLASS[size],
+    collectionStyle ?? border,
+    className,
+  );
+
   if (!isInteractive) {
-    return (
-      <span
-        className={cn(
-          "inline-flex shrink-0 items-center rounded-full border bg-zinc-900 dark:bg-transparent font-medium leading-none",
-          SIZE_CLASS[size],
-          collectionStyle ?? border,
-          className,
-        )}
-      >
-        {inner}
-      </span>
-    );
+    return <span className={badgeCls}>{inner}</span>;
   }
 
   return (
-    <div className="relative inline-flex">
+    <div className="relative inline-flex overflow-visible">
       <button
+        ref={btnRef}
         onClick={handleClick}
-        onMouseEnter={() => tooltip && setHoverOpen(true)}
-        onMouseLeave={() => setHoverOpen(false)}
         disabled={masked}
-        className={cn(
-          "inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-zinc-900 dark:bg-transparent font-medium leading-none",
-          SIZE_CLASS[size],
-          collectionStyle ?? border,
-          className,
-        )}
+        className={badgeCls}
       >
         {inner}
       </button>
 
-      {tooltip && tooltipOpen && !masked && (
-        <span className="ml-1.5 max-w-[180px] truncate text-[10px] text-muted-foreground">
-          {descText ?? "???"}
-        </span>
+      {/* 말풍선 툴팁 — 배지 위에 떠서 3초 후 자동 소멸 */}
+      {tooltip && tipOpen && !masked && (
+        <TooltipBubble anchorRef={btnRef} text={descText ?? "???"} />
       )}
     </div>
   );

@@ -64,7 +64,7 @@ export function RecentRecordsGrid({
                   )}
                 >
                   {/* 이름 + 칭호 */}
-                  <div className="flex items-center gap-1 overflow-hidden">
+                  <div className="flex items-center gap-1 overflow-visible">
                     <Body className="shrink-0 font-semibold leading-none">
                       {rec.mem_nm ?? "멤버"}
                     </Body>
