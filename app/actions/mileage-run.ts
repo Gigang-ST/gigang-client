@@ -1,5 +1,6 @@
 "use server";
 
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentMember } from "@/lib/queries/member";
@@ -232,14 +233,15 @@ export async function joinProject(
     .eq("del_yn", false)
     .maybeSingle();
   if (teamMemRow) {
-    evaluateAndGrantTitles({
-      trigger: "mileage_run",
+    const ctx = {
+      trigger: "mileage_run" as const,
       teamId: teamMemRow.team_id,
       teamMemId: teamMemRow.team_mem_id,
       projectId: evtId,
       actDt: currentMonthKST(),
       prevAchvYn: false,
-    }).catch((e) => console.error("[title-engine] mileage_run(join) 평가 실패", e));
+    };
+    after(() => evaluateAndGrantTitles(ctx).catch((e) => console.error("[title-engine] mileage_run(join) 평가 실패", e)));
   }
 
   return { ok: true, message: null };
@@ -332,14 +334,15 @@ export async function logActivity(
     .eq("del_yn", false)
     .maybeSingle();
   if (teamMemRow) {
-    evaluateAndGrantTitles({
-      trigger: "mileage_run",
+    const ctx = {
+      trigger: "mileage_run" as const,
       teamId: teamMemRow.team_id,
       teamMemId: teamMemRow.team_mem_id,
       projectId: evtId,
       actDt: validInput.act_dt,
       prevAchvYn,
-    }).catch((e) => console.error("[title-engine] mileage_run(log) 평가 실패", e));
+    };
+    after(() => evaluateAndGrantTitles(ctx).catch((e) => console.error("[title-engine] mileage_run(log) 평가 실패", e)));
   }
 
   revalidatePath("/projects");

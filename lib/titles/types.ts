@@ -312,13 +312,13 @@ export const TRIGGER_COND_MAP = {
     "utmb_idx_rank",
     // 마일리지런 즉시 평가 조건 (시점 무관하게 재계산 가능)
     "mileage_joined",
-    "mileage_goal_achieved_months", // count:1(목표달성)만 해당 — count:5(내돈내놔)는 배치 전용
+    // mileage_goal_achieved_months: engine에서 count-aware 필터로 count=1만 통과
+    "mileage_goal_achieved_months",
     "mileage_goal_achieved_on_last_day",
     "mileage_all_sports_in_month",
     "mileage_rocket_in_months",
     // 배치 전용 조건은 manual_sweep 제외 — 월 마감 후 고정 시점에만 의미있음
-    // mileage_goal_achieved_months(count:5), mileage_goal_failed_months,
-    // mileage_goal_achieved_by_single_sport, mileage_sport_ratio
+    // mileage_goal_failed_months, mileage_goal_achieved_by_single_sport, mileage_sport_ratio
   ],
 } satisfies Record<TriggerKind, CondRule["type"][]>;
 

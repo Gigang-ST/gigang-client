@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import dayjs from "dayjs";
+import { currentMonthKST, formatKSTDateTime, prevMonthStr, todayKST } from "@/lib/dayjs";
 import { Play, Clock, CheckCircle2, XCircle, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -66,8 +66,8 @@ type HistRow = {
 };
 
 function resolveDefault(def?: string): string {
-  if (def === "prev_month") return dayjs().subtract(1, "month").format("YYYY-MM");
-  if (def === "today") return dayjs().format("YYYY-MM-DD");
+  if (def === "prev_month") return prevMonthStr(currentMonthKST()).slice(0, 7);
+  if (def === "today") return todayKST();
   return def ?? "";
 }
 
@@ -94,7 +94,7 @@ function formatDuration(ms: number | null) {
 
 function formatDate(dt: string | null) {
   if (!dt) return "-";
-  return dayjs(dt).format("MM/DD HH:mm:ss");
+  return formatKSTDateTime(dt);
 }
 
 function cronLabel(expr: string | null) {

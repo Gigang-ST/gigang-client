@@ -25,7 +25,8 @@ const KST = "Asia/Seoul";
  * @returns 결과 메시지
  */
 export async function batchMileageTitles(baseMonth?: string): Promise<string> {
-  await verifyAdmin();
+  const admin = await verifyAdmin();
+  if (!admin) throw new Error("관리자 권한이 필요합니다");
 
   const db = createAdminClient();
 

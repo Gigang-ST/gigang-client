@@ -255,7 +255,7 @@ export function AdminEffectsClient() {
                               }
                             </span>
                           </td>
-                          <td className="px-2 py-1.5">
+                          <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
                             <Select
                               value={String(row.rarity_level)}
                               onValueChange={(v) => void updateLevel(row.effect_cd, Number(v))}
@@ -355,7 +355,7 @@ export function AdminEffectsClient() {
                               프레임 미리보기
                             </div>
                           </td>
-                          <td className="px-2 py-1.5">
+                          <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
                             <Select
                               value={String(row.rarity_level)}
                               onValueChange={(v) => void updateLevel(row.effect_cd, Number(v))}

@@ -521,13 +521,13 @@ export async function evalUtmbIdxRankInternal(
 /** 마일리지런 이벤트에 참가 신청한 경우 (예: 시작이반) */
 export async function evalMileageJoinedInternal(
   _rule: CondMileageJoined,
-  teamMemId: string,
+  memId: string,
   db: DB,
 ): Promise<boolean> {
   const { data } = await db
     .from("evt_team_prt_rel")
     .select("prt_id")
-    .eq("mem_id", (await db.from("team_mem_rel").select("mem_id").eq("team_mem_id", teamMemId).eq("vers", 0).eq("del_yn", false).maybeSingle()).data?.mem_id ?? "")
+    .eq("mem_id", memId)
     .limit(1)
     .maybeSingle();
   return data !== null;
@@ -638,12 +638,13 @@ export async function evalMileageAllSportsInMonthInternal(
 
   const prtIds = prtRows.map((r) => r.prt_id);
   const monthPrefix = actDt.slice(0, 7); // YYYY-MM
+  const nextMonth = dayjs(`${monthPrefix}-01`).tz(KST).add(1, "month").format("YYYY-MM-DD");
   const { data } = await db
     .from("evt_mlg_act_hist")
     .select("sprt_enm")
     .in("prt_id", prtIds)
     .gte("act_dt", `${monthPrefix}-01`)
-    .lte("act_dt", `${monthPrefix}-31`);
+    .lt("act_dt", nextMonth);
 
   if (!data) return false;
   const sportsInMonth = new Set(data.map((r) => r.sprt_enm as string));
@@ -779,12 +780,13 @@ export async function evalMileageGoalAchievedBySingleSportInternal(
   if (!snap?.achv_yn) return false;
 
   // 당월 기록 중 지정 종목 외 기록이 있는지 확인
+  const nextMonth2 = dayjs(`${monthPrefix}-01`).tz(KST).add(1, "month").format("YYYY-MM-DD");
   const { data: otherRecords } = await db
     .from("evt_mlg_act_hist")
     .select("act_id")
     .in("prt_id", prtIds)
     .gte("act_dt", `${monthPrefix}-01`)
-    .lte("act_dt", `${monthPrefix}-31`)
+    .lt("act_dt", nextMonth2)
     .neq("sprt_enm", rule.sport as "RUNNING" | "TRAIL" | "CYCLING" | "SWIMMING")
     .limit(1);
 
@@ -816,12 +818,13 @@ export async function evalMileageSportRatioInternal(
 
   const prtIds = prtRows.map((r) => r.prt_id);
   const monthPrefix = actDt.slice(0, 7);
+  const nextMonth3 = dayjs(`${monthPrefix}-01`).tz(KST).add(1, "month").format("YYYY-MM-DD");
   const { data } = await db
     .from("evt_mlg_act_hist")
     .select("sprt_enm, final_mlg")
     .in("prt_id", prtIds)
     .gte("act_dt", `${monthPrefix}-01`)
-    .lte("act_dt", `${monthPrefix}-31`);
+    .lt("act_dt", nextMonth3);
 
   if (!data?.length) return false;
 
@@ -897,7 +900,7 @@ export async function evaluateCondition(
       return evalUtmbIdxRankInternal(rule, memId, ctx.teamId, db);
 
     case "mileage_joined":
-      return evalMileageJoinedInternal(rule, ctx.teamMemId, db);
+      return evalMileageJoinedInternal(rule, memId, db);
 
     case "mileage_goal_achieved_months":
       return evalMileageGoalAchievedMonthsInternal(rule, ctx.teamMemId, db);

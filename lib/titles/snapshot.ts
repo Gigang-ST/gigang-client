@@ -211,7 +211,8 @@ export async function loadMemberSnapshots(
     const { data: mthRows } = await db
       .from("evt_mlg_mth_snap")
       .select("prt_id, base_dt, achv_yn, achv_mlg, goal_mlg")
-      .in("prt_id", allPrtIds);
+      .in("prt_id", allPrtIds)
+      .order("base_dt", { ascending: true });
 
     for (const r of mthRows ?? []) {
       if (!mthSnapByPrtId.has(r.prt_id)) mthSnapByPrtId.set(r.prt_id, []);
