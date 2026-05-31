@@ -80,7 +80,7 @@ async function HomeContent() {
       .eq("team_id", teamId)
       .eq("vers", 0)
       .eq("del_yn", false)
-      .order("crt_at", { ascending: false })
+      .order("join_dt", { ascending: false })
       .limit(10),
     admin
       .from("mem_ttl_rel")
@@ -447,8 +447,23 @@ function HomeSkeleton() {
       <div className="flex flex-col gap-3">
         <Skeleton className="h-3.5 w-32" />
         <div className="grid grid-cols-2 gap-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <Skeleton key={i} className="h-14 rounded-xl" />
+          ))}
+        </div>
+      </div>
+      {/* New Members + Recent Titles */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-3">
+          <Skeleton className="h-3.5 w-24" />
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 rounded-xl" />
+            <Skeleton key={i} className="h-9 rounded-lg" />
+          ))}
+        </div>
+        <div className="flex flex-col gap-3">
+          <Skeleton className="h-3.5 w-24" />
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-9 rounded-lg" />
           ))}
         </div>
       </div>

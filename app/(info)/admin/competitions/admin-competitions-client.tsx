@@ -426,7 +426,7 @@ function CompetitionsContent({
           <Select
             value={form.sport}
             onValueChange={(v) =>
-              setForm({ ...form, sport: v, eventTypes: [] })
+              { setForm({ ...form, sport: v, eventTypes: [] }); setCustomEtInput(""); }
             }
           >
             <SelectTrigger className="h-12 rounded-xl border-[1.5px] text-[15px]">

@@ -1,8 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { SectionHeader } from "@/components/common/section-header";
+import { EmptyState } from "@/components/common/empty-state";
 import { TitleBadge } from "@/components/common/title-badge";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export type RecentTitleGrant = {
   mem_id: string;
@@ -26,7 +33,12 @@ export function RecentTitles({ grants, initialCount = 4, myTitleNames = [] }: Re
   const visible = expanded ? grants : grants.slice(0, initialCount);
   const hasMore = grants.length > initialCount;
 
-  if (grants.length === 0) return null;
+  if (grants.length === 0) return (
+    <div className="flex min-w-0 flex-col gap-3">
+      <SectionHeader label="RECENT TITLES" />
+      <EmptyState variant="inline" message="최근 획득 칭호가 없습니다." />
+    </div>
+  );
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
@@ -44,9 +56,9 @@ export function RecentTitles({ grants, initialCount = 4, myTitleNames = [] }: Re
 
       <div className="flex flex-col divide-y divide-border">
         {visible.map((g, idx) => {
-          const date = new Date(g.grnt_at);
-          const mm = String(date.getMonth() + 1).padStart(2, "0");
-          const dd = String(date.getDate()).padStart(2, "0");
+          const kst = dayjs(g.grnt_at).tz("Asia/Seoul");
+          const mm = String(kst.month() + 1).padStart(2, "0");
+          const dd = String(kst.date()).padStart(2, "0");
           return (
             <div key={`${g.mem_id}-${g.ttl_nm}-${idx}`} className="flex min-h-9 items-center gap-1.5">
               <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-foreground">{g.mem_nm}</span>

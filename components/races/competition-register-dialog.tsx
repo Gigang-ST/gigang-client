@@ -147,31 +147,10 @@ export function CompetitionRegisterDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, prefillStartDate, reset]);
 
-  const otherSelected = selectedEventTypes.includes(COMP_EVT_TYPE_OTHER);
-
-  const selectedCourseCount = useMemo(() => {
-    const pre = selectedEventTypes.filter((t) => t !== COMP_EVT_TYPE_OTHER).length;
-    const other =
-      otherSelected && sanitizeAsciiUpperCompEvtTypeInput(customEventType).trim()
-        ? 1
-        : 0;
-    return pre + other;
-  }, [selectedEventTypes, otherSelected, customEventType]);
+  const selectedCourseCount = selectedEventTypes.filter((t) => t !== COMP_EVT_TYPE_OTHER).length;
 
   const toggleEventType = (type: string) => {
     const current = selectedEventTypes;
-    if (type === COMP_EVT_TYPE_OTHER) {
-      if (current.includes(COMP_EVT_TYPE_OTHER)) {
-        setValue(
-          "selectedEventTypes",
-          current.filter((t) => t !== COMP_EVT_TYPE_OTHER),
-        );
-        setValue("customEventType", "");
-      } else {
-        setValue("selectedEventTypes", [...current, COMP_EVT_TYPE_OTHER]);
-      }
-      return;
-    }
     setValue(
       "selectedEventTypes",
       current.includes(type) ? current.filter((t) => t !== type) : [...current, type],

@@ -67,7 +67,7 @@ export function RecentRecordsGrid({
               const frameCls = getFrameCls(title?.frame_cd);
               return (
                 <div
-                  key={`${rec.mem_id ?? "unknown"}-${rec.race_nm ?? idx}`}
+                  key={`${rec.mem_id ?? "unknown"}-${rec.race_nm ?? ""}-${rec.evt_cd ?? idx}`}
                   className={cn(
                     "flex flex-col gap-0.5 rounded-xl border border-border bg-card p-2",
                     frameCls,
