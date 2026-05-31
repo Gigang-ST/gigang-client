@@ -80,6 +80,10 @@ export function RaceListView({
 		useState<Competition | null>(null);
 	const [detailOpen, setDetailOpen] = useState(false);
 	const [registerOpen, setRegisterOpen] = useState(false);
+	const [localAllCompetitions, setLocalAllCompetitions] =
+		useState<Competition[]>(allCompetitions);
+	const [localGigangCompetitions, setLocalGigangCompetitions] =
+		useState<Competition[]>(gigangCompetitions);
 
 	// 지난 대회 (기강 참가만, 3개월씩)
 	const [pastOpen, setPastOpen] = useState(false);
@@ -217,7 +221,7 @@ export function RaceListView({
 		loadPastChunk(before);
 	};
 
-	const competitions = tab === "gigang" ? gigangCompetitions : allCompetitions;
+	const competitions = tab === "gigang" ? localGigangCompetitions : localAllCompetitions;
 	const allCompetitionIds = useMemo(
 		() => [
 			...new Set([
@@ -769,7 +773,10 @@ export function RaceListView({
 				onOpenChange={setRegisterOpen}
 				memberStatus={memberStatus}
 				datePolicy="future-only"
-				onCreated={async () => {
+				onCreated={async (newComp) => {
+					setLocalAllCompetitions((prev) =>
+						[...prev, newComp].sort((a, b) => a.start_date.localeCompare(b.start_date)),
+					);
 					await revalidateCompetitions();
 					router.refresh();
 				}}

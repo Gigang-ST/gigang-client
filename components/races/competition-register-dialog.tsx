@@ -42,7 +42,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { MemberStatus } from "./types";
+import type { Competition, MemberStatus } from "./types";
 
 const defaultValues: CompetitionRegisterValues = {
   title: "",
@@ -73,7 +73,7 @@ interface CompetitionRegisterDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   memberStatus: MemberStatus;
-  onCreated: () => void;
+  onCreated: (competition: Competition) => void;
   /** 다른 다이얼로그 위에 겹쳐 표시할 때 오버레이·콘텐츠 z-index 상향 */
   stackElevated?: boolean;
   /** 열 때 시작일(YYYY-MM-DD) 미리 채움 */
@@ -175,7 +175,7 @@ export function CompetitionRegisterDialog({
       return;
     }
 
-    onCreated();
+    if (result.competition) onCreated(result.competition);
     onOpenChange(false);
   }
 
