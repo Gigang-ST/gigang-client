@@ -47,7 +47,7 @@ async function ProfileContent() {
     getCachedCmmCdRows(),
     supabase
       .from("mem_ttl_rel")
-      .select("ttl_id, is_prmy_yn, ttl_mst(ttl_nm, rarity_level, ttl_ctgr_cd)")
+      .select("ttl_id, is_prmy_yn, ttl_mst(ttl_nm, ttl_desc, desc_visibility, rarity_level, ttl_ctgr_cd)")
       .eq("team_mem_id", member.team_mem_id)
       .eq("vers", 0)
       .eq("del_yn", false),
@@ -70,9 +70,11 @@ async function ProfileContent() {
     : "";
 
   // 보유 칭호 목록에서 대표 칭호와 최고 등급 계산
-  const allTitles = (primaryTitle ?? []) as { ttl_id: string; is_prmy_yn: boolean; ttl_mst: { ttl_nm: string; rarity_level: number; ttl_ctgr_cd: string } | null }[];
+  const allTitles = (primaryTitle ?? []) as { ttl_id: string; is_prmy_yn: boolean; ttl_mst: { ttl_nm: string; ttl_desc?: string | null; desc_visibility?: string; rarity_level: number; ttl_ctgr_cd: string } | null }[];
   const primaryTitleRow = allTitles.find((t) => t.is_prmy_yn);
   const primaryTtlNm = primaryTitleRow?.ttl_mst?.ttl_nm ?? null;
+  const primaryTtlDesc = primaryTitleRow?.ttl_mst?.ttl_desc ?? null;
+  const primaryTtlDescVisibility = (primaryTitleRow?.ttl_mst?.desc_visibility ?? "others") as "always" | "others" | "held" | "never";
   const primaryTtlId = primaryTitleRow?.ttl_id ?? null;
   const maxRarityLevel = allTitles.reduce((max, t) => {
     if (t.ttl_mst?.ttl_ctgr_cd === "event") return max; // Event 칭호는 해금에 영향 없음
@@ -92,6 +94,8 @@ async function ProfileContent() {
           teamId={teamId}
           primaryTtlId={primaryTtlId}
           primaryTtlNm={primaryTtlNm}
+          primaryTtlDesc={primaryTtlDesc}
+          primaryTtlDescVisibility={primaryTtlDescVisibility}
           selectedBadgeEffect={member.selected_badge_effect}
           selectedFrameCd={member.selected_frame_cd}
           maxRarityLevel={maxRarityLevel}
