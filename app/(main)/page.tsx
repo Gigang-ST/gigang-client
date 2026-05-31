@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+﻿import { Suspense } from "react";
 
 import { todayKST, currentMonthKST, monthLastDay } from "@/lib/dayjs";
 import { env } from "@/lib/env";
@@ -7,7 +7,6 @@ import { getCurrentMember, getMyTitleNames } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { H1 } from "@/components/common/typography";
-import { Caption } from "@/components/common/typography";
 import { MiniCalendar } from "@/components/home/mini-calendar";
 import type { CalendarRace } from "@/components/home/mini-calendar";
 import { RecentJoiners } from "@/components/home/recent-joiners";
@@ -47,6 +46,8 @@ function isSameSlot(dateA: string, dateB: string) {
   return diff <= 1 && ((dayA === 6 && dayB === 0) || (dayA === 0 && dayB === 6));
 }
 
+const SHOW_EXTRA_SECTIONS = false;
+
 async function HomeContent() {
   const { user, member: currentMember, supabase } = await getCurrentMember();
   const admin = createAdminClient();
@@ -61,7 +62,6 @@ async function HomeContent() {
   let initialMemberStatus: MemberStatus = { status: "signed-out" };
 
   const [
-    { data: memberStats },
     { data: teamComps },
     { data: recentRecordsRaw },
     { data: calendarComps },
@@ -70,31 +70,34 @@ async function HomeContent() {
     cmmCdRows,
     myTitleNames,
   ] = await Promise.all([
-    admin.rpc("get_public_team_member_stats", { p_team_id: teamId }),
     supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: today }),
-    supabase.rpc("get_public_team_recent_records", { p_team_id: teamId, p_limit: 12 }),
+    SHOW_EXTRA_SECTIONS
+      ? supabase.rpc("get_public_team_recent_records", { p_team_id: teamId, p_limit: 12 })
+      : Promise.resolve({ data: null }),
     supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: monthStart, p_end: monthLastDayStr }),
-    admin
-      .from("team_mem_rel")
-      .select("mem_id, join_dt, mem_mst!inner(mem_nm)")
-      .eq("team_id", teamId)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .order("join_dt", { ascending: false })
-      .limit(10),
-    admin
-      .from("mem_ttl_rel")
-      .select("grnt_at, ttl_mst!inner(ttl_nm, ttl_desc, desc_visibility), team_mem_rel!inner(mem_id, selected_badge_effect, mem_mst!inner(mem_nm))")
-      .eq("team_id", teamId)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .order("grnt_at", { ascending: false })
-      .limit(10),
+    SHOW_EXTRA_SECTIONS
+      ? admin
+          .from("team_mem_rel")
+          .select("mem_id, join_dt, mem_mst!inner(mem_nm)")
+          .eq("team_id", teamId)
+          .eq("vers", 0)
+          .eq("del_yn", false)
+          .order("join_dt", { ascending: false })
+          .limit(10)
+      : Promise.resolve({ data: null }),
+    SHOW_EXTRA_SECTIONS
+      ? admin
+          .from("mem_ttl_rel")
+          .select("grnt_at, ttl_mst!inner(ttl_nm, ttl_desc, desc_visibility), team_mem_rel!inner(mem_id, selected_badge_effect, mem_mst!inner(mem_nm))")
+          .eq("team_id", teamId)
+          .eq("vers", 0)
+          .eq("del_yn", false)
+          .order("grnt_at", { ascending: false })
+          .limit(10)
+      : Promise.resolve({ data: null }),
     getCachedCmmCdRows(),
     getMyTitleNames(),
   ]);
-
-  const memberCount = memberStats?.[0]?.active_count ?? 0;
 
   // 기강대회: 등록자 1명 이상, 중복 제거 + 참가자 등록 event_type 수집
   const seenIds = new Set<string>();
@@ -375,15 +378,27 @@ async function HomeContent() {
   }).filter((g) => g.mem_id && g.ttl_nm);
 
   return (
-    <div className="flex flex-col gap-5 px-6 pb-6">
-      {/* 1. 오버뷰 한 줄 */}
-      <Caption>
-        <span className="font-semibold text-foreground">{memberCount}</span>명 활동 중
-        {" · "}
-        <span className="font-semibold text-foreground">{gigangRaces.length}</span>개 대회
-        참가 예정
-      </Caption>
+    <div className="flex flex-col gap-0">
+      {/* 헤더 — 좌: 기강+오버뷰 / 중: 슬로건 / 우: 알림(추후) */}
+      <div className="relative flex h-20 items-center px-6">
+        {/* 좌 */}
+        <div className="flex flex-1 items-center">
+          <H1>기강</H1>
+        </div>
+        {/* 중: 슬로건 — 화면 전체 기준 중앙 */}
+        <div className="absolute left-0 right-0 flex flex-col items-center justify-center pointer-events-none">
+          <p className="font-sans text-[6px] uppercase tracking-[0.15em] text-muted-foreground">
+            Since 2024.04.23
+          </p>
+          <p className="font-sans text-[13px] font-black italic uppercase leading-tight tracking-[-0.03em] text-foreground">
+            No time to be weak
+          </p>
+        </div>
+        {/* 우: 알림 아이콘 자리 — 추후 구현 */}
+        <div className="size-8 shrink-0" />
+      </div>
 
+      <div className="flex flex-col gap-7 px-6 pb-6">
       {/* 2. SCHEDULE 캘린더 */}
       <MiniCalendar
         gigangRaces={calendarGigangRaces}
@@ -404,24 +419,27 @@ async function HomeContent() {
         initialRegistrationsByCompetitionId={initialRegistrationsByCompetitionId}
       />
 
-      {/* 4. RECENT RECORDS 2열 그리드 + 더보기 */}
-      <RecentRecordsGrid
-        records={recentRecords}
-        titleMap={titleMap}
-        myTitleNames={[...myTitleNames]}
-        initialCount={2}
-      />
-
-      {/* 5. 최근 가입자 + 최근 칭호 */}
-      <div className="grid grid-cols-2 gap-4">
-        <RecentJoiners joiners={recentJoiners} initialCount={4} />
-        <RecentTitles grants={recentTitleGrants} initialCount={4} myTitleNames={[...myTitleNames]} />
-      </div>
+      {/* 4. RECENT RECORDS + 최근 가입자 + 최근 칭호 (기획 재설계 전까지 비노출) */}
+      {SHOW_EXTRA_SECTIONS && (
+        <>
+          <RecentRecordsGrid
+            records={recentRecords}
+            titleMap={titleMap}
+            myTitleNames={[...myTitleNames]}
+            initialCount={2}
+          />
+          <div className="grid grid-cols-2 gap-4">
+            <RecentJoiners joiners={recentJoiners} initialCount={4} />
+            <RecentTitles grants={recentTitleGrants} initialCount={4} myTitleNames={[...myTitleNames]} />
+          </div>
+        </>
+      )}
 
       {/* 7. Social Links */}
       <SocialLinksGrid
         kakaoChatPassword={isMember ? (env.KAKAO_CHAT_PASSWORD ?? "") : undefined}
       />
+      </div>
     </div>
   );
 }
@@ -429,9 +447,13 @@ async function HomeContent() {
 
 function HomeSkeleton() {
   return (
-    <div className="flex flex-col gap-7 px-6 pb-6">
-      {/* 오버뷰 한 줄 */}
-      <Skeleton className="h-4 w-48" />
+    <div className="flex flex-col gap-0">
+      {/* 헤더 스켈레톤 */}
+      <div className="flex flex-col gap-2 px-6 pb-6 pt-4">
+        <Skeleton className="h-8 w-16" />
+        <Skeleton className="h-4 w-48" />
+      </div>
+      <div className="flex flex-col gap-7 px-6 pb-6">
       {/* 캘린더 */}
       <div className="flex flex-col gap-3">
         <Skeleton className="h-3.5 w-20" />
@@ -443,35 +465,12 @@ function HomeSkeleton() {
         <Skeleton className="h-10 rounded-lg" />
         <Skeleton className="h-10 rounded-lg" />
       </div>
-      {/* Recent Records */}
-      <div className="flex flex-col gap-3">
-        <Skeleton className="h-3.5 w-32" />
-        <div className="grid grid-cols-2 gap-2">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 rounded-xl" />
-          ))}
-        </div>
-      </div>
-      {/* New Members + Recent Titles */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-3.5 w-24" />
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-9 rounded-lg" />
-          ))}
-        </div>
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-3.5 w-24" />
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-9 rounded-lg" />
-          ))}
-        </div>
-      </div>
       {/* Social Links */}
       <div className="grid grid-cols-4 gap-3">
         {Array.from({ length: 4 }).map((_, i) => (
           <Skeleton key={i} className="h-16 rounded-2xl" />
         ))}
+      </div>
       </div>
     </div>
   );
@@ -480,9 +479,6 @@ function HomeSkeleton() {
 export default function HomePage() {
   return (
     <div className="flex flex-col gap-0">
-      <div className="flex h-14 items-center px-6">
-        <H1>기강</H1>
-      </div>
       <Suspense fallback={<HomeSkeleton />}>
         <HomeContent />
       </Suspense>
