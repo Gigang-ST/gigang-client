@@ -81,5 +81,19 @@ export async function createCompetition(input: CreateCompetitionInput) {
   }
 
   revalidateTag("competitions", "max");
-  return { ok: true, message: null };
+  return {
+    ok: true,
+    message: null,
+    competition: {
+      id: comp.comp_id,
+      external_id: `manual:${comp.comp_id}`,
+      sport: input.sport,
+      title: input.title.trim(),
+      start_date: input.startDate,
+      end_date: input.endDate ?? null,
+      location: input.location.trim() || null,
+      event_types: input.eventTypes.map((e) => e.trim().toUpperCase()),
+      source_url: input.sourceUrl.trim() || null,
+    },
+  };
 }
