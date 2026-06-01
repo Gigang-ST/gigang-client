@@ -56,6 +56,8 @@ export type MemberSnapshot = {
   mileageMthSnaps: MileageMthSnapRow[];
   /** 마일리지런 활동 기록 (mileage_all_sports_in_month, mileage_sport_ratio 조건용) */
   mileageActHist: MileageActRow[];
+  /** 이벤트 stt_dt (이벤트 기간 내 스냅 필터링용) */
+  mileageEvtSttDt: string | null;
   /** 이벤트 end_dt (mileage_rocket_in_months 조건용) */
   mileageEvtEndDt: string | null;
 };
@@ -83,6 +85,7 @@ export async function loadMemberSnapshots(
   db: DB,
   teamId: string,
   teamMemIds: string[],
+  evtId?: string,
 ): Promise<Map<string, MemberSnapshotWithHeld>> {
   if (teamMemIds.length === 0) return new Map();
 
@@ -190,18 +193,20 @@ export async function loadMemberSnapshots(
 
   // 7. 마일리지런 데이터 로드 (mileage_* 조건용)
   // 7-1. 참여자 조회 (mem_id → prt_id, evt_id)
-  const { data: prtRows } = await db
+  let prtQuery = db
     .from("evt_team_prt_rel")
-    .select("prt_id, mem_id, evt_id, evt_team_mst!inner(end_dt)")
+    .select("prt_id, mem_id, evt_id, evt_team_mst!inner(stt_dt, end_dt)")
     .in("mem_id", memIds)
     .eq("aprv_yn", true);
+  if (evtId) prtQuery = prtQuery.eq("evt_id", evtId);
+  const { data: prtRows } = await prtQuery;
 
-  const prtByMemId = new Map<string, { prtId: string; evtEndDt: string }>();
+  const prtByMemId = new Map<string, { prtId: string; evtSttDt: string; evtEndDt: string }>();
   const allPrtIds: string[] = [];
   for (const r of prtRows ?? []) {
     const evtMst = Array.isArray(r.evt_team_mst) ? r.evt_team_mst[0] : r.evt_team_mst;
-    const endDt = (evtMst as { end_dt: string }).end_dt;
-    prtByMemId.set(r.mem_id, { prtId: r.prt_id, evtEndDt: endDt });
+    const { stt_dt, end_dt } = evtMst as { stt_dt: string; end_dt: string };
+    prtByMemId.set(r.mem_id, { prtId: r.prt_id, evtSttDt: stt_dt, evtEndDt: end_dt });
     allPrtIds.push(r.prt_id);
   }
 
@@ -273,6 +278,7 @@ export async function loadMemberSnapshots(
       mileageParticipant: prtInfo !== undefined,
       mileageMthSnaps: mthSnaps,
       mileageActHist: actHist,
+      mileageEvtSttDt: prtInfo?.evtSttDt ?? null,
       mileageEvtEndDt: prtInfo?.evtEndDt ?? null,
     });
   }
