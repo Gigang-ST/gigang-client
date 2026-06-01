@@ -4,12 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
 
-import { Plus, RefreshCw, Save } from "lucide-react";
+import { Plus, RefreshCw, Save, X } from "lucide-react";
 
 import { formatKSTDateTime } from "@/lib/dayjs";
 import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { cmmCdRowsForGrp } from "@/lib/queries/cmm-cd-cached";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 
 import { createTitle, grantTitle, revokeTitle, toggleTitleUseYn, updateTitle } from "@/app/actions/admin/manage-title";
 import { sweepAllTitles } from "@/app/actions/admin/sweep-titles";
@@ -57,10 +58,11 @@ type TitleRow = {
   cond_rule_json: unknown | null;
   rarity_level: number;
   ttl_group_cd: number | null;
+  grant_cnt: number;
   prmy_cnt: number;
 };
 
-type SortKey = "ttl_kind_enm" | "ttl_ctgr_cd" | "rarity_level" | "ttl_group_cd" | "event" | "prmy_cnt" | "desc_visibility";
+type SortKey = "ttl_kind_enm" | "ttl_ctgr_cd" | "rarity_level" | "ttl_group_cd" | "event" | "grant_cnt" | "prmy_cnt" | "desc_visibility";
 type SortDir = "asc" | "desc";
 
 type TitleForm = {
@@ -137,12 +139,15 @@ export function AdminTitlesClient({
     buildEmptyForm(defaultCategory),
   );
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [selectedId, setSelectedId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [sweeping, setSweeping] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  // 바텀시트 상태
+  const [sheetTtlId, setSheetTtlId] = useState<string | null>(null);
+  const [sheetTab, setSheetTab] = useState<"edit" | "grants">("edit");
 
   const loadTitles = useCallback(async () => {
     setLoading(true);
@@ -150,28 +155,29 @@ export function AdminTitlesClient({
     const { data } = await supabase
       .from("ttl_mst")
       .select(
-        "ttl_id, ttl_nm, ttl_kind_enm, ttl_ctgr_cd, ttl_desc, desc_visibility, sort_ord, use_yn, cond_rule_json, rarity_level, ttl_group_cd, mem_ttl_rel(ttl_id)",
+        "ttl_id, ttl_nm, ttl_kind_enm, ttl_ctgr_cd, ttl_desc, desc_visibility, sort_ord, use_yn, cond_rule_json, rarity_level, ttl_group_cd, mem_ttl_rel(ttl_id, is_prmy_yn)",
       )
       .eq("team_id", teamId)
       .eq("vers", 0)
       .eq("del_yn", false)
-      .eq("mem_ttl_rel.is_prmy_yn", true)
       .eq("mem_ttl_rel.del_yn", false)
       .order("sort_ord", { ascending: true })
       .order("rarity_level", { ascending: true });
 
-    const nextRows = ((data ?? []) as unknown as (Omit<TitleRow, "prmy_cnt"> & { mem_ttl_rel: { ttl_id: string }[] })[]).map(
-      (row) => ({ ...row, prmy_cnt: row.mem_ttl_rel?.length ?? 0 }),
-    ) as TitleRow[];
+    const nextRows = (
+      (data ?? []) as unknown as (Omit<TitleRow, "grant_cnt" | "prmy_cnt"> & {
+        mem_ttl_rel: { ttl_id: string; is_prmy_yn: boolean }[];
+      })[]
+    ).map((row) => ({
+      ...row,
+      grant_cnt: row.mem_ttl_rel?.length ?? 0,
+      prmy_cnt: row.mem_ttl_rel?.filter((r) => r.is_prmy_yn).length ?? 0,
+    })) as TitleRow[];
+
     setRows(nextRows);
     setForms(
       Object.fromEntries(nextRows.map((row) => [row.ttl_id, toForm(row)])),
     );
-    setSelectedId((prev) => {
-      if (nextRows.length === 0) return "";
-      if (prev && nextRows.some((row) => row.ttl_id === prev)) return prev;
-      return nextRows[0].ttl_id;
-    });
     setLoading(false);
   }, [teamId]);
 
@@ -260,6 +266,9 @@ export function AdminTitlesClient({
       if (sortKey === "event") {
         av = a.ttl_ctgr_cd === "event" ? 1 : 0;
         bv = b.ttl_ctgr_cd === "event" ? 1 : 0;
+      } else if (sortKey === "grant_cnt") {
+        av = a.grant_cnt;
+        bv = b.grant_cnt;
       } else if (sortKey === "prmy_cnt") {
         av = a.prmy_cnt;
         bv = b.prmy_cnt;
@@ -294,8 +303,17 @@ export function AdminTitlesClient({
     return <span className="ml-0.5 text-primary">{sortDir === "asc" ? "↑" : "↓"}</span>;
   };
 
-  const selectedRow = rows.find((row) => row.ttl_id === selectedId) ?? null;
-  const selectedForm = selectedRow ? forms[selectedRow.ttl_id] ?? toForm(selectedRow) : null;
+  const sheetRow = sheetTtlId ? rows.find((row) => row.ttl_id === sheetTtlId) ?? null : null;
+  const sheetForm = sheetRow ? forms[sheetRow.ttl_id] ?? toForm(sheetRow) : null;
+
+  const openSheet = (ttlId: string) => {
+    setSheetTtlId(ttlId);
+    setSheetTab("edit");
+  };
+
+  const closeSheet = () => {
+    setSheetTtlId(null);
+  };
 
   return (
     <div className="flex flex-col gap-4 px-6 pb-6 pt-4">
@@ -366,39 +384,43 @@ export function AdminTitlesClient({
         <p className="text-sm text-muted-foreground">불러오는 중...</p>
       ) : (
         <CardItem className="p-0">
-          <div className="max-h-60 overflow-y-auto overflow-x-auto">
+          <div className="overflow-x-auto">
             <table className="w-full border-collapse text-[11px] [font-variant-numeric:tabular-nums]">
               <thead className="bg-muted/40">
                 <tr className="border-b">
                   <th className="px-2 py-1.5 text-center font-medium text-muted-foreground">칭호명</th>
                   <th
-                    className="w-10 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
+                    className="w-12 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
                     onClick={() => handleSort("ttl_kind_enm")}
                   >유형<SortIcon k="ttl_kind_enm" /></th>
                   <th
-                    className="w-16 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
+                    className="w-18 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
                     onClick={() => handleSort("ttl_ctgr_cd")}
                   >카테고리<SortIcon k="ttl_ctgr_cd" /></th>
-                  <th className="w-8 px-2 py-1.5 text-center font-medium text-muted-foreground">정렬</th>
-                  <th className="w-14 px-2 py-1.5 text-center font-medium text-muted-foreground">사용</th>
+                  <th className="w-10 px-2 py-1.5 text-center font-medium text-muted-foreground">정렬</th>
+                  <th className="w-16 px-2 py-1.5 text-center font-medium text-muted-foreground">사용</th>
                   <th
-                    className="w-12 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
+                    className="w-14 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
                     onClick={() => handleSort("rarity_level")}
                   >희귀도<SortIcon k="rarity_level" /></th>
                   <th
-                    className="w-8 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
+                    className="w-10 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
                     onClick={() => handleSort("ttl_group_cd")}
                   >그룹<SortIcon k="ttl_group_cd" /></th>
                   <th
-                    className="w-12 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
+                    className="w-14 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
                     onClick={() => handleSort("event")}
                   >이벤트<SortIcon k="event" /></th>
                   <th
-                    className="w-8 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
+                    className="w-10 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
                     onClick={() => handleSort("desc_visibility")}
                   >공개<SortIcon k="desc_visibility" /></th>
                   <th
-                    className="w-10 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
+                    className="w-12 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
+                    onClick={() => handleSort("grant_cnt")}
+                  >획득<SortIcon k="grant_cnt" /></th>
+                  <th
+                    className="w-12 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
                     onClick={() => handleSort("prmy_cnt")}
                   >대표<SortIcon k="prmy_cnt" /></th>
                 </tr>
@@ -407,18 +429,18 @@ export function AdminTitlesClient({
                 {rows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={11}
                       className="px-2 py-6 text-center text-xs text-muted-foreground"
                     >
                       등록된 칭호가 없습니다.
                     </td>
                   </tr>
                 ) : sortedRows.map((row) => {
-                  const active = row.ttl_id === selectedId;
+                  const active = row.ttl_id === sheetTtlId;
                   return (
                     <tr
                       key={row.ttl_id}
-                      onClick={() => setSelectedId(row.ttl_id)}
+                      onClick={() => openSheet(row.ttl_id)}
                       className={`cursor-pointer border-b transition-colors hover:bg-muted/30 ${
                         active ? "bg-primary/5" : ""
                       } ${!row.use_yn ? "opacity-40" : ""}`}
@@ -447,6 +469,9 @@ export function AdminTitlesClient({
                         {({ always: "A", others: "O", held: "H", never: "N" } as Record<string, string>)[row.desc_visibility] ?? "O"}
                       </td>
                       <td className="px-2 py-1.5 text-center tabular-nums text-muted-foreground">
+                        {row.grant_cnt > 0 ? <span className="font-medium text-foreground">{row.grant_cnt}</span> : "-"}
+                      </td>
+                      <td className="px-2 py-1.5 text-center tabular-nums text-muted-foreground">
                         {row.prmy_cnt > 0 ? <span className="font-medium text-foreground">{row.prmy_cnt}</span> : "-"}
                       </td>
                     </tr>
@@ -458,38 +483,85 @@ export function AdminTitlesClient({
         </CardItem>
       )}
 
-      {selectedRow && selectedForm && (
-        <CardItem className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-foreground">
-              선택 칭호 수정: {selectedRow.ttl_nm}
-            </p>
-            <Button
-              size="sm"
-              onClick={() => saveRow(selectedRow.ttl_id)}
-              disabled={savingId === selectedRow.ttl_id}
-              className="h-8 rounded-lg"
-            >
-              <Save className="size-3.5" />
-              {savingId === selectedRow.ttl_id ? "저장 중..." : "저장"}
-            </Button>
-          </div>
-          <TitleFormFields
-            form={selectedForm}
-            categoryOptions={categoryOptions}
-            onChange={(key, value) =>
-              updateFormField(selectedRow.ttl_id, key, value)
-            }
+      {/* ── 바텀시트: 수정 + 획득내역 ── */}
+      {sheetRow && sheetForm && (
+        <>
+          {/* Overlay */}
+          <div
+            className="fixed inset-0 z-[99] bg-black/40"
+            onClick={closeSheet}
           />
-        </CardItem>
-      )}
 
-      {selectedRow && (
-        <TitleGrantList
-          ttlId={selectedRow.ttl_id}
-          teamId={teamId}
-          isAwarded={selectedRow.ttl_kind_enm === "awarded"}
-        />
+          {/* 바텀시트 */}
+          <div className="fixed inset-x-0 bottom-0 z-[100] flex max-h-[70dvh] flex-col rounded-t-2xl bg-background">
+            {/* 시트 헤더 */}
+            <div className="flex items-center justify-between px-6 py-4">
+              <p className="text-sm font-semibold text-foreground">{sheetRow.ttl_nm}</p>
+              <button
+                onClick={closeSheet}
+                aria-label="닫기"
+                className="text-muted-foreground"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            {/* 시트 탭 */}
+            <div className="flex border-b border-border px-6">
+              {([
+                { key: "edit", label: "수정" },
+                { key: "grants", label: "획득내역" },
+              ] as { key: "edit" | "grants"; label: string }[]).map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setSheetTab(key)}
+                  className={cn(
+                    "mr-4 pb-2 text-sm font-medium transition-colors",
+                    sheetTab === key
+                      ? "border-b-2 border-primary text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* 시트 콘텐츠 */}
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {sheetTab === "edit" && (
+                <div className="flex flex-col gap-3">
+                  <TitleFormFields
+                    form={sheetForm}
+                    categoryOptions={categoryOptions}
+                    onChange={(key, value) =>
+                      updateFormField(sheetRow.ttl_id, key, value)
+                    }
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      onClick={() => saveRow(sheetRow.ttl_id)}
+                      disabled={savingId === sheetRow.ttl_id}
+                      className="h-8 rounded-lg"
+                    >
+                      <Save className="size-3.5" />
+                      {savingId === sheetRow.ttl_id ? "저장 중..." : "저장"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {sheetTab === "grants" && (
+                <TitleGrantList
+                  ttlId={sheetRow.ttl_id}
+                  teamId={teamId}
+                  isAwarded={sheetRow.ttl_kind_enm === "awarded"}
+                />
+              )}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
@@ -921,7 +993,7 @@ function LabeledSelect({
         <SelectTrigger className="h-10 rounded-lg">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="z-[200]">
           {items.map((item) => (
             <SelectItem key={item.value} value={item.value}>
               {item.label}

@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AdminTitlesClient } from "./admin-titles-client";
 import { AdminEffectsClient } from "./admin-effects-client";
 import { AdminTitlesPageClient } from "./admin-titles-page-client";
+import { AdminTitleHistoryClient } from "./admin-title-history-client";
 
 function Fallback() {
   return (
@@ -21,7 +22,7 @@ async function TitlesTabContent() {
     getRequestTeamContext(),
     getCachedCmmCdRows(),
   ]);
-  return <AdminTitlesClient teamId={teamId} cmmCdRows={cmmCdRows} />;
+return <AdminTitlesClient teamId={teamId} cmmCdRows={cmmCdRows} />;
 }
 
 export default function AdminTitlesPage() {
@@ -33,6 +34,7 @@ export default function AdminTitlesPage() {
         </Suspense>
       }
       effectsContent={<AdminEffectsClient />}
+      historyContent={<AdminTitleHistoryClient />}
     />
   );
 }

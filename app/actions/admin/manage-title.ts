@@ -260,7 +260,7 @@ export async function revokeTitle(memTtlId: string) {
 
   const { data, error } = await db
     .from("mem_ttl_rel")
-    .update({ del_yn: true, upd_by: admin.id })
+    .update({ del_yn: true })
     .eq("mem_ttl_id", memTtlId)
     .eq("team_id", teamId)
     .eq("del_yn", false)

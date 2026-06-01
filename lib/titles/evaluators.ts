@@ -537,6 +537,7 @@ export async function evalMileageJoinedInternal(
 export async function evalMileageGoalAchievedMonthsInternal(
   rule: CondMileageGoalAchievedMonths,
   teamMemId: string,
+  evtId: string,
   db: DB,
 ): Promise<boolean> {
   const { data: memRow } = await db
@@ -552,6 +553,7 @@ export async function evalMileageGoalAchievedMonthsInternal(
     .from("evt_team_prt_rel")
     .select("prt_id")
     .eq("mem_id", memRow.mem_id)
+    .eq("evt_id", evtId)
     .eq("aprv_yn", true);
   if (!prtRows?.length) return false;
 
@@ -574,11 +576,13 @@ export async function evalMileageGoalAchievedOnLastDayInternal(
   _rule: CondMileageGoalAchievedOnLastDay,
   ctx: TitleEvalContext,
   teamMemId: string,
+  evtId: string,
   db: DB,
 ): Promise<boolean> {
   if (ctx.trigger !== "mileage_run") return false;
   if (ctx.prevAchvYn) return false; // 이미 달성 상태였으면 해당 없음
 
+  // 기준은 운동기록일자(act_dt), 등록일자 아님
   const actDt = ctx.actDt; // YYYY-MM-DD
   const actDay = dayjs(actDt).tz(KST);
   const lastDayOfMonth = actDay.endOf("month").date();
@@ -599,6 +603,7 @@ export async function evalMileageGoalAchievedOnLastDayInternal(
     .from("evt_team_prt_rel")
     .select("prt_id")
     .eq("mem_id", memRow.mem_id)
+    .eq("evt_id", evtId)
     .eq("aprv_yn", true);
   if (!prtRows?.length) return false;
 
@@ -618,6 +623,7 @@ export async function evalMileageAllSportsInMonthInternal(
   rule: CondMileageAllSportsInMonth,
   teamMemId: string,
   actDt: string,
+  evtId: string,
   db: DB,
 ): Promise<boolean> {
   const { data: memRow } = await db
@@ -633,6 +639,7 @@ export async function evalMileageAllSportsInMonthInternal(
     .from("evt_team_prt_rel")
     .select("prt_id")
     .eq("mem_id", memRow.mem_id)
+    .eq("evt_id", evtId)
     .eq("aprv_yn", true);
   if (!prtRows?.length) return false;
 
@@ -651,10 +658,12 @@ export async function evalMileageAllSportsInMonthInternal(
   return rule.sports.every((s) => sportsInMonth.has(s));
 }
 
-/** 월 목표 달성 실패 누적 N개월 이상인 경우 (예: 보증금증발, ATM) — 월초 배치 전용 */
+/** 월 목표 달성 실패 N개월 이상인 경우 (예: 보증금증발, ATM) — 월초 배치 전용 */
 export async function evalMileageGoalFailedMonthsInternal(
   rule: CondMileageGoalFailedMonths,
   teamMemId: string,
+  evtId: string,
+  baseMonth: string,
   db: DB,
 ): Promise<boolean> {
   const { data: memRow } = await db
@@ -670,22 +679,40 @@ export async function evalMileageGoalFailedMonthsInternal(
     .from("evt_team_prt_rel")
     .select("prt_id, evt_team_mst!inner(stt_dt, end_dt)")
     .eq("mem_id", memRow.mem_id)
+    .eq("evt_id", evtId)
     .eq("aprv_yn", true);
   if (!prtRows?.length) return false;
 
-  const today = dayjs().tz(KST).format("YYYY-MM-01");
   let failCount = 0;
   for (const prt of prtRows) {
     const evtMst = Array.isArray(prt.evt_team_mst) ? prt.evt_team_mst[0] : prt.evt_team_mst;
     const { stt_dt, end_dt } = evtMst as { stt_dt: string; end_dt: string };
-    const { data: snaps } = await db
-      .from("evt_mlg_mth_snap")
-      .select("achv_yn, base_dt")
-      .eq("prt_id", prt.prt_id)
-      .gte("base_dt", stt_dt.slice(0, 7) + "-01")
-      .lt("base_dt", today < end_dt.slice(0, 7) + "-01" ? today : end_dt.slice(0, 7) + "-01");
 
-    failCount += (snaps ?? []).filter((s) => !s.achv_yn).length;
+    if (rule.only_base_month) {
+      // 해당 달만 체크 (보증금증발)
+      const targetDt = baseMonth + "-01";
+      // 이벤트 기간 밖이면 스킵
+      if (targetDt < stt_dt.slice(0, 7) + "-01" || targetDt > end_dt.slice(0, 7) + "-01") continue;
+      const { data: snap } = await db
+        .from("evt_mlg_mth_snap")
+        .select("achv_yn")
+        .eq("prt_id", prt.prt_id)
+        .eq("base_dt", targetDt)
+        .maybeSingle();
+      if (snap && !snap.achv_yn) failCount++;
+    } else {
+      // 이벤트 기간 내 누적 (ATM) — baseMonth까지만, 미래 달 제외
+      const evtSttDt = stt_dt.slice(0, 7) + "-01";
+      const evtEndDt = end_dt.slice(0, 7) + "-01";
+      const limitDt = baseMonth + "-01" < evtEndDt ? baseMonth + "-01" : evtEndDt;
+      const { data: snaps } = await db
+        .from("evt_mlg_mth_snap")
+        .select("achv_yn")
+        .eq("prt_id", prt.prt_id)
+        .gte("base_dt", evtSttDt)
+        .lte("base_dt", limitDt);
+      failCount += (snaps ?? []).filter((s) => !s.achv_yn).length;
+    }
   }
 
   return failCount >= rule.count;
@@ -696,6 +723,7 @@ export async function evalMileageRocketInMonthsInternal(
   rule: CondMileageRocketInMonths,
   teamMemId: string,
   actDt: string,
+  evtId: string,
   db: DB,
 ): Promise<boolean> {
   const { data: memRow } = await db
@@ -711,6 +739,7 @@ export async function evalMileageRocketInMonthsInternal(
     .from("evt_team_prt_rel")
     .select("prt_id, evt_team_mst!inner(end_dt)")
     .eq("mem_id", memRow.mem_id)
+    .eq("evt_id", evtId)
     .eq("aprv_yn", true);
   if (!prtRows?.length) return false;
 
@@ -748,6 +777,7 @@ export async function evalMileageGoalAchievedBySingleSportInternal(
   rule: CondMileageGoalAchievedBySingleSport,
   teamMemId: string,
   actDt: string,
+  evtId: string,
   db: DB,
 ): Promise<boolean> {
   const { data: memRow } = await db
@@ -763,6 +793,7 @@ export async function evalMileageGoalAchievedBySingleSportInternal(
     .from("evt_team_prt_rel")
     .select("prt_id")
     .eq("mem_id", memRow.mem_id)
+    .eq("evt_id", evtId)
     .eq("aprv_yn", true);
   if (!prtRows?.length) return false;
 
@@ -798,6 +829,7 @@ export async function evalMileageSportRatioInternal(
   rule: CondMileageSportRatio,
   teamMemId: string,
   actDt: string,
+  evtId: string,
   db: DB,
 ): Promise<boolean> {
   const { data: memRow } = await db
@@ -813,6 +845,7 @@ export async function evalMileageSportRatioInternal(
     .from("evt_team_prt_rel")
     .select("prt_id")
     .eq("mem_id", memRow.mem_id)
+    .eq("evt_id", evtId)
     .eq("aprv_yn", true);
   if (!prtRows?.length) return false;
 
@@ -903,32 +936,50 @@ export async function evaluateCondition(
       return evalMileageJoinedInternal(rule, memId, db);
 
     case "mileage_goal_achieved_months":
-      return evalMileageGoalAchievedMonthsInternal(rule, ctx.teamMemId, db);
+      return ctx.trigger === "mileage_run"
+        ? evalMileageGoalAchievedMonthsInternal(rule, ctx.teamMemId, ctx.projectId, db)
+        : false;
 
     case "mileage_goal_achieved_on_last_day":
-      return evalMileageGoalAchievedOnLastDayInternal(rule, ctx, ctx.teamMemId, db);
+      return evalMileageGoalAchievedOnLastDayInternal(
+        rule, ctx, ctx.teamMemId,
+        ctx.trigger === "mileage_run" ? ctx.projectId : "",
+        db,
+      );
 
     case "mileage_all_sports_in_month":
       return ctx.trigger === "mileage_run"
-        ? evalMileageAllSportsInMonthInternal(rule, ctx.teamMemId, ctx.actDt, db)
+        ? evalMileageAllSportsInMonthInternal(rule, ctx.teamMemId, ctx.actDt, ctx.projectId, db)
         : false;
 
     case "mileage_goal_failed_months":
-      return evalMileageGoalFailedMonthsInternal(rule, ctx.teamMemId, db);
+      if (ctx.trigger === "mileage_batch") {
+        // actDt = 기준 월 마지막 날 (YYYY-MM-DD), slice(0,7)로 YYYY-MM 추출
+        return evalMileageGoalFailedMonthsInternal(rule, ctx.teamMemId, ctx.projectId, ctx.actDt.slice(0, 7), db);
+      }
+      return false;
 
     case "mileage_rocket_in_months":
       return ctx.trigger === "mileage_run"
-        ? evalMileageRocketInMonthsInternal(rule, ctx.teamMemId, ctx.actDt, db)
+        ? evalMileageRocketInMonthsInternal(rule, ctx.teamMemId, ctx.actDt, ctx.projectId, db)
         : false;
 
     case "mileage_goal_achieved_by_single_sport":
       return (ctx.trigger === "mileage_run" || ctx.trigger === "mileage_batch")
-        ? evalMileageGoalAchievedBySingleSportInternal(rule, ctx.teamMemId, ctx.actDt, db)
+        ? evalMileageGoalAchievedBySingleSportInternal(
+            rule, ctx.teamMemId, ctx.actDt,
+            ctx.projectId,
+            db,
+          )
         : false;
 
     case "mileage_sport_ratio":
       return (ctx.trigger === "mileage_run" || ctx.trigger === "mileage_batch")
-        ? evalMileageSportRatioInternal(rule, ctx.teamMemId, ctx.actDt, db)
+        ? evalMileageSportRatioInternal(
+            rule, ctx.teamMemId, ctx.actDt,
+            ctx.projectId,
+            db,
+          )
         : false;
 
     default:
