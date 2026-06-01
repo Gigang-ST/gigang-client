@@ -1112,10 +1112,13 @@ export function evaluateConditionFromSnapshot(
       return snapshot.mileageParticipant;
 
     case "mileage_goal_achieved_months": {
-      // baseMonth 지정 시 해당 월까지만 집계 (미래 달 제외)
-      const snaps = baseMonth
-        ? snapshot.mileageMthSnaps.filter((s) => s.base_dt.slice(0, 7) <= baseMonth)
-        : snapshot.mileageMthSnaps;
+      const evtStt = snapshot.mileageEvtSttDt?.slice(0, 7);
+      const snaps = snapshot.mileageMthSnaps.filter((s) => {
+        const m = s.base_dt.slice(0, 7);
+        if (evtStt && m < evtStt) return false; // 이벤트 시작 전 연습달 제외
+        if (baseMonth && m > baseMonth) return false; // 미래 달 제외
+        return true;
+      });
       const achieved = snaps.filter((s) => s.achv_yn).length;
       return achieved >= rule.count;
     }
@@ -1136,11 +1139,15 @@ export function evaluateConditionFromSnapshot(
     }
 
     case "mileage_goal_failed_months": {
+      const evtStt = snapshot.mileageEvtSttDt?.slice(0, 7);
       const snaps = rule.only_base_month
         ? snapshot.mileageMthSnaps.filter((s) => s.base_dt.slice(0, 7) === baseMonth)
-        : baseMonth
-          ? snapshot.mileageMthSnaps.filter((s) => s.base_dt.slice(0, 7) <= baseMonth)
-          : snapshot.mileageMthSnaps;
+        : snapshot.mileageMthSnaps.filter((s) => {
+            const m = s.base_dt.slice(0, 7);
+            if (evtStt && m < evtStt) return false; // 이벤트 시작 전 연습달 제외
+            if (baseMonth && m > baseMonth) return false; // 미래 달 제외
+            return true;
+          });
       const failed = snaps.filter((s) => !s.achv_yn).length;
       return failed >= rule.count;
     }
