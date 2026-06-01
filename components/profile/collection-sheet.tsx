@@ -363,7 +363,8 @@ export function CollectionSheet({
                         const blocked = owned && t.use_yn && isBlockedByHigher(t);
                         const selectable = owned && t.use_yn && !blocked;
                         const isSelected = selectedTtlId === t.ttl_id;
-                        const dimmed = !masked && !owned; // always라 마스킹은 없지만 미보유
+                        // always라 마스킹은 없지만 미보유 — blocked(그룹막힘)와 시각적으로 구분
+                        const dimmed = !masked && !owned;
                         return (
                           <TitleBadge
                             key={t.ttl_id}
@@ -379,7 +380,12 @@ export function CollectionSheet({
                             }}
                             tooltipOpen={openTooltipTtlId === t.ttl_id}
                             onTooltipOpen={() => openTooltip(t.ttl_id)}
-                            className={cn((blocked || dimmed) && "opacity-50")}
+                            className={cn(
+                              // blocked(그룹막힘): 보유했지만 더 높은 등급이 있어 선택 불가 → 흐리게
+                              blocked && "opacity-40",
+                              // dimmed(always 미보유): 도감에 보이지만 아직 획득 못 함 → 점선 테두리로 구분, 덜 흐리게
+                              dimmed && "opacity-60 border-dashed",
+                            )}
                             onClick={() => {
                               if (selectable) {
                                 setSelectedTtlId(isSelected ? null : t.ttl_id);

@@ -3,14 +3,16 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
-type Tab = "titles" | "effects";
+type Tab = "titles" | "effects" | "history";
 
 export function AdminTitlesPageClient({
   titlesContent,
   effectsContent,
+  historyContent,
 }: {
   titlesContent: React.ReactNode;
   effectsContent: React.ReactNode;
+  historyContent: React.ReactNode;
 }) {
   const [tab, setTab] = useState<Tab>("titles");
 
@@ -21,6 +23,7 @@ export function AdminTitlesPageClient({
         {([
           { key: "titles",  label: "칭호 관리" },
           { key: "effects", label: "이펙트 관리" },
+          { key: "history", label: "이력" },
         ] as { key: Tab; label: string }[]).map(({ key, label }) => (
           <button
             key={key}
@@ -42,6 +45,9 @@ export function AdminTitlesPageClient({
       </div>
       <div className={tab === "effects" ? "block" : "hidden"}>
         {effectsContent}
+      </div>
+      <div className={tab === "history" ? "block" : "hidden"}>
+        {historyContent}
       </div>
     </div>
   );

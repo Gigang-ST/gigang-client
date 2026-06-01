@@ -187,6 +187,8 @@ export type CondMileageAllSportsInMonth = {
 export type CondMileageGoalFailedMonths = {
   type: "mileage_goal_failed_months";
   count: number;
+  /** true: baseMonth 해당 달만 체크 (보증금증발). false/없음: 이벤트 기간 내 누적 (ATM) */
+  only_base_month?: boolean;
 };
 
 /**
