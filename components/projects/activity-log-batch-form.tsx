@@ -45,7 +45,7 @@ type ActivityDraft = {
 
 type ActivityLogBatchFormProps = {
   evtId: string;
-  onSuccess: (savedCount: number) => void;
+  onSuccess: (savedCount: number, grantedTitles: string[]) => void;
 };
 
 function isMultiplierActive(mult: EventMultiplier, actDt: string): boolean {
@@ -153,7 +153,7 @@ export function ActivityLogBatchForm({ evtId, onSuccess }: ActivityLogBatchFormP
         alert(result.message ?? "오류가 발생했습니다.");
         return;
       }
-      onSuccess(payload.length);
+      onSuccess(payload.length, result.grantedTitles ?? []);
     } catch {
       alert("오류가 발생했습니다. 다시 시도해 주세요.");
     } finally {

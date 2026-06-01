@@ -79,7 +79,7 @@ async function loadAllCmmCdRows(): Promise<CachedCmmCdRow[]> {
 
 const getCmmCdRowsUncached = unstable_cache(
   loadAllCmmCdRows,
-  ["cmm-cd-all-rows"],
+  ["cmm-cd-all-rows-v2"],
   { tags: [COMMON_CODES_CACHE_TAG], revalidate: 86400 },
 );
 

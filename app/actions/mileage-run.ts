@@ -40,7 +40,7 @@ export interface ActivityLogInput {
   review: string | null;
 }
 
-type ActionResult = { ok: boolean; message: string | null };
+type ActionResult = { ok: boolean; message: string | null; grantedTitles?: string[] };
 
 // ─────────────────────────────────────────
 // 내부 헬퍼
@@ -326,13 +326,14 @@ export async function logActivity(
   await recalcGoalsFromMonth(evtId, participant.prt_id);
 
   // 칭호 평가 — 즉시 평가 대상 (목표달성·막판스퍼트·올라운더·마지막불꽃)
-  const { data: teamMemRow } = await db
+  const { data: teamMemRow, error: teamMemErr } = await db
     .from("team_mem_rel")
     .select("team_mem_id, team_id")
     .eq("mem_id", member.id)
     .eq("vers", 0)
     .eq("del_yn", false)
     .maybeSingle();
+  console.info("[title-engine] teamMemRow:", teamMemRow, "error:", teamMemErr);
   if (teamMemRow) {
     const ctx = {
       trigger: "mileage_run" as const,
@@ -342,7 +343,8 @@ export async function logActivity(
       actDt: validInput.act_dt,
       prevAchvYn,
     };
-    after(() => evaluateAndGrantTitles(ctx).catch((e) => console.error("[title-engine] mileage_run(log) 평가 실패", e)));
+    console.info("[title-engine] ctx:", ctx);
+    await evaluateAndGrantTitles(ctx).catch((e) => console.error("[title-engine] mileage_run(log) 평가 실패", e));
   }
 
   revalidatePath("/projects");
@@ -423,12 +425,54 @@ export async function logActivitiesBatch(
     });
   }
 
+  // INSERT 전 각 날짜별 prevAchvYn 미리 읽기 (막판스퍼트 판단용)
+  const uniqueDates = [...new Set(validInputs.map((i) => i.act_dt))];
+  const prevAchvYnMap = new Map<string, boolean>();
+  for (const actDt of uniqueDates) {
+    const actMonth = actDt.slice(0, 7) + "-01";
+    const { data: snap } = await db
+      .from("evt_mlg_mth_snap")
+      .select("achv_yn")
+      .eq("prt_id", participant.prt_id)
+      .eq("base_dt", actMonth)
+      .maybeSingle();
+    prevAchvYnMap.set(actDt, snap?.achv_yn ?? false);
+  }
+
   const { error } = await db.from("evt_mlg_act_hist").insert(rows);
   if (error) return { ok: false, message: "활동 기록 저장에 실패했습니다" };
 
   await recalcGoalsFromMonth(evtId, participant.prt_id);
+
+  // 칭호 평가
+  const { data: teamMemRow } = await db
+    .from("team_mem_rel")
+    .select("team_mem_id, team_id")
+    .eq("mem_id", member.id)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+  const allGranted: string[] = [];
+  if (teamMemRow) {
+    for (const actDt of uniqueDates) {
+      const ctx = {
+        trigger: "mileage_run" as const,
+        teamId: teamMemRow.team_id,
+        teamMemId: teamMemRow.team_mem_id,
+        projectId: evtId,
+        actDt,
+        prevAchvYn: prevAchvYnMap.get(actDt) ?? false,
+      };
+      const granted = await evaluateAndGrantTitles(ctx).catch((e) => {
+        console.error("[title-engine] mileage_run(batch) 평가 실패", e);
+        return [] as string[];
+      });
+      allGranted.push(...granted);
+    }
+  }
+
   revalidatePath("/projects");
-  return { ok: true, message: null };
+  return { ok: true, message: null, grantedTitles: allGranted };
 }
 
 // ─────────────────────────────────────────
@@ -684,7 +728,7 @@ async function recalcGoalsFromMonth(
     const achvMlg = roundedAchvByMonth.get(month) ?? 0;
     const actCnt = cntByMonth.get(month) ?? 0;
     const lstActDt = lastDtByMonth.get(month) ?? null;
-    const achvYn = achvMlg >= Number(g.goal_mlg);
+    const achvYn = Math.round(achvMlg * 10) / 10 >= Number(g.goal_mlg);
 
     await db
       .from("evt_mlg_mth_snap")
@@ -728,7 +772,7 @@ async function recalcGoalsFromMonth(
         .from("evt_mlg_mth_snap")
         .update({
           goal_mlg: newGoal,
-          achv_yn: (roundedAchvByMonth.get(cur.base_dt as string) ?? 0) >= newGoal,
+          achv_yn: Math.round((roundedAchvByMonth.get(cur.base_dt as string) ?? 0) * 10) / 10 >= newGoal,
           updated_at: dayjs().toISOString(),
         })
         .eq("goal_id", cur.goal_id);
