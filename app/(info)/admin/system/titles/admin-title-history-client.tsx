@@ -80,7 +80,9 @@ export function AdminTitleHistoryClient() {
       <div className="flex items-center gap-2">
         <SectionLabel>전체 칭호 획득 이력</SectionLabel>
         {!loading && (
-          <span className="text-[11px] text-muted-foreground">{rows.length}건</span>
+          <span className="text-[11px] text-muted-foreground">
+            {rows.length}건{rows.length >= 200 && " (최근 200건)"}
+          </span>
         )}
       </div>
 

@@ -51,12 +51,17 @@ export async function batchMileageTitles(evtId: string, baseMonth?: string): Pro
     return `평가 대상 참여자 없음 (기준 월: ${resolvedMonth})`;
   }
 
-  // mem_id → team_mem_id, team_id 맵 구성
+  // mem_id → team_mem_id, team_id 맵 구성 (이벤트 소속 팀 ID로 필터링 — 다른 팀 멤버 혼재 방지)
   const memIds = [...new Set(prtRows.map((r) => r.mem_id))];
+  const evtTeamIds = [...new Set(prtRows.map((r) => {
+    const evtMst = Array.isArray(r.evt_team_mst) ? r.evt_team_mst[0] : r.evt_team_mst;
+    return (evtMst as { team_id: string }).team_id;
+  }))];
   const { data: teamMemRows } = await db
     .from("team_mem_rel")
     .select("mem_id, team_mem_id, team_id")
     .in("mem_id", memIds)
+    .in("team_id", evtTeamIds)
     .eq("vers", 0)
     .eq("del_yn", false);
 

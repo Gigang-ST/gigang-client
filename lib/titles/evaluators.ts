@@ -551,18 +551,23 @@ export async function evalMileageGoalAchievedMonthsInternal(
 
   const { data: prtRows } = await db
     .from("evt_team_prt_rel")
-    .select("prt_id")
+    .select("prt_id, evt_team_mst!inner(stt_dt)")
     .eq("mem_id", memRow.mem_id)
     .eq("evt_id", evtId)
     .eq("aprv_yn", true);
   if (!prtRows?.length) return false;
 
   const prtIds = prtRows.map((r) => r.prt_id);
-  const { count } = await db
+  const evtMst = Array.isArray(prtRows[0].evt_team_mst) ? prtRows[0].evt_team_mst[0] : prtRows[0].evt_team_mst;
+  const evtSttDt = (evtMst as { stt_dt: string } | null)?.stt_dt?.slice(0, 7) + "-01";
+
+  let query = db
     .from("evt_mlg_mth_snap")
     .select("*", { count: "exact", head: true })
     .in("prt_id", prtIds)
     .eq("achv_yn", true);
+  if (evtSttDt) query = query.gte("base_dt", evtSttDt);
+  const { count } = await query;
 
   return (count ?? 0) >= rule.count;
 }

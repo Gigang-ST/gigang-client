@@ -224,10 +224,11 @@ export async function sweepEvaluateAndGrant(
   // 4. bulk 부여 — 활성 행은 항상 vers=0, 회수 시 vers 변경되므로 충돌 없이 INSERT 가능
   let granted = 0;
   if (toGrant.length > 0) {
-    const { data } = await db
+    const { data, error } = await db
       .from("mem_ttl_rel")
       .insert(toGrant)
       .select("mem_ttl_id");
+    if (error) console.error("[sweep] bulk INSERT 실패", error);
     granted = data?.length ?? 0;
     console.info(`[sweep] 칭호 신규 부여 ${granted}건`);
   }
@@ -316,10 +317,11 @@ export async function batchEvaluateAndGrant(
 
   let granted = 0;
   if (toGrant.length > 0) {
-    const { data } = await db
+    const { data, error } = await db
       .from("mem_ttl_rel")
       .insert(toGrant)
       .select("mem_ttl_id");
+    if (error) console.error("[mileage_batch] bulk INSERT 실패", error);
     granted = data?.length ?? 0;
     console.info(`[mileage_batch] 칭호 신규 부여 ${granted}건 (base_month=${baseMonth})`);
   }

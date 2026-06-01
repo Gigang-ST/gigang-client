@@ -118,7 +118,7 @@ export async function MyStatus({
           </Caption>
         </div>
         <div>
-          {goalRow.achv_yn ? (
+          {goalRow.achv_yn || dailyNeeded === "done" ? (
             <Caption className="text-success font-semibold">달성 완료!</Caption>
           ) : dailyNeeded === 0 ? (
             <Caption>월 종료</Caption>
@@ -126,7 +126,7 @@ export async function MyStatus({
             <Caption>
               잔여 일평균{" "}
               <span className="font-semibold text-foreground">
-                {(dailyNeeded as number).toFixed(1)} km
+                {dailyNeeded.toFixed(1)} km
               </span>
             </Caption>
           )}
