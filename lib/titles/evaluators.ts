@@ -1136,10 +1136,11 @@ export function evaluateConditionFromSnapshot(
     }
 
     case "mileage_goal_failed_months": {
-      // baseMonth 지정 시 해당 월까지만 집계 (미래 달 제외)
-      const snaps = baseMonth
-        ? snapshot.mileageMthSnaps.filter((s) => s.base_dt.slice(0, 7) <= baseMonth)
-        : snapshot.mileageMthSnaps;
+      const snaps = rule.only_base_month
+        ? snapshot.mileageMthSnaps.filter((s) => s.base_dt.slice(0, 7) === baseMonth)
+        : baseMonth
+          ? snapshot.mileageMthSnaps.filter((s) => s.base_dt.slice(0, 7) <= baseMonth)
+          : snapshot.mileageMthSnaps;
       const failed = snaps.filter((s) => !s.achv_yn).length;
       return failed >= rule.count;
     }

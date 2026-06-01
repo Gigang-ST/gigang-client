@@ -83,6 +83,7 @@ export async function loadMemberSnapshots(
   db: DB,
   teamId: string,
   teamMemIds: string[],
+  evtId?: string,
 ): Promise<Map<string, MemberSnapshotWithHeld>> {
   if (teamMemIds.length === 0) return new Map();
 
@@ -190,11 +191,13 @@ export async function loadMemberSnapshots(
 
   // 7. 마일리지런 데이터 로드 (mileage_* 조건용)
   // 7-1. 참여자 조회 (mem_id → prt_id, evt_id)
-  const { data: prtRows } = await db
+  let prtQuery = db
     .from("evt_team_prt_rel")
     .select("prt_id, mem_id, evt_id, evt_team_mst!inner(end_dt)")
     .in("mem_id", memIds)
     .eq("aprv_yn", true);
+  if (evtId) prtQuery = prtQuery.eq("evt_id", evtId);
+  const { data: prtRows } = await prtQuery;
 
   const prtByMemId = new Map<string, { prtId: string; evtEndDt: string }>();
   const allPrtIds: string[] = [];

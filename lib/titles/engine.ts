@@ -247,12 +247,13 @@ export async function batchEvaluateAndGrant(
   teamId: string,
   teamMemIds: string[],
   baseMonth: string,
+  evtId?: string,
 ): Promise<{ granted: number }> {
   if (teamMemIds.length === 0) return { granted: 0 };
 
   const db = createAdminClient();
 
-  const snapshots = await loadMemberSnapshots(db, teamId, teamMemIds);
+  const snapshots = await loadMemberSnapshots(db, teamId, teamMemIds, evtId);
   if (snapshots.size === 0) return { granted: 0 };
 
   const { data: allTitles } = await db
