@@ -118,7 +118,7 @@ export async function MyStatus({
           </Caption>
         </div>
         <div>
-          {dailyNeeded === "done" ? (
+          {goalRow.achv_yn ? (
             <Caption className="text-success font-semibold">달성 완료!</Caption>
           ) : dailyNeeded === 0 ? (
             <Caption>월 종료</Caption>

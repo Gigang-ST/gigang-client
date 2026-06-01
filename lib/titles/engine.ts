@@ -72,6 +72,9 @@ export async function evaluateAndGrantTitles(
     return rule && allowedCondTypes.has(rule.type);
   });
 
+  console.info("[title-engine] trigger:", ctx.trigger, "| allowedCondTypes:", [...allowedCondTypes]);
+  console.info("[title-engine] 평가 대상 칭호:", titles.map(t => t.ttl_nm));
+
   if (titles.length === 0) return [];
 
   // 4. 현재 활성 보유 칭호 ID (vers=0, del_yn=false) — 중복 수여 방지 및 회수 대상 파악
@@ -106,9 +109,8 @@ export async function evaluateAndGrantTitles(
 
     if (!passed) continue;
 
-    // uk_mem_ttl_rel_team_mem_ttl_vers: UNIQUE(team_mem_id, ttl_id, vers)
-    // vers=0으로 INSERT — 이미 활성 보유 중이면 충돌 무시 (동시 호출 중복 수여 방지)
-    const { error } = await db.from("mem_ttl_rel").upsert({
+    // 활성 행은 항상 vers=0 — 회수 시 vers가 변경되므로 재지급 시 충돌 없이 INSERT 가능
+    const { error } = await db.from("mem_ttl_rel").insert({
       team_id: ctx.teamId,
       team_mem_id: ctx.teamMemId,
       ttl_id: title.ttl_id,
@@ -116,7 +118,7 @@ export async function evaluateAndGrantTitles(
       is_prmy_yn: false,
       vers: 0,
       del_yn: false,
-    }, { onConflict: "team_mem_id,ttl_id,vers", ignoreDuplicates: true });
+    });
 
     if (error) {
       console.error(`[title-engine] 칭호 부여 실패 ttl_id=${title.ttl_id}`, error);
@@ -219,15 +221,18 @@ export async function sweepEvaluateAndGrant(
     }
   }
 
-  // 4. bulk 부여
+  // 4. bulk 부여 — 활성 행은 항상 vers=0, 회수 시 vers 변경되므로 충돌 없이 INSERT 가능
+  let granted = 0;
   if (toGrant.length > 0) {
-    await db
+    const { data } = await db
       .from("mem_ttl_rel")
-      .upsert(toGrant, { onConflict: "team_mem_id,ttl_id,vers", ignoreDuplicates: true });
-    console.info(`[sweep] 칭호 신규 부여 ${toGrant.length}건`);
+      .insert(toGrant)
+      .select("mem_ttl_id");
+    granted = data?.length ?? 0;
+    console.info(`[sweep] 칭호 신규 부여 ${granted}건`);
   }
 
-  return { granted: toGrant.length, revoked: 0 };
+  return { granted, revoked: 0 };
 }
 
 /**
@@ -308,12 +313,15 @@ export async function batchEvaluateAndGrant(
     }
   }
 
+  let granted = 0;
   if (toGrant.length > 0) {
-    await db
+    const { data } = await db
       .from("mem_ttl_rel")
-      .upsert(toGrant, { onConflict: "team_mem_id,ttl_id,vers", ignoreDuplicates: true });
-    console.info(`[mileage_batch] 칭호 신규 부여 ${toGrant.length}건 (base_month=${baseMonth})`);
+      .insert(toGrant)
+      .select("mem_ttl_id");
+    granted = data?.length ?? 0;
+    console.info(`[mileage_batch] 칭호 신규 부여 ${granted}건 (base_month=${baseMonth})`);
   }
 
-  return { granted: toGrant.length };
+  return { granted };
 }

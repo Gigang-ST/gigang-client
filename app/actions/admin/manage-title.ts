@@ -258,9 +258,30 @@ export async function revokeTitle(memTtlId: string) {
   const { teamId } = await getRequestTeamContext();
   const db = createAdminClient();
 
+  // 현재 행의 ttl_id, team_mem_id 조회
+  const { data: row } = await db
+    .from("mem_ttl_rel")
+    .select("ttl_id, team_mem_id")
+    .eq("mem_ttl_id", memTtlId)
+    .eq("team_id", teamId)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (!row) return { ok: false, message: "수여 내역을 찾을 수 없습니다" };
+
+  // 같은 (team_mem_id, ttl_id)의 최대 vers 조회 → +1로 회수
+  const { data: maxRow } = await db
+    .from("mem_ttl_rel")
+    .select("vers")
+    .eq("team_mem_id", row.team_mem_id)
+    .eq("ttl_id", row.ttl_id)
+    .order("vers", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextVers = (maxRow?.vers ?? 0) + 1;
+
   const { data, error } = await db
     .from("mem_ttl_rel")
-    .update({ del_yn: true })
+    .update({ del_yn: true, vers: nextVers })
     .eq("mem_ttl_id", memTtlId)
     .eq("team_id", teamId)
     .eq("del_yn", false)

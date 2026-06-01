@@ -579,16 +579,17 @@ export async function evalMileageGoalAchievedOnLastDayInternal(
   evtId: string,
   db: DB,
 ): Promise<boolean> {
-  if (ctx.trigger !== "mileage_run") return false;
-  if (ctx.prevAchvYn) return false; // 이미 달성 상태였으면 해당 없음
+  const LOG = (...args: unknown[]) => console.info("[막판스퍼트]", ...args);
 
-  // 기준은 운동기록일자(act_dt), 등록일자 아님
-  const actDt = ctx.actDt; // YYYY-MM-DD
+  if (ctx.trigger !== "mileage_run") { LOG("trigger 불일치:", ctx.trigger); return false; }
+  if (ctx.prevAchvYn) { LOG("이미 달성 상태 — skip"); return false; }
+
+  const actDt = ctx.actDt;
   const actDay = dayjs(actDt).tz(KST);
   const lastDayOfMonth = actDay.endOf("month").date();
-  if (actDay.date() !== lastDayOfMonth) return false;
+  LOG(`actDt=${actDt}, actDay.date()=${actDay.date()}, lastDayOfMonth=${lastDayOfMonth}`);
+  if (actDay.date() !== lastDayOfMonth) { LOG("마지막 날 아님 — skip"); return false; }
 
-  // 기록 입력 후 당월 achv_yn 확인
   const actMonth = actDt.slice(0, 7) + "-01";
   const { data: memRow } = await db
     .from("team_mem_rel")
@@ -597,6 +598,7 @@ export async function evalMileageGoalAchievedOnLastDayInternal(
     .eq("vers", 0)
     .eq("del_yn", false)
     .maybeSingle();
+  LOG("memRow:", memRow?.mem_id ?? "없음");
   if (!memRow?.mem_id) return false;
 
   const { data: prtRows } = await db
@@ -605,7 +607,8 @@ export async function evalMileageGoalAchievedOnLastDayInternal(
     .eq("mem_id", memRow.mem_id)
     .eq("evt_id", evtId)
     .eq("aprv_yn", true);
-  if (!prtRows?.length) return false;
+  LOG(`evtId=${evtId}, prtRows:`, prtRows?.map(r => r.prt_id));
+  if (!prtRows?.length) { LOG("prtRows 없음 — skip"); return false; }
 
   const prtIds = prtRows.map((r) => r.prt_id);
   const { data: snap } = await db
@@ -614,8 +617,11 @@ export async function evalMileageGoalAchievedOnLastDayInternal(
     .in("prt_id", prtIds)
     .eq("base_dt", actMonth)
     .maybeSingle();
+  LOG(`snap(base_dt=${actMonth}):`, snap);
 
-  return snap?.achv_yn === true;
+  const result = snap?.achv_yn === true;
+  LOG("최종 결과:", result);
+  return result;
 }
 
 /** 한 달 안에 지정 종목을 모두 1회 이상 기록한 경우 (예: 올라운더) */

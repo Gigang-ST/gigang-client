@@ -772,9 +772,7 @@ function TitleGrantList({
                   <th className="w-24 px-2 py-1.5 text-center font-medium text-muted-foreground">수여일</th>
                   <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">방식</th>
                   <th className="px-2 py-1.5 text-center font-medium text-muted-foreground">사유</th>
-                  {isAwarded && (
-                    <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">회수</th>
-                  )}
+                  <th className="w-12 px-2 py-1.5 text-center font-medium text-muted-foreground">회수</th>
                 </tr>
               </thead>
               <tbody>
@@ -797,17 +795,15 @@ function TitleGrantList({
                     <td className="max-w-[120px] truncate px-2 py-1.5 text-center text-muted-foreground">
                       {grant.grnt_rsn_txt ?? "-"}
                     </td>
-                    {isAwarded && (
-                      <td className="px-2 py-1.5 text-center">
-                        <button
-                          onClick={() => void handleRevoke(grant.mem_ttl_id)}
-                          disabled={revokingId === grant.mem_ttl_id}
-                          className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-destructive/70 transition-colors hover:bg-destructive/10 hover:text-destructive"
-                        >
-                          {revokingId === grant.mem_ttl_id ? "..." : "회수"}
-                        </button>
-                      </td>
-                    )}
+                    <td className="px-2 py-1.5 text-center">
+                      <button
+                        onClick={() => void handleRevoke(grant.mem_ttl_id)}
+                        disabled={revokingId === grant.mem_ttl_id}
+                        className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-destructive/70 transition-colors hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        {revokingId === grant.mem_ttl_id ? "..." : "회수"}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
