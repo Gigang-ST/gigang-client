@@ -12,7 +12,10 @@ type ActionResult = { ok: boolean; message: string; runId: string | null };
  * 새 배치 추가 시 여기에만 항목 추가하면 UI 코드 변경 불필요.
  */
 const BATCH_ACTION_MAP: Record<string, (params: BatchParams) => Promise<string>> = {
-  MILEAGE_TITLE_BATCH: (params) => batchMileageTitles(params.base_month),
+  MILEAGE_TITLE_BATCH: (params) => {
+    if (!params.evt_id) throw new Error("evt_id 파라미터가 필요합니다");
+    return batchMileageTitles(params.evt_id, params.base_month);
+  },
 };
 
 /**
@@ -93,6 +96,23 @@ export async function runBatch(jobId: string, params: BatchParams): Promise<Acti
   }
 
   return { ok: status === "success", message: resultMsg, runId };
+}
+
+/**
+ * 활성 마일리지런 이벤트 목록 조회 (배치 파라미터 선택용).
+ */
+export async function getActiveEvents() {
+  const admin = await verifyAdmin();
+  if (!admin) return [];
+
+  const db = createAdminClient();
+  const { data } = await db
+    .from("evt_team_mst")
+    .select("evt_id, evt_nm")
+    .eq("stts_enm", "ACTIVE")
+    .order("stt_dt", { ascending: false });
+
+  return (data ?? []) as { evt_id: string; evt_nm: string }[];
 }
 
 /**
