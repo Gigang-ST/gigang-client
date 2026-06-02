@@ -76,6 +76,8 @@ badge, button, card, dialog, form, input, label, loading-spinner, select, separa
   월 이동 시 리마운트되므로 차트 상단 탭(`mode`)을 `?tab=`에 동기화 (`crew-progress-chart.tsx`).
 - **탭 클릭처럼 서버 데이터에 영향 없는 갱신은 `window.history.replaceState`** 로
   URL만 조용히 바꾼다 (`router.push`/`replace`는 서버 컴포넌트를 재실행시켜 불필요한 재쿼리 유발).
+  - 단, 1번째 인자에 `null` 대신 **`window.history.state`를 넘겨야** Next.js 라우터가 관리하는
+    스크롤 복원·뒤로가기 상태가 깨지지 않는다.
 - 리마운트 시 복원은 `useState(() => parseFromSearchParams(...))` 초기화 함수로.
 - 다른 client 컴포넌트(예: `month-navigator.tsx`)가 같은 URL을 이어받을 때는
   `useSearchParams()` 스냅샷 대신 **`window.location.search`** 를 읽어야
