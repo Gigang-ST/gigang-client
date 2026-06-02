@@ -354,13 +354,21 @@ export function CrewProgressChart({
   // 월 네비게이터가 이 값을 보존하므로 월 이동 후에도 선택 탭이 유지된다.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (mode === "mileage") {
+    const targetTab = mode === "mileage" ? null : mode;
+    // 이미 URL이 일치하면(예: 리마운트 복원 직후) 불필요한 history 조작을 건너뛴다.
+    if (params.get("tab") === targetTab) return;
+    if (targetTab === null) {
       params.delete("tab");
     } else {
-      params.set("tab", mode);
+      params.set("tab", targetTab);
     }
     const qs = params.toString();
-    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+    // history.state를 보존해야 Next.js 라우터의 스크롤 복원·뒤로가기 상태가 깨지지 않는다.
+    window.history.replaceState(
+      window.history.state,
+      "",
+      qs ? `?${qs}` : window.location.pathname,
+    );
   }, [mode]);
 
   // initialData 없을 때만 초기 fetch
@@ -561,7 +569,7 @@ export function CrewProgressChart({
           { value: "stats", label: "전체 통계" },
         ]}
         value={mode}
-        onValueChange={(v) => setMode(v as "mileage" | "percent" | "stats")}
+        onValueChange={(v) => setMode(v as ChartMode)}
       />
       {(refreshing || isPending) && (
         <Body className="text-xs text-muted-foreground" aria-live="polite">
