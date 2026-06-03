@@ -535,9 +535,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
                   label="가입일"
                   value={
                     selectedMember.joined_at
-                      ? new Date(selectedMember.joined_at).toLocaleDateString(
-                          "ko-KR",
-                        )
+                      ? dayjs(selectedMember.joined_at).format("YYYY.MM.DD")
                       : null
                   }
                 />

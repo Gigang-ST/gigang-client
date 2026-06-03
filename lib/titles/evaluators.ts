@@ -1318,6 +1318,7 @@ function evalRaceRankByGenderFromSnapshot(
       .sort(([, a], [, b]) => a.sec - b.sec);
     const myRank = filtered.findIndex(([id]) => id === snapshot.memId) + 1;
     if (myRank === 0) return false;
+    if (rule.rank === -1) return myRank === filtered.length;
     return myRank === rule.rank;
   };
 
