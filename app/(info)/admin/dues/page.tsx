@@ -1,0 +1,117 @@
+import Link from "next/link";
+import { FileSpreadsheet, Users, Settings, ReceiptText } from "lucide-react";
+
+import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { createClient } from "@/lib/supabase/server";
+import dayjs from "dayjs";
+
+import { Body, Caption, SectionLabel } from "@/components/common/typography";
+import { CardItem } from "@/components/ui/card";
+import { StatCard } from "@/components/common/stat-card";
+
+export default async function DuesAdminDashboardPage() {
+  const { teamId } = await getRequestTeamContext();
+  const supabase = await createClient();
+
+  const thisMonth = dayjs().format("YYYY-MM");
+
+  const [
+    { count: paidCount },
+    { count: unpaidCount },
+    { count: pendingTxnCount },
+    { data: lastUpload },
+    { data: snaps },
+  ] = await Promise.all([
+    // 이번 달 납부 완료 (pay_dt 기준)
+    supabase
+      .from("fee_due_pay_hist")
+      .select("pay_id", { count: "exact", head: true })
+      .eq("team_id", teamId)
+      .eq("pay_st_cd", "paid")
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .gte("pay_dt", thisMonth + "-01")
+      .lte("pay_dt", thisMonth + "-31"),
+    // 미납 회원 수 (bal_amt < 0)
+    supabase
+      .from("fee_mem_bal_snap")
+      .select("bal_snap_id", { count: "exact", head: true })
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .lt("bal_amt", 0),
+    // 미처리 거래 (미확정)
+    supabase
+      .from("fee_txn_hist")
+      .select("txn_id", { count: "exact", head: true })
+      .eq("team_id", teamId)
+      .eq("is_cfm_yn", false)
+      .eq("del_yn", false),
+    // 마지막 업로드
+    supabase
+      .from("fee_xlsx_upd_hist")
+      .select("file_nm, crt_at")
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .order("crt_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    // 총 예치금 합계
+    supabase
+      .from("fee_mem_bal_snap")
+      .select("bal_amt")
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .gt("bal_amt", 0),
+  ]);
+
+  const totalDeposit = (snaps ?? []).reduce((sum, s) => sum + s.bal_amt, 0);
+
+  const menus = [
+    { href: "/admin/dues/transactions", icon: FileSpreadsheet, label: "거래 내역", desc: "xlsx 업로드 및 확정 처리" },
+    { href: "/admin/dues/members", label: "회원별 현황", icon: Users, desc: "잔액·면제 현황 및 정산 실행" },
+    { href: "/admin/dues/policy", label: "회비 정책", icon: Settings, desc: "월 회비 금액 설정" },
+    { href: "/admin/dues/expenses", label: "지출 내역", icon: ReceiptText, desc: "지출 거래 조회" },
+  ];
+
+  return (
+    <div className="flex flex-col gap-6 px-6 pb-6 pt-2">
+      {/* 요약 수치 */}
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard value={paidCount ?? 0} label="이번 달 납부" />
+        <StatCard value={unpaidCount ?? 0} label="미납 회원" valueClassName={(unpaidCount ?? 0) > 0 ? "text-destructive" : undefined} />
+        <StatCard value={pendingTxnCount ?? 0} label="미처리 거래" valueClassName={(pendingTxnCount ?? 0) > 0 ? "text-warning" : undefined} />
+        <StatCard value={`${(totalDeposit / 1000).toFixed(0)}K`} label="총 예치금" />
+      </div>
+
+      {/* 마지막 업로드 */}
+      {lastUpload && (
+        <CardItem className="flex flex-col gap-1 p-4">
+          <SectionLabel>마지막 업로드</SectionLabel>
+          <Body className="text-sm">{lastUpload.file_nm}</Body>
+          <Caption>{dayjs(lastUpload.crt_at).format("YYYY.MM.DD HH:mm")}</Caption>
+        </CardItem>
+      )}
+
+      {/* 메뉴 */}
+      <div className="flex flex-col gap-2">
+        <SectionLabel>관리 메뉴</SectionLabel>
+        <div className="flex flex-col gap-2">
+          {menus.map((m) => (
+            <Link key={m.href} href={m.href}>
+              <CardItem className="flex items-center gap-4 p-4">
+                <m.icon className="size-5 text-muted-foreground shrink-0" />
+                <div className="flex flex-col gap-0.5">
+                  <Body className="font-semibold">{m.label}</Body>
+                  <Caption>{m.desc}</Caption>
+                </div>
+              </CardItem>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
