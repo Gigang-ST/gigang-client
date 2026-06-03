@@ -219,7 +219,7 @@ export function UpcomingRaces({
                 </span>
 
                 {/* 라벨 — 너비 고정 */}
-                <span className="w-14 shrink-0 text-center">
+                <span className="w-14 shrink-0 flex items-center justify-center">
                   {race.label && (
                     <span className="rounded px-1 py-px text-[10px] font-medium bg-secondary text-muted-foreground">
                       {race.label}
