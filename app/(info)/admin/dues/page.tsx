@@ -21,6 +21,7 @@ export default async function DuesAdminDashboardPage() {
     { count: pendingTxnCount },
     { data: lastUpload },
     { data: confirmedTxns },
+    { data: feeItemCds },
   ] = await Promise.all([
     // 이번 달 납부 완료 인원
     supabase
@@ -64,16 +65,28 @@ export default async function DuesAdminDashboardPage() {
       .eq("team_id", teamId)
       .eq("is_cfm_yn", true)
       .eq("del_yn", false),
+    // FEE_ITEM_CD 공통코드 목록 (그룹 조인)
+    supabase
+      .from("cmm_cd_mst")
+      .select("cd, cd_nm, cmm_cd_grp_mst!inner(cd_grp_cd)")
+      .eq("cmm_cd_grp_mst.cd_grp_cd", "FEE_ITEM_CD")
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .order("sort_ord", { ascending: true }),
   ]);
 
-  // 항목별 합산
+  // 항목별 합산 (공통코드 기준 동적)
   const txns = confirmedTxns ?? [];
-  const dueTotal = txns.filter((t) => t.fee_item_cd === "due").reduce((s, t) => s + t.txn_amt, 0);
-  const eventFeeTotal = txns.filter((t) => t.fee_item_cd === "event_fee").reduce((s, t) => s + t.txn_amt, 0);
-  const goodsTotal = txns.filter((t) => t.fee_item_cd === "goods").reduce((s, t) => s + t.txn_amt, 0);
-  const otherInTotal = txns.filter((t) => t.fee_item_cd === "other" && t.txn_io_enm === "deposit").reduce((s, t) => s + t.txn_amt, 0);
-  const expenseTotal = txns.filter((t) => t.fee_item_cd === "expense").reduce((s, t) => s + t.txn_amt, 0);
-  const totalIn = dueTotal + eventFeeTotal + goodsTotal + otherInTotal;
+  const itemCds = (feeItemCds ?? []).map((c) => c.cd);
+
+  const itemTotals = itemCds.map((cd) => {
+    const cdRow = (feeItemCds ?? []).find((c) => c.cd === cd);
+    const total = txns.filter((t) => t.fee_item_cd === cd).reduce((s, t) => s + t.txn_amt, 0);
+    return { cd, label: cdRow?.cd_nm ?? cd, total, isExpense: cd === "expense" };
+  });
+
+  const totalIn = itemTotals.filter((i) => !i.isExpense).reduce((s, i) => s + i.total, 0);
+  const expenseTotal = itemTotals.find((i) => i.isExpense)?.total ?? 0;
   const balance = totalIn - expenseTotal;
 
   const menus = [
@@ -99,21 +112,18 @@ export default async function DuesAdminDashboardPage() {
       <div className="flex flex-col gap-2">
         <SectionLabel>항목별 입금 (확정 기준)</SectionLabel>
         <CardItem className="flex flex-col divide-y divide-border p-0 overflow-hidden">
-          {[
-            { label: "회비", value: dueTotal },
-            { label: "행사비", value: eventFeeTotal },
-            { label: "물품", value: goodsTotal },
-            { label: "기타 입금", value: otherInTotal },
-          ].map((item) => (
-            <div key={item.label} className="flex items-center justify-between px-4 py-3">
+          {itemTotals.filter((i) => !i.isExpense).map((item) => (
+            <div key={item.cd} className="flex items-center justify-between px-4 py-3">
               <Caption className="text-foreground">{item.label}</Caption>
-              <Body className="font-semibold">+{item.value.toLocaleString()}원</Body>
+              <Body className="font-semibold">+{item.total.toLocaleString()}원</Body>
             </div>
           ))}
-          <div className="flex items-center justify-between px-4 py-3 bg-muted/40">
-            <Caption className="text-foreground font-semibold">지출</Caption>
-            <Body className="font-semibold text-destructive">-{expenseTotal.toLocaleString()}원</Body>
-          </div>
+          {itemTotals.filter((i) => i.isExpense).map((item) => (
+            <div key={item.cd} className="flex items-center justify-between px-4 py-3 bg-muted/40">
+              <Caption className="text-foreground font-semibold">{item.label}</Caption>
+              <Body className="font-semibold text-destructive">-{item.total.toLocaleString()}원</Body>
+            </div>
+          ))}
           <div className="flex items-center justify-between px-4 py-3">
             <Caption className="text-foreground font-semibold">잔액</Caption>
             <Body className={`font-bold ${balance >= 0 ? "text-primary" : "text-destructive"}`}>
