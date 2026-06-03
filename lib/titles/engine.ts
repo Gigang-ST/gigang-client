@@ -221,31 +221,37 @@ export async function sweepEvaluateAndGrant(
   }
 
   // 4. bulk 부여
+  let granted = 0;
   if (toGrant.length > 0) {
-    await db
+    const { data, error } = await db
       .from("mem_ttl_rel")
-      .upsert(toGrant, { onConflict: "team_mem_id,ttl_id,vers", ignoreDuplicates: true });
-    console.info(`[sweep] 칭호 신규 부여 ${toGrant.length}건`);
+      .insert(toGrant)
+      .select("mem_ttl_id, team_mem_id, ttl_id");
+    if (error) console.error("[sweep] bulk INSERT 실패", error);
+    granted = data?.length ?? 0;
+    console.info(`[sweep] 칭호 신규 부여 ${granted}건`);
 
-    // 부여된 멤버 각각에게 알림 발송 (fire-and-forget)
-    const titleNameMap = new Map(titles.map((t) => [t.ttl_id, t.ttl_nm]));
-    Promise.all(
-      toGrant.map((row) => {
-        const snap = snapshotsByMemId.get(row.team_mem_id);
-        if (!snap?.memId) return Promise.resolve();
-        return insertNoti({
-          teamId,
-          memId: snap.memId,
-          notiTypeEnm: "ttl_grnt",
-          notiNm: `'${titleNameMap.get(row.ttl_id) ?? "칭호"}' 칭호를 획득했습니다!`,
-          refId: row.ttl_id,
-          refTypeEnm: "ttl",
-        });
-      }),
-    ).catch(console.error);
+    // 실제 부여된 행에 대해서만 알림 발송 (fire-and-forget)
+    if (data && data.length > 0) {
+      const titleNameMap = new Map(titles.map((t) => [t.ttl_id, t.ttl_nm]));
+      Promise.all(
+        data.map((row) => {
+          const snap = snapshotsByMemId.get(row.team_mem_id);
+          if (!snap?.memId) return Promise.resolve();
+          return insertNoti({
+            teamId,
+            memId: snap.memId,
+            notiTypeEnm: "ttl_grnt",
+            notiNm: `'${titleNameMap.get(row.ttl_id) ?? "칭호"}' 칭호를 획득했습니다!`,
+            refId: row.ttl_id,
+            refTypeEnm: "ttl",
+          });
+        }),
+      ).catch(console.error);
+    }
   }
 
-  return { granted: toGrant.length, revoked: 0 };
+  return { granted, revoked: 0 };
 }
 
 /**
@@ -326,30 +332,36 @@ export async function batchEvaluateAndGrant(
     }
   }
 
+  let granted = 0;
   if (toGrant.length > 0) {
-    await db
+    const { data, error } = await db
       .from("mem_ttl_rel")
-      .upsert(toGrant, { onConflict: "team_mem_id,ttl_id,vers", ignoreDuplicates: true });
-    console.info(`[mileage_batch] 칭호 신규 부여 ${toGrant.length}건 (base_month=${baseMonth})`);
+      .insert(toGrant)
+      .select("mem_ttl_id, team_mem_id, ttl_id");
+    if (error) console.error("[mileage_batch] bulk INSERT 실패", error);
+    granted = data?.length ?? 0;
+    console.info(`[mileage_batch] 칭호 신규 부여 ${granted}건 (base_month=${baseMonth})`);
 
-    // 부여된 멤버 각각에게 알림 발송 (fire-and-forget)
-    const titleNameMap = new Map(titles.map((t) => [t.ttl_id, t.ttl_nm]));
-    const snapByTeamMemId = new Map([...snapshots.entries()]);
-    Promise.all(
-      toGrant.map((row) => {
-        const snap = snapByTeamMemId.get(row.team_mem_id);
-        if (!snap?.memId) return Promise.resolve();
-        return insertNoti({
-          teamId,
-          memId: snap.memId,
-          notiTypeEnm: "ttl_grnt",
-          notiNm: `'${titleNameMap.get(row.ttl_id) ?? "칭호"}' 칭호를 획득했습니다!`,
-          refId: row.ttl_id,
-          refTypeEnm: "ttl",
-        });
-      }),
-    ).catch(console.error);
+    // 실제 부여된 행에 대해서만 알림 발송 (fire-and-forget)
+    if (data && data.length > 0) {
+      const titleNameMap = new Map(titles.map((t) => [t.ttl_id, t.ttl_nm]));
+      const snapByTeamMemId = new Map([...snapshots.entries()]);
+      Promise.all(
+        data.map((row) => {
+          const snap = snapByTeamMemId.get(row.team_mem_id);
+          if (!snap?.memId) return Promise.resolve();
+          return insertNoti({
+            teamId,
+            memId: snap.memId,
+            notiTypeEnm: "ttl_grnt",
+            notiNm: `'${titleNameMap.get(row.ttl_id) ?? "칭호"}' 칭호를 획득했습니다!`,
+            refId: row.ttl_id,
+            refTypeEnm: "ttl",
+          });
+        }),
+      ).catch(console.error);
+    }
   }
 
-  return { granted: toGrant.length };
+  return { granted };
 }
