@@ -112,15 +112,17 @@ export type CondRaceFinishInYear = {
 };
 
 /**
- * 팀 내 성별 종목 PB 순위가 N위 이하인 경우 (예: 기강1황, Queen, 하프킹, 단거리왕)
- * gender: "male" | "female" | "any" — "any"는 남녀 각각 1명씩 부여 (山神, 단거리왕, 마지막영웅)
+ * 팀 내 종목 PB 순위가 N위인 경우 (예: 기강1황, Queen, 하프킹, 단거리왕, 山神)
+ * gender: "male" | "female" — 해당 성별 내 순위
+ * gender: "any" — 남녀 각각 1명씩 부여
+ * gender: "overall" — 성별 구분 없이 전체 통합 순위 1명만 부여
  */
 export type CondRaceRankByGender = {
   type: "race_rank_by_gender";
-  sport: string;
+  sport?: string;
   sport_ctgr?: string;
-  /** "male" | "female" | "any" */
-  gender: "male" | "female" | "any";
+  /** "male" | "female" | "any" | "overall" */
+  gender: "male" | "female" | "any" | "overall";
   rank: number;
 };
 
