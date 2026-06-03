@@ -20,9 +20,9 @@ export default async function DuesAdminDashboardPage() {
     { count: unpaidCount },
     { count: pendingTxnCount },
     { data: lastUpload },
-    { data: snaps },
+    { data: confirmedTxns },
   ] = await Promise.all([
-    // 이번 달 납부 완료 (pay_dt 기준)
+    // 이번 달 납부 완료 인원
     supabase
       .from("fee_due_pay_hist")
       .select("pay_id", { count: "exact", head: true })
@@ -32,7 +32,7 @@ export default async function DuesAdminDashboardPage() {
       .eq("del_yn", false)
       .gte("pay_dt", thisMonth + "-01")
       .lte("pay_dt", thisMonth + "-31"),
-    // 미납 회원 수 (bal_amt < 0)
+    // 미납 회원 수
     supabase
       .from("fee_mem_bal_snap")
       .select("bal_snap_id", { count: "exact", head: true })
@@ -57,17 +57,24 @@ export default async function DuesAdminDashboardPage() {
       .order("crt_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    // 총 예치금 합계
+    // 확정된 입금 전체 (항목별 합산용)
     supabase
-      .from("fee_mem_bal_snap")
-      .select("bal_amt")
+      .from("fee_txn_hist")
+      .select("txn_amt, txn_io_enm, fee_item_cd")
       .eq("team_id", teamId)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .gt("bal_amt", 0),
+      .eq("is_cfm_yn", true)
+      .eq("del_yn", false),
   ]);
 
-  const totalDeposit = (snaps ?? []).reduce((sum, s) => sum + s.bal_amt, 0);
+  // 항목별 합산
+  const txns = confirmedTxns ?? [];
+  const dueTotal = txns.filter((t) => t.fee_item_cd === "due").reduce((s, t) => s + t.txn_amt, 0);
+  const eventFeeTotal = txns.filter((t) => t.fee_item_cd === "event_fee").reduce((s, t) => s + t.txn_amt, 0);
+  const goodsTotal = txns.filter((t) => t.fee_item_cd === "goods").reduce((s, t) => s + t.txn_amt, 0);
+  const otherInTotal = txns.filter((t) => t.fee_item_cd === "other" && t.txn_io_enm === "deposit").reduce((s, t) => s + t.txn_amt, 0);
+  const expenseTotal = txns.filter((t) => t.fee_item_cd === "expense").reduce((s, t) => s + t.txn_amt, 0);
+  const totalIn = dueTotal + eventFeeTotal + goodsTotal + otherInTotal;
+  const balance = totalIn - expenseTotal;
 
   const menus = [
     { href: "/admin/dues/transactions", icon: FileSpreadsheet, label: "거래 내역", desc: "xlsx 업로드 및 확정 처리" },
@@ -78,12 +85,42 @@ export default async function DuesAdminDashboardPage() {
 
   return (
     <div className="flex flex-col gap-6 px-6 pb-6 pt-2">
-      {/* 요약 수치 */}
-      <div className="grid grid-cols-2 gap-3">
-        <StatCard value={paidCount ?? 0} label="이번 달 납부" />
-        <StatCard value={unpaidCount ?? 0} label="미납 회원" valueClassName={(unpaidCount ?? 0) > 0 ? "text-destructive" : undefined} />
-        <StatCard value={pendingTxnCount ?? 0} label="미처리 거래" valueClassName={(pendingTxnCount ?? 0) > 0 ? "text-warning" : undefined} />
-        <StatCard value={`${(totalDeposit / 1000).toFixed(0)}K`} label="총 예치금" />
+      {/* 납부 현황 */}
+      <div className="flex flex-col gap-2">
+        <SectionLabel>납부 현황</SectionLabel>
+        <div className="grid grid-cols-2 gap-3">
+          <StatCard value={paidCount ?? 0} label="이번 달 납부" />
+          <StatCard value={unpaidCount ?? 0} label="미납 회원" valueClassName={(unpaidCount ?? 0) > 0 ? "text-destructive" : undefined} />
+          <StatCard value={pendingTxnCount ?? 0} label="미처리 거래" valueClassName={(pendingTxnCount ?? 0) > 0 ? "text-warning" : undefined} />
+        </div>
+      </div>
+
+      {/* 항목별 입금 */}
+      <div className="flex flex-col gap-2">
+        <SectionLabel>항목별 입금 (확정 기준)</SectionLabel>
+        <CardItem className="flex flex-col divide-y divide-border p-0 overflow-hidden">
+          {[
+            { label: "회비", value: dueTotal },
+            { label: "행사비", value: eventFeeTotal },
+            { label: "물품", value: goodsTotal },
+            { label: "기타 입금", value: otherInTotal },
+          ].map((item) => (
+            <div key={item.label} className="flex items-center justify-between px-4 py-3">
+              <Caption className="text-foreground">{item.label}</Caption>
+              <Body className="font-semibold">+{item.value.toLocaleString()}원</Body>
+            </div>
+          ))}
+          <div className="flex items-center justify-between px-4 py-3 bg-muted/40">
+            <Caption className="text-foreground font-semibold">지출</Caption>
+            <Body className="font-semibold text-destructive">-{expenseTotal.toLocaleString()}원</Body>
+          </div>
+          <div className="flex items-center justify-between px-4 py-3">
+            <Caption className="text-foreground font-semibold">잔액</Caption>
+            <Body className={`font-bold ${balance >= 0 ? "text-primary" : "text-destructive"}`}>
+              {balance >= 0 ? "+" : ""}{balance.toLocaleString()}원
+            </Body>
+          </div>
+        </CardItem>
       </div>
 
       {/* 마지막 업로드 */}
