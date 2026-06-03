@@ -191,6 +191,15 @@ CREATE INDEX idx_brd_post_mst_active
   WHERE del_yn = false;
 ```
 
+> **새 게시판 타입 추가 시**: 테이블 추가 불필요. 마이그레이션으로 CHECK 제약만 수정하면 됨.
+> ```sql
+> ALTER TABLE brd_post_mst
+>   DROP CONSTRAINT brd_post_mst_post_type_enm_check,
+>   ADD CONSTRAINT brd_post_mst_post_type_enm_check
+>     CHECK (post_type_enm IN ('notice', 'update', '새타입'));
+> ```
+> 이후 `BoardPopoverIcon`의 항목과 `/board` 탭 UI만 추가하면 됨.
+
 ### 5-2. `noti_mst` — 알림
 
 ```sql
