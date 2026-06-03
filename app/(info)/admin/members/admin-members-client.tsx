@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardItem } from "@/components/ui/card";
 import { EmptyState } from "@/components/common/empty-state";
+import { dayjs } from "@/lib/dayjs";
 
 // ---------------------------------------------------------------------------
 // 타입
@@ -455,6 +456,11 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
                   )}
                 </div>
                 <Caption>{member.phone ?? "연락처 없음"}</Caption>
+                <Caption className="text-muted-foreground/60">
+                  {member.joined_at
+                    ? dayjs(member.joined_at).format("YYYY.MM.DD 가입")
+                    : "가입일 없음"}
+                </Caption>
               </div>
               <ChevronRight className="size-4 shrink-0 text-border" />
             </button>

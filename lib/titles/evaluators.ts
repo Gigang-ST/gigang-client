@@ -53,6 +53,24 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 type DB = SupabaseClient<Database>;
 
 // ---------------------------------------------------------------------------
+// 트레일러닝 거리 버킷 변환
+// 실제 대회 거리(comp_evt_type)를 칭호 기준 버킷(20K/50K/100K/100M)으로 매핑
+// 컷 기준: ~35K → 20K, 35K~75K → 50K, 75K~120K → 100K, 120K+ → 100M
+// ---------------------------------------------------------------------------
+function trailDistanceBucket(evtType: string): string {
+  const km = parseFloat(evtType.replace(/[^0-9.]/gi, ""));
+  if (isNaN(km)) return evtType;
+  if (evtType.toUpperCase().includes("M") && !evtType.toUpperCase().includes("KM")) {
+    // 마일 단위 (100M 등)
+    return "100M";
+  }
+  if (km < 35) return "20K";
+  if (km < 75) return "50K";
+  if (km < 120) return "100K";
+  return "100M";
+}
+
+// ---------------------------------------------------------------------------
 // 개별 조건 평가 함수 (engine.ts 에서 team_mem_id → mem_id 변환 후 호출)
 // ---------------------------------------------------------------------------
 
@@ -99,8 +117,11 @@ export async function evalRaceFinishCountInternal(
     const mst = Array.isArray(row.comp_mst) ? row.comp_mst[0] : row.comp_mst;
     const sprtCd = (mst as { comp_sprt_cd?: string } | null)?.comp_sprt_cd ?? null;
 
-    const typeMatch = !rule.sport || evtType === rule.sport.toUpperCase();
     const ctgrMatch = !rule.sport_ctgr || sprtCd === rule.sport_ctgr;
+    const normalizedType = (sprtCd === "trail_run" && rule.sport)
+      ? trailDistanceBucket(evtType)
+      : evtType;
+    const typeMatch = !rule.sport || normalizedType === rule.sport.toUpperCase();
     return typeMatch && ctgrMatch;
   }).length;
 
@@ -395,6 +416,13 @@ export async function evalRaceRankByGenderInternal(
     return myRank === rule.rank;
   };
 
+  if (rule.gender === "overall") {
+    const all = [...pbMap.entries()].sort(([, a], [, b]) => a.sec - b.sec);
+    const myRank = all.findIndex(([id]) => id === memId) + 1;
+    if (myRank === 0) return false;
+    if (rule.rank === -1) return myRank === all.length;
+    return myRank === rule.rank;
+  }
   if (rule.gender === "any") {
     return checkGender("male") || checkGender("female");
   }
@@ -1230,8 +1258,11 @@ function evalRaceFinishCountFromSnapshot(
   raceHist: RaceHistRow[],
 ): boolean {
   const count = raceHist.filter((r) => {
-    const typeMatch = !rule.sport || r.comp_evt_type === rule.sport.toUpperCase();
     const ctgrMatch = !rule.sport_ctgr || r.comp_sprt_cd === rule.sport_ctgr;
+    const normalizedType = (r.comp_sprt_cd === "trail_run" && rule.sport)
+      ? trailDistanceBucket(r.comp_evt_type)
+      : r.comp_evt_type;
+    const typeMatch = !rule.sport || normalizedType === rule.sport.toUpperCase();
     return typeMatch && ctgrMatch;
   }).length;
   return count >= rule.count;
@@ -1290,6 +1321,13 @@ function evalRaceRankByGenderFromSnapshot(
     return myRank === rule.rank;
   };
 
+  if (rule.gender === "overall") {
+    const all = [...pbMap.entries()].sort(([, a], [, b]) => a.sec - b.sec);
+    const myRank = all.findIndex(([id]) => id === snapshot.memId) + 1;
+    if (myRank === 0) return false;
+    if (rule.rank === -1) return myRank === all.length;
+    return myRank === rule.rank;
+  }
   if (rule.gender === "any") return checkGender("male") || checkGender("female");
   return checkGender(rule.gender);
 }
