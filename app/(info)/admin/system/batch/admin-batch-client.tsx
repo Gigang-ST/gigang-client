@@ -18,17 +18,26 @@ import {
 } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { runBatch, getBatchRunHist } from "@/app/actions/admin/run-batch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { runBatch, getBatchRunHist, getActiveEvents } from "@/app/actions/admin/run-batch";
 import { toast } from "sonner";
 
 export type ParamField = {
   key: string;
   label: string;
-  type: "month" | "date" | "text" | "number" | "boolean";
+  type: "month" | "date" | "text" | "number" | "boolean" | "evt_select";
   required: boolean;
   default?: string | "prev_month" | "today";
   description?: string;
 };
+
+type EventOption = { evt_id: string; evt_nm: string };
 
 type LatestRun = {
   run_id: string;
@@ -116,12 +125,20 @@ export function AdminBatchClient({ initialJobs }: { initialJobs: BatchJob[] }) {
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
   const [histMap, setHistMap] = useState<Record<string, HistRow[]>>({});
   const [histLoading, setHistLoading] = useState<string | null>(null);
+  const [eventOptions, setEventOptions] = useState<EventOption[]>([]);
 
-  function openSheet(job: BatchJob) {
+  async function openSheet(job: BatchJob) {
     const schema = job.param_schema_json ?? [];
     const defaults: Record<string, string> = {};
     for (const field of schema) {
       defaults[field.key] = resolveDefault(field.default as string | undefined);
+    }
+    // evt_select 타입 필드가 있으면 이벤트 목록 로드
+    if (schema.some((f) => f.type === "evt_select")) {
+      const events = await getActiveEvents();
+      setEventOptions(events);
+      // 이벤트가 1개면 자동 선택
+      if (events.length === 1) defaults["evt_id"] = events[0].evt_id;
     }
     setParams(defaults);
     setSelectedJob(job);
@@ -295,13 +312,31 @@ export function AdminBatchClient({ initialJobs }: { initialJobs: BatchJob[] }) {
                   {field.label}
                   {field.required && <span className="text-destructive ml-1">*</span>}
                 </Label>
-                <Input
-                  id={field.key}
-                  type={field.type === "month" ? "month" : field.type === "date" ? "date" : "text"}
-                  value={params[field.key] ?? ""}
-                  onChange={(e) => setParams((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                  placeholder={field.description}
-                />
+                {field.type === "evt_select" ? (
+                  <Select
+                    value={params[field.key] ?? ""}
+                    onValueChange={(v) => setParams((prev) => ({ ...prev, [field.key]: v }))}
+                  >
+                    <SelectTrigger className="h-10 rounded-lg">
+                      <SelectValue placeholder="이벤트 선택" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[200]">
+                      {eventOptions.map((e) => (
+                        <SelectItem key={e.evt_id} value={e.evt_id}>
+                          {e.evt_nm}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    id={field.key}
+                    type={field.type === "month" ? "month" : field.type === "date" ? "date" : "text"}
+                    value={params[field.key] ?? ""}
+                    onChange={(e) => setParams((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                    placeholder={field.description}
+                  />
+                )}
                 {field.description && (
                   <Caption className="text-muted-foreground">{field.description}</Caption>
                 )}
