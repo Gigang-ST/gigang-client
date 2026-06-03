@@ -7,7 +7,14 @@ import { BoardClient } from "./board-client";
 
 export const metadata = { title: "게시판" };
 
-export default async function BoardPage() {
+export default async function BoardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab: tabParam } = await searchParams;
+  const initialTab = tabParam === "update" ? "update" : "notice";
+
   const { member } = await getCurrentMember();
   const { teamId } = await getRequestTeamContext();
 
@@ -35,6 +42,7 @@ export default async function BoardPage() {
         initialNotices={notices}
         initialUpdates={updates}
         canWrite={canWrite}
+        initialTab={initialTab}
       />
     </div>
   );
