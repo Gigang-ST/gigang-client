@@ -37,17 +37,6 @@ export async function createPost(input: {
 
   if (error || !post) throw new Error("게시글 등록에 실패했습니다.");
 
-  // 팀 전체 알림 발송
-  const notiType = parsed.post_type_enm === "notice" ? "notice_post" : "update_post";
-  await admin.rpc("create_noti_for_team", {
-    p_team_id: teamId,
-    p_noti_type_enm: notiType,
-    p_noti_nm: parsed.post_nm,
-    p_noti_cont: null,
-    p_ref_id: post.post_id,
-    p_ref_type_enm: "brd_post",
-  });
-
   revalidatePath("/board");
   return { post_id: post.post_id };
 }

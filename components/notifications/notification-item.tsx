@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Flag, Megaphone, Trophy, Trash2, Zap, ChevronRight } from "lucide-react";
+import { Bell, Trophy, Trash2, ChevronRight } from "lucide-react";
 import dayjs from "dayjs";
 import type { Notification } from "@/lib/queries/notification";
 import { markNotificationRead } from "@/app/actions/mark-notification-read";
@@ -11,17 +11,11 @@ import { Body, Caption } from "@/components/common/typography";
 import { cn } from "@/lib/utils";
 
 const NOTI_ICON: Record<string, React.ElementType> = {
-  notice_post: Megaphone,
-  update_post: Zap,
-  comp_reg: Flag,
   ttl_grnt: Trophy,
   adm_cust: Bell,
 };
 
 const NOTI_ROUTE: Record<string, (refId: string | null) => string | null> = {
-  notice_post: (id) => (id ? `/board/${id}` : null),
-  update_post: (id) => (id ? `/board/${id}` : null),
-  comp_reg: () => "/races",
   ttl_grnt: () => "/profile",
   adm_cust: () => null,
 };
@@ -40,15 +34,21 @@ function formatRelative(crtAt: string) {
 type NotificationItemProps = {
   noti: Notification;
   onDelete: (notiId: string) => void;
+  onRead: (notiId: string) => void;
   onClose: () => void;
 };
 
-export function NotificationItem({ noti, onDelete, onClose }: NotificationItemProps) {
+export function NotificationItem({ noti, onDelete, onRead, onClose }: NotificationItemProps) {
   const router = useRouter();
   const [isRead, setIsRead] = useState(noti.read_yn);
   const [swipeX, setSwipeX] = useState(0);
   const [showDelete, setShowDelete] = useState(false);
   const touchStartX = useRef<number | null>(null);
+
+  // 부모에서 read_yn이 바뀌면(모두 읽음 등) 동기화
+  useEffect(() => {
+    setIsRead(noti.read_yn);
+  }, [noti.read_yn]);
 
   const Icon = NOTI_ICON[noti.noti_type_enm] ?? Bell;
   const route = NOTI_ROUTE[noti.noti_type_enm]?.(noti.ref_id) ?? null;
@@ -56,6 +56,7 @@ export function NotificationItem({ noti, onDelete, onClose }: NotificationItemPr
   async function handleRead() {
     if (!isRead) {
       setIsRead(true);
+      onRead(noti.noti_id);
       await markNotificationRead(noti.noti_id);
     }
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import type { BoardPostSummary } from "@/lib/queries/board";
 import { PostList } from "@/components/board/post-list";
 import { SegmentControl } from "@/components/common/segment-control";
@@ -9,11 +9,16 @@ type BoardClientProps = {
   initialNotices: BoardPostSummary[];
   initialUpdates: BoardPostSummary[];
   canWrite: boolean;
-  initialTab?: "notice" | "update";
 };
 
-export function BoardClient({ initialNotices, initialUpdates, initialTab = "notice" }: BoardClientProps) {
-  const [tab, setTab] = useState<"notice" | "update">(initialTab);
+export function BoardClient({ initialNotices, initialUpdates }: BoardClientProps) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const tab = (searchParams.get("tab") === "update" ? "update" : "notice") as "notice" | "update";
+
+  function handleTabChange(value: "notice" | "update") {
+    router.replace(`/board?tab=${value}`);
+  }
 
   return (
     <div className="flex flex-col gap-4 px-6 pb-8 pt-4">
@@ -23,7 +28,7 @@ export function BoardClient({ initialNotices, initialUpdates, initialTab = "noti
           { value: "update", label: "업데이트" },
         ]}
         value={tab}
-        onValueChange={setTab}
+        onValueChange={handleTabChange}
       />
 
       {tab === "notice" && <PostList initialPosts={initialNotices} type="notice" />}

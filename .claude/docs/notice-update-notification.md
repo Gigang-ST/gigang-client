@@ -33,14 +33,14 @@
 | 아이콘 | 컴포넌트 | 클릭 시 |
 |--------|----------|---------|
 | 📋 LayoutList | `BoardPopoverIcon` | 팝오버 열림 (공지/업데이트 목록) |
-| 🔔 Bell | `NotificationBellIcon` | 바텀시트 열림 (알림 목록) |
+| 🔔 Bell | `NotificationBellIcon` | 팝오버 열림 (알림 목록) |
 
 ### 미읽음 배지
 - **알림**: 미읽음 개수 빨간 뱃지 (최대 99+)
 - **게시판**: 2단계 dot 표시
-  - 아이콘: 공지/업데이트 중 하나라도 안 읽은 글 있으면 파란 dot
-  - 팝오버 탭: 공지사항/업데이트 각 탭별로 미읽음 있으면 파란 dot
-  - 게시글 개별 dot 없음 (탭 진입 → 게시글 클릭 → 자동 읽음 처리)
+  - 아이콘: 공지/업데이트 중 하나라도 안 읽은 글 있으면 **빨간 dot** (`bg-destructive`)
+  - 팝오버 항목: 공지사항/업데이트 각 항목별로 미읽음 있으면 **빨간 dot**
+  - 게시글 개별 dot 없음
 
 ### 비로그인 처리
 - **알림 아이콘**: 비로그인 시 비활성 옅은색(`text-muted-foreground/40`)으로 렌더. 클릭 불가.
@@ -49,29 +49,29 @@
 ### 서버/클라이언트 경계
 
 ```tsx
-// app/(main)/page.tsx — 서버 컴포넌트
-const unreadNotiCount = member ? await getUnreadNotificationCount(member.id) : 0;
-const [hasUnreadNotice, hasUnreadUpdate] = member
-  ? await Promise.all([
-      hasUnreadBoardPost(member.id, teamId, "notice"),
-      hasUnreadBoardPost(member.id, teamId, "update"),
-    ])
-  : [false, false];
+// app/(main)/page.tsx — HomeHeader 서버 컴포넌트 (별도 Suspense로 분리)
+// HomeContent와 병렬 렌더 → 헤더가 콘텐츠보다 먼저 표시됨
+async function HomeHeader() {
+  const [unreadNotiCount, hasUnreadNotice, hasUnreadUpdate] = await Promise.all([
+    getUnreadNotificationCount(member?.id),
+    hasUnreadBoardPost(member?.id, teamId, "notice"),
+    hasUnreadBoardPost(member?.id, teamId, "update"),
+  ]);
+  // BoardPopoverIcon + NotificationBellIcon 렌더
+}
 
-// 헤더 우측 영역 (현재 <div className="size-8 shrink-0" /> 자리 교체)
-<div className="flex items-center gap-1 shrink-0">
-  <BoardPopoverIcon
-    hasUnreadNotice={hasUnreadNotice}
-    hasUnreadUpdate={hasUnreadUpdate}
-    memberId={member?.id}
-    teamId={teamId}
-  />
-  <NotificationBellIcon
-    initialCount={unreadNotiCount}
-    memberId={member?.id}
-    disabled={!member}
-  />
-</div>
+export default function HomePage() {
+  return (
+    <>
+      <Suspense fallback={<HomeHeaderSkeleton />}>
+        <HomeHeader />   {/* 헤더 쿼리 3개만 */}
+      </Suspense>
+      <Suspense fallback={<HomeSkeleton />}>
+        <HomeContent />  {/* 나머지 콘텐츠 쿼리 */}
+      </Suspense>
+    </>
+  );
+}
 ```
 
 ---
@@ -93,8 +93,8 @@ const [hasUnreadNotice, hasUnreadUpdate] = member
 - 게시글 목록 미리보기 없음 — `공지사항` / `업데이트` 두 항목만 표시
   - 근거: 게시글이 늘어날수록 팝오버 미리보기의 가치가 낮아짐. 빠른 진입점 역할에 집중.
 - 항목 클릭 → `/board?tab=notice` 또는 `/board?tab=update` 로 이동 (해당 탭 선택된 상태)
-- **팝오버 열릴 때**: 두 항목 모두 dot 즉시 제거 + `markBoardTypeRead("notice")` / `markBoardTypeRead("update")` 동시 호출
-  - 근거: 팝오버를 열어 두 항목을 눈으로 봤으면 "새 게시글 있음"을 인지한 것으로 간주. 홈 재진입 시 dot 반복 노출 방지.
+- **공지사항/업데이트 항목 클릭 시**: 공지/업데이트 dot **모두** 제거 + `markBoardTypeRead("notice")` / `markBoardTypeRead("update")` 동시 호출
+  - 근거: 게시판은 탭으로 자유롭게 이동 가능하므로, 어느 탭이든 진입하면 둘 다 확인한 것으로 간주. 하나만 제거하면 홈 복귀 시 나머지 dot이 남아 불편함.
 
 > **왜 팝오버인가**: 게시판은 빠른 진입이 주목적. 탭바를 가리지 않으면서 홈 컨텍스트를 유지함.
 
@@ -132,18 +132,22 @@ const [hasUnreadNotice, hasUnreadUpdate] = member
 ```
 app/
 ├── (main)/
-│   └── page.tsx                    ← 헤더 우측 아이콘 2개 추가
+│   └── page.tsx                    ← HomeHeader(Suspense) + HomeContent(Suspense) 분리
+│
+├── (board)/                        ← 게시판 전용 route group (자체 BackHeader 관리)
+│   └── board/
+│       ├── page.tsx                ← 공지/업데이트 탭 (?tab=notice|update, useSearchParams)
+│       ├── [id]/
+│       │   └── page.tsx            ← 게시글 상세 (post_type_enm 기반 뒤로가기)
+│       └── write/
+│           └── page.tsx            ← 작성 (관리자만)
 │
 └── (info)/
     ├── notifications/
-    │   └── page.tsx                ← 알림 전체 목록 (바텀시트 "전체 보기" 또는 직접 접근)
-    │
-    └── board/
-        ├── page.tsx                ← 공지/업데이트 전체 목록
-        ├── [id]/
-        │   └── page.tsx            ← 게시글 상세
-        └── write/
-            └── page.tsx            ← 작성 (관리자 + post_yn 멤버)
+    │   └── page.tsx                ← 알림 전체 목록
+    └── admin/
+        └── notifications/
+            └── page.tsx            ← 수동 알림 발송 (전체/다중 멤버 선택)
 ```
 
 ---
@@ -214,12 +218,11 @@ CREATE INDEX idx_noti_mst_unread
 
 | 값 | 설명 | ref_type_enm |
 |----|------|----------|
-| `notice_post` | 공지 등록 | `brd_post` |
-| `update_post` | 업데이트 등록 | `brd_post` |
-| `comp_reg` | 대회 등록됨 | `comp` |
 | `ttl_grnt` | 칭호 획득 | `ttl` |
 | `sched_post` | 모임/일정 등록 (향후) | `sched` |
 | `adm_cust` | 관리자 수동 알림 | - |
+
+> **게시판 글 등록은 알림함에 포함하지 않음.** 게시판 dot(📋)이 이미 "새 글 있음" 신호 역할을 하므로 이중 알림이 된다. 알림함은 개인에게 발생하는 이벤트(칭호, 대회 등)에만 사용한다.
 
 ### 5-3. `noti_pref_cfg` — 알림 수신 설정
 
@@ -416,15 +419,12 @@ export function NotificationBellIcon({ initialCount, memberId }: Props) { ... }
 | `ttl_grnt` | Trophy | `/profile` |
 | `adm_cust` | Bell | 없음 (`→` 미노출) |
 
-**바텀시트 구조 — 설정 뷰 (`view="settings"`)**:
+**팝오버 구조 — 설정 뷰 (`view="settings"`)**:
 
 ```
 ┌──────────────────────────────────┐
-│  ──  (드래그 핸들)                  │
 │  ← 알림 설정                       │  ← ← 클릭 시 목록 뷰로 복귀
 │──────────────────────────────────│
-│  공지 알림           ●────  ON   │
-│  업데이트 알림        ●────  ON   │
 │  대회 등록           ────○  OFF  │
 │  칭호 획득           ●────  ON   │
 └──────────────────────────────────┘
@@ -596,26 +596,36 @@ supabase/migrations/
 
 ## 12. 단계별 구현 순서
 
-### Phase 1 — 게시판
-1. DB 마이그레이션: `brd_post_mst` + `brd_post_read_hist` + `team_mem_rel.post_yn` + RLS
+### Phase 1 — 게시판 ✅ 완료
+1. DB 마이그레이션: `brd_post_mst` + `brd_post_read_hist` + RLS (게시 권한은 `admin=true`로 통일 — `post_yn` 컬럼 없음)
 2. `lib/queries/board.ts` — `getBoardPosts`, `getBoardPost`, `hasUnreadBoardPost(memberId, teamId, type)`
 3. `lib/validations/board.ts` — zod 스키마
-4. 서버 액션: `create-post.ts`, `update-post.ts`, `delete-post.ts`
+4. 서버 액션: `create-post.ts`, `update-post.ts`, `delete-post.ts`, `mark-board-type-read.ts`
 5. API Route: `app/api/board/route.ts`
-6. 게시판 목록(`/board`) / 상세(`/board/[id]`) / 작성(`/board/write`) / 수정(`/board/[id]/edit`) 페이지
-7. `post-form.tsx` 공용 폼 컴포넌트 (`@uiw/react-md-editor` 포함)
-8. `BoardPopoverIcon` 컴포넌트 + 홈 헤더 연결 (`hasUnreadNotice`, `hasUnreadUpdate` props)
+6. 게시판 목록(`/board?tab=notice|update`) / 상세(`/board/[id]`) / 작성(`/board/write`) / 수정(`/board/[id]/edit`) 페이지
+7. `post-form.tsx` 공용 폼 컴포넌트 (`@uiw/react-md-editor`, 다크모드 `useTheme` 연동)
+8. `BoardPopoverIcon` — 공지사항/업데이트 두 항목만 표시, 팝오버 열릴 때 두 탭 모두 읽음 처리
 
-### Phase 2 — 인앱 알림
+### Phase 2 — 인앱 알림 ✅ 완료
 1. DB 마이그레이션: `noti_mst` + `noti_pref_cfg` + RLS + `create_noti_for_team` 함수 + pg_cron
 2. `lib/queries/notification.ts` — `getUnreadNotificationCount`, `getNotifications(cursor, limit=20)`
-3. 기존 서버 액션에 알림 생성 추가 (칭호 부여, 대회 등록, 게시글 작성)
-4. 서버 액션: `mark-notification-read.ts`, `mark-all-notifications-read.ts`, `delete-notification.ts`, `delete-all-notifications.ts`, `upsert-noti-pref.ts`
-5. `NotificationBellIcon` + 바텀시트 (vaul Drawer, Realtime 구독, 무한스크롤, 설정 뷰 전환)
-6. `/notifications` 전체 목록 페이지
-7. 설정 페이지 NOTIFICATIONS 섹션
+3. `lib/notifications/insert-noti.ts` — 1명에게 알림 발송 헬퍼 (수신 설정 `noti_pref_cfg` 확인 포함)
+4. 칭호 획득 알림 연동: `grant-title.ts` (수동 수여), `engine.ts` `sweepEvaluateAndGrant` / `batchEvaluateAndGrant` (배치/전체재계산)
+5. 서버 액션: `mark-notification-read.ts`, `mark-all-notifications-read.ts`, `delete-notification.ts`, `delete-all-notifications.ts`, `upsert-noti-pref.ts`
+6. `NotificationBellIcon` — 팝오버 (Realtime 구독, 무한스크롤, 설정 뷰 전환, 모두읽음 즉시 반영)
+7. `/notifications` 전체 목록 페이지
+8. 관리자 수동 알림 발송: `/admin/notifications` — 전체 또는 멤버 다중 선택 발송
+
+### 알림 타입 현황
+| 타입 | 발송 시점 | 발송 대상 | 구현 |
+|------|---------|---------|------|
+| `ttl_grnt` | 관리자 수동 수여, sweep, batch | 수여받은 1명 | ✅ |
+| `adm_cust` | 관리자 수동 발송 (`/admin/notifications`) | 전체 또는 선택 멤버 | ✅ |
+| `sched_post` | 모임/일정 등록 (향후) | 팀 전체 | ⬜ |
+
+> **게시판 글 등록 알림 없음**: 게시판 dot(📋)이 이미 인지 신호 역할. 이중 알림 방지.
+> **대회 등록 알림 없음**: 본인이 직접 등록하므로 즉시 인지 가능. 향후 관리자 대리 등록 시 재검토.
 
 ### Phase 3 — 향후 확장
 - PWA Web Push
-- 모임/일정 이벤트 알림
-- 관리자 수동 알림 발송 UI
+- 모임/일정 이벤트 알림 (`sched_post`)

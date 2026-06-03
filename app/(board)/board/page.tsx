@@ -3,18 +3,12 @@ import { PenLine } from "lucide-react";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getBoardPosts } from "@/lib/queries/board";
+import { BackHeader } from "@/components/back-header";
 import { BoardClient } from "./board-client";
 
 export const metadata = { title: "게시판" };
 
-export default async function BoardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ tab?: string }>;
-}) {
-  const { tab: tabParam } = await searchParams;
-  const initialTab = tabParam === "update" ? "update" : "notice";
-
+export default async function BoardPage() {
   const { member } = await getCurrentMember();
   const { teamId } = await getRequestTeamContext();
 
@@ -27,6 +21,7 @@ export default async function BoardPage({
 
   return (
     <div className="flex flex-col">
+      <BackHeader title="게시판" href="/" />
       {canWrite && (
         <div className="flex justify-end px-6 pt-2">
           <Link
@@ -42,7 +37,6 @@ export default async function BoardPage({
         initialNotices={notices}
         initialUpdates={updates}
         canWrite={canWrite}
-        initialTab={initialTab}
       />
     </div>
   );

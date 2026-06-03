@@ -25,9 +25,7 @@ export async function getBoardPosts(
 
   let query = admin
     .from("brd_post_mst")
-    .select(
-      "post_id, team_id, post_type_enm, post_nm, writ_mem_id, pin_yn, crt_at, upd_at, mem_mst(mem_nm)",
-    )
+    .select("post_id, team_id, post_type_enm, post_nm, writ_mem_id, pin_yn, crt_at, upd_at")
     .eq("team_id", teamId)
     .eq("post_type_enm", type)
     .eq("del_yn", false)
@@ -41,48 +39,53 @@ export async function getBoardPosts(
 
   const { data } = await query;
 
-  return (data ?? []).map((row) => {
-    const mem = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst;
-    return {
-      post_id: row.post_id,
-      team_id: row.team_id,
-      post_type_enm: row.post_type_enm as "notice" | "update",
-      post_nm: row.post_nm,
-      writ_mem_id: row.writ_mem_id,
-      writ_mem_nm: (mem as { mem_nm: string } | null)?.mem_nm ?? null,
-      pin_yn: row.pin_yn ?? false,
-      crt_at: row.crt_at,
-      upd_at: row.upd_at,
-    };
-  });
+  return (data ?? []).map((row) => ({
+    post_id: row.post_id,
+    team_id: row.team_id,
+    post_type_enm: row.post_type_enm as "notice" | "update",
+    post_nm: row.post_nm,
+    writ_mem_id: row.writ_mem_id,
+    writ_mem_nm: null, // 목록에서는 작성자 이름 불필요
+    pin_yn: row.pin_yn ?? false,
+    crt_at: row.crt_at,
+    upd_at: row.upd_at,
+  }));
 }
 
 export async function getBoardPost(postId: string): Promise<BoardPost | null> {
   const admin = createUntypedAdminClient();
 
-  const { data } = await admin
+  const { data: post, error } = await admin
     .from("brd_post_mst")
-    .select(
-      "post_id, team_id, post_type_enm, post_nm, post_cont, writ_mem_id, pin_yn, crt_at, upd_at, mem_mst(mem_nm)",
-    )
+    .select("post_id, team_id, post_type_enm, post_nm, post_cont, writ_mem_id, pin_yn, crt_at, upd_at")
     .eq("post_id", postId)
     .eq("del_yn", false)
     .single();
 
-  if (!data) return null;
+  if (error || !post) return null;
 
-  const mem = Array.isArray(data.mem_mst) ? data.mem_mst[0] : data.mem_mst;
+  // 작성자 이름 별도 조회
+  let writ_mem_nm: string | null = null;
+  if (post.writ_mem_id) {
+    const { data: mem } = await admin
+      .from("mem_mst")
+      .select("mem_nm")
+      .eq("mem_id", post.writ_mem_id)
+      .single();
+    writ_mem_nm = mem?.mem_nm ?? null;
+  }
+
   return {
-    post_id: data.post_id,
-    team_id: data.team_id,
-    post_type_enm: data.post_type_enm as "notice" | "update",
-    post_nm: data.post_nm,
-    post_cont: data.post_cont,
-    writ_mem_id: data.writ_mem_id,
-    writ_mem_nm: (mem as { mem_nm: string } | null)?.mem_nm ?? null,
-    pin_yn: data.pin_yn ?? false,
-    crt_at: data.crt_at,
-    upd_at: data.upd_at,
+    post_id: post.post_id,
+    team_id: post.team_id,
+    post_type_enm: post.post_type_enm as "notice" | "update",
+    post_nm: post.post_nm,
+    post_cont: post.post_cont,
+    writ_mem_id: post.writ_mem_id,
+    writ_mem_nm,
+    pin_yn: post.pin_yn ?? false,
+    crt_at: post.crt_at,
+    upd_at: post.upd_at,
   };
 }
 

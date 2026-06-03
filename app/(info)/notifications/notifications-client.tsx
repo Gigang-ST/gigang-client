@@ -108,6 +108,7 @@ export function NotificationsClient({ initialNotifications, memberId }: Props) {
                   key={n.noti_id}
                   noti={n}
                   onDelete={handleDeleteItem}
+                  onRead={() => {}}
                   onClose={() => {}}
                 />
               ))}
@@ -123,6 +124,7 @@ export function NotificationsClient({ initialNotifications, memberId }: Props) {
                   key={n.noti_id}
                   noti={n}
                   onDelete={handleDeleteItem}
+                  onRead={() => {}}
                   onClose={() => {}}
                 />
               ))}

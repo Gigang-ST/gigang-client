@@ -27,10 +27,11 @@ export function BoardPopoverIcon({
 
   const hasAnyUnread = hasUnreadNotice || hasUnreadUpdate;
 
-  function handleOpenChange(next: boolean) {
-    setOpen(next);
-    // 팝오버 열릴 때 두 항목 모두 인지한 것으로 간주 → dot 제거 + DB 읽음 처리
-    if (next && memberId) {
+  function handleClick(tab: "notice" | "update") {
+    setOpen(false);
+    // 게시판 진입 시 공지/업데이트 dot 모두 제거 + DB 읽음 처리
+    // 어느 탭이든 들어가면 둘 다 확인한 것으로 간주
+    if (memberId) {
       if (hasUnreadNotice) {
         setHasUnreadNotice(false);
         markBoardTypeRead("notice");
@@ -40,15 +41,11 @@ export function BoardPopoverIcon({
         markBoardTypeRead("update");
       }
     }
-  }
-
-  function handleClick(tab: "notice" | "update") {
-    setOpen(false);
     router.push(`/board?tab=${tab}`);
   }
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           className="relative flex size-8 items-center justify-center rounded-md text-foreground/70 transition-colors hover:bg-secondary hover:text-foreground"
@@ -56,7 +53,7 @@ export function BoardPopoverIcon({
         >
           <LayoutList className="size-5" />
           {hasAnyUnread && (
-            <span className="absolute right-1 top-1 size-1.5 rounded-full bg-primary" />
+            <span className="absolute right-1 top-1 size-1.5 rounded-full bg-destructive" />
           )}
         </button>
       </PopoverTrigger>
@@ -71,7 +68,7 @@ export function BoardPopoverIcon({
             <Body className="text-[14px]">공지사항</Body>
           </div>
           {hasUnreadNotice && (
-            <span className="size-1.5 rounded-full bg-primary" />
+            <span className="size-1.5 rounded-full bg-destructive" />
           )}
         </button>
 
@@ -87,7 +84,7 @@ export function BoardPopoverIcon({
             <Body className="text-[14px]">업데이트</Body>
           </div>
           {hasUnreadUpdate && (
-            <span className="size-1.5 rounded-full bg-primary" />
+            <span className="size-1.5 rounded-full bg-destructive" />
           )}
         </button>
       </PopoverContent>

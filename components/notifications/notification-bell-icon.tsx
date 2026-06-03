@@ -22,9 +22,6 @@ type NotificationBellIconProps = {
 };
 
 const NOTI_TYPE_LABELS: Record<string, string> = {
-  notice_post: "공지 알림",
-  update_post: "업데이트 알림",
-  comp_reg: "대회 등록",
   ttl_grnt: "칭호 획득",
 };
 
@@ -126,6 +123,13 @@ export function NotificationBellIcon({ initialCount, memberId, disabled }: Notif
     await deleteAllNotifications();
   }
 
+  function handleReadItem(notiId: string) {
+    setUnreadCount((c) => Math.max(0, c - 1));
+    setNotifications((prev) =>
+      prev.map((n) => n.noti_id === notiId ? { ...n, read_yn: true } : n),
+    );
+  }
+
   function handleDeleteItem(notiId: string) {
     setNotifications((prev) => {
       const item = prev.find((n) => n.noti_id === notiId);
@@ -222,7 +226,7 @@ export function NotificationBellIcon({ initialCount, memberId, disabled }: Notif
                       <>
                         <div className="px-4 py-2"><SectionLabel>오늘</SectionLabel></div>
                         {todayNotis.map((n) => (
-                          <NotificationItem key={n.noti_id} noti={n} onDelete={handleDeleteItem} onClose={() => setOpen(false)} />
+                          <NotificationItem key={n.noti_id} noti={n} onDelete={handleDeleteItem} onRead={handleReadItem} onClose={() => setOpen(false)} />
                         ))}
                       </>
                     )}
@@ -230,7 +234,7 @@ export function NotificationBellIcon({ initialCount, memberId, disabled }: Notif
                       <>
                         <div className="px-4 py-2"><SectionLabel>이전</SectionLabel></div>
                         {prevNotis.map((n) => (
-                          <NotificationItem key={n.noti_id} noti={n} onDelete={handleDeleteItem} onClose={() => setOpen(false)} />
+                          <NotificationItem key={n.noti_id} noti={n} onDelete={handleDeleteItem} onRead={handleReadItem} onClose={() => setOpen(false)} />
                         ))}
                       </>
                     )}

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import dayjs from "dayjs";
+import { ChevronLeft } from "lucide-react";
 import type { BoardPost } from "@/lib/queries/board";
 import { deletePost } from "@/app/actions/delete-post";
 import { Body, Caption } from "@/components/common/typography";
@@ -22,11 +23,13 @@ export function PostDetail({ post, canEdit }: PostDetailProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  const backHref = `/board?tab=${post.post_type_enm}`;
+
   async function handleDelete() {
     setDeleting(true);
     try {
       await deletePost(post.post_id);
-      router.push("/board");
+      router.push(backHref);
       router.refresh();
     } finally {
       setDeleting(false);
@@ -35,6 +38,15 @@ export function PostDetail({ post, canEdit }: PostDetailProps) {
   }
 
   return (
+    <div className="flex flex-col">
+      {/* 자체 BackHeader — post_type_enm 기반으로 올바른 탭으로 복귀 */}
+      <header className="sticky top-0 z-40 flex h-12 items-center border-b border-border bg-background px-4">
+        <Button variant="ghost" size="icon-sm" asChild aria-label="뒤로가기">
+          <Link href={backHref}>
+            <ChevronLeft className="size-5" />
+          </Link>
+        </Button>
+      </header>
     <div className="flex flex-col gap-4 px-6 pb-8 pt-4">
       <div className="flex flex-col gap-1">
         <Body className="text-[17px] font-semibold leading-snug">{post.post_nm}</Body>
@@ -82,6 +94,7 @@ export function PostDetail({ post, canEdit }: PostDetailProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
     </div>
   );
 }

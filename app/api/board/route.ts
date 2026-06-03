@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await admin
     .from("brd_post_mst")
-    .select("post_id, post_nm, pin_yn, crt_at, mem_mst(mem_nm)")
+    .select("post_id, post_nm, pin_yn, crt_at")
     .eq("team_id", teamId)
     .eq("post_type_enm", type)
     .eq("del_yn", false)
@@ -28,16 +28,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "조회 중 오류가 발생했습니다." }, { status: 500 });
   }
 
-  const posts = (data ?? []).map((row) => {
-    const mem = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst;
-    return {
-      post_id: row.post_id,
-      post_nm: row.post_nm,
-      pin_yn: row.pin_yn,
-      crt_at: row.crt_at,
-      writ_mem_nm: (mem as { mem_nm: string } | null)?.mem_nm ?? null,
-    };
-  });
+  const posts = (data ?? []).map((row) => ({
+    post_id: row.post_id,
+    post_nm: row.post_nm,
+    pin_yn: row.pin_yn,
+    crt_at: row.crt_at,
+  }));
 
   return NextResponse.json({ posts });
 }

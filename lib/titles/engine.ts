@@ -13,6 +13,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { insertNoti } from "@/lib/notifications/insert-noti";
 
 import { evaluateCondition, evaluateConditionFromSnapshot } from "./evaluators";
 import { loadMemberSnapshots } from "./snapshot";
@@ -225,6 +226,23 @@ export async function sweepEvaluateAndGrant(
       .from("mem_ttl_rel")
       .upsert(toGrant, { onConflict: "team_mem_id,ttl_id,vers", ignoreDuplicates: true });
     console.info(`[sweep] 칭호 신규 부여 ${toGrant.length}건`);
+
+    // 부여된 멤버 각각에게 알림 발송 (fire-and-forget)
+    const titleNameMap = new Map(titles.map((t) => [t.ttl_id, t.ttl_nm]));
+    Promise.all(
+      toGrant.map((row) => {
+        const snap = snapshotsByMemId.get(row.team_mem_id);
+        if (!snap?.memId) return Promise.resolve();
+        return insertNoti({
+          teamId,
+          memId: snap.memId,
+          notiTypeEnm: "ttl_grnt",
+          notiNm: `'${titleNameMap.get(row.ttl_id) ?? "칭호"}' 칭호를 획득했습니다!`,
+          refId: row.ttl_id,
+          refTypeEnm: "ttl",
+        });
+      }),
+    ).catch(console.error);
   }
 
   return { granted: toGrant.length, revoked: 0 };
@@ -313,6 +331,24 @@ export async function batchEvaluateAndGrant(
       .from("mem_ttl_rel")
       .upsert(toGrant, { onConflict: "team_mem_id,ttl_id,vers", ignoreDuplicates: true });
     console.info(`[mileage_batch] 칭호 신규 부여 ${toGrant.length}건 (base_month=${baseMonth})`);
+
+    // 부여된 멤버 각각에게 알림 발송 (fire-and-forget)
+    const titleNameMap = new Map(titles.map((t) => [t.ttl_id, t.ttl_nm]));
+    const snapByTeamMemId = new Map([...snapshots.entries()]);
+    Promise.all(
+      toGrant.map((row) => {
+        const snap = snapByTeamMemId.get(row.team_mem_id);
+        if (!snap?.memId) return Promise.resolve();
+        return insertNoti({
+          teamId,
+          memId: snap.memId,
+          notiTypeEnm: "ttl_grnt",
+          notiNm: `'${titleNameMap.get(row.ttl_id) ?? "칭호"}' 칭호를 획득했습니다!`,
+          refId: row.ttl_id,
+          refTypeEnm: "ttl",
+        });
+      }),
+    ).catch(console.error);
   }
 
   return { granted: toGrant.length };

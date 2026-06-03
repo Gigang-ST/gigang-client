@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getBoardPost } from "@/lib/queries/board";
+import { BackHeader } from "@/components/back-header";
 import { PostForm } from "@/components/board/post-form";
 
 export const metadata = { title: "게시글 수정" };
@@ -23,5 +24,10 @@ export default async function BoardEditPage({
   const canEdit = member.admin || member.id === post.writ_mem_id;
   if (!canEdit) redirect(`/board/${id}`);
 
-  return <PostForm teamId={teamId} initialData={post} />;
+  return (
+    <>
+      <BackHeader title="게시글 수정" />
+      <PostForm teamId={teamId} initialData={post} />
+    </>
+  );
 }

@@ -52,6 +52,46 @@ function isSameSlot(dateA: string, dateB: string) {
 
 const SHOW_EXTRA_SECTIONS = false;
 
+async function HomeHeader() {
+  const { member: currentMember } = await getCurrentMember();
+  const { teamId } = await getRequestTeamContext();
+
+  const [unreadNotiCount, hasUnreadNotice, hasUnreadUpdate] = await Promise.all([
+    getUnreadNotificationCount(currentMember?.id),
+    hasUnreadBoardPost(currentMember?.id, teamId, "notice"),
+    hasUnreadBoardPost(currentMember?.id, teamId, "update"),
+  ]);
+
+  return (
+    <div className="relative flex h-20 items-center px-6">
+      <div className="flex flex-1 items-center">
+        <H1>기강</H1>
+      </div>
+      <div className="absolute left-0 right-0 flex flex-col items-center justify-center pointer-events-none">
+        <p className="font-sans text-[6px] uppercase tracking-[0.15em] text-muted-foreground">
+          Since 2024.04.23
+        </p>
+        <p className="font-sans text-[13px] font-black italic uppercase leading-tight tracking-[-0.03em] text-foreground">
+          No time to be weak
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <BoardPopoverIcon
+          hasUnreadNotice={hasUnreadNotice}
+          hasUnreadUpdate={hasUnreadUpdate}
+          memberId={currentMember?.id}
+          teamId={teamId}
+        />
+        <NotificationBellIcon
+          initialCount={unreadNotiCount}
+          memberId={currentMember?.id}
+          disabled={!currentMember}
+        />
+      </div>
+    </div>
+  );
+}
+
 async function HomeContent() {
   const { user, member: currentMember, supabase } = await getCurrentMember();
   const admin = createAdminClient();
@@ -66,9 +106,6 @@ async function HomeContent() {
   let initialMemberStatus: MemberStatus = { status: "signed-out" };
 
   const [
-    unreadNotiCount,
-    hasUnreadNotice,
-    hasUnreadUpdate,
     { data: teamComps },
     { data: recentRecordsRaw },
     { data: calendarComps },
@@ -77,9 +114,6 @@ async function HomeContent() {
     cmmCdRows,
     myTitleNames,
   ] = await Promise.all([
-    getUnreadNotificationCount(currentMember?.id),
-    hasUnreadBoardPost(currentMember?.id, teamId, "notice"),
-    hasUnreadBoardPost(currentMember?.id, teamId, "update"),
     supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: today }),
     SHOW_EXTRA_SECTIONS
       ? supabase.rpc("get_public_team_recent_records", { p_team_id: teamId, p_limit: 12 })
@@ -389,36 +423,6 @@ async function HomeContent() {
 
   return (
     <div className="flex flex-col gap-0">
-      {/* 헤더 — 좌: 기강+오버뷰 / 중: 슬로건 / 우: 알림(추후) */}
-      <div className="relative flex h-20 items-center px-6">
-        {/* 좌 */}
-        <div className="flex flex-1 items-center">
-          <H1>기강</H1>
-        </div>
-        {/* 중: 슬로건 — 화면 전체 기준 중앙 */}
-        <div className="absolute left-0 right-0 flex flex-col items-center justify-center pointer-events-none">
-          <p className="font-sans text-[6px] uppercase tracking-[0.15em] text-muted-foreground">
-            Since 2024.04.23
-          </p>
-          <p className="font-sans text-[13px] font-black italic uppercase leading-tight tracking-[-0.03em] text-foreground">
-            No time to be weak
-          </p>
-        </div>
-        {/* 우: 게시판 팝오버 + 알림 바텀시트 */}
-        <div className="flex shrink-0 items-center gap-1">
-          <BoardPopoverIcon
-            hasUnreadNotice={hasUnreadNotice}
-            hasUnreadUpdate={hasUnreadUpdate}
-            memberId={currentMember?.id}
-            teamId={teamId}
-          />
-          <NotificationBellIcon
-            initialCount={unreadNotiCount}
-            memberId={currentMember?.id}
-            disabled={!currentMember}
-          />
-        </div>
-      </div>
 
       <div className="flex flex-col gap-7 px-6 pb-6">
       {/* 2. SCHEDULE 캘린더 */}
@@ -498,9 +502,31 @@ function HomeSkeleton() {
   );
 }
 
+function HomeHeaderSkeleton() {
+  return (
+    <div className="relative flex h-20 items-center px-6">
+      <div className="flex flex-1 items-center">
+        <H1>기강</H1>
+      </div>
+      <div className="absolute left-0 right-0 flex flex-col items-center justify-center pointer-events-none">
+        <p className="font-sans text-[6px] uppercase tracking-[0.15em] text-muted-foreground">
+          Since 2024.04.23
+        </p>
+        <p className="font-sans text-[13px] font-black italic uppercase leading-tight tracking-[-0.03em] text-foreground">
+          No time to be weak
+        </p>
+      </div>
+      <div className="size-8 shrink-0" />
+    </div>
+  );
+}
+
 export default function HomePage() {
   return (
     <div className="flex flex-col gap-0">
+      <Suspense fallback={<HomeHeaderSkeleton />}>
+        <HomeHeader />
+      </Suspense>
       <Suspense fallback={<HomeSkeleton />}>
         <HomeContent />
       </Suspense>
