@@ -12,7 +12,6 @@ type BoardPopoverIconProps = {
   hasUnreadNotice: boolean;
   hasUnreadUpdate: boolean;
   memberId?: string;
-  teamId: string;
 };
 
 export function BoardPopoverIcon({

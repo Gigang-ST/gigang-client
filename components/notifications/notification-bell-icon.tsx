@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Bell, Settings, Trash2, ChevronLeft } from "lucide-react";
+import { dayjs } from "@/lib/dayjs";
 import { createClient } from "@/lib/supabase/client";
 import type { Notification, NotificationPref } from "@/lib/queries/notification";
 import { markAllNotificationsRead } from "@/app/actions/mark-all-notifications-read";
@@ -151,9 +152,9 @@ export function NotificationBellIcon({ initialCount, memberId, disabled }: Notif
     return prefs.find((p) => p.noti_type_enm === type)?.enabled_yn ?? true;
   }
 
-  const today = new Date().toDateString();
-  const todayNotis = notifications.filter((n) => new Date(n.crt_at).toDateString() === today);
-  const prevNotis = notifications.filter((n) => new Date(n.crt_at).toDateString() !== today);
+  const today = dayjs().format("YYYY-MM-DD");
+  const todayNotis = notifications.filter((n) => dayjs(n.crt_at).format("YYYY-MM-DD") === today);
+  const prevNotis = notifications.filter((n) => dayjs(n.crt_at).format("YYYY-MM-DD") !== today);
 
   if (disabled) {
     return (

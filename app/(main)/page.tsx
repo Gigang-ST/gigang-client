@@ -80,7 +80,6 @@ async function HomeHeader() {
           hasUnreadNotice={hasUnreadNotice}
           hasUnreadUpdate={hasUnreadUpdate}
           memberId={currentMember?.id}
-          teamId={teamId}
         />
         <NotificationBellIcon
           initialCount={unreadNotiCount}

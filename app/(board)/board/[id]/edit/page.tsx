@@ -21,6 +21,8 @@ export default async function BoardEditPage({
 
   const { teamId } = await getRequestTeamContext();
 
+  if (post.team_id !== teamId) redirect(`/board/${id}`);
+
   const canEdit = member.admin || member.id === post.writ_mem_id;
   if (!canEdit) redirect(`/board/${id}`);
 

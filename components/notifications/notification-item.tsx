@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, Trophy, Trash2, ChevronRight } from "lucide-react";
-import dayjs from "dayjs";
+import { dayjs } from "@/lib/dayjs";
 import type { Notification } from "@/lib/queries/notification";
 import { markNotificationRead } from "@/app/actions/mark-notification-read";
 import { deleteNotification } from "@/app/actions/delete-notification";
@@ -42,7 +42,6 @@ export function NotificationItem({ noti, onDelete, onRead, onClose }: Notificati
   const router = useRouter();
   const [isRead, setIsRead] = useState(noti.read_yn);
   const [swipeX, setSwipeX] = useState(0);
-  const [showDelete, setShowDelete] = useState(false);
   const touchStartX = useRef<number | null>(null);
 
   // 부모에서 read_yn이 바뀌면(모두 읽음 등) 동기화
@@ -87,10 +86,8 @@ export function NotificationItem({ noti, onDelete, onRead, onClose }: Notificati
 
   function onTouchEnd() {
     if (swipeX < -40) {
-      setShowDelete(true);
       setSwipeX(-72);
     } else {
-      setShowDelete(false);
       setSwipeX(0);
     }
     touchStartX.current = null;

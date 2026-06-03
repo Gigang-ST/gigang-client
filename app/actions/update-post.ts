@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 import { getCurrentMember } from "@/lib/queries/member";
 import { updatePostSchema } from "@/lib/validations/board";
+import { getKSTDate } from "@/lib/dayjs";
 
 export async function updatePost(input: {
   post_id: string;
@@ -38,7 +39,7 @@ export async function updatePost(input: {
       ...(parsed.post_nm && { post_nm: parsed.post_nm }),
       ...(parsed.post_cont && { post_cont: parsed.post_cont }),
       ...(parsed.pin_yn !== undefined && { pin_yn: parsed.pin_yn }),
-      upd_at: new Date().toISOString(),
+      upd_at: getKSTDate().toISOString(),
     })
     .eq("post_id", input.post_id);
 

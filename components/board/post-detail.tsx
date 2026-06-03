@@ -30,11 +30,13 @@ export function PostDetail({ post, canEdit }: PostDetailProps) {
     setDeleting(true);
     try {
       await deletePost(post.post_id);
+      setDeleteOpen(false);
       router.push(backHref);
       router.refresh();
+    } catch {
+      alert("게시글 삭제에 실패했습니다.");
     } finally {
       setDeleting(false);
-      setDeleteOpen(false);
     }
   }
 

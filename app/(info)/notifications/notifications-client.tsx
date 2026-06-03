@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Bell, Trash2 } from "lucide-react";
+import { dayjs } from "@/lib/dayjs";
 import type { Notification } from "@/lib/queries/notification";
 import { markAllNotificationsRead } from "@/app/actions/mark-all-notifications-read";
 import { deleteAllNotifications } from "@/app/actions/delete-all-notifications";
@@ -10,7 +11,6 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Button } from "@/components/ui/button";
 import { Caption, SectionLabel } from "@/components/common/typography";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { useEffect } from "react";
 
 type Props = {
   initialNotifications: Notification[];
@@ -69,9 +69,9 @@ export function NotificationsClient({ initialNotifications, memberId }: Props) {
     setNotifications((prev) => prev.filter((n) => n.noti_id !== notiId));
   }
 
-  const today = new Date().toDateString();
-  const todayNotis = notifications.filter((n) => new Date(n.crt_at).toDateString() === today);
-  const prevNotis = notifications.filter((n) => new Date(n.crt_at).toDateString() !== today);
+  const today = dayjs().format("YYYY-MM-DD");
+  const todayNotis = notifications.filter((n) => dayjs(n.crt_at).format("YYYY-MM-DD") === today);
+  const prevNotis = notifications.filter((n) => dayjs(n.crt_at).format("YYYY-MM-DD") !== today);
 
   return (
     <div className="flex flex-col">

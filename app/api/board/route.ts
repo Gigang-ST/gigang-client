@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get("type") as "notice" | "update" | null;
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "5", 10), 20);
+  const cursor = searchParams.get("cursor");
 
   if (!type || !["notice", "update"].includes(type)) {
     return NextResponse.json({ error: "type 파라미터가 필요합니다." }, { status: 400 });
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
   const { teamId } = await getRequestTeamContext();
   const admin = createUntypedAdminClient();
 
-  const { data, error } = await admin
+  let query = admin
     .from("brd_post_mst")
     .select("post_id, post_nm, pin_yn, crt_at")
     .eq("team_id", teamId)
@@ -23,6 +24,10 @@ export async function GET(request: NextRequest) {
     .order("pin_yn", { ascending: false })
     .order("crt_at", { ascending: false })
     .limit(limit);
+
+  if (cursor) query = query.lt("crt_at", cursor);
+
+  const { data, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: "조회 중 오류가 발생했습니다." }, { status: 500 });
