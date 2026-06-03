@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getBoardPosts } from "@/lib/queries/board";
@@ -7,7 +8,8 @@ import { BoardClient } from "./board-client";
 export const metadata = { title: "게시판" };
 
 export default async function BoardPage() {
-  const { member } = await getCurrentMember();
+  const { user, member } = await getCurrentMember();
+  if (!user) redirect("/auth/login");
   const { teamId } = await getRequestTeamContext();
 
   const [notices, updates] = await Promise.all([

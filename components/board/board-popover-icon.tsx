@@ -21,6 +21,14 @@ export function BoardPopoverIcon({
 }: BoardPopoverIconProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+
+  if (!memberId) {
+    return (
+      <button disabled className="flex size-8 items-center justify-center rounded-md text-muted-foreground/40" aria-label="게시판 (비활성)">
+        <LayoutList className="size-5" />
+      </button>
+    );
+  }
   const [hasUnreadNotice, setHasUnreadNotice] = useState(initialHasUnreadNotice);
   const [hasUnreadUpdate, setHasUnreadUpdate] = useState(initialHasUnreadUpdate);
 
