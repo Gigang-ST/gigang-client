@@ -34,14 +34,7 @@ type Txn = {
 
 type Upload = { upd_id: string; file_nm: string; crt_at: string; upd_st_cd: string };
 type Member = { mem_id: string; mem_nm: string };
-
-const FEE_ITEM_LABELS: Record<string, string> = {
-  due: "회비",
-  expense: "지출",
-  event_fee: "행사비",
-  goods: "물품",
-  other: "기타",
-};
+type FeeItemCd = { cd: string; label: string };
 
 const MATCH_BADGE: Record<string, { label: string; variant: "default" | "secondary" | "destructive" }> = {
   matched: { label: "매칭", variant: "default" },
@@ -60,11 +53,13 @@ export function DuesTransactionsClient({
   txns: initialTxns,
   uploads,
   members,
+  feeItemCds,
 }: {
   teamId: string;
   txns: Txn[];
   uploads: Upload[];
   members: Member[];
+  feeItemCds: FeeItemCd[];
 }) {
   const [txns, setTxns] = useState(initialTxns);
   const [filter, setFilter] = useState<"all" | "unconfirmed" | "unmatched">("unconfirmed");
@@ -229,8 +224,8 @@ export function DuesTransactionsClient({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {Object.entries(FEE_ITEM_LABELS).map(([val, label]) => (
-                          <SelectItem key={val} value={val}>{label}</SelectItem>
+                        {feeItemCds.map((item) => (
+                          <SelectItem key={item.cd} value={item.cd}>{item.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

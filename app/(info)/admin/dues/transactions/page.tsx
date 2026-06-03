@@ -6,7 +6,7 @@ export default async function DuesTransactionsPage() {
   const { teamId } = await getRequestTeamContext();
   const supabase = await createClient();
 
-  const [{ data: txns }, { data: uploads }, { data: members }] = await Promise.all([
+  const [{ data: txns }, { data: uploads }, { data: members }, { data: feeItemCds }] = await Promise.all([
     supabase
       .from("fee_txn_hist")
       .select("txn_id, txn_dt, txn_amt, txn_io_enm, raw_name, raw_memo, adm_memo_txt, txn_tp_txt, match_st_cd, mem_id, fee_item_cd, is_cfm_yn, mem_mst!fk_fee_txn_hist__mem_mst(mem_nm)")
@@ -29,6 +29,13 @@ export default async function DuesTransactionsPage() {
       .eq("vers", 0)
       .eq("del_yn", false)
       .order("mem_nm"),
+    supabase
+      .from("cmm_cd_mst")
+      .select("cd, cd_nm, cmm_cd_grp_mst!inner(cd_grp_cd)")
+      .eq("cmm_cd_grp_mst.cd_grp_cd", "FEE_ITEM_CD")
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .order("sort_ord", { ascending: true }),
   ]);
 
   return (
@@ -37,6 +44,7 @@ export default async function DuesTransactionsPage() {
       txns={txns ?? []}
       uploads={uploads ?? []}
       members={members ?? []}
+      feeItemCds={(feeItemCds ?? []).map((c) => ({ cd: c.cd, label: c.cd_nm }))}
     />
   );
 }
