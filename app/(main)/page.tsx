@@ -5,6 +5,10 @@ import { env } from "@/lib/env";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember, getMyTitleNames } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { hasUnreadBoardPost } from "@/lib/queries/board";
+import { getUnreadNotificationCount } from "@/lib/queries/notification";
+import { BoardPopoverIcon } from "@/components/board/board-popover-icon";
+import { NotificationBellIcon } from "@/components/notifications/notification-bell-icon";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { H1 } from "@/components/common/typography";
 import { MiniCalendar } from "@/components/home/mini-calendar";
@@ -62,6 +66,9 @@ async function HomeContent() {
   let initialMemberStatus: MemberStatus = { status: "signed-out" };
 
   const [
+    unreadNotiCount,
+    hasUnreadNotice,
+    hasUnreadUpdate,
     { data: teamComps },
     { data: recentRecordsRaw },
     { data: calendarComps },
@@ -70,6 +77,9 @@ async function HomeContent() {
     cmmCdRows,
     myTitleNames,
   ] = await Promise.all([
+    getUnreadNotificationCount(currentMember?.id),
+    hasUnreadBoardPost(currentMember?.id, teamId, "notice"),
+    hasUnreadBoardPost(currentMember?.id, teamId, "update"),
     supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: today }),
     SHOW_EXTRA_SECTIONS
       ? supabase.rpc("get_public_team_recent_records", { p_team_id: teamId, p_limit: 12 })
@@ -394,8 +404,20 @@ async function HomeContent() {
             No time to be weak
           </p>
         </div>
-        {/* 우: 알림 아이콘 자리 — 추후 구현 */}
-        <div className="size-8 shrink-0" />
+        {/* 우: 게시판 팝오버 + 알림 바텀시트 */}
+        <div className="flex shrink-0 items-center gap-1">
+          <BoardPopoverIcon
+            hasUnreadNotice={hasUnreadNotice}
+            hasUnreadUpdate={hasUnreadUpdate}
+            memberId={currentMember?.id}
+            teamId={teamId}
+          />
+          <NotificationBellIcon
+            initialCount={unreadNotiCount}
+            memberId={currentMember?.id}
+            disabled={!currentMember}
+          />
+        </div>
       </div>
 
       <div className="flex flex-col gap-7 px-6 pb-6">
