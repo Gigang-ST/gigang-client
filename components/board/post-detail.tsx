@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeSlug from "rehype-slug";
 import dayjs from "dayjs";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, ChevronUp } from "lucide-react";
 import type { BoardPost } from "@/lib/queries/board";
 import { deletePost } from "@/app/actions/delete-post";
 import { Body, Caption } from "@/components/common/typography";
@@ -23,6 +24,13 @@ export function PostDetail({ post, canEdit }: PostDetailProps) {
   const router = useRouter();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setShowScrollTop(window.scrollY > 200);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const backHref = `/board?tab=${post.post_type_enm}`;
 
@@ -60,9 +68,19 @@ export function PostDetail({ post, canEdit }: PostDetailProps) {
 
       <Separator />
 
-      <div className="prose prose-sm max-w-none text-foreground dark:prose-invert">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{post.post_cont}</ReactMarkdown>
+      <div className="prose prose-sm max-w-none text-foreground dark:prose-invert [&_h1,&_h2,&_h3,&_h4]:scroll-mt-14">
+        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSlug]}>{post.post_cont}</ReactMarkdown>
       </div>
+
+      {showScrollTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="fixed bottom-24 right-5 flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md"
+          aria-label="맨 위로"
+        >
+          <ChevronUp className="size-5" />
+        </button>
+      )}
 
       {canEdit && (
         <div className="flex justify-end gap-2 pt-4">
