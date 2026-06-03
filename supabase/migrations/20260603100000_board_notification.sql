@@ -21,7 +21,7 @@ CREATE INDEX IF NOT EXISTS idx_brd_post_mst_active
   ON brd_post_mst(team_id, post_type_enm, crt_at DESC)
   WHERE del_yn = false;
 
--- ── 3. brd_post_read_hist — 게시글 읽음 이력 ─────────────────
+-- ── 2. brd_post_read_hist — 게시글 읽음 이력 ─────────────────
 CREATE TABLE IF NOT EXISTS brd_post_read_hist (
   post_id   uuid NOT NULL REFERENCES brd_post_mst(post_id),
   mem_id    uuid NOT NULL REFERENCES mem_mst(mem_id),
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS brd_post_read_hist (
 CREATE INDEX IF NOT EXISTS idx_brd_post_read_hist_mem
   ON brd_post_read_hist(mem_id, post_id);
 
--- ── 4. noti_mst — 알림 ──────────────────────────────────────
+-- ── 3. noti_mst — 알림 ──────────────────────────────────────
 CREATE TABLE IF NOT EXISTS noti_mst (
   noti_id       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   team_id       uuid NOT NULL REFERENCES team_mst(team_id),
@@ -56,7 +56,7 @@ CREATE INDEX IF NOT EXISTS idx_noti_mst_member
   ON noti_mst(mem_id, crt_at DESC)
   WHERE del_yn = false;
 
--- ── 5. noti_pref_cfg — 알림 수신 설정 ───────────────────────
+-- ── 4. noti_pref_cfg — 알림 수신 설정 ───────────────────────
 CREATE TABLE IF NOT EXISTS noti_pref_cfg (
   pref_id       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   mem_id        uuid NOT NULL REFERENCES mem_mst(mem_id),
@@ -65,34 +65,32 @@ CREATE TABLE IF NOT EXISTS noti_pref_cfg (
   UNIQUE (mem_id, noti_type_enm)
 );
 
--- ── 6. RLS ──────────────────────────────────────────────────
+-- ── 5. RLS ──────────────────────────────────────────────────
 
 -- brd_post_mst RLS
 ALTER TABLE brd_post_mst ENABLE ROW LEVEL SECURITY;
 
--- SELECT: 팀 멤버 전체 (비로그인 포함 — 공개 읽기)
+-- SELECT: 공개 읽기
 CREATE POLICY brd_post_mst_select ON brd_post_mst
   FOR SELECT USING (del_yn = false);
 
--- INSERT: admin=true 멤버만
+-- INSERT: 팀 owner/admin만
 CREATE POLICY brd_post_mst_insert ON brd_post_mst
   FOR INSERT WITH CHECK (
-    EXISTS (SELECT 1 FROM mem_mst WHERE auth_id = auth.uid() AND admin = true)
+    v2_rls_auth_team_owner_or_admin(team_id)
   );
 
--- UPDATE: 작성자 또는 관리자
+-- UPDATE: 작성자 또는 팀 owner/admin
 CREATE POLICY brd_post_mst_update ON brd_post_mst
   FOR UPDATE USING (
-    writ_mem_id = (SELECT mem_id FROM mem_mst WHERE auth_id = auth.uid() LIMIT 1)
-    OR EXISTS (
-      SELECT 1 FROM mem_mst WHERE auth_id = auth.uid() AND admin = true
-    )
+    writ_mem_id = v2_rls_resolve_mem_id()
+    OR v2_rls_auth_team_owner_or_admin(team_id)
   );
 
--- DELETE: 관리자만 (소프트 삭제 사용하므로 실제 DELETE 불필요)
+-- DELETE: 팀 owner/admin만
 CREATE POLICY brd_post_mst_delete ON brd_post_mst
   FOR DELETE USING (
-    EXISTS (SELECT 1 FROM mem_mst WHERE auth_id = auth.uid() AND admin = true)
+    v2_rls_auth_team_owner_or_admin(team_id)
   );
 
 -- brd_post_read_hist RLS
@@ -100,12 +98,12 @@ ALTER TABLE brd_post_read_hist ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY brd_post_read_hist_select ON brd_post_read_hist
   FOR SELECT USING (
-    mem_id = (SELECT mem_id FROM mem_mst WHERE auth_id = auth.uid() LIMIT 1)
+    mem_id = v2_rls_resolve_mem_id()
   );
 
 CREATE POLICY brd_post_read_hist_insert ON brd_post_read_hist
   FOR INSERT WITH CHECK (
-    mem_id = (SELECT mem_id FROM mem_mst WHERE auth_id = auth.uid() LIMIT 1)
+    mem_id = v2_rls_resolve_mem_id()
   );
 
 -- noti_mst RLS
@@ -113,14 +111,13 @@ ALTER TABLE noti_mst ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY noti_mst_select ON noti_mst
   FOR SELECT USING (
-    mem_id = (SELECT mem_id FROM mem_mst WHERE auth_id = auth.uid() LIMIT 1)
+    mem_id = v2_rls_resolve_mem_id()
   );
 
--- INSERT: service role만 허용 (create_noti_for_team 함수가 SECURITY DEFINER로 처리)
 -- UPDATE: 본인 알림만 (read_yn, del_yn 업데이트)
 CREATE POLICY noti_mst_update ON noti_mst
   FOR UPDATE USING (
-    mem_id = (SELECT mem_id FROM mem_mst WHERE auth_id = auth.uid() LIMIT 1)
+    mem_id = v2_rls_resolve_mem_id()
   );
 
 -- noti_pref_cfg RLS
@@ -128,13 +125,13 @@ ALTER TABLE noti_pref_cfg ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY noti_pref_cfg_all ON noti_pref_cfg
   FOR ALL USING (
-    mem_id = (SELECT mem_id FROM mem_mst WHERE auth_id = auth.uid() LIMIT 1)
+    mem_id = v2_rls_resolve_mem_id()
   )
   WITH CHECK (
-    mem_id = (SELECT mem_id FROM mem_mst WHERE auth_id = auth.uid() LIMIT 1)
+    mem_id = v2_rls_resolve_mem_id()
   );
 
--- ── 7. create_noti_for_team — 팀 전체 알림 생성 함수 ─────────
+-- ── 6. create_noti_for_team — 팀 전체 알림 생성 함수 ─────────
 CREATE OR REPLACE FUNCTION create_noti_for_team(
   p_team_id        uuid,
   p_noti_type_enm  text,
@@ -169,8 +166,7 @@ BEGIN
 END;
 $$;
 
--- ── 8. 알림 90일 자동 삭제 (pg_cron) ────────────────────────
--- pg_cron 활성화된 경우에만 동작. 비활성화 환경에서는 무시됨.
+-- ── 7. 알림 90일 자동 삭제 (pg_cron) ────────────────────────
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
