@@ -15,6 +15,7 @@ import {
   Trash2,
   ServerCog,
   Bell,
+  Wallet,
 } from "lucide-react";
 
 import {
@@ -176,6 +177,16 @@ export default function AdminDashboardPage() {
       <section className="flex flex-col gap-3">
         <SectionLabel>프로젝트</SectionLabel>
         <CardGrid cards={projectCards} stats={stats} status={status} />
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <SectionLabel>회비</SectionLabel>
+        <ToolCard
+          href="/admin/dues"
+          icon={Wallet}
+          label="회비 관리"
+          hint="납부 현황·거래 확정·정산 실행"
+        />
       </section>
 
       <section className="flex flex-col gap-3">
