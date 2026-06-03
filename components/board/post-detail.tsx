@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import dayjs from "dayjs";
 import { ChevronLeft } from "lucide-react";
 import type { BoardPost } from "@/lib/queries/board";
@@ -58,7 +59,7 @@ export function PostDetail({ post, canEdit }: PostDetailProps) {
       <Separator />
 
       <div className="prose prose-sm max-w-none text-foreground dark:prose-invert">
-        <ReactMarkdown>{post.post_cont}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{post.post_cont}</ReactMarkdown>
       </div>
 
       {canEdit && (

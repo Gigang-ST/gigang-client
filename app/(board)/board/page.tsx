@@ -1,5 +1,3 @@
-import Link from "next/link";
-import { PenLine } from "lucide-react";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getBoardPosts } from "@/lib/queries/board";
@@ -22,17 +20,6 @@ export default async function BoardPage() {
   return (
     <div className="flex flex-col">
       <BackHeader title="게시판" href="/" />
-      {canWrite && (
-        <div className="flex justify-end px-6 pt-2">
-          <Link
-            href="/board/write"
-            className="flex items-center gap-1.5 text-sm text-primary"
-          >
-            <PenLine className="size-4" />
-            작성
-          </Link>
-        </div>
-      )}
       <BoardClient
         initialNotices={notices}
         initialUpdates={updates}

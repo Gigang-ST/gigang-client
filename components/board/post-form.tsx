@@ -21,9 +21,10 @@ const MDEditor = dynamic(() => import("@uiw/react-md-editor"), { ssr: false });
 type PostFormProps = {
   teamId: string;
   initialData?: BoardPost;
+  initialType?: "notice" | "update";
 };
 
-export function PostForm({ teamId, initialData }: PostFormProps) {
+export function PostForm({ teamId, initialData, initialType = "notice" }: PostFormProps) {
   const router = useRouter();
   const { resolvedTheme } = useTheme();
   const isEdit = Boolean(initialData);
@@ -32,7 +33,7 @@ export function PostForm({ teamId, initialData }: PostFormProps) {
     resolver: zodResolver(createPostSchema),
     defaultValues: {
       team_id: teamId,
-      post_type_enm: initialData?.post_type_enm ?? "notice",
+      post_type_enm: initialData?.post_type_enm ?? initialType,
       post_nm: initialData?.post_nm ?? "",
       post_cont: initialData?.post_cont ?? "",
       pin_yn: initialData?.pin_yn ?? false,
