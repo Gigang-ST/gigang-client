@@ -2,10 +2,7 @@
 -- 게시판 / 알림 시스템 마이그레이션
 -- ============================================================
 
--- ── 1. team_mem_rel 게시 권한 컬럼 추가 ──────────────────────
-ALTER TABLE team_mem_rel ADD COLUMN IF NOT EXISTS post_yn boolean DEFAULT false;
-
--- ── 2. brd_post_mst — 게시글 ────────────────────────────────
+-- ── 1. brd_post_mst — 게시글 ────────────────────────────────
 CREATE TABLE IF NOT EXISTS brd_post_mst (
   post_id       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   team_id       uuid NOT NULL REFERENCES team_mst(team_id),
@@ -77,20 +74,10 @@ ALTER TABLE brd_post_mst ENABLE ROW LEVEL SECURITY;
 CREATE POLICY brd_post_mst_select ON brd_post_mst
   FOR SELECT USING (del_yn = false);
 
--- INSERT: admin=true 또는 post_yn=true 멤버
+-- INSERT: admin=true 멤버만
 CREATE POLICY brd_post_mst_insert ON brd_post_mst
   FOR INSERT WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM team_mem_rel tmr
-      WHERE tmr.team_id = brd_post_mst.team_id
-        AND tmr.mem_id = (SELECT mem_id FROM mem_mst WHERE auth_id = auth.uid() LIMIT 1)
-        AND tmr.vers = 0
-        AND tmr.del_yn = false
-        AND (
-          EXISTS (SELECT 1 FROM mem_mst WHERE mem_id = tmr.mem_id AND admin = true)
-          OR tmr.post_yn = true
-        )
-    )
+    EXISTS (SELECT 1 FROM mem_mst WHERE auth_id = auth.uid() AND admin = true)
   );
 
 -- UPDATE: 작성자 또는 관리자

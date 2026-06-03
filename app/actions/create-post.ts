@@ -15,21 +15,10 @@ export async function createPost(input: {
   const { member } = await getCurrentMember();
   if (!member) throw new Error("로그인이 필요합니다.");
 
+  if (!member.admin) throw new Error("게시글 작성 권한이 없습니다.");
+
   const { teamId } = await getRequestTeamContext();
   const admin = createUntypedAdminClient();
-
-  // 권한 확인
-  const { data: rel } = await admin
-    .from("team_mem_rel")
-    .select("post_yn")
-    .eq("team_id", teamId)
-    .eq("mem_id", member.id)
-    .eq("vers", 0)
-    .eq("del_yn", false)
-    .single();
-
-  const canPost = member.admin || (rel as { post_yn?: boolean } | null)?.post_yn === true;
-  if (!canPost) throw new Error("게시글 작성 권한이 없습니다.");
 
   const parsed = createPostSchema.parse({ ...input, team_id: teamId });
 
