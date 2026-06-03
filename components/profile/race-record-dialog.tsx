@@ -81,7 +81,6 @@ export function RaceRecordDialog({
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [grantedTitles, setGrantedTitles] = useState<string[]>([]);
   const [grantedDismissable, setGrantedDismissable] = useState(false);
-  const grantedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const grantedDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 대회 목록
@@ -362,22 +361,13 @@ export function RaceRecordDialog({
     if (result.grantedTitles && result.grantedTitles.length > 0) {
       setGrantedTitles(result.grantedTitles);
       setGrantedDismissable(false);
-      if (grantedTimerRef.current) clearTimeout(grantedTimerRef.current);
       if (grantedDismissTimerRef.current) clearTimeout(grantedDismissTimerRef.current);
-      // 2초 후 탭 닫기 활성화
       grantedDismissTimerRef.current = setTimeout(() => setGrantedDismissable(true), 2000);
-      // 4초 후 자동 닫기
-      grantedTimerRef.current = setTimeout(() => {
-        setGrantedTitles([]);
-        setGrantedDismissable(false);
-        grantedTimerRef.current = null;
-      }, 4000);
     }
   }
 
   const dismissGranted = useCallback(() => {
     if (!grantedDismissable) return;
-    if (grantedTimerRef.current) clearTimeout(grantedTimerRef.current);
     if (grantedDismissTimerRef.current) clearTimeout(grantedDismissTimerRef.current);
     setGrantedTitles([]);
     setGrantedDismissable(false);
