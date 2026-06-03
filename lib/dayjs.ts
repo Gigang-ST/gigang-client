@@ -13,6 +13,8 @@ dayjs.locale("ko");
 
 const KST = "Asia/Seoul";
 
+export { dayjs };
+
 /** KST 기준 현재 dayjs 인스턴스 */
 function nowKST() {
   return dayjs().tz(KST);

@@ -14,6 +14,7 @@ import {
   BadgeCheck,
   Trash2,
   ServerCog,
+  Bell,
 } from "lucide-react";
 
 import {
@@ -179,6 +180,12 @@ export default function AdminDashboardPage() {
 
       <section className="flex flex-col gap-3">
         <SectionLabel>도구</SectionLabel>
+        <ToolCard
+          href="/admin/notifications"
+          icon={Bell}
+          label="수동 알림 발송"
+          hint="전체 또는 특정 멤버에게 알림 발송"
+        />
         <ToolCard
           href="/admin/utmb-refresh"
           icon={RefreshCw}

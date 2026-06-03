@@ -2,6 +2,7 @@
 
 import { verifyAdmin } from "@/lib/queries/member";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { insertNoti } from "@/lib/notifications/insert-noti";
 
 export async function grantTitle(
   teamMemId: string,
@@ -50,5 +51,22 @@ export async function grantTitle(
   });
 
   if (error) return { ok: false as const, message: "수여에 실패했습니다." };
+
+  // 수여받은 멤버에게 알림 발송 (fire-and-forget)
+  Promise.all([
+    db.from("team_mem_rel").select("mem_id").eq("team_mem_id", teamMemId).eq("vers", 0).eq("del_yn", false).single(),
+    db.from("ttl_mst").select("ttl_nm").eq("ttl_id", ttlId).single(),
+  ]).then(([{ data: rel }, { data: ttl }]) => {
+    if (!rel?.mem_id) return;
+    insertNoti({
+      teamId,
+      memId: rel.mem_id,
+      notiTypeEnm: "ttl_grnt",
+      notiNm: `'${ttl?.ttl_nm ?? "칭호"}' 칭호를 획득했습니다!`,
+      refId: ttlId,
+      refTypeEnm: "ttl",
+    }).catch(console.error);
+  }).catch(console.error);
+
   return { ok: true as const, message: null };
 }

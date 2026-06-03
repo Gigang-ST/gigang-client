@@ -1,3 +1,4 @@
+import "server-only";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { type Database } from "@/lib/supabase/database.types";
 import { env } from "@/lib/env";
@@ -9,6 +10,18 @@ import { env } from "@/lib/env";
  */
 export function createAdminClient() {
   return createSupabaseClient<Database>(
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.SUPABASE_SERVICE_ROLE_KEY,
+  );
+}
+
+/**
+ * DB 타입 미생성 신규 테이블 접근용 untyped 관리자 클라이언트.
+ * 마이그레이션 적용 후 supabase gen types 실행 시 createAdminClient로 교체 예정.
+ */
+export function createUntypedAdminClient() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return createSupabaseClient<any>(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.SUPABASE_SERVICE_ROLE_KEY,
   );
