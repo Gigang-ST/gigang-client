@@ -33,14 +33,17 @@ export default async function DuesAdminDashboardPage() {
       .eq("del_yn", false)
       .gte("pay_dt", thisMonth + "-01")
       .lte("pay_dt", thisMonth + "-31"),
-    // 미납 회원 수
+    // 미납 회원 수 (active 회원만)
     supabase
       .from("fee_mem_bal_snap")
-      .select("bal_snap_id", { count: "exact", head: true })
+      .select("team_mem_rel!inner(mem_st_cd)", { count: "exact", head: true })
       .eq("team_id", teamId)
       .eq("vers", 0)
       .eq("del_yn", false)
-      .lt("bal_amt", 0),
+      .lt("bal_amt", 0)
+      .eq("team_mem_rel.mem_st_cd", "active")
+      .eq("team_mem_rel.vers", 0)
+      .eq("team_mem_rel.del_yn", false),
     // 미처리 거래 (미확정)
     supabase
       .from("fee_txn_hist")
