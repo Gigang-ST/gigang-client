@@ -25,9 +25,11 @@ export default async function DuesTransactionsPage() {
       .limit(20),
     supabase
       .from("mem_mst")
-      .select("mem_id, mem_nm")
+      .select("mem_id, mem_nm, birth_dt, team_mem_rel!inner(join_dt)")
       .eq("vers", 0)
       .eq("del_yn", false)
+      .eq("team_mem_rel.vers", 0)
+      .eq("team_mem_rel.del_yn", false)
       .order("mem_nm"),
     supabase
       .from("cmm_cd_mst")
@@ -43,7 +45,12 @@ export default async function DuesTransactionsPage() {
       teamId={teamId}
       txns={txns ?? []}
       uploads={uploads ?? []}
-      members={members ?? []}
+      members={(members ?? []).map((m) => ({
+        mem_id: m.mem_id,
+        mem_nm: m.mem_nm,
+        birth_dt: m.birth_dt ?? null,
+        join_dt: Array.isArray(m.team_mem_rel) ? (m.team_mem_rel[0]?.join_dt ?? null) : null,
+      }))}
       feeItemCds={(feeItemCds ?? []).map((c) => ({ cd: c.cd, label: c.cd_nm }))}
     />
   );

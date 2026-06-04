@@ -65,9 +65,9 @@ export async function uploadXlsx(formData: FormData) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const wb = XLSX.read(buffer, { type: "buffer", password } as any);
     const ws = wb.Sheets[wb.SheetNames[0]];
-    // 11번째 행부터 데이터 (헤더 = 11행, 0-indexed = 10)
-    const raw: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, range: 10 });
-    const header = raw[0] as string[];
+    // 9행: 빈행, 10행: 헤더, 11행~: 데이터 (0-indexed range:9 → raw[0]=빈행, raw[1]=헤더)
+    const raw: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, range: 9 });
+    const header = raw[1] as string[];
     const dtIdx = header.findIndex((h) => h?.includes("거래일시"));
     const ioIdx = header.findIndex((h) => h?.includes("구분"));
     const amtIdx = header.findIndex((h) => h?.includes("거래금액"));
@@ -75,7 +75,7 @@ export async function uploadXlsx(formData: FormData) {
     const nameIdx = header.findIndex((h) => h?.includes("내용"));
     const memoIdx = header.findIndex((h) => h?.includes("메모"));
 
-    rows = raw.slice(1).flatMap((r): ParsedRow[] => {
+    rows = raw.slice(2).flatMap((r): ParsedRow[] => {
       const dtRaw = String(r[dtIdx] ?? "").trim();
       const ioRaw = String(r[ioIdx] ?? "").trim();
       const amtRaw = String(r[amtIdx] ?? "").trim();

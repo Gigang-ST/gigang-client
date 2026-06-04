@@ -40,6 +40,7 @@
     "embla-carousel": "^8.6.0",
     "embla-carousel-fade": "^8.6.0",
     "embla-carousel-react": "^8.6.0",
+    "exceljs": "^4.4.0",
     "heic-convert": "^2.1.0",
     "lucide-react": "^0.511.0",
     "next": "latest",
