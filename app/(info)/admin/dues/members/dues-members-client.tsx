@@ -1,24 +1,32 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import dayjs from "dayjs";
+import { dayjs } from "@/lib/dayjs";
 
 import { recalculateBalance } from "@/app/actions/dues/recalculate-balance";
 import { createExemption } from "@/app/actions/dues/create-exemption";
 
-import { Body, Caption, SectionLabel } from "@/components/common/typography";
-import { CardItem } from "@/components/ui/card";
+import { Caption, SectionLabel } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type MemberRow = {
   mem_id: string;
   mem_nm: string;
+  birth_dt: string | null;
+  join_dt: string | null;
   snap: { bal_snap_id: string; bal_amt: number; last_calc_dt: string } | null;
 };
 
@@ -99,36 +107,88 @@ export function DuesMembersClient({ teamId, members }: { teamId: string; members
         )}
       </div>
 
-      {/* 회원 목록 */}
-      <div className="flex flex-col gap-2">
+      {/* 회원별 잔액 그리드 */}
+      <div className="flex flex-col gap-3">
         <SectionLabel>회원별 잔액 ({members.length}명)</SectionLabel>
-        {members.map((m) => {
-          const bal = m.snap?.bal_amt ?? null;
-          return (
-            <CardItem key={m.mem_id} className="flex items-center justify-between p-4">
-              <div className="flex flex-col gap-1">
-                <Body className="font-semibold">{m.mem_nm}</Body>
-                {bal === null ? (
-                  <Caption>정산 내역 없음</Caption>
-                ) : (
-                  <Caption className={bal < 0 ? "text-destructive" : bal > 0 ? "text-primary" : ""}>
-                    {bal > 0 && "+"}
-                    {bal.toLocaleString()}원
-                    {m.snap?.last_calc_dt && ` · ${dayjs(m.snap.last_calc_dt).format("MM/DD")} 기준`}
-                  </Caption>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button variant="ghost" size="sm" onClick={() => handleRecalcOne(m.mem_id)} disabled={isPending}>
-                  재계산
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setExemptTarget(m)}>
-                  면제
-                </Button>
-              </div>
-            </CardItem>
-          );
-        })}
+        <div className="overflow-x-auto rounded-2xl border border-border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-center text-xs whitespace-nowrap">이름</TableHead>
+                <TableHead className="text-center text-xs whitespace-nowrap">생년월일</TableHead>
+                <TableHead className="text-center text-xs whitespace-nowrap">가입일</TableHead>
+                <TableHead className="text-center text-xs whitespace-nowrap">잔액</TableHead>
+                <TableHead className="text-center text-xs whitespace-nowrap">기준일</TableHead>
+                <TableHead className="text-center text-xs whitespace-nowrap">재계산</TableHead>
+                <TableHead className="text-center text-xs whitespace-nowrap">면제</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {members.map((m) => {
+                const bal = m.snap?.bal_amt ?? null;
+                return (
+                  <TableRow key={m.mem_id}>
+                    <TableCell className="text-center">
+                      <Caption className="text-xs font-semibold whitespace-nowrap">{m.mem_nm}</Caption>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Caption className="text-xs whitespace-nowrap">{m.birth_dt ?? "-"}</Caption>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Caption className="text-xs whitespace-nowrap">
+                        {m.join_dt ? dayjs(m.join_dt).format("YYYY.MM.DD") : "-"}
+                      </Caption>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {bal === null ? (
+                        <Caption className="text-xs text-muted-foreground">-</Caption>
+                      ) : (
+                        <Caption
+                          className={`text-xs font-semibold whitespace-nowrap ${
+                            bal < 0 ? "text-destructive" : bal > 0 ? "text-primary" : ""
+                          }`}
+                        >
+                          {bal > 0 && "+"}{bal.toLocaleString()}원
+                        </Caption>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Caption className="text-xs whitespace-nowrap">
+                        {m.snap?.last_calc_dt ? dayjs(m.snap.last_calc_dt).format("YYYY.MM.DD") : "-"}
+                      </Caption>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex justify-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => handleRecalcOne(m.mem_id)}
+                          disabled={isPending}
+                        >
+                          재계산
+                        </Button>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex justify-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => setExemptTarget(m)}
+                          disabled={isPending}
+                        >
+                          면제
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       {/* 면제 등록 다이얼로그 */}
@@ -141,9 +201,7 @@ export function DuesMembersClient({ teamId, members }: { teamId: string; members
             <div className="flex flex-col gap-1.5">
               <Label>면제 유형</Label>
               <Select value={exmForm.exmTpEnm} onValueChange={(v) => setExmForm((f) => ({ ...f, exmTpEnm: v as "full" | "part" }))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="full">전액 면제</SelectItem>
                   <SelectItem value="part">부분 면제</SelectItem>

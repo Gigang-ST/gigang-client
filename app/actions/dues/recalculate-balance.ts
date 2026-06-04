@@ -77,25 +77,27 @@ export async function recalculateBalance(memId?: string) {
     // fromDt 이후 납부액 합산
     const { data: pays } = await db
       .from("fee_due_pay_hist")
-      .select("pay_amt")
+      .select("pay_id, pay_amt")
       .eq("team_id", teamId)
       .eq("mem_id", mid)
       .eq("pay_st_cd", "paid")
       .eq("vers", 0)
       .eq("del_yn", false)
-      .gte("pay_dt", fromDt);
+      .gte("pay_dt", fromDt)
+      .order("pay_dt", { ascending: false });
 
     const totalPaid = (pays ?? []).reduce((sum, p) => sum + p.pay_amt, 0);
 
     // fromDt 이후 면제액 합산
     const { data: exms } = await db
       .from("fee_due_exm_hist")
-      .select("exm_amt, aply_ym")
+      .select("exm_hist_id, exm_amt, aply_ym")
       .eq("team_id", teamId)
       .eq("mem_id", mid)
       .eq("vers", 0)
       .eq("del_yn", false)
-      .gte("aply_ym", fromDt.slice(0, 7));
+      .gte("aply_ym", fromDt.slice(0, 7))
+      .order("aply_ym", { ascending: false });
 
     const totalExempted = (exms ?? []).reduce((sum, e) => sum + e.exm_amt, 0);
 
@@ -144,8 +146,8 @@ export async function recalculateBalance(memId?: string) {
       bal_amt: newBal,
       last_calc_dt: today,
       last_calc_at: new Date().toISOString(),
-      last_ref_pay_id: lastPay ? undefined : undefined,
-      last_ref_exm_hist_id: lastExm ? undefined : undefined,
+      last_ref_pay_id: lastPay?.pay_id ?? undefined,
+      last_ref_exm_hist_id: lastExm?.exm_hist_id ?? undefined,
       vers: 0,
       del_yn: false,
     });

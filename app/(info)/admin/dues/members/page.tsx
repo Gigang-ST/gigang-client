@@ -16,16 +16,21 @@ export default async function DuesMembersPage() {
       .order("bal_amt", { ascending: true }),
     supabase
       .from("mem_mst")
-      .select("mem_id, mem_nm")
+      .select("mem_id, mem_nm, birth_dt, team_mem_rel!inner(join_dt)")
       .eq("vers", 0)
       .eq("del_yn", false)
+      .eq("team_mem_rel.vers", 0)
+      .eq("team_mem_rel.del_yn", false)
       .order("mem_nm"),
   ]);
 
   const snapMap = new Map((snaps ?? []).map((s) => [s.mem_id, s]));
 
   const memberList = (members ?? []).map((m) => ({
-    ...m,
+    mem_id: m.mem_id,
+    mem_nm: m.mem_nm,
+    birth_dt: m.birth_dt ?? null,
+    join_dt: Array.isArray(m.team_mem_rel) ? (m.team_mem_rel[0]?.join_dt ?? null) : null,
     snap: snapMap.get(m.mem_id) ?? null,
   }));
 

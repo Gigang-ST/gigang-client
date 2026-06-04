@@ -107,7 +107,9 @@ export default async function DuesAdminDashboardPage() {
         <div className="grid grid-cols-2 gap-3">
           <StatCard value={paidCount ?? 0} label="이번 달 납부" />
           <StatCard value={unpaidCount ?? 0} label="미납 회원" valueClassName={(unpaidCount ?? 0) > 0 ? "text-destructive" : undefined} />
-          <StatCard value={pendingTxnCount ?? 0} label="미처리 거래" valueClassName={(pendingTxnCount ?? 0) > 0 ? "text-warning" : undefined} />
+          <Link href="/admin/dues/transactions">
+            <StatCard value={pendingTxnCount ?? 0} label="미처리 거래 →" valueClassName={(pendingTxnCount ?? 0) > 0 ? "text-warning" : undefined} />
+          </Link>
         </div>
       </div>
 
