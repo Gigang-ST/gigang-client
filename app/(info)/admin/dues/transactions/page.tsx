@@ -52,9 +52,9 @@ export default async function DuesTransactionsPage({ searchParams }: { searchPar
   // mem_id별 마지막 재계산 시각
   const snapCalcAtMap = new Map((snaps ?? []).map((s) => [s.mem_id, s.last_calc_at]));
 
-  const validFilters = ["all", "unconfirmed", "unmatched", "confirmed"] as const;
+  const validFilters = ["all", "unconfirmed", "confirmed"] as const;
   type FilterType = typeof validFilters[number];
-  const initialFilter: FilterType = validFilters.includes(filter as FilterType) ? (filter as FilterType) : "unmatched";
+  const initialFilter: FilterType = validFilters.includes(filter as FilterType) ? (filter as FilterType) : "unconfirmed";
 
   return (
     <DuesTransactionsClient
