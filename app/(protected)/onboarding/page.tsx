@@ -22,7 +22,8 @@ async function OnboardingContent({
     redirect(`/auth/login?next=${encodeURIComponent(safeNext)}`);
   }
 
-  if (member && member.status === "active") {
+  // 이미 가입된 회원(active/inactive 등)은 온보딩 불필요
+  if (member) {
     redirect(safeNext === "/onboarding" ? "/" : safeNext);
   }
 
