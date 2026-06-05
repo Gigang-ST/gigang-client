@@ -70,6 +70,7 @@ export function ActivityLogBatchForm({ evtId, onSuccess }: ActivityLogBatchFormP
   const today = todayKST();
   const [multipliers, setMultipliers] = useState<EventMultiplier[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [initialDraft] = useState<ActivityDraft>(() => createDraft(today));
   const [drafts, setDrafts] = useState<ActivityDraft[]>([initialDraft]);
   const [expandedId, setExpandedId] = useState<string>(initialDraft.id);
@@ -129,11 +130,11 @@ export function ActivityLogBatchForm({ evtId, onSuccess }: ActivityLogBatchFormP
       const dist = Number(d.distance_km);
       const elev = d.sprt_enm === "SWIMMING" ? 0 : Number(d.elevation_m || "0");
       if (!d.act_dt || !Number.isFinite(dist) || dist <= 0) {
-        alert(`${i + 1}번째 기록의 날짜/거리를 확인해 주세요.`);
+        setError(`${i + 1}번째 기록의 날짜/거리를 확인해 주세요.`);
         return;
       }
       if (!Number.isFinite(elev) || elev < 0) {
-        alert(`${i + 1}번째 기록의 상승고도를 확인해 주세요.`);
+        setError(`${i + 1}번째 기록의 상승고도를 확인해 주세요.`);
         return;
       }
       payload.push({
@@ -150,12 +151,13 @@ export function ActivityLogBatchForm({ evtId, onSuccess }: ActivityLogBatchFormP
     try {
       const result = await logActivitiesBatch(evtId, payload);
       if (!result.ok) {
-        alert(result.message ?? "오류가 발생했습니다.");
+        setError(result.message ?? "오류가 발생했습니다.");
         return;
       }
+      setError(null);
       onSuccess(payload.length, result.grantedTitles ?? []);
     } catch {
-      alert("오류가 발생했습니다. 다시 시도해 주세요.");
+      setError("오류가 발생했습니다. 다시 시도해 주세요.");
     } finally {
       setSubmitting(false);
     }
@@ -355,6 +357,7 @@ export function ActivityLogBatchForm({ evtId, onSuccess }: ActivityLogBatchFormP
         <p className="mb-2 text-xs text-muted-foreground">
           총 예상 마일리지 {totalPreview.toFixed(1)} km
         </p>
+        {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
         <div className="flex gap-2">
           <Button
             type="button"

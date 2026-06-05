@@ -108,7 +108,7 @@ export function CompetitionDetailDialog({
   );
   const [eventType, setEventType] = useState("");
   const [otherEventType, setOtherEventType] = useState("");
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [participants, setParticipants] = useState<RegistrationWithMember[]>([]);
   /** 비회원 등: RLS 우회 RPC로 표시 키별 인원만 (이름 없음) */
@@ -313,7 +313,7 @@ export function CompetitionDetailDialog({
     if (!competition) return;
 
     if (!canSubmit) {
-      setStatusMessage("참가 종목을 선택해 주세요.");
+      setStatusMessage({ text: "참가 종목을 선택해 주세요.", ok: false });
       return;
     }
 
@@ -325,7 +325,7 @@ export function CompetitionDetailDialog({
       : await onCreate(competition.id, payload);
 
     setIsSaving(false);
-    setStatusMessage(result.message);
+    if (result.message) setStatusMessage({ text: result.message, ok: result.ok });
     if (result.ok) loadParticipants(competition.id);
   }
 
@@ -334,7 +334,7 @@ export function CompetitionDetailDialog({
     setIsSaving(true);
     const result = await onDelete(registration.id, competition.id);
     setIsSaving(false);
-    setStatusMessage(result.message);
+    if (result.message) setStatusMessage({ text: result.message, ok: result.ok });
     if (result.ok) loadParticipants(competition.id);
   }
 
@@ -661,7 +661,9 @@ export function CompetitionDetailDialog({
             )}
 
             {statusMessage && (
-              <p className="text-xs text-muted-foreground">{statusMessage}</p>
+              <p className={`text-xs ${statusMessage.ok ? "text-muted-foreground" : "text-destructive"}`}>
+                {statusMessage.text}
+              </p>
             )}
 
             <DialogFooter className="gap-2 sm:gap-0">

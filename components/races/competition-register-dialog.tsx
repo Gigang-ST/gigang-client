@@ -179,7 +179,8 @@ export function CompetitionRegisterDialog({
     onOpenChange(false);
   }
 
-  const showAuthMessage = memberStatus.status !== "ready";
+  const showAuthMessage = memberStatus.status !== "ready" && memberStatus.status !== "inactive";
+  const showInactiveMessage = memberStatus.status === "inactive";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -201,7 +202,11 @@ export function CompetitionRegisterDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {showAuthMessage ? (
+        {showInactiveMessage ? (
+          <div className="flex flex-col gap-3 text-sm">
+            <p className="text-destructive">비활성화된 회원입니다. 관리자에게 문의하세요.</p>
+          </div>
+        ) : showAuthMessage ? (
           <div className="flex flex-col gap-3 text-sm">
             {memberStatus.status === "member-fetch-error" ? (
               <>

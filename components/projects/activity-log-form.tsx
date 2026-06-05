@@ -86,6 +86,7 @@ export function ActivityLogForm({
   const [multipliers, setMultipliers] = useState<EventMultiplier[]>([]);
   const [selectedMultIds, setSelectedMultIds] = useState<string[]>(initialMultIds);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const {
     register,
@@ -171,12 +172,13 @@ export function ActivityLogForm({
         : await logActivity(evtId, input);
 
       if (!result.ok) {
-        alert(result.message ?? "오류가 발생했습니다.");
+        setError(result.message ?? "오류가 발생했습니다.");
       } else {
+        setError(null);
         onSuccess();
       }
     } catch {
-      alert("오류가 발생했습니다. 다시 시도해 주세요.");
+      setError("오류가 발생했습니다. 다시 시도해 주세요.");
     } finally {
       setSubmitting(false);
     }
@@ -322,6 +324,7 @@ export function ActivityLogForm({
       </div>
 
       {/* 저장 버튼 */}
+      {error && <p className="text-xs text-destructive">{error}</p>}
       <Button
         type="submit"
         disabled={submitting}
