@@ -1,12 +1,13 @@
 import { cache } from "react";
-import { createClient } from "@/lib/supabase/server";
-import { validateUUID } from "@/lib/utils";
+
 import {
   fetchMemMstWithTeamRel,
   mapMstRelToAppMemberProfile,
   type AppMemberProfile,
 } from "@/lib/queries/app-member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { createClient } from "@/lib/supabase/server";
+import { validateUUID } from "@/lib/utils";
 
 export type { AppMemberProfile };
 
@@ -111,7 +112,7 @@ export async function verifyAdmin() {
 export async function verifyActive(): Promise<{ ok: true } | { ok: false; message: string }> {
   const { member } = await getCurrentMember();
   if (!member) return { ok: false, message: "로그인이 필요합니다." };
-  if (member.status === "inactive") {
+  if (member.status !== "active") {
     return { ok: false, message: "비활성화된 회원입니다. 관리자에게 문의하세요." };
   }
   return { ok: true };
