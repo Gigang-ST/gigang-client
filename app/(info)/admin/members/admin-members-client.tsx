@@ -1,17 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback, useTransition } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { grantTitle } from "@/app/actions/admin/grant-title";
-import {
-  toggleAdmin,
-  deleteMember,
-  deactivateMember,
-  reactivateMember,
-  batchDeactivateMembers,
-  batchReactivateMembers,
-} from "@/app/actions/admin/manage-member";
-import { revokeTitle } from "@/app/actions/admin/revoke-title";
+
 import {
   Search,
   Shield,
@@ -21,20 +11,34 @@ import {
   UserCheck,
   X,
 } from "lucide-react";
+
+import { dayjs } from "@/lib/dayjs";
+import { createClient } from "@/lib/supabase/client";
+
+import { grantTitle } from "@/app/actions/admin/grant-title";
+import {
+  toggleAdmin,
+  deleteMember,
+  reactivateMember,
+  batchDeactivateMembers,
+  batchReactivateMembers,
+} from "@/app/actions/admin/manage-member";
+import { revokeTitle } from "@/app/actions/admin/revoke-title";
+
 import { Avatar } from "@/components/common/avatar";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/common/empty-state";
+import { InfoRow } from "@/components/common/info-row";
+import { SegmentControl } from "@/components/common/segment-control";
 import { H2, Caption, SectionLabel } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
-import { EmptyState } from "@/components/common/empty-state";
 import { Checkbox } from "@/components/ui/checkbox";
-import { SegmentControl } from "@/components/common/segment-control";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { InfoRow } from "@/components/common/info-row";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -43,7 +47,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { dayjs } from "@/lib/dayjs";
+
 
 // ---------------------------------------------------------------------------
 // 타입
@@ -342,63 +346,66 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
   const [isPending, startTransition] = useTransition();
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [deactivateTarget, setDeactivateTarget] = useState<{ ids: string[]; single?: boolean } | null>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<{ ids: string[] } | null>(null);
   const [deactivateReason, setDeactivateReason] = useState("");
 
   const loadMembers = useCallback(async () => {
     const supabase = createClient();
-    const [{ data: membersData }, { data: snapsData }] = await Promise.all([
-      supabase
-        .from("team_mem_rel")
-        .select(
-          "team_mem_id, mem_id, team_role_cd, mem_st_cd, join_dt, inact_rsn_txt, mem_mst!inner(mem_nm, phone_no, email_addr, gdr_enm, birth_dt, avatar_url)",
-        )
-        .eq("team_id", teamId)
-        .eq("vers", 0)
-        .eq("del_yn", false)
-        .eq("mem_mst.vers", 0)
-        .eq("mem_mst.del_yn", false)
-        .order("join_dt", { ascending: false }),
-      supabase
-        .from("fee_mem_bal_snap")
-        .select("mem_id, bal_amt")
-        .eq("team_id", teamId)
-        .eq("vers", 0)
-        .eq("del_yn", false),
-    ]);
+    try {
+      const [{ data: membersData }, { data: snapsData }] = await Promise.all([
+        supabase
+          .from("team_mem_rel")
+          .select(
+            "team_mem_id, mem_id, team_role_cd, mem_st_cd, join_dt, inact_rsn_txt, mem_mst!inner(mem_nm, phone_no, email_addr, gdr_enm, birth_dt, avatar_url)",
+          )
+          .eq("team_id", teamId)
+          .eq("vers", 0)
+          .eq("del_yn", false)
+          .eq("mem_mst.vers", 0)
+          .eq("mem_mst.del_yn", false)
+          .order("join_dt", { ascending: false }),
+        supabase
+          .from("fee_mem_bal_snap")
+          .select("mem_id, bal_amt")
+          .eq("team_id", teamId)
+          .eq("vers", 0)
+          .eq("del_yn", false),
+      ]);
 
-    const snapMap = new Map((snapsData ?? []).map((s) => [s.mem_id, s.bal_amt]));
+      const snapMap = new Map((snapsData ?? []).map((s) => [s.mem_id, s.bal_amt]));
 
-    type Mst = {
-      mem_nm: string;
-      phone_no: string | null;
-      email_addr: string | null;
-      gdr_enm: string | null;
-      birth_dt: string | null;
-      avatar_url: string | null;
-    };
+      type Mst = {
+        mem_nm: string;
+        phone_no: string | null;
+        email_addr: string | null;
+        gdr_enm: string | null;
+        birth_dt: string | null;
+        avatar_url: string | null;
+      };
 
-    setMembers(
-      (membersData ?? []).map((r) => {
-        const m = r.mem_mst as unknown as Mst;
-        return {
-          id: r.mem_id,
-          team_mem_id: r.team_mem_id,
-          full_name: m.mem_nm,
-          phone: m.phone_no,
-          email: m.email_addr,
-          gender: m.gdr_enm,
-          birthday: m.birth_dt,
-          avatar_url: m.avatar_url,
-          status: r.mem_st_cd,
-          admin: r.team_role_cd === "admin" || r.team_role_cd === "owner",
-          joined_at: r.join_dt,
-          inact_rsn_txt: r.inact_rsn_txt ?? null,
-          bal_amt: snapMap.get(r.mem_id) ?? null,
-        };
-      }),
-    );
-    setLoading(false);
+      setMembers(
+        (membersData ?? []).map((r) => {
+          const m = r.mem_mst as unknown as Mst;
+          return {
+            id: r.mem_id,
+            team_mem_id: r.team_mem_id,
+            full_name: m.mem_nm,
+            phone: m.phone_no,
+            email: m.email_addr,
+            gender: m.gdr_enm,
+            birthday: m.birth_dt,
+            avatar_url: m.avatar_url,
+            status: r.mem_st_cd,
+            admin: r.team_role_cd === "admin" || r.team_role_cd === "owner",
+            joined_at: r.join_dt,
+            inact_rsn_txt: r.inact_rsn_txt ?? null,
+            bal_amt: snapMap.get(r.mem_id) ?? null,
+          };
+        }),
+      );
+    } finally {
+      setLoading(false);
+    }
   }, [teamId]);
 
   useEffect(() => {
@@ -448,8 +455,8 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
   }
 
   function toggleAll() {
-    const allSelected = displayedIds.every((id) => selectedIds.has(id));
     setSelectedIds((prev) => {
+      const allSelected = displayedIds.every((id) => prev.has(id));
       const next = new Set(prev);
       if (allSelected) displayedIds.forEach((id) => next.delete(id));
       else displayedIds.forEach((id) => next.add(id));
@@ -486,7 +493,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
     setActioning(false);
   };
 
-  async function handleBatchDeactivate(reason: string) {
+  function handleBatchDeactivate(reason: string) {
     const ids = deactivateTarget?.ids ?? [];
     startTransition(async () => {
       const res = await batchDeactivateMembers(ids, reason);
@@ -501,7 +508,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
     });
   }
 
-  async function handleBatchReactivate(memberIds: string[]) {
+  function handleBatchReactivate(memberIds: string[]) {
     if (!confirm(`${memberIds.length}명을 활성화하시겠습니까?`)) return;
     startTransition(async () => {
       const res = await batchReactivateMembers(memberIds);
@@ -514,21 +521,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
     });
   }
 
-  async function handleSingleDeactivate(memberId: string, reason: string) {
-    startTransition(async () => {
-      const res = await deactivateMember(memberId, reason);
-      if (res.ok) {
-        setDeactivateTarget(null);
-        setDeactivateReason("");
-        setSelectedMember(null);
-        await loadMembers();
-      } else {
-        alert(res.message);
-      }
-    });
-  }
-
-  async function handleSingleReactivate(memberId: string) {
+  function handleSingleReactivate(memberId: string) {
     if (!confirm("활성화하시겠습니까?")) return;
     startTransition(async () => {
       const res = await reactivateMember(memberId);
@@ -621,8 +614,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
               <TableHead className="w-10 text-center">
                 <div className="flex justify-center">
                   <Checkbox
-                    checked={isAllSelected}
-                    data-state={isIndeterminate ? "indeterminate" : isAllSelected ? "checked" : "unchecked"}
+                    checked={isIndeterminate ? "indeterminate" : isAllSelected}
                     onCheckedChange={toggleAll}
                   />
                 </div>
@@ -800,7 +792,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
                 {selectedMember.status === "active" ? (
                   <Button
                     variant="outline"
-                    onClick={() => setDeactivateTarget({ ids: [selectedMember.id], single: true })}
+                    onClick={() => setDeactivateTarget({ ids: [selectedMember.id] })}
                     disabled={actioning || isPending}
                     className="h-auto justify-start gap-3 rounded-xl px-4 py-3.5 text-left"
                   >
@@ -866,9 +858,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
             </div>
             <Button
               onClick={() => {
-                if (deactivateTarget?.single && deactivateTarget.ids[0]) {
-                  handleSingleDeactivate(deactivateTarget.ids[0], deactivateReason.trim());
-                } else if (deactivateTarget) {
+                if (deactivateTarget) {
                   handleBatchDeactivate(deactivateReason.trim());
                 }
               }}
