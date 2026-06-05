@@ -123,6 +123,7 @@ async function HomeContent() {
           .from("team_mem_rel")
           .select("mem_id, join_dt, mem_mst!inner(mem_nm)")
           .eq("team_id", teamId)
+          .eq("mem_st_cd", "active")
           .eq("vers", 0)
           .eq("del_yn", false)
           .order("join_dt", { ascending: false })
