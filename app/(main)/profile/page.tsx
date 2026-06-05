@@ -11,6 +11,7 @@ import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 
 import { H1 } from "@/components/common/typography";
+import { DuesSummaryCard } from "@/components/profile/dues-summary-card";
 import { PaceChart } from "@/components/profile/pace-chart";
 import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
 import { ProfileCard } from "@/components/profile/profile-card";
@@ -30,7 +31,7 @@ async function ProfileContent() {
     redirect("/onboarding?next=/profile");
   }
 
-  const [{ data: raceResults }, { data: utmbProfile }, cmmCdRows, { data: primaryTitle }] = await Promise.all([
+  const [{ data: raceResults }, { data: utmbProfile }, cmmCdRows, { data: primaryTitle }, { data: balSnap }] = await Promise.all([
     supabase
       .from("rec_race_hist")
       .select("comp_evt_cfg(comp_evt_type), rec_time_sec, race_nm, race_dt")
@@ -51,6 +52,14 @@ async function ProfileContent() {
       .eq("team_mem_id", member.team_mem_id)
       .eq("vers", 0)
       .eq("del_yn", false),
+    supabase
+      .from("fee_mem_bal_snap")
+      .select("bal_amt")
+      .eq("team_id", teamId)
+      .eq("mem_id", member.id)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .maybeSingle(),
   ]);
 
   // Build best records map: for each event_type, pick the one with lowest record_time_sec
@@ -109,6 +118,9 @@ async function ProfileContent() {
 
         {/* 페이스 그래프 */}
         <PaceChart records={(raceResults ?? []).map((r) => ({ event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type?.toUpperCase() ?? "", record_time_sec: r.rec_time_sec, race_name: r.race_nm, race_date: r.race_dt }))} />
+
+        {/* 회비 요약 */}
+        <DuesSummaryCard balAmt={balSnap?.bal_amt ?? null} />
 
         {/* 기록 입력 */}
         <RaceRecordSection

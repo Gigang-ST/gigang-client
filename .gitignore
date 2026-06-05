@@ -1,5 +1,15 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# 개인 작업 메모 (로컬 전용)
+/TODO.md
+/.claude/docs/TODO.md
+
+# 개인정보 포함 문서 (로컬 전용)
+/.claude/docs/2026-06-04-회비초기스냅샷.md
+/.claude/docs/2026-06-04 회원명부 스냅샷.md
+/.claude/docs/*회비스냅샷*
+/.claude/docs/*회원명부*
+
 # 개발용 쇼케이스 페이지 (로컬 전용)
 /app/(info)/dev/
 
@@ -65,3 +75,5 @@ next-env.d.ts
 # environment variable 
 .env
 .env.*
+
+

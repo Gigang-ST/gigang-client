@@ -23,6 +23,7 @@ export type MemberStatus =
   | { status: "loading" }
   | { status: "signed-out" }
   | { status: "needs-onboarding"; userId: string }
+  | { status: "inactive"; userId: string }
   /** 로그인됐으나 mem_mst/team_mem_rel 조회가 실패(네트워크·RLS 등) */
   | { status: "member-fetch-error"; userId: string }
   | { status: "ready"; userId: string; memberId: string; fullName: string | null; email: string | null; admin: boolean };

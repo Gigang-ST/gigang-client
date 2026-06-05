@@ -1,14 +1,11 @@
 "use client";
 
-import { Check, Copy } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { joinProject } from "@/app/actions/mileage-run";
-import { Caption } from "@/components/common/typography";
-import { Button } from "@/components/ui/button";
-import { CardItem } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+
+import { useRouter } from "next/navigation";
+
+import { Check, Copy } from "lucide-react";
+
 import { currentMonthKST } from "@/lib/dayjs";
 import {
 	countMonths,
@@ -16,6 +13,14 @@ import {
 	ENTRY_FEE,
 	ENTRY_FEE_WITH_SINGLET,
 } from "@/lib/mileage";
+
+import { joinProject } from "@/app/actions/mileage-run";
+
+import { Caption } from "@/components/common/typography";
+import { Button } from "@/components/ui/button";
+import { CardItem } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 
 const MEETING_ACCOUNT = {
@@ -77,6 +82,7 @@ export function JoinSection({
 	const [customGoal, setCustomGoal] = useState("");
 	const [hasSinglet, setHasSinglet] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 
   // 승인 대기 중
   if (existingPrt && !existingPrt.aprv_yn) {
@@ -119,7 +125,7 @@ export function JoinSection({
 		if (goalPreset === "custom") {
 			const parsed = parseInt(customGoal, 10);
 			if (!parsed || parsed < 1) {
-				alert("목표를 1 이상의 숫자로 입력해 주세요.");
+				setError("목표를 1 이상의 숫자로 입력해 주세요.");
 				return;
 			}
 		}
@@ -128,12 +134,13 @@ export function JoinSection({
 		try {
 			const result = await joinProject(evtId, initGoal, hasSinglet);
 			if (!result.ok) {
-				alert(result.message ?? "오류가 발생했습니다. 다시 시도해 주세요.");
+				setError(result.message ?? "오류가 발생했습니다. 다시 시도해 주세요.");
 			} else {
+				setError(null);
 				router.refresh();
 			}
 		} catch {
-			alert("오류가 발생했습니다. 다시 시도해 주세요.");
+			setError("오류가 발생했습니다. 다시 시도해 주세요.");
 		} finally {
 			setSubmitting(false);
 		}
@@ -228,6 +235,7 @@ export function JoinSection({
       </div>
 
       {/* 참여하기 버튼 */}
+      {error && <p className="text-xs text-destructive">{error}</p>}
       <Button
         onClick={handleJoin}
         disabled={

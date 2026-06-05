@@ -3,7 +3,7 @@
 import { revalidateTag } from "next/cache";
 
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
-import { getCurrentMember } from "@/lib/queries/member";
+import { getCurrentMember, verifyActive } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import {
   normalizeCompEvtType,
@@ -107,6 +107,9 @@ export async function saveRaceRecord(input: SaveRaceRecordInput) {
   const { member, supabase } = await getCurrentMember();
   if (!member) return { ok: false as const, message: "로그인이 필요합니다." };
 
+  const activeCheck = await verifyActive();
+  if (!activeCheck.ok) return { ok: false as const, message: activeCheck.message };
+
   const { teamId } = await getRequestTeamContext();
   if (compEvtTypeContainsHangul(input.eventType)) {
     return {
@@ -186,6 +189,9 @@ export async function updateRaceRecord(
   const { member, supabase } = await getCurrentMember();
   if (!member) return { ok: false as const, message: "로그인이 필요합니다." };
 
+  const activeCheck = await verifyActive();
+  if (!activeCheck.ok) return { ok: false as const, message: activeCheck.message };
+
   const { data: target, error: fetchError } = await supabase
     .from("rec_race_hist")
     .select("race_result_id, comp_evt_cfg(comp_evt_type)")
@@ -233,6 +239,9 @@ export async function updateRaceRecord(
 export async function deleteRaceRecord(recordId: string) {
   const { member, supabase } = await getCurrentMember();
   if (!member) return { ok: false as const, message: "로그인이 필요합니다." };
+
+  const activeCheck = await verifyActive();
+  if (!activeCheck.ok) return { ok: false as const, message: activeCheck.message };
 
   const { data: target, error: fetchError } = await supabase
     .from("rec_race_hist")
