@@ -3,7 +3,7 @@
 import sharp from "sharp";
 // @ts-expect-error -- heic-convert에 타입 선언 없음
 import convert from "heic-convert";
-import { getCurrentMember } from "@/lib/queries/member";
+import { getCurrentMember, verifyActive } from "@/lib/queries/member";
 
 const MAX_SIZE = 256;
 const QUALITY = 80;
@@ -39,6 +39,9 @@ export async function uploadAvatar(formData: FormData) {
   if (!member || member.id !== memberId) {
     return { error: "권한이 없습니다." };
   }
+
+  const activeCheck = await verifyActive();
+  if (!activeCheck.ok) return { error: activeCheck.message };
 
   let buffer = Buffer.from(await file.arrayBuffer());
 

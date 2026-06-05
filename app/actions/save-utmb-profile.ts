@@ -2,7 +2,7 @@
 
 import { revalidateTag } from "next/cache";
 
-import { getCurrentMember } from "@/lib/queries/member";
+import { getCurrentMember, verifyActive } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 
 type SaveUtmbProfileInput = {
@@ -15,6 +15,9 @@ type SaveUtmbProfileInput = {
 export async function saveUtmbProfile(input: SaveUtmbProfileInput) {
   const { member, supabase } = await getCurrentMember();
   if (!member) return { ok: false as const, message: "로그인이 필요합니다." };
+
+  const activeCheck = await verifyActive();
+  if (!activeCheck.ok) return { ok: false as const, message: activeCheck.message };
 
   const { teamId } = await getRequestTeamContext();
 
@@ -42,6 +45,9 @@ export async function saveUtmbProfile(input: SaveUtmbProfileInput) {
 export async function deleteUtmbProfile() {
   const { member, supabase } = await getCurrentMember();
   if (!member) return { ok: false as const, message: "로그인이 필요합니다." };
+
+  const activeCheck = await verifyActive();
+  if (!activeCheck.ok) return { ok: false as const, message: activeCheck.message };
 
   const { teamId } = await getRequestTeamContext();
 

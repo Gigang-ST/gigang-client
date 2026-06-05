@@ -1,12 +1,15 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentMember } from "@/lib/queries/member";
+import { getCurrentMember, verifyActive } from "@/lib/queries/member";
 import { revalidatePath } from "next/cache";
 
 export async function setPrimaryTitle(ttlId: string | null) {
   const { member } = await getCurrentMember();
   if (!member) return { ok: false, message: "로그인이 필요합니다" };
+
+  const activeCheck = await verifyActive();
+  if (!activeCheck.ok) return { ok: false, message: activeCheck.message };
 
   const db = createAdminClient();
 
@@ -36,6 +39,9 @@ export async function setPrimaryTitle(ttlId: string | null) {
 export async function setSelectedEffect(badgeEffect: string | null, frameCd: string | null) {
   const { member } = await getCurrentMember();
   if (!member) return { ok: false, message: "로그인이 필요합니다" };
+
+  const activeCheck = await verifyActive();
+  if (!activeCheck.ok) return { ok: false, message: activeCheck.message };
 
   const db = createAdminClient();
   const { error } = await db.from("team_mem_rel")

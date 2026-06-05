@@ -3,8 +3,7 @@
 import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentMember } from "@/lib/queries/member";
-import { verifyAdmin } from "@/lib/queries/member";
+import { getCurrentMember, verifyActive, verifyAdmin } from "@/lib/queries/member";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 import dayjs from "dayjs";
 import {
@@ -144,6 +143,9 @@ export async function joinProject(
   const { member } = await getCurrentMember();
   if (!member) return { ok: false, message: "로그인이 필요합니다" };
 
+  const activeCheck = await verifyActive();
+  if (!activeCheck.ok) return { ok: false, message: activeCheck.message };
+
   const db = createAdminClient();
 
   // 이벤트 end_dt 조회
@@ -267,6 +269,9 @@ export async function logActivity(
   const { member } = await getCurrentMember();
   if (!member) return { ok: false, message: "로그인이 필요합니다" };
 
+  const activeCheck = await verifyActive();
+  if (!activeCheck.ok) return { ok: false, message: activeCheck.message };
+
   const admin = await verifyAdmin();
   const isAdmin = admin !== null;
 
@@ -366,6 +371,9 @@ export async function logActivitiesBatch(
 
   const { member } = await getCurrentMember();
   if (!member) return { ok: false, message: "로그인이 필요합니다" };
+
+  const activeCheck = await verifyActive();
+  if (!activeCheck.ok) return { ok: false, message: activeCheck.message };
 
   const admin = await verifyAdmin();
   const isAdmin = admin !== null;
@@ -495,6 +503,9 @@ export async function updateActivity(
   const { member } = await getCurrentMember();
   if (!member) return { ok: false, message: "로그인이 필요합니다" };
 
+  const activeCheck = await verifyActive();
+  if (!activeCheck.ok) return { ok: false, message: activeCheck.message };
+
   const admin = await verifyAdmin();
   const isAdmin = admin !== null;
 
@@ -566,6 +577,9 @@ export async function deleteActivity(
   const { member } = await getCurrentMember();
   if (!member) return { ok: false, message: "로그인이 필요합니다" };
 
+  const activeCheck = await verifyActive();
+  if (!activeCheck.ok) return { ok: false, message: activeCheck.message };
+
   const admin = await verifyAdmin();
   const isAdmin = admin !== null;
 
@@ -616,6 +630,9 @@ export async function updateMonthlyGoal(
 ): Promise<ActionResult> {
   const { member } = await getCurrentMember();
   if (!member) return { ok: false, message: "로그인이 필요합니다" };
+
+  const activeCheck = await verifyActive();
+  if (!activeCheck.ok) return { ok: false, message: activeCheck.message };
 
   const admin = await verifyAdmin();
   const isAdmin = admin !== null;
@@ -686,7 +703,8 @@ async function recalcGoalsFromMonth(
   if (!evt) return;
 
   const evtStartMonth = evt.stt_dt.slice(0, 7) + "-01";
-  const evtEndMonth = evt.end_dt.slice(0, 7) + "-01";
+  // end_dt는 현재 미사용이나 향후 범위 제한에 활용 예정
+  const _evtEndMonth = evt.end_dt.slice(0, 7) + "-01";
 
   // 해당 참여자의 전체 목표 조회 (월순)
   const { data: goals } = await db
