@@ -1,36 +1,26 @@
 import Link from "next/link";
+
+import dayjs from "dayjs";
 import { FileSpreadsheet, Users, Settings, ReceiptText, BadgeCheck } from "lucide-react";
 
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createClient } from "@/lib/supabase/server";
-import dayjs from "dayjs";
 
+import { StatCard } from "@/components/common/stat-card";
 import { Body, Caption, SectionLabel } from "@/components/common/typography";
 import { CardItem } from "@/components/ui/card";
-import { StatCard } from "@/components/common/stat-card";
 
 export default async function DuesAdminDashboardPage() {
   const { teamId } = await getRequestTeamContext();
   const supabase = await createClient();
 
   const [
-    { count: paidCount },
     { count: pendingTxnCount },
     { data: lastUpload },
     { data: confirmedTxns },
     { data: feeItemCds },
     { data: unpaidSnaps },
   ] = await Promise.all([
-    // 이번 달 납부 완료 인원
-    supabase
-      .from("fee_due_pay_hist")
-      .select("pay_id", { count: "exact", head: true })
-      .eq("team_id", teamId)
-      .eq("pay_st_cd", "paid")
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .gte("pay_dt", dayjs().startOf("month").format("YYYY-MM-DD"))
-      .lte("pay_dt", dayjs().endOf("month").format("YYYY-MM-DD")),
     // 미처리 거래 (미확정)
     supabase
       .from("fee_txn_hist")
@@ -116,9 +106,6 @@ export default async function DuesAdminDashboardPage() {
       <div className="flex flex-col gap-2">
         <SectionLabel>납부 현황</SectionLabel>
         <div className="grid grid-cols-2 gap-3">
-          <Link href="/admin/dues/transactions?filter=confirmed">
-            <StatCard value={paidCount ?? 0} label="이번 달 납부 →" />
-          </Link>
           <Link href="/admin/dues/members?filter=unpaid">
             <StatCard value={unpaidCount ?? 0} label="미납 회원 →" valueClassName={(unpaidCount ?? 0) > 0 ? "text-destructive" : undefined} />
           </Link>

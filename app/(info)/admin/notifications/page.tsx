@@ -1,7 +1,9 @@
+import { redirect } from "next/navigation";
+
 import { verifyAdmin } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { redirect } from "next/navigation";
+
 import { AdminNotificationsClient } from "./admin-notifications-client";
 
 export const metadata = { title: "수동 알림 발송" };

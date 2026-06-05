@@ -1,5 +1,6 @@
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createClient } from "@/lib/supabase/server";
+
 import { DuesTransactionsClient } from "./dues-transactions-client";
 
 export default async function DuesTransactionsPage({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {

@@ -1,24 +1,26 @@
 "use client";
 
 import { useState, useTransition } from "react";
+
 import { dayjs } from "@/lib/dayjs";
 
+import { cancelTransaction } from "@/app/actions/dues/cancel-transaction";
 import { confirmTransaction } from "@/app/actions/dues/confirm-transaction";
 import { matchTransaction } from "@/app/actions/dues/match-transaction";
+import { recalculateBalance } from "@/app/actions/dues/recalculate-balance";
+import { rollbackXlsx } from "@/app/actions/dues/rollback-xlsx";
 import { updateFeeItem } from "@/app/actions/dues/update-fee-item";
 import { uploadXlsx } from "@/app/actions/dues/upload-xlsx";
-import { rollbackXlsx } from "@/app/actions/dues/rollback-xlsx";
-import { recalculateBalance } from "@/app/actions/dues/recalculate-balance";
 
 import { Body, Caption, SectionLabel } from "@/components/common/typography";
-import { CardItem } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { CardItem } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -289,6 +291,20 @@ export function DuesTransactionsClient({
     });
   }
 
+  function handleCancel(txnId: string) {
+    if (!confirm("이 거래의 확정을 취소하시겠습니까?")) return;
+    startTransition(async () => {
+      const res = await cancelTransaction(txnId);
+      if (res.ok) {
+        setTxns((prev) =>
+          prev.map((t) => (t.txn_id === txnId ? { ...t, is_cfm_yn: false, is_stale: true } : t))
+        );
+      } else {
+        alert(res.message);
+      }
+    });
+  }
+
   function handleRollback(updId: string) {
     if (!confirm("이 업로드를 롤백하시겠습니까? 미확정 거래가 삭제됩니다.")) return;
     startTransition(async () => {
@@ -526,7 +542,17 @@ export function DuesTransactionsClient({
                       {/* 상태 */}
                       <TableCell className="text-center">
                         <div className="flex flex-col items-center gap-1">
-                          {t.is_cfm_yn && <Badge variant="secondary" className="text-xs">확정됨</Badge>}
+                          {t.is_cfm_yn ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-xs text-muted-foreground px-2"
+                              onClick={() => handleCancel(t.txn_id)}
+                              disabled={isPending}
+                            >
+                              확정 취소
+                            </Button>
+                          ) : null}
                           {t.is_stale && <Badge variant="outline" className="text-xs text-warning border-warning">미반영</Badge>}
                           <Badge
                             variant={

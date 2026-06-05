@@ -1,5 +1,6 @@
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createClient } from "@/lib/supabase/server";
+
 import { DuesPolicyClient } from "./dues-policy-client";
 
 export default async function DuesPolicyPage() {
