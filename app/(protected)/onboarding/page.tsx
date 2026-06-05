@@ -1,8 +1,11 @@
-import { redirect } from "next/navigation";
-import { MemberOnboardingForm } from "@/components/auth/member-onboarding-form";
 import { Suspense } from "react";
-import { getCurrentMember } from "@/lib/queries/member";
+
+import { redirect } from "next/navigation";
+
 import { env } from "@/lib/env";
+import { getCurrentMember } from "@/lib/queries/member";
+
+import { MemberOnboardingForm } from "@/components/auth/member-onboarding-form";
 
 async function OnboardingContent({
   searchParams,
@@ -22,7 +25,8 @@ async function OnboardingContent({
     redirect(`/auth/login?next=${encodeURIComponent(safeNext)}`);
   }
 
-  if (member && member.status === "active") {
+  // 이미 가입된 회원(active/inactive 등)은 온보딩 불필요
+  if (member) {
     redirect(safeNext === "/onboarding" ? "/" : safeNext);
   }
 

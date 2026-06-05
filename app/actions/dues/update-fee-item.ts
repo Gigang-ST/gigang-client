@@ -28,7 +28,10 @@ export async function updateFeeItem(
   const { error } = await db
     .from("fee_txn_hist")
     .update({ fee_item_cd: feeItemCd })
-    .eq("txn_id", txnId);
+    .eq("txn_id", txnId)
+    .eq("team_id", teamId)
+    .eq("is_cfm_yn", false)
+    .eq("del_yn", false);
 
   if (error) return { ok: false as const, message: "카테고리 변경에 실패했습니다." };
   return { ok: true as const, message: null };

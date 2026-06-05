@@ -25,8 +25,8 @@ export async function createExemption({
   const { teamId } = await getRequestTeamContext();
   const db = createAdminClient();
 
-  if (exmTpEnm === "part" && !exmAmt) {
-    return { ok: false as const, message: "부분 면제는 금액을 입력해야 합니다." };
+  if (exmTpEnm === "part" && (!exmAmt || exmAmt <= 0)) {
+    return { ok: false as const, message: "부분 면제는 양수 금액을 입력해야 합니다." };
   }
 
   if (aplySttDt > aplyEndDt) {

@@ -1,21 +1,34 @@
 "use client";
 
 import { useState, useMemo } from "react";
+
+import { cn } from "@/lib/utils";
+
 import { sendNotification } from "@/app/actions/admin/send-notification";
+
 import { Body, Caption } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
 
 type Member = { mem_id: string; mem_nm: string };
 
-export function AdminNotificationsClient({ members }: { members: Member[] }) {
-  const [targetMode, setTargetMode] = useState<"all" | "select">("all");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+export function AdminNotificationsClient({
+  members,
+  initialSelectedIds = [],
+  initialNotiNm = "",
+  initialNotiCont = "",
+}: {
+  members: Member[];
+  initialSelectedIds?: string[];
+  initialNotiNm?: string;
+  initialNotiCont?: string;
+}) {
+  const [targetMode, setTargetMode] = useState<"all" | "select">(initialSelectedIds.length > 0 ? "select" : "all");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(initialSelectedIds));
   const [search, setSearch] = useState("");
-  const [notiNm, setNotiNm] = useState("");
-  const [notiCont, setNotiCont] = useState("");
+  const [notiNm, setNotiNm] = useState(initialNotiNm);
+  const [notiCont, setNotiCont] = useState(initialNotiCont);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
 

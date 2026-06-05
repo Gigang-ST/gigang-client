@@ -1,49 +1,26 @@
 import Link from "next/link";
-import { FileSpreadsheet, Users, Settings, ReceiptText } from "lucide-react";
+
+import dayjs from "dayjs";
+import { FileSpreadsheet, Users, Settings, ReceiptText, BadgeCheck } from "lucide-react";
 
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createClient } from "@/lib/supabase/server";
-import dayjs from "dayjs";
 
+import { StatCard } from "@/components/common/stat-card";
 import { Body, Caption, SectionLabel } from "@/components/common/typography";
 import { CardItem } from "@/components/ui/card";
-import { StatCard } from "@/components/common/stat-card";
 
 export default async function DuesAdminDashboardPage() {
   const { teamId } = await getRequestTeamContext();
   const supabase = await createClient();
 
-  const thisMonth = dayjs().format("YYYY-MM");
-
   const [
-    { count: paidCount },
-    { count: unpaidCount },
     { count: pendingTxnCount },
     { data: lastUpload },
     { data: confirmedTxns },
     { data: feeItemCds },
+    { data: unpaidSnaps },
   ] = await Promise.all([
-    // 이번 달 납부 완료 인원
-    supabase
-      .from("fee_due_pay_hist")
-      .select("pay_id", { count: "exact", head: true })
-      .eq("team_id", teamId)
-      .eq("pay_st_cd", "paid")
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .gte("pay_dt", thisMonth + "-01")
-      .lte("pay_dt", thisMonth + "-31"),
-    // 미납 회원 수 (active 회원만)
-    supabase
-      .from("fee_mem_bal_snap")
-      .select("team_mem_rel!inner(mem_st_cd)", { count: "exact", head: true })
-      .eq("team_id", teamId)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .lt("bal_amt", 0)
-      .eq("team_mem_rel.mem_st_cd", "active")
-      .eq("team_mem_rel.vers", 0)
-      .eq("team_mem_rel.del_yn", false),
     // 미처리 거래 (미확정)
     supabase
       .from("fee_txn_hist")
@@ -76,7 +53,30 @@ export default async function DuesAdminDashboardPage() {
       .eq("vers", 0)
       .eq("del_yn", false)
       .order("sort_ord", { ascending: true }),
+    // 미납 회원 mem_id 목록 (fee_mem_bal_snap → team_mem_rel 직접 FK 없으므로 2단계)
+    supabase
+      .from("fee_mem_bal_snap")
+      .select("mem_id")
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .lt("bal_amt", 0),
   ]);
+
+  // 미납 회원 중 active 상태인 인원만 카운트
+  const unpaidMemIds = (unpaidSnaps ?? []).map((s) => s.mem_id);
+  let unpaidCount = 0;
+  if (unpaidMemIds.length > 0) {
+    const { count } = await supabase
+      .from("team_mem_rel")
+      .select("mem_id", { count: "exact", head: true })
+      .eq("team_id", teamId)
+      .in("mem_id", unpaidMemIds)
+      .eq("mem_st_cd", "active")
+      .eq("vers", 0)
+      .eq("del_yn", false);
+    unpaidCount = count ?? 0;
+  }
 
   // 항목별 합산 (공통코드 기준 동적)
   const txns = confirmedTxns ?? [];
@@ -95,7 +95,8 @@ export default async function DuesAdminDashboardPage() {
   const menus = [
     { href: "/admin/dues/transactions", icon: FileSpreadsheet, label: "거래 내역", desc: "xlsx 업로드 및 확정 처리" },
     { href: "/admin/dues/members", label: "회원별 현황", icon: Users, desc: "잔액·면제 현황 및 정산 실행" },
-    { href: "/admin/dues/policy", label: "회비 정책", icon: Settings, desc: "월 회비 금액 설정" },
+    { href: "/admin/dues/exemptions", label: "면제 관리", icon: BadgeCheck, desc: "회원별 회비 면제 규칙 등록·수정·삭제" },
+    { href: "/admin/dues/policy", label: "회비 정책", icon: Settings, desc: "월 회비 금액 설정 / 거래 분류 항목 관리" },
     { href: "/admin/dues/expenses", label: "지출 내역", icon: ReceiptText, desc: "지출 거래 조회" },
   ];
 
@@ -105,8 +106,9 @@ export default async function DuesAdminDashboardPage() {
       <div className="flex flex-col gap-2">
         <SectionLabel>납부 현황</SectionLabel>
         <div className="grid grid-cols-2 gap-3">
-          <StatCard value={paidCount ?? 0} label="이번 달 납부" />
-          <StatCard value={unpaidCount ?? 0} label="미납 회원" valueClassName={(unpaidCount ?? 0) > 0 ? "text-destructive" : undefined} />
+          <Link href="/admin/dues/members?filter=unpaid">
+            <StatCard value={unpaidCount ?? 0} label="미납 회원 →" valueClassName={(unpaidCount ?? 0) > 0 ? "text-destructive" : undefined} />
+          </Link>
           <Link href="/admin/dues/transactions">
             <StatCard value={pendingTxnCount ?? 0} label="미처리 거래 →" valueClassName={(pendingTxnCount ?? 0) > 0 ? "text-warning" : undefined} />
           </Link>

@@ -46,15 +46,22 @@ const generalCards: Card[] = [
     getValue: (s) => s.totalCount,
   },
   {
+    key: "dues",
+    label: "회비 관리",
+    href: "/admin/dues",
+    icon: Wallet,
+    getValue: () => "",
+  },
+  {
     key: "competitions",
-    label: "이번 달 대회",
+    label: "대회 관리",
     href: "/admin/competitions",
     icon: Trophy,
     getValue: (s) => s.monthlyCompetitionCount,
   },
   {
     key: "records",
-    label: "전체 기록",
+    label: "기록 관리",
     href: "/admin/records",
     icon: Timer,
     getValue: (s) => s.recentRecordCount,
@@ -103,7 +110,7 @@ function CardGrid({
             {status === "error" && (
               <span className="text-sm text-destructive">불러오기 실패</span>
             )}
-            {status === "success" && stats && (
+            {status === "success" && stats && card.getValue(stats) !== "" && (
               <span
                 className={`text-2xl font-bold ${
                   card.getAccentValue && card.getAccentValue(stats) > 0
@@ -177,16 +184,6 @@ export default function AdminDashboardPage() {
       <section className="flex flex-col gap-3">
         <SectionLabel>프로젝트</SectionLabel>
         <CardGrid cards={projectCards} stats={stats} status={status} />
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <SectionLabel>회비</SectionLabel>
-        <ToolCard
-          href="/admin/dues"
-          icon={Wallet}
-          label="회비 관리"
-          hint="납부 현황·거래 확정·정산 실행"
-        />
       </section>
 
       <section className="flex flex-col gap-3">

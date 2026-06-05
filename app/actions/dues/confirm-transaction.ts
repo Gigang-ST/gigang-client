@@ -21,8 +21,12 @@ export async function confirmTransaction(txnId: string) {
 
   if (!txn) return { ok: false as const, message: "거래를 찾을 수 없습니다." };
   if (txn.is_cfm_yn) return { ok: false as const, message: "이미 확정된 거래입니다." };
-  if (txn.match_st_cd !== "matched") return { ok: false as const, message: "회원이 매칭되지 않은 거래입니다." };
-  if (!txn.mem_id) return { ok: false as const, message: "회원 정보가 없습니다." };
+
+  // 회비(due) 거래는 회원 매칭 필수, 지출 등 기타 거래는 매칭 불필요
+  if (txn.fee_item_cd === "due") {
+    if (txn.match_st_cd !== "matched") return { ok: false as const, message: "회원이 매칭되지 않은 거래입니다." };
+    if (!txn.mem_id) return { ok: false as const, message: "회원 정보가 없습니다." };
+  }
 
   // fee_txn_hist 확정
   const { error: txnErr } = await db
@@ -32,11 +36,11 @@ export async function confirmTransaction(txnId: string) {
 
   if (txnErr) return { ok: false as const, message: "확정 처리에 실패했습니다." };
 
-  // due인 경우만 fee_due_pay_hist에 반영
+  // due인 경우만 fee_due_pay_hist에 반영 (앞서 mem_id null 검사 통과했으므로 non-null 보장)
   if (txn.fee_item_cd === "due") {
     const { error: payErr } = await db.from("fee_due_pay_hist").insert({
       team_id: teamId,
-      mem_id: txn.mem_id,
+      mem_id: txn.mem_id!,
       src_txn_id: txnId,
       pay_amt: txn.txn_amt,
       pay_dt: txn.txn_dt,

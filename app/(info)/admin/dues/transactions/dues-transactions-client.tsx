@@ -1,23 +1,26 @@
 "use client";
 
 import { useState, useTransition } from "react";
+
 import { dayjs } from "@/lib/dayjs";
 
+import { cancelTransaction } from "@/app/actions/dues/cancel-transaction";
 import { confirmTransaction } from "@/app/actions/dues/confirm-transaction";
 import { matchTransaction } from "@/app/actions/dues/match-transaction";
+import { recalculateBalance } from "@/app/actions/dues/recalculate-balance";
+import { rollbackXlsx } from "@/app/actions/dues/rollback-xlsx";
 import { updateFeeItem } from "@/app/actions/dues/update-fee-item";
 import { uploadXlsx } from "@/app/actions/dues/upload-xlsx";
-import { rollbackXlsx } from "@/app/actions/dues/rollback-xlsx";
 
 import { Body, Caption, SectionLabel } from "@/components/common/typography";
-import { CardItem } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { CardItem } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -40,6 +43,8 @@ type Txn = {
   mem_id: string | null;
   fee_item_cd: string | null;
   is_cfm_yn: boolean;
+  cfm_at: string | null;
+  is_stale: boolean;
   mem_mst: { mem_nm: string } | { mem_nm: string }[] | null;
 };
 
@@ -118,20 +123,21 @@ function MemberSearchDialog({
 }
 
 export function DuesTransactionsClient({
-  teamId,
   txns: initialTxns,
   uploads,
   members,
   feeItemCds,
+  initialFilter = "unmatched",
 }: {
-  teamId: string;
+  teamId?: string;
   txns: Txn[];
   uploads: Upload[];
   members: Member[];
   feeItemCds: FeeItemCd[];
+  initialFilter?: "all" | "unconfirmed" | "unmatched" | "confirmed";
 }) {
   const [txns, setTxns] = useState(initialTxns);
-  const [filter, setFilter] = useState<"all" | "unconfirmed" | "unmatched">("unmatched");
+  const [filter, setFilter] = useState<"all" | "unconfirmed" | "unmatched" | "confirmed">(initialFilter);
   const [isPending, startTransition] = useTransition();
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -141,6 +147,7 @@ export function DuesTransactionsClient({
   const filtered = txns.filter((t) => {
     if (filter === "unconfirmed") return !t.is_cfm_yn;
     if (filter === "unmatched") return t.match_st_cd !== "matched";
+    if (filter === "confirmed") return t.is_cfm_yn;
     return true;
   });
 
@@ -152,6 +159,8 @@ export function DuesTransactionsClient({
   const confirmableAll = filtered.filter(
     (t) => !t.is_cfm_yn && t.match_st_cd === "matched"
   );
+  // 미반영 대상 회원 (전체 txns 기준)
+  const staleMemIds = [...new Set(txns.filter((t) => t.is_stale && t.mem_id).map((t) => t.mem_id!))];
 
   const allFilteredIds = filtered.map((t) => t.txn_id);
   const isAllSelected =
@@ -191,7 +200,7 @@ export function DuesTransactionsClient({
       const res = await uploadXlsx(fd);
       if (res.ok) {
         setUploadMsg(
-          `업로드 완료 — 총 ${res.summary.total}건, 매칭 ${res.summary.matched}건, 미매칭 ${res.summary.unmatched}건, 동명이인 ${res.summary.ambiguous}건, 중복 skip ${res.summary.skipped}건`
+          `업로드 완료 — 총 ${res.summary.total}건, 매칭 ${res.summary.matched}건, 미매칭 ${res.summary.unmatched}건, 동명이인 ${res.summary.ambiguous}건, 중복 제외 ${res.summary.skipped}건`
         );
         window.location.reload();
       } else {
@@ -202,17 +211,6 @@ export function DuesTransactionsClient({
     e.target.value = "";
   }
 
-  function handleConfirm(txnId: string) {
-    startTransition(async () => {
-      const res = await confirmTransaction(txnId);
-      if (res.ok) {
-        setTxns((prev) => prev.map((t) => (t.txn_id === txnId ? { ...t, is_cfm_yn: true } : t)));
-      } else {
-        alert(res.message);
-      }
-    });
-  }
-
   async function handleBulkConfirm() {
     for (const t of confirmableSelected) {
       await new Promise<void>((resolve) => {
@@ -220,7 +218,7 @@ export function DuesTransactionsClient({
           const res = await confirmTransaction(t.txn_id);
           if (res.ok) {
             setTxns((prev) =>
-              prev.map((tx) => (tx.txn_id === t.txn_id ? { ...tx, is_cfm_yn: true } : tx))
+              prev.map((tx) => (tx.txn_id === t.txn_id ? { ...tx, is_cfm_yn: true, is_stale: true } : tx))
             );
           }
           resolve();
@@ -237,7 +235,7 @@ export function DuesTransactionsClient({
           const res = await confirmTransaction(t.txn_id);
           if (res.ok) {
             setTxns((prev) =>
-              prev.map((tx) => (tx.txn_id === t.txn_id ? { ...tx, is_cfm_yn: true } : tx))
+              prev.map((tx) => (tx.txn_id === t.txn_id ? { ...tx, is_cfm_yn: true, is_stale: true } : tx))
             );
           }
           resolve();
@@ -274,6 +272,33 @@ export function DuesTransactionsClient({
       const res = await updateFeeItem(txnId, val as "due" | "expense" | "event_fee" | "goods" | "other");
       if (res.ok) {
         setTxns((prev) => prev.map((t) => (t.txn_id === txnId ? { ...t, fee_item_cd: val } : t)));
+      } else {
+        alert(res.message);
+      }
+    });
+  }
+
+  function handleRecalcStale() {
+    if (staleMemIds.length === 0) return;
+    startTransition(async () => {
+      const res = await recalculateBalance(staleMemIds);
+      if (res.ok) {
+        alert(`재계산 완료 (${res.updatedCount}명)`);
+        window.location.reload();
+      } else {
+        alert(res.message);
+      }
+    });
+  }
+
+  function handleCancel(txnId: string) {
+    if (!confirm("이 거래의 확정을 취소하시겠습니까?")) return;
+    startTransition(async () => {
+      const res = await cancelTransaction(txnId);
+      if (res.ok) {
+        setTxns((prev) =>
+          prev.map((t) => (t.txn_id === txnId ? { ...t, is_cfm_yn: false, is_stale: true } : t))
+        );
       } else {
         alert(res.message);
       }
@@ -346,18 +371,29 @@ export function DuesTransactionsClient({
         </div>
       )}
 
-      {/* 필터 */}
-      <div className="flex gap-2">
-        {(["unmatched", "unconfirmed", "all"] as const).map((f) => (
+      {/* 필터 + 재계산 */}
+      <div className="flex flex-wrap gap-2">
+        {(["unmatched", "unconfirmed", "confirmed", "all"] as const).map((f) => (
           <Button
             key={f}
             variant={filter === f ? "default" : "outline"}
             size="sm"
             onClick={() => setFilter(f)}
           >
-            {f === "unmatched" ? "미매칭" : f === "unconfirmed" ? "미확정" : "전체"}
+            {f === "unmatched" ? "미매칭" : f === "unconfirmed" ? "미확정" : f === "confirmed" ? "확정" : "전체"}
           </Button>
         ))}
+        {staleMemIds.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-warning border-warning"
+            onClick={handleRecalcStale}
+            disabled={isPending}
+          >
+            {isPending ? <LoadingSpinner /> : `미반영 재계산 (${staleMemIds.length}명)`}
+          </Button>
+        )}
       </div>
 
       {/* 거래 내역 테이블 */}
@@ -506,7 +542,18 @@ export function DuesTransactionsClient({
                       {/* 상태 */}
                       <TableCell className="text-center">
                         <div className="flex flex-col items-center gap-1">
-                          {t.is_cfm_yn && <Badge variant="secondary" className="text-xs">확정됨</Badge>}
+                          {t.is_cfm_yn ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-xs text-muted-foreground px-2"
+                              onClick={() => handleCancel(t.txn_id)}
+                              disabled={isPending}
+                            >
+                              확정 취소
+                            </Button>
+                          ) : null}
+                          {t.is_stale && <Badge variant="outline" className="text-xs text-warning border-warning">미반영</Badge>}
                           <Badge
                             variant={
                               t.match_st_cd === "matched" ? "default"
