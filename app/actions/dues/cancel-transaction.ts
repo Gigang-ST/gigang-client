@@ -32,11 +32,13 @@ export async function cancelTransaction(txnId: string) {
 
   // due인 경우 납부 원장도 취소
   if (txn.fee_item_cd === "due") {
-    await db
+    const { error: payErr } = await db
       .from("fee_due_pay_hist")
       .update({ pay_st_cd: "cancelled" })
       .eq("src_txn_id", txnId)
       .eq("pay_st_cd", "paid");
+
+    if (payErr) return { ok: false as const, message: "납부 원장 취소에 실패했습니다." };
   }
 
   return { ok: true as const, message: null };

@@ -30,10 +30,10 @@ export async function matchTransaction(txnId: string, memId: string) {
     .eq("del_yn", false)
     .maybeSingle();
 
-  // raw_name과 회원 이름 공백 제거 후 비교 → 일치하면 matched, 다르면 ambiguous
-  const rawNorm = txn.raw_name.replace(/\s/g, "");
-  const memNorm = (mem?.mem_nm ?? "").replace(/\s/g, "");
-  const newStatus = rawNorm === memNorm ? "matched" : "ambiguous";
+  if (!mem) return { ok: false as const, message: "회원을 찾을 수 없습니다." };
+
+  // 관리자가 명시적으로 선택한 매칭은 항상 matched
+  const newStatus = "matched";
 
   const { error } = await db
     .from("fee_txn_hist")

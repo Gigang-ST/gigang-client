@@ -170,9 +170,9 @@ export async function recalculateBalance(memIds?: string[]) {
 
     const newBal = baseBal + totalPaid + totalExempted - totalCharged;
 
-    // 최신 납부/면제 ID
-    const lastPay = pays?.at(-1);
-    const lastExm = exms?.at(-1);
+    // 최신 납부/면제 ID (내림차순 조회이므로 첫 번째가 최신)
+    const lastPay = pays?.at(0);
+    const lastExm = exms?.at(0);
 
     if (snap) {
       // 기존 vers=0 → max(vers)+1 로 밀기

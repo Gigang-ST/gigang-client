@@ -71,6 +71,24 @@ export function DuesMembersClient({
     rsnTxt: "",
   });
 
+  const defaultExmForm = () => ({
+    exmTpEnm: "full" as "full" | "part",
+    exmAmt: "",
+    aplySttDt: dayjs().format("YYYY-MM-DD"),
+    aplyEndDt: dayjs().endOf("month").format("YYYY-MM-DD"),
+    rsnTxt: "",
+  });
+
+  function openExemptDialog(m: MemberRow) {
+    setExmForm(defaultExmForm());
+    setExemptTarget(m);
+  }
+
+  function closeExemptDialog() {
+    setExemptTarget(null);
+    setExmForm(defaultExmForm());
+  }
+
   const unpaidMembers = members.filter((m) => m.snap && m.snap.bal_amt < 0);
   const displayedMembers = filter === "unpaid" ? unpaidMembers : members;
 
@@ -117,7 +135,7 @@ export function DuesMembersClient({
         rsnTxt: exmForm.rsnTxt,
       });
       if (res.ok) {
-        setExemptTarget(null);
+        closeExemptDialog();
         alert("면제 규칙이 등록되었습니다.");
       } else {
         alert(res.message);
@@ -239,7 +257,7 @@ export function DuesMembersClient({
                               variant="ghost"
                               size="sm"
                               className="h-7 text-xs"
-                              onClick={() => setExemptTarget(m)}
+                              onClick={() => openExemptDialog(m)}
                               disabled={isPending}
                             >
                               면제
@@ -312,7 +330,7 @@ export function DuesMembersClient({
       )}
 
       {/* 면제 등록 다이얼로그 */}
-      <Dialog open={!!exemptTarget} onOpenChange={(o) => !o && setExemptTarget(null)}>
+      <Dialog open={!!exemptTarget} onOpenChange={(o) => !o && closeExemptDialog()}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{exemptTarget?.mem_nm} 면제 등록</DialogTitle>

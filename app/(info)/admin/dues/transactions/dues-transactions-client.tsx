@@ -200,7 +200,7 @@ export function DuesTransactionsClient({
       const res = await uploadXlsx(fd);
       if (res.ok) {
         setUploadMsg(
-          `업로드 완료 — 총 ${res.summary.total}건, 매칭 ${res.summary.matched}건, 미매칭 ${res.summary.unmatched}건, 동명이인 ${res.summary.ambiguous}건, 중복 skip ${res.summary.skipped}건`
+          `업로드 완료 — 총 ${res.summary.total}건, 매칭 ${res.summary.matched}건, 미매칭 ${res.summary.unmatched}건, 동명이인 ${res.summary.ambiguous}건, 중복 제외 ${res.summary.skipped}건`
         );
         window.location.reload();
       } else {
