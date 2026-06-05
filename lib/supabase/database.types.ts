@@ -104,6 +104,96 @@ export type Database = {
           },
         ]
       }
+      brd_post_mst: {
+        Row: {
+          crt_at: string | null
+          del_yn: boolean | null
+          pin_yn: boolean | null
+          post_cont: string
+          post_id: string
+          post_nm: string
+          post_type_enm: string
+          team_id: string
+          upd_at: string | null
+          vers: number | null
+          writ_mem_id: string | null
+        }
+        Insert: {
+          crt_at?: string | null
+          del_yn?: boolean | null
+          pin_yn?: boolean | null
+          post_cont: string
+          post_id?: string
+          post_nm: string
+          post_type_enm: string
+          team_id: string
+          upd_at?: string | null
+          vers?: number | null
+          writ_mem_id?: string | null
+        }
+        Update: {
+          crt_at?: string | null
+          del_yn?: boolean | null
+          pin_yn?: boolean | null
+          post_cont?: string
+          post_id?: string
+          post_nm?: string
+          post_type_enm?: string
+          team_id?: string
+          upd_at?: string | null
+          vers?: number | null
+          writ_mem_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brd_post_mst_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+          {
+            foreignKeyName: "brd_post_mst_writ_mem_id_fkey"
+            columns: ["writ_mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
+      brd_post_read_hist: {
+        Row: {
+          mem_id: string
+          post_id: string
+          read_at: string | null
+        }
+        Insert: {
+          mem_id: string
+          post_id: string
+          read_at?: string | null
+        }
+        Update: {
+          mem_id?: string
+          post_id?: string
+          read_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brd_post_read_hist_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "brd_post_read_hist_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "brd_post_mst"
+            referencedColumns: ["post_id"]
+          },
+        ]
+      }
       cmm_cd_grp_mst: {
         Row: {
           cd_grp_cd: string
@@ -1273,6 +1363,95 @@ export type Database = {
           },
         ]
       }
+      noti_mst: {
+        Row: {
+          crt_at: string | null
+          del_yn: boolean | null
+          mem_id: string
+          noti_cont: string | null
+          noti_id: string
+          noti_nm: string
+          noti_type_enm: string
+          read_yn: boolean | null
+          ref_id: string | null
+          ref_type_enm: string | null
+          team_id: string
+          vers: number | null
+        }
+        Insert: {
+          crt_at?: string | null
+          del_yn?: boolean | null
+          mem_id: string
+          noti_cont?: string | null
+          noti_id?: string
+          noti_nm: string
+          noti_type_enm: string
+          read_yn?: boolean | null
+          ref_id?: string | null
+          ref_type_enm?: string | null
+          team_id: string
+          vers?: number | null
+        }
+        Update: {
+          crt_at?: string | null
+          del_yn?: boolean | null
+          mem_id?: string
+          noti_cont?: string | null
+          noti_id?: string
+          noti_nm?: string
+          noti_type_enm?: string
+          read_yn?: boolean | null
+          ref_id?: string | null
+          ref_type_enm?: string | null
+          team_id?: string
+          vers?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "noti_mst_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "noti_mst_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
+      noti_pref_cfg: {
+        Row: {
+          enabled_yn: boolean | null
+          mem_id: string
+          noti_type_enm: string
+          pref_id: string
+        }
+        Insert: {
+          enabled_yn?: boolean | null
+          mem_id: string
+          noti_type_enm: string
+          pref_id?: string
+        }
+        Update: {
+          enabled_yn?: boolean | null
+          mem_id?: string
+          noti_type_enm?: string
+          pref_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "noti_pref_cfg_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
       rec_race_hist: {
         Row: {
           bike_time_sec: number | null
@@ -1401,6 +1580,7 @@ export type Database = {
         Row: {
           crt_at: string
           del_yn: boolean
+          inact_rsn_txt: string | null
           join_dt: string | null
           leave_dt: string | null
           mem_id: string
@@ -1416,6 +1596,7 @@ export type Database = {
         Insert: {
           crt_at?: string
           del_yn?: boolean
+          inact_rsn_txt?: string | null
           join_dt?: string | null
           leave_dt?: string | null
           mem_id: string
@@ -1431,6 +1612,7 @@ export type Database = {
         Update: {
           crt_at?: string
           del_yn?: boolean
+          inact_rsn_txt?: string | null
           join_dt?: string | null
           leave_dt?: string | null
           mem_id?: string
@@ -1580,6 +1762,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_noti_for_team: {
+        Args: {
+          p_noti_cont?: string
+          p_noti_nm: string
+          p_noti_type_enm: string
+          p_ref_id?: string
+          p_ref_type_enm?: string
+          p_team_id: string
+        }
+        Returns: undefined
+      }
       get_public_team_comp_reg_display_counts: {
         Args: { p_comp_id: string; p_team_id: string }
         Returns: {
@@ -1643,13 +1836,28 @@ export type Database = {
           utmb_prf_url: string
         }[]
       }
+      is_legacy_platform_admin: { Args: never; Returns: boolean }
       mem_mst_mem_ids_by_norm_phone: {
         Args: { p_input: string }
         Returns: string[]
       }
       migration_v2_map_evt_cd: { Args: { p_raw: string }; Returns: string }
+      migration_v2_map_mem_st_cd: {
+        Args: { p_status: Database["public"]["Enums"]["member_status"] }
+        Returns: string
+      }
       migration_v2_norm_email: { Args: { p_input: string }; Returns: string }
       migration_v2_norm_phone: { Args: { p_input: string }; Returns: string }
+      rls_is_team_admin: { Args: { p_team_id: string }; Returns: boolean }
+      rls_is_team_comp_admin: {
+        Args: { p_team_comp_id: string }
+        Returns: boolean
+      }
+      rls_is_team_comp_member: {
+        Args: { p_team_comp_id: string }
+        Returns: boolean
+      }
+      rls_is_team_member: { Args: { p_team_id: string }; Returns: boolean }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       v2_rls_auth_in_team: { Args: { p_team_id: string }; Returns: boolean }
@@ -1812,4 +2020,3 @@ export const Constants = {
     },
   },
 } as const
-
