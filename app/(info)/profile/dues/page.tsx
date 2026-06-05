@@ -7,7 +7,6 @@ import { createClient } from "@/lib/supabase/server";
 
 import { Body, Caption, SectionLabel } from "@/components/common/typography";
 import { CardItem } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 
 export default async function MemberDuesPage() {
   const { user, member } = await getCurrentMember();
@@ -119,7 +118,7 @@ export default async function MemberDuesPage() {
           <Body className="text-muted-foreground">내역이 없습니다.</Body>
         ) : (
           <CardItem className="flex flex-col divide-y divide-border p-0 overflow-hidden">
-            {timeline.map((item, i) => (
+            {timeline.map((item) => (
               <div key={item.id} className="flex items-center justify-between px-4 py-3">
                 <div className="flex flex-col gap-0.5">
                   <Caption className="text-foreground">

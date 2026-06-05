@@ -1,8 +1,9 @@
 "use server";
 
-import sharp from "sharp";
 // @ts-expect-error -- heic-convert에 타입 선언 없음
 import convert from "heic-convert";
+import sharp from "sharp";
+
 import { getCurrentMember, verifyActive } from "@/lib/queries/member";
 
 const MAX_SIZE = 256;

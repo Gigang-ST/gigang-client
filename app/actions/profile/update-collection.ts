@@ -1,8 +1,9 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentMember, verifyActive } from "@/lib/queries/member";
 import { revalidatePath } from "next/cache";
+
+import { getCurrentMember, verifyActive } from "@/lib/queries/member";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function setPrimaryTitle(ttlId: string | null) {
   const { member } = await getCurrentMember();

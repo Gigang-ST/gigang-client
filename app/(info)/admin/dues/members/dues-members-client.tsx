@@ -4,9 +4,10 @@ import { useState, useTransition } from "react";
 
 import { useRouter } from "next/navigation";
 
+import { UserMinus } from "lucide-react";
+
 import { dayjs } from "@/lib/dayjs";
 
-import { UserMinus } from "lucide-react";
 
 import { batchDeactivateMembers } from "@/app/actions/admin/manage-member";
 import { createExemption } from "@/app/actions/dues/create-exemption";
