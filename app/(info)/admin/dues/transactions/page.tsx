@@ -2,14 +2,15 @@ import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createClient } from "@/lib/supabase/server";
 import { DuesTransactionsClient } from "./dues-transactions-client";
 
-export default async function DuesTransactionsPage() {
+export default async function DuesTransactionsPage({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
+  const { filter } = await searchParams;
   const { teamId } = await getRequestTeamContext();
   const supabase = await createClient();
 
-  const [{ data: txns }, { data: uploads }, { data: members }, { data: feeItemCds }] = await Promise.all([
+  const [{ data: txns }, { data: uploads }, { data: members }, { data: feeItemCds }, { data: snaps }] = await Promise.all([
     supabase
       .from("fee_txn_hist")
-      .select("txn_id, txn_dt, txn_amt, txn_io_enm, raw_name, raw_memo, adm_memo_txt, txn_tp_txt, match_st_cd, mem_id, fee_item_cd, is_cfm_yn, mem_mst!fk_fee_txn_hist__mem_mst(mem_nm)")
+      .select("txn_id, txn_dt, txn_amt, txn_io_enm, raw_name, raw_memo, adm_memo_txt, txn_tp_txt, match_st_cd, mem_id, fee_item_cd, is_cfm_yn, cfm_at, mem_mst!fk_fee_txn_hist__mem_mst(mem_nm)")
       .eq("team_id", teamId)
       .eq("del_yn", false)
       .order("txn_dt", { ascending: false })
@@ -38,12 +39,31 @@ export default async function DuesTransactionsPage() {
       .eq("vers", 0)
       .eq("del_yn", false)
       .order("sort_ord", { ascending: true }),
+    // 회원 잔액 스냅샷 (미반영 판단용)
+    supabase
+      .from("fee_mem_bal_snap")
+      .select("mem_id, last_calc_at")
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false),
   ]);
+
+  // mem_id별 마지막 재계산 시각
+  const snapCalcAtMap = new Map((snaps ?? []).map((s) => [s.mem_id, s.last_calc_at]));
+
+  const validFilters = ["all", "unconfirmed", "unmatched", "confirmed"] as const;
+  type FilterType = typeof validFilters[number];
+  const initialFilter: FilterType = validFilters.includes(filter as FilterType) ? (filter as FilterType) : "unmatched";
 
   return (
     <DuesTransactionsClient
       teamId={teamId}
-      txns={txns ?? []}
+      txns={(txns ?? []).map((t) => ({
+        ...t,
+        is_stale: t.is_cfm_yn && !!t.cfm_at && !!t.mem_id
+          ? (t.cfm_at > (snapCalcAtMap.get(t.mem_id!) ?? ""))
+          : false,
+      }))}
       uploads={uploads ?? []}
       members={(members ?? []).map((m) => ({
         mem_id: m.mem_id,
@@ -52,6 +72,7 @@ export default async function DuesTransactionsPage() {
         join_dt: Array.isArray(m.team_mem_rel) ? (m.team_mem_rel[0]?.join_dt ?? null) : null,
       }))}
       feeItemCds={(feeItemCds ?? []).map((c) => ({ cd: c.cd, label: c.cd_nm }))}
+      initialFilter={initialFilter}
     />
   );
 }

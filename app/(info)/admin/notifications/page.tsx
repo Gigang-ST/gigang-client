@@ -6,10 +6,18 @@ import { AdminNotificationsClient } from "./admin-notifications-client";
 
 export const metadata = { title: "수동 알림 발송" };
 
-export default async function AdminNotificationsPage() {
+const NOTI_TEMPLATES: Record<string, { notiNm: string; notiCont: string }> = {
+  dues_notice: {
+    notiNm: "회비 안내",
+    notiCont: "[프로필] - 회비내역을 확인해 주세요.",
+  },
+};
+
+export default async function AdminNotificationsPage({ searchParams }: { searchParams: Promise<{ memIds?: string; template?: string }> }) {
   const admin = await verifyAdmin();
   if (!admin) redirect("/admin");
 
+  const { memIds: memIdsParam, template } = await searchParams;
   const { teamId } = await getRequestTeamContext();
   const db = createAdminClient();
 
@@ -30,5 +38,15 @@ export default async function AdminNotificationsPage() {
     };
   });
 
-  return <AdminNotificationsClient members={memberList} />;
+  const initialSelectedIds = memIdsParam ? memIdsParam.split(",").filter(Boolean) : [];
+  const tmpl = template ? (NOTI_TEMPLATES[template] ?? null) : null;
+
+  return (
+    <AdminNotificationsClient
+      members={memberList}
+      initialSelectedIds={initialSelectedIds}
+      initialNotiNm={tmpl?.notiNm ?? ""}
+      initialNotiCont={tmpl?.notiCont ?? ""}
+    />
+  );
 }

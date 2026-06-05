@@ -5,7 +5,7 @@ import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import dayjs from "dayjs";
 
-export async function recalculateBalance(memId?: string) {
+export async function recalculateBalance(memIds?: string[]) {
   const adminUser = await verifyAdmin();
   if (!adminUser) return { ok: false as const, message: "권한이 없습니다." };
 
@@ -14,8 +14,8 @@ export async function recalculateBalance(memId?: string) {
 
   // 대상 회원 목록 결정
   let memberIds: string[];
-  if (memId) {
-    memberIds = [memId];
+  if (memIds && memIds.length > 0) {
+    memberIds = memIds;
   } else {
     const { data: members } = await db
       .from("team_mem_rel")
