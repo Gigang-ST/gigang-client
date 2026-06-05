@@ -8,6 +8,7 @@ import {
   useRef,
   useTransition,
 } from "react";
+import { useSearchParams } from "next/navigation";
 import { Medal } from "lucide-react";
 import {
   LineChart,
@@ -56,7 +57,7 @@ export type ChartInitialData = {
 
 type ChartTooltipProps = TooltipContentProps<TooltipValueType, string | number> & {
   myName: string | null;
-  mode: "mileage" | "percent" | "stats";
+  mode: ChartMode;
 };
 
 /** recharts NameType = string | number — Tooltip 인라인 컴포넌트 방지 */
@@ -116,6 +117,14 @@ type StatsSortKey = "rank" | "goalKm" | "currentKm" | "percent";
 type StatsSortDir = "asc" | "desc";
 type AriaSortValue = "none" | "ascending" | "descending";
 
+/** 상단 탭 모드 — URL `?tab=` 파라미터로 동기화해 월 이동 시에도 유지된다. */
+type ChartMode = "mileage" | "percent" | "stats";
+
+/** URL 쿼리의 tab 값을 안전하게 ChartMode로 파싱 (기본값: mileage) */
+function parseChartTab(value: string | null): ChartMode {
+  return value === "percent" || value === "stats" ? value : "mileage";
+}
+
 type PercentBarTooltipProps = {
   active?: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -166,7 +175,11 @@ export function CrewProgressChart({
   month,
   initialData,
 }: CrewProgressChartProps) {
-  const [mode, setMode] = useState<"mileage" | "percent" | "stats">("mileage");
+  const searchParams = useSearchParams();
+  // 탭 상태를 URL에서 초기화 — 월 이동으로 리마운트돼도 선택 탭이 복원된다.
+  const [mode, setMode] = useState<ChartMode>(() =>
+    parseChartTab(searchParams.get("tab")),
+  );
   const [statsSortKey, setStatsSortKey] = useState<StatsSortKey>("currentKm");
   const [statsSortDir, setStatsSortDir] = useState<StatsSortDir>("desc");
   const [mileageData, setMileageData] = useState<DailyPoint[]>(
@@ -336,6 +349,27 @@ export function CrewProgressChart({
     setLoading(false);
     setRefreshing(false);
   }, [evtId, memId, month]);
+
+  // 탭 변경을 URL `?tab=`에 동기화 — 서버 재요청 없이 replaceState로 조용히 갱신.
+  // 월 네비게이터가 이 값을 보존하므로 월 이동 후에도 선택 탭이 유지된다.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const targetTab = mode === "mileage" ? null : mode;
+    // 이미 URL이 일치하면(예: 리마운트 복원 직후) 불필요한 history 조작을 건너뛴다.
+    if (params.get("tab") === targetTab) return;
+    if (targetTab === null) {
+      params.delete("tab");
+    } else {
+      params.set("tab", targetTab);
+    }
+    const qs = params.toString();
+    // history.state를 보존해야 Next.js 라우터의 스크롤 복원·뒤로가기 상태가 깨지지 않는다.
+    window.history.replaceState(
+      window.history.state,
+      "",
+      qs ? `?${qs}` : window.location.pathname,
+    );
+  }, [mode]);
 
   // initialData 없을 때만 초기 fetch
   useEffect(() => {
@@ -511,7 +545,7 @@ export function CrewProgressChart({
             { value: "stats", label: "전체 통계" },
           ]}
           value={mode}
-          onValueChange={(v) => setMode(v as "mileage" | "percent" | "stats")}
+          onValueChange={(v) => setMode(v as ChartMode)}
         />
         <Skeleton className="h-56 w-full rounded-2xl" />
       </div>
@@ -535,7 +569,7 @@ export function CrewProgressChart({
           { value: "stats", label: "전체 통계" },
         ]}
         value={mode}
-        onValueChange={(v) => setMode(v as "mileage" | "percent" | "stats")}
+        onValueChange={(v) => setMode(v as ChartMode)}
       />
       {(refreshing || isPending) && (
         <Body className="text-xs text-muted-foreground" aria-live="polite">
