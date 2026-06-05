@@ -4,6 +4,9 @@
 /TODO.md
 /.claude/docs/TODO.md
 
+# 개인정보 포함 문서 (로컬 전용)
+/.claude/docs/2026-06-04-회비초기스냅샷.md
+
 # 개발용 쇼케이스 페이지 (로컬 전용)
 /app/(info)/dev/
 
