@@ -89,7 +89,7 @@ export async function recalculateBalance(memIds?: string[]) {
 
     const totalPaid = (pays ?? []).reduce((sum, p) => sum + p.pay_amt, 0);
 
-    // 부과·면제 기준 월: 마지막 계산 월은 이미 반영됨 → 다음 달부터
+    // 부과·면제 기준 월: 마지막 계산 월 다음 달부터
     const calcFromMonth = snap
       ? dayjs(snap.last_calc_dt).add(1, "month").startOf("month")
       : dayjs(fromDt);

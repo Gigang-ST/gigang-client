@@ -127,17 +127,17 @@ export function DuesTransactionsClient({
   uploads,
   members,
   feeItemCds,
-  initialFilter = "unmatched",
+  initialFilter = "unconfirmed",
 }: {
   teamId?: string;
   txns: Txn[];
   uploads: Upload[];
   members: Member[];
   feeItemCds: FeeItemCd[];
-  initialFilter?: "all" | "unconfirmed" | "unmatched" | "confirmed";
+  initialFilter?: "all" | "unconfirmed" | "confirmed";
 }) {
   const [txns, setTxns] = useState(initialTxns);
-  const [filter, setFilter] = useState<"all" | "unconfirmed" | "unmatched" | "confirmed">(initialFilter);
+  const [filter, setFilter] = useState<"all" | "unconfirmed" | "confirmed">(initialFilter);
   const [isPending, startTransition] = useTransition();
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -146,18 +146,17 @@ export function DuesTransactionsClient({
 
   const filtered = txns.filter((t) => {
     if (filter === "unconfirmed") return !t.is_cfm_yn;
-    if (filter === "unmatched") return t.match_st_cd !== "matched";
     if (filter === "confirmed") return t.is_cfm_yn;
     return true;
   });
 
-  // 선택 확정 대상: 선택됨 + 미확정 + matched
+  // 선택 확정 대상: 선택됨 + 미확정 + matched + 분류 있음
   const confirmableSelected = filtered.filter(
-    (t) => selected.has(t.txn_id) && !t.is_cfm_yn && t.match_st_cd === "matched"
+    (t) => selected.has(t.txn_id) && !t.is_cfm_yn && t.match_st_cd === "matched" && !!t.fee_item_cd
   );
-  // 매칭행 일괄 확정 대상: 미확정 + matched 전체 (선택 무관)
+  // 매칭행 일괄 확정 대상: 미확정 + matched + 분류 있음 (선택 무관)
   const confirmableAll = filtered.filter(
-    (t) => !t.is_cfm_yn && t.match_st_cd === "matched"
+    (t) => !t.is_cfm_yn && t.match_st_cd === "matched" && !!t.fee_item_cd
   );
   // 미반영 대상 회원 (전체 txns 기준)
   const staleMemIds = [...new Set(txns.filter((t) => t.is_stale && t.mem_id).map((t) => t.mem_id!))];
@@ -373,14 +372,14 @@ export function DuesTransactionsClient({
 
       {/* 필터 + 재계산 */}
       <div className="flex flex-wrap gap-2">
-        {(["unmatched", "unconfirmed", "confirmed", "all"] as const).map((f) => (
+        {(["unconfirmed", "confirmed", "all"] as const).map((f) => (
           <Button
             key={f}
             variant={filter === f ? "default" : "outline"}
             size="sm"
             onClick={() => setFilter(f)}
           >
-            {f === "unmatched" ? "미매칭" : f === "unconfirmed" ? "미확정" : f === "confirmed" ? "확정" : "전체"}
+            {f === "unconfirmed" ? "미확정" : f === "confirmed" ? "확정" : "전체"}
           </Button>
         ))}
         {staleMemIds.length > 0 && (
@@ -484,18 +483,21 @@ export function DuesTransactionsClient({
 
                       {/* 매칭이름 */}
                       <TableCell className="text-center">
-                        {t.match_st_cd === "matched" ? (
+                        {t.match_st_cd === "matched" && t.is_cfm_yn ? (
                           <Caption className="whitespace-nowrap text-xs">{memNm ?? "-"}</Caption>
                         ) : (
-                          <div className="flex justify-center">
+                          <div className="flex items-center justify-center gap-1">
+                            {memNm && (
+                              <Caption className="whitespace-nowrap text-xs">{memNm}</Caption>
+                            )}
                             <Button
                               variant="outline"
                               size="sm"
                               className="h-7 text-xs whitespace-nowrap"
                               onClick={() => setMatchDialog(t.txn_id)}
-                              disabled={isPending || t.is_cfm_yn}
+                              disabled={isPending}
                             >
-                              회원 검색
+                              {memNm ? "수정" : "회원 검색"}
                             </Button>
                           </div>
                         )}

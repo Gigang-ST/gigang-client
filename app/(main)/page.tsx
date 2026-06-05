@@ -209,14 +209,16 @@ async function HomeContent() {
     if (currentMember) {
       const member = currentMember;
       isMember = true;
-      initialMemberStatus = {
-        status: "ready",
-        userId: user.id,
-        memberId: member.id,
-        fullName: member.full_name ?? null,
-        email: member.email ?? null,
-        admin: member.admin ?? false,
-      };
+      initialMemberStatus = member.status !== "active"
+        ? { status: "inactive", userId: user.id }
+        : {
+            status: "ready",
+            userId: user.id,
+            memberId: member.id,
+            fullName: member.full_name ?? null,
+            email: member.email ?? null,
+            admin: member.admin ?? false,
+          };
       const { data: myRegs } = await supabase
         .from("comp_reg_rel")
         .select(

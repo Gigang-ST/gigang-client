@@ -21,6 +21,7 @@ export async function confirmTransaction(txnId: string) {
 
   if (!txn) return { ok: false as const, message: "거래를 찾을 수 없습니다." };
   if (txn.is_cfm_yn) return { ok: false as const, message: "이미 확정된 거래입니다." };
+  if (!txn.fee_item_cd) return { ok: false as const, message: "분류를 먼저 선택해 주세요." };
 
   // 회비(due) 거래는 회원 매칭 필수, 지출 등 기타 거래는 매칭 불필요
   if (txn.fee_item_cd === "due") {
