@@ -66,6 +66,23 @@ badge, button, card, dialog, form, input, label, loading-spinner, select, separa
 - **서버 컴포넌트** (기본): 데이터 패칭, 정적 렌더링
 - **클라이언트 컴포넌트** (`"use client"`): 이벤트 핸들러, 상태, 브라우저 API 필요시
 
+### 리마운트로 초기화되는 클라이언트 상태는 URL에 보존
+
+부모 서버 컴포넌트가 `key={searchParam}`으로 자식을 리마운트하는 패턴에서는
+자식의 `useState`가 매번 초기값으로 리셋된다. 사용자가 유지하길 기대하는
+선택 상태(탭, 정렬 등)는 URL 쿼리에 동기화해 보존한다.
+
+- 예: `app/(main)/projects/page.tsx`의 `<CrewProgressChartServer key={selectedMonth}>` —
+  월 이동 시 리마운트되므로 차트 상단 탭(`mode`)을 `?tab=`에 동기화 (`crew-progress-chart.tsx`).
+- **탭 클릭처럼 서버 데이터에 영향 없는 갱신은 `window.history.replaceState`** 로
+  URL만 조용히 바꾼다 (`router.push`/`replace`는 서버 컴포넌트를 재실행시켜 불필요한 재쿼리 유발).
+  - 단, 1번째 인자에 `null` 대신 **`window.history.state`를 넘겨야** Next.js 라우터가 관리하는
+    스크롤 복원·뒤로가기 상태가 깨지지 않는다.
+- 리마운트 시 복원은 `useState(() => parseFromSearchParams(...))` 초기화 함수로.
+- 다른 client 컴포넌트(예: `month-navigator.tsx`)가 같은 URL을 이어받을 때는
+  `useSearchParams()` 스냅샷 대신 **`window.location.search`** 를 읽어야
+  `replaceState`로 갱신된 최신 값을 놓치지 않는다.
+
 ### 네이밍
 - 파일: kebab-case (`race-list-view.tsx`)
 - 컴포넌트: PascalCase (`RaceListView`)
