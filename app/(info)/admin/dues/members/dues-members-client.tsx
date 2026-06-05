@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 
 import { dayjs } from "@/lib/dayjs";
 
+import { UserMinus } from "lucide-react";
+
+import { batchDeactivateMembers } from "@/app/actions/admin/manage-member";
 import { createExemption } from "@/app/actions/dues/create-exemption";
 
 import { SegmentControl } from "@/components/common/segment-control";
@@ -34,6 +37,8 @@ type MemberRow = {
   join_dt: string | null;
   snap: { bal_snap_id: string; bal_amt: number; last_calc_dt: string; last_calc_at: string | null } | null;
   is_stale: boolean;
+  mem_st_cd: string;
+  inact_rsn_txt: string | null;
 };
 
 type PayHistRow = {
@@ -63,6 +68,8 @@ export function DuesMembersClient({
   const [filter, setFilter] = useState<"all" | "unpaid">(initialFilter);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [exemptTarget, setExemptTarget] = useState<MemberRow | null>(null);
+  const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false);
+  const [deactivateReason, setDeactivateReason] = useState("");
   const [exmForm, setExmForm] = useState({
     exmTpEnm: "full" as "full" | "part",
     exmAmt: "",
@@ -143,6 +150,25 @@ export function DuesMembersClient({
     });
   }
 
+  const activeSelectedMembers = [...selectedIds].filter(
+    (id) => members.find((m) => m.mem_id === id)?.mem_st_cd === "active"
+  );
+
+  async function handleDeactivate() {
+    if (!deactivateReason.trim()) return;
+    startTransition(async () => {
+      const res = await batchDeactivateMembers(activeSelectedMembers, deactivateReason.trim());
+      if (res.ok) {
+        setDeactivateDialogOpen(false);
+        setDeactivateReason("");
+        setSelectedIds(new Set());
+        router.refresh();
+      } else {
+        alert(res.message);
+      }
+    });
+  }
+
   const displayedIds = displayedMembers.map((m) => m.mem_id);
   const isAllSelected = displayedIds.length > 0 && displayedIds.every((id) => selectedIds.has(id));
   const isIndeterminate = !isAllSelected && displayedIds.some((id) => selectedIds.has(id));
@@ -179,6 +205,17 @@ export function DuesMembersClient({
                 알림 전송 ({selectedIds.size}명)
               </Button>
             )}
+            {activeSelectedMembers.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDeactivateDialogOpen(true)}
+                disabled={isPending}
+              >
+                <UserMinus className="size-3.5 mr-1" />
+                비활성 설정 ({activeSelectedMembers.length}명)
+              </Button>
+            )}
           </div>
 
           <div className="flex flex-col gap-2">
@@ -211,7 +248,7 @@ export function DuesMembersClient({
                     return (
                       <TableRow
                         key={m.mem_id}
-                        className={isChecked ? "bg-muted/40" : ""}
+                        className={`${isChecked ? "bg-muted/40" : ""} ${m.mem_st_cd === "inactive" ? "opacity-60" : ""}`}
                         onClick={() => toggleMember(m.mem_id)}
                       >
                         <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
@@ -223,7 +260,12 @@ export function DuesMembersClient({
                           </div>
                         </TableCell>
                         <TableCell className="text-center">
-                          <Caption className="text-xs font-semibold whitespace-nowrap">{m.mem_nm}</Caption>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <Caption className="text-xs font-semibold whitespace-nowrap">{m.mem_nm}</Caption>
+                            {m.mem_st_cd === "inactive" && (
+                              <Badge variant="secondary" className="text-[10px] px-1 py-0">비활성</Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-center">
                           <Caption className="text-xs whitespace-nowrap">{m.birth_dt ?? "-"}</Caption>
@@ -328,6 +370,40 @@ export function DuesMembersClient({
           </div>
         </div>
       )}
+
+      {/* 비활성 설정 다이얼로그 */}
+      <Dialog
+        open={deactivateDialogOpen}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDeactivateDialogOpen(false);
+            setDeactivateReason("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>비활성 설정 ({activeSelectedMembers.length}명)</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 pt-2">
+            <div className="flex flex-col gap-1.5">
+              <Label>비활성화 사유</Label>
+              <Input
+                value={deactivateReason}
+                onChange={(e) => setDeactivateReason(e.target.value)}
+                placeholder="예: 장기 미참여, 자진 탈퇴 요청 등"
+              />
+            </div>
+            <Button
+              onClick={handleDeactivate}
+              disabled={isPending || !deactivateReason.trim()}
+              variant="destructive"
+            >
+              {isPending ? <LoadingSpinner /> : "비활성 설정"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* 면제 등록 다이얼로그 */}
       <Dialog open={!!exemptTarget} onOpenChange={(o) => !o && closeExemptDialog()}>

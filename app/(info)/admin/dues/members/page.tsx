@@ -18,7 +18,7 @@ export default async function DuesMembersPage({ searchParams }: { searchParams: 
       .order("bal_amt", { ascending: true }),
     supabase
       .from("mem_mst")
-      .select("mem_id, mem_nm, birth_dt, team_mem_rel!inner(join_dt)")
+      .select("mem_id, mem_nm, birth_dt, team_mem_rel!inner(join_dt, mem_st_cd, inact_rsn_txt)")
       .eq("vers", 0)
       .eq("del_yn", false)
       .eq("team_mem_rel.vers", 0)
@@ -56,11 +56,14 @@ export default async function DuesMembersPage({ searchParams }: { searchParams: 
     const snap = snapMap.get(m.mem_id) ?? null;
     const latestCfm = latestCfmMap.get(m.mem_id) ?? null;
     const is_stale = snap && latestCfm ? latestCfm > (snap.last_calc_at ?? "") : false;
+    const rel = Array.isArray(m.team_mem_rel) ? m.team_mem_rel[0] : m.team_mem_rel;
     return {
       mem_id: m.mem_id,
       mem_nm: m.mem_nm,
       birth_dt: m.birth_dt ?? null,
-      join_dt: Array.isArray(m.team_mem_rel) ? (m.team_mem_rel[0]?.join_dt ?? null) : null,
+      join_dt: (rel as { join_dt?: string | null } | null)?.join_dt ?? null,
+      mem_st_cd: (rel as { mem_st_cd?: string | null } | null)?.mem_st_cd ?? "active",
+      inact_rsn_txt: (rel as { inact_rsn_txt?: string | null } | null)?.inact_rsn_txt ?? null,
       snap,
       is_stale,
     };
