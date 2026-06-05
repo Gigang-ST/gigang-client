@@ -313,7 +313,8 @@ export function CompetitionDetailDialog({
       ? sanitizeAsciiUpperCompEvtTypeInput(otherEventType).trim().length > 0
       : eventType.length > 0);
 
-  const showAuthMessage = memberStatus.status !== "ready";
+  const showInactiveMessage = memberStatus.status === "inactive";
+  const showAuthMessage = !showInactiveMessage && memberStatus.status !== "ready";
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -577,7 +578,11 @@ export function CompetitionDetailDialog({
 
         <Separator />
 
-        {showAuthMessage ? (
+        {showInactiveMessage ? (
+          <div className="flex flex-col gap-2 text-sm">
+            <p className="text-destructive">비활성화된 회원입니다. 관리자에게 문의하세요.</p>
+          </div>
+        ) : showAuthMessage ? (
           <div className="flex flex-col gap-3 text-sm">
             {memberStatus.status === "signed-out" && (
               <p>로그인 후 참가 신청을 할 수 있습니다.</p>
