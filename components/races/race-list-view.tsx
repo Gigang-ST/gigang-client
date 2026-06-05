@@ -1,13 +1,11 @@
 "use client";
 
-import { ChevronDown, ChevronRight, Plus } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-create-comp-evt-for-participation";
-import { getPastGigangCompetitions } from "@/app/actions/get-past-gigang-competitions";
-import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
-import { Button } from "@/components/ui/button";
-import { CardItem } from "@/components/ui/card";
+
+import { useRouter } from "next/navigation";
+
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
+
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import {
 	fetchMemMstWithTeamRel,
@@ -17,8 +15,17 @@ import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+
+import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-create-comp-evt-for-participation";
+import { getPastGigangCompetitions } from "@/app/actions/get-past-gigang-competitions";
+import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
+
+import { Button } from "@/components/ui/button";
+import { CardItem } from "@/components/ui/card";
+
 import { CompetitionDetailDialog } from "./competition-detail-dialog";
 import { CompetitionRegisterDialog } from "./competition-register-dialog";
+
 import type {
 	Competition,
 	CompetitionRegistration,

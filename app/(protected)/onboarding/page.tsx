@@ -1,8 +1,11 @@
-import { redirect } from "next/navigation";
-import { MemberOnboardingForm } from "@/components/auth/member-onboarding-form";
 import { Suspense } from "react";
-import { getCurrentMember } from "@/lib/queries/member";
+
+import { redirect } from "next/navigation";
+
 import { env } from "@/lib/env";
+import { getCurrentMember } from "@/lib/queries/member";
+
+import { MemberOnboardingForm } from "@/components/auth/member-onboarding-form";
 
 async function OnboardingContent({
   searchParams,

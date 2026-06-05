@@ -1,6 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+
+import { todayKST } from "@/lib/dayjs";
+import {
+  calcBaseMileage,
+  calcFinalMileage,
+  MILEAGE_SPORT_LABELS,
+  roundMileage,
+  type MileageSport,
+} from "@/lib/mileage";
+import { createClient } from "@/lib/supabase/client";
+
+import {
+  logActivitiesBatch,
+  type ActivityLogInput,
+} from "@/app/actions/mileage-run";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,19 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  calcBaseMileage,
-  calcFinalMileage,
-  MILEAGE_SPORT_LABELS,
-  roundMileage,
-  type MileageSport,
-} from "@/lib/mileage";
-import { todayKST } from "@/lib/dayjs";
-import { createClient } from "@/lib/supabase/client";
-import {
-  logActivitiesBatch,
-  type ActivityLogInput,
-} from "@/app/actions/mileage-run";
+
 
 type EventMultiplier = {
   mult_id: string;

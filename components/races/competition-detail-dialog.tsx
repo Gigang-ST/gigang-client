@@ -1,39 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
+
 import Link from "next/link";
-import { useForm } from "react-hook-form";
+
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Calendar, ExternalLink, MapPin, Pencil, Users } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { getPublicTeamCompRegDisplayCounts } from "@/app/actions/get-public-team-comp-reg-display-counts";
-import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
-import { updateCompetition } from "@/app/actions/admin/manage-competition";
-import {
-  competitionEditSchema,
-  type CompetitionEditValues,
-} from "@/lib/validations/competition";
+import { useForm } from "react-hook-form";
+
 import {
   buildEventTypeOptionList,
   COMP_EVT_TYPE_OTHER as EVENT_TYPE_OTHER,
@@ -46,6 +20,39 @@ import {
   sprtCdDisplayName,
   type CachedCmmCdRow,
 } from "@/lib/queries/cmm-cd-cached";
+import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
+import {
+  competitionEditSchema,
+  type CompetitionEditValues,
+} from "@/lib/validations/competition";
+
+import { updateCompetition } from "@/app/actions/admin/manage-competition";
+import { getPublicTeamCompRegDisplayCounts } from "@/app/actions/get-public-team-comp-reg-display-counts";
+import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+
+
 import type { Competition, CompetitionRegistration, MemberStatus } from "./types";
 
 const roleLabels = {

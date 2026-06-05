@@ -1,8 +1,23 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useForm, Controller } from "react-hook-form";
+
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm, Controller } from "react-hook-form";
+
+import { todayKST } from "@/lib/dayjs";
+import {
+  calcBaseMileage,
+  calcFinalMileage,
+  roundMileage,
+  MILEAGE_SPORT_LABELS,
+  type MileageSport,
+} from "@/lib/mileage";
+import { createClient } from "@/lib/supabase/client";
+import { activityLogSchema } from "@/lib/validations/mileage";
+
+import { logActivity, updateActivity, type ActivityLogInput } from "@/app/actions/mileage-run";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,21 +28,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { activityLogSchema } from "@/lib/validations/mileage";
+
+
 import type { z } from "zod";
 
 // RHF는 스키마 input 타입(default 미적용) 기준으로 동작
 type FormValues = z.input<typeof activityLogSchema>;
-import {
-  calcBaseMileage,
-  calcFinalMileage,
-  roundMileage,
-  MILEAGE_SPORT_LABELS,
-  type MileageSport,
-} from "@/lib/mileage";
-import { todayKST } from "@/lib/dayjs";
-import { logActivity, updateActivity, type ActivityLogInput } from "@/app/actions/mileage-run";
-import { createClient } from "@/lib/supabase/client";
+
+
 
 // ─────────────────────────────────────────
 // 타입
