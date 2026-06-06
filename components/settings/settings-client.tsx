@@ -8,6 +8,7 @@ import {
   ChevronRight,
   UserPen,
   CreditCard,
+  Wallet,
   FileText,
   ShieldCheck,
   ScrollText,
@@ -31,6 +32,7 @@ type MenuItem = {
 const accountItems: MenuItem[] = [
   { label: "프로필 수정", href: "/profile/edit", icon: UserPen },
   { label: "계좌 정보", href: "/profile/bank", icon: CreditCard },
+  { label: "회비 내역", href: "/profile/dues", icon: Wallet },
 ];
 
 const adminItems: MenuItem[] = [

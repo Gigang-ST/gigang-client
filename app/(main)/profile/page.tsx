@@ -4,18 +4,16 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import dayjs from "dayjs";
-import { Settings } from "lucide-react";
+import { CreditCard, Settings, UserPen, Wallet } from "lucide-react";
 
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 
 import { H1 } from "@/components/common/typography";
-import { DuesSummaryCard } from "@/components/profile/dues-summary-card";
 import { PaceChart } from "@/components/profile/pace-chart";
 import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
 import { ProfileCard } from "@/components/profile/profile-card";
-import { RaceRecordSection } from "@/components/profile/race-record-section";
 import { CardItem } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -63,19 +61,19 @@ async function ProfileContent() {
   ]);
 
   // Build best records map: for each event_type, pick the one with lowest record_time_sec
-  const bestRecords: Record<string, { record_time_sec: number; race_name: string }> = {};
+  const bestRecords: Record<string, { record_time_sec: number; race_name: string; race_dt: string | null }> = {};
   (raceResults ?? []).forEach((r) => {
     const evt = (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type?.toUpperCase() ?? "";
     if (!["FULL", "HALF", "10K"].includes(evt)) return;
     const existing = bestRecords[evt];
     if (!existing || r.rec_time_sec < existing.record_time_sec) {
-      bestRecords[evt] = { record_time_sec: r.rec_time_sec, race_name: r.race_nm };
+      bestRecords[evt] = { record_time_sec: r.rec_time_sec, race_name: r.race_nm, race_dt: r.race_dt ?? null };
     }
   });
 
   const genderLabel = member.gender === "male" ? "남성" : member.gender === "female" ? "여성" : "";
   const joinedDate = member.joined_at
-    ? dayjs(member.joined_at).format("YYYY. M")
+    ? dayjs(member.joined_at).format("YY.MM.DD")
     : "";
 
   // 보유 칭호 목록에서 대표 칭호와 최고 등급 계산
@@ -92,7 +90,7 @@ async function ProfileContent() {
   }, 1);
 
   return (
-    <div className="flex flex-col gap-6 px-6 pb-6">
+    <div className="flex flex-col gap-4 px-6 pb-6">
         {/* Profile Card */}
         <ProfileCard
           fullName={member.full_name}
@@ -110,20 +108,29 @@ async function ProfileContent() {
           maxRarityLevel={maxRarityLevel}
         />
 
+        {/* 바로가기 */}
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { href: "/profile/edit", icon: UserPen, label: "내 정보", dot: false },
+            { href: "/profile/bank", icon: CreditCard, label: "계좌", dot: false },
+            { href: "/profile/dues", icon: Wallet, label: "회비", dot: (balSnap?.bal_amt ?? 0) < 0 },
+          ].map(({ href, icon: Icon, label, dot }) => (
+            <Link key={href} href={href}>
+              <div className="relative flex items-center justify-center gap-2 rounded-xl border border-border py-2.5">
+                <Icon className="size-3.5 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">{label}</span>
+                {dot && (
+                  <span className="absolute right-2 top-2 size-1.5 rounded-full bg-destructive" />
+                )}
+              </div>
+            </Link>
+          ))}
+        </div>
+
         {/* Personal Best */}
         <PersonalBestGrid
           bestRecords={bestRecords}
           utmbData={utmbProfile?.utmb_prf_url && utmbProfile?.utmb_idx != null ? { utmb_profile_url: utmbProfile.utmb_prf_url, utmb_index: utmbProfile.utmb_idx, recent_race_name: utmbProfile.rct_race_nm, recent_race_record: utmbProfile.rct_race_rec } : null}
-        />
-
-        {/* 페이스 그래프 */}
-        <PaceChart records={(raceResults ?? []).map((r) => ({ event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type?.toUpperCase() ?? "", record_time_sec: r.rec_time_sec, race_name: r.race_nm, race_date: r.race_dt }))} />
-
-        {/* 회비 요약 */}
-        <DuesSummaryCard balAmt={balSnap?.bal_amt ?? null} />
-
-        {/* 기록 입력 */}
-        <RaceRecordSection
           memberId={member.id}
           teamId={teamId}
           cmmCdRows={cmmCdRows}
@@ -136,6 +143,11 @@ async function ProfileContent() {
             admin: member.admin,
           }}
         />
+
+        {/* 페이스 그래프 */}
+        <PaceChart records={(raceResults ?? []).map((r) => ({ event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type?.toUpperCase() ?? "", record_time_sec: r.rec_time_sec, race_name: r.race_nm, race_date: r.race_dt }))} />
+
+
       </div>
   );
 }

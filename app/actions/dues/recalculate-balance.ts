@@ -186,14 +186,16 @@ export async function recalculateBalance(memIds?: string[]) {
         .maybeSingle();
       const nextVers = (maxRow?.vers ?? 0) + 1;
 
-      await db
+      // 기존 vers=0 → nextVers로 밀기
+      const { error: pushErr } = await db
         .from("fee_mem_bal_snap")
         .update({ vers: nextVers })
         .eq("bal_snap_id", snap.bal_snap_id);
+      if (pushErr) return { ok: false as const, message: `스냅샷 버전 밀기 실패 (${mid}): ${pushErr.message}` };
     }
 
     // 새 vers=0 INSERT
-    await db.from("fee_mem_bal_snap").insert({
+    const { error: insertErr } = await db.from("fee_mem_bal_snap").insert({
       team_id: teamId,
       mem_id: mid,
       bal_amt: newBal,
@@ -204,6 +206,7 @@ export async function recalculateBalance(memIds?: string[]) {
       vers: 0,
       del_yn: false,
     });
+    if (insertErr) return { ok: false as const, message: `스냅샷 INSERT 실패 (${mid}): ${insertErr.message}` };
 
     updatedCount++;
   }
