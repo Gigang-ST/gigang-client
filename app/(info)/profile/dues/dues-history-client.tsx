@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 
+import { dayjs } from "@/lib/dayjs";
+
 import { Body, Caption, SectionLabel } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type HistoryItem = {
   id: string;
@@ -53,7 +55,7 @@ export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, items }: Pr
   }
 
   function formatDate(dateStr: string) {
-    return dateStr.slice(2, 10).replace(/-/g, ".");
+    return dayjs(dateStr).format("YY.MM.DD");
   }
 
   const FILTERS: { value: Filter; label: string }[] = [
@@ -89,7 +91,7 @@ export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, items }: Pr
       <div className="flex flex-col gap-3">
         {/* 헤더 + 필터 */}
         <div className="flex items-center justify-between">
-          <SectionLabel>HISTORY</SectionLabel>
+          <SectionLabel>내역</SectionLabel>
           <div className="flex gap-1">
             {FILTERS.map((f) => (
               <button
@@ -107,69 +109,60 @@ export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, items }: Pr
           </div>
         </div>
 
-        {/* 테이블 헤더 */}
-        <div className="grid grid-cols-[58px_1fr_36px_90px] gap-x-3 px-4">
-          <Caption>날짜</Caption>
-          <Caption>항목</Caption>
-          <Caption>구분</Caption>
-          <Caption className="text-right">금액</Caption>
-        </div>
-
-        {/* 내역 행들 */}
+        {/* 내역 테이블 */}
         {filtered.length === 0 ? (
           <div className="flex items-center justify-center rounded-2xl border border-dashed border-border py-8">
             <Caption>내역이 없습니다.</Caption>
           </div>
         ) : (
-          <CardItem className="divide-y divide-border p-0">
-            {filtered.map((item) => (
-              <div
-                key={item.id}
-                className="grid grid-cols-[58px_1fr_36px_90px] items-center gap-x-3 px-4 py-3"
-              >
-                {/* 날짜 */}
-                <Caption className={item.cancelled ? "text-muted-foreground/50" : ""}>
-                  {formatDate(item.date)}
-                </Caption>
-
-                {/* 항목 */}
-                <div className="flex items-center gap-1.5 overflow-hidden">
-                  <Body
-                    className={`truncate text-sm ${item.cancelled ? "text-muted-foreground/50 line-through" : ""}`}
-                  >
-                    {item.itemLabel}
-                  </Body>
-                  {item.cancelled && (
-                    <Badge variant="outline" className="shrink-0 px-1 py-0 text-[10px]">
-                      취소
-                    </Badge>
-                  )}
-                </div>
-
-                {/* 구분 */}
-                <Caption
-                  className={`text-xs ${
-                    item.cancelled
-                      ? "text-muted-foreground/50"
-                      : item.ioLabel === "입금" || item.ioLabel === "면제"
-                        ? "text-green-600"
-                        : item.ioLabel === "출금"
-                          ? "text-destructive"
-                          : "text-muted-foreground"
-                  }`}
-                >
-                  {item.ioLabel}
-                </Caption>
-
-                {/* 금액 */}
-                <Body
-                  className={`text-right text-sm font-medium ${amtColor(item)} ${item.cancelled ? "line-through" : ""}`}
-                >
-                  {formatAmt(item)}
-                </Body>
-              </div>
-            ))}
-          </CardItem>
+          <div className="overflow-hidden rounded-2xl border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {["날짜", "항목", "구분", "금액"].map((h) => (
+                    <TableHead key={h} className="whitespace-nowrap text-center text-xs">{h}</TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((item) => (
+                  <TableRow key={item.id} className={item.cancelled ? "opacity-50" : ""}>
+                    <TableCell className="whitespace-nowrap">
+                      <Caption>{formatDate(item.date)}</Caption>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        <Caption className={item.cancelled ? "line-through" : ""}>{item.itemLabel}</Caption>
+                        {item.cancelled && (
+                          <Badge variant="outline" className="px-1 py-0 text-[10px]">취소</Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <Caption
+                        className={
+                          item.cancelled
+                            ? ""
+                            : item.ioLabel === "입금" || item.ioLabel === "면제"
+                              ? "text-green-600"
+                              : item.ioLabel === "출금"
+                                ? "text-destructive"
+                                : ""
+                        }
+                      >
+                        {item.ioLabel}
+                      </Caption>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-right">
+                      <Caption className={`font-medium ${amtColor(item)} ${item.cancelled ? "line-through" : ""}`}>
+                        {formatAmt(item)}
+                      </Caption>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </div>
     </div>

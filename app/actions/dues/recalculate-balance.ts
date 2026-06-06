@@ -1,6 +1,6 @@
 "use server";
 
-import dayjs from "dayjs";
+import { dayjs } from "@/lib/dayjs";
 
 import { verifyAdmin } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -144,7 +144,7 @@ export async function recalculateBalance(memIds?: string[]) {
               grant_src_enm: "rule_attd",
               rsn_txt: null,
               aprv_by_mem_id: adminUser.id,
-              aprv_at: new Date().toISOString(),
+              aprv_at: dayjs().toISOString(),
               vers: 0,
               del_yn: false,
             });
@@ -200,7 +200,7 @@ export async function recalculateBalance(memIds?: string[]) {
       mem_id: mid,
       bal_amt: newBal,
       last_calc_dt: today,
-      last_calc_at: new Date().toISOString(),
+      last_calc_at: dayjs().toISOString(),
       last_ref_pay_id: lastPay?.pay_id ?? undefined,
       last_ref_exm_hist_id: lastExm?.exm_hist_id ?? undefined,
       vers: 0,

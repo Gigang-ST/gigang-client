@@ -29,7 +29,7 @@ Before any Next.js work, find and read the relevant doc in `node_modules/next/di
 - 언어: 한국어 (코드 주석, UI 텍스트 모두 한국어)
 - 패키지 매니저: `pnpm`
 - 경로 별칭: `@/*` → 프로젝트 루트
-- **날짜/시간**: `lib/dayjs.ts` 유틸리티 사용. `new Date()` 직접 사용 금지. KST 기준
+- **날짜/시간**: `import { dayjs } from "@/lib/dayjs"` 만 사용. `import dayjs from "dayjs"` 직접 import 금지. `new Date()` 직접 사용 금지. 날짜 포맷팅 시 `.slice()` / `.replace()` 문자열 조작 금지 — 반드시 `dayjs(val).format("YY.MM.DD")` 형태로. KST 기준
 - **환경변수**: `lib/env.ts`에서 import. `process.env` 직접 접근 금지 (t3-env가 런타임 검증)
 - **멤버 조회**: `getCurrentMember()` (`lib/queries/member.ts`) — React cache()로 같은 렌더 내 중복 쿼리 방지
 - **폼 검증**: Zod 스키마를 `lib/validations/`에 정의하고 React Hook Form과 통합

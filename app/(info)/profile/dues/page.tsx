@@ -109,7 +109,7 @@ export default async function MemberDuesPage() {
       amt: t.txn_amt,
       cancelled: false,
     })),
-  ].sort((a, b) => b.date.localeCompare(a.date));
+  ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30);
 
   return (
     <DuesHistoryClient

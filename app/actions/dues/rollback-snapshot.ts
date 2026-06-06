@@ -18,7 +18,7 @@ export async function rollbackSnapshot(memIds: string[]) {
     // 현재 vers=0 스냅샷 조회
     const { data: current } = await db
       .from("fee_mem_bal_snap")
-      .select("bal_snap_id")
+      .select("bal_snap_id, last_calc_dt")
       .eq("team_id", teamId)
       .eq("mem_id", memId)
       .eq("vers", 0)
@@ -30,7 +30,7 @@ export async function rollbackSnapshot(memIds: string[]) {
     // 이전 버전 중 del_yn=false인 가장 최신 버전 조회
     const { data: prev } = await db
       .from("fee_mem_bal_snap")
-      .select("bal_snap_id")
+      .select("bal_snap_id, last_calc_dt")
       .eq("team_id", teamId)
       .eq("mem_id", memId)
       .eq("del_yn", false)
@@ -56,6 +56,30 @@ export async function rollbackSnapshot(memIds: string[]) {
 
       if (restoreErr) return { ok: false as const, message: `스냅샷 복원 실패 (${memId}): ${restoreErr.message}` };
     }
+
+    // 롤백 기준월 다음 달 이후 rule_attd 면제 이력 삭제
+    // - 이전 스냅샷 있음: 이전 last_calc_dt 다음 달 이후
+    // - 이전 스냅샷 없음: 전체 삭제
+    let fromYm: string | null = null;
+    if (prev?.last_calc_dt) {
+      const d = new Date(prev.last_calc_dt);
+      d.setMonth(d.getMonth() + 1);
+      fromYm = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    }
+
+    const exmQuery = db
+      .from("fee_due_exm_hist")
+      .update({ del_yn: true })
+      .eq("team_id", teamId)
+      .eq("mem_id", memId)
+      .eq("grant_src_enm", "rule_attd")
+      .eq("del_yn", false);
+
+    const { error: exmErr } = fromYm
+      ? await exmQuery.gte("aply_ym", fromYm)
+      : await exmQuery;
+
+    if (exmErr) return { ok: false as const, message: `면제 이력 삭제 실패 (${memId}): ${exmErr.message}` };
 
     rolledBackCount++;
   }

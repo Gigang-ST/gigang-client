@@ -24,7 +24,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { secondsToTime } from "@/lib/dayjs";
+import { dayjs, secondsToTime } from "@/lib/dayjs";
 
 type BestRecord = {
 	record_time_sec: number;
@@ -197,7 +197,7 @@ export function PersonalBestGrid({ bestRecords, utmbData, memberId, teamId, cmmC
                 <span className="text-[10px] font-semibold text-primary">{evt}</span>
                 {pb?.race_dt && (
                   <span className="text-[9px] text-muted-foreground whitespace-nowrap">
-                    {pb.race_dt.slice(2).replace(/-/g, ".").slice(0, 8)}
+                    {dayjs(pb.race_dt).format("YY.MM.DD")}
                   </span>
                 )}
               </div>

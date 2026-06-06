@@ -49,7 +49,7 @@ type PayHistRow = {
   mem_nm: string;
   pay_amt: number;
   pay_dt: string;
-  pay_st_cd: "paid" | "cancelled" | "refunded";
+  pay_st_cd: "paid" | "cancelled";
   fee_item_cd: string | null;
   raw_name: string;
 };

@@ -273,7 +273,7 @@ function TransactionsTab({
   startTransition: ReturnType<typeof useTransition>[1];
 }) {
   const [txns, setTxns] = useState(initialTxns);
-  const [filter, setFilter] = useState<"all" | "unconfirmed" | "confirmed">("all");
+  const [filter, setFilter] = useState<"all" | "unconfirmed" | "confirmed">(initialFilter);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [matchDialog, setMatchDialog] = useState<string | null>(null);
 
