@@ -883,7 +883,7 @@ function BalanceTab({
                     </TableCell>
                     <TableCell className="text-center">
                       <Caption className="text-xs whitespace-nowrap">
-                        {m.snap?.last_calc_dt ? dayjs(m.snap.last_calc_dt).format("YYYY.MM.DD") : "-"}
+                        {m.snap?.last_calc_dt ? dayjs(m.snap.last_calc_dt).format("YYYY.MM.DD HH:mm") : "-"}
                       </Caption>
                     </TableCell>
                     <TableCell className="text-center">

@@ -125,7 +125,7 @@ export default async function MemberDuesPage() {
   return (
     <DuesHistoryClient
       balAmt={balAmt}
-      lastCalcDt={snap?.last_calc_dt ? dayjs(snap.last_calc_dt).format("YY.MM.DD") : null}
+      lastCalcDt={snap?.last_calc_dt ? dayjs(snap.last_calc_dt).tz("Asia/Seoul").format("YY.MM.DD HH:mm") : null}
       teamAccount={TEAM_ACCOUNT}
       monthlyFeeAmt={policy?.monthly_fee_amt ?? null}
       items={items}

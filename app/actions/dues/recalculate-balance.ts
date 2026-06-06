@@ -48,7 +48,8 @@ export async function recalculateBalance(memIds?: string[]) {
 
   if (!policies?.length) return { ok: false as const, message: "회비 정책이 없습니다." };
 
-  const today = dayjs().tz("Asia/Seoul").format("YYYY-MM-DD");
+  const now = dayjs().tz("Asia/Seoul");
+  const today = now.format("YYYY-MM-DD");
   let updatedCount = 0;
   const errors: string[] = [];
 
@@ -234,7 +235,7 @@ export async function recalculateBalance(memIds?: string[]) {
       team_id: teamId,
       mem_id: mid,
       bal_amt: newBal,
-      last_calc_dt: today,
+      last_calc_dt: now.toISOString(),
       last_calc_at: lastTxnAt ?? snap?.last_calc_at ?? dayjs().toISOString(),
       last_ref_pay_id: lastPay?.pay_id ?? undefined,
       last_ref_exm_hist_id: lastExm?.exm_hist_id ?? undefined,
