@@ -201,14 +201,18 @@ export async function recalculateBalance(memIds?: string[]) {
     const newBal = baseBal + totalPaid + totalExempted - totalCharged;
 
     // 마지막 반영 거래의 은행 거래일시 (KST 기준, +1초 저장 → 다음 계산 시 중복 방지)
-    const lastTxnAt = filteredPays.reduce<string | null>((latest, p) => {
-      const txn = getTxnInfo(p.fee_txn_hist);
-      if (!txn?.txn_dt) return latest;
-      const txnAt = dayjs.tz(`${txn.txn_dt}T${txn.txn_tm ?? "00:00:00"}`, "Asia/Seoul").add(1, "second").toISOString();
-      return !latest || txnAt > latest ? txnAt : latest;
-    }, null);
-
-    const lastPay = filteredPays.at(-1);
+    const { lastTxnAt, lastPay } = filteredPays.reduce<{
+      lastTxnAt: string | null;
+      lastPay: (typeof filteredPays)[number] | null;
+    }>(
+      (acc, p) => {
+        const txn = getTxnInfo(p.fee_txn_hist);
+        if (!txn?.txn_dt) return acc;
+        const txnAt = dayjs.tz(`${txn.txn_dt}T${txn.txn_tm ?? "00:00:00"}`, "Asia/Seoul").add(1, "second").toISOString();
+        return !acc.lastTxnAt || txnAt > acc.lastTxnAt ? { lastTxnAt: txnAt, lastPay: p } : acc;
+      },
+      { lastTxnAt: null, lastPay: null },
+    );
     const lastExm = exms?.at(0);
 
     if (snap) {
