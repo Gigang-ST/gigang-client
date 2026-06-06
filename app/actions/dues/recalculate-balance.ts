@@ -1,6 +1,6 @@
 "use server";
 
-import dayjs from "dayjs";
+import { dayjs } from "@/lib/dayjs";
 
 import { verifyAdmin } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -144,7 +144,7 @@ export async function recalculateBalance(memIds?: string[]) {
               grant_src_enm: "rule_attd",
               rsn_txt: null,
               aprv_by_mem_id: adminUser.id,
-              aprv_at: new Date().toISOString(),
+              aprv_at: dayjs().toISOString(),
               vers: 0,
               del_yn: false,
             });
@@ -186,24 +186,27 @@ export async function recalculateBalance(memIds?: string[]) {
         .maybeSingle();
       const nextVers = (maxRow?.vers ?? 0) + 1;
 
-      await db
+      // 기존 vers=0 → nextVers로 밀기
+      const { error: pushErr } = await db
         .from("fee_mem_bal_snap")
         .update({ vers: nextVers })
         .eq("bal_snap_id", snap.bal_snap_id);
+      if (pushErr) return { ok: false as const, message: `스냅샷 버전 밀기 실패 (${mid}): ${pushErr.message}` };
     }
 
     // 새 vers=0 INSERT
-    await db.from("fee_mem_bal_snap").insert({
+    const { error: insertErr } = await db.from("fee_mem_bal_snap").insert({
       team_id: teamId,
       mem_id: mid,
       bal_amt: newBal,
       last_calc_dt: today,
-      last_calc_at: new Date().toISOString(),
+      last_calc_at: dayjs().toISOString(),
       last_ref_pay_id: lastPay?.pay_id ?? undefined,
       last_ref_exm_hist_id: lastExm?.exm_hist_id ?? undefined,
       vers: 0,
       del_yn: false,
     });
+    if (insertErr) return { ok: false as const, message: `스냅샷 INSERT 실패 (${mid}): ${insertErr.message}` };
 
     updatedCount++;
   }

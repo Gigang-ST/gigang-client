@@ -4,13 +4,14 @@ import { useState, useTransition } from "react";
 
 import { useRouter } from "next/navigation";
 
-import { UserMinus } from "lucide-react";
+import { RotateCcw, UserMinus } from "lucide-react";
 
 import { dayjs } from "@/lib/dayjs";
 
 
 import { batchDeactivateMembers } from "@/app/actions/admin/manage-member";
 import { createExemption } from "@/app/actions/dues/create-exemption";
+import { rollbackSnapshot } from "@/app/actions/dues/rollback-snapshot";
 
 import { SegmentControl } from "@/components/common/segment-control";
 import { Caption, SectionLabel } from "@/components/common/typography";
@@ -48,7 +49,7 @@ type PayHistRow = {
   mem_nm: string;
   pay_amt: number;
   pay_dt: string;
-  pay_st_cd: "paid" | "cancelled" | "refunded";
+  pay_st_cd: "paid" | "cancelled";
   fee_item_cd: string | null;
   raw_name: string;
 };
@@ -155,6 +156,26 @@ export function DuesMembersClient({
     (id) => members.find((m) => m.mem_id === id)?.mem_st_cd === "active"
   );
 
+  // 선택된 회원 중 스냅샷이 있는 회원만 롤백 대상
+  const rollbackTargetIds = [...selectedIds].filter(
+    (id) => members.find((m) => m.mem_id === id)?.snap != null
+  );
+
+  async function handleRollbackSnapshot() {
+    if (!rollbackTargetIds.length) return;
+    if (!confirm(`선택한 ${rollbackTargetIds.length}명의 스냅샷을 이전 버전으로 롤백하시겠습니까?\n롤백 후 거래 수정이 끝나면 재계산을 실행하세요.`)) return;
+    startTransition(async () => {
+      const res = await rollbackSnapshot(rollbackTargetIds);
+      if (res.ok) {
+        alert(`롤백 완료 (${res.rolledBackCount}명). 거래 수정 후 재계산을 실행하세요.`);
+        router.refresh();
+      } else {
+        alert(res.message);
+      }
+    });
+  }
+
+
   async function handleDeactivate() {
     if (!deactivateReason.trim()) return;
     startTransition(async () => {
@@ -188,7 +209,7 @@ export function DuesMembersClient({
       {tab === "balance" && (
         <>
           {/* 상단 액션 */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant={filter === "unpaid" ? "default" : "outline"}
               size="sm"
@@ -215,6 +236,19 @@ export function DuesMembersClient({
               >
                 <UserMinus className="size-3.5 mr-1" />
                 비활성 설정 ({activeSelectedMembers.length}명)
+              </Button>
+            )}
+            {/* 우측 정렬 스페이서 */}
+            <div className="flex-1" />
+            {rollbackTargetIds.length > 0 && (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={handleRollbackSnapshot}
+                disabled={isPending}
+              >
+                <RotateCcw className="size-3.5 mr-1" />
+                Snapshot Rollback ({rollbackTargetIds.length}명)
               </Button>
             )}
           </div>

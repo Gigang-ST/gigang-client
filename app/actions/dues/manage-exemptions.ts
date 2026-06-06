@@ -35,6 +35,24 @@ export async function updateExemption({
   const { teamId } = await getRequestTeamContext();
   const db = createAdminClient();
 
+  if (exmTpEnm === "part" && exmAmt) {
+    const { data: policy } = await db
+      .from("fee_policy_cfg")
+      .select("monthly_fee_amt")
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .lte("aply_stt_dt", aplySttDt)
+      .gte("aply_end_dt", aplySttDt)
+      .order("aply_stt_dt", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (policy && exmAmt > policy.monthly_fee_amt) {
+      return { ok: false as const, message: `면제 금액은 월 회비(${policy.monthly_fee_amt.toLocaleString()}원)를 초과할 수 없습니다.` };
+    }
+  }
+
   const { error } = await db
     .from("fee_due_exm_cfg")
     .update({

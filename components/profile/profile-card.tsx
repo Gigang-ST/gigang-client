@@ -60,9 +60,9 @@ export function ProfileCard({
               />
             )}
           </div>
-          <span className="text-xs text-muted-foreground">
-            {genderLabel}{joinedDate ? ` · ${joinedDate} 가입` : ""}
-          </span>
+          {joinedDate && (
+            <span className="text-xs text-muted-foreground">{joinedDate} 가입</span>
+          )}
         </div>
         <button
           onClick={() => setSheetOpen(true)}

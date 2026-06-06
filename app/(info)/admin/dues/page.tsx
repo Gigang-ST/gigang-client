@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import dayjs from "dayjs";
-import { FileSpreadsheet, Users, Settings, ReceiptText, BadgeCheck } from "lucide-react";
+import { FileSpreadsheet, Settings, ReceiptText, BadgeCheck } from "lucide-react";
 
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createClient } from "@/lib/supabase/server";
@@ -93,8 +93,7 @@ export default async function DuesAdminDashboardPage() {
   const balance = totalIn - expenseTotal;
 
   const menus = [
-    { href: "/admin/dues/transactions", icon: FileSpreadsheet, label: "거래 내역", desc: "xlsx 업로드 및 확정 처리" },
-    { href: "/admin/dues/members", label: "회원별 현황", icon: Users, desc: "잔액·면제 현황 및 정산 실행" },
+    { href: "/admin/dues/transactions", icon: FileSpreadsheet, label: "회비 계산", desc: "xlsx 업로드·거래 확정·회원별 잔액·납부 원장" },
     { href: "/admin/dues/exemptions", label: "면제 관리", icon: BadgeCheck, desc: "회원별 회비 면제 규칙 등록·수정·삭제" },
     { href: "/admin/dues/policy", label: "회비 정책", icon: Settings, desc: "월 회비 금액 설정 / 거래 분류 항목 관리" },
     { href: "/admin/dues/expenses", label: "지출 내역", icon: ReceiptText, desc: "지출 거래 조회" },
@@ -106,10 +105,10 @@ export default async function DuesAdminDashboardPage() {
       <div className="flex flex-col gap-2">
         <SectionLabel>납부 현황</SectionLabel>
         <div className="grid grid-cols-2 gap-3">
-          <Link href="/admin/dues/members?filter=unpaid">
+          <Link href="/admin/dues/transactions?tab=balance&balFilter=unpaid">
             <StatCard value={unpaidCount ?? 0} label="미납 회원 →" valueClassName={(unpaidCount ?? 0) > 0 ? "text-destructive" : undefined} />
           </Link>
-          <Link href="/admin/dues/transactions">
+          <Link href="/admin/dues/transactions?tab=txn&filter=unconfirmed">
             <StatCard value={pendingTxnCount ?? 0} label="미처리 거래 →" valueClassName={(pendingTxnCount ?? 0) > 0 ? "text-warning" : undefined} />
           </Link>
         </div>
