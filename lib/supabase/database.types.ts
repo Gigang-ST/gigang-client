@@ -1365,6 +1365,7 @@ export type Database = {
       }
       noti_mst: {
         Row: {
+          batch_id: string | null
           crt_at: string | null
           del_yn: boolean | null
           mem_id: string
@@ -1379,6 +1380,7 @@ export type Database = {
           vers: number | null
         }
         Insert: {
+          batch_id?: string | null
           crt_at?: string | null
           del_yn?: boolean | null
           mem_id: string
@@ -1393,6 +1395,7 @@ export type Database = {
           vers?: number | null
         }
         Update: {
+          batch_id?: string | null
           crt_at?: string | null
           del_yn?: boolean | null
           mem_id?: string
@@ -1762,17 +1765,30 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      create_noti_for_team: {
-        Args: {
-          p_noti_cont?: string
-          p_noti_nm: string
-          p_noti_type_enm: string
-          p_ref_id?: string
-          p_ref_type_enm?: string
-          p_team_id: string
-        }
-        Returns: undefined
-      }
+      create_noti_for_team:
+        | {
+            Args: {
+              p_noti_cont?: string
+              p_noti_nm: string
+              p_noti_type_enm: string
+              p_ref_id?: string
+              p_ref_type_enm?: string
+              p_team_id: string
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_batch_id?: string
+              p_noti_cont?: string
+              p_noti_nm: string
+              p_noti_type_enm: string
+              p_ref_id?: string
+              p_ref_type_enm?: string
+              p_team_id: string
+            }
+            Returns: undefined
+          }
       get_public_team_comp_reg_display_counts: {
         Args: { p_comp_id: string; p_team_id: string }
         Returns: {

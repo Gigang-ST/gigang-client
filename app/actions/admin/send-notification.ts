@@ -14,6 +14,7 @@ export async function sendNotification(input: {
 
   const { teamId } = await getRequestTeamContext();
   const db = createUntypedAdminClient();
+  const batchId = crypto.randomUUID();
 
   if (input.target === "all") {
     await db.rpc("create_noti_for_team", {
@@ -23,6 +24,7 @@ export async function sendNotification(input: {
       p_noti_cont: input.notiCont ?? null,
       p_ref_id: null,
       p_ref_type_enm: null,
+      p_batch_id: batchId,
     });
   } else {
     const rows = input.target.map((memId) => ({
@@ -31,9 +33,10 @@ export async function sendNotification(input: {
       noti_type_enm: "adm_cust",
       noti_nm: input.notiNm,
       noti_cont: input.notiCont ?? null,
+      batch_id: batchId,
     }));
     await db.from("noti_mst").insert(rows);
   }
 
-  return { ok: true as const, message: null };
+  return { ok: true as const, message: null, batchId };
 }
