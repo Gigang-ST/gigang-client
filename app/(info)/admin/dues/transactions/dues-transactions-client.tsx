@@ -108,6 +108,7 @@ function MemberSearchInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        aria-label={placeholder}
         className="h-9 pl-8 text-xs w-32"
       />
     </div>
