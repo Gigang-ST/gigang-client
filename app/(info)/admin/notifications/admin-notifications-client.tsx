@@ -26,7 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import type { HistoryBatch } from "./page";
+import type { HistoryBatch } from "@/app/(info)/admin/notifications/page";
 
 type Member = { mem_id: string; mem_nm: string };
 
@@ -246,10 +246,14 @@ export function AdminNotificationsClient({
                   <TableRow
                     key={batch.batchId}
                     className="cursor-pointer"
+                    tabIndex={0}
+                    role="button"
+                    aria-expanded={expandedBatch === batch.batchId}
                     onClick={() => setExpandedBatch(expandedBatch === batch.batchId ? null : batch.batchId)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpandedBatch(expandedBatch === batch.batchId ? null : batch.batchId); } }}
                   >
                     <TableCell className="text-center whitespace-nowrap">
-                      <Caption>{batch.crtAt ? dayjs(batch.crtAt).format("MM.DD HH:mm") : "-"}</Caption>
+                      <Caption>{batch.crtAt ? dayjs(batch.crtAt).format("YY.MM.DD HH:mm") : "-"}</Caption>
                     </TableCell>
                     <TableCell className="text-center">
                       <Caption className="text-foreground">{batch.notiNm}</Caption>

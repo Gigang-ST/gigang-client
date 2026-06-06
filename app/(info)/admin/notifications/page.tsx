@@ -50,6 +50,10 @@ export default async function AdminNotificationsPage({ searchParams }: { searchP
       .limit(500),
   ]);
 
+  if (membersRes.error || historyRes.error) {
+    throw new Error("알림 데이터를 불러오는 중 오류가 발생했습니다.");
+  }
+
   const memberList = (membersRes.data ?? []).map((row) => {
     const mem = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst;
     return {

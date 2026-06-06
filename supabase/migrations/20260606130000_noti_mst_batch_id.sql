@@ -33,6 +33,8 @@ CREATE OR REPLACE FUNCTION public.create_noti_for_team(
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  v_batch_id uuid := COALESCE(p_batch_id, gen_random_uuid());
 BEGIN
   INSERT INTO noti_mst (team_id, mem_id, noti_type_enm, noti_nm, noti_cont, ref_id, ref_type_enm, batch_id)
   SELECT
@@ -43,7 +45,7 @@ BEGIN
     p_noti_cont,
     p_ref_id,
     p_ref_type_enm,
-    COALESCE(p_batch_id, gen_random_uuid())
+    v_batch_id
   FROM team_mem_rel tmr
   WHERE tmr.team_id = p_team_id
     AND tmr.vers = 0
