@@ -108,7 +108,7 @@ export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, items }: Pr
         </div>
 
         {/* 테이블 헤더 */}
-        <div className="grid grid-cols-[60px_1fr_36px_auto] gap-x-2 px-1">
+        <div className="grid grid-cols-[58px_1fr_36px_90px] gap-x-3 px-4">
           <Caption>날짜</Caption>
           <Caption>항목</Caption>
           <Caption>구분</Caption>
@@ -125,7 +125,7 @@ export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, items }: Pr
             {filtered.map((item) => (
               <div
                 key={item.id}
-                className="grid grid-cols-[60px_1fr_36px_auto] items-center gap-x-2 px-4 py-3"
+                className="grid grid-cols-[58px_1fr_36px_90px] items-center gap-x-3 px-4 py-3"
               >
                 {/* 날짜 */}
                 <Caption className={item.cancelled ? "text-muted-foreground/50" : ""}>
