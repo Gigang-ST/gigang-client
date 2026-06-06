@@ -24,6 +24,7 @@ type NotificationBellIconProps = {
 
 const NOTI_TYPE_LABELS: Record<string, string> = {
   ttl_grnt: "칭호 획득",
+  dues_notice: "회비 안내",
 };
 
 type ViewType = "list" | "settings";

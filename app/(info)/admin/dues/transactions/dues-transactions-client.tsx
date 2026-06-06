@@ -4,14 +4,13 @@ import { Dispatch, SetStateAction, useState, useTransition } from "react";
 
 import { useRouter } from "next/navigation";
 
-import { Calculator, RotateCcw, UserMinus } from "lucide-react";
+import { Calculator, RotateCcw, Search, UserMinus } from "lucide-react";
 
 import { dayjs } from "@/lib/dayjs";
 
 import { batchDeactivateMembers } from "@/app/actions/admin/manage-member";
 import { cancelTransaction } from "@/app/actions/dues/cancel-transaction";
 import { confirmTransaction } from "@/app/actions/dues/confirm-transaction";
-import { createExemption } from "@/app/actions/dues/create-exemption";
 import { matchTransaction } from "@/app/actions/dues/match-transaction";
 import { recalculateBalance } from "@/app/actions/dues/recalculate-balance";
 import { rollbackSnapshot } from "@/app/actions/dues/rollback-snapshot";
@@ -89,6 +88,30 @@ function getMemNm(memMst: Txn["mem_mst"]): string | null {
   if (!memMst) return null;
   if (Array.isArray(memMst)) return memMst[0]?.mem_nm ?? null;
   return memMst.mem_nm;
+}
+
+function MemberSearchInput({
+  value,
+  onChange,
+  placeholder = "이름 검색",
+  className,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  return (
+    <div className={`relative ${className ?? ""}`}>
+      <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="h-9 pl-8 text-xs w-32"
+      />
+    </div>
+  );
 }
 
 function MemberSearchDialog({
@@ -276,12 +299,18 @@ function TransactionsTab({
   startTransition: ReturnType<typeof useTransition>[1];
 }) {
   const [filter, setFilter] = useState<"all" | "unconfirmed" | "confirmed">(initialFilter);
+  const [memberQuery, setMemberQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [matchDialog, setMatchDialog] = useState<string | null>(null);
 
+  const q = memberQuery.trim().toLowerCase();
   const filtered = txns.filter((t) => {
-    if (filter === "unconfirmed") return !t.is_cfm_yn;
-    if (filter === "confirmed") return t.is_cfm_yn;
+    if (filter === "unconfirmed" && t.is_cfm_yn) return false;
+    if (filter === "confirmed" && !t.is_cfm_yn) return false;
+    if (q) {
+      const memNm = getMemNm(t.mem_mst);
+      if (!memNm?.toLowerCase().includes(q) && !t.raw_name.toLowerCase().includes(q)) return false;
+    }
     return true;
   });
 
@@ -422,6 +451,7 @@ function TransactionsTab({
             {f === "unconfirmed" ? "미확정" : f === "confirmed" ? "확정" : "전체"}
           </Button>
         ))}
+        <MemberSearchInput value={memberQuery} onChange={setMemberQuery} />
         {staleMemIds.length > 0 && (
           <Button
             variant="outline"
@@ -631,37 +661,43 @@ function BalanceTab({
   const router = useRouter();
   const [filter, setFilter] = useState<"all" | "unpaid">(initialFilter);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [exemptTarget, setExemptTarget] = useState<MemberRow | null>(null);
   const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false);
   const [deactivateReason, setDeactivateReason] = useState("");
-  const [exmForm, setExmForm] = useState({
-    exmTpEnm: "full" as "full" | "part",
-    exmAmt: "",
-    aplySttDt: dayjs().format("YYYY-MM-DD"),
-    aplyEndDt: dayjs().endOf("month").format("YYYY-MM-DD"),
-    rsnTxt: "",
-  });
 
-  const defaultExmForm = () => ({
-    exmTpEnm: "full" as "full" | "part",
-    exmAmt: "",
-    aplySttDt: dayjs().format("YYYY-MM-DD"),
-    aplyEndDt: dayjs().endOf("month").format("YYYY-MM-DD"),
-    rsnTxt: "",
-  });
+  const [memberQuery, setMemberQuery] = useState("");
+  const [sortKey, setSortKey] = useState<"mem_nm" | "join_dt" | "bal_amt" | "last_calc_dt" | "last_calc_at">("mem_nm");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  function openExemptDialog(m: MemberRow) {
-    setExmForm(defaultExmForm());
-    setExemptTarget(m);
+  function handleSort(key: typeof sortKey) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
   }
 
-  function closeExemptDialog() {
-    setExemptTarget(null);
-    setExmForm(defaultExmForm());
+  function sortIndicator(key: typeof sortKey) {
+    if (sortKey !== key) return " ↕";
+    return sortDir === "asc" ? " ↑" : " ↓";
   }
 
+  const mq = memberQuery.trim().toLowerCase();
   const unpaidMembers = members.filter((m) => m.snap && m.snap.bal_amt < 0);
-  const displayedMembers = filter === "unpaid" ? unpaidMembers : members;
+  const baseMembers = (filter === "unpaid" ? unpaidMembers : members).filter(
+    (m) => !mq || m.mem_nm.toLowerCase().includes(mq)
+  );
+
+  const displayedMembers = [...baseMembers].sort((a, b) => {
+    let av: string | number | null = null;
+    let bv: string | number | null = null;
+    if (sortKey === "mem_nm") { av = a.mem_nm; bv = b.mem_nm; }
+    else if (sortKey === "join_dt") { av = a.join_dt; bv = b.join_dt; }
+    else if (sortKey === "bal_amt") { av = a.snap?.bal_amt ?? null; bv = b.snap?.bal_amt ?? null; }
+    else if (sortKey === "last_calc_dt") { av = a.snap?.last_calc_dt ?? null; bv = b.snap?.last_calc_dt ?? null; }
+    else if (sortKey === "last_calc_at") { av = a.snap?.last_calc_at ?? null; bv = b.snap?.last_calc_at ?? null; }
+    if (av === null && bv === null) return 0;
+    if (av === null) return 1;
+    if (bv === null) return -1;
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    return sortDir === "asc" ? cmp : -cmp;
+  });
 
   function toggleMember(memId: string) {
     setSelectedIds((prev) => {
@@ -686,26 +722,6 @@ function BalanceTab({
   function handleSendNoti() {
     const memIds = [...selectedIds].join(",");
     router.push(`/admin/notifications?memIds=${memIds}&template=dues_notice`);
-  }
-
-  async function handleExemptSubmit() {
-    if (!exemptTarget) return;
-    startTransition(async () => {
-      const res = await createExemption({
-        memId: exemptTarget.mem_id,
-        exmTpEnm: exmForm.exmTpEnm,
-        exmAmt: exmForm.exmTpEnm === "part" ? Number(exmForm.exmAmt) : undefined,
-        aplySttDt: exmForm.aplySttDt,
-        aplyEndDt: exmForm.aplyEndDt,
-        rsnTxt: exmForm.rsnTxt,
-      });
-      if (res.ok) {
-        closeExemptDialog();
-        alert("면제 규칙이 등록되었습니다.");
-      } else {
-        alert(res.message);
-      }
-    });
   }
 
   const activeSelectedMembers = [...selectedIds].filter(
@@ -759,6 +775,7 @@ function BalanceTab({
         >
           미납 {unpaidMembers.length}명
         </Button>
+        <MemberSearchInput value={memberQuery} onChange={setMemberQuery} />
         {selectedIds.size > 0 && (
           <Button size="sm" onClick={handleSendNoti}>
             알림 전송 ({selectedIds.size}명)
@@ -825,13 +842,37 @@ function BalanceTab({
                     />
                   </div>
                 </TableHead>
-                <TableHead className="text-center text-xs whitespace-nowrap">이름</TableHead>
+                <TableHead
+                  className="text-center text-xs whitespace-nowrap cursor-pointer select-none hover:text-foreground"
+                  onClick={() => handleSort("mem_nm")}
+                >
+                  이름{sortIndicator("mem_nm")}
+                </TableHead>
                 <TableHead className="text-center text-xs whitespace-nowrap">생년월일</TableHead>
-                <TableHead className="text-center text-xs whitespace-nowrap">가입일</TableHead>
-                <TableHead className="text-center text-xs whitespace-nowrap">잔액</TableHead>
-                <TableHead className="text-center text-xs whitespace-nowrap">기준일</TableHead>
-                <TableHead className="text-center text-xs whitespace-nowrap">마지막 거래</TableHead>
-                <TableHead className="text-center text-xs whitespace-nowrap">면제</TableHead>
+                <TableHead
+                  className="text-center text-xs whitespace-nowrap cursor-pointer select-none hover:text-foreground"
+                  onClick={() => handleSort("join_dt")}
+                >
+                  가입일{sortIndicator("join_dt")}
+                </TableHead>
+                <TableHead
+                  className="text-center text-xs whitespace-nowrap cursor-pointer select-none hover:text-foreground"
+                  onClick={() => handleSort("bal_amt")}
+                >
+                  잔액{sortIndicator("bal_amt")}
+                </TableHead>
+                <TableHead
+                  className="text-center text-xs whitespace-nowrap cursor-pointer select-none hover:text-foreground"
+                  onClick={() => handleSort("last_calc_dt")}
+                >
+                  기준일{sortIndicator("last_calc_dt")}
+                </TableHead>
+                <TableHead
+                  className="text-center text-xs whitespace-nowrap cursor-pointer select-none hover:text-foreground"
+                  onClick={() => handleSort("last_calc_at")}
+                >
+                  마지막거래일{sortIndicator("last_calc_at")}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -891,19 +932,6 @@ function BalanceTab({
                         {m.snap?.last_calc_at ? dayjs(m.snap.last_calc_at).tz("Asia/Seoul").format("YYYY.MM.DD HH:mm") : "-"}
                       </Caption>
                     </TableCell>
-                    <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex justify-center">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => openExemptDialog(m)}
-                          disabled={isPending}
-                        >
-                          면제
-                        </Button>
-                      </div>
-                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -946,49 +974,6 @@ function BalanceTab({
         </DialogContent>
       </Dialog>
 
-      {/* 면제 등록 다이얼로그 */}
-      <Dialog open={!!exemptTarget} onOpenChange={(o) => !o && closeExemptDialog()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{exemptTarget?.mem_nm} 면제 등록</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-4 pt-2">
-            <div className="flex flex-col gap-1.5">
-              <Label>면제 유형</Label>
-              <Select value={exmForm.exmTpEnm} onValueChange={(v) => setExmForm((f) => ({ ...f, exmTpEnm: v as "full" | "part" }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="full">전액 면제</SelectItem>
-                  <SelectItem value="part">부분 면제</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {exmForm.exmTpEnm === "part" && (
-              <div className="flex flex-col gap-1.5">
-                <Label>면제 금액 (원)</Label>
-                <Input type="number" value={exmForm.exmAmt} onChange={(e) => setExmForm((f) => ({ ...f, exmAmt: e.target.value }))} placeholder="2000" />
-              </div>
-            )}
-            <div className="flex gap-2">
-              <div className="flex flex-col gap-1.5 flex-1">
-                <Label>시작일</Label>
-                <Input type="date" value={exmForm.aplySttDt} onChange={(e) => setExmForm((f) => ({ ...f, aplySttDt: e.target.value }))} />
-              </div>
-              <div className="flex flex-col gap-1.5 flex-1">
-                <Label>종료일</Label>
-                <Input type="date" value={exmForm.aplyEndDt} onChange={(e) => setExmForm((f) => ({ ...f, aplyEndDt: e.target.value }))} />
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>사유</Label>
-              <Input value={exmForm.rsnTxt} onChange={(e) => setExmForm((f) => ({ ...f, rsnTxt: e.target.value }))} placeholder="장기 부상, 타지역 이사 등" />
-            </div>
-            <Button onClick={handleExemptSubmit} disabled={isPending || !exmForm.rsnTxt}>
-              {isPending ? <LoadingSpinner /> : "등록"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -996,9 +981,17 @@ function BalanceTab({
 // ─── 납부 원장 탭 ──────────────────────────────────────────────────────────────
 
 function PayHistTab({ payHists }: { payHists: PayHistRow[] }) {
+  const [memberQuery, setMemberQuery] = useState("");
+
+  const q = memberQuery.trim().toLowerCase();
+  const filtered = q ? payHists.filter((p) => p.mem_nm.toLowerCase().includes(q)) : payHists;
+
   return (
     <div className="flex flex-col gap-2">
-      <SectionLabel>납부 원장 ({payHists.length}건)</SectionLabel>
+      <div className="flex items-center gap-2">
+        <SectionLabel>납부 원장 ({filtered.length}건)</SectionLabel>
+        <MemberSearchInput value={memberQuery} onChange={setMemberQuery} />
+      </div>
       <div className="overflow-x-auto rounded-2xl border border-border">
         <Table>
           <TableHeader>
@@ -1009,14 +1002,14 @@ function PayHistTab({ payHists }: { payHists: PayHistRow[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {payHists.length === 0 && (
+            {filtered.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="py-8 text-center">
                   <Caption className="text-muted-foreground">납부 내역이 없습니다.</Caption>
                 </TableCell>
               </TableRow>
             )}
-            {payHists.map((p) => (
+            {filtered.map((p) => (
               <TableRow key={p.pay_id} className={p.pay_st_cd !== "paid" ? "opacity-50" : ""}>
                 <TableCell className="text-center">
                   <Caption className="text-xs font-semibold whitespace-nowrap">{p.mem_nm}</Caption>
