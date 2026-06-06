@@ -165,18 +165,18 @@ export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, monthlyFeeA
               <TableBody>
                 {filtered.map((item) => (
                   <TableRow key={item.id} className={item.cancelled ? "opacity-50" : ""}>
-                    <TableCell className="whitespace-nowrap">
+                    <TableCell className="whitespace-nowrap text-center">
                       <Caption>{formatDate(item.date)}</Caption>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1.5">
+                    <TableCell className="text-center">
+                      <div className="flex items-center justify-center gap-1.5">
                         <Caption className={item.cancelled ? "line-through" : ""}>{item.itemLabel}</Caption>
                         {item.cancelled && (
                           <Badge variant="outline" className="px-1 py-0 text-[10px]">취소</Badge>
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">
+                    <TableCell className="whitespace-nowrap text-center">
                       <Caption
                         className={
                           item.cancelled
