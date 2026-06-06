@@ -2,14 +2,14 @@
 
 import { todayKST, currentMonthKST, monthLastDay } from "@/lib/dayjs";
 import { env } from "@/lib/env";
+import { hasUnreadBoardPost } from "@/lib/queries/board";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember, getMyTitleNames } from "@/lib/queries/member";
-import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { hasUnreadBoardPost } from "@/lib/queries/board";
 import { getUnreadNotificationCount } from "@/lib/queries/notification";
-import { BoardPopoverIcon } from "@/components/board/board-popover-icon";
-import { NotificationBellIcon } from "@/components/notifications/notification-bell-icon";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+import { BoardPopoverIcon } from "@/components/board/board-popover-icon";
 import { H1 } from "@/components/common/typography";
 import { MiniCalendar } from "@/components/home/mini-calendar";
 import type { CalendarRace } from "@/components/home/mini-calendar";
@@ -20,6 +20,7 @@ import type { RecentRecord, RecordTitleInfo } from "@/components/home/recent-rec
 import { RecentTitles } from "@/components/home/recent-titles";
 import type { RecentTitleGrant } from "@/components/home/recent-titles";
 import { UpcomingRaces } from "@/components/home/upcoming-races";
+import { NotificationBellIcon } from "@/components/notifications/notification-bell-icon";
 import type { CompetitionRegistration, MemberStatus } from "@/components/races/types";
 import { SocialLinksGrid } from "@/components/social-links";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -123,6 +124,7 @@ async function HomeContent() {
           .from("team_mem_rel")
           .select("mem_id, join_dt, mem_mst!inner(mem_nm)")
           .eq("team_id", teamId)
+          .eq("mem_st_cd", "active")
           .eq("vers", 0)
           .eq("del_yn", false)
           .order("join_dt", { ascending: false })
@@ -207,14 +209,16 @@ async function HomeContent() {
     if (currentMember) {
       const member = currentMember;
       isMember = true;
-      initialMemberStatus = {
-        status: "ready",
-        userId: user.id,
-        memberId: member.id,
-        fullName: member.full_name ?? null,
-        email: member.email ?? null,
-        admin: member.admin ?? false,
-      };
+      initialMemberStatus = member.status !== "active"
+        ? { status: "inactive", userId: user.id }
+        : {
+            status: "ready",
+            userId: user.id,
+            memberId: member.id,
+            fullName: member.full_name ?? null,
+            email: member.email ?? null,
+            admin: member.admin ?? false,
+          };
       const { data: myRegs } = await supabase
         .from("comp_reg_rel")
         .select(

@@ -1,12 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import { History, Plus } from "lucide-react";
+
+import { useRouter } from "next/navigation";
+
 import { fetchUtmbIndex } from "@/app/actions/utmb";
 import {
 	deleteUtmbProfile,
 	saveUtmbProfile,
 } from "@/app/actions/save-utmb-profile";
+import { SectionLabel } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
+import { RaceHistoryDialog } from "@/components/profile/race-history-dialog";
+import { RaceRecordDialog } from "@/components/profile/race-record-dialog";
+import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
+import type { MemberStatus } from "@/components/races/types";
 import {
 	Dialog,
 	DialogContent,
@@ -15,11 +24,12 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { secondsToTime } from "@/lib/dayjs";
+import { dayjs, secondsToTime } from "@/lib/dayjs";
 
 type BestRecord = {
 	record_time_sec: number;
 	race_name: string;
+	race_dt?: string | null;
 };
 
 type UtmbData = {
@@ -32,13 +42,20 @@ type UtmbData = {
 type Props = {
 	bestRecords: Record<string, BestRecord>;
 	utmbData: UtmbData;
+	memberId?: string;
+	teamId?: string;
+	cmmCdRows?: CachedCmmCdRow[];
+	competitionRegisterMemberStatus?: MemberStatus;
 };
 
 const PB_EVENTS = ["FULL", "HALF", "10K"] as const;
 
-export function PersonalBestGrid({ bestRecords, utmbData }: Props) {
+export function PersonalBestGrid({ bestRecords, utmbData, memberId, teamId, cmmCdRows, competitionRegisterMemberStatus }: Props) {
+	const router = useRouter();
 	const [utmb, setUtmb] = useState(utmbData);
 	const [utmbOpen, setUtmbOpen] = useState(false);
+	const [recordOpen, setRecordOpen] = useState(false);
+	const [historyOpen, setHistoryOpen] = useState(false);
 
 	// UTMB dialog form state
 	const [utmbUrl, setUtmbUrl] = useState("");
@@ -156,43 +173,60 @@ export function PersonalBestGrid({ bestRecords, utmbData }: Props) {
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3">
-        {/* FULL / HALF / 10K cards (read-only) */}
-        {PB_EVENTS.map((evt, i) => {
+      <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <SectionLabel>PERSONAL BEST</SectionLabel>
+        <div className="flex gap-2">
+          <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs text-muted-foreground" onClick={() => setHistoryOpen(true)}>
+            <History className="size-3.5" />
+            기록 관리
+          </Button>
+          <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => setRecordOpen(true)}>
+            <Plus className="size-3.5" />
+            기록 추가
+          </Button>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {/* FULL / HALF / 10K cells */}
+        {PB_EVENTS.map((evt) => {
           const pb = bestRecords[evt];
           return (
-            <div
-              key={evt}
-              className={`flex min-w-0 flex-col gap-1 rounded-xl p-4 ${i < 2 ? "border-[1.5px] border-border" : "bg-secondary"}`}
-            >
-              <span className="text-xs font-semibold text-primary">
-                {evt}
-              </span>
-              <span className="font-mono text-xl font-bold text-foreground">
+            <div key={evt} className="flex min-w-0 flex-col gap-0 rounded-xl border border-border px-3 py-2">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] font-semibold text-primary">{evt}</span>
+                {pb?.race_dt && (
+                  <span className="text-[9px] text-muted-foreground whitespace-nowrap">
+                    {dayjs(pb.race_dt).format("YY.MM.DD")}
+                  </span>
+                )}
+              </div>
+              <span className="font-mono text-base font-bold text-foreground leading-tight">
                 {pb ? secondsToTime(pb.record_time_sec) : "--:--"}
-              </span>
-              <span className="truncate text-[11px] text-muted-foreground">
-                {pb?.race_name ?? ""}
               </span>
             </div>
           );
         })}
 
-        {/* UTMB card (clickable) */}
+        {/* UTMB cell */}
         <Button
           type="button"
-          variant="secondary"
+          variant="outline"
           onClick={() => handleUtmbOpenChange(true)}
-          className="h-auto min-w-0 flex-col items-start gap-1 rounded-xl p-4 active:scale-[0.98]"
+          className="h-auto min-w-0 flex-col items-start gap-0 rounded-xl border border-border px-3 py-2 active:scale-[0.98]"
         >
-          <span className="text-xs font-semibold text-primary">UTMB</span>
-          <span className="font-mono text-xl font-bold text-foreground">
-            {utmb ? utmb.utmb_index : "--"}
-          </span>
-          <span className="w-full truncate text-[11px] text-muted-foreground">
-            {utmb?.recent_race_name ? utmb.recent_race_name : utmb ? "" : "탭하여 연동"}
-          </span>
+          <span className="text-[10px] font-semibold text-primary">UTMB</span>
+          {utmb ? (
+            <span className="font-mono text-base font-bold text-foreground leading-tight">
+              {utmb.utmb_index}
+            </span>
+          ) : (
+            <span className="text-[10px] text-muted-foreground leading-tight whitespace-nowrap">
+              클릭하여 연동
+            </span>
+          )}
         </Button>
+      </div>
       </div>
 
 			{/* UTMB Dialog */}
@@ -315,6 +349,29 @@ export function PersonalBestGrid({ bestRecords, utmbData }: Props) {
 					</div>
 				</DialogContent>
 			</Dialog>
+
+			{memberId && teamId && cmmCdRows && (
+				<RaceRecordDialog
+					memberId={memberId}
+					teamId={teamId}
+					cmmCdRows={cmmCdRows}
+					open={recordOpen}
+					onOpenChange={setRecordOpen}
+					competitionRegisterMemberStatus={competitionRegisterMemberStatus}
+					onSaved={() => {
+						setRecordOpen(false);
+						router.refresh();
+					}}
+				/>
+			)}
+			{memberId && (
+				<RaceHistoryDialog
+					memberId={memberId}
+					open={historyOpen}
+					onOpenChange={setHistoryOpen}
+					onChanged={() => router.refresh()}
+				/>
+			)}
 		</>
 	);
 }

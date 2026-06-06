@@ -295,6 +295,45 @@ select proname from pg_proc where pronamespace = 'public'::regnamespace and pron
 select obj_description('public.set_v2_upd_at()'::regprocedure);
 ```
 
+### 웨이브 5 이후 — 회비 앱 구현 체크리스트
+
+DB 레이어(마이그레이션)는 완료. **앱 코드가 전부 미구현** 상태.
+
+#### 사전 조건
+
+- [x] `fee_policy_cfg` 초기 데이터 삽입 완료 — prd: `aply_stt_dt='2020-01-01'`, `monthly_fee_amt=2000`
+
+#### 백엔드 (서버 액션)
+
+- [ ] `actions/dues/upload-xlsx.ts` — xlsx 업로드·파싱·자동 매칭
+  - `KAKAOBANK_XLSX_PASSWORD` 환경변수 추가 (`lib/env.ts`)
+  - xlsx 복호화 라이브러리 선택 (`xlsx-js-style` 또는 `exceljs`)
+  - 파싱: 11행 헤더, `fee_txn_io_enm`, `fee_item_cd` 초기값 자동 결정
+  - SHA-256 hash → `fee_xlsx_upd_hist.file_hash` 중복 체크
+  - `fee_txn_hist` INSERT (`ON CONFLICT uk_fee_txn_hist_dedup DO NOTHING`)
+- [ ] `actions/dues/match-transaction.ts` — 수동 회원 매칭
+- [ ] `actions/dues/update-fee-item.ts` — `fee_item_cd` 수정
+- [ ] `actions/dues/confirm-transaction.ts` — 거래 확정 + `fee_due_pay_hist` 삽입
+- [ ] `actions/dues/rollback-xlsx.ts` — 업로드 롤백
+- [ ] `actions/dues/create-exemption.ts` — `fee_due_exm_cfg` 등록
+- [ ] `actions/dues/recalculate-balance.ts` — `fee_mem_bal_snap` 갱신 (증분/전체)
+- [ ] `actions/dues/update-policy.ts` — `fee_policy_cfg` 신규 기간 추가
+
+#### 프론트엔드 (페이지/컴포넌트)
+
+- [ ] `app/(admin)/dues/page.tsx` — 관리자 대시보드
+- [ ] `app/(admin)/dues/transactions/page.tsx` — 거래 내역 조회·매칭·확정
+- [ ] `app/(admin)/dues/members/page.tsx` — 회원별 잔액·면제 현황
+- [ ] `app/(admin)/dues/policy/page.tsx` — 회비 정책 설정
+- [ ] `app/(admin)/dues/expenses/page.tsx` — 지출 내역 조회
+- [ ] 회원 프로필 페이지에 회비 섹션 추가 (`fee_mem_bal_snap`, `fee_due_pay_hist`)
+
+#### 설계 참고
+
+- 상세 기능 명세: `docs/design/2026-03-26-회비시스템.md` (v2.0 재작성본)
+- 테이블/컬럼 설계: `database-schema-v2-domains.md §4`
+- 마이그레이션: `supabase/migrations/20260404093618_v2_wave5_fee_core.sql`, `20260404093853_v2_wave5_fee_snap_rls.sql`
+
 ### 의도적 비포함 (문서 기준)
 
 - [ ] 확인함: `personal_best` 물리 이관 없음 → `rec_race_hist` 파생

@@ -25,7 +25,6 @@ export function ActivityLogFab({ evtId, memId: _memId }: ActivityLogFabProps) {
   const [grantedTitles, setGrantedTitles] = useState<string[]>([]);
   const [titleDismissable, setTitleDismissable] = useState(false);
   const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const titleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
 
@@ -46,19 +45,13 @@ export function ActivityLogFab({ evtId, memId: _memId }: ActivityLogFabProps) {
         setGrantedTitles(titles);
         setTitleDismissable(false);
         if (titleDismissTimerRef.current) clearTimeout(titleDismissTimerRef.current);
-        if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
         titleDismissTimerRef.current = setTimeout(() => setTitleDismissable(true), 2000);
-        titleTimerRef.current = setTimeout(() => {
-          setGrantedTitles([]);
-          setTitleDismissable(false);
-        }, 6000);
       }
     }, 3500);
   };
 
   const dismissTitle = () => {
     if (!titleDismissable) return;
-    if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
     if (titleDismissTimerRef.current) clearTimeout(titleDismissTimerRef.current);
     setGrantedTitles([]);
     setTitleDismissable(false);
@@ -67,7 +60,6 @@ export function ActivityLogFab({ evtId, memId: _memId }: ActivityLogFabProps) {
   useEffect(() => {
     return () => {
       if (successTimerRef.current) clearTimeout(successTimerRef.current);
-      if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
       if (titleDismissTimerRef.current) clearTimeout(titleDismissTimerRef.current);
     };
   }, []);

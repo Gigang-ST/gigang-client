@@ -1,28 +1,35 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
+
 import Link from "next/link";
-import { useForm } from "react-hook-form";
+
 import { zodResolver } from "@hookform/resolvers/zod";
-import { createCompetition } from "@/app/actions/create-competition";
-import {
-  competitionRegisterSchema,
-  competitionRegisterSchemaAllowPast,
-  type CompetitionRegisterDatePolicy,
-  type CompetitionRegisterValues,
-} from "@/lib/validations/competition";
-import { todayKST } from "@/lib/dayjs";
+import { useForm } from "react-hook-form";
+
 import {
   buildEventTypeOptionList,
   COMP_EVT_TYPE_OTHER,
   normalizeCompEvtTypeKey,
   sanitizeAsciiUpperCompEvtTypeInput,
 } from "@/lib/comp-evt-type";
+import { todayKST } from "@/lib/dayjs";
 import {
   cmmCdRowsForGrp,
   eventTypeCodesForSprtFromCmmRows,
   type CachedCmmCdRow,
 } from "@/lib/queries/cmm-cd-cached";
+import { cn } from "@/lib/utils";
+import {
+  competitionRegisterSchema,
+  competitionRegisterSchemaAllowPast,
+  type CompetitionRegisterDatePolicy,
+  type CompetitionRegisterValues,
+} from "@/lib/validations/competition";
+
+import { createCompetition } from "@/app/actions/create-competition";
+
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -41,7 +48,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+
+
 import type { Competition, MemberStatus } from "./types";
 
 const defaultValues: CompetitionRegisterValues = {
@@ -179,7 +187,8 @@ export function CompetitionRegisterDialog({
     onOpenChange(false);
   }
 
-  const showAuthMessage = memberStatus.status !== "ready";
+  const showAuthMessage = memberStatus.status !== "ready" && memberStatus.status !== "inactive";
+  const showInactiveMessage = memberStatus.status === "inactive";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -201,7 +210,11 @@ export function CompetitionRegisterDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {showAuthMessage ? (
+        {showInactiveMessage ? (
+          <div className="flex flex-col gap-3 text-sm">
+            <p className="text-destructive">비활성화된 회원입니다. 관리자에게 문의하세요.</p>
+          </div>
+        ) : showAuthMessage ? (
           <div className="flex flex-col gap-3 text-sm">
             {memberStatus.status === "member-fetch-error" ? (
               <>
