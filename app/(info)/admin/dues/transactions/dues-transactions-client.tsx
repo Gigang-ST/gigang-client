@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Dispatch, SetStateAction, useState, useTransition } from "react";
 
 import { useRouter } from "next/navigation";
 
-import { RotateCcw, UserMinus } from "lucide-react";
+import { Calculator, RotateCcw, UserMinus } from "lucide-react";
 
 import { dayjs } from "@/lib/dayjs";
 
@@ -42,6 +42,7 @@ import {
 type Txn = {
   txn_id: string;
   txn_dt: string;
+  txn_tm: string | null;
   txn_amt: number;
   txn_io_enm: string;
   raw_name: string;
@@ -258,7 +259,8 @@ function UploadTab({
 // ─── 거래내역 탭 ───────────────────────────────────────────────────────────────
 
 function TransactionsTab({
-  txns: initialTxns,
+  txns,
+  setTxns,
   members,
   feeItemCds,
   initialFilter,
@@ -266,13 +268,13 @@ function TransactionsTab({
   startTransition,
 }: {
   txns: Txn[];
+  setTxns: Dispatch<SetStateAction<Txn[]>>;
   members: Member[];
   feeItemCds: FeeItemCd[];
   initialFilter: "all" | "unconfirmed" | "confirmed";
   isPending: boolean;
   startTransition: ReturnType<typeof useTransition>[1];
 }) {
-  const [txns, setTxns] = useState(initialTxns);
   const [filter, setFilter] = useState<"all" | "unconfirmed" | "confirmed">(initialFilter);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [matchDialog, setMatchDialog] = useState<string | null>(null);
@@ -397,7 +399,7 @@ function TransactionsTab({
       const res = await cancelTransaction(txnId);
       if (res.ok) {
         setTxns((prev) =>
-          prev.map((t) => (t.txn_id === txnId ? { ...t, is_cfm_yn: false, is_stale: true } : t))
+          prev.map((t) => (t.txn_id === txnId ? { ...t, is_cfm_yn: false, is_stale: false } : t))
         );
       } else if ("needsRollback" in res && res.needsRollback) {
         alert(`${res.message}\n\n회원별 잔액 탭 > 해당 회원 선택 > Snapshot Rollback 버튼을 먼저 실행하세요.`);
@@ -410,7 +412,7 @@ function TransactionsTab({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap gap-2">
-        {(["unconfirmed", "confirmed", "all"] as const).map((f) => (
+        {(["all", "unconfirmed", "confirmed"] as const).map((f) => (
           <Button
             key={f}
             variant={filter === f ? "default" : "outline"}
@@ -618,11 +620,13 @@ function BalanceTab({
   initialFilter,
   isPending,
   startTransition,
+  unconfirmedCount,
 }: {
   members: MemberRow[];
   initialFilter: "all" | "unpaid";
   isPending: boolean;
   startTransition: ReturnType<typeof useTransition>[1];
+  unconfirmedCount: number;
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<"all" | "unpaid">(initialFilter);
@@ -772,6 +776,27 @@ function BalanceTab({
           </Button>
         )}
         <div className="flex-1" />
+        <Button
+          size="sm"
+          className="bg-warning text-white hover:bg-warning/90"
+          onClick={() => {
+            if (unconfirmedCount > 0) {
+              alert(`미확정 거래가 ${unconfirmedCount}건 있습니다.\n거래내역 탭에서 모두 확정 처리 후 재계산하세요.`);
+              return;
+            }
+            if (!confirm("⚠️ 거래내역 최신화 후 계산하시기 바랍니다.\n계속하시겠습니까?")) return;
+            startTransition(async () => {
+              const res = await recalculateBalance();
+              if (!res.ok) { alert(res.message); return; }
+              alert(`전체 계산 완료 (${res.updatedCount}명)`);
+              router.refresh();
+            });
+          }}
+          disabled={isPending}
+        >
+          <Calculator className="size-3.5 mr-1" />
+          전체 회비 계산
+        </Button>
         {rollbackTargetIds.length > 0 && (
           <Button
             size="sm"
@@ -805,6 +830,7 @@ function BalanceTab({
                 <TableHead className="text-center text-xs whitespace-nowrap">가입일</TableHead>
                 <TableHead className="text-center text-xs whitespace-nowrap">잔액</TableHead>
                 <TableHead className="text-center text-xs whitespace-nowrap">기준일</TableHead>
+                <TableHead className="text-center text-xs whitespace-nowrap">마지막 거래</TableHead>
                 <TableHead className="text-center text-xs whitespace-nowrap">면제</TableHead>
               </TableRow>
             </TableHeader>
@@ -858,6 +884,11 @@ function BalanceTab({
                     <TableCell className="text-center">
                       <Caption className="text-xs whitespace-nowrap">
                         {m.snap?.last_calc_dt ? dayjs(m.snap.last_calc_dt).format("YYYY.MM.DD") : "-"}
+                      </Caption>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Caption className="text-xs whitespace-nowrap">
+                        {m.snap?.last_calc_at ? dayjs(m.snap.last_calc_at).tz("Asia/Seoul").format("YYYY.MM.DD HH:mm") : "-"}
                       </Caption>
                     </TableCell>
                     <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
@@ -1024,13 +1055,13 @@ function PayHistTab({ payHists }: { payHists: PayHistRow[] }) {
 // ─── 메인 클라이언트 컴포넌트 ──────────────────────────────────────────────────
 
 export function DuesTransactionsClient({
-  txns,
+  txns: initialTxns,
   uploads,
   members,
   memberRows,
   payHists,
   feeItemCds,
-  initialTxnFilter = "unconfirmed",
+  initialTxnFilter = "all",
   initialBalFilter = "all",
   initialTab = "upload",
 }: {
@@ -1046,6 +1077,9 @@ export function DuesTransactionsClient({
 }) {
   const [tab, setTab] = useState<"upload" | "txn" | "balance" | "pays">(initialTab);
   const [isPending, startTransition] = useTransition();
+  const [txns, setTxns] = useState(initialTxns);
+
+  const unconfirmedCount = txns.filter((t) => !t.is_cfm_yn).length;
 
   return (
     <div className="flex flex-col gap-4 px-6 pb-6 pt-2">
@@ -1066,6 +1100,7 @@ export function DuesTransactionsClient({
       {tab === "txn" && (
         <TransactionsTab
           txns={txns}
+          setTxns={setTxns}
           members={members}
           feeItemCds={feeItemCds}
           initialFilter={initialTxnFilter}
@@ -1079,6 +1114,7 @@ export function DuesTransactionsClient({
           initialFilter={initialBalFilter}
           isPending={isPending}
           startTransition={startTransition}
+          unconfirmedCount={unconfirmedCount}
         />
       )}
       {tab === "pays" && <PayHistTab payHists={payHists} />}

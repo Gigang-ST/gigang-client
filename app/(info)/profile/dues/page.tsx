@@ -22,7 +22,7 @@ export default async function MemberDuesPage() {
   const [{ data: snap }, { data: pays }, { data: exms }, { data: otherTxns }, { data: feeItemCds }, { data: policy }] = await Promise.all([
     supabase
       .from("fee_mem_bal_snap")
-      .select("bal_amt, last_calc_dt")
+      .select("bal_amt, last_calc_dt, last_calc_at")
       .eq("team_id", teamId)
       .eq("mem_id", member.id)
       .eq("vers", 0)
