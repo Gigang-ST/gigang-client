@@ -65,6 +65,12 @@
 | `read` | read (읽음 여부) |
 | `ref` | reference (연관 리소스 참조) |
 | `writ` | writer (작성자) |
+| `gthr` | gathering (모임) |
+| `cmnt` | comment (댓글) |
+| `prnt` | parent (부모, 대댓글 계층) |
+| `cont` | content (본문, 단독 텍스트 컬럼은 `cont_txt`) |
+| `loc`  | location (장소, 컬럼은 `loc_txt` / `loc_nm`) |
+| `attd` | attendance (참석, 이미 등록됨 — 모임 참석에 재사용) |
 
 ## 현재 v2 주요 테이블 약어
 | 테이블 | 의미 |
@@ -95,6 +101,9 @@
 | `brd_post_read_hist` | 게시글 읽음 이력 |
 | `noti_mst` | 알림 마스터 |
 | `noti_pref_cfg` | 알림 수신 설정 |
+| `gthr_mst` | 모임 마스터 |
+| `gthr_attd_rel` | 모임 참석 관계 |
+| `gthr_cmnt_mst` | 모임 댓글 |
 
 ## 칭호 도메인 컬럼 약어 (v2)
 | 컬럼 | 의미 |
