@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { dayjs } from "@/lib/dayjs";
 
-import { sendNotification } from "@/app/actions/admin/send-notification";
+import { sendNotification, type NotiTypeEnm } from "@/app/actions/admin/send-notification";
 
 import { Check } from "lucide-react";
 
@@ -30,17 +30,24 @@ import type { HistoryBatch } from "@/app/(info)/admin/notifications/page";
 
 type Member = { mem_id: string; mem_nm: string };
 
+const NOTI_TYPE_LABELS: Record<NotiTypeEnm, string> = {
+  adm_cust: "일반",
+  dues_notice: "회비 안내",
+};
+
 export function AdminNotificationsClient({
   members,
   initialSelectedIds = [],
   initialNotiNm = "",
   initialNotiCont = "",
+  initialNotiTypeEnm = "adm_cust",
   history = [],
 }: {
   members: Member[];
   initialSelectedIds?: string[];
   initialNotiNm?: string;
   initialNotiCont?: string;
+  initialNotiTypeEnm?: NotiTypeEnm;
   history?: HistoryBatch[];
 }) {
   const router = useRouter();
@@ -49,6 +56,7 @@ export function AdminNotificationsClient({
   const [search, setSearch] = useState("");
   const [notiNm, setNotiNm] = useState(initialNotiNm);
   const [notiCont, setNotiCont] = useState(initialNotiCont);
+  const notiTypeEnm = initialNotiTypeEnm;
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [expandedBatch, setExpandedBatch] = useState<string | null>(null);
@@ -97,6 +105,7 @@ export function AdminNotificationsClient({
         target,
         notiNm: notiNm.trim(),
         notiCont: notiCont.trim() || null,
+        notiTypeEnm,
       });
 
       if (!res.ok) {
@@ -235,6 +244,7 @@ export function AdminNotificationsClient({
             <TableHeader>
               <TableRow>
                 <TableHead className="text-center">일시</TableHead>
+                <TableHead className="text-center">유형</TableHead>
                 <TableHead className="text-center">제목</TableHead>
                 <TableHead className="text-center">내용</TableHead>
                 <TableHead className="text-center">수신자</TableHead>
@@ -255,6 +265,11 @@ export function AdminNotificationsClient({
                     <TableCell className="text-center whitespace-nowrap">
                       <Caption>{batch.crtAt ? dayjs(batch.crtAt).format("YY.MM.DD HH:mm") : "-"}</Caption>
                     </TableCell>
+                    <TableCell className="text-center whitespace-nowrap">
+                      <Caption className={batch.notiTypeEnm === "dues_notice" ? "text-primary font-medium" : ""}>
+                        {NOTI_TYPE_LABELS[batch.notiTypeEnm] ?? batch.notiTypeEnm}
+                      </Caption>
+                    </TableCell>
                     <TableCell className="text-center">
                       <Caption className="text-foreground">{batch.notiNm}</Caption>
                     </TableCell>
@@ -267,7 +282,7 @@ export function AdminNotificationsClient({
                   </TableRow>
                   {expandedBatch === batch.batchId && (
                     <TableRow key={`${batch.batchId}-expanded`}>
-                      <TableCell colSpan={4} className="bg-muted/40 px-4 py-3">
+                      <TableCell colSpan={5} className="bg-muted/40 px-4 py-3">
                         <div className="flex flex-col items-end gap-1">
                           {batch.recipients.map(({ memId, memNm, readYn }) => (
                             <div key={memId} className="flex items-center gap-2">

@@ -4,19 +4,23 @@ import { verifyAdmin } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+import type { NotiTypeEnm } from "@/app/actions/admin/send-notification";
+
 import { AdminNotificationsClient } from "./admin-notifications-client";
 
 export const metadata = { title: "수동 알림 발송" };
 
-const NOTI_TEMPLATES: Record<string, { notiNm: string; notiCont: string }> = {
+const NOTI_TEMPLATES: Record<string, { notiNm: string; notiCont: string; notiTypeEnm: NotiTypeEnm }> = {
   dues_notice: {
     notiNm: "회비 안내",
     notiCont: "[프로필] - 회비내역을 확인해 주세요.",
+    notiTypeEnm: "dues_notice",
   },
 };
 
 export type HistoryBatch = {
   batchId: string;
+  notiTypeEnm: NotiTypeEnm;
   notiNm: string;
   notiCont: string | null;
   crtAt: string | null;
@@ -41,9 +45,9 @@ export default async function AdminNotificationsPage({ searchParams }: { searchP
       .order("mem_id"),
     db
       .from("noti_mst")
-      .select("batch_id, noti_nm, noti_cont, crt_at, mem_id, read_yn, mem_mst!inner(mem_nm)")
+      .select("batch_id, noti_type_enm, noti_nm, noti_cont, crt_at, mem_id, read_yn, mem_mst!inner(mem_nm)")
       .eq("team_id", teamId)
-      .eq("noti_type_enm", "adm_cust")
+      .in("noti_type_enm", ["adm_cust", "dues_notice"])
       .not("batch_id", "is", null)
       .eq("del_yn", false)
       .order("crt_at", { ascending: false })
@@ -69,6 +73,7 @@ export default async function AdminNotificationsPage({ searchParams }: { searchP
     if (!batchMap.has(row.batch_id)) {
       batchMap.set(row.batch_id, {
         batchId: row.batch_id,
+        notiTypeEnm: (row.noti_type_enm as NotiTypeEnm) ?? "adm_cust",
         notiNm: row.noti_nm,
         notiCont: row.noti_cont ?? null,
         crtAt: row.crt_at,
@@ -90,6 +95,7 @@ export default async function AdminNotificationsPage({ searchParams }: { searchP
       initialSelectedIds={initialSelectedIds}
       initialNotiNm={tmpl?.notiNm ?? ""}
       initialNotiCont={tmpl?.notiCont ?? ""}
+      initialNotiTypeEnm={tmpl?.notiTypeEnm ?? "adm_cust"}
       history={history}
     />
   );
