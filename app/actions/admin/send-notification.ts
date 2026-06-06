@@ -4,10 +4,13 @@ import { verifyAdmin } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 
+export type NotiTypeEnm = "adm_cust" | "dues_notice";
+
 export async function sendNotification(input: {
   target: "all" | string[];
   notiNm: string;
   notiCont?: string | null;
+  notiTypeEnm?: NotiTypeEnm;
 }) {
   const admin = await verifyAdmin();
   if (!admin) return { ok: false as const, message: "권한이 없습니다." };
@@ -15,11 +18,12 @@ export async function sendNotification(input: {
   const { teamId } = await getRequestTeamContext();
   const db = createUntypedAdminClient();
   const batchId = crypto.randomUUID();
+  const notiTypeEnm = input.notiTypeEnm ?? "adm_cust";
 
   if (input.target === "all") {
     const { error } = await db.rpc("create_noti_for_team", {
       p_team_id: teamId,
-      p_noti_type_enm: "adm_cust",
+      p_noti_type_enm: notiTypeEnm,
       p_noti_nm: input.notiNm,
       p_noti_cont: input.notiCont ?? null,
       p_ref_id: null,
@@ -31,7 +35,7 @@ export async function sendNotification(input: {
     const rows = input.target.map((memId) => ({
       team_id: teamId,
       mem_id: memId,
-      noti_type_enm: "adm_cust",
+      noti_type_enm: notiTypeEnm,
       noti_nm: input.notiNm,
       noti_cont: input.notiCont ?? null,
       batch_id: batchId,

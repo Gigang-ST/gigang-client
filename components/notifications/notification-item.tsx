@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Trophy, Trash2, ChevronRight } from "lucide-react";
+import { Bell, Coins, Trophy, Trash2, ChevronRight } from "lucide-react";
 import { dayjs } from "@/lib/dayjs";
 import type { Notification } from "@/lib/queries/notification";
 import { markNotificationRead } from "@/app/actions/mark-notification-read";
@@ -13,11 +13,15 @@ import { cn } from "@/lib/utils";
 const NOTI_ICON: Record<string, React.ElementType> = {
   ttl_grnt: Trophy,
   adm_cust: Bell,
+  dues_notice: Coins,
+  dues_check_req: Coins,
 };
 
 const NOTI_ROUTE: Record<string, (refId: string | null) => string | null> = {
   ttl_grnt: () => "/profile",
   adm_cust: () => null,
+  dues_notice: () => "/profile/dues",
+  dues_check_req: () => null,
 };
 
 function formatRelative(crtAt: string) {

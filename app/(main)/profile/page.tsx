@@ -112,7 +112,7 @@ async function ProfileContent() {
         <div className="grid grid-cols-3 gap-2">
           {[
             { href: "/profile/edit", icon: UserPen, label: "내 정보", dot: false },
-            { href: "/profile/bank", icon: CreditCard, label: "계좌", dot: false },
+            { href: "/profile/bank", icon: CreditCard, label: "내 계좌", dot: false },
             { href: "/profile/dues", icon: Wallet, label: "회비", dot: (balSnap?.bal_amt ?? 0) < 0 },
           ].map(({ href, icon: Icon, label, dot }) => (
             <Link key={href} href={href}>
