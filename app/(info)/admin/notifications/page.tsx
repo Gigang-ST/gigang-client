@@ -15,6 +15,14 @@ const NOTI_TEMPLATES: Record<string, { notiNm: string; notiCont: string }> = {
   },
 };
 
+export type HistoryBatch = {
+  batchId: string;
+  notiNm: string;
+  notiCont: string | null;
+  crtAt: string | null;
+  recipients: { memId: string; memNm: string; readYn: boolean }[];
+};
+
 export default async function AdminNotificationsPage({ searchParams }: { searchParams: Promise<{ memIds?: string; template?: string }> }) {
   const admin = await verifyAdmin();
   if (!admin) redirect("/admin");
@@ -23,22 +31,55 @@ export default async function AdminNotificationsPage({ searchParams }: { searchP
   const { teamId } = await getRequestTeamContext();
   const db = createAdminClient();
 
-  const { data: members } = await db
-    .from("team_mem_rel")
-    .select("mem_id, mem_mst!inner(mem_nm)")
-    .eq("team_id", teamId)
-    .eq("vers", 0)
-    .eq("del_yn", false)
-    .eq("mem_st_cd", "active")
-    .order("mem_id");
+  const [membersRes, historyRes] = await Promise.all([
+    db
+      .from("team_mem_rel")
+      .select("mem_id, mem_mst!inner(mem_nm)")
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .order("mem_id"),
+    db
+      .from("noti_mst")
+      .select("batch_id, noti_nm, noti_cont, crt_at, mem_id, read_yn, mem_mst!inner(mem_nm)")
+      .eq("team_id", teamId)
+      .eq("noti_type_enm", "adm_cust")
+      .not("batch_id", "is", null)
+      .eq("del_yn", false)
+      .order("crt_at", { ascending: false })
+      .limit(500),
+  ]);
 
-  const memberList = (members ?? []).map((row) => {
+  if (membersRes.error || historyRes.error) {
+    throw new Error("알림 데이터를 불러오는 중 오류가 발생했습니다.");
+  }
+
+  const memberList = (membersRes.data ?? []).map((row) => {
     const mem = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst;
     return {
       mem_id: row.mem_id,
       mem_nm: (mem as { mem_nm: string }).mem_nm,
     };
   });
+
+  // batch_id로 그룹핑, 최대 20배치
+  const batchMap = new Map<string, HistoryBatch>();
+  for (const row of historyRes.data ?? []) {
+    if (!row.batch_id) continue;
+    if (!batchMap.has(row.batch_id)) {
+      batchMap.set(row.batch_id, {
+        batchId: row.batch_id,
+        notiNm: row.noti_nm,
+        notiCont: row.noti_cont ?? null,
+        crtAt: row.crt_at,
+        recipients: [],
+      });
+    }
+    const memMst = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst;
+    const memNm = (memMst as { mem_nm: string } | null)?.mem_nm ?? row.mem_id;
+    batchMap.get(row.batch_id)!.recipients.push({ memId: row.mem_id, memNm, readYn: row.read_yn ?? false });
+  }
+  const history = Array.from(batchMap.values()).slice(0, 20);
 
   const initialSelectedIds = memIdsParam ? memIdsParam.split(",").filter(Boolean) : [];
   const tmpl = template ? (NOTI_TEMPLATES[template] ?? null) : null;
@@ -49,6 +90,7 @@ export default async function AdminNotificationsPage({ searchParams }: { searchP
       initialSelectedIds={initialSelectedIds}
       initialNotiNm={tmpl?.notiNm ?? ""}
       initialNotiCont={tmpl?.notiCont ?? ""}
+      history={history}
     />
   );
 }

@@ -22,7 +22,7 @@ export default async function MemberDuesPage() {
   const [{ data: snap }, { data: pays }, { data: exms }, { data: otherTxns }, { data: feeItemCds }, { data: policy }] = await Promise.all([
     supabase
       .from("fee_mem_bal_snap")
-      .select("bal_amt, last_calc_dt")
+      .select("bal_amt, last_calc_dt, last_calc_at")
       .eq("team_id", teamId)
       .eq("mem_id", member.id)
       .eq("vers", 0)
@@ -125,7 +125,7 @@ export default async function MemberDuesPage() {
   return (
     <DuesHistoryClient
       balAmt={balAmt}
-      lastCalcDt={snap?.last_calc_dt ? dayjs(snap.last_calc_dt).format("YY.MM.DD") : null}
+      lastCalcDt={snap?.last_calc_dt ? dayjs(snap.last_calc_dt).tz("Asia/Seoul").format("YY.MM.DD HH:mm") : null}
       teamAccount={TEAM_ACCOUNT}
       monthlyFeeAmt={policy?.monthly_fee_amt ?? null}
       items={items}

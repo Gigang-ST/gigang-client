@@ -1,15 +1,32 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
+
+import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
+import { dayjs } from "@/lib/dayjs";
 
 import { sendNotification } from "@/app/actions/admin/send-notification";
 
-import { Body, Caption } from "@/components/common/typography";
+import { Check } from "lucide-react";
+
+import { Body, Caption, SectionLabel } from "@/components/common/typography";
+import { SectionHeader } from "@/components/common/section-header";
+import { EmptyState } from "@/components/common/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+import type { HistoryBatch } from "@/app/(info)/admin/notifications/page";
 
 type Member = { mem_id: string; mem_nm: string };
 
@@ -18,12 +35,15 @@ export function AdminNotificationsClient({
   initialSelectedIds = [],
   initialNotiNm = "",
   initialNotiCont = "",
+  history = [],
 }: {
   members: Member[];
   initialSelectedIds?: string[];
   initialNotiNm?: string;
   initialNotiCont?: string;
+  history?: HistoryBatch[];
 }) {
+  const router = useRouter();
   const [targetMode, setTargetMode] = useState<"all" | "select">(initialSelectedIds.length > 0 ? "select" : "all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(initialSelectedIds));
   const [search, setSearch] = useState("");
@@ -31,6 +51,9 @@ export function AdminNotificationsClient({
   const [notiCont, setNotiCont] = useState(initialNotiCont);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [expandedBatch, setExpandedBatch] = useState<string | null>(null);
+
+  const memberMap = useMemo(() => new Map(members.map((m) => [m.mem_id, m.mem_nm])), [members]);
 
   const filtered = useMemo(
     () => members.filter((m) => m.mem_nm.includes(search)),
@@ -52,6 +75,13 @@ export function AdminNotificationsClient({
     } else {
       setSelectedIds(new Set(filtered.map((m) => m.mem_id)));
     }
+  }
+
+  function formatRecipients(recipients: { memId: string; memNm: string; readYn: boolean }[]) {
+    if (recipients.length === 0) return "-";
+    const first = recipients[0].memNm;
+    if (recipients.length === 1) return first;
+    return `${first} 외 ${recipients.length - 1}명`;
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -79,6 +109,7 @@ export function AdminNotificationsClient({
       setNotiNm("");
       setNotiCont("");
       setSelectedIds(new Set());
+      router.refresh();
     } catch (e) {
       console.error(e);
       setResult({ ok: false, message: "발송 중 오류가 발생했습니다." });
@@ -90,109 +121,176 @@ export function AdminNotificationsClient({
   const canSubmit = notiNm.trim() && (targetMode === "all" || selectedIds.size > 0);
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-6 px-6 py-4">
+    <div className="flex flex-col gap-8 px-6 py-4">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
 
-      {/* 수신 대상 */}
-      <div className="flex flex-col gap-3">
-        <Label>수신 대상</Label>
-        <div className="flex gap-4">
-          <label className="flex cursor-pointer items-center gap-2">
-            <input
-              type="radio"
-              checked={targetMode === "all"}
-              onChange={() => setTargetMode("all")}
-            />
-            <Body className="text-[14px]">전체 멤버</Body>
-          </label>
-          <label className="flex cursor-pointer items-center gap-2">
-            <input
-              type="radio"
-              checked={targetMode === "select"}
-              onChange={() => setTargetMode("select")}
-            />
-            <Body className="text-[14px]">멤버 선택</Body>
-          </label>
+        {/* 수신 대상 */}
+        <div className="flex flex-col gap-3">
+          <Label>수신 대상</Label>
+          <div className="flex gap-4">
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="radio"
+                checked={targetMode === "all"}
+                onChange={() => setTargetMode("all")}
+              />
+              <Body className="text-[14px]">전체 멤버</Body>
+            </label>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="radio"
+                checked={targetMode === "select"}
+                onChange={() => setTargetMode("select")}
+              />
+              <Body className="text-[14px]">멤버 선택</Body>
+            </label>
+          </div>
+
+          {targetMode === "select" && (
+            <div className="flex flex-col gap-2 rounded-xl border border-border p-3">
+              <Input
+                placeholder="이름 검색"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-8 text-sm"
+              />
+              <label className="flex cursor-pointer items-center gap-2 border-b border-border pb-2">
+                <input
+                  type="checkbox"
+                  checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                  onChange={toggleAll}
+                />
+                <Caption className="font-medium text-foreground">
+                  전체 선택 ({selectedIds.size}/{filtered.length})
+                </Caption>
+              </label>
+              <div className="max-h-48 overflow-y-auto">
+                {filtered.length === 0 ? (
+                  <Caption className="py-2 text-center">검색 결과 없음</Caption>
+                ) : (
+                  filtered.map((m) => (
+                    <label
+                      key={m.mem_id}
+                      className="flex cursor-pointer items-center gap-2 py-1.5"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(m.mem_id)}
+                        onChange={() => toggleMember(m.mem_id)}
+                      />
+                      <Body className={cn("text-[13px]", selectedIds.has(m.mem_id) && "font-medium")}>
+                        {m.mem_nm}
+                      </Body>
+                    </label>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
-        {targetMode === "select" && (
-          <div className="flex flex-col gap-2 rounded-xl border border-border p-3">
-            <Input
-              placeholder="이름 검색"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 text-sm"
-            />
-            {/* 전체 선택 */}
-            <label className="flex cursor-pointer items-center gap-2 border-b border-border pb-2">
-              <input
-                type="checkbox"
-                checked={filtered.length > 0 && selectedIds.size === filtered.length}
-                onChange={toggleAll}
-              />
-              <Caption className="font-medium text-foreground">
-                전체 선택 ({selectedIds.size}/{filtered.length})
-              </Caption>
-            </label>
-            {/* 멤버 목록 */}
-            <div className="max-h-48 overflow-y-auto">
-              {filtered.length === 0 ? (
-                <Caption className="py-2 text-center">검색 결과 없음</Caption>
-              ) : (
-                filtered.map((m) => (
-                  <label
-                    key={m.mem_id}
-                    className="flex cursor-pointer items-center gap-2 py-1.5"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(m.mem_id)}
-                      onChange={() => toggleMember(m.mem_id)}
-                    />
-                    <Body className={cn("text-[13px]", selectedIds.has(m.mem_id) && "font-medium")}>
-                      {m.mem_nm}
-                    </Body>
-                  </label>
-                ))
-              )}
-            </div>
+        {/* 알림 내용 */}
+        <div className="flex flex-col gap-1.5">
+          <Label>알림 내용 <span className="text-destructive">*</span></Label>
+          <Input
+            placeholder="알림 내용을 입력하세요."
+            value={notiNm}
+            onChange={(e) => setNotiNm(e.target.value)}
+            maxLength={100}
+          />
+        </div>
+
+        {/* 부가 설명 */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-1.5">
+            <Label>부가 설명</Label>
+            <Caption>(선택)</Caption>
           </div>
+          <Input
+            placeholder="추가 설명이 있으면 입력하세요."
+            value={notiCont}
+            onChange={(e) => setNotiCont(e.target.value)}
+            maxLength={200}
+          />
+        </div>
+
+        {result && (
+          <Body className={`text-sm ${result.ok ? "text-primary" : "text-destructive"}`}>
+            {result.message}
+          </Body>
+        )}
+
+        <Button type="submit" disabled={loading || !canSubmit}>
+          {loading ? "발송 중..." : "알림 발송"}
+        </Button>
+      </form>
+
+      {/* 발송 이력 */}
+      <div className="flex flex-col gap-4">
+        <SectionHeader label="발송 이력" />
+        {history.length === 0 ? (
+          <EmptyState variant="inline" message="발송 이력이 없습니다." />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-center">일시</TableHead>
+                <TableHead className="text-center">제목</TableHead>
+                <TableHead className="text-center">내용</TableHead>
+                <TableHead className="text-center">수신자</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {history.map((batch) => (
+                <React.Fragment key={batch.batchId}>
+                  <TableRow
+                    key={batch.batchId}
+                    className="cursor-pointer"
+                    tabIndex={0}
+                    role="button"
+                    aria-expanded={expandedBatch === batch.batchId}
+                    onClick={() => setExpandedBatch(expandedBatch === batch.batchId ? null : batch.batchId)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpandedBatch(expandedBatch === batch.batchId ? null : batch.batchId); } }}
+                  >
+                    <TableCell className="text-center whitespace-nowrap">
+                      <Caption>{batch.crtAt ? dayjs(batch.crtAt).format("YY.MM.DD HH:mm") : "-"}</Caption>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Caption className="text-foreground">{batch.notiNm}</Caption>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Caption>{batch.notiCont ?? "-"}</Caption>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Caption>{formatRecipients(batch.recipients)}</Caption>
+                    </TableCell>
+                  </TableRow>
+                  {expandedBatch === batch.batchId && (
+                    <TableRow key={`${batch.batchId}-expanded`}>
+                      <TableCell colSpan={4} className="bg-muted/40 px-4 py-3">
+                        <div className="flex flex-col items-end gap-1">
+                          {batch.recipients.map(({ memId, memNm, readYn }) => (
+                            <div key={memId} className="flex items-center gap-2">
+                              <Caption className={readYn ? "text-foreground" : "text-muted-foreground"}>
+                                {memNm}
+                              </Caption>
+                              {readYn ? (
+                                <Check className="size-3.5 shrink-0 text-primary" />
+                              ) : (
+                                <span className="size-3.5 shrink-0 rounded-full border border-muted-foreground/40 inline-block" />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </React.Fragment>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </div>
-
-      {/* 알림 내용 */}
-      <div className="flex flex-col gap-1.5">
-        <Label>알림 내용 <span className="text-destructive">*</span></Label>
-        <Input
-          placeholder="알림 내용을 입력하세요."
-          value={notiNm}
-          onChange={(e) => setNotiNm(e.target.value)}
-          maxLength={100}
-        />
-      </div>
-
-      {/* 부가 설명 */}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-center gap-1.5">
-          <Label>부가 설명</Label>
-          <Caption>(선택)</Caption>
-        </div>
-        <Input
-          placeholder="추가 설명이 있으면 입력하세요."
-          value={notiCont}
-          onChange={(e) => setNotiCont(e.target.value)}
-          maxLength={200}
-        />
-      </div>
-
-      {result && (
-        <Body className={`text-sm ${result.ok ? "text-primary" : "text-destructive"}`}>
-          {result.message}
-        </Body>
-      )}
-
-      <Button type="submit" disabled={loading || !canSubmit}>
-        {loading ? "발송 중..." : "알림 발송"}
-      </Button>
-    </form>
+    </div>
   );
 }
