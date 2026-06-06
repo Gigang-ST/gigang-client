@@ -6,6 +6,15 @@ import { verifyAdmin } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+type TxnInfo = { txn_dt: string; txn_tm: string | null } | null;
+
+function getTxnInfo(raw: unknown): TxnInfo {
+  if (!raw) return null;
+  const item = Array.isArray(raw) ? raw[0] : raw;
+  if (!item || typeof item !== "object") return null;
+  return item as TxnInfo;
+}
+
 export async function recalculateBalance(memIds?: string[]) {
   const adminUser = await verifyAdmin();
   if (!adminUser) return { ok: false as const, message: "권한이 없습니다." };
@@ -39,14 +48,19 @@ export async function recalculateBalance(memIds?: string[]) {
 
   if (!policies?.length) return { ok: false as const, message: "회비 정책이 없습니다." };
 
-  const today = dayjs().format("YYYY-MM-DD");
+  const now = dayjs().tz("Asia/Seoul");
+  const today = now.format("YYYY-MM-DD");
   let updatedCount = 0;
+  const errors: string[] = [];
 
-  for (const mid of memberIds) {
+  const CHUNK_SIZE = 20;
+  for (let i = 0; i < memberIds.length; i += CHUNK_SIZE) {
+    const chunk = memberIds.slice(i, i + CHUNK_SIZE);
+    await Promise.all(chunk.map(async (mid) => {
     // 현재 스냅샷 조회
     const { data: snap } = await db
       .from("fee_mem_bal_snap")
-      .select("bal_snap_id, bal_amt, last_calc_dt, vers")
+      .select("bal_snap_id, bal_amt, last_calc_dt, last_calc_at, vers")
       .eq("team_id", teamId)
       .eq("mem_id", mid)
       .eq("vers", 0)
@@ -58,7 +72,7 @@ export async function recalculateBalance(memIds?: string[]) {
 
     if (snap) {
       baseBal = snap.bal_amt;
-      fromDt = dayjs(snap.last_calc_dt).add(1, "day").format("YYYY-MM-DD");
+      fromDt = dayjs(snap.last_calc_dt).format("YYYY-MM-DD");
     } else {
       // 스냅샷 없음 — 가입일부터 전체 계산
       const { data: rel } = await db
@@ -69,25 +83,41 @@ export async function recalculateBalance(memIds?: string[]) {
         .eq("vers", 0)
         .eq("del_yn", false)
         .maybeSingle();
-      if (!rel?.join_dt) continue;
+      if (!rel?.join_dt) return;
       fromDt = dayjs(rel.join_dt).startOf("month").format("YYYY-MM-DD");
     }
 
-    if (fromDt > today) continue;
+      if (fromDt > today) return;
 
-    // fromDt 이후 납부액 합산
-    const { data: pays } = await db
+    // 마지막 계산일시 이후 납부액 합산 (은행 거래일시 기준)
+    const paysQuery = db
       .from("fee_due_pay_hist")
-      .select("pay_id, pay_amt")
+      .select("pay_id, pay_amt, fee_txn_hist!fk_fee_due_pay_hist__fee_txn_hist(txn_dt, txn_tm)")
       .eq("team_id", teamId)
       .eq("mem_id", mid)
       .eq("pay_st_cd", "paid")
       .eq("vers", 0)
-      .eq("del_yn", false)
-      .gte("pay_dt", fromDt)
-      .order("pay_dt", { ascending: false });
+      .eq("del_yn", false);
 
-    const totalPaid = (pays ?? []).reduce((sum, p) => sum + p.pay_amt, 0);
+    const { data: pays } = snap?.last_calc_at
+      ? await paysQuery.gte(
+          "fee_txn_hist.txn_dt",
+          // 1차: KST 날짜 기준 넓게 필터, 2차 코드에서 시분까지 정확히 필터
+          dayjs(snap.last_calc_at).tz("Asia/Seoul").format("YYYY-MM-DD")
+        )
+      : await paysQuery.gte("pay_dt", fromDt);
+
+    // txn_dt + txn_tm으로 2차 필터 (last_calc_at 이후만, KST 기준 비교)
+    const filteredPays = snap?.last_calc_at
+      ? (pays ?? []).filter((p) => {
+          const txn = getTxnInfo(p.fee_txn_hist);
+          if (!txn?.txn_dt) return false;
+          const txnAt = dayjs.tz(`${txn.txn_dt}T${txn.txn_tm ?? "00:00:00"}`, "Asia/Seoul");
+          return txnAt.isAfter(dayjs(snap.last_calc_at));
+        })
+      : (pays ?? []);
+
+    const totalPaid = filteredPays.reduce((sum, p) => sum + p.pay_amt, 0);
 
     // 부과·면제 기준 월: 마지막 계산 월 다음 달부터
     const calcFromMonth = snap
@@ -170,8 +200,19 @@ export async function recalculateBalance(memIds?: string[]) {
 
     const newBal = baseBal + totalPaid + totalExempted - totalCharged;
 
-    // 최신 납부/면제 ID (내림차순 조회이므로 첫 번째가 최신)
-    const lastPay = pays?.at(0);
+    // 마지막 반영 거래의 은행 거래일시 (KST 기준, +1초 저장 → 다음 계산 시 중복 방지)
+    const { lastTxnAt, lastPay } = filteredPays.reduce<{
+      lastTxnAt: string | null;
+      lastPay: (typeof filteredPays)[number] | null;
+    }>(
+      (acc, p) => {
+        const txn = getTxnInfo(p.fee_txn_hist);
+        if (!txn?.txn_dt) return acc;
+        const txnAt = dayjs.tz(`${txn.txn_dt}T${txn.txn_tm ?? "00:00:00"}`, "Asia/Seoul").add(1, "second").toISOString();
+        return !acc.lastTxnAt || txnAt > acc.lastTxnAt ? { lastTxnAt: txnAt, lastPay: p } : acc;
+      },
+      { lastTxnAt: null, lastPay: null },
+    );
     const lastExm = exms?.at(0);
 
     if (snap) {
@@ -186,12 +227,11 @@ export async function recalculateBalance(memIds?: string[]) {
         .maybeSingle();
       const nextVers = (maxRow?.vers ?? 0) + 1;
 
-      // 기존 vers=0 → nextVers로 밀기
       const { error: pushErr } = await db
         .from("fee_mem_bal_snap")
         .update({ vers: nextVers })
         .eq("bal_snap_id", snap.bal_snap_id);
-      if (pushErr) return { ok: false as const, message: `스냅샷 버전 밀기 실패 (${mid}): ${pushErr.message}` };
+      if (pushErr) { errors.push(`스냅샷 버전 밀기 실패 (${mid}): ${pushErr.message}`); return; }
     }
 
     // 새 vers=0 INSERT
@@ -199,17 +239,19 @@ export async function recalculateBalance(memIds?: string[]) {
       team_id: teamId,
       mem_id: mid,
       bal_amt: newBal,
-      last_calc_dt: today,
-      last_calc_at: dayjs().toISOString(),
+      last_calc_dt: now.toISOString(),
+      last_calc_at: lastTxnAt ?? snap?.last_calc_at ?? dayjs().toISOString(),
       last_ref_pay_id: lastPay?.pay_id ?? undefined,
       last_ref_exm_hist_id: lastExm?.exm_hist_id ?? undefined,
       vers: 0,
       del_yn: false,
     });
-    if (insertErr) return { ok: false as const, message: `스냅샷 INSERT 실패 (${mid}): ${insertErr.message}` };
+      if (insertErr) { errors.push(`스냅샷 INSERT 실패 (${mid}): ${insertErr.message}`); return; }
 
-    updatedCount++;
+      updatedCount++;
+    }));
   }
 
+  if (errors.length) return { ok: false as const, message: errors.join("\n") };
   return { ok: true as const, message: null, updatedCount };
 }

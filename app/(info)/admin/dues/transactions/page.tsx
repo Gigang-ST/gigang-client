@@ -1,3 +1,5 @@
+import { dayjs } from "@/lib/dayjs";
+
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createClient } from "@/lib/supabase/server";
 
@@ -23,7 +25,7 @@ export default async function DuesTransactionsPage({
   ] = await Promise.all([
     supabase
       .from("fee_txn_hist")
-      .select("txn_id, txn_dt, txn_amt, txn_io_enm, raw_name, raw_memo, adm_memo_txt, txn_tp_txt, match_st_cd, mem_id, fee_item_cd, is_cfm_yn, cfm_at, mem_mst!fk_fee_txn_hist__mem_mst(mem_nm)")
+      .select("txn_id, txn_dt, txn_tm, txn_amt, txn_io_enm, raw_name, raw_memo, adm_memo_txt, txn_tp_txt, match_st_cd, mem_id, fee_item_cd, is_cfm_yn, cfm_at, mem_mst!fk_fee_txn_hist__mem_mst(mem_nm)")
       .eq("team_id", teamId)
       .eq("del_yn", false)
       .order("txn_dt", { ascending: false })
@@ -61,11 +63,12 @@ export default async function DuesTransactionsPage({
       .order("bal_amt", { ascending: true }),
     supabase
       .from("fee_txn_hist")
-      .select("mem_id, cfm_at")
+      .select("mem_id, txn_dt, txn_tm")
       .eq("team_id", teamId)
       .eq("is_cfm_yn", true)
       .eq("del_yn", false)
-      .order("cfm_at", { ascending: false }),
+      .order("txn_dt", { ascending: false })
+      .order("txn_tm", { ascending: false }),
     supabase
       .from("fee_due_pay_hist")
       .select("pay_id, mem_id, pay_amt, pay_dt, pay_st_cd, fee_txn_hist!inner(fee_item_cd, raw_name), mem_mst!inner(mem_nm)")
@@ -75,22 +78,25 @@ export default async function DuesTransactionsPage({
       .order("pay_dt", { ascending: false }),
   ]);
 
-  // 거래 미반영 판단: snap last_calc_at 기준
+  // 거래 미반영 판단: snap last_calc_at vs 은행 거래일시 기준
   const snapCalcAtMap = new Map((snaps ?? []).map((s) => [s.mem_id, s.last_calc_at]));
 
   // 회원별 잔액 데이터
   const snapMap = new Map((snaps ?? []).map((s) => [s.mem_id, s]));
-  const latestCfmMap = new Map<string, string>();
+  const latestTxnAtMap = new Map<string, string>();
   for (const t of latestCfmTxns ?? []) {
-    if (t.mem_id && t.cfm_at && !latestCfmMap.has(t.mem_id)) {
-      latestCfmMap.set(t.mem_id, t.cfm_at);
+    if (t.mem_id && t.txn_dt && !latestTxnAtMap.has(t.mem_id)) {
+      latestTxnAtMap.set(
+        t.mem_id,
+        dayjs.tz(`${t.txn_dt}T${t.txn_tm ?? "00:00:00"}`, "Asia/Seoul").toISOString(),
+      );
     }
   }
 
   const memberRows = (members ?? []).map((m) => {
     const snap = snapMap.get(m.mem_id) ?? null;
-    const latestCfm = latestCfmMap.get(m.mem_id) ?? null;
-    const is_stale = snap && latestCfm ? latestCfm > (snap.last_calc_at ?? "") : false;
+    const latestTxnAt = latestTxnAtMap.get(m.mem_id) ?? null;
+    const is_stale = !snap || (!!latestTxnAt && latestTxnAt > (snap.last_calc_at ?? ""));
     const rel = Array.isArray(m.team_mem_rel) ? m.team_mem_rel[0] : m.team_mem_rel;
     return {
       mem_id: m.mem_id,
@@ -129,7 +135,7 @@ export default async function DuesTransactionsPage({
   type TxnFilterType = typeof validTxnFilters[number];
   const initialTxnFilter: TxnFilterType = validTxnFilters.includes(filter as TxnFilterType)
     ? (filter as TxnFilterType)
-    : "unconfirmed";
+    : "all";
 
   const initialBalFilter = balFilter === "unpaid" ? "unpaid" : "all";
 
@@ -138,8 +144,9 @@ export default async function DuesTransactionsPage({
       txns={(txns ?? []).map((t) => ({
         ...t,
         is_stale:
-          t.is_cfm_yn && !!t.cfm_at && !!t.mem_id
-            ? t.cfm_at > (snapCalcAtMap.get(t.mem_id!) ?? "")
+          t.is_cfm_yn && !!t.txn_dt && !!t.mem_id
+            ? dayjs.tz(`${t.txn_dt}T${t.txn_tm ?? "00:00:00"}`, "Asia/Seoul").toISOString() >
+              (snapCalcAtMap.get(t.mem_id!) ?? "")
             : false,
       }))}
       uploads={uploads ?? []}
