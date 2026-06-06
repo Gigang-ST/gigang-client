@@ -10,6 +10,9 @@
 /.claude/docs/*회비스냅샷*
 /.claude/docs/*회원명부*
 
+# Claude Code 로컬 설정 (로컬 전용)
+/.claude/settings.json
+
 # 개발용 쇼케이스 페이지 (로컬 전용)
 /app/(info)/dev/
 
