@@ -19,7 +19,7 @@ export default async function MemberDuesPage() {
   const { teamId } = await getRequestTeamContext();
   const supabase = await createClient();
 
-  const [{ data: snap }, { data: pays }, { data: exms }, { data: otherTxns }, { data: feeItemCds }] = await Promise.all([
+  const [{ data: snap }, { data: pays }, { data: exms }, { data: otherTxns }, { data: feeItemCds }, { data: policy }] = await Promise.all([
     supabase
       .from("fee_mem_bal_snap")
       .select("bal_amt, last_calc_dt")
@@ -62,6 +62,17 @@ export default async function MemberDuesPage() {
       .eq("cmm_cd_grp_mst.cd_grp_cd", "FEE_ITEM_CD")
       .eq("vers", 0)
       .eq("del_yn", false),
+    supabase
+      .from("fee_policy_cfg")
+      .select("monthly_fee_amt, aply_stt_dt, aply_end_dt")
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .lte("aply_stt_dt", dayjs().format("YYYY-MM-DD"))
+      .gte("aply_end_dt", dayjs().format("YYYY-MM-DD"))
+      .order("aply_stt_dt", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const balAmt = snap?.bal_amt ?? null;
@@ -116,6 +127,7 @@ export default async function MemberDuesPage() {
       balAmt={balAmt}
       lastCalcDt={snap?.last_calc_dt ? dayjs(snap.last_calc_dt).format("YY.MM.DD") : null}
       teamAccount={TEAM_ACCOUNT}
+      monthlyFeeAmt={policy?.monthly_fee_amt ?? null}
       items={items}
     />
   );

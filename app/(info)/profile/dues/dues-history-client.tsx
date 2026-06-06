@@ -1,12 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 
 import { dayjs } from "@/lib/dayjs";
 
+import { requestDuesCheck } from "@/app/actions/dues/request-dues-check";
+
 import { Body, Caption, SectionLabel } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -26,11 +30,27 @@ type Props = {
   balAmt: number | null;
   lastCalcDt: string | null;
   teamAccount: { bank: string; number: string; holder: string };
+  monthlyFeeAmt: number | null;
   items: HistoryItem[];
 };
 
-export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, items }: Props) {
+export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, monthlyFeeAmt, items }: Props) {
   const [filter, setFilter] = useState<Filter>("all");
+  const [isPending, startTransition] = useTransition();
+  const [requested, setRequested] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  function handleConfirm() {
+    startTransition(async () => {
+      const res = await requestDuesCheck();
+      setConfirmOpen(false);
+      if (res.ok) {
+        setRequested(true);
+      } else {
+        alert(res.message);
+      }
+    });
+  }
 
   const filtered = items.filter((item) => {
     if (filter === "due") return item.category === "due" || item.category === "exm";
@@ -66,15 +86,33 @@ export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, items }: Pr
 
   return (
     <div className="flex flex-col gap-6 px-6 pb-6 pt-4">
+      {/* 회비 안내 */}
+      {monthlyFeeAmt !== null && (
+        <div className="flex flex-col gap-0.5">
+          <Caption className="font-medium text-foreground">월 회비 {monthlyFeeAmt.toLocaleString()}원</Caption>
+          <Caption className="text-muted-foreground">입금 시 입금자명을 정확한 본명으로 입력해 주세요.</Caption>
+        </div>
+      )}
+
       {/* 잔액 카드 */}
       <CardItem className="flex flex-col gap-2 p-4">
         <div className="flex items-center justify-between">
           <Caption>현재 잔액</Caption>
           {lastCalcDt && <Caption className="text-muted-foreground">{lastCalcDt} 기준</Caption>}
         </div>
-        <Body className={`text-2xl font-bold ${balColor}`}>
-          {balAmt === null ? "-" : `${balAmt >= 0 ? "+" : ""}${balAmt.toLocaleString()}원`}
-        </Body>
+        <div className="flex items-center justify-between">
+          <Body className={`text-2xl font-bold ${balColor}`}>
+            {balAmt === null ? "-" : `${balAmt >= 0 ? "+" : ""}${balAmt.toLocaleString()}원`}
+          </Body>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={isPending || requested}
+            onClick={() => setConfirmOpen(true)}
+          >
+            {requested ? "문의 완료" : "문의하기"}
+          </Button>
+        </div>
 
         <Separator className="my-1" />
 
@@ -165,6 +203,24 @@ export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, items }: Pr
           </div>
         )}
       </div>
+
+      {/* 확인 요청 다이얼로그 */}
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>회비 문의</DialogTitle>
+          </DialogHeader>
+          <Caption className="whitespace-pre-line text-muted-foreground">
+            {"회비 내역에 문제가 있으신가요?\n관리자에게 확인을 요청합니다."}
+          </Caption>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setConfirmOpen(false)}>취소</Button>
+            <Button disabled={isPending} onClick={handleConfirm}>
+              {isPending ? "요청 중..." : "요청"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
