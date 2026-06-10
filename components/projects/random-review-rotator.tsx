@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { ChevronDown, ChevronUp } from "lucide-react";
+
 import { getFrameCls } from "@/lib/title-effects";
 import { cn } from "@/lib/utils";
 
@@ -40,7 +42,6 @@ function pickRandomLines(lines: ReviewLine[]): ReviewLine[] {
 }
 
 export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
-  // SSR/CSR 첫 렌더를 동일하게 맞추기 위해 초기값은 고정 순서로 자른다.
   const [picks, setPicks] = useState<ReviewLine[]>(() =>
     lines.slice(0, getPickCount(lines.length)),
   );
@@ -48,6 +49,7 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
   const [isAnimating, setIsAnimating] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [tooltipText, setTooltipText] = useState<string | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
     setPicks(pickRandomLines(lines));
@@ -56,7 +58,7 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
   }, [lines]);
 
   useEffect(() => {
-    if (picks.length <= 1 || isPaused) return;
+    if (picks.length <= 1 || isPaused || isExpanded) return;
     let timeoutId: number | undefined;
     const timer = window.setInterval(() => {
       setIsAnimating(true);
@@ -70,7 +72,7 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
       if (timeoutId) window.clearTimeout(timeoutId);
       setIsAnimating(false);
     };
-  }, [isPaused, picks.length]);
+  }, [isPaused, picks.length, isExpanded]);
 
   if (picks.length === 0) return null;
 
@@ -80,29 +82,62 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
 
   const frameCls = getFrameCls(current.frameCd);
 
+  if (isExpanded) {
+    return (
+      <div
+        className="rounded-2xl bg-muted border select-none overflow-hidden"
+        style={{
+          WebkitTouchCallout: "none",
+          WebkitUserSelect: "none",
+          userSelect: "none",
+        }}
+      >
+        <div className="flex flex-col">
+          {picks.map((line, i) => (
+            <div
+              key={line.id}
+              className={cn("px-4 py-3", i < picks.length - 1 && "border-b border-border")}
+            >
+              <Caption className="wrap-break-word leading-4 text-foreground">
+                &ldquo;{line.quote}&rdquo;
+              </Caption>
+              <Caption className="mt-0.5 line-clamp-1 text-muted-foreground flex items-center gap-1 flex-wrap">
+                <span>{line.name}</span>
+                {line.ttlNm && (
+                  <TitleBadge
+                    name={line.ttlNm}
+                    effect={line.badgeEffect}
+                    size="xs"
+                    tooltip={{
+                      desc: line.ttlDesc,
+                      visibility: line.descVisibility,
+                      isHeld: line.isHeld,
+                      isOwner: false,
+                    }}
+                  />
+                )}
+                <span>{line.metaSuffix}</span>
+              </Caption>
+            </div>
+          ))}
+        </div>
+        <button
+          className="w-full flex items-center justify-center gap-1 py-2 border-t border-border"
+          onClick={() => setIsExpanded(false)}
+        >
+          <Caption className="text-muted-foreground">접기</Caption>
+          <ChevronUp className="size-3 text-muted-foreground" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
-        "relative rounded-2xl bg-muted px-4 py-3 border select-none",
+        "relative rounded-2xl bg-muted border select-none overflow-hidden",
         frameCls,
       )}
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
-      onFocus={() => setIsPaused(true)}
-      onBlur={() => setIsPaused(false)}
-      onTouchStart={() => setIsPaused(true)}
-      onTouchEnd={() => {
-        setIsPaused(false);
-        setTooltipText(null);
-      }}
-      onTouchCancel={() => {
-        setIsPaused(false);
-        setTooltipText(null);
-      }}
-      onContextMenu={(event) => event.preventDefault()}
       style={{
         WebkitTouchCallout: "none",
         WebkitUserSelect: "none",
@@ -114,48 +149,78 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
           {tooltipText}
         </div>
       )}
-      <div className="h-[64px] overflow-hidden">
-        <div
-          className={
-            isAnimating
-              ? "transition-transform duration-500 ease-in-out motion-reduce:transition-none"
-              : "transition-none motion-reduce:transition-none"
-          }
-          style={{ transform: isAnimating ? "translateY(-50%)" : "translateY(0%)" }}
-        >
-          {[current, next].map((line, idx) => (
-            <div
-              key={`${line.id}-${idx}`}
-              className="flex h-[64px] flex-col justify-center"
-              aria-hidden={idx === 1}
-            >
-              <Caption
-                className="line-clamp-2 wrap-break-word leading-4 text-foreground"
-                onTouchStart={(event) => {
-                  event.preventDefault();
-                  setTooltipText(line.quote);
-                }}
-                onTouchEnd={() => setTooltipText(null)}
-                onTouchCancel={() => setTooltipText(null)}
+      <div
+        className="px-4 pt-3 pb-2"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+        onFocus={() => setIsPaused(true)}
+        onBlur={() => setIsPaused(false)}
+        onTouchStart={() => setIsPaused(true)}
+        onTouchEnd={() => {
+          setIsPaused(false);
+          setTooltipText(null);
+        }}
+        onTouchCancel={() => {
+          setIsPaused(false);
+          setTooltipText(null);
+        }}
+        onContextMenu={(event) => event.preventDefault()}
+      >
+        <div className="h-[64px] overflow-hidden">
+          <div
+            className={
+              isAnimating
+                ? "transition-transform duration-500 ease-in-out motion-reduce:transition-none"
+                : "transition-none motion-reduce:transition-none"
+            }
+            style={{ transform: isAnimating ? "translateY(-50%)" : "translateY(0%)" }}
+          >
+            {[current, next].map((line, idx) => (
+              <div
+                key={`${line.id}-${idx}`}
+                className="flex h-[64px] flex-col justify-center"
+                aria-hidden={idx === 1}
               >
-                &ldquo;{line.quote}&rdquo;
-              </Caption>
-              <Caption className="mt-0.5 line-clamp-1 text-muted-foreground flex items-center gap-1 flex-wrap">
-                <span>{line.name}</span>
-                {line.ttlNm && (
-                  <TitleBadge
-                    name={line.ttlNm}
-                    effect={line.badgeEffect}
-                    size="xs"
-                    tooltip={{ desc: line.ttlDesc, visibility: line.descVisibility as "always" | "others" | "held" | "never", isHeld: line.isHeld, isOwner: false }}
-                  />
-                )}
-                <span>{line.metaSuffix}</span>
-              </Caption>
-            </div>
-          ))}
+                <Caption
+                  className="line-clamp-2 wrap-break-word leading-4 text-foreground"
+                  onTouchStart={(event) => {
+                    event.preventDefault();
+                    setTooltipText(line.quote);
+                  }}
+                  onTouchEnd={() => setTooltipText(null)}
+                  onTouchCancel={() => setTooltipText(null)}
+                >
+                  &ldquo;{line.quote}&rdquo;
+                </Caption>
+                <Caption className="mt-0.5 line-clamp-1 text-muted-foreground flex items-center gap-1 flex-wrap">
+                  <span>{line.name}</span>
+                  {line.ttlNm && (
+                    <TitleBadge
+                      name={line.ttlNm}
+                      effect={line.badgeEffect}
+                      size="xs"
+                      tooltip={{ desc: line.ttlDesc, visibility: line.descVisibility as "always" | "others" | "held" | "never", isHeld: line.isHeld, isOwner: false }}
+                    />
+                  )}
+                  <span>{line.metaSuffix}</span>
+                </Caption>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
+      {picks.length > 1 && (
+        <button
+          className="w-full flex items-center justify-center gap-1 py-2 border-t border-border"
+          onClick={() => setIsExpanded(true)}
+        >
+          <Caption className="text-muted-foreground">전체 {picks.length}개 보기</Caption>
+          <ChevronDown className="size-3 text-muted-foreground" />
+        </button>
+      )}
     </div>
   );
 }

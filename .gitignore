@@ -66,6 +66,7 @@ next-env.d.ts
 # MCP 설정 (access token 포함)
 .mcp.json
 
+
 # skillshare로 자동 생성되는 스킬 디렉토리 (source: .skillshare/skills/)
 .claude/skills/
 .agents/skills/
