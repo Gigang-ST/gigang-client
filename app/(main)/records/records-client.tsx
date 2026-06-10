@@ -1,16 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { Medal } from "lucide-react";
+
+import { Medal, Search } from "lucide-react";
+
+import { getFrameCls } from "@/lib/title-effects";
 import { cn } from "@/lib/utils";
+
+import { TitleBadge } from "@/components/common/title-badge";
 import { Button } from "@/components/ui/button";
+import { CardItem } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 /* ------------------------------------------------------------------ */
 /*  타입 정의                                                          */
 /* ------------------------------------------------------------------ */
 
+type DescVisibility = "always" | "others" | "held" | "never";
+type MemberTitleBase = { ttl_nm: string; ttl_desc: string | null; desc_visibility: DescVisibility; badge_effect: string; frame_cd: string };
+type MemberTitle = MemberTitleBase & { isHeld: boolean };
+
 type RankingEntry = {
   rank: number;
+  memId: string;
   name: string;
   record: string;
   raceName: string | null;
@@ -25,6 +37,7 @@ type MarathonEvent = {
 
 type TrailEntry = {
   rank: number;
+  memId: string;
   name: string;
   utmbIndex: number;
   recentRaceName: string | null;
@@ -34,6 +47,7 @@ type TrailEntry = {
 
 type TriathlonEntry = {
   rank: number;
+  memId: string;
   name: string;
   record: string;
   raceName: string | null;
@@ -50,6 +64,7 @@ type RecordsData = {
   marathon: { events: MarathonEvent[] };
   trail: { entries: TrailEntry[] };
   triathlon: { events: TriathlonEvent[] };
+  memberTitles: Record<string, MemberTitleBase>;
 };
 
 /* ------------------------------------------------------------------ */
@@ -109,55 +124,72 @@ function EmptyState() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  마라톤 셀 (남자/여자 각 칸)                                          */
+/*  마라톤 — 반칸 카드 (남/여 각각 flex-1)                               */
 /* ------------------------------------------------------------------ */
 
-function MarathonCell({
+const MEDAL_COLOR: Record<number, string> = {
+  1: "text-amber-500",
+  2: "text-slate-400",
+  3: "text-amber-700",
+};
+
+function MarathonHalfCard({
   entry,
-  rank,
+  memberTitles,
 }: {
   entry?: RankingEntry;
-  rank: number;
+  memberTitles: Record<string, MemberTitle>;
 }) {
-  const showMedal = rank <= 3;
-  if (!entry) {
-    return (
-      <div className="flex min-w-0 flex-1 items-center gap-3 py-1">
-        {showMedal && <div className="size-8 shrink-0" />}
-        <span className="flex-1 text-center text-xs text-muted-foreground">
-          -
-        </span>
+  if (!entry) return <div />;
+  const title = memberTitles[entry.memId];
+  const frameCls = getFrameCls(title?.frame_cd);
+
+  const rankEl =
+    entry.rank <= 3 ? (
+      <div
+        className={cn(
+          "flex size-5 shrink-0 items-center justify-center rounded-full bg-muted/60",
+          MEDAL_COLOR[entry.rank],
+        )}
+      >
+        <Medal className="size-3" strokeWidth={2.5} />
       </div>
+    ) : (
+      <span className="flex size-5 shrink-0 items-center justify-center text-[11px] font-bold text-muted-foreground">
+        {entry.rank}
+      </span>
     );
-  }
+
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-3 py-1">
-      {showMedal ? (
-        <MedalBadge rank={rank} />
-      ) : (
-        <span className="flex size-8 shrink-0 items-center justify-center text-lg font-bold text-muted-foreground">
-          {rank}
-        </span>
-      )}
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex items-baseline justify-between gap-1">
-          <span className="truncate text-[13px] font-semibold text-foreground">
+    // size-5 (20px) + gap-1 (4px) = pl-6 으로 줄 2 들여쓰기
+    <CardItem className={cn("flex min-w-0 w-full flex-col gap-0.5 p-2", frameCls)}>
+      {/* 줄 1 — 순위 · 이름 · 칭호 */}
+      <div className="flex min-w-0 items-center gap-1">
+        {rankEl}
+        <div className="flex min-w-0 flex-1 items-center gap-1">
+          <span className="truncate text-[12px] font-semibold text-foreground">
             {entry.name}
           </span>
-          <span
-            className={cn(
-              "shrink-0 font-mono text-xs font-bold",
-              entry.rank === 1 ? "text-primary" : "text-foreground",
-            )}
-          >
-            {entry.record}
-          </span>
+          {title && (
+            <TitleBadge name={title.ttl_nm} effect={title.badge_effect} size="xs" tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility as "always" | "others" | "held" | "never", isHeld: title.isHeld, isOwner: false }} />
+          )}
         </div>
-        <span className="truncate text-[11px] text-muted-foreground">
+      </div>
+      {/* 줄 2 — 대회명(말줄임) · 기록 */}
+      <div className="flex min-w-0 items-center gap-1 pl-6">
+        <span className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
           {entry.raceName ?? "-"}
         </span>
+        <span
+          className={cn(
+            "shrink-0 font-mono text-[11px] font-bold",
+            entry.rank === 1 ? "text-primary" : "text-foreground",
+          )}
+        >
+          {entry.record}
+        </span>
       </div>
-    </div>
+    </CardItem>
   );
 }
 
@@ -165,10 +197,14 @@ function MarathonCell({
 /*  마라톤 탭 콘텐츠                                                    */
 /* ------------------------------------------------------------------ */
 
-function MarathonContent({ events }: { events: MarathonEvent[] }) {
-  const [selectedEvent, setSelectedEvent] = useState(
-    events[0]?.eventType ?? "",
-  );
+function MarathonContent({
+  events,
+  memberTitles,
+}: {
+  events: MarathonEvent[];
+  memberTitles: Record<string, MemberTitle>;
+}) {
+  const [selectedEvent, setSelectedEvent] = useState(events[0]?.eventType ?? "");
 
   const currentEvent = events.find((e) => e.eventType === selectedEvent);
   const maxRows = Math.max(
@@ -201,37 +237,28 @@ function MarathonContent({ events }: { events: MarathonEvent[] }) {
         </div>
       )}
 
-      {/* 헤더 */}
-      <div className="mt-2 flex flex-col px-6">
-        <div className="flex items-center gap-3 rounded-t-lg bg-muted/50 py-2">
-          <span className="min-w-0 flex-1 text-center text-xs font-semibold tracking-wide text-muted-foreground">
-            남자
-          </span>
-          <span className="min-w-0 flex-1 text-center text-xs font-semibold tracking-wide text-muted-foreground">
-            여자
-          </span>
+      {/* 헤더 + 본문 */}
+      <div className="flex flex-col gap-1.5 px-6">
+        <div className="grid grid-cols-2 gap-2">
+          <span className="text-center text-[11px] font-semibold text-muted-foreground">남자</span>
+          <span className="text-center text-[11px] font-semibold text-muted-foreground">여자</span>
         </div>
-        {/* 본문 */}
-        {maxRows === 0 ? (
-          <div className="rounded-b-lg border border-t-0 border-border py-12">
+        <div className="flex flex-col gap-2">
+          {maxRows === 0 ? (
             <EmptyState />
-          </div>
-        ) : (
-          Array.from({ length: maxRows }).map((_, i) => {
-            const rank = i + 1;
-            const male = currentEvent?.male[i];
-            const female = currentEvent?.female[i];
-            return (
-              <div
-                key={rank}
-                className="flex items-center gap-3 border-b border-border py-3 last:border-b-0 last:rounded-b-lg"
-              >
-                <MarathonCell entry={male} rank={rank} />
-                <MarathonCell entry={female} rank={rank} />
-              </div>
-            );
-          })
-        )}
+          ) : (
+            Array.from({ length: maxRows }).map((_, i) => {
+              const male = currentEvent?.male[i];
+              const female = currentEvent?.female[i];
+              return (
+                <div key={i} className="grid grid-cols-2 gap-2">
+                  <MarathonHalfCard entry={male} memberTitles={memberTitles} />
+                  <MarathonHalfCard entry={female} memberTitles={memberTitles} />
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
     </>
   );
@@ -241,7 +268,13 @@ function MarathonContent({ events }: { events: MarathonEvent[] }) {
 /*  트레일러닝 탭 콘텐츠                                                */
 /* ------------------------------------------------------------------ */
 
-function TrailContent({ entries }: { entries: TrailEntry[] }) {
+function TrailContent({
+  entries,
+  memberTitles,
+}: {
+  entries: TrailEntry[];
+  memberTitles: Record<string, MemberTitle>;
+}) {
   if (entries.length === 0) {
     return (
       <div className="px-6">
@@ -251,49 +284,63 @@ function TrailContent({ entries }: { entries: TrailEntry[] }) {
   }
 
   return (
-    <div className="flex flex-col px-6 pt-2">
-      {entries.map((entry) => (
-        <div
-          key={`t-${entry.rank}-${entry.name}`}
-          className="flex items-center gap-4 border-b border-border py-4 last:border-b-0"
-        >
-          <RankBadge rank={entry.rank} />
+    <div className="flex flex-col gap-2 px-6 pt-2">
+      {entries.map((entry) => {
+        const title = memberTitles[entry.memId];
+        const frameCls = getFrameCls(title?.frame_cd);
+        return (
+          <CardItem
+            key={`t-${entry.rank}-${entry.name}`}
+            className={cn("flex items-center gap-4 p-3", frameCls)}
+          >
+            <RankBadge rank={entry.rank} />
 
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            {entry.utmbProfileUrl ? (
-              <a
-                href={entry.utmbProfileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[15px] font-semibold text-primary hover:underline"
-              >
-                {entry.name}
-              </a>
-            ) : (
-              <span className="text-[15px] font-semibold text-foreground">
-                {entry.name}
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {entry.utmbProfileUrl ? (
+                  <a
+                    href={entry.utmbProfileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[15px] font-semibold text-primary hover:underline"
+                  >
+                    {entry.name}
+                  </a>
+                ) : (
+                  <span className="text-[15px] font-semibold text-foreground">
+                    {entry.name}
+                  </span>
+                )}
+                {title && (
+                  <TitleBadge
+                    name={title.ttl_nm}
+                    effect={title.badge_effect}
+                    size="xs"
+                    tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility as "always" | "others" | "held" | "never", isHeld: title.isHeld, isOwner: false }}
+                  />
+                )}
+              </div>
+              <span className="truncate text-xs text-muted-foreground">
+                {entry.recentRaceName ?? "-"}
               </span>
-            )}
-            <span className="truncate text-xs text-muted-foreground">
-              {entry.recentRaceName ?? "-"}
-            </span>
-          </div>
+            </div>
 
-          <div className="flex shrink-0 flex-col items-end gap-0.5">
-            <span
-              className={cn(
-                "font-mono text-lg font-bold",
-                entry.rank === 1 ? "text-primary" : "text-foreground",
-              )}
-            >
-              {entry.utmbIndex}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {entry.recentRaceRecord ?? "-"}
-            </span>
-          </div>
-        </div>
-      ))}
+            <div className="flex shrink-0 flex-col items-end gap-0.5">
+              <span
+                className={cn(
+                  "font-mono text-lg font-bold",
+                  entry.rank === 1 ? "text-primary" : "text-foreground",
+                )}
+              >
+                {entry.utmbIndex}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {entry.recentRaceRecord ?? "-"}
+              </span>
+            </div>
+          </CardItem>
+        );
+      })}
     </div>
   );
 }
@@ -302,7 +349,13 @@ function TrailContent({ entries }: { entries: TrailEntry[] }) {
 /*  철인3종 탭 콘텐츠                                                   */
 /* ------------------------------------------------------------------ */
 
-function TriathlonContent({ events }: { events: TriathlonEvent[] }) {
+function TriathlonContent({
+  events,
+  memberTitles,
+}: {
+  events: TriathlonEvent[];
+  memberTitles: Record<string, MemberTitle>;
+}) {
   const hasAny = events.some((e) => e.entries.length > 0);
 
   if (!hasAny) {
@@ -314,39 +367,53 @@ function TriathlonContent({ events }: { events: TriathlonEvent[] }) {
   }
 
   return (
-    <div className="flex flex-col px-6 pt-2">
+    <div className="flex flex-col gap-4 px-6 pt-2">
       {events.map((evt) => {
         if (evt.entries.length === 0) return null;
 
         return (
-          <div key={evt.eventType} className="mb-4 last:mb-0">
-            <h3 className="pb-1 pt-2 text-xs font-semibold tracking-wide text-muted-foreground">
+          <div key={evt.eventType} className="flex flex-col gap-2">
+            <h3 className="text-xs font-semibold tracking-wide text-muted-foreground">
               {evt.label}
             </h3>
-            {evt.entries.map((entry) => (
-              <div
-                key={`tri-${entry.rank}-${entry.name}`}
-                className="flex items-center gap-4 border-b border-border py-4 last:border-b-0"
-              >
-                <RankBadge rank={entry.rank} />
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="text-[15px] font-semibold text-foreground">
-                    {entry.name}
-                  </span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    {entry.raceName ?? "-"}
-                  </span>
-                </div>
-                <span
-                  className={cn(
-                    "shrink-0 font-mono text-lg font-bold",
-                    entry.rank === 1 ? "text-primary" : "text-foreground",
-                  )}
+            {evt.entries.map((entry) => {
+              const title = memberTitles[entry.memId];
+              const frameCls = getFrameCls(title?.frame_cd);
+              return (
+                <CardItem
+                  key={`tri-${entry.rank}-${entry.name}`}
+                  className={cn("flex items-center gap-4 p-3", frameCls)}
                 >
-                  {entry.record}
-                </span>
-              </div>
-            ))}
+                  <RankBadge rank={entry.rank} />
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[15px] font-semibold text-foreground">
+                        {entry.name}
+                      </span>
+                      {title && (
+                        <TitleBadge
+                          name={title.ttl_nm}
+                          effect={title.badge_effect}
+                          size="xs"
+                          tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility, isHeld: title.isHeld, isOwner: false }}
+                        />
+                      )}
+                    </div>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {entry.raceName ?? "-"}
+                    </span>
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 font-mono text-lg font-bold",
+                      entry.rank === 1 ? "text-primary" : "text-foreground",
+                    )}
+                  >
+                    {entry.record}
+                  </span>
+                </CardItem>
+              );
+            })}
           </div>
         );
       })}
@@ -358,9 +425,42 @@ function TriathlonContent({ events }: { events: TriathlonEvent[] }) {
 /*  메인 컴포넌트                                                       */
 /* ------------------------------------------------------------------ */
 
-export function RecordsClient({ data }: { data: RecordsData }) {
+export function RecordsClient({ data, myTitleNames = [] }: { data: RecordsData; myTitleNames?: string[] }) {
+  const myTitleNameSet = new Set(myTitleNames);
+
+  // memberTitles에 isHeld 주입
+  const memberTitles: Record<string, MemberTitle> = Object.fromEntries(
+    Object.entries(data.memberTitles).map(([memId, t]) => [
+      memId,
+      { ...t, isHeld: myTitleNameSet.has(t.ttl_nm) },
+    ])
+  );
   const [selectedCategory, setSelectedCategory] =
     useState<CategoryKey>("marathon");
+  const [query, setQuery] = useState("");
+
+  const q = query.trim().toLowerCase();
+
+  const filteredMarathon = {
+    events: data.marathon.events.map((evt) => ({
+      ...evt,
+      male: evt.male.filter((e) => e.name.toLowerCase().includes(q)),
+      female: evt.female.filter((e) => e.name.toLowerCase().includes(q)),
+    })),
+  };
+
+  const filteredTrail = {
+    entries: data.trail.entries.filter((e) =>
+      e.name.toLowerCase().includes(q),
+    ),
+  };
+
+  const filteredTriathlon = {
+    events: data.triathlon.events.map((evt) => ({
+      ...evt,
+      entries: evt.entries.filter((e) => e.name.toLowerCase().includes(q)),
+    })),
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -384,15 +484,26 @@ export function RecordsClient({ data }: { data: RecordsData }) {
         ))}
       </div>
 
+      {/* 검색창 */}
+      <div className="relative px-6">
+        <Search className="absolute left-9 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="이름으로 검색"
+          className="pl-9"
+        />
+      </div>
+
       {/* 카테고리별 콘텐츠 */}
       {selectedCategory === "marathon" && (
-        <MarathonContent events={data.marathon.events} />
+        <MarathonContent events={filteredMarathon.events} memberTitles={memberTitles} />
       )}
       {selectedCategory === "trail" && (
-        <TrailContent entries={data.trail.entries} />
+        <TrailContent entries={filteredTrail.entries} memberTitles={memberTitles} />
       )}
       {selectedCategory === "triathlon" && (
-        <TriathlonContent events={data.triathlon.events} />
+        <TriathlonContent events={filteredTriathlon.events} memberTitles={memberTitles} />
       )}
     </div>
   );

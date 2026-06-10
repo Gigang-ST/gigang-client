@@ -38,8 +38,9 @@ const SOCIAL_LINKS = [
     label: "가민",
     href: "https://connect.garmin.com/app/group/4857390",
     logo: "/garmin.png",
+    invertOnDark: true,
   },
-] as const;
+];
 
 export function SocialLinksRow() {
   const [open, setOpen] = useState(false);
@@ -47,7 +48,7 @@ export function SocialLinksRow() {
   return (
     <>
       <div className="flex items-center justify-center gap-5">
-        {SOCIAL_LINKS.map(({ key, label, href, logo }) =>
+        {SOCIAL_LINKS.map(({ key, label, href, logo, invertOnDark }) =>
           key === "kakao" ? (
             <button
               key={key}
@@ -55,7 +56,7 @@ export function SocialLinksRow() {
               onClick={() => setOpen(true)}
               className="flex flex-col items-center gap-1"
             >
-              <Image src={logo} alt={label} width={32} height={32} />
+              <Image src={logo} alt={label} width={32} height={32} className={invertOnDark ? "dark:invert" : undefined} />
               <span className="text-[10px] font-medium text-muted-foreground">
                 {label}
               </span>
@@ -68,7 +69,7 @@ export function SocialLinksRow() {
               rel="noopener noreferrer"
               className="flex flex-col items-center gap-1"
             >
-              <Image src={logo} alt={label} width={32} height={32} />
+              <Image src={logo} alt={label} width={32} height={32} className={invertOnDark ? "dark:invert" : undefined} />
               <span className="text-[10px] font-medium text-muted-foreground">
                 {label}
               </span>
@@ -113,14 +114,14 @@ export function SocialLinksGrid({
       <div className="flex flex-col gap-4">
         <SectionLabel>SOCIAL</SectionLabel>
         <div className="grid grid-cols-4 gap-2.5">
-          {SOCIAL_LINKS.map(({ key, label, href, logo }) =>
+          {SOCIAL_LINKS.map(({ key, label, href, logo, invertOnDark }) =>
             key === "kakao" ? (
               <CardItem asChild key={key} className="flex flex-col items-center gap-2 py-3">
                 <button
                   type="button"
                   onClick={() => setOpen(true)}
                 >
-                  <Image src={logo} alt={label} width={28} height={28} />
+                  <Image src={logo} alt={label} width={28} height={28} className={invertOnDark ? "dark:invert" : undefined} />
                   <span className="text-xs font-semibold text-foreground">
                     {label}
                   </span>
@@ -133,7 +134,7 @@ export function SocialLinksGrid({
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <Image src={logo} alt={label} width={28} height={28} />
+                  <Image src={logo} alt={label} width={28} height={28} className={invertOnDark ? "dark:invert" : undefined} />
                   <span className="text-xs font-semibold text-foreground">
                     {label}
                   </span>

@@ -1,13 +1,11 @@
 "use client";
 
-import { ChevronDown, ChevronRight, Plus } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-create-comp-evt-for-participation";
-import { getPastGigangCompetitions } from "@/app/actions/get-past-gigang-competitions";
-import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
-import { Button } from "@/components/ui/button";
-import { CardItem } from "@/components/ui/card";
+
+import { useRouter } from "next/navigation";
+
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
+
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import {
 	fetchMemMstWithTeamRel,
@@ -17,8 +15,17 @@ import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+
+import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-create-comp-evt-for-participation";
+import { getPastGigangCompetitions } from "@/app/actions/get-past-gigang-competitions";
+import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
+
+import { Button } from "@/components/ui/button";
+import { CardItem } from "@/components/ui/card";
+
 import { CompetitionDetailDialog } from "./competition-detail-dialog";
 import { CompetitionRegisterDialog } from "./competition-register-dialog";
+
 import type {
 	Competition,
 	CompetitionRegistration,
@@ -80,6 +87,10 @@ export function RaceListView({
 		useState<Competition | null>(null);
 	const [detailOpen, setDetailOpen] = useState(false);
 	const [registerOpen, setRegisterOpen] = useState(false);
+	const [localAllCompetitions, setLocalAllCompetitions] =
+		useState<Competition[]>(allCompetitions);
+	const [localGigangCompetitions, _setLocalGigangCompetitions] =
+		useState<Competition[]>(gigangCompetitions);
 
 	// 지난 대회 (기강 참가만, 3개월씩)
 	const [pastOpen, setPastOpen] = useState(false);
@@ -217,7 +228,7 @@ export function RaceListView({
 		loadPastChunk(before);
 	};
 
-	const competitions = tab === "gigang" ? gigangCompetitions : allCompetitions;
+	const competitions = tab === "gigang" ? localGigangCompetitions : localAllCompetitions;
 	const allCompetitionIds = useMemo(
 		() => [
 			...new Set([
@@ -254,6 +265,10 @@ export function RaceListView({
 
 				const profile = mapMstRelToAppMemberProfile(bundle.mst, bundle.rel);
 				if (!active) return;
+				if (profile.status !== "active") {
+					setMemberStatus({ status: "inactive", userId: user.id });
+					return;
+				}
 				setMemberStatus({
 					status: "ready",
 					userId: user.id,
@@ -313,6 +328,8 @@ export function RaceListView({
 			eventType: string;
 		},
 	) => {
+		if (memberStatus.status === "inactive")
+			return { ok: false as const, message: "비활성화된 회원입니다. 관리자에게 문의하세요." };
 		if (memberStatus.status !== "ready")
 			return { ok: false as const, message: "로그인이 필요합니다." };
 		const eventType =
@@ -395,6 +412,8 @@ export function RaceListView({
 			eventType: string;
 		},
 	) => {
+		if (memberStatus.status === "inactive")
+			return { ok: false as const, message: "비활성화된 회원입니다. 관리자에게 문의하세요." };
 		if (memberStatus.status !== "ready")
 			return { ok: false as const, message: "로그인이 필요합니다." };
 		const eventType =
@@ -452,6 +471,8 @@ export function RaceListView({
 		registrationId: string,
 		competitionId: string,
 	) => {
+		if (memberStatus.status === "inactive")
+			return { ok: false as const, message: "비활성화된 회원입니다. 관리자에게 문의하세요." };
 		if (memberStatus.status !== "ready")
 			return { ok: false as const, message: "로그인이 필요합니다." };
 		const { error } = await supabase
@@ -769,7 +790,12 @@ export function RaceListView({
 				onOpenChange={setRegisterOpen}
 				memberStatus={memberStatus}
 				datePolicy="future-only"
-				onCreated={async () => {
+				onCreated={async (newComp) => {
+					setLocalAllCompetitions((prev) =>
+						[...prev, newComp].sort((a, b) => a.start_date.localeCompare(b.start_date)),
+					);
+					setSelectedCompetition(newComp);
+					setDetailOpen(true);
 					await revalidateCompetitions();
 					router.refresh();
 				}}

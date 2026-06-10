@@ -1,3 +1,9 @@
+export const TEAM_ACCOUNT = {
+  bank: "카카오뱅크",
+  number: "3333-09-6788223",
+  holder: "이현근(기강단장)",
+} as const;
+
 export const BANK_OPTIONS = [
   "KB국민은행",
   "신한은행",

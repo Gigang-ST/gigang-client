@@ -4,6 +4,8 @@ import type { Database } from "@/lib/supabase/database.types";
 /** 앱 전역에서 쓰는 회원 프로필(레거시 `member` 행과 동일 역할, id = mem_mst.mem_id). */
 export type AppMemberProfile = {
   id: string;
+  /** team_mem_rel.team_mem_id — 칭호 부여 등 팀 스코프 FK 참조에 사용 */
+  team_mem_id: string;
   full_name: string;
   gender: Database["public"]["Enums"]["gender"];
   birthday: string;
@@ -15,6 +17,10 @@ export type AppMemberProfile = {
   joined_at: string;
   status: string;
   admin: boolean;
+  /** 선택한 배지 이펙트 코드 (effect_mst.effect_cd) */
+  selected_badge_effect: string | null;
+  /** 선택한 카드 프레임 코드 (effect_mst.effect_cd) */
+  selected_frame_cd: string | null;
 };
 
 type MemMstRow = Database["public"]["Tables"]["mem_mst"]["Row"];
@@ -67,6 +73,7 @@ export function mapMstRelToAppMemberProfile(
 
   return {
     id: mst.mem_id,
+    team_mem_id: rel.team_mem_id,
     full_name: mst.mem_nm,
     gender,
     birthday: mst.birth_dt ?? "",
@@ -78,5 +85,7 @@ export function mapMstRelToAppMemberProfile(
     joined_at: rel.join_dt ?? "",
     status: rel.mem_st_cd,
     admin,
+    selected_badge_effect: rel.selected_badge_effect ?? null,
+    selected_frame_cd: rel.selected_frame_cd ?? null,
   };
 }

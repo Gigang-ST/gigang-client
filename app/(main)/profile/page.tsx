@@ -1,18 +1,21 @@
-import { Skeleton } from "@/components/ui/skeleton";
-import { H1 } from "@/components/common/typography";
-import { CardItem } from "@/components/ui/card";
-import { redirect } from "next/navigation";
-import dayjs from "dayjs";
 import { Suspense } from "react";
+
 import Link from "next/link";
-import { Settings } from "lucide-react";
-import { Avatar } from "@/components/common/avatar";
-import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
-import { RaceRecordSection } from "@/components/profile/race-record-section";
-import { PaceChart } from "@/components/profile/pace-chart";
+import { redirect } from "next/navigation";
+
+import { dayjs } from "@/lib/dayjs";
+import { CreditCard, Settings, UserPen, Wallet } from "lucide-react";
+
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+
+import { H1 } from "@/components/common/typography";
+import { PaceChart } from "@/components/profile/pace-chart";
+import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
+import { ProfileCard } from "@/components/profile/profile-card";
+import { CardItem } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 async function ProfileContent() {
   const { user, member, supabase } = await getCurrentMember();
@@ -26,7 +29,7 @@ async function ProfileContent() {
     redirect("/onboarding?next=/profile");
   }
 
-  const [{ data: raceResults }, { data: utmbProfile }, cmmCdRows] = await Promise.all([
+  const [{ data: raceResults }, { data: utmbProfile }, cmmCdRows, { data: primaryTitle }, { data: balSnap }] = await Promise.all([
     supabase
       .from("rec_race_hist")
       .select("comp_evt_cfg(comp_evt_type), rec_time_sec, race_nm, race_dt")
@@ -41,53 +44,93 @@ async function ProfileContent() {
       .eq("del_yn", false)
       .maybeSingle(),
     getCachedCmmCdRows(),
+    supabase
+      .from("mem_ttl_rel")
+      .select("ttl_id, is_prmy_yn, ttl_mst(ttl_nm, ttl_desc, desc_visibility, rarity_level, ttl_ctgr_cd)")
+      .eq("team_mem_id", member.team_mem_id)
+      .eq("vers", 0)
+      .eq("del_yn", false),
+    supabase
+      .from("fee_mem_bal_snap")
+      .select("bal_amt")
+      .eq("team_id", teamId)
+      .eq("mem_id", member.id)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .maybeSingle(),
   ]);
 
   // Build best records map: for each event_type, pick the one with lowest record_time_sec
-  const bestRecords: Record<string, { record_time_sec: number; race_name: string }> = {};
+  const bestRecords: Record<string, { record_time_sec: number; race_name: string; race_dt: string | null }> = {};
   (raceResults ?? []).forEach((r) => {
     const evt = (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type?.toUpperCase() ?? "";
     if (!["FULL", "HALF", "10K"].includes(evt)) return;
     const existing = bestRecords[evt];
     if (!existing || r.rec_time_sec < existing.record_time_sec) {
-      bestRecords[evt] = { record_time_sec: r.rec_time_sec, race_name: r.race_nm };
+      bestRecords[evt] = { record_time_sec: r.rec_time_sec, race_name: r.race_nm, race_dt: r.race_dt ?? null };
     }
   });
 
   const genderLabel = member.gender === "male" ? "남성" : member.gender === "female" ? "여성" : "";
   const joinedDate = member.joined_at
-    ? dayjs(member.joined_at).format("YYYY. M")
+    ? dayjs(member.joined_at).format("YY.MM.DD")
     : "";
 
+  // 보유 칭호 목록에서 대표 칭호와 최고 등급 계산
+  const allTitles = (primaryTitle ?? []) as { ttl_id: string; is_prmy_yn: boolean; ttl_mst: { ttl_nm: string; ttl_desc?: string | null; desc_visibility?: string; rarity_level: number; ttl_ctgr_cd: string } | null }[];
+  const primaryTitleRow = allTitles.find((t) => t.is_prmy_yn);
+  const primaryTtlNm = primaryTitleRow?.ttl_mst?.ttl_nm ?? null;
+  const primaryTtlDesc = primaryTitleRow?.ttl_mst?.ttl_desc ?? null;
+  const primaryTtlDescVisibility = (primaryTitleRow?.ttl_mst?.desc_visibility ?? "others") as "always" | "others" | "held" | "never";
+  const primaryTtlId = primaryTitleRow?.ttl_id ?? null;
+  const maxRarityLevel = allTitles.reduce((max, t) => {
+    if (t.ttl_mst?.ttl_ctgr_cd === "event") return max; // Event 칭호는 해금에 영향 없음
+    const lvl = t.ttl_mst?.rarity_level ?? 1;
+    return lvl > max ? lvl : max;
+  }, 1);
+
   return (
-    <div className="flex flex-col gap-6 px-6 pb-6">
+    <div className="flex flex-col gap-4 px-6 pb-6">
         {/* Profile Card */}
-        <CardItem className="flex items-center gap-4 p-5">
-          <Avatar src={member.avatar_url} alt={member.full_name ?? ""} size="xl" />
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="text-[17px] font-bold text-foreground">
-              {member.full_name}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {genderLabel}{joinedDate ? ` · ${joinedDate} 가입` : ""}
-            </span>
-          </div>
-          <span className="shrink-0 rounded-lg bg-primary/10 px-2.5 py-1.5 text-xs font-semibold text-primary">
-            활동
-          </span>
-        </CardItem>
+        <ProfileCard
+          fullName={member.full_name}
+          avatarUrl={member.avatar_url}
+          genderLabel={genderLabel}
+          joinedDate={joinedDate}
+          teamMemId={member.team_mem_id}
+          teamId={teamId}
+          primaryTtlId={primaryTtlId}
+          primaryTtlNm={primaryTtlNm}
+          primaryTtlDesc={primaryTtlDesc}
+          primaryTtlDescVisibility={primaryTtlDescVisibility}
+          selectedBadgeEffect={member.selected_badge_effect}
+          selectedFrameCd={member.selected_frame_cd}
+          maxRarityLevel={maxRarityLevel}
+        />
+
+        {/* 바로가기 */}
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { href: "/profile/edit", icon: UserPen, label: "내 정보", dot: false },
+            { href: "/profile/bank", icon: CreditCard, label: "내 계좌", dot: false },
+            { href: "/profile/dues", icon: Wallet, label: "회비", dot: (balSnap?.bal_amt ?? 0) < 0 },
+          ].map(({ href, icon: Icon, label, dot }) => (
+            <Link key={href} href={href}>
+              <div className="relative flex items-center justify-center gap-2 rounded-xl border border-border py-2.5">
+                <Icon className="size-3.5 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">{label}</span>
+                {dot && (
+                  <span className="absolute right-2 top-2 size-1.5 rounded-full bg-destructive" />
+                )}
+              </div>
+            </Link>
+          ))}
+        </div>
 
         {/* Personal Best */}
         <PersonalBestGrid
           bestRecords={bestRecords}
           utmbData={utmbProfile?.utmb_prf_url && utmbProfile?.utmb_idx != null ? { utmb_profile_url: utmbProfile.utmb_prf_url, utmb_index: utmbProfile.utmb_idx, recent_race_name: utmbProfile.rct_race_nm, recent_race_record: utmbProfile.rct_race_rec } : null}
-        />
-
-        {/* 페이스 그래프 */}
-        <PaceChart records={(raceResults ?? []).map((r) => ({ event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type?.toUpperCase() ?? "", record_time_sec: r.rec_time_sec, race_name: r.race_nm, race_date: r.race_dt }))} />
-
-        {/* 기록 입력 */}
-        <RaceRecordSection
           memberId={member.id}
           teamId={teamId}
           cmmCdRows={cmmCdRows}
@@ -100,6 +143,11 @@ async function ProfileContent() {
             admin: member.admin,
           }}
         />
+
+        {/* 페이스 그래프 */}
+        <PaceChart records={(raceResults ?? []).map((r) => ({ event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type?.toUpperCase() ?? "", record_time_sec: r.rec_time_sec, race_name: r.race_nm, race_date: r.race_dt }))} />
+
+
       </div>
   );
 }

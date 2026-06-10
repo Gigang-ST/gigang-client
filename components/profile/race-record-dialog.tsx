@@ -1,9 +1,26 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+
+import {
+  buildEventTypeOptionList,
+  COMP_EVT_TYPE_OTHER as EVENT_TYPE_OTHER,
+  sanitizeAsciiUpperCompEvtTypeInput,
+} from "@/lib/comp-evt-type";
+import { timeStringToSeconds, secondsToTime } from "@/lib/dayjs";
+import {
+  eventTypeCodesForSprtFromCmmRows,
+  type CachedCmmCdRow,
+} from "@/lib/queries/cmm-cd-cached";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
+
+import { saveRaceRecord } from "@/app/actions/save-race-record";
+import { listCompetitionsByRaceDate } from "@/app/actions/search-competitions";
+
+import { CompetitionRegisterDialog } from "@/components/races/competition-register-dialog";
+import type { MemberStatus } from "@/components/races/types";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -11,21 +28,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
-import { timeStringToSeconds, secondsToTime } from "@/lib/dayjs";
-import {
-  buildEventTypeOptionList,
-  COMP_EVT_TYPE_OTHER as EVENT_TYPE_OTHER,
-  sanitizeAsciiUpperCompEvtTypeInput,
-} from "@/lib/comp-evt-type";
-import {
-  eventTypeCodesForSprtFromCmmRows,
-  type CachedCmmCdRow,
-} from "@/lib/queries/cmm-cd-cached";
-import { listCompetitionsByRaceDate } from "@/app/actions/search-competitions";
-import { saveRaceRecord } from "@/app/actions/save-race-record";
-import { CompetitionRegisterDialog } from "@/components/races/competition-register-dialog";
-import type { MemberStatus } from "@/components/races/types";
+import { Input } from "@/components/ui/input";
 
 /* ---------- 타입 ---------- */
 
@@ -40,6 +43,15 @@ interface Competition {
   registeredEventType?: string | null;
   /** 참가 신청 행의 comp_evt_cfg PK (서버에서 종목 정합 검증용) */
   registrationCompEvtId?: string | null;
+}
+
+/* ---------- 시간 입력 자동 포맷 ---------- */
+
+function formatTimeInput(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 6);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}:${digits.slice(2, 4)}:${digits.slice(4)}`;
 }
 
 /* ---------- 컴포넌트 ---------- */
@@ -67,6 +79,9 @@ export function RaceRecordDialog({
 
   // 단계 관리
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [grantedTitles, setGrantedTitles] = useState<string[]>([]);
+  const [grantedDismissable, setGrantedDismissable] = useState(false);
+  const grantedDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 대회 목록
   const [competitions, setCompetitions] = useState<Competition[]>([]);
@@ -342,7 +357,21 @@ export function RaceRecordDialog({
     setIsSaving(false);
     onSaved();
     onOpenChange(false);
+
+    if (result.grantedTitles && result.grantedTitles.length > 0) {
+      setGrantedTitles(result.grantedTitles);
+      setGrantedDismissable(false);
+      if (grantedDismissTimerRef.current) clearTimeout(grantedDismissTimerRef.current);
+      grantedDismissTimerRef.current = setTimeout(() => setGrantedDismissable(true), 2000);
+    }
   }
+
+  const dismissGranted = useCallback(() => {
+    if (!grantedDismissable) return;
+    if (grantedDismissTimerRef.current) clearTimeout(grantedDismissTimerRef.current);
+    setGrantedTitles([]);
+    setGrantedDismissable(false);
+  }, [grantedDismissable]);
 
   /* ---------- 렌더링 ---------- */
   const scrollSearchInputAboveKeyboard = useRef(() => {
@@ -609,32 +638,36 @@ export function RaceRecordDialog({
                   <label className="text-sm font-medium">대회 총 시간</label>
                   <Input
                     placeholder="HH:MM:SS"
+                    inputMode="numeric"
                     value={totalTime}
-                    onChange={(e) => setTotalTime(e.target.value)}
+                    onChange={(e) => setTotalTime(formatTimeInput(e.target.value))}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium">수영</label>
                   <Input
                     placeholder="HH:MM:SS"
+                    inputMode="numeric"
                     value={swimTime}
-                    onChange={(e) => setSwimTime(e.target.value)}
+                    onChange={(e) => setSwimTime(formatTimeInput(e.target.value))}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium">자전거</label>
                   <Input
                     placeholder="HH:MM:SS"
+                    inputMode="numeric"
                     value={bikeTime}
-                    onChange={(e) => setBikeTime(e.target.value)}
+                    onChange={(e) => setBikeTime(formatTimeInput(e.target.value))}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium">러닝</label>
                   <Input
                     placeholder="HH:MM:SS"
+                    inputMode="numeric"
                     value={runTime}
-                    onChange={(e) => setRunTime(e.target.value)}
+                    onChange={(e) => setRunTime(formatTimeInput(e.target.value))}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -659,8 +692,9 @@ export function RaceRecordDialog({
                 <label className="text-sm font-medium">완주 시간</label>
                 <Input
                   placeholder="HH:MM:SS"
+                  inputMode="numeric"
                   value={totalTime}
-                  onChange={(e) => setTotalTime(e.target.value)}
+                  onChange={(e) => setTotalTime(formatTimeInput(e.target.value))}
                 />
               </div>
             )}
@@ -692,8 +726,33 @@ export function RaceRecordDialog({
           datePolicy="allow-past"
           stackElevated
           prefillStartDate={raceDate.trim() || undefined}
-          onCreated={() => {}}
+          onCreated={(_comp) => {}}
         />
+      )}
+
+      {grantedTitles.length > 0 && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={dismissGranted}
+        >
+          <div className="mx-6 w-full max-w-sm rounded-2xl border border-border bg-background px-6 py-6 shadow-2xl">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <span className="text-2xl">🏅</span>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs text-muted-foreground">칭호 획득</p>
+                <p className="text-base font-bold text-foreground">
+                  {grantedTitles.length === 1
+                    ? <>「{grantedTitles[0]}」 칭호를 획득했습니다!</>
+                    : <>{grantedTitles.map((t) => `「${t}」`).join(", ")} 칭호를 획득했습니다!</>
+                  }
+                </p>
+              </div>
+              <p className={cn("text-[11px] transition-opacity duration-300", grantedDismissable ? "text-muted-foreground opacity-100" : "opacity-0")}>
+                탭하면 닫힙니다
+              </p>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

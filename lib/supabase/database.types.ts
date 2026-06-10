@@ -14,6 +14,186 @@ export type Database = {
   }
   public: {
     Tables: {
+      batch_job_mst: {
+        Row: {
+          cron_expr: string | null
+          crt_at: string
+          job_cd: string
+          job_desc: string | null
+          job_id: string
+          job_nm: string
+          param_schema_json: Json | null
+          upd_at: string | null
+          use_yn: boolean
+        }
+        Insert: {
+          cron_expr?: string | null
+          crt_at?: string
+          job_cd: string
+          job_desc?: string | null
+          job_id?: string
+          job_nm: string
+          param_schema_json?: Json | null
+          upd_at?: string | null
+          use_yn?: boolean
+        }
+        Update: {
+          cron_expr?: string | null
+          crt_at?: string
+          job_cd?: string
+          job_desc?: string | null
+          job_id?: string
+          job_nm?: string
+          param_schema_json?: Json | null
+          upd_at?: string | null
+          use_yn?: boolean
+        }
+        Relationships: []
+      }
+      batch_run_hist: {
+        Row: {
+          duration_ms: number | null
+          finished_at: string | null
+          job_id: string
+          param_json: Json | null
+          result_msg: string | null
+          run_id: string
+          started_at: string
+          status: string
+          trig_by: string | null
+          trig_type: string
+        }
+        Insert: {
+          duration_ms?: number | null
+          finished_at?: string | null
+          job_id: string
+          param_json?: Json | null
+          result_msg?: string | null
+          run_id?: string
+          started_at?: string
+          status: string
+          trig_by?: string | null
+          trig_type: string
+        }
+        Update: {
+          duration_ms?: number | null
+          finished_at?: string | null
+          job_id?: string
+          param_json?: Json | null
+          result_msg?: string | null
+          run_id?: string
+          started_at?: string
+          status?: string
+          trig_by?: string | null
+          trig_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "batch_run_hist_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "batch_job_mst"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "batch_run_hist_trig_by_fkey"
+            columns: ["trig_by"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
+      brd_post_mst: {
+        Row: {
+          crt_at: string | null
+          del_yn: boolean | null
+          pin_yn: boolean | null
+          post_cont: string
+          post_id: string
+          post_nm: string
+          post_type_enm: string
+          team_id: string
+          upd_at: string | null
+          vers: number | null
+          writ_mem_id: string | null
+        }
+        Insert: {
+          crt_at?: string | null
+          del_yn?: boolean | null
+          pin_yn?: boolean | null
+          post_cont: string
+          post_id?: string
+          post_nm: string
+          post_type_enm: string
+          team_id: string
+          upd_at?: string | null
+          vers?: number | null
+          writ_mem_id?: string | null
+        }
+        Update: {
+          crt_at?: string | null
+          del_yn?: boolean | null
+          pin_yn?: boolean | null
+          post_cont?: string
+          post_id?: string
+          post_nm?: string
+          post_type_enm?: string
+          team_id?: string
+          upd_at?: string | null
+          vers?: number | null
+          writ_mem_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brd_post_mst_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+          {
+            foreignKeyName: "brd_post_mst_writ_mem_id_fkey"
+            columns: ["writ_mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
+      brd_post_read_hist: {
+        Row: {
+          mem_id: string
+          post_id: string
+          read_at: string | null
+        }
+        Insert: {
+          mem_id: string
+          post_id: string
+          read_at?: string | null
+        }
+        Update: {
+          mem_id?: string
+          post_id?: string
+          read_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brd_post_read_hist_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "brd_post_read_hist_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "brd_post_mst"
+            referencedColumns: ["post_id"]
+          },
+        ]
+      }
       cmm_cd_grp_mst: {
         Row: {
           cd_grp_cd: string
@@ -244,6 +424,36 @@ export type Database = {
           },
         ]
       }
+      effect_mst: {
+        Row: {
+          effect_cd: string
+          effect_nm: string
+          effect_type: string
+          rarity_level: number
+          sort_ord: number
+          unlock_cond_json: Json | null
+          use_yn: boolean
+        }
+        Insert: {
+          effect_cd: string
+          effect_nm: string
+          effect_type: string
+          rarity_level: number
+          sort_ord?: number
+          unlock_cond_json?: Json | null
+          use_yn?: boolean
+        }
+        Update: {
+          effect_cd?: string
+          effect_nm?: string
+          effect_type?: string
+          rarity_level?: number
+          sort_ord?: number
+          unlock_cond_json?: Json | null
+          use_yn?: boolean
+        }
+        Relationships: []
+      }
       evt_mlg_act_hist: {
         Row: {
           act_dt: string
@@ -256,7 +466,7 @@ export type Database = {
           final_mlg: number
           prt_id: string
           review: string | null
-          sprt_enm: string
+          sprt_enm: Database["public"]["Enums"]["evt_mlg_sprt_enm"]
           updated_at: string
         }
         Insert: {
@@ -270,7 +480,7 @@ export type Database = {
           final_mlg: number
           prt_id: string
           review?: string | null
-          sprt_enm: string
+          sprt_enm: Database["public"]["Enums"]["evt_mlg_sprt_enm"]
           updated_at?: string
         }
         Update: {
@@ -284,7 +494,7 @@ export type Database = {
           final_mlg?: number
           prt_id?: string
           review?: string | null
-          sprt_enm?: string
+          sprt_enm?: Database["public"]["Enums"]["evt_mlg_sprt_enm"]
           updated_at?: string
         }
         Relationships: [
@@ -302,8 +512,8 @@ export type Database = {
           achv_mlg: number
           achv_yn: boolean
           act_cnt: number
-          created_at: string
           base_dt: string
+          created_at: string
           goal_id: string
           goal_mlg: number
           lst_act_dt: string | null
@@ -396,8 +606,8 @@ export type Database = {
           evt_id: string
           evt_nm: string
           evt_type_cd: string
-          stts_enm: string
           stt_dt: string
+          stts_enm: Database["public"]["Enums"]["evt_stts_enm"]
           team_id: string
           updated_at: string
         }
@@ -408,8 +618,8 @@ export type Database = {
           evt_id?: string
           evt_nm: string
           evt_type_cd: string
-          stts_enm?: string
           stt_dt: string
+          stts_enm?: Database["public"]["Enums"]["evt_stts_enm"]
           team_id: string
           updated_at?: string
         }
@@ -420,8 +630,8 @@ export type Database = {
           evt_id?: string
           evt_nm?: string
           evt_type_cd?: string
-          stts_enm?: string
           stt_dt?: string
+          stts_enm?: Database["public"]["Enums"]["evt_stts_enm"]
           team_id?: string
           updated_at?: string
         }
@@ -1036,6 +1246,76 @@ export type Database = {
         }
         Relationships: []
       }
+      mem_ttl_rel: {
+        Row: {
+          crt_at: string
+          del_yn: boolean
+          exp_at: string | null
+          grnt_at: string
+          grnt_by_mem_id: string | null
+          grnt_rsn_txt: string | null
+          is_prmy_yn: boolean
+          mem_ttl_id: string
+          team_id: string
+          team_mem_id: string
+          ttl_id: string
+          upd_at: string
+          vers: number
+        }
+        Insert: {
+          crt_at?: string
+          del_yn?: boolean
+          exp_at?: string | null
+          grnt_at?: string
+          grnt_by_mem_id?: string | null
+          grnt_rsn_txt?: string | null
+          is_prmy_yn?: boolean
+          mem_ttl_id?: string
+          team_id: string
+          team_mem_id: string
+          ttl_id: string
+          upd_at?: string
+          vers?: number
+        }
+        Update: {
+          crt_at?: string
+          del_yn?: boolean
+          exp_at?: string | null
+          grnt_at?: string
+          grnt_by_mem_id?: string | null
+          grnt_rsn_txt?: string | null
+          is_prmy_yn?: boolean
+          mem_ttl_id?: string
+          team_id?: string
+          team_mem_id?: string
+          ttl_id?: string
+          upd_at?: string
+          vers?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_mem_ttl_rel__grnt_by"
+            columns: ["grnt_by_mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "fk_mem_ttl_rel__team_mem_rel"
+            columns: ["team_mem_id"]
+            isOneToOne: false
+            referencedRelation: "team_mem_rel"
+            referencedColumns: ["team_mem_id"]
+          },
+          {
+            foreignKeyName: "fk_mem_ttl_rel__ttl_mst"
+            columns: ["team_id", "ttl_id"]
+            isOneToOne: false
+            referencedRelation: "ttl_mst"
+            referencedColumns: ["team_id", "ttl_id"]
+          },
+        ]
+      }
       mem_utmb_prf: {
         Row: {
           crt_at: string
@@ -1076,6 +1356,98 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "fk_mem_utmb_prf__mem_mst"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
+      noti_mst: {
+        Row: {
+          batch_id: string | null
+          crt_at: string | null
+          del_yn: boolean | null
+          mem_id: string
+          noti_cont: string | null
+          noti_id: string
+          noti_nm: string
+          noti_type_enm: string
+          read_yn: boolean | null
+          ref_id: string | null
+          ref_type_enm: string | null
+          team_id: string
+          vers: number | null
+        }
+        Insert: {
+          batch_id?: string | null
+          crt_at?: string | null
+          del_yn?: boolean | null
+          mem_id: string
+          noti_cont?: string | null
+          noti_id?: string
+          noti_nm: string
+          noti_type_enm: string
+          read_yn?: boolean | null
+          ref_id?: string | null
+          ref_type_enm?: string | null
+          team_id: string
+          vers?: number | null
+        }
+        Update: {
+          batch_id?: string | null
+          crt_at?: string | null
+          del_yn?: boolean | null
+          mem_id?: string
+          noti_cont?: string | null
+          noti_id?: string
+          noti_nm?: string
+          noti_type_enm?: string
+          read_yn?: boolean | null
+          ref_id?: string | null
+          ref_type_enm?: string | null
+          team_id?: string
+          vers?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "noti_mst_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "noti_mst_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
+      noti_pref_cfg: {
+        Row: {
+          enabled_yn: boolean | null
+          mem_id: string
+          noti_type_enm: string
+          pref_id: string
+        }
+        Insert: {
+          enabled_yn?: boolean | null
+          mem_id: string
+          noti_type_enm: string
+          pref_id?: string
+        }
+        Update: {
+          enabled_yn?: boolean | null
+          mem_id?: string
+          noti_type_enm?: string
+          pref_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "noti_pref_cfg_mem_id_fkey"
             columns: ["mem_id"]
             isOneToOne: false
             referencedRelation: "mem_mst"
@@ -1211,10 +1583,13 @@ export type Database = {
         Row: {
           crt_at: string
           del_yn: boolean
+          inact_rsn_txt: string | null
           join_dt: string | null
           leave_dt: string | null
           mem_id: string
           mem_st_cd: string
+          selected_badge_effect: string | null
+          selected_frame_cd: string | null
           team_id: string
           team_mem_id: string
           team_role_cd: string
@@ -1224,10 +1599,13 @@ export type Database = {
         Insert: {
           crt_at?: string
           del_yn?: boolean
+          inact_rsn_txt?: string | null
           join_dt?: string | null
           leave_dt?: string | null
           mem_id: string
           mem_st_cd: string
+          selected_badge_effect?: string | null
+          selected_frame_cd?: string | null
           team_id: string
           team_mem_id?: string
           team_role_cd: string
@@ -1237,10 +1615,13 @@ export type Database = {
         Update: {
           crt_at?: string
           del_yn?: boolean
+          inact_rsn_txt?: string | null
           join_dt?: string | null
           leave_dt?: string | null
           mem_id?: string
           mem_st_cd?: string
+          selected_badge_effect?: string | null
+          selected_frame_cd?: string | null
           team_id?: string
           team_mem_id?: string
           team_role_cd?: string
@@ -1294,11 +1675,127 @@ export type Database = {
         }
         Relationships: []
       }
+      ttl_mst: {
+        Row: {
+          cond_rule_json: Json | null
+          crt_at: string
+          crt_by: string | null
+          del_yn: boolean
+          desc_visibility: string
+          rarity_level: number
+          sort_ord: number
+          team_id: string
+          ttl_ctgr_cd: string
+          ttl_desc: string | null
+          ttl_group_cd: number | null
+          ttl_id: string
+          ttl_kind_enm: Database["public"]["Enums"]["ttl_kind_enm"]
+          ttl_nm: string
+          upd_at: string
+          upd_by: string | null
+          use_yn: boolean
+          vers: number
+        }
+        Insert: {
+          cond_rule_json?: Json | null
+          crt_at?: string
+          crt_by?: string | null
+          del_yn?: boolean
+          desc_visibility?: string
+          rarity_level?: number
+          sort_ord?: number
+          team_id: string
+          ttl_ctgr_cd: string
+          ttl_desc?: string | null
+          ttl_group_cd?: number | null
+          ttl_id?: string
+          ttl_kind_enm: Database["public"]["Enums"]["ttl_kind_enm"]
+          ttl_nm: string
+          upd_at?: string
+          upd_by?: string | null
+          use_yn?: boolean
+          vers?: number
+        }
+        Update: {
+          cond_rule_json?: Json | null
+          crt_at?: string
+          crt_by?: string | null
+          del_yn?: boolean
+          desc_visibility?: string
+          rarity_level?: number
+          sort_ord?: number
+          team_id?: string
+          ttl_ctgr_cd?: string
+          ttl_desc?: string | null
+          ttl_group_cd?: number | null
+          ttl_id?: string
+          ttl_kind_enm?: Database["public"]["Enums"]["ttl_kind_enm"]
+          ttl_nm?: string
+          upd_at?: string
+          upd_by?: string | null
+          use_yn?: boolean
+          vers?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_ttl_mst__crt_by"
+            columns: ["crt_by"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "fk_ttl_mst__team_mst"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+          {
+            foreignKeyName: "fk_ttl_mst__upd_by"
+            columns: ["upd_by"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      create_noti_for_team:
+        | {
+            Args: {
+              p_noti_cont?: string
+              p_noti_nm: string
+              p_noti_type_enm: string
+              p_ref_id?: string
+              p_ref_type_enm?: string
+              p_team_id: string
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_batch_id?: string
+              p_noti_cont?: string
+              p_noti_nm: string
+              p_noti_type_enm: string
+              p_ref_id?: string
+              p_ref_type_enm?: string
+              p_team_id: string
+            }
+            Returns: undefined
+          }
+      get_public_team_comp_reg_display_counts: {
+        Args: { p_comp_id: string; p_team_id: string }
+        Returns: {
+          cnt: number
+          display_key: string
+        }[]
+      }
       get_public_team_competitions: {
         Args: { p_end?: string; p_start?: string; p_team_id: string }
         Returns: {
@@ -1313,13 +1810,6 @@ export type Database = {
           reg_evt_types: string[]
           src_url: string
           stt_dt: string
-        }[]
-      }
-      get_public_team_comp_reg_display_counts: {
-        Args: { p_comp_id: string; p_team_id: string }
-        Returns: {
-          cnt: number
-          display_key: string
         }[]
       }
       get_public_team_member_stats: {
@@ -1398,12 +1888,15 @@ export type Database = {
       v2_rls_resolve_mem_id: { Args: never; Returns: string }
     }
     Enums: {
+      evt_mlg_sprt_enm: "RUNNING" | "TRAIL" | "CYCLING" | "SWIMMING"
+      evt_stts_enm: "READY" | "ACTIVE" | "CLOSED"
       fee_exm_tp_enm: "full" | "part"
       fee_grant_src_enm: "manual" | "rule_attd"
       fee_txn_io_enm: "deposit" | "withdrawal"
       gender: "male" | "female"
       member_status: "active" | "inactive" | "banned" | "pending"
       participation_role: "participant" | "cheering" | "volunteer"
+      ttl_kind_enm: "auto" | "awarded"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1531,12 +2024,15 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      evt_mlg_sprt_enm: ["RUNNING", "TRAIL", "CYCLING", "SWIMMING"],
+      evt_stts_enm: ["READY", "ACTIVE", "CLOSED"],
       fee_exm_tp_enm: ["full", "part"],
       fee_grant_src_enm: ["manual", "rule_attd"],
       fee_txn_io_enm: ["deposit", "withdrawal"],
       gender: ["male", "female"],
       member_status: ["active", "inactive", "banned", "pending"],
       participation_role: ["participant", "cheering", "volunteer"],
+      ttl_kind_enm: ["auto", "awarded"],
     },
   },
 } as const

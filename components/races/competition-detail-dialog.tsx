@@ -1,39 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
+
 import Link from "next/link";
-import { useForm } from "react-hook-form";
+
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Calendar, ExternalLink, MapPin, Pencil, Users } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { getPublicTeamCompRegDisplayCounts } from "@/app/actions/get-public-team-comp-reg-display-counts";
-import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
-import { updateCompetition } from "@/app/actions/admin/manage-competition";
-import {
-  competitionEditSchema,
-  type CompetitionEditValues,
-} from "@/lib/validations/competition";
+import { useForm } from "react-hook-form";
+
 import {
   buildEventTypeOptionList,
   COMP_EVT_TYPE_OTHER as EVENT_TYPE_OTHER,
@@ -46,6 +20,39 @@ import {
   sprtCdDisplayName,
   type CachedCmmCdRow,
 } from "@/lib/queries/cmm-cd-cached";
+import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
+import {
+  competitionEditSchema,
+  type CompetitionEditValues,
+} from "@/lib/validations/competition";
+
+import { updateCompetition } from "@/app/actions/admin/manage-competition";
+import { getPublicTeamCompRegDisplayCounts } from "@/app/actions/get-public-team-comp-reg-display-counts";
+import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+
+
 import type { Competition, CompetitionRegistration, MemberStatus } from "./types";
 
 const roleLabels = {
@@ -108,7 +115,7 @@ export function CompetitionDetailDialog({
   );
   const [eventType, setEventType] = useState("");
   const [otherEventType, setOtherEventType] = useState("");
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [participants, setParticipants] = useState<RegistrationWithMember[]>([]);
   /** 비회원 등: RLS 우회 RPC로 표시 키별 인원만 (이름 없음) */
@@ -306,14 +313,15 @@ export function CompetitionDetailDialog({
       ? sanitizeAsciiUpperCompEvtTypeInput(otherEventType).trim().length > 0
       : eventType.length > 0);
 
-  const showAuthMessage = memberStatus.status !== "ready";
+  const showInactiveMessage = memberStatus.status === "inactive";
+  const showAuthMessage = !showInactiveMessage && memberStatus.status !== "ready";
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!competition) return;
 
     if (!canSubmit) {
-      setStatusMessage("참가 종목을 선택해 주세요.");
+      setStatusMessage({ text: "참가 종목을 선택해 주세요.", ok: false });
       return;
     }
 
@@ -325,7 +333,7 @@ export function CompetitionDetailDialog({
       : await onCreate(competition.id, payload);
 
     setIsSaving(false);
-    setStatusMessage(result.message);
+    if (result.message) setStatusMessage({ text: result.message, ok: result.ok });
     if (result.ok) loadParticipants(competition.id);
   }
 
@@ -334,7 +342,7 @@ export function CompetitionDetailDialog({
     setIsSaving(true);
     const result = await onDelete(registration.id, competition.id);
     setIsSaving(false);
-    setStatusMessage(result.message);
+    if (result.message) setStatusMessage({ text: result.message, ok: result.ok });
     if (result.ok) loadParticipants(competition.id);
   }
 
@@ -570,7 +578,11 @@ export function CompetitionDetailDialog({
 
         <Separator />
 
-        {showAuthMessage ? (
+        {showInactiveMessage ? (
+          <div className="flex flex-col gap-2 text-sm">
+            <p className="text-destructive">비활성화된 회원입니다. 관리자에게 문의하세요.</p>
+          </div>
+        ) : showAuthMessage ? (
           <div className="flex flex-col gap-3 text-sm">
             {memberStatus.status === "signed-out" && (
               <p>로그인 후 참가 신청을 할 수 있습니다.</p>
@@ -661,7 +673,9 @@ export function CompetitionDetailDialog({
             )}
 
             {statusMessage && (
-              <p className="text-xs text-muted-foreground">{statusMessage}</p>
+              <p className={`text-xs ${statusMessage.ok ? "text-muted-foreground" : "text-destructive"}`}>
+                {statusMessage.text}
+              </p>
             )}
 
             <DialogFooter className="gap-2 sm:gap-0">

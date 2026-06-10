@@ -1,21 +1,32 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
 import Link from "next/link";
+
 import {
   Users,
   Trophy,
   Timer,
   FolderKanban,
   RefreshCw,
+  Code2,
+  BadgeCheck,
+  Trash2,
+  ServerCog,
+  Bell,
+  Wallet,
 } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { H2, SectionLabel } from "@/components/common/typography";
-import { CardItem } from "@/components/ui/card";
+
 import {
   getAdminStats,
   type AdminStats,
 } from "@/app/actions/admin/get-admin-stats";
+import { revalidateRecordsCache } from "@/app/actions/admin/revalidate-cache";
+
+import { H2, SectionLabel } from "@/components/common/typography";
+import { CardItem } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Card = {
   key: string;
@@ -35,15 +46,22 @@ const generalCards: Card[] = [
     getValue: (s) => s.totalCount,
   },
   {
+    key: "dues",
+    label: "회비 관리",
+    href: "/admin/dues",
+    icon: Wallet,
+    getValue: () => "",
+  },
+  {
     key: "competitions",
-    label: "이번 달 대회",
+    label: "대회 관리",
     href: "/admin/competitions",
     icon: Trophy,
     getValue: (s) => s.monthlyCompetitionCount,
   },
   {
     key: "records",
-    label: "전체 기록",
+    label: "기록 관리",
     href: "/admin/records",
     icon: Timer,
     getValue: (s) => s.recentRecordCount,
@@ -92,7 +110,7 @@ function CardGrid({
             {status === "error" && (
               <span className="text-sm text-destructive">불러오기 실패</span>
             )}
-            {status === "success" && stats && (
+            {status === "success" && stats && card.getValue(stats) !== "" && (
               <span
                 className={`text-2xl font-bold ${
                   card.getAccentValue && card.getAccentValue(stats) > 0
@@ -141,6 +159,7 @@ function ToolCard({
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [status, setStatus] = useState<FetchStatus>("loading");
+  const [revalidating, setRevalidating] = useState(false);
 
   useEffect(() => {
     getAdminStats()
@@ -170,11 +189,56 @@ export default function AdminDashboardPage() {
       <section className="flex flex-col gap-3">
         <SectionLabel>도구</SectionLabel>
         <ToolCard
+          href="/admin/notifications"
+          icon={Bell}
+          label="수동 알림 발송"
+          hint="전체 또는 특정 멤버에게 알림 발송"
+        />
+        <ToolCard
           href="/admin/utmb-refresh"
           icon={RefreshCw}
           label="UTMB 인덱스 갱신"
           hint="등록된 회원 전체 재조회"
         />
+        <CardItem
+          className="flex cursor-pointer flex-col gap-2 transition-colors active:bg-secondary"
+          onClick={async () => {
+            if (revalidating) return;
+            setRevalidating(true);
+            const result = await revalidateRecordsCache();
+            setRevalidating(false);
+            alert(result.message);
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <Trash2 className={`size-4 text-muted-foreground ${revalidating ? "animate-pulse" : ""}`} />
+            <span className="text-[13px] font-medium text-muted-foreground">
+              {revalidating ? "초기화 중..." : "랭킹 캐시 초기화"}
+            </span>
+          </div>
+          <span className="text-sm text-foreground">랭킹 탭 24시간 캐시 즉시 만료</span>
+        </CardItem>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <SectionLabel>시스템</SectionLabel>
+        <div className="grid grid-cols-2 gap-3">
+          <ToolCard
+            href="/admin/system/common-codes"
+            icon={Code2}
+            label="공통코드 관리"
+          />
+          <ToolCard
+            href="/admin/system/titles"
+            icon={BadgeCheck}
+            label="칭호 관리"
+          />
+          <ToolCard
+            href="/admin/system/batch"
+            icon={ServerCog}
+            label="배치 관리"
+          />
+        </div>
       </section>
     </div>
   );

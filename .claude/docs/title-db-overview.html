@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>칭호 시스템 DB 변경 한눈에 보기</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface-2: #334155;
+    --line: #475569;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --auto: #60a5fa;
+    --auto-bg: rgba(96, 165, 250, 0.12);
+    --awarded: #fb923c;
+    --awarded-bg: rgba(251, 146, 60, 0.12);
+    --code-bg: #0b1220;
+    --green: #4ade80;
+    --pink: #f472b6;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+  header {
+    text-align: center;
+    margin-bottom: 56px;
+  }
+  header h1 {
+    font-size: clamp(28px, 4vw, 40px);
+    margin: 0 0 12px;
+    letter-spacing: -0.02em;
+  }
+  header p.lead {
+    color: var(--muted);
+    margin: 0;
+    font-size: 17px;
+  }
+  header .pill {
+    display: inline-block;
+    margin-top: 16px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(56, 189, 248, 0.12);
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  /* 요약 카드 4개 */
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 56px;
+  }
+  .sum-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 20px;
+  }
+  .sum-card .icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+  }
+  .sum-card .title {
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 4px;
+  }
+  .sum-card .desc {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+  .sum-card code {
+    background: var(--code-bg);
+    color: var(--accent);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+  }
+
+  section { margin-bottom: 64px; }
+  section h2 {
+    font-size: 24px;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+  section .section-lead {
+    color: var(--muted);
+    margin: 0 0 24px;
+    font-size: 15px;
+  }
+
+  /* 테이블 카드 */
+  .er {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+  @media (max-width: 720px) {
+    .er { grid-template-columns: 1fr; }
+  }
+  .table-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .table-card .table-header {
+    background: var(--surface-2);
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .table-card .table-header .name {
+    font-size: 18px;
+    font-weight: 700;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    color: var(--accent);
+  }
+  .table-card .table-header .nick {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .table-card ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .table-card li {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 12px;
+    padding: 10px 20px;
+    border-bottom: 1px solid rgba(71, 85, 105, 0.4);
+    font-size: 13.5px;
+    align-items: baseline;
+  }
+  .table-card li:last-child { border-bottom: none; }
+  .table-card li .col {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    color: var(--text);
+    font-weight: 600;
+  }
+  .table-card li .col .pk { color: var(--green); font-size: 11px; margin-left: 6px; }
+  .table-card li .col .fk { color: var(--pink); font-size: 11px; margin-left: 6px; }
+  .table-card li .meaning { color: var(--muted); }
+
+  /* 관계 화살표 */
+  .relationship {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 24px 0;
+    padding: 16px;
+    background: var(--surface);
+    border-radius: 12px;
+    border: 1px dashed var(--line);
+  }
+  .relationship .arrow {
+    color: var(--accent);
+    font-size: 14px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+  }
+
+  /* 시드 데이터 그리드 */
+  .seed-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+  }
+  .seed-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px;
+  }
+  .seed-card.auto { border-left: 4px solid var(--auto); }
+  .seed-card.awarded { border-left: 4px solid var(--awarded); }
+  .seed-card h3 {
+    margin: 0 0 12px;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .seed-card h3 .badge {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 999px;
+  }
+  .seed-card.auto h3 .badge { background: var(--auto-bg); color: var(--auto); }
+  .seed-card.awarded h3 .badge { background: var(--awarded-bg); color: var(--awarded); }
+  .seed-card ol, .seed-card ul {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 13.5px;
+  }
+  .seed-card li {
+    padding: 4px 0;
+    color: var(--text);
+  }
+  .seed-card li .name {
+    font-weight: 600;
+  }
+  .seed-card li .cond {
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    margin-top: 2px;
+  }
+
+  /* 카테고리 칩 */
+  .cat-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+  .chip {
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .chip strong { color: var(--text); }
+  .chip code {
+    background: var(--code-bg);
+    color: var(--accent);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    margin-left: 4px;
+  }
+
+  /* 시나리오 */
+  .scenario {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 24px;
+  }
+  .scenario h3 {
+    margin: 0 0 16px;
+    font-size: 17px;
+  }
+  .steps {
+    display: grid;
+    gap: 12px;
+  }
+  .step {
+    display: grid;
+    grid-template-columns: 32px 1fr;
+    gap: 12px;
+    align-items: start;
+  }
+  .step .num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .step .text { color: var(--text); font-size: 14.5px; }
+  .step .text code {
+    background: var(--code-bg);
+    color: var(--accent);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12.5px;
+  }
+
+  footer {
+    text-align: center;
+    margin-top: 48px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>칭호 시스템 DB 변경 한눈에 보기</h1>
+  <p class="lead">기강 앱에 칭호 시스템이 들어가면서 새로 생기는 DB 구조를 정리했습니다.</p>
+  <span class="pill">브랜치 · feature/title-system</span>
+</header>
+
+<!-- 요약 4개 -->
+<div class="summary">
+  <div class="sum-card">
+    <div class="icon">📋</div>
+    <div class="title">테이블 2개 신설</div>
+    <div class="desc">칭호 자체와, 누가 어떤 칭호를 가졌는지 기록</div>
+    <code>ttl_mst</code>&nbsp;<code>mem_ttl_rel</code>
+  </div>
+  <div class="sum-card">
+    <div class="icon">🏷️</div>
+    <div class="title">enum 1개 신설</div>
+    <div class="desc">칭호 종류 구분 (자동 / 수여)</div>
+    <code>ttl_kind_enm</code>
+  </div>
+  <div class="sum-card">
+    <div class="icon">📚</div>
+    <div class="title">공통코드 그룹 신설</div>
+    <div class="desc">칭호 카테고리 5종 (러닝/철인/트레일/사이클/수여)</div>
+    <code>TTL_CTGR_CD</code>
+  </div>
+  <div class="sum-card">
+    <div class="icon">🚴</div>
+    <div class="title">기존 코드 1건 추가</div>
+    <div class="desc">자전거 칭호용 종목 코드</div>
+    <code>CYC_EVT_CD = MEDIOFONDO</code>
+  </div>
+</div>
+
+<!-- 핵심 테이블 2개 -->
+<section>
+  <h2>1. 핵심 테이블 2개</h2>
+  <p class="section-lead">"칭호의 정의"와 "누가 어떤 칭호를 가졌는지"를 따로 관리합니다.</p>
+
+  <div class="er">
+    <div class="table-card">
+      <div class="table-header">
+        <div class="name">ttl_mst</div>
+        <div class="nick">칭호 마스터 — 어떤 칭호가 있는지 정의</div>
+      </div>
+      <ul>
+        <li><span class="col">ttl_id<span class="pk">PK</span></span><span class="meaning">칭호 고유 ID</span></li>
+        <li><span class="col">team_id<span class="fk">FK</span></span><span class="meaning">어느 팀의 칭호인지 (팀별로 칭호가 따로 존재)</span></li>
+        <li><span class="col">ttl_kind_enm</span><span class="meaning"><strong style="color:var(--auto)">auto</strong>(자동) / <strong style="color:var(--awarded)">awarded</strong>(수여)</span></li>
+        <li><span class="col">ttl_ctgr_cd</span><span class="meaning">카테고리 (러닝/철인/트레일/사이클/수여)</span></li>
+        <li><span class="col">ttl_nm</span><span class="meaning">칭호 이름 (예: "신세계", "맛객")</span></li>
+        <li><span class="col">ttl_rank</span><span class="meaning">카테고리 내 등급 (자동만, 수여는 0)</span></li>
+        <li><span class="col">emoji_txt</span><span class="meaning">표시 이모지 (🏃 ⛰️ 🚴 🏅)</span></li>
+        <li><span class="col">cond_rule</span><span class="meaning">자동 부여 조건 (JSON, 예: 풀마라톤 3시간 이내)</span></li>
+        <li><span class="col">base_pt</span><span class="meaning">수여 칭호 기본 점수</span></li>
+        <li><span class="col">use_yn</span><span class="meaning">운영에서 사용 중인지</span></li>
+      </ul>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header">
+        <div class="name">mem_ttl_rel</div>
+        <div class="nick">회원-칭호 관계 — 누가 어떤 칭호를 보유 중인지</div>
+      </div>
+      <ul>
+        <li><span class="col">mem_ttl_id<span class="pk">PK</span></span><span class="meaning">관계 고유 ID</span></li>
+        <li><span class="col">team_id<span class="fk">FK</span></span><span class="meaning">칭호가 속한 팀</span></li>
+        <li><span class="col">team_mem_id<span class="fk">FK</span></span><span class="meaning">팀-회원 관계 키 (team_mem_rel 참조)</span></li>
+        <li><span class="col">ttl_id<span class="fk">FK</span></span><span class="meaning">어떤 칭호인지 (ttl_mst 참조)</span></li>
+        <li><span class="col">granted_at</span><span class="meaning">언제 부여됐는지</span></li>
+        <li><span class="col">expires_at</span><span class="meaning">만료 시점 (수여만 사용)</span></li>
+        <li><span class="col">granted_by_mem_id<span class="fk">FK</span></span><span class="meaning">누가 줬는지 (수여 칭호)</span></li>
+        <li><span class="col">granted_pt</span><span class="meaning">부여 시 점수 (수여만)</span></li>
+        <li><span class="col">granted_rsn_txt</span><span class="meaning">부여 사유 텍스트</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="relationship">
+    <div class="arrow">team_mst&nbsp; ─ 1:N ─&nbsp; team_mem_rel&nbsp; ─ 1:N ─&nbsp; mem_ttl_rel&nbsp; ─ N:1 ─&nbsp; ttl_mst</div>
+    <div style="color:var(--muted); font-size:12px; margin-top:8px;">
+      팀이 칭호 카탈로그를 보유 → 회원이 그중 하나를 보유
+    </div>
+  </div>
+</section>
+
+<!-- 카테고리 -->
+<section>
+  <h2>2. 칭호 카테고리 (TTL_CTGR_CD)</h2>
+  <p class="section-lead">새로 만든 공통코드 그룹. 칭호는 5개 카테고리로 분류됩니다.</p>
+  <div class="cat-row">
+    <span class="chip">🏃 러닝<code>running</code></span>
+    <span class="chip">🏅 철인<code>triathlon</code></span>
+    <span class="chip">⛰️ 트레일<code>trail</code></span>
+    <span class="chip">🚴 사이클<code>cycling</code></span>
+    <span class="chip">🎖️ 수여<code>awarded</code></span>
+  </div>
+</section>
+
+<!-- 시드 데이터: 자동 칭호 -->
+<section>
+  <h2>3. 자동 칭호 19종 (기강 팀에 미리 등록)</h2>
+  <p class="section-lead">대회 기록·가입 기간을 기반으로 시스템이 알아서 부여합니다. 카테고리별로 등급이 올라가며, 가장 높은 등급 한 개만 보유합니다.</p>
+
+  <div class="seed-grid">
+    <div class="seed-card auto">
+      <h3>🏃 러닝 <span class="badge">9등급</span></h3>
+      <ol>
+        <li><span class="name">런린이</span><span class="cond">가입 3개월 이하</span></li>
+        <li><span class="name">입문</span><span class="cond">가입 3개월 초과</span></li>
+        <li><span class="name">초보</span><span class="cond">10K PB 60분 이내</span></li>
+        <li><span class="name">중수</span><span class="cond">하프 PB 2시간 이내</span></li>
+        <li><span class="name">고수</span><span class="cond">풀 PB 5시간 이내</span></li>
+        <li><span class="name">고인물</span><span class="cond">풀 PB 4시간 이내</span></li>
+        <li><span class="name">신세계</span><span class="cond">풀 PB 3시간 30분 이내</span></li>
+        <li><span class="name">천상천하유아독존</span><span class="cond">풀 PB 3시간 10분 이내</span></li>
+        <li><span class="name">최고존엄</span><span class="cond">풀 PB 3시간 이내</span></li>
+      </ol>
+    </div>
+
+    <div class="seed-card auto">
+      <h3>🏅 철인 <span class="badge">3등급</span></h3>
+      <ol>
+        <li><span class="name">올림픽 철인</span><span class="cond">올림픽 코스 완주</span></li>
+        <li><span class="name">하프철인</span><span class="cond">하프 코스 완주</span></li>
+        <li><span class="name">킹철인</span><span class="cond">풀 코스 완주</span></li>
+      </ol>
+    </div>
+
+    <div class="seed-card auto">
+      <h3>⛰️ 트레일 <span class="badge">5등급</span></h3>
+      <ol>
+        <li><span class="name">동네언덕</span><span class="cond">트레일 대회 참가</span></li>
+        <li><span class="name">뒷산</span><span class="cond">20K 트레일 완주</span></li>
+        <li><span class="name">산악구보</span><span class="cond">50K 트레일 완주</span></li>
+        <li><span class="name">산악대장</span><span class="cond">100K 트레일 완주</span></li>
+        <li><span class="name">산신령</span><span class="cond">100M 트레일 완주</span></li>
+      </ol>
+    </div>
+
+    <div class="seed-card auto">
+      <h3>🚴 자전거 <span class="badge">2등급</span></h3>
+      <ol>
+        <li><span class="name">메디오폰도</span><span class="cond">메디오폰도 완주</span></li>
+        <li><span class="name">그란폰도</span><span class="cond">그란폰도 완주</span></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- 시드 데이터: 수여 칭호 -->
+<section>
+  <h2>4. 수여 칭호 4종</h2>
+  <p class="section-lead">기강단장이 직접 수여하는 칭호. 점수와 만료일은 수여 시점에 입력합니다.</p>
+  <div class="seed-grid">
+    <div class="seed-card awarded">
+      <h3>🎖️ 서브현근 <span class="badge">수여</span></h3>
+      <ul><li>모임장보다 풀코스 빠른 회원</li></ul>
+    </div>
+    <div class="seed-card awarded">
+      <h3>🎖️ 기강단장 <span class="badge">수여</span></h3>
+      <ul><li>기강 모임장</li></ul>
+    </div>
+    <div class="seed-card awarded">
+      <h3>🎖️ 행동대장 <span class="badge">수여</span></h3>
+      <ul><li>운영진</li></ul>
+    </div>
+    <div class="seed-card awarded">
+      <h3>🎖️ 맛객 <span class="badge">수여</span></h3>
+      <ul><li>맛집을 잘 아는 회원</li></ul>
+    </div>
+  </div>
+</section>
+
+<!-- 실제 흐름 -->
+<section>
+  <h2>5. 실제 동작 시나리오</h2>
+  <p class="section-lead">홍길동이 풀마라톤 3시간 25분 기록을 등록하면 어떻게 되는지 따라가 봅니다.</p>
+
+  <div class="scenario">
+    <h3>예시 — "신세계" 칭호 자동 부여</h3>
+    <div class="steps">
+      <div class="step"><span class="num">1</span><span class="text">홍길동이 프로필에서 풀마라톤 <code>3:25:00</code> 기록 입력 → <code>rec_race_hist</code> 에 저장.</span></div>
+      <div class="step"><span class="num">2</span><span class="text">서버 액션 <code>recomputeAutoTitles(teamId, memId)</code> 실행 — 4개 카테고리를 다시 계산.</span></div>
+      <div class="step"><span class="num">3</span><span class="text">러닝 카테고리: 등급 9→1 순으로 검사. <code>최고존엄(3h 이내)</code>·<code>천상천하(3h10m 이내)</code> 미충족 → <strong style="color:var(--auto)">신세계(3h30m 이내)</strong> 충족.</span></div>
+      <div class="step"><span class="num">4</span><span class="text"><code>mem_ttl_rel</code> 의 기존 러닝 칭호 정본 행을 <code>vers &gt; 0</code> 으로 이력화하고, <strong>신세계</strong>를 새 정본으로 INSERT.</span></div>
+      <div class="step"><span class="num">5</span><span class="text">화면 노출 시 보유자 수와 활성 회원 수로 점수를 동적 계산 (DB에 점수 저장 안 함).</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 핵심 정책 -->
+<section>
+  <h2>6. 알아두면 좋은 정책</h2>
+  <ul style="font-size: 14.5px; line-height: 1.9; color: var(--text); padding-left: 20px;">
+    <li><strong>팀별 분리</strong> — 같은 회원이 여러 팀에 속하면 팀마다 칭호가 따로 계산됩니다.</li>
+    <li><strong>자동 칭호는 카테고리당 1개</strong> — 등급이 올라가면 이전 칭호는 이력으로 빠지고 새 등급이 정본이 됩니다.</li>
+    <li><strong>점수는 동적</strong> — 자동 칭호 점수는 <code>활성 회원 수 ÷ 보유자 수</code>로 매번 계산. 희귀할수록 높음.</li>
+    <li><strong>수여 칭호 점수는 정적</strong> — 부여 시 입력한 <code>granted_pt</code> 값을 그대로 사용.</li>
+    <li><strong>가입일 기준은 팀별 가입일</strong> — <code>team_mem_rel.join_dt</code> 사용. 글로벌 가입일은 사용하지 않음.</li>
+    <li><strong>자동 부여는 서버에서만</strong> — 회원이 자기 칭호를 임의로 INSERT 못하도록 RLS로 차단. 서버 액션(서비스 롤)에서만 부여.</li>
+  </ul>
+</section>
+
+<footer>
+  근거 문서: <code>.claude/docs/database-schema-v2-title-domain.md</code> · <code>supabase/migrations/2026042911~13*.sql</code>
+</footer>
+
+</div>
+</body>
+</html>

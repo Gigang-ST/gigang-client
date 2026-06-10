@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { prevMonthStr, nextMonthStr } from "@/lib/dayjs";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,6 @@ export function MonthNavigator({
   endMonth: string;
 }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { isPending, startTransition } = useMonthTransition();
 
   const displayMonth = Number(currentMonth.split("-")[1]);
@@ -30,7 +29,9 @@ export function MonthNavigator({
   const hasNext = nextMonth <= endMonth;
 
   function navigate(month: string) {
-    const params = new URLSearchParams(searchParams.toString());
+    // window.location.search로 최신 URL을 읽어 차트 탭(?tab=)이 보존되도록 한다.
+    // (탭은 replaceState로 갱신되므로 useSearchParams 스냅샷에는 반영되지 않을 수 있음)
+    const params = new URLSearchParams(window.location.search);
     params.set("month", month);
     startTransition(() => {
       router.push(`?${params.toString()}`, { scroll: false });

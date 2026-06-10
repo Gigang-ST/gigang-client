@@ -2,14 +2,15 @@
 
 import { revalidateTag } from "next/cache";
 
-import { getCurrentMember } from "@/lib/queries/member";
-import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
+import { getCurrentMember, verifyActive } from "@/lib/queries/member";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import {
   normalizeCompEvtType,
   resolveCompEvtIdForRaceRecord,
 } from "@/lib/server/comp-evt-cfg";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 
 type SaveRaceRecordInput = {
   competitionId: string;
@@ -106,6 +107,9 @@ export async function saveRaceRecord(input: SaveRaceRecordInput) {
   const { member, supabase } = await getCurrentMember();
   if (!member) return { ok: false as const, message: "로그인이 필요합니다." };
 
+  const activeCheck = await verifyActive();
+  if (!activeCheck.ok) return { ok: false as const, message: activeCheck.message };
+
   const { teamId } = await getRequestTeamContext();
   if (compEvtTypeContainsHangul(input.eventType)) {
     return {
@@ -165,7 +169,17 @@ export async function saveRaceRecord(input: SaveRaceRecordInput) {
     revalidateTag(`records:${teamId}`, "max");
   }
 
-  return { ok: true as const, message: null };
+  // 칭호 자동 평가 — 실패해도 기록 저장 결과에 영향을 주지 않는다.
+  const grantedTitles = await evaluateAndGrantTitles({
+    trigger: "race_record",
+    teamId,
+    teamMemId: member.team_mem_id,
+  }).catch((e) => {
+    console.error("[title-engine] race_record 평가 실패", e);
+    return [] as string[];
+  });
+
+  return { ok: true as const, message: null, grantedTitles };
 }
 
 export async function updateRaceRecord(
@@ -174,6 +188,9 @@ export async function updateRaceRecord(
 ) {
   const { member, supabase } = await getCurrentMember();
   if (!member) return { ok: false as const, message: "로그인이 필요합니다." };
+
+  const activeCheck = await verifyActive();
+  if (!activeCheck.ok) return { ok: false as const, message: activeCheck.message };
 
   const { data: target, error: fetchError } = await supabase
     .from("rec_race_hist")
@@ -222,6 +239,9 @@ export async function updateRaceRecord(
 export async function deleteRaceRecord(recordId: string) {
   const { member, supabase } = await getCurrentMember();
   if (!member) return { ok: false as const, message: "로그인이 필요합니다." };
+
+  const activeCheck = await verifyActive();
+  if (!activeCheck.ok) return { ok: false as const, message: activeCheck.message };
 
   const { data: target, error: fetchError } = await supabase
     .from("rec_race_hist")

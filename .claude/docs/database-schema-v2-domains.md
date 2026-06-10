@@ -1,6 +1,6 @@
-# 도메인 확장 설계 v2 (대회·참가·기록·회비)
+# 도메인 확장 설계 v2 (대회·참가·기록·회비·칭호)
 
-멀티팀 v2에서 **대회/참가/기록/회비** 도메인을 정의한다. 팀 이벤트·칭호는 본 문서 하단에 **작성 보류**로 두었으며, 별도 요구 확정 후 동일 규약으로 추가한다.
+멀티팀 v2에서 **대회/참가/기록/회비/칭호** 도메인을 정의한다. 칭호 도메인 상세는 `database-schema-v2-title-domain.md`를 기준으로 한다.
 
 ## 1) 설계 원칙
 - 개인 원본 데이터는 `mem_id` 기준으로 전역 관리
@@ -174,6 +174,51 @@
 4. 관리자 수동 확정(회원·카테고리)
 5. 회비 건만 `fee_due_pay_hist` 반영 후, 필요 시 재계산으로 `fee_mem_bal_snap` 갱신
 
+### 4.3 잔액 재계산 로직 (`recalculate-balance`)
+
+**증분 계산 (스냅샷 있을 때)**
+
+```
+fee_mem_bal_snap에서 last_calc_dt, last_ref_pay_id, last_ref_exm_hist_id 조회
+→ last_calc_dt 이후 fee_due_pay_hist 신규 건 합산
+→ last_calc_dt 이후 fee_due_exm_hist 신규 건 합산
+→ bal_amt 갱신, 워터마크 갱신
+→ last_calc_dt 이전 데이터가 포함되면 오류 반환 (역행 방지)
+```
+
+**전체 재계산 (스냅샷 초기화)**
+
+```
+fee_mem_bal_snap 해당 회원 행 del_yn = true (또는 삭제)
+→ team_mem_rel.join_dt 이후 전 구간 대상
+→ fee_policy_cfg에서 월별 부과금액 조회
+→ fee_due_exm_cfg/fee_due_exm_hist에서 면제 반영
+→ fee_due_pay_hist에서 납부액 합산
+→ bal_amt = 총 납부 + 면제 - 총 부과 로 신규 스냅샷 생성
+```
+
+**부과 계산 기준**:
+- 부과 시작 월: `team_mem_rel.join_dt` 기준 **다음 달 1일**부터
+- 가입 당월: `fee_due_exm_cfg`에 `full` 면제 규칙이 자동 생성되어 있어야 함
+- 각 월의 부과금액: 해당 월 1일 기준 `fee_policy_cfg`에서 `aply_stt_dt <= 해당월 AND aply_end_dt >= 해당월` 구간의 `monthly_fee_amt` 조회
+
+### 4.4 초기 데이터 (시드)
+
+앱 구현 전 `fee_policy_cfg`에 기본 회비 정책 1건을 삽입해야 한다.
+
+```sql
+-- 실행 전: SELECT team_id FROM team_mst WHERE team_nm = '기강' AND vers = 0 AND del_yn = false;
+INSERT INTO fee_policy_cfg (team_id, aply_stt_dt, aply_end_dt, monthly_fee_amt)
+VALUES (
+  '<기강-team_id>',   -- team_mst에서 확인
+  '2026-01-01',
+  '9999-12-31',       -- 무기한 적용
+  2000
+);
+```
+
+현재 상태: **삽입 완료** (prd 기준 `aply_stt_dt = '2020-01-01'`, `aply_end_dt = '2099-12-31'`, `monthly_fee_amt = 2000`)
+
 ### `fee_xlsx_upd_hist` (엑셀 업로드 이력)
 **역할:** 업로드 단위를 추적하고 동일 파일 재업로드를 막으며, 롤백 단위를 식별한다.
 
@@ -323,16 +368,38 @@
 유니크:
 - (`team_id`, `mem_id`, `vers`)
 
+**vers 정책 (이력 보존):**
+- `vers=0` = 현재 잔액 (정본)
+- `vers>0` = 과거 정산 이력 (숫자가 클수록 오래된 이력)
+- 새 정산 실행 시:
+  1. 현재 `vers=0` 행의 vers를 `(SELECT max(vers)+1)` 로 UPDATE
+  2. 새 행을 `vers=0`으로 INSERT
+- 이력 조회: `vers > 0 ORDER BY vers ASC` (vers 낮을수록 최근 이력) / 현재 잔액: `vers = 0`
+
 정산 규칙:
-- 스냅샷이 있으면 `last_calc_dt` 다음 일자부터 증분 계산한다.
-- 예: 스냅샷 기준일이 `2026-02-01`이면, `2026-02-02 ~ 실행일` 구간만 누적 반영한다.
+- **스냅샷(`vers=0`) 있는 경우**: `last_calc_dt` 이후 신규 납부·면제·부과만 증분 계산 → 기존 `vers=0`을 `max(vers)+1`로 밀고 새 `vers=0` INSERT
+- **스냅샷 없는 경우 (신규 회원 첫 정산)**: `team_mem_rel.join_dt`부터 현재까지 `fee_policy_cfg` 기준 전체 계산 → `vers=0`으로 첫 INSERT
 - 스냅샷 기준일 이전(`pay_dt < last_calc_dt`) 데이터가 신규 반영 대상에 포함되면 오류를 반환한다.
 - 과거 정정이 필요한 경우 "스냅샷 재생성(초기화 후 전체 재계산)" 경로로만 처리한다.
-- 면제 반영이 pay와 다른 키로 쌓이므로 증분 시 **`fee_due_exm_hist` 미반영분**도 워터마크(`last_ref_exm_hist_id` 등)와 함께 고려한다(실제 구현은 단일 시퀀스·시각으로 단순화 가능).
 
-## 5) 팀 이벤트/칭호 도메인 (작성 보류)
-- 팀 이벤트/칭호 도메인 상세는 추후 별도 문서를 기준으로 재작성한다.
-- 현재 문서는 회비 도메인 확정까지를 범위로 한다.
+## 5) 칭호 도메인
+
+### 5.1 테이블 구성
+- `ttl_mst`: 팀별 칭호 카탈로그(자동/수여 정의)
+- `mem_ttl_rel`: 회원-칭호 보유/부여 관계
+
+### 5.2 정합성 원칙
+- `mem_ttl_rel(team_mem_id)` -> `team_mem_rel(team_mem_id)` FK
+- `mem_ttl_rel(team_id, ttl_id)` -> `ttl_mst(team_id, ttl_id)` 복합 FK
+- 목적:
+  - 팀 미소속 회원에게 칭호를 부여하는 오류 차단
+  - 다른 팀 칭호를 잘못 부여하는 오류 차단
+
+### 5.3 컬럼/메타 규약
+- 공통 메타 컬럼은 `crt_at`, `upd_at`, `del_yn`, `vers`를 사용한다.
+- 생성자/수정자 추적은 선택 공통 컬럼 `crt_by`, `upd_by`를 사용한다.
+- `created_at`, `updated_at` 같은 컬럼명은 사용하지 않는다.
+- 상세 컬럼 정의/제약/인덱스/RLS 초안은 `database-schema-v2-title-domain.md`를 따른다.
 
 ## 6) 관계 요약
 - `mem_mst 1:N team_mem_rel`
@@ -359,6 +426,10 @@
 - `fee_due_exm_cfg 1:N fee_due_exm_hist`
 - `team_mst 1:N fee_mem_bal_snap`
 - `mem_mst 1:N fee_mem_bal_snap`
+- `team_mst 1:N ttl_mst`
+- `ttl_mst 1:N mem_ttl_rel`
+- `mem_mst 1:N mem_ttl_rel`
+- `team_mem_rel 1:N mem_ttl_rel`
 
 ## 7) 운영상 이점
 - 회비는 원시(`fee_txn_hist`)·확정(`fee_due_pay_hist`)·면제(cfg/hist)·스냅샷으로 역할이 나뉘어 소규모 운영에 맞는 단순함과 감사 추적을 동시에 확보한다.

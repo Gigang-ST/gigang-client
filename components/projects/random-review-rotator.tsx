@@ -1,12 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
+import { getFrameCls } from "@/lib/title-effects";
+import { cn } from "@/lib/utils";
+
+import { TitleBadge } from "@/components/common/title-badge";
 import { Caption } from "@/components/common/typography";
 
 export type ReviewLine = {
   id: string;
   quote: string;
-  meta: string;
+  name: string;
+  metaSuffix: string;
+  ttlNm: string | null;
+  ttlDesc: string | null;
+  descVisibility: "always" | "others" | "held" | "never";
+  badgeEffect: string | null;
+  frameCd: string | null;
+  isHeld: boolean;
 };
 
 type RandomReviewRotatorProps = {
@@ -66,9 +78,14 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
   const next = picks[(index + 1) % picks.length] ?? current;
   if (!current) return null;
 
+  const frameCls = getFrameCls(current.frameCd);
+
   return (
     <div
-      className="relative rounded-2xl bg-muted px-4 py-3 select-none"
+      className={cn(
+        "relative rounded-2xl bg-muted px-4 py-3 border select-none",
+        frameCls,
+      )}
       role="status"
       aria-live="polite"
       aria-atomic="true"
@@ -121,9 +138,20 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
                 onTouchEnd={() => setTooltipText(null)}
                 onTouchCancel={() => setTooltipText(null)}
               >
-                "{line.quote}"
+                &ldquo;{line.quote}&rdquo;
               </Caption>
-              <Caption className="mt-0.5 line-clamp-1 text-muted-foreground">{line.meta}</Caption>
+              <Caption className="mt-0.5 line-clamp-1 text-muted-foreground flex items-center gap-1 flex-wrap">
+                <span>{line.name}</span>
+                {line.ttlNm && (
+                  <TitleBadge
+                    name={line.ttlNm}
+                    effect={line.badgeEffect}
+                    size="xs"
+                    tooltip={{ desc: line.ttlDesc, visibility: line.descVisibility as "always" | "others" | "held" | "never", isHeld: line.isHeld, isOwner: false }}
+                  />
+                )}
+                <span>{line.metaSuffix}</span>
+              </Caption>
             </div>
           ))}
         </div>
