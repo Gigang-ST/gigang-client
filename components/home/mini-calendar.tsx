@@ -1,13 +1,8 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { todayKST, currentMonthKST, daysInMonth } from "@/lib/dayjs";
-import dayjs from "dayjs";
-import timezone from "dayjs/plugin/timezone";
-import utc from "dayjs/plugin/utc";
-dayjs.extend(utc);
-dayjs.extend(timezone);
+import { CalendarDays, ChevronLeft, ChevronRight, List } from "lucide-react";
+import { dayjs, todayKST, currentMonthKST, daysInMonth } from "@/lib/dayjs";
 import { createClient } from "@/lib/supabase/client";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-create-comp-evt-for-participation";
@@ -15,6 +10,8 @@ import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
 import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
 import { Micro, SectionLabel } from "@/components/common/typography";
 import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
+import { ScheduleListView } from "@/components/home/schedule-list-view";
+import { SchPostFormDialog } from "@/components/schedule/sch-post-form-dialog";
 import { cn } from "@/lib/utils";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
 import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
@@ -23,12 +20,23 @@ export type CalendarRace = {
   id: string;
   title: string;
   start_date: string;
-  type: "gigang" | "mine";
+  type: "gigang" | "mine" | "schedule";
+  // 공통 선택 필드
+  end_date?: string | null;
+  location?: string | null;
+  // schedule 전용
+  url?: string | null;
+  cont_txt?: string | null;
+  crt_by?: string;
+  // 시간 표시용 (원본 일시 문자열)
+  evt_stt_at?: string | null;
+  evt_end_at?: string | null;
 };
 
 type MiniCalendarProps = {
   gigangRaces: CalendarRace[];
   myRaces: CalendarRace[];
+  schPosts: CalendarRace[];
   teamId: string;
   memberId?: string;
   cmmCdRows: CachedCmmCdRow[];
@@ -46,6 +54,7 @@ function monthLastDayStr(year: number, month: number): string {
 export function MiniCalendar({
   gigangRaces: initGigang,
   myRaces: initMine,
+  schPosts: initSchPosts,
   teamId,
   memberId,
   cmmCdRows,
@@ -57,8 +66,15 @@ export function MiniCalendar({
   const [viewMonth, setViewMonth] = useState(initialMonth);
   const [gigangRaces, setGigangRaces] = useState(initGigang);
   const [myRaces, setMyRaces] = useState(initMine);
+  const [schPosts, setSchPosts] = useState(initSchPosts);
   const [isPending, startTransition] = useTransition();
 
+  // 일정 폼 다이얼로그 상태
+  const [formOpen, setFormOpen] = useState(false);
+  const [formMode, setFormMode] = useState<"create" | "edit">("create");
+  const [editTarget, setEditTarget] = useState<CalendarRace | null>(null);
+
+  const [view, setView] = useState<"calendar" | "list">("calendar");
   const [selectedDate, setSelectedDate] = useState<string>(() => todayKST());
   const [selectedCompetition, setSelectedCompetition] = useState<Competition | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -75,10 +91,10 @@ export function MiniCalendar({
   const totalDays = daysInMonth(year, month);
   const firstDayOfWeek = dayjs.tz(`${year}-${String(month).padStart(2, "0")}-01`, "Asia/Seoul").day();
 
-  // 날짜별 이벤트 목록 (mine 우선, 중복 제거)
+  // 날짜별 이벤트 목록 (mine 우선, schedule, gigang 순)
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarRace[]>();
-    const allRaces = [...myRaces, ...gigangRaces];
+    const allRaces = [...myRaces, ...schPosts, ...gigangRaces];
     const seen = new Set<string>();
     for (const race of allRaces) {
       const key = `${race.start_date}:${race.id}`;
@@ -89,7 +105,7 @@ export function MiniCalendar({
       map.set(race.start_date, list);
     }
     return map;
-  }, [gigangRaces, myRaces]);
+  }, [gigangRaces, myRaces, schPosts]);
 
   // 주차별로 날짜 그룹핑
   const weeks = useMemo(() => {
@@ -103,6 +119,7 @@ export function MiniCalendar({
     }
     return result;
   }, [firstDayOfWeek, totalDays]);
+
 
   function formatCellDate(day: number): string {
     return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -175,6 +192,7 @@ export function MiniCalendar({
       ...prev,
       [competitionId]: { id: data.comp_reg_id, competition_id: competitionId, member_id: data.mem_id, role: data.prt_role_cd as "participant" | "cheering" | "volunteer", event_type: eventType, created_at: data.crt_at },
     }));
+    handleSchPostSuccess();
     return { ok: true as const, message: "참가 신청 완료" };
   };
 
@@ -207,6 +225,7 @@ export function MiniCalendar({
       ...prev,
       [competitionId]: { id: data.comp_reg_id, competition_id: competitionId, member_id: data.mem_id, role: data.prt_role_cd as "participant" | "cheering" | "volunteer", event_type: eventType, created_at: data.crt_at },
     }));
+    handleSchPostSuccess();
     return { ok: true as const, message: "업데이트 완료" };
   };
 
@@ -218,6 +237,7 @@ export function MiniCalendar({
       delete next[competitionId];
       return next;
     });
+    handleSchPostSuccess();
     return { ok: true as const, message: "취소 완료" };
   };
 
@@ -258,167 +278,302 @@ export function MiniCalendar({
       });
     }
 
-    return { gigang: newGigang, mine: newMine };
+    // sch_post 조회
+    const { data: schPostRows } = await supabase
+      .from("sch_post")
+      .select("sch_post_id, sch_nm, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
+      .eq("team_id", teamId)
+      .gte("evt_stt_at", newMonth)
+      .lte("evt_stt_at", lastDay)
+      .eq("del_yn", false)
+      .order("evt_stt_at", { ascending: true });
+
+    const newSchPosts: CalendarRace[] = (schPostRows ?? []).map((row) => ({
+      id: row.sch_post_id,
+      title: row.sch_nm,
+      start_date: row.evt_stt_at.slice(0, 10),
+      type: "schedule" as const,
+      end_date: row.evt_end_at,
+      url: row.url,
+      cont_txt: row.cont_txt,
+      crt_by: row.crt_by,
+    }));
+
+    return { gigang: newGigang, mine: newMine, schPosts: newSchPosts };
   }
 
   function navigate(dir: -1 | 1) {
     startTransition(async () => {
-      const d = new Date(`${viewMonth}`);
-      d.setMonth(d.getMonth() + dir);
-      const newMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-      const { gigang, mine } = await fetchMonthData(newMonth);
+      const newMonthDayjs = dayjs(viewMonth).add(dir, "month");
+      const newMonth = newMonthDayjs.format("YYYY-MM-01");
+      const { gigang, mine, schPosts: newSch } = await fetchMonthData(newMonth);
       setViewMonth(newMonth);
       setGigangRaces(gigang);
       setMyRaces(mine);
+      setSchPosts(newSch);
     });
+  }
+
+  function openCreateForm(defaultDate?: string) {
+    setFormMode("create");
+    setEditTarget(defaultDate ? { id: "", title: "", start_date: defaultDate, type: "schedule" } : null);
+    setFormOpen(true);
+  }
+
+  function openEditForm(race: CalendarRace) {
+    setFormMode("edit");
+    setEditTarget(race);
+    setFormOpen(true);
+  }
+
+  async function handleSchPostSuccess() {
+    // 현재 달 다시 패칭
+    const { gigang, mine, schPosts: newSch } = await fetchMonthData(viewMonth);
+    setGigangRaces(gigang);
+    setMyRaces(mine);
+    setSchPosts(newSch);
   }
 
   return (
     <div className="flex flex-col gap-2">
       {/* 헤더 */}
       <div className="flex items-center justify-between">
-        <SectionLabel>SCHEDULE</SectionLabel>
-        <div className="flex items-center gap-1">
-          <Micro className="font-medium tabular-nums text-foreground">
-            {year}.{String(month).padStart(2, "0")}
-          </Micro>
-          <button
-            onClick={() => navigate(-1)}
-            disabled={isPending}
-            className="flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
-            aria-label="이전 달"
-          >
-            <ChevronLeft className="size-3.5" />
-          </button>
-          <button
-            onClick={() => navigate(1)}
-            disabled={isPending}
-            className="flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
-            aria-label="다음 달"
-          >
-            <ChevronRight className="size-3.5" />
-          </button>
+        <div className="flex items-center gap-2">
+          <SectionLabel>SCHEDULE</SectionLabel>
+          {/* 뷰 전환 토글 */}
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={() => setView("calendar")}
+              aria-label="캘린더 뷰"
+              className="flex size-5 items-center justify-center rounded transition-colors hover:bg-secondary"
+            >
+              <CalendarDays
+                className={cn(
+                  "size-3.5 transition-colors",
+                  view === "calendar" ? "text-foreground" : "text-muted-foreground",
+                )}
+              />
+            </button>
+            <button
+              onClick={() => setView("list")}
+              aria-label="리스트 뷰"
+              className="flex size-5 items-center justify-center rounded transition-colors hover:bg-secondary"
+            >
+              <List
+                className={cn(
+                  "size-3.5 transition-colors",
+                  view === "list" ? "text-foreground" : "text-muted-foreground",
+                )}
+              />
+            </button>
+          </div>
         </div>
+
+        {/* 리스트뷰 일정 추가 버튼 — 헤더 우측 */}
+        {view === "list" && memberStatus.status === "ready" && (
+          <button
+            onClick={() => openCreateForm()}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          >
+            <span className="text-[15px] leading-none">+</span>
+            일정 추가
+          </button>
+        )}
+
+        {/* 월 네비게이션 — 캘린더뷰에서만 표시 */}
+        {view === "calendar" && (
+          <div className="flex items-center gap-1">
+            <Micro className="font-medium tabular-nums text-foreground">
+              {year}.{String(month).padStart(2, "0")}
+            </Micro>
+            <button
+              onClick={() => navigate(-1)}
+              disabled={isPending}
+              className="flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
+              aria-label="이전 달"
+            >
+              <ChevronLeft className="size-3.5" />
+            </button>
+            <button
+              onClick={() => navigate(1)}
+              disabled={isPending}
+              className="flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
+              aria-label="다음 달"
+            >
+              <ChevronRight className="size-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* 달력 + 이벤트 */}
-      <div className={cn("flex flex-col transition-opacity", isPending && "opacity-50")}>
-        {/* 요일 헤더 */}
-        <div className="grid grid-cols-7 text-center">
-          {WEEKDAYS.map((wd) => (
-            <Micro
-              key={wd}
-              className={cn(
-                "pb-1",
-                wd === "일" && "text-destructive",
-                wd === "토" && "text-primary",
-              )}
-            >
-              {wd}
-            </Micro>
-          ))}
-        </div>
+      {view === "calendar" ? (
+        <>
+          {/* 달력 + 이벤트 */}
+          <div className={cn("flex flex-col transition-opacity", isPending && "opacity-50")}>
+            {/* 요일 헤더 */}
+            <div className="grid grid-cols-7 text-center">
+              {WEEKDAYS.map((wd) => (
+                <Micro
+                  key={wd}
+                  className={cn(
+                    "pb-1",
+                    wd === "일" && "text-destructive",
+                    wd === "토" && "text-primary",
+                  )}
+                >
+                  {wd}
+                </Micro>
+              ))}
+            </div>
 
-        {/* 바둑판 그리드 — 셀 고정 높이 */}
-        <div className="grid grid-cols-7">
-          {weeks.flat().map((day, idx) => {
-            if (day === null) {
-              return <div key={`empty-${idx}`} className="h-15 border-t border-border/40" />;
-            }
-            const dateStr = formatCellDate(day);
-            const isToday = dateStr === today;
-            const isSelected = selectedDate === dateStr;
-            const colIndex = idx % 7;
-            const races = eventsByDate.get(dateStr) ?? [];
+            {/* 바둑판 그리드 — 셀 고정 높이 */}
+            <div className="grid grid-cols-7">
+              {weeks.flat().map((day, idx) => {
+                if (day === null) {
+                  return <div key={`empty-${idx}`} className="h-15 border-t border-border/40" />;
+                }
+                const dateStr = formatCellDate(day);
+                const isToday = dateStr === today;
+                const isSelected = selectedDate === dateStr;
+                const colIndex = idx % 7;
+                const races = eventsByDate.get(dateStr) ?? [];
 
-            return (
-              <button
-                key={dateStr}
-                onClick={() => setSelectedDate(dateStr)}
-                className={cn(
-                  "flex h-15 flex-col gap-px overflow-hidden border-t border-border/40 px-0.5 pt-0.5 text-left transition-colors",
-                  isSelected && "bg-secondary/60",
-                )}
-                aria-pressed={isSelected}
-              >
-                {/* 날짜 숫자 + 초과 개수 */}
-                <div className="flex items-center justify-center gap-0.5">
-                  <span
+                return (
+                  <button
+                    key={dateStr}
+                    onClick={() => setSelectedDate(dateStr)}
                     className={cn(
-                      "flex size-6 items-center justify-center rounded-full text-[12px] font-medium",
-                      isToday && "bg-primary text-primary-foreground font-bold",
-                      !isToday && colIndex === 0 && "text-destructive",
-                      !isToday && colIndex === 6 && "text-primary",
-                      !isToday && colIndex !== 0 && colIndex !== 6 && "text-foreground",
+                      "flex h-15 flex-col gap-px overflow-hidden border-t border-border/40 px-0.5 pt-0.5 text-left transition-colors",
+                      isSelected && "bg-secondary/60",
                     )}
+                    aria-pressed={isSelected}
                   >
-                    {day}
+                    {/* 날짜 숫자 + 초과 개수 */}
+                    <div className="flex items-center justify-center gap-0.5">
+                      <span
+                        className={cn(
+                          "flex size-6 items-center justify-center rounded-full text-[12px] font-medium",
+                          isToday && "bg-primary text-primary-foreground font-bold",
+                          !isToday && colIndex === 0 && "text-destructive",
+                          !isToday && colIndex === 6 && "text-primary",
+                          !isToday && colIndex !== 0 && colIndex !== 6 && "text-foreground",
+                        )}
+                      >
+                        {day}
+                      </span>
+                      {races.length > 3 && (
+                        <span className="text-[8px] font-medium text-muted-foreground leading-none">
+                          +{races.length - 3}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* 이벤트 목록 — 최대 3개 */}
+                    <div className="flex flex-col gap-px">
+                      {races.slice(0, 3).map((race) => (
+                        <span
+                          key={race.id}
+                          className={cn(
+                            "w-full overflow-hidden rounded-sm px-0.5 text-left text-[7px] font-medium leading-[1.5]",
+                            race.type === "mine"
+                              ? "bg-success/20 text-success"
+                              : race.type === "schedule"
+                                ? "bg-info/15 text-info"
+                                : "bg-warning/15 text-warning",
+                          )}
+                          style={{ whiteSpace: "nowrap", textOverflow: "clip" }}
+                        >
+                          {race.title}
+                        </span>
+                      ))}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 날짜 패널 — 항상 표시, 클릭으로 날짜 변경 */}
+          {(() => {
+            const panelRaces = eventsByDate.get(selectedDate) ?? [];
+            const [, , dd] = selectedDate.split("-");
+            return (
+              <div className="mt-1 flex items-start gap-3 rounded-xl bg-secondary/50 px-3 py-2">
+                <div className="flex shrink-0 flex-col items-center gap-0.5 pt-0.5">
+                  <span className="text-[18px] font-bold leading-none text-foreground tabular-nums">
+                    {parseInt(dd, 10)}
                   </span>
-                  {races.length > 3 && (
-                    <span className="text-[8px] font-medium text-muted-foreground leading-none">
-                      +{races.length - 3}
-                    </span>
+                  {memberStatus.status === "ready" && (
+                    <button
+                      onClick={() => openCreateForm(selectedDate)}
+                      className="flex size-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-border hover:text-foreground"
+                      aria-label="일정 추가"
+                    >
+                      <span className="text-[14px] leading-none">+</span>
+                    </button>
                   )}
                 </div>
-
-                {/* 이벤트 목록 — 최대 3개 */}
-                <div className="flex flex-col gap-px">
-                  {races.slice(0, 3).map((race) => (
-                    <span
-                      key={race.id}
-                      className={cn(
-                        "w-full overflow-hidden rounded-sm px-0.5 text-left text-[7px] font-medium leading-[1.5]",
-                        race.type === "mine"
-                          ? "bg-success/20 text-success"
-                          : "bg-warning/15 text-warning",
-                      )}
-                      style={{ whiteSpace: "nowrap", textOverflow: "clip" }}
-                    >
-                      {race.title}
-                    </span>
-                  ))}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 날짜 패널 — 항상 표시, 클릭으로 날짜 변경 */}
-      {(() => {
-        const panelRaces = eventsByDate.get(selectedDate) ?? [];
-        const [, mm, dd] = selectedDate.split("-");
-        return (
-          <div className="mt-1 flex items-center gap-3 rounded-xl bg-secondary/50 px-3 py-2">
-            <div className="flex items-baseline shrink-0">
-              <span className="text-[18px] font-bold leading-none text-foreground tabular-nums">
-                {parseInt(dd, 10)}
-              </span>
-            </div>
-            {panelRaces.length === 0 ? (
-              <span className="text-[11px] text-muted-foreground">일정 없음</span>
-            ) : (
-              <div className="flex flex-col gap-1">
-                {panelRaces.map((race) => (
-                  <button
-                    key={race.id}
-                    onClick={() => handleRaceClick(race)}
-                    className="flex items-center gap-1.5 text-left transition-opacity hover:opacity-70"
-                  >
-                    <span
-                      className={cn(
-                        "h-3 w-0.5 shrink-0 rounded-full",
-                        race.type === "mine" ? "bg-success" : "bg-warning",
-                      )}
-                    />
-                    <span className="text-[11px] font-medium text-foreground">{race.title}</span>
-                  </button>
-                ))}
+                {panelRaces.length === 0 ? (
+                  <span className="pt-0.5 text-[11px] text-muted-foreground">일정 없음</span>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    {panelRaces.map((race) => (
+                      <button
+                        key={race.id}
+                        onClick={() => race.type === "schedule" ? openEditForm(race) : handleRaceClick(race)}
+                        className="flex items-center gap-1.5 text-left transition-opacity hover:opacity-70"
+                      >
+                        <span
+                          className={cn(
+                            "h-3 w-0.5 shrink-0 rounded-full",
+                            race.type === "mine" ? "bg-success"
+                              : race.type === "schedule" ? "bg-info"
+                              : "bg-warning",
+                          )}
+                        />
+                        <span className="text-[11px] font-medium text-foreground">{race.title}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        );
-      })()}
+            );
+          })()}
+        </>
+      ) : (
+        /* 리스트뷰 */
+        <ScheduleListView
+          teamId={teamId}
+          memberId={memberId}
+          initialMonthKey={initialMonth.slice(0, 7)}
+          initialRaces={[...initMine, ...initSchPosts, ...initGigang]}
+          onClickSchedule={openEditForm}
+          onClickCompetition={handleRaceClick}
+          onAddSchedule={openCreateForm}
+        />
+      )}
+
+      {/* 일정 등록/수정 다이얼로그 */}
+      <SchPostFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        mode={formMode}
+        initialData={
+          formMode === "edit" && editTarget
+            ? {
+                sch_post_id: editTarget.id,
+                sch_nm: editTarget.title,
+                evt_stt_at: editTarget.start_date,
+                evt_end_at: editTarget.end_date,
+                url: editTarget.url,
+                cont_txt: editTarget.cont_txt,
+              }
+            : formMode === "create" && editTarget?.start_date
+              ? { sch_post_id: "", sch_nm: "", evt_stt_at: editTarget.start_date }
+              : undefined
+        }
+        onSuccess={handleSchPostSuccess}
+      />
 
       {/* 대회 상세 다이얼로그 */}
       <CompetitionDetailDialog
