@@ -1,5 +1,6 @@
-import { Caption } from "@/components/common/typography";
 import { cn } from "@/lib/utils";
+
+import { Caption } from "@/components/common/typography";
 
 const TOTAL_STEPS = 3;
 const STEP_LABELS = ["시작", "로그인", "정보 입력"] as const;

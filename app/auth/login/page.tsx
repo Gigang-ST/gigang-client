@@ -1,7 +1,8 @@
-import { LoginForm } from "@/components/auth/login-form";
 import { Suspense } from "react";
-import { InAppBrowserGate } from "@/components/in-app-browser-gate";
+
+import { LoginForm } from "@/components/auth/login-form";
 import { SignupProgress } from "@/components/auth/signup-progress";
+import { InAppBrowserGate } from "@/components/in-app-browser-gate";
 
 export default function Page() {
   return (

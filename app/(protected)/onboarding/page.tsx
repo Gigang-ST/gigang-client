@@ -5,8 +5,8 @@ import { redirect } from "next/navigation";
 import { env } from "@/lib/env";
 import { getCurrentMember } from "@/lib/queries/member";
 
-import { InAppBrowserGate } from "@/components/in-app-browser-gate";
 import { MemberOnboardingForm } from "@/components/auth/member-onboarding-form";
+import { InAppBrowserGate } from "@/components/in-app-browser-gate";
 
 async function OnboardingContent({
   searchParams,

@@ -1,16 +1,26 @@
 "use client";
 
-import { CheckCircle2 } from "lucide-react";
+import { useState } from "react";
+
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+
+import { CheckCircle2 } from "lucide-react";
 import Confetti from "react-confetti";
 import { useForm } from "react-hook-form";
+
+import { BANK_OPTIONS } from "@/lib/constants";
+import { digitsOnly, formatPhone, isValidPhone } from "@/lib/phone-utils";
+import { cn } from "@/lib/utils";
+
 import {
 	onboardingCheckPhone,
 	onboardingCreateMember,
 	onboardingLinkExistingMember,
 } from "@/app/actions/onboarding-mem-v2";
+
+import { SignupProgress } from "@/components/auth/signup-progress";
+import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -36,11 +46,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { SignupProgress } from "@/components/auth/signup-progress";
-import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
-import { BANK_OPTIONS } from "@/lib/constants";
-import { digitsOnly, formatPhone, isValidPhone } from "@/lib/phone-utils";
-import { cn } from "@/lib/utils";
 
 type MemberOnboardingFormProps = {
 	userId: string;

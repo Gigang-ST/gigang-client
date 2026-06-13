@@ -1,6 +1,7 @@
+import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
+
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 
 const meta = {
   title: "Common/PwaInstallPrompt",

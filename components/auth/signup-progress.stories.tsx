@@ -1,6 +1,7 @@
+import { SignupProgress } from "@/components/auth/signup-progress";
+
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import { SignupProgress } from "@/components/auth/signup-progress";
 
 const meta = {
   title: "Auth/SignupProgress",

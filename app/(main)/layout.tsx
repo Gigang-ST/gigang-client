@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+
 import { BottomTabBar } from "@/components/bottom-tab-bar";
 import { MemberProviderServer } from "@/components/member-provider-server";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
