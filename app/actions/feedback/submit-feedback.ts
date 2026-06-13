@@ -12,7 +12,7 @@ export async function submitFeedback(body: string) {
 
   const parsed = submitFeedbackSchema.safeParse({ body });
   if (!parsed.success) {
-    return { ok: false, message: parsed.error.errors[0]?.message ?? "입력값이 올바르지 않습니다." };
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "입력값이 올바르지 않습니다." };
   }
 
   const db = createUntypedAdminClient();

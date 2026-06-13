@@ -15,7 +15,8 @@ export default async function ProfileFeedbackPage() {
   if (!member) redirect("/onboarding?next=/profile/feedback");
 
   const supabase = await createClient();
-  const { data } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
     .from("feedback_messages")
     .select("id, body, status, admin_note, created_at")
     .eq("del_yn", false)
@@ -23,7 +24,8 @@ export default async function ProfileFeedbackPage() {
     .order("created_at", { ascending: false })
     .limit(50);
 
-  const items: FeedbackItem[] = (data ?? []).map((row) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const items: FeedbackItem[] = (data ?? []).map((row: any) => ({
     id: row.id,
     body: row.body,
     status: row.status as FeedbackItem["status"],

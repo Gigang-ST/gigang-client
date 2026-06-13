@@ -11,7 +11,7 @@ export async function respondFeedback(id: string, adminNote: string) {
   if (!admin) return { ok: false, message: "관리자 권한이 필요합니다." };
 
   const parsed = adminRespondSchema.safeParse({ adminNote });
-  if (!parsed.success) return { ok: false, message: parsed.error.errors[0]?.message ?? "입력값이 올바르지 않습니다." };
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "입력값이 올바르지 않습니다." };
 
   const db = createUntypedAdminClient();
   const { error } = await db
