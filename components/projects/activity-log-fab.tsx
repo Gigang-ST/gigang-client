@@ -12,7 +12,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { ActivityLogBatchForm } from "./activity-log-batch-form";
-import { analytics } from "@/lib/analytics";
 
 type ActivityLogFabProps = {
   evtId: string;
@@ -30,7 +29,6 @@ export function ActivityLogFab({ evtId, memId: _memId }: ActivityLogFabProps) {
   const router = useRouter();
 
   const handleSuccess = (count: number, titles: string[]) => {
-    analytics.activityLogSaved(count);
     setOpen(false);
     router.refresh();
     window.dispatchEvent(new Event("mileage:refresh"));
@@ -116,7 +114,7 @@ export function ActivityLogFab({ evtId, memId: _memId }: ActivityLogFabProps) {
       <Button
         size="icon"
         className="fixed bottom-24 right-6 z-50 size-14 rounded-full shadow-lg"
-        onClick={() => { analytics.activityLogOpened(); setOpen(true); }}
+        onClick={() => setOpen(true)}
         aria-label="기록 입력"
       >
         <Plus className="size-6" />

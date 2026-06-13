@@ -5,7 +5,6 @@ import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { prevMonthStr, nextMonthStr } from "@/lib/dayjs";
 import { Button } from "@/components/ui/button";
 import { useMonthTransition } from "./month-transition";
-import { analytics } from "@/lib/analytics";
 
 export function MonthNavigator({
   currentMonth,
@@ -29,10 +28,9 @@ export function MonthNavigator({
   const hasPrev = prevMonth >= practiceMonth;
   const hasNext = nextMonth <= endMonth;
 
-  function navigate(month: string, direction: "prev" | "next") {
+  function navigate(month: string) {
     // window.location.search로 최신 URL을 읽어 차트 탭(?tab=)이 보존되도록 한다.
     // (탭은 replaceState로 갱신되므로 useSearchParams 스냅샷에는 반영되지 않을 수 있음)
-    analytics.monthNavigated(direction, month);
     const params = new URLSearchParams(window.location.search);
     params.set("month", month);
     startTransition(() => {
@@ -45,7 +43,7 @@ export function MonthNavigator({
       <Button
         variant="ghost"
         size="icon-sm"
-        onClick={() => navigate(prevMonth, "prev")}
+        onClick={() => navigate(prevMonth)}
         disabled={!hasPrev || isPending}
         className="text-muted-foreground active:bg-secondary disabled:opacity-30"
         aria-label="이전 달"
@@ -62,7 +60,7 @@ export function MonthNavigator({
       <Button
         variant="ghost"
         size="icon-sm"
-        onClick={() => navigate(nextMonth, "next")}
+        onClick={() => navigate(nextMonth)}
         disabled={!hasNext || isPending}
         className="text-muted-foreground active:bg-secondary disabled:opacity-30"
         aria-label="다음 달"

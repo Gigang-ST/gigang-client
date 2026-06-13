@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
-import { analytics } from "@/lib/analytics";
 import {
 	fetchMemMstWithTeamRel,
 	mapMstRelToAppMemberProfile,
@@ -509,7 +508,7 @@ export function RaceListView({
 				].map((seg) => (
 					<button
 						key={seg.value}
-						onClick={() => { analytics.raceTabSwitch(seg.value === "gigang" ? "team" : "all"); setTab(seg.value); }}
+						onClick={() => setTab(seg.value)}
 						className={cn(
 							"flex-1 rounded-lg py-2 text-sm font-medium transition-colors",
 							tab === seg.value
@@ -556,7 +555,6 @@ export function RaceListView({
 									>
 										<button
 											onClick={() => {
-												analytics.raceDetailViewed(comp.id, comp.title);
 												setSelectedCompetition(comp);
 												setDetailOpen(true);
 											}}
@@ -695,7 +693,6 @@ export function RaceListView({
 											>
 												<button
 													onClick={() => {
-														analytics.raceDetailViewed(comp.id, comp.title);
 														setSelectedCompetition(comp);
 														setDetailOpen(true);
 													}}

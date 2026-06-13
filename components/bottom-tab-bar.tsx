@@ -4,14 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { House, Trophy, Medal, User, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { analytics } from "@/lib/analytics";
 
 const TABS = [
-  { label: "홈", href: "/", key: "home", icon: House },
-  { label: "대회", href: "/races", key: "races", icon: Trophy },
-  { label: "프로젝트", href: "/projects", key: "projects", icon: Zap },
-  { label: "랭킹", href: "/records", key: "records", icon: Medal },
-  { label: "프로필", href: "/profile", key: "profile", icon: User },
+  { label: "홈", href: "/", icon: House },
+  { label: "대회", href: "/races", icon: Trophy },
+  { label: "프로젝트", href: "/projects", icon: Zap },
+  { label: "랭킹", href: "/records", icon: Medal },
+  { label: "프로필", href: "/profile", icon: User },
 ] as const;
 
 export function BottomTabBar() {
@@ -31,7 +30,6 @@ export function BottomTabBar() {
               key={tab.href}
               href={tab.href}
               prefetch={false}
-              onClick={() => analytics.tabClick(tab.key)}
               className={cn(
                 "flex flex-col items-center gap-1 px-3 py-1",
                 isActive
