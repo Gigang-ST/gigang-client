@@ -6,6 +6,7 @@ import { PenLine } from "lucide-react";
 import type { BoardPostSummary } from "@/lib/queries/board";
 import { PostList } from "@/components/board/post-list";
 import { SegmentControl } from "@/components/common/segment-control";
+import { analytics } from "@/lib/analytics";
 
 type BoardClientProps = {
   initialNotices: BoardPostSummary[];
@@ -19,6 +20,7 @@ export function BoardClient({ initialNotices, initialUpdates, canWrite }: BoardC
   const tab = (searchParams.get("tab") === "update" ? "update" : "notice") as "notice" | "update";
 
   function handleTabChange(value: "notice" | "update") {
+    analytics.boardTabSwitch(value);
     router.replace(`/board?tab=${value}`);
   }
 
