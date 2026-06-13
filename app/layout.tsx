@@ -34,6 +34,11 @@ export const metadata: Metadata = {
     title: siteContent.metadata.title,
     description: siteContent.metadata.description,
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "기강",
+  },
 };
 
 export const viewport: Viewport = {
