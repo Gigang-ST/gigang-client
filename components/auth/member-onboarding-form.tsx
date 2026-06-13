@@ -36,6 +36,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { SignupProgress } from "@/components/auth/signup-progress";
+import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { BANK_OPTIONS } from "@/lib/constants";
 import { digitsOnly, formatPhone, isValidPhone } from "@/lib/phone-utils";
 import { cn } from "@/lib/utils";
@@ -45,6 +47,7 @@ type MemberOnboardingFormProps = {
 	provider: "kakao" | "google";
 	email?: string | null;
 	initialAvatarUrl?: string | null;
+	initialFullName?: string;
 	kakaoChatPassword?: string;
 };
 
@@ -64,9 +67,9 @@ const KAKAO_OPEN_CHAT_URL = "https://open.kakao.com/o/grnMFGng";
 export function MemberOnboardingForm({
 	userId: _userId,
 	provider,
-
 	email,
 	initialAvatarUrl,
+	initialFullName = "",
 	kakaoChatPassword,
 }: MemberOnboardingFormProps) {
 	const router = useRouter();
@@ -76,7 +79,7 @@ export function MemberOnboardingForm({
 		nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/";
 	const form = useForm<MemberOnboardingValues>({
 		defaultValues: {
-			fullName: "",
+			fullName: initialFullName,
 			gender: "",
 			birthday: "",
 			phone: "",
@@ -193,6 +196,7 @@ export function MemberOnboardingForm({
 	if (stage === "success") {
 		return (
 			<div className="flex flex-col gap-6">
+				<SignupProgress step={3} done />
 				<Confetti
 					width={typeof window !== "undefined" ? window.innerWidth : 400}
 					height={typeof window !== "undefined" ? window.innerHeight : 800}
@@ -241,11 +245,23 @@ export function MemberOnboardingForm({
 							>
 								💬 카카오톡 오픈채팅 참여하기
 							</a>
+							<div className="w-full">
+								<p className="mb-2 text-center text-sm font-semibold text-foreground">
+									마지막! 홈 화면에 추가하면 앱처럼 빨라요
+								</p>
+								<PwaInstallPrompt variant="inline" />
+							</div>
 							<Link
 								href="/"
 								className="flex h-12 items-center justify-center rounded-xl bg-primary text-[15px] font-semibold text-primary-foreground"
 							>
 								홈으로 이동
+							</Link>
+							<Link
+								href="/profile/bank"
+								className="text-center text-xs font-medium text-muted-foreground underline"
+							>
+								계좌는 나중에 등록할게요
 							</Link>
 						</div>
 					</CardContent>
@@ -256,6 +272,7 @@ export function MemberOnboardingForm({
 
 	return (
 		<div className={cn("flex flex-col gap-6")}>
+			<SignupProgress step={3} />
 			<Card className="bg-card border-border shadow-sm">
 				<CardHeader>
 					<CardTitle className="text-2xl">회원 정보 입력</CardTitle>
@@ -324,31 +341,6 @@ export function MemberOnboardingForm({
 									</>
 								) : (
 									<>
-										{email ? (
-											<div className="grid gap-2">
-												<Label>이메일</Label>
-												<Input value={email} disabled />
-											</div>
-										) : null}
-										{!email ? (
-											<FormField
-												control={form.control}
-												name="emailInput"
-												render={({ field }) => (
-													<FormItem>
-														<FormLabel>이메일 (선택)</FormLabel>
-														<FormControl>
-															<Input
-																type="email"
-																placeholder="example@email.com (선택)"
-																{...field}
-															/>
-														</FormControl>
-														<FormMessage />
-													</FormItem>
-												)}
-											/>
-										) : null}
 										<FormField
 											control={form.control}
 											name="fullName"
@@ -436,80 +428,111 @@ export function MemberOnboardingForm({
 												</FormItem>
 											)}
 										/>
-										<FormField
-											control={form.control}
-											name="bankName"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel>은행</FormLabel>
-													<FormControl>
-														<Select
-															value={field.value}
-															onValueChange={field.onChange}
-														>
-															<SelectTrigger>
-																<SelectValue placeholder="은행 선택" />
-															</SelectTrigger>
-															<SelectContent>
-																{BANK_OPTIONS.map((option) => (
-																	<SelectItem key={option} value={option}>
-																		{option}
-																	</SelectItem>
-																))}
-																<SelectItem value="custom">
-																	기타(직접 입력)
-																</SelectItem>
-															</SelectContent>
-														</Select>
-													</FormControl>
-													<FormMessage />
-												</FormItem>
-											)}
-										/>
-										{form.watch("bankName") === "custom" ? (
-											<FormField
-												control={form.control}
-												name="bankNameCustom"
-												render={({ field }) => (
-													<FormItem>
-														<FormLabel>은행명 직접 입력</FormLabel>
-														<FormControl>
-															<Input
-																{...field}
-																placeholder="예: 지역 농협, 단위 농협"
-															/>
-														</FormControl>
-														<FormMessage />
-													</FormItem>
+										<details className="rounded-xl border-[1.5px] border-border">
+											<summary className="cursor-pointer px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+												+ 추가 정보 (선택 · 나중에 입력 가능)
+											</summary>
+											<div className="flex flex-col gap-6 border-t border-border px-4 py-4">
+												{email ? (
+													<div className="grid gap-2">
+														<Label>이메일</Label>
+														<Input value={email} disabled />
+													</div>
+												) : (
+													<FormField
+														control={form.control}
+														name="emailInput"
+														render={({ field }) => (
+															<FormItem>
+																<FormLabel>이메일 (선택)</FormLabel>
+																<FormControl>
+																	<Input
+																		type="email"
+																		placeholder="example@email.com (선택)"
+																		{...field}
+																	/>
+																</FormControl>
+																<FormMessage />
+															</FormItem>
+														)}
+													/>
 												)}
-											/>
-										) : null}
-										<FormField
-											control={form.control}
-											name="bankAccount"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel>계좌번호</FormLabel>
-													<FormControl>
-														<Input
-															{...field}
-															placeholder="예: 110123456789 (숫자만)"
-															onChange={(e) => {
-																const sanitized = e.target.value.replace(
-																	/[^0-9-]/g,
-																	"",
-																);
-																field.onChange(sanitized);
-															}}
-														/>
-													</FormControl>
-													<p className="text-xs text-muted-foreground">
-														회비 및 기타 환급 시 사용됩니다.
-													</p>
-													<FormMessage />
-												</FormItem>
-											)}
-										/>
+												<FormField
+													control={form.control}
+													name="bankName"
+													render={({ field }) => (
+														<FormItem>
+															<FormLabel>은행</FormLabel>
+															<FormControl>
+																<Select
+																	value={field.value}
+																	onValueChange={field.onChange}
+																>
+																	<SelectTrigger>
+																		<SelectValue placeholder="은행 선택" />
+																	</SelectTrigger>
+																	<SelectContent>
+																		{BANK_OPTIONS.map((option) => (
+																			<SelectItem key={option} value={option}>
+																				{option}
+																			</SelectItem>
+																		))}
+																		<SelectItem value="custom">
+																			기타(직접 입력)
+																		</SelectItem>
+																	</SelectContent>
+																</Select>
+															</FormControl>
+															<FormMessage />
+														</FormItem>
+													)}
+												/>
+												{form.watch("bankName") === "custom" ? (
+													<FormField
+														control={form.control}
+														name="bankNameCustom"
+														render={({ field }) => (
+															<FormItem>
+																<FormLabel>은행명 직접 입력</FormLabel>
+																<FormControl>
+																	<Input
+																		{...field}
+																		placeholder="예: 지역 농협, 단위 농협"
+																	/>
+																</FormControl>
+																<FormMessage />
+															</FormItem>
+														)}
+													/>
+												) : null}
+												<FormField
+													control={form.control}
+													name="bankAccount"
+													render={({ field }) => (
+														<FormItem>
+															<FormLabel>계좌번호</FormLabel>
+															<FormControl>
+																<Input
+																	{...field}
+																	placeholder="예: 110123456789 (숫자만)"
+																	onChange={(e) => {
+																		const sanitized = e.target.value.replace(
+																			/[^0-9-]/g,
+																			"",
+																		);
+																		field.onChange(sanitized);
+																	}}
+																/>
+															</FormControl>
+															<p className="text-xs text-muted-foreground">
+																회비 및 기타 환급 시 사용됩니다.
+															</p>
+															<FormMessage />
+														</FormItem>
+													)}
+												/>
+											</div>
+										</details>
 										{form.formState.errors.root?.message ? (
 											<p className="text-sm text-destructive">
 												{form.formState.errors.root.message}
@@ -523,7 +546,7 @@ export function MemberOnboardingForm({
 											>
 												{form.formState.isSubmitting
 													? "저장 중..."
-													: "저장하고 계속하기"}
+													: "가입 완료"}
 											</Button>
 											<Button
 												type="button"

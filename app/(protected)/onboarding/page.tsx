@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { env } from "@/lib/env";
 import { getCurrentMember } from "@/lib/queries/member";
 
+import { InAppBrowserGate } from "@/components/in-app-browser-gate";
 import { MemberOnboardingForm } from "@/components/auth/member-onboarding-form";
 
 async function OnboardingContent({
@@ -36,19 +37,30 @@ async function OnboardingContent({
     user.user_metadata?.avatar_url ??
     null;
 
-  return (
-    <div className="flex min-h-svh w-full items-center justify-center bg-background px-6">
-      <div className="w-full max-w-sm">
-        <MemberOnboardingForm
-          userId={user.id}
-          provider={user.app_metadata?.provider as "kakao" | "google"}
-          email={user.email}
+  // OAuth 이름 후보 추출 — 한글 2~5자만 prefill(검증 통과 값), 그 외는 빈 값
+  const rawName =
+    (user.user_metadata?.name as string | undefined) ??
+    (user.user_metadata?.full_name as string | undefined) ??
+    "";
+  const initialFullName = /^[가-힣]{2,5}$/.test(rawName.trim())
+    ? rawName.trim()
+    : "";
 
-          initialAvatarUrl={initialAvatarUrl}
-          kakaoChatPassword={env.KAKAO_CHAT_PASSWORD ?? ""}
-        />
+  return (
+    <InAppBrowserGate>
+      <div className="flex min-h-svh w-full items-center justify-center bg-background px-6">
+        <div className="w-full max-w-sm">
+          <MemberOnboardingForm
+            userId={user.id}
+            provider={user.app_metadata?.provider as "kakao" | "google"}
+            email={user.email}
+            initialAvatarUrl={initialAvatarUrl}
+            initialFullName={initialFullName}
+            kakaoChatPassword={env.KAKAO_CHAT_PASSWORD ?? ""}
+          />
+        </div>
       </div>
-    </div>
+    </InAppBrowserGate>
   );
 }
 
