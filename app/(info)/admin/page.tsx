@@ -16,6 +16,7 @@ import {
   ServerCog,
   Bell,
   Wallet,
+  MessageSquare,
 } from "lucide-react";
 
 import {
@@ -65,6 +66,13 @@ const generalCards: Card[] = [
     href: "/admin/records",
     icon: Timer,
     getValue: (s) => s.recentRecordCount,
+  },
+  {
+    key: "feedback",
+    label: "의견함",
+    href: "/admin/feedback",
+    icon: MessageSquare,
+    getValue: () => "",
   },
 ];
 
