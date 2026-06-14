@@ -19,6 +19,7 @@ import { extractRaceRecordFromImage } from "@/app/actions/extract-race-record";
 import { saveRaceRecord } from "@/app/actions/save-race-record";
 import { listCompetitionsByRaceDate } from "@/app/actions/search-competitions";
 
+import { Micro } from "@/components/common/typography";
 import { CompetitionRegisterDialog } from "@/components/races/competition-register-dialog";
 import type { MemberStatus } from "@/components/races/types";
 import { Button } from "@/components/ui/button";
@@ -161,7 +162,10 @@ export function RaceRecordDialog({
       setStep(0);
       setOcrLoading(false);
       setOcrError(null);
-      setImagePreview(null);
+      setImagePreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
       setOcrTimes(null);
       setOcrFilledFields(new Set());
       setSelectedComp(null);
@@ -354,7 +358,10 @@ export function RaceRecordDialog({
   async function handleImageSelected(file: File) {
     setOcrError(null);
     setOcrLoading(true);
-    setImagePreview(URL.createObjectURL(file));
+    setImagePreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
 
     const formData = new FormData();
     formData.append("image", file);
@@ -388,24 +395,15 @@ export function RaceRecordDialog({
   function applyOcrTimesToStep3() {
     if (!ocrTimes) return;
     const filled = new Set<string>();
-    const toInput = (v: string | null) =>
-      v ? formatTimeInput(v.replace(/:/g, "")) : "";
-    if (ocrTimes.total) {
-      setTotalTime(toInput(ocrTimes.total));
-      filled.add("total");
-    }
-    if (ocrTimes.swim) {
-      setSwimTime(toInput(ocrTimes.swim));
-      filled.add("swim");
-    }
-    if (ocrTimes.bike) {
-      setBikeTime(toInput(ocrTimes.bike));
-      filled.add("bike");
-    }
-    if (ocrTimes.run) {
-      setRunTime(toInput(ocrTimes.run));
-      filled.add("run");
-    }
+    const toInput = (v: string | null) => {
+      if (!v) return "";
+      const padded = v.replace(/^(\d):/, "0$1:"); // "3:25:29" → "03:25:29"
+      return formatTimeInput(padded.replace(/:/g, ""));
+    };
+    if (ocrTimes.total && !totalTime) { setTotalTime(toInput(ocrTimes.total)); filled.add("total"); }
+    if (ocrTimes.swim && !swimTime) { setSwimTime(toInput(ocrTimes.swim)); filled.add("swim"); }
+    if (ocrTimes.bike && !bikeTime) { setBikeTime(toInput(ocrTimes.bike)); filled.add("bike"); }
+    if (ocrTimes.run && !runTime) { setRunTime(toInput(ocrTimes.run)); filled.add("run"); }
     setOcrFilledFields(filled);
   }
 
@@ -480,7 +478,7 @@ export function RaceRecordDialog({
 
   const ocrHint = (field: string) =>
     ocrFilledFields.has(field) ? (
-      <p className="text-[11px] text-muted-foreground">· 사진에서 읽음 — 확인해 주세요</p>
+      <Micro>· 사진에서 읽음 — 확인해 주세요</Micro>
     ) : null;
 
   return (
