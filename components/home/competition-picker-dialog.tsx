@@ -107,32 +107,34 @@ export function CompetitionPickerDialog({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     const supabase = createClient();
-    supabase
-      .from("comp_mst")
-      .select("comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)")
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .eq("stt_dt", date)
-      .order("comp_nm", { ascending: true })
-      .then(({ data }) => {
-        if (cancelled) return;
-        setCompetitions(
-          (data ?? [])
-            .filter((c) => !excludedCompIds?.has(c.comp_id))
-            .map((c) => ({
-              id: c.comp_id,
-              external_id: "",
-              sport: c.comp_sprt_cd ?? null,
-              title: c.comp_nm,
-              start_date: c.stt_dt,
-              end_date: c.end_dt ?? null,
-              location: c.loc_nm ?? null,
-              event_types: (c.comp_evt_cfg as { comp_evt_type: string | null }[]).map((e) => e.comp_evt_type?.toUpperCase()).filter((e): e is string => Boolean(e)),
-              source_url: c.src_url ?? null,
-            })),
-        );
-        setLoading(false);
-      });
+    void Promise.resolve(
+      supabase
+        .from("comp_mst")
+        .select("comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)")
+        .eq("vers", 0)
+        .eq("del_yn", false)
+        .eq("stt_dt", date)
+        .order("comp_nm", { ascending: true }),
+    ).then(({ data }) => {
+      if (cancelled) return;
+      setCompetitions(
+        (data ?? [])
+          .filter((c) => !excludedCompIds?.has(c.comp_id))
+          .map((c) => ({
+            id: c.comp_id,
+            external_id: "",
+            sport: c.comp_sprt_cd ?? null,
+            title: c.comp_nm,
+            start_date: c.stt_dt,
+            end_date: c.end_dt ?? null,
+            location: c.loc_nm ?? null,
+            event_types: (c.comp_evt_cfg as { comp_evt_type: string | null }[]).map((e) => e.comp_evt_type?.toUpperCase()).filter((e): e is string => Boolean(e)),
+            source_url: c.src_url ?? null,
+          })),
+      );
+    }).catch(() => {}).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
     return () => { cancelled = true; };
   }, [open, date, step]);
 

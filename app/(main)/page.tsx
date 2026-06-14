@@ -1,6 +1,6 @@
 ﻿import { Suspense } from "react";
 
-import { todayKST, currentMonthKST, monthLastDay } from "@/lib/dayjs";
+import { dayjs, todayKST, currentMonthKST, monthLastDay } from "@/lib/dayjs";
 import { env } from "@/lib/env";
 import { hasUnreadBoardPost } from "@/lib/queries/board";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
@@ -196,7 +196,7 @@ async function HomeContent() {
   const calendarSchPosts: CalendarRace[] = (schPostRows ?? []).map((row) => ({
     id: row.sch_post_id,
     title: row.sch_nm,
-    start_date: row.evt_stt_at.slice(0, 10),
+    start_date: dayjs(row.evt_stt_at).format("YYYY-MM-DD"),
     type: "schedule" as const,
     post_type: row.post_type,
     end_date: row.evt_end_at,

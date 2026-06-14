@@ -228,7 +228,7 @@ export function SchPostFormDialog({
                   variant="outline"
                   size="sm"
                   className="w-full gap-1.5 rounded-lg text-[13px]"
-                  onClick={() => window.open(initialData.url!, "_blank")}
+                  onClick={() => window.open(initialData.url!, "_blank", "noopener,noreferrer")}
                 >
                   <ExternalLink className="size-3.5" />
                   링크 바로가기
@@ -432,14 +432,12 @@ export function SchPostFormDialog({
   );
 }
 
-// "2026-06-11T07:00:00+09:00" → "2026-06-11T07:00" (datetime-local input 형식)
+// ISO 문자열 → "YYYY-MM-DDTHH:mm" (datetime-local input 형식, KST 기준)
 function toDatetimeLocal(isoString: string): string {
-  const d = new Date(isoString);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return dayjs(isoString).format("YYYY-MM-DDTHH:mm");
 }
 
-// "2026-06-14" (날짜만) → "2026-06-14T00:00", ISO 형식이면 toDatetimeLocal로 변환
+// 날짜만("YYYY-MM-DD") 또는 ISO 문자열 → datetime-local 형식
 function toDateInput(value: string): string {
   if (value.length === 10) return `${value}T00:00`;
   return toDatetimeLocal(value);

@@ -24,7 +24,7 @@ export const createSchPostSchema = z.object({
   cont_txt: z.string().max(1000).nullable().optional(),
 });
 
-export const updateSchPostSchema = createSchPostSchema.partial().extend({
+export const updateSchPostSchema = createSchPostSchema.omit({ team_id: true }).partial().extend({
   sch_post_id: z.string().uuid(),
 });
 

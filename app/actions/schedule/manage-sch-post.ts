@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { dayjs } from "@/lib/dayjs";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createSchPostSchema, updateSchPostSchema } from "@/lib/validations/schedule";
@@ -59,7 +60,7 @@ export async function updateSchPost(input: {
 
   const { error } = await supabase
     .from("sch_post")
-    .update({ ...fields, url: fields.url || null, upd_at: new Date().toISOString() })
+    .update({ ...fields, url: fields.url || null, upd_at: dayjs().toISOString() })
     .eq("sch_post_id", sch_post_id);
 
   if (error) throw new Error("수정 권한이 없거나 일정 수정에 실패했습니다.");
@@ -73,7 +74,7 @@ export async function deleteSchPost(sch_post_id: string) {
 
   const { error } = await supabase
     .from("sch_post")
-    .update({ del_yn: true, upd_at: new Date().toISOString() })
+    .update({ del_yn: true, upd_at: dayjs().toISOString() })
     .eq("sch_post_id", sch_post_id);
 
   if (error) throw new Error("삭제 권한이 없거나 일정 삭제에 실패했습니다.");

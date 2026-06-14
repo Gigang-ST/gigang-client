@@ -113,7 +113,7 @@ async function fetchMonth(
     results.push({
       id: row.sch_post_id,
       title: row.sch_nm,
-      start_date: row.evt_stt_at.slice(0, 10),
+      start_date: dayjs(row.evt_stt_at).format("YYYY-MM-DD"),
       type: "schedule",
       post_type: row.post_type,
       end_date: row.evt_end_at,
@@ -269,21 +269,27 @@ export function ScheduleListView({
   const loadPrev = useCallback(async () => {
     if (loadingPrev) return;
     setLoadingPrev(true);
-    const key = prevMonthKey(oldestMonth);
-    const races = await fetchMonth(supabase, teamId, memberId, key);
-    prevScrollHeightRef.current = containerRef.current?.scrollHeight ?? 0;
-    setMonths((prev) => [{ monthKey: key, races }, ...prev]);
-    setLoadingPrev(false);
+    try {
+      const key = prevMonthKey(oldestMonth);
+      const races = await fetchMonth(supabase, teamId, memberId, key);
+      prevScrollHeightRef.current = containerRef.current?.scrollHeight ?? 0;
+      setMonths((prev) => [{ monthKey: key, races }, ...prev]);
+    } finally {
+      setLoadingPrev(false);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadingPrev, oldestMonth, teamId, memberId]);
 
   const loadNext = useCallback(async () => {
     if (loadingNext) return;
     setLoadingNext(true);
-    const key = nextMonthKey(newestMonth);
-    const races = await fetchMonth(supabase, teamId, memberId, key);
-    setMonths((prev) => [...prev, { monthKey: key, races }]);
-    setLoadingNext(false);
+    try {
+      const key = nextMonthKey(newestMonth);
+      const races = await fetchMonth(supabase, teamId, memberId, key);
+      setMonths((prev) => [...prev, { monthKey: key, races }]);
+    } finally {
+      setLoadingNext(false);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadingNext, newestMonth, teamId, memberId]);
 

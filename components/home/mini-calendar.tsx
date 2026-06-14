@@ -317,7 +317,7 @@ export function MiniCalendar({
     const newSchPosts: CalendarRace[] = (schPostRows ?? []).map((row) => ({
       id: row.sch_post_id,
       title: row.sch_nm,
-      start_date: row.evt_stt_at.slice(0, 10),
+      start_date: dayjs(row.evt_stt_at).format("YYYY-MM-DD"),
       type: "schedule" as const,
       end_date: row.evt_end_at,
       evt_stt_at: row.evt_stt_at,

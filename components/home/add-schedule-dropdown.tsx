@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { ChevronUp, FileText, Trophy, Users } from "lucide-react";
 
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,7 +35,7 @@ export function AddScheduleDropdown({ onAddSchedule, onAddCompetition }: Props) 
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" side="top" className="w-48">
         <DropdownMenuItem
-          onClick={() => { setOpen(false); onAddCompetition(); }}
+          onSelect={() => onAddCompetition()}
           className="flex items-center gap-3 py-2"
         >
           <Trophy className="size-4 shrink-0 text-warning" />
@@ -45,7 +46,7 @@ export function AddScheduleDropdown({ onAddSchedule, onAddCompetition }: Props) 
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          onClick={() => { setOpen(false); onAddSchedule(); }}
+          onSelect={() => onAddSchedule()}
           className="flex items-center gap-3 py-2"
         >
           <FileText className="size-4 shrink-0 text-info" />
