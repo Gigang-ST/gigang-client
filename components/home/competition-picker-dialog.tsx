@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 
 import { createCompetition } from "@/app/actions/create-competition";
 
+import type { Competition } from "@/components/races/types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -33,7 +34,6 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import type { Competition } from "@/components/races/types";
 
 type Step = "pick" | "add";
 
@@ -80,19 +80,19 @@ export function CompetitionPickerDialog({
   const formEventTypeCodes = eventTypeCodesForSprtFromCmmRows(cmmCdRows, form.sport);
 
   // open될 때 상태 초기화 — 다이얼로그 리셋 패턴으로 setState 직접 호출이 의도적
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   useEffect(() => {
     if (!open) return;
     const d = defaultDate ?? today;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDate(d);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setStep("pick");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setForm((prev) => ({ ...prev, startDate: d, sport: defaultSportCd, title: "", endDate: "", location: "", eventTypes: [], sourceUrl: "" }));
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setCustomEtInput("");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setSaveError("");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultDate]);
