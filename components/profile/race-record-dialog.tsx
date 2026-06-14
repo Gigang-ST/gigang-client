@@ -116,14 +116,13 @@ export function RaceRecordDialog({
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  // Task 5에서 prefill 연결 시 소비됨
-  const [_ocrTimes, setOcrTimes] = useState<{
+  const [ocrTimes, setOcrTimes] = useState<{
     total: string | null;
     swim: string | null;
     bike: string | null;
     run: string | null;
   } | null>(null);
-  const [_ocrFilledFields, setOcrFilledFields] = useState<Set<string>>(new Set());
+  const [ocrFilledFields, setOcrFilledFields] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // 저장 상태
@@ -283,6 +282,7 @@ export function RaceRecordDialog({
     const registered = (comp.registeredEventType ?? "").trim().toUpperCase();
     setSelectedEventType(registered);
     setCustomEventType("");
+    if (comp.registeredEventType) applyOcrTimesToStep3();
     setStep(comp.registeredEventType ? 3 : 2);
   }
 
@@ -294,12 +294,17 @@ export function RaceRecordDialog({
     setBikeTime("");
     setRunTime("");
     setError(null);
+    applyOcrTimesToStep3();
     setStep(3);
   }
 
   // 뒤로가기 (참가한 대회는 step 2 없이 3으로 왔으므로 step 3에서 뒤로가면 대회 선택으로)
   function handleBack() {
     setError(null);
+    if (step === 1) {
+      setStep(0);
+      return;
+    }
     if (step === 3) {
       if (selectedComp?.registeredEventType) {
         setSelectedComp(null);
@@ -367,9 +372,41 @@ export function RaceRecordDialog({
     setStep(1);
   }
 
-  // Task 5에서 본체 구현. 지금은 step 이동만.
-  function applyOcrResult(_data: import("@/lib/ocr/race-record").ExtractedRecord) {
+  function applyOcrResult(data: import("@/lib/ocr/race-record").ExtractedRecord) {
+    if (data.raceDate) setRaceDate(data.raceDate);
+    if (data.competitionName) setSearchQuery(data.competitionName);
+    setOcrTimes({
+      total: data.totalTime,
+      swim: data.swimTime,
+      bike: data.bikeTime,
+      run: data.runTime,
+    });
     setStep(1);
+  }
+
+  // OCR로 읽은 시간을 step 3 입력칸에 채운다 (사용자가 손대지 않은 빈 칸만).
+  function applyOcrTimesToStep3() {
+    if (!ocrTimes) return;
+    const filled = new Set<string>();
+    const toInput = (v: string | null) =>
+      v ? formatTimeInput(v.replace(/:/g, "")) : "";
+    if (ocrTimes.total) {
+      setTotalTime(toInput(ocrTimes.total));
+      filled.add("total");
+    }
+    if (ocrTimes.swim) {
+      setSwimTime(toInput(ocrTimes.swim));
+      filled.add("swim");
+    }
+    if (ocrTimes.bike) {
+      setBikeTime(toInput(ocrTimes.bike));
+      filled.add("bike");
+    }
+    if (ocrTimes.run) {
+      setRunTime(toInput(ocrTimes.run));
+      filled.add("run");
+    }
+    setOcrFilledFields(filled);
   }
 
   async function handleSave() {
@@ -441,6 +478,11 @@ export function RaceRecordDialog({
     return () => vv.removeEventListener("resize", scrollSearchInputAboveKeyboard);
   }, [scrollSearchInputAboveKeyboard]);
 
+  const ocrHint = (field: string) =>
+    ocrFilledFields.has(field) ? (
+      <p className="text-[11px] text-muted-foreground">· 사진에서 읽음 — 확인해 주세요</p>
+    ) : null;
+
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange} modal={!registerOpen}>
@@ -455,7 +497,7 @@ export function RaceRecordDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {step > 1 && (
+        {step >= 1 && (
           <Button
             type="button"
             variant="ghost"
@@ -715,6 +757,7 @@ export function RaceRecordDialog({
                         onClick={() => {
                           setTotalTime("");
                           setError(null);
+                          applyOcrTimesToStep3();
                           setStep(3);
                         }}
                         className="h-12 w-full rounded-xl font-semibold"
@@ -746,8 +789,17 @@ export function RaceRecordDialog({
                     placeholder="HH:MM:SS"
                     inputMode="numeric"
                     value={totalTime}
-                    onChange={(e) => setTotalTime(formatTimeInput(e.target.value))}
+                    onChange={(e) => {
+                      setTotalTime(formatTimeInput(e.target.value));
+                      setOcrFilledFields((p) => {
+                        if (!p.has("total")) return p;
+                        const n = new Set(p);
+                        n.delete("total");
+                        return n;
+                      });
+                    }}
                   />
+                  {ocrHint("total")}
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium">수영</label>
@@ -755,8 +807,17 @@ export function RaceRecordDialog({
                     placeholder="HH:MM:SS"
                     inputMode="numeric"
                     value={swimTime}
-                    onChange={(e) => setSwimTime(formatTimeInput(e.target.value))}
+                    onChange={(e) => {
+                      setSwimTime(formatTimeInput(e.target.value));
+                      setOcrFilledFields((p) => {
+                        if (!p.has("swim")) return p;
+                        const n = new Set(p);
+                        n.delete("swim");
+                        return n;
+                      });
+                    }}
                   />
+                  {ocrHint("swim")}
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium">자전거</label>
@@ -764,8 +825,17 @@ export function RaceRecordDialog({
                     placeholder="HH:MM:SS"
                     inputMode="numeric"
                     value={bikeTime}
-                    onChange={(e) => setBikeTime(formatTimeInput(e.target.value))}
+                    onChange={(e) => {
+                      setBikeTime(formatTimeInput(e.target.value));
+                      setOcrFilledFields((p) => {
+                        if (!p.has("bike")) return p;
+                        const n = new Set(p);
+                        n.delete("bike");
+                        return n;
+                      });
+                    }}
                   />
+                  {ocrHint("bike")}
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium">러닝</label>
@@ -773,8 +843,17 @@ export function RaceRecordDialog({
                     placeholder="HH:MM:SS"
                     inputMode="numeric"
                     value={runTime}
-                    onChange={(e) => setRunTime(formatTimeInput(e.target.value))}
+                    onChange={(e) => {
+                      setRunTime(formatTimeInput(e.target.value));
+                      setOcrFilledFields((p) => {
+                        if (!p.has("run")) return p;
+                        const n = new Set(p);
+                        n.delete("run");
+                        return n;
+                      });
+                    }}
                   />
+                  {ocrHint("run")}
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium">트랜지션</label>
@@ -800,8 +879,17 @@ export function RaceRecordDialog({
                   placeholder="HH:MM:SS"
                   inputMode="numeric"
                   value={totalTime}
-                  onChange={(e) => setTotalTime(formatTimeInput(e.target.value))}
+                  onChange={(e) => {
+                    setTotalTime(formatTimeInput(e.target.value));
+                    setOcrFilledFields((p) => {
+                      if (!p.has("total")) return p;
+                      const n = new Set(p);
+                      n.delete("total");
+                      return n;
+                    });
+                  }}
                 />
+                {ocrHint("total")}
               </div>
             )}
 
