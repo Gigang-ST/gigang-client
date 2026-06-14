@@ -6,6 +6,7 @@ export const env = createEnv({
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
     REVALIDATE_SECRET: z.string().min(1),
     KAKAO_CHAT_PASSWORD: z.string().optional(),
+    GEMINI_API_KEY: z.string().min(1),
     NODE_ENV: z.enum(["development", "production", "test"]),
   },
   client: {
@@ -20,6 +21,7 @@ export const env = createEnv({
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     REVALIDATE_SECRET: process.env.REVALIDATE_SECRET,
     KAKAO_CHAT_PASSWORD: process.env.KAKAO_CHAT_PASSWORD,
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
