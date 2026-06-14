@@ -1,11 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+
 import { ExternalLink, MapPin } from "lucide-react";
+
 import { dayjs, todayKST } from "@/lib/dayjs";
 import { createClient } from "@/lib/supabase/client";
-import { Caption, Micro, SectionLabel } from "@/components/common/typography";
 import { cn } from "@/lib/utils";
+
+import { Caption, Micro, SectionLabel } from "@/components/common/typography";
+
 import type { CalendarRace } from "./mini-calendar";
 
 type MonthData = {

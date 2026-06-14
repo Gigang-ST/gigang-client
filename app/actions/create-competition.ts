@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidateTag } from "next/cache";
+
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { todayKST } from "@/lib/dayjs";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getCachedCmmCdRows, isValidCompSprtCd } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 interface CreateCompetitionInput {
   title: string;
