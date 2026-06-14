@@ -15,6 +15,7 @@ import {
 } from "@/lib/mileage";
 
 import { joinProject } from "@/app/actions/mileage-run";
+import { analytics } from "@/lib/analytics";
 
 import { Caption } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
@@ -130,12 +131,14 @@ export function JoinSection({
 			}
 		}
 
+		analytics.projectJoinStarted(evtId);
 		setSubmitting(true);
 		try {
 			const result = await joinProject(evtId, initGoal, hasSinglet);
 			if (!result.ok) {
 				setError(result.message ?? "오류가 발생했습니다. 다시 시도해 주세요.");
 			} else {
+				analytics.projectJoinCompleted(evtId);
 				setError(null);
 				router.refresh();
 			}

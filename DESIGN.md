@@ -133,6 +133,13 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 | Avatar | `avatar.tsx` | `src?`, `size?`, `fallbackIcon?` | 프로필 사진 + 폴백 아이콘 |
 | StatCard | `stat-card.tsx` | `value`, `label`, `valueClassName?` | 통계 수치 카드 |
 
+### 가입 위저드 (`components/auth/`, `components/`)
+
+| 컴포넌트 | 파일 | Props | 용도 |
+|----------|------|-------|------|
+| SignupProgress | `auth/signup-progress.tsx` | `step` (1\|2\|3), `done?` | 가입 위저드 3단계 공유 진행바 (newbie·login·onboarding 상단 고정) |
+| PwaInstallPrompt | `pwa-install-prompt.tsx` | `variant` ("banner"\|"inline") | 홈 화면 설치 유도. standalone·인앱이면 미표시. banner=전역 하단(7일 dismiss), inline=가입 완료 화면 |
+
 ---
 
 ## 사용 규칙

@@ -1,25 +1,52 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
 import { Button } from "@/components/ui/button";
 
-type InAppEnv = "kakao" | "line" | "instagram" | "facebook" | "other" | null;
+export type InAppEnv =
+  | "kakao"
+  | "line"
+  | "instagram"
+  | "facebook"
+  | "naver"
+  | "band"
+  | "daum"
+  | "other"
+  | null;
 
-function detectInAppBrowser(): InAppEnv {
+export function detectInAppBrowser(): InAppEnv {
   if (typeof window === "undefined") return null;
   const ua = navigator.userAgent.toLowerCase();
   if (ua.includes("kakaotalk")) return "kakao";
   if (ua.includes("line/")) return "line";
   if (ua.includes("instagram")) return "instagram";
   if (ua.includes("fban") || ua.includes("fbav")) return "facebook";
-  // 일반적인 인앱 브라우저 감지 (WebView 힌트)
+  if (ua.includes("naver(inapp")) return "naver";
+  if (ua.includes("band")) return "band";
+  if (ua.includes("daumapps")) return "daum";
+  // Android WebView 힌트 (소모임 등 시스템 WebView 기반 인앱 브라우저 포함)
   if (/wv\)/.test(ua) && !ua.includes("chrome")) return "other";
+  // iOS 비-Safari WebView: iOS인데 Safari/Chrome/Firefox 토큰이 없으면 인앱으로 간주
+  const isIOSDevice = /iphone|ipad|ipod/.test(ua);
+  const looksLikeRealBrowser =
+    ua.includes("safari") || ua.includes("crios") || ua.includes("fxios");
+  if (isIOSDevice && !looksLikeRealBrowser) return "other";
   return null;
 }
 
-function isIOS(): boolean {
+export function isIOS(): boolean {
   if (typeof window === "undefined") return false;
   return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+/** PWA로 홈 화면에서 실행 중(이미 설치)인지 */
+export function isStandalone(): boolean {
+  if (typeof window === "undefined") return false;
+  const mql = window.matchMedia?.("(display-mode: standalone)").matches;
+  // iOS Safari 전용 navigator.standalone
+  const iosStandalone = (navigator as { standalone?: boolean }).standalone;
+  return Boolean(mql || iosStandalone);
 }
 
 function openExternalBrowser(url: string) {
@@ -39,11 +66,14 @@ const APP_LABELS: Record<string, string> = {
   line: "라인",
   instagram: "인스타그램",
   facebook: "페이스북",
+  naver: "네이버 앱",
+  band: "밴드",
+  daum: "다음 앱",
   other: "앱",
 };
 
 export function InAppBrowserGate({ children }: { children: React.ReactNode }) {
-  const [inApp, setInApp] = useState<InAppEnv | null>(null);
+  const [inApp, setInApp] = useState<InAppEnv>(null);
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
@@ -65,12 +95,11 @@ export function InAppBrowserGate({ children }: { children: React.ReactNode }) {
       <div className="w-full max-w-sm text-center">
         <div className="text-5xl">🌐</div>
         <h1 className="mt-4 text-xl font-bold text-foreground">
-          외부 브라우저에서 열어주세요
+          {appName}에선 가입할 수 없어요
         </h1>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          {appName} 내부 브라우저에서는 로그인이 정상적으로
-          <br />
-          동작하지 않을 수 있습니다.
+          크롬 또는 사파리로 열면
+          <br />1분이면 가입이 끝나요.
         </p>
 
         {/* Android: 자동 열기 버튼 */}
