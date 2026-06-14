@@ -14,7 +14,6 @@ import { Body, Caption } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardItem } from "@/components/ui/card";
-import { EmptyState } from "@/components/common/empty-state";
 import { SegmentControl } from "@/components/common/segment-control";
 
 type Participant = {
@@ -82,7 +81,10 @@ export function ParticipantsTab({ evtId }: { evtId: string }) {
     setLoading(false);
   }, [evtId]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
   }, [loadData]);
 

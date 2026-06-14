@@ -1,12 +1,7 @@
 import { z } from "zod";
 import type { Enums } from "@/lib/supabase/database.types";
 import { todayKST } from "@/lib/dayjs";
-import {
-  COMP_EVT_TYPE_OTHER,
-  compEvtTypeContainsHangul,
-  normalizeCompEvtTypeKey,
-  sanitizeAsciiUpperCompEvtTypeInput,
-} from "@/lib/comp-evt-type";
+import { COMP_EVT_TYPE_OTHER } from "@/lib/comp-evt-type";
 
 export type CompetitionRegisterDatePolicy = "future-only" | "allow-past";
 

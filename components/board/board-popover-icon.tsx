@@ -21,6 +21,8 @@ export function BoardPopoverIcon({
 }: BoardPopoverIconProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [hasUnreadNotice, setHasUnreadNotice] = useState(initialHasUnreadNotice);
+  const [hasUnreadUpdate, setHasUnreadUpdate] = useState(initialHasUnreadUpdate);
 
   if (!memberId) {
     return (
@@ -29,8 +31,6 @@ export function BoardPopoverIcon({
       </button>
     );
   }
-  const [hasUnreadNotice, setHasUnreadNotice] = useState(initialHasUnreadNotice);
-  const [hasUnreadUpdate, setHasUnreadUpdate] = useState(initialHasUnreadUpdate);
 
   const hasAnyUnread = hasUnreadNotice || hasUnreadUpdate;
 

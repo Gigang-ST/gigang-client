@@ -27,7 +27,7 @@ function SegmentControl<T extends string = string>({
 }: SegmentControlProps<T>) {
   return (
     <div className={cn("flex gap-0 rounded-xl border border-border bg-secondary p-1", className)}>
-      {segments.map((seg, idx) => (
+      {segments.map((seg) => (
         <button
           key={seg.value}
           type="button"

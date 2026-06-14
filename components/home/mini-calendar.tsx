@@ -12,6 +12,8 @@ import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { schPostTypeInlineLabel } from "@/lib/validations/schedule";
+import type { SchPostType } from "@/lib/validations/schedule";
 
 import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-create-comp-evt-for-participation";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
@@ -24,8 +26,6 @@ import { ScheduleListView } from "@/components/home/schedule-list-view";
 import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
 import { SchPostFormDialog } from "@/components/schedule/sch-post-form-dialog";
-import { schPostTypeInlineLabel } from "@/lib/validations/schedule";
-import type { SchPostType } from "@/lib/validations/schedule";
 
 
 

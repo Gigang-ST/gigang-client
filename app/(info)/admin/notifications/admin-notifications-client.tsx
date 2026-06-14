@@ -11,7 +11,7 @@ import { sendNotification, type NotiTypeEnm } from "@/app/actions/admin/send-not
 
 import { Check } from "lucide-react";
 
-import { Body, Caption, SectionLabel } from "@/components/common/typography";
+import { Body, Caption } from "@/components/common/typography";
 import { SectionHeader } from "@/components/common/section-header";
 import { EmptyState } from "@/components/common/empty-state";
 import { Button } from "@/components/ui/button";
@@ -60,8 +60,6 @@ export function AdminNotificationsClient({
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [expandedBatch, setExpandedBatch] = useState<string | null>(null);
-
-  const memberMap = useMemo(() => new Map(members.map((m) => [m.mem_id, m.mem_nm])), [members]);
 
   const filtered = useMemo(
     () => members.filter((m) => m.mem_nm.includes(search)),

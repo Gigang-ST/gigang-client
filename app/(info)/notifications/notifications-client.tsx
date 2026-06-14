@@ -17,7 +17,7 @@ type Props = {
   memberId: string;
 };
 
-export function NotificationsClient({ initialNotifications, memberId }: Props) {
+export function NotificationsClient({ initialNotifications, memberId: _memberId }: Props) {
   const [notifications, setNotifications] = useState(initialNotifications);
   const [cursor, setCursor] = useState<string | null>(
     initialNotifications.length > 0 ? initialNotifications[initialNotifications.length - 1].crt_at : null,

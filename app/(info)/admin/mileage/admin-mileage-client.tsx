@@ -5,7 +5,6 @@ import { useQueryState, parseAsString, parseAsStringLiteral } from "nuqs";
 import { createClient } from "@/lib/supabase/client";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -90,7 +89,10 @@ export function AdminMileageClient({ teamId }: { teamId: string }) {
   }, [teamId]);
 
   // 초기 로드: project 쿼리파람 없으면 자동 선택
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadProjects().then((list) => {
       if (!projectIdRef.current && list.length > 0) {
         const active = list.find((p) => p.stts_enm === "ACTIVE");

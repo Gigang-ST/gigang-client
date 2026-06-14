@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { Pencil, Trash2, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -71,7 +70,6 @@ function buildMonthSegments(startDt: string, endDt: string) {
 }
 
 export function RecordsClient({ evtId, memId, evtStartDt, evtEndDt }: Props) {
-  const router = useRouter();
   const curMonth = currentMonthKST();
   const segments = buildMonthSegments(evtStartDt, evtEndDt);
 
@@ -131,7 +129,9 @@ export function RecordsClient({ evtId, memId, evtStartDt, evtEndDt }: Props) {
     setLoading(false);
   }, [evtId, memId, month]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadRecords();
   }, [loadRecords]);
 

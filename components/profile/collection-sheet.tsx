@@ -157,7 +157,7 @@ export function CollectionSheet({
   const [selectedTtlId, setSelectedTtlId] = useState<string | null>(currentPrimaryTtlId);
   const [selectedBadge, setSelectedBadge] = useState<string | null>(currentBadgeEffect);
   const [selectedFrame, setSelectedFrame] = useState<string | null>(currentFrameCd);
-  const [previewTtlId, setPreviewTtlId] = useState<string | null>(null);
+  const [_previewTtlId, setPreviewTtlId] = useState<string | null>(null);
   const [openTooltipTtlId, setOpenTooltipTtlId] = useState<string | null>(null);
   const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -170,8 +170,10 @@ export function CollectionSheet({
   }
 
   // 시트 재오픈 시 선택 상태를 현재 저장값으로 리셋
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedTtlId(currentPrimaryTtlId);
       setSelectedBadge(currentBadgeEffect);
       setSelectedFrame(currentFrameCd);
@@ -182,6 +184,7 @@ export function CollectionSheet({
   }, [open, currentPrimaryTtlId, currentBadgeEffect, currentFrameCd]);
 
   // 탭 변경 시 툴팁 닫기
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setOpenTooltipTtlId(null); }, [tab]);
 
   // 뱃지 미리보기는 저장될 selectedTtlId 기준
@@ -189,8 +192,10 @@ export function CollectionSheet({
   const previewName = selectedTitle?.ttl_nm ?? "GIGANG";
 
   // 데이터 로드
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (!open) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     const supabase = createClient();
     Promise.all([
