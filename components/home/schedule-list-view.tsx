@@ -27,7 +27,6 @@ type Props = {
   initialRaces: CalendarRace[];
   onClickSchedule: (race: CalendarRace) => void;
   onClickCompetition: (race: CalendarRace) => void;
-  onAddSchedule: (defaultDate?: string) => void;
 };
 
 function monthBounds(monthKey: string): { start: string; end: string } {
@@ -172,10 +171,10 @@ function ScheduleItem({ race, onClick }: { race: CalendarRace; onClick: () => vo
           {race.post_type && schPostTypeInlineLabel[race.post_type as SchPostType] && (
             <span className="font-normal text-muted-foreground"> · {schPostTypeInlineLabel[race.post_type as SchPostType]}</span>
           )}
-          {timeRange && (
-            <span className="font-normal text-muted-foreground"> · {timeRange}</span>
-          )}
         </Caption>
+        {timeRange && (
+          <Micro className="tabular-nums text-muted-foreground">{timeRange}</Micro>
+        )}
         {race.cont_txt && (
           <Micro className="truncate text-muted-foreground">{race.cont_txt}</Micro>
         )}
