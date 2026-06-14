@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { House, Trophy, Medal, User, Zap } from "lucide-react";
+import { House, Newspaper, Medal, User, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { analytics } from "@/lib/analytics";
 
 const TABS = [
   { label: "홈", href: "/", key: "home", icon: House },
-  { label: "대회", href: "/races", key: "races", icon: Trophy },
+  { label: "기강이야기", href: "/story", key: "story", icon: Newspaper },
   { label: "프로젝트", href: "/projects", key: "projects", icon: Zap },
   { label: "랭킹", href: "/records", key: "records", icon: Medal },
   { label: "프로필", href: "/profile", key: "profile", icon: User },

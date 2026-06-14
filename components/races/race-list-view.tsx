@@ -35,7 +35,6 @@ import type {
 
 const PAST_MONTHS_CHUNK = 3;
 
-type Tab = "gigang" | "all";
 
 const MONTHS_EN = [
 	"JAN",
@@ -61,7 +60,7 @@ const SPORT_LABEL: Record<string, { label: string; className: string }> = {
 export function RaceListView({
 	cmmCdRows,
 	teamId,
-	gigangCompetitions,
+
 	allCompetitions,
 	initialMemberStatus,
 	initialRegistrationsByCompetitionId,
@@ -69,7 +68,6 @@ export function RaceListView({
 }: {
 	cmmCdRows: CachedCmmCdRow[];
 	teamId: string;
-	gigangCompetitions: Competition[];
 	allCompetitions: Competition[];
 	initialMemberStatus: MemberStatus;
 	initialRegistrationsByCompetitionId: Record<string, CompetitionRegistration>;
@@ -77,7 +75,6 @@ export function RaceListView({
 }) {
 	const router = useRouter();
 	const supabase = useMemo(() => createClient(), []);
-	const [tab, setTab] = useState<Tab>("gigang");
 	const [memberStatus, setMemberStatus] =
 		useState<MemberStatus>(initialMemberStatus);
 	const [registrationsByCompetitionId, setRegistrationsByCompetitionId] =
@@ -90,8 +87,6 @@ export function RaceListView({
 	const [registerOpen, setRegisterOpen] = useState(false);
 	const [localAllCompetitions, setLocalAllCompetitions] =
 		useState<Competition[]>(allCompetitions);
-	const [localGigangCompetitions, _setLocalGigangCompetitions] =
-		useState<Competition[]>(gigangCompetitions);
 
 	// 지난 대회 (기강 참가만, 3개월씩)
 	const [pastOpen, setPastOpen] = useState(false);
@@ -229,7 +224,7 @@ export function RaceListView({
 		loadPastChunk(before);
 	};
 
-	const competitions = tab === "gigang" ? localGigangCompetitions : localAllCompetitions;
+	const competitions = localAllCompetitions;
 	const allCompetitionIds = useMemo(
 		() => [
 			...new Set([
@@ -501,27 +496,6 @@ export function RaceListView({
 
 	return (
 		<div className="flex flex-col gap-0">
-			{/* Segment Control */}
-			<div className="flex items-center gap-0 px-6">
-				{[
-					{ value: "gigang" as Tab, label: "기강대회" },
-					{ value: "all" as Tab, label: "전체" },
-				].map((seg) => (
-					<button
-						key={seg.value}
-						onClick={() => { analytics.raceTabSwitch(seg.value === "gigang" ? "team" : "all"); setTab(seg.value); }}
-						className={cn(
-							"flex-1 rounded-lg py-2 text-sm font-medium transition-colors",
-							tab === seg.value
-								? "bg-primary text-primary-foreground"
-								: "text-muted-foreground",
-						)}
-					>
-						{seg.label}
-					</button>
-				))}
-			</div>
-
 			{/* Race List */}
 			<div className="flex flex-col gap-4 px-6 pt-4 pb-6">
 				{grouped.length === 0 ? (
@@ -603,8 +577,8 @@ export function RaceListView({
 					))
 				)}
 
-				{/* 지난 대회 토글 — 기강대회 탭에서만 (지난 대회는 기강 참가만 조회) */}
-				{tab === "gigang" && (
+				{/* 지난 대회 토글 */}
+				{(
 					<div className="pt-2">
 						<Button
 							type="button"
@@ -630,8 +604,8 @@ export function RaceListView({
 				)}
 			</div>
 
-			{/* 지난 대회 (기강 참가만, 최근 3개월씩) — 기강대회 탭 + 토글 열었을 때만 */}
-			{tab === "gigang" && pastOpen && (
+			{/* 지난 대회 (기강 참가, 최근 3개월씩) */}
+			{pastOpen && (
 				<div className="flex flex-col gap-4 px-6 pb-6">
 					<h3 className="text-base font-semibold text-foreground">지난 대회</h3>
 					{pastLoading &&

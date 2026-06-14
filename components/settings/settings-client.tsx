@@ -17,6 +17,7 @@ import {
   LogOut,
   Trash2,
   Moon,
+  Trophy,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { SectionLabel } from "@/components/common/typography";
@@ -33,6 +34,10 @@ const accountItems: MenuItem[] = [
   { label: "프로필 수정", href: "/profile/edit", icon: UserPen },
   { label: "계좌 정보", href: "/profile/bank", icon: CreditCard },
   { label: "회비 내역", href: "/profile/dues", icon: Wallet },
+];
+
+const teamItems: MenuItem[] = [
+  { label: "대회 목록", href: "/races", icon: Trophy },
 ];
 
 const adminItems: MenuItem[] = [
@@ -69,6 +74,26 @@ export function SettingsClient({ isAdmin }: { isAdmin: boolean }) {
       <div className="flex flex-col">
         <SectionLabel>ACCOUNT</SectionLabel>
         {accountItems.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className="flex items-center justify-between border-b border-border py-4"
+          >
+            <div className="flex items-center gap-3">
+              <item.icon className="size-5 text-muted-foreground" />
+              <span className="text-[15px] font-medium text-foreground">
+                {item.label}
+              </span>
+            </div>
+            <ChevronRight className="size-5 text-border" />
+          </Link>
+        ))}
+      </div>
+
+      {/* TEAM */}
+      <div className="flex flex-col">
+        <SectionLabel>TEAM</SectionLabel>
+        {teamItems.map((item) => (
           <Link
             key={item.href}
             href={item.href}
