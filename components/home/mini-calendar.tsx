@@ -16,6 +16,8 @@ import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
 
 
 import { Micro, SectionLabel } from "@/components/common/typography";
+import { AddScheduleDropdown } from "@/components/home/add-schedule-dropdown";
+import { CompetitionPickerDialog } from "@/components/home/competition-picker-dialog";
 import { ScheduleListView } from "@/components/home/schedule-list-view";
 import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
@@ -82,6 +84,10 @@ export function MiniCalendar({
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [editTarget, setEditTarget] = useState<CalendarRace | null>(null);
+
+  // 대회 선택 다이얼로그 상태
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerDefaultDate, setPickerDefaultDate] = useState<string | undefined>(undefined);
 
   const [view, setView] = useState<"calendar" | "list">("calendar");
   const [selectedDate, setSelectedDate] = useState<string>(() => todayKST());
@@ -333,6 +339,22 @@ export function MiniCalendar({
     setFormOpen(true);
   }
 
+  function openCompetitionPicker(defaultDate?: string) {
+    setPickerDefaultDate(defaultDate);
+    setPickerOpen(true);
+  }
+
+  function handlePickedCompetition(competition: Competition) {
+    setSelectedCompetition(competition);
+    setDetailOpen(true);
+  }
+
+  async function handleCompetitionCreated(competition: Competition) {
+    setSelectedCompetition(competition);
+    setDetailOpen(true);
+    await handleSchPostSuccess();
+  }
+
   function openEditForm(race: CalendarRace) {
     setFormMode("edit");
     setEditTarget(race);
@@ -514,13 +536,10 @@ export function MiniCalendar({
                     {parseInt(dd, 10)}일
                   </span>
                   {memberStatus.status === "ready" && (
-                    <button
-                      onClick={() => openCreateForm(selectedDate)}
-                      className="flex items-center gap-1 rounded-md bg-secondary px-2.5 py-1 text-[12px] font-medium text-foreground transition-colors hover:bg-secondary/70"
-                    >
-                      <span className="text-[15px] leading-none">+</span>
-                      일정 추가
-                    </button>
+                    <AddScheduleDropdown
+                      onAddSchedule={() => openCreateForm(selectedDate)}
+                      onAddCompetition={() => openCompetitionPicker(selectedDate)}
+                    />
                   )}
                 </div>
 
@@ -598,17 +617,24 @@ export function MiniCalendar({
           />
           {memberStatus.status === "ready" && (
             <div className="flex justify-end pt-1.5">
-              <button
-                onClick={() => openCreateForm()}
-                className="flex items-center gap-1 rounded-md bg-secondary px-2.5 py-1 text-[12px] font-medium text-foreground transition-colors hover:bg-secondary/70"
-              >
-                <span className="text-[15px] leading-none">+</span>
-                일정 추가
-              </button>
+              <AddScheduleDropdown
+                onAddSchedule={() => openCreateForm()}
+                onAddCompetition={() => openCompetitionPicker()}
+              />
             </div>
           )}
         </div>
       )}
+
+      {/* 대회 선택 다이얼로그 */}
+      <CompetitionPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        defaultDate={pickerDefaultDate}
+        cmmCdRows={cmmCdRows}
+        onSelectCompetition={handlePickedCompetition}
+        onCompetitionCreated={handleCompetitionCreated}
+      />
 
       {/* 일정 등록/수정 다이얼로그 */}
       <SchPostFormDialog

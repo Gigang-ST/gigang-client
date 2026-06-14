@@ -186,7 +186,6 @@ function CompetitionItem({
   onClick: () => void;
 }) {
   const isMine = race.type === "mine";
-  const dateLabel = dayjs(race.start_date).format("MM.DD (ddd)");
 
   return (
     <div className="flex w-full items-stretch gap-2.5">
@@ -201,7 +200,6 @@ function CompetitionItem({
         className="flex min-w-0 flex-1 flex-col gap-0.5 py-0.5 text-left transition-opacity hover:opacity-70"
       >
         <Caption className="truncate font-medium text-foreground">{race.title}</Caption>
-        <Micro className="text-muted-foreground">{dateLabel}</Micro>
         {race.location && (
           <Micro className="flex items-center gap-1 truncate text-muted-foreground">
             <MapPin className="size-2.5 shrink-0" />

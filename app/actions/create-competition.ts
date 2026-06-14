@@ -81,7 +81,7 @@ export async function createCompetition(input: CreateCompetitionInput) {
     }
   }
 
-  revalidateTag("competitions");
+  revalidateTag("competitions", "max");
   return {
     ok: true,
     message: null,
