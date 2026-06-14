@@ -36,7 +36,7 @@ const announcements = {
 
 const rules = [
   { label: "자유 모임 개설", desc: "누구나 자유롭게 모임을 만들 수 있습니다." },
-  { label: "나이 제한", desc: "88년생부터 가입 가능" },
+  { label: "나이 제한", desc: "86년생부터 가입 가능" },
   {
     label: "카톡 참석 표시",
     desc: "정기 러닝 참석 시 카카오톡에 미리 표시",
