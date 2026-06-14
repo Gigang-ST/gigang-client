@@ -2,6 +2,8 @@
 
 import { useMemo, useState, useTransition } from "react";
 
+import { useRouter } from "next/navigation";
+
 import { CalendarDays, ChevronLeft, ChevronRight, List } from "lucide-react";
 
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
@@ -22,6 +24,8 @@ import { ScheduleListView } from "@/components/home/schedule-list-view";
 import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
 import { SchPostFormDialog } from "@/components/schedule/sch-post-form-dialog";
+import { schPostTypeInlineLabel } from "@/lib/validations/schedule";
+import type { SchPostType } from "@/lib/validations/schedule";
 
 
 
@@ -39,6 +43,7 @@ export type CalendarRace = {
   url?: string | null;
   cont_txt?: string | null;
   crt_by?: string;
+  post_type?: string | null;
   // 시간 표시용 (원본 일시 문자열)
   evt_stt_at?: string | null;
   evt_end_at?: string | null;
@@ -73,6 +78,7 @@ export function MiniCalendar({
   initialRegistrationsByCompetitionId,
 }: MiniCalendarProps) {
   const supabase = useMemo(() => createClient(), []);
+  const router = useRouter();
   const initialMonth = currentMonthKST();
   const [viewMonth, setViewMonth] = useState(initialMonth);
   const [gigangRaces, setGigangRaces] = useState(initGigang);
@@ -83,6 +89,7 @@ export function MiniCalendar({
   // 일정 폼 다이얼로그 상태
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
+  const [formPostType, setFormPostType] = useState<SchPostType>("general");
   const [editTarget, setEditTarget] = useState<CalendarRace | null>(null);
 
   // 대회 선택 다이얼로그 상태
@@ -300,7 +307,7 @@ export function MiniCalendar({
     // sch_post 조회
     const { data: schPostRows } = await supabase
       .from("sch_post")
-      .select("sch_post_id, sch_nm, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
+      .select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
       .eq("team_id", teamId)
       .gte("evt_stt_at", newMonth)
       .lte("evt_stt_at", lastDay)
@@ -313,9 +320,12 @@ export function MiniCalendar({
       start_date: row.evt_stt_at.slice(0, 10),
       type: "schedule" as const,
       end_date: row.evt_end_at,
+      evt_stt_at: row.evt_stt_at,
+      evt_end_at: row.evt_end_at,
       url: row.url,
       cont_txt: row.cont_txt,
       crt_by: row.crt_by,
+      post_type: row.post_type,
     }));
 
     return { gigang: newGigang, mine: newMine, schPosts: newSchPosts };
@@ -333,8 +343,9 @@ export function MiniCalendar({
     });
   }
 
-  function openCreateForm(defaultDate?: string) {
+  function openCreateForm(defaultDate?: string, postType: SchPostType = "general") {
     setFormMode("create");
+    setFormPostType(postType);
     setEditTarget(defaultDate ? { id: "", title: "", start_date: defaultDate, type: "schedule" } : null);
     setFormOpen(true);
   }
@@ -356,13 +367,13 @@ export function MiniCalendar({
   }
 
   function openEditForm(race: CalendarRace) {
-    setFormMode("edit");
+    setFormMode("view");
     setEditTarget(race);
     setFormOpen(true);
   }
 
   async function handleSchPostSuccess() {
-    // 현재 달 다시 패칭
+    router.refresh();
     const { gigang, mine, schPosts: newSch } = await fetchMonthData(viewMonth);
     setGigangRaces(gigang);
     setMyRaces(mine);
@@ -568,13 +579,17 @@ export function MiniCalendar({
                               {isComp && race.location && (
                                 <span className="font-normal text-muted-foreground"> · {race.location}</span>
                               )}
+                              {race.type === "schedule" && (
+                                <span className="font-normal text-muted-foreground">
+                                  {race.post_type && schPostTypeInlineLabel[race.post_type as SchPostType] && (
+                                    <> · {schPostTypeInlineLabel[race.post_type as SchPostType]}</>
+                                  )}
+                                  {race.evt_stt_at && (
+                                    <> · {dayjs(race.evt_stt_at).format("HH:mm")}{race.evt_end_at ? `~${dayjs(race.evt_end_at).format("HH:mm")}` : ""}</>
+                                  )}
+                                </span>
+                              )}
                             </span>
-                            {race.type === "schedule" && race.evt_stt_at && (
-                              <span className="text-[10px] text-muted-foreground">
-                                {dayjs(race.evt_stt_at).format("HH:mm")}
-                                {race.evt_end_at ? ` ~ ${dayjs(race.evt_end_at).format("HH:mm")}` : ""}
-                              </span>
-                            )}
                           </button>
                           {isComp && (
                             <div className="flex shrink-0 items-center gap-1">
@@ -593,6 +608,14 @@ export function MiniCalendar({
                                 참가
                               </button>
                             </div>
+                          )}
+                          {race.type === "schedule" && race.url && (
+                            <button
+                              onClick={() => openEditForm(race)}
+                              className="shrink-0 rounded-md border border-border px-2 py-0.5 text-[10px] font-medium text-foreground transition-colors hover:bg-muted"
+                            >
+                              링크
+                            </button>
                           )}
                         </div>
                       );
@@ -618,8 +641,8 @@ export function MiniCalendar({
           {memberStatus.status === "ready" && (
             <div className="flex justify-end pt-1.5">
               <AddScheduleDropdown
-                onAddSchedule={() => openCreateForm()}
-                onAddCompetition={() => openCompetitionPicker()}
+                onAddSchedule={() => openCreateForm(today)}
+                onAddCompetition={() => openCompetitionPicker(today)}
               />
             </div>
           )}
@@ -632,6 +655,7 @@ export function MiniCalendar({
         onOpenChange={setPickerOpen}
         defaultDate={pickerDefaultDate}
         cmmCdRows={cmmCdRows}
+        excludedCompIds={new Set([...gigangRaces, ...myRaces].map((r) => r.id))}
         onSelectCompetition={handlePickedCompetition}
         onCompetitionCreated={handleCompetitionCreated}
       />
@@ -641,15 +665,20 @@ export function MiniCalendar({
         open={formOpen}
         onOpenChange={setFormOpen}
         mode={formMode}
+        defaultPostType={formPostType}
+        currentMemberId={memberStatus.status === "ready" ? memberStatus.memberId : undefined}
+        isAdmin={memberStatus.status === "ready" ? memberStatus.admin : false}
         initialData={
-          formMode === "edit" && editTarget
+          (formMode === "view" || formMode === "edit") && editTarget
             ? {
                 sch_post_id: editTarget.id,
                 sch_nm: editTarget.title,
+                post_type: editTarget.post_type as SchPostType | undefined,
                 evt_stt_at: editTarget.start_date,
                 evt_end_at: editTarget.end_date,
                 url: editTarget.url,
                 cont_txt: editTarget.cont_txt,
+                crt_by: editTarget.crt_by,
               }
             : formMode === "create" && editTarget?.start_date
               ? { sch_post_id: "", sch_nm: "", evt_stt_at: editTarget.start_date }

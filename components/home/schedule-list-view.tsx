@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ExternalLink, MapPin } from "lucide-react";
+import { MapPin } from "lucide-react";
 
 import { dayjs, todayKST } from "@/lib/dayjs";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 import { Caption, Micro, SectionLabel } from "@/components/common/typography";
+
+import { schPostTypeInlineLabel } from "@/lib/validations/schedule";
+import type { SchPostType } from "@/lib/validations/schedule";
 
 import type { CalendarRace } from "./mini-calendar";
 
@@ -54,7 +57,7 @@ async function fetchMonth(
   const [{ data: schRows }, { data: gigangRows }, myRows] = await Promise.all([
     supabase
       .from("sch_post")
-      .select("sch_post_id, sch_nm, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
+      .select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
       .eq("team_id", teamId)
       .gte("evt_stt_at", start)
       .lte("evt_stt_at", end)
@@ -112,6 +115,7 @@ async function fetchMonth(
       title: row.sch_nm,
       start_date: row.evt_stt_at.slice(0, 10),
       type: "schedule",
+      post_type: row.post_type,
       end_date: row.evt_end_at,
       evt_stt_at: row.evt_stt_at,
       evt_end_at: row.evt_end_at,
@@ -155,25 +159,36 @@ function formatTimeRange(sttAt: string | null | undefined, endAt: string | null 
 // schedule 타입 아이템
 function ScheduleItem({ race, onClick }: { race: CalendarRace; onClick: () => void }) {
   const timeRange = formatTimeRange(race.evt_stt_at, race.evt_end_at);
-  const sub = race.url || race.cont_txt;
 
   return (
-    <button
-      onClick={onClick}
-      className="flex w-full items-stretch gap-2.5 text-left transition-opacity hover:opacity-70"
-    >
+    <div className="flex w-full items-stretch gap-2.5">
       <span className="w-0.5 shrink-0 rounded-full bg-info" />
-      <div className="flex min-w-0 flex-col gap-0.5 py-0.5">
-        <Caption className="truncate font-medium text-foreground">{race.title}</Caption>
-        {timeRange && <Micro className="text-muted-foreground">{timeRange}</Micro>}
-        {sub && (
-          <Micro className="flex items-center gap-1 truncate text-muted-foreground">
-            {race.url ? <ExternalLink className="size-2.5 shrink-0" /> : null}
-            <span className="truncate">{race.url ?? race.cont_txt}</span>
-          </Micro>
+      <button
+        onClick={onClick}
+        className="flex min-w-0 flex-1 flex-col gap-0.5 py-0.5 text-left transition-opacity hover:opacity-70"
+      >
+        <Caption className="truncate font-medium text-foreground">
+          {race.title}
+          {race.post_type && schPostTypeInlineLabel[race.post_type as SchPostType] && (
+            <span className="font-normal text-muted-foreground"> · {schPostTypeInlineLabel[race.post_type as SchPostType]}</span>
+          )}
+          {timeRange && (
+            <span className="font-normal text-muted-foreground"> · {timeRange}</span>
+          )}
+        </Caption>
+        {race.cont_txt && (
+          <Micro className="truncate text-muted-foreground">{race.cont_txt}</Micro>
         )}
-      </div>
-    </button>
+      </button>
+      {race.url && (
+        <button
+          onClick={onClick}
+          className="flex shrink-0 items-center self-center rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted"
+        >
+          링크
+        </button>
+      )}
+    </div>
   );
 }
 

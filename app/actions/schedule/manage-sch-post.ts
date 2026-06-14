@@ -7,6 +7,7 @@ import { createSchPostSchema, updateSchPostSchema } from "@/lib/validations/sche
 
 export async function createSchPost(input: {
   sch_nm: string;
+  post_type?: string;
   evt_stt_at: string;
   evt_end_at?: string | null;
   url?: string | null;
@@ -23,6 +24,7 @@ export async function createSchPost(input: {
     .insert({
       team_id: parsed.team_id,
       sch_nm: parsed.sch_nm,
+      post_type: parsed.post_type ?? "general",
       evt_stt_at: parsed.evt_stt_at,
       evt_end_at: parsed.evt_end_at ?? null,
       url: parsed.url || null,
@@ -43,6 +45,7 @@ export async function createSchPost(input: {
 export async function updateSchPost(input: {
   sch_post_id: string;
   sch_nm?: string;
+  post_type?: string;
   evt_stt_at?: string;
   evt_end_at?: string | null;
   url?: string | null;
@@ -59,7 +62,7 @@ export async function updateSchPost(input: {
     .update({ ...fields, url: fields.url || null, upd_at: new Date().toISOString() })
     .eq("sch_post_id", sch_post_id);
 
-  if (error) throw new Error("일정 수정에 실패했습니다.");
+  if (error) throw new Error("수정 권한이 없거나 일정 수정에 실패했습니다.");
 
   revalidatePath("/");
 }
@@ -73,7 +76,7 @@ export async function deleteSchPost(sch_post_id: string) {
     .update({ del_yn: true, upd_at: new Date().toISOString() })
     .eq("sch_post_id", sch_post_id);
 
-  if (error) throw new Error("일정 삭제에 실패했습니다.");
+  if (error) throw new Error("삭제 권한이 없거나 일정 삭제에 실패했습니다.");
 
   revalidatePath("/");
 }

@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 
-import { ChevronUp, FileText, Trophy } from "lucide-react";
+import { ChevronUp, FileText, Trophy, Users } from "lucide-react";
 
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -34,22 +35,34 @@ export function AddScheduleDropdown({ onAddSchedule, onAddCompetition }: Props) 
       <DropdownMenuContent align="end" side="top" className="w-48">
         <DropdownMenuItem
           onClick={() => { setOpen(false); onAddCompetition(); }}
-          className="flex items-start gap-3 py-2.5"
+          className="flex items-center gap-3 py-2"
         >
-          <Trophy className="mt-0.5 size-4 shrink-0 text-warning" />
+          <Trophy className="size-4 shrink-0 text-warning" />
           <div className="flex flex-col gap-0.5">
-            <span className="text-[13px] font-medium">대회 추가</span>
-            <span className="text-[11px] text-muted-foreground">대회 선택 또는 직접 등록</span>
+            <span className="text-[13px] font-medium">대회</span>
+            <span className="text-[11px] text-muted-foreground">선택 또는 등록</span>
           </div>
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => { setOpen(false); onAddSchedule(); }}
-          className="flex items-start gap-3 py-2.5"
+          className="flex items-center gap-3 py-2"
         >
-          <FileText className="mt-0.5 size-4 shrink-0 text-info" />
+          <FileText className="size-4 shrink-0 text-info" />
           <div className="flex flex-col gap-0.5">
-            <span className="text-[13px] font-medium">정보 일정 추가</span>
-            <span className="text-[11px] text-muted-foreground">공지, 훈련 등 정보 공유</span>
+            <span className="text-[13px] font-medium">소식</span>
+            <span className="text-[11px] text-muted-foreground">대회 접수, 세일, 세션 등</span>
+          </div>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          disabled
+          className="flex items-center gap-3 py-2"
+        >
+          <Users className="size-4 shrink-0 text-muted-foreground" />
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[13px] font-medium">모임</span>
+            <span className="text-[11px] text-muted-foreground">준비 중</span>
           </div>
         </DropdownMenuItem>
       </DropdownMenuContent>

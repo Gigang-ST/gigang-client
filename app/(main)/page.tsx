@@ -186,7 +186,7 @@ async function HomeContent() {
   // sch_post (이번 달)
   const { data: schPostRows } = await supabase
     .from("sch_post")
-    .select("sch_post_id, sch_nm, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
+    .select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
     .eq("team_id", teamId)
     .gte("evt_stt_at", monthStart)
     .lte("evt_stt_at", monthLastDayStr)
@@ -198,6 +198,7 @@ async function HomeContent() {
     title: row.sch_nm,
     start_date: row.evt_stt_at.slice(0, 10),
     type: "schedule" as const,
+    post_type: row.post_type,
     end_date: row.evt_end_at,
     evt_stt_at: row.evt_stt_at,
     evt_end_at: row.evt_end_at,

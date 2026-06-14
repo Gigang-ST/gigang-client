@@ -43,6 +43,8 @@ type Props = {
   /** 캘린더뷰에서 날짜가 이미 선택된 경우 전달. 없으면 유저가 직접 선택. */
   defaultDate?: string;
   cmmCdRows: CachedCmmCdRow[];
+  /** 이미 일정에 등록된 대회 ID — 목록에서 제외 */
+  excludedCompIds?: Set<string>;
   onSelectCompetition: (competition: Competition) => void;
   onCompetitionCreated: (competition: Competition) => void;
 };
@@ -52,6 +54,7 @@ export function CompetitionPickerDialog({
   onOpenChange,
   defaultDate,
   cmmCdRows,
+  excludedCompIds,
   onSelectCompetition,
   onCompetitionCreated,
 }: Props) {
@@ -114,17 +117,19 @@ export function CompetitionPickerDialog({
       .then(({ data }) => {
         if (cancelled) return;
         setCompetitions(
-          (data ?? []).map((c) => ({
-            id: c.comp_id,
-            external_id: "",
-            sport: c.comp_sprt_cd ?? null,
-            title: c.comp_nm,
-            start_date: c.stt_dt,
-            end_date: c.end_dt ?? null,
-            location: c.loc_nm ?? null,
-            event_types: (c.comp_evt_cfg as { comp_evt_type: string | null }[]).map((e) => e.comp_evt_type?.toUpperCase()).filter((e): e is string => Boolean(e)),
-            source_url: c.src_url ?? null,
-          })),
+          (data ?? [])
+            .filter((c) => !excludedCompIds?.has(c.comp_id))
+            .map((c) => ({
+              id: c.comp_id,
+              external_id: "",
+              sport: c.comp_sprt_cd ?? null,
+              title: c.comp_nm,
+              start_date: c.stt_dt,
+              end_date: c.end_dt ?? null,
+              location: c.loc_nm ?? null,
+              event_types: (c.comp_evt_cfg as { comp_evt_type: string | null }[]).map((e) => e.comp_evt_type?.toUpperCase()).filter((e): e is string => Boolean(e)),
+              source_url: c.src_url ?? null,
+            })),
         );
         setLoading(false);
       });
