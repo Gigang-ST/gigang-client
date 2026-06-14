@@ -9,6 +9,11 @@ import {
 } from "@/lib/comp-evt-type";
 import { timeStringToSeconds, secondsToTime } from "@/lib/dayjs";
 import {
+  getCachedExtraction,
+  hashImageFile,
+  setCachedExtraction,
+} from "@/lib/ocr/ocr-cache";
+import {
   eventTypeCodesForSprtFromCmmRows,
   type CachedCmmCdRow,
 } from "@/lib/queries/cmm-cd-cached";
@@ -123,6 +128,7 @@ export function RaceRecordDialog({
     bike: string | null;
     run: string | null;
   } | null>(null);
+  const [ocrCompetitionName, setOcrCompetitionName] = useState<string | null>(null);
   const [ocrFilledFields, setOcrFilledFields] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -167,6 +173,7 @@ export function RaceRecordDialog({
         return null;
       });
       setOcrTimes(null);
+      setOcrCompetitionName(null);
       setOcrFilledFields(new Set());
       setSelectedComp(null);
       setRaceDate("");
@@ -357,21 +364,38 @@ export function RaceRecordDialog({
 
   async function handleImageSelected(file: File) {
     setOcrError(null);
-    setOcrLoading(true);
     setImagePreview((prev) => {
       if (prev) URL.revokeObjectURL(prev);
       return URL.createObjectURL(file);
     });
 
+    let hash: string | null = null;
+    try {
+      hash = await hashImageFile(file);
+    } catch {
+      hash = null;
+    }
+
+    // 같은 사진이면 Gemini 재호출 없이 캐시 사용 (토큰 절약)
+    if (hash) {
+      const cached = getCachedExtraction(hash);
+      if (cached) {
+        applyOcrResult(cached);
+        return;
+      }
+    }
+
+    setOcrLoading(true);
     const formData = new FormData();
     formData.append("image", file);
     const result = await extractRaceRecordFromImage(formData);
-
     setOcrLoading(false);
+
     if (!result.ok) {
       setOcrError(result.message);
       return;
     }
+    if (hash) setCachedExtraction(hash, result.data);
     applyOcrResult(result.data);
   }
 
@@ -382,6 +406,7 @@ export function RaceRecordDialog({
   function applyOcrResult(data: import("@/lib/ocr/race-record").ExtractedRecord) {
     if (data.raceDate) setRaceDate(data.raceDate);
     if (data.competitionName) setSearchQuery(data.competitionName);
+    setOcrCompetitionName(data.competitionName);
     setOcrTimes({
       total: data.totalTime,
       swim: data.swimTime,
@@ -918,7 +943,21 @@ export function RaceRecordDialog({
           datePolicy="allow-past"
           stackElevated
           prefillStartDate={raceDate.trim() || undefined}
-          onCreated={(_comp) => {}}
+          prefillTitle={ocrCompetitionName?.trim() || undefined}
+          onCreated={(comp) => {
+            setRegisterOpen(false);
+            handleSelectCompetition(
+              {
+                id: comp.id,
+                title: comp.title,
+                start_date: comp.start_date,
+                location: comp.location,
+                sport: comp.sport ?? "",
+                event_types: comp.event_types,
+              },
+              { useCalendarPickForRecordDate: true },
+            );
+          }}
         />
       )}
 

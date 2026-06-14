@@ -86,6 +86,8 @@ interface CompetitionRegisterDialogProps {
   stackElevated?: boolean;
   /** 열 때 시작일(YYYY-MM-DD) 미리 채움 */
   prefillStartDate?: string;
+  /** OCR로 읽은 대회명 prefill (선택) */
+  prefillTitle?: string;
   /** 날짜 정책: 대회 탭은 미래/당일만, 기록 입력은 과거 허용 */
   datePolicy?: CompetitionRegisterDatePolicy;
 }
@@ -98,6 +100,7 @@ export function CompetitionRegisterDialog({
   onCreated,
   stackElevated = false,
   prefillStartDate,
+  prefillTitle,
   datePolicy = "future-only",
 }: CompetitionRegisterDialogProps) {
   const registerSchema = useMemo(
@@ -149,11 +152,12 @@ export function CompetitionRegisterDialog({
         ...defaultValues,
         sport: defaultSport,
         ...(prefillStartDate?.trim() ? { startDate: prefillStartDate.trim() } : {}),
+        ...(prefillTitle?.trim() ? { title: prefillTitle.trim() } : {}),
       });
     }
     // sportOptions는 열릴 때 기본 종목만 채우면 됨. 열려 있는 동안 cmmCdRows 참조 변경으로 reset이 재실행되면 입력 중 값이 날아갈 수 있음.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, prefillStartDate, reset]);
+  }, [open, prefillStartDate, prefillTitle, reset]);
 
   const selectedCourseCount = selectedEventTypes.filter((t) => t !== COMP_EVT_TYPE_OTHER).length;
 
