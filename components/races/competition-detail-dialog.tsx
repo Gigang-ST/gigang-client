@@ -35,6 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -347,7 +348,7 @@ export function CompetitionDetailDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) setEditing(false); onOpenChange(v); }}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-balance">{competition.title}</DialogTitle>
@@ -693,6 +694,11 @@ export function CompetitionDetailDialog({
                 </Button>
               )}
             </DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="ghost" className="w-full text-muted-foreground">
+                닫기
+              </Button>
+            </DialogClose>
           </form>
         )}
       </DialogContent>

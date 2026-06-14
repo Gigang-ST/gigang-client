@@ -15,7 +15,7 @@
 | `nm` | 이름 |
 | `dt` | 날짜 |
 | `at` | 일시 |
-| `stt` | start 시작 |
+| `stt` | start 시작 (일시는 `stt_at`, 날짜는 `stt_dt`) |
 | `stts` | status 상태 |
 | `aply` | apply 적용 |
 | `aprv` | approve 승인 |
@@ -66,6 +66,7 @@
 | `ref` | reference (연관 리소스 참조) |
 | `writ` | writer (작성자) |
 | `gthr` | gathering (모임) |
+| `sch` | schedule (일정 공유) |
 | `cmnt` | comment (댓글) |
 | `prnt` | parent (부모, 대댓글 계층) |
 | `cont` | content (본문, 단독 텍스트 컬럼은 `cont_txt`) |
@@ -104,6 +105,18 @@
 | `gthr_mst` | 모임 마스터 |
 | `gthr_attd_rel` | 모임 참석 관계 |
 | `gthr_cmnt_mst` | 모임 댓글 |
+| `sch_post` | 일정 공유 게시물 (러닝 소식/이벤트/대회접수 등) |
+
+## sch_post 도메인 컬럼 약어
+| 컬럼 | 의미 |
+|------|------|
+| `sch_post_id` | PK |
+| `sch_nm` | 일정명 |
+| `evt_stt_at` | 일정 시작 일시 (timestamptz) |
+| `evt_end_at` | 일정 종료 일시 (timestamptz, 선택) |
+| `url` | 관련 링크 (선택) |
+| `cont_txt` | 본문 내용 (선택) |
+| `crt_by` | 작성자 mem_id |
 
 ## 칭호 도메인 컬럼 약어 (v2)
 | 컬럼 | 의미 |
@@ -152,3 +165,5 @@
 - `*_cd` 기본 의미는 공통코드 참조다.
 - 고정된 폐쇄형 값셋은 `*_enm`을 우선 사용한다.
 - 단, `team_cd`처럼 외부/업무 식별 목적의 유니크 코드는 예외로 허용한다.
+- 엔터티명 자체를 나타내는 이름 컬럼은 `도메인_nm` 패턴을 사용한다 (예: `sch_nm`, `gthr_nm`, `ttl_nm`). `title_nm`처럼 의미가 중복되는 형태는 사용하지 않는다.
+- 일시(timestamptz) 컬럼은 `*_at`, 날짜(date) 컬럼은 `*_dt`로 구분한다.

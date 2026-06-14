@@ -162,38 +162,6 @@ export function RaceRecordDialog({
     return total - swim - bike - run;
   }, [isTriathlon, totalTime, swimTime, bikeTime, runTime]);
 
-  // 다이얼로그 열릴 때 초기화 + 대회 목록 불러오기
-  useEffect(() => {
-    if (open) {
-      setStep(0);
-      setOcrLoading(false);
-      setOcrError(null);
-      setImagePreview((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return null;
-      });
-      setOcrTimes(null);
-      setOcrCompetitionName(null);
-      setOcrFilledFields(new Set());
-      setSelectedComp(null);
-      setRaceDate("");
-      setCompsForRaceDate([]);
-      setDateListLoading(false);
-      setSearchQuery("");
-      setRegisterOpen(false);
-      setRecordRaceDayFromCalendar("");
-      setSelectedEventType("");
-      setCustomEventType("");
-      setTotalTime("");
-      setSwimTime("");
-      setBikeTime("");
-      setRunTime("");
-      setError(null);
-      fetchCompetitions();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
   async function fetchCompetitions() {
     setLoadingComps(true);
     const today = new Date();
@@ -248,10 +216,44 @@ export function RaceRecordDialog({
     setLoadingComps(false);
   }
 
+  // 다이얼로그 열릴 때 초기화 + 대회 목록 불러오기
+  useEffect(() => {
+    if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setStep(0);
+      setOcrLoading(false);
+      setOcrError(null);
+      setImagePreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      setOcrTimes(null);
+      setOcrCompetitionName(null);
+      setOcrFilledFields(new Set());
+      setSelectedComp(null);
+      setRaceDate("");
+      setCompsForRaceDate([]);
+      setDateListLoading(false);
+      setSearchQuery("");
+      setRegisterOpen(false);
+      setRecordRaceDayFromCalendar("");
+      setSelectedEventType("");
+      setCustomEventType("");
+      setTotalTime("");
+      setSwimTime("");
+      setBikeTime("");
+      setRunTime("");
+      setError(null);
+      fetchCompetitions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   // 대회 날짜 선택 시 해당 구간 대회 목록
   useEffect(() => {
     const d = raceDate.trim();
     if (!d) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCompsForRaceDate([]);
       setDateListLoading(false);
       return;
@@ -480,7 +482,7 @@ export function RaceRecordDialog({
   }, [grantedDismissable]);
 
   /* ---------- 렌더링 ---------- */
-  const scrollSearchInputAboveKeyboard = useRef(() => {
+  const scrollSearchInputAboveKeyboard = useCallback(() => {
     const input = searchInputRef.current;
     const container = dialogContentRef.current;
     if (!input || !container || document.activeElement !== input) return;
@@ -492,7 +494,7 @@ export function RaceRecordDialog({
       const scrollAmount = rect.bottom - (visibleBottom - padding);
       container.scrollTop += scrollAmount;
     }
-  }).current;
+  }, []);
 
   useEffect(() => {
     const vv = window.visualViewport;

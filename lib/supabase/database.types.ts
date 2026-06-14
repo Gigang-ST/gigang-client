@@ -1531,6 +1531,69 @@ export type Database = {
           },
         ]
       }
+      sch_post: {
+        Row: {
+          cont_txt: string | null
+          crt_at: string
+          crt_by: string
+          del_yn: boolean
+          evt_end_at: string | null
+          evt_stt_at: string
+          post_type: string
+          sch_nm: string
+          sch_post_id: string
+          team_id: string
+          upd_at: string
+          url: string | null
+          vers: number
+        }
+        Insert: {
+          cont_txt?: string | null
+          crt_at?: string
+          crt_by: string
+          del_yn?: boolean
+          evt_end_at?: string | null
+          evt_stt_at: string
+          post_type?: string
+          sch_nm: string
+          sch_post_id?: string
+          team_id: string
+          upd_at?: string
+          url?: string | null
+          vers?: number
+        }
+        Update: {
+          cont_txt?: string | null
+          crt_at?: string
+          crt_by?: string
+          del_yn?: boolean
+          evt_end_at?: string | null
+          evt_stt_at?: string
+          post_type?: string
+          sch_nm?: string
+          sch_post_id?: string
+          team_id?: string
+          upd_at?: string
+          url?: string | null
+          vers?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sch_post_crt_by_fkey"
+            columns: ["crt_by"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "sch_post_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
       team_comp_plan_rel: {
         Row: {
           comp_id: string
@@ -2036,3 +2099,4 @@ export const Constants = {
     },
   },
 } as const
+

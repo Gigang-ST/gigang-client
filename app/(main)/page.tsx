@@ -1,6 +1,6 @@
 ﻿import { Suspense } from "react";
 
-import { todayKST, currentMonthKST, monthLastDay } from "@/lib/dayjs";
+import { dayjs, todayKST, currentMonthKST, monthLastDay } from "@/lib/dayjs";
 import { env } from "@/lib/env";
 import { hasUnreadBoardPost } from "@/lib/queries/board";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
@@ -183,6 +183,30 @@ async function HomeContent() {
     topGigang = weekendGroup[0];
   }
 
+  // sch_post (이번 달)
+  const { data: schPostRows } = await supabase
+    .from("sch_post")
+    .select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
+    .eq("team_id", teamId)
+    .gte("evt_stt_at", monthStart)
+    .lte("evt_stt_at", monthLastDayStr)
+    .eq("del_yn", false)
+    .order("evt_stt_at", { ascending: true });
+
+  const calendarSchPosts: CalendarRace[] = (schPostRows ?? []).map((row) => ({
+    id: row.sch_post_id,
+    title: row.sch_nm,
+    start_date: dayjs(row.evt_stt_at).format("YYYY-MM-DD"),
+    type: "schedule" as const,
+    post_type: row.post_type,
+    end_date: row.evt_end_at,
+    evt_stt_at: row.evt_stt_at,
+    evt_end_at: row.evt_end_at,
+    url: row.url,
+    cont_txt: row.cont_txt,
+    crt_by: row.crt_by,
+  }));
+
   // 캘린더용 기강 대회 (이번 달)
   const calendarGigangSeenIds = new Set<string>();
   const calendarGigangRaces: CalendarRace[] = (calendarComps ?? [])
@@ -197,6 +221,8 @@ async function HomeContent() {
       title: row.comp_nm,
       start_date: row.stt_dt,
       type: "gigang" as const,
+      location: row.loc_nm ?? null,
+      regCount: row.reg_count ?? 0,
     }));
 
   // 내가 참가하는 대회 가져오기
@@ -264,12 +290,15 @@ async function HomeContent() {
         .sort((a, b) => a.start_date.localeCompare(b.start_date));
 
       // 캘린더용 내 대회 (이번 달) — today 필터 없이 myRegs 원본에서 직접 추출
+      const calendarCompsRegCountMap = new Map<string, number>(
+        (calendarComps ?? []).map((row) => [row.comp_id, row.reg_count ?? 0]),
+      );
       calendarMyRaces = (myRegs ?? [])
         .flatMap((r) => {
           const plan = Array.isArray(r.team_comp_plan_rel) ? r.team_comp_plan_rel[0] : r.team_comp_plan_rel;
           const comp = Array.isArray(plan.comp_mst) ? plan.comp_mst[0] : plan.comp_mst;
           if (!comp) return [];
-          const race: CalendarRace = { id: comp.comp_id, title: comp.comp_nm, start_date: comp.stt_dt, type: "mine" };
+          const race: CalendarRace = { id: comp.comp_id, title: comp.comp_nm, start_date: comp.stt_dt, type: "mine", location: comp.loc_nm ?? null, regCount: calendarCompsRegCountMap.get(comp.comp_id) ?? 0 };
           return race.start_date >= monthStart && race.start_date <= monthLastDayStr ? [race] : [];
         });
 
@@ -432,6 +461,7 @@ async function HomeContent() {
       <MiniCalendar
         gigangRaces={calendarGigangRaces}
         myRaces={calendarMyRaces}
+        schPosts={calendarSchPosts}
         teamId={teamId}
         memberId={currentMember?.id}
         cmmCdRows={cmmCdRows}
