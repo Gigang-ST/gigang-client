@@ -63,13 +63,19 @@ export function normalizeOcrDate(raw: string | null | undefined): string | null 
 
 /** 추출 원본을 정규화 + 검증 */
 export function normalizeExtractedRecord(parsed: ExtractedRecord): ExtractedRecord {
+  const swimTime = normalizeOcrTime(parsed.swimTime);
+  const bikeTime = normalizeOcrTime(parsed.bikeTime);
+  const runTime = normalizeOcrTime(parsed.runTime);
+  // 트라이애슬론 split은 all-or-nothing: 셋 다 있어야 신뢰. 하나라도 없으면 모두 버림
+  // (마라톤 등에서 모델이 총 기록을 runTime으로 환각하는 경우 방지)
+  const hasAllSplits = Boolean(swimTime && bikeTime && runTime);
   return {
     competitionName: parsed.competitionName?.trim() || null,
     raceDate: normalizeOcrDate(parsed.raceDate),
     totalTime: normalizeOcrTime(parsed.totalTime),
-    swimTime: normalizeOcrTime(parsed.swimTime),
-    bikeTime: normalizeOcrTime(parsed.bikeTime),
-    runTime: normalizeOcrTime(parsed.runTime),
+    swimTime: hasAllSplits ? swimTime : null,
+    bikeTime: hasAllSplits ? bikeTime : null,
+    runTime: hasAllSplits ? runTime : null,
   };
 }
 
