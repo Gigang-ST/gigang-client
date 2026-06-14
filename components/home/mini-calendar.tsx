@@ -24,6 +24,7 @@ export type CalendarRace = {
   // 공통 선택 필드
   end_date?: string | null;
   location?: string | null;
+  regCount?: number;
   // schedule 전용
   url?: string | null;
   cont_txt?: string | null;
@@ -257,23 +258,27 @@ export function MiniCalendar({
     const newGigang: CalendarRace[] = (teamComps ?? [])
       .filter((row) => (row.reg_count ?? 0) > 0)
       .filter((row) => { if (seenIds.has(row.comp_id)) return false; seenIds.add(row.comp_id); return true; })
-      .map((row) => ({ id: row.comp_id, title: row.comp_nm, start_date: row.stt_dt, type: "gigang" as const }));
+      .map((row) => ({ id: row.comp_id, title: row.comp_nm, start_date: row.stt_dt, type: "gigang" as const, location: row.loc_nm ?? null, regCount: row.reg_count ?? 0 }));
 
     let newMine: CalendarRace[] = [];
     if (memberId) {
       const { data: myRegs } = await supabase
         .from("comp_reg_rel")
-        .select("team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt))")
+        .select("team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm))")
         .eq("mem_id", memberId)
         .eq("team_comp_plan_rel.team_id", teamId)
         .eq("vers", 0)
         .eq("del_yn", false);
 
+      const regCountMap = new Map<string, number>(
+        (teamComps ?? []).map((row) => [row.comp_id, row.reg_count ?? 0]),
+      );
+
       newMine = (myRegs ?? []).flatMap((r) => {
         const plan = Array.isArray(r.team_comp_plan_rel) ? r.team_comp_plan_rel[0] : r.team_comp_plan_rel;
         const comp = Array.isArray(plan?.comp_mst) ? plan.comp_mst[0] : plan?.comp_mst;
         if (!comp) return [];
-        const race: CalendarRace = { id: comp.comp_id, title: comp.comp_nm, start_date: comp.stt_dt, type: "mine" };
+        const race: CalendarRace = { id: comp.comp_id, title: comp.comp_nm, start_date: comp.stt_dt, type: "mine", location: comp.loc_nm ?? null, regCount: regCountMap.get(comp.comp_id) ?? 0 };
         return race.start_date >= newMonth && race.start_date <= lastDay ? [race] : [];
       });
     }
@@ -341,11 +346,14 @@ export function MiniCalendar({
         <div className="flex items-center gap-2">
           <SectionLabel>SCHEDULE</SectionLabel>
           {/* 뷰 전환 토글 */}
-          <div className="flex items-center gap-0.5">
+          <div className="flex items-center rounded-md bg-secondary p-0.5">
             <button
               onClick={() => setView("calendar")}
               aria-label="캘린더 뷰"
-              className="flex size-5 items-center justify-center rounded transition-colors hover:bg-secondary"
+              className={cn(
+                "flex size-6 items-center justify-center rounded transition-colors",
+                view === "calendar" ? "bg-background shadow-sm" : "hover:bg-background/50",
+              )}
             >
               <CalendarDays
                 className={cn(
@@ -357,7 +365,10 @@ export function MiniCalendar({
             <button
               onClick={() => setView("list")}
               aria-label="리스트 뷰"
-              className="flex size-5 items-center justify-center rounded transition-colors hover:bg-secondary"
+              className={cn(
+                "flex size-6 items-center justify-center rounded transition-colors",
+                view === "list" ? "bg-background shadow-sm" : "hover:bg-background/50",
+              )}
             >
               <List
                 className={cn(
@@ -373,7 +384,7 @@ export function MiniCalendar({
         {view === "list" && memberStatus.status === "ready" && (
           <button
             onClick={() => openCreateForm()}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            className="flex items-center gap-1 rounded-md bg-secondary px-2.5 py-1 text-[12px] font-medium text-foreground transition-colors hover:bg-secondary/70"
           >
             <span className="text-[15px] leading-none">+</span>
             일정 추가
@@ -498,42 +509,77 @@ export function MiniCalendar({
             const panelRaces = eventsByDate.get(selectedDate) ?? [];
             const [, , dd] = selectedDate.split("-");
             return (
-              <div className="mt-1 flex items-start gap-3 rounded-xl bg-secondary/50 px-3 py-2">
-                <div className="flex shrink-0 flex-col items-center gap-0.5 pt-0.5">
+              <div className="mt-1 rounded-xl bg-secondary/50 px-3 py-2">
+                {/* 패널 헤더: 날짜 + 일정 추가 버튼 */}
+                <div className="mb-1.5 flex items-center justify-between">
                   <span className="text-[18px] font-bold leading-none text-foreground tabular-nums">
-                    {parseInt(dd, 10)}
+                    {parseInt(dd, 10)}일
                   </span>
                   {memberStatus.status === "ready" && (
                     <button
                       onClick={() => openCreateForm(selectedDate)}
-                      className="flex size-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-border hover:text-foreground"
-                      aria-label="일정 추가"
+                      className="flex items-center gap-1 rounded-md bg-secondary px-2.5 py-1 text-[12px] font-medium text-foreground transition-colors hover:bg-secondary/70"
                     >
-                      <span className="text-[14px] leading-none">+</span>
+                      <span className="text-[15px] leading-none">+</span>
+                      일정 추가
                     </button>
                   )}
                 </div>
+
+                {/* 일정 목록 */}
                 {panelRaces.length === 0 ? (
-                  <span className="pt-0.5 text-[11px] text-muted-foreground">일정 없음</span>
+                  <span className="text-[11px] text-muted-foreground">일정 없음</span>
                 ) : (
-                  <div className="flex flex-col gap-1">
-                    {panelRaces.map((race) => (
-                      <button
-                        key={race.id}
-                        onClick={() => race.type === "schedule" ? openEditForm(race) : handleRaceClick(race)}
-                        className="flex items-center gap-1.5 text-left transition-opacity hover:opacity-70"
-                      >
-                        <span
-                          className={cn(
-                            "h-3 w-0.5 shrink-0 rounded-full",
-                            race.type === "mine" ? "bg-success"
-                              : race.type === "schedule" ? "bg-info"
-                              : "bg-warning",
+                  <div className="flex flex-col gap-1.5">
+                    {panelRaces.map((race) => {
+                      const isMine = race.type === "mine";
+                      const isComp = race.type === "gigang" || race.type === "mine";
+                      return (
+                        <div key={race.id} className="flex items-center gap-1.5">
+                          <span
+                            className={cn(
+                              "w-0.5 shrink-0 self-stretch rounded-full",
+                              isMine ? "bg-success" : race.type === "schedule" ? "bg-info" : "bg-warning",
+                            )}
+                          />
+                          <button
+                            onClick={() => race.type === "schedule" ? openEditForm(race) : handleRaceClick(race)}
+                            className="flex min-w-0 flex-1 flex-col text-left transition-opacity hover:opacity-70"
+                          >
+                            <span className="truncate text-[11px] font-medium text-foreground">
+                              {race.title}
+                              {isComp && race.location && (
+                                <span className="font-normal text-muted-foreground"> · {race.location}</span>
+                              )}
+                            </span>
+                            {race.type === "schedule" && race.evt_stt_at && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {dayjs(race.evt_stt_at).format("HH:mm")}
+                                {race.evt_end_at ? ` ~ ${dayjs(race.evt_end_at).format("HH:mm")}` : ""}
+                              </span>
+                            )}
+                          </button>
+                          {isComp && (
+                            <div className="flex shrink-0 items-center gap-1">
+                              {(race.regCount ?? 0) > 0 && (
+                                <span className="text-[10px] tabular-nums text-muted-foreground">{race.regCount}명</span>
+                              )}
+                              <button
+                                onClick={() => handleRaceClick(race)}
+                                className={cn(
+                                  "shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-medium transition-colors",
+                                  isMine
+                                    ? "border-success/40 bg-success/10 text-success hover:bg-success/20"
+                                    : "border-border text-foreground hover:bg-muted",
+                                )}
+                              >
+                                참가
+                              </button>
+                            </div>
                           )}
-                        />
-                        <span className="text-[11px] font-medium text-foreground">{race.title}</span>
-                      </button>
-                    ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

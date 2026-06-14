@@ -74,6 +74,9 @@ async function fetchMonth(
 
   const results: CalendarRace[] = [];
   const seen = new Set<string>();
+  const regCountMap = new Map<string, number>(
+    (gigangRows ?? []).map((row) => [row.comp_id, row.reg_count ?? 0]),
+  );
 
   // 내 대회
   if (myRows.data) {
@@ -90,6 +93,7 @@ async function fetchMonth(
         start_date: comp.stt_dt,
         type: "mine",
         location: comp.loc_nm ?? null,
+        regCount: regCountMap.get(comp.comp_id) ?? 0,
       });
     }
   }
@@ -128,6 +132,7 @@ async function fetchMonth(
       start_date: row.stt_dt,
       type: "gigang",
       location: row.loc_nm ?? null,
+      regCount: row.reg_count ?? 0,
     });
   }
 
@@ -200,17 +205,22 @@ function CompetitionItem({
           </Micro>
         )}
       </button>
-      <button
-        onClick={onClick}
-        className={cn(
-          "ml-auto shrink-0 self-center rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors",
-          isMine
-            ? "border-success/40 bg-success/10 text-success hover:bg-success/20"
-            : "border-border text-foreground hover:bg-muted",
+      <div className="flex w-20 shrink-0 items-center justify-end gap-1.5 self-center">
+        {(race.regCount ?? 0) > 0 && (
+          <Micro className="text-muted-foreground tabular-nums">{race.regCount}명</Micro>
         )}
-      >
-        참가
-      </button>
+        <button
+          onClick={onClick}
+          className={cn(
+            "shrink-0 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors",
+            isMine
+              ? "border-success/40 bg-success/10 text-success hover:bg-success/20"
+              : "border-border text-foreground hover:bg-muted",
+          )}
+        >
+          참가
+        </button>
+      </div>
     </div>
   );
 }
@@ -297,7 +307,7 @@ export function ScheduleListView({
   return (
     <div
       ref={containerRef}
-      className="h-[320px] overflow-y-auto"
+      className="h-[380px] overflow-x-hidden overflow-y-auto"
     >
       {/* 상단 sentinel */}
       <div ref={topSentinelRef} className="flex h-4 items-center justify-center">
@@ -358,7 +368,7 @@ export function ScheduleListView({
                         </div>
 
                         {/* 일정 목록 */}
-                        <div className="flex flex-1 flex-col gap-2.5">
+                        <div className="flex min-w-0 flex-1 flex-col gap-2.5">
                           {dateRaces.map((race) =>
                             race.type === "schedule" ? (
                               <ScheduleItem

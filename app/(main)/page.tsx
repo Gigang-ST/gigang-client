@@ -221,6 +221,7 @@ async function HomeContent() {
       start_date: row.stt_dt,
       type: "gigang" as const,
       location: row.loc_nm ?? null,
+      regCount: row.reg_count ?? 0,
     }));
 
   // 내가 참가하는 대회 가져오기
@@ -288,12 +289,15 @@ async function HomeContent() {
         .sort((a, b) => a.start_date.localeCompare(b.start_date));
 
       // 캘린더용 내 대회 (이번 달) — today 필터 없이 myRegs 원본에서 직접 추출
+      const calendarCompsRegCountMap = new Map<string, number>(
+        (calendarComps ?? []).map((row) => [row.comp_id, row.reg_count ?? 0]),
+      );
       calendarMyRaces = (myRegs ?? [])
         .flatMap((r) => {
           const plan = Array.isArray(r.team_comp_plan_rel) ? r.team_comp_plan_rel[0] : r.team_comp_plan_rel;
           const comp = Array.isArray(plan.comp_mst) ? plan.comp_mst[0] : plan.comp_mst;
           if (!comp) return [];
-          const race: CalendarRace = { id: comp.comp_id, title: comp.comp_nm, start_date: comp.stt_dt, type: "mine", location: comp.loc_nm ?? null };
+          const race: CalendarRace = { id: comp.comp_id, title: comp.comp_nm, start_date: comp.stt_dt, type: "mine", location: comp.loc_nm ?? null, regCount: calendarCompsRegCountMap.get(comp.comp_id) ?? 0 };
           return race.start_date >= monthStart && race.start_date <= monthLastDayStr ? [race] : [];
         });
 
