@@ -1,20 +1,24 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+
+import { Check, X, HandCoins, Trash2, Undo2 } from "lucide-react";
+
 import { createClient } from "@/lib/supabase/client";
+
 import {
   approveParticipation,
   rejectParticipation,
   revokeApproval,
   deleteParticipation,
 } from "@/app/actions/admin/manage-mileage";
-import { Check, X, HandCoins, Trash2, Undo2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+
+import { SegmentControl } from "@/components/common/segment-control";
 import { Body, Caption } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
-import { SegmentControl } from "@/components/common/segment-control";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Participant = {
   prt_id: string;
@@ -81,8 +85,8 @@ export function ParticipantsTab({ evtId }: { evtId: string }) {
     setLoading(false);
   }, [evtId]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
+   
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();

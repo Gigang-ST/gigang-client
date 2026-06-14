@@ -8,7 +8,9 @@ import {
   useRef,
   useTransition,
 } from "react";
+
 import { useSearchParams } from "next/navigation";
+
 import { Medal } from "lucide-react";
 import {
   LineChart,
@@ -22,8 +24,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import type { TooltipContentProps, TooltipValueType } from "recharts";
-import { createClient } from "@/lib/supabase/client";
+
 import {
   currentMonthKST,
   daysInMonth as getDaysInMonth,
@@ -37,9 +38,13 @@ import {
   selectMembersForChart,
   type StatsRow,
 } from "@/lib/projects/crew-progress-chart";
+import { createClient } from "@/lib/supabase/client";
+
 import { SegmentControl } from "@/components/common/segment-control";
 import { Body } from "@/components/common/typography";
 import { Skeleton } from "@/components/ui/skeleton";
+
+import type { TooltipContentProps, TooltipValueType } from "recharts";
 
 export type DailyPoint = Record<string, number | string> & { day: number };
 
@@ -369,7 +374,7 @@ export function CrewProgressChart({
   }, [mode]);
 
   // initialData 없을 때만 초기 fetch
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   useEffect(() => {
     if (!initialData) {
       // eslint-disable-next-line react-hooks/set-state-in-effect

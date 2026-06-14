@@ -5,10 +5,11 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Check, X } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
 import { FRAME_CSS } from "@/lib/title-effects";
+import { cn } from "@/lib/utils";
 
 import { setPrimaryTitle, setSelectedEffect } from "@/app/actions/profile/update-collection";
+
 import { TitleBadge } from "@/components/common/title-badge";
 
 /* ------------------------------------------------------------------ */
@@ -170,7 +171,7 @@ export function CollectionSheet({
   }
 
   // 시트 재오픈 시 선택 상태를 현재 저장값으로 리셋
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   useEffect(() => {
     if (open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -192,7 +193,7 @@ export function CollectionSheet({
   const previewName = selectedTitle?.ttl_nm ?? "GIGANG";
 
   // 데이터 로드
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   useEffect(() => {
     if (!open) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect

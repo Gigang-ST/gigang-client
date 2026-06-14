@@ -1,11 +1,15 @@
 "use client";
 
 import { useState } from "react";
+
 import { useRouter } from "next/navigation";
+
 import { LayoutList, Megaphone, Zap } from "lucide-react";
+
 import { markBoardTypeRead } from "@/app/actions/mark-board-type-read";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
 import { Body } from "@/components/common/typography";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 
 type BoardPopoverIconProps = {

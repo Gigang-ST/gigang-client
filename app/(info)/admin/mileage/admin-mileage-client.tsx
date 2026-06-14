@@ -1,9 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useQueryState, parseAsString, parseAsStringLiteral } from "nuqs";
-import { createClient } from "@/lib/supabase/client";
+
 import { Plus } from "lucide-react";
+import { useQueryState, parseAsString, parseAsStringLiteral } from "nuqs";
+
+import { createClient } from "@/lib/supabase/client";
+
+import { EmptyState } from "@/components/common/empty-state";
+import { SegmentControl } from "@/components/common/segment-control";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -13,12 +18,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SegmentControl } from "@/components/common/segment-control";
-import { EmptyState } from "@/components/common/empty-state";
-import { ProjectInfoTab } from "./project-info-tab";
-import { MultiplierTab } from "./multiplier-tab";
+
 import { GoalTab } from "./goal-tab";
+import { MultiplierTab } from "./multiplier-tab";
 import { ParticipantsTab } from "./participants-tab";
+import { ProjectInfoTab } from "./project-info-tab";
 
 type Project = {
   evt_id: string;
@@ -89,8 +93,8 @@ export function AdminMileageClient({ teamId }: { teamId: string }) {
   }, [teamId]);
 
   // 초기 로드: project 쿼리파람 없으면 자동 선택
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
+   
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadProjects().then((list) => {

@@ -186,7 +186,7 @@ export function AdminTitlesClient({
     setLoading(false);
   }, [teamId]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadTitles();
@@ -622,7 +622,7 @@ function TitleGrantList({
     setLoading(false);
   }, [ttlId]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadGrants();
