@@ -124,7 +124,7 @@ export default function NewbiePage() {
   return (
     <InAppBrowserGate>
       <SignupProgress step={1} />
-      <div className="mx-auto max-w-md px-6 pb-28 pt-[calc(env(safe-area-inset-top,0px)+5rem)]">
+      <div className="mx-auto max-w-md px-6 pb-44 pt-[calc(env(safe-area-inset-top,0px)+5rem)]">
         {/* 1. 히어로 */}
         <section className="text-center">
           <Caption className="tracking-[3px]">WELCOME TO</Caption>
@@ -315,20 +315,22 @@ export default function NewbiePage() {
         {/* 6. 하단 고정 CTA */}
         <div className="fixed inset-x-0 bottom-0 z-50 bg-gradient-to-t from-background via-background/90 to-transparent px-4 pb-4 pt-6">
           <div className="mx-auto max-w-md">
-            <Button asChild size="lg" className="w-full rounded-2xl font-bold">
-              <Link href="/auth/login?next=%2Fonboarding">시작하기 →</Link>
-            </Button>
-            <Caption className="mt-2 block text-center">
-              카카오 또는 구글로 간편 가입
-            </Caption>
-            <Link
-              href="/"
-              className="mt-3 block text-center text-sm font-medium text-muted-foreground underline"
-            >
-              기강 둘러보기
-            </Link>
-            <Caption className="mt-1 block text-center">
-              전달받은 링크를 다시 누르면 가입 화면으로 돌아올 수 있어요
+            <div className="grid grid-cols-2 gap-2.5">
+              <Button
+                asChild
+                variant="outline"
+                size="lg"
+                className="rounded-2xl font-bold"
+              >
+                <Link href="/">기강 둘러보기</Link>
+              </Button>
+              <Button asChild size="lg" className="rounded-2xl font-bold">
+                <Link href="/auth/login?next=%2Fonboarding">시작하기 →</Link>
+              </Button>
+            </div>
+            <Caption className="mt-2 block text-center leading-relaxed">
+              카카오·구글로 간편 가입 · 전달받은 링크를 다시 누르면 가입 화면으로
+              돌아와요
             </Caption>
           </div>
         </div>
