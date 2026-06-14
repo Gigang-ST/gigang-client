@@ -128,6 +128,7 @@ export function RaceRecordDialog({
     bike: string | null;
     run: string | null;
   } | null>(null);
+  const [ocrCompetitionName, setOcrCompetitionName] = useState<string | null>(null);
   const [ocrFilledFields, setOcrFilledFields] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -172,6 +173,7 @@ export function RaceRecordDialog({
         return null;
       });
       setOcrTimes(null);
+      setOcrCompetitionName(null);
       setOcrFilledFields(new Set());
       setSelectedComp(null);
       setRaceDate("");
@@ -404,6 +406,7 @@ export function RaceRecordDialog({
   function applyOcrResult(data: import("@/lib/ocr/race-record").ExtractedRecord) {
     if (data.raceDate) setRaceDate(data.raceDate);
     if (data.competitionName) setSearchQuery(data.competitionName);
+    setOcrCompetitionName(data.competitionName);
     setOcrTimes({
       total: data.totalTime,
       swim: data.swimTime,
@@ -940,7 +943,7 @@ export function RaceRecordDialog({
           datePolicy="allow-past"
           stackElevated
           prefillStartDate={raceDate.trim() || undefined}
-          prefillTitle={searchQuery.trim() || undefined}
+          prefillTitle={ocrCompetitionName?.trim() || undefined}
           onCreated={(comp) => {
             setRegisterOpen(false);
             handleSelectCompetition(
