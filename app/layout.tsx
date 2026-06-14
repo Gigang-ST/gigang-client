@@ -1,8 +1,12 @@
 import type { Metadata, Viewport } from "next";
+
 import { Inter } from "next/font/google";
+
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
+
 import { Providers } from "@/components/providers";
+
 import "./globals.css";
 import { siteContent } from "@/config";
 
@@ -33,6 +37,11 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: siteContent.metadata.title,
     description: siteContent.metadata.description,
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "기강",
   },
 };
 
