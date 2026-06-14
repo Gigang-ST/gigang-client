@@ -10,14 +10,11 @@ function send(event: string, params?: Record<string, string | number | boolean>)
 }
 
 export const analytics = {
-  tabClick: (tab: "home" | "races" | "projects" | "records" | "profile") =>
+  tabClick: (tab: "home" | "story" | "projects" | "records" | "profile") =>
     send("tab_click", { tab }),
 
   boardTabSwitch: (tab: "notice" | "update") =>
     send("board_tab_switch", { tab }),
-
-  raceTabSwitch: (tab: "team" | "all") =>
-    send("race_tab_switch", { tab }),
 
   raceDetailViewed: (raceId: string, raceName: string) =>
     send("race_detail_viewed", { race_id: raceId, race_name: raceName }),
