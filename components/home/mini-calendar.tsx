@@ -1,20 +1,28 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+
 import { CalendarDays, ChevronLeft, ChevronRight, List } from "lucide-react";
-import { dayjs, todayKST, currentMonthKST, daysInMonth } from "@/lib/dayjs";
-import { createClient } from "@/lib/supabase/client";
+
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
+import { dayjs, todayKST, currentMonthKST, daysInMonth } from "@/lib/dayjs";
+import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
+import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
+import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
+
 import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-create-comp-evt-for-participation";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
-import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
+
+
 import { Micro, SectionLabel } from "@/components/common/typography";
-import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
 import { ScheduleListView } from "@/components/home/schedule-list-view";
-import { SchPostFormDialog } from "@/components/schedule/sch-post-form-dialog";
-import { cn } from "@/lib/utils";
+import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
-import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
+import { SchPostFormDialog } from "@/components/schedule/sch-post-form-dialog";
+
+
+
 
 export type CalendarRace = {
   id: string;
@@ -380,16 +388,6 @@ export function MiniCalendar({
           </div>
         </div>
 
-        {/* 리스트뷰 일정 추가 버튼 — 헤더 우측 */}
-        {view === "list" && memberStatus.status === "ready" && (
-          <button
-            onClick={() => openCreateForm()}
-            className="flex items-center gap-1 rounded-md bg-secondary px-2.5 py-1 text-[12px] font-medium text-foreground transition-colors hover:bg-secondary/70"
-          >
-            <span className="text-[15px] leading-none">+</span>
-            일정 추가
-          </button>
-        )}
 
         {/* 월 네비게이션 — 캘린더뷰에서만 표시 */}
         {view === "calendar" && (
@@ -588,15 +586,28 @@ export function MiniCalendar({
         </>
       ) : (
         /* 리스트뷰 */
-        <ScheduleListView
-          teamId={teamId}
-          memberId={memberId}
-          initialMonthKey={initialMonth.slice(0, 7)}
-          initialRaces={[...initMine, ...initSchPosts, ...initGigang]}
-          onClickSchedule={openEditForm}
-          onClickCompetition={handleRaceClick}
-          onAddSchedule={openCreateForm}
-        />
+        <div className="flex flex-col">
+          <ScheduleListView
+            teamId={teamId}
+            memberId={memberId}
+            initialMonthKey={initialMonth.slice(0, 7)}
+            initialRaces={[...initMine, ...initSchPosts, ...initGigang]}
+            onClickSchedule={openEditForm}
+            onClickCompetition={handleRaceClick}
+            onAddSchedule={openCreateForm}
+          />
+          {memberStatus.status === "ready" && (
+            <div className="flex justify-end pt-1.5">
+              <button
+                onClick={() => openCreateForm()}
+                className="flex items-center gap-1 rounded-md bg-secondary px-2.5 py-1 text-[12px] font-medium text-foreground transition-colors hover:bg-secondary/70"
+              >
+                <span className="text-[15px] leading-none">+</span>
+                일정 추가
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* 일정 등록/수정 다이얼로그 */}
