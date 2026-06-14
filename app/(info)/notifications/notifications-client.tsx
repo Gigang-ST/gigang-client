@@ -1,15 +1,19 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
+
 import { Bell, Trash2 } from "lucide-react";
+
 import { dayjs } from "@/lib/dayjs";
 import type { Notification } from "@/lib/queries/notification";
-import { markAllNotificationsRead } from "@/app/actions/mark-all-notifications-read";
+
 import { deleteAllNotifications } from "@/app/actions/delete-all-notifications";
-import { NotificationItem } from "@/components/notifications/notification-item";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { markAllNotificationsRead } from "@/app/actions/mark-all-notifications-read";
+
 import { Caption, SectionLabel } from "@/components/common/typography";
+import { NotificationItem } from "@/components/notifications/notification-item";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
 type Props = {
@@ -17,7 +21,7 @@ type Props = {
   memberId: string;
 };
 
-export function NotificationsClient({ initialNotifications, memberId }: Props) {
+export function NotificationsClient({ initialNotifications, memberId: _memberId }: Props) {
   const [notifications, setNotifications] = useState(initialNotifications);
   const [cursor, setCursor] = useState<string | null>(
     initialNotifications.length > 0 ? initialNotifications[initialNotifications.length - 1].crt_at : null,

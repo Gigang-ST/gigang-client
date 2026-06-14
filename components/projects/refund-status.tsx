@@ -1,5 +1,4 @@
 // 서버 컴포넌트 — 환급/회식비 카드
-import { currentMonthKST } from "@/lib/dayjs";
 import {
   calcMonthRefundRate,
   countMonths,

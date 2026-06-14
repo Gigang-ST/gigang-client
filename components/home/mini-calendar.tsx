@@ -12,6 +12,8 @@ import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { schPostTypeInlineLabel } from "@/lib/validations/schedule";
+import type { SchPostType } from "@/lib/validations/schedule";
 
 import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-create-comp-evt-for-participation";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
@@ -24,8 +26,6 @@ import { ScheduleListView } from "@/components/home/schedule-list-view";
 import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
 import { SchPostFormDialog } from "@/components/schedule/sch-post-form-dialog";
-import { schPostTypeInlineLabel } from "@/lib/validations/schedule";
-import type { SchPostType } from "@/lib/validations/schedule";
 
 
 
@@ -541,24 +541,25 @@ export function MiniCalendar({
             const [, , dd] = selectedDate.split("-");
             return (
               <div className="mt-1 rounded-xl bg-secondary/50 px-3 py-2">
-                {/* 패널 헤더: 날짜 + 일정 추가 버튼 */}
-                <div className="mb-1.5 flex items-center justify-between">
-                  <span className="text-[18px] font-bold leading-none text-foreground tabular-nums">
-                    {parseInt(dd, 10)}일
-                  </span>
-                  {memberStatus.status === "ready" && (
-                    <AddScheduleDropdown
-                      onAddSchedule={() => openCreateForm(selectedDate)}
-                      onAddCompetition={() => openCompetitionPicker(selectedDate)}
-                    />
-                  )}
-                </div>
+                <div className="flex gap-2">
+                  {/* 날짜 + 추가 버튼 컬럼 */}
+                  <div className="flex shrink-0 flex-col items-center gap-0">
+                    <span className="text-[18px] font-bold leading-none text-foreground tabular-nums">
+                      {parseInt(dd, 10)}일
+                    </span>
+                    {memberStatus.status === "ready" && (
+                      <AddScheduleDropdown
+                        onAddSchedule={() => openCreateForm(selectedDate)}
+                        onAddCompetition={() => openCompetitionPicker(selectedDate)}
+                      />
+                    )}
+                  </div>
 
-                {/* 일정 목록 */}
-                {panelRaces.length === 0 ? (
-                  <span className="text-[11px] text-muted-foreground">일정 없음</span>
-                ) : (
-                  <div className="flex flex-col gap-1.5">
+                  {/* 일정 목록 */}
+                  {panelRaces.length === 0 ? (
+                    <span className="text-[11px] text-muted-foreground">일정 없음</span>
+                  ) : (
+                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                     {panelRaces.map((race) => {
                       const isMine = race.type === "mine";
                       const isComp = race.type === "gigang" || race.type === "mine";
@@ -572,24 +573,22 @@ export function MiniCalendar({
                           />
                           <button
                             onClick={() => race.type === "schedule" ? openEditForm(race) : handleRaceClick(race)}
-                            className="flex min-w-0 flex-1 flex-col text-left transition-opacity hover:opacity-70"
+                            className="flex min-w-0 flex-1 flex-col gap-0.5 text-left transition-opacity hover:opacity-70"
                           >
                             <span className="truncate text-[11px] font-medium text-foreground">
                               {race.title}
                               {isComp && race.location && (
                                 <span className="font-normal text-muted-foreground"> · {race.location}</span>
                               )}
-                              {race.type === "schedule" && (
-                                <span className="font-normal text-muted-foreground">
-                                  {race.post_type && schPostTypeInlineLabel[race.post_type as SchPostType] && (
-                                    <> · {schPostTypeInlineLabel[race.post_type as SchPostType]}</>
-                                  )}
-                                  {race.evt_stt_at && (
-                                    <> · {dayjs(race.evt_stt_at).format("HH:mm")}{race.evt_end_at ? `~${dayjs(race.evt_end_at).format("HH:mm")}` : ""}</>
-                                  )}
-                                </span>
+                              {race.type === "schedule" && race.post_type && schPostTypeInlineLabel[race.post_type as SchPostType] && (
+                                <span className="font-normal text-muted-foreground"> · {schPostTypeInlineLabel[race.post_type as SchPostType]}</span>
                               )}
                             </span>
+                            {race.type === "schedule" && race.evt_stt_at && (
+                              <span className="text-[9px] text-muted-foreground tabular-nums">
+                                {dayjs(race.evt_stt_at).format("HH:mm")}{race.evt_end_at ? `~${dayjs(race.evt_end_at).format("HH:mm")}` : ""}
+                              </span>
+                            )}
                           </button>
                           {isComp && (
                             <div className="flex shrink-0 items-center gap-1">
@@ -620,8 +619,9 @@ export function MiniCalendar({
                         </div>
                       );
                     })}
-                  </div>
-                )}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })()}
@@ -636,10 +636,9 @@ export function MiniCalendar({
             initialRaces={[...initMine, ...initSchPosts, ...initGigang]}
             onClickSchedule={openEditForm}
             onClickCompetition={handleRaceClick}
-            onAddSchedule={openCreateForm}
           />
           {memberStatus.status === "ready" && (
-            <div className="flex justify-end pt-1.5">
+            <div className="flex justify-start pt-1.5">
               <AddScheduleDropdown
                 onAddSchedule={() => openCreateForm(today)}
                 onAddCompetition={() => openCompetitionPicker(today)}

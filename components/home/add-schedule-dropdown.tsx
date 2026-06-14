@@ -24,9 +24,8 @@ export function AddScheduleDropdown({ onAddSchedule, onAddCompetition }: Props) 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-1 rounded-md bg-secondary px-2.5 py-1 text-[12px] font-medium text-foreground transition-colors hover:bg-secondary/70">
-          <span className="text-[15px] leading-none">+</span>
-          일정 추가
+        <button className="flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-[12px] font-medium text-foreground transition-colors hover:bg-secondary/70">
+          추가
           <ChevronUp
             className="size-3 text-muted-foreground transition-transform duration-150"
             style={{ transform: open ? "rotate(0deg)" : "rotate(180deg)" }}

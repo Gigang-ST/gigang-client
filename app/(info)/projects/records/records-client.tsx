@@ -1,13 +1,21 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+
 import { Pencil, Trash2, Lock } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { CardItem } from "@/components/ui/card";
-import { H2, Body, Caption, Micro } from "@/components/common/typography";
+
+import { todayDayKST, currentMonthKST, prevMonthStr } from "@/lib/dayjs";
+import { MILEAGE_SPORT_LABELS, type MileageSport } from "@/lib/mileage";
+import { createClient } from "@/lib/supabase/client";
+
+import { deleteActivity } from "@/app/actions/mileage-run";
+
 import { SegmentControl } from "@/components/common/segment-control";
+import { H2, Body, Caption, Micro } from "@/components/common/typography";
+import { ActivityLogForm } from "@/components/projects/activity-log-form";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { CardItem } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -23,11 +31,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { MILEAGE_SPORT_LABELS, type MileageSport } from "@/lib/mileage";
-import { createClient } from "@/lib/supabase/client";
-import { deleteActivity } from "@/app/actions/mileage-run";
-import { todayDayKST, currentMonthKST, prevMonthStr } from "@/lib/dayjs";
-import { ActivityLogForm } from "@/components/projects/activity-log-form";
+
+
+
+
 
 type ActivityRecord = {
   act_id: string;
@@ -71,7 +78,6 @@ function buildMonthSegments(startDt: string, endDt: string) {
 }
 
 export function RecordsClient({ evtId, memId, evtStartDt, evtEndDt }: Props) {
-  const router = useRouter();
   const curMonth = currentMonthKST();
   const segments = buildMonthSegments(evtStartDt, evtEndDt);
 
@@ -131,7 +137,9 @@ export function RecordsClient({ evtId, memId, evtStartDt, evtEndDt }: Props) {
     setLoading(false);
   }, [evtId, memId, month]);
 
+   
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadRecords();
   }, [loadRecords]);
 
