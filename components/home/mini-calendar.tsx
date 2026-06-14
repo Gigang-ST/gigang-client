@@ -88,7 +88,7 @@ export function MiniCalendar({
 
   // 일정 폼 다이얼로그 상태
   const [formOpen, setFormOpen] = useState(false);
-  const [formMode, setFormMode] = useState<"create" | "edit">("create");
+  const [formMode, setFormMode] = useState<"create" | "edit" | "view">("create");
   const [formPostType, setFormPostType] = useState<SchPostType>("general");
   const [editTarget, setEditTarget] = useState<CalendarRace | null>(null);
 

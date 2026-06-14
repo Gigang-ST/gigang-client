@@ -40,7 +40,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const formSchema = createSchPostSchema.omit({ team_id: true });
+const formSchema = createSchPostSchema.omit({ team_id: true }).extend({
+  post_type: z.enum(SCH_POST_TYPES),
+});
 type FormValues = z.infer<typeof formSchema>;
 
 export type SchPostFormDialogProps = {

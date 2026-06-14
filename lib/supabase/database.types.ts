@@ -1539,6 +1539,7 @@ export type Database = {
           del_yn: boolean
           evt_end_at: string | null
           evt_stt_at: string
+          post_type: string
           sch_nm: string
           sch_post_id: string
           team_id: string
@@ -1553,6 +1554,7 @@ export type Database = {
           del_yn?: boolean
           evt_end_at?: string | null
           evt_stt_at: string
+          post_type?: string
           sch_nm: string
           sch_post_id?: string
           team_id: string
@@ -1567,6 +1569,7 @@ export type Database = {
           del_yn?: boolean
           evt_end_at?: string | null
           evt_stt_at?: string
+          post_type?: string
           sch_nm?: string
           sch_post_id?: string
           team_id?: string
