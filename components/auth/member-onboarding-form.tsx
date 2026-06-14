@@ -410,7 +410,7 @@ export function MemberOnboardingForm({
 													<FormControl>
 														<Input
 															type="date"
-															min="1986-01-01"
+															min="1988-01-01"
 															max="2008-12-31"
 															{...field}
 														/>

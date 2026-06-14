@@ -18,7 +18,7 @@ const announcements = {
       heading: "📅 정기 러닝",
       items: [
         "격주 수요일 저녁 7:30 PM",
-        "장소: 양재천 영동1교",
+        "장소: 양재천·한강·여의도·남산 일대 (사전 공지)",
         "카카오톡에서 공지 확인",
       ],
     },
@@ -36,7 +36,7 @@ const announcements = {
 
 const rules = [
   { label: "자유 모임 개설", desc: "누구나 자유롭게 모임을 만들 수 있습니다." },
-  { label: "나이 제한", desc: "89년생부터 가입 가능 (88년생 이상은 불가)" },
+  { label: "나이 제한", desc: "88년생부터 가입 가능" },
   {
     label: "카톡 참석 표시",
     desc: "정기 러닝 참석 시 카카오톡에 미리 표시",
@@ -320,6 +320,15 @@ export default function NewbiePage() {
             </Button>
             <Caption className="mt-2 block text-center">
               카카오 또는 구글로 간편 가입
+            </Caption>
+            <Link
+              href="/"
+              className="mt-3 block text-center text-sm font-medium text-muted-foreground underline"
+            >
+              기강 둘러보기
+            </Link>
+            <Caption className="mt-1 block text-center">
+              전달받은 링크를 다시 누르면 가입 화면으로 돌아올 수 있어요
             </Caption>
           </div>
         </div>
