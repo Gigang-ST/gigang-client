@@ -8,6 +8,8 @@ import { getFrameCls } from "@/lib/title-effects";
 import { cn } from "@/lib/utils";
 
 import { TitleBadge } from "@/components/common/title-badge";
+import { MemberNameButton } from "@/components/records/member-name-button";
+import { RecordCardDialog } from "@/components/records/record-card-dialog";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -136,9 +138,11 @@ const MEDAL_COLOR: Record<number, string> = {
 function MarathonHalfCard({
   entry,
   memberTitles,
+  onOpenCard,
 }: {
   entry?: RankingEntry;
   memberTitles: Record<string, MemberTitle>;
+  onOpenCard: (memId: string) => void;
 }) {
   if (!entry) return <div />;
   const title = memberTitles[entry.memId];
@@ -167,9 +171,12 @@ function MarathonHalfCard({
       <div className="flex min-w-0 items-center gap-1">
         {rankEl}
         <div className="flex min-w-0 flex-1 items-center gap-1">
-          <span className="truncate text-[12px] font-semibold text-foreground">
-            {entry.name}
-          </span>
+          <MemberNameButton
+            memId={entry.memId}
+            name={entry.name}
+            onOpen={onOpenCard}
+            className="truncate text-[12px] font-semibold text-foreground"
+          />
           {title && (
             <TitleBadge name={title.ttl_nm} effect={title.badge_effect} size="xs" tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility as "always" | "others" | "held" | "never", isHeld: title.isHeld, isOwner: false }} />
           )}
@@ -200,9 +207,11 @@ function MarathonHalfCard({
 function MarathonContent({
   events,
   memberTitles,
+  onOpenCard,
 }: {
   events: MarathonEvent[];
   memberTitles: Record<string, MemberTitle>;
+  onOpenCard: (memId: string) => void;
 }) {
   const [selectedEvent, setSelectedEvent] = useState(events[0]?.eventType ?? "");
 
@@ -252,8 +261,8 @@ function MarathonContent({
               const female = currentEvent?.female[i];
               return (
                 <div key={i} className="grid grid-cols-2 gap-2">
-                  <MarathonHalfCard entry={male} memberTitles={memberTitles} />
-                  <MarathonHalfCard entry={female} memberTitles={memberTitles} />
+                  <MarathonHalfCard entry={male} memberTitles={memberTitles} onOpenCard={onOpenCard} />
+                  <MarathonHalfCard entry={female} memberTitles={memberTitles} onOpenCard={onOpenCard} />
                 </div>
               );
             })
@@ -271,9 +280,11 @@ function MarathonContent({
 function TrailContent({
   entries,
   memberTitles,
+  onOpenCard,
 }: {
   entries: TrailEntry[];
   memberTitles: Record<string, MemberTitle>;
+  onOpenCard: (memId: string) => void;
 }) {
   if (entries.length === 0) {
     return (
@@ -297,19 +308,21 @@ function TrailContent({
 
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <div className="flex flex-wrap items-center gap-1.5">
-                {entry.utmbProfileUrl ? (
+                <MemberNameButton
+                  memId={entry.memId}
+                  name={entry.name}
+                  onOpen={onOpenCard}
+                  className="text-[15px] font-semibold text-foreground"
+                />
+                {entry.utmbProfileUrl && (
                   <a
                     href={entry.utmbProfileUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[15px] font-semibold text-primary hover:underline"
+                    className="text-[10px] text-primary hover:underline"
                   >
-                    {entry.name}
+                    UTMB↗
                   </a>
-                ) : (
-                  <span className="text-[15px] font-semibold text-foreground">
-                    {entry.name}
-                  </span>
                 )}
                 {title && (
                   <TitleBadge
@@ -352,9 +365,11 @@ function TrailContent({
 function TriathlonContent({
   events,
   memberTitles,
+  onOpenCard,
 }: {
   events: TriathlonEvent[];
   memberTitles: Record<string, MemberTitle>;
+  onOpenCard: (memId: string) => void;
 }) {
   const hasAny = events.some((e) => e.entries.length > 0);
 
@@ -387,9 +402,12 @@ function TriathlonContent({
                   <RankBadge rank={entry.rank} />
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-[15px] font-semibold text-foreground">
-                        {entry.name}
-                      </span>
+                      <MemberNameButton
+                        memId={entry.memId}
+                        name={entry.name}
+                        onOpen={onOpenCard}
+                        className="text-[15px] font-semibold text-foreground"
+                      />
                       {title && (
                         <TitleBadge
                           name={title.ttl_nm}
@@ -425,7 +443,15 @@ function TriathlonContent({
 /*  메인 컴포넌트                                                       */
 /* ------------------------------------------------------------------ */
 
-export function RecordsClient({ data, myTitleNames = [] }: { data: RecordsData; myTitleNames?: string[] }) {
+export function RecordsClient({
+  data,
+  teamId,
+  myTitleNames = [],
+}: {
+  data: RecordsData;
+  teamId: string;
+  myTitleNames?: string[];
+}) {
   const myTitleNameSet = new Set(myTitleNames);
 
   // memberTitles에 isHeld 주입
@@ -437,6 +463,7 @@ export function RecordsClient({ data, myTitleNames = [] }: { data: RecordsData; 
   );
   const [selectedCategory, setSelectedCategory] =
     useState<CategoryKey>("marathon");
+  const [cardMemId, setCardMemId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
 
   const q = query.trim().toLowerCase();
@@ -497,14 +524,19 @@ export function RecordsClient({ data, myTitleNames = [] }: { data: RecordsData; 
 
       {/* 카테고리별 콘텐츠 */}
       {selectedCategory === "marathon" && (
-        <MarathonContent events={filteredMarathon.events} memberTitles={memberTitles} />
+        <MarathonContent events={filteredMarathon.events} memberTitles={memberTitles} onOpenCard={setCardMemId} />
       )}
       {selectedCategory === "trail" && (
-        <TrailContent entries={filteredTrail.entries} memberTitles={memberTitles} />
+        <TrailContent entries={filteredTrail.entries} memberTitles={memberTitles} onOpenCard={setCardMemId} />
       )}
       {selectedCategory === "triathlon" && (
-        <TriathlonContent events={filteredTriathlon.events} memberTitles={memberTitles} />
+        <TriathlonContent events={filteredTriathlon.events} memberTitles={memberTitles} onOpenCard={setCardMemId} />
       )}
+      <RecordCardDialog
+        memId={cardMemId}
+        teamId={teamId}
+        onClose={() => setCardMemId(null)}
+      />
     </div>
   );
 }
