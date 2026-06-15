@@ -8,9 +8,11 @@ import { CreditCard, MessageSquare, Settings, UserPen, Wallet } from "lucide-rea
 
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
+import { getMemberCard } from "@/lib/queries/member-card";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 
 import { H1 } from "@/components/common/typography";
+import { MyRecordCard } from "@/components/profile/my-record-card";
 import { PaceChart } from "@/components/profile/pace-chart";
 import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
 import { ProfileCard } from "@/components/profile/profile-card";
@@ -71,6 +73,8 @@ async function ProfileContent() {
     }
   });
 
+  const memberCard = await getMemberCard(supabase, member.id, teamId);
+
   const genderLabel = member.gender === "male" ? "남성" : member.gender === "female" ? "여성" : "";
   const joinedDate = member.joined_at
     ? dayjs(member.joined_at).format("YY.MM.DD")
@@ -107,6 +111,8 @@ async function ProfileContent() {
           selectedFrameCd={member.selected_frame_cd}
           maxRarityLevel={maxRarityLevel}
         />
+
+        {memberCard && <MyRecordCard initialData={memberCard} />}
 
         {/* 바로가기 */}
         <div className="grid grid-cols-4 gap-2">
