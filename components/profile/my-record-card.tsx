@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { toJpeg } from "html-to-image";
 import { Download, SlidersHorizontal } from "lucide-react";
@@ -17,7 +17,43 @@ export function MyRecordCard({ initialData }: { initialData: MemberCardData }) {
   const [data, setData] = useState<MemberCardData>(initialData);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  // 캡처용 아바타(dataURL). 외부 호스트(kakao/google) 이미지는 canvas를 오염시키므로
+  // 같은 출처 프록시로 받아 dataURL로 변환해 둔다. 아바타가 없으면 즉시 resolved.
+  const [exportAvatar, setExportAvatar] = useState<string | null>(null);
+  const [avatarResolved, setAvatarResolved] = useState(!initialData.avatar_url);
   const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const url = data.avatar_url;
+    if (!url) {
+      setAvatarResolved(true);
+      return;
+    }
+    let alive = true;
+    setAvatarResolved(false);
+    (async () => {
+      try {
+        const res = await fetch(`/api/avatar-proxy?url=${encodeURIComponent(url)}`);
+        if (!res.ok) return;
+        const blob = await res.blob();
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () =>
+            typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("read failed"));
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(blob);
+        });
+        if (alive) setExportAvatar(dataUrl);
+      } catch {
+        /* 실패 시 원본 URL로 폴백(캡처가 오염될 수 있음) */
+      } finally {
+        if (alive) setAvatarResolved(true);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [data.avatar_url]);
 
   const handleDownload = async () => {
     if (!cardRef.current) return;
@@ -27,7 +63,7 @@ export function MyRecordCard({ initialData }: { initialData: MemberCardData }) {
         quality: 0.95,
         pixelRatio: 2,
         cacheBust: true,
-        backgroundColor: getComputedStyle(document.body).backgroundColor,
+        backgroundColor: getComputedStyle(cardRef.current).backgroundColor,
       });
       const link = document.createElement("a");
       link.download = buildCardFilename(data.mem_nm, dayjs().year());
@@ -53,7 +89,7 @@ export function MyRecordCard({ initialData }: { initialData: MemberCardData }) {
             <SlidersHorizontal className="size-3.5" />
             기록 선택
           </Button>
-          <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={handleDownload} disabled={downloading}>
+          <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={handleDownload} disabled={downloading || !avatarResolved}>
             <Download className="size-3.5" />
             {downloading ? "저장 중..." : "JPG 저장"}
           </Button>
@@ -61,7 +97,7 @@ export function MyRecordCard({ initialData }: { initialData: MemberCardData }) {
       </div>
 
       <div className="flex justify-center">
-        <RecordCard ref={cardRef} data={data} />
+        <RecordCard ref={cardRef} data={data} avatarSrc={exportAvatar} />
       </div>
 
       <CardRecordPicker
