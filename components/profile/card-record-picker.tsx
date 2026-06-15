@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { secondsToTime } from "@/lib/dayjs";
 import {
@@ -45,6 +45,10 @@ export function CardRecordPicker({
 
   const [selected, setSelected] = useState<Set<string>>(initialKeys);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) setSelected(initialKeys);
+  }, [open, initialKeys]);
 
   const toggle = (r: CardBestRecord) => {
     const key = cardFeaturedKey(r);
@@ -111,6 +115,9 @@ export function CardRecordPicker({
                     <button
                       key={key}
                       type="button"
+                      role="checkbox"
+                      aria-checked={on}
+                      aria-label={`${sportLabel(sport)} ${r.evt}`}
                       onClick={() => toggle(r)}
                       className={cn(
                         "flex items-center justify-between rounded-lg border px-3 py-2 text-sm",
@@ -132,7 +139,7 @@ export function CardRecordPicker({
           )}
         </div>
 
-        <Button onClick={handleSave} disabled={saving || allRecords.length === 0} className="h-11 rounded-xl font-semibold">
+        <Button onClick={handleSave} disabled={saving || allRecords.length === 0 || selected.size === 0} className="h-11 rounded-xl font-semibold">
           {saving ? "저장 중..." : "저장"}
         </Button>
       </DialogContent>
