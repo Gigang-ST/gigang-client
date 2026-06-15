@@ -34,6 +34,8 @@ type Member = { mem_id: string; mem_nm: string };
 const NOTI_TYPE_LABELS: Record<NotiTypeEnm, string> = {
   adm_cust: "일반",
   dues_notice: "회비 안내",
+  cmnt_reply: "댓글 답글",
+  cmnt_mention: "댓글 멘션",
 };
 
 export function AdminNotificationsClient({

@@ -21,7 +21,7 @@ export async function createSchPost(input: {
   const parsed = createSchPostSchema.parse({ ...input, team_id: teamId });
 
   const { data, error } = await supabase
-    .from("sch_post")
+    .from("sch_post_mst")
     .insert({
       team_id: parsed.team_id,
       sch_nm: parsed.sch_nm,
@@ -59,7 +59,7 @@ export async function updateSchPost(input: {
   const { sch_post_id, ...fields } = parsed;
 
   const { error } = await supabase
-    .from("sch_post")
+    .from("sch_post_mst")
     .update({ ...fields, url: fields.url || null, upd_at: dayjs().toISOString() })
     .eq("sch_post_id", sch_post_id);
 
@@ -73,7 +73,7 @@ export async function deleteSchPost(sch_post_id: string) {
   if (!member) throw new Error("로그인이 필요합니다.");
 
   const { error } = await supabase
-    .from("sch_post")
+    .from("sch_post_mst")
     .update({ del_yn: true, upd_at: dayjs().toISOString() })
     .eq("sch_post_id", sch_post_id);
 

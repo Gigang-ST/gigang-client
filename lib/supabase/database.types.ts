@@ -283,6 +283,100 @@ export type Database = {
           },
         ]
       }
+      cmnt_mention_rel: {
+        Row: {
+          cmnt_id: string
+          mem_id: string
+        }
+        Insert: {
+          cmnt_id: string
+          mem_id: string
+        }
+        Update: {
+          cmnt_id?: string
+          mem_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cmnt_mention_rel_cmnt_id_fkey"
+            columns: ["cmnt_id"]
+            isOneToOne: false
+            referencedRelation: "cmnt_mst"
+            referencedColumns: ["cmnt_id"]
+          },
+          {
+            foreignKeyName: "cmnt_mention_rel_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
+      cmnt_mst: {
+        Row: {
+          cmnt_id: string
+          cont_txt: string
+          crt_at: string
+          del_yn: boolean
+          edit_yn: boolean
+          entity_id: string
+          entity_type: string
+          mem_id: string
+          prnt_id: string | null
+          team_id: string
+          upd_at: string
+        }
+        Insert: {
+          cmnt_id?: string
+          cont_txt: string
+          crt_at?: string
+          del_yn?: boolean
+          edit_yn?: boolean
+          entity_id: string
+          entity_type: string
+          mem_id: string
+          prnt_id?: string | null
+          team_id: string
+          upd_at?: string
+        }
+        Update: {
+          cmnt_id?: string
+          cont_txt?: string
+          crt_at?: string
+          del_yn?: boolean
+          edit_yn?: boolean
+          entity_id?: string
+          entity_type?: string
+          mem_id?: string
+          prnt_id?: string | null
+          team_id?: string
+          upd_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cmnt_mst_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "cmnt_mst_prnt_id_fkey"
+            columns: ["prnt_id"]
+            isOneToOne: false
+            referencedRelation: "cmnt_mst"
+            referencedColumns: ["cmnt_id"]
+          },
+          {
+            foreignKeyName: "cmnt_mst_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
       comp_evt_cfg: {
         Row: {
           comp_evt_id: string
@@ -1192,6 +1286,53 @@ export type Database = {
           },
         ]
       }
+      feedback_messages: {
+        Row: {
+          admin_note: string | null
+          body: string
+          created_at: string
+          del_yn: boolean
+          id: string
+          responded_at: string | null
+          status: string
+          upd_at: string
+          user_id: string
+          vers: number
+        }
+        Insert: {
+          admin_note?: string | null
+          body: string
+          created_at?: string
+          del_yn?: boolean
+          id?: string
+          responded_at?: string | null
+          status?: string
+          upd_at?: string
+          user_id: string
+          vers?: number
+        }
+        Update: {
+          admin_note?: string | null
+          body?: string
+          created_at?: string
+          del_yn?: boolean
+          id?: string
+          responded_at?: string | null
+          status?: string
+          upd_at?: string
+          user_id?: string
+          vers?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_messages_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
       mem_mst: {
         Row: {
           avatar_url: string | null
@@ -1531,7 +1672,7 @@ export type Database = {
           },
         ]
       }
-      sch_post: {
+      sch_post_mst: {
         Row: {
           cont_txt: string | null
           crt_at: string
@@ -2099,4 +2240,3 @@ export const Constants = {
     },
   },
 } as const
-

@@ -304,9 +304,9 @@ export function MiniCalendar({
       });
     }
 
-    // sch_post 조회
+    // sch_post_mst 조회
     const { data: schPostRows } = await supabase
-      .from("sch_post")
+      .from("sch_post_mst")
       .select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
       .eq("team_id", teamId)
       .gte("evt_stt_at", newMonth)
