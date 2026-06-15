@@ -29,10 +29,24 @@ export async function GET(req: NextRequest) {
   }
   if (!isAllowed(target)) return new Response("host not allowed", { status: 403 });
 
-  const upstream = await fetch(target.toString());
+  let upstream: Response;
+  try {
+    upstream = await fetch(target.toString(), {
+      redirect: "manual",
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch {
+    return new Response("upstream fetch failed", { status: 502 });
+  }
+  if (upstream.status >= 300 && upstream.status < 400) {
+    return new Response("redirect not allowed", { status: 502 });
+  }
   if (!upstream.ok) return new Response("upstream error", { status: 502 });
 
   const contentType = upstream.headers.get("content-type") ?? "image/jpeg";
+  if (!contentType.startsWith("image/")) {
+    return new Response("not an image", { status: 415 });
+  }
   const buf = await upstream.arrayBuffer();
   return new Response(buf, {
     status: 200,
