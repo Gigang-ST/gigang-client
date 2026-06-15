@@ -6,12 +6,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { dayjs } from "@/lib/dayjs";
+import { createSchPostSchema, SCH_POST_TYPES, schPostTypeLabels, type SchPostType } from "@/lib/validations/schedule";
+
 import {
   createSchPost,
   updateSchPost,
 } from "@/app/actions/schedule/manage-sch-post";
-import { dayjs } from "@/lib/dayjs";
-import { createSchPostSchema, SCH_POST_TYPES, schPostTypeLabels, type SchPostType } from "@/lib/validations/schedule";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -29,7 +30,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -37,6 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 
 const formSchema = createSchPostSchema.omit({ team_id: true }).extend({
   post_type: z.enum(SCH_POST_TYPES),

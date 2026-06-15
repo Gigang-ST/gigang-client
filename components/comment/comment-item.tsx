@@ -1,12 +1,16 @@
 "use client"
 
 import { useState } from "react"
+
 import { dayjs } from "@/lib/dayjs"
+
+import { updateComment, deleteComment } from "@/app/actions/comment/manage-comment"
+
 import { Avatar } from "@/components/common/avatar"
 import { Body, Caption } from "@/components/common/typography"
 import { Button } from "@/components/ui/button"
+
 import { MentionInput, renderMentions, type MemberOption } from "./mention-input"
-import { updateComment, deleteComment } from "@/app/actions/comment/manage-comment"
 
 export type CmntRow = {
   cmnt_id: string

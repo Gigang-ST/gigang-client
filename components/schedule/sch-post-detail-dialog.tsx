@@ -6,8 +6,8 @@ import { ExternalLink, Pencil, Trash2 } from "lucide-react"
 
 import { dayjs } from "@/lib/dayjs"
 
-import { deleteSchPost } from "@/app/actions/schedule/manage-sch-post"
 import { getCommentData } from "@/app/actions/comment/get-comment-data"
+import { deleteSchPost } from "@/app/actions/schedule/manage-sch-post"
 
 import type { CmntRow } from "@/components/comment/comment-item"
 import { CommentSection } from "@/components/comment/comment-section"

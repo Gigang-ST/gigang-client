@@ -1,12 +1,16 @@
 "use client"
 
 import { useEffect, useState } from "react"
+
 import { createClient } from "@/lib/supabase/client"
+
+import { createComment } from "@/app/actions/comment/manage-comment"
+
 import { SectionLabel } from "@/components/common/typography"
 import { Button } from "@/components/ui/button"
+
 import { CommentItem, type CmntRow } from "./comment-item"
 import { MentionInput, type MemberOption } from "./mention-input"
-import { createComment } from "@/app/actions/comment/manage-comment"
 
 interface CommentSectionProps {
   entityType: "sch_post" | "comp" | "gathering"

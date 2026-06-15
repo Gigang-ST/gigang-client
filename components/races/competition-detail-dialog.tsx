@@ -28,9 +28,13 @@ import {
 } from "@/lib/validations/competition";
 
 import { updateCompetition } from "@/app/actions/admin/manage-competition";
+import { getCommentData } from "@/app/actions/comment/get-comment-data";
 import { getPublicTeamCompRegDisplayCounts } from "@/app/actions/get-public-team-comp-reg-display-counts";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
 
+import type { CmntRow } from "@/components/comment/comment-item";
+import { CommentSection } from "@/components/comment/comment-section";
+import type { MemberOption } from "@/components/comment/mention-input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -53,10 +57,6 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 
-import { getCommentData } from "@/app/actions/comment/get-comment-data";
-import { CommentSection } from "@/components/comment/comment-section";
-import type { CmntRow } from "@/components/comment/comment-item";
-import type { MemberOption } from "@/components/comment/mention-input";
 
 import type { Competition, CompetitionRegistration, MemberStatus } from "./types";
 
