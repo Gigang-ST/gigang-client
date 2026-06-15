@@ -46,7 +46,7 @@ export const RecordCard = forwardRef<HTMLDivElement, {
         {avatar ? (
           <Image
             src={avatar}
-            alt={data.mem_nm}
+            alt={`${data.mem_nm} 프로필 사진`}
             fill
             sizes="340px"
             className="object-cover"
