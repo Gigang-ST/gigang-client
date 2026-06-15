@@ -53,6 +53,10 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 
+import { getCommentData } from "@/app/actions/comment/get-comment-data";
+import { CommentSection } from "@/components/comment/comment-section";
+import type { CmntRow } from "@/components/comment/comment-item";
+import type { MemberOption } from "@/components/comment/mention-input";
 
 import type { Competition, CompetitionRegistration, MemberStatus } from "./types";
 
@@ -127,6 +131,16 @@ export function CompetitionDetailDialog({
   // 관리자 수정 모드
   const isAdmin = memberStatus.status === "ready" && memberStatus.admin;
   const [editing, setEditing] = useState(false);
+
+  const [cmntData, setCmntData] = useState<{ comments: CmntRow[]; members: MemberOption[] }>({
+    comments: [],
+    members: [],
+  });
+
+  useEffect(() => {
+    if (!open || !competition) return;
+    getCommentData("comp", competition.id).then(setCmntData);
+  }, [open, competition?.id]);
 
   const editForm = useForm<CompetitionEditValues>({
     defaultValues: { title: "", sport: "", startDate: "", endDate: "", location: "", sourceUrl: "", eventTypes: [] },
@@ -701,6 +715,16 @@ export function CompetitionDetailDialog({
             </DialogClose>
           </form>
         )}
+        <div className="border-t border-border pt-4 mt-2">
+          <CommentSection
+            entityType="comp"
+            entityId={competition.id}
+            currentMemberId={memberStatus.status === "ready" ? memberStatus.memberId : undefined}
+            isAdmin={isAdmin}
+            members={cmntData.members}
+            initialComments={cmntData.comments}
+          />
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -25,6 +25,7 @@ import { CompetitionPickerDialog } from "@/components/home/competition-picker-di
 import { ScheduleListView } from "@/components/home/schedule-list-view";
 import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
+import { SchPostDetailDialog } from "@/components/schedule/sch-post-detail-dialog";
 import { SchPostFormDialog } from "@/components/schedule/sch-post-form-dialog";
 
 
@@ -88,9 +89,13 @@ export function MiniCalendar({
 
   // 일정 폼 다이얼로그 상태
   const [formOpen, setFormOpen] = useState(false);
-  const [formMode, setFormMode] = useState<"create" | "edit" | "view">("create");
+  const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [formPostType, setFormPostType] = useState<SchPostType>("general");
   const [editTarget, setEditTarget] = useState<CalendarRace | null>(null);
+
+  // 소식 상세 다이얼로그 상태 (일반 멤버용)
+  const [schDetailPost, setSchDetailPost] = useState<CalendarRace | null>(null);
+  const [schDetailOpen, setSchDetailOpen] = useState(false);
 
   // 대회 선택 다이얼로그 상태
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -367,9 +372,8 @@ export function MiniCalendar({
   }
 
   function openEditForm(race: CalendarRace) {
-    setFormMode("view");
-    setEditTarget(race);
-    setFormOpen(true);
+    setSchDetailPost(race);
+    setSchDetailOpen(true);
   }
 
   async function handleSchPostSuccess() {
@@ -659,16 +663,31 @@ export function MiniCalendar({
         onCompetitionCreated={handleCompetitionCreated}
       />
 
+      {/* 소식 상세 다이얼로그 */}
+      <SchPostDetailDialog
+        post={schDetailPost}
+        open={schDetailOpen}
+        onOpenChange={setSchDetailOpen}
+        currentMemberId={memberStatus.status === "ready" ? memberStatus.memberId : undefined}
+        isAdmin={memberStatus.status === "ready" ? memberStatus.admin : false}
+        onEdit={() => {
+          if (!schDetailPost) return;
+          setSchDetailOpen(false);
+          setFormMode("edit");
+          setEditTarget(schDetailPost);
+          setFormOpen(true);
+        }}
+        onDelete={handleSchPostSuccess}
+      />
+
       {/* 일정 등록/수정 다이얼로그 */}
       <SchPostFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
         mode={formMode}
         defaultPostType={formPostType}
-        currentMemberId={memberStatus.status === "ready" ? memberStatus.memberId : undefined}
-        isAdmin={memberStatus.status === "ready" ? memberStatus.admin : false}
         initialData={
-          (formMode === "view" || formMode === "edit") && editTarget
+          formMode === "edit" && editTarget
             ? {
                 sch_post_id: editTarget.id,
                 sch_nm: editTarget.title,
