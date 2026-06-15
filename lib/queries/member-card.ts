@@ -6,7 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** RPC jsonb 결과를 MemberCardData 로 캐스팅 (RPC 가 단일 jsonb 반환) */
 function castCard(data: unknown): MemberCardData | null {
-  if (!data || typeof data !== "object") return null;
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
   return data as MemberCardData;
 }
 
