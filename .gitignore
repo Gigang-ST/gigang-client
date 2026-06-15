@@ -83,3 +83,7 @@ next-env.d.ts
 # environment variable
 .env
 .env.*
+.gstack/
+
+# 브레인스토밍 시각 자료 (로컬 전용)
+/.superpowers/
