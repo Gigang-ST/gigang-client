@@ -8,6 +8,7 @@ import { UserRound } from "lucide-react";
 
 import { secondsToTime } from "@/lib/dayjs";
 import {
+  isUtmbFeatured,
   resolveCardRecords,
   sportLabel,
   SPORT_DOT_CLASS,
@@ -30,6 +31,7 @@ export const RecordCard = forwardRef<HTMLDivElement, {
 }>(function RecordCard({ data, avatarSrc, className }, ref) {
   const frameCls = getFrameCls(data.frame_cd);
   const records = resolveCardRecords(data.best_records, data.card_featured);
+  const utmbShown = isUtmbFeatured(data.utmb_index, data.card_featured);
   const avatar = avatarSrc ?? data.avatar_url;
 
   return (
@@ -75,30 +77,43 @@ export const RecordCard = forwardRef<HTMLDivElement, {
 
       {/* 선택 기록 목록 */}
       <div className="flex flex-col px-4 py-3">
-        {records.length === 0 ? (
+        {records.length === 0 && !utmbShown ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
             아직 등록된 기록이 없습니다.
           </p>
         ) : (
-          records.map((r) => (
-            <div
-              key={`${r.sport}-${r.evt}`}
-              className="flex items-center justify-between border-b border-border/60 py-2 last:border-b-0"
-            >
-              <span className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span
-                  className={cn(
-                    "inline-block size-2 rounded-full",
-                    SPORT_DOT_CLASS[r.sport] ?? "bg-muted-foreground",
-                  )}
-                />
-                {sportLabel(r.sport)} · {r.evt}
-              </span>
-              <span className="font-mono text-sm font-bold text-foreground">
-                {secondsToTime(r.rec_time_sec)}
-              </span>
-            </div>
-          ))
+          <>
+            {records.map((r) => (
+              <div
+                key={`${r.sport}-${r.evt}`}
+                className="flex items-center justify-between border-b border-border/60 py-2 last:border-b-0"
+              >
+                <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span
+                    className={cn(
+                      "inline-block size-2 rounded-full",
+                      SPORT_DOT_CLASS[r.sport] ?? "bg-muted-foreground",
+                    )}
+                  />
+                  {sportLabel(r.sport)} · {r.evt}
+                </span>
+                <span className="font-mono text-sm font-bold text-foreground">
+                  {secondsToTime(r.rec_time_sec)}
+                </span>
+              </div>
+            ))}
+            {utmbShown && (
+              <div className="flex items-center justify-between border-b border-border/60 py-2 last:border-b-0">
+                <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span className={cn("inline-block size-2 rounded-full", SPORT_DOT_CLASS.trail_run)} />
+                  트레일 · UTMB
+                </span>
+                <span className="font-mono text-sm font-bold text-foreground">
+                  {data.utmb_index}
+                </span>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

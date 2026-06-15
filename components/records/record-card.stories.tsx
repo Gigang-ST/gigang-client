@@ -17,6 +17,7 @@ const base: MemberCardData = {
     { sport: "road_run", evt: "10K", rec_time_sec: 2550, race_nm: "기강 정기런", race_dt: "2026-04-12" },
     { sport: "trail_run", evt: "50K", rec_time_sec: 22360, race_nm: "코리아 50K", race_dt: "2025-10-05" },
   ],
+  utmb_index: 642,
 };
 
 const meta: Meta<typeof RecordCard> = {

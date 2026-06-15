@@ -25,7 +25,30 @@ export type MemberCardData = {
     desc_visibility: TitleDescVisibility;
   } | null;
   best_records: CardBestRecord[];
+  /** 트레일 UTMB 인덱스. 보유 시 카드에 선택 노출 가능. 없으면 null */
+  utmb_index: number | null;
 };
+
+/** UTMB 인덱스를 카드에 넣을지 나타내는 card_featured 센티넬 키 */
+export const UTMB_FEATURED_KEY: CardFeaturedKey = { sport: "trail_run", evt: "UTMB" };
+
+export function isUtmbKey(k: { sport: string; evt: string }): boolean {
+  return k.sport === UTMB_FEATURED_KEY.sport && k.evt === UTMB_FEATURED_KEY.evt;
+}
+
+/**
+ * UTMB 인덱스를 카드에 노출할지 판단한다.
+ * 인덱스가 없으면 false. featured 가 null/빈배열이면 기본 노출(true).
+ * featured 가 있으면 UTMB 센티넬 키가 포함된 경우에만 노출.
+ */
+export function isUtmbFeatured(
+  utmbIndex: number | null,
+  featured: CardFeaturedKey[] | null,
+): boolean {
+  if (utmbIndex == null) return false;
+  if (!featured || featured.length === 0) return true;
+  return featured.some(isUtmbKey);
+}
 
 export const SPORT_LABEL: Record<string, string> = {
   road_run: "로드",

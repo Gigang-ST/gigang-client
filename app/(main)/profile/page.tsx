@@ -12,7 +12,6 @@ import { getMemberCard } from "@/lib/queries/member-card";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 
 import { H1 } from "@/components/common/typography";
-import { MyRecordCard } from "@/components/profile/my-record-card";
 import { PaceChart } from "@/components/profile/pace-chart";
 import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
 import { ProfileCard } from "@/components/profile/profile-card";
@@ -110,9 +109,9 @@ async function ProfileContent() {
           selectedBadgeEffect={member.selected_badge_effect}
           selectedFrameCd={member.selected_frame_cd}
           maxRarityLevel={maxRarityLevel}
+          memberCard={memberCard}
         />
 
-        {memberCard && <MyRecordCard initialData={memberCard} />}
 
         {/* 바로가기 */}
         <div className="grid grid-cols-4 gap-2">

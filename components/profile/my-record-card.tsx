@@ -8,12 +8,27 @@ import { Download, SlidersHorizontal } from "lucide-react";
 import { dayjs } from "@/lib/dayjs";
 import { buildCardFilename, type CardFeaturedKey, type MemberCardData } from "@/lib/member-card";
 
-import { SectionLabel } from "@/components/common/typography";
 import { CardRecordPicker } from "@/components/profile/card-record-picker";
 import { RecordCard } from "@/components/records/record-card";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
-export function MyRecordCard({ initialData }: { initialData: MemberCardData }) {
+/** 본인 프로필의 "내 카드" 팝업 — 카드 미리보기 + 기록 선택 + JPG 저장 */
+export function MyRecordCardDialog({
+  initialData,
+  open,
+  onOpenChange,
+}: {
+  initialData: MemberCardData;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
   const [data, setData] = useState<MemberCardData>(initialData);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -81,32 +96,47 @@ export function MyRecordCard({ initialData }: { initialData: MemberCardData }) {
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <SectionLabel>MY CARD</SectionLabel>
-        <div className="flex gap-2">
-          <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs text-muted-foreground" onClick={() => setPickerOpen(true)}>
-            <SlidersHorizontal className="size-3.5" />
-            기록 선택
-          </Button>
-          <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={handleDownload} disabled={downloading || !avatarResolved}>
-            <Download className="size-3.5" />
-            {downloading ? "저장 중..." : "JPG 저장"}
-          </Button>
-        </div>
-      </div>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-[380px]">
+          <DialogHeader>
+            <DialogTitle>내 카드</DialogTitle>
+            <DialogDescription>기록을 골라 담고 JPG로 저장할 수 있어요.</DialogDescription>
+          </DialogHeader>
 
-      <div className="flex justify-center">
-        <RecordCard ref={cardRef} data={data} avatarSrc={exportAvatar} />
-      </div>
+          <div className="flex justify-center">
+            <RecordCard ref={cardRef} data={data} avatarSrc={exportAvatar} />
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="h-11 flex-1 gap-1.5 rounded-xl font-semibold"
+              onClick={() => setPickerOpen(true)}
+            >
+              <SlidersHorizontal className="size-4" />
+              기록 선택
+            </Button>
+            <Button
+              className="h-11 flex-1 gap-1.5 rounded-xl font-semibold"
+              onClick={handleDownload}
+              disabled={downloading || !avatarResolved}
+            >
+              <Download className="size-4" />
+              {downloading ? "저장 중..." : "JPG 저장"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <CardRecordPicker
         allRecords={data.best_records}
         featured={data.card_featured}
+        utmbIndex={data.utmb_index}
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         onSaved={handleSaved}
       />
-    </div>
+    </>
   );
 }
