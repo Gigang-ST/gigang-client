@@ -29,6 +29,7 @@ export type MemberCardData = {
 
 export const SPORT_LABEL: Record<string, string> = {
   road_run: "로드",
+  ultra: "울트라",
   trail_run: "트레일",
   triathlon: "철인",
   cycling: "사이클",
@@ -37,6 +38,7 @@ export const SPORT_LABEL: Record<string, string> = {
 /** 종목 색 점 (DESIGN.md sport 토큰) */
 export const SPORT_DOT_CLASS: Record<string, string> = {
   road_run: "bg-sport-road-run",
+  ultra: "bg-sport-ultra",
   trail_run: "bg-sport-trail-run",
   triathlon: "bg-sport-triathlon",
   cycling: "bg-sport-cycling",
