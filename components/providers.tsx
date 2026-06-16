@@ -15,8 +15,10 @@ function AuthRefresher() {
     const supabase = createClient();
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      router.refresh();
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (["SIGNED_IN", "SIGNED_OUT", "TOKEN_REFRESHED", "USER_UPDATED"].includes(event)) {
+        router.refresh();
+      }
     });
     return () => subscription.unsubscribe();
   }, [router]);

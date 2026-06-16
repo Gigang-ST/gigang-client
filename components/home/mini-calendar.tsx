@@ -345,7 +345,7 @@ export function MiniCalendar({
     const newGigang: CalendarRace[] = (teamComps ?? [])
       .filter((row) => (row.reg_count ?? 0) > 0)
       .filter((row) => { if (seenIds.has(row.comp_id)) return false; seenIds.add(row.comp_id); return true; })
-      .map((row) => ({ id: row.comp_id, title: row.comp_nm, start_date: row.stt_dt, type: "gigang" as const, location: row.loc_nm ?? null, regCount: row.reg_count ?? 0 }));
+      .map((row) => ({ id: row.comp_id, title: row.comp_nm, start_date: row.stt_dt, type: "gigang" as const, location: row.loc_nm ?? null, regCount: row.reg_count ?? 0, cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined }));
 
     let newMine: CalendarRace[] = [];
     if (memberId) {
@@ -365,33 +365,33 @@ export function MiniCalendar({
         const plan = Array.isArray(r.team_comp_plan_rel) ? r.team_comp_plan_rel[0] : r.team_comp_plan_rel;
         const comp = Array.isArray(plan?.comp_mst) ? plan.comp_mst[0] : plan?.comp_mst;
         if (!comp) return [];
-        const race: CalendarRace = { id: comp.comp_id, title: comp.comp_nm, start_date: comp.stt_dt, type: "mine", location: comp.loc_nm ?? null, regCount: regCountMap.get(comp.comp_id) ?? 0 };
+        const compRow = (teamComps ?? []).find((r) => r.comp_id === comp.comp_id);
+        const race: CalendarRace = { id: comp.comp_id, title: comp.comp_nm, start_date: comp.stt_dt, type: "mine", location: comp.loc_nm ?? null, regCount: regCountMap.get(comp.comp_id) ?? 0, cmntCount: compRow?.cmnt_count ? Number(compRow.cmnt_count) : undefined };
         return race.start_date >= newMonth && race.start_date <= lastDay ? [race] : [];
       });
     }
 
-    // sch_post_mst 조회
-    const { data: schPostRows } = await supabase
-      .from("sch_post_mst")
-      .select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
-      .eq("team_id", teamId)
-      .gte("evt_stt_at", newMonth)
-      .lte("evt_stt_at", lastDay)
-      .eq("del_yn", false)
-      .order("evt_stt_at", { ascending: true });
+    // sch_post RPC 조회 (cmnt_count 포함)
+    const { data: schPostRows } = await supabase.rpc("get_public_team_sch_posts", {
+      p_team_id: teamId,
+      p_start: newMonth,
+      p_end: lastDay,
+    });
 
     const newSchPosts: CalendarRace[] = (schPostRows ?? []).map((row) => ({
       id: row.sch_post_id,
       title: row.sch_nm,
       start_date: dayjs(row.evt_stt_at).format("YYYY-MM-DD"),
       type: "schedule" as const,
+      post_type: row.post_type,
       end_date: row.evt_end_at,
       evt_stt_at: row.evt_stt_at,
       evt_end_at: row.evt_end_at,
       url: row.url,
       cont_txt: row.cont_txt,
       crt_by: row.crt_by,
-      post_type: row.post_type,
+      crt_by_nm: row.crt_by_nm ?? null,
+      cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
     }));
 
     return { gigang: newGigang, mine: newMine, schPosts: newSchPosts };

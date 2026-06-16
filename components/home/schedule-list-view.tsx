@@ -53,14 +53,11 @@ async function fetchMonth(
   const { start, end } = monthBounds(monthKey);
 
   const [{ data: schRows }, { data: gigangRows }, myRows] = await Promise.all([
-    supabase
-      .from("sch_post_mst")
-      .select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by, mem_mst!crt_by(mem_nm)")
-      .eq("team_id", teamId)
-      .gte("evt_stt_at", start)
-      .lte("evt_stt_at", end)
-      .eq("del_yn", false)
-      .order("evt_stt_at", { ascending: true }),
+    supabase.rpc("get_public_team_sch_posts", {
+      p_team_id: teamId,
+      p_start: start,
+      p_end: end,
+    }),
     supabase.rpc("get_public_team_competitions", {
       p_team_id: teamId,
       p_start: start,
@@ -92,6 +89,7 @@ async function fetchMonth(
       const key = `mine:${comp.comp_id}`;
       if (seen.has(key)) continue;
       seen.add(key);
+      const compRow = (gigangRows ?? []).find((r) => r.comp_id === comp.comp_id);
       results.push({
         id: comp.comp_id,
         title: comp.comp_nm,
@@ -99,6 +97,7 @@ async function fetchMonth(
         type: "mine",
         location: comp.loc_nm ?? null,
         regCount: regCountMap.get(comp.comp_id) ?? 0,
+        cmntCount: compRow?.cmnt_count ? Number(compRow.cmnt_count) : undefined,
       });
     }
   }
@@ -120,7 +119,8 @@ async function fetchMonth(
       url: row.url,
       cont_txt: row.cont_txt,
       crt_by: row.crt_by,
-      crt_by_nm: Array.isArray(row.mem_mst) ? (row.mem_mst[0]?.mem_nm ?? null) : ((row.mem_mst as { mem_nm: string } | null)?.mem_nm ?? null),
+      crt_by_nm: row.crt_by_nm ?? null,
+      cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
     });
   }
 
