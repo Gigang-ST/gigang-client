@@ -33,6 +33,7 @@ const NOTI_ROUTE: Record<string, (refId: string | null, refType: string | null) 
   dues_check_req: () => null,
   sch_post_cmnt: (refId) => refId ? `/?post=${refId}` : "/",
   cmnt_mention: (refId, refType) => refType === "comp" ? `/?comp=${refId}` : refId ? `/?post=${refId}` : "/",
+  cmnt_reply: (refId, refType) => refType === "comp" ? `/?comp=${refId}` : refId ? `/?post=${refId}` : "/",
 };
 
 function formatRelative(crtAt: string) {

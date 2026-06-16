@@ -127,14 +127,15 @@ export async function updateComment(input: UpdateCommentInput) {
     .eq("del_yn", false)
   if ((count ?? 0) > 0) return { ok: false as const, message: "답글이 달린 댓글은 수정할 수 없습니다." }
 
-  const { error } = await supabase
+  const { error, data: updated } = await supabase
     .from("cmnt_mst")
     .update({ cont_txt: parsed.contTxt, edit_yn: true, upd_at: dayjs().toISOString() })
     .eq("cmnt_id", parsed.cmntId)
     .eq("mem_id", member.id)
     .eq("del_yn", false)
+    .select("cmnt_id")
 
-  if (error) return { ok: false as const, message: "댓글 수정 실패" }
+  if (error || !updated?.length) return { ok: false as const, message: "댓글 수정 실패" }
 
   // 멘션 갱신
   await admin.from("cmnt_mention_rel").delete().eq("cmnt_id", parsed.cmntId)

@@ -104,9 +104,11 @@ export function NotificationBellIcon({ initialCount, memberId, disabled }: Notif
         filter: `mem_id=eq.${memberId}`,
       }, (payload) => {
         const updated = payload.new as Notification;
-        setNotifications((prev) =>
-          prev.map((n) => n.noti_id === updated.noti_id ? { ...n, ...updated } : n)
-        );
+        setNotifications((prev) => {
+          const next = prev.map((n) => n.noti_id === updated.noti_id ? { ...n, ...updated } : n);
+          setUnreadCount(next.filter((n) => !n.read_yn).length);
+          return next;
+        });
       })
       .subscribe();
 

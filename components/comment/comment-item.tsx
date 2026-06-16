@@ -49,7 +49,7 @@ export function CommentItem({
 
   const isMine = comment.mem_id === currentMemberId
   const canEdit = isMine && !comment.del_yn && !comment.has_replies
-  const canDelete = (isMine || isAdmin) && !comment.del_yn && !comment.has_replies
+  const canDelete = (isMine || isAdmin) && !comment.del_yn && (isAdmin || !comment.has_replies)
 
   if (comment.del_yn) {
     return (
