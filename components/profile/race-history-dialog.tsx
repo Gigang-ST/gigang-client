@@ -1,19 +1,24 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+
+import { Trash2, Pencil } from "lucide-react";
+
+import { secondsToTime, timeStringToSeconds } from "@/lib/dayjs";
 import { createClient } from "@/lib/supabase/client";
+
+import { deleteRaceRecord, updateRaceRecord } from "@/app/actions/save-race-record";
+
+import {
+  ResponsiveDrawer,
+  ResponsiveDrawerClose,
+  ResponsiveDrawerContent,
+  ResponsiveDrawerDescription,
+  ResponsiveDrawerHeader,
+  ResponsiveDrawerTitle,
+} from "@/components/common/responsive-drawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Trash2, Pencil } from "lucide-react";
-import { secondsToTime, timeStringToSeconds } from "@/lib/dayjs";
-import { deleteRaceRecord, updateRaceRecord } from "@/app/actions/save-race-record";
 
 /* ---------- 타입 ---------- */
 
@@ -50,7 +55,9 @@ export function RaceHistoryDialog({
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEditingId(null);
+      // eslint-disable-next-line react-hooks/immutability
       fetchRecords();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -112,93 +119,106 @@ export function RaceHistoryDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>과거 기록</DialogTitle>
-          <DialogDescription>기록을 조회하고 수정하거나 삭제할 수 있습니다.</DialogDescription>
-        </DialogHeader>
+    <ResponsiveDrawer open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDrawerContent
+        dialogClassName="max-h-[85dvh] max-w-lg flex flex-col gap-0 p-0 overflow-hidden"
+        drawerClassName="h-[85dvh] max-h-[85dvh]"
+      >
+        <ResponsiveDrawerHeader className="shrink-0 border-b border-border px-4 py-4 text-left">
+          <ResponsiveDrawerTitle>과거 기록</ResponsiveDrawerTitle>
+          <ResponsiveDrawerDescription>기록을 조회하고 수정하거나 삭제할 수 있습니다.</ResponsiveDrawerDescription>
+        </ResponsiveDrawerHeader>
 
-        {loading ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">불러오는 중...</p>
-        ) : records.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">등록된 기록이 없습니다.</p>
-        ) : (
-          <div className="flex flex-col divide-y divide-border">
-            {records.map((r) => (
-              <div key={r.id} className="flex items-center gap-3 py-3">
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <div className="flex items-start gap-2">
-                    <span className="min-w-0 flex-1 text-sm font-semibold text-foreground line-clamp-2 wrap-break-word">
-                      {r.race_name}
-                    </span>
-                    <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                      {eventLabel(r.event_type)}
-                    </span>
+        <div className="flex-1 overflow-y-auto px-4 pb-6 pt-4">
+          {loading ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">불러오는 중...</p>
+          ) : records.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">등록된 기록이 없습니다.</p>
+          ) : (
+            <div className="flex flex-col divide-y divide-border">
+              {records.map((r) => (
+                <div key={r.id} className="flex items-center gap-3 py-3">
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <div className="flex items-start gap-2">
+                      <span className="min-w-0 flex-1 text-sm font-semibold text-foreground line-clamp-2 wrap-break-word">
+                        {r.race_name}
+                      </span>
+                      <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        {eventLabel(r.event_type)}
+                      </span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{r.race_date}</span>
+
+                    {editingId === r.id ? (
+                      <div className="mt-1 flex items-center gap-2">
+                        <Input
+                          value={editTime}
+                          onChange={(e) => setEditTime(e.target.value)}
+                          placeholder="HH:MM:SS"
+                          className="h-8 w-32 font-mono text-sm"
+                        />
+                        <Button
+                          type="button"
+                          size="xs"
+                          disabled={saving || timeStringToSeconds(editTime) === null}
+                          onClick={() => handleSaveEdit(r.id)}
+                          className="font-semibold"
+                        >
+                          {saving ? "..." : "저장"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => setEditingId(null)}
+                          className="text-muted-foreground"
+                        >
+                          취소
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="font-mono text-base font-bold text-foreground">
+                        {secondsToTime(r.record_time_sec)}
+                      </span>
+                    )}
                   </div>
-                  <span className="text-xs text-muted-foreground">{r.race_date}</span>
 
-                  {editingId === r.id ? (
-                    <div className="mt-1 flex items-center gap-2">
-                      <Input
-                        value={editTime}
-                        onChange={(e) => setEditTime(e.target.value)}
-                        placeholder="HH:MM:SS"
-                        className="h-8 w-32 font-mono text-sm"
-                      />
+                  {editingId !== r.id && (
+                    <div className="flex shrink-0 gap-1">
                       <Button
                         type="button"
-                        size="xs"
-                        disabled={saving || timeStringToSeconds(editTime) === null}
-                        onClick={() => handleSaveEdit(r.id)}
-                        className="font-semibold"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => startEdit(r)}
+                        className="text-muted-foreground"
                       >
-                        {saving ? "..." : "저장"}
+                        <Pencil className="size-4" />
                       </Button>
                       <Button
                         type="button"
                         variant="ghost"
-                        size="xs"
-                        onClick={() => setEditingId(null)}
-                        className="text-muted-foreground"
+                        size="icon-sm"
+                        onClick={() => handleDelete(r.id)}
+                        className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                       >
-                        취소
+                        <Trash2 className="size-4" />
                       </Button>
                     </div>
-                  ) : (
-                    <span className="font-mono text-base font-bold text-foreground">
-                      {secondsToTime(r.record_time_sec)}
-                    </span>
                   )}
                 </div>
+              ))}
+            </div>
+          )}
 
-                {editingId !== r.id && (
-                  <div className="flex shrink-0 gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => startEdit(r)}
-                      className="text-muted-foreground"
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => handleDelete(r.id)}
-                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ))}
+          <div className="mt-4 flex justify-center">
+            <ResponsiveDrawerClose asChild>
+              <Button type="button" variant="ghost" size="sm" className="text-muted-foreground">
+                닫기
+              </Button>
+            </ResponsiveDrawerClose>
           </div>
-        )}
-      </DialogContent>
-    </Dialog>
+        </div>
+      </ResponsiveDrawerContent>
+    </ResponsiveDrawer>
   );
 }

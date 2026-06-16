@@ -252,7 +252,7 @@ export function ScheduleListView({
   const today = todayKST();
 
   const [months, setMonths] = useState<MonthData[]>([
-    { monthKey: initialMonthKey, races: initialRaces },
+    { monthKey: initialMonthKey, races: [...initialRaces].sort((a, b) => a.start_date.localeCompare(b.start_date)) },
   ]);
   const [loadingPrev, setLoadingPrev] = useState(false);
   const [loadingNext, setLoadingNext] = useState(false);

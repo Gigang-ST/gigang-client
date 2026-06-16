@@ -35,17 +35,16 @@ import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
 import type { CmntRow } from "@/components/comment/comment-item";
 import { CommentSection } from "@/components/comment/comment-section";
 import type { MemberOption } from "@/components/comment/mention-input";
+import {
+  ResponsiveDrawer,
+  ResponsiveDrawerClose,
+  ResponsiveDrawerContent,
+  ResponsiveDrawerDescription,
+  ResponsiveDrawerHeader,
+  ResponsiveDrawerTitle,
+} from "@/components/common/responsive-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -362,13 +361,19 @@ export function CompetitionDetailDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) setEditing(false); onOpenChange(v); }}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="text-balance">{competition.title}</DialogTitle>
-          <DialogDescription className="sr-only">
+    <ResponsiveDrawer
+      open={open}
+      onOpenChange={(v) => { if (!v) setEditing(false); onOpenChange(v); }}
+    >
+      <ResponsiveDrawerContent
+        dialogClassName="max-h-[85dvh] max-w-lg flex flex-col gap-0 p-0 overflow-hidden"
+        drawerClassName="h-[85dvh] max-h-[85dvh]"
+      >
+        <ResponsiveDrawerHeader className="shrink-0 border-b border-border px-4 py-4 text-left">
+          <ResponsiveDrawerTitle className="text-balance">{competition.title}</ResponsiveDrawerTitle>
+          <ResponsiveDrawerDescription className="sr-only">
             대회 상세 정보 및 참가 신청
-          </DialogDescription>
+          </ResponsiveDrawerDescription>
           <div className="flex flex-wrap gap-2 pt-1">
             {competition.sport && (
               <Badge variant="secondary">
@@ -384,348 +389,354 @@ export function CompetitionDetailDialog({
               <Badge variant="outline">+{competition.event_types!.length - 3}</Badge>
             )}
           </div>
-        </DialogHeader>
+        </ResponsiveDrawerHeader>
 
-        {editing ? (
-          <form onSubmit={editForm.handleSubmit(handleEditSave)} className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label>대회명</Label>
-              <Input {...editForm.register("title")} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>종목</Label>
-              <Select value={editSport} onValueChange={(v) => { editForm.setValue("sport", v); editForm.setValue("eventTypes", []); }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {sportSprtOptions.map((s) => (
-                    <SelectItem key={s.cd} value={s.cd}>
-                      {s.cd_nm}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>시작일</Label>
-              <Input type="date" max="9999-12-31" {...editForm.register("startDate")} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>종료일</Label>
-              <Input type="date" max="9999-12-31" {...editForm.register("endDate")} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>장소</Label>
-              <Input {...editForm.register("location")} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>참가 코스</Label>
-              {editEventTypeOptions.length > 0 ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {editEventTypeOptions.map(type => (
-                    <Button
-                      key={type}
-                      type="button"
-                      size="xs"
-                      onClick={() => {
-                        const current = editForm.getValues("eventTypes");
-                        editForm.setValue("eventTypes", current.includes(type) ? current.filter(t => t !== type) : [...current, type]);
-                      }}
-                      variant={editEventTypes.includes(type) ? "default" : "outline"}
-                      className={cn(
-                        "rounded-full",
-                        !editEventTypes.includes(type) && "text-muted-foreground hover:border-primary/50",
-                      )}
-                    >
-                      {type}
-                    </Button>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">종목을 먼저 선택해 주세요.</p>
-              )}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>대회 링크</Label>
-              <Input type="url" {...editForm.register("sourceUrl")} />
-            </div>
-            {editForm.formState.errors.endDate && <p className="text-xs text-destructive">{editForm.formState.errors.endDate.message}</p>}
-            {editForm.formState.errors.root && <p className="text-xs text-destructive">{editForm.formState.errors.root.message}</p>}
-            <div className="flex gap-2">
-              <Button type="submit" disabled={editForm.formState.isSubmitting} className="flex-1">
-                {editForm.formState.isSubmitting ? "저장 중..." : "저장"}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => setEditing(false)} disabled={editForm.formState.isSubmitting} className="flex-1">
-                취소
-              </Button>
-            </div>
-          </form>
-        ) : (
-        <div className="flex flex-col gap-3 text-sm">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Calendar className="size-4 shrink-0" />
-            <span>{formattedDate}</span>
-          </div>
-          {competition.location && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <MapPin className="size-4 shrink-0" />
-              <span>{competition.location}</span>
-            </div>
-          )}
-          {competition.source_url && /^https?:\/\//.test(competition.source_url) && (
-            <a
-              href={competition.source_url}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-2 text-primary hover:underline"
-            >
-              <ExternalLink className="size-4" />
-              대회 페이지 보기
-            </a>
-          )}
-        </div>
-        )}
-
-        {isAdmin && !editing && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={startEditing}
-            className="self-start"
-          >
-            <Pencil className="size-3.5 mr-1.5" />
-            대회 정보 수정
-          </Button>
-        )}
-
-        {/* 참가 현황: 회원은 상세 행·이름, 비회원·온보딩 전 등은 RPC 집계만(이름 없음) */}
-        {(() => {
-          if (!competition) return null;
-
-          const sportEvents = eventTypeCodesForSprtFromCmmRows(
-            cmmCdRows,
-            competition.sport,
-          );
-          const hardestFirst = [...sportEvents].reverse();
-
-          const getDisplayKey = (p: RegistrationWithMember) =>
-            p.event_type ??
-            (p.role === "participant"
-              ? "미정"
-              : roleLabels[p.role as keyof typeof roleLabels] ?? p.role);
-
-          const sortOrder = (key: string) => {
-            const idx = hardestFirst.indexOf(key);
-            if (idx !== -1) return idx;
-            if (key === "미정") return hardestFirst.length;
-            if (key === "봉사") return hardestFirst.length + 1;
-            if (key === "응원") return hardestFirst.length + 2;
-            return hardestFirst.length + 3;
-          };
-
-          const publicTotal = publicDisplayCounts.reduce((s, r) => s + r.cnt, 0);
-          const hasMemberRows = participants.length > 0;
-          const showPublicOnly = !hasMemberRows && publicTotal > 0;
-          if (!hasMemberRows && !showPublicOnly) return null;
-
-          let sortedCounts: [string, number][] = [];
-          let sortedParticipants: RegistrationWithMember[] = [];
-
-          if (hasMemberRows) {
-            const eventCounts = new Map<string, number>();
-            participants.forEach((p) => {
-              const key = getDisplayKey(p);
-              eventCounts.set(key, (eventCounts.get(key) ?? 0) + 1);
-            });
-            sortedCounts = Array.from(eventCounts.entries()).sort(
-              (a, b) => sortOrder(a[0]) - sortOrder(b[0]),
-            );
-            sortedParticipants = [...participants].sort((a, b) => {
-              const orderDiff = sortOrder(getDisplayKey(a)) - sortOrder(getDisplayKey(b));
-              if (orderDiff !== 0) return orderDiff;
-              return a.created_at.localeCompare(b.created_at);
-            });
-          } else {
-            sortedCounts = [...publicDisplayCounts]
-              .map((r) => [r.display_key, r.cnt] as [string, number])
-              .sort((a, b) => sortOrder(a[0]) - sortOrder(b[0]));
-          }
-
-          const totalPeople = hasMemberRows ? participants.length : publicTotal;
-          const showNameRows = memberStatus.status === "ready" && hasMemberRows;
-
-          return (
-            <>
-              <Separator />
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <Users className="size-4" />
-                  참가 현황 ({totalPeople}명)
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {sortedCounts.map(([event, count]) => (
-                    <span
-                      key={event}
-                      className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground"
-                    >
-                      {event} {count}명
-                    </span>
-                  ))}
-                </div>
-                {showNameRows && (
-                  <div className="flex flex-col gap-1.5 text-xs">
-                    {sortedCounts.map(([event]) => {
-                      const group = sortedParticipants.filter((p) => getDisplayKey(p) === event);
-                      return (
-                        <div key={event} className="flex items-baseline gap-2">
-                          <span className="shrink-0 font-semibold text-foreground">{event}</span>
-                          <span className="text-muted-foreground">
-                            {group.map((p) => p.member?.mem_nm ?? "이름 없음").join(", ")}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </>
-          );
-        })()}
-
-        <Separator />
-
-        {showInactiveMessage ? (
-          <div className="flex flex-col gap-2 text-sm">
-            <p className="text-destructive">비활성화된 회원입니다. 관리자에게 문의하세요.</p>
-          </div>
-        ) : showAuthMessage ? (
-          <div className="flex flex-col gap-3 text-sm">
-            {memberStatus.status === "signed-out" && (
-              <p>로그인 후 참가 신청을 할 수 있습니다.</p>
-            )}
-            {memberStatus.status === "needs-onboarding" && (
-              <p>참가 신청 전에 회원 정보를 먼저 입력해 주세요.</p>
-            )}
-            {memberStatus.status === "member-fetch-error" && (
-              <p>회원 정보를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.</p>
-            )}
-            {memberStatus.status === "member-fetch-error" ? (
-              <Button
-                type="button"
-                className="w-full"
-                onClick={() => window.location.reload()}
-              >
-                새로고침
-              </Button>
-            ) : (
-              <Button asChild className="w-full">
-                <Link
-                  href={
-                    memberStatus.status === "signed-out"
-                      ? "/auth/login?next=%2Fraces"
-                      : "/onboarding"
-                  }
-                >
-                  {memberStatus.status === "signed-out" ? "로그인" : "회원정보 입력"}
-                </Link>
-              </Button>
-            )}
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="role">참여 방식</Label>
-              <Select value={role} onValueChange={(value) => setRole(value as typeof role)}>
-                <SelectTrigger id="role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="participant">참가</SelectItem>
-                  <SelectItem value="cheering">응원</SelectItem>
-                  <SelectItem value="volunteer">봉사</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {isParticipant && (
+        <div className="flex-1 overflow-y-auto px-4 pb-6 pt-4">
+          {editing ? (
+            <form onSubmit={editForm.handleSubmit(handleEditSave)} className="flex flex-col gap-3">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="event-type">참가 종목</Label>
-                <Select
-                  value={eventType}
-                  onValueChange={(value) => setEventType(value)}
-                >
-                  <SelectTrigger id="event-type">
-                    <SelectValue placeholder="종목 선택" />
-                  </SelectTrigger>
+                <Label>대회명</Label>
+                <Input {...editForm.register("title")} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label>종목</Label>
+                <Select value={editSport} onValueChange={(v) => { editForm.setValue("sport", v); editForm.setValue("eventTypes", []); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {eventTypeOptions.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
+                    {sportSprtOptions.map((s) => (
+                      <SelectItem key={s.cd} value={s.cd}>
+                        {s.cd_nm}
                       </SelectItem>
                     ))}
-                    <SelectItem value={EVENT_TYPE_OTHER}>
-                      기타 (직접 입력)
-                    </SelectItem>
                   </SelectContent>
                 </Select>
-                {eventType === EVENT_TYPE_OTHER && (
-                  <Input
-                    placeholder="예: 10K, HALF (영문·숫자만)"
-                    value={otherEventType}
-                    onChange={(e) =>
-                      setOtherEventType(sanitizeAsciiUpperCompEvtTypeInput(e.target.value))
-                    }
-                    className="mt-1"
-                  />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label>시작일</Label>
+                <Input type="date" max="9999-12-31" {...editForm.register("startDate")} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label>종료일</Label>
+                <Input type="date" max="9999-12-31" {...editForm.register("endDate")} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label>장소</Label>
+                <Input {...editForm.register("location")} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label>참가 코스</Label>
+                {editEventTypeOptions.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {editEventTypeOptions.map(type => (
+                      <Button
+                        key={type}
+                        type="button"
+                        size="xs"
+                        onClick={() => {
+                          const current = editForm.getValues("eventTypes");
+                          editForm.setValue("eventTypes", current.includes(type) ? current.filter(t => t !== type) : [...current, type]);
+                        }}
+                        variant={editEventTypes.includes(type) ? "default" : "outline"}
+                        className={cn(
+                          "rounded-full",
+                          !editEventTypes.includes(type) && "text-muted-foreground hover:border-primary/50",
+                        )}
+                      >
+                        {type}
+                      </Button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">종목을 먼저 선택해 주세요.</p>
                 )}
               </div>
-            )}
-
-            {registration && (
-              <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                현재 상태: {roleLabels[registration.role]}
-                {registration.event_type && ` · ${registration.event_type}`}
+              <div className="flex flex-col gap-1.5">
+                <Label>대회 링크</Label>
+                <Input type="url" {...editForm.register("sourceUrl")} />
               </div>
-            )}
+              {editForm.formState.errors.endDate && <p className="text-xs text-destructive">{editForm.formState.errors.endDate.message}</p>}
+              {editForm.formState.errors.root && <p className="text-xs text-destructive">{editForm.formState.errors.root.message}</p>}
+              <div className="flex gap-2">
+                <Button type="submit" disabled={editForm.formState.isSubmitting} className="flex-1">
+                  {editForm.formState.isSubmitting ? "저장 중..." : "저장"}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setEditing(false)} disabled={editForm.formState.isSubmitting} className="flex-1">
+                  취소
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div className="flex flex-col gap-3 text-sm">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Calendar className="size-4 shrink-0" />
+                <span>{formattedDate}</span>
+              </div>
+              {competition.location && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <MapPin className="size-4 shrink-0" />
+                  <span>{competition.location}</span>
+                </div>
+              )}
+              {competition.source_url && /^https?:\/\//.test(competition.source_url) && (
+                <a
+                  href={competition.source_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2 text-primary hover:underline"
+                >
+                  <ExternalLink className="size-4" />
+                  대회 페이지 보기
+                </a>
+              )}
+            </div>
+          )}
 
-            {statusMessage && (
-              <p className={`text-xs ${statusMessage.ok ? "text-muted-foreground" : "text-destructive"}`}>
-                {statusMessage.text}
-              </p>
-            )}
+          {isAdmin && !editing && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={startEditing}
+              className="mt-3 self-start"
+            >
+              <Pencil className="size-3.5 mr-1.5" />
+              대회 정보 수정
+            </Button>
+          )}
 
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button type="submit" disabled={!canSubmit || isSaving}>
-                {registration ? "정보 수정" : "참가 신청"}
-              </Button>
-              {registration && (
+          {/* 참가 현황 */}
+          {(() => {
+            if (!competition) return null;
+
+            const sportEvents = eventTypeCodesForSprtFromCmmRows(
+              cmmCdRows,
+              competition.sport,
+            );
+            const hardestFirst = [...sportEvents].reverse();
+
+            const getDisplayKey = (p: RegistrationWithMember) =>
+              p.event_type ??
+              (p.role === "participant"
+                ? "미정"
+                : roleLabels[p.role as keyof typeof roleLabels] ?? p.role);
+
+            const sortOrder = (key: string) => {
+              const idx = hardestFirst.indexOf(key);
+              if (idx !== -1) return idx;
+              if (key === "미정") return hardestFirst.length;
+              if (key === "봉사") return hardestFirst.length + 1;
+              if (key === "응원") return hardestFirst.length + 2;
+              return hardestFirst.length + 3;
+            };
+
+            const publicTotal = publicDisplayCounts.reduce((s, r) => s + r.cnt, 0);
+            const hasMemberRows = participants.length > 0;
+            const showPublicOnly = !hasMemberRows && publicTotal > 0;
+            if (!hasMemberRows && !showPublicOnly) return null;
+
+            let sortedCounts: [string, number][] = [];
+            let sortedParticipants: RegistrationWithMember[] = [];
+
+            if (hasMemberRows) {
+              const eventCounts = new Map<string, number>();
+              participants.forEach((p) => {
+                const key = getDisplayKey(p);
+                eventCounts.set(key, (eventCounts.get(key) ?? 0) + 1);
+              });
+              sortedCounts = Array.from(eventCounts.entries()).sort(
+                (a, b) => sortOrder(a[0]) - sortOrder(b[0]),
+              );
+              sortedParticipants = [...participants].sort((a, b) => {
+                const orderDiff = sortOrder(getDisplayKey(a)) - sortOrder(getDisplayKey(b));
+                if (orderDiff !== 0) return orderDiff;
+                return a.created_at.localeCompare(b.created_at);
+              });
+            } else {
+              sortedCounts = [...publicDisplayCounts]
+                .map((r) => [r.display_key, r.cnt] as [string, number])
+                .sort((a, b) => sortOrder(a[0]) - sortOrder(b[0]));
+            }
+
+            const totalPeople = hasMemberRows ? participants.length : publicTotal;
+            const showNameRows = memberStatus.status === "ready" && hasMemberRows;
+
+            return (
+              <>
+                <Separator className="my-3" />
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Users className="size-4" />
+                    참가 현황 ({totalPeople}명)
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {sortedCounts.map(([event, count]) => (
+                      <span
+                        key={event}
+                        className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground"
+                      >
+                        {event} {count}명
+                      </span>
+                    ))}
+                  </div>
+                  {showNameRows && (
+                    <div className="flex flex-col gap-1.5 text-xs">
+                      {sortedCounts.map(([event]) => {
+                        const group = sortedParticipants.filter((p) => getDisplayKey(p) === event);
+                        return (
+                          <div key={event} className="flex items-baseline gap-2">
+                            <span className="shrink-0 font-semibold text-foreground">{event}</span>
+                            <span className="text-muted-foreground">
+                              {group.map((p) => p.member?.mem_nm ?? "이름 없음").join(", ")}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+
+          <Separator className="my-3" />
+
+          {showInactiveMessage ? (
+            <div className="flex flex-col gap-2 text-sm">
+              <p className="text-destructive">비활성화된 회원입니다. 관리자에게 문의하세요.</p>
+            </div>
+          ) : showAuthMessage ? (
+            <div className="flex flex-col gap-3 text-sm">
+              {memberStatus.status === "signed-out" && (
+                <p>로그인 후 참가 신청을 할 수 있습니다.</p>
+              )}
+              {memberStatus.status === "needs-onboarding" && (
+                <p>참가 신청 전에 회원 정보를 먼저 입력해 주세요.</p>
+              )}
+              {memberStatus.status === "member-fetch-error" && (
+                <p>회원 정보를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.</p>
+              )}
+              {memberStatus.status === "member-fetch-error" ? (
                 <Button
                   type="button"
-                  variant="outline"
-                  onClick={handleDelete}
-                  disabled={isSaving}
+                  className="w-full"
+                  onClick={() => window.location.reload()}
                 >
-                  신청 취소
+                  새로고침
+                </Button>
+              ) : (
+                <Button asChild className="w-full">
+                  <Link
+                    href={
+                      memberStatus.status === "signed-out"
+                        ? "/auth/login?next=%2Fraces"
+                        : "/onboarding"
+                    }
+                  >
+                    {memberStatus.status === "signed-out" ? "로그인" : "회원정보 입력"}
+                  </Link>
                 </Button>
               )}
-            </DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="ghost" className="w-full text-muted-foreground">
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="role">참여 방식</Label>
+                <Select value={role} onValueChange={(value) => setRole(value as typeof role)}>
+                  <SelectTrigger id="role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="participant">참가</SelectItem>
+                    <SelectItem value="cheering">응원</SelectItem>
+                    <SelectItem value="volunteer">봉사</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {isParticipant && (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="event-type">참가 종목</Label>
+                  <Select
+                    value={eventType}
+                    onValueChange={(value) => setEventType(value)}
+                  >
+                    <SelectTrigger id="event-type">
+                      <SelectValue placeholder="종목 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {eventTypeOptions.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value={EVENT_TYPE_OTHER}>
+                        기타 (직접 입력)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {eventType === EVENT_TYPE_OTHER && (
+                    <Input
+                      placeholder="예: 10K, HALF (영문·숫자만)"
+                      value={otherEventType}
+                      onChange={(e) =>
+                        setOtherEventType(sanitizeAsciiUpperCompEvtTypeInput(e.target.value))
+                      }
+                      className="mt-1"
+                    />
+                  )}
+                </div>
+              )}
+
+              {registration && (
+                <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  현재 상태: {roleLabels[registration.role]}
+                  {registration.event_type && ` · ${registration.event_type}`}
+                </div>
+              )}
+
+              {statusMessage && (
+                <p className={`text-xs ${statusMessage.ok ? "text-muted-foreground" : "text-destructive"}`}>
+                  {statusMessage.text}
+                </p>
+              )}
+
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button type="submit" disabled={!canSubmit || isSaving}>
+                  {registration ? "정보 수정" : "참가 신청"}
+                </Button>
+                {registration && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleDelete}
+                    disabled={isSaving}
+                  >
+                    신청 취소
+                  </Button>
+                )}
+              </div>
+            </form>
+          )}
+
+          <div className="border-t border-border mt-4 pt-4">
+            <CommentSection
+              entityType="comp"
+              entityId={competition.id}
+              currentMemberId={memberStatus.status === "ready" ? memberStatus.memberId : undefined}
+              isAdmin={isAdmin}
+              members={cmntData.members}
+              initialComments={cmntData.comments}
+            />
+          </div>
+
+          <div className="mt-4 flex justify-center">
+            <ResponsiveDrawerClose asChild>
+              <Button type="button" variant="ghost" size="sm" className="text-muted-foreground">
                 닫기
               </Button>
-            </DialogClose>
-          </form>
-        )}
-        <div className="border-t border-border pt-4 mt-2">
-          <CommentSection
-            entityType="comp"
-            entityId={competition.id}
-            currentMemberId={memberStatus.status === "ready" ? memberStatus.memberId : undefined}
-            isAdmin={isAdmin}
-            members={cmntData.members}
-            initialComments={cmntData.comments}
-          />
+            </ResponsiveDrawerClose>
+          </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDrawerContent>
+    </ResponsiveDrawer>
   );
 }

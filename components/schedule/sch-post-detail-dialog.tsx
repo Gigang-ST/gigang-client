@@ -13,8 +13,14 @@ import type { CmntRow } from "@/components/comment/comment-item"
 import { CommentSection } from "@/components/comment/comment-section"
 import type { MemberOption } from "@/components/comment/mention-input"
 import type { CalendarRace } from "@/components/home/mini-calendar"
+import {
+  ResponsiveDrawer,
+  ResponsiveDrawerClose,
+  ResponsiveDrawerContent,
+  ResponsiveDrawerHeader,
+  ResponsiveDrawerTitle,
+} from "@/components/common/responsive-drawer"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 interface SchPostDetailDialogProps {
   post: CalendarRace | null
@@ -78,69 +84,82 @@ export function SchPostDetailDialog({
   const isAuthor = currentMemberId === post.crt_by
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-left">{post.title}</DialogTitle>
-        </DialogHeader>
+    <ResponsiveDrawer open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDrawerContent
+        dialogClassName="max-w-md max-h-[85dvh] flex flex-col gap-0 p-0 overflow-hidden"
+        drawerClassName="h-[85dvh] max-h-[85dvh]"
+      >
+        <ResponsiveDrawerHeader className="shrink-0 border-b border-border px-4 py-4 text-left">
+          <ResponsiveDrawerTitle>{post.title}</ResponsiveDrawerTitle>
+        </ResponsiveDrawerHeader>
 
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-muted-foreground">
-            {startAt.format("YYYY년 M월 D일 (ddd) HH:mm")}
-            {endAt && ` ~ ${endAt.format("HH:mm")}`}
-          </p>
+        <div className="flex-1 overflow-y-auto px-4 pb-6 pt-4">
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-muted-foreground">
+              {startAt.format("YYYY년 M월 D일 (ddd) HH:mm")}
+              {endAt && ` ~ ${endAt.format("HH:mm")}`}
+            </p>
 
-          {post.url && (
-            <a
-              href={post.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 rounded-md border border-border py-2 text-sm transition-colors hover:bg-muted"
-            >
-              <ExternalLink className="size-3.5" />
-              링크 바로가기
-            </a>
-          )}
-
-          {post.cont_txt && (
-            <p className="text-sm leading-relaxed whitespace-pre-wrap">{post.cont_txt}</p>
-          )}
-
-          {isAuthor && (
-            <div className="flex gap-2 self-end">
-              <Button variant="outline" size="sm" onClick={onEdit} disabled={deleting}>
-                <Pencil className="size-3.5" />
-                수정
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive"
-                onClick={handleDelete}
-                disabled={deleting}
+            {post.url && (
+              <a
+                href={post.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 rounded-md border border-border py-2 text-sm transition-colors hover:bg-muted"
               >
-                <Trash2 className="size-3.5" />
-                {deleting ? "삭제 중..." : "삭제"}
-              </Button>
-            </div>
-          )}
-
-          <div className="border-t border-border pt-4">
-            {loading ? (
-              <p className="text-sm text-muted-foreground">댓글 불러오는 중...</p>
-            ) : (
-              <CommentSection
-                entityType="sch_post"
-                entityId={post.id}
-                currentMemberId={currentMemberId}
-                isAdmin={isAdmin}
-                members={members}
-                initialComments={comments}
-              />
+                <ExternalLink className="size-3.5" />
+                링크 바로가기
+              </a>
             )}
+
+            {post.cont_txt && (
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">{post.cont_txt}</p>
+            )}
+
+            {isAuthor && (
+              <div className="flex gap-2 self-end">
+                <Button variant="outline" size="sm" onClick={onEdit} disabled={deleting}>
+                  <Pencil className="size-3.5" />
+                  수정
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                >
+                  <Trash2 className="size-3.5" />
+                  {deleting ? "삭제 중..." : "삭제"}
+                </Button>
+              </div>
+            )}
+
+            <div className="border-t border-border pt-4">
+              {loading ? (
+                <p className="text-sm text-muted-foreground">댓글 불러오는 중...</p>
+              ) : (
+                <CommentSection
+                  entityType="sch_post"
+                  entityId={post.id}
+                  currentMemberId={currentMemberId}
+                  isAdmin={isAdmin}
+                  members={members}
+                  initialComments={comments}
+                />
+              )}
+            </div>
+
+            <div className="mt-4 flex justify-center">
+              <ResponsiveDrawerClose asChild>
+                <Button type="button" variant="ghost" size="sm" className="text-muted-foreground">
+                  닫기
+                </Button>
+              </ResponsiveDrawerClose>
+            </div>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDrawerContent>
+    </ResponsiveDrawer>
   )
 }
