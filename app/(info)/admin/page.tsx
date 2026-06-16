@@ -51,7 +51,8 @@ const generalCards: Card[] = [
     label: "회비 관리",
     href: "/admin/dues",
     icon: Wallet,
-    getValue: () => "",
+    getValue: (s) => s.unpaidMemberCount,
+    getAccentValue: (s) => s.unpaidMemberCount,
   },
   {
     key: "competitions",
