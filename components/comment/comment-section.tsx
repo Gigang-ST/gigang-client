@@ -131,12 +131,16 @@ export function CommentSection({
     if (!replyText.trim() || !currentMemberId || !replyTo) return
     setLoading(true)
     try {
+      const mentionInText = replyText.includes(`@${replyTo.mem_nm}`)
+      const allMentions = mentionInText
+        ? [...new Set([replyTo.mem_id, ...replyMentions])]
+        : replyMentions
       const result = await createComment({
         entityType,
         entityId,
         contTxt: replyText.trim(),
         prntId: replyTo.prnt_id ?? replyTo.cmnt_id,
-        mentionedMemIds: replyMentions,
+        mentionedMemIds: allMentions,
       })
       if (result.ok) {
         const me = members.find((m) => m.mem_id === currentMemberId)
@@ -184,7 +188,7 @@ export function CommentSection({
                 currentMemberId={currentMemberId}
                 isAdmin={isAdmin}
                 members={members}
-                onReply={currentMemberId ? (c) => { setReplyTo(c); setReplyText("") } : undefined}
+                onReply={currentMemberId ? (c) => { setReplyTo(c); setReplyText(`@${c.mem_nm} `); setReplyMentions([]) } : undefined}
               />
               {cmnt.replies.map((reply) => (
                 <CommentItem
@@ -194,7 +198,7 @@ export function CommentSection({
                   isAdmin={isAdmin}
                   members={members}
                   isReply
-                  onReply={currentMemberId ? (c) => { setReplyTo(c); setReplyText("") } : undefined}
+                  onReply={currentMemberId ? (c) => { setReplyTo(c); setReplyText(`@${c.mem_nm} `); setReplyMentions([]) } : undefined}
                 />
               ))}
 
@@ -205,7 +209,7 @@ export function CommentSection({
                     onChange={setReplyText}
                     onMentionsChange={setReplyMentions}
                     members={members}
-                    placeholder={`@${replyTo.mem_nm}에게 답글...`}
+                    placeholder="답글을 입력하세요..."
                     rows={2}
                   />
                   <div className="flex gap-2">

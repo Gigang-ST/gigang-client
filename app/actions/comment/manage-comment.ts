@@ -67,19 +67,19 @@ export async function createComment(input: CreateCommentInput) {
     )
   }
 
-  // 답글 알림 — 원댓글 작성자 (본인·멘션 중복 제외)
-  if (parsed.prntId) {
-    const { data: parent } = await admin
-      .from("cmnt_mst")
-      .select("mem_id")
-      .eq("cmnt_id", parsed.prntId)
+  // 소식 댓글 알림 — 소식 작성자 (루트 댓글만, 본인·멘션 중복 제외)
+  if (!parsed.prntId && parsed.entityType === "sch_post") {
+    const { data: post } = await admin
+      .from("sch_post_mst")
+      .select("crt_by")
+      .eq("sch_post_id", parsed.entityId)
       .single()
-    if (parent && parent.mem_id !== member.id && !uniqueMentions.includes(parent.mem_id)) {
+    if (post && post.crt_by !== member.id && !uniqueMentions.includes(post.crt_by)) {
       await admin.from("noti_mst").insert({
         team_id: teamId,
-        mem_id: parent.mem_id,
-        noti_type_enm: "cmnt_reply",
-        noti_nm: `${member.full_name}님이 댓글에 답글을 달았습니다`,
+        mem_id: post.crt_by,
+        noti_type_enm: "sch_post_cmnt",
+        noti_nm: `${member.full_name}님이 소식에 댓글을 달았습니다`,
         noti_cont: parsed.contTxt.slice(0, 100),
         ref_id: cmnt.cmnt_id,
         ref_type_enm: "cmnt",

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Coins, Trophy, Trash2, ChevronRight } from "lucide-react";
+import { Bell, Coins, MessageCircle, Trophy, Trash2, ChevronRight } from "lucide-react";
 import { dayjs } from "@/lib/dayjs";
 import type { Notification } from "@/lib/queries/notification";
 import { markNotificationRead } from "@/app/actions/mark-notification-read";
@@ -15,6 +15,9 @@ const NOTI_ICON: Record<string, React.ElementType> = {
   adm_cust: Bell,
   dues_notice: Coins,
   dues_check_req: Coins,
+  cmnt_mention: MessageCircle,
+  cmnt_reply: MessageCircle,
+  sch_post_cmnt: MessageCircle,
 };
 
 const NOTI_ROUTE: Record<string, (refId: string | null) => string | null> = {
@@ -50,6 +53,7 @@ export function NotificationItem({ noti, onDelete, onRead, onClose }: Notificati
 
   // 부모에서 read_yn이 바뀌면(모두 읽음 등) 동기화
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsRead(noti.read_yn);
   }, [noti.read_yn]);
 
