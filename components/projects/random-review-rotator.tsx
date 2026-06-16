@@ -57,9 +57,9 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPicks(pickRandomLines(lines));
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setIndex(0);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setIsAnimating(false);
   }, [lines]);
 
