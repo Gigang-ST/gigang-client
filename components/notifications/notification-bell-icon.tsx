@@ -28,6 +28,7 @@ type NotificationBellIconProps = {
 
 const NOTI_TYPE_LABELS: Record<string, string> = {
   ttl_grnt: "칭호 획득",
+  sch_post_new: "피드 등록",
 };
 
 type ViewType = "list" | "settings";

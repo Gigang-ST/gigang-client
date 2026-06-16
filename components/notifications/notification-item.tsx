@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 
 import { useRouter } from "next/navigation";
 
-import { Bell, Coins, MessageCircle, Trophy, Trash2, ChevronRight } from "lucide-react";
+import { Bell, Coins, MessageCircle, Trophy, Trash2, ChevronRight, FileText } from "lucide-react";
 
 import { dayjs } from "@/lib/dayjs";
 import type { Notification } from "@/lib/queries/notification";
@@ -24,6 +24,7 @@ const NOTI_ICON: Record<string, React.ElementType> = {
   cmnt_mention: MessageCircle,
   cmnt_reply: MessageCircle,
   sch_post_cmnt: MessageCircle,
+  sch_post_new: FileText,
 };
 
 const NOTI_ROUTE: Record<string, (refId: string | null, refType: string | null) => string | null> = {
@@ -32,6 +33,7 @@ const NOTI_ROUTE: Record<string, (refId: string | null, refType: string | null) 
   dues_notice: () => "/profile/dues",
   dues_check_req: () => null,
   sch_post_cmnt: (refId) => refId ? `/?post=${refId}` : "/",
+  sch_post_new: (refId) => refId ? `/?post=${refId}` : "/",
   cmnt_mention: (refId, refType) => refType === "comp" ? `/?comp=${refId}` : refId ? `/?post=${refId}` : "/",
   cmnt_reply: (refId, refType) => refType === "comp" ? `/?comp=${refId}` : refId ? `/?post=${refId}` : "/",
 };

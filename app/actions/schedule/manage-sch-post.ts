@@ -1,8 +1,10 @@
 "use server";
 
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 
 import { dayjs } from "@/lib/dayjs";
+import { createUntypedAdminClient } from "@/lib/supabase/admin";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createSchPostSchema, updateSchPostSchema } from "@/lib/validations/schedule";
@@ -40,8 +42,56 @@ export async function createSchPost(input: {
 
   if (error || !data) throw new Error("일정 등록에 실패했습니다.");
 
+  const postId = data.sch_post_id;
+  const authorId = member.id;
+  const postName = parsed.sch_nm;
+
+  after(async () => {
+    try {
+      const admin = createUntypedAdminClient();
+
+      // 팀 전체 활성 멤버 조회 (작성자 제외)
+      const { data: members } = await admin
+        .from("team_mem_rel")
+        .select("mem_id")
+        .eq("team_id", teamId)
+        .eq("vers", 0)
+        .eq("del_yn", false)
+        .neq("mem_id", authorId);
+
+      if (!members?.length) return;
+
+      // 알림 설정 확인 후 발송 대상 필터링
+      const { data: disabledPrefs } = await admin
+        .from("noti_pref_cfg")
+        .select("mem_id")
+        .in("mem_id", members.map((m) => m.mem_id))
+        .eq("noti_type_enm", "sch_post_new")
+        .eq("enabled_yn", false);
+
+      const disabledSet = new Set((disabledPrefs ?? []).map((p) => p.mem_id));
+      const targets = members.filter((m) => !disabledSet.has(m.mem_id));
+
+      if (!targets.length) return;
+
+      await admin.from("noti_mst").insert(
+        targets.map((m) => ({
+          team_id: teamId,
+          mem_id: m.mem_id,
+          noti_type_enm: "sch_post_new",
+          noti_nm: `${dayjs().format("M월 D일")} 새 피드가 등록됐습니다.`,
+          noti_cont: postName,
+          ref_id: postId,
+          ref_type_enm: "sch_post",
+        })),
+      );
+    } catch (e) {
+      console.error("[sch_post_new] 알림 발송 실패", e);
+    }
+  });
+
   revalidatePath("/");
-  return { sch_post_id: data.sch_post_id };
+  return { sch_post_id: postId };
 }
 
 export async function updateSchPost(input: {

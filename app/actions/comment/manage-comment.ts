@@ -67,7 +67,7 @@ export async function createComment(input: CreateCommentInput) {
     )
   }
 
-  // 소식 댓글 알림 — 소식 작성자 (루트 댓글만, 본인·멘션 중복 제외, 같은 글 알림 그룹핑)
+  // 피드 댓글 알림 — 피드 작성자 (루트 댓글만, 본인·멘션 중복 제외, 같은 글 알림 그룹핑)
   if (!parsed.prntId && parsed.entityType === "sch_post") {
     const { data: post } = await admin
       .from("sch_post_mst")

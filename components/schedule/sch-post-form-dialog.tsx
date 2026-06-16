@@ -147,7 +147,7 @@ export function SchPostFormDialog({
       <DialogContent className="flex max-h-[85dvh] flex-col gap-0 p-0">
 
         <DialogHeader className="px-5 pb-3 pt-5">
-          <DialogTitle>{mode === "create" ? "소식 추가" : "소식 수정"}</DialogTitle>
+          <DialogTitle>{mode === "create" ? "피드 추가" : "피드 수정"}</DialogTitle>
         </DialogHeader>
 
         <Separator />
