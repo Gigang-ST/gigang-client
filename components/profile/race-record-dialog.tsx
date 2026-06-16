@@ -50,6 +50,8 @@ interface Competition {
   registeredEventType?: string | null;
   /** 참가 신청 행의 comp_evt_cfg PK (서버에서 종목 정합 검증용) */
   registrationCompEvtId?: string | null;
+  /** 이미 기록을 등록한 대회 여부 */
+  hasRecord?: boolean;
 }
 
 /* ---------- 시간 입력 자동 포맷 ---------- */
@@ -168,19 +170,29 @@ export function RaceRecordDialog({
     const threeMonthsAgo = new Date();
     threeMonthsAgo.setMonth(today.getMonth() - 3);
 
-    const { data } = await supabase
-      .from("comp_reg_rel")
-      .select(
-        "comp_reg_id, comp_evt_id, comp_evt_cfg(comp_evt_type), team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(comp_evt_type)))",
-      )
-      .eq("mem_id", memberId)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .eq("team_comp_plan_rel.team_id", teamId)
-      .gte("team_comp_plan_rel.comp_mst.stt_dt", threeMonthsAgo.toISOString().split("T")[0])
-      .lte("team_comp_plan_rel.comp_mst.stt_dt", today.toISOString().split("T")[0])
-      .order("crt_at", { ascending: false })
-      .limit(50);
+    const [{ data }, { data: recordData }] = await Promise.all([
+      supabase
+        .from("comp_reg_rel")
+        .select(
+          "comp_reg_id, comp_evt_id, comp_evt_cfg(comp_evt_type), team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(comp_evt_type)))",
+        )
+        .eq("mem_id", memberId)
+        .eq("vers", 0)
+        .eq("del_yn", false)
+        .eq("team_comp_plan_rel.team_id", teamId)
+        .gte("team_comp_plan_rel.comp_mst.stt_dt", threeMonthsAgo.toISOString().split("T")[0])
+        .lte("team_comp_plan_rel.comp_mst.stt_dt", today.toISOString().split("T")[0])
+        .order("crt_at", { ascending: false })
+        .limit(50),
+      supabase
+        .from("rec_race_hist")
+        .select("comp_id")
+        .eq("mem_id", memberId)
+        .eq("vers", 0)
+        .eq("del_yn", false),
+    ]);
+
+    const recordedCompIds = new Set((recordData ?? []).map((r) => r.comp_id).filter(Boolean));
 
     const seen = new Set<string>();
     const raw = data ?? [];
@@ -204,6 +216,7 @@ export function RaceRecordDialog({
           event_types: (comp.comp_evt_cfg ?? []).map((e) => e.comp_evt_type?.toUpperCase()),
           registeredEventType: evt?.comp_evt_type ?? null,
           registrationCompEvtId: rowAny.comp_evt_id ?? null,
+          hasRecord: recordedCompIds.has(comp.comp_id),
         } as Competition;
       })
       .filter((c) => {
@@ -612,10 +625,21 @@ export function RaceRecordDialog({
                     key={comp.id}
                     type="button"
                     variant="outline"
+                    disabled={comp.hasRecord}
                     onClick={() => handleSelectCompetition(comp)}
-                    className="h-auto w-full flex-col items-start gap-0.5 border-[1.5px] px-4 py-3 hover:border-primary/50"
+                    className={cn(
+                      "h-auto w-full flex-col items-start gap-0.5 border-[1.5px] px-4 py-3",
+                      comp.hasRecord
+                        ? "cursor-not-allowed opacity-60"
+                        : "hover:border-primary/50",
+                    )}
                   >
-                    <p className="text-sm font-medium">{comp.title}</p>
+                    <div className="flex w-full items-center justify-between gap-2">
+                      <p className="text-sm font-medium">{comp.title}</p>
+                      {comp.hasRecord && (
+                        <Micro className="shrink-0 text-muted-foreground">기록 등록됨</Micro>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       {comp.start_date} &middot; {comp.location ?? "-"}
                     </p>
