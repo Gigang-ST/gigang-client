@@ -205,7 +205,7 @@ export async function createComment(input: CreateCommentInput) {
         team_id: teamId,
         mem_id: memId,
         noti_type_enm: "cmnt_mention",
-        noti_nm: `${member.full_name}님이 댓글에서 멘션했습니다`,
+        noti_nm: `${member.full_name}님이 댓글에서 멘션했습니다.`,
         noti_cont: parsed.contTxt.slice(0, 100),
         ref_id: cmnt.cmnt_id,
         ref_type_enm: "cmnt",

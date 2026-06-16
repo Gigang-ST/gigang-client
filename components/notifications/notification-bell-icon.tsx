@@ -1,19 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+
 import { Bell, Settings, Trash2, ChevronLeft } from "lucide-react";
+
 import { dayjs } from "@/lib/dayjs";
-import { createClient } from "@/lib/supabase/client";
 import type { Notification, NotificationPref } from "@/lib/queries/notification";
-import { markAllNotificationsRead } from "@/app/actions/mark-all-notifications-read";
+import { createClient } from "@/lib/supabase/client";
+
 import { deleteAllNotifications } from "@/app/actions/delete-all-notifications";
+import { markAllNotificationsRead } from "@/app/actions/mark-all-notifications-read";
 import { upsertNotiPref } from "@/app/actions/upsert-noti-pref";
-import { NotificationItem } from "./notification-item";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Switch } from "@/components/ui/switch";
+
+import { Body, Caption, SectionLabel } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Body, Caption, SectionLabel } from "@/components/common/typography";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
+
+import { NotificationItem } from "./notification-item";
 
 type NotificationBellIconProps = {
   initialCount: number;
@@ -75,7 +80,7 @@ export function NotificationBellIcon({ initialCount, memberId, disabled }: Notif
 
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCursor(null);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setHasMore(true);
     fetchNotifications(true, null);
 

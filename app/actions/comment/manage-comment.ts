@@ -59,7 +59,7 @@ export async function createComment(input: CreateCommentInput) {
         team_id: teamId,
         mem_id: memId,
         noti_type_enm: "cmnt_mention",
-        noti_nm: `${member.full_name}님이 댓글에서 멘션했습니다`,
+        noti_nm: `${member.full_name}님이 댓글에서 멘션했습니다.`,
         noti_cont: parsed.contTxt.slice(0, 100),
         ref_id: parsed.entityId,
         ref_type_enm: parsed.entityType,
@@ -91,7 +91,7 @@ export async function createComment(input: CreateCommentInput) {
         const prevCount = match ? parseInt(match[1], 10) : 1
         const count = prevCount + 1
         await admin.from("noti_mst").update({
-          noti_nm: `'${post.sch_nm}'에 새 댓글 ${count}개가 달렸습니다`,
+          noti_nm: `'${post.sch_nm}'에 새 댓글 ${count}개가 달렸습니다.`,
           noti_cont: parsed.contTxt.slice(0, 100),
         }).eq("noti_id", existingNoti.noti_id)
       } else {
@@ -99,7 +99,7 @@ export async function createComment(input: CreateCommentInput) {
           team_id: teamId,
           mem_id: post.crt_by,
           noti_type_enm: "sch_post_cmnt",
-          noti_nm: `'${post.sch_nm}'에 새 댓글이 달렸습니다`,
+          noti_nm: `'${post.sch_nm}'에 새 댓글이 달렸습니다.`,
           noti_cont: parsed.contTxt.slice(0, 100),
           ref_id: parsed.entityId,
           ref_type_enm: "sch_post",

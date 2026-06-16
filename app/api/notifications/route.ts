@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { getCurrentMember } from "@/lib/queries/member";
 import { getNotifications } from "@/lib/queries/notification";
 
