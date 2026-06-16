@@ -55,7 +55,7 @@ async function fetchMonth(
   const [{ data: schRows }, { data: gigangRows }, myRows] = await Promise.all([
     supabase
       .from("sch_post_mst")
-      .select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
+      .select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by, mem_mst!crt_by(mem_nm)")
       .eq("team_id", teamId)
       .gte("evt_stt_at", start)
       .lte("evt_stt_at", end)
@@ -120,6 +120,7 @@ async function fetchMonth(
       url: row.url,
       cont_txt: row.cont_txt,
       crt_by: row.crt_by,
+      crt_by_nm: Array.isArray(row.mem_mst) ? (row.mem_mst[0]?.mem_nm ?? null) : ((row.mem_mst as { mem_nm: string } | null)?.mem_nm ?? null),
     });
   }
 

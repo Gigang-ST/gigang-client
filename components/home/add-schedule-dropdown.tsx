@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 
-import { ChevronUp, FileText, Trophy, Users } from "lucide-react";
-
+import { FileText, Plus, Trophy, Users } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -16,6 +15,7 @@ import {
 type Props = {
   onAddSchedule: () => void;
   onAddCompetition: () => void;
+  defaultDate?: string;
 };
 
 export function AddScheduleDropdown({ onAddSchedule, onAddCompetition }: Props) {
@@ -24,15 +24,17 @@ export function AddScheduleDropdown({ onAddSchedule, onAddCompetition }: Props) 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-[12px] font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-          추가
-          <ChevronUp
-            className="size-3 text-primary-foreground/70 transition-transform duration-150"
-            style={{ transform: open ? "rotate(0deg)" : "rotate(180deg)" }}
-          />
+        <button
+          className="fixed bottom-24 right-6 z-50 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 active:scale-95"
+          aria-label="일정 추가"
+        >
+          <Plus className="size-6" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" side="top" className="w-48">
+      <DropdownMenuContent align="end" side="top" className="w-48" onInteractOutside={(e) => {
+        const target = e.target as HTMLElement;
+        if (target?.closest?.("[data-radix-dropdown-menu-trigger]")) e.preventDefault();
+      }}>
         <DropdownMenuItem
           onSelect={() => onAddCompetition()}
           className="flex items-center gap-3 py-2"

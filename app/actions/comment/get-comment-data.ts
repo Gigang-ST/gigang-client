@@ -34,7 +34,7 @@ export async function getCommentData(entityType: string, entityId: string) {
       .order("crt_at", { ascending: true }),
     admin
       .from("team_mem_rel")
-      .select("mem_id, mem_mst!inner(mem_nm)")
+      .select("mem_id, mem_mst!inner(mem_nm, avatar_url)")
       .eq("team_id", teamId)
       .eq("mem_st_cd", "active")
       .eq("del_yn", false),
@@ -60,7 +60,11 @@ export async function getCommentData(entityType: string, entityId: string) {
 
   const members = (memRows ?? []).map((row) => {
     const mem = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst
-    return { mem_id: row.mem_id, mem_nm: (mem as { mem_nm: string }).mem_nm }
+    return {
+      mem_id: row.mem_id,
+      mem_nm: (mem as { mem_nm: string }).mem_nm,
+      avatar_url: (mem as { avatar_url?: string | null }).avatar_url ?? null,
+    }
   })
 
   return { comments, members }

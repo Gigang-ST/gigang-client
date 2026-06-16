@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react"
 
 import { Textarea } from "@/components/ui/textarea"
 
-export type MemberOption = { mem_id: string; mem_nm: string }
+export type MemberOption = { mem_id: string; mem_nm: string; avatar_url?: string | null }
 
 export function parseMentionsFromText(text: string, members: MemberOption[]): string[] {
   return members

@@ -44,6 +44,7 @@ export type CalendarRace = {
   url?: string | null;
   cont_txt?: string | null;
   crt_by?: string;
+  crt_by_nm?: string | null;
   post_type?: string | null;
   // 시간 표시용 (원본 일시 문자열)
   evt_stt_at?: string | null;
@@ -606,17 +607,11 @@ export function MiniCalendar({
             return (
               <div className="mt-1 rounded-xl bg-secondary/50 px-3 py-2">
                 <div className="flex gap-2">
-                  {/* 날짜 + 추가 버튼 컬럼 */}
-                  <div className="flex shrink-0 flex-col items-center gap-1.5">
+                  {/* 날짜 컬럼 */}
+                  <div className="flex shrink-0 flex-col items-center">
                     <span className="text-[18px] font-bold leading-none text-foreground tabular-nums">
                       {parseInt(dd, 10)}일
                     </span>
-                    {memberStatus.status === "ready" && (
-                      <AddScheduleDropdown
-                        onAddSchedule={() => openCreateForm(selectedDate)}
-                        onAddCompetition={() => openCompetitionPicker(selectedDate)}
-                      />
-                    )}
                   </div>
 
                   {/* 일정 목록 */}
@@ -705,15 +700,15 @@ export function MiniCalendar({
             onClickSchedule={openEditForm}
             onClickCompetition={handleRaceClick}
           />
-          {memberStatus.status === "ready" && (
-            <div className="flex justify-start pt-1.5">
-              <AddScheduleDropdown
-                onAddSchedule={() => openCreateForm(today)}
-                onAddCompetition={() => openCompetitionPicker(today)}
-              />
-            </div>
-          )}
         </div>
+      )}
+
+      {/* FAB — 멤버만 표시, 캘린더뷰: 선택 날짜, 리스트뷰: 오늘 */}
+      {memberStatus.status === "ready" && (
+        <AddScheduleDropdown
+          onAddSchedule={() => openCreateForm(view === "calendar" ? selectedDate : today)}
+          onAddCompetition={() => openCompetitionPicker(view === "calendar" ? selectedDate : today)}
+        />
       )}
 
       {/* 대회 선택 다이얼로그 */}

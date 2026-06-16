@@ -202,6 +202,7 @@ async function HomeContent() {
     url: row.url,
     cont_txt: row.cont_txt,
     crt_by: row.crt_by,
+    crt_by_nm: row.crt_by_nm ?? null,
     cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
   }));
 
