@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { CalendarDays, ChevronLeft, ChevronRight, List } from "lucide-react";
 
@@ -25,6 +25,7 @@ import { CompetitionPickerDialog } from "@/components/home/competition-picker-di
 import { ScheduleListView } from "@/components/home/schedule-list-view";
 import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
+import { SchPostDetailDialog } from "@/components/schedule/sch-post-detail-dialog";
 import { SchPostFormDialog } from "@/components/schedule/sch-post-form-dialog";
 
 
@@ -88,9 +89,13 @@ export function MiniCalendar({
 
   // 일정 폼 다이얼로그 상태
   const [formOpen, setFormOpen] = useState(false);
-  const [formMode, setFormMode] = useState<"create" | "edit" | "view">("create");
+  const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [formPostType, setFormPostType] = useState<SchPostType>("general");
   const [editTarget, setEditTarget] = useState<CalendarRace | null>(null);
+
+  // 소식 상세 다이얼로그 상태 (일반 멤버용)
+  const [schDetailPost, setSchDetailPost] = useState<CalendarRace | null>(null);
+  const [schDetailOpen, setSchDetailOpen] = useState(false);
 
   // 대회 선택 다이얼로그 상태
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -104,6 +109,65 @@ export function MiniCalendar({
     useState<Record<string, CompetitionRegistration>>(initialRegistrationsByCompetitionId);
 
   const memberStatus = initialMemberStatus;
+
+  // 알림 딥링크: /?post=<id> 또는 /?comp=<id>로 진입 시 해당 상세 자동 오픈
+  const searchParams = useSearchParams()
+  const deepLinkPostId = searchParams.get("post")
+  const deepLinkCompId = searchParams.get("comp")
+
+  useEffect(() => {
+    if (deepLinkPostId) {
+      supabase
+        .from("sch_post_mst")
+        .select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
+        .eq("sch_post_id", deepLinkPostId)
+        .single()
+        .then(({ data }) => {
+          if (!data) return
+          setSchDetailPost({
+            id: data.sch_post_id,
+            title: data.sch_nm,
+            start_date: data.evt_stt_at ? dayjs(data.evt_stt_at).format("YYYY-MM-DD") : dayjs().format("YYYY-MM-DD"),
+            type: "schedule",
+            url: data.url ?? null,
+            cont_txt: data.cont_txt ?? null,
+            crt_by: data.crt_by ?? undefined,
+            post_type: data.post_type ?? null,
+            evt_stt_at: data.evt_stt_at ?? null,
+            evt_end_at: data.evt_end_at ?? null,
+          })
+          setSchDetailOpen(true)
+          router.replace("/")
+        })
+    }
+
+    if (deepLinkCompId) {
+      supabase
+        .from("comp_mst")
+        .select("comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)")
+        .eq("comp_id", deepLinkCompId)
+        .single()
+        .then(({ data }) => {
+          if (!data) return
+          setSelectedCompetition({
+            id: data.comp_id,
+            external_id: "",
+            sport: data.comp_sprt_cd ?? null,
+            title: data.comp_nm,
+            start_date: data.stt_dt,
+            end_date: data.end_dt ?? null,
+            location: data.loc_nm ?? null,
+            event_types: (data.comp_evt_cfg as { comp_evt_type: string | null }[])
+              .map((e) => e.comp_evt_type?.toUpperCase())
+              .filter((e): e is string => Boolean(e)),
+            source_url: data.src_url ?? null,
+          })
+          setDetailOpen(true)
+          router.replace("/")
+        })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkPostId, deepLinkCompId])
 
   const today = todayKST();
   const [yearStr, monthStr] = viewMonth.split("-");
@@ -304,9 +368,9 @@ export function MiniCalendar({
       });
     }
 
-    // sch_post 조회
+    // sch_post_mst 조회
     const { data: schPostRows } = await supabase
-      .from("sch_post")
+      .from("sch_post_mst")
       .select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
       .eq("team_id", teamId)
       .gte("evt_stt_at", newMonth)
@@ -367,9 +431,8 @@ export function MiniCalendar({
   }
 
   function openEditForm(race: CalendarRace) {
-    setFormMode("view");
-    setEditTarget(race);
-    setFormOpen(true);
+    setSchDetailPost(race);
+    setSchDetailOpen(true);
   }
 
   async function handleSchPostSuccess() {
@@ -659,16 +722,31 @@ export function MiniCalendar({
         onCompetitionCreated={handleCompetitionCreated}
       />
 
+      {/* 소식 상세 다이얼로그 */}
+      <SchPostDetailDialog
+        post={schDetailPost}
+        open={schDetailOpen}
+        onOpenChange={setSchDetailOpen}
+        currentMemberId={memberStatus.status === "ready" ? memberStatus.memberId : undefined}
+        isAdmin={memberStatus.status === "ready" ? memberStatus.admin : false}
+        onEdit={() => {
+          if (!schDetailPost) return;
+          setSchDetailOpen(false);
+          setFormMode("edit");
+          setEditTarget(schDetailPost);
+          setFormOpen(true);
+        }}
+        onDelete={handleSchPostSuccess}
+      />
+
       {/* 일정 등록/수정 다이얼로그 */}
       <SchPostFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
         mode={formMode}
         defaultPostType={formPostType}
-        currentMemberId={memberStatus.status === "ready" ? memberStatus.memberId : undefined}
-        isAdmin={memberStatus.status === "ready" ? memberStatus.admin : false}
         initialData={
-          (formMode === "view" || formMode === "edit") && editTarget
+          formMode === "edit" && editTarget
             ? {
                 sch_post_id: editTarget.id,
                 sch_nm: editTarget.title,

@@ -6,7 +6,7 @@ export const env = createEnv({
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
     REVALIDATE_SECRET: z.string().min(1),
     KAKAO_CHAT_PASSWORD: z.string().optional(),
-    GEMINI_API_KEY: z.string().min(1),
+    GEMINI_API_KEY: z.string().min(1).optional(),
     NODE_ENV: z.enum(["development", "production", "test"]),
   },
   client: {

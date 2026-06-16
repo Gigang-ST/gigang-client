@@ -185,7 +185,7 @@ async function HomeContent() {
 
   // sch_post (이번 달)
   const { data: schPostRows } = await supabase
-    .from("sch_post")
+    .from("sch_post_mst")
     .select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
     .eq("team_id", teamId)
     .gte("evt_stt_at", monthStart)
@@ -458,16 +458,18 @@ async function HomeContent() {
 
       <div className="flex flex-col gap-7 px-6 pb-6">
       {/* 2. SCHEDULE 캘린더 */}
-      <MiniCalendar
-        gigangRaces={calendarGigangRaces}
-        myRaces={calendarMyRaces}
-        schPosts={calendarSchPosts}
-        teamId={teamId}
-        memberId={currentMember?.id}
-        cmmCdRows={cmmCdRows}
-        initialMemberStatus={initialMemberStatus}
-        initialRegistrationsByCompetitionId={initialRegistrationsByCompetitionId}
-      />
+      <Suspense>
+        <MiniCalendar
+          gigangRaces={calendarGigangRaces}
+          myRaces={calendarMyRaces}
+          schPosts={calendarSchPosts}
+          teamId={teamId}
+          memberId={currentMember?.id}
+          cmmCdRows={cmmCdRows}
+          initialMemberStatus={initialMemberStatus}
+          initialRegistrationsByCompetitionId={initialRegistrationsByCompetitionId}
+        />
+      </Suspense>
 
       {/* 3. UPCOMING RACES 압축 리스트 */}
       <UpcomingRaces

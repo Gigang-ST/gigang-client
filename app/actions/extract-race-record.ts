@@ -36,6 +36,10 @@ export async function extractRaceRecordFromImage(
     return { ok: false, message: "이미지 용량은 10MB 이하여야 합니다." };
   }
 
+  if (!env.GEMINI_API_KEY) {
+    return { ok: false, message: "OCR 기능을 사용할 수 없습니다." };
+  }
+
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
     const data = await extractRaceRecordFromImageData({

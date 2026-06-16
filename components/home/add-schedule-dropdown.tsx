@@ -24,10 +24,10 @@ export function AddScheduleDropdown({ onAddSchedule, onAddCompetition }: Props) 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-[12px] font-medium text-foreground transition-colors hover:bg-secondary/70">
+        <button className="flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-[12px] font-medium text-primary-foreground transition-colors hover:bg-primary/90">
           추가
           <ChevronUp
-            className="size-3 text-muted-foreground transition-transform duration-150"
+            className="size-3 text-primary-foreground/70 transition-transform duration-150"
             style={{ transform: open ? "rotate(0deg)" : "rotate(180deg)" }}
           />
         </button>
@@ -50,7 +50,7 @@ export function AddScheduleDropdown({ onAddSchedule, onAddCompetition }: Props) 
         >
           <FileText className="size-4 shrink-0 text-info" />
           <div className="flex flex-col gap-0.5">
-            <span className="text-[13px] font-medium">소식</span>
+            <span className="text-[13px] font-medium">피드</span>
             <span className="text-[11px] text-muted-foreground">대회 접수, 세일, 세션 등</span>
           </div>
         </DropdownMenuItem>
