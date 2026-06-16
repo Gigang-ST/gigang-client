@@ -15,12 +15,12 @@ export async function respondFeedback(id: string, adminNote: string) {
 
   const db = createUntypedAdminClient();
   const { error } = await db
-    .from("feedback_messages")
+    .from("fdbk_mst")
     .update({
-      admin_note: parsed.data.adminNote ?? null,
-      responded_at: new Date().toISOString(),
+      adm_note_txt: parsed.data.adminNote ?? null,
+      rspd_at: new Date().toISOString(),
     })
-    .eq("id", id)
+    .eq("fdbk_id", id)
     .eq("del_yn", false);
 
   if (error) return { ok: false, message: "답변 저장에 실패했습니다." };

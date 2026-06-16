@@ -27,6 +27,7 @@
 ## 도메인 약어
 | 약어 | 의미 |
 |------|------|
+| `fdbk` | feedback (건의/피드백) |
 | `mem` | member (회원) |
 | `team` | team (팀) |
 | `comp` | competition (대회) |
@@ -106,6 +107,7 @@
 | `gthr_attd_rel` | 모임 참석 관계 |
 | `gthr_cmnt_mst` | 모임 댓글 |
 | `sch_post` | 일정 공유 게시물 (러닝 소식/이벤트/대회접수 등) |
+| `fdbk_mst` | 건의/피드백 마스터 |
 
 ## sch_post 도메인 컬럼 약어
 | 컬럼 | 의미 |
@@ -156,6 +158,16 @@
 | `base_mlg` | 배율 적용 전 기본 마일리지 |
 | `aply_mults` | 적용 배율 스냅샷(jsonb 배열) |
 | `final_mlg` | 배율 적용 후 최종 마일리지 |
+
+## 건의 도메인 컬럼 약어 (fdbk_mst)
+| 컬럼 | 의미 |
+|------|------|
+| `fdbk_id` | PK |
+| `mem_id` | 작성자 회원 ID (FK → `mem_mst`) |
+| `cont_txt` | 건의 본문 텍스트 |
+| `stts_enm` | 처리 상태 enum (`open` / `in_review` / `resolved` / `closed`) |
+| `adm_note_txt` | 관리자 답변/메모 |
+| `rspd_at` | 관리자 답변 일시 |
 
 ## 네이밍 통일 규칙
 - `usr`는 사용하지 않고 `mem`으로 통일한다.

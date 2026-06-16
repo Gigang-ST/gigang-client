@@ -15,9 +15,9 @@ export async function updateFeedbackStatus(id: string, status: FeedbackStatus) {
 
   const db = createUntypedAdminClient();
   const { error } = await db
-    .from("feedback_messages")
-    .update({ status: parsed.data.status })
-    .eq("id", id)
+    .from("fdbk_mst")
+    .update({ stts_enm: parsed.data.status })
+    .eq("fdbk_id", id)
     .eq("del_yn", false);
 
   if (error) return { ok: false, message: "상태 변경에 실패했습니다." };

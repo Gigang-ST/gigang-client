@@ -13,6 +13,7 @@ export type AdminStats = {
   activeProjectCount: number;
   pendingParticipationCount: number;
   unpaidMemberCount: number;
+  openFeedbackCount: number;
   _debug?: Record<string, unknown>;
 };
 
@@ -28,7 +29,7 @@ export async function getAdminStats(): Promise<AdminStats> {
   const keyPrefix = env.SUPABASE_SERVICE_ROLE_KEY.slice(0, 20);
   console.log("[getAdminStats] teamId:", teamId, "keyPrefix:", keyPrefix, "noFilterCount:", noFilter.count, "noFilterError:", noFilter.error);
 
-  const [total, competitions, records, activeProjects, pendingPrt, unpaidSnaps] = await Promise.all([
+  const [total, competitions, records, activeProjects, pendingPrt, unpaidSnaps, openFeedback] = await Promise.all([
     admin
       .from("team_mem_rel")
       .select("*", { count: "exact", head: true })
@@ -72,6 +73,12 @@ export async function getAdminStats(): Promise<AdminStats> {
       .eq("vers", 0)
       .eq("del_yn", false)
       .lt("bal_amt", 0),
+    admin
+      .from("fdbk_mst")
+      .select("*", { count: "exact", head: true })
+      .in("stts_enm", ["open", "in_review"])
+      .eq("vers", 0)
+      .eq("del_yn", false),
   ]);
 
   const result: AdminStats = {
@@ -81,6 +88,7 @@ export async function getAdminStats(): Promise<AdminStats> {
     activeProjectCount: activeProjects.count ?? 0,
     pendingParticipationCount: pendingPrt.count ?? 0,
     unpaidMemberCount: unpaidSnaps.count ?? 0,
+    openFeedbackCount: openFeedback.count ?? 0,
     _debug: {
       teamId,
       teamCd,

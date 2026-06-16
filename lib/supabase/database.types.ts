@@ -1286,47 +1286,47 @@ export type Database = {
           },
         ]
       }
-      feedback_messages: {
+      fdbk_mst: {
         Row: {
-          admin_note: string | null
-          body: string
-          created_at: string
-          del_yn: boolean
-          id: string
-          responded_at: string | null
-          status: string
+          fdbk_id: string
+          mem_id: string
+          cont_txt: string
+          stts_enm: "open" | "in_review" | "resolved" | "closed"
+          adm_note_txt: string | null
+          rspd_at: string | null
+          crt_at: string
           upd_at: string
-          user_id: string
           vers: number
+          del_yn: boolean
         }
         Insert: {
-          admin_note?: string | null
-          body: string
-          created_at?: string
-          del_yn?: boolean
-          id?: string
-          responded_at?: string | null
-          status?: string
+          fdbk_id?: string
+          mem_id: string
+          cont_txt: string
+          stts_enm?: "open" | "in_review" | "resolved" | "closed"
+          adm_note_txt?: string | null
+          rspd_at?: string | null
+          crt_at?: string
           upd_at?: string
-          user_id: string
           vers?: number
+          del_yn?: boolean
         }
         Update: {
-          admin_note?: string | null
-          body?: string
-          created_at?: string
-          del_yn?: boolean
-          id?: string
-          responded_at?: string | null
-          status?: string
+          fdbk_id?: string
+          mem_id?: string
+          cont_txt?: string
+          stts_enm?: "open" | "in_review" | "resolved" | "closed"
+          adm_note_txt?: string | null
+          rspd_at?: string | null
+          crt_at?: string
           upd_at?: string
-          user_id?: string
           vers?: number
+          del_yn?: boolean
         }
         Relationships: [
           {
-            foreignKeyName: "feedback_messages_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "fdbk_mst_mem_id_fkey"
+            columns: ["mem_id"]
             isOneToOne: false
             referencedRelation: "mem_mst"
             referencedColumns: ["mem_id"]

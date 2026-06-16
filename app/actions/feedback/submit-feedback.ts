@@ -16,9 +16,9 @@ export async function submitFeedback(body: string) {
   }
 
   const db = createUntypedAdminClient();
-  const { error } = await db.from("feedback_messages").insert({
-    user_id: member.id,
-    body: parsed.data.body,
+  const { error } = await db.from("fdbk_mst").insert({
+    mem_id: member.id,
+    cont_txt: parsed.data.body,
   });
 
   if (error) return { ok: false, message: "제출에 실패했습니다. 다시 시도해주세요." };

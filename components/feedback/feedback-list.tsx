@@ -10,7 +10,7 @@ import { CardItem } from "@/components/ui/card";
 export type FeedbackItem = {
   id: string;
   body: string;
-  status: "open" | "in_review" | "done";
+  status: "open" | "in_review" | "resolved" | "closed";
   admin_note: string | null;
   created_at: string;
 };
@@ -18,21 +18,23 @@ export type FeedbackItem = {
 const STATUS_LABEL: Record<FeedbackItem["status"], string> = {
   open: "접수됨",
   in_review: "확인 중",
-  done: "처리 완료",
+  resolved: "처리 완료",
+  closed: "종결",
 };
 
 const STATUS_CLASS: Record<FeedbackItem["status"], string> = {
   open: "bg-muted text-muted-foreground",
   in_review: "bg-warning/15 text-warning",
-  done: "bg-success/15 text-success",
+  resolved: "bg-success/15 text-success",
+  closed: "bg-muted text-muted-foreground",
 };
 
 export function FeedbackList({ items }: { items: FeedbackItem[] }) {
   return (
     <div className="flex flex-col gap-4">
-      <SectionHeader label="내가 보낸 의견" />
+      <SectionHeader label="작성한 건의사항 목록" />
       {items.length === 0 ? (
-        <EmptyState message="아직 보낸 의견이 없습니다." />
+        <EmptyState message="아직 작성한 건의사항이 없습니다." />
       ) : (
         <div className="flex flex-col gap-3">
           {items.map((item) => (
@@ -46,7 +48,7 @@ export function FeedbackList({ items }: { items: FeedbackItem[] }) {
               <Body>{item.body}</Body>
               {item.admin_note && (
                 <div className="rounded-lg bg-info/10 px-3 py-2">
-                  <Micro className="mb-1 text-info">개발자 답변</Micro>
+                  <Micro className="mb-1 text-info">운영진 답변</Micro>
                   <Caption className="text-foreground">{item.admin_note}</Caption>
                 </div>
               )}

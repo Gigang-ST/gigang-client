@@ -17,10 +17,10 @@ export const adminRespondSchema = z.object({
 });
 
 export const adminUpdateStatusSchema = z.object({
-  status: z.enum(["open", "in_review", "done"]),
+  status: z.enum(["open", "in_review", "resolved", "closed"]),
 });
 
 export type SubmitFeedbackInput = z.infer<typeof submitFeedbackSchema>;
 export type AdminRespondInput = z.infer<typeof adminRespondSchema>;
 export type AdminUpdateStatusInput = z.infer<typeof adminUpdateStatusSchema>;
-export type FeedbackStatus = "open" | "in_review" | "done";
+export type FeedbackStatus = "open" | "in_review" | "resolved" | "closed";
