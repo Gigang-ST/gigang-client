@@ -138,7 +138,11 @@ export function CompetitionDetailDialog({
 
   useEffect(() => {
     if (!open || !competition) return;
-    getCommentData("comp", competition.id).then(setCmntData);
+    let cancelled = false;
+    getCommentData("comp", competition.id).then((data) => {
+      if (!cancelled) setCmntData(data);
+    });
+    return () => { cancelled = true; };
   }, [open, competition?.id]);
 
   const editForm = useForm<CompetitionEditValues>({

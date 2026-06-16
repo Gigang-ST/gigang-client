@@ -48,21 +48,23 @@ export function SchPostDetailDialog({
 
   useEffect(() => {
     if (!open || !post) return
+    let cancelled = false
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
     getCommentData("sch_post", post.id)
       .then(({ comments, members }) => {
-        console.log("[SchPostDetailDialog] comments loaded:", comments.length, comments)
+        if (cancelled) return
         setComments(comments)
         setMembers(members)
       })
       .catch((err) => {
-        console.error("[SchPostDetailDialog] getCommentData failed:", err)
+        if (!cancelled) console.error("[SchPostDetailDialog] getCommentData failed:", err)
       })
       .finally(() => {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       })
-  }, [open, post])
+    return () => { cancelled = true }
+  }, [open, post?.id])
 
   async function handleDelete() {
     if (!post) return
