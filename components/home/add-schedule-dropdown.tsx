@@ -50,7 +50,7 @@ export function AddScheduleDropdown({ onAddSchedule, onAddCompetition }: Props) 
         >
           <FileText className="size-4 shrink-0 text-info" />
           <div className="flex flex-col gap-0.5">
-            <span className="text-[13px] font-medium">피드</span>
+            <span className="text-[13px] font-medium">정보 공유</span>
             <span className="text-[11px] text-muted-foreground">대회 접수, 세일, 세션 등</span>
           </div>
         </DropdownMenuItem>

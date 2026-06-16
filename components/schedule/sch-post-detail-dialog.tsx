@@ -68,7 +68,7 @@ export function SchPostDetailDialog({
 
   async function handleDelete() {
     if (!post) return
-    if (!window.confirm("이 피드를 삭제하시겠습니까?")) return
+    if (!window.confirm("이 정보를 삭제하시겠습니까?")) return
     setDeleting(true)
     try {
       await deleteSchPost(post.id)

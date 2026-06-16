@@ -171,8 +171,11 @@ function ScheduleItem({ race, onClick }: { race: CalendarRace; onClick: () => vo
             <span className="font-normal text-muted-foreground"> · {schPostTypeInlineLabel[race.post_type as SchPostType]}</span>
           )}
         </Caption>
-        {timeRange && (
-          <Micro className="tabular-nums text-muted-foreground">{timeRange}</Micro>
+        {(timeRange || (race.cmntCount ?? 0) > 0) && (
+          <Micro className="flex items-center gap-1.5 tabular-nums text-muted-foreground">
+            {timeRange && <span>{timeRange}</span>}
+            {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
+          </Micro>
         )}
         {race.cont_txt && (
           <Micro className="truncate text-muted-foreground">{race.cont_txt}</Micro>
@@ -213,10 +216,15 @@ function CompetitionItem({
         className="flex min-w-0 flex-1 flex-col gap-0.5 py-0.5 text-left transition-opacity hover:opacity-70"
       >
         <Caption className="truncate font-medium text-foreground">{race.title}</Caption>
-        {race.location && (
-          <Micro className="flex items-center gap-1 truncate text-muted-foreground">
-            <MapPin className="size-2.5 shrink-0" />
-            <span className="truncate">{race.location}</span>
+        {(race.location || (race.cmntCount ?? 0) > 0) && (
+          <Micro className="flex items-center gap-1.5 text-muted-foreground">
+            {race.location && (
+              <>
+                <MapPin className="size-2.5 shrink-0" />
+                <span className="truncate">{race.location}</span>
+              </>
+            )}
+            {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
           </Micro>
         )}
       </button>

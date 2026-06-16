@@ -147,7 +147,7 @@ export function SchPostFormDialog({
       <DialogContent className="flex max-h-[85dvh] flex-col gap-0 p-0">
 
         <DialogHeader className="px-5 pb-3 pt-5">
-          <DialogTitle>{mode === "create" ? "피드 추가" : "피드 수정"}</DialogTitle>
+          <DialogTitle>{mode === "create" ? "정보 추가" : "정보 수정"}</DialogTitle>
         </DialogHeader>
 
         <Separator />
@@ -176,7 +176,27 @@ export function SchPostFormDialog({
                   <FormItem>
                     <FormLabel>시작일시 <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
-                      <Input type="datetime-local" className="text-[13px]" {...field} value={field.value ?? ""} />
+                      <div className="relative">
+                        <Input
+                          type="text"
+                          readOnly
+                          value={field.value ? dayjs(field.value).format("YYYY-MM-DD HH:mm") : ""}
+                          placeholder="연도-월-일 --:--"
+                          className="cursor-pointer text-[13px]"
+                          onClick={(e) => {
+                            const hidden = (e.target as HTMLElement).nextElementSibling as HTMLInputElement;
+                            hidden?.showPicker?.();
+                            hidden?.focus();
+                          }}
+                        />
+                        <input
+                          type="datetime-local"
+                          value={field.value ?? ""}
+                          onChange={(e) => field.onChange(e.target.value)}
+                          className="sr-only"
+                          tabIndex={-1}
+                        />
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -189,13 +209,27 @@ export function SchPostFormDialog({
                   <FormItem>
                     <FormLabel>종료일시</FormLabel>
                     <FormControl>
-                      <Input
-                        type="datetime-local"
-                        className="text-[13px]"
-                        {...field}
-                        value={field.value ?? ""}
-                        onChange={(e) => field.onChange(e.target.value || null)}
-                      />
+                      <div className="relative">
+                        <Input
+                          type="text"
+                          readOnly
+                          value={field.value ? dayjs(field.value).format("YYYY-MM-DD HH:mm") : ""}
+                          placeholder="연도-월-일 --:--"
+                          className="cursor-pointer text-[13px]"
+                          onClick={(e) => {
+                            const hidden = (e.target as HTMLElement).nextElementSibling as HTMLInputElement;
+                            hidden?.showPicker?.();
+                            hidden?.focus();
+                          }}
+                        />
+                        <input
+                          type="datetime-local"
+                          value={field.value ?? ""}
+                          onChange={(e) => field.onChange(e.target.value || null)}
+                          className="sr-only"
+                          tabIndex={-1}
+                        />
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
