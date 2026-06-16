@@ -3,11 +3,12 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { dayjs } from "@/lib/dayjs";
 import { CreditCard, MessageSquare, Settings, UserPen, Wallet } from "lucide-react";
 
+import { dayjs } from "@/lib/dayjs";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
+import { getMemberCard } from "@/lib/queries/member-card";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 
 import { H1 } from "@/components/common/typography";
@@ -71,6 +72,8 @@ async function ProfileContent() {
     }
   });
 
+  const memberCard = await getMemberCard(supabase, member.id, teamId);
+
   const genderLabel = member.gender === "male" ? "남성" : member.gender === "female" ? "여성" : "";
   const joinedDate = member.joined_at
     ? dayjs(member.joined_at).format("YY.MM.DD")
@@ -106,7 +109,9 @@ async function ProfileContent() {
           selectedBadgeEffect={member.selected_badge_effect}
           selectedFrameCd={member.selected_frame_cd}
           maxRarityLevel={maxRarityLevel}
+          memberCard={memberCard}
         />
+
 
         {/* 바로가기 */}
         <div className="grid grid-cols-4 gap-2">

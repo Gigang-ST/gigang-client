@@ -140,6 +140,15 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 | SignupProgress | `auth/signup-progress.tsx` | `step` (1\|2\|3), `done?` | 가입 위저드 3단계 공유 진행바 (newbie·login·onboarding 상단 고정) |
 | PwaInstallPrompt | `pwa-install-prompt.tsx` | `variant` ("banner"\|"inline") | 홈 화면 설치 유도. standalone·인앱이면 미표시. banner=전역 하단(7일 dismiss), inline=가입 완료 화면 |
 
+### 기록 카드 (`components/records/`, `components/profile/`)
+
+| 컴포넌트 | 파일 | Props | 용도 |
+|----------|------|-------|------|
+| RecordCard | `records/record-card.tsx` | `data: MemberCardData`, `avatarSrc?`, `className?` | 멤버 기록 트레이딩 카드(풀블리드 사진 + 대표칭호 + 종목별 기록). 랭킹 팝업·본인 카드·JPG 캡처가 공유. 프레임/칭호는 `getFrameCls`/`TitleBadge` 재사용 |
+| RecordCardDialog | `records/record-card-dialog.tsx` | `memId`, `teamId`, `onClose` | 랭킹 이름 클릭 시 뜨는 보기 전용 카드 팝업(공개 RPC 패칭) |
+| MyRecordCard | `profile/my-record-card.tsx` | `initialData: MemberCardData` | 본인 프로필의 내 카드 + 기록 선택 + JPG 저장(`html-to-image`) |
+| CardRecordPicker | `profile/card-record-picker.tsx` | `allRecords`, `featured`, `open`, `onOpenChange`, `onSaved` | 카드에 넣을 (종목×거리) 선택 다이얼로그 |
+
 ---
 
 ## 사용 규칙
@@ -251,3 +260,4 @@ import { InfoRow } from "@/components/common/info-row";
 11. **컴포넌트 위치**: shadcn 설치 컴포넌트 → `ui/`, 프로젝트 공통 → `common/`, 도메인별 → `auth/`, `races/` 등
 12. **환경변수**: `process.env` 직접 접근 금지 → `lib/env.ts`에서 import
 13. **폼 검증**: Zod 스키마는 `lib/validations/`에 정의, React Hook Form의 `zodResolver`와 통합
+14. **기록 카드**: 멤버 기록 카드는 `RecordCard` 사용(랭킹 팝업·프로필·JPG 캡처 공유). 프레임/칭호 이펙트는 `getFrameCls`/`TitleBadge` 재사용하고 새 효과를 카드에서 직접 만들지 않는다

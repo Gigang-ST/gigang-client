@@ -33,7 +33,7 @@ async function RecordsContent() {
     getMyTitleNames(),
   ]);
 
-  return <RecordsClient data={serializedData} myTitleNames={[...myTitleNames]} />;
+  return <RecordsClient data={serializedData} teamId={teamId} myTitleNames={[...myTitleNames]} />;
 }
 
 function getCachedRecordsData(teamId: string) {
