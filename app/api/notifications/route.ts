@@ -11,6 +11,10 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "20", 10), 50);
   const cursor = searchParams.get("cursor") ?? undefined;
 
-  const notifications = await getNotifications(member.id, { cursor, limit });
-  return NextResponse.json({ notifications });
+  try {
+    const notifications = await getNotifications(member.id, { cursor, limit });
+    return NextResponse.json({ notifications });
+  } catch {
+    return NextResponse.json({ error: "알림 조회 실패" }, { status: 500 });
+  }
 }
