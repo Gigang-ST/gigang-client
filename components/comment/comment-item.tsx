@@ -10,7 +10,7 @@ import { Avatar } from "@/components/common/avatar"
 import { Body, Caption } from "@/components/common/typography"
 import { Button } from "@/components/ui/button"
 
-import { MentionInput, renderMentions, type MemberOption } from "./mention-input"
+import { MentionInput, parseMentionsFromText, renderMentions, type MemberOption } from "./mention-input"
 
 export type CmntRow = {
   cmnt_id: string
@@ -45,7 +45,6 @@ export function CommentItem({
 }: CommentItemProps) {
   const [editing, setEditing] = useState(false)
   const [editText, setEditText] = useState(comment.cont_txt)
-  const [editMentions, setEditMentions] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
 
   const isMine = comment.mem_id === currentMemberId
@@ -63,7 +62,7 @@ export function CommentItem({
   const handleUpdate = async () => {
     if (!editText.trim()) return
     setLoading(true)
-    await updateComment({ cmntId: comment.cmnt_id, contTxt: editText.trim(), mentionedMemIds: editMentions })
+    await updateComment({ cmntId: comment.cmnt_id, contTxt: editText.trim(), mentionedMemIds: parseMentionsFromText(editText.trim(), members) })
     setLoading(false)
     setEditing(false)
   }
@@ -119,7 +118,6 @@ export function CommentItem({
             <MentionInput
               value={editText}
               onChange={setEditText}
-              onMentionsChange={setEditMentions}
               members={members}
               rows={2}
             />
@@ -138,7 +136,7 @@ export function CommentItem({
           </div>
         ) : (
           <p className="mt-0.5 text-sm leading-relaxed break-words">
-            {renderMentions(comment.cont_txt)}
+            {renderMentions(comment.cont_txt, members)}
           </p>
         )}
 

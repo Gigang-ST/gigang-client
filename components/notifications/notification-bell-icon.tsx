@@ -11,7 +11,6 @@ import { upsertNotiPref } from "@/app/actions/upsert-noti-pref";
 import { NotificationItem } from "./notification-item";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Body, Caption, SectionLabel } from "@/components/common/typography";
@@ -74,7 +73,9 @@ export function NotificationBellIcon({ initialCount, memberId, disabled }: Notif
   useEffect(() => {
     if (!open || !memberId) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCursor(null);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHasMore(true);
     fetchNotifications(true, null);
 
@@ -90,6 +91,17 @@ export function NotificationBellIcon({ initialCount, memberId, disabled }: Notif
         const noti = payload.new as Notification;
         setNotifications((prev) => [noti, ...prev]);
         setUnreadCount((c) => c + 1);
+      })
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "noti_mst",
+        filter: `mem_id=eq.${memberId}`,
+      }, (payload) => {
+        const updated = payload.new as Notification;
+        setNotifications((prev) =>
+          prev.map((n) => n.noti_id === updated.noti_id ? { ...n, ...updated } : n)
+        );
       })
       .subscribe();
 

@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { CalendarDays, ChevronLeft, ChevronRight, List } from "lucide-react";
 
@@ -109,6 +109,65 @@ export function MiniCalendar({
     useState<Record<string, CompetitionRegistration>>(initialRegistrationsByCompetitionId);
 
   const memberStatus = initialMemberStatus;
+
+  // 알림 딥링크: /?post=<id> 또는 /?comp=<id>로 진입 시 해당 상세 자동 오픈
+  const searchParams = useSearchParams()
+  const deepLinkPostId = searchParams.get("post")
+  const deepLinkCompId = searchParams.get("comp")
+
+  useEffect(() => {
+    if (deepLinkPostId) {
+      supabase
+        .from("sch_post_mst")
+        .select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
+        .eq("sch_post_id", deepLinkPostId)
+        .single()
+        .then(({ data }) => {
+          if (!data) return
+          setSchDetailPost({
+            id: data.sch_post_id,
+            title: data.sch_nm,
+            start_date: data.evt_stt_at ? dayjs(data.evt_stt_at).format("YYYY-MM-DD") : dayjs().format("YYYY-MM-DD"),
+            type: "schedule",
+            url: data.url ?? null,
+            cont_txt: data.cont_txt ?? null,
+            crt_by: data.crt_by ?? undefined,
+            post_type: data.post_type ?? null,
+            evt_stt_at: data.evt_stt_at ?? null,
+            evt_end_at: data.evt_end_at ?? null,
+          })
+          setSchDetailOpen(true)
+          router.replace("/")
+        })
+    }
+
+    if (deepLinkCompId) {
+      supabase
+        .from("comp_mst")
+        .select("comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)")
+        .eq("comp_id", deepLinkCompId)
+        .single()
+        .then(({ data }) => {
+          if (!data) return
+          setSelectedCompetition({
+            id: data.comp_id,
+            external_id: "",
+            sport: data.comp_sprt_cd ?? null,
+            title: data.comp_nm,
+            start_date: data.stt_dt,
+            end_date: data.end_dt ?? null,
+            location: data.loc_nm ?? null,
+            event_types: (data.comp_evt_cfg as { comp_evt_type: string | null }[])
+              .map((e) => e.comp_evt_type?.toUpperCase())
+              .filter((e): e is string => Boolean(e)),
+            source_url: data.src_url ?? null,
+          })
+          setDetailOpen(true)
+          router.replace("/")
+        })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkPostId, deepLinkCompId])
 
   const today = todayKST();
   const [yearStr, monthStr] = viewMonth.split("-");

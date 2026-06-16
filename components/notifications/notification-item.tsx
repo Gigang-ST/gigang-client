@@ -1,14 +1,20 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+
 import { useRouter } from "next/navigation";
+
 import { Bell, Coins, MessageCircle, Trophy, Trash2, ChevronRight } from "lucide-react";
+
 import { dayjs } from "@/lib/dayjs";
 import type { Notification } from "@/lib/queries/notification";
-import { markNotificationRead } from "@/app/actions/mark-notification-read";
-import { deleteNotification } from "@/app/actions/delete-notification";
-import { Body, Caption } from "@/components/common/typography";
 import { cn } from "@/lib/utils";
+
+import { deleteNotification } from "@/app/actions/delete-notification";
+import { markNotificationRead } from "@/app/actions/mark-notification-read";
+
+import { Body, Caption } from "@/components/common/typography";
+
 
 const NOTI_ICON: Record<string, React.ElementType> = {
   ttl_grnt: Trophy,
@@ -20,11 +26,13 @@ const NOTI_ICON: Record<string, React.ElementType> = {
   sch_post_cmnt: MessageCircle,
 };
 
-const NOTI_ROUTE: Record<string, (refId: string | null) => string | null> = {
+const NOTI_ROUTE: Record<string, (refId: string | null, refType: string | null) => string | null> = {
   ttl_grnt: () => "/profile",
   adm_cust: () => null,
   dues_notice: () => "/profile/dues",
   dues_check_req: () => null,
+  sch_post_cmnt: (refId) => refId ? `/?post=${refId}` : "/",
+  cmnt_mention: (refId, refType) => refType === "comp" ? `/?comp=${refId}` : refId ? `/?post=${refId}` : "/",
 };
 
 function formatRelative(crtAt: string) {
@@ -58,7 +66,7 @@ export function NotificationItem({ noti, onDelete, onRead, onClose }: Notificati
   }, [noti.read_yn]);
 
   const Icon = NOTI_ICON[noti.noti_type_enm] ?? Bell;
-  const route = NOTI_ROUTE[noti.noti_type_enm]?.(noti.ref_id) ?? null;
+  const route = NOTI_ROUTE[noti.noti_type_enm]?.(noti.ref_id, noti.ref_type_enm) ?? null;
 
   async function handleRead() {
     if (!isRead) {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import { createClient } from "@/lib/supabase/client"
 
@@ -10,7 +10,7 @@ import { SectionLabel } from "@/components/common/typography"
 import { Button } from "@/components/ui/button"
 
 import { CommentItem, type CmntRow } from "./comment-item"
-import { MentionInput, type MemberOption } from "./mention-input"
+import { MentionInput, parseMentionsFromText, type MemberOption } from "./mention-input"
 
 interface CommentSectionProps {
   entityType: "sch_post" | "comp" | "gathering"
@@ -48,12 +48,15 @@ export function CommentSection({
 }: CommentSectionProps) {
   const [comments, setComments] = useState<CmntRow[]>(initialComments)
   const [newText, setNewText] = useState("")
-  const [newMentions, setNewMentions] = useState<string[]>([])
   const [replyTo, setReplyTo] = useState<CmntRow | null>(null)
   const [replyText, setReplyText] = useState("")
-  const [replyMentions, setReplyMentions] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
-  const supabase = createClient()
+
+  // 렌더마다 재생성 방지 — 재생성 시 useEffect deps 변경으로 매 렌더마다 채널 재구독됨
+  const supabase = useMemo(() => createClient(), [])
+  // members가 바뀌어도 채널을 재구독하지 않도록 ref로 최신값 유지
+  const membersRef = useRef(members)
+  useEffect(() => { membersRef.current = members }, [members])
 
   useEffect(() => {
     const channel = supabase
@@ -71,7 +74,7 @@ export function CommentSection({
             const incoming = payload.new as CmntRow
             setComments((prev) => {
               if (prev.some((c) => c.cmnt_id === incoming.cmnt_id)) return prev
-              const mem = members.find((m) => m.mem_id === incoming.mem_id)
+              const mem = membersRef.current.find((m) => m.mem_id === incoming.mem_id)
               return [...prev, { ...incoming, mem_nm: mem?.mem_nm ?? "멤버" }]
             })
           } else if (payload.eventType === "UPDATE") {
@@ -90,7 +93,7 @@ export function CommentSection({
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [entityType, entityId, supabase, members])
+  }, [entityType, entityId, supabase])
 
   const handleSubmitComment = async () => {
     if (!newText.trim() || !currentMemberId) return
@@ -100,7 +103,7 @@ export function CommentSection({
         entityType,
         entityId,
         contTxt: newText.trim(),
-        mentionedMemIds: newMentions,
+        mentionedMemIds: parseMentionsFromText(newText, members),
       })
       if (result.ok) {
         const me = members.find((m) => m.mem_id === currentMemberId)
@@ -120,7 +123,6 @@ export function CommentSection({
           },
         ])
         setNewText("")
-        setNewMentions([])
       }
     } finally {
       setLoading(false)
@@ -131,16 +133,12 @@ export function CommentSection({
     if (!replyText.trim() || !currentMemberId || !replyTo) return
     setLoading(true)
     try {
-      const mentionInText = replyText.includes(`@${replyTo.mem_nm}`)
-      const allMentions = mentionInText
-        ? [...new Set([replyTo.mem_id, ...replyMentions])]
-        : replyMentions
       const result = await createComment({
         entityType,
         entityId,
         contTxt: replyText.trim(),
         prntId: replyTo.prnt_id ?? replyTo.cmnt_id,
-        mentionedMemIds: allMentions,
+        mentionedMemIds: parseMentionsFromText(replyText, members),
       })
       if (result.ok) {
         const me = members.find((m) => m.mem_id === currentMemberId)
@@ -160,7 +158,6 @@ export function CommentSection({
           },
         ])
         setReplyText("")
-        setReplyMentions([])
         setReplyTo(null)
       }
     } finally {
@@ -168,8 +165,8 @@ export function CommentSection({
     }
   }
 
-  const visibleCount = comments.filter((c) => !c.del_yn).length
-  const tree = buildTree(comments)
+  const visibleCount = useMemo(() => comments.filter((c) => !c.del_yn).length, [comments])
+  const tree = useMemo(() => buildTree(comments), [comments])
 
   return (
     <div className="flex flex-col gap-3">
@@ -188,7 +185,7 @@ export function CommentSection({
                 currentMemberId={currentMemberId}
                 isAdmin={isAdmin}
                 members={members}
-                onReply={currentMemberId ? (c) => { setReplyTo(c); setReplyText(`@${c.mem_nm} `); setReplyMentions([]) } : undefined}
+                onReply={currentMemberId ? (c) => { setReplyTo(c); setReplyText(`@${c.mem_nm} `) } : undefined}
               />
               {cmnt.replies.map((reply) => (
                 <CommentItem
@@ -198,7 +195,7 @@ export function CommentSection({
                   isAdmin={isAdmin}
                   members={members}
                   isReply
-                  onReply={currentMemberId ? (c) => { setReplyTo(c); setReplyText(`@${c.mem_nm} `); setReplyMentions([]) } : undefined}
+                  onReply={currentMemberId ? (c) => { setReplyTo(c); setReplyText(`@${c.mem_nm} `) } : undefined}
                 />
               ))}
 
@@ -207,7 +204,6 @@ export function CommentSection({
                   <MentionInput
                     value={replyText}
                     onChange={setReplyText}
-                    onMentionsChange={setReplyMentions}
                     members={members}
                     placeholder="답글을 입력하세요..."
                     rows={2}
@@ -241,7 +237,6 @@ export function CommentSection({
           <MentionInput
             value={newText}
             onChange={setNewText}
-            onMentionsChange={setNewMentions}
             members={members}
             placeholder="댓글을 입력하세요..."
             rows={2}

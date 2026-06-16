@@ -458,16 +458,18 @@ async function HomeContent() {
 
       <div className="flex flex-col gap-7 px-6 pb-6">
       {/* 2. SCHEDULE 캘린더 */}
-      <MiniCalendar
-        gigangRaces={calendarGigangRaces}
-        myRaces={calendarMyRaces}
-        schPosts={calendarSchPosts}
-        teamId={teamId}
-        memberId={currentMember?.id}
-        cmmCdRows={cmmCdRows}
-        initialMemberStatus={initialMemberStatus}
-        initialRegistrationsByCompetitionId={initialRegistrationsByCompetitionId}
-      />
+      <Suspense>
+        <MiniCalendar
+          gigangRaces={calendarGigangRaces}
+          myRaces={calendarMyRaces}
+          schPosts={calendarSchPosts}
+          teamId={teamId}
+          memberId={currentMember?.id}
+          cmmCdRows={cmmCdRows}
+          initialMemberStatus={initialMemberStatus}
+          initialRegistrationsByCompetitionId={initialRegistrationsByCompetitionId}
+        />
+      </Suspense>
 
       {/* 3. UPCOMING RACES 압축 리스트 */}
       <UpcomingRaces

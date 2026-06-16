@@ -12,7 +12,6 @@ import { deleteSchPost } from "@/app/actions/schedule/manage-sch-post"
 import type { CmntRow } from "@/components/comment/comment-item"
 import { CommentSection } from "@/components/comment/comment-section"
 import type { MemberOption } from "@/components/comment/mention-input"
-import type { CalendarRace } from "@/components/home/mini-calendar"
 import {
   ResponsiveDrawer,
   ResponsiveDrawerClose,
@@ -20,6 +19,7 @@ import {
   ResponsiveDrawerHeader,
   ResponsiveDrawerTitle,
 } from "@/components/common/responsive-drawer"
+import type { CalendarRace } from "@/components/home/mini-calendar"
 import { Button } from "@/components/ui/button"
 
 interface SchPostDetailDialogProps {

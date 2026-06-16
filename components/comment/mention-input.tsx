@@ -6,10 +6,19 @@ import { Textarea } from "@/components/ui/textarea"
 
 export type MemberOption = { mem_id: string; mem_nm: string }
 
+export function parseMentionsFromText(text: string, members: MemberOption[]): string[] {
+  return members
+    .filter((m) => {
+      const escaped = m.mem_nm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      return new RegExp(`@${escaped}(?=[\\s]|$)`).test(text)
+    })
+    .map((m) => m.mem_id)
+}
+
 interface MentionInputProps {
   value: string
   onChange: (value: string) => void
-  onMentionsChange: (memIds: string[]) => void
+  onMentionsChange?: (memIds: string[]) => void
   members: MemberOption[]
   placeholder?: string
   rows?: number
@@ -23,11 +32,11 @@ function parseMentionQuery(text: string, cursorPos: number): { query: string; st
   return { query: match[1], start: cursorPos - match[0].length }
 }
 
-// @이름 텍스트를 파란색으로 강조 — 공용 유틸, 외부에서 import해서 사용
-export function renderMentions(text: string) {
+export function renderMentions(text: string, members: MemberOption[]) {
+  const memberNames = new Set(members.map((m) => m.mem_nm))
   const parts = text.split(/(@[가-힣a-zA-Z0-9_]+)/)
   return parts.map((part, i) =>
-    part.startsWith("@") ? (
+    part.startsWith("@") && memberNames.has(part.slice(1)) ? (
       <span key={i} className="text-primary font-medium">{part}</span>
     ) : (
       <span key={i}>{part}</span>
@@ -80,7 +89,7 @@ export function MentionInput({
       const newText = `${before}@${member.mem_nm} ${after}`
       onChange(newText)
       mentionedIds.current.add(member.mem_id)
-      onMentionsChange([...mentionedIds.current])
+      onMentionsChange?.([...mentionedIds.current])
       setMentionState(null)
       setTimeout(() => {
         const pos = before.length + member.mem_nm.length + 2
