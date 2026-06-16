@@ -155,6 +155,7 @@ export async function deleteComment(input: DeleteCommentInput) {
   const { member, supabase } = await getCurrentMember()
   if (!member) return { ok: false as const, message: "로그인 필요" }
 
+  const { teamId } = await getRequestTeamContext()
   const admin = createAdminClient()
 
   if (!member.admin) {
@@ -167,12 +168,13 @@ export async function deleteComment(input: DeleteCommentInput) {
     if ((count ?? 0) > 0) return { ok: false as const, message: "답글이 달린 댓글은 삭제할 수 없습니다." }
   }
 
-  // 관리자: admin client(RLS bypass), 일반: supabase(RLS — 본인만)
+  // 관리자: admin client(RLS bypass) + team_id 강제, 일반: supabase(RLS — 본인만)
   const db = member.admin ? admin : supabase
-  const { error } = await db
+  const query = db
     .from("cmnt_mst")
     .update({ del_yn: true, upd_at: dayjs().toISOString() })
     .eq("cmnt_id", parsed.cmntId)
+  const { error } = await (member.admin ? query.eq("team_id", teamId) : query)
 
   if (error) return { ok: false as const, message: "댓글 삭제 실패" }
 
