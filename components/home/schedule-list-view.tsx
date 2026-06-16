@@ -160,12 +160,12 @@ function ScheduleItem({ race, onClick }: { race: CalendarRace; onClick: () => vo
   const timeRange = formatTimeRange(race.evt_stt_at, race.evt_end_at);
 
   return (
-    <div className="flex w-full items-stretch gap-2.5">
+    <button
+      onClick={onClick}
+      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
+    >
       <span className="w-0.5 shrink-0 rounded-full bg-info" />
-      <button
-        onClick={onClick}
-        className="flex min-w-0 flex-1 flex-col gap-0.5 py-0.5 text-left transition-opacity hover:opacity-70"
-      >
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <Caption className="truncate font-medium text-foreground">
           {race.title}
           {race.post_type && schPostTypeInlineLabel[race.post_type as SchPostType] && (
@@ -181,16 +181,13 @@ function ScheduleItem({ race, onClick }: { race: CalendarRace; onClick: () => vo
         {race.cont_txt && (
           <Micro className="truncate text-muted-foreground">{race.cont_txt}</Micro>
         )}
-      </button>
+      </span>
       {race.url && (
-        <button
-          onClick={onClick}
-          className="flex shrink-0 items-center self-center rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted"
-        >
+        <span className="flex shrink-0 items-center self-center rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-foreground">
           링크
-        </button>
+        </span>
       )}
-    </div>
+    </button>
   );
 }
 
@@ -205,17 +202,17 @@ function CompetitionItem({
   const isMine = race.type === "mine";
 
   return (
-    <div className="flex w-full items-stretch gap-2.5">
+    <button
+      onClick={onClick}
+      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
+    >
       <span
         className={cn(
           "w-0.5 shrink-0 rounded-full",
           isMine ? "bg-success" : "bg-warning",
         )}
       />
-      <button
-        onClick={onClick}
-        className="flex min-w-0 flex-1 flex-col gap-0.5 py-0.5 text-left transition-opacity hover:opacity-70"
-      >
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <Caption className="truncate font-medium text-foreground">{race.title}</Caption>
         {(race.location || (race.cmntCount ?? 0) > 0) && (
           <Micro className="flex items-center gap-1.5 text-muted-foreground">
@@ -228,24 +225,23 @@ function CompetitionItem({
             {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
           </Micro>
         )}
-      </button>
-      <div className="flex w-20 shrink-0 items-center justify-end gap-1.5 self-center">
+      </span>
+      <span className="flex w-20 shrink-0 items-center justify-end gap-1.5 self-center">
         {(race.regCount ?? 0) > 0 && (
           <Micro className="text-muted-foreground tabular-nums">{race.regCount}명</Micro>
         )}
-        <button
-          onClick={onClick}
+        <span
           className={cn(
-            "shrink-0 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors",
+            "shrink-0 rounded-md border px-2.5 py-1 text-[11px] font-medium",
             isMine
-              ? "border-success/40 bg-success/10 text-success hover:bg-success/20"
-              : "border-border text-foreground hover:bg-muted",
+              ? "border-success/40 bg-success/10 text-success"
+              : "border-border text-foreground",
           )}
         >
           참가
-        </button>
-      </div>
-    </div>
+        </span>
+      </span>
+    </button>
   );
 }
 

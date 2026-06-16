@@ -618,71 +618,66 @@ export function MiniCalendar({
                   {panelRaces.length === 0 ? (
                     <span className="text-[11px] text-muted-foreground">일정 없음</span>
                   ) : (
-                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                    {panelRaces.map((race) => {
-                      const isMine = race.type === "mine";
-                      const isComp = race.type === "gigang" || race.type === "mine";
-                      return (
-                        <div key={race.id} className="flex items-center gap-1.5">
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  {panelRaces.map((race) => {
+                    const isMine = race.type === "mine";
+                    const isComp = race.type === "gigang" || race.type === "mine";
+                    return (
+                      <button
+                        key={race.id}
+                        onClick={() => race.type === "schedule" ? openEditForm(race) : handleRaceClick(race)}
+                        className="flex w-full items-center gap-1.5 rounded-lg px-1 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
+                      >
+                        <span
+                          className={cn(
+                            "w-0.5 shrink-0 self-stretch rounded-full",
+                            isMine ? "bg-success" : race.type === "schedule" ? "bg-info" : "bg-warning",
+                          )}
+                        />
+                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <span className="truncate text-[11px] font-medium text-foreground">
+                            {race.title}
+                            {race.type === "schedule" && race.post_type && schPostTypeInlineLabel[race.post_type as SchPostType] && (
+                              <span className="font-normal text-muted-foreground"> · {schPostTypeInlineLabel[race.post_type as SchPostType]}</span>
+                            )}
+                          </span>
+                          {isComp && (race.location || (race.cmntCount ?? 0) > 0) && (
+                            <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                              {race.location && <span className="truncate">{race.location}</span>}
+                              {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
+                            </span>
+                          )}
+                          {race.type === "schedule" && (race.evt_stt_at || (race.cmntCount ?? 0) > 0) && (
+                            <span className="flex items-center gap-1 text-[9px] text-muted-foreground tabular-nums">
+                              {race.evt_stt_at && <span>{dayjs(race.evt_stt_at).format("HH:mm")}{race.evt_end_at ? `~${dayjs(race.evt_end_at).format("HH:mm")}` : ""}</span>}
+                              {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
+                            </span>
+                          )}
+                        </span>
+                        {isComp && (race.regCount ?? 0) > 0 && (
+                          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{race.regCount}명</span>
+                        )}
+                        {isComp && (
                           <span
                             className={cn(
-                              "w-0.5 shrink-0 self-stretch rounded-full",
-                              isMine ? "bg-success" : race.type === "schedule" ? "bg-info" : "bg-warning",
+                              "shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-medium",
+                              isMine
+                                ? "border-success/40 bg-success/10 text-success"
+                                : "border-border text-foreground",
                             )}
-                          />
-                          <button
-                            onClick={() => race.type === "schedule" ? openEditForm(race) : handleRaceClick(race)}
-                            className="flex min-w-0 flex-1 flex-col gap-0.5 text-left transition-opacity hover:opacity-70"
                           >
-                            <span className="truncate text-[11px] font-medium text-foreground">
-                              {race.title}
-                              {race.type === "schedule" && race.post_type && schPostTypeInlineLabel[race.post_type as SchPostType] && (
-                                <span className="font-normal text-muted-foreground"> · {schPostTypeInlineLabel[race.post_type as SchPostType]}</span>
-                              )}
-                            </span>
-                            {isComp && (race.location || (race.cmntCount ?? 0) > 0) && (
-                              <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
-                                {race.location && <span className="truncate">{race.location}</span>}
-                                {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
-                              </span>
-                            )}
-                            {race.type === "schedule" && (race.evt_stt_at || (race.cmntCount ?? 0) > 0) && (
-                              <span className="flex items-center gap-1 text-[9px] text-muted-foreground tabular-nums">
-                                {race.evt_stt_at && <span>{dayjs(race.evt_stt_at).format("HH:mm")}{race.evt_end_at ? `~${dayjs(race.evt_end_at).format("HH:mm")}` : ""}</span>}
-                                {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
-                              </span>
-                            )}
-                          </button>
-                          {isComp && (
-                            <div className="flex shrink-0 items-center gap-1">
-                              {(race.regCount ?? 0) > 0 && (
-                                <span className="text-[10px] tabular-nums text-muted-foreground">{race.regCount}명</span>
-                              )}
-                              <button
-                                onClick={() => handleRaceClick(race)}
-                                className={cn(
-                                  "shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-medium transition-colors",
-                                  isMine
-                                    ? "border-success/40 bg-success/10 text-success hover:bg-success/20"
-                                    : "border-border text-foreground hover:bg-muted",
-                                )}
-                              >
-                                참가
-                              </button>
-                            </div>
-                          )}
-                          {race.type === "schedule" && race.url && (
-                            <button
-                              onClick={() => openEditForm(race)}
-                              className="shrink-0 rounded-md border border-border px-2 py-0.5 text-[10px] font-medium text-foreground transition-colors hover:bg-muted"
-                            >
-                              링크
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                    </div>
+                            참가
+                          </span>
+                        )}
+                        {race.type === "schedule" && race.url && (
+                          <span className="shrink-0 rounded-md border border-border px-2 py-0.5 text-[10px] font-medium text-foreground">
+                            링크
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                  </div>
                   )}
                 </div>
               </div>

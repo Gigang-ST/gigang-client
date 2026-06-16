@@ -207,6 +207,7 @@ export function CommentSection({
                     members={members}
                     placeholder="답글을 입력하세요..."
                     rows={2}
+                    autoFocus
                   />
                   <div className="flex gap-2">
                     <Button
