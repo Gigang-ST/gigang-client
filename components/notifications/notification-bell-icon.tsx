@@ -106,9 +106,13 @@ export function NotificationBellIcon({ initialCount, memberId, disabled }: Notif
       }, (payload) => {
         const updated = payload.new as Notification;
         setNotifications((prev) => {
-          const next = prev.map((n) => n.noti_id === updated.noti_id ? { ...n, ...updated } : n);
-          setUnreadCount(next.filter((n) => !n.read_yn).length);
-          return next;
+          const existing = prev.find((n) => n.noti_id === updated.noti_id);
+          if (existing && !existing.read_yn && updated.read_yn) {
+            setUnreadCount((c) => Math.max(0, c - 1));
+          } else if (existing && existing.read_yn && !updated.read_yn) {
+            setUnreadCount((c) => c + 1);
+          }
+          return prev.map((n) => n.noti_id === updated.noti_id ? { ...n, ...updated } : n);
         });
       })
       .subscribe();
