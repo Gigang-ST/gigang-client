@@ -50,6 +50,8 @@ export function CommentSection({
   const [newText, setNewText] = useState("")
   const [newMentions, setNewMentions] = useState<string[]>([])
   const [replyTo, setReplyTo] = useState<CmntRow | null>(null)
+  const [replyText, setReplyText] = useState("")
+  const [replyMentions, setReplyMentions] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
 
@@ -90,7 +92,7 @@ export function CommentSection({
     }
   }, [entityType, entityId, supabase, members])
 
-  const handleSubmit = async () => {
+  const handleSubmitComment = async () => {
     if (!newText.trim() || !currentMemberId) return
     setLoading(true)
     try {
@@ -98,7 +100,6 @@ export function CommentSection({
         entityType,
         entityId,
         contTxt: newText.trim(),
-        prntId: replyTo?.cmnt_id,
         mentionedMemIds: newMentions,
       })
       if (result.ok) {
@@ -120,6 +121,42 @@ export function CommentSection({
         ])
         setNewText("")
         setNewMentions([])
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSubmitReply = async () => {
+    if (!replyText.trim() || !currentMemberId || !replyTo) return
+    setLoading(true)
+    try {
+      const result = await createComment({
+        entityType,
+        entityId,
+        contTxt: replyText.trim(),
+        prntId: replyTo.prnt_id ?? replyTo.cmnt_id,
+        mentionedMemIds: replyMentions,
+      })
+      if (result.ok) {
+        const me = members.find((m) => m.mem_id === currentMemberId)
+        setComments((prev) => [
+          ...prev,
+          {
+            cmnt_id: result.data.cmnt_id,
+            prnt_id: result.data.prnt_id,
+            mem_id: result.data.mem_id,
+            mem_nm: me?.mem_nm ?? "나",
+            avatar_url: null,
+            cont_txt: result.data.cont_txt,
+            edit_yn: result.data.edit_yn,
+            del_yn: result.data.del_yn,
+            crt_at: result.data.crt_at,
+            upd_at: result.data.upd_at,
+          },
+        ])
+        setReplyText("")
+        setReplyMentions([])
         setReplyTo(null)
       }
     } finally {
@@ -147,7 +184,7 @@ export function CommentSection({
                 currentMemberId={currentMemberId}
                 isAdmin={isAdmin}
                 members={members}
-                onReply={currentMemberId ? setReplyTo : undefined}
+                onReply={currentMemberId ? (c) => { setReplyTo(c); setReplyText("") } : undefined}
               />
               {cmnt.replies.map((reply) => (
                 <CommentItem
@@ -157,8 +194,39 @@ export function CommentSection({
                   isAdmin={isAdmin}
                   members={members}
                   isReply
+                  onReply={currentMemberId ? (c) => { setReplyTo(c); setReplyText("") } : undefined}
                 />
               ))}
+
+              {replyTo && (replyTo.cmnt_id === cmnt.cmnt_id || replyTo.prnt_id === cmnt.cmnt_id) && currentMemberId && (
+                <div className="pl-10 pb-3 pt-1 flex flex-col gap-2">
+                  <MentionInput
+                    value={replyText}
+                    onChange={setReplyText}
+                    onMentionsChange={setReplyMentions}
+                    members={members}
+                    placeholder={`@${replyTo.mem_nm}에게 답글...`}
+                    rows={2}
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={handleSubmitReply}
+                      disabled={loading || !replyText.trim()}
+                    >
+                      답글 달기
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => { setReplyTo(null); setReplyText("") }}
+                      className="text-muted-foreground"
+                    >
+                      취소
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -166,29 +234,21 @@ export function CommentSection({
 
       {currentMemberId && (
         <div className="flex flex-col gap-2 pt-1">
-          {replyTo && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>↩ @{replyTo.mem_nm}에게 답글</span>
-              <button onClick={() => setReplyTo(null)} className="hover:text-foreground">
-                ✕
-              </button>
-            </div>
-          )}
           <MentionInput
             value={newText}
             onChange={setNewText}
             onMentionsChange={setNewMentions}
             members={members}
-            placeholder={replyTo ? "답글을 입력하세요..." : "댓글을 입력하세요..."}
+            placeholder="댓글을 입력하세요..."
             rows={2}
           />
           <Button
             size="sm"
-            onClick={handleSubmit}
+            onClick={handleSubmitComment}
             disabled={loading || !newText.trim()}
             className="self-end"
           >
-            {replyTo ? "답글 달기" : "댓글 달기"}
+            댓글 달기
           </Button>
         </div>
       )}

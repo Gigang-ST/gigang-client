@@ -79,10 +79,39 @@ export function CommentItem({
     <div className={`flex gap-2.5 py-2.5 ${isReply ? "pl-10" : ""}`}>
       <Avatar src={comment.avatar_url} size="sm" />
       <div className="flex-1 min-w-0">
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <div className="flex items-center gap-x-2">
           <Body className="text-sm font-semibold">{comment.mem_nm}</Body>
           <Caption className="text-xs">{dayjs(comment.crt_at).fromNow()}</Caption>
           {comment.edit_yn && <Caption className="text-xs opacity-60">(수정됨)</Caption>}
+          {!editing && (
+            <div className="ml-auto flex gap-3">
+              {onReply && (
+                <button
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => onReply(comment)}
+                >
+                  답글
+                </button>
+              )}
+              {canEdit && (
+                <button
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setEditing(true)}
+                >
+                  수정
+                </button>
+              )}
+              {canDelete && (
+                <button
+                  className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+                  onClick={handleDelete}
+                  disabled={loading}
+                >
+                  삭제
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {editing ? (
@@ -113,33 +142,6 @@ export function CommentItem({
           </p>
         )}
 
-        <div className="mt-1 flex gap-3">
-          {!isReply && onReply && (
-            <button
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() => onReply(comment)}
-            >
-              답글
-            </button>
-          )}
-          {canEdit && !editing && (
-            <button
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() => setEditing(true)}
-            >
-              수정
-            </button>
-          )}
-          {canDelete && !editing && (
-            <button
-              className="text-xs text-muted-foreground hover:text-destructive transition-colors"
-              onClick={handleDelete}
-              disabled={loading}
-            >
-              삭제
-            </button>
-          )}
-        </div>
       </div>
     </div>
   )
