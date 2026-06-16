@@ -19,6 +19,7 @@ import {
   Trash2,
   Moon,
   Trophy,
+  MessageSquare,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
@@ -40,6 +41,7 @@ const accountItems: MenuItem[] = [
   { label: "프로필 수정", href: "/profile/edit", icon: UserPen },
   { label: "계좌 정보", href: "/profile/bank", icon: CreditCard },
   { label: "회비 내역", href: "/profile/dues", icon: Wallet },
+  { label: "건의하기", href: "/profile/feedback", icon: MessageSquare },
 ];
 
 const teamItems: MenuItem[] = [

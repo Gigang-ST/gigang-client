@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/common/empty-state";
 import { Body, Caption, Micro, SectionLabel } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export type AdminFeedbackItem = {
   id: string;
@@ -28,19 +29,15 @@ export type AdminFeedbackItem = {
 const STATUS_LABEL: Record<FeedbackStatus, string> = {
   open: "접수됨",
   in_review: "확인 중",
-  done: "처리 완료",
-};
-
-const NEXT_STATUS: Record<FeedbackStatus, FeedbackStatus> = {
-  open: "in_review",
-  in_review: "done",
-  done: "open",
+  resolved: "처리 완료",
+  closed: "종결",
 };
 
 const STATUS_CLASS: Record<FeedbackStatus, string> = {
   open: "bg-muted text-muted-foreground",
   in_review: "bg-warning/15 text-warning",
-  done: "bg-success/15 text-success",
+  resolved: "bg-success/15 text-success",
+  closed: "bg-muted text-muted-foreground",
 };
 
 function FeedbackAdminCard({ item }: { item: AdminFeedbackItem }) {
@@ -48,9 +45,9 @@ function FeedbackAdminCard({ item }: { item: AdminFeedbackItem }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  function handleStatusChange() {
+  function handleStatusChange(value: FeedbackStatus) {
     startTransition(async () => {
-      await updateFeedbackStatus(item.id, NEXT_STATUS[item.status]);
+      await updateFeedbackStatus(item.id, value);
     });
   }
 
@@ -68,13 +65,20 @@ function FeedbackAdminCard({ item }: { item: AdminFeedbackItem }) {
           <Body className="font-medium">{item.mem_nm}</Body>
           <Caption>{dayjs(item.created_at).format("YY.MM.DD HH:mm")}</Caption>
         </div>
-        <button
-          onClick={handleStatusChange}
+        <Select
+          value={item.status}
+          onValueChange={(v) => handleStatusChange(v as FeedbackStatus)}
           disabled={isPending}
-          className={`rounded-full px-2 py-0.5 text-xs font-medium transition-opacity ${STATUS_CLASS[item.status]} ${isPending ? "opacity-50" : ""}`}
         >
-          {STATUS_LABEL[item.status]} →
-        </button>
+          <SelectTrigger className={`h-auto w-auto rounded-full border-0 px-2 py-0.5 text-xs font-medium shadow-none focus:ring-0 ${STATUS_CLASS[item.status]} ${isPending ? "opacity-50" : ""}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.entries(STATUS_LABEL) as [FeedbackStatus, string][]).map(([value, label]) => (
+              <SelectItem key={value} value={value}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <Body>{item.body}</Body>
@@ -101,7 +105,7 @@ function FeedbackAdminCard({ item }: { item: AdminFeedbackItem }) {
         <div className="flex flex-col gap-2">
           {item.admin_note && (
             <div className="rounded-lg bg-info/10 px-3 py-2">
-              <Micro className="mb-1 text-info">개발자 답변</Micro>
+              <Micro className="mb-1 text-info">운영진 답변</Micro>
               <Caption className="text-foreground">{item.admin_note}</Caption>
             </div>
           )}
@@ -115,15 +119,15 @@ function FeedbackAdminCard({ item }: { item: AdminFeedbackItem }) {
 }
 
 export function FeedbackAdminList({ items }: { items: AdminFeedbackItem[] }) {
-  const open = items.filter((i) => i.status === "open");
-  const others = items.filter((i) => i.status !== "open");
+  const open = items.filter((i) => i.status === "open" || i.status === "in_review");
+  const others = items.filter((i) => i.status === "resolved" || i.status === "closed");
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3">
         <SectionLabel>미처리 ({open.length})</SectionLabel>
         {open.length === 0 ? (
-          <EmptyState message="미처리 의견이 없습니다." variant="inline" />
+          <EmptyState message="미처리 건의사항이 없습니다." variant="inline" />
         ) : (
           open.map((item) => <FeedbackAdminCard key={item.id} item={item} />)
         )}

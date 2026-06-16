@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import { Textarea } from "@/components/ui/textarea"
 
@@ -23,6 +23,7 @@ interface MentionInputProps {
   placeholder?: string
   rows?: number
   className?: string
+  autoFocus?: boolean
 }
 
 function parseMentionQuery(text: string, cursorPos: number): { query: string; start: number } | null {
@@ -52,9 +53,20 @@ export function MentionInput({
   placeholder,
   rows = 3,
   className,
+  autoFocus,
 }: MentionInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const mentionedIds = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!autoFocus) return
+    const el = textareaRef.current
+    if (!el) return
+    el.focus()
+    const len = el.value.length
+    el.setSelectionRange(len, len)
+  }, [autoFocus])
+
   const [mentionState, setMentionState] = useState<{
     query: string
     start: number

@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { FeedbackForm } from "@/components/feedback/feedback-form";
 import { FeedbackList, type FeedbackItem } from "@/components/feedback/feedback-list";
 
-export const metadata = { title: "의견 보내기" };
+export const metadata = { title: "건의하기" };
 
 export default async function ProfileFeedbackPage() {
   const { user, member } = await getCurrentMember();
@@ -17,20 +17,20 @@ export default async function ProfileFeedbackPage() {
   const supabase = await createClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await (supabase as any)
-    .from("feedback_messages")
-    .select("id, body, status, admin_note, created_at")
+    .from("fdbk_mst")
+    .select("fdbk_id, cont_txt, stts_enm, adm_note_txt, crt_at")
     .eq("del_yn", false)
     .eq("vers", 0)
-    .order("created_at", { ascending: false })
+    .order("crt_at", { ascending: false })
     .limit(50);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const items: FeedbackItem[] = (data ?? []).map((row: any) => ({
-    id: row.id,
-    body: row.body,
-    status: row.status as FeedbackItem["status"],
-    admin_note: row.admin_note ?? null,
-    created_at: row.created_at,
+    id: row.fdbk_id,
+    body: row.cont_txt,
+    status: row.stts_enm as FeedbackItem["status"],
+    admin_note: row.adm_note_txt ?? null,
+    created_at: row.crt_at,
   }));
 
   return (

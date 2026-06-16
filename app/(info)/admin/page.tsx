@@ -70,10 +70,11 @@ const generalCards: Card[] = [
   },
   {
     key: "feedback",
-    label: "의견함",
+    label: "건의 내역",
     href: "/admin/feedback",
     icon: MessageSquare,
-    getValue: () => "",
+    getValue: (s) => s.openFeedbackCount,
+    getAccentValue: (s) => s.openFeedbackCount,
   },
 ];
 

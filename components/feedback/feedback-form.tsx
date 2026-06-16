@@ -33,7 +33,7 @@ export function FeedbackForm() {
     <form onSubmit={handleSubmit}>
       <CardItem className="flex flex-col gap-3 p-4">
         <textarea
-          placeholder="불편한 점, 개선 아이디어 등 자유롭게 남겨주세요"
+          placeholder="기강 활동이나 앱 이용 중 불편한 점, 개선 아이디어 등을 자유롭게 남겨주세요."
           value={body}
           onChange={(e) => setBody(e.target.value)}
           maxLength={2000}
@@ -47,7 +47,7 @@ export function FeedbackForm() {
           </Button>
         </div>
         {error && <Caption className="text-destructive">{error}</Caption>}
-        {submitted && <Caption className="text-success">의견이 접수됐습니다. 감사합니다!</Caption>}
+        {submitted && <Caption className="text-success">건의사항이 접수됐습니다. 감사합니다!</Caption>}
       </CardItem>
     </form>
   );
