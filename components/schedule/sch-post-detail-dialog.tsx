@@ -68,7 +68,7 @@ export function SchPostDetailDialog({
 
   async function handleDelete() {
     if (!post) return
-    if (!window.confirm("이 피드를 삭제하시겠습니까?")) return
+    if (!window.confirm("이 정보를 삭제하시겠습니까?")) return
     setDeleting(true)
     try {
       await deleteSchPost(post.id)
@@ -97,10 +97,15 @@ export function SchPostDetailDialog({
 
         <div className="flex-1 overflow-y-auto px-4 pb-6 pt-4">
           <div className="flex flex-col gap-4">
-            <p className="text-sm text-muted-foreground">
-              {startAt.format("YYYY년 M월 D일 (ddd) HH:mm")}
-              {endAt && ` ~ ${endAt.format("HH:mm")}`}
-            </p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm text-muted-foreground">
+                {startAt.format("YYYY년 M월 D일 (ddd) HH:mm")}
+                {endAt && ` ~ ${endAt.format("HH:mm")}`}
+              </p>
+              {post.crt_by_nm && (
+                <p className="shrink-0 text-xs text-muted-foreground">{post.crt_by_nm}</p>
+              )}
+            </div>
 
             {post.url && (
               <a

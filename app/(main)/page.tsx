@@ -183,15 +183,12 @@ async function HomeContent() {
     topGigang = weekendGroup[0];
   }
 
-  // sch_post (이번 달)
-  const { data: schPostRows } = await supabase
-    .from("sch_post_mst")
-    .select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
-    .eq("team_id", teamId)
-    .gte("evt_stt_at", monthStart)
-    .lte("evt_stt_at", monthLastDayStr)
-    .eq("del_yn", false)
-    .order("evt_stt_at", { ascending: true });
+  // sch_post (이번 달) — 댓글 수 포함 RPC
+  const { data: schPostRows } = await supabase.rpc("get_public_team_sch_posts", {
+    p_team_id: teamId,
+    p_start: monthStart,
+    p_end: monthLastDayStr,
+  });
 
   const calendarSchPosts: CalendarRace[] = (schPostRows ?? []).map((row) => ({
     id: row.sch_post_id,
@@ -205,6 +202,8 @@ async function HomeContent() {
     url: row.url,
     cont_txt: row.cont_txt,
     crt_by: row.crt_by,
+    crt_by_nm: row.crt_by_nm ?? null,
+    cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
   }));
 
   // 캘린더용 기강 대회 (이번 달)
@@ -223,6 +222,7 @@ async function HomeContent() {
       type: "gigang" as const,
       location: row.loc_nm ?? null,
       regCount: row.reg_count ?? 0,
+      cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
     }));
 
   // 내가 참가하는 대회 가져오기
@@ -293,12 +293,16 @@ async function HomeContent() {
       const calendarCompsRegCountMap = new Map<string, number>(
         (calendarComps ?? []).map((row) => [row.comp_id, row.reg_count ?? 0]),
       );
+      const calendarCompsCmntCountMap = new Map<string, number>(
+        (calendarComps ?? []).map((row) => [row.comp_id, row.cmnt_count ? Number(row.cmnt_count) : 0]),
+      );
       calendarMyRaces = (myRegs ?? [])
         .flatMap((r) => {
           const plan = Array.isArray(r.team_comp_plan_rel) ? r.team_comp_plan_rel[0] : r.team_comp_plan_rel;
           const comp = Array.isArray(plan.comp_mst) ? plan.comp_mst[0] : plan.comp_mst;
           if (!comp) return [];
-          const race: CalendarRace = { id: comp.comp_id, title: comp.comp_nm, start_date: comp.stt_dt, type: "mine", location: comp.loc_nm ?? null, regCount: calendarCompsRegCountMap.get(comp.comp_id) ?? 0 };
+          const cmntCount = calendarCompsCmntCountMap.get(comp.comp_id);
+          const race: CalendarRace = { id: comp.comp_id, title: comp.comp_nm, start_date: comp.stt_dt, type: "mine", location: comp.loc_nm ?? null, regCount: calendarCompsRegCountMap.get(comp.comp_id) ?? 0, cmntCount: cmntCount || undefined };
           return race.start_date >= monthStart && race.start_date <= monthLastDayStr ? [race] : [];
         });
 

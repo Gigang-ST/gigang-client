@@ -75,7 +75,7 @@ export function CommentSection({
             setComments((prev) => {
               if (prev.some((c) => c.cmnt_id === incoming.cmnt_id)) return prev
               const mem = membersRef.current.find((m) => m.mem_id === incoming.mem_id)
-              return [...prev, { ...incoming, mem_nm: mem?.mem_nm ?? "멤버" }]
+              return [...prev, { ...incoming, mem_nm: mem?.mem_nm ?? "멤버", avatar_url: incoming.avatar_url ?? mem?.avatar_url ?? null }]
             })
           } else if (payload.eventType === "UPDATE") {
             setComments((prev) =>
@@ -114,7 +114,7 @@ export function CommentSection({
             prnt_id: result.data.prnt_id,
             mem_id: result.data.mem_id,
             mem_nm: me?.mem_nm ?? "나",
-            avatar_url: null,
+            avatar_url: me?.avatar_url ?? null,
             cont_txt: result.data.cont_txt,
             edit_yn: result.data.edit_yn,
             del_yn: result.data.del_yn,
@@ -149,7 +149,7 @@ export function CommentSection({
             prnt_id: result.data.prnt_id,
             mem_id: result.data.mem_id,
             mem_nm: me?.mem_nm ?? "나",
-            avatar_url: null,
+            avatar_url: me?.avatar_url ?? null,
             cont_txt: result.data.cont_txt,
             edit_yn: result.data.edit_yn,
             del_yn: result.data.del_yn,

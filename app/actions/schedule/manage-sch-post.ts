@@ -79,7 +79,7 @@ export async function createSchPost(input: {
           team_id: teamId,
           mem_id: m.mem_id,
           noti_type_enm: "sch_post_new",
-          noti_nm: `${dayjs().format("M월 D일")} 새 피드가 등록됐습니다.`,
+          noti_nm: `${dayjs().format("M월 D일")} 새 정보가 등록됐습니다.`,
           noti_cont: postName,
           ref_id: postId,
           ref_type_enm: "sch_post",

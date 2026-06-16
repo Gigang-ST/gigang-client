@@ -1785,6 +1785,7 @@ export type Database = {
       }
       team_mem_rel: {
         Row: {
+          card_featured: Json | null
           crt_at: string
           del_yn: boolean
           inact_rsn_txt: string | null
@@ -1801,6 +1802,7 @@ export type Database = {
           vers: number
         }
         Insert: {
+          card_featured?: Json | null
           crt_at?: string
           del_yn?: boolean
           inact_rsn_txt?: string | null
@@ -1817,6 +1819,7 @@ export type Database = {
           vers?: number
         }
         Update: {
+          card_featured?: Json | null
           crt_at?: string
           del_yn?: boolean
           inact_rsn_txt?: string | null
@@ -1993,6 +1996,10 @@ export type Database = {
             }
             Returns: undefined
           }
+      get_public_member_card: {
+        Args: { p_mem_id: string; p_team_id: string }
+        Returns: Json
+      }
       get_public_team_comp_reg_display_counts: {
         Args: { p_comp_id: string; p_team_id: string }
         Returns: {
@@ -2003,6 +2010,7 @@ export type Database = {
       get_public_team_competitions: {
         Args: { p_end?: string; p_start?: string; p_team_id: string }
         Returns: {
+          cmnt_count: number
           comp_evt_types: string[]
           comp_id: string
           comp_nm: string
@@ -2043,6 +2051,21 @@ export type Database = {
           race_nm: string
           rec_time_sec: number
           upd_at: string
+        }[]
+      }
+      get_public_team_sch_posts: {
+        Args: { p_end?: string; p_start?: string; p_team_id: string }
+        Returns: {
+          cmnt_count: number
+          cont_txt: string
+          crt_by: string
+          crt_by_nm: string
+          evt_end_at: string
+          evt_stt_at: string
+          post_type: string
+          sch_nm: string
+          sch_post_id: string
+          url: string
         }[]
       }
       get_public_team_utmb_rankings: {
@@ -2240,3 +2263,4 @@ export const Constants = {
     },
   },
 } as const
+

@@ -53,14 +53,11 @@ async function fetchMonth(
   const { start, end } = monthBounds(monthKey);
 
   const [{ data: schRows }, { data: gigangRows }, myRows] = await Promise.all([
-    supabase
-      .from("sch_post_mst")
-      .select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
-      .eq("team_id", teamId)
-      .gte("evt_stt_at", start)
-      .lte("evt_stt_at", end)
-      .eq("del_yn", false)
-      .order("evt_stt_at", { ascending: true }),
+    supabase.rpc("get_public_team_sch_posts", {
+      p_team_id: teamId,
+      p_start: start,
+      p_end: end,
+    }),
     supabase.rpc("get_public_team_competitions", {
       p_team_id: teamId,
       p_start: start,
@@ -92,6 +89,7 @@ async function fetchMonth(
       const key = `mine:${comp.comp_id}`;
       if (seen.has(key)) continue;
       seen.add(key);
+      const compRow = (gigangRows ?? []).find((r) => r.comp_id === comp.comp_id);
       results.push({
         id: comp.comp_id,
         title: comp.comp_nm,
@@ -99,6 +97,7 @@ async function fetchMonth(
         type: "mine",
         location: comp.loc_nm ?? null,
         regCount: regCountMap.get(comp.comp_id) ?? 0,
+        cmntCount: compRow?.cmnt_count ? Number(compRow.cmnt_count) : undefined,
       });
     }
   }
@@ -120,6 +119,8 @@ async function fetchMonth(
       url: row.url,
       cont_txt: row.cont_txt,
       crt_by: row.crt_by,
+      crt_by_nm: row.crt_by_nm ?? null,
+      cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
     });
   }
 
@@ -171,8 +172,11 @@ function ScheduleItem({ race, onClick }: { race: CalendarRace; onClick: () => vo
             <span className="font-normal text-muted-foreground"> · {schPostTypeInlineLabel[race.post_type as SchPostType]}</span>
           )}
         </Caption>
-        {timeRange && (
-          <Micro className="tabular-nums text-muted-foreground">{timeRange}</Micro>
+        {(timeRange || (race.cmntCount ?? 0) > 0) && (
+          <Micro className="flex items-center gap-1.5 tabular-nums text-muted-foreground">
+            {timeRange && <span>{timeRange}</span>}
+            {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
+          </Micro>
         )}
         {race.cont_txt && (
           <Micro className="truncate text-muted-foreground">{race.cont_txt}</Micro>
@@ -213,10 +217,15 @@ function CompetitionItem({
         className="flex min-w-0 flex-1 flex-col gap-0.5 py-0.5 text-left transition-opacity hover:opacity-70"
       >
         <Caption className="truncate font-medium text-foreground">{race.title}</Caption>
-        {race.location && (
-          <Micro className="flex items-center gap-1 truncate text-muted-foreground">
-            <MapPin className="size-2.5 shrink-0" />
-            <span className="truncate">{race.location}</span>
+        {(race.location || (race.cmntCount ?? 0) > 0) && (
+          <Micro className="flex items-center gap-1.5 text-muted-foreground">
+            {race.location && (
+              <>
+                <MapPin className="size-2.5 shrink-0" />
+                <span className="truncate">{race.location}</span>
+              </>
+            )}
+            {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
           </Micro>
         )}
       </button>

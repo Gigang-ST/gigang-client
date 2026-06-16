@@ -44,10 +44,12 @@ export type CalendarRace = {
   url?: string | null;
   cont_txt?: string | null;
   crt_by?: string;
+  crt_by_nm?: string | null;
   post_type?: string | null;
   // 시간 표시용 (원본 일시 문자열)
   evt_stt_at?: string | null;
   evt_end_at?: string | null;
+  cmntCount?: number;
 };
 
 type MiniCalendarProps = {
@@ -343,7 +345,7 @@ export function MiniCalendar({
     const newGigang: CalendarRace[] = (teamComps ?? [])
       .filter((row) => (row.reg_count ?? 0) > 0)
       .filter((row) => { if (seenIds.has(row.comp_id)) return false; seenIds.add(row.comp_id); return true; })
-      .map((row) => ({ id: row.comp_id, title: row.comp_nm, start_date: row.stt_dt, type: "gigang" as const, location: row.loc_nm ?? null, regCount: row.reg_count ?? 0 }));
+      .map((row) => ({ id: row.comp_id, title: row.comp_nm, start_date: row.stt_dt, type: "gigang" as const, location: row.loc_nm ?? null, regCount: row.reg_count ?? 0, cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined }));
 
     let newMine: CalendarRace[] = [];
     if (memberId) {
@@ -363,33 +365,33 @@ export function MiniCalendar({
         const plan = Array.isArray(r.team_comp_plan_rel) ? r.team_comp_plan_rel[0] : r.team_comp_plan_rel;
         const comp = Array.isArray(plan?.comp_mst) ? plan.comp_mst[0] : plan?.comp_mst;
         if (!comp) return [];
-        const race: CalendarRace = { id: comp.comp_id, title: comp.comp_nm, start_date: comp.stt_dt, type: "mine", location: comp.loc_nm ?? null, regCount: regCountMap.get(comp.comp_id) ?? 0 };
+        const compRow = (teamComps ?? []).find((r) => r.comp_id === comp.comp_id);
+        const race: CalendarRace = { id: comp.comp_id, title: comp.comp_nm, start_date: comp.stt_dt, type: "mine", location: comp.loc_nm ?? null, regCount: regCountMap.get(comp.comp_id) ?? 0, cmntCount: compRow?.cmnt_count ? Number(compRow.cmnt_count) : undefined };
         return race.start_date >= newMonth && race.start_date <= lastDay ? [race] : [];
       });
     }
 
-    // sch_post_mst 조회
-    const { data: schPostRows } = await supabase
-      .from("sch_post_mst")
-      .select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
-      .eq("team_id", teamId)
-      .gte("evt_stt_at", newMonth)
-      .lte("evt_stt_at", lastDay)
-      .eq("del_yn", false)
-      .order("evt_stt_at", { ascending: true });
+    // sch_post RPC 조회 (cmnt_count 포함)
+    const { data: schPostRows } = await supabase.rpc("get_public_team_sch_posts", {
+      p_team_id: teamId,
+      p_start: newMonth,
+      p_end: lastDay,
+    });
 
     const newSchPosts: CalendarRace[] = (schPostRows ?? []).map((row) => ({
       id: row.sch_post_id,
       title: row.sch_nm,
       start_date: dayjs(row.evt_stt_at).format("YYYY-MM-DD"),
       type: "schedule" as const,
+      post_type: row.post_type,
       end_date: row.evt_end_at,
       evt_stt_at: row.evt_stt_at,
       evt_end_at: row.evt_end_at,
       url: row.url,
       cont_txt: row.cont_txt,
       crt_by: row.crt_by,
-      post_type: row.post_type,
+      crt_by_nm: row.crt_by_nm ?? null,
+      cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
     }));
 
     return { gigang: newGigang, mine: newMine, schPosts: newSchPosts };
@@ -605,17 +607,11 @@ export function MiniCalendar({
             return (
               <div className="mt-1 rounded-xl bg-secondary/50 px-3 py-2">
                 <div className="flex gap-2">
-                  {/* 날짜 + 추가 버튼 컬럼 */}
-                  <div className="flex shrink-0 flex-col items-center gap-0">
+                  {/* 날짜 컬럼 */}
+                  <div className="flex shrink-0 flex-col items-center">
                     <span className="text-[18px] font-bold leading-none text-foreground tabular-nums">
                       {parseInt(dd, 10)}일
                     </span>
-                    {memberStatus.status === "ready" && (
-                      <AddScheduleDropdown
-                        onAddSchedule={() => openCreateForm(selectedDate)}
-                        onAddCompetition={() => openCompetitionPicker(selectedDate)}
-                      />
-                    )}
                   </div>
 
                   {/* 일정 목록 */}
@@ -640,16 +636,20 @@ export function MiniCalendar({
                           >
                             <span className="truncate text-[11px] font-medium text-foreground">
                               {race.title}
-                              {isComp && race.location && (
-                                <span className="font-normal text-muted-foreground"> · {race.location}</span>
-                              )}
                               {race.type === "schedule" && race.post_type && schPostTypeInlineLabel[race.post_type as SchPostType] && (
                                 <span className="font-normal text-muted-foreground"> · {schPostTypeInlineLabel[race.post_type as SchPostType]}</span>
                               )}
                             </span>
-                            {race.type === "schedule" && race.evt_stt_at && (
-                              <span className="text-[9px] text-muted-foreground tabular-nums">
-                                {dayjs(race.evt_stt_at).format("HH:mm")}{race.evt_end_at ? `~${dayjs(race.evt_end_at).format("HH:mm")}` : ""}
+                            {isComp && (race.location || (race.cmntCount ?? 0) > 0) && (
+                              <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                                {race.location && <span className="truncate">{race.location}</span>}
+                                {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
+                              </span>
+                            )}
+                            {race.type === "schedule" && (race.evt_stt_at || (race.cmntCount ?? 0) > 0) && (
+                              <span className="flex items-center gap-1 text-[9px] text-muted-foreground tabular-nums">
+                                {race.evt_stt_at && <span>{dayjs(race.evt_stt_at).format("HH:mm")}{race.evt_end_at ? `~${dayjs(race.evt_end_at).format("HH:mm")}` : ""}</span>}
+                                {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
                               </span>
                             )}
                           </button>
@@ -700,15 +700,15 @@ export function MiniCalendar({
             onClickSchedule={openEditForm}
             onClickCompetition={handleRaceClick}
           />
-          {memberStatus.status === "ready" && (
-            <div className="flex justify-start pt-1.5">
-              <AddScheduleDropdown
-                onAddSchedule={() => openCreateForm(today)}
-                onAddCompetition={() => openCompetitionPicker(today)}
-              />
-            </div>
-          )}
         </div>
+      )}
+
+      {/* FAB — 멤버만 표시, 캘린더뷰: 선택 날짜, 리스트뷰: 오늘 */}
+      {memberStatus.status === "ready" && (
+        <AddScheduleDropdown
+          onAddSchedule={() => openCreateForm(view === "calendar" ? selectedDate : today)}
+          onAddCompetition={() => openCompetitionPicker(view === "calendar" ? selectedDate : today)}
+        />
       )}
 
       {/* 대회 선택 다이얼로그 */}

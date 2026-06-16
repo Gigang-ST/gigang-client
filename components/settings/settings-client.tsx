@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+
 import {
   ChevronRight,
   UserPen,
@@ -19,10 +20,15 @@ import {
   Moon,
   Trophy,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+
+import { createClient } from "@/lib/supabase/client";
+
+import { ThemeToggle } from "@/components/common/theme-toggle";
 import { SectionLabel } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/common/theme-toggle";
+
+import type { LucideIcon } from "lucide-react";
+
 
 type MenuItem = {
   label: string;
@@ -65,6 +71,7 @@ export function SettingsClient({ isAdmin }: { isAdmin: boolean }) {
       alert("로그아웃에 실패했습니다. 다시 시도해 주세요.");
       return;
     }
+    router.refresh();
     router.push("/auth/login");
   };
 
