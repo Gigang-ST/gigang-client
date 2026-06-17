@@ -22,6 +22,7 @@ import { NotificationItem } from "./notification-item";
 
 type NotificationBellIconProps = {
   initialCount: number;
+  initialNotifications?: Notification[];
   memberId?: string;
   disabled?: boolean;
 };
@@ -33,15 +34,17 @@ const NOTI_TYPE_LABELS: Record<string, string> = {
 
 type ViewType = "list" | "settings";
 
-export function NotificationBellIcon({ initialCount, memberId, disabled }: NotificationBellIconProps) {
+export function NotificationBellIcon({ initialCount, initialNotifications = [], memberId, disabled }: NotificationBellIconProps) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<ViewType>("list");
   const [unreadCount, setUnreadCount] = useState(initialCount);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
   const [prefs, setPrefs] = useState<NotificationPref[]>([]);
   const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(initialNotifications.length === 20);
+  const [cursor, setCursor] = useState<string | null>(
+    initialNotifications.length > 0 ? initialNotifications[initialNotifications.length - 1].crt_at : null,
+  );
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -79,11 +82,12 @@ export function NotificationBellIcon({ initialCount, memberId, disabled }: Notif
   useEffect(() => {
     if (!open || !memberId) return;
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setCursor(null);
-     
-    setHasMore(true);
-    fetchNotifications(true, null);
+    if (notifications.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCursor(null);
+      setHasMore(true);
+      fetchNotifications(true, null);
+    }
 
     const supabase = createClient();
     const channel = supabase

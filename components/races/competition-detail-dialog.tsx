@@ -31,6 +31,7 @@ import { updateCompetition } from "@/app/actions/admin/manage-competition";
 import { getPublicTeamCompRegDisplayCounts } from "@/app/actions/get-public-team-comp-reg-display-counts";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
 
+import type { CmntRow } from "@/components/comment/comment-item";
 import { CommentSection } from "@/components/comment/comment-section";
 import type { MemberOption } from "@/components/comment/mention-input";
 import {
@@ -79,6 +80,7 @@ interface CompetitionDetailDialogProps {
   members: MemberOption[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialComments?: CmntRow[];
   onCreate: (
     competitionId: string,
     payload: { role: "participant" | "cheering" | "volunteer"; eventType: string },
@@ -104,6 +106,7 @@ export function CompetitionDetailDialog({
   members,
   open,
   onOpenChange,
+  initialComments,
   onCreate,
   onUpdate,
   onDelete,
@@ -702,6 +705,7 @@ export function CompetitionDetailDialog({
               currentMemberId={memberStatus.status === "ready" ? memberStatus.memberId : undefined}
               isAdmin={isAdmin}
               members={members}
+              initialComments={initialComments}
             />
           </div>
 
