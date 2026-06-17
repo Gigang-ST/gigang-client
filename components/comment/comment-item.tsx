@@ -24,6 +24,8 @@ export type CmntRow = {
   crt_at: string
   upd_at: string
   has_replies?: boolean
+  optimistic?: boolean
+  optimisticFailed?: boolean
 }
 
 interface CommentItemProps {
@@ -80,7 +82,13 @@ export function CommentItem({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-x-2">
           <Body className="text-sm font-semibold">{comment.mem_nm}</Body>
-          <Caption className="text-xs">{dayjs(comment.crt_at).fromNow()}</Caption>
+          {comment.optimisticFailed ? (
+            <Caption className="text-xs text-destructive">전송 실패</Caption>
+          ) : comment.optimistic ? (
+            <Caption className="text-xs text-muted-foreground">전송 중...</Caption>
+          ) : (
+            <Caption className="text-xs">{dayjs(comment.crt_at).fromNow()}</Caption>
+          )}
           {comment.edit_yn && <Caption className="text-xs opacity-60">(수정됨)</Caption>}
           {!editing && (
             <div className="ml-auto flex gap-3">
