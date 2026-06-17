@@ -16,6 +16,7 @@ import {
   ResponsiveDrawer,
   ResponsiveDrawerClose,
   ResponsiveDrawerContent,
+  ResponsiveDrawerDescription,
   ResponsiveDrawerHeader,
   ResponsiveDrawerTitle,
 } from "@/components/common/responsive-drawer"
@@ -93,6 +94,7 @@ export function SchPostDetailDialog({
       >
         <ResponsiveDrawerHeader className="shrink-0 border-b border-border px-4 py-4 text-left">
           <ResponsiveDrawerTitle>{post.title}</ResponsiveDrawerTitle>
+          <ResponsiveDrawerDescription className="sr-only">일정 상세 정보</ResponsiveDrawerDescription>
         </ResponsiveDrawerHeader>
 
         <div className="flex-1 overflow-y-auto px-4 pb-6 pt-4">

@@ -359,7 +359,7 @@ export function ScheduleListView({
           return (
             <div key={monthKey}>
               {/* sticky 월 헤더 — 스크롤 컨테이너 기준 상단 고정 */}
-              <div className="sticky top-0 z-10 flex items-center gap-2 bg-background py-1.5">
+              <div className="sticky top-0 z-10 flex items-center gap-2 bg-background py-1.5 pointer-events-none">
                 <div className="h-px flex-1 bg-border" />
                 <SectionLabel>{monthLabel}</SectionLabel>
                 <div className="h-px flex-1 bg-border" />
