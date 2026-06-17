@@ -47,13 +47,14 @@ export async function uploadXlsx(formData: FormData) {
   const buffer = Buffer.from(await file.arrayBuffer());
   const fileHash = crypto.createHash("sha256").update(buffer).digest("hex");
 
-  // 중복 파일 체크 (rolled_back 제외 — 롤백 후 재업로드 허용)
+  // 중복 파일 체크 (del_yn=false + rolled_back 제외 — 롤백 후 재업로드 허용)
   const { data: existing } = await db
     .from("fee_xlsx_upd_hist")
     .select("upd_id")
     .eq("team_id", teamId)
     .eq("file_hash", fileHash)
     .eq("vers", 0)
+    .eq("del_yn", false)
     .neq("upd_st_cd", "rolled_back")
     .maybeSingle();
 
@@ -100,7 +101,7 @@ export async function uploadXlsx(formData: FormData) {
       }];
     });
   } catch {
-    return { ok: false as const, message: "파일 파싱에 실패했습니다. 파일 형식 또는 비밀번호를 확인하세요." };
+    return { ok: false as const, message: "파일 파싱에 실패했습니다. 파일 형식을 확인하세요." };
   }
 
   // 업로드 이력 생성
@@ -177,7 +178,13 @@ export async function uploadXlsx(formData: FormData) {
     if (error?.code === "23505") {
       skipped++;
     } else if (error) {
-      console.error("[uploadXlsx] 거래 INSERT 실패:", error.code, error.message, row);
+      console.error("[uploadXlsx] 거래 INSERT 실패:", error.code, error.message, {
+        txn_dt: row.txn_dt,
+        txn_tm: row.txn_tm,
+        txn_amt: row.txn_amt,
+        fee_item_cd: row.fee_item_cd,
+      });
+      return { ok: false as const, message: `거래 저장 중 오류가 발생했습니다. (${error.code})` };
     }
   }
 

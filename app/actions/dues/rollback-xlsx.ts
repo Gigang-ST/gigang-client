@@ -34,17 +34,21 @@ export async function rollbackXlsx(updId: string) {
   }
 
   // 미확정 거래 soft-delete
-  await db
+  const { error: txnErr } = await db
     .from("fee_txn_hist")
     .update({ del_yn: true })
     .eq("upd_id", updId)
     .eq("is_cfm_yn", false);
 
+  if (txnErr) return { ok: false as const, message: "거래 롤백 중 오류가 발생했습니다." };
+
   // 업로드 상태 rolled_back + del_yn=true (재업로드 허용을 위해 vers=0 해제)
-  await db
+  const { error: updHistErr } = await db
     .from("fee_xlsx_upd_hist")
     .update({ upd_st_cd: "rolled_back", del_yn: true })
     .eq("upd_id", updId);
+
+  if (updHistErr) return { ok: false as const, message: "업로드 이력 롤백 중 오류가 발생했습니다." };
 
   return { ok: true as const, message: null };
 }
