@@ -21,6 +21,7 @@ interface CommentSectionProps {
   currentMemberId?: string
   isAdmin?: boolean
   members: MemberOption[]
+  initialComments?: CmntRow[]
 }
 
 type CommentWithReplies = CmntRow & { replies: CmntRow[] }
@@ -47,9 +48,18 @@ export function CommentSection({
   currentMemberId,
   isAdmin,
   members,
+  initialComments,
 }: CommentSectionProps) {
-  const [comments, setComments] = useState<CmntRow[]>([])
-  const [loadingComments, setLoadingComments] = useState(!!currentMemberId)
+  const [comments, setComments] = useState<CmntRow[]>(initialComments ?? [])
+  const [loadingComments, setLoadingComments] = useState(!!currentMemberId && !initialComments)
+
+  // entityId 변경 시 (다른 글 열기) 이전 댓글 초기화
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setComments(initialComments ?? [])
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoadingComments(!!currentMemberId && !initialComments)
+  }, [entityId])
   const [newText, setNewText] = useState("")
   const [replyTo, setReplyTo] = useState<CmntRow | null>(null)
   const [replyText, setReplyText] = useState("")
@@ -61,7 +71,7 @@ export function CommentSection({
 
   // 댓글 클라이언트 직접 조회
   useEffect(() => {
-    if (!currentMemberId) return
+    if (!currentMemberId || initialComments) return
     let cancelled = false
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingComments(true)

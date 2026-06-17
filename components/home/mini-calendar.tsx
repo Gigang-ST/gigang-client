@@ -20,6 +20,7 @@ import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-creat
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
 
 
+import type { CmntRow } from "@/components/comment/comment-item";
 import type { MemberOption } from "@/components/comment/mention-input";
 import { Micro, SectionLabel } from "@/components/common/typography";
 import { AddScheduleDropdown } from "@/components/home/add-schedule-dropdown";
@@ -100,6 +101,7 @@ export function MiniCalendar({
   // 소식 상세 다이얼로그 상태 (일반 멤버용)
   const [schDetailPost, setSchDetailPost] = useState<CalendarRace | null>(null);
   const [schDetailOpen, setSchDetailOpen] = useState(false);
+  const [schDetailInitialComments, setSchDetailInitialComments] = useState<CmntRow[] | undefined>(undefined);
 
   // 대회 선택 다이얼로그 상태
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -109,6 +111,7 @@ export function MiniCalendar({
   const [selectedDate, setSelectedDate] = useState<string>(() => todayKST());
   const [selectedCompetition, setSelectedCompetition] = useState<Competition | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [compDetailInitialComments, setCompDetailInitialComments] = useState<CmntRow[] | undefined>(undefined);
   const [registrationsByCompetitionId, setRegistrationsByCompetitionId] =
     useState<Record<string, CompetitionRegistration>>(initialRegistrationsByCompetitionId);
 
@@ -140,7 +143,7 @@ export function MiniCalendar({
         .from("sch_post_mst")
         .select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
         .eq("sch_post_id", deepLinkPostId)
-        .single()
+        .maybeSingle()
         .then(({ data }) => {
           if (!data) return
           setSchDetailPost({
@@ -196,10 +199,11 @@ export function MiniCalendar({
   const totalDays = daysInMonth(year, month);
   const firstDayOfWeek = dayjs.tz(`${year}-${String(month).padStart(2, "0")}-01`, "Asia/Seoul").day();
 
+  const allRaces = useMemo(() => [...myRaces, ...schPosts, ...gigangRaces], [myRaces, schPosts, gigangRaces]);
+
   // 날짜별 이벤트 목록 (mine 우선, schedule, gigang 순) — 기간 이벤트는 모든 날짜에 전개
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarRace[]>();
-    const allRaces = [...myRaces, ...schPosts, ...gigangRaces];
     const seen = new Set<string>();
     for (const race of allRaces) {
       const endDateStr = race.end_date
@@ -220,7 +224,7 @@ export function MiniCalendar({
       }
     }
     return map;
-  }, [gigangRaces, myRaces, schPosts]);
+  }, [allRaces]);
 
   // 주차별로 날짜 그룹핑
   const weeks = useMemo(() => {
@@ -237,7 +241,6 @@ export function MiniCalendar({
 
   // 주차별 스패닝 이벤트 레인 계산
   const weekEventLanes = useMemo(() => {
-    const allRaces = [...myRaces, ...schPosts, ...gigangRaces];
     return weeks.map((week) => {
       const colDates = week.map((day) =>
         day !== null
@@ -282,18 +285,46 @@ export function MiniCalendar({
         return { ...ep, slot };
       });
     });
-  }, [weeks, myRaces, schPosts, gigangRaces, year, month]);
+  }, [weeks, allRaces, year, month]);
 
   function formatCellDate(day: number): string {
     return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   }
 
-  async function handleRaceClick(race: CalendarRace) {
+  async function fetchComments(entityType: "sch_post" | "comp", entityId: string): Promise<CmntRow[]> {
     const { data } = await supabase
-      .from("comp_mst")
-      .select("comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)")
-      .eq("comp_id", race.id)
-      .single();
+      .from("cmnt_mst")
+      .select("cmnt_id, prnt_id, mem_id, cont_txt, edit_yn, del_yn, crt_at, upd_at, mem_mst!cmnt_mst_mem_id_fkey(mem_nm, avatar_url)")
+      .eq("entity_type", entityType)
+      .eq("entity_id", entityId)
+      .eq("team_id", teamId)
+      .order("crt_at", { ascending: true })
+    return (data ?? []).map((row) => {
+      const mem = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst
+      return {
+        cmnt_id: row.cmnt_id,
+        prnt_id: row.prnt_id,
+        mem_id: row.mem_id,
+        mem_nm: (mem as { mem_nm: string } | null)?.mem_nm ?? "멤버",
+        avatar_url: (mem as { avatar_url?: string | null } | null)?.avatar_url ?? null,
+        cont_txt: row.cont_txt,
+        edit_yn: row.edit_yn,
+        del_yn: row.del_yn,
+        crt_at: row.crt_at,
+        upd_at: row.upd_at,
+      }
+    })
+  }
+
+  async function handleRaceClick(race: CalendarRace) {
+    const [{ data }, comments] = await Promise.all([
+      supabase
+        .from("comp_mst")
+        .select("comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)")
+        .eq("comp_id", race.id)
+        .single(),
+      memberId ? fetchComments("comp", race.id) : Promise.resolve(undefined),
+    ]);
 
     const comp: Competition = data
       ? {
@@ -321,7 +352,9 @@ export function MiniCalendar({
           source_url: null,
         };
 
+    // fetch 완료 후 한 번에 설정 — 이전 댓글이 남는 버그 방지
     setSelectedCompetition(comp);
+    setCompDetailInitialComments(comments);
     setDetailOpen(true);
   }
 
@@ -410,48 +443,42 @@ export function MiniCalendar({
     const m = parseInt(mStr, 10);
     const lastDay = monthLastDayStr(y, m);
 
-    const { data: teamComps } = await supabase.rpc("get_public_team_competitions", {
-      p_team_id: teamId,
-      p_start: newMonth,
-      p_end: lastDay,
-    });
+    const [
+      { data: teamComps },
+      myRegsResult,
+      { data: schPostRows },
+    ] = await Promise.all([
+      supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: newMonth, p_end: lastDay }),
+      memberId
+        ? supabase
+            .from("comp_reg_rel")
+            .select("team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm))")
+            .eq("mem_id", memberId)
+            .eq("team_comp_plan_rel.team_id", teamId)
+            .eq("vers", 0)
+            .eq("del_yn", false)
+        : Promise.resolve({ data: null }),
+      supabase.rpc("get_public_team_sch_posts", { p_team_id: teamId, p_start: newMonth, p_end: lastDay }),
+    ]);
 
-    const seenIds = new Set<string>();
     const newGigang: CalendarRace[] = (teamComps ?? [])
       .filter((row) => (row.reg_count ?? 0) > 0)
-      .filter((row) => { if (seenIds.has(row.comp_id)) return false; seenIds.add(row.comp_id); return true; })
       .map((row) => ({ id: row.comp_id, title: row.comp_nm, start_date: row.stt_dt, type: "gigang" as const, location: row.loc_nm ?? null, regCount: row.reg_count ?? 0, cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined }));
 
-    let newMine: CalendarRace[] = [];
-    if (memberId) {
-      const { data: myRegs } = await supabase
-        .from("comp_reg_rel")
-        .select("team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm))")
-        .eq("mem_id", memberId)
-        .eq("team_comp_plan_rel.team_id", teamId)
-        .eq("vers", 0)
-        .eq("del_yn", false);
+    const calendarMetaMap = new Map(
+      (teamComps ?? []).map((row) => [row.comp_id, { regCount: row.reg_count ?? 0, cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined }]),
+    );
 
-      const regCountMap = new Map<string, number>(
-        (teamComps ?? []).map((row) => [row.comp_id, row.reg_count ?? 0]),
-      );
-
-      newMine = (myRegs ?? []).flatMap((r) => {
-        const plan = Array.isArray(r.team_comp_plan_rel) ? r.team_comp_plan_rel[0] : r.team_comp_plan_rel;
-        const comp = Array.isArray(plan?.comp_mst) ? plan.comp_mst[0] : plan?.comp_mst;
-        if (!comp) return [];
-        const compRow = (teamComps ?? []).find((r) => r.comp_id === comp.comp_id);
-        const race: CalendarRace = { id: comp.comp_id, title: comp.comp_nm, start_date: comp.stt_dt, type: "mine", location: comp.loc_nm ?? null, regCount: regCountMap.get(comp.comp_id) ?? 0, cmntCount: compRow?.cmnt_count ? Number(compRow.cmnt_count) : undefined };
-        return race.start_date >= newMonth && race.start_date <= lastDay ? [race] : [];
-      });
-    }
-
-    // sch_post RPC 조회 (cmnt_count 포함)
-    const { data: schPostRows } = await supabase.rpc("get_public_team_sch_posts", {
-      p_team_id: teamId,
-      p_start: newMonth,
-      p_end: lastDay,
-    });
+    const newMine: CalendarRace[] = memberId
+      ? (myRegsResult.data ?? []).flatMap((r) => {
+          const plan = Array.isArray(r.team_comp_plan_rel) ? r.team_comp_plan_rel[0] : r.team_comp_plan_rel;
+          const comp = Array.isArray(plan?.comp_mst) ? plan.comp_mst[0] : plan?.comp_mst;
+          if (!comp) return [];
+          const meta = calendarMetaMap.get(comp.comp_id);
+          const race: CalendarRace = { id: comp.comp_id, title: comp.comp_nm, start_date: comp.stt_dt, type: "mine", location: comp.loc_nm ?? null, regCount: meta?.regCount ?? 0, cmntCount: meta?.cmntCount };
+          return race.start_date >= newMonth && race.start_date <= lastDay ? [race] : [];
+        })
+      : [];
 
     const newSchPosts: CalendarRace[] = (schPostRows ?? []).map((row) => ({
       id: row.sch_post_id,
@@ -496,24 +523,29 @@ export function MiniCalendar({
     setPickerOpen(true);
   }
 
-  function handlePickedCompetition(competition: Competition) {
+  async function handlePickedCompetition(competition: Competition) {
+    const comments = memberId ? await fetchComments("comp", competition.id) : undefined;
     setSelectedCompetition(competition);
+    setCompDetailInitialComments(comments);
     setDetailOpen(true);
   }
 
   async function handleCompetitionCreated(competition: Competition) {
+    setCompDetailInitialComments([]);
     setSelectedCompetition(competition);
     setDetailOpen(true);
     await handleSchPostSuccess();
   }
 
-  function openEditForm(race: CalendarRace) {
+  async function openSchPostDetail(race: CalendarRace) {
+    const comments = memberId ? await fetchComments("sch_post", race.id) : undefined;
+    // fetch 완료 후 한 번에 설정 — 이전 댓글이 남는 버그 방지
     setSchDetailPost(race);
+    setSchDetailInitialComments(comments);
     setSchDetailOpen(true);
   }
 
   async function handleSchPostSuccess() {
-    router.refresh();
     const { gigang, mine, schPosts: newSch } = await fetchMonthData(viewMonth);
     setGigangRaces(gigang);
     setMyRaces(mine);
@@ -731,7 +763,7 @@ export function MiniCalendar({
                     return (
                       <button
                         key={race.id}
-                        onClick={() => race.type === "schedule" ? openEditForm(race) : handleRaceClick(race)}
+                        onClick={() => race.type === "schedule" ? openSchPostDetail(race) : handleRaceClick(race)}
                         className="flex w-full items-center gap-1.5 rounded-lg px-1 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
                       >
                         <span
@@ -810,7 +842,7 @@ export function MiniCalendar({
             memberId={memberId}
             initialMonthKey={initialMonth.slice(0, 7)}
             initialRaces={[...initMine, ...initSchPosts, ...initGigang]}
-            onClickSchedule={openEditForm}
+            onClickSchedule={openSchPostDetail}
             onClickCompetition={handleRaceClick}
           />
         </div>
@@ -844,6 +876,7 @@ export function MiniCalendar({
         currentMemberId={memberStatus.status === "ready" ? memberStatus.memberId : undefined}
         isAdmin={memberStatus.status === "ready" ? memberStatus.admin : false}
         members={membersCache ?? []}
+        initialComments={schDetailInitialComments}
         onEdit={() => {
           if (!schDetailPost) return;
           setSchDetailOpen(false);
@@ -892,6 +925,7 @@ export function MiniCalendar({
         onCreate={createRegistration}
         onUpdate={updateRegistration}
         onDelete={deleteRegistration}
+        initialComments={compDetailInitialComments}
         onCompetitionUpdated={async () => {
           await revalidateCompetitions();
           window.location.reload();

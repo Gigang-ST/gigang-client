@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 
 import { useRouter } from "next/navigation";
 
-import { Bell, Coins, MessageCircle, Trophy, Trash2, ChevronRight, FileText } from "lucide-react";
+import { Bell, Coins, MessageCircle, Trophy, Trash2, FileText } from "lucide-react";
 
 import { dayjs } from "@/lib/dayjs";
 import type { Notification } from "@/lib/queries/notification";
@@ -71,17 +71,17 @@ export function NotificationItem({ noti, onDelete, onRead, onClose }: Notificati
   const Icon = NOTI_ICON[noti.noti_type_enm] ?? Bell;
   const route = NOTI_ROUTE[noti.noti_type_enm]?.(noti.ref_id, noti.ref_type_enm) ?? null;
 
-  async function handleRead() {
+  function handleRead() {
     if (!isRead) {
       setIsRead(true);
       onRead(noti.noti_id);
-      await markNotificationRead(noti.noti_id);
+      markNotificationRead(noti.noti_id); // fire-and-forget: UI 블로킹 없이 백그라운드 처리
     }
   }
 
-  async function handleNavigate() {
+  function handleNavigate() {
     if (!route) return;
-    await handleRead();
+    handleRead();
     onClose();
     router.push(route);
   }
@@ -124,28 +124,26 @@ export function NotificationItem({ noti, onDelete, onRead, onClose }: Notificati
         <Trash2 className="size-5" />
       </button>
 
-      {/* 알림 본문 */}
-      <div
-        className="relative flex items-center gap-3 bg-background px-4 py-3 transition-transform"
+      {/* 알림 본문 — 로우 전체가 클릭 영역 */}
+      <button
+        type="button"
+        onClick={route ? handleNavigate : handleRead}
+        className="relative flex w-full items-center gap-3 bg-background px-4 py-3 text-left transition-transform active:bg-muted/50"
         style={{ transform: `translateX(${swipeX}px)` }}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
       >
-        {/* 미읽음 dot */}
-        <div className="flex w-3 shrink-0 items-center justify-center">
-          {!isRead && <span className="size-2 rounded-full bg-destructive" />}
+        {/* 아이콘 + 미읽음 dot */}
+        <div className="relative flex shrink-0 items-center justify-center">
+          <Icon className={cn("size-5", isRead ? "text-muted-foreground" : "text-foreground")} />
+          {!isRead && (
+            <span className="absolute -right-1 -top-1 size-2 rounded-full bg-destructive" />
+          )}
         </div>
 
-        {/* 아이콘 */}
-        <Icon className={cn("size-5 shrink-0", isRead ? "text-muted-foreground" : "text-foreground")} />
-
         {/* 내용 */}
-        <button
-          type="button"
-          onClick={handleRead}
-          className="flex min-w-0 flex-1 flex-col gap-0.5 text-left"
-        >
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <Body className={cn("text-[13px] leading-snug", isRead && "text-muted-foreground")}>
             {noti.noti_nm}
           </Body>
@@ -153,20 +151,8 @@ export function NotificationItem({ noti, onDelete, onRead, onClose }: Notificati
             <Caption className="line-clamp-1">{noti.noti_cont}</Caption>
           )}
           <Caption className="text-[11px]">{formatRelative(noti.crt_at)}</Caption>
-        </button>
-
-        {/* 이동 버튼 */}
-        {route && (
-          <button
-            type="button"
-            onClick={handleNavigate}
-            className="flex shrink-0 items-center justify-center rounded-md bg-secondary p-2 text-muted-foreground active:bg-muted"
-            aria-label="이동"
-          >
-            <ChevronRight className="size-4" />
-          </button>
-        )}
-      </div>
+        </div>
+      </button>
     </div>
   );
 }
