@@ -144,21 +144,18 @@ export function MiniCalendar({
       // short_id로 먼저 조회, 없으면 UUID fallback (기존 알림 호환)
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deepLinkPostId)
       const query = isUuid
-        ? supabase.from("sch_post_mst").select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by").eq("sch_post_id", deepLinkPostId).maybeSingle()
-        : supabase.from("sch_post_mst").select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by").eq("short_id", deepLinkPostId).maybeSingle()
+        ? supabase.from("sch_post_mst").select("sch_post_id, short_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by").eq("sch_post_id", deepLinkPostId).maybeSingle()
+        : supabase.from("sch_post_mst").select("sch_post_id, short_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by").eq("short_id", deepLinkPostId).maybeSingle()
 
-      Promise.all([
-        query,
-        memberId ? fetchComments("sch_post", deepLinkPostId) : Promise.resolve(undefined),
-      ]).then(([{ data }, commentsResult]) => {
+      query.then(({ data }) => {
         if (!data) return
-        // short_id 기반이면 실제 UUID로 댓글 재조회 필요
-        const commentPromise = isUuid
-          ? Promise.resolve(commentsResult)
-          : memberId ? fetchComments("sch_post", data.sch_post_id) : Promise.resolve(undefined)
+        const commentPromise = memberId
+          ? fetchComments("sch_post", data.sch_post_id)
+          : Promise.resolve(undefined)
         commentPromise.then((finalComments) => {
           setSchDetailPost({
             id: data.sch_post_id,
+            short_id: data.short_id ?? null,
             title: data.sch_nm,
             start_date: data.evt_stt_at ? dayjs(data.evt_stt_at).format("YYYY-MM-DD") : dayjs().format("YYYY-MM-DD"),
             type: "schedule",
