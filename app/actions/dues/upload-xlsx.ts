@@ -1,6 +1,7 @@
 "use server";
 
 import crypto from "crypto";
+
 import { verifyAdmin } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -173,7 +174,11 @@ export async function uploadXlsx(formData: FormData) {
       del_yn: false,
     });
 
-    if (error?.code === "23505") skipped++; // unique conflict
+    if (error?.code === "23505") {
+      skipped++;
+    } else if (error) {
+      console.error("[uploadXlsx] 거래 INSERT 실패:", error.code, error.message, row);
+    }
   }
 
   return {

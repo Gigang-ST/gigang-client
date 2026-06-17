@@ -20,7 +20,6 @@ export async function rollbackXlsx(updId: string) {
     .maybeSingle();
 
   if (!upd) return { ok: false as const, message: "업로드 이력을 찾을 수 없습니다." };
-  if (upd.upd_st_cd === "rolled_back") return { ok: false as const, message: "이미 롤백된 업로드입니다." };
 
   // 확정된 거래 있는지 확인
   const { count } = await db
