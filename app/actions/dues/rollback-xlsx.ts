@@ -41,10 +41,10 @@ export async function rollbackXlsx(updId: string) {
     .eq("upd_id", updId)
     .eq("is_cfm_yn", false);
 
-  // 업로드 상태 rolled_back
+  // 업로드 상태 rolled_back + del_yn=true (재업로드 허용을 위해 vers=0 해제)
   await db
     .from("fee_xlsx_upd_hist")
-    .update({ upd_st_cd: "rolled_back" })
+    .update({ upd_st_cd: "rolled_back", del_yn: true })
     .eq("upd_id", updId);
 
   return { ok: true as const, message: null };

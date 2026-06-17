@@ -46,13 +46,14 @@ export async function uploadXlsx(formData: FormData) {
   const buffer = Buffer.from(await file.arrayBuffer());
   const fileHash = crypto.createHash("sha256").update(buffer).digest("hex");
 
-  // 중복 파일 체크
+  // 중복 파일 체크 (rolled_back 제외 — 롤백 후 재업로드 허용)
   const { data: existing } = await db
     .from("fee_xlsx_upd_hist")
     .select("upd_id")
     .eq("team_id", teamId)
     .eq("file_hash", fileHash)
     .eq("vers", 0)
+    .neq("upd_st_cd", "rolled_back")
     .maybeSingle();
 
   if (existing) return { ok: false as const, message: "이미 처리된 파일입니다." };
@@ -61,9 +62,7 @@ export async function uploadXlsx(formData: FormData) {
   let rows: ParsedRow[];
   try {
     const XLSX = await import("xlsx");
-    const password = process.env.KAKAOBANK_XLSX_PASSWORD;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const wb = XLSX.read(buffer, { type: "buffer", password } as any);
+    const wb = XLSX.read(buffer, { type: "buffer" });
     const ws = wb.Sheets[wb.SheetNames[0]];
     // 9행: 빈행, 10행: 헤더, 11행~: 데이터 (0-indexed range:9 → raw[0]=빈행, raw[1]=헤더)
     const raw: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, range: 9 });
