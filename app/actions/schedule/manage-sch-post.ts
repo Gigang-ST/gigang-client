@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 
 import { dayjs } from "@/lib/dayjs";
-import { getCurrentMember } from "@/lib/queries/member";
+import { getCurrentMember, verifyAdmin } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 import { createSchPostSchema, updateSchPostSchema } from "@/lib/validations/schedule";
@@ -35,7 +35,7 @@ export async function createSchPost(input: {
       team_id: parsed.team_id,
       sch_nm: parsed.sch_nm,
       post_type: parsed.post_type ?? "general",
-      evt_stt_at: toUtcIso(parsed.evt_stt_at) ?? parsed.evt_stt_at,
+      evt_stt_at: toUtcIso(parsed.evt_stt_at)!,
       evt_end_at: toUtcIso(parsed.evt_end_at),
       url: parsed.url || null,
       cont_txt: parsed.cont_txt ?? null,
@@ -119,7 +119,7 @@ export async function updateSchPost(input: {
     .from("sch_post_mst")
     .update({
       ...fields,
-      evt_stt_at: fields.evt_stt_at ? (toUtcIso(fields.evt_stt_at) ?? fields.evt_stt_at) : undefined,
+      evt_stt_at: fields.evt_stt_at ? toUtcIso(fields.evt_stt_at)! : undefined,
       evt_end_at: fields.evt_end_at !== undefined ? toUtcIso(fields.evt_end_at) : undefined,
       url: fields.url || null,
       upd_at: dayjs().toISOString(),
@@ -146,17 +146,8 @@ export async function deleteSchPost(sch_post_id: string) {
   // 작성자 또는 운영진(owner/admin) 확인
   const isAuthor = post.crt_by === member.id;
   if (!isAuthor) {
-    const { data: rel } = await supabase
-      .from("team_mem_rel")
-      .select("team_role_cd")
-      .eq("team_id", post.team_id)
-      .eq("mem_id", member.id)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .single();
-    if (rel?.team_role_cd !== "owner" && rel?.team_role_cd !== "admin") {
-      throw new Error("삭제 권한이 없습니다.");
-    }
+    const adminResult = await verifyAdmin();
+    if (!adminResult) throw new Error("삭제 권한이 없습니다.");
   }
 
   // admin client로 del_yn=true (WITH CHECK RLS 우회)
