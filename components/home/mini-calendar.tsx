@@ -36,6 +36,7 @@ import { SchPostFormDialog } from "@/components/schedule/sch-post-form-dialog";
 
 export type CalendarRace = {
   id: string;
+  short_id?: string | null;
   title: string;
   start_date: string;
   type: "gigang" | "mine" | "schedule";
@@ -140,59 +141,73 @@ export function MiniCalendar({
 
   useEffect(() => {
     if (deepLinkPostId) {
+      // short_id로 먼저 조회, 없으면 UUID fallback (기존 알림 호환)
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deepLinkPostId)
+      const query = isUuid
+        ? supabase.from("sch_post_mst").select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by").eq("sch_post_id", deepLinkPostId).maybeSingle()
+        : supabase.from("sch_post_mst").select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by").eq("short_id", deepLinkPostId).maybeSingle()
+
       Promise.all([
-        supabase
-          .from("sch_post_mst")
-          .select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
-          .eq("sch_post_id", deepLinkPostId)
-          .maybeSingle(),
+        query,
         memberId ? fetchComments("sch_post", deepLinkPostId) : Promise.resolve(undefined),
-      ]).then(([{ data }, comments]) => {
+      ]).then(([{ data }, commentsResult]) => {
         if (!data) return
-        setSchDetailPost({
-          id: data.sch_post_id,
-          title: data.sch_nm,
-          start_date: data.evt_stt_at ? dayjs(data.evt_stt_at).format("YYYY-MM-DD") : dayjs().format("YYYY-MM-DD"),
-          type: "schedule",
-          url: data.url ?? null,
-          cont_txt: data.cont_txt ?? null,
-          crt_by: data.crt_by ?? undefined,
-          post_type: data.post_type ?? null,
-          evt_stt_at: data.evt_stt_at ?? null,
-          evt_end_at: data.evt_end_at ?? null,
+        // short_id 기반이면 실제 UUID로 댓글 재조회 필요
+        const commentPromise = isUuid
+          ? Promise.resolve(commentsResult)
+          : memberId ? fetchComments("sch_post", data.sch_post_id) : Promise.resolve(undefined)
+        commentPromise.then((finalComments) => {
+          setSchDetailPost({
+            id: data.sch_post_id,
+            title: data.sch_nm,
+            start_date: data.evt_stt_at ? dayjs(data.evt_stt_at).format("YYYY-MM-DD") : dayjs().format("YYYY-MM-DD"),
+            type: "schedule",
+            url: data.url ?? null,
+            cont_txt: data.cont_txt ?? null,
+            crt_by: data.crt_by ?? undefined,
+            post_type: data.post_type ?? null,
+            evt_stt_at: data.evt_stt_at ?? null,
+            evt_end_at: data.evt_end_at ?? null,
+          })
+          setSchDetailInitialComments(finalComments)
+          setSchDetailOpen(true)
+          router.replace("/")
         })
-        setSchDetailInitialComments(comments)
-        setSchDetailOpen(true)
-        router.replace("/")
       })
     }
 
     if (deepLinkCompId) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deepLinkCompId)
+      const query = isUuid
+        ? supabase.from("comp_mst").select("comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)").eq("comp_id", deepLinkCompId).maybeSingle()
+        : supabase.from("comp_mst").select("comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)").eq("short_id", deepLinkCompId).maybeSingle()
+
       Promise.all([
-        supabase
-          .from("comp_mst")
-          .select("comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)")
-          .eq("comp_id", deepLinkCompId)
-          .single(),
+        query,
         memberId ? fetchComments("comp", deepLinkCompId) : Promise.resolve(undefined),
-      ]).then(([{ data }, comments]) => {
+      ]).then(([{ data }, commentsResult]) => {
         if (!data) return
-        setSelectedCompetition({
-          id: data.comp_id,
-          external_id: "",
-          sport: data.comp_sprt_cd ?? null,
-          title: data.comp_nm,
-          start_date: data.stt_dt,
-          end_date: data.end_dt ?? null,
-          location: data.loc_nm ?? null,
-          event_types: (data.comp_evt_cfg as { comp_evt_type: string | null }[])
-            .map((e) => e.comp_evt_type?.toUpperCase())
-            .filter((e): e is string => Boolean(e)),
-          source_url: data.src_url ?? null,
+        const commentPromise = isUuid
+          ? Promise.resolve(commentsResult)
+          : memberId ? fetchComments("comp", data.comp_id) : Promise.resolve(undefined)
+        commentPromise.then((finalComments) => {
+          setSelectedCompetition({
+            id: data.comp_id,
+            external_id: "",
+            sport: data.comp_sprt_cd ?? null,
+            title: data.comp_nm,
+            start_date: data.stt_dt,
+            end_date: data.end_dt ?? null,
+            location: data.loc_nm ?? null,
+            event_types: (data.comp_evt_cfg as { comp_evt_type: string | null }[])
+              .map((e) => e.comp_evt_type?.toUpperCase())
+              .filter((e): e is string => Boolean(e)),
+            source_url: data.src_url ?? null,
+          })
+          setCompDetailInitialComments(finalComments)
+          setDetailOpen(true)
+          router.replace("/")
         })
-        setCompDetailInitialComments(comments)
-        setDetailOpen(true)
-        router.replace("/")
       })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -497,6 +512,7 @@ export function MiniCalendar({
 
     const newSchPosts: CalendarRace[] = (schPostRows ?? []).map((row) => ({
       id: row.sch_post_id,
+      short_id: row.short_id ?? null,
       title: row.sch_nm,
       start_date: dayjs(row.evt_stt_at).tz("Asia/Seoul").format("YYYY-MM-DD"),
       type: "schedule" as const,

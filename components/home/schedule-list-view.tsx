@@ -109,6 +109,7 @@ async function fetchMonth(
     seen.add(key);
     results.push({
       id: row.sch_post_id,
+      short_id: row.short_id ?? null,
       title: row.sch_nm,
       start_date: dayjs(row.evt_stt_at).tz("Asia/Seoul").format("YYYY-MM-DD"),
       type: "schedule",
@@ -260,9 +261,25 @@ export function ScheduleListView({
   const supabase = createClient();
   const today = todayKST();
 
-  const [months, setMonths] = useState<MonthData[]>([
-    { monthKey: initialMonthKey, races: [...initialRaces].sort((a, b) => a.start_date.localeCompare(b.start_date)) },
-  ]);
+  const [months, setMonths] = useState<MonthData[]>(() => {
+    // start_date의 실제 월(YYYY-MM)로 분류 — 월 경계에 걸친 일정을 올바른 월에 배치
+    const buckets = new Map<string, CalendarRace[]>();
+    for (const race of initialRaces) {
+      const key = race.start_date.slice(0, 7); // "YYYY-MM"
+      const list = buckets.get(key) ?? [];
+      list.push(race);
+      buckets.set(key, list);
+    }
+    if (buckets.size === 0) {
+      return [{ monthKey: initialMonthKey, races: [] }];
+    }
+    return Array.from(buckets.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, races]) => ({
+        monthKey: key,
+        races: [...races].sort((a, b) => a.start_date.localeCompare(b.start_date)),
+      }));
+  });
   const [loadingPrev, setLoadingPrev] = useState(false);
   const [loadingNext, setLoadingNext] = useState(false);
   const [canLoadPrev, setCanLoadPrev] = useState(true);

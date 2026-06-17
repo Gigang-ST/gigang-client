@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { Check, Copy, Link, MessageCircle } from "lucide-react";
+import { Check, Copy, Share2 } from "lucide-react";
 
 import {
   ResponsiveDrawer,
@@ -31,7 +31,6 @@ export function ShareSheet({
   contentSnippet,
   pageUrl,
 }: ShareSheetProps) {
-  const [copiedLink, setCopiedLink] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
 
   function getUrl() {
@@ -39,16 +38,10 @@ export function ShareSheet({
   }
 
   function buildText() {
-    const lines = [`📌 ${title}`, `🕐 ${timeLabel}`];
-    if (contentSnippet) lines.push("", contentSnippet.slice(0, 80) + (contentSnippet.length > 80 ? "…" : ""));
+    const lines = [title, timeLabel];
+    if (contentSnippet) lines.push("", contentSnippet.slice(0, 100) + (contentSnippet.length > 100 ? ".." : ""));
     lines.push("", getUrl());
     return lines.join("\n");
-  }
-
-  async function handleCopyLink() {
-    await navigator.clipboard.writeText(getUrl());
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 1500);
   }
 
   async function handleCopyText() {
@@ -57,11 +50,8 @@ export function ShareSheet({
     setTimeout(() => setCopiedText(false), 1500);
   }
 
-  function handleKakao() {
-    const text = buildText();
-    // 카카오톡 앱 URL 스킴으로 공유 텍스트 전달 (모바일)
-    const kakaoUrl = `kakaotalk://send?text=${encodeURIComponent(text)}`;
-    window.location.href = kakaoUrl;
+  async function handleNativeShare() {
+    await navigator.share({ title, url: getUrl() });
   }
 
   return (
@@ -78,20 +68,6 @@ export function ShareSheet({
         <div className="flex flex-col gap-2 p-4">
           <button
             type="button"
-            onClick={handleCopyLink}
-            className="flex items-center gap-3 rounded-xl border border-border px-4 py-3 text-left transition-colors active:bg-muted"
-          >
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary">
-              {copiedLink ? <Check className="size-4 text-success" /> : <Link className="size-4" />}
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[14px] font-medium">링크 복사</span>
-              <span className="text-[12px] text-muted-foreground">이 게시물 주소를 복사</span>
-            </div>
-          </button>
-
-          <button
-            type="button"
             onClick={handleCopyText}
             className="flex items-center gap-3 rounded-xl border border-border px-4 py-3 text-left transition-colors active:bg-muted"
           >
@@ -106,15 +82,15 @@ export function ShareSheet({
 
           <button
             type="button"
-            onClick={handleKakao}
+            onClick={handleNativeShare}
             className="flex items-center gap-3 rounded-xl border border-border px-4 py-3 text-left transition-colors active:bg-muted"
           >
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#FEE500]">
-              <MessageCircle className="size-4 text-[#3C1E1E]" />
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary">
+              <Share2 className="size-4" />
             </div>
             <div className="flex flex-col">
-              <span className="text-[14px] font-medium">카카오톡으로 공유</span>
-              <span className="text-[12px] text-muted-foreground">카카오톡 앱으로 바로 전송</span>
+              <span className="text-[14px] font-medium">다른 앱으로 공유</span>
+              <span className="text-[12px] text-muted-foreground">카카오톡, 문자 등으로 공유</span>
             </div>
           </button>
         </div>
