@@ -61,7 +61,7 @@ export function AddScheduleDropdown({ onAddSchedule, onAddCompetition }: Props) 
   }
 
   return (
-    <div ref={containerRef} className="fixed bottom-24 right-6 z-50 flex flex-col items-end gap-2">
+    <div ref={containerRef} className={cn("fixed bottom-24 right-6 z-50 flex flex-col items-end gap-2", !open && "pointer-events-none")}>
       {/* Speed dial 카드 */}
       <div
         className={cn(
@@ -97,7 +97,7 @@ export function AddScheduleDropdown({ onAddSchedule, onAddCompetition }: Props) 
       {/* FAB */}
       <button
         className={cn(
-          "flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-all duration-200 active:scale-95",
+          "pointer-events-auto flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-all duration-200 active:scale-95",
           open && "rotate-45",
         )}
         aria-label="일정 추가"

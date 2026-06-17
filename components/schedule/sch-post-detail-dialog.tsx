@@ -1,21 +1,20 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
 import { ExternalLink, Pencil, Trash2 } from "lucide-react"
 
 import { dayjs } from "@/lib/dayjs"
 
-import { getCommentData } from "@/app/actions/comment/get-comment-data"
 import { deleteSchPost } from "@/app/actions/schedule/manage-sch-post"
 
-import type { CmntRow } from "@/components/comment/comment-item"
-import { CommentSection } from "@/components/comment/comment-section"
 import type { MemberOption } from "@/components/comment/mention-input"
+import { CommentSection } from "@/components/comment/comment-section"
 import {
   ResponsiveDrawer,
   ResponsiveDrawerClose,
   ResponsiveDrawerContent,
+  ResponsiveDrawerDescription,
   ResponsiveDrawerHeader,
   ResponsiveDrawerTitle,
 } from "@/components/common/responsive-drawer"
@@ -26,8 +25,10 @@ interface SchPostDetailDialogProps {
   post: CalendarRace | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  teamId: string
   currentMemberId?: string
   isAdmin?: boolean
+  members: MemberOption[]
   onEdit?: () => void
   onDelete?: () => void
 }
@@ -36,35 +37,14 @@ export function SchPostDetailDialog({
   post,
   open,
   onOpenChange,
+  teamId,
   currentMemberId,
   isAdmin,
+  members,
   onEdit,
   onDelete,
 }: SchPostDetailDialogProps) {
-  const [comments, setComments] = useState<CmntRow[]>([])
-  const [members, setMembers] = useState<MemberOption[]>([])
-  const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
-
-  useEffect(() => {
-    if (!open || !post) return
-    let cancelled = false
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLoading(true)
-    getCommentData("sch_post", post.id)
-      .then(({ comments, members }) => {
-        if (cancelled) return
-        setComments(comments)
-        setMembers(members)
-      })
-      .catch((err) => {
-        if (!cancelled) console.error("[SchPostDetailDialog] getCommentData failed:", err)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => { cancelled = true }
-  }, [open, post?.id])
 
   async function handleDelete() {
     if (!post) return
@@ -93,6 +73,7 @@ export function SchPostDetailDialog({
       >
         <ResponsiveDrawerHeader className="shrink-0 border-b border-border px-4 py-4 text-left">
           <ResponsiveDrawerTitle>{post.title}</ResponsiveDrawerTitle>
+          <ResponsiveDrawerDescription className="sr-only">일정 상세 정보</ResponsiveDrawerDescription>
         </ResponsiveDrawerHeader>
 
         <div className="flex-1 overflow-y-auto px-4 pb-6 pt-4">
@@ -143,18 +124,14 @@ export function SchPostDetailDialog({
             )}
 
             <div className="border-t border-border pt-4">
-              {loading ? (
-                <p className="text-sm text-muted-foreground">댓글 불러오는 중...</p>
-              ) : (
-                <CommentSection
-                  entityType="sch_post"
-                  entityId={post.id}
-                  currentMemberId={currentMemberId}
-                  isAdmin={isAdmin}
-                  members={members}
-                  initialComments={comments}
-                />
-              )}
+              <CommentSection
+                entityType="sch_post"
+                entityId={post.id}
+                teamId={teamId}
+                currentMemberId={currentMemberId}
+                isAdmin={isAdmin}
+                members={members}
+              />
             </div>
 
             <div className="mt-4 flex justify-center">

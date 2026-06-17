@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -15,10 +15,12 @@ import { cn } from "@/lib/utils";
 import { schPostTypeInlineLabel } from "@/lib/validations/schedule";
 import type { SchPostType } from "@/lib/validations/schedule";
 
+import { getMentionMembers } from "@/app/actions/comment/get-mention-members";
 import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-create-comp-evt-for-participation";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
 
 
+import type { MemberOption } from "@/components/comment/mention-input";
 import { Micro, SectionLabel } from "@/components/common/typography";
 import { AddScheduleDropdown } from "@/components/home/add-schedule-dropdown";
 import { CompetitionPickerDialog } from "@/components/home/competition-picker-dialog";
@@ -111,6 +113,21 @@ export function MiniCalendar({
     useState<Record<string, CompetitionRegistration>>(initialRegistrationsByCompetitionId);
 
   const memberStatus = initialMemberStatus;
+
+  // 멤버 목록 캐시 — 첫 다이얼로그 열릴 때 1회 조회 후 재사용
+  const [membersCache, setMembersCache] = useState<MemberOption[] | null>(null)
+  const membersFetchingRef = useRef(false)
+
+  useEffect(() => {
+    if (memberStatus.status !== "ready") return
+    if (membersCache !== null || membersFetchingRef.current) return
+    const isAnyDialogOpen = schDetailOpen || detailOpen
+    if (!isAnyDialogOpen) return
+    membersFetchingRef.current = true
+    getMentionMembers()
+      .then(setMembersCache)
+      .catch(() => { membersFetchingRef.current = false })
+  }, [schDetailOpen, detailOpen, membersCache, memberStatus.status])
 
   // 알림 딥링크: /?post=<id> 또는 /?comp=<id>로 진입 시 해당 상세 자동 오픈
   const searchParams = useSearchParams()
@@ -722,8 +739,10 @@ export function MiniCalendar({
         post={schDetailPost}
         open={schDetailOpen}
         onOpenChange={setSchDetailOpen}
+        teamId={teamId}
         currentMemberId={memberStatus.status === "ready" ? memberStatus.memberId : undefined}
         isAdmin={memberStatus.status === "ready" ? memberStatus.admin : false}
+        members={membersCache ?? []}
         onEdit={() => {
           if (!schDetailPost) return;
           setSchDetailOpen(false);
@@ -766,6 +785,7 @@ export function MiniCalendar({
         competition={selectedCompetition}
         registration={selectedCompetition ? registrationsByCompetitionId[selectedCompetition.id] : undefined}
         memberStatus={memberStatus}
+        members={membersCache ?? []}
         open={detailOpen}
         onOpenChange={setDetailOpen}
         onCreate={createRegistration}

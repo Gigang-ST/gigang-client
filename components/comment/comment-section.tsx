@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 
+import Link from "next/link"
+
 import { createClient } from "@/lib/supabase/client"
 
 import { createComment } from "@/app/actions/comment/manage-comment"
@@ -15,10 +17,10 @@ import { MentionInput, parseMentionsFromText, type MemberOption } from "./mentio
 interface CommentSectionProps {
   entityType: "sch_post" | "comp" | "gathering"
   entityId: string
+  teamId: string
   currentMemberId?: string
   isAdmin?: boolean
   members: MemberOption[]
-  initialComments: CmntRow[]
 }
 
 type CommentWithReplies = CmntRow & { replies: CmntRow[] }
@@ -41,24 +43,61 @@ function buildTree(flat: CmntRow[]): CommentWithReplies[] {
 export function CommentSection({
   entityType,
   entityId,
+  teamId,
   currentMemberId,
   isAdmin,
   members,
-  initialComments,
 }: CommentSectionProps) {
-  const [comments, setComments] = useState<CmntRow[]>(initialComments)
+  const [comments, setComments] = useState<CmntRow[]>([])
+  const [loadingComments, setLoadingComments] = useState(!!currentMemberId)
   const [newText, setNewText] = useState("")
   const [replyTo, setReplyTo] = useState<CmntRow | null>(null)
   const [replyText, setReplyText] = useState("")
   const [loading, setLoading] = useState(false)
 
-  // 렌더마다 재생성 방지 — 재생성 시 useEffect deps 변경으로 매 렌더마다 채널 재구독됨
   const supabase = useMemo(() => createClient(), [])
-  // members가 바뀌어도 채널을 재구독하지 않도록 ref로 최신값 유지
   const membersRef = useRef(members)
   useEffect(() => { membersRef.current = members }, [members])
 
+  // 댓글 클라이언트 직접 조회
   useEffect(() => {
+    if (!currentMemberId) return
+    let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoadingComments(true)
+    supabase
+      .from("cmnt_mst")
+      .select("cmnt_id, prnt_id, mem_id, cont_txt, edit_yn, del_yn, crt_at, upd_at, mem_mst!cmnt_mst_mem_id_fkey(mem_nm, avatar_url)")
+      .eq("entity_type", entityType)
+      .eq("entity_id", entityId)
+      .eq("team_id", teamId)
+      .order("crt_at", { ascending: true })
+      .then(({ data }) => {
+        if (cancelled) return
+        const rows: CmntRow[] = (data ?? []).map((row) => {
+          const mem = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst
+          return {
+            cmnt_id: row.cmnt_id,
+            prnt_id: row.prnt_id,
+            mem_id: row.mem_id,
+            mem_nm: (mem as { mem_nm: string })?.mem_nm ?? "멤버",
+            avatar_url: (mem as { avatar_url?: string | null })?.avatar_url ?? null,
+            cont_txt: row.cont_txt,
+            edit_yn: row.edit_yn,
+            del_yn: row.del_yn,
+            crt_at: row.crt_at,
+            upd_at: row.upd_at,
+          }
+        })
+        setComments(rows)
+        setLoadingComments(false)
+      })
+    return () => { cancelled = true }
+  }, [entityType, entityId, teamId, currentMemberId, supabase])
+
+  // 실시간 구독
+  useEffect(() => {
+    if (!currentMemberId) return
     const channel = supabase
       .channel(`cmnt:${entityType}:${entityId}`)
       .on(
@@ -70,6 +109,9 @@ export function CommentSection({
           filter: `entity_id=eq.${entityId}`,
         },
         (payload) => {
+          const row = payload.new as Record<string, unknown>
+          // entity_type, team_id 추가 검증 — 동일 entity_id를 공유하는 다른 팀/타입 댓글 혼입 방지
+          if (row.entity_type !== entityType || row.team_id !== teamId) return
           if (payload.eventType === "INSERT") {
             const incoming = payload.new as CmntRow
             setComments((prev) => {
@@ -93,7 +135,7 @@ export function CommentSection({
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [entityType, entityId, supabase])
+  }, [entityType, entityId, currentMemberId, supabase])
 
   const handleSubmitComment = async () => {
     if (!newText.trim() || !currentMemberId) return
@@ -168,14 +210,45 @@ export function CommentSection({
   const visibleCount = useMemo(() => comments.filter((c) => !c.del_yn).length, [comments])
   const tree = useMemo(() => buildTree(comments), [comments])
 
+  // 비회원 블러 처리
+  if (!currentMemberId) {
+    return (
+      <div className="flex flex-col gap-3">
+        <SectionLabel>COMMENTS</SectionLabel>
+        <div className="relative">
+          <div className="pointer-events-none select-none blur-sm">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="flex gap-2 py-2">
+                <div className="size-7 shrink-0 rounded-full bg-muted" />
+                <div className="flex flex-1 flex-col gap-1.5 pt-0.5">
+                  <div className="h-2.5 w-16 rounded bg-muted" />
+                  <div className="h-2.5 w-full rounded bg-muted" />
+                  <div className="h-2.5 w-2/3 rounded bg-muted" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+            <p className="text-xs text-muted-foreground">로그인하면 댓글을 볼 수 있어요</p>
+            <Button asChild size="sm">
+              <Link href="/auth/login">로그인</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <SectionLabel>
         {`COMMENTS${visibleCount > 0 ? ` · ${visibleCount}` : ""}`}
       </SectionLabel>
 
-      {tree.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-2">아직 댓글이 없습니다.</p>
+      {loadingComments ? (
+        <p className="py-2 text-sm text-muted-foreground">댓글 불러오는 중...</p>
+      ) : tree.length === 0 ? (
+        <p className="py-2 text-sm text-muted-foreground">아직 댓글이 없습니다.</p>
       ) : (
         <div className="flex flex-col divide-y divide-border">
           {tree.map((cmnt) => (
@@ -233,25 +306,23 @@ export function CommentSection({
         </div>
       )}
 
-      {currentMemberId && (
-        <div className="flex flex-col gap-2 pt-1">
-          <MentionInput
-            value={newText}
-            onChange={setNewText}
-            members={members}
-            placeholder="댓글을 입력하세요..."
-            rows={2}
-          />
-          <Button
-            size="sm"
-            onClick={handleSubmitComment}
-            disabled={loading || !newText.trim()}
-            className="self-end"
-          >
-            댓글 달기
-          </Button>
-        </div>
-      )}
+      <div className="flex flex-col gap-2 pt-1">
+        <MentionInput
+          value={newText}
+          onChange={setNewText}
+          members={members}
+          placeholder="댓글을 입력하세요..."
+          rows={2}
+        />
+        <Button
+          size="sm"
+          onClick={handleSubmitComment}
+          disabled={loading || !newText.trim()}
+          className="self-end"
+        >
+          댓글 달기
+        </Button>
+      </div>
     </div>
   )
 }
