@@ -147,15 +147,11 @@ export function MiniCalendar({
         ? supabase.from("sch_post_mst").select("sch_post_id, short_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by").eq("sch_post_id", deepLinkPostId).maybeSingle()
         : supabase.from("sch_post_mst").select("sch_post_id, short_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by").eq("short_id", deepLinkPostId).maybeSingle()
 
-      Promise.all([
-        query,
-        memberId ? fetchComments("sch_post", deepLinkPostId) : Promise.resolve(undefined),
-      ]).then(([{ data }, commentsResult]) => {
+      query.then(({ data }) => {
         if (!data) return
-        // short_id 기반이면 실제 UUID로 댓글 재조회 필요
-        const commentPromise = isUuid
-          ? Promise.resolve(commentsResult)
-          : memberId ? fetchComments("sch_post", data.sch_post_id) : Promise.resolve(undefined)
+        const commentPromise = memberId
+          ? fetchComments("sch_post", data.sch_post_id)
+          : Promise.resolve(undefined)
         commentPromise.then((finalComments) => {
           setSchDetailPost({
             id: data.sch_post_id,

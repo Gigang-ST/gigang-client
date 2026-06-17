@@ -51,6 +51,10 @@ export function ShareSheet({
   }
 
   async function handleNativeShare() {
+    if (!navigator.share) {
+      await handleCopyText();
+      return;
+    }
     const text = contentSnippet
       ? contentSnippet.slice(0, 80) + (contentSnippet.length > 80 ? "..." : "")
       : undefined;
