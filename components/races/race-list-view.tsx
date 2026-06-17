@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 
-import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { analytics } from "@/lib/analytics";
+import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import {
 	fetchMemMstWithTeamRel,
 	mapMstRelToAppMemberProfile,
@@ -22,10 +22,10 @@ import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-creat
 import { getPastGigangCompetitions } from "@/app/actions/get-past-gigang-competitions";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
 
+import type { MemberOption } from "@/components/comment/mention-input";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 
-import type { MemberOption } from "@/components/comment/mention-input";
 import { CompetitionDetailDialog } from "./competition-detail-dialog";
 import { CompetitionRegisterDialog } from "./competition-register-dialog";
 
@@ -95,7 +95,9 @@ export function RaceListView({
 		if (membersCache !== null || membersFetchingRef.current) return;
 		if (!detailOpen) return;
 		membersFetchingRef.current = true;
-		getMentionMembers().then(setMembersCache);
+		getMentionMembers()
+			.then(setMembersCache)
+			.catch(() => { membersFetchingRef.current = false; });
 	}, [detailOpen, membersCache, memberStatus.status]);
 	const [localAllCompetitions, setLocalAllCompetitions] =
 		useState<Competition[]>(allCompetitions);

@@ -109,6 +109,9 @@ export function CommentSection({
           filter: `entity_id=eq.${entityId}`,
         },
         (payload) => {
+          const row = payload.new as Record<string, unknown>
+          // entity_type, team_id 추가 검증 — 동일 entity_id를 공유하는 다른 팀/타입 댓글 혼입 방지
+          if (row.entity_type !== entityType || row.team_id !== teamId) return
           if (payload.eventType === "INSERT") {
             const incoming = payload.new as CmntRow
             setComments((prev) => {

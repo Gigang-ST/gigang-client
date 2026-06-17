@@ -1,21 +1,25 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
+
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
+import { formatDDay } from "@/lib/dayjs";
+import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
+import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
+
 import { getMentionMembers } from "@/app/actions/comment/get-mention-members";
 import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-create-comp-evt-for-participation";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
-import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
+
 import type { MemberOption } from "@/components/comment/mention-input";
-import { formatDDay } from "@/lib/dayjs";
-import { Micro, Caption } from "@/components/common/typography";
-import { SectionHeader } from "@/components/common/section-header";
 import { EmptyState } from "@/components/common/empty-state";
+import { SectionHeader } from "@/components/common/section-header";
+import { Micro, Caption } from "@/components/common/typography";
+import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
-import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
-import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
-import { cn } from "@/lib/utils";
+
 
 type UpcomingRace = {
   id: string;
@@ -58,7 +62,9 @@ export function UpcomingRaces({
     if (membersCache !== null || membersFetchingRef.current) return;
     if (!detailOpen) return;
     membersFetchingRef.current = true;
-    getMentionMembers().then(setMembersCache);
+    getMentionMembers()
+      .then(setMembersCache)
+      .catch(() => { membersFetchingRef.current = false; });
   }, [detailOpen, membersCache, memberStatus.status]);
 
   const createRegistration = async (

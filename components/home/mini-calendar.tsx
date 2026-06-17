@@ -20,11 +20,11 @@ import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-creat
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
 
 
+import type { MemberOption } from "@/components/comment/mention-input";
 import { Micro, SectionLabel } from "@/components/common/typography";
 import { AddScheduleDropdown } from "@/components/home/add-schedule-dropdown";
 import { CompetitionPickerDialog } from "@/components/home/competition-picker-dialog";
 import { ScheduleListView } from "@/components/home/schedule-list-view";
-import type { MemberOption } from "@/components/comment/mention-input";
 import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
 import { SchPostDetailDialog } from "@/components/schedule/sch-post-detail-dialog";
@@ -124,9 +124,9 @@ export function MiniCalendar({
     const isAnyDialogOpen = schDetailOpen || detailOpen
     if (!isAnyDialogOpen) return
     membersFetchingRef.current = true
-    getMentionMembers().then((members) => {
-      setMembersCache(members)
-    })
+    getMentionMembers()
+      .then(setMembersCache)
+      .catch(() => { membersFetchingRef.current = false })
   }, [schDetailOpen, detailOpen, membersCache, memberStatus.status])
 
   // 알림 딥링크: /?post=<id> 또는 /?comp=<id>로 진입 시 해당 상세 자동 오픈
