@@ -160,7 +160,7 @@ export function NotificationItem({ noti, onDelete, onRead, onClose }: Notificati
           <button
             type="button"
             onClick={handleNavigate}
-            className="shrink-0 text-muted-foreground"
+            className="flex shrink-0 items-center justify-center rounded-md bg-secondary p-2 text-muted-foreground active:bg-muted"
             aria-label="이동"
           >
             <ChevronRight className="size-4" />

@@ -94,7 +94,7 @@ export function MiniCalendar({
   // 일정 폼 다이얼로그 상태
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
-  const [formPostType, setFormPostType] = useState<SchPostType>("general");
+  const [formPostType, setFormPostType] = useState<SchPostType | undefined>(undefined);
   const [editTarget, setEditTarget] = useState<CalendarRace | null>(null);
 
   // 소식 상세 다이얼로그 상태 (일반 멤버용)
@@ -196,18 +196,28 @@ export function MiniCalendar({
   const totalDays = daysInMonth(year, month);
   const firstDayOfWeek = dayjs.tz(`${year}-${String(month).padStart(2, "0")}-01`, "Asia/Seoul").day();
 
-  // 날짜별 이벤트 목록 (mine 우선, schedule, gigang 순)
+  // 날짜별 이벤트 목록 (mine 우선, schedule, gigang 순) — 기간 이벤트는 모든 날짜에 전개
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarRace[]>();
     const allRaces = [...myRaces, ...schPosts, ...gigangRaces];
     const seen = new Set<string>();
     for (const race of allRaces) {
-      const key = `${race.start_date}:${race.id}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const list = map.get(race.start_date) ?? [];
-      list.push(race);
-      map.set(race.start_date, list);
+      const endDateStr = race.end_date
+        ? dayjs(race.end_date).tz("Asia/Seoul").format("YYYY-MM-DD")
+        : race.start_date;
+      let cur = dayjs(race.start_date).tz("Asia/Seoul");
+      const endDay = dayjs(endDateStr).tz("Asia/Seoul");
+      while (!cur.isAfter(endDay)) {
+        const dateStr = cur.format("YYYY-MM-DD");
+        const key = `${dateStr}:${race.id}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          const list = map.get(dateStr) ?? [];
+          list.push(race);
+          map.set(dateStr, list);
+        }
+        cur = cur.add(1, "day");
+      }
     }
     return map;
   }, [gigangRaces, myRaces, schPosts]);
@@ -225,6 +235,54 @@ export function MiniCalendar({
     return result;
   }, [firstDayOfWeek, totalDays]);
 
+  // 주차별 스패닝 이벤트 레인 계산
+  const weekEventLanes = useMemo(() => {
+    const allRaces = [...myRaces, ...schPosts, ...gigangRaces];
+    return weeks.map((week) => {
+      const colDates = week.map((day) =>
+        day !== null
+          ? `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+          : null
+      );
+      const validDates = colDates.filter((d): d is string => d !== null);
+      if (validDates.length === 0) return [];
+      const weekStart = validDates[0];
+      const weekEnd = validDates[validDates.length - 1];
+
+      const seen = new Set<string>();
+      const active = allRaces.filter((race) => {
+        if (seen.has(race.id)) return false;
+        seen.add(race.id);
+        const endStr = race.end_date ? dayjs(race.end_date).tz("Asia/Seoul").format("YYYY-MM-DD") : race.start_date;
+        return race.start_date <= weekEnd && endStr >= weekStart;
+      });
+
+      const positioned = active.map((race) => {
+        const endStr = race.end_date ? dayjs(race.end_date).tz("Asia/Seoul").format("YYYY-MM-DD") : race.start_date;
+        let colStart = colDates.findIndex((d) => d !== null && d >= race.start_date);
+        if (colStart === -1) colStart = colDates.findIndex((d) => d !== null) ?? 0;
+        let colEnd = colStart;
+        for (let i = colStart + 1; i < 7; i++) {
+          if (colDates[i] !== null && colDates[i]! <= endStr) colEnd = i;
+        }
+        return {
+          race,
+          colStart,
+          colSpan: colEnd - colStart + 1,
+          startsThisWeek: race.start_date >= weekStart,
+          endsThisWeek: endStr <= weekEnd,
+        };
+      });
+
+      const slotEnds: number[] = [];
+      return positioned.map((ep) => {
+        let slot = slotEnds.findIndex((e) => e < ep.colStart);
+        if (slot === -1) { slot = slotEnds.length; slotEnds.push(-1); }
+        slotEnds[slot] = ep.colStart + ep.colSpan - 1;
+        return { ...ep, slot };
+      });
+    });
+  }, [weeks, myRaces, schPosts, gigangRaces, year, month]);
 
   function formatCellDate(day: number): string {
     return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -426,7 +484,7 @@ export function MiniCalendar({
     });
   }
 
-  function openCreateForm(defaultDate?: string, postType: SchPostType = "general") {
+  function openCreateForm(defaultDate?: string, postType?: SchPostType) {
     setFormMode("create");
     setFormPostType(postType);
     setEditTarget(defaultDate ? { id: "", title: "", start_date: defaultDate, type: "schedule" } : null);
@@ -550,68 +608,103 @@ export function MiniCalendar({
               ))}
             </div>
 
-            {/* 바둑판 그리드 — 셀 고정 높이 */}
-            <div className="grid grid-cols-7">
-              {weeks.flat().map((day, idx) => {
-                if (day === null) {
-                  return <div key={`empty-${idx}`} className="h-15 border-t border-border/40" />;
-                }
-                const dateStr = formatCellDate(day);
-                const isToday = dateStr === today;
-                const isSelected = selectedDate === dateStr;
-                const colIndex = idx % 7;
-                const races = eventsByDate.get(dateStr) ?? [];
-
+            {/* 바둑판 그리드 — 주차별 스패닝 이벤트 바 */}
+            <div className="flex flex-col">
+              {weeks.map((week, weekIdx) => {
+                const lanes = weekEventLanes[weekIdx] ?? [];
+                const visibleLanes = lanes.filter((l) => l.slot < 3);
                 return (
-                  <button
-                    key={dateStr}
-                    onClick={() => setSelectedDate(dateStr)}
-                    className={cn(
-                      "flex h-15 flex-col gap-px overflow-hidden border-t border-border/40 px-0.5 pt-0.5 text-left transition-colors",
-                      isSelected && "bg-secondary/60",
-                    )}
-                    aria-pressed={isSelected}
-                  >
-                    {/* 날짜 숫자 + 초과 개수 */}
-                    <div className="flex items-center justify-center gap-0.5">
-                      <span
-                        className={cn(
-                          "flex size-6 items-center justify-center rounded-full text-[12px] font-medium",
-                          isToday && "bg-primary text-primary-foreground font-bold",
-                          !isToday && colIndex === 0 && "text-destructive",
-                          !isToday && colIndex === 6 && "text-primary",
-                          !isToday && colIndex !== 0 && colIndex !== 6 && "text-foreground",
-                        )}
-                      >
-                        {day}
-                      </span>
-                      {races.length > 3 && (
-                        <span className="text-[8px] font-medium text-muted-foreground leading-none">
-                          +{races.length - 3}
-                        </span>
-                      )}
+                  <div key={weekIdx} className="relative">
+                    {/* 전체 높이 클릭 오버레이 — 선택 배경 + 날짜 선택 */}
+                    <div className="pointer-events-none absolute inset-0 grid grid-cols-7">
+                      {week.map((day, colIdx) => {
+                        if (day === null) return <div key={`ol-${weekIdx}-${colIdx}`} />;
+                        const dateStr = formatCellDate(day);
+                        const isSelected = selectedDate === dateStr;
+                        return (
+                          <button
+                            key={`ol-${dateStr}`}
+                            onClick={() => setSelectedDate(dateStr)}
+                            className={cn(
+                              "pointer-events-auto h-full w-full transition-colors",
+                              isSelected && "bg-secondary/60",
+                            )}
+                            aria-label={`${day}일 선택`}
+                            aria-pressed={isSelected}
+                          />
+                        );
+                      })}
                     </div>
 
-                    {/* 이벤트 목록 — 최대 3개 */}
-                    <div className="flex flex-col gap-px">
-                      {races.slice(0, 3).map((race) => (
-                        <span
-                          key={race.id}
-                          className={cn(
-                            "w-full overflow-hidden rounded-sm px-0.5 text-left text-[7px] font-medium leading-[1.5]",
-                            race.type === "mine"
-                              ? "bg-success/20 text-success"
-                              : race.type === "schedule"
-                                ? "bg-info/15 text-info"
-                                : "bg-warning/15 text-warning",
-                          )}
-                          style={{ whiteSpace: "nowrap", textOverflow: "clip" }}
-                        >
-                          {race.title}
-                        </span>
-                      ))}
+                    {/* 날짜 숫자 행 (표시 전용) */}
+                    <div className="relative z-10 grid grid-cols-7" style={{ pointerEvents: "none" }}>
+                      {week.map((day, colIdx) => {
+                        if (day === null) {
+                          return <div key={`e-${weekIdx}-${colIdx}`} className="h-8 border-t border-border/40" />;
+                        }
+                        const dateStr = formatCellDate(day);
+                        const isToday = dateStr === today;
+                        const overflowCount = Math.max(0, (eventsByDate.get(dateStr)?.length ?? 0) - 3);
+                        return (
+                          <div
+                            key={`d-${dateStr}`}
+                            className="flex h-8 flex-col items-center border-t border-border/40 pt-0.5"
+                          >
+                            <div className="flex items-center gap-0.5">
+                              <span
+                                className={cn(
+                                  "flex size-6 items-center justify-center rounded-full text-[12px] font-medium",
+                                  isToday && "bg-primary text-primary-foreground font-bold",
+                                  !isToday && colIdx === 0 && "text-destructive",
+                                  !isToday && colIdx === 6 && "text-primary",
+                                  !isToday && colIdx !== 0 && colIdx !== 6 && "text-foreground",
+                                )}
+                              >
+                                {day}
+                              </span>
+                              {overflowCount > 0 && (
+                                <span className="text-[8px] font-medium leading-none text-muted-foreground">
+                                  +{overflowCount}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  </button>
+
+                    {/* 이벤트 바 행 — 멀티데이 CSS grid span (표시 전용) */}
+                    {visibleLanes.length > 0 ? (
+                      <div
+                        className="relative z-10 grid grid-cols-7 pb-1"
+                        style={{ gridAutoRows: "13px", rowGap: "1px", pointerEvents: "none" }}
+                      >
+                        {visibleLanes.map((lane) => (
+                          <div
+                            key={`${lane.race.id}-w${weekIdx}`}
+                            style={{
+                              gridColumn: `${lane.colStart + 1} / ${lane.colStart + lane.colSpan + 1}`,
+                              gridRow: lane.slot + 1,
+                            }}
+                            className={cn(
+                              "overflow-hidden px-0.5 text-[7px] font-medium leading-[13px]",
+                              lane.startsThisWeek ? "rounded-l-sm" : "",
+                              lane.endsThisWeek ? "rounded-r-sm" : "",
+                              lane.race.type === "mine"
+                                ? "bg-success/20 text-success"
+                                : lane.race.type === "schedule"
+                                  ? "bg-info/15 text-info"
+                                  : "bg-warning/15 text-warning",
+                            )}
+                          >
+                            {lane.startsThisWeek ? lane.race.title : ""}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="relative z-10 h-2" />
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -666,7 +759,19 @@ export function MiniCalendar({
                           )}
                           {race.type === "schedule" && (race.evt_stt_at || (race.cmntCount ?? 0) > 0) && (
                             <span className="flex items-center gap-1 text-[9px] text-muted-foreground tabular-nums">
-                              {race.evt_stt_at && <span>{dayjs(race.evt_stt_at).format("HH:mm")}{race.evt_end_at ? `~${dayjs(race.evt_end_at).format("HH:mm")}` : ""}</span>}
+                              {race.evt_stt_at && (
+                                <span>
+                                  {(() => {
+                                    const stt = dayjs(race.evt_stt_at).tz("Asia/Seoul");
+                                    const end = race.evt_end_at ? dayjs(race.evt_end_at).tz("Asia/Seoul") : null;
+                                    const sameDay = !end || stt.format("YYYY-MM-DD") === end.format("YYYY-MM-DD");
+                                    if (sameDay) return `${stt.format("HH:mm")}${end ? ` ~ ${end.format("HH:mm")}` : ""}`;
+                                    const sameMonth = end && stt.month() === end.month() && stt.year() === end.year();
+                                    const fmt = sameMonth ? "D일 HH:mm" : "M/D HH:mm";
+                                    return `${stt.format(fmt)} ~ ${end!.format(fmt)}`;
+                                  })()}
+                                </span>
+                              )}
                               {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
                             </span>
                           )}

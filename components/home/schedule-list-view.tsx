@@ -149,10 +149,14 @@ async function fetchMonth(
 
 function formatTimeRange(sttAt: string | null | undefined, endAt: string | null | undefined): string | null {
   if (!sttAt) return null;
-  const stt = dayjs(sttAt).format("HH:mm");
-  if (!endAt) return stt;
-  const end = dayjs(endAt).format("HH:mm");
-  return `${stt} ~ ${end}`;
+  const stt = dayjs(sttAt).tz("Asia/Seoul");
+  if (!endAt) return stt.format("HH:mm");
+  const end = dayjs(endAt).tz("Asia/Seoul");
+  const sameDay = stt.format("YYYY-MM-DD") === end.format("YYYY-MM-DD");
+  if (sameDay) return `${stt.format("HH:mm")} ~ ${end.format("HH:mm")}`;
+  const sameMonth = stt.month() === end.month() && stt.year() === end.year();
+  const fmt = sameMonth ? "D일 HH:mm" : "M/D HH:mm";
+  return `${stt.format(fmt)} ~ ${end.format(fmt)}`;
 }
 
 // schedule 타입 아이템
