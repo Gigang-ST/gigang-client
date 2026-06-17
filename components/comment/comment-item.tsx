@@ -77,7 +77,7 @@ export function CommentItem({
   }
 
   return (
-    <div className={`flex gap-2.5 py-2.5 ${isReply ? "pl-10" : ""} ${comment.optimistic ? "opacity-50" : ""}`}>
+    <div className={`flex gap-2.5 py-2.5 ${isReply ? "pl-10" : ""}`}>
       <Avatar src={comment.avatar_url} size="sm" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-x-2">

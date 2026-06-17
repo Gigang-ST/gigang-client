@@ -77,10 +77,11 @@ export function SchPostDetailDialog({
     startAt.format("YYYY년 M월 D일 (ddd) HH:mm") +
     (endAt ? ` ~ ${endAt.format("HH:mm")}` : "")
 
+  const postRef = post.short_id ?? post.id
   const pageUrl =
     typeof window !== "undefined"
-      ? `${window.location.origin}/?post=${post.id}`
-      : `/?post=${post.id}`
+      ? `${window.location.origin}/?post=${postRef}`
+      : `/?post=${postRef}`
 
   return (
     <>

@@ -43,7 +43,7 @@ export async function createSchPost(input: {
       vers: 0,
       del_yn: false,
     })
-    .select("sch_post_id")
+    .select("sch_post_id, short_id")
     .single();
 
   if (error || !data) throw new Error("일정 등록에 실패했습니다.");
@@ -87,7 +87,7 @@ export async function createSchPost(input: {
           noti_type_enm: "sch_post_new",
           noti_nm: `${dayjs().format("M월 D일")} 새 정보가 등록됐습니다.`,
           noti_cont: postName,
-          ref_id: postId,
+          ref_id: data.short_id ?? postId,
           ref_type_enm: "sch_post",
         })),
       );

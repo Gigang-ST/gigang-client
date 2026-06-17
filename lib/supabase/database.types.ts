@@ -425,6 +425,7 @@ export type Database = {
           end_dt: string | null
           ext_id: string | null
           loc_nm: string | null
+          short_id: string | null
           src_url: string | null
           stt_dt: string
           upd_at: string
@@ -439,6 +440,7 @@ export type Database = {
           end_dt?: string | null
           ext_id?: string | null
           loc_nm?: string | null
+          short_id?: string | null
           src_url?: string | null
           stt_dt: string
           upd_at?: string
@@ -453,6 +455,7 @@ export type Database = {
           end_dt?: string | null
           ext_id?: string | null
           loc_nm?: string | null
+          short_id?: string | null
           src_url?: string | null
           stt_dt?: string
           upd_at?: string
@@ -795,6 +798,53 @@ export type Database = {
           },
           {
             foreignKeyName: "evt_team_prt_rel_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
+      fdbk_mst: {
+        Row: {
+          adm_note_txt: string | null
+          cont_txt: string
+          crt_at: string
+          del_yn: boolean
+          fdbk_id: string
+          mem_id: string
+          rspd_at: string | null
+          stts_enm: Database["public"]["Enums"]["fdbk_stts_enm"]
+          upd_at: string
+          vers: number
+        }
+        Insert: {
+          adm_note_txt?: string | null
+          cont_txt: string
+          crt_at?: string
+          del_yn?: boolean
+          fdbk_id?: string
+          mem_id: string
+          rspd_at?: string | null
+          stts_enm?: Database["public"]["Enums"]["fdbk_stts_enm"]
+          upd_at?: string
+          vers?: number
+        }
+        Update: {
+          adm_note_txt?: string | null
+          cont_txt?: string
+          crt_at?: string
+          del_yn?: boolean
+          fdbk_id?: string
+          mem_id?: string
+          rspd_at?: string | null
+          stts_enm?: Database["public"]["Enums"]["fdbk_stts_enm"]
+          upd_at?: string
+          vers?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fdbk_mst_mem_id_fkey"
             columns: ["mem_id"]
             isOneToOne: false
             referencedRelation: "mem_mst"
@@ -1286,53 +1336,6 @@ export type Database = {
           },
         ]
       }
-      fdbk_mst: {
-        Row: {
-          fdbk_id: string
-          mem_id: string
-          cont_txt: string
-          stts_enm: "open" | "in_review" | "resolved" | "closed"
-          adm_note_txt: string | null
-          rspd_at: string | null
-          crt_at: string
-          upd_at: string
-          vers: number
-          del_yn: boolean
-        }
-        Insert: {
-          fdbk_id?: string
-          mem_id: string
-          cont_txt: string
-          stts_enm?: "open" | "in_review" | "resolved" | "closed"
-          adm_note_txt?: string | null
-          rspd_at?: string | null
-          crt_at?: string
-          upd_at?: string
-          vers?: number
-          del_yn?: boolean
-        }
-        Update: {
-          fdbk_id?: string
-          mem_id?: string
-          cont_txt?: string
-          stts_enm?: "open" | "in_review" | "resolved" | "closed"
-          adm_note_txt?: string | null
-          rspd_at?: string | null
-          crt_at?: string
-          upd_at?: string
-          vers?: number
-          del_yn?: boolean
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fdbk_mst_mem_id_fkey"
-            columns: ["mem_id"]
-            isOneToOne: false
-            referencedRelation: "mem_mst"
-            referencedColumns: ["mem_id"]
-          },
-        ]
-      }
       mem_mst: {
         Row: {
           avatar_url: string | null
@@ -1683,6 +1686,7 @@ export type Database = {
           post_type: string
           sch_nm: string
           sch_post_id: string
+          short_id: string | null
           team_id: string
           upd_at: string
           url: string | null
@@ -1698,6 +1702,7 @@ export type Database = {
           post_type?: string
           sch_nm: string
           sch_post_id?: string
+          short_id?: string | null
           team_id: string
           upd_at?: string
           url?: string | null
@@ -1713,6 +1718,7 @@ export type Database = {
           post_type?: string
           sch_nm?: string
           sch_post_id?: string
+          short_id?: string | null
           team_id?: string
           upd_at?: string
           url?: string | null
@@ -1996,6 +2002,7 @@ export type Database = {
             }
             Returns: undefined
           }
+      generate_nanoid: { Args: { size?: number }; Returns: string }
       get_public_member_card: {
         Args: { p_mem_id: string; p_team_id: string }
         Returns: Json
@@ -2065,6 +2072,7 @@ export type Database = {
           post_type: string
           sch_nm: string
           sch_post_id: string
+          short_id: string
           url: string
         }[]
       }
@@ -2117,6 +2125,7 @@ export type Database = {
     Enums: {
       evt_mlg_sprt_enm: "RUNNING" | "TRAIL" | "CYCLING" | "SWIMMING"
       evt_stts_enm: "READY" | "ACTIVE" | "CLOSED"
+      fdbk_stts_enm: "open" | "in_review" | "resolved" | "closed"
       fee_exm_tp_enm: "full" | "part"
       fee_grant_src_enm: "manual" | "rule_attd"
       fee_txn_io_enm: "deposit" | "withdrawal"
@@ -2253,6 +2262,7 @@ export const Constants = {
     Enums: {
       evt_mlg_sprt_enm: ["RUNNING", "TRAIL", "CYCLING", "SWIMMING"],
       evt_stts_enm: ["READY", "ACTIVE", "CLOSED"],
+      fdbk_stts_enm: ["open", "in_review", "resolved", "closed"],
       fee_exm_tp_enm: ["full", "part"],
       fee_grant_src_enm: ["manual", "rule_attd"],
       fee_txn_io_enm: ["deposit", "withdrawal"],
