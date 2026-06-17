@@ -28,11 +28,9 @@ import {
 } from "@/lib/validations/competition";
 
 import { updateCompetition } from "@/app/actions/admin/manage-competition";
-import { getCommentData } from "@/app/actions/comment/get-comment-data";
 import { getPublicTeamCompRegDisplayCounts } from "@/app/actions/get-public-team-comp-reg-display-counts";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
 
-import type { CmntRow } from "@/components/comment/comment-item";
 import { CommentSection } from "@/components/comment/comment-section";
 import type { MemberOption } from "@/components/comment/mention-input";
 import {
@@ -78,6 +76,7 @@ interface CompetitionDetailDialogProps {
   competition: Competition | null;
   registration?: CompetitionRegistration;
   memberStatus: MemberStatus;
+  members: MemberOption[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreate: (
@@ -102,6 +101,7 @@ export function CompetitionDetailDialog({
   competition,
   registration,
   memberStatus,
+  members,
   open,
   onOpenChange,
   onCreate,
@@ -131,19 +131,6 @@ export function CompetitionDetailDialog({
   const isAdmin = memberStatus.status === "ready" && memberStatus.admin;
   const [editing, setEditing] = useState(false);
 
-  const [cmntData, setCmntData] = useState<{ comments: CmntRow[]; members: MemberOption[] }>({
-    comments: [],
-    members: [],
-  });
-
-  useEffect(() => {
-    if (!open || !competition) return;
-    let cancelled = false;
-    getCommentData("comp", competition.id).then((data) => {
-      if (!cancelled) setCmntData(data);
-    });
-    return () => { cancelled = true; };
-  }, [open, competition?.id]);
 
   const editForm = useForm<CompetitionEditValues>({
     defaultValues: { title: "", sport: "", startDate: "", endDate: "", location: "", sourceUrl: "", eventTypes: [] },
@@ -152,36 +139,22 @@ export function CompetitionDetailDialog({
 
   const supabase = useMemo(() => createClient(), []);
 
-  // 참가자 목록 로드
+  // 참가자 목록 로드 — team_comp_plan_rel inner join으로 단일 쿼리
   const loadParticipants = useCallback(async (competitionId: string) => {
-    const { data: plan, error: planErr } = await supabase
-      .from("team_comp_plan_rel")
-      .select("team_comp_id")
-      .eq("comp_id", competitionId)
-      .eq("team_id", teamId)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .maybeSingle();
-    if (planErr) {
-      console.error("team_comp_plan_rel 조회 실패:", planErr);
-      setParticipants([]);
-      return;
-    }
-    if (!plan) {
-      setParticipants([]);
-      return;
-    }
-    const { data, error: regErr } = await supabase
+    const { data, error } = await supabase
       .from("comp_reg_rel")
       .select(
-        "prt_role_cd, crt_at, comp_evt_cfg(comp_evt_type), mem_mst!fk_comp_reg_rel__mem_mst(mem_nm)",
+        "prt_role_cd, crt_at, comp_evt_cfg(comp_evt_type), mem_mst!fk_comp_reg_rel__mem_mst(mem_nm), team_comp_plan_rel!inner(comp_id, team_id, vers, del_yn)",
       )
-      .eq("team_comp_id", plan.team_comp_id)
+      .eq("team_comp_plan_rel.comp_id", competitionId)
+      .eq("team_comp_plan_rel.team_id", teamId)
+      .eq("team_comp_plan_rel.vers", 0)
+      .eq("team_comp_plan_rel.del_yn", false)
       .eq("vers", 0)
       .eq("del_yn", false)
       .order("crt_at", { ascending: true });
-    if (regErr) {
-      console.error("comp_reg_rel 참가자 조회 실패:", regErr);
+    if (error) {
+      console.error("참가자 조회 실패:", error);
       setParticipants([]);
       return;
     }
@@ -725,10 +698,10 @@ export function CompetitionDetailDialog({
             <CommentSection
               entityType="comp"
               entityId={competition.id}
+              teamId={teamId}
               currentMemberId={memberStatus.status === "ready" ? memberStatus.memberId : undefined}
               isAdmin={isAdmin}
-              members={cmntData.members}
-              initialComments={cmntData.comments}
+              members={members}
             />
           </div>
 

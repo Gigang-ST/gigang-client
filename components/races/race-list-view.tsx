@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -17,6 +17,7 @@ import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
+import { getMentionMembers } from "@/app/actions/comment/get-mention-members";
 import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-create-comp-evt-for-participation";
 import { getPastGigangCompetitions } from "@/app/actions/get-past-gigang-competitions";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
@@ -24,6 +25,7 @@ import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 
+import type { MemberOption } from "@/components/comment/mention-input";
 import { CompetitionDetailDialog } from "./competition-detail-dialog";
 import { CompetitionRegisterDialog } from "./competition-register-dialog";
 
@@ -85,6 +87,16 @@ export function RaceListView({
 		useState<Competition | null>(null);
 	const [detailOpen, setDetailOpen] = useState(false);
 	const [registerOpen, setRegisterOpen] = useState(false);
+
+	const [membersCache, setMembersCache] = useState<MemberOption[] | null>(null);
+	const membersFetchingRef = useRef(false);
+	useEffect(() => {
+		if (memberStatus.status !== "ready") return;
+		if (membersCache !== null || membersFetchingRef.current) return;
+		if (!detailOpen) return;
+		membersFetchingRef.current = true;
+		getMentionMembers().then(setMembersCache);
+	}, [detailOpen, membersCache, memberStatus.status]);
 	const [localAllCompetitions, setLocalAllCompetitions] =
 		useState<Competition[]>(allCompetitions);
 
@@ -286,11 +298,13 @@ export function RaceListView({
 	}, [supabase, teamId]);
 
 	useEffect(() => {
+		// eslint-disable-next-line react-hooks/set-state-in-effect
 		loadRegCountsForIds(allCompetitionIds);
 	}, [allCompetitionIds, teamId]);
 
 	useEffect(() => {
 		if (memberStatus.status !== "ready") {
+			// eslint-disable-next-line react-hooks/set-state-in-effect
 			setRegistrationsByCompetitionId({});
 			return;
 		}
@@ -741,6 +755,7 @@ export function RaceListView({
 						: undefined
 				}
 				memberStatus={memberStatus}
+				members={membersCache ?? []}
 				open={detailOpen}
 				onOpenChange={setDetailOpen}
 				onCreate={createRegistration}
