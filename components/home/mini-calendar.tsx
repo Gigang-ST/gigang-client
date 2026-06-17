@@ -673,37 +673,33 @@ export function MiniCalendar({
                       })}
                     </div>
 
-                    {/* 이벤트 바 행 — 멀티데이 CSS grid span (표시 전용) */}
-                    {visibleLanes.length > 0 ? (
-                      <div
-                        className="relative z-10 grid grid-cols-7 pb-1"
-                        style={{ gridAutoRows: "13px", rowGap: "1px", pointerEvents: "none" }}
-                      >
-                        {visibleLanes.map((lane) => (
-                          <div
-                            key={`${lane.race.id}-w${weekIdx}`}
-                            style={{
-                              gridColumn: `${lane.colStart + 1} / ${lane.colStart + lane.colSpan + 1}`,
-                              gridRow: lane.slot + 1,
-                            }}
-                            className={cn(
-                              "overflow-hidden px-0.5 text-[7px] font-medium leading-[13px]",
-                              lane.startsThisWeek ? "rounded-l-sm" : "",
-                              lane.endsThisWeek ? "rounded-r-sm" : "",
-                              lane.race.type === "mine"
-                                ? "bg-success/20 text-success"
-                                : lane.race.type === "schedule"
-                                  ? "bg-info/15 text-info"
-                                  : "bg-warning/15 text-warning",
-                            )}
-                          >
-                            {lane.startsThisWeek ? lane.race.title : ""}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="relative z-10 h-2" />
-                    )}
+                    {/* 이벤트 바 행 — 최대 3슬롯 고정 높이 (주 행 높이 일정하게 유지) */}
+                    <div
+                      className="relative z-10 grid grid-cols-7 pb-1"
+                      style={{ gridTemplateRows: "13px 13px 13px", rowGap: "1px", pointerEvents: "none" }}
+                    >
+                      {visibleLanes.map((lane) => (
+                        <div
+                          key={`${lane.race.id}-w${weekIdx}`}
+                          style={{
+                            gridColumn: `${lane.colStart + 1} / ${lane.colStart + lane.colSpan + 1}`,
+                            gridRow: lane.slot + 1,
+                          }}
+                          className={cn(
+                            "overflow-hidden px-0.5 text-[7px] font-medium leading-[13px]",
+                            lane.startsThisWeek ? "rounded-l-sm" : "",
+                            lane.endsThisWeek ? "rounded-r-sm" : "",
+                            lane.race.type === "mine"
+                              ? "bg-success/20 text-success"
+                              : lane.race.type === "schedule"
+                                ? "bg-info/15 text-info"
+                                : "bg-warning/15 text-warning",
+                          )}
+                        >
+                          {lane.startsThisWeek ? lane.race.title : ""}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 );
               })}
