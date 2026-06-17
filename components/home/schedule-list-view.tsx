@@ -149,9 +149,9 @@ async function fetchMonth(
 
 function formatTimeRange(sttAt: string | null | undefined, endAt: string | null | undefined): string | null {
   if (!sttAt) return null;
-  const stt = dayjs(sttAt);
+  const stt = dayjs(sttAt).tz("Asia/Seoul");
   if (!endAt) return stt.format("HH:mm");
-  const end = dayjs(endAt);
+  const end = dayjs(endAt).tz("Asia/Seoul");
   const sameDay = stt.format("YYYY-MM-DD") === end.format("YYYY-MM-DD");
   if (sameDay) return `${stt.format("HH:mm")} ~ ${end.format("HH:mm")}`;
   const sameMonth = stt.month() === end.month() && stt.year() === end.year();

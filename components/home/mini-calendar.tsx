@@ -203,10 +203,10 @@ export function MiniCalendar({
     const seen = new Set<string>();
     for (const race of allRaces) {
       const endDateStr = race.end_date
-        ? dayjs(race.end_date).format("YYYY-MM-DD")
+        ? dayjs(race.end_date).tz("Asia/Seoul").format("YYYY-MM-DD")
         : race.start_date;
-      let cur = dayjs(race.start_date);
-      const endDay = dayjs(endDateStr);
+      let cur = dayjs(race.start_date).tz("Asia/Seoul");
+      const endDay = dayjs(endDateStr).tz("Asia/Seoul");
       while (!cur.isAfter(endDay)) {
         const dateStr = cur.format("YYYY-MM-DD");
         const key = `${dateStr}:${race.id}`;
@@ -253,12 +253,12 @@ export function MiniCalendar({
       const active = allRaces.filter((race) => {
         if (seen.has(race.id)) return false;
         seen.add(race.id);
-        const endStr = race.end_date ? dayjs(race.end_date).format("YYYY-MM-DD") : race.start_date;
+        const endStr = race.end_date ? dayjs(race.end_date).tz("Asia/Seoul").format("YYYY-MM-DD") : race.start_date;
         return race.start_date <= weekEnd && endStr >= weekStart;
       });
 
       const positioned = active.map((race) => {
-        const endStr = race.end_date ? dayjs(race.end_date).format("YYYY-MM-DD") : race.start_date;
+        const endStr = race.end_date ? dayjs(race.end_date).tz("Asia/Seoul").format("YYYY-MM-DD") : race.start_date;
         let colStart = colDates.findIndex((d) => d !== null && d >= race.start_date);
         if (colStart === -1) colStart = colDates.findIndex((d) => d !== null) ?? 0;
         let colEnd = colStart;
@@ -762,10 +762,10 @@ export function MiniCalendar({
                               {race.evt_stt_at && (
                                 <span>
                                   {(() => {
-                                    const stt = dayjs(race.evt_stt_at);
-                                    const end = race.evt_end_at ? dayjs(race.evt_end_at) : null;
+                                    const stt = dayjs(race.evt_stt_at).tz("Asia/Seoul");
+                                    const end = race.evt_end_at ? dayjs(race.evt_end_at).tz("Asia/Seoul") : null;
                                     const sameDay = !end || stt.format("YYYY-MM-DD") === end.format("YYYY-MM-DD");
-                                    if (sameDay) return `${stt.format("HH:mm")}${end ? `~${end.format("HH:mm")}` : ""}`;
+                                    if (sameDay) return `${stt.format("HH:mm")}${end ? ` ~ ${end.format("HH:mm")}` : ""}`;
                                     const sameMonth = end && stt.month() === end.month() && stt.year() === end.year();
                                     const fmt = sameMonth ? "D일 HH:mm" : "M/D HH:mm";
                                     return `${stt.format(fmt)} ~ ${end!.format(fmt)}`;
