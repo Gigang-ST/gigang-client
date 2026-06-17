@@ -614,26 +614,41 @@ export function MiniCalendar({
                 const lanes = weekEventLanes[weekIdx] ?? [];
                 const visibleLanes = lanes.filter((l) => l.slot < 3);
                 return (
-                  <div key={weekIdx}>
-                    {/* 날짜 숫자 행 */}
-                    <div className="grid grid-cols-7">
+                  <div key={weekIdx} className="relative">
+                    {/* 전체 높이 클릭 오버레이 — 선택 배경 + 날짜 선택 */}
+                    <div className="pointer-events-none absolute inset-0 grid grid-cols-7">
+                      {week.map((day, colIdx) => {
+                        if (day === null) return <div key={`ol-${weekIdx}-${colIdx}`} />;
+                        const dateStr = formatCellDate(day);
+                        const isSelected = selectedDate === dateStr;
+                        return (
+                          <button
+                            key={`ol-${dateStr}`}
+                            onClick={() => setSelectedDate(dateStr)}
+                            className={cn(
+                              "pointer-events-auto h-full w-full transition-colors",
+                              isSelected && "bg-secondary/60",
+                            )}
+                            aria-label={`${day}일 선택`}
+                            aria-pressed={isSelected}
+                          />
+                        );
+                      })}
+                    </div>
+
+                    {/* 날짜 숫자 행 (표시 전용) */}
+                    <div className="relative z-10 grid grid-cols-7" style={{ pointerEvents: "none" }}>
                       {week.map((day, colIdx) => {
                         if (day === null) {
                           return <div key={`e-${weekIdx}-${colIdx}`} className="h-8 border-t border-border/40" />;
                         }
                         const dateStr = formatCellDate(day);
                         const isToday = dateStr === today;
-                        const isSelected = selectedDate === dateStr;
                         const overflowCount = Math.max(0, (eventsByDate.get(dateStr)?.length ?? 0) - 3);
                         return (
-                          <button
-                            key={dateStr}
-                            onClick={() => setSelectedDate(dateStr)}
-                            className={cn(
-                              "flex h-8 flex-col items-center border-t border-border/40 pt-0.5 transition-colors",
-                              isSelected && "bg-secondary/60",
-                            )}
-                            aria-pressed={isSelected}
+                          <div
+                            key={`d-${dateStr}`}
+                            className="flex h-8 flex-col items-center border-t border-border/40 pt-0.5"
                           >
                             <div className="flex items-center gap-0.5">
                               <span
@@ -653,16 +668,16 @@ export function MiniCalendar({
                                 </span>
                               )}
                             </div>
-                          </button>
+                          </div>
                         );
                       })}
                     </div>
 
-                    {/* 이벤트 바 행 — 멀티데이 CSS grid span */}
+                    {/* 이벤트 바 행 — 멀티데이 CSS grid span (표시 전용) */}
                     {visibleLanes.length > 0 ? (
                       <div
-                        className="grid grid-cols-7 pb-1"
-                        style={{ gridAutoRows: "13px", rowGap: "1px" }}
+                        className="relative z-10 grid grid-cols-7 pb-1"
+                        style={{ gridAutoRows: "13px", rowGap: "1px", pointerEvents: "none" }}
                       >
                         {visibleLanes.map((lane) => (
                           <div
@@ -687,7 +702,7 @@ export function MiniCalendar({
                         ))}
                       </div>
                     ) : (
-                      <div className="h-2" />
+                      <div className="relative z-10 h-2" />
                     )}
                   </div>
                 );
@@ -744,7 +759,19 @@ export function MiniCalendar({
                           )}
                           {race.type === "schedule" && (race.evt_stt_at || (race.cmntCount ?? 0) > 0) && (
                             <span className="flex items-center gap-1 text-[9px] text-muted-foreground tabular-nums">
-                              {race.evt_stt_at && <span>{dayjs(race.evt_stt_at).format("HH:mm")}{race.evt_end_at ? `~${dayjs(race.evt_end_at).format("HH:mm")}` : ""}</span>}
+                              {race.evt_stt_at && (
+                                <span>
+                                  {(() => {
+                                    const stt = dayjs(race.evt_stt_at);
+                                    const end = race.evt_end_at ? dayjs(race.evt_end_at) : null;
+                                    const sameDay = !end || stt.format("YYYY-MM-DD") === end.format("YYYY-MM-DD");
+                                    if (sameDay) return `${stt.format("HH:mm")}${end ? `~${end.format("HH:mm")}` : ""}`;
+                                    const sameMonth = end && stt.month() === end.month() && stt.year() === end.year();
+                                    const fmt = sameMonth ? "D일 HH:mm" : "M/D HH:mm";
+                                    return `${stt.format(fmt)} ~ ${end!.format(fmt)}`;
+                                  })()}
+                                </span>
+                              )}
                               {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
                             </span>
                           )}

@@ -11,7 +11,7 @@ export const schPostTypeLabels: Record<SchPostType, string> = {
 };
 
 export const schPostTypeInlineLabel: Partial<Record<SchPostType, string>> = {
-  race_entry: "대회접수",
+  race_entry: "접수",
   sale: "세일",
   session: "세션",
 };
