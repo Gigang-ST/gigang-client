@@ -66,7 +66,7 @@ export function SchPostFormDialog({
   open,
   onOpenChange,
   mode,
-  defaultPostType = "general",
+  defaultPostType,
   initialData,
   onSuccess,
 }: SchPostFormDialogProps) {
@@ -81,7 +81,7 @@ export function SchPostFormDialog({
       evt_end_at: null,
       url: null,
       cont_txt: null,
-    },
+    } as FormValues,
   });
 
   const { isSubmitting } = form.formState;
@@ -93,7 +93,7 @@ export function SchPostFormDialog({
     if (mode === "edit" && initialData) {
       form.reset({
         sch_nm: initialData.sch_nm,
-        post_type: initialData.post_type ?? "general",
+        post_type: initialData.post_type ?? "general" as SchPostType,
         evt_stt_at: toDatetimeLocal(initialData.evt_stt_at),
         evt_end_at: initialData.evt_end_at ? toDatetimeLocal(initialData.evt_end_at) : null,
         url: initialData.url ?? null,
@@ -102,7 +102,7 @@ export function SchPostFormDialog({
     } else if (mode === "create") {
       form.reset({
         sch_nm: "",
-        post_type: defaultPostType,
+        post_type: defaultPostType ?? undefined,
         evt_stt_at: initialData?.evt_stt_at ? toDateInput(initialData.evt_stt_at) : "",
         evt_end_at: null,
         url: null,
@@ -159,9 +159,9 @@ export function SchPostFormDialog({
               name="sch_nm"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>일정명 <span className="text-destructive">*</span></FormLabel>
+                  <FormLabel>제목 <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
-                    <Input placeholder="일정명을 입력해 주세요." {...field} />
+                    <Input placeholder="예: 동아마라톤 대회접수, 나이키 슈퍼위크 등" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -243,11 +243,11 @@ export function SchPostFormDialog({
                 name="post_type"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>유형</FormLabel>
+                    <FormLabel>유형 <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
-                      <Select value={field.value} onValueChange={field.onChange}>
+                      <Select value={field.value ?? ""} onValueChange={field.onChange}>
                         <SelectTrigger className="text-[13px]">
-                          <SelectValue />
+                          <SelectValue placeholder="유형을 선택해 주세요." />
                         </SelectTrigger>
                         <SelectContent>
                           {SCH_POST_TYPES.map((type) => (
