@@ -51,7 +51,18 @@ export function ShareSheet({
   }
 
   async function handleNativeShare() {
-    await navigator.share({ title, url: getUrl() });
+    if (!navigator.share) {
+      await handleCopyText();
+      return;
+    }
+    const text = contentSnippet
+      ? contentSnippet.slice(0, 80) + (contentSnippet.length > 80 ? "..." : "")
+      : undefined;
+    try {
+      await navigator.share({ title: `${title} - ${timeLabel}`, text, url: getUrl() });
+    } catch (e) {
+      if (e instanceof Error && e.name !== "AbortError") throw e;
+    }
   }
 
   return (
