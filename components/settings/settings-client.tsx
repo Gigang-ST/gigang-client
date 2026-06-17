@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+
 import {
   ChevronRight,
   UserPen,
@@ -17,11 +18,18 @@ import {
   LogOut,
   Trash2,
   Moon,
+  Trophy,
+  MessageSquare,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+
+import { createClient } from "@/lib/supabase/client";
+
+import { ThemeToggle } from "@/components/common/theme-toggle";
 import { SectionLabel } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/common/theme-toggle";
+
+import type { LucideIcon } from "lucide-react";
+
 
 type MenuItem = {
   label: string;
@@ -33,6 +41,11 @@ const accountItems: MenuItem[] = [
   { label: "프로필 수정", href: "/profile/edit", icon: UserPen },
   { label: "계좌 정보", href: "/profile/bank", icon: CreditCard },
   { label: "회비 내역", href: "/profile/dues", icon: Wallet },
+  { label: "건의하기", href: "/profile/feedback", icon: MessageSquare },
+];
+
+const teamItems: MenuItem[] = [
+  { label: "대회 목록", href: "/races", icon: Trophy },
 ];
 
 const adminItems: MenuItem[] = [
@@ -60,6 +73,7 @@ export function SettingsClient({ isAdmin }: { isAdmin: boolean }) {
       alert("로그아웃에 실패했습니다. 다시 시도해 주세요.");
       return;
     }
+    router.refresh();
     router.push("/auth/login");
   };
 
@@ -69,6 +83,26 @@ export function SettingsClient({ isAdmin }: { isAdmin: boolean }) {
       <div className="flex flex-col">
         <SectionLabel>ACCOUNT</SectionLabel>
         {accountItems.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className="flex items-center justify-between border-b border-border py-4"
+          >
+            <div className="flex items-center gap-3">
+              <item.icon className="size-5 text-muted-foreground" />
+              <span className="text-[15px] font-medium text-foreground">
+                {item.label}
+              </span>
+            </div>
+            <ChevronRight className="size-5 text-border" />
+          </Link>
+        ))}
+      </div>
+
+      {/* TEAM */}
+      <div className="flex flex-col">
+        <SectionLabel>TEAM</SectionLabel>
+        {teamItems.map((item) => (
           <Link
             key={item.href}
             href={item.href}
@@ -145,7 +179,7 @@ export function SettingsClient({ isAdmin }: { isAdmin: boolean }) {
               버전 정보
             </span>
           </div>
-          <span className="text-sm text-muted-foreground">{process.env.NEXT_PUBLIC_APP_VERSION ?? "v0.0.0"}</span>
+          <span className="text-sm text-muted-foreground">v1.0.0</span>
         </div>
       </div>
 

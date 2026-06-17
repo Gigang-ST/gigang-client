@@ -668,6 +668,7 @@ function BalanceTab({
   const [memberQuery, setMemberQuery] = useState("");
   const [sortKey, setSortKey] = useState<"mem_nm" | "join_dt" | "bal_amt" | "last_calc_dt" | "last_calc_at">("mem_nm");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [showInactive, setShowInactive] = useState(true);
 
   function handleSort(key: typeof sortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -680,8 +681,9 @@ function BalanceTab({
   }
 
   const mq = memberQuery.trim().toLowerCase();
-  const unpaidMembers = members.filter((m) => m.snap && m.snap.bal_amt < 0);
-  const baseMembers = (filter === "unpaid" ? unpaidMembers : members).filter(
+  const activeFilteredMembers = showInactive ? members : members.filter((m) => m.mem_st_cd !== "inactive");
+  const unpaidMembers = activeFilteredMembers.filter((m) => m.snap && m.snap.bal_amt < 0);
+  const baseMembers = (filter === "unpaid" ? unpaidMembers : activeFilteredMembers).filter(
     (m) => !mq || m.mem_nm.toLowerCase().includes(mq)
   );
 
@@ -776,6 +778,16 @@ function BalanceTab({
         >
           미납 {unpaidMembers.length}명
         </Button>
+        <div className="flex items-center gap-1.5">
+          <Checkbox
+            id="show-inactive"
+            checked={showInactive}
+            onCheckedChange={(v) => setShowInactive(!!v)}
+          />
+          <Label htmlFor="show-inactive" className="text-xs text-muted-foreground cursor-pointer select-none">
+            비활성 포함
+          </Label>
+        </div>
         <MemberSearchInput value={memberQuery} onChange={setMemberQuery} />
         {selectedIds.size > 0 && (
           <Button size="sm" onClick={handleSendNoti}>
@@ -829,7 +841,7 @@ function BalanceTab({
       </div>
 
       <div className="flex flex-col gap-2">
-        <SectionLabel>회원별 잔액 ({displayedMembers.length}명{filter === "unpaid" ? " · 미납 필터" : ""})</SectionLabel>
+        <SectionLabel>회원별 잔액 ({displayedMembers.length}명{filter === "unpaid" ? " · 미납 필터" : ""}{!showInactive ? " · 비활성 제외" : ""})</SectionLabel>
         <div className="overflow-x-auto rounded-2xl border border-border">
           <Table>
             <TableHeader>

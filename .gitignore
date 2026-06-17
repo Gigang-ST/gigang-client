@@ -42,6 +42,7 @@
 
 # Cursor 에디터
 .cursor/plans/
+.cursor/mcp.json
 
 # debug
 npm-debug.log*

@@ -1,14 +1,16 @@
 // lib/dayjs.ts — KST 기준 날짜 유틸리티 (dayjs 기반)
 
 import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
-import timezone from "dayjs/plugin/timezone";
 import duration from "dayjs/plugin/duration";
+import relativeTime from "dayjs/plugin/relativeTime";
+import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc";
 import "dayjs/locale/ko";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 dayjs.extend(duration);
+dayjs.extend(relativeTime);
 dayjs.locale("ko");
 
 const KST = "Asia/Seoul";
@@ -121,8 +123,8 @@ export function parseDate(dateStr: string): Date {
 
 /** "YYYY-MM-DD" 날짜의 D-Day 문자열 반환 (예: "D-3", "D-DAY", "D+1") */
 export function formatDDay(dateStr: string): string {
-  const today = dayjs().startOf("day");
-  const target = dayjs(dateStr).startOf("day");
+  const today = dayjs().tz(KST).startOf("day");
+  const target = dayjs(dateStr).tz(KST).startOf("day");
   const diff = target.diff(today, "day");
   if (diff === 0) return "D-DAY";
   if (diff > 0) return `D-${diff}`;

@@ -97,7 +97,7 @@ async function RacesContent() {
       cmmCdRows={cmmCdRows}
       teamId={teamId}
       allCompetitions={competitions}
-      gigangCompetitions={gigangData.competitions}
+
       initialMemberStatus={{ status: "loading" }}
       initialRegistrationsByCompetitionId={{}}
       initialRegCounts={gigangData.regCounts}

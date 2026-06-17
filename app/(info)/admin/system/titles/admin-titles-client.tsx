@@ -63,6 +63,11 @@ type TitleRow = {
 };
 
 type SortKey = "ttl_kind_enm" | "ttl_ctgr_cd" | "rarity_level" | "ttl_group_cd" | "event" | "grant_cnt" | "prmy_cnt" | "desc_visibility";
+
+function SortIcon({ k, sortKey, sortDir }: { k: SortKey; sortKey: SortKey | null; sortDir: "asc" | "desc" }) {
+  if (sortKey !== k) return <span className="ml-0.5 text-muted-foreground/40">↕</span>;
+  return <span className="ml-0.5 text-primary">{sortDir === "asc" ? "↑" : "↓"}</span>;
+}
 type SortDir = "asc" | "desc";
 
 type TitleForm = {
@@ -181,7 +186,9 @@ export function AdminTitlesClient({
     setLoading(false);
   }, [teamId]);
 
+   
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadTitles();
   }, [loadTitles]);
 
@@ -298,11 +305,6 @@ export function AdminTitlesClient({
     }
   };
 
-  const SortIcon = ({ k }: { k: SortKey }) => {
-    if (sortKey !== k) return <span className="ml-0.5 text-muted-foreground/40">↕</span>;
-    return <span className="ml-0.5 text-primary">{sortDir === "asc" ? "↑" : "↓"}</span>;
-  };
-
   const sheetRow = sheetTtlId ? rows.find((row) => row.ttl_id === sheetTtlId) ?? null : null;
   const sheetForm = sheetRow ? forms[sheetRow.ttl_id] ?? toForm(sheetRow) : null;
 
@@ -392,37 +394,37 @@ export function AdminTitlesClient({
                   <th
                     className="w-12 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
                     onClick={() => handleSort("ttl_kind_enm")}
-                  >유형<SortIcon k="ttl_kind_enm" /></th>
+                  >유형<SortIcon k="ttl_kind_enm" sortKey={sortKey} sortDir={sortDir} /></th>
                   <th
                     className="w-18 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
                     onClick={() => handleSort("ttl_ctgr_cd")}
-                  >카테고리<SortIcon k="ttl_ctgr_cd" /></th>
+                  >카테고리<SortIcon k="ttl_ctgr_cd" sortKey={sortKey} sortDir={sortDir} /></th>
                   <th className="w-10 px-2 py-1.5 text-center font-medium text-muted-foreground">정렬</th>
                   <th className="w-16 px-2 py-1.5 text-center font-medium text-muted-foreground">사용</th>
                   <th
                     className="w-14 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
                     onClick={() => handleSort("rarity_level")}
-                  >희귀도<SortIcon k="rarity_level" /></th>
+                  >희귀도<SortIcon k="rarity_level" sortKey={sortKey} sortDir={sortDir} /></th>
                   <th
                     className="w-10 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
                     onClick={() => handleSort("ttl_group_cd")}
-                  >그룹<SortIcon k="ttl_group_cd" /></th>
+                  >그룹<SortIcon k="ttl_group_cd" sortKey={sortKey} sortDir={sortDir} /></th>
                   <th
                     className="w-14 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
                     onClick={() => handleSort("event")}
-                  >이벤트<SortIcon k="event" /></th>
+                  >이벤트<SortIcon k="event" sortKey={sortKey} sortDir={sortDir} /></th>
                   <th
                     className="w-10 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
                     onClick={() => handleSort("desc_visibility")}
-                  >공개<SortIcon k="desc_visibility" /></th>
+                  >공개<SortIcon k="desc_visibility" sortKey={sortKey} sortDir={sortDir} /></th>
                   <th
                     className="w-12 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
                     onClick={() => handleSort("grant_cnt")}
-                  >획득<SortIcon k="grant_cnt" /></th>
+                  >획득<SortIcon k="grant_cnt" sortKey={sortKey} sortDir={sortDir} /></th>
                   <th
                     className="w-12 cursor-pointer select-none px-2 py-1.5 text-center font-medium text-muted-foreground hover:text-foreground"
                     onClick={() => handleSort("prmy_cnt")}
-                  >대표<SortIcon k="prmy_cnt" /></th>
+                  >대표<SortIcon k="prmy_cnt" sortKey={sortKey} sortDir={sortDir} /></th>
                 </tr>
               </thead>
               <tbody>
@@ -620,7 +622,9 @@ function TitleGrantList({
     setLoading(false);
   }, [ttlId]);
 
+   
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadGrants();
     // 칭호 바뀌면 검색 초기화
     setSearchQuery("");

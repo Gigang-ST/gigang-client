@@ -1,6 +1,4 @@
-import dayjs from "dayjs";
-
-import { formatKoreanShortDate, todayKST } from "@/lib/dayjs";
+import { dayjs, formatKoreanShortDate, todayKST } from "@/lib/dayjs";
 import { type MileageSport } from "@/lib/mileage";
 import { getMyTitleNames } from "@/lib/queries/member";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -101,6 +99,7 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
         badgeEffect: titleInfo?.badge_effect ?? null,
         frameCd: titleInfo?.frame_cd ?? null,
         isHeld: titleInfo ? myTitleNameSet.has(titleInfo.ttl_nm) : false,
+        actDt: item.act_dt ?? "",
       };
     })
     .filter((line): line is ReviewLine => line !== null);

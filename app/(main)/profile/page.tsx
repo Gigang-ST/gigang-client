@@ -3,9 +3,9 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { dayjs } from "@/lib/dayjs";
-import { CreditCard, Settings, UserPen, Wallet } from "lucide-react";
+import { CreditCard, MessageSquare, Settings, UserPen, Wallet } from "lucide-react";
 
+import { dayjs } from "@/lib/dayjs";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -109,11 +109,12 @@ async function ProfileContent() {
         />
 
         {/* 바로가기 */}
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           {[
             { href: "/profile/edit", icon: UserPen, label: "내 정보", dot: false },
             { href: "/profile/bank", icon: CreditCard, label: "내 계좌", dot: false },
             { href: "/profile/dues", icon: Wallet, label: "회비", dot: (balSnap?.bal_amt ?? 0) < 0 },
+            { href: "/profile/feedback", icon: MessageSquare, label: "건의", dot: false },
           ].map(({ href, icon: Icon, label, dot }) => (
             <Link key={href} href={href}>
               <div className="relative flex items-center justify-center gap-2 rounded-xl border border-border py-2.5">

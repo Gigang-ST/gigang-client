@@ -8,7 +8,9 @@ import {
   useRef,
   useTransition,
 } from "react";
+
 import { useSearchParams } from "next/navigation";
+
 import { Medal } from "lucide-react";
 import {
   LineChart,
@@ -22,8 +24,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import type { TooltipContentProps, TooltipValueType } from "recharts";
-import { createClient } from "@/lib/supabase/client";
+
 import {
   currentMonthKST,
   daysInMonth as getDaysInMonth,
@@ -35,12 +36,15 @@ import {
   rankMembers,
   ROLE_COLORS,
   selectMembersForChart,
-  type RankedMember,
   type StatsRow,
 } from "@/lib/projects/crew-progress-chart";
+import { createClient } from "@/lib/supabase/client";
+
 import { SegmentControl } from "@/components/common/segment-control";
 import { Body } from "@/components/common/typography";
 import { Skeleton } from "@/components/ui/skeleton";
+
+import type { TooltipContentProps, TooltipValueType } from "recharts";
 
 export type DailyPoint = Record<string, number | string> & { day: number };
 
@@ -188,11 +192,9 @@ export function CrewProgressChart({
   const [percentData, setPercentData] = useState<DailyPoint[]>(
     initialData?.percentData ?? [],
   );
+  const [_myGoalKm, setMyGoalKm] = useState<number>(initialData?.myGoalKm ?? 0);
   const [members, setMembers] = useState<ChartMember[]>(
     initialData?.members ?? [],
-  );
-  const [myGoalKm, setMyGoalKm] = useState<number>(
-    initialData?.myGoalKm ?? 0,
   );
   const [myName, setMyName] = useState<string | null>(
     initialData?.myName ?? null,
@@ -372,8 +374,10 @@ export function CrewProgressChart({
   }, [mode]);
 
   // initialData 없을 때만 초기 fetch
+   
   useEffect(() => {
     if (!initialData) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       load();
     }
   }, [initialData, load]);
@@ -491,7 +495,6 @@ export function CrewProgressChart({
   );
 
   const percentBarCount = memberPercentData.length;
-  const hasBoostedPercent = memberPercentData.some((item) => item.boosted);
   const percentBarLabelFont =
     percentBarCount > 26 ? 8 : percentBarCount > 18 ? 9 : percentBarCount > 12 ? 10 : 11;
   // 차트 높이는 유지하고, X축 라벨 영역/하단 마진만 줄여 의미 없는 빈 공간을 압축한다.

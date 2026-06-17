@@ -1,5 +1,7 @@
 "use server";
 
+import { dayjs } from "@/lib/dayjs";
+
 import { verifyAdmin } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -20,6 +22,8 @@ export async function addExemptionHist({
 
   if (!memId) return { ok: false as const, message: "회원을 선택해주세요." };
   if (!aplyYm) return { ok: false as const, message: "적용 월을 입력해주세요." };
+  const normalizedYm = dayjs(aplyYm).format("YYYY-MM");
+  if (normalizedYm === "Invalid Date") return { ok: false as const, message: "적용 월 형식이 올바르지 않습니다." };
   if (!exmAmt || exmAmt <= 0) return { ok: false as const, message: "면제 금액을 입력해주세요." };
 
   const { teamId } = await getRequestTeamContext();
@@ -29,7 +33,7 @@ export async function addExemptionHist({
     team_id: teamId,
     mem_id: memId,
     exm_cfg_id: null,
-    aply_ym: aplyYm,
+    aply_ym: normalizedYm,
     exm_amt: exmAmt,
     grant_src_enm: "manual",
     rsn_txt: rsnTxt?.trim() || null,
@@ -39,7 +43,7 @@ export async function addExemptionHist({
     del_yn: false,
   });
 
-  if (error) return { ok: false as const, message: "면제 이력 추가에 실패했습니다." };
+  if (error) return { ok: false as const, message: error.message };
   return { ok: true as const, message: null };
 }
 
@@ -67,7 +71,7 @@ export async function updateExemptionHist({
     .eq("team_id", teamId)
     .eq("vers", 0);
 
-  if (error) return { ok: false as const, message: "면제 이력 수정에 실패했습니다." };
+  if (error) return { ok: false as const, message: error.message };
   return { ok: true as const, message: null };
 }
 
@@ -85,6 +89,6 @@ export async function deleteExemptionHist(exmHistId: string) {
     .eq("team_id", teamId)
     .eq("vers", 0);
 
-  if (error) return { ok: false as const, message: "면제 이력 삭제에 실패했습니다." };
+  if (error) return { ok: false as const, message: error.message };
   return { ok: true as const, message: null };
 }

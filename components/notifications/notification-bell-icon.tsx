@@ -1,20 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+
 import { Bell, Settings, Trash2, ChevronLeft } from "lucide-react";
+
 import { dayjs } from "@/lib/dayjs";
-import { createClient } from "@/lib/supabase/client";
 import type { Notification, NotificationPref } from "@/lib/queries/notification";
-import { markAllNotificationsRead } from "@/app/actions/mark-all-notifications-read";
+import { createClient } from "@/lib/supabase/client";
+
 import { deleteAllNotifications } from "@/app/actions/delete-all-notifications";
+import { markAllNotificationsRead } from "@/app/actions/mark-all-notifications-read";
 import { upsertNotiPref } from "@/app/actions/upsert-noti-pref";
-import { NotificationItem } from "./notification-item";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
+
+import { Body, Caption, SectionLabel } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Body, Caption, SectionLabel } from "@/components/common/typography";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
+
+import { NotificationItem } from "./notification-item";
 
 type NotificationBellIconProps = {
   initialCount: number;
@@ -24,6 +28,7 @@ type NotificationBellIconProps = {
 
 const NOTI_TYPE_LABELS: Record<string, string> = {
   ttl_grnt: "칭호 획득",
+  sch_post_new: "정보 등록",
 };
 
 type ViewType = "list" | "settings";
@@ -74,7 +79,9 @@ export function NotificationBellIcon({ initialCount, memberId, disabled }: Notif
   useEffect(() => {
     if (!open || !memberId) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCursor(null);
+     
     setHasMore(true);
     fetchNotifications(true, null);
 
@@ -90,6 +97,23 @@ export function NotificationBellIcon({ initialCount, memberId, disabled }: Notif
         const noti = payload.new as Notification;
         setNotifications((prev) => [noti, ...prev]);
         setUnreadCount((c) => c + 1);
+      })
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "noti_mst",
+        filter: `mem_id=eq.${memberId}`,
+      }, (payload) => {
+        const updated = payload.new as Notification;
+        setNotifications((prev) => {
+          const existing = prev.find((n) => n.noti_id === updated.noti_id);
+          if (existing && !existing.read_yn && updated.read_yn) {
+            setUnreadCount((c) => Math.max(0, c - 1));
+          } else if (existing && existing.read_yn && !updated.read_yn) {
+            setUnreadCount((c) => c + 1);
+          }
+          return prev.map((n) => n.noti_id === updated.noti_id ? { ...n, ...updated } : n);
+        });
       })
       .subscribe();
 

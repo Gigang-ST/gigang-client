@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+
 import { cn } from "@/lib/utils";
 
 type Segment<T extends string = string> = {
@@ -27,7 +28,7 @@ function SegmentControl<T extends string = string>({
 }: SegmentControlProps<T>) {
   return (
     <div className={cn("flex gap-0 rounded-xl border border-border bg-secondary p-1", className)}>
-      {segments.map((seg, idx) => (
+      {segments.map((seg) => (
         <button
           key={seg.value}
           type="button"

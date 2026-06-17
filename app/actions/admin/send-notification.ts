@@ -4,7 +4,7 @@ import { verifyAdmin } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 
-export type NotiTypeEnm = "adm_cust" | "dues_notice";
+export type NotiTypeEnm = "adm_cust" | "dues_notice" | "cmnt_reply" | "cmnt_mention";
 
 export async function sendNotification(input: {
   target: "all" | string[];

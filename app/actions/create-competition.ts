@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidateTag } from "next/cache";
+
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { todayKST } from "@/lib/dayjs";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getCachedCmmCdRows, isValidCompSprtCd } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 interface CreateCompetitionInput {
   title: string;
@@ -56,7 +57,7 @@ export async function createCompetition(input: CreateCompetitionInput) {
     .single();
 
   if (compErr || !comp) {
-    console.error("대회 등록 실패(comp_mst):", compErr);
+    console.error("대회 등록 실패(comp_mst):", compErr?.code, compErr?.message, compErr?.details);
     return { ok: false, message: "등록에 실패했습니다. 다시 시도해 주세요." };
   }
 

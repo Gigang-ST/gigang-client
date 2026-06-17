@@ -401,7 +401,40 @@ VALUES (
 - `created_at`, `updated_at` 같은 컬럼명은 사용하지 않는다.
 - 상세 컬럼 정의/제약/인덱스/RLS 초안은 `database-schema-v2-title-domain.md`를 따른다.
 
-## 6) 관계 요약
+## 6) 건의 도메인
+
+### `fdbk_mst` (건의/피드백 마스터)
+멤버가 앱 내에서 운영진에게 제출하는 건의·피드백을 저장한다.
+
+필수 컬럼:
+- `fdbk_id` (PK, uuid)
+- `mem_id` (FK → `mem_mst`, NOT NULL) — 작성자
+- `cont_txt` (text, NOT NULL) — 건의 본문
+- `stts_enm` (enum `fdbk_stts_enm`, DEFAULT `open`) — 처리 상태
+- `adm_note_txt` (text, nullable) — 관리자 답변/메모
+- `rspd_at` (timestamptz, nullable) — 관리자 답변 일시
+- `crt_at`, `upd_at`, `vers`, `del_yn`
+
+enum `fdbk_stts_enm`:
+- `open` — 접수됨 (기본값)
+- `in_review` — 검토 중
+- `resolved` — 처리 완료
+- `closed` — 종결 (처리 불가·중복 등)
+
+인덱스:
+- `idx_fdbk_mst_mem_crt` — `(mem_id, crt_at DESC) WHERE del_yn = false`
+
+RLS:
+- `fdbk_mst_select_own` — 본인 건의만 SELECT
+- `fdbk_mst_insert_self` — 본인 `mem_id`로만 INSERT
+- 관리자 조회/수정은 서비스 롤(service role) 사용
+
+소프트딜리트: `del_yn = true` 로 처리. 멤버가 직접 삭제하는 UPDATE RLS 정책은 미설정(운영진 처리 후 종결 방식으로 운영).
+
+트리거:
+- `fdbk_mst_set_upd_at` — UPDATE 시 `set_v2_upd_at()` 호출
+
+## 8) 관계 요약
 - `mem_mst 1:N team_mem_rel`
 - `team_mst 1:N team_mem_rel`
 - `team_mst 1:N team_comp_plan_rel`
@@ -430,15 +463,16 @@ VALUES (
 - `ttl_mst 1:N mem_ttl_rel`
 - `mem_mst 1:N mem_ttl_rel`
 - `team_mem_rel 1:N mem_ttl_rel`
+- `mem_mst 1:N fdbk_mst`
 
-## 7) 운영상 이점
+## 9) 운영상 이점
 - 회비는 원시(`fee_txn_hist`)·확정(`fee_due_pay_hist`)·면제(cfg/hist)·스냅샷으로 역할이 나뉘어 소규모 운영에 맞는 단순함과 감사 추적을 동시에 확보한다.
 - 멀티팀에서도 개인 기록 중복이 없다.
 - 팀별 운영 데이터만 분리되어 권한/RLS 적용이 단순해진다.
 - 회비 같은 신규 기능이 팀 스코프로 독립 확장 가능하다.
 - 기록은 개인 원본으로 분리해 팀 컨텍스트 변화와 독립적으로 보존된다.
 
-## 8) PR 리뷰 포인트 (혼동 방지)
+## 10) PR 리뷰 포인트 (혼동 방지)
 - 회비 잔액은 `fee_txn_hist`가 아니라 `fee_due_pay_hist`·면제·스냅샷 조합으로 본다. 원시 테이블은 확정 전·비회비 거래를 포함한다.
 - 면제 **규칙**(`fee_due_exm_cfg`)과 **반영 이력**(`fee_due_exm_hist`)을 섞지 말 것. 자동·수동 면제의 판정은 서비스, 결과 기록은 DB.
 - 왜 팀코드를 모든 테이블에 넣지 않았는가?
@@ -448,7 +482,7 @@ VALUES (
 - 팀별로 다른 프로필/정책이 필요하면 가능한가?
   - 가능하며, 필요 시점에 팀별 오버라이드 테이블을 별도 설계해 추가함.
 
-## 9) UI/운영 사용 메모
+## 11) UI/운영 사용 메모
 - 참가 신청 UI에서 `공개 팀 범위`를 선택할 수 있게 한다.
   - 기본값: `현재 팀만`
   - 옵션: `내 소속 팀 선택` (복수 선택)

@@ -283,6 +283,100 @@ export type Database = {
           },
         ]
       }
+      cmnt_mention_rel: {
+        Row: {
+          cmnt_id: string
+          mem_id: string
+        }
+        Insert: {
+          cmnt_id: string
+          mem_id: string
+        }
+        Update: {
+          cmnt_id?: string
+          mem_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cmnt_mention_rel_cmnt_id_fkey"
+            columns: ["cmnt_id"]
+            isOneToOne: false
+            referencedRelation: "cmnt_mst"
+            referencedColumns: ["cmnt_id"]
+          },
+          {
+            foreignKeyName: "cmnt_mention_rel_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
+      cmnt_mst: {
+        Row: {
+          cmnt_id: string
+          cont_txt: string
+          crt_at: string
+          del_yn: boolean
+          edit_yn: boolean
+          entity_id: string
+          entity_type: string
+          mem_id: string
+          prnt_id: string | null
+          team_id: string
+          upd_at: string
+        }
+        Insert: {
+          cmnt_id?: string
+          cont_txt: string
+          crt_at?: string
+          del_yn?: boolean
+          edit_yn?: boolean
+          entity_id: string
+          entity_type: string
+          mem_id: string
+          prnt_id?: string | null
+          team_id: string
+          upd_at?: string
+        }
+        Update: {
+          cmnt_id?: string
+          cont_txt?: string
+          crt_at?: string
+          del_yn?: boolean
+          edit_yn?: boolean
+          entity_id?: string
+          entity_type?: string
+          mem_id?: string
+          prnt_id?: string | null
+          team_id?: string
+          upd_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cmnt_mst_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "cmnt_mst_prnt_id_fkey"
+            columns: ["prnt_id"]
+            isOneToOne: false
+            referencedRelation: "cmnt_mst"
+            referencedColumns: ["cmnt_id"]
+          },
+          {
+            foreignKeyName: "cmnt_mst_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
       comp_evt_cfg: {
         Row: {
           comp_evt_id: string
@@ -1192,6 +1286,53 @@ export type Database = {
           },
         ]
       }
+      fdbk_mst: {
+        Row: {
+          fdbk_id: string
+          mem_id: string
+          cont_txt: string
+          stts_enm: "open" | "in_review" | "resolved" | "closed"
+          adm_note_txt: string | null
+          rspd_at: string | null
+          crt_at: string
+          upd_at: string
+          vers: number
+          del_yn: boolean
+        }
+        Insert: {
+          fdbk_id?: string
+          mem_id: string
+          cont_txt: string
+          stts_enm?: "open" | "in_review" | "resolved" | "closed"
+          adm_note_txt?: string | null
+          rspd_at?: string | null
+          crt_at?: string
+          upd_at?: string
+          vers?: number
+          del_yn?: boolean
+        }
+        Update: {
+          fdbk_id?: string
+          mem_id?: string
+          cont_txt?: string
+          stts_enm?: "open" | "in_review" | "resolved" | "closed"
+          adm_note_txt?: string | null
+          rspd_at?: string | null
+          crt_at?: string
+          upd_at?: string
+          vers?: number
+          del_yn?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fdbk_mst_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
       mem_mst: {
         Row: {
           avatar_url: string | null
@@ -1531,6 +1672,69 @@ export type Database = {
           },
         ]
       }
+      sch_post_mst: {
+        Row: {
+          cont_txt: string | null
+          crt_at: string
+          crt_by: string
+          del_yn: boolean
+          evt_end_at: string | null
+          evt_stt_at: string
+          post_type: string
+          sch_nm: string
+          sch_post_id: string
+          team_id: string
+          upd_at: string
+          url: string | null
+          vers: number
+        }
+        Insert: {
+          cont_txt?: string | null
+          crt_at?: string
+          crt_by: string
+          del_yn?: boolean
+          evt_end_at?: string | null
+          evt_stt_at: string
+          post_type?: string
+          sch_nm: string
+          sch_post_id?: string
+          team_id: string
+          upd_at?: string
+          url?: string | null
+          vers?: number
+        }
+        Update: {
+          cont_txt?: string | null
+          crt_at?: string
+          crt_by?: string
+          del_yn?: boolean
+          evt_end_at?: string | null
+          evt_stt_at?: string
+          post_type?: string
+          sch_nm?: string
+          sch_post_id?: string
+          team_id?: string
+          upd_at?: string
+          url?: string | null
+          vers?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sch_post_crt_by_fkey"
+            columns: ["crt_by"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "sch_post_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
       team_comp_plan_rel: {
         Row: {
           comp_id: string
@@ -1581,6 +1785,7 @@ export type Database = {
       }
       team_mem_rel: {
         Row: {
+          card_featured: Json | null
           crt_at: string
           del_yn: boolean
           inact_rsn_txt: string | null
@@ -1597,6 +1802,7 @@ export type Database = {
           vers: number
         }
         Insert: {
+          card_featured?: Json | null
           crt_at?: string
           del_yn?: boolean
           inact_rsn_txt?: string | null
@@ -1613,6 +1819,7 @@ export type Database = {
           vers?: number
         }
         Update: {
+          card_featured?: Json | null
           crt_at?: string
           del_yn?: boolean
           inact_rsn_txt?: string | null
@@ -1789,6 +1996,10 @@ export type Database = {
             }
             Returns: undefined
           }
+      get_public_member_card: {
+        Args: { p_mem_id: string; p_team_id: string }
+        Returns: Json
+      }
       get_public_team_comp_reg_display_counts: {
         Args: { p_comp_id: string; p_team_id: string }
         Returns: {
@@ -1799,6 +2010,7 @@ export type Database = {
       get_public_team_competitions: {
         Args: { p_end?: string; p_start?: string; p_team_id: string }
         Returns: {
+          cmnt_count: number
           comp_evt_types: string[]
           comp_id: string
           comp_nm: string
@@ -1839,6 +2051,21 @@ export type Database = {
           race_nm: string
           rec_time_sec: number
           upd_at: string
+        }[]
+      }
+      get_public_team_sch_posts: {
+        Args: { p_end?: string; p_start?: string; p_team_id: string }
+        Returns: {
+          cmnt_count: number
+          cont_txt: string
+          crt_by: string
+          crt_by_nm: string
+          evt_end_at: string
+          evt_stt_at: string
+          post_type: string
+          sch_nm: string
+          sch_post_id: string
+          url: string
         }[]
       }
       get_public_team_utmb_rankings: {
@@ -2036,3 +2263,4 @@ export const Constants = {
     },
   },
 } as const
+

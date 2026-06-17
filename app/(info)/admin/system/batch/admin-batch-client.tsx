@@ -1,23 +1,23 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
+
 import { useRouter } from "next/navigation";
+
+import { Play, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { toast } from "sonner";
+
 import { currentMonthKST, formatKSTDateTime, prevMonthStr, todayKST } from "@/lib/dayjs";
-import { Play, Clock, CheckCircle2, XCircle, Loader2, ChevronDown, ChevronUp } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { CardItem } from "@/components/ui/card";
+
+import { runBatch, getBatchRunHist, getActiveEvents } from "@/app/actions/admin/run-batch";
+
 import { SectionHeader } from "@/components/common/section-header";
 import { Body, Caption, Micro } from "@/components/common/typography";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetFooter,
-} from "@/components/ui/sheet";
-import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { CardItem } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -25,8 +25,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { runBatch, getBatchRunHist, getActiveEvents } from "@/app/actions/admin/run-batch";
-import { toast } from "sonner";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetFooter,
+} from "@/components/ui/sheet";
+
+
 
 export type ParamField = {
   key: string;
@@ -117,7 +124,7 @@ export function AdminBatchClient({ initialJobs }: { initialJobs: BatchJob[] }) {
   const [jobs, setJobs] = useState<BatchJob[]>(initialJobs);
 
   // router.refresh() 후 서버에서 새 initialJobs가 오면 동기화
-  useEffect(() => { setJobs(initialJobs); }, [initialJobs]);
+  useEffect(() => { setJobs(initialJobs); }, [initialJobs]); // eslint-disable-line react-hooks/set-state-in-effect
   const [selectedJob, setSelectedJob] = useState<BatchJob | null>(null);
   const [params, setParams] = useState<Record<string, string>>({});
   const [sheetOpen, setSheetOpen] = useState(false);

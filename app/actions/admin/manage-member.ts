@@ -163,16 +163,18 @@ export async function reactivateMember(memberId: string) {
   const { teamId } = await getRequestTeamContext();
   const db = createAdminClient();
 
-  const { error } = await db
+  const { data: updated, error } = await db
     .from("team_mem_rel")
     .update({ mem_st_cd: "active", inact_rsn_txt: null })
     .eq("mem_id", memberId)
     .eq("team_id", teamId)
     .eq("vers", 0)
     .eq("del_yn", false)
-    .eq("mem_st_cd", "inactive");
+    .eq("mem_st_cd", "inactive")
+    .select("team_mem_id");
 
   if (error) return { ok: false, message: "활성화에 실패했습니다" };
+  if (!updated?.length) return { ok: false, message: "활성화할 수 있는 대상이 아닙니다" };
   return { ok: true, message: null };
 }
 

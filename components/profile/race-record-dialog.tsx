@@ -9,15 +9,22 @@ import {
 } from "@/lib/comp-evt-type";
 import { timeStringToSeconds, secondsToTime } from "@/lib/dayjs";
 import {
+  getCachedExtraction,
+  hashImageFile,
+  setCachedExtraction,
+} from "@/lib/ocr/ocr-cache";
+import {
   eventTypeCodesForSprtFromCmmRows,
   type CachedCmmCdRow,
 } from "@/lib/queries/cmm-cd-cached";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
+import { extractRaceRecordFromImage } from "@/app/actions/extract-race-record";
 import { saveRaceRecord } from "@/app/actions/save-race-record";
 import { listCompetitionsByRaceDate } from "@/app/actions/search-competitions";
 
+import { Micro } from "@/components/common/typography";
 import { CompetitionRegisterDialog } from "@/components/races/competition-register-dialog";
 import type { MemberStatus } from "@/components/races/types";
 import { Button } from "@/components/ui/button";
@@ -43,6 +50,8 @@ interface Competition {
   registeredEventType?: string | null;
   /** 참가 신청 행의 comp_evt_cfg PK (서버에서 종목 정합 검증용) */
   registrationCompEvtId?: string | null;
+  /** 이미 기록을 등록한 대회 여부 */
+  hasRecord?: boolean;
 }
 
 /* ---------- 시간 입력 자동 포맷 ---------- */
@@ -78,7 +87,7 @@ export function RaceRecordDialog({
   const supabase = useMemo(() => createClient(), []);
 
   // 단계 관리
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
   const [grantedTitles, setGrantedTitles] = useState<string[]>([]);
   const [grantedDismissable, setGrantedDismissable] = useState(false);
   const grantedDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -111,6 +120,20 @@ export function RaceRecordDialog({
   const [bikeTime, setBikeTime] = useState("");
   const [runTime, setRunTime] = useState("");
 
+  // OCR (0단계)
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrError, setOcrError] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [ocrTimes, setOcrTimes] = useState<{
+    total: string | null;
+    swim: string | null;
+    bike: string | null;
+    run: string | null;
+  } | null>(null);
+  const [ocrCompetitionName, setOcrCompetitionName] = useState<string | null>(null);
+  const [ocrFilledFields, setOcrFilledFields] = useState<Set<string>>(new Set());
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   // 저장 상태
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,48 +164,35 @@ export function RaceRecordDialog({
     return total - swim - bike - run;
   }, [isTriathlon, totalTime, swimTime, bikeTime, runTime]);
 
-  // 다이얼로그 열릴 때 초기화 + 대회 목록 불러오기
-  useEffect(() => {
-    if (open) {
-      setStep(1);
-      setSelectedComp(null);
-      setRaceDate("");
-      setCompsForRaceDate([]);
-      setDateListLoading(false);
-      setSearchQuery("");
-      setRegisterOpen(false);
-      setRecordRaceDayFromCalendar("");
-      setSelectedEventType("");
-      setCustomEventType("");
-      setTotalTime("");
-      setSwimTime("");
-      setBikeTime("");
-      setRunTime("");
-      setError(null);
-      fetchCompetitions();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
   async function fetchCompetitions() {
     setLoadingComps(true);
     const today = new Date();
     const threeMonthsAgo = new Date();
     threeMonthsAgo.setMonth(today.getMonth() - 3);
 
-    const { data } = await supabase
-      .from("comp_reg_rel")
-      .select(
-        "comp_reg_id, comp_evt_id, comp_evt_cfg(comp_evt_type), team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(comp_evt_type)))",
-      )
-      .eq("mem_id", memberId)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .eq("team_comp_plan_rel.team_id", teamId)
-      .gte("team_comp_plan_rel.comp_mst.stt_dt", threeMonthsAgo.toISOString().split("T")[0])
-      .lte("team_comp_plan_rel.comp_mst.stt_dt", today.toISOString().split("T")[0])
-      .order("crt_at", { ascending: false })
-      .limit(50);
+    const [{ data }, { data: recordData }] = await Promise.all([
+      supabase
+        .from("comp_reg_rel")
+        .select(
+          "comp_reg_id, comp_evt_id, comp_evt_cfg(comp_evt_type), team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(comp_evt_type)))",
+        )
+        .eq("mem_id", memberId)
+        .eq("vers", 0)
+        .eq("del_yn", false)
+        .eq("team_comp_plan_rel.team_id", teamId)
+        .gte("team_comp_plan_rel.comp_mst.stt_dt", threeMonthsAgo.toISOString().split("T")[0])
+        .lte("team_comp_plan_rel.comp_mst.stt_dt", today.toISOString().split("T")[0])
+        .order("crt_at", { ascending: false })
+        .limit(50),
+      supabase
+        .from("rec_race_hist")
+        .select("comp_id")
+        .eq("mem_id", memberId)
+        .eq("vers", 0)
+        .eq("del_yn", false),
+    ]);
+
+    const recordedCompIds = new Set((recordData ?? []).map((r) => r.comp_id).filter(Boolean));
 
     const seen = new Set<string>();
     const raw = data ?? [];
@@ -206,6 +216,7 @@ export function RaceRecordDialog({
           event_types: (comp.comp_evt_cfg ?? []).map((e) => e.comp_evt_type?.toUpperCase()),
           registeredEventType: evt?.comp_evt_type ?? null,
           registrationCompEvtId: rowAny.comp_evt_id ?? null,
+          hasRecord: recordedCompIds.has(comp.comp_id),
         } as Competition;
       })
       .filter((c) => {
@@ -218,10 +229,44 @@ export function RaceRecordDialog({
     setLoadingComps(false);
   }
 
+  // 다이얼로그 열릴 때 초기화 + 대회 목록 불러오기
+  useEffect(() => {
+    if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setStep(0);
+      setOcrLoading(false);
+      setOcrError(null);
+      setImagePreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      setOcrTimes(null);
+      setOcrCompetitionName(null);
+      setOcrFilledFields(new Set());
+      setSelectedComp(null);
+      setRaceDate("");
+      setCompsForRaceDate([]);
+      setDateListLoading(false);
+      setSearchQuery("");
+      setRegisterOpen(false);
+      setRecordRaceDayFromCalendar("");
+      setSelectedEventType("");
+      setCustomEventType("");
+      setTotalTime("");
+      setSwimTime("");
+      setBikeTime("");
+      setRunTime("");
+      setError(null);
+      fetchCompetitions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   // 대회 날짜 선택 시 해당 구간 대회 목록
   useEffect(() => {
     const d = raceDate.trim();
     if (!d) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCompsForRaceDate([]);
       setDateListLoading(false);
       return;
@@ -263,6 +308,7 @@ export function RaceRecordDialog({
     const registered = (comp.registeredEventType ?? "").trim().toUpperCase();
     setSelectedEventType(registered);
     setCustomEventType("");
+    if (comp.registeredEventType) applyOcrTimesToStep3();
     setStep(comp.registeredEventType ? 3 : 2);
   }
 
@@ -274,12 +320,17 @@ export function RaceRecordDialog({
     setBikeTime("");
     setRunTime("");
     setError(null);
+    applyOcrTimesToStep3();
     setStep(3);
   }
 
   // 뒤로가기 (참가한 대회는 step 2 없이 3으로 왔으므로 step 3에서 뒤로가면 대회 선택으로)
   function handleBack() {
     setError(null);
+    if (step === 1) {
+      setStep(0);
+      return;
+    }
     if (step === 3) {
       if (selectedComp?.registeredEventType) {
         setSelectedComp(null);
@@ -325,6 +376,76 @@ export function RaceRecordDialog({
     }
     return true;
   })();
+
+  async function handleImageSelected(file: File) {
+    setOcrError(null);
+    setImagePreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+
+    let hash: string | null = null;
+    try {
+      hash = await hashImageFile(file);
+    } catch {
+      hash = null;
+    }
+
+    // 같은 사진이면 Gemini 재호출 없이 캐시 사용 (토큰 절약)
+    if (hash) {
+      const cached = getCachedExtraction(hash);
+      if (cached) {
+        applyOcrResult(cached);
+        return;
+      }
+    }
+
+    setOcrLoading(true);
+    const formData = new FormData();
+    formData.append("image", file);
+    const result = await extractRaceRecordFromImage(formData);
+    setOcrLoading(false);
+
+    if (!result.ok) {
+      setOcrError(result.message);
+      return;
+    }
+    if (hash) setCachedExtraction(hash, result.data);
+    applyOcrResult(result.data);
+  }
+
+  function skipOcr() {
+    setStep(1);
+  }
+
+  function applyOcrResult(data: import("@/lib/ocr/race-record").ExtractedRecord) {
+    if (data.raceDate) setRaceDate(data.raceDate);
+    if (data.competitionName) setSearchQuery(data.competitionName);
+    setOcrCompetitionName(data.competitionName);
+    setOcrTimes({
+      total: data.totalTime,
+      swim: data.swimTime,
+      bike: data.bikeTime,
+      run: data.runTime,
+    });
+    setStep(1);
+  }
+
+  // OCR로 읽은 시간을 step 3 입력칸에 채운다 (사용자가 손대지 않은 빈 칸만).
+  function applyOcrTimesToStep3() {
+    if (!ocrTimes) return;
+    const filled = new Set<string>();
+    const toInput = (v: string | null) => {
+      if (!v) return "";
+      const padded = v.replace(/^(\d):/, "0$1:"); // "3:25:29" → "03:25:29"
+      return formatTimeInput(padded.replace(/:/g, ""));
+    };
+    if (ocrTimes.total && !totalTime) { setTotalTime(toInput(ocrTimes.total)); filled.add("total"); }
+    if (ocrTimes.swim && !swimTime) { setSwimTime(toInput(ocrTimes.swim)); filled.add("swim"); }
+    if (ocrTimes.bike && !bikeTime) { setBikeTime(toInput(ocrTimes.bike)); filled.add("bike"); }
+    if (ocrTimes.run && !runTime) { setRunTime(toInput(ocrTimes.run)); filled.add("run"); }
+    setOcrFilledFields(filled);
+  }
 
   async function handleSave() {
     if (!canSave || !selectedComp) return;
@@ -374,7 +495,7 @@ export function RaceRecordDialog({
   }, [grantedDismissable]);
 
   /* ---------- 렌더링 ---------- */
-  const scrollSearchInputAboveKeyboard = useRef(() => {
+  const scrollSearchInputAboveKeyboard = useCallback(() => {
     const input = searchInputRef.current;
     const container = dialogContentRef.current;
     if (!input || !container || document.activeElement !== input) return;
@@ -386,7 +507,7 @@ export function RaceRecordDialog({
       const scrollAmount = rect.bottom - (visibleBottom - padding);
       container.scrollTop += scrollAmount;
     }
-  }).current;
+  }, []);
 
   useEffect(() => {
     const vv = window.visualViewport;
@@ -395,6 +516,11 @@ export function RaceRecordDialog({
     return () => vv.removeEventListener("resize", scrollSearchInputAboveKeyboard);
   }, [scrollSearchInputAboveKeyboard]);
 
+  const ocrHint = (field: string) =>
+    ocrFilledFields.has(field) ? (
+      <Micro>· 사진에서 읽음 — 확인해 주세요</Micro>
+    ) : null;
+
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange} modal={!registerOpen}>
@@ -402,13 +528,14 @@ export function RaceRecordDialog({
         <DialogHeader>
           <DialogTitle>기록 입력</DialogTitle>
           <DialogDescription>
+            {step === 0 && "기록증 사진을 올리거나 직접 입력해 주세요."}
             {step === 1 && "대회를 선택해 주세요."}
             {step === 2 && "코스를 선택해 주세요."}
             {step === 3 && "기록을 입력해 주세요."}
           </DialogDescription>
         </DialogHeader>
 
-        {step > 1 && (
+        {step >= 1 && (
           <Button
             type="button"
             variant="ghost"
@@ -418,6 +545,65 @@ export function RaceRecordDialog({
           >
             &larr; 뒤로
           </Button>
+        )}
+
+        {/* 단계 0: 기록증 사진 업로드 */}
+        {step === 0 && (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-muted-foreground">
+              기록증 사진이 있으면 대회·시간을 자동으로 채워드려요.
+            </p>
+
+            {imagePreview && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={imagePreview}
+                alt="기록증 미리보기"
+                className="max-h-48 w-full rounded-lg border border-border object-contain"
+              />
+            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void handleImageSelected(f);
+                e.target.value = "";
+              }}
+            />
+
+            <Button
+              type="button"
+              size="lg"
+              disabled={ocrLoading}
+              onClick={() => fileInputRef.current?.click()}
+              className="h-12 w-full rounded-xl font-semibold"
+            >
+              {ocrLoading ? "기록 읽는 중..." : "📷 기록증 사진 올리기"}
+            </Button>
+
+            {ocrError && <p className="text-xs text-destructive">{ocrError}</p>}
+
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-xs text-muted-foreground">또는</span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              disabled={ocrLoading}
+              onClick={skipOcr}
+              className="h-12 w-full rounded-xl"
+            >
+              사진 없이 직접 입력
+            </Button>
+          </div>
         )}
 
         {/* 단계 1: 최근 3개월 참가 대회 + 전체 대회 검색 */}
@@ -439,10 +625,21 @@ export function RaceRecordDialog({
                     key={comp.id}
                     type="button"
                     variant="outline"
+                    disabled={comp.hasRecord}
                     onClick={() => handleSelectCompetition(comp)}
-                    className="h-auto w-full flex-col items-start gap-0.5 border-[1.5px] px-4 py-3 hover:border-primary/50"
+                    className={cn(
+                      "h-auto w-full flex-col items-start gap-0.5 border-[1.5px] px-4 py-3",
+                      comp.hasRecord
+                        ? "cursor-not-allowed opacity-60"
+                        : "hover:border-primary/50",
+                    )}
                   >
-                    <p className="text-sm font-medium">{comp.title}</p>
+                    <div className="flex w-full items-center justify-between gap-2">
+                      <p className="text-sm font-medium">{comp.title}</p>
+                      {comp.hasRecord && (
+                        <Micro className="shrink-0 text-muted-foreground">기록 등록됨</Micro>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       {comp.start_date} &middot; {comp.location ?? "-"}
                     </p>
@@ -609,6 +806,7 @@ export function RaceRecordDialog({
                         onClick={() => {
                           setTotalTime("");
                           setError(null);
+                          applyOcrTimesToStep3();
                           setStep(3);
                         }}
                         className="h-12 w-full rounded-xl font-semibold"
@@ -640,8 +838,17 @@ export function RaceRecordDialog({
                     placeholder="HH:MM:SS"
                     inputMode="numeric"
                     value={totalTime}
-                    onChange={(e) => setTotalTime(formatTimeInput(e.target.value))}
+                    onChange={(e) => {
+                      setTotalTime(formatTimeInput(e.target.value));
+                      setOcrFilledFields((p) => {
+                        if (!p.has("total")) return p;
+                        const n = new Set(p);
+                        n.delete("total");
+                        return n;
+                      });
+                    }}
                   />
+                  {ocrHint("total")}
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium">수영</label>
@@ -649,8 +856,17 @@ export function RaceRecordDialog({
                     placeholder="HH:MM:SS"
                     inputMode="numeric"
                     value={swimTime}
-                    onChange={(e) => setSwimTime(formatTimeInput(e.target.value))}
+                    onChange={(e) => {
+                      setSwimTime(formatTimeInput(e.target.value));
+                      setOcrFilledFields((p) => {
+                        if (!p.has("swim")) return p;
+                        const n = new Set(p);
+                        n.delete("swim");
+                        return n;
+                      });
+                    }}
                   />
+                  {ocrHint("swim")}
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium">자전거</label>
@@ -658,8 +874,17 @@ export function RaceRecordDialog({
                     placeholder="HH:MM:SS"
                     inputMode="numeric"
                     value={bikeTime}
-                    onChange={(e) => setBikeTime(formatTimeInput(e.target.value))}
+                    onChange={(e) => {
+                      setBikeTime(formatTimeInput(e.target.value));
+                      setOcrFilledFields((p) => {
+                        if (!p.has("bike")) return p;
+                        const n = new Set(p);
+                        n.delete("bike");
+                        return n;
+                      });
+                    }}
                   />
+                  {ocrHint("bike")}
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium">러닝</label>
@@ -667,8 +892,17 @@ export function RaceRecordDialog({
                     placeholder="HH:MM:SS"
                     inputMode="numeric"
                     value={runTime}
-                    onChange={(e) => setRunTime(formatTimeInput(e.target.value))}
+                    onChange={(e) => {
+                      setRunTime(formatTimeInput(e.target.value));
+                      setOcrFilledFields((p) => {
+                        if (!p.has("run")) return p;
+                        const n = new Set(p);
+                        n.delete("run");
+                        return n;
+                      });
+                    }}
                   />
+                  {ocrHint("run")}
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium">트랜지션</label>
@@ -694,8 +928,17 @@ export function RaceRecordDialog({
                   placeholder="HH:MM:SS"
                   inputMode="numeric"
                   value={totalTime}
-                  onChange={(e) => setTotalTime(formatTimeInput(e.target.value))}
+                  onChange={(e) => {
+                    setTotalTime(formatTimeInput(e.target.value));
+                    setOcrFilledFields((p) => {
+                      if (!p.has("total")) return p;
+                      const n = new Set(p);
+                      n.delete("total");
+                      return n;
+                    });
+                  }}
                 />
+                {ocrHint("total")}
               </div>
             )}
 
@@ -726,7 +969,21 @@ export function RaceRecordDialog({
           datePolicy="allow-past"
           stackElevated
           prefillStartDate={raceDate.trim() || undefined}
-          onCreated={(_comp) => {}}
+          prefillTitle={ocrCompetitionName?.trim() || undefined}
+          onCreated={(comp) => {
+            setRegisterOpen(false);
+            handleSelectCompetition(
+              {
+                id: comp.id,
+                title: comp.title,
+                start_date: comp.start_date,
+                location: comp.location,
+                sport: comp.sport ?? "",
+                event_types: comp.event_types,
+              },
+              { useCalendarPickForRecordDate: true },
+            );
+          }}
         />
       )}
 

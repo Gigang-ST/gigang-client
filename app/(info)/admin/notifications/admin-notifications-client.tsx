@@ -4,16 +4,17 @@ import React, { useState, useMemo } from "react";
 
 import { useRouter } from "next/navigation";
 
-import { cn } from "@/lib/utils";
+import { Check } from "lucide-react";
+
 import { dayjs } from "@/lib/dayjs";
+import { cn } from "@/lib/utils";
 
 import { sendNotification, type NotiTypeEnm } from "@/app/actions/admin/send-notification";
 
-import { Check } from "lucide-react";
 
-import { Body, Caption, SectionLabel } from "@/components/common/typography";
-import { SectionHeader } from "@/components/common/section-header";
 import { EmptyState } from "@/components/common/empty-state";
+import { SectionHeader } from "@/components/common/section-header";
+import { Body, Caption } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +34,8 @@ type Member = { mem_id: string; mem_nm: string };
 const NOTI_TYPE_LABELS: Record<NotiTypeEnm, string> = {
   adm_cust: "일반",
   dues_notice: "회비 안내",
+  cmnt_reply: "댓글 답글",
+  cmnt_mention: "댓글 멘션",
 };
 
 export function AdminNotificationsClient({
@@ -60,8 +63,6 @@ export function AdminNotificationsClient({
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [expandedBatch, setExpandedBatch] = useState<string | null>(null);
-
-  const memberMap = useMemo(() => new Map(members.map((m) => [m.mem_id, m.mem_nm])), [members]);
 
   const filtered = useMemo(
     () => members.filter((m) => m.mem_nm.includes(search)),

@@ -21,6 +21,8 @@ export type ReviewLine = {
   badgeEffect: string | null;
   frameCd: string | null;
   isHeld: boolean;
+  /** 정렬 기준 날짜 (YYYY-MM-DD) */
+  actDt: string;
 };
 
 type RandomReviewRotatorProps = {
@@ -38,7 +40,8 @@ function pickRandomLines(lines: ReviewLine[]): ReviewLine[] {
     const j = Math.floor(Math.random() * (i + 1));
     [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
   }
-  return shuffled.slice(0, getPickCount(shuffled.length));
+  const picked = shuffled.slice(0, getPickCount(shuffled.length));
+  return picked.sort((a, b) => b.actDt.localeCompare(a.actDt));
 }
 
 export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
@@ -52,8 +55,11 @@ export function RandomReviewRotator({ lines }: RandomReviewRotatorProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPicks(pickRandomLines(lines));
+     
     setIndex(0);
+     
     setIsAnimating(false);
   }, [lines]);
 

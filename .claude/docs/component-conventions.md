@@ -55,10 +55,12 @@ badge, button, card, dialog, form, input, label, loading-spinner, select, separa
 - `pace-chart.tsx` — recharts LineChart로 종목별 페이스 추이 차트 표시
 
 ### 인증 도메인 컴포넌트
-- `member-onboarding-form.tsx` — 신규 가입 폼 + inactive 회원 재가입 신청 + pending 회원 승인 대기 메시지 처리. OAuth 프로필 사진(avatar_url) 자동 저장
+- `member-onboarding-form.tsx` — 신규 가입 폼 + inactive 회원 재가입 신청 + pending 회원 승인 대기 메시지 처리. OAuth 프로필 사진(avatar_url) 자동 저장. 가입 위저드 3단계 진행바(`SignupProgress step={3}`) 노출, OAuth 이름 prefill(`initialFullName`, 한글 2~5자만), 가입 필수 = 이름·성별·생일이고 이메일·은행·계좌는 "추가 정보(선택)" 접이식으로 분리(미입력 시 서버가 nullable 수용 → 가입 후 `/profile/bank`에서 입력). 완료 화면에 PWA 설치 CTA(`PwaInstallPrompt variant="inline"`)
+- `signup-progress.tsx` — 가입 위저드 3단계 공유 진행바. `SignupProgress({ step: 1|2|3, done? })`. newbie(1)·login(2)·onboarding(3) 세 페이지가 동일하게 상단에 사용. `fixed top-0`, 색상 토큰만
 
 ### 공통 컴포넌트
-- `in-app-browser-gate.tsx` — children을 감싸는 래퍼. 카카오톡/인스타/라인/페이스북 인앱 브라우저 감지 시 외부 브라우저 유도 UI 표시. Android는 Chrome intent:// 자동 오픈, iOS는 Safari 안내 + 링크 복사. `<InAppBrowserGate>{children}</InAppBrowserGate>` 형태로 사용
+- `in-app-browser-gate.tsx` — children을 감싸는 래퍼. 카카오톡/라인/인스타/페이스북/네이버/밴드/다음 + Android WebView + iOS 비-Safari WebView(소모임 등) 감지 시 외부 브라우저 유도 UI 표시. Android는 Chrome intent:// 자동 오픈, iOS는 Safari 안내 + 링크 복사. `<InAppBrowserGate>{children}</InAppBrowserGate>` 형태로 사용. **가입 흐름 전체(newbie·login·onboarding)에 적용**해 인앱 OAuth 좌절을 차단. 감지 헬퍼 `detectInAppBrowser()`/`isIOS()`/`isStandalone()`를 export하여 `pwa-install-prompt.tsx`가 재사용
+- `pwa-install-prompt.tsx` — PWA 홈 화면 설치 유도. `PwaInstallPrompt({ variant: "banner"|"inline" })`. standalone(설치됨)·인앱 브라우저면 렌더 안 함. Android는 `beforeinstallprompt` 네이티브 설치, iOS는 "공유 → 홈 화면에 추가" 안내. `banner`=전역 하단 고정(7일 dismiss, `(main)` 레이아웃에 마운트), `inline`=가입 완료 화면용
 
 ## 컴포넌트 작성 규칙
 

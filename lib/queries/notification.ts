@@ -55,7 +55,8 @@ export async function getNotifications(
     query = query.lt("crt_at", cursor);
   }
 
-  const { data } = await query;
+  const { data, error } = await query;
+  if (error) throw error;
   return (data ?? []) as Notification[];
 }
 

@@ -16,6 +16,7 @@ import {
   ServerCog,
   Bell,
   Wallet,
+  MessageSquare,
 } from "lucide-react";
 
 import {
@@ -50,7 +51,8 @@ const generalCards: Card[] = [
     label: "회비 관리",
     href: "/admin/dues",
     icon: Wallet,
-    getValue: () => "",
+    getValue: (s) => s.unpaidMemberCount,
+    getAccentValue: (s) => s.unpaidMemberCount,
   },
   {
     key: "competitions",
@@ -65,6 +67,14 @@ const generalCards: Card[] = [
     href: "/admin/records",
     icon: Timer,
     getValue: (s) => s.recentRecordCount,
+  },
+  {
+    key: "feedback",
+    label: "건의 내역",
+    href: "/admin/feedback",
+    icon: MessageSquare,
+    getValue: (s) => s.openFeedbackCount,
+    getAccentValue: (s) => s.openFeedbackCount,
   },
 ];
 

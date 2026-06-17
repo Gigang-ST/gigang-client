@@ -1,11 +1,15 @@
 "use client";
 
 import { useState } from "react";
+
 import { useRouter } from "next/navigation";
+
 import { LayoutList, Megaphone, Zap } from "lucide-react";
+
 import { markBoardTypeRead } from "@/app/actions/mark-board-type-read";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
 import { Body } from "@/components/common/typography";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 
 type BoardPopoverIconProps = {
@@ -21,6 +25,8 @@ export function BoardPopoverIcon({
 }: BoardPopoverIconProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [hasUnreadNotice, setHasUnreadNotice] = useState(initialHasUnreadNotice);
+  const [hasUnreadUpdate, setHasUnreadUpdate] = useState(initialHasUnreadUpdate);
 
   if (!memberId) {
     return (
@@ -29,8 +35,6 @@ export function BoardPopoverIcon({
       </button>
     );
   }
-  const [hasUnreadNotice, setHasUnreadNotice] = useState(initialHasUnreadNotice);
-  const [hasUnreadUpdate, setHasUnreadUpdate] = useState(initialHasUnreadUpdate);
 
   const hasAnyUnread = hasUnreadNotice || hasUnreadUpdate;
 
