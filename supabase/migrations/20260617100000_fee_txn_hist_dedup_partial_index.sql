@@ -10,7 +10,8 @@ CREATE UNIQUE INDEX uk_fee_txn_hist_dedup
 
 -- fee_xlsx_upd_hist 파일 중복 제약도 partial index로 교체
 -- 롤백(del_yn=true)된 업로드 이력은 동일 파일 재업로드 허용
-DROP INDEX public.uk_fee_xlsx_upd_hist_team_hash_vers;
+ALTER TABLE public.fee_xlsx_upd_hist
+  DROP CONSTRAINT uk_fee_xlsx_upd_hist_team_hash_vers;
 
 CREATE UNIQUE INDEX uk_fee_xlsx_upd_hist_team_hash_vers
   ON public.fee_xlsx_upd_hist (team_id, file_hash, vers)
