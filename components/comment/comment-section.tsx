@@ -57,7 +57,7 @@ export function CommentSection({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setComments(initialComments ?? [])
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setLoadingComments(!!currentMemberId && !initialComments)
   }, [entityId])
   const [newText, setNewText] = useState("")
