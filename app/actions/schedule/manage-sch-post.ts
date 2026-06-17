@@ -9,6 +9,12 @@ import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 import { createSchPostSchema, updateSchPostSchema } from "@/lib/validations/schedule";
 
+// datetime-local 나이브 KST 문자열 → UTC ISO 8601 (서버 저장용)
+function toUtcIso(localDt: string | null | undefined): string | null {
+  if (!localDt) return null;
+  return dayjs.tz(localDt, "Asia/Seoul").toISOString();
+}
+
 export async function createSchPost(input: {
   sch_nm: string;
   post_type?: string;
@@ -29,8 +35,8 @@ export async function createSchPost(input: {
       team_id: parsed.team_id,
       sch_nm: parsed.sch_nm,
       post_type: parsed.post_type ?? "general",
-      evt_stt_at: parsed.evt_stt_at,
-      evt_end_at: parsed.evt_end_at ?? null,
+      evt_stt_at: toUtcIso(parsed.evt_stt_at) ?? parsed.evt_stt_at,
+      evt_end_at: toUtcIso(parsed.evt_end_at),
       url: parsed.url || null,
       cont_txt: parsed.cont_txt ?? null,
       crt_by: member.id,
@@ -111,7 +117,13 @@ export async function updateSchPost(input: {
 
   const { error } = await supabase
     .from("sch_post_mst")
-    .update({ ...fields, url: fields.url || null, upd_at: dayjs().toISOString() })
+    .update({
+      ...fields,
+      evt_stt_at: fields.evt_stt_at ? (toUtcIso(fields.evt_stt_at) ?? fields.evt_stt_at) : undefined,
+      evt_end_at: fields.evt_end_at !== undefined ? toUtcIso(fields.evt_end_at) : undefined,
+      url: fields.url || null,
+      upd_at: dayjs().toISOString(),
+    })
     .eq("sch_post_id", sch_post_id);
 
   if (error) throw new Error("수정 권한이 없거나 일정 수정에 실패했습니다.");
@@ -123,12 +135,37 @@ export async function deleteSchPost(sch_post_id: string) {
   const { member, supabase } = await getCurrentMember();
   if (!member) throw new Error("로그인이 필요합니다.");
 
-  const { error } = await supabase
+  // SELECT RLS로 팀 소속 + 비삭제 행 검증
+  const { data: post } = await supabase
+    .from("sch_post_mst")
+    .select("crt_by, team_id")
+    .eq("sch_post_id", sch_post_id)
+    .single();
+  if (!post) throw new Error("일정을 찾을 수 없습니다.");
+
+  // 작성자 또는 운영진(owner/admin) 확인
+  const isAuthor = post.crt_by === member.id;
+  if (!isAuthor) {
+    const { data: rel } = await supabase
+      .from("team_mem_rel")
+      .select("team_role_cd")
+      .eq("team_id", post.team_id)
+      .eq("mem_id", member.id)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .single();
+    if (rel?.team_role_cd !== "owner" && rel?.team_role_cd !== "admin") {
+      throw new Error("삭제 권한이 없습니다.");
+    }
+  }
+
+  // admin client로 del_yn=true (WITH CHECK RLS 우회)
+  const admin = createUntypedAdminClient();
+  const { error } = await admin
     .from("sch_post_mst")
     .update({ del_yn: true, upd_at: dayjs().toISOString() })
     .eq("sch_post_id", sch_post_id);
-
-  if (error) throw new Error("삭제 권한이 없거나 일정 삭제에 실패했습니다.");
+  if (error) throw new Error("일정 삭제에 실패했습니다.");
 
   revalidatePath("/");
 }

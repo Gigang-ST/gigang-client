@@ -104,7 +104,7 @@ export function SchPostDetailDialog({
               <p className="text-sm leading-relaxed whitespace-pre-wrap">{post.cont_txt}</p>
             )}
 
-            {isAuthor && (
+            {(isAuthor || isAdmin) && (
               <div className="flex gap-2 self-end">
                 <Button variant="outline" size="sm" onClick={onEdit} disabled={deleting}>
                   <Pencil className="size-3.5" />

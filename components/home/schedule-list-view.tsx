@@ -110,7 +110,7 @@ async function fetchMonth(
     results.push({
       id: row.sch_post_id,
       title: row.sch_nm,
-      start_date: dayjs(row.evt_stt_at).format("YYYY-MM-DD"),
+      start_date: dayjs(row.evt_stt_at).tz("Asia/Seoul").format("YYYY-MM-DD"),
       type: "schedule",
       post_type: row.post_type,
       end_date: row.evt_end_at,
@@ -265,6 +265,8 @@ export function ScheduleListView({
   ]);
   const [loadingPrev, setLoadingPrev] = useState(false);
   const [loadingNext, setLoadingNext] = useState(false);
+  const [canLoadPrev, setCanLoadPrev] = useState(true);
+  const [canLoadNext, setCanLoadNext] = useState(true);
   const oldestMonth = months[0].monthKey;
   const newestMonth = months[months.length - 1].monthKey;
 
@@ -274,31 +276,39 @@ export function ScheduleListView({
   const prevScrollHeightRef = useRef(0);
 
   const loadPrev = useCallback(async () => {
-    if (loadingPrev) return;
+    if (loadingPrev || !canLoadPrev) return;
     setLoadingPrev(true);
     try {
       const key = prevMonthKey(oldestMonth);
       const races = await fetchMonth(supabase, teamId, memberId, key);
+      if (races.length === 0) {
+        setCanLoadPrev(false);
+        return;
+      }
       prevScrollHeightRef.current = containerRef.current?.scrollHeight ?? 0;
       setMonths((prev) => [{ monthKey: key, races }, ...prev]);
     } finally {
       setLoadingPrev(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingPrev, oldestMonth, teamId, memberId]);
+  }, [loadingPrev, canLoadPrev, oldestMonth, teamId, memberId]);
 
   const loadNext = useCallback(async () => {
-    if (loadingNext) return;
+    if (loadingNext || !canLoadNext) return;
     setLoadingNext(true);
     try {
       const key = nextMonthKey(newestMonth);
       const races = await fetchMonth(supabase, teamId, memberId, key);
+      if (races.length === 0) {
+        setCanLoadNext(false);
+        return;
+      }
       setMonths((prev) => [...prev, { monthKey: key, races }]);
     } finally {
       setLoadingNext(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingNext, newestMonth, teamId, memberId]);
+  }, [loadingNext, canLoadNext, newestMonth, teamId, memberId]);
 
   // 이전 달 prepend 후 스크롤 위치 보정
   useEffect(() => {
