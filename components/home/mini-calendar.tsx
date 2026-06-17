@@ -139,54 +139,60 @@ export function MiniCalendar({
 
   useEffect(() => {
     if (deepLinkPostId) {
-      supabase
-        .from("sch_post_mst")
-        .select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
-        .eq("sch_post_id", deepLinkPostId)
-        .maybeSingle()
-        .then(({ data }) => {
-          if (!data) return
-          setSchDetailPost({
-            id: data.sch_post_id,
-            title: data.sch_nm,
-            start_date: data.evt_stt_at ? dayjs(data.evt_stt_at).format("YYYY-MM-DD") : dayjs().format("YYYY-MM-DD"),
-            type: "schedule",
-            url: data.url ?? null,
-            cont_txt: data.cont_txt ?? null,
-            crt_by: data.crt_by ?? undefined,
-            post_type: data.post_type ?? null,
-            evt_stt_at: data.evt_stt_at ?? null,
-            evt_end_at: data.evt_end_at ?? null,
-          })
-          setSchDetailOpen(true)
-          router.replace("/")
+      Promise.all([
+        supabase
+          .from("sch_post_mst")
+          .select("sch_post_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by")
+          .eq("sch_post_id", deepLinkPostId)
+          .maybeSingle(),
+        memberId ? fetchComments("sch_post", deepLinkPostId) : Promise.resolve(undefined),
+      ]).then(([{ data }, comments]) => {
+        if (!data) return
+        setSchDetailPost({
+          id: data.sch_post_id,
+          title: data.sch_nm,
+          start_date: data.evt_stt_at ? dayjs(data.evt_stt_at).format("YYYY-MM-DD") : dayjs().format("YYYY-MM-DD"),
+          type: "schedule",
+          url: data.url ?? null,
+          cont_txt: data.cont_txt ?? null,
+          crt_by: data.crt_by ?? undefined,
+          post_type: data.post_type ?? null,
+          evt_stt_at: data.evt_stt_at ?? null,
+          evt_end_at: data.evt_end_at ?? null,
         })
+        setSchDetailInitialComments(comments)
+        setSchDetailOpen(true)
+        router.replace("/")
+      })
     }
 
     if (deepLinkCompId) {
-      supabase
-        .from("comp_mst")
-        .select("comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)")
-        .eq("comp_id", deepLinkCompId)
-        .single()
-        .then(({ data }) => {
-          if (!data) return
-          setSelectedCompetition({
-            id: data.comp_id,
-            external_id: "",
-            sport: data.comp_sprt_cd ?? null,
-            title: data.comp_nm,
-            start_date: data.stt_dt,
-            end_date: data.end_dt ?? null,
-            location: data.loc_nm ?? null,
-            event_types: (data.comp_evt_cfg as { comp_evt_type: string | null }[])
-              .map((e) => e.comp_evt_type?.toUpperCase())
-              .filter((e): e is string => Boolean(e)),
-            source_url: data.src_url ?? null,
-          })
-          setDetailOpen(true)
-          router.replace("/")
+      Promise.all([
+        supabase
+          .from("comp_mst")
+          .select("comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)")
+          .eq("comp_id", deepLinkCompId)
+          .single(),
+        memberId ? fetchComments("comp", deepLinkCompId) : Promise.resolve(undefined),
+      ]).then(([{ data }, comments]) => {
+        if (!data) return
+        setSelectedCompetition({
+          id: data.comp_id,
+          external_id: "",
+          sport: data.comp_sprt_cd ?? null,
+          title: data.comp_nm,
+          start_date: data.stt_dt,
+          end_date: data.end_dt ?? null,
+          location: data.loc_nm ?? null,
+          event_types: (data.comp_evt_cfg as { comp_evt_type: string | null }[])
+            .map((e) => e.comp_evt_type?.toUpperCase())
+            .filter((e): e is string => Boolean(e)),
+          source_url: data.src_url ?? null,
         })
+        setCompDetailInitialComments(comments)
+        setDetailOpen(true)
+        router.replace("/")
+      })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deepLinkPostId, deepLinkCompId])
