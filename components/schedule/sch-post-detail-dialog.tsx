@@ -54,6 +54,8 @@ export function SchPostDetailDialog({
       await deleteSchPost(post.id)
       onOpenChange(false)
       onDelete?.()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "삭제에 실패했습니다.")
     } finally {
       setDeleting(false)
     }
