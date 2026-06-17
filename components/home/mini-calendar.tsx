@@ -456,7 +456,7 @@ export function MiniCalendar({
     const newSchPosts: CalendarRace[] = (schPostRows ?? []).map((row) => ({
       id: row.sch_post_id,
       title: row.sch_nm,
-      start_date: dayjs(row.evt_stt_at).format("YYYY-MM-DD"),
+      start_date: dayjs(row.evt_stt_at).tz("Asia/Seoul").format("YYYY-MM-DD"),
       type: "schedule" as const,
       post_type: row.post_type,
       end_date: row.evt_end_at,
@@ -870,7 +870,7 @@ export function MiniCalendar({
                 sch_post_id: editTarget.id,
                 sch_nm: editTarget.title,
                 post_type: editTarget.post_type as SchPostType | undefined,
-                evt_stt_at: editTarget.start_date,
+                evt_stt_at: editTarget.evt_stt_at ?? editTarget.start_date,
                 evt_end_at: editTarget.end_date,
                 url: editTarget.url,
                 cont_txt: editTarget.cont_txt,
