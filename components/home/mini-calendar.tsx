@@ -94,7 +94,7 @@ export function MiniCalendar({
   // 일정 폼 다이얼로그 상태
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
-  const [formPostType, setFormPostType] = useState<SchPostType>("general");
+  const [formPostType, setFormPostType] = useState<SchPostType | undefined>(undefined);
   const [editTarget, setEditTarget] = useState<CalendarRace | null>(null);
 
   // 소식 상세 다이얼로그 상태 (일반 멤버용)
@@ -426,7 +426,7 @@ export function MiniCalendar({
     });
   }
 
-  function openCreateForm(defaultDate?: string, postType: SchPostType = "general") {
+  function openCreateForm(defaultDate?: string, postType?: SchPostType) {
     setFormMode("create");
     setFormPostType(postType);
     setEditTarget(defaultDate ? { id: "", title: "", start_date: defaultDate, type: "schedule" } : null);
