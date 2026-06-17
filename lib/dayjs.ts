@@ -123,7 +123,7 @@ export function parseDate(dateStr: string): Date {
 
 /** "YYYY-MM-DD" 날짜의 D-Day 문자열 반환 (예: "D-3", "D-DAY", "D+1") */
 export function formatDDay(dateStr: string): string {
-  const today = dayjs().startOf("day");
+  const today = dayjs().tz(KST).startOf("day");
   const target = dayjs(dateStr).startOf("day");
   const diff = target.diff(today, "day");
   if (diff === 0) return "D-DAY";
