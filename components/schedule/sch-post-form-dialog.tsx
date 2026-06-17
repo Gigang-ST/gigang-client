@@ -40,7 +40,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 
 const formSchema = createSchPostSchema.omit({ team_id: true }).extend({
-  post_type: z.enum(SCH_POST_TYPES),
+  post_type: z.enum(SCH_POST_TYPES, { message: "유형을 선택해 주세요." }),
 });
 type FormValues = z.infer<typeof formSchema>;
 
@@ -161,7 +161,7 @@ export function SchPostFormDialog({
                 <FormItem>
                   <FormLabel>제목 <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
-                    <Input placeholder="예: 동아마라톤 대회접수, 나이키 슈퍼위크 등" {...field} />
+                    <Input placeholder="예: 동아마라톤 접수, 나이키 슈퍼위크 등" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
