@@ -90,6 +90,7 @@ export function MiniCalendar({
   const [gigangRaces, setGigangRaces] = useState(initGigang);
   const [myRaces, setMyRaces] = useState(initMine);
   const [schPosts, setSchPosts] = useState(initSchPosts);
+  const [listViewKey, setListViewKey] = useState(0);
   const [isPending, startTransition] = useTransition();
 
   // 일정 폼 다이얼로그 상태
@@ -283,13 +284,21 @@ export function MiniCalendar({
         };
       });
 
+      // colSpan 내림차순 → colStart 오름차순 정렬: 긴 이벤트가 낮은 슬롯 선점
+      const sorted = [...positioned].sort((a, b) =>
+        b.colSpan - a.colSpan || a.colStart - b.colStart
+      );
+
       const slotEnds: number[] = [];
-      return positioned.map((ep) => {
+      const withSlot = sorted.map((ep) => {
         let slot = slotEnds.findIndex((e) => e < ep.colStart);
         if (slot === -1) { slot = slotEnds.length; slotEnds.push(-1); }
         slotEnds[slot] = ep.colStart + ep.colSpan - 1;
         return { ...ep, slot };
       });
+
+      // 원래 순서(colStart → id)로 돌려서 반환
+      return withSlot.sort((a, b) => a.colStart - b.colStart || a.race.id.localeCompare(b.race.id));
     });
   }, [weeks, allRaces, year, month]);
 
@@ -556,6 +565,7 @@ export function MiniCalendar({
     setGigangRaces(gigang);
     setMyRaces(mine);
     setSchPosts(newSch);
+    setListViewKey((k) => k + 1);
   }
 
   return (
@@ -844,10 +854,11 @@ export function MiniCalendar({
         /* 리스트뷰 */
         <div className="flex flex-col">
           <ScheduleListView
+            key={listViewKey}
             teamId={teamId}
             memberId={memberId}
-            initialMonthKey={initialMonth.slice(0, 7)}
-            initialRaces={[...initMine, ...initSchPosts, ...initGigang]}
+            initialMonthKey={viewMonth.slice(0, 7)}
+            initialRaces={[...myRaces, ...schPosts, ...gigangRaces]}
             onClickSchedule={openSchPostDetail}
             onClickCompetition={handleRaceClick}
           />

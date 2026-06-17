@@ -63,7 +63,6 @@ export function CommentSection({
   const [newText, setNewText] = useState("")
   const [replyTo, setReplyTo] = useState<CmntRow | null>(null)
   const [replyText, setReplyText] = useState("")
-  const [loading, setLoading] = useState(false)
 
   const supabase = useMemo(() => createClient(), [])
   const membersRef = useRef(members)
@@ -126,6 +125,15 @@ export function CommentSection({
             const incoming = payload.new as CmntRow
             setComments((prev) => {
               if (prev.some((c) => c.cmnt_id === incoming.cmnt_id)) return prev
+              // 내가 보낸 optimistic 댓글이 아직 교체 안 된 상태에서 Realtime이 먼저 온 경우 → optimistic 교체
+              const optimisticIdx = prev.findIndex(
+                (c) => c.optimistic && c.mem_id === incoming.mem_id && c.cont_txt === incoming.cont_txt && c.prnt_id === incoming.prnt_id
+              )
+              if (optimisticIdx !== -1) {
+                const next = [...prev]
+                next[optimisticIdx] = { ...incoming, mem_nm: prev[optimisticIdx].mem_nm, avatar_url: prev[optimisticIdx].avatar_url }
+                return next
+              }
               const mem = membersRef.current.find((m) => m.mem_id === incoming.mem_id)
               return [...prev, { ...incoming, mem_nm: mem?.mem_nm ?? "멤버", avatar_url: incoming.avatar_url ?? mem?.avatar_url ?? null }]
             })
@@ -149,71 +157,84 @@ export function CommentSection({
 
   const handleSubmitComment = async () => {
     if (!newText.trim() || !currentMemberId) return
-    setLoading(true)
-    try {
-      const result = await createComment({
-        entityType,
-        entityId,
-        contTxt: newText.trim(),
-        mentionedMemIds: parseMentionsFromText(newText, members),
-      })
-      if (result.ok) {
-        const me = members.find((m) => m.mem_id === currentMemberId)
-        setComments((prev) => [
-          ...prev,
-          {
-            cmnt_id: result.data.cmnt_id,
-            prnt_id: result.data.prnt_id,
-            mem_id: result.data.mem_id,
-            mem_nm: me?.mem_nm ?? "나",
-            avatar_url: me?.avatar_url ?? null,
-            cont_txt: result.data.cont_txt,
-            edit_yn: result.data.edit_yn,
-            del_yn: result.data.del_yn,
-            crt_at: result.data.crt_at,
-            upd_at: result.data.upd_at,
-          },
-        ])
-        setNewText("")
-      }
-    } finally {
-      setLoading(false)
+    const me = members.find((m) => m.mem_id === currentMemberId)
+    const tempId = `optimistic-${Date.now()}`
+    const optimisticComment: CmntRow = {
+      cmnt_id: tempId,
+      prnt_id: null,
+      mem_id: currentMemberId,
+      mem_nm: me?.mem_nm ?? "나",
+      avatar_url: me?.avatar_url ?? null,
+      cont_txt: newText.trim(),
+      edit_yn: false,
+      del_yn: false,
+      crt_at: new Date().toISOString(),
+      upd_at: new Date().toISOString(),
+      optimistic: true,
+    }
+    setComments((prev) => [...prev, optimisticComment])
+    setNewText("")
+
+    const result = await createComment({
+      entityType,
+      entityId,
+      contTxt: optimisticComment.cont_txt,
+      mentionedMemIds: parseMentionsFromText(optimisticComment.cont_txt, members),
+    })
+
+    if (result.ok) {
+      setComments((prev) => prev.map((c) =>
+        c.cmnt_id === tempId
+          ? { ...c, cmnt_id: result.data.cmnt_id, crt_at: result.data.crt_at, upd_at: result.data.upd_at, optimistic: false }
+          : c
+      ))
+    } else {
+      setComments((prev) => prev.map((c) =>
+        c.cmnt_id === tempId ? { ...c, optimistic: false, optimisticFailed: true } : c
+      ))
     }
   }
 
   const handleSubmitReply = async () => {
     if (!replyText.trim() || !currentMemberId || !replyTo) return
-    setLoading(true)
-    try {
-      const result = await createComment({
-        entityType,
-        entityId,
-        contTxt: replyText.trim(),
-        prntId: replyTo.prnt_id ?? replyTo.cmnt_id,
-        mentionedMemIds: parseMentionsFromText(replyText, members),
-      })
-      if (result.ok) {
-        const me = members.find((m) => m.mem_id === currentMemberId)
-        setComments((prev) => [
-          ...prev,
-          {
-            cmnt_id: result.data.cmnt_id,
-            prnt_id: result.data.prnt_id,
-            mem_id: result.data.mem_id,
-            mem_nm: me?.mem_nm ?? "나",
-            avatar_url: me?.avatar_url ?? null,
-            cont_txt: result.data.cont_txt,
-            edit_yn: result.data.edit_yn,
-            del_yn: result.data.del_yn,
-            crt_at: result.data.crt_at,
-            upd_at: result.data.upd_at,
-          },
-        ])
-        setReplyText("")
-        setReplyTo(null)
-      }
-    } finally {
-      setLoading(false)
+    const me = members.find((m) => m.mem_id === currentMemberId)
+    const tempId = `optimistic-${Date.now()}`
+    const prntId = replyTo.prnt_id ?? replyTo.cmnt_id
+    const optimisticReply: CmntRow = {
+      cmnt_id: tempId,
+      prnt_id: prntId,
+      mem_id: currentMemberId,
+      mem_nm: me?.mem_nm ?? "나",
+      avatar_url: me?.avatar_url ?? null,
+      cont_txt: replyText.trim(),
+      edit_yn: false,
+      del_yn: false,
+      crt_at: new Date().toISOString(),
+      upd_at: new Date().toISOString(),
+      optimistic: true,
+    }
+    setComments((prev) => [...prev, optimisticReply])
+    setReplyText("")
+    setReplyTo(null)
+
+    const result = await createComment({
+      entityType,
+      entityId,
+      contTxt: optimisticReply.cont_txt,
+      prntId,
+      mentionedMemIds: parseMentionsFromText(optimisticReply.cont_txt, members),
+    })
+
+    if (result.ok) {
+      setComments((prev) => prev.map((c) =>
+        c.cmnt_id === tempId
+          ? { ...c, cmnt_id: result.data.cmnt_id, crt_at: result.data.crt_at, upd_at: result.data.upd_at, optimistic: false }
+          : c
+      ))
+    } else {
+      setComments((prev) => prev.map((c) =>
+        c.cmnt_id === tempId ? { ...c, optimistic: false, optimisticFailed: true } : c
+      ))
     }
   }
 
@@ -296,7 +317,7 @@ export function CommentSection({
                     <Button
                       size="sm"
                       onClick={handleSubmitReply}
-                      disabled={loading || !replyText.trim()}
+                      disabled={!replyText.trim()}
                     >
                       답글 달기
                     </Button>
@@ -327,7 +348,7 @@ export function CommentSection({
         <Button
           size="sm"
           onClick={handleSubmitComment}
-          disabled={loading || !newText.trim()}
+          disabled={!newText.trim()}
           className="self-end"
         >
           댓글 달기
