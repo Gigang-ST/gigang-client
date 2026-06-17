@@ -8,8 +8,8 @@ import { dayjs } from "@/lib/dayjs"
 
 import { deleteSchPost } from "@/app/actions/schedule/manage-sch-post"
 
-import type { MemberOption } from "@/components/comment/mention-input"
 import { CommentSection } from "@/components/comment/comment-section"
+import type { MemberOption } from "@/components/comment/mention-input"
 import {
   ResponsiveDrawer,
   ResponsiveDrawerClose,
