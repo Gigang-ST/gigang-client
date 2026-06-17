@@ -4,7 +4,6 @@ import { useState } from "react";
 
 import { Check, Copy, Link, MessageCircle } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import {
   ResponsiveDrawer,
   ResponsiveDrawerContent,
@@ -12,6 +11,7 @@ import {
   ResponsiveDrawerTitle,
   ResponsiveDrawerDescription,
 } from "@/components/common/responsive-drawer";
+import { Button } from "@/components/ui/button";
 
 type ShareSheetProps = {
   open: boolean;
@@ -86,7 +86,7 @@ export function ShareSheet({
             </div>
             <div className="flex flex-col">
               <span className="text-[14px] font-medium">링크 복사</span>
-              <span className="text-[12px] text-muted-foreground">이 게시물 주소를 복사합니다</span>
+              <span className="text-[12px] text-muted-foreground">이 게시물 주소를 복사</span>
             </div>
           </button>
 
