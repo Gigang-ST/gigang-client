@@ -193,7 +193,7 @@ async function HomeContent() {
   const calendarSchPosts: CalendarRace[] = (schPostRows ?? []).map((row) => ({
     id: row.sch_post_id,
     title: row.sch_nm,
-    start_date: dayjs(row.evt_stt_at).format("YYYY-MM-DD"),
+    start_date: dayjs(row.evt_stt_at).tz("Asia/Seoul").format("YYYY-MM-DD"),
     type: "schedule" as const,
     post_type: row.post_type,
     end_date: row.evt_end_at,
