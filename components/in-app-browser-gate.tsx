@@ -49,7 +49,7 @@ export function isStandalone(): boolean {
   return Boolean(mql || iosStandalone);
 }
 
-function openExternalBrowser(url: string) {
+export function openExternalBrowser(url: string) {
   if (isIOS()) {
     window.location.href = url;
   } else {

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 
-import Link from "next/link"
+import { detectInAppBrowser, openExternalBrowser } from "@/components/in-app-browser-gate"
 
 import { createClient } from "@/lib/supabase/client"
 
@@ -22,6 +22,8 @@ interface CommentSectionProps {
   isAdmin?: boolean
   members: MemberOption[]
   initialComments?: CmntRow[]
+  /** 비로그인 → 로그인 후 돌아올 경로. 예: "/?comp=abc123" */
+  loginReturnPath?: string
 }
 
 type CommentWithReplies = CmntRow & { replies: CmntRow[] }
@@ -49,6 +51,7 @@ export function CommentSection({
   isAdmin,
   members,
   initialComments,
+  loginReturnPath,
 }: CommentSectionProps) {
   const [comments, setComments] = useState<CmntRow[]>(initialComments ?? [])
   const [loadingComments, setLoadingComments] = useState(!!currentMemberId && !initialComments)
@@ -261,8 +264,18 @@ export function CommentSection({
           </div>
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
             <p className="text-xs text-muted-foreground">로그인하면 댓글을 볼 수 있어요</p>
-            <Button asChild size="sm">
-              <Link href="/auth/login">로그인</Link>
+            <Button
+              size="sm"
+              onClick={() => {
+                const next = loginReturnPath
+                  ? `/auth/login?next=${encodeURIComponent(loginReturnPath)}`
+                  : "/auth/login";
+                const inApp = detectInAppBrowser();
+                if (inApp) openExternalBrowser(window.location.origin + next);
+                else window.location.href = next;
+              }}
+            >
+              로그인
             </Button>
           </div>
         </div>
