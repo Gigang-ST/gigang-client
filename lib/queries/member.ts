@@ -23,15 +23,17 @@ export type { AppMemberProfile };
  */
 export const getCurrentMember = cache(async () => {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+
+  // auth.getUser()와 getRequestTeamContext()는 서로 의존하지 않으므로 병렬 실행
+  const [{ data: { user } }, { teamId }] = await Promise.all([
+    supabase.auth.getUser(),
+    getRequestTeamContext(),
+  ]);
 
   if (!user) return { user: null, member: null, supabase };
 
   validateUUID(user.id);
 
-  const { teamId } = await getRequestTeamContext();
   const bundle = await fetchMemMstWithTeamRel(supabase, user.id, teamId);
   const member = bundle
     ? mapMstRelToAppMemberProfile(bundle.mst, bundle.rel)
