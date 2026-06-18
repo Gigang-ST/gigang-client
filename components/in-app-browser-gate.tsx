@@ -70,14 +70,11 @@ const APP_LABELS: Record<string, string> = {
   other: "앱",
 };
 
-/** 전체 화면 차단 — 로그인/가입 페이지용 */
-function FullScreenGate({ inApp, isAuth }: { inApp: InAppEnv; isAuth: boolean }) {
+/** 전체 화면 차단 — 가입 페이지용 */
+function FullScreenGate({ inApp }: { inApp: InAppEnv }) {
   const appName = APP_LABELS[inApp ?? "other"] ?? "앱";
   const currentUrl = typeof window !== "undefined" ? window.location.href : "";
-
-  const title = isAuth
-    ? `${appName}에서는 로그인할 수 없어요`
-    : `${appName} 안에서는 가입할 수 없어요`;
+  const title = `${appName} 안에서는 가입할 수 없어요`;
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center bg-background px-6">
@@ -150,7 +147,7 @@ function BannerGate({
   return (
     <>
       {children}
-      <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center gap-2 bg-primary px-4 py-3 text-primary-foreground" style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}>
+      <div className="fixed bottom-0 left-0 right-0 z-[60] flex items-center gap-2 bg-primary px-4 py-3 text-primary-foreground" style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}>
         <span className="flex-1 text-xs leading-snug">
           {isIOS()
             ? "Safari에서 열면 모든 기능을 사용할 수 있어요"
@@ -197,7 +194,7 @@ export function InAppBrowserGate({ children }: { children: React.ReactNode }) {
     pathname === "/onboarding";
 
   if (isBlockPage) {
-    return <FullScreenGate inApp={inApp} isAuth={false} />;
+    return <FullScreenGate inApp={inApp} />;
   }
 
   // 나머지 → 배너만
