@@ -2,7 +2,7 @@ import { Suspense } from "react";
 
 import { dayjs, currentMonthKST, monthLastDay } from "@/lib/dayjs";
 import { env } from "@/lib/env";
-import { hasUnreadBoardPost } from "@/lib/queries/board";
+import { hasUnreadBoardPosts } from "@/lib/queries/board";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getNotifications, getUnreadNotificationCount } from "@/lib/queries/notification";
@@ -22,10 +22,9 @@ async function HomeHeader() {
   const { member: currentMember } = await getCurrentMember();
   const { teamId } = await getRequestTeamContext();
 
-  const [unreadNotiCount, hasUnreadNotice, hasUnreadUpdate, initialNotifications] = await Promise.all([
+  const [unreadNotiCount, { notice: hasUnreadNotice, update: hasUnreadUpdate }, initialNotifications] = await Promise.all([
     getUnreadNotificationCount(currentMember?.id),
-    hasUnreadBoardPost(currentMember?.id, teamId, "notice"),
-    hasUnreadBoardPost(currentMember?.id, teamId, "update"),
+    hasUnreadBoardPosts(currentMember?.id, teamId),
     currentMember ? getNotifications(currentMember.id, { limit: 20 }) : Promise.resolve([]),
   ]);
 

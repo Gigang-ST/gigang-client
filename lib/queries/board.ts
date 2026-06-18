@@ -90,35 +90,46 @@ export async function getBoardPost(postId: string): Promise<BoardPost | null> {
 }
 
 /** 로그인한 멤버가 해당 팀/타입에서 읽지 않은 게시글이 있는지 확인 */
-export async function hasUnreadBoardPost(
+/** 공지/업데이트 미읽음 여부를 쿼리 1번으로 동시에 확인 */
+export async function hasUnreadBoardPosts(
   memberId: string | null | undefined,
   teamId: string,
-  type: "notice" | "update",
-): Promise<boolean> {
-  if (!memberId) return false;
+): Promise<{ notice: boolean; update: boolean }> {
+  if (!memberId) return { notice: false, update: false };
 
   const admin = createUntypedAdminClient();
 
   const { data } = await admin
     .from("brd_post_mst")
-    .select("post_id")
+    .select("post_id, post_type_enm, brd_post_read_hist!left(post_id)")
     .eq("team_id", teamId)
-    .eq("post_type_enm", type)
+    .in("post_type_enm", ["notice", "update"])
     .eq("del_yn", false)
+    .eq("brd_post_read_hist.mem_id", memberId)
     .limit(50);
 
-  if (!data || data.length === 0) return false;
+  if (!data || data.length === 0) return { notice: false, update: false };
 
-  const postIds = data.map((r) => r.post_id);
+  let notice = false;
+  let update = false;
+  for (const row of data) {
+    const isUnread = !Array.isArray(row.brd_post_read_hist) || row.brd_post_read_hist.length === 0;
+    if (!isUnread) continue;
+    if (row.post_type_enm === "notice") notice = true;
+    else if (row.post_type_enm === "update") update = true;
+    if (notice && update) break;
+  }
 
-  const { data: readData } = await admin
-    .from("brd_post_read_hist")
-    .select("post_id")
-    .eq("mem_id", memberId)
-    .in("post_id", postIds);
+  return { notice, update };
+}
 
-  const readSet = new Set((readData ?? []).map((r) => r.post_id));
-  return postIds.some((id) => !readSet.has(id));
+export async function hasUnreadBoardPost(
+  memberId: string | null | undefined,
+  teamId: string,
+  type: "notice" | "update",
+): Promise<boolean> {
+  const result = await hasUnreadBoardPosts(memberId, teamId);
+  return result[type];
 }
 
 /** 게시글 읽음 이력 기록 */
