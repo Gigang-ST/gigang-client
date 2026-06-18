@@ -1,17 +1,18 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
 
+import Image from "next/image";
+
+import { SectionLabel } from "@/components/common/typography";
 import { detectInAppBrowser, openExternalBrowser } from "@/components/in-app-browser-gate";
+import { CardItem } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CardItem } from "@/components/ui/card";
-import { SectionLabel } from "@/components/common/typography";
 
 const KAKAO_OPEN_CHAT_URL = "https://open.kakao.com/o/grnMFGng";
 

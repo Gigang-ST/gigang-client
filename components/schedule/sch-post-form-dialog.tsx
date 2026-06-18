@@ -247,7 +247,7 @@ export function SchPostFormDialog({
                     <FormControl>
                       <Select value={field.value ?? ""} onValueChange={field.onChange}>
                         <SelectTrigger className="text-[13px]">
-                          <SelectValue placeholder="유형을 선택해 주세요." />
+                          <SelectValue placeholder="유형 선택" />
                         </SelectTrigger>
                         <SelectContent>
                           {SCH_POST_TYPES.map((type) => (
