@@ -18,7 +18,10 @@ type ShareSheetProps = {
   onOpenChange: (open: boolean) => void;
   title: string;
   timeLabel: string;
+  /** 본문 텍스트 */
   contentSnippet?: string;
+  /** 본문에 첨부된 외부 링크 */
+  contentUrl?: string;
   /** 이 게시물 상세보기 딥링크. 없으면 현재 페이지 URL 사용 */
   pageUrl?: string;
 };
@@ -29,6 +32,7 @@ export function ShareSheet({
   title,
   timeLabel,
   contentSnippet,
+  contentUrl,
   pageUrl,
 }: ShareSheetProps) {
   const [copiedText, setCopiedText] = useState(false);
@@ -38,16 +42,12 @@ export function ShareSheet({
   }
 
   function buildText() {
-    const urlRegex = /https?:\/\/[^\s]+/g;
-    const lines = [`${title} - ${timeLabel}`];
+    const lines = [`[${title}]`, timeLabel];
 
+    if (contentUrl) lines.push(contentUrl);
     if (contentSnippet) {
-      const contentUrls = contentSnippet.match(urlRegex) ?? [];
-      const textOnly = contentSnippet.replace(urlRegex, "").replace(/\s+/g, " ").trim();
-
-      lines.push("");
-      contentUrls.forEach((url) => lines.push(url));
-      if (textOnly) lines.push(textOnly.slice(0, 100) + (textOnly.length > 100 ? ".." : ""));
+      const text = contentSnippet.trim();
+      lines.push(text.slice(0, 100) + (text.length > 100 ? ".." : ""));
     }
 
     lines.push("", getUrl());

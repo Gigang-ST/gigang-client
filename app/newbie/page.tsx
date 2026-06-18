@@ -4,7 +4,6 @@ import { Check } from "lucide-react";
 
 import { SignupProgress } from "@/components/auth/signup-progress";
 import { H1, H2, Body, Caption } from "@/components/common/typography";
-
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 

@@ -169,6 +169,7 @@ export function SchPostDetailDialog({
         onOpenChange={setShareOpen}
         title={post.title}
         timeLabel={timeLabel}
+        contentUrl={post.url ?? undefined}
         contentSnippet={post.cont_txt ?? undefined}
         pageUrl={pageUrl}
       />
