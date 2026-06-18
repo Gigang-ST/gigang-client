@@ -123,15 +123,6 @@ export async function hasUnreadBoardPosts(
   return { notice, update };
 }
 
-export async function hasUnreadBoardPost(
-  memberId: string | null | undefined,
-  teamId: string,
-  type: "notice" | "update",
-): Promise<boolean> {
-  const result = await hasUnreadBoardPosts(memberId, teamId);
-  return result[type];
-}
-
 /** 게시글 읽음 이력 기록 */
 export async function recordBoardPostRead(
   postId: string,
