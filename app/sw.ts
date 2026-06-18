@@ -1,5 +1,6 @@
-import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 import { Serwist, CacheFirst, NetworkFirst, NetworkOnly, ExpirationPlugin } from "serwist";
+
+import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 
 // Serwist 빌드 시 precache manifest 주입 위치
 declare global {

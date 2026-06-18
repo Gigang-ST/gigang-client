@@ -1,5 +1,6 @@
 // @ts-check
 import { spawnSync } from "node:child_process";
+
 import { serwist } from "@serwist/next/config";
 
 // 배포마다 고유한 revision — git commit hash 또는 UUID 폴백
