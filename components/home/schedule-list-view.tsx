@@ -59,7 +59,7 @@ async function fetchAdjacent(
     p_team_id: teamId,
     p_direction: direction,
     p_cursor_date: cursorDate,
-    p_mem_id: memberId ?? null,
+    p_mem_id: memberId ?? undefined,
     p_month_limit: monthLimit,
   });
   if (error || !data) return [];
