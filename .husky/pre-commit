@@ -1,3 +1,4 @@
 #!/bin/sh
 echo "🪝 [husky] pre-commit hook running..."
 pnpm lint-staged
+pnpm test
