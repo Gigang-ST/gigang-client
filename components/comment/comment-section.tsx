@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 
-import { detectInAppBrowser, openExternalBrowser } from "@/components/in-app-browser-gate"
 
 import { createClient } from "@/lib/supabase/client"
 
 import { createComment } from "@/app/actions/comment/manage-comment"
 
 import { SectionLabel } from "@/components/common/typography"
+import { detectInAppBrowser, openExternalBrowser } from "@/components/in-app-browser-gate"
 import { Button } from "@/components/ui/button"
 
 import { CommentItem, type CmntRow } from "./comment-item"

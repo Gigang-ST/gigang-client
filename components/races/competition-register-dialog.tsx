@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo } from "react";
 
-import { detectInAppBrowser, openExternalBrowser } from "@/components/in-app-browser-gate";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -29,7 +28,7 @@ import {
 
 import { createCompetition } from "@/app/actions/create-competition";
 
-
+import { detectInAppBrowser, openExternalBrowser } from "@/components/in-app-browser-gate";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
