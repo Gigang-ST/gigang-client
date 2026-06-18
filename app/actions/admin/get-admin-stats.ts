@@ -29,7 +29,7 @@ export async function getAdminStats(): Promise<AdminStats> {
   const keyPrefix = env.SUPABASE_SERVICE_ROLE_KEY.slice(0, 20);
   console.log("[getAdminStats] teamId:", teamId, "keyPrefix:", keyPrefix, "noFilterCount:", noFilter.count, "noFilterError:", noFilter.error);
 
-  const [total, competitions, records, activeProjects, pendingPrt, unpaidSnaps, openFeedback] = await Promise.all([
+  const [total, competitions, records, activeProjects, pendingPrt, unpaidResult, openFeedback] = await Promise.all([
     admin
       .from("team_mem_rel")
       .select("*", { count: "exact", head: true })
@@ -66,13 +66,7 @@ export async function getAdminStats(): Promise<AdminStats> {
       .select("evt_id, evt_team_mst!inner(team_id)", { count: "exact", head: true })
       .eq("aprv_yn", false)
       .eq("evt_team_mst.team_id", teamId),
-    admin
-      .from("fee_mem_bal_snap")
-      .select("mem_id")
-      .eq("team_id", teamId)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .lt("bal_amt", 0),
+    admin.rpc("get_admin_unpaid_active_count", { p_team_id: teamId }),
     admin
       .from("fdbk_mst")
       .select("*", { count: "exact", head: true })
@@ -81,20 +75,10 @@ export async function getAdminStats(): Promise<AdminStats> {
       .eq("del_yn", false),
   ]);
 
-  // 미납 회원 중 active 상태인 인원만 카운트
-  const unpaidMemIds = (unpaidSnaps.data ?? []).map((s) => s.mem_id);
-  let unpaidMemberCount = 0;
-  if (unpaidMemIds.length > 0) {
-    const { count } = await admin
-      .from("team_mem_rel")
-      .select("mem_id", { count: "exact", head: true })
-      .eq("team_id", teamId)
-      .in("mem_id", unpaidMemIds)
-      .eq("mem_st_cd", "active")
-      .eq("vers", 0)
-      .eq("del_yn", false);
-    unpaidMemberCount = count ?? 0;
+  if (unpaidResult.error) {
+    console.error("[getAdminStats] unpaid count error:", unpaidResult.error);
   }
+  const unpaidMemberCount = (unpaidResult.data as number | null) ?? 0;
 
   const result: AdminStats = {
     totalCount: total.count ?? 0,
