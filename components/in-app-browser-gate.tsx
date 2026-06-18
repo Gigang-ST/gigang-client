@@ -160,7 +160,7 @@ function BannerGate({
     <>
       {children}
       {createPortal(
-      <div className="fixed bottom-0 left-0 right-0 z-[9999] flex items-center gap-2 bg-primary px-4 py-3 text-primary-foreground" style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}>
+      <div className="pointer-events-auto fixed bottom-0 left-0 right-0 z-[9999] flex items-center gap-2 bg-primary px-4 py-3 text-primary-foreground" style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}>
         <span className="flex-1 text-xs leading-snug">
           {isIOS()
             ? "Safari에서 열면 모든 기능을 사용할 수 있어요"
