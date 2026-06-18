@@ -21,7 +21,7 @@ type BeforeInstallPromptEvent = Event & {
 };
 
 const DISMISS_KEY = "pwa-install-dismissed-at";
-const DISMISS_DAYS = 7;
+const DISMISS_DAYS = 1;
 
 function recentlyDismissed(): boolean {
   if (typeof window === "undefined") return false;
@@ -61,9 +61,9 @@ export function PwaInstallPrompt({
     if (variant === "banner" && recentlyDismissed()) return;
 
     if (isIOS()) {
-      // iOS는 beforeinstallprompt 미지원 → 안내 모드
-      setVisible(true);
-      return;
+      // iOS는 beforeinstallprompt 미지원 → 안내 모드 (setTimeout으로 effect 내 직접 setState 회피)
+      const id = setTimeout(() => setVisible(true), 0);
+      return () => clearTimeout(id);
     }
 
     const handler = (e: Event) => {
