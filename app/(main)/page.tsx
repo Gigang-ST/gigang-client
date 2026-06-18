@@ -2,7 +2,7 @@ import { Suspense } from "react";
 
 import { dayjs, currentMonthKST, monthLastDay } from "@/lib/dayjs";
 import { env } from "@/lib/env";
-import { hasUnreadBoardPost } from "@/lib/queries/board";
+import { hasUnreadBoardPosts } from "@/lib/queries/board";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getNotifications, getUnreadNotificationCount } from "@/lib/queries/notification";
@@ -22,10 +22,9 @@ async function HomeHeader() {
   const { member: currentMember } = await getCurrentMember();
   const { teamId } = await getRequestTeamContext();
 
-  const [unreadNotiCount, hasUnreadNotice, hasUnreadUpdate, initialNotifications] = await Promise.all([
+  const [unreadNotiCount, { notice: hasUnreadNotice, update: hasUnreadUpdate }, initialNotifications] = await Promise.all([
     getUnreadNotificationCount(currentMember?.id),
-    hasUnreadBoardPost(currentMember?.id, teamId, "notice"),
-    hasUnreadBoardPost(currentMember?.id, teamId, "update"),
+    hasUnreadBoardPosts(currentMember?.id, teamId),
     currentMember ? getNotifications(currentMember.id, { limit: 20 }) : Promise.resolve([]),
   ]);
 
@@ -257,6 +256,11 @@ function HomeHeaderSkeleton() {
 }
 
 export default function HomePage() {
+  // 두 컴포넌트가 같은 데이터를 쓰므로 렌더 시작 시점에 미리 워밍업
+  // React cache()가 같은 렌더 내 중복 호출을 막아주므로 실제 쿼리는 1번만 실행됨
+  void getCurrentMember();
+  void getRequestTeamContext();
+
   return (
     <div className="flex flex-col gap-0">
       <Suspense fallback={<HomeHeaderSkeleton />}>

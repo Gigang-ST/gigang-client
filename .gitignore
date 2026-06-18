@@ -36,6 +36,10 @@
 # production
 /build
 
+# Service Worker (빌드 시 자동 생성)
+/public/sw.js
+/public/sw.js.map
+
 # misc
 .DS_Store
 *.pem
