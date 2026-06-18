@@ -4,7 +4,7 @@ import { Check } from "lucide-react";
 
 import { SignupProgress } from "@/components/auth/signup-progress";
 import { H1, H2, Body, Caption } from "@/components/common/typography";
-import { InAppBrowserGate } from "@/components/in-app-browser-gate";
+
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 
@@ -122,7 +122,7 @@ function Toggle({
 
 export default function NewbiePage() {
   return (
-    <InAppBrowserGate>
+    <>
       <SignupProgress step={1} />
       <div className="mx-auto max-w-md px-6 pb-44 pt-[calc(env(safe-area-inset-top,0px)+5rem)]">
         {/* 1. 히어로 */}
@@ -335,6 +335,6 @@ export default function NewbiePage() {
           </div>
         </div>
       </div>
-    </InAppBrowserGate>
+    </>
   );
 }

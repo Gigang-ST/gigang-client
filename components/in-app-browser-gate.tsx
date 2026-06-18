@@ -1,6 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
+
+import { usePathname } from "next/navigation";
+
+import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -25,9 +29,7 @@ export function detectInAppBrowser(): InAppEnv {
   if (ua.includes("naver(inapp")) return "naver";
   if (ua.includes("band")) return "band";
   if (ua.includes("daumapps")) return "daum";
-  // Android WebView 힌트 (소모임 등 시스템 WebView 기반 인앱 브라우저 포함)
   if (/wv\)/.test(ua) && !ua.includes("chrome")) return "other";
-  // iOS 비-Safari WebView: iOS인데 Safari/Chrome/Firefox 토큰이 없으면 인앱으로 간주
   const isIOSDevice = /iphone|ipad|ipod/.test(ua);
   const looksLikeRealBrowser =
     ua.includes("safari") || ua.includes("crios") || ua.includes("fxios");
@@ -40,21 +42,17 @@ export function isIOS(): boolean {
   return /iphone|ipad|ipod/i.test(navigator.userAgent);
 }
 
-/** PWA로 홈 화면에서 실행 중(이미 설치)인지 */
 export function isStandalone(): boolean {
   if (typeof window === "undefined") return false;
   const mql = window.matchMedia?.("(display-mode: standalone)").matches;
-  // iOS Safari 전용 navigator.standalone
   const iosStandalone = (navigator as { standalone?: boolean }).standalone;
   return Boolean(mql || iosStandalone);
 }
 
 function openExternalBrowser(url: string) {
   if (isIOS()) {
-    // iOS: Safari로 열기 시도
     window.location.href = url;
   } else {
-    // Android: intent:// 로 Chrome 열기
     const intentUrl =
       `intent://${url.replace(/^https?:\/\//, "")}#Intent;scheme=https;package=com.android.chrome;end`;
     window.location.href = intentUrl;
@@ -72,37 +70,25 @@ const APP_LABELS: Record<string, string> = {
   other: "앱",
 };
 
-export function InAppBrowserGate({ children }: { children: React.ReactNode }) {
-  const [inApp, setInApp] = useState<InAppEnv>(null);
-  const [checked, setChecked] = useState(false);
-
-  useEffect(() => {
-    setInApp(detectInAppBrowser());
-    setChecked(true);
-  }, []);
-
-  // 아직 체크 안 됨 → 깜빡임 방지를 위해 children 렌더
-  if (!checked) return <>{children}</>;
-
-  // 인앱 브라우저가 아님 → 정상 렌더
-  if (!inApp) return <>{children}</>;
-
-  const appName = APP_LABELS[inApp] ?? "앱";
+/** 전체 화면 차단 — 로그인/가입 페이지용 */
+function FullScreenGate({ inApp, isAuth }: { inApp: InAppEnv; isAuth: boolean }) {
+  const appName = APP_LABELS[inApp ?? "other"] ?? "앱";
   const currentUrl = typeof window !== "undefined" ? window.location.href : "";
+
+  const title = isAuth
+    ? `${appName}에서는 로그인할 수 없어요`
+    : `${appName} 안에서는 가입할 수 없어요`;
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center bg-background px-6">
       <div className="w-full max-w-sm text-center">
         <div className="text-5xl">🌐</div>
-        <h1 className="mt-4 text-xl font-bold text-foreground">
-          {appName}에선 가입할 수 없어요
-        </h1>
+        <h1 className="mt-4 text-xl font-bold text-foreground">{title}</h1>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
           크롬 또는 사파리로 열면
-          <br />1분이면 가입이 끝나요.
+          <br />1분이면 완료돼요.
         </p>
 
-        {/* Android: 자동 열기 버튼 */}
         {!isIOS() && (
           <Button
             type="button"
@@ -114,12 +100,9 @@ export function InAppBrowserGate({ children }: { children: React.ReactNode }) {
           </Button>
         )}
 
-        {/* iOS: 안내 */}
         {isIOS() && (
           <div className="mt-6 rounded-xl border border-border bg-secondary/50 p-4 text-left">
-            <p className="text-sm font-bold text-foreground">
-              Safari에서 여는 방법
-            </p>
+            <p className="text-sm font-bold text-foreground">Safari에서 여는 방법</p>
             <ol className="mt-2 space-y-1.5 text-xs leading-relaxed text-muted-foreground">
               {inApp === "kakao" ? (
                 <>
@@ -136,7 +119,6 @@ export function InAppBrowserGate({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        {/* URL 복사 폴백 */}
         <Button
           type="button"
           variant="outline"
@@ -152,4 +134,78 @@ export function InAppBrowserGate({ children }: { children: React.ReactNode }) {
       </div>
     </div>
   );
+}
+
+/** 상단 배너 — 일반 콘텐츠 페이지용 */
+function BannerGate({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [dismissed, setDismissed] = useState(false);
+  const currentUrl = typeof window !== "undefined" ? window.location.href : "";
+
+  if (dismissed) return <>{children}</>;
+
+  return (
+    <>
+      <div className="sticky top-0 z-50 flex items-center gap-2 bg-primary px-4 py-2.5 text-primary-foreground">
+        <span className="flex-1 text-xs leading-snug">
+          {isIOS()
+            ? "Safari에서 열면 모든 기능을 사용할 수 있어요"
+            : "Chrome에서 열면 모든 기능을 사용할 수 있어요"}
+        </span>
+        {!isIOS() && (
+          <button
+            type="button"
+            onClick={() => openExternalBrowser(currentUrl)}
+            className="shrink-0 rounded-md bg-primary-foreground px-2.5 py-1 text-xs font-bold text-primary"
+          >
+            열기
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setDismissed(true)}
+          className="shrink-0 opacity-70"
+          aria-label="닫기"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
+      {children}
+    </>
+  );
+}
+
+const noop = () => () => {};
+
+/** 루트 레이아웃에 단 하나만 배치 */
+export function InAppBrowserGate({ children }: { children: React.ReactNode }) {
+  const inApp = useSyncExternalStore(
+    noop,
+    () => detectInAppBrowser(),
+    () => null,
+  );
+  const pathname = usePathname();
+
+  if (!inApp) return <>{children}</>;
+
+  // 로그인·가입·온보딩 → 전체 차단
+  const isBlockPage =
+    pathname.startsWith("/auth") ||
+    pathname.startsWith("/newbie") ||
+    pathname === "/onboarding";
+
+  if (isBlockPage) {
+    return (
+      <FullScreenGate
+        inApp={inApp}
+        isAuth={pathname.startsWith("/auth")}
+      />
+    );
+  }
+
+  // 나머지 → 배너만
+  return <BannerGate>{children}</BannerGate>;
 }
