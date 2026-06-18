@@ -257,6 +257,11 @@ function HomeHeaderSkeleton() {
 }
 
 export default function HomePage() {
+  // 두 컴포넌트가 같은 데이터를 쓰므로 렌더 시작 시점에 미리 워밍업
+  // React cache()가 같은 렌더 내 중복 호출을 막아주므로 실제 쿼리는 1번만 실행됨
+  void getCurrentMember();
+  void getRequestTeamContext();
+
   return (
     <div className="flex flex-col gap-0">
       <Suspense fallback={<HomeHeaderSkeleton />}>
