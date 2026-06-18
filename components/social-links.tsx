@@ -1,16 +1,18 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
 import { useState } from "react";
+
+import Image from "next/image";
+
+import { SectionLabel } from "@/components/common/typography";
+import { detectInAppBrowser, openExternalBrowser } from "@/components/in-app-browser-gate";
+import { CardItem } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CardItem } from "@/components/ui/card";
-import { SectionLabel } from "@/components/common/typography";
 
 const KAKAO_OPEN_CHAT_URL = "https://open.kakao.com/o/grnMFGng";
 
@@ -88,13 +90,17 @@ export function SocialLinksRow() {
             <br />
             회원가입 후 비밀번호를 확인할 수 있어요.
           </p>
-          <Link
-            href="/auth/login"
+          <button
             className="flex h-12 items-center justify-center rounded-xl bg-primary text-[15px] font-bold text-primary-foreground"
-            onClick={() => setOpen(false)}
+            onClick={() => {
+              setOpen(false);
+              const inApp = detectInAppBrowser();
+              if (inApp) openExternalBrowser(window.location.origin + "/auth/login");
+              else window.location.href = "/auth/login";
+            }}
           >
             회원가입 / 로그인하기
-          </Link>
+          </button>
         </DialogContent>
       </Dialog>
     </>
@@ -122,7 +128,7 @@ export function SocialLinksGrid({
                   onClick={() => setOpen(true)}
                 >
                   <Image src={logo} alt={label} width={28} height={28} className={invertOnDark ? "dark:invert" : undefined} />
-                  <span className="text-xs font-semibold text-foreground">
+                  <span className="whitespace-nowrap text-xs font-semibold text-foreground">
                     {label}
                   </span>
                 </button>
@@ -135,7 +141,7 @@ export function SocialLinksGrid({
                   rel="noopener noreferrer"
                 >
                   <Image src={logo} alt={label} width={28} height={28} className={invertOnDark ? "dark:invert" : undefined} />
-                  <span className="text-xs font-semibold text-foreground">
+                  <span className="whitespace-nowrap text-xs font-semibold text-foreground">
                     {label}
                   </span>
                 </a>
@@ -176,13 +182,17 @@ export function SocialLinksGrid({
                 <br />
                 회원가입 후 비밀번호를 확인할 수 있어요.
               </p>
-              <Link
-                href="/auth/login"
+              <button
                 className="flex h-12 items-center justify-center rounded-xl bg-primary text-[15px] font-bold text-primary-foreground"
-                onClick={() => setOpen(false)}
+                onClick={() => {
+                  setOpen(false);
+                  const inApp = detectInAppBrowser();
+                  if (inApp) openExternalBrowser(window.location.origin + "/auth/login");
+                  else window.location.href = "/auth/login";
+                }}
               >
                 회원가입 / 로그인하기
-              </Link>
+              </button>
             </>
           )}
         </DialogContent>

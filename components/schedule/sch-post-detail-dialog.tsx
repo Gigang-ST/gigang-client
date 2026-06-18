@@ -149,6 +149,7 @@ export function SchPostDetailDialog({
                   isAdmin={isAdmin}
                   members={members}
                   initialComments={initialComments}
+                  loginReturnPath={`/?post=${post.short_id ?? post.id}`}
                 />
               </div>
 

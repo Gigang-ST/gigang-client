@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo } from "react";
 
-import Link from "next/link";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -29,7 +28,7 @@ import {
 
 import { createCompetition } from "@/app/actions/create-competition";
 
-
+import { detectInAppBrowser, openExternalBrowser } from "@/components/in-app-browser-gate";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -234,8 +233,15 @@ export function CompetitionRegisterDialog({
             ) : (
               <>
                 <p>로그인 후 대회를 등록할 수 있습니다.</p>
-                <Button asChild className="w-full">
-                  <Link href="/auth/login?next=%2Fraces">로그인</Link>
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    const inApp = detectInAppBrowser();
+                    if (inApp) openExternalBrowser(window.location.origin + "/auth/login?next=%2Fraces");
+                    else window.location.href = "/auth/login?next=%2Fraces";
+                  }}
+                >
+                  로그인
                 </Button>
               </>
             )}
