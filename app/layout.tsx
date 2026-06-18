@@ -9,6 +9,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 
 import { InAppBrowserGate } from "@/components/in-app-browser-gate";
 import { Providers } from "@/components/providers";
+import { ServiceWorkerRegister } from "@/components/service-worker-register";
 
 import "./globals.css";
 import { siteContent } from "@/config";
@@ -78,6 +79,7 @@ export default function RootLayout({
         </Providers>
       </body>
       <GoogleAnalytics gaId="G-H9LXJH97CZ" />
+      <ServiceWorkerRegister />
     </html>
   );
 }
