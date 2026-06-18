@@ -68,7 +68,7 @@ export async function getAdminStats(): Promise<AdminStats> {
       .eq("evt_team_mst.team_id", teamId),
     admin
       .from("fee_mem_bal_snap")
-      .select("*", { count: "exact", head: true })
+      .select("mem_id")
       .eq("team_id", teamId)
       .eq("vers", 0)
       .eq("del_yn", false)
@@ -81,13 +81,28 @@ export async function getAdminStats(): Promise<AdminStats> {
       .eq("del_yn", false),
   ]);
 
+  // 미납 회원 중 active 상태인 인원만 카운트
+  const unpaidMemIds = (unpaidSnaps.data ?? []).map((s) => s.mem_id);
+  let unpaidMemberCount = 0;
+  if (unpaidMemIds.length > 0) {
+    const { count } = await admin
+      .from("team_mem_rel")
+      .select("mem_id", { count: "exact", head: true })
+      .eq("team_id", teamId)
+      .in("mem_id", unpaidMemIds)
+      .eq("mem_st_cd", "active")
+      .eq("vers", 0)
+      .eq("del_yn", false);
+    unpaidMemberCount = count ?? 0;
+  }
+
   const result: AdminStats = {
     totalCount: total.count ?? 0,
     monthlyCompetitionCount: competitions.count ?? 0,
     recentRecordCount: records.count ?? 0,
     activeProjectCount: activeProjects.count ?? 0,
     pendingParticipationCount: pendingPrt.count ?? 0,
-    unpaidMemberCount: unpaidSnaps.count ?? 0,
+    unpaidMemberCount,
     openFeedbackCount: openFeedback.count ?? 0,
     _debug: {
       teamId,
