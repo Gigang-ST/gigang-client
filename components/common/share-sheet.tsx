@@ -38,8 +38,18 @@ export function ShareSheet({
   }
 
   function buildText() {
-    const lines = [title, timeLabel];
-    if (contentSnippet) lines.push("", contentSnippet.slice(0, 100) + (contentSnippet.length > 100 ? ".." : ""));
+    const urlRegex = /https?:\/\/[^\s]+/g;
+    const lines = [`${title} - ${timeLabel}`];
+
+    if (contentSnippet) {
+      const contentUrls = contentSnippet.match(urlRegex) ?? [];
+      const textOnly = contentSnippet.replace(urlRegex, "").replace(/\s+/g, " ").trim();
+
+      lines.push("");
+      contentUrls.forEach((url) => lines.push(url));
+      if (textOnly) lines.push(textOnly.slice(0, 100) + (textOnly.length > 100 ? ".." : ""));
+    }
+
     lines.push("", getUrl());
     return lines.join("\n");
   }
@@ -55,11 +65,8 @@ export function ShareSheet({
       await handleCopyText();
       return;
     }
-    const text = contentSnippet
-      ? contentSnippet.slice(0, 80) + (contentSnippet.length > 80 ? "..." : "")
-      : undefined;
     try {
-      await navigator.share({ title: `${title} - ${timeLabel}`, text, url: getUrl() });
+      await navigator.share({ text: buildText() });
     } catch (e) {
       if (e instanceof Error && e.name !== "AbortError") throw e;
     }

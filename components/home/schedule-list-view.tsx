@@ -28,29 +28,22 @@ type Props = {
   onClickCompetition: (race: CalendarRace) => void;
 };
 
-function monthBounds(monthKey: string): { start: string; end: string } {
-  const d = dayjs(monthKey + "-01");
-  return {
-    start: d.format("YYYY-MM-01"),
-    end: d.endOf("month").format("YYYY-MM-DD"),
-  };
-}
-
-function prevMonthKey(key: string) {
-  return dayjs(key + "-01").subtract(1, "month").format("YYYY-MM");
-}
-
 function nextMonthKey(key: string) {
   return dayjs(key + "-01").add(1, "month").format("YYYY-MM");
 }
 
-async function fetchMonth(
+function monthBounds(monthKey: string): { start: string; end: string } {
+  const d = dayjs(monthKey + "-01");
+  return { start: d.format("YYYY-MM-01"), end: d.endOf("month").format("YYYY-MM-DD") };
+}
+
+async function fetchRange(
   supabase: ReturnType<typeof createClient>,
   teamId: string,
   memberId: string | undefined,
-  monthKey: string,
+  start: string,
+  end: string,
 ): Promise<CalendarRace[]> {
-  const { start, end } = monthBounds(monthKey);
 
   const [{ data: schRows }, { data: gigangRows }, myRows] = await Promise.all([
     supabase.rpc("get_public_team_sch_posts", {
@@ -296,14 +289,28 @@ export function ScheduleListView({
     if (loadingPrev || !canLoadPrev) return;
     setLoadingPrev(true);
     try {
-      const key = prevMonthKey(oldestMonth);
-      const races = await fetchMonth(supabase, teamId, memberId, key);
+      const end = dayjs(oldestMonth + "-01").subtract(1, "day").format("YYYY-MM-DD");
+      const start = "2000-01-01";
+      const races = await fetchRange(supabase, teamId, memberId, start, end);
       if (races.length === 0) {
         setCanLoadPrev(false);
         return;
       }
+      // 결과에서 최신 2달만 추출
+      const buckets = new Map<string, CalendarRace[]>();
+      for (const race of races) {
+        const key = race.start_date.slice(0, 7);
+        const list = buckets.get(key) ?? [];
+        list.push(race);
+        buckets.set(key, list);
+      }
+      const newMonths = Array.from(buckets.entries())
+        .sort(([a], [b]) => b.localeCompare(a)) // 내림차순
+        .slice(0, 2)
+        .reverse() // 오름차순으로 복원
+        .map(([key, r]) => ({ monthKey: key, races: r }));
       prevScrollHeightRef.current = containerRef.current?.scrollHeight ?? 0;
-      setMonths((prev) => [{ monthKey: key, races }, ...prev]);
+      setMonths((prev) => [...newMonths, ...prev]);
     } finally {
       setLoadingPrev(false);
     }
@@ -315,7 +322,8 @@ export function ScheduleListView({
     setLoadingNext(true);
     try {
       const key = nextMonthKey(newestMonth);
-      const races = await fetchMonth(supabase, teamId, memberId, key);
+      const { start, end } = monthBounds(key);
+      const races = await fetchRange(supabase, teamId, memberId, start, end);
       if (races.length === 0) {
         setCanLoadNext(false);
         return;
