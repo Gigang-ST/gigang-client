@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 import type { Metadata, Viewport } from "next";
 
 import { Inter } from "next/font/google";
@@ -5,6 +7,7 @@ import { Inter } from "next/font/google";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 
+import { InAppBrowserGate } from "@/components/in-app-browser-gate";
 import { Providers } from "@/components/providers";
 
 import "./globals.css";
@@ -67,7 +70,11 @@ export default function RootLayout({
     <html lang="ko" suppressHydrationWarning>
       <body className={`${inter.className} antialiased`}>
         <Providers>
-          <NuqsAdapter>{children}</NuqsAdapter>
+          <NuqsAdapter>
+            <Suspense fallback={null}>
+              <InAppBrowserGate>{children}</InAppBrowserGate>
+            </Suspense>
+          </NuqsAdapter>
         </Providers>
       </body>
       <GoogleAnalytics gaId="G-H9LXJH97CZ" />

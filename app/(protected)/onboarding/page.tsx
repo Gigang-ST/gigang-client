@@ -6,7 +6,6 @@ import { env } from "@/lib/env";
 import { getCurrentMember } from "@/lib/queries/member";
 
 import { MemberOnboardingForm } from "@/components/auth/member-onboarding-form";
-import { InAppBrowserGate } from "@/components/in-app-browser-gate";
 
 async function OnboardingContent({
   searchParams,
@@ -47,20 +46,18 @@ async function OnboardingContent({
     : "";
 
   return (
-    <InAppBrowserGate>
-      <div className="flex min-h-svh w-full items-center justify-center bg-background px-6">
-        <div className="w-full max-w-sm">
-          <MemberOnboardingForm
-            userId={user.id}
-            provider={user.app_metadata?.provider as "kakao" | "google"}
-            email={user.email}
-            initialAvatarUrl={initialAvatarUrl}
-            initialFullName={initialFullName}
-            kakaoChatPassword={env.KAKAO_CHAT_PASSWORD ?? ""}
-          />
-        </div>
+    <div className="flex min-h-svh w-full items-center justify-center bg-background px-6">
+      <div className="w-full max-w-sm">
+        <MemberOnboardingForm
+          userId={user.id}
+          provider={user.app_metadata?.provider as "kakao" | "google"}
+          email={user.email}
+          initialAvatarUrl={initialAvatarUrl}
+          initialFullName={initialFullName}
+          kakaoChatPassword={env.KAKAO_CHAT_PASSWORD ?? ""}
+        />
       </div>
-    </InAppBrowserGate>
+    </div>
   );
 }
 

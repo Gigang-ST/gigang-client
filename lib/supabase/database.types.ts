@@ -2003,6 +2003,10 @@ export type Database = {
             Returns: undefined
           }
       generate_nanoid: { Args: { size?: number }; Returns: string }
+      get_admin_unpaid_active_count: {
+        Args: { p_team_id: string }
+        Returns: number
+      }
       get_public_member_card: {
         Args: { p_mem_id: string; p_team_id: string }
         Returns: Json
@@ -2085,6 +2089,32 @@ export type Database = {
           rct_race_rec: string
           utmb_idx: number
           utmb_prf_url: string
+        }[]
+      }
+      get_schedule_paged: {
+        Args: {
+          p_cursor_date: string
+          p_direction: string
+          p_mem_id?: string
+          p_month_limit?: number
+          p_team_id: string
+        }
+        Returns: {
+          cmnt_count: number
+          cont_txt: string
+          crt_by: string
+          crt_by_nm: string
+          end_date: string
+          evt_end_at: string
+          evt_stt_at: string
+          item_id: string
+          item_nm: string
+          item_type: string
+          loc_nm: string
+          post_type: string
+          reg_count: number
+          start_date: string
+          url: string
         }[]
       }
       is_legacy_platform_admin: { Args: never; Returns: boolean }
@@ -2273,4 +2303,3 @@ export const Constants = {
     },
   },
 } as const
-
