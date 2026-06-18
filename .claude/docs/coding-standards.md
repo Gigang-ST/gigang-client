@@ -56,6 +56,11 @@ const supabase = createClient(); // await 불필요
 - 은행 계좌 등 입력 필드는 허용 문자만 필터링 (숫자, 하이픈 등)
 - 날짜 입력 필드에 `max="9999-12-31"` 속성 추가 (6자리 연도 입력 방지)
 
+## Git 커밋 워크플로우
+
+- **커밋 후 반드시 `git status` 확인** — lint-staged(eslint --fix)가 import 순서 등을 auto-fix한 뒤 working tree에 변경사항을 남기는 경우가 있음. 커밋 성공 후에도 unstaged 변경사항이 남아 있으면 추가로 커밋·푸시 필요.
+- 푸시 전 `git status`가 clean인지 확인한다.
+
 ## Playwright 스크린샷
 
 - 스크린샷 저장 경로: `temp/playwright/` (gitignore 대상)

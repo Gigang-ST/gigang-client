@@ -2,7 +2,6 @@ import { Suspense } from "react";
 
 import { LoginForm } from "@/components/auth/login-form";
 import { SignupProgress } from "@/components/auth/signup-progress";
-import { InAppBrowserGate } from "@/components/in-app-browser-gate";
 
 export default async function Page({
   searchParams,
@@ -12,7 +11,7 @@ export default async function Page({
   const { next } = await searchParams;
   const isSignupFlow = next === "/onboarding";
   return (
-    <InAppBrowserGate>
+    <>
       {isSignupFlow && <SignupProgress step={2} />}
       <Suspense
         fallback={
@@ -23,6 +22,6 @@ export default async function Page({
       >
         <LoginForm />
       </Suspense>
-    </InAppBrowserGate>
+    </>
   );
 }

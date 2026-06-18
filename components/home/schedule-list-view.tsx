@@ -28,123 +28,76 @@ type Props = {
   onClickCompetition: (race: CalendarRace) => void;
 };
 
-function monthBounds(monthKey: string): { start: string; end: string } {
-  const d = dayjs(monthKey + "-01");
-  return {
-    start: d.format("YYYY-MM-01"),
-    end: d.endOf("month").format("YYYY-MM-DD"),
-  };
-}
 
-function prevMonthKey(key: string) {
-  return dayjs(key + "-01").subtract(1, "month").format("YYYY-MM");
-}
+type SchedulePagedRow = {
+  item_type: string;
+  item_id: string;
+  item_nm: string;
+  post_type: string | null;
+  start_date: string;
+  end_date: string | null;
+  loc_nm: string | null;
+  url: string | null;
+  cont_txt: string | null;
+  evt_stt_at: string | null;
+  evt_end_at: string | null;
+  crt_by: string | null;
+  crt_by_nm: string | null;
+  reg_count: number | null;
+  cmnt_count: number;
+};
 
-function nextMonthKey(key: string) {
-  return dayjs(key + "-01").add(1, "month").format("YYYY-MM");
-}
-
-async function fetchMonth(
+async function fetchAdjacent(
   supabase: ReturnType<typeof createClient>,
   teamId: string,
   memberId: string | undefined,
-  monthKey: string,
+  direction: "prev" | "next",
+  cursorDate: string,
+  monthLimit: number,
 ): Promise<CalendarRace[]> {
-  const { start, end } = monthBounds(monthKey);
+  const { data, error } = await supabase.rpc("get_schedule_paged", {
+    p_team_id: teamId,
+    p_direction: direction,
+    p_cursor_date: cursorDate,
+    p_mem_id: memberId ?? undefined,
+    p_month_limit: monthLimit,
+  });
+  if (error || !data) return [];
 
-  const [{ data: schRows }, { data: gigangRows }, myRows] = await Promise.all([
-    supabase.rpc("get_public_team_sch_posts", {
-      p_team_id: teamId,
-      p_start: start,
-      p_end: end,
-    }),
-    supabase.rpc("get_public_team_competitions", {
-      p_team_id: teamId,
-      p_start: start,
-      p_end: end,
-    }),
-    memberId
-      ? supabase
-          .from("comp_reg_rel")
-          .select("team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm))")
-          .eq("mem_id", memberId)
-          .eq("team_comp_plan_rel.team_id", teamId)
-          .eq("vers", 0)
-          .eq("del_yn", false)
-      : Promise.resolve({ data: null }),
-  ]);
-
-  const results: CalendarRace[] = [];
   const seen = new Set<string>();
-  const regCountMap = new Map<string, number>(
-    (gigangRows ?? []).map((row) => [row.comp_id, row.reg_count ?? 0]),
-  );
-
-  // 내 대회
-  if (myRows.data) {
-    for (const r of myRows.data) {
-      const plan = Array.isArray(r.team_comp_plan_rel) ? r.team_comp_plan_rel[0] : r.team_comp_plan_rel;
-      const comp = Array.isArray(plan?.comp_mst) ? plan.comp_mst[0] : plan?.comp_mst;
-      if (!comp || comp.stt_dt < start || comp.stt_dt > end) continue;
-      const key = `mine:${comp.comp_id}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const compRow = (gigangRows ?? []).find((r) => r.comp_id === comp.comp_id);
+  const results: CalendarRace[] = [];
+  for (const row of data as SchedulePagedRow[]) {
+    const key = `${row.item_type}:${row.item_id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (row.item_type === "sch_post") {
       results.push({
-        id: comp.comp_id,
-        title: comp.comp_nm,
-        start_date: comp.stt_dt,
-        type: "mine",
-        location: comp.loc_nm ?? null,
-        regCount: regCountMap.get(comp.comp_id) ?? 0,
-        cmntCount: compRow?.cmnt_count ? Number(compRow.cmnt_count) : undefined,
+        id: row.item_id,
+        title: row.item_nm,
+        start_date: row.start_date,
+        type: "schedule",
+        post_type: row.post_type ?? null,
+        end_date: row.end_date ?? null,
+        evt_stt_at: row.evt_stt_at ?? null,
+        evt_end_at: row.evt_end_at ?? null,
+        url: row.url ?? null,
+        cont_txt: row.cont_txt ?? null,
+        crt_by: row.crt_by ?? undefined,
+        crt_by_nm: row.crt_by_nm ?? null,
+        cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
+      });
+    } else {
+      results.push({
+        id: row.item_id,
+        title: row.item_nm,
+        start_date: row.start_date,
+        type: row.item_type === "mine" ? "mine" : "gigang",
+        location: row.loc_nm ?? null,
+        regCount: row.reg_count ? Number(row.reg_count) : 0,
+        cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
       });
     }
   }
-
-  // 공유 일정
-  for (const row of schRows ?? []) {
-    const key = `sch:${row.sch_post_id}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    results.push({
-      id: row.sch_post_id,
-      short_id: row.short_id ?? null,
-      title: row.sch_nm,
-      start_date: dayjs(row.evt_stt_at).tz("Asia/Seoul").format("YYYY-MM-DD"),
-      type: "schedule",
-      post_type: row.post_type,
-      end_date: row.evt_end_at,
-      evt_stt_at: row.evt_stt_at,
-      evt_end_at: row.evt_end_at,
-      url: row.url,
-      cont_txt: row.cont_txt,
-      crt_by: row.crt_by,
-      crt_by_nm: row.crt_by_nm ?? null,
-      cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
-    });
-  }
-
-  // 기강 대회 (참가자 1명 이상)
-  const gigangSeen = new Set<string>();
-  for (const row of gigangRows ?? []) {
-    if ((row.reg_count ?? 0) === 0) continue;
-    if (gigangSeen.has(row.comp_id)) continue;
-    gigangSeen.add(row.comp_id);
-    const key = `gigang:${row.comp_id}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    results.push({
-      id: row.comp_id,
-      title: row.comp_nm,
-      start_date: row.stt_dt,
-      type: "gigang",
-      location: row.loc_nm ?? null,
-      regCount: row.reg_count ?? 0,
-    });
-  }
-
-  results.sort((a, b) => a.start_date.localeCompare(b.start_date));
   return results;
 }
 
@@ -296,14 +249,24 @@ export function ScheduleListView({
     if (loadingPrev || !canLoadPrev) return;
     setLoadingPrev(true);
     try {
-      const key = prevMonthKey(oldestMonth);
-      const races = await fetchMonth(supabase, teamId, memberId, key);
+      const cursorDate = dayjs(oldestMonth + "-01").format("YYYY-MM-DD");
+      const races = await fetchAdjacent(supabase, teamId, memberId, "prev", cursorDate, 2);
       if (races.length === 0) {
         setCanLoadPrev(false);
         return;
       }
+      const buckets = new Map<string, CalendarRace[]>();
+      for (const race of races) {
+        const key = race.start_date.slice(0, 7);
+        const list = buckets.get(key) ?? [];
+        list.push(race);
+        buckets.set(key, list);
+      }
+      const newMonths = Array.from(buckets.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, r]) => ({ monthKey: key, races: r }));
       prevScrollHeightRef.current = containerRef.current?.scrollHeight ?? 0;
-      setMonths((prev) => [{ monthKey: key, races }, ...prev]);
+      setMonths((prev) => [...newMonths, ...prev]);
     } finally {
       setLoadingPrev(false);
     }
@@ -314,13 +277,22 @@ export function ScheduleListView({
     if (loadingNext || !canLoadNext) return;
     setLoadingNext(true);
     try {
-      const key = nextMonthKey(newestMonth);
-      const races = await fetchMonth(supabase, teamId, memberId, key);
+      const cursorDate = dayjs(newestMonth + "-01").endOf("month").format("YYYY-MM-DD");
+      const races = await fetchAdjacent(supabase, teamId, memberId, "next", cursorDate, 1);
       if (races.length === 0) {
         setCanLoadNext(false);
         return;
       }
-      setMonths((prev) => [...prev, { monthKey: key, races }]);
+      const buckets = new Map<string, CalendarRace[]>();
+      for (const race of races) {
+        const key = race.start_date.slice(0, 7);
+        const list = buckets.get(key) ?? [];
+        list.push(race);
+        buckets.set(key, list);
+      }
+      const [firstKey, firstRaces] = Array.from(buckets.entries())
+        .sort(([a], [b]) => a.localeCompare(b))[0];
+      setMonths((prev) => [...prev, { monthKey: firstKey, races: firstRaces }]);
     } finally {
       setLoadingNext(false);
     }

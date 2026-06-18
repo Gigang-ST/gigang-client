@@ -711,7 +711,7 @@ async function recalcGoalsFromMonth(
   // 해당 참여자의 전체 목표 조회 (월순)
   const { data: goals } = await db
     .from("evt_mlg_mth_snap")
-    .select("goal_id, base_dt, goal_mlg")
+    .select("goal_id, base_dt, goal_mlg, achv_yn")
     .eq("prt_id", prtId)
     .order("base_dt", { ascending: true });
 
@@ -760,6 +760,7 @@ async function recalcGoalsFromMonth(
         updated_at: dayjs().toISOString(),
       })
       .eq("goal_id", g.goal_id);
+    g.achv_yn = achvYn;
   }
 
   // anchorGoalId가 있으면 해당 달을 기준점으로, 없으면 첫 번째 달이 기준점
@@ -776,28 +777,28 @@ async function recalcGoalsFromMonth(
     const prevMonth = prev.base_dt as string;
     const prevGoalVal = Number(prev.goal_mlg);
 
-    // 연습기간이면 목표 상향 없이 이전 값 유지
-    const isPractice = prevMonth < evtStartMonth;
-    let newGoal: number;
+    // 연습기간은 달성 여부가 다음 달 목표에 영향 없음
+    if (prevMonth < evtStartMonth) continue;
 
-    if (isPractice) {
-      newGoal = prevGoalVal;
-    } else {
-      const achieved = (roundedAchvByMonth.get(prevMonth) ?? 0) >= prevGoalVal;
-      newGoal = calcNextMonthGoal(prevGoalVal, achieved);
-    }
+    // 미달성이면 이후 달 재계산 불필요
+    if (!prev.achv_yn) break;
 
-    if (Number(cur.goal_mlg) !== newGoal) {
+    // 달성: 자동 계산값과 현재 DB값 중 큰 값 적용 (목표는 내려가지 않음)
+    const calculatedGoal = calcNextMonthGoal(prevGoalVal, true);
+    const finalGoal = Math.max(calculatedGoal, Number(cur.goal_mlg));
+
+    if (Number(cur.goal_mlg) !== finalGoal) {
+      const newAchvYn = Math.round((roundedAchvByMonth.get(cur.base_dt as string) ?? 0) * 10) / 10 >= finalGoal;
       await db
         .from("evt_mlg_mth_snap")
         .update({
-          goal_mlg: newGoal,
-          achv_yn: Math.round((roundedAchvByMonth.get(cur.base_dt as string) ?? 0) * 10) / 10 >= newGoal,
+          goal_mlg: finalGoal,
+          achv_yn: newAchvYn,
           updated_at: dayjs().toISOString(),
         })
         .eq("goal_id", cur.goal_id);
-      // 업데이트된 값으로 다음 반복에 반영
-      cur.goal_mlg = newGoal;
+      cur.goal_mlg = finalGoal;
+      cur.achv_yn = newAchvYn;
     }
   }
 }

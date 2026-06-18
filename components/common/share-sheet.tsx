@@ -18,7 +18,10 @@ type ShareSheetProps = {
   onOpenChange: (open: boolean) => void;
   title: string;
   timeLabel: string;
+  /** 본문 텍스트 */
   contentSnippet?: string;
+  /** 본문에 첨부된 외부 링크 */
+  contentUrl?: string;
   /** 이 게시물 상세보기 딥링크. 없으면 현재 페이지 URL 사용 */
   pageUrl?: string;
 };
@@ -29,6 +32,7 @@ export function ShareSheet({
   title,
   timeLabel,
   contentSnippet,
+  contentUrl,
   pageUrl,
 }: ShareSheetProps) {
   const [copiedText, setCopiedText] = useState(false);
@@ -38,8 +42,14 @@ export function ShareSheet({
   }
 
   function buildText() {
-    const lines = [title, timeLabel];
-    if (contentSnippet) lines.push("", contentSnippet.slice(0, 100) + (contentSnippet.length > 100 ? ".." : ""));
+    const lines = [`[${title}]`, timeLabel];
+
+    if (contentUrl) lines.push(contentUrl);
+    if (contentSnippet) {
+      const text = contentSnippet.trim();
+      lines.push(text.slice(0, 100) + (text.length > 100 ? ".." : ""));
+    }
+
     lines.push("", getUrl());
     return lines.join("\n");
   }
@@ -55,11 +65,8 @@ export function ShareSheet({
       await handleCopyText();
       return;
     }
-    const text = contentSnippet
-      ? contentSnippet.slice(0, 80) + (contentSnippet.length > 80 ? "..." : "")
-      : undefined;
     try {
-      await navigator.share({ title: `${title} - ${timeLabel}`, text, url: getUrl() });
+      await navigator.share({ text: buildText() });
     } catch (e) {
       if (e instanceof Error && e.name !== "AbortError") throw e;
     }

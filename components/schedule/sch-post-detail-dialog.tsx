@@ -149,6 +149,7 @@ export function SchPostDetailDialog({
                   isAdmin={isAdmin}
                   members={members}
                   initialComments={initialComments}
+                  loginReturnPath={`/?post=${post.short_id ?? post.id}`}
                 />
               </div>
 
@@ -169,6 +170,7 @@ export function SchPostDetailDialog({
         onOpenChange={setShareOpen}
         title={post.title}
         timeLabel={timeLabel}
+        contentUrl={post.url ?? undefined}
         contentSnippet={post.cont_txt ?? undefined}
         pageUrl={pageUrl}
       />

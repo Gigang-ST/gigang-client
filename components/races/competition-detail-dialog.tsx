@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 
-import Link from "next/link";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Calendar, ExternalLink, MapPin, Pencil, Users } from "lucide-react";
@@ -42,6 +41,7 @@ import {
   ResponsiveDrawerHeader,
   ResponsiveDrawerTitle,
 } from "@/components/common/responsive-drawer";
+import { detectInAppBrowser, openExternalBrowser } from "@/components/in-app-browser-gate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -603,16 +603,23 @@ export function CompetitionDetailDialog({
                   새로고침
                 </Button>
               ) : (
-                <Button asChild className="w-full">
-                  <Link
-                    href={
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    const returnPath = `/?comp=${competition.id}`;
+                    const href =
                       memberStatus.status === "signed-out"
-                        ? "/auth/login?next=%2Fraces"
-                        : "/onboarding"
+                        ? `/auth/login?next=${encodeURIComponent(returnPath)}`
+                        : "/onboarding";
+                    const inApp = detectInAppBrowser();
+                    if (inApp && memberStatus.status === "signed-out") {
+                      openExternalBrowser(window.location.origin + href);
+                    } else {
+                      window.location.href = href;
                     }
-                  >
-                    {memberStatus.status === "signed-out" ? "로그인" : "회원정보 입력"}
-                  </Link>
+                  }}
+                >
+                  {memberStatus.status === "signed-out" ? "로그인" : "회원정보 입력"}
                 </Button>
               )}
             </div>
@@ -706,6 +713,7 @@ export function CompetitionDetailDialog({
               isAdmin={isAdmin}
               members={members}
               initialComments={initialComments}
+              loginReturnPath={`/?comp=${competition.id}`}
             />
           </div>
 
