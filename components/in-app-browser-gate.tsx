@@ -136,7 +136,7 @@ function FullScreenGate({ inApp, isAuth }: { inApp: InAppEnv; isAuth: boolean })
   );
 }
 
-/** 상단 배너 — 일반 콘텐츠 페이지용 */
+/** 하단 배너 — 일반 콘텐츠 페이지 및 로그인 페이지용 */
 function BannerGate({
   children,
 }: {
@@ -149,7 +149,8 @@ function BannerGate({
 
   return (
     <>
-      <div className="sticky top-0 z-50 flex items-center gap-2 bg-primary px-4 py-2.5 text-primary-foreground">
+      {children}
+      <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center gap-2 bg-primary px-4 py-3 text-primary-foreground" style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}>
         <span className="flex-1 text-xs leading-snug">
           {isIOS()
             ? "Safari에서 열면 모든 기능을 사용할 수 있어요"
@@ -173,7 +174,6 @@ function BannerGate({
           <X className="size-4" />
         </button>
       </div>
-      {children}
     </>
   );
 }
@@ -191,19 +191,13 @@ export function InAppBrowserGate({ children }: { children: React.ReactNode }) {
 
   if (!inApp) return <>{children}</>;
 
-  // 로그인·가입·온보딩 → 전체 차단
+  // 가입·온보딩만 전체 차단 (로그인은 테스트 가능하도록 배너)
   const isBlockPage =
-    pathname.startsWith("/auth") ||
     pathname.startsWith("/newbie") ||
     pathname === "/onboarding";
 
   if (isBlockPage) {
-    return (
-      <FullScreenGate
-        inApp={inApp}
-        isAuth={pathname.startsWith("/auth")}
-      />
-    );
+    return <FullScreenGate inApp={inApp} isAuth={false} />;
   }
 
   // 나머지 → 배너만
