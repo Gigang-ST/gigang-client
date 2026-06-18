@@ -188,10 +188,11 @@ export function InAppBrowserGate({ children }: { children: React.ReactNode }) {
 
   if (!inApp) return <>{children}</>;
 
-  // 가입·온보딩만 전체 차단 (로그인은 테스트 가능하도록 배너)
+  // 가입·온보딩 전체 차단 + iOS 인앱은 로그인 페이지도 차단 (Android는 배너 열기 버튼으로 Chrome 로그인 가능)
   const isBlockPage =
     pathname.startsWith("/newbie") ||
-    pathname === "/onboarding";
+    pathname === "/onboarding" ||
+    (pathname === "/auth/login" && isIOS());
 
   if (isBlockPage) {
     return <FullScreenGate inApp={inApp} />;
