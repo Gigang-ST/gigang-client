@@ -1,0 +1,98 @@
+name: Lighthouse — PR Preview
+
+on:
+  deployment_status:
+
+jobs:
+  lighthouse:
+    if: |
+      github.event.deployment_status.state == 'success' &&
+      startsWith(github.event.deployment.environment, 'Preview')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Lighthouse
+        run: npm install -g lighthouse
+
+      - name: Run Lighthouse
+        env:
+          PREVIEW_URL: ${{ github.event.deployment_status.environment_url }}
+        run: |
+          lighthouse "$PREVIEW_URL" \
+            --output json \
+            --output-path ./lh.json \
+            --only-categories performance \
+            --chrome-flags="--headless=new --no-sandbox --disable-dev-shm-usage" \
+            --quiet
+
+      - name: Find associated PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_SHA: ${{ github.event.deployment.sha }}
+        run: |
+          PR=$(gh api repos/${{ github.repository }}/commits/$DEPLOY_SHA/pulls --jq '.[0].number // empty')
+          echo "number=$PR" >> $GITHUB_OUTPUT
+
+      - name: Post Lighthouse comment
+        if: steps.pr.outputs.number != ''
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ github.event.deployment_status.environment_url }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('./lh.json', 'utf8'));
+
+            const perf = Math.round(report.categories.performance.score * 100);
+            const fcp = report.audits['first-contentful-paint'].displayValue;
+            const lcp = report.audits['largest-contentful-paint'].displayValue;
+            const ttfb = report.audits['server-response-time'].displayValue;
+            const tbt = report.audits['total-blocking-time'].displayValue;
+
+            const badge = perf >= 90 ? '🟢' : perf >= 50 ? '🟡' : '🔴';
+
+            const body = [
+              '## ⚡ Lighthouse 결과 — / (홈)',
+              '',
+              '| 지표 | 점수 |',
+              '|------|------|',
+              `| Performance | ${badge} ${perf} |`,
+              `| FCP | ${fcp} |`,
+              `| LCP | ${lcp} |`,
+              `| TTFB | ${ttfb} |`,
+              `| TBT | ${tbt} |`,
+              '',
+              `🔗 [프리뷰 URL](${process.env.PREVIEW_URL})`,
+            ].join('\n');
+
+            const prNumber = parseInt(process.env.PR_NUMBER);
+            const { data: comments } = await github.rest.issues.listComments({
+              ...context.repo,
+              issue_number: prNumber,
+            });
+
+            const existing = comments.find(c => c.body.includes('⚡ Lighthouse 결과'));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                ...context.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: prNumber,
+                body,
+              });
+            }

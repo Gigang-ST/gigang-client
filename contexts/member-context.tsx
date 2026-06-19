@@ -1,11 +1,11 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import type { Member } from "@/lib/get-member";
+import type { AppMemberProfile } from "@/lib/queries/app-member";
 
 type MemberContextValue = {
   userId: string | null;
-  member: Member | null;
+  member: AppMemberProfile | null;
 };
 
 const MemberContext = createContext<MemberContextValue>({
@@ -19,7 +19,7 @@ export function MemberProvider({
   children,
 }: {
   userId: string | null;
-  member: Member | null;
+  member: AppMemberProfile | null;
   children: React.ReactNode;
 }) {
   return (

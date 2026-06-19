@@ -36,48 +36,7 @@ const eslintConfig = [
           caughtErrorsIgnorePattern: "^_",
         },
       ],
-      "import/order": [
-        "warn",
-        {
-          groups: [
-            "builtin",
-            "external",
-            "internal",
-            "parent",
-            "sibling",
-            "index",
-            "type",
-          ],
-          pathGroups: [
-            {
-              pattern: "react",
-              group: "builtin",
-              position: "before",
-            },
-            {
-              pattern: "next/**",
-              group: "builtin",
-              position: "before",
-            },
-            {
-              pattern: "@/lib/**",
-              group: "internal",
-              position: "before",
-            },
-            {
-              pattern: "@/components/**",
-              group: "internal",
-              position: "after",
-            },
-          ],
-          pathGroupsExcludedImportTypes: ["react", "next"],
-          "newlines-between": "always",
-          alphabetize: {
-            order: "asc",
-            caseInsensitive: true,
-          },
-        },
-      ],
+      "import/order": "off",
       "no-restricted-imports": [
         "error",
         {

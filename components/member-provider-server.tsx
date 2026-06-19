@@ -1,4 +1,4 @@
-import { getMember } from "@/lib/get-member";
+import { getCurrentMember } from "@/lib/queries/member";
 import { MemberProvider } from "@/contexts/member-context";
 
 export async function MemberProviderServer({
@@ -6,10 +6,10 @@ export async function MemberProviderServer({
 }: {
   children: React.ReactNode;
 }) {
-  const { userId, member } = await getMember();
+  const { user, member } = await getCurrentMember();
 
   return (
-    <MemberProvider userId={userId} member={member}>
+    <MemberProvider userId={user?.id ?? null} member={member}>
       {children}
     </MemberProvider>
   );
