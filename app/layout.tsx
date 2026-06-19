@@ -4,7 +4,8 @@ import type { Metadata, Viewport } from "next";
 
 import { Inter } from "next/font/google";
 
-import { GoogleAnalytics } from "@next/third-parties/google";
+import Script from "next/script";
+
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 
 import { InAppBrowserGate } from "@/components/in-app-browser-gate";
@@ -78,7 +79,18 @@ export default function RootLayout({
           </NuqsAdapter>
         </Providers>
       </body>
-      <GoogleAnalytics gaId="G-H9LXJH97CZ" />
+      <Script
+        id="_ga-init"
+        strategy="lazyOnload"
+        dangerouslySetInnerHTML={{
+          __html: `window['dataLayer']=window['dataLayer']||[];function gtag(){window['dataLayer'].push(arguments);}gtag('js',new Date());gtag('config','G-H9LXJH97CZ');`,
+        }}
+      />
+      <Script
+        id="_ga"
+        src="https://www.googletagmanager.com/gtag/js?id=G-H9LXJH97CZ"
+        strategy="lazyOnload"
+      />
       <ServiceWorkerRegister />
     </html>
   );

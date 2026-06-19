@@ -92,6 +92,39 @@ const MDEditor = dynamic(
 
 **의의:** 향후 새 라이브러리 추가 시 Next.js가 자동 폴리필을 넣지 않도록 방어 설정 역할. 현재 번들에 대한 직접 효과는 거의 없음.
 
+### ✅ Task 4 — Google Analytics lazyOnload 전환 (2026-06-19 완료)
+
+**변경 파일:** `app/layout.tsx`
+
+**원인:** `@next/third-parties`의 `GoogleAnalytics` 컴포넌트는 `strategy` prop을 노출하지 않아 기본 `afterInteractive`로 로드됨. 페이지가 인터랙티브해진 직후(LCP 전후 시점) GTM 스크립트(159KB)가 메인 스레드를 275ms + 159ms 추가 점유.
+
+**변경 전:**
+```tsx
+import { GoogleAnalytics } from "@next/third-parties/google";
+// ...
+<GoogleAnalytics gaId="G-H9LXJH97CZ" />  // afterInteractive (기본값)
+```
+
+**변경 후:**
+```tsx
+import Script from "next/script";
+// ...
+<Script id="_ga-init" strategy="lazyOnload"
+  dangerouslySetInnerHTML={{ __html: `window['dataLayer']=...gtag('config','G-H9LXJH97CZ');` }}
+/>
+<Script id="_ga" src="https://www.googletagmanager.com/gtag/js?id=G-H9LXJH97CZ" strategy="lazyOnload" />
+```
+
+**lazyOnload 동작:** 브라우저 idle 상태일 때 로드 → 초기 렌더 + LCP 완료에 영향 없음.  
+`lib/analytics.ts`는 `window.gtag`를 직접 호출하므로 스크립트 교체 후에도 동일하게 동작.
+
+**기대 효과:**
+
+| 지표 | 개선 전 | 개선 후 | 변화 |
+|------|--------|--------|------|
+| TBT 기여 (GTM) | +334ms | ~0ms | **-334ms** |
+| 분석 이벤트 수집 | 즉시 | 1~2초 딜레이 | 허용 가능한 트레이드오프 |
+
 ---
 
 ## 전체 개요
@@ -105,8 +138,8 @@ const MDEditor = dynamic(
     ▼ Task 3: browserslist 현대화 (완료) → 효과 미미 (예상 밖)
 [변화 없음]
     │
-    ▼ Task 4: GTM lazyOnload 전환 (진행 예정)
-[+7~8점]
+    ▼ Task 4: GTM lazyOnload 전환 (완료) → TBT -334ms 예상
+[68~72점 예상]
     │
     ▼ Task 5: Zod/Supabase 번들 분리 (진행 예정)
 [74~78점]
