@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
-import { formatDDay } from "@/lib/dayjs";
+import { dayjs, formatDDay } from "@/lib/dayjs";
 import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
 import { createClient } from "@/lib/supabase/client";
@@ -258,7 +258,7 @@ export function UpcomingRaces({
 
                 {/* 날짜 */}
                 <Micro className="shrink-0 tabular-nums">
-                  {race.start_date.slice(5).replace("-", "/")}
+                  {dayjs(race.start_date).format("MM/DD")}
                 </Micro>
               </button>
             );
