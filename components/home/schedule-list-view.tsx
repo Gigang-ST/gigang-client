@@ -7,8 +7,8 @@ import { MapPin } from "lucide-react";
 import { dayjs, todayKST } from "@/lib/dayjs";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { schPostTypeInlineLabel } from "@/lib/validations/schedule";
-import type { SchPostType } from "@/lib/validations/schedule";
+import { schPostTypeInlineLabel } from "@/lib/validations/schedule-types";
+import type { SchPostType } from "@/lib/validations/schedule-types";
 
 import { Caption, Micro, SectionLabel } from "@/components/common/typography";
 

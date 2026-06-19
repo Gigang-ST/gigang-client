@@ -125,6 +125,41 @@ import Script from "next/script";
 | TBT 기여 (GTM) | +334ms | ~0ms | **-334ms** |
 | 분석 이벤트 수집 | 즉시 | 1~2초 딜레이 | 허용 가능한 트레이드오프 |
 
+### ✅ Task 5 — Zod 홈 번들 분리 (2026-06-19 완료)
+
+**변경 파일:**
+- `lib/validations/schedule-types.ts` (신규 생성 — Zod 의존성 없는 순수 상수/타입)
+- `lib/validations/schedule.ts` (리팩터 — schedule-types에서 re-export)
+- `components/home/mini-calendar.tsx` (SchPostFormDialog + CompetitionDetailDialog dynamic import)
+- `components/home/schedule-list-view.tsx` (schedule-types.ts로 import 교체)
+- `components/races/competition-detail-dialog.tsx` (Props 타입 export 추가)
+
+**발견한 Zod 유입 경로 (예상보다 복잡):**
+
+단순히 `SchPostFormDialog`만 dynamic으로 교체해서는 부족했음. 실제 chain:
+
+```
+mini-calendar.tsx
+  ├─ CompetitionDetailDialog (정적) → zodResolver + competition validations → Zod
+  └─ schedule.ts import (정적) → import { z } from "zod" → Zod
+```
+
+두 경로를 모두 차단:
+1. `lib/validations/schedule-types.ts` 분리: 순수 상수/타입은 Zod 없이 별도 파일로
+2. `CompetitionDetailDialog` dynamic import: 대회 상세 다이얼로그도 클릭 시에만 로드
+
+**실제 검증 결과:**
+`_buildManifest.js`에서 `e50f0272f43ad504` (Zod 청크) 참조 횟수: **0** → 홈 초기 번들에서 완전 분리.
+
+**기대 효과:**
+
+| 지표 | 개선 전 | 개선 후 |
+|------|--------|--------|
+| 홈 초기 Zod 청크 | 275KB 포함 | **0KB** (lazy chunk로 이동) |
+| 홈 TBT 기여 (Zod 파싱) | 포함 | **제거** |
+| 대회 상세 다이얼로그 첫 진입 | 빠름 | ~0.5초 딜레이 (허용) |
+| 일정 추가 다이얼로그 첫 진입 | 빠름 | ~0.5초 딜레이 (허용) |
+
 ---
 
 ## 전체 개요
@@ -141,8 +176,11 @@ import Script from "next/script";
     ▼ Task 4: GTM lazyOnload 전환 (완료) → TBT -334ms 예상
 [68~72점 예상]
     │
-    ▼ Task 5: Zod/Supabase 번들 분리 (진행 예정)
-[74~78점]
+    ▼ Task 5: Zod 홈 번들 분리 (완료) → 275KB lazy 이동, TBT 추가 개선 예상
+[74~78점 목표]
+    │
+    ▼ Task 6: Lighthouse 재측정 (예정)
+[실측]
 ```
 
 성능 점수에 가장 큰 영향을 주는 두 지표는 **TBT(30%)** 와 **LCP(25%)** 입니다.  
