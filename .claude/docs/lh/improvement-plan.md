@@ -513,8 +513,47 @@ gh run download <run-id> --name lighthouse-report -D /tmp/lh-check
 ```
 
 **체크리스트:**
-- [ ] Phase 1 완료 후: TBT 1,810ms → 840ms 이하 확인
-- [ ] Phase 2 완료 후: TBT 840ms → 510ms 이하 확인
-- [ ] Phase 3 완료 후: 미사용 JS 240KB → 80KB 이하 확인
-- [ ] 전체 완료 후: Performance 점수 74점 이상 확인
-- [ ] 기능 회귀 없음 확인 (게시판 작성, 일정 등록, 프로필 수정)
+- [x] Task 2 완료: refractor 876KB 홈 번들 제거
+- [x] Task 3 완료: browserslist 현대화
+- [x] Task 4 완료: GTM lazyOnload 전환
+- [x] Task 5 완료: Zod 홈 번들 분리
+- [ ] **Task 6: Lighthouse 재측정 결과 확인** (Actions 실행 중 — `gh run list --workflow=lighthouse-daily.yml`)
+- [ ] 기능 회귀 없음 확인 (일정 등록/수정, 대회 상세, 게시판 글쓰기)
+- [ ] 점수 74 이상 확인 후 PR 생성 (`/pr` 스킬)
+
+---
+
+## 다음 세션 참고사항
+
+### Zod 로딩 시점 (추가 최적화 가능)
+
+현재 `SchPostFormDialog`와 `CompetitionDetailDialog`는 `mini-calendar.tsx`에서 **항상 렌더링** (`open={false}`)되기 때문에, `dynamic()`을 써도 **홈 렌더링 직후** Zod 청크 fetch가 시작됩니다. `+` 버튼 클릭 전에 이미 다운로드 완료.
+
+다이얼로그를 진짜 클릭 시에만 로드하려면:
+
+```tsx
+// mini-calendar.tsx에서 조건부 렌더링으로 변경
+{formOpen && <SchPostFormDialog open={formOpen} onOpenChange={setFormOpen} ... />}
+{compDetailOpen && <CompetitionDetailDialog open={compDetailOpen} ... />}
+```
+
+단, 첫 오픈 시 0.3~0.5초 지연 발생. 측정 결과 보고 판단.
+
+### 서비스 워커 프리캐시 (별도 PR 예정)
+
+`app/sw.ts`의 `precacheEntries: self.__SW_MANIFEST`가 `_next/static/**` 전체를 프리캐시해서 8.47MB 캐싱. 별도 PR에서 특정 파일 exclude 적용 필요.
+
+### 현재 브랜치 상태
+
+```
+브랜치: perf/js-bottleneck-fix
+베이스: dev
+커밋 6개 (Task 1~5 + 문서)
+Lighthouse CI: 실행 중 (2026-06-19 트리거)
+```
+
+Lighthouse 결과 확인:
+```bash
+gh run list --workflow=lighthouse-daily.yml --limit 3
+gh run download <run-id> --name lighthouse-report -D /tmp/lh-after
+```
