@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '0 0 * * *'  # 매일 00:00 UTC = 09:00 KST
   workflow_dispatch:
+    inputs:
+      url:
+        description: '측정할 URL (비우면 프로덕션 https://gigang.team/ 사용)'
+        required: false
+        default: 'https://gigang.team/'
 
 jobs:
   lighthouse:
@@ -21,9 +26,11 @@ jobs:
       - name: Install Lighthouse
         run: npm install -g lighthouse
 
-      - name: Run Lighthouse on production
+      - name: Run Lighthouse
+        env:
+          TARGET_URL: ${{ github.event.inputs.url || 'https://gigang.team/' }}
         run: |
-          lighthouse https://gigang.team/ \
+          lighthouse "$TARGET_URL" \
             --output html \
             --output json \
             --output-path ./lighthouse \
