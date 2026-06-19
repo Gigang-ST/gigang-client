@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { headers } from "next/headers";
+import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_FALLBACK_TEAM_ID } from "@/lib/constants/gigang-team";
 
@@ -64,6 +65,9 @@ export async function resolveTeamContextFromHost(
 export const getRequestTeamContext = cache(async (): Promise<RequestTeamContext> => {
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
-  console.log("[getRequestTeamContext] host:", host, "x-forwarded-host:", h.get("x-forwarded-host"), "host-header:", h.get("host"));
-  return resolveTeamContextFromHost(host);
+  return unstable_cache(
+    () => resolveTeamContextFromHost(host),
+    ["team-context", host ?? "unknown"],
+    { revalidate: false },
+  )();
 });
