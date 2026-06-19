@@ -36,7 +36,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           REF="${{ github.event.deployment.ref }}"
-          PR=$(gh pr list --head "$REF" --state open --json number --jq '.[0].number // empty')
+          PR=$(gh pr list --repo "${{ github.repository }}" --head "$REF" --state open --json number --jq '.[0].number // empty')
           echo "number=$PR" >> $GITHUB_OUTPUT
 
       - name: Post Lighthouse comment
