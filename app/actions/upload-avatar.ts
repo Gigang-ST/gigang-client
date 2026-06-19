@@ -1,9 +1,5 @@
 "use server";
 
-// @ts-expect-error -- heic-convert에 타입 선언 없음
-import convert from "heic-convert";
-import sharp from "sharp";
-
 import { getCurrentMember, verifyActive } from "@/lib/queries/member";
 
 const MAX_SIZE = 256;
@@ -50,6 +46,8 @@ export async function uploadAvatar(formData: FormData) {
   const isHeic = file.type === "image/heic" || file.type === "image/heif";
   if (isHeic) {
     try {
+      // @ts-expect-error -- heic-convert에 타입 선언 없음
+      const { default: convert } = await import("heic-convert");
       const converted = await convert({
         buffer,
         format: "JPEG",
@@ -65,6 +63,7 @@ export async function uploadAvatar(formData: FormData) {
   // Sharp로 리사이징
   let resized: Buffer;
   try {
+    const { default: sharp } = await import("sharp");
     resized = await sharp(buffer)
       .rotate()
       .resize(MAX_SIZE, MAX_SIZE, { fit: "cover" })
