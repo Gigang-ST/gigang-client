@@ -22,7 +22,7 @@
 
 Lighthouse 지표를 이해하려면 브라우저가 페이지를 여는 순서를 알아야 한다.
 
-```
+```text
 ① 서버에 HTML 요청
 ② HTML 받음                          ← TTFB 측정 지점
 ③ HTML 파싱 → CSS/JS 파일 목록 발견
@@ -56,7 +56,7 @@ JS가 메인 스레드를 막아서 사용자 입력을 처리하지 못한 총 
 - 기준: ≤ 200ms
 - 계산 방식: 50ms 초과 작업의 초과분만 합산
 
-```
+```text
 작업이 386ms 걸렸다면 → 336ms만 TBT에 합산
 작업이 30ms 걸렸다면  → 0 (50ms 이하는 정상 범위)
 ```
@@ -78,7 +78,7 @@ JS가 메인 스레드를 막아서 사용자 입력을 처리하지 못한 총 
 
 ## 4. Performance 점수 계산 방식
 
-```
+```text
 Performance =
   FCP   × 10%
   SI    × 10%
@@ -95,7 +95,7 @@ Performance =
 
 LCP가 높을 때 Lighthouse는 원인을 4단계로 쪼개서 보여준다.
 
-```
+```text
 TTFB         → 서버가 HTML 주는 시간
 Load Delay   → 리소스 다운로드 대기 시간
 Load Time    → 리소스 다운로드 시간
@@ -108,7 +108,7 @@ Render Delay → JS가 메인 스레드를 막아 렌더 지연
 
 브라우저는 메인 스레드 하나로 JS 실행과 화면 그리기를 번갈아 처리한다.
 
-```
+```text
 [JS 실행] → [화면 그리기] → [JS 실행] → [화면 그리기]
 ```
 
@@ -139,7 +139,7 @@ JS가 실행되는 동안엔 화면을 못 그린다. JS가 오래 걸릴수록 
 
 **해결:** `browserslist` 설정을 현대 브라우저 기준으로 좁히기.
 
-```
+```text
 Chrome >= 90
 Safari >= 16
 Firefox >= 90
@@ -157,7 +157,7 @@ Edge >= 90
 **문제:** 특정 페이지에서 필요 없는 라이브러리가 공유 청크를 통해 유입되는 경우. 예: 홈페이지에 폼이 없는데 Zod(폼 검증 라이브러리)가 로드됨.
 
 **원인 구조:**
-```
+```text
 로그인 페이지 → Zod import
 → Next.js가 공유 청크로 묶음
 → 홈 로드 시 공유 청크도 같이 로드
@@ -184,7 +184,7 @@ Lighthouse는 다운로드했지만 실행되지 않은 코드도 측정한다. 
 
 ### ② 어떤 지표가 낮은가
 
-```
+```text
 TBT 높음   → JS가 메인 스레드를 막고 있음
 LCP 높음   → 화면에 주요 콘텐츠가 늦게 그려짐
 FCP 높음   → 첫 화면 자체가 늦게 시작됨
@@ -198,7 +198,7 @@ TBT(30%), LCP(25%), CLS(25%) 순으로 고쳐야 점수 효율이 높다.
 
 ### ④ LCP가 높으면 — 4단계 분해 확인
 
-```
+```text
 Render Delay가 크다 → JS 블로킹 → TBT 문제와 연결
 Load Time가 크다   → 이미지/리소스 크기 문제
 TTFB가 크다       → 서버 문제
@@ -232,21 +232,19 @@ TTFB가 크다       → 서버 문제
 
 ## 10. 실전 예시 — 기강 앱 분석 흐름
 
-```
+```text
 Performance 49  → 심각
 ↓
 TBT 1,810ms (비중 30%), LCP 5.6s (비중 25%)가 주범
 ↓
 LCP 분해 → Render Delay 85% → JS 블로킹
 ↓
-TBT 긴 작업 목록 → 8d867abb...js가 1위·3위·6위·7위·9위 반복
+TBT 긴 작업 목록 → f79a3ac5...js(refractor 876KB)가 반복 등장
 ↓
-해당 파일 = 레거시 폴리필 224KB (browserslist 설정 문제)
-↓
-TTFB 0ms → 서버/Supabase 리전 변경은 효과 없음
+TTFB ~0ms (CDN 엣지 응답) → 서버/Supabase 리전 변경은 효과 없음
 ↓
 해결 우선순위:
-  Phase 1: browserslist 현대화 → TBT ~840ms, 점수 ~60~65
-  Phase 2: GTM lazyOnload → TBT ~510ms, 점수 ~68~72
-  Phase 3: Zod/Supabase 번들 분리 → 점수 ~74~78
+  Task 2: refractor dynamic import → TBT ~840ms, 점수 ~60~65
+  Task 4: GTM lazyOnload → TBT ~510ms, 점수 ~68~72
+  Task 5: Zod 번들 분리 → 점수 ~74~78
 ```

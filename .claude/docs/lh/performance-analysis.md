@@ -28,11 +28,13 @@
 | **CLS** (Cumulative Layout Shift) | 0 | 1.00 | ≤ 0.1 | 🟢 완벽 |
 | **SI** (Speed Index) | 4.7s | 0.68 | ≤ 3.4s | 🟡 보통 |
 | **TTI** (Time to Interactive) | 5.8s | 0.67 | ≤ 3.8s | 🟡 보통 |
-| **TTFB** (서버 응답) | 0ms | 1.00 | ≤ 800ms | 🟢 완벽 |
+| **TTFB** (서버 응답) | ~0ms* | 1.00 | ≤ 800ms | 🟢 완벽 |
+
+> \* TTFB 두 가지 측정값 구분: Lighthouse "server-response-time" 감사(HTML 첫 바이트, Vercel CDN 엣지 응답) ≈ 0ms → 점수 1.00. LCP 위상 분석에서 TTFB 827ms는 LCP 리소스 요청 시작까지의 대기 시간(별도 측정). 둘 다 정상.
 
 ### Lighthouse 점수 계산 가중치
 
-```
+```text
 Performance = FCP(10%) + SI(10%) + LCP(25%) + TBT(30%) + CLS(25%)
 현재: 9.9 + 6.8 + 4.5 + 2.7 + 25 = 48.9 ≈ 49
 ```
@@ -79,7 +81,7 @@ TBT = 50ms 초과 작업의 초과분 합계 (50ms 이하는 정상 범위)
 
 ### 3-3. 홈페이지 로드 JS 청크 전체 목록
 
-```
+```text
 총 요청: 38개 | 총 전송 크기: 688KB
 ```
 
@@ -157,7 +159,7 @@ TTFB(서버 응답)가 이미 **0ms**로 측정됨. Supabase Japan 리전이 현
 
 **작업:** `.browserslistrc` 생성 또는 `package.json`의 `browserslist` 수정
 
-```
+```text
 Chrome >= 90
 Safari >= 16
 Firefox >= 90

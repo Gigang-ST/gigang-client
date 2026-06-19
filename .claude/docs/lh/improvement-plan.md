@@ -340,16 +340,27 @@ GTM은 사용자 행동 추적용이라 초기 렌더에 전혀 필요하지 않
 **작업 파일:** `app/layout.tsx`
 
 ```tsx
-// 변경 전
-<GoogleAnalytics gaId="G-H9LXJH97CZ" />
+// 변경 전 (app/layout.tsx)
+import { GoogleAnalytics } from "@next/third-parties/google";
+// ...
+<GoogleAnalytics gaId="G-H9LXJH97CZ" />  // strategy 노출 불가 → afterInteractive 고정
 
-// 변경 후
-<GoogleAnalytics gaId="G-H9LXJH97CZ" />
+// 변경 후 (app/layout.tsx)
+import Script from "next/script";
+// ...
+<Script
+  id="_ga-init"
+  strategy="lazyOnload"
+  dangerouslySetInnerHTML={{
+    __html: `window['dataLayer']=window['dataLayer']||[];function gtag(){window['dataLayer'].push(arguments);}gtag('js',new Date());gtag('config','G-H9LXJH97CZ');`,
+  }}
+/>
+<Script
+  id="_ga"
+  src="https://www.googletagmanager.com/gtag/js?id=G-H9LXJH97CZ"
+  strategy="lazyOnload"
+/>
 ```
-
-> **참고:** `@next/third-parties`의 `GoogleAnalytics`는 내부적으로 `strategy` prop을 받지 않습니다.  
-> 대신 Next.js `Script` 컴포넌트를 직접 사용하거나, `@next/third-parties`의 실제 구현을 확인 후 적용합니다.  
-> 구현 시 실제 API에 맞게 조정 예정.
 
 ### 기대 효과
 
