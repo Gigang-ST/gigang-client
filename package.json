@@ -79,6 +79,7 @@
     "@commitlint/cz-commitlint": "^21.0.0",
     "@commitlint/types": "^21.0.0",
     "@eslint/eslintrc": "^3",
+    "@next/bundle-analyzer": "^16.2.9",
     "@serwist/cli": "9.5.11",
     "@storybook/addon-a11y": "^10.3.4",
     "@storybook/addon-docs": "^10.3.4",
