@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import "@uiw/react-md-editor/markdown-editor.css";
 import { createPostSchema, type CreatePostInput } from "@/lib/validations/board";
 import { createPost } from "@/app/actions/create-post";
 import { updatePost } from "@/app/actions/update-post";
@@ -16,7 +15,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 
-const MDEditor = dynamic(() => import("@uiw/react-md-editor"), { ssr: false });
+// CSS와 에디터를 함께 lazy 로드 — homepage 초기 번들에서 refractor(876KB) 제외
+const MDEditor = dynamic(() => import("@/components/board/md-editor-loader"), { ssr: false });
 
 type PostFormProps = {
   teamId: string;
