@@ -68,6 +68,6 @@ export const getRequestTeamContext = cache(async (): Promise<RequestTeamContext>
   return unstable_cache(
     () => resolveTeamContextFromHost(host),
     ["team-context", host ?? "unknown"],
-    { revalidate: false },
+    { revalidate: false, tags: [`team-context:${host ?? "unknown"}`] },
   )();
 });

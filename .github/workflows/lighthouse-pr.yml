@@ -9,6 +9,7 @@ jobs:
       github.event.deployment_status.state == 'success' &&
       startsWith(github.event.deployment.environment, 'Preview')
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       pull-requests: write
 
@@ -22,10 +23,12 @@ jobs:
         run: npm install -g lighthouse
 
       - name: Run Lighthouse
+        env:
+          PREVIEW_URL: ${{ github.event.deployment_status.environment_url }}
         run: |
-          lighthouse "${{ github.event.deployment_status.environment_url }}" \
+          lighthouse "$PREVIEW_URL" \
             --output json \
-            --output-path ./lh \
+            --output-path ./lh.json \
             --only-categories performance \
             --chrome-flags="--headless=new --no-sandbox --disable-dev-shm-usage" \
             --quiet
@@ -34,9 +37,9 @@ jobs:
         id: pr
         env:
           GH_TOKEN: ${{ github.token }}
+          DEPLOY_REF: ${{ github.event.deployment.ref }}
         run: |
-          REF="${{ github.event.deployment.ref }}"
-          PR=$(gh pr list --repo "${{ github.repository }}" --head "$REF" --state open --json number --jq '.[0].number // empty')
+          PR=$(gh pr list --repo "${{ github.repository }}" --head "$DEPLOY_REF" --state open --json number --jq '.[0].number // empty')
           echo "number=$PR" >> $GITHUB_OUTPUT
 
       - name: Post Lighthouse comment
