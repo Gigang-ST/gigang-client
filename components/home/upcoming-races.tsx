@@ -17,8 +17,14 @@ import type { MemberOption } from "@/components/comment/mention-input";
 import { EmptyState } from "@/components/common/empty-state";
 import { SectionHeader } from "@/components/common/section-header";
 import { Micro, Caption } from "@/components/common/typography";
-import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
+import dynamic from "next/dynamic";
+import type { CompetitionDetailDialogProps } from "@/components/races/competition-detail-dialog";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
+
+const CompetitionDetailDialog = dynamic<CompetitionDetailDialogProps>(
+  () => import("@/components/races/competition-detail-dialog").then((m) => m.CompetitionDetailDialog),
+  { ssr: false }
+);
 
 
 type UpcomingRace = {

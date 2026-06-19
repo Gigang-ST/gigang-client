@@ -25,13 +25,29 @@ import dynamic from "next/dynamic";
 import type { CmntRow } from "@/components/comment/comment-item";
 import type { MemberOption } from "@/components/comment/mention-input";
 import { Micro, SectionLabel } from "@/components/common/typography";
-import { AddScheduleDropdown } from "@/components/home/add-schedule-dropdown";
-import { CompetitionPickerDialog } from "@/components/home/competition-picker-dialog";
-import { ScheduleListView } from "@/components/home/schedule-list-view";
 import type { CompetitionDetailDialogProps } from "@/components/races/competition-detail-dialog";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
-import { SchPostDetailDialog } from "@/components/schedule/sch-post-detail-dialog";
 import type { SchPostFormDialogProps } from "@/components/schedule/sch-post-form-dialog";
+
+const AddScheduleDropdown = dynamic(
+  () => import("@/components/home/add-schedule-dropdown").then((m) => m.AddScheduleDropdown),
+  { ssr: false }
+);
+
+const CompetitionPickerDialog = dynamic(
+  () => import("@/components/home/competition-picker-dialog").then((m) => m.CompetitionPickerDialog),
+  { ssr: false }
+);
+
+const ScheduleListView = dynamic(
+  () => import("@/components/home/schedule-list-view").then((m) => m.ScheduleListView),
+  { ssr: false }
+);
+
+const SchPostDetailDialog = dynamic(
+  () => import("@/components/schedule/sch-post-detail-dialog").then((m) => m.SchPostDetailDialog),
+  { ssr: false }
+);
 
 const CompetitionDetailDialog = dynamic<CompetitionDetailDialogProps>(
   () =>
