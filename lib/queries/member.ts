@@ -24,14 +24,25 @@ export type { AppMemberProfile };
 export const getCurrentMember = cache(async () => {
   const supabase = await createClient();
 
-  // auth.getUser()와 getRequestTeamContext()는 서로 의존하지 않으므로 병렬 실행
-  const [{ data: { user } }, { teamId }] = await Promise.all([
-    supabase.auth.getUser(),
+  // getClaims(): JWT를 로컬에서 검증(ES256 비대칭키) → 매 진입마다 Supabase auth
+  // 서버로 왕복하던 getUser()를 제거. proxy.ts(미들웨어)가 이미 쓰는 것과 동일 패턴.
+  // 신원 확인 핫패스 전용 — 탈퇴·권한 변경 등 즉시 반영이 필요한 곳은 getUser() 유지(verifyAdmin).
+  // getRequestTeamContext()와는 서로 의존하지 않으므로 병렬 실행.
+  const [{ data: claimsData }, { teamId }] = await Promise.all([
+    supabase.auth.getClaims(),
     getRequestTeamContext(),
   ]);
 
-  if (!user) return { user: null, member: null, supabase };
+  const claims = claimsData?.claims;
+  if (!claims?.sub) return { user: null, member: null, supabase };
 
+  const user = {
+    id: claims.sub as string,
+    email: (claims.email as string | undefined) ?? null,
+    // OAuth 메타데이터는 access token JWT에 포함되므로 claims에서 그대로 노출(onboarding 등에서 사용)
+    user_metadata: (claims.user_metadata as Record<string, unknown> | undefined) ?? {},
+    app_metadata: (claims.app_metadata as Record<string, unknown> | undefined) ?? {},
+  };
   validateUUID(user.id);
 
   const bundle = await fetchMemMstWithTeamRel(supabase, user.id, teamId);
