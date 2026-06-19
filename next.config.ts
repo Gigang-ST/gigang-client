@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { execSync } from "child_process";
+import bundleAnalyzer from "@next/bundle-analyzer";
 
 function getGitVersion(): string {
   try {
@@ -8,6 +9,11 @@ function getGitVersion(): string {
     return "v0.0.0";
   }
 }
+
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+  openAnalyzer: false,
+});
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
@@ -21,4 +27,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);
