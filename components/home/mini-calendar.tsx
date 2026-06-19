@@ -12,13 +12,15 @@ import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { schPostTypeInlineLabel } from "@/lib/validations/schedule";
-import type { SchPostType } from "@/lib/validations/schedule";
+import { schPostTypeInlineLabel } from "@/lib/validations/schedule-types";
+import type { SchPostType } from "@/lib/validations/schedule-types";
 
 import { getMentionMembers } from "@/app/actions/comment/get-mention-members";
 import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-create-comp-evt-for-participation";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
 
+
+import dynamic from "next/dynamic";
 
 import type { CmntRow } from "@/components/comment/comment-item";
 import type { MemberOption } from "@/components/comment/mention-input";
@@ -26,10 +28,26 @@ import { Micro, SectionLabel } from "@/components/common/typography";
 import { AddScheduleDropdown } from "@/components/home/add-schedule-dropdown";
 import { CompetitionPickerDialog } from "@/components/home/competition-picker-dialog";
 import { ScheduleListView } from "@/components/home/schedule-list-view";
-import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
+import type { CompetitionDetailDialogProps } from "@/components/races/competition-detail-dialog";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
 import { SchPostDetailDialog } from "@/components/schedule/sch-post-detail-dialog";
-import { SchPostFormDialog } from "@/components/schedule/sch-post-form-dialog";
+import type { SchPostFormDialogProps } from "@/components/schedule/sch-post-form-dialog";
+
+const CompetitionDetailDialog = dynamic<CompetitionDetailDialogProps>(
+  () =>
+    import("@/components/races/competition-detail-dialog").then(
+      (m) => m.CompetitionDetailDialog
+    ),
+  { ssr: false }
+);
+
+const SchPostFormDialog = dynamic<SchPostFormDialogProps>(
+  () =>
+    import("@/components/schedule/sch-post-form-dialog").then(
+      (m) => m.SchPostFormDialog
+    ),
+  { ssr: false }
+);
 
 
 

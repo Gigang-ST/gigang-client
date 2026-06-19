@@ -71,7 +71,7 @@ type RegistrationWithMember = {
   member: { mem_nm: string | null };
 };
 
-interface CompetitionDetailDialogProps {
+export interface CompetitionDetailDialogProps {
   cmmCdRows: CachedCmmCdRow[];
   teamId: string;
   competition: Competition | null;
