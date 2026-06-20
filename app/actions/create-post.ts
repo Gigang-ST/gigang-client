@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
-import { getCurrentMember } from "@/lib/queries/member";
+import { withAdminOrThrow } from "@/lib/actions/auth";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createPostSchema } from "@/lib/validations/board";
 
@@ -12,31 +12,25 @@ export async function createPost(input: {
   post_cont: string;
   pin_yn: boolean;
 }) {
-  const { member } = await getCurrentMember();
-  if (!member) throw new Error("로그인이 필요합니다.");
+  return withAdminOrThrow(async ({ member }) => {
+    const { teamId } = await getRequestTeamContext();
+    const admin = createUntypedAdminClient();
 
-  if (!member.admin) throw new Error("게시글 작성 권한이 없습니다.");
+    const parsed = createPostSchema.parse({ ...input, team_id: teamId });
 
-  const { teamId } = await getRequestTeamContext();
-  const admin = createUntypedAdminClient();
+    const { data: post, error } = await admin
+      .from("brd_post_mst")
+      .insert({
+        team_id: parsed.team_id, post_type_enm: parsed.post_type_enm,
+        post_nm: parsed.post_nm, post_cont: parsed.post_cont,
+        writ_mem_id: member.id, pin_yn: parsed.pin_yn,
+      })
+      .select("post_id")
+      .single();
 
-  const parsed = createPostSchema.parse({ ...input, team_id: teamId });
+    if (error || !post) throw new Error("게시글 등록에 실패했습니다.");
 
-  const { data: post, error } = await admin
-    .from("brd_post_mst")
-    .insert({
-      team_id: parsed.team_id,
-      post_type_enm: parsed.post_type_enm,
-      post_nm: parsed.post_nm,
-      post_cont: parsed.post_cont,
-      writ_mem_id: member.id,
-      pin_yn: parsed.pin_yn,
-    })
-    .select("post_id")
-    .single();
-
-  if (error || !post) throw new Error("게시글 등록에 실패했습니다.");
-
-  revalidatePath("/board");
-  return { post_id: post.post_id };
+    revalidatePath("/board");
+    return { post_id: post.post_id };
+  });
 }

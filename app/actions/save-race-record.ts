@@ -3,7 +3,7 @@
 import { revalidateTag } from "next/cache";
 
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
-import { getCurrentMember, verifyActive } from "@/lib/queries/member";
+import { withActive } from "@/lib/actions/auth";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import {
   normalizeCompEvtType,
@@ -14,7 +14,6 @@ import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 
 type SaveRaceRecordInput = {
   competitionId: string;
-  /** 참가 신청 행의 comp_evt_id(있으면 검증 후 사용, 없으면 종목명으로 조회·생성) */
   registrationCompEvtId?: string | null;
   competitionTitle: string;
   competitionDate: string;
@@ -64,9 +63,7 @@ function pickRankingCandidates(
 
 async function getTeamRaceRows(teamId: string) {
   const admin = createAdminClient();
-  const { data } = await admin.rpc("get_public_team_race_rankings", {
-    p_team_id: teamId,
-  });
+  const { data } = await admin.rpc("get_public_team_race_rankings", { p_team_id: teamId });
   return (data ?? []) as TeamRaceRow[];
 }
 
@@ -84,9 +81,7 @@ async function shouldInvalidateRecordsCacheOnSave(params: {
   if (candidates.length < 10) return true;
   if (candidates.slice(0, 10).some((row) => row.mem_id === memberId)) return true;
 
-  const cutoff = candidates
-    .map((row) => row.rec_time_sec)[9];
-
+  const cutoff = candidates.map((row) => row.rec_time_sec)[9];
   if (typeof cutoff !== "number") return true;
   return recordTimeSec <= cutoff;
 }
@@ -104,184 +99,115 @@ async function shouldInvalidateRecordsCacheOnDelete(params: {
 }
 
 export async function saveRaceRecord(input: SaveRaceRecordInput) {
-  const { member, supabase } = await getCurrentMember();
-  if (!member) return { ok: false as const, message: "로그인이 필요합니다." };
-
-  const activeCheck = await verifyActive();
-  if (!activeCheck.ok) return { ok: false as const, message: activeCheck.message };
-
-  const { teamId } = await getRequestTeamContext();
-  if (compEvtTypeContainsHangul(input.eventType)) {
-    return {
-      ok: false as const,
-      message: "종목은 한글을 사용할 수 없습니다. 영문·숫자로 입력해 주세요. (예: HALF, 10K)",
-    };
-  }
-  const normalizedEventType = normalizeCompEvtType(input.eventType);
-
-  const admin = createAdminClient();
-  const resolved = await resolveCompEvtIdForRaceRecord(
-    admin,
-    input.competitionId,
-    normalizedEventType,
-    input.registrationCompEvtId,
-  );
-  if (!resolved.ok) {
-    return { ok: false as const, message: resolved.message };
-  }
-
-  // 기록만 저장한다. 팀 대회 참가(comp_reg_rel / team_comp_plan_rel)와는 연동하지 않는다.
-
-  const { error: insertError } = await supabase.from("rec_race_hist").insert({
-    mem_id: member.id,
-    comp_id: input.competitionId,
-    comp_evt_id: resolved.compEvtId,
-    rec_time_sec: input.totalSeconds,
-    race_nm: input.competitionTitle,
-    race_dt: input.competitionDate,
-    swim_time_sec: input.swimSeconds,
-    bike_time_sec: input.bikeSeconds,
-    run_time_sec: input.runSeconds,
-    rec_src_cd: "manual",
-    vers: 0,
-    del_yn: false,
-  });
-
-  if (insertError) {
-    if (insertError.code === "23505") {
-      return {
-        ok: false as const,
-        message: "동일 대회·종목·날짜·대회명의 기록이 이미 있습니다.",
-      };
+  return withActive(async ({ member, supabase }) => {
+    if (compEvtTypeContainsHangul(input.eventType)) {
+      return { ok: false as const, message: "종목은 한글을 사용할 수 없습니다. 영문·숫자로 입력해 주세요. (예: HALF, 10K)" };
     }
-    return { ok: false as const, message: "저장에 실패했습니다. 다시 시도해 주세요." };
-  }
+    const normalizedEventType = normalizeCompEvtType(input.eventType);
+    const { teamId } = await getRequestTeamContext();
 
-  const shouldInvalidate = await shouldInvalidateRecordsCacheOnSave({
-    teamId,
-    eventType: normalizedEventType,
-    recordTimeSec: input.totalSeconds,
-    memberId: member.id,
-    memberGender: member.gender ?? null,
+    const admin = createAdminClient();
+    const resolved = await resolveCompEvtIdForRaceRecord(
+      admin, input.competitionId, normalizedEventType, input.registrationCompEvtId,
+    );
+    if (!resolved.ok) return { ok: false as const, message: resolved.message };
+
+    const { error: insertError } = await supabase.from("rec_race_hist").insert({
+      mem_id: member.id, comp_id: input.competitionId, comp_evt_id: resolved.compEvtId,
+      rec_time_sec: input.totalSeconds, race_nm: input.competitionTitle, race_dt: input.competitionDate,
+      swim_time_sec: input.swimSeconds, bike_time_sec: input.bikeSeconds, run_time_sec: input.runSeconds,
+      rec_src_cd: "manual", vers: 0, del_yn: false,
+    });
+
+    if (insertError) {
+      if (insertError.code === "23505") return { ok: false as const, message: "동일 대회·종목·날짜·대회명의 기록이 이미 있습니다." };
+      return { ok: false as const, message: "저장에 실패했습니다. 다시 시도해 주세요." };
+    }
+
+    const shouldInvalidate = await shouldInvalidateRecordsCacheOnSave({
+      teamId, eventType: normalizedEventType, recordTimeSec: input.totalSeconds,
+      memberId: member.id, memberGender: member.gender ?? null,
+    });
+    if (shouldInvalidate) revalidateTag(`records:${teamId}`, "max");
+
+    const grantedTitles = await evaluateAndGrantTitles({
+      trigger: "race_record", teamId, teamMemId: member.team_mem_id,
+    }).catch((e) => { console.error("[title-engine] race_record 평가 실패", e); return [] as string[]; });
+
+    return { ok: true as const, message: null, grantedTitles };
   });
-
-  if (shouldInvalidate) {
-    revalidateTag(`records:${teamId}`, "max");
-  }
-
-  // 칭호 자동 평가 — 실패해도 기록 저장 결과에 영향을 주지 않는다.
-  const grantedTitles = await evaluateAndGrantTitles({
-    trigger: "race_record",
-    teamId,
-    teamMemId: member.team_mem_id,
-  }).catch((e) => {
-    console.error("[title-engine] race_record 평가 실패", e);
-    return [] as string[];
-  });
-
-  return { ok: true as const, message: null, grantedTitles };
 }
 
-export async function updateRaceRecord(
-  recordId: string,
-  recordTimeSec: number,
-) {
-  const { member, supabase } = await getCurrentMember();
-  if (!member) return { ok: false as const, message: "로그인이 필요합니다." };
+export async function updateRaceRecord(recordId: string, recordTimeSec: number) {
+  return withActive(async ({ member, supabase }) => {
+    const { data: target, error: fetchError } = await supabase
+      .from("rec_race_hist")
+      .select("race_result_id, comp_evt_cfg(comp_evt_type)")
+      .eq("race_result_id", recordId)
+      .eq("mem_id", member.id)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .maybeSingle();
 
-  const activeCheck = await verifyActive();
-  if (!activeCheck.ok) return { ok: false as const, message: activeCheck.message };
+    if (fetchError || !target) return { ok: false as const, message: "대상 기록을 찾을 수 없습니다." };
 
-  const { data: target, error: fetchError } = await supabase
-    .from("rec_race_hist")
-    .select("race_result_id, comp_evt_cfg(comp_evt_type)")
-    .eq("race_result_id", recordId)
-    .eq("mem_id", member.id)
-    .eq("vers", 0)
-    .eq("del_yn", false)
-    .maybeSingle();
+    const { error } = await supabase
+      .from("rec_race_hist")
+      .update({ rec_time_sec: recordTimeSec })
+      .eq("race_result_id", recordId)
+      .eq("mem_id", member.id)
+      .eq("vers", 0)
+      .eq("del_yn", false);
+    if (error) return { ok: false as const, message: "수정에 실패했습니다." };
 
-  if (fetchError || !target) {
-    return { ok: false as const, message: "대상 기록을 찾을 수 없습니다." };
-  }
+    const eventType =
+      (Array.isArray(target.comp_evt_cfg) ? target.comp_evt_cfg[0] : target.comp_evt_cfg)?.comp_evt_type ?? "";
 
-  const { error } = await supabase
-    .from("rec_race_hist")
-    .update({ rec_time_sec: recordTimeSec })
-    .eq("race_result_id", recordId)
-    .eq("mem_id", member.id)
-    .eq("vers", 0)
-    .eq("del_yn", false);
-  if (error) return { ok: false as const, message: "수정에 실패했습니다." };
-
-  const eventType =
-    (Array.isArray(target.comp_evt_cfg)
-      ? target.comp_evt_cfg[0]
-      : target.comp_evt_cfg)?.comp_evt_type ?? "";
-
-  if (eventType) {
-    const { teamId } = await getRequestTeamContext();
-    const shouldInvalidate = await shouldInvalidateRecordsCacheOnSave({
-      teamId,
-      eventType,
-      recordTimeSec,
-      memberId: member.id,
-      memberGender: member.gender ?? null,
-    });
-    if (shouldInvalidate) {
-      revalidateTag(`records:${teamId}`, "max");
+    if (eventType) {
+      const { teamId } = await getRequestTeamContext();
+      const shouldInvalidate = await shouldInvalidateRecordsCacheOnSave({
+        teamId, eventType, recordTimeSec, memberId: member.id, memberGender: member.gender ?? null,
+      });
+      if (shouldInvalidate) revalidateTag(`records:${teamId}`, "max");
     }
-  }
 
-  return { ok: true as const, message: null };
+    return { ok: true as const, message: null };
+  });
 }
 
 export async function deleteRaceRecord(recordId: string) {
-  const { member, supabase } = await getCurrentMember();
-  if (!member) return { ok: false as const, message: "로그인이 필요합니다." };
+  return withActive(async ({ member, supabase }) => {
+    const { data: target, error: fetchError } = await supabase
+      .from("rec_race_hist")
+      .select("race_result_id, comp_evt_cfg(comp_evt_type)")
+      .eq("race_result_id", recordId)
+      .eq("mem_id", member.id)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .maybeSingle();
 
-  const activeCheck = await verifyActive();
-  if (!activeCheck.ok) return { ok: false as const, message: activeCheck.message };
+    if (fetchError || !target) return { ok: false as const, message: "대상 기록을 찾을 수 없습니다." };
 
-  const { data: target, error: fetchError } = await supabase
-    .from("rec_race_hist")
-    .select("race_result_id, comp_evt_cfg(comp_evt_type)")
-    .eq("race_result_id", recordId)
-    .eq("mem_id", member.id)
-    .eq("vers", 0)
-    .eq("del_yn", false)
-    .maybeSingle();
+    const { error } = await supabase
+      .from("rec_race_hist")
+      .delete()
+      .eq("race_result_id", recordId)
+      .eq("mem_id", member.id)
+      .eq("vers", 0)
+      .eq("del_yn", false);
+    if (error) return { ok: false as const, message: "삭제에 실패했습니다." };
 
-  if (fetchError || !target) {
-    return { ok: false as const, message: "대상 기록을 찾을 수 없습니다." };
-  }
+    const eventType =
+      (Array.isArray(target.comp_evt_cfg) ? target.comp_evt_cfg[0] : target.comp_evt_cfg)?.comp_evt_type ?? "";
 
-  const { error } = await supabase
-    .from("rec_race_hist")
-    .delete()
-    .eq("race_result_id", recordId)
-    .eq("mem_id", member.id)
-    .eq("vers", 0)
-    .eq("del_yn", false);
-  if (error) return { ok: false as const, message: "삭제에 실패했습니다." };
-
-  const eventType =
-    (Array.isArray(target.comp_evt_cfg)
-      ? target.comp_evt_cfg[0]
-      : target.comp_evt_cfg)?.comp_evt_type ?? "";
-
-  if (eventType) {
-    const { teamId } = await getRequestTeamContext();
-    const shouldInvalidate = await shouldInvalidateRecordsCacheOnDelete({
-      teamId,
-      eventType,
-      memberId: member.id,
-      memberGender: member.gender ?? null,
-    });
-    if (shouldInvalidate) {
-      revalidateTag(`records:${teamId}`, "max");
+    if (eventType) {
+      const { teamId } = await getRequestTeamContext();
+      const shouldInvalidate = await shouldInvalidateRecordsCacheOnDelete({
+        teamId, eventType, memberId: member.id, memberGender: member.gender ?? null,
+      });
+      if (shouldInvalidate) revalidateTag(`records:${teamId}`, "max");
     }
-  }
 
-  return { ok: true as const, message: null };
+    return { ok: true as const, message: null };
+  });
 }

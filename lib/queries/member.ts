@@ -46,10 +46,6 @@ export const getCurrentMember = cache(async () => {
  * 현재 로그인한 유저가 보유한 칭호 ID Set을 반환한다.
  * 비로그인 또는 미가입이면 빈 Set 반환.
  */
-/**
- * 현재 로그인한 유저가 보유한 칭호 ID Set을 반환한다.
- * 비로그인 또는 미가입이면 빈 Set 반환.
- */
 export async function getMyTitleIds(): Promise<Set<string>> {
   const { member, supabase } = await getCurrentMember();
   if (!member) return new Set();
@@ -87,24 +83,13 @@ export async function getMyTitleNames(): Promise<Set<string>> {
 
 /**
  * 현재 로그인한 유저가 요청 Host 기준 팀의 owner 또는 admin 인지 확인한다.
+ * getCurrentMember() cache를 재사용하므로 같은 요청/액션 내 중복 auth 호출이 발생하지 않는다.
  */
 export async function verifyAdmin() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { teamId } = await getRequestTeamContext();
-  const bundle = await fetchMemMstWithTeamRel(supabase, user.id, teamId);
-  if (!bundle) return null;
-  if (
-    bundle.rel.team_role_cd !== "admin" &&
-    bundle.rel.team_role_cd !== "owner"
-  ) {
-    return null;
-  }
-  return { id: bundle.mst.mem_id, admin: true };
+  const { member } = await getCurrentMember();
+  if (!member) return null;
+  if (!member.admin) return null;
+  return { id: member.id, admin: true };
 }
 
 /**

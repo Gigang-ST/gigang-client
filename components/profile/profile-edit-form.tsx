@@ -78,9 +78,9 @@ export function ProfileEditForm({ member }: { member: MemberData }) {
         ),
       ]);
 
-      if (result.error) {
+      if ("error" in result && result.error) {
         setMessage({ type: "error", text: result.error });
-      } else if (result.url) {
+      } else if ("url" in result && result.url) {
         setAvatarUrl(result.url);
         setMessage({ type: "success", text: "프로필 사진이 변경되었습니다." });
       }

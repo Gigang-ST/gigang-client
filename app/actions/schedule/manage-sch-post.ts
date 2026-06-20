@@ -4,12 +4,11 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 
 import { dayjs } from "@/lib/dayjs";
-import { getCurrentMember, verifyAdmin } from "@/lib/queries/member";
+import { withMember } from "@/lib/actions/auth";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 import { createSchPostSchema, updateSchPostSchema } from "@/lib/validations/schedule";
 
-// datetime-local 나이브 KST 문자열 → UTC ISO 8601 (서버 저장용)
 function toUtcIso(localDt: string | null | undefined): string | null {
   if (!localDt) return null;
   return dayjs.tz(localDt, "Asia/Seoul").toISOString();
@@ -23,81 +22,70 @@ export async function createSchPost(input: {
   url?: string | null;
   cont_txt?: string | null;
 }) {
-  const { member, supabase } = await getCurrentMember();
-  if (!member) throw new Error("로그인이 필요합니다.");
+  return withMember(async ({ member, supabase }) => {
+    const { teamId } = await getRequestTeamContext();
+    const parsed = createSchPostSchema.parse({ ...input, team_id: teamId });
 
-  const { teamId } = await getRequestTeamContext();
-  const parsed = createSchPostSchema.parse({ ...input, team_id: teamId });
+    const { data, error } = await supabase
+      .from("sch_post_mst")
+      .insert({
+        team_id: parsed.team_id, sch_nm: parsed.sch_nm,
+        post_type: parsed.post_type ?? "general",
+        evt_stt_at: toUtcIso(parsed.evt_stt_at)!,
+        evt_end_at: toUtcIso(parsed.evt_end_at),
+        url: parsed.url || null, cont_txt: parsed.cont_txt ?? null,
+        crt_by: member.id, vers: 0, del_yn: false,
+      })
+      .select("sch_post_id, short_id")
+      .single();
 
-  const { data, error } = await supabase
-    .from("sch_post_mst")
-    .insert({
-      team_id: parsed.team_id,
-      sch_nm: parsed.sch_nm,
-      post_type: parsed.post_type ?? "general",
-      evt_stt_at: toUtcIso(parsed.evt_stt_at)!,
-      evt_end_at: toUtcIso(parsed.evt_end_at),
-      url: parsed.url || null,
-      cont_txt: parsed.cont_txt ?? null,
-      crt_by: member.id,
-      vers: 0,
-      del_yn: false,
-    })
-    .select("sch_post_id, short_id")
-    .single();
+    if (error || !data) throw new Error("일정 등록에 실패했습니다.");
 
-  if (error || !data) throw new Error("일정 등록에 실패했습니다.");
+    const postId = data.sch_post_id;
+    const authorId = member.id;
+    const postName = parsed.sch_nm;
 
-  const postId = data.sch_post_id;
-  const authorId = member.id;
-  const postName = parsed.sch_nm;
+    after(async () => {
+      try {
+        const admin = createUntypedAdminClient();
 
-  after(async () => {
-    try {
-      const admin = createUntypedAdminClient();
+        const { data: members } = await admin
+          .from("team_mem_rel")
+          .select("mem_id")
+          .eq("team_id", teamId)
+          .eq("vers", 0)
+          .eq("del_yn", false)
+          .neq("mem_id", authorId);
 
-      // 팀 전체 활성 멤버 조회 (작성자 제외)
-      const { data: members } = await admin
-        .from("team_mem_rel")
-        .select("mem_id")
-        .eq("team_id", teamId)
-        .eq("vers", 0)
-        .eq("del_yn", false)
-        .neq("mem_id", authorId);
+        if (!members?.length) return;
 
-      if (!members?.length) return;
+        const { data: disabledPrefs } = await admin
+          .from("noti_pref_cfg")
+          .select("mem_id")
+          .in("mem_id", members.map((m) => m.mem_id))
+          .eq("noti_type_enm", "sch_post_new")
+          .eq("enabled_yn", false);
 
-      // 알림 설정 확인 후 발송 대상 필터링
-      const { data: disabledPrefs } = await admin
-        .from("noti_pref_cfg")
-        .select("mem_id")
-        .in("mem_id", members.map((m) => m.mem_id))
-        .eq("noti_type_enm", "sch_post_new")
-        .eq("enabled_yn", false);
+        const disabledSet = new Set((disabledPrefs ?? []).map((p) => p.mem_id));
+        const targets = members.filter((m) => !disabledSet.has(m.mem_id));
 
-      const disabledSet = new Set((disabledPrefs ?? []).map((p) => p.mem_id));
-      const targets = members.filter((m) => !disabledSet.has(m.mem_id));
+        if (!targets.length) return;
 
-      if (!targets.length) return;
+        await admin.from("noti_mst").insert(
+          targets.map((m) => ({
+            team_id: teamId, mem_id: m.mem_id, noti_type_enm: "sch_post_new",
+            noti_nm: `${dayjs().format("M월 D일")} 새 정보가 등록됐습니다.`,
+            noti_cont: postName, ref_id: data.short_id ?? postId, ref_type_enm: "sch_post",
+          })),
+        );
+      } catch (e) {
+        console.error("[sch_post_new] 알림 발송 실패", e);
+      }
+    });
 
-      await admin.from("noti_mst").insert(
-        targets.map((m) => ({
-          team_id: teamId,
-          mem_id: m.mem_id,
-          noti_type_enm: "sch_post_new",
-          noti_nm: `${dayjs().format("M월 D일")} 새 정보가 등록됐습니다.`,
-          noti_cont: postName,
-          ref_id: data.short_id ?? postId,
-          ref_type_enm: "sch_post",
-        })),
-      );
-    } catch (e) {
-      console.error("[sch_post_new] 알림 발송 실패", e);
-    }
+    revalidatePath("/");
+    return { sch_post_id: postId };
   });
-
-  revalidatePath("/");
-  return { sch_post_id: postId };
 }
 
 export async function updateSchPost(input: {
@@ -109,54 +97,46 @@ export async function updateSchPost(input: {
   url?: string | null;
   cont_txt?: string | null;
 }) {
-  const { member, supabase } = await getCurrentMember();
-  if (!member) throw new Error("로그인이 필요합니다.");
+  return withMember(async ({ supabase }) => {
+    const parsed = updateSchPostSchema.parse(input);
+    const { sch_post_id, ...fields } = parsed;
 
-  const parsed = updateSchPostSchema.parse(input);
-  const { sch_post_id, ...fields } = parsed;
+    const { error } = await supabase
+      .from("sch_post_mst")
+      .update({
+        ...fields,
+        evt_stt_at: fields.evt_stt_at ? toUtcIso(fields.evt_stt_at)! : undefined,
+        evt_end_at: fields.evt_end_at !== undefined ? toUtcIso(fields.evt_end_at) : undefined,
+        url: fields.url || null,
+        upd_at: dayjs().toISOString(),
+      })
+      .eq("sch_post_id", sch_post_id);
 
-  const { error } = await supabase
-    .from("sch_post_mst")
-    .update({
-      ...fields,
-      evt_stt_at: fields.evt_stt_at ? toUtcIso(fields.evt_stt_at)! : undefined,
-      evt_end_at: fields.evt_end_at !== undefined ? toUtcIso(fields.evt_end_at) : undefined,
-      url: fields.url || null,
-      upd_at: dayjs().toISOString(),
-    })
-    .eq("sch_post_id", sch_post_id);
+    if (error) throw new Error("수정 권한이 없거나 일정 수정에 실패했습니다.");
 
-  if (error) throw new Error("수정 권한이 없거나 일정 수정에 실패했습니다.");
-
-  revalidatePath("/");
+    revalidatePath("/");
+  });
 }
 
 export async function deleteSchPost(sch_post_id: string) {
-  const { member, supabase } = await getCurrentMember();
-  if (!member) throw new Error("로그인이 필요합니다.");
+  return withMember(async ({ member, supabase }) => {
+    const { data: post } = await supabase
+      .from("sch_post_mst")
+      .select("crt_by, team_id")
+      .eq("sch_post_id", sch_post_id)
+      .single();
+    if (!post) throw new Error("일정을 찾을 수 없습니다.");
 
-  // SELECT RLS로 팀 소속 + 비삭제 행 검증
-  const { data: post } = await supabase
-    .from("sch_post_mst")
-    .select("crt_by, team_id")
-    .eq("sch_post_id", sch_post_id)
-    .single();
-  if (!post) throw new Error("일정을 찾을 수 없습니다.");
+    const isAuthor = post.crt_by === member.id;
+    if (!isAuthor && !member.admin) throw new Error("삭제 권한이 없습니다.");
 
-  // 작성자 또는 운영진(owner/admin) 확인
-  const isAuthor = post.crt_by === member.id;
-  if (!isAuthor) {
-    const adminResult = await verifyAdmin();
-    if (!adminResult) throw new Error("삭제 권한이 없습니다.");
-  }
+    const admin = createUntypedAdminClient();
+    const { error } = await admin
+      .from("sch_post_mst")
+      .update({ del_yn: true, upd_at: dayjs().toISOString() })
+      .eq("sch_post_id", sch_post_id);
+    if (error) throw new Error("일정 삭제에 실패했습니다.");
 
-  // admin client로 del_yn=true (WITH CHECK RLS 우회)
-  const admin = createUntypedAdminClient();
-  const { error } = await admin
-    .from("sch_post_mst")
-    .update({ del_yn: true, upd_at: dayjs().toISOString() })
-    .eq("sch_post_id", sch_post_id);
-  if (error) throw new Error("일정 삭제에 실패했습니다.");
-
-  revalidatePath("/");
+    revalidatePath("/");
+  });
 }
