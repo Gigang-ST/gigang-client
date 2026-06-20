@@ -50,7 +50,7 @@ export const getEventGoalsCumulative = cache(
           return { ...row, mem_id: rel.mem_id, evt_id: rel.evt_id };
         });
       },
-      [`goals-cumulative-${evtId}-${queryStart}-${endMonth}`],
+      [`goals-cumulative-${evtId}-${queryStart}-${endMonth}-${isCurrentMonth ? "60" : "3600"}`],
       { revalidate: isCurrentMonth ? 60 : 3600 },
     )();
   },
@@ -108,7 +108,7 @@ export const getEventLogsCumulative = cache(
           };
         });
       },
-      [`logs-cumulative-${evtId}-${queryStart}-${endMonth}`],
+      [`logs-cumulative-${evtId}-${queryStart}-${endMonth}-${isCurrentMonth ? "60" : "3600"}`],
       { revalidate: isCurrentMonth ? 60 : 3600 },
     )();
   },
