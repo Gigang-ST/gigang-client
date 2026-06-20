@@ -1,17 +1,11 @@
 "use server";
 
+import { withMember } from "@/lib/actions/auth";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
-import { getCurrentMember } from "@/lib/queries/member";
 
 export async function markAllNotificationsRead() {
-  const { member } = await getCurrentMember();
-  if (!member) throw new Error("로그인이 필요합니다.");
-
-  const admin = createUntypedAdminClient();
-  await admin
-    .from("noti_mst")
-    .update({ read_yn: true })
-    .eq("mem_id", member.id)
-    .eq("del_yn", false)
-    .eq("read_yn", false);
+  return withMember(async ({ member }) => {
+    const admin = createUntypedAdminClient();
+    await admin.from("noti_mst").update({ read_yn: true }).eq("mem_id", member.id).eq("del_yn", false).eq("read_yn", false);
+  });
 }

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 
-import dayjs from "dayjs";
+import { dayjs } from "@/lib/dayjs";
 
 import {
   currentMonthKST,
@@ -23,7 +23,7 @@ import {
   ENTRY_FEE_WITH_SINGLET,
   type MileageSport,
 } from "@/lib/mileage";
-import { getCurrentMember, verifyActive, verifyAdmin } from "@/lib/queries/member";
+import { withActive } from "@/lib/actions/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 import { activityLogBatchSchema, activityLogSchema } from "@/lib/validations/mileage";
@@ -47,43 +47,26 @@ type ActionResult = { ok: boolean; message: string | null; grantedTitles?: strin
 // 내부 헬퍼
 // ─────────────────────────────────────────
 
-/**
- * 활동 날짜 유효성 검사.
- * - 미래 날짜 금지
- * - 전월 기록은 이번 달 3일까지만 허용
- * admin 이면 모든 날짜 허용.
- */
 function validateActivityDate(actDt: string, isAdmin: boolean): string | null {
   if (isAdmin) return null;
 
   const today = todayKST();
   if (actDt > today) return "미래 날짜에는 기록을 추가할 수 없습니다";
 
-  const currentMonth = currentMonthKST().slice(0, 7); // 'YYYY-MM'
+  const currentMonth = currentMonthKST().slice(0, 7);
   const actMonth = actDt.slice(0, 7);
 
   if (actMonth < currentMonth) {
-    // 전월 이전 기록: 이번 달 3일까지만
     const dayOfMonth = todayDayKST();
     const prevMonthStr2 = prevMonthStr(currentMonthKST()).slice(0, 7);
 
-    if (actMonth < prevMonthStr2) {
-      return "2개월 이전 기록은 추가할 수 없습니다";
-    }
-    if (dayOfMonth > 3) {
-      return "전월 기록은 매월 3일까지만 추가할 수 있습니다";
-    }
+    if (actMonth < prevMonthStr2) return "2개월 이전 기록은 추가할 수 없습니다";
+    if (dayOfMonth > 3) return "전월 기록은 매월 3일까지만 추가할 수 있습니다";
   }
 
   return null;
 }
 
-/**
- * 배율 스냅샷 생성.
- * - applied_mult_ids로 evt_mlg_mult_cfg 조회
- * - 날짜 범위가 있는 배율은 act_dt가 범위 내인지 확인
- * - applied_mults jsonb 배열 및 multiplier 값 배열 반환
- */
 async function buildAppliedMults(
   evtId: string,
   multIds: string[],
@@ -93,9 +76,7 @@ async function buildAppliedMults(
   multValues: number[];
   error: string | null;
 }> {
-  if (multIds.length === 0) {
-    return { appliedMults: [], multValues: [], error: null };
-  }
+  if (multIds.length === 0) return { appliedMults: [], multValues: [], error: null };
 
   const db = createAdminClient();
   const { data, error } = await db
@@ -111,16 +92,10 @@ async function buildAppliedMults(
 
   for (const mult of data ?? []) {
     if (!mult.active_yn) continue;
-
-    // 날짜 범위 필터링
     if (mult.stt_dt && actDt < mult.stt_dt) continue;
     if (mult.end_dt && actDt > mult.end_dt) continue;
 
-    appliedMults.push({
-      mult_id: mult.mult_id,
-      mult_nm: mult.mult_nm,
-      mult_val: Number(mult.mult_val),
-    });
+    appliedMults.push({ mult_id: mult.mult_id, mult_nm: mult.mult_nm, mult_val: Number(mult.mult_val) });
     multValues.push(Number(mult.mult_val));
   }
 
@@ -131,135 +106,98 @@ async function buildAppliedMults(
 // 1. 프로젝트 참여 신청
 // ─────────────────────────────────────────
 
-/**
- * 마일리지런 프로젝트 참여 신청.
- * - aprv_yn: false 로 INSERT (관리자 승인 대기)
- * - 잔여 개월 × DEPOSIT_PER_MONTH + ENTRY_FEE (+ singlet fee) 로 deposit_amt 계산
- * - 당월 initGoal 목표 자동 생성
- */
 export async function joinProject(
   evtId: string,
   initGoal: number,
   hasSinglet: boolean,
 ): Promise<ActionResult> {
-  const { member } = await getCurrentMember();
-  if (!member) return { ok: false, message: "로그인이 필요합니다" };
+  return withActive(async ({ member }) => {
+    const db = createAdminClient();
 
-  const activeCheck = await verifyActive();
-  if (!activeCheck.ok) return { ok: false, message: activeCheck.message };
+    const { data: evt, error: evtError } = await db
+      .from("evt_team_mst")
+      .select("end_dt, stt_dt")
+      .eq("evt_id", evtId)
+      .single();
 
-  const db = createAdminClient();
+    if (evtError || !evt) return { ok: false, message: "이벤트를 찾을 수 없습니다" };
 
-  // 이벤트 end_dt 조회
-  const { data: evt, error: evtError } = await db
-    .from("evt_team_mst")
-    .select("end_dt, stt_dt")
-    .eq("evt_id", evtId)
-    .single();
+    const curMonth = currentMonthKST();
+    const evtStartMonth = evt.stt_dt.slice(0, 7) + "-01";
+    const evtEndMonth = evt.end_dt.slice(0, 7) + "-01";
+    const depositStart = curMonth < evtStartMonth ? evtStartMonth : curMonth;
+    const remainMonths = countMonths(depositStart, evtEndMonth);
 
-  if (evtError || !evt) return { ok: false, message: "이벤트를 찾을 수 없습니다" };
+    const depositAmt = remainMonths * DEPOSIT_PER_MONTH;
+    const entryFeeAmt = hasSinglet ? ENTRY_FEE_WITH_SINGLET : ENTRY_FEE;
+    const singletFeeAmt = 0;
 
-  const curMonth = currentMonthKST();
-  const evtStartMonth = evt.stt_dt.slice(0, 7) + "-01";
-  const evtEndMonth = evt.end_dt.slice(0, 7) + "-01";
-  // 보증금은 이벤트 시작월부터 계산 (연습기간 제외)
-  const depositStart = curMonth < evtStartMonth ? evtStartMonth : curMonth;
-  const remainMonths = countMonths(depositStart, evtEndMonth);
+    const { data: prt, error: prtError } = await db
+      .from("evt_team_prt_rel")
+      .insert({
+        evt_id: evtId, mem_id: member.id, aprv_yn: false, stt_mth: curMonth,
+        init_goal: initGoal, deposit_amt: depositAmt, entry_fee_amt: entryFeeAmt,
+        singlet_fee_amt: singletFeeAmt, has_singlet_yn: hasSinglet,
+      })
+      .select("prt_id")
+      .single();
 
-  const depositAmt = remainMonths * DEPOSIT_PER_MONTH;
-  const entryFeeAmt = hasSinglet ? ENTRY_FEE_WITH_SINGLET : ENTRY_FEE;
-  const singletFeeAmt = 0;
-
-  // evt_team_prt_rel INSERT
-  const { data: prt, error: prtError } = await db
-    .from("evt_team_prt_rel")
-    .insert({
-      evt_id: evtId,
-      mem_id: member.id,
-      aprv_yn: false,
-      stt_mth: curMonth,
-      init_goal: initGoal,
-      deposit_amt: depositAmt,
-      entry_fee_amt: entryFeeAmt,
-      singlet_fee_amt: singletFeeAmt,
-      has_singlet_yn: hasSinglet,
-    })
-    .select("prt_id")
-    .single();
-
-  if (prtError) {
-    if (prtError.code === "23505") {
-      return { ok: false, message: "이미 참여 신청하셨습니다" };
+    if (prtError) {
+      if (prtError.code === "23505") return { ok: false, message: "이미 참여 신청하셨습니다" };
+      return { ok: false, message: "참여 신청에 실패했습니다" };
     }
-    return { ok: false, message: "참여 신청에 실패했습니다" };
-  }
-  if (!prt) return { ok: false, message: "참여 신청 처리에 실패했습니다" };
+    if (!prt) return { ok: false, message: "참여 신청 처리에 실패했습니다" };
 
-  // 시작월~종료월까지 전체 목표 미리 생성 (init_goal)
-  const goalRows: {
-    prt_id: string;
-    base_dt: string;
-    goal_mlg: number;
-    achv_yn: boolean;
-    act_cnt: number;
-    achv_mlg: number;
-    lst_act_dt: string | null;
-  }[] = [];
-  let m = curMonth;
-  while (m <= evtEndMonth) {
-    goalRows.push({
-      prt_id: prt.prt_id,
-      base_dt: m,
-      goal_mlg: initGoal,
-      achv_yn: false,
-      act_cnt: 0,
-      achv_mlg: 0,
-      lst_act_dt: null,
-    });
-    m = nextMonthStr(m);
-  }
+    const goalRows: {
+      prt_id: string;
+      base_dt: string;
+      goal_mlg: number;
+      achv_yn: boolean;
+      act_cnt: number;
+      achv_mlg: number;
+      lst_act_dt: string | null;
+    }[] = [];
+    let m = curMonth;
+    while (m <= evtEndMonth) {
+      goalRows.push({ prt_id: prt.prt_id, base_dt: m, goal_mlg: initGoal, achv_yn: false, act_cnt: 0, achv_mlg: 0, lst_act_dt: null });
+      m = nextMonthStr(m);
+    }
 
-  const { error: goalError } = await db.from("evt_mlg_mth_snap").insert(goalRows);
+    const { error: goalError } = await db.from("evt_mlg_mth_snap").insert(goalRows);
+    if (goalError) {
+      await db.from("evt_team_prt_rel").delete().eq("prt_id", prt.prt_id);
+      return { ok: false, message: "월별 목표 생성에 실패했습니다" };
+    }
 
-  if (goalError) {
-    await db.from("evt_team_prt_rel").delete().eq("prt_id", prt.prt_id);
-    return { ok: false, message: "월별 목표 생성에 실패했습니다" };
-  }
+    revalidatePath("/projects");
 
-  revalidatePath("/projects");
+    const { data: teamMemRow } = await db
+      .from("team_mem_rel")
+      .select("team_mem_id, team_id")
+      .eq("mem_id", member.id)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .maybeSingle();
+    if (teamMemRow) {
+      const ctx = {
+        trigger: "mileage_run" as const,
+        teamId: teamMemRow.team_id,
+        teamMemId: teamMemRow.team_mem_id,
+        projectId: evtId,
+        actDt: currentMonthKST(),
+        prevAchvYn: false,
+      };
+      after(() => evaluateAndGrantTitles(ctx).catch((e) => console.error("[title-engine] mileage_run(join) 평가 실패", e)));
+    }
 
-  // 칭호 평가 — 시작이반 (참가 신청 시 즉시)
-  const { data: teamMemRow } = await db
-    .from("team_mem_rel")
-    .select("team_mem_id, team_id")
-    .eq("mem_id", member.id)
-    .eq("vers", 0)
-    .eq("del_yn", false)
-    .maybeSingle();
-  if (teamMemRow) {
-    const ctx = {
-      trigger: "mileage_run" as const,
-      teamId: teamMemRow.team_id,
-      teamMemId: teamMemRow.team_mem_id,
-      projectId: evtId,
-      actDt: currentMonthKST(),
-      prevAchvYn: false,
-    };
-    after(() => evaluateAndGrantTitles(ctx).catch((e) => console.error("[title-engine] mileage_run(join) 평가 실패", e)));
-  }
-
-  return { ok: true, message: null };
+    return { ok: true, message: null };
+  });
 }
 
 // ─────────────────────────────────────────
 // 2. 활동 기록 추가
 // ─────────────────────────────────────────
 
-/**
- * 마일리지런 활동 기록 추가.
- * - 날짜 검증 (미래 금지, 전월은 3일까지 / admin 우회)
- * - 배율 스냅샷으로 base_mlg / final_mlg 계산
- */
 export async function logActivity(
   evtId: string,
   input: ActivityLogInput,
@@ -268,101 +206,78 @@ export async function logActivity(
   if (!parsed.success) return { ok: false, message: "입력값이 올바르지 않습니다" };
   const validInput = parsed.data;
 
-  const { member } = await getCurrentMember();
-  if (!member) return { ok: false, message: "로그인이 필요합니다" };
+  return withActive(async ({ member }) => {
+    const isAdmin = !!member.admin;
+    const dateErr = validateActivityDate(validInput.act_dt, isAdmin);
+    if (dateErr) return { ok: false, message: dateErr };
 
-  const activeCheck = await verifyActive();
-  if (!activeCheck.ok) return { ok: false, message: activeCheck.message };
+    const db = createAdminClient();
+    const { data: participant, error: participantErr } = await db
+      .from("evt_team_prt_rel")
+      .select("prt_id")
+      .eq("evt_id", evtId)
+      .eq("mem_id", member.id)
+      .eq("aprv_yn", true)
+      .single();
 
-  const admin = await verifyAdmin();
-  const isAdmin = admin !== null;
+    if (participantErr || !participant) return { ok: false, message: "참여 신청 정보를 찾을 수 없습니다" };
 
-  const dateErr = validateActivityDate(validInput.act_dt, isAdmin);
-  if (dateErr) return { ok: false, message: dateErr };
+    const { appliedMults, multValues, error: multErr } = await buildAppliedMults(evtId, validInput.applied_mult_ids, validInput.act_dt);
+    if (multErr) return { ok: false, message: multErr };
 
-  const db = createAdminClient();
-  const { data: participant, error: participantErr } = await db
-    .from("evt_team_prt_rel")
-    .select("prt_id")
-    .eq("evt_id", evtId)
-    .eq("mem_id", member.id)
-    .eq("aprv_yn", true)
-    .single();
+    const baseMlg = roundMileage(calcBaseMileage(validInput.sprt_enm, validInput.distance_km, validInput.elevation_m));
+    const finalMlg = roundMileage(calcFinalMileage(baseMlg, multValues));
 
-  if (participantErr || !participant) {
-    return { ok: false, message: "참여 신청 정보를 찾을 수 없습니다" };
-  }
+    const actMonth = validInput.act_dt.slice(0, 7) + "-01";
+    const { data: prevSnap } = await db
+      .from("evt_mlg_mth_snap")
+      .select("achv_yn")
+      .eq("prt_id", participant.prt_id)
+      .eq("base_dt", actMonth)
+      .maybeSingle();
+    const prevAchvYn = prevSnap?.achv_yn ?? false;
 
-  const { appliedMults, multValues, error: multErr } = await buildAppliedMults(
-    evtId,
-    validInput.applied_mult_ids,
-    validInput.act_dt,
-  );
-  if (multErr) return { ok: false, message: multErr };
+    const { error } = await db.from("evt_mlg_act_hist").insert({
+      prt_id: participant.prt_id, act_dt: validInput.act_dt, sprt_enm: validInput.sprt_enm,
+      dst_km: validInput.distance_km, elv_m: validInput.elevation_m,
+      base_mlg: baseMlg, aply_mults: appliedMults, final_mlg: finalMlg,
+      review: validInput.review?.trim() || null,
+    });
 
-  const baseMlg = roundMileage(
-    calcBaseMileage(validInput.sprt_enm, validInput.distance_km, validInput.elevation_m),
-  );
-  const finalMlg = roundMileage(calcFinalMileage(baseMlg, multValues));
+    if (error) return { ok: false, message: "활동 기록 추가에 실패했습니다" };
 
-  // 막판스퍼트 판단을 위해 기록 INSERT 전 당월 achv_yn 읽기
-  const actMonth = validInput.act_dt.slice(0, 7) + "-01";
-  const { data: prevSnap } = await db
-    .from("evt_mlg_mth_snap")
-    .select("achv_yn")
-    .eq("prt_id", participant.prt_id)
-    .eq("base_dt", actMonth)
-    .maybeSingle();
-  const prevAchvYn = prevSnap?.achv_yn ?? false;
+    await recalcGoalsFromMonth(evtId, participant.prt_id);
 
-  const { error } = await db.from("evt_mlg_act_hist").insert({
-    prt_id: participant.prt_id,
-    act_dt: validInput.act_dt,
-    sprt_enm: validInput.sprt_enm,
-    dst_km: validInput.distance_km,
-    elv_m: validInput.elevation_m,
-    base_mlg: baseMlg,
-    aply_mults: appliedMults,
-    final_mlg: finalMlg,
-    review: validInput.review?.trim() || null,
+    const { data: teamMemRow, error: teamMemErr } = await db
+      .from("team_mem_rel")
+      .select("team_mem_id, team_id")
+      .eq("mem_id", member.id)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .maybeSingle();
+    console.info("[title-engine] teamMemRow:", teamMemRow, "error:", teamMemErr);
+    if (teamMemRow) {
+      const ctx = {
+        trigger: "mileage_run" as const,
+        teamId: teamMemRow.team_id,
+        teamMemId: teamMemRow.team_mem_id,
+        projectId: evtId,
+        actDt: validInput.act_dt,
+        prevAchvYn,
+      };
+      console.info("[title-engine] ctx:", ctx);
+      await evaluateAndGrantTitles(ctx).catch((e) => console.error("[title-engine] mileage_run(log) 평가 실패", e));
+    }
+
+    revalidatePath("/projects");
+    return { ok: true, message: null };
   });
-
-  if (error) return { ok: false, message: "활동 기록 추가에 실패했습니다" };
-
-  // 기록이 속한 월 이후 목표 연쇄 재계산
-  await recalcGoalsFromMonth(evtId, participant.prt_id);
-
-  // 칭호 평가 — 즉시 평가 대상 (목표달성·막판스퍼트·올라운더·마지막불꽃)
-  const { data: teamMemRow, error: teamMemErr } = await db
-    .from("team_mem_rel")
-    .select("team_mem_id, team_id")
-    .eq("mem_id", member.id)
-    .eq("vers", 0)
-    .eq("del_yn", false)
-    .maybeSingle();
-  console.info("[title-engine] teamMemRow:", teamMemRow, "error:", teamMemErr);
-  if (teamMemRow) {
-    const ctx = {
-      trigger: "mileage_run" as const,
-      teamId: teamMemRow.team_id,
-      teamMemId: teamMemRow.team_mem_id,
-      projectId: evtId,
-      actDt: validInput.act_dt,
-      prevAchvYn,
-    };
-    console.info("[title-engine] ctx:", ctx);
-    await evaluateAndGrantTitles(ctx).catch((e) => console.error("[title-engine] mileage_run(log) 평가 실패", e));
-  }
-
-  revalidatePath("/projects");
-  return { ok: true, message: null };
 }
 
-/**
- * 마일리지런 활동 기록 다건 추가.
- * - 건별 유효성 검증 후 단일 INSERT로 원자적 저장
- * - 전체 성공 시에만 목표 연쇄 재계산
- */
+// ─────────────────────────────────────────
+// 3. 활동 기록 다건 추가
+// ─────────────────────────────────────────
+
 export async function logActivitiesBatch(
   evtId: string,
   inputs: ActivityLogInput[],
@@ -371,129 +286,104 @@ export async function logActivitiesBatch(
   if (!parsed.success) return { ok: false, message: "입력값이 올바르지 않습니다" };
   const validInputs = parsed.data;
 
-  const { member } = await getCurrentMember();
-  if (!member) return { ok: false, message: "로그인이 필요합니다" };
+  return withActive(async ({ member }) => {
+    const isAdmin = !!member.admin;
 
-  const activeCheck = await verifyActive();
-  if (!activeCheck.ok) return { ok: false, message: activeCheck.message };
+    const db = createAdminClient();
+    const { data: participant, error: participantErr } = await db
+      .from("evt_team_prt_rel")
+      .select("prt_id")
+      .eq("evt_id", evtId)
+      .eq("mem_id", member.id)
+      .eq("aprv_yn", true)
+      .single();
 
-  const admin = await verifyAdmin();
-  const isAdmin = admin !== null;
+    if (participantErr || !participant) return { ok: false, message: "참여 신청 정보를 찾을 수 없습니다" };
 
-  const db = createAdminClient();
-  const { data: participant, error: participantErr } = await db
-    .from("evt_team_prt_rel")
-    .select("prt_id")
-    .eq("evt_id", evtId)
-    .eq("mem_id", member.id)
-    .eq("aprv_yn", true)
-    .single();
+    const rows: {
+      prt_id: string;
+      act_dt: string;
+      sprt_enm: MileageSport;
+      dst_km: number;
+      elv_m: number;
+      base_mlg: number;
+      aply_mults: { mult_id: string; mult_nm: string; mult_val: number }[];
+      final_mlg: number;
+      review: string | null;
+    }[] = [];
 
-  if (participantErr || !participant) {
-    return { ok: false, message: "참여 신청 정보를 찾을 수 없습니다" };
-  }
+    for (let i = 0; i < validInputs.length; i++) {
+      const input = validInputs[i];
+      const dateErr = validateActivityDate(input.act_dt, isAdmin);
+      if (dateErr) return { ok: false, message: `${i + 1}번째 기록: ${dateErr}` };
 
-  const rows: {
-    prt_id: string;
-    act_dt: string;
-    sprt_enm: MileageSport;
-    dst_km: number;
-    elv_m: number;
-    base_mlg: number;
-    aply_mults: { mult_id: string; mult_nm: string; mult_val: number }[];
-    final_mlg: number;
-    review: string | null;
-  }[] = [];
+      const { appliedMults, multValues, error: multErr } = await buildAppliedMults(evtId, input.applied_mult_ids, input.act_dt);
+      if (multErr) return { ok: false, message: `${i + 1}번째 기록: ${multErr}` };
 
-  for (let i = 0; i < validInputs.length; i++) {
-    const input = validInputs[i];
-    const dateErr = validateActivityDate(input.act_dt, isAdmin);
-    if (dateErr) return { ok: false, message: `${i + 1}번째 기록: ${dateErr}` };
+      const baseMlg = roundMileage(calcBaseMileage(input.sprt_enm, input.distance_km, input.elevation_m));
+      const finalMlg = roundMileage(calcFinalMileage(baseMlg, multValues));
 
-    const { appliedMults, multValues, error: multErr } = await buildAppliedMults(
-      evtId,
-      input.applied_mult_ids,
-      input.act_dt,
-    );
-    if (multErr) return { ok: false, message: `${i + 1}번째 기록: ${multErr}` };
-
-    const baseMlg = roundMileage(
-      calcBaseMileage(input.sprt_enm, input.distance_km, input.elevation_m),
-    );
-    const finalMlg = roundMileage(calcFinalMileage(baseMlg, multValues));
-
-    rows.push({
-      prt_id: participant.prt_id,
-      act_dt: input.act_dt,
-      sprt_enm: input.sprt_enm,
-      dst_km: input.distance_km,
-      elv_m: input.elevation_m,
-      base_mlg: baseMlg,
-      aply_mults: appliedMults,
-      final_mlg: finalMlg,
-      review: input.review?.trim() || null,
-    });
-  }
-
-  // INSERT 전 각 날짜별 prevAchvYn 미리 읽기 (막판스퍼트 판단용)
-  const uniqueDates = [...new Set(validInputs.map((i) => i.act_dt))];
-  const prevAchvYnMap = new Map<string, boolean>();
-  for (const actDt of uniqueDates) {
-    const actMonth = actDt.slice(0, 7) + "-01";
-    const { data: snap } = await db
-      .from("evt_mlg_mth_snap")
-      .select("achv_yn")
-      .eq("prt_id", participant.prt_id)
-      .eq("base_dt", actMonth)
-      .maybeSingle();
-    prevAchvYnMap.set(actDt, snap?.achv_yn ?? false);
-  }
-
-  const { error } = await db.from("evt_mlg_act_hist").insert(rows);
-  if (error) return { ok: false, message: "활동 기록 저장에 실패했습니다" };
-
-  await recalcGoalsFromMonth(evtId, participant.prt_id);
-
-  // 칭호 평가
-  const { data: teamMemRow } = await db
-    .from("team_mem_rel")
-    .select("team_mem_id, team_id")
-    .eq("mem_id", member.id)
-    .eq("vers", 0)
-    .eq("del_yn", false)
-    .maybeSingle();
-  const allGranted: string[] = [];
-  if (teamMemRow) {
-    for (const actDt of uniqueDates) {
-      const ctx = {
-        trigger: "mileage_run" as const,
-        teamId: teamMemRow.team_id,
-        teamMemId: teamMemRow.team_mem_id,
-        projectId: evtId,
-        actDt,
-        prevAchvYn: prevAchvYnMap.get(actDt) ?? false,
-      };
-      const granted = await evaluateAndGrantTitles(ctx).catch((e) => {
-        console.error("[title-engine] mileage_run(batch) 평가 실패", e);
-        return [] as string[];
+      rows.push({
+        prt_id: participant.prt_id, act_dt: input.act_dt, sprt_enm: input.sprt_enm,
+        dst_km: input.distance_km, elv_m: input.elevation_m,
+        base_mlg: baseMlg, aply_mults: appliedMults, final_mlg: finalMlg,
+        review: input.review?.trim() || null,
       });
-      allGranted.push(...granted);
     }
-  }
 
-  revalidatePath("/projects");
-  return { ok: true, message: null, grantedTitles: allGranted };
+    const uniqueDates = [...new Set(validInputs.map((i) => i.act_dt))];
+    const prevAchvYnMap = new Map<string, boolean>();
+    for (const actDt of uniqueDates) {
+      const actMonth = actDt.slice(0, 7) + "-01";
+      const { data: snap } = await db
+        .from("evt_mlg_mth_snap")
+        .select("achv_yn")
+        .eq("prt_id", participant.prt_id)
+        .eq("base_dt", actMonth)
+        .maybeSingle();
+      prevAchvYnMap.set(actDt, snap?.achv_yn ?? false);
+    }
+
+    const { error } = await db.from("evt_mlg_act_hist").insert(rows);
+    if (error) return { ok: false, message: "활동 기록 저장에 실패했습니다" };
+
+    await recalcGoalsFromMonth(evtId, participant.prt_id);
+
+    const { data: teamMemRow } = await db
+      .from("team_mem_rel")
+      .select("team_mem_id, team_id")
+      .eq("mem_id", member.id)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .maybeSingle();
+    const allGranted: string[] = [];
+    if (teamMemRow) {
+      for (const actDt of uniqueDates) {
+        const ctx = {
+          trigger: "mileage_run" as const,
+          teamId: teamMemRow.team_id,
+          teamMemId: teamMemRow.team_mem_id,
+          projectId: evtId,
+          actDt,
+          prevAchvYn: prevAchvYnMap.get(actDt) ?? false,
+        };
+        const granted = await evaluateAndGrantTitles(ctx).catch((e) => {
+          console.error("[title-engine] mileage_run(batch) 평가 실패", e);
+          return [] as string[];
+        });
+        allGranted.push(...granted);
+      }
+    }
+
+    revalidatePath("/projects");
+    return { ok: true, message: null, grantedTitles: allGranted };
+  });
 }
 
 // ─────────────────────────────────────────
-// 3. 활동 기록 수정
+// 4. 활동 기록 수정
 // ─────────────────────────────────────────
 
-/**
- * 마일리지런 활동 기록 수정.
- * - 본인 기록만 수정 가능
- * - 날짜 검증 동일 적용
- */
 export async function updateActivity(
   actId: string,
   input: ActivityLogInput,
@@ -502,213 +392,141 @@ export async function updateActivity(
   if (!parsed.success) return { ok: false, message: "입력값이 올바르지 않습니다" };
   const validInput = parsed.data;
 
-  const { member } = await getCurrentMember();
-  if (!member) return { ok: false, message: "로그인이 필요합니다" };
+  return withActive(async ({ member }) => {
+    const isAdmin = !!member.admin;
+    const db = createAdminClient();
 
-  const activeCheck = await verifyActive();
-  if (!activeCheck.ok) return { ok: false, message: activeCheck.message };
+    const { data: existing, error: fetchErr } = await db
+      .from("evt_mlg_act_hist")
+      .select("act_id, prt_id, evt_team_prt_rel!inner(mem_id, evt_id)")
+      .eq("act_id", actId)
+      .single();
 
-  const admin = await verifyAdmin();
-  const isAdmin = admin !== null;
+    if (fetchErr || !existing) return { ok: false, message: "기록을 찾을 수 없습니다" };
+    const existingParticipant = existing.evt_team_prt_rel as { mem_id: string; evt_id: string };
+    if (!isAdmin && existingParticipant.mem_id !== member.id) {
+      return { ok: false, message: "본인 기록만 수정할 수 있습니다" };
+    }
 
-  const db = createAdminClient();
+    const dateErr = validateActivityDate(validInput.act_dt, isAdmin);
+    if (dateErr) return { ok: false, message: dateErr };
 
-  // 기존 기록 조회 → 본인 확인
-  const { data: existing, error: fetchErr } = await db
-    .from("evt_mlg_act_hist")
-    .select("act_id, prt_id, evt_team_prt_rel!inner(mem_id, evt_id)")
-    .eq("act_id", actId)
-    .single();
+    const { appliedMults, multValues, error: multErr } = await buildAppliedMults(
+      existingParticipant.evt_id, validInput.applied_mult_ids, validInput.act_dt,
+    );
+    if (multErr) return { ok: false, message: multErr };
 
-  if (fetchErr || !existing) return { ok: false, message: "기록을 찾을 수 없습니다" };
-  const existingParticipant = existing.evt_team_prt_rel as { mem_id: string; evt_id: string };
-  if (!isAdmin && existingParticipant.mem_id !== member.id) {
-    return { ok: false, message: "본인 기록만 수정할 수 있습니다" };
-  }
+    const baseMlg = roundMileage(calcBaseMileage(validInput.sprt_enm, validInput.distance_km, validInput.elevation_m));
+    const finalMlg = roundMileage(calcFinalMileage(baseMlg, multValues));
 
-  const dateErr = validateActivityDate(validInput.act_dt, isAdmin);
-  if (dateErr) return { ok: false, message: dateErr };
+    const { error } = await db
+      .from("evt_mlg_act_hist")
+      .update({
+        act_dt: validInput.act_dt, sprt_enm: validInput.sprt_enm, dst_km: validInput.distance_km,
+        elv_m: validInput.elevation_m, base_mlg: baseMlg, aply_mults: appliedMults,
+        final_mlg: finalMlg, review: validInput.review?.trim() || null, updated_at: dayjs().toISOString(),
+      })
+      .eq("act_id", actId);
 
-  const { appliedMults, multValues, error: multErr } = await buildAppliedMults(
-    existingParticipant.evt_id,
-    validInput.applied_mult_ids,
-    validInput.act_dt,
-  );
-  if (multErr) return { ok: false, message: multErr };
+    if (error) return { ok: false, message: "활동 기록 수정에 실패했습니다" };
 
-  const baseMlg = roundMileage(
-    calcBaseMileage(validInput.sprt_enm, validInput.distance_km, validInput.elevation_m),
-  );
-  const finalMlg = roundMileage(calcFinalMileage(baseMlg, multValues));
+    await recalcGoalsFromMonth(existingParticipant.evt_id, existing.prt_id);
 
-  const { error } = await db
-    .from("evt_mlg_act_hist")
-    .update({
-      act_dt: validInput.act_dt,
-      sprt_enm: validInput.sprt_enm,
-      dst_km: validInput.distance_km,
-      elv_m: validInput.elevation_m,
-      base_mlg: baseMlg,
-      aply_mults: appliedMults,
-      final_mlg: finalMlg,
-      review: validInput.review?.trim() || null,
-      updated_at: dayjs().toISOString(),
-    })
-    .eq("act_id", actId);
-
-  if (error) return { ok: false, message: "활동 기록 수정에 실패했습니다" };
-
-  await recalcGoalsFromMonth(existingParticipant.evt_id, existing.prt_id);
-
-  revalidatePath("/projects");
-  return { ok: true, message: null };
+    revalidatePath("/projects");
+    return { ok: true, message: null };
+  });
 }
 
 // ─────────────────────────────────────────
-// 4. 활동 기록 삭제
+// 5. 활동 기록 삭제
 // ─────────────────────────────────────────
 
-/**
- * 마일리지런 활동 기록 삭제.
- * - 본인 기록만 삭제 가능 (admin 우회)
- * - 날짜 검증 동일 적용
- */
-export async function deleteActivity(
-  actId: string,
-): Promise<ActionResult> {
-  const { member } = await getCurrentMember();
-  if (!member) return { ok: false, message: "로그인이 필요합니다" };
+export async function deleteActivity(actId: string): Promise<ActionResult> {
+  return withActive(async ({ member }) => {
+    const isAdmin = !!member.admin;
+    const db = createAdminClient();
 
-  const activeCheck = await verifyActive();
-  if (!activeCheck.ok) return { ok: false, message: activeCheck.message };
+    const { data: existing, error: fetchErr } = await db
+      .from("evt_mlg_act_hist")
+      .select("act_id, prt_id, act_dt, evt_team_prt_rel!inner(mem_id, evt_id)")
+      .eq("act_id", actId)
+      .single();
 
-  const admin = await verifyAdmin();
-  const isAdmin = admin !== null;
+    if (fetchErr || !existing) return { ok: false, message: "기록을 찾을 수 없습니다" };
+    const existingParticipant = existing.evt_team_prt_rel as { mem_id: string; evt_id: string };
+    if (!isAdmin && existingParticipant.mem_id !== member.id) {
+      return { ok: false, message: "본인 기록만 삭제할 수 있습니다" };
+    }
 
-  const db = createAdminClient();
+    const dateErr = validateActivityDate(existing.act_dt, isAdmin);
+    if (dateErr) return { ok: false, message: dateErr };
 
-  // 기존 기록 조회 → 본인 확인 + DB의 실제 날짜로 검증
-  const { data: existing, error: fetchErr } = await db
-    .from("evt_mlg_act_hist")
-    .select("act_id, prt_id, act_dt, evt_team_prt_rel!inner(mem_id, evt_id)")
-    .eq("act_id", actId)
-    .single();
+    const { error } = await db.from("evt_mlg_act_hist").delete().eq("act_id", actId);
+    if (error) return { ok: false, message: "활동 기록 삭제에 실패했습니다" };
 
-  if (fetchErr || !existing) return { ok: false, message: "기록을 찾을 수 없습니다" };
-  const existingParticipant = existing.evt_team_prt_rel as { mem_id: string; evt_id: string };
-  if (!isAdmin && existingParticipant.mem_id !== member.id) {
-    return { ok: false, message: "본인 기록만 삭제할 수 있습니다" };
-  }
+    await recalcGoalsFromMonth(existingParticipant.evt_id, existing.prt_id);
 
-  const dateErr = validateActivityDate(existing.act_dt, isAdmin);
-  if (dateErr) return { ok: false, message: dateErr };
-
-  const { error } = await db
-    .from("evt_mlg_act_hist")
-    .delete()
-    .eq("act_id", actId);
-
-  if (error) return { ok: false, message: "활동 기록 삭제에 실패했습니다" };
-
-  await recalcGoalsFromMonth(existingParticipant.evt_id, existing.prt_id);
-
-  revalidatePath("/projects");
-  return { ok: true, message: null };
+    revalidatePath("/projects");
+    return { ok: true, message: null };
+  });
 }
 
 // ─────────────────────────────────────────
-// 5. 월별 목표 수정
+// 6. 월별 목표 수정
 // ─────────────────────────────────────────
 
-/**
- * 월별 목표 수정.
- * - 본인 목표만 수정 가능
- * - 매월 14일까지만 수정 가능 (admin 우회)
- * - 상향만 가능 (기존값 이상)
- */
-export async function updateMonthlyGoal(
-  goalId: string,
-  newGoal: number,
-): Promise<ActionResult> {
-  const { member } = await getCurrentMember();
-  if (!member) return { ok: false, message: "로그인이 필요합니다" };
+export async function updateMonthlyGoal(goalId: string, newGoal: number): Promise<ActionResult> {
+  return withActive(async ({ member }) => {
+    const isAdmin = !!member.admin;
 
-  const activeCheck = await verifyActive();
-  if (!activeCheck.ok) return { ok: false, message: activeCheck.message };
+    if (!isAdmin && todayDayKST() > 14) {
+      return { ok: false, message: "목표는 매월 14일까지만 수정할 수 있습니다" };
+    }
 
-  const admin = await verifyAdmin();
-  const isAdmin = admin !== null;
+    const db = createAdminClient();
 
-  if (!isAdmin && todayDayKST() > 14) {
-    return { ok: false, message: "목표는 매월 14일까지만 수정할 수 있습니다" };
-  }
+    const { data: existing, error: fetchErr } = await db
+      .from("evt_mlg_mth_snap")
+      .select("goal_id, prt_id, goal_mlg, evt_team_prt_rel!inner(mem_id, evt_id)")
+      .eq("goal_id", goalId)
+      .single();
 
-  const db = createAdminClient();
+    if (fetchErr || !existing) return { ok: false, message: "목표를 찾을 수 없습니다" };
+    const participant = existing.evt_team_prt_rel as { mem_id: string; evt_id: string };
+    const evtId = participant.evt_id;
+    if (!isAdmin && participant.mem_id !== member.id) return { ok: false, message: "본인 목표만 수정할 수 있습니다" };
+    if (!isAdmin && newGoal < Number(existing.goal_mlg)) return { ok: false, message: "목표는 현재 값 이상으로만 설정할 수 있습니다" };
 
-  // 기존 목표 조회 → 본인 확인
-  const { data: existing, error: fetchErr } = await db
-    .from("evt_mlg_mth_snap")
-    .select("goal_id, prt_id, goal_mlg, evt_team_prt_rel!inner(mem_id, evt_id)")
-    .eq("goal_id", goalId)
-    .single();
+    const { error } = await db
+      .from("evt_mlg_mth_snap")
+      .update({ goal_mlg: newGoal, updated_at: dayjs().toISOString() })
+      .eq("goal_id", goalId);
 
-  if (fetchErr || !existing) return { ok: false, message: "목표를 찾을 수 없습니다" };
-  const participant = existing.evt_team_prt_rel as { mem_id: string; evt_id: string };
-  const evtId = participant.evt_id;
-  if (!isAdmin && participant.mem_id !== member.id) {
-    return { ok: false, message: "본인 목표만 수정할 수 있습니다" };
-  }
+    if (error) return { ok: false, message: "목표 수정에 실패했습니다" };
 
-  if (!isAdmin && newGoal < Number(existing.goal_mlg)) {
-    return { ok: false, message: "목표는 현재 값 이상으로만 설정할 수 있습니다" };
-  }
+    await recalcGoalsFromMonth(evtId, existing.prt_id, goalId);
 
-  const { error } = await db
-    .from("evt_mlg_mth_snap")
-    .update({
-      goal_mlg: newGoal,
-      updated_at: dayjs().toISOString(),
-    })
-    .eq("goal_id", goalId);
-
-  if (error) return { ok: false, message: "목표 수정에 실패했습니다" };
-
-  await recalcGoalsFromMonth(evtId, existing.prt_id, goalId);
-
-  revalidatePath("/projects");
-  return { ok: true, message: null };
+    revalidatePath("/projects");
+    return { ok: true, message: null };
+  });
 }
 
 // ─────────────────────────────────────────
-// 6. 목표 연쇄 재계산
+// 7. 목표 연쇄 재계산 (내부)
 // ─────────────────────────────────────────
 
-/**
- * 특정 참여자의 전체 목표를 연쇄 재계산.
- * - 이벤트 시작월 이전(연습기간)은 달성 여부가 다음 월 목표에 영향 없음
- * - 실전 기간: 달성 시 다음 월 목표 상향 (calcNextMonthGoal)
- * - 기록 추가/수정/삭제/목표 수정 후 호출
- */
 async function recalcGoalsFromMonth(
   evtId: string,
   prtId: string,
-  anchorGoalId?: string, // 수동 편집한 달의 goal_id. 이 달부터 cascade 시작 (이전 달 goal_mlg 불변)
+  anchorGoalId?: string,
 ): Promise<void> {
   const db = createAdminClient();
 
-  // 이벤트 정보 조회
-  const { data: evt } = await db
-    .from("evt_team_mst")
-    .select("stt_dt, end_dt")
-    .eq("evt_id", evtId)
-    .single();
+  const { data: evt } = await db.from("evt_team_mst").select("stt_dt, end_dt").eq("evt_id", evtId).single();
   if (!evt) return;
 
   const evtStartMonth = evt.stt_dt.slice(0, 7) + "-01";
-  // end_dt는 현재 미사용이나 향후 범위 제한에 활용 예정
-  const _evtEndMonth = evt.end_dt.slice(0, 7) + "-01";
 
-  // 해당 참여자의 전체 목표 조회 (월순)
   const { data: goals } = await db
     .from("evt_mlg_mth_snap")
     .select("goal_id, base_dt, goal_mlg, achv_yn")
@@ -717,13 +535,11 @@ async function recalcGoalsFromMonth(
 
   if (!goals || goals.length === 0) return;
 
-  // 해당 참여자의 전체 기록 조회
   const { data: allLogs } = await db
     .from("evt_mlg_act_hist")
     .select("act_dt, final_mlg")
     .eq("prt_id", prtId);
 
-  // 월별 마일리지/건수/마지막 활동일 집계 맵
   const mlgByMonth = new Map<string, number>();
   const cntByMonth = new Map<string, number>();
   const lastDtByMonth = new Map<string, string>();
@@ -733,16 +549,13 @@ async function recalcGoalsFromMonth(
     cntByMonth.set(m, (cntByMonth.get(m) ?? 0) + 1);
     const prevLast = lastDtByMonth.get(m);
     const actDt = log.act_dt as string;
-    if (!prevLast || actDt > prevLast) {
-      lastDtByMonth.set(m, actDt);
-    }
+    if (!prevLast || actDt > prevLast) lastDtByMonth.set(m, actDt);
   }
   const roundedAchvByMonth = new Map<string, number>();
   for (const [month, totalMlg] of mlgByMonth.entries()) {
     roundedAchvByMonth.set(month, roundMileage(totalMlg));
   }
 
-  // 모든 월의 집계 스냅샷을 먼저 갱신한다.
   for (const g of goals) {
     const month = g.base_dt as string;
     const achvMlg = roundedAchvByMonth.get(month) ?? 0;
@@ -752,38 +565,26 @@ async function recalcGoalsFromMonth(
 
     await db
       .from("evt_mlg_mth_snap")
-      .update({
-        achv_mlg: achvMlg,
-        act_cnt: actCnt,
-        lst_act_dt: lstActDt,
-        achv_yn: achvYn,
-        updated_at: dayjs().toISOString(),
-      })
+      .update({ achv_mlg: achvMlg, act_cnt: actCnt, lst_act_dt: lstActDt, achv_yn: achvYn, updated_at: dayjs().toISOString() })
       .eq("goal_id", g.goal_id);
     g.achv_yn = achvYn;
   }
 
-  // anchorGoalId가 있으면 해당 달을 기준점으로, 없으면 첫 번째 달이 기준점
   let anchorIdx = 0;
   if (anchorGoalId) {
     const found = goals.findIndex((g) => g.goal_id === anchorGoalId);
     if (found > 0) anchorIdx = found;
   }
 
-  // 기준점 이후 달부터 이전 월 달성 여부에 따라 재계산
   for (let i = anchorIdx + 1; i < goals.length; i++) {
     const prev = goals[i - 1];
     const cur = goals[i];
     const prevMonth = prev.base_dt as string;
     const prevGoalVal = Number(prev.goal_mlg);
 
-    // 연습기간은 달성 여부가 다음 달 목표에 영향 없음
     if (prevMonth < evtStartMonth) continue;
-
-    // 미달성이면 이후 달 재계산 불필요
     if (!prev.achv_yn) break;
 
-    // 달성: 자동 계산값과 현재 DB값 중 큰 값 적용 (목표는 내려가지 않음)
     const calculatedGoal = calcNextMonthGoal(prevGoalVal, true);
     const finalGoal = Math.max(calculatedGoal, Number(cur.goal_mlg));
 
@@ -791,11 +592,7 @@ async function recalcGoalsFromMonth(
       const newAchvYn = Math.round((roundedAchvByMonth.get(cur.base_dt as string) ?? 0) * 10) / 10 >= finalGoal;
       await db
         .from("evt_mlg_mth_snap")
-        .update({
-          goal_mlg: finalGoal,
-          achv_yn: newAchvYn,
-          updated_at: dayjs().toISOString(),
-        })
+        .update({ goal_mlg: finalGoal, achv_yn: newAchvYn, updated_at: dayjs().toISOString() })
         .eq("goal_id", cur.goal_id);
       cur.goal_mlg = finalGoal;
       cur.achv_yn = newAchvYn;
