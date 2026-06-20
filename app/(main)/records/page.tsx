@@ -263,6 +263,8 @@ function RecordsSkeleton() {
 }
 
 export default function RecordsPage() {
+  void getRequestTeamContext();
+
   return (
     <div className="flex flex-col gap-0">
       <div className="flex h-14 items-center px-6">

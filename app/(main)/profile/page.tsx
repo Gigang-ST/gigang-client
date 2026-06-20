@@ -11,7 +11,7 @@ import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 
 import { H1 } from "@/components/common/typography";
-import { PaceChart } from "@/components/profile/pace-chart";
+import { PaceChartDynamic } from "@/components/profile/pace-chart-dynamic";
 import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
 import { ProfileCard } from "@/components/profile/profile-card";
 import { CardItem } from "@/components/ui/card";
@@ -146,7 +146,7 @@ async function ProfileContent() {
         />
 
         {/* 페이스 그래프 */}
-        <PaceChart records={(raceResults ?? []).map((r) => ({ event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type?.toUpperCase() ?? "", record_time_sec: r.rec_time_sec, race_name: r.race_nm, race_date: r.race_dt }))} />
+        <PaceChartDynamic records={(raceResults ?? []).map((r) => ({ event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type?.toUpperCase() ?? "", record_time_sec: r.rec_time_sec, race_name: r.race_nm, race_date: r.race_dt }))} />
 
 
       </div>
@@ -184,6 +184,10 @@ function ProfileSkeleton() {
 }
 
 export default function Page() {
+  // ProfileContent와 동일한 데이터를 쓰므로 Suspense fallback 렌더와 동시에 fetch 선제 시작
+  void getCurrentMember();
+  void getRequestTeamContext();
+
   return (
     <div className="flex flex-col gap-0">
       <div className="flex h-14 items-center justify-between px-6">

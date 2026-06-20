@@ -1,7 +1,7 @@
 import { nextMonthStr } from "@/lib/dayjs";
 import type { MileageSport } from "@/lib/mileage";
 import { getEventLogsMonthly } from "@/lib/queries/project-data";
-import { MySportChartClient } from "./my-sport-chart";
+import { MySportChartClientDynamic } from "./my-sport-chart-dynamic";
 import type { SportChartData } from "./my-sport-chart";
 
 type Props = {
@@ -30,7 +30,7 @@ export async function MySportChart({
   );
 
   if (myMonthLogs.length === 0) {
-    return <MySportChartClient data={[]} />;
+    return <MySportChartClientDynamic data={[]} />;
   }
 
   // sprt_enm별 final_mlg 합산
@@ -48,5 +48,5 @@ export async function MySportChart({
     }),
   );
 
-  return <MySportChartClient data={data} />;
+  return <MySportChartClientDynamic data={data} />;
 }

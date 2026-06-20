@@ -30,12 +30,16 @@ export default async function ProjectsPage({
   ]);
   if (!user) redirect("/auth/login");
 
-  // ACTIVE 이벤트 조회 (1개)
+  // ACTIVE 이벤트 + 내 참여 정보를 단일 쿼리로 조회 (왕복 2→1)
   const { data: event } = await supabase
     .from("evt_team_mst")
-    .select("evt_id, evt_nm, stt_dt, end_dt, stts_enm")
+    .select(`
+      evt_id, evt_nm, stt_dt, end_dt, stts_enm,
+      evt_team_prt_rel!left(aprv_yn, mem_id)
+    `)
     .eq("team_id", teamId)
     .eq("stts_enm", "ACTIVE")
+    .eq("evt_team_prt_rel.mem_id", member?.id ?? "")
     .maybeSingle();
 
   // 이벤트 없음 — 소개 + 규칙만 표시
@@ -65,17 +69,9 @@ export default async function ProjectsPage({
         ? currentKST
         : event.stt_dt;
 
-  // 로그인한 멤버의 참여 정보 조회
-  let participation: { aprv_yn: boolean } | null = null;
-  if (member) {
-    const { data: prt } = await supabase
-      .from("evt_team_prt_rel")
-      .select("aprv_yn")
-      .eq("evt_id", event.evt_id)
-      .eq("mem_id", member.id)
-      .maybeSingle();
-    participation = prt ?? null;
-  }
+  // join으로 함께 가져온 참여 정보 추출
+  const prtRows = event.evt_team_prt_rel ?? [];
+  const participation = prtRows.length > 0 ? prtRows[0] : null;
 
   const isParticipant = participation !== null && participation.aprv_yn === true;
 
