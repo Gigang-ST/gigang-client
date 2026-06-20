@@ -1336,6 +1336,111 @@ export type Database = {
           },
         ]
       }
+      gthr_attd_rel: {
+        Row: {
+          attd_id: string
+          crt_at: string
+          gthr_id: string
+          mem_id: string
+        }
+        Insert: {
+          attd_id?: string
+          crt_at?: string
+          gthr_id: string
+          mem_id: string
+        }
+        Update: {
+          attd_id?: string
+          crt_at?: string
+          gthr_id?: string
+          mem_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gthr_attd_rel_gthr_id_fkey"
+            columns: ["gthr_id"]
+            isOneToOne: false
+            referencedRelation: "gthr_mst"
+            referencedColumns: ["gthr_id"]
+          },
+          {
+            foreignKeyName: "gthr_attd_rel_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
+      gthr_mst: {
+        Row: {
+          crt_at: string
+          crt_by: string
+          del_yn: boolean
+          desc_txt: string | null
+          end_at: string | null
+          gthr_id: string
+          gthr_nm: string
+          gthr_type_enm: string
+          loc_txt: string | null
+          max_prt_cnt: number | null
+          short_id: string
+          sprt_cd: string | null
+          stt_at: string
+          team_id: string
+          upd_at: string
+        }
+        Insert: {
+          crt_at?: string
+          crt_by: string
+          del_yn?: boolean
+          desc_txt?: string | null
+          end_at?: string | null
+          gthr_id?: string
+          gthr_nm: string
+          gthr_type_enm: string
+          loc_txt?: string | null
+          max_prt_cnt?: number | null
+          short_id?: string
+          sprt_cd?: string | null
+          stt_at: string
+          team_id: string
+          upd_at?: string
+        }
+        Update: {
+          crt_at?: string
+          crt_by?: string
+          del_yn?: boolean
+          desc_txt?: string | null
+          end_at?: string | null
+          gthr_id?: string
+          gthr_nm?: string
+          gthr_type_enm?: string
+          loc_txt?: string | null
+          max_prt_cnt?: number | null
+          short_id?: string
+          sprt_cd?: string | null
+          stt_at?: string
+          team_id?: string
+          upd_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gthr_mst_crt_by_fkey"
+            columns: ["crt_by"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "gthr_mst_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
       mem_mst: {
         Row: {
           avatar_url: string | null
@@ -2035,6 +2140,47 @@ export type Database = {
           stt_dt: string
         }[]
       }
+      get_public_team_gatherings:
+        | {
+            Args: { p_end?: string; p_start?: string; p_team_id: string }
+            Returns: {
+              attd_count: number
+              cmnt_count: number
+              crt_by: string
+              crt_by_nm: string
+              desc_txt: string
+              end_at: string
+              gthr_id: string
+              gthr_nm: string
+              gthr_type_enm: string
+              loc_txt: string
+              short_id: string
+              stt_at: string
+            }[]
+          }
+        | {
+            Args: {
+              p_end?: string
+              p_mem_id?: string
+              p_start?: string
+              p_team_id: string
+            }
+            Returns: {
+              attd_count: number
+              cmnt_count: number
+              crt_by: string
+              crt_by_nm: string
+              desc_txt: string
+              end_at: string
+              gthr_id: string
+              gthr_nm: string
+              gthr_type_enm: string
+              is_attending: boolean
+              loc_txt: string
+              short_id: string
+              stt_at: string
+            }[]
+          }
       get_public_team_member_stats: {
         Args: { p_team_id: string }
         Returns: {
@@ -2113,6 +2259,7 @@ export type Database = {
           loc_nm: string
           post_type: string
           reg_count: number
+          short_id: string
           start_date: string
           url: string
         }[]

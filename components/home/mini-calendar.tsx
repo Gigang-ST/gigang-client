@@ -65,6 +65,24 @@ const SchPostFormDialog = dynamic<SchPostFormDialogProps>(
   { ssr: false }
 );
 
+import type { GatheringFormDialogProps } from "@/components/schedule/gathering-form-dialog";
+const GatheringFormDialog = dynamic<GatheringFormDialogProps>(
+  () =>
+    import("@/components/schedule/gathering-form-dialog").then(
+      (m) => m.GatheringFormDialog
+    ),
+  { ssr: false }
+);
+
+import type { GatheringDetailDialogProps, GatheringAttendee } from "@/components/schedule/gathering-detail-dialog";
+const GatheringDetailDialog = dynamic<GatheringDetailDialogProps>(
+  () =>
+    import("@/components/schedule/gathering-detail-dialog").then(
+      (m) => m.GatheringDetailDialog
+    ),
+  { ssr: false }
+);
+
 
 
 
@@ -73,12 +91,12 @@ export type CalendarRace = {
   short_id?: string | null;
   title: string;
   start_date: string;
-  type: "gigang" | "mine" | "schedule";
+  type: "gigang" | "mine" | "schedule" | "gathering" | "gathering_mine";
   // 공통 선택 필드
   end_date?: string | null;
   location?: string | null;
   regCount?: number;
-  // schedule 전용
+  // schedule / gathering 전용
   url?: string | null;
   cont_txt?: string | null;
   crt_by?: string;
@@ -94,6 +112,7 @@ type MiniCalendarProps = {
   gigangRaces: CalendarRace[];
   myRaces: CalendarRace[];
   schPosts: CalendarRace[];
+  gatherings: CalendarRace[];
   teamId: string;
   memberId?: string;
   cmmCdRows: CachedCmmCdRow[];
@@ -112,6 +131,7 @@ export function MiniCalendar({
   gigangRaces: initGigang,
   myRaces: initMine,
   schPosts: initSchPosts,
+  gatherings: initGatherings,
   teamId,
   memberId,
   cmmCdRows,
@@ -125,6 +145,7 @@ export function MiniCalendar({
   const [gigangRaces, setGigangRaces] = useState(initGigang);
   const [myRaces, setMyRaces] = useState(initMine);
   const [schPosts, setSchPosts] = useState(initSchPosts);
+  const [gatherings, setGatherings] = useState(initGatherings);
   const [listViewKey, setListViewKey] = useState(0);
   const [isPending, startTransition] = useTransition();
 
@@ -138,6 +159,17 @@ export function MiniCalendar({
   const [schDetailPost, setSchDetailPost] = useState<CalendarRace | null>(null);
   const [schDetailOpen, setSchDetailOpen] = useState(false);
   const [schDetailInitialComments, setSchDetailInitialComments] = useState<CmntRow[] | undefined>(undefined);
+
+  // 모임 폼 다이얼로그 상태
+  const [gthrFormOpen, setGthrFormOpen] = useState(false);
+  const [gthrDefaultDate, setGthrDefaultDate] = useState<string | undefined>(undefined);
+
+  // 모임 상세 다이얼로그 상태
+  const [gthrDetailOpen, setGthrDetailOpen] = useState(false);
+  const [gthrDetailRace, setGthrDetailRace] = useState<(CalendarRace & { maxPrtCnt?: number | null; attendees?: GatheringAttendee[]; sprt_cd?: string | null }) | null>(null);
+  const [gthrDetailAttending, setGthrDetailAttending] = useState(false);
+  const [gthrDetailComments, setGthrDetailComments] = useState<CmntRow[] | undefined>(undefined);
+  const [gthrEditTarget, setGthrEditTarget] = useState<CalendarRace | null>(null);
 
   // 대회 선택 다이얼로그 상태
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -160,18 +192,49 @@ export function MiniCalendar({
   useEffect(() => {
     if (memberStatus.status !== "ready") return
     if (membersCache !== null || membersFetchingRef.current) return
-    const isAnyDialogOpen = schDetailOpen || detailOpen
+    const isAnyDialogOpen = schDetailOpen || detailOpen || gthrDetailOpen
     if (!isAnyDialogOpen) return
     membersFetchingRef.current = true
     getMentionMembers()
       .then(setMembersCache)
       .catch(() => { membersFetchingRef.current = false })
-  }, [schDetailOpen, detailOpen, membersCache, memberStatus.status])
+  }, [schDetailOpen, detailOpen, gthrDetailOpen, membersCache, memberStatus.status])
 
   // 알림 딥링크: /?post=<id> 또는 /?comp=<id>로 진입 시 해당 상세 자동 오픈
   const searchParams = useSearchParams()
   const deepLinkPostId = searchParams.get("post")
   const deepLinkCompId = searchParams.get("comp")
+  const deepLinkGthrId = searchParams.get("gthr")
+
+  useEffect(() => {
+    if (deepLinkGthrId) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deepLinkGthrId)
+      const query = isUuid
+        ? supabase.from("gthr_mst").select("gthr_id, short_id, gthr_nm, gthr_type_enm, stt_at, end_at, loc_txt, desc_txt, crt_by").eq("gthr_id", deepLinkGthrId).maybeSingle()
+        : supabase.from("gthr_mst").select("gthr_id, short_id, gthr_nm, gthr_type_enm, stt_at, end_at, loc_txt, desc_txt, crt_by").eq("short_id", deepLinkGthrId).maybeSingle()
+
+      query.then(({ data }) => {
+        if (!data) return
+        const race: CalendarRace = {
+          id: data.gthr_id,
+          short_id: data.short_id ?? null,
+          title: data.gthr_nm,
+          start_date: dayjs(data.stt_at).tz("Asia/Seoul").format("YYYY-MM-DD"),
+          type: "gathering",
+          post_type: data.gthr_type_enm,
+          location: data.loc_txt ?? null,
+          cont_txt: data.desc_txt ?? null,
+          evt_stt_at: data.stt_at,
+          evt_end_at: data.end_at ?? null,
+          crt_by: data.crt_by,
+        }
+        openGatheringDetail(race).then(() => {
+          router.replace("/")
+        })
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkGthrId])
 
   useEffect(() => {
     if (deepLinkPostId) {
@@ -210,20 +273,16 @@ export function MiniCalendar({
     if (deepLinkCompId) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deepLinkCompId)
       const query = isUuid
-        ? supabase.from("comp_mst").select("comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)").eq("comp_id", deepLinkCompId).maybeSingle()
-        : supabase.from("comp_mst").select("comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)").eq("short_id", deepLinkCompId).maybeSingle()
+        ? supabase.from("comp_mst").select("comp_id, short_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)").eq("comp_id", deepLinkCompId).maybeSingle()
+        : supabase.from("comp_mst").select("comp_id, short_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)").eq("short_id", deepLinkCompId).maybeSingle()
 
-      Promise.all([
-        query,
-        memberId ? fetchComments("comp", deepLinkCompId) : Promise.resolve(undefined),
-      ]).then(([{ data }, commentsResult]) => {
+      query.then(({ data }) => {
         if (!data) return
-        const commentPromise = isUuid
-          ? Promise.resolve(commentsResult)
-          : memberId ? fetchComments("comp", data.comp_id) : Promise.resolve(undefined)
+        const commentPromise = memberId ? fetchComments("comp", data.comp_id) : Promise.resolve(undefined)
         commentPromise.then((finalComments) => {
           setSelectedCompetition({
             id: data.comp_id,
+            short_id: data.short_id ?? null,
             external_id: "",
             sport: data.comp_sprt_cd ?? null,
             title: data.comp_nm,
@@ -252,7 +311,7 @@ export function MiniCalendar({
   const totalDays = daysInMonth(year, month);
   const firstDayOfWeek = dayjs.tz(`${year}-${String(month).padStart(2, "0")}-01`, "Asia/Seoul").day();
 
-  const allRaces = useMemo(() => [...myRaces, ...schPosts, ...gigangRaces], [myRaces, schPosts, gigangRaces]);
+  const allRaces = useMemo(() => [...myRaces, ...schPosts, ...gigangRaces, ...gatherings], [myRaces, schPosts, gigangRaces, gatherings]);
 
   // 날짜별 이벤트 목록 (mine 우선, schedule, gigang 순) — 기간 이벤트는 모든 날짜에 전개
   const eventsByDate = useMemo(() => {
@@ -352,7 +411,7 @@ export function MiniCalendar({
     return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   }
 
-  async function fetchComments(entityType: "sch_post" | "comp", entityId: string): Promise<CmntRow[]> {
+  async function fetchComments(entityType: "sch_post" | "comp" | "gathering", entityId: string): Promise<CmntRow[]> {
     const { data } = await supabase
       .from("cmnt_mst")
       .select("cmnt_id, prnt_id, mem_id, cont_txt, edit_yn, del_yn, crt_at, upd_at, mem_mst!cmnt_mst_mem_id_fkey(mem_nm, avatar_url)")
@@ -381,7 +440,7 @@ export function MiniCalendar({
     const [{ data }, comments] = await Promise.all([
       supabase
         .from("comp_mst")
-        .select("comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)")
+        .select("comp_id, short_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)")
         .eq("comp_id", race.id)
         .single(),
       memberId ? fetchComments("comp", race.id) : Promise.resolve(undefined),
@@ -390,6 +449,7 @@ export function MiniCalendar({
     const comp: Competition = data
       ? {
           id: data.comp_id,
+          short_id: data.short_id ?? null,
           external_id: "",
           sport: data.comp_sprt_cd ?? null,
           title: data.comp_nm,
@@ -403,6 +463,7 @@ export function MiniCalendar({
         }
       : {
           id: race.id,
+          short_id: null,
           external_id: "",
           sport: null,
           title: race.title,
@@ -508,6 +569,7 @@ export function MiniCalendar({
       { data: teamComps },
       myRegsResult,
       { data: schPostRows },
+      { data: gthrRows },
     ] = await Promise.all([
       supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: newMonth, p_end: lastDay }),
       memberId
@@ -520,6 +582,9 @@ export function MiniCalendar({
             .eq("del_yn", false)
         : Promise.resolve({ data: null }),
       supabase.rpc("get_public_team_sch_posts", { p_team_id: teamId, p_start: newMonth, p_end: lastDay }),
+      memberId
+        ? supabase.rpc("get_public_team_gatherings", { p_team_id: teamId, p_start: newMonth, p_end: lastDay, p_mem_id: memberId })
+        : supabase.rpc("get_public_team_gatherings", { p_team_id: teamId, p_start: newMonth, p_end: lastDay }),
     ]);
 
     const newGigang: CalendarRace[] = (teamComps ?? [])
@@ -558,18 +623,37 @@ export function MiniCalendar({
       cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
     }));
 
-    return { gigang: newGigang, mine: newMine, schPosts: newSchPosts };
+    const newGatherings: CalendarRace[] = (gthrRows ?? []).map((row) => ({
+      id: row.gthr_id,
+      short_id: row.short_id ?? null,
+      title: row.gthr_nm,
+      start_date: dayjs(row.stt_at).tz("Asia/Seoul").format("YYYY-MM-DD"),
+      end_date: row.end_at ? dayjs(row.end_at).tz("Asia/Seoul").format("YYYY-MM-DD") : null,
+      type: (memberId && ("is_attending" in row ? row.is_attending : false) ? "gathering_mine" : "gathering") as CalendarRace["type"],
+      post_type: row.gthr_type_enm,
+      location: row.loc_txt ?? null,
+      cont_txt: row.desc_txt ?? null,
+      evt_stt_at: row.stt_at,
+      evt_end_at: row.end_at ?? null,
+      crt_by: row.crt_by,
+      crt_by_nm: row.crt_by_nm ?? null,
+      regCount: row.attd_count ? Number(row.attd_count) : 0,
+      cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
+    }));
+
+    return { gigang: newGigang, mine: newMine, schPosts: newSchPosts, gatherings: newGatherings };
   }
 
   function navigate(dir: -1 | 1) {
     startTransition(async () => {
       const newMonthDayjs = dayjs(viewMonth).add(dir, "month");
       const newMonth = newMonthDayjs.format("YYYY-MM-01");
-      const { gigang, mine, schPosts: newSch } = await fetchMonthData(newMonth);
+      const { gigang, mine, schPosts: newSch, gatherings: newGthr } = await fetchMonthData(newMonth);
       setViewMonth(newMonth);
       setGigangRaces(gigang);
       setMyRaces(mine);
       setSchPosts(newSch);
+      setGatherings(newGthr);
     });
   }
 
@@ -607,11 +691,30 @@ export function MiniCalendar({
     setSchDetailOpen(true);
   }
 
+  async function openGatheringDetail(race: CalendarRace) {
+    const [comments, attdResult, gthrResult] = await Promise.all([
+      memberId ? fetchComments("gathering", race.id) : Promise.resolve(undefined),
+      memberId
+        ? supabase.from("gthr_attd_rel").select("attd_id").eq("gthr_id", race.id).eq("mem_id", memberId).maybeSingle()
+        : Promise.resolve({ data: null }),
+      supabase.from("gthr_mst").select("max_prt_cnt, sprt_cd, gthr_attd_rel(mem_id, mem_mst(mem_nm, avatar_url))").eq("gthr_id", race.id).single(),
+    ]);
+    const attendees: GatheringAttendee[] = (gthrResult.data?.gthr_attd_rel ?? []).map((a) => {
+      const mem = Array.isArray(a.mem_mst) ? a.mem_mst[0] : a.mem_mst;
+      return { mem_id: a.mem_id, mem_nm: (mem as { mem_nm?: string | null } | null)?.mem_nm ?? null, avatar_url: (mem as { avatar_url?: string | null } | null)?.avatar_url ?? null };
+    });
+    setGthrDetailRace({ ...race, regCount: attendees.length, maxPrtCnt: gthrResult.data?.max_prt_cnt ?? null, attendees, sprt_cd: gthrResult.data?.sprt_cd ?? null });
+    setGthrDetailAttending(!!attdResult.data);
+    setGthrDetailComments(comments);
+    setGthrDetailOpen(true);
+  }
+
   async function handleSchPostSuccess() {
-    const { gigang, mine, schPosts: newSch } = await fetchMonthData(viewMonth);
+    const { gigang, mine, schPosts: newSch, gatherings: newGthr } = await fetchMonthData(viewMonth);
     setGigangRaces(gigang);
     setMyRaces(mine);
     setSchPosts(newSch);
+    setGatherings(newGthr);
     setListViewKey((k) => k + 1);
   }
 
@@ -788,7 +891,11 @@ export function MiniCalendar({
                               ? "bg-success/20 text-success"
                               : lane.race.type === "schedule"
                                 ? "bg-info/15 text-info"
-                                : "bg-warning/15 text-warning",
+                                : lane.race.type === "gathering_mine"
+                                  ? "bg-success/20 text-success"
+                                  : lane.race.type === "gathering"
+                                  ? "bg-violet-400/20 text-violet-500"
+                                  : "bg-warning/15 text-warning",
                           )}
                         >
                           {lane.startsThisWeek ? lane.race.title : ""}
@@ -823,16 +930,28 @@ export function MiniCalendar({
                   {panelRaces.map((race) => {
                     const isMine = race.type === "mine";
                     const isComp = race.type === "gigang" || race.type === "mine";
+                    const isGathering = race.type === "gathering" || race.type === "gathering_mine";
+                    const isGatheringMine = race.type === "gathering_mine";
                     return (
                       <button
                         key={race.id}
-                        onClick={() => race.type === "schedule" ? openSchPostDetail(race) : handleRaceClick(race)}
+                        onClick={() =>
+                          race.type === "schedule"
+                            ? openSchPostDetail(race)
+                            : isGathering
+                              ? openGatheringDetail(race)
+                              : handleRaceClick(race)
+                        }
                         className="flex w-full items-center gap-1.5 rounded-lg px-1 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
                       >
                         <span
                           className={cn(
                             "w-0.5 shrink-0 self-stretch rounded-full",
-                            isMine ? "bg-success" : race.type === "schedule" ? "bg-info" : "bg-warning",
+                            isMine ? "bg-success"
+                              : race.type === "schedule" ? "bg-info"
+                              : isGatheringMine ? "bg-success"
+                              : isGathering ? "bg-violet-400"
+                              : "bg-warning",
                           )}
                         />
                         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -848,8 +967,9 @@ export function MiniCalendar({
                               {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
                             </span>
                           )}
-                          {race.type === "schedule" && (race.evt_stt_at || (race.cmntCount ?? 0) > 0) && (
+                          {(race.type === "schedule" || isGathering) && (race.evt_stt_at || race.location || (race.cmntCount ?? 0) > 0) && (
                             <span className="flex items-center gap-1 text-[9px] text-muted-foreground tabular-nums">
+                              {isGathering && race.location && <span className="truncate">{race.location}</span>}
                               {race.evt_stt_at && (
                                 <span>
                                   {(() => {
@@ -870,6 +990,9 @@ export function MiniCalendar({
                         {isComp && (race.regCount ?? 0) > 0 && (
                           <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{race.regCount}명</span>
                         )}
+                        {isGathering && (race.regCount ?? 0) > 0 && (
+                          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{race.regCount}명</span>
+                        )}
                         {isComp && (
                           <span
                             className={cn(
@@ -880,6 +1003,18 @@ export function MiniCalendar({
                             )}
                           >
                             참가
+                          </span>
+                        )}
+                        {isGathering && (
+                          <span
+                            className={cn(
+                              "shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-medium",
+                              isGatheringMine
+                                ? "border-success/40 bg-success/10 text-success"
+                                : "border-violet-300/60 bg-violet-50 text-violet-500",
+                            )}
+                          >
+                            {isGatheringMine ? "참석" : "모임"}
                           </span>
                         )}
                         {race.type === "schedule" && race.url && (
@@ -905,9 +1040,10 @@ export function MiniCalendar({
             teamId={teamId}
             memberId={memberId}
             initialMonthKey={viewMonth.slice(0, 7)}
-            initialRaces={[...myRaces, ...schPosts, ...gigangRaces]}
+            initialRaces={[...myRaces, ...schPosts, ...gigangRaces, ...gatherings]}
             onClickSchedule={openSchPostDetail}
             onClickCompetition={handleRaceClick}
+            onClickGathering={openGatheringDetail}
           />
         </div>
       )}
@@ -917,8 +1053,71 @@ export function MiniCalendar({
         <AddScheduleDropdown
           onAddSchedule={() => openCreateForm(view === "calendar" ? selectedDate : today)}
           onAddCompetition={() => openCompetitionPicker(view === "calendar" ? selectedDate : today)}
+          onAddGathering={() => {
+            setGthrDefaultDate(view === "calendar" ? selectedDate : today);
+            setGthrFormOpen(true);
+          }}
         />
       )}
+
+      {/* 모임 폼 다이얼로그 (등록 + 수정 겸용) */}
+      <GatheringFormDialog
+        open={gthrFormOpen}
+        onOpenChange={(v) => { setGthrFormOpen(v); if (!v) setGthrEditTarget(null); }}
+        mode={gthrEditTarget ? "edit" : "create"}
+        defaultDate={!gthrEditTarget ? gthrDefaultDate : undefined}
+        initialData={gthrEditTarget ? {
+          gthr_id: gthrEditTarget.id,
+          gthr_nm: gthrEditTarget.title,
+          gthr_type_enm: gthrEditTarget.post_type ?? "general",
+          sprt_cd: (gthrDetailRace?.sprt_cd) ?? null,
+          stt_at: gthrEditTarget.evt_stt_at ?? gthrEditTarget.start_date,
+          end_at: gthrEditTarget.evt_end_at ?? null,
+          loc_txt: gthrEditTarget.location ?? null,
+          desc_txt: gthrEditTarget.cont_txt ?? null,
+          max_prt_cnt: gthrDetailRace?.maxPrtCnt ?? null,
+        } : undefined}
+        onSuccess={async () => {
+          const { gigang, mine, schPosts: newSch, gatherings: newGthr } = await fetchMonthData(viewMonth);
+          setGigangRaces(gigang);
+          setMyRaces(mine);
+          setSchPosts(newSch);
+          setGatherings(newGthr);
+          setListViewKey((k) => k + 1);
+          setGthrEditTarget(null);
+        }}
+      />
+
+      {/* 모임 상세 다이얼로그 */}
+      <GatheringDetailDialog
+        gathering={gthrDetailRace}
+        open={gthrDetailOpen}
+        onOpenChange={setGthrDetailOpen}
+        teamId={teamId}
+        currentMemberId={memberStatus.status === "ready" ? memberStatus.memberId : undefined}
+        isAdmin={memberStatus.status === "ready" ? memberStatus.admin : false}
+        isAttending={gthrDetailAttending}
+        members={membersCache ?? []}
+        initialComments={gthrDetailComments}
+        onEdit={() => {
+          if (!gthrDetailRace) return;
+          setGthrDetailOpen(false);
+          setGthrEditTarget(gthrDetailRace);
+          setGthrFormOpen(true);
+        }}
+        onDelete={async () => {
+          const { gigang, mine, schPosts: newSch, gatherings: newGthr } = await fetchMonthData(viewMonth);
+          setGigangRaces(gigang);
+          setMyRaces(mine);
+          setSchPosts(newSch);
+          setGatherings(newGthr);
+          setListViewKey((k) => k + 1);
+        }}
+        onAttendanceChange={async () => {
+          const { gatherings: newGthr } = await fetchMonthData(viewMonth);
+          setGatherings(newGthr);
+        }}
+      />
 
       {/* 대회 선택 다이얼로그 */}
       <CompetitionPickerDialog

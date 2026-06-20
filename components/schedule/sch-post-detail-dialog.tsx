@@ -168,7 +168,7 @@ export function SchPostDetailDialog({
       <ShareSheet
         open={shareOpen}
         onOpenChange={setShareOpen}
-        title={post.title}
+        title={`[${post.title}]`}
         timeLabel={timeLabel}
         contentUrl={post.url ?? undefined}
         contentSnippet={post.cont_txt ?? undefined}

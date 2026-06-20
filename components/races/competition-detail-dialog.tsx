@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Calendar, ExternalLink, MapPin, Pencil, Users } from "lucide-react";
+import { Calendar, ExternalLink, MapPin, Pencil, Share2, Users } from "lucide-react";
 import { useForm } from "react-hook-form";
 
 import {
@@ -41,6 +41,7 @@ import {
   ResponsiveDrawerHeader,
   ResponsiveDrawerTitle,
 } from "@/components/common/responsive-drawer";
+import { ShareSheet } from "@/components/common/share-sheet";
 import { detectInAppBrowser, openExternalBrowser } from "@/components/in-app-browser-gate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -129,6 +130,7 @@ export function CompetitionDetailDialog({
   const [publicDisplayCounts, setPublicDisplayCounts] = useState<
     { display_key: string; cnt: number }[]
   >([]);
+  const [shareOpen, setShareOpen] = useState(false);
 
   // 관리자 수정 모드
   const isAdmin = memberStatus.status === "ready" && memberStatus.admin;
@@ -340,7 +342,13 @@ export function CompetitionDetailDialog({
     if (result.ok) loadParticipants(competition.id);
   }
 
+  const compRef = competition.short_id ?? competition.id;
+  const sharePageUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/?comp=${compRef}`
+    : `/?comp=${compRef}`;
+
   return (
+    <>
     <ResponsiveDrawer
       open={open}
       onOpenChange={(v) => { if (!v) setEditing(false); onOpenChange(v); }}
@@ -471,16 +479,27 @@ export function CompetitionDetailDialog({
             </div>
           )}
 
-          {isAdmin && !editing && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={startEditing}
-              className="mt-3 self-start"
-            >
-              <Pencil className="size-3.5 mr-1.5" />
-              대회 정보 수정
-            </Button>
+          {!editing && (
+            <div className="mt-3 flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setShareOpen(true); }}
+              >
+                <Share2 className="size-3.5" />
+                공유하기
+              </Button>
+              {isAdmin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={startEditing}
+                >
+                  <Pencil className="size-3.5 mr-1.5" />
+                  대회 정보 수정
+                </Button>
+              )}
+            </div>
           )}
 
           {/* 참가 현황 */}
@@ -606,7 +625,7 @@ export function CompetitionDetailDialog({
                 <Button
                   className="w-full"
                   onClick={() => {
-                    const returnPath = `/?comp=${competition.id}`;
+                    const returnPath = `/?comp=${competition.short_id ?? competition.id}`;
                     const href =
                       memberStatus.status === "signed-out"
                         ? `/auth/login?next=${encodeURIComponent(returnPath)}`
@@ -713,7 +732,7 @@ export function CompetitionDetailDialog({
               isAdmin={isAdmin}
               members={members}
               initialComments={initialComments}
-              loginReturnPath={`/?comp=${competition.id}`}
+              loginReturnPath={`/?comp=${competition.short_id ?? competition.id}`}
             />
           </div>
 
@@ -727,5 +746,15 @@ export function CompetitionDetailDialog({
         </div>
       </ResponsiveDrawerContent>
     </ResponsiveDrawer>
+
+    <ShareSheet
+      open={shareOpen}
+      onOpenChange={setShareOpen}
+      title={`[${competition.title}]`}
+      timeLabel={formattedDate}
+      locationText={competition.location ?? undefined}
+      pageUrl={sharePageUrl}
+    />
+    </>
   );
 }

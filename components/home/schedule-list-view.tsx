@@ -26,6 +26,7 @@ type Props = {
   initialRaces: CalendarRace[];
   onClickSchedule: (race: CalendarRace) => void;
   onClickCompetition: (race: CalendarRace) => void;
+  onClickGathering: (race: CalendarRace) => void;
 };
 
 
@@ -45,6 +46,7 @@ type SchedulePagedRow = {
   crt_by_nm: string | null;
   reg_count: number | null;
   cmnt_count: number;
+  short_id: string | null;
 };
 
 async function fetchAdjacent(
@@ -84,6 +86,23 @@ async function fetchAdjacent(
         cont_txt: row.cont_txt ?? null,
         crt_by: row.crt_by ?? undefined,
         crt_by_nm: row.crt_by_nm ?? null,
+        cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
+      });
+    } else if (row.item_type === "gathering" || row.item_type === "gathering_mine") {
+      results.push({
+        id: row.item_id,
+        short_id: row.short_id ?? null,
+        title: row.item_nm,
+        start_date: row.start_date,
+        type: row.item_type as "gathering" | "gathering_mine",
+        post_type: row.post_type ?? null,
+        location: row.loc_nm ?? null,
+        cont_txt: row.cont_txt ?? null,
+        evt_stt_at: row.evt_stt_at ?? null,
+        evt_end_at: row.evt_end_at ?? null,
+        crt_by: row.crt_by ?? undefined,
+        crt_by_nm: row.crt_by_nm ?? null,
+        regCount: row.reg_count ? Number(row.reg_count) : 0,
         cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
       });
     } else {
@@ -203,6 +222,45 @@ function CompetitionItem({
   );
 }
 
+function GatheringItem({ race, onClick }: { race: CalendarRace; onClick: () => void }) {
+  const isMine = race.type === "gathering_mine";
+  const timeRange = formatTimeRange(race.evt_stt_at, race.evt_end_at);
+
+  return (
+    <button
+      onClick={onClick}
+      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
+    >
+      <span className={cn("w-0.5 shrink-0 rounded-full", isMine ? "bg-success" : "bg-violet-400")} />
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <Caption className="truncate font-medium text-foreground">{race.title}</Caption>
+        {(timeRange || race.location || (race.cmntCount ?? 0) > 0) && (
+          <Micro className="flex items-center gap-1.5 tabular-nums text-muted-foreground">
+            {race.location && <span className="truncate">{race.location}</span>}
+            {timeRange && <span>{timeRange}</span>}
+            {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
+          </Micro>
+        )}
+      </span>
+      <span className="flex w-20 shrink-0 items-center justify-end gap-1.5 self-center">
+        {(race.regCount ?? 0) > 0 && (
+          <Micro className="text-muted-foreground tabular-nums">{race.regCount}명</Micro>
+        )}
+        <span
+          className={cn(
+            "shrink-0 rounded-md border px-2.5 py-1 text-[11px] font-medium",
+            isMine
+              ? "border-success/40 bg-success/10 text-success"
+              : "border-violet-300/60 bg-violet-50 text-violet-500",
+          )}
+        >
+          {isMine ? "참석" : "모임"}
+        </span>
+      </span>
+    </button>
+  );
+}
+
 export function ScheduleListView({
   teamId,
   memberId,
@@ -210,6 +268,7 @@ export function ScheduleListView({
   initialRaces,
   onClickSchedule,
   onClickCompetition,
+  onClickGathering,
 }: Props) {
   const supabase = createClient();
   const today = todayKST();
@@ -404,6 +463,12 @@ export function ScheduleListView({
                                 key={race.id}
                                 race={race}
                                 onClick={() => onClickSchedule(race)}
+                              />
+                            ) : race.type === "gathering" || race.type === "gathering_mine" ? (
+                              <GatheringItem
+                                key={race.id}
+                                race={race}
+                                onClick={() => onClickGathering(race)}
                               />
                             ) : (
                               <CompetitionItem

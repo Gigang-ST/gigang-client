@@ -33,14 +33,40 @@ function parseMentionQuery(text: string, cursorPos: number): { query: string; st
   return { query: match[1], start: cursorPos - match[0].length }
 }
 
+const URL_PATTERN = /https?:\/\/[^\s]+|www\.[^\s]+|[^\s]+\.(?:com|net|org|io|co|kr|team|app|dev|me|ai|gg|tv|club|shop|store|link|site|web|page|blog|info|biz|xyz|tech|run|live|news|cloud|world|online|space|studio)[^\s]*/g
+
+function normalizeUrl(url: string): string {
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`
+}
+
+function renderTextWithLinks(text: string, keyPrefix: string) {
+  const segments: { text: string; isUrl: boolean }[] = []
+  let last = 0
+  for (const m of text.matchAll(URL_PATTERN)) {
+    if (m.index > last) segments.push({ text: text.slice(last, m.index), isUrl: false })
+    segments.push({ text: m[0], isUrl: true })
+    last = m.index + m[0].length
+  }
+  if (last < text.length) segments.push({ text: text.slice(last), isUrl: false })
+  return segments.map((seg, i) =>
+    seg.isUrl ? (
+      <a key={`${keyPrefix}-${i}`} href={normalizeUrl(seg.text)} target="_blank" rel="noopener noreferrer" className="text-primary underline break-all">
+        {seg.text}
+      </a>
+    ) : (
+      <span key={`${keyPrefix}-${i}`}>{seg.text}</span>
+    )
+  )
+}
+
 export function renderMentions(text: string, members: MemberOption[]) {
   const memberNames = new Set(members.map((m) => m.mem_nm))
   const parts = text.split(/(@[가-힣a-zA-Z0-9_]+)/)
-  return parts.map((part, i) =>
+  return parts.flatMap((part, i) =>
     part.startsWith("@") && memberNames.has(part.slice(1)) ? (
-      <span key={i} className="text-primary font-medium">{part}</span>
+      [<span key={i} className="text-primary font-medium">{part}</span>]
     ) : (
-      <span key={i}>{part}</span>
+      renderTextWithLinks(part, String(i))
     )
   )
 }
