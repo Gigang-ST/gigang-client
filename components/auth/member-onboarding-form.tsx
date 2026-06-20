@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -99,6 +99,19 @@ export function MemberOnboardingForm({
 		"phone" | "details" | "pending" | "success"
 	>("phone");
 	const [phoneLoading, setPhoneLoading] = useState(false);
+	const phoneInputRef = useRef<HTMLInputElement | null>(null);
+
+	// 모바일 브라우저 자동완성(autofill)은 DOM 값만 채우고 React onChange를 발화하지
+	// 않을 수 있어, 제어 컴포넌트인 연락처 입력의 RHF 상태가 빈 채로 남는다.
+	// 제출 직전 DOM 실제 값을 RHF에 동기화해 required 오검출을 막는다.
+	const syncPhoneFromDom = () => {
+		const domValue = phoneInputRef.current?.value;
+		if (!domValue) return;
+		const formatted = formatPhone(domValue);
+		if (formatted !== form.getValues("phone")) {
+			form.setValue("phone", formatted, { shouldValidate: false });
+		}
+	};
 
 	const handlePhoneSubmit = async (values: MemberOnboardingValues) => {
 		const phoneValue = formatPhone(values.phone.trim());
@@ -288,9 +301,12 @@ export function MemberOnboardingForm({
 				<CardContent>
 					<Form {...form}>
 						<form
-							onSubmit={form.handleSubmit(
-								stage === "phone" ? handlePhoneSubmit : onSubmit,
-							)}
+							onSubmit={(event) => {
+								if (stage === "phone") syncPhoneFromDom();
+								form.handleSubmit(
+									stage === "phone" ? handlePhoneSubmit : onSubmit,
+								)(event);
+							}}
 						>
 							<div className="flex flex-col gap-6">
 								{stage === "pending" ? (
@@ -319,11 +335,15 @@ export function MemberOnboardingForm({
 														<Input
 															type="tel"
 															inputMode="numeric"
+															autoComplete="tel"
+															name={field.name}
+															ref={phoneInputRef}
 															placeholder="010-0000-0000"
 															value={field.value}
 															onChange={(event) =>
 																field.onChange(formatPhone(event.target.value))
 															}
+															onBlur={field.onBlur}
 														/>
 													</FormControl>
 													<FormMessage />
@@ -339,7 +359,10 @@ export function MemberOnboardingForm({
 											type="button"
 											className="w-full"
 											disabled={phoneLoading}
-											onClick={form.handleSubmit(handlePhoneSubmit)}
+											onClick={() => {
+												syncPhoneFromDom();
+												form.handleSubmit(handlePhoneSubmit)();
+											}}
 										>
 											{phoneLoading ? "확인 중..." : "다음"}
 										</Button>
