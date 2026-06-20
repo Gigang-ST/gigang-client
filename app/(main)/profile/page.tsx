@@ -184,6 +184,10 @@ function ProfileSkeleton() {
 }
 
 export default function Page() {
+  // ProfileContent와 동일한 데이터를 쓰므로 Suspense fallback 렌더와 동시에 fetch 선제 시작
+  void getCurrentMember();
+  void getRequestTeamContext();
+
   return (
     <div className="flex flex-col gap-0">
       <div className="flex h-14 items-center justify-between px-6">
