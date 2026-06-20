@@ -4,7 +4,7 @@ import {
   getEventGoalsMonthly,
   getEventLogsMonthly,
 } from "@/lib/queries/project-data";
-import { CrewProgressChart } from "./crew-progress-chart";
+import { CrewProgressChartDynamic } from "./crew-progress-chart-dynamic";
 import type { ChartInitialData, DailyPoint } from "./crew-progress-chart";
 
 type Props = {
@@ -33,7 +33,7 @@ export async function CrewProgressChartServer({
   );
 
   if (participants.length === 0) {
-    return <CrewProgressChart evtId={evtId} memId={memId} month={month} initialData={null} />;
+    return <CrewProgressChartDynamic evtId={evtId} memId={memId} month={month} initialData={null} />;
   }
 
   const [y, m] = month.split("-").map(Number);
@@ -133,7 +133,7 @@ export async function CrewProgressChartServer({
   };
 
   return (
-    <CrewProgressChart
+    <CrewProgressChartDynamic
       evtId={evtId}
       memId={memId}
       month={month}
