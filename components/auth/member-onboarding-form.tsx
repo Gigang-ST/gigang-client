@@ -102,8 +102,8 @@ export function MemberOnboardingForm({
 	const phoneInputRef = useRef<HTMLInputElement | null>(null);
 
 	// 모바일 브라우저 자동완성(autofill)은 DOM 값만 채우고 React onChange를 발화하지
-	// 않을 수 있어, 제어 컴포넌트인 연락처 입력의 RHF 상태가 빈 채로 남는다.
-	// 제출 직전 DOM 실제 값을 RHF에 동기화해 required 오검출을 막는다.
+	// 않을 수 있어, RHF 상태가 빈 채로 남는다. 입력은 비제어이므로 DOM에 값은 남아
+	// 있고, 제출 직전 그 실제 DOM 값을 RHF에 동기화해 required 오검출을 막는다.
 	const syncPhoneFromDom = () => {
 		const domValue = phoneInputRef.current?.value;
 		if (!domValue) return;
@@ -339,10 +339,16 @@ export function MemberOnboardingForm({
 															name={field.name}
 															ref={phoneInputRef}
 															placeholder="010-0000-0000"
-															value={field.value}
-															onChange={(event) =>
-																field.onChange(formatPhone(event.target.value))
-															}
+															// 비제어(defaultValue)로 둔다. 제어(value=field.value)면
+															// 모바일 자동완성이 채운 DOM 값을 React가 리렌더 때 빈 값으로
+															// 되돌려, 제출 시점 ref.value까지 비어 required가 오검출된다.
+															defaultValue={field.value}
+															onChange={(event) => {
+																// 비제어 입력이므로 라이브 포맷은 DOM에 직접 쓰고 RHF에 미러링
+																const formatted = formatPhone(event.target.value);
+																event.target.value = formatted;
+																field.onChange(formatted);
+															}}
 															onBlur={field.onBlur}
 														/>
 													</FormControl>
