@@ -100,6 +100,7 @@ export function MemberOnboardingForm({
 	>("phone");
 	const [phoneLoading, setPhoneLoading] = useState(false);
 	const phoneInputRef = useRef<HTMLInputElement | null>(null);
+	const verifiedPhoneRef = useRef<string>("");
 
 	// 모바일 브라우저 자동완성(autofill)은 DOM 값만 채우고 React onChange를 발화하지
 	// 않을 수 있어, RHF 상태가 빈 채로 남는다. 입력은 비제어이므로 DOM에 값은 남아
@@ -126,7 +127,8 @@ export function MemberOnboardingForm({
 			return;
 		}
 
-		form.setValue("phone", phoneValue, { shouldValidate: true });
+		form.setValue("phone", phoneValue, { shouldValidate: false, shouldDirty: true });
+		verifiedPhoneRef.current = phoneValue;
 		form.clearErrors("phone");
 		setPhoneLoading(true);
 		form.clearErrors("root");
@@ -164,7 +166,8 @@ export function MemberOnboardingForm({
 
 	const onSubmit = async (values: MemberOnboardingValues) => {
 		const emailValue = (email ?? values.emailInput.trim()) || null;
-		const phoneValue = formatPhone(values.phone.trim());
+		const rawPhone = values.phone ?? form.getValues("phone") ?? verifiedPhoneRef.current ?? "";
+		const phoneValue = formatPhone(rawPhone.trim());
 		if (!digitsOnly(phoneValue)) {
 			form.setError("phone", { message: "연락처를 입력해 주세요." });
 			return;
@@ -279,7 +282,7 @@ export function MemberOnboardingForm({
 								href="/profile/bank"
 								className="text-center text-xs font-medium text-muted-foreground underline"
 							>
-								계좌는 나중에 등록할게요
+								계좌 정보 지금 등록하기
 							</Link>
 						</div>
 					</CardContent>
@@ -451,7 +454,6 @@ export function MemberOnboardingForm({
 										<FormField
 											control={form.control}
 											name="phone"
-											rules={{ required: "연락처를 입력해 주세요." }}
 											render={({ field }) => (
 												<FormItem>
 													<FormLabel>연락처</FormLabel>
