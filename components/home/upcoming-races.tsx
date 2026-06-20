@@ -258,7 +258,7 @@ export function UpcomingRaces({
 
                 {/* 날짜 */}
                 <Micro className="shrink-0 tabular-nums">
-                  {dayjs(race.start_date).format("MM/DD")}
+                  {dayjs(race.start_date).tz("Asia/Seoul").format("MM/DD")}
                 </Micro>
               </button>
             );
