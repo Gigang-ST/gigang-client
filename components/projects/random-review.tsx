@@ -20,17 +20,31 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
   const today = todayKST();
   const sevenDaysAgo = dayjs(today).subtract(7, "day").format("YYYY-MM-DD");
 
+  // 리뷰 + 칭호 정보를 단일 쿼리로 조회 (왕복 2→1)
   const [{ data: reviews }, myTitleNames] = await Promise.all([
     supabase
-    .from("evt_mlg_act_hist")
-    .select(
-      "act_id, review, act_dt, sprt_enm, dst_km, evt_team_prt_rel!inner(evt_id, mem_mst!inner(mem_id, mem_nm))",
-    )
-    .eq("evt_team_prt_rel.evt_id", evtId)
-    .not("review", "is", null)
-    .neq("review", "")
-    .gte("act_dt", sevenDaysAgo)
-    .lte("act_dt", today)
+      .from("evt_mlg_act_hist")
+      .select(
+        `act_id, review, act_dt, sprt_enm, dst_km,
+        evt_team_prt_rel!inner(
+          evt_id,
+          mem_mst!inner(
+            mem_id, mem_nm,
+            team_mem_rel!left(
+              selected_badge_effect, selected_frame_cd,
+              mem_ttl_rel!left(
+                is_prmy_yn, vers, del_yn,
+                ttl_mst!inner(ttl_nm, ttl_desc, desc_visibility)
+              )
+            )
+          )
+        )`,
+      )
+      .eq("evt_team_prt_rel.evt_id", evtId)
+      .not("review", "is", null)
+      .neq("review", "")
+      .gte("act_dt", sevenDaysAgo)
+      .lte("act_dt", today)
       .order("act_dt", { ascending: false }),
     getMyTitleNames(),
   ]);
@@ -38,40 +52,25 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
   if (!reviews || reviews.length === 0) return null;
   const myTitleNameSet = new Set(myTitleNames);
 
-  // 멤버 ID 목록 추출
-  const memIds: string[] = [];
-  for (const item of reviews) {
-    const rel = item.evt_team_prt_rel as { mem_mst: { mem_id: string; mem_nm: string } };
-    if (rel?.mem_mst?.mem_id) {
-      memIds.push(rel.mem_mst.mem_id);
-    }
-  }
-
-  // 칭호/프레임 맵 조회
+  // join 결과에서 칭호 맵 구성
   const titleMap = new Map<string, { ttl_nm: string; ttl_desc: string | null; desc_visibility: "always" | "others" | "held" | "never"; badge_effect: string; frame_cd: string }>();
-  if (memIds.length > 0) {
-    const { data: titleData } = await supabase
-      .from("mem_ttl_rel")
-      .select("team_mem_rel!inner(mem_id, selected_badge_effect, selected_frame_cd), ttl_mst!inner(ttl_nm, ttl_desc, desc_visibility)")
-      .in("team_mem_rel.mem_id", memIds)
-      .eq("is_prmy_yn", true)
-      .eq("vers", 0)
-      .eq("del_yn", false);
-    for (const row of titleData ?? []) {
-      const rel = Array.isArray(row.team_mem_rel) ? row.team_mem_rel[0] : row.team_mem_rel;
-      const ttl = Array.isArray(row.ttl_mst) ? row.ttl_mst[0] : row.ttl_mst;
-      if (rel?.mem_id && ttl?.ttl_nm) {
-        const r = rel as { mem_id: string; selected_badge_effect?: string | null; selected_frame_cd?: string | null };
-        const t = ttl as { ttl_nm: string; ttl_desc?: string | null; desc_visibility?: string };
-        titleMap.set(r.mem_id, {
-          ttl_nm: t.ttl_nm,
-          ttl_desc: t.ttl_desc ?? null,
-          desc_visibility: (t.desc_visibility ?? "others") as "always" | "others" | "held" | "never",
-          badge_effect: r.selected_badge_effect ?? "none",
-          frame_cd: r.selected_frame_cd ?? "frame-none",
-        });
-      }
-    }
+  for (const item of reviews) {
+    const rel = item.evt_team_prt_rel as { mem_mst: { mem_id: string; mem_nm: string; team_mem_rel?: { selected_badge_effect?: string | null; selected_frame_cd?: string | null; mem_ttl_rel?: { is_prmy_yn: boolean; vers: number; del_yn: boolean; ttl_mst: { ttl_nm: string; ttl_desc: string | null; desc_visibility: string } | null }[] }[] } };
+    const memMst = rel?.mem_mst;
+    if (!memMst) continue;
+    const tmr = Array.isArray(memMst.team_mem_rel) ? memMst.team_mem_rel[0] : memMst.team_mem_rel;
+    if (!tmr) continue;
+    const primaryTitle = (tmr.mem_ttl_rel ?? []).find(
+      (t) => t.is_prmy_yn && t.vers === 0 && !t.del_yn && t.ttl_mst,
+    );
+    if (!primaryTitle?.ttl_mst) continue;
+    titleMap.set(memMst.mem_id, {
+      ttl_nm: primaryTitle.ttl_mst.ttl_nm,
+      ttl_desc: primaryTitle.ttl_mst.ttl_desc,
+      desc_visibility: (primaryTitle.ttl_mst.desc_visibility ?? "others") as "always" | "others" | "held" | "never",
+      badge_effect: tmr.selected_badge_effect ?? "none",
+      frame_cd: tmr.selected_frame_cd ?? "frame-none",
+    });
   }
 
   const lines: ReviewLine[] = reviews

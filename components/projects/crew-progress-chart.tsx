@@ -100,7 +100,7 @@ function ChartTooltip({ active, payload, label, myName, mode }: ChartTooltipProp
   );
 }
 
-type CrewProgressChartProps = {
+export type CrewProgressChartProps = {
   evtId: string;
   memId?: string;
   month: string;
