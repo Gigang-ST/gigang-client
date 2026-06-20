@@ -34,12 +34,23 @@ describe("formatPhone", () => {
   it("하이픈 포함 입력도 정상 처리", () => {
     expect(formatPhone("010-1234-5678")).toBe("010-1234-5678");
   });
+
+  it("국가번호(+82) 자동완성 형식을 010으로 정규화", () => {
+    expect(formatPhone("+82 10-1234-5678")).toBe("010-1234-5678");
+    expect(formatPhone("+82 010 1234 5678")).toBe("010-1234-5678");
+    expect(formatPhone("821012345678")).toBe("010-1234-5678");
+  });
 });
 
 describe("isValidPhone", () => {
   it("유효한 010 번호", () => {
     expect(isValidPhone("01012345678")).toBe(true);
     expect(isValidPhone("010-1234-5678")).toBe(true);
+  });
+
+  it("국가번호(+82) 자동완성 형식도 유효", () => {
+    expect(isValidPhone("+82 10-1234-5678")).toBe(true);
+    expect(isValidPhone("821012345678")).toBe(true);
   });
 
   it("011, 016 등 구형 번호는 무효", () => {
