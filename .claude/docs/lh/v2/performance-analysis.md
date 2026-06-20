@@ -3,7 +3,7 @@
 > 측정일: 2026-06-19  
 > 측정 URL: https://gigang.team/  
 > 측정 환경: GitHub Actions (ubuntu-latest, headless Chrome)  
-> Lighthouse 버전: 최신 (npm install -g lighthouse)  
+> Lighthouse 버전: 12.x (npm install -g lighthouse@12)  
 > 기준 비교: v1 (2026-06-19, 49점) → PR #328·#329 적용 후 재측정  
 > Actions Run ID: 27808443117
 
@@ -365,5 +365,5 @@ gh run download <run-id> --name lighthouse-report -D /tmp/lh-v2
 - **다름:** Actions Runner 서버 상태(캐시 히트율, CPU 경합)에 따라 ±5~10점 편차 발생 가능
 - **권장:** 동일 조건 3회 측정 후 평균값 사용
 
-> v2 측정 시 Speed Index 악화(4.7s → 6.4s)는 실제 회귀보다 Actions Runner 상태 차이일 가능성도 있음.  
-> Phase A 적용 전 동일 브랜치에서 2~3회 추가 측정 권장.
+> v2 측정 시 Speed Index 악화(4.7s → 6.4s)는 기준 대비 36% 증가로 일반적인 측정 편차(±5%)를 크게 초과하는 실제 회귀로 판단함.  
+> Phase A 구현 전 동일 브랜치에서 2~3회 추가 측정하여 원인을 확인할 것.

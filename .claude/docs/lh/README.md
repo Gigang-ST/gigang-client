@@ -19,4 +19,4 @@
 ## 관련 문서
 
 - [v1/improvement-plan.md](v1/improvement-plan.md) — v1 → v2 개선 계획 및 작업 기록
-- [lighthouse-reading-guide.md](lighthouse-reading-guide.md) — Lighthouse 지표 읽는 법
+- [v1/lighthouse-reading-guide.md](v1/lighthouse-reading-guide.md) — Lighthouse 지표 읽는 법
