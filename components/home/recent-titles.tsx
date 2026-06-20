@@ -1,15 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
-import timezone from "dayjs/plugin/timezone";
+import { dayjs } from "@/lib/dayjs";
 import { SectionHeader } from "@/components/common/section-header";
 import { EmptyState } from "@/components/common/empty-state";
 import { TitleBadge } from "@/components/common/title-badge";
-
-dayjs.extend(utc);
-dayjs.extend(timezone);
 
 export type RecentTitleGrant = {
   mem_id: string;
@@ -56,9 +51,7 @@ export function RecentTitles({ grants, initialCount = 4, myTitleNames = [] }: Re
 
       <div className="flex flex-col divide-y divide-border">
         {visible.map((g, idx) => {
-          const kst = dayjs(g.grnt_at).tz("Asia/Seoul");
-          const mm = String(kst.month() + 1).padStart(2, "0");
-          const dd = String(kst.date()).padStart(2, "0");
+          const dateLabel = dayjs(g.grnt_at).tz("Asia/Seoul").format("MM/DD");
           return (
             <div key={`${g.mem_id}-${g.ttl_nm}-${idx}`} className="flex min-h-9 items-center gap-1.5">
               <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-foreground">{g.mem_nm}</span>
@@ -73,7 +66,7 @@ export function RecentTitles({ grants, initialCount = 4, myTitleNames = [] }: Re
                   isOwner: false,
                 }}
               />
-              <span className="w-8 shrink-0 text-right font-mono text-[10px] text-muted-foreground tabular-nums">{mm}/{dd}</span>
+              <span className="w-8 shrink-0 text-right font-mono text-[10px] text-muted-foreground tabular-nums">{dateLabel}</span>
             </div>
           );
         })}

@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
-import { formatDDay } from "@/lib/dayjs";
+import { dayjs, formatDDay } from "@/lib/dayjs";
 import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
 import { createClient } from "@/lib/supabase/client";
@@ -17,8 +17,14 @@ import type { MemberOption } from "@/components/comment/mention-input";
 import { EmptyState } from "@/components/common/empty-state";
 import { SectionHeader } from "@/components/common/section-header";
 import { Micro, Caption } from "@/components/common/typography";
-import { CompetitionDetailDialog } from "@/components/races/competition-detail-dialog";
+import dynamic from "next/dynamic";
+import type { CompetitionDetailDialogProps } from "@/components/races/competition-detail-dialog";
 import type { Competition, CompetitionRegistration, MemberStatus } from "@/components/races/types";
+
+const CompetitionDetailDialog = dynamic<CompetitionDetailDialogProps>(
+  () => import("@/components/races/competition-detail-dialog").then((m) => m.CompetitionDetailDialog),
+  { ssr: false }
+);
 
 
 type UpcomingRace = {
@@ -252,7 +258,7 @@ export function UpcomingRaces({
 
                 {/* 날짜 */}
                 <Micro className="shrink-0 tabular-nums">
-                  {race.start_date.slice(5).replace("-", "/")}
+                  {dayjs(race.start_date).tz("Asia/Seoul").format("MM/DD")}
                 </Micro>
               </button>
             );
