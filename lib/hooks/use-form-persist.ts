@@ -35,17 +35,21 @@ export function useFormPersist<T extends FieldValues>(
   // 값 변경 시 저장 (300ms debounce)
   useEffect(() => {
     if (!open) return
+    let timer: ReturnType<typeof setTimeout> | null = null
     const sub = form.watch((values) => {
-      const timer = setTimeout(() => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
         try {
           sessionStorage.setItem(key, JSON.stringify(values))
         } catch {
           // 저장 실패 시 무시
         }
       }, 300)
-      return () => clearTimeout(timer)
     })
-    return () => sub.unsubscribe()
+    return () => {
+      sub.unsubscribe()
+      if (timer) clearTimeout(timer)
+    }
   }, [key, open, form])
 
   return {

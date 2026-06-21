@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { MapPin } from "lucide-react";
 
@@ -270,7 +270,7 @@ export function ScheduleListView({
   onClickCompetition,
   onClickGathering,
 }: Props) {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const today = todayKST();
 
   const [months, setMonths] = useState<MonthData[]>(() => {

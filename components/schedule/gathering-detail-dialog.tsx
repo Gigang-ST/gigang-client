@@ -70,6 +70,7 @@ export function GatheringDetailDialog({
 }: GatheringDetailDialogProps) {
   const [attending, setAttending] = useState(initialIsAttending ?? false);
   const [attdCount, setAttdCount] = useState(gathering?.regCount ?? 0);
+  const [attendees, setAttendees] = useState(gathering?.attendees ?? []);
   const [isToggling, setIsToggling] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -81,6 +82,7 @@ export function GatheringDetailDialog({
     setLastGKey(gKey);
     setAttending(initialIsAttending ?? false);
     setAttdCount(gathering?.regCount ?? 0);
+    setAttendees(gathering?.attendees ?? []);
   }
 
   if (!gathering) return null;
@@ -98,8 +100,8 @@ export function GatheringDetailDialog({
 
   // 공유 텍스트용
   const shareTitle = gathering.maxPrtCnt != null
-    ? `[${gathering.title}] - ${gathering.maxPrtCnt}명`
-    : `[${gathering.title}]`;
+    ? `${gathering.title} - ${gathering.maxPrtCnt}명`
+    : gathering.title;
   const shareTimeLabel = end
     ? `${stt.format("YYYY년 M월 D일 (ddd) HH:mm")} ~ ${stt.format("YYYY-MM-DD") === end.format("YYYY-MM-DD") ? end.format("HH:mm") : end.format("YYYY년 M월 D일 (ddd) HH:mm")}`
     : stt.format("YYYY년 M월 D일 (ddd) HH:mm");
@@ -112,8 +114,10 @@ export function GatheringDetailDialog({
     if (!currentMemberId || isFull || isToggling) return;
     setIsToggling(true);
     const prev = attending;
+    const myEntry = { mem_id: currentMemberId, mem_nm: gathering!.crt_by_nm ?? null, avatar_url: null };
     setAttending(!prev);
     setAttdCount((c) => (!prev ? c + 1 : c - 1));
+    setAttendees((list) => !prev ? [...list, myEntry] : list.filter((a) => a.mem_id !== currentMemberId));
     try {
       const result = await toggleGatheringAttendance(gathering!.id);
       setAttending(result.attending);
@@ -121,6 +125,7 @@ export function GatheringDetailDialog({
     } catch {
       setAttending(prev);
       setAttdCount((c) => (prev ? c + 1 : c - 1));
+      setAttendees(gathering!.attendees ?? []);
     } finally {
       setIsToggling(false);
     }
@@ -214,9 +219,9 @@ export function GatheringDetailDialog({
             )}
 
             {/* 참석자 목록 */}
-            {(gathering.attendees?.length ?? 0) > 0 && (
+            {attendees.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {(gathering.attendees ?? []).map((a) => (
+                {attendees.map((a) => (
                   <div key={a.mem_id} className="flex flex-col items-center gap-0.5">
                     <Avatar src={a.avatar_url} alt={a.mem_nm ?? ""} size="sm" className="size-4" />
                     <span className="text-[9px] text-muted-foreground leading-tight">{a.mem_nm ?? ""}</span>
