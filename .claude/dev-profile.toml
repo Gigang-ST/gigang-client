@@ -1,0 +1,42 @@
+label  = "기강"
+domain = "러닝크루 기강 공식 웹앱 — 멤버 관리·대회/기록 플랫폼"
+stack  = "Next.js + React 19 + Supabase + Tailwind v4"
+pkg    = "pnpm"
+
+entry     = "CLAUDE.md"
+rules_dir = ""
+
+[commands]
+lint      = "pnpm lint"
+typecheck = "pnpm build"
+test      = "pnpm test"
+deadcode  = ""
+
+[ssot]
+product          = ""
+design           = "DESIGN.md"
+components       = ".claude/docs/component-conventions.md"
+knowledge        = ".claude/docs/KNOWLEDGE.md"
+security         = ""
+coding_standards = ".claude/docs/coding-standards.md"
+todo             = ""
+progress         = ""
+
+[[service_persona]]
+name  = "크루 멤버"
+model = "sonnet"
+lens  = "러닝크루 멤버로서 기록·대회·칭호가 직관적이고 동기부여 되나?"
+
+[[service_persona]]
+name  = "매니저"
+model = "sonnet"
+lens  = "회비·공지·일정·멤버 관리가 효율적이고 실수하기 어렵나?"
+
+[extras]
+manual    = ""
+patchnote = ""
+notes     = "운영계=main / 개발계=dev (접속주소·DB 분리). 기본 브랜치 dev → PR 베이스는 dev. 정본은 AGENTS.md(CLAUDE.md=@AGENTS.md @DESIGN.md). crew-os의 첫 모델(원래 멀티테넌트→지금 기강 단독 운영)."
+
+[feedback]
+mode  = ""
+notes = "기강 피드백은 read-only 방침. T7 쓰려면 db_tool·collect_sql 이관 후 mode=read-only 설정."
