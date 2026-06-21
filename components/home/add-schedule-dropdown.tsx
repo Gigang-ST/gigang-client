@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 type Props = {
   onAddSchedule: () => void;
   onAddCompetition: () => void;
+  onAddGathering: () => void;
   defaultDate?: string;
 };
 
@@ -32,14 +33,14 @@ const items = [
   {
     key: "gathering",
     label: "모임",
-    sub: "준비 중",
+    sub: "일반, 정기런, 이벤트",
     icon: Users,
-    color: "text-muted-foreground",
-    disabled: true,
+    color: "text-violet-400",
+    disabled: false,
   },
 ] as const;
 
-export function AddScheduleDropdown({ onAddSchedule, onAddCompetition }: Props) {
+export function AddScheduleDropdown({ onAddSchedule, onAddCompetition, onAddGathering }: Props) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -58,6 +59,7 @@ export function AddScheduleDropdown({ onAddSchedule, onAddCompetition }: Props) 
     setOpen(false);
     if (key === "competition") onAddCompetition();
     if (key === "schedule") onAddSchedule();
+    if (key === "gathering") onAddGathering();
   }
 
   return (

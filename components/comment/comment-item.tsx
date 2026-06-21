@@ -87,7 +87,14 @@ export function CommentItem({
           ) : comment.optimistic ? (
             <Caption className="text-xs text-muted-foreground">전송 중...</Caption>
           ) : (
-            <Caption className="text-xs">{dayjs(comment.crt_at).fromNow()}</Caption>
+            <Caption className="text-xs">
+              {(() => {
+                const d = dayjs(comment.crt_at).tz("Asia/Seoul");
+                return dayjs().tz("Asia/Seoul").diff(d, "hour") < 24
+                  ? d.fromNow()
+                  : d.format("YY.MM.DD");
+              })()}
+            </Caption>
           )}
           {comment.edit_yn && <Caption className="text-xs opacity-60">(수정됨)</Caption>}
           {!editing && (

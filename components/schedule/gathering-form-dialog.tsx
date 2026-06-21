@@ -9,12 +9,16 @@ import { useFormPersist } from "@/lib/hooks/use-form-persist";
 import { z } from "zod";
 
 import { dayjs } from "@/lib/dayjs";
-import { createSchPostSchema, SCH_POST_TYPES, schPostTypeLabels, type SchPostType } from "@/lib/validations/schedule";
-
 import {
-  createSchPost,
-  updateSchPost,
-} from "@/app/actions/schedule/manage-sch-post";
+  GTHR_TYPES,
+  GTHR_SPRT_TYPES,
+  gthrTypeLabels,
+  gthrSprtLabels,
+  createGthrSchema,
+  type CreateGthrInput,
+} from "@/lib/validations/gathering";
+
+import { createGathering, updateGathering } from "@/app/actions/gathering/manage-gathering";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -41,54 +45,58 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 
-const formSchema = createSchPostSchema.omit({ team_id: true }).extend({
-  post_type: z.enum(SCH_POST_TYPES, { message: "유형을 선택해 주세요." }),
-});
+const formSchema = createGthrSchema.omit({ team_id: true });
 type FormValues = z.infer<typeof formSchema>;
 
-export type SchPostFormDialogProps = {
+export type GatheringFormDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: "create" | "edit";
-  defaultPostType?: SchPostType;
+  defaultDate?: string;
   initialData?: {
-    sch_post_id: string;
-    sch_nm: string;
-    post_type?: SchPostType;
-    evt_stt_at: string;
-    evt_end_at?: string | null;
-    url?: string | null;
-    cont_txt?: string | null;
-    crt_by?: string | null;
+    gthr_id: string;
+    gthr_nm: string;
+    gthr_type_enm: string;
+    sprt_cd?: string | null;
+    stt_at: string;
+    end_at?: string | null;
+    loc_txt?: string | null;
+    desc_txt?: string | null;
+    max_prt_cnt?: number | null;
   };
   onSuccess?: () => void;
 };
 
-export function SchPostFormDialog({
+function toDatetimeLocal(utcIso: string) {
+  return dayjs(utcIso).tz("Asia/Seoul").format("YYYY-MM-DDTHH:mm");
+}
+
+export function GatheringFormDialog({
   open,
   onOpenChange,
   mode,
-  defaultPostType,
+  defaultDate,
   initialData,
   onSuccess,
-}: SchPostFormDialogProps) {
+}: GatheringFormDialogProps) {
   const [rootError, setRootError] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      sch_nm: "",
-      post_type: defaultPostType,
-      evt_stt_at: "",
-      evt_end_at: null,
-      url: null,
-      cont_txt: null,
+      gthr_nm: "",
+      gthr_type_enm: "general",
+      sprt_cd: "running",
+      stt_at: "",
+      end_at: null,
+      loc_txt: null,
+      desc_txt: null,
     } as FormValues,
   });
 
   const { isSubmitting } = form.formState;
 
-  const persistKey = "sch-post-form-draft";
+  const persistKey = "gathering-form-draft";
   const { clear: clearDraft } = useFormPersist(persistKey, form, open && mode === "create");
 
   useEffect(() => {
@@ -97,91 +105,83 @@ export function SchPostFormDialog({
     setRootError(null);
     if (mode === "edit" && initialData) {
       form.reset({
-        sch_nm: initialData.sch_nm,
-        post_type: initialData.post_type ?? "general" as SchPostType,
-        evt_stt_at: toDatetimeLocal(initialData.evt_stt_at),
-        evt_end_at: initialData.evt_end_at ? toDatetimeLocal(initialData.evt_end_at) : null,
-        url: initialData.url ?? null,
-        cont_txt: initialData.cont_txt ?? null,
+        gthr_nm: initialData.gthr_nm,
+        gthr_type_enm: initialData.gthr_type_enm as CreateGthrInput["gthr_type_enm"],
+        sprt_cd: (initialData.sprt_cd ?? "running") as CreateGthrInput["sprt_cd"],
+        stt_at: toDatetimeLocal(initialData.stt_at),
+        end_at: initialData.end_at ? toDatetimeLocal(initialData.end_at) : null,
+        loc_txt: initialData.loc_txt ?? null,
+        desc_txt: initialData.desc_txt ?? null,
+        max_prt_cnt: initialData.max_prt_cnt ?? undefined,
       });
-    } else if (mode === "create") {
+    } else {
       // sessionStorage 저장값이 없을 때만 기본값으로 초기화 (useFormPersist가 복원 처리)
       const hasDraft = (() => { try { return !!sessionStorage.getItem(persistKey); } catch { return false; } })();
       if (!hasDraft) {
+        const defaultSttAt = defaultDate
+          ? `${defaultDate}T${dayjs().tz("Asia/Seoul").add(1, "hour").startOf("hour").format("HH:mm")}`
+          : dayjs().tz("Asia/Seoul").add(1, "hour").startOf("hour").format("YYYY-MM-DDTHH:mm");
         form.reset({
-          sch_nm: "",
-          post_type: defaultPostType ?? undefined,
-          evt_stt_at: initialData?.evt_stt_at ? toDateInput(initialData.evt_stt_at) : "",
-          evt_end_at: null,
-          url: null,
-          cont_txt: null,
+          gthr_nm: "",
+          gthr_type_enm: "general",
+          sprt_cd: "running",
+          stt_at: defaultSttAt,
+          end_at: null,
+          loc_txt: null,
+          desc_txt: null,
         });
       }
     }
-  }, [open, mode, initialData, defaultPostType, form, persistKey]);
+  }, [open, mode, initialData, defaultDate, form, persistKey]);
 
   async function onSubmit(values: FormValues) {
     setRootError(null);
     try {
-      if (mode === "create") {
-        await createSchPost({
-          sch_nm: values.sch_nm,
-          post_type: values.post_type,
-          evt_stt_at: values.evt_stt_at,
-          evt_end_at: values.evt_end_at ?? null,
-          url: values.url ?? null,
-          cont_txt: values.cont_txt ?? null,
-        });
+      if (mode === "edit" && initialData) {
+        await updateGathering({ gthr_id: initialData.gthr_id, ...values });
       } else {
-        if (!initialData?.sch_post_id) return;
-        await updateSchPost({
-          sch_post_id: initialData.sch_post_id,
-          sch_nm: values.sch_nm,
-          post_type: values.post_type,
-          evt_stt_at: values.evt_stt_at,
-          evt_end_at: values.evt_end_at ?? null,
-          url: values.url ?? null,
-          cont_txt: values.cont_txt ?? null,
-        });
+        await createGathering(values);
       }
       clearDraft();
       onOpenChange(false);
       onSuccess?.();
-    } catch (err) {
-      setRootError(err instanceof Error ? err.message : "오류가 발생했습니다. 다시 시도해 주세요.");
+    } catch (e) {
+      setRootError(e instanceof Error ? e.message : "오류가 발생했습니다. 다시 시도해 주세요.");
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { setRootError(null); clearDraft(); } onOpenChange(v); }}>
       <DialogContent className="flex max-h-[85dvh] flex-col gap-0 p-0">
-
         <DialogHeader className="px-5 pb-3 pt-5">
-          <DialogTitle>{mode === "create" ? "정보 추가" : "정보 수정"}</DialogTitle>
+          <DialogTitle>{mode === "create" ? "모임 추가" : "모임 수정"}</DialogTitle>
         </DialogHeader>
 
         <Separator />
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4 overflow-y-auto px-5 py-4">
+
+            {/* 제목 */}
             <FormField
               control={form.control}
-              name="sch_nm"
+              name="gthr_nm"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>제목 <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
-                    <Input placeholder="예: 동아마라톤 접수, 나이키 슈퍼위크 등" {...field} />
+                    <Input placeholder="예: 양재천 자유러닝" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
+            {/* 시작/종료일시 */}
             <div className="grid grid-cols-2 gap-3">
               <FormField
                 control={form.control}
-                name="evt_stt_at"
+                name="stt_at"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>시작일시 <span className="text-destructive">*</span></FormLabel>
@@ -214,7 +214,7 @@ export function SchPostFormDialog({
               />
               <FormField
                 control={form.control}
-                name="evt_end_at"
+                name="end_at"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>종료일시</FormLabel>
@@ -247,22 +247,43 @@ export function SchPostFormDialog({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            {/* 장소 */}
+            <FormField
+              control={form.control}
+              name="loc_txt"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>장소</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="예: 여의도역 9호선 B1 클룸보관함"
+                      {...field}
+                      value={field.value ?? ""}
+                      onChange={(e) => field.onChange(e.target.value || null)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* 유형 / 종목 / 최대 인원 */}
+            <div className="grid grid-cols-3 gap-3">
               <FormField
                 control={form.control}
-                name="post_type"
+                name="gthr_type_enm"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>유형 <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
-                      <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                      <Select value={field.value ?? "general"} onValueChange={field.onChange}>
                         <SelectTrigger className="text-[13px]">
-                          <SelectValue placeholder="유형 선택" />
+                          <SelectValue placeholder="유형" />
                         </SelectTrigger>
                         <SelectContent>
-                          {SCH_POST_TYPES.map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {schPostTypeLabels[type]}
+                          {GTHR_TYPES.map((t) => (
+                            <SelectItem key={t} value={t}>
+                              {gthrTypeLabels[t]}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -274,18 +295,42 @@ export function SchPostFormDialog({
               />
               <FormField
                 control={form.control}
-                name="url"
+                name="sprt_cd"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>링크</FormLabel>
+                    <FormLabel>종목 <span className="text-destructive">*</span></FormLabel>
+                    <FormControl>
+                      <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                        <SelectTrigger className="text-[13px]">
+                          <SelectValue placeholder="종목" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {GTHR_SPRT_TYPES.map((t) => (
+                            <SelectItem key={t} value={t}>
+                              {gthrSprtLabels[t]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="max_prt_cnt"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>최대 인원</FormLabel>
                     <FormControl>
                       <Input
-                        type="url"
-                        placeholder="https://"
+                        type="number"
+                        placeholder="제한 없음"
                         className="text-[13px]"
                         {...field}
                         value={field.value ?? ""}
-                        onChange={(e) => field.onChange(e.target.value || null)}
+                        onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value, 10) : null)}
                       />
                     </FormControl>
                     <FormMessage />
@@ -294,16 +339,17 @@ export function SchPostFormDialog({
               />
             </div>
 
+            {/* 비고 */}
             <FormField
               control={form.control}
-              name="cont_txt"
+              name="desc_txt"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>내용</FormLabel>
+                  <FormLabel>비고</FormLabel>
                   <FormControl>
                     <textarea
                       rows={4}
-                      placeholder="내용을 입력해 주세요."
+                      placeholder="공지, 준비물, 링크 등 자유롭게 입력"
                       className="flex w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-[13px] shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                       {...field}
                       value={field.value ?? ""}
@@ -334,13 +380,4 @@ export function SchPostFormDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-function toDatetimeLocal(isoString: string): string {
-  return dayjs(isoString).format("YYYY-MM-DDTHH:mm");
-}
-
-function toDateInput(value: string): string {
-  if (value.length === 10) return `${value}T00:00`;
-  return toDatetimeLocal(value);
 }

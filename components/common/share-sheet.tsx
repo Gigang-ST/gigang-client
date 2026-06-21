@@ -18,6 +18,8 @@ type ShareSheetProps = {
   onOpenChange: (open: boolean) => void;
   title: string;
   timeLabel: string;
+  /** 장소 (모임 등) */
+  locationText?: string;
   /** 본문 텍스트 */
   contentSnippet?: string;
   /** 본문에 첨부된 외부 링크 */
@@ -31,6 +33,7 @@ export function ShareSheet({
   onOpenChange,
   title,
   timeLabel,
+  locationText,
   contentSnippet,
   contentUrl,
   pageUrl,
@@ -42,13 +45,14 @@ export function ShareSheet({
   }
 
   function buildText() {
-    const lines = [`[${title}]`, timeLabel];
+    const lines = [title, timeLabel];
 
-    if (contentUrl) lines.push(contentUrl);
+    if (locationText) lines.push(locationText);
     if (contentSnippet) {
       const text = contentSnippet.trim();
-      lines.push(text.slice(0, 100) + (text.length > 100 ? ".." : ""));
+      lines.push("", text.slice(0, 100) + (text.length > 100 ? ".." : ""));
     }
+    if (contentUrl) lines.push(contentUrl);
 
     lines.push("", getUrl());
     return lines.join("\n");

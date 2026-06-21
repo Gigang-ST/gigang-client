@@ -1,5 +1,6 @@
 export type Competition = {
   id: string;
+  short_id?: string | null;
   external_id: string;
   sport: string | null;
   title: string;

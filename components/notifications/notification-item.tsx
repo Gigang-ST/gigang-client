@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 
 import { useRouter } from "next/navigation";
 
-import { Bell, Coins, MessageCircle, Trophy, Trash2, FileText } from "lucide-react";
+import { Bell, Coins, MessageCircle, Trophy, Trash2, FileText, Users } from "lucide-react";
 
 import { dayjs } from "@/lib/dayjs";
 import type { Notification } from "@/lib/queries/notification";
@@ -25,6 +25,12 @@ const NOTI_ICON: Record<string, React.ElementType> = {
   cmnt_reply: MessageCircle,
   sch_post_cmnt: MessageCircle,
   sch_post_new: FileText,
+  gthr_new: Users,
+  gthr_upd: Users,
+  gthr_del: Users,
+  gthr_cmnt: MessageCircle,
+  gthr_reply: MessageCircle,
+  gthr_mention: MessageCircle,
 };
 
 const NOTI_ROUTE: Record<string, (refId: string | null, refType: string | null) => string | null> = {
@@ -34,8 +40,14 @@ const NOTI_ROUTE: Record<string, (refId: string | null, refType: string | null) 
   dues_check_req: () => null,
   sch_post_cmnt: (refId) => refId ? `/?post=${refId}` : "/",
   sch_post_new: (refId) => refId ? `/?post=${refId}` : "/",
-  cmnt_mention: (refId, refType) => refType === "comp" ? `/?comp=${refId}` : refId ? `/?post=${refId}` : "/",
-  cmnt_reply: (refId, refType) => refType === "comp" ? `/?comp=${refId}` : refId ? `/?post=${refId}` : "/",
+  cmnt_mention: (refId, refType) => refType === "comp" ? `/?comp=${refId}` : refType === "gathering" ? (refId ? `/?gthr=${refId}` : "/") : refId ? `/?post=${refId}` : "/",
+  cmnt_reply: (refId, refType) => refType === "comp" ? `/?comp=${refId}` : refType === "gathering" ? (refId ? `/?gthr=${refId}` : "/") : refId ? `/?post=${refId}` : "/",
+  gthr_new: (refId) => refId ? `/?gthr=${refId}` : "/",
+  gthr_upd: (refId) => refId ? `/?gthr=${refId}` : "/",
+  gthr_del: () => "/",
+  gthr_cmnt: (refId) => refId ? `/?gthr=${refId}` : "/",
+  gthr_reply: (refId) => refId ? `/?gthr=${refId}` : "/",
+  gthr_mention: (refId) => refId ? `/?gthr=${refId}` : "/",
 };
 
 function formatRelative(crtAt: string) {
