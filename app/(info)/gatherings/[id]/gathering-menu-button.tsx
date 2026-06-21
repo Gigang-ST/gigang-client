@@ -53,7 +53,7 @@ export function GatheringMenuButton({ gthrId, isAuthor, isAdmin, gthrData }: Pro
       await deleteGathering(gthrId);
       router.replace("/");
     } catch (e) {
-      console.error(e);
+      alert(e instanceof Error ? e.message : "삭제에 실패했습니다.");
       setIsDeleting(false);
     }
   }

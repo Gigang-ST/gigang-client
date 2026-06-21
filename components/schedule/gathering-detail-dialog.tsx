@@ -45,6 +45,7 @@ export interface GatheringDetailDialogProps {
   onOpenChange: (open: boolean) => void;
   teamId: string;
   currentMemberId?: string;
+  currentMemberName?: string | null;
   isAdmin?: boolean;
   isAttending?: boolean;
   members: MemberOption[];
@@ -60,6 +61,7 @@ export function GatheringDetailDialog({
   onOpenChange,
   teamId,
   currentMemberId,
+  currentMemberName,
   isAdmin,
   isAttending: initialIsAttending,
   members,
@@ -114,7 +116,7 @@ export function GatheringDetailDialog({
     if (!currentMemberId || isFull || isToggling) return;
     setIsToggling(true);
     const prev = attending;
-    const myEntry = { mem_id: currentMemberId, mem_nm: gathering!.crt_by_nm ?? null, avatar_url: null };
+    const myEntry = { mem_id: currentMemberId, mem_nm: currentMemberName ?? null, avatar_url: null };
     setAttending(!prev);
     setAttdCount((c) => (!prev ? c + 1 : c - 1));
     setAttendees((list) => !prev ? [...list, myEntry] : list.filter((a) => a.mem_id !== currentMemberId));

@@ -33,7 +33,7 @@ export function GatheringAttendButton({ gthrId, initialAttending, maxPrtCnt, cur
         setAttending(result.attending);
       } catch {
         setAttending(prev);
-        setAttdCount((c) => (prev ? c + 1 : c - 1));
+        setAttdCount((c) => (prev ? c - 1 : c + 1));
       }
     });
   }

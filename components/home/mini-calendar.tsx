@@ -1095,6 +1095,7 @@ export function MiniCalendar({
         onOpenChange={setGthrDetailOpen}
         teamId={teamId}
         currentMemberId={memberStatus.status === "ready" ? memberStatus.memberId : undefined}
+        currentMemberName={memberStatus.status === "ready" ? memberStatus.fullName : undefined}
         isAdmin={memberStatus.status === "ready" ? memberStatus.admin : false}
         isAttending={gthrDetailAttending}
         members={membersCache ?? []}
