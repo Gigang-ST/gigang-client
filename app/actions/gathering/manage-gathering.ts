@@ -51,7 +51,8 @@ export async function createGathering(input: {
     const gthrId = data.gthr_id;
 
     // 작성자 자동 참석 등록
-    await supabase.from("gthr_attd_rel").insert({ gthr_id: gthrId, mem_id: member.id });
+    const { error: attdError } = await supabase.from("gthr_attd_rel").insert({ gthr_id: gthrId, mem_id: member.id });
+    if (attdError) throw new Error("자동 참석 등록에 실패했습니다.");
     const authorId = member.id;
     const gthrNm = parsed.gthr_nm;
     const gthrType = parsed.gthr_type_enm;
@@ -134,7 +135,12 @@ export async function updateGathering(input: {
     if (error) throw new Error("모임 수정에 실패했습니다.");
 
     const { teamId } = await getRequestTeamContext();
-    const gthrNm = parsed.gthr_nm ?? "";
+    // gthr_nm이 생략됐을 때 빈 문자열로 알림이 발송되지 않도록 기존 모임명 조회
+    let gthrNm = parsed.gthr_nm;
+    if (!gthrNm) {
+      const { data: existing } = await supabase.from("gthr_mst").select("gthr_nm").eq("gthr_id", gthr_id).single();
+      gthrNm = existing?.gthr_nm ?? "";
+    }
 
     after(async () => {
       try {

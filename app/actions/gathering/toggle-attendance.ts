@@ -15,7 +15,8 @@ export async function toggleGatheringAttendance(gthr_id: string): Promise<{ atte
       .maybeSingle();
 
     if (existing) {
-      await supabase.from("gthr_attd_rel").delete().eq("attd_id", existing.attd_id);
+      const { error: deleteError } = await supabase.from("gthr_attd_rel").delete().eq("attd_id", existing.attd_id);
+      if (deleteError) throw new Error("참석 취소에 실패했습니다.");
       revalidatePath("/");
       revalidatePath(`/gatherings/${gthr_id}`);
       return { attending: false };

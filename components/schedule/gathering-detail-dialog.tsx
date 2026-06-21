@@ -77,7 +77,8 @@ export function GatheringDetailDialog({
   const [isDeleting, setIsDeleting] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
 
-  // gathering이 바뀌면 상태 동기화
+  // gathering prop이 바뀌면 로컬 상태 동기화
+  // (렌더 중 파생 state 업데이트 — React 공식 패턴: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes)
   const gKey = gathering?.id;
   const [lastGKey, setLastGKey] = useState(gKey);
   if (gKey !== lastGKey) {

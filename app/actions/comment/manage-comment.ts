@@ -81,7 +81,7 @@ export async function createComment(input: CreateCommentInput) {
       }
     }
 
-    if (parsed.entityType === "gathering" && (uniqueMentions.length > 0 || !parsed.prntId)) {
+    if (parsed.entityType === "gathering") {
       const { data: gthrMeta } = await admin
         .from("gthr_mst")
         .select("gthr_id, short_id, crt_by, gthr_nm")

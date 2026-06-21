@@ -129,7 +129,7 @@ export default async function GatheringDetailPage({
               <Caption className="text-muted-foreground w-4">👥</Caption>
               <Caption>
                 참석 {attendees?.length ?? 0}명
-                {gthr.max_prt_cnt && ` / 최대 ${gthr.max_prt_cnt}명`}
+                {gthr.max_prt_cnt != null && ` / 최대 ${gthr.max_prt_cnt}명`}
               </Caption>
             </div>
           </div>

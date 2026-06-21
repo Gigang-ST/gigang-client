@@ -35,6 +35,11 @@ function parseMentionQuery(text: string, cursorPos: number): { query: string; st
 
 const URL_PATTERN = /https?:\/\/[^\s]+|www\.[^\s]+|[^\s]+\.(?:com|net|org|io|co|kr|team|app|dev|me|ai|gg|tv|club|shop|store|link|site|web|page|blog|info|biz|xyz|tech|run|live|news|cloud|world|online|space|studio)[^\s]*/g
 
+/** URL 끝에 붙은 문장부호(., , ! ? ) ; 등)를 제거 */
+function stripTrailingPunctuation(url: string): string {
+  return url.replace(/[.,!?;:)'"]+$/, "")
+}
+
 function normalizeUrl(url: string): string {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`
 }
@@ -43,9 +48,13 @@ function renderTextWithLinks(text: string, keyPrefix: string) {
   const segments: { text: string; isUrl: boolean }[] = []
   let last = 0
   for (const m of text.matchAll(URL_PATTERN)) {
+    const rawUrl = m[0]
+    const cleanUrl = stripTrailingPunctuation(rawUrl)
+    const trailingPunct = rawUrl.slice(cleanUrl.length)
     if (m.index > last) segments.push({ text: text.slice(last, m.index), isUrl: false })
-    segments.push({ text: m[0], isUrl: true })
-    last = m.index + m[0].length
+    segments.push({ text: cleanUrl, isUrl: true })
+    if (trailingPunct) segments.push({ text: trailingPunct, isUrl: false })
+    last = m.index + rawUrl.length
   }
   if (last < text.length) segments.push({ text: text.slice(last), isUrl: false })
   return segments.map((seg, i) =>
