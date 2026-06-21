@@ -100,8 +100,8 @@ export function GatheringDetailDialog({
 
   // 공유 텍스트용
   const shareTitle = gathering.maxPrtCnt != null
-    ? `${gathering.title} - ${gathering.maxPrtCnt}명`
-    : gathering.title;
+    ? `[${gathering.title}] - ${gathering.maxPrtCnt}명`
+    : `[${gathering.title}]`;
   const shareTimeLabel = end
     ? `${stt.format("YYYY년 M월 D일 (ddd) HH:mm")} ~ ${stt.format("YYYY-MM-DD") === end.format("YYYY-MM-DD") ? end.format("HH:mm") : end.format("YYYY년 M월 D일 (ddd) HH:mm")}`
     : stt.format("YYYY년 M월 D일 (ddd) HH:mm");
