@@ -123,9 +123,9 @@ type MiniCalendarProps = {
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"] as const;
 
-type FilterType = "all" | "competition" | "schedule" | "gathering";
+export type FilterType = "all" | "competition" | "schedule" | "gathering";
 
-function matchesFilter(race: CalendarRace, filterType: FilterType): boolean {
+export function matchesFilter(race: CalendarRace, filterType: FilterType): boolean {
   if (filterType === "all") return true;
   if (filterType === "competition") return race.type === "gigang" || race.type === "mine";
   if (filterType === "schedule") return race.type === "schedule";
@@ -813,9 +813,9 @@ export function MiniCalendar({
             key={key}
             onClick={() => setFilterType(key)}
             className={cn(
-              "shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors",
+              "shrink-0 rounded-full px-3 py-1 text-xs transition-colors",
               filterType === key
-                ? "bg-foreground text-background"
+                ? "bg-foreground text-background font-medium"
                 : "border border-border bg-transparent text-muted-foreground hover:border-foreground/40"
             )}
           >
@@ -1013,13 +1013,13 @@ export function MiniCalendar({
                             )}
                           </span>
                           {isComp && (race.location || (race.cmntCount ?? 0) > 0) && (
-                            <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                            <Micro className="flex items-center gap-1 text-muted-foreground">
                               {race.location && <span className="truncate">{race.location}</span>}
                               {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
-                            </span>
+                            </Micro>
                           )}
                           {(race.type === "schedule" || isGathering) && (race.evt_stt_at || race.location || (race.cmntCount ?? 0) > 0) && (
-                            <span className="flex items-center gap-1 text-[9px] text-muted-foreground tabular-nums">
+                            <Micro className="flex items-center gap-1 text-muted-foreground tabular-nums">
                               {isGathering && race.location && <span className="truncate">{race.location}</span>}
                               {race.evt_stt_at && (
                                 <span>
@@ -1035,7 +1035,7 @@ export function MiniCalendar({
                                 </span>
                               )}
                               {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
-                            </span>
+                            </Micro>
                           )}
                         </span>
                         {isComp && (race.regCount ?? 0) > 0 && (

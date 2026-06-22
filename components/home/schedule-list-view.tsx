@@ -13,13 +13,13 @@ import type { SchPostType } from "@/lib/validations/schedule-types";
 import { Caption, Micro, SectionLabel } from "@/components/common/typography";
 
 import type { CalendarRace } from "./mini-calendar";
+import type { FilterType } from "./mini-calendar";
+import { matchesFilter } from "./mini-calendar";
 
 type MonthData = {
   monthKey: string; // "YYYY-MM"
   races: CalendarRace[];
 };
-
-type FilterType = "all" | "competition" | "schedule" | "gathering";
 
 type Props = {
   teamId: string;
@@ -121,14 +121,6 @@ async function fetchAdjacent(
     }
   }
   return results;
-}
-
-function matchesFilter(race: CalendarRace, filterType: FilterType): boolean {
-  if (filterType === "all") return true;
-  if (filterType === "competition") return race.type === "gigang" || race.type === "mine";
-  if (filterType === "schedule") return race.type === "schedule";
-  if (filterType === "gathering") return race.type === "gathering" || race.type === "gathering_mine";
-  return true;
 }
 
 function formatTimeRange(sttAt: string | null | undefined, endAt: string | null | undefined): string | null {
