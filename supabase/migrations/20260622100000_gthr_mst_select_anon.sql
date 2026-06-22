@@ -21,6 +21,7 @@ CREATE POLICY gthr_attd_rel_select_anon
     EXISTS (
       SELECT 1
       FROM gthr_mst g
+      JOIN public.team_mst t ON t.team_id = g.team_id
       WHERE g.gthr_id = gthr_attd_rel.gthr_id
         AND g.del_yn = false
     )

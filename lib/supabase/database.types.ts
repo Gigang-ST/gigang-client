@@ -2143,6 +2143,7 @@ export type Database = {
       get_gathering_detail: {
         Args: {
           p_gthr_id: string
+          p_team_id: string
         }
         Returns: Json
       }

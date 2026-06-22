@@ -13,7 +13,7 @@ import type { SchPostType } from "@/lib/validations/schedule-types";
 import { Caption, Micro, SectionLabel } from "@/components/common/typography";
 
 import type { CalendarRace } from "./mini-calendar";
-import { type FilterType, matchesFilter } from "./schedule-filter";
+import { type FilterType, matchesFilter } from "@/components/home/schedule-filter";
 
 type MonthData = {
   monthKey: string; // "YYYY-MM"
