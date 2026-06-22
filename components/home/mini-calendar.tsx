@@ -719,13 +719,17 @@ export function MiniCalendar({
     setGthrDetailOpen(true);
   }
 
-  async function handleSchPostSuccess() {
+  async function refreshMonthData() {
     const { gigang, mine, schPosts: newSch, gatherings: newGthr } = await fetchMonthData(viewMonth);
     setGigangRaces(gigang);
     setMyRaces(mine);
     setSchPosts(newSch);
     setGatherings(newGthr);
     setListViewKey((k) => k + 1);
+  }
+
+  async function handleSchPostSuccess() {
+    await refreshMonthData();
   }
 
   return (
@@ -1117,12 +1121,7 @@ export function MiniCalendar({
           max_prt_cnt: gthrDetailRace?.maxPrtCnt ?? null,
         } : undefined}
         onSuccess={async () => {
-          const { gigang, mine, schPosts: newSch, gatherings: newGthr } = await fetchMonthData(viewMonth);
-          setGigangRaces(gigang);
-          setMyRaces(mine);
-          setSchPosts(newSch);
-          setGatherings(newGthr);
-          setListViewKey((k) => k + 1);
+          await refreshMonthData();
           setGthrEditTarget(null);
         }}
       />
@@ -1146,18 +1145,11 @@ export function MiniCalendar({
           setGthrEditTarget(gthrDetailRace);
           setGthrFormOpen(true);
         }}
-        onDelete={async () => {
-          const { gigang, mine, schPosts: newSch, gatherings: newGthr } = await fetchMonthData(viewMonth);
-          setGigangRaces(gigang);
-          setMyRaces(mine);
-          setSchPosts(newSch);
-          setGatherings(newGthr);
-          setListViewKey((k) => k + 1);
-        }}
+        onDelete={refreshMonthData}
         onAttendanceChange={async () => {
           type GthrDetail = { max_prt_cnt: number | null; sprt_cd: string | null; attendees: GatheringAttendee[] };
-          const [{ gatherings: newGthr }, gthrDetailResult, attdResult] = await Promise.all([
-            fetchMonthData(viewMonth),
+          const [, gthrDetailResult, attdResult] = await Promise.all([
+            refreshMonthData(),
             gthrDetailRace
               ? supabase.rpc("get_gathering_detail", { p_gthr_id: gthrDetailRace.id, p_team_id: teamId })
               : Promise.resolve({ data: null, error: null }),
@@ -1165,7 +1157,6 @@ export function MiniCalendar({
               ? supabase.from("gthr_attd_rel").select("attd_id").eq("gthr_id", gthrDetailRace.id).eq("mem_id", memberId).maybeSingle()
               : Promise.resolve({ data: null }),
           ]);
-          setGatherings(newGthr);
           if (gthrDetailRace && gthrDetailResult.data) {
             const gthrData = gthrDetailResult.data as GthrDetail;
             const attendees: GatheringAttendee[] = gthrData.attendees ?? [];

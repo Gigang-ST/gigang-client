@@ -51,6 +51,19 @@ type SchedulePagedRow = {
   short_id: string | null;
 };
 
+function racesToMonths(races: CalendarRace[]): MonthData[] {
+  const buckets = new Map<string, CalendarRace[]>();
+  for (const race of races) {
+    const key = race.start_date.slice(0, 7);
+    const list = buckets.get(key) ?? [];
+    list.push(race);
+    buckets.set(key, list);
+  }
+  return Array.from(buckets.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, r]) => ({ monthKey: key, races: r }));
+}
+
 async function fetchAdjacent(
   supabase: ReturnType<typeof createClient>,
   teamId: string,
@@ -280,22 +293,9 @@ export function ScheduleListView({
 
   const [months, setMonths] = useState<MonthData[]>(() => {
     // start_date의 실제 월(YYYY-MM)로 분류 — 월 경계에 걸친 일정을 올바른 월에 배치
-    const buckets = new Map<string, CalendarRace[]>();
-    for (const race of initialRaces) {
-      const key = race.start_date.slice(0, 7); // "YYYY-MM"
-      const list = buckets.get(key) ?? [];
-      list.push(race);
-      buckets.set(key, list);
-    }
-    if (buckets.size === 0) {
-      return [{ monthKey: initialMonthKey, races: [] }];
-    }
-    return Array.from(buckets.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, races]) => ({
-        monthKey: key,
-        races: [...races].sort((a, b) => a.start_date.localeCompare(b.start_date)),
-      }));
+    const result = racesToMonths(initialRaces);
+    if (result.length === 0) return [{ monthKey: initialMonthKey, races: [] }];
+    return result.map((m) => ({ ...m, races: [...m.races].sort((a, b) => a.start_date.localeCompare(b.start_date)) }));
   });
   const [loadingPrev, setLoadingPrev] = useState(false);
   const [loadingNext, setLoadingNext] = useState(false);
@@ -319,16 +319,7 @@ export function ScheduleListView({
         setCanLoadPrev(false);
         return;
       }
-      const buckets = new Map<string, CalendarRace[]>();
-      for (const race of races) {
-        const key = race.start_date.slice(0, 7);
-        const list = buckets.get(key) ?? [];
-        list.push(race);
-        buckets.set(key, list);
-      }
-      const newMonths = Array.from(buckets.entries())
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, r]) => ({ monthKey: key, races: r }));
+      const newMonths = racesToMonths(races);
       prevScrollHeightRef.current = containerRef.current?.scrollHeight ?? 0;
       setMonths((prev) => [...newMonths, ...prev]);
     } finally {
@@ -347,16 +338,8 @@ export function ScheduleListView({
         setCanLoadNext(false);
         return;
       }
-      const buckets = new Map<string, CalendarRace[]>();
-      for (const race of races) {
-        const key = race.start_date.slice(0, 7);
-        const list = buckets.get(key) ?? [];
-        list.push(race);
-        buckets.set(key, list);
-      }
-      const [firstKey, firstRaces] = Array.from(buckets.entries())
-        .sort(([a], [b]) => a.localeCompare(b))[0];
-      setMonths((prev) => [...prev, { monthKey: firstKey, races: firstRaces }]);
+      const [first] = racesToMonths(races);
+      setMonths((prev) => [...prev, first]);
     } finally {
       setLoadingNext(false);
     }
