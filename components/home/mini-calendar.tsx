@@ -123,6 +123,16 @@ type MiniCalendarProps = {
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"] as const;
 
+type FilterType = "all" | "competition" | "schedule" | "gathering";
+
+function matchesFilter(race: CalendarRace, filterType: FilterType): boolean {
+  if (filterType === "all") return true;
+  if (filterType === "competition") return race.type === "gigang" || race.type === "mine";
+  if (filterType === "schedule") return race.type === "schedule";
+  if (filterType === "gathering") return race.type === "gathering" || race.type === "gathering_mine";
+  return true;
+}
+
 function monthLastDayStr(year: number, month: number): string {
   const d = daysInMonth(year, month);
   return `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
@@ -178,6 +188,7 @@ export function MiniCalendar({
   const [pickerDefaultDate, setPickerDefaultDate] = useState<string | undefined>(undefined);
 
   const [view, setView] = useState<"calendar" | "list">("calendar");
+  const [filterType, setFilterType] = useState<FilterType>("all");
   const [selectedDate, setSelectedDate] = useState<string>(() => todayKST());
   const [selectedCompetition, setSelectedCompetition] = useState<Competition | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -315,11 +326,13 @@ export function MiniCalendar({
 
   const allRaces = useMemo(() => [...myRaces, ...schPosts, ...gigangRaces, ...gatherings], [myRaces, schPosts, gigangRaces, gatherings]);
 
+  const filteredRaces = useMemo(() => allRaces.filter((r) => matchesFilter(r, filterType)), [allRaces, filterType]);
+
   // 날짜별 이벤트 목록 (mine 우선, schedule, gigang 순) — 기간 이벤트는 모든 날짜에 전개
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarRace[]>();
     const seen = new Set<string>();
-    for (const race of allRaces) {
+    for (const race of filteredRaces) {
       const endDateStr = race.end_date
         ? dayjs(race.end_date).tz("Asia/Seoul").format("YYYY-MM-DD")
         : race.start_date;
@@ -338,7 +351,7 @@ export function MiniCalendar({
       }
     }
     return map;
-  }, [allRaces]);
+  }, [filteredRaces]);
 
   // 주차별로 날짜 그룹핑
   const weeks = useMemo(() => {
@@ -367,7 +380,7 @@ export function MiniCalendar({
       const weekEnd = validDates[validDates.length - 1];
 
       const seen = new Set<string>();
-      const active = allRaces.filter((race) => {
+      const active = filteredRaces.filter((race) => {
         if (seen.has(race.id)) return false;
         seen.add(race.id);
         const endStr = race.end_date ? dayjs(race.end_date).tz("Asia/Seoul").format("YYYY-MM-DD") : race.start_date;
@@ -407,7 +420,7 @@ export function MiniCalendar({
       // 원래 순서(colStart → id)로 돌려서 반환
       return withSlot.sort((a, b) => a.colStart - b.colStart || a.race.id.localeCompare(b.race.id));
     });
-  }, [weeks, allRaces, year, month]);
+  }, [weeks, filteredRaces, year, month]);
 
   function formatCellDate(day: number): string {
     return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -788,6 +801,29 @@ export function MiniCalendar({
         )}
       </div>
 
+      {/* 필터 칩 */}
+      <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
+        {([
+          { key: "all", label: "전체" },
+          { key: "competition", label: "🏆 대회" },
+          { key: "schedule", label: "📋 정보" },
+          { key: "gathering", label: "👥 모임" },
+        ] as const).map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setFilterType(key)}
+            className={cn(
+              "shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors",
+              filterType === key
+                ? "bg-foreground text-background"
+                : "border border-border bg-transparent text-muted-foreground hover:border-foreground/40"
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {view === "calendar" ? (
         <>
           {/* 달력 + 이벤트 */}
@@ -1056,6 +1092,7 @@ export function MiniCalendar({
             memberId={memberId}
             initialMonthKey={viewMonth.slice(0, 7)}
             initialRaces={[...myRaces, ...schPosts, ...gigangRaces, ...gatherings]}
+            filterType={filterType}
             onClickSchedule={openSchPostDetail}
             onClickCompetition={handleRaceClick}
             onClickGathering={openGatheringDetail}

@@ -19,11 +19,14 @@ type MonthData = {
   races: CalendarRace[];
 };
 
+type FilterType = "all" | "competition" | "schedule" | "gathering";
+
 type Props = {
   teamId: string;
   memberId?: string;
   initialMonthKey: string;
   initialRaces: CalendarRace[];
+  filterType?: FilterType;
   onClickSchedule: (race: CalendarRace) => void;
   onClickCompetition: (race: CalendarRace) => void;
   onClickGathering: (race: CalendarRace) => void;
@@ -118,6 +121,14 @@ async function fetchAdjacent(
     }
   }
   return results;
+}
+
+function matchesFilter(race: CalendarRace, filterType: FilterType): boolean {
+  if (filterType === "all") return true;
+  if (filterType === "competition") return race.type === "gigang" || race.type === "mine";
+  if (filterType === "schedule") return race.type === "schedule";
+  if (filterType === "gathering") return race.type === "gathering" || race.type === "gathering_mine";
+  return true;
 }
 
 function formatTimeRange(sttAt: string | null | undefined, endAt: string | null | undefined): string | null {
@@ -277,6 +288,7 @@ export function ScheduleListView({
   memberId,
   initialMonthKey,
   initialRaces,
+  filterType = "all",
   onClickSchedule,
   onClickCompetition,
   onClickGathering,
@@ -438,13 +450,15 @@ export function ScheduleListView({
                 <div className="h-px flex-1 bg-border" />
               </div>
 
-              {byDate.size === 0 ? (
+              {byDate.size === 0 || (filterType !== "all" && Array.from(byDate.values()).every((rs) => rs.every((r) => !matchesFilter(r, filterType)))) ? (
                 <div className="px-1 py-3">
                   <Caption className="text-muted-foreground">일정 없음</Caption>
                 </div>
               ) : (
                 <div className="flex flex-col divide-y divide-border/40 py-1">
                   {Array.from(byDate.entries()).map(([dateStr, dateRaces]) => {
+                    const filteredDateRaces = dateRaces.filter((r) => matchesFilter(r, filterType));
+                    if (filteredDateRaces.length === 0) return null;
                     const dayjsDate = dayjs(dateStr);
                     const isToday = dateStr === today;
                     return (
@@ -468,7 +482,7 @@ export function ScheduleListView({
 
                         {/* 일정 목록 */}
                         <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-                          {dateRaces.map((race) =>
+                          {filteredDateRaces.map((race) =>
                             race.type === "schedule" ? (
                               <ScheduleItem
                                 key={race.id}
