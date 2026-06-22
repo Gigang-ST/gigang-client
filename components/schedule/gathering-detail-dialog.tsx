@@ -24,7 +24,7 @@ import {
   ResponsiveDrawerHeader,
   ResponsiveDrawerTitle,
 } from "@/components/common/responsive-drawer";
-import { Caption } from "@/components/common/typography";
+import { Caption, Micro } from "@/components/common/typography";
 import type { CalendarRace } from "@/components/home/mini-calendar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,7 @@ export interface GatheringDetailDialogProps {
   teamId: string;
   currentMemberId?: string;
   currentMemberName?: string | null;
+  currentMemberAvatarUrl?: string | null;
   isAdmin?: boolean;
   isAttending?: boolean;
   members: MemberOption[];
@@ -62,6 +63,7 @@ export function GatheringDetailDialog({
   teamId,
   currentMemberId,
   currentMemberName,
+  currentMemberAvatarUrl,
   isAdmin,
   isAttending: initialIsAttending,
   members,
@@ -117,7 +119,7 @@ export function GatheringDetailDialog({
     if (!currentMemberId || isFull || isToggling) return;
     setIsToggling(true);
     const prev = attending;
-    const myEntry = { mem_id: currentMemberId, mem_nm: currentMemberName ?? null, avatar_url: null };
+    const myEntry = { mem_id: currentMemberId, mem_nm: currentMemberName ?? null, avatar_url: currentMemberAvatarUrl ?? null };
     setAttending(!prev);
     setAttdCount((c) => (!prev ? c + 1 : c - 1));
     setAttendees((list) => !prev ? [...list, myEntry] : list.filter((a) => a.mem_id !== currentMemberId));
@@ -226,8 +228,8 @@ export function GatheringDetailDialog({
               <div className="flex flex-wrap gap-2">
                 {attendees.map((a) => (
                   <div key={a.mem_id} className="flex flex-col items-center gap-0.5">
-                    <Avatar src={a.avatar_url} alt={a.mem_nm ?? ""} size="sm" className="size-4" />
-                    <span className="text-[9px] text-muted-foreground leading-tight">{a.mem_nm ?? ""}</span>
+                    <Avatar src={a.avatar_url} alt={a.mem_nm ?? ""} size="sm" />
+                    <Micro className="leading-tight">{a.mem_nm ?? ""}</Micro>
                   </div>
                 ))}
               </div>

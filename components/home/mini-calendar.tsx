@@ -115,6 +115,7 @@ type MiniCalendarProps = {
   gatherings: CalendarRace[];
   teamId: string;
   memberId?: string;
+  memberAvatarUrl?: string | null;
   cmmCdRows: CachedCmmCdRow[];
   initialMemberStatus: MemberStatus;
   initialRegistrationsByCompetitionId: Record<string, CompetitionRegistration>;
@@ -134,6 +135,7 @@ export function MiniCalendar({
   gatherings: initGatherings,
   teamId,
   memberId,
+  memberAvatarUrl,
   cmmCdRows,
   initialMemberStatus,
   initialRegistrationsByCompetitionId,
@@ -1096,6 +1098,7 @@ export function MiniCalendar({
         teamId={teamId}
         currentMemberId={memberStatus.status === "ready" ? memberStatus.memberId : undefined}
         currentMemberName={memberStatus.status === "ready" ? memberStatus.fullName : undefined}
+        currentMemberAvatarUrl={memberStatus.status === "ready" ? memberAvatarUrl : undefined}
         isAdmin={memberStatus.status === "ready" ? memberStatus.admin : false}
         isAttending={gthrDetailAttending}
         members={membersCache ?? []}
@@ -1115,8 +1118,24 @@ export function MiniCalendar({
           setListViewKey((k) => k + 1);
         }}
         onAttendanceChange={async () => {
-          const { gatherings: newGthr } = await fetchMonthData(viewMonth);
+          const [{ gatherings: newGthr }, gthrResult, attdResult] = await Promise.all([
+            fetchMonthData(viewMonth),
+            gthrDetailRace
+              ? supabase.from("gthr_mst").select("max_prt_cnt, sprt_cd, gthr_attd_rel(mem_id, mem_mst(mem_nm, avatar_url))").eq("gthr_id", gthrDetailRace.id).maybeSingle()
+              : Promise.resolve({ data: null }),
+            gthrDetailRace && memberId
+              ? supabase.from("gthr_attd_rel").select("attd_id").eq("gthr_id", gthrDetailRace.id).eq("mem_id", memberId).maybeSingle()
+              : Promise.resolve({ data: null }),
+          ]);
           setGatherings(newGthr);
+          if (gthrDetailRace && gthrResult.data) {
+            const attendees: GatheringAttendee[] = (gthrResult.data.gthr_attd_rel ?? []).map((a) => {
+              const mem = Array.isArray(a.mem_mst) ? a.mem_mst[0] : a.mem_mst;
+              return { mem_id: a.mem_id, mem_nm: (mem as { mem_nm?: string | null } | null)?.mem_nm ?? null, avatar_url: (mem as { avatar_url?: string | null } | null)?.avatar_url ?? null };
+            });
+            setGthrDetailRace((prev) => prev ? { ...prev, regCount: attendees.length, attendees } : prev);
+            setGthrDetailAttending(!!attdResult.data);
+          }
         }}
       />
 

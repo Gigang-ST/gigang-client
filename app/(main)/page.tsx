@@ -221,6 +221,7 @@ async function HomeContent() {
             gatherings={calendarGatherings}
             teamId={teamId}
             memberId={currentMember?.id}
+            memberAvatarUrl={currentMember?.avatar_url ?? null}
             cmmCdRows={cmmCdRows}
             initialMemberStatus={initialMemberStatus}
             initialRegistrationsByCompetitionId={initialRegistrationsByCompetitionId}
