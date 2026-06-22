@@ -396,9 +396,12 @@ export function MiniCalendar({
         };
       });
 
-      // colSpan 내림차순 → colStart 오름차순 정렬: 긴 이벤트가 낮은 슬롯 선점
+      // 참가한 항목 우선 → colSpan 내림차순 → colStart 오름차순 정렬
+      const isMineType = (type: string) => type === "mine" || type === "gathering_mine";
       const sorted = [...positioned].sort((a, b) =>
-        b.colSpan - a.colSpan || a.colStart - b.colStart
+        Number(isMineType(b.race.type)) - Number(isMineType(a.race.type)) ||
+        b.colSpan - a.colSpan ||
+        a.colStart - b.colStart
       );
 
       const slotEnds: number[] = [];
@@ -917,22 +920,14 @@ export function MiniCalendar({
                             lane.startsThisWeek ? "rounded-l-sm" : "",
                             lane.endsThisWeek ? "rounded-r-sm" : "",
                             lane.race.type === "mine"
-                              ? "bg-success/20 text-success"
+                              ? "bg-warning/60 text-white"
                               : lane.race.type === "schedule"
                                 ? "bg-info/15 text-info"
                                 : lane.race.type === "gathering_mine"
-                                  ? cn(
-                                      "bg-success/20 text-success",
-                                      lane.race.post_type === "regular" && "font-medium",
-                                      lane.race.post_type === "event" && "font-semibold",
-                                    )
+                                  ? "bg-violet-500/60 text-white"
                                   : lane.race.type === "gathering"
-                                  ? lane.race.post_type === "regular"
-                                    ? "bg-violet-500/25 text-violet-600 font-medium"
-                                    : lane.race.post_type === "event"
-                                      ? "bg-violet-600/30 text-violet-700 font-semibold"
-                                      : "bg-violet-400/20 text-violet-500"
-                                  : "bg-warning/15 text-warning",
+                                    ? "bg-violet-500/20 text-violet-600"
+                                    : "bg-warning/15 text-warning",
                           )}
                         >
                           {lane.startsThisWeek ? lane.race.title : ""}
@@ -984,23 +979,23 @@ export function MiniCalendar({
                         <span
                           className={cn(
                             "w-0.5 shrink-0 self-stretch rounded-full",
-                            isMine ? "bg-success"
-                              : race.type === "schedule" ? "bg-info"
-                              : isGatheringMine ? "bg-success"
-                              : isGathering
-                                ? race.post_type === "regular"
-                                  ? "bg-violet-500"
-                                  : race.post_type === "event"
-                                    ? "bg-violet-600"
-                                    : "bg-violet-400"
+                            race.type === "schedule" ? "bg-info"
+                              : isGathering ? "bg-violet-500"
                               : "bg-warning",
                           )}
                         />
                         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                          <span className="truncate text-[11px] font-medium text-foreground">
-                            {race.title}
-                            {race.type === "schedule" && race.post_type && schPostTypeInlineLabel[race.post_type as SchPostType] && (
-                              <span className="font-normal text-muted-foreground"> · {schPostTypeInlineLabel[race.post_type as SchPostType]}</span>
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <span className="truncate text-[11px] font-medium text-foreground">
+                              {race.title}
+                              {race.type === "schedule" && race.post_type && schPostTypeInlineLabel[race.post_type as SchPostType] && (
+                                <span className="font-normal text-muted-foreground"> · {schPostTypeInlineLabel[race.post_type as SchPostType]}</span>
+                              )}
+                            </span>
+                            {isGathering && (race.post_type === "regular" || race.post_type === "event") && (
+                              <span className="shrink-0 rounded-full border border-violet-500/40 bg-violet-500/10 px-1.5 py-px text-[9px] font-medium leading-tight text-violet-400">
+                                {race.post_type === "regular" ? "정기" : "이벤트"}
+                              </span>
                             )}
                           </span>
                           {isComp && (race.location || (race.cmntCount ?? 0) > 0) && (
@@ -1053,7 +1048,7 @@ export function MiniCalendar({
                               "shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-medium",
                               isGatheringMine
                                 ? "border-success/40 bg-success/10 text-success"
-                                : "border-violet-300/60 bg-violet-50 text-violet-500",
+                                : "border-violet-500/40 bg-violet-500/10 text-violet-400",
                             )}
                           >
                             {isGatheringMine ? "참석" : "모임"}
