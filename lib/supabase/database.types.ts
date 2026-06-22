@@ -2140,6 +2140,12 @@ export type Database = {
           stt_dt: string
         }[]
       }
+      get_gathering_detail: {
+        Args: {
+          p_gthr_id: string
+        }
+        Returns: Json
+      }
       get_public_team_gatherings:
         | {
             Args: { p_end?: string; p_start?: string; p_team_id: string }

@@ -699,18 +699,17 @@ export function MiniCalendar({
   }
 
   async function openGatheringDetail(race: CalendarRace) {
-    const [comments, attdResult, gthrResult] = await Promise.all([
+    type GthrDetail = { max_prt_cnt: number | null; sprt_cd: string | null; attendees: GatheringAttendee[] };
+    const [comments, attdResult, gthrDetailResult] = await Promise.all([
       memberId ? fetchComments("gathering", race.id) : Promise.resolve(undefined),
       memberId
         ? supabase.from("gthr_attd_rel").select("attd_id").eq("gthr_id", race.id).eq("mem_id", memberId).maybeSingle()
         : Promise.resolve({ data: null }),
-      supabase.from("gthr_mst").select("max_prt_cnt, sprt_cd, gthr_attd_rel(mem_id, mem_mst(mem_nm, avatar_url))").eq("gthr_id", race.id).maybeSingle(),
+      supabase.rpc("get_gathering_detail", { p_gthr_id: race.id }),
     ]);
-    const attendees: GatheringAttendee[] = (gthrResult.data?.gthr_attd_rel ?? []).map((a) => {
-      const mem = Array.isArray(a.mem_mst) ? a.mem_mst[0] : a.mem_mst;
-      return { mem_id: a.mem_id, mem_nm: (mem as { mem_nm?: string | null } | null)?.mem_nm ?? null, avatar_url: (mem as { avatar_url?: string | null } | null)?.avatar_url ?? null };
-    });
-    setGthrDetailRace({ ...race, regCount: attendees.length, maxPrtCnt: gthrResult.data?.max_prt_cnt ?? null, attendees, sprt_cd: gthrResult.data?.sprt_cd ?? null });
+    const gthrData = gthrDetailResult.data as GthrDetail | null;
+    const attendees: GatheringAttendee[] = gthrData?.attendees ?? [];
+    setGthrDetailRace({ ...race, regCount: attendees.length, maxPrtCnt: gthrData?.max_prt_cnt ?? null, attendees, sprt_cd: gthrData?.sprt_cd ?? null });
     setGthrDetailAttending(!!attdResult.data);
     setGthrDetailComments(comments);
     setGthrDetailOpen(true);
@@ -794,7 +793,7 @@ export function MiniCalendar({
       </div>
 
       {/* 필터 칩 */}
-      <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
+      <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-1">
         {([
           { key: "all", label: "전체" },
           { key: "competition", label: "🏆 대회" },
@@ -805,7 +804,7 @@ export function MiniCalendar({
             key={key}
             onClick={() => setFilterType(key)}
             className={cn(
-              "shrink-0 rounded-full px-3 py-1 text-xs transition-colors",
+              "shrink-0 rounded-full px-2.5 py-0.5 text-[10px] transition-colors",
               filterType === key
                 ? "bg-foreground text-background font-medium"
                 : "border border-border bg-transparent text-muted-foreground hover:border-foreground/40"
