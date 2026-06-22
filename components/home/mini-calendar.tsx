@@ -123,15 +123,7 @@ type MiniCalendarProps = {
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"] as const;
 
-export type FilterType = "all" | "competition" | "schedule" | "gathering";
-
-export function matchesFilter(race: CalendarRace, filterType: FilterType): boolean {
-  if (filterType === "all") return true;
-  if (filterType === "competition") return race.type === "gigang" || race.type === "mine";
-  if (filterType === "schedule") return race.type === "schedule";
-  if (filterType === "gathering") return race.type === "gathering" || race.type === "gathering_mine";
-  return true;
-}
+import { type FilterType, matchesFilter } from "./schedule-filter";
 
 function monthLastDayStr(year: number, month: number): string {
   const d = daysInMonth(year, month);
