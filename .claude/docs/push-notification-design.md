@@ -34,9 +34,9 @@
 | `sch_post_cmnt` | 정보 일정 댓글 | `/?post={ref_id}` |
 | `cmnt_mention` | 댓글 멘션 | ref_type에 따라 분기 |
 | `cmnt_reply` | 댓글 답글 | ref_type에 따라 분기 |
-| `gthr_new` | 모임 등록 | `/?gthr={ref_id}` |
-| `gthr_upd` | 모임 수정 | `/?gthr={ref_id}` |
-| `gthr_del` | 모임 삭제 | `/` |
+| `gthr_new` | 모임 등록 (전체 멤버) | `/?gthr={ref_id}` |
+| `gthr_upd` | 참가 모임 수정 (참석자) | `/?gthr={ref_id}` |
+| `gthr_del` | 참가 모임 삭제 (참석자) | `/` |
 | `gthr_cmnt` | 모임 댓글 | `/?gthr={ref_id}` |
 | `gthr_reply` | 모임 답글 | `/?gthr={ref_id}` |
 | `gthr_mention` | 모임 멘션 | `/?gthr={ref_id}` |
@@ -150,14 +150,70 @@ showNotification("기강", {
 커스텀 요약 텍스트는 불가능하지만 그룹핑 자체는 자동으로 됨.
 
 ### 알림 권한 요청 시점
-- 가입 완료 직후 (온보딩 마지막 단계)
-- 또는 첫 알림 발생 시점에 배너로 유도
-- 거부해도 인앱 알림은 정상 동작
+
+권한을 바로 요청하면 거부율이 높음. 맥락이 있을 때 유도하는 게 표준.
+
+**권장 시점**
+- 모임 신청 완료 직후 → "모임 당일 알림 받으시겠어요?"
+- 캘린더 페이지 진입 시 → "다가오는 일정 알림 받으시겠어요?"
+- 가입 완료 후 온보딩 마지막 단계
+- 설정 > 알림 메뉴 (사용자가 직접 찾아온 경우)
+
+거부해도 인앱 알림은 정상 동작.
+
+**iOS vs Android 분기 필수**
+
+iOS Safari는 PWA로 설치(홈 화면 추가)된 경우에만 푸시 알림이 가능.
+웹 브라우저에서 그냥 접속한 상태에서는 권한 요청 자체가 불가능.
+→ iOS 웹에서는 알림 권한 요청 대신 PWA 설치 안내로 분기해야 함.
+
+```typescript
+const isStandalone =
+  window.matchMedia('(display-mode: standalone)').matches ||
+  (navigator as any).standalone === true; // iOS Safari 전용
+
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+
+if (isIOS && !isStandalone) {
+  // 알림 권한 요청 불가 → PWA 설치 안내 (PwaInstallPrompt)
+} else {
+  // 알림 권한 요청 가능 (iOS Standalone or Android/데스크톱)
+  if (Notification.permission === 'default') {
+    await Notification.requestPermission();
+  } else if (Notification.permission === 'denied') {
+    // 재요청 불가 → 기기 설정에서 허용하도록 안내
+  }
+}
+```
+
+| 환경 | 가능 여부 | 해야 할 것 |
+|------|----------|------------|
+| iOS Safari (웹) | 불가 | PWA 설치 안내 |
+| iOS PWA (홈 화면 추가) | 가능 | 권한 요청 |
+| Android Chrome (웹/PWA) | 가능 | 권한 요청 |
+| 데스크톱 Chrome/Edge | 가능 | 권한 요청 |
+
+기존 `PwaInstallPrompt`에서 standalone 체크 로직을 이미 사용 중이므로 재사용 가능.
 
 ### `noti_pref_cfg` 연동
 기존 인앱 알림 설정(`enabled_yn`)을 푸시에도 그대로 적용.
 특정 타입 알림을 껐으면 `noti_mst` INSERT도, 푸시 발송도 둘 다 안 함.
 푸시 전용 on/off 설정을 별도로 추가할 수도 있음 (선택).
+
+**현재 버그: `gthr_upd` / `gthr_del`이 `noti_pref_cfg` 미체크**
+
+`gthr_new`는 알림 설정 필터링을 하는데, `updateGathering` / `deleteGathering`은 참석자 전원에게 무조건 발송함.
+푸시 알림 도입 시 `gthr_upd` / `gthr_del`도 동일하게 `noti_pref_cfg` 체크 로직 추가 필요.
+
+**추가할 알림 설정 항목 (알림 설정 UI)**
+
+| noti_type_enm | 설정 라벨 | 대상 |
+|---------------|----------|------|
+| `gthr_new` | 모임 등록 | 새 모임이 개설됐을 때 |
+| `gthr_upd` | 참가 모임 수정/삭제 | 내가 참가한 모임이 변경·취소됐을 때 |
+
+`gthr_upd` / `gthr_del`은 같은 설정 항목으로 묶어서 on/off 관리.
+(참가한 모임 수정과 삭제를 따로 끄고 싶은 경우는 없을 것으로 판단)
 
 ---
 
