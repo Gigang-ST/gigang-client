@@ -179,7 +179,7 @@ export function GatheringDetailDialog({
                     variant={typeBadgeClass ? "outline" : "secondary"}
                     className={typeBadgeClass}
                   >
-                    {typeLabel}
+                    {gathering.post_type === "event" ? `⭐ ${typeLabel}` : typeLabel}
                   </Badge>
                 );
               })()}
