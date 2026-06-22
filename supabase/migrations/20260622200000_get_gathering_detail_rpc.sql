@@ -1,7 +1,8 @@
 -- 비로그인(anon) 사용자도 모임 상세 + 참석자 이름/아바타를 볼 수 있도록
 -- SECURITY DEFINER 함수 추가 (mem_mst 에 anon SELECT 정책 없어도 우회 가능)
+-- p_team_id로 팀 스코프 검증 — 타 팀 gthr_id 입력 시 null 반환
 
-CREATE OR REPLACE FUNCTION get_gathering_detail(p_gthr_id uuid)
+CREATE OR REPLACE FUNCTION get_gathering_detail(p_gthr_id uuid, p_team_id uuid)
 RETURNS json
 LANGUAGE sql
 SECURITY DEFINER
@@ -28,8 +29,9 @@ AS $$
     )
   )
   FROM  gthr_mst g
-  WHERE g.gthr_id = p_gthr_id
-    AND g.del_yn  = false;
+  WHERE g.gthr_id  = p_gthr_id
+    AND g.team_id  = p_team_id
+    AND g.del_yn   = false;
 $$;
 
-GRANT EXECUTE ON FUNCTION get_gathering_detail(uuid) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION get_gathering_detail(uuid, uuid) TO anon, authenticated;

@@ -708,8 +708,9 @@ export function MiniCalendar({
       memberId
         ? supabase.from("gthr_attd_rel").select("attd_id").eq("gthr_id", race.id).eq("mem_id", memberId).maybeSingle()
         : Promise.resolve({ data: null }),
-      supabase.rpc("get_gathering_detail", { p_gthr_id: race.id }),
+      supabase.rpc("get_gathering_detail", { p_gthr_id: race.id, p_team_id: teamId }),
     ]);
+    if (gthrDetailResult.error) console.error("[openGatheringDetail]", gthrDetailResult.error);
     const gthrData = gthrDetailResult.data as GthrDetail | null;
     const attendees: GatheringAttendee[] = gthrData?.attendees ?? [];
     setGthrDetailRace({ ...race, regCount: attendees.length, maxPrtCnt: gthrData?.max_prt_cnt ?? null, attendees, sprt_cd: gthrData?.sprt_cd ?? null });
@@ -1154,21 +1155,20 @@ export function MiniCalendar({
           setListViewKey((k) => k + 1);
         }}
         onAttendanceChange={async () => {
-          const [{ gatherings: newGthr }, gthrResult, attdResult] = await Promise.all([
+          type GthrDetail = { max_prt_cnt: number | null; sprt_cd: string | null; attendees: GatheringAttendee[] };
+          const [{ gatherings: newGthr }, gthrDetailResult, attdResult] = await Promise.all([
             fetchMonthData(viewMonth),
             gthrDetailRace
-              ? supabase.from("gthr_mst").select("max_prt_cnt, sprt_cd, gthr_attd_rel(mem_id, mem_mst(mem_nm, avatar_url))").eq("gthr_id", gthrDetailRace.id).maybeSingle()
-              : Promise.resolve({ data: null }),
+              ? supabase.rpc("get_gathering_detail", { p_gthr_id: gthrDetailRace.id, p_team_id: teamId })
+              : Promise.resolve({ data: null, error: null }),
             gthrDetailRace && memberId
               ? supabase.from("gthr_attd_rel").select("attd_id").eq("gthr_id", gthrDetailRace.id).eq("mem_id", memberId).maybeSingle()
               : Promise.resolve({ data: null }),
           ]);
           setGatherings(newGthr);
-          if (gthrDetailRace && gthrResult.data) {
-            const attendees: GatheringAttendee[] = (gthrResult.data.gthr_attd_rel ?? []).map((a) => {
-              const mem = Array.isArray(a.mem_mst) ? a.mem_mst[0] : a.mem_mst;
-              return { mem_id: a.mem_id, mem_nm: (mem as { mem_nm?: string | null } | null)?.mem_nm ?? null, avatar_url: (mem as { avatar_url?: string | null } | null)?.avatar_url ?? null };
-            });
+          if (gthrDetailRace && gthrDetailResult.data) {
+            const gthrData = gthrDetailResult.data as GthrDetail;
+            const attendees: GatheringAttendee[] = gthrData.attendees ?? [];
             setGthrDetailRace((prev) => prev ? { ...prev, regCount: attendees.length, attendees } : prev);
             setGthrDetailAttending(!!attdResult.data);
           }
