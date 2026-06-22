@@ -13,6 +13,7 @@ import type { SchPostType } from "@/lib/validations/schedule-types";
 import { Caption, Micro, SectionLabel } from "@/components/common/typography";
 
 import type { CalendarRace } from "./mini-calendar";
+import { type FilterType, matchesFilter } from "@/components/home/schedule-filter";
 
 type MonthData = {
   monthKey: string; // "YYYY-MM"
@@ -24,6 +25,7 @@ type Props = {
   memberId?: string;
   initialMonthKey: string;
   initialRaces: CalendarRace[];
+  filterType?: FilterType;
   onClickSchedule: (race: CalendarRace) => void;
   onClickCompetition: (race: CalendarRace) => void;
   onClickGathering: (race: CalendarRace) => void;
@@ -48,6 +50,19 @@ type SchedulePagedRow = {
   cmnt_count: number;
   short_id: string | null;
 };
+
+function racesToMonths(races: CalendarRace[]): MonthData[] {
+  const buckets = new Map<string, CalendarRace[]>();
+  for (const race of races) {
+    const key = race.start_date.slice(0, 7);
+    const list = buckets.get(key) ?? [];
+    list.push(race);
+    buckets.set(key, list);
+  }
+  return Array.from(buckets.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, r]) => ({ monthKey: key, races: r }));
+}
 
 async function fetchAdjacent(
   supabase: ReturnType<typeof createClient>,
@@ -183,12 +198,7 @@ function CompetitionItem({
       onClick={onClick}
       className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
     >
-      <span
-        className={cn(
-          "w-0.5 shrink-0 rounded-full",
-          isMine ? "bg-success" : "bg-warning",
-        )}
-      />
+      <span className="w-0.5 shrink-0 rounded-full bg-warning" />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <Caption className="truncate font-medium text-foreground">{race.title}</Caption>
         {(race.location || (race.cmntCount ?? 0) > 0) && (
@@ -231,9 +241,16 @@ function GatheringItem({ race, onClick }: { race: CalendarRace; onClick: () => v
       onClick={onClick}
       className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
     >
-      <span className={cn("w-0.5 shrink-0 rounded-full", isMine ? "bg-success" : "bg-violet-400")} />
+      <span className="w-0.5 shrink-0 rounded-full bg-violet-500" />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <Caption className="truncate font-medium text-foreground">{race.title}</Caption>
+        <span className="flex min-w-0 items-center gap-1.5">
+          <Caption className="truncate font-medium text-foreground">{race.title}</Caption>
+          {(race.post_type === "regular" || race.post_type === "event") && (
+            <span className="shrink-0 rounded-full border border-violet-500/40 bg-violet-500/10 px-1.5 py-px text-[9px] font-medium leading-tight text-violet-400">
+              {race.post_type === "regular" ? "정기" : "이벤트"}
+            </span>
+          )}
+        </span>
         {(timeRange || race.location || (race.cmntCount ?? 0) > 0) && (
           <Micro className="flex items-center gap-1.5 tabular-nums text-muted-foreground">
             {race.location && <span className="truncate">{race.location}</span>}
@@ -251,7 +268,7 @@ function GatheringItem({ race, onClick }: { race: CalendarRace; onClick: () => v
             "shrink-0 rounded-md border px-2.5 py-1 text-[11px] font-medium",
             isMine
               ? "border-success/40 bg-success/10 text-success"
-              : "border-violet-300/60 bg-violet-50 text-violet-500",
+              : "border-violet-500/40 bg-violet-500/10 text-violet-400",
           )}
         >
           {isMine ? "참석" : "모임"}
@@ -266,6 +283,7 @@ export function ScheduleListView({
   memberId,
   initialMonthKey,
   initialRaces,
+  filterType = "all",
   onClickSchedule,
   onClickCompetition,
   onClickGathering,
@@ -275,22 +293,9 @@ export function ScheduleListView({
 
   const [months, setMonths] = useState<MonthData[]>(() => {
     // start_date의 실제 월(YYYY-MM)로 분류 — 월 경계에 걸친 일정을 올바른 월에 배치
-    const buckets = new Map<string, CalendarRace[]>();
-    for (const race of initialRaces) {
-      const key = race.start_date.slice(0, 7); // "YYYY-MM"
-      const list = buckets.get(key) ?? [];
-      list.push(race);
-      buckets.set(key, list);
-    }
-    if (buckets.size === 0) {
-      return [{ monthKey: initialMonthKey, races: [] }];
-    }
-    return Array.from(buckets.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, races]) => ({
-        monthKey: key,
-        races: [...races].sort((a, b) => a.start_date.localeCompare(b.start_date)),
-      }));
+    const result = racesToMonths(initialRaces);
+    if (result.length === 0) return [{ monthKey: initialMonthKey, races: [] }];
+    return result.map((m) => ({ ...m, races: [...m.races].sort((a, b) => a.start_date.localeCompare(b.start_date)) }));
   });
   const [loadingPrev, setLoadingPrev] = useState(false);
   const [loadingNext, setLoadingNext] = useState(false);
@@ -314,16 +319,7 @@ export function ScheduleListView({
         setCanLoadPrev(false);
         return;
       }
-      const buckets = new Map<string, CalendarRace[]>();
-      for (const race of races) {
-        const key = race.start_date.slice(0, 7);
-        const list = buckets.get(key) ?? [];
-        list.push(race);
-        buckets.set(key, list);
-      }
-      const newMonths = Array.from(buckets.entries())
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, r]) => ({ monthKey: key, races: r }));
+      const newMonths = racesToMonths(races);
       prevScrollHeightRef.current = containerRef.current?.scrollHeight ?? 0;
       setMonths((prev) => [...newMonths, ...prev]);
     } finally {
@@ -342,16 +338,8 @@ export function ScheduleListView({
         setCanLoadNext(false);
         return;
       }
-      const buckets = new Map<string, CalendarRace[]>();
-      for (const race of races) {
-        const key = race.start_date.slice(0, 7);
-        const list = buckets.get(key) ?? [];
-        list.push(race);
-        buckets.set(key, list);
-      }
-      const [firstKey, firstRaces] = Array.from(buckets.entries())
-        .sort(([a], [b]) => a.localeCompare(b))[0];
-      setMonths((prev) => [...prev, { monthKey: firstKey, races: firstRaces }]);
+      const [first] = racesToMonths(races);
+      setMonths((prev) => [...prev, first]);
     } finally {
       setLoadingNext(false);
     }
@@ -395,7 +383,7 @@ export function ScheduleListView({
   return (
     <div
       ref={containerRef}
-      className="h-[380px] overflow-x-hidden overflow-y-auto"
+      className="h-[480px] overflow-x-hidden overflow-y-auto"
     >
       {/* 상단 sentinel */}
       <div ref={topSentinelRef} className="flex h-4 items-center justify-center">
@@ -427,13 +415,15 @@ export function ScheduleListView({
                 <div className="h-px flex-1 bg-border" />
               </div>
 
-              {byDate.size === 0 ? (
+              {byDate.size === 0 || (filterType !== "all" && Array.from(byDate.values()).every((rs) => rs.every((r) => !matchesFilter(r, filterType)))) ? (
                 <div className="px-1 py-3">
                   <Caption className="text-muted-foreground">일정 없음</Caption>
                 </div>
               ) : (
                 <div className="flex flex-col divide-y divide-border/40 py-1">
                   {Array.from(byDate.entries()).map(([dateStr, dateRaces]) => {
+                    const filteredDateRaces = dateRaces.filter((r) => matchesFilter(r, filterType));
+                    if (filteredDateRaces.length === 0) return null;
                     const dayjsDate = dayjs(dateStr);
                     const isToday = dateStr === today;
                     return (
@@ -457,7 +447,7 @@ export function ScheduleListView({
 
                         {/* 일정 목록 */}
                         <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-                          {dateRaces.map((race) =>
+                          {filteredDateRaces.map((race) =>
                             race.type === "schedule" ? (
                               <ScheduleItem
                                 key={race.id}
