@@ -894,9 +894,17 @@ export function MiniCalendar({
                               : lane.race.type === "schedule"
                                 ? "bg-info/15 text-info"
                                 : lane.race.type === "gathering_mine"
-                                  ? "bg-success/20 text-success"
+                                  ? cn(
+                                      "bg-success/20 text-success",
+                                      lane.race.post_type === "regular" && "font-medium",
+                                      lane.race.post_type === "event" && "font-semibold",
+                                    )
                                   : lane.race.type === "gathering"
-                                  ? "bg-violet-400/20 text-violet-500"
+                                  ? lane.race.post_type === "regular"
+                                    ? "bg-violet-500/25 text-violet-600 font-medium"
+                                    : lane.race.post_type === "event"
+                                      ? "bg-violet-600/30 text-violet-700 font-semibold"
+                                      : "bg-violet-400/20 text-violet-500"
                                   : "bg-warning/15 text-warning",
                           )}
                         >
@@ -952,7 +960,12 @@ export function MiniCalendar({
                             isMine ? "bg-success"
                               : race.type === "schedule" ? "bg-info"
                               : isGatheringMine ? "bg-success"
-                              : isGathering ? "bg-violet-400"
+                              : isGathering
+                                ? race.post_type === "regular"
+                                  ? "bg-violet-500"
+                                  : race.post_type === "event"
+                                    ? "bg-violet-600"
+                                    : "bg-violet-400"
                               : "bg-warning",
                           )}
                         />

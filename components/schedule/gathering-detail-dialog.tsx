@@ -167,7 +167,22 @@ export function GatheringDetailDialog({
           <div className="flex flex-col gap-4">
             {/* 뱃지 */}
             <div className="flex items-center gap-2">
-              {typeLabel && <Badge variant="secondary">{typeLabel}</Badge>}
+              {typeLabel && (() => {
+                const typeBadgeClass =
+                  gathering.post_type === "regular"
+                    ? "border-violet-400/60 bg-violet-50 text-violet-700"
+                    : gathering.post_type === "event"
+                      ? "border-violet-500 bg-violet-100 text-violet-800 font-medium"
+                      : undefined;
+                return (
+                  <Badge
+                    variant={typeBadgeClass ? "outline" : "secondary"}
+                    className={typeBadgeClass}
+                  >
+                    {typeLabel}
+                  </Badge>
+                );
+              })()}
               {sprtLabel && <Badge variant="outline">{sprtLabel}</Badge>}
             </div>
 

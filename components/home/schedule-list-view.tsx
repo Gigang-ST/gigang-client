@@ -231,7 +231,18 @@ function GatheringItem({ race, onClick }: { race: CalendarRace; onClick: () => v
       onClick={onClick}
       className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
     >
-      <span className={cn("w-0.5 shrink-0 rounded-full", isMine ? "bg-success" : "bg-violet-400")} />
+      <span
+        className={cn(
+          "w-0.5 shrink-0 rounded-full",
+          isMine
+            ? "bg-success"
+            : race.post_type === "regular"
+              ? "bg-violet-500"
+              : race.post_type === "event"
+                ? "bg-violet-600"
+                : "bg-violet-400",
+        )}
+      />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <Caption className="truncate font-medium text-foreground">{race.title}</Caption>
         {(timeRange || race.location || (race.cmntCount ?? 0) > 0) && (
