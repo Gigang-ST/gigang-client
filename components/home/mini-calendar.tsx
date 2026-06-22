@@ -697,7 +697,7 @@ export function MiniCalendar({
       memberId
         ? supabase.from("gthr_attd_rel").select("attd_id").eq("gthr_id", race.id).eq("mem_id", memberId).maybeSingle()
         : Promise.resolve({ data: null }),
-      supabase.from("gthr_mst").select("max_prt_cnt, sprt_cd, gthr_attd_rel(mem_id, mem_mst(mem_nm, avatar_url))").eq("gthr_id", race.id).single(),
+      supabase.from("gthr_mst").select("max_prt_cnt, sprt_cd, gthr_attd_rel(mem_id, mem_mst(mem_nm, avatar_url))").eq("gthr_id", race.id).maybeSingle(),
     ]);
     const attendees: GatheringAttendee[] = (gthrResult.data?.gthr_attd_rel ?? []).map((a) => {
       const mem = Array.isArray(a.mem_mst) ? a.mem_mst[0] : a.mem_mst;
