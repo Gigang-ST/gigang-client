@@ -28,6 +28,8 @@ type NotificationBellIconProps = {
 };
 
 const NOTI_TYPE_LABELS: Record<string, string> = {
+  gthr_new: "모임 등록",
+  gthr_upd: "참가 모임 수정·삭제",
   ttl_grnt: "칭호 획득",
   sch_post_new: "정보 등록",
 };
@@ -86,7 +88,7 @@ export function NotificationBellIcon({ initialCount, initialNotifications, membe
 
     if (!notificationsLoaded.current) {
       notificationsLoaded.current = true;
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setCursor(null);
       setHasMore(true);
       fetchNotifications(true, null);

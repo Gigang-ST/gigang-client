@@ -95,8 +95,10 @@ VAPID_PRIVATE_KEY  → 서버에서 푸시 발송 시 사용
 ```
 
 **Service Worker: `public/sw.js`**
+- serwist 완전 제거 상태 → `public/sw.js`를 직접 작성 (빌드로 덮어씌워지지 않음)
 - `push` 이벤트 수신 → `showNotification()`
 - `notificationclick` 이벤트 → 딥링크 URL로 이동
+- SW 등록은 클라이언트 컴포넌트(`components/service-worker-register.tsx`)에서 담당 (재작성 필요)
 
 ### 발송 흐름
 
@@ -111,6 +113,26 @@ VAPID_PRIVATE_KEY  → 서버에서 푸시 발송 시 사용
 
 기존 서버 액션에 `sendPush(memberIds, { title, body, url })` 한 줄 추가하는 방식.
 기존 코드 변경 최소화.
+
+### 발송 실패 처리
+
+`web-push`가 **410 Gone** 응답을 반환하면 해당 구독이 만료/취소된 것이므로 `push_sub_rel`에서 즉시 삭제.
+그 외 일시적 오류(5xx 등)는 콘솔 에러 로깅만 하고 재시도 없이 무시 (알림 특성상 재시도 불필요).
+
+```ts
+for (const sub of subscriptions) {
+  try {
+    await webpush.sendNotification(sub, payload);
+  } catch (err: any) {
+    if (err.statusCode === 410) {
+      // 구독 만료 → DB에서 제거
+      await admin.from("push_sub_rel").delete().eq("endpoint", sub.endpoint);
+    } else {
+      console.error("[push] 발송 실패", err.statusCode, sub.endpoint);
+    }
+  }
+}
+```
 
 ### 알림 그룹핑 전략
 
@@ -198,22 +220,21 @@ if (isIOS && !isStandalone) {
 ### `noti_pref_cfg` 연동
 기존 인앱 알림 설정(`enabled_yn`)을 푸시에도 그대로 적용.
 특정 타입 알림을 껐으면 `noti_mst` INSERT도, 푸시 발송도 둘 다 안 함.
-푸시 전용 on/off 설정을 별도로 추가할 수도 있음 (선택).
+푸시 전용 on/off는 별도로 추가하지 않음 — 인앱과 푸시 설정을 일치시켜 UX 단순화.
 
-**현재 버그: `gthr_upd` / `gthr_del`이 `noti_pref_cfg` 미체크**
+**알림 설정 항목 (인앱 알림 설정 UI)**
 
-`gthr_new`는 알림 설정 필터링을 하는데, `updateGathering` / `deleteGathering`은 참석자 전원에게 무조건 발송함.
-푸시 알림 도입 시 `gthr_upd` / `gthr_del`도 동일하게 `noti_pref_cfg` 체크 로직 추가 필요.
-
-**추가할 알림 설정 항목 (알림 설정 UI)**
-
-| noti_type_enm | 설정 라벨 | 대상 |
+| noti_type_enm | 설정 라벨 | 비고 |
 |---------------|----------|------|
-| `gthr_new` | 모임 등록 | 새 모임이 개설됐을 때 |
-| `gthr_upd` | 참가 모임 수정/삭제 | 내가 참가한 모임이 변경·취소됐을 때 |
+| `gthr_new` | 모임 등록 | 새 모임 개설 |
+| `gthr_upd` | 참가 모임 수정·삭제 | `gthr_del`도 이 설정으로 제어 |
+| `ttl_grnt` | 칭호 획득 | |
+| `sch_post_new` | 정보 등록 | |
 
-`gthr_upd` / `gthr_del`은 같은 설정 항목으로 묶어서 on/off 관리.
-(참가한 모임 수정과 삭제를 따로 끄고 싶은 경우는 없을 것으로 판단)
+`gthr_upd` / `gthr_del`은 같은 설정 항목(`gthr_upd`)으로 묶어서 on/off 관리.
+→ `deleteGathering` 서버 액션도 `gthr_upd` 설정값을 기준으로 필터링. **(완료)**
+
+`gthr_new`, `gthr_upd` 설정 항목 UI 추가 및 `gthr_upd`/`gthr_del` noti_pref_cfg 체크 누락 버그 수정 완료.
 
 ---
 

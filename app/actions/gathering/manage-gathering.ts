@@ -154,8 +154,19 @@ export async function updateGathering(input: {
 
         if (!attendees?.length) return;
 
+        const { data: disabledPrefs } = await admin
+          .from("noti_pref_cfg")
+          .select("mem_id")
+          .in("mem_id", attendees.map((a) => a.mem_id))
+          .eq("noti_type_enm", "gthr_upd")
+          .eq("enabled_yn", false);
+
+        const disabledSet = new Set((disabledPrefs ?? []).map((p) => p.mem_id));
+        const targets = attendees.filter((a) => !disabledSet.has(a.mem_id));
+        if (!targets.length) return;
+
         await admin.from("noti_mst").insert(
-          attendees.map((a) => ({
+          targets.map((a) => ({
             team_id: teamId,
             mem_id: a.mem_id,
             noti_type_enm: "gthr_upd",
@@ -205,8 +216,20 @@ export async function deleteGathering(gthr_id: string) {
 
         if (!attendees?.length) return;
 
+        // gthr_del은 gthr_upd와 동일한 설정 항목으로 관리
+        const { data: disabledPrefs } = await admin
+          .from("noti_pref_cfg")
+          .select("mem_id")
+          .in("mem_id", attendees.map((a) => a.mem_id))
+          .eq("noti_type_enm", "gthr_upd")
+          .eq("enabled_yn", false);
+
+        const disabledSet = new Set((disabledPrefs ?? []).map((p) => p.mem_id));
+        const targets = attendees.filter((a) => !disabledSet.has(a.mem_id));
+        if (!targets.length) return;
+
         await admin.from("noti_mst").insert(
-          attendees.map((a) => ({
+          targets.map((a) => ({
             team_id: gthr.team_id,
             mem_id: a.mem_id,
             noti_type_enm: "gthr_del",
