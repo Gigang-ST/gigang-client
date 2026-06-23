@@ -34,17 +34,19 @@ const NOTI_TYPE_LABELS: Record<string, string> = {
 
 type ViewType = "list" | "settings";
 
-export function NotificationBellIcon({ initialCount, initialNotifications = [], memberId, disabled }: NotificationBellIconProps) {
+export function NotificationBellIcon({ initialCount, initialNotifications, memberId, disabled }: NotificationBellIconProps) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<ViewType>("list");
   const [unreadCount, setUnreadCount] = useState(initialCount);
-  const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>(initialNotifications ?? []);
   const [prefs, setPrefs] = useState<NotificationPref[]>([]);
   const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(initialNotifications.length === 20);
+  const [hasMore, setHasMore] = useState((initialNotifications ?? []).length === 20);
   const [cursor, setCursor] = useState<string | null>(
-    initialNotifications.length > 0 ? initialNotifications[initialNotifications.length - 1].crt_at : null,
+    initialNotifications && initialNotifications.length > 0 ? initialNotifications[initialNotifications.length - 1].crt_at : null,
   );
+  // 서버에서 initialNotifications를 명시적으로 내려준 경우 이미 로딩 완료로 간주
+  const notificationsLoaded = useRef(initialNotifications !== undefined);
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -82,7 +84,8 @@ export function NotificationBellIcon({ initialCount, initialNotifications = [], 
   useEffect(() => {
     if (!open || !memberId) return;
 
-    if (notifications.length === 0) {
+    if (!notificationsLoaded.current) {
+      notificationsLoaded.current = true;
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setCursor(null);
       setHasMore(true);
