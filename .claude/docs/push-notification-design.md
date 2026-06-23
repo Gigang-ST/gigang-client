@@ -238,7 +238,42 @@ if (isIOS && !isStandalone) {
 
 ---
 
-## 3. 구현 순서 (나중에 진행할 때 참고)
+## 3. 모임 리마인더 (미구현 — 향후 과제)
+
+카카오톡처럼 모임 당일/전날 리마인더를 푸시로 발송하는 기능. 기본 푸시 구현 이후 별도로 진행.
+
+### 설계 방향 (결정 사항)
+- **작성자가 리마인더 시각을 설정** (참가자별 설정 X — 인프라 복잡도 대비 실용성 낮음)
+- 예: 모임 생성 폼에 "D-1일 오전 9시", "당일 오전 7시" 등 선택지 제공
+
+### 필요한 DB 변경 (`gthr_mst`)
+```sql
+ALTER TABLE gthr_mst
+  ADD COLUMN remind_before_min integer,   -- 모임 시작 몇 분 전에 발송 (null = 리마인더 없음)
+  ADD COLUMN remind_sent_yn boolean NOT NULL DEFAULT false;  -- 발송 완료 여부
+```
+
+`remind_at`을 직접 저장하지 않고 `stt_at - remind_before_min * interval '1 minute'`으로 계산.
+→ 모임 시간이 수정돼도 자동으로 리마인더 시각이 따라감.
+
+### 실행 인프라
+- **Supabase Edge Function + cron 트리거** (1분마다 실행)
+- pg_cron은 SQL만 실행 가능 → web-push 라이브러리 사용 불가라서 제외
+
+```
+[Edge Function — 1분마다]
+  → gthr_mst에서 remind_sent_yn=false 이고
+    stt_at - remind_before_min분 <= now() 인 모임 조회
+  → 해당 모임 참가자(gthr_attd_rel)에게 푸시 발송
+  → remind_sent_yn = true 업데이트
+```
+
+### 알림 타입
+`gthr_remind` 추가 필요 (noti_mst에도 INSERT해서 인앱 알림과 동기화).
+
+---
+
+## 4. 구현 순서 (나중에 진행할 때 참고)
 
 1. VAPID 키 생성 + `lib/env.ts`에 환경변수 추가
 2. `push_sub_rel` 테이블 마이그레이션
@@ -247,3 +282,4 @@ if (isIOS && !isStandalone) {
 5. `lib/push/send-push.ts` 유틸 작성
 6. 기존 서버 액션에 `sendPush()` 연동
 7. Android 그룹핑 적용
+8. (별도) 리마인더: gthr_mst 마이그레이션 + Edge Function cron 작성
