@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+
+import { analytics } from "@/lib/analytics";
 
 import { submitFeedback } from "@/app/actions/feedback/submit-feedback";
 
@@ -13,6 +15,11 @@ export function FeedbackForm() {
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  // 진입 버튼(프로필·설정)이 모두 이 폼으로 모이므로, 폼 노출 시점을 피드백 의도로 집계.
+  useEffect(() => {
+    analytics.feedbackClicked();
+  }, []);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

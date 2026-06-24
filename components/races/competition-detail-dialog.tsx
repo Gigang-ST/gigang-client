@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Calendar, ExternalLink, MapPin, Pencil, Users } from "lucide-react";
 import { useForm } from "react-hook-form";
 
+import { analytics } from "@/lib/analytics";
 import {
   buildEventTypeOptionList,
   COMP_EVT_TYPE_OTHER as EVENT_TYPE_OTHER,
@@ -185,6 +186,20 @@ export function CompetitionDetailDialog({
     loadParticipants(competition.id);
   }, [competition?.id, open, loadParticipants]);
 
+  // 참가 신청 폼 노출(가입 멤버가 대회 상세를 연 시점) → 신청 깔때기 진입.
+  // 같은 대회 재오픈 시 중복 발사를 막되, 닫히면 ref를 비워 다음 오픈을 다시 집계.
+  const regOpenedFiredForRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!open) {
+      regOpenedFiredForRef.current = null;
+      return;
+    }
+    if (!competition || memberStatus.status !== "ready") return;
+    if (regOpenedFiredForRef.current === competition.id) return;
+    regOpenedFiredForRef.current = competition.id;
+    analytics.raceRegistrationOpened(competition.id, competition.title);
+  }, [open, competition?.id, competition?.title, memberStatus.status]);
+
   useEffect(() => {
     if (!competition || !open) {
       setPublicDisplayCounts([]);
@@ -321,6 +336,7 @@ export function CompetitionDetailDialog({
 
     setIsSaving(true);
     const payload = { role, eventType: resolvedEventType };
+    const isNewRegistration = !registration;
 
     const result = registration
       ? await onUpdate(registration.id, competition.id, payload)
@@ -328,7 +344,10 @@ export function CompetitionDetailDialog({
 
     setIsSaving(false);
     if (result.message) setStatusMessage({ text: result.message, ok: result.ok });
-    if (result.ok) loadParticipants(competition.id);
+    if (result.ok) {
+      if (isNewRegistration) analytics.raceRegistrationCompleted(competition.id);
+      loadParticipants(competition.id);
+    }
   }
 
   async function handleDelete() {

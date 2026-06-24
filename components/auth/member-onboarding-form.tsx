@@ -9,6 +9,7 @@ import { CheckCircle2 } from "lucide-react";
 import Confetti from "react-confetti";
 import { useForm } from "react-hook-form";
 
+import { analytics } from "@/lib/analytics";
 import { BANK_OPTIONS } from "@/lib/constants";
 import { digitsOnly, formatPhone, isValidPhone } from "@/lib/phone-utils";
 import { cn } from "@/lib/utils";
@@ -140,6 +141,7 @@ export function MemberOnboardingForm({
 		}
 
 		if (check.kind === "new") {
+			analytics.onboardingStep(2);
 			setStage("details");
 			return;
 		}
@@ -208,6 +210,7 @@ export function MemberOnboardingForm({
 			return;
 		}
 
+		analytics.onboardingStep(3);
 		setStage("success");
 	};
 
