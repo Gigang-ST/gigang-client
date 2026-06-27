@@ -90,6 +90,17 @@ export function PwaInstallPrompt({
 
   if (!visible) return null;
 
+  // 로그인 멤버가 설치를 "거부"(안보기/닫기 또는 설치 팝업 취소)하면 알림 권한 요청으로 이어준다.
+  // 설치 안 함이라는 결과가 같으므로 두 경로 모두 동일하게 처리.
+  // subscribePush가 OS를 분기한다: iOS 미설치는 needs-install로 빠져 권한 요청을 하지 않고,
+  // Android는 설치 없이 바로 권한 요청한다. 데스크톱도 내부에서 제외된다.
+  const offerPushAfterDecline = () => {
+    if (variant !== "banner" || !loggedIn) return;
+    void subscribePush().then((result) => {
+      if (result.ok) toast.success("푸시 알림이 켜졌어요");
+    });
+  };
+
   const handleInstall = async () => {
     if (isIOS()) {
       setIosGuide((v) => !v);
@@ -104,6 +115,8 @@ export function PwaInstallPrompt({
     }
     setDeferred(null);
     setVisible(false);
+    // 설치를 취소했으면 "안보기"와 동일하게 알림 요청으로 이어준다
+    if (choice.outcome === "dismissed") offerPushAfterDecline();
   };
 
   const handleDismiss = () => {
@@ -111,15 +124,7 @@ export function PwaInstallPrompt({
       window.localStorage.setItem(DISMISS_KEY, String(Date.now()));
     }
     setVisible(false);
-
-    // 로그인 멤버가 설치를 거부하면 알림 권한 요청으로 이어준다.
-    // subscribePush가 OS를 분기한다: iOS 미설치는 needs-install로 빠져 권한 요청을 하지 않고,
-    // Android는 설치 없이 바로 권한 요청한다. 데스크톱도 내부에서 제외된다.
-    if (variant === "banner" && loggedIn) {
-      void subscribePush().then((result) => {
-        if (result.ok) toast.success("푸시 알림이 켜졌어요");
-      });
-    }
+    offerPushAfterDecline();
   };
 
   const installButton = (
