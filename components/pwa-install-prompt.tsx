@@ -167,13 +167,16 @@ export function PwaInstallPrompt({
         className,
       )}
     >
-      <div className="mx-auto flex max-w-md flex-col gap-2 rounded-2xl border-[1.5px] border-border bg-background p-3 shadow-lg">
-        <div className="flex items-center gap-3">
+      <div className="mx-auto flex max-w-md flex-col gap-3 rounded-2xl border-[1.5px] border-border bg-background p-4 shadow-lg">
+        {/* 상단: 문구(전폭) + 닫기 */}
+        <div className="flex items-start gap-2">
           <div className="flex-1">
-            <Body className="font-bold">
-              {isIOS() ? "📲 기강이 풀렸군. 홈 화면에 모시고 알림 켜라!" : "📲 기강이 풀렸군. 홈 화면에 모셔라!"}
+            <Body className="font-bold leading-snug">
+              {isIOS()
+                ? "📲 기강이 풀렸군. 홈 화면에 모시고 알림 켜라!"
+                : "📲 기강이 풀렸군. 홈 화면에 모셔라!"}
             </Body>
-            <Caption className="mt-0.5 block leading-relaxed">
+            <Caption className="mt-1 block leading-relaxed">
               {isIOS() ? (
                 <>
                   iPhone은 홈 화면에 추가해야{" "}
@@ -189,20 +192,27 @@ export function PwaInstallPrompt({
             </Caption>
             {iosGuideBlock}
           </div>
-          {installButton}
           <button
             type="button"
             onClick={handleDismiss}
             aria-label="닫기"
-            className="text-muted-foreground"
+            className="-mr-1.5 -mt-1.5 flex size-9 shrink-0 items-center justify-center text-muted-foreground"
           >
             <X className="size-5" />
           </button>
         </div>
+        {/* 하단: 전폭 버튼 */}
+        <Button
+          type="button"
+          onClick={handleInstall}
+          className="w-full rounded-xl font-bold"
+        >
+          추가하기 🫡
+        </Button>
         <button
           type="button"
           onClick={handleDismiss}
-          className="self-end text-muted-foreground"
+          className="self-center text-muted-foreground"
         >
           <Caption>일주일간 보지 않기</Caption>
         </button>
