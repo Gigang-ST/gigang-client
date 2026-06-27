@@ -1,5 +1,7 @@
 "use server";
 
+import { after } from "next/server";
+
 import { withMember } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
 import { insertNotiMany } from "@/lib/notifications/insert-noti";
@@ -19,20 +21,25 @@ export async function requestDuesCheck() {
     const { data: existing } = await db.from("noti_mst").select("noti_id").eq("mem_id", owners[0].mem_id).eq("noti_type_enm", "dues_check_req").gte("crt_at", todayStart).limit(1).maybeSingle();
     if (existing) return { ok: false as const, message: "오늘 이미 요청하셨습니다." };
 
-    // 인앱+푸시 한 몸 (관문). 회비 확인 요청은 owner 전원에게.
-    try {
-      await insertNotiMany({
-        teamId,
-        memIds: owners.map((o) => o.mem_id),
-        notiTypeEnm: "dues_check_req",
-        notiNm: "회비 문의",
-        notiCont: `${member.full_name}님이 회비내역 확인을 요청하셨습니다.`,
-        refId: member.id,
-        refTypeEnm: "member",
-      });
-    } catch {
-      return { ok: false as const, message: "요청 전송에 실패했습니다." };
-    }
+    // 인앱+푸시 발송은 응답 후 백그라운드로 (사용자 대기 없음). owner 전원에게.
+    const ownerIds = owners.map((o) => o.mem_id);
+    const requesterName = member.full_name;
+    const requesterId = member.id;
+    after(async () => {
+      try {
+        await insertNotiMany({
+          teamId,
+          memIds: ownerIds,
+          notiTypeEnm: "dues_check_req",
+          notiNm: "회비 문의",
+          notiCont: `${requesterName}님이 회비내역 확인을 요청하셨습니다.`,
+          refId: requesterId,
+          refTypeEnm: "member",
+        });
+      } catch (e) {
+        console.error("[dues_check_req] 알림 발송 실패", e);
+      }
+    });
     return { ok: true as const, message: null };
   });
 }

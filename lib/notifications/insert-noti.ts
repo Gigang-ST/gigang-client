@@ -79,9 +79,11 @@ export async function insertNoti(input: NotiInput): Promise<void> {
     })
     .select("noti_id")
     .single();
-  // INSERT 실패 시 조용히 누락되지 않도록 예외로 올린다(호출처에서 처리).
-  if (insertErr) {
-    throw new Error(`noti_mst insert 실패: ${insertErr.message}`);
+  // 알림은 부가 기능 — 실패해도 본행동(모임 등록·댓글 등)을 막지 않는다. 로깅만 하고 중단.
+  // (디버깅을 위해 에러는 명확히 남긴다 — "왜 안 갔지?"는 로그로 추적)
+  if (insertErr || !inserted) {
+    console.error("[noti] insertNoti 인앱 저장 실패", input.memId, insertErr?.message);
+    return;
   }
 
   // 인앱 알림 INSERT 직후 푸시도 발송. await로 완료까지 대기(서버리스 함수 종료 시 잘림 방지).
@@ -90,7 +92,7 @@ export async function insertNoti(input: NotiInput): Promise<void> {
     await sendPushToMember(
       input.memId,
       toPushPayload(
-        inserted!.noti_id,
+        inserted.noti_id,
         input.notiTypeEnm,
         input.notiNm,
         input.notiCont ?? null,
@@ -153,8 +155,10 @@ export async function insertNotiMany(input: NotiManyInput): Promise<void> {
       })),
     )
     .select("noti_id, mem_id");
+  // 알림은 부가 기능 — 실패해도 본행동을 막지 않는다. 로깅만.
   if (insertErr) {
-    throw new Error(`noti_mst 일괄 insert 실패: ${insertErr.message}`);
+    console.error("[noti] insertNotiMany 인앱 저장 실패", insertErr.message);
+    return;
   }
 
   try {
@@ -185,54 +189,37 @@ type NotiTeamInput = {
   notiCont?: string | null;
   refId?: string | null;
   refTypeEnm?: string | null;
-  batchId?: string | null;
 };
 
 /**
- * 팀 전체 멤버에게 알림(인앱+푸시)을 발송한다.
- * - 인앱: DB 함수 create_noti_for_team으로 일괄 INSERT (수신 거부 필터는 함수 내부)
- * - 푸시: INSERT된 row들을 조회해 구독자에게 배치 발송
+ * 팀 전체(활성) 멤버에게 알림(인앱+푸시)을 발송한다.
+ * 멤버 목록을 조회해 insertNotiMany에 위임 — RPC + batch_id 되조회를 쓰지 않으므로
+ * 발송 대상과 푸시 대상이 항상 일치하고(불일치 없음), 되조회 부하도 없다.
+ * 수신거부 필터·INSERT·푸시는 insertNotiMany가 일괄 처리한다.
  */
 export async function insertNotiForTeam(input: NotiTeamInput): Promise<void> {
   const admin = createUntypedAdminClient();
-  const batchId = input.batchId ?? crypto.randomUUID();
 
-  const { error } = await admin.rpc("create_noti_for_team", {
-    p_team_id: input.teamId,
-    p_noti_type_enm: input.notiTypeEnm,
-    p_noti_nm: input.notiNm,
-    p_noti_cont: input.notiCont ?? null,
-    p_ref_id: input.refId ?? null,
-    p_ref_type_enm: input.refTypeEnm ?? null,
-    p_batch_id: batchId,
-  });
+  const { data: members, error } = await admin
+    .from("team_mem_rel")
+    .select("mem_id")
+    .eq("team_id", input.teamId)
+    .eq("vers", 0)
+    .eq("del_yn", false);
+
   if (error) {
-    throw new Error(`create_noti_for_team 실패: ${error.message}`);
+    console.error("[noti] insertNotiForTeam 멤버 조회 실패", error.message);
+    return;
   }
+  if (!members?.length) return;
 
-  // 방금 생성된 알림 row들을 batch_id로 조회해 푸시 발송
-  try {
-    const { data: rows } = await admin
-      .from("noti_mst")
-      .select("noti_id, mem_id")
-      .eq("batch_id", batchId);
-
-    const payloadByMemId = new Map<string, PushPayload>();
-    for (const r of (rows ?? []) as { noti_id: string; mem_id: string }[]) {
-      payloadByMemId.set(
-        r.mem_id,
-        toPushPayload(
-          r.noti_id,
-          input.notiTypeEnm,
-          input.notiNm,
-          input.notiCont ?? null,
-          input.refId ?? null,
-          input.refTypeEnm ?? null,
-        ),
-      );
-    }
-    await sendPushToMembers(payloadByMemId);
-  } catch (err) {
-    console.error("[push] insertNotiForTeam 발송 실패", err);
-  }
+  await insertNotiMany({
+    teamId: input.teamId,
+    memIds: members.map((m: { mem_id: string }) => m.mem_id),
+    notiTypeEnm: input.notiTypeEnm,
+    notiNm: input.notiNm,
+    notiCont: input.notiCont ?? null,
+    refId: input.refId ?? null,
+    refTypeEnm: input.refTypeEnm ?? null,
+  });
 }

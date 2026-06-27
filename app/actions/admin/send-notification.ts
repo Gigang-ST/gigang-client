@@ -17,7 +17,6 @@ export async function sendNotification(input: {
 }) {
   return withAdmin(async () => {
     const { teamId } = await getRequestTeamContext();
-    const batchId = crypto.randomUUID();
     const notiTypeEnm = input.notiTypeEnm ?? "adm_cust";
 
     try {
@@ -27,7 +26,6 @@ export async function sendNotification(input: {
           notiTypeEnm,
           notiNm: input.notiNm,
           notiCont: input.notiCont ?? null,
-          batchId,
         });
       } else {
         await insertNotiMany({
@@ -42,6 +40,6 @@ export async function sendNotification(input: {
       return { ok: false as const, message: "알림 발송에 실패했습니다." };
     }
 
-    return { ok: true as const, message: null, batchId };
+    return { ok: true as const, message: null };
   });
 }

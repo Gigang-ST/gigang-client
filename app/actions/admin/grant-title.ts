@@ -1,5 +1,7 @@
 "use server";
 
+import { after } from "next/server";
+
 import { withAdmin } from "@/lib/actions/auth";
 import { insertNoti } from "@/lib/notifications/insert-noti";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -40,20 +42,26 @@ export async function grantTitle(teamMemId: string, ttlId: string, teamId: strin
     });
     if (error) return { ok: false as const, message: "수여에 실패했습니다." };
 
-    Promise.all([
-      db.from("team_mem_rel").select("mem_id").eq("team_mem_id", teamMemId).eq("vers", 0).eq("del_yn", false).single(),
-      db.from("ttl_mst").select("ttl_nm").eq("ttl_id", ttlId).single(),
-    ]).then(([{ data: rel }, { data: ttl }]) => {
-      if (!rel?.mem_id) return;
-      insertNoti({
-        teamId,
-        memId: rel.mem_id,
-        notiTypeEnm: "ttl_grnt",
-        notiNm: `'${ttl?.ttl_nm ?? "칭호"}' 칭호를 획득했습니다!`,
-        refId: ttlId,
-        refTypeEnm: "ttl",
-      }).catch(console.error);
-    }).catch(console.error);
+    // 알림(인앱+푸시)은 응답 후 백그라운드로. after()라 Vercel 함수 종료 시에도 보장됨.
+    after(async () => {
+      try {
+        const [{ data: rel }, { data: ttl }] = await Promise.all([
+          db.from("team_mem_rel").select("mem_id").eq("team_mem_id", teamMemId).eq("vers", 0).eq("del_yn", false).single(),
+          db.from("ttl_mst").select("ttl_nm").eq("ttl_id", ttlId).single(),
+        ]);
+        if (!rel?.mem_id) return;
+        await insertNoti({
+          teamId,
+          memId: rel.mem_id,
+          notiTypeEnm: "ttl_grnt",
+          notiNm: `'${ttl?.ttl_nm ?? "칭호"}' 칭호를 획득했습니다!`,
+          refId: ttlId,
+          refTypeEnm: "ttl",
+        });
+      } catch (e) {
+        console.error("[ttl_grnt] 알림 발송 실패", e);
+      }
+    });
 
     return { ok: true as const, message: null };
   });
