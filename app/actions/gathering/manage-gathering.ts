@@ -84,7 +84,7 @@ export async function createGathering(input: {
           memIds: members.map((m) => m.mem_id),
           notiTypeEnm: notiType,
           notiNm: `${dateStr} 새 모임이 등록됐습니다.`,
-          notiCont: gthrNm,
+          notiCont: `[모임] ${gthrNm}`,
           refId: gthrId,
           refTypeEnm: "gathering",
         });
@@ -150,7 +150,7 @@ export async function updateGathering(input: {
           memIds: attendees.map((a) => a.mem_id),
           notiTypeEnm: "gthr_upd",
           notiNm: `'${gthrNm}' 모임 정보가 변경됐습니다.`,
-          notiCont: gthrNm,
+          notiCont: `[모임] ${gthrNm}`,
           refId: gthr_id,
           refTypeEnm: "gathering",
         });
@@ -201,7 +201,7 @@ export async function deleteGathering(gthr_id: string) {
           notiTypeEnm: "gthr_del",
           prefTypeEnm: "gthr_upd",
           notiNm: `'${gthr.gthr_nm}' 모임이 취소됐습니다.`,
-          notiCont: gthr.gthr_nm,
+          notiCont: `[모임] ${gthr.gthr_nm}`,
           refId: gthr_id,
           refTypeEnm: "gathering",
         });

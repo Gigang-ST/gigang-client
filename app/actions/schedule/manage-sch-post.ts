@@ -66,7 +66,7 @@ export async function createSchPost(input: {
           memIds: members.map((m) => m.mem_id),
           notiTypeEnm: "sch_post_new",
           notiNm: `${dayjs().format("M월 D일")} 새 정보가 등록됐습니다.`,
-          notiCont: postName,
+          notiCont: `[정보] ${postName}`,
           refId: data.short_id ?? postId,
           refTypeEnm: "sch_post",
         });
