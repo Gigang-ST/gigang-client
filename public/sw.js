@@ -31,7 +31,9 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(title, {
       body: payload.body || "",
       icon: "/android-icon-192x192.png",
-      badge: "/android-icon-192x192.png",
+      // badge(상태바 단색 아이콘): 흰색 실루엣 + 투명 배경 전용 PNG.
+      // 안드로이드가 불투명 픽셀을 흰색으로 렌더링하므로 흰 로고 모양이 그대로 표시됨.
+      badge: "/notification-badge.png",
       tag: payload.tag || `gigang-${Date.now()}`,
       data: { url },
     }),
