@@ -30,11 +30,13 @@ const DISMISS_KEY = "push-prompt-dismissed";
  * - 거부하면 다시 자동으로 조르지 않는다 — localStorage 영구 dismiss.
  *   마음 바뀌면 우측 상단 알림 설정 토글에서 직접 켠다.
  */
-export function PushPermissionPrompt() {
+export function PushPermissionPrompt({ loggedIn }: { loggedIn: boolean }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // 로그인 멤버만 — 비로그인은 구독 저장(withMember)이 거부되므로 권한을 받아도 반쪽 상태가 됨
+    if (!loggedIn) return;
     if (window.localStorage.getItem(DISMISS_KEY)) return;
     // 설치된 PWA에서만 (미설치 웹은 설치 배너가 담당)
     if (!isStandalone()) return;
@@ -51,7 +53,7 @@ export function PushPermissionPrompt() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loggedIn]);
 
   if (!visible) return null;
 
