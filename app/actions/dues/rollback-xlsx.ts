@@ -12,7 +12,9 @@ export async function rollbackXlsx(updId: string) {
     const { data: upd } = await db.from("fee_xlsx_upd_hist").select("upd_id, upd_st_cd, file_nm").eq("upd_id", updId).eq("team_id", teamId).eq("del_yn", false).maybeSingle();
     if (!upd) return { ok: false as const, message: "업로드 이력을 찾을 수 없습니다." };
 
-    const { count: confirmedCount } = await db.from("fee_txn_hist").select("txn_id", { count: "exact", head: true }).eq("upd_id", updId).eq("is_cfm_yn", true).eq("del_yn", false);
+    const { count: confirmedCount, error: cntErr } = await db.from("fee_txn_hist").select("txn_id", { count: "exact", head: true }).eq("upd_id", updId).eq("is_cfm_yn", true).eq("del_yn", false);
+    // count 조회 실패를 0으로 간주하면 확정 거래가 있어도 롤백돼 정합성이 깨진다.
+    if (cntErr) return { ok: false as const, message: "확정 거래 확인 중 오류가 발생했습니다." };
     if ((confirmedCount ?? 0) > 0) return { ok: false as const, message: `이미 확정된 거래 ${confirmedCount}건이 포함되어 있습니다. 확정 취소 후 롤백하세요.` };
 
     // 삭제될 미확정 거래 수 (요약 표시용)

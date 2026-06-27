@@ -6,7 +6,7 @@ import { withAdmin } from "@/lib/actions/auth";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-import { getValidFeeItemCds } from "./validate-fee-item";
+import { getValidFeeItemCds } from "@/app/actions/dues/validate-fee-item";
 
 type AddManualTxnInput = {
   txnDt: string; // YYYY-MM-DD

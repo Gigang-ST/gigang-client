@@ -8,7 +8,7 @@ import { withAdmin } from "@/lib/actions/auth";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-import { getValidFeeItemCds } from "./validate-fee-item";
+import { getValidFeeItemCds } from "@/app/actions/dues/validate-fee-item";
 
 type ParsedRow = {
   txn_dt: string;
@@ -107,7 +107,20 @@ export async function uploadXlsx(formData: FormData) {
 
     if (updErr || !upd) return { ok: false as const, message: "업로드 이력 저장 실패." };
 
-    const { data: members } = await db.from("mem_mst").select("mem_id, mem_nm").eq("vers", 0).eq("del_yn", false);
+    // 회원 매칭 후보는 현재 팀 소속(team_mem_rel)으로 제한한다.
+    // mem_mst 에는 team_id 가 없으므로, 팀-회원 관계에서 mem_id 를 먼저 추린다.
+    // (멀티팀 전환 시 다른 팀 회원에게 거래가 매칭되는 것을 방지)
+    const { data: teamRels } = await db
+      .from("team_mem_rel")
+      .select("mem_id")
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false);
+    const teamMemIds = (teamRels ?? []).map((r) => r.mem_id);
+
+    const { data: members } = teamMemIds.length
+      ? await db.from("mem_mst").select("mem_id, mem_nm").in("mem_id", teamMemIds).eq("vers", 0).eq("del_yn", false)
+      : { data: [] as { mem_id: string; mem_nm: string }[] };
 
     const nameMap = new Map<string, string[]>();
     for (const m of members ?? []) {

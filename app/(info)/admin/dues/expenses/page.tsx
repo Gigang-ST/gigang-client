@@ -20,7 +20,7 @@ export default async function DuesExpensesPage() {
   const supabase = await createClient();
 
   // 지출 = 출금 거래 전부 (분류 불문). 통장에서 나간 돈은 어떤 이유든 지출로 본다.
-  const [{ data: expenses }, { data: feeItemCds }] = await Promise.all([
+  const [{ data: expenses, error: expErr }, { data: feeItemCds, error: cdErr }] = await Promise.all([
     supabase
       .from("fee_txn_hist")
       .select("txn_id, txn_dt, txn_tm, txn_amt, raw_name, adm_memo_txt, fee_item_cd, is_cfm_yn")
@@ -36,6 +36,10 @@ export default async function DuesExpensesPage() {
       .eq("vers", 0)
       .eq("del_yn", false),
   ]);
+
+  // 조회 실패를 "0원 / 지출 없음"으로 숨기면 운영자가 잘못 판단한다.
+  if (expErr) throw new Error(`지출 조회 실패: ${expErr.message}`);
+  if (cdErr) throw new Error(`분류 코드 조회 실패: ${cdErr.message}`);
 
   const rows = expenses ?? [];
   const labelOf = (cd: string | null) =>
@@ -77,7 +81,7 @@ export default async function DuesExpensesPage() {
                 <TableRow key={e.txn_id} className={e.is_cfm_yn ? "" : "opacity-60"}>
                   <TableCell className="text-center">
                     <div className="flex flex-col items-center leading-tight">
-                      <Caption className="text-xs text-foreground whitespace-nowrap">{dayjs(e.txn_dt).format("YYYY.MM.DD")}</Caption>
+                      <Caption className="text-xs text-foreground whitespace-nowrap">{dayjs(e.txn_dt).format("YY.MM.DD")}</Caption>
                       {e.txn_tm && (
                         <Caption className="text-[10px] text-muted-foreground whitespace-nowrap">
                           {dayjs(`${e.txn_dt}T${e.txn_tm}`).format("HH:mm")}

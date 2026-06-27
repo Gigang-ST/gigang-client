@@ -895,7 +895,7 @@ function TransactionsTab({
                       <TableCell className="text-center">
                         <div className="flex flex-col items-center leading-tight">
                           <Caption className="whitespace-nowrap text-xs text-foreground">
-                            {dayjs(t.txn_dt).format("YYYY.MM.DD")}
+                            {dayjs(t.txn_dt).format("YY.MM.DD")}
                           </Caption>
                           {t.txn_tm && (
                             <Caption className="whitespace-nowrap text-[10px] text-muted-foreground">

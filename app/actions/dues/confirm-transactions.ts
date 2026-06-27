@@ -1,10 +1,12 @@
 "use server";
 
+import { dayjs } from "@/lib/dayjs";
+
 import { withAdmin } from "@/lib/actions/auth";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-import { getValidFeeItemCds } from "./validate-fee-item";
+import { getValidFeeItemCds } from "@/app/actions/dues/validate-fee-item";
 
 export type ConfirmItem = {
   txnId: string;
@@ -69,7 +71,7 @@ export async function confirmTransactions(items: ConfirmItem[]) {
       return { ok: true as const, message: null, confirmed: 0, skipped };
     }
 
-    const nowIso = new Date().toISOString();
+    const nowIso = dayjs().toISOString();
 
     // 1) 거래별로 분류·매칭이 다를 수 있으므로, 변경이 있는 건만 개별 UPDATE 후 확정.
     //    (분류/매칭 변경이 없는 건은 묶어서 단일 UPDATE)

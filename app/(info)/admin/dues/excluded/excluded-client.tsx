@@ -34,11 +34,15 @@ export function ExcludedClient({ excludedTxns }: { excludedTxns: ExcludedTxn[] }
   function handleRestore(txnId: string) {
     if (!confirm("이 거래를 복구하시겠습니까?\n거래내역에 다시 표시됩니다.")) return;
     startTransition(async () => {
-      const res = await restoreTransaction(txnId);
-      if (res.ok) {
-        setRows((prev) => prev.filter((r) => r.txn_id !== txnId));
-      } else {
-        alert(res.message);
+      try {
+        const res = await restoreTransaction(txnId);
+        if (res.ok) {
+          setRows((prev) => prev.filter((r) => r.txn_id !== txnId));
+        } else {
+          alert(res.message);
+        }
+      } catch {
+        alert("복구 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
       }
     });
   }
@@ -72,7 +76,7 @@ export function ExcludedClient({ excludedTxns }: { excludedTxns: ExcludedTxn[] }
                 <TableRow key={t.txn_id}>
                   <TableCell className="text-center">
                     <div className="flex flex-col items-center leading-tight">
-                      <Caption className="text-xs text-foreground whitespace-nowrap">{dayjs(t.txn_dt).format("YYYY.MM.DD")}</Caption>
+                      <Caption className="text-xs text-foreground whitespace-nowrap">{dayjs(t.txn_dt).format("YY.MM.DD")}</Caption>
                       {t.txn_tm && (
                         <Caption className="text-[10px] text-muted-foreground whitespace-nowrap">
                           {dayjs(`${t.txn_dt}T${t.txn_tm}`).format("HH:mm")}

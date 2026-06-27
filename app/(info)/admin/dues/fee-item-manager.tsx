@@ -34,14 +34,25 @@ export function FeeItemManager({ feeItems: initialFeeItems }: { feeItems: FeeIte
   const [addForm, setAddForm] = useState({ cd: "", cdNm: "" });
 
   function moveItem(idx: number, direction: "up" | "down") {
-    const newItems = [...feeItems];
     const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= newItems.length) return;
+    if (swapIdx < 0 || swapIdx >= feeItems.length) return;
+    const prevItems = feeItems; // 저장 실패 시 되돌릴 이전 순서 보관
+    const newItems = [...feeItems];
     [newItems[idx], newItems[swapIdx]] = [newItems[swapIdx], newItems[idx]];
     const reordered = newItems.map((item, i) => ({ ...item, sort_ord: i + 1 }));
     setFeeItems(reordered);
     startTransition(async () => {
-      await reorderFeeItems(reordered.map((item) => ({ cdId: item.cd_id, sortOrd: item.sort_ord })));
+      try {
+        const res = await reorderFeeItems(reordered.map((item) => ({ cdId: item.cd_id, sortOrd: item.sort_ord })));
+        // 저장 실패 시 화면 순서와 DB 순서가 어긋나므로 이전 순서로 롤백
+        if (res && !res.ok) {
+          setFeeItems(prevItems);
+          alert(res.message ?? "순서 저장에 실패했습니다.");
+        }
+      } catch {
+        setFeeItems(prevItems);
+        alert("순서 저장 중 오류가 발생했습니다.");
+      }
     });
   }
 
