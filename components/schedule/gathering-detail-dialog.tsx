@@ -262,7 +262,7 @@ export function GatheringDetailDialog({
             {showShareHint && (
               <div className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
                 <Caption className="text-foreground">
-                  🎉 모임이 등록됐어요! 아래 <span className="font-semibold text-primary">공유하기</span> 버튼을 눌러 단톡방에 알려주세요.
+                  🎉 모임이 등록됐어요!<br />아래 <span className="font-semibold text-primary">공유하기</span> 버튼을 눌러 단톡방에 알려주세요.
                 </Caption>
               </div>
             )}
