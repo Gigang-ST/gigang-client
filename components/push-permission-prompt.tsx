@@ -92,13 +92,13 @@ export function PushPermissionPrompt({ loggedIn }: { loggedIn: boolean }) {
             <Bell className="size-5 text-foreground" aria-hidden="true" />
           </div>
           <div className="flex-1 pt-0.5">
-            <Body className="font-bold">🔔 놓치면 아쉬운 소식들!</Body>
+            <Body className="font-bold">🔔 기강이 빠졌군. 알림 켜라!</Body>
             <Caption className="mt-1 block leading-relaxed text-foreground/80">
               <span className="font-semibold text-foreground">새 모임</span> ·{" "}
               <span className="font-semibold text-foreground">새 정보</span> ·{" "}
-              <span className="font-semibold text-foreground">댓글</span> 알림을
+              <span className="font-semibold text-foreground">댓글</span>까지
               <br />
-              제일 먼저 푸시로 받아보세요.
+              하나도 놓치지 말고 받아라. 🫡
             </Caption>
           </div>
           <button
@@ -117,7 +117,7 @@ export function PushPermissionPrompt({ loggedIn }: { loggedIn: boolean }) {
           className="w-full rounded-xl font-bold"
           aria-label="푸시 알림 받기"
         >
-          알림 받기
+          알림 켜기 🫡
         </Button>
         <Caption className="text-center text-[11px] text-muted-foreground/70">
           나중에 우측 상단 알림 설정에서도 켤 수 있어요

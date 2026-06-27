@@ -134,7 +134,7 @@ export function PwaInstallPrompt({
       className="rounded-xl font-bold"
       size={variant === "inline" ? "lg" : "default"}
     >
-      홈 화면에 추가
+      추가하기 🫡
     </Button>
   );
 
@@ -158,11 +158,12 @@ export function PwaInstallPrompt({
     );
   }
 
-  // banner
+  // banner — 알림 권한 배너(PushPermissionPrompt)와 동일하게 상단 고정.
+  // 둘은 isStandalone 게이트로 상호 배타적이라 동시에 뜨지 않는다.
   return (
     <div
       className={cn(
-        "fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] z-40 px-4",
+        "fixed inset-x-0 top-[calc(3.5rem+env(safe-area-inset-top,0px))] z-40 px-4",
         className,
       )}
     >
@@ -170,17 +171,20 @@ export function PwaInstallPrompt({
         <div className="flex items-center gap-3">
           <div className="flex-1">
             <Body className="font-bold">
-              {isIOS() ? "🔔 홈 화면에 추가하고 알림 받기" : "기강을 홈 화면에 추가"}
+              {isIOS() ? "📲 기강이 풀렸군. 홈 화면에 모시고 알림 켜라!" : "📲 기강이 풀렸군. 홈 화면에 모셔라!"}
             </Body>
             <Caption className="mt-0.5 block leading-relaxed">
               {isIOS() ? (
                 <>
                   iPhone은 홈 화면에 추가해야{" "}
                   <span className="font-semibold text-foreground">새 모임·정보·댓글</span>{" "}
-                  푸시 알림을 받을 수 있어요
+                  알림을 받을 수 있다. 🫡
                 </>
               ) : (
-                "앱처럼 빠르게 열어요"
+                <>
+                  앱처럼 한 번에 열고{" "}
+                  <span className="font-semibold text-foreground">알림</span>도 칼같이 받아라. 🫡
+                </>
               )}
             </Caption>
             {iosGuideBlock}
