@@ -9,12 +9,13 @@ export const gthrTypeLabels: Record<GthrType, string> = {
   event: "이벤트",
 };
 
-export const GTHR_SPRT_TYPES = ["running", "trail_run", "swimming", "cycling"] as const;
+export const GTHR_SPRT_TYPES = ["running", "trail_run", "hyrox", "swimming", "cycling"] as const;
 export type GthrSprtType = (typeof GTHR_SPRT_TYPES)[number];
 
 export const gthrSprtLabels: Record<GthrSprtType, string> = {
   running: "러닝",
   trail_run: "트레일러닝",
+  hyrox: "하이록스",
   swimming: "수영",
   cycling: "자전거",
 };

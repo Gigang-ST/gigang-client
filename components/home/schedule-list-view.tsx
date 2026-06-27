@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { schPostTypeInlineLabel } from "@/lib/validations/schedule-types";
 import type { SchPostType } from "@/lib/validations/schedule-types";
+import { gthrSprtLabels, type GthrSprtType } from "@/lib/validations/gathering";
 
 import { Caption, Micro, SectionLabel } from "@/components/common/typography";
 
@@ -254,6 +255,11 @@ function GatheringItem({ race, onClick, loading }: { race: CalendarRace; onClick
           {(race.post_type === "regular" || race.post_type === "event") && (
             <span className="shrink-0 rounded-full border border-violet-500/40 bg-violet-500/10 px-1.5 py-px text-[9px] font-medium leading-tight text-violet-400">
               {race.post_type === "regular" ? "정기" : "이벤트"}
+            </span>
+          )}
+          {race.sprt_cd && gthrSprtLabels[race.sprt_cd as GthrSprtType] && (
+            <span className="shrink-0 rounded-full border border-border bg-secondary px-1.5 py-px text-[9px] font-medium leading-tight text-muted-foreground">
+              {gthrSprtLabels[race.sprt_cd as GthrSprtType]}
             </span>
           )}
         </span>

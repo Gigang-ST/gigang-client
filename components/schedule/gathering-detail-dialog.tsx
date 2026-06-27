@@ -51,6 +51,8 @@ export interface GatheringDetailDialogProps {
   isAttending?: boolean;
   members: MemberOption[];
   initialComments?: CmntRow[];
+  /** 방금 등록한 직후 열린 경우 — 공유 유도 안내를 노출한다 */
+  justCreated?: boolean;
   onEdit?: () => void;
   onDelete?: () => void;
   onAttendanceChange?: () => void;
@@ -68,6 +70,7 @@ export function GatheringDetailDialog({
   isAttending: initialIsAttending,
   members,
   initialComments,
+  justCreated,
   onEdit,
   onDelete,
   onAttendanceChange,
@@ -78,16 +81,21 @@ export function GatheringDetailDialog({
   const [isToggling, setIsToggling] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  // 방금 등록한 직후에만 공유 유도 안내 노출. 공유하기를 누르면 숨긴다.
+  const [showShareHint, setShowShareHint] = useState(justCreated ?? false);
 
-  // gathering prop이 바뀌면 로컬 상태 동기화
+  // gathering prop이 바뀌거나 justCreated가 바뀌면 로컬 상태 동기화
   // (렌더 중 파생 state 업데이트 — React 공식 패턴: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes)
+  // gKey만 키로 쓰면 같은 모임을 재오픈할 때(gKey 동일) 힌트가 잔존하므로 justCreated도 키에 포함한다.
   const gKey = gathering?.id;
-  const [lastGKey, setLastGKey] = useState(gKey);
-  if (gKey !== lastGKey) {
-    setLastGKey(gKey);
+  const syncKey = `${gKey}:${justCreated ?? false}`;
+  const [lastSyncKey, setLastSyncKey] = useState(syncKey);
+  if (syncKey !== lastSyncKey) {
+    setLastSyncKey(syncKey);
     setAttending(initialIsAttending ?? false);
     setAttdCount(gathering?.regCount ?? 0);
     setAttendees(gathering?.attendees ?? []);
+    setShowShareHint(justCreated ?? false);
   }
 
   if (!gathering) return null;
@@ -250,12 +258,26 @@ export function GatheringDetailDialog({
               </div>
             )}
 
+            {/* 등록 직후 공유 유도 안내 */}
+            {showShareHint && (
+              <div className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
+                <Caption className="text-foreground">
+                  🎉 모임이 등록됐어요! 아래 <span className="font-semibold text-primary">공유하기</span> 버튼을 눌러 단톡방에 알려주세요.
+                </Caption>
+              </div>
+            )}
+
             {/* 공유/수정/삭제 */}
             <div className="flex items-center justify-between gap-2">
               <Button
-                variant="outline"
+                variant={showShareHint ? "default" : "outline"}
                 size="sm"
-                onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setShareOpen(true); }}
+                className={showShareHint ? "animate-pulse" : undefined}
+                onClick={(e) => {
+                  (e.currentTarget as HTMLElement).blur();
+                  setShowShareHint(false);
+                  setShareOpen(true);
+                }}
               >
                 <Share2 className="size-3.5" />
                 공유하기
