@@ -290,6 +290,8 @@ export function GatheringDetailDialog({
                 entityId={gathering.id}
                 teamId={teamId}
                 currentMemberId={currentMemberId}
+                currentMemberName={currentMemberName}
+                currentMemberAvatarUrl={currentMemberAvatarUrl}
                 isAdmin={isAdmin}
                 members={members}
                 initialComments={initialComments}

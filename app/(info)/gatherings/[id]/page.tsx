@@ -177,6 +177,8 @@ export default async function GatheringDetailPage({
             entityId={id}
             teamId={teamId}
             currentMemberId={member?.id}
+            currentMemberName={member?.full_name}
+            currentMemberAvatarUrl={member?.avatar_url}
             isAdmin={member?.admin ?? false}
             members={membersForComment}
             initialComments={(comments ?? []).map((c) => {

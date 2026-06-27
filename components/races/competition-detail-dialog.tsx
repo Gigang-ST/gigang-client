@@ -78,6 +78,7 @@ export interface CompetitionDetailDialogProps {
   competition: Competition | null;
   registration?: CompetitionRegistration;
   memberStatus: MemberStatus;
+  memberAvatarUrl?: string | null;
   members: MemberOption[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -104,6 +105,7 @@ export function CompetitionDetailDialog({
   competition,
   registration,
   memberStatus,
+  memberAvatarUrl,
   members,
   open,
   onOpenChange,
@@ -729,6 +731,8 @@ export function CompetitionDetailDialog({
               entityId={competition.id}
               teamId={teamId}
               currentMemberId={memberStatus.status === "ready" ? memberStatus.memberId : undefined}
+              currentMemberName={memberStatus.status === "ready" ? memberStatus.fullName : undefined}
+              currentMemberAvatarUrl={memberAvatarUrl}
               isAdmin={isAdmin}
               members={members}
               initialComments={initialComments}
