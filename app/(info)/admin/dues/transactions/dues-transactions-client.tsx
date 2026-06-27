@@ -315,7 +315,7 @@ function UploadTab({
             {uploading ? (
               <LoadingSpinner />
             ) : (
-              <Body className="text-muted-foreground">파일 선택 또는 드래그앤드롭</Body>
+              <Body className="text-muted-foreground">파일 선택 (xlsx)</Body>
             )}
           </CardItem>
           <input
@@ -750,7 +750,7 @@ function TransactionsTab({
                     className="whitespace-nowrap text-center text-xs cursor-pointer select-none hover:text-foreground"
                     onClick={() => handleSort("txn_dt")}
                   >
-                    날짜{sortIndicator("txn_dt")}
+                    일시{sortIndicator("txn_dt")}
                   </TableHead>
                   <TableHead
                     className="whitespace-nowrap text-center text-xs cursor-pointer select-none hover:text-foreground"
@@ -852,9 +852,16 @@ function TransactionsTab({
                         />
                       </TableCell>
                       <TableCell className="text-center">
-                        <Caption className="whitespace-nowrap text-xs text-foreground">
-                          {dayjs(t.txn_dt).format("YYYY.MM.DD")}
-                        </Caption>
+                        <div className="flex flex-col items-center leading-tight">
+                          <Caption className="whitespace-nowrap text-xs text-foreground">
+                            {dayjs(t.txn_dt).format("YYYY.MM.DD")}
+                          </Caption>
+                          {t.txn_tm && (
+                            <Caption className="whitespace-nowrap text-[10px] text-muted-foreground">
+                              {dayjs(`${t.txn_dt}T${t.txn_tm}`).format("HH:mm")}
+                            </Caption>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-center">
                         <Caption className="whitespace-nowrap text-xs text-foreground">{t.raw_name}</Caption>

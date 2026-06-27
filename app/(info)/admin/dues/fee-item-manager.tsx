@@ -95,49 +95,46 @@ export function FeeItemManager({ feeItems: initialFeeItems }: { feeItems: FeeIte
       <Caption className="text-muted-foreground">입금·출금 거래에 붙는 분류 태그를 관리합니다.</Caption>
 
       {feeItems.map((item, idx) => (
-        <CardItem key={item.cd_id} className="flex items-center justify-between p-4">
+        <CardItem key={item.cd_id} className="flex items-center justify-between gap-2 px-3 py-2">
           {editingId === item.cd_id ? (
             <>
-              <div className="flex flex-col gap-0.5 flex-1 mr-2">
-                <Caption className="text-muted-foreground">{item.cd}</Caption>
-                <Input
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="h-8 text-sm"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleUpdate(item.cd_id);
-                    if (e.key === "Escape") setEditingId(null);
-                  }}
-                />
-              </div>
-              <div className="flex gap-1">
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleUpdate(item.cd_id)} disabled={isPending}>
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="h-8 text-sm flex-1"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleUpdate(item.cd_id);
+                  if (e.key === "Escape") setEditingId(null);
+                }}
+              />
+              <div className="flex gap-0.5 shrink-0">
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleUpdate(item.cd_id)} disabled={isPending}>
                   <Check className="h-4 w-4" />
                 </Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingId(null)}>
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingId(null)}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
             </>
           ) : (
             <>
-              <div className="flex flex-col gap-0.5">
-                <Body className="font-semibold">{item.cd_nm}</Body>
-                <Caption className="text-muted-foreground">{item.cd}</Caption>
+              <div className="flex items-baseline gap-2 min-w-0">
+                <Body className="font-semibold truncate">{item.cd_nm}</Body>
+                <Caption className="text-muted-foreground shrink-0">{item.cd}</Caption>
               </div>
-              <div className="flex gap-1">
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveItem(idx, "up")} disabled={isPending || idx === 0}>
+              <div className="flex gap-0.5 shrink-0">
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveItem(idx, "up")} disabled={isPending || idx === 0}>
                   <ChevronUp className="h-4 w-4" />
                 </Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => moveItem(idx, "down")} disabled={isPending || idx === feeItems.length - 1}>
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveItem(idx, "down")} disabled={isPending || idx === feeItems.length - 1}>
                   <ChevronDown className="h-4 w-4" />
                 </Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => startEdit(item)} disabled={isPending}>
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(item)} disabled={isPending}>
                   <Pencil className="h-4 w-4" />
                 </Button>
                 {!item.is_default_yn && (
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDelete(item.cd_id, item.cd_nm)} disabled={isPending}>
+                  <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(item.cd_id, item.cd_nm)} disabled={isPending}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 )}
