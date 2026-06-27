@@ -404,12 +404,13 @@ export function MiniCalendar({
         };
       });
 
-      // 참가한 항목 우선 → colSpan 내림차순 → colStart 오름차순 정렬
-      const isMineType = (type: string) => type === "mine" || type === "gathering_mine";
+      // 슬롯 배정은 colStart(→ 긴 일정 우선) 순으로 한다.
+      // 슬롯은 가로 한 행 전체를 점유하므로, 참석 우선 등으로 늦게 시작하는 일정을 위 슬롯에
+      // 올리면 그 일정이 없는 앞 날짜 칸의 윗줄이 비어버린다(겹치지도 않는데 빈칸 발생).
+      // 따라서 "겹치지 않으면 가장 위 빈 슬롯"이 되도록 colStart 순으로만 배정한다.
       const sorted = [...positioned].sort((a, b) =>
-        Number(isMineType(b.race.type)) - Number(isMineType(a.race.type)) ||
-        b.colSpan - a.colSpan ||
-        a.colStart - b.colStart
+        a.colStart - b.colStart ||
+        b.colSpan - a.colSpan
       );
 
       const slotEnds: number[] = [];
@@ -772,7 +773,10 @@ export function MiniCalendar({
       const gthrData = gthrDetailResult.data as GthrDetail | null;
       const attendees: GatheringAttendee[] = gthrData?.attendees ?? [];
       setGthrDetailRace({ ...race, regCount: attendees.length, maxPrtCnt: gthrData?.max_prt_cnt ?? null, attendees, sprt_cd: gthrData?.sprt_cd ?? null });
-      setGthrDetailAttending(!!attdResult.data);
+      // 등록 직후(justCreated)엔 작성자가 자동 참석되므로 무조건 참석 상태로 확정한다.
+      // (자동 참석 INSERT 직후라 attd 조회가 read-after-write 지연으로 null을 반환할 수 있어
+      //  조회 결과만 믿으면 데스크톱처럼 빠른 환경에서 참석 토글이 꼬인다)
+      setGthrDetailAttending(justCreated || !!attdResult.data);
       setGthrDetailComments(comments);
       setGthrDetailOpen(true);
     } finally {
