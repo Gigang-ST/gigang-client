@@ -10,6 +10,8 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 
 import { InAppBrowserGate } from "@/components/in-app-browser-gate";
 import { Providers } from "@/components/providers";
+import { PwaInstallPromptGate } from "@/components/pwa-install-prompt-gate";
+import { ServiceWorkerRegister } from "@/components/service-worker-register";
 
 import "./globals.css";
 import { siteContent } from "@/config";
@@ -75,6 +77,12 @@ export default function RootLayout({
             <Suspense fallback={null}>
               <InAppBrowserGate>{children}</InAppBrowserGate>
             </Suspense>
+            {/* 설치 배너: 비로그인 포함 전원 노출. 로그인 조회는 Suspense 경계 안에 가둬
+                cookies() 접근이 페이지 본문 렌더를 막지 않게 한다. */}
+            <Suspense fallback={null}>
+              <PwaInstallPromptGate />
+            </Suspense>
+            <ServiceWorkerRegister />
           </NuqsAdapter>
         </Providers>
       </body>

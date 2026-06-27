@@ -90,3 +90,4 @@ next-env.d.ts
 # environment variable
 .env
 .env.*
+.gstack/

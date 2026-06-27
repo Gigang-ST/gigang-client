@@ -1,0 +1,57 @@
+# saas-dev-loop 엔진이 읽는 기강(gigang) 프로젝트 개성 정의.
+# 엔진은 글로벌 한 벌, 이 파일이 기강만의 문서·커맨드·페르소나를 정의한다.
+# 작성법: ~/.claude/skills/saas-dev-loop/profile-schema.md
+
+engine = "saas"
+label  = "기강"
+domain = "러닝크루 기강의 멤버 관리·대회/기록 플랫폼 (PWA)"
+stack  = "Next.js (App Router) + React 19 + TypeScript 5 + Supabase + Tailwind v4 + shadcn/ui"
+pkg    = "pnpm"
+
+entry     = "CLAUDE.md"          # 매 세션 진입점 (AGENTS.md + DESIGN.md import)
+rules_dir = ""                   # path-scoped 규칙 디렉토리 없음 (필요 시 .claude/rules 신설)
+
+[commands]
+lint      = "pnpm lint"
+typecheck = "pnpm exec tsc --noEmit"   # build보다 가벼운 타입 검증
+test      = "pnpm test"                # vitest run
+deadcode  = ""                         # knip 등 미설정
+
+[ssot]                                  # 변경 종류 → 갱신할 문서
+product          = ""                   # 별도 PRODUCT.md 없음 (도메인 문서는 .claude/docs 분산)
+design           = "DESIGN.md"
+components        = ".claude/docs/component-conventions.md"
+knowledge        = ".claude/docs/KNOWLEDGE.md"
+security         = ""                   # 보안 섹션은 coding-standards 안
+coding_standards = ".claude/docs/coding-standards.md"
+todo             = ".claude/docs/TODO.md"
+progress         = ""                   # 기능별 progress 문서는 .claude/docs/*-progress.md 로 분산
+
+[[service_persona]]
+name  = "기강 멤버"
+model = "sonnet"
+lens  = "러닝크루 멤버로서 직관적인가? 모바일 PWA에서 기록·대회 정보 접근이 쉬운가? 한국어 카피가 자연스러운가?"
+
+[[service_persona]]
+name  = "운영자"
+model = "sonnet"
+lens  = "멤버 관리·회비·공지 운영이 효율적인가? 관리자 권한 가드(verifyAdmin)가 올바른가?"
+
+[extras]
+manual    = ""
+patchnote = ""
+notes     = "멤버 인증은 getCurrentMember()/verifyAdmin() 패턴. 날짜는 @/lib/dayjs 만. 환경변수는 lib/env.ts. 서브에이전트(.claude/agents) 별도 보유."
+
+[feedback]                              # 기강은 read-only 보존 (evolution-log 2026-06-18 결정)
+mode        = "read-only"               # 조회·보고만. 답변/상태변경은 앱에서 사람이.
+db_tool     = "mcp__supabase-gigang-prd__execute_sql"
+db_tool_alt = "mcp__supabase-gigang-dev__execute_sql"
+auth        = ""
+collect_sql = ""                        # full-loop 전환 시 feedback_messages 조회 SELECT 채울 것
+wip_sql     = ""
+done_sql    = ""
+reward      = ""
+tenancy     = ""
+sender_view = ""
+rules       = ""
+notes       = "full-loop 전환하려면 feedback_messages 테이블 스키마 확인 후 collect/wip/done SQL 작성 필요."

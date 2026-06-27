@@ -1704,6 +1704,54 @@ export type Database = {
           },
         ]
       }
+      push_sub_rel: {
+        Row: {
+          auth: string
+          crt_at: string
+          endpoint: string
+          mem_id: string
+          p256dh: string
+          sub_id: string
+          team_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          auth: string
+          crt_at?: string
+          endpoint: string
+          mem_id: string
+          p256dh: string
+          sub_id?: string
+          team_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          auth?: string
+          crt_at?: string
+          endpoint?: string
+          mem_id?: string
+          p256dh?: string
+          sub_id?: string
+          team_id?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_sub_rel_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "push_sub_rel_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
       rec_race_hist: {
         Row: {
           bike_time_sec: number | null

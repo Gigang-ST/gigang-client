@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 
 import { BottomTabBar } from "@/components/bottom-tab-bar";
-import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
+import { PushPermissionPrompt } from "@/components/push-permission-prompt";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AppShellFallback() {
@@ -43,7 +43,7 @@ export default function MainLayout({
         <main className="pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))]">
           {children}
         </main>
-        <PwaInstallPrompt variant="banner" />
+        <PushPermissionPrompt />
       </Suspense>
       <BottomTabBar />
     </div>
