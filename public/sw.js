@@ -30,9 +30,9 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body: payload.body || "",
-      icon: "/android-icon-192x192.png",
+      // icon(우측 large icon)은 지정하지 않는다 — 지정 시 OS가 자동 표시하는 좌측 앱
+      // 아이콘과 중복돼 양쪽에 로고가 두 번 뜬다. 좌측 앱 아이콘만으로 충분.
       // badge(상태바 단색 아이콘): 흰색 실루엣 + 투명 배경 전용 PNG.
-      // 안드로이드가 불투명 픽셀을 흰색으로 렌더링하므로 흰 로고 모양이 그대로 표시됨.
       badge: "/notification-badge.png",
       tag: payload.tag || `gigang-${Date.now()}`,
       data: { url },
