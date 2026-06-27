@@ -44,7 +44,7 @@ const generalCards: Card[] = [
     label: "회원 관리",
     href: "/admin/members",
     icon: Users,
-    getValue: (s) => s.totalCount,
+    getValue: (s) => s.activeCount,
   },
   {
     key: "dues",

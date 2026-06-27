@@ -1243,6 +1243,8 @@ export function MiniCalendar({
         onOpenChange={setSchDetailOpen}
         teamId={teamId}
         currentMemberId={memberStatus.status === "ready" ? memberStatus.memberId : undefined}
+        currentMemberName={memberStatus.status === "ready" ? memberStatus.fullName : undefined}
+        currentMemberAvatarUrl={memberStatus.status === "ready" ? memberAvatarUrl : undefined}
         isAdmin={memberStatus.status === "ready" ? memberStatus.admin : false}
         members={membersCache ?? []}
         initialComments={schDetailInitialComments}
@@ -1288,6 +1290,7 @@ export function MiniCalendar({
         competition={selectedCompetition}
         registration={selectedCompetition ? registrationsByCompetitionId[selectedCompetition.id] : undefined}
         memberStatus={memberStatus}
+        memberAvatarUrl={memberAvatarUrl}
         members={membersCache ?? []}
         open={detailOpen}
         onOpenChange={setDetailOpen}

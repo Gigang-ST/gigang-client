@@ -30,8 +30,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body: payload.body || "",
-      // icon(우측 large icon)은 지정하지 않는다 — 지정 시 OS가 자동 표시하는 좌측 앱
-      // 아이콘과 중복돼 양쪽에 로고가 두 번 뜬다. 좌측 앱 아이콘만으로 충분.
+      // icon(우측 large icon): 알림에 표시할 대표 이미지(컬러 로고).
+      icon: "/notification-icon.png",
       // badge(상태바 단색 아이콘): 흰색 실루엣 + 투명 배경 전용 PNG.
       badge: "/notification-badge.png",
       tag: payload.tag || `gigang-${Date.now()}`,

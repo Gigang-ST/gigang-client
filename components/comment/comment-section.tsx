@@ -19,6 +19,9 @@ interface CommentSectionProps {
   entityId: string
   teamId: string
   currentMemberId?: string
+  /** 현재 멤버 이름·아바타 — optimistic 댓글에 사용(membersCache 로드 타이밍과 무관하게 본인 프로필 표시) */
+  currentMemberName?: string | null
+  currentMemberAvatarUrl?: string | null
   isAdmin?: boolean
   members: MemberOption[]
   initialComments?: CmntRow[]
@@ -48,6 +51,8 @@ export function CommentSection({
   entityId,
   teamId,
   currentMemberId,
+  currentMemberName,
+  currentMemberAvatarUrl,
   isAdmin,
   members,
   initialComments,
@@ -160,14 +165,18 @@ export function CommentSection({
 
   const handleSubmitComment = async () => {
     if (!newText.trim() || !currentMemberId) return
+    // 본인 이름·아바타는 prop 우선 — membersCache 로드 타이밍과 무관하게 본인 프로필 표시.
+    // members는 prop이 없을 때만 fallback.
     const me = members.find((m) => m.mem_id === currentMemberId)
+    const myName = currentMemberName ?? me?.mem_nm ?? "나"
+    const myAvatar = currentMemberAvatarUrl ?? me?.avatar_url ?? null
     const tempId = `optimistic-${Date.now()}`
     const optimisticComment: CmntRow = {
       cmnt_id: tempId,
       prnt_id: null,
       mem_id: currentMemberId,
-      mem_nm: me?.mem_nm ?? "나",
-      avatar_url: me?.avatar_url ?? null,
+      mem_nm: myName,
+      avatar_url: myAvatar,
       cont_txt: newText.trim(),
       edit_yn: false,
       del_yn: false,
@@ -201,14 +210,16 @@ export function CommentSection({
   const handleSubmitReply = async () => {
     if (!replyText.trim() || !currentMemberId || !replyTo) return
     const me = members.find((m) => m.mem_id === currentMemberId)
+    const myName = currentMemberName ?? me?.mem_nm ?? "나"
+    const myAvatar = currentMemberAvatarUrl ?? me?.avatar_url ?? null
     const tempId = `optimistic-${Date.now()}`
     const prntId = replyTo.prnt_id ?? replyTo.cmnt_id
     const optimisticReply: CmntRow = {
       cmnt_id: tempId,
       prnt_id: prntId,
       mem_id: currentMemberId,
-      mem_nm: me?.mem_nm ?? "나",
-      avatar_url: me?.avatar_url ?? null,
+      mem_nm: myName,
+      avatar_url: myAvatar,
       cont_txt: replyText.trim(),
       edit_yn: false,
       del_yn: false,

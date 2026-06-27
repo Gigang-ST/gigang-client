@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export type AdminStats = {
   totalCount: number;
+  activeCount: number;
   monthlyCompetitionCount: number;
   recentRecordCount: number;
   activeProjectCount: number;
@@ -26,9 +27,10 @@ export async function getAdminStats(): Promise<AdminStats> {
     const keyPrefix = env.SUPABASE_SERVICE_ROLE_KEY.slice(0, 20);
     console.log("[getAdminStats] teamId:", teamId, "keyPrefix:", keyPrefix, "noFilterCount:", noFilter.count, "noFilterError:", noFilter.error);
 
-    const [total, competitions, records, activeProjects, pendingPrt, unpaidResult, openFeedback] = await Promise.all([
+    const [total, active, competitions, records, activeProjects, pendingPrt, unpaidResult, openFeedback] = await Promise.all([
       admin.from("team_mem_rel").select("*", { count: "exact", head: true }).eq("team_id", teamId).eq("vers", 0).eq("del_yn", false)
         .then((res) => { if (res.error) console.error("[getAdminStats] team_mem_rel error:", res.error, "teamId:", teamId); return res; }),
+      admin.from("team_mem_rel").select("*", { count: "exact", head: true }).eq("team_id", teamId).eq("vers", 0).eq("del_yn", false).eq("mem_st_cd", "active"),
       (() => {
         const monthStart = currentMonthKST();
         const monthEnd = nextMonthStr(monthStart);
@@ -46,6 +48,7 @@ export async function getAdminStats(): Promise<AdminStats> {
 
     return {
       totalCount: total.count ?? 0,
+      activeCount: active.count ?? 0,
       monthlyCompetitionCount: competitions.count ?? 0,
       recentRecordCount: records.count ?? 0,
       activeProjectCount: activeProjects.count ?? 0,
