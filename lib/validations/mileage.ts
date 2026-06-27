@@ -9,7 +9,11 @@ export const activityLogSchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "날짜 형식이 올바르지 않습니다"),
   sprt_enm: z.enum(SPRT_ENM_KEYS, { message: "종목을 선택해 주세요" }),
-  distance_km: z.number().positive("거리를 입력해주세요"),
+  distance_km: z
+    .number()
+    .positive("거리를 입력해주세요")
+    // dst_km은 numeric(6,2) — 소수 둘째 자리까지만 허용해 저장값/표시값 불일치 방지
+    .multipleOf(0.01, "거리는 소수점 둘째 자리까지 입력할 수 있어요"),
   elevation_m: z.number().min(0).default(0),
   applied_mult_ids: z.array(z.string().uuid()).default([]),
   review: z.string().max(200).nullable().optional(),

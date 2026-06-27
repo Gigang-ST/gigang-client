@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils";
 import { schPostTypeInlineLabel } from "@/lib/validations/schedule-types";
 import type { SchPostType } from "@/lib/validations/schedule-types";
 
+import { SportTag } from "@/components/schedule/sport-tag";
+
 import { Caption, Micro, SectionLabel } from "@/components/common/typography";
 
 import type { CalendarRace } from "./mini-calendar";
@@ -50,6 +52,7 @@ type SchedulePagedRow = {
   reg_count: number | null;
   cmnt_count: number;
   short_id: string | null;
+  sprt_cd: string | null;
 };
 
 function racesToMonths(races: CalendarRace[]): MonthData[] {
@@ -112,6 +115,7 @@ async function fetchAdjacent(
         start_date: row.start_date,
         type: row.item_type as "gathering" | "gathering_mine",
         post_type: row.post_type ?? null,
+        sprt_cd: row.sprt_cd ?? null,
         location: row.loc_nm ?? null,
         cont_txt: row.cont_txt ?? null,
         evt_stt_at: row.evt_stt_at ?? null,
@@ -256,6 +260,7 @@ function GatheringItem({ race, onClick, loading }: { race: CalendarRace; onClick
               {race.post_type === "regular" ? "정기" : "이벤트"}
             </span>
           )}
+          <SportTag sprtCd={race.sprt_cd} />
         </span>
         {(timeRange || race.location || (race.cmntCount ?? 0) > 0) && (
           <Micro className="flex items-center gap-1.5 tabular-nums text-muted-foreground">

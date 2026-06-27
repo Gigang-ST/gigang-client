@@ -64,7 +64,8 @@ export type GatheringFormDialogProps = {
     desc_txt?: string | null;
     max_prt_cnt?: number | null;
   };
-  onSuccess?: () => void;
+  /** 등록(create) 성공 시 새 모임 id 전달. 수정(edit)일 땐 undefined */
+  onSuccess?: (createdGthrId?: string) => void | Promise<void>;
 };
 
 function toDatetimeLocal(utcIso: string) {
@@ -137,14 +138,16 @@ export function GatheringFormDialog({
   async function onSubmit(values: FormValues) {
     setRootError(null);
     try {
+      let createdGthrId: string | undefined;
       if (mode === "edit" && initialData) {
         await updateGathering({ gthr_id: initialData.gthr_id, ...values });
       } else {
-        await createGathering(values);
+        const result = await createGathering(values);
+        createdGthrId = result.gthr_id;
       }
       clearDraft();
       onOpenChange(false);
-      onSuccess?.();
+      await onSuccess?.(createdGthrId);
     } catch (e) {
       setRootError(e instanceof Error ? e.message : "오류가 발생했습니다. 다시 시도해 주세요.");
     }

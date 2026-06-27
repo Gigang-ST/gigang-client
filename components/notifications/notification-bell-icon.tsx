@@ -57,6 +57,8 @@ export function NotificationBellIcon({ initialCount, initialNotifications, membe
     "on" | "off" | "denied" | "install" | "unsupported" | null
   >(null);
   const [loading, setLoading] = useState(false);
+  // 푸시 토글 처리 중 여부 — 응답 오기 전까지 중복 클릭 차단
+  const [pushPending, setPushPending] = useState(false);
   const [hasMore, setHasMore] = useState((initialNotifications ?? []).length === 20);
   const [cursor, setCursor] = useState<string | null>(
     initialNotifications && initialNotifications.length > 0 ? initialNotifications[initialNotifications.length - 1].crt_at : null,
@@ -115,22 +117,41 @@ export function NotificationBellIcon({ initialCount, initialNotifications, membe
   }
 
   async function handlePushToggle(next: boolean) {
-    if (next) {
-      const result = await subscribePush();
-      if (result.ok) {
-        setPushState("on");
-        toast.success("푸시 알림이 켜졌어요");
-      } else if (result.reason === "denied") {
-        setPushState("denied");
-        toast("기기 설정에서 알림을 허용해 주세요");
-      } else if (result.reason === "needs-install") {
-        setPushState("install");
+    if (pushPending) return; // 중복 클릭 차단 (응답 오기 전까지)
+    const prev = pushState;
+    setPushPending(true);
+    try {
+      if (next) {
+        // 권한이 이미 있으면 즉시 on으로 낙관적 표시 (구독 생성은 백그라운드).
+        // 권한이 default면 OS 권한창 응답이 필수라 낙관 처리하지 않고 기다린다.
+        const canOptimistic = getPermission() === "granted";
+        if (canOptimistic) setPushState("on");
+
+        const result = await subscribePush();
+        if (result.ok) {
+          setPushState("on");
+          if (!canOptimistic) toast.success("푸시 알림이 켜졌어요");
+        } else if (result.reason === "denied") {
+          setPushState("denied");
+          toast("기기 설정에서 알림을 허용해 주세요");
+        } else if (result.reason === "needs-install") {
+          setPushState("install");
+        } else {
+          setPushState(prev); // 실패 → 이전 상태로 롤백
+          toast.error("푸시 알림을 켜지 못했어요");
+        }
       } else {
-        toast.error("푸시 알림을 켜지 못했어요");
+        // 끄기는 즉시 반영 (실패 거의 없음). 실패 시 롤백.
+        setPushState("off");
+        try {
+          await unsubscribePush();
+        } catch {
+          setPushState(prev);
+          toast.error("푸시 알림을 끄지 못했어요");
+        }
       }
-    } else {
-      await unsubscribePush();
-      setPushState("off");
+    } finally {
+      setPushPending(false);
     }
   }
 
@@ -363,12 +384,16 @@ export function NotificationBellIcon({ initialCount, initialNotifications, membe
                           </Caption>
                         )}
                       </div>
-                      {(pushState === "on" || pushState === "off") && (
+                      {pushState === "on" || pushState === "off" ? (
                         <Switch
                           checked={pushState === "on"}
                           onCheckedChange={handlePushToggle}
+                          disabled={pushPending}
                           aria-label="푸시 알림"
                         />
+                      ) : (
+                        // denied·install: 토글을 숨기지 않고 비활성화해 노출 (왜 못 켜는지 문구로 안내)
+                        <Switch checked={false} disabled aria-label="푸시 알림" />
                       )}
                     </div>
                     <div className="mx-4 border-b border-border" />

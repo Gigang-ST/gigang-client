@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils";
 import { schPostTypeInlineLabel } from "@/lib/validations/schedule-types";
 import type { SchPostType } from "@/lib/validations/schedule-types";
 
+import { SportTag } from "@/components/schedule/sport-tag";
+
 import { getMentionMembers } from "@/app/actions/comment/get-mention-members";
 import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-create-comp-evt-for-participation";
 import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
@@ -102,6 +104,8 @@ export type CalendarRace = {
   crt_by?: string;
   crt_by_nm?: string | null;
   post_type?: string | null;
+  // gathering 전용 — 종목 코드 (러닝/트레일러닝/하이록스 등)
+  sprt_cd?: string | null;
   // 시간 표시용 (원본 일시 문자열)
   evt_stt_at?: string | null;
   evt_end_at?: string | null;
@@ -174,6 +178,8 @@ export function MiniCalendar({
   const [gthrDetailAttending, setGthrDetailAttending] = useState(false);
   const [gthrDetailComments, setGthrDetailComments] = useState<CmntRow[] | undefined>(undefined);
   const [gthrEditTarget, setGthrEditTarget] = useState<CalendarRace | null>(null);
+  // 방금 등록한 모임으로 상세가 열렸는지 — 공유 유도 안내 노출용
+  const [gthrJustCreated, setGthrJustCreated] = useState(false);
 
   // 대회 선택 다이얼로그 상태
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -652,6 +658,7 @@ export function MiniCalendar({
       end_date: row.end_at ? dayjs(row.end_at).tz("Asia/Seoul").format("YYYY-MM-DD") : null,
       type: (memberId && ("is_attending" in row ? row.is_attending : false) ? "gathering_mine" : "gathering") as CalendarRace["type"],
       post_type: row.gthr_type_enm,
+      sprt_cd: row.sprt_cd ?? null,
       location: row.loc_txt ?? null,
       cont_txt: row.desc_txt ?? null,
       evt_stt_at: row.stt_at,
@@ -698,7 +705,7 @@ export function MiniCalendar({
     swipeDidNavigate.current = true;
     navigate(dx < 0 ? 1 : -1);
   // navigate는 deps [] 로 안정화됨
-  }, [isPending, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isPending, navigate]);  
 
   function openCreateForm(defaultDate?: string, postType?: SchPostType) {
     setFormMode("create");
@@ -742,10 +749,13 @@ export function MiniCalendar({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const openGatheringDetail = useCallback(async (race: CalendarRace) => {
-    if (openingLock.current) return;
+  const openGatheringDetail = useCallback(async (race: CalendarRace, justCreated = false) => {
+    // 등록 직후 경로(justCreated)는 사용자 클릭과 무관하게 반드시 열어야 하므로 락을 무시한다
+    if (openingLock.current && !justCreated) return;
     openingLock.current = true;
     setOpeningId(race.id);
+    // 등록 직후 경로만 공유 유도 안내를 켜고, 일반 클릭은 끈다
+    setGthrJustCreated(justCreated);
     try {
       type GthrDetail = { max_prt_cnt: number | null; sprt_cd: string | null; attendees: GatheringAttendee[] };
       const [comments, attdResult, gthrDetailResult] = await Promise.all([
@@ -773,12 +783,13 @@ export function MiniCalendar({
   }, []);
 
   async function refreshMonthData() {
-    const { gigang, mine, schPosts: newSch, gatherings: newGthr } = await fetchMonthData(viewMonth);
-    setGigangRaces(gigang);
-    setMyRaces(mine);
-    setSchPosts(newSch);
-    setGatherings(newGthr);
+    const data = await fetchMonthData(viewMonth);
+    setGigangRaces(data.gigang);
+    setMyRaces(data.mine);
+    setSchPosts(data.schPosts);
+    setGatherings(data.gatherings);
     setListViewKey((k) => k + 1);
+    return data;
   }
 
   async function handleSchPostSuccess() {
@@ -1060,6 +1071,7 @@ export function MiniCalendar({
                                 {race.post_type === "regular" ? "정기" : "이벤트"}
                               </span>
                             )}
+                            {isGathering && <SportTag sprtCd={race.sprt_cd} />}
                           </span>
                           {isComp && (race.location || (race.cmntCount ?? 0) > 0) && (
                             <Micro className="flex items-center gap-1 text-muted-foreground">
@@ -1179,9 +1191,39 @@ export function MiniCalendar({
           desc_txt: gthrEditTarget.cont_txt ?? null,
           max_prt_cnt: gthrDetailRace?.maxPrtCnt ?? null,
         } : undefined}
-        onSuccess={async () => {
-          await refreshMonthData();
+        onSuccess={async (createdGthrId) => {
+          const { gatherings: newGthr } = await refreshMonthData();
           setGthrEditTarget(null);
+          // 신규 등록(createdGthrId는 create일 때만 채워짐)이면 해당 모임 상세를 열고 공유 유도 안내 노출
+          if (!createdGthrId) return;
+          let created = newGthr.find((g) => g.id === createdGthrId) ?? null;
+          // 현재 보고 있는 달과 다른 달(예: 리스트뷰에서 오늘 날짜로 등록)이면 갱신 목록에 없으므로 직접 조회
+          if (!created) {
+            const { data } = await supabase
+              .from("gthr_mst")
+              .select("gthr_id, short_id, gthr_nm, gthr_type_enm, sprt_cd, stt_at, end_at, loc_txt, desc_txt, crt_by")
+              .eq("gthr_id", createdGthrId)
+              .maybeSingle();
+            if (data) {
+              created = {
+                id: data.gthr_id,
+                short_id: data.short_id ?? null,
+                title: data.gthr_nm,
+                start_date: dayjs(data.stt_at).tz("Asia/Seoul").format("YYYY-MM-DD"),
+                type: "gathering_mine",
+                post_type: data.gthr_type_enm,
+                sprt_cd: data.sprt_cd ?? null,
+                location: data.loc_txt ?? null,
+                cont_txt: data.desc_txt ?? null,
+                evt_stt_at: data.stt_at,
+                evt_end_at: data.end_at ?? null,
+                crt_by: data.crt_by,
+              };
+            }
+          }
+          if (created) {
+            await openGatheringDetail(created, true);
+          }
         }}
       />
 
@@ -1198,6 +1240,7 @@ export function MiniCalendar({
         isAttending={gthrDetailAttending}
         members={membersCache ?? []}
         initialComments={gthrDetailComments}
+        justCreated={gthrJustCreated}
         onEdit={() => {
           if (!gthrDetailRace) return;
           setGthrDetailOpen(false);

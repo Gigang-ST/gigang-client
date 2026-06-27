@@ -109,6 +109,7 @@ async function HomeContent() {
     end_date: row.end_at ? dayjs(row.end_at).tz("Asia/Seoul").format("YYYY-MM-DD") : null,
     type: (currentMember && ("is_attending" in row ? row.is_attending : false) ? "gathering_mine" : "gathering") as CalendarRace["type"],
     post_type: row.gthr_type_enm,
+    sprt_cd: row.sprt_cd ?? null,
     location: row.loc_txt ?? null,
     cont_txt: row.desc_txt ?? null,
     evt_stt_at: row.stt_at,
