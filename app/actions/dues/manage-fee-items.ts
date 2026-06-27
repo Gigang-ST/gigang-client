@@ -45,7 +45,11 @@ export async function updateFeeItem({ cdId, cdNm }: { cdId: string; cdNm: string
 export async function reorderFeeItems(items: { cdId: string; sortOrd: number }[]) {
   return withAdmin(async () => {
     const db = createAdminClient();
-    await Promise.all(items.map(({ cdId, sortOrd }) => db.from("cmm_cd_mst").update({ sort_ord: sortOrd }).eq("cd_id", cdId).eq("vers", 0)));
+    const results = await Promise.all(
+      items.map(({ cdId, sortOrd }) => db.from("cmm_cd_mst").update({ sort_ord: sortOrd }).eq("cd_id", cdId).eq("vers", 0)),
+    );
+    // 하나라도 실패하면 클라이언트가 이전 순서로 롤백할 수 있도록 실패를 알린다.
+    if (results.some((r) => r.error)) return { ok: false as const, message: "순서 저장에 실패했습니다." };
     return { ok: true as const, message: null };
   });
 }
