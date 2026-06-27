@@ -105,15 +105,16 @@ export async function subscribePush(): Promise<SubscribeResult> {
     return { ok: false, reason: "denied" };
   }
 
+  const vapidPublicKey = env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  if (!vapidPublicKey) return { ok: false, reason: "unsupported" };
+
   try {
     const reg = await getRegistration();
     let sub = await reg.pushManager.getSubscription();
     if (!sub) {
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToBuffer(
-          env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-        ),
+        applicationServerKey: urlBase64ToBuffer(vapidPublicKey),
       });
     }
 

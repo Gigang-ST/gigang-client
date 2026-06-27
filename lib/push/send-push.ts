@@ -13,12 +13,29 @@ import { env } from "@/lib/env";
  * noti_pref_cfg로 꺼진 타입은 insertNoti가 INSERT 자체를 스킵하므로 푸시도 자동으로 안 나간다.
  */
 
-// VAPID 인증 정보는 모듈 로드 시 1회 설정.
-webpush.setVapidDetails(
-  env.VAPID_SUBJECT,
-  env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-  env.VAPID_PRIVATE_KEY,
-);
+// VAPID 설정은 모듈 로드 시점이 아니라 첫 발송 시점에 1회만 한다.
+// 모듈 로드 시 setVapidDetails를 호출하면 빌드(page data 수집) 단계에서
+// 환경변수가 비어 "No subject set" 에러로 빌드가 실패한다.
+let vapidConfigured = false;
+
+function ensureVapidConfigured(): boolean {
+  if (vapidConfigured) return true;
+  if (
+    !env.VAPID_SUBJECT ||
+    !env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
+    !env.VAPID_PRIVATE_KEY
+  ) {
+    // 키 미설정(예: 환경변수 누락) — 발송을 건너뛴다(빌드/로컬에서 안전).
+    return false;
+  }
+  webpush.setVapidDetails(
+    env.VAPID_SUBJECT,
+    env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+    env.VAPID_PRIVATE_KEY,
+  );
+  vapidConfigured = true;
+  return true;
+}
 
 /** 서비스워커 push 이벤트에서 받을 페이로드 */
 export type PushPayload = {
@@ -39,6 +56,9 @@ export async function sendPushToMember(
   memId: string,
   payload: PushPayload,
 ): Promise<void> {
+  // VAPID 미설정이면(환경변수 누락 등) 조용히 스킵 — 인앱 알림은 이미 저장됨.
+  if (!ensureVapidConfigured()) return;
+
   const admin = createUntypedAdminClient();
 
   const { data: subs, error } = await admin

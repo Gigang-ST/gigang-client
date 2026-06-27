@@ -337,7 +337,7 @@ ALTER TABLE gthr_mst
 - **Supabase Edge Function + cron 트리거** (1분마다 실행)
 - pg_cron은 SQL만 실행 가능 → web-push 라이브러리 사용 불가라서 제외
 
-```
+```text
 [Edge Function — 1분마다]
   → gthr_mst에서 remind_sent_yn=false 이고
     stt_at - remind_before_min분 <= now() 인 모임 조회

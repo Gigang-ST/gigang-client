@@ -169,8 +169,14 @@ export function PwaInstallPrompt({
       <div className="mx-auto flex max-w-md flex-col gap-2 rounded-2xl border-[1.5px] border-border bg-background p-3 shadow-lg">
         <div className="flex items-center gap-3">
           <div className="flex-1">
-            <Body className="font-semibold">기강을 홈 화면에 추가</Body>
-            <Caption className="mt-0.5 block">앱처럼 빠르게 열어요</Caption>
+            <Body className="font-semibold">
+              {isIOS() ? "알림을 받으려면 홈 화면에 추가" : "기강을 홈 화면에 추가"}
+            </Body>
+            <Caption className="mt-0.5 block">
+              {isIOS()
+                ? "iPhone은 홈 화면에 추가해야 푸시 알림을 받을 수 있어요"
+                : "앱처럼 빠르게 열어요"}
+            </Caption>
             {iosGuideBlock}
           </div>
           {installButton}

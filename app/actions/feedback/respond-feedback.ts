@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 
 import { withAdmin } from "@/lib/actions/auth";
+import { dayjs } from "@/lib/dayjs";
 import { insertNoti } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
@@ -18,7 +19,7 @@ export async function respondFeedback(id: string, adminNote: string) {
     const db = createUntypedAdminClient();
     const { data: updated, error } = await db
       .from("fdbk_mst")
-      .update({ adm_note_txt: parsed.data.adminNote ?? null, rspd_at: new Date().toISOString() })
+      .update({ adm_note_txt: parsed.data.adminNote ?? null, rspd_at: dayjs().toISOString() })
       .eq("fdbk_id", id)
       .eq("del_yn", false)
       .select("mem_id, cont_txt")

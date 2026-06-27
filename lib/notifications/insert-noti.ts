@@ -29,7 +29,7 @@ export async function insertNoti(input: InsertNotiInput): Promise<void> {
 
   if (pref?.enabled_yn === false) return;
 
-  await admin.from("noti_mst").insert({
+  const { error: insertErr } = await admin.from("noti_mst").insert({
     team_id: input.teamId,
     mem_id: input.memId,
     noti_type_enm: input.notiTypeEnm,
@@ -38,6 +38,10 @@ export async function insertNoti(input: InsertNotiInput): Promise<void> {
     ref_id: input.refId ?? null,
     ref_type_enm: input.refTypeEnm ?? null,
   });
+  // INSERT 실패 시 조용히 누락되지 않도록 예외로 올린다(호출처에서 처리).
+  if (insertErr) {
+    throw new Error(`noti_mst insert 실패: ${insertErr.message}`);
+  }
 
   // 인앱 알림 INSERT 직후 푸시도 발송 (발송 중앙 지점).
   // noti_pref_cfg로 꺼진 타입은 위에서 이미 return 되므로 푸시도 자동으로 안 나간다.
