@@ -2,9 +2,13 @@
 
 import crypto from "crypto";
 
+import { dayjs } from "@/lib/dayjs";
+
 import { withAdmin } from "@/lib/actions/auth";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+import { getValidFeeItemCds } from "./validate-fee-item";
 
 type ParsedRow = {
   txn_dt: string;
@@ -113,7 +117,23 @@ export async function uploadXlsx(formData: FormData) {
       nameMap.set(key, list);
     }
 
-    let matched = 0, unmatched = 0, ambiguous = 0, skipped = 0;
+    // 회원별 baseline(마지막 거래일) 맵 — 이미 마감된 시점 이전의 과거 거래가
+    // 재유입되는 것을 막기 위함. snap.last_calc_at = 그 회원의 마지막 거래 기준 시점.
+    const { data: snaps } = await db
+      .from("fee_mem_bal_snap")
+      .select("mem_id, last_calc_at")
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false);
+    const baselineMap = new Map<string, string>();
+    for (const s of snaps ?? []) {
+      if (s.last_calc_at) baselineMap.set(s.mem_id, s.last_calc_at);
+    }
+
+    // 분류 유효성 집합 — 공통코드에 없는 분류는 'other'로 폴백 (업로드는 자동 분류라 중단보다 폴백이 안전)
+    const validCds = await getValidFeeItemCds(db);
+
+    let matched = 0, unmatched = 0, ambiguous = 0, skipped = 0, skippedByCutoff = 0;
 
     for (const row of rows) {
       const normName = row.raw_name.replace(/\s/g, "");
@@ -134,11 +154,29 @@ export async function uploadXlsx(formData: FormData) {
         }
       }
 
+      // baseline cutoff: 회원이 확실히 특정된(matched) 거래가 그 회원의 마지막 거래일(baseline)
+      // 이전이면, 이미 마감된 과거이므로 적재하지 않고 스킵한다.
+      // (미매칭·동명이인은 누구 건지 모르니 baseline 비교가 불가능 → 그대로 적재)
+      if (matchStatus === "matched" && memId) {
+        const baseline = baselineMap.get(memId);
+        if (baseline) {
+          const txnAt = dayjs.tz(`${row.txn_dt}T${row.txn_tm ?? "00:00:00"}`, "Asia/Seoul");
+          if (txnAt.isBefore(dayjs(baseline))) {
+            matched--; // 위에서 올린 카운트 되돌림
+            skippedByCutoff++;
+            continue;
+          }
+        }
+      }
+
+      // 공통코드에 없는 분류면 'other'로 폴백
+      const feeItemCd = validCds.has(row.fee_item_cd) ? row.fee_item_cd : "other";
+
       const { error } = await db.from("fee_txn_hist").insert({
         team_id: teamId, upd_id: upd.upd_id, txn_dt: row.txn_dt, txn_tm: row.txn_tm,
         txn_amt: row.txn_amt, txn_io_enm: row.txn_io_enm, raw_name: row.raw_name,
         raw_memo: row.raw_memo, txn_tp_txt: row.txn_tp_txt, match_st_cd: matchStatus,
-        mem_id: memId, fee_item_cd: row.fee_item_cd, is_cfm_yn: false, del_yn: false,
+        mem_id: memId, fee_item_cd: feeItemCd, is_cfm_yn: false, del_yn: false,
       });
 
       if (error?.code === "23505") {
@@ -149,6 +187,6 @@ export async function uploadXlsx(formData: FormData) {
       }
     }
 
-    return { ok: true as const, message: null, summary: { total: rows.length, matched, unmatched, ambiguous, skipped } };
+    return { ok: true as const, message: null, summary: { total: rows.length, matched, unmatched, ambiguous, skipped, skippedByCutoff } };
   });
 }

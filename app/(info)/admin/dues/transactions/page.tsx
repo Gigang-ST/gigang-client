@@ -8,9 +8,9 @@ import { DuesTransactionsClient } from "./dues-transactions-client";
 export default async function DuesTransactionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; filter?: string; balFilter?: string }>;
+  searchParams: Promise<{ tab?: string; balFilter?: string }>;
 }) {
-  const { tab, filter, balFilter } = await searchParams;
+  const { tab, balFilter } = await searchParams;
   const { teamId } = await getRequestTeamContext();
   const supabase = await createClient();
 
@@ -37,6 +37,7 @@ export default async function DuesTransactionsPage({
       .eq("team_id", teamId)
       .eq("vers", 0)
       .eq("del_yn", false)
+      .neq("file_hash", "manual-entry-batch") // 수동 등록 가상 회차는 업로드 이력에서 제외
       .order("crt_at", { ascending: false })
       .limit(20),
     supabase
@@ -49,7 +50,7 @@ export default async function DuesTransactionsPage({
       .order("mem_nm"),
     supabase
       .from("cmm_cd_mst")
-      .select("cd, cd_nm, cmm_cd_grp_mst!inner(cd_grp_cd)")
+      .select("cd_id, cd, cd_nm, sort_ord, is_default_yn, cmm_cd_grp_mst!inner(cd_grp_cd)")
       .eq("cmm_cd_grp_mst.cd_grp_cd", "FEE_ITEM_CD")
       .eq("vers", 0)
       .eq("del_yn", false)
@@ -131,12 +132,6 @@ export default async function DuesTransactionsPage({
   type TabType = typeof validTabs[number];
   const initialTab: TabType = validTabs.includes(tab as TabType) ? (tab as TabType) : "upload";
 
-  const validTxnFilters = ["all", "unconfirmed", "confirmed"] as const;
-  type TxnFilterType = typeof validTxnFilters[number];
-  const initialTxnFilter: TxnFilterType = validTxnFilters.includes(filter as TxnFilterType)
-    ? (filter as TxnFilterType)
-    : "all";
-
   const initialBalFilter = balFilter === "unpaid" ? "unpaid" : "all";
 
   return (
@@ -162,8 +157,8 @@ export default async function DuesTransactionsPage({
       memberRows={memberRows}
       payHists={payHistList}
       feeItemCds={(feeItemCds ?? []).map((c) => ({ cd: c.cd, label: c.cd_nm }))}
+      feeItemsFull={(feeItemCds ?? []).map(({ cmm_cd_grp_mst: _g, ...rest }) => rest)}
       initialTab={initialTab}
-      initialTxnFilter={initialTxnFilter}
       initialBalFilter={initialBalFilter as "all" | "unpaid"}
     />
   );
