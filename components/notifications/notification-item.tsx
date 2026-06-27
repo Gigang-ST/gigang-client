@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 
 import { useRouter } from "next/navigation";
 
-import { Bell, Coins, MessageCircle, Trophy, Trash2, FileText, Users } from "lucide-react";
+import { Bell, Coins, MessageCircle, Trophy, Trash2, FileText, Users, MessageSquareText } from "lucide-react";
 
 import { dayjs } from "@/lib/dayjs";
 import type { Notification } from "@/lib/queries/notification";
@@ -31,6 +31,8 @@ const NOTI_ICON: Record<string, React.ElementType> = {
   gthr_cmnt: MessageCircle,
   gthr_reply: MessageCircle,
   gthr_mention: MessageCircle,
+  fdbk_new: MessageSquareText,
+  fdbk_rspd: MessageSquareText,
 };
 
 const NOTI_ROUTE: Record<string, (refId: string | null, refType: string | null) => string | null> = {
@@ -48,6 +50,8 @@ const NOTI_ROUTE: Record<string, (refId: string | null, refType: string | null) 
   gthr_cmnt: (refId) => refId ? `/?gthr=${refId}` : "/",
   gthr_reply: (refId) => refId ? `/?gthr=${refId}` : "/",
   gthr_mention: (refId) => refId ? `/?gthr=${refId}` : "/",
+  fdbk_new: () => "/admin/feedback",
+  fdbk_rspd: () => "/profile/feedback",
 };
 
 function formatRelative(crtAt: string) {

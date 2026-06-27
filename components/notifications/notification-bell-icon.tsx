@@ -32,6 +32,7 @@ const NOTI_TYPE_LABELS: Record<string, string> = {
   gthr_upd: "참가 모임 수정·삭제",
   ttl_grnt: "칭호 획득",
   sch_post_new: "정보 등록",
+  fdbk_rspd: "내 건의 답변",
 };
 
 type ViewType = "list" | "settings";

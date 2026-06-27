@@ -48,7 +48,7 @@ export function FeedbackList({ items }: { items: FeedbackItem[] }) {
               <Body>{item.body}</Body>
               {item.admin_note && (
                 <div className="rounded-lg bg-info/10 px-3 py-2">
-                  <Micro className="mb-1 text-info">운영진 답변</Micro>
+                  <Micro className="mb-1.5 block text-info">운영진 답변</Micro>
                   <Caption className="text-foreground">{item.admin_note}</Caption>
                 </div>
               )}
