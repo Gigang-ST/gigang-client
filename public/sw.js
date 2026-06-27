@@ -31,9 +31,9 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(title, {
       body: payload.body || "",
       icon: "/android-icon-192x192.png",
-      // badge(상태바 단색 아이콘)는 흰색 단색 실루엣 전용 이미지가 필요하다.
-      // 컬러 로고를 넣으면 흰 사각형으로 뭉개지므로, 전용 아이콘이 준비되기 전엔 생략.
-      // 미지정 시 OS 기본 아이콘으로 대체된다.
+      // badge(상태바 단색 아이콘): 흰색 실루엣 + 투명 배경 전용 PNG.
+      // 안드로이드가 불투명 픽셀을 흰색으로 렌더링하므로 흰 로고 모양이 그대로 표시됨.
+      badge: "/notification-badge.png",
       tag: payload.tag || `gigang-${Date.now()}`,
       data: { url },
     }),
