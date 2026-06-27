@@ -8,9 +8,6 @@
  * ⚠️ serwist/next-pwa 미사용 — 빌드로 덮어쓰이지 않으므로 이 파일을 직접 관리한다.
  */
 
-const GROUP_TAG = "gigang";
-const SUMMARY_TAG = "gigang-summary";
-
 // 새 SW가 바로 활성화되도록
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) =>
@@ -28,50 +25,18 @@ self.addEventListener("push", (event) => {
 
   const title = payload.title || "기강";
   const url = payload.url || "/";
-  const options = {
-    body: payload.body || "",
-    icon: "/android-icon-192x192.png",
-    badge: "/android-icon-192x192.png",
-    tag: payload.tag || `gigang-${Date.now()}`,
-    data: { url },
-    // Android: 같은 그룹으로 묶어 알림창에서 1줄로 보이게
-    renotify: false,
-  };
-
-  event.waitUntil(showWithGroupSummary(title, options));
+  // 개별 알림만 띄운다. 같은 앱 알림의 "N개" 묶음(접으면 1줄, 펼치면 개별)은
+  // 안드로이드 OS가 자동으로 처리하므로 수동 요약을 만들지 않는다.
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: payload.body || "",
+      icon: "/android-icon-192x192.png",
+      badge: "/android-icon-192x192.png",
+      tag: payload.tag || `gigang-${Date.now()}`,
+      data: { url },
+    }),
+  );
 });
-
-/**
- * 개별 알림을 표시하고, Android에서 그룹 요약(접혔을 때 1줄)을 갱신한다.
- * iOS는 group/isGroupSummary 미지원 — OS가 앱별로 자동 그룹핑하므로 개별 알림만 띄운다.
- */
-async function showWithGroupSummary(title, options) {
-  await self.registration.showNotification(title, options);
-
-  // 그룹 요약은 Android 계열에서만 의미가 있다. 실패해도 개별 알림은 이미 떴으므로 무시.
-  try {
-    const existing = await self.registration.getNotifications({
-      tag: SUMMARY_TAG,
-    });
-    // 요약 자신을 제외한 실제 알림 개수
-    const all = await self.registration.getNotifications();
-    const count = all.filter((n) => n.tag !== SUMMARY_TAG).length;
-    if (count > 1) {
-      await self.registration.showNotification("기강", {
-        body: `새 알림 ${count}개`,
-        icon: "/android-icon-192x192.png",
-        badge: "/android-icon-192x192.png",
-        tag: SUMMARY_TAG,
-        data: { url: "/" },
-        silent: true,
-      });
-    }
-    void existing;
-  } catch {
-    // iOS 등 미지원 환경 — 무시
-  }
-  void GROUP_TAG;
-}
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
