@@ -14,18 +14,20 @@ import {
 } from "@/lib/push/client";
 
 import { Body, Caption } from "@/components/common/typography";
+import { isStandalone } from "@/components/in-app-browser-gate";
 import { Button } from "@/components/ui/button";
 
 const DISMISS_KEY = "push-prompt-dismissed";
 
 /**
- * 첫 진입 시 푸시 알림 권한을 유도하는 soft prompt (전역 하단 배너).
+ * 설치된 PWA에서 푸시 알림 권한을 유도하는 soft prompt (상단 배너).
  *
  * 설계 정책:
- * - 데스크톱·iOS 미설치 웹에서는 표시하지 않는다 (canUsePush 게이트).
- *   iOS 웹의 설치 유도는 기존 PwaInstallPrompt(알림 동기 문구)가 담당한다.
+ * - **설치된 PWA에서만** 표시한다. 미설치 웹(Android/iOS)의 설치 유도와
+ *   Android의 "설치 안보기 → 권한 요청" 폴백은 PwaInstallPrompt가 담당한다.
+ * - 데스크톱·iOS 미설치는 canUsePush 게이트로도 자동 제외된다.
  * - OS 권한창을 자동으로 띄우지 않고, 먼저 안내를 보여준 뒤 "알림 받기" 클릭 시 요청.
- * - 거부하면 다시 자동으로 조르지 않는다(설치 배너의 7일과 다름) — localStorage 영구 dismiss.
+ * - 거부하면 다시 자동으로 조르지 않는다 — localStorage 영구 dismiss.
  *   마음 바뀌면 우측 상단 알림 설정 토글에서 직접 켠다.
  */
 export function PushPermissionPrompt() {
@@ -34,6 +36,8 @@ export function PushPermissionPrompt() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (window.localStorage.getItem(DISMISS_KEY)) return;
+    // 설치된 PWA에서만 (미설치 웹은 설치 배너가 담당)
+    if (!isStandalone()) return;
     if (!canUsePush()) return;
 
     // 이미 권한을 결정했거나(허용/거부) 구독이 있으면 띄우지 않음
@@ -42,15 +46,7 @@ export function PushPermissionPrompt() {
 
     let cancelled = false;
     void hasSubscription().then((has) => {
-      if (!cancelled && !has) {
-        // 푸시 프롬프트를 띄우는 동안 설치 배너가 같은 위치에 겹치지 않도록 억제한다.
-        // (Android 웹: 설치 없이 바로 권한 요청이 설계 의도 — 정책 3)
-        window.localStorage.setItem(
-          "pwa-install-dismissed-at",
-          String(Date.now()),
-        );
-        setVisible(true);
-      }
+      if (!cancelled && !has) setVisible(true);
     });
     return () => {
       cancelled = true;

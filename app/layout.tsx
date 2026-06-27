@@ -10,6 +10,9 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 
 import { InAppBrowserGate } from "@/components/in-app-browser-gate";
 import { Providers } from "@/components/providers";
+import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
+import { ServiceWorkerRegister } from "@/components/service-worker-register";
+import { getCurrentMember } from "@/lib/queries/member";
 
 import "./globals.css";
 import { siteContent } from "@/config";
@@ -62,11 +65,21 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // 설치 배너의 "안보기 → 권한 요청" 폴백을 로그인 멤버에게만 적용하기 위해 조회.
+  // getCurrentMember는 React cache()라 같은 요청 내 중복 쿼리가 없고, 비로그인은 빠르게 끝난다.
+  let loggedIn = false;
+  try {
+    const { member } = await getCurrentMember();
+    loggedIn = member !== null;
+  } catch {
+    loggedIn = false;
+  }
+
   return (
     <html lang="ko" suppressHydrationWarning>
       <body className={`${inter.className} antialiased`}>
@@ -75,6 +88,9 @@ export default function RootLayout({
             <Suspense fallback={null}>
               <InAppBrowserGate>{children}</InAppBrowserGate>
             </Suspense>
+            {/* 설치 배너: 비로그인 포함 전원 노출. Android "안보기 → 권한 요청" 폴백은 loggedIn일 때만 */}
+            <PwaInstallPrompt variant="banner" loggedIn={loggedIn} />
+            <ServiceWorkerRegister />
           </NuqsAdapter>
         </Providers>
       </body>

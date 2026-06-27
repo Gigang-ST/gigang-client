@@ -36,12 +36,12 @@ type NotificationBellIconProps = {
   disabled?: boolean;
 };
 
+// 껐다 켤 수 있는 알림만 노출. fdbk_rspd(내 건의 답변)는 항상 받아야 하는 필수 알림이라 제외.
 const NOTI_TYPE_LABELS: Record<string, string> = {
-  gthr_new: "모임 등록",
+  gthr_new: "새 모임 등록",
   gthr_upd: "참가 모임 수정·삭제",
+  sch_post_new: "새 정보 등록",
   ttl_grnt: "칭호 획득",
-  sch_post_new: "정보 등록",
-  fdbk_rspd: "내 건의 답변",
 };
 
 type ViewType = "list" | "settings";

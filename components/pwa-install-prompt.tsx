@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 
 import { Share, X } from "lucide-react";
+import { toast } from "sonner";
 
+import { subscribePush } from "@/lib/push/client";
 import { cn } from "@/lib/utils";
 
 import { Body, Caption } from "@/components/common/typography";
@@ -37,6 +39,8 @@ type PwaInstallPromptProps = {
   /** banner=전역 하단 고정(7일 dismiss), inline=가입 완료 카드 내부 */
   variant?: "banner" | "inline";
   className?: string;
+  /** 로그인 멤버 여부. true일 때만 Android에서 "안보기" 후 알림 권한 요청으로 이어짐 */
+  loggedIn?: boolean;
 };
 
 /**
@@ -44,10 +48,13 @@ type PwaInstallPromptProps = {
  * - 이미 설치(standalone)되었거나 인앱 브라우저면 렌더하지 않음.
  * - Android/Chrome: beforeinstallprompt 캡처 후 네이티브 설치.
  * - iOS Safari: "공유 → 홈 화면에 추가" 안내.
+ * - Android 로그인 멤버가 설치를 "안보기"로 거부하면, 설치 없이 알림 권한 요청으로 이어준다
+ *   (Android는 웹에서도 푸시 가능 — iOS는 설치 필수라 폴백 없음).
  */
 export function PwaInstallPrompt({
   variant = "banner",
   className,
+  loggedIn = false,
 }: PwaInstallPromptProps) {
   const [visible, setVisible] = useState(false);
   const [iosGuide, setIosGuide] = useState(false);
@@ -58,6 +65,12 @@ export function PwaInstallPrompt({
   useEffect(() => {
     // 설치됨/인앱이면 표시 안 함
     if (isStandalone() || detectInAppBrowser() !== null) return;
+    // banner(전역)는 모바일에서만 — 데스크톱은 푸시·설치 대상 제외 (정책 1).
+    // inline(가입 완료 화면)은 모바일 가정이라 이 게이트를 적용하지 않는다.
+    if (variant === "banner") {
+      const isAndroid = /android/i.test(navigator.userAgent);
+      if (!isIOS() && !isAndroid) return; // 데스크톱
+    }
     if (variant === "banner" && recentlyDismissed()) return;
 
     if (isIOS()) {
@@ -98,6 +111,15 @@ export function PwaInstallPrompt({
       window.localStorage.setItem(DISMISS_KEY, String(Date.now()));
     }
     setVisible(false);
+
+    // 로그인 멤버가 설치를 거부하면 알림 권한 요청으로 이어준다.
+    // subscribePush가 OS를 분기한다: iOS 미설치는 needs-install로 빠져 권한 요청을 하지 않고,
+    // Android는 설치 없이 바로 권한 요청한다. 데스크톱도 내부에서 제외된다.
+    if (variant === "banner" && loggedIn) {
+      void subscribePush().then((result) => {
+        if (result.ok) toast.success("푸시 알림이 켜졌어요");
+      });
+    }
   };
 
   const installButton = (
