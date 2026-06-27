@@ -21,7 +21,7 @@ type BeforeInstallPromptEvent = Event & {
 };
 
 const DISMISS_KEY = "pwa-install-dismissed-at";
-const DISMISS_DAYS = 1;
+const DISMISS_DAYS = 7;
 
 function recentlyDismissed(): boolean {
   if (typeof window === "undefined") return false;
@@ -139,20 +139,29 @@ export function PwaInstallPrompt({
         className,
       )}
     >
-      <div className="mx-auto flex max-w-md items-center gap-3 rounded-2xl border-[1.5px] border-border bg-background p-3 shadow-lg">
-        <div className="flex-1">
-          <Body className="font-semibold">기강을 홈 화면에 추가</Body>
-          <Caption className="mt-0.5 block">앱처럼 빠르게 열어요</Caption>
-          {iosGuideBlock}
+      <div className="mx-auto flex max-w-md flex-col gap-2 rounded-2xl border-[1.5px] border-border bg-background p-3 shadow-lg">
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <Body className="font-semibold">기강을 홈 화면에 추가</Body>
+            <Caption className="mt-0.5 block">앱처럼 빠르게 열어요</Caption>
+            {iosGuideBlock}
+          </div>
+          {installButton}
+          <button
+            type="button"
+            onClick={handleDismiss}
+            aria-label="닫기"
+            className="text-muted-foreground"
+          >
+            <X className="size-5" />
+          </button>
         </div>
-        {installButton}
         <button
           type="button"
           onClick={handleDismiss}
-          aria-label="닫기"
-          className="text-muted-foreground"
+          className="self-end text-muted-foreground"
         >
-          <X className="size-5" />
+          <Caption>일주일간 보지 않기</Caption>
         </button>
       </div>
     </div>
