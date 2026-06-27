@@ -43,7 +43,7 @@ COMMENT ON COLUMN public.gthr_mst.short_id    IS '딥링크/공유용 짧은 ID'
 
 CREATE INDEX ix_gthr_mst_team_stt_at ON public.gthr_mst(team_id, stt_at ASC) WHERE del_yn = false;
 CREATE INDEX ix_gthr_mst_crt_by      ON public.gthr_mst(crt_by) WHERE del_yn = false;
-CREATE INDEX ix_gthr_mst_short_id    ON public.gthr_mst(short_id);
+-- short_id 인덱스는 UNIQUE 제약(gthr_mst_short_id_key)이 이미 생성하므로 별도 생성하지 않음
 
 ALTER TABLE public.gthr_mst ENABLE ROW LEVEL SECURITY;
 
