@@ -31,7 +31,7 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(title, {
       body: payload.body || "",
       // icon(우측 large icon): 알림에 표시할 대표 이미지(컬러 로고).
-      icon: "/notification-icon.png",
+      icon: "/GIGANG.png",
       // badge(상태바 단색 아이콘): 흰색 실루엣 + 투명 배경 전용 PNG.
       badge: "/notification-badge.png",
       tag: payload.tag || `gigang-${Date.now()}`,
