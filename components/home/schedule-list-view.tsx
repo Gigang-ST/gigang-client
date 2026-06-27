@@ -51,6 +51,7 @@ type SchedulePagedRow = {
   reg_count: number | null;
   cmnt_count: number;
   short_id: string | null;
+  sprt_cd: string | null;
 };
 
 function racesToMonths(races: CalendarRace[]): MonthData[] {
@@ -113,6 +114,7 @@ async function fetchAdjacent(
         start_date: row.start_date,
         type: row.item_type as "gathering" | "gathering_mine",
         post_type: row.post_type ?? null,
+        sprt_cd: ("sprt_cd" in row ? (row.sprt_cd as string | null) : null) ?? null,
         location: row.loc_nm ?? null,
         cont_txt: row.cont_txt ?? null,
         evt_stt_at: row.evt_stt_at ?? null,
