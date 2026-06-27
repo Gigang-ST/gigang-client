@@ -1,6 +1,6 @@
 "use client";
 
-import { Dispatch, SetStateAction, useState, useTransition } from "react";
+import { Dispatch, SetStateAction, useEffect, useState, useTransition } from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -269,7 +269,9 @@ function UploadTab({
   isPending: boolean;
   startTransition: ReturnType<typeof useTransition>[1];
 }) {
+  const router = useRouter();
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
+  const [rollbackMsg, setRollbackMsg] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -282,10 +284,14 @@ function UploadTab({
     startTransition(async () => {
       const res = await uploadXlsx(fd);
       if (res.ok) {
-        setUploadMsg(
-          `업로드 완료 — 총 ${res.summary.total}건, 매칭 ${res.summary.matched}건, 미매칭 ${res.summary.unmatched}건, 동명이인 ${res.summary.ambiguous}건, 중복 제외 ${res.summary.skipped}건, 마감이전 제외 ${res.summary.skippedByCutoff}건`
-        );
-        window.location.reload();
+        // 업로드 성공 → 거래내역 탭으로 이동 (새 거래를 바로 확정 처리하도록).
+        // 요약은 sessionStorage 로 넘겨 거래내역 화면 상단에 표시.
+        // 등록건수 = 총건수 − 중복제외 − 마감이전제외 (실제 거래내역에 적재된 수)
+        const s = res.summary;
+        const registered = s.total - s.skipped - s.skippedByCutoff;
+        const summary = `업로드 완료 — 총 ${s.total}건 중 ${registered}건 등록 (매칭 ${s.matched} · 미매칭 ${s.unmatched} · 동명이인 ${s.ambiguous} / 중복 제외 ${s.skipped} · 마감이전 제외 ${s.skippedByCutoff})`;
+        try { sessionStorage.setItem("dues_upload_summary", summary); } catch {}
+        window.location.href = "/admin/dues/transactions?tab=txn";
       } else {
         setUploadMsg(res.message);
       }
@@ -299,7 +305,9 @@ function UploadTab({
     startTransition(async () => {
       const res = await rollbackXlsx(updId);
       if (res.ok) {
-        window.location.reload();
+        setRollbackMsg(`롤백 완료 — "${res.fileNm}" 업로드 취소, 거래 ${res.deletedCount}건 삭제`);
+        setUploadMsg(null);
+        router.refresh(); // 업로드 이력 목록만 갱신 (전체 새로고침 X)
       } else {
         alert(res.message);
       }
@@ -330,6 +338,14 @@ function UploadTab({
           <Caption className={uploadMsg.includes("완료") ? "text-primary" : "text-destructive"}>
             {uploadMsg}
           </Caption>
+        )}
+        {rollbackMsg && (
+          <div className="flex items-center justify-between gap-2 rounded-xl border border-warning/30 bg-warning/5 px-3 py-2">
+            <Caption className="text-warning">{rollbackMsg}</Caption>
+            <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => setRollbackMsg(null)} aria-label="닫기">
+              ✕
+            </button>
+          </div>
         )}
       </div>
 
@@ -476,6 +492,23 @@ function TransactionsTab({
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("txn_dt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  // 업로드 직후 거래내역으로 넘어온 경우 요약 표시 (sessionStorage 로 전달됨).
+  // SSR 과 클라이언트 첫 렌더를 동일(null)하게 두고, 마운트 후에만 읽어
+  // 하이드레이션 불일치를 피한다.
+  const [uploadSummary, setUploadSummary] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const s = sessionStorage.getItem("dues_upload_summary");
+      if (s) {
+        sessionStorage.removeItem("dues_upload_summary");
+        // 브라우저 전용 데이터를 마운트 후 1회 읽어오는 정당한 패턴 (빈 deps).
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setUploadSummary(s);
+      }
+    } catch {
+      // sessionStorage 접근 불가 환경은 무시
+    }
+  }, []);
 
   function handleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -679,6 +712,14 @@ function TransactionsTab({
 
   return (
     <div className="flex flex-col gap-4">
+      {uploadSummary && (
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2">
+          <Caption className="text-primary">{uploadSummary}</Caption>
+          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => setUploadSummary(null)} aria-label="닫기">
+            ✕
+          </button>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <MemberSearchInput value={memberQuery} onChange={setMemberQuery} />
         {(cfmFilter.size > 0 || feeFilter.size > 0 || matchFilterSet.size > 0 || reflectFilter.size > 0) && (

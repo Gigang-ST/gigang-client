@@ -140,23 +140,29 @@ export async function uploadXlsx(formData: FormData) {
       let matchStatus: "matched" | "unmatched" | "ambiguous" = "unmatched";
       let memId: string | null = null;
 
-      if (row.fee_item_cd === "due") {
-        const candidates = nameMap.get(normName) ?? [];
-        if (candidates.length === 1) {
-          matchStatus = "matched";
-          memId = candidates[0];
-          matched++;
-        } else if (candidates.length > 1) {
-          matchStatus = "ambiguous";
-          ambiguous++;
-        } else {
-          unmatched++;
-        }
+      // 분류와 무관하게 이름으로 회원 매칭을 시도한다.
+      // (회비뿐 아니라 지출·환불 등도 회원에 연결되면 그 회원 거래내역에 보여주기 위함.
+      //  단, 개인 잔액 정산에 반영되는 것은 여전히 회비(due)+매칭 건만이다.)
+      const candidates = nameMap.get(normName) ?? [];
+      if (candidates.length === 1) {
+        matchStatus = "matched";
+        memId = candidates[0];
+        matched++;
+      } else if (candidates.length > 1) {
+        matchStatus = "ambiguous";
+        ambiguous++;
+      } else {
+        unmatched++;
       }
 
-      // baseline cutoff: 회원이 확실히 특정된(matched) 거래가 그 회원의 마지막 거래일(baseline)
-      // 이전이면, 이미 마감된 과거이므로 적재하지 않고 스킵한다.
-      // (미매칭·동명이인은 누구 건지 모르니 baseline 비교가 불가능 → 그대로 적재)
+      // baseline cutoff: 매칭된 거래가 그 회원의 마지막 거래일(baseline) 이전이면,
+      // 이미 마감된 과거이므로 적재하지 않고 스킵한다. (입금·출금/분류 불문)
+      //
+      // 근거: last_calc_at(baseline)은 "이 시점까지 이 회원의 모든 거래가 처리됨"을 뜻한다.
+      // baseline 이후로는 거래가 순서대로 다 들어오므로, baseline 이전에 새로 매칭되는 거래는
+      // 정상 흐름상 존재할 수 없고 = 마이그레이션 누락분(이미 baseline에 녹아있는 과거)의 재유입이다.
+      // 따라서 회비/지출 구분 없이 매칭 + baseline 이전이면 스킵한다.
+      // (미매칭·동명이인은 누구 건지 몰라 baseline 비교 불가 → 그대로 적재)
       if (matchStatus === "matched" && memId) {
         const baseline = baselineMap.get(memId);
         if (baseline) {

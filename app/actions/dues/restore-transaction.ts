@@ -25,9 +25,10 @@ export async function restoreTransaction(txnId: string) {
     if (!txn) return { ok: false as const, message: "거래를 찾을 수 없습니다." };
     if (!txn.del_yn) return { ok: false as const, message: "이미 사용 중인 거래입니다." };
 
+    // 복구는 항상 "미확정" 상태로 되돌린다 (다시 검토·확정 대상이 되도록).
     const { error } = await db
       .from("fee_txn_hist")
-      .update({ del_yn: false })
+      .update({ del_yn: false, is_cfm_yn: false, cfm_by_mem_id: null, cfm_at: null })
       .eq("txn_id", txnId)
       .eq("team_id", teamId);
 
