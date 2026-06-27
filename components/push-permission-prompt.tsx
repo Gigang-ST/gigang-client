@@ -92,9 +92,13 @@ export function PushPermissionPrompt({ loggedIn }: { loggedIn: boolean }) {
             <Bell className="size-5 text-foreground" aria-hidden="true" />
           </div>
           <div className="flex-1 pt-0.5">
-            <Body className="font-semibold">새 알림 받기</Body>
-            <Caption className="mt-1 block leading-relaxed">
-              모임·답변 소식을 푸시로 받아보세요.
+            <Body className="font-bold">🔔 놓치면 아쉬운 소식들!</Body>
+            <Caption className="mt-1 block leading-relaxed text-foreground/80">
+              <span className="font-semibold text-foreground">새 모임</span> ·{" "}
+              <span className="font-semibold text-foreground">새 정보</span> ·{" "}
+              <span className="font-semibold text-foreground">댓글</span> 알림을
+              <br />
+              제일 먼저 푸시로 받아보세요.
             </Caption>
           </div>
           <button
