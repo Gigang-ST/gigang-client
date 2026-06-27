@@ -69,6 +69,12 @@ async function sendToSub(
     await webpush.sendNotification(
       { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
       body,
+      {
+        // high urgency: 안드로이드 절전(Doze) 중에도 즉시 전달 시도 (간헐 누락 완화)
+        urgency: "high",
+        // 4시간 내 미전달 시 폐기 (오래된 알림 안 보냄)
+        TTL: 60 * 60 * 4,
+      },
     );
   } catch (err) {
     const statusCode = (err as { statusCode?: number })?.statusCode;
