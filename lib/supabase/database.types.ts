@@ -2210,6 +2210,7 @@ export type Database = {
               gthr_type_enm: string
               loc_txt: string
               short_id: string
+              sprt_cd: string
               stt_at: string
             }[]
           }
@@ -2233,6 +2234,7 @@ export type Database = {
               is_attending: boolean
               loc_txt: string
               short_id: string
+              sprt_cd: string
               stt_at: string
             }[]
           }
@@ -2315,6 +2317,7 @@ export type Database = {
           post_type: string
           reg_count: number
           short_id: string
+          sprt_cd: string
           start_date: string
           url: string
         }[]

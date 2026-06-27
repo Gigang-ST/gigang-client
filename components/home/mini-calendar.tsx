@@ -14,7 +14,8 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { schPostTypeInlineLabel } from "@/lib/validations/schedule-types";
 import type { SchPostType } from "@/lib/validations/schedule-types";
-import { gthrSprtLabels, type GthrSprtType } from "@/lib/validations/gathering";
+
+import { SportTag } from "@/components/schedule/sport-tag";
 
 import { getMentionMembers } from "@/app/actions/comment/get-mention-members";
 import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-create-comp-evt-for-participation";
@@ -657,7 +658,7 @@ export function MiniCalendar({
       end_date: row.end_at ? dayjs(row.end_at).tz("Asia/Seoul").format("YYYY-MM-DD") : null,
       type: (memberId && ("is_attending" in row ? row.is_attending : false) ? "gathering_mine" : "gathering") as CalendarRace["type"],
       post_type: row.gthr_type_enm,
-      sprt_cd: ("sprt_cd" in row ? (row.sprt_cd as string | null) : null) ?? null,
+      sprt_cd: row.sprt_cd ?? null,
       location: row.loc_txt ?? null,
       cont_txt: row.desc_txt ?? null,
       evt_stt_at: row.stt_at,
@@ -704,7 +705,7 @@ export function MiniCalendar({
     swipeDidNavigate.current = true;
     navigate(dx < 0 ? 1 : -1);
   // navigate는 deps [] 로 안정화됨
-  }, [isPending, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isPending, navigate]);  
 
   function openCreateForm(defaultDate?: string, postType?: SchPostType) {
     setFormMode("create");
@@ -1070,11 +1071,7 @@ export function MiniCalendar({
                                 {race.post_type === "regular" ? "정기" : "이벤트"}
                               </span>
                             )}
-                            {isGathering && race.sprt_cd && gthrSprtLabels[race.sprt_cd as GthrSprtType] && (
-                              <span className="shrink-0 rounded-full border border-border bg-secondary px-1.5 py-px text-[9px] font-medium leading-tight text-muted-foreground">
-                                {gthrSprtLabels[race.sprt_cd as GthrSprtType]}
-                              </span>
-                            )}
+                            {isGathering && <SportTag sprtCd={race.sprt_cd} />}
                           </span>
                           {isComp && (race.location || (race.cmntCount ?? 0) > 0) && (
                             <Micro className="flex items-center gap-1 text-muted-foreground">
@@ -1198,11 +1195,34 @@ export function MiniCalendar({
           const { gatherings: newGthr } = await refreshMonthData();
           setGthrEditTarget(null);
           // 신규 등록(createdGthrId는 create일 때만 채워짐)이면 해당 모임 상세를 열고 공유 유도 안내 노출
-          if (createdGthrId) {
-            const created = newGthr.find((g) => g.id === createdGthrId);
-            if (created) {
-              await openGatheringDetail(created, true);
+          if (!createdGthrId) return;
+          let created = newGthr.find((g) => g.id === createdGthrId) ?? null;
+          // 현재 보고 있는 달과 다른 달(예: 리스트뷰에서 오늘 날짜로 등록)이면 갱신 목록에 없으므로 직접 조회
+          if (!created) {
+            const { data } = await supabase
+              .from("gthr_mst")
+              .select("gthr_id, short_id, gthr_nm, gthr_type_enm, sprt_cd, stt_at, end_at, loc_txt, desc_txt, crt_by")
+              .eq("gthr_id", createdGthrId)
+              .maybeSingle();
+            if (data) {
+              created = {
+                id: data.gthr_id,
+                short_id: data.short_id ?? null,
+                title: data.gthr_nm,
+                start_date: dayjs(data.stt_at).tz("Asia/Seoul").format("YYYY-MM-DD"),
+                type: "gathering_mine",
+                post_type: data.gthr_type_enm,
+                sprt_cd: data.sprt_cd ?? null,
+                location: data.loc_txt ?? null,
+                cont_txt: data.desc_txt ?? null,
+                evt_stt_at: data.stt_at,
+                evt_end_at: data.end_at ?? null,
+                crt_by: data.crt_by,
+              };
             }
+          }
+          if (created) {
+            await openGatheringDetail(created, true);
           }
         }}
       />

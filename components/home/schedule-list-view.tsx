@@ -9,7 +9,8 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { schPostTypeInlineLabel } from "@/lib/validations/schedule-types";
 import type { SchPostType } from "@/lib/validations/schedule-types";
-import { gthrSprtLabels, type GthrSprtType } from "@/lib/validations/gathering";
+
+import { SportTag } from "@/components/schedule/sport-tag";
 
 import { Caption, Micro, SectionLabel } from "@/components/common/typography";
 
@@ -114,7 +115,7 @@ async function fetchAdjacent(
         start_date: row.start_date,
         type: row.item_type as "gathering" | "gathering_mine",
         post_type: row.post_type ?? null,
-        sprt_cd: ("sprt_cd" in row ? (row.sprt_cd as string | null) : null) ?? null,
+        sprt_cd: row.sprt_cd ?? null,
         location: row.loc_nm ?? null,
         cont_txt: row.cont_txt ?? null,
         evt_stt_at: row.evt_stt_at ?? null,
@@ -259,11 +260,7 @@ function GatheringItem({ race, onClick, loading }: { race: CalendarRace; onClick
               {race.post_type === "regular" ? "정기" : "이벤트"}
             </span>
           )}
-          {race.sprt_cd && gthrSprtLabels[race.sprt_cd as GthrSprtType] && (
-            <span className="shrink-0 rounded-full border border-border bg-secondary px-1.5 py-px text-[9px] font-medium leading-tight text-muted-foreground">
-              {gthrSprtLabels[race.sprt_cd as GthrSprtType]}
-            </span>
-          )}
+          <SportTag sprtCd={race.sprt_cd} />
         </span>
         {(timeRange || race.location || (race.cmntCount ?? 0) > 0) && (
           <Micro className="flex items-center gap-1.5 tabular-nums text-muted-foreground">
