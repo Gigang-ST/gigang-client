@@ -29,15 +29,19 @@ export async function insertNoti(input: InsertNotiInput): Promise<void> {
 
   if (pref?.enabled_yn === false) return;
 
-  const { error: insertErr } = await admin.from("noti_mst").insert({
-    team_id: input.teamId,
-    mem_id: input.memId,
-    noti_type_enm: input.notiTypeEnm,
-    noti_nm: input.notiNm,
-    noti_cont: input.notiCont ?? null,
-    ref_id: input.refId ?? null,
-    ref_type_enm: input.refTypeEnm ?? null,
-  });
+  const { data: inserted, error: insertErr } = await admin
+    .from("noti_mst")
+    .insert({
+      team_id: input.teamId,
+      mem_id: input.memId,
+      noti_type_enm: input.notiTypeEnm,
+      noti_nm: input.notiNm,
+      noti_cont: input.notiCont ?? null,
+      ref_id: input.refId ?? null,
+      ref_type_enm: input.refTypeEnm ?? null,
+    })
+    .select("noti_id")
+    .single();
   // INSERT 실패 시 조용히 누락되지 않도록 예외로 올린다(호출처에서 처리).
   if (insertErr) {
     throw new Error(`noti_mst insert 실패: ${insertErr.message}`);
@@ -59,7 +63,8 @@ export async function insertNoti(input: InsertNotiInput): Promise<void> {
       title: input.notiNm,
       body: input.notiCont ?? undefined,
       url,
-      tag: input.notiTypeEnm,
+      // notiId(고유값)를 tag로 — 같은 종류 알림도 덮어쓰지 않고 개별로 쌓이게 한다
+      tag: inserted?.noti_id ? `noti-${inserted.noti_id}` : undefined,
     });
   } catch (err) {
     console.error("[push] insertNoti 발송 실패", input.memId, err);
