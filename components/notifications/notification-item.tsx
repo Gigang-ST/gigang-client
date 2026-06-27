@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Bell, Coins, MessageCircle, Trophy, Trash2, FileText, Users, MessageSquareText } from "lucide-react";
 
 import { dayjs } from "@/lib/dayjs";
+import { resolveNotiDeepLink } from "@/lib/notifications/deep-link";
 import type { Notification } from "@/lib/queries/notification";
 import { cn } from "@/lib/utils";
 
@@ -33,25 +34,6 @@ const NOTI_ICON: Record<string, React.ElementType> = {
   gthr_mention: MessageCircle,
   fdbk_new: MessageSquareText,
   fdbk_rspd: MessageSquareText,
-};
-
-const NOTI_ROUTE: Record<string, (refId: string | null, refType: string | null) => string | null> = {
-  ttl_grnt: () => "/profile",
-  adm_cust: () => null,
-  dues_notice: () => "/profile/dues",
-  dues_check_req: () => null,
-  sch_post_cmnt: (refId) => refId ? `/?post=${refId}` : "/",
-  sch_post_new: (refId) => refId ? `/?post=${refId}` : "/",
-  cmnt_mention: (refId, refType) => refType === "comp" ? `/?comp=${refId}` : refType === "gathering" ? (refId ? `/?gthr=${refId}` : "/") : refId ? `/?post=${refId}` : "/",
-  cmnt_reply: (refId, refType) => refType === "comp" ? `/?comp=${refId}` : refType === "gathering" ? (refId ? `/?gthr=${refId}` : "/") : refId ? `/?post=${refId}` : "/",
-  gthr_new: (refId) => refId ? `/?gthr=${refId}` : "/",
-  gthr_upd: (refId) => refId ? `/?gthr=${refId}` : "/",
-  gthr_del: () => "/",
-  gthr_cmnt: (refId) => refId ? `/?gthr=${refId}` : "/",
-  gthr_reply: (refId) => refId ? `/?gthr=${refId}` : "/",
-  gthr_mention: (refId) => refId ? `/?gthr=${refId}` : "/",
-  fdbk_new: () => "/admin/feedback",
-  fdbk_rspd: () => "/profile/feedback",
 };
 
 function formatRelative(crtAt: string) {
@@ -85,7 +67,7 @@ export function NotificationItem({ noti, onDelete, onRead, onClose }: Notificati
   }, [noti.read_yn]);
 
   const Icon = NOTI_ICON[noti.noti_type_enm] ?? Bell;
-  const route = NOTI_ROUTE[noti.noti_type_enm]?.(noti.ref_id, noti.ref_type_enm) ?? null;
+  const route = resolveNotiDeepLink(noti.noti_type_enm, noti.ref_id, noti.ref_type_enm);
 
   function handleRead() {
     if (!isRead) {

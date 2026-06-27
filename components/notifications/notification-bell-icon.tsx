@@ -3,8 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Bell, Settings, Trash2, ChevronLeft } from "lucide-react";
+import { toast } from "sonner";
 
 import { dayjs } from "@/lib/dayjs";
+import {
+  canUsePush,
+  getPermission,
+  hasSubscription,
+  needsInstall,
+  subscribePush,
+  unsubscribePush,
+} from "@/lib/push/client";
 import type { Notification, NotificationPref } from "@/lib/queries/notification";
 import { createClient } from "@/lib/supabase/client";
 
@@ -43,6 +52,10 @@ export function NotificationBellIcon({ initialCount, initialNotifications, membe
   const [unreadCount, setUnreadCount] = useState(initialCount);
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications ?? []);
   const [prefs, setPrefs] = useState<NotificationPref[]>([]);
+  // 푸시: null=판단중, "on"/"off"=토글 가능, "denied"=OS 차단, "install"=iOS 설치 필요, "unsupported"=대상 아님
+  const [pushState, setPushState] = useState<
+    "on" | "off" | "denied" | "install" | "unsupported" | null
+  >(null);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState((initialNotifications ?? []).length === 20);
   const [cursor, setCursor] = useState<string | null>(
@@ -82,6 +95,43 @@ export function NotificationBellIcon({ initialCount, initialNotifications, membe
     const res = await fetch("/api/notifications/prefs");
     const json = await res.json();
     setPrefs(json.prefs ?? []);
+  }
+
+  async function refreshPushState() {
+    if (needsInstall()) {
+      setPushState("install");
+      return;
+    }
+    if (!canUsePush()) {
+      setPushState("unsupported");
+      return;
+    }
+    const perm = getPermission();
+    if (perm === "denied") {
+      setPushState("denied");
+      return;
+    }
+    setPushState((await hasSubscription()) ? "on" : "off");
+  }
+
+  async function handlePushToggle(next: boolean) {
+    if (next) {
+      const result = await subscribePush();
+      if (result.ok) {
+        setPushState("on");
+        toast.success("푸시 알림이 켜졌어요");
+      } else if (result.reason === "denied") {
+        setPushState("denied");
+        toast("기기 설정에서 알림을 허용해 주세요");
+      } else if (result.reason === "needs-install") {
+        setPushState("install");
+      } else {
+        toast.error("푸시 알림을 켜지 못했어요");
+      }
+    } else {
+      await unsubscribePush();
+      setPushState("off");
+    }
   }
 
   useEffect(() => {
@@ -239,7 +289,7 @@ export function NotificationBellIcon({ initialCount, initialNotifications, membe
                     </button>
                   </>
                 )}
-                <button type="button" onClick={() => { setView("settings"); fetchPrefs(); }} className="text-muted-foreground" aria-label="알림 설정">
+                <button type="button" onClick={() => { setView("settings"); fetchPrefs(); refreshPushState(); }} className="text-muted-foreground" aria-label="알림 설정">
                   <Settings className="size-3.5" />
                 </button>
               </div>
@@ -286,10 +336,38 @@ export function NotificationBellIcon({ initialCount, initialNotifications, membe
 
             {view === "settings" && (
               <div className="py-1">
+                {/* 푸시 알림(이 기기) — 타입별 설정과 다른 층위. 맨 위에 구분선으로 분리 */}
+                {pushState !== "unsupported" && (
+                  <>
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <div className="flex flex-col">
+                        <Body className="text-[13px]">푸시 알림</Body>
+                        {pushState === "denied" && (
+                          <Caption className="mt-0.5 text-[11px]">
+                            기기 설정에서 알림을 허용해 주세요
+                          </Caption>
+                        )}
+                        {pushState === "install" && (
+                          <Caption className="mt-0.5 text-[11px]">
+                            홈 화면에 추가하면 받을 수 있어요
+                          </Caption>
+                        )}
+                      </div>
+                      {(pushState === "on" || pushState === "off") && (
+                        <Switch
+                          checked={pushState === "on"}
+                          onCheckedChange={handlePushToggle}
+                          aria-label="푸시 알림"
+                        />
+                      )}
+                    </div>
+                    <div className="mx-4 border-b border-border" />
+                  </>
+                )}
                 {Object.entries(NOTI_TYPE_LABELS).map(([type, label]) => (
                   <div key={type} className="flex items-center justify-between px-4 py-2.5">
                     <Body className="text-[13px]">{label}</Body>
-                    <Switch checked={getPrefEnabled(type)} onCheckedChange={(val) => handlePrefToggle(type, val)} />
+                    <Switch checked={getPrefEnabled(type)} onCheckedChange={(val) => handlePrefToggle(type, val)} aria-label={label} />
                   </div>
                 ))}
               </div>

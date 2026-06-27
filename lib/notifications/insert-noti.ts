@@ -1,3 +1,5 @@
+import { resolveNotiDeepLink } from "@/lib/notifications/deep-link";
+import { sendPushToMember } from "@/lib/push/send-push";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 
 type InsertNotiInput = {
@@ -36,4 +38,23 @@ export async function insertNoti(input: InsertNotiInput): Promise<void> {
     ref_id: input.refId ?? null,
     ref_type_enm: input.refTypeEnm ?? null,
   });
+
+  // 인앱 알림 INSERT 직후 푸시도 발송 (발송 중앙 지점).
+  // noti_pref_cfg로 꺼진 타입은 위에서 이미 return 되므로 푸시도 자동으로 안 나간다.
+  // fire-and-forget: 푸시 발송(조회+HTTP)을 await하지 않아 N명 루프 시 직렬 지연을 막고,
+  // 실패가 인앱 알림 흐름을 막지 않도록 catch로 격리한다.
+  const url =
+    resolveNotiDeepLink(
+      input.notiTypeEnm,
+      input.refId ?? null,
+      input.refTypeEnm ?? null,
+    ) ?? "/";
+  void sendPushToMember(input.memId, {
+    title: input.notiNm,
+    body: input.notiCont ?? undefined,
+    url,
+    tag: input.notiTypeEnm,
+  }).catch((err) =>
+    console.error("[push] insertNoti 발송 실패", input.memId, err),
+  );
 }

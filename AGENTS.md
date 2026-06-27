@@ -79,6 +79,11 @@ t3-env로 관리되며 `lib/env.ts`에서 import:
 | `NEXT_PUBLIC_SUPABASE_URL` | 클라이언트 | Supabase 프로젝트 URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | 클라이언트 | Supabase 공개 키 |
 | `NEXT_PUBLIC_ENABLE_DEV_MODE` | 클라이언트 | 개발 모드 활성화 (이메일 로그인 등) |
+| `VAPID_PRIVATE_KEY` | 서버 | 웹 푸시 발송 비밀키 (절대 노출 금지) |
+| `VAPID_SUBJECT` | 서버 | 웹 푸시 운영자 연락처 (`mailto:` 또는 `https://`) |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | 클라이언트 | 웹 푸시 구독 발급용 공개키 |
+
+> 웹 푸시: `push_sub_rel` 테이블(구독 정보) + `public/sw.js`(수신). 발송은 `insertNoti()`(`lib/notifications/insert-noti.ts`)가 인앱 알림 INSERT 직후 `sendPushToMember`를 fire-and-forget 호출 → 모든 알림 타입 자동 푸시. 설계·함정은 `.claude/docs/push-notification-design.md` / `KNOWLEDGE.md`. VAPID 키는 dev/prd 분리.
 
 # 에이전트 구성
 

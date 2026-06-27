@@ -1,6 +1,14 @@
 # PWA 푸시 알림 설계 문서
 
-> 작성일: 2026-06-21 | 상태: 설계 단계 (미구현)
+> 작성일: 2026-06-21 | 갱신: 2026-06-27 | 상태: **기본 푸시 구현 완료** (모임 리마인더는 미구현 — 섹션 3)
+>
+> **구현 결과 요약 (2026-06-27)**
+> - 테이블 `push_sub_rel` dev+prd 생성 / `lib/env.ts`에 VAPID 3개(public=client, private·subject=server, subject는 mailto·https 형식 검증)
+> - `lib/push/send-push.ts`(Node 런타임, 410/404 구독 삭제) · `public/sw.js`(push+notificationclick, url 상대경로 강제, Android 그룹 요약) · `components/service-worker-register.tsx`
+> - `lib/push/client.ts`(권한·구독·해제, 데스크톱·iOS미설치 게이트) · `app/actions/push-subscription.ts`(save/delete, withMember 가드)
+> - `components/push-permission-prompt.tsx`(첫 진입 soft prompt, 영구 dismiss) · 알림 설정 뷰 맨 위 푸시 on/off 토글
+> - `lib/notifications/deep-link.ts`(딥링크 공용 매핑, 인앱+푸시 재사용) · `insertNoti()`에서 INSERT 직후 `sendPushToMember` **fire-and-forget** 호출
+> - ⚠️ **남은 수동 작업**: ① Vercel dev/prd 환경변수에 VAPID 등록 ② `public/notification-badge.png`(흰색 단색 badge 아이콘) 준비 — 없으면 Android badge만 기본 대체
 
 ---
 

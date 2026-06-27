@@ -8,6 +8,12 @@ export const env = createEnv({
     KAKAO_CHAT_PASSWORD: z.string().optional(),
     GEMINI_API_KEY: z.string().min(1).optional(),
     NODE_ENV: z.enum(["development", "production", "test"]),
+    // 웹 푸시(VAPID) — 서버에서 발송 시 사용. NEXT_PUBLIC_ 금지(비밀키)
+    VAPID_PRIVATE_KEY: z.string().min(1),
+    // web-push 요구: mailto: 또는 https:// 형식만 (애플은 그 외 형식에 403)
+    VAPID_SUBJECT: z
+      .string()
+      .regex(/^(mailto:|https:\/\/)/, "mailto: 또는 https:// 로 시작해야 합니다"),
   },
   client: {
     NEXT_PUBLIC_SUPABASE_URL: z.url(),
@@ -16,6 +22,8 @@ export const env = createEnv({
       .string()
       .transform((v) => v === "true")
       .optional(),
+    // 웹 푸시(VAPID) 공개키 — 클라이언트에서 구독 발급 시 사용
+    NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().min(1),
   },
   runtimeEnv: {
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -23,10 +31,13 @@ export const env = createEnv({
     KAKAO_CHAT_PASSWORD: process.env.KAKAO_CHAT_PASSWORD,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     NODE_ENV: process.env.NODE_ENV,
+    VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
+    VAPID_SUBJECT: process.env.VAPID_SUBJECT,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     NEXT_PUBLIC_ENABLE_DEV_MODE: process.env.NEXT_PUBLIC_ENABLE_DEV_MODE,
+    NEXT_PUBLIC_VAPID_PUBLIC_KEY: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
   },
   /** CI 환경(GitHub Actions 등)이거나 SKIP_ENV_VALIDATION=true면 검증 스킵 */
   skipValidation:
