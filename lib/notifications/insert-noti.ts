@@ -41,20 +41,23 @@ export async function insertNoti(input: InsertNotiInput): Promise<void> {
 
   // 인앱 알림 INSERT 직후 푸시도 발송 (발송 중앙 지점).
   // noti_pref_cfg로 꺼진 타입은 위에서 이미 return 되므로 푸시도 자동으로 안 나간다.
-  // fire-and-forget: 푸시 발송(조회+HTTP)을 await하지 않아 N명 루프 시 직렬 지연을 막고,
-  // 실패가 인앱 알림 흐름을 막지 않도록 catch로 격리한다.
-  const url =
-    resolveNotiDeepLink(
-      input.notiTypeEnm,
-      input.refId ?? null,
-      input.refTypeEnm ?? null,
-    ) ?? "/";
-  void sendPushToMember(input.memId, {
-    title: input.notiNm,
-    body: input.notiCont ?? undefined,
-    url,
-    tag: input.notiTypeEnm,
-  }).catch((err) =>
-    console.error("[push] insertNoti 발송 실패", input.memId, err),
-  );
+  // await로 발송 완료까지 기다린다 — Vercel 서버리스는 응답 후 백그라운드 작업을 보장하지 않으므로
+  // void(fire-and-forget)로 띄우면 함수 종료 시 발송이 잘릴 수 있다.
+  // 실패가 인앱 알림 흐름을 막지 않도록 try/catch로 격리한다.
+  try {
+    const url =
+      resolveNotiDeepLink(
+        input.notiTypeEnm,
+        input.refId ?? null,
+        input.refTypeEnm ?? null,
+      ) ?? "/";
+    await sendPushToMember(input.memId, {
+      title: input.notiNm,
+      body: input.notiCont ?? undefined,
+      url,
+      tag: input.notiTypeEnm,
+    });
+  } catch (err) {
+    console.error("[push] insertNoti 발송 실패", input.memId, err);
+  }
 }
