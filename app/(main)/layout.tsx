@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 
 import { BottomTabBar } from "@/components/bottom-tab-bar";
-import { PushPermissionPrompt } from "@/components/push-permission-prompt";
+import { PushPermissionPromptGate } from "@/components/push-permission-prompt-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AppShellFallback() {
@@ -43,7 +43,9 @@ export default function MainLayout({
         <main className="pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))]">
           {children}
         </main>
-        <PushPermissionPrompt />
+        <Suspense fallback={null}>
+          <PushPermissionPromptGate />
+        </Suspense>
       </Suspense>
       <BottomTabBar />
     </div>
