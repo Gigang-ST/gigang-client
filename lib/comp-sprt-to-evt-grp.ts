@@ -6,6 +6,7 @@ const COMP_SPRT_CD_TO_EVT_GRP_CD: Record<string, string> = {
   road_run: "ROAD_EVT_CD",
   ultra: "ULTRA_EVT_CD",
   trail_run: "TRAIL_EVT_CD",
+  hyrox: "HYROX_EVT_CD",
   triathlon: "TRI_EVT_CD",
   cycling: "CYC_EVT_CD",
 };

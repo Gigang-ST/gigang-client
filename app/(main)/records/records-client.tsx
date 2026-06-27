@@ -7,6 +7,13 @@ import { Medal, Search } from "lucide-react";
 import { getFrameCls } from "@/lib/title-effects";
 import { cn } from "@/lib/utils";
 
+import {
+  ResponsiveDrawer,
+  ResponsiveDrawerContent,
+  ResponsiveDrawerDescription,
+  ResponsiveDrawerHeader,
+  ResponsiveDrawerTitle,
+} from "@/components/common/responsive-drawer";
 import { TitleBadge } from "@/components/common/title-badge";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
@@ -60,9 +67,26 @@ type TriathlonEvent = {
   entries: TriathlonEntry[];
 };
 
+type HyroxStationSplit = {
+  code: string;
+  label: string;
+  spec: string;
+  record: string | null;
+};
+
+type HyroxEntry = {
+  rank: number;
+  memId: string;
+  name: string;
+  record: string;
+  raceName: string | null;
+  splits: HyroxStationSplit[];
+};
+
 type RecordsData = {
   marathon: { events: MarathonEvent[] };
   trail: { entries: TrailEntry[] };
+  hyrox: { entries: HyroxEntry[] };
   triathlon: { events: TriathlonEvent[] };
   memberTitles: Record<string, MemberTitleBase>;
 };
@@ -74,6 +98,7 @@ type RecordsData = {
 const CATEGORIES = [
   { key: "marathon", label: "마라톤" },
   { key: "trail", label: "트레일러닝" },
+  { key: "hyrox", label: "하이록스" },
   { key: "triathlon", label: "철인3종" },
 ] as const;
 
@@ -346,6 +371,122 @@ function TrailContent({
 }
 
 /* ------------------------------------------------------------------ */
+/*  하이록스 탭 콘텐츠                                                  */
+/* ------------------------------------------------------------------ */
+
+function HyroxContent({
+  entries,
+  memberTitles,
+}: {
+  entries: HyroxEntry[];
+  memberTitles: Record<string, MemberTitle>;
+}) {
+  const [selected, setSelected] = useState<HyroxEntry | null>(null);
+
+  if (entries.length === 0) {
+    return (
+      <div className="px-6">
+        <EmptyState />
+      </div>
+    );
+  }
+
+  const selectedHasSplits = selected?.splits.some((s) => s.record !== null);
+
+  return (
+    <>
+      <div className="flex flex-col gap-2 px-6 pt-2">
+        {entries.map((entry) => {
+          const title = memberTitles[entry.memId];
+          const frameCls = getFrameCls(title?.frame_cd);
+          return (
+            <CardItem
+              key={`h-${entry.rank}-${entry.name}`}
+              className={cn(
+                "flex w-full items-center gap-4 p-3 text-left transition-colors hover:bg-muted/40",
+                frameCls,
+              )}
+              asChild
+            >
+              <button type="button" onClick={() => setSelected(entry)}>
+                <RankBadge rank={entry.rank} />
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[15px] font-semibold text-foreground">
+                      {entry.name}
+                    </span>
+                    {title && (
+                      <TitleBadge
+                        name={title.ttl_nm}
+                        effect={title.badge_effect}
+                        size="xs"
+                        tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility, isHeld: title.isHeld, isOwner: false }}
+                      />
+                    )}
+                  </div>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {entry.raceName ?? "-"}
+                  </span>
+                </div>
+                <span
+                  className={cn(
+                    "shrink-0 font-mono text-lg font-bold",
+                    entry.rank === 1 ? "text-primary" : "text-foreground",
+                  )}
+                >
+                  {entry.record}
+                </span>
+              </button>
+            </CardItem>
+          );
+        })}
+      </div>
+
+      <ResponsiveDrawer open={selected !== null} onOpenChange={(o) => !o && setSelected(null)}>
+        <ResponsiveDrawerContent
+          dialogClassName="max-h-[85dvh] max-w-md flex flex-col gap-0 p-0 overflow-hidden"
+          drawerClassName="max-h-[85dvh]"
+        >
+          <ResponsiveDrawerHeader className="shrink-0 border-b border-border px-5 py-4 text-left">
+            <ResponsiveDrawerTitle>
+              {selected?.name} · {selected?.record}
+            </ResponsiveDrawerTitle>
+            <ResponsiveDrawerDescription>
+              {selected?.raceName ?? "스테이션별 기록"}
+            </ResponsiveDrawerDescription>
+          </ResponsiveDrawerHeader>
+
+          <div className="flex-1 overflow-y-auto px-5 pb-6 pt-2">
+            {!selectedHasSplits ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                등록된 스테이션 기록이 없습니다.
+              </p>
+            ) : (
+              <div className="flex flex-col divide-y divide-border">
+                {selected?.splits.map((s, i) => (
+                  <div key={s.code} className="flex items-center gap-3 py-2.5">
+                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">
+                      {i + 1}
+                    </span>
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-sm text-foreground">{s.label}</span>
+                      <span className="text-[11px] text-muted-foreground">{s.spec}</span>
+                    </div>
+                    <span className="shrink-0 font-mono text-sm font-semibold text-foreground">
+                      {s.record ?? "-"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </ResponsiveDrawerContent>
+      </ResponsiveDrawer>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  철인3종 탭 콘텐츠                                                   */
 /* ------------------------------------------------------------------ */
 
@@ -455,6 +596,10 @@ export function RecordsClient({ data, myTitleNames = [] }: { data: RecordsData; 
     ),
   };
 
+  const filteredHyrox = {
+    entries: data.hyrox.entries.filter((e) => e.name.toLowerCase().includes(q)),
+  };
+
   const filteredTriathlon = {
     events: data.triathlon.events.map((evt) => ({
       ...evt,
@@ -501,6 +646,9 @@ export function RecordsClient({ data, myTitleNames = [] }: { data: RecordsData; 
       )}
       {selectedCategory === "trail" && (
         <TrailContent entries={filteredTrail.entries} memberTitles={memberTitles} />
+      )}
+      {selectedCategory === "hyrox" && (
+        <HyroxContent entries={filteredHyrox.entries} memberTitles={memberTitles} />
       )}
       {selectedCategory === "triathlon" && (
         <TriathlonContent events={filteredTriathlon.events} memberTitles={memberTitles} />

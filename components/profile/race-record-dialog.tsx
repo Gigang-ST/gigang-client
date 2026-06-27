@@ -8,6 +8,7 @@ import {
   sanitizeAsciiUpperCompEvtTypeInput,
 } from "@/lib/comp-evt-type";
 import { timeStringToSeconds, secondsToTime } from "@/lib/dayjs";
+import { HYROX_STATIONS, isHyroxSport } from "@/lib/hyrox";
 import {
   getCachedExtraction,
   hashImageFile,
@@ -119,6 +120,8 @@ export function RaceRecordDialog({
   const [swimTime, setSwimTime] = useState("");
   const [bikeTime, setBikeTime] = useState("");
   const [runTime, setRunTime] = useState("");
+  // 하이록스 스테이션별 시간 (코드 → "MM:SS" 입력 문자열)
+  const [stationTimes, setStationTimes] = useState<Record<string, string>>({});
 
   // OCR (0단계)
   const [ocrLoading, setOcrLoading] = useState(false);
@@ -140,6 +143,8 @@ export function RaceRecordDialog({
 
   // 트라이애슬론 여부 (step 3 시간 입력용)
   const isTriathlon = (selectedComp?.sport ?? "").includes("triathlon");
+  // 하이록스 여부 (step 3 스테이션 입력용)
+  const isHyrox = isHyroxSport(selectedComp?.sport);
 
   // 종목: comp_evt_cfg 기준 + 스포츠 기본값 중 아직 없는 것만 합침 + 기타(직접 입력, 영문·숫자만)
   const eventTypeOptions = useMemo(() => {
@@ -256,6 +261,7 @@ export function RaceRecordDialog({
       setSwimTime("");
       setBikeTime("");
       setRunTime("");
+      setStationTimes({});
       setError(null);
       fetchCompetitions();
     }
@@ -319,6 +325,7 @@ export function RaceRecordDialog({
     setSwimTime("");
     setBikeTime("");
     setRunTime("");
+    setStationTimes({});
     setError(null);
     applyOcrTimesToStep3();
     setStep(3);
@@ -457,6 +464,14 @@ export function RaceRecordDialog({
     const bikeSeconds = isTriathlon ? timeStringToSeconds(bikeTime) : null;
     const runSeconds = isTriathlon ? timeStringToSeconds(runTime) : null;
 
+    // 하이록스: 스테이션별 시간을 {코드: 초} 맵으로 (빈 칸은 제외)
+    const stationSplits = isHyrox
+      ? HYROX_STATIONS.reduce<Record<string, number | null>>((acc, station) => {
+          acc[station.code] = timeStringToSeconds(stationTimes[station.code] ?? "");
+          return acc;
+        }, {})
+      : null;
+
     const result = await saveRaceRecord({
       competitionId: selectedComp.id,
       registrationCompEvtId: selectedComp.registrationCompEvtId,
@@ -467,6 +482,7 @@ export function RaceRecordDialog({
       swimSeconds,
       bikeSeconds,
       runSeconds,
+      stationSplits,
     });
 
     if (!result.ok) {
@@ -918,6 +934,48 @@ export function RaceRecordDialog({
                       트랜지션이 음수입니다. 시간을 다시 확인해 주세요.
                     </p>
                   )}
+                </div>
+              </div>
+            ) : isHyrox ? (
+              /* 하이록스: 완주 총시간 + 8개 스테이션(선택 입력) */
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium">완주 총시간</label>
+                  <Input
+                    placeholder="HH:MM:SS"
+                    inputMode="numeric"
+                    value={totalTime}
+                    onChange={(e) => setTotalTime(formatTimeInput(e.target.value))}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-baseline justify-between">
+                    <label className="text-sm font-medium">스테이션별 기록</label>
+                    <Micro>선택 입력 · MM:SS</Micro>
+                  </div>
+                  {HYROX_STATIONS.map((station, i) => (
+                    <div key={station.code} className="flex items-center gap-2">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">
+                        {i + 1}
+                      </span>
+                      <div className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-[13px] text-foreground">{station.label}</span>
+                        <span className="text-[11px] text-muted-foreground">{station.spec}</span>
+                      </div>
+                      <Input
+                        placeholder="MM:SS"
+                        inputMode="numeric"
+                        value={stationTimes[station.code] ?? ""}
+                        onChange={(e) =>
+                          setStationTimes((prev) => ({
+                            ...prev,
+                            [station.code]: formatTimeInput(e.target.value),
+                          }))
+                        }
+                        className="h-9 w-24 shrink-0 text-center font-mono"
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
             ) : (
