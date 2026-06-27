@@ -197,7 +197,7 @@ export function ActivityLogBatchForm({ evtId, onSuccess }: ActivityLogBatchFormP
                 <p className="text-sm font-semibold">기록 {idx + 1}</p>
                 <p className="text-xs text-muted-foreground">
                   {d.act_dt || "날짜 미입력"} · {MILEAGE_SPORT_LABELS[d.sprt_enm]} ·{" "}
-                  {dist > 0 ? `${dist.toFixed(1)}km` : "거리 미입력"} ·{" "}
+                  {dist > 0 ? `${dist.toFixed(2)}km` : "거리 미입력"} ·{" "}
                   {dist > 0 ? `최종 ${final.toFixed(1)}` : "최종 0.0"}
                 </p>
               </button>
@@ -270,9 +270,9 @@ export function ActivityLogBatchForm({ evtId, onSuccess }: ActivityLogBatchFormP
                   <Label className="text-xs">거리 (km)</Label>
                   <Input
                     type="number"
-                    step="0.1"
-                    min="0.1"
-                    placeholder="예: 10.5"
+                    step="0.01"
+                    min="0.01"
+                    placeholder="예: 10.55"
                     value={d.distance_km}
                     onChange={(e) => updateDraft(d.id, { distance_km: e.target.value })}
                     className="h-10 rounded-lg border text-sm"

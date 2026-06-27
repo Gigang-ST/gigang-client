@@ -209,7 +209,7 @@ export function RecordsClient({ evtId, memId, evtStartDt, evtEndDt }: Props) {
                   </div>
 
                   <Caption>
-                    {record.distance_km.toFixed(1)} km
+                    {record.distance_km.toFixed(2)} km
                     {record.elevation_m && record.elevation_m > 0 && ` · 상승 ${record.elevation_m}m`}
                   </Caption>
 
@@ -268,7 +268,7 @@ export function RecordsClient({ evtId, memId, evtStartDt, evtEndDt }: Props) {
                 <>
                   {deleteTarget.act_dt}{" "}
                   {MILEAGE_SPORT_LABELS[deleteTarget.sprt_enm as MileageSport]}{" "}
-                  {deleteTarget.distance_km.toFixed(1)}km 기록을 삭제하시겠습니까?
+                  {deleteTarget.distance_km.toFixed(2)}km 기록을 삭제하시겠습니까?
                 </>
               )}
             </DialogDescription>
