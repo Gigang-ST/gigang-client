@@ -52,18 +52,54 @@ export type PushPayload = {
  * - 410 Gone: 구독 만료/취소 → push_sub_rel에서 즉시 삭제
  * - 그 외 오류: 콘솔 로깅만 하고 재시도 없이 무시 (알림 특성상 재시도 불필요)
  */
+type SubRow = {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  mem_id: string;
+};
+
+/** 구독 1건에 발송. 만료(410/404)면 DB에서 제거. (admin은 재사용) */
+async function sendToSub(
+  admin: ReturnType<typeof createUntypedAdminClient>,
+  sub: SubRow,
+  body: string,
+): Promise<void> {
+  try {
+    await webpush.sendNotification(
+      { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+      body,
+    );
+  } catch (err) {
+    const statusCode = (err as { statusCode?: number })?.statusCode;
+    if (statusCode === 410 || statusCode === 404) {
+      // 구독 만료/취소 → DB에서 제거 (삭제 실패 시 좀비 구독 누적 방지 위해 로깅)
+      const { error: delErr } = await admin
+        .from("push_sub_rel")
+        .delete()
+        .eq("endpoint", sub.endpoint);
+      if (delErr) {
+        console.error("[push] 만료 구독 삭제 실패", sub.endpoint, delErr.message);
+      }
+    } else {
+      console.error("[push] 발송 실패", statusCode, sub.endpoint);
+    }
+  }
+}
+
+/**
+ * 특정 멤버 1명의 모든 기기(구독)에 푸시를 발송한다.
+ */
 export async function sendPushToMember(
   memId: string,
   payload: PushPayload,
 ): Promise<void> {
-  // VAPID 미설정이면(환경변수 누락 등) 조용히 스킵 — 인앱 알림은 이미 저장됨.
   if (!ensureVapidConfigured()) return;
 
   const admin = createUntypedAdminClient();
-
   const { data: subs, error } = await admin
     .from("push_sub_rel")
-    .select("endpoint, p256dh, auth")
+    .select("endpoint, p256dh, auth, mem_id")
     .eq("mem_id", memId);
 
   if (error) {
@@ -73,32 +109,39 @@ export async function sendPushToMember(
   if (!subs || subs.length === 0) return;
 
   const body = JSON.stringify(payload);
+  await Promise.all(subs.map((sub: SubRow) => sendToSub(admin, sub, body)));
+}
+
+/**
+ * 여러 멤버에게 각자의 payload로 푸시를 발송한다 (구독 조회 1회 + 병렬 발송).
+ * 멤버마다 알림 내용(제목·딥링크·tag)이 다르므로 memId → payload 맵을 받는다.
+ *
+ * 대량 발송(팀 전체 등)에서 멤버별 개별 조회(N+1)를 피하기 위한 배치 경로.
+ */
+export async function sendPushToMembers(
+  payloadByMemId: Map<string, PushPayload>,
+): Promise<void> {
+  if (!ensureVapidConfigured()) return;
+  const memIds = [...payloadByMemId.keys()];
+  if (memIds.length === 0) return;
+
+  const admin = createUntypedAdminClient();
+  const { data: subs, error } = await admin
+    .from("push_sub_rel")
+    .select("endpoint, p256dh, auth, mem_id")
+    .in("mem_id", memIds);
+
+  if (error) {
+    console.error("[push] 구독 일괄 조회 실패", error.message);
+    return;
+  }
+  if (!subs || subs.length === 0) return;
 
   await Promise.all(
-    subs.map(async (sub: { endpoint: string; p256dh: string; auth: string }) => {
-      try {
-        await webpush.sendNotification(
-          {
-            endpoint: sub.endpoint,
-            keys: { p256dh: sub.p256dh, auth: sub.auth },
-          },
-          body,
-        );
-      } catch (err) {
-        const statusCode = (err as { statusCode?: number })?.statusCode;
-        if (statusCode === 410 || statusCode === 404) {
-          // 구독 만료/취소 → DB에서 제거 (삭제 실패 시 좀비 구독 누적 방지 위해 로깅)
-          const { error: delErr } = await admin
-            .from("push_sub_rel")
-            .delete()
-            .eq("endpoint", sub.endpoint);
-          if (delErr) {
-            console.error("[push] 만료 구독 삭제 실패", sub.endpoint, delErr.message);
-          }
-        } else {
-          console.error("[push] 발송 실패", statusCode, sub.endpoint);
-        }
-      }
+    (subs as SubRow[]).map((sub) => {
+      const payload = payloadByMemId.get(sub.mem_id);
+      if (!payload) return Promise.resolve();
+      return sendToSub(admin, sub, JSON.stringify(payload));
     }),
   );
 }

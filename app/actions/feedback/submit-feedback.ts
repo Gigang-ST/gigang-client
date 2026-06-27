@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 
 import { withMember } from "@/lib/actions/auth";
+import { insertNotiMany } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 import { submitFeedbackSchema } from "@/lib/validations/feedback";
@@ -40,34 +41,18 @@ export async function submitFeedback(body: string) {
 
         if (!admins?.length) return;
 
-        // 수신 거부한 관리자 제외
-        const { data: disabledPrefs } = await admin
-          .from("noti_pref_cfg")
-          .select("mem_id")
-          .eq("noti_type_enm", "fdbk_new")
-          .eq("enabled_yn", false)
-          .in(
-            "mem_id",
-            admins.map((a) => a.mem_id),
-          );
-
-        const disabled = new Set((disabledPrefs ?? []).map((p) => p.mem_id));
-        const targets = admins.filter((a) => !disabled.has(a.mem_id));
-        if (!targets.length) return;
-
         const preview = parsed.data.body.length > 40 ? `${parsed.data.body.slice(0, 40)}…` : parsed.data.body;
 
-        await admin.from("noti_mst").insert(
-          targets.map((a) => ({
-            team_id: teamId,
-            mem_id: a.mem_id,
-            noti_type_enm: "fdbk_new",
-            noti_nm: "새 건의가 등록되었어요",
-            noti_cont: preview,
-            ref_id: inserted.fdbk_id,
-            ref_type_enm: "feedback",
-          })),
-        );
+        // 인앱+푸시 한 몸. pref 수신거부 필터는 관문(insertNotiMany)이 처리.
+        await insertNotiMany({
+          teamId,
+          memIds: admins.map((a) => a.mem_id),
+          notiTypeEnm: "fdbk_new",
+          notiNm: "새 건의가 등록되었어요",
+          notiCont: preview,
+          refId: inserted.fdbk_id,
+          refTypeEnm: "feedback",
+        });
       } catch (e) {
         console.error("[fdbk_new] 알림 발송 실패", e);
       }

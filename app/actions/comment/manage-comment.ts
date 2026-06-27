@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 
 import { dayjs } from "@/lib/dayjs"
 import { withMember } from "@/lib/actions/auth"
+import { insertNoti, insertNotiMany } from "@/lib/notifications/insert-noti"
 import { getRequestTeamContext } from "@/lib/queries/request-team"
 import { createAdminClient } from "@/lib/supabase/admin"
 import {
@@ -50,33 +51,13 @@ export async function createComment(input: CreateCommentInput) {
         entityShortId = postMeta.short_id ?? null
 
         if (!parsed.prntId && postMeta.crt_by !== member.id && !uniqueMentions.includes(postMeta.crt_by)) {
-          const notiRefId = parsed.entityId
-          const { data: existingNoti } = await admin
-            .from("noti_mst")
-            .select("noti_id, noti_nm")
-            .eq("mem_id", postMeta.crt_by)
-            .eq("ref_id", notiRefId)
-            .eq("noti_type_enm", "sch_post_cmnt")
-            .eq("read_yn", false)
-            .eq("del_yn", false)
-            .maybeSingle()
-
-          if (existingNoti) {
-            const match = existingNoti.noti_nm.match(/새 댓글 (\d+)개/)
-            // "새 댓글이 달렸습니다" (첫 번째) → count=1, "새 댓글 N개" → count=N
-            const prevCount = match ? parseInt(match[1], 10) : 1
-            await admin.from("noti_mst").update({
-              noti_nm: `'${postMeta.sch_nm}'에 새 댓글 ${prevCount + 1}개가 달렸습니다.`,
-              noti_cont: parsed.contTxt.slice(0, 100),
-            }).eq("noti_id", existingNoti.noti_id)
-          } else {
-            await admin.from("noti_mst").insert({
-              team_id: teamId, mem_id: postMeta.crt_by, noti_type_enm: "sch_post_cmnt",
-              noti_nm: `'${postMeta.sch_nm}'에 새 댓글이 달렸습니다.`,
-              noti_cont: parsed.contTxt.slice(0, 100),
-              ref_id: notiRefId, ref_type_enm: "sch_post",
-            })
-          }
+          // 인앱+푸시 한 몸 (관문). 개별 알림으로 누적 — 제목은 맥락, 내용은 실제 댓글.
+          await insertNoti({
+            teamId, memId: postMeta.crt_by, notiTypeEnm: "sch_post_cmnt",
+            notiNm: `${postMeta.sch_nm} · 새 댓글`,
+            notiCont: `${member.full_name}: ${parsed.contTxt.slice(0, 100)}`,
+            refId: parsed.entityId, refTypeEnm: "sch_post",
+          })
         }
       }
     }
@@ -100,43 +81,24 @@ export async function createComment(input: CreateCommentInput) {
             .maybeSingle()
           const parentAuthorId = parentCmnt?.mem_id
           if (parentAuthorId && parentAuthorId !== member.id && !uniqueMentions.includes(parentAuthorId)) {
-            await admin.from("noti_mst").insert({
-              team_id: teamId, mem_id: parentAuthorId, noti_type_enm: "gthr_reply",
-              noti_nm: `${member.full_name}님이 모임 댓글에 답글을 달았습니다.`,
-              noti_cont: parsed.contTxt.slice(0, 100),
-              ref_id: notiRefId, ref_type_enm: "gathering",
+            await insertNoti({
+              teamId, memId: parentAuthorId, notiTypeEnm: "gthr_reply",
+              notiNm: `${gthrMeta.gthr_nm} · 답글`,
+              notiCont: `${member.full_name}: ${parsed.contTxt.slice(0, 100)}`,
+              refId: notiRefId, refTypeEnm: "gathering",
             })
           }
         }
 
         // 개설자 댓글 알림 (gthr_cmnt): 최상위 댓글이고 개설자 본인이 아닌 경우
         if (!parsed.prntId && gthrMeta.crt_by !== member.id && !uniqueMentions.includes(gthrMeta.crt_by)) {
-          const { data: existingNoti } = await admin
-            .from("noti_mst")
-            .select("noti_id, noti_nm")
-            .eq("mem_id", gthrMeta.crt_by)
-            .eq("ref_id", notiRefId)
-            .eq("noti_type_enm", "gthr_cmnt")
-            .eq("read_yn", false)
-            .eq("del_yn", false)
-            .maybeSingle()
-
-          if (existingNoti) {
-            const match = existingNoti.noti_nm.match(/새 댓글 (\d+)개/)
-            // "새 댓글이 달렸습니다" (첫 번째) → count=1, "새 댓글 N개" → count=N
-            const prevCount = match ? parseInt(match[1], 10) : 1
-            await admin.from("noti_mst").update({
-              noti_nm: `'${gthrMeta.gthr_nm}'에 새 댓글 ${prevCount + 1}개가 달렸습니다.`,
-              noti_cont: parsed.contTxt.slice(0, 100),
-            }).eq("noti_id", existingNoti.noti_id)
-          } else {
-            await admin.from("noti_mst").insert({
-              team_id: teamId, mem_id: gthrMeta.crt_by, noti_type_enm: "gthr_cmnt",
-              noti_nm: `'${gthrMeta.gthr_nm}'에 새 댓글이 달렸습니다.`,
-              noti_cont: parsed.contTxt.slice(0, 100),
-              ref_id: notiRefId, ref_type_enm: "gathering",
-            })
-          }
+          // 인앱+푸시 한 몸 (관문). 개별 알림으로 누적 — 제목은 맥락, 내용은 작성자+댓글.
+          await insertNoti({
+            teamId, memId: gthrMeta.crt_by, notiTypeEnm: "gthr_cmnt",
+            notiNm: `${gthrMeta.gthr_nm} · 새 댓글`,
+            notiCont: `${member.full_name}: ${parsed.contTxt.slice(0, 100)}`,
+            refId: notiRefId, refTypeEnm: "gathering",
+          })
         }
       }
     }
@@ -147,15 +109,16 @@ export async function createComment(input: CreateCommentInput) {
         const { data: compMeta } = await admin.from("comp_mst").select("short_id").eq("comp_id", parsed.entityId).single()
         entityShortId = compMeta?.short_id ?? null
       }
-      const mentionRefId = parsed.entityId
-      await admin.from("noti_mst").insert(
-        uniqueMentions.map((memId) => ({
-          team_id: teamId, mem_id: memId, noti_type_enm: "cmnt_mention",
-          noti_nm: `${member.full_name}님이 댓글에서 멘션했습니다.`,
-          noti_cont: parsed.contTxt.slice(0, 100),
-          ref_id: mentionRefId, ref_type_enm: parsed.entityType,
-        }))
-      )
+      // 인앱+푸시 한 몸 (관문). 멘션은 여러 명 → 다건.
+      await insertNotiMany({
+        teamId,
+        memIds: uniqueMentions,
+        notiTypeEnm: "cmnt_mention",
+        notiNm: `${member.full_name}님의 멘션`,
+        notiCont: parsed.contTxt.slice(0, 100),
+        refId: parsed.entityId,
+        refTypeEnm: parsed.entityType,
+      })
     }
 
     revalidatePath("/")

@@ -5,6 +5,7 @@ import { after } from "next/server";
 
 import { dayjs } from "@/lib/dayjs";
 import { withMember } from "@/lib/actions/auth";
+import { insertNotiMany } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 import { createGthrSchema, updateGthrSchema } from "@/lib/validations/gathering";
@@ -75,29 +76,18 @@ export async function createGathering(input: {
         if (!members?.length) return;
 
         const notiType = notiTypeMap[gthrType] ?? "gthr_new";
-        const { data: disabledPrefs } = await admin
-          .from("noti_pref_cfg")
-          .select("mem_id")
-          .in("mem_id", members.map((m) => m.mem_id))
-          .eq("noti_type_enm", notiType)
-          .eq("enabled_yn", false);
-
-        const disabledSet = new Set((disabledPrefs ?? []).map((p) => p.mem_id));
-        const targets = members.filter((m) => !disabledSet.has(m.mem_id));
-        if (!targets.length) return;
-
         const dateStr = dayjs(toUtcIso(parsed.stt_at)!).tz("Asia/Seoul").format("M월 D일");
-        await admin.from("noti_mst").insert(
-          targets.map((m) => ({
-            team_id: teamId,
-            mem_id: m.mem_id,
-            noti_type_enm: notiType,
-            noti_nm: `${dateStr} 새 모임이 등록됐습니다.`,
-            noti_cont: gthrNm,
-            ref_id: gthrId,
-            ref_type_enm: "gathering",
-          })),
-        );
+
+        // 인앱+푸시 한 몸. pref 수신거부 필터는 관문(insertNotiMany)이 처리.
+        await insertNotiMany({
+          teamId,
+          memIds: members.map((m) => m.mem_id),
+          notiTypeEnm: notiType,
+          notiNm: `${dateStr} 새 모임이 등록됐습니다.`,
+          notiCont: gthrNm,
+          refId: gthrId,
+          refTypeEnm: "gathering",
+        });
       } catch (e) {
         console.error("[gthr_new] 알림 발송 실패", e);
       }
@@ -154,28 +144,16 @@ export async function updateGathering(input: {
 
         if (!attendees?.length) return;
 
-        const { data: disabledPrefs } = await admin
-          .from("noti_pref_cfg")
-          .select("mem_id")
-          .in("mem_id", attendees.map((a) => a.mem_id))
-          .eq("noti_type_enm", "gthr_upd")
-          .eq("enabled_yn", false);
-
-        const disabledSet = new Set((disabledPrefs ?? []).map((p) => p.mem_id));
-        const targets = attendees.filter((a) => !disabledSet.has(a.mem_id));
-        if (!targets.length) return;
-
-        await admin.from("noti_mst").insert(
-          targets.map((a) => ({
-            team_id: teamId,
-            mem_id: a.mem_id,
-            noti_type_enm: "gthr_upd",
-            noti_nm: `'${gthrNm}' 모임 정보가 변경됐습니다.`,
-            noti_cont: gthrNm,
-            ref_id: gthr_id,
-            ref_type_enm: "gathering",
-          })),
-        );
+        // 인앱+푸시 한 몸. pref 수신거부 필터는 관문(insertNotiMany)이 처리.
+        await insertNotiMany({
+          teamId,
+          memIds: attendees.map((a) => a.mem_id),
+          notiTypeEnm: "gthr_upd",
+          notiNm: `'${gthrNm}' 모임 정보가 변경됐습니다.`,
+          notiCont: gthrNm,
+          refId: gthr_id,
+          refTypeEnm: "gathering",
+        });
       } catch (e) {
         console.error("[gthr_upd] 알림 발송 실패", e);
       }
@@ -216,29 +194,17 @@ export async function deleteGathering(gthr_id: string) {
 
         if (!attendees?.length) return;
 
-        // gthr_del은 gthr_upd와 동일한 설정 항목으로 관리
-        const { data: disabledPrefs } = await admin
-          .from("noti_pref_cfg")
-          .select("mem_id")
-          .in("mem_id", attendees.map((a) => a.mem_id))
-          .eq("noti_type_enm", "gthr_upd")
-          .eq("enabled_yn", false);
-
-        const disabledSet = new Set((disabledPrefs ?? []).map((p) => p.mem_id));
-        const targets = attendees.filter((a) => !disabledSet.has(a.mem_id));
-        if (!targets.length) return;
-
-        await admin.from("noti_mst").insert(
-          targets.map((a) => ({
-            team_id: gthr.team_id,
-            mem_id: a.mem_id,
-            noti_type_enm: "gthr_del",
-            noti_nm: `'${gthr.gthr_nm}' 모임이 취소됐습니다.`,
-            noti_cont: gthr.gthr_nm,
-            ref_id: gthr_id,
-            ref_type_enm: "gathering",
-          })),
-        );
+        // 인앱+푸시 한 몸. gthr_del은 gthr_upd와 동일한 설정 항목으로 수신거부를 판단(prefTypeEnm).
+        await insertNotiMany({
+          teamId: gthr.team_id,
+          memIds: attendees.map((a) => a.mem_id),
+          notiTypeEnm: "gthr_del",
+          prefTypeEnm: "gthr_upd",
+          notiNm: `'${gthr.gthr_nm}' 모임이 취소됐습니다.`,
+          notiCont: gthr.gthr_nm,
+          refId: gthr_id,
+          refTypeEnm: "gathering",
+        });
       } catch (e) {
         console.error("[gthr_del] 알림 발송 실패", e);
       }

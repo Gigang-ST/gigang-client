@@ -63,11 +63,17 @@ export function PushPermissionPrompt() {
   const handleEnable = async () => {
     const result = await subscribePush();
     setVisible(false);
-    window.localStorage.setItem(DISMISS_KEY, String(Date.now()));
     if (result.ok) {
+      // 성공: 영구 dismiss (이미 구독됨)
+      window.localStorage.setItem(DISMISS_KEY, String(Date.now()));
       toast.success("푸시 알림이 켜졌어요");
     } else if (result.reason === "denied") {
+      // 사용자가 거부: 영구 dismiss (다시 조르지 않음)
+      window.localStorage.setItem(DISMISS_KEY, String(Date.now()));
       toast("알림은 우측 상단 알림 설정에서 다시 켤 수 있어요");
+    } else {
+      // 일시 오류(네트워크 등): 영구 dismiss하지 않음 → 다음 기회에 다시 안내
+      toast.error("푸시 알림을 켜지 못했어요. 잠시 후 다시 시도해 주세요");
     }
   };
 

@@ -19,7 +19,7 @@ export async function savePushSubscription(input: SaveSubscriptionInput) {
   return withMember(async ({ member }) => {
     const { teamId } = await getRequestTeamContext();
     const admin = createUntypedAdminClient();
-    await admin.from("push_sub_rel").upsert(
+    const { error } = await admin.from("push_sub_rel").upsert(
       {
         team_id: teamId,
         mem_id: member.id,
@@ -30,6 +30,8 @@ export async function savePushSubscription(input: SaveSubscriptionInput) {
       },
       { onConflict: "endpoint" },
     );
+    // 저장 실패 시 throw — 클라이언트가 "켜짐"으로 오인하지 않도록(subscribePush가 error로 받음)
+    if (error) throw new Error(`구독 저장 실패: ${error.message}`);
   });
 }
 
@@ -40,10 +42,11 @@ export async function savePushSubscription(input: SaveSubscriptionInput) {
 export async function deletePushSubscription(endpoint: string) {
   return withMember(async ({ member }) => {
     const admin = createUntypedAdminClient();
-    await admin
+    const { error } = await admin
       .from("push_sub_rel")
       .delete()
       .eq("endpoint", endpoint)
       .eq("mem_id", member.id);
+    if (error) throw new Error(`구독 삭제 실패: ${error.message}`);
   });
 }

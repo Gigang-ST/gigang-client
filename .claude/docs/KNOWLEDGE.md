@@ -2,6 +2,22 @@
 
 > 해결된 함정도 삭제하지 않고 "해결됨" 표시로 남긴다.
 
+## 알림 발송 규칙 (중요)
+
+**모든 알림은 `lib/notifications/insert-noti.ts`의 관문 함수로만 발송한다. `noti_mst`에 직접 INSERT 금지.**
+관문이 인앱(noti_mst) + 푸시(push_sub_rel)를 항상 한 몸으로 처리하고, 수신거부(noti_pref_cfg) 필터도 일괄 담당한다.
+
+- `insertNoti(input)` — 멤버 1명
+- `insertNotiMany({ memIds, ... })` — 여러 멤버 (구독 IN 조회 1회 + 배치 푸시). `prefTypeEnm`으로 수신거부 판단 타입을 분리 지정 가능(예: gthr_del을 gthr_upd 설정으로 묶을 때)
+- `insertNotiForTeam({ ... })` — 팀 전체 (RPC `create_noti_for_team` + batch_id로 조회해 배치 푸시)
+
+**새 알림 종류 추가 시 체크리스트:**
+1. 발송: 위 관문 함수 중 하나 호출 (인앱+푸시 자동)
+2. 딥링크: `lib/notifications/deep-link.ts`의 `NOTI_ROUTE`에 `타입: (refId, refType) => "/경로"` 한 줄 추가 — **이 한 곳이 인앱·푸시 클릭 양쪽에 동시 적용**. 누락 시 클릭하면 홈(`/`)으로만 감
+3. 설정 토글에 노출할 거면 `notification-bell-icon.tsx`의 `NOTI_TYPE_LABELS`에 추가 (필수 알림이면 넣지 않음 → row 없으면 항상 발송)
+
+> 과거엔 발송처마다 noti_mst에 직접 INSERT + pref 필터를 중복 구현해서, 푸시가 일부(칭호·건의답변)에만 붙어 있었다. 2026-06-27 전 발송처를 관문으로 통일. 댓글 알림의 "30분 내 묶음(update로 N개 카운트)"은 이때 제거하고 개별 누적으로 전환(제목=맥락, 내용=`작성자: 댓글`).
+
 ## 함정
 
 ### (info) route group은 BackHeader를 강제한다
