@@ -74,15 +74,20 @@ export function MyActivityListClient({
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    const result = await deleteActivity(deleteTarget.act_id);
-    if (result.ok) {
-      window.dispatchEvent(new Event("mileage:refresh"));
-      router.refresh();
-    } else {
-      alert(result.message);
+    try {
+      const result = await deleteActivity(deleteTarget.act_id);
+      if (result.ok) {
+        window.dispatchEvent(new Event("mileage:refresh"));
+        router.refresh();
+      } else {
+        alert(result.message);
+      }
+    } catch {
+      alert("삭제에 실패했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
     }
-    setDeleting(false);
-    setDeleteTarget(null);
   };
 
   const handleEditSuccess = () => {
