@@ -40,16 +40,21 @@ function isSupported(): boolean {
   );
 }
 
-/** iOS 웹(미설치)이라 권한 요청 전에 PWA 설치가 필요한 상태인가 */
+/**
+ * 모바일 웹(미설치)이라 권한 요청 전에 PWA 설치가 필요한 상태인가.
+ * 정책: 웹(브라우저)에서는 푸시 권한을 요청하지 않는다. 웹 권한과 설치된 PWA 권한이
+ * 분리돼 혼란을 주므로, iOS·Android 모두 "알림 받으려면 앱 설치"로 통일한다.
+ * 설치된 PWA(standalone)에서만 푸시를 켠다.
+ */
 export function needsInstall(): boolean {
-  return isIOS() && !isStandalone();
+  return isMobile() && !isStandalone();
 }
 
-/** 이 환경에서 푸시 구독이 가능한가 (데스크톱·iOS 미설치 제외) */
+/** 이 환경에서 푸시 구독이 가능한가 (데스크톱·모바일 미설치 제외 → 설치된 PWA만) */
 export function canUsePush(): boolean {
   if (!isSupported()) return false;
   if (!isMobile()) return false; // 데스크톱 제외 (정책 1)
-  if (needsInstall()) return false; // iOS 웹은 설치 먼저 (정책 2)
+  if (needsInstall()) return false; // 모바일 웹은 설치 먼저 (정책 2 — iOS·Android 공통)
   return true;
 }
 
