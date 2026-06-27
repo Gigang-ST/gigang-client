@@ -134,16 +134,10 @@ export function NotificationBellIcon({ initialCount, initialNotifications, membe
     }
   }
 
+  // realtime 구독은 팝오버 open 여부와 무관하게 로그인(memberId) 상태면 항상 유지한다.
+  // → 홈탭 등 다른 화면에 있어도 알림이 오면 빨간 뱃지가 실시간으로 갱신된다.
   useEffect(() => {
-    if (!open || !memberId) return;
-
-    if (!notificationsLoaded.current) {
-      notificationsLoaded.current = true;
-       
-      setCursor(null);
-      setHasMore(true);
-      fetchNotifications(true, null);
-    }
+    if (!memberId) return;
 
     const supabase = createClient();
     const channel = supabase
@@ -155,8 +149,13 @@ export function NotificationBellIcon({ initialCount, initialNotifications, membe
         filter: `mem_id=eq.${memberId}`,
       }, (payload) => {
         const noti = payload.new as Notification;
-        setNotifications((prev) => [noti, ...prev]);
         setUnreadCount((c) => c + 1);
+        // 목록이 이미 로드된 경우에만 앞에 추가 (중복 방지)
+        if (notificationsLoaded.current) {
+          setNotifications((prev) =>
+            prev.some((n) => n.noti_id === noti.noti_id) ? prev : [noti, ...prev],
+          );
+        }
       })
       .on("postgres_changes", {
         event: "UPDATE",
@@ -182,6 +181,17 @@ export function NotificationBellIcon({ initialCount, initialNotifications, membe
       supabase.removeChannel(channel);
       realtimeRef.current = null;
     };
+  }, [memberId]);
+
+  // 알림 목록은 팝오버를 처음 열 때 1회 로드 (뱃지 카운트와 분리)
+  useEffect(() => {
+    if (!open || !memberId) return;
+    if (notificationsLoaded.current) return;
+    notificationsLoaded.current = true;
+    setCursor(null);
+    setHasMore(true);
+    fetchNotifications(true, null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, memberId]);
 
   // 팝오버 내부 스크롤 무한스크롤
