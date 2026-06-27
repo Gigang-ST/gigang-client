@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { MapPin } from "lucide-react";
 
@@ -26,6 +26,7 @@ type Props = {
   initialMonthKey: string;
   initialRaces: CalendarRace[];
   filterType?: FilterType;
+  openingId?: string | null;
   onClickSchedule: (race: CalendarRace) => void;
   onClickCompetition: (race: CalendarRace) => void;
   onClickGathering: (race: CalendarRace) => void;
@@ -148,13 +149,14 @@ function formatTimeRange(sttAt: string | null | undefined, endAt: string | null 
 }
 
 // schedule 타입 아이템
-function ScheduleItem({ race, onClick }: { race: CalendarRace; onClick: () => void }) {
+function ScheduleItem({ race, onClick, loading }: { race: CalendarRace; onClick: () => void; loading?: boolean }) {
   const timeRange = formatTimeRange(race.evt_stt_at, race.evt_end_at);
 
   return (
     <button
       onClick={onClick}
-      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
+      disabled={loading}
+      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60 disabled:opacity-60"
     >
       <span className="w-0.5 shrink-0 rounded-full bg-info" />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -187,16 +189,19 @@ function ScheduleItem({ race, onClick }: { race: CalendarRace; onClick: () => vo
 function CompetitionItem({
   race,
   onClick,
+  loading,
 }: {
   race: CalendarRace;
   onClick: () => void;
+  loading?: boolean;
 }) {
   const isMine = race.type === "mine";
 
   return (
     <button
       onClick={onClick}
-      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
+      disabled={loading}
+      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60 disabled:opacity-60"
     >
       <span className="w-0.5 shrink-0 rounded-full bg-warning" />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -232,14 +237,15 @@ function CompetitionItem({
   );
 }
 
-function GatheringItem({ race, onClick }: { race: CalendarRace; onClick: () => void }) {
+function GatheringItem({ race, onClick, loading }: { race: CalendarRace; onClick: () => void; loading?: boolean }) {
   const isMine = race.type === "gathering_mine";
   const timeRange = formatTimeRange(race.evt_stt_at, race.evt_end_at);
 
   return (
     <button
       onClick={onClick}
-      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
+      disabled={loading}
+      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60 disabled:opacity-60"
     >
       <span className="w-0.5 shrink-0 rounded-full bg-violet-500" />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -278,12 +284,13 @@ function GatheringItem({ race, onClick }: { race: CalendarRace; onClick: () => v
   );
 }
 
-export function ScheduleListView({
+export const ScheduleListView = memo(function ScheduleListView({
   teamId,
   memberId,
   initialMonthKey,
   initialRaces,
   filterType = "all",
+  openingId,
   onClickSchedule,
   onClickCompetition,
   onClickGathering,
@@ -299,8 +306,6 @@ export function ScheduleListView({
   });
   const [loadingPrev, setLoadingPrev] = useState(false);
   const [loadingNext, setLoadingNext] = useState(false);
-  const [canLoadPrev, setCanLoadPrev] = useState(true);
-  const [canLoadNext, setCanLoadNext] = useState(true);
   const oldestMonth = months[0].monthKey;
   const newestMonth = months[months.length - 1].monthKey;
 
@@ -309,42 +314,59 @@ export function ScheduleListView({
   const containerRef = useRef<HTMLDivElement>(null);
   const prevScrollHeightRef = useRef(0);
 
+  const loadingPrevRef = useRef(false);
+  const canLoadPrevRef = useRef(true);
+  const loadingNextRef = useRef(false);
+  const canLoadNextRef = useRef(true);
+  const oldestMonthRef = useRef(oldestMonth);
+  const newestMonthRef = useRef(newestMonth);
+  const teamIdRef = useRef(teamId);
+  const memberIdRef = useRef(memberId);
+  useEffect(() => { oldestMonthRef.current = oldestMonth; }, [oldestMonth]);
+  useEffect(() => { newestMonthRef.current = newestMonth; }, [newestMonth]);
+  useEffect(() => { teamIdRef.current = teamId; }, [teamId]);
+  useEffect(() => { memberIdRef.current = memberId; }, [memberId]);
+
   const loadPrev = useCallback(async () => {
-    if (loadingPrev || !canLoadPrev) return;
+    if (loadingPrevRef.current || !canLoadPrevRef.current) return;
+    loadingPrevRef.current = true;
     setLoadingPrev(true);
     try {
-      const cursorDate = dayjs(oldestMonth + "-01").format("YYYY-MM-DD");
-      const races = await fetchAdjacent(supabase, teamId, memberId, "prev", cursorDate, 2);
+      const cursorDate = dayjs(oldestMonthRef.current + "-01").format("YYYY-MM-DD");
+      const races = await fetchAdjacent(supabase, teamIdRef.current, memberIdRef.current, "prev", cursorDate, 2);
       if (races.length === 0) {
-        setCanLoadPrev(false);
+        canLoadPrevRef.current = false;
         return;
       }
       const newMonths = racesToMonths(races);
       prevScrollHeightRef.current = containerRef.current?.scrollHeight ?? 0;
       setMonths((prev) => [...newMonths, ...prev]);
     } finally {
+      loadingPrevRef.current = false;
       setLoadingPrev(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingPrev, canLoadPrev, oldestMonth, teamId, memberId]);
+  }, []);
 
   const loadNext = useCallback(async () => {
-    if (loadingNext || !canLoadNext) return;
+    if (loadingNextRef.current || !canLoadNextRef.current) return;
+    loadingNextRef.current = true;
     setLoadingNext(true);
     try {
-      const cursorDate = dayjs(newestMonth + "-01").endOf("month").format("YYYY-MM-DD");
-      const races = await fetchAdjacent(supabase, teamId, memberId, "next", cursorDate, 1);
+      const cursorDate = dayjs(newestMonthRef.current + "-01").endOf("month").format("YYYY-MM-DD");
+      const races = await fetchAdjacent(supabase, teamIdRef.current, memberIdRef.current, "next", cursorDate, 1);
       if (races.length === 0) {
-        setCanLoadNext(false);
+        canLoadNextRef.current = false;
         return;
       }
       const [first] = racesToMonths(races);
       setMonths((prev) => [...prev, first]);
     } finally {
+      loadingNextRef.current = false;
       setLoadingNext(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingNext, canLoadNext, newestMonth, teamId, memberId]);
+  }, []);
 
   // 이전 달 prepend 후 스크롤 위치 보정
   useEffect(() => {
@@ -356,7 +378,7 @@ export function ScheduleListView({
     prevScrollHeightRef.current = 0;
   }, [months]);
 
-  // IntersectionObserver — root를 스크롤 컨테이너로 지정해 마운트 시 자동 발화 방지
+  // IntersectionObserver — deps [] 로 마운트 1회만 생성, loadPrev/loadNext는 ref 기반으로 항상 최신값 참조
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -378,7 +400,8 @@ export function ScheduleListView({
     if (topSentinelRef.current) obs.observe(topSentinelRef.current);
     if (bottomSentinelRef.current) obs.observe(bottomSentinelRef.current);
     return () => obs.disconnect();
-  }, [loadPrev, loadNext]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div
@@ -452,18 +475,21 @@ export function ScheduleListView({
                               <ScheduleItem
                                 key={race.id}
                                 race={race}
+                                loading={openingId === race.id}
                                 onClick={() => onClickSchedule(race)}
                               />
                             ) : race.type === "gathering" || race.type === "gathering_mine" ? (
                               <GatheringItem
                                 key={race.id}
                                 race={race}
+                                loading={openingId === race.id}
                                 onClick={() => onClickGathering(race)}
                               />
                             ) : (
                               <CompetitionItem
                                 key={race.id}
                                 race={race}
+                                loading={openingId === race.id}
                                 onClick={() => onClickCompetition(race)}
                               />
                             ),
@@ -485,4 +511,4 @@ export function ScheduleListView({
       </div>
     </div>
   );
-}
+});
