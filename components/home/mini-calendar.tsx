@@ -404,12 +404,13 @@ export function MiniCalendar({
         };
       });
 
-      // 참가한 항목 우선 → colSpan 내림차순 → colStart 오름차순 정렬
-      const isMineType = (type: string) => type === "mine" || type === "gathering_mine";
+      // 슬롯 배정은 colStart(→ 긴 일정 우선) 순으로 한다.
+      // 슬롯은 가로 한 행 전체를 점유하므로, 참석 우선 등으로 늦게 시작하는 일정을 위 슬롯에
+      // 올리면 그 일정이 없는 앞 날짜 칸의 윗줄이 비어버린다(겹치지도 않는데 빈칸 발생).
+      // 따라서 "겹치지 않으면 가장 위 빈 슬롯"이 되도록 colStart 순으로만 배정한다.
       const sorted = [...positioned].sort((a, b) =>
-        Number(isMineType(b.race.type)) - Number(isMineType(a.race.type)) ||
-        b.colSpan - a.colSpan ||
-        a.colStart - b.colStart
+        a.colStart - b.colStart ||
+        b.colSpan - a.colSpan
       );
 
       const slotEnds: number[] = [];
@@ -749,6 +750,22 @@ export function MiniCalendar({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 등록 직후 전용: 조회 없이 즉시 상세를 연다.
+  // 새 모임이라 댓글 0·참석자=작성자 1명·상세=폼 입력값으로 자명하므로 쿼리를 생략해
+  // 등록→상세 오픈 사이의 직렬 대기(달력 재조회 + 상세 3쿼리)를 제거한다.
+  const openGatheringDetailInstant = useCallback((race: CalendarRace & { maxPrtCnt?: number | null }) => {
+    const me = memberStatus.status === "ready"
+      ? [{ mem_id: memberStatus.memberId, mem_nm: memberStatus.fullName ?? null, avatar_url: memberAvatarUrl ?? null }]
+      : [];
+    setGthrJustCreated(true);
+    setGthrDetailRace({ ...race, regCount: me.length, maxPrtCnt: race.maxPrtCnt ?? null, attendees: me, sprt_cd: race.sprt_cd ?? null });
+    setGthrDetailAttending(true); // 작성자는 자동 참석
+    setGthrDetailComments([]);     // 새 모임 — 댓글 없음
+    setGthrDetailOpen(true);
+  // memberStatus/memberAvatarUrl은 렌더마다 안정적
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memberAvatarUrl]);
+
   const openGatheringDetail = useCallback(async (race: CalendarRace, justCreated = false) => {
     // 등록 직후 경로(justCreated)는 사용자 클릭과 무관하게 반드시 열어야 하므로 락을 무시한다
     if (openingLock.current && !justCreated) return;
@@ -772,7 +789,10 @@ export function MiniCalendar({
       const gthrData = gthrDetailResult.data as GthrDetail | null;
       const attendees: GatheringAttendee[] = gthrData?.attendees ?? [];
       setGthrDetailRace({ ...race, regCount: attendees.length, maxPrtCnt: gthrData?.max_prt_cnt ?? null, attendees, sprt_cd: gthrData?.sprt_cd ?? null });
-      setGthrDetailAttending(!!attdResult.data);
+      // 등록 직후(justCreated)엔 작성자가 자동 참석되므로 무조건 참석 상태로 확정한다.
+      // (자동 참석 INSERT 직후라 attd 조회가 read-after-write 지연으로 null을 반환할 수 있어
+      //  조회 결과만 믿으면 데스크톱처럼 빠른 환경에서 참석 토글이 꼬인다)
+      setGthrDetailAttending(justCreated || !!attdResult.data);
       setGthrDetailComments(comments);
       setGthrDetailOpen(true);
     } finally {
@@ -1191,39 +1211,15 @@ export function MiniCalendar({
           desc_txt: gthrEditTarget.cont_txt ?? null,
           max_prt_cnt: gthrDetailRace?.maxPrtCnt ?? null,
         } : undefined}
-        onSuccess={async (createdGthrId) => {
-          const { gatherings: newGthr } = await refreshMonthData();
+        onSuccess={(createdGthrId, createdRace) => {
           setGthrEditTarget(null);
-          // 신규 등록(createdGthrId는 create일 때만 채워짐)이면 해당 모임 상세를 열고 공유 유도 안내 노출
-          if (!createdGthrId) return;
-          let created = newGthr.find((g) => g.id === createdGthrId) ?? null;
-          // 현재 보고 있는 달과 다른 달(예: 리스트뷰에서 오늘 날짜로 등록)이면 갱신 목록에 없으므로 직접 조회
-          if (!created) {
-            const { data } = await supabase
-              .from("gthr_mst")
-              .select("gthr_id, short_id, gthr_nm, gthr_type_enm, sprt_cd, stt_at, end_at, loc_txt, desc_txt, crt_by")
-              .eq("gthr_id", createdGthrId)
-              .maybeSingle();
-            if (data) {
-              created = {
-                id: data.gthr_id,
-                short_id: data.short_id ?? null,
-                title: data.gthr_nm,
-                start_date: dayjs(data.stt_at).tz("Asia/Seoul").format("YYYY-MM-DD"),
-                type: "gathering_mine",
-                post_type: data.gthr_type_enm,
-                sprt_cd: data.sprt_cd ?? null,
-                location: data.loc_txt ?? null,
-                cont_txt: data.desc_txt ?? null,
-                evt_stt_at: data.stt_at,
-                evt_end_at: data.end_at ?? null,
-                crt_by: data.crt_by,
-              };
-            }
+          // 신규 등록이면 폼이 넘겨준 데이터로 상세를 "즉시" 연다(조회 대기 없음).
+          // 새 모임이라 댓글 0·참석자=작성자 1명·상세=입력값으로 자명하므로 쿼리를 생략한다.
+          if (createdGthrId && createdRace) {
+            openGatheringDetailInstant(createdRace);
           }
-          if (created) {
-            await openGatheringDetail(created, true);
-          }
+          // 달력 갱신은 await하지 않고 백그라운드로 — 상세 오픈을 막지 않는다.
+          void refreshMonthData();
         }}
       />
 
@@ -1323,7 +1319,7 @@ export function MiniCalendar({
               ? { sch_post_id: "", sch_nm: "", evt_stt_at: editTarget.start_date }
               : undefined
         }
-        onSuccess={handleSchPostSuccess}
+        onSuccess={() => { void refreshMonthData(); }}
       />
 
       {/* 대회 상세 다이얼로그 */}

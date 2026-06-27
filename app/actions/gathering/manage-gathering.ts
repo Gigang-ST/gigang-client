@@ -44,7 +44,7 @@ export async function createGathering(input: {
         crt_by: member.id,
         del_yn: false,
       })
-      .select("gthr_id")
+      .select("gthr_id, short_id")
       .single();
 
     if (error || !data) throw new Error("모임 개설에 실패했습니다.");
@@ -94,7 +94,7 @@ export async function createGathering(input: {
     });
 
     revalidatePath("/");
-    return { gthr_id: gthrId };
+    return { gthr_id: gthrId, short_id: data.short_id };
   });
 }
 

@@ -48,6 +48,22 @@ import { Separator } from "@/components/ui/separator";
 const formSchema = createGthrSchema.omit({ team_id: true });
 type FormValues = z.infer<typeof formSchema>;
 
+/** 등록 직후 상세를 조회 없이 즉시 열기 위한 모임 데이터(폼 입력값 + 반환 id 기반). CalendarRace 호환. */
+export type CreatedGathering = {
+  id: string;
+  short_id: string | null;
+  title: string;
+  start_date: string;
+  type: "gathering_mine";
+  post_type: string;
+  sprt_cd: string | null;
+  location: string | null;
+  cont_txt: string | null;
+  evt_stt_at: string;
+  evt_end_at: string | null;
+  maxPrtCnt: number | null;
+};
+
 export type GatheringFormDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -64,8 +80,8 @@ export type GatheringFormDialogProps = {
     desc_txt?: string | null;
     max_prt_cnt?: number | null;
   };
-  /** 등록(create) 성공 시 새 모임 id 전달. 수정(edit)일 땐 undefined */
-  onSuccess?: (createdGthrId?: string) => void | Promise<void>;
+  /** 등록(create) 성공 시 새 모임 id·데이터 전달. 수정(edit)일 땐 둘 다 undefined */
+  onSuccess?: (createdGthrId?: string, createdRace?: CreatedGathering) => void | Promise<void>;
 };
 
 function toDatetimeLocal(utcIso: string) {
@@ -139,15 +155,33 @@ export function GatheringFormDialog({
     setRootError(null);
     try {
       let createdGthrId: string | undefined;
+      let createdRace: CreatedGathering | undefined;
       if (mode === "edit" && initialData) {
         await updateGathering({ gthr_id: initialData.gthr_id, ...values });
       } else {
         const result = await createGathering(values);
         createdGthrId = result.gthr_id;
+        // 등록 직후 상세를 조회 없이 즉시 열 수 있도록, 입력값+반환 id로 모임 데이터를 구성해 넘긴다.
+        const sttIso = dayjs.tz(values.stt_at, "Asia/Seoul").toISOString();
+        const endIso = values.end_at ? dayjs.tz(values.end_at, "Asia/Seoul").toISOString() : null;
+        createdRace = {
+          id: result.gthr_id,
+          short_id: result.short_id ?? null,
+          title: values.gthr_nm,
+          start_date: dayjs(sttIso).tz("Asia/Seoul").format("YYYY-MM-DD"),
+          type: "gathering_mine",
+          post_type: values.gthr_type_enm,
+          sprt_cd: values.sprt_cd ?? null,
+          location: values.loc_txt ?? null,
+          cont_txt: values.desc_txt ?? null,
+          evt_stt_at: sttIso,
+          evt_end_at: endIso,
+          maxPrtCnt: values.max_prt_cnt ?? null,
+        };
       }
       clearDraft();
       onOpenChange(false);
-      await onSuccess?.(createdGthrId);
+      onSuccess?.(createdGthrId, createdRace);
     } catch (e) {
       setRootError(e instanceof Error ? e.message : "오류가 발생했습니다. 다시 시도해 주세요.");
     }
