@@ -50,10 +50,6 @@ export async function createGathering(input: {
     if (error || !data) throw new Error("모임 개설에 실패했습니다.");
 
     const gthrId = data.gthr_id;
-
-    // 작성자 자동 참석 등록
-    const { error: attdError } = await supabase.from("gthr_attd_rel").insert({ gthr_id: gthrId, mem_id: member.id });
-    if (attdError) throw new Error("자동 참석 등록에 실패했습니다.");
     const authorId = member.id;
     const gthrNm = parsed.gthr_nm;
     const gthrType = parsed.gthr_type_enm;
@@ -61,9 +57,15 @@ export async function createGathering(input: {
       general: "gthr_new", regular: "gthr_new", event: "gthr_new",
     };
 
+    // 작성자 자동 참석 + 알림 발송을 응답 후 백그라운드로 — 등록 응답을 1 RTT 빠르게.
+    // 상세 화면은 작성자를 이미 "참석" 상태로 그리므로(openGatheringDetailInstant) 체감 동일.
     after(async () => {
       try {
         const admin = createUntypedAdminClient();
+
+        // 자동 참석 등록 (응답 경로에서 분리). after는 요청 컨텍스트 종료 후라 admin 클라이언트 사용.
+        const { error: attdError } = await admin.from("gthr_attd_rel").insert({ gthr_id: gthrId, mem_id: authorId });
+        if (attdError) console.error("[gthr_new] 자동 참석 등록 실패", attdError);
 
         const { data: members } = await admin
           .from("team_mem_rel")
