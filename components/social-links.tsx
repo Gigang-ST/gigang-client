@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import Image from "next/image";
 
+import { getKakaoChatPassword } from "@/app/actions/social/get-kakao-password";
 import { SectionLabel } from "@/components/common/typography";
 import { detectInAppBrowser, openExternalBrowser } from "@/components/in-app-browser-gate";
 import { CardItem } from "@/components/ui/card";
@@ -107,13 +108,24 @@ export function SocialLinksRow() {
   );
 }
 
-export function SocialLinksGrid({
-  kakaoChatPassword,
-}: {
-  kakaoChatPassword?: string;
-}) {
+export function SocialLinksGrid() {
   const [open, setOpen] = useState(false);
-  const isMember = !!kakaoChatPassword;
+  // null = 미조회, undefined = 조회 완료(비멤버), string = 비밀번호
+  const [kakaoChatPassword, setKakaoChatPassword] = useState<string | null | undefined>(null);
+  const [loading, setLoading] = useState(false);
+
+  /** 카카오 버튼 클릭 시 서버 액션으로 비밀번호 조회 */
+  const handleKakaoClick = async () => {
+    setOpen(true);
+    if (kakaoChatPassword !== null) return; // 이미 조회됨
+    setLoading(true);
+    const pw = await getKakaoChatPassword();
+    // null(비멤버)은 undefined로 구분하여 "미조회(null)" 상태와 구별
+    setKakaoChatPassword(pw ?? undefined);
+    setLoading(false);
+  };
+
+  const isMember = typeof kakaoChatPassword === "string";
 
   return (
     <>
@@ -125,7 +137,7 @@ export function SocialLinksGrid({
               <CardItem asChild key={key} className="flex flex-col items-center gap-2 py-3">
                 <button
                   type="button"
-                  onClick={() => setOpen(true)}
+                  onClick={handleKakaoClick}
                 >
                   <Image src={logo} alt={label} width={28} height={28} className={invertOnDark ? "dark:invert" : undefined} />
                   <span className="whitespace-nowrap text-xs font-semibold text-foreground">
@@ -156,7 +168,12 @@ export function SocialLinksGrid({
           <DialogHeader>
             <DialogTitle>오픈채팅 참여</DialogTitle>
           </DialogHeader>
-          {isMember ? (
+          {loading ? (
+            // 비밀번호 조회 중 스피너
+            <div className="flex items-center justify-center py-6">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-primary" />
+            </div>
+          ) : isMember ? (
             <>
               <div className="rounded-2xl border border-border bg-secondary/50 px-5 py-4 text-center">
                 <p className="text-xs text-muted-foreground">
