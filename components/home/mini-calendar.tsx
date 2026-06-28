@@ -367,8 +367,9 @@ export function MiniCalendar({
     const firstCell = dayjs
       .tz(`${year}-${String(month).padStart(2, "0")}-01`, "Asia/Seoul")
       .subtract(firstDayOfWeek, "day");
-    // 이번 달 마지막날까지 채우는 데 필요한 주 수만큼 그리드를 만든다(가변 5~6주).
-    const weekCount = Math.ceil((firstDayOfWeek + totalDays) / 7);
+    // 이번 달 마지막날까지 채우는 데 필요한 주 수(가변). 최소 5주를 보장해 4주로 딱 떨어지는 달
+    // (1일이 일요일인 평년 2월 등)에도 앞뒤 달 셀이 보이게 한다 — gridDateRange와 동일 기준.
+    const weekCount = Math.max(5, Math.ceil((firstDayOfWeek + totalDays) / 7));
     const result: Cell[][] = [];
     for (let w = 0; w < weekCount; w++) {
       const week: Cell[] = [];
@@ -430,11 +431,18 @@ export function MiniCalendar({
         b.colSpan - a.colSpan
       );
 
-      const slotEnds: number[] = [];
+      // 슬롯 배정 — 우선순위 정렬로 늦게 시작하는 이벤트가 먼저 올 수 있으므로,
+      // colStart 단조 증가를 가정한 단일 end 비교가 아니라 각 슬롯이 점유한 [start,end] 구간을
+      // 모두 추적해 "겹치지 않는 가장 위 슬롯"을 찾는다. 겹치지 않으면 슬롯을 재사용해 불필요한
+      // 슬롯 증가(→ 3개 제한 초과로 일정 숨김)를 막는다.
+      const slotRanges: { start: number; end: number }[][] = [];
       const withSlot = sorted.map((ep) => {
-        let slot = slotEnds.findIndex((e) => e < ep.colStart);
-        if (slot === -1) { slot = slotEnds.length; slotEnds.push(-1); }
-        slotEnds[slot] = ep.colStart + ep.colSpan - 1;
+        const epEnd = ep.colStart + ep.colSpan - 1;
+        let slot = slotRanges.findIndex((ranges) =>
+          ranges.every((r) => epEnd < r.start || ep.colStart > r.end),
+        );
+        if (slot === -1) { slot = slotRanges.length; slotRanges.push([]); }
+        slotRanges[slot].push({ start: ep.colStart, end: epEnd });
         return { ...ep, slot };
       });
 
@@ -603,7 +611,8 @@ export function MiniCalendar({
     const y = parseInt(yStr, 10);
     const m = parseInt(mStr, 10);
     // 그리드에 실제 그려지는 범위(이전 달 며칠 ~ 다음 달 며칠)로 조회해 앞뒤 달 일정도 함께 표시한다.
-    const { start: gridStart, end: gridEnd } = gridDateRange(y, m);
+    // fetchStart는 start보다 1주 앞 — 그리드 시작 직전에 시작해 그리드 안으로 이어지는 일정 누락 방지.
+    const { start: gridStart, end: gridEnd, fetchStart } = gridDateRange(y, m);
 
     const [
       { data: teamComps },
@@ -611,7 +620,7 @@ export function MiniCalendar({
       { data: schPostRows },
       { data: gthrRows },
     ] = await Promise.all([
-      supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: gridStart, p_end: gridEnd }),
+      supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: fetchStart, p_end: gridEnd }),
       memberId
         ? supabase
             .from("comp_reg_rel")
@@ -621,10 +630,10 @@ export function MiniCalendar({
             .eq("vers", 0)
             .eq("del_yn", false)
         : Promise.resolve({ data: null }),
-      supabase.rpc("get_public_team_sch_posts", { p_team_id: teamId, p_start: gridStart, p_end: gridEnd }),
+      supabase.rpc("get_public_team_sch_posts", { p_team_id: teamId, p_start: fetchStart, p_end: gridEnd }),
       memberId
-        ? supabase.rpc("get_public_team_gatherings", { p_team_id: teamId, p_start: gridStart, p_end: gridEnd, p_mem_id: memberId })
-        : supabase.rpc("get_public_team_gatherings", { p_team_id: teamId, p_start: gridStart, p_end: gridEnd }),
+        ? supabase.rpc("get_public_team_gatherings", { p_team_id: teamId, p_start: fetchStart, p_end: gridEnd, p_mem_id: memberId })
+        : supabase.rpc("get_public_team_gatherings", { p_team_id: teamId, p_start: fetchStart, p_end: gridEnd }),
     ]);
 
     const newGigang: CalendarRace[] = (teamComps ?? [])
@@ -701,6 +710,8 @@ export function MiniCalendar({
     setViewMonth(monthFirst); // 즉시 전환 — 기존 데이터로 먼저 그린다(겹치는 월초·월말은 이미 있음)
     startTransition(async () => {
       const { gigang, mine, schPosts: newSch, gatherings: newGthr } = await fetchMonthDataRef.current(monthFirst);
+      // 연속 전환 시 늦게 온 이전 월 응답이 현재 화면을 덮지 않도록, 여전히 그 달을 보고 있을 때만 반영
+      if (viewMonthRef.current !== monthFirst) return;
       setGigangRaces(gigang);
       setMyRaces(mine);
       setSchPosts(newSch);

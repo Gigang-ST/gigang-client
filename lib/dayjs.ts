@@ -73,15 +73,25 @@ export function monthLastDay(year: number, month: number): string {
  * 해당 월 달력 그리드에 실제로 그려지는 첫 셀(이전 달 며칠 포함) ~ 마지막 셀(다음 달 며칠 포함) 범위.
  * (month: 1-indexed) 캘린더 데이터 조회 시 이 범위로 넘기면 앞뒤 달 일정까지 함께 받아온다.
  * SSR(page.tsx)과 클라이언트(MiniCalendar)가 동일 범위를 쓰도록 공용으로 둔다.
+ *
+ * - `start`/`end`: 화면에 그려지는 칸 범위(MiniCalendar의 weeks와 일치).
+ * - `fetchStart`: 조회 전용 시작일 — `start`보다 1주 앞당긴다. RPC가 "시작 시각이 범위 안"인 행만
+ *   주므로, 그리드 시작 직전(예: 일요일 시작 달의 전날)에 시작해 그리드 안으로 이어지는 일정이
+ *   누락되는 걸 막는다. 화면 칸은 `start~end` 그대로라 당겨온 일정 중 범위 밖 건 렌더되지 않는다.
  */
-export function gridDateRange(year: number, month: number): { start: string; end: string } {
+export function gridDateRange(year: number, month: number): { start: string; end: string; fetchStart: string } {
   const first = dayjs.tz(`${year}-${String(month).padStart(2, "0")}-01`, "Asia/Seoul");
   const firstDow = first.day();
   const total = daysInMonth(year, month);
-  const weekCount = Math.ceil((firstDow + total) / 7);
+  // 최소 5주 보장 — MiniCalendar의 weeks 계산과 동일 기준으로 fetch/render 범위를 일치시킨다.
+  const weekCount = Math.max(5, Math.ceil((firstDow + total) / 7));
   const gridStart = first.subtract(firstDow, "day");
   const gridEnd = gridStart.add(weekCount * 7 - 1, "day");
-  return { start: gridStart.format("YYYY-MM-DD"), end: gridEnd.format("YYYY-MM-DD") };
+  return {
+    start: gridStart.format("YYYY-MM-DD"),
+    end: gridEnd.format("YYYY-MM-DD"),
+    fetchStart: gridStart.subtract(7, "day").format("YYYY-MM-DD"),
+  };
 }
 
 /** 날짜 문자열 → 한국어 포맷 (기본: 2026년 3월 31일 화요일) */

@@ -269,7 +269,7 @@ function GatheringItem({ race, onClick, loading }: { race: CalendarRace; onClick
           </Micro>
         )}
         {race.location && (
-          <Micro className="flex items-center gap-1 text-muted-foreground">
+          <Micro className="flex min-w-0 items-center gap-1 text-muted-foreground">
             <MapPin className="size-2.5 shrink-0" />
             <span className="truncate">{race.location}</span>
           </Micro>

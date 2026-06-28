@@ -66,7 +66,8 @@ async function HomeContent() {
   const [yearStr, monthStr] = monthStart.split("-");
   // 캘린더 그리드는 앞뒤 달 며칠을 흐리게 함께 그리므로, SSR에서도 그리드 전체 범위로 조회해
   // 클라이언트 마운트 시 재조회 없이 앞뒤 달 일정까지 한 번에 채운다(MiniCalendar와 동일 범위).
-  const { start: gridStart, end: gridEnd } = gridDateRange(parseInt(yearStr, 10), parseInt(monthStr, 10));
+  // fetchStart는 start보다 1주 앞 — 그리드 시작 직전에 시작해 그리드 안으로 이어지는 일정 누락 방지.
+  const { start: gridStart, end: gridEnd, fetchStart } = gridDateRange(parseInt(yearStr, 10), parseInt(monthStr, 10));
 
   let initialMemberStatus: MemberStatus = { status: "signed-out" };
 
@@ -77,16 +78,16 @@ async function HomeContent() {
     { data: gthrRows },
     myRegsResult,
   ] = await Promise.all([
-    supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: gridStart, p_end: gridEnd }),
+    supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: fetchStart, p_end: gridEnd }),
     getCachedCmmCdRows(),
     supabase.rpc("get_public_team_sch_posts", {
       p_team_id: teamId,
-      p_start: gridStart,
+      p_start: fetchStart,
       p_end: gridEnd,
     }),
     supabase.rpc("get_public_team_gatherings", {
       p_team_id: teamId,
-      p_start: gridStart,
+      p_start: fetchStart,
       p_end: gridEnd,
       ...(currentMember ? { p_mem_id: currentMember.id } : {}),
     }),
