@@ -3,7 +3,9 @@
 import { redirect } from "next/navigation";
 
 import { TEAM_ACCOUNT } from "@/lib/constants";
+import { DUES_QUEST } from "@/lib/constants/dues-quest";
 import { dayjs } from "@/lib/dayjs";
+import { calcExemption } from "@/lib/dues/calc-exemption";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createClient } from "@/lib/supabase/server";
@@ -19,7 +21,11 @@ export default async function MemberDuesPage() {
   const { teamId } = await getRequestTeamContext();
   const supabase = await createClient();
 
-  const [{ data: snap }, { data: pays }, { data: exms }, { data: otherTxns }, { data: feeItemCds }, { data: policy }] = await Promise.all([
+  const nowKst = dayjs().tz("Asia/Seoul");
+  const curYm = nowKst.format("YYYY-MM");
+  const todayKst = nowKst.format("YYYY-MM-DD");
+
+  const [{ data: snap }, { data: pays }, { data: exms }, { data: otherTxns }, { data: feeItemCds }, { data: policy }, { data: activity, error: activityErr }] = await Promise.all([
     supabase
       .from("fee_mem_bal_snap")
       .select("bal_amt, last_calc_dt, last_calc_at")
@@ -39,7 +45,7 @@ export default async function MemberDuesPage() {
       .limit(50),
     supabase
       .from("fee_due_exm_hist")
-      .select("exm_hist_id, exm_amt, aply_ym, rsn_txt")
+      .select("exm_hist_id, exm_amt, aply_ym, rsn_txt, rflt_yn, aprv_at")
       .eq("team_id", teamId)
       .eq("mem_id", member.id)
       .eq("vers", 0)
@@ -68,14 +74,31 @@ export default async function MemberDuesPage() {
       .eq("team_id", teamId)
       .eq("vers", 0)
       .eq("del_yn", false)
-      .lte("aply_stt_dt", dayjs().format("YYYY-MM-DD"))
-      .gte("aply_end_dt", dayjs().format("YYYY-MM-DD"))
+      .lte("aply_stt_dt", todayKst)
+      .gte("aply_end_dt", todayKst)
       .order("aply_stt_dt", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase.rpc("get_member_monthly_activity", { p_team_id: teamId, p_mem_id: member.id, p_ym: curYm }),
   ]);
 
   const balAmt = snap?.bal_amt ?? null;
+
+  // 참여 감면 퀘스트(당월 실시간) — 회비 단가가 있고 활동 집계가 성공했을 때만 계산.
+  // RPC 실패 시 0건으로 내려앉히면 달성 중인데 "감면 없음"으로 오표시되므로 카드 자체를 숨긴다.
+  const monthlyFeeAmt = policy?.monthly_fee_amt ?? null;
+  const stat = activity?.[0] ?? { attend_cnt: 0, regular_attend_cnt: 0, hosted_cnt: 0 };
+  const quest =
+    monthlyFeeAmt !== null && !activityErr
+      ? {
+          ym: curYm,
+          result: calcExemption(
+            { attendCnt: stat.attend_cnt, regularAttendCnt: stat.regular_attend_cnt, hostedCnt: stat.hosted_cnt },
+            monthlyFeeAmt,
+          ),
+          maxAttendCnt: Math.max(...DUES_QUEST.tiers.map((t) => t.attendCnt)),
+        }
+      : null;
 
   type HistoryItem = {
     id: string;
@@ -85,6 +108,8 @@ export default async function MemberDuesPage() {
     ioLabel: "입금" | "출금" | "면제" | "취소";
     amt: number;
     cancelled: boolean;
+    note?: string | null;   // 사유(면제 rsn_txt 등)
+    pending?: boolean;       // 잔액 미반영(면제 rflt_yn=false)
   };
 
   const itemLabelMap = new Map((feeItemCds ?? []).map((c) => [c.cd, c.cd_nm]));
@@ -100,15 +125,17 @@ export default async function MemberDuesPage() {
       amt: p.pay_amt,
       cancelled: p.pay_st_cd === "cancelled",
     })),
-    // 면제
+    // 면제 (날짜 = 면제가 처리된 날 aprv_at, 없으면 귀속월 1일 폴백)
     ...(exms ?? []).map((e) => ({
       id: e.exm_hist_id,
-      date: e.aply_ym + "-01",
+      date: e.aprv_at ? dayjs(e.aprv_at).tz("Asia/Seoul").format("YYYY-MM-DD") : e.aply_ym + "-01",
       category: "exm" as const,
       itemLabel: "회비",
       ioLabel: "면제" as const,
       amt: e.exm_amt,
       cancelled: false,
+      note: e.rsn_txt,
+      pending: !e.rflt_yn,   // rflt_yn=false → 아직 잔액 미반영
     })),
     // 기타 확정 거래
     ...(otherTxns ?? []).map((t) => ({
@@ -127,7 +154,8 @@ export default async function MemberDuesPage() {
       balAmt={balAmt}
       lastCalcDt={snap?.last_calc_dt ? dayjs(snap.last_calc_dt).tz("Asia/Seoul").format("YY.MM.DD HH:mm") : null}
       teamAccount={TEAM_ACCOUNT}
-      monthlyFeeAmt={policy?.monthly_fee_amt ?? null}
+      monthlyFeeAmt={monthlyFeeAmt}
+      quest={quest}
       items={items}
     />
   );

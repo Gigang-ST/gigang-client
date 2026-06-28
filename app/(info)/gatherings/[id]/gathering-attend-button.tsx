@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 
+import { toast } from "sonner";
+
 import { cn } from "@/lib/utils";
 
 import { toggleGatheringAttendance } from "@/app/actions/gathering/toggle-attendance";
@@ -31,6 +33,10 @@ export function GatheringAttendButton({ gthrId, initialAttending, maxPrtCnt, cur
       try {
         const result = await toggleGatheringAttendance(gthrId);
         setAttending(result.attending);
+        // 참석 등록 시에만 담백한 횟수 피드백(취소는 조용히)
+        if (result.attending && result.monthlyAttendCnt) {
+          toast.success(`이번 달 ${result.monthlyAttendCnt}회 참여!`);
+        }
       } catch {
         setAttending(prev);
         setAttdCount((c) => (prev ? c - 1 : c + 1));

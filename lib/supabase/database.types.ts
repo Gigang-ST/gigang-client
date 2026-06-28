@@ -934,6 +934,7 @@ export type Database = {
           exm_hist_id: string
           grant_src_enm: Database["public"]["Enums"]["fee_grant_src_enm"]
           mem_id: string
+          rflt_yn: boolean
           rsn_txt: string | null
           team_id: string
           upd_at: string
@@ -950,6 +951,7 @@ export type Database = {
           exm_hist_id?: string
           grant_src_enm: Database["public"]["Enums"]["fee_grant_src_enm"]
           mem_id: string
+          rflt_yn?: boolean
           rsn_txt?: string | null
           team_id: string
           upd_at?: string
@@ -966,6 +968,7 @@ export type Database = {
           exm_hist_id?: string
           grant_src_enm?: Database["public"]["Enums"]["fee_grant_src_enm"]
           mem_id?: string
+          rflt_yn?: boolean
           rsn_txt?: string | null
           team_id?: string
           upd_at?: string
@@ -2160,6 +2163,18 @@ export type Database = {
         Args: { p_team_id: string }
         Returns: number
       }
+      get_gathering_detail: {
+        Args: { p_gthr_id: string; p_team_id: string }
+        Returns: Json
+      }
+      get_member_monthly_activity: {
+        Args: { p_mem_id: string; p_team_id: string; p_ym: string }
+        Returns: {
+          attend_cnt: number
+          hosted_cnt: number
+          regular_attend_cnt: number
+        }[]
+      }
       get_public_member_card: {
         Args: { p_mem_id: string; p_team_id: string }
         Returns: Json
@@ -2188,56 +2203,30 @@ export type Database = {
           stt_dt: string
         }[]
       }
-      get_gathering_detail: {
+      get_public_team_gatherings: {
         Args: {
-          p_gthr_id: string
+          p_end?: string
+          p_mem_id?: string
+          p_start?: string
           p_team_id: string
         }
-        Returns: Json
+        Returns: {
+          attd_count: number
+          cmnt_count: number
+          crt_by: string
+          crt_by_nm: string
+          desc_txt: string
+          end_at: string
+          gthr_id: string
+          gthr_nm: string
+          gthr_type_enm: string
+          is_attending: boolean
+          loc_txt: string
+          short_id: string
+          sprt_cd: string
+          stt_at: string
+        }[]
       }
-      get_public_team_gatherings:
-        | {
-            Args: { p_end?: string; p_start?: string; p_team_id: string }
-            Returns: {
-              attd_count: number
-              cmnt_count: number
-              crt_by: string
-              crt_by_nm: string
-              desc_txt: string
-              end_at: string
-              gthr_id: string
-              gthr_nm: string
-              gthr_type_enm: string
-              loc_txt: string
-              short_id: string
-              sprt_cd: string
-              stt_at: string
-            }[]
-          }
-        | {
-            Args: {
-              p_end?: string
-              p_mem_id?: string
-              p_start?: string
-              p_team_id: string
-            }
-            Returns: {
-              attd_count: number
-              cmnt_count: number
-              crt_by: string
-              crt_by_nm: string
-              desc_txt: string
-              end_at: string
-              gthr_id: string
-              gthr_nm: string
-              gthr_type_enm: string
-              is_attending: boolean
-              loc_txt: string
-              short_id: string
-              sprt_cd: string
-              stt_at: string
-            }[]
-          }
       get_public_team_member_stats: {
         Args: { p_team_id: string }
         Returns: {
@@ -2323,6 +2312,8 @@ export type Database = {
         }[]
       }
       is_legacy_platform_admin: { Args: never; Returns: boolean }
+      kst_day_end_excl: { Args: { d: string }; Returns: string }
+      kst_day_start: { Args: { d: string }; Returns: string }
       mem_mst_mem_ids_by_norm_phone: {
         Args: { p_input: string }
         Returns: string[]
@@ -2334,6 +2325,19 @@ export type Database = {
       }
       migration_v2_norm_email: { Args: { p_input: string }; Returns: string }
       migration_v2_norm_phone: { Args: { p_input: string }; Returns: string }
+      recalc_member_balance: {
+        Args: {
+          p_base_bal: number
+          p_last_calc_at: string
+          p_last_ref_pay_id?: string
+          p_mem_id: string
+          p_now: string
+          p_team_id: string
+          p_total_charged: number
+          p_total_paid: number
+        }
+        Returns: number
+      }
       rls_is_team_admin: { Args: { p_team_id: string }; Returns: boolean }
       rls_is_team_comp_admin: {
         Args: { p_team_comp_id: string }
@@ -2362,7 +2366,7 @@ export type Database = {
       evt_stts_enm: "READY" | "ACTIVE" | "CLOSED"
       fdbk_stts_enm: "open" | "in_review" | "resolved" | "closed"
       fee_exm_tp_enm: "full" | "part"
-      fee_grant_src_enm: "manual" | "rule_attd"
+      fee_grant_src_enm: "manual" | "rule_attd" | "rule_attd_quest"
       fee_txn_io_enm: "deposit" | "withdrawal"
       gender: "male" | "female"
       member_status: "active" | "inactive" | "banned" | "pending"
@@ -2499,7 +2503,7 @@ export const Constants = {
       evt_stts_enm: ["READY", "ACTIVE", "CLOSED"],
       fdbk_stts_enm: ["open", "in_review", "resolved", "closed"],
       fee_exm_tp_enm: ["full", "part"],
-      fee_grant_src_enm: ["manual", "rule_attd"],
+      fee_grant_src_enm: ["manual", "rule_attd", "rule_attd_quest"],
       fee_txn_io_enm: ["deposit", "withdrawal"],
       gender: ["male", "female"],
       member_status: ["active", "inactive", "banned", "pending"],

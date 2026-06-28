@@ -61,7 +61,7 @@ export default async function DuesExemptionsPage() {
     mem_nm: pickNm(h.mem_mst),
     aply_ym: h.aply_ym,
     exm_amt: h.exm_amt,
-    grant_src_enm: h.grant_src_enm as "manual" | "rule_attd",
+    grant_src_enm: h.grant_src_enm as "manual" | "rule_attd" | "rule_attd_quest",
     rsn_txt: h.rsn_txt ?? "",
     aprv_by_mem_nm: pickNm(h.aprv),
   }));

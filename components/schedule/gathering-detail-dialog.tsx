@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { Pencil, Share2, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { dayjs } from "@/lib/dayjs";
 import { gthrTypeLabels, gthrSprtLabels, type GthrType, type GthrSprtType } from "@/lib/validations/gathering";
@@ -134,6 +135,9 @@ export function GatheringDetailDialog({
     try {
       const result = await toggleGatheringAttendance(gathering!.id);
       setAttending(result.attending);
+      if (result.attending && result.monthlyAttendCnt) {
+        toast.success(`이번 달 ${result.monthlyAttendCnt}회 참여!`);
+      }
       onAttendanceChange?.();
     } catch {
       setAttending(prev);

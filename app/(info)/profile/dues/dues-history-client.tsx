@@ -3,10 +3,12 @@
 import { useState, useTransition } from "react";
 
 import { dayjs } from "@/lib/dayjs";
+import type { ExemptionResult } from "@/lib/dues/calc-exemption";
 
 import { requestDuesCheck } from "@/app/actions/dues/request-dues-check";
 
-import { Body, Caption, SectionLabel } from "@/components/common/typography";
+import { DuesQuestCard } from "@/components/profile/dues-quest-card";
+import { Body, Caption, Micro, SectionLabel } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
@@ -22,19 +24,24 @@ type HistoryItem = {
   ioLabel: "입금" | "출금" | "면제" | "취소";
   amt: number;
   cancelled: boolean;
+  note?: string | null;
+  pending?: boolean;
 };
 
 type Filter = "all" | "due" | "other";
+
+type QuestData = { ym: string; result: ExemptionResult; maxAttendCnt: number };
 
 type Props = {
   balAmt: number | null;
   lastCalcDt: string | null;
   teamAccount: { bank: string; number: string; holder: string };
   monthlyFeeAmt: number | null;
+  quest: QuestData | null;
   items: HistoryItem[];
 };
 
-export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, monthlyFeeAmt, items }: Props) {
+export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, monthlyFeeAmt, quest, items }: Props) {
   const [filter, setFilter] = useState<Filter>("all");
   const [isPending, startTransition] = useTransition();
   const [requested, setRequested] = useState(false);
@@ -125,6 +132,11 @@ export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, monthlyFeeA
         </div>
       </CardItem>
 
+      {/* 출석 감면 퀘스트 (당월 실시간) */}
+      {quest && (
+        <DuesQuestCard ym={quest.ym} result={quest.result} maxAttendCnt={quest.maxAttendCnt} />
+      )}
+
       {/* 내역 */}
       <div className="flex flex-col gap-3">
         {/* 헤더 + 필터 */}
@@ -157,7 +169,7 @@ export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, monthlyFeeA
             <Table>
               <TableHeader>
                 <TableRow>
-                  {["날짜", "항목", "구분", "금액"].map((h) => (
+                  {["날짜", "내용", "구분", "금액"].map((h) => (
                     <TableHead key={h} className="whitespace-nowrap text-center text-xs">{h}</TableHead>
                   ))}
                 </TableRow>
@@ -165,18 +177,29 @@ export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, monthlyFeeA
               <TableBody>
                 {filtered.map((item) => (
                   <TableRow key={item.id} className={item.cancelled ? "opacity-50" : ""}>
-                    <TableCell className="whitespace-nowrap text-center">
-                      <Caption>{formatDate(item.date)}</Caption>
+                    {/* 날짜 */}
+                    <TableCell className="w-16 whitespace-nowrap text-center align-top">
+                      <Caption className="text-muted-foreground">{formatDate(item.date)}</Caption>
                     </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <Caption className={item.cancelled ? "line-through" : ""}>{item.itemLabel}</Caption>
-                        {item.cancelled && (
-                          <Badge variant="outline" className="px-1 py-0 text-[10px]">취소</Badge>
-                        )}
+                    {/* 내용 — 항목 + 배지 + 사유 (왼쪽 정렬, 가장 넓은 칸). 사유가 길 수 있어 줄바꿈 허용 */}
+                    <TableCell className="align-top whitespace-normal break-words">
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <Caption className={item.cancelled ? "line-through" : ""}>{item.itemLabel}</Caption>
+                          {item.cancelled && (
+                            <Badge variant="outline" className="px-1 py-0 text-[10px]">취소</Badge>
+                          )}
+                          {item.pending && (
+                            <Badge variant="outline" className="text-muted-foreground border-muted-foreground/40 px-1 py-0 text-[10px]">
+                              미반영
+                            </Badge>
+                          )}
+                        </div>
+                        {item.note && <Micro className="text-muted-foreground leading-tight">{item.note}</Micro>}
                       </div>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-center">
+                    {/* 구분 — 색으로 한눈에 */}
+                    <TableCell className="w-12 whitespace-nowrap text-center align-top">
                       <Caption
                         className={
                           item.cancelled
@@ -191,7 +214,8 @@ export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, monthlyFeeA
                         {item.ioLabel}
                       </Caption>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-right">
+                    {/* 금액 — 우측 정렬 */}
+                    <TableCell className="whitespace-nowrap pr-4 text-right align-top">
                       <Caption className={`font-medium ${amtColor(item)} ${item.cancelled ? "line-through" : ""}`}>
                         {formatAmt(item)}
                       </Caption>

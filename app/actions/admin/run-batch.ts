@@ -2,6 +2,7 @@
 
 import { withAdmin, withAdminOrThrow } from "@/lib/actions/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { batchDuesExemption } from "./batch-dues-exemption";
 import { batchMileageTitles } from "./batch-mileage-titles";
 
 type BatchParams = Record<string, string>;
@@ -12,6 +13,7 @@ const BATCH_ACTION_MAP: Record<string, (params: BatchParams) => Promise<string>>
     if (!params.evt_id) throw new Error("evt_id 파라미터가 필요합니다");
     return batchMileageTitles(params.evt_id, params.base_month);
   },
+  DUES_EXEMPTION_BATCH: (params) => batchDuesExemption(params.base_month),
 };
 
 export async function runBatch(jobId: string, params: BatchParams): Promise<ActionResult> {

@@ -7,6 +7,7 @@ import { Inter } from "next/font/google";
 import Script from "next/script";
 
 import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { Toaster } from "sonner";
 
 import { InAppBrowserGate } from "@/components/in-app-browser-gate";
 import { Providers } from "@/components/providers";
@@ -84,6 +85,20 @@ export default function RootLayout({
             </Suspense>
             <ServiceWorkerRegister />
           </NuqsAdapter>
+          {/* 전역 토스트 — 참석 피드백·배치 결과 등. sonner 기본 흥(아이콘·애니메이션) 유지하고
+              폭(내용만큼)·모서리·그림자만 프로젝트 카드 톤으로 보정. richColors 미사용(투박함 제거). */}
+          <Toaster
+            position="bottom-center"
+            offset="80px"
+            mobileOffset="80px"
+            style={{ "--width": "fit-content" } as React.CSSProperties}
+            toastOptions={{
+              classNames: {
+                toast: "!rounded-2xl !border-border !shadow-lg !max-w-[90vw]",
+                title: "!text-sm !font-medium",
+              },
+            }}
+          />
         </Providers>
       </body>
       <Script

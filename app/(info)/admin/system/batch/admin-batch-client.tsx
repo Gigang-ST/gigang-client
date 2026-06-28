@@ -154,6 +154,17 @@ export function AdminBatchClient({ initialJobs }: { initialJobs: BatchJob[] }) {
 
   function handleRun() {
     if (!selectedJob) return;
+
+    // 출석 회비 감면 배치: 당월·미래월은 확정 불가(전월 이하만). 버튼 단에서 미리 차단.
+    if (selectedJob.job_cd === "DUES_EXEMPTION_BATCH") {
+      const ym = (params.base_month ?? "").slice(0, 7);
+      const curYm = currentMonthKST().slice(0, 7);
+      if (ym && ym >= curYm) {
+        toast.error("진행 중이거나 미래인 달은 확정할 수 없습니다. 마감된 전월 이하만 선택하세요.");
+        return;
+      }
+    }
+
     startTransition(async () => {
       const result = await runBatch(selectedJob.job_id, params);
       setSheetOpen(false);
