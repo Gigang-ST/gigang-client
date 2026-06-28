@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Pencil, Share2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -79,11 +79,15 @@ export function GatheringDetailDialog({
   const [attending, setAttending] = useState(initialIsAttending ?? false);
   const [attdCount, setAttdCount] = useState(gathering?.regCount ?? 0);
   const [attendees, setAttendees] = useState(gathering?.attendees ?? []);
-  const [isToggling, setIsToggling] = useState(false);
+  // 참석 토글 재진입 가드 — 동기 ref로 같은 렌더 내 연타까지 막는다(리렌더 의존 state는 못 막음).
+  // 버튼 흐림 없이 재클릭만 무시하므로 UI에 노출할 state는 불필요.
+  const togglingRef = useRef(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   // 방금 등록한 직후에만 공유 유도 안내 노출. 공유하기를 누르면 숨긴다.
   const [showShareHint, setShowShareHint] = useState(justCreated ?? false);
+  // 등록 직후 다이얼로그가 맨 위에서 열려 하단 공유 유도가 안 보이는 문제 → 공유 영역으로 스크롤
+  const shareHintRef = useRef<HTMLDivElement>(null);
 
   // gathering prop이 바뀌거나 justCreated가 바뀌면 로컬 상태 동기화
   // (렌더 중 파생 state 업데이트 — React 공식 패턴: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes)
@@ -98,6 +102,16 @@ export function GatheringDetailDialog({
     setAttendees(gathering?.attendees ?? []);
     setShowShareHint(justCreated ?? false);
   }
+
+  // 등록 직후 열렸을 때, 다이얼로그 본문이 길어 하단 공유 유도가 가려지지 않도록 그 영역으로 스크롤.
+  useEffect(() => {
+    if (!open || !justCreated) return;
+    // 다이얼로그/콘텐츠 마운트 후 레이아웃이 잡힌 다음 스크롤
+    const id = setTimeout(() => {
+      shareHintRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 150);
+    return () => clearTimeout(id);
+  }, [open, justCreated, gKey]);
 
   if (!gathering) return null;
 
@@ -125,8 +139,8 @@ export function GatheringDetailDialog({
     : `/?gthr=${gthrRef}`;
 
   async function handleToggleAttendance() {
-    if (!currentMemberId || isFull || isToggling) return;
-    setIsToggling(true);
+    if (!currentMemberId || isFull || togglingRef.current) return;
+    togglingRef.current = true;
     const prev = attending;
     const myEntry = { mem_id: currentMemberId, mem_nm: currentMemberName ?? null, avatar_url: currentMemberAvatarUrl ?? null };
     setAttending(!prev);
@@ -144,7 +158,7 @@ export function GatheringDetailDialog({
       setAttdCount((c) => (prev ? c + 1 : c - 1));
       setAttendees(gathering!.attendees ?? []);
     } finally {
-      setIsToggling(false);
+      togglingRef.current = false;
     }
   }
 
@@ -242,7 +256,9 @@ export function GatheringDetailDialog({
             {currentMemberId && (
               <Button
                 onClick={handleToggleAttendance}
-                disabled={isToggling || isFull}
+                // 처리 중엔 disabled 대신 handleToggleAttendance의 togglingRef 가드로 재클릭만 막아 흐려지지 않게.
+                // 낙관적 업데이트로 색이 즉시 바뀌어 "바로 눌렸다"고 느끼게 한다.
+                disabled={isFull}
                 variant={attending ? "default" : "outline"}
                 className={attending ? "w-full bg-success hover:bg-success/90 border-success" : "w-full"}
               >
@@ -271,8 +287,8 @@ export function GatheringDetailDialog({
               </div>
             )}
 
-            {/* 공유/수정/삭제 */}
-            <div className="flex items-center justify-between gap-2">
+            {/* 공유/수정/삭제 (등록 직후 이 영역으로 자동 스크롤 — 안내+버튼이 함께 보이게) */}
+            <div ref={shareHintRef} className="scroll-mt-4 flex items-center justify-between gap-2">
               <Button
                 variant={showShareHint ? "default" : "outline"}
                 size="sm"
