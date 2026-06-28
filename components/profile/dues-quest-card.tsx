@@ -78,10 +78,13 @@ export function DuesQuestCard({ ym, result, maxAttendCnt }: Props) {
           {exmAmt.toLocaleString()}원
         </Body>
       </div>
-      {nextTier && (
+      {nextTier && gatePassed && (
         <Micro className="text-muted-foreground -mt-1.5 text-right">
           {nextTier.remaining}회 더 참석하면 {nextTier.exmAmt.toLocaleString()}원 감면
         </Micro>
+      )}
+      {!nextTier && gatePassed && exmAmt > 0 && (
+        <Micro className="text-success -mt-1.5 text-right">최대 감면 달성! 🎉</Micro>
       )}
     </CardItem>
   );

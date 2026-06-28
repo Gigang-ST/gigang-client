@@ -14,10 +14,14 @@ const KST = "Asia/Seoul";
  * - 대상 월: 기본 전월(baseMonth 미지정 시). 'YYYY-MM' 지정 가능(과거 소급).
  * - 대상 멤버: 대상 월에 활성이던 팀 멤버(가입월 ≤ 대상월).
  * - 멤버별 get_member_monthly_activity(team, mem, ym) → calcExemption(대상월 회비단가).
- * - exmAmt>0 이면 grant_src_enm='rule_attd_quest', rflt_yn=false 로 멱등 INSERT.
- *   (uk_fee_exm_hist_quest 로 월당 1건 — 재실행해도 중복 없음. ON CONFLICT DO NOTHING)
+ * - exmAmt>0 이면 grant_src_enm='rule_attd_quest', rflt_yn=false 로 INSERT.
+ *   멱등: 같은 월 퀘스트 면제가 이미 있으면 스킵(존재 확인 후 INSERT). 부분 유니크 인덱스
+ *   uk_fee_exm_hist_quest 가 동시성 경합 시 최종 방어선.
  * - 잔액 반영은 안 함. 다음 재계산이 rflt_yn=false 를 합산·마킹(§6).
  * - 마감 후 회수 없음: exmAmt==0 이면 아무것도 안 함(회수 분기 없음, §6.4/§8.1).
+ *
+ * ⚠️ 성능: 멤버당 집계 RPC 1회 호출(N+1). 월 1회·수백 명 규모라 허용. 멤버 수가 크게 늘면
+ *   집계를 셋 기반(멤버 전체 1회) RPC로 승급(설계 §4.2). 현재는 단순성 우선.
  */
 export async function batchDuesExemption(baseMonth?: string): Promise<string> {
   return withAdminOrThrow(async ({ member }) => {
