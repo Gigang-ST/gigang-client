@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidateTag } from "next/cache";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 import { withAdminOrThrow } from "@/lib/actions/auth";
+import { BOARD_POSTS_TAG } from "@/lib/queries/board";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createPostSchema } from "@/lib/validations/board";
 
@@ -30,7 +31,7 @@ export async function createPost(input: {
 
     if (error || !post) throw new Error("게시글 등록에 실패했습니다.");
 
-    revalidatePath("/board");
+    revalidateTag(BOARD_POSTS_TAG, "max");
     return { post_id: post.post_id };
   });
 }

@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidateTag } from "next/cache";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 import { withMember } from "@/lib/actions/auth";
+import { BOARD_POSTS_TAG, boardPostTag } from "@/lib/queries/board";
 import { updatePostSchema } from "@/lib/validations/board";
 import { getKSTDate } from "@/lib/dayjs";
 
@@ -37,7 +38,7 @@ export async function updatePost(input: {
 
     if (error) throw new Error("게시글 수정에 실패했습니다.");
 
-    revalidatePath("/board");
-    revalidatePath(`/board/${input.post_id}`);
+    revalidateTag(BOARD_POSTS_TAG, "max");
+    revalidateTag(boardPostTag(input.post_id), "max");
   });
 }

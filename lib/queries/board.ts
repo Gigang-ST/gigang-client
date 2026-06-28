@@ -1,4 +1,10 @@
+import { unstable_cache } from "next/cache";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
+import { DEFAULT_FALLBACK_TEAM_ID } from "@/lib/constants/gigang-team";
+
+/** 캐시 태그 — mutation 시 revalidateTag 로 무효화 */
+export const BOARD_POSTS_TAG = "board-posts";
+export const boardPostTag = (id: string) => `board-post:${id}`;
 
 export type BoardPost = {
   post_id: string;
@@ -132,4 +138,36 @@ export async function recordBoardPostRead(
   await admin
     .from("brd_post_read_hist")
     .upsert({ post_id: postId, mem_id: memberId }, { onConflict: "post_id,mem_id" });
+}
+
+/* ------------------------------------------------------------------ */
+/*  SSG 캐시 쿼리                                                     */
+/* ------------------------------------------------------------------ */
+
+/** 목록 페이지용 — board-posts 태그로 일괄 무효화 */
+export const getCachedBoardPosts = unstable_cache(
+  (teamId: string, type: "notice" | "update") =>
+    getBoardPosts(teamId, type, { limit: 20 }),
+  ["board-posts"],
+  { tags: [BOARD_POSTS_TAG] },
+);
+
+/** 상세 페이지용 — 개별 태그 + 목록 태그 */
+export function getCachedBoardPost(postId: string) {
+  return unstable_cache(
+    () => getBoardPost(postId),
+    ["board-post", postId],
+    { tags: [BOARD_POSTS_TAG, boardPostTag(postId)] },
+  )();
+}
+
+/** generateStaticParams 용 — 모든 활성 게시글 ID 조회 */
+export async function getAllBoardPostIds(): Promise<string[]> {
+  const admin = createUntypedAdminClient();
+  const { data } = await admin
+    .from("brd_post_mst")
+    .select("post_id")
+    .eq("team_id", DEFAULT_FALLBACK_TEAM_ID)
+    .eq("del_yn", false);
+  return (data ?? []).map((row: { post_id: string }) => row.post_id);
 }

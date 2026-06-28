@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { PenLine } from "lucide-react";
 import type { BoardPostSummary } from "@/lib/queries/board";
+import { checkBoardPermission } from "@/app/actions/check-board-permission";
 import { PostList } from "@/components/board/post-list";
 import { SegmentControl } from "@/components/common/segment-control";
 import { analytics } from "@/lib/analytics";
@@ -11,13 +13,18 @@ import { analytics } from "@/lib/analytics";
 type BoardClientProps = {
   initialNotices: BoardPostSummary[];
   initialUpdates: BoardPostSummary[];
-  canWrite: boolean;
 };
 
-export function BoardClient({ initialNotices, initialUpdates, canWrite }: BoardClientProps) {
+export function BoardClient({ initialNotices, initialUpdates }: BoardClientProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const tab = (searchParams.get("tab") === "update" ? "update" : "notice") as "notice" | "update";
+
+  const [canWrite, setCanWrite] = useState(false);
+
+  useEffect(() => {
+    checkBoardPermission().then((p) => setCanWrite(p.canWrite));
+  }, []);
 
   function handleTabChange(value: "notice" | "update") {
     analytics.boardTabSwitch(value);

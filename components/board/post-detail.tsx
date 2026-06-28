@@ -9,6 +9,8 @@ import rehypeSlug from "rehype-slug";
 import dayjs from "dayjs";
 import { ChevronLeft, ChevronUp } from "lucide-react";
 import type { BoardPost } from "@/lib/queries/board";
+import { checkBoardPermission } from "@/app/actions/check-board-permission";
+import { recordBoardReadAction } from "@/app/actions/record-board-read";
 import { deletePost } from "@/app/actions/delete-post";
 import { Body, Caption } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
@@ -17,14 +19,21 @@ import { Separator } from "@/components/ui/separator";
 
 type PostDetailProps = {
   post: BoardPost;
-  canEdit: boolean;
 };
 
-export function PostDetail({ post, canEdit }: PostDetailProps) {
+export function PostDetail({ post }: PostDetailProps) {
   const router = useRouter();
+  const [canEdit, setCanEdit] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    checkBoardPermission(post.writ_mem_id).then((p) => {
+      setCanEdit(p.canEdit);
+      if (p.memberId) recordBoardReadAction(post.post_id);
+    });
+  }, [post.post_id, post.writ_mem_id]);
 
   useEffect(() => {
     const onScroll = () => setShowScrollTop(window.scrollY > 200);
