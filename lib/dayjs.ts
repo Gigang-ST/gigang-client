@@ -69,6 +69,21 @@ export function monthLastDay(year: number, month: number): string {
     .format("YYYY-MM-DD");
 }
 
+/**
+ * 해당 월 달력 그리드에 실제로 그려지는 첫 셀(이전 달 며칠 포함) ~ 마지막 셀(다음 달 며칠 포함) 범위.
+ * (month: 1-indexed) 캘린더 데이터 조회 시 이 범위로 넘기면 앞뒤 달 일정까지 함께 받아온다.
+ * SSR(page.tsx)과 클라이언트(MiniCalendar)가 동일 범위를 쓰도록 공용으로 둔다.
+ */
+export function gridDateRange(year: number, month: number): { start: string; end: string } {
+  const first = dayjs.tz(`${year}-${String(month).padStart(2, "0")}-01`, "Asia/Seoul");
+  const firstDow = first.day();
+  const total = daysInMonth(year, month);
+  const weekCount = Math.ceil((firstDow + total) / 7);
+  const gridStart = first.subtract(firstDow, "day");
+  const gridEnd = gridStart.add(weekCount * 7 - 1, "day");
+  return { start: gridStart.format("YYYY-MM-DD"), end: gridEnd.format("YYYY-MM-DD") };
+}
+
 /** 날짜 문자열 → 한국어 포맷 (기본: 2026년 3월 31일 화요일) */
 export function formatKoreanDate(
   dateStr: string,

@@ -26,7 +26,8 @@ export async function toggleGatheringAttendance(
     if (existing) {
       const { error: deleteError } = await supabase.from("gthr_attd_rel").delete().eq("attd_id", existing.attd_id);
       if (deleteError) throw new Error("참석 취소에 실패했습니다.");
-      revalidatePath("/");
+      // 홈(/)은 dynamic 렌더(getCurrentMember가 cookies 사용)라 매 요청 새로 조회되므로
+      // revalidatePath("/")는 무효화할 캐시가 없어 불필요 — 모임 상세 직접 URL만 무효화한다.
       revalidatePath(`/gatherings/${gthr_id}`);
       return { attending: false };
     }
@@ -58,7 +59,7 @@ export async function toggleGatheringAttendance(
 
     if (error) throw new Error("참석 등록에 실패했습니다.");
 
-    revalidatePath("/");
+    // 홈(/)은 dynamic이라 revalidate 불필요(위 취소 경로 주석 참고). 모임 상세 직접 URL만 무효화.
     revalidatePath(`/gatherings/${gthr_id}`);
 
     // 이번 달(모임 귀속월) 본인 총참석 횟수 — 토스트 안내용(실패해도 참석 등록엔 영향 없음)

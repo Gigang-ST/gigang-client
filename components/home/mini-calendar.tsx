@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { CalendarDays, ChevronLeft, ChevronRight, List } from "lucide-react";
 
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
-import { dayjs, todayKST, currentMonthKST, daysInMonth } from "@/lib/dayjs";
+import { dayjs, todayKST, currentMonthKST, daysInMonth, gridDateRange } from "@/lib/dayjs";
 import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
 import { createClient } from "@/lib/supabase/client";
@@ -129,9 +129,16 @@ const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"] as const;
 
 import { type FilterType, matchesFilter } from "./schedule-filter";
 
-function monthLastDayStr(year: number, month: number): string {
-  const d = daysInMonth(year, month);
-  return `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+// 달력 그리드 셀 — 이번 달(inMonth) / 앞뒤 달(inMonth=false) 날짜를 함께 표현
+type Cell = { date: string; day: number; inMonth: boolean };
+
+// 일정 표시 우선순위 — 하단 패널·그리드 이벤트 바 공용.
+// ① 내가 참여 중(모임참석·대회참가) ② 모임 ③ 정보 ④ 대회 순으로 위/앞에 배치한다.
+function eventDisplayOrder(r: CalendarRace): number {
+  if (r.type === "gathering_mine" || r.type === "mine") return 0; // 참여 중
+  if (r.type === "gathering") return 1;
+  if (r.type === "schedule") return 2;
+  return 3; // gigang(비참여 대회)
 }
 
 export function MiniCalendar({
@@ -353,31 +360,38 @@ export function MiniCalendar({
     return map;
   }, [filteredRaces]);
 
-  // 주차별로 날짜 그룹핑
+  // 주차별로 날짜 그룹핑 — 앞뒤 빈칸을 이전/다음 달 날짜로 채워 6주 그리드를 메운다.
+  // inMonth=false 셀은 흐리게 표시하고, 클릭 시 해당 달로 전환한다.
   const weeks = useMemo(() => {
-    const cells: (number | null)[] = [
-      ...Array.from<null>({ length: firstDayOfWeek }).fill(null),
-      ...Array.from({ length: totalDays }, (_, i) => i + 1),
-    ];
-    const result: (number | null)[][] = [];
-    for (let i = 0; i < cells.length; i += 7) {
-      result.push(cells.slice(i, i + 7).concat(Array(7).fill(null)).slice(0, 7));
+    // 그리드 첫 셀 = 이번 달 1일이 속한 주의 일요일
+    const firstCell = dayjs
+      .tz(`${year}-${String(month).padStart(2, "0")}-01`, "Asia/Seoul")
+      .subtract(firstDayOfWeek, "day");
+    // 이번 달 마지막날까지 채우는 데 필요한 주 수만큼 그리드를 만든다(가변 5~6주).
+    const weekCount = Math.ceil((firstDayOfWeek + totalDays) / 7);
+    const result: Cell[][] = [];
+    for (let w = 0; w < weekCount; w++) {
+      const week: Cell[] = [];
+      for (let d = 0; d < 7; d++) {
+        const cur = firstCell.add(w * 7 + d, "day");
+        week.push({
+          date: cur.format("YYYY-MM-DD"),
+          day: cur.date(),
+          inMonth: cur.month() + 1 === month && cur.year() === year,
+        });
+      }
+      result.push(week);
     }
     return result;
-  }, [firstDayOfWeek, totalDays]);
+  }, [year, month, firstDayOfWeek, totalDays]);
 
   // 주차별 스패닝 이벤트 레인 계산
   const weekEventLanes = useMemo(() => {
     return weeks.map((week) => {
-      const colDates = week.map((day) =>
-        day !== null
-          ? `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
-          : null
-      );
-      const validDates = colDates.filter((d): d is string => d !== null);
-      if (validDates.length === 0) return [];
-      const weekStart = validDates[0];
-      const weekEnd = validDates[validDates.length - 1];
+      // 모든 셀이 날짜를 가지므로(앞뒤 달 포함) null 처리가 없다.
+      const colDates = week.map((cell) => cell.date);
+      const weekStart = colDates[0];
+      const weekEnd = colDates[colDates.length - 1];
 
       const seen = new Set<string>();
       const active = filteredRaces.filter((race) => {
@@ -389,11 +403,11 @@ export function MiniCalendar({
 
       const positioned = active.map((race) => {
         const endStr = race.end_date ? dayjs(race.end_date).tz("Asia/Seoul").format("YYYY-MM-DD") : race.start_date;
-        let colStart = colDates.findIndex((d) => d !== null && d >= race.start_date);
-        if (colStart === -1) colStart = colDates.findIndex((d) => d !== null) ?? 0;
+        let colStart = colDates.findIndex((d) => d >= race.start_date);
+        if (colStart === -1) colStart = 0;
         let colEnd = colStart;
         for (let i = colStart + 1; i < 7; i++) {
-          if (colDates[i] !== null && colDates[i]! <= endStr) colEnd = i;
+          if (colDates[i] <= endStr) colEnd = i;
         }
         return {
           race,
@@ -404,11 +418,14 @@ export function MiniCalendar({
         };
       });
 
-      // 슬롯 배정은 colStart(→ 긴 일정 우선) 순으로 한다.
-      // 슬롯은 가로 한 행 전체를 점유하므로, 참석 우선 등으로 늦게 시작하는 일정을 위 슬롯에
-      // 올리면 그 일정이 없는 앞 날짜 칸의 윗줄이 비어버린다(겹치지도 않는데 빈칸 발생).
-      // 따라서 "겹치지 않으면 가장 위 빈 슬롯"이 되도록 colStart 순으로만 배정한다.
+      // 슬롯 배정 순서(하단 패널과 동일 우선순위 eventDisplayOrder):
+      //  ① 참여중 ② 모임 ③ 정보 ④ 대회 → 윗 슬롯 우선권을 줘 위에 보이게 한다.
+      //  ② 같은 우선순위 안에선 colStart(시작 날짜)순 → "겹치지 않으면 가장 위 빈 슬롯"이
+      //     성립해, 자리가 있는데도 비는 일 없이 촘촘히 채워진다(긴 일정 먼저, colSpan 내림차순).
+      // 짧은 일정이 위로 가며 그게 없는 날짜 칸의 윗줄이 비는 건, 그 칸에 다른 일정이 생기면
+      // findIndex로 그 빈 슬롯을 채우므로 "자리가 필요한데 비는" 문제는 발생하지 않는다.
       const sorted = [...positioned].sort((a, b) =>
+        eventDisplayOrder(a.race) - eventDisplayOrder(b.race) ||
         a.colStart - b.colStart ||
         b.colSpan - a.colSpan
       );
@@ -421,14 +438,10 @@ export function MiniCalendar({
         return { ...ep, slot };
       });
 
-      // 원래 순서(colStart → id)로 돌려서 반환
-      return withSlot.sort((a, b) => a.colStart - b.colStart || a.race.id.localeCompare(b.race.id));
+      // 렌더 순서는 무관(각자 grid-column/row로 절대배치)하므로 배정 결과를 그대로 반환
+      return withSlot;
     });
-  }, [weeks, filteredRaces, year, month]);
-
-  function formatCellDate(day: number): string {
-    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  }
+  }, [weeks, filteredRaces]);
 
   async function fetchComments(entityType: "sch_post" | "comp" | "gathering", entityId: string): Promise<CmntRow[]> {
     const { data } = await supabase
@@ -460,14 +473,12 @@ export function MiniCalendar({
     openingLock.current = true;
     setOpeningId(race.id);
     try {
-      const [{ data }, comments] = await Promise.all([
-        supabase
-          .from("comp_mst")
-          .select("comp_id, short_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)")
-          .eq("comp_id", race.id)
-          .single(),
-        memberId ? fetchComments("comp", race.id) : Promise.resolve(undefined),
-      ]);
+      // 댓글은 함께 기다리지 않는다 — undefined로 넘기면 CommentSection이 스스로 조회·로딩 표시한다.
+      const { data } = await supabase
+        .from("comp_mst")
+        .select("comp_id, short_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)")
+        .eq("comp_id", race.id)
+        .single();
 
       const comp: Competition = data
         ? {
@@ -498,7 +509,7 @@ export function MiniCalendar({
           };
 
       setSelectedCompetition(comp);
-      setCompDetailInitialComments(comments);
+      setCompDetailInitialComments(undefined);
       setDetailOpen(true);
     } finally {
       openingLock.current = false;
@@ -591,7 +602,8 @@ export function MiniCalendar({
     const [yStr, mStr] = newMonth.split("-");
     const y = parseInt(yStr, 10);
     const m = parseInt(mStr, 10);
-    const lastDay = monthLastDayStr(y, m);
+    // 그리드에 실제 그려지는 범위(이전 달 며칠 ~ 다음 달 며칠)로 조회해 앞뒤 달 일정도 함께 표시한다.
+    const { start: gridStart, end: gridEnd } = gridDateRange(y, m);
 
     const [
       { data: teamComps },
@@ -599,7 +611,7 @@ export function MiniCalendar({
       { data: schPostRows },
       { data: gthrRows },
     ] = await Promise.all([
-      supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: newMonth, p_end: lastDay }),
+      supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: gridStart, p_end: gridEnd }),
       memberId
         ? supabase
             .from("comp_reg_rel")
@@ -609,10 +621,10 @@ export function MiniCalendar({
             .eq("vers", 0)
             .eq("del_yn", false)
         : Promise.resolve({ data: null }),
-      supabase.rpc("get_public_team_sch_posts", { p_team_id: teamId, p_start: newMonth, p_end: lastDay }),
+      supabase.rpc("get_public_team_sch_posts", { p_team_id: teamId, p_start: gridStart, p_end: gridEnd }),
       memberId
-        ? supabase.rpc("get_public_team_gatherings", { p_team_id: teamId, p_start: newMonth, p_end: lastDay, p_mem_id: memberId })
-        : supabase.rpc("get_public_team_gatherings", { p_team_id: teamId, p_start: newMonth, p_end: lastDay }),
+        ? supabase.rpc("get_public_team_gatherings", { p_team_id: teamId, p_start: gridStart, p_end: gridEnd, p_mem_id: memberId })
+        : supabase.rpc("get_public_team_gatherings", { p_team_id: teamId, p_start: gridStart, p_end: gridEnd }),
     ]);
 
     const newGigang: CalendarRace[] = (teamComps ?? [])
@@ -630,7 +642,7 @@ export function MiniCalendar({
           if (!comp) return [];
           const meta = calendarMetaMap.get(comp.comp_id);
           const race: CalendarRace = { id: comp.comp_id, title: comp.comp_nm, start_date: comp.stt_dt, type: "mine", location: comp.loc_nm ?? null, regCount: meta?.regCount ?? 0, cmntCount: meta?.cmntCount };
-          return race.start_date >= newMonth && race.start_date <= lastDay ? [race] : [];
+          return race.start_date >= gridStart && race.start_date <= gridEnd ? [race] : [];
         })
       : [];
 
@@ -679,18 +691,31 @@ export function MiniCalendar({
   const fetchMonthDataRef = useRef(fetchMonthData);
   fetchMonthDataRef.current = fetchMonthData;
 
-  const navigate = useCallback((dir: -1 | 1) => {
+  // 특정 월(YYYY-MM-01)로 이동하며 데이터를 교체. 흐린 다른 달 셀 클릭 시에도 재사용한다.
+  // 화면(viewMonth)은 즉시 전환하고, 데이터 조회만 백그라운드(startTransition)로 돌린다.
+  // 흐린 셀의 일정은 이미 현재 범위에 조회돼 있어 전환 직후에도 그대로 보이고 클릭까지 가능하므로,
+  // "그 달로 먼저 가고, 새 범위(중순 등)는 로딩되면 채운다"가 자연스럽다. 조회 중엔 isPending 흐림 유지.
+  const goToMonth = useCallback((monthFirst: string) => {
     if (openingLock.current) return;
+    if (monthFirst === viewMonthRef.current) return;
+    setViewMonth(monthFirst); // 즉시 전환 — 기존 데이터로 먼저 그린다(겹치는 월초·월말은 이미 있음)
     startTransition(async () => {
-      const newMonth = dayjs(viewMonthRef.current).add(dir, "month").format("YYYY-MM-01");
-      const { gigang, mine, schPosts: newSch, gatherings: newGthr } = await fetchMonthDataRef.current(newMonth);
-      setViewMonth(newMonth);
+      const { gigang, mine, schPosts: newSch, gatherings: newGthr } = await fetchMonthDataRef.current(monthFirst);
       setGigangRaces(gigang);
       setMyRaces(mine);
       setSchPosts(newSch);
       setGatherings(newGthr);
     });
   }, []);
+
+  const navigate = useCallback((dir: -1 | 1) => {
+    goToMonth(dayjs(viewMonthRef.current).add(dir, "month").format("YYYY-MM-01"));
+  // goToMonth는 deps [] 로 안정화됨
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // SSR(page.tsx)이 처음부터 gridDateRange 범위로 조회해 내려주므로 마운트 시 보강 재조회는 불필요하다.
+  // (달 이동·갱신 시의 fetchMonthData도 같은 gridDateRange를 써서 앞뒤 달 일정을 함께 받아온다)
 
   const swipeTouchStartX = useRef<number | null>(null);
   const swipeDidNavigate = useRef(false);
@@ -734,20 +759,12 @@ export function MiniCalendar({
     await handleSchPostSuccess();
   }
 
-  const openSchPostDetail = useCallback(async (race: CalendarRace) => {
-    if (openingLock.current) return;
-    openingLock.current = true;
-    setOpeningId(race.id);
-    try {
-      const comments = memberId ? await fetchComments("sch_post", race.id) : undefined;
-      setSchDetailPost(race);
-      setSchDetailInitialComments(comments);
-      setSchDetailOpen(true);
-    } finally {
-      openingLock.current = false;
-      setOpeningId(null);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const openSchPostDetail = useCallback((race: CalendarRace) => {
+    // 정보 상세는 race 외에 추가로 조회할 본문이 없다.
+    // 댓글도 함께 기다리지 않고 undefined로 넘겨(CommentSection 자체 조회) 즉시 연다.
+    setSchDetailPost(race);
+    setSchDetailInitialComments(undefined);
+    setSchDetailOpen(true);
   }, []);
 
   // 등록 직후 전용: 조회 없이 즉시 상세를 연다.
@@ -775,8 +792,9 @@ export function MiniCalendar({
     setGthrJustCreated(justCreated);
     try {
       type GthrDetail = { max_prt_cnt: number | null; sprt_cd: string | null; attendees: GatheringAttendee[] };
-      const [comments, attdResult, gthrDetailResult] = await Promise.all([
-        memberId ? fetchComments("gathering", race.id) : Promise.resolve(undefined),
+      // 댓글은 함께 기다리지 않는다 — undefined로 넘기면 CommentSection이 스스로 조회·로딩 표시한다.
+      // 다이얼로그 오픈을 댓글 쿼리가 막지 않아 그만큼 더 빨리 뜬다.
+      const [attdResult, gthrDetailResult] = await Promise.all([
         memberId
           ? supabase.from("gthr_attd_rel").select("attd_id").eq("gthr_id", race.id).eq("mem_id", memberId).maybeSingle()
           : Promise.resolve({ data: null }),
@@ -793,7 +811,7 @@ export function MiniCalendar({
       // (자동 참석 INSERT 직후라 attd 조회가 read-after-write 지연으로 null을 반환할 수 있어
       //  조회 결과만 믿으면 데스크톱처럼 빠른 환경에서 참석 토글이 꼬인다)
       setGthrDetailAttending(justCreated || !!attdResult.data);
-      setGthrDetailComments(comments);
+      setGthrDetailComments(undefined);
       setGthrDetailOpen(true);
     } finally {
       openingLock.current = false;
@@ -940,33 +958,35 @@ export function MiniCalendar({
                   <div key={weekIdx} className="relative">
                     {/* 전체 높이 클릭 오버레이 — 선택 배경 + 날짜 선택 */}
                     <div className="pointer-events-none absolute inset-0 grid grid-cols-7">
-                      {week.map((day, colIdx) => {
-                        if (day === null) return <div key={`ol-${weekIdx}-${colIdx}`} />;
-                        const dateStr = formatCellDate(day);
+                      {week.map((cell) => {
+                        const dateStr = cell.date;
                         const isSelected = selectedDate === dateStr;
                         return (
                           <button
                             key={`ol-${dateStr}`}
-                            onClick={() => { if (swipeDidNavigate.current) { swipeDidNavigate.current = false; return; } setSelectedDate(dateStr); }}
+                            onClick={() => {
+                              if (swipeDidNavigate.current) { swipeDidNavigate.current = false; return; }
+                              setSelectedDate(dateStr);
+                              // 흐린 다른 달 셀이면 해당 달로 전환(데이터도 그 달 기준으로 재조회)
+                              if (!cell.inMonth) goToMonth(dayjs(dateStr).format("YYYY-MM-01"));
+                            }}
                             className={cn(
                               "pointer-events-auto h-full w-full transition-colors",
                               isSelected && "bg-secondary/60",
                             )}
-                            aria-label={`${day}일 선택`}
+                            aria-label={`${cell.day}일 선택`}
                             aria-pressed={isSelected}
                           />
                         );
                       })}
                     </div>
 
-                    {/* 날짜 숫자 행 (표시 전용) */}
+                    {/* 날짜 숫자 행 (표시 전용) — 다른 달 셀은 흐리게 */}
                     <div className="relative z-10 grid grid-cols-7" style={{ pointerEvents: "none" }}>
-                      {week.map((day, colIdx) => {
-                        if (day === null) {
-                          return <div key={`e-${weekIdx}-${colIdx}`} className="h-8 border-t border-border/40" />;
-                        }
-                        const dateStr = formatCellDate(day);
+                      {week.map((cell, colIdx) => {
+                        const dateStr = cell.date;
                         const isToday = dateStr === today;
+                        const outMonth = !cell.inMonth;
                         const overflowCount = Math.max(0, (eventsByDate.get(dateStr)?.length ?? 0) - 3);
                         return (
                           <div
@@ -978,15 +998,20 @@ export function MiniCalendar({
                                 className={cn(
                                   "flex size-6 items-center justify-center rounded-full text-[12px] font-medium",
                                   isToday && "bg-primary text-primary-foreground font-bold",
-                                  !isToday && colIdx === 0 && "text-destructive",
-                                  !isToday && colIdx === 6 && "text-primary",
-                                  !isToday && colIdx !== 0 && colIdx !== 6 && "text-foreground",
+                                  // 다른 달: 평일/주말 색을 흐리게 통일
+                                  !isToday && outMonth && "text-muted-foreground/40",
+                                  !isToday && !outMonth && colIdx === 0 && "text-destructive",
+                                  !isToday && !outMonth && colIdx === 6 && "text-primary",
+                                  !isToday && !outMonth && colIdx !== 0 && colIdx !== 6 && "text-foreground",
                                 )}
                               >
-                                {day}
+                                {cell.day}
                               </span>
                               {overflowCount > 0 && (
-                                <span className="text-[8px] font-medium leading-none text-muted-foreground">
+                                <span className={cn(
+                                  "text-[8px] font-medium leading-none",
+                                  outMonth ? "text-muted-foreground/40" : "text-muted-foreground",
+                                )}>
                                   +{overflowCount}
                                 </span>
                               )}
@@ -1001,31 +1026,38 @@ export function MiniCalendar({
                       className="relative z-10 grid grid-cols-7 pb-1"
                       style={{ gridTemplateRows: "13px 13px 13px", rowGap: "1px", pointerEvents: "none" }}
                     >
-                      {visibleLanes.map((lane) => (
-                        <div
-                          key={`${lane.race.id}-w${weekIdx}`}
-                          style={{
-                            gridColumn: `${lane.colStart + 1} / ${lane.colStart + lane.colSpan + 1}`,
-                            gridRow: lane.slot + 1,
-                          }}
-                          className={cn(
-                            "overflow-hidden px-0.5 text-[7px] font-medium leading-[13px]",
-                            lane.startsThisWeek ? "rounded-l-sm" : "",
-                            lane.endsThisWeek ? "rounded-r-sm" : "",
-                            lane.race.type === "mine"
-                              ? "bg-warning/60 text-white"
-                              : lane.race.type === "schedule"
-                                ? "bg-info/15 text-info"
-                                : lane.race.type === "gathering_mine"
-                                  ? "bg-violet-500/60 text-white"
-                                  : lane.race.type === "gathering"
-                                    ? "bg-violet-500/20 text-violet-600"
-                                    : "bg-warning/15 text-warning",
-                          )}
-                        >
-                          {lane.startsThisWeek ? lane.race.title : ""}
-                        </div>
-                      ))}
+                      {visibleLanes.map((lane) => {
+                        // lane이 점유한 칸이 전부 다른 달이면 흐리게(이번 달 셀에 하나라도 걸치면 정상 표시)
+                        const outMonth = !week
+                          .slice(lane.colStart, lane.colStart + lane.colSpan)
+                          .some((c) => c.inMonth);
+                        return (
+                          <div
+                            key={`${lane.race.id}-w${weekIdx}`}
+                            style={{
+                              gridColumn: `${lane.colStart + 1} / ${lane.colStart + lane.colSpan + 1}`,
+                              gridRow: lane.slot + 1,
+                            }}
+                            className={cn(
+                              "overflow-hidden px-0.5 text-[7px] font-medium leading-[13px]",
+                              lane.startsThisWeek ? "rounded-l-sm" : "",
+                              lane.endsThisWeek ? "rounded-r-sm" : "",
+                              outMonth && "opacity-40",
+                              lane.race.type === "mine"
+                                ? "bg-warning/60 text-white"
+                                : lane.race.type === "schedule"
+                                  ? "bg-info/15 text-info"
+                                  : lane.race.type === "gathering_mine"
+                                    ? "bg-violet-500/60 text-white"
+                                    : lane.race.type === "gathering"
+                                      ? "bg-violet-500/20 text-violet-600"
+                                      : "bg-warning/15 text-warning",
+                            )}
+                          >
+                            {lane.startsThisWeek ? lane.race.title : ""}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -1035,7 +1067,12 @@ export function MiniCalendar({
 
           {/* 날짜 패널 — 항상 표시, 클릭으로 날짜 변경 */}
           {(() => {
-            const panelRaces = eventsByDate.get(selectedDate) ?? [];
+            // 정렬: ① 참여중 ② 모임 ③ 정보 ④ 대회 (그리드 이벤트 바와 동일 eventDisplayOrder)
+            // 같은 우선순위 안에서는 시작 시간(없으면 날짜) 순으로
+            const panelTime = (r: CalendarRace): string => r.evt_stt_at ?? r.start_date;
+            const panelRaces = [...(eventsByDate.get(selectedDate) ?? [])].sort(
+              (a, b) => eventDisplayOrder(a) - eventDisplayOrder(b) || panelTime(a).localeCompare(panelTime(b)),
+            );
             const [, , dd] = selectedDate.split("-");
             return (
               <div className="mt-1 rounded-xl bg-secondary/50 px-3 py-2">
@@ -1099,9 +1136,8 @@ export function MiniCalendar({
                               {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
                             </Micro>
                           )}
-                          {(race.type === "schedule" || isGathering) && (race.evt_stt_at || race.location || (race.cmntCount ?? 0) > 0) && (
+                          {(race.type === "schedule" || isGathering) && (race.evt_stt_at || (race.cmntCount ?? 0) > 0) && (
                             <Micro className="flex items-center gap-1 text-muted-foreground tabular-nums">
-                              {isGathering && race.location && <span className="truncate">{race.location}</span>}
                               {race.evt_stt_at && (
                                 <span>
                                   {(() => {
@@ -1117,6 +1153,10 @@ export function MiniCalendar({
                               )}
                               {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
                             </Micro>
+                          )}
+                          {/* 모임 장소 — 리스트뷰처럼 시간 줄과 분리해 별도 줄로 */}
+                          {isGathering && race.location && (
+                            <Micro className="truncate text-muted-foreground">{race.location}</Micro>
                           )}
                         </span>
                         {isComp && (race.regCount ?? 0) > 0 && (

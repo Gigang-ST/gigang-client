@@ -262,11 +262,16 @@ function GatheringItem({ race, onClick, loading }: { race: CalendarRace; onClick
           )}
           <SportTag sprtCd={race.sprt_cd} />
         </span>
-        {(timeRange || race.location || (race.cmntCount ?? 0) > 0) && (
+        {(timeRange || (race.cmntCount ?? 0) > 0) && (
           <Micro className="flex items-center gap-1.5 tabular-nums text-muted-foreground">
-            {race.location && <span className="truncate">{race.location}</span>}
             {timeRange && <span>{timeRange}</span>}
             {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
+          </Micro>
+        )}
+        {race.location && (
+          <Micro className="flex items-center gap-1 text-muted-foreground">
+            <MapPin className="size-2.5 shrink-0" />
+            <span className="truncate">{race.location}</span>
           </Micro>
         )}
       </span>

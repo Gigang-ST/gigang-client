@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { dayjs, currentMonthKST, monthLastDay } from "@/lib/dayjs";
+import { dayjs, currentMonthKST, gridDateRange } from "@/lib/dayjs";
 import { env } from "@/lib/env";
 import { hasUnreadBoardPosts } from "@/lib/queries/board";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
@@ -64,7 +64,9 @@ async function HomeContent() {
   const monthStart = currentMonthKST();
 
   const [yearStr, monthStr] = monthStart.split("-");
-  const monthLastDayStr = monthLastDay(parseInt(yearStr, 10), parseInt(monthStr, 10));
+  // 캘린더 그리드는 앞뒤 달 며칠을 흐리게 함께 그리므로, SSR에서도 그리드 전체 범위로 조회해
+  // 클라이언트 마운트 시 재조회 없이 앞뒤 달 일정까지 한 번에 채운다(MiniCalendar와 동일 범위).
+  const { start: gridStart, end: gridEnd } = gridDateRange(parseInt(yearStr, 10), parseInt(monthStr, 10));
 
   let initialMemberStatus: MemberStatus = { status: "signed-out" };
 
@@ -75,17 +77,17 @@ async function HomeContent() {
     { data: gthrRows },
     myRegsResult,
   ] = await Promise.all([
-    supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: monthStart, p_end: monthLastDayStr }),
+    supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: gridStart, p_end: gridEnd }),
     getCachedCmmCdRows(),
     supabase.rpc("get_public_team_sch_posts", {
       p_team_id: teamId,
-      p_start: monthStart,
-      p_end: monthLastDayStr,
+      p_start: gridStart,
+      p_end: gridEnd,
     }),
     supabase.rpc("get_public_team_gatherings", {
       p_team_id: teamId,
-      p_start: monthStart,
-      p_end: monthLastDayStr,
+      p_start: gridStart,
+      p_end: gridEnd,
       ...(currentMember ? { p_mem_id: currentMember.id } : {}),
     }),
     currentMember
@@ -138,7 +140,7 @@ async function HomeContent() {
   }));
 
   const calendarGigangRaces: CalendarRace[] = (calendarComps ?? [])
-    .filter((row) => (row.reg_count ?? 0) > 0 && row.stt_dt <= monthLastDayStr)
+    .filter((row) => (row.reg_count ?? 0) > 0 && row.stt_dt <= gridEnd)
     .map((row) => ({
       id: row.comp_id,
       title: row.comp_nm,
@@ -199,7 +201,7 @@ async function HomeContent() {
           if (!comp) return [];
           const meta = calendarCompsMetaMap.get(comp.comp_id);
           const race: CalendarRace = { id: comp.comp_id, title: comp.comp_nm, start_date: comp.stt_dt, type: "mine", location: comp.loc_nm ?? null, regCount: meta?.regCount ?? 0, cmntCount: meta?.cmntCount || undefined };
-          return race.start_date >= monthStart && race.start_date <= monthLastDayStr ? [race] : [];
+          return race.start_date >= gridStart && race.start_date <= gridEnd ? [race] : [];
         });
     } else {
       initialMemberStatus = { status: "needs-onboarding", userId: user.id };
