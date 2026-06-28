@@ -127,16 +127,24 @@ export function GatheringDetailDialog({
   const sprtLabel = gathering.sprt_cd ? (gthrSprtLabels[gathering.sprt_cd as GthrSprtType] ?? gathering.sprt_cd) : null;
 
   // 공유 텍스트용
-  const shareTitle = gathering.maxPrtCnt != null
-    ? `[${gathering.title}] - ${gathering.maxPrtCnt}명`
-    : `[${gathering.title}]`;
-  const shareTimeLabel = end
-    ? `${stt.format("YYYY년 M월 D일 (ddd) HH:mm")} ~ ${stt.format("YYYY-MM-DD") === end.format("YYYY-MM-DD") ? end.format("HH:mm") : end.format("YYYY년 M월 D일 (ddd) HH:mm")}`
-    : stt.format("YYYY년 M월 D일 (ddd) HH:mm");
   const gthrRef = gathering.short_id ?? gathering.id;
   const sharePageUrl = typeof window !== "undefined"
     ? `${window.location.origin}/?gthr=${gthrRef}`
     : `/?gthr=${gthrRef}`;
+
+  // 단톡방 공유 본문 — 정보 나열이 아니라 "같이 뛰어요 + CTA"로 참여를 유도한다.
+  // 시간: 오전/오후 + 분 단위(A h:mm). 인원: 2명 이상일 때만(처음 공유는 작성자 1명뿐이라 생략).
+  const shareDateTime = end
+    ? `${stt.format("M/D (ddd) A h:mm")} ~ ${stt.format("YYYY-MM-DD") === end.format("YYYY-MM-DD") ? end.format("A h:mm") : end.format("M/D (ddd) A h:mm")}`
+    : stt.format("M/D (ddd) A h:mm");
+  const shareLines = ["🏃‍♂️ 같이 뛰어요!", "", `「${gathering.title}」`, `🗓 ${shareDateTime}`];
+  if (gathering.location) shareLines.push(`📍 ${gathering.location}`);
+  if (gathering.crt_by_nm) shareLines.push(`🙋 ${gathering.crt_by_nm}`);
+  if (attdCount >= 2) {
+    shareLines.push(`👥 ${gathering.maxPrtCnt != null ? `${attdCount}/${gathering.maxPrtCnt}명` : `${attdCount}명`}`);
+  }
+  shareLines.push("", "참여하기 👇", sharePageUrl);
+  const gthrShareText = shareLines.join("\n");
 
   async function handleToggleAttendance() {
     if (!currentMemberId || isFull || togglingRef.current) return;
@@ -356,11 +364,10 @@ export function GatheringDetailDialog({
     <ShareSheet
       open={shareOpen}
       onOpenChange={setShareOpen}
-      title={shareTitle}
-      timeLabel={shareTimeLabel}
-      locationText={gathering.location ?? undefined}
-      contentSnippet={gathering.cont_txt ?? undefined}
+      title={gathering.title}
+      timeLabel={shareDateTime}
       pageUrl={sharePageUrl}
+      shareText={gthrShareText}
     />
     </>
   );
