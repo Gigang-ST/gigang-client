@@ -41,26 +41,29 @@ export async function batchDuesExemption(baseMonth?: string): Promise<string> {
     const monthEnd = dayjs(monthStart).tz(KST).endOf("month").format("YYYY-MM-DD");
 
     // 대상 월 회비 단가 (소급 정확성: 현재 단가가 아니라 그 달에 적용되던 단가)
-    const { data: policies } = await db
+    // ※ DB 조회 오류는 throw → runBatch catch가 잡아 status='failed'로 기록(성공 오기록 방지).
+    const { data: policies, error: policyErr } = await db
       .from("fee_policy_cfg")
       .select("aply_stt_dt, aply_end_dt, monthly_fee_amt")
       .eq("team_id", teamId)
       .eq("vers", 0)
       .eq("del_yn", false)
       .order("aply_stt_dt", { ascending: true });
+    if (policyErr) throw new Error(`회비 정책 조회 실패: ${policyErr.message}`);
 
     const policy = (policies ?? []).filter((p) => p.aply_stt_dt <= monthEnd && p.aply_end_dt >= monthStart).at(-1);
     if (!policy) return `대상 월(${ym})에 적용되는 회비 정책이 없습니다.`;
     const monthlyFeeAmt = policy.monthly_fee_amt;
 
     // 대상 멤버: 대상 월에 활성이던 멤버(가입월 ≤ 대상월)
-    const { data: members } = await db
+    const { data: members, error: memberErr } = await db
       .from("team_mem_rel")
       .select("mem_id, join_dt")
       .eq("team_id", teamId)
       .eq("vers", 0)
       .eq("del_yn", false)
       .eq("mem_st_cd", "active");
+    if (memberErr) throw new Error(`대상 멤버 조회 실패: ${memberErr.message}`);
 
     const targets = (members ?? []).filter((m) => m.join_dt && dayjs(m.join_dt).format("YYYY-MM") <= ym);
     if (!targets.length) return `대상 멤버가 없습니다 (대상 월: ${ym}).`;
@@ -124,8 +127,14 @@ export async function batchDuesExemption(baseMonth?: string): Promise<string> {
       granted++;
     }
 
-    const errSuffix = errors.length ? ` / 오류 ${errors.length}건: ${errors.slice(0, 3).join("; ")}` : "";
     const dupSuffix = alreadyGranted > 0 ? `, ${alreadyGranted}명 기존 부여(스킵)` : "";
-    return `대상 월 ${ym}: ${targets.length}명 중 ${granted}명 감면 부여, ${skippedZero}명 미해당${dupSuffix}${errSuffix}`;
+    const summary = `대상 월 ${ym}: ${targets.length}명 중 ${granted}명 감면 부여, ${skippedZero}명 미해당${dupSuffix}`;
+
+    // 멤버별 처리 오류가 하나라도 있으면 throw → 실행 이력에 status='failed'로 남긴다(성공 오기록 방지).
+    // 성공분(granted)은 이미 INSERT됐고, 처리 요약을 메시지에 함께 담아 어디까지 됐는지 보이게 한다.
+    if (errors.length) {
+      throw new Error(`${summary} / 오류 ${errors.length}건: ${errors.slice(0, 3).join("; ")}`);
+    }
+    return summary;
   });
 }

@@ -21,9 +21,11 @@ export default async function MemberDuesPage() {
   const { teamId } = await getRequestTeamContext();
   const supabase = await createClient();
 
-  const curYm = dayjs().tz("Asia/Seoul").format("YYYY-MM");
+  const nowKst = dayjs().tz("Asia/Seoul");
+  const curYm = nowKst.format("YYYY-MM");
+  const todayKst = nowKst.format("YYYY-MM-DD");
 
-  const [{ data: snap }, { data: pays }, { data: exms }, { data: otherTxns }, { data: feeItemCds }, { data: policy }, { data: activity }] = await Promise.all([
+  const [{ data: snap }, { data: pays }, { data: exms }, { data: otherTxns }, { data: feeItemCds }, { data: policy }, { data: activity, error: activityErr }] = await Promise.all([
     supabase
       .from("fee_mem_bal_snap")
       .select("bal_amt, last_calc_dt, last_calc_at")
@@ -72,8 +74,8 @@ export default async function MemberDuesPage() {
       .eq("team_id", teamId)
       .eq("vers", 0)
       .eq("del_yn", false)
-      .lte("aply_stt_dt", dayjs().format("YYYY-MM-DD"))
-      .gte("aply_end_dt", dayjs().format("YYYY-MM-DD"))
+      .lte("aply_stt_dt", todayKst)
+      .gte("aply_end_dt", todayKst)
       .order("aply_stt_dt", { ascending: false })
       .limit(1)
       .maybeSingle(),
@@ -82,11 +84,12 @@ export default async function MemberDuesPage() {
 
   const balAmt = snap?.bal_amt ?? null;
 
-  // 출석 감면 퀘스트(당월 실시간) — 회비 단가가 있을 때만 계산
+  // 참여 감면 퀘스트(당월 실시간) — 회비 단가가 있고 활동 집계가 성공했을 때만 계산.
+  // RPC 실패 시 0건으로 내려앉히면 달성 중인데 "감면 없음"으로 오표시되므로 카드 자체를 숨긴다.
   const monthlyFeeAmt = policy?.monthly_fee_amt ?? null;
   const stat = activity?.[0] ?? { attend_cnt: 0, regular_attend_cnt: 0, hosted_cnt: 0 };
   const quest =
-    monthlyFeeAmt !== null
+    monthlyFeeAmt !== null && !activityErr
       ? {
           ym: curYm,
           result: calcExemption(

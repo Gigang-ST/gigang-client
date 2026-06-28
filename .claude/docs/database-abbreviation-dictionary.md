@@ -61,7 +61,7 @@
 | `chg` | change (변경) |
 | `brd` | board (게시판) |
 | `noti` | notification (알림) |
-| `cont` | content (본문 내용) |
+| `cont` | content (본문 내용, 단독 텍스트 컬럼은 `cont_txt`) |
 | `pref` | preference (수신 설정) |
 | `pin` | pinned (상단 고정) |
 | `read` | read (읽음 여부) |
@@ -71,7 +71,6 @@
 | `sch` | schedule (일정 공유) |
 | `cmnt` | comment (댓글) |
 | `prnt` | parent (부모, 대댓글 계층) |
-| `cont` | content (본문, 단독 텍스트 컬럼은 `cont_txt`) |
 | `loc`  | location (장소, 컬럼은 `loc_txt` / `loc_nm`) |
 | `attd` | attendance (참석, 이미 등록됨 — 모임 참석에 재사용) |
 | `cmm` | common (공통, 공통코드 `cmm_cd_*`) |

@@ -42,6 +42,12 @@ DECLARE
   v_cur            record;
   v_next_vers      integer;
 BEGIN
+  -- ⓪ 멤버 단위 트랜잭션 락 — 같은 멤버 재계산을 직렬화한다.
+  --    ①(미반영 면제 읽기)과 ⑤(rflt_yn=true 마킹) 사이에 같은 멤버로 재계산이 동시 진입하면
+  --    두 트랜잭션이 같은 미반영 면제를 각각 합산해 잔액이 이중 가산되고, vers=0 스냅샷도 중복될 수 있다.
+  --    advisory xact lock 으로 같은 (team, mem) 호출을 한 번에 하나씩만 통과시킨다(트랜잭션 종료 시 자동 해제).
+  PERFORM pg_advisory_xact_lock(hashtextextended(p_team_id::text || ':' || p_mem_id::text, 0));
+
   -- ① 미반영 면제(규칙 + 퀘스트 공통) 합산 + id 수집
   SELECT
     coalesce(sum(exm_amt), 0),

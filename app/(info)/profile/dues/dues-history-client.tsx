@@ -181,8 +181,8 @@ export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, monthlyFeeA
                     <TableCell className="w-16 whitespace-nowrap text-center align-top">
                       <Caption className="text-muted-foreground">{formatDate(item.date)}</Caption>
                     </TableCell>
-                    {/* 내용 — 항목 + 배지 + 사유 (왼쪽 정렬, 가장 넓은 칸) */}
-                    <TableCell className="align-top">
+                    {/* 내용 — 항목 + 배지 + 사유 (왼쪽 정렬, 가장 넓은 칸). 사유가 길 수 있어 줄바꿈 허용 */}
+                    <TableCell className="align-top whitespace-normal break-words">
                       <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-1.5">
                           <Caption className={item.cancelled ? "line-through" : ""}>{item.itemLabel}</Caption>
