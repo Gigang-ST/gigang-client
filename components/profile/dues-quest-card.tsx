@@ -52,7 +52,7 @@ function ConditionRow({
 }
 
 /**
- * 출석 회비 감면 퀘스트 카드 — 당월 실시간 진행도(설계 §7.1).
+ * 참여 회비 감면 퀘스트 카드 — 당월 실시간 진행도(설계 §7.1).
  * 면제 row 는 월 마감 배치 때 생기지만, 이 카드가 실시간 집계로 "달성 여부 + 예상 감면"을 즉시 보여준다.
  *
  * ①(정모 참석 또는 벙 개설)·②(참석 N회 이상)는 **둘 다 충족해야 하는 독립 조건(AND)**이다.
@@ -73,25 +73,25 @@ export function DuesQuestCard({ ym, result, maxAttendCnt }: Props) {
   return (
     <CardItem className="flex flex-col gap-3 p-4">
       <div className="flex items-center justify-between">
-        <Body className="font-semibold">이번 달 출석 감면</Body>
+        <Body className="font-semibold">이번 달 참여 감면</Body>
         <Caption className="text-muted-foreground">{monthLabel}</Caption>
       </div>
 
-      {/* ① 정모 참석 또는 벙 개설 */}
+      {/* ① 정모 참여 또는 벙 개설 */}
       <ConditionRow
         no="①"
-        label="정모 참석 또는 벙 개설"
+        label="정모 참여 또는 벙 개설"
         met={gatePassed}
         status={gatePassed ? "충족" : "미충족"}
         detail={
           gatePassed
             ? `정모 ${gateDetail.regularAttend} · 개설 ${gateDetail.hosted}`
-            : "정모 1회 참석 또는 벙 1회 개설"
+            : "정모 1회 참여 또는 벙 1회 개설"
         }
       />
 
-      {/* ② 참석 횟수 (게이트와 무관하게 진행도 표시 — 순서 없음) */}
-      <ConditionRow no="②" label={`참석 ${minTier}회 이상`} met={tierMet} status={attendStatus}>
+      {/* ② 참여 횟수 (게이트와 무관하게 진행도 표시 — 순서 없음) */}
+      <ConditionRow no="②" label={`참여 ${minTier}회 이상`} met={tierMet} status={attendStatus}>
         <div className="mt-1 flex flex-col gap-1.5">
           {/* 진행 바 + 티어 지점 마커 */}
           <div className="relative h-2 w-full">
@@ -143,7 +143,7 @@ export function DuesQuestCard({ ym, result, maxAttendCnt }: Props) {
       )}
       {exmAmt > 0 && nextTier && (
         <Micro className="text-muted-foreground -mt-1.5 text-right">
-          {nextTier.remaining}회 더 참석하면 {nextTier.exmAmt.toLocaleString()}원 감면
+          {nextTier.remaining}회 더 참여하면 {nextTier.exmAmt.toLocaleString()}원 감면
         </Micro>
       )}
       {exmAmt > 0 && tierDone && <Micro className="text-success -mt-1.5 text-right">최대 감면 달성! 🎉</Micro>}

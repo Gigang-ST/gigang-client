@@ -136,7 +136,7 @@ export function GatheringDetailDialog({
       const result = await toggleGatheringAttendance(gathering!.id);
       setAttending(result.attending);
       if (result.attending && result.monthlyAttendCnt) {
-        toast.success(`이번 달 ${result.monthlyAttendCnt}회 참석!`);
+        toast.success(`이번 달 ${result.monthlyAttendCnt}회 참여!`);
       }
       onAttendanceChange?.();
     } catch {

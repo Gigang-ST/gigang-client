@@ -1,7 +1,7 @@
 import { DUES_QUEST } from "@/lib/constants/dues-quest";
 
 /**
- * 출석 기반 회비 감면 계산에 필요한 멤버의 월간 활동 집계.
+ * 참여 기반 회비 감면 계산에 필요한 멤버의 월간 활동 집계.
  * `get_member_monthly_activity` RPC(설계 §4)가 내놓는 중립적 숫자.
  */
 export type AttendStats = {
@@ -79,6 +79,6 @@ export function calcExemption(stats: AttendStats, monthlyFeeAmt: number): Exempt
     exmAmt,
     nextTier,
     tiers,
-    reason: tier ? `출석 ${stats.attendCnt}회 / ${tier.exmRatio === 1 ? "전액 면제" : "감면"}` : "참석 횟수 부족",
+    reason: tier ? `참여 ${stats.attendCnt}회 / ${tier.exmRatio === 1 ? "전액 면제" : "감면"}` : "참여 횟수 부족",
   };
 }

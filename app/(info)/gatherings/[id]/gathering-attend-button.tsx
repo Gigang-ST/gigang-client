@@ -35,7 +35,7 @@ export function GatheringAttendButton({ gthrId, initialAttending, maxPrtCnt, cur
         setAttending(result.attending);
         // 참석 등록 시에만 담백한 횟수 피드백(취소는 조용히)
         if (result.attending && result.monthlyAttendCnt) {
-          toast.success(`이번 달 ${result.monthlyAttendCnt}회 참석!`);
+          toast.success(`이번 달 ${result.monthlyAttendCnt}회 참여!`);
         }
       } catch {
         setAttending(prev);

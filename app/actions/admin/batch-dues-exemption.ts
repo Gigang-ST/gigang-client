@@ -9,7 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 const KST = "Asia/Seoul";
 
 /**
- * 출석 기반 회비 감면 배치 — 월 마감 후 전월 출석 감면을 면제 내역에 확정(설계 §8).
+ * 참여 기반 회비 감면 배치 — 월 마감 후 전월 참여 감면을 면제 내역에 확정(설계 §8).
  *
  * - 대상 월: 기본 전월(baseMonth 미지정 시). 'YYYY-MM' 지정 가능(과거 소급).
  * - 대상 멤버: 대상 월에 활성이던 팀 멤버(가입월 ≤ 대상월).
@@ -86,10 +86,10 @@ export async function batchDuesExemption(baseMonth?: string): Promise<string> {
 
       if (result.exmAmt <= 0) { skippedZero++; continue; }
 
-      // 사유: "5월 출석 감면 · 참석 4회 (정모 참석)" 형태 — 회원이 어느 달 무엇으로 감면됐는지 명확히
+      // 사유: "[5월 회비 감면] 참여 4회 (정모 참여)" 형태 — 회원이 어느 달 무엇으로 감면됐는지 명확히
       const monthLabel = dayjs(monthStart).format("M월");
-      const gateLabel = stat.regular_attend_cnt > 0 ? "정모 참석" : "벙 개설";
-      const rsnTxt = `${monthLabel} 출석 감면 · 참석 ${stat.attend_cnt}회 (${gateLabel})`;
+      const gateLabel = stat.regular_attend_cnt > 0 ? "정모 참여" : "벙 개설";
+      const rsnTxt = `[${monthLabel} 회비 감면] 참여 ${stat.attend_cnt}회 (${gateLabel})`;
 
       // 멱등: 이미 같은 월 퀘스트 면제가 있으면 그대로 둠(확정값은 재계산이 금액을 바꾸지 않음).
       // ※ uk_fee_exm_hist_quest 는 부분(partial) 유니크 인덱스라 PostgREST upsert 의 onConflict
