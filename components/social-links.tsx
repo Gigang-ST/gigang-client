@@ -117,12 +117,15 @@ export function SocialLinksGrid() {
   /** 카카오 버튼 클릭 시 서버 액션으로 비밀번호 조회 */
   const handleKakaoClick = async () => {
     setOpen(true);
-    if (kakaoChatPassword !== null) return; // 이미 조회됨
+    if (kakaoChatPassword !== null || loading) return; // 이미 조회됐거나 조회 중
     setLoading(true);
-    const pw = await getKakaoChatPassword();
-    // null(비멤버)은 undefined로 구분하여 "미조회(null)" 상태와 구별
-    setKakaoChatPassword(pw ?? undefined);
-    setLoading(false);
+    try {
+      const pw = await getKakaoChatPassword();
+      // null(비멤버)은 undefined로 구분하여 "미조회(null)" 상태와 구별
+      setKakaoChatPassword(pw ?? undefined);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const isMember = typeof kakaoChatPassword === "string";

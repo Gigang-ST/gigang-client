@@ -739,11 +739,11 @@ export function MiniCalendar({
       const { start: gridStart, end: gridEnd, fetchStart } = gridDateRange(y, m);
 
       const [{ data: myRegs }, { data: gthrWithAttd }] = await Promise.all([
-        // 내 대회 등록
+        // 내 대회 등록 — 등록 상세 필드 포함 (CompetitionDetailDialog에서 수정/취소에 필요)
         supabase
           .from("comp_reg_rel")
           .select(
-            "team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm))",
+            "comp_reg_id, mem_id, prt_role_cd, crt_at, team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(comp_evt_type))), comp_evt_cfg(comp_evt_type)",
           )
           .eq("mem_id", memId)
           .eq("team_comp_plan_rel.team_id", teamId)
@@ -758,7 +758,10 @@ export function MiniCalendar({
         }),
       ]);
 
-      // myRaces 구성 — fetchMonthData의 newMine 매핑 로직과 동일
+      // 월 이동이 발생했으면 늦게 온 응답을 버린다
+      if (viewMonthRef.current !== initialMonth) return;
+
+      // myRaces + registrationsByCompetitionId 구성
       if (myRegs) {
         const races = myRegs.flatMap((r) => {
           const plan = Array.isArray(r.team_comp_plan_rel)
@@ -776,6 +779,25 @@ export function MiniCalendar({
           return race.start_date >= gridStart && race.start_date <= gridEnd ? [race] : [];
         });
         setMyRaces(races);
+
+        // 등록 맵 구성 — 대회 클릭 시 수정/취소 흐름에 필요
+        const regs: Record<string, CompetitionRegistration> = {};
+        myRegs.forEach((r) => {
+          const plan = Array.isArray(r.team_comp_plan_rel)
+            ? r.team_comp_plan_rel[0]
+            : r.team_comp_plan_rel;
+          regs[plan.comp_id] = {
+            id: r.comp_reg_id,
+            competition_id: plan.comp_id,
+            member_id: r.mem_id,
+            role: r.prt_role_cd as CompetitionRegistration["role"],
+            event_type:
+              (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)
+                ?.comp_evt_type?.toUpperCase() ?? null,
+            created_at: r.crt_at,
+          } as CompetitionRegistration;
+        });
+        setRegistrationsByCompetitionId(regs);
       }
 
       // gathering is_attending overlay — 서버에서 "gathering"으로만 내려온 데이터에 참석 여부를 overlay

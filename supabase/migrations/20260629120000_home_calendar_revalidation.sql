@@ -24,3 +24,22 @@ DROP TRIGGER IF EXISTS trg_gthr_mst_revalidate ON public.gthr_mst;
 CREATE TRIGGER trg_gthr_mst_revalidate
   AFTER INSERT OR UPDATE OR DELETE ON public.gthr_mst
   FOR EACH ROW EXECUTE FUNCTION revalidate_records();
+
+-- 파생 카운트 테이블 — reg_count, attd_count, cmnt_count 캐시 갱신용
+-- comp_reg_rel (대회 등록 → reg_count)
+DROP TRIGGER IF EXISTS trg_comp_reg_rel_revalidate ON public.comp_reg_rel;
+CREATE TRIGGER trg_comp_reg_rel_revalidate
+  AFTER INSERT OR UPDATE OR DELETE ON public.comp_reg_rel
+  FOR EACH ROW EXECUTE FUNCTION revalidate_records();
+
+-- gthr_attd_rel (모임 참석 → attd_count)
+DROP TRIGGER IF EXISTS trg_gthr_attd_rel_revalidate ON public.gthr_attd_rel;
+CREATE TRIGGER trg_gthr_attd_rel_revalidate
+  AFTER INSERT OR UPDATE OR DELETE ON public.gthr_attd_rel
+  FOR EACH ROW EXECUTE FUNCTION revalidate_records();
+
+-- cmnt_mst (댓글 → cmnt_count)
+DROP TRIGGER IF EXISTS trg_cmnt_mst_revalidate ON public.cmnt_mst;
+CREATE TRIGGER trg_cmnt_mst_revalidate
+  AFTER INSERT OR UPDATE OR DELETE ON public.cmnt_mst
+  FOR EACH ROW EXECUTE FUNCTION revalidate_records();
