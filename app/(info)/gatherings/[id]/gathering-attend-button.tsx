@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 
 import { toast } from "sonner";
 
@@ -20,12 +20,15 @@ type Props = {
 export function GatheringAttendButton({ gthrId, initialAttending, maxPrtCnt, currentAttdCount }: Props) {
   const [attending, setAttending] = useState(initialAttending);
   const [attdCount, setAttdCount] = useState(currentAttdCount);
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
+  // 동기적 재진입 가드 — isPending(리렌더 의존)은 같은 렌더 내 연타를 못 막으므로 ref로 막는다.
+  const togglingRef = useRef(false);
 
   const isFull = !attending && maxPrtCnt !== null && attdCount >= maxPrtCnt;
 
   function handleToggle() {
-    if (isFull) return;
+    if (isFull || togglingRef.current) return; // 처리 중이면 재클릭 무시(중복 방지) — 버튼은 흐려지지 않음
+    togglingRef.current = true;
     startTransition(async () => {
       const prev = attending;
       setAttending(!prev);
@@ -40,6 +43,8 @@ export function GatheringAttendButton({ gthrId, initialAttending, maxPrtCnt, cur
       } catch {
         setAttending(prev);
         setAttdCount((c) => (prev ? c - 1 : c + 1));
+      } finally {
+        togglingRef.current = false;
       }
     });
   }
@@ -47,7 +52,9 @@ export function GatheringAttendButton({ gthrId, initialAttending, maxPrtCnt, cur
   return (
     <Button
       onClick={handleToggle}
-      disabled={isPending || isFull}
+      // 처리 중(isPending)엔 disabled 대신 handleToggle 가드로 재클릭만 막아 버튼이 흐려지지 않게 한다.
+      // 낙관적 업데이트로 색이 즉시 바뀌므로 사용자는 "바로 눌렸다"고 느낀다.
+      disabled={isFull}
       variant={attending ? "default" : "outline"}
       className={cn(
         "w-full",
