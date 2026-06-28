@@ -47,7 +47,7 @@ type HistRow = {
   mem_nm: string;
   aply_ym: string;
   exm_amt: number;
-  grant_src_enm: "manual" | "rule_attd";
+  grant_src_enm: "manual" | "rule_attd" | "rule_attd_quest";
   rsn_txt: string;
   aprv_by_mem_nm: string | null;
 };
@@ -406,8 +406,8 @@ function ExemptionHistsTab({ hists: init, members }: { hists: HistRow[]; members
                 <TableCell className="text-center"><Caption className="text-xs whitespace-nowrap">{row.aply_ym.replace("-", ".")}</Caption></TableCell>
                 <TableCell className="text-center"><Caption className="text-xs whitespace-nowrap">{row.exm_amt.toLocaleString()}원</Caption></TableCell>
                 <TableCell className="text-center">
-                  <Caption className={cn("text-xs whitespace-nowrap", row.grant_src_enm === "manual" ? "text-primary" : "text-muted-foreground")}>
-                    {row.grant_src_enm === "manual" ? "수동" : "규칙"}
+                  <Caption className={cn("text-xs whitespace-nowrap", row.grant_src_enm === "manual" ? "text-primary" : row.grant_src_enm === "rule_attd_quest" ? "text-success" : "text-muted-foreground")}>
+                    {row.grant_src_enm === "manual" ? "수동" : row.grant_src_enm === "rule_attd_quest" ? "출석" : "규칙"}
                   </Caption>
                 </TableCell>
                 <TableCell className="max-w-[120px]"><Caption className="text-xs line-clamp-2">{row.rsn_txt || "-"}</Caption></TableCell>

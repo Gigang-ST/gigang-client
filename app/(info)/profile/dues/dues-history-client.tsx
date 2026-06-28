@@ -3,9 +3,11 @@
 import { useState, useTransition } from "react";
 
 import { dayjs } from "@/lib/dayjs";
+import type { ExemptionResult } from "@/lib/dues/calc-exemption";
 
 import { requestDuesCheck } from "@/app/actions/dues/request-dues-check";
 
+import { DuesQuestCard } from "@/components/profile/dues-quest-card";
 import { Body, Caption, SectionLabel } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,15 +28,18 @@ type HistoryItem = {
 
 type Filter = "all" | "due" | "other";
 
+type QuestData = { ym: string; result: ExemptionResult; maxAttendCnt: number };
+
 type Props = {
   balAmt: number | null;
   lastCalcDt: string | null;
   teamAccount: { bank: string; number: string; holder: string };
   monthlyFeeAmt: number | null;
+  quest: QuestData | null;
   items: HistoryItem[];
 };
 
-export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, monthlyFeeAmt, items }: Props) {
+export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, monthlyFeeAmt, quest, items }: Props) {
   const [filter, setFilter] = useState<Filter>("all");
   const [isPending, startTransition] = useTransition();
   const [requested, setRequested] = useState(false);
@@ -124,6 +129,11 @@ export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, monthlyFeeA
           <Caption className="mt-0.5">{teamAccount.holder}</Caption>
         </div>
       </CardItem>
+
+      {/* 출석 감면 퀘스트 (당월 실시간) */}
+      {quest && (
+        <DuesQuestCard ym={quest.ym} result={quest.result} maxAttendCnt={quest.maxAttendCnt} />
+      )}
 
       {/* 내역 */}
       <div className="flex flex-col gap-3">

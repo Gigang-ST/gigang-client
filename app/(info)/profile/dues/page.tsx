@@ -3,7 +3,9 @@
 import { redirect } from "next/navigation";
 
 import { TEAM_ACCOUNT } from "@/lib/constants";
+import { DUES_QUEST } from "@/lib/constants/dues-quest";
 import { dayjs } from "@/lib/dayjs";
+import { calcExemption } from "@/lib/dues/calc-exemption";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createClient } from "@/lib/supabase/server";
@@ -19,7 +21,9 @@ export default async function MemberDuesPage() {
   const { teamId } = await getRequestTeamContext();
   const supabase = await createClient();
 
-  const [{ data: snap }, { data: pays }, { data: exms }, { data: otherTxns }, { data: feeItemCds }, { data: policy }] = await Promise.all([
+  const curYm = dayjs().tz("Asia/Seoul").format("YYYY-MM");
+
+  const [{ data: snap }, { data: pays }, { data: exms }, { data: otherTxns }, { data: feeItemCds }, { data: policy }, { data: activity }] = await Promise.all([
     supabase
       .from("fee_mem_bal_snap")
       .select("bal_amt, last_calc_dt, last_calc_at")
@@ -73,9 +77,25 @@ export default async function MemberDuesPage() {
       .order("aply_stt_dt", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase.rpc("get_member_monthly_activity", { p_team_id: teamId, p_mem_id: member.id, p_ym: curYm }),
   ]);
 
   const balAmt = snap?.bal_amt ?? null;
+
+  // 출석 감면 퀘스트(당월 실시간) — 회비 단가가 있을 때만 계산
+  const monthlyFeeAmt = policy?.monthly_fee_amt ?? null;
+  const stat = activity?.[0] ?? { attend_cnt: 0, regular_attend_cnt: 0, hosted_cnt: 0 };
+  const quest =
+    monthlyFeeAmt !== null
+      ? {
+          ym: curYm,
+          result: calcExemption(
+            { attendCnt: stat.attend_cnt, regularAttendCnt: stat.regular_attend_cnt, hostedCnt: stat.hosted_cnt },
+            monthlyFeeAmt,
+          ),
+          maxAttendCnt: Math.max(...DUES_QUEST.tiers.map((t) => t.attendCnt)),
+        }
+      : null;
 
   type HistoryItem = {
     id: string;
@@ -127,7 +147,8 @@ export default async function MemberDuesPage() {
       balAmt={balAmt}
       lastCalcDt={snap?.last_calc_dt ? dayjs(snap.last_calc_dt).tz("Asia/Seoul").format("YY.MM.DD HH:mm") : null}
       teamAccount={TEAM_ACCOUNT}
-      monthlyFeeAmt={policy?.monthly_fee_amt ?? null}
+      monthlyFeeAmt={monthlyFeeAmt}
+      quest={quest}
       items={items}
     />
   );
