@@ -25,6 +25,8 @@ export type ExemptionResult = {
   exmAmt: number;
   /** 다음 티어까지 진행도 안내(게이트와 무관). 마지막 티어 달성 시 undefined */
   nextTier?: { attendCnt: number; remaining: number; exmAmt: number };
+  /** 전체 티어 목록(오름차순) — 카드 진행바 마커용. 횟수·금액·현재 달성여부 */
+  tiers: { attendCnt: number; exmAmt: number; reached: boolean }[];
   /** 사유 텍스트 */
   reason: string;
 };
@@ -48,6 +50,13 @@ export function calcExemption(stats: AttendStats, monthlyFeeAmt: number): Exempt
   const tiersDesc = [...DUES_QUEST.tiers].sort((a, b) => b.attendCnt - a.attendCnt);
   const tiersAsc = [...DUES_QUEST.tiers].sort((a, b) => a.attendCnt - b.attendCnt);
 
+  // 전체 티어 목록(오름차순) — 카드 진행바 마커용. reached = 참석 횟수로 도달했는지(게이트와 무관)
+  const tiers = tiersAsc.map((t) => ({
+    attendCnt: t.attendCnt,
+    exmAmt: amtFor(t.exmRatio),
+    reached: stats.attendCnt >= t.attendCnt,
+  }));
+
   // 다음 티어(아직 못 넘은 가장 가까운 티어) — 게이트와 무관하게 진행도 안내용
   const next = tiersAsc.find((t) => stats.attendCnt < t.attendCnt);
   const nextTier = next
@@ -58,7 +67,7 @@ export function calcExemption(stats: AttendStats, monthlyFeeAmt: number): Exempt
     stats.regularAttendCnt >= DUES_QUEST.gate.regularAttend ||
     stats.hostedCnt >= DUES_QUEST.gate.hosted;
   if (!gatePassed) {
-    return { gatePassed: false, gateDetail, attendCnt: stats.attendCnt, exmAmt: 0, nextTier, reason: "게이트 미충족" };
+    return { gatePassed: false, gateDetail, attendCnt: stats.attendCnt, exmAmt: 0, nextTier, tiers, reason: "게이트 미충족" };
   }
 
   const tier = tiersDesc.find((t) => stats.attendCnt >= t.attendCnt);
@@ -69,6 +78,7 @@ export function calcExemption(stats: AttendStats, monthlyFeeAmt: number): Exempt
     attendCnt: stats.attendCnt,
     exmAmt,
     nextTier,
+    tiers,
     reason: tier ? `출석 ${stats.attendCnt}회 / ${tier.exmRatio === 1 ? "전액 면제" : "감면"}` : "참석 횟수 부족",
   };
 }

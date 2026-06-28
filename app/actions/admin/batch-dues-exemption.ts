@@ -29,12 +29,13 @@ export async function batchDuesExemption(baseMonth?: string): Promise<string> {
     const { teamId } = await getRequestTeamContext();
 
     const ym = baseMonth ? dayjs(baseMonth).format("YYYY-MM") : dayjs().tz(KST).subtract(1, "month").format("YYYY-MM");
-    if (ym === "Invalid Date") return "대상 월 형식이 올바르지 않습니다(YYYY-MM).";
+    // 입력 오류·정책 위반은 throw → 배치 이력이 status='failed'로 기록되고 toast.error로 노출(success 오표기 방지).
+    if (ym === "Invalid Date") throw new Error("대상 월 형식이 올바르지 않습니다(YYYY-MM).");
 
     // 당월·미래월 차단: 배치는 "월 마감 후 전월 확정"만 한다(설계 §8.3).
     // 진행 중인 달을 확정하면 이후 참석 증감을 면제 내역에 반영했다 회수하는 혼란이 생긴다.
     const curYm = dayjs().tz(KST).format("YYYY-MM");
-    if (ym >= curYm) return `진행 중이거나 미래인 달(${ym})은 확정할 수 없습니다. 마감된 전월 이하만 가능합니다.`;
+    if (ym >= curYm) throw new Error(`진행 중이거나 미래인 달(${ym})은 확정할 수 없습니다. 마감된 전월 이하만 가능합니다.`);
 
     const monthStart = `${ym}-01`;
     const monthEnd = dayjs(monthStart).tz(KST).endOf("month").format("YYYY-MM-DD");
@@ -85,7 +86,10 @@ export async function batchDuesExemption(baseMonth?: string): Promise<string> {
 
       if (result.exmAmt <= 0) { skippedZero++; continue; }
 
-      const rsnTxt = `출석 감면: 참석 ${stat.attend_cnt}회${stat.regular_attend_cnt > 0 ? "/정모 참석" : "/벙 개설"}`;
+      // 사유: "5월 출석 감면 · 참석 4회 (정모 참석)" 형태 — 회원이 어느 달 무엇으로 감면됐는지 명확히
+      const monthLabel = dayjs(monthStart).format("M월");
+      const gateLabel = stat.regular_attend_cnt > 0 ? "정모 참석" : "벙 개설";
+      const rsnTxt = `${monthLabel} 출석 감면 · 참석 ${stat.attend_cnt}회 (${gateLabel})`;
 
       // 멱등: 이미 같은 월 퀘스트 면제가 있으면 그대로 둠(확정값은 재계산이 금액을 바꾸지 않음).
       // ※ uk_fee_exm_hist_quest 는 부분(partial) 유니크 인덱스라 PostgREST upsert 의 onConflict

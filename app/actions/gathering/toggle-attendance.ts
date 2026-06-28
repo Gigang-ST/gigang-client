@@ -3,9 +3,18 @@
 import { revalidatePath } from "next/cache";
 
 import { withMember } from "@/lib/actions/auth";
+import { dayjs } from "@/lib/dayjs";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 
-export async function toggleGatheringAttendance(gthr_id: string): Promise<{ attending: boolean }> {
+/**
+ * 모임 참석 토글.
+ * 참석 등록 시 `monthlyAttendCnt`(그 모임 stt_at 월 기준 본인 총참석 횟수)를 함께 반환해,
+ * 클라이언트가 "이번 달 N회 참석" 토스트를 띄울 수 있게 한다. 취소 시엔 undefined.
+ */
+export async function toggleGatheringAttendance(
+  gthr_id: string,
+): Promise<{ attending: boolean; monthlyAttendCnt?: number }> {
   return withMember(async ({ member, supabase }) => {
     const { data: existing } = await supabase
       .from("gthr_attd_rel")
@@ -22,11 +31,11 @@ export async function toggleGatheringAttendance(gthr_id: string): Promise<{ atte
       return { attending: false };
     }
 
-    // 최대 인원 초과 여부 서버에서 검증
+    // 최대 인원 초과 여부 서버에서 검증 + 귀속월 산출용 stt_at 조회
     const admin = createUntypedAdminClient();
     const { data: gthr } = await admin
       .from("gthr_mst")
-      .select("max_prt_cnt")
+      .select("max_prt_cnt, stt_at")
       .eq("gthr_id", gthr_id)
       .eq("del_yn", false)
       .single();
@@ -51,6 +60,22 @@ export async function toggleGatheringAttendance(gthr_id: string): Promise<{ atte
 
     revalidatePath("/");
     revalidatePath(`/gatherings/${gthr_id}`);
-    return { attending: true };
+
+    // 이번 달(모임 귀속월) 본인 총참석 횟수 — 토스트 안내용(실패해도 참석 등록엔 영향 없음)
+    let monthlyAttendCnt: number | undefined;
+    try {
+      const { teamId } = await getRequestTeamContext();
+      const ym = dayjs(gthr.stt_at).tz("Asia/Seoul").format("YYYY-MM");
+      const { data: stat } = await admin.rpc("get_member_monthly_activity", {
+        p_team_id: teamId,
+        p_mem_id: member.id,
+        p_ym: ym,
+      });
+      monthlyAttendCnt = stat?.[0]?.attend_cnt ?? undefined;
+    } catch {
+      monthlyAttendCnt = undefined;
+    }
+
+    return { attending: true, monthlyAttendCnt };
   });
 }

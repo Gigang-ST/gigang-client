@@ -88,3 +88,32 @@ describe("calcExemption — nextTier 진행도", () => {
     expect(r.gateDetail).toEqual({ regularAttend: 2, hosted: 1 });
   });
 });
+
+describe("calcExemption — tiers (카드 마커용)", () => {
+  it("티어 목록은 횟수·금액·달성여부를 오름차순으로 반환", () => {
+    const r = calcExemption({ attendCnt: 5, regularAttendCnt: 1, hostedCnt: 0 }, FEE);
+    expect(r.tiers).toEqual([
+      { attendCnt: 4, exmAmt: 1000, reached: true },
+      { attendCnt: 8, exmAmt: 2000, reached: false },
+    ]);
+  });
+
+  it("8회 달성 시 두 티어 모두 reached", () => {
+    const r = calcExemption({ attendCnt: 8, regularAttendCnt: 1, hostedCnt: 0 }, FEE);
+    expect(r.tiers.every((t) => t.reached)).toBe(true);
+  });
+
+  it("게이트 미충족이어도 tiers는 횟수 기준 reached를 반환(카드 표시용)", () => {
+    const r = calcExemption({ attendCnt: 4, regularAttendCnt: 0, hostedCnt: 0 }, FEE);
+    expect(r.gatePassed).toBe(false);
+    expect(r.tiers[0].reached).toBe(true); // 4회 도달은 사실. 게이트는 카드가 별도 처리
+  });
+
+  it("회비 단가에 따라 티어 금액도 비례", () => {
+    const r = calcExemption({ attendCnt: 0, regularAttendCnt: 0, hostedCnt: 0 }, 1500);
+    expect(r.tiers).toEqual([
+      { attendCnt: 4, exmAmt: 750, reached: false },
+      { attendCnt: 8, exmAmt: 1500, reached: false },
+    ]);
+  });
+});
