@@ -31,6 +31,11 @@ export async function batchDuesExemption(baseMonth?: string): Promise<string> {
     const ym = baseMonth ? dayjs(baseMonth).format("YYYY-MM") : dayjs().tz(KST).subtract(1, "month").format("YYYY-MM");
     if (ym === "Invalid Date") return "대상 월 형식이 올바르지 않습니다(YYYY-MM).";
 
+    // 당월·미래월 차단: 배치는 "월 마감 후 전월 확정"만 한다(설계 §8.3).
+    // 진행 중인 달을 확정하면 이후 참석 증감을 면제 내역에 반영했다 회수하는 혼란이 생긴다.
+    const curYm = dayjs().tz(KST).format("YYYY-MM");
+    if (ym >= curYm) return `진행 중이거나 미래인 달(${ym})은 확정할 수 없습니다. 마감된 전월 이하만 가능합니다.`;
+
     const monthStart = `${ym}-01`;
     const monthEnd = dayjs(monthStart).tz(KST).endOf("month").format("YYYY-MM-DD");
 
