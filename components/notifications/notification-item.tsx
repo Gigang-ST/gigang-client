@@ -4,9 +4,10 @@ import { useState, useRef, useEffect } from "react";
 
 import { useRouter } from "next/navigation";
 
-import { Bell, Coins, MessageCircle, Trophy, Trash2, FileText } from "lucide-react";
+import { Bell, Coins, MessageCircle, Trophy, Trash2, FileText, Users, MessageSquareText } from "lucide-react";
 
 import { dayjs } from "@/lib/dayjs";
+import { resolveNotiDeepLink } from "@/lib/notifications/deep-link";
 import type { Notification } from "@/lib/queries/notification";
 import { cn } from "@/lib/utils";
 
@@ -25,17 +26,14 @@ const NOTI_ICON: Record<string, React.ElementType> = {
   cmnt_reply: MessageCircle,
   sch_post_cmnt: MessageCircle,
   sch_post_new: FileText,
-};
-
-const NOTI_ROUTE: Record<string, (refId: string | null, refType: string | null) => string | null> = {
-  ttl_grnt: () => "/profile",
-  adm_cust: () => null,
-  dues_notice: () => "/profile/dues",
-  dues_check_req: () => null,
-  sch_post_cmnt: (refId) => refId ? `/?post=${refId}` : "/",
-  sch_post_new: (refId) => refId ? `/?post=${refId}` : "/",
-  cmnt_mention: (refId, refType) => refType === "comp" ? `/?comp=${refId}` : refId ? `/?post=${refId}` : "/",
-  cmnt_reply: (refId, refType) => refType === "comp" ? `/?comp=${refId}` : refId ? `/?post=${refId}` : "/",
+  gthr_new: Users,
+  gthr_upd: Users,
+  gthr_del: Users,
+  gthr_cmnt: MessageCircle,
+  gthr_reply: MessageCircle,
+  gthr_mention: MessageCircle,
+  fdbk_new: MessageSquareText,
+  fdbk_rspd: MessageSquareText,
 };
 
 function formatRelative(crtAt: string) {
@@ -69,7 +67,7 @@ export function NotificationItem({ noti, onDelete, onRead, onClose }: Notificati
   }, [noti.read_yn]);
 
   const Icon = NOTI_ICON[noti.noti_type_enm] ?? Bell;
-  const route = NOTI_ROUTE[noti.noti_type_enm]?.(noti.ref_id, noti.ref_type_enm) ?? null;
+  const route = resolveNotiDeepLink(noti.noti_type_enm, noti.ref_id, noti.ref_type_enm);
 
   function handleRead() {
     if (!isRead) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { MapPin } from "lucide-react";
 
@@ -10,9 +10,12 @@ import { cn } from "@/lib/utils";
 import { schPostTypeInlineLabel } from "@/lib/validations/schedule-types";
 import type { SchPostType } from "@/lib/validations/schedule-types";
 
+import { SportTag } from "@/components/schedule/sport-tag";
+
 import { Caption, Micro, SectionLabel } from "@/components/common/typography";
 
 import type { CalendarRace } from "./mini-calendar";
+import { type FilterType, matchesFilter } from "@/components/home/schedule-filter";
 
 type MonthData = {
   monthKey: string; // "YYYY-MM"
@@ -24,8 +27,11 @@ type Props = {
   memberId?: string;
   initialMonthKey: string;
   initialRaces: CalendarRace[];
+  filterType?: FilterType;
+  openingId?: string | null;
   onClickSchedule: (race: CalendarRace) => void;
   onClickCompetition: (race: CalendarRace) => void;
+  onClickGathering: (race: CalendarRace) => void;
 };
 
 
@@ -45,7 +51,22 @@ type SchedulePagedRow = {
   crt_by_nm: string | null;
   reg_count: number | null;
   cmnt_count: number;
+  short_id: string | null;
+  sprt_cd: string | null;
 };
+
+function racesToMonths(races: CalendarRace[]): MonthData[] {
+  const buckets = new Map<string, CalendarRace[]>();
+  for (const race of races) {
+    const key = race.start_date.slice(0, 7);
+    const list = buckets.get(key) ?? [];
+    list.push(race);
+    buckets.set(key, list);
+  }
+  return Array.from(buckets.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, r]) => ({ monthKey: key, races: r }));
+}
 
 async function fetchAdjacent(
   supabase: ReturnType<typeof createClient>,
@@ -86,6 +107,24 @@ async function fetchAdjacent(
         crt_by_nm: row.crt_by_nm ?? null,
         cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
       });
+    } else if (row.item_type === "gathering" || row.item_type === "gathering_mine") {
+      results.push({
+        id: row.item_id,
+        short_id: row.short_id ?? null,
+        title: row.item_nm,
+        start_date: row.start_date,
+        type: row.item_type as "gathering" | "gathering_mine",
+        post_type: row.post_type ?? null,
+        sprt_cd: row.sprt_cd ?? null,
+        location: row.loc_nm ?? null,
+        cont_txt: row.cont_txt ?? null,
+        evt_stt_at: row.evt_stt_at ?? null,
+        evt_end_at: row.evt_end_at ?? null,
+        crt_by: row.crt_by ?? undefined,
+        crt_by_nm: row.crt_by_nm ?? null,
+        regCount: row.reg_count ? Number(row.reg_count) : 0,
+        cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
+      });
     } else {
       results.push({
         id: row.item_id,
@@ -114,13 +153,14 @@ function formatTimeRange(sttAt: string | null | undefined, endAt: string | null 
 }
 
 // schedule 타입 아이템
-function ScheduleItem({ race, onClick }: { race: CalendarRace; onClick: () => void }) {
+function ScheduleItem({ race, onClick, loading }: { race: CalendarRace; onClick: () => void; loading?: boolean }) {
   const timeRange = formatTimeRange(race.evt_stt_at, race.evt_end_at);
 
   return (
     <button
       onClick={onClick}
-      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
+      disabled={loading}
+      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60 disabled:opacity-60"
     >
       <span className="w-0.5 shrink-0 rounded-full bg-info" />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -153,23 +193,21 @@ function ScheduleItem({ race, onClick }: { race: CalendarRace; onClick: () => vo
 function CompetitionItem({
   race,
   onClick,
+  loading,
 }: {
   race: CalendarRace;
   onClick: () => void;
+  loading?: boolean;
 }) {
   const isMine = race.type === "mine";
 
   return (
     <button
       onClick={onClick}
-      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
+      disabled={loading}
+      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60 disabled:opacity-60"
     >
-      <span
-        className={cn(
-          "w-0.5 shrink-0 rounded-full",
-          isMine ? "bg-success" : "bg-warning",
-        )}
-      />
+      <span className="w-0.5 shrink-0 rounded-full bg-warning" />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <Caption className="truncate font-medium text-foreground">{race.title}</Caption>
         {(race.location || (race.cmntCount ?? 0) > 0) && (
@@ -203,40 +241,76 @@ function CompetitionItem({
   );
 }
 
-export function ScheduleListView({
+function GatheringItem({ race, onClick, loading }: { race: CalendarRace; onClick: () => void; loading?: boolean }) {
+  const isMine = race.type === "gathering_mine";
+  const timeRange = formatTimeRange(race.evt_stt_at, race.evt_end_at);
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={loading}
+      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60 disabled:opacity-60"
+    >
+      <span className="w-0.5 shrink-0 rounded-full bg-violet-500" />
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <Caption className="truncate font-medium text-foreground">{race.title}</Caption>
+          {(race.post_type === "regular" || race.post_type === "event") && (
+            <span className="shrink-0 rounded-full border border-violet-500/40 bg-violet-500/10 px-1.5 py-px text-[9px] font-medium leading-tight text-violet-400">
+              {race.post_type === "regular" ? "정기" : "이벤트"}
+            </span>
+          )}
+          <SportTag sprtCd={race.sprt_cd} />
+        </span>
+        {(timeRange || race.location || (race.cmntCount ?? 0) > 0) && (
+          <Micro className="flex items-center gap-1.5 tabular-nums text-muted-foreground">
+            {race.location && <span className="truncate">{race.location}</span>}
+            {timeRange && <span>{timeRange}</span>}
+            {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
+          </Micro>
+        )}
+      </span>
+      <span className="flex w-20 shrink-0 items-center justify-end gap-1.5 self-center">
+        {(race.regCount ?? 0) > 0 && (
+          <Micro className="text-muted-foreground tabular-nums">{race.regCount}명</Micro>
+        )}
+        <span
+          className={cn(
+            "shrink-0 rounded-md border px-2.5 py-1 text-[11px] font-medium",
+            isMine
+              ? "border-success/40 bg-success/10 text-success"
+              : "border-violet-500/40 bg-violet-500/10 text-violet-400",
+          )}
+        >
+          {isMine ? "참석" : "모임"}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+export const ScheduleListView = memo(function ScheduleListView({
   teamId,
   memberId,
   initialMonthKey,
   initialRaces,
+  filterType = "all",
+  openingId,
   onClickSchedule,
   onClickCompetition,
+  onClickGathering,
 }: Props) {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const today = todayKST();
 
   const [months, setMonths] = useState<MonthData[]>(() => {
     // start_date의 실제 월(YYYY-MM)로 분류 — 월 경계에 걸친 일정을 올바른 월에 배치
-    const buckets = new Map<string, CalendarRace[]>();
-    for (const race of initialRaces) {
-      const key = race.start_date.slice(0, 7); // "YYYY-MM"
-      const list = buckets.get(key) ?? [];
-      list.push(race);
-      buckets.set(key, list);
-    }
-    if (buckets.size === 0) {
-      return [{ monthKey: initialMonthKey, races: [] }];
-    }
-    return Array.from(buckets.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, races]) => ({
-        monthKey: key,
-        races: [...races].sort((a, b) => a.start_date.localeCompare(b.start_date)),
-      }));
+    const result = racesToMonths(initialRaces);
+    if (result.length === 0) return [{ monthKey: initialMonthKey, races: [] }];
+    return result.map((m) => ({ ...m, races: [...m.races].sort((a, b) => a.start_date.localeCompare(b.start_date)) }));
   });
   const [loadingPrev, setLoadingPrev] = useState(false);
   const [loadingNext, setLoadingNext] = useState(false);
-  const [canLoadPrev, setCanLoadPrev] = useState(true);
-  const [canLoadNext, setCanLoadNext] = useState(true);
   const oldestMonth = months[0].monthKey;
   const newestMonth = months[months.length - 1].monthKey;
 
@@ -245,59 +319,59 @@ export function ScheduleListView({
   const containerRef = useRef<HTMLDivElement>(null);
   const prevScrollHeightRef = useRef(0);
 
+  const loadingPrevRef = useRef(false);
+  const canLoadPrevRef = useRef(true);
+  const loadingNextRef = useRef(false);
+  const canLoadNextRef = useRef(true);
+  const oldestMonthRef = useRef(oldestMonth);
+  const newestMonthRef = useRef(newestMonth);
+  const teamIdRef = useRef(teamId);
+  const memberIdRef = useRef(memberId);
+  useEffect(() => { oldestMonthRef.current = oldestMonth; }, [oldestMonth]);
+  useEffect(() => { newestMonthRef.current = newestMonth; }, [newestMonth]);
+  useEffect(() => { teamIdRef.current = teamId; }, [teamId]);
+  useEffect(() => { memberIdRef.current = memberId; }, [memberId]);
+
   const loadPrev = useCallback(async () => {
-    if (loadingPrev || !canLoadPrev) return;
+    if (loadingPrevRef.current || !canLoadPrevRef.current) return;
+    loadingPrevRef.current = true;
     setLoadingPrev(true);
     try {
-      const cursorDate = dayjs(oldestMonth + "-01").format("YYYY-MM-DD");
-      const races = await fetchAdjacent(supabase, teamId, memberId, "prev", cursorDate, 2);
+      const cursorDate = dayjs(oldestMonthRef.current + "-01").format("YYYY-MM-DD");
+      const races = await fetchAdjacent(supabase, teamIdRef.current, memberIdRef.current, "prev", cursorDate, 2);
       if (races.length === 0) {
-        setCanLoadPrev(false);
+        canLoadPrevRef.current = false;
         return;
       }
-      const buckets = new Map<string, CalendarRace[]>();
-      for (const race of races) {
-        const key = race.start_date.slice(0, 7);
-        const list = buckets.get(key) ?? [];
-        list.push(race);
-        buckets.set(key, list);
-      }
-      const newMonths = Array.from(buckets.entries())
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, r]) => ({ monthKey: key, races: r }));
+      const newMonths = racesToMonths(races);
       prevScrollHeightRef.current = containerRef.current?.scrollHeight ?? 0;
       setMonths((prev) => [...newMonths, ...prev]);
     } finally {
+      loadingPrevRef.current = false;
       setLoadingPrev(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingPrev, canLoadPrev, oldestMonth, teamId, memberId]);
+  }, []);
 
   const loadNext = useCallback(async () => {
-    if (loadingNext || !canLoadNext) return;
+    if (loadingNextRef.current || !canLoadNextRef.current) return;
+    loadingNextRef.current = true;
     setLoadingNext(true);
     try {
-      const cursorDate = dayjs(newestMonth + "-01").endOf("month").format("YYYY-MM-DD");
-      const races = await fetchAdjacent(supabase, teamId, memberId, "next", cursorDate, 1);
+      const cursorDate = dayjs(newestMonthRef.current + "-01").endOf("month").format("YYYY-MM-DD");
+      const races = await fetchAdjacent(supabase, teamIdRef.current, memberIdRef.current, "next", cursorDate, 1);
       if (races.length === 0) {
-        setCanLoadNext(false);
+        canLoadNextRef.current = false;
         return;
       }
-      const buckets = new Map<string, CalendarRace[]>();
-      for (const race of races) {
-        const key = race.start_date.slice(0, 7);
-        const list = buckets.get(key) ?? [];
-        list.push(race);
-        buckets.set(key, list);
-      }
-      const [firstKey, firstRaces] = Array.from(buckets.entries())
-        .sort(([a], [b]) => a.localeCompare(b))[0];
-      setMonths((prev) => [...prev, { monthKey: firstKey, races: firstRaces }]);
+      const [first] = racesToMonths(races);
+      setMonths((prev) => [...prev, first]);
     } finally {
+      loadingNextRef.current = false;
       setLoadingNext(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingNext, canLoadNext, newestMonth, teamId, memberId]);
+  }, []);
 
   // 이전 달 prepend 후 스크롤 위치 보정
   useEffect(() => {
@@ -309,7 +383,7 @@ export function ScheduleListView({
     prevScrollHeightRef.current = 0;
   }, [months]);
 
-  // IntersectionObserver — root를 스크롤 컨테이너로 지정해 마운트 시 자동 발화 방지
+  // IntersectionObserver — deps [] 로 마운트 1회만 생성, loadPrev/loadNext는 ref 기반으로 항상 최신값 참조
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -331,12 +405,13 @@ export function ScheduleListView({
     if (topSentinelRef.current) obs.observe(topSentinelRef.current);
     if (bottomSentinelRef.current) obs.observe(bottomSentinelRef.current);
     return () => obs.disconnect();
-  }, [loadPrev, loadNext]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div
       ref={containerRef}
-      className="h-[380px] overflow-x-hidden overflow-y-auto"
+      className="h-[480px] overflow-x-hidden overflow-y-auto"
     >
       {/* 상단 sentinel */}
       <div ref={topSentinelRef} className="flex h-4 items-center justify-center">
@@ -368,13 +443,15 @@ export function ScheduleListView({
                 <div className="h-px flex-1 bg-border" />
               </div>
 
-              {byDate.size === 0 ? (
+              {byDate.size === 0 || (filterType !== "all" && Array.from(byDate.values()).every((rs) => rs.every((r) => !matchesFilter(r, filterType)))) ? (
                 <div className="px-1 py-3">
                   <Caption className="text-muted-foreground">일정 없음</Caption>
                 </div>
               ) : (
                 <div className="flex flex-col divide-y divide-border/40 py-1">
                   {Array.from(byDate.entries()).map(([dateStr, dateRaces]) => {
+                    const filteredDateRaces = dateRaces.filter((r) => matchesFilter(r, filterType));
+                    if (filteredDateRaces.length === 0) return null;
                     const dayjsDate = dayjs(dateStr);
                     const isToday = dateStr === today;
                     return (
@@ -398,17 +475,26 @@ export function ScheduleListView({
 
                         {/* 일정 목록 */}
                         <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-                          {dateRaces.map((race) =>
+                          {filteredDateRaces.map((race) =>
                             race.type === "schedule" ? (
                               <ScheduleItem
                                 key={race.id}
                                 race={race}
+                                loading={openingId === race.id}
                                 onClick={() => onClickSchedule(race)}
+                              />
+                            ) : race.type === "gathering" || race.type === "gathering_mine" ? (
+                              <GatheringItem
+                                key={race.id}
+                                race={race}
+                                loading={openingId === race.id}
+                                onClick={() => onClickGathering(race)}
                               />
                             ) : (
                               <CompetitionItem
                                 key={race.id}
                                 race={race}
+                                loading={openingId === race.id}
                                 onClick={() => onClickCompetition(race)}
                               />
                             ),
@@ -430,4 +516,4 @@ export function ScheduleListView({
       </div>
     </div>
   );
-}
+});

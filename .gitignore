@@ -39,8 +39,7 @@
 # production
 /build
 
-# Service Worker (빌드 시 자동 생성)
-/public/sw.js
+# Service Worker 자동 생성 산출물 (serwist 등). 푸시 수신용 public/sw.js는 직접 관리하므로 추적함.
 /public/sw.js.map
 
 # misc
@@ -90,3 +89,4 @@ next-env.d.ts
 # environment variable
 .env
 .env.*
+.gstack/

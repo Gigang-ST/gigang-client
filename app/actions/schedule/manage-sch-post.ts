@@ -5,6 +5,7 @@ import { after } from "next/server";
 
 import { dayjs } from "@/lib/dayjs";
 import { withMember } from "@/lib/actions/auth";
+import { insertNotiMany } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 import { createSchPostSchema, updateSchPostSchema } from "@/lib/validations/schedule";
@@ -59,25 +60,16 @@ export async function createSchPost(input: {
 
         if (!members?.length) return;
 
-        const { data: disabledPrefs } = await admin
-          .from("noti_pref_cfg")
-          .select("mem_id")
-          .in("mem_id", members.map((m) => m.mem_id))
-          .eq("noti_type_enm", "sch_post_new")
-          .eq("enabled_yn", false);
-
-        const disabledSet = new Set((disabledPrefs ?? []).map((p) => p.mem_id));
-        const targets = members.filter((m) => !disabledSet.has(m.mem_id));
-
-        if (!targets.length) return;
-
-        await admin.from("noti_mst").insert(
-          targets.map((m) => ({
-            team_id: teamId, mem_id: m.mem_id, noti_type_enm: "sch_post_new",
-            noti_nm: `${dayjs().format("M월 D일")} 새 정보가 등록됐습니다.`,
-            noti_cont: postName, ref_id: data.short_id ?? postId, ref_type_enm: "sch_post",
-          })),
-        );
+        // 인앱+푸시 한 몸. pref 수신거부 필터는 관문(insertNotiMany)이 처리.
+        await insertNotiMany({
+          teamId,
+          memIds: members.map((m) => m.mem_id),
+          notiTypeEnm: "sch_post_new",
+          notiNm: `${dayjs().format("M월 D일")} 새 정보가 등록됐습니다.`,
+          notiCont: `[정보] ${postName}`,
+          refId: data.short_id ?? postId,
+          refTypeEnm: "sch_post",
+        });
       } catch (e) {
         console.error("[sch_post_new] 알림 발송 실패", e);
       }

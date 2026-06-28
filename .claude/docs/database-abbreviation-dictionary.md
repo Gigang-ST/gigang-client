@@ -56,11 +56,12 @@
 | `calc` | calculation (계산) |
 | `bsis` | basis (근거) |
 | `grnt` | grant/granted (부여) |
+| `rflt` | reflect (반영, 잔액 반영 여부 `rflt_yn`) |
 | `exp` | expire/expires (만료) |
 | `chg` | change (변경) |
 | `brd` | board (게시판) |
 | `noti` | notification (알림) |
-| `cont` | content (본문 내용) |
+| `cont` | content (본문 내용, 단독 텍스트 컬럼은 `cont_txt`) |
 | `pref` | preference (수신 설정) |
 | `pin` | pinned (상단 고정) |
 | `read` | read (읽음 여부) |
@@ -70,9 +71,24 @@
 | `sch` | schedule (일정 공유) |
 | `cmnt` | comment (댓글) |
 | `prnt` | parent (부모, 대댓글 계층) |
-| `cont` | content (본문, 단독 텍스트 컬럼은 `cont_txt`) |
 | `loc`  | location (장소, 컬럼은 `loc_txt` / `loc_nm`) |
 | `attd` | attendance (참석, 이미 등록됨 — 모임 참석에 재사용) |
+| `cmm` | common (공통, 공통코드 `cmm_cd_*`) |
+| `grp` | group (그룹) |
+| `push` | web push (웹 푸시) |
+| `sub` | subscription (구독) |
+| `effect` | (칭호) 시각 이펙트 |
+| `utmb` | UTMB (트레일 러닝 지수) |
+| `prf` | profile (프로필) |
+| `idx` | index (지수) |
+| `rct` | recent (최근) |
+| `batch` | batch (일괄 처리 작업) |
+| `job` | job (작업 정의) |
+| `run` | run (실행) |
+| `trig` | trigger (실행 트리거) |
+| `cron` | cron (스케줄 표현식) |
+| `param` | parameter (파라미터) |
+| `cd_grp` | code group (공통코드 그룹) |
 
 ## 현재 v2 주요 테이블 약어
 | 테이블 | 의미 |
@@ -103,11 +119,19 @@
 | `brd_post_read_hist` | 게시글 읽음 이력 |
 | `noti_mst` | 알림 마스터 |
 | `noti_pref_cfg` | 알림 수신 설정 |
+| `push_sub_rel` | 웹 푸시 구독 정보 (회원·기기별 구독 endpoint/키) |
 | `gthr_mst` | 모임 마스터 |
 | `gthr_attd_rel` | 모임 참석 관계 |
-| `gthr_cmnt_mst` | 모임 댓글 |
-| `sch_post` | 일정 공유 게시물 (러닝 소식/이벤트/대회접수 등) |
+| `cmnt_mst` | 댓글 마스터 (폴리모픽: `entity_type`/`entity_id`로 모임·일정 등에 공통 부착) |
+| `cmnt_mention_rel` | 댓글 멘션 관계 (댓글-멘션된 회원) |
+| `sch_post_mst` | 일정 공유 게시물 마스터 (러닝 소식/이벤트/대회접수 등) |
 | `fdbk_mst` | 건의/피드백 마스터 |
+| `cmm_cd_grp_mst` | 공통코드 그룹 마스터 |
+| `cmm_cd_mst` | 공통코드 마스터 (그룹 하위 코드값) |
+| `batch_job_mst` | 배치 작업 정의 마스터 |
+| `batch_run_hist` | 배치 실행 이력 |
+| `effect_mst` | 칭호 시각 이펙트 마스터 |
+| `mem_utmb_prf` | 회원 UTMB 프로필 (인덱스·최근 대회 기록) |
 
 ## sch_post 도메인 컬럼 약어
 | 컬럼 | 의미 |
@@ -179,3 +203,7 @@
 - 단, `team_cd`처럼 외부/업무 식별 목적의 유니크 코드는 예외로 허용한다.
 - 엔터티명 자체를 나타내는 이름 컬럼은 `도메인_nm` 패턴을 사용한다 (예: `sch_nm`, `gthr_nm`, `ttl_nm`). `title_nm`처럼 의미가 중복되는 형태는 사용하지 않는다.
 - 일시(timestamptz) 컬럼은 `*_at`, 날짜(date) 컬럼은 `*_dt`로 구분한다.
+
+## 알려진 규칙 예외 (정리 대상)
+- `fee_mem_bal_snap.last_calc_dt` — 실제 타입은 `timestamptz`라 규칙상 `last_calc_at`이 맞다(같은 테이블에 `last_calc_at`도 따로 존재). 기존 스키마 부채로, 리네임 시 재계산 로직 동반 수정 필요.
+- `evt_team_prt_rel.stt_mth` — `date` 타입이지만 "월 기준"을 강조해 `_mth`로 명명(마일리지 월 단위). `_dt` 규칙의 의도적 예외.

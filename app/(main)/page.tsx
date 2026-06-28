@@ -72,6 +72,7 @@ async function HomeContent() {
     { data: calendarComps },
     cmmCdRows,
     { data: schPostRows },
+    { data: gthrRows },
     myRegsResult,
   ] = await Promise.all([
     supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: monthStart, p_end: monthLastDayStr }),
@@ -80,6 +81,12 @@ async function HomeContent() {
       p_team_id: teamId,
       p_start: monthStart,
       p_end: monthLastDayStr,
+    }),
+    supabase.rpc("get_public_team_gatherings", {
+      p_team_id: teamId,
+      p_start: monthStart,
+      p_end: monthLastDayStr,
+      ...(currentMember ? { p_mem_id: currentMember.id } : {}),
     }),
     currentMember
       ? supabase
@@ -93,6 +100,25 @@ async function HomeContent() {
           .eq("del_yn", false)
       : Promise.resolve({ data: null }),
   ]);
+
+  const calendarGatherings: CalendarRace[] = (gthrRows ?? []).map((row) => ({
+    id: row.gthr_id,
+    short_id: row.short_id ?? null,
+    title: row.gthr_nm,
+    start_date: dayjs(row.stt_at).tz("Asia/Seoul").format("YYYY-MM-DD"),
+    end_date: row.end_at ? dayjs(row.end_at).tz("Asia/Seoul").format("YYYY-MM-DD") : null,
+    type: (currentMember && ("is_attending" in row ? row.is_attending : false) ? "gathering_mine" : "gathering") as CalendarRace["type"],
+    post_type: row.gthr_type_enm,
+    sprt_cd: row.sprt_cd ?? null,
+    location: row.loc_txt ?? null,
+    cont_txt: row.desc_txt ?? null,
+    evt_stt_at: row.stt_at,
+    evt_end_at: row.end_at ?? null,
+    crt_by: row.crt_by,
+    crt_by_nm: row.crt_by_nm ?? null,
+    regCount: row.attd_count ? Number(row.attd_count) : 0,
+    cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
+  }));
 
   const calendarSchPosts: CalendarRace[] = (schPostRows ?? []).map((row) => ({
     id: row.sch_post_id,
@@ -193,8 +219,10 @@ async function HomeContent() {
             gigangRaces={calendarGigangRaces}
             myRaces={calendarMyRaces}
             schPosts={calendarSchPosts}
+            gatherings={calendarGatherings}
             teamId={teamId}
             memberId={currentMember?.id}
+            memberAvatarUrl={currentMember?.avatar_url ?? null}
             cmmCdRows={cmmCdRows}
             initialMemberStatus={initialMemberStatus}
             initialRegistrationsByCompetitionId={initialRegistrationsByCompetitionId}

@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import dayjs from "dayjs";
-import { FileSpreadsheet, Settings, ReceiptText, BadgeCheck } from "lucide-react";
+import { FileSpreadsheet, Settings, ReceiptText, BadgeCheck, Trash2 } from "lucide-react";
 
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createClient } from "@/lib/supabase/server";
@@ -79,17 +79,22 @@ export default async function DuesAdminDashboardPage() {
   }
 
   // 항목별 합산 (공통코드 기준 동적)
+  // 입금 항목은 분류별로 (입금 거래만), 지출은 출금(withdrawal) 거래 전체로 통일한다.
+  // → 출금이면 분류 불문 지출로 보므로 지출 내역 페이지와 기준이 일치한다.
   const txns = confirmedTxns ?? [];
-  const itemCds = (feeItemCds ?? []).map((c) => c.cd);
+  const depositTxns = txns.filter((t) => t.txn_io_enm === "deposit");
 
-  const itemTotals = itemCds.map((cd) => {
-    const cdRow = (feeItemCds ?? []).find((c) => c.cd === cd);
-    const total = txns.filter((t) => t.fee_item_cd === cd).reduce((s, t) => s + t.txn_amt, 0);
-    return { cd, label: cdRow?.cd_nm ?? cd, total, isExpense: cd === "expense" };
-  });
+  // 입금 분류 라벨 (지출 전용 분류 'expense'는 입금 항목에서 제외)
+  const itemTotals = (feeItemCds ?? [])
+    .filter((c) => c.cd !== "expense")
+    .map((c) => {
+      const total = depositTxns.filter((t) => t.fee_item_cd === c.cd).reduce((s, t) => s + t.txn_amt, 0);
+      return { cd: c.cd, label: c.cd_nm, total, isExpense: false };
+    });
 
-  const totalIn = itemTotals.filter((i) => !i.isExpense).reduce((s, i) => s + i.total, 0);
-  const expenseTotal = itemTotals.find((i) => i.isExpense)?.total ?? 0;
+  const totalIn = itemTotals.reduce((s, i) => s + i.total, 0);
+  // 지출 = 출금 거래 전체 (어떤 분류든)
+  const expenseTotal = txns.filter((t) => t.txn_io_enm === "withdrawal").reduce((s, t) => s + t.txn_amt, 0);
   const balance = totalIn - expenseTotal;
 
   const menus = [
@@ -97,6 +102,7 @@ export default async function DuesAdminDashboardPage() {
     { href: "/admin/dues/exemptions", label: "면제 관리", icon: BadgeCheck, desc: "회원별 회비 면제 규칙 등록·수정·삭제" },
     { href: "/admin/dues/policy", label: "회비 정책", icon: Settings, desc: "월 회비 금액 설정 / 거래 분류 항목 관리" },
     { href: "/admin/dues/expenses", label: "지출 내역", icon: ReceiptText, desc: "지출 거래 조회" },
+    { href: "/admin/dues/excluded", label: "제외 내역", icon: Trash2, desc: "제외한 거래 조회·복구" },
   ];
 
   return (
@@ -118,18 +124,16 @@ export default async function DuesAdminDashboardPage() {
       <div className="flex flex-col gap-2">
         <SectionLabel>항목별 입금 (확정 기준)</SectionLabel>
         <CardItem className="flex flex-col divide-y divide-border p-0 overflow-hidden">
-          {itemTotals.filter((i) => !i.isExpense).map((item) => (
+          {itemTotals.map((item) => (
             <div key={item.cd} className="flex items-center justify-between px-4 py-3">
               <Caption className="text-foreground">{item.label}</Caption>
               <Body className="font-semibold">+{item.total.toLocaleString()}원</Body>
             </div>
           ))}
-          {itemTotals.filter((i) => i.isExpense).map((item) => (
-            <div key={item.cd} className="flex items-center justify-between px-4 py-3 bg-muted/40">
-              <Caption className="text-foreground font-semibold">{item.label}</Caption>
-              <Body className="font-semibold text-destructive">-{item.total.toLocaleString()}원</Body>
-            </div>
-          ))}
+          <div className="flex items-center justify-between px-4 py-3 bg-muted/40">
+            <Caption className="text-foreground font-semibold">출금 (지출)</Caption>
+            <Body className="font-semibold text-destructive">-{expenseTotal.toLocaleString()}원</Body>
+          </div>
           <div className="flex items-center justify-between px-4 py-3">
             <Caption className="text-foreground font-semibold">잔액</Caption>
             <Body className={`font-bold ${balance >= 0 ? "text-primary" : "text-destructive"}`}>

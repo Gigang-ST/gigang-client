@@ -21,7 +21,7 @@ type BeforeInstallPromptEvent = Event & {
 };
 
 const DISMISS_KEY = "pwa-install-dismissed-at";
-const DISMISS_DAYS = 1;
+const DISMISS_DAYS = 7;
 
 function recentlyDismissed(): boolean {
   if (typeof window === "undefined") return false;
@@ -44,6 +44,8 @@ type PwaInstallPromptProps = {
  * - 이미 설치(standalone)되었거나 인앱 브라우저면 렌더하지 않음.
  * - Android/Chrome: beforeinstallprompt 캡처 후 네이티브 설치.
  * - iOS Safari: "공유 → 홈 화면에 추가" 안내.
+ * - 푸시 알림은 설치된 PWA에서만 받는다(iOS·Android 공통). 웹에서는 권한을 요청하지 않고
+ *   설치만 유도하며, 설치 후 PushPermissionPrompt가 권한을 유도한다.
  */
 export function PwaInstallPrompt({
   variant = "banner",
@@ -58,6 +60,12 @@ export function PwaInstallPrompt({
   useEffect(() => {
     // 설치됨/인앱이면 표시 안 함
     if (isStandalone() || detectInAppBrowser() !== null) return;
+    // banner(전역)는 모바일에서만 — 데스크톱은 푸시·설치 대상 제외 (정책 1).
+    // inline(가입 완료 화면)은 모바일 가정이라 이 게이트를 적용하지 않는다.
+    if (variant === "banner") {
+      const isAndroid = /android/i.test(navigator.userAgent);
+      if (!isIOS() && !isAndroid) return; // 데스크톱
+    }
     if (variant === "banner" && recentlyDismissed()) return;
 
     if (isIOS()) {
@@ -77,6 +85,8 @@ export function PwaInstallPrompt({
 
   if (!visible) return null;
 
+  // 정책: 웹(브라우저)에서는 푸시 권한을 요청하지 않는다 (iOS·Android 공통).
+  // 푸시는 설치된 PWA에서만 — 설치 후 PushPermissionPrompt가 권한을 유도한다.
   const handleInstall = async () => {
     if (isIOS()) {
       setIosGuide((v) => !v);
@@ -107,7 +117,7 @@ export function PwaInstallPrompt({
       className="rounded-xl font-bold"
       size={variant === "inline" ? "lg" : "default"}
     >
-      홈 화면에 추가
+      추가하기 🫡
     </Button>
   );
 
@@ -131,28 +141,52 @@ export function PwaInstallPrompt({
     );
   }
 
-  // banner
+  // banner — 알림 권한 배너(PushPermissionPrompt)와 동일하게 상단 고정.
+  // 둘은 isStandalone 게이트로 상호 배타적이라 동시에 뜨지 않는다.
   return (
     <div
       className={cn(
-        "fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] z-40 px-4",
+        "fixed inset-x-0 top-[calc(3.5rem+env(safe-area-inset-top,0px))] z-40 px-4",
         className,
       )}
     >
-      <div className="mx-auto flex max-w-md items-center gap-3 rounded-2xl border-[1.5px] border-border bg-background p-3 shadow-lg">
-        <div className="flex-1">
-          <Body className="font-semibold">기강을 홈 화면에 추가</Body>
-          <Caption className="mt-0.5 block">앱처럼 빠르게 열어요</Caption>
-          {iosGuideBlock}
+      <div className="mx-auto flex max-w-md flex-col gap-3 rounded-2xl border-[1.5px] border-border bg-background p-4 shadow-lg">
+        {/* 상단: 문구(전폭) + 닫기 */}
+        <div className="flex items-start gap-2">
+          <div className="flex-1">
+            <Body className="font-bold leading-snug">
+              📲 기강이 풀렸군. 홈 화면에 모시고 알림 켜라!
+            </Body>
+            <Caption className="mt-1 block leading-relaxed">
+              홈 화면에 추가해야{" "}
+              <span className="font-semibold text-foreground">새 모임·정보·댓글</span>{" "}
+              알림을 받을 수 있다. 🫡
+            </Caption>
+            {iosGuideBlock}
+          </div>
+          <button
+            type="button"
+            onClick={handleDismiss}
+            aria-label="닫기"
+            className="-mr-1.5 -mt-1.5 flex size-9 shrink-0 items-center justify-center text-muted-foreground"
+          >
+            <X className="size-5" />
+          </button>
         </div>
-        {installButton}
+        {/* 하단: 전폭 버튼 */}
+        <Button
+          type="button"
+          onClick={handleInstall}
+          className="w-full rounded-xl font-bold"
+        >
+          추가하기 🫡
+        </Button>
         <button
           type="button"
           onClick={handleDismiss}
-          aria-label="닫기"
-          className="text-muted-foreground"
+          className="self-center text-muted-foreground"
         >
-          <X className="size-5" />
+          <Caption>일주일간 보지 않기</Caption>
         </button>
       </div>
     </div>

@@ -113,9 +113,6 @@ export async function recalculateBalance(memIds?: string[]) {
         const calcFromMonth = snap
           ? dayjs(snap.last_calc_dt).add(1, "month").startOf("month")
           : dayjs(fromDt);
-        const exmFromYm = snap
-          ? dayjs(snap.last_calc_dt).add(1, "month").format("YYYY-MM")
-          : fromDt.slice(0, 7);
 
         const { data: exmRules } = await db
           .from("fee_due_exm_cfg")
@@ -152,6 +149,7 @@ export async function recalculateBalance(memIds?: string[]) {
                 .maybeSingle();
 
               if (!existing) {
+                // rflt_yn=false 로 생성 → 같은 재계산의 RPC가 합산·마킹(§6.2 (가)→(나) 순서)
                 await db.from("fee_due_exm_hist").insert({
                   team_id: teamId,
                   mem_id: mid,
@@ -162,6 +160,7 @@ export async function recalculateBalance(memIds?: string[]) {
                   rsn_txt: null,
                   aprv_by_mem_id: member.id,
                   aprv_at: dayjs().toISOString(),
+                  rflt_yn: false,
                   vers: 0,
                   del_yn: false,
                 });
@@ -171,20 +170,6 @@ export async function recalculateBalance(memIds?: string[]) {
 
           cursor = cursor.add(1, "month");
         }
-
-        const { data: exms } = await db
-          .from("fee_due_exm_hist")
-          .select("exm_hist_id, exm_amt, aply_ym")
-          .eq("team_id", teamId)
-          .eq("mem_id", mid)
-          .eq("vers", 0)
-          .eq("del_yn", false)
-          .gte("aply_ym", exmFromYm)
-          .order("aply_ym", { ascending: false });
-
-        const totalExempted = (exms ?? []).reduce((sum, e) => sum + e.exm_amt, 0);
-
-        const newBal = baseBal + totalPaid + totalExempted - totalCharged;
 
         const { lastTxnAt, lastPay } = filteredPays.reduce<{
           lastTxnAt: string | null;
@@ -198,38 +183,20 @@ export async function recalculateBalance(memIds?: string[]) {
           },
           { lastTxnAt: null, lastPay: null },
         );
-        const lastExm = exms?.at(0);
 
-        if (snap) {
-          const { data: maxRow } = await db
-            .from("fee_mem_bal_snap")
-            .select("vers")
-            .eq("team_id", teamId)
-            .eq("mem_id", mid)
-            .order("vers", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          const nextVers = (maxRow?.vers ?? 0) + 1;
-
-          const { error: pushErr } = await db
-            .from("fee_mem_bal_snap")
-            .update({ vers: nextVers })
-            .eq("bal_snap_id", snap.bal_snap_id);
-          if (pushErr) { errors.push(`스냅샷 버전 밀기 실패 (${mid}): ${pushErr.message}`); return; }
-        }
-
-        const { error: insertErr } = await db.from("fee_mem_bal_snap").insert({
-          team_id: teamId,
-          mem_id: mid,
-          bal_amt: newBal,
-          last_calc_dt: now.toISOString(),
-          last_calc_at: lastTxnAt ?? snap?.last_calc_at ?? dayjs().toISOString(),
-          last_ref_pay_id: lastPay?.pay_id ?? undefined,
-          last_ref_exm_hist_id: lastExm?.exm_hist_id ?? undefined,
-          vers: 0,
-          del_yn: false,
+        // 미반영(rflt_yn=false) 면제 합산 + 잔액 계산 + vers 밀기 + 스냅샷 INSERT + 면제 마킹을
+        // 한 트랜잭션으로 원자화(§6.3). JS에서 나눠 호출하면 중간 실패 시 정합성이 깨진다.
+        const { error: rpcErr } = await db.rpc("recalc_member_balance", {
+          p_team_id: teamId,
+          p_mem_id: mid,
+          p_base_bal: baseBal,
+          p_total_paid: totalPaid,
+          p_total_charged: totalCharged,
+          p_now: now.toISOString(),
+          p_last_calc_at: lastTxnAt ?? snap?.last_calc_at ?? dayjs().toISOString(),
+          p_last_ref_pay_id: lastPay?.pay_id ?? undefined,
         });
-        if (insertErr) { errors.push(`스냅샷 INSERT 실패 (${mid}): ${insertErr.message}`); return; }
+        if (rpcErr) { errors.push(`잔액 재계산 실패 (${mid}): ${rpcErr.message}`); return; }
 
         updatedCount++;
       }));

@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+
+import { useFormPersist } from "@/lib/hooks/use-form-persist";
 import { z } from "zod";
 
 import { dayjs } from "@/lib/dayjs";
@@ -86,6 +88,9 @@ export function SchPostFormDialog({
 
   const { isSubmitting } = form.formState;
 
+  const persistKey = "sch-post-form-draft";
+  const { clear: clearDraft } = useFormPersist(persistKey, form, open && mode === "create");
+
   useEffect(() => {
     if (!open) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -100,16 +105,20 @@ export function SchPostFormDialog({
         cont_txt: initialData.cont_txt ?? null,
       });
     } else if (mode === "create") {
-      form.reset({
-        sch_nm: "",
-        post_type: defaultPostType ?? undefined,
-        evt_stt_at: initialData?.evt_stt_at ? toDateInput(initialData.evt_stt_at) : "",
-        evt_end_at: null,
-        url: null,
-        cont_txt: null,
-      });
+      // sessionStorage 저장값이 없을 때만 기본값으로 초기화 (useFormPersist가 복원 처리)
+      const hasDraft = (() => { try { return !!sessionStorage.getItem(persistKey); } catch { return false; } })();
+      if (!hasDraft) {
+        form.reset({
+          sch_nm: "",
+          post_type: defaultPostType ?? undefined,
+          evt_stt_at: initialData?.evt_stt_at ? toDateInput(initialData.evt_stt_at) : "",
+          evt_end_at: null,
+          url: null,
+          cont_txt: null,
+        });
+      }
     }
-  }, [open, mode, initialData, defaultPostType, form]);
+  }, [open, mode, initialData, defaultPostType, form, persistKey]);
 
   async function onSubmit(values: FormValues) {
     setRootError(null);
@@ -135,6 +144,7 @@ export function SchPostFormDialog({
           cont_txt: values.cont_txt ?? null,
         });
       }
+      clearDraft();
       onOpenChange(false);
       onSuccess?.();
     } catch (err) {
@@ -143,7 +153,7 @@ export function SchPostFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) setRootError(null); onOpenChange(v); }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { setRootError(null); clearDraft(); } onOpenChange(v); }}>
       <DialogContent className="flex max-h-[85dvh] flex-col gap-0 p-0">
 
         <DialogHeader className="px-5 pb-3 pt-5">

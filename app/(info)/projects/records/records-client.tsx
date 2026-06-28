@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 
 import { Pencil, Trash2, Lock } from "lucide-react";
 
 import { todayDayKST, currentMonthKST, prevMonthStr } from "@/lib/dayjs";
 import { MILEAGE_SPORT_LABELS, type MileageSport } from "@/lib/mileage";
+import { fetchActivityRecords, type ActivityRecord } from "@/lib/queries/activity-records";
 import { createClient } from "@/lib/supabase/client";
 
 import { deleteActivity } from "@/app/actions/mileage-run";
@@ -36,23 +37,14 @@ import {
 
 
 
-type ActivityRecord = {
-  act_id: string;
-  act_dt: string;
-  sprt_enm: string;
-  distance_km: number;
-  elevation_m: number | null;
-  base_mlg: number;
-  applied_mults: { mult_id: string; mult_nm: string; mult_val: number }[] | null;
-  final_mlg: number;
-  review: string | null;
-};
-
 type Props = {
   evtId: string;
   memId: string;
+  prtId: string;
   evtStartDt: string;
   evtEndDt: string;
+  initialMonth: string;
+  initialRecords: ActivityRecord[];
 };
 
 function isEditLocked(actDt: string): boolean {
@@ -77,83 +69,54 @@ function buildMonthSegments(startDt: string, endDt: string) {
   return segments;
 }
 
-export function RecordsClient({ evtId, memId, evtStartDt, evtEndDt }: Props) {
-  const curMonth = currentMonthKST();
+export function RecordsClient({ evtId, memId, prtId, evtStartDt, evtEndDt, initialMonth, initialRecords }: Props) {
   const segments = buildMonthSegments(evtStartDt, evtEndDt);
 
-  // 현재월이 범위 내이면 현재월, 아니면 첫 번째 세그먼트
-  const defaultMonth = segments.find((s) => s.value === curMonth)
-    ? curMonth
-    : segments[0]?.value ?? curMonth;
-
-  const [month, setMonth] = useState(defaultMonth);
-  const [records, setRecords] = useState<ActivityRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  // 첫 달은 서버에서 prefetch한 데이터로 시작 → 진입 시 깜빡임 없음
+  const [month, setMonth] = useState(initialMonth);
+  const [records, setRecords] = useState<ActivityRecord[]>(initialRecords);
+  const [loading, setLoading] = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState<ActivityRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [editTarget, setEditTarget] = useState<ActivityRecord | null>(null);
 
+  // 주입받은 prt_id로 바로 조회 (participant 재조회 제거). 서버 prefetch와 동일한 공용 헬퍼 사용.
   const loadRecords = useCallback(async () => {
     setLoading(true);
-    const supabase = createClient();
-    const [y, m] = month.split("-").map(Number);
-    const nextM = m === 12 ? 1 : m + 1;
-    const nextY = m === 12 ? y + 1 : y;
-    const monthEnd = `${nextY}-${String(nextM).padStart(2, "0")}-01`;
-
-    const { data: participant } = await supabase
-      .from("evt_team_prt_rel")
-      .select("prt_id")
-      .eq("evt_id", evtId)
-      .eq("mem_id", memId)
-      .maybeSingle();
-
-    if (!participant) {
-      setRecords([]);
+    try {
+      setRecords(await fetchActivityRecords(createClient(), prtId, month));
+    } finally {
       setLoading(false);
+    }
+  }, [prtId, month]);
+
+  // 첫 마운트는 initialRecords(initialMonth)로 충분하므로 스킵하고, 월이 바뀔 때만 재조회한다.
+  const isFirst = useRef(true);
+  useEffect(() => {
+    if (isFirst.current) {
+      isFirst.current = false;
       return;
     }
-
-    const { data } = await supabase
-      .from("evt_mlg_act_hist")
-      .select("act_id, act_dt, sprt_enm, dst_km, elv_m, base_mlg, aply_mults, final_mlg, review")
-      .eq("prt_id", participant.prt_id)
-      .gte("act_dt", month)
-      .lt("act_dt", monthEnd)
-      .order("act_dt", { ascending: false });
-
-    setRecords(
-      (data ?? []).map((r) => ({
-        ...r,
-        distance_km: Number(r.dst_km),
-        elevation_m: r.elv_m ? Number(r.elv_m) : null,
-        base_mlg: Number(r.base_mlg),
-        applied_mults: (r.aply_mults ?? null) as ActivityRecord["applied_mults"],
-        final_mlg: Number(r.final_mlg),
-        review: r.review ?? null,
-      })),
-    );
-    setLoading(false);
-  }, [evtId, memId, month]);
-
-   
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadRecords();
   }, [loadRecords]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    const result = await deleteActivity(deleteTarget.act_id);
-    if (result.ok) {
-      loadRecords();
-    } else {
-      alert(result.message);
+    try {
+      const result = await deleteActivity(deleteTarget.act_id);
+      if (result.ok) {
+        loadRecords();
+      } else {
+        alert(result.message);
+      }
+    } catch {
+      alert("삭제에 실패했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
     }
-    setDeleting(false);
-    setDeleteTarget(null);
   };
 
   const handleEditSuccess = () => {
@@ -209,7 +172,7 @@ export function RecordsClient({ evtId, memId, evtStartDt, evtEndDt }: Props) {
                   </div>
 
                   <Caption>
-                    {record.distance_km.toFixed(1)} km
+                    {record.distance_km.toFixed(2)} km
                     {record.elevation_m && record.elevation_m > 0 && ` · 상승 ${record.elevation_m}m`}
                   </Caption>
 
@@ -268,7 +231,7 @@ export function RecordsClient({ evtId, memId, evtStartDt, evtEndDt }: Props) {
                 <>
                   {deleteTarget.act_dt}{" "}
                   {MILEAGE_SPORT_LABELS[deleteTarget.sprt_enm as MileageSport]}{" "}
-                  {deleteTarget.distance_km.toFixed(1)}km 기록을 삭제하시겠습니까?
+                  {deleteTarget.distance_km.toFixed(2)}km 기록을 삭제하시겠습니까?
                 </>
               )}
             </DialogDescription>

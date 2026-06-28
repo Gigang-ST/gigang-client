@@ -2,9 +2,13 @@
 
 import crypto from "crypto";
 
+import { dayjs } from "@/lib/dayjs";
+
 import { withAdmin } from "@/lib/actions/auth";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+import { getValidFeeItemCds } from "@/app/actions/dues/validate-fee-item";
 
 type ParsedRow = {
   txn_dt: string;
@@ -103,7 +107,20 @@ export async function uploadXlsx(formData: FormData) {
 
     if (updErr || !upd) return { ok: false as const, message: "업로드 이력 저장 실패." };
 
-    const { data: members } = await db.from("mem_mst").select("mem_id, mem_nm").eq("vers", 0).eq("del_yn", false);
+    // 회원 매칭 후보는 현재 팀 소속(team_mem_rel)으로 제한한다.
+    // mem_mst 에는 team_id 가 없으므로, 팀-회원 관계에서 mem_id 를 먼저 추린다.
+    // (멀티팀 전환 시 다른 팀 회원에게 거래가 매칭되는 것을 방지)
+    const { data: teamRels } = await db
+      .from("team_mem_rel")
+      .select("mem_id")
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false);
+    const teamMemIds = (teamRels ?? []).map((r) => r.mem_id);
+
+    const { data: members } = teamMemIds.length
+      ? await db.from("mem_mst").select("mem_id, mem_nm").in("mem_id", teamMemIds).eq("vers", 0).eq("del_yn", false)
+      : { data: [] as { mem_id: string; mem_nm: string }[] };
 
     const nameMap = new Map<string, string[]>();
     for (const m of members ?? []) {
@@ -113,32 +130,72 @@ export async function uploadXlsx(formData: FormData) {
       nameMap.set(key, list);
     }
 
-    let matched = 0, unmatched = 0, ambiguous = 0, skipped = 0;
+    // 회원별 baseline(마지막 거래일) 맵 — 이미 마감된 시점 이전의 과거 거래가
+    // 재유입되는 것을 막기 위함. snap.last_calc_at = 그 회원의 마지막 거래 기준 시점.
+    const { data: snaps } = await db
+      .from("fee_mem_bal_snap")
+      .select("mem_id, last_calc_at")
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false);
+    const baselineMap = new Map<string, string>();
+    for (const s of snaps ?? []) {
+      if (s.last_calc_at) baselineMap.set(s.mem_id, s.last_calc_at);
+    }
+
+    // 분류 유효성 집합 — 공통코드에 없는 분류는 'other'로 폴백 (업로드는 자동 분류라 중단보다 폴백이 안전)
+    const validCds = await getValidFeeItemCds(db);
+
+    let matched = 0, unmatched = 0, ambiguous = 0, skipped = 0, skippedByCutoff = 0;
 
     for (const row of rows) {
       const normName = row.raw_name.replace(/\s/g, "");
       let matchStatus: "matched" | "unmatched" | "ambiguous" = "unmatched";
       let memId: string | null = null;
 
-      if (row.fee_item_cd === "due") {
-        const candidates = nameMap.get(normName) ?? [];
-        if (candidates.length === 1) {
-          matchStatus = "matched";
-          memId = candidates[0];
-          matched++;
-        } else if (candidates.length > 1) {
-          matchStatus = "ambiguous";
-          ambiguous++;
-        } else {
-          unmatched++;
+      // 분류와 무관하게 이름으로 회원 매칭을 시도한다.
+      // (회비뿐 아니라 지출·환불 등도 회원에 연결되면 그 회원 거래내역에 보여주기 위함.
+      //  단, 개인 잔액 정산에 반영되는 것은 여전히 회비(due)+매칭 건만이다.)
+      const candidates = nameMap.get(normName) ?? [];
+      if (candidates.length === 1) {
+        matchStatus = "matched";
+        memId = candidates[0];
+        matched++;
+      } else if (candidates.length > 1) {
+        matchStatus = "ambiguous";
+        ambiguous++;
+      } else {
+        unmatched++;
+      }
+
+      // baseline cutoff: 매칭된 거래가 그 회원의 마지막 거래일(baseline) 이전이면,
+      // 이미 마감된 과거이므로 적재하지 않고 스킵한다. (입금·출금/분류 불문)
+      //
+      // 근거: last_calc_at(baseline)은 "이 시점까지 이 회원의 모든 거래가 처리됨"을 뜻한다.
+      // baseline 이후로는 거래가 순서대로 다 들어오므로, baseline 이전에 새로 매칭되는 거래는
+      // 정상 흐름상 존재할 수 없고 = 마이그레이션 누락분(이미 baseline에 녹아있는 과거)의 재유입이다.
+      // 따라서 회비/지출 구분 없이 매칭 + baseline 이전이면 스킵한다.
+      // (미매칭·동명이인은 누구 건지 몰라 baseline 비교 불가 → 그대로 적재)
+      if (matchStatus === "matched" && memId) {
+        const baseline = baselineMap.get(memId);
+        if (baseline) {
+          const txnAt = dayjs.tz(`${row.txn_dt}T${row.txn_tm ?? "00:00:00"}`, "Asia/Seoul");
+          if (txnAt.isBefore(dayjs(baseline))) {
+            matched--; // 위에서 올린 카운트 되돌림
+            skippedByCutoff++;
+            continue;
+          }
         }
       }
+
+      // 공통코드에 없는 분류면 'other'로 폴백
+      const feeItemCd = validCds.has(row.fee_item_cd) ? row.fee_item_cd : "other";
 
       const { error } = await db.from("fee_txn_hist").insert({
         team_id: teamId, upd_id: upd.upd_id, txn_dt: row.txn_dt, txn_tm: row.txn_tm,
         txn_amt: row.txn_amt, txn_io_enm: row.txn_io_enm, raw_name: row.raw_name,
         raw_memo: row.raw_memo, txn_tp_txt: row.txn_tp_txt, match_st_cd: matchStatus,
-        mem_id: memId, fee_item_cd: row.fee_item_cd, is_cfm_yn: false, del_yn: false,
+        mem_id: memId, fee_item_cd: feeItemCd, is_cfm_yn: false, del_yn: false,
       });
 
       if (error?.code === "23505") {
@@ -149,6 +206,6 @@ export async function uploadXlsx(formData: FormData) {
       }
     }
 
-    return { ok: true as const, message: null, summary: { total: rows.length, matched, unmatched, ambiguous, skipped } };
+    return { ok: true as const, message: null, summary: { total: rows.length, matched, unmatched, ambiguous, skipped, skippedByCutoff } };
   });
 }

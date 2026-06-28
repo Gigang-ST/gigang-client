@@ -30,6 +30,8 @@ interface SchPostDetailDialogProps {
   onOpenChange: (open: boolean) => void
   teamId: string
   currentMemberId?: string
+  currentMemberName?: string | null
+  currentMemberAvatarUrl?: string | null
   isAdmin?: boolean
   members: MemberOption[]
   initialComments?: CmntRow[]
@@ -43,6 +45,8 @@ export function SchPostDetailDialog({
   onOpenChange,
   teamId,
   currentMemberId,
+  currentMemberName,
+  currentMemberAvatarUrl,
   isAdmin,
   members,
   initialComments,
@@ -146,6 +150,8 @@ export function SchPostDetailDialog({
                   entityId={post.id}
                   teamId={teamId}
                   currentMemberId={currentMemberId}
+                  currentMemberName={currentMemberName}
+                  currentMemberAvatarUrl={currentMemberAvatarUrl}
                   isAdmin={isAdmin}
                   members={members}
                   initialComments={initialComments}
@@ -168,7 +174,7 @@ export function SchPostDetailDialog({
       <ShareSheet
         open={shareOpen}
         onOpenChange={setShareOpen}
-        title={post.title}
+        title={`[${post.title}]`}
         timeLabel={timeLabel}
         contentUrl={post.url ?? undefined}
         contentSnippet={post.cont_txt ?? undefined}

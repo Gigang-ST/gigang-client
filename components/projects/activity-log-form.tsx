@@ -246,9 +246,9 @@ export function ActivityLogForm({
         <Input
           id="distance_km"
           type="number"
-          step="0.1"
-          min="0.1"
-          placeholder="예: 10.5"
+          step="0.01"
+          min="0.01"
+          placeholder="예: 10.55"
           className="h-12 rounded-xl border-[1.5px] text-[15px]"
           {...register("distance_km", { valueAsNumber: true })}
         />
