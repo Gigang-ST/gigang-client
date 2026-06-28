@@ -26,6 +26,11 @@ type ShareSheetProps = {
   contentUrl?: string;
   /** 이 게시물 상세보기 딥링크. 없으면 현재 페이지 URL 사용 */
   pageUrl?: string;
+  /**
+   * 완성된 공유 본문을 직접 지정. 주어지면 title/timeLabel 등 자동 조립을 무시하고 이 텍스트를 그대로 공유한다.
+   * (모임처럼 도메인별로 멘트를 다듬고 싶을 때 사용)
+   */
+  shareText?: string;
 };
 
 export function ShareSheet({
@@ -37,6 +42,7 @@ export function ShareSheet({
   contentSnippet,
   contentUrl,
   pageUrl,
+  shareText,
 }: ShareSheetProps) {
   const [copiedText, setCopiedText] = useState(false);
 
@@ -45,6 +51,9 @@ export function ShareSheet({
   }
 
   function buildText() {
+    // 호출부가 완성 본문을 넘기면 그대로 사용(모임 등 도메인별 멘트)
+    if (shareText) return shareText;
+
     const lines = [title, timeLabel];
 
     if (locationText) lines.push(locationText);
