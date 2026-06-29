@@ -258,9 +258,14 @@ ALTER ROLE service_role  SET statement_timeout = '10s';
 -- 적용은 새 커넥션부터. 풀러 환경에선 재접속 후 반영.
 ```
 
-- 순서 보장: `lock_timeout(3s) < statement_timeout(10s) < 앱/게이트웨이 타임아웃`.
-  ⚠️ **Vercel 함수 타임아웃이 10초보다 커야** DB가 10초에 깔끔한 에러를 돌려주고 앱이 받아서
-  처리/재시도할 수 있다. 함수도 10초면 둘이 붙어 함수가 먼저 죽을 수 있음 → `maxDuration` 확인.
+- 순서 보장: `lock_timeout(3s) < statement_timeout(10s) < 앱 함수 타임아웃`.
+  **우리 Vercel 프로젝트는 Pro(함수 기본 타임아웃 15s)라 10s보다 커서 안전하다** — DB가 10초에
+  에러를 돌려주고 함수(15초)가 그걸 받아 처리/재시도할 여유가 있음. 별도 조치 불필요.
+  - Pro 근거: `app/(info)/admin/utmb-refresh/page.tsx`가 `export const maxDuration = 300`을 쓰는데
+    이는 Hobby 상한(60s)을 초과 → Pro 확정.
+  - ⚠️ `maxDuration`은 App Router에서 **라우트 파일별로** `export const maxDuration = N`으로 설정한다
+    (`next.config.ts`·`vercel.json` 전역 설정 아님 — `vercel.json`의 `functions`로도 지정 가능하나 현재 미사용).
+    DB를 치는 특정 라우트가 15s보다 오래 필요해지면 **그 라우트에 직접** `export const maxDuration`을 올린다.
 - ⚠️ DDL을 도는 `postgres`(마이그레이션) 역할엔 이 짧은 `statement_timeout`을 **걸지 말 것**
   (대형 마이그레이션이 죽음). 마이그레이션의 락 안전장치는 §5.2에서 파일 단위로 따로 건다.
 - ⚠️ 10초보다 오래 걸리는 정당한 관리자 배치(대량 엑셀 처리 등)는 그 작업만
