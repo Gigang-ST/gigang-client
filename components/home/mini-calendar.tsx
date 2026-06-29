@@ -725,8 +725,101 @@ export function MiniCalendar({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // SSR(page.tsx)이 처음부터 gridDateRange 범위로 조회해 내려주므로 마운트 시 보강 재조회는 불필요하다.
-  // (달 이동·갱신 시의 fetchMonthData도 같은 gridDateRange를 써서 앞뒤 달 일정을 함께 받아온다)
+  // SSR(page.tsx)이 처음부터 gridDateRange 범위로 공개 데이터를 조회해 내려주므로 공개 데이터 보강 재조회는 불필요하다.
+  // 다만 유저별 데이터(내 대회 등록, 모임 참석 여부)는 캐시에 포함되지 않으므로 마운트 시 클라이언트에서 fetch한다.
+  // (달 이동 시에는 fetchMonthData가 유저별 데이터를 함께 조회하므로 이 useEffect는 초기 마운트 1회만 필요.)
+  useEffect(() => {
+    if (!memberId) return;
+    const memId = memberId; // TypeScript narrowing — async 함수 내에서 non-optional 사용
+
+    async function fetchUserData() {
+      const [yStr, mStr] = initialMonth.split("-");
+      const y = parseInt(yStr, 10);
+      const m = parseInt(mStr, 10);
+      const { start: gridStart, end: gridEnd, fetchStart } = gridDateRange(y, m);
+
+      const [{ data: myRegs }, { data: gthrWithAttd }] = await Promise.all([
+        // 내 대회 등록 — 등록 상세 필드 포함 (CompetitionDetailDialog에서 수정/취소에 필요)
+        supabase
+          .from("comp_reg_rel")
+          .select(
+            "comp_reg_id, mem_id, prt_role_cd, crt_at, team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(comp_evt_type))), comp_evt_cfg(comp_evt_type)",
+          )
+          .eq("mem_id", memId)
+          .eq("team_comp_plan_rel.team_id", teamId)
+          .eq("vers", 0)
+          .eq("del_yn", false),
+        // 모임 참석 여부
+        supabase.rpc("get_public_team_gatherings", {
+          p_team_id: teamId,
+          p_start: fetchStart,
+          p_end: gridEnd,
+          p_mem_id: memId,
+        }),
+      ]);
+
+      // 월 이동이 발생했으면 늦게 온 응답을 버린다
+      if (viewMonthRef.current !== initialMonth) return;
+
+      // myRaces + registrationsByCompetitionId 구성
+      if (myRegs) {
+        const races = myRegs.flatMap((r) => {
+          const plan = Array.isArray(r.team_comp_plan_rel)
+            ? r.team_comp_plan_rel[0]
+            : r.team_comp_plan_rel;
+          const comp = Array.isArray(plan?.comp_mst) ? plan.comp_mst[0] : plan?.comp_mst;
+          if (!comp) return [];
+          const race: CalendarRace = {
+            id: comp.comp_id,
+            title: comp.comp_nm,
+            start_date: comp.stt_dt,
+            type: "mine",
+            location: comp.loc_nm ?? null,
+          };
+          return race.start_date >= gridStart && race.start_date <= gridEnd ? [race] : [];
+        });
+        setMyRaces(races);
+
+        // 등록 맵 구성 — 대회 클릭 시 수정/취소 흐름에 필요
+        const regs: Record<string, CompetitionRegistration> = {};
+        myRegs.forEach((r) => {
+          const plan = Array.isArray(r.team_comp_plan_rel)
+            ? r.team_comp_plan_rel[0]
+            : r.team_comp_plan_rel;
+          regs[plan.comp_id] = {
+            id: r.comp_reg_id,
+            competition_id: plan.comp_id,
+            member_id: r.mem_id,
+            role: r.prt_role_cd as CompetitionRegistration["role"],
+            event_type:
+              (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)
+                ?.comp_evt_type?.toUpperCase() ?? null,
+            created_at: r.crt_at,
+          } as CompetitionRegistration;
+        });
+        setRegistrationsByCompetitionId(regs);
+      }
+
+      // gathering is_attending overlay — 서버에서 "gathering"으로만 내려온 데이터에 참석 여부를 overlay
+      if (gthrWithAttd) {
+        setGatherings((prev) =>
+          prev.map((g) => {
+            const match = gthrWithAttd.find(
+              (row: { gthr_id: string; is_attending?: boolean }) => row.gthr_id === g.id,
+            );
+            if (match && match.is_attending) {
+              return { ...g, type: "gathering_mine" as const };
+            }
+            return g;
+          }),
+        );
+      }
+    }
+
+    fetchUserData();
+  // initialMonth·supabase·teamId는 마운트 후 변경되지 않으며, memberId 변경 시에만 재실행
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memberId]);
 
   const swipeTouchStartX = useRef<number | null>(null);
   const swipeDidNavigate = useRef(false);

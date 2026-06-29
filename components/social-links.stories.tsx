@@ -21,7 +21,8 @@ export const Grid: Story = {
 export const GridWithPassword: Story = {
   render: () => (
     <div className="w-[375px] p-6">
-      <SocialLinksGrid kakaoChatPassword="1234" />
+      {/* kakaoChatPassword prop이 서버 액션으로 전환됨 — 스토리에서는 prop 없이 렌더 */}
+      <SocialLinksGrid />
     </div>
   ),
 };
