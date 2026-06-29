@@ -160,7 +160,7 @@ export default async function GatheringDetailPage({
                 const mem = Array.isArray(a.mem_mst) ? a.mem_mst[0] : a.mem_mst;
                 return (
                   <div key={a.mem_id} className="flex flex-col items-center gap-1">
-                    <Avatar src={mem?.avatar_url} alt={mem?.mem_nm ?? ""} size="sm" />
+                    <Avatar src={mem?.avatar_url} seed={a.mem_id} alt={mem?.mem_nm ?? ""} size="sm" />
                     <Micro className="text-muted-foreground">{mem?.mem_nm ?? ""}</Micro>
                   </div>
                 );

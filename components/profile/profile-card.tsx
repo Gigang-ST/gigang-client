@@ -15,6 +15,7 @@ import { CardItem } from "@/components/ui/card";
 export function ProfileCard({
   fullName,
   avatarUrl,
+  memId,
   genderLabel,
   joinedDate,
   teamMemId,
@@ -29,6 +30,8 @@ export function ProfileCard({
 }: {
   fullName: string;
   avatarUrl: string | null;
+  /** 멤버 고유 id — 폴백 아바타 seed. 다른 화면(댓글·모임)과 동일하게 mem_id로 통일 */
+  memId: string;
   genderLabel: string;
   joinedDate: string;
   teamMemId: string;
@@ -47,7 +50,7 @@ export function ProfileCard({
   return (
     <>
       <CardItem className={cn("flex items-center gap-4 p-5", frameCls)}>
-        <Avatar src={avatarUrl} alt={fullName} size="xl" />
+        <Avatar src={avatarUrl} seed={memId} alt={fullName} size="xl" />
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[17px] font-bold text-foreground">{fullName}</span>

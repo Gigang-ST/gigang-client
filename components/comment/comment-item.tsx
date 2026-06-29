@@ -78,7 +78,7 @@ export function CommentItem({
 
   return (
     <div className={`flex gap-2.5 py-2.5 ${isReply ? "pl-10" : ""}`}>
-      <Avatar src={comment.avatar_url} size="sm" />
+      <Avatar src={comment.avatar_url} seed={comment.mem_id} size="sm" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-x-2">
           <Body className="text-sm font-semibold">{comment.mem_nm}</Body>

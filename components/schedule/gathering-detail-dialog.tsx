@@ -279,7 +279,7 @@ export function GatheringDetailDialog({
               <div className="flex flex-wrap gap-2">
                 {attendees.map((a) => (
                   <div key={a.mem_id} className="flex flex-col items-center gap-0.5">
-                    <Avatar src={a.avatar_url} alt={a.mem_nm ?? ""} size="sm" />
+                    <Avatar src={a.avatar_url} seed={a.mem_id} alt={a.mem_nm ?? ""} size="sm" />
                     <Micro className="leading-tight">{a.mem_nm ?? ""}</Micro>
                   </div>
                 ))}

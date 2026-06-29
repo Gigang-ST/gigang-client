@@ -95,6 +95,7 @@ async function ProfileContent() {
         <ProfileCard
           fullName={member.full_name}
           avatarUrl={member.avatar_url}
+          memId={member.id}
           genderLabel={genderLabel}
           joinedDate={joinedDate}
           teamMemId={member.team_mem_id}

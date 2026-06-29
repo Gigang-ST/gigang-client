@@ -220,8 +220,12 @@ import { SegmentControl } from "@/components/common/segment-control";
 ```tsx
 import { Avatar } from "@/components/common/avatar";
 
-<Avatar src={member.avatar_url} size="md" />  // sm=32px, md=40px, lg=56px, xl=64px
+<Avatar src={member.avatar_url} seed={member.id} size="md" />  // sm=32px, md=40px, lg=56px, xl=64px
 ```
+
+- `seed`(멤버 id 권장)를 넘기면 프사 미설정 시 DiceBear 랜덤(고정) 아바타로 폴백. **멤버 아바타는 항상 `src`+`seed`를 함께 전달.**
+- 폴백 스타일은 `avatar.tsx`의 `FALLBACK_AVATAR_STYLE` 한 곳에서 관리 (스타일 교체 시 이 상수만 수정).
+- `seed`도 없으면 `fallbackIcon`(기본 UserRound)으로 폴백.
 
 ### 정보 행 목록
 
