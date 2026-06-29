@@ -145,8 +145,7 @@ async function HomeContent() {
 
   return (
     <div className="flex flex-col gap-0">
-      {/* Social fixed 영역(하단 탭바 위) 높이만큼 하단 여백 확보 */}
-      <div className="flex flex-col gap-7 px-6 pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))]">
+      <div className="flex flex-col gap-7 px-6 pb-6">
         <Suspense>
           <MiniCalendar
             gigangRaces={calendarGigangRaces}
@@ -162,6 +161,9 @@ async function HomeContent() {
           />
         </Suspense>
       </div>
+      <div className="px-6 pb-6">
+        <SocialLinksGrid />
+      </div>
     </div>
   );
 }
@@ -170,8 +172,7 @@ async function HomeContent() {
 function HomeSkeleton() {
   return (
     <div className="flex flex-col gap-0">
-      {/* Social fixed 영역 높이만큼 하단 여백 확보 */}
-      <div className="flex flex-col gap-7 px-6 pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))]">
+      <div className="flex flex-col gap-7 px-6 pb-6">
         {/* MiniCalendar 영역 */}
         <div className="flex flex-col gap-3">
           <Skeleton className="h-3.5 w-20" />
@@ -218,10 +219,6 @@ export default function HomePage() {
       <Suspense fallback={<HomeSkeleton />}>
         <HomeContent />
       </Suspense>
-      {/* 탭바(h-14 + safe-area) 위에 fixed 배치 — Suspense 밖이므로 즉시 렌더 */}
-      <div className="fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] left-0 right-0 z-40 border-t border-border bg-background px-6 py-3">
-        <SocialLinksGrid />
-      </div>
     </div>
   );
 }
