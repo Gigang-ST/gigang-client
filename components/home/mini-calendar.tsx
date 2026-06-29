@@ -557,7 +557,15 @@ export function MiniCalendar({
       ...prev,
       [competitionId]: { id: data.comp_reg_id, competition_id: competitionId, member_id: data.mem_id, role: data.prt_role_cd as "participant" | "cheering" | "volunteer", event_type: eventType, created_at: data.crt_at },
     }));
-    handleSchPostSuccess();
+    // 낙관적 UI: gigangRaces → myRaces 즉시 이동 + regCount 증가
+    setGigangRaces((prev) => prev.map((r) => r.id === competitionId ? { ...r, regCount: (r.regCount ?? 0) + 1 } : r));
+    setMyRaces((prev) => {
+      if (prev.some((r) => r.id === competitionId)) return prev;
+      const source = gigangRaces.find((r) => r.id === competitionId);
+      if (!source) return prev;
+      return [...prev, { ...source, type: "mine" as const, regCount: (source.regCount ?? 0) + 1 }];
+    });
+    void refreshMonthData();
     return { ok: true as const, message: "참가 신청 완료" };
   };
 
@@ -590,7 +598,7 @@ export function MiniCalendar({
       ...prev,
       [competitionId]: { id: data.comp_reg_id, competition_id: competitionId, member_id: data.mem_id, role: data.prt_role_cd as "participant" | "cheering" | "volunteer", event_type: eventType, created_at: data.crt_at },
     }));
-    handleSchPostSuccess();
+    void refreshMonthData();
     return { ok: true as const, message: "업데이트 완료" };
   };
 
@@ -602,7 +610,10 @@ export function MiniCalendar({
       delete next[competitionId];
       return next;
     });
-    handleSchPostSuccess();
+    // 낙관적 UI: myRaces에서 제거 + gigangRaces regCount 감소
+    setMyRaces((prev) => prev.filter((r) => r.id !== competitionId));
+    setGigangRaces((prev) => prev.map((r) => r.id === competitionId ? { ...r, regCount: Math.max(0, (r.regCount ?? 1) - 1) } : r));
+    void refreshMonthData();
     return { ok: true as const, message: "취소 완료" };
   };
 
