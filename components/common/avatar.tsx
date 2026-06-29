@@ -31,7 +31,7 @@ type AvatarSize = keyof typeof SIZE_MAP;
 /**
  * 프사 미설정 멤버에게 보여줄 랜덤(고정) 아바타 스타일.
  * DiceBear 스타일 이름만 바꾸면 전체 폴백 아바타가 교체된다.
- * 후보: fun-emoji, bottts, thumbs, notionists, adventurer, lorelei 등
+ * 후보: dylan, fun-emoji, bottts, thumbs, notionists, adventurer, lorelei 등
  * @see https://www.dicebear.com/styles
  */
 const FALLBACK_AVATAR_STYLE = "dylan";
@@ -62,21 +62,35 @@ const Avatar = React.forwardRef<HTMLDivElement, AvatarProps>(
     { className, src, seed, alt, size = "md", fallbackIcon: Icon = UserRound, ...props },
     ref,
   ) => {
-    const [imgError, setImgError] = React.useState(false);
+    // 실제 프사 실패 → DiceBear 폴백 → 그것도 실패 → 아이콘. 단계별로 플래그를 분리한다.
+    const [srcError, setSrcError] = React.useState(false);
+    const [fallbackError, setFallbackError] = React.useState(false);
 
-    // src 우선, 없으면 seed 기반 랜덤(고정) 아바타로 폴백
-    const imageSrc =
-      src && src.length > 0
-        ? src
-        : seed != null && String(seed).length > 0
-          ? buildFallbackAvatarUrl(seed)
-          : null;
-    const showImage = imageSrc && !imgError;
+    // 판정·표시·비교에 모두 trim된 값을 써서 일관성을 유지한다.
+    const trimmedSrc = src?.trim() || null;
+    const fallbackUrl =
+      seed != null && String(seed).trim().length > 0 ? buildFallbackAvatarUrl(seed) : null;
 
-    // 이미지 소스가 변경되면 에러 상태 리셋
+    // 프사 우선 → 깨지면 DiceBear → 그것도 깨지면 아이콘(null)
+    const showingSrc = trimmedSrc != null && !srcError;
+    const imageSrc = showingSrc
+      ? trimmedSrc
+      : fallbackUrl && !fallbackError
+        ? fallbackUrl
+        : null;
+    const showImage = imageSrc != null;
+
+    // src/seed가 바뀌면 에러 상태 리셋 (다른 멤버로 재사용되는 경우)
     React.useEffect(() => {
-      setImgError(false);
-    }, [imageSrc]);
+      setSrcError(false);
+      setFallbackError(false);
+    }, [src, seed]);
+
+    const handleImageError = () => {
+      // 실제 프사를 표시 중이었으면 프사 실패로(→ DiceBear 폴백), 아니면 폴백 실패로(→ 아이콘) 처리
+      if (showingSrc) setSrcError(true);
+      else setFallbackError(true);
+    };
 
     return (
       <div
@@ -97,7 +111,7 @@ const Avatar = React.forwardRef<HTMLDivElement, AvatarProps>(
             className="size-full object-cover"
             referrerPolicy="no-referrer"
             unoptimized
-            onError={() => setImgError(true)}
+            onError={handleImageError}
           />
         ) : (
           <Icon className={cn("text-foreground/50", ICON_SIZE_MAP[size])} />
