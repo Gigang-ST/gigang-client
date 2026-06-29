@@ -3,7 +3,6 @@ claude-code = "latest"
 node = "22"
 supabase = "latest"
 vercel = "latest"
-"aqua:runkids/skillshare" = "latest"
 
 [env]
 _.file = [".env.development.local", ".env.development"]
