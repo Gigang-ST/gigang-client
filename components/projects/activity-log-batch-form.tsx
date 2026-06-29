@@ -274,7 +274,12 @@ export function ActivityLogBatchForm({ evtId, onSuccess }: ActivityLogBatchFormP
                     min="0.01"
                     placeholder="예: 10.55"
                     value={d.distance_km}
-                    onChange={(e) => updateDraft(d.id, { distance_km: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const dot = val.indexOf(".");
+                      if (dot !== -1 && val.length - dot > 3) return;
+                      updateDraft(d.id, { distance_km: val });
+                    }}
                     className="h-10 rounded-lg border text-sm"
                   />
                 </div>
