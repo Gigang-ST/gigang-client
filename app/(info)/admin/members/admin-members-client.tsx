@@ -701,7 +701,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
             <div className="flex flex-col gap-6 px-6">
               {/* 헤더 */}
               <div className="flex items-center gap-4">
-                <Avatar src={selectedMember.avatar_url} size="lg" />
+                <Avatar src={selectedMember.avatar_url} seed={selectedMember.id} size="lg" />
                 <div className="flex flex-1 flex-col gap-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-lg font-bold text-foreground">
