@@ -164,6 +164,11 @@ export function MiniCalendar({
   const [listViewKey, setListViewKey] = useState(0);
   const [isPending, startTransition] = useTransition();
 
+  // 월별 데이터 캐시 — 이미 조회한 달은 즉시 반영, 인접 달은 프리페치
+  type MonthData = { gigang: CalendarRace[]; mine: CalendarRace[]; schPosts: CalendarRace[]; gatherings: CalendarRace[] };
+  const monthCacheRef = useRef(new Map<string, MonthData>());
+  const cacheVersionRef = useRef(0);
+
   // 일정 폼 다이얼로그 상태
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
@@ -711,23 +716,56 @@ export function MiniCalendar({
   const fetchMonthDataRef = useRef(fetchMonthData);
   fetchMonthDataRef.current = fetchMonthData;
 
+  // 인접 달(prev/next) 프리페치 — 캐시에 없는 달만 백그라운드로 조회
+  const prefetchAdjacent = useCallback((monthFirst: string) => {
+    const version = cacheVersionRef.current;
+    const prev = dayjs(monthFirst).subtract(1, "month").format("YYYY-MM-01");
+    const next = dayjs(monthFirst).add(1, "month").format("YYYY-MM-01");
+    for (const m of [prev, next]) {
+      if (!monthCacheRef.current.has(m)) {
+        fetchMonthDataRef.current(m).then((data) => {
+          if (version === cacheVersionRef.current) {
+            monthCacheRef.current.set(m, data);
+          }
+        }).catch(() => { /* 프리페치 실패는 무시 */ });
+      }
+    }
+  }, []);
+
+  // 월 데이터를 적용하는 헬퍼
+  const applyMonthData = useCallback((data: MonthData) => {
+    setGigangRaces(data.gigang);
+    setMyRaces(data.mine);
+    setSchPosts(data.schPosts);
+    setGatherings(data.gatherings);
+  }, []);
+
   // 특정 월(YYYY-MM-01)로 이동하며 데이터를 교체. 흐린 다른 달 셀 클릭 시에도 재사용한다.
-  // 화면(viewMonth)은 즉시 전환하고, 데이터 조회만 백그라운드(startTransition)로 돌린다.
-  // 흐린 셀의 일정은 이미 현재 범위에 조회돼 있어 전환 직후에도 그대로 보이고 클릭까지 가능하므로,
-  // "그 달로 먼저 가고, 새 범위(중순 등)는 로딩되면 채운다"가 자연스럽다. 조회 중엔 isPending 흐림 유지.
   const goToMonth = useCallback((monthFirst: string) => {
     if (openingLock.current) return;
     if (monthFirst === viewMonthRef.current) return;
-    setViewMonth(monthFirst); // 즉시 전환 — 기존 데이터로 먼저 그린다(겹치는 월초·월말은 이미 있음)
+    setViewMonth(monthFirst);
+
+    // 캐시 히트 — 즉시 반영 (isPending 없이 전환)
+    const cached = monthCacheRef.current.get(monthFirst);
+    if (cached) {
+      applyMonthData(cached);
+      prefetchAdjacent(monthFirst);
+      return;
+    }
+
+    // 캐시 미스 — 조회 중 isPending으로 흐림 처리
     startTransition(async () => {
-      const { gigang, mine, schPosts: newSch, gatherings: newGthr } = await fetchMonthDataRef.current(monthFirst);
-      // 연속 전환 시 늦게 온 이전 월 응답이 현재 화면을 덮지 않도록, 여전히 그 달을 보고 있을 때만 반영
+      const version = cacheVersionRef.current;
+      const data = await fetchMonthDataRef.current(monthFirst);
+      if (version !== cacheVersionRef.current) return;
+      monthCacheRef.current.set(monthFirst, data);
       if (viewMonthRef.current !== monthFirst) return;
-      setGigangRaces(gigang);
-      setMyRaces(mine);
-      setSchPosts(newSch);
-      setGatherings(newGthr);
+      applyMonthData(data);
+      prefetchAdjacent(monthFirst);
     });
+  // applyMonthData·prefetchAdjacent는 deps [] 로 안정화됨
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const navigate = useCallback((dir: -1 | 1) => {
@@ -831,6 +869,12 @@ export function MiniCalendar({
   // initialMonth·supabase·teamId는 마운트 후 변경되지 않으며, memberId 변경 시에만 재실행
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memberId]);
+
+  // 마운트 시 인접 달 프리페치 시작
+  useEffect(() => {
+    prefetchAdjacent(initialMonth);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const swipeTouchStartX = useRef<number | null>(null);
   const swipeDidNavigate = useRef(false);
@@ -936,12 +980,18 @@ export function MiniCalendar({
   }, []);
 
   async function refreshMonthData() {
-    const data = await fetchMonthData(viewMonth);
-    setGigangRaces(data.gigang);
-    setMyRaces(data.mine);
-    setSchPosts(data.schPosts);
-    setGatherings(data.gatherings);
-    setListViewKey((k) => k + 1);
+    const monthFirst = viewMonthRef.current;
+    cacheVersionRef.current += 1;
+    const version = cacheVersionRef.current;
+    monthCacheRef.current.clear();
+    const data = await fetchMonthDataRef.current(monthFirst);
+    if (version !== cacheVersionRef.current) return data;
+    monthCacheRef.current.set(monthFirst, data);
+    if (viewMonthRef.current === monthFirst) {
+      applyMonthData(data);
+      setListViewKey((k) => k + 1);
+      prefetchAdjacent(monthFirst);
+    }
     return data;
   }
 
