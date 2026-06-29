@@ -161,9 +161,6 @@ async function HomeContent() {
           />
         </Suspense>
       </div>
-      <div className="px-6 pb-6">
-        <SocialLinksGrid />
-      </div>
     </div>
   );
 }
@@ -219,6 +216,9 @@ export default function HomePage() {
       <Suspense fallback={<HomeSkeleton />}>
         <HomeContent />
       </Suspense>
+      <div className="px-6 pb-6">
+        <SocialLinksGrid />
+      </div>
     </div>
   );
 }

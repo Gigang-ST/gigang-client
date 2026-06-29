@@ -167,6 +167,7 @@ export function MiniCalendar({
   // 월별 데이터 캐시 — 이미 조회한 달은 즉시 반영, 인접 달은 프리페치
   type MonthData = { gigang: CalendarRace[]; mine: CalendarRace[]; schPosts: CalendarRace[]; gatherings: CalendarRace[] };
   const monthCacheRef = useRef(new Map<string, MonthData>());
+  const cacheVersionRef = useRef(0);
 
   // 일정 폼 다이얼로그 상태
   const [formOpen, setFormOpen] = useState(false);
@@ -706,12 +707,15 @@ export function MiniCalendar({
 
   // 인접 달(prev/next) 프리페치 — 캐시에 없는 달만 백그라운드로 조회
   const prefetchAdjacent = useCallback((monthFirst: string) => {
+    const version = cacheVersionRef.current;
     const prev = dayjs(monthFirst).subtract(1, "month").format("YYYY-MM-01");
     const next = dayjs(monthFirst).add(1, "month").format("YYYY-MM-01");
     for (const m of [prev, next]) {
       if (!monthCacheRef.current.has(m)) {
         fetchMonthDataRef.current(m).then((data) => {
-          monthCacheRef.current.set(m, data);
+          if (version === cacheVersionRef.current) {
+            monthCacheRef.current.set(m, data);
+          }
         }).catch(() => { /* 프리페치 실패는 무시 */ });
       }
     }
@@ -741,9 +745,11 @@ export function MiniCalendar({
 
     // 캐시 미스 — 조회 중 isPending으로 흐림 처리
     startTransition(async () => {
+      const version = cacheVersionRef.current;
       const data = await fetchMonthDataRef.current(monthFirst);
-      if (viewMonthRef.current !== monthFirst) return;
+      if (version !== cacheVersionRef.current) return;
       monthCacheRef.current.set(monthFirst, data);
+      if (viewMonthRef.current !== monthFirst) return;
       applyMonthData(data);
       prefetchAdjacent(monthFirst);
     });
@@ -963,15 +969,18 @@ export function MiniCalendar({
   }, []);
 
   async function refreshMonthData() {
+    const monthFirst = viewMonthRef.current;
+    cacheVersionRef.current += 1;
+    const version = cacheVersionRef.current;
     monthCacheRef.current.clear();
-    const data = await fetchMonthData(viewMonth);
-    monthCacheRef.current.set(viewMonth, data);
-    setGigangRaces(data.gigang);
-    setMyRaces(data.mine);
-    setSchPosts(data.schPosts);
-    setGatherings(data.gatherings);
-    setListViewKey((k) => k + 1);
-    prefetchAdjacent(viewMonth);
+    const data = await fetchMonthDataRef.current(monthFirst);
+    if (version !== cacheVersionRef.current) return data;
+    monthCacheRef.current.set(monthFirst, data);
+    if (viewMonthRef.current === monthFirst) {
+      applyMonthData(data);
+      setListViewKey((k) => k + 1);
+      prefetchAdjacent(monthFirst);
+    }
     return data;
   }
 
