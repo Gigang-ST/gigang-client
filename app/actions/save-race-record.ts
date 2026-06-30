@@ -3,6 +3,7 @@
 import { revalidateTag } from "next/cache";
 
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
+import { serializeHyroxSplits } from "@/lib/hyrox";
 import { withActive } from "@/lib/actions/auth";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import {
@@ -22,6 +23,8 @@ type SaveRaceRecordInput = {
   swimSeconds: number | null;
   bikeSeconds: number | null;
   runSeconds: number | null;
+  /** 하이록스 스테이션별 시간 {코드: 초|null}. 비-하이록스는 null */
+  stationSplits?: Record<string, number | null> | null;
 };
 
 const MARATHON_EVENTS = new Set(["FULL", "HALF", "10K"]);
@@ -112,11 +115,15 @@ export async function saveRaceRecord(input: SaveRaceRecordInput) {
     );
     if (!resolved.ok) return { ok: false as const, message: resolved.message };
 
+    const stationSplits = input.stationSplits
+      ? serializeHyroxSplits(input.stationSplits)
+      : null;
+
     const { error: insertError } = await supabase.from("rec_race_hist").insert({
       mem_id: member.id, comp_id: input.competitionId, comp_evt_id: resolved.compEvtId,
       rec_time_sec: input.totalSeconds, race_nm: input.competitionTitle, race_dt: input.competitionDate,
       swim_time_sec: input.swimSeconds, bike_time_sec: input.bikeSeconds, run_time_sec: input.runSeconds,
-      rec_src_cd: "manual", vers: 0, del_yn: false,
+      splits_json: stationSplits, rec_src_cd: "manual", vers: 0, del_yn: false,
     });
 
     if (insertError) {

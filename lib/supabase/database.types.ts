@@ -1769,6 +1769,7 @@ export type Database = {
           rec_src_cd: string | null
           rec_time_sec: number
           run_time_sec: number | null
+          splits_json: Json | null
           swim_time_sec: number | null
           upd_at: string
           vers: number
@@ -1786,6 +1787,7 @@ export type Database = {
           rec_src_cd?: string | null
           rec_time_sec: number
           run_time_sec?: number | null
+          splits_json?: Json | null
           swim_time_sec?: number | null
           upd_at?: string
           vers?: number
@@ -1803,6 +1805,7 @@ export type Database = {
           rec_src_cd?: string | null
           rec_time_sec?: number
           run_time_sec?: number | null
+          splits_json?: Json | null
           swim_time_sec?: number | null
           upd_at?: string
           vers?: number

@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { unstable_cache } from "next/cache";
 
 import { secondsToTime } from "@/lib/dayjs";
+import { HYROX_SPRT_CD, HYROX_STATIONS, parseHyroxSplits } from "@/lib/hyrox";
 import { getMyTitleNames } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -41,8 +42,8 @@ function getCachedRecordsData(teamId: string) {
     async () => {
       const supabase = createAdminClient();
 
-      // 마라톤 + 철인3종 기록, UTMB 프로필, 대표 칭호 동시 조회
-      const [{ data: raceData }, { data: utmbData }, { data: titleData }] = await Promise.all([
+      // 마라톤 + 철인3종 기록, UTMB 프로필, 대표 칭호, 하이록스 기록 동시 조회
+      const [{ data: raceData }, { data: utmbData }, { data: titleData }, { data: hyroxData }] = await Promise.all([
         supabase.rpc("get_public_team_race_rankings", { p_team_id: teamId }),
         supabase.rpc("get_public_team_utmb_rankings", { p_team_id: teamId }),
         supabase
@@ -52,7 +53,17 @@ function getCachedRecordsData(teamId: string) {
           .eq("is_prmy_yn", true)
           .eq("vers", 0)
           .eq("del_yn", false),
+        // 하이록스: 멤버 기록 + 스테이션 split (팀 필터는 아래에서 raceData mem_id 집합과 교차)
+        supabase
+          .from("rec_race_hist")
+          .select("mem_id, rec_time_sec, race_nm, splits_json, mem_mst!inner(mem_nm), comp_mst!inner(comp_sprt_cd)")
+          .eq("vers", 0)
+          .eq("del_yn", false)
+          .eq("comp_mst.comp_sprt_cd", HYROX_SPRT_CD),
       ]);
+
+      // 팀 active 멤버 집합 (RPC 결과는 team_mem_rel active 조인으로 이미 팀 범위)
+      const teamMemberIds = new Set((raceData ?? []).map((r) => r.mem_id));
 
       // mem_id → { ttl_nm, badge_effect, frame_cd } 맵
       const memberTitleMap = new Map<string, { ttl_nm: string; ttl_desc: string | null; desc_visibility: "always" | "others" | "held" | "never"; badge_effect: string; frame_cd: string }>();
@@ -215,6 +226,42 @@ function getCachedRecordsData(teamId: string) {
         };
       });
 
+      // --- 하이록스 --- (멤버별 총시간 best 1건, 팀 멤버 한정)
+      const hyroxBestByMember = new Map<
+        string,
+        { memId: string; name: string; recordSec: number; raceName: string; splits: import("@/lib/hyrox").HyroxSplits }
+      >();
+      for (const r of hyroxData ?? []) {
+        if (!teamMemberIds.has(r.mem_id)) continue;
+        const mem = Array.isArray(r.mem_mst) ? r.mem_mst[0] : r.mem_mst;
+        const existing = hyroxBestByMember.get(r.mem_id);
+        if (!existing || r.rec_time_sec < existing.recordSec) {
+          hyroxBestByMember.set(r.mem_id, {
+            memId: r.mem_id,
+            name: mem?.mem_nm ?? "",
+            recordSec: r.rec_time_sec,
+            raceName: r.race_nm ?? "",
+            splits: parseHyroxSplits(r.splits_json),
+          });
+        }
+      }
+      const hyroxEntries = Array.from(hyroxBestByMember.values())
+        .sort((a, b) => a.recordSec - b.recordSec)
+        .map((r, i) => ({
+          rank: i + 1,
+          memId: r.memId,
+          name: r.name,
+          record: secondsToTime(r.recordSec),
+          raceName: r.raceName,
+          // 스테이션은 공식 순서로, 빈 칸은 null
+          splits: HYROX_STATIONS.map((s) => ({
+            code: s.code,
+            label: s.label,
+            spec: s.spec,
+            record: r.splits[s.code] != null ? secondsToTime(r.splits[s.code]!) : null,
+          })),
+        }));
+
       // mem_id → 칭호 맵 직렬화 (unstable_cache는 plain object만 반환 가능)
       const memberTitles: Record<string, { ttl_nm: string; ttl_desc: string | null; desc_visibility: "always" | "others" | "held" | "never"; badge_effect: string; frame_cd: string }> =
         Object.fromEntries(memberTitleMap.entries());
@@ -222,6 +269,7 @@ function getCachedRecordsData(teamId: string) {
       return {
         marathon: { events: marathonEvents },
         trail: { entries: trailEntries },
+        hyrox: { entries: hyroxEntries },
         triathlon: { events: triathlonEvents },
         memberTitles,
       };
