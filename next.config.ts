@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import { execSync } from "child_process";
 import bundleAnalyzer from "@next/bundle-analyzer";
+import { withSentryConfig } from "@sentry/nextjs";
 
 function getGitVersion(): string {
   try {
@@ -27,4 +28,10 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withBundleAnalyzer(nextConfig);
+export default withSentryConfig(withBundleAnalyzer(nextConfig), {
+  org: "gigang-sport-team",
+  project: "javascript-nextjs",
+
+  // CI에서만 소스맵 업로드 로그 출력
+  silent: !process.env.CI,
+});

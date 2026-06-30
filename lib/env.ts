@@ -26,6 +26,7 @@ export const env = createEnv({
       .optional(),
     // 웹 푸시(VAPID) 공개키 — 클라이언트에서 구독 발급 시 사용
     NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().min(1).optional(),
+    NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
   },
   runtimeEnv: {
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -40,6 +41,7 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     NEXT_PUBLIC_ENABLE_DEV_MODE: process.env.NEXT_PUBLIC_ENABLE_DEV_MODE,
     NEXT_PUBLIC_VAPID_PUBLIC_KEY: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+    NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
   },
   /** CI 환경(GitHub Actions 등)이거나 SKIP_ENV_VALIDATION=true면 검증 스킵 */
   skipValidation:

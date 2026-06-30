@@ -34,6 +34,7 @@
     "@radix-ui/react-select": "^2.1.7",
     "@radix-ui/react-separator": "^1.1.1",
     "@radix-ui/react-slot": "^1.2.2",
+    "@sentry/nextjs": "^10.62.0",
     "@supabase/ssr": "latest",
     "@supabase/supabase-js": "latest",
     "@t3-oss/env-nextjs": "^0.13.11",
