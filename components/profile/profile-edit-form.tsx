@@ -1,12 +1,20 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { createClient } from "@/lib/supabase/client";
-import { profileEditSchema, type ProfileEditValues } from "@/lib/validations/member";
-import { uploadAvatar } from "@/app/actions/upload-avatar";
+import { toast } from "sonner";
+import { Camera } from "lucide-react";
+import {
+  profileEditSchema,
+  type ProfileEditValues,
+} from "@/lib/validations/member";
+import { updateProfile } from "@/app/actions/update-profile";
+import { compressAvatarFile } from "@/lib/image/avatar-compress";
+import { Avatar } from "@/components/common/avatar";
+import { Caption } from "@/components/common/typography";
+import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -15,7 +23,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Camera, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type MemberData = {
@@ -28,14 +35,17 @@ type MemberData = {
   avatar_url: string | null;
 };
 
+type AvatarState =
+  | { kind: "current" }
+  | { kind: "new"; file: File; previewUrl: string }
+  | { kind: "removed" };
+
 export function ProfileEditForm({ member }: { member: MemberData }) {
   const router = useRouter();
-  const [uploading, setUploading] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState(member.avatar_url ?? "");
-  const [message, setMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
+  const [avatarState, setAvatarState] = useState<AvatarState>({
+    kind: "current",
+  });
+  const [compressing, setCompressing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -43,7 +53,7 @@ export function ProfileEditForm({ member }: { member: MemberData }) {
     setValue,
     watch,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<ProfileEditValues>({
     defaultValues: {
       full_name: member.full_name ?? "",
@@ -54,125 +64,143 @@ export function ProfileEditForm({ member }: { member: MemberData }) {
     resolver: zodResolver(profileEditSchema),
   });
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 언마운트/상태 교체 시 미리보기 objectURL 정리
+  useEffect(() => {
+    return () => {
+      if (avatarState.kind === "new") URL.revokeObjectURL(avatarState.previewUrl);
+    };
+  }, [avatarState]);
+
+  const handlePickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = ""; // 같은 파일 재선택 허용
     if (!file) return;
 
     if (file.size > 10 * 1024 * 1024) {
-      setMessage({ type: "error", text: "이미지는 10MB 이하만 가능합니다." });
+      toast.error("이미지는 10MB 이하만 가능합니다.");
       return;
     }
 
-    setUploading(true);
-    setMessage(null);
+    setCompressing(true);
+    try {
+      const processed = await compressAvatarFile(file);
+      const previewUrl = URL.createObjectURL(processed);
+      setAvatarState((prev) => {
+        if (prev.kind === "new") URL.revokeObjectURL(prev.previewUrl);
+        return { kind: "new", file: processed, previewUrl };
+      });
+    } catch {
+      toast.error("이미지를 불러오지 못했습니다. 다른 사진으로 시도해 주세요.");
+    } finally {
+      setCompressing(false);
+    }
+  };
 
+  const handleRemovePhoto = () => {
+    setAvatarState((prev) => {
+      if (prev.kind === "new") URL.revokeObjectURL(prev.previewUrl);
+      return { kind: "removed" };
+    });
+  };
+
+  const previewSrc =
+    avatarState.kind === "new"
+      ? avatarState.previewUrl
+      : avatarState.kind === "removed"
+        ? null
+        : member.avatar_url;
+
+  // 지울 사진이 있는지: 새 사진 선택했거나, 기존 사진이 그대로 있을 때
+  const hasRemovablePhoto =
+    avatarState.kind === "new" ||
+    (avatarState.kind === "current" && !!member.avatar_url);
+
+  async function onSubmit(data: ProfileEditValues) {
     const formData = new FormData();
-    formData.append("file", file);
-    formData.append("memberId", member.id);
+    formData.append("full_name", data.full_name);
+    formData.append("gender", data.gender ?? "");
+    formData.append("birthday", data.birthday ?? "");
+    formData.append("email", data.email ?? "");
+    if (avatarState.kind === "new") formData.append("file", avatarState.file);
+    if (avatarState.kind === "removed") formData.append("removeAvatar", "true");
 
     try {
       const result = await Promise.race([
-        uploadAvatar(formData),
+        updateProfile(formData),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("timeout")), 15_000),
+          setTimeout(() => reject(new Error("timeout")), 20_000),
         ),
       ]);
-
-      if ("error" in result && result.error) {
-        setMessage({ type: "error", text: result.error });
-      } else if ("url" in result && result.url) {
-        setAvatarUrl(result.url);
-        setMessage({ type: "success", text: "프로필 사진이 변경되었습니다." });
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
       }
+      toast.success("저장했어요");
+      router.back();
     } catch {
-      setMessage({
-        type: "error",
-        text: "업로드 시간이 초과되었습니다. 다른 형식(JPG, PNG)이나 다른 사진으로 다시 시도해 주세요.",
-      });
+      toast.error("저장 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.");
     }
-    setUploading(false);
-  };
-
-  async function onSubmit(data: ProfileEditValues) {
-    setMessage(null);
-
-    const supabase = createClient();
-    const emailTrim = data.email.trim();
-    const emailNorm = emailTrim ? emailTrim.toLowerCase() : null;
-
-    const { error: eMst } = await supabase
-      .from("mem_mst")
-      .update({
-        mem_nm: data.full_name.trim(),
-        ...(data.gender && { gdr_enm: data.gender }),
-        birth_dt: data.birthday || null,
-        email_addr: emailNorm,
-      })
-      .eq("mem_id", member.id)
-      .eq("vers", 0)
-      .eq("del_yn", false);
-
-    if (eMst) {
-      setMessage({ type: "error", text: "저장에 실패했습니다." });
-      return;
-    }
-
-    setMessage({ type: "success", text: "저장 완료" });
-    router.refresh();
   }
 
+  const saveDisabled =
+    isSubmitting || compressing || (!isDirty && avatarState.kind === "current");
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6 px-6 pb-6 pt-4">
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className="flex flex-col gap-6 px-6 pb-6 pt-4"
+    >
       {/* 프로필 사진 */}
       <div className="flex flex-col items-center gap-2">
-        <Button
+        <button
           type="button"
-          variant="ghost"
           onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="group relative size-24 overflow-hidden rounded-full p-0"
+          disabled={compressing}
+          className="relative size-24 overflow-hidden rounded-full"
         >
-          {avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt="프로필"
-              className="size-full object-cover"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <div className="flex size-full items-center justify-center bg-muted">
-              <UserRound className="size-10 text-foreground/50" />
-            </div>
-          )}
-          <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/10 transition-opacity group-hover:bg-black/30">
+          <Avatar src={previewSrc} seed={member.id} size="2xl" alt="프로필" />
+          <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/10 transition-colors hover:bg-black/30">
             <Camera className="size-6 text-white" />
-          </div>
-        </Button>
+          </span>
+        </button>
         <input
           ref={fileInputRef}
           type="file"
           accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-          onChange={handleAvatarUpload}
+          onChange={handlePickFile}
           className="hidden"
         />
-        <span className="text-xs text-muted-foreground">
-          {uploading ? "업로드 중..." : "사진을 탭하여 변경"}
-        </span>
+        <div className="flex items-center gap-3">
+          <Caption>{compressing ? "사진 준비 중..." : "사진을 탭하여 변경"}</Caption>
+          {hasRemovablePhoto && !compressing && (
+            <button
+              type="button"
+              onClick={handleRemovePhoto}
+              className="text-xs text-destructive underline-offset-2 hover:underline"
+            >
+              기본 이미지로
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 이름 + 성별 */}
       <div className="flex gap-3">
         <div className="flex flex-1 flex-col gap-2">
-          <label className="text-sm font-medium text-foreground">이름</label>
+          <Label>이름</Label>
           <Input
             {...register("full_name")}
             placeholder="홍길동"
             className="h-12 rounded-xl border-[1.5px] text-[15px]"
           />
-          {errors.full_name && <p className="text-xs text-destructive">{errors.full_name.message}</p>}
+          {errors.full_name && (
+            <Caption className="text-destructive">
+              {errors.full_name.message}
+            </Caption>
+          )}
         </div>
         <div className="flex w-[120px] shrink-0 flex-col gap-2">
-          <label className="text-sm font-medium text-foreground">성별</label>
+          <Label>성별</Label>
           <Select
             value={watch("gender")}
             onValueChange={(v) => setValue("gender", v as "male" | "female")}
@@ -190,7 +218,7 @@ export function ProfileEditForm({ member }: { member: MemberData }) {
 
       {/* 생년월일 */}
       <div className="flex flex-col gap-2">
-        <label className="text-sm font-medium text-foreground">생년월일</label>
+        <Label>생년월일</Label>
         <Input
           type="date"
           min="1986-01-01"
@@ -202,51 +230,37 @@ export function ProfileEditForm({ member }: { member: MemberData }) {
 
       {/* 연락처 (read-only) */}
       <div className="flex flex-col gap-2">
-        <label className="text-sm font-medium text-foreground">연락처</label>
+        <Label>연락처</Label>
         <Input
           value={member.phone}
           disabled
           className="h-12 rounded-xl border-[1.5px] bg-secondary text-[15px] text-muted-foreground"
         />
-        <span className="text-xs text-muted-foreground">
-          연락처는 변경할 수 없습니다.
-        </span>
+        <Caption>연락처는 변경할 수 없습니다.</Caption>
       </div>
 
       {/* 이메일 */}
       <div className="flex flex-col gap-2">
-        <label className="text-sm font-medium text-foreground">
-          이메일 (선택)
-        </label>
+        <Label>이메일 (선택)</Label>
         <Input
           type="email"
           {...register("email")}
           placeholder="example@email.com"
           className="h-12 rounded-xl border-[1.5px] text-[15px]"
         />
-        {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+        {errors.email && (
+          <Caption className="text-destructive">{errors.email.message}</Caption>
+        )}
       </div>
 
       {/* 저장 버튼 */}
       <Button
         type="submit"
-        disabled={isSubmitting}
+        disabled={saveDisabled}
         className="h-[52px] w-full rounded-xl text-base font-semibold"
       >
         {isSubmitting ? "저장 중..." : "저장"}
       </Button>
-
-      {message && (
-        <p
-          className={
-            message.type === "error"
-              ? "text-sm text-destructive"
-              : "text-sm text-primary"
-          }
-        >
-          {message.text}
-        </p>
-      )}
     </form>
   );
 }

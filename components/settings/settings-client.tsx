@@ -179,7 +179,7 @@ export function SettingsClient({ isAdmin }: { isAdmin: boolean }) {
               버전 정보
             </span>
           </div>
-          <span className="text-sm text-muted-foreground">v1.0.0</span>
+          <span className="text-sm text-muted-foreground">v1.2.1</span>
         </div>
       </div>
 

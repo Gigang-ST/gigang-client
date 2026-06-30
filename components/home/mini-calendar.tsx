@@ -164,6 +164,11 @@ export function MiniCalendar({
   const [listViewKey, setListViewKey] = useState(0);
   const [isPending, startTransition] = useTransition();
 
+  // 월별 데이터 캐시 — 이미 조회한 달은 즉시 반영, 인접 달은 프리페치
+  type MonthData = { gigang: CalendarRace[]; mine: CalendarRace[]; schPosts: CalendarRace[]; gatherings: CalendarRace[] };
+  const monthCacheRef = useRef(new Map<string, MonthData>());
+  const cacheVersionRef = useRef(0);
+
   // 일정 폼 다이얼로그 상태
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
@@ -557,7 +562,15 @@ export function MiniCalendar({
       ...prev,
       [competitionId]: { id: data.comp_reg_id, competition_id: competitionId, member_id: data.mem_id, role: data.prt_role_cd as "participant" | "cheering" | "volunteer", event_type: eventType, created_at: data.crt_at },
     }));
-    handleSchPostSuccess();
+    // 낙관적 UI: gigangRaces → myRaces 즉시 이동 + regCount 증가
+    setGigangRaces((prev) => prev.map((r) => r.id === competitionId ? { ...r, regCount: (r.regCount ?? 0) + 1 } : r));
+    setMyRaces((prev) => {
+      if (prev.some((r) => r.id === competitionId)) return prev;
+      const source = gigangRaces.find((r) => r.id === competitionId);
+      if (!source) return prev;
+      return [...prev, { ...source, type: "mine" as const, regCount: (source.regCount ?? 0) + 1 }];
+    });
+    void refreshMonthData();
     return { ok: true as const, message: "참가 신청 완료" };
   };
 
@@ -590,7 +603,7 @@ export function MiniCalendar({
       ...prev,
       [competitionId]: { id: data.comp_reg_id, competition_id: competitionId, member_id: data.mem_id, role: data.prt_role_cd as "participant" | "cheering" | "volunteer", event_type: eventType, created_at: data.crt_at },
     }));
-    handleSchPostSuccess();
+    void refreshMonthData();
     return { ok: true as const, message: "업데이트 완료" };
   };
 
@@ -602,7 +615,10 @@ export function MiniCalendar({
       delete next[competitionId];
       return next;
     });
-    handleSchPostSuccess();
+    // 낙관적 UI: myRaces에서 제거 + gigangRaces regCount 감소
+    setMyRaces((prev) => prev.filter((r) => r.id !== competitionId));
+    setGigangRaces((prev) => prev.map((r) => r.id === competitionId ? { ...r, regCount: Math.max(0, (r.regCount ?? 1) - 1) } : r));
+    void refreshMonthData();
     return { ok: true as const, message: "취소 완료" };
   };
 
@@ -700,23 +716,56 @@ export function MiniCalendar({
   const fetchMonthDataRef = useRef(fetchMonthData);
   fetchMonthDataRef.current = fetchMonthData;
 
+  // 인접 달(prev/next) 프리페치 — 캐시에 없는 달만 백그라운드로 조회
+  const prefetchAdjacent = useCallback((monthFirst: string) => {
+    const version = cacheVersionRef.current;
+    const prev = dayjs(monthFirst).subtract(1, "month").format("YYYY-MM-01");
+    const next = dayjs(monthFirst).add(1, "month").format("YYYY-MM-01");
+    for (const m of [prev, next]) {
+      if (!monthCacheRef.current.has(m)) {
+        fetchMonthDataRef.current(m).then((data) => {
+          if (version === cacheVersionRef.current) {
+            monthCacheRef.current.set(m, data);
+          }
+        }).catch(() => { /* 프리페치 실패는 무시 */ });
+      }
+    }
+  }, []);
+
+  // 월 데이터를 적용하는 헬퍼
+  const applyMonthData = useCallback((data: MonthData) => {
+    setGigangRaces(data.gigang);
+    setMyRaces(data.mine);
+    setSchPosts(data.schPosts);
+    setGatherings(data.gatherings);
+  }, []);
+
   // 특정 월(YYYY-MM-01)로 이동하며 데이터를 교체. 흐린 다른 달 셀 클릭 시에도 재사용한다.
-  // 화면(viewMonth)은 즉시 전환하고, 데이터 조회만 백그라운드(startTransition)로 돌린다.
-  // 흐린 셀의 일정은 이미 현재 범위에 조회돼 있어 전환 직후에도 그대로 보이고 클릭까지 가능하므로,
-  // "그 달로 먼저 가고, 새 범위(중순 등)는 로딩되면 채운다"가 자연스럽다. 조회 중엔 isPending 흐림 유지.
   const goToMonth = useCallback((monthFirst: string) => {
     if (openingLock.current) return;
     if (monthFirst === viewMonthRef.current) return;
-    setViewMonth(monthFirst); // 즉시 전환 — 기존 데이터로 먼저 그린다(겹치는 월초·월말은 이미 있음)
+    setViewMonth(monthFirst);
+
+    // 캐시 히트 — 즉시 반영 (isPending 없이 전환)
+    const cached = monthCacheRef.current.get(monthFirst);
+    if (cached) {
+      applyMonthData(cached);
+      prefetchAdjacent(monthFirst);
+      return;
+    }
+
+    // 캐시 미스 — 조회 중 isPending으로 흐림 처리
     startTransition(async () => {
-      const { gigang, mine, schPosts: newSch, gatherings: newGthr } = await fetchMonthDataRef.current(monthFirst);
-      // 연속 전환 시 늦게 온 이전 월 응답이 현재 화면을 덮지 않도록, 여전히 그 달을 보고 있을 때만 반영
+      const version = cacheVersionRef.current;
+      const data = await fetchMonthDataRef.current(monthFirst);
+      if (version !== cacheVersionRef.current) return;
+      monthCacheRef.current.set(monthFirst, data);
       if (viewMonthRef.current !== monthFirst) return;
-      setGigangRaces(gigang);
-      setMyRaces(mine);
-      setSchPosts(newSch);
-      setGatherings(newGthr);
+      applyMonthData(data);
+      prefetchAdjacent(monthFirst);
     });
+  // applyMonthData·prefetchAdjacent는 deps [] 로 안정화됨
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const navigate = useCallback((dir: -1 | 1) => {
@@ -725,8 +774,107 @@ export function MiniCalendar({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // SSR(page.tsx)이 처음부터 gridDateRange 범위로 조회해 내려주므로 마운트 시 보강 재조회는 불필요하다.
-  // (달 이동·갱신 시의 fetchMonthData도 같은 gridDateRange를 써서 앞뒤 달 일정을 함께 받아온다)
+  // SSR(page.tsx)이 처음부터 gridDateRange 범위로 공개 데이터를 조회해 내려주므로 공개 데이터 보강 재조회는 불필요하다.
+  // 다만 유저별 데이터(내 대회 등록, 모임 참석 여부)는 캐시에 포함되지 않으므로 마운트 시 클라이언트에서 fetch한다.
+  // (달 이동 시에는 fetchMonthData가 유저별 데이터를 함께 조회하므로 이 useEffect는 초기 마운트 1회만 필요.)
+  useEffect(() => {
+    if (!memberId) return;
+    const memId = memberId; // TypeScript narrowing — async 함수 내에서 non-optional 사용
+
+    async function fetchUserData() {
+      const [yStr, mStr] = initialMonth.split("-");
+      const y = parseInt(yStr, 10);
+      const m = parseInt(mStr, 10);
+      const { start: gridStart, end: gridEnd, fetchStart } = gridDateRange(y, m);
+
+      const [{ data: myRegs }, { data: gthrWithAttd }] = await Promise.all([
+        // 내 대회 등록 — 등록 상세 필드 포함 (CompetitionDetailDialog에서 수정/취소에 필요)
+        supabase
+          .from("comp_reg_rel")
+          .select(
+            "comp_reg_id, mem_id, prt_role_cd, crt_at, team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(comp_evt_type))), comp_evt_cfg(comp_evt_type)",
+          )
+          .eq("mem_id", memId)
+          .eq("team_comp_plan_rel.team_id", teamId)
+          .eq("vers", 0)
+          .eq("del_yn", false),
+        // 모임 참석 여부
+        supabase.rpc("get_public_team_gatherings", {
+          p_team_id: teamId,
+          p_start: fetchStart,
+          p_end: gridEnd,
+          p_mem_id: memId,
+        }),
+      ]);
+
+      // 월 이동이 발생했으면 늦게 온 응답을 버린다
+      if (viewMonthRef.current !== initialMonth) return;
+
+      // myRaces + registrationsByCompetitionId 구성
+      if (myRegs) {
+        const races = myRegs.flatMap((r) => {
+          const plan = Array.isArray(r.team_comp_plan_rel)
+            ? r.team_comp_plan_rel[0]
+            : r.team_comp_plan_rel;
+          const comp = Array.isArray(plan?.comp_mst) ? plan.comp_mst[0] : plan?.comp_mst;
+          if (!comp) return [];
+          const race: CalendarRace = {
+            id: comp.comp_id,
+            title: comp.comp_nm,
+            start_date: comp.stt_dt,
+            type: "mine",
+            location: comp.loc_nm ?? null,
+          };
+          return race.start_date >= gridStart && race.start_date <= gridEnd ? [race] : [];
+        });
+        setMyRaces(races);
+
+        // 등록 맵 구성 — 대회 클릭 시 수정/취소 흐름에 필요
+        const regs: Record<string, CompetitionRegistration> = {};
+        myRegs.forEach((r) => {
+          const plan = Array.isArray(r.team_comp_plan_rel)
+            ? r.team_comp_plan_rel[0]
+            : r.team_comp_plan_rel;
+          regs[plan.comp_id] = {
+            id: r.comp_reg_id,
+            competition_id: plan.comp_id,
+            member_id: r.mem_id,
+            role: r.prt_role_cd as CompetitionRegistration["role"],
+            event_type:
+              (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)
+                ?.comp_evt_type?.toUpperCase() ?? null,
+            created_at: r.crt_at,
+          } as CompetitionRegistration;
+        });
+        setRegistrationsByCompetitionId(regs);
+      }
+
+      // gathering is_attending overlay — 서버에서 "gathering"으로만 내려온 데이터에 참석 여부를 overlay
+      if (gthrWithAttd) {
+        setGatherings((prev) =>
+          prev.map((g) => {
+            const match = gthrWithAttd.find(
+              (row: { gthr_id: string; is_attending?: boolean }) => row.gthr_id === g.id,
+            );
+            if (match && match.is_attending) {
+              return { ...g, type: "gathering_mine" as const };
+            }
+            return g;
+          }),
+        );
+      }
+    }
+
+    fetchUserData();
+  // initialMonth·supabase·teamId는 마운트 후 변경되지 않으며, memberId 변경 시에만 재실행
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memberId]);
+
+  // 마운트 시 인접 달 프리페치 시작
+  useEffect(() => {
+    prefetchAdjacent(initialMonth);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const swipeTouchStartX = useRef<number | null>(null);
   const swipeDidNavigate = useRef(false);
@@ -832,12 +980,18 @@ export function MiniCalendar({
   }, []);
 
   async function refreshMonthData() {
-    const data = await fetchMonthData(viewMonth);
-    setGigangRaces(data.gigang);
-    setMyRaces(data.mine);
-    setSchPosts(data.schPosts);
-    setGatherings(data.gatherings);
-    setListViewKey((k) => k + 1);
+    const monthFirst = viewMonthRef.current;
+    cacheVersionRef.current += 1;
+    const version = cacheVersionRef.current;
+    monthCacheRef.current.clear();
+    const data = await fetchMonthDataRef.current(monthFirst);
+    if (version !== cacheVersionRef.current) return data;
+    monthCacheRef.current.set(monthFirst, data);
+    if (viewMonthRef.current === monthFirst) {
+      applyMonthData(data);
+      setListViewKey((k) => k + 1);
+      prefetchAdjacent(monthFirst);
+    }
     return data;
   }
 

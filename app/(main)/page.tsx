@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 
 import { dayjs, currentMonthKST, gridDateRange } from "@/lib/dayjs";
-import { env } from "@/lib/env";
 import { hasUnreadBoardPosts } from "@/lib/queries/board";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
+import { getCachedHomeCalendar } from "@/lib/queries/home-calendar";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getNotifications, getUnreadNotificationCount } from "@/lib/queries/notification";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -13,7 +13,7 @@ import { H1 } from "@/components/common/typography";
 import { MiniCalendar } from "@/components/home/mini-calendar";
 import type { CalendarRace } from "@/components/home/mini-calendar";
 import { NotificationBellIcon } from "@/components/notifications/notification-bell-icon";
-import type { CompetitionRegistration, MemberStatus } from "@/components/races/types";
+import type { MemberStatus } from "@/components/races/types";
 import { SocialLinksGrid } from "@/components/social-links";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -59,58 +59,49 @@ async function HomeHeader() {
 }
 
 async function HomeContent() {
-  const { user, member: currentMember, supabase } = await getCurrentMember();
+  const { user, member: currentMember } = await getCurrentMember();
   const { teamId } = await getRequestTeamContext();
   const monthStart = currentMonthKST();
 
   const [yearStr, monthStr] = monthStart.split("-");
-  // 캘린더 그리드는 앞뒤 달 며칠을 흐리게 함께 그리므로, SSR에서도 그리드 전체 범위로 조회해
-  // 클라이언트 마운트 시 재조회 없이 앞뒤 달 일정까지 한 번에 채운다(MiniCalendar와 동일 범위).
-  // fetchStart는 start보다 1주 앞 — 그리드 시작 직전에 시작해 그리드 안으로 이어지는 일정 누락 방지.
-  const { start: gridStart, end: gridEnd, fetchStart } = gridDateRange(parseInt(yearStr, 10), parseInt(monthStr, 10));
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+  const { end: gridEnd } = gridDateRange(year, month);
 
+  // 캐시된 공개 데이터 조회 — DB 쿼리 0개 (캐시 히트 시)
+  const [{ comps: calendarComps, schPosts: schPostRows, gatherings: gthrRows }, cmmCdRows] =
+    await Promise.all([
+      getCachedHomeCalendar(teamId, year, month),
+      getCachedCmmCdRows(),
+    ]);
+
+  // memberStatus 판별 (기존 로직 유지)
   let initialMemberStatus: MemberStatus = { status: "signed-out" };
+  if (user) {
+    if (currentMember) {
+      initialMemberStatus = currentMember.status !== "active"
+        ? { status: "inactive", userId: user.id }
+        : {
+            status: "ready",
+            userId: user.id,
+            memberId: currentMember.id,
+            fullName: currentMember.full_name ?? null,
+            email: currentMember.email ?? null,
+            admin: currentMember.admin ?? false,
+          };
+    } else {
+      initialMemberStatus = { status: "needs-onboarding", userId: user.id };
+    }
+  }
 
-  const [
-    { data: calendarComps },
-    cmmCdRows,
-    { data: schPostRows },
-    { data: gthrRows },
-    myRegsResult,
-  ] = await Promise.all([
-    supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: fetchStart, p_end: gridEnd }),
-    getCachedCmmCdRows(),
-    supabase.rpc("get_public_team_sch_posts", {
-      p_team_id: teamId,
-      p_start: fetchStart,
-      p_end: gridEnd,
-    }),
-    supabase.rpc("get_public_team_gatherings", {
-      p_team_id: teamId,
-      p_start: fetchStart,
-      p_end: gridEnd,
-      ...(currentMember ? { p_mem_id: currentMember.id } : {}),
-    }),
-    currentMember
-      ? supabase
-          .from("comp_reg_rel")
-          .select(
-            "comp_reg_id, mem_id, prt_role_cd, crt_at, team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm, comp_sprt_cd, comp_evt_cfg(comp_evt_type))), comp_evt_cfg(comp_evt_type)",
-          )
-          .eq("mem_id", currentMember.id)
-          .eq("team_comp_plan_rel.team_id", teamId)
-          .eq("vers", 0)
-          .eq("del_yn", false)
-      : Promise.resolve({ data: null }),
-  ]);
-
-  const calendarGatherings: CalendarRace[] = (gthrRows ?? []).map((row) => ({
+  // 공개 데이터 변환 — 유저별 로직 제거 (gathering은 항상 "gathering", is_attending은 클라이언트에서 overlay)
+  const calendarGatherings: CalendarRace[] = gthrRows.map((row) => ({
     id: row.gthr_id,
     short_id: row.short_id ?? null,
     title: row.gthr_nm,
     start_date: dayjs(row.stt_at).tz("Asia/Seoul").format("YYYY-MM-DD"),
     end_date: row.end_at ? dayjs(row.end_at).tz("Asia/Seoul").format("YYYY-MM-DD") : null,
-    type: (currentMember && ("is_attending" in row ? row.is_attending : false) ? "gathering_mine" : "gathering") as CalendarRace["type"],
+    type: "gathering" as const,
     post_type: row.gthr_type_enm,
     sprt_cd: row.sprt_cd ?? null,
     location: row.loc_txt ?? null,
@@ -123,7 +114,7 @@ async function HomeContent() {
     cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
   }));
 
-  const calendarSchPosts: CalendarRace[] = (schPostRows ?? []).map((row) => ({
+  const calendarSchPosts: CalendarRace[] = schPostRows.map((row) => ({
     id: row.sch_post_id,
     short_id: row.short_id ?? null,
     title: row.sch_nm,
@@ -140,7 +131,7 @@ async function HomeContent() {
     cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
   }));
 
-  const calendarGigangRaces: CalendarRace[] = (calendarComps ?? [])
+  const calendarGigangRaces: CalendarRace[] = calendarComps
     .filter((row) => (row.reg_count ?? 0) > 0 && row.stt_dt <= gridEnd)
     .map((row) => ({
       id: row.comp_id,
@@ -152,75 +143,13 @@ async function HomeContent() {
       cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
     }));
 
-  let myRegistrations: CompetitionRegistration[] = [];
-  let isMember = false;
-  let calendarMyRaces: CalendarRace[] = [];
-
-  if (user) {
-    if (currentMember) {
-      isMember = true;
-      initialMemberStatus = currentMember.status !== "active"
-        ? { status: "inactive", userId: user.id }
-        : {
-            status: "ready",
-            userId: user.id,
-            memberId: currentMember.id,
-            fullName: currentMember.full_name ?? null,
-            email: currentMember.email ?? null,
-            admin: currentMember.admin ?? false,
-          };
-
-      const myRegs = myRegsResult?.data ?? null;
-
-      myRegistrations = (myRegs ?? []).map((r) => ({
-        id: r.comp_reg_id,
-        competition_id: (
-          Array.isArray(r.team_comp_plan_rel)
-            ? r.team_comp_plan_rel[0]
-            : r.team_comp_plan_rel
-        ).comp_id,
-        member_id: r.mem_id,
-        role: r.prt_role_cd,
-        event_type:
-          (
-            Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg
-          )?.comp_evt_type?.toUpperCase() ?? null,
-        created_at: r.crt_at,
-      })) as CompetitionRegistration[];
-
-      const calendarCompsMetaMap = new Map<string, { regCount: number; cmntCount: number }>();
-      for (const row of calendarComps ?? []) {
-        calendarCompsMetaMap.set(row.comp_id, {
-          regCount: row.reg_count ?? 0,
-          cmntCount: row.cmnt_count ? Number(row.cmnt_count) : 0,
-        });
-      }
-      calendarMyRaces = (myRegs ?? [])
-        .flatMap((r) => {
-          const plan = Array.isArray(r.team_comp_plan_rel) ? r.team_comp_plan_rel[0] : r.team_comp_plan_rel;
-          const comp = Array.isArray(plan.comp_mst) ? plan.comp_mst[0] : plan.comp_mst;
-          if (!comp) return [];
-          const meta = calendarCompsMetaMap.get(comp.comp_id);
-          const race: CalendarRace = { id: comp.comp_id, title: comp.comp_nm, start_date: comp.stt_dt, type: "mine", location: comp.loc_nm ?? null, regCount: meta?.regCount ?? 0, cmntCount: meta?.cmntCount || undefined };
-          return race.start_date >= gridStart && race.start_date <= gridEnd ? [race] : [];
-        });
-    } else {
-      initialMemberStatus = { status: "needs-onboarding", userId: user.id };
-    }
-  }
-
-  const initialRegistrationsByCompetitionId: Record<string, CompetitionRegistration> = {};
-  myRegistrations.forEach((reg) => {
-    initialRegistrationsByCompetitionId[reg.competition_id] = reg;
-  });
-
   return (
     <div className="flex flex-col gap-0">
       <div className="flex flex-col gap-7 px-6 pb-6">
         <Suspense>
           <MiniCalendar
             gigangRaces={calendarGigangRaces}
-            myRaces={calendarMyRaces}
+            myRaces={[]}
             schPosts={calendarSchPosts}
             gatherings={calendarGatherings}
             teamId={teamId}
@@ -228,13 +157,9 @@ async function HomeContent() {
             memberAvatarUrl={currentMember?.avatar_url ?? null}
             cmmCdRows={cmmCdRows}
             initialMemberStatus={initialMemberStatus}
-            initialRegistrationsByCompetitionId={initialRegistrationsByCompetitionId}
+            initialRegistrationsByCompetitionId={{}}
           />
         </Suspense>
-
-        <SocialLinksGrid
-          kakaoChatPassword={isMember ? (env.KAKAO_CHAT_PASSWORD ?? "") : undefined}
-        />
       </div>
     </div>
   );
@@ -249,15 +174,6 @@ function HomeSkeleton() {
         <div className="flex flex-col gap-3">
           <Skeleton className="h-3.5 w-20" />
           <Skeleton className="h-64 rounded-xl" />
-        </div>
-        {/* SocialLinksGrid 영역 */}
-        <div className="flex flex-col gap-4">
-          <Skeleton className="h-3 w-12" />
-          <div className="grid grid-cols-4 gap-2.5">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-[72px] rounded-2xl" />
-            ))}
-          </div>
         </div>
       </div>
     </div>
@@ -300,6 +216,9 @@ export default function HomePage() {
       <Suspense fallback={<HomeSkeleton />}>
         <HomeContent />
       </Suspense>
+      <div className="px-6 pb-6">
+        <SocialLinksGrid />
+      </div>
     </div>
   );
 }

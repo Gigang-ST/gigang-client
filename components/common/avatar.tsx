@@ -10,6 +10,7 @@ const SIZE_MAP = {
   md: "size-10",
   lg: "size-14",
   xl: "size-16",
+  "2xl": "size-24",
 } as const;
 
 const SIZE_PX: Record<AvatarSize, number> = {
@@ -17,6 +18,7 @@ const SIZE_PX: Record<AvatarSize, number> = {
   md: 40,
   lg: 56,
   xl: 64,
+  "2xl": 96,
 };
 
 const ICON_SIZE_MAP = {
@@ -24,6 +26,7 @@ const ICON_SIZE_MAP = {
   md: "size-5",
   lg: "size-7",
   xl: "size-8",
+  "2xl": "size-12",
 } as const;
 
 type AvatarSize = keyof typeof SIZE_MAP;

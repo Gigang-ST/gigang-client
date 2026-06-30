@@ -251,6 +251,13 @@ export function ActivityLogForm({
           placeholder="예: 10.55"
           className="h-12 rounded-xl border-[1.5px] text-[15px]"
           {...register("distance_km", { valueAsNumber: true })}
+          onInput={(e) => {
+            const val = e.currentTarget.value;
+            const dot = val.indexOf(".");
+            if (dot !== -1 && val.length - dot > 3) {
+              e.currentTarget.value = val.slice(0, dot + 3);
+            }
+          }}
         />
         {errors.distance_km && (
           <p className="text-sm text-destructive">{errors.distance_km.message}</p>

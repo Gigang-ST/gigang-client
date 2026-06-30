@@ -19,8 +19,9 @@ export const profileEditSchema = z.object({
   gender: z.enum(genderValues),
   birthday: z.string(),
   email: z
-    .email("올바른 이메일을 입력해 주세요")
-    .or(z.literal("")),
+    .string()
+    .trim()
+    .pipe(z.email("올바른 이메일을 입력해 주세요").or(z.literal(""))),
 });
 
 export type ProfileEditValues = z.infer<typeof profileEditSchema>;
