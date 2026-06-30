@@ -67,3 +67,6 @@ Supabase JS `.upsert({ onConflict: "a,b,c" })` 는 `ON CONFLICT (a,b,c)` 만 보
 
 ### 서버 액션이 nullable을 수용하면 폼 필드를 선택/접이식으로 분리
 `onboardingCreateMember`는 은행·계좌·이메일을 nullable로 받는다. 가입 마찰을 줄이려면 서버가 선택으로 받는 필드를 "추가 정보(선택)" 접이식으로 내려 필수 입력을 최소화하고, 나머지는 가입 후 별도 페이지(`/profile/bank`)에서 입력하게 한다. 서버 페이로드 구조는 그대로 유지된다.
+
+### GA4 커스텀 이벤트는 `lib/analytics.ts`의 `analytics.*`만 호출 — 발사 지점은 클라이언트 핸들러/effect
+`analytics` 객체(`lib/analytics.ts`)의 `send()`는 `typeof window === "undefined" || !window.gtag` 가드가 있어 SSR·gtag 미로드 시 무음(no-op)이다. 따라서 `"use client"` 컴포넌트의 이벤트 핸들러나 `useEffect`에서 자유롭게 호출하면 된다. 측정 ID `G-H9LXJH97CZ`. **이벤트를 `analytics`에 정의만 하고 호출처를 안 만들면 GA에 영원히 0건**으로 뜨므로, 정의 추가 시 호출부도 같은 PR에 함께 넣는다. 현재 배선(2026-06): `onboarding_step(2/3)`=온보딩 폼 details/success 전환 직전, `feedback_clicked`=피드백 폼 mount(진입 버튼 2곳이 모이는 chokepoint), `race_registration_opened/completed`=**대회 상세 다이얼로그의 참가 신청** 흐름(시그니처가 `raceId,raceName`라 신규 대회 생성 FAB가 아니라 기존 대회 참가가 맞음). (이슈 #297)
