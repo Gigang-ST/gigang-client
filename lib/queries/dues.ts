@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { matchPayer, type MemberRef, type AliasRef } from "@/lib/dues/match-payer";
 import { bucketOf } from "@/lib/dues/upload-bucketize";
 
+export type MemberOption = { memId: string; name: string; birthDt: string | null };
+
 export type InboxTxn = {
   txnId: string;
   txnDt: string;
@@ -14,7 +16,7 @@ export type InboxTxn = {
   matchStatus: "matched" | "unmatched" | "ambiguous";
   feeItemCd: string | null;
   bucket: "autoDone" | "needsReview" | "excluded";
-  candidates: { memId: string; name: string; score: number }[];
+  candidates: { memId: string; name: string; score: number; birthDt: string | null }[];
 };
 
 /**
@@ -26,7 +28,7 @@ export type InboxTxn = {
  * 이미 배정된 버킷/매칭 상태 자체를 바꾸지는 않는다.
  */
 export async function getInboxTxns(): Promise<{
-  members: { memId: string; name: string }[];
+  members: MemberOption[];
   txns: InboxTxn[];
 }> {
   const { teamId } = await getRequestTeamContext();
@@ -44,10 +46,16 @@ export async function getInboxTxns(): Promise<{
   const memIds = (rels ?? []).map((r) => r.mem_id);
 
   const { data: mems, error: memsErr } = memIds.length
-    ? await db.from("mem_mst").select("mem_id, mem_nm").in("mem_id", memIds).eq("vers", 0).eq("del_yn", false)
-    : { data: [] as { mem_id: string; mem_nm: string }[], error: null };
+    ? await db
+        .from("mem_mst")
+        .select("mem_id, mem_nm, birth_dt")
+        .in("mem_id", memIds)
+        .eq("vers", 0)
+        .eq("del_yn", false)
+    : { data: [] as { mem_id: string; mem_nm: string; birth_dt: string | null }[], error: null };
   if (memsErr) throw new Error(`회원 조회 실패: ${memsErr.message}`);
   const memberRefs: MemberRef[] = (mems ?? []).map((m) => ({ memId: m.mem_id, name: m.mem_nm }));
+  const birthById = new Map<string, string | null>((mems ?? []).map((m) => [m.mem_id, m.birth_dt]));
 
   const { data: aliasRows, error: aliasErr } = await db
     .from("fee_payer_alias")
@@ -86,11 +94,18 @@ export async function getInboxTxns(): Promise<{
       matchStatus,
       feeItemCd: r.fee_item_cd,
       bucket,
-      candidates: match.candidates,
+      candidates: match.candidates.map((c) => ({ ...c, birthDt: birthById.get(c.memId) ?? null })),
     };
   });
 
-  return { members: memberRefs.map((m) => ({ memId: m.memId, name: m.name })), txns };
+  return {
+    members: memberRefs.map((m) => ({
+      memId: m.memId,
+      name: m.name,
+      birthDt: birthById.get(m.memId) ?? null,
+    })),
+    txns,
+  };
 }
 
 export type LedgerRow = {
