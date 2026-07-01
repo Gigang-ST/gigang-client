@@ -19,8 +19,11 @@ export type InboxTxn = {
 
 /**
  * Inbox 화면용: 미확정(is_cfm_yn=false, del_yn=false) 거래를 팀 소속 회원·별칭 기준으로
- * 재매칭하고 버킷을 부여해 반환한다. (업로드 시 저장된 match_st_cd가 있어도, 그 사이
- * 학습된 별칭을 반영하도록 매번 재계산한다.)
+ * 조회해 반환한다. matchPayer는 매 조회마다 다시 실행하지만, 그 결과 중 화면에 실제로
+ * 쓰이는 것은 후보 목록(candidates)뿐이다 — matchStatus는 `r.match_st_cd ?? match.status`로
+ * 저장된 값을 우선하고, bucket도 그 matchStatus로 계산하므로 업로드 시점에 확정된 분류를
+ * 그대로 따른다. 즉 "그 사이 학습된 별칭"은 candidates(추천 후보) 갱신에만 반영되고,
+ * 이미 배정된 버킷/매칭 상태 자체를 바꾸지는 않는다.
  */
 export async function getInboxTxns(): Promise<{
   members: { memId: string; name: string }[];

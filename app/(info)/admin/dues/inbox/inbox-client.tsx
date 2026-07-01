@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 
 import { confirmAndRecalc } from "@/app/actions/dues/confirm-and-recalc";
 import type { InboxTxn } from "@/lib/queries/dues";
@@ -34,6 +35,7 @@ export function InboxClient({
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const router = useRouter();
 
   // 묶음: 같은 날짜+금액이면 2건 이상일 때 그룹 헤더에 "일괄 분류" 버튼을 둔다.
   // review는 서버에서 이미 txn_dt 오름차순으로 내려오므로 Map 순회 순서가 그대로 유지된다.
@@ -51,6 +53,7 @@ export function InboxClient({
     // 회비는 회원 매칭 필수, 프로젝트/제외는 회원 불필요
     return d && (d.itemCd !== "due" || d.memId);
   });
+  const totalToConfirm = autoDone.length + review.length + excluded.length;
 
   function setDecision(txnId: string, patch: Partial<Decision>) {
     setDecisions((prev) => ({ ...prev, [txnId]: { ...prev[txnId], ...patch } }));
@@ -71,19 +74,27 @@ export function InboxClient({
   }
 
   function onSubmit() {
-    const items = review.map((t) => {
+    // autoDone·excluded는 업로드 시 저장된 분류(due/matched 또는 expense/other)를 그대로
+    // 재사용한다 — txnId만 넘기면 confirmTransactions가 기존 fee_item_cd/mem_id를 유지한 채
+    // 확정하므로, 회비 자동매칭 건도 납부원장이 생성되고 제외 건도 미확정 풀에서 빠진다.
+    const autoDoneItems = autoDone.map((t) => ({ txnId: t.txnId }));
+    const excludedItems = excluded.map((t) => ({ txnId: t.txnId }));
+    const reviewItems = review.map((t) => {
       const d = decisions[t.txnId];
       return { txnId: t.txnId, feeItemCd: d.itemCd, memId: d.itemCd === "due" ? d.memId : null };
     });
+    const items = [...autoDoneItems, ...excludedItems, ...reviewItems];
     const aliasLearn = review
       .map((t) => ({ t, d: decisions[t.txnId] }))
       .filter(({ d }) => d.remember && d.itemCd === "due" && d.memId)
       .map(({ t, d }) => ({ rawName: t.rawName, memId: d.memId! }));
-    const recalcMemIds = [...new Set(items.filter((i) => i.memId).map((i) => i.memId!))];
 
     startTransition(async () => {
-      const res = await confirmAndRecalc({ items, aliasLearn, recalcMemIds });
+      // recalcMemIds를 넘기지 않는다 — 이번에 확정된 회원뿐 아니라 미납 상태인 회원도
+      // 최신 스냅샷을 반영해 원장에 미납으로 드러나야 하므로 전체 활성 회원을 재계산한다.
+      const res = await confirmAndRecalc({ items, aliasLearn });
       setMsg(res.ok ? `확정 ${res.confirmed}건 · 재계산 ${res.recalculated}명 완료` : res.message);
+      if (res.ok) router.refresh();
     });
   }
 
@@ -142,8 +153,12 @@ export function InboxClient({
       {msg && <Caption className="text-foreground">{msg}</Caption>}
 
       <div className="sticky bottom-0 -mx-6 border-t border-border bg-background px-6 py-3">
-        <Button className="w-full" disabled={!allDecided || pending || review.length === 0} onClick={onSubmit}>
-          {pending ? "처리 중…" : `${review.length}건 확정 + 회비 재계산`}
+        <Button
+          className="w-full"
+          disabled={pending || !allDecided || totalToConfirm === 0}
+          onClick={onSubmit}
+        >
+          {pending ? "처리 중…" : `${totalToConfirm}건 확정 + 회비 재계산`}
         </Button>
       </div>
     </div>
