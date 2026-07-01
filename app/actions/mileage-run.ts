@@ -16,6 +16,7 @@ import {
   calcBaseMileage,
   calcFinalMileage,
   computeGoalChain,
+  isMonthAchieved,
   roundMileage,
   countMonths,
   DEPOSIT_PER_MONTH,
@@ -246,7 +247,12 @@ export async function logActivity(
 
     if (error) return { ok: false, message: "활동 기록 추가에 실패했습니다" };
 
-    await recalcGoalsFromMonth(evtId, participant.prt_id);
+    try {
+      await recalcGoalsFromMonth(evtId, participant.prt_id);
+    } catch (e) {
+      console.error("[mileage] 목표 재계산 실패(logActivity)", e);
+      return { ok: false, message: "목표 재계산에 실패했습니다. 잠시 후 다시 시도해주세요" };
+    }
 
     const { data: teamMemRow, error: teamMemErr } = await db
       .from("team_mem_rel")
@@ -347,7 +353,12 @@ export async function logActivitiesBatch(
     const { error } = await db.from("evt_mlg_act_hist").insert(rows);
     if (error) return { ok: false, message: "활동 기록 저장에 실패했습니다" };
 
-    await recalcGoalsFromMonth(evtId, participant.prt_id);
+    try {
+      await recalcGoalsFromMonth(evtId, participant.prt_id);
+    } catch (e) {
+      console.error("[mileage] 목표 재계산 실패(logActivitiesBatch)", e);
+      return { ok: false, message: "목표 재계산에 실패했습니다. 잠시 후 다시 시도해주세요" };
+    }
 
     const { data: teamMemRow } = await db
       .from("team_mem_rel")
@@ -430,7 +441,12 @@ export async function updateActivity(
 
     if (error) return { ok: false, message: "활동 기록 수정에 실패했습니다" };
 
-    await recalcGoalsFromMonth(existingParticipant.evt_id, existing.prt_id);
+    try {
+      await recalcGoalsFromMonth(existingParticipant.evt_id, existing.prt_id);
+    } catch (e) {
+      console.error("[mileage] 목표 재계산 실패(updateActivity)", e);
+      return { ok: false, message: "목표 재계산에 실패했습니다. 잠시 후 다시 시도해주세요" };
+    }
 
     revalidatePath("/projects");
     return { ok: true, message: null };
@@ -464,7 +480,12 @@ export async function deleteActivity(actId: string): Promise<ActionResult> {
     const { error } = await db.from("evt_mlg_act_hist").delete().eq("act_id", actId);
     if (error) return { ok: false, message: "활동 기록 삭제에 실패했습니다" };
 
-    await recalcGoalsFromMonth(existingParticipant.evt_id, existing.prt_id);
+    try {
+      await recalcGoalsFromMonth(existingParticipant.evt_id, existing.prt_id);
+    } catch (e) {
+      console.error("[mileage] 목표 재계산 실패(deleteActivity)", e);
+      return { ok: false, message: "목표 재계산에 실패했습니다. 잠시 후 다시 시도해주세요" };
+    }
 
     revalidatePath("/projects");
     return { ok: true, message: null };
@@ -504,7 +525,12 @@ export async function updateMonthlyGoal(goalId: string, newGoal: number): Promis
 
     if (error) return { ok: false, message: "목표 수정에 실패했습니다" };
 
-    await recalcGoalsFromMonth(evtId, existing.prt_id, goalId);
+    try {
+      await recalcGoalsFromMonth(evtId, existing.prt_id, goalId);
+    } catch (e) {
+      console.error("[mileage] 목표 재계산 실패(updateMonthlyGoal)", e);
+      return { ok: false, message: "목표 재계산에 실패했습니다. 잠시 후 다시 시도해주세요" };
+    }
 
     revalidatePath("/projects");
     return { ok: true, message: null };
@@ -561,12 +587,13 @@ async function recalcGoalsFromMonth(
     const achvMlg = roundedAchvByMonth.get(month) ?? 0;
     const actCnt = cntByMonth.get(month) ?? 0;
     const lstActDt = lastDtByMonth.get(month) ?? null;
-    const achvYn = Math.round(achvMlg * 10) / 10 >= Number(g.goal_mlg);
+    const achvYn = isMonthAchieved(achvMlg, Number(g.goal_mlg));
 
-    await db
+    const { error: snapErr } = await db
       .from("evt_mlg_mth_snap")
       .update({ achv_mlg: achvMlg, act_cnt: actCnt, lst_act_dt: lstActDt, achv_yn: achvYn, updated_at: dayjs().toISOString() })
       .eq("goal_id", g.goal_id);
+    if (snapErr) throw new Error(`월별 집계 갱신 실패 (goal_id=${g.goal_id}): ${snapErr.message}`);
     g.achv_yn = achvYn;
   }
 
@@ -591,10 +618,11 @@ async function recalcGoalsFromMonth(
     const next = chain[i];
     if (Number(cur.goal_mlg) === next.goal_mlg) continue;
 
-    await db
+    const { error: chainErr } = await db
       .from("evt_mlg_mth_snap")
       .update({ goal_mlg: next.goal_mlg, achv_yn: next.achv_yn, updated_at: dayjs().toISOString() })
       .eq("goal_id", cur.goal_id);
+    if (chainErr) throw new Error(`목표 연쇄 갱신 실패 (goal_id=${cur.goal_id}): ${chainErr.message}`);
     cur.goal_mlg = next.goal_mlg;
     cur.achv_yn = next.achv_yn;
   }
