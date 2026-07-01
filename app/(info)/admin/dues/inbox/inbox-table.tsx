@@ -106,11 +106,11 @@ export function InboxTable({ members, txns }: { members: MemberOption[]; txns: I
     });
   }
 
-  const chips: { key: Filter; label: string; count: number; cls: string }[] = [
-    { key: "all", label: "전체", count: txns.length, cls: "bg-muted text-foreground" },
-    { key: "needsReview", label: "확인필요", count: review.length, cls: "bg-warning/15 text-warning" },
-    { key: "autoDone", label: "자동", count: autoDone.length, cls: "bg-success/15 text-success" },
-    { key: "excluded", label: "제외", count: excluded.length, cls: "bg-muted text-muted-foreground" },
+  const chips: { key: Filter; label: string; count: number }[] = [
+    { key: "all", label: "전체", count: txns.length },
+    { key: "needsReview", label: "확인필요", count: review.length },
+    { key: "autoDone", label: "자동", count: autoDone.length },
+    { key: "excluded", label: "제외", count: excluded.length },
   ];
 
   return (

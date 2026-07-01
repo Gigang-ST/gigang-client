@@ -67,7 +67,7 @@ export function InboxRow({
   onArrow: (dir: -1 | 1) => void;
   onEnterNext: () => void;
 }) {
-  const decided = !editable || !!decision && (decision.itemCd !== "due" || !!decision.memId);
+  const decided = !editable || (!!decision && (decision.itemCd !== "due" || !!decision.memId));
   const badge = BUCKET_BADGE[txn.bucket];
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTableRowElement>) {

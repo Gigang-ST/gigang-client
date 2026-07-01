@@ -1,8 +1,8 @@
 import { getInboxTxns } from "@/lib/queries/dues";
 
-import { InboxClient } from "./inbox-client";
+import { InboxTable } from "./inbox-table";
 
 export default async function DuesInboxPage() {
   const { members, txns } = await getInboxTxns();
-  return <InboxClient members={members} txns={txns} />;
+  return <InboxTable members={members} txns={txns} />;
 }
