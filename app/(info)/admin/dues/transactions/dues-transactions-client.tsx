@@ -289,7 +289,7 @@ function UploadTab({
         // 등록건수 = 총건수 − 중복제외 − 마감이전제외 (실제 거래내역에 적재된 수)
         const s = res.summary;
         const registered = s.total - s.skipped - s.skippedByCutoff;
-        const summary = `업로드 완료 — 총 ${s.total}건 중 ${registered}건 등록 (매칭 ${s.matched} · 미매칭 ${s.unmatched} · 동명이인 ${s.ambiguous} / 중복 제외 ${s.skipped} · 마감이전 제외 ${s.skippedByCutoff})`;
+        const summary = `업로드 완료 — 총 ${s.total}건 중 ${registered}건 등록 (자동완료 ${s.autoDone} · 확인필요 ${s.needsReview} · 제외 ${s.excluded} / 중복 제외 ${s.skipped} · 마감이전 제외 ${s.skippedByCutoff})`;
         try { sessionStorage.setItem("dues_upload_summary", summary); } catch {}
         window.location.href = "/admin/dues/transactions?tab=txn";
       } else {

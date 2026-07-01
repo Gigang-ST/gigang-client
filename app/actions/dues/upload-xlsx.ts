@@ -5,6 +5,8 @@ import crypto from "crypto";
 import { dayjs } from "@/lib/dayjs";
 
 import { withAdmin } from "@/lib/actions/auth";
+import { matchPayer, type MemberRef, type AliasRef } from "@/lib/dues/match-payer";
+import { bucketOf } from "@/lib/dues/upload-bucketize";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -122,13 +124,14 @@ export async function uploadXlsx(formData: FormData) {
       ? await db.from("mem_mst").select("mem_id, mem_nm").in("mem_id", teamMemIds).eq("vers", 0).eq("del_yn", false)
       : { data: [] as { mem_id: string; mem_nm: string }[] };
 
-    const nameMap = new Map<string, string[]>();
-    for (const m of members ?? []) {
-      const key = m.mem_nm.replace(/\s/g, "");
-      const list = nameMap.get(key) ?? [];
-      list.push(m.mem_id);
-      nameMap.set(key, list);
-    }
+    const memberRefs: MemberRef[] = (members ?? []).map((m) => ({ memId: m.mem_id, name: m.mem_nm }));
+
+    const { data: aliasRows } = await db
+      .from("fee_payer_alias")
+      .select("raw_name_norm, mem_id")
+      .eq("team_id", teamId)
+      .eq("del_yn", false);
+    const aliasRefs: AliasRef[] = (aliasRows ?? []).map((a) => ({ rawNameNorm: a.raw_name_norm, memId: a.mem_id }));
 
     // 회원별 baseline(마지막 거래일) 맵 — 이미 마감된 시점 이전의 과거 거래가
     // 재유입되는 것을 막기 위함. snap.last_calc_at = 그 회원의 마지막 거래 기준 시점.
@@ -146,27 +149,19 @@ export async function uploadXlsx(formData: FormData) {
     // 분류 유효성 집합 — 공통코드에 없는 분류는 'other'로 폴백 (업로드는 자동 분류라 중단보다 폴백이 안전)
     const validCds = await getValidFeeItemCds(db);
 
-    let matched = 0, unmatched = 0, ambiguous = 0, skipped = 0, skippedByCutoff = 0;
+    let autoDone = 0, needsReview = 0, excluded = 0, skipped = 0, skippedByCutoff = 0;
 
     for (const row of rows) {
-      const normName = row.raw_name.replace(/\s/g, "");
-      let matchStatus: "matched" | "unmatched" | "ambiguous" = "unmatched";
-      let memId: string | null = null;
-
       // 분류와 무관하게 이름으로 회원 매칭을 시도한다.
       // (회비뿐 아니라 지출·환불 등도 회원에 연결되면 그 회원 거래내역에 보여주기 위함.
       //  단, 개인 잔액 정산에 반영되는 것은 여전히 회비(due)+매칭 건만이다.)
-      const candidates = nameMap.get(normName) ?? [];
-      if (candidates.length === 1) {
-        matchStatus = "matched";
-        memId = candidates[0];
-        matched++;
-      } else if (candidates.length > 1) {
-        matchStatus = "ambiguous";
-        ambiguous++;
-      } else {
-        unmatched++;
-      }
+      const match = matchPayer(row.raw_name, memberRefs, aliasRefs);
+      const matchStatus = match.status; // "matched" | "unmatched" | "ambiguous"
+      const memId = match.memId;
+      const bucket = bucketOf({ io: row.txn_io_enm, itemCd: row.fee_item_cd, matchStatus });
+      if (bucket === "autoDone") autoDone++;
+      else if (bucket === "needsReview") needsReview++;
+      else excluded++;
 
       // baseline cutoff: 매칭된 거래가 그 회원의 마지막 거래일(baseline) 이전이면,
       // 이미 마감된 과거이므로 적재하지 않고 스킵한다. (입금·출금/분류 불문)
@@ -181,7 +176,7 @@ export async function uploadXlsx(formData: FormData) {
         if (baseline) {
           const txnAt = dayjs.tz(`${row.txn_dt}T${row.txn_tm ?? "00:00:00"}`, "Asia/Seoul");
           if (txnAt.isBefore(dayjs(baseline))) {
-            matched--; // 위에서 올린 카운트 되돌림
+            autoDone--; // 위에서 올린 버킷 카운트 되돌림(autoDone만 baseline 비교 대상)
             skippedByCutoff++;
             continue;
           }
@@ -206,6 +201,6 @@ export async function uploadXlsx(formData: FormData) {
       }
     }
 
-    return { ok: true as const, message: null, summary: { total: rows.length, matched, unmatched, ambiguous, skipped, skippedByCutoff } };
+    return { ok: true as const, message: null, summary: { total: rows.length, autoDone, needsReview, excluded, skipped, skippedByCutoff } };
   });
 }
