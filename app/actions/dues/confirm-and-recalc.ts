@@ -6,8 +6,11 @@ import { learnAliases } from "@/app/actions/dues/learn-aliases";
 
 /**
  * 거래 확정 흐름을 한 번의 호출로 묶는 오케스트레이터.
- * (1) 별칭 학습(있으면, 실패해도 무시) → (2) 거래 확정 → 실패 시 중단 →
+ * (1) 거래 확정 → 실패 시 중단 → (2) 별칭 학습(있으면, 실패해도 무시) →
  * (3) 잔액 재계산.
+ *
+ * 별칭 학습은 반드시 확정 성공 뒤에 한다 — 확정이 거부되면 실제로 반영되지 않은
+ * 판단이 다음 업로드의 자동매칭 규칙으로 남는 것을 막기 위함.
  *
  * 이 함수 자체는 `withAdmin`으로 감싸지 않는다 — 호출하는 세 액션이 각각
  * 이미 `withAdmin`으로 감싸져 있어 권한 체크가 중복될 필요가 없다.
@@ -17,13 +20,13 @@ export async function confirmAndRecalc(input: {
   aliasLearn?: { rawName: string; memId: string }[];
   recalcMemIds?: string[];
 }) {
-  if (input.aliasLearn?.length) {
-    await learnAliases(input.aliasLearn); // 학습 실패는 치명적이지 않음(확정 진행)
-  }
-
   const confirm = await confirmTransactions(input.items);
   if (!confirm.ok) {
     return { ok: false as const, message: confirm.message, confirmed: 0, recalculated: 0 };
+  }
+
+  if (input.aliasLearn?.length) {
+    await learnAliases(input.aliasLearn); // 확정 성공 후에만 학습. 실패해도 재계산은 진행.
   }
 
   const recalc = await recalculateBalance(input.recalcMemIds);

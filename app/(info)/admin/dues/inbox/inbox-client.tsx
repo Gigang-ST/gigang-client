@@ -13,6 +13,11 @@ import { Button } from "@/components/ui/button";
 
 import { InboxCard, ITEM_LABEL, ITEM_ORDER, type Decision, type ItemCd } from "./inbox-card";
 
+/** 확인필요 카드의 초기 판단값: 최상위 후보 회원 + 회비 분류. */
+function defaultDecision(t: InboxTxn): Decision {
+  return { memId: t.candidates[0]?.memId ?? null, itemCd: "due", remember: false };
+}
+
 export function InboxClient({
   members,
   txns,
@@ -24,18 +29,22 @@ export function InboxClient({
   const autoDone = useMemo(() => txns.filter((t) => t.bucket === "autoDone"), [txns]);
   const excluded = useMemo(() => txns.filter((t) => t.bucket === "excluded"), [txns]);
 
-  const [decisions, setDecisions] = useState<Record<string, Decision>>(() =>
-    Object.fromEntries(
-      review.map((t) => [
-        t.txnId,
-        { memId: t.candidates[0]?.memId ?? null, itemCd: "due" as const, remember: false },
-      ]),
-    ),
-  );
+  // 사용자가 바꾼 값만 overrides에 저장하고, 실제 판단은 review에서 매 렌더 파생한다.
+  // 이렇게 하면 router.refresh로 txns가 바뀌어도 새 항목은 기본값을 얻고(파생),
+  // 편집값은 overrides에 남아 보존된다 — effect에서 setState를 부를 필요가 없다.
+  const [overrides, setOverrides] = useState<Record<string, Partial<Decision>>>({});
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const router = useRouter();
+
+  const decisions = useMemo<Record<string, Decision>>(
+    () =>
+      Object.fromEntries(
+        review.map((t) => [t.txnId, { ...defaultDecision(t), ...overrides[t.txnId] }]),
+      ),
+    [review, overrides],
+  );
 
   // 묶음: 같은 날짜+금액이면 2건 이상일 때 그룹 헤더에 "일괄 분류" 버튼을 둔다.
   // review는 서버에서 이미 txn_dt 오름차순으로 내려오므로 Map 순회 순서가 그대로 유지된다.
@@ -56,11 +65,11 @@ export function InboxClient({
   const totalToConfirm = autoDone.length + review.length + excluded.length;
 
   function setDecision(txnId: string, patch: Partial<Decision>) {
-    setDecisions((prev) => ({ ...prev, [txnId]: { ...prev[txnId], ...patch } }));
+    setOverrides((prev) => ({ ...prev, [txnId]: { ...prev[txnId], ...patch } }));
   }
 
   function bulkSetItemCd(txnIds: string[], itemCd: ItemCd) {
-    setDecisions((prev) => {
+    setOverrides((prev) => {
       const next = { ...prev };
       for (const id of txnIds) next[id] = { ...next[id], itemCd };
       return next;

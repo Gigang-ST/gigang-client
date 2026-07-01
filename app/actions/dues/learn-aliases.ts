@@ -24,11 +24,23 @@ export async function learnAliases(items: AliasLearnItem[]) {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
 
-    // 정규화 이름으로 중복 제거 (같은 이름이 여러 번 오면 마지막 값 우선)
+    // 현재 팀 소속(활성) 회원 집합 — 별칭이 다른 팀/제외 회원을 가리키지 않도록 저장 전 검증한다.
+    const { data: teamMembers, error: teamMembersError } = await db
+      .from("team_mem_rel")
+      .select("mem_id")
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false);
+    if (teamMembersError) return { ok: false as const, message: "별칭 저장에 실패했습니다.", learned: 0 };
+    const validMemIds = new Set((teamMembers ?? []).map((m) => m.mem_id));
+
+    // 정규화 이름으로 중복 제거 (같은 이름이 여러 번 오면 마지막 값 우선).
+    // 현재 팀 소속이 아닌 memId는 건너뛴다.
     const dedup = new Map<string, string>();
     for (const it of items) {
       const norm = normalizePayerName(it.rawName);
       if (!norm) continue;
+      if (!validMemIds.has(it.memId)) continue;
       dedup.set(norm, it.memId);
     }
 

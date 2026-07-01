@@ -92,7 +92,11 @@ export function LedgerClient({
               <div className="flex flex-col gap-0.5">
                 <Body className="font-semibold">{r.name}</Body>
                 <Caption>
-                  {r.balance < 0 ? `${r.months}개월 미납` : r.balance > 0 ? `${r.months}개월 예치` : "정상"}
+                  {r.balance === 0
+                    ? "정상"
+                    : r.months === 0
+                      ? `1개월 미만 ${r.balance < 0 ? "미납" : "예치"}`
+                      : `${r.months}개월 ${r.balance < 0 ? "미납" : "예치"}`}
                 </Caption>
               </div>
               <div className="flex items-center gap-2">
