@@ -7,7 +7,9 @@ import {
   calcMonthRefundRate,
   calcNextMonthGoal,
   calcPaceRatio,
+  computeGoalChain,
   countMonths,
+  isMonthAchieved,
   roundMileage,
 } from "@/lib/mileage";
 
@@ -148,5 +150,90 @@ describe("roundMileage", () => {
 
   it("정수는 그대로", () => {
     expect(roundMileage(10)).toBe(10);
+  });
+});
+
+describe("isMonthAchieved", () => {
+  it("소수 첫째 자리 반올림 후 목표 이상이면 달성 (199.96 → 200.0)", () => {
+    expect(isMonthAchieved(199.96, 200)).toBe(true);
+    expect(isMonthAchieved(199.94, 200)).toBe(false);
+  });
+
+  it("정확히 목표면 달성", () => {
+    expect(isMonthAchieved(100, 100)).toBe(true);
+  });
+});
+
+describe("computeGoalChain", () => {
+  const START = "2026-05-01"; // 4월은 프리시즌
+
+  it("프리시즌(4월) 달성은 5월 목표에 영향 없음", () => {
+    const chain = computeGoalChain(
+      [
+        { base_dt: "2026-04-01", goal_mlg: 100, achv_mlg: 124.07 }, // 프리시즌 달성
+        { base_dt: "2026-05-01", goal_mlg: 100, achv_mlg: 0 },
+      ],
+      START,
+    );
+    expect(chain[1].goal_mlg).toBe(100); // 5월은 그대로
+  });
+
+  it("회귀: 실패한 달 뒤의 달성이 다음 달 목표에 반영된다 (권우현 케이스)", () => {
+    // 5월 실패(88.93) → 6월 성공(120.15) → 7월은 100이 아니라 120이어야 함
+    const chain = computeGoalChain(
+      [
+        { base_dt: "2026-04-01", goal_mlg: 100, achv_mlg: 124.07 },
+        { base_dt: "2026-05-01", goal_mlg: 100, achv_mlg: 88.93 }, // 실패
+        { base_dt: "2026-06-01", goal_mlg: 100, achv_mlg: 120.15 }, // 성공
+        { base_dt: "2026-07-01", goal_mlg: 100, achv_mlg: 0 },
+      ],
+      START,
+    );
+    expect(chain[1].achv_yn).toBe(false); // 5월 미달성
+    expect(chain[2].goal_mlg).toBe(100); // 6월: 5월 실패라 유지
+    expect(chain[2].achv_yn).toBe(true); // 6월 달성
+    expect(chain[3].goal_mlg).toBe(120); // 7월: 6월 달성 반영 (버그였다면 100)
+  });
+
+  it("수동 상향 목표는 재계산이 낮추지 않는다 (김남현 케이스)", () => {
+    // 6월 성공 → 7월 자동값 140인데, 관리자가 170으로 올림 → 170 유지 + 이후 달도 170
+    const chain = computeGoalChain(
+      [
+        { base_dt: "2026-05-01", goal_mlg: 100, achv_mlg: 124.17 }, // 성공
+        { base_dt: "2026-06-01", goal_mlg: 120, achv_mlg: 133.3 }, // 성공
+        { base_dt: "2026-07-01", goal_mlg: 170, achv_mlg: 0 }, // 수동 상향
+        { base_dt: "2026-08-01", goal_mlg: 170, achv_mlg: 0 },
+      ],
+      START,
+    );
+    expect(chain[2].goal_mlg).toBe(170); // 자동 140 < 수동 170 → 170 유지
+    expect(chain[3].goal_mlg).toBe(170); // 8월도 170에서 연쇄
+  });
+
+  it("연속 달성 시 구간별로 증가한다", () => {
+    const chain = computeGoalChain(
+      [
+        { base_dt: "2026-05-01", goal_mlg: 100, achv_mlg: 110 }, // 성공 → +20
+        { base_dt: "2026-06-01", goal_mlg: 100, achv_mlg: 130 }, // 성공
+        { base_dt: "2026-07-01", goal_mlg: 100, achv_mlg: 0 },
+      ],
+      START,
+    );
+    expect(chain[1].goal_mlg).toBe(120); // 6월 = 100 + 20
+    expect(chain[2].goal_mlg).toBe(140); // 7월 = 120 + 20
+  });
+
+  it("anchorIdx 이전 달은 재계산하지 않는다", () => {
+    const chain = computeGoalChain(
+      [
+        { base_dt: "2026-05-01", goal_mlg: 100, achv_mlg: 110 },
+        { base_dt: "2026-06-01", goal_mlg: 150, achv_mlg: 0 }, // 앵커(수동 지정)
+        { base_dt: "2026-07-01", goal_mlg: 100, achv_mlg: 0 },
+      ],
+      START,
+      1, // 6월을 기준점으로
+    );
+    expect(chain[1].goal_mlg).toBe(150); // 앵커 그대로
+    expect(chain[2].goal_mlg).toBe(150); // 7월: 6월 미달성 → 유지(150), 100에서 상향
   });
 });
