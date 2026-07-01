@@ -1,0 +1,146 @@
+import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+import { matchPayer, type MemberRef, type AliasRef } from "@/lib/dues/match-payer";
+import { bucketOf } from "@/lib/dues/upload-bucketize";
+
+export type InboxTxn = {
+  txnId: string;
+  txnDt: string;
+  txnTm: string | null;
+  amt: number;
+  rawName: string;
+  memId: string | null;
+  matchStatus: "matched" | "unmatched" | "ambiguous";
+  feeItemCd: string | null;
+  bucket: "autoDone" | "needsReview" | "excluded";
+  candidates: { memId: string; name: string; score: number }[];
+};
+
+/**
+ * Inbox 화면용: 미확정(is_cfm_yn=false, del_yn=false) 거래를 팀 소속 회원·별칭 기준으로
+ * 재매칭하고 버킷을 부여해 반환한다. (업로드 시 저장된 match_st_cd가 있어도, 그 사이
+ * 학습된 별칭을 반영하도록 매번 재계산한다.)
+ */
+export async function getInboxTxns(): Promise<{
+  members: { memId: string; name: string }[];
+  txns: InboxTxn[];
+}> {
+  const { teamId } = await getRequestTeamContext();
+  const db = createAdminClient();
+
+  const { data: rels } = await db
+    .from("team_mem_rel")
+    .select("mem_id")
+    .eq("team_id", teamId)
+    .eq("vers", 0)
+    .eq("del_yn", false);
+  const memIds = (rels ?? []).map((r) => r.mem_id);
+
+  const { data: mems } = memIds.length
+    ? await db.from("mem_mst").select("mem_id, mem_nm").in("mem_id", memIds).eq("vers", 0).eq("del_yn", false)
+    : { data: [] as { mem_id: string; mem_nm: string }[] };
+  const memberRefs: MemberRef[] = (mems ?? []).map((m) => ({ memId: m.mem_id, name: m.mem_nm }));
+
+  const { data: aliasRows } = await db
+    .from("fee_payer_alias")
+    .select("raw_name_norm, mem_id")
+    .eq("team_id", teamId)
+    .eq("vers", 0)
+    .eq("del_yn", false);
+  const aliasRefs: AliasRef[] = (aliasRows ?? []).map((a) => ({ rawNameNorm: a.raw_name_norm, memId: a.mem_id }));
+
+  // fee_txn_hist에는 vers 컬럼이 없다 — del_yn만 필터한다.
+  const { data: rows } = await db
+    .from("fee_txn_hist")
+    .select("txn_id, txn_dt, txn_tm, txn_amt, txn_io_enm, raw_name, mem_id, match_st_cd, fee_item_cd")
+    .eq("team_id", teamId)
+    .eq("is_cfm_yn", false)
+    .eq("del_yn", false)
+    .order("txn_dt", { ascending: true });
+
+  const txns: InboxTxn[] = (rows ?? []).map((r) => {
+    const match = matchPayer(r.raw_name, memberRefs, aliasRefs);
+    const matchStatus = (r.match_st_cd ?? match.status) as InboxTxn["matchStatus"];
+    const bucket = bucketOf({
+      io: r.txn_io_enm as "deposit" | "withdrawal",
+      itemCd: r.fee_item_cd ?? "other",
+      matchStatus,
+    });
+    return {
+      txnId: r.txn_id,
+      txnDt: r.txn_dt,
+      txnTm: r.txn_tm,
+      amt: r.txn_amt,
+      rawName: r.raw_name,
+      memId: r.mem_id,
+      matchStatus,
+      feeItemCd: r.fee_item_cd,
+      bucket,
+      candidates: match.candidates,
+    };
+  });
+
+  return { members: memberRefs.map((m) => ({ memId: m.memId, name: m.name })), txns };
+}
+
+export type LedgerRow = {
+  memId: string;
+  name: string;
+  balance: number;
+  status: "미납" | "정상" | "예치";
+  months: number;
+};
+
+/**
+ * 회비 원장 화면용: 회원별 잔액 스냅샷(vers=0)을 이름과 함께 조회하고,
+ * 잔액 부호에 따라 미납/정상/예치로 분류해 정책 월회비 기준 개월수를 계산한다.
+ */
+export async function getDuesLedger(): Promise<{
+  rows: LedgerRow[];
+  summary: { unpaid: number; ok: number; prepaid: number };
+}> {
+  const { teamId } = await getRequestTeamContext();
+  const db = createAdminClient();
+
+  const { data: policies } = await db
+    .from("fee_policy_cfg")
+    .select("monthly_fee_amt")
+    .eq("team_id", teamId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .order("aply_stt_dt", { ascending: false })
+    .limit(1);
+  const monthly = policies?.[0]?.monthly_fee_amt ?? 2000;
+
+  const { data: snaps } = await db
+    .from("fee_mem_bal_snap")
+    .select("mem_id, bal_amt, mem_mst!fk_fee_mem_bal_snap__mem_mst(mem_nm)")
+    .eq("team_id", teamId)
+    .eq("vers", 0)
+    .eq("del_yn", false);
+
+  const rows: LedgerRow[] = (snaps ?? [])
+    .map((s) => {
+      const bal = s.bal_amt;
+      const memNm = Array.isArray(s.mem_mst) ? s.mem_mst[0]?.mem_nm : (s.mem_mst as { mem_nm: string } | null)?.mem_nm;
+      const status: LedgerRow["status"] = bal < 0 ? "미납" : bal > 0 ? "예치" : "정상";
+      return {
+        memId: s.mem_id,
+        name: memNm ?? "(이름없음)",
+        balance: bal,
+        status,
+        months: Math.round(Math.abs(bal) / monthly),
+      };
+    })
+    .sort((a, b) => a.balance - b.balance);
+
+  return {
+    rows,
+    summary: {
+      unpaid: rows.filter((r) => r.status === "미납").length,
+      ok: rows.filter((r) => r.status === "정상").length,
+      prepaid: rows.filter((r) => r.status === "예치").length,
+    },
+  };
+}
