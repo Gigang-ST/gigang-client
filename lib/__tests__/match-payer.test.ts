@@ -10,7 +10,7 @@ const members: MemberRef[] = [
 ];
 
 describe("matchPayer", () => {
-  it("별칭이 있으면 별칭으로 matched", () => {
+  it("별칭 정규화: 한글 입력은 영문 별칭과 매칭 안 됨", () => {
     const aliases: AliasRef[] = [{ rawNameNorm: "mincholover", memId: "m1" }];
     const r = matchPayer("민초러버", members, aliases); // 정규화는 한글이라 별칭과는 다름
     // '민초러버'는 한글이라 별칭 'mincholover'와 안 맞음 → 아래 영문 케이스로 검증
