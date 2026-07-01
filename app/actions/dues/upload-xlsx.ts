@@ -130,6 +130,7 @@ export async function uploadXlsx(formData: FormData) {
       .from("fee_payer_alias")
       .select("raw_name_norm, mem_id")
       .eq("team_id", teamId)
+      .eq("vers", 0)
       .eq("del_yn", false);
     const aliasRefs: AliasRef[] = (aliasRows ?? []).map((a) => ({ rawNameNorm: a.raw_name_norm, memId: a.mem_id }));
 
@@ -169,14 +170,16 @@ export async function uploadXlsx(formData: FormData) {
       // 근거: last_calc_at(baseline)은 "이 시점까지 이 회원의 모든 거래가 처리됨"을 뜻한다.
       // baseline 이후로는 거래가 순서대로 다 들어오므로, baseline 이전에 새로 매칭되는 거래는
       // 정상 흐름상 존재할 수 없고 = 마이그레이션 누락분(이미 baseline에 녹아있는 과거)의 재유입이다.
-      // 따라서 회비/지출 구분 없이 매칭 + baseline 이전이면 스킵한다.
+      // 따라서 매칭된 거래만 baseline 비교 대상. 스킵 시 실제 버킷 카운트를 되돌린다.
       // (미매칭·동명이인은 누구 건지 몰라 baseline 비교 불가 → 그대로 적재)
       if (matchStatus === "matched" && memId) {
         const baseline = baselineMap.get(memId);
         if (baseline) {
           const txnAt = dayjs.tz(`${row.txn_dt}T${row.txn_tm ?? "00:00:00"}`, "Asia/Seoul");
           if (txnAt.isBefore(dayjs(baseline))) {
-            autoDone--; // 위에서 올린 버킷 카운트 되돌림(autoDone만 baseline 비교 대상)
+            if (bucket === "autoDone") autoDone--;
+            else if (bucket === "needsReview") needsReview--;
+            else excluded--;
             skippedByCutoff++;
             continue;
           }
