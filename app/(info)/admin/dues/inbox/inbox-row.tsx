@@ -1,5 +1,7 @@
 "use client";
 
+import type { KeyboardEvent } from "react";
+
 import { dayjs } from "@/lib/dayjs";
 import { cn } from "@/lib/utils";
 import { memberLabel } from "@/lib/dues/homonyms";
@@ -70,7 +72,7 @@ export function InboxRow({
   const decided = !editable || (!!decision && (decision.itemCd !== "due" || !!decision.memId));
   const badge = BUCKET_BADGE[txn.bucket];
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTableRowElement>) {
+  function handleKeyDown(e: KeyboardEvent<HTMLTableRowElement>) {
     if (e.target !== e.currentTarget) return;
     if (editable && e.key === "1") { onChange({ itemCd: "due" }); e.preventDefault(); }
     else if (editable && e.key === "2") { onChange({ itemCd: "event_fee" }); e.preventDefault(); }

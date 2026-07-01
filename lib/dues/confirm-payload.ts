@@ -26,6 +26,9 @@ export function buildConfirmPayload(input: {
   const excludedItems: ConfirmItem[] = input.excluded.map((t) => ({ txnId: t.txnId }));
   const reviewItems: ConfirmItem[] = input.review.map((t) => {
     const d = input.decisions[t.txnId];
+    // 순수 함수 계약: 모든 review 항목은 대응하는 decision을 가져야 한다. 없으면
+    // 모호한 TypeError 대신 명확한 에러로 계약 위반을 드러낸다(aliasLearn도 d를 쓰므로 여기서 선차단).
+    if (!d) throw new Error(`buildConfirmPayload: review 항목 ${t.txnId}에 대응하는 decision이 없습니다`);
     return { txnId: t.txnId, feeItemCd: d.itemCd, memId: d.itemCd === "due" ? d.memId : null };
   });
 

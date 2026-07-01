@@ -61,4 +61,10 @@ describe("buildConfirmPayload", () => {
     });
     expect(items.map((i) => i.txnId)).toEqual(["a1", "x1", "r1"]);
   });
+
+  it("review 항목에 decision이 없으면 명확한 에러를 던진다", () => {
+    expect(() =>
+      buildConfirmPayload({ autoDone: [], excluded: [], review: [ref("r1")], decisions: {} }),
+    ).toThrow(/decision이 없습니다/);
+  });
 });

@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 import { matchPayer, type MemberRef, type AliasRef } from "@/lib/dues/match-payer";
 import { bucketOf } from "@/lib/dues/upload-bucketize";
+import { duplicateNames } from "@/lib/dues/homonyms";
 
 export type MemberOption = { memId: string; name: string; birthDt: string | null };
 
@@ -56,6 +57,11 @@ export async function getInboxTxns(): Promise<{
   if (memsErr) throw new Error(`회원 조회 실패: ${memsErr.message}`);
   const memberRefs: MemberRef[] = (mems ?? []).map((m) => ({ memId: m.mem_id, name: m.mem_nm }));
   const birthById = new Map<string, string | null>((mems ?? []).map((m) => [m.mem_id, m.birth_dt]));
+  // 생년월일은 동명이인 구분에만 쓰이므로, 동명이인인 회원에게만 클라이언트로 내려보낸다
+  // (불필요한 개인정보 전송 최소화). 동명이인이 아니면 birthDt는 null.
+  const dupNames = duplicateNames(memberRefs);
+  const birthFor = (memId: string, name: string): string | null =>
+    dupNames.has(name) ? (birthById.get(memId) ?? null) : null;
 
   const { data: aliasRows, error: aliasErr } = await db
     .from("fee_payer_alias")
@@ -94,7 +100,7 @@ export async function getInboxTxns(): Promise<{
       matchStatus,
       feeItemCd: r.fee_item_cd,
       bucket,
-      candidates: match.candidates.map((c) => ({ ...c, birthDt: birthById.get(c.memId) ?? null })),
+      candidates: match.candidates.map((c) => ({ ...c, birthDt: birthFor(c.memId, c.name) })),
     };
   });
 
@@ -102,7 +108,7 @@ export async function getInboxTxns(): Promise<{
     members: memberRefs.map((m) => ({
       memId: m.memId,
       name: m.name,
-      birthDt: birthById.get(m.memId) ?? null,
+      birthDt: birthFor(m.memId, m.name),
     })),
     txns,
   };

@@ -9,7 +9,7 @@ import { duplicateNames } from "@/lib/dues/homonyms";
 import type { InboxTxn, MemberOption } from "@/lib/queries/dues";
 
 import { EmptyState } from "@/components/common/empty-state";
-import { Caption, H2 } from "@/components/common/typography";
+import { Caption, H2, Micro } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -18,9 +18,13 @@ import { InboxRow, ITEM_LABEL, ITEM_ORDER, memberNameById } from "./inbox-row";
 
 type Filter = "all" | "needsReview" | "autoDone" | "excluded";
 
-/** 확인필요 행의 초기 판단값: 최상위 후보 + 회비 분류. */
+/**
+ * 확인필요 행의 초기 판단값: 회비 분류 + **후보가 딱 1명일 때만** 그 회원을 자동 선택.
+ * 후보가 2명 이상(동명이인·복수 유사매칭)이면 memId를 비워 둔다 — 운영자가 직접 골라야
+ * 확정 가능(그 전엔 미결정으로 강조). 낮은 확신의 자동추측이 그대로 반영되는 것을 막는다.
+ */
 function defaultDecision(t: InboxTxn): Decision {
-  return { memId: t.candidates[0]?.memId ?? null, itemCd: "due", remember: false };
+  return { memId: t.candidates.length === 1 ? t.candidates[0].memId : null, itemCd: "due", remember: false };
 }
 
 export function InboxTable({ members, txns }: { members: MemberOption[]; txns: InboxTxn[] }) {
@@ -99,10 +103,16 @@ export function InboxTable({ members, txns }: { members: MemberOption[]; txns: I
 
   function onSubmit() {
     const { items, aliasLearn } = buildConfirmPayload({ autoDone, excluded, review, decisions });
+    setMsg(null);
     startTransition(async () => {
       const res = await confirmAndRecalc({ items, aliasLearn });
       setMsg(res.ok ? `확정 ${res.confirmed}건 · 재계산 ${res.recalculated}명 완료` : res.message);
-      if (res.ok) router.refresh();
+      if (res.ok) {
+        // 배치 전체가 확정됐으므로 남은 편집·선택 상태를 비운다(새 목록은 refresh로 다시 받음).
+        setSelected(new Set());
+        setOverrides({});
+        router.refresh();
+      }
     });
   }
 
@@ -185,13 +195,14 @@ export function InboxTable({ members, txns }: { members: MemberOption[]; txns: I
       )}
 
       {selected.size > 0 && (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Caption className="text-foreground">선택 {selected.size}건</Caption>
           {ITEM_ORDER.map((cd) => (
             <Button key={cd} type="button" size="xs" variant="outline" onClick={() => bulkSetItemCd(cd)}>
               {ITEM_LABEL[cd]}로
             </Button>
           ))}
+          <Micro className="text-muted-foreground">선택은 일괄 분류용 · 확정은 전체 대상</Micro>
         </div>
       )}
 
