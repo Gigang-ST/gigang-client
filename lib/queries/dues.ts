@@ -32,35 +32,41 @@ export async function getInboxTxns(): Promise<{
   const { teamId } = await getRequestTeamContext();
   const db = createAdminClient();
 
-  const { data: rels } = await db
+  // 조회 실패를 빈 정상 상태로 삼키지 않는다 — 마이그레이션 누락·권한오류가
+  // "빈 화면=정상"으로 오인되지 않도록 에러는 그대로 표면화(throw)한다.
+  const { data: rels, error: relsErr } = await db
     .from("team_mem_rel")
     .select("mem_id")
     .eq("team_id", teamId)
     .eq("vers", 0)
     .eq("del_yn", false);
+  if (relsErr) throw new Error(`팀 회원 조회 실패: ${relsErr.message}`);
   const memIds = (rels ?? []).map((r) => r.mem_id);
 
-  const { data: mems } = memIds.length
+  const { data: mems, error: memsErr } = memIds.length
     ? await db.from("mem_mst").select("mem_id, mem_nm").in("mem_id", memIds).eq("vers", 0).eq("del_yn", false)
-    : { data: [] as { mem_id: string; mem_nm: string }[] };
+    : { data: [] as { mem_id: string; mem_nm: string }[], error: null };
+  if (memsErr) throw new Error(`회원 조회 실패: ${memsErr.message}`);
   const memberRefs: MemberRef[] = (mems ?? []).map((m) => ({ memId: m.mem_id, name: m.mem_nm }));
 
-  const { data: aliasRows } = await db
+  const { data: aliasRows, error: aliasErr } = await db
     .from("fee_payer_alias")
     .select("raw_name_norm, mem_id")
     .eq("team_id", teamId)
     .eq("vers", 0)
     .eq("del_yn", false);
+  if (aliasErr) throw new Error(`별칭 조회 실패: ${aliasErr.message}`);
   const aliasRefs: AliasRef[] = (aliasRows ?? []).map((a) => ({ rawNameNorm: a.raw_name_norm, memId: a.mem_id }));
 
   // fee_txn_hist에는 vers 컬럼이 없다 — del_yn만 필터한다.
-  const { data: rows } = await db
+  const { data: rows, error: rowsErr } = await db
     .from("fee_txn_hist")
     .select("txn_id, txn_dt, txn_tm, txn_amt, txn_io_enm, raw_name, mem_id, match_st_cd, fee_item_cd")
     .eq("team_id", teamId)
     .eq("is_cfm_yn", false)
     .eq("del_yn", false)
     .order("txn_dt", { ascending: true });
+  if (rowsErr) throw new Error(`거래 조회 실패: ${rowsErr.message}`);
 
   const txns: InboxTxn[] = (rows ?? []).map((r) => {
     const match = matchPayer(r.raw_name, memberRefs, aliasRefs);
@@ -106,7 +112,7 @@ export async function getDuesLedger(): Promise<{
   const { teamId } = await getRequestTeamContext();
   const db = createAdminClient();
 
-  const { data: policies } = await db
+  const { data: policies, error: policiesErr } = await db
     .from("fee_policy_cfg")
     .select("monthly_fee_amt")
     .eq("team_id", teamId)
@@ -114,14 +120,16 @@ export async function getDuesLedger(): Promise<{
     .eq("del_yn", false)
     .order("aply_stt_dt", { ascending: false })
     .limit(1);
+  if (policiesErr) throw new Error(`회비 정책 조회 실패: ${policiesErr.message}`);
   const monthly = policies?.[0]?.monthly_fee_amt ?? 2000;
 
-  const { data: snaps } = await db
+  const { data: snaps, error: snapsErr } = await db
     .from("fee_mem_bal_snap")
     .select("mem_id, bal_amt, mem_mst!fk_fee_mem_bal_snap__mem_mst(mem_nm)")
     .eq("team_id", teamId)
     .eq("vers", 0)
     .eq("del_yn", false);
+  if (snapsErr) throw new Error(`잔액 스냅샷 조회 실패: ${snapsErr.message}`);
 
   const rows: LedgerRow[] = (snaps ?? [])
     .map((s) => {
@@ -133,7 +141,8 @@ export async function getDuesLedger(): Promise<{
         name: memNm ?? "(이름없음)",
         balance: bal,
         status,
-        months: Math.round(Math.abs(bal) / monthly),
+        // 완납된 개월수(내림). 한 달 미만 잔액은 0 → 화면에서 "1개월 미만"으로 표시한다.
+        months: Math.floor(Math.abs(bal) / monthly),
       };
     })
     .sort((a, b) => a.balance - b.balance);

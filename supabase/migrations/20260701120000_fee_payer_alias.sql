@@ -38,13 +38,9 @@ COMMENT ON TABLE public.fee_payer_alias IS '회비 입금자명→회원 매칭 
 
 ALTER TABLE public.fee_payer_alias ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY fee_payer_alias_select_member
-  ON public.fee_payer_alias FOR SELECT TO authenticated
-  USING (del_yn = false AND EXISTS (
-    SELECT 1 FROM public.team_mem_rel r
-    WHERE r.team_id = fee_payer_alias.team_id AND r.mem_id = auth.uid()
-      AND r.vers = 0 AND r.del_yn = false));
-
+-- 별칭(입금자명→회원 매핑)은 관리자 운영 데이터라 일반 멤버 SELECT를 열지 않는다.
+-- 앱의 읽기는 전부 service_role admin 클라이언트(RLS 우회)로만 하고,
+-- 아래 mutate_admin(FOR ALL)이 관리자 SELECT까지 커버한다.
 CREATE POLICY fee_payer_alias_mutate_admin
   ON public.fee_payer_alias FOR ALL TO authenticated
   USING (EXISTS (

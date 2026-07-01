@@ -126,12 +126,17 @@ export async function uploadXlsx(formData: FormData) {
 
     const memberRefs: MemberRef[] = (members ?? []).map((m) => ({ memId: m.mem_id, name: m.mem_nm }));
 
-    const { data: aliasRows } = await db
+    // 별칭 조회 실패를 빈 배열로 삼키지 않는다 — 삼키면 원래 자동매칭될 입금이 needsReview로
+    // 잘못 적재된 채 업로드가 성공으로 끝나 운영자가 원인 모를 오triage를 보게 된다.
+    const { data: aliasRows, error: aliasErr } = await db
       .from("fee_payer_alias")
       .select("raw_name_norm, mem_id")
       .eq("team_id", teamId)
       .eq("vers", 0)
       .eq("del_yn", false);
+    if (aliasErr) {
+      return { ok: false as const, message: "별칭 조회에 실패했습니다. 다시 시도하세요." };
+    }
     const aliasRefs: AliasRef[] = (aliasRows ?? []).map((a) => ({ rawNameNorm: a.raw_name_norm, memId: a.mem_id }));
 
     // 회원별 baseline(마지막 거래일) 맵 — 이미 마감된 시점 이전의 과거 거래가
@@ -197,6 +202,10 @@ export async function uploadXlsx(formData: FormData) {
       });
 
       if (error?.code === "23505") {
+        // 이미 적재된 중복 거래 — 실제 저장 안 됐으므로 위에서 올린 버킷 카운트를 되돌린다.
+        if (bucket === "autoDone") autoDone--;
+        else if (bucket === "needsReview") needsReview--;
+        else excluded--;
         skipped++;
       } else if (error) {
         console.error("[uploadXlsx] 거래 INSERT 실패:", error.code, error.message, { txn_dt: row.txn_dt, txn_tm: row.txn_tm, txn_amt: row.txn_amt, fee_item_cd: row.fee_item_cd });
