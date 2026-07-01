@@ -15,7 +15,7 @@ import {
 import {
   calcBaseMileage,
   calcFinalMileage,
-  calcNextMonthGoal,
+  computeGoalChain,
   roundMileage,
   countMonths,
   DEPOSIT_PER_MONTH,
@@ -576,26 +576,26 @@ async function recalcGoalsFromMonth(
     if (found > 0) anchorIdx = found;
   }
 
+  const chain = computeGoalChain(
+    goals.map((g) => ({
+      base_dt: g.base_dt as string,
+      goal_mlg: Number(g.goal_mlg),
+      achv_mlg: roundedAchvByMonth.get(g.base_dt as string) ?? 0,
+    })),
+    evtStartMonth,
+    anchorIdx,
+  );
+
   for (let i = anchorIdx + 1; i < goals.length; i++) {
-    const prev = goals[i - 1];
     const cur = goals[i];
-    const prevMonth = prev.base_dt as string;
-    const prevGoalVal = Number(prev.goal_mlg);
+    const next = chain[i];
+    if (Number(cur.goal_mlg) === next.goal_mlg) continue;
 
-    if (prevMonth < evtStartMonth) continue;
-    if (!prev.achv_yn) break;
-
-    const calculatedGoal = calcNextMonthGoal(prevGoalVal, true);
-    const finalGoal = Math.max(calculatedGoal, Number(cur.goal_mlg));
-
-    if (Number(cur.goal_mlg) !== finalGoal) {
-      const newAchvYn = Math.round((roundedAchvByMonth.get(cur.base_dt as string) ?? 0) * 10) / 10 >= finalGoal;
-      await db
-        .from("evt_mlg_mth_snap")
-        .update({ goal_mlg: finalGoal, achv_yn: newAchvYn, updated_at: dayjs().toISOString() })
-        .eq("goal_id", cur.goal_id);
-      cur.goal_mlg = finalGoal;
-      cur.achv_yn = newAchvYn;
-    }
+    await db
+      .from("evt_mlg_mth_snap")
+      .update({ goal_mlg: next.goal_mlg, achv_yn: next.achv_yn, updated_at: dayjs().toISOString() })
+      .eq("goal_id", cur.goal_id);
+    cur.goal_mlg = next.goal_mlg;
+    cur.achv_yn = next.achv_yn;
   }
 }
