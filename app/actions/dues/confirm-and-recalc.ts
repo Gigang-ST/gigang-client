@@ -26,7 +26,11 @@ export async function confirmAndRecalc(input: {
   }
 
   if (input.aliasLearn?.length) {
-    await learnAliases(input.aliasLearn); // 확정 성공 후에만 학습. 실패해도 재계산은 진행.
+    // 확정 성공 후에만 학습. 실패해도 재계산은 진행하되, 조용히 삼키지 않고 로그를 남긴다.
+    const aliasResult = await learnAliases(input.aliasLearn);
+    if (!aliasResult.ok) {
+      console.error("[confirmAndRecalc] 별칭 학습 실패:", aliasResult.message);
+    }
   }
 
   const recalc = await recalculateBalance(input.recalcMemIds);
