@@ -69,11 +69,23 @@ export type CreatedGathering = {
   maxPrtCnt: number | null;
 };
 
+/** 복제("이 내용으로 새 모임") 등 등록 폼 내용 프리필. 일시는 새 모임 기준이라 제외. */
+export type GatheringFormPrefill = {
+  gthr_nm: string;
+  gthr_type_enm: string;
+  sprt_cd?: string | null;
+  loc_txt?: string | null;
+  desc_txt?: string | null;
+  max_prt_cnt?: number | null;
+};
+
 export type GatheringFormDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: "create" | "edit";
   defaultDate?: string;
+  /** create 모드 전용 내용 프리필 — 지정 시 임시저장 draft보다 우선한다 (명시적 액션이므로) */
+  prefill?: GatheringFormPrefill;
   initialData?: {
     gthr_id: string;
     gthr_nm: string;
@@ -98,6 +110,7 @@ export function GatheringFormDialog({
   onOpenChange,
   mode,
   defaultDate,
+  prefill,
   initialData,
   onSuccess,
 }: GatheringFormDialogProps) {
@@ -147,12 +160,26 @@ export function GatheringFormDialog({
         max_prt_cnt: initialData.max_prt_cnt ?? undefined,
       });
     } else {
+      const defaultSttAt = defaultDate
+        ? `${defaultDate}T${dayjs().tz("Asia/Seoul").add(1, "hour").startOf("hour").format("HH:mm")}`
+        : dayjs().tz("Asia/Seoul").add(1, "hour").startOf("hour").format("YYYY-MM-DDTHH:mm");
+      if (prefill) {
+        // 복제 등 명시적 프리필 — draft보다 우선. 일시는 새 모임 기준으로 기본값 사용.
+        form.reset({
+          gthr_nm: prefill.gthr_nm,
+          gthr_type_enm: prefill.gthr_type_enm as CreateGthrInput["gthr_type_enm"],
+          sprt_cd: (prefill.sprt_cd ?? "running") as CreateGthrInput["sprt_cd"],
+          stt_at: defaultSttAt,
+          end_at: null,
+          loc_txt: prefill.loc_txt ?? null,
+          desc_txt: prefill.desc_txt ?? null,
+          max_prt_cnt: prefill.max_prt_cnt ?? undefined,
+        });
+        return;
+      }
       // sessionStorage 저장값이 없을 때만 기본값으로 초기화 (useFormPersist가 복원 처리)
       const hasDraft = (() => { try { return !!sessionStorage.getItem(persistKey); } catch { return false; } })();
       if (!hasDraft) {
-        const defaultSttAt = defaultDate
-          ? `${defaultDate}T${dayjs().tz("Asia/Seoul").add(1, "hour").startOf("hour").format("HH:mm")}`
-          : dayjs().tz("Asia/Seoul").add(1, "hour").startOf("hour").format("YYYY-MM-DDTHH:mm");
         form.reset({
           gthr_nm: "",
           gthr_type_enm: "general",
@@ -164,7 +191,7 @@ export function GatheringFormDialog({
         });
       }
     }
-  }, [open, mode, initialData, defaultDate, form, persistKey]);
+  }, [open, mode, initialData, defaultDate, prefill, form, persistKey]);
 
   /** 유형 변경 핸들러. 정기(regular) 선택 시 비어있는 필드를 템플릿으로 채운다. */
   function handleTypeChange(value: string) {

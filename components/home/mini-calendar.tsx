@@ -67,7 +67,7 @@ const SchPostFormDialog = dynamic<SchPostFormDialogProps>(
   { ssr: false }
 );
 
-import type { GatheringFormDialogProps } from "@/components/schedule/gathering-form-dialog";
+import type { GatheringFormDialogProps, GatheringFormPrefill } from "@/components/schedule/gathering-form-dialog";
 const GatheringFormDialog = dynamic<GatheringFormDialogProps>(
   () =>
     import("@/components/schedule/gathering-form-dialog").then(
@@ -183,11 +183,15 @@ export function MiniCalendar({
   // 모임 폼 다이얼로그 상태
   const [gthrFormOpen, setGthrFormOpen] = useState(false);
   const [gthrDefaultDate, setGthrDefaultDate] = useState<string | undefined>(undefined);
+  // 복제("이 내용으로 새 모임") 프리필 — 상세에서 복제 버튼을 눌렀을 때만 설정
+  const [gthrPrefill, setGthrPrefill] = useState<GatheringFormPrefill | null>(null);
 
   // 모임 상세 다이얼로그 상태
   const [gthrDetailOpen, setGthrDetailOpen] = useState(false);
   const [gthrDetailRace, setGthrDetailRace] = useState<(CalendarRace & { maxPrtCnt?: number | null; attendees?: GatheringAttendee[]; sprt_cd?: string | null }) | null>(null);
   const [gthrDetailAttending, setGthrDetailAttending] = useState(false);
+  // 상세를 "즉시 열고" 참석자/정원을 뒤에서 채우는 동안 true — 다이얼로그가 스켈레톤을 그린다
+  const [gthrDetailLoading, setGthrDetailLoading] = useState(false);
   const [gthrDetailComments, setGthrDetailComments] = useState<CmntRow[] | undefined>(undefined);
   const [gthrEditTarget, setGthrEditTarget] = useState<CalendarRace | null>(null);
   // 방금 등록한 모임으로 상세가 열렸는지 — 공유 유도 안내 노출용
@@ -234,29 +238,69 @@ export function MiniCalendar({
   useEffect(() => {
     if (deepLinkGthrId) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deepLinkGthrId)
-      const query = isUuid
-        ? supabase.from("gthr_mst").select("gthr_id, short_id, gthr_nm, gthr_type_enm, stt_at, end_at, loc_txt, desc_txt, crt_by").eq("gthr_id", deepLinkGthrId).maybeSingle()
-        : supabase.from("gthr_mst").select("gthr_id, short_id, gthr_nm, gthr_type_enm, stt_at, end_at, loc_txt, desc_txt, crt_by").eq("short_id", deepLinkGthrId).maybeSingle()
+      const masterSelect = "gthr_id, short_id, gthr_nm, gthr_type_enm, stt_at, end_at, loc_txt, desc_txt, crt_by"
 
-      query.then(({ data }) => {
-        if (!data) return
-        const race: CalendarRace = {
-          id: data.gthr_id,
-          short_id: data.short_id ?? null,
-          title: data.gthr_nm,
-          start_date: dayjs(data.stt_at).tz("Asia/Seoul").format("YYYY-MM-DD"),
-          type: "gathering",
-          post_type: data.gthr_type_enm,
-          location: data.loc_txt ?? null,
-          cont_txt: data.desc_txt ?? null,
-          evt_stt_at: data.stt_at,
-          evt_end_at: data.end_at ?? null,
-          crt_by: data.crt_by,
-        }
-        openGatheringDetail(race).then(() => {
+      if (isUuid) {
+        // 알림·헤더칩 딥링크(uuid): 마스터+상세+참석을 병렬 1 RTT로 조회 후 완결 상태로 오픈.
+        // (기존엔 마스터 조회 → 상세 조회 직렬 2 RTT)
+        type GthrDetail = { max_prt_cnt: number | null; sprt_cd: string | null; attendees: GatheringAttendee[] }
+        Promise.all([
+          supabase.from("gthr_mst").select(masterSelect).eq("gthr_id", deepLinkGthrId).maybeSingle(),
+          supabase.rpc("get_gathering_detail", { p_gthr_id: deepLinkGthrId, p_team_id: teamId }),
+          memberId
+            ? supabase.from("gthr_attd_rel").select("attd_id").eq("gthr_id", deepLinkGthrId).eq("mem_id", memberId).maybeSingle()
+            : Promise.resolve({ data: null }),
+        ]).then(([masterRes, detailRes, attdRes]) => {
+          const data = masterRes.data
+          if (!data) return
+          const gthrData = detailRes.data as GthrDetail | null
+          const attendees: GatheringAttendee[] = gthrData?.attendees ?? []
+          setGthrJustCreated(false)
+          setGthrDetailRace({
+            id: data.gthr_id,
+            short_id: data.short_id ?? null,
+            title: data.gthr_nm,
+            start_date: dayjs(data.stt_at).tz("Asia/Seoul").format("YYYY-MM-DD"),
+            type: "gathering",
+            post_type: data.gthr_type_enm,
+            location: data.loc_txt ?? null,
+            cont_txt: data.desc_txt ?? null,
+            evt_stt_at: data.stt_at,
+            evt_end_at: data.end_at ?? null,
+            crt_by: data.crt_by,
+            regCount: attendees.length,
+            maxPrtCnt: gthrData?.max_prt_cnt ?? null,
+            attendees,
+            sprt_cd: gthrData?.sprt_cd ?? null,
+          })
+          setGthrDetailAttending(!!attdRes.data)
+          setGthrDetailLoading(false)
+          setGthrDetailComments(undefined)
+          setGthrDetailOpen(true)
           router.replace("/")
         })
-      })
+      } else {
+        // 공유 링크(short_id): uuid를 몰라 마스터 조회가 선행 — 이후 즉시 오픈+스켈레톤으로 채움
+        supabase.from("gthr_mst").select(masterSelect).eq("short_id", deepLinkGthrId).maybeSingle().then(({ data }) => {
+          if (!data) return
+          const race: CalendarRace = {
+            id: data.gthr_id,
+            short_id: data.short_id ?? null,
+            title: data.gthr_nm,
+            start_date: dayjs(data.stt_at).tz("Asia/Seoul").format("YYYY-MM-DD"),
+            type: "gathering",
+            post_type: data.gthr_type_enm,
+            location: data.loc_txt ?? null,
+            cont_txt: data.desc_txt ?? null,
+            evt_stt_at: data.stt_at,
+            evt_end_at: data.end_at ?? null,
+            crt_by: data.crt_by,
+          }
+          openGatheringDetail(race).then(() => {
+            router.replace("/")
+          })
+        })
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deepLinkGthrId])
@@ -936,6 +980,7 @@ export function MiniCalendar({
     setGthrJustCreated(true);
     setGthrDetailRace({ ...race, regCount: me.length, maxPrtCnt: race.maxPrtCnt ?? null, attendees: me, sprt_cd: race.sprt_cd ?? null });
     setGthrDetailAttending(true); // 작성자는 자동 참석
+    setGthrDetailLoading(false);   // 입력값으로 완결 — 스켈레톤 불필요
     setGthrDetailComments([]);     // 새 모임 — 댓글 없음
     setGthrDetailOpen(true);
   // memberStatus/memberAvatarUrl은 렌더마다 안정적
@@ -946,13 +991,18 @@ export function MiniCalendar({
     // 등록 직후 경로(justCreated)는 사용자 클릭과 무관하게 반드시 열어야 하므로 락을 무시한다
     if (openingLock.current && !justCreated) return;
     openingLock.current = true;
-    setOpeningId(race.id);
     // 등록 직후 경로만 공유 유도 안내를 켜고, 일반 클릭은 끈다
     setGthrJustCreated(justCreated);
+    // 리스트/캘린더 행에 이미 있는 데이터(제목·일시·장소·비고·참석수)로 즉시 연다.
+    // 참석자 목록·정원·내 참석 여부만 뒤에서 채우고, 그동안 다이얼로그가 스켈레톤을 그린다.
+    setGthrDetailRace({ ...race, regCount: race.regCount ?? 0, maxPrtCnt: null, attendees: [], sprt_cd: race.sprt_cd ?? null });
+    setGthrDetailAttending(false);
+    setGthrDetailComments(undefined);
+    setGthrDetailLoading(true);
+    setGthrDetailOpen(true);
     try {
       type GthrDetail = { max_prt_cnt: number | null; sprt_cd: string | null; attendees: GatheringAttendee[] };
       // 댓글은 함께 기다리지 않는다 — undefined로 넘기면 CommentSection이 스스로 조회·로딩 표시한다.
-      // 다이얼로그 오픈을 댓글 쿼리가 막지 않아 그만큼 더 빨리 뜬다.
       const [attdResult, gthrDetailResult] = await Promise.all([
         memberId
           ? supabase.from("gthr_attd_rel").select("attd_id").eq("gthr_id", race.id).eq("mem_id", memberId).maybeSingle()
@@ -960,21 +1010,23 @@ export function MiniCalendar({
         supabase.rpc("get_gathering_detail", { p_gthr_id: race.id, p_team_id: teamId }),
       ]);
       if (gthrDetailResult.error) {
+        // 이미 열린 다이얼로그는 유지 — 행 데이터만으로도 핵심 정보는 보인다
         console.error("[openGatheringDetail]", gthrDetailResult.error);
-        throw gthrDetailResult.error;
+        return;
       }
       const gthrData = gthrDetailResult.data as GthrDetail | null;
       const attendees: GatheringAttendee[] = gthrData?.attendees ?? [];
-      setGthrDetailRace({ ...race, regCount: attendees.length, maxPrtCnt: gthrData?.max_prt_cnt ?? null, attendees, sprt_cd: gthrData?.sprt_cd ?? null });
+      // 그 사이 다른 모임으로 바뀌었으면(재클릭 등) 늦게 온 응답을 버린다
+      setGthrDetailRace((prev) => prev && prev.id === race.id
+        ? { ...prev, regCount: attendees.length, maxPrtCnt: gthrData?.max_prt_cnt ?? null, attendees, sprt_cd: gthrData?.sprt_cd ?? prev.sprt_cd ?? null }
+        : prev);
       // 등록 직후(justCreated)엔 작성자가 자동 참석되므로 무조건 참석 상태로 확정한다.
       // (자동 참석 INSERT 직후라 attd 조회가 read-after-write 지연으로 null을 반환할 수 있어
       //  조회 결과만 믿으면 데스크톱처럼 빠른 환경에서 참석 토글이 꼬인다)
       setGthrDetailAttending(justCreated || !!attdResult.data);
-      setGthrDetailComments(undefined);
-      setGthrDetailOpen(true);
     } finally {
+      setGthrDetailLoading(false);
       openingLock.current = false;
-      setOpeningId(null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1402,9 +1454,10 @@ export function MiniCalendar({
       {/* 모임 폼 다이얼로그 (등록 + 수정 겸용) */}
       <GatheringFormDialog
         open={gthrFormOpen}
-        onOpenChange={(v) => { setGthrFormOpen(v); if (!v) setGthrEditTarget(null); }}
+        onOpenChange={(v) => { setGthrFormOpen(v); if (!v) { setGthrEditTarget(null); setGthrPrefill(null); } }}
         mode={gthrEditTarget ? "edit" : "create"}
         defaultDate={!gthrEditTarget ? gthrDefaultDate : undefined}
+        prefill={!gthrEditTarget ? gthrPrefill ?? undefined : undefined}
         initialData={gthrEditTarget ? {
           gthr_id: gthrEditTarget.id,
           gthr_nm: gthrEditTarget.title,
@@ -1439,6 +1492,7 @@ export function MiniCalendar({
         currentMemberAvatarUrl={memberStatus.status === "ready" ? memberAvatarUrl : undefined}
         isAdmin={memberStatus.status === "ready" ? memberStatus.admin : false}
         isAttending={gthrDetailAttending}
+        detailLoading={gthrDetailLoading}
         members={membersCache ?? []}
         initialComments={gthrDetailComments}
         justCreated={gthrJustCreated}
@@ -1446,6 +1500,21 @@ export function MiniCalendar({
           if (!gthrDetailRace) return;
           setGthrDetailOpen(false);
           setGthrEditTarget(gthrDetailRace);
+          setGthrFormOpen(true);
+        }}
+        onClone={() => {
+          if (!gthrDetailRace) return;
+          setGthrDetailOpen(false);
+          setGthrPrefill({
+            gthr_nm: gthrDetailRace.title,
+            gthr_type_enm: gthrDetailRace.post_type ?? "general",
+            sprt_cd: gthrDetailRace.sprt_cd ?? null,
+            loc_txt: gthrDetailRace.location ?? null,
+            desc_txt: gthrDetailRace.cont_txt ?? null,
+            max_prt_cnt: gthrDetailRace.maxPrtCnt ?? null,
+          });
+          // 일시는 복사하지 않음 — 캘린더뷰면 선택 날짜, 리스트뷰면 오늘 기준 기본값
+          setGthrDefaultDate(view === "calendar" ? selectedDate : today);
           setGthrFormOpen(true);
         }}
         onDelete={refreshMonthData}

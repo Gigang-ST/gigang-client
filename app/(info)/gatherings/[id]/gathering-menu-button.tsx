@@ -67,7 +67,8 @@ export function GatheringMenuButton({ gthrId, isAuthor, isAdmin, gthrData }: Pro
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {isAuthor && (
+          {/* 수정은 작성자 + 관리자 모두 가능 (RLS도 팀 owner/admin 허용) */}
+          {(isAuthor || isAdmin) && (
             <DropdownMenuItem onClick={() => setEditOpen(true)}>
               수정
             </DropdownMenuItem>
