@@ -55,6 +55,8 @@ export function InboxRow({
   rowRef,
   onArrow,
   onEnterNext,
+  onDelete,
+  deleteBusy,
 }: {
   txn: InboxTxn;
   members: MemberOption[];
@@ -68,6 +70,10 @@ export function InboxRow({
   rowRef: (el: HTMLTableRowElement | null) => void;
   onArrow: (dir: -1 | 1) => void;
   onEnterNext: () => void;
+  /** 미확정 거래 소프트 삭제(재업로드 재유입 차단) — 잘못 들어온 은행 행 제거용 */
+  onDelete: () => void;
+  /** 다른 행 삭제 진행 중 — 중복 실행 방지 */
+  deleteBusy: boolean;
 }) {
   const decided = !editable || (!!decision && (decision.itemCd !== "due" || !!decision.memId));
   const badge = BUCKET_BADGE[txn.bucket];
@@ -168,7 +174,19 @@ export function InboxRow({
         )}
       </td>
       <td className="px-2 py-2">
-        <Badge className={cn("border-0", badge.cls)}>{badge.label}</Badge>
+        <div className="flex items-center gap-1.5">
+          <Badge className={cn("border-0", badge.cls)}>{badge.label}</Badge>
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            className="text-muted-foreground"
+            disabled={deleteBusy}
+            onClick={onDelete}
+          >
+            삭제
+          </Button>
+        </div>
       </td>
     </tr>
   );
