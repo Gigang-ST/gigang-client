@@ -81,9 +81,24 @@ export async function confirmTransactions(items: ConfirmItem[]) {
     });
     const unchanged = merged.filter((t) => !changed.includes(t));
 
-    // 변경 있는 건: 분류·매칭·확정을 한 번에 반영
+    // 실패 시 보상 롤백용 — 이번 호출에서 확정 완료한 거래 id 누적.
+    // 중간 실패를 그대로 두면 "확정됐지만 원장 미기록" 상태가 인박스에서 보이지 않은 채
+    // 영구 고착된다(재시도해도 미확정 필터에 걸러짐) — 반드시 전부 되돌리고 실패를 알린다.
+    const confirmedIds: string[] = [];
+    const rollbackConfirmed = async () => {
+      if (!confirmedIds.length) return;
+      await db
+        .from("fee_txn_hist")
+        .update({ is_cfm_yn: false, cfm_by_mem_id: null, cfm_at: null })
+        .eq("team_id", teamId)
+        .in("txn_id", confirmedIds);
+    };
+
+    // 변경 있는 건: 분류·매칭·확정을 한 번에 반영.
+    // .select() 로 실제 반영된 행만 confirmedIds 에 넣는다 — 다른 관리자가 먼저 확정해
+    // 0행 매칭된 건을 넣으면 보상 롤백이 남의 확정까지 되돌린다.
     for (const t of changed) {
-      const { error } = await db
+      const { data: updated, error } = await db
         .from("fee_txn_hist")
         .update({
           fee_item_cd: t.fee_item_cd,
@@ -95,24 +110,36 @@ export async function confirmTransactions(items: ConfirmItem[]) {
         })
         .eq("team_id", teamId)
         .eq("txn_id", t.txn_id)
-        .eq("is_cfm_yn", false);
-      if (error) return { ok: false as const, message: "확정 처리에 실패했습니다." };
+        .eq("is_cfm_yn", false)
+        .select("txn_id");
+      if (error) {
+        await rollbackConfirmed();
+        return { ok: false as const, message: "확정 처리에 실패했습니다. 변경분은 되돌렸습니다." };
+      }
+      confirmedIds.push(...(updated ?? []).map((r) => r.txn_id));
     }
 
     // 변경 없는 건: 단일 UPDATE 로 일괄 확정
     if (unchanged.length > 0) {
-      const { error: updErr } = await db
+      const { data: updated, error: updErr } = await db
         .from("fee_txn_hist")
         .update({ is_cfm_yn: true, cfm_by_mem_id: member.id, cfm_at: nowIso })
         .eq("team_id", teamId)
         .eq("is_cfm_yn", false)
-        .in("txn_id", unchanged.map((t) => t.txn_id));
-      if (updErr) return { ok: false as const, message: "확정 처리에 실패했습니다." };
+        .in("txn_id", unchanged.map((t) => t.txn_id))
+        .select("txn_id");
+      if (updErr) {
+        await rollbackConfirmed();
+        return { ok: false as const, message: "확정 처리에 실패했습니다. 변경분은 되돌렸습니다." };
+      }
+      confirmedIds.push(...(updated ?? []).map((r) => r.txn_id));
     }
 
-    // 2) 회비 + 매칭 건만 납부원장 일괄 생성 (단일 INSERT)
+    // 2) 회비 + 매칭 건만 납부원장 일괄 생성 (단일 INSERT).
+    //    이번 호출이 실제 확정한 행만 — 다른 관리자가 동시 확정한 건까지 넣으면 원장 이중행.
+    const confirmedSet = new Set(confirmedIds);
     const payRows = merged
-      .filter((t) => t.fee_item_cd === "due" && t.match_st_cd === "matched" && t.mem_id)
+      .filter((t) => confirmedSet.has(t.txn_id) && t.fee_item_cd === "due" && t.match_st_cd === "matched" && t.mem_id)
       .map((t) => ({
         team_id: teamId,
         mem_id: t.mem_id!,
@@ -127,16 +154,12 @@ export async function confirmTransactions(items: ConfirmItem[]) {
     if (payRows.length > 0) {
       const { error: payErr } = await db.from("fee_due_pay_hist").insert(payRows);
       if (payErr) {
-        // 납부원장 생성 실패 시 확정 롤백 (정합성 보호)
-        await db
-          .from("fee_txn_hist")
-          .update({ is_cfm_yn: false, cfm_by_mem_id: null, cfm_at: null })
-          .eq("team_id", teamId)
-          .in("txn_id", merged.map((t) => t.txn_id));
+        // 납부원장 생성 실패 시 확정 롤백 (정합성 보호) — 이번 호출이 실제 확정한 행만
+        await rollbackConfirmed();
         return { ok: false as const, message: "납부 원장 저장에 실패했습니다. 확정을 취소했습니다." };
       }
     }
 
-    return { ok: true as const, message: null, confirmed: merged.length, skipped };
+    return { ok: true as const, message: null, confirmed: confirmedIds.length, skipped };
   });
 }
