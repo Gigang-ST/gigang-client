@@ -60,11 +60,15 @@ export function InboxTable({ members, txns }: { members: MemberOption[]; txns: I
   // 키보드 ↑↓ 이동 대상: 화면에 보이는 needsReview 행 순서.
   const editableVisible = useMemo(() => visible.filter((t) => t.bucket === "needsReview"), [visible]);
 
-  const allDecided = review.every((t) => {
+  // 결정된 확인필요 행: 회비면 회원 지정됨, 그 외(프로젝트/제외)면 분류 선택만으로 결정.
+  // 부분 확정 — 미결정 행은 이번 확정에서 빠지고 인박스에 남아 다음에 처리한다.
+  const decidedReview = review.filter((t) => {
     const d = decisions[t.txnId];
     return d && (d.itemCd !== "due" || d.memId);
   });
-  const totalToConfirm = autoDone.length + review.length + excluded.length;
+  const undecidedCount = review.length - decidedReview.length;
+  // 자동완료·제외는 판단이 필요 없으므로 항상 확정 대상 + 결정된 확인필요 행.
+  const confirmCount = autoDone.length + excluded.length + decidedReview.length;
 
   const selectableIds = editableVisible.map((t) => t.txnId);
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
@@ -102,7 +106,7 @@ export function InboxTable({ members, txns }: { members: MemberOption[]; txns: I
   }
 
   function onSubmit() {
-    const { items, aliasLearn } = buildConfirmPayload({ autoDone, excluded, review, decisions });
+    const { items, aliasLearn } = buildConfirmPayload({ autoDone, excluded, review: decidedReview, decisions });
     setMsg(null);
     startTransition(async () => {
       const res = await confirmAndRecalc({ items, aliasLearn });
@@ -147,7 +151,7 @@ export function InboxTable({ members, txns }: { members: MemberOption[]; txns: I
         />
       </div>
 
-      {totalToConfirm === 0 ? (
+      {txns.length === 0 ? (
         <EmptyState variant="card" message="처리할 거래가 없습니다." />
       ) : (
         <div className="overflow-x-auto">
@@ -209,12 +213,17 @@ export function InboxTable({ members, txns }: { members: MemberOption[]; txns: I
       {msg && <Caption className="text-foreground">{msg}</Caption>}
 
       <div className="sticky bottom-0 -mx-6 border-t border-border bg-background px-6 py-3">
+        {undecidedCount > 0 && (
+          <Caption className="mb-2 block text-muted-foreground">
+            미결정 {undecidedCount}건은 이번 확정에서 제외 — 다음에 처리
+          </Caption>
+        )}
         <Button
           className="w-full"
-          disabled={pending || !allDecided || totalToConfirm === 0}
+          disabled={pending || confirmCount === 0}
           onClick={onSubmit}
         >
-          {pending ? "처리 중…" : `${totalToConfirm}건 확정 + 회비 재계산`}
+          {pending ? "처리 중…" : `${confirmCount}건 확정 + 회비 재계산`}
         </Button>
       </div>
     </div>
