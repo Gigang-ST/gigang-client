@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 
 import { cancelTransaction } from "@/app/actions/dues/cancel-transaction";
 import { confirmAndRecalc } from "@/app/actions/dues/confirm-and-recalc";
+import { deleteTransaction } from "@/app/actions/dues/delete-transaction";
 import { buildConfirmPayload, type Decision, type ItemCd } from "@/lib/dues/confirm-payload";
 import { duplicateNames } from "@/lib/dues/homonyms";
-import type { InboxTxn, MemberOption, ProcessedTxn } from "@/lib/queries/dues";
+import type { FeeItemOption, InboxTxn, MemberOption, ProcessedTxn } from "@/lib/queries/dues";
 
 import { EmptyState } from "@/components/common/empty-state";
 import { InfoRow } from "@/components/common/info-row";
@@ -24,6 +25,7 @@ import {
 import { Input } from "@/components/ui/input";
 
 import { InboxRow, ITEM_LABEL, ITEM_ORDER, memberNameById } from "./inbox-row";
+import { ManualTxnButton } from "./manual-txn-button";
 import { ProcessedRows } from "./processed-rows";
 import { UploadXlsxButton } from "./upload-xlsx-button";
 
@@ -44,6 +46,7 @@ export function InboxTable({
   processed,
   processedCapped,
   processedError = false,
+  feeItems,
 }: {
   members: MemberOption[];
   txns: InboxTxn[];
@@ -52,6 +55,8 @@ export function InboxTable({
   processedCapped: boolean;
   /** 처리됨 조회 실패(핵심 triage 저니는 살아있음) — 탭 안에서만 안내한다. */
   processedError?: boolean;
+  /** 수동 등록 분류 선택지 — FEE_ITEM_CD 전체 */
+  feeItems: FeeItemOption[];
 }) {
   const review = useMemo(() => txns.filter((t) => t.bucket === "needsReview"), [txns]);
   const autoDone = useMemo(() => txns.filter((t) => t.bucket === "autoDone"), [txns]);
@@ -68,6 +73,7 @@ export function InboxTable({
   const [msg, setMsg] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [cancelBusyId, setCancelBusyId] = useState<string | null>(null);
+  const [deleteBusyId, setDeleteBusyId] = useState<string | null>(null);
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   const router = useRouter();
 
@@ -158,6 +164,19 @@ export function InboxTable({
     });
   }
 
+  function onDeleteTxn(txn: InboxTxn) {
+    if (deleteBusyId) return;
+    if (!confirm(`${txn.rawName} ${txn.amt.toLocaleString()}원 거래를 삭제하시겠습니까?\n같은 거래가 재업로드돼도 다시 들어오지 않습니다.`)) return;
+    setMsg(null);
+    setDeleteBusyId(txn.txnId);
+    startTransition(async () => {
+      const res = await deleteTransaction(txn.txnId);
+      setDeleteBusyId(null);
+      setMsg(res.ok ? "거래를 삭제했습니다." : res.message);
+      if (res.ok) router.refresh();
+    });
+  }
+
   function onCancelProcessed(txn: ProcessedTxn) {
     if (!confirm(`${txn.rawName} ${txn.amt.toLocaleString()}원 확정을 취소하시겠습니까?\n거래가 인박스로 돌아가고 잔액이 복구됩니다.`)) return;
     setMsg(null);
@@ -182,7 +201,10 @@ export function InboxTable({
     <div className="flex flex-col gap-4 px-6 pb-24 pt-4">
       <div className="flex items-center justify-between">
         <H2>거래내역 처리</H2>
-        <UploadXlsxButton onResult={setMsg} />
+        <div className="flex items-center gap-2">
+          <ManualTxnButton members={members} dupNames={dupNames} feeItems={feeItems} />
+          <UploadXlsxButton onResult={setMsg} />
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -278,6 +300,8 @@ export function InboxTable({
                   }}
                   onArrow={(dir) => focusByOffset(t.txnId, dir)}
                   onEnterNext={() => focusByOffset(t.txnId, 1)}
+                  onDelete={() => onDeleteTxn(t)}
+                  deleteBusy={deleteBusyId !== null}
                 />
               ))}
             </tbody>
