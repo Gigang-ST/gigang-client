@@ -342,7 +342,8 @@ export function GatheringDetailDialog({
 
               <div className="flex gap-2">
                 {currentMemberId && onClone && (
-                  <Button variant="outline" size="sm" onClick={onClone}>
+                  // 로딩 중 복제하면 아직 안 채워진 정원(maxPrtCnt)이 빠진 채 복사될 수 있어 잠근다
+                  <Button variant="outline" size="sm" onClick={onClone} disabled={detailLoading}>
                     <Copy className="size-3.5" />
                     복제
                   </Button>

@@ -194,6 +194,9 @@ export function MiniCalendar({
   const [gthrDetailAttending, setGthrDetailAttending] = useState(false);
   // 상세를 "즉시 열고" 참석자/정원을 뒤에서 채우는 동안 true — 다이얼로그가 스켈레톤을 그린다
   const [gthrDetailLoading, setGthrDetailLoading] = useState(false);
+  // 상세 오픈 요청 토큰 — 인스턴트 오픈·딥링크는 openingLock을 우회하므로,
+  // 늦게 도착한 이전 조회 응답이 새로 연 모임의 참석/로딩 상태를 덮지 않게 모든 오픈 경로에서 증가시킨다
+  const gthrOpenReqRef = useRef(0);
   const [gthrDetailComments, setGthrDetailComments] = useState<CmntRow[] | undefined>(undefined);
   const [gthrEditTarget, setGthrEditTarget] = useState<CalendarRace | null>(null);
   // 방금 등록한 모임으로 상세가 열렸는지 — 공유 유도 안내 노출용
@@ -260,6 +263,7 @@ export function MiniCalendar({
         // 알림·헤더칩 딥링크(uuid): 마스터+상세+참석을 병렬 1 RTT로 조회 후 완결 상태로 오픈.
         // (기존엔 마스터 조회 → 상세 조회 직렬 2 RTT)
         type GthrDetail = { max_prt_cnt: number | null; sprt_cd: string | null; attendees: GatheringAttendee[] }
+        const reqId = ++gthrOpenReqRef.current
         Promise.all([
           supabase.from("gthr_mst").select(masterSelect).eq("gthr_id", deepLinkGthrId).maybeSingle(),
           supabase.rpc("get_gathering_detail", { p_gthr_id: deepLinkGthrId, p_team_id: teamId }),
@@ -267,6 +271,8 @@ export function MiniCalendar({
             ? supabase.from("gthr_attd_rel").select("attd_id").eq("gthr_id", deepLinkGthrId).eq("mem_id", memberId).maybeSingle()
             : Promise.resolve({ data: null }),
         ]).then(([masterRes, detailRes, attdRes]) => {
+          // 그 사이 다른 모임이 열렸으면 늦게 온 딥링크 응답을 버린다
+          if (reqId !== gthrOpenReqRef.current) return
           const data = masterRes.data
           if (!data) return
           const gthrData = detailRes.data as GthrDetail | null
@@ -994,6 +1000,7 @@ export function MiniCalendar({
     const me = memberStatus.status === "ready"
       ? [{ mem_id: memberStatus.memberId, mem_nm: memberStatus.fullName ?? null, avatar_url: memberAvatarUrl ?? null }]
       : [];
+    gthrOpenReqRef.current += 1; // 진행 중이던 이전 상세 조회 무효화
     setGthrJustCreated(true);
     setGthrDetailRace({ ...race, regCount: me.length, maxPrtCnt: race.maxPrtCnt ?? null, attendees: me, sprt_cd: race.sprt_cd ?? null });
     setGthrDetailAttending(true); // 작성자는 자동 참석
@@ -1008,6 +1015,7 @@ export function MiniCalendar({
     // 등록 직후 경로(justCreated)는 사용자 클릭과 무관하게 반드시 열어야 하므로 락을 무시한다
     if (openingLock.current && !justCreated) return;
     openingLock.current = true;
+    const reqId = ++gthrOpenReqRef.current;
     // 등록 직후 경로만 공유 유도 안내를 켜고, 일반 클릭은 끈다
     setGthrJustCreated(justCreated);
     // 리스트/캘린더 행에 이미 있는 데이터(제목·일시·장소·비고·참석수·정원)로 즉시 연다.
@@ -1031,9 +1039,10 @@ export function MiniCalendar({
         console.error("[openGatheringDetail]", gthrDetailResult.error);
         return;
       }
+      // 그 사이 다른 모임이 열렸으면(인스턴트 오픈·딥링크 등) 늦게 온 응답을 통째로 버린다
+      if (reqId !== gthrOpenReqRef.current) return;
       const gthrData = gthrDetailResult.data as GthrDetail | null;
       const attendees: GatheringAttendee[] = gthrData?.attendees ?? [];
-      // 그 사이 다른 모임으로 바뀌었으면(재클릭 등) 늦게 온 응답을 버린다
       setGthrDetailRace((prev) => prev && prev.id === race.id
         ? { ...prev, regCount: attendees.length, maxPrtCnt: gthrData?.max_prt_cnt ?? null, attendees, sprt_cd: gthrData?.sprt_cd ?? prev.sprt_cd ?? null }
         : prev);
@@ -1042,7 +1051,8 @@ export function MiniCalendar({
       //  조회 결과만 믿으면 데스크톱처럼 빠른 환경에서 참석 토글이 꼬인다)
       setGthrDetailAttending(justCreated || !!attdResult.data);
     } finally {
-      setGthrDetailLoading(false);
+      // 요청이 유효할 때만 로딩 해제 — 무효화된 요청이 새 오픈의 스켈레톤을 조기 종료하지 않게
+      if (reqId === gthrOpenReqRef.current) setGthrDetailLoading(false);
       openingLock.current = false;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

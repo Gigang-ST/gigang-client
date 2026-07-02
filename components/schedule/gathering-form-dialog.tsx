@@ -220,7 +220,8 @@ export function GatheringFormDialog({
   /** "최근 모임 불러오기" 버튼: 팝업 열고 최초 1회만 조회. */
   async function openRecent() {
     setRecentOpen(true);
-    if (recentList !== null) return; // 세션 내 캐시 재사용
+    // 세션 내 캐시 재사용 + 로딩 중 재클릭(팝업 닫았다 다시 열기) 중복 조회 방지
+    if (recentList !== null || recentStatus === "loading") return;
     setRecentStatus("loading");
     try {
       const list = await getRecentGatherings();
@@ -299,6 +300,7 @@ export function GatheringFormDialog({
                 size="sm"
                 className="gap-1.5 self-start"
                 onClick={openRecent}
+                disabled={isSubmitting}
               >
                 <History className="size-4" />
                 최근 모임 불러오기

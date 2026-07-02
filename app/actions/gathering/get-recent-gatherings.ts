@@ -27,7 +27,10 @@ export async function getRecentGatherings(): Promise<RecentGathering[]> {
       .order("stt_at", { ascending: false })
       .limit(FETCH_LIMIT);
 
-    if (error) throw new Error("최근 모임을 불러오지 못했습니다.");
+    if (error) {
+      console.error("[getRecentGatherings]", error);
+      throw new Error("최근 모임을 불러오지 못했습니다.");
+    }
 
     return dedupeRecentGatherings((data ?? []) as RecentGathering[], RESULT_LIMIT);
   });

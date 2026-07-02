@@ -6,7 +6,7 @@ import Link from "next/link";
 
 /** 헤더 중앙 롤링에 표시할 참석 예정 모임 (라벨은 서버에서 계산해 전달) */
 export type HeaderUpcoming = {
-  /** 모임 상세 딥링크 (/?gthr=short_id) */
+  /** 모임 상세 딥링크 (/?gthr=gthr_id — uuid를 넘겨야 병렬 1 RTT 패스트패스를 탄다) */
   href: string;
   /** 오늘 | 내일 | D-n */
   dLabel: string;
