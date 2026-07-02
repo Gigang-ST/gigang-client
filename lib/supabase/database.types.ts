@@ -1187,6 +1187,70 @@ export type Database = {
           },
         ]
       }
+      fee_payer_alias: {
+        Row: {
+          alias_id: string
+          created_by: string | null
+          crt_at: string
+          del_yn: boolean
+          hit_cnt: number
+          last_used_at: string | null
+          mem_id: string
+          raw_name_norm: string
+          team_id: string
+          upd_at: string
+          vers: number
+        }
+        Insert: {
+          alias_id?: string
+          created_by?: string | null
+          crt_at?: string
+          del_yn?: boolean
+          hit_cnt?: number
+          last_used_at?: string | null
+          mem_id: string
+          raw_name_norm: string
+          team_id: string
+          upd_at?: string
+          vers?: number
+        }
+        Update: {
+          alias_id?: string
+          created_by?: string | null
+          crt_at?: string
+          del_yn?: boolean
+          hit_cnt?: number
+          last_used_at?: string | null
+          mem_id?: string
+          raw_name_norm?: string
+          team_id?: string
+          upd_at?: string
+          vers?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_fee_payer_alias__crt_mem_mst"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "fk_fee_payer_alias__mem_mst"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "fk_fee_payer_alias__team_mst"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
       fee_txn_hist: {
         Row: {
           adm_memo_txt: string | null
@@ -1198,6 +1262,7 @@ export type Database = {
           is_cfm_yn: boolean
           match_st_cd: string
           mem_id: string | null
+          project_id: string | null
           raw_memo: string | null
           raw_name: string
           team_id: string
@@ -1220,6 +1285,7 @@ export type Database = {
           is_cfm_yn?: boolean
           match_st_cd: string
           mem_id?: string | null
+          project_id?: string | null
           raw_memo?: string | null
           raw_name: string
           team_id: string
@@ -1242,6 +1308,7 @@ export type Database = {
           is_cfm_yn?: boolean
           match_st_cd?: string
           mem_id?: string | null
+          project_id?: string | null
           raw_memo?: string | null
           raw_name?: string
           team_id?: string
