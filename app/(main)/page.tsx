@@ -10,6 +10,7 @@ import { getRequestTeamContext } from "@/lib/queries/request-team";
 
 import { BoardPopoverIcon } from "@/components/board/board-popover-icon";
 import { H1 } from "@/components/common/typography";
+import { HeaderTicker, type HeaderUpcoming } from "@/components/home/header-ticker";
 import { MiniCalendar } from "@/components/home/mini-calendar";
 import type { CalendarRace } from "@/components/home/mini-calendar";
 import { NotificationBellIcon } from "@/components/notifications/notification-bell-icon";
@@ -19,28 +20,51 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 
 async function HomeHeader() {
-  const { member: currentMember } = await getCurrentMember();
+  const { member: currentMember, supabase } = await getCurrentMember();
   const { teamId } = await getRequestTeamContext();
 
-  const [unreadNotiCount, { notice: hasUnreadNotice, update: hasUnreadUpdate }, initialNotifications] = await Promise.all([
+  // 헤더 롤링용: 내가 참석 등록한 D-5 이내 다음 모임 1건 (없으면 슬로건 고정)
+  const now = dayjs();
+  const upcomingPromise = currentMember
+    ? supabase
+        .from("gthr_mst")
+        .select("gthr_id, short_id, gthr_nm, stt_at, gthr_attd_rel!inner(mem_id)")
+        .eq("team_id", teamId)
+        .eq("del_yn", false)
+        .eq("gthr_attd_rel.mem_id", currentMember.id)
+        .gte("stt_at", now.toISOString())
+        .lte("stt_at", now.add(5, "day").toISOString())
+        .order("stt_at", { ascending: true })
+        .limit(1)
+        .maybeSingle()
+    : Promise.resolve({ data: null });
+
+  const [unreadNotiCount, { notice: hasUnreadNotice, update: hasUnreadUpdate }, initialNotifications, { data: upcomingRow }] = await Promise.all([
     getUnreadNotificationCount(currentMember?.id),
     hasUnreadBoardPosts(currentMember?.id, teamId),
     currentMember ? getNotifications(currentMember.id, { limit: 20 }) : Promise.resolve([]),
+    upcomingPromise,
   ]);
+
+  let upcoming: HeaderUpcoming | null = null;
+  if (upcomingRow) {
+    const stt = dayjs(upcomingRow.stt_at).tz("Asia/Seoul");
+    const dayDiff = stt.startOf("day").diff(dayjs().tz("Asia/Seoul").startOf("day"), "day");
+    upcoming = {
+      // uuid를 쓰면 딥링크가 마스터+상세+참석 병렬 1 RTT 패스트패스를 탄다 (short_id는 조회 선행 필요)
+      href: `/?gthr=${upcomingRow.gthr_id}`,
+      dLabel: dayDiff <= 0 ? "오늘" : dayDiff === 1 ? "내일" : `D-${dayDiff}`,
+      timeLabel: stt.format("ddd HH:mm"),
+      title: upcomingRow.gthr_nm,
+    };
+  }
 
   return (
     <div className="relative flex h-20 items-center px-6">
       <div className="flex flex-1 items-center">
         <H1>기강</H1>
       </div>
-      <div className="absolute left-0 right-0 flex flex-col items-center justify-center pointer-events-none">
-        <p className="font-sans text-[6px] uppercase tracking-[0.15em] text-muted-foreground">
-          Since 2024.04.23
-        </p>
-        <p className="font-sans text-[13px] font-black italic uppercase leading-tight tracking-[-0.03em] text-foreground">
-          No time to be weak
-        </p>
-      </div>
+      <HeaderTicker upcoming={upcoming} />
       <div className="flex shrink-0 items-center gap-1">
         <BoardPopoverIcon
           hasUnreadNotice={hasUnreadNotice}
@@ -111,6 +135,7 @@ async function HomeContent() {
     crt_by: row.crt_by,
     crt_by_nm: row.crt_by_nm ?? null,
     regCount: row.attd_count ? Number(row.attd_count) : 0,
+    maxPrtCnt: row.max_prt_cnt ?? null,
     cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
   }));
 
