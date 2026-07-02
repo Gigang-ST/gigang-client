@@ -6,7 +6,7 @@ import { Copy, ExternalLink, Lock, Pencil, Share2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { dayjs } from "@/lib/dayjs";
-import { isPastEventKst } from "@/lib/past-event";
+import { isPastLockedFor } from "@/lib/past-event";
 import { gthrTypeLabels, gthrSprtLabels, type GthrType, type GthrSprtType } from "@/lib/validations/gathering";
 
 import { deleteGathering } from "@/app/actions/gathering/manage-gathering";
@@ -127,7 +127,7 @@ export function GatheringDetailDialog({
   const isAuthor = currentMemberId === gathering.crt_by;
   const isFull = !attending && gathering.maxPrtCnt != null && attdCount >= gathering.maxPrtCnt;
   // 지난 모임(KST 날짜 기준)은 수정·삭제·참석 변경 불가 — 관리자만 예외 (서버 액션에서도 동일 검증)
-  const isPastLocked = !isAdmin && isPastEventKst(gathering.evt_stt_at ?? gathering.start_date, gathering.evt_end_at);
+  const isPastLocked = isPastLockedFor(isAdmin, gathering.evt_stt_at ?? gathering.start_date, gathering.evt_end_at);
 
   const stt = gathering.evt_stt_at ? dayjs(gathering.evt_stt_at).tz("Asia/Seoul") : dayjs(gathering.start_date);
   const end = gathering.evt_end_at ? dayjs(gathering.evt_end_at).tz("Asia/Seoul") : null;

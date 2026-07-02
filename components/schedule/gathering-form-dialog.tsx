@@ -7,7 +7,6 @@ import { History } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 
-import { useDialogHistoryBack } from "@/lib/hooks/use-dialog-history-back";
 import { useFormPersist } from "@/lib/hooks/use-form-persist";
 import { z } from "zod";
 
@@ -142,9 +141,7 @@ export function GatheringFormDialog({
   const persistKey = "gathering-form-draft";
   const { clear: clearDraft } = useFormPersist(persistKey, form, open && mode === "create");
 
-  // 모바일 뒤로가기: 앱 종료 대신 다이얼로그 닫기 (팝업이 열려 있으면 팝업 먼저)
-  useDialogHistoryBack(open, () => onOpenChange(false));
-  useDialogHistoryBack(recentOpen, () => setRecentOpen(false));
+  // 뒤로가기-닫기 히스토리 연동은 ui/dialog Root 래퍼가 공통 처리 (팝업 중첩 시 팝업 먼저 닫힘)
 
   useEffect(() => {
     if (!open) return;

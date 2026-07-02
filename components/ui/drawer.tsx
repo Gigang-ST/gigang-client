@@ -5,11 +5,35 @@ import * as React from "react"
 import { Drawer as DrawerPrimitive } from "vaul"
 
 import { cn } from "@/lib/utils"
+import { useDialogHistoryBack } from "@/lib/hooks/use-dialog-history-back"
 
+/**
+ * vaul Drawer Root 래퍼 — ui/dialog.tsx의 Dialog와 동일하게 공통 레벨에서
+ * 모바일 뒤로가기 → 드로어 닫기 히스토리 연동. (개별 적용 불필요)
+ */
 function Drawer({
+  open,
+  defaultOpen,
+  onOpenChange,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) {
-  return <DrawerPrimitive.Root data-slot="drawer" {...props} />
+  // 비제어(트리거 기반) 사용도 커버하기 위해 열림 상태를 자체 추적
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen ?? false)
+  const isOpen = open ?? uncontrolledOpen
+  const handleOpenChange = (v: boolean) => {
+    setUncontrolledOpen(v)
+    onOpenChange?.(v)
+  }
+  useDialogHistoryBack(isOpen, () => handleOpenChange(false))
+  return (
+    <DrawerPrimitive.Root
+      data-slot="drawer"
+      open={open}
+      defaultOpen={defaultOpen}
+      onOpenChange={handleOpenChange}
+      {...props}
+    />
+  )
 }
 
 function DrawerTrigger({

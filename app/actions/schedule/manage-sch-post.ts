@@ -5,7 +5,7 @@ import { after } from "next/server";
 
 import { dayjs } from "@/lib/dayjs";
 import { withMember } from "@/lib/actions/auth";
-import { isPastEventKst, PAST_EVENT_ERROR } from "@/lib/past-event";
+import { isPastLockedFor, PAST_EVENT_ERROR } from "@/lib/past-event";
 import { insertNotiMany } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
@@ -107,7 +107,7 @@ export async function updateSchPost(input: {
     if (existing.crt_by !== member.id && !member.admin) {
       throw new Error("수정 권한이 없습니다.");
     }
-    if (!member.admin && isPastEventKst(existing.evt_stt_at, existing.evt_end_at)) {
+    if (isPastLockedFor(member.admin, existing.evt_stt_at, existing.evt_end_at)) {
       throw new Error(PAST_EVENT_ERROR);
     }
 
@@ -141,7 +141,7 @@ export async function deleteSchPost(sch_post_id: string) {
     if (!isAuthor && !member.admin) throw new Error("삭제 권한이 없습니다.");
 
     // 지난 일정(KST 날짜 기준) 삭제 차단 — 관리자만 예외
-    if (!member.admin && isPastEventKst(post.evt_stt_at, post.evt_end_at)) {
+    if (isPastLockedFor(member.admin, post.evt_stt_at, post.evt_end_at)) {
       throw new Error(PAST_EVENT_ERROR);
     }
 

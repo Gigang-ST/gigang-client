@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { withMember } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
-import { isPastEventKst } from "@/lib/past-event";
+import { isPastLockedFor } from "@/lib/past-event";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 
@@ -37,7 +37,7 @@ export async function toggleGatheringAttendance(
     if (!gthr) throw new Error("모임을 찾을 수 없습니다.");
 
     // 지난 모임(KST 날짜 기준)은 참석/참석해제 불가 — 관리자만 예외
-    if (!member.admin && isPastEventKst(gthr.stt_at, gthr.end_at)) {
+    if (isPastLockedFor(member.admin, gthr.stt_at, gthr.end_at)) {
       throw new Error("지난 모임은 참석 변경이 불가합니다.");
     }
 

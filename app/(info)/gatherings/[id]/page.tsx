@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { dayjs } from "@/lib/dayjs";
-import { isPastEventKst } from "@/lib/past-event";
+import { isPastLockedFor } from "@/lib/past-event";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
@@ -65,7 +65,7 @@ export default async function GatheringDetailPage({
   const isAttending = !!myAttd?.data;
   const isAuthor = member?.id === gthr.crt_by;
   // 지난 모임(KST 날짜 기준)은 수정·삭제·참석 변경 불가 — 관리자만 예외 (서버 액션에서도 동일 검증)
-  const isPastLocked = !member?.admin && isPastEventKst(gthr.stt_at, gthr.end_at);
+  const isPastLocked = isPastLockedFor(member?.admin, gthr.stt_at, gthr.end_at);
 
   const stt = dayjs(gthr.stt_at).tz("Asia/Seoul");
   const end = gthr.end_at ? dayjs(gthr.end_at).tz("Asia/Seoul") : null;

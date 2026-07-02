@@ -17,3 +17,15 @@ export function isPastEventKst(sttAt: string, endAt?: string | null): boolean {
 
 /** 지난 일정 조작 차단 시 공통 에러 메시지 */
 export const PAST_EVENT_ERROR = "지난 일정은 변경할 수 없습니다.";
+
+/**
+ * 지난 일정 잠금 여부 — 관리자는 항상 잠기지 않는다.
+ * 서버 액션 검증과 클라이언트 버튼 노출이 이 한 곳의 판정을 공유한다.
+ */
+export function isPastLockedFor(
+  isAdmin: boolean | null | undefined,
+  sttAt: string,
+  endAt?: string | null,
+): boolean {
+  return !isAdmin && isPastEventKst(sttAt, endAt);
+}

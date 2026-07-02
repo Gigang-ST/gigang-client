@@ -5,7 +5,7 @@ import { useState } from "react"
 import { Pencil, Share2, Trash2 } from "lucide-react"
 
 import { dayjs } from "@/lib/dayjs"
-import { isPastEventKst } from "@/lib/past-event"
+import { isPastLockedFor } from "@/lib/past-event"
 
 import { deleteSchPost } from "@/app/actions/schedule/manage-sch-post"
 
@@ -78,7 +78,7 @@ export function SchPostDetailDialog({
   const endAt = post.evt_end_at ? dayjs(post.evt_end_at) : null
   const isAuthor = currentMemberId === post.crt_by
   // 지난 일정(KST 날짜 기준)은 수정·삭제 불가 — 관리자만 예외 (서버 액션에서도 동일 검증)
-  const isPastLocked = !isAdmin && isPastEventKst(post.evt_stt_at ?? post.start_date, post.evt_end_at)
+  const isPastLocked = isPastLockedFor(isAdmin, post.evt_stt_at ?? post.start_date, post.evt_end_at)
 
   const timeLabel =
     startAt.format("YYYY년 M월 D일 (ddd) HH:mm") +

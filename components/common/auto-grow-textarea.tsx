@@ -4,6 +4,8 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
+import { Textarea } from "@/components/ui/textarea";
+
 /**
  * 내용 길이에 따라 세로 높이가 자동으로 늘어나는 textarea.
  *
@@ -44,15 +46,14 @@ export const AutoGrowTextarea = forwardRef<HTMLTextAreaElement, AutoGrowTextarea
     }, [value]);
 
     return (
-      <textarea
+      // 스타일은 ui/textarea 공통 컴포넌트를 상속 — 드리프트 방지.
+      // 높이는 자동 계산이 담당하므로 min-h를 풀고, 폼 입력 규격(13px)·리사이즈 금지만 오버라이드.
+      <Textarea
         ref={innerRef}
         rows={minRows}
         value={value}
         onChange={onChange}
-        className={cn(
-          "flex w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-[13px] shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
-          className,
-        )}
+        className={cn("min-h-0 resize-none text-[13px] md:text-[13px]", className)}
         {...props}
       />
     );
