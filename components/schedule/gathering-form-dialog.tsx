@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { History } from "lucide-react";
+
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 
@@ -9,6 +11,8 @@ import { useFormPersist } from "@/lib/hooks/use-form-persist";
 import { z } from "zod";
 
 import { dayjs } from "@/lib/dayjs";
+import type { RecentGathering } from "@/lib/gathering/dedupe-recent";
+import { REGULAR_GATHERING_TEMPLATE } from "@/lib/gathering/templates";
 import {
   GTHR_TYPES,
   GTHR_SPRT_TYPES,
@@ -19,6 +23,7 @@ import {
 } from "@/lib/validations/gathering";
 
 import { createGathering, updateGathering } from "@/app/actions/gathering/manage-gathering";
+import { getRecentGatherings } from "@/app/actions/gathering/get-recent-gatherings";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +49,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { AutoGrowTextarea } from "@/components/common/auto-grow-textarea";
 
 const formSchema = createGthrSchema.omit({ team_id: true });
 type FormValues = z.infer<typeof formSchema>;
@@ -64,11 +70,23 @@ export type CreatedGathering = {
   maxPrtCnt: number | null;
 };
 
+/** 복제("이 내용으로 새 모임") 등 등록 폼 내용 프리필. 일시는 새 모임 기준이라 제외. */
+export type GatheringFormPrefill = {
+  gthr_nm: string;
+  gthr_type_enm: string;
+  sprt_cd?: string | null;
+  loc_txt?: string | null;
+  desc_txt?: string | null;
+  max_prt_cnt?: number | null;
+};
+
 export type GatheringFormDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: "create" | "edit";
   defaultDate?: string;
+  /** create 모드 전용 내용 프리필 — 지정 시 임시저장 draft보다 우선한다 (명시적 액션이므로) */
+  prefill?: GatheringFormPrefill;
   initialData?: {
     gthr_id: string;
     gthr_nm: string;
@@ -93,10 +111,16 @@ export function GatheringFormDialog({
   onOpenChange,
   mode,
   defaultDate,
+  prefill,
   initialData,
   onSuccess,
 }: GatheringFormDialogProps) {
   const [rootError, setRootError] = useState<string | null>(null);
+
+  // 최근 모임 불러오기 팝업 상태. 목록은 버튼 클릭 시 1회만 조회하고 세션 동안 캐시.
+  const [recentOpen, setRecentOpen] = useState(false);
+  const [recentList, setRecentList] = useState<RecentGathering[] | null>(null);
+  const [recentStatus, setRecentStatus] = useState<"idle" | "loading" | "error">("idle");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -111,15 +135,22 @@ export function GatheringFormDialog({
     } as FormValues,
   });
 
-  const { isSubmitting } = form.formState;
+  // dirtyFields를 구독해야 RHF가 필드 dirty 여부를 추적한다(정기 템플릿의 시작시간 보존 판정에 사용).
+  const { isSubmitting, dirtyFields } = form.formState;
 
   const persistKey = "gathering-form-draft";
   const { clear: clearDraft } = useFormPersist(persistKey, form, open && mode === "create");
+
+  // 뒤로가기-닫기 히스토리 연동은 ui/dialog Root 래퍼가 공통 처리 (팝업 중첩 시 팝업 먼저 닫힘)
 
   useEffect(() => {
     if (!open) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setRootError(null);
+    // 열릴 때마다 최근 목록 캐시 초기화 — 재진입 시 새로 등록된 모임이 반영되도록.
+    setRecentOpen(false);
+    setRecentList(null);
+    setRecentStatus("idle");
     if (mode === "edit" && initialData) {
       form.reset({
         gthr_nm: initialData.gthr_nm,
@@ -132,12 +163,26 @@ export function GatheringFormDialog({
         max_prt_cnt: initialData.max_prt_cnt ?? undefined,
       });
     } else {
+      const defaultSttAt = defaultDate
+        ? `${defaultDate}T${dayjs().tz("Asia/Seoul").add(1, "hour").startOf("hour").format("HH:mm")}`
+        : dayjs().tz("Asia/Seoul").add(1, "hour").startOf("hour").format("YYYY-MM-DDTHH:mm");
+      if (prefill) {
+        // 복제 등 명시적 프리필 — draft보다 우선. 일시는 새 모임 기준으로 기본값 사용.
+        form.reset({
+          gthr_nm: prefill.gthr_nm,
+          gthr_type_enm: prefill.gthr_type_enm as CreateGthrInput["gthr_type_enm"],
+          sprt_cd: (prefill.sprt_cd ?? "running") as CreateGthrInput["sprt_cd"],
+          stt_at: defaultSttAt,
+          end_at: null,
+          loc_txt: prefill.loc_txt ?? null,
+          desc_txt: prefill.desc_txt ?? null,
+          max_prt_cnt: prefill.max_prt_cnt ?? undefined,
+        });
+        return;
+      }
       // sessionStorage 저장값이 없을 때만 기본값으로 초기화 (useFormPersist가 복원 처리)
       const hasDraft = (() => { try { return !!sessionStorage.getItem(persistKey); } catch { return false; } })();
       if (!hasDraft) {
-        const defaultSttAt = defaultDate
-          ? `${defaultDate}T${dayjs().tz("Asia/Seoul").add(1, "hour").startOf("hour").format("HH:mm")}`
-          : dayjs().tz("Asia/Seoul").add(1, "hour").startOf("hour").format("YYYY-MM-DDTHH:mm");
         form.reset({
           gthr_nm: "",
           gthr_type_enm: "general",
@@ -149,7 +194,57 @@ export function GatheringFormDialog({
         });
       }
     }
-  }, [open, mode, initialData, defaultDate, form, persistKey]);
+  }, [open, mode, initialData, defaultDate, prefill, form, persistKey]);
+
+  /** 유형 변경 핸들러. 정기(regular) 선택 시 비어있는 필드를 템플릿으로 채운다. */
+  function handleTypeChange(value: string) {
+    form.setValue("gthr_type_enm", value as FormValues["gthr_type_enm"], { shouldDirty: true });
+    // 템플릿 자동 채움은 신규 등록 시에만 — 수정 중 기존 값(특히 시작 시간)을 덮지 않도록.
+    if (mode !== "create" || value !== "regular") return;
+
+    const t = REGULAR_GATHERING_TEMPLATE;
+    if (!form.getValues("gthr_nm")?.trim()) {
+      form.setValue("gthr_nm", t.title, { shouldDirty: true });
+    }
+    if (!form.getValues("desc_txt")?.trim()) {
+      form.setValue("desc_txt", t.desc, { shouldDirty: true });
+    }
+    // 사용자가 시작 시간을 직접 건드리지 않았을 때만 정기런 기본 시각(19:30)으로. 날짜는 유지.
+    if (!dirtyFields.stt_at) {
+      const [hh, mm] = t.defaultTime.split(":").map(Number);
+      const cur = form.getValues("stt_at");
+      const base = cur ? dayjs(cur) : dayjs().tz("Asia/Seoul");
+      form.setValue("stt_at", base.hour(hh).minute(mm).second(0).format("YYYY-MM-DDTHH:mm"), {
+        shouldDirty: true,
+      });
+    }
+  }
+
+  /** "최근 모임 불러오기" 버튼: 팝업 열고 최초 1회만 조회. */
+  async function openRecent() {
+    setRecentOpen(true);
+    // 세션 내 캐시 재사용 + 로딩 중 재클릭(팝업 닫았다 다시 열기) 중복 조회 방지
+    if (recentList !== null || recentStatus === "loading") return;
+    setRecentStatus("loading");
+    try {
+      const list = await getRecentGatherings();
+      setRecentList(list);
+      setRecentStatus("idle");
+    } catch {
+      setRecentStatus("error");
+    }
+  }
+
+  /** 최근 모임 선택 → 지정 필드만 폼에 주입(일시 제외). */
+  function applyRecent(g: RecentGathering) {
+    form.setValue("gthr_nm", g.gthr_nm, { shouldDirty: true });
+    form.setValue("gthr_type_enm", g.gthr_type_enm as FormValues["gthr_type_enm"], { shouldDirty: true });
+    form.setValue("sprt_cd", (g.sprt_cd ?? "running") as FormValues["sprt_cd"], { shouldDirty: true });
+    form.setValue("loc_txt", g.loc_txt ?? null, { shouldDirty: true });
+    form.setValue("max_prt_cnt", g.max_prt_cnt ?? undefined, { shouldDirty: true });
+    form.setValue("desc_txt", g.desc_txt ?? null, { shouldDirty: true });
+    setRecentOpen(false);
+  }
 
   async function onSubmit(values: FormValues) {
     setRootError(null);
@@ -188,6 +283,7 @@ export function GatheringFormDialog({
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(v) => { if (!v) { setRootError(null); clearDraft(); } onOpenChange(v); }}>
       <DialogContent className="flex max-h-[85dvh] flex-col gap-0 p-0">
         <DialogHeader className="px-5 pb-3 pt-5">
@@ -198,6 +294,21 @@ export function GatheringFormDialog({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4 overflow-y-auto px-5 py-4">
+
+            {/* 최근 모임 불러오기 (등록 시에만) */}
+            {mode === "create" && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 self-start"
+                onClick={openRecent}
+                disabled={isSubmitting}
+              >
+                <History className="size-4" />
+                최근 모임 불러오기
+              </Button>
+            )}
 
             {/* 제목 */}
             <FormField
@@ -313,7 +424,7 @@ export function GatheringFormDialog({
                   <FormItem>
                     <FormLabel>유형 <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
-                      <Select value={field.value ?? "general"} onValueChange={field.onChange}>
+                      <Select value={field.value ?? "general"} onValueChange={handleTypeChange}>
                         <SelectTrigger className="text-[13px]">
                           <SelectValue placeholder="유형" />
                         </SelectTrigger>
@@ -376,18 +487,16 @@ export function GatheringFormDialog({
               />
             </div>
 
-            {/* 비고 */}
+            {/* 내용 */}
             <FormField
               control={form.control}
               name="desc_txt"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>비고</FormLabel>
+                  <FormLabel>내용</FormLabel>
                   <FormControl>
-                    <textarea
-                      rows={4}
+                    <AutoGrowTextarea
                       placeholder="공지, 준비물, 링크 등 자유롭게 입력"
-                      className="flex w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-[13px] shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                       {...field}
                       value={field.value ?? ""}
                       onChange={(e) => field.onChange(e.target.value || null)}
@@ -416,5 +525,50 @@ export function GatheringFormDialog({
         </Form>
       </DialogContent>
     </Dialog>
+
+    {/* 최근 모임 불러오기 팝업 */}
+    <Dialog open={recentOpen} onOpenChange={setRecentOpen}>
+      <DialogContent className="flex max-h-[70dvh] flex-col gap-0 p-0">
+        <DialogHeader className="px-5 pb-3 pt-5">
+          <DialogTitle>최근 모임 불러오기</DialogTitle>
+        </DialogHeader>
+
+        <Separator />
+
+        <div className="flex flex-col gap-2 overflow-y-auto px-5 py-4">
+          {recentStatus === "loading" && (
+            <p className="py-6 text-center text-[13px] text-muted-foreground">불러오는 중...</p>
+          )}
+          {recentStatus === "error" && (
+            <p className="py-6 text-center text-[13px] text-destructive">불러오기에 실패했습니다.</p>
+          )}
+          {recentStatus === "idle" && recentList?.length === 0 && (
+            <p className="py-6 text-center text-[13px] text-muted-foreground">
+              이전에 만든 모임이 없습니다.
+            </p>
+          )}
+          {recentStatus === "idle" &&
+            recentList?.map((g) => (
+              <button
+                key={g.gthr_id}
+                type="button"
+                onClick={() => applyRecent(g)}
+                className="flex flex-col items-start gap-0.5 rounded-md border border-border px-3 py-2.5 text-left transition-colors hover:bg-muted active:bg-muted"
+              >
+                <span className="line-clamp-1 text-[14px] font-medium text-foreground">
+                  {g.gthr_nm}
+                </span>
+                <span className="text-[12px] text-muted-foreground">
+                  {gthrTypeLabels[g.gthr_type_enm as keyof typeof gthrTypeLabels] ?? g.gthr_type_enm}
+                  {" · "}
+                  {dayjs(g.stt_at).tz("Asia/Seoul").format("YY.MM.DD")}
+                  {g.loc_txt ? ` · ${g.loc_txt}` : ""}
+                </span>
+              </button>
+            ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

@@ -47,6 +47,47 @@ export function calcNextMonthGoal(currentGoal: number, achieved: boolean): numbe
   return currentGoal + 20;
 }
 
+/** 달성 판정: 달성 마일리지를 소수 첫째 자리 반올림해 목표와 비교 (199.96 → 200.0 → 달성) */
+export function isMonthAchieved(achvMlg: number, goalMlg: number): boolean {
+  return Math.round(achvMlg * 10) / 10 >= goalMlg;
+}
+
+export interface MonthGoalSnapshot {
+  base_dt: string; // 'YYYY-MM-01'
+  goal_mlg: number;
+  achv_mlg: number; // 반올림된 달성 마일리지
+}
+
+/**
+ * 월별 목표 연쇄 재계산 (순수 함수)
+ *
+ * anchorIdx 다음 달부터, 이전 달의 목표·달성 여부를 근거로 각 달 목표를 다시 계산한다.
+ * - 프리시즌(base_dt < evtStartMonth)인 이전 달은 다음 달 목표에 영향을 주지 않음 → 건너뜀
+ * - 인시즌: 이전 달 달성 시 calcNextMonthGoal로 증가, **미달성이어도 연쇄를 멈추지 않고** 목표 유지
+ *   (과거 #319에서 미달성 시 break로 연쇄를 중단해, 실패한 달 뒤의 달성이 반영되지 않던 버그를 수정)
+ * - Math.max(자동값, 기존값)으로 수동 상향 목표는 재계산이 낮추지 않음
+ */
+export function computeGoalChain(
+  months: MonthGoalSnapshot[],
+  evtStartMonth: string,
+  anchorIdx = 0,
+): { goal_mlg: number; achv_yn: boolean }[] {
+  const out = months.map((m) => ({
+    goal_mlg: m.goal_mlg,
+    achv_yn: isMonthAchieved(m.achv_mlg, m.goal_mlg),
+  }));
+
+  for (let i = anchorIdx + 1; i < months.length; i++) {
+    if (months[i - 1].base_dt < evtStartMonth) continue;
+    const auto = calcNextMonthGoal(out[i - 1].goal_mlg, out[i - 1].achv_yn);
+    const finalGoal = Math.max(auto, out[i].goal_mlg);
+    if (finalGoal !== out[i].goal_mlg) {
+      out[i] = { goal_mlg: finalGoal, achv_yn: isMonthAchieved(months[i].achv_mlg, finalGoal) };
+    }
+  }
+  return out;
+}
+
 /** 월 환급률 (0.0 ~ 1.0) */
 export function calcMonthRefundRate(
   achievedMileage: number,

@@ -5,9 +5,35 @@ import { XIcon } from "lucide-react"
 import { Dialog as SheetPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
+import { useDialogHistoryBack } from "@/lib/hooks/use-dialog-history-back"
 
-function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
-  return <SheetPrimitive.Root data-slot="sheet" {...props} />
+/**
+ * Sheet Root 래퍼 — ui/dialog·ui/drawer와 동일하게 공통 레벨에서
+ * 모바일 뒤로가기 → 시트 닫기 히스토리 연동.
+ */
+function Sheet({
+  open,
+  defaultOpen,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof SheetPrimitive.Root>) {
+  // 비제어(트리거 기반) 사용도 커버하기 위해 열림 상태를 자체 추적
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen ?? false)
+  const isOpen = open ?? uncontrolledOpen
+  const handleOpenChange = (v: boolean) => {
+    setUncontrolledOpen(v)
+    onOpenChange?.(v)
+  }
+  useDialogHistoryBack(isOpen, () => handleOpenChange(false))
+  return (
+    <SheetPrimitive.Root
+      data-slot="sheet"
+      open={open}
+      defaultOpen={defaultOpen}
+      onOpenChange={handleOpenChange}
+      {...props}
+    />
+  )
 }
 
 function SheetTrigger({

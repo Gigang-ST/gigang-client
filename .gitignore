@@ -69,6 +69,7 @@ next-env.d.ts
 
 # claude code
 .claude/settings.local.json
+CLAUDE.local.md
 
 # MCP 설정 (access token 포함)
 .mcp.json

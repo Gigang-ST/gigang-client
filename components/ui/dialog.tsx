@@ -1,10 +1,40 @@
+"use client";
+
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useDialogHistoryBack } from "@/lib/hooks/use-dialog-history-back";
 
-const Dialog = DialogPrimitive.Root;
+/**
+ * Radix Dialog Root 래퍼 — 모바일(안드로이드) 뒤로가기 버튼이 앱 종료 대신
+ * 다이얼로그 닫기로 동작하도록 공통 레벨에서 히스토리를 연동한다.
+ * (개별 다이얼로그마다 useDialogHistoryBack을 붙일 필요 없음)
+ */
+const Dialog = ({
+  open,
+  defaultOpen,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Root>) => {
+  // 비제어(트리거 기반) 사용도 커버하기 위해 열림 상태를 자체 추적
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen ?? false);
+  const isOpen = open ?? uncontrolledOpen;
+  const handleOpenChange = (v: boolean) => {
+    setUncontrolledOpen(v);
+    onOpenChange?.(v);
+  };
+  useDialogHistoryBack(isOpen, () => handleOpenChange(false));
+  return (
+    <DialogPrimitive.Root
+      open={open}
+      defaultOpen={defaultOpen}
+      onOpenChange={handleOpenChange}
+      {...props}
+    />
+  );
+};
 const DialogTrigger = DialogPrimitive.Trigger;
 const DialogPortal = DialogPrimitive.Portal;
 const DialogClose = DialogPrimitive.Close;

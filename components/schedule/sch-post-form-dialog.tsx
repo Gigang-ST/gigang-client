@@ -40,6 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { AutoGrowTextarea } from "@/components/common/auto-grow-textarea";
 
 const formSchema = createSchPostSchema.omit({ team_id: true }).extend({
   post_type: z.enum(SCH_POST_TYPES, { message: "유형을 선택해 주세요." }),
@@ -90,6 +91,8 @@ export function SchPostFormDialog({
 
   const persistKey = "sch-post-form-draft";
   const { clear: clearDraft } = useFormPersist(persistKey, form, open && mode === "create");
+
+  // 뒤로가기-닫기 히스토리 연동은 ui/dialog Root 래퍼가 공통 처리
 
   useEffect(() => {
     if (!open) return;
@@ -301,10 +304,8 @@ export function SchPostFormDialog({
                 <FormItem>
                   <FormLabel>내용</FormLabel>
                   <FormControl>
-                    <textarea
-                      rows={4}
+                    <AutoGrowTextarea
                       placeholder="내용을 입력해 주세요."
-                      className="flex w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-[13px] shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                       {...field}
                       value={field.value ?? ""}
                       onChange={(e) => field.onChange(e.target.value || null)}

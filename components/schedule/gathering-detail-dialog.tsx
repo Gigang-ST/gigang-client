@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { Pencil, Share2, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, Lock, Pencil, Share2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { dayjs } from "@/lib/dayjs";
+import { isPastLockedFor } from "@/lib/past-event";
 import { gthrTypeLabels, gthrSprtLabels, type GthrType, type GthrSprtType } from "@/lib/validations/gathering";
 
 import { deleteGathering } from "@/app/actions/gathering/manage-gathering";
@@ -29,6 +30,7 @@ import { Caption, Micro } from "@/components/common/typography";
 import type { CalendarRace } from "@/components/home/mini-calendar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export type GatheringAttendee = {
   mem_id: string;
@@ -50,6 +52,8 @@ export interface GatheringDetailDialogProps {
   currentMemberAvatarUrl?: string | null;
   isAdmin?: boolean;
   isAttending?: boolean;
+  /** 즉시 오픈 후 참석자/정원을 뒤에서 채우는 중 — 참석자 영역 스켈레톤 + 참석 버튼 잠금 */
+  detailLoading?: boolean;
   members: MemberOption[];
   initialComments?: CmntRow[];
   /** 방금 등록한 직후 열린 경우 — 공유 유도 안내를 노출한다 */
@@ -57,6 +61,8 @@ export interface GatheringDetailDialogProps {
   onEdit?: () => void;
   onDelete?: () => void;
   onAttendanceChange?: () => void;
+  /** "이 내용으로 새 모임" — 이 모임 내용을 프리필한 등록 폼 열기. 로그인 멤버 누구나 가능 */
+  onClone?: () => void;
 }
 
 export function GatheringDetailDialog({
@@ -69,12 +75,14 @@ export function GatheringDetailDialog({
   currentMemberAvatarUrl,
   isAdmin,
   isAttending: initialIsAttending,
+  detailLoading,
   members,
   initialComments,
   justCreated,
   onEdit,
   onDelete,
   onAttendanceChange,
+  onClone,
 }: GatheringDetailDialogProps) {
   const [attending, setAttending] = useState(initialIsAttending ?? false);
   const [attdCount, setAttdCount] = useState(gathering?.regCount ?? 0);
@@ -92,8 +100,9 @@ export function GatheringDetailDialog({
   // gathering prop이 바뀌거나 justCreated가 바뀌면 로컬 상태 동기화
   // (렌더 중 파생 state 업데이트 — React 공식 패턴: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes)
   // gKey만 키로 쓰면 같은 모임을 재오픈할 때(gKey 동일) 힌트가 잔존하므로 justCreated도 키에 포함한다.
+  // detailLoading도 키에 포함 — 즉시 오픈 후 참석자/참석여부가 늦게 도착하면(false로 전환) 다시 동기화한다.
   const gKey = gathering?.id;
-  const syncKey = `${gKey}:${justCreated ?? false}`;
+  const syncKey = `${gKey}:${justCreated ?? false}:${detailLoading ?? false}`;
   const [lastSyncKey, setLastSyncKey] = useState(syncKey);
   if (syncKey !== lastSyncKey) {
     setLastSyncKey(syncKey);
@@ -117,6 +126,8 @@ export function GatheringDetailDialog({
 
   const isAuthor = currentMemberId === gathering.crt_by;
   const isFull = !attending && gathering.maxPrtCnt != null && attdCount >= gathering.maxPrtCnt;
+  // 지난 모임(KST 날짜 기준)은 수정·삭제·참석 변경 불가 — 관리자만 예외 (서버 액션에서도 동일 검증)
+  const isPastLocked = isPastLockedFor(isAdmin, gathering.evt_stt_at ?? gathering.start_date, gathering.evt_end_at);
 
   const stt = gathering.evt_stt_at ? dayjs(gathering.evt_stt_at).tz("Asia/Seoul") : dayjs(gathering.start_date);
   const end = gathering.evt_end_at ? dayjs(gathering.evt_end_at).tz("Asia/Seoul") : null;
@@ -161,10 +172,12 @@ export function GatheringDetailDialog({
         toast.success(`이번 달 ${result.monthlyAttendCnt}회 참여!`);
       }
       onAttendanceChange?.();
-    } catch {
+    } catch (e) {
       setAttending(prev);
       setAttdCount((c) => (prev ? c + 1 : c - 1));
       setAttendees(gathering!.attendees ?? []);
+      // 서버 거절 사유(지난 모임·인원 마감 등)를 안내 — 무음 롤백이면 버튼 고장으로 오인한다
+      toast.error(e instanceof Error ? e.message : "참석 처리에 실패했습니다.");
     } finally {
       togglingRef.current = false;
     }
@@ -233,7 +246,18 @@ export function GatheringDetailDialog({
               {gathering.location && (
                 <div className="flex items-center gap-2">
                   <Caption className="w-4 text-muted-foreground">📍</Caption>
-                  <Caption>{gathering.location}</Caption>
+                  {/* 장소는 자유 텍스트라 좌표가 아닌 네이버지도 "검색"으로 연결 (앱 설치 시 앱으로 열림) */}
+                  <a
+                    href={`https://map.naver.com/p/search/${encodeURIComponent(gathering.location)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex min-w-0 items-center gap-1"
+                  >
+                    <Caption className="truncate underline decoration-border underline-offset-2">
+                      {gathering.location}
+                    </Caption>
+                    <ExternalLink className="size-3 shrink-0 text-muted-foreground" />
+                  </a>
                 </div>
               )}
               <div className="flex items-center gap-2">
@@ -266,16 +290,29 @@ export function GatheringDetailDialog({
                 onClick={handleToggleAttendance}
                 // 처리 중엔 disabled 대신 handleToggleAttendance의 togglingRef 가드로 재클릭만 막아 흐려지지 않게.
                 // 낙관적 업데이트로 색이 즉시 바뀌어 "바로 눌렸다"고 느끼게 한다.
-                disabled={isFull}
+                // detailLoading 중엔 내 참석 여부를 아직 몰라 토글이 꼬일 수 있으므로 잠근다.
+                // 지난 모임은 참석/해제 불가(관리자 예외) — 서버에서도 차단.
+                disabled={isFull || detailLoading || isPastLocked}
                 variant={attending ? "default" : "outline"}
                 className={attending ? "w-full bg-success hover:bg-success/90 border-success" : "w-full"}
               >
-                {isFull ? "인원 마감" : attending ? "✅ 참석" : "참석하기"}
+                {/* 지난 모임: 문구 변경 없이 잠금 아이콘 + disabled 흐림으로만 표시 */}
+                {isPastLocked && <Lock className="size-3.5" />}
+                {!isPastLocked && isFull ? "인원 마감" : attending ? "✅ 참석" : "참석하기"}
               </Button>
             )}
 
-            {/* 참석자 목록 */}
-            {attendees.length > 0 && (
+            {/* 참석자 목록 (로딩 중엔 참석수만큼 스켈레톤 — 즉시 오픈 뒤 채워짐) */}
+            {detailLoading && attendees.length === 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {Array.from({ length: Math.max(1, Math.min(attdCount, 8)) }, (_, i) => (
+                  <div key={i} className="flex flex-col items-center gap-0.5">
+                    <Skeleton className="size-8 rounded-full" />
+                    <Skeleton className="h-2.5 w-7 rounded" />
+                  </div>
+                ))}
+              </div>
+            ) : attendees.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {attendees.map((a) => (
                   <div key={a.mem_id} className="flex flex-col items-center gap-0.5">
@@ -284,7 +321,7 @@ export function GatheringDetailDialog({
                   </div>
                 ))}
               </div>
-            )}
+            ) : null}
 
             {/* 등록 직후 공유 유도 안내 */}
             {showShareHint && (
@@ -296,7 +333,7 @@ export function GatheringDetailDialog({
             )}
 
             {/* 공유/수정/삭제 (등록 직후 이 영역으로 자동 스크롤 — 안내+버튼이 함께 보이게) */}
-            <div ref={shareHintRef} className="scroll-mt-4 flex items-center justify-between gap-2">
+            <div ref={shareHintRef} className="scroll-mt-4 flex flex-wrap items-center justify-between gap-2">
               <Button
                 variant={showShareHint ? "default" : "outline"}
                 size="sm"
@@ -311,26 +348,34 @@ export function GatheringDetailDialog({
                 공유하기
               </Button>
 
-              {(isAuthor || isAdmin) && (
-                <div className="flex gap-2">
-                  {isAuthor && (
+              <div className="flex gap-2">
+                {currentMemberId && onClone && (
+                  // 로딩 중 복제하면 아직 안 채워진 정원(maxPrtCnt)이 빠진 채 복사될 수 있어 잠근다
+                  <Button variant="outline" size="sm" onClick={onClone} disabled={detailLoading}>
+                    <Copy className="size-3.5" />
+                    복제
+                  </Button>
+                )}
+                {(isAuthor || isAdmin) && !isPastLocked && (
+                  <>
+                    {/* 수정은 작성자 + 관리자 모두 가능 (RLS도 팀 owner/admin 허용). 지난 모임은 관리자만. */}
                     <Button variant="outline" size="sm" onClick={onEdit} disabled={isDeleting}>
                       <Pencil className="size-3.5" />
                       수정
                     </Button>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive"
-                    onClick={handleDelete}
-                    disabled={isDeleting}
-                  >
-                    <Trash2 className="size-3.5" />
-                    {isDeleting ? "삭제 중..." : "삭제"}
-                  </Button>
-                </div>
-              )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive"
+                      onClick={handleDelete}
+                      disabled={isDeleting}
+                    >
+                      <Trash2 className="size-3.5" />
+                      {isDeleting ? "삭제 중..." : "삭제"}
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* 댓글 */}

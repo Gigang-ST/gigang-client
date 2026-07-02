@@ -47,20 +47,7 @@ interface ResponsiveDrawerProps {
 function ResponsiveDrawer({ open, onOpenChange, children }: ResponsiveDrawerProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)")
 
-  // 모바일 뒤로가기 버튼으로 drawer를 닫을 수 있도록 history 연동
-  React.useEffect(() => {
-    if (open) {
-      history.pushState({ drawer: true }, "")
-    }
-  }, [open])
-
-  React.useEffect(() => {
-    const handlePopState = () => {
-      if (open) onOpenChange(false)
-    }
-    window.addEventListener("popstate", handlePopState)
-    return () => window.removeEventListener("popstate", handlePopState)
-  }, [open, onOpenChange])
+  // 뒤로가기-닫기 히스토리 연동은 ui/dialog·ui/drawer Root 래퍼가 공통 처리한다.
 
   return (
     <ResponsiveDrawerContext.Provider value={{ isDesktop }}>
