@@ -114,6 +114,57 @@ export async function getInboxTxns(): Promise<{
   };
 }
 
+export type ProcessedTxn = {
+  txnId: string;
+  txnDt: string;
+  amt: number;
+  rawName: string;
+  memName: string | null;
+  feeItemCd: string | null;
+  cfmAt: string;
+  cfmByName: string | null;
+};
+
+/** 처리됨 목록 기본 조회 건수 — 오래된 건은 검색으로 못 찾는 대신 화면·전송량을 지킨다. */
+export const PROCESSED_TXN_LIMIT = 200;
+
+/**
+ * 처리됨(확정 완료) 거래 조회 — 감사·정정용. 최근 확정순으로 최대 PROCESSED_TXN_LIMIT 건.
+ * 확정 시각·확정자를 함께 내려 "언제 누가 어떻게 처리했는지"를 화면에서 확인할 수 있게 한다.
+ */
+export async function getProcessedTxns(): Promise<ProcessedTxn[]> {
+  const { teamId } = await getRequestTeamContext();
+  const db = createAdminClient();
+
+  const { data: rows, error } = await db
+    .from("fee_txn_hist")
+    .select(
+      "txn_id, txn_dt, txn_amt, raw_name, fee_item_cd, cfm_at, mem:mem_mst!fk_fee_txn_hist__mem_mst(mem_nm), cfm_by:mem_mst!fk_fee_txn_hist__cfm_mem_mst(mem_nm)",
+    )
+    .eq("team_id", teamId)
+    .eq("is_cfm_yn", true)
+    .eq("del_yn", false)
+    .order("cfm_at", { ascending: false })
+    .limit(PROCESSED_TXN_LIMIT);
+  if (error) throw new Error(`처리된 거래 조회 실패: ${error.message}`);
+
+  const nameOf = (raw: unknown): string | null => {
+    const item = Array.isArray(raw) ? raw[0] : raw;
+    return (item as { mem_nm: string } | null)?.mem_nm ?? null;
+  };
+
+  return (rows ?? []).map((r) => ({
+    txnId: r.txn_id,
+    txnDt: r.txn_dt,
+    amt: r.txn_amt,
+    rawName: r.raw_name,
+    memName: nameOf(r.mem),
+    feeItemCd: r.fee_item_cd,
+    cfmAt: r.cfm_at as string,
+    cfmByName: nameOf(r.cfm_by),
+  }));
+}
+
 export type LedgerRow = {
   memId: string;
   name: string;
