@@ -7,6 +7,7 @@ import { History } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 
+import { useDialogHistoryBack } from "@/lib/hooks/use-dialog-history-back";
 import { useFormPersist } from "@/lib/hooks/use-form-persist";
 import { z } from "zod";
 
@@ -49,6 +50,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { AutoGrowTextarea } from "@/components/common/auto-grow-textarea";
 
 const formSchema = createGthrSchema.omit({ team_id: true });
 type FormValues = z.infer<typeof formSchema>;
@@ -139,6 +141,10 @@ export function GatheringFormDialog({
 
   const persistKey = "gathering-form-draft";
   const { clear: clearDraft } = useFormPersist(persistKey, form, open && mode === "create");
+
+  // 모바일 뒤로가기: 앱 종료 대신 다이얼로그 닫기 (팝업이 열려 있으면 팝업 먼저)
+  useDialogHistoryBack(open, () => onOpenChange(false));
+  useDialogHistoryBack(recentOpen, () => setRecentOpen(false));
 
   useEffect(() => {
     if (!open) return;
@@ -484,18 +490,16 @@ export function GatheringFormDialog({
               />
             </div>
 
-            {/* 비고 */}
+            {/* 내용 */}
             <FormField
               control={form.control}
               name="desc_txt"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>비고</FormLabel>
+                  <FormLabel>내용</FormLabel>
                   <FormControl>
-                    <textarea
-                      rows={4}
+                    <AutoGrowTextarea
                       placeholder="공지, 준비물, 링크 등 자유롭게 입력"
-                      className="flex w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-[13px] shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                       {...field}
                       value={field.value ?? ""}
                       onChange={(e) => field.onChange(e.target.value || null)}

@@ -1146,20 +1146,21 @@ export function MiniCalendar({
         )}
       </div>
 
-      {/* 필터 칩 — "내 일정"(참가 대회·참석 모임)은 멤버일 때만 노출 */}
+      {/* 필터 칩 — "내 일정"(참가 대회·참석 모임)은 멤버일 때만 노출.
+          이모지는 ⭐(내 일정 구분용)만 유지 — 5개 칩이 360px 한 줄에 들어가도록 폭 절약 */}
       <div className="flex gap-1.5 overflow-x-auto scrollbar-none py-0.5">
         {([
           { key: "all", label: "전체" },
           ...(memberId ? [{ key: "mine", label: "⭐ 내 일정" }] as const : []),
-          { key: "competition", label: "🏆 대회" },
-          { key: "schedule", label: "📋 정보" },
-          { key: "gathering", label: "👥 모임" },
+          { key: "competition", label: "대회" },
+          { key: "schedule", label: "정보" },
+          { key: "gathering", label: "모임" },
         ] as const).map(({ key, label }) => (
           <button
             key={key}
             onClick={() => changeFilter(key)}
             className={cn(
-              "shrink-0 rounded-full px-3 py-1 text-[11px] transition-colors",
+              "shrink-0 rounded-full px-2.5 py-1 text-[11px] transition-colors",
               filterType === key
                 ? "bg-foreground text-background font-medium"
                 : "border border-border bg-transparent text-muted-foreground hover:border-foreground/40"

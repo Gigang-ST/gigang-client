@@ -1,0 +1,19 @@
+import { dayjs } from "@/lib/dayjs";
+
+/**
+ * 지난 일정(모임·일정글) 판정 — KST 날짜 기준.
+ *
+ * (종료일시 ?? 시작일시)의 KST 날짜가 오늘 이전이면 "지난 일정".
+ * 당일 일정은 그날 자정(KST)까지는 지난 것으로 보지 않는다 —
+ * 모임 종료 직후 참석 체크·내용 보완이 흔하기 때문. 홈탭 지난 일정 dim 기준과 동일.
+ *
+ * 지난 일정은 수정·삭제·참석·참석해제 불가 (관리자만 예외).
+ * 서버 액션 검증과 클라이언트 버튼 노출 양쪽에서 공용으로 사용한다.
+ */
+export function isPastEventKst(sttAt: string, endAt?: string | null): boolean {
+  const baseline = dayjs(endAt ?? sttAt).tz("Asia/Seoul");
+  return baseline.isBefore(dayjs().tz("Asia/Seoul").startOf("day"));
+}
+
+/** 지난 일정 조작 차단 시 공통 에러 메시지 */
+export const PAST_EVENT_ERROR = "지난 일정은 변경할 수 없습니다.";

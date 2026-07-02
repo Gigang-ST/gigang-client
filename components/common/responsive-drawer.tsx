@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
+import { useDialogHistoryBack } from "@/lib/hooks/use-dialog-history-back"
 
 import {
   Dialog,
@@ -48,19 +49,7 @@ function ResponsiveDrawer({ open, onOpenChange, children }: ResponsiveDrawerProp
   const isDesktop = useMediaQuery("(min-width: 768px)")
 
   // 모바일 뒤로가기 버튼으로 drawer를 닫을 수 있도록 history 연동
-  React.useEffect(() => {
-    if (open) {
-      history.pushState({ drawer: true }, "")
-    }
-  }, [open])
-
-  React.useEffect(() => {
-    const handlePopState = () => {
-      if (open) onOpenChange(false)
-    }
-    window.addEventListener("popstate", handlePopState)
-    return () => window.removeEventListener("popstate", handlePopState)
-  }, [open, onOpenChange])
+  useDialogHistoryBack(open, () => onOpenChange(false))
 
   return (
     <ResponsiveDrawerContext.Provider value={{ isDesktop }}>

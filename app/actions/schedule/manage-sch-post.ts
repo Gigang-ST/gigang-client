@@ -5,6 +5,7 @@ import { after } from "next/server";
 
 import { dayjs } from "@/lib/dayjs";
 import { withMember } from "@/lib/actions/auth";
+import { isPastEventKst, PAST_EVENT_ERROR } from "@/lib/past-event";
 import { insertNotiMany } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
@@ -89,9 +90,26 @@ export async function updateSchPost(input: {
   url?: string | null;
   cont_txt?: string | null;
 }) {
-  return withMember(async ({ supabase }) => {
+  return withMember(async ({ member, supabase }) => {
     const parsed = updateSchPostSchema.parse(input);
     const { sch_post_id, ...fields } = parsed;
+
+    // 지난 일정(KST 날짜 기준) 수정 차단 — 관리자만 예외
+    const { data: existing } = await supabase
+      .from("sch_post_mst")
+      .select("evt_stt_at, evt_end_at, crt_by")
+      .eq("sch_post_id", sch_post_id)
+      .single();
+    if (!existing) throw new Error("일정을 찾을 수 없습니다.");
+
+    // 작성자/관리자만 수정 가능 — RLS에만 의존하면 무권한 update가 0행 no-op으로
+    // 조용히 "성공" 처리되므로 코드에서 명시적으로 차단한다.
+    if (existing.crt_by !== member.id && !member.admin) {
+      throw new Error("수정 권한이 없습니다.");
+    }
+    if (!member.admin && isPastEventKst(existing.evt_stt_at, existing.evt_end_at)) {
+      throw new Error(PAST_EVENT_ERROR);
+    }
 
     const { error } = await supabase
       .from("sch_post_mst")
@@ -114,13 +132,18 @@ export async function deleteSchPost(sch_post_id: string) {
   return withMember(async ({ member, supabase }) => {
     const { data: post } = await supabase
       .from("sch_post_mst")
-      .select("crt_by, team_id")
+      .select("crt_by, team_id, evt_stt_at, evt_end_at")
       .eq("sch_post_id", sch_post_id)
       .single();
     if (!post) throw new Error("일정을 찾을 수 없습니다.");
 
     const isAuthor = post.crt_by === member.id;
     if (!isAuthor && !member.admin) throw new Error("삭제 권한이 없습니다.");
+
+    // 지난 일정(KST 날짜 기준) 삭제 차단 — 관리자만 예외
+    if (!member.admin && isPastEventKst(post.evt_stt_at, post.evt_end_at)) {
+      throw new Error(PAST_EVENT_ERROR);
+    }
 
     const admin = createUntypedAdminClient();
     const { error } = await admin

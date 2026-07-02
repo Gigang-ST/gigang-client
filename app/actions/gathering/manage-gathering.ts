@@ -5,6 +5,7 @@ import { after } from "next/server";
 
 import { dayjs } from "@/lib/dayjs";
 import { withMember } from "@/lib/actions/auth";
+import { isPastEventKst, PAST_EVENT_ERROR } from "@/lib/past-event";
 import { insertNotiMany } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
@@ -114,6 +115,23 @@ export async function updateGathering(input: {
     const parsed = updateGthrSchema.parse(input);
     const { gthr_id, stt_at, end_at, ...rest } = parsed;
 
+    // 지난 모임(KST 날짜 기준) 수정 차단 — 관리자만 예외. 알림용 기존 모임명도 같이 조회.
+    const { data: existing } = await supabase
+      .from("gthr_mst")
+      .select("gthr_nm, stt_at, end_at, crt_by")
+      .eq("gthr_id", gthr_id)
+      .single();
+    if (!existing) throw new Error("모임을 찾을 수 없습니다.");
+
+    // 작성자/관리자만 수정 가능 — RLS에만 의존하면 무권한 update가 0행 no-op으로
+    // 조용히 "성공" 처리되고 변경 알림까지 발송되므로 코드에서 명시적으로 차단한다.
+    if (existing.crt_by !== member.id && !member.admin) {
+      throw new Error("수정 권한이 없습니다.");
+    }
+    if (!member.admin && isPastEventKst(existing.stt_at, existing.end_at)) {
+      throw new Error(PAST_EVENT_ERROR);
+    }
+
     const { error } = await supabase
       .from("gthr_mst")
       .update({
@@ -127,12 +145,8 @@ export async function updateGathering(input: {
     if (error) throw new Error("모임 수정에 실패했습니다.");
 
     const { teamId } = await getRequestTeamContext();
-    // gthr_nm이 생략됐을 때 빈 문자열로 알림이 발송되지 않도록 기존 모임명 조회
-    let gthrNm = parsed.gthr_nm;
-    if (!gthrNm) {
-      const { data: existing } = await supabase.from("gthr_mst").select("gthr_nm").eq("gthr_id", gthr_id).single();
-      gthrNm = existing?.gthr_nm ?? "";
-    }
+    // gthr_nm이 생략됐을 때 빈 문자열로 알림이 발송되지 않도록 기존 모임명 사용
+    const gthrNm = parsed.gthr_nm || (existing.gthr_nm ?? "");
 
     after(async () => {
       try {
@@ -170,13 +184,18 @@ export async function deleteGathering(gthr_id: string) {
   return withMember(async ({ member, supabase }) => {
     const { data: gthr } = await supabase
       .from("gthr_mst")
-      .select("crt_by, team_id, gthr_nm")
+      .select("crt_by, team_id, gthr_nm, stt_at, end_at")
       .eq("gthr_id", gthr_id)
       .single();
     if (!gthr) throw new Error("모임을 찾을 수 없습니다.");
 
     const isAuthor = gthr.crt_by === member.id;
     if (!isAuthor && !member.admin) throw new Error("삭제 권한이 없습니다.");
+
+    // 지난 모임(KST 날짜 기준) 삭제 차단 — 관리자만 예외
+    if (!member.admin && isPastEventKst(gthr.stt_at, gthr.end_at)) {
+      throw new Error(PAST_EVENT_ERROR);
+    }
 
     const admin = createUntypedAdminClient();
     const { error } = await admin

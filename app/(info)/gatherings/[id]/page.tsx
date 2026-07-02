@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { dayjs } from "@/lib/dayjs";
+import { isPastEventKst } from "@/lib/past-event";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
@@ -63,6 +64,8 @@ export default async function GatheringDetailPage({
 
   const isAttending = !!myAttd?.data;
   const isAuthor = member?.id === gthr.crt_by;
+  // 지난 모임(KST 날짜 기준)은 수정·삭제·참석 변경 불가 — 관리자만 예외 (서버 액션에서도 동일 검증)
+  const isPastLocked = !member?.admin && isPastEventKst(gthr.stt_at, gthr.end_at);
 
   const stt = dayjs(gthr.stt_at).tz("Asia/Seoul");
   const end = gthr.end_at ? dayjs(gthr.end_at).tz("Asia/Seoul") : null;
@@ -78,7 +81,7 @@ export default async function GatheringDetailPage({
         <h1 className="absolute left-1/2 -translate-x-1/2 text-base font-semibold text-foreground pointer-events-auto">
           {gthr.gthr_nm}
         </h1>
-        {(isAuthor || member?.admin) && (
+        {(isAuthor || member?.admin) && !isPastLocked && (
           <div className="absolute right-4 pointer-events-auto">
             <GatheringMenuButton
               gthrId={id}
@@ -148,6 +151,7 @@ export default async function GatheringDetailPage({
             initialAttending={isAttending}
             maxPrtCnt={gthr.max_prt_cnt ?? null}
             currentAttdCount={attendees?.length ?? 0}
+            pastLocked={isPastLocked}
           />
         )}
 

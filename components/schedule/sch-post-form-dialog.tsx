@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 
+import { useDialogHistoryBack } from "@/lib/hooks/use-dialog-history-back";
 import { useFormPersist } from "@/lib/hooks/use-form-persist";
 import { z } from "zod";
 
@@ -40,6 +41,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { AutoGrowTextarea } from "@/components/common/auto-grow-textarea";
 
 const formSchema = createSchPostSchema.omit({ team_id: true }).extend({
   post_type: z.enum(SCH_POST_TYPES, { message: "유형을 선택해 주세요." }),
@@ -90,6 +92,9 @@ export function SchPostFormDialog({
 
   const persistKey = "sch-post-form-draft";
   const { clear: clearDraft } = useFormPersist(persistKey, form, open && mode === "create");
+
+  // 모바일 뒤로가기: 앱 종료 대신 다이얼로그 닫기
+  useDialogHistoryBack(open, () => onOpenChange(false));
 
   useEffect(() => {
     if (!open) return;
@@ -301,10 +306,8 @@ export function SchPostFormDialog({
                 <FormItem>
                   <FormLabel>내용</FormLabel>
                   <FormControl>
-                    <textarea
-                      rows={4}
+                    <AutoGrowTextarea
                       placeholder="내용을 입력해 주세요."
-                      className="flex w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-[13px] shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                       {...field}
                       value={field.value ?? ""}
                       onChange={(e) => field.onChange(e.target.value || null)}
