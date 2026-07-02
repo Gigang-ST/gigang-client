@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { withMember } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
+import { isPastLockedFor } from "@/lib/past-event";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 
@@ -16,12 +17,29 @@ export async function toggleGatheringAttendance(
   gthr_id: string,
 ): Promise<{ attending: boolean; monthlyAttendCnt?: number }> {
   return withMember(async ({ member, supabase }) => {
-    const { data: existing } = await supabase
-      .from("gthr_attd_rel")
-      .select("attd_id")
-      .eq("gthr_id", gthr_id)
-      .eq("mem_id", member.id)
-      .maybeSingle();
+    // 모임 검증용 조회와 내 참석 여부 조회는 독립적 — 병렬 1 RTT로 (직렬 2 RTT 방지)
+    const admin = createUntypedAdminClient();
+    const [{ data: gthr }, { data: existing }] = await Promise.all([
+      admin
+        .from("gthr_mst")
+        .select("max_prt_cnt, stt_at, end_at")
+        .eq("gthr_id", gthr_id)
+        .eq("del_yn", false)
+        .single(),
+      supabase
+        .from("gthr_attd_rel")
+        .select("attd_id")
+        .eq("gthr_id", gthr_id)
+        .eq("mem_id", member.id)
+        .maybeSingle(),
+    ]);
+
+    if (!gthr) throw new Error("모임을 찾을 수 없습니다.");
+
+    // 지난 모임(KST 날짜 기준)은 참석/참석해제 불가 — 관리자만 예외
+    if (isPastLockedFor(member.admin, gthr.stt_at, gthr.end_at)) {
+      throw new Error("지난 모임은 참석 변경이 불가합니다.");
+    }
 
     if (existing) {
       const { error: deleteError } = await supabase.from("gthr_attd_rel").delete().eq("attd_id", existing.attd_id);
@@ -31,17 +49,6 @@ export async function toggleGatheringAttendance(
       revalidatePath(`/gatherings/${gthr_id}`);
       return { attending: false };
     }
-
-    // 최대 인원 초과 여부 서버에서 검증 + 귀속월 산출용 stt_at 조회
-    const admin = createUntypedAdminClient();
-    const { data: gthr } = await admin
-      .from("gthr_mst")
-      .select("max_prt_cnt, stt_at")
-      .eq("gthr_id", gthr_id)
-      .eq("del_yn", false)
-      .single();
-
-    if (!gthr) throw new Error("모임을 찾을 수 없습니다.");
 
     if (gthr.max_prt_cnt !== null) {
       const { count } = await admin

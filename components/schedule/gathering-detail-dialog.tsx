@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { Copy, ExternalLink, Pencil, Share2, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, Lock, Pencil, Share2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { dayjs } from "@/lib/dayjs";
+import { isPastLockedFor } from "@/lib/past-event";
 import { gthrTypeLabels, gthrSprtLabels, type GthrType, type GthrSprtType } from "@/lib/validations/gathering";
 
 import { deleteGathering } from "@/app/actions/gathering/manage-gathering";
@@ -125,6 +126,8 @@ export function GatheringDetailDialog({
 
   const isAuthor = currentMemberId === gathering.crt_by;
   const isFull = !attending && gathering.maxPrtCnt != null && attdCount >= gathering.maxPrtCnt;
+  // 지난 모임(KST 날짜 기준)은 수정·삭제·참석 변경 불가 — 관리자만 예외 (서버 액션에서도 동일 검증)
+  const isPastLocked = isPastLockedFor(isAdmin, gathering.evt_stt_at ?? gathering.start_date, gathering.evt_end_at);
 
   const stt = gathering.evt_stt_at ? dayjs(gathering.evt_stt_at).tz("Asia/Seoul") : dayjs(gathering.start_date);
   const end = gathering.evt_end_at ? dayjs(gathering.evt_end_at).tz("Asia/Seoul") : null;
@@ -169,10 +172,12 @@ export function GatheringDetailDialog({
         toast.success(`이번 달 ${result.monthlyAttendCnt}회 참여!`);
       }
       onAttendanceChange?.();
-    } catch {
+    } catch (e) {
       setAttending(prev);
       setAttdCount((c) => (prev ? c + 1 : c - 1));
       setAttendees(gathering!.attendees ?? []);
+      // 서버 거절 사유(지난 모임·인원 마감 등)를 안내 — 무음 롤백이면 버튼 고장으로 오인한다
+      toast.error(e instanceof Error ? e.message : "참석 처리에 실패했습니다.");
     } finally {
       togglingRef.current = false;
     }
@@ -286,11 +291,14 @@ export function GatheringDetailDialog({
                 // 처리 중엔 disabled 대신 handleToggleAttendance의 togglingRef 가드로 재클릭만 막아 흐려지지 않게.
                 // 낙관적 업데이트로 색이 즉시 바뀌어 "바로 눌렸다"고 느끼게 한다.
                 // detailLoading 중엔 내 참석 여부를 아직 몰라 토글이 꼬일 수 있으므로 잠근다.
-                disabled={isFull || detailLoading}
+                // 지난 모임은 참석/해제 불가(관리자 예외) — 서버에서도 차단.
+                disabled={isFull || detailLoading || isPastLocked}
                 variant={attending ? "default" : "outline"}
                 className={attending ? "w-full bg-success hover:bg-success/90 border-success" : "w-full"}
               >
-                {isFull ? "인원 마감" : attending ? "✅ 참석" : "참석하기"}
+                {/* 지난 모임: 문구 변경 없이 잠금 아이콘 + disabled 흐림으로만 표시 */}
+                {isPastLocked && <Lock className="size-3.5" />}
+                {!isPastLocked && isFull ? "인원 마감" : attending ? "✅ 참석" : "참석하기"}
               </Button>
             )}
 
@@ -348,9 +356,9 @@ export function GatheringDetailDialog({
                     복제
                   </Button>
                 )}
-                {(isAuthor || isAdmin) && (
+                {(isAuthor || isAdmin) && !isPastLocked && (
                   <>
-                    {/* 수정은 작성자 + 관리자 모두 가능 (RLS도 팀 owner/admin 허용) */}
+                    {/* 수정은 작성자 + 관리자 모두 가능 (RLS도 팀 owner/admin 허용). 지난 모임은 관리자만. */}
                     <Button variant="outline" size="sm" onClick={onEdit} disabled={isDeleting}>
                       <Pencil className="size-3.5" />
                       수정
