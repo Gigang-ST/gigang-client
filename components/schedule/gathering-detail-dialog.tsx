@@ -241,9 +241,9 @@ export function GatheringDetailDialog({
               {gathering.location && (
                 <div className="flex items-center gap-2">
                   <Caption className="w-4 text-muted-foreground">📍</Caption>
-                  {/* 장소는 자유 텍스트라 좌표가 아닌 카카오맵 "검색"으로 연결 (앱 설치 시 앱으로 열림) */}
+                  {/* 장소는 자유 텍스트라 좌표가 아닌 네이버지도 "검색"으로 연결 (앱 설치 시 앱으로 열림) */}
                   <a
-                    href={`https://map.kakao.com/link/search/${encodeURIComponent(gathering.location)}`}
+                    href={`https://map.naver.com/p/search/${encodeURIComponent(gathering.location)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex min-w-0 items-center gap-1"

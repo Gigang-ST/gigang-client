@@ -2289,6 +2289,7 @@ export type Database = {
           gthr_type_enm: string
           is_attending: boolean
           loc_txt: string
+          max_prt_cnt: number
           short_id: string
           sprt_cd: string
           stt_at: string
@@ -2370,6 +2371,7 @@ export type Database = {
           item_nm: string
           item_type: string
           loc_nm: string
+          max_prt_cnt: number
           post_type: string
           reg_count: number
           short_id: string

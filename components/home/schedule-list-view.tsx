@@ -53,6 +53,7 @@ type SchedulePagedRow = {
   cmnt_count: number;
   short_id: string | null;
   sprt_cd: string | null;
+  max_prt_cnt: number | null;
 };
 
 function racesToMonths(races: CalendarRace[]): MonthData[] {
@@ -123,6 +124,7 @@ async function fetchAdjacent(
         crt_by: row.crt_by ?? undefined,
         crt_by_nm: row.crt_by_nm ?? null,
         regCount: row.reg_count ? Number(row.reg_count) : 0,
+        maxPrtCnt: row.max_prt_cnt ?? null,
         cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
       });
     } else {
@@ -277,7 +279,17 @@ function GatheringItem({ race, onClick, loading }: { race: CalendarRace; onClick
       </span>
       <span className="flex w-20 shrink-0 items-center justify-end gap-1.5 self-center">
         {(race.regCount ?? 0) > 0 && (
-          <Micro className="text-muted-foreground tabular-nums">{race.regCount}명</Micro>
+          // 정원이 있으면 "5/10명", 없으면 기존처럼 "5명". 마감이면 색으로 구분.
+          <Micro
+            className={cn(
+              "tabular-nums",
+              race.maxPrtCnt != null && (race.regCount ?? 0) >= race.maxPrtCnt
+                ? "font-medium text-destructive"
+                : "text-muted-foreground",
+            )}
+          >
+            {race.maxPrtCnt != null ? `${race.regCount}/${race.maxPrtCnt}명` : `${race.regCount}명`}
+          </Micro>
         )}
         <span
           className={cn(
@@ -459,8 +471,10 @@ export const ScheduleListView = memo(function ScheduleListView({
                     if (filteredDateRaces.length === 0) return null;
                     const dayjsDate = dayjs(dateStr);
                     const isToday = dateStr === today;
+                    const isPast = dateStr < today;
                     return (
-                      <div key={dateStr} className="flex gap-3 py-2.5">
+                      // 지난 날짜는 은은하게 흐려 오늘·다가오는 일정에 시선 집중 (탭·판독은 그대로 가능)
+                      <div key={dateStr} className={cn("flex gap-3 py-2.5", isPast && "opacity-70")}>
                         {/* 날짜 컬럼 */}
                         <div className="flex w-9 shrink-0 flex-col items-center">
                           <span

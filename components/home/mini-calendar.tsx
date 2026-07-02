@@ -98,6 +98,8 @@ export type CalendarRace = {
   end_date?: string | null;
   location?: string | null;
   regCount?: number;
+  /** gathering 전용 — 최대 인원 (null=제한 없음) */
+  maxPrtCnt?: number | null;
   // schedule / gathering 전용
   url?: string | null;
   cont_txt?: string | null;
@@ -127,7 +129,7 @@ type MiniCalendarProps = {
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"] as const;
 
-import { type FilterType, matchesFilter } from "./schedule-filter";
+import { type FilterType, FILTER_TYPES, matchesFilter } from "./schedule-filter";
 
 // 달력 그리드 셀 — 이번 달(inMonth) / 앞뒤 달(inMonth=false) 날짜를 함께 표현
 type Cell = { date: string; day: number; inMonth: boolean };
@@ -203,6 +205,20 @@ export function MiniCalendar({
 
   const [view, setView] = useState<"calendar" | "list">("calendar");
   const [filterType, setFilterType] = useState<FilterType>("all");
+
+  // 필터 선택 기억 — SSR/하이드레이션 불일치를 피해 마운트 후 복원
+  const FILTER_STORAGE_KEY = "home-filter-type";
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(FILTER_STORAGE_KEY) as FilterType | null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (saved && FILTER_TYPES.includes(saved)) setFilterType(saved);
+    } catch { /* 저장소 접근 실패 시 기본값 유지 */ }
+  }, []);
+  function changeFilter(next: FilterType) {
+    setFilterType(next);
+    try { localStorage.setItem(FILTER_STORAGE_KEY, next); } catch { /* 무시 */ }
+  }
   const [selectedDate, setSelectedDate] = useState<string>(() => todayKST());
   const [openingId, setOpeningId] = useState<string | null>(null);
   const openingLock = useRef(false);
@@ -748,6 +764,7 @@ export function MiniCalendar({
       crt_by: row.crt_by,
       crt_by_nm: row.crt_by_nm ?? null,
       regCount: row.attd_count ? Number(row.attd_count) : 0,
+      maxPrtCnt: row.max_prt_cnt ?? null,
       cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
     }));
 
@@ -993,9 +1010,9 @@ export function MiniCalendar({
     openingLock.current = true;
     // 등록 직후 경로만 공유 유도 안내를 켜고, 일반 클릭은 끈다
     setGthrJustCreated(justCreated);
-    // 리스트/캘린더 행에 이미 있는 데이터(제목·일시·장소·비고·참석수)로 즉시 연다.
-    // 참석자 목록·정원·내 참석 여부만 뒤에서 채우고, 그동안 다이얼로그가 스켈레톤을 그린다.
-    setGthrDetailRace({ ...race, regCount: race.regCount ?? 0, maxPrtCnt: null, attendees: [], sprt_cd: race.sprt_cd ?? null });
+    // 리스트/캘린더 행에 이미 있는 데이터(제목·일시·장소·비고·참석수·정원)로 즉시 연다.
+    // 참석자 목록·내 참석 여부만 뒤에서 채우고, 그동안 다이얼로그가 스켈레톤을 그린다.
+    setGthrDetailRace({ ...race, regCount: race.regCount ?? 0, maxPrtCnt: race.maxPrtCnt ?? null, attendees: [], sprt_cd: race.sprt_cd ?? null });
     setGthrDetailAttending(false);
     setGthrDetailComments(undefined);
     setGthrDetailLoading(true);
@@ -1119,17 +1136,18 @@ export function MiniCalendar({
         )}
       </div>
 
-      {/* 필터 칩 */}
+      {/* 필터 칩 — "내 일정"(참가 대회·참석 모임)은 멤버일 때만 노출 */}
       <div className="flex gap-1.5 overflow-x-auto scrollbar-none py-0.5">
         {([
           { key: "all", label: "전체" },
+          ...(memberId ? [{ key: "mine", label: "⭐ 내 일정" }] as const : []),
           { key: "competition", label: "🏆 대회" },
           { key: "schedule", label: "📋 정보" },
           { key: "gathering", label: "👥 모임" },
         ] as const).map(({ key, label }) => (
           <button
             key={key}
-            onClick={() => setFilterType(key)}
+            onClick={() => changeFilter(key)}
             className={cn(
               "shrink-0 rounded-full px-3 py-1 text-[11px] transition-colors",
               filterType === key
@@ -1380,7 +1398,17 @@ export function MiniCalendar({
                           <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{race.regCount}명</span>
                         )}
                         {isGathering && (race.regCount ?? 0) > 0 && (
-                          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{race.regCount}명</span>
+                          // 정원이 있으면 "5/10명", 없으면 기존처럼 "5명". 마감이면 색으로 구분.
+                          <span
+                            className={cn(
+                              "shrink-0 text-[10px] tabular-nums",
+                              race.maxPrtCnt != null && (race.regCount ?? 0) >= race.maxPrtCnt
+                                ? "font-medium text-destructive"
+                                : "text-muted-foreground",
+                            )}
+                          >
+                            {race.maxPrtCnt != null ? `${race.regCount}/${race.maxPrtCnt}명` : `${race.regCount}명`}
+                          </span>
                         )}
                         {isComp && (
                           <span

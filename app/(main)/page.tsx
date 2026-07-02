@@ -135,6 +135,7 @@ async function HomeContent() {
     crt_by: row.crt_by,
     crt_by_nm: row.crt_by_nm ?? null,
     regCount: row.attd_count ? Number(row.attd_count) : 0,
+    maxPrtCnt: row.max_prt_cnt ?? null,
     cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
   }));
 
