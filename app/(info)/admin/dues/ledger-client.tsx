@@ -114,8 +114,9 @@ export function LedgerClient({
         <CardItem className="flex flex-col divide-y divide-border p-0 overflow-hidden">
           {shown.map((r) => (
             <div key={r.memId} className="flex items-center justify-between gap-3 px-4 py-3">
-              <div className="flex flex-col gap-0.5">
-                <Body className="font-semibold">{r.name}</Body>
+              {/* 이름 영역 = 회원별 납부 근거 드릴다운 진입점 (QS-7) */}
+              <Link href={`/admin/dues/members/${r.memId}`} className="flex min-w-0 flex-col gap-0.5">
+                <Body className="font-semibold underline-offset-2 hover:underline">{r.name}</Body>
                 <Caption>
                   {r.balance === 0
                     ? "정상"
@@ -123,7 +124,7 @@ export function LedgerClient({
                       ? `1개월 미만 ${r.balance < 0 ? "미납" : "예치"}`
                       : `${r.months}개월 ${r.balance < 0 ? "미납" : "예치"}`}
                 </Caption>
-              </div>
+              </Link>
               <div className="flex items-center gap-2">
                 <Body
                   className={cn(

@@ -1,3 +1,5 @@
+import { dayjs } from "@/lib/dayjs";
+
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -163,6 +165,152 @@ export async function getProcessedTxns(): Promise<ProcessedTxn[]> {
     cfmAt: r.cfm_at as string,
     cfmByName: nameOf(r.cfm_by),
   }));
+}
+
+export type FeeItemOption = { cd: string; label: string };
+
+/**
+ * FEE_ITEM_CD 공통코드 전체(관리자 커스텀 포함) — 수동 등록 분류 선택지용.
+ * 인박스 triage 3분류(회비/프로젝트/제외)와 달리 지출·물품 등 전 도메인이 필요하다.
+ */
+export async function getFeeItemOptions(): Promise<FeeItemOption[]> {
+  const db = createAdminClient();
+  const { data, error } = await db
+    .from("cmm_cd_mst")
+    .select("cd, cd_nm, sort_ord, cmm_cd_grp_mst!inner(cd_grp_cd)")
+    .eq("cmm_cd_grp_mst.cd_grp_cd", "FEE_ITEM_CD")
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .order("sort_ord", { ascending: true });
+  if (error) throw new Error(`분류 코드 조회 실패: ${error.message}`);
+  return (data ?? []).map((c) => ({ cd: c.cd, label: c.cd_nm }));
+}
+
+export type MemberDuesItem = {
+  id: string;
+  date: string;
+  itemLabel: string;
+  ioLabel: "입금" | "출금" | "면제" | "취소";
+  amt: number;
+  cancelled: boolean;
+  /** 면제 사유 등 */
+  note?: string | null;
+  /** 잔액 미반영(면제 rflt_yn=false) */
+  pending?: boolean;
+};
+
+export type MemberDuesDetail = {
+  memName: string;
+  balAmt: number | null;
+  lastCalcDt: string | null;
+  items: MemberDuesItem[];
+};
+
+/**
+ * 관리자용 회원별 회비 상세 — 원장 드릴다운("이 잔액이 어떤 입금·면제로 만들어졌나").
+ * 회원 본인 화면(/profile/dues)과 같은 조립 규칙(납부·취소 + 면제 + 기타 확정 거래)을 쓰되
+ * 계좌 안내·퀘스트 등 본인 전용 요소는 뺀다. 회원이 팀 소속이 아니면 null.
+ */
+export async function getMemberDuesDetail(memId: string): Promise<MemberDuesDetail | null> {
+  const { teamId } = await getRequestTeamContext();
+  const db = createAdminClient();
+
+  const { data: rel } = await db
+    .from("team_mem_rel")
+    .select("mem_id")
+    .eq("team_id", teamId)
+    .eq("mem_id", memId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (!rel) return null;
+
+  const [{ data: mem }, { data: snap }, { data: pays }, { data: exms }, { data: otherTxns }, { data: feeItemCds }] =
+    await Promise.all([
+      db.from("mem_mst").select("mem_nm").eq("mem_id", memId).eq("vers", 0).eq("del_yn", false).maybeSingle(),
+      db
+        .from("fee_mem_bal_snap")
+        .select("bal_amt, last_calc_dt")
+        .eq("team_id", teamId)
+        .eq("mem_id", memId)
+        .eq("vers", 0)
+        .eq("del_yn", false)
+        .maybeSingle(),
+      db
+        .from("fee_due_pay_hist")
+        .select("pay_id, pay_amt, pay_dt, pay_st_cd")
+        .eq("team_id", teamId)
+        .eq("mem_id", memId)
+        .eq("vers", 0)
+        .eq("del_yn", false)
+        .order("pay_dt", { ascending: false })
+        .limit(100),
+      db
+        .from("fee_due_exm_hist")
+        .select("exm_hist_id, exm_amt, aply_ym, rsn_txt, rflt_yn, aprv_at")
+        .eq("team_id", teamId)
+        .eq("mem_id", memId)
+        .eq("vers", 0)
+        .eq("del_yn", false)
+        .order("aply_ym", { ascending: false })
+        .limit(100),
+      db
+        .from("fee_txn_hist")
+        .select("txn_id, txn_dt, txn_amt, txn_io_enm, fee_item_cd")
+        .eq("team_id", teamId)
+        .eq("mem_id", memId)
+        .eq("is_cfm_yn", true)
+        .eq("del_yn", false)
+        .neq("fee_item_cd", "due")
+        .order("txn_dt", { ascending: false })
+        .limit(100),
+      db
+        .from("cmm_cd_mst")
+        .select("cd, cd_nm, cmm_cd_grp_mst!inner(cd_grp_cd)")
+        .eq("cmm_cd_grp_mst.cd_grp_cd", "FEE_ITEM_CD")
+        .eq("vers", 0)
+        .eq("del_yn", false),
+    ]);
+
+  if (!mem) return null;
+
+  const itemLabelMap = new Map((feeItemCds ?? []).map((c) => [c.cd, c.cd_nm]));
+
+  const items: MemberDuesItem[] = [
+    ...(pays ?? []).map((p) => ({
+      id: p.pay_id,
+      date: p.pay_dt,
+      itemLabel: "회비",
+      ioLabel: p.pay_st_cd === "cancelled" ? ("취소" as const) : ("입금" as const),
+      amt: p.pay_amt,
+      cancelled: p.pay_st_cd === "cancelled",
+    })),
+    ...(exms ?? []).map((e) => ({
+      id: e.exm_hist_id,
+      date: e.aprv_at ? dayjs(e.aprv_at).tz("Asia/Seoul").format("YYYY-MM-DD") : e.aply_ym + "-01",
+      itemLabel: `회비 면제 (${e.aply_ym})`,
+      ioLabel: "면제" as const,
+      amt: e.exm_amt,
+      cancelled: false,
+      note: e.rsn_txt,
+      pending: !e.rflt_yn,
+    })),
+    ...(otherTxns ?? []).map((t) => ({
+      id: t.txn_id,
+      date: t.txn_dt,
+      itemLabel: itemLabelMap.get(t.fee_item_cd ?? "") ?? t.fee_item_cd ?? "-",
+      ioLabel: t.txn_io_enm === "deposit" ? ("입금" as const) : ("출금" as const),
+      amt: t.txn_amt,
+      cancelled: false,
+    })),
+  ].sort((a, b) => b.date.localeCompare(a.date));
+
+  return {
+    memName: mem.mem_nm,
+    balAmt: snap?.bal_amt ?? null,
+    lastCalcDt: snap?.last_calc_dt ?? null,
+    items,
+  };
 }
 
 export type LedgerRow = {
