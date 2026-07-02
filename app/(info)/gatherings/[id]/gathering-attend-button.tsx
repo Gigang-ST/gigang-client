@@ -45,7 +45,8 @@ export function GatheringAttendButton({ gthrId, initialAttending, maxPrtCnt, cur
         }
       } catch (e) {
         setAttending(prev);
-        setAttdCount((c) => (prev ? c - 1 : c + 1));
+        // 낙관적 업데이트(!prev ? +1 : -1)의 역방향으로 롤백
+        setAttdCount((c) => (prev ? c + 1 : c - 1));
         // 서버 거절 사유(지난 모임·인원 마감 등)를 안내 — 무음 롤백이면 버튼 고장으로 오인한다
         toast.error(e instanceof Error ? e.message : "참석 처리에 실패했습니다.");
       } finally {

@@ -45,6 +45,24 @@ export const AutoGrowTextarea = forwardRef<HTMLTextAreaElement, AutoGrowTextarea
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [value]);
 
+    // 폭 변경(모바일 회전·반응형 다이얼로그) 시 줄바꿈 지점이 달라지므로 높이 재계산.
+    // 자신이 설정한 height 변경으로 루프 돌지 않도록 "폭이 실제로 바뀐 경우"만 반응한다.
+    const lastWidthRef = useRef(0);
+    useEffect(() => {
+      const el = innerRef.current;
+      if (!el) return;
+      const ro = new ResizeObserver((entries) => {
+        const w = entries[0]?.contentRect.width ?? 0;
+        if (w !== lastWidthRef.current) {
+          lastWidthRef.current = w;
+          resize();
+        }
+      });
+      ro.observe(el);
+      return () => ro.disconnect();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     return (
       // 스타일은 ui/textarea 공통 컴포넌트를 상속 — 드리프트 방지.
       // 높이는 자동 계산이 담당하므로 min-h를 풀고, 폼 입력 규격(13px)·리사이즈 금지만 오버라이드.

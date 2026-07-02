@@ -55,6 +55,14 @@ export function useDialogHistoryBack(open: boolean, onClose: () => void) {
 
     return () => {
       const idx = stack.findIndex((e) => e.id === id);
+      // LIFO 가정 위반 감지 — 스택 중간 항목이 먼저 닫히면 back()이 다른 다이얼로그의
+      // 히스토리 항목을 소비해 상태가 어긋난다. 현 사용처(모달 중첩)에선 발생하지 않지만
+      // 범용 훅이므로 향후 오용을 개발 중에 바로 알아차릴 수 있게 경고한다.
+      if (process.env.NODE_ENV !== "production" && idx !== -1 && idx !== stack.length - 1) {
+        console.warn(
+          "[useDialogHistoryBack] 스택 중간 다이얼로그가 먼저 닫혔습니다 — 뒤로가기 동작이 어긋날 수 있습니다.",
+        );
+      }
       if (idx !== -1) stack.splice(idx, 1);
       if (popClosedIds.has(id)) {
         // 뒤로가기로 닫힘 — 히스토리 항목은 이미 소비됨
