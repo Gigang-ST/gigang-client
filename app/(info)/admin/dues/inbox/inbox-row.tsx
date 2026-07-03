@@ -6,7 +6,7 @@ import { dayjs } from "@/lib/dayjs";
 import { cn } from "@/lib/utils";
 import { memberLabel } from "@/lib/dues/homonyms";
 import type { Decision, ItemCd } from "@/lib/dues/confirm-payload";
-import type { InboxTxn, MemberOption } from "@/lib/queries/dues";
+import type { InboxTxn, MemberOption, ProjectOption } from "@/lib/queries/dues";
 
 import { Body, Caption, Micro } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +37,8 @@ const BUCKET_BADGE: Record<InboxTxn["bucket"], { label: string; cls: string }> =
 
 /**
  * 통합 테이블의 행 1건.
- * - editable(needsReview): 분류 Select + 회비면 후보 칩·직접선택 + 기억하기.
+ * - editable(needsReview): 분류 Select + 회비·프로젝트면 후보 칩·직접선택(+회비는 기억하기),
+ *   프로젝트면 귀속 프로젝트 Select 추가.
  * - 읽기(autoDone/excluded): 저장값을 텍스트로만 표시.
  * 키보드: 행 자체(빈 영역) 포커스 시 1/2/3=분류, ↑/↓=행 이동, Enter=다음.
  * 내부 입력에서의 타이핑은 e.target===e.currentTarget 검사로 가로채지 않는다.
@@ -45,6 +46,7 @@ const BUCKET_BADGE: Record<InboxTxn["bucket"], { label: string; cls: string }> =
 export function InboxRow({
   txn,
   members,
+  projects,
   dupNames,
   nameById,
   decision,
@@ -60,6 +62,7 @@ export function InboxRow({
 }: {
   txn: InboxTxn;
   members: MemberOption[];
+  projects: ProjectOption[];
   dupNames: Set<string>;
   nameById: Map<string, string>;
   decision: Decision | null;
@@ -75,7 +78,12 @@ export function InboxRow({
   /** 다른 행 삭제 진행 중 — 중복 실행 방지 */
   deleteBusy: boolean;
 }) {
-  const decided = !editable || (!!decision && (decision.itemCd !== "due" || !!decision.memId));
+  // 결정 조건: 회비=회원 필수, 프로젝트=귀속 프로젝트 필수(회원은 권장·선택), 제외=분류만.
+  const decided =
+    !editable ||
+    (!!decision &&
+      (decision.itemCd === "other" ||
+        (decision.itemCd === "due" ? !!decision.memId : !!decision.prjId)));
   const badge = BUCKET_BADGE[txn.bucket];
 
   function handleKeyDown(e: KeyboardEvent<HTMLTableRowElement>) {
@@ -117,7 +125,7 @@ export function InboxRow({
           <Caption className="text-foreground">
             {txn.bucket === "autoDone" && txn.memId ? (nameById.get(txn.memId) ?? "—") : "—"}
           </Caption>
-        ) : decision?.itemCd === "due" ? (
+        ) : decision && decision.itemCd !== "other" ? (
           <div className="flex flex-wrap items-center gap-1.5">
             {txn.candidates.length === 0 && <Caption>후보 없음</Caption>}
             {txn.candidates.map((c) => (
@@ -157,6 +165,28 @@ export function InboxRow({
                 ))}
               </SelectContent>
             </Select>
+            {decision.itemCd === "event_fee" && (
+              <Select
+                value={decision.prjId ?? ""}
+                onValueChange={(v) => onChange({ prjId: v })}
+              >
+                <SelectTrigger className="h-8 w-28">
+                  <SelectValue placeholder="프로젝트…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.length === 0 && (
+                    <SelectItem value="__none" disabled>
+                      모금 중인 프로젝트 없음
+                    </SelectItem>
+                  )}
+                  {projects.map((p) => (
+                    <SelectItem key={p.prjId} value={p.prjId}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {decision.itemCd === "due" && decision.memId && (
               <label className="flex items-center gap-1.5">
                 <Checkbox

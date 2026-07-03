@@ -8,7 +8,7 @@ import { confirmAndRecalc } from "@/app/actions/dues/confirm-and-recalc";
 import { deleteTransaction } from "@/app/actions/dues/delete-transaction";
 import { buildConfirmPayload, type Decision, type ItemCd } from "@/lib/dues/confirm-payload";
 import { duplicateNames } from "@/lib/dues/homonyms";
-import type { FeeItemOption, InboxTxn, MemberOption, ProcessedTxn } from "@/lib/queries/dues";
+import type { FeeItemOption, InboxTxn, MemberOption, ProcessedTxn, ProjectOption } from "@/lib/queries/dues";
 
 import { EmptyState } from "@/components/common/empty-state";
 import { InfoRow } from "@/components/common/info-row";
@@ -32,12 +32,21 @@ import { UploadXlsxButton } from "./upload-xlsx-button";
 type Filter = "all" | "needsReview" | "autoDone" | "excluded" | "processed";
 
 /**
- * 확인필요 행의 초기 판단값: 회비 분류 + **후보가 딱 1명일 때만** 그 회원을 자동 선택.
- * 후보가 2명 이상(동명이인·복수 유사매칭)이면 memId를 비워 둔다 — 운영자가 직접 골라야
- * 확정 가능(그 전엔 미결정으로 강조). 낮은 확신의 자동추측이 그대로 반영되는 것을 막는다.
+ * 확인필요 행의 초기 판단값.
+ * - 분류·귀속은 **저장값을 시드**로 쓴다 — 수동 등록(event_fee+프로젝트)이나 확정취소로
+ *   재노출된 행이 무조건 '회비'로 되돌아가 조용히 개인 납부로 오기록되는 것을 막는다.
+ * - 회원은 저장 매칭이 있으면 그것, 없으면 **후보가 딱 1명일 때만** 자동 선택.
+ *   후보가 2명 이상(동명이인·복수 유사매칭)이면 비워 둔다 — 운영자가 직접 골라야
+ *   확정 가능(그 전엔 미결정으로 강조). 낮은 확신의 자동추측이 그대로 반영되는 것을 막는다.
  */
 function defaultDecision(t: InboxTxn): Decision {
-  return { memId: t.candidates.length === 1 ? t.candidates[0].memId : null, itemCd: "due", remember: false };
+  const isEventFee = t.feeItemCd === "event_fee";
+  return {
+    memId: t.memId ?? (t.candidates.length === 1 ? t.candidates[0].memId : null),
+    itemCd: isEventFee ? "event_fee" : "due",
+    remember: false,
+    prjId: isEventFee ? t.projectId : null,
+  };
 }
 
 export function InboxTable({
@@ -47,6 +56,7 @@ export function InboxTable({
   processedCapped,
   processedError = false,
   feeItems,
+  projects,
 }: {
   members: MemberOption[];
   txns: InboxTxn[];
@@ -57,6 +67,8 @@ export function InboxTable({
   processedError?: boolean;
   /** 수동 등록 분류 선택지 — FEE_ITEM_CD 전체 */
   feeItems: FeeItemOption[];
+  /** 프로젝트(event_fee) 귀속 선택지 — 모금 중(active)만 */
+  projects: ProjectOption[];
 }) {
   const review = useMemo(() => txns.filter((t) => t.bucket === "needsReview"), [txns]);
   const autoDone = useMemo(() => txns.filter((t) => t.bucket === "autoDone"), [txns]);
@@ -104,11 +116,12 @@ export function InboxTable({
   // 키보드 ↑↓ 이동 대상: 화면에 보이는 needsReview 행 순서.
   const editableVisible = useMemo(() => visible.filter((t) => t.bucket === "needsReview"), [visible]);
 
-  // 결정된 확인필요 행: 회비면 회원 지정됨, 그 외(프로젝트/제외)면 분류 선택만으로 결정.
+  // 결정된 확인필요 행: 회비=회원 지정, 프로젝트=귀속 프로젝트 지정(회원은 선택), 제외=분류만.
   // 부분 확정 — 미결정 행은 이번 확정에서 빠지고 인박스에 남아 다음에 처리한다.
+  // (inbox-row.tsx의 decided 계산과 반드시 같은 규칙을 유지할 것)
   const decidedReview = review.filter((t) => {
     const d = decisions[t.txnId];
-    return d && (d.itemCd !== "due" || d.memId);
+    return d && (d.itemCd === "other" || (d.itemCd === "due" ? !!d.memId : !!d.prjId));
   });
   const undecidedCount = review.length - decidedReview.length;
   // 자동완료·제외는 판단이 필요 없으므로 항상 확정 대상 + 결정된 확인필요 행.
@@ -202,7 +215,7 @@ export function InboxTable({
       <div className="flex items-center justify-between">
         <H2>거래내역 처리</H2>
         <div className="flex items-center gap-2">
-          <ManualTxnButton members={members} dupNames={dupNames} feeItems={feeItems} />
+          <ManualTxnButton members={members} dupNames={dupNames} feeItems={feeItems} projects={projects} />
           <UploadXlsxButton onResult={setMsg} />
         </div>
       </div>
@@ -288,6 +301,7 @@ export function InboxTable({
                   key={t.txnId}
                   txn={t}
                   members={members}
+                  projects={projects}
                   dupNames={dupNames}
                   nameById={nameById}
                   decision={t.bucket === "needsReview" ? decisions[t.txnId] : null}
