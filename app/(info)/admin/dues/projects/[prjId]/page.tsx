@@ -10,6 +10,7 @@ import { Body, Caption, H2, Micro } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 
+import { ProjectCancelButton } from "./project-cancel-button";
 import { ProjectStatusButton } from "./project-status-button";
 
 /**
@@ -67,19 +68,22 @@ export default async function DuesProjectDetailPage({
                   {!r.memName ? " · 회원 미매칭" : ""}
                 </Micro>
               </div>
-              <Body
-                className={cn("shrink-0 font-semibold", r.io === "withdrawal" && "text-destructive")}
-              >
-                {r.io === "withdrawal" ? "-" : "+"}
-                {r.amt.toLocaleString()}원
-              </Body>
+              <div className="flex shrink-0 items-center gap-2">
+                <Body
+                  className={cn("font-semibold", r.io === "withdrawal" && "text-destructive")}
+                >
+                  {r.io === "withdrawal" ? "-" : "+"}
+                  {r.amt.toLocaleString()}원
+                </Body>
+                <ProjectCancelButton txnId={r.txnId} rawName={r.rawName} amt={r.amt} />
+              </div>
             </div>
           ))}
         </CardItem>
       )}
 
       <Caption className="text-muted-foreground">
-        잘못 귀속된 건은 거래내역 처리의 &lsquo;처리됨&rsquo;에서 취소 후 다시 처리하세요.
+        취소하면 거래가 처리 대기(인박스)로 돌아가고, 분류·회원은 그대로 남아 다시 처리할 수 있습니다.
       </Caption>
     </div>
   );
