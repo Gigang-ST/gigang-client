@@ -28,7 +28,6 @@ type Props = {
   initialMonthKey: string;
   initialRaces: CalendarRace[];
   filterType?: FilterType;
-  openingId?: string | null;
   onClickSchedule: (race: CalendarRace) => void;
   onClickCompetition: (race: CalendarRace) => void;
   onClickGathering: (race: CalendarRace) => void;
@@ -155,14 +154,13 @@ function formatTimeRange(sttAt: string | null | undefined, endAt: string | null 
 }
 
 // schedule 타입 아이템
-function ScheduleItem({ race, onClick, loading }: { race: CalendarRace; onClick: () => void; loading?: boolean }) {
+function ScheduleItem({ race, onClick }: { race: CalendarRace; onClick: () => void }) {
   const timeRange = formatTimeRange(race.evt_stt_at, race.evt_end_at);
 
   return (
     <button
       onClick={onClick}
-      disabled={loading}
-      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60 disabled:opacity-60"
+      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
     >
       <span className="w-0.5 shrink-0 rounded-full bg-info" />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -195,19 +193,16 @@ function ScheduleItem({ race, onClick, loading }: { race: CalendarRace; onClick:
 function CompetitionItem({
   race,
   onClick,
-  loading,
 }: {
   race: CalendarRace;
   onClick: () => void;
-  loading?: boolean;
 }) {
   const isMine = race.type === "mine";
 
   return (
     <button
       onClick={onClick}
-      disabled={loading}
-      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60 disabled:opacity-60"
+      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
     >
       <span className="w-0.5 shrink-0 rounded-full bg-warning" />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -243,15 +238,14 @@ function CompetitionItem({
   );
 }
 
-function GatheringItem({ race, onClick, loading }: { race: CalendarRace; onClick: () => void; loading?: boolean }) {
+function GatheringItem({ race, onClick }: { race: CalendarRace; onClick: () => void }) {
   const isMine = race.type === "gathering_mine";
   const timeRange = formatTimeRange(race.evt_stt_at, race.evt_end_at);
 
   return (
     <button
       onClick={onClick}
-      disabled={loading}
-      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60 disabled:opacity-60"
+      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
     >
       <span className="w-0.5 shrink-0 rounded-full bg-violet-500" />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -312,7 +306,6 @@ export const ScheduleListView = memo(function ScheduleListView({
   initialMonthKey,
   initialRaces,
   filterType = "all",
-  openingId,
   onClickSchedule,
   onClickCompetition,
   onClickGathering,
@@ -499,21 +492,18 @@ export const ScheduleListView = memo(function ScheduleListView({
                               <ScheduleItem
                                 key={race.id}
                                 race={race}
-                                loading={openingId === race.id}
                                 onClick={() => onClickSchedule(race)}
                               />
                             ) : race.type === "gathering" || race.type === "gathering_mine" ? (
                               <GatheringItem
                                 key={race.id}
                                 race={race}
-                                loading={openingId === race.id}
                                 onClick={() => onClickGathering(race)}
                               />
                             ) : (
                               <CompetitionItem
                                 key={race.id}
                                 race={race}
-                                loading={openingId === race.id}
                                 onClick={() => onClickCompetition(race)}
                               />
                             ),
