@@ -92,6 +92,10 @@ const GatheringDetailDialog = dynamic<GatheringDetailDialogProps>(
  * 그 위 항목만 교체되고, 뒤로가기가 딥링크 URL 항목으로 돌아가 상세가
  * 다시 열리는 무한 루프가 생긴다. 네이티브 replaceState는 동기 실행이며
  * Next가 패치해 useSearchParams도 함께 동기화된다.
+ *
+ * 비동기 콜백(fetch .then)에서 호출할 땐 반드시 이펙트의 cancelled 가드를
+ * 먼저 통과할 것 — 언마운트·경로 이동 후 실행되면 현재 페이지(예: /races)의
+ * 주소를 /로 덮어쓴다.
  */
 function clearDeepLinkParams() {
   window.history.replaceState(null, "", "/");
@@ -266,6 +270,8 @@ export function MiniCalendar({
   const deepLinkGthrId = searchParams.get("gthr")
 
   useEffect(() => {
+    // 언마운트·경로 이동·딥링크 교체 후 늦게 도착한 응답의 부수효과(특히 주소 덮어쓰기) 차단
+    let cancelled = false
     if (deepLinkGthrId) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deepLinkGthrId)
       const masterSelect = "gthr_id, short_id, gthr_nm, gthr_type_enm, stt_at, end_at, loc_txt, desc_txt, crt_by"
@@ -282,6 +288,7 @@ export function MiniCalendar({
             ? supabase.from("gthr_attd_rel").select("attd_id").eq("gthr_id", deepLinkGthrId).eq("mem_id", memberId).maybeSingle()
             : Promise.resolve({ data: null }),
         ]).then(([masterRes, detailRes, attdRes]) => {
+          if (cancelled) return
           // 그 사이 다른 모임이 열렸으면 늦게 온 딥링크 응답을 버린다
           if (reqId !== gthrOpenReqRef.current) return
           const data = masterRes.data
@@ -315,7 +322,7 @@ export function MiniCalendar({
       } else {
         // 공유 링크(short_id): uuid를 몰라 마스터 조회가 선행 — 이후 즉시 오픈+스켈레톤으로 채움
         supabase.from("gthr_mst").select(masterSelect).eq("short_id", deepLinkGthrId).maybeSingle().then(({ data }) => {
-          if (!data) return
+          if (cancelled || !data) return
           const race: CalendarRace = {
             id: data.gthr_id,
             short_id: data.short_id ?? null,
@@ -334,10 +341,13 @@ export function MiniCalendar({
         })
       }
     }
+    return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deepLinkGthrId])
 
   useEffect(() => {
+    // 언마운트·경로 이동·딥링크 교체 후 늦게 도착한 응답의 부수효과(특히 주소 덮어쓰기) 차단
+    let cancelled = false
     if (deepLinkPostId) {
       // short_id로 먼저 조회, 없으면 UUID fallback (기존 알림 호환)
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deepLinkPostId)
@@ -346,11 +356,12 @@ export function MiniCalendar({
         : supabase.from("sch_post_mst").select("sch_post_id, short_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by").eq("short_id", deepLinkPostId).maybeSingle()
 
       query.then(({ data }) => {
-        if (!data) return
+        if (cancelled || !data) return
         const commentPromise = memberId
           ? fetchComments("sch_post", data.sch_post_id)
           : Promise.resolve(undefined)
         commentPromise.then((finalComments) => {
+          if (cancelled) return
           setSchDetailPost({
             id: data.sch_post_id,
             short_id: data.short_id ?? null,
@@ -378,9 +389,10 @@ export function MiniCalendar({
         : supabase.from("comp_mst").select("comp_id, short_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)").eq("short_id", deepLinkCompId).maybeSingle()
 
       query.then(({ data }) => {
-        if (!data) return
+        if (cancelled || !data) return
         const commentPromise = memberId ? fetchComments("comp", data.comp_id) : Promise.resolve(undefined)
         commentPromise.then((finalComments) => {
+          if (cancelled) return
           setSelectedCompetition({
             id: data.comp_id,
             short_id: data.short_id ?? null,
@@ -401,6 +413,7 @@ export function MiniCalendar({
         })
       })
     }
+    return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deepLinkPostId, deepLinkCompId])
 
