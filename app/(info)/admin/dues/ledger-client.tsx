@@ -1,8 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+import { recalculateBalance } from "@/app/actions/dues/recalculate-balance";
 
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
@@ -31,6 +34,21 @@ export function LedgerClient({
 }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
+  const [recalcPending, startRecalc] = useTransition();
+  const [recalcMsg, setRecalcMsg] = useState<string | null>(null);
+  const router = useRouter();
+
+  // 취소 후 재계산 실패 등으로 스냅샷이 낡았을 때의 복구 진입점.
+  // 재계산은 앵커+리플레이 방식이라 몇 번을 눌러도 결과가 같다(멱등).
+  function onRecalcAll() {
+    if (!confirm("전체 활성 회원의 회비 잔액을 다시 계산할까요?")) return;
+    setRecalcMsg(null);
+    startRecalc(async () => {
+      const res = await recalculateBalance();
+      setRecalcMsg(res.ok ? `재계산 완료 — ${res.updatedCount}명 갱신` : "재계산에 실패했습니다. 다시 시도해 주세요.");
+      if (res.ok) router.refresh();
+    });
+  }
 
   const shown = useMemo(
     () =>
@@ -47,10 +65,17 @@ export function LedgerClient({
     <div className="flex flex-col gap-4 px-6 pb-6 pt-2">
       <div className="flex items-center justify-between">
         <H2>회비 현황</H2>
-        <Button asChild size="sm" variant="outline">
-          <Link href="/admin/dues/policy">정책</Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" disabled={recalcPending} onClick={onRecalcAll}>
+            {recalcPending ? "재계산 중…" : "전체 재계산"}
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/admin/dues/policy">정책</Link>
+          </Button>
+        </div>
       </div>
+
+      {recalcMsg && <Caption className="text-foreground">{recalcMsg}</Caption>}
 
       <div className="flex items-center gap-3">
         <Caption>
@@ -89,8 +114,9 @@ export function LedgerClient({
         <CardItem className="flex flex-col divide-y divide-border p-0 overflow-hidden">
           {shown.map((r) => (
             <div key={r.memId} className="flex items-center justify-between gap-3 px-4 py-3">
-              <div className="flex flex-col gap-0.5">
-                <Body className="font-semibold">{r.name}</Body>
+              {/* 이름 영역 = 회원별 납부 근거 드릴다운 진입점 (QS-7) */}
+              <Link href={`/admin/dues/members/${r.memId}`} className="flex min-w-0 flex-col gap-0.5">
+                <Body className="font-semibold underline-offset-2 hover:underline">{r.name}</Body>
                 <Caption>
                   {r.balance === 0
                     ? "정상"
@@ -98,7 +124,7 @@ export function LedgerClient({
                       ? `1개월 미만 ${r.balance < 0 ? "미납" : "예치"}`
                       : `${r.months}개월 ${r.balance < 0 ? "미납" : "예치"}`}
                 </Caption>
-              </div>
+              </Link>
               <div className="flex items-center gap-2">
                 <Body
                   className={cn(

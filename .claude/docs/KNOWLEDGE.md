@@ -56,14 +56,34 @@ Supabase JS `.upsert({ onConflict: "a,b,c" })` 는 `ON CONFLICT (a,b,c)` 만 보
 
 ### 회비 재계산 면제 합산 기준은 `aply_ym`(귀속월)이 아니라 `rflt_yn`(반영여부)
 재계산이 면제를 `aply_ym >= 마지막계산월` 로 합산하면 "기준월보다 과거에 뒤늦게 꽂힌 면제"(배치를 늦게 돌린 경우)를 영영 누락한다. **합산 기준을 `rflt_yn=false`("아직 잔액에 안 들어간 것")로 바꾸면** 귀속월 무관하게 미반영 면제를 한 번 합산 후 `true` 마킹 → 배치를 2달 늦게 돌려도 다음 재계산이 잡고, 같은 달 두 번 재계산해도 이중 합산이 없다.
-**불변식:** `baseBal`(이전 스냅샷 bal_amt)에 녹은 면제 = `rflt_yn=true`. 재계산은 `rflt_yn=false`만 더한다. 컬럼 추가 시 기존 면제는 `true` 백필하되, **백필 전 전체 재계산을 한 번 돌려** "생성됐지만 미반영" 면제가 잘못 `true`로 칠해지지 않게 한다(§6.1.1).
+**불변식:** `baseBal`에 녹은 면제 = `rflt_yn=true`. 재계산은 `rflt_yn=false`만 더한다. 컬럼 추가 시 기존 면제는 `true` 백필하되, **백필 전 전체 재계산을 한 번 돌려** "생성됐지만 미반영" 면제가 잘못 `true`로 칠해지지 않게 한다(§6.1.1). _(2026-07 리플레이 전환 후 baseBal = 앵커잔액 + rflt_yn=true 면제합 — 아래 앵커+리플레이 절 참고. RPC 계약은 동일.)_
 **원자성:** Supabase JS는 여러 쿼리를 한 트랜잭션으로 못 묶으므로, 면제 합산→잔액계산→vers 밀기→스냅샷 INSERT→면제 마킹을 **DB 함수 `recalc_member_balance`로 원자화**(설계 `docs/design/2026-06-28-출석-회비-감면-퀘스트.md` §6).
+
+### 회비 잔액 재계산은 증분(커서)이 아니라 "앵커+전체 리플레이"다 (2026-07 전환)
+직전 스냅샷 기점의 증분 방식은 `last_calc_at` 커서 이전 시점의 **늦은 확정·확정취소를 영영 반영 못 하는 구멍**이 있었다(취소 후 재확정된 과거 거래가 커서에 걸려 누락 등 — QS-4 계열). 전환 후(`app/actions/dues/recalculate-balance.ts` + `lib/dues/ledger-replay.ts`):
+- **bal = 앵커잔액 + Σ납부(paid, 앵커 커서 이후) + Σ면제 − Σ부과(앵커 다음달~당월)** — 몇 번을 돌려도 원천 데이터와 일치(멱등). 확정취소는 pay `cancelled` 마킹 + 재계산 한 번이면 끝.
+- **앵커 = `LEDGER_EPOCH` 이전 crt_at 의 가장 오래된 스냅샷.** 컷오버 시딩(2026-06-04)으로 **pay_hist 없이 잔액만 있는 회원이 다수**라(dev에서 88,000원/납부 0건 확인) 순수 from-scratch 는 개시잔액을 날린다 → 앵커 필수. EPOCH 이후 스냅샷은 파생 캐시일 뿐 절대 앵커가 되면 안 된다(앵커로 삼는 순간 커서 구멍이 재발).
+- **`fee_mem_bal_snap.vers` 는 시간순**: 1=최고령(시드), 커질수록 최신, 0=현재.
+- **부과 시작 = 앵커 `last_calc_dt` 다음 달**(시드 06-04 → 7월부터; 6월분은 시드에 녹은 것으로 간주 — 기존 증분 동작과 동일). 앵커 없으면 가입월부터.
+- **커서(p_last_calc_at)를 납부 0건이라고 now 로 두면 안 된다** — 업로드 컷오프(매칭 거래가 커서 이전이면 skip)에 걸려 그 회원의 과거 입금이 조용히 소실된다(QS-9). 납부 없으면 앵커 커서, 그마저 없으면 가입월 초.
+- **리플레이는 과거 증분 시대에 눌어붙은 오차를 자가 치유한다**: dev 전수 대조(161명)에서 137명 정확 일치, 23명은 기대 차이(비활성 회원 당월 미부과), 1명은 06-06 옛 JS 재계산이 근거 이력 없이 +2,000 가산한 것이 교정 대상으로 확인. **배포 직후 전체 재계산 후 원장 diff 를 한 번 훑을 것.**
+
+### 딥링크로 다이얼로그를 열 때 URL 정리는 setOpen 전에 네이티브 replaceState로
+알림 딥링크(`/?post=`·`/?comp=`·`/?gthr=`)로 상세 다이얼로그를 열고 `router.replace("/")`로 쿼리를 지우는 순서(setOpen → router.replace)는 **무한 재오픈 루프**를 만든다. `router.replace`는 transition이라 실제 히스토리 교체가 다이얼로그의 `useDialogHistoryBack` pushState보다 **늦게** 일어나, 히스토리가 `[이전, "/?gthr=id", "/"]`로 남는다. 뒤로가기(popstate)든 스와이프 닫기(cleanup의 `history.back()`)든 `/?gthr=id` 항목으로 복귀 → `useSearchParams` 동기화 → 딥링크 이펙트 재발동 → 상세 재오픈 반복.
+**해결:** 다이얼로그를 열기 **전에** 동기 API `window.history.replaceState(null, "", "/")`를 호출한다(`mini-calendar.tsx`의 `clearDeepLinkParams`). Next 14.1+는 네이티브 push/replaceState를 패치해 `useSearchParams`도 함께 동기화하므로 `router.replace` 후속 호출은 필요 없다.
 
 ### SW `getRegistration` 인자는 스코프(디렉토리)지 스크립트 경로가 아니다
 `navigator.serviceWorker.getRegistration("/sw.js")`처럼 스크립트 경로를 넘기면 브라우저마다 다르게 동작(Safari는 undefined 반환 가능). 등록 스코프 기준으로 조회해야 한다.
 **해결:** 등록은 `register("/sw.js", { scope: "/" })`, 조회는 `getRegistration("/")`로 통일. (`lib/push/client.ts`, `components/service-worker-register.tsx`)
 
 ## 재사용 패턴
+
+### 상세 다이얼로그 오픈 = "인스턴트 오픈 + 백필 + 댓글 자체조회" (전 경로 공통 원칙)
+상세 오픈 경로는 홈 8곳(행 클릭 3종: 일정·모임·대회 / 딥링크 3종: `?post`·`?comp`·`?gthr` / 대회 선택 팝업 / 등록 직후) + `/races` 리스트. 어떤 경로든:
+1. **손에 있는 데이터(행·리스트·폼 입력값)로 즉시 연다.** 조회를 기다렸다 여는 것 금지 — 부족한 필드는 열린 뒤 백필(`setState((prev) => prev.id === id ? {...} : prev)` 가드로 늦은 응답 폐기).
+2. **댓글은 절대 기다리지 않는다.** `initialComments={undefined}` → CommentSection이 자체 조회·로딩 표시.
+3. **딥링크 not-found는 무반응 금지** — `notifyDeepLinkMissing()`(토스트 + 파라미터 정리).
+4. **한 경로에서 버그·개선을 발견하면 위 경로 전체에 같은 수정을 전수 적용**하고, 경로가 늘면 이 목록을 갱신한다. _(2026-07-03: 대회 클릭이 조회 후 오픈, 일정·대회 딥링크가 댓글까지 대기하던 것을 모임 패턴으로 일괄 정렬)_
 
 ### 서버 액션이 nullable을 수용하면 폼 필드를 선택/접이식으로 분리
 `onboardingCreateMember`는 은행·계좌·이메일을 nullable로 받는다. 가입 마찰을 줄이려면 서버가 선택으로 받는 필드를 "추가 정보(선택)" 접이식으로 내려 필수 입력을 최소화하고, 나머지는 가입 후 별도 페이지(`/profile/bank`)에서 입력하게 한다. 서버 페이로드 구조는 그대로 유지된다.

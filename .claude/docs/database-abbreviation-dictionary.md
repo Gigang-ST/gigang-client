@@ -38,6 +38,7 @@
 | `sprt` | sport (종목/스포츠) |
 | `ttl` | title (칭호) |
 | `pay` | payment (납부) |
+| `prj` | project (프로젝트/모금 — `fee_prj_mst`; 단 `fee_txn_hist.project_id`는 P1 선행 컬럼이라 전체 철자) |
 | `attd` | attendance (출석/참석) |
 | `prt` | participation (참가) |
 | `src` | source (출처) |
@@ -108,6 +109,8 @@
 | `fee_due_exm_cfg` | 회비 면제 규칙 |
 | `fee_due_exm_hist` | 회비 면제 적용 이력 |
 | `fee_mem_bal_snap` | 회원 회비 누적 스냅샷 |
+| `fee_prj_mst` | 회비 프로젝트(모금) 마스터 (SP2, 거래 귀속은 `fee_txn_hist.project_id`) |
+| `fee_payer_alias` | 입금자명→회원 매칭 학습 |
 | `evt_team_mst` | 팀 이벤트 마스터 |
 | `evt_team_prt_rel` | 이벤트 참가 관계(참가자 기준 루트) |
 | `evt_mlg_mth_snap` | 마일리지 월별 목표/집계 스냅샷 |

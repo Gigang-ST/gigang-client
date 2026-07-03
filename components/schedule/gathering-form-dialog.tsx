@@ -295,21 +295,6 @@ export function GatheringFormDialog({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4 overflow-y-auto px-5 py-4">
 
-            {/* 최근 모임 불러오기 (등록 시에만) */}
-            {mode === "create" && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-1.5 self-start"
-                onClick={openRecent}
-                disabled={isSubmitting}
-              >
-                <History className="size-4" />
-                최근 모임 불러오기
-              </Button>
-            )}
-
             {/* 제목 */}
             <FormField
               control={form.control}
@@ -511,15 +496,31 @@ export function GatheringFormDialog({
               <p className="text-[12px] font-medium text-destructive">{rootError}</p>
             )}
 
-            <div className="flex justify-end gap-2 pb-1">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
-                취소
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting
-                  ? (mode === "create" ? "등록 중..." : "저장 중...")
-                  : (mode === "create" ? "등록" : "저장")}
-              </Button>
+            <div className="flex items-center gap-2 pb-1">
+              {/* 최근 모임 불러오기 (등록 시에만) — 취소/등록과 같은 라인 왼쪽 정렬 */}
+              {mode === "create" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={openRecent}
+                  disabled={isSubmitting}
+                >
+                  <History className="size-4" />
+                  최근 불러오기
+                </Button>
+              )}
+              <div className="ml-auto flex gap-2">
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+                  취소
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting
+                    ? (mode === "create" ? "등록 중..." : "저장 중...")
+                    : (mode === "create" ? "등록" : "저장")}
+                </Button>
+              </div>
             </div>
           </form>
         </Form>

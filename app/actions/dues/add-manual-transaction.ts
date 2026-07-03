@@ -15,6 +15,8 @@ type AddManualTxnInput = {
   rawName: string;
   feeItemCd: string;
   memId?: string | null;
+  /** 프로젝트(event_fee) 귀속 — event_fee 분류에서만 저장 */
+  prjId?: string | null;
   memo?: string | null;
 };
 
@@ -99,6 +101,20 @@ export async function addManualTransaction(input: AddManualTxnInput) {
       return { ok: false as const, message: "존재하지 않는 분류입니다. 분류 항목을 확인해 주세요." };
     }
 
+    // 프로젝트 분류는 귀속 필수 + 이 팀의 프로젝트인지 검증(타 팀 prjId 주입 차단)
+    const prjId = input.feeItemCd === "event_fee" ? (input.prjId?.trim() || null) : null;
+    if (input.feeItemCd === "event_fee") {
+      if (!prjId) return { ok: false as const, message: "귀속 프로젝트를 선택해 주세요." };
+      const { data: prj } = await db
+        .from("fee_prj_mst")
+        .select("prj_id")
+        .eq("team_id", teamId)
+        .eq("prj_id", prjId)
+        .eq("del_yn", false)
+        .maybeSingle();
+      if (!prj) return { ok: false as const, message: "프로젝트를 찾을 수 없습니다." };
+    }
+
     const updId = await getOrCreateManualBatch(db, teamId, member.id);
     if (!updId) return { ok: false as const, message: "수동 등록 배치 생성에 실패했습니다." };
 
@@ -124,6 +140,7 @@ export async function addManualTransaction(input: AddManualTxnInput) {
         match_st_cd: matchStatus,
         mem_id: memId,
         fee_item_cd: input.feeItemCd,
+        project_id: prjId,
         is_cfm_yn: false,
         del_yn: false,
       })
