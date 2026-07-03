@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import { CalendarDays, ChevronLeft, ChevronRight, List } from "lucide-react";
+import { toast } from "sonner";
 
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { dayjs, todayKST, currentMonthKST, daysInMonth, gridDateRange } from "@/lib/dayjs";
@@ -85,6 +86,36 @@ const GatheringDetailDialog = dynamic<GatheringDetailDialogProps>(
   { ssr: false }
 );
 
+/**
+ * 딥링크 쿼리(?post=·?comp=·?gthr=)만 현재 URL에서 골라 동기 제거한다.
+ * 다른 쿼리·해시·경로는 보존한다. (키 목록은 lib/notifications/deep-link.ts
+ * 라우트 규칙과 짝 — 새 딥링크 키를 추가하면 여기도 함께 갱신할 것)
+ *
+ * 반드시 상세 다이얼로그를 열기(setOpen) 전에 호출할 것 — router.replace는
+ * transition이라 다이얼로그의 pushState(useDialogHistoryBack)가 먼저 쌓인 뒤
+ * 그 위 항목만 교체되고, 뒤로가기가 딥링크 URL 항목으로 돌아가 상세가
+ * 다시 열리는 무한 루프가 생긴다. 네이티브 replaceState는 동기 실행이며
+ * Next가 패치해 useSearchParams도 함께 동기화된다.
+ *
+ * 비동기 콜백(fetch .then)에서 호출할 땐 이펙트의 cancelled 가드를 먼저
+ * 통과할 것 — 대상 키만 지우므로 경로는 보존되지만, 페이지를 떠난 뒤의
+ * 히스토리 조작 자체가 부수효과다.
+ */
+function clearDeepLinkParams() {
+  const url = new URL(window.location.href);
+  for (const key of ["post", "comp", "gthr"]) url.searchParams.delete(key);
+  window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+}
+
+/**
+ * 딥링크 대상이 삭제·미존재로 조회되지 않을 때 — 무반응 대신 안내하고,
+ * 죽은 파라미터를 정리해 새로고침마다 헛조회가 반복되지 않게 한다.
+ */
+function notifyDeepLinkMissing(label: string) {
+  toast.error(`삭제되었거나 찾을 수 없는 ${label}입니다.`);
+  clearDeepLinkParams();
+}
+
 
 
 
@@ -156,7 +187,6 @@ export function MiniCalendar({
   initialRegistrationsByCompetitionId,
 }: MiniCalendarProps) {
   const supabase = useMemo(() => createClient(), []);
-  const router = useRouter();
   const initialMonth = currentMonthKST();
   const [viewMonth, setViewMonth] = useState(initialMonth);
   const [gigangRaces, setGigangRaces] = useState(initGigang);
@@ -223,7 +253,6 @@ export function MiniCalendar({
     try { localStorage.setItem(FILTER_STORAGE_KEY, next); } catch { /* 무시 */ }
   }
   const [selectedDate, setSelectedDate] = useState<string>(() => todayKST());
-  const [openingId, setOpeningId] = useState<string | null>(null);
   const openingLock = useRef(false);
   const [selectedCompetition, setSelectedCompetition] = useState<Competition | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -248,6 +277,71 @@ export function MiniCalendar({
       .catch(() => { membersFetchingRef.current = false })
   }, [schDetailOpen, detailOpen, gthrDetailOpen, membersCache, memberStatus.status])
 
+  // 등록 직후 전용: 조회 없이 즉시 상세를 연다.
+  // 새 모임이라 댓글 0·참석자=작성자 1명·상세=폼 입력값으로 자명하므로 쿼리를 생략해
+  // 등록→상세 오픈 사이의 직렬 대기(달력 재조회 + 상세 3쿼리)를 제거한다.
+  const openGatheringDetailInstant = useCallback((race: CalendarRace & { maxPrtCnt?: number | null }) => {
+    const me = memberStatus.status === "ready"
+      ? [{ mem_id: memberStatus.memberId, mem_nm: memberStatus.fullName ?? null, avatar_url: memberAvatarUrl ?? null }]
+      : [];
+    gthrOpenReqRef.current += 1; // 진행 중이던 이전 상세 조회 무효화
+    setGthrJustCreated(true);
+    setGthrDetailRace({ ...race, regCount: me.length, maxPrtCnt: race.maxPrtCnt ?? null, attendees: me, sprt_cd: race.sprt_cd ?? null });
+    setGthrDetailAttending(true); // 작성자는 자동 참석
+    setGthrDetailLoading(false);   // 입력값으로 완결 — 스켈레톤 불필요
+    setGthrDetailComments([]);     // 새 모임 — 댓글 없음
+    setGthrDetailOpen(true);
+  // memberStatus/memberAvatarUrl은 렌더마다 안정적
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memberAvatarUrl]);
+
+  const openGatheringDetail = useCallback(async (race: CalendarRace, justCreated = false) => {
+    // 등록 직후 경로(justCreated)는 사용자 클릭과 무관하게 반드시 열어야 하므로 락을 무시한다
+    if (openingLock.current && !justCreated) return;
+    openingLock.current = true;
+    const reqId = ++gthrOpenReqRef.current;
+    // 등록 직후 경로만 공유 유도 안내를 켜고, 일반 클릭은 끈다
+    setGthrJustCreated(justCreated);
+    // 리스트/캘린더 행에 이미 있는 데이터(제목·일시·장소·비고·참석수·정원)로 즉시 연다.
+    // 참석자 목록·내 참석 여부만 뒤에서 채우고, 그동안 다이얼로그가 스켈레톤을 그린다.
+    setGthrDetailRace({ ...race, regCount: race.regCount ?? 0, maxPrtCnt: race.maxPrtCnt ?? null, attendees: [], sprt_cd: race.sprt_cd ?? null });
+    setGthrDetailAttending(false);
+    setGthrDetailComments(undefined);
+    setGthrDetailLoading(true);
+    setGthrDetailOpen(true);
+    try {
+      type GthrDetail = { max_prt_cnt: number | null; sprt_cd: string | null; attendees: GatheringAttendee[] };
+      // 댓글은 함께 기다리지 않는다 — undefined로 넘기면 CommentSection이 스스로 조회·로딩 표시한다.
+      const [attdResult, gthrDetailResult] = await Promise.all([
+        memberId
+          ? supabase.from("gthr_attd_rel").select("attd_id").eq("gthr_id", race.id).eq("mem_id", memberId).maybeSingle()
+          : Promise.resolve({ data: null }),
+        supabase.rpc("get_gathering_detail", { p_gthr_id: race.id, p_team_id: teamId }),
+      ]);
+      if (gthrDetailResult.error) {
+        // 이미 열린 다이얼로그는 유지 — 행 데이터만으로도 핵심 정보는 보인다
+        console.error("[openGatheringDetail]", gthrDetailResult.error);
+        return;
+      }
+      // 그 사이 다른 모임이 열렸으면(인스턴트 오픈·딥링크 등) 늦게 온 응답을 통째로 버린다
+      if (reqId !== gthrOpenReqRef.current) return;
+      const gthrData = gthrDetailResult.data as GthrDetail | null;
+      const attendees: GatheringAttendee[] = gthrData?.attendees ?? [];
+      setGthrDetailRace((prev) => prev && prev.id === race.id
+        ? { ...prev, regCount: attendees.length, maxPrtCnt: gthrData?.max_prt_cnt ?? null, attendees, sprt_cd: gthrData?.sprt_cd ?? prev.sprt_cd ?? null }
+        : prev);
+      // 등록 직후(justCreated)엔 작성자가 자동 참석되므로 무조건 참석 상태로 확정한다.
+      // (자동 참석 INSERT 직후라 attd 조회가 read-after-write 지연으로 null을 반환할 수 있어
+      //  조회 결과만 믿으면 데스크톱처럼 빠른 환경에서 참석 토글이 꼬인다)
+      setGthrDetailAttending(justCreated || !!attdResult.data);
+    } finally {
+      // 요청이 유효할 때만 로딩 해제 — 무효화된 요청이 새 오픈의 스켈레톤을 조기 종료하지 않게
+      if (reqId === gthrOpenReqRef.current) setGthrDetailLoading(false);
+      openingLock.current = false;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 알림 딥링크: /?post=<id> 또는 /?comp=<id>로 진입 시 해당 상세 자동 오픈
   const searchParams = useSearchParams()
   const deepLinkPostId = searchParams.get("post")
@@ -255,6 +349,8 @@ export function MiniCalendar({
   const deepLinkGthrId = searchParams.get("gthr")
 
   useEffect(() => {
+    // 언마운트·경로 이동·딥링크 교체 후 늦게 도착한 응답의 부수효과(특히 주소 덮어쓰기) 차단
+    let cancelled = false
     if (deepLinkGthrId) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deepLinkGthrId)
       const masterSelect = "gthr_id, short_id, gthr_nm, gthr_type_enm, stt_at, end_at, loc_txt, desc_txt, crt_by"
@@ -271,10 +367,14 @@ export function MiniCalendar({
             ? supabase.from("gthr_attd_rel").select("attd_id").eq("gthr_id", deepLinkGthrId).eq("mem_id", memberId).maybeSingle()
             : Promise.resolve({ data: null }),
         ]).then(([masterRes, detailRes, attdRes]) => {
+          if (cancelled) return
           // 그 사이 다른 모임이 열렸으면 늦게 온 딥링크 응답을 버린다
           if (reqId !== gthrOpenReqRef.current) return
           const data = masterRes.data
-          if (!data) return
+          if (!data) {
+            notifyDeepLinkMissing("모임")
+            return
+          }
           const gthrData = detailRes.data as GthrDetail | null
           const attendees: GatheringAttendee[] = gthrData?.attendees ?? []
           setGthrJustCreated(false)
@@ -298,13 +398,17 @@ export function MiniCalendar({
           setGthrDetailAttending(!!attdRes.data)
           setGthrDetailLoading(false)
           setGthrDetailComments(undefined)
+          clearDeepLinkParams()
           setGthrDetailOpen(true)
-          router.replace("/")
         })
       } else {
         // 공유 링크(short_id): uuid를 몰라 마스터 조회가 선행 — 이후 즉시 오픈+스켈레톤으로 채움
         supabase.from("gthr_mst").select(masterSelect).eq("short_id", deepLinkGthrId).maybeSingle().then(({ data }) => {
-          if (!data) return
+          if (cancelled) return
+          if (!data) {
+            notifyDeepLinkMissing("모임")
+            return
+          }
           const race: CalendarRace = {
             id: data.gthr_id,
             short_id: data.short_id ?? null,
@@ -318,16 +422,18 @@ export function MiniCalendar({
             evt_end_at: data.end_at ?? null,
             crt_by: data.crt_by,
           }
-          openGatheringDetail(race).then(() => {
-            router.replace("/")
-          })
+          clearDeepLinkParams()
+          openGatheringDetail(race)
         })
       }
     }
+    return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deepLinkGthrId])
 
   useEffect(() => {
+    // 언마운트·경로 이동·딥링크 교체 후 늦게 도착한 응답의 부수효과(특히 주소 덮어쓰기) 차단
+    let cancelled = false
     if (deepLinkPostId) {
       // short_id로 먼저 조회, 없으면 UUID fallback (기존 알림 호환)
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deepLinkPostId)
@@ -336,28 +442,28 @@ export function MiniCalendar({
         : supabase.from("sch_post_mst").select("sch_post_id, short_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by").eq("short_id", deepLinkPostId).maybeSingle()
 
       query.then(({ data }) => {
-        if (!data) return
-        const commentPromise = memberId
-          ? fetchComments("sch_post", data.sch_post_id)
-          : Promise.resolve(undefined)
-        commentPromise.then((finalComments) => {
-          setSchDetailPost({
-            id: data.sch_post_id,
-            short_id: data.short_id ?? null,
-            title: data.sch_nm,
-            start_date: data.evt_stt_at ? dayjs(data.evt_stt_at).format("YYYY-MM-DD") : dayjs().format("YYYY-MM-DD"),
-            type: "schedule",
-            url: data.url ?? null,
-            cont_txt: data.cont_txt ?? null,
-            crt_by: data.crt_by ?? undefined,
-            post_type: data.post_type ?? null,
-            evt_stt_at: data.evt_stt_at ?? null,
-            evt_end_at: data.evt_end_at ?? null,
-          })
-          setSchDetailInitialComments(finalComments)
-          setSchDetailOpen(true)
-          router.replace("/")
+        if (cancelled) return
+        if (!data) {
+          notifyDeepLinkMissing("일정")
+          return
+        }
+        setSchDetailPost({
+          id: data.sch_post_id,
+          short_id: data.short_id ?? null,
+          title: data.sch_nm,
+          start_date: data.evt_stt_at ? dayjs(data.evt_stt_at).format("YYYY-MM-DD") : dayjs().format("YYYY-MM-DD"),
+          type: "schedule",
+          url: data.url ?? null,
+          cont_txt: data.cont_txt ?? null,
+          crt_by: data.crt_by ?? undefined,
+          post_type: data.post_type ?? null,
+          evt_stt_at: data.evt_stt_at ?? null,
+          evt_end_at: data.evt_end_at ?? null,
         })
+        // 댓글은 기다리지 않는다 — undefined면 CommentSection이 자체 조회·로딩 표시 (인스턴트 오픈 원칙)
+        setSchDetailInitialComments(undefined)
+        clearDeepLinkParams()
+        setSchDetailOpen(true)
       })
     }
 
@@ -368,29 +474,32 @@ export function MiniCalendar({
         : supabase.from("comp_mst").select("comp_id, short_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)").eq("short_id", deepLinkCompId).maybeSingle()
 
       query.then(({ data }) => {
-        if (!data) return
-        const commentPromise = memberId ? fetchComments("comp", data.comp_id) : Promise.resolve(undefined)
-        commentPromise.then((finalComments) => {
-          setSelectedCompetition({
-            id: data.comp_id,
-            short_id: data.short_id ?? null,
-            external_id: "",
-            sport: data.comp_sprt_cd ?? null,
-            title: data.comp_nm,
-            start_date: data.stt_dt,
-            end_date: data.end_dt ?? null,
-            location: data.loc_nm ?? null,
-            event_types: (data.comp_evt_cfg as { comp_evt_type: string | null }[])
-              .map((e) => e.comp_evt_type?.toUpperCase())
-              .filter((e): e is string => Boolean(e)),
-            source_url: data.src_url ?? null,
-          })
-          setCompDetailInitialComments(finalComments)
-          setDetailOpen(true)
-          router.replace("/")
+        if (cancelled) return
+        if (!data) {
+          notifyDeepLinkMissing("대회")
+          return
+        }
+        setSelectedCompetition({
+          id: data.comp_id,
+          short_id: data.short_id ?? null,
+          external_id: "",
+          sport: data.comp_sprt_cd ?? null,
+          title: data.comp_nm,
+          start_date: data.stt_dt,
+          end_date: data.end_dt ?? null,
+          location: data.loc_nm ?? null,
+          event_types: (data.comp_evt_cfg as { comp_evt_type: string | null }[])
+            .map((e) => e.comp_evt_type?.toUpperCase())
+            .filter((e): e is string => Boolean(e)),
+          source_url: data.src_url ?? null,
         })
+        // 댓글은 기다리지 않는다 — undefined면 CommentSection이 자체 조회·로딩 표시 (인스턴트 오픈 원칙)
+        setCompDetailInitialComments(undefined)
+        clearDeepLinkParams()
+        setDetailOpen(true)
       })
     }
+    return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deepLinkPostId, deepLinkCompId])
 
@@ -522,48 +631,38 @@ export function MiniCalendar({
     });
   }, [weeks, filteredRaces]);
 
-  async function fetchComments(entityType: "sch_post" | "comp" | "gathering", entityId: string): Promise<CmntRow[]> {
-    const { data } = await supabase
-      .from("cmnt_mst")
-      .select("cmnt_id, prnt_id, mem_id, cont_txt, edit_yn, del_yn, crt_at, upd_at, mem_mst!cmnt_mst_mem_id_fkey(mem_nm, avatar_url)")
-      .eq("entity_type", entityType)
-      .eq("entity_id", entityId)
-      .eq("team_id", teamId)
-      .order("crt_at", { ascending: true })
-    return (data ?? []).map((row) => {
-      const mem = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst
-      return {
-        cmnt_id: row.cmnt_id,
-        prnt_id: row.prnt_id,
-        mem_id: row.mem_id,
-        mem_nm: (mem as { mem_nm: string } | null)?.mem_nm ?? "멤버",
-        avatar_url: (mem as { avatar_url?: string | null } | null)?.avatar_url ?? null,
-        cont_txt: row.cont_txt,
-        edit_yn: row.edit_yn,
-        del_yn: row.del_yn,
-        crt_at: row.crt_at,
-        upd_at: row.upd_at,
-      }
-    })
-  }
-
   const handleRaceClick = useCallback(async (race: CalendarRace) => {
     if (openingLock.current) return;
     openingLock.current = true;
-    setOpeningId(race.id);
+    // 행에 이미 있는 데이터(제목·일시·장소)로 즉시 열고, 종목·공식링크 등 나머지만
+    // 뒤에서 채운다(모임 openGatheringDetail과 동일한 인스턴트 오픈 패턴).
+    // 댓글도 기다리지 않는다 — undefined면 CommentSection이 자체 조회·로딩 표시.
+    setSelectedCompetition({
+      id: race.id,
+      short_id: race.short_id ?? null,
+      external_id: "",
+      sport: null,
+      title: race.title,
+      start_date: race.start_date,
+      end_date: race.end_date ?? null,
+      location: race.location ?? null,
+      event_types: null,
+      source_url: null,
+    });
+    setCompDetailInitialComments(undefined);
+    setDetailOpen(true);
     try {
-      // 댓글은 함께 기다리지 않는다 — undefined로 넘기면 CommentSection이 스스로 조회·로딩 표시한다.
       const { data } = await supabase
         .from("comp_mst")
         .select("comp_id, short_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)")
         .eq("comp_id", race.id)
         .single();
-
-      const comp: Competition = data
+      if (!data) return;
+      // 그 사이 다른 대회가 열렸으면 늦게 온 응답을 버린다
+      setSelectedCompetition((prev) => prev && prev.id === race.id
         ? {
-            id: data.comp_id,
+            ...prev,
             short_id: data.short_id ?? null,
-            external_id: "",
             sport: data.comp_sprt_cd ?? null,
             title: data.comp_nm,
             start_date: data.stt_dt,
@@ -574,25 +673,9 @@ export function MiniCalendar({
               .filter((e): e is string => Boolean(e)),
             source_url: data.src_url ?? null,
           }
-        : {
-            id: race.id,
-            short_id: null,
-            external_id: "",
-            sport: null,
-            title: race.title,
-            start_date: race.start_date,
-            end_date: null,
-            location: null,
-            event_types: null,
-            source_url: null,
-          };
-
-      setSelectedCompetition(comp);
-      setCompDetailInitialComments(undefined);
-      setDetailOpen(true);
+        : prev);
     } finally {
       openingLock.current = false;
-      setOpeningId(null);
     }
   // supabase/memberId/teamId는 컴포넌트 생애 내 불변
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -781,7 +864,7 @@ export function MiniCalendar({
   useEffect(() => { viewMonthRef.current = viewMonth; }, [viewMonth]);
 
   const fetchMonthDataRef = useRef(fetchMonthData);
-  fetchMonthDataRef.current = fetchMonthData;
+  useEffect(() => { fetchMonthDataRef.current = fetchMonthData; });
 
   // 인접 달(prev/next) 프리페치 — 캐시에 없는 달만 백그라운드로 조회
   const prefetchAdjacent = useCallback((monthFirst: string) => {
@@ -971,10 +1054,10 @@ export function MiniCalendar({
     setPickerOpen(true);
   }
 
-  async function handlePickedCompetition(competition: Competition) {
-    const comments = memberId ? await fetchComments("comp", competition.id) : undefined;
+  function handlePickedCompetition(competition: Competition) {
     setSelectedCompetition(competition);
-    setCompDetailInitialComments(comments);
+    // 댓글은 기다리지 않는다 — undefined면 CommentSection이 자체 조회·로딩 표시 (인스턴트 오픈 원칙)
+    setCompDetailInitialComments(undefined);
     setDetailOpen(true);
   }
 
@@ -991,71 +1074,6 @@ export function MiniCalendar({
     setSchDetailPost(race);
     setSchDetailInitialComments(undefined);
     setSchDetailOpen(true);
-  }, []);
-
-  // 등록 직후 전용: 조회 없이 즉시 상세를 연다.
-  // 새 모임이라 댓글 0·참석자=작성자 1명·상세=폼 입력값으로 자명하므로 쿼리를 생략해
-  // 등록→상세 오픈 사이의 직렬 대기(달력 재조회 + 상세 3쿼리)를 제거한다.
-  const openGatheringDetailInstant = useCallback((race: CalendarRace & { maxPrtCnt?: number | null }) => {
-    const me = memberStatus.status === "ready"
-      ? [{ mem_id: memberStatus.memberId, mem_nm: memberStatus.fullName ?? null, avatar_url: memberAvatarUrl ?? null }]
-      : [];
-    gthrOpenReqRef.current += 1; // 진행 중이던 이전 상세 조회 무효화
-    setGthrJustCreated(true);
-    setGthrDetailRace({ ...race, regCount: me.length, maxPrtCnt: race.maxPrtCnt ?? null, attendees: me, sprt_cd: race.sprt_cd ?? null });
-    setGthrDetailAttending(true); // 작성자는 자동 참석
-    setGthrDetailLoading(false);   // 입력값으로 완결 — 스켈레톤 불필요
-    setGthrDetailComments([]);     // 새 모임 — 댓글 없음
-    setGthrDetailOpen(true);
-  // memberStatus/memberAvatarUrl은 렌더마다 안정적
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [memberAvatarUrl]);
-
-  const openGatheringDetail = useCallback(async (race: CalendarRace, justCreated = false) => {
-    // 등록 직후 경로(justCreated)는 사용자 클릭과 무관하게 반드시 열어야 하므로 락을 무시한다
-    if (openingLock.current && !justCreated) return;
-    openingLock.current = true;
-    const reqId = ++gthrOpenReqRef.current;
-    // 등록 직후 경로만 공유 유도 안내를 켜고, 일반 클릭은 끈다
-    setGthrJustCreated(justCreated);
-    // 리스트/캘린더 행에 이미 있는 데이터(제목·일시·장소·비고·참석수·정원)로 즉시 연다.
-    // 참석자 목록·내 참석 여부만 뒤에서 채우고, 그동안 다이얼로그가 스켈레톤을 그린다.
-    setGthrDetailRace({ ...race, regCount: race.regCount ?? 0, maxPrtCnt: race.maxPrtCnt ?? null, attendees: [], sprt_cd: race.sprt_cd ?? null });
-    setGthrDetailAttending(false);
-    setGthrDetailComments(undefined);
-    setGthrDetailLoading(true);
-    setGthrDetailOpen(true);
-    try {
-      type GthrDetail = { max_prt_cnt: number | null; sprt_cd: string | null; attendees: GatheringAttendee[] };
-      // 댓글은 함께 기다리지 않는다 — undefined로 넘기면 CommentSection이 스스로 조회·로딩 표시한다.
-      const [attdResult, gthrDetailResult] = await Promise.all([
-        memberId
-          ? supabase.from("gthr_attd_rel").select("attd_id").eq("gthr_id", race.id).eq("mem_id", memberId).maybeSingle()
-          : Promise.resolve({ data: null }),
-        supabase.rpc("get_gathering_detail", { p_gthr_id: race.id, p_team_id: teamId }),
-      ]);
-      if (gthrDetailResult.error) {
-        // 이미 열린 다이얼로그는 유지 — 행 데이터만으로도 핵심 정보는 보인다
-        console.error("[openGatheringDetail]", gthrDetailResult.error);
-        return;
-      }
-      // 그 사이 다른 모임이 열렸으면(인스턴트 오픈·딥링크 등) 늦게 온 응답을 통째로 버린다
-      if (reqId !== gthrOpenReqRef.current) return;
-      const gthrData = gthrDetailResult.data as GthrDetail | null;
-      const attendees: GatheringAttendee[] = gthrData?.attendees ?? [];
-      setGthrDetailRace((prev) => prev && prev.id === race.id
-        ? { ...prev, regCount: attendees.length, maxPrtCnt: gthrData?.max_prt_cnt ?? null, attendees, sprt_cd: gthrData?.sprt_cd ?? prev.sprt_cd ?? null }
-        : prev);
-      // 등록 직후(justCreated)엔 작성자가 자동 참석되므로 무조건 참석 상태로 확정한다.
-      // (자동 참석 INSERT 직후라 attd 조회가 read-after-write 지연으로 null을 반환할 수 있어
-      //  조회 결과만 믿으면 데스크톱처럼 빠른 환경에서 참석 토글이 꼬인다)
-      setGthrDetailAttending(justCreated || !!attdResult.data);
-    } finally {
-      // 요청이 유효할 때만 로딩 해제 — 무효화된 요청이 새 오픈의 스켈레톤을 조기 종료하지 않게
-      if (reqId === gthrOpenReqRef.current) setGthrDetailLoading(false);
-      openingLock.current = false;
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function refreshMonthData() {
@@ -1350,8 +1368,7 @@ export function MiniCalendar({
                               ? openGatheringDetail(race)
                               : handleRaceClick(race)
                         }
-                        disabled={openingId === race.id}
-                        className="flex w-full items-center gap-1.5 rounded-lg px-1 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60 disabled:opacity-60"
+                        className="flex w-full items-center gap-1.5 rounded-lg px-1 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
                       >
                         <span
                           className={cn(
@@ -1470,7 +1487,6 @@ export function MiniCalendar({
             initialMonthKey={viewMonth.slice(0, 7)}
             initialRaces={[...myRaces, ...schPosts, ...gigangRaces, ...gatherings]}
             filterType={filterType}
-            openingId={openingId}
             onClickSchedule={openSchPostDetail}
             onClickCompetition={handleRaceClick}
             onClickGathering={openGatheringDetail}

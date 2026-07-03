@@ -68,11 +68,22 @@ Supabase JS `.upsert({ onConflict: "a,b,c" })` 는 `ON CONFLICT (a,b,c)` 만 보
 - **커서(p_last_calc_at)를 납부 0건이라고 now 로 두면 안 된다** — 업로드 컷오프(매칭 거래가 커서 이전이면 skip)에 걸려 그 회원의 과거 입금이 조용히 소실된다(QS-9). 납부 없으면 앵커 커서, 그마저 없으면 가입월 초.
 - **리플레이는 과거 증분 시대에 눌어붙은 오차를 자가 치유한다**: dev 전수 대조(161명)에서 137명 정확 일치, 23명은 기대 차이(비활성 회원 당월 미부과), 1명은 06-06 옛 JS 재계산이 근거 이력 없이 +2,000 가산한 것이 교정 대상으로 확인. **배포 직후 전체 재계산 후 원장 diff 를 한 번 훑을 것.**
 
+### 딥링크로 다이얼로그를 열 때 URL 정리는 setOpen 전에 네이티브 replaceState로
+알림 딥링크(`/?post=`·`/?comp=`·`/?gthr=`)로 상세 다이얼로그를 열고 `router.replace("/")`로 쿼리를 지우는 순서(setOpen → router.replace)는 **무한 재오픈 루프**를 만든다. `router.replace`는 transition이라 실제 히스토리 교체가 다이얼로그의 `useDialogHistoryBack` pushState보다 **늦게** 일어나, 히스토리가 `[이전, "/?gthr=id", "/"]`로 남는다. 뒤로가기(popstate)든 스와이프 닫기(cleanup의 `history.back()`)든 `/?gthr=id` 항목으로 복귀 → `useSearchParams` 동기화 → 딥링크 이펙트 재발동 → 상세 재오픈 반복.
+**해결:** 다이얼로그를 열기 **전에** 동기 API `window.history.replaceState(null, "", "/")`를 호출한다(`mini-calendar.tsx`의 `clearDeepLinkParams`). Next 14.1+는 네이티브 push/replaceState를 패치해 `useSearchParams`도 함께 동기화하므로 `router.replace` 후속 호출은 필요 없다.
+
 ### SW `getRegistration` 인자는 스코프(디렉토리)지 스크립트 경로가 아니다
 `navigator.serviceWorker.getRegistration("/sw.js")`처럼 스크립트 경로를 넘기면 브라우저마다 다르게 동작(Safari는 undefined 반환 가능). 등록 스코프 기준으로 조회해야 한다.
 **해결:** 등록은 `register("/sw.js", { scope: "/" })`, 조회는 `getRegistration("/")`로 통일. (`lib/push/client.ts`, `components/service-worker-register.tsx`)
 
 ## 재사용 패턴
+
+### 상세 다이얼로그 오픈 = "인스턴트 오픈 + 백필 + 댓글 자체조회" (전 경로 공통 원칙)
+상세 오픈 경로는 홈 8곳(행 클릭 3종: 일정·모임·대회 / 딥링크 3종: `?post`·`?comp`·`?gthr` / 대회 선택 팝업 / 등록 직후) + `/races` 리스트. 어떤 경로든:
+1. **손에 있는 데이터(행·리스트·폼 입력값)로 즉시 연다.** 조회를 기다렸다 여는 것 금지 — 부족한 필드는 열린 뒤 백필(`setState((prev) => prev.id === id ? {...} : prev)` 가드로 늦은 응답 폐기).
+2. **댓글은 절대 기다리지 않는다.** `initialComments={undefined}` → CommentSection이 자체 조회·로딩 표시.
+3. **딥링크 not-found는 무반응 금지** — `notifyDeepLinkMissing()`(토스트 + 파라미터 정리).
+4. **한 경로에서 버그·개선을 발견하면 위 경로 전체에 같은 수정을 전수 적용**하고, 경로가 늘면 이 목록을 갱신한다. _(2026-07-03: 대회 클릭이 조회 후 오픈, 일정·대회 딥링크가 댓글까지 대기하던 것을 모임 패턴으로 일괄 정렬)_
 
 ### 서버 액션이 nullable을 수용하면 폼 필드를 선택/접이식으로 분리
 `onboardingCreateMember`는 은행·계좌·이메일을 nullable로 받는다. 가입 마찰을 줄이려면 서버가 선택으로 받는 필드를 "추가 정보(선택)" 접이식으로 내려 필수 입력을 최소화하고, 나머지는 가입 후 별도 페이지(`/profile/bank`)에서 입력하게 한다. 서버 페이로드 구조는 그대로 유지된다.
