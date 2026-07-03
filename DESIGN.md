@@ -85,10 +85,12 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 | 순서 | 탭 | 아이콘 | 경로 |
 |------|-----|--------|------|
 | 1 | 홈 | House | `/` |
-| 2 | 대회 | Trophy | `/races` |
+| 2 | 기강이야기 | Newspaper | `/story` |
 | 3 | 프로젝트 | Zap | `/projects` |
 | 4 | 랭킹 | Medal | `/records` |
 | 5 | 프로필 | User | `/profile` |
+
+> 옛 2번 탭 대회(`/races`)는 탭에서 빠진 뒤 앱 내 진입점이 없는 상태 — 처리 방침은 `.claude/docs/TODO.md` P1 참고.
 
 ### Route Group
 
