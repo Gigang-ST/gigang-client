@@ -107,9 +107,8 @@ export function InboxRow({
       )}
     >
       <td className="px-2 py-2">
-        {editable ? (
-          <Checkbox checked={selected} onCheckedChange={(c) => onToggleSelect(c === true)} />
-        ) : null}
+        {/* 모든 행 선택 가능 — 체크하면 그 행만 확정 범위에 들어간다(자동·제외 포함). */}
+        <Checkbox checked={selected} onCheckedChange={(c) => onToggleSelect(c === true)} />
       </td>
       <td className="px-2 py-2">
         <Micro>{dayjs(txn.txnDt).format("YY.MM.DD")}</Micro>

@@ -124,10 +124,18 @@ export function InboxTable({
     return d && (d.itemCd === "other" || (d.itemCd === "due" ? !!d.memId : !!d.prjId));
   });
   const undecidedCount = review.length - decidedReview.length;
-  // 자동완료·제외는 판단이 필요 없으므로 항상 확정 대상 + 결정된 확인필요 행.
-  const confirmCount = autoDone.length + excluded.length + decidedReview.length;
 
-  const selectableIds = editableVisible.map((t) => t.txnId);
+  // 확정 범위: 체크박스로 고른 행이 있으면 **그 중 확정 가능한 행만**, 없으면 전체.
+  // 자동·제외는 판단이 필요 없어 항상 확정 대상, 미결정 확인필요 행은 확정 불가라 빠진다.
+  const useSelection = selected.size > 0;
+  const inScope = (t: { txnId: string }) => !useSelection || selected.has(t.txnId);
+  const targetAuto = autoDone.filter(inScope);
+  const targetExcluded = excluded.filter(inScope);
+  const targetReview = decidedReview.filter(inScope);
+  const confirmCount = targetAuto.length + targetExcluded.length + targetReview.length;
+
+  // 체크박스는 확정 범위 지정용 — 화면에 보이는 모든 행(자동·제외 포함)을 선택 대상으로.
+  const selectableIds = visible.map((t) => t.txnId);
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
 
   function setDecision(txnId: string, patch: Partial<Decision>) {
@@ -144,7 +152,15 @@ export function InboxTable({
   }
 
   function toggleSelectAll(checked: boolean) {
-    setSelected(checked ? new Set(selectableIds) : new Set());
+    // 화면에 보이는 행만 더하거나 뺀다 — 다른 필터에서 골라 둔 선택은 유지(통째 교체 금지).
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of selectableIds) {
+        if (checked) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
   }
 
   function bulkSetItemCd(itemCd: ItemCd) {
@@ -163,15 +179,28 @@ export function InboxTable({
   }
 
   function onSubmit() {
-    const { items, aliasLearn } = buildConfirmPayload({ autoDone, excluded, review: decidedReview, decisions });
+    const { items, aliasLearn } = buildConfirmPayload({
+      autoDone: targetAuto,
+      excluded: targetExcluded,
+      review: targetReview,
+      decisions,
+    });
+    const confirmedIds = new Set(
+      [...targetAuto, ...targetExcluded, ...targetReview].map((t) => t.txnId),
+    );
     setMsg(null);
     startTransition(async () => {
       const res = await confirmAndRecalc({ items, aliasLearn });
       setMsg(res.ok ? `확정 ${res.confirmed}건 · 재계산 ${res.recalculated}명 완료` : res.message);
       if (res.ok) {
-        // 배치 전체가 확정됐으므로 남은 편집·선택 상태를 비운다(새 목록은 refresh로 다시 받음).
-        setSelected(new Set());
-        setOverrides({});
+        // 확정된 행만 선택·편집 상태에서 비운다 — 확정 안 한 행의 로컬 판단은 유지해
+        // 다음 확정에서 이어서 처리할 수 있게 한다(새 목록은 refresh로 다시 받음).
+        setSelected((prev) => new Set([...prev].filter((id) => !confirmedIds.has(id))));
+        setOverrides((prev) => {
+          const next = { ...prev };
+          confirmedIds.forEach((id) => delete next[id]);
+          return next;
+        });
         router.refresh();
       }
     });
@@ -186,7 +215,20 @@ export function InboxTable({
       const res = await deleteTransaction(txn.txnId);
       setDeleteBusyId(null);
       setMsg(res.ok ? "거래를 삭제했습니다." : res.message);
-      if (res.ok) router.refresh();
+      if (res.ok) {
+        // 삭제된 행이 선택·편집 상태에 남아 "미결정"으로 오집계되지 않도록 정리.
+        setSelected((prev) => {
+          const next = new Set(prev);
+          next.delete(txn.txnId);
+          return next;
+        });
+        setOverrides((prev) => {
+          const next = { ...prev };
+          delete next[txn.txnId];
+          return next;
+        });
+        router.refresh();
+      }
     });
   }
 
@@ -331,7 +373,9 @@ export function InboxTable({
               {ITEM_LABEL[cd]}로
             </Button>
           ))}
-          <Micro className="text-muted-foreground">선택은 일괄 분류용 · 확정은 전체 대상</Micro>
+          <Micro className="text-muted-foreground">
+            선택한 행만 확정됩니다 · 분류 버튼은 확인필요 행에만 적용
+          </Micro>
         </div>
       )}
 
@@ -339,17 +383,27 @@ export function InboxTable({
 
       {filter !== "processed" && (
         <div className="sticky bottom-0 -mx-6 border-t border-border bg-background px-6 py-3">
-          {undecidedCount > 0 && (
-            <Caption className="mb-2 block text-muted-foreground">
-              미결정 {undecidedCount}건은 이번 확정에서 제외 — 다음에 처리
-            </Caption>
-          )}
+          {useSelection
+            ? selected.size > confirmCount && (
+                <Caption className="mb-2 block text-muted-foreground">
+                  선택 {selected.size}건 중 {selected.size - confirmCount}건은 미결정이라 이번 확정에서 제외
+                </Caption>
+              )
+            : undecidedCount > 0 && (
+                <Caption className="mb-2 block text-muted-foreground">
+                  미결정 {undecidedCount}건은 이번 확정에서 제외 — 다음에 처리
+                </Caption>
+              )}
           <Button
             className="w-full"
             disabled={pending || confirmCount === 0}
             onClick={() => setConfirmOpen(true)}
           >
-            {pending ? "처리 중…" : `${confirmCount}건 확정 + 회비 재계산`}
+            {pending
+              ? "처리 중…"
+              : useSelection
+                ? `선택 ${confirmCount}건 확정 + 회비 재계산`
+                : `전체 ${confirmCount}건 확정 + 회비 재계산`}
           </Button>
         </div>
       )}
@@ -358,17 +412,27 @@ export function InboxTable({
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{confirmCount}건을 확정할까요?</DialogTitle>
+            <DialogTitle>
+              {useSelection ? `선택한 ${confirmCount}건을 확정할까요?` : `${confirmCount}건을 확정할까요?`}
+            </DialogTitle>
           </DialogHeader>
           <div>
-            <InfoRow label="자동 매칭" value={`${autoDone.length}건`} />
-            <InfoRow label="제외" value={`${excluded.length}건`} />
-            <InfoRow label="확인필요 (결정됨)" value={`${decidedReview.length}건`} />
-            {undecidedCount > 0 && <InfoRow label="미결정 (인박스에 남음)" value={`${undecidedCount}건`} />}
+            <InfoRow label="자동 매칭" value={`${targetAuto.length}건`} />
+            <InfoRow label="제외" value={`${targetExcluded.length}건`} />
+            <InfoRow label="확인필요 (결정됨)" value={`${targetReview.length}건`} />
+            {useSelection
+              ? selected.size > confirmCount && (
+                  <InfoRow label="선택 중 제외 (미결정)" value={`${selected.size - confirmCount}건`} />
+                )
+              : undecidedCount > 0 && (
+                  <InfoRow label="미결정 (인박스에 남음)" value={`${undecidedCount}건`} />
+                )}
           </div>
           <Caption>
-            지금 보는 필터와 관계없이 위 항목이 모두 확정되고 회비 잔액에 반영됩니다. 잘못 처리한
-            건은 &lsquo;처리됨&rsquo;에서 건별로 취소할 수 있습니다.
+            {useSelection
+              ? "체크한 행만 확정되고 회비 잔액에 반영됩니다."
+              : "지금 보는 필터와 관계없이 위 항목이 모두 확정되고 회비 잔액에 반영됩니다."}{" "}
+            잘못 처리한 건은 &lsquo;처리됨&rsquo;에서 건별로 취소할 수 있습니다.
           </Caption>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setConfirmOpen(false)}>
