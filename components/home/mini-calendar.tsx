@@ -87,19 +87,24 @@ const GatheringDetailDialog = dynamic<GatheringDetailDialogProps>(
 );
 
 /**
- * 딥링크 쿼리(/?post=·/?comp=·/?gthr=)를 히스토리에서 동기 제거한다.
+ * 딥링크 쿼리(?post=·?comp=·?gthr=)만 현재 URL에서 골라 동기 제거한다.
+ * 다른 쿼리·해시·경로는 보존한다. (키 목록은 lib/notifications/deep-link.ts
+ * 라우트 규칙과 짝 — 새 딥링크 키를 추가하면 여기도 함께 갱신할 것)
+ *
  * 반드시 상세 다이얼로그를 열기(setOpen) 전에 호출할 것 — router.replace는
  * transition이라 다이얼로그의 pushState(useDialogHistoryBack)가 먼저 쌓인 뒤
  * 그 위 항목만 교체되고, 뒤로가기가 딥링크 URL 항목으로 돌아가 상세가
  * 다시 열리는 무한 루프가 생긴다. 네이티브 replaceState는 동기 실행이며
  * Next가 패치해 useSearchParams도 함께 동기화된다.
  *
- * 비동기 콜백(fetch .then)에서 호출할 땐 반드시 이펙트의 cancelled 가드를
- * 먼저 통과할 것 — 언마운트·경로 이동 후 실행되면 현재 페이지(예: /races)의
- * 주소를 /로 덮어쓴다.
+ * 비동기 콜백(fetch .then)에서 호출할 땐 이펙트의 cancelled 가드를 먼저
+ * 통과할 것 — 대상 키만 지우므로 경로는 보존되지만, 페이지를 떠난 뒤의
+ * 히스토리 조작 자체가 부수효과다.
  */
 function clearDeepLinkParams() {
-  window.history.replaceState(null, "", "/");
+  const url = new URL(window.location.href);
+  for (const key of ["post", "comp", "gthr"]) url.searchParams.delete(key);
+  window.history.replaceState(null, "", url.pathname + url.search + url.hash);
 }
 
 /**
