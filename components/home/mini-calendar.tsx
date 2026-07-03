@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import { CalendarDays, ChevronLeft, ChevronRight, List } from "lucide-react";
 
@@ -85,6 +85,18 @@ const GatheringDetailDialog = dynamic<GatheringDetailDialogProps>(
   { ssr: false }
 );
 
+/**
+ * 딥링크 쿼리(/?post=·/?comp=·/?gthr=)를 히스토리에서 동기 제거한다.
+ * 반드시 상세 다이얼로그를 열기(setOpen) 전에 호출할 것 — router.replace는
+ * transition이라 다이얼로그의 pushState(useDialogHistoryBack)가 먼저 쌓인 뒤
+ * 그 위 항목만 교체되고, 뒤로가기가 딥링크 URL 항목으로 돌아가 상세가
+ * 다시 열리는 무한 루프가 생긴다. 네이티브 replaceState는 동기 실행이며
+ * Next가 패치해 useSearchParams도 함께 동기화된다.
+ */
+function clearDeepLinkParams() {
+  window.history.replaceState(null, "", "/");
+}
+
 
 
 
@@ -156,7 +168,6 @@ export function MiniCalendar({
   initialRegistrationsByCompetitionId,
 }: MiniCalendarProps) {
   const supabase = useMemo(() => createClient(), []);
-  const router = useRouter();
   const initialMonth = currentMonthKST();
   const [viewMonth, setViewMonth] = useState(initialMonth);
   const [gigangRaces, setGigangRaces] = useState(initGigang);
@@ -298,8 +309,8 @@ export function MiniCalendar({
           setGthrDetailAttending(!!attdRes.data)
           setGthrDetailLoading(false)
           setGthrDetailComments(undefined)
+          clearDeepLinkParams()
           setGthrDetailOpen(true)
-          router.replace("/")
         })
       } else {
         // 공유 링크(short_id): uuid를 몰라 마스터 조회가 선행 — 이후 즉시 오픈+스켈레톤으로 채움
@@ -318,9 +329,8 @@ export function MiniCalendar({
             evt_end_at: data.end_at ?? null,
             crt_by: data.crt_by,
           }
-          openGatheringDetail(race).then(() => {
-            router.replace("/")
-          })
+          clearDeepLinkParams()
+          openGatheringDetail(race)
         })
       }
     }
@@ -355,8 +365,8 @@ export function MiniCalendar({
             evt_end_at: data.evt_end_at ?? null,
           })
           setSchDetailInitialComments(finalComments)
+          clearDeepLinkParams()
           setSchDetailOpen(true)
-          router.replace("/")
         })
       })
     }
@@ -386,8 +396,8 @@ export function MiniCalendar({
             source_url: data.src_url ?? null,
           })
           setCompDetailInitialComments(finalComments)
+          clearDeepLinkParams()
           setDetailOpen(true)
-          router.replace("/")
         })
       })
     }
