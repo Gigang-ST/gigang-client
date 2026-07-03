@@ -1,4 +1,5 @@
 import {
+  getActiveProjects,
   getFeeItemOptions,
   getInboxTxns,
   getProcessedTxns,
@@ -13,6 +14,7 @@ export default async function DuesInboxPage() {
   // 인박스 조회 실패는 기존대로 throw — 빈 화면이 정상으로 위장되면 안 된다.
   const inboxPromise = getInboxTxns();
   const feeItemsPromise = getFeeItemOptions();
+  const projectsPromise = getActiveProjects();
   let processed: ProcessedTxn[] = [];
   let processedError = false;
   try {
@@ -21,7 +23,11 @@ export default async function DuesInboxPage() {
     console.error("[DuesInboxPage] 처리된 거래 조회 실패:", e);
     processedError = true;
   }
-  const [{ members, txns }, feeItems] = await Promise.all([inboxPromise, feeItemsPromise]);
+  const [{ members, txns }, feeItems, projects] = await Promise.all([
+    inboxPromise,
+    feeItemsPromise,
+    projectsPromise,
+  ]);
 
   return (
     <InboxTable
@@ -31,6 +37,7 @@ export default async function DuesInboxPage() {
       processedCapped={processed.length >= PROCESSED_TXN_LIMIT}
       processedError={processedError}
       feeItems={feeItems}
+      projects={projects}
     />
   );
 }

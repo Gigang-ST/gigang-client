@@ -48,6 +48,7 @@ export function ProcessedRows({
           <td className="px-2 py-2">
             <Caption className="text-foreground">
               {t.feeItemCd ? (PROCESSED_ITEM_LABEL[t.feeItemCd] ?? t.feeItemCd) : "—"}
+              {t.prjName ? ` · ${t.prjName}` : ""}
             </Caption>
           </td>
           <td className="px-2 py-2">

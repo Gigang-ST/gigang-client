@@ -1251,6 +1251,60 @@ export type Database = {
           },
         ]
       }
+      fee_prj_mst: {
+        Row: {
+          created_by: string | null
+          crt_at: string
+          del_yn: boolean
+          memo_txt: string | null
+          prj_id: string
+          prj_nm: string
+          st_cd: string
+          team_id: string
+          upd_at: string
+          vers: number
+        }
+        Insert: {
+          created_by?: string | null
+          crt_at?: string
+          del_yn?: boolean
+          memo_txt?: string | null
+          prj_id?: string
+          prj_nm: string
+          st_cd?: string
+          team_id: string
+          upd_at?: string
+          vers?: number
+        }
+        Update: {
+          created_by?: string | null
+          crt_at?: string
+          del_yn?: boolean
+          memo_txt?: string | null
+          prj_id?: string
+          prj_nm?: string
+          st_cd?: string
+          team_id?: string
+          upd_at?: string
+          vers?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_fee_prj_mst__crt_mem_mst"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "fk_fee_prj_mst__team_mst"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
       fee_txn_hist: {
         Row: {
           adm_memo_txt: string | null
@@ -1328,6 +1382,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "mem_mst"
             referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "fk_fee_txn_hist__fee_prj_mst"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "fee_prj_mst"
+            referencedColumns: ["prj_id"]
           },
           {
             foreignKeyName: "fk_fee_txn_hist__fee_xlsx_upd_hist"

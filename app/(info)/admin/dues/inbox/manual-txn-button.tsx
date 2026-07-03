@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { addManualTransaction } from "@/app/actions/dues/add-manual-transaction";
 import { dayjs } from "@/lib/dayjs";
-import type { FeeItemOption, MemberOption } from "@/lib/queries/dues";
+import type { FeeItemOption, MemberOption, ProjectOption } from "@/lib/queries/dues";
 
 import { Caption, Micro } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
@@ -38,10 +38,12 @@ export function ManualTxnButton({
   members,
   dupNames,
   feeItems,
+  projects,
 }: {
   members: MemberOption[];
   dupNames: Set<string>;
   feeItems: FeeItemOption[];
+  projects: ProjectOption[];
 }) {
   const [open, setOpen] = useState(false);
   const [txnDt, setTxnDt] = useState(() => dayjs().tz("Asia/Seoul").format("YYYY-MM-DD"));
@@ -49,6 +51,7 @@ export function ManualTxnButton({
   const [amount, setAmount] = useState("");
   const [rawName, setRawName] = useState("");
   const [itemCd, setItemCd] = useState<string>("due");
+  const [prjId, setPrjId] = useState<string | null>(null);
   const [memId, setMemId] = useState<string | null>(null);
   const [memo, setMemo] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -65,6 +68,7 @@ export function ManualTxnButton({
         rawName,
         feeItemCd: itemCd,
         memId,
+        prjId: itemCd === "event_fee" ? prjId : null,
         memo: memo || null,
       });
       if (res.ok) {
@@ -72,6 +76,7 @@ export function ManualTxnButton({
         setAmount("");
         setRawName("");
         setMemId(null);
+        setPrjId(null);
         setMemo("");
         router.refresh();
       } else {
@@ -139,6 +144,28 @@ export function ManualTxnButton({
                 </Select>
               </div>
             </div>
+            {itemCd === "event_fee" && (
+              <div className="flex flex-col gap-1.5">
+                <Label>귀속 프로젝트</Label>
+                <Select value={prjId ?? ""} onValueChange={setPrjId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="프로젝트 선택…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.length === 0 && (
+                      <SelectItem value="__none" disabled>
+                        모금 중인 프로젝트 없음
+                      </SelectItem>
+                    )}
+                    {projects.map((p) => (
+                      <SelectItem key={p.prjId} value={p.prjId}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="manual-name">이름(적요)</Label>
               <Input
@@ -162,7 +189,11 @@ export function ManualTxnButton({
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               닫기
             </Button>
-            <Button type="button" disabled={pending || !amount || !rawName.trim()} onClick={onSubmit}>
+            <Button
+              type="button"
+              disabled={pending || !amount || !rawName.trim() || (itemCd === "event_fee" && !prjId)}
+              onClick={onSubmit}
+            >
               {pending ? "등록 중…" : "등록"}
             </Button>
           </DialogFooter>

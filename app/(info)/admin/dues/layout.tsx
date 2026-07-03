@@ -17,9 +17,9 @@ export default async function DuesAdminLayout({ children }: { children: React.Re
         <Link href="/admin/dues/inbox">
           <Caption className="text-foreground">📥 처리</Caption>
         </Link>
-        <span title="P2 예정">
-          <Caption>🎯 프로젝트</Caption>
-        </span>
+        <Link href="/admin/dues/projects">
+          <Caption className="text-foreground">🎯 프로젝트</Caption>
+        </Link>
       </nav>
       {children}
     </div>

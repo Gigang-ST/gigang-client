@@ -18,6 +18,8 @@ export type InboxTxn = {
   memId: string | null;
   matchStatus: "matched" | "unmatched" | "ambiguous";
   feeItemCd: string | null;
+  /** 저장된 프로젝트 귀속 — 수동 등록·확정취소로 재노출된 event_fee 행의 기본값 시드 */
+  projectId: string | null;
   bucket: "autoDone" | "needsReview" | "excluded";
   candidates: { memId: string; name: string; score: number; birthDt: string | null }[];
 };
@@ -77,7 +79,7 @@ export async function getInboxTxns(): Promise<{
   // fee_txn_hist에는 vers 컬럼이 없다 — del_yn만 필터한다.
   const { data: rows, error: rowsErr } = await db
     .from("fee_txn_hist")
-    .select("txn_id, txn_dt, txn_tm, txn_amt, txn_io_enm, raw_name, mem_id, match_st_cd, fee_item_cd")
+    .select("txn_id, txn_dt, txn_tm, txn_amt, txn_io_enm, raw_name, mem_id, match_st_cd, fee_item_cd, project_id")
     .eq("team_id", teamId)
     .eq("is_cfm_yn", false)
     .eq("del_yn", false)
@@ -101,6 +103,7 @@ export async function getInboxTxns(): Promise<{
       memId: r.mem_id,
       matchStatus,
       feeItemCd: r.fee_item_cd,
+      projectId: r.project_id,
       bucket,
       candidates: match.candidates.map((c) => ({ ...c, birthDt: birthFor(c.memId, c.name) })),
     };
@@ -123,6 +126,8 @@ export type ProcessedTxn = {
   rawName: string;
   memName: string | null;
   feeItemCd: string | null;
+  /** 프로젝트(event_fee) 귀속 프로젝트명 */
+  prjName: string | null;
   cfmAt: string;
   cfmByName: string | null;
 };
@@ -141,7 +146,7 @@ export async function getProcessedTxns(): Promise<ProcessedTxn[]> {
   const { data: rows, error } = await db
     .from("fee_txn_hist")
     .select(
-      "txn_id, txn_dt, txn_amt, raw_name, fee_item_cd, cfm_at, mem:mem_mst!fk_fee_txn_hist__mem_mst(mem_nm), cfm_by:mem_mst!fk_fee_txn_hist__cfm_mem_mst(mem_nm)",
+      "txn_id, txn_dt, txn_amt, raw_name, fee_item_cd, cfm_at, mem:mem_mst!fk_fee_txn_hist__mem_mst(mem_nm), cfm_by:mem_mst!fk_fee_txn_hist__cfm_mem_mst(mem_nm), prj:fee_prj_mst!fk_fee_txn_hist__fee_prj_mst(prj_nm)",
     )
     .eq("team_id", teamId)
     .eq("is_cfm_yn", true)
@@ -155,6 +160,11 @@ export async function getProcessedTxns(): Promise<ProcessedTxn[]> {
     return (item as { mem_nm: string } | null)?.mem_nm ?? null;
   };
 
+  const prjNameOf = (raw: unknown): string | null => {
+    const item = Array.isArray(raw) ? raw[0] : raw;
+    return (item as { prj_nm: string } | null)?.prj_nm ?? null;
+  };
+
   return (rows ?? []).map((r) => ({
     txnId: r.txn_id,
     txnDt: r.txn_dt,
@@ -162,6 +172,7 @@ export async function getProcessedTxns(): Promise<ProcessedTxn[]> {
     rawName: r.raw_name,
     memName: nameOf(r.mem),
     feeItemCd: r.fee_item_cd,
+    prjName: prjNameOf(r.prj),
     cfmAt: r.cfm_at as string,
     cfmByName: nameOf(r.cfm_by),
   }));
@@ -184,6 +195,148 @@ export async function getFeeItemOptions(): Promise<FeeItemOption[]> {
     .order("sort_ord", { ascending: true });
   if (error) throw new Error(`분류 코드 조회 실패: ${error.message}`);
   return (data ?? []).map((c) => ({ cd: c.cd, label: c.cd_nm }));
+}
+
+export type ProjectOption = { prjId: string; name: string };
+
+/** 인박스·수동등록에서 귀속 대상으로 고를 수 있는 모금 중(active) 프로젝트. */
+export async function getActiveProjects(): Promise<ProjectOption[]> {
+  const { teamId } = await getRequestTeamContext();
+  const db = createAdminClient();
+  const { data, error } = await db
+    .from("fee_prj_mst")
+    .select("prj_id, prj_nm")
+    .eq("team_id", teamId)
+    .eq("st_cd", "active")
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .order("crt_at", { ascending: false });
+  if (error) throw new Error(`프로젝트 조회 실패: ${error.message}`);
+  return (data ?? []).map((p) => ({ prjId: p.prj_id, name: p.prj_nm }));
+}
+
+export type ProjectSummary = {
+  prjId: string;
+  name: string;
+  stCd: "active" | "closed";
+  memo: string | null;
+  crtAt: string;
+  /** 확정된 귀속 입금 합계(모금액) − 출금 */
+  totalAmt: number;
+  txnCount: number;
+};
+
+/**
+ * 프로젝트 목록 + 모금액 집계. 집계는 확정(is_cfm_yn=true) 거래만 —
+ * 인박스에 남아 있는 미확정 귀속은 아직 돈으로 치지 않는다.
+ */
+export async function getProjects(): Promise<ProjectSummary[]> {
+  const { teamId } = await getRequestTeamContext();
+  const db = createAdminClient();
+
+  const [{ data: prjs, error: prjErr }, { data: txns, error: txnErr }] = await Promise.all([
+    db
+      .from("fee_prj_mst")
+      .select("prj_id, prj_nm, st_cd, memo_txt, crt_at")
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .order("crt_at", { ascending: false }),
+    db
+      .from("fee_txn_hist")
+      .select("project_id, txn_amt, txn_io_enm")
+      .eq("team_id", teamId)
+      .eq("is_cfm_yn", true)
+      .eq("del_yn", false)
+      .not("project_id", "is", null),
+  ]);
+  if (prjErr) throw new Error(`프로젝트 조회 실패: ${prjErr.message}`);
+  if (txnErr) throw new Error(`프로젝트 집계 실패: ${txnErr.message}`);
+
+  const agg = new Map<string, { total: number; count: number }>();
+  for (const t of txns ?? []) {
+    const cur = agg.get(t.project_id!) ?? { total: 0, count: 0 };
+    cur.total += t.txn_io_enm === "deposit" ? t.txn_amt : -t.txn_amt;
+    cur.count += 1;
+    agg.set(t.project_id!, cur);
+  }
+
+  return (prjs ?? []).map((p) => ({
+    prjId: p.prj_id,
+    name: p.prj_nm,
+    stCd: p.st_cd as "active" | "closed",
+    memo: p.memo_txt,
+    crtAt: p.crt_at,
+    totalAmt: agg.get(p.prj_id)?.total ?? 0,
+    txnCount: agg.get(p.prj_id)?.count ?? 0,
+  }));
+}
+
+export type ProjectTxnRow = {
+  txnId: string;
+  txnDt: string;
+  rawName: string;
+  memName: string | null;
+  amt: number;
+  io: "deposit" | "withdrawal";
+};
+
+export type ProjectDetail = {
+  prjId: string;
+  name: string;
+  stCd: "active" | "closed";
+  memo: string | null;
+  totalAmt: number;
+  rows: ProjectTxnRow[];
+};
+
+/** 프로젝트 상세 — 귀속된 확정 거래 명단(참여자)·모금액. 팀 밖 prjId면 null. */
+export async function getProjectDetail(prjId: string): Promise<ProjectDetail | null> {
+  const { teamId } = await getRequestTeamContext();
+  const db = createAdminClient();
+
+  const { data: prj } = await db
+    .from("fee_prj_mst")
+    .select("prj_id, prj_nm, st_cd, memo_txt")
+    .eq("team_id", teamId)
+    .eq("prj_id", prjId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (!prj) return null;
+
+  const { data: txns, error } = await db
+    .from("fee_txn_hist")
+    .select("txn_id, txn_dt, raw_name, txn_amt, txn_io_enm, mem:mem_mst!fk_fee_txn_hist__mem_mst(mem_nm)")
+    .eq("team_id", teamId)
+    .eq("project_id", prjId)
+    .eq("is_cfm_yn", true)
+    .eq("del_yn", false)
+    .order("txn_dt", { ascending: false });
+  if (error) throw new Error(`프로젝트 거래 조회 실패: ${error.message}`);
+
+  const nameOf = (raw: unknown): string | null => {
+    const item = Array.isArray(raw) ? raw[0] : raw;
+    return (item as { mem_nm: string } | null)?.mem_nm ?? null;
+  };
+
+  const rows: ProjectTxnRow[] = (txns ?? []).map((t) => ({
+    txnId: t.txn_id,
+    txnDt: t.txn_dt,
+    rawName: t.raw_name,
+    memName: nameOf(t.mem),
+    amt: t.txn_amt,
+    io: t.txn_io_enm as "deposit" | "withdrawal",
+  }));
+
+  return {
+    prjId: prj.prj_id,
+    name: prj.prj_nm,
+    stCd: prj.st_cd as "active" | "closed",
+    memo: prj.memo_txt,
+    totalAmt: rows.reduce((s, r) => s + (r.io === "deposit" ? r.amt : -r.amt), 0),
+    rows,
+  };
 }
 
 export type MemberDuesItem = {
@@ -256,7 +409,7 @@ export async function getMemberDuesDetail(memId: string): Promise<MemberDuesDeta
         .limit(100),
       db
         .from("fee_txn_hist")
-        .select("txn_id, txn_dt, txn_amt, txn_io_enm, fee_item_cd")
+        .select("txn_id, txn_dt, txn_amt, txn_io_enm, fee_item_cd, prj:fee_prj_mst!fk_fee_txn_hist__fee_prj_mst(prj_nm)")
         .eq("team_id", teamId)
         .eq("mem_id", memId)
         .eq("is_cfm_yn", true)
@@ -295,14 +448,19 @@ export async function getMemberDuesDetail(memId: string): Promise<MemberDuesDeta
       note: e.rsn_txt,
       pending: !e.rflt_yn,
     })),
-    ...(otherTxns ?? []).map((t) => ({
-      id: t.txn_id,
-      date: t.txn_dt,
-      itemLabel: itemLabelMap.get(t.fee_item_cd ?? "") ?? t.fee_item_cd ?? "-",
-      ioLabel: t.txn_io_enm === "deposit" ? ("입금" as const) : ("출금" as const),
-      amt: t.txn_amt,
-      cancelled: false,
-    })),
+    ...(otherTxns ?? []).map((t) => {
+      const prjRaw = Array.isArray(t.prj) ? t.prj[0] : t.prj;
+      const prjNm = (prjRaw as { prj_nm: string } | null)?.prj_nm ?? null;
+      const base = itemLabelMap.get(t.fee_item_cd ?? "") ?? t.fee_item_cd ?? "-";
+      return {
+        id: t.txn_id,
+        date: t.txn_dt,
+        itemLabel: prjNm ? `${base} · ${prjNm}` : base,
+        ioLabel: t.txn_io_enm === "deposit" ? ("입금" as const) : ("출금" as const),
+        amt: t.txn_amt,
+        cancelled: false,
+      };
+    }),
   ].sort((a, b) => b.date.localeCompare(a.date));
 
   return {

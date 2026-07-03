@@ -18,4 +18,11 @@ describe("bucketOf", () => {
   it("입금+회비+동명이인 → 확인필요", () => {
     expect(bucketOf({ io: "deposit", itemCd: "due", matchStatus: "ambiguous" })).toBe("needsReview");
   });
+  it("입금+프로젝트(event_fee) → 확인필요 (귀속 판단 필요)", () => {
+    expect(bucketOf({ io: "deposit", itemCd: "event_fee", matchStatus: "matched" })).toBe("needsReview");
+  });
+  it("triage 어휘 밖 분류(goods·커스텀)는 제외 — 확인필요에 두면 기본 결정이 분류를 덮어쓴다", () => {
+    expect(bucketOf({ io: "deposit", itemCd: "goods", matchStatus: "matched" })).toBe("excluded");
+    expect(bucketOf({ io: "deposit", itemCd: "custom_cd", matchStatus: "unmatched" })).toBe("excluded");
+  });
 });
