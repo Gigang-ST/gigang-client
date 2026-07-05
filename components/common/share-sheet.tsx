@@ -11,6 +11,7 @@ import {
   ResponsiveDrawerTitle,
   ResponsiveDrawerDescription,
 } from "@/components/common/responsive-drawer";
+import { Caption } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 
 type ShareSheetProps = {
@@ -31,6 +32,8 @@ type ShareSheetProps = {
    * (모임처럼 도메인별로 멘트를 다듬고 싶을 때 사용)
    */
   shareText?: string;
+  /** 시트 상단 제목 (기본 "공유하기") — 주간 일정 등 용도별 문구 지정용 */
+  headerTitle?: string;
 };
 
 export function ShareSheet({
@@ -43,6 +46,7 @@ export function ShareSheet({
   contentUrl,
   pageUrl,
   shareText,
+  headerTitle = "공유하기",
 }: ShareSheetProps) {
   const [copiedText, setCopiedText] = useState(false);
 
@@ -92,11 +96,18 @@ export function ShareSheet({
         drawerClassName="h-auto"
       >
         <ResponsiveDrawerHeader className="border-b border-border px-4 py-4 text-left">
-          <ResponsiveDrawerTitle>공유하기</ResponsiveDrawerTitle>
+          <ResponsiveDrawerTitle>{headerTitle}</ResponsiveDrawerTitle>
           <ResponsiveDrawerDescription className="sr-only">공유 옵션</ResponsiveDrawerDescription>
         </ResponsiveDrawerHeader>
 
         <div className="flex flex-col gap-2 p-4">
+          {/* 공유될 본문 미리보기 — 보내기 전에 무엇이 나가는지 그대로 보여준다 */}
+          <div className="max-h-44 overflow-y-auto rounded-xl border border-border bg-muted px-3.5 py-3">
+            <Caption className="whitespace-pre-wrap break-words leading-relaxed">
+              {buildText()}
+            </Caption>
+          </div>
+
           <button
             type="button"
             onClick={handleCopyText}

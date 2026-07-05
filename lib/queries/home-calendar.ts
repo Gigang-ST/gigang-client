@@ -1,6 +1,5 @@
 import "server-only";
 
-import { cache } from "react";
 import { unstable_cache } from "next/cache";
 
 import { gridDateRange } from "@/lib/dayjs";
@@ -53,16 +52,16 @@ function createCachedHomeCalendar(teamId: string, year: number, month: number) {
   return unstable_cache(
     () => loadHomeCalendar(teamId, year, month),
     [`home-calendar-${teamId}-${year}-${month}`],
-    { tags: [HOME_CALENDAR_CACHE_TAG] },
+    // revalidate: 무효화 주경로는 DB 트리거 웹훅(revalidateTag)이고,
+    // 시간 만료는 웹훅 유실 시 영구 stale을 막는 안전망 (stale-while-revalidate라 대기 유저 없음)
+    { tags: [HOME_CALENDAR_CACHE_TAG], revalidate: 3600 },
   );
 }
 
 /**
  * 홈 캘린더 공개 데이터 (대회·일정포스트·모임) 캐시 조회.
- * - `unstable_cache`: 요청 간 Next.js 데이터 캐시 (on-demand revalidation 전용)
- * - `cache()`: 동일 렌더 내 중복 호출 제거
+ * `unstable_cache`: 요청 간 Next.js 데이터 캐시 (웹훅 태그 무효화 + 1시간 만료 안전망)
  */
-export const getCachedHomeCalendar = cache(
-  async (teamId: string, year: number, month: number) =>
-    createCachedHomeCalendar(teamId, year, month)(),
-);
+export async function getCachedHomeCalendar(teamId: string, year: number, month: number) {
+  return createCachedHomeCalendar(teamId, year, month)();
+}
