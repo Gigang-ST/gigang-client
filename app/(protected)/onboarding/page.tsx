@@ -31,10 +31,11 @@ async function OnboardingContent({
   }
 
   // OAuth 프로필 사진 URL 추출 (카카오: avatar_url/picture, 구글: picture/avatar_url)
-  const initialAvatarUrl =
+  const rawAvatarUrl =
     user.user_metadata?.picture ??
     user.user_metadata?.avatar_url ??
     null;
+  const initialAvatarUrl = typeof rawAvatarUrl === "string" ? rawAvatarUrl : null;
 
   // OAuth 이름 후보 추출 — 한글 2~5자만 prefill(검증 통과 값), 그 외는 빈 값
   const rawName =

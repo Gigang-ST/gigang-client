@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 
 import { dayjs } from "@/lib/dayjs";
@@ -76,7 +75,6 @@ export async function createSchPost(input: {
       }
     });
 
-    revalidatePath("/");
     return { sch_post_id: postId };
   });
 }
@@ -124,7 +122,6 @@ export async function updateSchPost(input: {
 
     if (error) throw new Error("수정 권한이 없거나 일정 수정에 실패했습니다.");
 
-    revalidatePath("/");
   });
 }
 
@@ -152,6 +149,5 @@ export async function deleteSchPost(sch_post_id: string) {
       .eq("sch_post_id", sch_post_id);
     if (error) throw new Error("일정 삭제에 실패했습니다.");
 
-    revalidatePath("/");
   });
 }

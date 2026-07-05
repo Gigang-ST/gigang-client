@@ -21,16 +21,39 @@ export type { AppMemberProfile };
  *
  * @see {@link verifyAdmin} 팀 관리자(owner/admin) 확인
  */
+/**
+ * JWT 클레임 기반 경량 유저.
+ * `auth.getUser()`(Auth 서버 왕복) 대신 `getClaims()`(로컬 서명 검증, 왕복 0회)를 쓴다 —
+ * 미들웨어(proxy.ts)가 이미 같은 기준으로 세션을 검증하고, 권한 판정은 DB(team_mem_rel)로 하므로
+ * 신뢰 수준 저하 없이 모든 dynamic 페이지 TTFB에서 Auth 왕복 1회를 제거한다.
+ * 트레이드오프: 강제 로그아웃·계정 삭제가 액세스 토큰 만료까지 반영 지연 (미들웨어와 동일 기준).
+ */
+export type AuthClaimsUser = {
+  id: string;
+  email?: string;
+  // supabase User와 동일하게 느슨한 타입 유지 (기존 소비처 호환)
+  user_metadata: Record<string, unknown>;
+  app_metadata: Record<string, unknown>;
+};
+
 export const getCurrentMember = cache(async () => {
   const supabase = await createClient();
 
-  // auth.getUser()와 getRequestTeamContext()는 서로 의존하지 않으므로 병렬 실행
-  const [{ data: { user } }, { teamId }] = await Promise.all([
-    supabase.auth.getUser(),
+  // getClaims()와 getRequestTeamContext()는 서로 의존하지 않으므로 병렬 실행
+  const [{ data: claimsData }, { teamId }] = await Promise.all([
+    supabase.auth.getClaims(),
     getRequestTeamContext(),
   ]);
 
-  if (!user) return { user: null, member: null, supabase };
+  const claims = claimsData?.claims;
+  if (!claims?.sub) return { user: null, member: null, supabase };
+
+  const user: AuthClaimsUser = {
+    id: claims.sub,
+    email: typeof claims.email === "string" ? claims.email : undefined,
+    user_metadata: (claims.user_metadata ?? {}) as Record<string, unknown>,
+    app_metadata: (claims.app_metadata ?? {}) as Record<string, unknown>,
+  };
 
   validateUUID(user.id);
 
