@@ -51,9 +51,9 @@ describe("buildWeeklyShareText", () => {
     expect(text).not.toContain("어제 모임");
     expect(text).not.toContain("다음 주 모임");
     expect(text.indexOf("오늘 대회")).toBeLessThan(text.indexOf("주말 모임"));
-    // 대회도 모임과 동일하게 인원수만 표기
-    expect(text).toContain("오늘 대회 — 2명");
-    expect(text).toContain("주말 모임 — 3명");
+    // 시작일·시간·제목만 담백하게 — 인원수 미표기
+    expect(text).toContain("07:00  오늘 대회");
+    expect(text).not.toContain("명");
   });
 
   it("같은 대회가 중복(id)으로 들어와도 한 번만 담는다", () => {
@@ -65,13 +65,14 @@ describe("buildWeeklyShareText", () => {
     expect(text.match(/중복 대회/g)).toHaveLength(1);
   });
 
-  it("정원 있는 모임은 n/m명, 시간 있는 항목은 HH:mm을 표기한다", () => {
+  it("시간 있는 항목은 HH:mm을 표기하고, 인원수·종료일은 표기하지 않는다", () => {
     const races = [
       makeRace({ id: "g", title: "정원 모임", start_date: today, type: "gathering_mine", regCount: 5, maxPrtCnt: 10, evt_stt_at: atKST(today, "07:30") }),
     ];
     const text = buildWeeklyShareText(races, ORIGIN)!;
-    expect(text).toContain("5/10명");
-    expect(text).toContain("07:30");
+    expect(text).toContain("07:30  정원 모임");
+    expect(text).not.toContain("5/10");
+    expect(text).not.toContain("명");
   });
 
   it("기준 날짜를 주면 그 주(월~일) 전체를 담고 '이번 주' 접두어를 뺀다", () => {
@@ -85,7 +86,7 @@ describe("buildWeeklyShareText", () => {
     const wednesday = dayjs(nextMonday).add(2, "day").format("YYYY-MM-DD");
     const text = buildWeeklyShareText(races, ORIGIN, "all", wednesday)!;
     expect(text).toContain("다음주 월요 모임"); // 기준일 이전 요일도 미래 주면 포함
-    expect(text).toContain("다음주 일요 대회 — 4명");
+    expect(text).toContain("다음주 일요 대회");
     expect(text).not.toContain("이번 주"); // 미래 주는 범위만 표기
   });
 

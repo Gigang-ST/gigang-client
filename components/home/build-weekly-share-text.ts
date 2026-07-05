@@ -27,21 +27,12 @@ const FILTER_HEADER_LABEL: Record<FilterType, string> = {
   gathering: "모임",
 };
 
-/** 항목 한 줄: "· 화 07:00  남산 모닝런 — 5/10명" */
+/** 항목 한 줄: "· 화 07:00  남산 모닝런" — 시작일·시간·제목만 담백하게 (인원수·종료일 미표기) */
 function buildLine(race: CalendarRace): string {
   const dayLabel = dayjs(race.start_date).format("ddd");
   const timeLabel = race.evt_stt_at ? dayjs(race.evt_stt_at).tz(KST).format("HH:mm") : "";
-
-  // 모임·대회 공통 — 인원수만 담백하게 (정원 있는 모임은 n/m명)
-  let countLabel = "";
-  if ((race.regCount ?? 0) > 0) {
-    countLabel = race.maxPrtCnt != null
-      ? ` — ${race.regCount}/${race.maxPrtCnt}명`
-      : ` — ${race.regCount}명`;
-  }
-
   const when = timeLabel ? `${dayLabel} ${timeLabel}` : dayLabel;
-  return `· ${when}  ${race.title}${countLabel}`;
+  return `· ${when}  ${race.title}`;
 }
 
 /**
@@ -72,9 +63,8 @@ export function buildWeeklyShareText(
       if (!matchesFilter(r, filterType)) return false;
       if (seen.has(r.id)) return false;
       seen.add(r.id);
-      // 기간 일정은 남은 범위와 겹치면 포함 (start_date만 있는 항목은 그 날짜 기준)
-      const rEnd = r.end_date ?? r.start_date;
-      return r.start_date <= end && rEnd >= from;
+      // 시작일 기준으로만 판정 — end_date는 항목별 포맷(KST 날짜 vs 원시 타임스탬프)이 섞여 있어 쓰지 않는다
+      return r.start_date >= from && r.start_date <= end;
     })
     .sort((a, b) =>
       a.start_date === b.start_date
