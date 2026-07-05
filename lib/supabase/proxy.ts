@@ -24,7 +24,8 @@ export async function updateSession(request: NextRequest) {
   const isPublic =
     publicPaths.includes(pathname) ||
     pathname.startsWith("/auth") ||
-    pathname.startsWith("/api");
+    pathname === "/api" ||
+    pathname.startsWith("/api/");
 
   // 세션 쿠키가 아예 없으면 Supabase 서버 호출 없이 즉시 리다이렉트 (100~700ms 절약)
   // Supabase는 토큰이 크면 쿠키를 청크 분할함 (sb-*-auth-token.0, .1, ...)
