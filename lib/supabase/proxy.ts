@@ -19,8 +19,13 @@ export async function updateSession(request: NextRequest) {
   // 비로그인 상태에서도 접근 가능한 공개 경로 목록
   const pathname = request.nextUrl.pathname;
   const publicPaths = ["/", "/rules", "/join", "/newbie", "/races", "/records", "/projects", "/terms", "/privacy", "/policy", "/settings"];
+  // /api/* 는 각 라우트가 자체 인증(멤버 체크·웹훅 시크릿)을 수행하므로 리다이렉트 제외.
+  // 쿠키 없는 서버-투-서버 요청(revalidate 웹훅, OG 봇, 크론)을 로그인 페이지로 보내면 안 됨.
   const isPublic =
-    publicPaths.includes(pathname) || pathname.startsWith("/auth");
+    publicPaths.includes(pathname) ||
+    pathname.startsWith("/auth") ||
+    pathname === "/api" ||
+    pathname.startsWith("/api/");
 
   // 세션 쿠키가 아예 없으면 Supabase 서버 호출 없이 즉시 리다이렉트 (100~700ms 절약)
   // Supabase는 토큰이 크면 쿠키를 청크 분할함 (sb-*-auth-token.0, .1, ...)
