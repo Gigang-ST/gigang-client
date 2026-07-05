@@ -4,9 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 
 import { useSearchParams } from "next/navigation";
 
-import { CalendarDays, ChevronLeft, ChevronRight, List } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, List, Share2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { buildWeeklyShareText } from "@/components/home/build-weekly-share-text";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { dayjs, todayKST, currentMonthKST, daysInMonth, gridDateRange } from "@/lib/dayjs";
 import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
@@ -83,6 +84,11 @@ const GatheringDetailDialog = dynamic<GatheringDetailDialogProps>(
     import("@/components/schedule/gathering-detail-dialog").then(
       (m) => m.GatheringDetailDialog
     ),
+  { ssr: false }
+);
+
+const ShareSheet = dynamic(
+  () => import("@/components/common/share-sheet").then((m) => m.ShareSheet),
   { ssr: false }
 );
 
@@ -200,6 +206,10 @@ export function MiniCalendar({
   type MonthData = { gigang: CalendarRace[]; mine: CalendarRace[]; schPosts: CalendarRace[]; gatherings: CalendarRace[] };
   const monthCacheRef = useRef(new Map<string, MonthData>());
   const cacheVersionRef = useRef(0);
+
+  // 주간 일정 공유 시트 상태
+  const [weeklyShareOpen, setWeeklyShareOpen] = useState(false);
+  const [weeklyShareText, setWeeklyShareText] = useState("");
 
   // 일정 폼 다이얼로그 상태
   const [formOpen, setFormOpen] = useState(false);
@@ -1096,6 +1106,23 @@ export function MiniCalendar({
     await refreshMonthData();
   }
 
+  /** 주간 일정을 단톡방 공유용 텍스트로 조립해 공유 시트를 연다.
+      기준 주는 FAB와 동일하게 캘린더뷰=선택 날짜, 리스트뷰=오늘. 필터 칩도 그대로 반영. */
+  function openWeeklyShare() {
+    const text = buildWeeklyShareText(
+      [...myRaces, ...schPosts, ...gigangRaces, ...gatherings],
+      window.location.origin,
+      filterType,
+      view === "calendar" ? selectedDate : today,
+    );
+    if (!text) {
+      toast.info("해당 주에 남은 일정이 없어요.");
+      return;
+    }
+    setWeeklyShareText(text);
+    setWeeklyShareOpen(true);
+  }
+
   return (
     <div className="flex flex-col gap-2">
       {/* 헤더 */}
@@ -1135,6 +1162,14 @@ export function MiniCalendar({
               />
             </button>
           </div>
+          {/* 주간 일정 공유 — 이번 주 일정을 텍스트로 단톡방에 붙여넣기 */}
+          <button
+            onClick={openWeeklyShare}
+            aria-label="주간 일정 공유"
+            className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          >
+            <Share2 className="size-3.5" />
+          </button>
         </div>
 
 
@@ -1505,6 +1540,16 @@ export function MiniCalendar({
           }}
         />
       )}
+
+      {/* 주간 일정 공유 시트 */}
+      <ShareSheet
+        open={weeklyShareOpen}
+        onOpenChange={setWeeklyShareOpen}
+        headerTitle="주간 일정 공유하기"
+        title="이번 주 기강 일정"
+        timeLabel=""
+        shareText={weeklyShareText}
+      />
 
       {/* 모임 폼 다이얼로그 (등록 + 수정 겸용) */}
       <GatheringFormDialog
