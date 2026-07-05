@@ -1107,13 +1107,17 @@ export function MiniCalendar({
   }
 
   /** 주간 일정을 단톡방 공유용 텍스트로 조립해 공유 시트를 연다.
-      기준 주는 FAB와 동일하게 캘린더뷰=선택 날짜, 리스트뷰=오늘. 필터 칩도 그대로 반영. */
+      기준 주는 캘린더뷰=선택 날짜, 리스트뷰=오늘. 필터 칩도 그대로 반영. */
   function openWeeklyShare() {
+    // 월 이동(화살표/스와이프)은 selectedDate를 안 바꾸므로, 선택 날짜가 보고 있는 달
+    // 밖이면 그 달 1일을 기준으로 — 로드된 데이터(현재 달)와 기준 주가 어긋나는 것 방지
+    const calendarBase =
+      selectedDate.slice(0, 7) === viewMonth.slice(0, 7) ? selectedDate : viewMonth;
     const text = buildWeeklyShareText(
       [...myRaces, ...schPosts, ...gigangRaces, ...gatherings],
       window.location.origin,
       filterType,
-      view === "calendar" ? selectedDate : today,
+      view === "calendar" ? calendarBase : today,
     );
     if (!text) {
       toast.info("해당 주에 남은 일정이 없어요.");
