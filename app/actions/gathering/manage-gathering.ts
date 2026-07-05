@@ -96,7 +96,7 @@ export async function createGathering(input: {
       }
     });
 
-    revalidatePath("/");
+    // 홈(/)은 dynamic 렌더라 revalidatePath("/")는 no-op — 갱신은 클라이언트 재조회(refreshMonthData) + DB 트리거 웹훅이 담당
     return { gthr_id: gthrId, short_id: data.short_id };
   });
 }
@@ -175,7 +175,7 @@ export async function updateGathering(input: {
       }
     });
 
-    revalidatePath("/");
+    // 홈은 클라이언트 재조회가 갱신 담당 — 직접 URL 방문 대비 모임 상세만 무효화
     revalidatePath(`/gatherings/${input.gthr_id}`);
   });
 }
@@ -231,6 +231,5 @@ export async function deleteGathering(gthr_id: string) {
       }
     });
 
-    revalidatePath("/");
   });
 }

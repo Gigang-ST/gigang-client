@@ -1,4 +1,3 @@
-import { revalidatePath } from "next/cache";
 import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { COMMON_CODES_CACHE_TAG } from "@/lib/common-codes-cache-tag";
@@ -12,8 +11,8 @@ const COMP_TABLES = new Set(["comp_mst", "team_comp_plan_rel", "comp_reg_rel"]);
 /** 랭킹(/records)에 반영되는 테이블 */
 const RECORDS_TABLES = new Set(["personal_best", "utmb_profile"]);
 
+// 홈(/)·랭킹(/records)은 dynamic 렌더라 revalidatePath는 no-op — 태그 무효화만 수행
 function revalidateHomeCalendar() {
-  revalidatePath("/");
   revalidateTag(HOME_CALENDAR_CACHE_TAG, "max");
 }
 
@@ -24,7 +23,6 @@ function revalidateCompetitions() {
 }
 
 function revalidateRecords() {
-  revalidatePath("/records");
   // /records 의 unstable_cache(tags: "records", `records:${teamId}`)
   revalidateTag("records", "max");
 }

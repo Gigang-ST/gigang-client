@@ -1,6 +1,5 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
 import { after } from "next/server"
 
 import { dayjs } from "@/lib/dayjs"
@@ -118,7 +117,6 @@ export async function createComment(input: CreateCommentInput) {
       }
     })
 
-    revalidatePath("/")
     return { ok: true as const, data: cmnt }
   })
 }
@@ -147,7 +145,6 @@ export async function updateComment(input: UpdateCommentInput) {
       await admin.from("cmnt_mention_rel").insert(uniqueMentions.map((memId) => ({ cmnt_id: parsed.cmntId, mem_id: memId })))
     }
 
-    revalidatePath("/")
     return { ok: true as const }
   })
 }
@@ -169,7 +166,6 @@ export async function deleteComment(input: DeleteCommentInput) {
 
     if (error) return { ok: false as const, message: "댓글 삭제 실패" }
 
-    revalidatePath("/")
     return { ok: true as const }
   })
 }
