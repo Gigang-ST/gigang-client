@@ -10,6 +10,8 @@ const HOME_TABLES = new Set(["gthr_mst", "gthr_attd_rel", "sch_post_mst", "cmnt_
 const COMP_TABLES = new Set(["comp_mst", "team_comp_plan_rel", "comp_reg_rel"]);
 /** 랭킹(/records)에 반영되는 테이블 */
 const RECORDS_TABLES = new Set(["personal_best", "utmb_profile"]);
+/** 공통코드 캐시에 반영되는 테이블 */
+const CMM_CD_TABLES = new Set(["cmm_cd_mst"]);
 
 // 홈(/)·랭킹(/records)은 dynamic 렌더라 revalidatePath는 no-op — 태그 무효화만 수행
 function revalidateHomeCalendar() {
@@ -59,7 +61,7 @@ export async function POST(request: NextRequest) {
     revalidateCompetitions();
   } else if (RECORDS_TABLES.has(table)) {
     revalidateRecords();
-  } else if (table === "cmm_cd_mst") {
+  } else if (CMM_CD_TABLES.has(table)) {
     revalidateTag(COMMON_CODES_CACHE_TAG, "max");
   } else {
     revalidateAll();

@@ -28,6 +28,12 @@ BEGIN
     RETURN NULL;
   END IF;
 
+  -- 시크릿 누락 시 웹훅이 401로 조용히 실패하므로 원인 추적용 경고를 남기고 중단
+  IF _secret IS NULL THEN
+    RAISE WARNING 'revalidate_records: revalidate_secret not found in vault';
+    RETURN NULL;
+  END IF;
+
   PERFORM net.http_post(
     url := _revalidate_url,
     headers := jsonb_build_object(
