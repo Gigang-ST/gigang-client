@@ -7,6 +7,7 @@ import { cancelTransaction } from "@/app/actions/dues/cancel-transaction";
 import { confirmAndRecalc } from "@/app/actions/dues/confirm-and-recalc";
 import { deleteTransaction } from "@/app/actions/dues/delete-transaction";
 import { buildConfirmPayload, type Decision, type ItemCd } from "@/lib/dues/confirm-payload";
+import { canReclassify, isDecisionRow, isReclassified } from "@/lib/dues/confirm-scope";
 import { duplicateNames } from "@/lib/dues/homonyms";
 import type { FeeItemOption, InboxTxn, MemberOption, ProcessedTxn, ProjectOption } from "@/lib/queries/dues";
 
@@ -89,9 +90,21 @@ export function InboxTable({
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   const router = useRouter();
 
+  // 분류(itemCd) override 유무 — 자동·제외 행이 일괄 분류로 '재분류'됐는지의 신호.
+  const hasItemCdOverride = (txnId: string) => overrides[txnId]?.itemCd != null;
+  const reclassified = (t: InboxTxn) => isReclassified(t.bucket, hasItemCdOverride(t.txnId));
+  const decisionRow = (t: InboxTxn) => isDecisionRow(t.bucket, hasItemCdOverride(t.txnId));
+
+  // 결정(편집) 대상 행 = 확인필요 + 재분류된 자동·제외. 이들만 분류·회원·프로젝트를 UI에서 정하고
+  // 확정 시 결정 경로(새 값 전송)로 나간다. 건드리지 않은 자동·제외는 종전대로 저장값으로 확정.
+  const decisionRows = useMemo(
+    () => txns.filter((t) => isDecisionRow(t.bucket, overrides[t.txnId]?.itemCd != null)),
+    [txns, overrides],
+  );
+
   const decisions = useMemo<Record<string, Decision>>(
-    () => Object.fromEntries(review.map((t) => [t.txnId, { ...defaultDecision(t), ...overrides[t.txnId] }])),
-    [review, overrides],
+    () => Object.fromEntries(decisionRows.map((t) => [t.txnId, { ...defaultDecision(t), ...overrides[t.txnId] }])),
+    [decisionRows, overrides],
   );
 
   // 필터 + 검색으로 화면에 보일 행. 서버 정렬(txn_dt asc) 유지.
@@ -113,25 +126,30 @@ export function InboxTable({
     );
   }, [processed, filter, query]);
 
-  // 키보드 ↑↓ 이동 대상: 화면에 보이는 needsReview 행 순서.
-  const editableVisible = useMemo(() => visible.filter((t) => t.bucket === "needsReview"), [visible]);
+  // 키보드 ↑↓ 이동 대상: 화면에 보이는 결정 행(확인필요 + 재분류된 자동·제외) 순서.
+  const editableVisible = useMemo(
+    () => visible.filter((t) => isDecisionRow(t.bucket, overrides[t.txnId]?.itemCd != null)),
+    [visible, overrides],
+  );
 
-  // 결정된 확인필요 행: 회비=회원 지정, 프로젝트=귀속 프로젝트 지정(회원은 선택), 제외=분류만.
+  // 결정된 행: 회비=회원 지정, 프로젝트=귀속 프로젝트 지정(회원은 선택), 제외=분류만.
   // 부분 확정 — 미결정 행은 이번 확정에서 빠지고 인박스에 남아 다음에 처리한다.
   // (inbox-row.tsx의 decided 계산과 반드시 같은 규칙을 유지할 것)
-  const decidedReview = review.filter((t) => {
+  const decidedRows = decisionRows.filter((t) => {
     const d = decisions[t.txnId];
     return d && (d.itemCd === "other" || (d.itemCd === "due" ? !!d.memId : !!d.prjId));
   });
-  const undecidedCount = review.length - decidedReview.length;
+  const undecidedCount = decisionRows.length - decidedRows.length;
 
   // 확정 범위: 체크박스로 고른 행이 있으면 **그 중 확정 가능한 행만**, 없으면 전체.
-  // 자동·제외는 판단이 필요 없어 항상 확정 대상, 미결정 확인필요 행은 확정 불가라 빠진다.
+  // 자동·제외는 판단이 필요 없어 항상 확정 대상, 미결정 결정 행은 확정 불가라 빠진다.
+  // 재분류된 자동·제외 행은 저장값 경로(targetAuto/Excluded)에서 빼고 결정 경로(targetReview)로 보낸다
+  // — 안 그러면 새 분류가 무시되고 낡은 저장값으로 확정된다.
   const useSelection = selected.size > 0;
   const inScope = (t: { txnId: string }) => !useSelection || selected.has(t.txnId);
-  const targetAuto = autoDone.filter(inScope);
-  const targetExcluded = excluded.filter(inScope);
-  const targetReview = decidedReview.filter(inScope);
+  const targetAuto = autoDone.filter((t) => !reclassified(t)).filter(inScope);
+  const targetExcluded = excluded.filter((t) => !reclassified(t)).filter(inScope);
+  const targetReview = decidedRows.filter(inScope);
   const confirmCount = targetAuto.length + targetExcluded.length + targetReview.length;
 
   // 체크박스는 확정 범위 지정용 — 화면에 보이는 모든 행(자동·제외 포함)을 선택 대상으로.
@@ -164,7 +182,11 @@ export function InboxTable({
   }
 
   function bulkSetItemCd(itemCd: ItemCd) {
-    const ids = [...selected].filter((id) => review.some((t) => t.txnId === id));
+    // 선택된 '입금' 행만 분류를 바꾼다(출금 제외). 자동·제외 행이면 결정(편집) 흐름에 편입된다.
+    const ids = [...selected].filter((id) => {
+      const t = txns.find((x) => x.txnId === id);
+      return !!t && canReclassify(t.io);
+    });
     setOverrides((prev) => {
       const next = { ...prev };
       for (const id of ids) next[id] = { ...next[id], itemCd };
@@ -346,9 +368,9 @@ export function InboxTable({
                   projects={projects}
                   dupNames={dupNames}
                   nameById={nameById}
-                  decision={t.bucket === "needsReview" ? decisions[t.txnId] : null}
+                  decision={decisionRow(t) ? decisions[t.txnId] : null}
                   selected={selected.has(t.txnId)}
-                  editable={t.bucket === "needsReview"}
+                  editable={decisionRow(t)}
                   onChange={(patch) => setDecision(t.txnId, patch)}
                   onToggleSelect={(checked) => toggleSelect(t.txnId, checked)}
                   rowRef={(el) => {
@@ -374,7 +396,7 @@ export function InboxTable({
             </Button>
           ))}
           <Micro className="text-muted-foreground">
-            선택한 행만 확정됩니다 · 분류 버튼은 확인필요 행에만 적용
+            선택한 행만 확정됩니다 · 분류 버튼은 선택한 입금 행에 적용(자동·제외 포함)
           </Micro>
         </div>
       )}

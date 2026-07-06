@@ -17,6 +17,8 @@ export type InboxTxn = {
   rawName: string;
   memId: string | null;
   matchStatus: "matched" | "unmatched" | "ambiguous";
+  /** 입출금 구분 — 일괄 재분류를 입금 행에만 허용하기 위해 노출(출금→수입 분류 사고 방지) */
+  io: "deposit" | "withdrawal";
   feeItemCd: string | null;
   /** 저장된 프로젝트 귀속 — 수동 등록·확정취소로 재노출된 event_fee 행의 기본값 시드 */
   projectId: string | null;
@@ -89,8 +91,9 @@ export async function getInboxTxns(): Promise<{
   const txns: InboxTxn[] = (rows ?? []).map((r) => {
     const match = matchPayer(r.raw_name, memberRefs, aliasRefs);
     const matchStatus = (r.match_st_cd ?? match.status) as InboxTxn["matchStatus"];
+    const io = r.txn_io_enm as "deposit" | "withdrawal";
     const bucket = bucketOf({
-      io: r.txn_io_enm as "deposit" | "withdrawal",
+      io,
       itemCd: r.fee_item_cd ?? "other",
       matchStatus,
     });
@@ -102,6 +105,7 @@ export async function getInboxTxns(): Promise<{
       rawName: r.raw_name,
       memId: r.mem_id,
       matchStatus,
+      io,
       feeItemCd: r.fee_item_cd,
       projectId: r.project_id,
       bucket,
