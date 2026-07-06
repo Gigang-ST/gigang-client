@@ -76,6 +76,13 @@ Supabase JS `.upsert({ onConflict: "a,b,c" })` 는 `ON CONFLICT (a,b,c)` 만 보
 `navigator.serviceWorker.getRegistration("/sw.js")`처럼 스크립트 경로를 넘기면 브라우저마다 다르게 동작(Safari는 undefined 반환 가능). 등록 스코프 기준으로 조회해야 한다.
 **해결:** 등록은 `register("/sw.js", { scope: "/" })`, 조회는 `getRegistration("/")`로 통일. (`lib/push/client.ts`, `components/service-worker-register.tsx`)
 
+### 열린 다이얼로그의 Root(Dialog↔Drawer)가 교체되면 히스토리 스택이 어긋난다 — 해결됨 (2026-07-06)
+`ResponsiveDrawer`의 `useMediaQuery`가 초기값 `false`로 시작해 이펙트에서 보정하던 탓에, 데스크톱에서 상세 다이얼로그가 **open 상태로 마운트**되면(null 가드로 조건부 렌더되는 상세류의 첫 오픈) 첫 렌더는 Drawer로 `pushState` → 직후 Dialog로 교체되며 Drawer 언마운트 cleanup이 `history.back()` 회수 + Dialog가 재푸시. 큐된 back() 트래버설이 **원래 앱 엔트리로 착지**해, 이후 X 닫기의 `back()`이 한 칸 더 나가 **사이트 진입 이전 페이지로 이탈**했다. 모바일은 교체가 없어 정상 → "데스크톱에서만 닫기가 이전 사이트로 튕김" 증상.
+**해결 1(근본):** `useMediaQuery` 초기값을 lazy initializer로 `window.matchMedia(query).matches` 즉시 읽기 — 첫 렌더부터 올바른 Root로 마운트되어 교체가 사라짐. (`components/common/responsive-drawer.tsx`)
+**해결 2(방어):** `useDialogHistoryBack` cleanup은 `history.state.dialog === id`(현재 항목이 자기 것)이거나 `pendingProgrammaticBack > 0`(같은 커밋에서 중첩 다이얼로그가 동시에 닫혀 위쪽 back()이 큐만 된 상태 — history.state가 잠시 낡음)일 때만 `back()` 호출 — 스택이 어긋났을 때 고아 항목 하나 남기는 쪽이 페이지 이탈보다 안전. (`lib/hooks/use-dialog-history-back.ts`)
+**남은 한계:** 다이얼로그를 연 채로 창 폭을 768px 경계 너머로 리사이즈하면 여전히 Root가 교체된다(기존부터 있던 엣지). 가드 덕에 사이트 이탈은 안 하고 고아 항목 1개(뒤로가기 한 번 무반응)로 완화됨.
+**원칙:** `useDialogHistoryBack`이 붙은 Root(Dialog/Sheet/Drawer)는 **열린 채로 다른 Root로 갈아끼우면 안 된다.** 반응형 분기 등으로 Root를 조건 교체하는 컴포넌트는 분기 값이 첫 렌더부터 확정돼 있어야 한다.
+
 ## 재사용 패턴
 
 ### 상세 다이얼로그 오픈 = "인스턴트 오픈 + 백필 + 댓글 자체조회" (전 경로 공통 원칙)
