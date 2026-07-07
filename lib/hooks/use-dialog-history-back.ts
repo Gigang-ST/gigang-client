@@ -67,7 +67,18 @@ export function useDialogHistoryBack(open: boolean, onClose: () => void) {
       if (popClosedIds.has(id)) {
         // 뒤로가기로 닫힘 — 히스토리 항목은 이미 소비됨
         popClosedIds.delete(id);
-      } else {
+      } else if (
+        // 현재 히스토리 항목이 내 것일 때만 회수한다 — 열린 채로 Root가
+        // 교체(리마운트)되는 등 스택이 어긋난 상태에서 back()을 호출하면
+        // 페이지 진입 이전 사이트까지 이탈할 수 있다. 고아 항목이 하나 남는
+        // 쪽이 페이지를 벗어나는 것보다 안전하다.
+        // 단 pendingProgrammaticBack > 0 이면 같은 커밋에서 위 다이얼로그의
+        // back()이 큐만 되고 아직 착지 전이라 history.state가 잠시 낡은
+        // 값이다(중첩 동시 닫힘). 이때는 큐 순서상 내 항목이 곧 현재가
+        // 되므로 정상 회수한다.
+        pendingProgrammaticBack > 0 ||
+        (history.state as { dialog?: number } | null)?.dialog === id
+      ) {
         // 프로그램적으로 닫힘(X·취소·제출) — 쌓아둔 항목 회수
         pendingProgrammaticBack++;
         history.back();

@@ -22,7 +22,13 @@ import {
 } from "@/components/ui/drawer"
 
 function useMediaQuery(query: string) {
-  const [matches, setMatches] = React.useState(false)
+  // 첫 렌더부터 실제 값이어야 한다 — false로 시작해 이펙트에서 보정하면,
+  // 데스크톱에서 다이얼로그가 open 상태로 마운트될 때 Drawer로 pushState된 뒤
+  // Dialog로 교체(언마운트 back() + 재푸시)되며 useDialogHistoryBack의 히스토리
+  // 스택이 어긋나 닫기 버튼이 사이트 밖(이전 사이트)으로 이탈한다.
+  const [matches, setMatches] = React.useState(
+    () => typeof window !== "undefined" && window.matchMedia(query).matches,
+  )
   React.useEffect(() => {
     const media = window.matchMedia(query)
     // eslint-disable-next-line react-hooks/set-state-in-effect
