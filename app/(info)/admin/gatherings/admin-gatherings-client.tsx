@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, Users, X } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, ChevronRight, ChevronsUpDown, Plus, Users, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { currentMonthKST, dayjs, nextMonthStr, prevMonthStr } from "@/lib/dayjs";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 import { gthrTypeLabels, type GthrType } from "@/lib/validations/gathering";
 
 import {
@@ -28,12 +29,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type Gathering = {
@@ -76,6 +79,7 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
 
   const [activeMembers, setActiveMembers] = useState<ActiveMember[]>([]);
   const [addingMemId, setAddingMemId] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [removingMemId, setRemovingMemId] = useState<string | null>(null);
 
@@ -318,31 +322,62 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
 
           <div className="flex-1 overflow-y-auto px-4 pb-6 pt-4">
             <div className="flex flex-col gap-4">
-              {/* 참가자 추가 */}
+              {/* 참가자 추가 — 이름 타이핑으로 검색 가능한 콤보박스 (member-combobox.tsx 패턴) */}
               <div className="flex gap-2">
-                <Select value={addingMemId} onValueChange={setAddingMemId}>
-                  <SelectTrigger className="h-10 flex-1 rounded-xl border text-[13px]">
-                    <SelectValue placeholder="추가할 멤버 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableMembers.length === 0 ? (
-                      <div className="px-2 py-1.5">
-                        <Caption className="text-muted-foreground">추가할 수 있는 멤버가 없습니다</Caption>
-                      </div>
-                    ) : (
-                      availableMembers.map((m) => (
-                        <SelectItem key={m.mem_id} value={m.mem_id}>
-                          {m.mem_nm ?? "이름 없음"}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+                <Popover open={addOpen} onOpenChange={setAddOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={addOpen}
+                      className="h-10 flex-1 justify-between rounded-xl font-normal"
+                    >
+                      {addingMemId
+                        ? (activeMembers.find((m) => m.mem_id === addingMemId)?.mem_nm ?? "이름 없음")
+                        : "추가할 멤버 검색…"}
+                      <ChevronsUpDown className="ml-1 size-3.5 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="이름 검색…" />
+                      <CommandList>
+                        <CommandEmpty>
+                          {availableMembers.length === 0
+                            ? "추가할 수 있는 멤버가 없습니다"
+                            : "검색 결과가 없습니다"}
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {availableMembers.map((m) => (
+                            <CommandItem
+                              key={m.mem_id}
+                              value={`${m.mem_nm ?? "이름 없음"} ${m.mem_id}`}
+                              onSelect={() => {
+                                setAddingMemId(m.mem_id);
+                                setAddOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 size-4",
+                                  addingMemId === m.mem_id ? "opacity-100" : "opacity-0",
+                                )}
+                              />
+                              {m.mem_nm ?? "이름 없음"}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
                 <Button
                   variant="outline"
                   size="sm"
                   disabled={!addingMemId || adding}
                   onClick={handleAddAttendee}
+                  className="h-10"
                 >
                   <Plus className="size-3.5" />
                   추가
