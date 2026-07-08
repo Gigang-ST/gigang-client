@@ -2,12 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { CalendarDays, Check, ChevronLeft, ChevronRight, ChevronsUpDown, Plus, Users, X } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ChevronsUpDown, Plus, Users, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { currentMonthKST, dayjs, nextMonthStr, prevMonthStr } from "@/lib/dayjs";
 import { createClient } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
 import { gthrTypeLabels, type GthrType } from "@/lib/validations/gathering";
 
 import {
@@ -78,7 +77,6 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
   const [attendeesLoading, setAttendeesLoading] = useState(false);
 
   const [activeMembers, setActiveMembers] = useState<ActiveMember[]>([]);
-  const [addingMemId, setAddingMemId] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [removingMemId, setRemovingMemId] = useState<string | null>(null);
@@ -173,7 +171,6 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
   const openGathering = (g: Gathering) => {
     setSelected(g);
     setDialogOpen(true);
-    setAddingMemId("");
     loadAttendees(g.gthr_id);
     loadActiveMembers();
   };
@@ -213,22 +210,21 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
     setRemovingMemId(null);
   };
 
-  const handleAddAttendee = async () => {
-    if (!selected || !addingMemId) return;
-    const member = activeMembers.find((m) => m.mem_id === addingMemId);
-    if (!member) return;
+  const handleAddAttendee = async (member: ActiveMember) => {
+    if (!selected || adding) return;
 
     setAdding(true);
     const prevAttendees = attendees;
     setAttendees((prev) => [...prev, member]);
     syncGatheringCount(selected.gthr_id, 1);
-    setAddingMemId("");
 
     const result = await addGatheringAttendance(selected.gthr_id, member.mem_id);
     if (!result.ok) {
       setAttendees(prevAttendees);
       syncGatheringCount(selected.gthr_id, -1);
       toast.error(result.message ?? "참석 추가에 실패했습니다");
+    } else {
+      toast.success(`${member.mem_nm ?? "이름 없음"}님을 참석 처리했습니다`);
     }
     setAdding(false);
   };
@@ -322,67 +318,52 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
 
           <div className="flex-1 overflow-y-auto px-4 pb-6 pt-4">
             <div className="flex flex-col gap-4">
-              {/* 참가자 추가 — 이름 타이핑으로 검색 가능한 콤보박스 (member-combobox.tsx 패턴) */}
-              <div className="flex gap-2">
-                <Popover open={addOpen} onOpenChange={setAddOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={addOpen}
-                      className="h-10 flex-1 justify-between rounded-xl font-normal"
-                    >
-                      {addingMemId
-                        ? (activeMembers.find((m) => m.mem_id === addingMemId)?.mem_nm ?? "이름 없음")
-                        : "추가할 멤버 검색…"}
-                      <ChevronsUpDown className="ml-1 size-3.5 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                    <Command>
-                      <CommandInput placeholder="이름 검색…" />
-                      <CommandList>
-                        <CommandEmpty>
-                          {availableMembers.length === 0
-                            ? "추가할 수 있는 멤버가 없습니다"
-                            : "검색 결과가 없습니다"}
-                        </CommandEmpty>
-                        <CommandGroup>
-                          {availableMembers.map((m) => (
-                            <CommandItem
-                              key={m.mem_id}
-                              value={`${m.mem_nm ?? "이름 없음"} ${m.mem_id}`}
-                              onSelect={() => {
-                                setAddingMemId(m.mem_id);
-                                setAddOpen(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 size-4",
-                                  addingMemId === m.mem_id ? "opacity-100" : "opacity-0",
-                                )}
-                              />
-                              {m.mem_nm ?? "이름 없음"}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!addingMemId || adding}
-                  onClick={handleAddAttendee}
-                  className="h-10"
-                >
-                  <Plus className="size-3.5" />
-                  추가
-                </Button>
-              </div>
+              {/* 참가자 추가 — 검색해서 선택하면 바로 참석 처리 (별도 추가 버튼 없음) */}
+              <Popover open={addOpen} onOpenChange={setAddOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={addOpen}
+                    disabled={adding}
+                    className="h-10 w-full justify-between rounded-xl font-normal text-muted-foreground"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Plus className="size-3.5" />
+                      {adding ? "추가 중…" : "참가자 추가 — 이름 검색"}
+                    </span>
+                    <ChevronsUpDown className="ml-1 size-3.5 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="이름 검색…" />
+                    <CommandList>
+                      <CommandEmpty>
+                        {availableMembers.length === 0
+                          ? "추가할 수 있는 멤버가 없습니다"
+                          : "검색 결과가 없습니다"}
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {availableMembers.map((m) => (
+                          <CommandItem
+                            key={m.mem_id}
+                            value={`${m.mem_nm ?? "이름 없음"} ${m.mem_id}`}
+                            onSelect={() => {
+                              setAddOpen(false);
+                              handleAddAttendee(m);
+                            }}
+                          >
+                            <Plus className="mr-2 size-3.5 text-muted-foreground" />
+                            {m.mem_nm ?? "이름 없음"}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
 
               {/* 참가자 목록 */}
               <div className="flex flex-col gap-2">
