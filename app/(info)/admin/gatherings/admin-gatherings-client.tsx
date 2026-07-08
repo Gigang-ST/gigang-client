@@ -86,6 +86,10 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
   // 월 이동 stale-response 가드 — 응답 도착 시점의 month가 요청 시점과 다르면(빠른 연속 이동) 무시한다.
   const latestMonthRequestRef = useRef<string>(month);
 
+  // 참가자 다이얼로그 가드 — 모임 A를 열자마자 닫고 B를 열면 A의 늦은 응답/실패 롤백이
+  // B 화면을 덮을 수 있다. 현재 열린 모임 id를 ref로 추적해 다르면 상태 반영을 건너뛴다.
+  const currentGthrRef = useRef<string | null>(null);
+
   const loadGatherings = useCallback(async (targetMonth: string) => {
     latestMonthRequestRef.current = targetMonth;
     setLoading(true);
@@ -131,6 +135,8 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
       .select("mem_id, mem_mst(mem_id, mem_nm, avatar_url)")
       .eq("gthr_id", gthrId);
 
+    if (currentGthrRef.current !== gthrId) return; // 다른 모임으로 전환됨 — 늦은 응답 폐기
+
     setAttendees(
       (data ?? []).map((row) => {
         const m = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst;
@@ -169,10 +175,16 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
   }, [teamId]);
 
   const openGathering = (g: Gathering) => {
+    currentGthrRef.current = g.gthr_id;
     setSelected(g);
     setDialogOpen(true);
     loadAttendees(g.gthr_id);
     loadActiveMembers();
+  };
+
+  const handleDialogOpenChange = (open: boolean) => {
+    setDialogOpen(open);
+    if (!open) currentGthrRef.current = null; // 닫힌 뒤 도착하는 응답/롤백 무효화
   };
 
   const attendeeIds = useMemo(() => new Set(attendees.map((a) => a.mem_id)), [attendees]);
@@ -189,6 +201,7 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
 
   const handleRemoveAttendee = async (memId: string) => {
     if (!selected || removingMemId) return;
+    const gthrId = selected.gthr_id;
     const target = attendees.find((a) => a.mem_id === memId);
     const memName = target?.mem_nm ?? "이름 없음";
     const gDate = dayjs(selected.stt_at).tz("Asia/Seoul").format("M/D(ddd)");
@@ -197,12 +210,13 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
     setRemovingMemId(memId);
     const prevAttendees = attendees;
     setAttendees((prev) => prev.filter((a) => a.mem_id !== memId));
-    syncGatheringCount(selected.gthr_id, -1);
+    syncGatheringCount(gthrId, -1);
 
-    const result = await removeGatheringAttendance(selected.gthr_id, memId);
+    const result = await removeGatheringAttendance(gthrId, memId);
     if (!result.ok) {
-      setAttendees(prevAttendees);
-      syncGatheringCount(selected.gthr_id, 1);
+      // 참가자 목록 롤백은 아직 같은 모임을 보고 있을 때만 (전환됐으면 이미 새 목록으로 교체됨)
+      if (currentGthrRef.current === gthrId) setAttendees(prevAttendees);
+      syncGatheringCount(gthrId, 1); // 리스트 카운트는 gthr_id 기준이라 항상 안전
       toast.error(result.message ?? "참석 취소에 실패했습니다");
     } else {
       toast.success(`${memName}님 참석을 취소했습니다`);
@@ -212,16 +226,17 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
 
   const handleAddAttendee = async (member: ActiveMember) => {
     if (!selected || adding) return;
+    const gthrId = selected.gthr_id;
 
     setAdding(true);
     const prevAttendees = attendees;
     setAttendees((prev) => [...prev, member]);
-    syncGatheringCount(selected.gthr_id, 1);
+    syncGatheringCount(gthrId, 1);
 
-    const result = await addGatheringAttendance(selected.gthr_id, member.mem_id);
+    const result = await addGatheringAttendance(gthrId, member.mem_id);
     if (!result.ok) {
-      setAttendees(prevAttendees);
-      syncGatheringCount(selected.gthr_id, -1);
+      if (currentGthrRef.current === gthrId) setAttendees(prevAttendees);
+      syncGatheringCount(gthrId, -1);
       toast.error(result.message ?? "참석 추가에 실패했습니다");
     } else {
       toast.success(`${member.mem_nm ?? "이름 없음"}님을 참석 처리했습니다`);
@@ -304,7 +319,7 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
       )}
 
       {/* 참가자 관리 다이얼로그 */}
-      <ResponsiveDrawer open={dialogOpen} onOpenChange={setDialogOpen}>
+      <ResponsiveDrawer open={dialogOpen} onOpenChange={handleDialogOpenChange}>
         <ResponsiveDrawerContent
           dialogClassName="max-w-md max-h-[85dvh] flex flex-col gap-0 p-0 overflow-hidden"
           drawerClassName="h-[85dvh] max-h-[85dvh]"
