@@ -85,6 +85,8 @@ t3-env로 관리되며 `lib/env.ts`에서 import:
 
 > 웹 푸시: `push_sub_rel` 테이블(구독 정보) + `public/sw.js`(수신). 발송은 `insertNoti()`(`lib/notifications/insert-noti.ts`)가 인앱 알림 INSERT 직후 `sendPushToMember`를 fire-and-forget 호출 → 모든 알림 타입 자동 푸시. 설계·함정은 `.claude/docs/push-notification-design.md` / `KNOWLEDGE.md`. VAPID 키는 dev/prd 분리.
 
+> 기강 포인트(**히든 운영 — UI·유저 대상 언급 금지**): `pt_txn_hist` 원장에 원천 테이블(모임·대회·마일리지런·정보) **DB 트리거**가 자동 적립. 앱 코드에 훅 없음 — 새 쓰기 경로를 추가해도 적립은 자동으로 따라온다. 룰·트리거 매트릭스: `docs/design/2026-07-04-기강포인트제도.md`.
+
 # 에이전트 구성
 
 ## 서브에이전트 목록

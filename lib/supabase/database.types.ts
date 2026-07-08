@@ -1143,50 +1143,6 @@ export type Database = {
           },
         ]
       }
-      fee_policy_cfg: {
-        Row: {
-          aply_end_dt: string
-          aply_stt_dt: string
-          crt_at: string
-          del_yn: boolean
-          fee_policy_id: string
-          monthly_fee_amt: number
-          team_id: string
-          upd_at: string
-          vers: number
-        }
-        Insert: {
-          aply_end_dt: string
-          aply_stt_dt: string
-          crt_at?: string
-          del_yn?: boolean
-          fee_policy_id?: string
-          monthly_fee_amt: number
-          team_id: string
-          upd_at?: string
-          vers?: number
-        }
-        Update: {
-          aply_end_dt?: string
-          aply_stt_dt?: string
-          crt_at?: string
-          del_yn?: boolean
-          fee_policy_id?: string
-          monthly_fee_amt?: number
-          team_id?: string
-          upd_at?: string
-          vers?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_fee_policy_cfg__team_mst"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "team_mst"
-            referencedColumns: ["team_id"]
-          },
-        ]
-      }
       fee_payer_alias: {
         Row: {
           alias_id: string
@@ -1244,6 +1200,50 @@ export type Database = {
           },
           {
             foreignKeyName: "fk_fee_payer_alias__team_mst"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
+      fee_policy_cfg: {
+        Row: {
+          aply_end_dt: string
+          aply_stt_dt: string
+          crt_at: string
+          del_yn: boolean
+          fee_policy_id: string
+          monthly_fee_amt: number
+          team_id: string
+          upd_at: string
+          vers: number
+        }
+        Insert: {
+          aply_end_dt: string
+          aply_stt_dt: string
+          crt_at?: string
+          del_yn?: boolean
+          fee_policy_id?: string
+          monthly_fee_amt: number
+          team_id: string
+          upd_at?: string
+          vers?: number
+        }
+        Update: {
+          aply_end_dt?: string
+          aply_stt_dt?: string
+          crt_at?: string
+          del_yn?: boolean
+          fee_policy_id?: string
+          monthly_fee_amt?: number
+          team_id?: string
+          upd_at?: string
+          vers?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_fee_policy_cfg__team_mst"
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "team_mst"
@@ -1832,6 +1832,63 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "mem_mst"
             referencedColumns: ["mem_id"]
+          },
+        ]
+      }
+      pt_txn_hist: {
+        Row: {
+          actv_type_enm: Database["public"]["Enums"]["pt_actv_type_enm"]
+          aply_dt: string
+          crt_at: string
+          mem_id: string
+          pt_amt: number
+          pt_txn_id: string
+          ref_id: string | null
+          ref_type_txt: string | null
+          rsn_txt: string | null
+          team_id: string
+          txn_type_enm: Database["public"]["Enums"]["pt_txn_type_enm"]
+        }
+        Insert: {
+          actv_type_enm: Database["public"]["Enums"]["pt_actv_type_enm"]
+          aply_dt: string
+          crt_at?: string
+          mem_id: string
+          pt_amt: number
+          pt_txn_id?: string
+          ref_id?: string | null
+          ref_type_txt?: string | null
+          rsn_txt?: string | null
+          team_id: string
+          txn_type_enm: Database["public"]["Enums"]["pt_txn_type_enm"]
+        }
+        Update: {
+          actv_type_enm?: Database["public"]["Enums"]["pt_actv_type_enm"]
+          aply_dt?: string
+          crt_at?: string
+          mem_id?: string
+          pt_amt?: number
+          pt_txn_id?: string
+          ref_id?: string | null
+          ref_type_txt?: string | null
+          rsn_txt?: string | null
+          team_id?: string
+          txn_type_enm?: Database["public"]["Enums"]["pt_txn_type_enm"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pt_txn_hist_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "pt_txn_hist_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
           },
         ]
       }
@@ -2455,6 +2512,69 @@ export type Database = {
       }
       migration_v2_norm_email: { Args: { p_input: string }; Returns: string }
       migration_v2_norm_phone: { Args: { p_input: string }; Returns: string }
+      pt_earn: {
+        Args: {
+          p_actv: Database["public"]["Enums"]["pt_actv_type_enm"]
+          p_aply_dt: string
+          p_mem_id: string
+          p_ref_id: string
+          p_ref_type: string
+          p_rsn_txt: string
+          p_team_id: string
+        }
+        Returns: undefined
+      }
+      pt_earn_mlg_record: {
+        Args: {
+          p_aply_dt: string
+          p_mem_id: string
+          p_rsn_txt: string
+          p_team_id: string
+        }
+        Returns: undefined
+      }
+      pt_gthr_actv_type: {
+        Args: { p_gthr_type_enm: string }
+        Returns: Database["public"]["Enums"]["pt_actv_type_enm"]
+      }
+      pt_intro_dt: { Args: never; Returns: string }
+      pt_net_by_ref: {
+        Args: {
+          p_actv: Database["public"]["Enums"]["pt_actv_type_enm"]
+          p_mem_id: string
+          p_ref_id: string
+        }
+        Returns: number
+      }
+      pt_net_mlg_record: {
+        Args: { p_aply_dt: string; p_mem_id: string }
+        Returns: number
+      }
+      pt_revoke: {
+        Args: {
+          p_actv: Database["public"]["Enums"]["pt_actv_type_enm"]
+          p_aply_dt: string
+          p_mem_id: string
+          p_ref_id: string
+          p_ref_type: string
+          p_rsn_txt: string
+          p_team_id: string
+        }
+        Returns: undefined
+      }
+      pt_revoke_mlg_record: {
+        Args: {
+          p_aply_dt: string
+          p_mem_id: string
+          p_rsn_txt: string
+          p_team_id: string
+        }
+        Returns: undefined
+      }
+      pt_rule_amt: {
+        Args: { p_actv: Database["public"]["Enums"]["pt_actv_type_enm"] }
+        Returns: number
+      }
       recalc_member_balance: {
         Args: {
           p_base_bal: number
@@ -2468,6 +2588,7 @@ export type Database = {
         }
         Returns: number
       }
+      recheck_mlg_goal: { Args: { p_goal_id: string }; Returns: undefined }
       rls_is_team_admin: { Args: { p_team_id: string }; Returns: boolean }
       rls_is_team_comp_admin: {
         Args: { p_team_comp_id: string }
@@ -2501,6 +2622,18 @@ export type Database = {
       gender: "male" | "female"
       member_status: "active" | "inactive" | "banned" | "pending"
       participation_role: "participant" | "cheering" | "volunteer"
+      pt_actv_type_enm:
+        | "regular_attend"
+        | "gthr_attend"
+        | "evt_attend"
+        | "gthr_host"
+        | "comp_join"
+        | "comp_record"
+        | "mlg_record"
+        | "mlg_goal"
+        | "sch_post"
+        | "manual"
+      pt_txn_type_enm: "earn" | "revoke" | "spend" | "manual_adj"
       ttl_kind_enm: "auto" | "awarded"
     }
     CompositeTypes: {
@@ -2638,6 +2771,19 @@ export const Constants = {
       gender: ["male", "female"],
       member_status: ["active", "inactive", "banned", "pending"],
       participation_role: ["participant", "cheering", "volunteer"],
+      pt_actv_type_enm: [
+        "regular_attend",
+        "gthr_attend",
+        "evt_attend",
+        "gthr_host",
+        "comp_join",
+        "comp_record",
+        "mlg_record",
+        "mlg_goal",
+        "sch_post",
+        "manual",
+      ],
+      pt_txn_type_enm: ["earn", "revoke", "spend", "manual_adj"],
       ttl_kind_enm: ["auto", "awarded"],
     },
   },

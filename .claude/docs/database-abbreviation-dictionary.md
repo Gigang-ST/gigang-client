@@ -38,6 +38,8 @@
 | `sprt` | sport (종목/스포츠) |
 | `ttl` | title (칭호) |
 | `pay` | payment (납부) |
+| `pt` | point (기강 포인트) |
+| `actv` | activity (활동 — 포인트 적립 대상 활동 유형 `actv_type_enm`) |
 | `prj` | project (프로젝트/모금 — `fee_prj_mst`; 단 `fee_txn_hist.project_id`는 P1 선행 컬럼이라 전체 철자) |
 | `attd` | attendance (출석/참석) |
 | `prt` | participation (참가) |
