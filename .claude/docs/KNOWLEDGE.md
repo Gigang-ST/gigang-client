@@ -83,6 +83,17 @@ Supabase JS `.upsert({ onConflict: "a,b,c" })` 는 `ON CONFLICT (a,b,c)` 만 보
 **남은 한계:** 다이얼로그를 연 채로 창 폭을 768px 경계 너머로 리사이즈하면 여전히 Root가 교체된다(기존부터 있던 엣지). 가드 덕에 사이트 이탈은 안 하고 고아 항목 1개(뒤로가기 한 번 무반응)로 완화됨.
 **원칙:** `useDialogHistoryBack`이 붙은 Root(Dialog/Sheet/Drawer)는 **열린 채로 다른 Root로 갈아끼우면 안 된다.** 반응형 분기 등으로 Root를 조건 교체하는 컴포넌트는 분기 값이 첫 렌더부터 확정돼 있어야 한다.
 
+### public 스키마의 일반 함수는 PostgREST /rpc/로 노출된다 (기본 EXECUTE가 PUBLIC)
+Postgres는 새 함수에 기본적으로 PUBLIC EXECUTE를 부여하고, Supabase는 public 스키마 함수를 `/rpc/<name>`으로 노출한다. `RETURNS trigger`는 RPC 불가라 안전하지만, **트리거가 부르는 헬퍼(RETURNS void/int)나 SECURITY DEFINER 유틸은 클라이언트가 직접 호출 가능**해진다. 또 `ALTER DEFAULT PRIVILEGES` 잔재(20260325 remote_schema)로 **새 테이블에도 anon/authenticated GRANT ALL이 자동 부여**된다 — RLS 정책 0개면 실질 차단되지만 권한 레벨은 열려 있다.
+**원칙:** 내부 전용 함수·비공개 테이블을 만들면 `REVOKE EXECUTE ... FROM PUBLIC, anon, authenticated` / `REVOKE ALL ON TABLE ... FROM anon, authenticated`를 마이그레이션에 항상 동봉한다. (선례: `noti_func_revoke_public`, 포인트 `pt_*` 일괄 REVOKE — 2026-07-04)
+
+### 원천에 유니크 제약이 없는 "존재 확인 후 INSERT"는 advisory lock으로 직렬화
+포인트 원장의 net 판정(§5.2)처럼 **"현재 상태 SELECT → 조건부 INSERT"** 패턴은 원천 테이블 제약이 동시 이벤트를 직렬화해줄 때만 안전하다(참석=UNIQUE(gthr_id,mem_id) 등). 마일리지런 기록처럼 (mem, 날짜) 유니크가 없는 원천은 겹치는 트랜잭션이 서로의 미커밋 INSERT를 못 봐 이중 적립된다. append-only 테이블은 잠글 row도 없어 `FOR UPDATE` 불가.
+**해결:** `pg_advisory_xact_lock(hashtext('<도메인>:'||키)::bigint)`로 논리 키를 직렬화. (선례: `recalc_member_balance`(2026-06-28), `pt_earn_mlg_record`/`recheck_mlg_goal`(2026-07-04))
+
+### MCP generate_typescript_types 결과에는 재정렬 노이즈가 섞인다
+dev MCP로 `database.types.ts`를 재생성하면 기존 테이블 블록이 diff상 삭제+재추가로 보일 수 있다(예: fee_policy_cfg 44줄). 실제 손실인지 이동인지 `git diff | grep "^+" | grep <이름>`으로 반드시 재확인할 것 — dev/prd drift로 진짜 소실될 수도 있다(TODO의 "스키마 drift" 항목 참조).
+
 ## 재사용 패턴
 
 ### 상세 다이얼로그 오픈 = "인스턴트 오픈 + 백필 + 댓글 자체조회" (전 경로 공통 원칙)

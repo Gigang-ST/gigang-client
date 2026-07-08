@@ -434,6 +434,18 @@ RLS:
 트리거:
 - `fdbk_mst_set_upd_at` — UPDATE 시 `set_v2_upd_at()` 호출
 
+## 7) 포인트 도메인 (히든 운영)
+
+> 상세 설계·룰셋·트리거 매트릭스는 `docs/design/2026-07-04-기강포인트제도.md` (source of truth).
+
+### `pt_txn_hist` (포인트 원장, append-only)
+- 멤버 활동(모임 참석·개설, 대회 참가·기록, 마일리지런, 정보등록) 포인트를 기록하는 원장.
+- **적립 주체는 앱이 아니라 원천 테이블 DB 트리거** (`trg_pt_*` — `gthr_attd_rel`, `gthr_mst`, `comp_reg_rel`, `rec_race_hist`, `evt_mlg_act_hist`, `evt_mlg_mth_snap`, `evt_team_prt_rel`, `sch_post_mst`, `comp_mst`).
+- 핵심 컬럼: `pt_amt`(부호 있는 증감), `aply_dt`(귀속 기준일 — 활동일/대회일, KST date), `actv_type_enm`, `txn_type_enm`(earn/revoke/spend/manual_adj), `ref_id`(원천 PK — earn/revoke 짝).
+- 취소·삭제는 row 삭제가 아니라 **역분개(revoke) row 추가**. 멱등은 net(순액) 판정 + advisory lock.
+- **RLS 활성 + 정책 0개 + 테이블/함수 권한 회수** — 클라이언트에서 존재 자체를 알 수 없음(히든). 조회는 관리자 SQL만.
+- 공통 메타 예외: append-only 원장이라 `upd_at`/`del_yn`/`vers` 없음(의도).
+
 ## 8) 관계 요약
 - `mem_mst 1:N team_mem_rel`
 - `team_mst 1:N team_mem_rel`
