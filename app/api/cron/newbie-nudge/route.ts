@@ -34,8 +34,14 @@ type NudgeTarget = {
   crtAt: string;
 };
 
-const DAY_14_MS = 14 * 24 * 60 * 60 * 1000;
-const DAY_28_MS = 28 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+// 각 넛지는 "창(window)" 안에서만 유효 — 하한 지나면 대상, 상한 지나면 제외한다.
+// 상한이 없으면 발송 이력이 안 남는 케이스(수신거부·insert 실패)에서 매일 무한
+// 재선택된다. 크론이 며칠 밀려도 놓치지 않도록 창은 넉넉히 준다.
+const DUE14_MIN_MS = 14 * DAY_MS;
+const DUE14_MAX_MS = 28 * DAY_MS; // D+14 넛지는 D+28 전까지만
+const DUE28_MIN_MS = 28 * DAY_MS;
+const DUE28_MAX_MS = 45 * DAY_MS; // D+28 넛지는 D+45 전까지만
 
 /** 다가오는 정기런(가장 가까운 1건) 날짜가 있으면 날짜를 박은 멘트, 없으면 기본 멘트 */
 async function buildNudgeMessage(
@@ -182,8 +188,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: true, sent14: 0, sent28: 0 });
   }
 
-  const due14 = candidates.filter((c) => now.diff(dayjs(c.crtAt)) >= DAY_14_MS);
-  const due28 = candidates.filter((c) => now.diff(dayjs(c.crtAt)) >= DAY_28_MS);
+  const elapsed = (c: NudgeTarget) => now.diff(dayjs(c.crtAt));
+  const due14 = candidates.filter((c) => {
+    const e = elapsed(c);
+    return e >= DUE14_MIN_MS && e < DUE14_MAX_MS;
+  });
+  const due28 = candidates.filter((c) => {
+    const e = elapsed(c);
+    return e >= DUE28_MIN_MS && e < DUE28_MAX_MS;
+  });
 
   const [notified14, notified28] = await Promise.all([
     findAlreadyNotified(admin, due14.map((c) => c.memId), "newbie_nudge_14"),

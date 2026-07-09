@@ -16,6 +16,9 @@ import {
   AVG_PACE_CODES,
   JOIN_PURP_CODES,
   JOIN_SRC_CODES,
+  PACE_LABELS,
+  JOIN_PURP_LABELS,
+  JOIN_SRC_LABELS,
   type OnboardingProfileValues,
 } from "@/lib/validations/member";
 import { cn } from "@/lib/utils";
@@ -96,41 +99,6 @@ const initialWizardProfile: WizardProfileState = {
   joinPurpTxt: "",
   joinSrcCd: null,
   joinSrcTxt: "",
-};
-
-/** 평균 페이스 코드 → 라벨. 4단계 Select와 완료 화면 개인화 멘트가 공유(설계 §3.4). */
-const PACE_LABELS: Record<(typeof AVG_PACE_CODES)[number], string> = {
-  P330: "3'30\"",
-  P400: "4'00\"",
-  P430: "4'30\"",
-  P500: "5'00\"",
-  P530: "5'30\"",
-  P600: "6'00\"",
-  P630: "6'30\"",
-  P700: "7'00\"",
-  P730: "7'30\"",
-  P730_OVER: "7'30\"보다 여유롭게",
-  UNKNOWN: "잘 모르겠어요",
-};
-
-/** 가입 목적 칩 라벨 (설계 §3.1) */
-const JOIN_PURP_LABELS: Record<(typeof JOIN_PURP_CODES)[number], string> = {
-  RUN_MATE: "같이 달릴 사람이 필요해요",
-  COACH: "자세·훈련 코칭을 받고 싶어요",
-  TRAINING: "인터벌 같은 훈련을 같이 하고 싶어요",
-  NEW_SPORT: "안 해본 운동을 해보고 싶어요",
-  RACE: "대회에 같이 나가고 싶어요",
-  FRIENDS: "새로운 친구를 만나고 싶어요",
-  HABIT: "운동 습관을 만들고 싶어요",
-};
-
-/** 유입 경로 칩 라벨 (설계 §3.5) */
-const JOIN_SRC_LABELS: Record<(typeof JOIN_SRC_CODES)[number], string> = {
-  FRIEND: "지인 소개",
-  INSTA: "인스타그램",
-  SOMOIM: "소모임",
-  DAANGN: "당근",
-  ETC: "기타",
 };
 
 const KAKAO_OPEN_CHAT_URL = "https://open.kakao.com/o/grnMFGng";
@@ -303,11 +271,16 @@ export function MemberOnboardingForm({
 
     const distTrimmed = wizardProfile.avgRunDistKmInput.trim();
     const parsedDist = distTrimmed ? Number(distTrimmed) : null;
+    // 거리는 선택 필드 — 범위(1~100km) 밖이면 서버 스키마가 가입 전체를 막으므로,
+    // 여기서 null로 떨어뜨려 "미입력"으로 취급한다(선택 필드가 가입을 막지 않게).
+    const validDist =
+      parsedDist !== null && Number.isFinite(parsedDist) && parsedDist >= 1 && parsedDist <= 100
+        ? parsedDist
+        : null;
 
     const onbdProfile: OnboardingProfileValues = {
       nearStnNm: wizardProfile.nearStnNm,
-      avgRunDistKm:
-        parsedDist !== null && Number.isFinite(parsedDist) ? parsedDist : null,
+      avgRunDistKm: validDist,
       avgPaceCd: wizardProfile.avgPaceCd,
       joinPurpCds: wizardProfile.joinPurpCds,
       joinPurpTxt: wizardProfile.joinPurpTxt.trim() || null,
@@ -505,7 +478,7 @@ export function MemberOnboardingForm({
                   <Input
                     type="text"
                     inputMode="decimal"
-                    placeholder="예: 5"
+                    placeholder="예: 5 (1~100km)"
                     value={wizardProfile.avgRunDistKmInput}
                     onChange={(e) => {
                       const next = e.target.value;
@@ -521,6 +494,17 @@ export function MemberOnboardingForm({
                     km
                   </span>
                 </div>
+                {(() => {
+                  const d = Number(wizardProfile.avgRunDistKmInput.trim());
+                  const invalid =
+                    wizardProfile.avgRunDistKmInput.trim() !== "" &&
+                    (!Number.isFinite(d) || d < 1 || d > 100);
+                  return invalid ? (
+                    <Caption className="text-destructive">
+                      1~100km 사이로 입력해 주세요.
+                    </Caption>
+                  ) : null;
+                })()}
               </div>
 
               <div className="flex flex-col gap-2">

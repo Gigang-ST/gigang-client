@@ -169,8 +169,12 @@ export async function onboardingCreateMember(args: {
     del_yn: false,
   });
 
-  if (em) {
-    if (em.code === "23505") return { ok: true, alreadyRegistered: true };
+  // mem_mst가 이미 있으면(23505) 조기 return하지 않고 계속 진행한다 — 1차 제출에서
+  // mem_mst만 성공하고 응답이 유실돼 유저가 재제출하는 경우, 여기서 멈추면 mem_onbd_prf·
+  // 참석 약속이 영영 누락된다. 아래 단계(team_mem_rel·mem_onbd_prf·참석)는 모두 멱등
+  // (23505 무시 / upsert)이라 이어서 실행해 프로필·pledge를 마저 기록한다.
+  const alreadyHadMember = em?.code === "23505";
+  if (em && !alreadyHadMember) {
     return { ok: false, message: em.message };
   }
 
@@ -211,23 +215,27 @@ export async function onboardingCreateMember(args: {
     );
   }
 
-  // mem_onbd_prf INSERT — 실패해도 가입은 성공 처리(비치명). 넛지 크론 대상에서만 빠진다.
+  // mem_onbd_prf UPSERT — 실패해도 가입은 성공 처리(비치명). 넛지 크론 대상에서만 빠진다.
+  // upsert(onConflict: mem_id): 재제출(alreadyHadMember)로 이미 row가 있어도 멱등하게 갱신.
   const untypedAdmin = createUntypedAdminClient();
-  const { error: eOnbdPrf } = await untypedAdmin.from("mem_onbd_prf").insert({
-    mem_id: uid,
-    near_stn_nm: onbdProfile.nearStnNm,
-    avg_run_dist_km: onbdProfile.avgRunDistKm,
-    avg_pace_cd: onbdProfile.avgPaceCd,
-    join_purp_cds: onbdProfile.joinPurpCds,
-    join_purp_txt: onbdProfile.joinPurpTxt,
-    join_src_cd: onbdProfile.joinSrcCd,
-    join_src_txt: onbdProfile.joinSrcTxt,
-    attd_pldg_at: dayjs().toISOString(),
-    pldg_gthr_id: args.pledgeGthrId,
-  });
+  const { error: eOnbdPrf } = await untypedAdmin.from("mem_onbd_prf").upsert(
+    {
+      mem_id: uid,
+      near_stn_nm: onbdProfile.nearStnNm,
+      avg_run_dist_km: onbdProfile.avgRunDistKm,
+      avg_pace_cd: onbdProfile.avgPaceCd,
+      join_purp_cds: onbdProfile.joinPurpCds,
+      join_purp_txt: onbdProfile.joinPurpTxt,
+      join_src_cd: onbdProfile.joinSrcCd,
+      join_src_txt: onbdProfile.joinSrcTxt,
+      attd_pldg_at: dayjs().toISOString(),
+      pldg_gthr_id: args.pledgeGthrId,
+    },
+    { onConflict: "mem_id" },
+  );
 
   if (eOnbdPrf) {
-    console.error("[onboarding] mem_onbd_prf INSERT 실패 — 가입은 계속 진행", uid, eOnbdPrf.message);
+    console.error("[onboarding] mem_onbd_prf UPSERT 실패 — 가입은 계속 진행", uid, eOnbdPrf.message);
   }
 
   // 참석 약속 모임 신청 — toggleGatheringAttendance와 공유하는 joinGatheringWithCapCheck 사용

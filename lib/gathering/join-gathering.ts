@@ -7,6 +7,10 @@ export type JoinGatheringResult =
   | { joined: true }
   | { joined: false; reason: "not_found" | "past_locked" | "full" | "error" };
 
+// 조회/INSERT 최소한만 요구하는 구조적 클라이언트 타입 — admin(service role)이든
+// 인증 유저의 RLS 클라이언트든 이 형태면 받는다.
+type SupabaseLike = ReturnType<typeof createUntypedAdminClient>;
+
 /**
  * 모임 참석 등록(가입) 공유 로직 — 모임 존재·팀 일치·del_yn·지난모임잠금·정원재확인·upsert.
  * `toggleGatheringAttendance`(기존 참석 토글)와 `onboardingCreateMember`(온보딩 참석 약속)가
@@ -18,21 +22,30 @@ export type JoinGatheringResult =
  * team_id 필터를 gthr_mst 조회에 반드시 포함한다 — gthr_id는 클라이언트 입력값이라
  * 다른 팀 모임 gthr_id를 조작해 넣는 것을 방어한다(백엔드 리뷰 P2-10).
  *
- * @param admin service role 클라이언트(RLS 우회) — 두 호출부 모두 admin 클라이언트를 쓴다
- *   (온보딩은 회원 행이 아직 없어 RLS 통과 불가, 토글은 기존에도 정원 조회에 admin을 썼다)
+ * @param admin 조회(gthr_mst·정원)용 service role 클라이언트 — 온보딩(회원 행 없음)·토글 공통.
  * @param gthrId 참석 대상 모임 id
  * @param memId 참석자 mem_id
  * @param teamId 요청 팀 컨텍스트(getRequestTeamContext) — 다른 팀 모임 조작 방어
  * @param isAdmin 관리자 여부 — 지난 모임 잠금 예외
+ * @param writeClient gthr_attd_rel INSERT에 쓸 클라이언트. 생략 시 admin(온보딩: 회원 행이
+ *   아직 없어 RLS 통과 불가). 토글은 인증 유저의 RLS 클라이언트를 넘겨 self-only insert 정책을
+ *   DB 레벨에서 유지한다.
  */
 export async function joinGatheringWithCapCheck(
-  admin: ReturnType<typeof createUntypedAdminClient>,
+  admin: SupabaseLike,
   {
     gthrId,
     memId,
     teamId,
     isAdmin,
-  }: { gthrId: string; memId: string; teamId: string; isAdmin: boolean },
+    writeClient,
+  }: {
+    gthrId: string;
+    memId: string;
+    teamId: string;
+    isAdmin: boolean;
+    writeClient?: SupabaseLike;
+  },
 ): Promise<JoinGatheringResult> {
   const { data: gthr, error: gthrErr } = await admin
     .from("gthr_mst")
@@ -67,8 +80,9 @@ export async function joinGatheringWithCapCheck(
     }
   }
 
-  // UNIQUE(gthr_id, mem_id) 제약이 있으므로 upsert로 중복 충돌 방지
-  const { error: upsertErr } = await admin
+  // UNIQUE(gthr_id, mem_id) 제약이 있으므로 upsert로 중복 충돌 방지.
+  // INSERT는 writeClient(토글=RLS 유저 클라, 온보딩=admin)로 — RLS self-only insert 정책 유지.
+  const { error: upsertErr } = await (writeClient ?? admin)
     .from("gthr_attd_rel")
     .upsert({ gthr_id: gthrId, mem_id: memId }, { onConflict: "gthr_id,mem_id", ignoreDuplicates: true });
 

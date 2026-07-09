@@ -68,10 +68,47 @@ export const AVG_PACE_CODES = [
   "UNKNOWN",
 ] as const;
 
+// ── 표시 라벨 (온보딩 위저드·프로필 편집이 공유 — 코드↔라벨 단일 출처) ──
+
+/** 평균 페이스 코드 → 라벨 (설계 §3.4) */
+export const PACE_LABELS: Record<(typeof AVG_PACE_CODES)[number], string> = {
+  P330: "3'30\"",
+  P400: "4'00\"",
+  P430: "4'30\"",
+  P500: "5'00\"",
+  P530: "5'30\"",
+  P600: "6'00\"",
+  P630: "6'30\"",
+  P700: "7'00\"",
+  P730: "7'30\"",
+  P730_OVER: "7'30\"보다 여유롭게",
+  UNKNOWN: "잘 모르겠어요",
+};
+
+/** 가입 목적 칩 라벨 (설계 §3.1) */
+export const JOIN_PURP_LABELS: Record<(typeof JOIN_PURP_CODES)[number], string> = {
+  RUN_MATE: "같이 달릴 사람이 필요해요",
+  COACH: "자세·훈련 코칭을 받고 싶어요",
+  TRAINING: "인터벌 같은 훈련을 같이 하고 싶어요",
+  NEW_SPORT: "안 해본 운동을 해보고 싶어요",
+  RACE: "대회에 같이 나가고 싶어요",
+  FRIENDS: "새로운 친구를 만나고 싶어요",
+  HABIT: "운동 습관을 만들고 싶어요",
+};
+
+/** 유입 경로 칩 라벨 (설계 §3.5) */
+export const JOIN_SRC_LABELS: Record<(typeof JOIN_SRC_CODES)[number], string> = {
+  FRIEND: "지인 소개",
+  INSTA: "인스타그램",
+  SOMOIM: "소모임",
+  DAANGN: "당근",
+  ETC: "기타",
+};
+
 /** 온보딩 6단계(참석 약속)까지 도달했을 때 제출하는 러닝 프로필 + 가입 목적 + 유입 경로 */
 export const onboardingProfileSchema = z.object({
   nearStnNm: z.string().max(30).nullable(),
-  avgRunDistKm: z.number().min(0.5).max(100).nullable(),
+  avgRunDistKm: z.number().min(1).max(100).nullable(),
   avgPaceCd: z.enum(AVG_PACE_CODES).nullable(),
   joinPurpCds: z.array(z.enum(JOIN_PURP_CODES)).min(1),
   joinPurpTxt: z.string().max(500).nullable(),
@@ -87,7 +124,7 @@ export type OnboardingProfileValues = z.infer<typeof onboardingProfileSchema>;
  */
 export const runningProfileEditSchema = z.object({
   nearStnNm: z.string().max(30).nullable(),
-  avgRunDistKm: z.number().min(0.5).max(100).nullable(),
+  avgRunDistKm: z.number().min(1).max(100).nullable(),
   avgPaceCd: z.enum(AVG_PACE_CODES).nullable(),
   joinPurpCds: z.array(z.enum(JOIN_PURP_CODES)).min(0),
   joinPurpTxt: z.string().max(500).nullable(),

@@ -11,6 +11,8 @@ import {
   type ProfileEditValues,
   AVG_PACE_CODES,
   JOIN_PURP_CODES,
+  PACE_LABELS,
+  JOIN_PURP_LABELS,
 } from "@/lib/validations/member";
 import { updateProfile } from "@/app/actions/update-profile";
 import { updateRunningProfile } from "@/app/actions/profile/update-running-profile";
@@ -44,31 +46,6 @@ type MemberData = {
 };
 
 
-/** 평균 페이스 코드 → 라벨 (온보딩 위저드와 동일 — 설계 §3.4) */
-const PACE_LABELS: Record<(typeof AVG_PACE_CODES)[number], string> = {
-  P330: "3'30\"",
-  P400: "4'00\"",
-  P430: "4'30\"",
-  P500: "5'00\"",
-  P530: "5'30\"",
-  P600: "6'00\"",
-  P630: "6'30\"",
-  P700: "7'00\"",
-  P730: "7'30\"",
-  P730_OVER: "7'30\"보다 여유롭게",
-  UNKNOWN: "잘 모르겠어요",
-};
-
-/** 가입 목적 칩 라벨 (온보딩 위저드와 동일 — 설계 §3.1) */
-const JOIN_PURP_LABELS: Record<(typeof JOIN_PURP_CODES)[number], string> = {
-  RUN_MATE: "같이 달릴 사람이 필요해요",
-  COACH: "자세·훈련 코칭을 받고 싶어요",
-  TRAINING: "인터벌 같은 훈련을 같이 하고 싶어요",
-  NEW_SPORT: "안 해본 운동을 해보고 싶어요",
-  RACE: "대회에 같이 나가고 싶어요",
-  FRIENDS: "새로운 친구를 만나고 싶어요",
-  HABIT: "운동 습관을 만들고 싶어요",
-};
 
 type AvatarState =
   | { kind: "current" }
@@ -187,10 +164,8 @@ export function ProfileEditForm({
     isSubmitting || compressing || (!isDirty && avatarState.kind === "current");
 
   return (
-    <form
-      onSubmit={handleSubmit(onSubmit)}
-      className="flex flex-col gap-6 px-6 pb-6 pt-4"
-    >
+    <div className="flex flex-col gap-6 px-6 pb-6 pt-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6">
       {/* 프로필 사진 */}
       <div className="flex flex-col items-center gap-2">
         <button
@@ -302,13 +277,15 @@ export function ProfileEditForm({
       >
         {isSubmitting ? "저장 중..." : "저장"}
       </Button>
+      </form>
 
       <Separator />
 
-      {/* 러닝 프로필 — 기존 폼과 분리된 독립 저장(updateRunningProfile). 이 섹션은 <form> 밖에서 다뤄야
-          하지만 중첩 <form>이 불가능해 버튼에 type="button"을 주고 자체 핸들러로 서버 액션을 호출한다. */}
+      {/* 러닝 프로필 — 기존 프로필 <form> 바깥의 형제로 둔다(독립 저장 updateRunningProfile).
+          form 안에 있으면 이 섹션 입력에서 Enter 시 상위 폼이 제출돼 페이지를 벗어나며
+          미저장 변경이 유실되기 때문. 밖으로 빼 그 문제를 구조적으로 제거한다. */}
       <RunningProfileSection initial={runningProfile} />
-    </form>
+    </div>
   );
 }
 
@@ -336,15 +313,17 @@ function RunningProfileSection({
   const handleSave = async () => {
     const distTrimmed = avgRunDistKmInput.trim();
     const parsedDist = distTrimmed ? Number(distTrimmed) : null;
+    // 거리는 선택 필드 — 범위(1~100km) 밖이면 null로 떨어뜨려 저장이 막히지 않게 한다.
+    const validDist =
+      parsedDist !== null && Number.isFinite(parsedDist) && parsedDist >= 1 && parsedDist <= 100
+        ? parsedDist
+        : null;
 
     setSaving(true);
     try {
       const result = await updateRunningProfile({
         nearStnNm,
-        avgRunDistKm:
-          parsedDist !== null && Number.isFinite(parsedDist)
-            ? parsedDist
-            : null,
+        avgRunDistKm: validDist,
         avgPaceCd: avgPaceCd || null,
         joinPurpCds,
         joinPurpTxt: joinPurpTxt.trim() || null,
@@ -381,18 +360,12 @@ function RunningProfileSection({
           <Input
             type="text"
             inputMode="decimal"
-            placeholder="예: 5"
+            placeholder="예: 5 (1~100km)"
             value={avgRunDistKmInput}
             onChange={(e) => {
               const next = e.target.value;
               if (!/^\d*\.?\d*$/.test(next)) return;
               setAvgRunDistKmInput(next);
-            }}
-            // 이 섹션은 상위 프로필 <form> 안에 있어, Enter 시 메인 폼이 제출되며
-            // 페이지를 벗어나 러닝 프로필 변경이 유실된다. 러닝 프로필은 별도 저장
-            // 버튼으로 처리하므로 이 입력에서 Enter 기본 제출을 막는다.
-            onKeyDown={(e) => {
-              if (e.key === "Enter") e.preventDefault();
             }}
             className="h-12 rounded-xl border-[1.5px] pr-10 text-[15px]"
           />
@@ -400,6 +373,17 @@ function RunningProfileSection({
             km
           </span>
         </div>
+        {(() => {
+          const d = Number(avgRunDistKmInput.trim());
+          const invalid =
+            avgRunDistKmInput.trim() !== "" &&
+            (!Number.isFinite(d) || d < 1 || d > 100);
+          return invalid ? (
+            <Caption className="text-destructive">
+              1~100km 사이로 입력해 주세요.
+            </Caption>
+          ) : null;
+        })()}
       </div>
 
       <div className="flex flex-col gap-2">
