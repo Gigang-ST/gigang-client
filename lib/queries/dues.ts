@@ -478,6 +478,7 @@ export async function getMemberDuesDetail(memId: string): Promise<MemberDuesDeta
 export type LedgerRow = {
   memId: string;
   name: string;
+  birthDt: string | null;
   balance: number;
   status: "미납" | "정상" | "예치";
   months: number;
@@ -524,27 +525,34 @@ export async function getDuesLedger(): Promise<{
 
   const { data: snaps, error: snapsErr } = await db
     .from("fee_mem_bal_snap")
-    .select("mem_id, bal_amt, mem_mst!fk_fee_mem_bal_snap__mem_mst(mem_nm)")
+    .select("mem_id, bal_amt, mem_mst!fk_fee_mem_bal_snap__mem_mst(mem_nm, birth_dt)")
     .eq("team_id", teamId)
     .eq("vers", 0)
     .eq("del_yn", false)
     .in("mem_id", activeMemberIds);
   if (snapsErr) throw new Error(`잔액 스냅샷 조회 실패: ${snapsErr.message}`);
 
-  const rows: LedgerRow[] = (snaps ?? [])
+  const rawRows = (snaps ?? [])
     .map((s) => {
       const bal = s.bal_amt;
-      const memNm = Array.isArray(s.mem_mst) ? s.mem_mst[0]?.mem_nm : (s.mem_mst as { mem_nm: string } | null)?.mem_nm;
+      const mem = Array.isArray(s.mem_mst)
+        ? s.mem_mst[0]
+        : (s.mem_mst as { mem_nm: string; birth_dt: string | null } | null);
+      const memNm = mem?.mem_nm ?? "(이름없음)";
       const status: LedgerRow["status"] = bal < 0 ? "미납" : bal > 0 ? "예치" : "정상";
       return {
         memId: s.mem_id,
-        name: memNm ?? "(이름없음)",
+        name: memNm,
+        birthDt: mem?.birth_dt ?? null,
         balance: bal,
         status,
         // 완납된 개월수(내림). 한 달 미만 잔액은 0 → 화면에서 "1개월 미만"으로 표시한다.
         months: Math.floor(Math.abs(bal) / monthly),
       };
-    })
+    });
+  const dupNames = duplicateNames(rawRows);
+  const rows: LedgerRow[] = rawRows
+    .map((r) => ({ ...r, birthDt: dupNames.has(r.name) ? r.birthDt : null }))
     .sort((a, b) => a.balance - b.balance);
 
   return {

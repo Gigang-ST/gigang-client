@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { H2, Body, Caption, SectionLabel } from "@/components/common/typography";
 import { SegmentControl } from "@/components/common/segment-control";
 import { EmptyState } from "@/components/common/empty-state";
+import { duplicateNames, memberLabel } from "@/lib/dues/homonyms";
 import { cn } from "@/lib/utils";
 
 import type { LedgerRow } from "@/lib/queries/dues";
@@ -41,6 +42,7 @@ export function LedgerClient({
   const [leavingMemberId, setLeavingMemberId] = useState<string | null>(null);
   const [recalcMsg, setRecalcMsg] = useState<string | null>(null);
   const router = useRouter();
+  const dupNames = useMemo(() => duplicateNames(rows), [rows]);
 
   // 취소 후 재계산 실패 등으로 스냅샷이 낡았을 때의 복구 진입점.
   // 재계산은 앵커+리플레이 방식이라 몇 번을 눌러도 결과가 같다(멱등).
@@ -140,7 +142,7 @@ export function LedgerClient({
             <div key={r.memId} className="flex items-center justify-between gap-3 px-4 py-3">
               {/* 이름 영역 = 회원별 납부 근거 드릴다운 진입점 (QS-7) */}
               <Link href={`/admin/dues/members/${r.memId}`} className="flex min-w-0 flex-col gap-0.5">
-                <Body className="font-semibold underline-offset-2 hover:underline">{r.name}</Body>
+                <Body className="font-semibold underline-offset-2 hover:underline">{memberLabel(r, dupNames)}</Body>
                 <Caption>
                   {r.balance === 0
                     ? "정상"
