@@ -505,12 +505,30 @@ export async function getDuesLedger(): Promise<{
   if (policiesErr) throw new Error(`회비 정책 조회 실패: ${policiesErr.message}`);
   const monthly = policies?.[0]?.monthly_fee_amt ?? 2000;
 
+  const { data: activeRels, error: activeRelsErr } = await db
+    .from("team_mem_rel")
+    .select("mem_id")
+    .eq("team_id", teamId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .eq("mem_st_cd", "active");
+  if (activeRelsErr) throw new Error(`활성 회원 조회 실패: ${activeRelsErr.message}`);
+
+  const activeMemberIds = (activeRels ?? []).map((r) => r.mem_id);
+  if (!activeMemberIds.length) {
+    return {
+      rows: [],
+      summary: { unpaid: 0, ok: 0, prepaid: 0 },
+    };
+  }
+
   const { data: snaps, error: snapsErr } = await db
     .from("fee_mem_bal_snap")
     .select("mem_id, bal_amt, mem_mst!fk_fee_mem_bal_snap__mem_mst(mem_nm)")
     .eq("team_id", teamId)
     .eq("vers", 0)
-    .eq("del_yn", false);
+    .eq("del_yn", false)
+    .in("mem_id", activeMemberIds);
   if (snapsErr) throw new Error(`잔액 스냅샷 조회 실패: ${snapsErr.message}`);
 
   const rows: LedgerRow[] = (snaps ?? [])

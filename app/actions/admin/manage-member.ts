@@ -1,5 +1,7 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+
 import { withAdmin } from "@/lib/actions/auth";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -118,6 +120,31 @@ export async function deactivateMember(memberId: string, reason?: string) {
       .select("team_mem_id");
     if (error) return { ok: false, message: "비활성화에 실패했습니다" };
     if (!updated?.length) return { ok: false, message: "비활성화할 수 있는 대상이 아닙니다" };
+    return { ok: true, message: null };
+  });
+}
+
+export async function leaveMemberFromDues(memberId: string, reason?: string) {
+  return withAdmin(async ({ member }) => {
+    if (member.id === memberId) return { ok: false, message: "본인은 탈퇴 처리할 수 없습니다" };
+
+    const { teamId } = await getRequestTeamContext();
+    const db = createAdminClient();
+    const { data: updated, error } = await db
+      .from("team_mem_rel")
+      .update({ mem_st_cd: "left", inact_rsn_txt: reason ?? "회비 미납으로 관리자 탈퇴 처리" })
+      .eq("mem_id", memberId)
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .eq("mem_st_cd", "active")
+      .neq("team_role_cd", "owner")
+      .select("team_mem_id");
+    if (error) return { ok: false, message: "탈퇴 처리에 실패했습니다" };
+    if (!updated?.length) return { ok: false, message: "탈퇴 처리할 수 있는 대상이 아닙니다" };
+
+    revalidatePath("/admin/dues");
+    revalidatePath("/admin/members");
     return { ok: true, message: null };
   });
 }
