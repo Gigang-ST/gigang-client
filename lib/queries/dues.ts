@@ -17,6 +17,8 @@ export type InboxTxn = {
   rawName: string;
   memId: string | null;
   matchStatus: "matched" | "unmatched" | "ambiguous";
+  /** 입출금 구분 — 일괄 재분류를 입금 행에만 허용하기 위해 노출(출금→수입 분류 사고 방지) */
+  io: "deposit" | "withdrawal";
   feeItemCd: string | null;
   /** 저장된 프로젝트 귀속 — 수동 등록·확정취소로 재노출된 event_fee 행의 기본값 시드 */
   projectId: string | null;
@@ -89,8 +91,9 @@ export async function getInboxTxns(): Promise<{
   const txns: InboxTxn[] = (rows ?? []).map((r) => {
     const match = matchPayer(r.raw_name, memberRefs, aliasRefs);
     const matchStatus = (r.match_st_cd ?? match.status) as InboxTxn["matchStatus"];
+    const io = r.txn_io_enm as "deposit" | "withdrawal";
     const bucket = bucketOf({
-      io: r.txn_io_enm as "deposit" | "withdrawal",
+      io,
       itemCd: r.fee_item_cd ?? "other",
       matchStatus,
     });
@@ -102,6 +105,7 @@ export async function getInboxTxns(): Promise<{
       rawName: r.raw_name,
       memId: r.mem_id,
       matchStatus,
+      io,
       feeItemCd: r.fee_item_cd,
       projectId: r.project_id,
       bucket,
@@ -474,6 +478,7 @@ export async function getMemberDuesDetail(memId: string): Promise<MemberDuesDeta
 export type LedgerRow = {
   memId: string;
   name: string;
+  birthDt: string | null;
   balance: number;
   status: "미납" | "정상" | "예치";
   months: number;
@@ -501,28 +506,53 @@ export async function getDuesLedger(): Promise<{
   if (policiesErr) throw new Error(`회비 정책 조회 실패: ${policiesErr.message}`);
   const monthly = policies?.[0]?.monthly_fee_amt ?? 2000;
 
-  const { data: snaps, error: snapsErr } = await db
-    .from("fee_mem_bal_snap")
-    .select("mem_id, bal_amt, mem_mst!fk_fee_mem_bal_snap__mem_mst(mem_nm)")
+  const { data: activeRels, error: activeRelsErr } = await db
+    .from("team_mem_rel")
+    .select("mem_id")
     .eq("team_id", teamId)
     .eq("vers", 0)
-    .eq("del_yn", false);
+    .eq("del_yn", false)
+    .eq("mem_st_cd", "active");
+  if (activeRelsErr) throw new Error(`활성 회원 조회 실패: ${activeRelsErr.message}`);
+
+  const activeMemberIds = (activeRels ?? []).map((r) => r.mem_id);
+  if (!activeMemberIds.length) {
+    return {
+      rows: [],
+      summary: { unpaid: 0, ok: 0, prepaid: 0 },
+    };
+  }
+
+  const { data: snaps, error: snapsErr } = await db
+    .from("fee_mem_bal_snap")
+    .select("mem_id, bal_amt, mem_mst!fk_fee_mem_bal_snap__mem_mst(mem_nm, birth_dt)")
+    .eq("team_id", teamId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .in("mem_id", activeMemberIds);
   if (snapsErr) throw new Error(`잔액 스냅샷 조회 실패: ${snapsErr.message}`);
 
-  const rows: LedgerRow[] = (snaps ?? [])
+  const rawRows = (snaps ?? [])
     .map((s) => {
       const bal = s.bal_amt;
-      const memNm = Array.isArray(s.mem_mst) ? s.mem_mst[0]?.mem_nm : (s.mem_mst as { mem_nm: string } | null)?.mem_nm;
+      const mem = Array.isArray(s.mem_mst)
+        ? s.mem_mst[0]
+        : (s.mem_mst as { mem_nm: string; birth_dt: string | null } | null);
+      const memNm = mem?.mem_nm ?? "(이름없음)";
       const status: LedgerRow["status"] = bal < 0 ? "미납" : bal > 0 ? "예치" : "정상";
       return {
         memId: s.mem_id,
-        name: memNm ?? "(이름없음)",
+        name: memNm,
+        birthDt: mem?.birth_dt ?? null,
         balance: bal,
         status,
         // 완납된 개월수(내림). 한 달 미만 잔액은 0 → 화면에서 "1개월 미만"으로 표시한다.
         months: Math.floor(Math.abs(bal) / monthly),
       };
-    })
+    });
+  const dupNames = duplicateNames(rawRows);
+  const rows: LedgerRow[] = rawRows
+    .map((r) => ({ ...r, birthDt: dupNames.has(r.name) ? r.birthDt : null }))
     .sort((a, b) => a.balance - b.balance);
 
   return {

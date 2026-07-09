@@ -2,9 +2,11 @@
 
 import { useMemo, useState, useTransition } from "react";
 
+import { UserX } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { leaveMemberFromDues } from "@/app/actions/admin/manage-member";
 import { recalculateBalance } from "@/app/actions/dues/recalculate-balance";
 
 import { Button } from "@/components/ui/button";
@@ -13,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { H2, Body, Caption, SectionLabel } from "@/components/common/typography";
 import { SegmentControl } from "@/components/common/segment-control";
 import { EmptyState } from "@/components/common/empty-state";
+import { duplicateNames, memberLabel } from "@/lib/dues/homonyms";
 import { cn } from "@/lib/utils";
 
 import type { LedgerRow } from "@/lib/queries/dues";
@@ -35,8 +38,11 @@ export function LedgerClient({
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
   const [recalcPending, startRecalc] = useTransition();
+  const [leavePending, startLeave] = useTransition();
+  const [leavingMemberId, setLeavingMemberId] = useState<string | null>(null);
   const [recalcMsg, setRecalcMsg] = useState<string | null>(null);
   const router = useRouter();
+  const dupNames = useMemo(() => duplicateNames(rows), [rows]);
 
   // 취소 후 재계산 실패 등으로 스냅샷이 낡았을 때의 복구 진입점.
   // 재계산은 앵커+리플레이 방식이라 몇 번을 눌러도 결과가 같다(멱등).
@@ -47,6 +53,26 @@ export function LedgerClient({
       const res = await recalculateBalance();
       setRecalcMsg(res.ok ? `재계산 완료 — ${res.updatedCount}명 갱신` : "재계산에 실패했습니다. 다시 시도해 주세요.");
       if (res.ok) router.refresh();
+    });
+  }
+
+  function onLeaveMember(row: LedgerRow) {
+    const amount = Math.abs(row.balance).toLocaleString();
+    const monthsLabel = row.months === 0 ? "1개월 미만" : `${row.months}개월`;
+    if (!confirm(`${row.name}님을 탈퇴 처리할까요?\n현재 ${monthsLabel} 미납, ${amount}원입니다.`)) return;
+
+    setLeavingMemberId(row.memId);
+    setRecalcMsg(null);
+    startLeave(async () => {
+      try {
+        const res = await leaveMemberFromDues(row.memId, `회비 ${amount}원 미납으로 관리자 탈퇴 처리`);
+        setRecalcMsg(res.ok ? `${row.name}님을 탈퇴 처리했습니다.` : res.message);
+        if (res.ok) router.refresh();
+      } catch {
+        setRecalcMsg("탈퇴 처리에 실패했습니다. 다시 시도해 주세요.");
+      } finally {
+        setLeavingMemberId(null);
+      }
     });
   }
 
@@ -116,7 +142,7 @@ export function LedgerClient({
             <div key={r.memId} className="flex items-center justify-between gap-3 px-4 py-3">
               {/* 이름 영역 = 회원별 납부 근거 드릴다운 진입점 (QS-7) */}
               <Link href={`/admin/dues/members/${r.memId}`} className="flex min-w-0 flex-col gap-0.5">
-                <Body className="font-semibold underline-offset-2 hover:underline">{r.name}</Body>
+                <Body className="font-semibold underline-offset-2 hover:underline">{memberLabel(r, dupNames)}</Body>
                 <Caption>
                   {r.balance === 0
                     ? "정상"
@@ -139,6 +165,18 @@ export function LedgerClient({
                 <Button asChild size="sm" variant="outline">
                   <Link href="/admin/dues/exemptions">면제</Link>
                 </Button>
+                {r.status === "미납" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    disabled={leavePending}
+                    onClick={() => onLeaveMember(r)}
+                  >
+                    <UserX className="size-3.5" />
+                    {leavePending && leavingMemberId === r.memId ? "처리 중…" : "탈퇴"}
+                  </Button>
+                )}
                 <Button size="sm" variant="outline" disabled title="P3 예정">
                   독려
                 </Button>

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 
 import { dayjs } from "@/lib/dayjs";
+import { duplicateNames, memberLabel } from "@/lib/dues/homonyms";
 import { cn } from "@/lib/utils";
 
 import { createExemption } from "@/app/actions/dues/create-exemption";
@@ -27,12 +28,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-type Member = { mem_id: string; mem_nm: string };
+type Member = { mem_id: string; mem_nm: string; birth_dt: string | null };
 
 type ExemptionRow = {
   exm_cfg_id: string;
   mem_id: string;
   mem_nm: string;
+  birth_dt: string | null;
   exm_tp_enm: "full" | "part";
   exm_amt: number | null;
   aply_stt_dt: string;
@@ -45,6 +47,7 @@ type HistRow = {
   exm_hist_id: string;
   mem_id: string;
   mem_nm: string;
+  birth_dt: string | null;
   aply_ym: string;
   exm_amt: number;
   grant_src_enm: "manual" | "rule_attd" | "rule_attd_quest";
@@ -68,14 +71,25 @@ function displayYm(dt: string) {
 }
 
 // ─── 공통 콤보박스 ────────────────────────────────────────
-function MemberCombobox({ members, value, onSelect }: { members: Member[]; value: string; onSelect: (id: string) => void }) {
+function MemberCombobox({
+  members,
+  value,
+  dupNames,
+  onSelect,
+}: {
+  members: Member[];
+  value: string;
+  dupNames: Set<string>;
+  onSelect: (id: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const selected = members.find((m) => m.mem_id === value);
+  const labelOf = (m: Member) => memberLabel({ name: m.mem_nm, birthDt: m.birth_dt }, dupNames);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal">
-          {selected ? selected.mem_nm : "회원 검색..."}
+          {selected ? labelOf(selected) : "회원 검색..."}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -86,9 +100,9 @@ function MemberCombobox({ members, value, onSelect }: { members: Member[]; value
             <CommandEmpty>결과 없음</CommandEmpty>
             <CommandGroup>
               {members.map((m) => (
-                <CommandItem key={m.mem_id} value={m.mem_nm} onSelect={() => { onSelect(m.mem_id); setOpen(false); }}>
+                <CommandItem key={m.mem_id} value={`${m.mem_nm} ${m.mem_id}`} onSelect={() => { onSelect(m.mem_id); setOpen(false); }}>
                   <Check className={cn("mr-2 h-4 w-4", value === m.mem_id ? "opacity-100" : "opacity-0")} />
-                  {m.mem_nm}
+                  {labelOf(m)}
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -110,6 +124,7 @@ export function DuesExemptionsClient({
   members: Member[];
 }) {
   const [tab, setTab] = useState<"rules" | "hists">("rules");
+  const dupNames = useMemo(() => duplicateNames(members.map((m) => ({ name: m.mem_nm }))), [members]);
 
   return (
     <div className="flex flex-col gap-4 px-6 pb-6 pt-2">
@@ -122,9 +137,9 @@ export function DuesExemptionsClient({
         onValueChange={(v) => setTab(v as "rules" | "hists")}
       />
       {tab === "rules" ? (
-        <ExemptionRulesTab exemptions={initialExemptions} members={members} />
+        <ExemptionRulesTab exemptions={initialExemptions} members={members} dupNames={dupNames} />
       ) : (
-        <ExemptionHistsTab hists={initialHists} members={members} />
+        <ExemptionHistsTab hists={initialHists} members={members} dupNames={dupNames} />
       )}
     </div>
   );
@@ -144,7 +159,15 @@ function defaultRuleForm(): RuleFormState {
   return { memId: "", exmTpEnm: "full", exmAmt: "", aplySttYm: dayjs().format("YYYY-MM"), aplyEndYm: "", rsnTxt: "" };
 }
 
-function ExemptionRulesTab({ exemptions: init, members }: { exemptions: ExemptionRow[]; members: Member[] }) {
+function ExemptionRulesTab({
+  exemptions: init,
+  members,
+  dupNames,
+}: {
+  exemptions: ExemptionRow[];
+  members: Member[];
+  dupNames: Set<string>;
+}) {
   const [isPending, startTransition] = useTransition();
   const [rows, setRows] = useState(init);
   const [addOpen, setAddOpen] = useState(false);
@@ -232,7 +255,7 @@ function ExemptionRulesTab({ exemptions: init, members }: { exemptions: Exemptio
             )}
             {rows.map((row) => (
               <TableRow key={row.exm_cfg_id} className="cursor-pointer hover:bg-muted/50" onClick={() => openEdit(row)}>
-                <TableCell className="text-center"><Caption className="text-xs font-semibold whitespace-nowrap">{row.mem_nm}</Caption></TableCell>
+                <TableCell className="text-center"><Caption className="text-xs font-semibold whitespace-nowrap">{memberLabel({ name: row.mem_nm, birthDt: row.birth_dt }, dupNames)}</Caption></TableCell>
                 <TableCell className="text-center"><Caption className="text-xs whitespace-nowrap">{row.exm_tp_enm === "full" ? "전액" : "부분"}</Caption></TableCell>
                 <TableCell className="text-center"><Caption className="text-xs whitespace-nowrap">{row.exm_tp_enm === "full" ? "전액" : `${row.exm_amt?.toLocaleString()}원`}</Caption></TableCell>
                 <TableCell className="text-center"><Caption className="text-xs whitespace-nowrap">{displayYm(row.aply_stt_dt)}</Caption></TableCell>
@@ -248,7 +271,7 @@ function ExemptionRulesTab({ exemptions: init, members }: { exemptions: Exemptio
       <Dialog open={addOpen} onOpenChange={(o) => !o && setAddOpen(false)}>
         <DialogContent>
           <DialogHeader><DialogTitle>면제 규칙 등록</DialogTitle></DialogHeader>
-          <RuleForm form={form} onChange={setForm} members={members} showMemberSelect />
+          <RuleForm form={form} onChange={setForm} members={members} dupNames={dupNames} showMemberSelect />
           <Button onClick={handleAdd} disabled={isPending || !form.memId || !form.rsnTxt || !form.aplySttYm}>
             {isPending ? <LoadingSpinner /> : "등록"}
           </Button>
@@ -258,7 +281,7 @@ function ExemptionRulesTab({ exemptions: init, members }: { exemptions: Exemptio
       <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editTarget?.mem_nm} 면제 규칙 수정</DialogTitle></DialogHeader>
-          <RuleForm form={form} onChange={setForm} members={members} />
+          <RuleForm form={form} onChange={setForm} members={members} dupNames={dupNames} />
           <div className="flex gap-2">
             <Button className="flex-1" onClick={handleEdit} disabled={isPending || !form.rsnTxt || !form.aplySttYm}>
               {isPending ? <LoadingSpinner /> : "저장"}
@@ -271,13 +294,25 @@ function ExemptionRulesTab({ exemptions: init, members }: { exemptions: Exemptio
   );
 }
 
-function RuleForm({ form, onChange, members, showMemberSelect = false }: { form: RuleFormState; onChange: React.Dispatch<React.SetStateAction<RuleFormState>>; members: Member[]; showMemberSelect?: boolean }) {
+function RuleForm({
+  form,
+  onChange,
+  members,
+  dupNames,
+  showMemberSelect = false,
+}: {
+  form: RuleFormState;
+  onChange: React.Dispatch<React.SetStateAction<RuleFormState>>;
+  members: Member[];
+  dupNames: Set<string>;
+  showMemberSelect?: boolean;
+}) {
   return (
     <div className="flex flex-col gap-4 pt-1">
       {showMemberSelect && (
         <div className="flex flex-col gap-1.5">
           <Label>회원</Label>
-          <MemberCombobox members={members} value={form.memId} onSelect={(id) => onChange((f) => ({ ...f, memId: id }))} />
+          <MemberCombobox members={members} value={form.memId} dupNames={dupNames} onSelect={(id) => onChange((f) => ({ ...f, memId: id }))} />
         </div>
       )}
       <div className="flex flex-col gap-1.5">
@@ -326,7 +361,15 @@ function defaultHistForm(): HistFormState {
   return { memId: "", aplyYm: dayjs().format("YYYY-MM"), exmAmt: "", rsnTxt: "" };
 }
 
-function ExemptionHistsTab({ hists: init, members }: { hists: HistRow[]; members: Member[] }) {
+function ExemptionHistsTab({
+  hists: init,
+  members,
+  dupNames,
+}: {
+  hists: HistRow[];
+  members: Member[];
+  dupNames: Set<string>;
+}) {
   const [isPending, startTransition] = useTransition();
   const [rows, setRows] = useState(init);
   const [addOpen, setAddOpen] = useState(false);
@@ -402,7 +445,7 @@ function ExemptionHistsTab({ hists: init, members }: { hists: HistRow[]; members
             )}
             {rows.map((row) => (
               <TableRow key={row.exm_hist_id} className="cursor-pointer hover:bg-muted/50" onClick={() => openEdit(row)}>
-                <TableCell className="text-center"><Caption className="text-xs font-semibold whitespace-nowrap">{row.mem_nm}</Caption></TableCell>
+                <TableCell className="text-center"><Caption className="text-xs font-semibold whitespace-nowrap">{memberLabel({ name: row.mem_nm, birthDt: row.birth_dt }, dupNames)}</Caption></TableCell>
                 <TableCell className="text-center"><Caption className="text-xs whitespace-nowrap">{row.aply_ym.replace("-", ".")}</Caption></TableCell>
                 <TableCell className="text-center"><Caption className="text-xs whitespace-nowrap">{row.exm_amt.toLocaleString()}원</Caption></TableCell>
                 <TableCell className="text-center">
@@ -425,7 +468,7 @@ function ExemptionHistsTab({ hists: init, members }: { hists: HistRow[]; members
           <div className="flex flex-col gap-4 pt-1">
             <div className="flex flex-col gap-1.5">
               <Label>회원</Label>
-              <MemberCombobox members={members} value={form.memId} onSelect={(id) => setForm((f) => ({ ...f, memId: id }))} />
+              <MemberCombobox members={members} value={form.memId} dupNames={dupNames} onSelect={(id) => setForm((f) => ({ ...f, memId: id }))} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>적용 월 <span className="text-destructive">*</span></Label>
