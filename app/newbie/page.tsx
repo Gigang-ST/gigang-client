@@ -84,11 +84,12 @@ const activityChips = [
   "🎉 외 활동 다수",
 ];
 
-/** 가입 3단계 미리보기 */
+/** 가입 흐름 미리보기 — 필수 3 + 선택/약속 단계까지 실제 흐름 그대로 */
 const signupSteps = [
   { label: "카카오로 로그인", desc: "1초면 끝나요" },
-  { label: "연락처 확인", desc: "기존 회원인지 확인해요" },
   { label: "기본 정보 입력", desc: "이름·성별·생일만요" },
+  { label: "러닝 취향 (선택)", desc: "건너뛰어도 돼요" },
+  { label: "첫 모임 약속", desc: "클릭 한 번이면 끝" },
 ];
 
 /* ─── 토글 컴포넌트 ─── */
@@ -129,7 +130,7 @@ export default function NewbiePage() {
           <Caption className="tracking-[3px]">WELCOME TO</Caption>
           <H1 className="mt-2 text-[32px]">기강에 잘 오셨어요 👟</H1>
           <Body className="mt-3 block text-muted-foreground">
-            3단계, 1분이면 가입이 끝나요.
+            기본 정보만 넣으면 가입 끝. 러닝 취향은 건너뛰어도 돼요.
           </Body>
         </section>
 

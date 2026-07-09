@@ -34,6 +34,9 @@ const NOTI_ROUTE: Record<
   gthr_mention: (refId) => (refId ? `/?gthr=${refId}` : "/"),
   fdbk_new: () => "/admin/feedback",
   fdbk_rspd: () => "/profile/feedback",
+  // 뉴비 온보딩 미참석 넛지 — 홈 일정 섹션으로 랜딩(설계 §7.1)
+  newbie_nudge_14: () => "/",
+  newbie_nudge_28: () => "/",
 };
 
 /** 알림 타입+ref로 딥링크 URL을 해석한다. 매핑이 없으면 null. */

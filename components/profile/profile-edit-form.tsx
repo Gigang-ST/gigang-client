@@ -9,13 +9,20 @@ import { Camera } from "lucide-react";
 import {
   profileEditSchema,
   type ProfileEditValues,
+  AVG_PACE_CODES,
+  JOIN_PURP_CODES,
 } from "@/lib/validations/member";
 import { updateProfile } from "@/app/actions/update-profile";
+import { updateRunningProfile } from "@/app/actions/profile/update-running-profile";
 import { compressAvatarFile } from "@/lib/image/avatar-compress";
+import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/common/avatar";
 import { Caption } from "@/components/common/typography";
+import { StationCombobox } from "@/components/auth/station-combobox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -35,12 +42,53 @@ type MemberData = {
   avatar_url: string | null;
 };
 
+/** app/(info)/profile/edit/page.tsx 가 getOnbdProfile()로 조회해 전달하는 러닝 프로필 초기값 */
+type RunningProfileData = {
+  nearStnNm: string | null;
+  avgRunDistKm: number | null;
+  avgPaceCd: string | null;
+  joinPurpCds: string[];
+  joinPurpTxt: string | null;
+};
+
+/** 평균 페이스 코드 → 라벨 (온보딩 위저드와 동일 — 설계 §3.4) */
+const PACE_LABELS: Record<(typeof AVG_PACE_CODES)[number], string> = {
+  P330: "3'30\"",
+  P400: "4'00\"",
+  P430: "4'30\"",
+  P500: "5'00\"",
+  P530: "5'30\"",
+  P600: "6'00\"",
+  P630: "6'30\"",
+  P700: "7'00\"",
+  P730: "7'30\"",
+  P730_OVER: "7'30\"보다 여유롭게",
+  UNKNOWN: "잘 모르겠어요",
+};
+
+/** 가입 목적 칩 라벨 (온보딩 위저드와 동일 — 설계 §3.1) */
+const JOIN_PURP_LABELS: Record<(typeof JOIN_PURP_CODES)[number], string> = {
+  RUN_MATE: "같이 달릴 사람이 필요해요",
+  COACH: "자세·훈련 코칭을 받고 싶어요",
+  TRAINING: "인터벌 같은 훈련을 같이 하고 싶어요",
+  NEW_SPORT: "안 해본 운동을 해보고 싶어요",
+  RACE: "대회에 같이 나가고 싶어요",
+  FRIENDS: "새로운 친구를 만나고 싶어요",
+  HABIT: "운동 습관을 만들고 싶어요",
+};
+
 type AvatarState =
   | { kind: "current" }
   | { kind: "new"; file: File; previewUrl: string }
   | { kind: "removed" };
 
-export function ProfileEditForm({ member }: { member: MemberData }) {
+export function ProfileEditForm({
+  member,
+  runningProfile,
+}: {
+  member: MemberData;
+  runningProfile: RunningProfileData | null;
+}) {
   const router = useRouter();
   const [avatarState, setAvatarState] = useState<AvatarState>({
     kind: "current",
@@ -261,6 +309,170 @@ export function ProfileEditForm({ member }: { member: MemberData }) {
       >
         {isSubmitting ? "저장 중..." : "저장"}
       </Button>
+
+      <Separator />
+
+      {/* 러닝 프로필 — 기존 폼과 분리된 독립 저장(updateRunningProfile). 이 섹션은 <form> 밖에서 다뤄야
+          하지만 중첩 <form>이 불가능해 버튼에 type="button"을 주고 자체 핸들러로 서버 액션을 호출한다. */}
+      <RunningProfileSection initial={runningProfile} />
     </form>
+  );
+}
+
+/** "러닝 프로필" 섹션 — 역·거리·페이스·가입 목적. 프로필 편집 폼과 독립적으로 저장한다(설계 §6.3). */
+function RunningProfileSection({
+  initial,
+}: {
+  initial: RunningProfileData | null;
+}) {
+  const [nearStnNm, setNearStnNm] = useState<string | null>(
+    initial?.nearStnNm ?? null,
+  );
+  const [avgRunDistKmInput, setAvgRunDistKmInput] = useState(
+    initial?.avgRunDistKm != null ? String(initial.avgRunDistKm) : "",
+  );
+  const [avgPaceCd, setAvgPaceCd] = useState<
+    (typeof AVG_PACE_CODES)[number] | ""
+  >((initial?.avgPaceCd as (typeof AVG_PACE_CODES)[number] | null) ?? "");
+  const [joinPurpCds, setJoinPurpCds] = useState<
+    (typeof JOIN_PURP_CODES)[number][]
+  >((initial?.joinPurpCds ?? []) as (typeof JOIN_PURP_CODES)[number][]);
+  const [joinPurpTxt, setJoinPurpTxt] = useState(initial?.joinPurpTxt ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    const distTrimmed = avgRunDistKmInput.trim();
+    const parsedDist = distTrimmed ? Number(distTrimmed) : null;
+
+    setSaving(true);
+    try {
+      const result = await updateRunningProfile({
+        nearStnNm,
+        avgRunDistKm:
+          parsedDist !== null && Number.isFinite(parsedDist)
+            ? parsedDist
+            : null,
+        avgPaceCd: avgPaceCd || null,
+        joinPurpCds,
+        joinPurpTxt: joinPurpTxt.trim() || null,
+      });
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success("러닝 프로필을 저장했어요");
+    } catch {
+      toast.error("저장 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <Label className="text-base font-semibold">러닝 프로필</Label>
+        <Caption className="mt-1 block">
+          전부 선택 입력이에요. 코스·모임 안내에 참고할게요.
+        </Caption>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label>가까운 역 (선택)</Label>
+        <StationCombobox value={nearStnNm} onChange={setNearStnNm} />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label>평균 러닝 거리 (선택)</Label>
+        <div className="relative">
+          <Input
+            type="text"
+            inputMode="decimal"
+            placeholder="예: 5"
+            value={avgRunDistKmInput}
+            onChange={(e) => {
+              const next = e.target.value;
+              if (!/^\d*\.?\d*$/.test(next)) return;
+              setAvgRunDistKmInput(next);
+            }}
+            className="h-12 rounded-xl border-[1.5px] pr-10 text-[15px]"
+          />
+          <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+            km
+          </span>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label>평균 페이스 (선택)</Label>
+        <Select
+          value={avgPaceCd}
+          onValueChange={(v) =>
+            setAvgPaceCd(v as (typeof AVG_PACE_CODES)[number])
+          }
+        >
+          <SelectTrigger className="h-12 rounded-xl border-[1.5px] text-[15px]">
+            <SelectValue placeholder="페이스 선택" />
+          </SelectTrigger>
+          <SelectContent>
+            {AVG_PACE_CODES.map((code) => (
+              <SelectItem key={code} value={code}>
+                {PACE_LABELS[code]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label>기강에서 뭘 하고 싶으세요? (선택)</Label>
+        <div className="flex flex-wrap gap-2">
+          {JOIN_PURP_CODES.map((code) => {
+            const selected = joinPurpCds.includes(code);
+            return (
+              <button
+                key={code}
+                type="button"
+                onClick={() =>
+                  setJoinPurpCds((prev) =>
+                    selected
+                      ? prev.filter((c) => c !== code)
+                      : [...prev, code],
+                  )
+                }
+                className={cn(
+                  "rounded-full border-[1.5px] px-3.5 py-1.5 text-[13px] font-semibold transition-colors",
+                  selected
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background text-foreground hover:bg-secondary",
+                )}
+              >
+                {JOIN_PURP_LABELS[code]}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label>더 하고 싶은 말이 있다면 (선택)</Label>
+        <Textarea
+          placeholder="자유롭게 남겨주세요"
+          value={joinPurpTxt}
+          onChange={(e) => setJoinPurpTxt(e.target.value)}
+          className="rounded-xl border-[1.5px] text-[15px]"
+        />
+      </div>
+
+      <Button
+        type="button"
+        variant="secondary"
+        disabled={saving}
+        onClick={handleSave}
+        className="h-[52px] w-full rounded-xl text-base font-semibold"
+      >
+        {saving ? "저장 중..." : "러닝 프로필 저장"}
+      </Button>
+    </div>
   );
 }

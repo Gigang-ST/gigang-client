@@ -2,19 +2,26 @@ import { cn } from "@/lib/utils";
 
 import { Caption } from "@/components/common/typography";
 
-const TOTAL_STEPS = 3;
-const STEP_LABELS = ["시작", "로그인", "정보 입력"] as const;
+const TOTAL_STEPS = 6;
+const STEP_LABELS = [
+  "시작",
+  "로그인",
+  "기본 정보",
+  "러닝 프로필",
+  "가입 목적",
+  "참석 약속",
+] as const;
 
 type SignupProgressProps = {
-  /** 현재 단계 (1=시작, 2=로그인, 3=정보 입력) */
-  step: 1 | 2 | 3;
+  /** 현재 단계 (1=시작, 2=로그인, 3=기본 정보, 4=러닝 프로필, 5=가입 목적, 6=참석 약속) */
+  step: 1 | 2 | 3 | 4 | 5 | 6;
   /** 가입 완료 시 모든 칸을 채움 */
   done?: boolean;
 };
 
 /**
- * 가입 위저드 3단계 공유 진행바.
- * newbie(1)·login(2)·onboarding(3) 세 페이지가 동일하게 사용한다.
+ * 가입 위저드 6단계 공유 진행바.
+ * newbie(1)·login(2)·onboarding(3~6) 페이지가 동일하게 사용한다.
  * 화면 상단에 고정(fixed)되며 내부 콘텐츠는 max-w-md 중앙 정렬.
  */
 export function SignupProgress({ step, done = false }: SignupProgressProps) {

@@ -6,6 +6,9 @@ export const env = createEnv({
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
     REVALIDATE_SECRET: z.string().min(1),
     KAKAO_CHAT_PASSWORD: z.string().optional(),
+    // 뉴비 온보딩 미참석 넛지 크론(app/api/cron/newbie-nudge) 인증용.
+    // optional: 미설정 시 크론 라우트가 503으로 스스로 막는다(발송 사고 방지, 앱 기동은 막지 않음).
+    CRON_SECRET: z.string().min(1).optional(),
     GEMINI_API_KEY: z.string().min(1).optional(),
     NODE_ENV: z.enum(["development", "production", "test"]),
     // 웹 푸시(VAPID) — 서버에서 발송 시 사용. NEXT_PUBLIC_ 금지(비밀키)
@@ -31,6 +34,7 @@ export const env = createEnv({
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     REVALIDATE_SECRET: process.env.REVALIDATE_SECRET,
     KAKAO_CHAT_PASSWORD: process.env.KAKAO_CHAT_PASSWORD,
+    CRON_SECRET: process.env.CRON_SECRET,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     NODE_ENV: process.env.NODE_ENV,
     VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,

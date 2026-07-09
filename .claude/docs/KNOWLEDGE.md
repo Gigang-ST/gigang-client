@@ -91,6 +91,10 @@ Postgres는 새 함수에 기본적으로 PUBLIC EXECUTE를 부여하고, Supaba
 포인트 원장의 net 판정(§5.2)처럼 **"현재 상태 SELECT → 조건부 INSERT"** 패턴은 원천 테이블 제약이 동시 이벤트를 직렬화해줄 때만 안전하다(참석=UNIQUE(gthr_id,mem_id) 등). 마일리지런 기록처럼 (mem, 날짜) 유니크가 없는 원천은 겹치는 트랜잭션이 서로의 미커밋 INSERT를 못 봐 이중 적립된다. append-only 테이블은 잠글 row도 없어 `FOR UPDATE` 불가.
 **해결:** `pg_advisory_xact_lock(hashtext('<도메인>:'||키)::bigint)`로 논리 키를 직렬화. (선례: `recalc_member_balance`(2026-06-28), `pt_earn_mlg_record`/`recheck_mlg_goal`(2026-07-04))
 
+### createAdminClient(RLS 우회) 서버 액션은 팀 스코프·대상 검증을 코드로 강제해야 한다
+관리자 서버 액션이 `createAdminClient()`(service role)를 쓰는 순간 RLS가 전부 무력화되므로, "어느 팀의 무엇을 대상으로 하는가"를 **액션 안에서 직접 검증**해야 한다. 안 하면 임의 id를 넘겨 타 팀 데이터를 조작하는 IDOR이 된다 (모임 참가자 관리 리뷰에서 발견 — 초안이 gthr_id 팀 소속 확인 없이 DELETE).
+**패턴:** `getRequestTeamContext()`로 teamId → 대상 row를 teamId 조건 포함해 조회(없으면 거부) → 변경. 선례: `manage-member.ts`의 `.eq("team_id", teamId)`, `manage-gathering-attendance.ts`의 `verifyGatheringInTeam()`. 클라이언트 필터(활성 멤버만 셀렉트 등)는 UI 편의일 뿐 서버 검증을 대체하지 않는다.
+
 ### MCP generate_typescript_types 결과에는 재정렬 노이즈가 섞인다
 dev MCP로 `database.types.ts`를 재생성하면 기존 테이블 블록이 diff상 삭제+재추가로 보일 수 있다(예: fee_policy_cfg 44줄). 실제 손실인지 이동인지 `git diff | grep "^+" | grep <이름>`으로 반드시 재확인할 것 — dev/prd drift로 진짜 소실될 수도 있다(TODO의 "스키마 drift" 항목 참조).
 
@@ -103,5 +107,14 @@ dev MCP로 `database.types.ts`를 재생성하면 기존 테이블 블록이 dif
 3. **딥링크 not-found는 무반응 금지** — `notifyDeepLinkMissing()`(토스트 + 파라미터 정리).
 4. **한 경로에서 버그·개선을 발견하면 위 경로 전체에 같은 수정을 전수 적용**하고, 경로가 늘면 이 목록을 갱신한다. _(2026-07-03: 대회 클릭이 조회 후 오픈, 일정·대회 딥링크가 댓글까지 대기하던 것을 모임 패턴으로 일괄 정렬)_
 
-### 서버 액션이 nullable을 수용하면 폼 필드를 선택/접이식으로 분리
-`onboardingCreateMember`는 은행·계좌·이메일을 nullable로 받는다. 가입 마찰을 줄이려면 서버가 선택으로 받는 필드를 "추가 정보(선택)" 접이식으로 내려 필수 입력을 최소화하고, 나머지는 가입 후 별도 페이지(`/profile/bank`)에서 입력하게 한다. 서버 페이로드 구조는 그대로 유지된다.
+### 서버 액션이 nullable을 수용하면 폼 필드를 선택으로 분리 (또는 온보딩에서 제거)
+`onboardingCreateMember`는 은행·계좌·이메일을 nullable로 받는다. 가입 마찰을 줄이려면 서버가 선택으로 받는 필드를 필수 입력에서 빼고, 가입 후 별도 페이지(`/profile/bank`)에서 입력하게 한다. 서버 페이로드 구조는 그대로 유지(폼은 `bankName:null, bankAccountRaw:""`로 항상 빈 값 전달). _(2026-07-09: 6단계 위저드 개편 때 계좌 접이식 UI를 온보딩에서 완전 제거 — 가입 시점엔 계좌 맥락이 없어 거부감만 준다는 판단.)_
+
+### 다단계 위저드의 입력은 제어 컴포넌트로 — 비제어(defaultValue)는 단계 왕복 시 깨진다
+온보딩 phone 입력을 비제어(`defaultValue`)로 두면 (1) "번호 다시 입력"으로 단계를 되돌아올 때 값이 최초 마운트 값에 고정돼 안 바뀌고, (2) `autoComplete="tel"` autofill이 이름 등 엉뚱한 값을 그 칸에 채운다("이름이 연락처로 넘어옴"). **해결:** `value={field.value}` 제어 입력 + `autoComplete="off"`. 그러면 `phoneInputRef`/`syncPhoneFromDom` 같은 autofill 우회 장치도 전부 불필요. (원래 비제어로 뒀던 이유가 "모바일 autofill이 onChange 없이 DOM만 채운다"였는데, autofill을 끄면 그 문제 자체가 사라진다.) 2026-07-09 수정.
+
+### 회원 생성 직후 다중 테이블 INSERT는 트랜잭션이 아니다 — 핵심/부가를 나눠 비치명 처리
+서버 액션은 문장별 실행이라 `mem_mst` INSERT → `team_mem_rel` → `mem_onbd_prf` → 참석 INSERT가 한 트랜잭션으로 묶이지 않는다. 원칙: **가입 성립에 필수인 것**(`mem_mst`+`team_mem_rel`)은 실패 시 service_role로 앞 INSERT를 되돌리고(`mem_mst` DELETE 정책이 없어 admin 클라이언트 필요), **부가 데이터**(`mem_onbd_prf`, 참석 약속 모임 신청)는 실패해도 가입을 롤백하지 않고 `console.error` 로깅만 한다. `mem_onbd_prf` FK가 `ON DELETE CASCADE`라 앞 단계 롤백 시 자동 정리되지만, 이는 "프로필 INSERT는 롤백 지점 뒤"라는 순서에 의존하는 암묵 전제. (선례: `onboardingCreateMember` 2026-07-09)
+
+### "개편 후 신규 가입자" 식별은 위성 테이블 row 존재가 아니라 전용 플래그로
+`mem_onbd_prf`는 온보딩에서도 생기고 기존 회원이 프로필 편집에서 러닝 프로필을 입력해도 생긴다(upsert). 따라서 "row 존재 = 신규 온보딩 가입자"가 아니다. 넛지 크론 대상 판별은 **`attd_pldg_at IS NOT NULL`**(참석 서약은 온보딩 경로에서만 기록)로 한다. 프로필 편집 서버 액션(`update-running-profile`)은 `attd_pldg_at`/`pldg_gthr_id`/`join_src_cd`/`join_src_txt`를 payload에서 제외해 절대 덮어쓰지 않는다.
