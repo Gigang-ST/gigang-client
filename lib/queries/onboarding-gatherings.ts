@@ -14,6 +14,10 @@ export type PledgeGathering = {
   sttAt: string;
   locTxt: string | null;
   gthrTypeEnm: string;
+  /** 현재 참석 인원 — 사회적 증거로 목록에 "N명 참석" 노출 */
+  attdCnt: number;
+  /** 정원(없으면 null) */
+  maxPrtCnt: number | null;
 };
 
 /** 온보딩 페이지 노출 한도 */
@@ -48,26 +52,24 @@ export async function getOpenGatheringsForPledge(): Promise<PledgeGathering[]> {
   }
   if (!gatherings?.length) return [];
 
-  const capped = gatherings.filter((g) => g.max_prt_cnt !== null);
+  // 참석수는 정원 필터뿐 아니라 목록에 "N명 참석" 노출에도 쓰이므로 전체 모임 대상 집계.
   let attdCountByGthrId = new Map<string, number>();
 
-  if (capped.length > 0) {
-    const { data: attdRows, error: attdErr } = await admin
-      .from("gthr_attd_rel")
-      .select("gthr_id")
-      .in(
-        "gthr_id",
-        capped.map((g) => g.gthr_id),
-      );
+  const { data: attdRows, error: attdErr } = await admin
+    .from("gthr_attd_rel")
+    .select("gthr_id")
+    .in(
+      "gthr_id",
+      gatherings.map((g) => g.gthr_id),
+    );
 
-    if (attdErr) {
-      console.error("[onboarding] 모임 참석수 집계 실패", attdErr.message);
-    } else {
-      attdCountByGthrId = (attdRows ?? []).reduce((acc, r) => {
-        acc.set(r.gthr_id, (acc.get(r.gthr_id) ?? 0) + 1);
-        return acc;
-      }, new Map<string, number>());
-    }
+  if (attdErr) {
+    console.error("[onboarding] 모임 참석수 집계 실패", attdErr.message);
+  } else {
+    attdCountByGthrId = (attdRows ?? []).reduce((acc, r) => {
+      acc.set(r.gthr_id, (acc.get(r.gthr_id) ?? 0) + 1);
+      return acc;
+    }, new Map<string, number>());
   }
 
   return gatherings
@@ -83,5 +85,7 @@ export async function getOpenGatheringsForPledge(): Promise<PledgeGathering[]> {
       sttAt: g.stt_at,
       locTxt: g.loc_txt,
       gthrTypeEnm: g.gthr_type_enm,
+      attdCnt: attdCountByGthrId.get(g.gthr_id) ?? 0,
+      maxPrtCnt: g.max_prt_cnt,
     }));
 }

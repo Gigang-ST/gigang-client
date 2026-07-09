@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { Users } from "lucide-react";
+
 import { dayjs } from "@/lib/dayjs";
 import type { PledgeGathering } from "@/lib/queries/onboarding-gatherings";
 
@@ -102,6 +104,12 @@ export function AttendancePledgeStep({
               <Caption>
                 {dayjs(g.sttAt).format("M/D(ddd) HH:mm")}
                 {g.locTxt ? ` · ${g.locTxt}` : ""}
+              </Caption>
+              <Caption className="flex items-center gap-1 text-primary">
+                <Users className="size-3" />
+                {g.maxPrtCnt !== null
+                  ? `${g.attdCnt}/${g.maxPrtCnt}명 참석`
+                  : `${g.attdCnt}명 참석`}
               </Caption>
             </div>
             <Button
