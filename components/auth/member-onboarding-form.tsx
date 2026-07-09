@@ -28,7 +28,7 @@ import {
 
 import { AppTabsGuide } from "@/components/auth/app-tabs-guide";
 import { AttendancePledgeStep } from "@/components/auth/attendance-pledge-step";
-import { isDevModeEnabled } from "@/components/auth/dev-email-login";
+import { isDevModeEnabled } from "@/lib/dev-mode";
 import { SignupProgress } from "@/components/auth/signup-progress";
 import { StationCombobox } from "@/components/auth/station-combobox";
 import { Caption, H2 } from "@/components/common/typography";

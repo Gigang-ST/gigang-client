@@ -54,6 +54,21 @@ export function AppTabsGuide() {
     setActive(idx);
   };
 
+  // 키보드(←/→)로도 카드를 넘길 수 있게 — 스와이프 못 하는 사용자 대비.
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      e.preventDefault();
+      const dir = e.key === "ArrowRight" ? 1 : -1;
+      const next = Math.min(
+        Math.max(active + dir, 0),
+        TAB_GUIDE.length - 1,
+      );
+      el.scrollTo({ left: next * el.clientWidth, behavior: "smooth" });
+    }
+  };
+
   return (
     <div className="flex w-full flex-col gap-2.5">
       <div className="flex items-center justify-between">
@@ -64,7 +79,11 @@ export function AppTabsGuide() {
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        onKeyDown={handleKeyDown}
+        tabIndex={0}
+        role="group"
+        aria-label="기강 앱 탭 소개 — 좌우 화살표로 넘기기"
+        className="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {TAB_GUIDE.map((tab) => {
           const Icon = tab.icon;

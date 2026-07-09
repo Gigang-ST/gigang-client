@@ -14,6 +14,7 @@ import {
 } from "@/lib/validations/member";
 import { updateProfile } from "@/app/actions/update-profile";
 import { updateRunningProfile } from "@/app/actions/profile/update-running-profile";
+import type { OnbdProfile } from "@/lib/queries/onboarding-profile";
 import { compressAvatarFile } from "@/lib/image/avatar-compress";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/common/avatar";
@@ -42,14 +43,6 @@ type MemberData = {
   avatar_url: string | null;
 };
 
-/** app/(info)/profile/edit/page.tsx 가 getOnbdProfile()로 조회해 전달하는 러닝 프로필 초기값 */
-type RunningProfileData = {
-  nearStnNm: string | null;
-  avgRunDistKm: number | null;
-  avgPaceCd: string | null;
-  joinPurpCds: string[];
-  joinPurpTxt: string | null;
-};
 
 /** 평균 페이스 코드 → 라벨 (온보딩 위저드와 동일 — 설계 §3.4) */
 const PACE_LABELS: Record<(typeof AVG_PACE_CODES)[number], string> = {
@@ -87,7 +80,7 @@ export function ProfileEditForm({
   runningProfile,
 }: {
   member: MemberData;
-  runningProfile: RunningProfileData | null;
+  runningProfile: OnbdProfile | null;
 }) {
   const router = useRouter();
   const [avatarState, setAvatarState] = useState<AvatarState>({
@@ -323,7 +316,7 @@ export function ProfileEditForm({
 function RunningProfileSection({
   initial,
 }: {
-  initial: RunningProfileData | null;
+  initial: OnbdProfile | null;
 }) {
   const [nearStnNm, setNearStnNm] = useState<string | null>(
     initial?.nearStnNm ?? null,
@@ -394,6 +387,12 @@ function RunningProfileSection({
               const next = e.target.value;
               if (!/^\d*\.?\d*$/.test(next)) return;
               setAvgRunDistKmInput(next);
+            }}
+            // 이 섹션은 상위 프로필 <form> 안에 있어, Enter 시 메인 폼이 제출되며
+            // 페이지를 벗어나 러닝 프로필 변경이 유실된다. 러닝 프로필은 별도 저장
+            // 버튼으로 처리하므로 이 입력에서 Enter 기본 제출을 막는다.
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.preventDefault();
             }}
             className="h-12 rounded-xl border-[1.5px] pr-10 text-[15px]"
           />

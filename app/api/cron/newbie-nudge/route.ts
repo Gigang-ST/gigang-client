@@ -190,12 +190,15 @@ export async function GET(request: Request) {
     findAlreadyNotified(admin, due28.map((c) => c.memId), "newbie_nudge_28"),
   ]);
 
-  const targets14 = due14.filter((c) => !notified14.has(c.memId));
   // 동시발송 방지(P0-2): 크론이 며칠 밀리면 28일 경과+14 미발송 회원이 due14/due28 양쪽에
-  // 걸려 한 실행에서 14·28이 동시 발송될 수 있다. targets28에서 이번 실행의 targets14
-  // 대상자를 제외해 회원당 한 실행에 최대 1건만 나가게 한다(설계 §7.1 "둘 중 하나만" 취지).
-  const targets14MemIds = new Set(targets14.map((c) => c.memId));
-  const targets28 = due28.filter((c) => !notified28.has(c.memId) && !targets14MemIds.has(c.memId));
+  // 걸릴 수 있다. 이 경우 더 급한 28을 우선 발송하고 14는 스킵해, 회원당 한 실행에
+  // 최대 1건만 나가게 한다(설계 §7.1 "둘 중 하나만" 취지). "2주 지났어요"보다
+  // "한 달 코앞이에요"가 시점상 맞기 때문.
+  const targets28 = due28.filter((c) => !notified28.has(c.memId));
+  const targets28MemIds = new Set(targets28.map((c) => c.memId));
+  const targets14 = due14.filter(
+    (c) => !notified14.has(c.memId) && !targets28MemIds.has(c.memId),
+  );
 
   // 팀별 멘트를 재사용하기 위해 캐시(팀 수가 적은 도메인이라 무방)
   const msgCache = new Map<string, string>();
@@ -207,30 +210,37 @@ export async function GET(request: Request) {
     return msgCache.get(key)!;
   }
 
+  // 발송 루프 — 한 회원 발송 실패가 이후 회원 전체를 막지 않도록 건별 try-catch로 격리.
+  // 실패 건은 로그만 남기고 계속(noti_mst 중복 방지로 다음 크론에서 재시도된다).
+  async function sendNudge(
+    target: NudgeTarget,
+    kind: "14" | "28",
+    notiTypeEnm: "newbie_nudge_14" | "newbie_nudge_28",
+  ): Promise<boolean> {
+    try {
+      const notiCont = await messageFor(target.teamId, kind);
+      await insertNoti({
+        teamId: target.teamId,
+        memId: target.memId,
+        notiTypeEnm,
+        notiNm: "첫 모임 참석 리마인드",
+        notiCont,
+      });
+      return true;
+    } catch (e) {
+      console.error(`[cron/newbie-nudge] ${notiTypeEnm} 발송 실패`, target.memId, e);
+      return false;
+    }
+  }
+
   let sent14 = 0;
   for (const target of targets14) {
-    const notiCont = await messageFor(target.teamId, "14");
-    await insertNoti({
-      teamId: target.teamId,
-      memId: target.memId,
-      notiTypeEnm: "newbie_nudge_14",
-      notiNm: "첫 모임 참석 리마인드",
-      notiCont,
-    });
-    sent14 += 1;
+    if (await sendNudge(target, "14", "newbie_nudge_14")) sent14 += 1;
   }
 
   let sent28 = 0;
   for (const target of targets28) {
-    const notiCont = await messageFor(target.teamId, "28");
-    await insertNoti({
-      teamId: target.teamId,
-      memId: target.memId,
-      notiTypeEnm: "newbie_nudge_28",
-      notiNm: "첫 모임 참석 리마인드",
-      notiCont,
-    });
-    sent28 += 1;
+    if (await sendNudge(target, "28", "newbie_nudge_28")) sent28 += 1;
   }
 
   return NextResponse.json({ ok: true, sent14, sent28 });

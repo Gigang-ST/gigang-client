@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { env } from "@/lib/env";
+import { isDevModeEnabled } from "@/lib/dev-mode";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getOpenGatheringsForPledge } from "@/lib/queries/onboarding-gatherings";
 
@@ -22,10 +23,7 @@ async function OnboardingContent({
 
   // 개발 모드 완료 화면 미리보기(?preview=success) — 이미 가입된 회원도 리다이렉트하지
   // 않고 폼을 렌더해 완료 화면 UI를 확인할 수 있게 한다. 운영에선 dev 모드가 꺼져 무시.
-  const isDevMode =
-    process.env.NODE_ENV === "development" ||
-    env.NEXT_PUBLIC_ENABLE_DEV_MODE === true;
-  const previewSuccess = isDevMode && params.preview === "success";
+  const previewSuccess = isDevModeEnabled() && params.preview === "success";
 
   const { user, member } = await getCurrentMember();
 
