@@ -1,7 +1,7 @@
 "use server";
 
 import { withAdminOrThrow } from "@/lib/actions/auth";
-import { currentMonthKST, nextMonthStr } from "@/lib/dayjs";
+import { currentMonthKST, dayjs, nextMonthStr } from "@/lib/dayjs";
 import { env } from "@/lib/env";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -10,6 +10,7 @@ export type AdminStats = {
   totalCount: number;
   activeCount: number;
   monthlyCompetitionCount: number;
+  monthlyGatheringCount: number;
   recentRecordCount: number;
   activeProjectCount: number;
   pendingParticipationCount: number;
@@ -27,7 +28,7 @@ export async function getAdminStats(): Promise<AdminStats> {
     const keyPrefix = env.SUPABASE_SERVICE_ROLE_KEY.slice(0, 20);
     console.log("[getAdminStats] teamId:", teamId, "keyPrefix:", keyPrefix, "noFilterCount:", noFilter.count, "noFilterError:", noFilter.error);
 
-    const [total, active, competitions, records, activeProjects, pendingPrt, unpaidResult, openFeedback] = await Promise.all([
+    const [total, active, competitions, gatherings, records, activeProjects, pendingPrt, unpaidResult, openFeedback] = await Promise.all([
       admin.from("team_mem_rel").select("*", { count: "exact", head: true }).eq("team_id", teamId).eq("vers", 0).eq("del_yn", false)
         .then((res) => { if (res.error) console.error("[getAdminStats] team_mem_rel error:", res.error, "teamId:", teamId); return res; }),
       admin.from("team_mem_rel").select("*", { count: "exact", head: true }).eq("team_id", teamId).eq("vers", 0).eq("del_yn", false).eq("mem_st_cd", "active"),
@@ -35,6 +36,14 @@ export async function getAdminStats(): Promise<AdminStats> {
         const monthStart = currentMonthKST();
         const monthEnd = nextMonthStr(monthStart);
         return admin.from("comp_mst").select("*", { count: "exact", head: true }).eq("vers", 0).eq("del_yn", false).gte("stt_dt", monthStart).lt("stt_dt", monthEnd);
+      })(),
+      (() => {
+        // stt_at은 timestamptz — KST 월 경계를 명시적 ISO(UTC)로 변환해 gte/lt 비교한다.
+        const monthStart = currentMonthKST();
+        const monthEnd = nextMonthStr(monthStart);
+        const monthStartIso = dayjs.tz(monthStart, "Asia/Seoul").toISOString();
+        const monthEndIso = dayjs.tz(monthEnd, "Asia/Seoul").toISOString();
+        return admin.from("gthr_mst").select("*", { count: "exact", head: true }).eq("team_id", teamId).eq("del_yn", false).gte("stt_at", monthStartIso).lt("stt_at", monthEndIso);
       })(),
       admin.from("rec_race_hist").select("*", { count: "exact", head: true }).eq("vers", 0).eq("del_yn", false),
       admin.from("evt_team_mst").select("*", { count: "exact", head: true }).eq("team_id", teamId).eq("stts_enm", "ACTIVE"),
@@ -50,6 +59,7 @@ export async function getAdminStats(): Promise<AdminStats> {
       totalCount: total.count ?? 0,
       activeCount: active.count ?? 0,
       monthlyCompetitionCount: competitions.count ?? 0,
+      monthlyGatheringCount: gatherings.count ?? 0,
       recentRecordCount: records.count ?? 0,
       activeProjectCount: activeProjects.count ?? 0,
       pendingParticipationCount: pendingPrt.count ?? 0,

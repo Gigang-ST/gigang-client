@@ -17,6 +17,7 @@ import {
   Bell,
   Wallet,
   MessageSquare,
+  CalendarDays,
 } from "lucide-react";
 
 import {
@@ -53,6 +54,13 @@ const generalCards: Card[] = [
     icon: Wallet,
     getValue: (s) => s.unpaidMemberCount,
     getAccentValue: (s) => s.unpaidMemberCount,
+  },
+  {
+    key: "gatherings",
+    label: "모임 관리",
+    href: "/admin/gatherings",
+    icon: CalendarDays,
+    getValue: (s) => s.monthlyGatheringCount,
   },
   {
     key: "competitions",
