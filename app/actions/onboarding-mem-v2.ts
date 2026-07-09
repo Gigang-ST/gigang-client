@@ -2,11 +2,16 @@
 
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, createUntypedAdminClient } from "@/lib/supabase/admin";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { digitsOnly, formatPhone, isValidPhone } from "@/lib/phone-utils";
-import { todayKST } from "@/lib/dayjs";
+import { dayjs, todayKST } from "@/lib/dayjs";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
+import { joinGatheringWithCapCheck } from "@/lib/gathering/join-gathering";
+import {
+  onboardingProfileSchema,
+  type OnboardingProfileValues,
+} from "@/lib/validations/member";
 
 async function requireAuthUser() {
   const supabase = await createClient();
@@ -106,7 +111,14 @@ export async function onboardingLinkExistingMember(args: {
   return { ok: true };
 }
 
-/** 신규 가입: mem_mst(mem_id = auth.uid()) + 요청 Host 기준 팀 team_mem_rel */
+/**
+ * 신규 가입: mem_mst(mem_id = auth.uid()) + 요청 Host 기준 팀 team_mem_rel
+ *   + mem_onbd_prf(온보딩 프로필·참석 서약) + (선택) 참석 약속 모임 신청
+ *
+ * 처리 순서(설계 §2.2): mem_mst INSERT → team_mem_rel INSERT →
+ * mem_onbd_prf INSERT(비치명) → pledgeGthrId 있으면 참석 INSERT(비치명).
+ * 회원가입은 이미 성공한 뒤라 mem_onbd_prf·참석 신청 실패는 가입 자체를 롤백하지 않는다.
+ */
 export async function onboardingCreateMember(args: {
   fullName: string;
   gender: "male" | "female";
@@ -117,9 +129,17 @@ export async function onboardingCreateMember(args: {
   bankAccountRaw: string;
   provider: "kakao" | "google";
   initialAvatarUrl?: string | null;
+  onbdProfile: OnboardingProfileValues;
+  pledgeGthrId: string | null;
 }): Promise<
-  { ok: true; alreadyRegistered?: boolean } | { ok: false; message: string }
+  | { ok: true; alreadyRegistered?: boolean; pledgeJoined?: boolean }
+  | { ok: false; message: string }
 > {
+  const profileParsed = onboardingProfileSchema.safeParse(args.onbdProfile);
+  if (!profileParsed.success) {
+    return { ok: false, message: "온보딩 프로필 입력값이 올바르지 않습니다." };
+  }
+  const onbdProfile = profileParsed.data;
   const supabase = await createClient();
   const {
     data: { user },
@@ -149,8 +169,12 @@ export async function onboardingCreateMember(args: {
     del_yn: false,
   });
 
-  if (em) {
-    if (em.code === "23505") return { ok: true, alreadyRegistered: true };
+  // mem_mst가 이미 있으면(23505) 조기 return하지 않고 계속 진행한다 — 1차 제출에서
+  // mem_mst만 성공하고 응답이 유실돼 유저가 재제출하는 경우, 여기서 멈추면 mem_onbd_prf·
+  // 참석 약속이 영영 누락된다. 아래 단계(team_mem_rel·mem_onbd_prf·참석)는 모두 멱등
+  // (23505 무시 / upsert)이라 이어서 실행해 프로필·pledge를 마저 기록한다.
+  const alreadyHadMember = em?.code === "23505";
+  if (em && !alreadyHadMember) {
     return { ok: false, message: em.message };
   }
 
@@ -191,5 +215,50 @@ export async function onboardingCreateMember(args: {
     );
   }
 
-  return { ok: true };
+  // mem_onbd_prf UPSERT — 실패해도 가입은 성공 처리(비치명). 넛지 크론 대상에서만 빠진다.
+  // upsert(onConflict: mem_id): 재제출(alreadyHadMember)로 이미 row가 있어도 멱등하게 갱신.
+  const untypedAdmin = createUntypedAdminClient();
+  const { error: eOnbdPrf } = await untypedAdmin.from("mem_onbd_prf").upsert(
+    {
+      mem_id: uid,
+      near_stn_nm: onbdProfile.nearStnNm,
+      avg_run_dist_km: onbdProfile.avgRunDistKm,
+      avg_pace_cd: onbdProfile.avgPaceCd,
+      join_purp_cds: onbdProfile.joinPurpCds,
+      join_purp_txt: onbdProfile.joinPurpTxt,
+      join_src_cd: onbdProfile.joinSrcCd,
+      join_src_txt: onbdProfile.joinSrcTxt,
+      attd_pldg_at: dayjs().toISOString(),
+      pldg_gthr_id: args.pledgeGthrId,
+    },
+    { onConflict: "mem_id" },
+  );
+
+  if (eOnbdPrf) {
+    console.error("[onboarding] mem_onbd_prf UPSERT 실패 — 가입은 계속 진행", uid, eOnbdPrf.message);
+  }
+
+  // 참석 약속 모임 신청 — toggleGatheringAttendance와 공유하는 joinGatheringWithCapCheck 사용
+  // (모임 존재·team_id 일치·지난모임잠금·정원재확인·upsert). 방금 만든 회원이라 withMember 래퍼
+  // (getCurrentMember 캐시)를 재사용할 수 없어 admin 클라이언트로 직접 처리.
+  // 실패해도 가입 성공 + pledgeJoined:false (완료 화면에서 안내).
+  let pledgeJoined = false;
+  if (args.pledgeGthrId) {
+    try {
+      const result = await joinGatheringWithCapCheck(untypedAdmin, {
+        gthrId: args.pledgeGthrId,
+        memId: uid,
+        teamId,
+        isAdmin: false,
+      });
+      pledgeJoined = result.joined;
+      if (!result.joined) {
+        console.error("[onboarding] 참석 약속 모임 신청 실패", uid, result.reason);
+      }
+    } catch (e) {
+      console.error("[onboarding] 참석 약속 모임 신청 처리 중 오류", uid, e);
+    }
+  }
+
+  return { ok: true, pledgeJoined };
 }
