@@ -1626,6 +1626,66 @@ export type Database = {
         }
         Relationships: []
       }
+      mem_onbd_prf: {
+        Row: {
+          attd_pldg_at: string | null
+          avg_pace_cd: string | null
+          avg_run_dist_km: number | null
+          crt_at: string
+          join_purp_cds: string[]
+          join_purp_txt: string | null
+          join_src_cd: string | null
+          join_src_txt: string | null
+          mem_id: string
+          near_stn_nm: string | null
+          pldg_gthr_id: string | null
+          upd_at: string
+        }
+        Insert: {
+          attd_pldg_at?: string | null
+          avg_pace_cd?: string | null
+          avg_run_dist_km?: number | null
+          crt_at?: string
+          join_purp_cds?: string[]
+          join_purp_txt?: string | null
+          join_src_cd?: string | null
+          join_src_txt?: string | null
+          mem_id: string
+          near_stn_nm?: string | null
+          pldg_gthr_id?: string | null
+          upd_at?: string
+        }
+        Update: {
+          attd_pldg_at?: string | null
+          avg_pace_cd?: string | null
+          avg_run_dist_km?: number | null
+          crt_at?: string
+          join_purp_cds?: string[]
+          join_purp_txt?: string | null
+          join_src_cd?: string | null
+          join_src_txt?: string | null
+          mem_id?: string
+          near_stn_nm?: string | null
+          pldg_gthr_id?: string | null
+          upd_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_mem_onbd_prf__mem_mst"
+            columns: ["mem_id"]
+            isOneToOne: true
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "fk_mem_onbd_prf__gthr_mst"
+            columns: ["pldg_gthr_id"]
+            isOneToOne: false
+            referencedRelation: "gthr_mst"
+            referencedColumns: ["gthr_id"]
+          },
+        ]
+      }
       mem_ttl_rel: {
         Row: {
           crt_at: string

@@ -33,3 +33,101 @@ type _AssertDbGenderCovered = _DbGender extends Exclude<(typeof genderValues)[nu
   : never;
 const _genderCheck: _AssertDbGenderCovered = true;
 void _genderCheck;
+
+// ============================================================
+// 온보딩 프로필 (mem_onbd_prf) — 뉴비 온보딩 개선 §3, §6.1
+// 공통코드(JOIN_PURP/JOIN_SRC) 값과 1:1 대응. DB CHECK 제약(avg_pace_cd)과도 동일 목록.
+// ============================================================
+
+/** 가입 목적 칩 코드 (공통코드 그룹 JOIN_PURP) */
+export const JOIN_PURP_CODES = [
+  "RUN_MATE",
+  "COACH",
+  "TRAINING",
+  "NEW_SPORT",
+  "RACE",
+  "FRIENDS",
+  "HABIT",
+] as const;
+
+/** 유입 경로 칩 코드 (공통코드 그룹 JOIN_SRC) */
+export const JOIN_SRC_CODES = ["FRIEND", "INSTA", "SOMOIM", "DAANGN", "ETC"] as const;
+
+/** 평균 페이스 코드 — DB ck_mem_onbd_prf_avg_pace_cd CHECK 제약과 동일 목록 */
+export const AVG_PACE_CODES = [
+  "P330",
+  "P400",
+  "P430",
+  "P500",
+  "P530",
+  "P600",
+  "P630",
+  "P700",
+  "P730",
+  "P730_OVER",
+  "UNKNOWN",
+] as const;
+
+// ── 표시 라벨 (온보딩 위저드·프로필 편집이 공유 — 코드↔라벨 단일 출처) ──
+
+/** 평균 페이스 코드 → 라벨 (설계 §3.4) */
+export const PACE_LABELS: Record<(typeof AVG_PACE_CODES)[number], string> = {
+  P330: "3'30\"",
+  P400: "4'00\"",
+  P430: "4'30\"",
+  P500: "5'00\"",
+  P530: "5'30\"",
+  P600: "6'00\"",
+  P630: "6'30\"",
+  P700: "7'00\"",
+  P730: "7'30\"",
+  P730_OVER: "7'30\"보다 여유롭게",
+  UNKNOWN: "잘 모르겠어요",
+};
+
+/** 가입 목적 칩 라벨 (설계 §3.1) */
+export const JOIN_PURP_LABELS: Record<(typeof JOIN_PURP_CODES)[number], string> = {
+  RUN_MATE: "같이 달릴 사람이 필요해요",
+  COACH: "자세·훈련 코칭을 받고 싶어요",
+  TRAINING: "인터벌 같은 훈련을 같이 하고 싶어요",
+  NEW_SPORT: "안 해본 운동을 해보고 싶어요",
+  RACE: "대회에 같이 나가고 싶어요",
+  FRIENDS: "새로운 친구를 만나고 싶어요",
+  HABIT: "운동 습관을 만들고 싶어요",
+};
+
+/** 유입 경로 칩 라벨 (설계 §3.5) */
+export const JOIN_SRC_LABELS: Record<(typeof JOIN_SRC_CODES)[number], string> = {
+  FRIEND: "지인 소개",
+  INSTA: "인스타그램",
+  SOMOIM: "소모임",
+  DAANGN: "당근",
+  ETC: "기타",
+};
+
+/** 온보딩 6단계(참석 약속)까지 도달했을 때 제출하는 러닝 프로필 + 가입 목적 + 유입 경로 */
+export const onboardingProfileSchema = z.object({
+  nearStnNm: z.string().max(30).nullable(),
+  avgRunDistKm: z.number().min(1).max(100).nullable(),
+  avgPaceCd: z.enum(AVG_PACE_CODES).nullable(),
+  joinPurpCds: z.array(z.enum(JOIN_PURP_CODES)).min(1),
+  joinPurpTxt: z.string().max(500).nullable(),
+  joinSrcCd: z.enum(JOIN_SRC_CODES),
+  joinSrcTxt: z.string().max(200).nullable(),
+});
+
+export type OnboardingProfileValues = z.infer<typeof onboardingProfileSchema>;
+
+/**
+ * 프로필 편집(`/profile/edit` 러닝 프로필 섹션)용 스키마 — 기존 회원 소급 입력.
+ * 온보딩 전용 필드(유입 경로·참석 약속)는 다루지 않고, 가입 목적은 0개(미입력)도 허용한다.
+ */
+export const runningProfileEditSchema = z.object({
+  nearStnNm: z.string().max(30).nullable(),
+  avgRunDistKm: z.number().min(1).max(100).nullable(),
+  avgPaceCd: z.enum(AVG_PACE_CODES).nullable(),
+  joinPurpCds: z.array(z.enum(JOIN_PURP_CODES)).min(0),
+  joinPurpTxt: z.string().max(500).nullable(),
+});
+
+export type RunningProfileEditValues = z.infer<typeof runningProfileEditSchema>;

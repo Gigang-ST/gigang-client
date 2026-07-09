@@ -8,18 +8,8 @@ import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
-/**
- * 클라이언트에서 개발 전용 UI(이메일 로그인 등)를 켤지 여부.
- * - 로컬: `pnpm dev` (NODE_ENV=development)면 자동 true
- * - Vercel 개발계: `NEXT_PUBLIC_ENABLE_DEV_MODE=true`
- * 운영 프로젝트에는 변수를 두지 않으면 false.
- */
-export function isDevModeEnabled(): boolean {
-	if (process.env.NODE_ENV === "development") {
-		return true;
-	}
-	return process.env.NEXT_PUBLIC_ENABLE_DEV_MODE === "true";
-}
+// 개발 모드 판정은 lib/dev-mode.ts로 통합(서버·클라 공용, env.ts 경유). 기존 import 경로 호환을 위해 re-export.
+export { isDevModeEnabled } from "@/lib/dev-mode";
 
 type DevEmailLoginProps = {
 	/** OAuth와 동일한 로그인 후 이동 경로 */

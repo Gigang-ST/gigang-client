@@ -3,14 +3,16 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { env } from "@/lib/env";
+import { isDevModeEnabled } from "@/lib/dev-mode";
 import { getCurrentMember } from "@/lib/queries/member";
+import { getOpenGatheringsForPledge } from "@/lib/queries/onboarding-gatherings";
 
 import { MemberOnboardingForm } from "@/components/auth/member-onboarding-form";
 
 async function OnboardingContent({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; preview?: string }>;
 }) {
   const params = await searchParams;
   const nextParam = params.next ?? "/";
@@ -19,14 +21,18 @@ async function OnboardingContent({
       ? nextParam
       : "/";
 
+  // 개발 모드 완료 화면 미리보기(?preview=success) — 이미 가입된 회원도 리다이렉트하지
+  // 않고 폼을 렌더해 완료 화면 UI를 확인할 수 있게 한다. 운영에선 dev 모드가 꺼져 무시.
+  const previewSuccess = isDevModeEnabled() && params.preview === "success";
+
   const { user, member } = await getCurrentMember();
 
   if (!user) {
     redirect(`/auth/login?next=${encodeURIComponent(safeNext)}`);
   }
 
-  // 이미 가입된 회원(active/inactive 등)은 온보딩 불필요
-  if (member) {
+  // 이미 가입된 회원(active/inactive 등)은 온보딩 불필요 (단, 미리보기 모드는 예외)
+  if (member && !previewSuccess) {
     redirect(safeNext === "/onboarding" ? "/" : safeNext);
   }
 
@@ -46,6 +52,8 @@ async function OnboardingContent({
     ? rawName.trim()
     : "";
 
+  const gatherings = await getOpenGatheringsForPledge();
+
   return (
     <div className="flex min-h-svh w-full items-center justify-center bg-background px-6">
       <div className="w-full max-w-sm">
@@ -56,6 +64,7 @@ async function OnboardingContent({
           initialAvatarUrl={initialAvatarUrl}
           initialFullName={initialFullName}
           kakaoChatPassword={env.KAKAO_CHAT_PASSWORD ?? ""}
+          gatherings={gatherings}
         />
       </div>
     </div>

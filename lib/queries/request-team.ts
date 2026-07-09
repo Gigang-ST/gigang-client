@@ -1,8 +1,9 @@
 import { cache } from "react";
 import { headers } from "next/headers";
-import { unstable_cache } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { DEFAULT_FALLBACK_TEAM_ID } from "@/lib/constants/gigang-team";
+import {
+  DEFAULT_FALLBACK_TEAM_ID,
+  TEAM_ID_BY_CD,
+} from "@/lib/constants/gigang-team";
 
 export type RequestTeamContext = {
   teamId: string;
@@ -34,40 +35,28 @@ export function extractTeamCdFromHost(host: string | null): string {
 }
 
 /**
- * Host 문자열만으로 team_mst 정본을 조회해 team_id를 얻는다.
+ * Host 문자열에서 team_cd를 해석하고 코드 상수 맵으로 team_id를 얻는다.
  * 매칭 실패 시 `DEFAULT_FALLBACK_TEAM_ID` / `gigang`으로 폴백한다.
- * Route Handler 등 `headers()`를 쓸 수 없을 때 사용한다.
+ * 팀 UUID는 불변이라 DB 조회 없이 동기로 해석하지만, Route Handler 호출부 호환을 위해 async 시그니처를 유지한다.
  */
 export async function resolveTeamContextFromHost(
   host: string | null,
 ): Promise<RequestTeamContext> {
   const teamCd = extractTeamCdFromHost(host);
+  const teamId = TEAM_ID_BY_CD[teamCd];
 
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from("team_mst")
-    .select("team_id, team_cd")
-    .eq("team_cd", teamCd)
-    .eq("vers", 0)
-    .eq("del_yn", false)
-    .maybeSingle();
-
-  if (!data?.team_id) {
+  if (!teamId) {
     return { teamId: DEFAULT_FALLBACK_TEAM_ID, teamCd: "gigang" };
   }
-  return { teamId: data.team_id, teamCd: data.team_cd };
+  return { teamId, teamCd };
 }
 
 /**
  * 현재 요청의 Host 기준으로 team_cd를 해석하고, 정본 team_id를 반환한다.
- * React `cache()`로 동일 렌더 내 중복 조회를 막는다.
+ * React `cache()`로 동일 렌더 내 중복 해석을 막는다.
  */
 export const getRequestTeamContext = cache(async (): Promise<RequestTeamContext> => {
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
-  return unstable_cache(
-    () => resolveTeamContextFromHost(host),
-    ["team-context", host ?? "unknown"],
-    { revalidate: false, tags: [`team-context:${host ?? "unknown"}`] },
-  )();
+  return resolveTeamContextFromHost(host);
 });

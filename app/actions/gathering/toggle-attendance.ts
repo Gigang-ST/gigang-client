@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { withMember } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
+import { joinGatheringWithCapCheck } from "@/lib/gathering/join-gathering";
 import { isPastLockedFor } from "@/lib/past-event";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
@@ -19,11 +20,13 @@ export async function toggleGatheringAttendance(
   return withMember(async ({ member, supabase }) => {
     // 모임 검증용 조회와 내 참석 여부 조회는 독립적 — 병렬 1 RTT로 (직렬 2 RTT 방지)
     const admin = createUntypedAdminClient();
+    const { teamId } = await getRequestTeamContext();
     const [{ data: gthr }, { data: existing }] = await Promise.all([
       admin
         .from("gthr_mst")
         .select("max_prt_cnt, stt_at, end_at")
         .eq("gthr_id", gthr_id)
+        .eq("team_id", teamId)
         .eq("del_yn", false)
         .single(),
       supabase
@@ -50,21 +53,22 @@ export async function toggleGatheringAttendance(
       return { attending: false };
     }
 
-    if (gthr.max_prt_cnt !== null) {
-      const { count } = await admin
-        .from("gthr_attd_rel")
-        .select("attd_id", { count: "exact", head: true })
-        .eq("gthr_id", gthr_id);
+    // 정원 재확인 + upsert는 온보딩(onboardingCreateMember)과 공유하는 유틸 사용
+    // (모임 존재·지난모임잠금은 위에서 이미 검증했으므로 여기선 정원+upsert만 수행됨).
+    // INSERT는 member의 RLS 클라이언트(supabase)로 — 참석 등록의 self-only insert 정책을
+    // DB 레벨에서 유지한다(admin 우회 회귀 방지). 조회/정원은 admin으로.
+    const joinResult = await joinGatheringWithCapCheck(admin, {
+      gthrId: gthr_id,
+      memId: member.id,
+      teamId,
+      isAdmin: member.admin,
+      writeClient: supabase,
+    });
 
-      if ((count ?? 0) >= gthr.max_prt_cnt) throw new Error("인원이 마감됐습니다.");
+    if (!joinResult.joined) {
+      if (joinResult.reason === "full") throw new Error("인원이 마감됐습니다.");
+      throw new Error("참석 등록에 실패했습니다.");
     }
-
-    // UNIQUE(gthr_id, mem_id) 제약이 있으므로 upsert로 중복 충돌 방지
-    const { error } = await supabase
-      .from("gthr_attd_rel")
-      .upsert({ gthr_id, mem_id: member.id }, { onConflict: "gthr_id,mem_id", ignoreDuplicates: true });
-
-    if (error) throw new Error("참석 등록에 실패했습니다.");
 
     // 홈(/)은 dynamic이라 revalidate 불필요(위 취소 경로 주석 참고). 모임 상세 직접 URL만 무효화.
     revalidatePath(`/gatherings/${gthr_id}`);
@@ -72,7 +76,6 @@ export async function toggleGatheringAttendance(
     // 이번 달(모임 귀속월) 본인 총참석 횟수 — 토스트 안내용(실패해도 참석 등록엔 영향 없음)
     let monthlyAttendCnt: number | undefined;
     try {
-      const { teamId } = await getRequestTeamContext();
       const ym = dayjs(gthr.stt_at).tz("Asia/Seoul").format("YYYY-MM");
       const { data: stat } = await admin.rpc("get_member_monthly_activity", {
         p_team_id: teamId,
