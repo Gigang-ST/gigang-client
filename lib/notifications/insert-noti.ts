@@ -116,6 +116,9 @@ type NotiManyInput = {
   notiCont?: string | null;
   refId?: string | null;
   refTypeEnm?: string | null;
+  /** 한 번의 발송을 묶는 배치 식별자. 관리자 수동 발송 이력(발송 이력 화면)이
+   *  이 값으로 수신자를 그룹핑한다. 생략 시 null — 개별 알림은 이력에 묶이지 않는다. */
+  batchId?: string | null;
 };
 
 /**
@@ -152,6 +155,7 @@ export async function insertNotiMany(input: NotiManyInput): Promise<void> {
         noti_cont: input.notiCont ?? null,
         ref_id: input.refId ?? null,
         ref_type_enm: input.refTypeEnm ?? null,
+        batch_id: input.batchId ?? null,
       })),
     )
     .select("noti_id, mem_id");
@@ -189,6 +193,8 @@ type NotiTeamInput = {
   notiCont?: string | null;
   refId?: string | null;
   refTypeEnm?: string | null;
+  /** 발송 이력 그룹핑용 배치 식별자 (insertNotiMany로 그대로 전달). */
+  batchId?: string | null;
 };
 
 /**
@@ -221,5 +227,6 @@ export async function insertNotiForTeam(input: NotiTeamInput): Promise<void> {
     notiCont: input.notiCont ?? null,
     refId: input.refId ?? null,
     refTypeEnm: input.refTypeEnm ?? null,
+    batchId: input.batchId ?? null,
   });
 }

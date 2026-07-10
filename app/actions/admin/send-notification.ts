@@ -18,6 +18,8 @@ export async function sendNotification(input: {
   return withAdmin(async () => {
     const { teamId } = await getRequestTeamContext();
     const notiTypeEnm = input.notiTypeEnm ?? "adm_cust";
+    // 한 번의 관리자 발송 = 하나의 배치. 발송 이력 화면이 이 값으로 수신자를 묶는다.
+    const batchId = crypto.randomUUID();
 
     try {
       if (input.target === "all") {
@@ -26,6 +28,7 @@ export async function sendNotification(input: {
           notiTypeEnm,
           notiNm: input.notiNm,
           notiCont: input.notiCont ?? null,
+          batchId,
         });
       } else {
         await insertNotiMany({
@@ -34,6 +37,7 @@ export async function sendNotification(input: {
           notiTypeEnm,
           notiNm: input.notiNm,
           notiCont: input.notiCont ?? null,
+          batchId,
         });
       }
     } catch {

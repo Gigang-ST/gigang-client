@@ -14,6 +14,11 @@ import {
 
 import { dayjs } from "@/lib/dayjs";
 import { createClient } from "@/lib/supabase/client";
+import {
+  PACE_LABELS,
+  JOIN_SRC_LABELS,
+  JOIN_PURP_SHORT_LABELS,
+} from "@/lib/validations/member";
 
 import { grantTitle } from "@/app/actions/admin/grant-title";
 import {
@@ -176,6 +181,140 @@ function GrantPanel({
 }
 
 // ---------------------------------------------------------------------------
+// 온보딩(러닝 프로필) 섹션 — 가입 시점 스냅샷을 컴팩트하게 표시
+// ---------------------------------------------------------------------------
+
+type OnboardingProfile = {
+  near_stn_nm: string | null;
+  avg_run_dist_km: number | null;
+  avg_pace_cd: string | null;
+  join_purp_cds: string[] | null;
+  join_purp_txt: string | null;
+  join_src_cd: string | null;
+  join_src_txt: string | null;
+};
+
+/** 라벨-값 미니 pill (역·거리·페이스처럼 짧은 항목 한 줄 나열용) */
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md bg-secondary px-2 py-1">
+      <span className="text-[11px] text-muted-foreground">{label}</span>
+      <span className="text-[12px] font-medium text-foreground">{value}</span>
+    </span>
+  );
+}
+
+function OnboardingSection({ memId }: { memId: string }) {
+  const [profile, setProfile] = useState<OnboardingProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // memId별 remount(호출부 key)라 loading 초기값(true)이 그대로 적용된다 —
+    // effect 안에서 동기 setState를 부르지 않는다.
+    let alive = true;
+    const supabase = createClient();
+    // RLS mem_onbd_prf_select_team_admin 이 팀 관리자에게 팀원 온보딩 조회를 허용한다.
+    supabase
+      .from("mem_onbd_prf")
+      .select(
+        "near_stn_nm, avg_run_dist_km, avg_pace_cd, join_purp_cds, join_purp_txt, join_src_cd, join_src_txt",
+      )
+      .eq("mem_id", memId)
+      .maybeSingle()
+      .then(
+        ({ data }) => {
+          if (!alive) return;
+          setProfile((data as OnboardingProfile) ?? null);
+          setLoading(false);
+        },
+        // 네트워크 실패 등으로 reject 되면 스켈레톤이 영영 안 걷히므로 로딩만 해제
+        () => {
+          if (!alive) return;
+          setLoading(false);
+        },
+      );
+    return () => {
+      alive = false;
+    };
+  }, [memId]);
+
+  const paceLabel = profile?.avg_pace_cd
+    ? (PACE_LABELS[profile.avg_pace_cd as keyof typeof PACE_LABELS] ??
+      profile.avg_pace_cd)
+    : null;
+  const srcLabel = profile?.join_src_cd
+    ? profile.join_src_cd === "ETC" && profile.join_src_txt
+      ? profile.join_src_txt
+      : (JOIN_SRC_LABELS[profile.join_src_cd as keyof typeof JOIN_SRC_LABELS] ??
+        profile.join_src_cd)
+    : null;
+  const purpLabels = (profile?.join_purp_cds ?? []).map(
+    (c) => JOIN_PURP_SHORT_LABELS[c as keyof typeof JOIN_PURP_SHORT_LABELS] ?? c,
+  );
+
+  return (
+    <div className="flex flex-col gap-3">
+      <SectionLabel>러닝 프로필</SectionLabel>
+      {loading ? (
+        <Skeleton className="h-20 w-full rounded-2xl" />
+      ) : !profile ? (
+        <EmptyState variant="inline" message="온보딩 정보 없음" />
+      ) : (
+        <CardItem className="flex flex-col gap-2.5 p-3.5">
+          {/* 역 · 거리 · 페이스 — 한 줄 미니 스탯 */}
+          <div className="flex flex-wrap gap-1.5">
+            <MiniStat label="역" value={profile.near_stn_nm || "-"} />
+            <MiniStat
+              label="거리"
+              value={
+                profile.avg_run_dist_km != null
+                  ? `${profile.avg_run_dist_km}km`
+                  : "-"
+              }
+            />
+            <MiniStat label="페이스" value={paceLabel ?? "-"} />
+          </div>
+
+          {/* 유입 경로 */}
+          {srcLabel && (
+            <div className="flex items-center gap-1.5">
+              <Caption className="text-[11px]">유입</Caption>
+              <Badge variant="secondary" className="text-[11px] px-1.5 py-0">
+                {srcLabel}
+              </Badge>
+            </div>
+          )}
+
+          {/* 가입 목적 */}
+          {purpLabels.length > 0 && (
+            <div className="flex items-start gap-1.5">
+              <Caption className="text-[11px] shrink-0 pt-0.5">목적</Caption>
+              <div className="flex flex-wrap gap-1">
+                {purpLabels.map((label) => (
+                  <span
+                    key={label}
+                    className="rounded-md border border-border px-1.5 py-0.5 text-[11px] font-medium text-foreground"
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 자유 한마디 */}
+          {profile.join_purp_txt && (
+            <p className="rounded-lg bg-secondary/50 px-2.5 py-1.5 text-[12px] leading-snug text-muted-foreground">
+              &ldquo;{profile.join_purp_txt}&rdquo;
+            </p>
+          )}
+        </CardItem>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // 칭호 섹션 컴포넌트
 // ---------------------------------------------------------------------------
 
@@ -238,6 +377,8 @@ function TitleSection({
   }, [teamId]);
 
   useEffect(() => {
+    // 마운트 시 칭호 fetch — 외부(네트워크) 동기화 effect라 set-state-in-effect는 오탐
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadTitles();
   }, [loadTitles]);
 
@@ -417,6 +558,9 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
     if (!initialTeamMemId || loading || initialSelectDone.current) return;
     const found = members.find((m) => m.team_mem_id === initialTeamMemId);
     if (found) {
+      // 딥링크(?memId) 도착 시 목록 로드 완료 후 상세 시트 1회 자동 오픈 — URL 파라미터
+      // 동기화 effect라 set-state-in-effect는 오탐
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedMember(found);
       initialSelectDone.current = true;
     }
@@ -761,6 +905,9 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
                   />
                 )}
               </div>
+
+              {/* 온보딩 러닝 프로필 — 회원별 remount로 이전 회원 값 잔상 방지 */}
+              <OnboardingSection key={selectedMember.id} memId={selectedMember.id} />
 
               {/* 칭호 관리 */}
               <TitleSection member={selectedMember} teamId={teamId} />
