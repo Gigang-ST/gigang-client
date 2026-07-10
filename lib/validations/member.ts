@@ -96,6 +96,21 @@ export const JOIN_PURP_LABELS: Record<(typeof JOIN_PURP_CODES)[number], string> 
   HABIT: "운동 습관을 만들고 싶어요",
 };
 
+/**
+ * 가입 목적 짧은 라벨 (관리자 회원관리 요약 전용).
+ * 온보딩 위저드의 문장형 라벨(JOIN_PURP_LABELS)은 관리자 요약 화면에 너무 길어,
+ * 컴팩트하게 보여줄 압축 라벨을 같은 단일 출처 파일에 둔다.
+ */
+export const JOIN_PURP_SHORT_LABELS: Record<(typeof JOIN_PURP_CODES)[number], string> = {
+  RUN_MATE: "러닝메이트",
+  COACH: "코칭",
+  TRAINING: "훈련",
+  NEW_SPORT: "새 운동",
+  RACE: "대회",
+  FRIENDS: "친목",
+  HABIT: "운동 습관",
+};
+
 /** 유입 경로 칩 라벨 (설계 §3.5) */
 export const JOIN_SRC_LABELS: Record<(typeof JOIN_SRC_CODES)[number], string> = {
   FRIEND: "지인 소개",

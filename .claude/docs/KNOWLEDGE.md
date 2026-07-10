@@ -119,5 +119,8 @@ dev MCP로 `database.types.ts`를 재생성하면 기존 테이블 블록이 dif
 ### 회원 생성 직후 다중 테이블 INSERT는 트랜잭션이 아니다 — 핵심/부가를 나눠 비치명 처리
 서버 액션은 문장별 실행이라 `mem_mst` INSERT → `team_mem_rel` → `mem_onbd_prf` → 참석 INSERT가 한 트랜잭션으로 묶이지 않는다. 원칙: **가입 성립에 필수인 것**(`mem_mst`+`team_mem_rel`)은 실패 시 service_role로 앞 INSERT를 되돌리고(`mem_mst` DELETE 정책이 없어 admin 클라이언트 필요), **부가 데이터**(`mem_onbd_prf`, 참석 약속 모임 신청)는 실패해도 가입을 롤백하지 않고 `console.error` 로깅만 한다. `mem_onbd_prf` FK가 `ON DELETE CASCADE`라 앞 단계 롤백 시 자동 정리되지만, 이는 "프로필 INSERT는 롤백 지점 뒤"라는 순서에 의존하는 암묵 전제. (선례: `onboardingCreateMember` 2026-07-09)
 
+### 관리자가 타 회원 온보딩 프로필을 볼 때 서버 액션이 필요 없다 (RLS가 이미 허용)
+`mem_onbd_prf`에는 `mem_onbd_prf_select_team_admin` RLS(팀 owner/admin이면 팀원 행 SELECT 허용)가 걸려 있다. 그래서 관리자 회원관리 상세(`admin-members-client.tsx`의 `OnboardingSection`)는 `TitleSection`처럼 **브라우저 클라이언트(`createClient()`)로 직접 조회**하면 된다 — `withAdmin`+`createAdminClient` 서버 액션을 새로 만들 필요 없음(반사적으로 만들기 쉬운 함정). 반대로 본인 편집 경로(`getNearStation`)는 `mem_onbd_prf_select_own`으로 통과. 라벨은 `lib/validations/member.ts` 단일 출처(`PACE_LABELS`/`JOIN_SRC_LABELS`), 관리자 요약용 압축 라벨은 같은 파일 `JOIN_PURP_SHORT_LABELS`. (2026-07-10 회원관리 온보딩 표시 추가)
+
 ### "개편 후 신규 가입자" 식별은 위성 테이블 row 존재가 아니라 전용 플래그로
 `mem_onbd_prf`는 온보딩에서도 생기고 기존 회원이 프로필 편집에서 러닝 프로필을 입력해도 생긴다(upsert). 따라서 "row 존재 = 신규 온보딩 가입자"가 아니다. 넛지 크론 대상 판별은 **`attd_pldg_at IS NOT NULL`**(참석 서약은 온보딩 경로에서만 기록)로 한다. 프로필 편집 서버 액션(`update-running-profile`)은 `attd_pldg_at`/`pldg_gthr_id`/`join_src_cd`/`join_src_txt`를 payload에서 제외해 절대 덮어쓰지 않는다.
