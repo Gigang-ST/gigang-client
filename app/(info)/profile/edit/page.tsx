@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentMember } from "@/lib/queries/member";
-import { getOnbdProfile } from "@/lib/queries/onboarding-profile";
+import { getNearStation } from "@/lib/queries/onboarding-profile";
 import { ProfileEditForm } from "@/components/profile/profile-edit-form";
 
 export default async function ProfileEditPage() {
@@ -9,7 +9,7 @@ export default async function ProfileEditPage() {
   if (!user) redirect("/auth/login");
   if (!member) redirect("/onboarding");
 
-  const runningProfile = await getOnbdProfile(member.id);
+  const nearStnNm = await getNearStation(member.id);
 
   return (
     // key를 매 진입(서버 렌더)마다 새로 부여해 폼을 새로 mount 시킨다.
@@ -27,7 +27,7 @@ export default async function ProfileEditPage() {
         email: member.email,
         avatar_url: member.avatar_url,
       }}
-      runningProfile={runningProfile}
+      initialNearStnNm={nearStnNm}
     />
   );
 }
