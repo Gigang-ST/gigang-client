@@ -13,6 +13,9 @@
 # Claude Code 로컬 설정 (로컬 전용)
 /.claude/settings.json
 
+# 개인 개발 엔진 프로파일 (로컬 전용 — 개발자마다 다른 도구를 쓸 수 있음)
+/.claude/dev-profile.toml
+
 # 레퍼런스 프로젝트 (로컬 전용)
 /.claude/gym-with-you-main/
 
