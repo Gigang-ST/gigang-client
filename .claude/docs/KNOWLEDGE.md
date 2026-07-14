@@ -98,6 +98,9 @@ Postgres는 새 함수에 기본적으로 PUBLIC EXECUTE를 부여하고, Supaba
 관리자 서버 액션이 `createAdminClient()`(service role)를 쓰는 순간 RLS가 전부 무력화되므로, "어느 팀의 무엇을 대상으로 하는가"를 **액션 안에서 직접 검증**해야 한다. 안 하면 임의 id를 넘겨 타 팀 데이터를 조작하는 IDOR이 된다 (모임 참가자 관리 리뷰에서 발견 — 초안이 gthr_id 팀 소속 확인 없이 DELETE).
 **패턴:** `getRequestTeamContext()`로 teamId → 대상 row를 teamId 조건 포함해 조회(없으면 거부) → 변경. 선례: `manage-member.ts`의 `.eq("team_id", teamId)`, `manage-gathering-attendance.ts`의 `verifyGatheringInTeam()`. 클라이언트 필터(활성 멤버만 셀렉트 등)는 UI 편의일 뿐 서버 검증을 대체하지 않는다.
 
+### 관리자 화면 브라우저 QA는 dev0X 이메일 계정으로 불가 (전부 일반 회원)
+dev DB의 이메일 로그인 테스트 계정(dev01~05@dev.com)은 모두 비관리자 멤버라 `/admin/*` 화면 QA에 못 쓴다. 관리자 권한 계정은 전부 OAuth(카카오/구글)라 자동화 세션 확보 불가. 관리자 화면을 에이전트가 브라우저로 검증하려면 dev 환경에서 dev 계정 하나에 admin 역할(`team_mem_rel.team_role_cd`)을 부여해 둬야 한다(운영자 결정 필요). 그 전까지는 임베드 쿼리 REST 스모크(200/400) + SQL 기대값 대조 + 라우트 컴파일 확인이 최선의 proxy. (2026-07-14 참여현황 기능에서 확인)
+
 ### MCP generate_typescript_types 결과에는 재정렬 노이즈가 섞인다
 dev MCP로 `database.types.ts`를 재생성하면 기존 테이블 블록이 diff상 삭제+재추가로 보일 수 있다(예: fee_policy_cfg 44줄). 실제 손실인지 이동인지 `git diff | grep "^+" | grep <이름>`으로 반드시 재확인할 것 — dev/prd drift로 진짜 소실될 수도 있다(TODO의 "스키마 drift" 항목 참조).
 
