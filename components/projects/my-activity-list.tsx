@@ -11,12 +11,18 @@ type Props = {
   month: string;
   evtStartMonth: string;
   evtEndMonth: string;
+  /** 비활성/탈퇴 회원 — true면 수정/삭제 시 공통 안내 게이트를 연다 */
+  isInactive?: boolean;
+  /** 비활성/탈퇴 세부 구분 — InactiveGateDialog 문구 분기용 */
+  inactiveKind?: "inactive" | "left";
 };
 
 export async function MyActivityList({
   evtId,
   memId,
   month,
+  isInactive = false,
+  inactiveKind,
 }: Props) {
   const nextMonth = nextMonthStr(month);
 
@@ -54,6 +60,8 @@ export async function MyActivityList({
       memId={memId}
       month={month}
       totalCount={totalCount}
+      isInactive={isInactive}
+      inactiveKind={inactiveKind}
     />
   );
 }

@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 
+import { dayjs } from "@/lib/dayjs";
 import {
+  buildActiveIntervals,
   buildChargeMonths,
+  firstChargeMonth,
+  isFullyActiveMonth,
+  isMonthCharged,
   replayPays,
+  sumReflectedExemptions,
   type ExmRuleRange,
   type PolicyRange,
 } from "@/lib/dues/ledger-replay";
@@ -10,6 +16,54 @@ import {
 const POLICY: PolicyRange[] = [
   { aply_stt_dt: "2026-01-01", aply_end_dt: "2099-12-31", monthly_fee_amt: 2000 },
 ];
+
+describe("firstChargeMonth", () => {
+  it("컷오프(2026-07-01) 이전 가입자는 가입 당월부터 부과(기존 규칙 유지)", () => {
+    expect(firstChargeMonth("2026-06-30")).toBe("2026-06-01");
+    expect(firstChargeMonth("2026-06-01")).toBe("2026-06-01");
+    expect(firstChargeMonth("2026-03-15")).toBe("2026-03-01");
+  });
+
+  it("컷오프 당일(2026-07-01) 가입자부터 가입 다음 달부터 부과", () => {
+    expect(firstChargeMonth("2026-07-01")).toBe("2026-08-01");
+  });
+
+  it("컷오프 이후 가입자는 가입일과 무관하게 가입 다음 달부터", () => {
+    expect(firstChargeMonth("2026-07-15")).toBe("2026-08-01");
+    expect(firstChargeMonth("2026-07-31")).toBe("2026-08-01");
+    expect(firstChargeMonth("2026-08-01")).toBe("2026-09-01");
+    expect(firstChargeMonth("2026-08-31")).toBe("2026-09-01");
+  });
+
+  it("연말 가입은 다음 해 1월부터(연 경계)", () => {
+    expect(firstChargeMonth("2026-12-31")).toBe("2027-01-01");
+  });
+});
+
+describe("isMonthCharged", () => {
+  it("첫 부과월 이후(포함)면 부과 대상", () => {
+    // 2026-07-15 가입 → 첫 부과월 2026-08
+    expect(isMonthCharged("2026-07-15", "2026-08")).toBe(true);
+    expect(isMonthCharged("2026-07-15", "2026-09")).toBe(true);
+  });
+
+  it("첫 부과월 이전(미부과 가입월 포함)이면 대상 아님", () => {
+    // 가입 당월(2026-07)은 미부과 → false
+    expect(isMonthCharged("2026-07-15", "2026-07")).toBe(false);
+    expect(isMonthCharged("2026-07-15", "2026-06")).toBe(false);
+  });
+
+  it("컷오프 이전 가입자는 가입 당월부터 부과 대상", () => {
+    expect(isMonthCharged("2026-06-20", "2026-06")).toBe(true);
+    expect(isMonthCharged("2026-06-20", "2026-05")).toBe(false);
+  });
+
+  it("join_dt 가 없으면(빈 문자열·null·undefined) 부과 판정 불가 → false — 배치·재계산과 방향 일치", () => {
+    expect(isMonthCharged("", "2026-08")).toBe(false);
+    expect(isMonthCharged(null, "2026-08")).toBe(false);
+    expect(isMonthCharged(undefined, "2026-08")).toBe(false);
+  });
+});
 
 describe("buildChargeMonths", () => {
   it("from~to 구간의 매월 정책 회비를 부과한다", () => {
@@ -54,6 +108,126 @@ describe("buildChargeMonths", () => {
 
   it("from 이 to 보다 뒤면 빈 배열", () => {
     expect(buildChargeMonths(POLICY, [], "2026-08-01", "2026-07-01")).toEqual([]);
+  });
+});
+
+describe("buildActiveIntervals", () => {
+  it("이력 없는 active 1건 → 첫 구간 start 열림·end null", () => {
+    const iv = buildActiveIntervals([{ mem_st_cd: "active", eff_at: "2026-02-10T00:00:00+09:00" }]);
+    expect(iv).toHaveLength(1);
+    expect(iv[0].end).toBeNull();
+    expect(dayjs(iv[0].start).year()).toBeLessThan(2000); // 가입월은 firstChargeMonth 관장 → 시작 열림
+  });
+
+  it("비활성→재활성 → active 구간 2개, 두 번째 start는 재활성 시각", () => {
+    const iv = buildActiveIntervals([
+      { mem_st_cd: "active", eff_at: "2026-02-10T00:00:00+09:00" },
+      { mem_st_cd: "inactive", eff_at: "2026-05-12T00:00:00+09:00" },
+      { mem_st_cd: "active", eff_at: "2026-11-20T00:00:00+09:00" },
+    ]);
+    expect(iv).toHaveLength(2);
+    expect(iv[0].end).toBe("2026-05-12T00:00:00+09:00");
+    expect(iv[1].start).toBe("2026-11-20T00:00:00+09:00");
+    expect(iv[1].end).toBeNull();
+  });
+
+  it("정렬 안 된 입력도 eff_at 순으로 처리", () => {
+    const iv = buildActiveIntervals([
+      { mem_st_cd: "active", eff_at: "2026-11-20T00:00:00+09:00" },
+      { mem_st_cd: "active", eff_at: "2026-02-10T00:00:00+09:00" },
+      { mem_st_cd: "inactive", eff_at: "2026-05-12T00:00:00+09:00" },
+    ]);
+    expect(iv[0].end).toBe("2026-05-12T00:00:00+09:00");
+  });
+
+  it("레거시: 첫 세그먼트가 inactive면 뒤의 active(재활성)는 열지 않고 실제 eff_at 사용", () => {
+    // 도입 전 in-place 비활성된 회원(정본 inactive, eff_at=가입일 백필) → 재활성
+    const iv = buildActiveIntervals([
+      { mem_st_cd: "inactive", eff_at: "2026-02-10T00:00:00+09:00" }, // 백필된 정본
+      { mem_st_cd: "active", eff_at: "2026-11-20T00:00:00+09:00" }, // 재활성
+    ]);
+    expect(iv).toHaveLength(1);
+    expect(iv[0].start).toBe("2026-11-20T00:00:00+09:00"); // 열리지 않음
+    expect(iv[0].end).toBeNull();
+  });
+
+  it("레거시 재활성: 비활성 기간(가입~재활성 전)은 부과 대상 아님", () => {
+    const iv = buildActiveIntervals([
+      { mem_st_cd: "inactive", eff_at: "2026-02-10T00:00:00+09:00" },
+      { mem_st_cd: "active", eff_at: "2026-11-20T00:00:00+09:00" },
+    ]);
+    expect(isFullyActiveMonth(iv, "2026-05")).toBe(false); // 비활성 기간
+    expect(isFullyActiveMonth(iv, "2026-11")).toBe(false); // 재활성월
+    expect(isFullyActiveMonth(iv, "2026-12")).toBe(true); // 복귀 후 첫 온전한 달
+  });
+
+  it("연속 active(역할 변경 등)는 하나의 구간으로 병합 — 그 달 부과 유지 (회귀)", () => {
+    // 가입 후 계속 active인데 3월 중간에 관리자 지정(active→active) 이력이 생긴 경우.
+    const iv = buildActiveIntervals([
+      { mem_st_cd: "active", eff_at: "2026-02-10T00:00:00+09:00" }, // 가입
+      { mem_st_cd: "active", eff_at: "2026-03-15T00:00:00+09:00" }, // 역할 변경(상태 유지)
+    ]);
+    expect(iv).toHaveLength(1); // 두 구간으로 쪼개지지 않음
+    expect(iv[0].end).toBeNull();
+    // 병합 안 하면 3월이 [~3/15),[3/15~) 로 갈려 어느 구간도 3월 전체를 못 덮어 false가 됐다.
+    expect(isFullyActiveMonth(iv, "2026-03")).toBe(true);
+    expect(isFullyActiveMonth(iv, "2026-04")).toBe(true);
+  });
+
+  it("삭제(deleted)는 active 구간을 끊는다 — 삭제~재가입 공백 면제 (fail-safe 회귀)", () => {
+    // 가입(2월) → 삭제(5월, 봉인 실패 가정) → 재가입(11월). 삭제 로우는 호출측에서
+    // mem_st_cd="deleted"로 매핑돼 들어온다. 5~10월 공백이 부과되면 안 된다.
+    const iv = buildActiveIntervals([
+      { mem_st_cd: "active", eff_at: "2026-02-10T00:00:00+09:00" }, // 최초 가입
+      { mem_st_cd: "deleted", eff_at: "2026-05-12T00:00:00+09:00" }, // 삭제 경계
+      { mem_st_cd: "active", eff_at: "2026-11-20T00:00:00+09:00" }, // 재가입
+    ]);
+    expect(iv).toHaveLength(2);
+    expect(iv[0].end).toBe("2026-05-12T00:00:00+09:00"); // 삭제로 첫 구간 종료
+    expect(isFullyActiveMonth(iv, "2026-07")).toBe(false); // 삭제 공백 = 면제
+    expect(isFullyActiveMonth(iv, "2026-12")).toBe(true); // 재가입 복귀 후 첫 온전한 달
+  });
+});
+
+describe("isFullyActiveMonth", () => {
+  const iv = buildActiveIntervals([
+    { mem_st_cd: "active", eff_at: "2026-02-10T00:00:00+09:00" },
+    { mem_st_cd: "inactive", eff_at: "2026-05-12T00:00:00+09:00" },
+    { mem_st_cd: "active", eff_at: "2026-11-20T00:00:00+09:00" },
+  ]);
+
+  it("온전히 active인 달은 부과 대상(true)", () => {
+    expect(isFullyActiveMonth(iv, "2026-03")).toBe(true);
+    expect(isFullyActiveMonth(iv, "2026-04")).toBe(true);
+    expect(isFullyActiveMonth(iv, "2026-12")).toBe(true); // 복귀 후 첫 온전한 달
+  });
+
+  it("자격 변동 걸친 달·비활성 달은 면제(false)", () => {
+    expect(isFullyActiveMonth(iv, "2026-05")).toBe(false); // 5/12 비활성 시작
+    expect(isFullyActiveMonth(iv, "2026-06")).toBe(false); // 온전 비활성
+    expect(isFullyActiveMonth(iv, "2026-10")).toBe(false);
+    expect(isFullyActiveMonth(iv, "2026-11")).toBe(false); // 11/20 재활성
+  });
+
+  it("가입월은 시작이 열려 있어 true(부과 여부는 firstChargeMonth가 별도 결정)", () => {
+    expect(isFullyActiveMonth(iv, "2026-02")).toBe(true);
+  });
+});
+
+describe("buildChargeMonths + activeIntervals (온전한 달만 부과)", () => {
+  it("§3 시나리오: 5/12 비활성 → 11/20 재활성 → 5~11월 면제, 12월 부과", () => {
+    const iv = buildActiveIntervals([
+      { mem_st_cd: "active", eff_at: "2026-02-10T00:00:00+09:00" },
+      { mem_st_cd: "inactive", eff_at: "2026-05-12T00:00:00+09:00" },
+      { mem_st_cd: "active", eff_at: "2026-11-20T00:00:00+09:00" },
+    ]);
+    const ym = buildChargeMonths(POLICY, [], "2026-02-01", "2026-12-01", iv).map((m) => m.aplyYm);
+    expect(ym).toEqual(["2026-02", "2026-03", "2026-04", "2026-12"]);
+  });
+
+  it("activeIntervals 미제공이면 전 구간 부과(기존 동작 유지)", () => {
+    const ym = buildChargeMonths(POLICY, [], "2026-05-01", "2026-07-01").map((m) => m.aplyYm);
+    expect(ym).toEqual(["2026-05", "2026-06", "2026-07"]);
   });
 });
 
@@ -105,5 +279,31 @@ describe("replayPays", () => {
     expect(r.totalPaid).toBe(3000);
     expect(r.lastTxnAt).toBeNull();
     expect(r.lastPayId).toBeNull();
+  });
+});
+
+describe("sumReflectedExemptions", () => {
+  it("앵커 없으면 전체기간 합산(기존 동작 유지)", () => {
+    const exms = [{ exmAmt: 1000, updAt: "2026-06-01T00:00:00+09:00" }];
+    expect(sumReflectedExemptions(exms, null)).toBe(1000);
+  });
+
+  it("시딩 앵커: 앵커 이전엔 반영 이력 자체가 없으므로 필터 유무 무관(기존 회원 불변 고정)", () => {
+    const anchorCrtAt = "2026-06-04T00:00:00+09:00";
+    const exmsAfterRpcLaunch = [
+      { exmAmt: 1000, updAt: "2026-06-28T09:00:00+09:00" },
+      { exmAmt: 2000, updAt: "2026-07-10T00:00:00+09:00" },
+    ];
+    expect(sumReflectedExemptions(exmsAfterRpcLaunch, anchorCrtAt)).toBe(3000);
+    expect(sumReflectedExemptions(exmsAfterRpcLaunch, null)).toBe(3000);
+  });
+
+  it("재활성 청산 앵커: 청산 이전 반영분은 제외(버그 수정 확인)", () => {
+    const anchorCrtAt = "2026-08-01T00:00:00+09:00";
+    const exms = [
+      { exmAmt: 5000, updAt: "2026-05-01T00:00:00+09:00" }, // 청산 이전 → 제외
+      { exmAmt: 1500, updAt: "2026-08-15T00:00:00+09:00" }, // 청산 이후 → 포함
+    ];
+    expect(sumReflectedExemptions(exms, anchorCrtAt)).toBe(1500);
   });
 });

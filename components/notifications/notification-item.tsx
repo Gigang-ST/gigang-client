@@ -34,6 +34,7 @@ const NOTI_ICON: Record<string, React.ElementType> = {
   gthr_mention: MessageCircle,
   fdbk_new: MessageSquareText,
   fdbk_rspd: MessageSquareText,
+  reactivate_req: Users,
 };
 
 function formatRelative(crtAt: string) {

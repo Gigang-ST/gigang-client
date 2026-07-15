@@ -6,6 +6,7 @@ import { createAdminClient, createUntypedAdminClient } from "@/lib/supabase/admi
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { digitsOnly, formatPhone, isValidPhone } from "@/lib/phone-utils";
 import { dayjs, todayKST } from "@/lib/dayjs";
+import { sealBalanceAnchor } from "@/lib/dues/seal-anchor";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 import { joinGatheringWithCapCheck } from "@/lib/gathering/join-gathering";
 import {
@@ -195,6 +196,21 @@ export async function onboardingCreateMember(args: {
       await admin.from("mem_mst").delete().eq("mem_id", uid);
       return { ok: false, message: eRel.message };
     }
+  }
+
+  // 재가입 봉인: 과거에 이 팀에서 삭제된 이력(fee 스냅샷)이 남아 있으면, 그 과거 잔액이
+  // 재가입 회원에게 딸려오지 않게 0원 앵커로 봉인한다. 재계산은 이 앵커 이후만 부과한다.
+  // 신규 가입(과거 스냅샷 없음)은 건너뛴다. 비치명 — 실패해도 가입은 성립(로깅만).
+  const { data: pastSnap } = await admin
+    .from("fee_mem_bal_snap")
+    .select("bal_snap_id")
+    .eq("team_id", teamId)
+    .eq("mem_id", uid)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (pastSnap) {
+    const { error: sealErr } = await sealBalanceAnchor(admin, teamId, uid);
+    if (sealErr) console.error("[onboarding] 재가입 잔액 봉인 실패", uid, sealErr);
   }
 
   // 가입 직후 칭호 평가 (뉴비, 7월7일 등 가입 시점 기반) — 응답 완료 후 실행

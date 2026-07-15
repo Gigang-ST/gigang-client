@@ -42,6 +42,15 @@ export function currentMonthKST(): string {
   return nowKST().startOf("month").format("YYYY-MM-DD");
 }
 
+/** KST 기준 최근 n개월 월 버킷 (오래된 달 → 이번 달 순). ym='YYYY-MM', label='M월' */
+export function recentMonthBucketsKST(n: number): { ym: string; label: string }[] {
+  const start = nowKST().startOf("month");
+  return Array.from({ length: n }, (_, i) => {
+    const m = start.subtract(n - 1 - i, "month");
+    return { ym: m.format("YYYY-MM"), label: m.format("M월") };
+  });
+}
+
 /** Date를 KST 기준 'YYYY-MM-01'로 변환 */
 export function toMonthStart(date: Date): string {
   return dayjs(date).tz(KST).startOf("month").format("YYYY-MM-DD");

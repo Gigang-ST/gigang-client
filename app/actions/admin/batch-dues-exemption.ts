@@ -3,6 +3,11 @@
 import { withAdminOrThrow } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
 import { calcExemption } from "@/lib/dues/calc-exemption";
+import {
+  buildActiveIntervals,
+  isFullyActiveMonth,
+  isMonthCharged,
+} from "@/lib/dues/ledger-replay";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -12,7 +17,9 @@ const KST = "Asia/Seoul";
  * 참여 기반 회비 감면 배치 — 월 마감 후 전월 참여 감면을 면제 내역에 확정(설계 §8).
  *
  * - 대상 월: 기본 전월(baseMonth 미지정 시). 'YYYY-MM' 지정 가능(과거 소급).
- * - 대상 멤버: 대상 월에 활성이던 팀 멤버(가입월 ≤ 대상월).
+ * - 대상 멤버: 대상 월에 회비가 부과되는 활성 팀 멤버(첫 부과월 ≤ 대상월 — firstChargeMonth).
+ *   가입 당월 미부과 회원(JOIN_MONTH_EXEMPT_FROM 이후 가입)의 가입월은 제외 — 잔액 식에
+ *   면제 캡이 없어 부과 없는 달의 감면은 공돈(순수 예치금 적립)이 되기 때문.
  * - 멤버별 get_member_monthly_activity(team, mem, ym) → calcExemption(대상월 회비단가).
  * - exmAmt>0 이면 grant_src_enm='rule_attd_quest', rflt_yn=false 로 INSERT.
  *   멱등: 같은 월 퀘스트 면제가 이미 있으면 스킵(존재 확인 후 INSERT). 부분 유니크 인덱스
@@ -55,7 +62,8 @@ export async function batchDuesExemption(baseMonth?: string): Promise<string> {
     if (!policy) return `대상 월(${ym})에 적용되는 회비 정책이 없습니다.`;
     const monthlyFeeAmt = policy.monthly_fee_amt;
 
-    // 대상 멤버: 대상 월에 활성이던 멤버(가입월 ≤ 대상월)
+    // 대상 멤버: 대상 월에 회비가 부과되는 활성 멤버(첫 부과월 ≤ 대상월).
+    // 부과 시작 판정은 잔액 재계산과 같은 firstChargeMonth 를 공유해 어긋남을 막는다.
     const { data: members, error: memberErr } = await db
       .from("team_mem_rel")
       .select("mem_id, join_dt")
@@ -65,7 +73,7 @@ export async function batchDuesExemption(baseMonth?: string): Promise<string> {
       .eq("mem_st_cd", "active");
     if (memberErr) throw new Error(`대상 멤버 조회 실패: ${memberErr.message}`);
 
-    const targets = (members ?? []).filter((m) => m.join_dt && dayjs(m.join_dt).format("YYYY-MM") <= ym);
+    const targets = (members ?? []).filter((m) => isMonthCharged(m.join_dt, ym));
     if (!targets.length) return `대상 멤버가 없습니다 (대상 월: ${ym}).`;
 
     let granted = 0;
@@ -73,7 +81,27 @@ export async function batchDuesExemption(baseMonth?: string): Promise<string> {
     let alreadyGranted = 0;
     const errors: string[] = [];
 
+    let skippedInactive = 0;
+
     for (const m of targets) {
+      // 대상 월에 온전히 active였던 회원만 감면 — 재계산(buildChargeMonths+isFullyActiveMonth)이
+      // 부과하지 않는 비활성/재활성/탈퇴 걸친 달에 감면만 적재되면 공돈 크레딧이 된다.
+      // 상태 이력으로 그 달 온전 active 여부를 재계산과 같은 기준으로 판정한다.
+      const { data: relHist, error: relHistErr } = await db
+        .from("team_mem_rel")
+        .select("mem_st_cd, eff_at, del_yn")
+        .eq("team_id", teamId)
+        .eq("mem_id", m.mem_id)
+        .order("eff_at", { ascending: true });
+      if (relHistErr) { errors.push(`${m.mem_id} 상태 이력 조회 실패: ${relHistErr.message}`); continue; }
+      const activeIntervals = relHist?.length
+        ? buildActiveIntervals(
+            relHist.map((r) => ({ mem_st_cd: r.del_yn ? "deleted" : r.mem_st_cd, eff_at: r.eff_at })),
+          )
+        : undefined;
+      // activeIntervals 미제공(이력 없는 도입 전 회원)이면 판정 생략 = 기존 동작(온전 active로 간주).
+      if (activeIntervals && !isFullyActiveMonth(activeIntervals, ym)) { skippedInactive++; continue; }
+
       const { data: statRows, error: statErr } = await db.rpc("get_member_monthly_activity", {
         p_team_id: teamId,
         p_mem_id: m.mem_id,
@@ -128,7 +156,8 @@ export async function batchDuesExemption(baseMonth?: string): Promise<string> {
     }
 
     const dupSuffix = alreadyGranted > 0 ? `, ${alreadyGranted}명 기존 부여(스킵)` : "";
-    const summary = `대상 월 ${ym}: ${targets.length}명 중 ${granted}명 감면 부여, ${skippedZero}명 미해당${dupSuffix}`;
+    const inactSuffix = skippedInactive > 0 ? `, ${skippedInactive}명 비활성월(제외)` : "";
+    const summary = `대상 월 ${ym}: ${targets.length}명 중 ${granted}명 감면 부여, ${skippedZero}명 미해당${inactSuffix}${dupSuffix}`;
 
     // 멤버별 처리 오류가 하나라도 있으면 throw → 실행 이력에 status='failed'로 남긴다(성공 오기록 방지).
     // 성공분(granted)은 이미 INSERT됐고, 처리 요약을 메시지에 함께 담아 어디까지 됐는지 보이게 한다.

@@ -17,6 +17,7 @@ import type { CmntRow } from "@/components/comment/comment-item";
 import { CommentSection } from "@/components/comment/comment-section";
 import { renderMentions, type MemberOption } from "@/components/comment/mention-input";
 import { Avatar } from "@/components/common/avatar";
+import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";
 import { ShareSheet } from "@/components/common/share-sheet";
 import {
   ResponsiveDrawer,
@@ -48,6 +49,10 @@ export interface GatheringDetailDialogProps {
   onOpenChange: (open: boolean) => void;
   teamId: string;
   currentMemberId?: string;
+  /** 뷰어가 비활성/탈퇴 — 보기는 열되 참석·댓글 등 쓰기는 안내 게이트로 대체 */
+  viewerInactive?: boolean;
+  /** 비활성/탈퇴 세부 구분 — InactiveGateDialog 문구 분기용 */
+  viewerInactiveKind?: "inactive" | "left";
   currentMemberName?: string | null;
   currentMemberAvatarUrl?: string | null;
   isAdmin?: boolean;
@@ -71,6 +76,8 @@ export function GatheringDetailDialog({
   onOpenChange,
   teamId,
   currentMemberId,
+  viewerInactive,
+  viewerInactiveKind,
   currentMemberName,
   currentMemberAvatarUrl,
   isAdmin,
@@ -84,6 +91,7 @@ export function GatheringDetailDialog({
   onAttendanceChange,
   onClone,
 }: GatheringDetailDialogProps) {
+  const [inactiveGateOpen, setInactiveGateOpen] = useState(false);
   const [attending, setAttending] = useState(initialIsAttending ?? false);
   const [attdCount, setAttdCount] = useState(gathering?.regCount ?? 0);
   const [attendees, setAttendees] = useState(gathering?.attendees ?? []);
@@ -284,21 +292,29 @@ export function GatheringDetailDialog({
               </div>
             )}
 
-            {/* 참석 버튼 */}
+            {/* 참석 버튼 — 비활성 회원이면 참석 대신 안내 게이트를 연다 */}
             {currentMemberId && (
               <Button
-                onClick={handleToggleAttendance}
+                onClick={viewerInactive ? () => setInactiveGateOpen(true) : handleToggleAttendance}
                 // 처리 중엔 disabled 대신 handleToggleAttendance의 togglingRef 가드로 재클릭만 막아 흐려지지 않게.
                 // 낙관적 업데이트로 색이 즉시 바뀌어 "바로 눌렸다"고 느끼게 한다.
                 // detailLoading 중엔 내 참석 여부를 아직 몰라 토글이 꼬일 수 있으므로 잠근다.
                 // 지난 모임은 참석/해제 불가(관리자 예외) — 서버에서도 차단.
-                disabled={isFull || detailLoading || isPastLocked}
+                // 비활성 회원은 마감·잠금과 무관하게 눌러 안내 게이트를 열 수 있어야 하므로 disabled 제외.
+                disabled={!viewerInactive && (isFull || detailLoading || isPastLocked)}
                 variant={attending ? "default" : "outline"}
                 className={attending ? "w-full bg-success hover:bg-success/90 border-success" : "w-full"}
               >
-                {/* 지난 모임: 문구 변경 없이 잠금 아이콘 + disabled 흐림으로만 표시 */}
-                {isPastLocked && <Lock className="size-3.5" />}
-                {!isPastLocked && isFull ? "인원 마감" : attending ? "✅ 참석" : "참석하기"}
+                {/* 비활성이면 참석 유도 문구로 게이트를 열게 한다 */}
+                {viewerInactive ? (
+                  "참석하기"
+                ) : (
+                  <>
+                    {/* 지난 모임: 문구 변경 없이 잠금 아이콘 + disabled 흐림으로만 표시 */}
+                    {isPastLocked && <Lock className="size-3.5" />}
+                    {!isPastLocked && isFull ? "인원 마감" : attending ? "✅ 참석" : "참석하기"}
+                  </>
+                )}
               </Button>
             )}
 
@@ -385,6 +401,8 @@ export function GatheringDetailDialog({
                 entityId={gathering.id}
                 teamId={teamId}
                 currentMemberId={currentMemberId}
+                viewerInactive={viewerInactive}
+                viewerInactiveKind={viewerInactiveKind}
                 currentMemberName={currentMemberName}
                 currentMemberAvatarUrl={currentMemberAvatarUrl}
                 isAdmin={isAdmin}
@@ -414,6 +432,7 @@ export function GatheringDetailDialog({
       pageUrl={sharePageUrl}
       shareText={gthrShareText}
     />
+    <InactiveGateDialog open={inactiveGateOpen} onOpenChange={setInactiveGateOpen} kind={viewerInactiveKind} />
     </>
   );
 }

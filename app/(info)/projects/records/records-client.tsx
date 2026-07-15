@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 
 import { deleteActivity } from "@/app/actions/mileage-run";
 
+import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";
 import { SegmentControl } from "@/components/common/segment-control";
 import { H2, Body, Caption, Micro } from "@/components/common/typography";
 import { ActivityLogForm } from "@/components/projects/activity-log-form";
@@ -45,6 +46,10 @@ type Props = {
   evtEndDt: string;
   initialMonth: string;
   initialRecords: ActivityRecord[];
+  /** 비활성/탈퇴 회원 — true면 수정/삭제 시 공통 안내 게이트를 연다 */
+  isInactive?: boolean;
+  /** 비활성/탈퇴 세부 구분 — InactiveGateDialog 문구 분기용 */
+  inactiveKind?: "inactive" | "left";
 };
 
 function isEditLocked(actDt: string): boolean {
@@ -69,7 +74,7 @@ function buildMonthSegments(startDt: string, endDt: string) {
   return segments;
 }
 
-export function RecordsClient({ evtId, memId, prtId, evtStartDt, evtEndDt, initialMonth, initialRecords }: Props) {
+export function RecordsClient({ evtId, memId, prtId, evtStartDt, evtEndDt, initialMonth, initialRecords, isInactive = false, inactiveKind }: Props) {
   const segments = buildMonthSegments(evtStartDt, evtEndDt);
 
   // 첫 달은 서버에서 prefetch한 데이터로 시작 → 진입 시 깜빡임 없음
@@ -80,6 +85,7 @@ export function RecordsClient({ evtId, memId, prtId, evtStartDt, evtEndDt, initi
   const [deleteTarget, setDeleteTarget] = useState<ActivityRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [editTarget, setEditTarget] = useState<ActivityRecord | null>(null);
+  const [inactiveGateOpen, setInactiveGateOpen] = useState(false);
 
   // 주입받은 prt_id로 바로 조회 (participant 재조회 제거). 서버 prefetch와 동일한 공용 헬퍼 사용.
   const loadRecords = useCallback(async () => {
@@ -103,6 +109,11 @@ export function RecordsClient({ evtId, memId, prtId, evtStartDt, evtEndDt, initi
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
+    if (isInactive) {
+      setDeleteTarget(null);
+      setInactiveGateOpen(true);
+      return;
+    }
     setDeleting(true);
     try {
       const result = await deleteActivity(deleteTarget.act_id);
@@ -259,10 +270,14 @@ export function RecordsClient({ evtId, memId, prtId, evtStartDt, evtEndDt, initi
               memId={memId}
               editData={editTarget}
               onSuccess={handleEditSuccess}
+              isInactive={isInactive}
+              inactiveKind={inactiveKind}
             />
           )}
         </SheetContent>
       </Sheet>
+
+      <InactiveGateDialog open={inactiveGateOpen} onOpenChange={setInactiveGateOpen} kind={inactiveKind} />
     </div>
   );
 }

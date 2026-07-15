@@ -31,6 +31,9 @@ interface SchPostDetailDialogProps {
   onOpenChange: (open: boolean) => void
   teamId: string
   currentMemberId?: string
+  viewerInactive?: boolean
+  /** 비활성/탈퇴 세부 구분 — InactiveGateDialog 문구 분기용 */
+  viewerInactiveKind?: "inactive" | "left"
   currentMemberName?: string | null
   currentMemberAvatarUrl?: string | null
   isAdmin?: boolean
@@ -46,6 +49,8 @@ export function SchPostDetailDialog({
   onOpenChange,
   teamId,
   currentMemberId,
+  viewerInactive,
+  viewerInactiveKind,
   currentMemberName,
   currentMemberAvatarUrl,
   isAdmin,
@@ -153,6 +158,8 @@ export function SchPostDetailDialog({
                   entityId={post.id}
                   teamId={teamId}
                   currentMemberId={currentMemberId}
+                  viewerInactive={viewerInactive}
+                  viewerInactiveKind={viewerInactiveKind}
                   currentMemberName={currentMemberName}
                   currentMemberAvatarUrl={currentMemberAvatarUrl}
                   isAdmin={isAdmin}

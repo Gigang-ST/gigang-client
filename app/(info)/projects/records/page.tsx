@@ -59,6 +59,8 @@ export default async function ProjectRecordsPage() {
         evtEndDt={event.end_dt}
         initialMonth={initialMonth}
         initialRecords={initialRecords}
+        isInactive={member.status !== "active"}
+        inactiveKind={member.status === "left" ? "left" : member.status !== "active" ? "inactive" : undefined}
       />
     </Suspense>
   );

@@ -24,6 +24,7 @@ import { extractRaceRecordFromImage } from "@/app/actions/extract-race-record";
 import { saveRaceRecord } from "@/app/actions/save-race-record";
 import { listCompetitionsByRaceDate } from "@/app/actions/search-competitions";
 
+import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";
 import { Micro } from "@/components/common/typography";
 import { CompetitionRegisterDialog } from "@/components/races/competition-register-dialog";
 import type { MemberStatus } from "@/components/races/types";
@@ -137,6 +138,14 @@ export function RaceRecordDialog({
   // 저장 상태
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 비활성/탈퇴 회원 — 기록 저장 시도 시 공통 안내 게이트를 연다
+  const isInactive = competitionRegisterMemberStatus?.status === "inactive";
+  const inactiveKind =
+    competitionRegisterMemberStatus?.status === "inactive"
+      ? competitionRegisterMemberStatus.memberSt
+      : undefined;
+  const [inactiveGateOpen, setInactiveGateOpen] = useState(false);
 
   // 트라이애슬론 여부 (step 3 시간 입력용)
   const isTriathlon = (selectedComp?.sport ?? "").includes("triathlon");
@@ -449,6 +458,10 @@ export function RaceRecordDialog({
 
   async function handleSave() {
     if (!canSave || !selectedComp) return;
+    if (isInactive) {
+      setInactiveGateOpen(true);
+      return;
+    }
     setIsSaving(true);
     setError(null);
 
@@ -1011,6 +1024,8 @@ export function RaceRecordDialog({
           </div>
         </div>
       )}
+
+      <InactiveGateDialog open={inactiveGateOpen} onOpenChange={setInactiveGateOpen} kind={inactiveKind} />
     </>
   );
 }

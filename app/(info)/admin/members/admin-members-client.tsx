@@ -10,6 +10,9 @@ import {
   UserMinus,
   UserCheck,
   X,
+  ChevronDown,
+  LogOut,
+  Loader2,
 } from "lucide-react";
 
 import { dayjs } from "@/lib/dayjs";
@@ -25,16 +28,29 @@ import {
   toggleAdmin,
   deleteMember,
   reactivateMember,
+  leaveMemberFromDues,
+  deactivateMember,
   batchDeactivateMembers,
   batchReactivateMembers,
 } from "@/app/actions/admin/manage-member";
 import { revokeTitle } from "@/app/actions/admin/revoke-title";
 
+import { ParticipationSection } from "./participation-section";
+import { ParticipationTab } from "./participation-tab";
+
 import { Avatar } from "@/components/common/avatar";
 import { EmptyState } from "@/components/common/empty-state";
 import { InfoRow } from "@/components/common/info-row";
+import {
+  ResponsiveDrawer,
+  ResponsiveDrawerClose,
+  ResponsiveDrawerContent,
+  ResponsiveDrawerHeader,
+  ResponsiveDrawerTitle,
+  ResponsiveDrawerDescription,
+} from "@/components/common/responsive-drawer";
 import { SegmentControl } from "@/components/common/segment-control";
-import { H2, Caption, SectionLabel } from "@/components/common/typography";
+import { H2, Body, Caption, Micro, SectionLabel } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
@@ -44,6 +60,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -90,11 +107,68 @@ type AwardableTitle = {
 // 상태 배지
 // ---------------------------------------------------------------------------
 
+/** 상태 코드 → 표시 라벨 + 색 토큰. 상태 배지·전환 시트가 공유. */
+const STATUS_META: Record<
+  string,
+  { label: string; dot: string; text: string; badgeClass: string }
+> = {
+  active: { label: "활성", dot: "bg-success", text: "text-success", badgeClass: "bg-success/10 text-success border-success/20" },
+  inactive: { label: "비활성", dot: "bg-warning", text: "text-warning", badgeClass: "bg-warning/10 text-warning border-warning/20" },
+  left: { label: "탈퇴", dot: "bg-destructive", text: "text-destructive", badgeClass: "bg-destructive/10 text-destructive border-destructive/20" },
+  pending: { label: "대기", dot: "bg-muted-foreground", text: "text-muted-foreground", badgeClass: "bg-muted text-muted-foreground border-border" },
+};
+
+const DEFAULT_STATUS_META = {
+  label: "-",
+  dot: "bg-muted-foreground",
+  text: "text-muted-foreground",
+  badgeClass: "bg-muted text-muted-foreground border-border",
+};
+
+function statusMeta(status: string | null) {
+  if (!status) return DEFAULT_STATUS_META;
+  return STATUS_META[status] ?? { ...DEFAULT_STATUS_META, label: status };
+}
+
 function StatusBadge({ status }: { status: string | null }) {
-  if (status === "active") return <Badge variant="default" className="text-[10px] px-1.5 py-0">활성</Badge>;
-  if (status === "inactive") return <Badge variant="secondary" className="text-[10px] px-1.5 py-0 text-destructive border-destructive/30">비활성</Badge>;
-  if (status === "pending") return <Badge variant="outline" className="text-[10px] px-1.5 py-0">대기</Badge>;
-  return <Badge variant="outline" className="text-[10px] px-1.5 py-0">{status ?? "-"}</Badge>;
+  const meta = statusMeta(status);
+  return <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", meta.badgeClass)}>{meta.label}</Badge>;
+}
+
+/**
+ * 클릭 가능한 상태 배지. active/inactive/left 만 전환 시트를 연다(pending은 승인
+ * 대기 흐름이 별도이므로 클릭 불가 — 기존 배지 그대로 표시).
+ */
+function StatusBadgeButton({
+  status,
+  onClick,
+}: {
+  status: string | null;
+  onClick: () => void;
+}) {
+  const meta = statusMeta(status);
+  if (status !== "active" && status !== "inactive" && status !== "left") {
+    return <StatusBadge status={status} />;
+  }
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      aria-label={`${meta.label} 상태 변경`}
+      className={cn(
+        "inline-flex items-center gap-0.5 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold transition-colors",
+        "hover:brightness-95 active:brightness-90",
+        meta.badgeClass,
+      )}
+    >
+      <span className={cn("size-1.5 rounded-full", meta.dot)} />
+      {meta.label}
+      <ChevronDown className="size-3" />
+    </button>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -475,20 +549,245 @@ function TitleSection({
 }
 
 // ---------------------------------------------------------------------------
+// 상태 전환 시트 — 목록 배지 클릭 / 상세 시트 "상태 변경" 버튼이 공유하는 단일 진입점.
+// 서버 액션은 호출부(AdminMembersClient)의 기존 핸들러를 그대로 위임받는다.
+// ---------------------------------------------------------------------------
+
+type StatusAction = "activate" | "deactivate" | "leave";
+
+function StatusChangeSheet({
+  member,
+  open,
+  busy,
+  onOpenChange,
+  onDeactivate,
+  onLeave,
+  onReactivate,
+}: {
+  member: Member;
+  open: boolean;
+  busy: boolean;
+  onOpenChange: (open: boolean) => void;
+  onDeactivate: (memberId: string, reason: string) => void;
+  onLeave: (memberId: string, reason: string) => void;
+  onReactivate: (memberId: string, resetBalance: boolean) => void;
+}) {
+  const [pendingAction, setPendingAction] = useState<StatusAction | null>(null);
+  const [reason, setReason] = useState("");
+  const [resetBalance, setResetBalance] = useState(false);
+
+  const meta = statusMeta(member.status);
+
+  const options: {
+    action: StatusAction;
+    label: string;
+    desc: string;
+    icon: typeof UserCheck;
+    tone: string;
+  }[] = [];
+
+  if (member.status === "active") {
+    options.push({
+      action: "deactivate",
+      label: "비활성으로",
+      desc: "회비 자동 제외·참여 차단. 언제든 되돌릴 수 있어요.",
+      icon: UserMinus,
+      tone: "text-warning",
+    });
+    options.push({
+      action: "leave",
+      label: "탈퇴 처리",
+      desc: "크루를 나감으로 기록. 탈퇴일 저장 + 회비 제외.",
+      icon: LogOut,
+      tone: "text-destructive",
+    });
+  } else if (member.status === "inactive") {
+    options.push({
+      action: "activate",
+      label: "활성으로",
+      desc: "회비 부과·참여 재개. 비활성 기간은 회비에서 자동 제외.",
+      icon: UserCheck,
+      tone: "text-success",
+    });
+    options.push({
+      action: "leave",
+      label: "탈퇴 처리",
+      desc: "크루를 나감으로 기록. 탈퇴일 저장 + 회비 제외.",
+      icon: LogOut,
+      tone: "text-destructive",
+    });
+  } else if (member.status === "left") {
+    options.push({
+      action: "activate",
+      label: "활성으로",
+      desc: "회비 부과·참여 재개. 비활성 기간은 회비에서 자동 제외.",
+      icon: UserCheck,
+      tone: "text-success",
+    });
+  }
+
+  const handleSelect = (action: StatusAction) => {
+    setPendingAction(action);
+    setReason("");
+    setResetBalance(false);
+  };
+
+  const handleConfirm = () => {
+    if (!pendingAction) return;
+    if (pendingAction === "activate") {
+      onReactivate(member.id, resetBalance);
+    } else if (pendingAction === "deactivate") {
+      onDeactivate(member.id, reason.trim());
+    } else if (pendingAction === "leave") {
+      onLeave(member.id, reason.trim());
+    }
+  };
+
+  const needsReason = pendingAction === "deactivate" || pendingAction === "leave";
+  const confirmDisabled = busy || (needsReason && !reason.trim());
+
+  return (
+    <ResponsiveDrawer open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDrawerContent
+        dialogClassName="max-w-sm max-h-[85dvh] flex flex-col gap-0 p-0 overflow-hidden"
+        drawerClassName="max-h-[85dvh]"
+      >
+        <ResponsiveDrawerHeader className="shrink-0 px-6 pt-4 pb-0 text-left">
+          <ResponsiveDrawerTitle className="sr-only">상태 변경</ResponsiveDrawerTitle>
+          <ResponsiveDrawerDescription className="sr-only">
+            회원 상태 전환
+          </ResponsiveDrawerDescription>
+        </ResponsiveDrawerHeader>
+
+        <div className="flex flex-col gap-5 overflow-y-auto px-6 pb-8 pt-3">
+          {/* 대상 + 현재 상태 */}
+          <div className="flex flex-col gap-0.5">
+            <Body className="font-semibold">{member.full_name ?? "이름 없음"}</Body>
+            <div className="flex items-center gap-1.5">
+              <Caption>현재</Caption>
+              <span className={cn("inline-flex items-center gap-1 text-[13px] font-medium", meta.text)}>
+                <span className={cn("size-1.5 rounded-full", meta.dot)} />
+                {meta.label}
+              </span>
+              {member.inact_rsn_txt && (
+                <Micro className="truncate">· {member.inact_rsn_txt}</Micro>
+              )}
+            </div>
+          </div>
+
+          {/* 전환 옵션 */}
+          <div className="flex flex-col gap-2">
+            {options.map((opt) => {
+              const Icon = opt.icon;
+              const isSelected = pendingAction === opt.action;
+              return (
+                <div key={opt.action} className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSelect(opt.action)}
+                    disabled={busy}
+                    className={cn(
+                      "flex items-start gap-3 rounded-xl border px-4 py-3.5 text-left transition-colors",
+                      isSelected ? "border-primary bg-primary/5" : "border-border hover:bg-secondary",
+                    )}
+                  >
+                    <Icon className={cn("size-4 shrink-0 mt-0.5", opt.tone)} />
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[15px] font-medium text-foreground">{opt.label}</span>
+                      <Caption className="text-[12px] leading-snug">{opt.desc}</Caption>
+                    </div>
+                  </button>
+
+                  {/* 인라인 확장: 사유 입력(비활성·탈퇴) / 잔액 선택(활성화) */}
+                  {isSelected && needsReason && (
+                    <div className="flex flex-col gap-1.5 pl-4">
+                      <Label className="text-[12px]">
+                        {opt.action === "leave" ? "탈퇴 사유" : "비활성화 사유"}
+                      </Label>
+                      <Input
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        placeholder="예: 장기 미참여, 자진 탈퇴 요청 등"
+                        autoFocus
+                      />
+                    </div>
+                  )}
+                  {isSelected && opt.action === "activate" && (
+                    <div className="flex flex-col gap-1.5 pl-4">
+                      <Label className="text-[12px]">회비 잔액 처리</Label>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setResetBalance(false)}
+                          className={cn(
+                            "flex-1 rounded-lg border px-3 py-2 text-[13px] font-medium transition-colors",
+                            !resetBalance ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground",
+                          )}
+                        >
+                          잔액 유지
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setResetBalance(true)}
+                          className={cn(
+                            "flex-1 rounded-lg border px-3 py-2 text-[13px] font-medium transition-colors",
+                            resetBalance ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground",
+                          )}
+                        >
+                          0원으로 초기화
+                        </button>
+                      </div>
+                      <Micro>
+                        {resetBalance
+                          ? "기존 예치금·미납을 청산하고 0원부터 다시 시작합니다."
+                          : "기존 잔액(예치금·미납)을 그대로 유지합니다."}
+                      </Micro>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {pendingAction && (
+            <Button
+              onClick={handleConfirm}
+              disabled={confirmDisabled}
+              variant={pendingAction === "leave" ? "destructive" : "default"}
+              className="w-full"
+            >
+              {busy ? <Loader2 className="size-4 animate-spin" /> : "확인"}
+            </Button>
+          )}
+
+          <ResponsiveDrawerClose asChild>
+            <Button variant="ghost" className="w-full text-muted-foreground" disabled={busy}>
+              닫기
+            </Button>
+          </ResponsiveDrawerClose>
+        </div>
+      </ResponsiveDrawerContent>
+    </ResponsiveDrawer>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // 메인 컴포넌트
 // ---------------------------------------------------------------------------
 
 export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: string; initialTeamMemId?: string }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<"members" | "participation">("members");
   const [search, setSearch] = useState("");
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [actioning, setActioning] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive" | "left">("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deactivateTarget, setDeactivateTarget] = useState<{ ids: string[] } | null>(null);
   const [deactivateReason, setDeactivateReason] = useState("");
+  const [statusChangeMember, setStatusChangeMember] = useState<Member | null>(null);
 
   const loadMembers = useCallback(async () => {
     const supabase = createClient();
@@ -575,15 +874,17 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
   const statusFiltered = filtered.filter((m) => {
     if (statusFilter === "active") return m.status === "active";
     if (statusFilter === "inactive") return m.status === "inactive";
+    if (statusFilter === "left") return m.status === "left";
     return true;
   });
 
   const activeSelectedIds = [...selectedIds].filter(
     (id) => statusFiltered.find((m) => m.id === id)?.status === "active",
   );
-  const inactiveSelectedIds = [...selectedIds].filter(
-    (id) => statusFiltered.find((m) => m.id === id)?.status === "inactive",
-  );
+  const reactivatableSelectedIds = [...selectedIds].filter((id) => {
+    const status = statusFiltered.find((m) => m.id === id)?.status;
+    return status === "inactive" || status === "left";
+  });
 
   const displayedIds = statusFiltered.map((m) => m.id);
   const isAllSelected = displayedIds.length > 0 && displayedIds.every((id) => selectedIds.has(id));
@@ -665,11 +966,39 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
     });
   }
 
-  function handleSingleReactivate(memberId: string) {
-    if (!confirm("활성화하시겠습니까?")) return;
+  // 상태 전환 시트(StatusChangeSheet)가 잔액 유지/초기화를 인라인 선택으로 이미
+  // 받으므로 여기서는 추가 확인창 없이 바로 호출한다.
+  function handleSheetReactivate(memberId: string, resetBalance: boolean) {
     startTransition(async () => {
-      const res = await reactivateMember(memberId);
+      const res = await reactivateMember(memberId, resetBalance);
       if (res.ok) {
+        setStatusChangeMember(null);
+        setSelectedMember(null);
+        await loadMembers();
+      } else {
+        alert(res.message);
+      }
+    });
+  }
+
+  function handleSheetDeactivate(memberId: string, reason: string) {
+    startTransition(async () => {
+      const res = await deactivateMember(memberId, reason);
+      if (res.ok) {
+        setStatusChangeMember(null);
+        setSelectedMember(null);
+        await loadMembers();
+      } else {
+        alert(res.message);
+      }
+    });
+  }
+
+  function handleSheetLeave(memberId: string, reason: string) {
+    startTransition(async () => {
+      const res = await leaveMemberFromDues(memberId, reason);
+      if (res.ok) {
+        setStatusChangeMember(null);
         setSelectedMember(null);
         await loadMembers();
       } else {
@@ -694,6 +1023,32 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
     <div className="flex flex-col gap-4 px-6 pb-6 pt-4">
       <H2>회원 관리</H2>
 
+      {/* 회원 목록 ↔ 참여 통계 탭 */}
+      <SegmentControl
+        segments={[
+          { value: "members", label: "회원" },
+          { value: "participation", label: "참여" },
+        ]}
+        value={tab}
+        onValueChange={(v) => {
+          setTab(v as "members" | "participation");
+          // 참여 탭에선 배치 액션 바가 안 보이므로, 보이지 않는 선택 상태가 남지 않게 해제
+          setSelectedIds(new Set());
+        }}
+      />
+
+      {tab === "participation" && (
+        <ParticipationTab
+          members={members}
+          onSelectMember={(memId) => {
+            const found = members.find((m) => m.id === memId);
+            if (found) setSelectedMember(found);
+          }}
+        />
+      )}
+
+      {tab === "members" && (
+        <>
       {/* 검색 */}
       <div className="relative">
         <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -708,13 +1063,38 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
       {/* 상태 필터 */}
       <SegmentControl
         segments={[
-          { value: "all", label: `전체 ${members.length}명` },
-          { value: "active", label: `활성 ${members.filter((m) => m.status === "active").length}명` },
-          { value: "inactive", label: `비활성 ${members.filter((m) => m.status === "inactive").length}명` },
+          { value: "all", label: `전체 ${members.length}` },
+          {
+            value: "active",
+            label: (
+              <span className="inline-flex items-center gap-1">
+                <span className="size-1.5 rounded-full bg-success" />
+                활성 {members.filter((m) => m.status === "active").length}
+              </span>
+            ),
+          },
+          {
+            value: "inactive",
+            label: (
+              <span className="inline-flex items-center gap-1">
+                <span className="size-1.5 rounded-full bg-warning" />
+                비활성 {members.filter((m) => m.status === "inactive").length}
+              </span>
+            ),
+          },
+          {
+            value: "left",
+            label: (
+              <span className="inline-flex items-center gap-1">
+                <span className="size-1.5 rounded-full bg-destructive" />
+                탈퇴 {members.filter((m) => m.status === "left").length}
+              </span>
+            ),
+          },
         ]}
         value={statusFilter}
         onValueChange={(v) => {
-          setStatusFilter(v as "all" | "active" | "inactive");
+          setStatusFilter(v as "all" | "active" | "inactive" | "left");
           setSelectedIds(new Set());
         }}
       />
@@ -733,15 +1113,15 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
               비활성 설정 ({activeSelectedIds.length}명)
             </Button>
           )}
-          {inactiveSelectedIds.length > 0 && (
+          {reactivatableSelectedIds.length > 0 && (
             <Button
               size="sm"
               variant="outline"
-              onClick={() => handleBatchReactivate(inactiveSelectedIds)}
+              onClick={() => handleBatchReactivate(reactivatableSelectedIds)}
               disabled={isPending}
             >
               <UserCheck className="size-3.5 mr-1" />
-              활성화 ({inactiveSelectedIds.length}명)
+              활성화 ({reactivatableSelectedIds.length}명)
             </Button>
           )}
           <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
@@ -781,7 +1161,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
               return (
                 <TableRow
                   key={member.id}
-                  className={`cursor-pointer ${isChecked ? "bg-muted/40" : ""} ${member.status === "inactive" ? "opacity-60" : ""}`}
+                  className={`cursor-pointer ${isChecked ? "bg-muted/40" : ""} ${member.status === "inactive" || member.status === "left" ? "opacity-60" : ""}`}
                   onClick={() => setSelectedMember(member)}
                 >
                   <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
@@ -811,8 +1191,17 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
                   <TableCell className="text-center">
                     <Caption className="text-xs whitespace-nowrap">{member.phone ?? "-"}</Caption>
                   </TableCell>
-                  <TableCell className="text-center">
-                    <StatusBadge status={member.status} />
+                  <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex flex-col items-center gap-0.5">
+                      <StatusBadgeButton
+                        status={member.status}
+                        onClick={() => setStatusChangeMember(member)}
+                      />
+                      {(member.status === "inactive" || member.status === "left") &&
+                        member.inact_rsn_txt && (
+                          <Micro className="max-w-24 truncate">{member.inact_rsn_txt}</Micro>
+                        )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-center">
                     {member.bal_amt === null ? (
@@ -833,6 +1222,8 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
           </TableBody>
         </Table>
       </div>
+        </>
+      )}
 
       {/* 회원 상세 시트 */}
       {selectedMember && (
@@ -898,9 +1289,9 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
                       : null
                   }
                 />
-                {selectedMember.status === "inactive" && (
+                {(selectedMember.status === "inactive" || selectedMember.status === "left") && (
                   <InfoRow
-                    label="비활성 사유"
+                    label={selectedMember.status === "left" ? "탈퇴 사유" : "비활성 사유"}
                     value={selectedMember.inact_rsn_txt || "사유 없음"}
                   />
                 )}
@@ -908,6 +1299,13 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
 
               {/* 온보딩 러닝 프로필 — 회원별 remount로 이전 회원 값 잔상 방지 */}
               <OnboardingSection key={selectedMember.id} memId={selectedMember.id} />
+
+              {/* 참여 현황 — 모임·대회 참여 요약/월별/최근 활동 */}
+              <ParticipationSection
+                key={`participation-${selectedMember.id}`}
+                memId={selectedMember.id}
+                teamId={teamId}
+              />
 
               {/* 칭호 관리 */}
               <TitleSection member={selectedMember} teamId={teamId} />
@@ -936,42 +1334,37 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
                   </Button>
                 )}
 
-                {selectedMember.status === "active" ? (
+                {(selectedMember.status === "active" ||
+                  selectedMember.status === "inactive" ||
+                  selectedMember.status === "left") && (
                   <Button
                     variant="outline"
-                    onClick={() => setDeactivateTarget({ ids: [selectedMember.id] })}
-                    disabled={actioning || isPending}
-                    className="h-auto justify-start gap-3 rounded-xl px-4 py-3.5 text-left"
-                  >
-                    <UserMinus className="size-4 text-muted-foreground" />
-                    <span className="text-[15px] font-medium text-foreground">비활성 설정</span>
-                  </Button>
-                ) : selectedMember.status === "inactive" ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => handleSingleReactivate(selectedMember.id)}
+                    onClick={() => setStatusChangeMember(selectedMember)}
                     disabled={actioning || isPending}
                     className="h-auto justify-start gap-3 rounded-xl px-4 py-3.5 text-left"
                   >
                     <UserCheck className="size-4 text-primary" />
-                    <span className="text-[15px] font-medium text-foreground">활성화</span>
+                    <span className="text-[15px] font-medium text-foreground">상태 변경</span>
                   </Button>
-                ) : null}
+                )}
 
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    handleDeleteMember(
-                      selectedMember.id,
-                      selectedMember.full_name ?? "이름 없음",
-                    )
-                  }
-                  disabled={actioning || isPending}
-                  className="h-auto justify-start gap-3 rounded-xl px-4 py-3.5 text-left"
-                >
-                  <UserX className="size-4 text-destructive" />
-                  <span className="text-[15px] font-medium text-destructive">회원 삭제</span>
-                </Button>
+                {/* 삭제는 시각적으로 분리 — 구분선 + 간격을 두어 실수 클릭 방지 */}
+                <div className="mt-2 border-t border-border pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      handleDeleteMember(
+                        selectedMember.id,
+                        selectedMember.full_name ?? "이름 없음",
+                      )
+                    }
+                    disabled={actioning || isPending}
+                    className="h-auto w-full justify-start gap-3 rounded-xl px-4 py-3.5 text-left"
+                  >
+                    <UserX className="size-4 text-destructive" />
+                    <span className="text-[15px] font-medium text-destructive">회원 삭제</span>
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -1017,6 +1410,22 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 상태 전환 시트 — 목록 배지 클릭 / 상세 시트 "상태 변경" 버튼 공통 진입점 */}
+      {statusChangeMember && (
+        <StatusChangeSheet
+          key={statusChangeMember.id}
+          member={statusChangeMember}
+          open={!!statusChangeMember}
+          busy={isPending}
+          onOpenChange={(open) => {
+            if (!open) setStatusChangeMember(null);
+          }}
+          onDeactivate={handleSheetDeactivate}
+          onLeave={handleSheetLeave}
+          onReactivate={handleSheetReactivate}
+        />
+      )}
     </div>
   );
 }
