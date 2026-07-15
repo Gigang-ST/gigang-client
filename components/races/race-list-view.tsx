@@ -276,7 +276,12 @@ export function RaceListView({
 				const profile = mapMstRelToAppMemberProfile(bundle.mst, bundle.rel);
 				if (!active) return;
 				if (profile.status !== "active") {
-					setMemberStatus({ status: "inactive", userId: user.id });
+					setMemberStatus({
+						status: "inactive",
+						userId: user.id,
+						memberId: profile.id,
+						memberSt: profile.status === "left" ? "left" : "inactive",
+					});
 					return;
 				}
 				setMemberStatus({

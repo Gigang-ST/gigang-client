@@ -18,6 +18,7 @@ import { activityLogSchema } from "@/lib/validations/mileage";
 
 import { logActivity, updateActivity, type ActivityLogInput } from "@/app/actions/mileage-run";
 
+import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,6 +63,10 @@ export type ActivityLogFormProps = {
     review: string | null;
   };
   onSuccess: () => void;
+  /** 비활성/탈퇴 회원 — true면 저장 시도 시 공통 안내 게이트를 연다 */
+  isInactive?: boolean;
+  /** 비활성/탈퇴 세부 구분 — InactiveGateDialog 문구 분기용 */
+  inactiveKind?: "inactive" | "left";
 };
 
 // ─────────────────────────────────────────
@@ -84,6 +89,8 @@ export function ActivityLogForm({
   memId: _memId,
   editData,
   onSuccess,
+  isInactive = false,
+  inactiveKind,
 }: ActivityLogFormProps) {
   const today = todayKST();
 
@@ -95,6 +102,7 @@ export function ActivityLogForm({
   const [selectedMultIds, setSelectedMultIds] = useState<string[]>(initialMultIds);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inactiveGateOpen, setInactiveGateOpen] = useState(false);
 
   const {
     register,
@@ -163,6 +171,11 @@ export function ActivityLogForm({
   // ── 제출 ──
 
   const onSubmit = handleSubmit(async (values) => {
+    if (isInactive) {
+      setInactiveGateOpen(true);
+      return;
+    }
+
     setSubmitting(true);
     try {
       // 서버 액션 타입으로 변환 (default 값 명시 적용)
@@ -193,6 +206,7 @@ export function ActivityLogForm({
   });
 
   return (
+    <>
     <form onSubmit={onSubmit} className="flex flex-col gap-4 pb-4">
       {/* 날짜 */}
       <div className="flex flex-col gap-1.5">
@@ -348,5 +362,8 @@ export function ActivityLogForm({
         {submitting ? "저장 중..." : editData?.act_id ? "수정하기" : "기록하기"}
       </Button>
     </form>
+
+    <InactiveGateDialog open={inactiveGateOpen} onOpenChange={setInactiveGateOpen} kind={inactiveKind} />
+    </>
   );
 }

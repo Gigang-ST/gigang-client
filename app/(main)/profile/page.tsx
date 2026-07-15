@@ -14,6 +14,7 @@ import { H1 } from "@/components/common/typography";
 import { PaceChartDynamic } from "@/components/profile/pace-chart-dynamic";
 import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
 import { ProfileCard } from "@/components/profile/profile-card";
+import type { MemberStatus } from "@/components/races/types";
 import { CardItem } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -89,6 +90,25 @@ async function ProfileContent() {
     return lvl > max ? lvl : max;
   }, 1);
 
+  // 비활성/탈퇴 회원도 프로필은 볼 수 있지만, 대회 등록·기록 저장 등 쓰기는 차단해야 하므로
+  // 실제 회원 상태를 그대로 반영한다(app/(main)/page.tsx와 동일 패턴).
+  const competitionRegisterMemberStatus: MemberStatus =
+    member.status !== "active"
+      ? {
+          status: "inactive",
+          userId: user.id,
+          memberId: member.id,
+          memberSt: member.status === "left" ? "left" : "inactive",
+        }
+      : {
+          status: "ready",
+          userId: user.id,
+          memberId: member.id,
+          fullName: member.full_name,
+          email: user.email ?? null,
+          admin: member.admin,
+        };
+
   return (
     <div className="flex flex-col gap-4 px-6 pb-6">
         {/* Profile Card */}
@@ -136,14 +156,7 @@ async function ProfileContent() {
           memberId={member.id}
           teamId={teamId}
           cmmCdRows={cmmCdRows}
-          competitionRegisterMemberStatus={{
-            status: "ready",
-            userId: user.id,
-            memberId: member.id,
-            fullName: member.full_name,
-            email: user.email ?? null,
-            admin: member.admin,
-          }}
+          competitionRegisterMemberStatus={competitionRegisterMemberStatus}
         />
 
         {/* 페이스 그래프 */}

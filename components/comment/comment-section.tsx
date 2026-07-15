@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client"
 
 import { createComment } from "@/app/actions/comment/manage-comment"
 
+import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog"
 import { SectionLabel } from "@/components/common/typography"
 import { detectInAppBrowser, openExternalBrowser } from "@/components/in-app-browser-gate"
 import { Button } from "@/components/ui/button"
@@ -19,6 +20,13 @@ interface CommentSectionProps {
   entityId: string
   teamId: string
   currentMemberId?: string
+  /**
+   * 뷰어가 비활성/탈퇴 회원인가. true면 currentMemberId 로 읽기는 열되(블러 없음),
+   * 작성 입력창은 "관리자에게 문의" 게이트로 대체한다("보기는 열고 쓰기만 차단").
+   */
+  viewerInactive?: boolean
+  /** 비활성/탈퇴 세부 구분 — InactiveGateDialog 문구 분기용 */
+  viewerInactiveKind?: "inactive" | "left"
   /** 현재 멤버 이름·아바타 — optimistic 댓글에 사용(membersCache 로드 타이밍과 무관하게 본인 프로필 표시) */
   currentMemberName?: string | null
   currentMemberAvatarUrl?: string | null
@@ -51,6 +59,8 @@ export function CommentSection({
   entityId,
   teamId,
   currentMemberId,
+  viewerInactive = false,
+  viewerInactiveKind,
   currentMemberName,
   currentMemberAvatarUrl,
   isAdmin,
@@ -58,6 +68,7 @@ export function CommentSection({
   initialComments,
   loginReturnPath,
 }: CommentSectionProps) {
+  const [inactiveGateOpen, setInactiveGateOpen] = useState(false)
   const [comments, setComments] = useState<CmntRow[]>(initialComments ?? [])
   const [loadingComments, setLoadingComments] = useState(!!currentMemberId && !initialComments)
 
@@ -313,7 +324,7 @@ export function CommentSection({
                 currentMemberId={currentMemberId}
                 isAdmin={isAdmin}
                 members={members}
-                onReply={currentMemberId ? (c) => { setReplyTo(c); setReplyText(`@${c.mem_nm} `) } : undefined}
+                onReply={!currentMemberId ? undefined : viewerInactive ? () => setInactiveGateOpen(true) : (c) => { setReplyTo(c); setReplyText(`@${c.mem_nm} `) }}
               />
               {cmnt.replies.map((reply) => (
                 <CommentItem
@@ -323,11 +334,11 @@ export function CommentSection({
                   isAdmin={isAdmin}
                   members={members}
                   isReply
-                  onReply={currentMemberId ? (c) => { setReplyTo(c); setReplyText(`@${c.mem_nm} `) } : undefined}
+                  onReply={!currentMemberId ? undefined : viewerInactive ? () => setInactiveGateOpen(true) : (c) => { setReplyTo(c); setReplyText(`@${c.mem_nm} `) }}
                 />
               ))}
 
-              {replyTo && (replyTo.cmnt_id === cmnt.cmnt_id || replyTo.prnt_id === cmnt.cmnt_id) && currentMemberId && (
+              {!viewerInactive && replyTo && (replyTo.cmnt_id === cmnt.cmnt_id || replyTo.prnt_id === cmnt.cmnt_id) && currentMemberId && (
                 <div className="pl-10 pb-3 pt-1 flex flex-col gap-2">
                   <MentionInput
                     value={replyText}
@@ -361,23 +372,35 @@ export function CommentSection({
         </div>
       )}
 
-      <div className="flex flex-col gap-2 pt-1">
-        <MentionInput
-          value={newText}
-          onChange={setNewText}
-          members={members}
-          placeholder="댓글을 입력하세요..."
-          rows={2}
-        />
-        <Button
-          size="sm"
-          onClick={handleSubmitComment}
-          disabled={!newText.trim()}
-          className="self-end"
+      {viewerInactive ? (
+        // 보기는 열되(위 목록은 그대로 노출), 작성 입력창 대신 비활성 안내 게이트를 연다.
+        <button
+          onClick={() => setInactiveGateOpen(true)}
+          className="mt-1 rounded-xl border border-dashed border-border py-3 text-[13px] text-muted-foreground transition-colors hover:bg-secondary"
         >
-          댓글 달기
-        </Button>
-      </div>
+          비활성 상태예요 · 댓글을 쓰려면 관리자 승인이 필요해요
+        </button>
+      ) : (
+        <div className="flex flex-col gap-2 pt-1">
+          <MentionInput
+            value={newText}
+            onChange={setNewText}
+            members={members}
+            placeholder="댓글을 입력하세요..."
+            rows={2}
+          />
+          <Button
+            size="sm"
+            onClick={handleSubmitComment}
+            disabled={!newText.trim()}
+            className="self-end"
+          >
+            댓글 달기
+          </Button>
+        </div>
+      )}
+
+      <InactiveGateDialog open={inactiveGateOpen} onOpenChange={setInactiveGateOpen} kind={viewerInactiveKind} />
     </div>
   )
 }

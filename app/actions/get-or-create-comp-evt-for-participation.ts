@@ -2,7 +2,7 @@
 
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
-import { withMember } from "@/lib/actions/auth";
+import { withActive } from "@/lib/actions/auth";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import {
   normalizeCompEvtType,
@@ -14,7 +14,7 @@ export async function getOrCreateCompEvtIdForParticipation(
   competitionId: string,
   rawEventType: string,
 ): Promise<{ ok: true; compEvtId: string } | { ok: false; message: string }> {
-  return withMember(async ({ supabase }) => {
+  return withActive(async ({ supabase }) => {
     const upper = normalizeCompEvtType(rawEventType);
     if (!upper) return { ok: false, message: "참가 종목을 선택하거나 입력해 주세요." };
     if (compEvtTypeContainsHangul(upper)) {

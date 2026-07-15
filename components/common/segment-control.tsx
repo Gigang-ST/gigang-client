@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 type Segment<T extends string = string> = {
   value: T;
-  label: string;
+  label: React.ReactNode;
 };
 
 type SegmentControlProps<T extends string = string> = {

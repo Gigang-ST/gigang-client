@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { withMember } from "@/lib/actions/auth";
+import { withActive } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
 import { joinGatheringWithCapCheck } from "@/lib/gathering/join-gathering";
 import { isPastLockedFor } from "@/lib/past-event";
@@ -17,7 +17,7 @@ import { createUntypedAdminClient } from "@/lib/supabase/admin";
 export async function toggleGatheringAttendance(
   gthr_id: string,
 ): Promise<{ attending: boolean; monthlyAttendCnt?: number }> {
-  return withMember(async ({ member, supabase }) => {
+  return withActive(async ({ member, supabase }) => {
     // 모임 검증용 조회와 내 참석 여부 조회는 독립적 — 병렬 1 RTT로 (직렬 2 RTT 방지)
     const admin = createUntypedAdminClient();
     const { teamId } = await getRequestTeamContext();

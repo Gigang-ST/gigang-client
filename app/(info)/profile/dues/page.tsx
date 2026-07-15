@@ -6,6 +6,7 @@ import { TEAM_ACCOUNT } from "@/lib/constants";
 import { DUES_QUEST } from "@/lib/constants/dues-quest";
 import { dayjs } from "@/lib/dayjs";
 import { calcExemption } from "@/lib/dues/calc-exemption";
+import { isMonthCharged } from "@/lib/dues/ledger-replay";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createClient } from "@/lib/supabase/server";
@@ -86,10 +87,13 @@ export default async function MemberDuesPage() {
 
   // 참여 감면 퀘스트(당월 실시간) — 회비 단가가 있고 활동 집계가 성공했을 때만 계산.
   // RPC 실패 시 0건으로 내려앉히면 달성 중인데 "감면 없음"으로 오표시되므로 카드 자체를 숨긴다.
+  // 당월이 첫 부과월 이전(가입 당월 미부과 — JOIN_MONTH_EXEMPT_FROM 이후 가입자의 가입월)이면
+  // 감면 대상이 아니므로 숨긴다 — 표시하면 마감 배치(같은 게이트)에서 제외되어 지켜지지 않는 약속이 된다.
   const monthlyFeeAmt = policy?.monthly_fee_amt ?? null;
+  const chargedThisMonth = isMonthCharged(member.joined_at, curYm);
   const stat = activity?.[0] ?? { attend_cnt: 0, regular_attend_cnt: 0, hosted_cnt: 0 };
   const quest =
-    monthlyFeeAmt !== null && !activityErr
+    monthlyFeeAmt !== null && !activityErr && chargedThisMonth
       ? {
           ym: curYm,
           result: calcExemption(

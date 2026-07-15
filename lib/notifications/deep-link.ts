@@ -22,6 +22,8 @@ const NOTI_ROUTE: Record<
   adm_cust: () => null,
   dues_notice: () => "/profile/dues",
   dues_check_req: () => null,
+  // 재활성 문의 — 관리자가 바로 그 회원을 처리하도록 회원관리 딥링크(?member=team_mem_id)
+  reactivate_req: (refId) => (refId ? `/admin/members?member=${refId}` : "/admin/members"),
   sch_post_cmnt: (refId) => (refId ? `/?post=${refId}` : "/"),
   sch_post_new: (refId) => (refId ? `/?post=${refId}` : "/"),
   cmnt_mention: (refId, refType) => commentTargetRoute(refId, refType),

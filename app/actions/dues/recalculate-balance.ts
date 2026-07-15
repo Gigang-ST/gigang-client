@@ -5,8 +5,11 @@ import { dayjs } from "@/lib/dayjs";
 import { withAdmin } from "@/lib/actions/auth";
 import {
   LEDGER_EPOCH,
+  buildActiveIntervals,
   buildChargeMonths,
+  firstChargeMonth,
   replayPays,
+  sumReflectedExemptions,
   type ReplayPay,
 } from "@/lib/dues/ledger-replay";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -75,22 +78,32 @@ export async function recalculateBalance(memIds?: string[]) {
     for (let i = 0; i < memberIds.length; i += CHUNK_SIZE) {
       const chunk = memberIds.slice(i, i + CHUNK_SIZE);
       await Promise.all(chunk.map(async (mid) => {
-        // ① 앵커 — LEDGER_EPOCH 이전에 만들어진 가장 오래된 스냅샷(개시잔액)
+        // ① 앵커 — 개시잔액. 두 종류: (a) LEDGER_EPOCH 이전 시딩 스냅샷(가장 오래된),
+        //    (b) 재활성/재가입 잔액 초기화 스냅샷(anchor_yn=true, EPOCH 이후여도 인정).
+        //    초기화는 기존 스냅샷을 del_yn 처리하므로 회원당 앵커 후보는 사실상 1개.
+        //    anchor_yn=true(초기화)를 시딩보다 우선해 "재활성 이후만 계산"이 되게 한다.
         const { data: anchor } = await db
           .from("fee_mem_bal_snap")
-          .select("bal_amt, last_calc_dt, last_calc_at")
+          .select("bal_amt, last_calc_dt, last_calc_at, crt_at")
           .eq("team_id", teamId)
           .eq("mem_id", mid)
           .eq("del_yn", false)
-          .lt("crt_at", dayjs(LEDGER_EPOCH).toISOString())
+          .or(`anchor_yn.eq.true,crt_at.lt.${dayjs(LEDGER_EPOCH).toISOString()}`)
+          .order("anchor_yn", { ascending: false })
           .order("crt_at", { ascending: true })
           .limit(1)
           .maybeSingle();
 
-        // ② 부과 시작 월 — 앵커가 있으면 앵커 마감월 다음 달, 없으면 가입월
+        // ② 부과 시작 월 — 앵커가 있으면 앵커 마감월 다음 달, 없으면 첫 부과월
+        //    (가입 당월부터. 단 JOIN_MONTH_EXEMPT_FROM 이후 가입자는 가입 다음 달부터 — firstChargeMonth)
+        // cursorFloor: 커서 폴백(⑥) 기준은 부과 시작이 아니라 "가입월 초"를 유지한다 —
+        // fromMonth(가입 다음 달)를 그대로 쓰면 납부 0건 신규 회원의 커서가 미래로 저장되어
+        // 가입월 중 은행 입금이 업로드 컷오프에 걸려 조용히 소실된다(QS-9 재발).
         let fromMonth: string;
+        let cursorFloor: string;
         if (anchor) {
           fromMonth = dayjs(anchor.last_calc_dt).add(1, "month").startOf("month").format("YYYY-MM-DD");
+          cursorFloor = fromMonth;
         } else {
           const { data: rel } = await db
             .from("team_mem_rel")
@@ -101,7 +114,8 @@ export async function recalculateBalance(memIds?: string[]) {
             .eq("del_yn", false)
             .maybeSingle();
           if (!rel?.join_dt) return;
-          fromMonth = dayjs(rel.join_dt).startOf("month").format("YYYY-MM-DD");
+          fromMonth = firstChargeMonth(rel.join_dt);
+          cursorFloor = dayjs(rel.join_dt).startOf("month").format("YYYY-MM-DD");
         }
 
         // ③ 납부 리플레이 — paid 전체를 읽고 앵커 커서 이후만 합산
@@ -140,8 +154,35 @@ export async function recalculateBalance(memIds?: string[]) {
           .eq("vers", 0)
           .eq("del_yn", false);
 
+        // 상태 이력(정본+vers 이력)으로 active 구간 재구성 → 비활성/재활성/탈퇴/삭제 기간 부과 제외.
+        // 이력이 없으면(도입 전 회원) 정본 1건뿐이라 "가입~현재 active" 단일 구간 = 기존 동작.
+        // 삭제 이력(del_yn=true)도 함께 조회한다 — 삭제=비active 전환으로 처리해야, 삭제~재가입
+        // 공백이 재가입 봉인(앵커)에 의존하지 않고도 자동 면제된다(봉인 실패 시 fail-safe).
+        const { data: relHist, error: relHistErr } = await db
+          .from("team_mem_rel")
+          .select("mem_st_cd, eff_at, del_yn")
+          .eq("team_id", teamId)
+          .eq("mem_id", mid)
+          .order("eff_at", { ascending: true });
+        // 조회 오류는 그 회원을 스킵+에러 기록 — 오류를 "전부 부과"로 대체하면 비활성 기간이
+        // 있는 회원이 과다 부과된다(조용한 재무 오류 금지). 빈 결과([])는 정상적으로 발생하지
+        // 않지만(정본 1건 이상 존재), 방어적으로 undefined(판정 생략=기존 전부 부과 동작)로 둔다.
+        if (relHistErr) {
+          errors.push(`상태 이력 조회 실패 (${mid}): ${relHistErr.message}`);
+          return;
+        }
+        const activeIntervals = !relHist?.length
+          ? undefined
+          : buildActiveIntervals(
+              // 삭제(del_yn=true) 로우는 상태와 무관하게 "deleted"(비active)로 취급해 구간을 끊는다.
+              relHist.map((r) => ({
+                mem_st_cd: r.del_yn ? "deleted" : r.mem_st_cd,
+                eff_at: r.eff_at,
+              })),
+            );
+
         const months = fromMonth <= today
-          ? buildChargeMonths(policies, exmRules ?? [], fromMonth, today)
+          ? buildChargeMonths(policies, exmRules ?? [], fromMonth, today, activeIntervals)
           : [];
         const totalCharged = months.reduce((sum, m) => sum + m.charged, 0);
 
@@ -182,22 +223,29 @@ export async function recalculateBalance(memIds?: string[]) {
           }
         }
 
-        // ⑤ 이미 반영(rflt_yn=true)된 면제 합 — base 에 녹여 RPC의 미반영 합산과 합치면 전체
+        // ⑤ 이미 반영(rflt_yn=true)된 면제 합 — base 에 녹여 RPC의 미반영 합산과 합치면 전체.
+        //    단 재활성 0원 청산 앵커(anchor_yn=true)는 청산 이전 반영 면제까지 다시 더하면
+        //    잔액이 부활하므로, 앵커 생성(crt_at) 이후 반영분만 합산한다(replayPays 와 대칭).
+        //    시딩 앵커는 rflt_yn 마킹 로직보다 이전이라 이 필터가 결과를 바꾸지 않는다(불변).
         const { data: reflectedExms } = await db
           .from("fee_due_exm_hist")
-          .select("exm_amt")
+          .select("exm_amt, upd_at")
           .eq("team_id", teamId)
           .eq("mem_id", mid)
           .eq("rflt_yn", true)
           .eq("del_yn", false);
-        const reflectedExmSum = (reflectedExms ?? []).reduce((sum, e) => sum + e.exm_amt, 0);
+        const reflectedExmSum = sumReflectedExemptions(
+          (reflectedExms ?? []).map((e) => ({ exmAmt: e.exm_amt, updAt: e.upd_at })),
+          anchor?.crt_at ?? null,
+        );
 
         const baseBal = (anchor?.bal_amt ?? 0) + reflectedExmSum;
 
         // ⑥ 새 커서 — 리플레이한 마지막 거래 시각. 납부가 없으면 앵커 커서, 그마저 없으면
-        //    가입월 초. now 로 두면 과거 입금이 업로드 컷오프에 걸려 조용히 소실된다(QS-9).
+        //    가입월 초(cursorFloor — 첫 부과월이 아님에 주의). now 나 미래 시각으로 두면
+        //    과거 입금이 업로드 컷오프에 걸려 조용히 소실된다(QS-9).
         const newCursor =
-          lastTxnAt ?? anchor?.last_calc_at ?? dayjs.tz(`${fromMonth}T00:00:00`, "Asia/Seoul").toISOString();
+          lastTxnAt ?? anchor?.last_calc_at ?? dayjs.tz(`${cursorFloor}T00:00:00`, "Asia/Seoul").toISOString();
 
         const { error: rpcErr } = await db.rpc("recalc_member_balance", {
           p_team_id: teamId,

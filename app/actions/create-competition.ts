@@ -5,7 +5,7 @@ import { revalidateTag } from "next/cache";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { todayKST } from "@/lib/dayjs";
 import { getCachedCmmCdRows, isValidCompSprtCd } from "@/lib/queries/cmm-cd-cached";
-import { withMember } from "@/lib/actions/auth";
+import { withActive } from "@/lib/actions/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 interface CreateCompetitionInput {
@@ -20,7 +20,7 @@ interface CreateCompetitionInput {
 }
 
 export async function createCompetition(input: CreateCompetitionInput) {
-  return withMember(async () => {
+  return withActive(async () => {
     const cmmRows = await getCachedCmmCdRows();
     if (!isValidCompSprtCd(cmmRows, input.sport.trim())) return { ok: false, message: "유효하지 않은 종목입니다." };
 

@@ -104,7 +104,12 @@ async function HomeContent() {
   if (user) {
     if (currentMember) {
       initialMemberStatus = currentMember.status !== "active"
-        ? { status: "inactive", userId: user.id }
+        ? {
+            status: "inactive",
+            userId: user.id,
+            memberId: currentMember.id,
+            memberSt: currentMember.status === "left" ? "left" : "inactive",
+          }
         : {
             status: "ready",
             userId: user.id,
