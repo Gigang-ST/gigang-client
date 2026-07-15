@@ -12,6 +12,7 @@ import { MILEAGE_SPORT_LABELS, type MileageSport } from "@/lib/mileage";
 
 import { deleteActivity } from "@/app/actions/mileage-run";
 
+import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";
 import { Body, Caption, Micro } from "@/components/common/typography";
 import { ActivityLogForm } from "@/components/projects/activity-log-form";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +52,10 @@ type Props = {
   memId: string;
   month: string;
   totalCount: number;
+  /** 비활성/탈퇴 회원 — true면 수정 폼에서 공통 안내 게이트를 연다 */
+  isInactive?: boolean;
+  /** 비활성/탈퇴 세부 구분 — InactiveGateDialog 문구 분기용 */
+  inactiveKind?: "inactive" | "left";
 };
 
 /** 전월 기록은 매월 3일까지만 수정/삭제 가능 (records-client와 동일 규칙) */
@@ -65,14 +70,22 @@ export function MyActivityListClient({
   evtId,
   memId,
   totalCount,
+  isInactive = false,
+  inactiveKind,
 }: Props) {
   const router = useRouter();
   const [deleteTarget, setDeleteTarget] = useState<ActivityRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [editTarget, setEditTarget] = useState<ActivityRecord | null>(null);
+  const [inactiveGateOpen, setInactiveGateOpen] = useState(false);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
+    if (isInactive) {
+      setDeleteTarget(null);
+      setInactiveGateOpen(true);
+      return;
+    }
     setDeleting(true);
     try {
       const result = await deleteActivity(deleteTarget.act_id);
@@ -82,8 +95,15 @@ export function MyActivityListClient({
       } else {
         alert(result.message);
       }
-    } catch {
-      alert("삭제에 실패했어요. 잠시 후 다시 시도해 주세요.");
+    } catch (e) {
+      // withActive throw 메시지가 프로덕션에서 마스킹될 수 있어, isInactive prop이
+      // 못 잡은 경우를 대비한 안전망으로 메시지 문자열도 함께 확인한다.
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("비활성")) {
+        setInactiveGateOpen(true);
+      } else {
+        alert("삭제에 실패했어요. 잠시 후 다시 시도해 주세요.");
+      }
     } finally {
       setDeleting(false);
       setDeleteTarget(null);
@@ -208,10 +228,14 @@ export function MyActivityListClient({
               memId={memId}
               editData={editTarget}
               onSuccess={handleEditSuccess}
+              isInactive={isInactive}
+              inactiveKind={inactiveKind}
             />
           )}
         </SheetContent>
       </Sheet>
+
+      <InactiveGateDialog open={inactiveGateOpen} onOpenChange={setInactiveGateOpen} kind={inactiveKind} />
     </div>
   );
 }

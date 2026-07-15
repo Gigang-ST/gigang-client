@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,6 +28,7 @@ import {
 
 import { createCompetition } from "@/app/actions/create-competition";
 
+import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";
 import { detectInAppBrowser, openExternalBrowser } from "@/components/in-app-browser-gate";
 import { Button } from "@/components/ui/button";
 import {
@@ -123,6 +124,8 @@ export function CompetitionRegisterDialog({
     resolver: zodResolver(registerSchema),
   });
 
+  const [inactiveGateOpen, setInactiveGateOpen] = useState(false);
+
   const sport = watch("sport");
   const selectedEventTypes = watch("selectedEventTypes");
   const customEventType = watch("customEventType");
@@ -192,8 +195,11 @@ export function CompetitionRegisterDialog({
 
   const showAuthMessage = memberStatus.status !== "ready" && memberStatus.status !== "inactive";
   const showInactiveMessage = memberStatus.status === "inactive";
+  const inactiveKind =
+    memberStatus.status === "inactive" ? memberStatus.memberSt : undefined;
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         overlayClassName={stackElevated ? "z-[60]" : undefined}
@@ -215,7 +221,15 @@ export function CompetitionRegisterDialog({
 
         {showInactiveMessage ? (
           <div className="flex flex-col gap-3 text-sm">
-            <p className="text-destructive">비활성화된 회원입니다. 관리자에게 문의하세요.</p>
+            <p className="text-destructive">현재 비활성 상태라 대회를 등록할 수 없어요.</p>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => setInactiveGateOpen(true)}
+            >
+              관리자에게 문의하기
+            </Button>
           </div>
         ) : showAuthMessage ? (
           <div className="flex flex-col gap-3 text-sm">
@@ -417,5 +431,8 @@ export function CompetitionRegisterDialog({
         )}
       </DialogContent>
     </Dialog>
+
+    <InactiveGateDialog open={inactiveGateOpen} onOpenChange={setInactiveGateOpen} kind={inactiveKind} />
+    </>
   );
 }

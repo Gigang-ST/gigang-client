@@ -41,6 +41,7 @@ import {
   ResponsiveDrawerHeader,
   ResponsiveDrawerTitle,
 } from "@/components/common/responsive-drawer";
+import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";
 import { ShareSheet } from "@/components/common/share-sheet";
 import { detectInAppBrowser, openExternalBrowser } from "@/components/in-app-browser-gate";
 import { Badge } from "@/components/ui/badge";
@@ -133,10 +134,21 @@ export function CompetitionDetailDialog({
     { display_key: string; cnt: number }[]
   >([]);
   const [shareOpen, setShareOpen] = useState(false);
+  const [inactiveGateOpen, setInactiveGateOpen] = useState(false);
 
   // 관리자 수정 모드
   const isAdmin = memberStatus.status === "ready" && memberStatus.admin;
   const [editing, setEditing] = useState(false);
+
+  // 뷰어 파생값 — ready/inactive 둘 다 memberId 를 가지므로, 댓글에 회원 식별자를 넘겨
+  // "보기는 열되"(비로그인 블러 방지), inactive 면 viewerInactive 로 쓰기만 차단한다.
+  const viewerMemberId =
+    memberStatus.status === "ready" || memberStatus.status === "inactive"
+      ? memberStatus.memberId
+      : undefined;
+  const viewerInactive = memberStatus.status === "inactive";
+  const viewerInactiveKind =
+    memberStatus.status === "inactive" ? memberStatus.memberSt : undefined;
 
 
   const editForm = useForm<CompetitionEditValues>({
@@ -601,8 +613,16 @@ export function CompetitionDetailDialog({
           <Separator className="my-3" />
 
           {showInactiveMessage ? (
-            <div className="flex flex-col gap-2 text-sm">
-              <p className="text-destructive">비활성화된 회원입니다. 관리자에게 문의하세요.</p>
+            <div className="flex flex-col gap-3 text-sm">
+              <p className="text-destructive">현재 비활성 상태라 참가 신청을 할 수 없어요.</p>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => setInactiveGateOpen(true)}
+              >
+                관리자에게 문의하기
+              </Button>
             </div>
           ) : showAuthMessage ? (
             <div className="flex flex-col gap-3 text-sm">
@@ -730,7 +750,9 @@ export function CompetitionDetailDialog({
               entityType="comp"
               entityId={competition.id}
               teamId={teamId}
-              currentMemberId={memberStatus.status === "ready" ? memberStatus.memberId : undefined}
+              currentMemberId={viewerMemberId}
+              viewerInactive={viewerInactive}
+              viewerInactiveKind={viewerInactiveKind}
               currentMemberName={memberStatus.status === "ready" ? memberStatus.fullName : undefined}
               currentMemberAvatarUrl={memberAvatarUrl}
               isAdmin={isAdmin}
@@ -759,6 +781,8 @@ export function CompetitionDetailDialog({
       locationText={competition.location ?? undefined}
       pageUrl={sharePageUrl}
     />
+
+    <InactiveGateDialog open={inactiveGateOpen} onOpenChange={setInactiveGateOpen} kind={viewerInactiveKind} />
     </>
   );
 }

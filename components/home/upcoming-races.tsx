@@ -77,6 +77,7 @@ export function UpcomingRaces({
     competitionId: string,
     payload: { role: "participant" | "cheering" | "volunteer"; eventType: string },
   ) => {
+    if (memberStatus.status === "inactive") return { ok: false as const, message: "비활성화된 회원입니다. 관리자에게 문의하세요." };
     if (memberStatus.status !== "ready") return { ok: false as const, message: "로그인이 필요합니다." };
     const eventType = payload.role === "participant" ? payload.eventType.trim().toUpperCase() : null;
     if (payload.role === "participant" && eventType && compEvtTypeContainsHangul(eventType)) {
@@ -171,6 +172,7 @@ export function UpcomingRaces({
   };
 
   const deleteRegistration = async (registrationId: string, competitionId: string) => {
+    if (memberStatus.status === "inactive") return { ok: false as const, message: "비활성화된 회원입니다. 관리자에게 문의하세요." };
     const { error } = await supabase
       .from("comp_reg_rel")
       .delete()

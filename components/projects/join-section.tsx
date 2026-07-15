@@ -17,6 +17,7 @@ import {
 import { joinProject } from "@/app/actions/mileage-run";
 import { analytics } from "@/lib/analytics";
 
+import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";
 import { Caption } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
@@ -68,6 +69,10 @@ type JoinSectionProps = {
 	existingPrt: {
 		aprv_yn: boolean;
 	} | null;
+	/** 비활성/탈퇴 회원 — true면 참여 신청 시 공통 안내 게이트를 연다 */
+	isInactive?: boolean;
+	/** 비활성/탈퇴 세부 구분 — InactiveGateDialog 문구 분기용 */
+	inactiveKind?: "inactive" | "left";
 };
 
 type GoalPreset = "50" | "100" | "custom";
@@ -77,6 +82,8 @@ export function JoinSection({
 	evtStartMonth,
 	evtEndMonth,
 	existingPrt,
+	isInactive = false,
+	inactiveKind,
 }: JoinSectionProps) {
 	const router = useRouter();
 	const [goalPreset, setGoalPreset] = useState<GoalPreset>("50");
@@ -84,6 +91,7 @@ export function JoinSection({
 	const [hasSinglet, setHasSinglet] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [inactiveGateOpen, setInactiveGateOpen] = useState(false);
 
   // 승인 대기 중
   if (existingPrt && !existingPrt.aprv_yn) {
@@ -123,6 +131,11 @@ export function JoinSection({
 	const totalAmount = depositTotal + entryFee;
 
 	async function handleJoin() {
+		if (isInactive) {
+			setInactiveGateOpen(true);
+			return;
+		}
+
 		if (goalPreset === "custom") {
 			const parsed = parseInt(customGoal, 10);
 			if (!parsed || parsed < 1) {
@@ -142,8 +155,16 @@ export function JoinSection({
 				setError(null);
 				router.refresh();
 			}
-		} catch {
-			setError("오류가 발생했습니다. 다시 시도해 주세요.");
+		} catch (e) {
+			// withActive가 throw하는 "비활성화된 회원입니다..." 메시지를 프로덕션에서도
+			// 클라이언트가 못 받을 수 있어(Next 서버 액션 에러 마스킹), isInactive가 이미
+			// 못 잡은 경우를 대비한 안전망으로 메시지 문자열도 함께 확인한다.
+			const msg = e instanceof Error ? e.message : "";
+			if (msg.includes("비활성")) {
+				setInactiveGateOpen(true);
+			} else {
+				setError("오류가 발생했습니다. 다시 시도해 주세요.");
+			}
 		} finally {
 			setSubmitting(false);
 		}
@@ -248,6 +269,8 @@ export function JoinSection({
       >
         {submitting ? "신청 중..." : "참여하기"}
       </Button>
+
+      <InactiveGateDialog open={inactiveGateOpen} onOpenChange={setInactiveGateOpen} kind={inactiveKind} />
     </CardItem>
   );
 }

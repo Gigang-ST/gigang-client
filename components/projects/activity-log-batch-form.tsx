@@ -17,6 +17,7 @@ import {
   type ActivityLogInput,
 } from "@/app/actions/mileage-run";
 
+import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,6 +51,10 @@ type ActivityDraft = {
 type ActivityLogBatchFormProps = {
   evtId: string;
   onSuccess: (savedCount: number, grantedTitles: string[]) => void;
+  /** 비활성/탈퇴 회원 — true면 저장 시도 시 공통 안내 게이트를 연다 */
+  isInactive?: boolean;
+  /** 비활성/탈퇴 세부 구분 — InactiveGateDialog 문구 분기용 */
+  inactiveKind?: "inactive" | "left";
 };
 
 function isMultiplierActive(mult: EventMultiplier, actDt: string): boolean {
@@ -70,11 +75,12 @@ function createDraft(today: string): ActivityDraft {
   };
 }
 
-export function ActivityLogBatchForm({ evtId, onSuccess }: ActivityLogBatchFormProps) {
+export function ActivityLogBatchForm({ evtId, onSuccess, isInactive = false, inactiveKind }: ActivityLogBatchFormProps) {
   const today = todayKST();
   const [multipliers, setMultipliers] = useState<EventMultiplier[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inactiveGateOpen, setInactiveGateOpen] = useState(false);
   const [initialDraft] = useState<ActivityDraft>(() => createDraft(today));
   const [drafts, setDrafts] = useState<ActivityDraft[]>([initialDraft]);
   const [expandedId, setExpandedId] = useState<string>(initialDraft.id);
@@ -128,6 +134,11 @@ export function ActivityLogBatchForm({ evtId, onSuccess }: ActivityLogBatchFormP
   }
 
   async function handleSubmit() {
+    if (isInactive) {
+      setInactiveGateOpen(true);
+      return;
+    }
+
     const payload: ActivityLogInput[] = [];
     for (let i = 0; i < drafts.length; i++) {
       const d = drafts[i];
@@ -160,8 +171,15 @@ export function ActivityLogBatchForm({ evtId, onSuccess }: ActivityLogBatchFormP
       }
       setError(null);
       onSuccess(payload.length, result.grantedTitles ?? []);
-    } catch {
-      setError("오류가 발생했습니다. 다시 시도해 주세요.");
+    } catch (e) {
+      // withActive throw 메시지가 프로덕션에서 마스킹될 수 있어, isInactive prop이
+      // 못 잡은 경우를 대비한 안전망으로 메시지 문자열도 함께 확인한다.
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("비활성")) {
+        setInactiveGateOpen(true);
+      } else {
+        setError("오류가 발생했습니다. 다시 시도해 주세요.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -387,6 +405,8 @@ export function ActivityLogBatchForm({ evtId, onSuccess }: ActivityLogBatchFormP
           </Button>
         </div>
       </div>
+
+      <InactiveGateDialog open={inactiveGateOpen} onOpenChange={setInactiveGateOpen} kind={inactiveKind} />
     </div>
   );
 }

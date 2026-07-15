@@ -272,6 +272,16 @@ export function MiniCalendar({
 
   const memberStatus = initialMemberStatus;
 
+  // 뷰어 파생값 — ready/inactive 둘 다 memberId 를 가지므로, 상세·댓글에 회원 식별자를
+  // 넘겨 "보기는 열되"(비로그인 블러 방지), inactive 면 viewerInactive 로 쓰기만 차단한다.
+  const viewerMemberId =
+    memberStatus.status === "ready" || memberStatus.status === "inactive"
+      ? memberStatus.memberId
+      : undefined;
+  const viewerInactive = memberStatus.status === "inactive";
+  const viewerInactiveKind =
+    memberStatus.status === "inactive" ? memberStatus.memberSt : undefined;
+
   // 멤버 목록 캐시 — 첫 다이얼로그 열릴 때 1회 조회 후 재사용
   const [membersCache, setMembersCache] = useState<MemberOption[] | null>(null)
   const membersFetchingRef = useRef(false)
@@ -1591,7 +1601,9 @@ export function MiniCalendar({
         open={gthrDetailOpen}
         onOpenChange={setGthrDetailOpen}
         teamId={teamId}
-        currentMemberId={memberStatus.status === "ready" ? memberStatus.memberId : undefined}
+        currentMemberId={viewerMemberId}
+        viewerInactive={viewerInactive}
+        viewerInactiveKind={viewerInactiveKind}
         currentMemberName={memberStatus.status === "ready" ? memberStatus.fullName : undefined}
         currentMemberAvatarUrl={memberStatus.status === "ready" ? memberAvatarUrl : undefined}
         isAdmin={memberStatus.status === "ready" ? memberStatus.admin : false}
@@ -1659,7 +1671,9 @@ export function MiniCalendar({
         open={schDetailOpen}
         onOpenChange={setSchDetailOpen}
         teamId={teamId}
-        currentMemberId={memberStatus.status === "ready" ? memberStatus.memberId : undefined}
+        currentMemberId={viewerMemberId}
+        viewerInactive={viewerInactive}
+        viewerInactiveKind={viewerInactiveKind}
         currentMemberName={memberStatus.status === "ready" ? memberStatus.fullName : undefined}
         currentMemberAvatarUrl={memberStatus.status === "ready" ? memberAvatarUrl : undefined}
         isAdmin={memberStatus.status === "ready" ? memberStatus.admin : false}

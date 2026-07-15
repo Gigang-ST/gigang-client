@@ -17,9 +17,13 @@ import { analytics } from "@/lib/analytics";
 type ActivityLogFabProps = {
   evtId: string;
   memId: string;
+  /** 비활성/탈퇴 회원 — true면 기록 저장 시도 시 공통 안내 게이트를 연다 */
+  isInactive?: boolean;
+  /** 비활성/탈퇴 세부 구분 — InactiveGateDialog 문구 분기용 */
+  inactiveKind?: "inactive" | "left";
 };
 
-export function ActivityLogFab({ evtId, memId: _memId }: ActivityLogFabProps) {
+export function ActivityLogFab({ evtId, memId: _memId, isInactive = false, inactiveKind }: ActivityLogFabProps) {
   const [open, setOpen] = useState(false);
   const [showSuccessNotice, setShowSuccessNotice] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
@@ -135,6 +139,8 @@ export function ActivityLogFab({ evtId, memId: _memId }: ActivityLogFabProps) {
             key={open ? "open-batch" : "closed-batch"}
             evtId={evtId}
             onSuccess={handleSuccess}
+            isInactive={isInactive}
+            inactiveKind={inactiveKind}
           />
         </SheetContent>
       </Sheet>

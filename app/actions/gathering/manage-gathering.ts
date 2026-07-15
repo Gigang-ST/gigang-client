@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 
 import { dayjs } from "@/lib/dayjs";
-import { withMember } from "@/lib/actions/auth";
+import { withActive, withMember } from "@/lib/actions/auth";
 import { isPastLockedFor, PAST_EVENT_ERROR } from "@/lib/past-event";
 import { insertNotiMany } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -26,7 +26,8 @@ export async function createGathering(input: {
   desc_txt?: string | null;
   max_prt_cnt?: number | null;
 }) {
-  return withMember(async ({ member, supabase }) => {
+  // 모임 개설은 active 회원만 — 비활성/탈퇴는 클라이언트 게이트가 안내, 서버가 최종 방어.
+  return withActive(async ({ member, supabase }) => {
     const { teamId } = await getRequestTeamContext();
     const parsed = createGthrSchema.parse({ ...input, team_id: teamId });
 

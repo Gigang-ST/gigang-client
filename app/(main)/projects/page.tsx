@@ -78,6 +78,15 @@ export default async function ProjectsPage({
   // 비로그인이면 신청 섹션 미표시
   const showJoin = user !== null && !isParticipant;
 
+  // 비활성/탈퇴 회원 — 참여 신청·기록 입력 등 쓰기 폼에서 공통 안내 게이트를 띄우기 위한 신호
+  const isInactive = member !== null && member.status !== "active";
+  // 비활성/탈퇴 세부 구분 — InactiveGateDialog 문구 분기용 (isInactive가 아니면 의미 없음)
+  const inactiveKind: "inactive" | "left" | undefined = isInactive
+    ? member!.status === "left"
+      ? "left"
+      : "inactive"
+    : undefined;
+
   return (
     <div className="flex flex-col gap-0">
       <PageHeader title="프로젝트" />
@@ -105,6 +114,8 @@ export default async function ProjectsPage({
               evtStartMonth={event.stt_dt}
               evtEndMonth={event.end_dt}
               existingPrt={participation}
+              isInactive={isInactive}
+              inactiveKind={inactiveKind}
             />
           )}
 
@@ -148,9 +159,9 @@ export default async function ProjectsPage({
                   <MySportChart evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
                 </Suspense>
                 <Suspense fallback={<Skeleton className="h-48 w-full rounded-2xl" />}>
-                  <MyActivityList evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
+                  <MyActivityList evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} isInactive={isInactive} inactiveKind={inactiveKind} />
                 </Suspense>
-                <ActivityLogFab evtId={event.evt_id} memId={member.id} />
+                <ActivityLogFab evtId={event.evt_id} memId={member.id} isInactive={isInactive} inactiveKind={inactiveKind} />
               </>
             )}
           </TransitionOverlay>
