@@ -155,15 +155,20 @@ export async function recalculateBalance(memIds?: string[]) {
 
         // 상태 이력(정본+vers 이력)으로 active 구간 재구성 → 비활성/재활성/탈퇴 기간 부과 제외.
         // 이력이 없으면(도입 전 회원) 정본 1건뿐이라 "가입~현재 active" 단일 구간 = 기존 동작.
-        const { data: relHist } = await db
+        // del_yn=false 필터: 삭제(vers 밀기)로 del_yn=true 된 이력 로우는 active 구간에서 제외.
+        const { data: relHist, error: relHistErr } = await db
           .from("team_mem_rel")
           .select("mem_st_cd, eff_at")
           .eq("team_id", teamId)
           .eq("mem_id", mid)
+          .eq("del_yn", false)
           .order("eff_at", { ascending: true });
-        const activeIntervals = buildActiveIntervals(
-          (relHist ?? []).map((r) => ({ mem_st_cd: r.mem_st_cd, eff_at: r.eff_at })),
-        );
+        // 조회 실패/빈 결과면 undefined(판정 생략=전부 부과) — [](전부 면제)로 두면 DB 오류가
+        // 조용히 잔액을 부풀린다(fail-unsafe). undefined 와 [] 의 의미가 역전됨에 주의.
+        const activeIntervals =
+          relHistErr || !relHist?.length
+            ? undefined
+            : buildActiveIntervals(relHist.map((r) => ({ mem_st_cd: r.mem_st_cd, eff_at: r.eff_at })));
 
         const months = fromMonth <= today
           ? buildChargeMonths(policies, exmRules ?? [], fromMonth, today, activeIntervals)

@@ -138,6 +138,27 @@ describe("buildActiveIntervals", () => {
     ]);
     expect(iv[0].end).toBe("2026-05-12T00:00:00+09:00");
   });
+
+  it("레거시: 첫 세그먼트가 inactive면 뒤의 active(재활성)는 열지 않고 실제 eff_at 사용", () => {
+    // 도입 전 in-place 비활성된 회원(정본 inactive, eff_at=가입일 백필) → 재활성
+    const iv = buildActiveIntervals([
+      { mem_st_cd: "inactive", eff_at: "2026-02-10T00:00:00+09:00" }, // 백필된 정본
+      { mem_st_cd: "active", eff_at: "2026-11-20T00:00:00+09:00" }, // 재활성
+    ]);
+    expect(iv).toHaveLength(1);
+    expect(iv[0].start).toBe("2026-11-20T00:00:00+09:00"); // 열리지 않음
+    expect(iv[0].end).toBeNull();
+  });
+
+  it("레거시 재활성: 비활성 기간(가입~재활성 전)은 부과 대상 아님", () => {
+    const iv = buildActiveIntervals([
+      { mem_st_cd: "inactive", eff_at: "2026-02-10T00:00:00+09:00" },
+      { mem_st_cd: "active", eff_at: "2026-11-20T00:00:00+09:00" },
+    ]);
+    expect(isFullyActiveMonth(iv, "2026-05")).toBe(false); // 비활성 기간
+    expect(isFullyActiveMonth(iv, "2026-11")).toBe(false); // 재활성월
+    expect(isFullyActiveMonth(iv, "2026-12")).toBe(true); // 복귀 후 첫 온전한 달
+  });
 });
 
 describe("isFullyActiveMonth", () => {

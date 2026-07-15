@@ -54,17 +54,21 @@ export type StatusSegment = { mem_st_cd: string; eff_at: string };
 /**
  * 상태 이력 세그먼트들을 active 구간 목록으로 재구성한다(온전한 달 판정 입력).
  * - eff_at 오름차순 정렬 → 각 세그먼트는 [자기 eff_at, 다음 세그먼트 eff_at) 동안 유효.
- * - **첫 active 구간의 start 는 과거로 연다**: 가입(최초 active)월의 부과 여부는 firstChargeMonth
- *   (컷오프 규칙)가 관장하므로, 타임라인 시작을 열어 두어야 "가입월 중간 시작" 때문에
- *   isFullyActiveMonth 가 가입월을 면제로 뒤집어 #422 잔액을 소급 변경하는 일을 막는다.
- *   → activeIntervals 는 오직 "중간에 비활성됐다 재활성된 구멍"만 표현한다.
+ * - **타임라인의 첫 세그먼트가 active(=가입)이면 그 start 만 과거로 연다**: 가입월 부과 여부는
+ *   firstChargeMonth(컷오프 규칙)가 관장하므로 시작을 열어 "가입월 중간 시작"이 가입월을
+ *   면제로 뒤집어 #422 잔액을 소급 변경하는 일을 막는다.
+ * - 반대로 **첫 세그먼트가 inactive/left(도입 전 in-place 비활성된 레거시 회원)면 그 뒤의
+ *   active(재활성)는 실제 eff_at 을 쓴다** — 이를 열면 비활성 기간 전체가 소급 부과되어
+ *   "비활성 기간 자동 제외" 약속이 정확히 대상(레거시)에게 깨진다.
+ *   → activeIntervals 는 "가입 이후 중간에 비활성됐다 재활성된 구멍"만 표현한다.
  */
 export function buildActiveIntervals(segs: StatusSegment[]): ActiveInterval[] {
   const sorted = [...segs].sort((a, b) => a.eff_at.localeCompare(b.eff_at));
   const out: ActiveInterval[] = [];
   for (let i = 0; i < sorted.length; i++) {
     if (sorted[i].mem_st_cd !== "active") continue;
-    const start = out.length === 0 ? "0001-01-01T00:00:00.000Z" : sorted[i].eff_at;
+    // 첫 세그먼트가 active일 때만 시작을 연다(가입=firstChargeMonth 위임). 재활성 active는 실제 시각.
+    const start = i === 0 ? "0001-01-01T00:00:00.000Z" : sorted[i].eff_at;
     const end = i + 1 < sorted.length ? sorted[i + 1].eff_at : null;
     out.push({ start, end });
   }

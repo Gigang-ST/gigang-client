@@ -203,21 +203,33 @@ export async function reactivateMember(memberId: string, resetBalance = false) {
     if (error) return { ok: false, message: "활성화에 실패했습니다" };
 
     if (resetBalance) {
-      // 잔액 초기화: 기존 스냅샷 무효화 후 0원 앵커(재활성월 초 기준) 생성.
-      // 재계산은 anchor_yn 앵커를 잡아 재활성 다음 달부터만 부과 → 과거 잔액 봉인.
-      await db.from("fee_mem_bal_snap").update({ del_yn: true })
-        .eq("team_id", teamId).eq("mem_id", memberId).eq("del_yn", false);
+      // 잔액 초기화: 현재 정본(vers=0) 스냅샷을 0원 앵커로 덮어쓴다(과거 예치금·미납 청산).
+      // soft-delete + INSERT 는 UNIQUE(team_id,mem_id,vers=0) 슬롯을 못 비워 충돌하므로
+      // vers=0 을 그대로 UPDATE. 재계산은 anchor_yn 앵커를 잡아 재활성 다음 달부터만 부과.
       const monthStart = dayjs().tz("Asia/Seoul").startOf("month");
-      await db.from("fee_mem_bal_snap").insert({
-        team_id: teamId,
-        mem_id: memberId,
+      const anchorRow = {
         bal_amt: 0,
         last_calc_dt: monthStart.toISOString(),
         last_calc_at: nowIso,
+        last_ref_pay_id: null,
+        last_ref_exm_hist_id: null,
         anchor_yn: true,
-        vers: 0,
-        del_yn: false,
-      });
+      };
+      const { data: existing } = await db
+        .from("fee_mem_bal_snap")
+        .select("bal_snap_id")
+        .eq("team_id", teamId)
+        .eq("mem_id", memberId)
+        .eq("vers", 0)
+        .eq("del_yn", false)
+        .maybeSingle();
+      if (existing) {
+        await db.from("fee_mem_bal_snap").update(anchorRow).eq("bal_snap_id", existing.bal_snap_id);
+      } else {
+        await db.from("fee_mem_bal_snap").insert({
+          team_id: teamId, mem_id: memberId, vers: 0, del_yn: false, ...anchorRow,
+        });
+      }
     }
 
     await recalculateBalance([memberId]);
