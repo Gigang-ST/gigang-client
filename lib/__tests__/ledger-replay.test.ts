@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildChargeMonths,
+  firstChargeMonth,
+  isMonthCharged,
   replayPays,
   type ExmRuleRange,
   type PolicyRange,
@@ -10,6 +12,54 @@ import {
 const POLICY: PolicyRange[] = [
   { aply_stt_dt: "2026-01-01", aply_end_dt: "2099-12-31", monthly_fee_amt: 2000 },
 ];
+
+describe("firstChargeMonth", () => {
+  it("컷오프(2026-07-01) 이전 가입자는 가입 당월부터 부과(기존 규칙 유지)", () => {
+    expect(firstChargeMonth("2026-06-30")).toBe("2026-06-01");
+    expect(firstChargeMonth("2026-06-01")).toBe("2026-06-01");
+    expect(firstChargeMonth("2026-03-15")).toBe("2026-03-01");
+  });
+
+  it("컷오프 당일(2026-07-01) 가입자부터 가입 다음 달부터 부과", () => {
+    expect(firstChargeMonth("2026-07-01")).toBe("2026-08-01");
+  });
+
+  it("컷오프 이후 가입자는 가입일과 무관하게 가입 다음 달부터", () => {
+    expect(firstChargeMonth("2026-07-15")).toBe("2026-08-01");
+    expect(firstChargeMonth("2026-07-31")).toBe("2026-08-01");
+    expect(firstChargeMonth("2026-08-01")).toBe("2026-09-01");
+    expect(firstChargeMonth("2026-08-31")).toBe("2026-09-01");
+  });
+
+  it("연말 가입은 다음 해 1월부터(연 경계)", () => {
+    expect(firstChargeMonth("2026-12-31")).toBe("2027-01-01");
+  });
+});
+
+describe("isMonthCharged", () => {
+  it("첫 부과월 이후(포함)면 부과 대상", () => {
+    // 2026-07-15 가입 → 첫 부과월 2026-08
+    expect(isMonthCharged("2026-07-15", "2026-08")).toBe(true);
+    expect(isMonthCharged("2026-07-15", "2026-09")).toBe(true);
+  });
+
+  it("첫 부과월 이전(미부과 가입월 포함)이면 대상 아님", () => {
+    // 가입 당월(2026-07)은 미부과 → false
+    expect(isMonthCharged("2026-07-15", "2026-07")).toBe(false);
+    expect(isMonthCharged("2026-07-15", "2026-06")).toBe(false);
+  });
+
+  it("컷오프 이전 가입자는 가입 당월부터 부과 대상", () => {
+    expect(isMonthCharged("2026-06-20", "2026-06")).toBe(true);
+    expect(isMonthCharged("2026-06-20", "2026-05")).toBe(false);
+  });
+
+  it("join_dt 가 없으면(빈 문자열·null·undefined) 부과 판정 불가 → false — 배치·재계산과 방향 일치", () => {
+    expect(isMonthCharged("", "2026-08")).toBe(false);
+    expect(isMonthCharged(null, "2026-08")).toBe(false);
+    expect(isMonthCharged(undefined, "2026-08")).toBe(false);
+  });
+});
 
 describe("buildChargeMonths", () => {
   it("from~to 구간의 매월 정책 회비를 부과한다", () => {

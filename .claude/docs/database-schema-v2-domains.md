@@ -197,9 +197,9 @@ fee_mem_bal_snap 해당 회원 행 del_yn = true (또는 삭제)
 → bal_amt = 총 납부 + 면제 - 총 부과 로 신규 스냅샷 생성
 ```
 
-**부과 계산 기준**:
-- 부과 시작 월: `team_mem_rel.join_dt` 기준 **다음 달 1일**부터
-- 가입 당월: `fee_due_exm_cfg`에 `full` 면제 규칙이 자동 생성되어 있어야 함
+**부과 계산 기준** (실구현: `firstChargeMonth` — `lib/dues/ledger-replay.ts`):
+- 부과 시작 월: `team_mem_rel.join_dt` 기준 **가입 당월**부터. 단 **`JOIN_MONTH_EXEMPT_FROM`(2026-07-01) 이후 가입자는 가입 다음 달**부터(가입 당월 미부과 — 부과 자체를 건너뛰며 면제 row를 만들지 않음)
+- ~~가입 당월: `fee_due_exm_cfg`에 `full` 면제 규칙이 자동 생성되어 있어야 함~~ → 채택 안 함(설계 초안). 면제 상쇄 방식 대신 부과 스킵 방식으로 구현 — cfg 중복 생성·월초 정렬·백필 함정이 없고 `join_dt` 불변성으로 소급 안전이 보장됨
 - 각 월의 부과금액: 해당 월 1일 기준 `fee_policy_cfg`에서 `aply_stt_dt <= 해당월 AND aply_end_dt >= 해당월` 구간의 `monthly_fee_amt` 조회
 
 ### 4.4 초기 데이터 (시드)
