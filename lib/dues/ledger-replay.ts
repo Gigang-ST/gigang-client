@@ -45,6 +45,47 @@ export function isMonthCharged(joinDt: string | null | undefined, ym: string): b
   return dayjs(firstChargeMonth(joinDt)).format("YYYY-MM") <= ym;
 }
 
+/** active 소속 구간 [start, end). end=null 이면 현재까지 열림. ISO(tz-aware) 문자열. */
+export type ActiveInterval = { start: string; end: string | null };
+
+/** 상태 이력 세그먼트 — team_mem_rel 각 vers 로우의 (상태, 효력시각). */
+export type StatusSegment = { mem_st_cd: string; eff_at: string };
+
+/**
+ * 상태 이력 세그먼트들을 active 구간 목록으로 재구성한다(온전한 달 판정 입력).
+ * - eff_at 오름차순 정렬 → 각 세그먼트는 [자기 eff_at, 다음 세그먼트 eff_at) 동안 유효.
+ * - **첫 active 구간의 start 는 과거로 연다**: 가입(최초 active)월의 부과 여부는 firstChargeMonth
+ *   (컷오프 규칙)가 관장하므로, 타임라인 시작을 열어 두어야 "가입월 중간 시작" 때문에
+ *   isFullyActiveMonth 가 가입월을 면제로 뒤집어 #422 잔액을 소급 변경하는 일을 막는다.
+ *   → activeIntervals 는 오직 "중간에 비활성됐다 재활성된 구멍"만 표현한다.
+ */
+export function buildActiveIntervals(segs: StatusSegment[]): ActiveInterval[] {
+  const sorted = [...segs].sort((a, b) => a.eff_at.localeCompare(b.eff_at));
+  const out: ActiveInterval[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (sorted[i].mem_st_cd !== "active") continue;
+    const start = out.length === 0 ? "0001-01-01T00:00:00.000Z" : sorted[i].eff_at;
+    const end = i + 1 < sorted.length ? sorted[i + 1].eff_at : null;
+    out.push({ start, end });
+  }
+  return out;
+}
+
+/**
+ * 귀속월(ym="YYYY-MM")의 [1일 00:00, 익월 1일 00:00) KST 전체가 하나의 active 구간에
+ * 완전히 포함되는가 = "온전히 active인 달"인가. 그 달에 자격 변동(비활성/재활성/탈퇴)
+ * 경계가 걸치면 어떤 구간도 월 전체를 못 덮어 false(면제).
+ */
+export function isFullyActiveMonth(intervals: ActiveInterval[], ym: string): boolean {
+  const monthStart = dayjs.tz(`${ym}-01T00:00:00`, "Asia/Seoul");
+  const monthEnd = monthStart.add(1, "month");
+  return intervals.some((iv) => {
+    const s = dayjs(iv.start);
+    const e = iv.end ? dayjs(iv.end) : null;
+    return !s.isAfter(monthStart) && (e === null || !e.isBefore(monthEnd));
+  });
+}
+
 export type PolicyRange = {
   aply_stt_dt: string;
   aply_end_dt: string;
@@ -78,6 +119,7 @@ export function buildChargeMonths(
   exmRules: ExmRuleRange[],
   fromMonth: string,
   toMonth: string,
+  activeIntervals?: ActiveInterval[],
 ): ChargeMonth[] {
   const out: ChargeMonth[] = [];
   let cursor = dayjs(fromMonth).startOf("month");
@@ -85,6 +127,12 @@ export function buildChargeMonths(
 
   while (!cursor.isAfter(end)) {
     const ym = cursor.format("YYYY-MM-DD");
+    // 자격 변동(비활성/재활성/탈퇴)이 있던 달은 면제 — 온전히 active인 달만 부과.
+    // activeIntervals 미제공(이력 없는 회원)이면 판정 생략 → 기존 동작(전 구간 부과) 유지.
+    if (activeIntervals && !isFullyActiveMonth(activeIntervals, cursor.format("YYYY-MM"))) {
+      cursor = cursor.add(1, "month");
+      continue;
+    }
     const policy = policies.filter((p) => p.aply_stt_dt <= ym && p.aply_end_dt >= ym).at(-1);
     if (policy) {
       const rule = exmRules.find((r) => r.aply_stt_dt <= ym && r.aply_end_dt >= ym);

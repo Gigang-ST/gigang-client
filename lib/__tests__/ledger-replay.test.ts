@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import { dayjs } from "@/lib/dayjs";
 import {
+  buildActiveIntervals,
   buildChargeMonths,
   firstChargeMonth,
+  isFullyActiveMonth,
   isMonthCharged,
   replayPays,
   type ExmRuleRange,
@@ -104,6 +107,78 @@ describe("buildChargeMonths", () => {
 
   it("from 이 to 보다 뒤면 빈 배열", () => {
     expect(buildChargeMonths(POLICY, [], "2026-08-01", "2026-07-01")).toEqual([]);
+  });
+});
+
+describe("buildActiveIntervals", () => {
+  it("이력 없는 active 1건 → 첫 구간 start 열림·end null", () => {
+    const iv = buildActiveIntervals([{ mem_st_cd: "active", eff_at: "2026-02-10T00:00:00+09:00" }]);
+    expect(iv).toHaveLength(1);
+    expect(iv[0].end).toBeNull();
+    expect(dayjs(iv[0].start).year()).toBeLessThan(2000); // 가입월은 firstChargeMonth 관장 → 시작 열림
+  });
+
+  it("비활성→재활성 → active 구간 2개, 두 번째 start는 재활성 시각", () => {
+    const iv = buildActiveIntervals([
+      { mem_st_cd: "active", eff_at: "2026-02-10T00:00:00+09:00" },
+      { mem_st_cd: "inactive", eff_at: "2026-05-12T00:00:00+09:00" },
+      { mem_st_cd: "active", eff_at: "2026-11-20T00:00:00+09:00" },
+    ]);
+    expect(iv).toHaveLength(2);
+    expect(iv[0].end).toBe("2026-05-12T00:00:00+09:00");
+    expect(iv[1].start).toBe("2026-11-20T00:00:00+09:00");
+    expect(iv[1].end).toBeNull();
+  });
+
+  it("정렬 안 된 입력도 eff_at 순으로 처리", () => {
+    const iv = buildActiveIntervals([
+      { mem_st_cd: "active", eff_at: "2026-11-20T00:00:00+09:00" },
+      { mem_st_cd: "active", eff_at: "2026-02-10T00:00:00+09:00" },
+      { mem_st_cd: "inactive", eff_at: "2026-05-12T00:00:00+09:00" },
+    ]);
+    expect(iv[0].end).toBe("2026-05-12T00:00:00+09:00");
+  });
+});
+
+describe("isFullyActiveMonth", () => {
+  const iv = buildActiveIntervals([
+    { mem_st_cd: "active", eff_at: "2026-02-10T00:00:00+09:00" },
+    { mem_st_cd: "inactive", eff_at: "2026-05-12T00:00:00+09:00" },
+    { mem_st_cd: "active", eff_at: "2026-11-20T00:00:00+09:00" },
+  ]);
+
+  it("온전히 active인 달은 부과 대상(true)", () => {
+    expect(isFullyActiveMonth(iv, "2026-03")).toBe(true);
+    expect(isFullyActiveMonth(iv, "2026-04")).toBe(true);
+    expect(isFullyActiveMonth(iv, "2026-12")).toBe(true); // 복귀 후 첫 온전한 달
+  });
+
+  it("자격 변동 걸친 달·비활성 달은 면제(false)", () => {
+    expect(isFullyActiveMonth(iv, "2026-05")).toBe(false); // 5/12 비활성 시작
+    expect(isFullyActiveMonth(iv, "2026-06")).toBe(false); // 온전 비활성
+    expect(isFullyActiveMonth(iv, "2026-10")).toBe(false);
+    expect(isFullyActiveMonth(iv, "2026-11")).toBe(false); // 11/20 재활성
+  });
+
+  it("가입월은 시작이 열려 있어 true(부과 여부는 firstChargeMonth가 별도 결정)", () => {
+    expect(isFullyActiveMonth(iv, "2026-02")).toBe(true);
+  });
+});
+
+describe("buildChargeMonths + activeIntervals (온전한 달만 부과)", () => {
+  it("§3 시나리오: 5/12 비활성 → 11/20 재활성 → 5~11월 면제, 12월 부과", () => {
+    const iv = buildActiveIntervals([
+      { mem_st_cd: "active", eff_at: "2026-02-10T00:00:00+09:00" },
+      { mem_st_cd: "inactive", eff_at: "2026-05-12T00:00:00+09:00" },
+      { mem_st_cd: "active", eff_at: "2026-11-20T00:00:00+09:00" },
+    ]);
+    const ym = buildChargeMonths(POLICY, [], "2026-02-01", "2026-12-01", iv).map((m) => m.aplyYm);
+    expect(ym).toEqual(["2026-02", "2026-03", "2026-04", "2026-12"]);
+  });
+
+  it("activeIntervals 미제공이면 전 구간 부과(기존 동작 유지)", () => {
+    const ym = buildChargeMonths(POLICY, [], "2026-05-01", "2026-07-01").map((m) => m.aplyYm);
+    expect(ym).toEqual(["2026-05", "2026-06", "2026-07"]);
   });
 });
 

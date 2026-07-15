@@ -5,6 +5,7 @@ import { dayjs } from "@/lib/dayjs";
 import { withAdmin } from "@/lib/actions/auth";
 import {
   LEDGER_EPOCH,
+  buildActiveIntervals,
   buildChargeMonths,
   firstChargeMonth,
   replayPays,
@@ -148,8 +149,20 @@ export async function recalculateBalance(memIds?: string[]) {
           .eq("vers", 0)
           .eq("del_yn", false);
 
+        // 상태 이력(정본+vers 이력)으로 active 구간 재구성 → 비활성/재활성/탈퇴 기간 부과 제외.
+        // 이력이 없으면(도입 전 회원) 정본 1건뿐이라 "가입~현재 active" 단일 구간 = 기존 동작.
+        const { data: relHist } = await db
+          .from("team_mem_rel")
+          .select("mem_st_cd, eff_at")
+          .eq("team_id", teamId)
+          .eq("mem_id", mid)
+          .order("eff_at", { ascending: true });
+        const activeIntervals = buildActiveIntervals(
+          (relHist ?? []).map((r) => ({ mem_st_cd: r.mem_st_cd, eff_at: r.eff_at })),
+        );
+
         const months = fromMonth <= today
-          ? buildChargeMonths(policies, exmRules ?? [], fromMonth, today)
+          ? buildChargeMonths(policies, exmRules ?? [], fromMonth, today, activeIntervals)
           : [];
         const totalCharged = months.reduce((sum, m) => sum + m.charged, 0);
 
