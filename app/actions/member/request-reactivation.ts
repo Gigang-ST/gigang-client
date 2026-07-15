@@ -59,7 +59,8 @@ export async function requestReactivation() {
       .limit(1)
       .maybeSingle();
     if (existing) {
-      return { ok: false as const, message: "이미 문의를 보냈어요. 관리자 확인을 기다려 주세요." };
+      // 실패가 아니라 "오늘 이미 접수됨" — 클라이언트가 성공 화면을 그대로 보여주도록 ok:true.
+      return { ok: true as const, message: null, alreadySent: true };
     }
 
     const requesterName = member.full_name;
