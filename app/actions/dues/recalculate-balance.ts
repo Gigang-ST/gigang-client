@@ -6,6 +6,7 @@ import { withAdmin } from "@/lib/actions/auth";
 import {
   LEDGER_EPOCH,
   buildChargeMonths,
+  firstChargeMonth,
   replayPays,
   type ReplayPay,
 } from "@/lib/dues/ledger-replay";
@@ -87,10 +88,16 @@ export async function recalculateBalance(memIds?: string[]) {
           .limit(1)
           .maybeSingle();
 
-        // ② 부과 시작 월 — 앵커가 있으면 앵커 마감월 다음 달, 없으면 가입월
+        // ② 부과 시작 월 — 앵커가 있으면 앵커 마감월 다음 달, 없으면 첫 부과월
+        //    (가입 당월부터. 단 JOIN_MONTH_EXEMPT_FROM 이후 가입자는 가입 다음 달부터 — firstChargeMonth)
+        // cursorFloor: 커서 폴백(⑥) 기준은 부과 시작이 아니라 "가입월 초"를 유지한다 —
+        // fromMonth(가입 다음 달)를 그대로 쓰면 납부 0건 신규 회원의 커서가 미래로 저장되어
+        // 가입월 중 은행 입금이 업로드 컷오프에 걸려 조용히 소실된다(QS-9 재발).
         let fromMonth: string;
+        let cursorFloor: string;
         if (anchor) {
           fromMonth = dayjs(anchor.last_calc_dt).add(1, "month").startOf("month").format("YYYY-MM-DD");
+          cursorFloor = fromMonth;
         } else {
           const { data: rel } = await db
             .from("team_mem_rel")
@@ -101,7 +108,8 @@ export async function recalculateBalance(memIds?: string[]) {
             .eq("del_yn", false)
             .maybeSingle();
           if (!rel?.join_dt) return;
-          fromMonth = dayjs(rel.join_dt).startOf("month").format("YYYY-MM-DD");
+          fromMonth = firstChargeMonth(rel.join_dt);
+          cursorFloor = dayjs(rel.join_dt).startOf("month").format("YYYY-MM-DD");
         }
 
         // ③ 납부 리플레이 — paid 전체를 읽고 앵커 커서 이후만 합산
@@ -195,9 +203,10 @@ export async function recalculateBalance(memIds?: string[]) {
         const baseBal = (anchor?.bal_amt ?? 0) + reflectedExmSum;
 
         // ⑥ 새 커서 — 리플레이한 마지막 거래 시각. 납부가 없으면 앵커 커서, 그마저 없으면
-        //    가입월 초. now 로 두면 과거 입금이 업로드 컷오프에 걸려 조용히 소실된다(QS-9).
+        //    가입월 초(cursorFloor — 첫 부과월이 아님에 주의). now 나 미래 시각으로 두면
+        //    과거 입금이 업로드 컷오프에 걸려 조용히 소실된다(QS-9).
         const newCursor =
-          lastTxnAt ?? anchor?.last_calc_at ?? dayjs.tz(`${fromMonth}T00:00:00`, "Asia/Seoul").toISOString();
+          lastTxnAt ?? anchor?.last_calc_at ?? dayjs.tz(`${cursorFloor}T00:00:00`, "Asia/Seoul").toISOString();
 
         const { error: rpcErr } = await db.rpc("recalc_member_balance", {
           p_team_id: teamId,

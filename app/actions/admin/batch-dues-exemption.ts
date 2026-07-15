@@ -3,6 +3,7 @@
 import { withAdminOrThrow } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
 import { calcExemption } from "@/lib/dues/calc-exemption";
+import { isMonthCharged } from "@/lib/dues/ledger-replay";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -12,7 +13,9 @@ const KST = "Asia/Seoul";
  * 참여 기반 회비 감면 배치 — 월 마감 후 전월 참여 감면을 면제 내역에 확정(설계 §8).
  *
  * - 대상 월: 기본 전월(baseMonth 미지정 시). 'YYYY-MM' 지정 가능(과거 소급).
- * - 대상 멤버: 대상 월에 활성이던 팀 멤버(가입월 ≤ 대상월).
+ * - 대상 멤버: 대상 월에 회비가 부과되는 활성 팀 멤버(첫 부과월 ≤ 대상월 — firstChargeMonth).
+ *   가입 당월 미부과 회원(JOIN_MONTH_EXEMPT_FROM 이후 가입)의 가입월은 제외 — 잔액 식에
+ *   면제 캡이 없어 부과 없는 달의 감면은 공돈(순수 예치금 적립)이 되기 때문.
  * - 멤버별 get_member_monthly_activity(team, mem, ym) → calcExemption(대상월 회비단가).
  * - exmAmt>0 이면 grant_src_enm='rule_attd_quest', rflt_yn=false 로 INSERT.
  *   멱등: 같은 월 퀘스트 면제가 이미 있으면 스킵(존재 확인 후 INSERT). 부분 유니크 인덱스
@@ -55,7 +58,8 @@ export async function batchDuesExemption(baseMonth?: string): Promise<string> {
     if (!policy) return `대상 월(${ym})에 적용되는 회비 정책이 없습니다.`;
     const monthlyFeeAmt = policy.monthly_fee_amt;
 
-    // 대상 멤버: 대상 월에 활성이던 멤버(가입월 ≤ 대상월)
+    // 대상 멤버: 대상 월에 회비가 부과되는 활성 멤버(첫 부과월 ≤ 대상월).
+    // 부과 시작 판정은 잔액 재계산과 같은 firstChargeMonth 를 공유해 어긋남을 막는다.
     const { data: members, error: memberErr } = await db
       .from("team_mem_rel")
       .select("mem_id, join_dt")
@@ -65,7 +69,7 @@ export async function batchDuesExemption(baseMonth?: string): Promise<string> {
       .eq("mem_st_cd", "active");
     if (memberErr) throw new Error(`대상 멤버 조회 실패: ${memberErr.message}`);
 
-    const targets = (members ?? []).filter((m) => m.join_dt && dayjs(m.join_dt).format("YYYY-MM") <= ym);
+    const targets = (members ?? []).filter((m) => isMonthCharged(m.join_dt, ym));
     if (!targets.length) return `대상 멤버가 없습니다 (대상 월: ${ym}).`;
 
     let granted = 0;
