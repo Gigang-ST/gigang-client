@@ -12,6 +12,7 @@ import {
   X,
   ChevronDown,
   LogOut,
+  Loader2,
 } from "lucide-react";
 
 import { dayjs } from "@/lib/dayjs";
@@ -40,6 +41,14 @@ import { ParticipationTab } from "./participation-tab";
 import { Avatar } from "@/components/common/avatar";
 import { EmptyState } from "@/components/common/empty-state";
 import { InfoRow } from "@/components/common/info-row";
+import {
+  ResponsiveDrawer,
+  ResponsiveDrawerClose,
+  ResponsiveDrawerContent,
+  ResponsiveDrawerHeader,
+  ResponsiveDrawerTitle,
+  ResponsiveDrawerDescription,
+} from "@/components/common/responsive-drawer";
 import { SegmentControl } from "@/components/common/segment-control";
 import { H2, Body, Caption, Micro, SectionLabel } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
@@ -548,15 +557,17 @@ type StatusAction = "activate" | "deactivate" | "leave";
 
 function StatusChangeSheet({
   member,
+  open,
   busy,
-  onClose,
+  onOpenChange,
   onDeactivate,
   onLeave,
   onReactivate,
 }: {
   member: Member;
+  open: boolean;
   busy: boolean;
-  onClose: () => void;
+  onOpenChange: (open: boolean) => void;
   onDeactivate: (memberId: string, reason: string) => void;
   onLeave: (memberId: string, reason: string) => void;
   onReactivate: (memberId: string, resetBalance: boolean) => void;
@@ -636,31 +647,32 @@ function StatusChangeSheet({
   const confirmDisabled = busy || (needsReason && !reason.trim());
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col">
-      <div className="flex-1 bg-black/40" onClick={onClose} />
-      <div className="flex max-h-[80vh] flex-col overflow-y-auto rounded-t-3xl bg-background pb-8">
-        <div className="flex justify-center py-3">
-          <div className="h-1 w-10 rounded-full bg-border" />
-        </div>
-        <div className="flex flex-col gap-5 px-6">
+    <ResponsiveDrawer open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDrawerContent
+        dialogClassName="max-w-sm max-h-[85dvh] flex flex-col gap-0 p-0 overflow-hidden"
+        drawerClassName="max-h-[85dvh]"
+      >
+        <ResponsiveDrawerHeader className="shrink-0 px-6 pt-4 pb-0 text-left">
+          <ResponsiveDrawerTitle className="sr-only">상태 변경</ResponsiveDrawerTitle>
+          <ResponsiveDrawerDescription className="sr-only">
+            회원 상태 전환
+          </ResponsiveDrawerDescription>
+        </ResponsiveDrawerHeader>
+
+        <div className="flex flex-col gap-5 overflow-y-auto px-6 pb-8 pt-3">
           {/* 대상 + 현재 상태 */}
-          <div className="flex items-center justify-between">
-            <div className="flex flex-col gap-0.5">
-              <Body className="font-semibold">{member.full_name ?? "이름 없음"}</Body>
-              <div className="flex items-center gap-1.5">
-                <Caption>현재</Caption>
-                <span className={cn("inline-flex items-center gap-1 text-[13px] font-medium", meta.text)}>
-                  <span className={cn("size-1.5 rounded-full", meta.dot)} />
-                  {meta.label}
-                </span>
-                {member.inact_rsn_txt && (
-                  <Micro className="truncate">· {member.inact_rsn_txt}</Micro>
-                )}
-              </div>
+          <div className="flex flex-col gap-0.5">
+            <Body className="font-semibold">{member.full_name ?? "이름 없음"}</Body>
+            <div className="flex items-center gap-1.5">
+              <Caption>현재</Caption>
+              <span className={cn("inline-flex items-center gap-1 text-[13px] font-medium", meta.text)}>
+                <span className={cn("size-1.5 rounded-full", meta.dot)} />
+                {meta.label}
+              </span>
+              {member.inact_rsn_txt && (
+                <Micro className="truncate">· {member.inact_rsn_txt}</Micro>
+              )}
             </div>
-            <Button variant="ghost" size="icon-sm" onClick={onClose} className="text-muted-foreground">
-              <X className="size-5" />
-            </Button>
           </div>
 
           {/* 전환 옵션 */}
@@ -744,12 +756,18 @@ function StatusChangeSheet({
               variant={pendingAction === "leave" ? "destructive" : "default"}
               className="w-full"
             >
-              {busy ? <LoadingSpinner /> : "확인"}
+              {busy ? <Loader2 className="size-4 animate-spin" /> : "확인"}
             </Button>
           )}
+
+          <ResponsiveDrawerClose asChild>
+            <Button variant="ghost" className="w-full text-muted-foreground" disabled={busy}>
+              닫기
+            </Button>
+          </ResponsiveDrawerClose>
         </div>
-      </div>
-    </div>
+      </ResponsiveDrawerContent>
+    </ResponsiveDrawer>
   );
 }
 
@@ -1398,8 +1416,11 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
         <StatusChangeSheet
           key={statusChangeMember.id}
           member={statusChangeMember}
+          open={!!statusChangeMember}
           busy={isPending}
-          onClose={() => setStatusChangeMember(null)}
+          onOpenChange={(open) => {
+            if (!open) setStatusChangeMember(null);
+          }}
           onDeactivate={handleSheetDeactivate}
           onLeave={handleSheetLeave}
           onReactivate={handleSheetReactivate}

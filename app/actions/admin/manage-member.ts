@@ -152,6 +152,8 @@ export async function leaveMemberFromDues(memberId: string, reason?: string) {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
     const nowIso = dayjs().toISOString();
+    // 상태 전환 시트가 active·inactive 회원 모두 "탈퇴 처리"를 노출하므로 둘 다 대상.
+    // (이미 left면 재처리 무의미 → 제외.)
     const { data: rel } = await db
       .from("team_mem_rel")
       .select("team_mem_id")
@@ -159,7 +161,7 @@ export async function leaveMemberFromDues(memberId: string, reason?: string) {
       .eq("team_id", teamId)
       .eq("vers", 0)
       .eq("del_yn", false)
-      .eq("mem_st_cd", "active")
+      .in("mem_st_cd", ["active", "inactive"])
       .neq("team_role_cd", "owner")
       .maybeSingle();
     if (!rel) return { ok: false, message: "탈퇴 처리할 수 있는 대상이 아닙니다" };
@@ -167,7 +169,7 @@ export async function leaveMemberFromDues(memberId: string, reason?: string) {
       p_team_mem_id: rel.team_mem_id,
       p_changes: {
         mem_st_cd: "left",
-        inact_rsn_txt: reason ?? "회비 미납으로 관리자 탈퇴 처리",
+        inact_rsn_txt: reason || "관리자 탈퇴 처리",
         leave_dt: dayjs().tz("Asia/Seoul").format("YYYY-MM-DD"),
       },
       p_eff_at: nowIso,

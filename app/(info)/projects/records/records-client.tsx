@@ -122,15 +122,8 @@ export function RecordsClient({ evtId, memId, prtId, evtStartDt, evtEndDt, initi
       } else {
         alert(result.message);
       }
-    } catch (e) {
-      // withActive throw 메시지가 프로덕션에서 마스킹될 수 있어, isInactive prop이
-      // 못 잡은 경우를 대비한 안전망으로 메시지 문자열도 함께 확인한다.
-      const msg = e instanceof Error ? e.message : "";
-      if (msg.includes("비활성")) {
-        setInactiveGateOpen(true);
-      } else {
-        alert("삭제에 실패했어요. 잠시 후 다시 시도해 주세요.");
-      }
+    } catch {
+      alert("삭제에 실패했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setDeleting(false);
       setDeleteTarget(null);

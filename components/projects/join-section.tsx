@@ -155,16 +155,8 @@ export function JoinSection({
 				setError(null);
 				router.refresh();
 			}
-		} catch (e) {
-			// withActive가 throw하는 "비활성화된 회원입니다..." 메시지를 프로덕션에서도
-			// 클라이언트가 못 받을 수 있어(Next 서버 액션 에러 마스킹), isInactive가 이미
-			// 못 잡은 경우를 대비한 안전망으로 메시지 문자열도 함께 확인한다.
-			const msg = e instanceof Error ? e.message : "";
-			if (msg.includes("비활성")) {
-				setInactiveGateOpen(true);
-			} else {
-				setError("오류가 발생했습니다. 다시 시도해 주세요.");
-			}
+		} catch {
+			setError("오류가 발생했습니다. 다시 시도해 주세요.");
 		} finally {
 			setSubmitting(false);
 		}

@@ -198,15 +198,8 @@ export function ActivityLogForm({
         setError(null);
         onSuccess();
       }
-    } catch (e) {
-      // withActive throw 메시지가 프로덕션에서 마스킹될 수 있어, isInactive prop이
-      // 못 잡은 경우를 대비한 안전망으로 메시지 문자열도 함께 확인한다.
-      const msg = e instanceof Error ? e.message : "";
-      if (msg.includes("비활성")) {
-        setInactiveGateOpen(true);
-      } else {
-        setError("오류가 발생했습니다. 다시 시도해 주세요.");
-      }
+    } catch {
+      setError("오류가 발생했습니다. 다시 시도해 주세요.");
     } finally {
       setSubmitting(false);
     }

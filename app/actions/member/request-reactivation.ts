@@ -44,7 +44,9 @@ export async function requestReactivation() {
     if (!admins?.length) return { ok: false as const, message: "관리자를 찾을 수 없습니다." };
 
     const adminIds = admins.map((a) => a.mem_id);
-    const todayStart = dayjs().startOf("day").toISOString();
+    // KST 자정 기준 — 서버(UTC)에서 startOf("day")를 그냥 쓰면 KST 오전 9시가 경계가 돼
+    // 하루 1회 중복 방지가 엉뚱한 시각에 초기화된다.
+    const todayStart = dayjs().tz("Asia/Seoul").startOf("day").toISOString();
 
     // 하루 1회 중복 방지 — 관리자 중 한 명에게라도 오늘 이미 보냈으면 스킵.
     const { data: existing } = await db
