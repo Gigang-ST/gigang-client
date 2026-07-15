@@ -30,6 +30,9 @@ import {
 } from "@/app/actions/admin/manage-member";
 import { revokeTitle } from "@/app/actions/admin/revoke-title";
 
+import { ParticipationSection } from "./participation-section";
+import { ParticipationTab } from "./participation-tab";
+
 import { Avatar } from "@/components/common/avatar";
 import { EmptyState } from "@/components/common/empty-state";
 import { InfoRow } from "@/components/common/info-row";
@@ -481,6 +484,7 @@ function TitleSection({
 export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: string; initialTeamMemId?: string }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<"members" | "participation">("members");
   const [search, setSearch] = useState("");
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [actioning, setActioning] = useState(false);
@@ -698,6 +702,32 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
     <div className="flex flex-col gap-4 px-6 pb-6 pt-4">
       <H2>회원 관리</H2>
 
+      {/* 회원 목록 ↔ 참여 통계 탭 */}
+      <SegmentControl
+        segments={[
+          { value: "members", label: "회원" },
+          { value: "participation", label: "참여" },
+        ]}
+        value={tab}
+        onValueChange={(v) => {
+          setTab(v as "members" | "participation");
+          // 참여 탭에선 배치 액션 바가 안 보이므로, 보이지 않는 선택 상태가 남지 않게 해제
+          setSelectedIds(new Set());
+        }}
+      />
+
+      {tab === "participation" && (
+        <ParticipationTab
+          members={members}
+          onSelectMember={(memId) => {
+            const found = members.find((m) => m.id === memId);
+            if (found) setSelectedMember(found);
+          }}
+        />
+      )}
+
+      {tab === "members" && (
+        <>
       {/* 검색 */}
       <div className="relative">
         <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -837,6 +867,8 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
           </TableBody>
         </Table>
       </div>
+        </>
+      )}
 
       {/* 회원 상세 시트 */}
       {selectedMember && (
@@ -912,6 +944,13 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
 
               {/* 온보딩 러닝 프로필 — 회원별 remount로 이전 회원 값 잔상 방지 */}
               <OnboardingSection key={selectedMember.id} memId={selectedMember.id} />
+
+              {/* 참여 현황 — 모임·대회 참여 요약/월별/최근 활동 */}
+              <ParticipationSection
+                key={`participation-${selectedMember.id}`}
+                memId={selectedMember.id}
+                teamId={teamId}
+              />
 
               {/* 칭호 관리 */}
               <TitleSection member={selectedMember} teamId={teamId} />
