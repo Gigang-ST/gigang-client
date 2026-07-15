@@ -667,8 +667,12 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
 
   function handleSingleReactivate(memberId: string) {
     if (!confirm("활성화하시겠습니까?")) return;
+    // 비활성/탈퇴 기간 회비는 자동으로 빠집니다. 잔액(예치금·미납)은 기본 보존.
+    const resetBalance = confirm(
+      "잔액을 0으로 초기화할까요?\n\n확인 = 초기화(과거 예치금·미납 청산)\n취소 = 기존 잔액 유지",
+    );
     startTransition(async () => {
-      const res = await reactivateMember(memberId);
+      const res = await reactivateMember(memberId, resetBalance);
       if (res.ok) {
         setSelectedMember(null);
         await loadMembers();

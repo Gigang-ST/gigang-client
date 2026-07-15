@@ -77,14 +77,18 @@ export async function recalculateBalance(memIds?: string[]) {
     for (let i = 0; i < memberIds.length; i += CHUNK_SIZE) {
       const chunk = memberIds.slice(i, i + CHUNK_SIZE);
       await Promise.all(chunk.map(async (mid) => {
-        // ① 앵커 — LEDGER_EPOCH 이전에 만들어진 가장 오래된 스냅샷(개시잔액)
+        // ① 앵커 — 개시잔액. 두 종류: (a) LEDGER_EPOCH 이전 시딩 스냅샷(가장 오래된),
+        //    (b) 재활성/재가입 잔액 초기화 스냅샷(anchor_yn=true, EPOCH 이후여도 인정).
+        //    초기화는 기존 스냅샷을 del_yn 처리하므로 회원당 앵커 후보는 사실상 1개.
+        //    anchor_yn=true(초기화)를 시딩보다 우선해 "재활성 이후만 계산"이 되게 한다.
         const { data: anchor } = await db
           .from("fee_mem_bal_snap")
           .select("bal_amt, last_calc_dt, last_calc_at")
           .eq("team_id", teamId)
           .eq("mem_id", mid)
           .eq("del_yn", false)
-          .lt("crt_at", dayjs(LEDGER_EPOCH).toISOString())
+          .or(`anchor_yn.eq.true,crt_at.lt.${dayjs(LEDGER_EPOCH).toISOString()}`)
+          .order("anchor_yn", { ascending: false })
           .order("crt_at", { ascending: true })
           .limit(1)
           .maybeSingle();
