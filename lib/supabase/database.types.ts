@@ -1071,6 +1071,7 @@ export type Database = {
       }
       fee_mem_bal_snap: {
         Row: {
+          anchor_yn: boolean
           bal_amt: number
           bal_snap_id: string
           crt_at: string
@@ -1085,6 +1086,7 @@ export type Database = {
           vers: number
         }
         Insert: {
+          anchor_yn?: boolean
           bal_amt: number
           bal_snap_id?: string
           crt_at?: string
@@ -1099,6 +1101,7 @@ export type Database = {
           vers?: number
         }
         Update: {
+          anchor_yn?: boolean
           bal_amt?: number
           bal_snap_id?: string
           crt_at?: string
@@ -2195,6 +2198,7 @@ export type Database = {
           card_featured: Json | null
           crt_at: string
           del_yn: boolean
+          eff_at: string
           inact_rsn_txt: string | null
           join_dt: string | null
           leave_dt: string | null
@@ -2212,6 +2216,7 @@ export type Database = {
           card_featured?: Json | null
           crt_at?: string
           del_yn?: boolean
+          eff_at?: string
           inact_rsn_txt?: string | null
           join_dt?: string | null
           leave_dt?: string | null
@@ -2229,6 +2234,7 @@ export type Database = {
           card_featured?: Json | null
           crt_at?: string
           del_yn?: boolean
+          eff_at?: string
           inact_rsn_txt?: string | null
           join_dt?: string | null
           leave_dt?: string | null
@@ -2379,6 +2385,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_team_mem_rel_change: {
+        Args: { p_team_mem_id: string; p_changes: Json; p_eff_at?: string }
+        Returns: undefined
+      }
+      apply_team_mem_rel_delete: {
+        Args: { p_team_mem_id: string; p_eff_at?: string }
+        Returns: undefined
+      }
       create_noti_for_team:
         | {
             Args: {
