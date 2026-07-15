@@ -27,13 +27,34 @@ begin
     raise exception '정본(vers=0) team_mem_rel 없음: %', p_team_mem_id;
   end if;
 
+  -- 권한 검증(심층 방어) — service_role 전용이지만 SECURITY DEFINER 라 내부에서 재확인.
+  if (select auth.uid()) is not null
+     and not public.v2_rls_auth_team_owner_or_admin(v_cur.team_id) then
+    raise exception '권한 없음: team_mem_rel 삭제는 대상 팀 관리자만 가능';
+  end if;
+
   select coalesce(max(vers), 0) + 1 into v_next_vers
   from public.team_mem_rel
   where team_id = v_cur.team_id and mem_id = v_cur.mem_id;
 
-  -- 정본을 이력(vers>0)으로 밀고 삭제 마킹. PK 유지 → 칭호 FK 안전. vers=0 슬롯이 빔.
+  -- ① 삭제 직전 상태를 이력(vers=max+1)으로 보존 — eff_at 은 그대로 유지.
+  --    그래야 "마지막 상태 전환~삭제" 사이의 active 구간이 타임라인에 남아, 재가입 후
+  --    리플레이 시 그 기간 회비가 누락되지 않는다. (change RPC 와 같은 복사-후-갱신 패턴)
+  insert into public.team_mem_rel (
+    team_mem_id, team_id, mem_id, team_role_cd, mem_st_cd, join_dt, leave_dt,
+    vers, del_yn, crt_at, upd_at, selected_badge_effect, selected_frame_cd,
+    inact_rsn_txt, card_featured, eff_at
+  ) values (
+    gen_random_uuid(), v_cur.team_id, v_cur.mem_id, v_cur.team_role_cd, v_cur.mem_st_cd,
+    v_cur.join_dt, v_cur.leave_dt, v_next_vers, v_cur.del_yn, v_cur.crt_at, now(),
+    v_cur.selected_badge_effect, v_cur.selected_frame_cd, v_cur.inact_rsn_txt,
+    v_cur.card_featured, v_cur.eff_at
+  );
+
+  -- ② 정본(vers=0)을 삭제 경계 이력(vers=max+2)으로 밀고 삭제 마킹. eff_at=삭제 시각.
+  --    PK 유지 → 칭호 FK 안전. vers=0 슬롯이 비어 재가입(새 정본 INSERT) 가능.
   update public.team_mem_rel
-    set vers = v_next_vers, del_yn = true, eff_at = p_eff_at, upd_at = now()
+    set vers = v_next_vers + 1, del_yn = true, eff_at = p_eff_at, upd_at = now()
   where team_mem_id = p_team_mem_id and vers = 0;
 end;
 $$;
@@ -41,6 +62,8 @@ $$;
 comment on function public.apply_team_mem_rel_delete(uuid, timestamptz) is
   '회원 소속 삭제 = 정본(vers=0)을 vers=max+1·del_yn=true 이력으로 밀어 vers=0 슬롯을 비운다. 재가입 시 새 정본 INSERT 가능. team_mem_id(PK) 유지로 칭호 FK 보존.';
 
+-- 기본 PUBLIC EXECUTE 회수 후 service_role 만 허용(관리자 삭제 액션 전용).
+revoke all on function public.apply_team_mem_rel_delete(uuid, timestamptz) from public;
 grant execute on function public.apply_team_mem_rel_delete(uuid, timestamptz) to service_role;
 
 -- 기존 삭제분(del_yn=true, vers=0) 백필: 슬롯을 비워 재가입 가능하게. 대상 없으면 no-op(멱등).

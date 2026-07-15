@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { recalculateBalance } from "@/app/actions/dues/recalculate-balance";
 import { withAdmin } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
+import { sealBalanceAnchor } from "@/lib/dues/seal-anchor";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -135,6 +136,11 @@ export async function deactivateMember(memberId: string, reason?: string) {
       p_eff_at: dayjs().toISOString(),
     });
     if (error) return { ok: false, message: "비활성화에 실패했습니다" };
+
+    // 비활성 처리 즉시 재계산 — 상태 이력만 바꾸면 이미 부과된 비활성월 회비가 잔액에 남는다.
+    await recalculateBalance([memberId]);
+    revalidatePath("/admin/members");
+    revalidatePath("/admin/dues");
     return { ok: true, message: null };
   });
 }
@@ -168,6 +174,8 @@ export async function leaveMemberFromDues(memberId: string, reason?: string) {
     });
     if (error) return { ok: false, message: "탈퇴 처리에 실패했습니다" };
 
+    // 탈퇴 처리 즉시 재계산 — 탈퇴월 이후 부과가 잔액에 남지 않게 상태 이력 반영.
+    await recalculateBalance([memberId]);
     revalidatePath("/admin/dues");
     revalidatePath("/admin/members");
     return { ok: true, message: null };
@@ -195,41 +203,19 @@ export async function reactivateMember(memberId: string, resetBalance = false) {
     if (!rel) return { ok: false, message: "활성화할 수 있는 대상이 아닙니다" };
 
     const nowIso = dayjs().toISOString();
+    // left→active 재활성 시 leave_dt 도 비운다 — 남아 있으면 활성 관계에 탈퇴일이 붙어 모순.
     const { error } = await db.rpc("apply_team_mem_rel_change", {
       p_team_mem_id: rel.team_mem_id,
-      p_changes: { mem_st_cd: "active", inact_rsn_txt: null },
+      p_changes: { mem_st_cd: "active", inact_rsn_txt: null, leave_dt: null },
       p_eff_at: nowIso,
     });
     if (error) return { ok: false, message: "활성화에 실패했습니다" };
 
     if (resetBalance) {
-      // 잔액 초기화: 현재 정본(vers=0) 스냅샷을 0원 앵커로 덮어쓴다(과거 예치금·미납 청산).
-      // soft-delete + INSERT 는 UNIQUE(team_id,mem_id,vers=0) 슬롯을 못 비워 충돌하므로
-      // vers=0 을 그대로 UPDATE. 재계산은 anchor_yn 앵커를 잡아 재활성 다음 달부터만 부과.
-      const monthStart = dayjs().tz("Asia/Seoul").startOf("month");
-      const anchorRow = {
-        bal_amt: 0,
-        last_calc_dt: monthStart.toISOString(),
-        last_calc_at: nowIso,
-        last_ref_pay_id: null,
-        last_ref_exm_hist_id: null,
-        anchor_yn: true,
-      };
-      const { data: existing } = await db
-        .from("fee_mem_bal_snap")
-        .select("bal_snap_id")
-        .eq("team_id", teamId)
-        .eq("mem_id", memberId)
-        .eq("vers", 0)
-        .eq("del_yn", false)
-        .maybeSingle();
-      if (existing) {
-        await db.from("fee_mem_bal_snap").update(anchorRow).eq("bal_snap_id", existing.bal_snap_id);
-      } else {
-        await db.from("fee_mem_bal_snap").insert({
-          team_id: teamId, mem_id: memberId, vers: 0, del_yn: false, ...anchorRow,
-        });
-      }
+      // 잔액 초기화: 0원 앵커로 봉인(과거 예치금·미납 청산). 재계산이 anchor_yn 앵커를
+      // 잡아 재활성 다음 달부터만 부과. 봉인 실패는 잔액 오염으로 이어지므로 표면화.
+      const { error: sealErr } = await sealBalanceAnchor(db, teamId, memberId);
+      if (sealErr) return { ok: false, message: sealErr };
     }
 
     await recalculateBalance([memberId]);
@@ -266,6 +252,10 @@ export async function batchDeactivateMembers(memberIds: string[], reason?: strin
       });
       if (error) return { ok: false, message: "일괄 비활성화에 실패했습니다" };
     }
+    // 비활성 처리한 회원들 잔액 재계산 — 비활성월 이후 부과 제외 반영.
+    await recalculateBalance(safe.map((r) => r.mem_id));
+    revalidatePath("/admin/members");
+    revalidatePath("/admin/dues");
     return { ok: true, message: null };
   });
 }
@@ -289,7 +279,7 @@ export async function batchReactivateMembers(memberIds: string[]) {
     for (const r of rels) {
       const { error } = await db.rpc("apply_team_mem_rel_change", {
         p_team_mem_id: r.team_mem_id,
-        p_changes: { mem_st_cd: "active", inact_rsn_txt: null },
+        p_changes: { mem_st_cd: "active", inact_rsn_txt: null, leave_dt: null },
         p_eff_at: effAt,
       });
       if (error) return { ok: false, message: "일괄 활성화에 실패했습니다" };

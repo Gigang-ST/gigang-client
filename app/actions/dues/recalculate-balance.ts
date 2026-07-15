@@ -9,6 +9,7 @@ import {
   buildChargeMonths,
   firstChargeMonth,
   replayPays,
+  sumReflectedExemptions,
   type ReplayPay,
 } from "@/lib/dues/ledger-replay";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -83,7 +84,7 @@ export async function recalculateBalance(memIds?: string[]) {
         //    anchor_yn=true(초기화)를 시딩보다 우선해 "재활성 이후만 계산"이 되게 한다.
         const { data: anchor } = await db
           .from("fee_mem_bal_snap")
-          .select("bal_amt, last_calc_dt, last_calc_at")
+          .select("bal_amt, last_calc_dt, last_calc_at, crt_at")
           .eq("team_id", teamId)
           .eq("mem_id", mid)
           .eq("del_yn", false)
@@ -153,22 +154,32 @@ export async function recalculateBalance(memIds?: string[]) {
           .eq("vers", 0)
           .eq("del_yn", false);
 
-        // 상태 이력(정본+vers 이력)으로 active 구간 재구성 → 비활성/재활성/탈퇴 기간 부과 제외.
+        // 상태 이력(정본+vers 이력)으로 active 구간 재구성 → 비활성/재활성/탈퇴/삭제 기간 부과 제외.
         // 이력이 없으면(도입 전 회원) 정본 1건뿐이라 "가입~현재 active" 단일 구간 = 기존 동작.
-        // del_yn=false 필터: 삭제(vers 밀기)로 del_yn=true 된 이력 로우는 active 구간에서 제외.
+        // 삭제 이력(del_yn=true)도 함께 조회한다 — 삭제=비active 전환으로 처리해야, 삭제~재가입
+        // 공백이 재가입 봉인(앵커)에 의존하지 않고도 자동 면제된다(봉인 실패 시 fail-safe).
         const { data: relHist, error: relHistErr } = await db
           .from("team_mem_rel")
-          .select("mem_st_cd, eff_at")
+          .select("mem_st_cd, eff_at, del_yn")
           .eq("team_id", teamId)
           .eq("mem_id", mid)
-          .eq("del_yn", false)
           .order("eff_at", { ascending: true });
-        // 조회 실패/빈 결과면 undefined(판정 생략=전부 부과) — [](전부 면제)로 두면 DB 오류가
-        // 조용히 잔액을 부풀린다(fail-unsafe). undefined 와 [] 의 의미가 역전됨에 주의.
-        const activeIntervals =
-          relHistErr || !relHist?.length
-            ? undefined
-            : buildActiveIntervals(relHist.map((r) => ({ mem_st_cd: r.mem_st_cd, eff_at: r.eff_at })));
+        // 조회 오류는 그 회원을 스킵+에러 기록 — 오류를 "전부 부과"로 대체하면 비활성 기간이
+        // 있는 회원이 과다 부과된다(조용한 재무 오류 금지). 빈 결과([])는 정상적으로 발생하지
+        // 않지만(정본 1건 이상 존재), 방어적으로 undefined(판정 생략=기존 전부 부과 동작)로 둔다.
+        if (relHistErr) {
+          errors.push(`상태 이력 조회 실패 (${mid}): ${relHistErr.message}`);
+          return;
+        }
+        const activeIntervals = !relHist?.length
+          ? undefined
+          : buildActiveIntervals(
+              // 삭제(del_yn=true) 로우는 상태와 무관하게 "deleted"(비active)로 취급해 구간을 끊는다.
+              relHist.map((r) => ({
+                mem_st_cd: r.del_yn ? "deleted" : r.mem_st_cd,
+                eff_at: r.eff_at,
+              })),
+            );
 
         const months = fromMonth <= today
           ? buildChargeMonths(policies, exmRules ?? [], fromMonth, today, activeIntervals)
@@ -212,15 +223,21 @@ export async function recalculateBalance(memIds?: string[]) {
           }
         }
 
-        // ⑤ 이미 반영(rflt_yn=true)된 면제 합 — base 에 녹여 RPC의 미반영 합산과 합치면 전체
+        // ⑤ 이미 반영(rflt_yn=true)된 면제 합 — base 에 녹여 RPC의 미반영 합산과 합치면 전체.
+        //    단 재활성 0원 청산 앵커(anchor_yn=true)는 청산 이전 반영 면제까지 다시 더하면
+        //    잔액이 부활하므로, 앵커 생성(crt_at) 이후 반영분만 합산한다(replayPays 와 대칭).
+        //    시딩 앵커는 rflt_yn 마킹 로직보다 이전이라 이 필터가 결과를 바꾸지 않는다(불변).
         const { data: reflectedExms } = await db
           .from("fee_due_exm_hist")
-          .select("exm_amt")
+          .select("exm_amt, upd_at")
           .eq("team_id", teamId)
           .eq("mem_id", mid)
           .eq("rflt_yn", true)
           .eq("del_yn", false);
-        const reflectedExmSum = (reflectedExms ?? []).reduce((sum, e) => sum + e.exm_amt, 0);
+        const reflectedExmSum = sumReflectedExemptions(
+          (reflectedExms ?? []).map((e) => ({ exmAmt: e.exm_amt, updAt: e.upd_at })),
+          anchor?.crt_at ?? null,
+        );
 
         const baseBal = (anchor?.bal_amt ?? 0) + reflectedExmSum;
 

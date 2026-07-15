@@ -8,6 +8,7 @@ import {
   isFullyActiveMonth,
   isMonthCharged,
   replayPays,
+  sumReflectedExemptions,
   type ExmRuleRange,
   type PolicyRange,
 } from "@/lib/dues/ledger-replay";
@@ -159,6 +160,33 @@ describe("buildActiveIntervals", () => {
     expect(isFullyActiveMonth(iv, "2026-11")).toBe(false); // 재활성월
     expect(isFullyActiveMonth(iv, "2026-12")).toBe(true); // 복귀 후 첫 온전한 달
   });
+
+  it("연속 active(역할 변경 등)는 하나의 구간으로 병합 — 그 달 부과 유지 (회귀)", () => {
+    // 가입 후 계속 active인데 3월 중간에 관리자 지정(active→active) 이력이 생긴 경우.
+    const iv = buildActiveIntervals([
+      { mem_st_cd: "active", eff_at: "2026-02-10T00:00:00+09:00" }, // 가입
+      { mem_st_cd: "active", eff_at: "2026-03-15T00:00:00+09:00" }, // 역할 변경(상태 유지)
+    ]);
+    expect(iv).toHaveLength(1); // 두 구간으로 쪼개지지 않음
+    expect(iv[0].end).toBeNull();
+    // 병합 안 하면 3월이 [~3/15),[3/15~) 로 갈려 어느 구간도 3월 전체를 못 덮어 false가 됐다.
+    expect(isFullyActiveMonth(iv, "2026-03")).toBe(true);
+    expect(isFullyActiveMonth(iv, "2026-04")).toBe(true);
+  });
+
+  it("삭제(deleted)는 active 구간을 끊는다 — 삭제~재가입 공백 면제 (fail-safe 회귀)", () => {
+    // 가입(2월) → 삭제(5월, 봉인 실패 가정) → 재가입(11월). 삭제 로우는 호출측에서
+    // mem_st_cd="deleted"로 매핑돼 들어온다. 5~10월 공백이 부과되면 안 된다.
+    const iv = buildActiveIntervals([
+      { mem_st_cd: "active", eff_at: "2026-02-10T00:00:00+09:00" }, // 최초 가입
+      { mem_st_cd: "deleted", eff_at: "2026-05-12T00:00:00+09:00" }, // 삭제 경계
+      { mem_st_cd: "active", eff_at: "2026-11-20T00:00:00+09:00" }, // 재가입
+    ]);
+    expect(iv).toHaveLength(2);
+    expect(iv[0].end).toBe("2026-05-12T00:00:00+09:00"); // 삭제로 첫 구간 종료
+    expect(isFullyActiveMonth(iv, "2026-07")).toBe(false); // 삭제 공백 = 면제
+    expect(isFullyActiveMonth(iv, "2026-12")).toBe(true); // 재가입 복귀 후 첫 온전한 달
+  });
 });
 
 describe("isFullyActiveMonth", () => {
@@ -251,5 +279,31 @@ describe("replayPays", () => {
     expect(r.totalPaid).toBe(3000);
     expect(r.lastTxnAt).toBeNull();
     expect(r.lastPayId).toBeNull();
+  });
+});
+
+describe("sumReflectedExemptions", () => {
+  it("앵커 없으면 전체기간 합산(기존 동작 유지)", () => {
+    const exms = [{ exmAmt: 1000, updAt: "2026-06-01T00:00:00+09:00" }];
+    expect(sumReflectedExemptions(exms, null)).toBe(1000);
+  });
+
+  it("시딩 앵커: 앵커 이전엔 반영 이력 자체가 없으므로 필터 유무 무관(기존 회원 불변 고정)", () => {
+    const anchorCrtAt = "2026-06-04T00:00:00+09:00";
+    const exmsAfterRpcLaunch = [
+      { exmAmt: 1000, updAt: "2026-06-28T09:00:00+09:00" },
+      { exmAmt: 2000, updAt: "2026-07-10T00:00:00+09:00" },
+    ];
+    expect(sumReflectedExemptions(exmsAfterRpcLaunch, anchorCrtAt)).toBe(3000);
+    expect(sumReflectedExemptions(exmsAfterRpcLaunch, null)).toBe(3000);
+  });
+
+  it("재활성 청산 앵커: 청산 이전 반영분은 제외(버그 수정 확인)", () => {
+    const anchorCrtAt = "2026-08-01T00:00:00+09:00";
+    const exms = [
+      { exmAmt: 5000, updAt: "2026-05-01T00:00:00+09:00" }, // 청산 이전 → 제외
+      { exmAmt: 1500, updAt: "2026-08-15T00:00:00+09:00" }, // 청산 이후 → 포함
+    ];
+    expect(sumReflectedExemptions(exms, anchorCrtAt)).toBe(1500);
   });
 });

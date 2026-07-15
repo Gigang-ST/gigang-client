@@ -152,7 +152,7 @@
 
 **잔액 의미**  
 - `bal_amt = (확정 납부 누적 + 면제로 깎인 부과 누적 반영) − (가입일·정책 기준 부과 누적)` 형태로 서비스 레이어에서 정의한다.  
-- **부과 시작 월·당월 면제**(가입 당월 0원 등)는 `team_mem_rel`·팀 규칙과 `fee_due_exm_cfg`의 조합으로 계산한다(세부 식은 구현 단계 문서).  
+- **부과 시작 월**은 `team_mem_rel.join_dt` 기준 `firstChargeMonth`로 계산한다. `JOIN_MONTH_EXEMPT_FROM`(2026-07-01) 이후 가입자의 가입 당월은 **부과 자체를 건너뛴다**(면제 row 생성 없음 — 아래 "부과 계산 기준" 절 참고). 옛 "fee_due_exm_cfg full 면제 조합" 방식은 채택하지 않았다.  
 
 **증분 계산·오류**  
 - 스냅샷이 있으면 워터마크(`last_calc_dt`, `last_ref_pay_id`, `last_ref_exm_hist_id`) 이후만 반영한다.  

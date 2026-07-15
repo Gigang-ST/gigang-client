@@ -96,6 +96,7 @@ type AwardableTitle = {
 function StatusBadge({ status }: { status: string | null }) {
   if (status === "active") return <Badge variant="default" className="text-[10px] px-1.5 py-0">활성</Badge>;
   if (status === "inactive") return <Badge variant="secondary" className="text-[10px] px-1.5 py-0 text-destructive border-destructive/30">비활성</Badge>;
+  if (status === "left") return <Badge variant="secondary" className="text-[10px] px-1.5 py-0 text-destructive border-destructive/30">탈퇴</Badge>;
   if (status === "pending") return <Badge variant="outline" className="text-[10px] px-1.5 py-0">대기</Badge>;
   return <Badge variant="outline" className="text-[10px] px-1.5 py-0">{status ?? "-"}</Badge>;
 }
@@ -578,16 +579,19 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
 
   const statusFiltered = filtered.filter((m) => {
     if (statusFilter === "active") return m.status === "active";
-    if (statusFilter === "inactive") return m.status === "inactive";
+    // "비활성" 필터는 inactive/left 모두 포함 — 별도 세그먼트로 안 쪼개면
+    // left 회원이 필터에서 아예 안 보여 재활성화 자체가 막힌다.
+    if (statusFilter === "inactive") return m.status === "inactive" || m.status === "left";
     return true;
   });
 
   const activeSelectedIds = [...selectedIds].filter(
     (id) => statusFiltered.find((m) => m.id === id)?.status === "active",
   );
-  const inactiveSelectedIds = [...selectedIds].filter(
-    (id) => statusFiltered.find((m) => m.id === id)?.status === "inactive",
-  );
+  const reactivatableSelectedIds = [...selectedIds].filter((id) => {
+    const status = statusFiltered.find((m) => m.id === id)?.status;
+    return status === "inactive" || status === "left";
+  });
 
   const displayedIds = statusFiltered.map((m) => m.id);
   const isAllSelected = displayedIds.length > 0 && displayedIds.every((id) => selectedIds.has(id));
@@ -744,7 +748,10 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
         segments={[
           { value: "all", label: `전체 ${members.length}명` },
           { value: "active", label: `활성 ${members.filter((m) => m.status === "active").length}명` },
-          { value: "inactive", label: `비활성 ${members.filter((m) => m.status === "inactive").length}명` },
+          {
+            value: "inactive",
+            label: `비활성 ${members.filter((m) => m.status === "inactive" || m.status === "left").length}명`,
+          },
         ]}
         value={statusFilter}
         onValueChange={(v) => {
@@ -767,15 +774,15 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
               비활성 설정 ({activeSelectedIds.length}명)
             </Button>
           )}
-          {inactiveSelectedIds.length > 0 && (
+          {reactivatableSelectedIds.length > 0 && (
             <Button
               size="sm"
               variant="outline"
-              onClick={() => handleBatchReactivate(inactiveSelectedIds)}
+              onClick={() => handleBatchReactivate(reactivatableSelectedIds)}
               disabled={isPending}
             >
               <UserCheck className="size-3.5 mr-1" />
-              활성화 ({inactiveSelectedIds.length}명)
+              활성화 ({reactivatableSelectedIds.length}명)
             </Button>
           )}
           <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
@@ -815,7 +822,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
               return (
                 <TableRow
                   key={member.id}
-                  className={`cursor-pointer ${isChecked ? "bg-muted/40" : ""} ${member.status === "inactive" ? "opacity-60" : ""}`}
+                  className={`cursor-pointer ${isChecked ? "bg-muted/40" : ""} ${member.status === "inactive" || member.status === "left" ? "opacity-60" : ""}`}
                   onClick={() => setSelectedMember(member)}
                 >
                   <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
@@ -934,9 +941,9 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
                       : null
                   }
                 />
-                {selectedMember.status === "inactive" && (
+                {(selectedMember.status === "inactive" || selectedMember.status === "left") && (
                   <InfoRow
-                    label="비활성 사유"
+                    label={selectedMember.status === "left" ? "탈퇴 사유" : "비활성 사유"}
                     value={selectedMember.inact_rsn_txt || "사유 없음"}
                   />
                 )}
@@ -989,7 +996,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
                     <UserMinus className="size-4 text-muted-foreground" />
                     <span className="text-[15px] font-medium text-foreground">비활성 설정</span>
                   </Button>
-                ) : selectedMember.status === "inactive" ? (
+                ) : selectedMember.status === "inactive" || selectedMember.status === "left" ? (
                   <Button
                     variant="outline"
                     onClick={() => handleSingleReactivate(selectedMember.id)}

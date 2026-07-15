@@ -30,6 +30,15 @@ begin
     raise exception '정본(vers=0) team_mem_rel 없음: %', p_team_mem_id;
   end if;
 
+  -- ①-b 권한 검증(심층 방어) — 이 함수는 service_role 에게만 GRANT 되지만(아래 REVOKE/GRANT),
+  --    SECURITY DEFINER 라 향후 누가 GRANT 를 넓혀도 남의 팀을 못 건드리게 내부에서 재확인한다.
+  --    end-user 세션(auth.uid() 있음)이면 대상 팀 owner/admin 이어야 하고, 서버 경로
+  --    (service_role → auth.uid()=null)는 통과시킨다.
+  if (select auth.uid()) is not null
+     and not public.v2_rls_auth_team_owner_or_admin(v_cur.team_id) then
+    raise exception '권한 없음: team_mem_rel 변경은 대상 팀 관리자만 가능';
+  end if;
+
   -- ② 변경 전 정본을 이력으로 복사 (새 PK, vers=max+1). eff_at 은 그대로 유지
   --    → 그 상태가 "효력을 발생했던 시각"을 보존해야 타임라인이 이어진다.
   select coalesce(max(vers), 0) + 1 into v_next_vers
@@ -65,5 +74,8 @@ $$;
 comment on function public.apply_team_mem_rel_change(uuid, jsonb, timestamptz) is
   '회원 소속 상태/역할 변경을 원자적으로 이력화. 변경 전 정본을 vers=max+1 이력으로 보존하고 정본(vers=0)을 p_changes 로 갱신. 정본 PK 불변(칭호 FK 안전). 삭제(vers 밀기)는 별도 RPC(조각3).';
 
--- service_role(관리자 액션) 및 authenticated(온보딩 자기 가입) 호출 허용.
-grant execute on function public.apply_team_mem_rel_change(uuid, jsonb, timestamptz) to authenticated, service_role;
+-- 앱의 모든 호출 경로가 service_role(createAdminClient)이므로 service_role 만 허용한다.
+-- (온보딩 자기 가입은 이 RPC 를 쓰지 않고 team_mem_rel 직접 INSERT — GRANT 불필요.)
+-- 기본 PUBLIC EXECUTE 를 회수해 authenticated 가 /rpc/ 로 직접 호출하는 IDOR 경로를 차단한다.
+revoke all on function public.apply_team_mem_rel_change(uuid, jsonb, timestamptz) from public;
+grant execute on function public.apply_team_mem_rel_change(uuid, jsonb, timestamptz) to service_role;

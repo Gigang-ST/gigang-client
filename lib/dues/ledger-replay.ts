@@ -61,15 +61,24 @@ export type StatusSegment = { mem_st_cd: string; eff_at: string };
  *   active(재활성)는 실제 eff_at 을 쓴다** — 이를 열면 비활성 기간 전체가 소급 부과되어
  *   "비활성 기간 자동 제외" 약속이 정확히 대상(레거시)에게 깨진다.
  *   → activeIntervals 는 "가입 이후 중간에 비활성됐다 재활성된 구멍"만 표현한다.
+ * - **연속된 active 세그먼트는 하나로 병합한다**: 역할 변경(active→active)처럼 상태가
+ *   유지되는 이력이 월 중간에 생기면 active 가 두 구간으로 쪼개져, 어느 구간도 월 전체를
+ *   못 덮어 실제로 계속 active 인 달이 잘못 면제된다. 상태 전환(active↔비active)이 실제로
+ *   일어난 경계만 구간을 끊는다.
  */
 export function buildActiveIntervals(segs: StatusSegment[]): ActiveInterval[] {
   const sorted = [...segs].sort((a, b) => a.eff_at.localeCompare(b.eff_at));
   const out: ActiveInterval[] = [];
   for (let i = 0; i < sorted.length; i++) {
     if (sorted[i].mem_st_cd !== "active") continue;
+    // 직전 세그먼트도 active면 같은 active 구간의 연속(역할 변경 등) — 새 구간을 열지 않는다.
+    if (i > 0 && sorted[i - 1].mem_st_cd === "active") continue;
     // 첫 세그먼트가 active일 때만 시작을 연다(가입=firstChargeMonth 위임). 재활성 active는 실제 시각.
     const start = i === 0 ? "0001-01-01T00:00:00.000Z" : sorted[i].eff_at;
-    const end = i + 1 < sorted.length ? sorted[i + 1].eff_at : null;
+    // 이 active 구간의 끝 = 다음 "비active" 세그먼트의 eff_at (연속 active는 건너뛴다).
+    let j = i + 1;
+    while (j < sorted.length && sorted[j].mem_st_cd === "active") j++;
+    const end = j < sorted.length ? sorted[j].eff_at : null;
     out.push({ start, end });
   }
   return out;
@@ -195,4 +204,29 @@ export function replayPays(
     lastTxnAt,
     lastPayId,
   };
+}
+
+export type ReflectedExm = { exmAmt: number; updAt: string };
+
+/**
+ * 앵커 생성(crt_at) 이후 반영(rflt_yn=true)된 면제만 합산한다 — replayPays 의
+ * anchorCursor 필터와 대칭. 재활성 0원 청산(anchor_yn=true) 앵커는 청산 이전에 이미
+ * rflt_yn=true 로 반영됐던 과거 면제까지 baseBal 에 다시 더하면 청산 잔액이 부활하므로,
+ * 앵커 시각 이후 반영분만 센다.
+ *
+ * 앵커가 없으면(신규/미도입 회원) 전부 합산 = 기존 동작. 시딩 앵커(crt_at=2026-06-04)는
+ * rflt_yn=true 마킹 로직(recalc RPC, 2026-06-28 도입)보다 이전이라, 앵커 이전에 반영된
+ * 면제는 현재 데이터 기준 존재하지 않는다(dev/prd 조회로 확인 — 06-28 이전 유효 rflt_yn=true
+ * 로우 0건). 따라서 필터 유무와 무관하게 기존 회원 결과가 같다. 향후 과거 데이터 수동
+ * 개입이 있으면 이 전제를 재확인할 것.
+ * 경계(앵커와 동일 시각 반영)는 isAfter(엄격)로 제외 — "앵커 시점에 아직 없던 반영"으로 본다.
+ */
+export function sumReflectedExemptions(
+  exms: ReflectedExm[],
+  anchorCrtAt: string | null,
+): number {
+  const counted = anchorCrtAt
+    ? exms.filter((e) => dayjs(e.updAt).isAfter(dayjs(anchorCrtAt)))
+    : exms;
+  return counted.reduce((sum, e) => sum + e.exmAmt, 0);
 }

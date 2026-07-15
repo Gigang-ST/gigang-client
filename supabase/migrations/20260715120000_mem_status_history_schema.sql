@@ -19,9 +19,16 @@ alter table public.team_mem_rel
   add column if not exists eff_at timestamptz;
 
 -- 기존 로우 백필: 현재 상태가 언제부터였는지 알 수 없으므로 crt_at(생성 시각)으로 근사.
+-- ⚠️ 레거시 inactive/left 회원도 eff_at=crt_at(가입 시각)이 된다. 이후 재활성 시
+--    buildActiveIntervals 가 "첫 세그먼트가 inactive면 재활성 실제 eff_at 부터만 active"로
+--    처리하므로(lib/dues/ledger-replay.ts), 가입~재활성 전 구간이 자동 비활성 처리된다 —
+--    정확한 비활성 시작일을 몰라도 잔액이 부풀지 않는 안전한 방향(design §12). 반대로
+--    이 구간을 부과로 열려면 관리자가 실제 비활성 시작일을 입력받아 백필해야 한다.
 update public.team_mem_rel set eff_at = crt_at where eff_at is null;
 
 alter table public.team_mem_rel alter column eff_at set default now();
+-- SET NOT NULL: 이 테이블은 소규모(활성 ~140명 + 이력 수 건)라 검사 잠금이 무시할 수준.
+-- 대규모였다면 CHECK (eff_at IS NOT NULL) NOT VALID → VALIDATE → SET NOT NULL 확장 절차를 썼을 것.
 alter table public.team_mem_rel alter column eff_at set not null;
 
 comment on column public.team_mem_rel.eff_at is
