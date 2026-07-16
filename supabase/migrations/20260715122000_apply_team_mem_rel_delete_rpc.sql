@@ -62,8 +62,9 @@ $$;
 comment on function public.apply_team_mem_rel_delete(uuid, timestamptz) is
   '회원 소속 삭제 = 정본(vers=0)을 vers=max+1·del_yn=true 이력으로 밀어 vers=0 슬롯을 비운다. 재가입 시 새 정본 INSERT 가능. team_mem_id(PK) 유지로 칭호 FK 보존.';
 
--- 기본 PUBLIC EXECUTE 회수 후 service_role 만 허용(관리자 삭제 액션 전용).
-revoke all on function public.apply_team_mem_rel_delete(uuid, timestamptz) from public;
+-- PUBLIC·authenticated·anon EXECUTE 모두 회수 후 service_role 만 허용(관리자 삭제 액션 전용).
+-- (`from public` 만으로는 authenticated 명시 GRANT·anon 이 남아 IDOR 가 열린다 — change RPC 주석 참조)
+revoke all on function public.apply_team_mem_rel_delete(uuid, timestamptz) from public, authenticated, anon;
 grant execute on function public.apply_team_mem_rel_delete(uuid, timestamptz) to service_role;
 
 -- 기존 삭제분(del_yn=true, vers=0) 백필: 슬롯을 비워 재가입 가능하게. 대상 없으면 no-op(멱등).
