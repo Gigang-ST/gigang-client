@@ -76,6 +76,8 @@ comment on function public.apply_team_mem_rel_change(uuid, jsonb, timestamptz) i
 
 -- 앱의 모든 호출 경로가 service_role(createAdminClient)이므로 service_role 만 허용한다.
 -- (온보딩 자기 가입은 이 RPC 를 쓰지 않고 team_mem_rel 직접 INSERT — GRANT 불필요.)
--- 기본 PUBLIC EXECUTE 를 회수해 authenticated 가 /rpc/ 로 직접 호출하는 IDOR 경로를 차단한다.
-revoke all on function public.apply_team_mem_rel_change(uuid, jsonb, timestamptz) from public;
+-- PUBLIC 뿐 아니라 authenticated·anon 의 EXECUTE 도 명시 회수해야 한다 — `from public` 만으로는
+-- authenticated 에 준 명시적 GRANT 가 안 지워지고, SECURITY DEFINER + auth.uid()=null 우회로
+-- anon 이 /rpc/ 로 남의 회원을 조작하는 IDOR 가 열린다.
+revoke all on function public.apply_team_mem_rel_change(uuid, jsonb, timestamptz) from public, authenticated, anon;
 grant execute on function public.apply_team_mem_rel_change(uuid, jsonb, timestamptz) to service_role;
