@@ -11,6 +11,7 @@ import { gthrTypeLabels, gthrSprtLabels, type GthrType, type GthrSprtType } from
 
 import { deleteGathering } from "@/app/actions/gathering/manage-gathering";
 import { toggleGatheringAttendance } from "@/app/actions/gathering/toggle-attendance";
+import { GatheringCancelDialog } from "@/app/(info)/gatherings/[id]/gathering-cancel-dialog";
 
 
 import type { CmntRow } from "@/components/comment/comment-item";
@@ -93,6 +94,7 @@ export function GatheringDetailDialog({
 }: GatheringDetailDialogProps) {
   const [inactiveGateOpen, setInactiveGateOpen] = useState(false);
   const [attending, setAttending] = useState(initialIsAttending ?? false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [attdCount, setAttdCount] = useState(gathering?.regCount ?? 0);
   const [attendees, setAttendees] = useState(gathering?.attendees ?? []);
   // 참석 토글 재진입 가드 — 동기 ref로 같은 렌더 내 연타까지 막는다(리렌더 의존 state는 못 막음).
@@ -167,6 +169,11 @@ export function GatheringDetailDialog({
 
   async function handleToggleAttendance() {
     if (!currentMemberId || isFull || togglingRef.current) return;
+    // 참석 취소는 사유 확인 모달을 거친다(임박 시 사유 필수) — 참석 등록은 그대로 즉시 처리.
+    if (attending) {
+      setCancelDialogOpen(true);
+      return;
+    }
     togglingRef.current = true;
     const prev = attending;
     const myEntry = { mem_id: currentMemberId, mem_nm: currentMemberName ?? null, avatar_url: currentMemberAvatarUrl ?? null };
@@ -186,6 +193,29 @@ export function GatheringDetailDialog({
       setAttendees(gathering!.attendees ?? []);
       // 서버 거절 사유(지난 모임·인원 마감 등)를 안내 — 무음 롤백이면 버튼 고장으로 오인한다
       toast.error(e instanceof Error ? e.message : "참석 처리에 실패했습니다.");
+    } finally {
+      togglingRef.current = false;
+    }
+  }
+
+  // 참석 취소 확정 — 사유 모달에서 호출. 실패 시 에러를 다시 던져 모달이 토스트·제출상태를 처리.
+  async function handleCancelConfirm(reason?: string) {
+    if (!currentMemberId) return;
+    togglingRef.current = true;
+    const prevCount = attdCount;
+    const prevAttendees = attendees;
+    setAttending(false);
+    setAttdCount((c) => c - 1);
+    setAttendees((list) => list.filter((a) => a.mem_id !== currentMemberId));
+    try {
+      await toggleGatheringAttendance(gathering!.id, reason);
+      setCancelDialogOpen(false);
+      onAttendanceChange?.();
+    } catch (e) {
+      setAttending(true);
+      setAttdCount(prevCount);
+      setAttendees(prevAttendees);
+      throw e;
     } finally {
       togglingRef.current = false;
     }
@@ -433,6 +463,13 @@ export function GatheringDetailDialog({
       shareText={gthrShareText}
     />
     <InactiveGateDialog open={inactiveGateOpen} onOpenChange={setInactiveGateOpen} kind={viewerInactiveKind} />
+    <GatheringCancelDialog
+      open={cancelDialogOpen}
+      onOpenChange={setCancelDialogOpen}
+      sttAt={gathering.evt_stt_at ?? gathering.start_date}
+      onConfirm={handleCancelConfirm}
+    />
+
     </>
   );
 }
