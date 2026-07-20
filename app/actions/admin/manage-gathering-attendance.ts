@@ -1,6 +1,7 @@
 "use server";
 
 import { withAdmin } from "@/lib/actions/auth";
+import { validateCancelReason } from "@/lib/gathering/cancel-reason";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient, createUntypedAdminClient } from "@/lib/supabase/admin";
 
@@ -33,15 +34,19 @@ export async function removeGatheringAttendance(gthrId: string, memId: string, r
     const inTeam = await verifyGatheringInTeam(db, gthrId, teamId);
     if (!inTeam) return { ok: false, message: "모임을 찾을 수 없습니다" };
 
+    // 사유 길이 상한(500자) 서버 강제 — 초과 시 잘라내지 않고 거부.
+    const reasonCheck = validateCancelReason(reason);
+    if (!reasonCheck.ok) return { ok: false, message: reasonCheck.message };
+
     // cancel_gthr_attendance RPC 는 service_role 전용. actor 는 처리한 관리자(admin).
     // 신규 RPC 라 아직 DB 타입 미생성 → untyped 관리자 클라이언트로 호출(gen types 후 교체 예정).
     const untyped = createUntypedAdminClient();
     const { error } = await untyped.rpc("cancel_gthr_attendance", {
       p_gthr_id: gthrId,
       p_mem_id: memId,
-      p_actor_kind: "admin",
+      p_actor_cd: "admin",
       p_actor_mem_id: member.id,
-      p_reason: reason ?? null,
+      p_reason: reasonCheck.value,
     });
     if (error) return { ok: false, message: "참석 취소에 실패했습니다" };
     return { ok: true, message: null };

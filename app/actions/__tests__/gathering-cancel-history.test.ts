@@ -64,14 +64,14 @@ beforeEach(() => {
 });
 
 describe("본인 참석 취소 (toggleGatheringAttendance)", () => {
-  it("취소 시 cancel_gthr_attendance RPC 를 actor_kind='self' + 사유로 호출한다", async () => {
+  it("취소 시 cancel_gthr_attendance RPC 를 actor_cd='self' + 사유로 호출한다", async () => {
     const result = await toggleGatheringAttendance("gthr-1", "부상으로 불참");
 
     expect(result).toEqual({ attending: false });
     expect(h.rpc).toHaveBeenCalledWith("cancel_gthr_attendance", {
       p_gthr_id: "gthr-1",
       p_mem_id: "mem-self",
-      p_actor_kind: "self",
+      p_actor_cd: "self",
       p_actor_mem_id: "mem-self",
       p_reason: "부상으로 불참",
     });
@@ -82,8 +82,16 @@ describe("본인 참석 취소 (toggleGatheringAttendance)", () => {
 
     expect(h.rpc).toHaveBeenCalledWith(
       "cancel_gthr_attendance",
-      expect.objectContaining({ p_actor_kind: "self", p_reason: null }),
+      expect.objectContaining({ p_actor_cd: "self", p_reason: null }),
     );
+  });
+
+  it("사유가 500자를 초과하면 RPC 호출 없이 거부한다", async () => {
+    const tooLong = "가".repeat(501);
+    await expect(toggleGatheringAttendance("gthr-1", tooLong)).rejects.toThrow(
+      "취소 사유는 500자 이내로 입력해주세요.",
+    );
+    expect(h.rpc).not.toHaveBeenCalled();
   });
 
   it("RPC 실패 시 참석 취소 에러를 던진다", async () => {
@@ -93,17 +101,24 @@ describe("본인 참석 취소 (toggleGatheringAttendance)", () => {
 });
 
 describe("관리자 참석 취소 (removeGatheringAttendance)", () => {
-  it("취소 시 cancel_gthr_attendance RPC 를 actor_kind='admin' + 관리자 mem_id 로 호출한다", async () => {
+  it("취소 시 cancel_gthr_attendance RPC 를 actor_cd='admin' + 관리자 mem_id 로 호출한다", async () => {
     const result = await removeGatheringAttendance("gthr-1", "mem-2", "노쇼 처리");
 
     expect(result).toEqual({ ok: true, message: null });
     expect(h.rpc).toHaveBeenCalledWith("cancel_gthr_attendance", {
       p_gthr_id: "gthr-1",
       p_mem_id: "mem-2",
-      p_actor_kind: "admin",
+      p_actor_cd: "admin",
       p_actor_mem_id: "admin-1",
       p_reason: "노쇼 처리",
     });
+  });
+
+  it("사유가 500자를 초과하면 RPC 호출 없이 ok:false 를 반환한다", async () => {
+    const tooLong = "노".repeat(501);
+    const result = await removeGatheringAttendance("gthr-1", "mem-2", tooLong);
+    expect(result).toEqual({ ok: false, message: "취소 사유는 500자 이내로 입력해주세요." });
+    expect(h.rpc).not.toHaveBeenCalled();
   });
 
   it("RPC 실패 시 ok:false 를 반환한다", async () => {

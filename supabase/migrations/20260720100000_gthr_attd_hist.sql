@@ -13,10 +13,13 @@ CREATE TABLE public.gthr_attd_hist (
   gthr_id      uuid        NOT NULL REFERENCES public.gthr_mst(gthr_id),
   mem_id       uuid        NOT NULL REFERENCES public.mem_mst(mem_id),
   evt_cd       text        NOT NULL DEFAULT 'cancel' CHECK (evt_cd IN ('register', 'cancel')),
-  actor_kind   text        NOT NULL CHECK (actor_kind IN ('self', 'admin')),
+  actor_cd     text        NOT NULL CHECK (actor_cd IN ('self', 'admin')),
   actor_mem_id uuid        REFERENCES public.mem_mst(mem_id),
   reason_txt   text,
-  evt_at       timestamptz NOT NULL DEFAULT now()
+  evt_at       timestamptz NOT NULL DEFAULT now(),
+  -- reason_txt 길이 상한(문자수). "use server" 엔드포인트가 임의 인자로 대용량 텍스트를
+  -- 저장하는 것을 DB 레벨에서 이중 차단. 서버 액션에서도 동일 상한(500)을 강제한다.
+  CONSTRAINT gthr_attd_hist_reason_len CHECK (char_length(reason_txt) <= 500)
 );
 
 COMMENT ON TABLE  public.gthr_attd_hist              IS '모임 참석 이벤트 이력 (append-only). 현재는 취소(cancel) 이벤트만 기록. 재참석은 gthr_attd_rel upsert 로 처리되며 이 이력은 보존된다.';
@@ -24,9 +27,9 @@ COMMENT ON COLUMN public.gthr_attd_hist.hist_id      IS 'PK';
 COMMENT ON COLUMN public.gthr_attd_hist.gthr_id      IS '모임 ID (gthr_mst FK)';
 COMMENT ON COLUMN public.gthr_attd_hist.mem_id       IS '대상 참석자 mem_id (mem_mst FK)';
 COMMENT ON COLUMN public.gthr_attd_hist.evt_cd       IS '이벤트 종류: register|cancel. 현재 cancel 만 기록(register 로깅은 후속 과제).';
-COMMENT ON COLUMN public.gthr_attd_hist.actor_kind   IS '취소 주체 구분: self(본인)|admin(관리자).';
+COMMENT ON COLUMN public.gthr_attd_hist.actor_cd     IS '취소 주체 구분: self(본인)|admin(관리자).';
 COMMENT ON COLUMN public.gthr_attd_hist.actor_mem_id IS '실제 행위자 mem_id. self 면 mem_id 와 동일, admin 이면 처리한 관리자 mem_id.';
-COMMENT ON COLUMN public.gthr_attd_hist.reason_txt   IS '취소 사유(nullable). SG-01 은 저장만, 필수 강제는 후속 SG-02.';
+COMMENT ON COLUMN public.gthr_attd_hist.reason_txt   IS '취소 사유(nullable, 최대 500자). SG-01 은 저장만, 필수 강제는 후속 SG-02.';
 COMMENT ON COLUMN public.gthr_attd_hist.evt_at       IS '이벤트(취소) 발생 시각.';
 
 -- 특정 모임의 취소 이력 조회용
@@ -70,7 +73,7 @@ COMMENT ON POLICY gthr_attd_hist_select ON public.gthr_attd_hist
 CREATE OR REPLACE FUNCTION public.cancel_gthr_attendance(
   p_gthr_id      uuid,
   p_mem_id       uuid,
-  p_actor_kind   text,
+  p_actor_cd     text,
   p_actor_mem_id uuid DEFAULT NULL,
   p_reason       text DEFAULT NULL
 )
@@ -83,8 +86,8 @@ DECLARE
   v_deleted int;
   v_reason  text;
 BEGIN
-  IF p_actor_kind NOT IN ('self', 'admin') THEN
-    RAISE EXCEPTION 'actor_kind 는 self|admin 만 허용: %', p_actor_kind;
+  IF p_actor_cd NOT IN ('self', 'admin') THEN
+    RAISE EXCEPTION 'actor_cd 는 self|admin 만 허용: %', p_actor_cd;
   END IF;
 
   -- ① 현재상태(gthr_attd_rel) 행 삭제
@@ -95,12 +98,12 @@ BEGIN
     RAISE EXCEPTION '참석 기록이 없습니다';
   END IF;
 
-  -- 빈 문자열/공백은 사유 없음(NULL)으로 정규화
+  -- 빈 문자열/공백은 사유 없음(NULL)으로 정규화. 길이 상한(<=500)은 컬럼 CHECK 가 강제.
   v_reason := NULLIF(btrim(COALESCE(p_reason, '')), '');
 
   -- ② 취소 이벤트 이력 append
-  INSERT INTO public.gthr_attd_hist (gthr_id, mem_id, evt_cd, actor_kind, actor_mem_id, reason_txt)
-  VALUES (p_gthr_id, p_mem_id, 'cancel', p_actor_kind, p_actor_mem_id, v_reason);
+  INSERT INTO public.gthr_attd_hist (gthr_id, mem_id, evt_cd, actor_cd, actor_mem_id, reason_txt)
+  VALUES (p_gthr_id, p_mem_id, 'cancel', p_actor_cd, p_actor_mem_id, v_reason);
 END;
 $$;
 
