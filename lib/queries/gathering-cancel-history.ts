@@ -36,7 +36,11 @@ export async function getGatheringAttendanceHistory(
 ): Promise<GatheringAttdHistRow[]> {
   const { data, error } = await supabase
     .from("gthr_attd_hist")
-    .select("hist_id, mem_id, evt_cd, actor_cd, reason_txt, evt_at, mem_mst(mem_id, mem_nm, avatar_url)")
+    .select(
+      // mem_mst FK가 둘(mem_id·actor_mem_id) → 임베드 관계를 FK 이름으로 명시하지 않으면
+      // PostgREST가 "more than one relationship" 에러를 낸다. 취소 대상은 mem_id.
+      "hist_id, mem_id, evt_cd, actor_cd, reason_txt, evt_at, mem_mst!gthr_attd_hist_mem_id_fkey(mem_id, mem_nm, avatar_url)",
+    )
     .eq("gthr_id", gthrId)
     .order("evt_at", { ascending: false });
 
