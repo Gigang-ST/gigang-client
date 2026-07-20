@@ -25,6 +25,9 @@ type NotiInput = {
   teamId: string;
   memId: string;
   notiTypeEnm: string;
+  /** 수신거부(noti_pref_cfg) 판단에 쓸 타입. 생략 시 notiTypeEnm 사용.
+   *  예: gthr_cncl 알림이지만 수신거부는 gthr_upd 설정으로 묶어 판단할 때. */
+  prefTypeEnm?: string;
   notiNm: string;
   notiCont?: string | null;
   refId?: string | null;
@@ -56,12 +59,12 @@ function toPushPayload(
 export async function insertNoti(input: NotiInput): Promise<void> {
   const admin = createUntypedAdminClient();
 
-  // 수신 설정 확인 — enabled_yn=false 인 row가 있으면 발송 안 함
+  // 수신 설정 확인 — enabled_yn=false 인 row가 있으면 발송 안 함 (prefTypeEnm 지정 시 그 타입으로 판단)
   const { data: pref } = await admin
     .from("noti_pref_cfg")
     .select("enabled_yn")
     .eq("mem_id", input.memId)
-    .eq("noti_type_enm", input.notiTypeEnm)
+    .eq("noti_type_enm", input.prefTypeEnm ?? input.notiTypeEnm)
     .maybeSingle();
 
   if (pref?.enabled_yn === false) return;
