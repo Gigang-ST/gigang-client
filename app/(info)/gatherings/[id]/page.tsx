@@ -151,6 +151,7 @@ export default async function GatheringDetailPage({
             initialAttending={isAttending}
             maxPrtCnt={gthr.max_prt_cnt ?? null}
             currentAttdCount={attendees?.length ?? 0}
+            sttAt={gthr.stt_at}
             pastLocked={isPastLocked}
           />
         )}

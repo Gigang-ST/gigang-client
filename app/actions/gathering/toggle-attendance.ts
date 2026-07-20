@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { withActive } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
+import { isCancelReasonRequired } from "@/lib/gathering/cancel-imminent";
 import { validateCancelReason } from "@/lib/gathering/cancel-reason";
 import { joinGatheringWithCapCheck } from "@/lib/gathering/join-gathering";
 import { isPastLockedFor } from "@/lib/past-event";
@@ -15,8 +16,9 @@ import { createUntypedAdminClient } from "@/lib/supabase/admin";
  * 참석 등록 시 `monthlyAttendCnt`(그 모임 stt_at 월 기준 본인 총참석 횟수)를 함께 반환해,
  * 클라이언트가 "이번 달 N회 참석" 토스트를 띄울 수 있게 한다. 취소 시엔 undefined.
  *
- * 취소 시 `reason`(선택)을 넘기면 취소 이력(gthr_attd_hist)에 사유로 저장된다.
- * SG-01 은 저장만 지원 — 사유 필수 강제는 후속 과제(SG-02). 등록 토글 시 reason 은 무시.
+ * 취소 시 `reason`(선택 또는 필수)을 넘기면 취소 이력(gthr_attd_hist)에 사유로 저장된다.
+ * 모임 시작 GATHERING_CANCEL_IMMINENT_HOURS 시간 전부터의 취소는 사유가 필수다(클라이언트 모달
+ * 뿐 아니라 여기서도 재검증 — 클라이언트를 신뢰하지 않음). 등록 토글 시 reason 은 무시.
  */
 export async function toggleGatheringAttendance(
   gthr_id: string,
@@ -53,6 +55,11 @@ export async function toggleGatheringAttendance(
       // 사유 길이 상한(500자) 서버 강제 — 초과 시 잘라내지 않고 거부.
       const reasonCheck = validateCancelReason(reason);
       if (!reasonCheck.ok) throw new Error(reasonCheck.message);
+
+      // 임박 취소(시작 5시간 전부터)는 사유 필수 — 클라이언트 모달을 우회한 호출도 서버에서 재차 막는다.
+      if (isCancelReasonRequired(gthr.stt_at) && !reasonCheck.value) {
+        throw new Error("시작 5시간 전부터는 취소 사유가 필요해요.");
+      }
 
       // 취소 = gthr_attd_rel DELETE + gthr_attd_hist(cancel) INSERT 를 원자적으로.
       // cancel_gthr_attendance RPC 는 service_role 전용(authenticated·anon EXECUTE 회수)이라
