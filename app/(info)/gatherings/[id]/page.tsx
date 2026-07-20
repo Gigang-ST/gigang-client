@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 
 import { dayjs } from "@/lib/dayjs";
+import { deriveCanceledAttendees } from "@/lib/gathering/derive-canceled-attendees";
 import { isPastLockedFor } from "@/lib/past-event";
+import { getGatheringAttendanceHistory } from "@/lib/queries/gathering-cancel-history";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
@@ -15,6 +17,7 @@ import { H2, Caption, Micro, SectionLabel } from "@/components/common/typography
 import { Badge } from "@/components/ui/badge";
 
 import { GatheringAttendButton } from "./gathering-attend-button";
+import { GatheringCanceledAttendees } from "./gathering-canceled-attendees";
 import { GatheringMenuButton } from "./gathering-menu-button";
 
 export default async function GatheringDetailPage({
@@ -39,7 +42,7 @@ export default async function GatheringDetailPage({
   if (!gthr || gthr.team_id !== teamId) notFound();
 
   const admin = createUntypedAdminClient();
-  const [{ data: attendees }, myAttd, { data: comments }] = await Promise.all([
+  const [{ data: attendees }, myAttd, { data: comments }, cancelHist] = await Promise.all([
     // 참석자 목록: RLS 없이 공개 노출 (팀 멤버 확인은 gthr_mst SELECT RLS가 보장)
     admin
       .from("gthr_attd_rel")
@@ -60,9 +63,26 @@ export default async function GatheringDetailPage({
       .eq("entity_type", "gathering")
       .eq("entity_id", id)
       .order("crt_at", { ascending: true }),
+    // 취소 이력: gthr_attd_hist RLS가 팀 멤버 SELECT를 허용 — RLS 클라이언트(supabase) 재사용
+    getGatheringAttendanceHistory(supabase, id),
   ]);
 
   const isAttending = !!myAttd?.data;
+  // 취소자 = rel에 없고(재참석 시 rel 재존재로 자동 제외) hist상 마지막 이벤트가 cancel인 멤버.
+  // 참석자 수·정원 카운트(attendees.length)에는 포함되지 않는다.
+  const canceledAttendees = deriveCanceledAttendees(
+    cancelHist,
+    new Set((attendees ?? []).map((a) => a.mem_id)),
+  ).map((h) => {
+    const mem = Array.isArray(h.mem_mst) ? h.mem_mst[0] : h.mem_mst;
+    return {
+      mem_id: h.mem_id,
+      mem_nm: mem?.mem_nm ?? "",
+      avatar_url: mem?.avatar_url ?? null,
+      evt_at: h.evt_at,
+      reason_txt: h.reason_txt,
+    };
+  });
   const isAuthor = member?.id === gthr.crt_by;
   // 지난 모임(KST 날짜 기준)은 수정·삭제·참석 변경 불가 — 관리자만 예외 (서버 액션에서도 동일 검증)
   const isPastLocked = isPastLockedFor(member?.admin, gthr.stt_at, gthr.end_at);
@@ -172,6 +192,9 @@ export default async function GatheringDetailPage({
             </div>
           </div>
         )}
+
+        {/* 취소자 목록 */}
+        <GatheringCanceledAttendees attendees={canceledAttendees} />
 
         {/* 댓글 */}
         <div className="flex flex-col gap-3 pb-20">
