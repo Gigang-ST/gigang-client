@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { withActive } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
+import { validateCancelReason } from "@/lib/gathering/cancel-reason";
 import { joinGatheringWithCapCheck } from "@/lib/gathering/join-gathering";
 import { isPastLockedFor } from "@/lib/past-event";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -13,9 +14,13 @@ import { createUntypedAdminClient } from "@/lib/supabase/admin";
  * 모임 참석 토글.
  * 참석 등록 시 `monthlyAttendCnt`(그 모임 stt_at 월 기준 본인 총참석 횟수)를 함께 반환해,
  * 클라이언트가 "이번 달 N회 참석" 토스트를 띄울 수 있게 한다. 취소 시엔 undefined.
+ *
+ * 취소 시 `reason`(선택)을 넘기면 취소 이력(gthr_attd_hist)에 사유로 저장된다.
+ * SG-01 은 저장만 지원 — 사유 필수 강제는 후속 과제(SG-02). 등록 토글 시 reason 은 무시.
  */
 export async function toggleGatheringAttendance(
   gthr_id: string,
+  reason?: string,
 ): Promise<{ attending: boolean; monthlyAttendCnt?: number }> {
   return withActive(async ({ member, supabase }) => {
     // 모임 검증용 조회와 내 참석 여부 조회는 독립적 — 병렬 1 RTT로 (직렬 2 RTT 방지)
@@ -45,8 +50,21 @@ export async function toggleGatheringAttendance(
     }
 
     if (existing) {
-      const { error: deleteError } = await supabase.from("gthr_attd_rel").delete().eq("attd_id", existing.attd_id);
-      if (deleteError) throw new Error("참석 취소에 실패했습니다.");
+      // 사유 길이 상한(500자) 서버 강제 — 초과 시 잘라내지 않고 거부.
+      const reasonCheck = validateCancelReason(reason);
+      if (!reasonCheck.ok) throw new Error(reasonCheck.message);
+
+      // 취소 = gthr_attd_rel DELETE + gthr_attd_hist(cancel) INSERT 를 원자적으로.
+      // cancel_gthr_attendance RPC 는 service_role 전용(authenticated·anon EXECUTE 회수)이라
+      // 본인 인가가 끝난 admin 클라이언트로 호출한다. actor 는 본인(self).
+      const { error: cancelError } = await admin.rpc("cancel_gthr_attendance", {
+        p_gthr_id: gthr_id,
+        p_mem_id: member.id,
+        p_actor_cd: "self",
+        p_actor_mem_id: member.id,
+        p_reason: reasonCheck.value,
+      });
+      if (cancelError) throw new Error("참석 취소에 실패했습니다.");
       // 홈(/)은 dynamic 렌더(getCurrentMember가 cookies 사용)라 매 요청 새로 조회되므로
       // revalidatePath("/")는 무효화할 캐시가 없어 불필요 — 모임 상세 직접 URL만 무효화한다.
       revalidatePath(`/gatherings/${gthr_id}`);
