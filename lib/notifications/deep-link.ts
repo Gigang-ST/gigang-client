@@ -31,6 +31,7 @@ const NOTI_ROUTE: Record<
   gthr_new: (refId) => (refId ? `/?gthr=${refId}` : "/"),
   gthr_upd: (refId) => (refId ? `/?gthr=${refId}` : "/"),
   gthr_del: () => "/",
+  gthr_cncl: (refId) => (refId ? `/?gthr=${refId}` : "/"),
   gthr_cmnt: (refId) => (refId ? `/?gthr=${refId}` : "/"),
   gthr_reply: (refId) => (refId ? `/?gthr=${refId}` : "/"),
   gthr_mention: (refId) => (refId ? `/?gthr=${refId}` : "/"),

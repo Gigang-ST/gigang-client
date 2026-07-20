@@ -42,6 +42,9 @@ vi.mock("@/lib/queries/request-team", () => ({
 vi.mock("@/lib/gathering/join-gathering", () => ({
   joinGatheringWithCapCheck: async () => ({ joined: true }),
 }));
+// toggle-attendance.ts가 취소 성공 후 벙주 알림을 위해 import한다(SG-05) — 이 테스트는 알림 발송
+// 자체를 검증 대상으로 하지 않으므로 no-op으로 스텁(실제 발송 검증은 gathering-cancel-notify.test.ts).
+vi.mock("@/lib/notifications/insert-noti", () => ({ insertNoti: vi.fn() }));
 vi.mock("@/lib/actions/auth", () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   withActive: async (fn: any) =>

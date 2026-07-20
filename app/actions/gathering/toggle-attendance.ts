@@ -7,6 +7,7 @@ import { dayjs } from "@/lib/dayjs";
 import { isCancelReasonRequired } from "@/lib/gathering/cancel-imminent";
 import { validateCancelReason } from "@/lib/gathering/cancel-reason";
 import { joinGatheringWithCapCheck } from "@/lib/gathering/join-gathering";
+import { insertNoti } from "@/lib/notifications/insert-noti";
 import { isPastLockedFor } from "@/lib/past-event";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
@@ -31,7 +32,7 @@ export async function toggleGatheringAttendance(
     const [{ data: gthr }, { data: existing }] = await Promise.all([
       admin
         .from("gthr_mst")
-        .select("max_prt_cnt, stt_at, end_at")
+        .select("max_prt_cnt, stt_at, end_at, gthr_nm, crt_by")
         .eq("gthr_id", gthr_id)
         .eq("team_id", teamId)
         .eq("del_yn", false)
@@ -72,6 +73,29 @@ export async function toggleGatheringAttendance(
         p_reason: reasonCheck.value,
       });
       if (cancelError) throw new Error("참석 취소에 실패했습니다.");
+
+      // 벙주(개설자)에게 취소 알림 — 본인이 자기 모임을 취소한 경우엔 자기 자신에게 보내지 않는다.
+      // 알림은 부가 기능이라 실패해도 이미 완료된 취소 자체는 되돌리지 않는다(insertNoti 실패는 내부에서 로깅만).
+      // 수신거부는 gthr_upd(모임 수정·삭제)와 같은 설정 항목으로 묶어 판단한다 — gthr_del이
+      // gthr_upd 설정을 공유하는 기존 전례를 따른 것으로, 별도 설정 UI 항목을 새로 추가하지 않고도
+      // 사용자가 기존 "참가 모임 수정·삭제" 토글로 즉시 제어할 수 있게 한다.
+      if (gthr.crt_by && gthr.crt_by !== member.id) {
+        try {
+          await insertNoti({
+            teamId,
+            memId: gthr.crt_by,
+            notiTypeEnm: "gthr_cncl",
+            prefTypeEnm: "gthr_upd",
+            notiNm: `${member.full_name}님이 '${gthr.gthr_nm}' 참석을 취소했어요`,
+            notiCont: reasonCheck.value ? `사유: ${reasonCheck.value}` : null,
+            refId: gthr_id,
+            refTypeEnm: "gathering",
+          });
+        } catch (e) {
+          console.error("[gthr_cncl] 알림 발송 실패", e);
+        }
+      }
+
       // 홈(/)은 dynamic 렌더(getCurrentMember가 cookies 사용)라 매 요청 새로 조회되므로
       // revalidatePath("/")는 무효화할 캐시가 없어 불필요 — 모임 상세 직접 URL만 무효화한다.
       revalidatePath(`/gatherings/${gthr_id}`);
