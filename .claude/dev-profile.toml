@@ -11,6 +11,12 @@ pkg    = "pnpm"
 entry     = "CLAUDE.md"          # 매 세션 진입점 (AGENTS.md + DESIGN.md import)
 rules_dir = ""                   # path-scoped 규칙 디렉토리 없음 (필요 시 .claude/rules 신설)
 
+[project]
+github_repo = "Gigang-ST/gigang-client"   # owner/name — Linear 명명·크로스머신 식별 SSOT
+
+[project.local_paths]                     # 키 = 머신이름(hostname). 다른 머신 항목은 그 머신에서 채움
+dev-box = "/root/projects/gigang-client"
+
 [commands]
 lint      = "pnpm lint"
 typecheck = "pnpm exec tsc --noEmit"   # build보다 가벼운 타입 검증
