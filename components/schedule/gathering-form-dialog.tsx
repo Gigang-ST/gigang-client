@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { History } from "lucide-react";
+import { History, Info } from "lucide-react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -13,6 +13,7 @@ import { z } from "zod";
 import { dayjs } from "@/lib/dayjs";
 import type { RecentGathering } from "@/lib/gathering/dedupe-recent";
 import { REGULAR_GATHERING_TEMPLATE } from "@/lib/gathering/templates";
+import { isImminentGathering } from "@/lib/gathering/imminent";
 import {
   GTHR_TYPES,
   GTHR_SPRT_TYPES,
@@ -50,6 +51,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { AutoGrowTextarea } from "@/components/common/auto-grow-textarea";
+import { Caption } from "@/components/common/typography";
 
 const formSchema = createGthrSchema.omit({ team_id: true });
 type FormValues = z.infer<typeof formSchema>;
@@ -379,6 +381,16 @@ export function GatheringFormDialog({
                 )}
               />
             </div>
+
+            {/* 시작까지 12시간 미만이면 정보성 안내 노출 — 개설을 막지는 않는다. */}
+            {isImminentGathering(form.watch("stt_at")) && (
+              <div className="flex items-start gap-2 rounded-lg bg-info/10 px-3 py-2">
+                <Info className="mt-0.5 size-4 shrink-0 text-info" />
+                <Caption className="text-info">
+                  시작까지 12시간이 채 남지 않았어요. 당일에 오픈한 일정은 참석자가 없을 수 있어요.
+                </Caption>
+              </div>
+            )}
 
             {/* 장소 */}
             <FormField
