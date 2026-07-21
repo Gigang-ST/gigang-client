@@ -119,7 +119,7 @@ export async function batchDuesExemption(baseMonth?: string): Promise<string> {
 
       // 사유: "[5월 회비 감면] 참여 4회 (정모 참여)" 형태 — 회원이 어느 달 무엇으로 감면됐는지 명확히
       const monthLabel = dayjs(monthStart).format("M월");
-      const gateLabel = stat.regular_attend_cnt > 0 ? "정모 참여" : "벙 개설";
+      const gateLabel = stat.regular_attend_cnt > 0 ? "정모 참여" : "모임 개설";
       const rsnTxt = `[${monthLabel} 회비 감면] 참여 ${stat.attend_cnt}회 (${gateLabel})`;
 
       // 멱등: 이미 같은 월 퀘스트 면제가 있으면 그대로 둠(확정값은 재계산이 금액을 바꾸지 않음).

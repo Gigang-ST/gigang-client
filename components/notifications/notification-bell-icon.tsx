@@ -40,6 +40,7 @@ type NotificationBellIconProps = {
 const NOTI_TYPE_LABELS: Record<string, string> = {
   gthr_new: "새 모임 등록",
   gthr_upd: "참가 모임 수정·삭제",
+  gthr_cncl: "내 모임 참석 취소",
   sch_post_new: "새 정보 등록",
   ttl_grnt: "칭호 획득",
 };

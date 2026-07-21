@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { History } from "lucide-react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 
 import { useFormPersist } from "@/lib/hooks/use-form-persist";
 import { z } from "zod";
@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { AutoGrowTextarea } from "@/components/common/auto-grow-textarea";
+import { GatheringScheduleHint } from "@/components/schedule/gathering-schedule-hint";
 
 const formSchema = createGthrSchema.omit({ team_id: true });
 type FormValues = z.infer<typeof formSchema>;
@@ -137,6 +138,8 @@ export function GatheringFormDialog({
 
   // dirtyFields를 구독해야 RHF가 필드 dirty 여부를 추적한다(정기 템플릿의 시작시간 보존 판정에 사용).
   const { isSubmitting, dirtyFields } = form.formState;
+  // 시작일시 구독 — 개설 일정 안내(GatheringScheduleHint)의 임박 판정에 사용.
+  const sttAtWatch = useWatch({ control: form.control, name: "stt_at" });
 
   const persistKey = "gathering-form-draft";
   const { clear: clearDraft } = useFormPersist(persistKey, form, open && mode === "create");
@@ -379,6 +382,9 @@ export function GatheringFormDialog({
                 )}
               />
             </div>
+
+            {/* 개설 일정 안내 — 항상 여유 개설 팁, 임박(12h 미만)이면 당일 경고 추가. 제출은 막지 않음 */}
+            <GatheringScheduleHint sttAt={sttAtWatch} mode={mode} />
 
             {/* 장소 */}
             <FormField

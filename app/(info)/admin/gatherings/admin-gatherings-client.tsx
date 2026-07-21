@@ -6,6 +6,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, ChevronsUpDown, Plus, Users, X
 import { toast } from "sonner";
 
 import { currentMonthKST, dayjs, nextMonthStr, prevMonthStr } from "@/lib/dayjs";
+import { deriveCanceledAttendees } from "@/lib/gathering/derive-canceled-attendees";
 import { createClient } from "@/lib/supabase/client";
 import { gthrTypeLabels, type GthrType } from "@/lib/validations/gathering";
 
@@ -59,6 +60,15 @@ type ActiveMember = {
   avatar_url: string | null;
 };
 
+/** 취소 이력 간단 노출용 (SG-03 §4, 선택 범위). 사유 포함 팀 멤버 전체 공개 정책과 동일하게 관리자 화면에도 노출. */
+type CanceledAttendee = {
+  mem_id: string;
+  mem_nm: string | null;
+  avatar_url: string | null;
+  evt_at: string;
+  reason_txt: string | null;
+};
+
 /** 모임 타입 배지 스타일 — 시맨틱 토큰만 사용 (하드코딩 색 금지). */
 const TYPE_BADGE_CLASS: Record<string, string> = {
   regular: "border-transparent bg-primary/10 text-primary",
@@ -75,6 +85,8 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [attendeesLoading, setAttendeesLoading] = useState(false);
+  const [canceledAttendees, setCanceledAttendees] = useState<CanceledAttendee[]>([]);
+  const [canceledLoading, setCanceledLoading] = useState(false);
 
   const [activeMembers, setActiveMembers] = useState<ActiveMember[]>([]);
   const [addOpen, setAddOpen] = useState(false);
@@ -150,6 +162,42 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
     setAttendeesLoading(false);
   }, []);
 
+  /**
+   * 취소 이력 간단 노출(SG-03 §4, 선택 범위). gthr_attd_hist RLS가 팀 멤버 SELECT를 허용하므로
+   * 관리자 브라우저 클라이언트(RLS)로도 그대로 조회 가능. 현재 rel(재참석 여부)은 이 다이얼로그
+   * 안에서 별도로 최소 조회해, loadAttendees 상태(state)와의 타이밍 경쟁 없이 판정한다.
+   */
+  const loadCancelHistory = useCallback(async (gthrId: string) => {
+    setCanceledLoading(true);
+    const supabase = createClient();
+    const [{ data: relRows }, { data: histRows }] = await Promise.all([
+      supabase.from("gthr_attd_rel").select("mem_id").eq("gthr_id", gthrId),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("gthr_attd_hist")
+        .select("mem_id, evt_cd, evt_at, reason_txt, mem_mst(mem_id, mem_nm, avatar_url)")
+        .eq("gthr_id", gthrId),
+    ]);
+
+    if (currentGthrRef.current !== gthrId) return; // 다른 모임으로 전환됨 — 늦은 응답 폐기
+
+    const attendingIds = new Set((relRows ?? []).map((r: { mem_id: string }) => r.mem_id));
+    setCanceledAttendees(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      deriveCanceledAttendees(histRows ?? [], attendingIds).map((h: any) => {
+        const m = Array.isArray(h.mem_mst) ? h.mem_mst[0] : h.mem_mst;
+        return {
+          mem_id: h.mem_id,
+          mem_nm: m?.mem_nm ?? null,
+          avatar_url: m?.avatar_url ?? null,
+          evt_at: h.evt_at,
+          reason_txt: h.reason_txt,
+        };
+      }),
+    );
+    setCanceledLoading(false);
+  }, []);
+
   const loadActiveMembers = useCallback(async () => {
     const supabase = createClient();
     const { data } = await supabase
@@ -180,11 +228,15 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
     setDialogOpen(true);
     loadAttendees(g.gthr_id);
     loadActiveMembers();
+    loadCancelHistory(g.gthr_id);
   };
 
   const handleDialogOpenChange = (open: boolean) => {
     setDialogOpen(open);
-    if (!open) currentGthrRef.current = null; // 닫힌 뒤 도착하는 응답/롤백 무효화
+    if (!open) {
+      currentGthrRef.current = null; // 닫힌 뒤 도착하는 응답/롤백 무효화
+      setCanceledAttendees([]); // 다음 모임 열 때 이전 취소 이력이 잠깐 보이는 걸 방지
+    }
   };
 
   const attendeeIds = useMemo(() => new Set(attendees.map((a) => a.mem_id)), [attendees]);
@@ -205,14 +257,20 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
     const target = attendees.find((a) => a.mem_id === memId);
     const memName = target?.mem_nm ?? "이름 없음";
     const gDate = dayjs(selected.stt_at).tz("Asia/Seoul").format("M/D(ddd)");
-    if (!window.confirm(`${memName}님의 ${gDate} "${selected.gthr_nm}" 참석을 취소합니다. 계속할까요?`)) return;
+    // 관리자 취소도 사유를 남길 수 있게 — 프롬프트 취소(null)면 중단, 비워두면 사유 없이 진행.
+    // 입력한 사유는 취소 이력에 저장되고 팀 멤버에게 공개된다(멤버 취소와 동일 정책).
+    const reason = window.prompt(
+      `${memName}님의 ${gDate} "${selected.gthr_nm}" 참석을 취소합니다.\n취소 사유를 남길 수 있어요 (선택):`,
+      "",
+    );
+    if (reason === null) return;
 
     setRemovingMemId(memId);
     const prevAttendees = attendees;
     setAttendees((prev) => prev.filter((a) => a.mem_id !== memId));
     syncGatheringCount(gthrId, -1);
 
-    const result = await removeGatheringAttendance(gthrId, memId);
+    const result = await removeGatheringAttendance(gthrId, memId, reason || undefined);
     if (!result.ok) {
       // 참가자 목록 롤백은 아직 같은 모임을 보고 있을 때만 (전환됐으면 이미 새 목록으로 교체됨)
       if (currentGthrRef.current === gthrId) setAttendees(prevAttendees);
@@ -220,6 +278,8 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
       toast.error(result.message ?? "참석 취소에 실패했습니다");
     } else {
       toast.success(`${memName}님 참석을 취소했습니다`);
+      // 방금 취소가 새 이력(cancel)으로 남았으므로 취소 목록을 새로 불러온다.
+      if (currentGthrRef.current === gthrId) loadCancelHistory(gthrId);
     }
     setRemovingMemId(null);
   };
@@ -240,6 +300,8 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
       toast.error(result.message ?? "참석 추가에 실패했습니다");
     } else {
       toast.success(`${member.mem_nm ?? "이름 없음"}님을 참석 처리했습니다`);
+      // 재참석이면 취소 목록에서 빠져야 하므로 다시 불러온다.
+      if (currentGthrRef.current === gthrId) loadCancelHistory(gthrId);
     }
     setAdding(false);
   };
@@ -417,6 +479,35 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
                   ))
                 )}
               </div>
+
+              {/* 취소 이력 간단 노출(SG-03 §4, 선택 범위) — 사유 포함 팀 멤버 전체 공개 정책과 동일 */}
+              {!canceledLoading && canceledAttendees.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <Caption className="text-muted-foreground">
+                    취소 ({canceledAttendees.length}명)
+                  </Caption>
+                  {canceledAttendees.map((c) => (
+                    <div
+                      key={c.mem_id}
+                      className="flex items-start gap-2.5 rounded-xl border border-border px-3 py-2.5"
+                    >
+                      <Avatar
+                        src={c.avatar_url}
+                        seed={c.mem_id}
+                        alt={c.mem_nm ?? ""}
+                        size="sm"
+                        className="opacity-40 grayscale"
+                      />
+                      <div className="flex flex-col gap-0.5">
+                        <Body className="text-muted-foreground">
+                          {c.mem_nm ?? "이름 없음"} · {dayjs(c.evt_at).tz("Asia/Seoul").format("M/D HH:mm")} 취소
+                        </Body>
+                        {c.reason_txt && <Micro>사유: {c.reason_txt}</Micro>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </ResponsiveDrawerContent>
