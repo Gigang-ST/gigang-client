@@ -55,8 +55,8 @@ function ConditionRow({
  * 참여 회비 감면 퀘스트 카드 — 당월 실시간 진행도(설계 §7.1).
  * 면제 row 는 월 마감 배치 때 생기지만, 이 카드가 실시간 집계로 "달성 여부 + 예상 감면"을 즉시 보여준다.
  *
- * ①(정모 참석 또는 벙 개설)·②(참석 N회 이상)는 **둘 다 충족해야 하는 독립 조건(AND)**이다.
- * 어느 쪽을 먼저 채워도 되며(예: 3회 참석 후 벙 1개 개설 → 개설1·참석4 동시 충족), 선후 관계가 없다.
+ * ①(정모 참석 또는 모임 개설)·②(참석 N회 이상)는 **둘 다 충족해야 하는 독립 조건(AND)**이다.
+ * 어느 쪽을 먼저 채워도 되며(예: 3회 참석 후 모임 1개 개설 → 개설1·참석4 동시 충족), 선후 관계가 없다.
  * 그래서 ②를 게이트와 무관하게 참석 횟수만으로 표시하고, 잠금/선행 표현은 쓰지 않는다.
  */
 export function DuesQuestCard({ ym, result, maxAttendCnt }: Props) {
@@ -77,16 +77,16 @@ export function DuesQuestCard({ ym, result, maxAttendCnt }: Props) {
         <Caption className="text-muted-foreground">{monthLabel}</Caption>
       </div>
 
-      {/* ① 정모 참여 또는 벙 개설 */}
+      {/* ① 정모 참여 또는 모임 개설 */}
       <ConditionRow
         no="①"
-        label="정모 참여 또는 벙 개설"
+        label="정모 참여 또는 모임 개설"
         met={gatePassed}
         status={gatePassed ? "충족" : "미충족"}
         detail={
           gatePassed
             ? `정모 ${gateDetail.regularAttend} · 개설 ${gateDetail.hosted}`
-            : "정모 1회 참여 또는 벙 1회 개설"
+            : "정모 1회 참여 또는 모임 1회 개설"
         }
       />
 

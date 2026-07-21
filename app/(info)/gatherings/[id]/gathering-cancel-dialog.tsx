@@ -68,20 +68,21 @@ export function GatheringCancelDialog({ open, onOpenChange, sttAt, onConfirm }: 
         <DialogHeader>
           <DialogTitle>참석을 취소할까요?</DialogTitle>
           <DialogDescription>
-            취소하면 벙주에게 기록이 남아요. 미리 알려주면 더 좋아요 :)
+            취소하면 모임장에게 알림이 전송되지만,{" "}
+            <span className="font-semibold text-foreground">채팅방에서 직접 알려주세요</span> :)
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-2">
           <Caption className={reasonRequired ? "text-destructive" : "text-muted-foreground"}>
             {reasonRequired
-              ? "지금은 시작이 얼마 안 남아서 사유가 꼭 필요해요"
-              : "(선택) 벙주님의 멘탈을 위해 사유를 남겨주세요🥹"}
+              ? "곧 시작하는 모임이라 취소 사유를 꼭 남겨주세요!"
+              : "(선택) 모임장의 멘탈을 위해 취소 사유를 남겨주세요🥹"}
           </Caption>
           <Textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="예) 몸살 기운이 있어서 쉬어야 할 것 같아요"
+            placeholder="예) 갑자기 야근이 잡혀서 참석이 어려워요"
             maxLength={GATHERING_CANCEL_REASON_MAX_LENGTH}
             rows={3}
             disabled={submitting}

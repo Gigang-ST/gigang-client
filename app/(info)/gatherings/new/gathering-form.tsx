@@ -5,12 +5,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Info } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 
 import { dayjs } from "@/lib/dayjs";
-import { isImminentGathering } from "@/lib/gathering/imminent";
 import { GTHR_TYPES, gthrTypeLabels, createGthrSchema, type CreateGthrInput } from "@/lib/validations/gathering";
 
 import { createGathering, updateGathering } from "@/app/actions/gathering/manage-gathering";
@@ -33,7 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AutoGrowTextarea } from "@/components/common/auto-grow-textarea";
-import { Caption } from "@/components/common/typography";
+import { GatheringScheduleHint } from "@/components/schedule/gathering-schedule-hint";
 
 const formSchema = createGthrSchema.omit({ team_id: true });
 type FormValues = z.infer<typeof formSchema>;
@@ -87,10 +85,8 @@ export function GatheringForm(props: Props) {
   });
 
   const { isSubmitting } = form.formState;
-
-  // 시작까지 12시간 미만이면 정보성 안내 노출 — 개설을 막지는 않는다.
-  const sttAt = form.watch("stt_at");
-  const isImminent = isImminentGathering(sttAt);
+  // 시작일시 구독 — 개설 일정 안내(GatheringScheduleHint)의 임박 판정에 사용.
+  const sttAtWatch = useWatch({ control: form.control, name: "stt_at" });
 
   useEffect(() => {
     if (props.mode !== "edit") return;
@@ -212,15 +208,8 @@ export function GatheringForm(props: Props) {
           />
         </div>
 
-        {/* 임박 개설 안내 — 정보성, 제출은 막지 않음 */}
-        {isImminent && (
-          <div className="flex items-start gap-2 rounded-lg bg-info/10 px-3 py-2">
-            <Info className="mt-0.5 size-4 shrink-0 text-info" />
-            <Caption className="text-info">
-              시작까지 12시간이 채 남지 않았어요. 당일에 오픈한 일정은 참석자가 없을 수 있어요.
-            </Caption>
-          </div>
-        )}
+        {/* 개설 일정 안내 — 항상 여유 개설 팁, 임박(12h 미만)이면 당일 경고 추가. 제출은 막지 않음 */}
+        <GatheringScheduleHint sttAt={sttAtWatch} mode={props.mode} />
 
         {/* 장소 */}
         <FormField

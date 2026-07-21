@@ -6,7 +6,7 @@ const FEE = 2000; // 기본 월 회비
 
 describe("calcExemption — 게이트", () => {
   it("게이트 미충족(정모0·개설0)이면 참석 많아도 0원", () => {
-    // 설계 §2.3: 일반 벙 5회 참석, 정모X, 개설X → 0원
+    // 설계 §2.3: 일반 모임 5회 참석, 정모X, 개설X → 0원
     const r = calcExemption({ attendCnt: 5, regularAttendCnt: 0, hostedCnt: 0 }, FEE);
     expect(r.gatePassed).toBe(false);
     expect(r.exmAmt).toBe(0);
@@ -17,19 +17,19 @@ describe("calcExemption — 게이트", () => {
     expect(r.gatePassed).toBe(true);
   });
 
-  it("벙 1회 개설로 게이트 통과(정모 없어도)", () => {
+  it("모임 1회 개설로 게이트 통과(정모 없어도)", () => {
     const r = calcExemption({ attendCnt: 4, regularAttendCnt: 0, hostedCnt: 1 }, FEE);
     expect(r.gatePassed).toBe(true);
   });
 });
 
 describe("calcExemption — 티어(설계 §2.3 예시)", () => {
-  it("정모 참석 + 일반 벙 3회 = 4회 → 1,000원", () => {
+  it("정모 참석 + 일반 모임 3회 = 4회 → 1,000원", () => {
     const r = calcExemption({ attendCnt: 4, regularAttendCnt: 1, hostedCnt: 0 }, FEE);
     expect(r.exmAmt).toBe(1000);
   });
 
-  it("벙 개설(=참석1) + 추가 참석 7회 = 8회 → 전액 2,000원", () => {
+  it("모임 개설(=참석1) + 추가 참석 7회 = 8회 → 전액 2,000원", () => {
     const r = calcExemption({ attendCnt: 8, regularAttendCnt: 0, hostedCnt: 1 }, FEE);
     expect(r.exmAmt).toBe(2000);
   });
