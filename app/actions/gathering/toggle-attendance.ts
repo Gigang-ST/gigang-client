@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { withActive } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
-import { isCancelReasonRequired } from "@/lib/gathering/cancel-imminent";
+import { CANCEL_REASON_REQUIRED_MESSAGE, isCancelReasonRequired } from "@/lib/gathering/cancel-imminent";
 import { validateCancelReason } from "@/lib/gathering/cancel-reason";
 import { joinGatheringWithCapCheck } from "@/lib/gathering/join-gathering";
 import { insertNoti } from "@/lib/notifications/insert-noti";
@@ -58,8 +58,10 @@ export async function toggleGatheringAttendance(
       if (!reasonCheck.ok) throw new Error(reasonCheck.message);
 
       // 임박 취소(시작 5시간 전부터)는 사유 필수 — 클라이언트 모달을 우회한 호출도 서버에서 재차 막는다.
+      // 클라가 시각 차로 "선택"으로 보고 사유 없이 보내면 여기서 거절되고, 클라는 이 메시지를 식별해
+      // 취소 모달을 사유 필수 모드로 전환한다(CANCEL_REASON_REQUIRED_MESSAGE 공유).
       if (isCancelReasonRequired(gthr.stt_at) && !reasonCheck.value) {
-        throw new Error("시작 5시간 전부터는 취소 사유가 필요해요.");
+        throw new Error(CANCEL_REASON_REQUIRED_MESSAGE);
       }
 
       // 취소 = gthr_attd_rel DELETE + gthr_attd_hist(cancel) INSERT 를 원자적으로.

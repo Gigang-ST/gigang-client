@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Copy, ExternalLink, Lock, Pencil, Share2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { dayjs } from "@/lib/dayjs";
+import { dayjs, parseEventTime } from "@/lib/dayjs";
 import { isPastLockedFor } from "@/lib/past-event";
 import { gthrTypeLabels, gthrSprtLabels, type GthrType, type GthrSprtType } from "@/lib/validations/gathering";
 
@@ -146,8 +146,10 @@ export function GatheringDetailDialog({
   // 지난 모임(KST 날짜 기준)은 수정·삭제·참석 변경 불가 — 관리자만 예외 (서버 액션에서도 동일 검증)
   const isPastLocked = isPastLockedFor(isAdmin, gathering.evt_stt_at ?? gathering.start_date, gathering.evt_end_at);
 
-  const stt = gathering.evt_stt_at ? dayjs(gathering.evt_stt_at).tz("Asia/Seoul") : dayjs(gathering.start_date);
-  const end = gathering.evt_end_at ? dayjs(gathering.evt_end_at).tz("Asia/Seoul") : null;
+  // evt_stt_at 없으면 start_date(날짜만)로 폴백 — parseEventTime이 KST 자정으로 고정해
+  // 기기 타임존에 따라 시각 표시가 어긋나지 않게 한다(isPastLocked·취소 판정과 동일 기준).
+  const stt = parseEventTime(gathering.evt_stt_at ?? gathering.start_date).tz("Asia/Seoul");
+  const end = gathering.evt_end_at ? parseEventTime(gathering.evt_end_at).tz("Asia/Seoul") : null;
   const dateStr = stt.format("YYYY년 M월 D일 (ddd)");
   const timeStr = end ? `${stt.format("HH:mm")} ~ ${end.format("HH:mm")}` : stt.format("HH:mm");
 
@@ -197,7 +199,11 @@ export function GatheringDetailDialog({
       if (result.attending && result.monthlyAttendCnt) {
         toast.success(`이번 달 ${result.monthlyAttendCnt}회 참여!`);
       }
-      onAttendanceChange?.();
+      // 부가 갱신(달력·참석자 재조회)은 참석 처리와 독립 — 여기서 reject돼도 위 성공한 토글을
+      // 롤백하면 안 되므로 try 밖에서 삼킨다(catch 흐름 오염·unhandled rejection 방지).
+      void Promise.resolve(onAttendanceChange?.()).catch((err) => {
+        console.error("[gathering] 참석 변경 후 갱신 실패", err);
+      });
     } catch (e) {
       setAttending(prev);
       setAttdCount((c) => (prev ? c + 1 : c - 1));
@@ -234,7 +240,11 @@ export function GatheringDetailDialog({
     try {
       await toggleGatheringAttendance(gathering!.id, reason);
       setCancelDialogOpen(false);
-      onAttendanceChange?.();
+      // 취소 성공 후 부가 갱신(달력·참석자 재조회)은 실패해도 취소 자체엔 영향 없어야 한다.
+      // await하지 않고 호출하므로, 내부에서 reject되면 unhandled rejection이 되지 않도록 여기서 삼킨다.
+      void Promise.resolve(onAttendanceChange?.()).catch((err) => {
+        console.error("[gathering] 취소 후 갱신 실패", err);
+      });
     } catch (e) {
       setAttending(true);
       setAttdCount(prevCount);
