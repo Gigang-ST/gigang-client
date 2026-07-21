@@ -78,6 +78,8 @@ const GatheringFormDialog = dynamic<GatheringFormDialogProps>(
   { ssr: false }
 );
 
+import type { CanceledAttendee } from "@/app/(info)/gatherings/[id]/gathering-canceled-attendees";
+import { fetchGatheringCancelHistoryRowsClient, deriveCanceledFromRows } from "@/lib/queries/gathering-cancel-history-client";
 import type { GatheringDetailDialogProps, GatheringAttendee } from "@/components/schedule/gathering-detail-dialog";
 const GatheringDetailDialog = dynamic<GatheringDetailDialogProps>(
   () =>
@@ -230,7 +232,7 @@ export function MiniCalendar({
 
   // 모임 상세 다이얼로그 상태
   const [gthrDetailOpen, setGthrDetailOpen] = useState(false);
-  const [gthrDetailRace, setGthrDetailRace] = useState<(CalendarRace & { maxPrtCnt?: number | null; attendees?: GatheringAttendee[]; sprt_cd?: string | null }) | null>(null);
+  const [gthrDetailRace, setGthrDetailRace] = useState<(CalendarRace & { maxPrtCnt?: number | null; attendees?: GatheringAttendee[]; canceledAttendees?: CanceledAttendee[]; sprt_cd?: string | null }) | null>(null);
   const [gthrDetailAttending, setGthrDetailAttending] = useState(false);
   // 상세를 "즉시 열고" 참석자/정원을 뒤에서 채우는 동안 true — 다이얼로그가 스켈레톤을 그린다
   const [gthrDetailLoading, setGthrDetailLoading] = useState(false);
@@ -332,11 +334,13 @@ export function MiniCalendar({
     try {
       type GthrDetail = { max_prt_cnt: number | null; sprt_cd: string | null; attendees: GatheringAttendee[] };
       // 댓글은 함께 기다리지 않는다 — undefined로 넘기면 CommentSection이 스스로 조회·로딩 표시한다.
-      const [attdResult, gthrDetailResult] = await Promise.all([
+      // 취소 이력은 참석자 RPC와 병렬로 받아 지연 없이 취소자 판정에 합친다(판정엔 현재 참석자 집합 필요).
+      const [attdResult, gthrDetailResult, cancelRows] = await Promise.all([
         memberId
           ? supabase.from("gthr_attd_rel").select("attd_id").eq("gthr_id", race.id).eq("mem_id", memberId).maybeSingle()
           : Promise.resolve({ data: null }),
         supabase.rpc("get_gathering_detail", { p_gthr_id: race.id, p_team_id: teamId }),
+        fetchGatheringCancelHistoryRowsClient(supabase, race.id),
       ]);
       if (gthrDetailResult.error) {
         // 이미 열린 다이얼로그는 유지 — 행 데이터만으로도 핵심 정보는 보인다
@@ -347,8 +351,9 @@ export function MiniCalendar({
       if (reqId !== gthrOpenReqRef.current) return;
       const gthrData = gthrDetailResult.data as GthrDetail | null;
       const attendees: GatheringAttendee[] = gthrData?.attendees ?? [];
+      const canceledAttendees = deriveCanceledFromRows(cancelRows, attendees.map((a) => a.mem_id));
       setGthrDetailRace((prev) => prev && prev.id === race.id
-        ? { ...prev, regCount: attendees.length, maxPrtCnt: gthrData?.max_prt_cnt ?? null, attendees, sprt_cd: gthrData?.sprt_cd ?? prev.sprt_cd ?? null }
+        ? { ...prev, regCount: attendees.length, maxPrtCnt: gthrData?.max_prt_cnt ?? null, attendees, canceledAttendees, sprt_cd: gthrData?.sprt_cd ?? prev.sprt_cd ?? null }
         : prev);
       // 등록 직후(justCreated)엔 작성자가 자동 참석되므로 무조건 참석 상태로 확정한다.
       // (자동 참석 INSERT 직후라 attd 조회가 read-after-write 지연으로 null을 반환할 수 있어
@@ -386,7 +391,8 @@ export function MiniCalendar({
           memberId
             ? supabase.from("gthr_attd_rel").select("attd_id").eq("gthr_id", deepLinkGthrId).eq("mem_id", memberId).maybeSingle()
             : Promise.resolve({ data: null }),
-        ]).then(([masterRes, detailRes, attdRes]) => {
+          fetchGatheringCancelHistoryRowsClient(supabase, deepLinkGthrId),
+        ]).then(([masterRes, detailRes, attdRes, cancelRows]) => {
           if (cancelled) return
           // 그 사이 다른 모임이 열렸으면 늦게 온 딥링크 응답을 버린다
           if (reqId !== gthrOpenReqRef.current) return
@@ -397,6 +403,7 @@ export function MiniCalendar({
           }
           const gthrData = detailRes.data as GthrDetail | null
           const attendees: GatheringAttendee[] = gthrData?.attendees ?? []
+          const canceledAttendees = deriveCanceledFromRows(cancelRows, attendees.map((a) => a.mem_id))
           setGthrJustCreated(false)
           setGthrDetailRace({
             id: data.gthr_id,
@@ -413,6 +420,7 @@ export function MiniCalendar({
             regCount: attendees.length,
             maxPrtCnt: gthrData?.max_prt_cnt ?? null,
             attendees,
+            canceledAttendees,
             sprt_cd: gthrData?.sprt_cd ?? null,
           })
           setGthrDetailAttending(!!attdRes.data)
@@ -1636,7 +1644,7 @@ export function MiniCalendar({
         onDelete={refreshMonthData}
         onAttendanceChange={async () => {
           type GthrDetail = { max_prt_cnt: number | null; sprt_cd: string | null; attendees: GatheringAttendee[] };
-          const [, gthrDetailResult, attdResult] = await Promise.all([
+          const [, gthrDetailResult, attdResult, cancelRows] = await Promise.all([
             refreshMonthData(),
             gthrDetailRace
               ? supabase.rpc("get_gathering_detail", { p_gthr_id: gthrDetailRace.id, p_team_id: teamId })
@@ -1644,11 +1652,15 @@ export function MiniCalendar({
             gthrDetailRace && memberId
               ? supabase.from("gthr_attd_rel").select("attd_id").eq("gthr_id", gthrDetailRace.id).eq("mem_id", memberId).maybeSingle()
               : Promise.resolve({ data: null }),
+            gthrDetailRace
+              ? fetchGatheringCancelHistoryRowsClient(supabase, gthrDetailRace.id)
+              : Promise.resolve([]),
           ]);
           if (gthrDetailRace && gthrDetailResult.data) {
             const gthrData = gthrDetailResult.data as GthrDetail;
             const attendees: GatheringAttendee[] = gthrData.attendees ?? [];
-            setGthrDetailRace((prev) => prev ? { ...prev, regCount: attendees.length, attendees } : prev);
+            const canceledAttendees = deriveCanceledFromRows(cancelRows, attendees.map((a) => a.mem_id));
+            setGthrDetailRace((prev) => prev ? { ...prev, regCount: attendees.length, attendees, canceledAttendees } : prev);
             setGthrDetailAttending(!!attdResult.data);
           }
         }}
