@@ -72,7 +72,7 @@ export function PostDetail({ post }: PostDetailProps) {
       <div className="flex flex-col gap-1">
         <Body className="text-[17px] font-semibold leading-snug">{post.post_nm}</Body>
         <Caption>
-          {post.writ_mem_nm ?? "관리자"} · {dayjs(post.crt_at).format("YYYY.MM.DD")}
+          {post.writ_mem_nm ?? "관리자"} · {dayjs(post.crt_at).format("YY.MM.DD")}
         </Caption>
       </div>
 
