@@ -47,7 +47,8 @@ RLS 정책 `USING` 안의 서브쿼리(EXISTS/JOIN)는 **현재 역할로 대상
 **왜 달력은 멀쩡했나:** 달력은 `get_public_team_gatherings`/`get_gathering_detail` 같은 **SECURITY DEFINER RPC**로 조회 → RLS 우회. 직접 테이블 SELECT만 정책에 걸려 "목록·달력은 되는데 상세 공유링크만 깨지는" 비대칭이 생긴다.
 **잉여 조건이기도:** `gthr_mst.team_id`는 NOT NULL + team_mst FK라 `EXISTS(team_mst)` 존재체크는 **항상 참인 잉여 조건**(테넌트 격리도 못 함). authenticated 정책의 `v2_rls_auth_in_team(team_id)`를 anon용으로 복붙하며 팀 조건 껍데기만 남긴 잔재였다.
 **해결:** anon 정책에서 team_mst 의존 제거, `sch_post_mst_select_anon`과 동일하게 `USING (del_yn = false)`로 정렬. 참석관계(`gthr_attd_rel`)도 team_mst JOIN만 걷어내고 gthr_mst(비삭제) 스코프는 유지(gthr_mst anon이 열려 서브쿼리 정상 동작). 마이그레이션 `20260721100000_fix_gthr_anon_rls_drop_team_mst.sql`, dev/prd 적용.
-**원칙(형제 전수):** anon 정책 추가·검토 시 `USING` 식이 참조하는 테이블이 anon에 SELECT 가능한지 확인. `SELECT ... FROM pg_policy WHERE 'anon'=any(roles) AND pg_get_expr(polqual,polrelid) ILIKE '%대상테이블%'`로 같은 패턴을 전수 점검한다. _(comp_mst 공유링크 `?comp=`는 anon SELECT 정책 자체가 없어 비로그인 미지원 — 별개 TODO)_
+**원칙(형제 전수):** anon 정책 추가·검토 시 `USING` 식이 참조하는 테이블이 anon에 SELECT 가능한지 확인.
+**전수 점검 함정 — `TO PUBLIC` 을 빠뜨리지 마라:** RLS 정책은 `TO anon` 뿐 아니라 **`TO PUBLIC`(pg_policy.polroles = `{0}`, 즉 `pg_roles` 조인 시 roles 가 빈 배열로 보임)** 로도 anon 에 적용된다. `'anon' = any(roles)` 로만 거르면 PUBLIC 정책을 놓쳐 "정책 없음"으로 **오판**한다. 점검 쿼리는 `pol.polroles = '{0}' OR 'anon' = any(...)` 로 PUBLIC 을 포함할 것. (실제로 `comp_mst`/`comp_evt_cfg` 는 `TO PUBLIC` + `del_yn = false` 라 대회 공유링크 `?comp=` 는 **비로그인도 정상** — 이번에 이 함정으로 "깨졌다"고 오진했다가 anon 실측(1083건 조회)으로 정정. 깔끔한 PUBLIC+del_yn 이 정답 패턴이고, `gthr` 만 `TO anon`+team_mst 의존으로 깨졌던 것.)
 
 ### iOS는 `subscription.unsubscribe()` 후 사용자 제스처 없이 재구독을 막는다
 로그아웃·재인증 흐름에서 푸시 구독을 `unsubscribe()`하면, iOS Safari/PWA는 그 다음 구독 시 명시적 사용자 제스처를 다시 요구해 재구독이 조용히 실패한다. 또 `Notification.requestPermission()`을 `setTimeout`/`DOMContentLoaded`/자동 실행에서 호출하면 iOS는 **조용히 차단**한다.
