@@ -1,4 +1,14 @@
+import { unstable_cache } from "next/cache";
+
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
+
+/** 게시판 목록·상세 공개 데이터 캐시 태그 (brd_post_mst 변경 시 무효화) */
+export const BOARD_POSTS_CACHE_TAG = "board-posts";
+
+/** 특정 게시글 상세 캐시 태그 (`board-post:{postId}`) */
+export function boardPostCacheTag(postId: string): string {
+  return `board-post:${postId}`;
+}
 
 export type BoardPost = {
   post_id: string;
@@ -87,6 +97,38 @@ export async function getBoardPost(postId: string): Promise<BoardPost | null> {
     crt_at: post.crt_at,
     upd_at: post.upd_at,
   };
+}
+
+/**
+ * 게시판 목록 캐시 래퍼. 목록 페이지 SSG용.
+ * 무효화 주경로는 DB 트리거 웹훅(revalidateTag(board-posts))이고,
+ * revalidate 시간 만료는 웹훅 유실 시 영구 stale을 막는 안전망이다.
+ */
+export function getCachedBoardPosts(
+  teamId: string,
+  type: "notice" | "update",
+): Promise<BoardPostSummary[]> {
+  return unstable_cache(
+    () => getBoardPosts(teamId, type, { limit: 20 }),
+    [`board-posts-${teamId}-${type}`],
+    { tags: [BOARD_POSTS_CACHE_TAG], revalidate: 3600 },
+  )();
+}
+
+/**
+ * 게시글 상세 캐시 래퍼. 상세 페이지 온디맨드 캐시용.
+ * 태그 2개: 전체 목록 무효화(board-posts)와 특정 글 무효화(board-post:{id}) 둘 다에 반응하도록 유지.
+ * DB 직접 수정(트리거 → board-posts) / 앱 내 수정(revalidateTag(board-post:{id})) 어느 경로로든 갱신됨.
+ */
+export function getCachedBoardPost(postId: string): Promise<BoardPost | null> {
+  return unstable_cache(
+    () => getBoardPost(postId),
+    [`board-post-${postId}`],
+    {
+      tags: [BOARD_POSTS_CACHE_TAG, boardPostCacheTag(postId)],
+      revalidate: 3600,
+    },
+  )();
 }
 
 /** 로그인한 멤버가 해당 팀/타입에서 읽지 않은 게시글이 있는지 확인 */

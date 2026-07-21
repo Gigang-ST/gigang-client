@@ -38,4 +38,18 @@ describe("isCancelReasonRequired", () => {
     const imminent = dayjs().add(1, "hour").toISOString();
     expect(isCancelReasonRequired(imminent)).toBe(true);
   });
+
+  describe("날짜만 있는 입력(start_date 폴백)은 KST 자정 기준으로 해석", () => {
+    // "2026-07-20"(date-only) = KST 자정 = UTC 2026-07-19T15:00:00Z. 실행 환경 TZ와 무관해야 한다.
+    const dateOnly = "2026-07-20";
+    const kstMidnightUtc = "2026-07-19T15:00:00Z";
+
+    it("KST 자정까지 5시간보다 더 남았으면 사유 선택", () => {
+      expect(isCancelReasonRequired(dateOnly, dayjs(kstMidnightUtc).subtract(6, "hour"))).toBe(false);
+    });
+
+    it("KST 자정까지 5시간 이내면 사유 필수", () => {
+      expect(isCancelReasonRequired(dateOnly, dayjs(kstMidnightUtc).subtract(1, "hour"))).toBe(true);
+    });
+  });
 });

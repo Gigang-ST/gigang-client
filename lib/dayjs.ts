@@ -17,6 +17,23 @@ const KST = "Asia/Seoul";
 
 export { dayjs };
 
+/**
+ * 이벤트(모임·일정) 시작/종료 시각 문자열을 절대시각(dayjs)으로 안전하게 해석한다.
+ *
+ * - 시각 정보가 있는 문자열(ISO "…T…", DB timestamptz "… +00" 등) → 그대로 파싱(오프셋 포함 절대시각)
+ * - 날짜만 있는 문자열("YYYY-MM-DD") → **KST 자정**으로 명시 해석.
+ *
+ * 왜 필요한가: 캘린더 행 데이터는 시각이 있는 `evt_stt_at`을 주로 쓰지만, 없을 때 `start_date`
+ * (날짜만)로 폴백하는 경로가 있다. 이때 `dayjs("2026-07-20")`는 **실행 환경 로컬 자정**으로
+ * 해석돼(브라우저=KST, Vercel 서버=UTC) 절대시각이 최대 9시간 어긋난다 → 지난 일정 판정·취소
+ * 사유 게이트가 기기/환경 타임존에 따라 갈린다. 이 함수로 date-only를 KST 자정에 고정해 그 편차를
+ * 없앤다. 시각 판정(과거 여부·임박 여부)과 표시 모두 이 한 곳을 공유한다.
+ */
+export function parseEventTime(value: string): dayjs.Dayjs {
+  const trimmed = value.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? dayjs.tz(trimmed, KST) : dayjs(trimmed);
+}
+
 /** KST 기준 현재 dayjs 인스턴스 */
 function nowKST() {
   return dayjs().tz(KST);

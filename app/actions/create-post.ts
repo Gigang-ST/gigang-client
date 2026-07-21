@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidateTag } from "next/cache";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 import { withAdminOrThrow } from "@/lib/actions/auth";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { BOARD_POSTS_CACHE_TAG } from "@/lib/queries/board";
 import { createPostSchema } from "@/lib/validations/board";
 
 export async function createPost(input: {
@@ -30,7 +31,9 @@ export async function createPost(input: {
 
     if (error || !post) throw new Error("게시글 등록에 실패했습니다.");
 
-    revalidatePath("/board");
+    // 목록 캐시 무효화 (새 글이라 상세 태그는 아직 없음). DB 트리거도 동일 태그를 치지만
+    // 앱에서 즉시 무효화해 작성 직후 목록에 바로 반영되도록 한다(트리거 웹훅은 비동기).
+    revalidateTag(BOARD_POSTS_CACHE_TAG, "max");
     return { post_id: post.post_id };
   });
 }

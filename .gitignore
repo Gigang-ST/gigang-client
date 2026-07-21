@@ -91,3 +91,4 @@ CLAUDE.local.md
 .env
 .env.*
 .gstack/
+.claude/dev-profile.toml

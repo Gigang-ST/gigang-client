@@ -2,6 +2,7 @@ import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { COMMON_CODES_CACHE_TAG } from "@/lib/common-codes-cache-tag";
 import { env } from "@/lib/env";
+import { BOARD_POSTS_CACHE_TAG } from "@/lib/queries/board";
 import { HOME_CALENDAR_CACHE_TAG } from "@/lib/queries/home-calendar";
 
 /** 홈 캘린더 데이터에 반영되는 테이블 (모임·참석·일정포스트·댓글 카운트) */
@@ -12,6 +13,8 @@ const COMP_TABLES = new Set(["comp_mst", "team_comp_plan_rel", "comp_reg_rel"]);
 const RECORDS_TABLES = new Set(["personal_best", "utmb_profile"]);
 /** 공통코드 캐시에 반영되는 테이블 */
 const CMM_CD_TABLES = new Set(["cmm_cd_mst"]);
+/** 게시판(/board 목록·상세)에 반영되는 테이블 */
+const BOARD_TABLES = new Set(["brd_post_mst"]);
 
 // 홈(/)·랭킹(/records)은 dynamic 렌더라 revalidatePath는 no-op — 태그 무효화만 수행
 function revalidateHomeCalendar() {
@@ -27,6 +30,11 @@ function revalidateCompetitions() {
 function revalidateRecords() {
   // /records 의 unstable_cache(tags: "records", `records:${teamId}`)
   revalidateTag("records", "max");
+}
+
+function revalidateBoard() {
+  // /board 목록 + 상세 (getCachedBoardPost가 board-posts 태그도 공유하므로 상세까지 무효화됨)
+  revalidateTag(BOARD_POSTS_CACHE_TAG, "max");
 }
 
 /** 테이블 정보가 없거나 매핑에 없는 테이블 → 기존 동작대로 전체 무효화 (하위호환 폴백) */
@@ -63,6 +71,8 @@ export async function POST(request: NextRequest) {
     revalidateRecords();
   } else if (CMM_CD_TABLES.has(table)) {
     revalidateTag(COMMON_CODES_CACHE_TAG, "max");
+  } else if (BOARD_TABLES.has(table)) {
+    revalidateBoard();
   } else {
     revalidateAll();
   }

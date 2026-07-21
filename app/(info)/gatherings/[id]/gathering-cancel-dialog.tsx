@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { toast } from "sonner";
 
-import { isCancelReasonRequired } from "@/lib/gathering/cancel-imminent";
+import { CANCEL_REASON_REQUIRED_MESSAGE, isCancelReasonRequired } from "@/lib/gathering/cancel-imminent";
 import { GATHERING_CANCEL_REASON_MAX_LENGTH, validateCancelReason } from "@/lib/gathering/cancel-reason";
 
 import { Caption } from "@/components/common/typography";
@@ -36,9 +36,13 @@ type Props = {
 export function GatheringCancelDialog({ open, onOpenChange, sttAt, onConfirm }: Props) {
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // 서버가 "사유 필요"로 거절한 적이 있으면 이 모달을 강제로 사유 필수 모드로 전환한다.
+  // 클라/서버 시각이 5시간 경계에서 어긋나 클라만 "선택"으로 봤던 경우의 복구 경로 —
+  // 조용히 실패하지 않고 사유 입력을 유도해 재시도하면 취소가 반드시 완료된다.
+  const [serverForcedReason, setServerForcedReason] = useState(false);
 
   // 모달이 열려 있는 동안 시간이 흘러도 렌더마다 재계산 — 값이 굳지 않게 한다.
-  const reasonRequired = isCancelReasonRequired(sttAt);
+  const reasonRequired = serverForcedReason || isCancelReasonRequired(sttAt);
   const reasonCheck = validateCancelReason(reason);
   const normalizedReason = reasonCheck.ok ? reasonCheck.value : null;
   const canSubmit = !submitting && reasonCheck.ok && (!reasonRequired || !!normalizedReason);
@@ -46,7 +50,10 @@ export function GatheringCancelDialog({ open, onOpenChange, sttAt, onConfirm }: 
   function handleOpenChange(next: boolean) {
     if (submitting) return; // 제출 중엔 닫기 방지
     onOpenChange(next);
-    if (!next) setReason(""); // 닫힐 때 입력 초기화
+    if (!next) {
+      setReason(""); // 닫힐 때 입력 초기화
+      setServerForcedReason(false); // 다음 오픈을 위해 강제 필수 플래그도 리셋
+    }
   }
 
   async function handleSubmit() {
@@ -55,7 +62,12 @@ export function GatheringCancelDialog({ open, onOpenChange, sttAt, onConfirm }: 
     try {
       await onConfirm(normalizedReason ?? undefined);
       setReason("");
+      setServerForcedReason(false);
     } catch (e) {
+      // 서버가 사유 필수로 거절 → 모달을 사유 필수 모드로 전환해 사용자가 사유를 넣고 다시 시도하게 한다.
+      if (e instanceof Error && e.message === CANCEL_REASON_REQUIRED_MESSAGE) {
+        setServerForcedReason(true);
+      }
       toast.error(e instanceof Error ? e.message : "참석 취소에 실패했습니다.");
     } finally {
       setSubmitting(false);
