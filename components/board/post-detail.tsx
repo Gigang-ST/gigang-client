@@ -6,9 +6,11 @@ import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSlug from "rehype-slug";
-import dayjs from "dayjs";
 import { ChevronLeft, ChevronUp } from "lucide-react";
+import { dayjs } from "@/lib/dayjs";
 import type { BoardPost } from "@/lib/queries/board";
+import { checkBoardPermission } from "@/app/actions/check-board-permission";
+import { recordBoardReadAction } from "@/app/actions/record-board-read";
 import { deletePost } from "@/app/actions/delete-post";
 import { Body, Caption } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
@@ -17,14 +19,22 @@ import { Separator } from "@/components/ui/separator";
 
 type PostDetailProps = {
   post: BoardPost;
-  canEdit: boolean;
 };
 
-export function PostDetail({ post, canEdit }: PostDetailProps) {
+export function PostDetail({ post }: PostDetailProps) {
   const router = useRouter();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+
+  // SSG라 서버에서 못 하는 읽음 처리·권한 계산을 클라에서 수행한다.
+  const [canEdit, setCanEdit] = useState(false);
+  useEffect(() => {
+    recordBoardReadAction(post.post_id).catch(() => {});
+    checkBoardPermission(post.writ_mem_id)
+      .then((p) => setCanEdit(p.canEdit))
+      .catch(() => setCanEdit(false));
+  }, [post.post_id, post.writ_mem_id]);
 
   useEffect(() => {
     const onScroll = () => setShowScrollTop(window.scrollY > 200);

@@ -19,10 +19,15 @@ export async function updateSession(request: NextRequest) {
   // 비로그인 상태에서도 접근 가능한 공개 경로 목록
   const pathname = request.nextUrl.pathname;
   const publicPaths = ["/", "/rules", "/join", "/newbie", "/races", "/records", "/projects", "/terms", "/privacy", "/policy", "/settings"];
+  // /board(게시판)은 공개 SSG 페이지 — 목록(/board)·상세(/board/[id]) 모두 비로그인 접근 허용.
+  //   (쓰기/수정 전용 하위 경로 /board/write·/board/[id]/edit는 admin 폼이라 아래 prefix로 공개되지만,
+  //    실제 인가는 페이지의 getCurrentMember 게이트와 서버 액션(withAdminOrThrow)이 재검증하므로 안전하다.)
   // /api/* 는 각 라우트가 자체 인증(멤버 체크·웹훅 시크릿)을 수행하므로 리다이렉트 제외.
   // 쿠키 없는 서버-투-서버 요청(revalidate 웹훅, OG 봇, 크론)을 로그인 페이지로 보내면 안 됨.
   const isPublic =
     publicPaths.includes(pathname) ||
+    pathname === "/board" ||
+    pathname.startsWith("/board/") ||
     pathname.startsWith("/auth") ||
     pathname === "/api" ||
     pathname.startsWith("/api/");
