@@ -20,6 +20,10 @@
 
 ## 함정
 
+### 하단 탭 구성 변경 시 DESIGN.md 표·이전 탭 라우트 진입점을 함께 점검한다
+2026-07 기준 실제 탭바(`components/bottom-tab-bar.tsx`)는 홈/기강이야기(/story)/프로젝트/랭킹/프로필인데, DESIGN.md "앱 네비게이션" 표는 옛 구성(대회 Trophy `/races`)을 오래 유지했다. 또 `/races`는 탭에서 빠진 뒤 앱 내 링크가 0개(스토리북만 참조)인 **고아 라우트**가 됐다.
+**체크리스트:** 탭을 교체하면 ① DESIGN.md 탭 표 갱신 ② 빠진 탭의 라우트로 가는 진입점(grep `href="/<route>"`)이 남는지 확인 — 없으면 동선 신설 또는 페이지 제거를 TODO로 남긴다.
+
 ### (info) route group은 BackHeader를 강제한다
 `app/(info)/layout.tsx`는 모든 하위 페이지에 `BackHeader`(`sticky top-0 z-40`)를 렌더한다. 상단 고정(`fixed top-0`) 컴포넌트(예: 가입 진행바 `SignupProgress`)를 쓰는 페이지를 `(info)`에 두면 BackHeader와 위치·z-index가 겹친다. 또 카톡 공유 등 **외부에서 직접 진입하는 랜딩**은 뒤로 갈 history가 없어 BackHeader가 무의미하다.
 **해결:** 그런 페이지는 route group 밖(`app/<route>/`)에 두어 RootLayout만 적용받게 한다. route group은 URL에 영향 없으므로 URL은 유지된다. (가입 위저드 `/newbie`를 `app/(info)/newbie` → `app/newbie`로 이동한 사례)
