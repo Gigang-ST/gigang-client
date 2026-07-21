@@ -1,8 +1,8 @@
-import { notFound, redirect } from "next/navigation";
-import { getCurrentMember } from "@/lib/queries/member";
-import { getBoardPost, recordBoardPostRead } from "@/lib/queries/board";
+import { notFound } from "next/navigation";
+import { getCachedBoardPost } from "@/lib/queries/board";
 import { PostDetail } from "@/components/board/post-detail";
 
+// 게시판 상세는 공개 온디맨드 캐시 페이지. 읽음 처리·권한 계산은 클라에서 서버액션으로 수행한다.
 export default async function BoardPostPage({
   params,
 }: {
@@ -10,19 +10,8 @@ export default async function BoardPostPage({
 }) {
   const { id } = await params;
 
-  const { user, member } = await getCurrentMember();
-  if (!user) redirect("/auth/login");
-
-  const post = await getBoardPost(id);
+  const post = await getCachedBoardPost(id);
   if (!post) notFound();
 
-  if (member) {
-    await recordBoardPostRead(id, member.id);
-  }
-
-  const canEdit = Boolean(
-    member && (member.admin || member.id === post.writ_mem_id),
-  );
-
-  return <PostDetail post={post} canEdit={canEdit} />;
+  return <PostDetail post={post} />;
 }
