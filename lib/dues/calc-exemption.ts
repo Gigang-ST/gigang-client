@@ -15,7 +15,7 @@ export type AttendStats = {
 
 /** `calcExemption` 결과. 배치는 `exmAmt`만, 퀘스트 카드는 나머지도 사용(설계 §7). */
 export type ExemptionResult = {
-  /** 게이트(정모 참석 OR 벙 개설) 통과 여부 */
+  /** 게이트(정모 참석 OR 모임 개설) 통과 여부 */
   gatePassed: boolean;
   /** 게이트 표시용 세부("정모 N · 개설 N") */
   gateDetail: { regularAttend: number; hosted: number };
@@ -37,7 +37,7 @@ export type ExemptionResult = {
  * 규칙은 한 곳(이 함수 + `DUES_QUEST` 상수)에 두고, 배치(§8)와 퀘스트 카드(§7)가
  * **같은 함수를 호출**해 결과 어긋남을 막는다.
  *
- * - 게이트: 정모 1회 참석 OR 벙 1회 개설 — 하나만 충족해도 통과. 미통과면 참석이 많아도 0원.
+ * - 게이트: 정모 1회 참석 OR 모임 1회 개설 — 하나만 충족해도 통과. 미통과면 참석이 많아도 0원.
  * - 티어: 게이트 통과 전제로 참석 4회→50%, 8회→전액. 단계형(누적 아님).
  * - 면제액은 월 회비를 초과할 수 없다(전액이 상한). 반올림은 `Math.round` + `Math.min` 클램프.
  *

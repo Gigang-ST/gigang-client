@@ -257,14 +257,20 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
     const target = attendees.find((a) => a.mem_id === memId);
     const memName = target?.mem_nm ?? "이름 없음";
     const gDate = dayjs(selected.stt_at).tz("Asia/Seoul").format("M/D(ddd)");
-    if (!window.confirm(`${memName}님의 ${gDate} "${selected.gthr_nm}" 참석을 취소합니다. 계속할까요?`)) return;
+    // 관리자 취소도 사유를 남길 수 있게 — 프롬프트 취소(null)면 중단, 비워두면 사유 없이 진행.
+    // 입력한 사유는 취소 이력에 저장되고 팀 멤버에게 공개된다(멤버 취소와 동일 정책).
+    const reason = window.prompt(
+      `${memName}님의 ${gDate} "${selected.gthr_nm}" 참석을 취소합니다.\n취소 사유를 남길 수 있어요 (선택):`,
+      "",
+    );
+    if (reason === null) return;
 
     setRemovingMemId(memId);
     const prevAttendees = attendees;
     setAttendees((prev) => prev.filter((a) => a.mem_id !== memId));
     syncGatheringCount(gthrId, -1);
 
-    const result = await removeGatheringAttendance(gthrId, memId);
+    const result = await removeGatheringAttendance(gthrId, memId, reason || undefined);
     if (!result.ok) {
       // 참가자 목록 롤백은 아직 같은 모임을 보고 있을 때만 (전환됐으면 이미 새 목록으로 교체됨)
       if (currentGthrRef.current === gthrId) setAttendees(prevAttendees);

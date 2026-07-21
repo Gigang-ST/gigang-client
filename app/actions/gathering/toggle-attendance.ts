@@ -74,18 +74,17 @@ export async function toggleGatheringAttendance(
       });
       if (cancelError) throw new Error("참석 취소에 실패했습니다.");
 
-      // 벙주(개설자)에게 취소 알림 — 본인이 자기 모임을 취소한 경우엔 자기 자신에게 보내지 않는다.
+      // 모임장(개설자)에게 취소 알림 — 본인이 자기 모임을 취소한 경우엔 자기 자신에게 보내지 않는다.
       // 알림은 부가 기능이라 실패해도 이미 완료된 취소 자체는 되돌리지 않는다(insertNoti 실패는 내부에서 로깅만).
-      // 수신거부는 gthr_upd(모임 수정·삭제)와 같은 설정 항목으로 묶어 판단한다 — gthr_del이
-      // gthr_upd 설정을 공유하는 기존 전례를 따른 것으로, 별도 설정 UI 항목을 새로 추가하지 않고도
-      // 사용자가 기존 "참가 모임 수정·삭제" 토글로 즉시 제어할 수 있게 한다.
+      // 수신거부는 gthr_cncl 자체 설정으로 판단한다 — 모임 수정·삭제(gthr_upd)와는 별개 항목으로,
+      // 알림 설정 UI의 "내 모임 참석 취소" 토글로 제어한다. prefTypeEnm 미지정 시 insertNoti가
+      // notiTypeEnm(gthr_cncl)으로 수신거부를 판단한다.
       if (gthr.crt_by && gthr.crt_by !== member.id) {
         try {
           await insertNoti({
             teamId,
             memId: gthr.crt_by,
             notiTypeEnm: "gthr_cncl",
-            prefTypeEnm: "gthr_upd",
             notiNm: `${member.full_name}님이 '${gthr.gthr_nm}' 참석을 취소했어요`,
             notiCont: reasonCheck.value ? `사유: ${reasonCheck.value}` : null,
             refId: gthr_id,

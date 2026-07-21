@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// 참가자 취소 시 벙주(개설자)에게 알림이 가는지 검증(SG-05).
-// - AC-14: 본인 취소 시 벙주에게 신규 알림 타입(gthr_cncl)으로 insertNoti 발송
-// - AC-15: 벙주 본인이 자기 모임을 취소한 경우엔 자기 자신에게 발송하지 않음
+// 참가자 취소 시 모임장(개설자)에게 알림이 가는지 검증(SG-05).
+// - AC-14: 본인 취소 시 모임장에게 신규 알림 타입(gthr_cncl)으로 insertNoti 발송
+// - AC-15: 모임장 본인이 자기 모임을 취소한 경우엔 자기 자신에게 발송하지 않음
 // vi.mock 패턴은 gathering-cancel-history.test.ts 를 따른다.
 
 const h = vi.hoisted(() => {
@@ -68,8 +68,8 @@ beforeEach(() => {
   h.cfg.gthr.data.crt_by = "mem-organizer";
 });
 
-describe("toggleGatheringAttendance — 참가자 취소 시 벙주 알림", () => {
-  it("AC-14: 본인 취소 시 벙주에게 gthr_cncl 타입으로 인앱+푸시 알림을 발송한다(수신거부는 gthr_upd로 판단)", async () => {
+describe("toggleGatheringAttendance — 참가자 취소 시 모임장 알림", () => {
+  it("AC-14: 본인 취소 시 모임장에게 gthr_cncl 타입으로 인앱+푸시 알림을 발송한다(수신거부는 gthr_cncl 자체로 판단 — 모임 수정·삭제와 별개)", async () => {
     const result = await toggleGatheringAttendance("gthr-1", "몸살이 나서 못 갈 것 같아요");
 
     expect(result).toEqual({ attending: false });
@@ -78,12 +78,19 @@ describe("toggleGatheringAttendance — 참가자 취소 시 벙주 알림", () 
       teamId: "team-1",
       memId: "mem-organizer",
       notiTypeEnm: "gthr_cncl",
-      prefTypeEnm: "gthr_upd",
       notiNm: "홍길동님이 '양재천 저녁런' 참석을 취소했어요",
       notiCont: "사유: 몸살이 나서 못 갈 것 같아요",
       refId: "gthr-1",
       refTypeEnm: "gathering",
     });
+  });
+
+  it("AC-14: 취소 알림은 prefTypeEnm을 지정하지 않는다(gthr_cncl 자체 수신거부 설정으로 판단)", async () => {
+    await toggleGatheringAttendance("gthr-1", "사유");
+
+    expect(h.insertNoti).toHaveBeenCalledWith(
+      expect.not.objectContaining({ prefTypeEnm: expect.anything() }),
+    );
   });
 
   it("AC-14: 사유 없이 취소하면 notiCont는 null이다", async () => {
@@ -95,7 +102,7 @@ describe("toggleGatheringAttendance — 참가자 취소 시 벙주 알림", () 
     );
   });
 
-  it("AC-15: 벙주 본인이 자기 모임을 취소하면 자기 자신에게 알림을 보내지 않는다", async () => {
+  it("AC-15: 모임장 본인이 자기 모임을 취소하면 자기 자신에게 알림을 보내지 않는다", async () => {
     h.cfg.gthr.data.crt_by = "mem-self"; // 개설자 = 취소하는 본인
 
     const result = await toggleGatheringAttendance("gthr-1", "일정 변경");
