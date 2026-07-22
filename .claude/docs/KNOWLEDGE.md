@@ -136,3 +136,9 @@ dev MCP로 `database.types.ts`를 재생성하면 기존 테이블 블록이 dif
 
 ### "개편 후 신규 가입자" 식별은 위성 테이블 row 존재가 아니라 전용 플래그로
 `mem_onbd_prf`는 온보딩에서도 생기고 기존 회원이 프로필 편집에서 러닝 프로필을 입력해도 생긴다(upsert). 따라서 "row 존재 = 신규 온보딩 가입자"가 아니다. 넛지 크론 대상 판별은 **`attd_pldg_at IS NOT NULL`**(참석 서약은 온보딩 경로에서만 기록)로 한다. 프로필 편집 서버 액션(`update-running-profile`)은 `attd_pldg_at`/`pldg_gthr_id`/`join_src_cd`/`join_src_txt`를 payload에서 제외해 절대 덮어쓰지 않는다.
+
+### Tailwind v4 빌드가 "globals.css:1 Invalid code point"로 실패하면 — 소스의 이모지를 찾아라
+`RangeError: Invalid code point`가 나면서 에러 위치가 `app/globals.css:1:1`(`@import "tailwindcss"`)로 찍히면 **CSS는 범인이 아니다.** Tailwind v4 스캐너가 소스 파일 전체에서 클래스 후보를 뽑아 CSS 이스케이프를 되돌리는데, astral-plane 문자(이모지, U+FFFF 초과)가 있으면 서로게이트 페어를 깨뜨려 `String.fromCodePoint`가 터진다. CSS 파일을 아무리 이등분해도 안 잡히고(=CSS를 통째로 지워도 재현), 스택에 `at Function.fromCodePoint / at String.replace`만 보이는 게 단서. **JSX 텍스트의 이모지를 `lucide-react` 아이콘으로 교체**하면 해결. 기존 파일(예: 카톡 공유 문구)의 이모지는 문자열 리터럴이라 괜찮았고, 새로 추가한 JSX 본문 이모지(📣)에서 터졌다. 디버깅 시 `git stash -u`로 전체를 되돌려 HEAD가 빌드되는지부터 확인할 것 — 그래야 "내 변경이 원인"을 먼저 확정한다. (2026-07-22 프로필 카드 구현)
+
+### `gthr_attd_rel`에는 취소 플래그가 없다 — 살아있는 행이 곧 유효 참석
+모임 참석 취소는 행을 UPDATE하지 않고 **삭제 + `gthr_attd_hist`에 이벤트 기록**(`evt_cd`)으로 처리한다. 따라서 참석 횟수 집계에 "취소 제외" 조건을 따로 걸 필요가 없고, 걸려고 컬럼을 찾으면 없다. 과거 참석만 세려면 `gthr_mst.stt_at < now()`를 더한다. 취소자 표시가 필요한 화면은 `gthr_attd_hist`를 별도 조회한다(`gathering-canceled-attendees.tsx` 선례). (2026-07-22 프로필 카드 `gthr_attd_cnt` 구현)

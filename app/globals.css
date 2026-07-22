@@ -6,6 +6,13 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* 폰트 3역할 — 본문(Pretendard) / 제호·헤드라인(리디바탕) / 수치(Oswald).
+     변수는 app/layout.tsx의 next/font가 주입한다.
+     Oswald는 라틴 전용이라 한글에 쓰면 안 된다 — 뒤에 Pretendard를 폴백으로 둔다. */
+  --font-sans: var(--font-pretendard), system-ui, sans-serif;
+  --font-serif: var(--font-ridibatang), var(--font-pretendard), serif;
+  --font-numeric: var(--font-oswald), var(--font-pretendard), sans-serif;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 
@@ -48,6 +55,13 @@
   --color-sport-trail-run: var(--sport-trail-run);
   --color-sport-triathlon: var(--sport-triathlon);
   --color-sport-cycling: var(--sport-cycling);
+
+  /* 전광판 스크린 존 (Board) — 프로필 카드 상단. 테마 불변(항상 야간) */
+  --color-board: var(--board);
+  --color-board-foreground: var(--board-foreground);
+  --color-board-muted: var(--board-muted);
+  --color-board-line: var(--board-line);
+  --color-board-amber: var(--board-amber);
 
   /* chart-* 은 sport-* 참조 (하위호환) */
   --color-chart-1: var(--sport-road-run);
@@ -103,6 +117,16 @@
   --event-full: oklch(0.623 0.188 260);
   --event-half: oklch(0.527 0.154 150);
   --event-10k: oklch(0.618 0.181 44);
+
+  /* 전광판 스크린 존 — 프로필 카드 상단 "라인업 콜" 전용.
+     라이트/다크 모두 동일한 야간 값을 쓴다(.dark에서 재정의하지 않음):
+     glow 기반 프레임·칭호 이펙트가 흰 배경에서 죽는 문제를 이 존이 해결한다.
+     --board-amber는 스크린 존 안에서만 사용 — 존 밖으로 내보내지 말 것. */
+  --board: oklch(0.19 0.012 268);
+  --board-foreground: oklch(0.95 0.006 268);
+  --board-muted: oklch(0.64 0.021 268);
+  --board-line: oklch(0.28 0.017 268);
+  --board-amber: oklch(0.81 0.146 82);
 
   --radius: 0.75rem;
 }
@@ -1332,4 +1356,164 @@
     font-size: 12px !important;
     line-height: 1rem !important;
   }
+}
+
+/* -----------------------------------------------------------------
+   프로필 카드 "라인업 콜" — 점등 시퀀스
+   전광판이 켜지듯 스크린 존이 플리커 -> 스포트라이트 -> 텍스트 상승.
+   설계서: docs/superpowers/specs/2026-07-22-멤버-프로필-카드-design.md §6.3
+   ----------------------------------------------------------------- */
+@keyframes board-flicker {
+  0% { opacity: 0.15; }
+  40% { opacity: 1; }
+  62% { opacity: 0.45; }
+  100% { opacity: 1; }
+}
+
+@keyframes board-amber-blink {
+  50% { opacity: 0.25; }
+}
+
+.board-flicker {
+  animation: board-flicker 0.28s steps(3, end) 1;
+}
+
+/* LIVE 도트·NEW 태그 — 도트매트릭스 점멸 */
+.board-blink {
+  animation: board-amber-blink 1.4s steps(2, start) infinite;
+}
+
+/* 스포트라이트 콘 — 아바타를 비추는 조명. 점등 전엔 투명 */
+.board-cone {
+  opacity: 0;
+  transition: opacity 0.45s ease;
+  background: radial-gradient(
+    ellipse 70% 62% at 50% -12%,
+    rgb(238 241 248 / 0.16),
+    transparent 62%
+  );
+}
+.board-lit .board-cone {
+  opacity: 1;
+}
+
+/* 이름·칭호·한마디 스태거 상승 */
+.board-rise {
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease;
+}
+.board-lit .board-rise {
+  opacity: 1;
+  transform: none;
+}
+.board-lit .board-rise-1 { transition-delay: 0.1s; }
+.board-lit .board-rise-2 { transition-delay: 0.16s; }
+.board-lit .board-rise-3 { transition-delay: 0.22s; }
+.board-lit .board-rise-4 { transition-delay: 0.28s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .board-flicker,
+  .board-blink {
+    animation: none;
+  }
+  .board-cone,
+  .board-rise {
+    transition: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+
+/* -----------------------------------------------------------------
+   기강이야기 — 에디토리얼(신문) 레이아웃
+   앱 나머지는 라운드 카드 톤을 유지하고, 이 페이지만 괘선·명조로 기사처럼 읽힌다.
+   위계는 색이 아니라 "서체 대비 + 괘선 굵기"로 만든다.
+   ----------------------------------------------------------------- */
+
+/* 괘선 3종 — 신문의 위계는 선 굵기가 절반을 만든다.
+   제호 아래(굵게) / 섹션 사이(보통) / 데이터 행 사이(점선) */
+.rule-masthead {
+  border-bottom: 2.5px solid var(--foreground);
+}
+.rule-section {
+  border-bottom: 1px solid var(--foreground);
+}
+.rule-row {
+  border-bottom: 1px solid var(--border);
+}
+
+/* 신문 지질(newsprint) — SVG feTurbulence 인라인. 외부 이미지 요청 0.
+   아주 옅게만 얹어 종이의 결을 흉내낸다(다크 테마에선 더 죽인다). */
+.newsprint::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.dark .newsprint::before {
+  opacity: 0.05;
+}
+
+/* 리드 기사 진입 — 신문을 펼치듯 위에서 한 번만 내려온다 */
+@keyframes lede-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.lede-in {
+  animation: lede-in 0.4s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lede-in {
+    animation: none;
+  }
+}
+
+/* -----------------------------------------------------------------
+   /dev/story-styles 시안 전용 장치
+   스타일 확정 후 채택되지 않은 것은 이 블록과 함께 삭제한다.
+   ----------------------------------------------------------------- */
+
+/* 망점(halftone) — 인쇄물 질감. radial-gradient를 contrast로 임계화해
+   부드러운 점을 하드에지 망점으로 만든다. 이미지 파일 0바이트. */
+.halftone {
+  background-image: radial-gradient(
+    circle at center,
+    currentcolor 42%,
+    transparent 43%
+  );
+  background-size: 5px 5px;
+  opacity: 0.16;
+}
+
+/* 사진 자리 망점 블록 — 신문 사진 제판 느낌 */
+.halftone-plate {
+  background-image: radial-gradient(
+    circle at center,
+    var(--foreground) 38%,
+    transparent 39%
+  );
+  background-size: 4px 4px;
+}
+
+/* 속도감 — 스포츠 타이포의 기울기. 숫자에만 아주 살짝. */
+.speed-skew {
+  transform: skewX(-8deg);
+}
+
+/* 브랜드 톤 — 넓은 자간의 얇은 라벨 */
+.brand-track {
+  letter-spacing: 0.42em;
 }

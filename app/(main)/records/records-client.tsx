@@ -8,9 +8,33 @@ import { getFrameCls } from "@/lib/title-effects";
 import { cn } from "@/lib/utils";
 
 import { TitleBadge } from "@/components/common/title-badge";
+import { MemberCardDialog } from "@/components/members/member-card-dialog";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+
+/** 엔트리 행을 탭하면 그 멤버의 프로필 카드를 연다 */
+type SelectMember = (memId: string, name: string) => void;
+
+/** 행 전체를 프로필 카드 진입점으로 쓰기 위한 공통 props */
+function memberRowProps(entry: { memId: string; name: string }, onSelect: SelectMember) {
+  return {
+    role: "button" as const,
+    tabIndex: 0,
+    onClick: () => onSelect(entry.memId, entry.name),
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onSelect(entry.memId, entry.name);
+      }
+    },
+    "aria-label": `${entry.name} 프로필 보기`,
+  };
+}
+
+/** 행 진입점 공통 스타일 — 탭 가능함을 드러내고 키보드 포커스를 보이게 한다 */
+const ROW_INTERACTIVE_CLS =
+  "cursor-pointer transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1";
 
 /* ------------------------------------------------------------------ */
 /*  타입 정의                                                          */
@@ -136,9 +160,11 @@ const MEDAL_COLOR: Record<number, string> = {
 function MarathonHalfCard({
   entry,
   memberTitles,
+  onSelectMember,
 }: {
   entry?: RankingEntry;
   memberTitles: Record<string, MemberTitle>;
+  onSelectMember: SelectMember;
 }) {
   if (!entry) return <div />;
   const title = memberTitles[entry.memId];
@@ -162,7 +188,10 @@ function MarathonHalfCard({
 
   return (
     // size-5 (20px) + gap-1 (4px) = pl-6 으로 줄 2 들여쓰기
-    <CardItem className={cn("flex min-w-0 w-full flex-col gap-0.5 p-2", frameCls)}>
+    <CardItem
+      className={cn("flex min-w-0 w-full flex-col gap-0.5 p-2", ROW_INTERACTIVE_CLS, frameCls)}
+      {...memberRowProps(entry, onSelectMember)}
+    >
       {/* 줄 1 — 순위 · 이름 · 칭호 */}
       <div className="flex min-w-0 items-center gap-1">
         {rankEl}
@@ -171,7 +200,7 @@ function MarathonHalfCard({
             {entry.name}
           </span>
           {title && (
-            <TitleBadge name={title.ttl_nm} effect={title.badge_effect} size="xs" tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility as "always" | "others" | "held" | "never", isHeld: title.isHeld, isOwner: false }} />
+            <TitleBadge name={title.ttl_nm} effect={title.badge_effect} size="xs" tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility as "always" | "others" | "held" | "never", isHeld: title.isHeld}} />
           )}
         </div>
       </div>
@@ -200,9 +229,11 @@ function MarathonHalfCard({
 function MarathonContent({
   events,
   memberTitles,
+  onSelectMember,
 }: {
   events: MarathonEvent[];
   memberTitles: Record<string, MemberTitle>;
+  onSelectMember: SelectMember;
 }) {
   const [selectedEvent, setSelectedEvent] = useState(events[0]?.eventType ?? "");
 
@@ -252,8 +283,16 @@ function MarathonContent({
               const female = currentEvent?.female[i];
               return (
                 <div key={i} className="grid grid-cols-2 gap-2">
-                  <MarathonHalfCard entry={male} memberTitles={memberTitles} />
-                  <MarathonHalfCard entry={female} memberTitles={memberTitles} />
+                  <MarathonHalfCard
+                    entry={male}
+                    memberTitles={memberTitles}
+                    onSelectMember={onSelectMember}
+                  />
+                  <MarathonHalfCard
+                    entry={female}
+                    memberTitles={memberTitles}
+                    onSelectMember={onSelectMember}
+                  />
                 </div>
               );
             })
@@ -271,9 +310,11 @@ function MarathonContent({
 function TrailContent({
   entries,
   memberTitles,
+  onSelectMember,
 }: {
   entries: TrailEntry[];
   memberTitles: Record<string, MemberTitle>;
+  onSelectMember: SelectMember;
 }) {
   if (entries.length === 0) {
     return (
@@ -291,17 +332,20 @@ function TrailContent({
         return (
           <CardItem
             key={`t-${entry.rank}-${entry.name}`}
-            className={cn("flex items-center gap-4 p-3", frameCls)}
+            className={cn("flex items-center gap-4 p-3", ROW_INTERACTIVE_CLS, frameCls)}
+            {...memberRowProps(entry, onSelectMember)}
           >
             <RankBadge rank={entry.rank} />
 
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <div className="flex flex-wrap items-center gap-1.5">
                 {entry.utmbProfileUrl ? (
+                  // 이름은 UTMB 외부 프로필로 유지하고, 카드 열기는 행의 나머지 영역이 담당한다.
                   <a
                     href={entry.utmbProfileUrl}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
                     className="text-[15px] font-semibold text-primary hover:underline"
                   >
                     {entry.name}
@@ -316,7 +360,7 @@ function TrailContent({
                     name={title.ttl_nm}
                     effect={title.badge_effect}
                     size="xs"
-                    tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility as "always" | "others" | "held" | "never", isHeld: title.isHeld, isOwner: false }}
+                    tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility as "always" | "others" | "held" | "never", isHeld: title.isHeld}}
                   />
                 )}
               </div>
@@ -352,9 +396,11 @@ function TrailContent({
 function TriathlonContent({
   events,
   memberTitles,
+  onSelectMember,
 }: {
   events: TriathlonEvent[];
   memberTitles: Record<string, MemberTitle>;
+  onSelectMember: SelectMember;
 }) {
   const hasAny = events.some((e) => e.entries.length > 0);
 
@@ -382,7 +428,8 @@ function TriathlonContent({
               return (
                 <CardItem
                   key={`tri-${entry.rank}-${entry.name}`}
-                  className={cn("flex items-center gap-4 p-3", frameCls)}
+                  className={cn("flex items-center gap-4 p-3", ROW_INTERACTIVE_CLS, frameCls)}
+                  {...memberRowProps(entry, onSelectMember)}
                 >
                   <RankBadge rank={entry.rank} />
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -395,7 +442,7 @@ function TriathlonContent({
                           name={title.ttl_nm}
                           effect={title.badge_effect}
                           size="xs"
-                          tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility, isHeld: title.isHeld, isOwner: false }}
+                          tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility, isHeld: title.isHeld}}
                         />
                       )}
                     </div>
@@ -425,8 +472,20 @@ function TriathlonContent({
 /*  메인 컴포넌트                                                       */
 /* ------------------------------------------------------------------ */
 
-export function RecordsClient({ data, myTitleNames = [] }: { data: RecordsData; myTitleNames?: string[] }) {
+export function RecordsClient({
+  data,
+  myTitleNames = [],
+  teamId,
+}: {
+  data: RecordsData;
+  myTitleNames?: string[];
+  teamId: string;
+}) {
   const myTitleNameSet = new Set(myTitleNames);
+  const [selectedMember, setSelectedMember] = useState<{
+    memId: string;
+    name: string;
+  } | null>(null);
 
   // memberTitles에 isHeld 주입
   const memberTitles: Record<string, MemberTitle> = Object.fromEntries(
@@ -440,6 +499,9 @@ export function RecordsClient({ data, myTitleNames = [] }: { data: RecordsData; 
   const [query, setQuery] = useState("");
 
   const q = query.trim().toLowerCase();
+
+  const handleSelectMember: SelectMember = (memId, name) =>
+    setSelectedMember({ memId, name });
 
   const filteredMarathon = {
     events: data.marathon.events.map((evt) => ({
@@ -497,14 +559,36 @@ export function RecordsClient({ data, myTitleNames = [] }: { data: RecordsData; 
 
       {/* 카테고리별 콘텐츠 */}
       {selectedCategory === "marathon" && (
-        <MarathonContent events={filteredMarathon.events} memberTitles={memberTitles} />
+        <MarathonContent
+          events={filteredMarathon.events}
+          memberTitles={memberTitles}
+          onSelectMember={handleSelectMember}
+        />
       )}
       {selectedCategory === "trail" && (
-        <TrailContent entries={filteredTrail.entries} memberTitles={memberTitles} />
+        <TrailContent
+          entries={filteredTrail.entries}
+          memberTitles={memberTitles}
+          onSelectMember={handleSelectMember}
+        />
       )}
       {selectedCategory === "triathlon" && (
-        <TriathlonContent events={filteredTriathlon.events} memberTitles={memberTitles} />
+        <TriathlonContent
+          events={filteredTriathlon.events}
+          memberTitles={memberTitles}
+          onSelectMember={handleSelectMember}
+        />
       )}
+
+      <MemberCardDialog
+        memId={selectedMember?.memId ?? null}
+        memNm={selectedMember?.name}
+        teamId={teamId}
+        open={selectedMember !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedMember(null);
+        }}
+      />
     </div>
   );
 }

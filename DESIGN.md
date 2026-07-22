@@ -24,6 +24,20 @@
 | `--info` | 예정, 안내 (파란) |
 | `--destructive` | DNF, 오류 (빨강) |
 
+### 전광판 스크린 존 (Board) — 프로필 카드 전용
+
+| 토큰 | Tailwind 클래스 | 용도 |
+|------|----------------|------|
+| `--board` | `bg-board` | 전광판 유리 배경 (스크린 존) |
+| `--board-foreground` | `text-board-foreground` | 스크린 존 텍스트 |
+| `--board-muted` | `text-board-muted` | 스크린 존 보조 텍스트 |
+| `--board-line` | `border-board-line` | 도트리더·구분선 |
+| `--board-amber` | `text-board-amber` | LED 앰버 — LIVE·NEW·등번호·D-day |
+
+**라이트/다크 공통값**(`.dark`에서 재정의하지 않음). 프로필 카드 상단만 항상 야간으로 남겨,
+glow 기반 프레임 22종·칭호 이펙트 48종이 두 테마 모두에서 발광하게 하는 무대다.
+`--board-amber`는 **스크린 존 밖에서 쓰지 않는다**.
+
 ### 종목 (Sport)
 
 | 토큰 | Tailwind 클래스 | 종목 |
@@ -132,6 +146,29 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 | InfoRow | `info-row.tsx` | `label`, `value?` | label-value 쌍 행 |
 | Avatar | `avatar.tsx` | `src?`, `size?`, `fallbackIcon?` | 프로필 사진 + 폴백 아이콘 |
 | StatCard | `stat-card.tsx` | `value`, `label`, `valueClassName?` | 통계 수치 카드 |
+
+### 멤버 프로필 카드 (`components/members/`)
+
+| 컴포넌트 | 파일 | Props | 용도 |
+|----------|------|-------|------|
+| MemberCardCompact | `member-card.tsx` | `memId`, `data` | 컴팩트 카드 — 전광판 스포트라이트·피드 인라인 (기록·숫자 없음) |
+| MemberCardDetail | `member-card-detail.tsx` | `memId`, `data`, `onEditIntro?` | 상세 카드 — 스크린 존 + RECORDS/ACTIVITY/TITLES. `onEditIntro`를 주면 한마디에 연필이 생긴다 |
+| MemberCardDialog | `member-card-dialog.tsx` | `memId`, `memNm?`, `teamId`, `open`, `onOpenChange`, `stacked?`, `isOwner?` | 오픈 시 RPC 1회 + 스켈레톤·재시도·탈퇴 폴백. `stacked`로 다른 시트 위에 겹침 |
+| IntroEditDialog | `intro-edit-dialog.tsx` | `open`, `onOpenChange`, `initialValue`, `onSaved?`, `stacked?` | 한마디 한 줄 인라인 편집(페이지 이동 없음) |
+
+- 데이터: `getPublicMemberCard()` (`lib/queries/member-card.ts`) — `null`이면 "함께 달렸던 멤버" 폴백.
+- 표시 규칙(컨디션 4단계·종목 라벨·NEW 판정·D-day·러닝 프로필)은 `lib/member-card.ts` 한 곳에서 관리.
+- 모션: `.board-flicker` / `.board-cone` / `.board-rise*` (globals.css) — `prefers-reduced-motion` 존중.
+
+### 기강 전광판 (`components/story/`)
+
+| 컴포넌트 | 파일 | 용도 |
+|----------|------|------|
+| StoryClient | `story-client.tsx` | 전광판 본문 — 스포트라이트 + 컴팩트 존 4개 + 프로필 카드 진입 |
+| StorySpotlight | `story-spotlight.tsx` | 스와이프 카드(자동 전환·전환 도트). 스와이프하면 자동 전환 정지 |
+| StoryReactionButton | `story-reaction-button.tsx` | 낙관적 업데이트 리액션 토글 |
+
+- 데이터: `getStoryFeed()` (`lib/queries/story-feed.ts`) — 공개 데이터만 캐시하고 내 리액션은 클라이언트가 오버레이.
 
 ### 가입 위저드 (`components/auth/`, `components/`)
 

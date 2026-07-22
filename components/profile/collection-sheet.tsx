@@ -382,7 +382,6 @@ export function CollectionSheet({
                               desc: t.ttl_desc,
                               visibility: t.desc_visibility,
                               isHeld: owned,
-                              isOwner: true,
                             }}
                             tooltipOpen={openTooltipTtlId === t.ttl_id}
                             onTooltipOpen={() => openTooltip(t.ttl_id)}
@@ -427,7 +426,6 @@ export function CollectionSheet({
                                   desc: t.ttl_desc,
                                   visibility: t.desc_visibility,
                                   isHeld: true,
-                                  isOwner: true,
                                 }}
                                 tooltipOpen={openTooltipTtlId === t.ttl_id}
                                 onTooltipOpen={() => openTooltip(t.ttl_id)}
