@@ -61,6 +61,8 @@ export function StoryReactionButton({
   const flushTimerRef = useRef<number | null>(null);
   const comboTimerRef = useRef<number | null>(null);
   const burstIdRef = useRef(0);
+  // flush 요청 순번. 응답이 순서 역전돼 도착해도 최신 요청의 값만 반영한다.
+  const flushSeqRef = useRef(0);
 
   const [reduced] = useState(
     () =>
@@ -80,10 +82,13 @@ export function StoryReactionButton({
     if (delta < 1) return;
     pendingRef.current = 0;
 
+    const seq = ++flushSeqRef.current;
+
     void bumpStoryReaction({ entityType, entityId, rctnCd, delta }).then(
       (result) => {
         if (result.ok) {
-          setMyCount(result.myCount);
+          // 더 나중에 보낸 요청이 이미 응답했다면(순서 역전) 오래된 값으로 덮지 않는다.
+          if (seq === flushSeqRef.current) setMyCount(result.myCount);
           return;
         }
         // 실패한 만큼만 되돌린다 — 그 사이 추가된 탭은 다음 flush가 책임진다.
