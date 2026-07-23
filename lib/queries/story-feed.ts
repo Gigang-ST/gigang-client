@@ -2,6 +2,7 @@ import "server-only";
 
 import { unstable_cache } from "next/cache";
 
+import { reactionKey, type MyReactionMap } from "@/lib/story-reaction";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import type { MemberCardCompactData } from "@/lib/queries/member-card";
@@ -93,6 +94,21 @@ export type StoryWeekStat = {
   rec_cnt: number;
 };
 
+/**
+ * 멤버 각오(한 줄 다짐) — 만료 없이 누적, 최근순 노출.
+ * 리액션이 붙지 않아(현재 스콥) `ReactableItem`을 상속하지 않는다 — newbie/record/race와
+ * 형태가 다르다는 뜻이므로 스토리 UI에서 리액션 버튼을 실수로 붙이지 않도록 타입으로 막는다.
+ */
+export type StoryPledge = {
+  pldg_id: string;
+  mem_id: string;
+  mem_nm: string;
+  avatar_url: string | null;
+  pldg_txt: string;
+  /** ISO timestamptz 문자열 — 표시 시 dayjs(val)로 상대시간 변환 */
+  crt_at: string;
+};
+
 export type StoryFeed = {
   newbies: StoryNewbie[];
   records: StoryRecord[];
@@ -100,6 +116,7 @@ export type StoryFeed = {
   month_rank: StoryRankEntry[];
   actv_rank: StoryActvRankEntry[];
   week_stat: StoryWeekStat;
+  pledges: StoryPledge[];
 };
 
 const EMPTY_FEED: StoryFeed = {
@@ -109,6 +126,7 @@ const EMPTY_FEED: StoryFeed = {
   month_rank: [],
   actv_rank: [],
   week_stat: { gthr_cnt: 0, attd_cnt: 0, rec_cnt: 0 },
+  pledges: [],
 };
 
 /**
@@ -138,4 +156,82 @@ export function getStoryFeed(teamId: string): Promise<StoryFeed> {
     ["story-feed", teamId],
     { tags: ["story-feed", "gatherings", "records", "competitions"], revalidate: 300 },
   )();
+}
+
+/** 항목별 응원 — 모두의 누적 총합(total)과 내가 누른 몫(mine) */
+export type StoryReactionCounts = {
+  /** `entity_type:entity_id` → 모든 멤버 합계 */
+  totals: MyReactionMap;
+  /** `entity_type:entity_id` → 내가 누른 누적 (비로그인이면 빈 맵) */
+  mine: MyReactionMap;
+};
+
+/**
+ * 항목별 응원 총합 — 모든 멤버 합계. **30초 캐시.**
+ *
+ * 피드 본문 캐시(5분)에 응원 총합을 실으면 "모두가 누른 만큼 쌓여 보인다"는 게 5분씩 밀린다.
+ * 그렇다고 매 요청 집계하면 트래픽이 늘 때 부담이라, 공개 집계인 총합만 **짧게(30초)** 캐시한다
+ * — 실시간까지는 아니어도 "일정 시간마다 누적 합산"이면 된다는 요구에 맞춘 절충.
+ * `revalidateTag`는 응원마다 부르지 않는다(연타로 캐시가 남아나지 않는다) — 시간 만료에 맡긴다.
+ *
+ * `rctn_mst`는 (팀 × 항목 × 멤버) 1행 구조라 한 팀 분량은 작다. 항목이 많아지면 DB 집계 RPC로 옮긴다.
+ */
+function getReactionTotals(teamId: string): Promise<MyReactionMap> {
+  return unstable_cache(
+    async () => {
+      const supabase = createAdminClient();
+      const { data, error } = await supabase
+        .from("rctn_mst")
+        .select("entity_type, entity_id, rctn_cnt")
+        .eq("team_id", teamId);
+
+      if (error) {
+        console.error("[getReactionTotals] 응원 총합 조회 실패", error);
+        return {};
+      }
+
+      const totals: MyReactionMap = {};
+      for (const row of data ?? []) {
+        const key = reactionKey(row.entity_type as StoryEntityType, row.entity_id);
+        totals[key] = (totals[key] ?? 0) + row.rctn_cnt;
+      }
+      return totals;
+    },
+    ["story-reaction-totals", teamId],
+    { tags: ["story-reactions"], revalidate: 30 },
+  )();
+}
+
+/**
+ * 전광판 응원 집계 — 총합(30초 캐시)과 내 몫(비캐시)을 합쳐 돌려준다.
+ *
+ * 총합은 사용자와 무관하니 캐시에서 공유하고, 내 몫은 사용자별이라 캐시하면 갈라지므로 매번
+ * 최신으로 읽는다(내 필터라 가볍다). 클라이언트는 리드의 총합·내 몫을 이걸로 오버레이한다.
+ * memId가 없으면(비로그인) mine은 빈 맵.
+ */
+export async function getStoryReactions(
+  teamId: string,
+  memId: string | null,
+): Promise<StoryReactionCounts> {
+  const totals = await getReactionTotals(teamId);
+  if (!memId) return { totals, mine: {} };
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("rctn_mst")
+    .select("entity_type, entity_id, rctn_cnt")
+    .eq("team_id", teamId)
+    .eq("mem_id", memId);
+
+  if (error) {
+    console.error("[getStoryReactions] 내 응원 조회 실패", error);
+    return { totals, mine: {} };
+  }
+
+  const mine: MyReactionMap = {};
+  for (const row of data ?? []) {
+    mine[reactionKey(row.entity_type as StoryEntityType, row.entity_id)] =
+      row.rctn_cnt;
+  }
+  return { totals, mine };
 }

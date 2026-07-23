@@ -8,7 +8,7 @@ import {
   getActvMonthLabel,
 } from "@/lib/activity-index";
 import { dayjs, secondsToTime } from "@/lib/dayjs";
-import { getRaceDday, getRecordLabel, getSportDotCls } from "@/lib/member-card";
+import { getRaceDday, getRecordLabel } from "@/lib/member-card";
 import { cn } from "@/lib/utils";
 
 import { Avatar } from "@/components/common/avatar";
@@ -16,12 +16,16 @@ import { HelpTip } from "@/components/common/help-tip";
 import { MemberCardCompact } from "@/components/members/member-card";
 import { MemberCardDialog } from "@/components/members/member-card-dialog";
 import { ActvHistorySheet } from "@/components/story/actv-history-sheet";
+import { FloatingAvatars } from "@/components/story/floating-avatars";
+import { GhostWanted } from "@/components/story/ghost-wanted";
+import { PledgeSigns } from "@/components/story/pledge-signs";
 import { StoryLede } from "@/components/story/story-lede";
 import { StoryMasthead } from "@/components/story/story-masthead";
 import { StorySection } from "@/components/story/story-section";
 import { StoryWeather } from "@/components/story/story-weather";
 
-import type { StoryFeed } from "@/lib/queries/story-feed";
+import type { GhostMember } from "@/lib/queries/ghost-members";
+import type { StoryFeed, StoryReactionCounts } from "@/lib/queries/story-feed";
 import type { TeamOverview } from "@/lib/queries/team-overview";
 
 /**
@@ -34,15 +38,21 @@ import type { TeamOverview } from "@/lib/queries/team-overview";
 export function StoryClient({
   feed,
   overview,
+  ghosts,
   teamId,
   myMemId,
+  reactions,
 }: {
   feed: StoryFeed;
   /** 크루 총량 — 기상대 상자에 쓴다 */
   overview: TeamOverview;
+  /** 오래 안 나온 멤버 — 현상수배존에 쓴다 */
+  ghosts: GhostMember[];
   teamId: string;
   /** 로그인 사용자 — 본인 카드면 한마디를 바로 수정할 수 있다 */
   myMemId: string | null;
+  /** 응원 집계 (모두의 총합 + 내 몫) — 캐시 없이 최신값. 리드 응원 버튼 보정용 */
+  reactions: StoryReactionCounts;
 }) {
   const [selected, setSelected] = useState<{ memId: string; name: string } | null>(
     null,
@@ -62,16 +72,30 @@ export function StoryClient({
     feed.actv_rank.length > 0;
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col break-keep">
       <StoryMasthead week={feed.week_stat} />
 
-      <div className="pb-2 pt-4">
-        <StoryLede feed={feed} onSelectMember={selectMember} />
+      {/* 리드 위 투명 레이어에 크루 아바타가 유영한다 — 탭하면 통통 튄다(놀이 요소).
+          레이어는 포인터를 통과시키고(리드 스와이프 유지) 아바타만 클릭을 받는다. */}
+      <div className="relative pb-2 pt-4">
+        <StoryLede
+          feed={feed}
+          reactions={reactions}
+          onSelectMember={selectMember}
+        />
+        <FloatingAvatars feed={feed} />
       </div>
 
       <div className="flex flex-col gap-8 pb-8 pt-6">
         {/* 기강 기상대 — 개별 소식(리드) 다음에 크루 전체 분위기 */}
         <StoryWeather overview={overview} />
+
+        {/* 코스 응원 팻말 — 기상대 바로 아래. 멤버 각오를 손팻말로 세운다 */}
+        <PledgeSigns
+          pledges={feed.pledges}
+          myMemId={myMemId}
+          onSelectMember={selectMember}
+        />
 
         {/* 새 얼굴 — 최근 3명 + 더보기 */}
         <StorySection
@@ -176,45 +200,50 @@ export function StoryClient({
         >
           {(records) => (
             <ul className="flex flex-col">
-              {records.map((rec) => (
-                <li key={rec.entity_id} className="rule-row">
-                  <button
-                    type="button"
-                    onClick={() => selectMember(rec.mem_id, rec.mem_nm)}
-                    aria-label={`${rec.mem_nm} 프로필 보기`}
-                    className="flex w-full items-center gap-2.5 py-2.5 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <span
-                      aria-hidden
-                      className={cn(
-                        "size-1.5 shrink-0 rounded-full",
-                        getSportDotCls(rec.sport),
-                      )}
-                    />
-                    <span className="shrink-0 text-[14px] font-semibold text-foreground">
-                      {rec.mem_nm}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">
-                      {getRecordLabel({
-                        sport: rec.sport,
-                        evt: rec.evt,
-                        rec_time_sec: rec.rec_time_sec,
-                        race_nm: rec.race_nm,
-                        race_dt: rec.race_dt,
-                      })}
-                    </span>
-                    {/* 언제 뛴 기록인지 — 기간 제한이 없어지면서 필수 정보가 됐다 */}
-                    {rec.race_dt && (
-                      <span className="shrink-0 font-numeric text-[11px] text-muted-foreground tabular-nums">
-                        {dayjs(rec.race_dt).format("YY.M.DD")}
+              {records.map((rec) => {
+                // 왼쪽: 날짜 · 대회명(없으면 종목 라벨). 오른쪽: 기록 · 이름.
+                const sub =
+                  rec.race_nm?.trim() ||
+                  getRecordLabel({
+                    sport: rec.sport,
+                    evt: rec.evt,
+                    rec_time_sec: rec.rec_time_sec,
+                    race_nm: rec.race_nm,
+                    race_dt: rec.race_dt,
+                  });
+                return (
+                  <li key={rec.entity_id} className="rule-row">
+                    <button
+                      type="button"
+                      onClick={() => selectMember(rec.mem_id, rec.mem_nm)}
+                      aria-label={`${rec.mem_nm} 프로필 보기`}
+                      className="flex w-full items-center gap-3 py-2.5 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {/* 왼쪽 — 날짜 · 대회명 */}
+                      <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+                        {rec.race_dt && (
+                          <span className="shrink-0 font-numeric text-[11px] text-muted-foreground tabular-nums">
+                            {dayjs(rec.race_dt).format("YY.M.DD")}
+                          </span>
+                        )}
+                        <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
+                          {sub}
+                        </span>
                       </span>
-                    )}
-                    <span className="shrink-0 font-numeric text-[15px] font-medium text-foreground tabular-nums">
-                      {secondsToTime(rec.rec_time_sec)}
-                    </span>
-                  </button>
-                </li>
-              ))}
+
+                      {/* 오른쪽 — 기록 · 이름 */}
+                      <span className="flex shrink-0 items-baseline gap-2">
+                        <span className="font-numeric text-[15px] font-medium text-foreground tabular-nums">
+                          {secondsToTime(rec.rec_time_sec)}
+                        </span>
+                        <span className="text-[13px] font-semibold text-muted-foreground">
+                          {rec.mem_nm}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </StorySection>
@@ -225,7 +254,7 @@ export function StoryClient({
         {/* 기강 활동량 — 5명 + 더보기 최대 10명. 이번 달 집계 */}
         <StorySection
           label="Activity Index"
-          lead={`${getActvMonthLabel()} 활동량 · 매달 1일 초기화`}
+          lead={`${getActvMonthLabel()} 기강 활동량`}
           items={feed.actv_rank}
           initial={5}
           max={10}
@@ -280,6 +309,9 @@ export function StoryClient({
             </ul>
           )}
         </StorySection>
+
+        {/* 현상수배 — 지면 맨 끝. 오래 안 나온 얼굴들을 애정 어린 호출로 */}
+        <GhostWanted ghosts={ghosts} onSelectMember={selectMember} />
 
         {!hasAnything && (
           <div className="px-6 text-center">

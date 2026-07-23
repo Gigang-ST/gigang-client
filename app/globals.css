@@ -1464,15 +1464,17 @@
 @keyframes lede-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateX(24px);
   }
   to {
     opacity: 1;
     transform: none;
   }
 }
+/* 새 리드가 오른쪽에서 미끄러져 들어온다 — 신문을 넘기는 감각. cubic-bezier로 끝을 부드럽게
+   감속시키고, 너무 바로 바뀐다는 인상을 없애려 시간을 넉넉히(0.55s) 준다. */
 .lede-in {
-  animation: lede-in 0.4s ease-out both;
+  animation: lede-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -204,6 +204,61 @@ export function getRunningProfileLine(
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
+/**
+ * 러닝 프로필을 아이콘 배지 조각들로 — 간단 카드에서 페이스·거리·역을 각각의 칩으로 그린다.
+ *
+ * `getRunningProfileLine`이 점으로 이어 붙인 한 줄이라면, 이쪽은 아이콘을 붙이기 위해
+ * 조각을 나눠 돌려준다. 아이콘 자체는 렌더 쪽(카드)이 붙인다 — lib는 lucide에 의존하지 않는다.
+ * `kind`로 어떤 아이콘을 붙일지 카드가 고른다.
+ */
+export type RunningProfileChip = {
+  kind: "pace" | "dist" | "stn";
+  value: string;
+};
+
+export function getRunningProfileChips(
+  profile: {
+    avg_pace_cd: string | null;
+    avg_run_dist_km: number | null;
+    near_stn_nm?: string | null;
+  } | null,
+): RunningProfileChip[] {
+  if (!profile) return [];
+
+  const chips: RunningProfileChip[] = [];
+  const paceCd = profile.avg_pace_cd as (typeof AVG_PACE_CODES)[number] | null;
+  if (paceCd && paceCd !== "UNKNOWN" && PACE_LABELS[paceCd]) {
+    chips.push({
+      kind: "pace",
+      value: paceCd === "P730_OVER" ? `7'30"+` : `${PACE_LABELS[paceCd]}/km`,
+    });
+  }
+  if (profile.avg_run_dist_km != null && profile.avg_run_dist_km > 0) {
+    chips.push({ kind: "dist", value: `${profile.avg_run_dist_km}km` });
+  }
+  const stn = profile.near_stn_nm?.trim();
+  if (stn) {
+    chips.push({ kind: "stn", value: stn.endsWith("역") ? stn : `${stn}역` });
+  }
+  return chips;
+}
+
+/**
+ * 가입 목적 짧은 라벨 목록 — 칩으로 렌더. 직접 쓴 한마디가 있으면 빈 배열(카드가 한마디를 대신 쓴다).
+ */
+export function getJoinPurposeLabels(
+  profile: {
+    join_purp_cds?: string[] | null;
+    join_purp_txt?: string | null;
+  } | null,
+): string[] {
+  if (!profile) return [];
+  if (profile.join_purp_txt?.trim()) return [];
+  return (profile.join_purp_cds ?? [])
+    .map((cd) => JOIN_PURP_SHORT_LABELS[cd as (typeof JOIN_PURP_CODES)[number]])
+    .filter((label): label is string => Boolean(label));
+}
+
 /** 소개할 내용이 하나도 없으면 null — 섹션 자체를 그리지 않는다 */
 export function getMemberIntro(
   profile: {

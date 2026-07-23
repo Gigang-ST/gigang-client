@@ -1,8 +1,9 @@
 import { Suspense } from "react";
 
+import { getGhostMembers } from "@/lib/queries/ghost-members";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { getStoryFeed } from "@/lib/queries/story-feed";
+import { getStoryReactions, getStoryFeed } from "@/lib/queries/story-feed";
 import { getTeamOverview } from "@/lib/queries/team-overview";
 
 import { StoryClient } from "@/components/story/story-client";
@@ -26,18 +27,25 @@ export default function StoryPage() {
  */
 async function StoryFeedSection() {
   const { teamId } = await getRequestTeamContext();
-  const [feed, overview, { member }] = await Promise.all([
+  const [feed, overview, ghosts, { member }] = await Promise.all([
     getStoryFeed(teamId),
     getTeamOverview(teamId),
+    getGhostMembers(teamId),
     getCurrentMember(),
   ]);
+
+  // 응원 카운트(모두의 총합 + 내 몫)는 캐시된 피드(최대 5분 지연)에서 떼어내 매 요청 최신으로
+  // 읽는다 — 남이 누른 것도 실시간에 가깝게 쌓여 보이고, 새로고침해도 내 몫이 유지된다.
+  const reactions = await getStoryReactions(teamId, member?.id ?? null);
 
   return (
     <StoryClient
       feed={feed}
       overview={overview}
+      ghosts={ghosts}
       teamId={teamId}
       myMemId={member?.id ?? null}
+      reactions={reactions}
     />
   );
 }

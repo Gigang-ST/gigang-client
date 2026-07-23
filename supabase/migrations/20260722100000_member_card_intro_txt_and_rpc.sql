@@ -1,19 +1,156 @@
+-- 멤버 프로필 카드(쇼케이스) — squash
+--   ① team_mem_rel.intro_txt (한마디, 60자) 신설
+--   ② 상태이력 함수 2개에 intro_txt 운반 추가 (컬럼 추가 시 동반 갱신 필수 — 설계서 §4.1 경고)
+--   ③ get_public_member_card(p_mem_id, p_team_id) 최종본
+--      - running_profile에 near_stn_nm(가까운 역) + join_purp_cds/join_purp_txt 포함
+--      - recent_actv 배열(최근 90일 대회/모임 이력) 포함
+-- 이 파일은 세션 중 여러 차례 개정된 다음 원본들을 하나로 합친 것이다(개별 파일은 삭제):
+--   20260722100000(v2 최초) → 20260722120000(v4: near_stn_nm·recent_actv 추가)
+-- 함수 본문은 dev DB의 실제 정의(pg_get_functiondef)를 정본으로 삼아 그대로 옮겼다.
+-- 설계서: docs/superpowers/specs/2026-07-22-멤버-프로필-카드-design.md
 SET lock_timeout = '3s';
 
--- 프로필 카드 RPC v4
---   ① running_profile에 near_stn_nm(가까운 역) 추가 — 신규 가입자는 기록이 없어 카드가 비는데,
---      온보딩에서 받은 러닝 프로필·가까운 역은 있으므로 이걸로 카드를 채운다.
---   ② recent_actv 배열 추가 — 최근 90일 활동 이력(대회/모임)을 카드에서 펼쳐볼 수 있게.
---      대회는 제목·기록, 모임은 제목·날짜·인원. 딥링크는 안 건다(목록만 보여주는 용도).
---
--- v3 대비 변경만 담았고 나머지 CTE·슬레이트·칭호 정렬은 그대로다.
+-- ─────────────────────────────────────────────
+-- ① 한마디 컬럼
+-- ─────────────────────────────────────────────
+ALTER TABLE public.team_mem_rel
+  ADD COLUMN IF NOT EXISTS intro_txt text;
 
-CREATE OR REPLACE FUNCTION public.get_public_member_card(p_mem_id uuid, p_team_id uuid)
+ALTER TABLE public.team_mem_rel
+  DROP CONSTRAINT IF EXISTS team_mem_rel_intro_txt_len;
+
+ALTER TABLE public.team_mem_rel
+  ADD CONSTRAINT team_mem_rel_intro_txt_len
+  CHECK (intro_txt IS NULL OR char_length(intro_txt) <= 60) NOT VALID;
+
+COMMENT ON COLUMN public.team_mem_rel.intro_txt IS
+  '한마디(자기소개) — 최대 60자. 프로필 카드에 인용체로 노출.';
+
+-- ─────────────────────────────────────────────
+-- ② 상태이력 함수 2개 — 스냅샷 컬럼 목록에 intro_txt 추가
+--    (실 DB 본문 기준. 리포의 20260715121000/122000 파일은 card_featured 참조가 남은 stale 버전이라 베이스로 쓰지 않는다)
+-- ─────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.apply_team_mem_rel_change(
+  p_team_mem_id uuid,
+  p_changes jsonb,
+  p_eff_at timestamp with time zone DEFAULT now()
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+declare
+  v_cur public.team_mem_rel%rowtype;
+  v_next_vers int;
+begin
+  select * into v_cur
+  from public.team_mem_rel
+  where team_mem_id = p_team_mem_id and vers = 0
+  for update;
+
+  if not found then
+    raise exception '정본(vers=0) team_mem_rel 없음: %', p_team_mem_id;
+  end if;
+
+  if (select auth.uid()) is not null
+     and not public.v2_rls_auth_team_owner_or_admin(v_cur.team_id) then
+    raise exception '권한 없음: team_mem_rel 변경은 대상 팀 관리자만 가능';
+  end if;
+
+  select coalesce(max(vers), 0) + 1 into v_next_vers
+  from public.team_mem_rel
+  where team_id = v_cur.team_id and mem_id = v_cur.mem_id;
+
+  insert into public.team_mem_rel (
+    team_mem_id, team_id, mem_id, team_role_cd, mem_st_cd, join_dt, leave_dt,
+    vers, del_yn, crt_at, upd_at, selected_badge_effect, selected_frame_cd,
+    inact_rsn_txt, eff_at, intro_txt
+  ) values (
+    gen_random_uuid(), v_cur.team_id, v_cur.mem_id, v_cur.team_role_cd, v_cur.mem_st_cd,
+    v_cur.join_dt, v_cur.leave_dt, v_next_vers, v_cur.del_yn, v_cur.crt_at, now(),
+    v_cur.selected_badge_effect, v_cur.selected_frame_cd, v_cur.inact_rsn_txt,
+    v_cur.eff_at, v_cur.intro_txt
+  );
+
+  update public.team_mem_rel set
+    mem_st_cd     = coalesce(p_changes->>'mem_st_cd', mem_st_cd),
+    team_role_cd  = coalesce(p_changes->>'team_role_cd', team_role_cd),
+    inact_rsn_txt = case when p_changes ? 'inact_rsn_txt' then p_changes->>'inact_rsn_txt' else inact_rsn_txt end,
+    del_yn        = coalesce((p_changes->>'del_yn')::boolean, del_yn),
+    join_dt       = case when p_changes ? 'join_dt'  then (p_changes->>'join_dt')::date  else join_dt  end,
+    leave_dt      = case when p_changes ? 'leave_dt' then (p_changes->>'leave_dt')::date else leave_dt end,
+    eff_at        = p_eff_at,
+    upd_at        = now()
+  where team_mem_id = p_team_mem_id and vers = 0;
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.apply_team_mem_rel_delete(
+  p_team_mem_id uuid,
+  p_eff_at timestamp with time zone DEFAULT now()
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+declare
+  v_cur public.team_mem_rel%rowtype;
+  v_next_vers int;
+begin
+  select * into v_cur
+  from public.team_mem_rel
+  where team_mem_id = p_team_mem_id and vers = 0
+  for update;
+
+  if not found then
+    raise exception '정본(vers=0) team_mem_rel 없음: %', p_team_mem_id;
+  end if;
+
+  if (select auth.uid()) is not null
+     and not public.v2_rls_auth_team_owner_or_admin(v_cur.team_id) then
+    raise exception '권한 없음: team_mem_rel 삭제는 대상 팀 관리자만 가능';
+  end if;
+
+  select coalesce(max(vers), 0) + 1 into v_next_vers
+  from public.team_mem_rel
+  where team_id = v_cur.team_id and mem_id = v_cur.mem_id;
+
+  insert into public.team_mem_rel (
+    team_mem_id, team_id, mem_id, team_role_cd, mem_st_cd, join_dt, leave_dt,
+    vers, del_yn, crt_at, upd_at, selected_badge_effect, selected_frame_cd,
+    inact_rsn_txt, eff_at, intro_txt
+  ) values (
+    gen_random_uuid(), v_cur.team_id, v_cur.mem_id, v_cur.team_role_cd, v_cur.mem_st_cd,
+    v_cur.join_dt, v_cur.leave_dt, v_next_vers, v_cur.del_yn, v_cur.crt_at, now(),
+    v_cur.selected_badge_effect, v_cur.selected_frame_cd, v_cur.inact_rsn_txt,
+    v_cur.eff_at, v_cur.intro_txt
+  );
+
+  update public.team_mem_rel
+    set vers = v_next_vers + 1, del_yn = true, eff_at = p_eff_at, upd_at = now()
+  where team_mem_id = p_team_mem_id and vers = 0;
+end;
+$function$;
+
+-- ─────────────────────────────────────────────
+-- ③ get_public_member_card 최종본
+--    반환 null = 카드 없음(팀 소속 아님 / 탈퇴·비활성 / 삭제). left·inactive 사유는 구분하지 않는다.
+--    기록 슬레이트: 로드 FULL/HALF/10K + 철인 + 사이클만 노출한다.
+--    트레일·울트라는 거리 코드가 수십 종(50K/100K/33K/5PEAKS 등)이라 나열하면 지저분해져서
+--    기록 줄 대신 UTMB 인덱스 한 줄로 갈음한다. 값 없는 종목은 행 자체가 생기지 않는다.
+--    running_profile — 가까운 역 포함. 셋 중 하나라도 있으면 내려준다(신규 가입자 카드 채우기용).
+--    recent_actv — 최근 90일 활동 이력. 대회: 제목+기록(초). 모임: 제목+날짜+참석 인원(본인 포함).
+--    인원은 해당 모임의 전체 참석자 수. 딥링크는 안 건다(목록만 보여주는 용도).
+-- ─────────────────────────────────────────────
+DROP FUNCTION IF EXISTS public.get_public_member_card(uuid, uuid);
+
+CREATE FUNCTION public.get_public_member_card(p_mem_id uuid, p_team_id uuid)
 RETURNS jsonb
 LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
+STABLE SECURITY DEFINER
+SET search_path TO 'public'
 AS $function$
 WITH me AS (
   SELECT tm.team_mem_id, tm.mem_id, tm.join_dt, tm.intro_txt,
@@ -141,7 +278,6 @@ recent_actv AS (
       AND gm.stt_at < now()
       AND gm.stt_at >= now() - interval '90 days'
   ) u
-  ORDER BY actv_dt DESC
 ),
 stats AS (
   SELECT
@@ -187,13 +323,10 @@ SELECT jsonb_build_object(
                              'comp_nm', u.comp_nm,
                              'stt_dt', u.stt_dt)
                       FROM upcoming u),
-  -- 러닝 프로필 — 가까운 역 포함. 셋 중 하나라도 있으면 내려준다(신규 가입자 카드 채우기용).
   'running_profile', (SELECT jsonb_build_object(
                                'avg_pace_cd', op.avg_pace_cd,
                                'avg_run_dist_km', op.avg_run_dist_km,
                                'near_stn_nm', op.near_stn_nm,
-                               -- 목적: 코드 칩 + 본인이 직접 쓴 한마디.
-                               -- 한마디가 있으면 화면에서 칩 대신 그 문장을 쓴다(getMemberIntro).
                                'join_purp_cds', to_jsonb(COALESCE(op.join_purp_cds, ARRAY[]::varchar[])),
                                'join_purp_txt', op.join_purp_txt)
                         FROM public.mem_onbd_prf op
@@ -246,5 +379,6 @@ $function$;
 COMMENT ON FUNCTION public.get_public_member_card(uuid, uuid) IS
   '멤버 프로필 카드(쇼케이스) 공개 프로젝션. 기록은 로드 FULL/HALF/10K + 철인 + 사이클 슬레이트만(트레일·울트라는 UTMB 인덱스로 갈음). running_profile에 가까운 역 포함, recent_actv는 최근 90일 활동 이력. 반환 null = 카드 없음.';
 
+-- 랭킹이 이미 공개이므로 카드도 비로그인 조회 허용 (설계서 §7)
 REVOKE ALL ON FUNCTION public.get_public_member_card(uuid, uuid) FROM public;
 GRANT EXECUTE ON FUNCTION public.get_public_member_card(uuid, uuid) TO anon, authenticated, service_role;

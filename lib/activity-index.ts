@@ -37,7 +37,9 @@ export function getActvTypeLabel(actvType: string): string {
  * 상한이 없으면 11월 대회를 신청한 사람이 7월 집계에 미리 잡힌다.
  */
 export function getActvMonthRange(): { from: string; to: string } {
-  return { from: `${currentMonthKST()}-01`, to: todayKST() };
+  // currentMonthKST()는 이미 이번 달 1일(YYYY-MM-DD)을 반환한다 — `-01`을 덧붙이면
+  // "2026-07-01-01" 같은 잘못된 날짜 문자열이 되어 조회가 터진다(활동 내역 시트 오류의 원인).
+  return { from: currentMonthKST(), to: todayKST() };
 }
 
 /** "7월" — 섹션 리드문·내역 시트 제목에 쓴다 */

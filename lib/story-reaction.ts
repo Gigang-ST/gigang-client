@@ -1,4 +1,4 @@
-import type { RctnCd } from "@/lib/queries/story-feed";
+import type { RctnCd, StoryEntityType } from "@/lib/queries/story-feed";
 
 /**
  * 전광판 응원 — 표시 규칙과 한도 한 곳.
@@ -26,3 +26,18 @@ export const MAX_MY_RCTN = 99;
 
 /** 한 번의 flush가 담을 수 있는 최대 증분 — 클라이언트 디바운스와 서버 검증이 공유한다 */
 export const MAX_RCTN_DELTA = 20;
+
+/** `entity_type:entity_id` → 내가 그 항목에 누른 누적 횟수 */
+export type MyReactionMap = Record<string, number>;
+
+/**
+ * 오버레이 맵 키 — 피드 캐시(공개 집계)와 내 리액션을 합칠 때 양쪽이 같은 규칙을 써야 한다.
+ * 순수 함수라 서버(조회)·클라이언트(리드 보정)가 함께 쓴다 — `story-feed.ts`는 `server-only`라
+ * 여기(공유 상수 파일)에 둔다.
+ */
+export function reactionKey(
+  entityType: StoryEntityType,
+  entityId: string,
+): string {
+  return `${entityType}:${entityId}`;
+}

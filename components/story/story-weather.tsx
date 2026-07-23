@@ -1,7 +1,9 @@
+"use client";
+
+import { useState } from "react";
 import { Cloud, CloudRain, CloudSun, Sun } from "lucide-react";
 
-import { dayjs } from "@/lib/dayjs";
-import { getTeamWeather, getTrendBars } from "@/lib/team-weather";
+import { formatWeekLabel, getTeamWeather, getTrendBars } from "@/lib/team-weather";
 import { cn } from "@/lib/utils";
 
 import { HelpTip } from "@/components/common/help-tip";
@@ -27,21 +29,34 @@ const WEATHER_ICON: Record<TeamWeather["level"], LucideIcon> = {
  *
  * 단어(기강 그 자체 / 기강 잡아 / 기며든다 / 실종)는 프로필 카드의 개인 컨디션과 같다 —
  * 두 지표가 같은 척도라는 걸 설명 없이 전달하기 위해서.
+ *
+ * **추세 막대는 탭할 수 있다.** 8주 막대는 원래 "흐름"만 보여주고 끝이라, 각 주가 실제로
+ * 몇 번의 모임·참석·기록이었는지는 묻혀 있었다. 막대를 누르면 그 주가 선택되고 수치 격자가
+ * 그 주 값으로 바뀐다 — 그래프의 높이가 무슨 뜻인지 그 자리에서 답한다. 기본은 이번 주.
  */
 export function StoryWeather({ overview }: { overview: TeamOverview }) {
+  const weekCount = overview.weeks.length;
+  // 기본 선택 = 마지막 주(이번 주). 데이터가 없으면 -1.
+  const [selected, setSelected] = useState(weekCount - 1);
+
   // 데이터가 아예 없으면(RPC 미배포·신규 팀) 빈 상자를 그리느니 통째로 접는다.
-  if (overview.weeks.length === 0) return null;
+  if (weekCount === 0) return null;
 
   const weather = getTeamWeather(overview.weeks);
   const bars = getTrendBars(overview.weeks);
-  const current = overview.weeks[overview.weeks.length - 1];
+  // 선택 인덱스가 범위를 벗어나면(데이터 변동) 이번 주로 되돌린다.
+  const activeIdx =
+    selected >= 0 && selected < weekCount ? selected : weekCount - 1;
+  const active = overview.weeks[activeIdx];
+  const isThisWeek = activeIdx === weekCount - 1;
   const Icon = WEATHER_ICON[weather.level];
 
+  // 수치 격자 — 회원은 크루 총량(주와 무관), 나머지는 선택한 주 값.
   const stats = [
     { label: "회원", value: overview.mem_cnt },
-    { label: "모임", value: current.gthr_cnt },
-    { label: "참석", value: current.attd_cnt },
-    { label: "기록", value: current.rec_cnt },
+    { label: "모임", value: active.gthr_cnt },
+    { label: "참석", value: active.attd_cnt },
+    { label: "기록", value: active.rec_cnt },
   ];
 
   return (
@@ -53,7 +68,8 @@ export function StoryWeather({ overview }: { overview: TeamOverview }) {
         <div className="-my-2">
           <HelpTip title="기강 기상대">
             이번 주 크루 활동량을 지난 4주 평균과 견줘 한 단어로 나타냅니다. 프로필
-            카드의 개인 컨디션과 같은 척도예요.
+            카드의 개인 컨디션과 같은 척도예요. 아래 막대를 누르면 그 주의 수치를 볼 수
+            있어요.
           </HelpTip>
         </div>
       </div>
@@ -72,7 +88,7 @@ export function StoryWeather({ overview }: { overview: TeamOverview }) {
           </p>
         </div>
 
-        {/* 우: 수치 격자 — 신문 일기예보의 관측값 표 */}
+        {/* 우: 수치 격자 — 선택한 주의 관측값 표 */}
         <dl className="grid shrink-0 grid-cols-2 gap-x-4 gap-y-1">
           {stats.map((s) => (
             <div key={s.label} className="flex items-baseline justify-end gap-1.5">
@@ -85,21 +101,37 @@ export function StoryWeather({ overview }: { overview: TeamOverview }) {
         </dl>
       </div>
 
-      {/* 최근 8주 추세 — 이번 주만 진하게 */}
-      <div className="flex items-end gap-1 pt-4" aria-hidden>
-        {bars.map((h, i) => (
-          <span
-            key={overview.weeks[i].w_start}
-            style={{ height: `${(h / 100) * 28}px` }}
-            className={cn(
-              "flex-1 rounded-[1px]",
-              i === bars.length - 1 ? "bg-foreground" : "bg-border",
-            )}
-          />
-        ))}
+      {/* 최근 8주 추세 — 탭하면 그 주가 선택된다. 선택 주만 진하게 */}
+      <div className="flex items-end gap-1 pt-4">
+        {bars.map((h, i) => {
+          const week = overview.weeks[i];
+          return (
+            <button
+              key={week.w_start}
+              type="button"
+              onClick={() => setSelected(i)}
+              aria-label={`${formatWeekLabel(week.w_start)} · 모임 ${week.gthr_cnt} 참석 ${week.attd_cnt} 기록 ${week.rec_cnt}`}
+              aria-pressed={i === activeIdx}
+              className="group flex flex-1 flex-col items-center justify-end focus-visible:outline-none"
+            >
+              <span
+                style={{ height: `${(h / 100) * 28}px` }}
+                className={cn(
+                  "w-full rounded-[1px] transition-colors",
+                  i === activeIdx
+                    ? "bg-foreground"
+                    : "bg-border group-hover:bg-muted-foreground",
+                )}
+              />
+            </button>
+          );
+        })}
       </div>
+      {/* 하단은 어느 주를 보고 있는지만 — 수치는 위 격자가 선택 주 값으로 이미 보여주므로 중복하지 않는다 */}
       <p className="pt-1.5 text-[10px] text-muted-foreground">
-        최근 8주 활동량 · 이번 주는 {dayjs(current.w_start).format("M월 D일")}부터
+        {isThisWeek
+          ? `이번 주`
+          : `${formatWeekLabel(active.w_start)} 기록`}
       </p>
     </section>
   );

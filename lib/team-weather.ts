@@ -1,4 +1,22 @@
+import { dayjs } from "@/lib/dayjs";
+
 import type { TeamWeek } from "@/lib/queries/team-overview";
+
+/** 그 달의 몇째 주인지 (1~5). 주 시작일(월요일)이 속한 달·날짜 기준으로 단순 계산 */
+const ORDINAL = ["", "첫째", "둘째", "셋째", "넷째", "다섯째"];
+
+/**
+ * 주 시작일(YYYY-MM-DD) → "6월 첫째주" 라벨.
+ *
+ * "6월 1일주 / 8일주"처럼 시작일 숫자를 그대로 읽던 것을 사람이 쓰는 말로 바꾼다.
+ * 몇째 주는 날짜 기반(1~7일=첫째, 8~14일=둘째 …)으로 센다 — 주 시작일이 그 달 며칠인지만 보면 돼
+ * 직관적이고, 달을 걸치는 주는 시작일이 속한 달 기준으로 잡힌다.
+ */
+export function formatWeekLabel(wStart: string): string {
+  const d = dayjs(wStart);
+  const nth = Math.min(5, Math.floor((d.date() - 1) / 7) + 1);
+  return `${d.month() + 1}월 ${ORDINAL[nth]}주`;
+}
 
 /**
  * 기강 기상 — 크루 전체의 "지금 잘 달리고 있나"를 한 단어로.
@@ -62,21 +80,23 @@ export function getTeamWeather(weeks: TeamWeek[]): TeamWeather {
 
   const ratio = now / baseline;
 
-  if (ratio >= 1.3) {
+  // 임계값: 1.0 / 0.5 / 0.3. 이번 주가 직전 4주 평균만큼만 해도 최상('기강 그 자체')이다 —
+  // 꾸준한 크루가 영원히 2단계에 머물지 않게 한 조정(예전엔 1.3배를 넘어야 최상이었다).
+  if (ratio >= 1.0) {
     return {
       level: "blazing",
       label: "기강 그 자체",
-      message: "지난 4주 평균보다 눈에 띄게 활발한 주",
+      message: "지난 4주 평균만큼, 꾸준히 잘 달리는 중",
     };
   }
-  if (ratio >= 0.9) {
+  if (ratio >= 0.5) {
     return {
       level: "steady",
       label: "기강 잡아",
-      message: "지난 4주와 비슷하게 굴러가는 중",
+      message: "지난 4주보다 살짝 잦아든 정도",
     };
   }
-  if (ratio >= 0.4) {
+  if (ratio >= 0.3) {
     return {
       level: "resting",
       label: "기며든다",

@@ -1953,6 +1953,51 @@ export type Database = {
           },
         ]
       }
+      pldg_mst: {
+        Row: {
+          crt_at: string
+          del_yn: boolean
+          mem_id: string
+          pldg_id: string
+          pldg_txt: string
+          team_id: string
+          upd_at: string
+        }
+        Insert: {
+          crt_at?: string
+          del_yn?: boolean
+          mem_id: string
+          pldg_id?: string
+          pldg_txt: string
+          team_id: string
+          upd_at?: string
+        }
+        Update: {
+          crt_at?: string
+          del_yn?: boolean
+          mem_id?: string
+          pldg_id?: string
+          pldg_txt?: string
+          team_id?: string
+          upd_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pldg_mst_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "pldg_mst_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
       pt_txn_hist: {
         Row: {
           actv_type_enm: Database["public"]["Enums"]["pt_actv_type_enm"]
@@ -2065,6 +2110,7 @@ export type Database = {
           entity_type: string
           mem_id: string
           rctn_cd: string
+          rctn_cnt: number
           rctn_id: string
           team_id: string
         }
@@ -2074,6 +2120,7 @@ export type Database = {
           entity_type: string
           mem_id: string
           rctn_cd: string
+          rctn_cnt?: number
           rctn_id?: string
           team_id: string
         }
@@ -2083,6 +2130,7 @@ export type Database = {
           entity_type?: string
           mem_id?: string
           rctn_cd?: string
+          rctn_cnt?: number
           rctn_id?: string
           team_id?: string
         }
@@ -2693,10 +2741,8 @@ export type Database = {
           url: string
         }[]
       }
-      get_team_overview: {
-        Args: { p_team_id: string }
-        Returns: Json
-      }
+      get_team_ghost_members: { Args: { p_team_id: string }; Returns: Json }
+      get_team_overview: { Args: { p_team_id: string }; Returns: Json }
       get_team_story_feed: {
         Args: { p_mem_id?: string; p_team_id: string }
         Returns: Json

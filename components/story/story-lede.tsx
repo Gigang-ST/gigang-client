@@ -9,11 +9,18 @@ import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/common/avatar";
 import { StoryReactionButton } from "@/components/story/story-reaction-button";
 
+import { reactionKey } from "@/lib/story-reaction";
+
 import type { PointerEvent } from "react";
-import type { RctnCd, StoryFeed } from "@/lib/queries/story-feed";
+import type {
+  RctnCd,
+  StoryEntityType,
+  StoryFeed,
+  StoryReactionCounts,
+} from "@/lib/queries/story-feed";
 
 /** 자동 전환 간격 — 한 장씩, 끝에 닿으면 처음으로 되돌아온다 */
-const ROTATE_MS = 3000;
+const ROTATE_MS = 5000;
 /** 손이 닿으면 이만큼 멈춘다. 이후 반응이 없으면 다시 자동으로 넘어간다 */
 const PAUSE_MS = 10000;
 /** 새 얼굴·기록 슬롯이 다루는 기간 */
@@ -66,8 +73,33 @@ function withinDays(dateStr: string | null, days: number): boolean {
  *
  * 순서는 시의성: 임박한 대회 → 새 얼굴 → 기록 → 이달의 참가왕.
  */
-function buildLedes(feed: StoryFeed): Lede[] {
+function buildLedes(feed: StoryFeed, reactions: StoryReactionCounts): Lede[] {
   const ledes: Lede[] = [];
+
+  /**
+   * 리액션 항목 하나의 카운트를 최신 집계로 보정한다.
+   *
+   * 피드 캐시(rctn_count)는 최대 5분 지연이라 남이 누른 것도, 내가 방금 누른 것도 늦게 잡힌다.
+   * 그래서 총합(count)은 캐시 대신 최신 집계(reactions.totals)를, 내 몫(myCount)은 reactions.mine을
+   * 쓴다 — 모두의 응원이 실시간에 가깝게 쌓여 보이고, 새로고침해도 내 몫이 유지된다.
+   * 집계에 아직 안 잡힌 극히 짧은 순간을 위해 캐시값을 하한으로 둔다.
+   */
+  const buildEntity = (
+    type: StoryEntityType,
+    id: string,
+    rctnCd: RctnCd,
+    cachedCount: number,
+  ): Lede["entity"] => {
+    const key = reactionKey(type, id);
+    const total = reactions.totals[key] ?? 0;
+    return {
+      type,
+      id,
+      rctnCd,
+      count: Math.max(cachedCount, total),
+      myCount: reactions.mine[key] ?? 0,
+    };
+  };
 
   // ① 다가오는 대회 — 가장 임박한 1건만. 출전자는 겹친 아바타로 함께 보여준다.
   const race = feed.races.find((r) => getRaceDday(r.stt_dt));
@@ -75,13 +107,7 @@ function buildLedes(feed: StoryFeed): Lede[] {
     ledes.push({
       key: `race-${race.entity_id}`,
       kicker: "다가오는 대회",
-      entity: {
-        type: "race",
-        id: race.entity_id,
-        rctnCd: race.rctn_cd,
-        count: race.rctn_count,
-        myCount: race.my_cnt,
-      },
+      entity: buildEntity("race", race.entity_id, race.rctn_cd, race.rctn_count),
       people: race.runners.slice(0, 4),
       subs: [],
       moreCount: Math.max(0, race.reg_cnt - 4),
@@ -99,13 +125,12 @@ function buildLedes(feed: StoryFeed): Lede[] {
     ledes.push({
       key: `newbie-${newbieLead.entity_id}`,
       kicker: "새 얼굴",
-      entity: {
-        type: "newbie",
-        id: newbieLead.entity_id,
-        rctnCd: newbieLead.rctn_cd,
-        count: newbieLead.rctn_count,
-        myCount: newbieLead.my_cnt,
-      },
+      entity: buildEntity(
+        "newbie",
+        newbieLead.entity_id,
+        newbieLead.rctn_cd,
+        newbieLead.rctn_count,
+      ),
       people: [newbieLead],
       subs: restNewbies.slice(0, MAX_SUBS),
       moreCount: Math.max(0, restNewbies.length - MAX_SUBS),
@@ -133,13 +158,12 @@ function buildLedes(feed: StoryFeed): Lede[] {
     ledes.push({
       key: `record-${recLead.entity_id}`,
       kicker: "기록",
-      entity: {
-        type: "record",
-        id: recLead.entity_id,
-        rctnCd: recLead.rctn_cd,
-        count: recLead.rctn_count,
-        myCount: recLead.my_cnt,
-      },
+      entity: buildEntity(
+        "record",
+        recLead.entity_id,
+        recLead.rctn_cd,
+        recLead.rctn_count,
+      ),
       people: [recLead],
       subs: restRecs.slice(0, MAX_SUBS),
       moreCount: Math.max(0, restRecs.length - MAX_SUBS),
@@ -169,6 +193,32 @@ function buildLedes(feed: StoryFeed): Lede[] {
     });
   }
 
+  // ⑤ 각오 — 가장 최근 1건이 대표, 나머지는 레일. 헤드라인이 곧 각오 문장이다(따옴표로 인용).
+  //    Math.random()은 SSR/CSR 불일치를 부르므로 쓰지 않는다 — "최근순" 그대로 대표를 고른다.
+  const [pledgeLead, ...restPledges] = feed.pledges;
+  if (pledgeLead) {
+    // 레일은 "얼굴"을 세우는 자리라 사람 기준으로 유니크해야 한다 — 한 사람이 각오를 여러 개
+    // 써도 레일엔 한 번만. (대표와 같은 사람도 제외) 이걸 안 하면 mem_id key가 겹쳐 React가 터진다.
+    const seen = new Set<string>([pledgeLead.mem_id]);
+    const railPeople = restPledges.filter((p) => {
+      if (seen.has(p.mem_id)) return false;
+      seen.add(p.mem_id);
+      return true;
+    });
+    ledes.push({
+      key: `pledge-${pledgeLead.pldg_id}`,
+      kicker: "각오",
+      entity: null,
+      people: [pledgeLead],
+      subs: railPeople.slice(0, MAX_SUBS),
+      moreCount: Math.max(0, railPeople.length - MAX_SUBS),
+      headline: `“${pledgeLead.pldg_txt}”`,
+      standfirst: `${pledgeLead.mem_nm}, 코스에 각오를 꽂다`,
+      figure: null,
+      figureLabel: null,
+    });
+  }
+
   return ledes;
 }
 
@@ -183,12 +233,15 @@ function buildLedes(feed: StoryFeed): Lede[] {
  */
 export function StoryLede({
   feed,
+  reactions,
   onSelectMember,
 }: {
   feed: StoryFeed;
+  /** 응원 집계 (모두의 총합 + 내 몫) — 응원 버튼 카운트 보정용 */
+  reactions: StoryReactionCounts;
   onSelectMember: (memId: string, name: string) => void;
 }) {
-  const ledes = buildLedes(feed);
+  const ledes = buildLedes(feed, reactions);
   const total = ledes.length;
 
   const [active, setActive] = useState(0);
@@ -271,17 +324,24 @@ export function StoryLede({
       }}
       className="touch-pan-y select-none px-6"
     >
-      <div key={lede.key} className="lede-in flex gap-3">
+      {/* 슬롯마다 내용 높이가 달라 자동 전환·스와이프 때 지면이 출렁인다.
+          가장 큰 슬롯(대회: 헤드라인 2줄 + 아바타 + 응원 버튼)에 맞춰 넉넉히 고정한다. */}
+      <div
+        key={lede.key}
+        className="lede-in flex min-h-[248px] items-start gap-3"
+      >
         <article className="flex min-w-0 flex-1 flex-col gap-3">
           <span className="font-numeric text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
             {lede.kicker}
           </span>
 
-          <h2 className="text-balance font-serif text-[26px] font-normal leading-[1.28] text-foreground">
+          {/* 각오처럼 띄어쓰기 없는 긴 문자열도 넘치지 않게 — break-keep(어절 유지)만으론
+              연속 문자를 못 끊으니 overflow-wrap:anywhere를 더하고, 최대 3줄로 말줄임한다. */}
+          <h2 className="line-clamp-3 text-pretty break-keep font-serif text-[26px] font-normal leading-[1.28] text-foreground [overflow-wrap:anywhere]">
             {lede.headline}
           </h2>
 
-          <p className="text-[13px] leading-relaxed text-muted-foreground">
+          <p className="break-keep text-[13px] leading-relaxed text-muted-foreground">
             {lede.standfirst}
           </p>
 
