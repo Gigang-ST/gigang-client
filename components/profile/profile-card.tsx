@@ -62,6 +62,9 @@ export function ProfileCard({
         tabIndex={0}
         onClick={() => setCardOpen(true)}
         onKeyDown={(e) => {
+          // 중첩 버튼(한마디 수정·내 컬렉션·칭호 툴팁)에 포커스가 있을 때의 Enter/Space는
+          // 그 버튼이 처리하도록 두고, 카드 루트 자신에서 난 키만 카드 다이얼로그를 연다.
+          if (e.target !== e.currentTarget) return;
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
             setCardOpen(true);
@@ -143,6 +146,8 @@ export function ProfileCard({
         open={cardOpen}
         onOpenChange={setCardOpen}
         isOwner
+        // 상세 카드 안에서 한마디를 수정하면 압축 카드 줄도 즉시 맞춘다.
+        onIntroSaved={setIntro}
       />
 
       <IntroEditDialog

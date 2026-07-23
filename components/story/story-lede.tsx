@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/common/avatar";
 import { StoryReactionButton } from "@/components/story/story-reaction-button";
 
+import type { PointerEvent } from "react";
 import type { RctnCd, StoryFeed } from "@/lib/queries/story-feed";
 
 /** 자동 전환 간격 — 한 장씩, 끝에 닿으면 처음으로 되돌아온다 */
@@ -207,7 +208,7 @@ export function StoryLede({
   const lede = ledes[active];
 
   /** 스와이프 — 가로 이동이 세로보다 크고 40px 넘으면 한 칸 */
-  function handlePointerUp(e: React.PointerEvent) {
+  function handlePointerUp(e: PointerEvent) {
     const start = dragStart.current;
     dragStart.current = null;
     if (!start) return;

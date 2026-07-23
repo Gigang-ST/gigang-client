@@ -99,13 +99,35 @@ export type MemberCardData = {
 };
 
 /**
+ * RPC 응답이 v2 카드 구조인지 최소 검증.
+ *
+ * `database.types.ts`의 반환 타입은 `Json`이라 컴파일 타임엔 구조를 보장하지 못한다.
+ * 배포 스큐로 구버전 RPC가 응답하거나 payload가 깨지면 필수 필드가 비는데,
+ * 상세 카드는 `best_records`/`titles`/`recent_actv`를 그대로 `.map()` 하므로
+ * 배열이 아니면 렌더 중 크래시한다. 여기서 걸러 호출부의 에러 상태로 보낸다.
+ * (20필드 전체를 Zod로 검증하지는 않는다 — 렌더를 깨뜨리는 필수 형상만 확인.)
+ */
+function isMemberCardData(v: unknown): v is MemberCardData {
+  if (typeof v !== "object" || v === null) return false;
+  const c = v as Record<string, unknown>;
+  return (
+    typeof c.mem_nm === "string" &&
+    typeof c.stats === "object" &&
+    c.stats !== null &&
+    Array.isArray(c.best_records) &&
+    Array.isArray(c.titles) &&
+    Array.isArray(c.recent_actv)
+  );
+}
+
+/**
  * 멤버 프로필 카드 1건 조회.
  *
  * `null` 반환 = 카드 없음(해당 팀 소속 아님·탈퇴·비활성·삭제). 호출부는 "함께 달렸던 멤버예요"
  * 폴백을 보여준다 — left/inactive 사유는 구분해서 노출하지 않는다.
  * RPC가 `SECURITY DEFINER`라 비로그인(anon)도 조회할 수 있다(랭킹 공개 정책과 동일).
  *
- * @throws RPC 호출 자체가 실패하면 에러를 그대로 던진다(호출부가 재시도 UI를 띄운다).
+ * @throws RPC 호출이 실패하거나 응답 구조가 예상(v2)과 다르면 에러를 던진다(호출부가 재시도 UI를 띄운다).
  */
 export async function getPublicMemberCard(
   supabase: SupabaseClient<Database>,
@@ -118,5 +140,9 @@ export async function getPublicMemberCard(
   });
 
   if (error) throw error;
-  return (data as MemberCardData | null) ?? null;
+  if (data == null) return null;
+  if (!isMemberCardData(data)) {
+    throw new Error("get_public_member_card: 예상과 다른 응답 구조(구버전·손상 payload)");
+  }
+  return data;
 }

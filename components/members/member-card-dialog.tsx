@@ -45,6 +45,7 @@ export function MemberCardDialog({
   onOpenChange,
   stacked = false,
   isOwner = false,
+  onIntroSaved,
 }: {
   /** null이면 닫힌 상태로 취급 — 호출부가 선택된 멤버를 비울 때 */
   memId: string | null;
@@ -57,6 +58,12 @@ export function MemberCardDialog({
   stacked?: boolean;
   /** 본인 카드 — 한마디를 여기서 바로 수정할 수 있다 */
   isOwner?: boolean;
+  /**
+   * 본인이 이 카드 안에서 한마디를 수정했을 때 호출부에 알린다.
+   * 호출부(예: ProfileCard)가 카드 밖에서 같은 한마디를 따로 표시하면
+   * 서버 리페치 전까지 두 표시가 어긋나므로, 여기로 갱신값을 흘려준다.
+   */
+  onIntroSaved?: (next: string) => void;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [state, setState] = useState<LoadState>({ status: "loading" });
@@ -144,13 +151,15 @@ export function MemberCardDialog({
           onOpenChange={setIntroOpen}
           initialValue={state.status === "ready" ? (state.data.intro_txt ?? "") : ""}
           // 카드를 다시 조회하지 않고 열려 있는 화면의 값만 갈아끼운다.
-          onSaved={(next) =>
+          onSaved={(next) => {
             setState((prev) =>
               prev.status === "ready"
                 ? { status: "ready", data: { ...prev.data, intro_txt: next || null } }
                 : prev,
-            )
-          }
+            );
+            // 카드 밖에서 같은 한마디를 표시하는 호출부도 함께 갱신한다.
+            onIntroSaved?.(next);
+          }}
           stacked
         />
       )}
