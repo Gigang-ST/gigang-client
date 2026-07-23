@@ -4,6 +4,8 @@ import { unstable_cache } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 
+import type { MemberCardCompactData } from "@/lib/queries/member-card";
+
 /** 리액션 코드 정본 6종 — DB CHECK 제약(`rctn_mst_rctn_cd_chk`)과 동일 목록 */
 export const RCTN_CODES = [
   "welcome",
@@ -25,9 +27,12 @@ type ReactableItem = {
   event_at: string;
   /** 이 아이템에 어울리는 리액션 1종 */
   rctn_cd: RctnCd;
+  /** 항목 총합 — 모든 멤버의 누른 횟수 합계(sum(rctn_cnt)) */
   rctn_count: number;
   /** 로그인 사용자가 이미 누른 리액션 (없으면 null) */
   my_rctn: RctnCd | null;
+  /** 로그인 사용자가 이 항목에 누른 누적 횟수. 상한(99) 도달 판정용 */
+  my_cnt: number;
 };
 
 export type StoryNewbie = ReactableItem & {
@@ -35,7 +40,7 @@ export type StoryNewbie = ReactableItem & {
   mem_id: string;
   mem_nm: string;
   avatar_url: string | null;
-};
+} & MemberCardCompactData;
 
 export type StoryRecord = ReactableItem & {
   entity_type: "record";
@@ -46,6 +51,8 @@ export type StoryRecord = ReactableItem & {
   evt: string;
   rec_time_sec: number;
   race_nm: string | null;
+  /** 대회 개최일 YYYY-MM-DD — 목록에 함께 표시하고 최근 30일 판정에도 쓴다 */
+  race_dt: string | null;
 };
 
 export type StoryRace = ReactableItem & {

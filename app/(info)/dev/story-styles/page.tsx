@@ -18,6 +18,11 @@ import {
   StyleHalftone,
   StyleSpeed,
 } from "./styles-2";
+import {
+  StylePledgeFlip,
+  StylePledgePlane,
+  StylePledgeSign,
+} from "./styles-3";
 
 /**
  * 기강이야기 스타일 비교 — 개발 전용 페이지(`/dev/story-styles`).
@@ -80,6 +85,25 @@ const STYLES = [
     desc: "숫자를 기울여 속도감. 스포츠 타이포 문법 + 다크 기준",
     render: () => <StyleSpeed />,
   },
+  // ── 여기부터는 지면 톤이 아니라 **각오 띄우기 기능** 시안이다(A~I와 비교 대상이 아님) ──
+  {
+    key: "pledge-plane",
+    name: "각오 J. 종이비행기",
+    desc: "신문지를 접어 날린 비행기가 각오 배너를 끌고 지면을 가로지른다. 재료(신문지)가 이 페이지와 이어지고, 배너 방식이라 날면서도 읽힌다. 오래된 각오는 착륙장에 쌓여 아카이브가 공짜로 생긴다",
+    render: () => <StylePledgePlane />,
+  },
+  {
+    key: "pledge-sign",
+    name: "각오 K. 코스 팻말",
+    desc: "마라톤 코스변 손팻말. 러너면 다 아는 물건이라 설명이 필요 없다. 가로로 밀어 지나가는 게 곧 달리는 감각. 다만 신문 지면과 재료가 다르다",
+    render: () => <StylePledgeSign />,
+  },
+  {
+    key: "pledge-flip",
+    name: "각오 L. 솔라리 보드",
+    desc: "공항 안내판. 프로필 카드의 앰버 전광판 언어를 재사용해 구현 비용이 가장 낮다. 대신 프로필 카드가 이미 전광판이라 중복 위험",
+    render: () => <StylePledgeFlip />,
+  },
 ] as const;
 
 /**
@@ -89,6 +113,9 @@ const STYLES = [
  * 테마 버튼을 눌러도 안 바뀌면 고장으로 읽히므로 UI에 명시한다.
  */
 const FIXED_DARK = new Set(["board", "speed"]);
+
+/** 안내판 영역만 야간인 시안 — 전체가 고정 다크는 아니라 FIXED_DARK와 구분한다 */
+const PARTIAL_DARK = new Set(["pledge-flip"]);
 
 /** 미리보기 모드 — 앱 테마 따라가기 / 라이트 고정 / 다크 고정 / 좌우 동시 비교 */
 type ViewMode = "app" | "light" | "dark" | "split";
@@ -182,6 +209,12 @@ export default function StoryStylesPage() {
             <span className="text-warning">
               {" "}
               · 이 시안은 항상 야간이라 테마 전환에 반응하지 않습니다.
+            </span>
+          )}
+          {PARTIAL_DARK.has(current.key) && (
+            <span className="text-warning">
+              {" "}
+              · 안내판 영역만 항상 야간입니다(나머지는 테마를 따라갑니다).
             </span>
           )}
         </p>

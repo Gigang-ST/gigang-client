@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getStoryFeed } from "@/lib/queries/story-feed";
+import { getTeamOverview } from "@/lib/queries/team-overview";
 
 import { StoryClient } from "@/components/story/story-client";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,13 +26,19 @@ export default function StoryPage() {
  */
 async function StoryFeedSection() {
   const { teamId } = await getRequestTeamContext();
-  const [feed, { member }] = await Promise.all([
+  const [feed, overview, { member }] = await Promise.all([
     getStoryFeed(teamId),
+    getTeamOverview(teamId),
     getCurrentMember(),
   ]);
 
   return (
-    <StoryClient feed={feed} teamId={teamId} myMemId={member?.id ?? null} />
+    <StoryClient
+      feed={feed}
+      overview={overview}
+      teamId={teamId}
+      myMemId={member?.id ?? null}
+    />
   );
 }
 

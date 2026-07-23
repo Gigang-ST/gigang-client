@@ -20,6 +20,14 @@
 
 ## 함정
 
+### 개발 전용 UI 게이트는 `isDevModeEnabled()`만 쓴다
+`env.NEXT_PUBLIC_ENABLE_DEV_MODE`를 컴포넌트에서 **직접** 읽으면 로컬 `pnpm dev`에서 그 변수를 안 둔 경우 해당 UI만 사라진다. 정본은 `lib/dev-mode.ts`의 `isDevModeEnabled()`이고, 이건 `NODE_ENV === "development"`면 자동으로 true다. 그래서 다른 개발 전용 기능(이메일 로그인 등)은 전부 보이는데 **직접 읽는 한 곳만** 안 보이는, 원인 찾기 어려운 상태가 된다. (전광판 제호의 "스타일 비교" 버튼이 이렇게 사라졌음)
+**확인법:** `grep -rn "NEXT_PUBLIC_ENABLE_DEV_MODE" app components lib` 결과에 `lib/env.ts`·`lib/dev-mode.ts` 외의 파일이 있으면 그게 버그다.
+
+### 시안(mock) 폴더끼리 import로 물리면 한쪽만 못 지운다
+`/dev/*` 시안 화면은 결론이 나면 폴더째 지우는 게 전제다. 그런데 A 시안 폴더가 B 시안 폴더의 `mock.ts`를 import하면 B를 지울 때 A가 깨진다. 게다가 상대경로 import는 프로젝트 `no-restricted-imports` 규칙에도 걸린다.
+**해결:** 시안 폴더마다 자기 `mock.ts`를 둔다. 목업 데이터 중복은 감수한다 — 독립적으로 삭제 가능한 게 더 중요하다.
+
 ### (info) route group은 BackHeader를 강제한다
 `app/(info)/layout.tsx`는 모든 하위 페이지에 `BackHeader`(`sticky top-0 z-40`)를 렌더한다. 상단 고정(`fixed top-0`) 컴포넌트(예: 가입 진행바 `SignupProgress`)를 쓰는 페이지를 `(info)`에 두면 BackHeader와 위치·z-index가 겹친다. 또 카톡 공유 등 **외부에서 직접 진입하는 랜딩**은 뒤로 갈 history가 없어 BackHeader가 무의미하다.
 **해결:** 그런 페이지는 route group 밖(`app/<route>/`)에 두어 RootLayout만 적용받게 한다. route group은 URL에 영향 없으므로 URL은 유지된다. (가입 위저드 `/newbie`를 `app/(info)/newbie` → `app/newbie`로 이동한 사례)

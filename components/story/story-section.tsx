@@ -16,6 +16,7 @@ export function StorySection<T>({
   initial,
   max,
   unit = "건",
+  headerAction,
   children,
 }: {
   /** 영문 섹션 라벨 — 신문의 면 이름 */
@@ -29,6 +30,8 @@ export function StorySection<T>({
   max: number;
   /** 더보기 문구의 단위 ("명" / "건") */
   unit?: string;
+  /** 라벨 우측 슬롯 — 설명이 필요한 지표는 여기에 `HelpTip`을 단다 */
+  headerAction?: React.ReactNode;
   children: (items: T[]) => React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -41,10 +44,12 @@ export function StorySection<T>({
 
   return (
     <section className="flex flex-col px-6">
-      <div className="rule-section pb-2">
+      <div className="rule-section flex items-center justify-between gap-2 pb-2">
         <h2 className="font-numeric text-[11px] font-medium uppercase tracking-[0.2em] text-foreground">
           {label}
         </h2>
+        {/* 괘선 높이가 물음표 히트영역(32px)에 밀리지 않게 음수 마진으로 흡수한다 */}
+        {headerAction && <div className="-my-2">{headerAction}</div>}
       </div>
       {lead && (
         <p className="pt-2.5 font-serif text-[15px] leading-snug text-muted-foreground">

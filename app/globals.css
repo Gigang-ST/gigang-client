@@ -1481,6 +1481,208 @@
   }
 }
 
+/* 응원 버튼 3층 모션 — 누르는 맛을 만드는 장치.
+   ① 숫자 롤업 ② 튀어오르는 이모지 ③ 콤보 배지. 셋 다 짧게 끝난다(0.7s 이내). */
+@keyframes rctn-roll {
+  from {
+    transform: translateY(100%);
+    opacity: 0.2;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.rctn-roll {
+  animation: rctn-roll 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 좌우 흩어짐(--rctn-dx)과 회전(--rctn-rot)은 탭마다 컴포넌트가 인라인으로 준다 */
+@keyframes rctn-burst {
+  from {
+    transform: translate(-50%, 0) scale(0.6) rotate(0deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  to {
+    transform: translate(calc(-50% + var(--rctn-dx, 0px)), -46px) scale(1.6)
+      rotate(var(--rctn-rot, 0deg));
+    opacity: 0;
+  }
+}
+.rctn-burst {
+  animation: rctn-burst 0.7s ease-out both;
+}
+
+@keyframes rctn-combo {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.25);
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.rctn-combo {
+  animation: rctn-combo 0.22s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 숫자는 페이드만 남기고, 버스트·콤보는 움직이지 않는다 */
+  .rctn-roll {
+    animation: none;
+  }
+  .rctn-burst {
+    display: none;
+  }
+  .rctn-combo {
+    animation: none;
+  }
+}
+
+/* 각오 띄우기 시안 전용 모션 (/dev/story-styles J·L).
+   실제 채택되면 여기서 프로덕션 섹션으로 옮긴다. */
+
+/* 배너 견인 비행기 — 왼→오 횡단. 높이가 살짝 출렁여야 종이가 뜬 느낌이 난다 */
+@keyframes pledge-fly {
+  from {
+    transform: translateX(-105%) translateY(0);
+  }
+  50% {
+    transform: translateX(0%) translateY(-6px);
+  }
+  to {
+    transform: translateX(105vw) translateY(0);
+  }
+}
+.pledge-fly {
+  animation: pledge-fly linear infinite;
+}
+
+/* 접힌 종이가 펼쳐지듯 — 위에서 아래로 펴진다 */
+@keyframes pledge-unfold {
+  from {
+    opacity: 0;
+    transform: perspective(500px) rotateX(-72deg);
+    transform-origin: top center;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    transform-origin: top center;
+  }
+}
+.pledge-unfold {
+  animation: pledge-unfold 0.34s ease-out both;
+}
+
+/* 솔라리 타일 — 글자 하나가 철컥 넘어간다. index만큼 지연시켜 좌→우로 흐르게 */
+@keyframes pledge-flip {
+  from {
+    transform: rotateX(-90deg);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.pledge-flip {
+  animation: pledge-flip 0.26s ease-out both;
+  transform-origin: center top;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 비행기는 멈추면 화면 밖에 머무르므로, 정지 대신 제자리에 세운다 */
+  .pledge-fly {
+    animation: none;
+    transform: translateX(8px);
+  }
+  .pledge-unfold,
+  .pledge-flip {
+    animation: none;
+  }
+}
+
+/* 접속자 표시 시안 전용 모션 (/dev/presence-styles) */
+
+/* 여백의 독자 — 상대가 스크롤하면 아바타가 미끄러지듯 따라온다.
+   시안에서는 그 움직임을 보여주려고 위아래로 천천히 오간다. */
+@keyframes presence-drift {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(22px);
+  }
+}
+.presence-drift {
+  animation: presence-drift 6s ease-in-out infinite;
+  transition: top 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 접속 표시등 — 살아 있다는 신호. 깜빡임이 아니라 숨쉬기(거슬리지 않게) */
+@keyframes presence-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+.presence-pulse {
+  animation: presence-pulse 2.6s ease-in-out infinite;
+}
+
+/* 누가 이 섹션에 들어왔을 때 얼굴이 톡 나타난다 */
+@keyframes presence-pop {
+  from {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.presence-pop {
+  animation: presence-pop 0.24s ease-out both;
+}
+
+@keyframes presence-rise {
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.presence-rise {
+  animation: presence-rise 0.3s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .presence-drift,
+  .presence-pulse,
+  .presence-pop,
+  .presence-rise {
+    animation: none;
+  }
+  .presence-drift {
+    transition: none;
+  }
+}
+
 /* -----------------------------------------------------------------
    /dev/story-styles 시안 전용 장치
    스타일 확정 후 채택되지 않은 것은 이 블록과 함께 삭제한다.

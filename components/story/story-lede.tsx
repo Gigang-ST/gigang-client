@@ -14,6 +14,14 @@ import type { RctnCd, StoryFeed } from "@/lib/queries/story-feed";
 
 /** 자동 전환 간격 — 한 장씩, 끝에 닿으면 처음으로 되돌아온다 */
 const ROTATE_MS = 3000;
+/** 손이 닿으면 이만큼 멈춘다. 이후 반응이 없으면 다시 자동으로 넘어간다 */
+const PAUSE_MS = 10000;
+/** 새 얼굴·기록 슬롯이 다루는 기간 */
+const WINDOW_DAYS = 30;
+/** 우측 레일에 얼굴을 몇 개까지 세울지. 나머지는 "외 N명" */
+const MAX_SUBS = 3;
+
+type Person = { mem_id: string; mem_nm: string; avatar_url: string | null };
 
 type Lede = {
   key: string;
@@ -24,9 +32,15 @@ type Lede = {
     id: string;
     rctnCd: RctnCd;
     count: number;
-    mine: boolean;
+    /** 내가 이 항목에 누른 누적 횟수 — 점등·상한 판정용 */
+    myCount: number;
   } | null;
-  people: { mem_id: string; mem_nm: string; avatar_url: string | null }[];
+  /** 좌측 메인 — 대회처럼 주인공이 여럿이면 겹쳐 쌓는다 */
+  people: Person[];
+  /** 우측 레일 — 대표 말고 나머지 사람들. 아무도 빠뜨리지 않기 위한 자리 */
+  subs: Person[];
+  /** 레일에도 못 들어간 인원 수 */
+  moreCount: number;
   /** 명조 헤드라인 — 기사 제목 */
   headline: string;
   /** 헤드라인 아래 리드문 한 줄 */
@@ -36,18 +50,28 @@ type Lede = {
   figureLabel: string | null;
 };
 
+/** 오늘 기준 N일 이내인가 (KST) */
+function withinDays(dateStr: string | null, days: number): boolean {
+  if (!dateStr) return false;
+  const diff = dayjs().startOf("day").diff(dayjs(dateStr).startOf("day"), "day");
+  return diff >= 0 && diff <= days;
+}
+
 /**
  * 피드 → 리드 기사 목록.
  *
- * 신문의 1면처럼 "지금 가장 큰 소식"만 올린다. 순서는 시의성:
- * 임박한 대회 → 기록 속보 → 새 얼굴 → 이달의 참가왕 → 활동지수 1위.
+ * **한 종류당 한 칸이다.** 신규 멤버가 넷이라고 네 칸을 쓰면 스와이프가 명단 낭독이 된다.
+ * 대신 가장 최근 한 명(한 건)을 대표로 크게 싣고, 나머지는 우측 레일에 작게 세운다 —
+ * 지면에서 빠지는 사람이 없게. 레일의 얼굴도 탭하면 각자의 카드가 열린다.
+ *
+ * 순서는 시의성: 임박한 대회 → 새 얼굴 → 기록 → 이달의 참가왕.
  */
 function buildLedes(feed: StoryFeed): Lede[] {
   const ledes: Lede[] = [];
 
-  for (const race of feed.races) {
-    const dday = getRaceDday(race.stt_dt);
-    if (!dday) continue;
+  // ① 다가오는 대회 — 가장 임박한 1건만. 출전자는 겹친 아바타로 함께 보여준다.
+  const race = feed.races.find((r) => getRaceDday(r.stt_dt));
+  if (race) {
     ledes.push({
       key: `race-${race.entity_id}`,
       kicker: "다가오는 대회",
@@ -56,74 +80,88 @@ function buildLedes(feed: StoryFeed): Lede[] {
         id: race.entity_id,
         rctnCd: race.rctn_cd,
         count: race.rctn_count,
-        mine: race.my_rctn === race.rctn_cd,
+        myCount: race.my_cnt,
       },
-      people: race.runners.slice(0, 5),
+      people: race.runners.slice(0, 4),
+      subs: [],
+      moreCount: Math.max(0, race.reg_cnt - 4),
       headline: race.comp_nm,
       standfirst: `${dayjs(race.stt_dt).format("M월 D일")}, 기강인 ${race.reg_cnt}명이 출발선에 선다`,
-      figure: dday,
+      figure: getRaceDday(race.stt_dt),
       figureLabel: null,
     });
   }
 
-  for (const rec of feed.records) {
-    const label = getRecordLabel({
-      sport: rec.sport,
-      evt: rec.evt,
-      rec_time_sec: rec.rec_time_sec,
-      race_nm: rec.race_nm,
-      race_dt: null,
-    });
+  // ② 새 얼굴 — 최근 30일. 가장 최근 1명이 대표, 나머지는 레일.
+  const newbies = feed.newbies.filter((n) => withinDays(n.event_at, WINDOW_DAYS));
+  const [newbieLead, ...restNewbies] = newbies;
+  if (newbieLead) {
     ledes.push({
-      key: `record-${rec.entity_id}`,
-      kicker: "기록",
-      entity: {
-        type: "record",
-        id: rec.entity_id,
-        rctnCd: rec.rctn_cd,
-        count: rec.rctn_count,
-        mine: rec.my_rctn === rec.rctn_cd,
-      },
-      people: [
-        { mem_id: rec.mem_id, mem_nm: rec.mem_nm, avatar_url: rec.avatar_url },
-      ],
-      headline: `${rec.mem_nm}, ${label}를 완주하다`,
-      standfirst: rec.race_nm ?? "기강 러닝 기록",
-      figure: secondsToTime(rec.rec_time_sec),
-      figureLabel: label,
-    });
-  }
-
-  for (const nb of feed.newbies) {
-    ledes.push({
-      key: `newbie-${nb.entity_id}`,
+      key: `newbie-${newbieLead.entity_id}`,
       kicker: "새 얼굴",
       entity: {
         type: "newbie",
-        id: nb.entity_id,
-        rctnCd: nb.rctn_cd,
-        count: nb.rctn_count,
-        mine: nb.my_rctn === nb.rctn_cd,
+        id: newbieLead.entity_id,
+        rctnCd: newbieLead.rctn_cd,
+        count: newbieLead.rctn_count,
+        myCount: newbieLead.my_cnt,
       },
-      people: [
-        { mem_id: nb.mem_id, mem_nm: nb.mem_nm, avatar_url: nb.avatar_url },
-      ],
-      headline: `${nb.mem_nm}, 기강에 합류하다`,
-      standfirst: `${dayjs(nb.event_at).format("M월 D일")}부터 함께 달립니다`,
+      people: [newbieLead],
+      subs: restNewbies.slice(0, MAX_SUBS),
+      moreCount: Math.max(0, restNewbies.length - MAX_SUBS),
+      headline: `${newbieLead.mem_nm}, 기강에 합류하다`,
+      standfirst:
+        restNewbies.length > 0
+          ? `${dayjs(newbieLead.event_at).format("M월 D일")} 합류 · 최근 한 달 새 얼굴 ${newbies.length}명`
+          : `${dayjs(newbieLead.event_at).format("M월 D일")}부터 함께 달립니다`,
       figure: null,
       figureLabel: null,
     });
   }
 
+  // ③ 기록 — 최근 30일. 가장 최근 1건이 대표, 나머지는 레일.
+  const recs = feed.records.filter((r) => withinDays(r.race_dt, WINDOW_DAYS));
+  const [recLead, ...restRecs] = recs;
+  if (recLead) {
+    const label = getRecordLabel({
+      sport: recLead.sport,
+      evt: recLead.evt,
+      rec_time_sec: recLead.rec_time_sec,
+      race_nm: recLead.race_nm,
+      race_dt: recLead.race_dt,
+    });
+    ledes.push({
+      key: `record-${recLead.entity_id}`,
+      kicker: "기록",
+      entity: {
+        type: "record",
+        id: recLead.entity_id,
+        rctnCd: recLead.rctn_cd,
+        count: recLead.rctn_count,
+        myCount: recLead.my_cnt,
+      },
+      people: [recLead],
+      subs: restRecs.slice(0, MAX_SUBS),
+      moreCount: Math.max(0, restRecs.length - MAX_SUBS),
+      headline: `${recLead.mem_nm}, ${label}를 완주하다`,
+      standfirst: [recLead.race_nm, dayjs(recLead.race_dt).format("M월 D일")]
+        .filter(Boolean)
+        .join(" · "),
+      figure: secondsToTime(recLead.rec_time_sec),
+      figureLabel: label,
+    });
+  }
+
+  // ④ 이달의 참가왕 — 하단 섹션에서 뺐으므로 여기가 유일한 자리다.
   const king = feed.month_rank[0];
   if (king) {
     ledes.push({
       key: `king-${king.mem_id}`,
       kicker: `${dayjs().format("M월")} 참가왕`,
       entity: null,
-      people: [
-        { mem_id: king.mem_id, mem_nm: king.mem_nm, avatar_url: king.avatar_url },
-      ],
+      people: [king],
+      subs: feed.month_rank.slice(1, 1 + MAX_SUBS),
+      moreCount: 0,
       headline: `${king.mem_nm}, 이번 달 가장 많이 나오다`,
       standfirst: "모임 참석 1위",
       figure: String(king.attd_cnt),
@@ -131,23 +169,7 @@ function buildLedes(feed: StoryFeed): Lede[] {
     });
   }
 
-  const top = feed.actv_rank[0];
-  if (top) {
-    ledes.push({
-      key: `actv-${top.mem_id}`,
-      kicker: "활동지수",
-      entity: null,
-      people: [
-        { mem_id: top.mem_id, mem_nm: top.mem_nm, avatar_url: top.avatar_url },
-      ],
-      headline: `${top.mem_nm}, 활동지수 1위`,
-      standfirst: "모임·대회를 통틀어 가장 부지런한 기강인",
-      figure: top.actv_score.toLocaleString(),
-      figureLabel: "활동지수",
-    });
-  }
-
-  return ledes.slice(0, 8);
+  return ledes;
 }
 
 /**
@@ -155,7 +177,9 @@ function buildLedes(feed: StoryFeed): Lede[] {
  *
  * 스크롤 컨테이너 대신 인덱스 상태로 한 장만 그린다. 스와이프 한 번에 정확히 한 칸씩
  * 움직여야 해서(관성 스크롤은 여러 칸을 건너뛴다) 포인터 제스처를 직접 읽는다.
- * 사용자가 직접 넘기면 자동 전환을 멈춘다 — 읽는 중에 바뀌는 게 가장 거슬리므로.
+ *
+ * 사용자가 직접 넘기면 10초 멈춘다 — 읽는 중에 바뀌는 게 가장 거슬리므로. 다만 영영
+ * 멈추면 한 번 만진 뒤로는 전광판이 죽은 화면이 되므로, 반응이 없으면 자동 전환을 되살린다.
  */
 export function StoryLede({
   feed,
@@ -168,8 +192,24 @@ export function StoryLede({
   const total = ledes.length;
 
   const [active, setActive] = useState(0);
-  const [manual, setManual] = useState(false);
+  const [paused, setPaused] = useState(false);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
+  const resumeTimerRef = useRef<number | null>(null);
+
+  /** 손이 닿았다 — 잠시 멈추고, 조용해지면 다시 돈다 */
+  const pauseThenResume = useCallback(() => {
+    setPaused(true);
+    if (resumeTimerRef.current !== null)
+      window.clearTimeout(resumeTimerRef.current);
+    resumeTimerRef.current = window.setTimeout(() => setPaused(false), PAUSE_MS);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (resumeTimerRef.current !== null)
+        window.clearTimeout(resumeTimerRef.current);
+    };
+  }, []);
 
   const go = useCallback(
     (dir: 1 | -1) => {
@@ -180,7 +220,7 @@ export function StoryLede({
   );
 
   useEffect(() => {
-    if (manual || total <= 1) return;
+    if (paused || total <= 1) return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduced) return;
 
@@ -190,7 +230,7 @@ export function StoryLede({
     }, ROTATE_MS);
 
     return () => window.clearInterval(timer);
-  }, [manual, total]);
+  }, [paused, total]);
 
   if (total === 0) {
     return (
@@ -215,7 +255,7 @@ export function StoryLede({
     const dx = e.clientX - start.x;
     const dy = e.clientY - start.y;
     if (Math.abs(dx) < 40 || Math.abs(dx) <= Math.abs(dy)) return;
-    setManual(true);
+    pauseThenResume();
     go(dx < 0 ? 1 : -1);
   }
 
@@ -231,69 +271,106 @@ export function StoryLede({
       }}
       className="touch-pan-y select-none px-6"
     >
-      <article key={lede.key} className="lede-in flex flex-col gap-3">
-        <span className="font-numeric text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-          {lede.kicker}
-        </span>
+      <div key={lede.key} className="lede-in flex gap-3">
+        <article className="flex min-w-0 flex-1 flex-col gap-3">
+          <span className="font-numeric text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            {lede.kicker}
+          </span>
 
-        <h2 className="text-balance font-serif text-[26px] font-normal leading-[1.28] text-foreground">
-          {lede.headline}
-        </h2>
+          <h2 className="text-balance font-serif text-[26px] font-normal leading-[1.28] text-foreground">
+            {lede.headline}
+          </h2>
 
-        <p className="text-[13px] leading-relaxed text-muted-foreground">
-          {lede.standfirst}
-        </p>
+          <p className="text-[13px] leading-relaxed text-muted-foreground">
+            {lede.standfirst}
+          </p>
 
-        <div className="flex items-center gap-3 pt-0.5">
-          <div className="flex shrink-0">
-            {lede.people.map((p, i) => (
-              <button
-                key={p.mem_id}
-                type="button"
-                onClick={() => onSelectMember(p.mem_id, p.mem_nm)}
-                aria-label={`${p.mem_nm} 프로필 보기`}
-                className={cn(
-                  "rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95",
-                  i > 0 && "-ml-2.5 ring-2 ring-background",
-                  lede.people.length > 1 && "ring-2 ring-background",
-                )}
-              >
-                <Avatar
-                  src={p.avatar_url}
-                  seed={p.mem_id}
-                  alt={p.mem_nm}
-                  size={lede.people.length > 1 ? "sm" : "lg"}
-                />
-              </button>
-            ))}
-          </div>
-
-          {lede.figure && (
-            <div className="ml-auto flex shrink-0 flex-col items-end">
-              <span className="font-numeric text-[27px] font-medium leading-none text-foreground tabular-nums">
-                {lede.figure}
-              </span>
-              {lede.figureLabel && (
-                <span className="mt-1 text-[11px] text-muted-foreground">
-                  {lede.figureLabel}
+          <div className="flex items-center gap-3 pt-0.5">
+            <div className="flex shrink-0">
+              {lede.people.map((p, i) => (
+                <button
+                  key={p.mem_id}
+                  type="button"
+                  onClick={() => onSelectMember(p.mem_id, p.mem_nm)}
+                  aria-label={`${p.mem_nm} 프로필 보기`}
+                  className={cn(
+                    "rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95",
+                    i > 0 && "-ml-2.5",
+                    lede.people.length > 1 && "ring-2 ring-background",
+                  )}
+                >
+                  <Avatar
+                    src={p.avatar_url}
+                    seed={p.mem_id}
+                    alt={p.mem_nm}
+                    size={lede.people.length > 1 ? "sm" : "lg"}
+                  />
+                </button>
+              ))}
+              {lede.people.length > 1 && lede.moreCount > 0 && (
+                <span className="ml-1.5 self-center font-numeric text-[11px] text-muted-foreground tabular-nums">
+                  외 {lede.moreCount}
                 </span>
               )}
             </div>
-          )}
-        </div>
 
-        {lede.entity && (
-          <div className="pt-1">
-            <StoryReactionButton
-              entityType={lede.entity.type}
-              entityId={lede.entity.id}
-              rctnCd={lede.entity.rctnCd}
-              initialCount={lede.entity.count}
-              initialMine={lede.entity.mine}
-            />
+            {lede.figure && (
+              <div className="ml-auto flex shrink-0 flex-col items-end">
+                <span className="font-numeric text-[27px] font-medium leading-none text-foreground tabular-nums">
+                  {lede.figure}
+                </span>
+                {lede.figureLabel && (
+                  <span className="mt-1 text-[11px] text-muted-foreground">
+                    {lede.figureLabel}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
+
+          {lede.entity && (
+            <div className="pt-1">
+              <StoryReactionButton
+                entityType={lede.entity.type}
+                entityId={lede.entity.id}
+                rctnCd={lede.entity.rctnCd}
+                initialCount={lede.entity.count}
+                initialMyCount={lede.entity.myCount}
+              />
+            </div>
+          )}
+        </article>
+
+        {/* 우측 레일 — 신문의 사이드바. 세로 괘선으로 본문과 나눈다 */}
+        {lede.subs.length > 0 && (
+          <aside className="flex w-12 shrink-0 flex-col items-center gap-2.5 border-l border-border pl-2 pt-6">
+            {lede.subs.map((s) => (
+              <button
+                key={s.mem_id}
+                type="button"
+                onClick={() => onSelectMember(s.mem_id, s.mem_nm)}
+                aria-label={`${s.mem_nm} 프로필 보기`}
+                className="flex w-full flex-col items-center gap-1 rounded transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
+              >
+                <Avatar
+                  src={s.avatar_url}
+                  seed={s.mem_id}
+                  alt={s.mem_nm}
+                  size="sm"
+                />
+                <span className="w-full truncate text-center text-[10px] leading-tight text-muted-foreground">
+                  {s.mem_nm}
+                </span>
+              </button>
+            ))}
+            {lede.moreCount > 0 && (
+              <span className="font-numeric text-[10px] text-muted-foreground tabular-nums">
+                외 {lede.moreCount}
+              </span>
+            )}
+          </aside>
         )}
-      </article>
+      </div>
 
       {total > 1 && (
         <div className="flex items-center gap-2 pt-5">
@@ -303,7 +380,7 @@ export function StoryLede({
               key={l.key}
               type="button"
               onClick={() => {
-                setManual(true);
+                pauseThenResume();
                 setActive(i);
               }}
               aria-label={`${i + 1}번째 기사 보기`}

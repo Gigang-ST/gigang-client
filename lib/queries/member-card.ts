@@ -44,28 +44,19 @@ export type MemberCardRecord = {
 };
 
 /**
- * `get_public_member_card` RPC 응답.
+ * 컴팩트 카드가 그리는 데 실제로 필요한 필드만.
  *
- * 프라이버시: 공개 허용목록만 담는다 — 성별·생일·연락처·거주지·회비는 RPC가 애초에 내려주지 않는다.
- * `stats.activity_score`는 **"활동지수"로만** 노출한다(기강 포인트 히든 운영 원칙).
+ * `MemberCardCompact`가 `MemberCardData` 전체를 요구하면, 전광판 피드처럼 카드 한 장만
+ * 그리면 되는 곳도 상세 카드 payload(기록·칭호 목록·최근활동…)를 통째로 실어야 한다.
+ * 표면을 여기서 좁혀 **간단 카드와 상세 카드의 데이터 의존을 끊는다** —
+ * `MemberCardData`가 이 타입을 확장하므로 상세 카드를 넘기던 기존 호출부는 그대로 동작한다.
  */
-export type MemberCardData = {
+export type MemberCardCompactData = {
   mem_nm: string;
   avatar_url: string | null;
   badge_effect: string;
   frame_cd: string;
   intro_txt: string | null;
-  join_dt: string | null;
-  /** 등번호 = 팀 합류 순번(탈퇴자 포함 고정) */
-  back_no: number | null;
-  utmb_index: number | null;
-  /** 다음 출전 예정 대회 1건 — RECORDS 아래 정보행. `short_id`로 대회 상세를 연다 */
-  upcoming_race: {
-    comp_id: string;
-    short_id: string | null;
-    comp_nm: string;
-    stt_dt: string;
-  } | null;
   /** 온보딩에서 받은 소개 정보 — 전부 미입력이면 null */
   running_profile: {
     avg_pace_cd: string | null;
@@ -77,21 +68,41 @@ export type MemberCardData = {
     /** 본인이 직접 쓴 목적 한마디 — 있으면 칩 대신 이걸 보여준다 */
     join_purp_txt: string | null;
   } | null;
-  /** 마지막 활동일(모임 참석·대회 기록 중 최근) — 활동 컨디션 판정용 */
-  last_actv_dt: string | null;
-  /** 최근 90일 활동 이력 — 최근활동 섹션에서 펼쳐본다(최신순) */
-  recent_actv: MemberCardActivity[];
   primary_title: {
     ttl_nm: string;
     ttl_desc: string | null;
     desc_visibility: TitleDescVisibility;
   } | null;
+};
+
+/**
+ * `get_public_member_card` RPC 응답.
+ *
+ * 프라이버시: 공개 허용목록만 담는다 — 성별·생일·연락처·거주지·회비는 RPC가 애초에 내려주지 않는다.
+ * `stats.activity_score`는 **"활동량"으로만** 노출한다(제도 이름은 화면에 쓰지 않는다).
+ */
+export type MemberCardData = MemberCardCompactData & {
+  join_dt: string | null;
+  /** 등번호 = 팀 합류 순번(탈퇴자 포함 고정) */
+  back_no: number | null;
+  utmb_index: number | null;
+  /** 다음 출전 예정 대회 1건 — RECORDS 아래 정보행. `short_id`로 대회 상세를 연다 */
+  upcoming_race: {
+    comp_id: string;
+    short_id: string | null;
+    comp_nm: string;
+    stt_dt: string;
+  } | null;
+  /** 마지막 활동일(모임 참석·대회 기록 중 최근) — 활동 컨디션 판정용 */
+  last_actv_dt: string | null;
+  /** 최근 90일 활동 이력 — 최근활동 섹션에서 펼쳐본다(최신순) */
+  recent_actv: MemberCardActivity[];
   titles: MemberCardTitle[];
   best_records: MemberCardRecord[];
   stats: {
     gthr_attd_cnt: number;
     comp_reg_cnt: number;
-    /** 포인트 원장 합산 — UI에 숫자로 노출하지 않는다(활동 컨디션 판정 보조용) */
+    /** 원장 전체 누적 — 카드에는 숫자로 노출하지 않는다(활동 컨디션 판정 보조용) */
     activity_score: number;
     /** 최근 90일 활동 건수(모임 참석 + 대회 기록) — 컨디션 표정의 주 지표 */
     recent_actv_cnt: number;

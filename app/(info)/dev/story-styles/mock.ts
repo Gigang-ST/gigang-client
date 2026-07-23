@@ -61,3 +61,18 @@ export const MOCK_ACTV: (MockPerson & { rank: number; score: number })[] = [
 ];
 
 export const MOCK_WEEK = { gthr_cnt: 7, attd_cnt: 34, rec_cnt: 2 };
+
+/** 각오 띄우기 시안용 — 길이를 일부러 섞었다(짧은 것·긴 것 둘 다 담겨야 레이아웃이 검증된다) */
+export const MOCK_PLEDGES: {
+  id: string;
+  mem_id: string;
+  mem_nm: string;
+  text: string;
+  when: string;
+}[] = [
+  { id: "p-1", mem_id: "m-1", mem_nm: "김준민", text: "올해 안에 서브4. 이번엔 진짜.", when: "2시간 전" },
+  { id: "p-2", mem_id: "m-5", mem_nm: "정하영", text: "화요일 정모는 무조건 나간다", when: "어제" },
+  { id: "p-3", mem_id: "m-6", mem_nm: "오세빈", text: "부상 없이 춘천까지", when: "3일 전" },
+  { id: "p-4", mem_id: "m-2", mem_nm: "이서준", text: "첫 하프, 완주만 하자", when: "5일 전" },
+  { id: "p-5", mem_id: "m-7", mem_nm: "한지우", text: "달리기 싫은 날에도 신발은 신는다", when: "1주 전" },
+];

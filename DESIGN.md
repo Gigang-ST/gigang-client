@@ -146,17 +146,25 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 | InfoRow | `info-row.tsx` | `label`, `value?` | label-value 쌍 행 |
 | Avatar | `avatar.tsx` | `src?`, `size?`, `fallbackIcon?` | 프로필 사진 + 폴백 아이콘 |
 | StatCard | `stat-card.tsx` | `value`, `label`, `valueClassName?` | 통계 수치 카드 |
+| HelpTip | `help-tip.tsx` | `title`, `children`, `align?` | 원형 물음표 + 팝오버 설명 |
+
+**HelpTip은 앱 전역 공통 패턴이다.** 설명이 필요한 지표·규칙 옆에 붙여 "이게 뭔가"를 그 자리에서 답한다
+(게임 UI의 물음표 버튼과 같은 역할). 새 기능에 설명이 필요하면 별도 툴팁을 만들지 말고 이걸 쓴다.
+아이콘은 14px이지만 히트 영역은 32px — 손가락으로 눌러야 하므로.
 
 ### 멤버 프로필 카드 (`components/members/`)
 
 | 컴포넌트 | 파일 | Props | 용도 |
 |----------|------|-------|------|
-| MemberCardCompact | `member-card.tsx` | `memId`, `data` | 컴팩트 카드 — 전광판 스포트라이트·피드 인라인 (기록·숫자 없음) |
+| MemberCardCompact | `member-card.tsx` | `memId`, `data`, `meta?`, `onSelect?` | 간단 카드 — "이 사람이 누구인지". 한마디 + 러닝 프로필 한 줄. `meta`는 우측 슬롯(가입일 등), `onSelect`를 주면 카드 전체가 버튼 |
 | MemberCardDetail | `member-card-detail.tsx` | `memId`, `data`, `onEditIntro?` | 상세 카드 — 스크린 존 + RECORDS/ACTIVITY/TITLES. `onEditIntro`를 주면 한마디에 연필이 생긴다 |
 | MemberCardDialog | `member-card-dialog.tsx` | `memId`, `memNm?`, `teamId`, `open`, `onOpenChange`, `stacked?`, `isOwner?` | 오픈 시 RPC 1회 + 스켈레톤·재시도·탈퇴 폴백. `stacked`로 다른 시트 위에 겹침 |
 | IntroEditDialog | `intro-edit-dialog.tsx` | `open`, `onOpenChange`, `initialValue`, `onSaved?`, `stacked?` | 한마디 한 줄 인라인 편집(페이지 이동 없음) |
 
+- **간단 vs 상세**: 간단 카드는 "이 사람이 누구인지"(한마디·러닝 프로필), 상세 카드는 "이 사람의 실적"
+  (RECORDS/ACTIVITY/TITLES). 실적이 없는 신규 멤버도 채워지도록 간단 카드에는 수치를 넣지 않는다.
 - 데이터: `getPublicMemberCard()` (`lib/queries/member-card.ts`) — `null`이면 "함께 달렸던 멤버" 폴백.
+  간단 카드는 `MemberCardCompactData`(좁힌 표면)만 요구해 피드 RPC payload로도 그릴 수 있다.
 - 표시 규칙(컨디션 4단계·종목 라벨·NEW 판정·D-day·러닝 프로필)은 `lib/member-card.ts` 한 곳에서 관리.
 - 모션: `.board-flicker` / `.board-cone` / `.board-rise*` (globals.css) — `prefers-reduced-motion` 존중.
 
@@ -164,11 +172,24 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 
 | 컴포넌트 | 파일 | 용도 |
 |----------|------|------|
-| StoryClient | `story-client.tsx` | 전광판 본문 — 스포트라이트 + 컴팩트 존 4개 + 프로필 카드 진입 |
-| StorySpotlight | `story-spotlight.tsx` | 스와이프 카드(자동 전환·전환 도트). 스와이프하면 자동 전환 정지 |
-| StoryReactionButton | `story-reaction-button.tsx` | 낙관적 업데이트 리액션 토글 |
+| StoryClient | `story-client.tsx` | 전광판 본문 — 리드 + 기상대 + 존 3개 + 프로필 카드 진입 |
+| StoryLede | `story-lede.tsx` | 1면 리드 — 종류당 한 칸(대회·새얼굴·기록·참가왕). 좌측 메인 + 우측 레일 |
+| StoryWeather | `story-weather.tsx` | 기강 기상대 — 크루 분위기 한 단어 + 수치 격자 + 8주 추세 |
+| StoryReactionButton | `story-reaction-button.tsx` | 응원 카운트업 — 누른 만큼 오른다(취소 없음, 1인 99회) |
+| ActvHistorySheet | `actv-history-sheet.tsx` | 활동량 내역 바텀시트 — 이번 달 획득 내역 날짜 역순 + 합계 |
 
-- 데이터: `getStoryFeed()` (`lib/queries/story-feed.ts`) — 공개 데이터만 캐시하고 내 리액션은 클라이언트가 오버레이.
+- 데이터: `getStoryFeed()` (`lib/queries/story-feed.ts`) + `getTeamOverview()` (`lib/queries/team-overview.ts`).
+  둘 다 공개 집계만 캐시하고 내 리액션은 클라이언트가 오버레이한다.
+- **리드 슬롯**: 종류당 **한 칸**이다. 신규 멤버가 넷이라고 네 칸을 쓰면 스와이프가 명단 낭독이 된다.
+  가장 최근 1명(1건)을 대표로 크게, 나머지는 우측 레일(`w-12` + 세로 괘선)에 작게 — 빠지는 사람이 없게.
+  자동 전환 3초, 손이 닿으면 10초 멈췄다 반응이 없으면 스스로 재개한다(영구 정지 금지).
+- **기상대**: 크루 분위기를 **먼저 말하고 근거를 뒤에** 붙인다. 단어는 프로필 카드의 개인 컨디션과
+  같은 4단계(`lib/team-weather.ts` ↔ `getActivityMood`) — 같은 척도임을 설명 없이 전달하기 위해서.
+  판정은 이번 주를 직전 4주 평균과 견준 비율이다(크루 규모마다 절대값이 달라서).
+- **응원**: 탭은 즉시 반영하고 서버 전송은 700ms 디바운스로 모은다. `revalidateTag`를 부르지 않는다 —
+  연타마다 무효화하면 `story-feed` 캐시가 남아나지 않는다. 표시 상수·한도는 `lib/story-reaction.ts` 한 곳.
+- **활동량**: 화면 명칭은 "활동량"으로 통일하고 제도 이름(포인트)은 쓰지 않는다. 집계는 **매달**(`aply_dt` 기준,
+  1일 초기화) — 경계는 `lib/activity-index.ts`의 `getActvMonthRange()`가 정본이고 랭킹·내역이 이걸 공유한다.
 
 ### 가입 위저드 (`components/auth/`, `components/`)
 
@@ -292,4 +313,5 @@ import { InfoRow } from "@/components/common/info-row";
 10. **색상**: CSS 변수 토큰만 사용, 하드코딩 RGB/hex 금지
 11. **컴포넌트 위치**: shadcn 설치 컴포넌트 → `ui/`, 프로젝트 공통 → `common/`, 도메인별 → `auth/`, `races/` 등
 12. **환경변수**: `process.env` 직접 접근 금지 → `lib/env.ts`에서 import
-13. **폼 검증**: Zod 스키마는 `lib/validations/`에 정의, React Hook Form의 `zodResolver`와 통합
+13. **기능 설명**: 설명이 필요한 지표·규칙 옆에는 `HelpTip` 사용 (커스텀 툴팁 작성 금지)
+14. **폼 검증**: Zod 스키마는 `lib/validations/`에 정의, React Hook Form의 `zodResolver`와 통합

@@ -3,17 +3,26 @@
 import { useState } from "react";
 import Link from "next/link";
 
+import {
+  ACTV_HELP_TEXT,
+  getActvMonthLabel,
+} from "@/lib/activity-index";
 import { dayjs, secondsToTime } from "@/lib/dayjs";
 import { getRaceDday, getRecordLabel, getSportDotCls } from "@/lib/member-card";
 import { cn } from "@/lib/utils";
 
 import { Avatar } from "@/components/common/avatar";
+import { HelpTip } from "@/components/common/help-tip";
+import { MemberCardCompact } from "@/components/members/member-card";
 import { MemberCardDialog } from "@/components/members/member-card-dialog";
+import { ActvHistorySheet } from "@/components/story/actv-history-sheet";
 import { StoryLede } from "@/components/story/story-lede";
 import { StoryMasthead } from "@/components/story/story-masthead";
 import { StorySection } from "@/components/story/story-section";
+import { StoryWeather } from "@/components/story/story-weather";
 
 import type { StoryFeed } from "@/lib/queries/story-feed";
+import type { TeamOverview } from "@/lib/queries/team-overview";
 
 /**
  * 기강이야기 — 크루 소식 지면.
@@ -24,15 +33,21 @@ import type { StoryFeed } from "@/lib/queries/story-feed";
  */
 export function StoryClient({
   feed,
+  overview,
   teamId,
   myMemId,
 }: {
   feed: StoryFeed;
+  /** 크루 총량 — 기상대 상자에 쓴다 */
+  overview: TeamOverview;
   teamId: string;
   /** 로그인 사용자 — 본인 카드면 한마디를 바로 수정할 수 있다 */
   myMemId: string | null;
 }) {
   const [selected, setSelected] = useState<{ memId: string; name: string } | null>(
+    null,
+  );
+  const [history, setHistory] = useState<{ memId: string; name: string } | null>(
     null,
   );
 
@@ -46,8 +61,6 @@ export function StoryClient({
     feed.month_rank.length > 0 ||
     feed.actv_rank.length > 0;
 
-  const king = feed.month_rank[0];
-
   return (
     <div className="flex flex-col">
       <StoryMasthead week={feed.week_stat} />
@@ -57,6 +70,9 @@ export function StoryClient({
       </div>
 
       <div className="flex flex-col gap-8 pb-8 pt-6">
+        {/* 기강 기상대 — 개별 소식(리드) 다음에 크루 전체 분위기 */}
+        <StoryWeather overview={overview} />
+
         {/* 새 얼굴 — 최근 3명 + 더보기 */}
         <StorySection
           label="New Members"
@@ -71,28 +87,21 @@ export function StoryClient({
           unit="명"
         >
           {(newbies) => (
-            <ul className="flex flex-col">
+            // 새 얼굴은 실적이 없어 한 줄 목록으로는 이름밖에 남지 않는다.
+            // 간단 프로필 카드로 러닝 프로필까지 보여주고, 탭하면 상세로 이어진다.
+            <ul className="flex flex-col gap-2 pt-2">
               {newbies.map((nb) => (
-                <li key={nb.entity_id} className="rule-row">
-                  <button
-                    type="button"
-                    onClick={() => selectMember(nb.mem_id, nb.mem_nm)}
-                    aria-label={`${nb.mem_nm} 프로필 보기`}
-                    className="flex w-full items-center gap-3 py-2.5 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <Avatar
-                      src={nb.avatar_url}
-                      seed={nb.mem_id}
-                      alt={nb.mem_nm}
-                      size="sm"
-                    />
-                    <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-foreground">
-                      {nb.mem_nm}
-                    </span>
-                    <span className="shrink-0 font-numeric text-[11px] text-muted-foreground tabular-nums">
-                      {dayjs(nb.event_at).format("M.DD")}
-                    </span>
-                  </button>
+                <li key={nb.entity_id}>
+                  <MemberCardCompact
+                    memId={nb.mem_id}
+                    data={nb}
+                    onSelect={() => selectMember(nb.mem_id, nb.mem_nm)}
+                    meta={
+                      <span className="font-numeric text-[11px] text-muted-foreground tabular-nums">
+                        {dayjs(nb.event_at).format("M.DD")}
+                      </span>
+                    }
+                  />
                 </li>
               ))}
             </ul>
@@ -156,10 +165,10 @@ export function StoryClient({
           </section>
         )}
 
-        {/* 최근 기록 — 3건 + 더보기 최대 10건 */}
+        {/* 최근 기록 — 기간 제한 없이 최신순 3건 + 더보기 최대 10건 */}
         <StorySection
           label="Results"
-          lead="최근 90일에 올라온 기록"
+          lead="가장 최근에 올라온 기록부터"
           items={feed.records}
           initial={3}
           max={10}
@@ -191,9 +200,15 @@ export function StoryClient({
                         evt: rec.evt,
                         rec_time_sec: rec.rec_time_sec,
                         race_nm: rec.race_nm,
-                        race_dt: null,
+                        race_dt: rec.race_dt,
                       })}
                     </span>
+                    {/* 언제 뛴 기록인지 — 기간 제한이 없어지면서 필수 정보가 됐다 */}
+                    {rec.race_dt && (
+                      <span className="shrink-0 font-numeric text-[11px] text-muted-foreground tabular-nums">
+                        {dayjs(rec.race_dt).format("YY.M.DD")}
+                      </span>
+                    )}
                     <span className="shrink-0 font-numeric text-[15px] font-medium text-foreground tabular-nums">
                       {secondsToTime(rec.rec_time_sec)}
                     </span>
@@ -204,62 +219,33 @@ export function StoryClient({
           )}
         </StorySection>
 
-        {/* 이달의 참가왕 — 한 명만, 큰 수치로 */}
-        {king && (
-          <section className="flex flex-col px-6">
-            <div className="rule-section pb-2">
-              <h2 className="font-numeric text-[11px] font-medium uppercase tracking-[0.2em] text-foreground">
-                Attendance · {dayjs().format("MMMM")}
-              </h2>
-            </div>
-            <button
-              type="button"
-              onClick={() => selectMember(king.mem_id, king.mem_nm)}
-              aria-label={`${king.mem_nm} 프로필 보기`}
-              className="flex items-center gap-4 py-4 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Avatar
-                src={king.avatar_url}
-                seed={king.mem_id}
-                alt={king.mem_nm}
-                size="lg"
-              />
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="truncate font-serif text-[20px] text-foreground">
-                  {king.mem_nm}
-                </span>
-                <span className="text-[12px] text-muted-foreground">
-                  이번 달 가장 많이 나왔다
-                </span>
-              </div>
-              <div className="flex shrink-0 items-baseline gap-1">
-                <span className="font-numeric text-[38px] font-medium leading-none text-foreground tabular-nums">
-                  {king.attd_cnt}
-                </span>
-                <span className="text-[12px] text-muted-foreground">회</span>
-              </div>
-            </button>
-          </section>
-        )}
+        {/* 이달의 참가왕은 스포트라이트 슬롯에만 둔다 — 활동량도 이번 달 지표가 되면서
+            월 랭킹 두 개가 지면에 연달아 서면 같은 걸 두 번 본 것처럼 읽힌다. */}
 
-        {/* 기강 활동지수 — 5명 + 더보기 최대 10명 */}
+        {/* 기강 활동량 — 5명 + 더보기 최대 10명. 이번 달 집계 */}
         <StorySection
           label="Activity Index"
-          lead="기강 활동량"
+          lead={`${getActvMonthLabel()} 활동량 · 매달 1일 초기화`}
           items={feed.actv_rank}
           initial={5}
           max={10}
           unit="명"
+          headerAction={
+            <HelpTip title="기강 활동량">{ACTV_HELP_TEXT}</HelpTip>
+          }
         >
           {(entries) => (
             <ul className="flex flex-col">
               {entries.map((entry) => (
-                <li key={entry.mem_id} className="rule-row">
+                <li
+                  key={entry.mem_id}
+                  className="rule-row flex items-center gap-3"
+                >
                   <button
                     type="button"
                     onClick={() => selectMember(entry.mem_id, entry.mem_nm)}
                     aria-label={`${entry.mem_nm} 프로필 보기`}
-                    className="flex w-full items-center gap-3 py-2.5 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex min-w-0 flex-1 items-center gap-3 py-2.5 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <span className="w-4 shrink-0 font-numeric text-[13px] text-muted-foreground tabular-nums">
                       {entry.rank}
@@ -277,6 +263,18 @@ export function StoryClient({
                       {entry.actv_score.toLocaleString()}
                     </span>
                   </button>
+
+                  {/* 원장 조회는 로그인 멤버만 — 비로그인에게는 버튼 자체를 보이지 않는다 */}
+                  {myMemId && (
+                    <button
+                      type="button"
+                      onClick={() => setHistory({ memId: entry.mem_id, name: entry.mem_nm })}
+                      aria-label={`${entry.mem_nm} 활동 내역 보기`}
+                      className="shrink-0 py-2.5 font-numeric text-[11px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      내역
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -304,6 +302,15 @@ export function StoryClient({
           if (!open) setSelected(null);
         }}
         isOwner={selected?.memId != null && selected.memId === myMemId}
+      />
+
+      <ActvHistorySheet
+        memId={history?.memId ?? null}
+        memNm={history?.name ?? ""}
+        open={history !== null}
+        onOpenChange={(open) => {
+          if (!open) setHistory(null);
+        }}
       />
     </div>
   );

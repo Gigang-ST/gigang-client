@@ -172,6 +172,38 @@ export type MemberIntro = {
   rows: { label: string; value: string }[];
 };
 
+/**
+ * 러닝 프로필 한 줄 — `6'00"/km · 8km · 합정역`.
+ *
+ * 상세 카드는 라벨-값 행(`MemberIntro.rows`)으로 펼치지만, 간단 카드는 한 줄에 이어붙인다.
+ * 라벨이 사라지므로 페이스에는 `/km`를 붙여야 숫자가 뭘 뜻하는지 알 수 있다.
+ * 아무것도 없으면 null — 줄 자체를 그리지 않는다.
+ */
+export function getRunningProfileLine(
+  profile: {
+    avg_pace_cd: string | null;
+    avg_run_dist_km: number | null;
+    near_stn_nm?: string | null;
+  } | null,
+): string | null {
+  if (!profile) return null;
+
+  const parts: string[] = [];
+  const paceCd = profile.avg_pace_cd as (typeof AVG_PACE_CODES)[number] | null;
+  // UNKNOWN("잘 모르겠어요")은 정보가 없는 것과 같다.
+  if (paceCd && paceCd !== "UNKNOWN" && PACE_LABELS[paceCd]) {
+    // P730_OVER만 문장형 라벨이라 "/km"를 붙이면 말이 안 된다.
+    parts.push(paceCd === "P730_OVER" ? `7'30" 이상` : `${PACE_LABELS[paceCd]}/km`);
+  }
+  if (profile.avg_run_dist_km != null && profile.avg_run_dist_km > 0) {
+    parts.push(`${profile.avg_run_dist_km}km`);
+  }
+  const stn = profile.near_stn_nm?.trim();
+  if (stn) parts.push(stn.endsWith("역") ? stn : `${stn}역`);
+
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 /** 소개할 내용이 하나도 없으면 null — 섹션 자체를 그리지 않는다 */
 export function getMemberIntro(
   profile: {

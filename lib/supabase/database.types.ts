@@ -2493,6 +2493,17 @@ export type Database = {
         Args: { p_eff_at?: string; p_team_mem_id: string }
         Returns: undefined
       }
+      bump_story_rctn: {
+        Args: {
+          p_delta: number
+          p_entity_id: string
+          p_entity_type: string
+          p_mem_id: string
+          p_rctn_cd: string
+          p_team_id: string
+        }
+        Returns: number
+      }
       cancel_gthr_attendance: {
         Args: {
           p_actor_cd: string
@@ -2681,6 +2692,10 @@ export type Database = {
           start_date: string
           url: string
         }[]
+      }
+      get_team_overview: {
+        Args: { p_team_id: string }
+        Returns: Json
       }
       get_team_story_feed: {
         Args: { p_mem_id?: string; p_team_id: string }
