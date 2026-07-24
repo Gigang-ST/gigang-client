@@ -123,10 +123,16 @@ const SIZE_CLASS: Record<TitleBadgeSize, string> = {
 
 export type TitleDescVisibility = "always" | "others" | "held" | "never";
 
+/**
+ * 칭호 "설명"의 공개 여부. 칭호 이름·배지 노출과는 무관하다(그건 `masked`의 몫).
+ *
+ * others가 무조건 true인 건 의도다 — 툴팁이 붙는 맥락은 이미 보유자가 있는 화면
+ * (남의 카드·획득 피드·내 도감)이라, "보유자가 있으면 공개"가 곧 true다.
+ * 누구 카드인지(isOwner)는 공개 여부를 가르지 않으므로 인자로 받지 않는다.
+ */
 function resolveDescVisible(
   visibility: TitleDescVisibility,
   isHeld: boolean,
-  isOwner: boolean,
 ): boolean {
   switch (visibility) {
     case "always": return true;
@@ -149,7 +155,7 @@ function resolveDescVisible(
  * 툴팁 포함 사용:
  *   <TitleBadge
  *     name="SUB4" effect="gold"
- *     tooltip={{ desc: "풀코스 4시간 벽을 넘은 러너", visibility: "others", isHeld: true, isOwner: false }}
+ *     tooltip={{ desc: "풀코스 4시간 벽을 넘은 러너", visibility: "others", isHeld: true }}
  *   />
  *
  * 컬렉션 선택 모드 (선택 상태 + 마스킹):
@@ -178,7 +184,6 @@ export function TitleBadge({
     desc: string | null;
     visibility: TitleDescVisibility;
     isHeld: boolean;
-    isOwner: boolean;
   };
   /** 컬렉션 선택 상태 */
   selected?: boolean;
@@ -219,7 +224,7 @@ export function TitleBadge({
   // 말풍선 텍스트: visibility 조건 통과하면 desc, 아니면 "???"
   // 말풍선 표시 여부는 tooltip prop 존재 여부로만 결정
   const descText = tooltip
-    ? resolveDescVisible(tooltip.visibility, tooltip.isHeld, tooltip.isOwner)
+    ? resolveDescVisible(tooltip.visibility, tooltip.isHeld)
       ? (tooltip.desc ?? "???")
       : "???"
     : null;
@@ -236,7 +241,10 @@ export function TitleBadge({
     }
   }
 
-  function handleClick() {
+  function handleClick(e: React.MouseEvent) {
+    // 배지는 부모가 클릭 가능한 행(예: 랭킹 행 → 프로필 카드) 안에 놓이는 일이 잦다.
+    // 전파를 막지 않으면 툴팁과 부모 액션이 한 번의 탭으로 동시에 열린다.
+    e.stopPropagation();
     if (tooltip && !masked) openTip();
     onClick?.();
   }

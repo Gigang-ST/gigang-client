@@ -124,13 +124,27 @@ type NotiManyInput = {
   batchId?: string | null;
 };
 
+/** insertNotiMany 결과. 기존 호출자는 반환값을 무시하므로 시그니처 확장은 하위호환이다. */
+export type InsertNotiManyResult = {
+  /** noti_mst 인앱 INSERT 성공 여부. INSERT 에러 시 false(발송 전면 실패). */
+  inAppOk: boolean;
+  /** 수신거부 필터 후 **실제로 인앱 INSERT된** mem_id 목록(=실측 발송 대상). */
+  notifiedMemIds: string[];
+};
+
 /**
  * 여러 멤버에게 같은 내용의 알림(인앱+푸시)을 발송한다.
  * - noti_pref_cfg로 수신 거부한 멤버는 자동 제외 (조회 1회)
  * - noti_mst 일괄 INSERT 후, 구독자에게 배치 푸시 (구독 IN 조회 1회)
+ *
+ * 반환값은 감사 무결성이 필요한 호출자(예: MCP send_push)가 실측 발송분을 기록하기 위한 것으로,
+ * 기존 호출자(gathering·board 등)는 반환값을 무시하므로 이 확장은 하위호환이다.
+ * 푸시는 기존대로 fire-and-forget(실패해도 인앱 흐름을 막지 않음)이다.
  */
-export async function insertNotiMany(input: NotiManyInput): Promise<void> {
-  if (input.memIds.length === 0) return;
+export async function insertNotiMany(
+  input: NotiManyInput,
+): Promise<InsertNotiManyResult> {
+  if (input.memIds.length === 0) return { inAppOk: true, notifiedMemIds: [] };
   const admin = createUntypedAdminClient();
 
   // 수신 거부자 일괄 조회 후 제외 (prefTypeEnm 지정 시 그 타입으로 판단)
@@ -145,7 +159,8 @@ export async function insertNotiMany(input: NotiManyInput): Promise<void> {
     (disabledPrefs ?? []).map((p: { mem_id: string }) => p.mem_id),
   );
   const targets = input.memIds.filter((id) => !disabled.has(id));
-  if (targets.length === 0) return;
+  // 전원 수신거부 = 인앱 저장은 정상(0건)이며 실패가 아니다. 실측 발송분 0으로 반환.
+  if (targets.length === 0) return { inAppOk: true, notifiedMemIds: [] };
 
   const { data: rows, error: insertErr } = await admin
     .from("noti_mst")
@@ -162,15 +177,20 @@ export async function insertNotiMany(input: NotiManyInput): Promise<void> {
       })),
     )
     .select("noti_id, mem_id");
-  // 알림은 부가 기능 — 실패해도 본행동을 막지 않는다. 로깅만.
+  // 알림은 부가 기능 — 실패해도 본행동을 막지 않는다(로깅만). 단, 인앱 저장 실패는 반환값에 명시해
+  // 감사 무결성이 필요한 호출자가 "발송 실패"로 판단할 수 있게 한다(inAppOk=false).
   if (insertErr) {
     console.error("[noti] insertNotiMany 인앱 저장 실패", insertErr.message);
-    return;
+    return { inAppOk: false, notifiedMemIds: [] };
   }
+
+  const insertedRows = (rows ?? []) as { noti_id: string; mem_id: string }[];
+  // 실제 INSERT된 행의 mem_id = 실측 발송 대상(수신거부 필터 반영분).
+  const notifiedMemIds = insertedRows.map((r) => r.mem_id);
 
   try {
     const payloadByMemId = new Map<string, PushPayload>();
-    for (const r of (rows ?? []) as { noti_id: string; mem_id: string }[]) {
+    for (const r of insertedRows) {
       payloadByMemId.set(
         r.mem_id,
         toPushPayload(
@@ -187,6 +207,8 @@ export async function insertNotiMany(input: NotiManyInput): Promise<void> {
   } catch (err) {
     console.error("[push] insertNotiMany 발송 실패", err);
   }
+
+  return { inAppOk: true, notifiedMemIds };
 }
 
 type NotiTeamInput = {

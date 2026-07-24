@@ -63,7 +63,6 @@ export function RecentTitles({ grants, initialCount = 4, myTitleNames = [] }: Re
                   desc: g.ttl_desc,
                   visibility: g.desc_visibility,
                   isHeld: myTitleNameSet.has(g.ttl_nm),
-                  isOwner: false,
                 }}
               />
               <span className="w-8 shrink-0 text-right font-mono text-[10px] text-muted-foreground tabular-nums">{dateLabel}</span>

@@ -17,7 +17,13 @@
 /.claude/gym-with-you-main/
 
 # 개발용 쇼케이스 페이지 (로컬 전용)
-/app/(info)/dev/
+# 디렉터리 자체를 제외하면 git이 하위를 훑지 않아 예외(!)가 먹지 않는다.
+# 그래서 "dev 아래 모든 것"을 제외하되 story-styles만 되살리는 순서로 쓴다.
+/app/(info)/dev/*
+# 단 기강이야기 스타일 비교는 팀원 공유용이라 예외 — 시안 확정 후 삭제한다
+!/app/(info)/dev/story-styles/
+# 접속자 표시 시안도 같은 성격(고르고 나면 삭제) — 개발계 배포에서 봐야 하므로 예외
+!/app/(info)/dev/presence-styles/
 
 # dependencies
 /node_modules
@@ -92,3 +98,4 @@ CLAUDE.local.md
 .env.*
 .gstack/
 .claude/dev-profile.toml
+.claude/set-project-state.json

@@ -20,6 +20,7 @@ import {
   Moon,
   Trophy,
   MessageSquare,
+  KeyRound,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
@@ -42,6 +43,7 @@ const accountItems: MenuItem[] = [
   { label: "계좌 정보", href: "/profile/bank", icon: CreditCard },
   { label: "회비 내역", href: "/profile/dues", icon: Wallet },
   { label: "건의하기", href: "/profile/feedback", icon: MessageSquare },
+  { label: "MCP 토큰", href: "/mcp-tokens", icon: KeyRound },
 ];
 
 const teamItems: MenuItem[] = [

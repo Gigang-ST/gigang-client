@@ -21,6 +21,8 @@ export type AppMemberProfile = {
   selected_badge_effect: string | null;
   /** 선택한 카드 프레임 코드 (effect_mst.effect_cd) */
   selected_frame_cd: string | null;
+  /** 한마디(자기소개) — 프로필 카드에 인용체로 노출. 최대 60자 */
+  intro_txt: string | null;
 };
 
 type MemMstRow = Database["public"]["Tables"]["mem_mst"]["Row"];
@@ -87,5 +89,6 @@ export function mapMstRelToAppMemberProfile(
     admin,
     selected_badge_effect: rel.selected_badge_effect ?? null,
     selected_frame_cd: rel.selected_frame_cd ?? null,
+    intro_txt: rel.intro_txt ?? null,
   };
 }

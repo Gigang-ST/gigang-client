@@ -6,6 +6,13 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* 폰트 3역할 — 본문(Pretendard) / 제호·헤드라인(리디바탕) / 수치(Oswald).
+     변수는 app/layout.tsx의 next/font가 주입한다.
+     Oswald는 라틴 전용이라 한글에 쓰면 안 된다 — 뒤에 Pretendard를 폴백으로 둔다. */
+  --font-sans: var(--font-pretendard), system-ui, sans-serif;
+  --font-serif: var(--font-ridibatang), var(--font-pretendard), serif;
+  --font-numeric: var(--font-oswald), var(--font-pretendard), sans-serif;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 
@@ -48,6 +55,13 @@
   --color-sport-trail-run: var(--sport-trail-run);
   --color-sport-triathlon: var(--sport-triathlon);
   --color-sport-cycling: var(--sport-cycling);
+
+  /* 전광판 스크린 존 (Board) — 프로필 카드 상단. 테마 불변(항상 야간) */
+  --color-board: var(--board);
+  --color-board-foreground: var(--board-foreground);
+  --color-board-muted: var(--board-muted);
+  --color-board-line: var(--board-line);
+  --color-board-amber: var(--board-amber);
 
   /* chart-* 은 sport-* 참조 (하위호환) */
   --color-chart-1: var(--sport-road-run);
@@ -103,6 +117,16 @@
   --event-full: oklch(0.623 0.188 260);
   --event-half: oklch(0.527 0.154 150);
   --event-10k: oklch(0.618 0.181 44);
+
+  /* 전광판 스크린 존 — 프로필 카드 상단 "라인업 콜" 전용.
+     라이트/다크 모두 동일한 야간 값을 쓴다(.dark에서 재정의하지 않음):
+     glow 기반 프레임·칭호 이펙트가 흰 배경에서 죽는 문제를 이 존이 해결한다.
+     --board-amber는 스크린 존 안에서만 사용 — 존 밖으로 내보내지 말 것. */
+  --board: oklch(0.19 0.012 268);
+  --board-foreground: oklch(0.95 0.006 268);
+  --board-muted: oklch(0.64 0.021 268);
+  --board-line: oklch(0.28 0.017 268);
+  --board-amber: oklch(0.81 0.146 82);
 
   --radius: 0.75rem;
 }
@@ -1332,4 +1356,410 @@
     font-size: 12px !important;
     line-height: 1rem !important;
   }
+}
+
+/* -----------------------------------------------------------------
+   프로필 카드 "라인업 콜" — 점등 시퀀스
+   전광판이 켜지듯 스크린 존이 플리커 -> 스포트라이트 -> 텍스트 상승.
+   설계서: docs/superpowers/specs/2026-07-22-멤버-프로필-카드-design.md §6.3
+   ----------------------------------------------------------------- */
+@keyframes board-flicker {
+  0% { opacity: 0.15; }
+  40% { opacity: 1; }
+  62% { opacity: 0.45; }
+  100% { opacity: 1; }
+}
+
+@keyframes board-amber-blink {
+  50% { opacity: 0.25; }
+}
+
+.board-flicker {
+  animation: board-flicker 0.28s steps(3, end) 1;
+}
+
+/* LIVE 도트·NEW 태그 — 도트매트릭스 점멸 */
+.board-blink {
+  animation: board-amber-blink 1.4s steps(2, start) infinite;
+}
+
+/* 스포트라이트 콘 — 아바타를 비추는 조명. 점등 전엔 투명 */
+.board-cone {
+  opacity: 0;
+  transition: opacity 0.45s ease;
+  background: radial-gradient(
+    ellipse 70% 62% at 50% -12%,
+    rgb(238 241 248 / 0.16),
+    transparent 62%
+  );
+}
+.board-lit .board-cone {
+  opacity: 1;
+}
+
+/* 이름·칭호·한마디 스태거 상승 */
+.board-rise {
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease;
+}
+.board-lit .board-rise {
+  opacity: 1;
+  transform: none;
+}
+.board-lit .board-rise-1 { transition-delay: 0.1s; }
+.board-lit .board-rise-2 { transition-delay: 0.16s; }
+.board-lit .board-rise-3 { transition-delay: 0.22s; }
+.board-lit .board-rise-4 { transition-delay: 0.28s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .board-flicker,
+  .board-blink {
+    animation: none;
+  }
+  .board-cone,
+  .board-rise {
+    transition: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+
+/* -----------------------------------------------------------------
+   기강이야기 — 에디토리얼(신문) 레이아웃
+   앱 나머지는 라운드 카드 톤을 유지하고, 이 페이지만 괘선·명조로 기사처럼 읽힌다.
+   위계는 색이 아니라 "서체 대비 + 괘선 굵기"로 만든다.
+   ----------------------------------------------------------------- */
+
+/* 괘선 3종 — 신문의 위계는 선 굵기가 절반을 만든다.
+   제호 아래(굵게) / 섹션 사이(보통) / 데이터 행 사이(점선) */
+.rule-masthead {
+  border-bottom: 2.5px solid var(--foreground);
+}
+.rule-section {
+  border-bottom: 1px solid var(--foreground);
+}
+.rule-row {
+  border-bottom: 1px solid var(--border);
+}
+
+/* 신문 지질(newsprint) — SVG feTurbulence 인라인. 외부 이미지 요청 0.
+   아주 옅게만 얹어 종이의 결을 흉내낸다(다크 테마에선 더 죽인다). */
+.newsprint::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.dark .newsprint::before {
+  opacity: 0.05;
+}
+
+/* 리드 기사 진입 — 신문을 펼치듯 위에서 한 번만 내려온다 */
+@keyframes lede-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* 새 리드가 오른쪽에서 미끄러져 들어온다 — 신문을 넘기는 감각. cubic-bezier로 끝을 부드럽게
+   감속시키고, 너무 바로 바뀐다는 인상을 없애려 시간을 넉넉히(0.55s) 준다. */
+.lede-in {
+  animation: lede-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lede-in {
+    animation: none;
+  }
+}
+
+/* 응원 버튼 3층 모션 — 누르는 맛을 만드는 장치.
+   ① 숫자 롤업 ② 튀어오르는 이모지 ③ 콤보 배지. 셋 다 짧게 끝난다(0.7s 이내). */
+@keyframes rctn-roll {
+  from {
+    transform: translateY(100%);
+    opacity: 0.2;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.rctn-roll {
+  animation: rctn-roll 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 좌우 흩어짐(--rctn-dx)과 회전(--rctn-rot)은 탭마다 컴포넌트가 인라인으로 준다 */
+@keyframes rctn-burst {
+  from {
+    transform: translate(-50%, 0) scale(0.6) rotate(0deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  to {
+    transform: translate(calc(-50% + var(--rctn-dx, 0px)), -46px) scale(1.6)
+      rotate(var(--rctn-rot, 0deg));
+    opacity: 0;
+  }
+}
+.rctn-burst {
+  animation: rctn-burst 0.7s ease-out both;
+}
+
+@keyframes rctn-combo {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.25);
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.rctn-combo {
+  animation: rctn-combo 0.22s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 숫자는 페이드만 남기고, 버스트·콤보는 움직이지 않는다 */
+  .rctn-roll {
+    animation: none;
+  }
+  .rctn-burst {
+    display: none;
+  }
+  .rctn-combo {
+    animation: none;
+  }
+}
+
+/* 종이비행기 각오 (J안 채택 — components/story/pledge-planes.tsx).
+   .pledge-fly / .pledge-unfold는 프로덕션이 쓴다. .pledge-flip만 아직 시안 전용(L안). */
+
+/* 배너 견인 비행기 — 오→왼 횡단. 높이가 살짝 출렁여야 종이가 뜬 느낌이 난다.
+   방향이 오른쪽에서 왼쪽인 이유: 배너 글자는 왼쪽부터 읽는데, 왼→오로 날면 글자가
+   읽는 방향으로 함께 도망가 눈이 따라잡지 못한다. 뉴스 티커가 죄다 오→왼인 것과 같은 이유다. */
+@keyframes pledge-fly {
+  from {
+    transform: translateX(105vw) translateY(0);
+  }
+  50% {
+    transform: translateX(0%) translateY(-6px);
+  }
+  to {
+    transform: translateX(-105%) translateY(0);
+  }
+}
+.pledge-fly {
+  animation: pledge-fly linear infinite;
+}
+
+/* 접힌 종이가 펼쳐지듯 — 위에서 아래로 펴진다 */
+@keyframes pledge-unfold {
+  from {
+    opacity: 0;
+    transform: perspective(500px) rotateX(-72deg);
+    transform-origin: top center;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    transform-origin: top center;
+  }
+}
+.pledge-unfold {
+  animation: pledge-unfold 0.34s ease-out both;
+}
+
+/* 솔라리 타일 — 글자 하나가 철컥 넘어간다. index만큼 지연시켜 좌→우로 흐르게.
+   시안 전용(/dev/story-styles L안) — 채택되지 않았다 */
+@keyframes pledge-flip {
+  from {
+    transform: rotateX(-90deg);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.pledge-flip {
+  animation: pledge-flip 0.26s ease-out both;
+  transform-origin: center top;
+}
+
+/* 착륙장 이륙 — 비행기가 왼쪽으로 부웅 날아가며(살짝 위로) 사라진다. 오→왼 비행 방향과 같게.
+   transform은 PaperPlane 바깥 span에 걸린다(img 자신의 scaleX와 충돌 안 하게). */
+@keyframes pledge-liftoff {
+  0% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-360px, -20px);
+    opacity: 0;
+  }
+}
+.pledge-liftoff {
+  animation: pledge-liftoff 0.64s cubic-bezier(0.45, 0, 0.7, 0.2) forwards;
+}
+
+/* 각오 문장 지우기 — 비행기가 지나가며 오른쪽부터 왼쪽으로 쓸어 지운다(clip-path inset 우측 증가) */
+@keyframes pledge-wipe {
+  from {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+  to {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0;
+  }
+}
+.pledge-wipe {
+  animation: pledge-wipe 0.6s ease-in forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 비행기는 멈추면 화면 밖에 머무르므로, 정지 대신 제자리에 세운다 */
+  .pledge-fly {
+    animation: none;
+    transform: translateX(8px);
+  }
+  .pledge-unfold,
+  .pledge-flip {
+    animation: none;
+  }
+  /* 이륙 연출은 컴포넌트가 reduced-motion이면 애초에 재생하지 않지만, 방어적으로 정지 */
+  .pledge-liftoff,
+  .pledge-wipe {
+    animation: none;
+  }
+}
+
+/* 접속자 표시 시안 전용 모션 (/dev/presence-styles) */
+
+/* 여백의 독자 — 상대가 스크롤하면 아바타가 미끄러지듯 따라온다.
+   시안에서는 그 움직임을 보여주려고 위아래로 천천히 오간다. */
+@keyframes presence-drift {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(22px);
+  }
+}
+.presence-drift {
+  animation: presence-drift 6s ease-in-out infinite;
+  transition: top 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 접속 표시등 — 살아 있다는 신호. 깜빡임이 아니라 숨쉬기(거슬리지 않게) */
+@keyframes presence-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+.presence-pulse {
+  animation: presence-pulse 2.6s ease-in-out infinite;
+}
+
+/* 누가 이 섹션에 들어왔을 때 얼굴이 톡 나타난다 */
+@keyframes presence-pop {
+  from {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.presence-pop {
+  animation: presence-pop 0.24s ease-out both;
+}
+
+@keyframes presence-rise {
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.presence-rise {
+  animation: presence-rise 0.3s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .presence-drift,
+  .presence-pulse,
+  .presence-pop,
+  .presence-rise {
+    animation: none;
+  }
+  .presence-drift {
+    transition: none;
+  }
+}
+
+/* -----------------------------------------------------------------
+   /dev/story-styles 시안 전용 장치
+   스타일 확정 후 채택되지 않은 것은 이 블록과 함께 삭제한다.
+   ----------------------------------------------------------------- */
+
+/* 망점(halftone) — 인쇄물 질감. radial-gradient를 contrast로 임계화해
+   부드러운 점을 하드에지 망점으로 만든다. 이미지 파일 0바이트. */
+.halftone {
+  background-image: radial-gradient(
+    circle at center,
+    currentcolor 42%,
+    transparent 43%
+  );
+  background-size: 5px 5px;
+  opacity: 0.16;
+}
+
+/* 사진 자리 망점 블록 — 신문 사진 제판 느낌 */
+.halftone-plate {
+  background-image: radial-gradient(
+    circle at center,
+    var(--foreground) 38%,
+    transparent 39%
+  );
+  background-size: 4px 4px;
+}
+
+/* 속도감 — 스포츠 타이포의 기울기. 숫자에만 아주 살짝. */
+.speed-skew {
+  transform: skewX(-8deg);
+}
+
+/* 브랜드 톤 — 넓은 자간의 얇은 라벨 */
+.brand-track {
+  letter-spacing: 0.42em;
 }

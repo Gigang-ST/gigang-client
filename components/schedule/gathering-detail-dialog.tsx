@@ -34,6 +34,7 @@ import {
 } from "@/components/common/responsive-drawer";
 import { Caption, Micro } from "@/components/common/typography";
 import type { CalendarRace } from "@/components/home/mini-calendar";
+import { MemberCardDialog } from "@/components/members/member-card-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -108,6 +109,11 @@ export function GatheringDetailDialog({
   const togglingRef = useRef(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  // 참석자 탭 → 프로필 카드. 이 다이얼로그 위에 겹쳐 연다(stacked).
+  const [selectedMember, setSelectedMember] = useState<{
+    memId: string;
+    name: string;
+  } | null>(null);
   // 방금 등록한 직후에만 공유 유도 안내 노출. 공유하기를 누르면 숨긴다.
   const [showShareHint, setShowShareHint] = useState(justCreated ?? false);
   // 등록 직후 다이얼로그가 맨 위에서 열려 하단 공유 유도가 안 보이는 문제 → 공유 영역으로 스크롤
@@ -396,10 +402,18 @@ export function GatheringDetailDialog({
             ) : attendees.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {attendees.map((a) => (
-                  <div key={a.mem_id} className="flex flex-col items-center gap-0.5">
+                  <button
+                    key={a.mem_id}
+                    type="button"
+                    onClick={() =>
+                      setSelectedMember({ memId: a.mem_id, name: a.mem_nm ?? "" })
+                    }
+                    aria-label={`${a.mem_nm ?? "멤버"} 프로필 보기`}
+                    className="flex flex-col items-center gap-0.5 rounded-lg p-0.5 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
                     <Avatar src={a.avatar_url} seed={a.mem_id} alt={a.mem_nm ?? ""} size="sm" />
                     <Micro className="leading-tight">{a.mem_nm ?? ""}</Micro>
-                  </div>
+                  </button>
                 ))}
               </div>
             ) : null}
@@ -506,6 +520,16 @@ export function GatheringDetailDialog({
       onOpenChange={setCancelDialogOpen}
       sttAt={gathering.evt_stt_at ?? gathering.start_date}
       onConfirm={handleCancelConfirm}
+    />
+    <MemberCardDialog
+      memId={selectedMember?.memId ?? null}
+      memNm={selectedMember?.name}
+      teamId={teamId}
+      open={selectedMember !== null}
+      onOpenChange={(open) => {
+        if (!open) setSelectedMember(null);
+      }}
+      stacked
     />
 
     </>

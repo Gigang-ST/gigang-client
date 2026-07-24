@@ -18,7 +18,7 @@ export async function updateSession(request: NextRequest) {
 
   // 비로그인 상태에서도 접근 가능한 공개 경로 목록
   const pathname = request.nextUrl.pathname;
-  const publicPaths = ["/", "/rules", "/join", "/newbie", "/races", "/records", "/projects", "/terms", "/privacy", "/policy", "/settings"];
+  const publicPaths = ["/", "/rules", "/join", "/newbie", "/races", "/records", "/story", "/projects", "/terms", "/privacy", "/policy", "/settings"];
   // /board(게시판)은 공개 SSG 페이지 — 목록(/board)·상세(/board/[id]) 모두 비로그인 접근 허용.
   //   (쓰기/수정 전용 하위 경로 /board/write·/board/[id]/edit는 admin 폼이라 아래 prefix로 공개되지만,
   //    실제 인가는 페이지의 getCurrentMember 게이트와 서버 액션(withAdminOrThrow)이 재검증하므로 안전하다.)

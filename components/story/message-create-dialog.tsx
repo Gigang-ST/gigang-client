@@ -1,0 +1,145 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+import { toast } from "sonner";
+
+import { createMessage } from "@/app/actions/story/create-message";
+import { MESSAGE_TXT_MAX } from "@/lib/validations/message";
+
+import {
+  ResponsiveDrawer,
+  ResponsiveDrawerContent,
+  ResponsiveDrawerHeader,
+  ResponsiveDrawerTitle,
+} from "@/components/common/responsive-drawer";
+import { Caption } from "@/components/common/typography";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
+/** 입력 상한 — Zod 스키마와 동일(견인 배너 한 줄에 맞춘 길이) */
+const MESSAGE_MAX = MESSAGE_TXT_MAX;
+
+/**
+ * 한마디 작성 — 종이비행기에 실어 날릴 한 줄. **24시간 뒤 사라진다.**
+ *
+ * 저장은 `createMessage` 서버 액션(→ `msg_mst` insert + `updateTag("story-messages")`).
+ * 저장 후 `router.refresh()`로 전광판을 다시 그려 새 한마디가 바로 하늘에 뜨게 한다.
+ * PledgeCreateDialog와 같은 인라인 편집 패턴 — 페이지 이동 없이 한 줄만 받는다.
+ *
+ * 사라진다는 사실을 작성 화면에서 미리 알린다: 만료가 규칙이면 쓰기 전에 알아야 한다.
+ */
+export function MessageCreateDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** 저장 성공 후 호출 — 낙관적 추가 등에 쓸 수 있게 텍스트를 넘긴다 */
+  onCreated?: (text: string) => void;
+}) {
+  // 닫혀 있을 땐 폼을 언마운트한다 — 재진입 시 이전 입력이 남지 않게.
+  if (!open) {
+    return (
+      <ResponsiveDrawer open={false} onOpenChange={onOpenChange}>
+        <></>
+      </ResponsiveDrawer>
+    );
+  }
+
+  return <MessageCreateForm onOpenChange={onOpenChange} onCreated={onCreated} />;
+}
+
+function MessageCreateForm({
+  onOpenChange,
+  onCreated,
+}: {
+  onOpenChange: (open: boolean) => void;
+  onCreated?: (text: string) => void;
+}) {
+  const router = useRouter();
+  const [value, setValue] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const trimmed = value.trim();
+  const tooLong = trimmed.length > MESSAGE_MAX;
+  const empty = trimmed.length === 0;
+
+  async function handleSave() {
+    if (empty || tooLong || saving) return;
+    setSaving(true);
+    try {
+      const result = await createMessage({ msg_txt: trimmed });
+      if (!result.ok) {
+        toast.error(result.message ?? "저장에 실패했습니다");
+        return;
+      }
+      onCreated?.(trimmed);
+      onOpenChange(false);
+      router.refresh();
+      toast.success("한마디를 접어 날렸어요");
+    } catch {
+      toast.error("저장 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <ResponsiveDrawer open onOpenChange={onOpenChange}>
+      <ResponsiveDrawerContent
+        className="flex flex-col gap-0"
+        dialogClassName="max-w-sm"
+      >
+        <ResponsiveDrawerHeader className="px-4 py-4 text-left">
+          <ResponsiveDrawerTitle>한마디 접어 날리기</ResponsiveDrawerTitle>
+        </ResponsiveDrawerHeader>
+
+        <div className="flex flex-col gap-3 px-4 pb-6">
+          <Input
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            maxLength={MESSAGE_MAX}
+            placeholder="오늘 한강 6시 같이 뛸 사람"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void handleSave();
+              }
+            }}
+            className="h-12 rounded-xl border-[1.5px] text-[15px]"
+          />
+          <div className="flex items-center justify-between gap-2">
+            <Caption>24시간 동안 하늘을 날다 사라져요.</Caption>
+            <Caption className={tooLong ? "text-destructive" : undefined}>
+              {trimmed.length}/{MESSAGE_MAX}
+            </Caption>
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={() => onOpenChange(false)}
+              disabled={saving}
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              className="flex-1"
+              onClick={() => void handleSave()}
+              disabled={saving || empty || tooLong}
+            >
+              {saving ? "날리는 중..." : "날리기"}
+            </Button>
+          </div>
+        </div>
+      </ResponsiveDrawerContent>
+    </ResponsiveDrawer>
+  );
+}
