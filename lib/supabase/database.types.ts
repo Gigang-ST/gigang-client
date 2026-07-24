@@ -1630,6 +1630,50 @@ export type Database = {
           },
         ]
       }
+      mcp_token_rel: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          label: string | null
+          last_used_at: string | null
+          mem_id: string
+          revoked_at: string | null
+          team_id: string
+          token_hash: string
+          token_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          label?: string | null
+          last_used_at?: string | null
+          mem_id: string
+          revoked_at?: string | null
+          team_id: string
+          token_hash: string
+          token_id?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          label?: string | null
+          last_used_at?: string | null
+          mem_id?: string
+          revoked_at?: string | null
+          team_id?: string
+          token_hash?: string
+          token_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_token_rel_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
       mem_mst: {
         Row: {
           avatar_url: string | null
