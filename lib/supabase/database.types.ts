@@ -1470,6 +1470,61 @@ export type Database = {
           },
         ]
       }
+      gthr_attd_hist: {
+        Row: {
+          actor_cd: string
+          actor_mem_id: string | null
+          evt_at: string
+          evt_cd: string
+          gthr_id: string
+          hist_id: string
+          mem_id: string
+          reason_txt: string | null
+        }
+        Insert: {
+          actor_cd: string
+          actor_mem_id?: string | null
+          evt_at?: string
+          evt_cd?: string
+          gthr_id: string
+          hist_id?: string
+          mem_id: string
+          reason_txt?: string | null
+        }
+        Update: {
+          actor_cd?: string
+          actor_mem_id?: string | null
+          evt_at?: string
+          evt_cd?: string
+          gthr_id?: string
+          hist_id?: string
+          mem_id?: string
+          reason_txt?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gthr_attd_hist_actor_mem_id_fkey"
+            columns: ["actor_mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "gthr_attd_hist_gthr_id_fkey"
+            columns: ["gthr_id"]
+            isOneToOne: false
+            referencedRelation: "gthr_mst"
+            referencedColumns: ["gthr_id"]
+          },
+          {
+            foreignKeyName: "gthr_attd_hist_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
       gthr_attd_rel: {
         Row: {
           attd_id: string
@@ -1674,18 +1729,18 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "fk_mem_onbd_prf__mem_mst"
-            columns: ["mem_id"]
-            isOneToOne: true
-            referencedRelation: "mem_mst"
-            referencedColumns: ["mem_id"]
-          },
-          {
             foreignKeyName: "fk_mem_onbd_prf__gthr_mst"
             columns: ["pldg_gthr_id"]
             isOneToOne: false
             referencedRelation: "gthr_mst"
             referencedColumns: ["gthr_id"]
+          },
+          {
+            foreignKeyName: "fk_mem_onbd_prf__mem_mst"
+            columns: ["mem_id"]
+            isOneToOne: true
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
           },
         ]
       }
@@ -1898,6 +1953,126 @@ export type Database = {
           },
         ]
       }
+      pldg_mst: {
+        Row: {
+          crt_at: string
+          del_yn: boolean
+          float_at: string
+          mem_id: string
+          pldg_id: string
+          pldg_txt: string
+          team_id: string
+          upd_at: string
+        }
+        Insert: {
+          crt_at?: string
+          del_yn?: boolean
+          float_at?: string
+          mem_id: string
+          pldg_id?: string
+          pldg_txt: string
+          team_id: string
+          upd_at?: string
+        }
+        Update: {
+          crt_at?: string
+          del_yn?: boolean
+          float_at?: string
+          mem_id?: string
+          pldg_id?: string
+          pldg_txt?: string
+          team_id?: string
+          upd_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pldg_mst_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "pldg_mst_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
+      post_mst: {
+        Row: {
+          act_dt: string | null
+          cmnt_txt: string | null
+          crt_at: string
+          del_yn: boolean
+          dst_km: number | null
+          mem_id: string
+          photo_url: string | null
+          pldg_txt: string | null
+          post_id: string
+          post_type_enm: Database["public"]["Enums"]["post_type_enm"]
+          ref_id: string | null
+          ref_type_txt: string | null
+          sprt_enm: string | null
+          src_enm: Database["public"]["Enums"]["post_src_enm"]
+          team_id: string
+          upd_at: string
+        }
+        Insert: {
+          act_dt?: string | null
+          cmnt_txt?: string | null
+          crt_at?: string
+          del_yn?: boolean
+          dst_km?: number | null
+          mem_id: string
+          photo_url?: string | null
+          pldg_txt?: string | null
+          post_id?: string
+          post_type_enm: Database["public"]["Enums"]["post_type_enm"]
+          ref_id?: string | null
+          ref_type_txt?: string | null
+          sprt_enm?: string | null
+          src_enm?: Database["public"]["Enums"]["post_src_enm"]
+          team_id: string
+          upd_at?: string
+        }
+        Update: {
+          act_dt?: string | null
+          cmnt_txt?: string | null
+          crt_at?: string
+          del_yn?: boolean
+          dst_km?: number | null
+          mem_id?: string
+          photo_url?: string | null
+          pldg_txt?: string | null
+          post_id?: string
+          post_type_enm?: Database["public"]["Enums"]["post_type_enm"]
+          ref_id?: string | null
+          ref_type_txt?: string | null
+          sprt_enm?: string | null
+          src_enm?: Database["public"]["Enums"]["post_src_enm"]
+          team_id?: string
+          upd_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_mst_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "post_mst_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
       pt_txn_hist: {
         Row: {
           actv_type_enm: Database["public"]["Enums"]["pt_actv_type_enm"]
@@ -1996,6 +2171,54 @@ export type Database = {
           },
           {
             foreignKeyName: "push_sub_rel_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
+      rctn_mst: {
+        Row: {
+          crt_at: string
+          entity_id: string
+          entity_type: string
+          mem_id: string
+          rctn_cd: string
+          rctn_cnt: number
+          rctn_id: string
+          team_id: string
+        }
+        Insert: {
+          crt_at?: string
+          entity_id: string
+          entity_type: string
+          mem_id: string
+          rctn_cd: string
+          rctn_cnt?: number
+          rctn_id?: string
+          team_id: string
+        }
+        Update: {
+          crt_at?: string
+          entity_id?: string
+          entity_type?: string
+          mem_id?: string
+          rctn_cd?: string
+          rctn_cnt?: number
+          rctn_id?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rctn_mst_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "rctn_mst_team_id_fkey"
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "team_mst"
@@ -2195,11 +2418,11 @@ export type Database = {
       }
       team_mem_rel: {
         Row: {
-          card_featured: Json | null
           crt_at: string
           del_yn: boolean
           eff_at: string
           inact_rsn_txt: string | null
+          intro_txt: string | null
           join_dt: string | null
           leave_dt: string | null
           mem_id: string
@@ -2213,11 +2436,11 @@ export type Database = {
           vers: number
         }
         Insert: {
-          card_featured?: Json | null
           crt_at?: string
           del_yn?: boolean
           eff_at?: string
           inact_rsn_txt?: string | null
+          intro_txt?: string | null
           join_dt?: string | null
           leave_dt?: string | null
           mem_id: string
@@ -2231,11 +2454,11 @@ export type Database = {
           vers?: number
         }
         Update: {
-          card_featured?: Json | null
           crt_at?: string
           del_yn?: boolean
           eff_at?: string
           inact_rsn_txt?: string | null
+          intro_txt?: string | null
           join_dt?: string | null
           leave_dt?: string | null
           mem_id?: string
@@ -2386,11 +2609,32 @@ export type Database = {
     }
     Functions: {
       apply_team_mem_rel_change: {
-        Args: { p_team_mem_id: string; p_changes: Json; p_eff_at?: string }
+        Args: { p_changes: Json; p_eff_at?: string; p_team_mem_id: string }
         Returns: undefined
       }
       apply_team_mem_rel_delete: {
-        Args: { p_team_mem_id: string; p_eff_at?: string }
+        Args: { p_eff_at?: string; p_team_mem_id: string }
+        Returns: undefined
+      }
+      bump_story_rctn: {
+        Args: {
+          p_delta: number
+          p_entity_id: string
+          p_entity_type: string
+          p_mem_id: string
+          p_rctn_cd: string
+          p_team_id: string
+        }
+        Returns: number
+      }
+      cancel_gthr_attendance: {
+        Args: {
+          p_actor_cd: string
+          p_actor_mem_id?: string
+          p_gthr_id: string
+          p_mem_id: string
+          p_reason?: string
+        }
         Returns: undefined
       }
       create_noti_for_team:
@@ -2572,6 +2816,20 @@ export type Database = {
           url: string
         }[]
       }
+      get_team_ghost_members: { Args: { p_team_id: string }; Returns: Json }
+      get_team_overview: { Args: { p_team_id: string }; Returns: Json }
+      get_team_pledges: {
+        Args: { p_limit?: number; p_team_id: string }
+        Returns: Json
+      }
+      get_team_posts: {
+        Args: { p_limit?: number; p_team_id: string }
+        Returns: Json
+      }
+      get_team_story_feed: {
+        Args: { p_mem_id?: string; p_team_id: string }
+        Returns: Json
+      }
       is_legacy_platform_admin: { Args: never; Returns: boolean }
       kst_day_end_excl: { Args: { d: string }; Returns: string }
       kst_day_start: { Args: { d: string }; Returns: string }
@@ -2696,6 +2954,8 @@ export type Database = {
       gender: "male" | "female"
       member_status: "active" | "inactive" | "banned" | "pending"
       participation_role: "participant" | "cheering" | "volunteer"
+      post_src_enm: "manual" | "mlg_auto"
+      post_type_enm: "pledge" | "record_flex"
       pt_actv_type_enm:
         | "regular_attend"
         | "gthr_attend"
@@ -2845,6 +3105,8 @@ export const Constants = {
       gender: ["male", "female"],
       member_status: ["active", "inactive", "banned", "pending"],
       participation_role: ["participant", "cheering", "volunteer"],
+      post_src_enm: ["manual", "mlg_auto"],
+      post_type_enm: ["pledge", "record_flex"],
       pt_actv_type_enm: [
         "regular_attend",
         "gthr_attend",

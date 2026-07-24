@@ -72,7 +72,6 @@ async function ProfileContent() {
     }
   });
 
-  const genderLabel = member.gender === "male" ? "남성" : member.gender === "female" ? "여성" : "";
   const joinedDate = member.joined_at
     ? dayjs(member.joined_at).format("YY.MM.DD")
     : "";
@@ -116,7 +115,6 @@ async function ProfileContent() {
           fullName={member.full_name}
           avatarUrl={member.avatar_url}
           memId={member.id}
-          genderLabel={genderLabel}
           joinedDate={joinedDate}
           teamMemId={member.team_mem_id}
           teamId={teamId}
@@ -127,6 +125,7 @@ async function ProfileContent() {
           selectedBadgeEffect={member.selected_badge_effect}
           selectedFrameCd={member.selected_frame_cd}
           maxRarityLevel={maxRarityLevel}
+          introTxt={member.intro_txt}
         />
 
         {/* 바로가기 */}
