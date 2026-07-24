@@ -79,7 +79,8 @@ export default function PresenceStylesPage() {
 
   return (
     <div className="flex flex-col">
-      <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
+      {/* BackHeader(`sticky top-0 z-40 h-12`) 아래에 붙인다 — top-0이면 윗줄이 헤더에 가린다 */}
+      <div className="sticky top-12 z-30 border-b border-border bg-background/95 backdrop-blur">
         <div className="flex gap-1.5 overflow-x-auto px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {STYLES.map((s) => (
             <button
