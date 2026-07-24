@@ -92,3 +92,4 @@ CLAUDE.local.md
 .env.*
 .gstack/
 .claude/dev-profile.toml
+.claude/set-project-state.json
