@@ -1,15 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 
 import {
   ACTV_HELP_TEXT,
   getActvMonthLabel,
 } from "@/lib/activity-index";
-import { dayjs, secondsToTime } from "@/lib/dayjs";
-import { getRaceDday, getRecordLabel } from "@/lib/member-card";
-import { cn } from "@/lib/utils";
+import { dayjs } from "@/lib/dayjs";
 
 import { Avatar } from "@/components/common/avatar";
 import { HelpTip } from "@/components/common/help-tip";
@@ -18,8 +15,9 @@ import { MemberCardDialog } from "@/components/members/member-card-dialog";
 import { ActvHistorySheet } from "@/components/story/actv-history-sheet";
 import { FloatingAvatars } from "@/components/story/floating-avatars";
 import { GhostWanted } from "@/components/story/ghost-wanted";
-import { PledgePlanes } from "@/components/story/pledge-planes";
-import { RecordFlexSigns } from "@/components/story/record-flex-signs";
+import { MessagePlanes } from "@/components/story/message-planes";
+import { PledgeSigns } from "@/components/story/pledge-signs";
+import { RecordFlexFeed } from "@/components/story/record-flex-feed";
 import { StoryLede } from "@/components/story/story-lede";
 import { StoryMasthead } from "@/components/story/story-masthead";
 import { StorySection } from "@/components/story/story-section";
@@ -27,7 +25,7 @@ import { StoryWeather } from "@/components/story/story-weather";
 
 import type { GhostMember } from "@/lib/queries/ghost-members";
 import type { StoryFeed, StoryReactionCounts } from "@/lib/queries/story-feed";
-import type { StoryFloatPledge } from "@/lib/queries/story-pledges";
+import type { StoryMessage } from "@/lib/queries/story-messages";
 import type { StoryPost } from "@/lib/queries/story-posts";
 import type { TeamOverview } from "@/lib/queries/team-overview";
 
@@ -43,7 +41,7 @@ export function StoryClient({
   overview,
   ghosts,
   posts,
-  pledges,
+  messages,
   teamId,
   myMemId,
   me,
@@ -56,8 +54,8 @@ export function StoryClient({
   ghosts: GhostMember[];
   /** 기록 자랑 — 팻말존에 쓴다. 피드와 캐시 태그가 갈려 있어 별도 prop이다 */
   posts: StoryPost[];
-  /** 각오 — 종이비행기존(공유 하늘). float_at 순, 피드와 별도 캐시·별도 RPC */
-  pledges: StoryFloatPledge[];
+  /** 종이비행기 한마디 — 24시간 만료. 각오와 별개 데이터(msg_mst), 별도 캐시·별도 RPC */
+  messages: StoryMessage[];
   teamId: string;
   /** 로그인 사용자 — 본인 카드면 한마디를 바로 수정할 수 있다 */
   myMemId: string | null;
@@ -90,10 +88,13 @@ export function StoryClient({
       {/* 리드 위 투명 레이어에 크루 아바타가 유영한다 — 탭하면 통통 튄다(놀이 요소).
           레이어는 포인터를 통과시키고(리드 스와이프 유지) 아바타만 클릭을 받는다.
 
-          하단 패딩(pb-10)은 여백이 아니라 **아바타가 구를 바닥**이다. 이게 얕으면 아바타가
+          하단 패딩은 여백이 아니라 **아바타가 걸어다닐 바닥**이다. 이게 얕으면 아바타가
           리드의 진행 표시(현재 칸 막대) 높이에서 굴러 그걸 가린다 — 아바타 바닥선이
-          막대보다 아래로 내려가도록 띠를 확보한다. */}
-      <div className="relative pb-10 pt-4">
+          막대보다 아래로 내려가도록 띠를 확보한다. 40px(pb-10)에 아바타 아래 **이름표(13px)**
+          몫만 더한다(FloatingAvatars의 LABEL_H와 짝 — 한쪽만 바꾸면 다시 겹친다).
+          "지금 보는 중" 라벨은 바닥선 위에 겹쳐 뜨므로 여기서 자리를 주지 않는다 — 라벨까지
+          더하면 리드 아래 여백만 커진다. */}
+      <div className="relative pb-[54px] pt-4">
         <StoryLede
           feed={feed}
           reactions={reactions}
@@ -106,20 +107,24 @@ export function StoryClient({
         {/* 기강 기상대 — 개별 소식(리드) 다음에 크루 전체 분위기 */}
         <StoryWeather overview={overview} />
 
-        {/* 종이비행기 각오 — 기상대 바로 아래. 공유 하늘(float_at 순) + Realtime.
-            리드·떠다니는 아바타는 feed.pledges를 쓰지만, 이 존은 float_at 편성이 필요해
-            별도 pledges prop을 받는다. */}
-        <PledgePlanes
-          pledges={pledges}
+        {/* 종이비행기 한마디 — 기상대 바로 아래. 24시간 뒤 사라지는 한 줄(msg_mst).
+            각오와 **별개 데이터**다: 저긴 팻말·1인 1개·만료 없음, 여긴 비행기·1인 N개·하루살이. */}
+        <MessagePlanes
+          messages={messages}
           teamId={teamId}
+          myMemId={myMemId}
+        />
+
+        {/* 각오 팻말 — 코스변 손팻말. 만료 없이 쌓인다(1인 1개, 새로 쓰면 이전 것이 내려간다) */}
+        <PledgeSigns
+          pledges={feed.pledges}
           myMemId={myMemId}
           onSelectMember={selectMember}
         />
 
-        {/* 기록 자랑 팻말 — 각오가 하늘로 옮겨가며 비워진 팻말 형태를 물려받았다.
-            사진 + 한마디가 판에, 이름·활동일·거리가 손잡이 아래에 붙는다.
-            팻말은 읽기 전용이다(탭해도 열리지 않는다 — 프로필 카드 진입은 걷어냈다). */}
-        <RecordFlexSigns posts={posts} myMemId={myMemId} />
+        {/* 기록 자랑 — 폴라로이드 피드. 사진 아래 한마디·이름·날짜·거리가 붙고,
+            2x2 한 면씩 옆으로 밀어 과거 기록을 본다. */}
+        <RecordFlexFeed posts={posts} myMemId={myMemId} />
 
         {/* 새 얼굴 — 최근 3명 + 더보기 */}
         <StorySection
@@ -156,127 +161,13 @@ export function StoryClient({
           )}
         </StorySection>
 
-        {/* 다가오는 대회 */}
-        {feed.races.length > 0 && (
-          <section className="flex flex-col px-6">
-            <div className="rule-section pb-2">
-              <h2 className="font-numeric text-[11px] font-medium uppercase tracking-[0.2em] text-foreground">
-                Upcoming Races
-              </h2>
-            </div>
-            <ul className="flex flex-col pt-1">
-              {feed.races.map((race) => {
-                const dday = getRaceDday(race.stt_dt);
-                return (
-                  <li key={race.entity_id} className="rule-row">
-                    <Link
-                      href={`/?comp=${race.short_id ?? race.comp_id}`}
-                      className="flex items-center gap-3 py-3 transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <span className="truncate font-serif text-[16px] text-foreground">
-                          {race.comp_nm}
-                        </span>
-                        <span className="text-[11px] text-muted-foreground">
-                          {dayjs(race.stt_dt).format("M월 D일")} · {race.reg_cnt}명
-                          출전
-                        </span>
-                      </div>
-                      <div className="flex shrink-0">
-                        {race.runners.slice(0, 3).map((r, i) => (
-                          <span
-                            key={r.mem_id}
-                            className={cn(
-                              "rounded-full ring-2 ring-background",
-                              i > 0 && "-ml-2",
-                            )}
-                          >
-                            <Avatar
-                              src={r.avatar_url}
-                              seed={r.mem_id}
-                              alt={r.mem_nm}
-                              size="sm"
-                            />
-                          </span>
-                        ))}
-                      </div>
-                      {dday && (
-                        <span className="w-12 shrink-0 text-right font-numeric text-[15px] font-medium text-foreground tabular-nums">
-                          {dday}
-                        </span>
-                      )}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        )}
+        {/* 다가오는 대회·최근 기록은 하단 목록을 두지 않는다 — 리드 스와이프의
+            대회 칸·기록 칸이 같은 데이터를 이미 싣고 있어서, 아래에 목록을 또 세우면
+            지면을 내리다 방금 읽은 걸 한 번 더 읽게 된다. 대회는 /races, 기록은
+            프로필 카드(RECORDS)가 각각 전체 목록의 자리다.
 
-        {/* 최근 기록 — 기간 제한 없이 최신순 3건 + 더보기 최대 10건 */}
-        <StorySection
-          label="Results"
-          lead="가장 최근에 올라온 기록부터"
-          items={feed.records}
-          initial={3}
-          max={10}
-          unit="건"
-        >
-          {(records) => (
-            <ul className="flex flex-col">
-              {records.map((rec) => {
-                // 왼쪽: 날짜 · 대회명(없으면 종목 라벨). 오른쪽: 기록 · 이름.
-                const sub =
-                  rec.race_nm?.trim() ||
-                  getRecordLabel({
-                    sport: rec.sport,
-                    evt: rec.evt,
-                    rec_time_sec: rec.rec_time_sec,
-                    race_nm: rec.race_nm,
-                    race_dt: rec.race_dt,
-                  });
-                return (
-                  <li key={rec.entity_id} className="rule-row">
-                    {/* 행 전체가 아니라 이름만 눌린다 — 기록을 읽으려고 줄을 짚었을 뿐인데
-                        프로필 시트가 열리면 오독이다. 대신 이름은 13px라 손가락에 작아서,
-                        음수 마진으로 히트영역만 행 높이 전체로 넓힌다. */}
-                    <div className="flex w-full items-center gap-3 py-2.5">
-                      {/* 왼쪽 — 날짜 · 대회명 */}
-                      <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
-                        {rec.race_dt && (
-                          <span className="shrink-0 font-numeric text-[11px] text-muted-foreground tabular-nums">
-                            {dayjs(rec.race_dt).format("YY.M.DD")}
-                          </span>
-                        )}
-                        <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
-                          {sub}
-                        </span>
-                      </span>
-
-                      {/* 오른쪽 — 기록 · 이름(탭하면 프로필) */}
-                      <span className="flex shrink-0 items-baseline gap-2">
-                        <span className="font-numeric text-[15px] font-medium text-foreground tabular-nums">
-                          {secondsToTime(rec.rec_time_sec)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => selectMember(rec.mem_id, rec.mem_nm)}
-                          aria-label={`${rec.mem_nm} 프로필 보기`}
-                          className="-my-2.5 -mr-1.5 px-1.5 py-2.5 text-[13px] font-semibold text-muted-foreground underline decoration-border underline-offset-4 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        >
-                          {rec.mem_nm}
-                        </button>
-                      </span>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </StorySection>
-
-        {/* 이달의 참가왕은 스포트라이트 슬롯에만 둔다 — 활동량도 이번 달 지표가 되면서
-            월 랭킹 두 개가 지면에 연달아 서면 같은 걸 두 번 본 것처럼 읽힌다. */}
+            이달의 참가왕도 같은 이유로 스포트라이트 슬롯에만 둔다 — 활동량이 이번 달
+            지표가 되면서 월 랭킹 두 개가 연달아 서면 같은 걸 두 번 본 것처럼 읽힌다. */}
 
         {/* 기강 활동량 — 5명 + 더보기 최대 10명. 이번 달 집계 */}
         <StorySection

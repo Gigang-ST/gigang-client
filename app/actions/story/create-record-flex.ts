@@ -139,7 +139,7 @@ export async function createRecordFlex(
       // `revalidateTag(tag, "max")`가 아니라 `updateTag(tag)`다 — 프로필을 준 revalidateTag는
       // stale-while-revalidate라 Next가 일부러 액션이 자기 쓰기를 되읽지 못하게 막는다. 그러면
       // 꽂자마자 router.refresh()가 낡은 캐시를 받아 "새로고침해야 팻말이 보이는" 증상이 난다.
-      // (같은 이유·같은 처방이 createPledge/floatPledge에도 적용돼 있다.)
+      // (같은 이유·같은 처방이 createPledge에도 적용돼 있다.)
       updateTag("story-posts");
       return { ok: true as const, post_id: data.post_id };
     });

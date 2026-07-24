@@ -17,6 +17,7 @@ import type {
   RctnCd,
   StoryEntityType,
   StoryFeed,
+  StoryRecord,
   StoryReactionCounts,
 } from "@/lib/queries/story-feed";
 
@@ -24,8 +25,18 @@ import type {
 const ROTATE_MS = 5000;
 /** 손이 닿으면 이만큼 멈춘다. 이후 반응이 없으면 다시 자동으로 넘어간다 */
 const PAUSE_MS = 10000;
-/** 새 얼굴·기록 슬롯이 다루는 기간 */
+/** 새 얼굴 슬롯이 다루는 기간 */
 const WINDOW_DAYS = 30;
+/**
+ * 기록 슬롯이 다루는 기간 — **가장 최근 대회일로부터** N일.
+ *
+ * 오늘 기준이 아니라 최근 대회일 기준인 게 핵심이다: 대회가 뜸한 시기엔 오늘 기준 창이
+ * 통째로 비어 기록 칸이 사라진다. 7일이면 토/일로 갈린 주말 대회나 격주 대회가 한 풀에
+ * 들어와 인원 풀이 넉넉해진다(3일이면 뜸할 때 1~2명으로 줄어 랜덤 효과가 사라진다).
+ */
+const RECORD_WINDOW_DAYS = 7;
+/** 기록 칸에 한 번에 싣는 건수 */
+const RECORD_PICKS = 2;
 /** 우측 레일에 얼굴을 몇 개까지 세울지. 나머지는 "외 N명" */
 const MAX_SUBS = 3;
 
@@ -56,6 +67,23 @@ type Lede = {
   /** 우측 수치 (기록·D-day·횟수) */
   figure: string | null;
   figureLabel: string | null;
+  /**
+   * 기록 칸 전용 — 한 칸에 여러 건을 나란히 싣는다.
+   * 이게 있으면 헤드라인/아바타 대신 이 목록을 그린다(§③).
+   */
+  records?: RecordLine[];
+};
+
+/** 기록 칸의 한 줄 — 사람 · 종목 · 기록 */
+type RecordLine = {
+  entityId: string;
+  person: Person;
+  /** "하프", "10K" 등 종목 라벨 */
+  label: string;
+  /** 대회명 · 날짜 */
+  sub: string;
+  /** 완주 기록 */
+  time: string;
 };
 
 /** 오늘 기준 N일 이내인가 (KST) */
@@ -63,6 +91,42 @@ function withinDays(dateStr: string | null, days: number): boolean {
   if (!dateStr) return false;
   const diff = dayjs().startOf("day").diff(dayjs(dateStr).startOf("day"), "day");
   return diff >= 0 && diff <= days;
+}
+
+/**
+ * 기록 풀 — **가장 최근 대회일로부터** 7일 안에 열린 대회의 기록 전부.
+ *
+ * 기준일을 오늘이 아니라 최근 대회일로 잡는 이유: 대회가 2주 없으면 오늘 기준 7일 창은
+ * 통째로 비어 기록 칸이 사라진다. "가장 최근 대회 + 그 언저리"로 잡으면 지면이 비지 않으면서
+ * 토/일로 갈린 주말 대회가 한 풀에 들어온다.
+ *
+ * `feed.records`는 RPC가 최신순으로 주지만 여기서 순서에 기대지 않고 최대 날짜를 직접 구한다
+ * — 정렬 기준이 등록일로 바뀌어도 창이 어긋나지 않도록.
+ */
+function pickRecordPool(records: StoryRecord[]): StoryRecord[] {
+  const dated = records.filter((r) => r.race_dt);
+  if (dated.length === 0) return [];
+
+  const latest = dated.reduce(
+    (max, r) => (r.race_dt! > max ? r.race_dt! : max),
+    dated[0].race_dt!,
+  );
+  const floor = dayjs(latest).subtract(RECORD_WINDOW_DAYS, "day");
+
+  return dated.filter((r) => !dayjs(r.race_dt!).isBefore(floor, "day"));
+}
+
+/**
+ * 배열을 n칸 회전시킨다 — 원소를 지우지 않고 시작점만 옮긴다.
+ *
+ * 매번 새로 셔플하지 않는 이유: 셔플이면 같은 사람이 연속으로 뽑히거나 누군가는 몇 바퀴를
+ * 돌아도 안 나올 수 있다. 회전은 한 바퀴에 모두가 정확히 한 번씩 대표가 되는 걸 보장한다
+ * — "몰려 올라온 날 안 보이는 사람이 생기지 않게"라는 게 애초의 목적이므로.
+ */
+function rotate<T>(arr: T[], n: number): T[] {
+  if (arr.length === 0) return arr;
+  const at = ((n % arr.length) + arr.length) % arr.length;
+  return [...arr.slice(at), ...arr.slice(0, at)];
 }
 
 /**
@@ -79,6 +143,8 @@ function buildLedes(
   reactions: StoryReactionCounts,
   /** 각오 칸에 실을 인덱스 — 호출자가 마운트 후 굴린다(§⑤) */
   pledgePick: number,
+  /** 기록 칸의 회전량 — 같은 이유로 호출자가 굴린다(§③) */
+  recordPick: number,
 ): Lede[] {
   const ledes: Lede[] = [];
 
@@ -150,35 +216,48 @@ function buildLedes(
     });
   }
 
-  // ③ 기록 — 최근 30일. 가장 최근 1건이 대표, 나머지는 레일.
-  const recs = feed.records.filter((r) => withinDays(r.race_dt, WINDOW_DAYS));
-  const [recLead, ...restRecs] = recs;
-  if (recLead) {
-    const label = getRecordLabel({
-      sport: recLead.sport,
-      evt: recLead.evt,
-      rec_time_sec: recLead.rec_time_sec,
-      race_nm: recLead.race_nm,
-      race_dt: recLead.race_dt,
-    });
-    ledes.push({
-      key: `record-${recLead.entity_id}`,
-      kicker: "기록",
-      entity: buildEntity(
-        "record",
-        recLead.entity_id,
-        recLead.rctn_cd,
-        recLead.rctn_count,
-      ),
-      people: [recLead],
-      subs: restRecs.slice(0, MAX_SUBS),
-      moreCount: Math.max(0, restRecs.length - MAX_SUBS),
-      headline: `${recLead.mem_nm}, ${label}를 완주하다`,
-      standfirst: [recLead.race_nm, dayjs(recLead.race_dt).format("M월 D일")]
+  // ③ 기록 — 가장 최근 대회일로부터 7일 안의 기록을 한 풀로 묶고, 그 안에서 2건을 싣는다.
+  //
+  //    최신순 고정으로 뽑으면 대회 하나에 20명이 몰린 날 그 대회 상위 2건만 며칠씩 붙박이가
+  //    되고 나머지 18명은 지면에 한 번도 못 오른다. 그래서 같은 창 안에서는 순서를 굴려
+  //    전환할 때마다 다른 사람이 올라오게 한다(각오 칸과 같은 방식 — `recordPick`).
+  const recPool = pickRecordPool(feed.records);
+  if (recPool.length > 0) {
+    const picked = rotate(recPool, recordPick).slice(0, RECORD_PICKS);
+    const lines: RecordLine[] = picked.map((r) => ({
+      entityId: r.entity_id,
+      person: r,
+      label: getRecordLabel({
+        sport: r.sport,
+        evt: r.evt,
+        rec_time_sec: r.rec_time_sec,
+        race_nm: r.race_nm,
+        race_dt: r.race_dt,
+      }),
+      sub: [r.race_nm, r.race_dt ? dayjs(r.race_dt).format("M월 D일") : null]
         .filter(Boolean)
         .join(" · "),
-      figure: secondsToTime(recLead.rec_time_sec),
-      figureLabel: label,
+      time: secondsToTime(r.rec_time_sec),
+    }));
+
+    ledes.push({
+      // 키에 뽑힌 항목을 담아, 굴릴 때마다 `lede-in` 등장 모션이 다시 걸리게 한다.
+      key: `record-${lines.map((l) => l.entityId).join("-")}`,
+      kicker: "기록",
+      // 여러 건을 싣는 칸이라 응원 버튼은 붙이지 않는다 — 버튼 하나가 어느 기록을
+      // 가리키는지 알 수 없어서다(단건일 때만 성립하던 장치).
+      entity: null,
+      people: [],
+      subs: [],
+      moreCount: Math.max(0, recPool.length - RECORD_PICKS),
+      headline: "",
+      standfirst:
+        recPool.length > RECORD_PICKS
+          ? `최근 대회 ${recPool.length}건의 기록 중에서`
+          : "최근 대회에서 나온 기록",
+      figure: null,
+      figureLabel: null,
+      records: lines,
     });
   }
 
@@ -247,8 +326,10 @@ export function StoryLede({
   // 초기값을 0으로 고정하는 게 핵심이다: 렌더 중에 Math.random()을 부르면 서버와
   // 클라이언트가 다른 각오를 골라 하이드레이션이 깨진다. 굴리는 건 타이머 콜백 안에서만.
   const [pledgePick, setPledgePick] = useState(0);
-
-  const ledes = buildLedes(feed, reactions, pledgePick);
+  // 기록 칸 회전량 — 각오와 같은 이유로 0에서 출발한다(서버·클라 첫 렌더가 같아야 한다).
+  // 굴리는 건 자동 전환 타이머 안에서만.
+  const [recordPick, setRecordPick] = useState(0);
+  const ledes = buildLedes(feed, reactions, pledgePick, recordPick);
   const total = ledes.length;
 
   const [active, setActive] = useState(0);
@@ -290,6 +371,9 @@ export function StoryLede({
       // 각오 칸이 다시 돌아올 때 같은 각오면 지면이 고여 보인다 — 넘길 때마다 굴려 둔다.
       // 인덱스는 `buildLedes`가 목록 길이로 나눠 쓰므로 계속 키워도 안전하다.
       setPledgePick((n) => n + 1 + Math.floor(Math.random() * 3));
+      // 기록 칸도 같이 굴린다. 한 번에 2건을 싣고 있으니 2씩 밀어야 다음 바퀴에
+      // 방금 본 사람이 또 나오지 않고 풀 전체를 순서대로 훑는다.
+      setRecordPick((n) => n + RECORD_PICKS);
     }, ROTATE_MS);
 
     return () => window.clearInterval(timer);
@@ -345,16 +429,57 @@ export function StoryLede({
             {lede.kicker}
           </span>
 
-          {/* 각오처럼 띄어쓰기 없는 긴 문자열도 넘치지 않게 — break-keep(어절 유지)만으론
-              연속 문자를 못 끊으니 overflow-wrap:anywhere를 더하고, 최대 3줄로 말줄임한다. */}
-          <h2 className="line-clamp-3 text-pretty break-keep font-serif text-[26px] font-normal leading-[1.28] text-foreground [overflow-wrap:anywhere]">
-            {lede.headline}
-          </h2>
+          {/* 기록 칸 — 한 칸에 두 건이라 헤드라인 하나로는 담기지 않는다.
+              대신 사람마다 한 덩이(이름·종목 / 대회·날짜 / 기록)로 세워 나란히 읽힌다.
+              두 건이 같은 무게라 어느 쪽도 주인공이 아니어야 하므로 크기를 맞춘다. */}
+          {lede.records ? (
+            <ul className="flex flex-col gap-3">
+              {lede.records.map((r) => (
+                <li key={r.entityId} className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => onSelectMember(r.person.mem_id, r.person.mem_nm)}
+                    aria-label={`${r.person.mem_nm} 프로필 보기`}
+                    className="shrink-0 rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
+                  >
+                    <Avatar
+                      src={r.person.avatar_url}
+                      seed={r.person.mem_id}
+                      alt={r.person.mem_nm}
+                      size="md"
+                    />
+                  </button>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate font-serif text-[17px] leading-tight text-foreground">
+                      {r.person.mem_nm}, {r.label}
+                    </span>
+                    {r.sub && (
+                      <span className="truncate pt-0.5 text-[11px] text-muted-foreground">
+                        {r.sub}
+                      </span>
+                    )}
+                  </div>
+                  <span className="shrink-0 font-numeric text-[19px] font-medium leading-none text-foreground tabular-nums">
+                    {r.time}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            /* 각오처럼 띄어쓰기 없는 긴 문자열도 넘치지 않게 — break-keep(어절 유지)만으론
+               연속 문자를 못 끊으니 overflow-wrap:anywhere를 더하고, 최대 3줄로 말줄임한다. */
+            <h2 className="line-clamp-3 text-pretty break-keep font-serif text-[26px] font-normal leading-[1.28] text-foreground [overflow-wrap:anywhere]">
+              {lede.headline}
+            </h2>
+          )}
 
           <p className="break-keep text-[13px] leading-relaxed text-muted-foreground">
             {lede.standfirst}
           </p>
 
+          {/* 아바타·수치 줄 — 기록 칸은 사람과 기록을 이미 목록 안에 품고 있어 이 줄이
+              통째로 비고, 빈 flex가 gap만 남겨 리드문 아래에 헛간격이 생긴다. */}
+          {(lede.people.length > 0 || lede.figure) && (
           <div className="flex items-center gap-3 pt-0.5">
             <div className="flex shrink-0">
               {lede.people.map((p, i) => (
@@ -397,6 +522,7 @@ export function StoryLede({
               </div>
             )}
           </div>
+          )}
 
           {lede.entity && (
             <div className="pt-1">
