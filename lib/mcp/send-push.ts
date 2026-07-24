@@ -53,6 +53,17 @@ export class SendPushDeniedError extends Error {
 }
 
 /**
+ * 인앱 알림 저장이 전면 실패해 발송이 이뤄지지 않았음을 나타낸다(감사 무결성 §8).
+ * 이 에러가 던져지면 성공 감사행을 남기지 않는다 — "발송 실패인데 감사엔 성공"을 방지한다.
+ */
+export class SendPushFailedError extends Error {
+  constructor(message = "푸시 발송에 실패했습니다. 잠시 후 다시 시도해 주세요.") {
+    super(message);
+    this.name = "SendPushFailedError";
+  }
+}
+
+/**
  * 요청된 member_ids 중 ctx.team_id 소속의 정본·활성 멤버만 골라낸다(팀 스코프 강제).
  * 반환 순서는 입력 순서를 보존하고 중복은 제거한다. 교차 팀·비활성·미존재 id 는 조회 결과에
  * 포함되지 않으므로 자연히 제외된다.
@@ -88,6 +99,7 @@ async function resolveTeamActiveTargets(
  * @param input    검증된 입력(member_ids·title·message).
  * @throws SendPushDeniedError 비-admin(G-2) — 아무것도 발송하지 않음.
  * @throws ToolInputError      유효 발송 대상이 0명(교차 팀/비활성/미존재만 지정한 경우).
+ * @throws SendPushFailedError 인앱 저장 전면 실패(insertNotiMany inAppOk=false) — 감사 성공행 미기록.
  */
 export async function sendPush(
   supabase: Db,
@@ -111,7 +123,7 @@ export async function sendPush(
   // 인앱 noti + 웹푸시 자동. pref 수신거부 필터는 insertNotiMany(관문)가 처리한다.
   // 관리자 수동 발송 = 하나의 배치(발송 이력 화면이 batch_id 로 수신자를 묶는다).
   const batchId = crypto.randomUUID();
-  await insertNotiMany({
+  const { inAppOk, notifiedMemIds } = await insertNotiMany({
     teamId: ctx.team_id,
     memIds: targets,
     notiTypeEnm: SEND_PUSH_NOTI_TYPE,
@@ -120,7 +132,13 @@ export async function sendPush(
     batchId,
   });
 
-  const sentCnt = targets.length;
+  // 인앱 저장이 전면 실패했으면 발송 실패로 간주 — 성공 감사행을 남기지 않고 에러를 던진다(감사 무결성).
+  if (!inAppOk) {
+    throw new SendPushFailedError();
+  }
+
+  // 감사·반환에는 요청 수(requested_cnt)가 아니라 **실측 발송분**(수신거부 필터 반영)을 기록한다.
+  const sentCnt = notifiedMemIds.length;
 
   // AC-18: 발송 성공 시 감사행 1행. params_json 에 민감정보(연락처·계좌) 미포함.
   const auditId = crypto.randomUUID();
@@ -134,7 +152,7 @@ export async function sendPush(
       message: input.message,
       requested_cnt: input.memberIds.length,
       sent_cnt: sentCnt,
-      recipient_mem_ids: targets,
+      recipient_mem_ids: notifiedMemIds,
       batch_id: batchId,
     },
     result_summary: `send_push ok: sent_cnt=${sentCnt} requested=${input.memberIds.length}`,

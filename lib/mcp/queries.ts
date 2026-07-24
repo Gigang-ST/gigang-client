@@ -40,6 +40,20 @@ function pickOne<T>(rel: T | T[] | null | undefined): T | null {
 }
 
 /**
+ * PostgREST `ilike` 패턴에서 LIKE 메타문자를 리터럴로 이스케이프한다(PII 대량 열람 차단).
+ *
+ * baseline §5.4 는 `lower(mem_nm)=lower(name)`(대소문자 무시 **완전일치**)인데, 그냥
+ * `ilike(name)` 을 쓰면 입력의 `%`·`_` 가 와일드카드로 해석돼 `name="%"` 한 번에 팀 전원
+ * 프로필(생일·성별 포함)이 반환된다. 입력의 `\`·`%`·`_` 를 각각 `\\`·`\%`·`\_` 로 치환하면
+ * PostgREST 기본 escape(백슬래시) 규칙에 따라 리터럴로만 매칭돼 완전일치와 동치가 된다.
+ *
+ * 하나의 정규식으로 한 번에 치환해 `\` 중복 이스케이프를 피한다(예: `%`→`\%`, `foo_bar`→`foo\_bar`).
+ */
+export function escapeLikePattern(input: string): string {
+  return input.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
+/**
  * KST 달력일(`date` 미지정 시 오늘) 하루의 UTC 반열림 구간을 계산한다.
  * baseline의 `(stt_at at time zone 'Asia/Seoul')::date = :day`와 동치인
  * `stt_at >= startIso and stt_at < endIso` 필터로 변환하기 위한 순수 함수.
@@ -332,8 +346,9 @@ export async function getMemberProfile(
   if (memberId) {
     query = query.eq("mem_mst.mem_id", memberId);
   } else if (name) {
-    // baseline lower(mem_nm)=lower(name) 동치. ilike(무와일드카드)=대소문자 무시 완전일치.
-    query = query.ilike("mem_mst.mem_nm", name);
+    // baseline lower(mem_nm)=lower(name) 동치. LIKE 메타문자를 이스케이프해 대소문자 무시
+    // 완전일치를 강제한다(name="%" 같은 와일드카드로 인한 PII 대량 열람 차단, escapeLikePattern 참조).
+    query = query.ilike("mem_mst.mem_nm", escapeLikePattern(name));
   }
   const { data, error } = await query;
   if (error) throw error;

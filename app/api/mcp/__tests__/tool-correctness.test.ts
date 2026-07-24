@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateAttendance,
   buildPushStatus,
+  escapeLikePattern,
   kstDayRange,
 } from "@/lib/mcp/queries";
 
@@ -138,6 +139,32 @@ describe("buildPushStatus — §5.6 미구독 먼저", () => {
     const rows = buildPushStatus(members, new Set(["a", "c"]));
     const on = rows.filter((r) => r.push_enabled).map((r) => r.mem_id).sort();
     expect(on).toEqual(["a", "c"]);
+  });
+});
+
+describe("escapeLikePattern — §5.4 get_member_profile name 와일드카드 차단(PII 대량 열람)", () => {
+  it("LIKE 메타문자 %·_·\\ 를 리터럴로 이스케이프한다", () => {
+    // name="%" → "\%" : ilike 에서 리터럴 '%' 로만 매칭(전원 조회 차단)
+    expect(escapeLikePattern("%")).toBe("\\%");
+    // name="_" → "\_" : 단일 문자 와일드카드 무력화
+    expect(escapeLikePattern("_")).toBe("\\_");
+    // 백슬래시(escape 문자 자체)도 리터럴로
+    expect(escapeLikePattern("\\")).toBe("\\\\");
+  });
+
+  it("혼합 입력의 모든 메타문자를 각각 이스케이프한다", () => {
+    // %_% → \%\_\%
+    expect(escapeLikePattern("%_%")).toBe("\\%\\_\\%");
+    // 실제 이름 사이의 _ 도 리터럴로(foo_bar → foo\_bar)
+    expect(escapeLikePattern("foo_bar")).toBe("foo\\_bar");
+    // 50%\_할인 같은 복합 케이스
+    expect(escapeLikePattern("50%\\_")).toBe("50\\%\\\\\\_");
+  });
+
+  it("메타문자 없는 일반 이름은 그대로 둔다(완전일치 동치)", () => {
+    expect(escapeLikePattern("홍길동")).toBe("홍길동");
+    expect(escapeLikePattern("hs")).toBe("hs");
+    expect(escapeLikePattern("")).toBe("");
   });
 });
 
