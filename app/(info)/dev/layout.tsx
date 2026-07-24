@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 
 import { isDevModeEnabled } from "@/lib/dev-mode";
 
@@ -7,18 +8,19 @@ import { isDevModeEnabled } from "@/lib/dev-mode";
  * 라우트 그룹 레이아웃에서 한 번에 가둔다 — 페이지마다 게이트를 붙이지 않기 위해서.
  * 개발 모드가 꺼져 있으면 404로 떨군다.
  *
- * force-dynamic 필수: isDevModeEnabled()는 cookies()/headers() 등 동적 API를 쓰지 않아
+ * connection() 필수: isDevModeEnabled()는 cookies()/headers() 등 동적 API를 쓰지 않아
  * cacheComponents 아래에서는 빌드 타임에 정적으로 프리렌더된다. 그러면 그 시점의
  * true/false가 정적 HTML(또는 정적 404)로 굳어져, 배포 후 환경변수를 바꿔도 재배포
  * 전까지 절대 안 바뀐다 — 개발계에서 링크는 보이는데 실제 페이지는 영구 404인 버그로 나타남.
+ * `export const dynamic = "force-dynamic"`은 cacheComponents와 호환되지 않아(빌드 에러)
+ * 쓸 수 없고, 동적 렌더링을 요구하는 정본 API인 connection()으로 강제한다.
  */
-export const dynamic = "force-dynamic";
-
-export default function DevLayout({
+export default async function DevLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  await connection();
   if (!isDevModeEnabled()) notFound();
   return children;
 }
