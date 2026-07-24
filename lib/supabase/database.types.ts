@@ -1957,6 +1957,7 @@ export type Database = {
         Row: {
           crt_at: string
           del_yn: boolean
+          float_at: string
           mem_id: string
           pldg_id: string
           pldg_txt: string
@@ -1966,6 +1967,7 @@ export type Database = {
         Insert: {
           crt_at?: string
           del_yn?: boolean
+          float_at?: string
           mem_id: string
           pldg_id?: string
           pldg_txt: string
@@ -1975,6 +1977,7 @@ export type Database = {
         Update: {
           crt_at?: string
           del_yn?: boolean
+          float_at?: string
           mem_id?: string
           pldg_id?: string
           pldg_txt?: string
@@ -1991,6 +1994,78 @@ export type Database = {
           },
           {
             foreignKeyName: "pldg_mst_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
+      post_mst: {
+        Row: {
+          act_dt: string | null
+          cmnt_txt: string | null
+          crt_at: string
+          del_yn: boolean
+          dst_km: number | null
+          mem_id: string
+          photo_url: string | null
+          pldg_txt: string | null
+          post_id: string
+          post_type_enm: Database["public"]["Enums"]["post_type_enm"]
+          ref_id: string | null
+          ref_type_txt: string | null
+          sprt_enm: string | null
+          src_enm: Database["public"]["Enums"]["post_src_enm"]
+          team_id: string
+          upd_at: string
+        }
+        Insert: {
+          act_dt?: string | null
+          cmnt_txt?: string | null
+          crt_at?: string
+          del_yn?: boolean
+          dst_km?: number | null
+          mem_id: string
+          photo_url?: string | null
+          pldg_txt?: string | null
+          post_id?: string
+          post_type_enm: Database["public"]["Enums"]["post_type_enm"]
+          ref_id?: string | null
+          ref_type_txt?: string | null
+          sprt_enm?: string | null
+          src_enm?: Database["public"]["Enums"]["post_src_enm"]
+          team_id: string
+          upd_at?: string
+        }
+        Update: {
+          act_dt?: string | null
+          cmnt_txt?: string | null
+          crt_at?: string
+          del_yn?: boolean
+          dst_km?: number | null
+          mem_id?: string
+          photo_url?: string | null
+          pldg_txt?: string | null
+          post_id?: string
+          post_type_enm?: Database["public"]["Enums"]["post_type_enm"]
+          ref_id?: string | null
+          ref_type_txt?: string | null
+          sprt_enm?: string | null
+          src_enm?: Database["public"]["Enums"]["post_src_enm"]
+          team_id?: string
+          upd_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_mst_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "post_mst_team_id_fkey"
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "team_mst"
@@ -2743,6 +2818,14 @@ export type Database = {
       }
       get_team_ghost_members: { Args: { p_team_id: string }; Returns: Json }
       get_team_overview: { Args: { p_team_id: string }; Returns: Json }
+      get_team_pledges: {
+        Args: { p_limit?: number; p_team_id: string }
+        Returns: Json
+      }
+      get_team_posts: {
+        Args: { p_limit?: number; p_team_id: string }
+        Returns: Json
+      }
       get_team_story_feed: {
         Args: { p_mem_id?: string; p_team_id: string }
         Returns: Json
@@ -2871,6 +2954,8 @@ export type Database = {
       gender: "male" | "female"
       member_status: "active" | "inactive" | "banned" | "pending"
       participation_role: "participant" | "cheering" | "volunteer"
+      post_src_enm: "manual" | "mlg_auto"
+      post_type_enm: "pledge" | "record_flex"
       pt_actv_type_enm:
         | "regular_attend"
         | "gthr_attend"
@@ -3020,6 +3105,8 @@ export const Constants = {
       gender: ["male", "female"],
       member_status: ["active", "inactive", "banned", "pending"],
       participation_role: ["participant", "cheering", "volunteer"],
+      post_src_enm: ["manual", "mlg_auto"],
+      post_type_enm: ["pledge", "record_flex"],
       pt_actv_type_enm: [
         "regular_attend",
         "gthr_attend",
