@@ -177,9 +177,47 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 | StoryWeather | `story-weather.tsx` | 기강 기상대 — 크루 분위기 한 단어 + 수치 격자 + 8주 추세 |
 | StoryReactionButton | `story-reaction-button.tsx` | 응원 카운트업 — 누른 만큼 오른다(취소 없음, 1인 99회) |
 | ActvHistorySheet | `actv-history-sheet.tsx` | 활동량 내역 바텀시트 — 이번 달 획득 내역 날짜 역순 + 합계 |
+| PledgePlanes | `pledge-planes.tsx` | 각오 — 종이비행기가 배너를 견인해 오→왼으로 난다(공유 하늘·Realtime). 하늘 3건 + 착륙장 3건 + 더보기 |
+| RecordFlexSigns | `record-flex-signs.tsx` | 기록 자랑 팻말 — 판에 사진+한마디, 손잡이 아래 이름·활동일·거리 |
+| RecordFlexCreateDialog | `record-flex-create-dialog.tsx` | 기록 팻말 작성 — 사진·한마디·종목·거리·날짜 |
 
-- 데이터: `getStoryFeed()` (`lib/queries/story-feed.ts`) + `getTeamOverview()` (`lib/queries/team-overview.ts`).
-  둘 다 공개 집계만 캐시하고 내 리액션은 클라이언트가 오버레이한다.
+- 데이터: `getStoryFeed()` (`lib/queries/story-feed.ts`) + `getTeamOverview()` (`lib/queries/team-overview.ts`)
+  + `getStoryPosts()` (`lib/queries/story-posts.ts`) + `getStoryPledges()` (`lib/queries/story-pledges.ts`).
+  모두 공개 집계만 캐시하고 내 리액션은 클라이언트가 오버레이한다.
+- **각오는 하늘, 기록은 땅**: 각오(비행기)와 기록 자랑(팻말)은 형태로 구분한다 — 각오는 "앞으로",
+  기록은 "이미 한 것"이라 같은 모양이면 둘이 섞여 읽힌다. 팻말 형태는 각오가 하늘로 옮겨가며 비워진 걸
+  기록 자랑이 물려받았다(시안 원본은 `/dev/story-styles` J·K안).
+- **각오는 1인 1개**: 새로 쓰면 이전 각오가 지면에서 내려간다(`del_yn` 소프트삭제 — 이력은 남긴다).
+  DB 유니크 제약은 걸지 않는다(걸면 고쳐 쓰려는 사람이 아무것도 못 올린다) — 화면 정합은
+  `dedupePledgesByMember()`(`lib/story-pledge.ts`)가 사람당 최신 1건으로 좁혀 지킨다.
+- **비행은 오→왼**: 배너 글자는 왼쪽부터 읽는데 왼→오로 날면 글자가 읽는 방향으로 도망간다.
+  뉴스 티커가 죄다 오→왼인 것과 같은 이유. 비행기 그림은 `public/story/paper-plane.png`(크루 손그림 →
+  흰 배경 투명 처리 + `dark:invert`), 가로만 `scaleX(0.82)`로 눌러 통통하게. 배너엔 `float_at` 기준
+  "N분째 비행"이 붙어 얼마나 떠 있었는지 보인다.
+- **하늘은 공유 편성(Realtime)**: 어느 각오가 떠 있는지는 서버 `float_at` 최신순이 정본이고, 누가
+  띄우면(`floatPledge` → `float_at=now`) 열린 **모든 화면**이 `pldg_mst` Realtime 구독으로 즉시 다시
+  그린다(알림·댓글과 같은 패턴). 누구든 아무 각오나 띄울 수 있다(본인 것만이 아님 — 공유 놀이). 착륙장
+  비행기 버튼을 누르면 그 각오가 이륙한다(하늘이 꽉 차면 가장 오래 떠 있던 게 내려앉는다). 누른 화면에선
+  비행기가 왼쪽으로 날며 각오 문장을 지우는 이륙 연출(`pledge-liftoff`/`pledge-wipe`)이 재생되고, 하늘
+  반영은 낙관적으로 먼저 보여준 뒤 Realtime이 확정한다.
+- **각오 캐시도 피드와 분리**(`story-pledges` 태그 · `get_team_pledges` RPC): 띄우기가 연타돼도 큰 피드
+  (`get_team_story_feed`, CTE 10개+)를 무효화하지 않게 record_flex와 같이 떼어 뒀다. 리드·떠다니는
+  아바타는 여전히 `feed.pledges`(crt_at 순)를 쓰고, 종이비행기 존만 `float_at` 편성을 받는다.
+- **떠다니는 아바타 = 실시간 접속자(`FloatingAvatars`)**: 피드 얼굴이 아니라 **지금 /story를 보고 있는
+  로그인 크루원**이다(Realtime **presence** — 열면 track, 나가면 사라짐). 비로그인도 이 하늘을 보되 자기
+  아바타는 없다. 탭하면 통통 튀는데 그 **튕김(누구·방향·세기)은 broadcast로 모두에게** 전해져 같은 공을
+  주고받고 서로 방해도 된다. 물리는 각자 화면이 돌려 위치는 조금씩 다르고(정밀 동기화 아님), 공이 바닥에
+  **안착할 때 그 주인이 위치를 한 번 흘려보내**(pos broadcast) 느슨히 재정렬한다. presence·broadcast는
+  DB 복제가 아니라 Realtime 메시징이라 마이그레이션이 없다(각오 하늘과 다른 점).
+- **떠다니는 아바타는 `onPointerDown`으로 받는다**: 매 프레임 움직이는 요소는 down과 up이 같은
+  요소 위에서 끝나지 않아 `click`이 통째로 씹힌다. 공중에서 연타하려면 down에서 힘을 실어야 한다.
+- **자율 이동은 목표속도 램프로**: 고정 속도로 "굴러/멈춰"를 반복하면 기계벌레처럼 보인다. 매 구간
+  목표 속도·방향·길이를 넓게 랜덤으로 뽑고 실제 속도는 목표로 스르륵(lerp) 붙여 가감속을 부드럽게 한다.
+- **기록 자랑 캐시는 피드와 분리**(`story-posts` 태그): 자랑은 올린 즉시 보여야 하고 피드 본문은 5분이면
+  충분하다. 한 태그로 묶으면 자랑 한 건이 피드 전체 캐시를 끌고 내려간다. RPC도 `get_team_posts`로
+  갈라 뒀다 — `get_team_story_feed`는 이미 CTE 10개+라 존을 더 얹지 않는다.
+- **사진**: `post-photos` 버킷(멤버별 폴더). 아바타(512 정사각 crop)와 달리 비율 유지·폭 1080 제한.
+  업로드를 먼저 하고 INSERT를 나중에 하되, INSERT가 실패하면 올린 파일을 지운다(고아 방지).
 - **리드 슬롯**: 종류당 **한 칸**이다. 신규 멤버가 넷이라고 네 칸을 쓰면 스와이프가 명단 낭독이 된다.
   가장 최근 1명(1건)을 대표로 크게, 나머지는 우측 레일(`w-12` + 세로 괘선)에 작게 — 빠지는 사람이 없게.
   자동 전환 5초, 손이 닿으면 10초 멈췄다 반응이 없으면 스스로 재개한다(영구 정지 금지).

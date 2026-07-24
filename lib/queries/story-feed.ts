@@ -4,6 +4,7 @@ import { unstable_cache } from "next/cache";
 
 import { reactionKey, type MyReactionMap } from "@/lib/story-reaction";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isRequestAbortError } from "@/lib/supabase/is-abort-error";
 
 import type { MemberCardCompactData } from "@/lib/queries/member-card";
 
@@ -145,7 +146,9 @@ export function getStoryFeed(teamId: string): Promise<StoryFeed> {
       });
 
       if (error) {
-        console.error("[getStoryFeed] 전광판 피드 조회 실패", error);
+        if (!isRequestAbortError(error)) {
+          console.error("[getStoryFeed] 전광판 피드 조회 실패", error);
+        }
         return EMPTY_FEED;
       }
 
@@ -186,7 +189,9 @@ function getReactionTotals(teamId: string): Promise<MyReactionMap> {
         .eq("team_id", teamId);
 
       if (error) {
-        console.error("[getReactionTotals] 응원 총합 조회 실패", error);
+        if (!isRequestAbortError(error)) {
+          console.error("[getReactionTotals] 응원 총합 조회 실패", error);
+        }
         return {};
       }
 
@@ -224,7 +229,9 @@ export async function getStoryReactions(
     .eq("mem_id", memId);
 
   if (error) {
-    console.error("[getStoryReactions] 내 응원 조회 실패", error);
+    if (!isRequestAbortError(error)) {
+      console.error("[getStoryReactions] 내 응원 조회 실패", error);
+    }
     return { totals, mine: {} };
   }
 

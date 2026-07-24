@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isRequestAbortError } from "@/lib/supabase/is-abort-error";
 
 /** 현상수배 대상 — 오래 안 나온 활동 멤버 한 명 */
 export type GhostMember = {
@@ -29,7 +30,10 @@ export async function getGhostMembers(teamId: string): Promise<GhostMember[]> {
   });
 
   if (error) {
-    console.error("[getGhostMembers] 유령회원 조회 실패", error);
+    // abort(dev 렌더 재시작·요청 취소)는 코드 결함이 아니므로 로그에서 제외한다.
+    if (!isRequestAbortError(error)) {
+      console.error("[getGhostMembers] 유령회원 조회 실패", error);
+    }
     return [];
   }
 

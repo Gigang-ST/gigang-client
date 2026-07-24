@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { isRequestAbortError } from "@/lib/supabase/is-abort-error";
 
 /** `/profile/edit` 러닝 프로필 섹션 초기값 — 프로필 카드 "소개"에 노출되는 값들 */
 export type EditableRunningProfile = {
@@ -36,7 +37,9 @@ export async function getRunningProfile(
     .maybeSingle();
 
   if (error) {
-    console.error("[onboarding] 러닝 프로필 조회 실패", error.message);
+    if (!isRequestAbortError(error)) {
+      console.error("[onboarding] 러닝 프로필 조회 실패", error.message);
+    }
     return empty;
   }
   if (!data) return empty;

@@ -3,6 +3,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isRequestAbortError } from "@/lib/supabase/is-abort-error";
 
 /** 한 주(월요일 시작, KST)의 크루 합계 */
 export type TeamWeek = {
@@ -38,7 +39,9 @@ export function getTeamOverview(teamId: string): Promise<TeamOverview> {
       });
 
       if (error) {
-        console.error("[getTeamOverview] 오버뷰 조회 실패", error);
+        if (!isRequestAbortError(error)) {
+          console.error("[getTeamOverview] 오버뷰 조회 실패", error);
+        }
         return EMPTY_OVERVIEW;
       }
 

@@ -2,6 +2,8 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { isRequestAbortError } from "@/lib/supabase/is-abort-error";
+
 /**
  * gthr_attd_hist 1행 + 조인된 멤버 정보(mem_mst).
  * database.types.ts 미생성 테이블(SG-01)이라 select 결과를 수기 타입으로 둔다.
@@ -45,7 +47,9 @@ export async function getGatheringAttendanceHistory(
     .order("evt_at", { ascending: false });
 
   if (error) {
-    console.error("[gathering] 참석 이력 조회 실패", error.message);
+    if (!isRequestAbortError(error)) {
+      console.error("[gathering] 참석 이력 조회 실패", error.message);
+    }
     return [];
   }
 
