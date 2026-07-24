@@ -1548,19 +1548,21 @@
   }
 }
 
-/* 각오 띄우기 시안 전용 모션 (/dev/story-styles J·L).
-   실제 채택되면 여기서 프로덕션 섹션으로 옮긴다. */
+/* 종이비행기 각오 (J안 채택 — components/story/pledge-planes.tsx).
+   .pledge-fly / .pledge-unfold는 프로덕션이 쓴다. .pledge-flip만 아직 시안 전용(L안). */
 
-/* 배너 견인 비행기 — 왼→오 횡단. 높이가 살짝 출렁여야 종이가 뜬 느낌이 난다 */
+/* 배너 견인 비행기 — 오→왼 횡단. 높이가 살짝 출렁여야 종이가 뜬 느낌이 난다.
+   방향이 오른쪽에서 왼쪽인 이유: 배너 글자는 왼쪽부터 읽는데, 왼→오로 날면 글자가
+   읽는 방향으로 함께 도망가 눈이 따라잡지 못한다. 뉴스 티커가 죄다 오→왼인 것과 같은 이유다. */
 @keyframes pledge-fly {
   from {
-    transform: translateX(-105%) translateY(0);
+    transform: translateX(105vw) translateY(0);
   }
   50% {
     transform: translateX(0%) translateY(-6px);
   }
   to {
-    transform: translateX(105vw) translateY(0);
+    transform: translateX(-105%) translateY(0);
   }
 }
 .pledge-fly {
@@ -1584,7 +1586,8 @@
   animation: pledge-unfold 0.34s ease-out both;
 }
 
-/* 솔라리 타일 — 글자 하나가 철컥 넘어간다. index만큼 지연시켜 좌→우로 흐르게 */
+/* 솔라리 타일 — 글자 하나가 철컥 넘어간다. index만큼 지연시켜 좌→우로 흐르게.
+   시안 전용(/dev/story-styles L안) — 채택되지 않았다 */
 @keyframes pledge-flip {
   from {
     transform: rotateX(-90deg);
@@ -1600,6 +1603,40 @@
   transform-origin: center top;
 }
 
+/* 착륙장 이륙 — 비행기가 왼쪽으로 부웅 날아가며(살짝 위로) 사라진다. 오→왼 비행 방향과 같게.
+   transform은 PaperPlane 바깥 span에 걸린다(img 자신의 scaleX와 충돌 안 하게). */
+@keyframes pledge-liftoff {
+  0% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-360px, -20px);
+    opacity: 0;
+  }
+}
+.pledge-liftoff {
+  animation: pledge-liftoff 0.64s cubic-bezier(0.45, 0, 0.7, 0.2) forwards;
+}
+
+/* 각오 문장 지우기 — 비행기가 지나가며 오른쪽부터 왼쪽으로 쓸어 지운다(clip-path inset 우측 증가) */
+@keyframes pledge-wipe {
+  from {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+  to {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0;
+  }
+}
+.pledge-wipe {
+  animation: pledge-wipe 0.6s ease-in forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* 비행기는 멈추면 화면 밖에 머무르므로, 정지 대신 제자리에 세운다 */
   .pledge-fly {
@@ -1608,6 +1645,11 @@
   }
   .pledge-unfold,
   .pledge-flip {
+    animation: none;
+  }
+  /* 이륙 연출은 컴포넌트가 reduced-motion이면 애초에 재생하지 않지만, 방어적으로 정지 */
+  .pledge-liftoff,
+  .pledge-wipe {
     animation: none;
   }
 }
