@@ -1630,6 +1630,44 @@ export type Database = {
           },
         ]
       }
+      mcp_audit_log: {
+        Row: {
+          actor_mem_id: string
+          audit_id: string
+          created_at: string
+          params_json: Json | null
+          result_summary: string | null
+          team_id: string
+          tool_nm: string
+        }
+        Insert: {
+          actor_mem_id: string
+          audit_id?: string
+          created_at?: string
+          params_json?: Json | null
+          result_summary?: string | null
+          team_id: string
+          tool_nm: string
+        }
+        Update: {
+          actor_mem_id?: string
+          audit_id?: string
+          created_at?: string
+          params_json?: Json | null
+          result_summary?: string | null
+          team_id?: string
+          tool_nm?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_audit_log_actor_mem_id_fkey"
+            columns: ["actor_mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
       mcp_token_rel: {
         Row: {
           created_at: string

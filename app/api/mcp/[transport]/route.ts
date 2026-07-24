@@ -11,6 +11,7 @@ import {
   listRecentMembers,
   listTodayGatherings,
 } from "@/lib/mcp/queries";
+import { SendPushDeniedError, sendPush } from "@/lib/mcp/send-push";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /** MCP 도구 응답 도우미 — 사실 payload를 text JSON 으로 감싼다. */
@@ -191,6 +192,46 @@ const handler = createMcpHandler(
       },
       async (_args, extra) =>
         runReadTool(extra, (ctx, supabase) => listPushStatus(supabase, ctx.team_id)),
+    );
+
+    // ── write 도구 1개(SG-05). admin 전용 · ctx.team_id 스코프 · 감사 로그 필수. ──
+
+    server.registerTool(
+      "send_push",
+      {
+        title: "멤버에게 알림 발송",
+        description:
+          "지정한 우리 팀 멤버들에게 인앱 알림과 웹푸시를 발송합니다. 운영진(admin) 전용이며, 교차 팀 발송은 불가합니다. member_ids 는 우리 팀 활성 멤버의 uuid 목록입니다.",
+        inputSchema: {
+          member_ids: z
+            .array(z.string().uuid("member_ids 는 uuid 목록이어야 합니다."))
+            .min(1, "최소 1명 이상의 수신자가 필요합니다.")
+            .max(500),
+          title: z.string().min(1, "제목을 입력하세요.").max(100),
+          message: z.string().min(1, "내용을 입력하세요.").max(1000),
+        },
+      },
+      async (args, extra) => {
+        const ctx = extra.authInfo?.extra as OperatorContext | undefined;
+        if (!ctx) {
+          // withMcpAuth(required)가 미인증을 401로 이미 차단하므로 도달하지 않는 방어선.
+          return errorResult("인증 정보를 확인할 수 없습니다.");
+        }
+        try {
+          const supabase = createAdminClient();
+          const result = await sendPush(supabase, ctx, {
+            memberIds: args.member_ids,
+            title: args.title,
+            message: args.message,
+          });
+          return textResult(result);
+        } catch (err) {
+          // 비-admin 거부(G-2/§7 403)·알려진 입력 오류만 메시지 노출, 그 외는 마스킹.
+          if (err instanceof SendPushDeniedError) return errorResult(err.message);
+          if (err instanceof ToolInputError) return errorResult(err.message);
+          return errorResult("요청을 처리하지 못했습니다.");
+        }
+      },
     );
   },
   {
