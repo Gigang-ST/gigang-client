@@ -1,12 +1,41 @@
 "use server";
 
 import { withActive } from "@/lib/actions/auth";
-import { RCTN_CODES, type RctnCd, type StoryEntityType } from "@/lib/queries/story-feed";
+import {
+  getStoryFeed,
+  RCTN_CODES,
+  type RctnCd,
+  type StoryEntityType,
+} from "@/lib/queries/story-feed";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { MAX_RCTN_DELTA } from "@/lib/story-reaction";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const ENTITY_TYPES: StoryEntityType[] = ["newbie", "record", "race"];
+
+/**
+ * 응원 대상이 **지금 이 팀 전광판에 실제로 올라온 항목**인지 확인한다.
+ *
+ * `createAdminClient()`는 RLS를 우회하고 `rctn_mst.entity_id`는 `text`라, 검증 없이 넘기면
+ * 존재하지도 않는 id(심지어 임의 길이 문자열)로 행이 꽂힌다. 팀 소속 확인도 안 된다.
+ *
+ * 대상 테이블을 종류별로 다시 조회하지 않고 **캐시된 피드**(`getStoryFeed`, 5분)를 기준으로 삼는다.
+ * 왕복이 늘지 않고, "전광판에 보이는 것만 응원할 수 있다"는 제품 규칙과도 정확히 일치한다.
+ */
+async function isOnBoard(
+  teamId: string,
+  entityType: StoryEntityType,
+  entityId: string,
+): Promise<boolean> {
+  const feed = await getStoryFeed(teamId);
+  const items =
+    entityType === "newbie"
+      ? feed.newbies
+      : entityType === "record"
+        ? feed.records
+        : feed.races;
+  return items.some((item) => item.entity_id === entityId);
+}
 
 export type BumpResult =
   | { ok: false; message: string }
@@ -48,6 +77,12 @@ export async function bumpStoryReaction(input: {
   try {
     return await withActive(async ({ member }) => {
       const { teamId } = await getRequestTeamContext();
+
+      // 팀·존재 확인은 저장 직전에. 통과 못 하면 RPC까지 가지 않는다.
+      if (!(await isOnBoard(teamId, input.entityType, input.entityId))) {
+        return { ok: false as const, message: "이미 전광판에서 내려간 소식입니다" };
+      }
+
       const db = createAdminClient();
 
       const { data, error } = await db.rpc("bump_story_rctn", {

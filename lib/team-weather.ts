@@ -1,4 +1,5 @@
 import { dayjs } from "@/lib/dayjs";
+import { MOOD_SCALE, type MoodLevel } from "@/lib/mood-scale";
 
 import type { TeamWeek } from "@/lib/queries/team-overview";
 
@@ -30,12 +31,17 @@ export function formatWeekLabel(wStart: string): string {
  * "지난달보다 활발한가"가 크루 분위기의 실제 질문이기 때문이다.
  */
 export type TeamWeather = {
-  level: "blazing" | "steady" | "resting" | "dormant";
+  level: MoodLevel;
   /** 표정 라벨 — 개인 컨디션과 같은 어휘 */
   label: string;
   /** 판정 근거를 사람 말로. 숫자를 다시 읽어주지 않는다 */
   message: string;
 };
+
+/** 단계 키 + 근거 → 기상. 라벨은 공유 척도에서 가져온다(개인 컨디션과 어휘 드리프트 방지) */
+function weather(level: MoodLevel, message: string): TeamWeather {
+  return { level, label: MOOD_SCALE[level].label, message };
+}
 
 /** 이번 주 활동량 = 참석 연인원 + 새 기록. 모임 개수는 규모를 안 담아 제외한다 */
 function activityOf(week: TeamWeek): number {
@@ -49,13 +55,7 @@ function activityOf(week: TeamWeek): number {
  */
 export function getTeamWeather(weeks: TeamWeek[]): TeamWeather {
   const current = weeks.at(-1);
-  if (!current) {
-    return {
-      level: "dormant",
-      label: "실종",
-      message: "아직 기록된 활동이 없습니다",
-    };
-  }
+  if (!current) return weather("dormant", "아직 기록된 활동이 없습니다");
 
   const now = activityOf(current);
 
@@ -66,48 +66,20 @@ export function getTeamWeather(weeks: TeamWeek[]): TeamWeather {
 
   // 기준선이 없는 초기 크루는 비율을 못 낸다 — 절대량으로만 판정한다.
   if (baseline <= 0) {
-    if (now >= 10) {
-      return { level: "blazing", label: "기강 그 자체", message: "이번 주 크루가 제대로 달리는 중" };
-    }
-    if (now >= 4) {
-      return { level: "steady", label: "기강 잡아", message: "이번 주도 꾸준히 나오고 있습니다" };
-    }
-    if (now >= 1) {
-      return { level: "resting", label: "기며든다", message: "이번 주는 조용한 편입니다" };
-    }
-    return { level: "dormant", label: "실종", message: "이번 주는 아직 아무도 안 나왔습니다" };
+    if (now >= 10) return weather("blazing", "이번 주 크루가 제대로 달리는 중");
+    if (now >= 4) return weather("steady", "이번 주도 꾸준히 나오고 있습니다");
+    if (now >= 1) return weather("resting", "이번 주는 조용한 편입니다");
+    return weather("dormant", "이번 주는 아직 아무도 안 나왔습니다");
   }
 
   const ratio = now / baseline;
 
   // 임계값: 1.0 / 0.5 / 0.3. 이번 주가 직전 4주 평균만큼만 해도 최상('기강 그 자체')이다 —
   // 꾸준한 크루가 영원히 2단계에 머물지 않게 한 조정(예전엔 1.3배를 넘어야 최상이었다).
-  if (ratio >= 1.0) {
-    return {
-      level: "blazing",
-      label: "기강 그 자체",
-      message: "지난 4주 평균만큼, 꾸준히 잘 달리는 중",
-    };
-  }
-  if (ratio >= 0.5) {
-    return {
-      level: "steady",
-      label: "기강 잡아",
-      message: "지난 4주보다 살짝 잦아든 정도",
-    };
-  }
-  if (ratio >= 0.3) {
-    return {
-      level: "resting",
-      label: "기며든다",
-      message: "지난 4주 평균보다 조용한 주",
-    };
-  }
-  return {
-    level: "dormant",
-    label: "실종",
-    message: "이번 주는 크루가 많이 쉬고 있습니다",
-  };
+  if (ratio >= 1.0) return weather("blazing", "지난 4주 평균만큼, 꾸준히 잘 달리는 중");
+  if (ratio >= 0.5) return weather("steady", "지난 4주보다 살짝 잦아든 정도");
+  if (ratio >= 0.3) return weather("resting", "지난 4주 평균보다 조용한 주");
+  return weather("dormant", "이번 주는 크루가 많이 쉬고 있습니다");
 }
 
 /**

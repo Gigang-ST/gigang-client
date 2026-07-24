@@ -1,4 +1,5 @@
 import { dayjs } from "@/lib/dayjs";
+import { MOOD_SCALE, type MoodLevel } from "@/lib/mood-scale";
 import {
   JOIN_PURP_SHORT_LABELS,
   PACE_LABELS,
@@ -21,7 +22,7 @@ import type { MemberCardRecord } from "@/lib/queries/member-card";
  */
 export type ActivityMood = {
   /** 단계 키 — 아이콘 선택용 */
-  level: "blazing" | "steady" | "resting" | "dormant";
+  level: MoodLevel;
   /** 표정 라벨 */
   label: string;
   /** 카드에 곁들이는 한마디 */
@@ -30,7 +31,12 @@ export type ActivityMood = {
   litSteps: number;
 };
 
-export const MOOD_STEPS = 4;
+export { MOOD_STEPS } from "@/lib/mood-scale";
+
+/** 단계 키 + 한마디 → 컨디션. 라벨·칸수는 공유 척도에서 가져온다(어휘 드리프트 방지) */
+function mood(level: MoodLevel, message: string): ActivityMood {
+  return { level, ...MOOD_SCALE[level], message };
+}
 
 /**
  * 최근 90일 활동 건수 + 마지막 활동일 → 컨디션 4단계.
@@ -45,45 +51,19 @@ export function getActivityMood(
   recentCount: number,
   lastActvDt: string | null,
 ): ActivityMood {
-  if (recentCount >= 10) {
-    return {
-      level: "blazing",
-      label: "기강 그 자체",
-      message: "내가 곧 기강의 기준",
-      litSteps: 4,
-    };
-  }
-  if (recentCount >= 6) {
-    return {
-      level: "steady",
-      label: "기강 잡아",
-      message: "슬슬 기강 좀 잡아볼까",
-      litSteps: 3,
-    };
-  }
-  if (recentCount >= 1) {
-    return {
-      level: "resting",
-      label: "기며든다",
-      message: "기강에 관심이 생기는 정도",
-      litSteps: 2,
-    };
-  }
+  if (recentCount >= 10) return mood("blazing", "내가 곧 기강의 기준");
+  if (recentCount >= 6) return mood("steady", "슬슬 기강 좀 잡아볼까");
+  if (recentCount >= 1) return mood("resting", "기강에 관심이 생기는 정도");
 
   // 90일간 활동 0 — 이력이 아예 없는 신규와 오래 쉰 멤버를 구분한다.
   const days = lastActvDt
     ? dayjs().startOf("day").diff(dayjs(lastActvDt).startOf("day"), "day")
     : null;
 
-  return {
-    level: "dormant",
-    label: "실종",
-    message:
-      days == null
-        ? "첫 발자국을 기다리는 중"
-        : `${days}일째 실종… 수배 중`,
-    litSteps: 1,
-  };
+  return mood(
+    "dormant",
+    days == null ? "첫 발자국을 기다리는 중" : `${days}일째 실종… 수배 중`,
+  );
 }
 
 /** 종목 코드 → 화면 라벨 */
