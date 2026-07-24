@@ -4,6 +4,8 @@ import { getGhostMembers } from "@/lib/queries/ghost-members";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getStoryReactions, getStoryFeed } from "@/lib/queries/story-feed";
+import { getStoryPledges } from "@/lib/queries/story-pledges";
+import { getStoryPosts } from "@/lib/queries/story-posts";
 import { getTeamOverview } from "@/lib/queries/team-overview";
 
 import { StoryClient } from "@/components/story/story-client";
@@ -27,10 +29,12 @@ export default function StoryPage() {
  */
 async function StoryFeedSection() {
   const { teamId } = await getRequestTeamContext();
-  const [feed, overview, ghosts, { member }] = await Promise.all([
+  const [feed, overview, ghosts, posts, pledges, { member }] = await Promise.all([
     getStoryFeed(teamId),
     getTeamOverview(teamId),
     getGhostMembers(teamId),
+    getStoryPosts(teamId),
+    getStoryPledges(teamId),
     getCurrentMember(),
   ]);
 
@@ -43,8 +47,15 @@ async function StoryFeedSection() {
       feed={feed}
       overview={overview}
       ghosts={ghosts}
+      posts={posts}
+      pledges={pledges}
       teamId={teamId}
       myMemId={member?.id ?? null}
+      me={
+        member
+          ? { id: member.id, name: member.full_name, avatarUrl: member.avatar_url }
+          : null
+      }
       reactions={reactions}
     />
   );

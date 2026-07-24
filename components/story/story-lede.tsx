@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/common/avatar";
 import { StoryReactionButton } from "@/components/story/story-reaction-button";
 
+import { dedupePledgesByMember } from "@/lib/story-pledge";
 import { reactionKey } from "@/lib/story-reaction";
 
 import type { PointerEvent } from "react";
@@ -73,7 +74,12 @@ function withinDays(dateStr: string | null, days: number): boolean {
  *
  * 순서는 시의성: 임박한 대회 → 새 얼굴 → 기록 → 이달의 참가왕.
  */
-function buildLedes(feed: StoryFeed, reactions: StoryReactionCounts): Lede[] {
+function buildLedes(
+  feed: StoryFeed,
+  reactions: StoryReactionCounts,
+  /** 각오 칸에 실을 인덱스 — 호출자가 마운트 후 굴린다(§⑤) */
+  pledgePick: number,
+): Lede[] {
   const ledes: Lede[] = [];
 
   /**
@@ -193,27 +199,23 @@ function buildLedes(feed: StoryFeed, reactions: StoryReactionCounts): Lede[] {
     });
   }
 
-  // ⑤ 각오 — 가장 최근 1건이 대표, 나머지는 레일. 헤드라인이 곧 각오 문장이다(따옴표로 인용).
-  //    Math.random()은 SSR/CSR 불일치를 부르므로 쓰지 않는다 — "최근순" 그대로 대표를 고른다.
-  const [pledgeLead, ...restPledges] = feed.pledges;
+  // ⑤ 각오 — 존재하는 각오 중 **하나만** 싣는다. 헤드라인이 곧 각오 문장이다(따옴표로 인용).
+  //    레일(다른 사람 얼굴)은 두지 않는다: 이 칸은 "누가 썼나"가 아니라 각오 한 문장을 읽히는
+  //    자리고, 얼굴을 늘어세우면 문장이 아니라 명단으로 읽힌다.
+  //    어느 각오를 고를지는 호출자가 정한다(`pledgePick`) — 여기서 Math.random()을 쓰면
+  //    서버와 클라이언트가 다른 각오를 골라 하이드레이션이 깨진다.
+  const pledgePool = dedupePledgesByMember(feed.pledges);
+  const pledgeLead = pledgePool[pledgePick % Math.max(pledgePool.length, 1)];
   if (pledgeLead) {
-    // 레일은 "얼굴"을 세우는 자리라 사람 기준으로 유니크해야 한다 — 한 사람이 각오를 여러 개
-    // 써도 레일엔 한 번만. (대표와 같은 사람도 제외) 이걸 안 하면 mem_id key가 겹쳐 React가 터진다.
-    const seen = new Set<string>([pledgeLead.mem_id]);
-    const railPeople = restPledges.filter((p) => {
-      if (seen.has(p.mem_id)) return false;
-      seen.add(p.mem_id);
-      return true;
-    });
     ledes.push({
       key: `pledge-${pledgeLead.pldg_id}`,
       kicker: "각오",
       entity: null,
       people: [pledgeLead],
-      subs: railPeople.slice(0, MAX_SUBS),
-      moreCount: Math.max(0, railPeople.length - MAX_SUBS),
+      subs: [],
+      moreCount: 0,
       headline: `“${pledgeLead.pldg_txt}”`,
-      standfirst: `${pledgeLead.mem_nm}, 코스에 각오를 꽂다`,
+      standfirst: `${pledgeLead.mem_nm}, 각오를 접어 날리다`,
       figure: null,
       figureLabel: null,
     });
@@ -241,7 +243,12 @@ export function StoryLede({
   reactions: StoryReactionCounts;
   onSelectMember: (memId: string, name: string) => void;
 }) {
-  const ledes = buildLedes(feed, reactions);
+  // 각오 칸에 실을 각오 — 자동 전환이 한 바퀴 돌 때마다 갈린다(아래 타이머).
+  // 초기값을 0으로 고정하는 게 핵심이다: 렌더 중에 Math.random()을 부르면 서버와
+  // 클라이언트가 다른 각오를 골라 하이드레이션이 깨진다. 굴리는 건 타이머 콜백 안에서만.
+  const [pledgePick, setPledgePick] = useState(0);
+
+  const ledes = buildLedes(feed, reactions, pledgePick);
   const total = ledes.length;
 
   const [active, setActive] = useState(0);
@@ -280,6 +287,9 @@ export function StoryLede({
     const timer = window.setInterval(() => {
       if (document.hidden) return;
       setActive((i) => (i + 1) % total);
+      // 각오 칸이 다시 돌아올 때 같은 각오면 지면이 고여 보인다 — 넘길 때마다 굴려 둔다.
+      // 인덱스는 `buildLedes`가 목록 길이로 나눠 쓰므로 계속 키워도 안전하다.
+      setPledgePick((n) => n + 1 + Math.floor(Math.random() * 3));
     }, ROTATE_MS);
 
     return () => window.clearInterval(timer);

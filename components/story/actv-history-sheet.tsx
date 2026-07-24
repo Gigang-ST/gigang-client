@@ -8,7 +8,6 @@ import {
 } from "@/app/actions/story/actv-history";
 import { ACTV_HELP_TEXT, getActvMonthLabel, getActvTypeLabel } from "@/lib/activity-index";
 import { dayjs } from "@/lib/dayjs";
-import { cn } from "@/lib/utils";
 
 import { Body, Caption } from "@/components/common/typography";
 import {
@@ -125,20 +124,16 @@ export function ActvHistorySheet({
                       <span className="truncate text-[14px] text-foreground">
                         {getActvTypeLabel(entry.actv_type)}
                       </span>
-                      {/* 회수 행은 왜 깎였는지가 본문만큼 중요하다 */}
+                      {/* 무엇으로 얻었는지 — 예: "정모 참석: 6월 정기런" */}
                       {entry.rsn_txt && (
                         <span className="truncate text-[11px] text-muted-foreground">
                           {entry.rsn_txt}
                         </span>
                       )}
                     </div>
-                    <span
-                      className={cn(
-                        "shrink-0 font-numeric text-[14px] font-medium tabular-nums",
-                        entry.amount < 0 ? "text-destructive" : "text-foreground",
-                      )}
-                    >
-                      {entry.amount > 0 ? `+${entry.amount}` : entry.amount}
+                    {/* 회수된 짝은 목록에서 빠지므로 여기 금액은 항상 획득 순액(양수)이다 */}
+                    <span className="shrink-0 font-numeric text-[14px] font-medium text-foreground tabular-nums">
+                      +{entry.amount}
                     </span>
                   </li>
                 ))}

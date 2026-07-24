@@ -5,18 +5,39 @@ import { getActvMonthRange } from "@/lib/activity-index";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-/** 내역 한 줄 — 원장 1행을 화면용으로 줄인 것 */
+/** 내역 한 줄 — 원장의 "적립↔회수 짝"을 하나로 합친 순액 한 건 */
 export type ActvHistoryEntry = {
   id: string;
   /** 귀속일 YYYY-MM-DD (KST) */
   aply_dt: string;
   /** `pt_actv_type_enm` 원본 코드 — 라벨 변환은 `getActvTypeLabel()` */
   actv_type: string;
-  /** 증감량. 회수는 음수 */
+  /** 획득 순액 — 항상 양수(회수된 짝은 이 목록에서 아예 빠진다) */
   amount: number;
-  /** 사람이 읽을 사유. 회수 행에서 특히 중요 */
+  /** 사람이 읽을 사유(적립 행 기준) */
   rsn_txt: string | null;
 };
+
+/** 원장에서 뽑아오는 원본 행 — 짝 맞춤·순액 계산에 쓴다 */
+type LedgerRow = {
+  pt_txn_id: string;
+  aply_dt: string;
+  actv_type_enm: string;
+  pt_amt: number;
+  ref_id: string | null;
+  rsn_txt: string | null;
+};
+
+/**
+ * 짝 키 — 어떤 적립과 회수가 한 쌍인지 정한다(트리거의 net 판정과 같은 기준).
+ * 대부분 `(활동유형, ref_id)`지만, 마일리지런 기록만 ref_id가 NULL이라 `(mlg_record, 귀속일)`로 짝짓는다
+ * (하루 1건 규칙이라 날짜가 곧 키). ref_id도 없는 예외(수동조정 등)는 행마다 독립 취급.
+ */
+function pairKey(row: LedgerRow): string {
+  if (row.actv_type_enm === "mlg_record") return `mlg_record|${row.aply_dt}`;
+  if (row.ref_id) return `${row.actv_type_enm}|${row.ref_id}`;
+  return `solo|${row.pt_txn_id}`;
+}
 
 export type ActvHistoryResult =
   | { ok: false; message: string }
@@ -45,7 +66,7 @@ export async function getActvHistory(memId: string): Promise<ActvHistoryResult> 
 
       const { data, error } = await db
         .from("pt_txn_hist")
-        .select("pt_txn_id, aply_dt, actv_type_enm, pt_amt, rsn_txt")
+        .select("pt_txn_id, aply_dt, actv_type_enm, pt_amt, ref_id, rsn_txt")
         .eq("team_id", teamId)
         .eq("mem_id", memId)
         .gte("aply_dt", from)
@@ -59,13 +80,34 @@ export async function getActvHistory(memId: string): Promise<ActvHistoryResult> 
         return { ok: false as const, message: "잠시 후 다시 시도해 주세요" };
       }
 
-      const entries: ActvHistoryEntry[] = (data ?? []).map((row) => ({
-        id: row.pt_txn_id,
-        aply_dt: row.aply_dt,
-        actv_type: row.actv_type_enm,
-        amount: row.pt_amt,
-        rsn_txt: row.rsn_txt,
-      }));
+      const rows = (data ?? []) as LedgerRow[];
+
+      // 적립↔회수를 짝(pairKey)으로 묶어 순액을 낸다. 회수분과 그 획득 짝은 순액이 0이 돼
+      // 목록에서 통째로 빠지고, **진짜 남은 획득(순액>0)만** 한 줄로 보인다. 순액이 0/음수인
+      // 짝은 감춘다. 이렇게 해도 합계(순액들의 합)는 랭킹(원장 전체 net)과 일치한다 —
+      // 회수 짝은 어차피 0을 더하므로. (rows는 aply_dt·crt_at 역순이라 그룹 첫 양수행이 최신 적립)
+      const groups = new Map<string, { net: number; earn: LedgerRow | null }>();
+      for (const row of rows) {
+        const key = pairKey(row);
+        const g = groups.get(key) ?? { net: 0, earn: null };
+        g.net += row.pt_amt;
+        if (row.pt_amt > 0 && g.earn === null) g.earn = row; // 최신 적립행을 대표로
+        groups.set(key, g);
+      }
+
+      const entries: ActvHistoryEntry[] = [];
+      for (const g of groups.values()) {
+        if (g.net <= 0 || g.earn === null) continue; // 완전 회수(0)·순감소 짝은 숨긴다
+        entries.push({
+          id: g.earn.pt_txn_id,
+          aply_dt: g.earn.aply_dt,
+          actv_type: g.earn.actv_type_enm,
+          amount: g.net,
+          rsn_txt: g.earn.rsn_txt,
+        });
+      }
+      // 대표(적립)일 역순 — Map은 삽입순이라 정렬을 다시 잡는다
+      entries.sort((a, b) => (a.aply_dt < b.aply_dt ? 1 : a.aply_dt > b.aply_dt ? -1 : 0));
 
       return {
         ok: true as const,

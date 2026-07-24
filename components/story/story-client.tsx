@@ -18,7 +18,8 @@ import { MemberCardDialog } from "@/components/members/member-card-dialog";
 import { ActvHistorySheet } from "@/components/story/actv-history-sheet";
 import { FloatingAvatars } from "@/components/story/floating-avatars";
 import { GhostWanted } from "@/components/story/ghost-wanted";
-import { PledgeSigns } from "@/components/story/pledge-signs";
+import { PledgePlanes } from "@/components/story/pledge-planes";
+import { RecordFlexSigns } from "@/components/story/record-flex-signs";
 import { StoryLede } from "@/components/story/story-lede";
 import { StoryMasthead } from "@/components/story/story-masthead";
 import { StorySection } from "@/components/story/story-section";
@@ -26,6 +27,8 @@ import { StoryWeather } from "@/components/story/story-weather";
 
 import type { GhostMember } from "@/lib/queries/ghost-members";
 import type { StoryFeed, StoryReactionCounts } from "@/lib/queries/story-feed";
+import type { StoryFloatPledge } from "@/lib/queries/story-pledges";
+import type { StoryPost } from "@/lib/queries/story-posts";
 import type { TeamOverview } from "@/lib/queries/team-overview";
 
 /**
@@ -39,8 +42,11 @@ export function StoryClient({
   feed,
   overview,
   ghosts,
+  posts,
+  pledges,
   teamId,
   myMemId,
+  me,
   reactions,
 }: {
   feed: StoryFeed;
@@ -48,9 +54,15 @@ export function StoryClient({
   overview: TeamOverview;
   /** 오래 안 나온 멤버 — 현상수배존에 쓴다 */
   ghosts: GhostMember[];
+  /** 기록 자랑 — 팻말존에 쓴다. 피드와 캐시 태그가 갈려 있어 별도 prop이다 */
+  posts: StoryPost[];
+  /** 각오 — 종이비행기존(공유 하늘). float_at 순, 피드와 별도 캐시·별도 RPC */
+  pledges: StoryFloatPledge[];
   teamId: string;
   /** 로그인 사용자 — 본인 카드면 한마디를 바로 수정할 수 있다 */
   myMemId: string | null;
+  /** 로그인 사용자 표시정보 — 떠다니는 아바타 프레즌스에 내 얼굴을 등록하는 데 쓴다(비로그인이면 null) */
+  me: { id: string; name: string; avatarUrl: string | null } | null;
   /** 응원 집계 (모두의 총합 + 내 몫) — 캐시 없이 최신값. 리드 응원 버튼 보정용 */
   reactions: StoryReactionCounts;
 }) {
@@ -73,29 +85,41 @@ export function StoryClient({
 
   return (
     <div className="flex flex-col break-keep">
-      <StoryMasthead week={feed.week_stat} />
+      <StoryMasthead />
 
       {/* 리드 위 투명 레이어에 크루 아바타가 유영한다 — 탭하면 통통 튄다(놀이 요소).
-          레이어는 포인터를 통과시키고(리드 스와이프 유지) 아바타만 클릭을 받는다. */}
-      <div className="relative pb-2 pt-4">
+          레이어는 포인터를 통과시키고(리드 스와이프 유지) 아바타만 클릭을 받는다.
+
+          하단 패딩(pb-10)은 여백이 아니라 **아바타가 구를 바닥**이다. 이게 얕으면 아바타가
+          리드의 진행 표시(현재 칸 막대) 높이에서 굴러 그걸 가린다 — 아바타 바닥선이
+          막대보다 아래로 내려가도록 띠를 확보한다. */}
+      <div className="relative pb-10 pt-4">
         <StoryLede
           feed={feed}
           reactions={reactions}
           onSelectMember={selectMember}
         />
-        <FloatingAvatars feed={feed} />
+        <FloatingAvatars teamId={teamId} me={me} />
       </div>
 
       <div className="flex flex-col gap-8 pb-8 pt-6">
         {/* 기강 기상대 — 개별 소식(리드) 다음에 크루 전체 분위기 */}
         <StoryWeather overview={overview} />
 
-        {/* 코스 응원 팻말 — 기상대 바로 아래. 멤버 각오를 손팻말로 세운다 */}
-        <PledgeSigns
-          pledges={feed.pledges}
+        {/* 종이비행기 각오 — 기상대 바로 아래. 공유 하늘(float_at 순) + Realtime.
+            리드·떠다니는 아바타는 feed.pledges를 쓰지만, 이 존은 float_at 편성이 필요해
+            별도 pledges prop을 받는다. */}
+        <PledgePlanes
+          pledges={pledges}
+          teamId={teamId}
           myMemId={myMemId}
           onSelectMember={selectMember}
         />
+
+        {/* 기록 자랑 팻말 — 각오가 하늘로 옮겨가며 비워진 팻말 형태를 물려받았다.
+            사진 + 한마디가 판에, 이름·활동일·거리가 손잡이 아래에 붙는다.
+            팻말은 읽기 전용이다(탭해도 열리지 않는다 — 프로필 카드 진입은 걷어냈다). */}
+        <RecordFlexSigns posts={posts} myMemId={myMemId} />
 
         {/* 새 얼굴 — 최근 3명 + 더보기 */}
         <StorySection
@@ -213,12 +237,10 @@ export function StoryClient({
                   });
                 return (
                   <li key={rec.entity_id} className="rule-row">
-                    <button
-                      type="button"
-                      onClick={() => selectMember(rec.mem_id, rec.mem_nm)}
-                      aria-label={`${rec.mem_nm} 프로필 보기`}
-                      className="flex w-full items-center gap-3 py-2.5 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
+                    {/* 행 전체가 아니라 이름만 눌린다 — 기록을 읽으려고 줄을 짚었을 뿐인데
+                        프로필 시트가 열리면 오독이다. 대신 이름은 13px라 손가락에 작아서,
+                        음수 마진으로 히트영역만 행 높이 전체로 넓힌다. */}
+                    <div className="flex w-full items-center gap-3 py-2.5">
                       {/* 왼쪽 — 날짜 · 대회명 */}
                       <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
                         {rec.race_dt && (
@@ -231,16 +253,21 @@ export function StoryClient({
                         </span>
                       </span>
 
-                      {/* 오른쪽 — 기록 · 이름 */}
+                      {/* 오른쪽 — 기록 · 이름(탭하면 프로필) */}
                       <span className="flex shrink-0 items-baseline gap-2">
                         <span className="font-numeric text-[15px] font-medium text-foreground tabular-nums">
                           {secondsToTime(rec.rec_time_sec)}
                         </span>
-                        <span className="text-[13px] font-semibold text-muted-foreground">
+                        <button
+                          type="button"
+                          onClick={() => selectMember(rec.mem_id, rec.mem_nm)}
+                          aria-label={`${rec.mem_nm} 프로필 보기`}
+                          className="-my-2.5 -mr-1.5 px-1.5 py-2.5 text-[13px] font-semibold text-muted-foreground underline decoration-border underline-offset-4 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
                           {rec.mem_nm}
-                        </span>
+                        </button>
                       </span>
-                    </button>
+                    </div>
                   </li>
                 );
               })}
