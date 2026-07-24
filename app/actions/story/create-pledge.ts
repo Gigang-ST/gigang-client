@@ -68,9 +68,9 @@ export async function createPledge(input: { pldg_txt: string }): Promise<CreateP
         console.error("[createPledge] 이전 각오 내리기 실패", sweepError);
       }
 
-      // 각오는 두 곳에서 읽힌다: 리드·떠다니는 아바타는 story-feed(큰 RPC), 종이비행기 존은
-      // story-pledges(float_at 순 전용 RPC). 새 각오는 float_at=now라 하늘에 바로 뜬다 —
-      // 두 태그를 함께 무효화해야 두 곳이 같이 갱신된다.
+      // 각오는 리드·떠다니는 아바타·팻말존 모두 story-feed(큰 RPC)의 `pledges`를 읽는다.
+      // 전용 캐시(story-pledges)는 종이비행기가 각오를 실어 나르던 시절 float_at 편성을
+      // 위한 것이었는데, 비행기가 한마디(msg_mst)로 옮겨가며 읽는 곳이 없어져 걷어냈다.
       //
       // **`revalidateTag(tag, "max")`가 아니라 `updateTag(tag)`다.** 프로필을 준 revalidateTag는
       // stale-while-revalidate라 Next가 일부러 "액션이 자기 쓰기를 되읽지 못하게" 한다
@@ -78,7 +78,6 @@ export async function createPledge(input: { pldg_txt: string }): Promise<CreateP
       // router.refresh()가 **낡은 캐시**를 받아 "새로고침해야 보이는" 증상이 났다. updateTag는
       // 즉시 만료 + read-your-own-writes라 내 화면도, Realtime을 받은 남의 화면도 바로 갱신된다.
       updateTag("story-feed");
-      updateTag("story-pledges");
       return { ok: true as const, pldg_id: data.pldg_id };
     });
   } catch (e) {

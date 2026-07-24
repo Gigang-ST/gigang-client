@@ -1630,6 +1630,88 @@ export type Database = {
           },
         ]
       }
+      mcp_audit_log: {
+        Row: {
+          actor_mem_id: string
+          audit_id: string
+          created_at: string
+          params_json: Json | null
+          result_summary: string | null
+          team_id: string
+          tool_nm: string
+        }
+        Insert: {
+          actor_mem_id: string
+          audit_id?: string
+          created_at?: string
+          params_json?: Json | null
+          result_summary?: string | null
+          team_id: string
+          tool_nm: string
+        }
+        Update: {
+          actor_mem_id?: string
+          audit_id?: string
+          created_at?: string
+          params_json?: Json | null
+          result_summary?: string | null
+          team_id?: string
+          tool_nm?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_audit_log_actor_mem_id_fkey"
+            columns: ["actor_mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
+      mcp_token_rel: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          label: string | null
+          last_used_at: string | null
+          mem_id: string
+          revoked_at: string | null
+          team_id: string
+          token_hash: string
+          token_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          label?: string | null
+          last_used_at?: string | null
+          mem_id: string
+          revoked_at?: string | null
+          team_id: string
+          token_hash: string
+          token_id?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          label?: string | null
+          last_used_at?: string | null
+          mem_id?: string
+          revoked_at?: string | null
+          team_id?: string
+          token_hash?: string
+          token_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_token_rel_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
       mem_mst: {
         Row: {
           avatar_url: string | null
@@ -1858,6 +1940,51 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "mem_mst"
             referencedColumns: ["mem_id"]
+          },
+        ]
+      }
+      msg_mst: {
+        Row: {
+          crt_at: string
+          del_yn: boolean
+          mem_id: string
+          msg_id: string
+          msg_txt: string
+          team_id: string
+          upd_at: string
+        }
+        Insert: {
+          crt_at?: string
+          del_yn?: boolean
+          mem_id: string
+          msg_id?: string
+          msg_txt: string
+          team_id: string
+          upd_at?: string
+        }
+        Update: {
+          crt_at?: string
+          del_yn?: boolean
+          mem_id?: string
+          msg_id?: string
+          msg_txt?: string
+          team_id?: string
+          upd_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "msg_mst_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "msg_mst_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
           },
         ]
       }
@@ -2817,6 +2944,10 @@ export type Database = {
         }[]
       }
       get_team_ghost_members: { Args: { p_team_id: string }; Returns: Json }
+      get_team_messages: {
+        Args: { p_limit?: number; p_team_id: string }
+        Returns: Json
+      }
       get_team_overview: { Args: { p_team_id: string }; Returns: Json }
       get_team_pledges: {
         Args: { p_limit?: number; p_team_id: string }
