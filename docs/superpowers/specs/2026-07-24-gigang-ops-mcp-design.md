@@ -81,6 +81,8 @@
 
 검증 기준 SQL. `:team_id`는 ctx에서 주입. KST = `Asia/Seoul`. 도구 출력은 아래 결과와 핵심 필드 기준 일치해야 M-01 PASS.
 
+> **⚠️ team_mem_rel은 버전 테이블 — 모든 조회에 `and r.vers = 0` 필수.** (2026-07-24 SG-04에서 dev 실측·독립검증 확인) vers=0 미적용 시 활성멤버가 중복(dev 147 vs 정본 144)되고, vers=0가 'left'인 멤버가 vers>0 'active' 행으로 부활한다. 앱 전역 규약(`fetchMemMstWithTeamRel`·`auth.ts`)과 동일. 아래 baseline에 반영됨. (mem_mst는 vers가 아니라 del_yn으로 버저닝 — `m.del_yn=false`만으로 mem_id당 1행.)
+
 ### 5.1 list_today_gatherings
 ```sql
 select g.gthr_id, g.gthr_nm, g.gthr_type_enm, g.stt_at, g.end_at, g.loc_txt, g.max_prt_cnt,
@@ -98,7 +100,7 @@ order by g.stt_at;
 select m.mem_id, m.mem_nm, r.join_dt, r.team_role_cd, r.mem_st_cd
 from team_mem_rel r
 join mem_mst m on m.mem_id = r.mem_id and m.del_yn = false
-where r.team_id = :team_id and r.del_yn = false
+where r.team_id = :team_id and r.del_yn = false and r.vers = 0
 order by r.join_dt desc nulls last, r.crt_at desc
 limit :limit;   -- 기본 10
 ```
@@ -113,7 +115,7 @@ from team_mem_rel r
 join mem_mst m on m.mem_id = r.mem_id and m.del_yn = false
 left join gthr_attd_rel a on a.mem_id = r.mem_id
 left join gthr_mst g on g.gthr_id = a.gthr_id and g.team_id = :team_id and g.del_yn = false
-where r.team_id = :team_id and r.del_yn = false and r.mem_st_cd = 'active'
+where r.team_id = :team_id and r.del_yn = false and r.vers = 0 and r.mem_st_cd = 'active'
 group by m.mem_id, m.mem_nm, r.join_dt
 order by last_attended_at asc nulls first, attendance_cnt asc
 limit :limit;   -- 옵션
@@ -125,7 +127,7 @@ limit :limit;   -- 옵션
 select m.mem_id, m.mem_nm, m.birth_dt, m.gdr_enm, m.avatar_url,
        r.join_dt, r.team_role_cd, r.mem_st_cd, r.intro_txt
 from mem_mst m
-join team_mem_rel r on r.mem_id = m.mem_id and r.team_id = :team_id and r.del_yn = false
+join team_mem_rel r on r.mem_id = m.mem_id and r.team_id = :team_id and r.del_yn = false and r.vers = 0
 where m.del_yn = false
   and (m.mem_id = :member_id or lower(m.mem_nm) = lower(:name));
 ```
@@ -140,7 +142,7 @@ from team_mem_rel r
 join mem_mst m on m.mem_id = r.mem_id and m.del_yn = false
 left join gthr_attd_rel a on a.mem_id = r.mem_id
 left join gthr_mst g on g.gthr_id = a.gthr_id and g.team_id = :team_id and g.del_yn = false
-where r.team_id = :team_id and r.del_yn = false and r.mem_st_cd = 'active'
+where r.team_id = :team_id and r.del_yn = false and r.vers = 0 and r.mem_st_cd = 'active'
   and not exists (
     select 1 from gthr_attd_rel x where x.gthr_id = :gathering_id and x.mem_id = r.mem_id)
 group by m.mem_id, m.mem_nm, r.join_dt
@@ -153,7 +155,7 @@ select m.mem_id, m.mem_nm, r.mem_st_cd,
        exists(select 1 from push_sub_rel p where p.team_id = :team_id and p.mem_id = r.mem_id) as push_enabled
 from team_mem_rel r
 join mem_mst m on m.mem_id = r.mem_id and m.del_yn = false
-where r.team_id = :team_id and r.del_yn = false and r.mem_st_cd = 'active'
+where r.team_id = :team_id and r.del_yn = false and r.vers = 0 and r.mem_st_cd = 'active'
 order by push_enabled asc, m.mem_nm;
 ```
 
