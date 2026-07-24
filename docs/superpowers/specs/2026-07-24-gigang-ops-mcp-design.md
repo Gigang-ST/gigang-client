@@ -59,7 +59,7 @@
 
 - **읽기 도구 6개**: 인증된 팀 멤버 전원 허용.
 - **`send_push`**: `is_admin`만. 아니면 **403**.
-- **민감정보**: `get_member_profile`의 `phone_no·email_addr·bank_nm·bank_acct_no`는 **is_admin만** 반환. 비-admin에겐 해당 필드 생략(마스킹). 기본 프로필(이름·가입일·역할·소개)은 전원.
+- **민감정보 전면 차단**: `phone_no·email_addr·bank_nm·bank_acct_no`는 **어떤 도구도, 어떤 권한(admin 포함)도 반환하지 않는다.** 쿼리 select 목록에서 아예 제외 — 코드 레벨 불변식(M-03). `get_member_profile`은 생일·성별을 포함하되 연락처·계좌는 절대 미포함.
 
 ## 4. 도구 I/O 스키마
 
@@ -70,7 +70,7 @@
 | `list_today_gatherings` | `date?`(KST, 기본 오늘) | gthr_id, gthr_nm, gthr_type_enm, stt_at, end_at, loc_txt, max_prt_cnt, attendee_cnt | 멤버 |
 | `list_recent_members` | `limit?`(기본 10) | mem_id, mem_nm, join_dt, team_role_cd, mem_st_cd | 멤버 |
 | `list_members_attendance` | `limit?` | mem_id, mem_nm, join_dt, attendance_cnt, last_attended_at | 멤버 |
-| `get_member_profile` | `member_id`(uuid) \| `name` | mem_nm, gdr_enm, birth_dt, join_dt, team_role_cd, mem_st_cd, intro_txt, (+admin: phone_no, email_addr, bank_nm, bank_acct_no) | 멤버(민감정보 admin) |
+| `get_member_profile` | `member_id`(uuid) \| `name` | mem_nm, birth_dt, gdr_enm, join_dt, team_role_cd, mem_st_cd, intro_txt, avatar_url | 멤버 (연락처·계좌 절대 미포함) |
 | `list_gathering_non_attendees` | `gathering_id`(uuid) | mem_id, mem_nm, join_dt, attendance_cnt, last_attended_at | 멤버 |
 | `list_push_status` | — | mem_id, mem_nm, mem_st_cd, push_enabled | 멤버 |
 | `send_push` | `member_ids`(uuid[]), `title`, `message` | sent_cnt, audit_id | **admin** |
@@ -120,9 +120,10 @@ limit :limit;   -- 옵션
 ```
 
 ### 5.4 get_member_profile
+연락처·계좌(phone_no·email_addr·bank_nm·bank_acct_no)는 **select 목록에서 영구 제외** — 코드 불변식.
 ```sql
-select m.mem_id, m.mem_nm, m.gdr_enm, m.birth_dt, r.join_dt, r.team_role_cd, r.mem_st_cd, r.intro_txt
-       -- is_admin일 때만 추가: , m.phone_no, m.email_addr, m.bank_nm, m.bank_acct_no
+select m.mem_id, m.mem_nm, m.birth_dt, m.gdr_enm, m.avatar_url,
+       r.join_dt, r.team_role_cd, r.mem_st_cd, r.intro_txt
 from mem_mst m
 join team_mem_rel r on r.mem_id = m.mem_id and r.team_id = :team_id and r.del_yn = false
 where m.del_yn = false
@@ -166,10 +167,9 @@ order by push_enabled asc, m.mem_nm;
 | G-4 | 폐기(revoked)/만료(expired) 토큰 | 임의 도구 | DENY 401 |
 | G-5 | 비활성(mem_st_cd≠active) 멤버 토큰 | 임의 도구 | DENY 401 |
 | G-6 | 팀 T 토큰 | 읽기 도구 | 팀 T 행만 반환, 타 팀 데이터 0건 |
-| G-7 | member | `get_member_profile` | ALLOW, 단 phone/email/bank 필드 생략 |
-| G-8 | owner/admin | `get_member_profile` | ALLOW, 민감정보 포함 |
+| G-7 | 임의 토큰(admin 포함) | `get_member_profile` | 응답에 phone_no·email_addr·bank_nm·bank_acct_no **미포함** |
 
-M-02 = 위 매트릭스 100% 통과.
+M-02 = 위 매트릭스 100% 통과. (민감정보는 권한 분기 없이 전면 차단 — G-7은 M-03 불변식과도 연결.)
 
 ## 7. 에러 처리
 
