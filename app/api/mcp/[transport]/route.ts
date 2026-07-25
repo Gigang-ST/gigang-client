@@ -100,7 +100,7 @@ const handler = createMcpHandler(
       {
         title: "오늘의 모임",
         description:
-          "오늘(또는 지정한 날짜, KST 기준) 우리 팀 모임 목록과 각 모임의 참석자 수를 반환합니다. 날짜는 YYYY-MM-DD.",
+          "오늘(또는 지정한 날짜, KST 기준) 우리 팀 모임 목록과 각 모임의 설명(본문)·참석자 수를 반환합니다. 날짜는 YYYY-MM-DD.",
         inputSchema: {
           date: z
             .string()

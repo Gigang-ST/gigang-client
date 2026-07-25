@@ -67,7 +67,7 @@
 
 | 도구 | 입력 | 출력(행) | 권한 |
 |---|---|---|---|
-| `list_today_gatherings` | `date?`(KST, 기본 오늘) | gthr_id, gthr_nm, gthr_type_enm, stt_at, end_at, loc_txt, max_prt_cnt, attendee_cnt | 멤버 |
+| `list_today_gatherings` | `date?`(KST, 기본 오늘) | gthr_id, gthr_nm, gthr_type_enm, stt_at, end_at, loc_txt, max_prt_cnt, desc_txt, attendee_cnt | 멤버 |
 | `list_recent_members` | `limit?`(기본 10) | mem_id, mem_nm, join_dt, team_role_cd, mem_st_cd | 멤버 |
 | `list_members_attendance` | `limit?` | mem_id, mem_nm, join_dt, attendance_cnt, last_attended_at | 멤버 |
 | `get_member_profile` | `member_id`(uuid) \| `name` | mem_nm, birth_dt, gdr_enm, join_dt, team_role_cd, mem_st_cd, intro_txt, avatar_url | 멤버 (연락처·계좌 절대 미포함) |
@@ -85,7 +85,7 @@
 
 ### 5.1 list_today_gatherings
 ```sql
-select g.gthr_id, g.gthr_nm, g.gthr_type_enm, g.stt_at, g.end_at, g.loc_txt, g.max_prt_cnt,
+select g.gthr_id, g.gthr_nm, g.gthr_type_enm, g.stt_at, g.end_at, g.loc_txt, g.max_prt_cnt, g.desc_txt,
        count(a.attd_id) as attendee_cnt
 from gthr_mst g
 left join gthr_attd_rel a on a.gthr_id = g.gthr_id

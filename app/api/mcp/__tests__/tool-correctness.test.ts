@@ -23,7 +23,8 @@ import {
  *
  * ── dev 대조 결과(2026-07-24, vers=0 정본 보정 baseline) ──
  *  AC-10 list_today_gatherings(2026-07-04): baseline == UTC-range 등가형 → 동일 1행
- *    { gthr_id: d2867b5b…534d, stt_at: 2026-07-03T23:00:00Z, attendee_cnt: 10 }.
+ *    { gthr_id: d2867b5b…534d, stt_at: 2026-07-03T23:00:00Z, attendee_cnt: 10,
+ *      desc_txt: non-null(모임 설명 본문) }. (2026-07-25 desc_txt 필드 추가 후 재대조)
  *  AC-11 list_recent_members(limit 10): 10행, join_dt desc·crt_at desc.
  *    head=[김또낑(07-09), 정정만(07-09), 온보딩 5f6ae133(07-09), 온보딩 0fe17429(07-09), 박초록(07-06)…].
  *  AC-12 list_members_attendance: 활성 144행, 참석>0 88명, 미참석 56명.
