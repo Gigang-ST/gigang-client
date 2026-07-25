@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { Suspense } from "react";
 
 import { getGhostMembers } from "@/lib/queries/ghost-members";
@@ -8,6 +9,7 @@ import { getStoryMessages } from "@/lib/queries/story-messages";
 import { getStoryPosts } from "@/lib/queries/story-posts";
 import { getTeamOverview } from "@/lib/queries/team-overview";
 
+import { HeaderActions } from "@/components/common/header-actions";
 import { StoryClient } from "@/components/story/story-client";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -57,11 +59,18 @@ async function StoryFeedSection() {
           : null
       }
       reactions={reactions}
+      // 제호 우상단 [알림][햄버거] — 서버에서 그려 클라이언트로 넘긴다(HeaderActions는
+      // async 서버 컴포넌트라 client인 StoryClient 안에서 직접 렌더할 수 없다).
+      mastheadActions={<HeaderActions />}
     />
   );
 }
 
-/** 지면 스켈레톤 — 제호는 데이터 없이 그릴 수 있으므로 형태만 먼저 잡아둔다 */
+/**
+ * 지면 로딩 — 제호는 데이터 없이도 그릴 수 있으니 형태만 잡고, 그 아래에
+ * 메인 로고를 은은히 깜빡여 "불러오는 중"임을 브랜드로 알린다(무색 스켈레톤 대신).
+ * 로고는 라이트/다크 공통으로 보이게 `dark:invert`(로그인 화면과 같은 규칙).
+ */
 function StorySkeleton() {
   return (
     <div className="flex flex-col">
@@ -70,17 +79,17 @@ function StorySkeleton() {
         <Skeleton className="h-2.5 w-56 rounded" />
         <div className="rule-masthead mt-1 w-full" />
       </div>
-      <div className="flex flex-col gap-3 px-6 pt-4">
-        <Skeleton className="h-2.5 w-20 rounded" />
-        <Skeleton className="h-7 w-full rounded" />
-        <Skeleton className="h-7 w-2/3 rounded" />
-        <Skeleton className="h-3 w-40 rounded" />
-        <Skeleton className="mt-1 size-14 rounded-full" />
-      </div>
-      <div className="flex flex-col gap-3 px-6 pt-10">
-        <Skeleton className="h-3 w-28 rounded" />
-        <Skeleton className="h-10 w-full rounded" />
-        <Skeleton className="h-10 w-full rounded" />
+      <div className="flex min-h-[60vh] flex-col items-center justify-center px-6">
+        <Image
+          src="/logo.webp"
+          alt="기강"
+          width={512}
+          height={512}
+          priority
+          // 화면에 꽉 차게 키우되 회색으로 옅게 — grayscale로 색을 빼고 낮은 투명도로
+          // "불러오는 중"임을 은은히 알린다(무색 스켈레톤 대신 브랜드 워터마크).
+          className="h-auto w-full max-w-xs animate-pulse opacity-10 grayscale dark:opacity-[0.08] dark:invert"
+        />
       </div>
     </div>
   );

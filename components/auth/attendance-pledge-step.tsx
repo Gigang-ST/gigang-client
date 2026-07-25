@@ -40,7 +40,7 @@ export function AttendancePledgeStep({
             <br />
             모임에 한번 나와주세요!
           </H2>
-          <Body className="text-muted-foreground">
+          <Body className="font-serif text-muted-foreground">
             정기런(격주 수요일)을 추천해요. <br/>처음엔 다들 어색하지만, 한 번
             나오면 달라져요.
           </Body>

@@ -6,9 +6,13 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  /* 폰트 3역할 — 본문(Pretendard) / 제호·헤드라인(리디바탕) / 수치(Oswald).
+  /* 폰트 3역할 — 본문(Pretendard) / 제호·사람의 말(리디바탕) / 수치(Oswald).
      변수는 app/layout.tsx의 next/font가 주입한다.
-     Oswald는 라틴 전용이라 한글에 쓰면 안 된다 — 뒤에 Pretendard를 폴백으로 둔다. */
+     Oswald는 라틴 전용이라 한글에 쓰면 안 된다 — 뒤에 Pretendard를 폴백으로 둔다.
+     명조는 기강이야기 전용이 아니다: "사람이 쓴 문장"과 "앱이 사람에게 거는 말"이
+     있는 곳이면 지면 밖에서도 쓴다(프로필 한마디·가입안내). 한 페이지에만 있으면
+     톤이 다른 게 아니라 그 페이지만 튀어 보인다. 수치·라벨·경고는 산세리프로 남겨
+     대비를 만든다 — 명조를 다 바르면 대비가 사라져 위계가 죽는다. */
   --font-sans: var(--font-pretendard), system-ui, sans-serif;
   --font-serif: var(--font-ridibatang), var(--font-pretendard), serif;
   --font-numeric: var(--font-oswald), var(--font-pretendard), sans-serif;
@@ -62,6 +66,7 @@
   --color-board-muted: var(--board-muted);
   --color-board-line: var(--board-line);
   --color-board-amber: var(--board-amber);
+  --color-pulse-neon: var(--pulse-neon);
 
   /* chart-* 은 sport-* 참조 (하위호환) */
   --color-chart-1: var(--sport-road-run);
@@ -127,6 +132,11 @@
   --board-muted: oklch(0.64 0.021 268);
   --board-line: oklch(0.28 0.017 268);
   --board-amber: oklch(0.81 0.146 82);
+
+  /* 팀 심박수(Team Pulse) 심전도 네온 — 실제 ECG 모니터의 형광 청록. board 존과 같은
+     야간값이라 라이트/다크 공통(스크린 존 밖에서 쓰지 않는 board-amber와 같은 원리).
+     심전도는 어두운 판 위에서만 빛나므로, story-pulse가 파형 뒤에 board 배경을 깐다. */
+  --pulse-neon: oklch(0.86 0.16 175);
 
   --radius: 0.75rem;
 }
@@ -1483,6 +1493,44 @@
   }
 }
 
+/* 리드 진행 게이지 — 회색 홈 위로 검정이 차오르고, 다 차면 다음 기사로 넘어간다.
+   채우는 걸 JS 타이머로 그리면 4초 동안 수십 번 리렌더가 돌아 리드 본문과 그 위를
+   떠다니는 아바타까지 같이 흔들린다. CSS 애니메이션은 컴포지터가 처리해 리렌더가 0이다.
+   기간(--lede-dur)은 자동 전환 간격과 같은 상수를 컴포넌트가 인라인으로 내려준다 —
+   둘이 어긋나면 막대가 다 찼는데 안 넘어가거나, 덜 찼는데 넘어간다.
+
+   **절반에서 시작한다**: 0에서 출발하면 손으로 넘긴 직후 멈춰 있는 4초 동안 현재 칸의
+   검정이 통째로 사라져 모든 칸이 회색으로 보인다 — 지금 어디인지 알 수 없어진다.
+   절반을 미리 채워 두면 현재 칸은 언제 봐도 절반 이상 검어서 위치가 바로 읽히고,
+   나머지 절반이 자라는 것으로 남은 시간도 그대로 보인다(막대 하나가 두 일을 겸한다). */
+@keyframes lede-progress {
+  from {
+    transform: scaleX(0.5);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.lede-progress {
+  transform-origin: left;
+  animation: lede-progress var(--lede-dur, 4000ms) linear both;
+}
+/* 손이 닿아 멈춘 동안에는 게이지도 그 자리에 선다 — 막대만 계속 차면
+   "다 찼는데 안 넘어간다"가 되어 멈춘 게 고장으로 보인다. */
+.lede-progress[data-paused="true"] {
+  animation-play-state: paused;
+}
+
+/* 모션을 줄이는 설정에선 차오르지 않는다. 다만 가득(scaleX(1))이 아니라 절반에 세운다 —
+   가득이면 "다 찬 칸"으로 읽혀 곧 넘어갈 것처럼 보이는데, 이 설정에선 자동 전환이 아예
+   돌지 않는다. 절반은 "현재 칸"만 말하고 시간에 대해선 아무 말도 하지 않는다. */
+@media (prefers-reduced-motion: reduce) {
+  .lede-progress {
+    animation: none;
+    transform: scaleX(0.5);
+  }
+}
+
 /* 응원 버튼 3층 모션 — 누르는 맛을 만드는 장치.
    ① 숫자 롤업 ② 튀어오르는 이모지 ③ 콤보 배지. 셋 다 짧게 끝난다(0.7s 이내). */
 @keyframes rctn-roll {
@@ -1622,6 +1670,79 @@
   animation: pledge-liftoff 0.64s cubic-bezier(0.45, 0, 0.7, 0.2) forwards;
 }
 
+/* ─── 한마디 던지기 (ThrowStage) ───
+   슬링샷으로 놓은 얼굴이 포물선을 그리며 날아간다. 거리·시간은 컴포넌트가 CSS 변수로
+   내려주고(--throw-x/y/dur) keyframe이 그린다 — JS로 매 프레임 좌표를 갱신하면 리렌더가
+   수십 번 돌아 오버레이 전체가 흔들린다(리드 게이지와 같은 판단).
+
+   포물선을 두 축으로 나눠 만드는 게 핵심이다: 가로는 등속(linear), 세로는 위로 솟았다
+   떨어지게(ease-out → ease-in). 한 애니메이션으로 대각선을 그으면 직선으로 날아가
+   "던졌다"가 아니라 "미끄러졌다"로 보인다. 그래서 바깥이 가로, 안쪽이 세로를 맡는다. */
+@keyframes throw-fly-x {
+  from {
+    transform: translateX(var(--throw-from-x, 0px));
+  }
+  to {
+    transform: translateX(calc(var(--throw-from-x, 0px) + var(--throw-x, 300px)));
+  }
+}
+/* 세로는 던진 방향으로 솟았다 중력에 지는 포물선. 정점(45%)에서 --throw-y만큼 갔다가
+   아래로 떨어진다 — 위로 뿌리면 위로 솟고, 아래로 뿌리면 그대로 처박힌다. */
+@keyframes throw-fly-y {
+  0% {
+    transform: translateY(var(--throw-from-y, 0px));
+  }
+  45% {
+    transform: translateY(calc(var(--throw-from-y, 0px) + var(--throw-y, -120px)));
+  }
+  100% {
+    transform: translateY(calc(var(--throw-from-y, 0px) + var(--throw-y, -120px) + 180px));
+  }
+}
+/* 얼굴만 구른다 — 배너(글씨)는 세워 둬야 읽힌다 */
+@keyframes throw-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(520deg);
+  }
+}
+.throw-fly {
+  animation: throw-fly-x var(--throw-dur, 1200ms) linear forwards;
+}
+/* 세로는 안쪽 요소가 맡는다 — 같은 요소에 transform 두 개를 걸면 뒤엣것이 앞엣것을 지운다 */
+.throw-fly > * {
+  animation: throw-fly-y var(--throw-dur, 1200ms) cubic-bezier(0.33, 0, 0.66, 1) forwards;
+}
+.throw-fly .throw-spin {
+  animation: throw-spin var(--throw-dur, 1200ms) linear forwards;
+}
+
+/* 착지 결과 — 거리 숫자가 툭 떨어지듯 나타난다 */
+@keyframes throw-result {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.throw-result {
+  animation: throw-result 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .throw-fly,
+  .throw-fly > *,
+  .throw-fly .throw-spin,
+  .throw-result {
+    animation: none;
+  }
+}
+
 /* 각오 문장 지우기 — 비행기가 지나가며 오른쪽부터 왼쪽으로 쓸어 지운다(clip-path inset 우측 증가) */
 @keyframes pledge-wipe {
   from {
@@ -1637,11 +1758,32 @@
   animation: pledge-wipe 0.6s ease-in forwards;
 }
 
+/* 활동량 무더기 — 아바타가 위에서 떨어져 제자리에 앉는다. 순서대로 지연시켜(컴포넌트가
+   animationDelay를 준다) 하나씩 쌓이는 것처럼 보이게. 착지 후 살짝 눌리는 맛은 주지 않는다 —
+   66개가 동시에 출렁이면 지면 전체가 흔들려 보인다. */
+@keyframes actv-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-24px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.actv-drop {
+  animation: actv-drop 0.42s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* 비행기는 멈추면 화면 밖에 머무르므로, 정지 대신 제자리에 세운다 */
   .pledge-fly {
     animation: none;
     transform: translateX(8px);
+  }
+  /* 무더기는 떨어지는 연출만 빼고 제자리에 그대로 둔다(배치 자체는 정적이라 문제없다) */
+  .actv-drop {
+    animation: none;
   }
   .pledge-unfold,
   .pledge-flip {
@@ -1654,76 +1796,38 @@
   }
 }
 
-/* 접속자 표시 시안 전용 모션 (/dev/presence-styles) */
+/* 팀 심박수 파형(components/story/heart-rate.tsx) — 실제 심전도 모니터처럼 좌→우로
+   그려졌다 사라진다(파형은 한 개, 제자리). path에 pathLength=1이 걸려 있어 전체 길이가 1이라,
+   dasharray/offset을 픽셀과 무관하게 0~1로 다룬다.
 
-/* 여백의 독자 — 상대가 스크롤하면 아바타가 미끄러지듯 따라온다.
-   시안에서는 그 움직임을 보여주려고 위아래로 천천히 오간다. */
-@keyframes presence-drift {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(22px);
-  }
-}
-.presence-drift {
-  animation: presence-drift 6s ease-in-out infinite;
-  transition: top 0.5s cubic-bezier(0.22, 1, 0.36, 1);
-}
+   원리: "보이는 구간(0.42) + 긴 빈 구간(1.6)"짜리 dash를 만들어 화면엔 늘 한 조각만 뜨게 하고,
+   그 조각을 dashoffset으로 경로를 따라 좌에서 우로 흘려보낸다. 조각이 경로 끝을 지나면 잠시
+   아무것도 안 보이다가(빈 구간) 다시 왼쪽에서 나타난다 — 이게 "그렸다 사라졌다"의 반복이다.
+   linear여야 실제 모니터처럼 일정한 속도로 훑는다(ease를 주면 스파이크 구간만 빨라져 어색하다).
 
-/* 접속 표시등 — 살아 있다는 신호. 깜빡임이 아니라 숨쉬기(거슬리지 않게) */
-@keyframes presence-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.55;
-  }
+   속도는 컴포넌트가 --ecg-dur로 넘긴다(빠른 심장일수록 짧다). */
+.ecg .ecg-trace {
+  stroke-dasharray: 0.42 1.6;
+  animation: ecg-trace var(--ecg-dur, 1400ms) linear infinite;
+  /* 네온 발광 — 선 색(currentColor=청록)으로 두 겹 glow를 얹는다. 안쪽 좁은 빛 +
+     바깥쪽 넓은 번짐. 어두운 board 배경 위라야 이 빛이 산다(밝은 배경이면 뿌옇게만 뜬다). */
+  filter: drop-shadow(0 0 2px currentcolor) drop-shadow(0 0 6px currentcolor);
 }
-.presence-pulse {
-  animation: presence-pulse 2.6s ease-in-out infinite;
-}
-
-/* 누가 이 섹션에 들어왔을 때 얼굴이 톡 나타난다 */
-@keyframes presence-pop {
+@keyframes ecg-trace {
+  /* 조각이 왼쪽 밖에서 대기 → 경로를 훑고 → 오른쪽 밖으로 빠져 사라진다.
+     offset 0.42(조각이 완전히 경로 앞쪽 밖) → -1.6(조각이 완전히 경로 뒤쪽 밖). */
   from {
-    transform: scale(0.5);
-    opacity: 0;
+    stroke-dashoffset: 0.42;
   }
   to {
-    transform: none;
-    opacity: 1;
+    stroke-dashoffset: -1.6;
   }
 }
-.presence-pop {
-  animation: presence-pop 0.24s ease-out both;
-}
-
-@keyframes presence-rise {
-  from {
-    transform: translateY(14px);
-    opacity: 0;
-  }
-  to {
-    transform: none;
-    opacity: 1;
-  }
-}
-.presence-rise {
-  animation: presence-rise 0.3s ease-out both;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .presence-drift,
-  .presence-pulse,
-  .presence-pop,
-  .presence-rise {
+  /* 멈추면 파형 전체를 정적으로 보여준다(그리기 대신 완성된 한 줄). */
+  .ecg .ecg-trace {
+    stroke-dasharray: none;
     animation: none;
-  }
-  .presence-drift {
-    transition: none;
   }
 }
 

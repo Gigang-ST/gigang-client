@@ -99,9 +99,10 @@ export function MemberCardDialog({
     <Dialog open={open && memId !== null} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          "flex max-h-[88dvh] w-[calc(100%-2rem)] max-w-sm flex-col gap-0 overflow-hidden rounded-2xl border-none bg-transparent p-0 shadow-none",
-          // 닫기 X가 어두운 스크린 존 위에 얹히므로 밝은 색으로 뒤집는다
-          "[&>button:last-child]:right-3 [&>button:last-child]:top-3 [&>button:last-child]:text-board-muted [&>button:last-child]:hover:text-board-foreground",
+          "flex max-h-[88dvh] w-[calc(100%-2rem)] max-w-sm flex-col gap-0 overflow-visible rounded-2xl border-none bg-transparent p-0 shadow-none",
+          // 닫기 X가 어두운 스크린 존 위에 얹히므로 밝은 색으로 뒤집고, sticky 스크린 존(z-10)
+          // 위로 오도록 z를 더 올린다(안 그러면 스크롤 시 X가 스크린 존에 가려진다).
+          "[&>button:last-child]:z-20 [&>button:last-child]:right-3 [&>button:last-child]:top-3 [&>button:last-child]:text-board-muted [&>button:last-child]:hover:text-board-foreground",
           stacked && "z-[60]",
         )}
         overlayClassName={stacked ? "z-[60]" : undefined}
@@ -111,7 +112,9 @@ export function MemberCardDialog({
           <DialogTitle>{memNm ? `${memNm} 프로필` : "멤버 프로필"}</DialogTitle>
         </DialogHeader>
 
-        <div className="overflow-y-auto">
+        {/* 스크롤은 카드(MemberCardDetail) 내부에서 처리한다 — 스크린 존 sticky가 깨지지 않도록
+            여기서 overflow를 걸지 않는다. 스켈레톤·폴백은 짧아 넘칠 일이 없다. */}
+        <div className="min-h-0 flex-1">
           {state.status === "loading" && <MemberCardSkeleton />}
 
           {state.status === "ready" && memId && (

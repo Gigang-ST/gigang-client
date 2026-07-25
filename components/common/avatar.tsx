@@ -40,7 +40,7 @@ type AvatarSize = keyof typeof SIZE_MAP;
 const FALLBACK_AVATAR_STYLE = "dylan";
 
 /** seed(멤버 id 등)로 고정된 DiceBear 아바타 SVG URL을 만든다. */
-function buildFallbackAvatarUrl(seed: string | number): string {
+export function buildFallbackAvatarUrl(seed: string | number): string {
   return `https://api.dicebear.com/9.x/${FALLBACK_AVATAR_STYLE}/svg?seed=${encodeURIComponent(String(seed))}`;
 }
 

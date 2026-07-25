@@ -3,9 +3,12 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import {
+  ANON_PREFIX,
   PRESENCE_COLORS,
+  getAnonName,
   getPresenceColorIdx,
   getPresencePersona,
+  isAnonPresence,
 } from "@/lib/story-presence";
 import { createClient } from "@/lib/supabase/client";
 
@@ -15,6 +18,12 @@ import { Avatar } from "@/components/common/avatar";
 const SIZE = 32;
 /** 반지름 — 구르는 회전각 계산(회전각 = 이동거리 / 반지름)에 쓴다 */
 const RADIUS = SIZE / 2;
+/**
+ * 히트 영역을 아바타 둘레로 넓히는 여백(px). 움직이는 32px 타깃은 손가락으로 누르기 어렵다 —
+ * 둘레 12px씩 늘려 실질 히트 영역을 56px로 키운다(터치 권장 44px을 넘긴다). 아바타 크기·물리는
+ * 그대로고 입력 영역만 커진다. 버튼에 얹은 뒤 음수 마진으로 상쇄해 아바타 위치는 유지한다.
+ */
+const HIT_PAD = 12;
 /** 이름표를 놓을 아바타 아래 여유(px) — 바닥 판정은 이 띠를 뺀 높이 기준 */
 const LABEL_H = 13;
 /**
@@ -86,9 +95,52 @@ type Ball = {
   sway: number;
 };
 
-/** 브로드캐스트 메시지 */
+/** 브로드캐스트 메시지 — 튕김만 주고받는다(위치는 각자 화면이 알아서 굴린다) */
 type BumpMsg = { mem_id: string; hitX: number };
-type PosMsg = { mem_id: string; x: number; y: number };
+
+/** 탭 하이라이트 지속 프레임 — 이 값에서 0으로 줄며 네온이 서서히 꺼진다(60fps 기준 약 1초) */
+const POP_MAX = 60;
+
+/** `#rrggbb` → `r,g,b` 문자열. 네온 glow에 알파를 넣으려면 rgba가 필요하다(hex는 알파 표현이 번거롭다) */
+function hexToRgb(hex: string): string {
+  const h = hex.replace("#", "");
+  const n = parseInt(
+    h.length === 3 ? h.split("").map((c) => c + c).join("") : h,
+    16,
+  );
+  return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+}
+
+/**
+ * 탭했을 때 아바타에 두르는 **네온 발광** — 테두리에서 시작해 바깥으로 매끄럽게 옅어진다.
+ *
+ * 목표는 "얇은 실선 링 + 별도 glow" 두 덩어리가 아니라, **테두리가 곧 glow의 가장 진한
+ * 부분**인 하나의 연속된 빛이다. 그러려면 두 가지가 필요하다:
+ *
+ * 1. 실선 링을 **얇게**(1.5px) — 균일한 딱딱한 테두리는 눈에 "선"으로 잡혀 glow와 분리돼
+ *    보인다. 존재는 하되 가늘어서 glow의 시작점 역할만 한다.
+ * 2. glow 겹을 **촘촘하게 여러 개** — blur를 5·9·17·27·42px로 조밀하게 쌓고 알파를 계단식으로
+ *    낮추면, 겹 사이 간격이 안 보여 하나의 그라데이션으로 읽힌다. 예전엔 6·14·26px로 띄엄띄엄이라
+ *    링과 glow가 따로 놀았다. 테두리 근처(5·9px)를 가장 진하게 둬서 "가까울수록 진하다"를 만든다.
+ *
+ * `pop`(POP_MAX→0)으로 세기를 페이드한다 — 튕긴 순간 가장 밝고 1초에 걸쳐 꺼진다. 실선 링만
+ * 두께를 유지하고 glow의 알파·번짐이 줄어, 빛이 테두리로 빨려들며 사라진다.
+ */
+function neonRing(ringIdx: number, pop: number): string {
+  const rgb = hexToRgb(PRESENCE_COLORS[ringIdx % PRESENCE_COLORS.length]);
+  const t = Math.max(0, Math.min(1, pop / POP_MAX)); // 1=방금 눌림, 0=꺼짐
+  // 알파는 t를 살짝 완만하게(제곱근) — 후반부에 너무 급히 꺼지지 않게
+  const a = Math.sqrt(t);
+  // blur 거리는 이전 값의 1.5배(더 멀리 번짐), 알파는 각 겹을 올려(더 진함) 조정했다.
+  return [
+    `0 0 0 1.5px rgba(${rgb},${(1 * a).toFixed(2)})`, // 얇은 실선 링 — glow의 시작점
+    `0 0 5px 1px rgba(${rgb},${(1 * a).toFixed(2)})`, // 테두리 바로 밖 — 가장 진하다
+    `0 0 9px 1.5px rgba(${rgb},${(0.9 * a).toFixed(2)})`,
+    `0 0 17px 3px rgba(${rgb},${(0.7 * a).toFixed(2)})`,
+    `0 0 27px 5px rgba(${rgb},${(0.5 * a).toFixed(2)})`,
+    `0 0 42px 8px rgba(${rgb},${(0.3 * a).toFixed(2)})`, // 가장 바깥 — 옅게 사라진다
+  ].join(", ");
+}
 
 /** [min,max) 정수 랜덤 */
 function randInt(min: number, max: number): number {
@@ -165,8 +217,9 @@ function useAllowMotion(): boolean {
  *
  * 탭하면 그 아바타가 통통 튀는데, **이 튕김은 broadcast로 모두에게 전해진다**(같은 mem_id에
  * 같은 임펄스가 실린다). 그래서 서로 같은 공을 주고받고, 남이 튕기는 걸 방해할 수도 있다.
- * 물리 계산은 각자 화면이 돌리므로 위치는 사람마다 조금 다를 수 있다(정밀 동기화 아님) —
- * 대신 공이 **바닥에 안착할 때** 그 주인이 위치를 한 번 흘려보내(pos) 느슨히 다시 맞춘다.
+ * 물리 계산은 각자 화면이 돌리므로 **위치는 사람마다 조금 다르고, 맞추지 않는다**. 예전엔 안착할 때
+ * 주인이 좌표를 흘려보내 재정렬했는데, 튕기고 내려앉는 순간마다 공이 순간이동해 오히려 거슬렸다.
+ * 눈에 보이는 자리를 누르면 그게 그 공이라 조금 어긋나도 노는 데 지장이 없다.
  *
  * **색은 사람에게 고정**된다(`lib/story-presence.ts` — mem_id 해시). 링 색과 이름표 색이 같은
  * 색이라 "저 초록이 준민"이 학습되고, 남이 내 공을 튕겨도 누가 튕겼는지가 색으로 읽힌다.
@@ -208,10 +261,34 @@ export function FloatingAvatars({
   const meNm = me?.name ?? null;
   const meAvatar = me?.avatarUrl ?? null;
 
-  const meIdRef = useRef<string | null>(meId);
-  useEffect(() => {
-    meIdRef.current = meId;
-  }, [meId]);
+  // 비로그인도 하늘에 얼굴을 올린다 — 단 정체 대신 익명 이름("새벽의 페이서")과 유령 얼굴로.
+  // 익명 id는 **한 세션 내내 고정**이라야 색·이름·위치가 유지된다(재구독돼도 같은 얼굴).
+  // sessionStorage에 담아 탭을 유지하는 동안 같은 id를 쓰고, 새 탭·새 세션이면 새 id가 뜬다.
+  //
+  // useState **lazy initializer**로 만든다 — Math.random·sessionStorage 같은 비순수 호출은
+  // 렌더 본문에서 금지(react-hooks/purity)지만, 초기화 함수는 첫 마운트에 한 번만 도므로 허용된다.
+  const [anonId] = useState<string>(() => {
+    let stored: string | null = null;
+    try {
+      stored = sessionStorage.getItem("story-anon-id");
+    } catch {
+      // 프라이빗 모드 등 sessionStorage 불가 — 그냥 새로 만든다
+    }
+    if (!stored) {
+      stored = `${ANON_PREFIX}${Math.random().toString(36).slice(2, 8)}`;
+      try {
+        sessionStorage.setItem("story-anon-id", stored);
+      } catch {
+        /* 저장 실패해도 이 세션 동안 state로는 유지된다 */
+      }
+    }
+    return stored;
+  });
+
+  // 실제 track에 쓸 정체 — 로그인이면 멤버, 아니면 익명. 이름·아바타도 여기서 갈린다.
+  const presenceId = meId ?? anonId;
+  const presenceNm = meId ? (meNm ?? "") : getAnonName(anonId);
+  const presenceAvatar = meId ? meAvatar : null; // 익명은 아바타 없음 → 유령 얼굴로 폴백
 
   const applyBump = (memId: string, hitX: number) => {
     const b = ballsRef.current.get(memId);
@@ -219,14 +296,14 @@ export function FloatingAvatars({
     b.airborne = true;
     b.vy = -POP_UP;
     b.vx = -(hitX - 0.5) * 2 * POP_SIDE; // 가운데=수직, 가장자리=옆으로
-    b.pop = 34;
+    b.pop = POP_MAX;
   };
 
   // ── Realtime presence + broadcast 채널 ──
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase.channel(`story-avatars:${teamId}`, {
-      config: { presence: { key: meId ?? "" } },
+      config: { presence: { key: presenceId } },
     });
     channelRef.current = channel;
 
@@ -251,22 +328,14 @@ export function FloatingAvatars({
         const p = payload as BumpMsg;
         applyBump(p.mem_id, p.hitX);
       })
-      .on("broadcast", { event: "pos" }, ({ payload }) => {
-        const p = payload as PosMsg;
-        const b = ballsRef.current.get(p.mem_id);
-        // 안착(정지) 상태일 때만 살짝 맞춘다 — 날아가는 중이면 방해하지 않는다
-        if (b && !b.airborne) {
-          b.x = p.x;
-          b.y = p.y;
-        }
-      })
       .subscribe((status) => {
-        // 로그인 사용자만 자기 얼굴을 올린다(track). 비로그인은 구독만 해서 구경.
-        if (status === "SUBSCRIBED" && meId) {
+        // 로그인이든 익명이든 자기 얼굴을 올린다(track). 익명은 유령 얼굴 + 익명 이름으로 뜬다.
+        // presenceId는 항상 비지 않으므로(로그인=uuid, 익명=anon-xxxxxx) 조건 없이 track한다.
+        if (status === "SUBSCRIBED") {
           void channel.track({
-            mem_id: meId,
-            mem_nm: meNm ?? "",
-            avatar_url: meAvatar,
+            mem_id: presenceId,
+            mem_nm: presenceNm,
+            avatar_url: presenceAvatar,
           });
         }
       });
@@ -275,7 +344,7 @@ export function FloatingAvatars({
       channelRef.current = null;
       void supabase.removeChannel(channel);
     };
-  }, [teamId, meId, meNm, meAvatar]);
+  }, [teamId, presenceId, presenceNm, presenceAvatar]);
 
   // ── 접속 목록 → 공(Ball) 맞춤: 새 얼굴은 위에서 떨어지며 등장, 나간 얼굴은 제거 ──
   // Math.random은 effect 안에서만(렌더/ref콜백에서 금지 — react-hooks/purity).
@@ -283,8 +352,12 @@ export function FloatingAvatars({
     const ids = new Set(presence.map((p) => p.mem_id));
     presence.forEach((p) => {
       if (ballsRef.current.has(p.mem_id)) return;
-      const w = wrapRef.current?.clientWidth ?? 320;
-      const h = wrapRef.current?.clientHeight ?? 176;
+      // 0-폴백 함정 회피: clientWidth/Height가 0이면 `?? 폴백`이 안 먹으므로 직접 거른다
+      // (루프의 bw/bh 계산과 같은 이유). 여기서 잘못 잡히면 초기 y가 어긋난다.
+      const rawW = wrapRef.current?.clientWidth ?? 0;
+      const rawH = wrapRef.current?.clientHeight ?? 0;
+      const w = rawW > 0 ? rawW : 320;
+      const h = rawH > 0 ? rawH : 176;
       const persona = getPresencePersona(p.mem_id);
       ballsRef.current.set(p.mem_id, {
         x: Math.random() * (w - SIZE),
@@ -318,39 +391,64 @@ export function FloatingAvatars({
   useEffect(() => {
     if (!allow) return;
     let raf = 0;
-    const step = () => {
+    let last = 0;
+    const step = (now: number) => {
+      // 프레임 수가 아니라 **경과 시간**으로 움직인다. 안 그러면 화면 주사율이 그대로 속도가 돼
+      // 144Hz 데스크톱은 2배 빠르고, 저전력 모드로 30Hz까지 떨어진 아이폰은 절반으로 느려진다.
+      // d = 60fps 기준 배율(60Hz면 1). 상한 3은 탭을 다시 켰을 때 순간이동을 막는 안전장치.
+      const d = last ? Math.min((now - last) / 16.667, 3) : 1;
+      last = now;
+
       const el = wrapRef.current;
-      const bw = el?.clientWidth ?? 320;
-      const bh = el?.clientHeight ?? 176;
+      // `?? 폴백`은 clientWidth/Height가 **0일 때 안 먹는다**(`0 ?? x`는 0을 반환). 레이아웃
+      // 확정 전 첫 프레임엔 0이 나올 수 있는데, 그대로 floor를 계산하면 floor가 음수가 돼
+      // 등장하자마자 바닥에 붙는다("안 떨어짐" 버그의 다른 절반). 0/비정상값이면 폴백을 쓴다.
+      const rawW = el?.clientWidth ?? 0;
+      const rawH = el?.clientHeight ?? 0;
+      const bw = rawW > 0 ? rawW : 320;
+      const bh = rawH > SIZE + LABEL_H ? rawH : 176;
       // 이름표가 잘리지 않을 만큼만 올린다. LIVE 라벨은 이 바닥선 위에 겹쳐 뜨므로 빼지 않는다.
       const floor = bh - SIZE - LABEL_H;
 
       for (const [memId, b] of ballsRef.current) {
+        // 바닥 상태(air=false)는 "지금 y가 floor다"를 전제로 좌우로만 걷는다. 그런데 floor가
+        // **커지면**(탭을 백그라운드에 뒀다 오면 rAF가 멈춘 사이 컨테이너가 리사이즈돼 bh가
+        // 바뀐다) 공은 옛 floor에 붙박인 채 화면 중간에서 걸어다닌다 — vy=0으로 고정돼 새
+        // floor까지 내려올 길이 없기 때문. 바닥에 있어야 할 공이 floor보다 위로 뜨면 다시
+        // 떨어뜨린다(이것이 "다른 탭 갔다 오면 가운데 있다"의 원인).
+        if (!b.airborne && b.y < floor - 1) {
+          b.airborne = true;
+        }
+
+
         if (b.airborne) {
-          b.vy += GRAVITY;
-          b.vx *= AIR_DRAG;
+          b.vy += GRAVITY * d;
+          // 감쇠는 매 프레임 곱해지므로 배율이 아니라 지수로 보정해야 한다
+          b.vx *= Math.pow(AIR_DRAG, d);
         } else {
           // 바닥 상태머신 — 행동이 끝나면 성격에 맞춰 다음 행동을 새로 뽑는다.
-          b.phase -= 1;
+          // phase도 프레임 카운터라 d를 빼야 행동 길이가 기기마다 같아진다.
+          b.phase -= d;
           // trek은 목적지 도착으로 끝난다(남은 거리가 한 걸음보다 짧으면 도착)
           const arrived =
-            b.act === "trek" && Math.abs(b.goalX - b.x) < Math.abs(b.vx) + 1.5;
+            b.act === "trek" && Math.abs(b.goalX - b.x) < Math.abs(b.vx * d) + 1.5;
           if (b.phase <= 0 || arrived) pickAct(b, bw);
 
           if (b.act === "watch") {
             // 멈춰 구경 — 완전 정지는 죽어 보인다. 아주 느리게 좌우로 기우뚱(무게중심 이동).
-            b.sway += 0.02;
+            b.sway += 0.02 * d;
             b.targetVx = Math.sin(b.sway) * 0.05;
           }
 
           // 목표 속도로 스르륵 붙는다(부드러운 가감속). 급정지·급출발이 없어 기계느낌이 사라진다.
-          b.vx += (b.targetVx - b.vx) * VEL_LERP;
+          // lerp 계수도 감쇠라 지수 보정 — 1에서 남은 거리가 d제곱으로 줄어드는 형태.
+          b.vx += (b.targetVx - b.vx) * (1 - Math.pow(1 - VEL_LERP, d));
           b.vy = 0;
         }
 
-        b.x += b.vx;
-        b.y += b.vy;
-        b.rot += (b.vx / RADIUS) * (180 / Math.PI);
+        b.x += b.vx * d;
+        b.y += b.vy * d;
+        b.rot += ((b.vx * d) / RADIUS) * (180 / Math.PI);
 
         // 좌우 벽
         if (b.x <= 0) {
@@ -379,25 +477,27 @@ export function FloatingAvatars({
           if (b.vy > REST_VY) {
             b.vy = -b.vy * BOUNCE;
           } else if (b.airborne) {
-            // 착지 — 상태머신 시작
-            b.vy = 0;
-            b.airborne = false;
-            // 착지 직후엔 잠깐 얼떨떨하게 멈췄다가 움직인다(착지=즉시 질주는 어색하다)
-            b.act = "watch";
-            b.targetVx = 0;
-            b.phase = randInt(25, 70);
-            // 안착 재정렬: 내 아바타면 이 위치를 흘려보내 남들이 느슨히 맞추게 한다
-            if (memId === meIdRef.current) {
-              channelRef.current?.send({
-                type: "broadcast",
-                event: "pos",
-                payload: { mem_id: memId, x: Math.round(b.x), y: Math.round(b.y) },
-              });
+            // 착지 — 상태머신 시작.
+            //
+            // **`vy > 0` 가드가 없으면 "안 떨어지는" 버그가 난다**: 등장 직후 vy는 0인데,
+            // 컨테이너 높이가 렌더 타이밍에 따라 짧게 잡히면(폰트 로딩·리드 레이아웃 전에
+            // 루프가 먼저 돌면 bh가 실제보다 작다) floor가 초기 y보다 낮아진다. 그러면
+            // 첫 프레임에 y >= floor가 참인데 vy=0이라 튕김도 안 하고 곧바로 착지해버려,
+            // 중력이 붙기도 전에 airborne=false가 된다 — 아바타가 시작 위치에 붙박인다.
+            // vy가 실제로 아래로 향할 때만(=진짜 떨어져 내려온 것) 착지로 인정한다.
+            if (b.vy > 0) {
+              b.vy = 0;
+              b.airborne = false;
+              // 착지 직후엔 잠깐 얼떨떨하게 멈췄다가 움직인다(착지=즉시 질주는 어색하다)
+              b.act = "watch";
+              b.targetVx = 0;
+              b.phase = randInt(25, 70);
             }
           }
         }
 
-        if (b.pop > 0) b.pop -= 1;
+        // 탭 하이라이트 지속시간도 프레임 카운터 — 기기마다 같은 시간 켜져 있게
+        if (b.pop > 0) b.pop -= d;
 
         const node = elsRef.current.get(memId);
         if (node) {
@@ -406,17 +506,26 @@ export function FloatingAvatars({
           const face = node.firstElementChild as HTMLElement | null;
           if (face) {
             face.style.transform = `rotate(${b.rot}deg)`;
-            face.style.boxShadow =
-              b.pop > 0
-                ? `0 0 0 3px ${PRESENCE_COLORS[b.ringIdx % PRESENCE_COLORS.length]}`
-                : "";
+            face.style.boxShadow = b.pop > 0 ? neonRing(b.ringIdx, b.pop) : "";
           }
         }
       }
       raf = window.requestAnimationFrame(step);
     };
     raf = window.requestAnimationFrame(step);
-    return () => window.cancelAnimationFrame(raf);
+
+    // 탭 복귀 시 last를 리셋한다 — 백그라운드에서 rAF가 멈춘 사이 흐른 시간이 첫 프레임의
+    // dt로 잡히면(수십 초) d가 상한 3까지 튀어 공이 한 번에 훌쩍 점프한다. 0으로 되돌리면
+    // 복귀 첫 프레임이 d=1로 시작해 부드럽게 이어진다.
+    const onVisible = () => {
+      if (!document.hidden) last = 0;
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [allow]);
 
   if (presence.length === 0) return null;
@@ -441,8 +550,8 @@ export function FloatingAvatars({
       className="pointer-events-none absolute left-6 z-10 flex items-center gap-1.5"
     >
       <span className="board-blink size-1.5 rounded-full bg-[#ff5d73]" />
-      <span className="font-numeric text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-        LIVE {presence.length}
+      <span className="font-numeric text-[12px] uppercase tracking-[0.16em] text-muted-foreground">
+        지금 보는 중 {presence.length}명
       </span>
     </div>
   );
@@ -456,7 +565,13 @@ export function FloatingAvatars({
         <div className="pointer-events-none absolute inset-x-6 bottom-0 flex flex-wrap items-end gap-2 pl-24">
           {presence.map((p) => (
             <div key={p.mem_id} className="flex w-11 flex-col items-center gap-0.5">
-              <Avatar src={p.avatar_url} seed={p.mem_id} alt={p.mem_nm} size="sm" />
+              <span className="block size-8">
+                <PresenceFace
+                  id={p.mem_id}
+                  name={p.mem_nm}
+                  avatarUrl={p.avatar_url}
+                />
+              </span>
               <span
                 className="max-w-full truncate text-[9px] leading-none"
                 style={{ color: PRESENCE_COLORS[getPresenceColorIdx(p.mem_id)] }}
@@ -489,8 +604,18 @@ export function FloatingAvatars({
             }}
             // 매 프레임 움직이는 요소라 `click`은 씹힌다 — down에서 즉시 힘을 싣고 남들에게 알린다.
             onPointerDown={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const hitX = (e.clientX - rect.left) / rect.width;
+              // 아바타를 눌렀으면 그 입력은 여기서 끝낸다 — 넓힌 히트 영역이 뒤에 겹친 리드
+              // 카드·응원 버튼 위에 얹히면, 아바타를 튕기려던 탭이 뒤 요소까지 누르는(관통)
+              // 문제가 생긴다. stopPropagation으로 버블을 끊고 preventDefault로 뒤따르는
+              // click/합성 이벤트가 뒤 요소로 흘러가는 것도 막는다.
+              e.stopPropagation();
+              e.preventDefault();
+              // hitX는 **아바타(얼굴) 기준**이어야 튕기는 방향이 맞다. 히트 영역이 아바타보다
+              // 넓어졌으므로 버튼 rect가 아니라 안쪽 얼굴 span의 rect로 잰다. 넓힌 여백을
+              // 눌러 0~1 밖으로 나가면 튕김 세기(applyBump)가 과해지므로 0~1로 가둔다.
+              const face = e.currentTarget.firstElementChild as HTMLElement | null;
+              const rect = (face ?? e.currentTarget).getBoundingClientRect();
+              const hitX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
               applyBump(person.mem_id, hitX); // 내 화면 즉시 반영
               channelRef.current?.send({
                 type: "broadcast",
@@ -498,19 +623,28 @@ export function FloatingAvatars({
                 payload: { mem_id: person.mem_id, hitX },
               });
             }}
-            style={{ width: SIZE }}
+            // 히트 영역만 넓힌다(HIT_PAD): 손가락으로 누르기 쉽게 아바타 둘레에 투명 여백을
+            // 두르되, 음수 마진으로 상쇄해 **버튼 기준점과 아바타 위치는 그대로** 유지한다.
+            // SIZE는 물리(벽·바닥·좌표) 전반이 쓰는 값이라 건드리지 않는다 — 여긴 시각·물리가
+            // 아니라 입력 영역만의 문제다.
+            style={{
+              width: SIZE + HIT_PAD * 2,
+              padding: HIT_PAD,
+              margin: -HIT_PAD,
+            }}
             className="pointer-events-auto absolute left-0 top-0 flex flex-col items-center"
           >
-            {/* 회전은 얼굴만 — 이름표까지 같이 돌면 읽을 수 없다 */}
+            {/* 회전은 얼굴만 — 이름표까지 같이 돌면 읽을 수 없다.
+                네온 링(box-shadow)은 매 프레임 JS가 pop 값으로 직접 갱신하므로 CSS
+                transition을 걸지 않는다 — 걸면 프레임마다 트랜지션이 리셋돼 페이드가 끊긴다. */}
             <span
-              className="block rounded-full transition-shadow"
+              className="block rounded-full"
               style={{ width: SIZE, height: SIZE }}
             >
-              <Avatar
-                src={person.avatar_url}
-                seed={person.mem_id}
-                alt={person.mem_nm}
-                size="sm"
+              <PresenceFace
+                id={person.mem_id}
+                name={person.mem_nm}
+                avatarUrl={person.avatar_url}
               />
             </span>
             {/* 이름표 — 사람 고정색. 배경 위에서 읽히게 얇은 외곽선을 깐다 */}
@@ -529,4 +663,36 @@ export function FloatingAvatars({
       })}
     </div>
   );
+}
+
+/**
+ * 접속자 얼굴 — 로그인 멤버는 아바타, 익명은 회색 물음표.
+ *
+ * 익명에게 DiceBear 랜덤 얼굴을 주면 로그인 멤버와 구분이 안 돼 "저 사람 누구지?" 하고
+ * 헛되이 찾게 된다. 무채색 물음표로 통일하면 "얜 지나가는 익명 손님"이 담백하게 읽힌다 —
+ * 이름표 색(바깥)은 그대로 살아 있어 개별 식별은 된다.
+ */
+function PresenceFace({
+  id,
+  name,
+  avatarUrl,
+}: {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+}) {
+  if (isAnonPresence(id)) {
+    // 익명은 **회색 원 바탕 + 두꺼운 물음표**. 무채색이라야 색 있는 로그인 아바타 사이에서
+    // "이건 사람이 아니라 익명 자리"로 구분된다. 바깥 span이 이미 원형 프레임(rounded-full)이라
+    // 여기선 원을 또 그리지 않고 배경만 채운다 — size-full로 그 원을 그대로 메운다.
+    // 물음표만 있는 아이콘(HelpCircle의 테두리 원 없이)을 두껍게 키워 담백하게 세운다.
+    return (
+      <span className="flex size-full items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <span className="text-[18px] font-bold leading-none" aria-hidden>
+          ?
+        </span>
+      </span>
+    );
+  }
+  return <Avatar src={avatarUrl} seed={id} alt={name} size="sm" />;
 }

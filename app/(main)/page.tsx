@@ -1,21 +1,18 @@
 import { Suspense } from "react";
 
+
 import { dayjs, currentMonthKST, gridDateRange } from "@/lib/dayjs";
-import { hasUnreadBoardPosts } from "@/lib/queries/board";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCachedHomeCalendar } from "@/lib/queries/home-calendar";
 import { getCurrentMember } from "@/lib/queries/member";
-import { getNotifications, getUnreadNotificationCount } from "@/lib/queries/notification";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 
-import { BoardPopoverIcon } from "@/components/board/board-popover-icon";
-import { H1 } from "@/components/common/typography";
+import { HeaderActions } from "@/components/common/header-actions";
+import { PageHeader } from "@/components/common/page-header";
 import { HeaderTicker, type HeaderUpcoming } from "@/components/home/header-ticker";
 import { MiniCalendar } from "@/components/home/mini-calendar";
 import type { CalendarRace } from "@/components/home/mini-calendar";
-import { NotificationBellIcon } from "@/components/notifications/notification-bell-icon";
 import type { MemberStatus } from "@/components/races/types";
-import { SocialLinksGrid } from "@/components/social-links";
 import { Skeleton } from "@/components/ui/skeleton";
 
 
@@ -39,12 +36,7 @@ async function HomeHeader() {
         .maybeSingle()
     : Promise.resolve({ data: null });
 
-  const [unreadNotiCount, { notice: hasUnreadNotice, update: hasUnreadUpdate }, initialNotifications, { data: upcomingRow }] = await Promise.all([
-    getUnreadNotificationCount(currentMember?.id),
-    hasUnreadBoardPosts(currentMember?.id, teamId),
-    currentMember ? getNotifications(currentMember.id, { limit: 20 }) : Promise.resolve([]),
-    upcomingPromise,
-  ]);
+  const { data: upcomingRow } = await upcomingPromise;
 
   let upcoming: HeaderUpcoming | null = null;
   if (upcomingRow) {
@@ -59,26 +51,22 @@ async function HomeHeader() {
     };
   }
 
+  // 일정 헤더도 다른 탭과 같은 editorial 양식(제목 + 괘선)을 쓴다. 다른 점은 제목·액션
+  // 사이 가운데 슬롯(center)에 티커(슬로건 ↔ 다음 모임 칩)를 얹는 것 — 슬로건은 이 탭의
+  // 정체성 문구라 자리를 지킨다. 티커는 스스로 절대배치로 가운데 정렬하므로 슬롯 안에
+  // 위치 기준만 잡아주는 얇은 래퍼(h-8 relative)에 담는다.
   return (
-    <div className="relative flex h-20 items-center px-6">
-      <div className="flex flex-1 items-center">
-        <H1>기강</H1>
-      </div>
-      <HeaderTicker upcoming={upcoming} />
-      <div className="flex shrink-0 items-center gap-1">
-        <BoardPopoverIcon
-          hasUnreadNotice={hasUnreadNotice}
-          hasUnreadUpdate={hasUnreadUpdate}
-          memberId={currentMember?.id}
-        />
-        <NotificationBellIcon
-          initialCount={unreadNotiCount}
-          initialNotifications={initialNotifications}
-          memberId={currentMember?.id}
-          disabled={!currentMember}
-        />
-      </div>
-    </div>
+    <PageHeader
+      variant="editorial"
+      label="Schedule"
+      title="일정"
+      action={<HeaderActions />}
+      center={
+        <div className="relative h-8 w-full">
+          <HeaderTicker upcoming={upcoming} />
+        </div>
+      }
+    />
   );
 }
 
@@ -211,24 +199,30 @@ function HomeSkeleton() {
 }
 
 function HomeHeaderSkeleton() {
+  // 본 헤더와 같은 editorial 골격 + 가운데 슬로건. 데이터가 오기 전(티커의 다음 모임
+  // 조회 중)에도 높이·간격이 동일해 로딩→로드 전환에 헤더가 튀지 않는다.
   return (
-    <div className="relative flex h-20 items-center px-6">
-      <div className="flex flex-1 items-center">
-        <H1>기강</H1>
-      </div>
-      <div className="absolute left-0 right-0 flex flex-col items-center justify-center pointer-events-none">
-        <p className="font-sans text-[6px] uppercase tracking-[0.15em] text-muted-foreground">
-          Since 2024.04.23
-        </p>
-        <p className="font-sans text-[13px] font-black italic uppercase leading-tight tracking-[-0.03em] text-foreground">
-          No time to be weak
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-1">
-        <div className="size-8 shrink-0" />
-        <div className="size-8 shrink-0" />
-      </div>
-    </div>
+    <PageHeader
+      variant="editorial"
+      label="Schedule"
+      title="일정"
+      action={
+        <div className="flex shrink-0 items-center gap-1">
+          <div className="size-8 shrink-0" />
+          <div className="size-8 shrink-0" />
+        </div>
+      }
+      center={
+        <div className="flex h-8 flex-col items-center justify-center">
+          <p className="font-sans text-[6px] uppercase tracking-[0.15em] text-muted-foreground">
+            Since 2024.04.23
+          </p>
+          <p className="font-sans text-[13px] font-black italic uppercase leading-tight tracking-[-0.03em] text-foreground">
+            No time to be weak
+          </p>
+        </div>
+      }
+    />
   );
 }
 
@@ -246,9 +240,6 @@ export default function HomePage() {
       <Suspense fallback={<HomeSkeleton />}>
         <HomeContent />
       </Suspense>
-      <div className="px-6 pb-6">
-        <SocialLinksGrid />
-      </div>
     </div>
   );
 }

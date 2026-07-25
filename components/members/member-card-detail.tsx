@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 
 import {
@@ -52,6 +53,103 @@ const MOOD_BAR: Record<ActivityMood["level"], string> = {
   dormant: "bg-muted-foreground/50",
 };
 
+/** 툴팁 자동 소멸 시간 — 칭호 배지(TitleBadge)와 같은 3초 */
+const PURPOSE_TIP_MS = 3000;
+
+/**
+ * 가입 목적 칩 — 짧은 라벨(`코칭`)을 찍되, 탭하면 문장형(`자세·훈련 코칭을 받고 싶어요`)이
+ * 위에 뜬다. 칭호 배지의 탭 툴팁과 같은 UX다: 짧은 라벨만으론 뜻이 안 읽히므로 그 자리에서
+ * 풀어 준다. 매 프레임 움직이지 않는 정적 요소라 `onClick`으로 충분하다.
+ */
+function PurposeTooltipChip({ short, full }: { short: string; full: string }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const bubbleRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 언마운트 시 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  // 스크롤하면 닫는다(위치가 어긋나므로) — 칭호 툴팁과 동일
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("scroll", close, { passive: true, capture: true });
+    return () =>
+      window.removeEventListener("scroll", close, { capture: true });
+  }, [open]);
+
+  // 열린 뒤 버블 크기를 재서 앵커 위 중앙에 배치, 화면 밖으로 나가면 안쪽으로 당긴다.
+  // pos가 아직 없을 때만 계산한다(칭호 툴팁과 같은 1회 측정) — 효과 안에서 매번
+  // setState하면 렌더가 연쇄되므로, 닫을 때 pos를 비우는 건 toggle 쪽에서 한다.
+  useEffect(() => {
+    if (!open || pos !== null) return;
+    const anchor = btnRef.current;
+    const bubble = bubbleRef.current;
+    if (!anchor || !bubble) return;
+
+    const aRect = anchor.getBoundingClientRect();
+    const bRect = bubble.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const MARGIN = 8;
+
+    let left = aRect.left + aRect.width / 2 - bRect.width / 2;
+    const top = aRect.top - bRect.height - 6;
+    if (left + bRect.width + MARGIN > vw) left = vw - bRect.width - MARGIN;
+    if (left < MARGIN) left = MARGIN;
+
+    setPos({ top, left });
+  }, [open, pos]);
+
+  function toggle() {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setPos(null); // 다음 열림에서 위치를 다시 잰다(스크롤 등으로 앵커가 움직였을 수 있음)
+    setOpen(true);
+    timerRef.current = setTimeout(() => setOpen(false), PURPOSE_TIP_MS);
+  }
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={toggle}
+        aria-label={full}
+        className="inline-flex shrink-0 items-center rounded-full border border-border px-2.5 py-1 text-[12px] font-medium text-foreground transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {short}
+      </button>
+      {open &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={bubbleRef}
+            style={
+              pos
+                ? { position: "fixed", top: pos.top, left: pos.left }
+                : { position: "fixed", visibility: "hidden" }
+            }
+            className={cn(
+              "z-[9999] max-w-[220px] break-words rounded-md px-2.5 py-1.5",
+              "bg-zinc-800 text-[11px] leading-relaxed text-zinc-100",
+              "dark:bg-zinc-700 dark:text-zinc-50",
+              "pointer-events-none select-none",
+              "animate-in fade-in-0 zoom-in-95 duration-150",
+            )}
+          >
+            {full}
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
 /**
  * 상세 프로필 카드 — 야간 스타디움 선수 소개판.
  *
@@ -96,12 +194,17 @@ export function MemberCardDetail({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-2xl border-[1.5px] border-border",
+        // 이 wrapper가 스크롤 컨테이너다 — 스크린 존을 sticky로 붙이려면 sticky 조상 중
+        // overflow가 걸린 스크롤러가 바로 여기여야 한다(중간에 overflow:hidden이 끼면 sticky가 깨진다).
+        // 높이는 다이얼로그(max-h-88dvh)의 flex 영역을 따라간다.
+        "max-h-full overflow-y-auto rounded-2xl border-[1.5px] border-border",
         lit && "board-lit",
       )}
     >
-      {/* ── 스크린 존 (항상 야간) ───────────────────────────── */}
-      <div className="board-flicker relative bg-board px-5 pb-5 pt-4 text-board-foreground">
+      {/* ── 스크린 존 (항상 야간) ─────────────────────────────
+          스크롤 컨테이너(다이얼로그) 위쪽에 고정한다 — 이름·얼굴·칭호는 카드의 정체성이라
+          아래 정보를 훑는 동안에도 계속 보여야 한다. z-10으로 스크롤되는 정보 존 위에 얹힌다. */}
+      <div className="board-flicker sticky top-0 z-10 bg-board px-5 pb-5 pt-4 text-board-foreground">
         <div
           aria-hidden
           className="board-cone pointer-events-none absolute inset-0"
@@ -145,7 +248,7 @@ export function MemberCardDetail({
           {(data.intro_txt || onEditIntro) && (
             <div className="board-rise board-rise-2 mt-0.5 flex items-start justify-center gap-1.5 px-2">
               {data.intro_txt ? (
-                <blockquote className="relative text-center text-[15px] font-medium leading-snug text-board-foreground">
+                <blockquote className="relative text-center font-serif text-[15px] leading-snug text-board-foreground">
                   <span aria-hidden className="text-board-amber/70">
                     &ldquo;
                   </span>
@@ -185,45 +288,49 @@ export function MemberCardDetail({
 
       {/* ── 정보 존 (앱 테마) ───────────────────────────────── */}
       <div className="flex flex-col gap-5 bg-card p-5">
-        {/* 소개 — 온보딩에서 받은 자기소개. 기록이 없는 신규 가입자의 카드를 채운다. */}
-        {intro && (
+        {/* 가입 목적 — 왜 기강에 들어왔는지. 스크린 존의 "한마디"(자유 인용구)와 성격이
+            다르므로 별도 섹션·별도 라벨로 확실히 구분한다. 직접 쓴 한마디가 있으면 그 문장을,
+            없으면 목적 칩을 보여준다. 칩은 짧은 라벨(`코칭`)이라 뜻이 안 읽히므로 탭하면
+            칭호처럼 문장형(`자세·훈련 코칭을 받고 싶어요`) 툴팁이 뜬다. */}
+        {intro && (intro.purposeTxt || intro.purposes.length > 0) && (
           <section className="flex flex-col gap-2">
-            <SectionLabel>소개</SectionLabel>
-            {/* 직접 쓴 한마디가 있으면 칩 대신 그 문장을 보여준다 */}
+            <SectionLabel>가입 목적</SectionLabel>
             {intro.purposeTxt ? (
-              <p className="text-[13.5px] leading-relaxed text-foreground">
+              <p className="font-serif text-[13.5px] leading-relaxed text-foreground">
                 &ldquo;{intro.purposeTxt}&rdquo;
               </p>
             ) : (
-              intro.purposes.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {intro.purposes.map((purpose) => (
-                    <span
-                      key={purpose}
-                      className="rounded-full bg-muted px-2.5 py-1 text-[12px] font-medium text-foreground"
-                    >
-                      {purpose}
-                    </span>
-                  ))}
-                </div>
-              )
-            )}
-            {intro.rows.length > 0 && (
-              <ul className="flex flex-col gap-1.5">
-                {intro.rows.map((row) => (
-                  <li key={row.label} className="flex items-baseline gap-2">
-                    <Caption className="shrink-0">{row.label}</Caption>
-                    <span
-                      aria-hidden
-                      className="min-w-2 flex-1 -translate-y-0.5 border-b border-dashed border-border"
-                    />
-                    <Caption className="shrink-0 font-medium text-foreground tabular-nums">
-                      {row.value}
-                    </Caption>
-                  </li>
+              <div className="flex flex-wrap gap-1.5">
+                {intro.purposes.map((purpose) => (
+                  <PurposeTooltipChip
+                    key={purpose.short}
+                    short={purpose.short}
+                    full={purpose.full}
+                  />
                 ))}
-              </ul>
+              </div>
             )}
+          </section>
+        )}
+
+        {/* 러닝 프로필 — 평균 페이스·거리·가까운 역. 온보딩에서 받은 러닝 스펙이다. */}
+        {intro && intro.rows.length > 0 && (
+          <section className="flex flex-col gap-2">
+            <SectionLabel>러닝 프로필</SectionLabel>
+            <ul className="flex flex-col gap-1.5">
+              {intro.rows.map((row) => (
+                <li key={row.label} className="flex items-baseline gap-2">
+                  <Caption className="shrink-0">{row.label}</Caption>
+                  <span
+                    aria-hidden
+                    className="min-w-2 flex-1 -translate-y-0.5 border-b border-dashed border-border"
+                  />
+                  <Caption className="shrink-0 font-medium text-foreground tabular-nums">
+                    {row.value}
+                  </Caption>
+                </li>
+              ))}
+            </ul>
           </section>
         )}
 

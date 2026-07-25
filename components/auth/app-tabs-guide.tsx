@@ -22,8 +22,8 @@ const TAB_GUIDE = [
   },
   {
     icon: Newspaper,
-    name: "기강이야기",
-    desc: "크루 소식과 활동 이야기를 만나요",
+    name: "기강",
+    desc: "크루 소식을 보고, 한마디를 날리고, 서로 응원해요",
   },
   {
     icon: Zap,

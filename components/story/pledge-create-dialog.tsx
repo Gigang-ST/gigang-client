@@ -28,7 +28,7 @@ const PLEDGE_MAX = PLEDGE_TXT_MAX;
  * 저장 후 `router.refresh()`로 전광판을 다시 그려 새 팻말이 바로 코스에 서게 한다.
  * IntroEditDialog와 같은 인라인 편집 패턴 — 페이지 이동 없이 한 줄만 받는다.
  *
- * 각오에는 만료가 없다 — 24시간 규칙은 종이비행기 한마디(MessageCreateDialog) 것이다.
+ * 각오에는 만료가 없다 — 24시간 규칙은 종이비행기 한마디(MessageCompose) 것이다.
  */
 export function PledgeCreateDialog({
   open,

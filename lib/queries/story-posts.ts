@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 
+import { STORY_POST_LIMIT } from "@/lib/story-post";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isRequestAbortError } from "@/lib/supabase/is-abort-error";
 
@@ -24,14 +25,9 @@ export type StoryPost = {
   crt_at: string;
 };
 
-/**
- * 전광판에 싣는 기록 수 — 2x2 한 면이 4장이니 4면 분량이다.
- *
- * 스와이프로 과거를 보는 구조라 예전 가로 스크롤보다 여유를 둘 수 있지만, 무한히 늘리지는
- * 않는다 — 사진이 딸린 목록이라 한 번에 다 받으면 첫 화면이 무거워진다. 더 옛날 기록은
- * 프로필 카드(RECORDS)가 각자의 전체 목록을 맡는다.
- */
-export const STORY_POST_LIMIT = 16;
+// 조회 개수 상수는 `lib/story-post.ts`에 있다 — 클라이언트 컴포넌트도 읽어야 하는데
+// 이 파일은 `createAdminClient`를 타고 `server-only`에 닿아 import되는 순간 터진다.
+export { STORY_POST_LIMIT } from "@/lib/story-post";
 
 /**
  * 전광판 기록 자랑 조회.

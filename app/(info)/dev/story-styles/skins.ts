@@ -12,10 +12,6 @@
 export type LedeVariant =
   | "editorial" // 명조 헤드라인 + 우측 기록
   | "tabloid" // 반전 블록 + 초대형 헤드라인
-  | "magazine" // 거대 숫자가 주인공, 헤드라인은 부제
-  | "board" // 야간 전광판 격자
-  | "minimal" // 라운드 카드
-  | "stat" // 숫자가 헤드라인보다 큰 비즈니스위크 식
   | "brand"; // 넓은 여백 + 큰 이미지 자리
 
 export type SkinConfig = {
@@ -119,95 +115,6 @@ export const SKINS: SkinConfig[] = [
   },
   {
     ...BASE,
-    key: "magazine",
-    name: "C. 매거진",
-    desc: "거대 숫자 주도, 색 블록, 막대 그래프. Strava 연말결산 계열",
-    // 신문 질감 없음 — 매거진·앱 톤은 종이결이 오히려 방해된다
-    frameClass: "bg-background text-foreground",
-    mastheadClass:
-      "text-center text-[26px] font-bold lowercase tracking-[-0.01em] text-foreground",
-    mastheadRuleClass: "mt-3 border-t border-border",
-    sectionLabelClass:
-      "font-numeric text-[10px] font-bold uppercase tracking-[0.28em] text-primary",
-    sectionRuleClass: "pb-2",
-    rowClass: "flex items-center gap-3 py-2",
-    rowTrailClass:
-      "shrink-0 font-numeric text-[22px] font-bold text-primary tabular-nums",
-    figureClass:
-      "font-numeric text-[56px] font-bold leading-[0.9] text-primary tabular-nums",
-    accentClass: "text-primary",
-    headlineClass: "text-[19px] font-semibold leading-snug text-foreground",
-    ledeVariant: "magazine",
-  },
-  {
-    ...BASE,
-    key: "board",
-    name: "D. 야간 전광판",
-    desc: "경기장 LED 보드. 항상 야간 + 앰버 수치 (이전 시안)",
-    fixedDark: true,
-    frameClass: "bg-board text-board-foreground",
-    mastheadClass:
-      "text-center font-numeric text-[24px] font-medium uppercase tracking-[0.3em] text-board-amber",
-    datelineClass:
-      "mt-2.5 text-center font-numeric text-[10px] uppercase tracking-[0.2em] text-board-muted",
-    mastheadRuleClass: "mt-3 border-t border-board-line",
-    sectionLabelClass:
-      "font-numeric text-[10px] font-medium uppercase tracking-[0.3em] text-board-muted",
-    sectionRuleClass: "border-b border-board-line pb-2",
-    sectionLeadClass: "pt-2.5 text-[13px] leading-snug text-board-muted",
-    rowClass: "flex items-center gap-3 border-b border-board-line py-2.5",
-    rowLeadClass: "min-w-0 flex-1 truncate text-[14px] text-board-foreground",
-    rowTrailClass:
-      "shrink-0 font-numeric text-[16px] font-medium text-board-amber tabular-nums",
-    figureClass:
-      "font-numeric text-[34px] font-medium text-board-amber tabular-nums",
-    accentClass: "text-board-amber",
-    headlineClass:
-      "font-numeric text-[20px] font-medium uppercase tracking-[0.08em] text-board-foreground",
-    ledeVariant: "board",
-  },
-  {
-    ...BASE,
-    key: "minimal",
-    name: "E. 미니멀 카드",
-    desc: "라운드 카드 + 산세리프. 앱 나머지 페이지와 가장 잘 붙는다",
-    frameClass: "bg-background text-foreground",
-    mastheadClass: "text-center text-[24px] font-bold tracking-tight text-foreground",
-    mastheadRuleClass: "mt-3 border-t border-border",
-    sectionLabelClass:
-      "text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground",
-    sectionRuleClass: "pb-2",
-    sectionLeadClass: "pt-1.5 text-[13px] leading-snug text-muted-foreground",
-    rowClass:
-      "flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3",
-    rowLeadClass: "min-w-0 flex-1 truncate text-[14px] font-medium text-foreground",
-    figureClass: "font-numeric text-[24px] font-semibold text-foreground tabular-nums",
-    headlineClass: "text-[18px] font-semibold leading-snug text-foreground",
-    ledeVariant: "minimal",
-  },
-  {
-    ...BASE,
-    key: "businessweek",
-    name: "F. 비즈니스위크",
-    desc: "숫자가 헤드라인보다 크다. 색 최소, 선 굵기 3종으로만 위계 (Bloomberg 계열)",
-    mastheadClass:
-      "text-center text-[28px] font-black uppercase leading-none tracking-[-0.03em] text-foreground",
-    mastheadRuleClass: "mt-3 border-t-[5px] border-foreground",
-    sectionLabelClass:
-      "text-[10px] font-black uppercase tracking-[0.2em] text-foreground",
-    sectionRuleClass: "border-b-2 border-foreground pb-1.5",
-    sectionLeadClass: "pt-2 text-[13px] leading-snug text-muted-foreground",
-    rowClass: "flex items-baseline gap-3 border-b border-foreground/20 py-2.5",
-    rowLeadClass: "min-w-0 flex-1 truncate text-[13px] text-foreground",
-    rowTrailClass:
-      "shrink-0 font-numeric text-[26px] font-black leading-none text-foreground tabular-nums",
-    figureClass:
-      "font-numeric text-[64px] font-black leading-[0.85] text-foreground tabular-nums",
-    headlineClass: "text-[15px] font-semibold leading-snug text-muted-foreground",
-    ledeVariant: "stat",
-  },
-  {
-    ...BASE,
     key: "brand",
     name: "G. 러닝 브랜드",
     desc: "넓은 여백 + 큰 사진 자리 + 넓은 자간. 프리미엄 스포츠 브랜드 톤",
@@ -229,50 +136,5 @@ export const SKINS: SkinConfig[] = [
     headlineClass:
       "text-[24px] font-light leading-tight tracking-tight text-foreground",
     ledeVariant: "brand",
-  },
-  {
-    ...BASE,
-    key: "halftone",
-    name: "H. 인쇄 망점",
-    desc: "halftone 텍스처로 진짜 인쇄물 질감. 사진 제판 + 2단 조판 (CSS만, 이미지 0바이트)",
-    frameClass: "bg-background text-foreground",
-    overlayClass: "halftone",
-    mastheadClass:
-      "text-center font-serif text-[32px] leading-none tracking-[0.01em] text-foreground",
-    mastheadRuleClass: "mt-3 border-t-[3px] border-double border-foreground",
-    sectionRuleClass: "border-b border-dashed border-foreground/60 pb-2",
-    rowClass: "flex items-center gap-3 border-b border-dashed border-border py-2.5",
-    figureClass:
-      "font-serif text-[28px] font-medium text-foreground tabular-nums",
-    headlineClass: "font-serif text-[23px] leading-tight text-foreground",
-    ledeVariant: "editorial",
-  },
-  {
-    ...BASE,
-    key: "speed",
-    name: "I. 스피드",
-    desc: "숫자를 기울여 속도감. 스포츠 타이포 문법 + 다크 기준",
-    fixedDark: true,
-    frameClass: "bg-board text-board-foreground",
-    mastheadClass:
-      "text-center text-[30px] font-black italic uppercase leading-none tracking-[-0.03em] text-board-foreground",
-    datelineClass:
-      "mt-2.5 text-center font-numeric text-[10px] uppercase tracking-[0.2em] text-board-muted",
-    mastheadRuleClass: "mt-3 border-t-[4px] border-board-amber",
-    sectionLabelClass:
-      "text-[10px] font-black italic uppercase tracking-[0.18em] text-board-amber",
-    sectionRuleClass: "border-b border-board-line pb-2",
-    sectionLeadClass: "pt-2.5 text-[13px] italic leading-snug text-board-muted",
-    rowClass: "flex items-center gap-3 border-b border-board-line py-2.5",
-    rowLeadClass:
-      "min-w-0 flex-1 truncate text-[14px] font-semibold text-board-foreground",
-    rowTrailClass:
-      "shrink-0 font-numeric text-[20px] font-black italic text-board-amber tabular-nums",
-    figureClass:
-      "font-numeric text-[44px] font-black italic leading-none text-board-amber tabular-nums",
-    accentClass: "text-board-amber",
-    headlineClass:
-      "text-[26px] font-black italic uppercase leading-[0.95] text-board-foreground",
-    ledeVariant: "stat",
   },
 ];

@@ -10,6 +10,11 @@ export type StoryMessage = {
   mem_nm: string;
   avatar_url: string | null;
   msg_txt: string;
+  /**
+   * 던지기로 날아간 거리(m). `null`이면 아직 안 던졌거나 건너뛴 것.
+   * 하늘에서의 고도가 이 값으로 정해진다(`flyAltitude`) — 멀리 던진 한마디가 더 높이 난다.
+   */
+  fly_dist: number | null;
   /** 작성 시각(ISO). 24시간 만료·배너 카운트다운의 기준점 */
   crt_at: string;
 };

@@ -172,9 +172,10 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 
 | 컴포넌트 | 파일 | 용도 |
 |----------|------|------|
-| StoryClient | `story-client.tsx` | 전광판 본문 — 리드 + 기상대 + 존 3개 + 프로필 카드 진입 |
+| StoryClient | `story-client.tsx` | 전광판 본문 — 리드 + 오버뷰 + 존 3개 + 프로필 카드 진입 |
 | StoryLede | `story-lede.tsx` | 1면 리드 — 종류당 한 칸(대회·새얼굴·기록·참가왕). 좌측 메인 + 우측 레일 |
-| StoryWeather | `story-weather.tsx` | 기강 기상대 — 크루 분위기 한 단어 + 수치 격자 + 8주 추세 |
+| StoryPulse | `story-pulse.tsx` | 기강 오버뷰 — 팀 심박수(심전도 파형 + BPM) + 이번 달 수치 격자 |
+| HeartRate | `heart-rate.tsx` | 팀 심박수 파형 — 활동 지수 4단계를 심전도(ECG) + BPM으로. 활발할수록 빠르게 뛴다 |
 | StoryReactionButton | `story-reaction-button.tsx` | 응원 카운트업 — 누른 만큼 오른다(취소 없음, 1인 99회) |
 | ActvHistorySheet | `actv-history-sheet.tsx` | 활동량 내역 바텀시트 — 이번 달 획득 내역 날짜 역순 + 합계 |
 | PledgeSigns | `pledge-signs.tsx` | 각오 팻말 — 코스변 손팻말, 가로 스크롤. 24시간 카운트다운 후 내려감(Realtime) |
@@ -250,9 +251,13 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 - **리드 슬롯**: 종류당 **한 칸**이다. 신규 멤버가 넷이라고 네 칸을 쓰면 스와이프가 명단 낭독이 된다.
   가장 최근 1명(1건)을 대표로 크게, 나머지는 우측 레일(`w-12` + 세로 괘선)에 작게 — 빠지는 사람이 없게.
   자동 전환 5초, 손이 닿으면 10초 멈췄다 반응이 없으면 스스로 재개한다(영구 정지 금지).
-- **기상대**: 크루 분위기를 **먼저 말하고 근거를 뒤에** 붙인다. 단어는 프로필 카드의 개인 컨디션과
-  같은 4단계(`lib/team-weather.ts` ↔ `getActivityMood`) — 같은 척도임을 설명 없이 전달하기 위해서.
-  판정은 이번 주를 직전 4주 평균과 견준 비율이다(크루 규모마다 절대값이 달라서).
+- **오버뷰(팀 심박수)**: 크루 상태를 **먼저 말하고 근거를 뒤에** 붙인다. 왼쪽에 심박수(심전도 파형 +
+  BPM + 한 단어), 오른쪽에 이번 달 수치. 단어는 프로필 카드의 개인 컨디션과 같은 4단계
+  (`lib/team-pulse.ts` ↔ `getActivityMood`) — 같은 척도임을 설명 없이 전달하기 위해서.
+  판정은 이번 주를 직전 4주 평균과 견준 비율이다(크루 규모마다 절대값이 달라서). 이때 주는
+  **같은 요일 경과 시점끼리** 비교한다 — `get_team_overview` RPC가 과거 4주도 이번 주와 같은
+  요일까지만 세어 주므로(월요일=지난 4주의 월요일까지), 월요일에 심박이 무조건 죽는 톱니가 없다.
+  활발할수록 심박이 빠르고 진폭이 크며, 실종 단계는 거의 평평한 선(flatline)이다 — "죽어 있다"를 한눈에.
 - **응원**: 탭은 즉시 반영하고 서버 전송은 700ms 디바운스로 모은다. `revalidateTag`를 부르지 않는다 —
   연타마다 무효화하면 `story-feed` 캐시가 남아나지 않는다. 표시 상수·한도는 `lib/story-reaction.ts` 한 곳.
 - **활동량**: 화면 명칭은 "활동량"으로 통일하고 제도 이름(포인트)은 쓰지 않는다. 집계는 **매달**(`aply_dt` 기준,

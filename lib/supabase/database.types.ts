@@ -1947,6 +1947,7 @@ export type Database = {
         Row: {
           crt_at: string
           del_yn: boolean
+          fly_dist: number | null
           mem_id: string
           msg_id: string
           msg_txt: string
@@ -1956,6 +1957,7 @@ export type Database = {
         Insert: {
           crt_at?: string
           del_yn?: boolean
+          fly_dist?: number | null
           mem_id: string
           msg_id?: string
           msg_txt: string
@@ -1965,6 +1967,7 @@ export type Database = {
         Update: {
           crt_at?: string
           del_yn?: boolean
+          fly_dist?: number | null
           mem_id?: string
           msg_id?: string
           msg_txt?: string
@@ -3062,6 +3065,10 @@ export type Database = {
         Returns: boolean
       }
       rls_is_team_member: { Args: { p_team_id: string }; Returns: boolean }
+      set_message_fly_dist: {
+        Args: { p_dist: number; p_msg_id: string }
+        Returns: boolean
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       v2_rls_auth_in_team: { Args: { p_team_id: string }; Returns: boolean }

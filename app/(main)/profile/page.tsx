@@ -3,14 +3,15 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { CreditCard, MessageSquare, Settings, UserPen, Wallet } from "lucide-react";
+import { CreditCard, MessageSquare, UserPen, Wallet } from "lucide-react";
 
 import { dayjs } from "@/lib/dayjs";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 
-import { H1 } from "@/components/common/typography";
+import { HeaderActions } from "@/components/common/header-actions";
+import { PageHeader } from "@/components/common/page-header";
 import { PaceChartDynamic } from "@/components/profile/pace-chart-dynamic";
 import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
 import { ProfileCard } from "@/components/profile/profile-card";
@@ -203,12 +204,12 @@ export default function Page() {
 
   return (
     <div className="flex flex-col gap-0">
-      <div className="flex h-14 items-center justify-between px-6">
-        <H1 className="font-semibold">내 프로필</H1>
-        <Link href="/settings">
-          <Settings className="size-[22px] text-muted-foreground" />
-        </Link>
-      </div>
+      <PageHeader
+        variant="editorial"
+        label="Profile"
+        title="프로필"
+        action={<HeaderActions />}
+      />
       <Suspense fallback={<ProfileSkeleton />}>
         <ProfileContent />
       </Suspense>

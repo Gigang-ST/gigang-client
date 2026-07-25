@@ -12,7 +12,7 @@ import { StoryReactionButton } from "@/components/story/story-reaction-button";
 import { dedupePledgesByMember } from "@/lib/story-pledge";
 import { reactionKey } from "@/lib/story-reaction";
 
-import type { PointerEvent } from "react";
+import type { CSSProperties, PointerEvent } from "react";
 import type {
   RctnCd,
   StoryEntityType,
@@ -22,9 +22,17 @@ import type {
 } from "@/lib/queries/story-feed";
 
 /** 자동 전환 간격 — 한 장씩, 끝에 닿으면 처음으로 되돌아온다 */
-const ROTATE_MS = 5000;
-/** 손이 닿으면 이만큼 멈춘다. 이후 반응이 없으면 다시 자동으로 넘어간다 */
-const PAUSE_MS = 10000;
+const ROTATE_MS = 4000;
+/**
+ * 손이 닿고서 다음 장까지 걸리는 총 시간 — 읽는 중에 바뀌는 게 가장 거슬리므로 여유를 준다.
+ *
+ * 이 8초는 **정지 + 게이지 한 바퀴**를 합친 값이다: 4초를 완전히 멈춰 세운 뒤
+ * 게이지가 0에서 다시 차오르기 시작해 4초 뒤 다 차면 넘어간다. 8초를 통째로 멈춰 두고
+ * 그다음에 4초를 채우면 12초가 걸리고, 사용자는 다 멈춘 막대를 8초나 들여다보게 된다.
+ */
+const PAUSE_MS = 8000;
+/** 완전 정지 구간 — 이 시간이 지나면 게이지가 처음부터 다시 돈다(위 주석의 앞 4초) */
+const FREEZE_MS = PAUSE_MS - ROTATE_MS;
 /** 새 얼굴 슬롯이 다루는 기간 */
 const WINDOW_DAYS = 30;
 /**
@@ -334,16 +342,57 @@ export function StoryLede({
 
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
+  /**
+   * 자동 전환 끄기 — **테스트용 임시 토글**이다(운영에 남길 UI 아님).
+   *
+   * `paused`(손이 닿아 8초 쉬는 중)와 분리해 둔다: 껐는데 8초 뒤 되살아나면 끈 게 아니고,
+   * 켤 때 남아있던 일시정지를 물려받으면 켜자마자 안 도는 것처럼 보인다.
+   */
+  const [autoOff, setAutoOff] = useState(false);
+  /** 게이지를 처음부터 다시 굴리기 위한 세대 번호 — 같은 장에 머물러 재개할 때 필요 */
+  const [runId, setRunId] = useState(0);
+  /** 탭이 숨어 있나 — 초기값은 false로 둔다(서버 렌더와 첫 클라 렌더가 같아야 한다) */
+  const [hidden, setHidden] = useState(false);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
   const resumeTimerRef = useRef<number | null>(null);
 
-  /** 손이 닿았다 — 잠시 멈추고, 조용해지면 다시 돈다 */
+  /**
+   * 손이 닿았다 — 4초 완전히 멈췄다가 게이지를 처음부터 다시 굴린다(총 8초 뒤 다음 장).
+   *
+   * 멈춘 자리에서 이어서 채우면 남은 시간이 손댄 순간에 따라 제각각이라(다 찬 직후면
+   * 거의 0) 8초를 기다린 보람 없이 바로 넘어간다. 0에서 다시 시작해야 "멈췄다가 새로
+   * 센다"가 눈에 보인다.
+   */
   const pauseThenResume = useCallback(() => {
     setPaused(true);
     if (resumeTimerRef.current !== null)
       window.clearTimeout(resumeTimerRef.current);
-    resumeTimerRef.current = window.setTimeout(() => setPaused(false), PAUSE_MS);
+    resumeTimerRef.current = window.setTimeout(() => {
+      setPaused(false);
+      // 같은 장에 머문 채 재개하는 경우 active가 그대로라 key가 안 변한다 —
+      // 이 카운터를 키에 섞어야 게이지가 0부터 다시 찬다.
+      setRunId((n) => n + 1);
+    }, FREEZE_MS);
   }, []);
+
+  /** 테스트 토글 — 켤 때는 남은 일시정지를 걷어내고 즉시 돌게 한다 */
+  const toggleAuto = useCallback(() => {
+    setAutoOff((off) => {
+      if (off) {
+        if (resumeTimerRef.current !== null)
+          window.clearTimeout(resumeTimerRef.current);
+        resumeTimerRef.current = null;
+        setPaused(false);
+        // 켜는 순간 게이지도 0에서 새로 센다 — 껐을 때 멈춰 있던 지점에서 이어 채우면
+        // 켜자마자 넘어가 버린다.
+        setRunId((n) => n + 1);
+      }
+      return !off;
+    });
+  }, []);
+
+  /** 게이지가 멈춰야 하는가 — 손이 닿았거나 · 테스트로 껐거나 · 탭이 숨었거나 */
+  const frozen = paused || autoOff || hidden;
 
   useEffect(() => {
     return () => {
@@ -360,13 +409,30 @@ export function StoryLede({
     [total],
   );
 
+  /**
+   * 탭이 숨으면 세지 않는다 — 안 보는 동안 소식이 다 지나가 버리면 돌아왔을 때
+   * 볼 게 없다. 돌아오면 그때부터 게이지·타이머가 함께 0에서 다시 돈다(runId).
+   */
   useEffect(() => {
-    if (paused || total <= 1) return;
+    const onVisible = () => {
+      setHidden(document.hidden);
+      if (!document.hidden) setRunId((n) => n + 1);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
+  useEffect(() => {
+    if (frozen || total <= 1) return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduced) return;
 
-    const timer = window.setInterval(() => {
-      if (document.hidden) return;
+    // interval이 아니라 **장마다 새로 거는 timeout**이다. 게이지(CSS 애니메이션)는
+    // active·runId가 바뀔 때마다 0에서 다시 도는데, 넘기는 쪽만 고정 주기 interval이면
+    // 둘의 위상이 어긋난다 — 특히 탭이 백그라운드였다 돌아오면 게이지는 가득 찬 채로
+    // 멈춰 있고 전환은 엉뚱한 시점에 온다. 같은 트리거(active·runId)로 다시 걸어야
+    // "다 차는 순간 넘어간다"가 항상 맞는다.
+    const timer = window.setTimeout(() => {
       setActive((i) => (i + 1) % total);
       // 각오 칸이 다시 돌아올 때 같은 각오면 지면이 고여 보인다 — 넘길 때마다 굴려 둔다.
       // 인덱스는 `buildLedes`가 목록 길이로 나눠 쓰므로 계속 키워도 안전하다.
@@ -376,8 +442,8 @@ export function StoryLede({
       setRecordPick((n) => n + RECORD_PICKS);
     }, ROTATE_MS);
 
-    return () => window.clearInterval(timer);
-  }, [paused, total]);
+    return () => window.clearTimeout(timer);
+  }, [frozen, total, active, runId]);
 
   if (total === 0) {
     return (
@@ -416,8 +482,12 @@ export function StoryLede({
       onPointerCancel={() => {
         dragStart.current = null;
       }}
+      // 사각형 테두리 — /dev/story-styles의 러닝 브랜드(G안) 상단 프레임 톤(얇은 border).
+      // 페이지 px-6은 바깥에 두고 프레임은 그 안쪽에 그린다(테두리가 화면 가장자리에
+      // 붙지 않게). 안쪽 패딩은 p-5로 콘텐츠와 선 사이를 띄운다.
       className="touch-pan-y select-none px-6"
     >
+    <div className="rounded-2xl border border-border p-5">
       {/* 슬롯마다 내용 높이가 달라 자동 전환·스와이프 때 지면이 출렁인다.
           가장 큰 슬롯(대회: 헤드라인 2줄 + 아바타 + 응원 버튼)에 맞춰 넉넉히 고정한다. */}
       <div
@@ -570,7 +640,9 @@ export function StoryLede({
 
       {total > 1 && (
         <div className="flex items-center gap-2 pt-5">
-          {/* 진행 표시 — 신문 판형처럼 얇은 막대 */}
+          {/* 진행 표시 — 회색 홈 위로 검정이 차오른다. 다 차는 순간 다음 기사로 넘어가므로
+              막대가 곧 "언제 넘어가는지"를 미리 알려주는 시계다(점만 찍으면 위치만 알고
+              남은 시간은 모른다). 지나간 칸은 가득 채워 어디까지 봤는지 남긴다. */}
           {ledes.map((l, i) => (
             <button
               key={l.key}
@@ -583,22 +655,51 @@ export function StoryLede({
               aria-current={i === active}
               className="group flex-1 py-2 focus-visible:outline-none"
             >
-              <span
-                className={cn(
-                  "block h-0.5 w-full transition-colors",
-                  i === active
-                    ? "bg-foreground"
-                    : "bg-border group-hover:bg-muted-foreground",
+              {/* 상태는 딱 둘 — 현재 칸(검정) / 나머지(연한 회색).
+                  "이미 본 칸"을 중간 회색으로 따로 두면, 사람이 뒤로 스와이프한 순간
+                  진하기 순서가 뒤엉켜 어디가 현재인지 되레 흐려진다.
+
+                  현재 칸의 검정은 절반에서 시작해 4초에 걸쳐 가득 찬다. 절반이 "지금 여기",
+                  자라는 나머지가 "언제 넘어가나"다 — 막대 하나가 둘을 겸한다. */}
+              <span className="relative block h-1 w-full overflow-hidden rounded-full bg-border transition-colors group-hover:bg-muted-foreground/40">
+                {i === active && (
+                  /* key에 active·runId를 함께 묶어야 (장이 바뀔 때 / 멈췄다 재개할 때)
+                     요소가 새로 생겨 애니메이션이 절반부터 다시 돈다 — 안 그러면 게이지가
+                     다 찬 채로 멈춰 있다.
+                     자동전환을 끈 동안에는 시간이 흐르지 않으므로 채우지 않고 절반에
+                     세워 둔다 — 현재 칸 표시는 유지하되 "곧 넘어간다"는 거짓 신호를 뺀다. */
+                  <span
+                    key={`${active}-${runId}`}
+                    data-paused={frozen}
+                    style={{ "--lede-dur": `${ROTATE_MS}ms` } as CSSProperties}
+                    className={cn(
+                      "absolute inset-0 origin-left rounded-full bg-foreground",
+                      autoOff ? "scale-x-50" : "lede-progress",
+                    )}
+                  />
                 )}
-              />
+              </span>
             </button>
           ))}
         </div>
       )}
 
+      {/* 테스트용 임시 토글 — 자동 전환을 껐다 켠다. 검수 끝나면 이 블록만 지우면 된다. */}
+      <div className="flex justify-end pt-1">
+        <button
+          type="button"
+          onClick={toggleAuto}
+          aria-pressed={autoOff}
+          className="rounded-full border border-border px-2.5 py-1 font-numeric text-[10px] tracking-wide text-muted-foreground transition-colors active:scale-95 hover:bg-muted"
+        >
+          자동전환 {autoOff ? "OFF" : "ON"} (테스트)
+        </button>
+      </div>
+
       <span className="sr-only" role="status">
         {total}건 중 {active + 1}번째 기사
       </span>
+    </div>
     </section>
   );
 }

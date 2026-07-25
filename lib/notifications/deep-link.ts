@@ -37,6 +37,10 @@ const NOTI_ROUTE: Record<
   gthr_mention: (refId) => (refId ? `/?gthr=${refId}` : "/"),
   fdbk_new: () => "/admin/feedback",
   fdbk_rspd: () => "/profile/feedback",
+  // 게시판 공지·업데이트 — 새 글이 올라오면 팀 전체에 알림. 클릭 시 그 글 상세로.
+  // refId가 post_id라 상세로 바로 가고, 없으면 해당 탭 목록으로 떨어진다.
+  brd_notice: (refId) => (refId ? `/board/${refId}` : "/board?tab=notice"),
+  brd_update: (refId) => (refId ? `/board/${refId}` : "/board?tab=update"),
   // 뉴비 온보딩 미참석 넛지 — 홈 일정 섹션으로 랜딩(설계 §7.1)
   newbie_nudge_14: () => "/",
   newbie_nudge_28: () => "/",
