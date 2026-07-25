@@ -64,6 +64,11 @@ export function RecordFlexFeed({
   const loadingRef = useRef(false);
   const sentinelRef = useRef<HTMLLIElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
+  // **오프셋은 서버에서 실제로 받은 누적 개수로 센다** — 화면 개수(posts+extra)로 계산하면
+  // 중복으로 버려진 항목만큼 오프셋이 서버 위치보다 뒤처져, 한 묶음이 통째로 중복이면
+  // 같은 구간을 무한히 다시 받아 더보기가 멈춘다. 첫 묶음(posts.length) 이후 서버가 준
+  // 누적 개수(중복 제거 전)를 따로 센다 — 실제 오프셋은 `posts.length + fetchedExtra`.
+  const [fetchedExtra, setFetchedExtra] = useState(0);
 
   // 서버 데이터가 **내용상** 바뀌면(작성·Realtime 갱신) 이어붙인 건 버린다 — 앞이 바뀐 채로
   // 뒤를 유지하면 오프셋이 어긋나 같은 기록이 두 번 보인다.
@@ -74,12 +79,16 @@ export function RecordFlexFeed({
   // effect가 아니라 **렌더 중 비교**로 처리한다. effect에서 setState하면 이어붙인 걸 한 번
   // 그린 뒤 지우는 캐스케이드 렌더가 되고(그 사이 프레임에 옛 목록이 보인다), 린트도 막는다.
   // React 공식 권장 패턴("You Might Not Need an Effect" — prop이 바뀌면 렌더 중 조정).
-  const postsKey = `${posts.length}:${posts[0]?.post_id ?? ""}`;
+  // 길이 + 첫·마지막 id로 내용 변화를 식별한다 — 길이가 같은 채 중간이 갈리고 끝이 바뀌는
+  // 경우(한 건 삭제 + 한 건 추가)까지 대부분 덮는다. 첫 id만 보면 그 경우를 놓친다.
+  const postsKey = `${posts.length}:${posts[0]?.post_id ?? ""}:${posts.at(-1)?.post_id ?? ""}`;
   const [seenKey, setSeenKey] = useState(postsKey);
   if (seenKey !== postsKey) {
     setSeenKey(postsKey);
     setExtra([]);
     setDone(false);
+    // 첫 묶음이 바뀌었으니 누적 수신량도 0으로 되돌린다(오프셋 기준은 posts.length로 재설정)
+    setFetchedExtra(0);
   }
 
   // 오프셋 페이지네이션이라, 첫 렌더 뒤 새 기록이 상단에 꽂히면(act_dt DESC) 오프셋이
@@ -104,11 +113,18 @@ export function RecordFlexFeed({
         if (!entries.some((e) => e.isIntersecting)) return;
         if (loadingRef.current) return;
         loadingRef.current = true;
-        void loadMorePosts(posts.length + extra.length)
-          .then((more) => {
+        // 오프셋 = 첫 묶음 + 서버 누적 수신량. 화면 개수가 아니라(중복 제거로 갈린다).
+        void loadMorePosts(posts.length + fetchedExtra)
+          .then((res) => {
+            // 실패는 "끝"으로 굳히지 않는다 — done을 안 걸어 두면 sentinel이 남아, 다음
+            // 스크롤·재교차에 콜백이 다시 발화해 자연히 재시도된다.
+            if (!res.ok) return;
+
+            const more = res.posts;
+            // 서버가 실제로 준 양을 누적 오프셋에 더한다(중복으로 걸러지기 전 개수).
+            if (more.length > 0) setFetchedExtra((n) => n + more.length);
             // 받은 개수로 끝을 판정한다 — 아래 중복 제거로 화면 개수가 줄어도, "끝"은
-            // 서버가 실제로 준 양(more.length)으로 봐야 한다(걸러진 뒤 길이로 보면 중복이
-            // 많은 묶음을 끝으로 오인해 조기 종료된다).
+            // 서버가 실제로 준 양(more.length)으로 봐야 한다.
             if (more.length === 0 || more.length < STORY_POST_LIMIT) setDone(true);
             if (more.length > 0) {
               // 오프셋이 밀려 이미 담은 것과 겹쳐 와도 append하지 않는다(중복 방지).
@@ -131,7 +147,7 @@ export function RecordFlexFeed({
     );
     obs.observe(target);
     return () => obs.disconnect();
-  }, [posts.length, extra.length, done]);
+  }, [posts, extra.length, fetchedExtra, done]);
 
   const hasPosts = all.length > 0;
   // 2장씩 한 열 — 가로로 흐르는 격자라 세로 2칸을 채우고 다음 열로 넘어간다
@@ -166,7 +182,13 @@ export function RecordFlexFeed({
            24px 왼쪽으로 밀려 보인다. 스냅 기준선 자체를 패딩만큼 밀어야 다른 존과 줄이 맞는다. */
         <div
           ref={scrollerRef}
-          className="scrollbar-none snap-x snap-proximity scroll-pl-6 overflow-x-auto overscroll-x-contain pt-4"
+          // 키보드·스크린리더도 방향키로 훑을 수 있게 포커스 가능한 영역으로 둔다 —
+          // 칸 안에 포커스 요소가 없어(사진·텍스트뿐) 이걸 안 주면 처음 두 열 뒤로는
+          // 키보드로 닿을 방법이 없고 이어붙이기 sentinel도 트리거되지 않는다.
+          tabIndex={0}
+          role="region"
+          aria-label="기록 자랑 목록 — 좌우로 스크롤"
+          className="scrollbar-none snap-x snap-proximity scroll-pl-6 overflow-x-auto overscroll-x-contain pt-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <ul className="lede-in flex w-max gap-1.5 px-6">
             {columns.map((col, ci) => (

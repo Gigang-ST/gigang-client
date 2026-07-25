@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { toast } from "sonner";
@@ -53,6 +53,13 @@ export function MessageCompose({
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<number | null>(null);
 
+  // 언마운트 시 이륙 타이머 정리 — 남으면 사라진 컴포넌트에 setState를 시도한다
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    };
+  }, []);
+
   const trimmed = value.trim();
   const tooLong = trimmed.length > MESSAGE_TXT_MAX;
   const canSend = trimmed.length > 0 && !tooLong;
@@ -70,13 +77,25 @@ export function MessageCompose({
       setValue("");
     }, LIFTOFF_MS);
 
+    // 저장 실패로 글을 되돌릴 때, 아직 안 끝난 이륙 타이머가 그 값을 setValue("")로
+    // 덮지 않게 먼저 타이머를 끈다. 검증 실패처럼 640ms 안에 즉시 실패로 돌아오면
+    // 이걸 안 하면 방금 되돌린 글이 그대로 사라진다.
+    const restore = () => {
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      setFlying(false);
+      setValue(text);
+    };
+
     void (async () => {
       try {
         const result = await createMessage({ msg_txt: text });
         if (!result.ok) {
           toast.error(result.message ?? "저장에 실패했습니다");
           // 날아간 글을 되돌려준다 — 다시 타이핑하게 만들지 않는다
-          setValue(text);
+          restore();
           return;
         }
         onCreated?.();
@@ -88,7 +107,7 @@ export function MessageCompose({
         onThrow?.({ msgId: result.msg_id, text });
       } catch {
         toast.error("저장 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.");
-        setValue(text);
+        restore();
       }
     })();
   }

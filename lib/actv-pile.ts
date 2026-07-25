@@ -84,7 +84,9 @@ export function pileAvatars(
   const placed: PiledAvatar[] = [];
 
   for (const entry of sorted) {
-    const d = scoreToDiameter(entry.actv_score, maxScore);
+    // 지름은 컨테이너 폭을 넘지 않게 한 번 더 자른다 — 폭이 아주 좁으면(PILE_MAX_D보다 작으면)
+    // 원이 좌우로 삐져나갈 수 있다. 실사용 폭에선 안 걸리지만 경계를 확실히 닫아 둔다.
+    const d = Math.min(scoreToDiameter(entry.actv_score, maxScore), width);
     const r = d / 2;
 
     // 후보 x를 여러 개 뽑아 **가장 낮게 앉는 자리**를 고른다. 한 곳만 시도하면 빈 골짜기를

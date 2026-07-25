@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidateTag } from "next/cache";
+import { after } from "next/server";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 import { withAdminOrThrow } from "@/lib/actions/auth";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -38,19 +39,22 @@ export async function createPost(input: {
 
     // 팀 전체에 알림 — 게시판 아이콘을 걷어내면서(햄버거=설정으로 통합) "새 공지/업데이트가
     // 있다"를 알릴 창구가 알림 벨 하나로 모인다. 그래서 작성 시점에 알림을 쏴야 한다.
-    // fire-and-forget: 알림이 실패해도 게시글 등록은 이미 끝났고 되돌릴 이유가 없다
-    // (insertNoti 계열은 내부에서 에러를 삼키고 로그만 남긴다 — 다른 발송처와 동일).
-    void insertNotiForTeam({
-      teamId: parsed.team_id,
-      notiTypeEnm: parsed.post_type_enm === "notice" ? "brd_notice" : "brd_update",
-      notiNm:
-        parsed.post_type_enm === "notice"
-          ? `[공지] ${parsed.post_nm}`
-          : `[업데이트] ${parsed.post_nm}`,
-      notiCont: null,
-      refId: post.post_id,
-      refTypeEnm: "board",
-    });
+    // `after()`로 응답 반환 뒤에 보낸다 — 서버리스는 응답 후 프로세스가 죽을 수 있어
+    // await 안 한 프로미스가 끊긴다. 알림이 실패해도 게시글 등록은 이미 끝났고 되돌릴
+    // 이유가 없다(insertNoti 계열은 내부에서 에러를 삼키고 로그만 남긴다 — 다른 발송처와 동일).
+    after(() =>
+      insertNotiForTeam({
+        teamId: parsed.team_id,
+        notiTypeEnm: parsed.post_type_enm === "notice" ? "brd_notice" : "brd_update",
+        notiNm:
+          parsed.post_type_enm === "notice"
+            ? `[공지] ${parsed.post_nm}`
+            : `[업데이트] ${parsed.post_nm}`,
+        notiCont: null,
+        refId: post.post_id,
+        refTypeEnm: "board",
+      }),
+    );
 
     return { post_id: post.post_id };
   });

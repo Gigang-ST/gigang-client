@@ -73,7 +73,8 @@ export function ActvPile({
               height: d,
               // 큰 것이 위로 오게 — 겹치지 않지만 링이 맞닿을 때 큰 얼굴이 잘리지 않는다
               zIndex: Math.round(d),
-              // 떨어지는 연출은 위에서부터 순서대로. 66개가 동시에 튀면 어지럽다
+              // 떨어지는 연출을 한 박자씩 늦춰 순서대로 떨군다(큰 것=아래 먼저, i는
+              // 점수 내림차순). 66개가 동시에 튀면 어지럽다. 상한 900ms로 꼬리를 자른다.
               animationDelay: `${Math.min(i * 22, 900)}ms`,
             }}
             className={cn(

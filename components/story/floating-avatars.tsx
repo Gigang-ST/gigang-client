@@ -265,9 +265,15 @@ export function FloatingAvatars({
   // 익명 id는 **한 세션 내내 고정**이라야 색·이름·위치가 유지된다(재구독돼도 같은 얼굴).
   // sessionStorage에 담아 탭을 유지하는 동안 같은 id를 쓰고, 새 탭·새 세션이면 새 id가 뜬다.
   //
-  // useState **lazy initializer**로 만든다 — Math.random·sessionStorage 같은 비순수 호출은
-  // 렌더 본문에서 금지(react-hooks/purity)지만, 초기화 함수는 첫 마운트에 한 번만 도므로 허용된다.
+  // **서버 프리렌더에선 빈 값, 브라우저에서만 만든다.** App Router는 클라이언트 컴포넌트도
+  // 서버에서 한 번 렌더하는데, 거기서 sessionStorage·Math.random을 만지면 서버에서 버려질 id를
+  // 매번 만들고 React Doctor도 렌더 중 브라우저 전역 접근을 에러로 잡는다. `typeof window`로
+  // 서버를 걸러 lazy initializer 안에서만 만진다 — 초기화 함수는 첫 마운트에 한 번만 도므로
+  // 이 가드를 통과하면 브라우저에서 실행이 보장된다(비순수 호출도 초기화 함수에선 허용).
+  // 서버 렌더의 빈 anonId는 화면에 드러날 틈이 없다 — 첫 렌더엔 presence가 비어 null을
+  // 반환하고(아래), 로그인 사용자는 meId를 쓰므로 애초에 anonId가 필요 없다.
   const [anonId] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
     let stored: string | null = null;
     try {
       stored = sessionStorage.getItem("story-anon-id");
@@ -301,6 +307,10 @@ export function FloatingAvatars({
 
   // ── Realtime presence + broadcast 채널 ──
   useEffect(() => {
+    // 익명 사용자는 마운트 effect가 anonId를 채우기 전 첫 렌더에 presenceId가 빈 문자열이다.
+    // 그때는 구독하지 않는다 — anonId가 채워지면 이 effect가 다시 돌아 실제 키로 구독한다.
+    if (!presenceId) return;
+
     const supabase = createClient();
     const channel = supabase.channel(`story-avatars:${teamId}`, {
       config: { presence: { key: presenceId } },
@@ -330,7 +340,7 @@ export function FloatingAvatars({
       })
       .subscribe((status) => {
         // 로그인이든 익명이든 자기 얼굴을 올린다(track). 익명은 유령 얼굴 + 익명 이름으로 뜬다.
-        // presenceId는 항상 비지 않으므로(로그인=uuid, 익명=anon-xxxxxx) 조건 없이 track한다.
+        // 여기 닿을 땐 presenceId가 이미 채워져 있다(빈 값이면 위에서 구독 자체를 건너뛴다).
         if (status === "SUBSCRIBED") {
           void channel.track({
             mem_id: presenceId,

@@ -13,6 +13,12 @@ import type { ThrowResult } from "@/lib/story-throw";
 const RESULT_MS = 1100;
 /** 속도를 재는 창(ms) — 놓기 직전 이만큼의 움직임만 본다(§handleMove) */
 const SAMPLE_MS = 90;
+/**
+ * 아무 조작이 없을 때 스스로 닫히는 시간(ms). 포인터를 쓸 수 없거나(키보드 사용자)
+ * 그냥 안 던지고 두는 경우, 이 무대가 하늘을 영원히 덮은 채 남지 않게 한다.
+ * 던지지 않았으니 거리는 기록하지 않는다(finish(null)).
+ */
+const IDLE_CLOSE_MS = 8000;
 
 type Phase = "hold" | "fly" | "done";
 
@@ -77,6 +83,23 @@ export function ThrowStage({
       if (timerRef.current !== null) window.clearTimeout(timerRef.current);
     };
   }, []);
+
+  // 접근성·안전장치: 던지기 전(hold) 상태에서 아무 조작이 없으면 스스로 닫고, Esc로도 닫힌다.
+  // 포인터 없이는 던질 수도 닫을 수도 없어 하늘이 계속 막히는 걸 막는다(안 던졌으니 기록 없음).
+  useEffect(() => {
+    if (phase !== "hold") return;
+
+    const idle = window.setTimeout(() => finishRef.current(null), IDLE_CLOSE_MS);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") finishRef.current(null);
+    };
+    window.addEventListener("keydown", onKey);
+
+    return () => {
+      window.clearTimeout(idle);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [phase]);
 
   /** 던진다 — 비행 연출을 태우고 끝나면 결과를 올린다 */
   const launch = useCallback((r: ThrowResult) => {

@@ -214,10 +214,11 @@ export function StoryClient({
                   <button
                     type="button"
                     onClick={() => {
-                      const me = feed.actv_rank.find(
+                      const mine = feed.actv_rank.find(
                         (e) => e.mem_id === myMemId,
                       );
-                      if (me) setHistory({ memId: me.mem_id, name: me.mem_nm });
+                      if (mine)
+                        setHistory({ memId: mine.mem_id, name: mine.mem_nm });
                     }}
                     className="shrink-0 font-numeric text-[11px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >

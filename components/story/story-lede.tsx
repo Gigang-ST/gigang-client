@@ -11,6 +11,7 @@ import { StoryReactionButton } from "@/components/story/story-reaction-button";
 
 import { dedupePledgesByMember } from "@/lib/story-pledge";
 import { reactionKey } from "@/lib/story-reaction";
+import { isDevModeEnabled } from "@/lib/dev-mode";
 
 import type { CSSProperties, PointerEvent } from "react";
 import type {
@@ -377,19 +378,19 @@ export function StoryLede({
 
   /** 테스트 토글 — 켤 때는 남은 일시정지를 걷어내고 즉시 돌게 한다 */
   const toggleAuto = useCallback(() => {
-    setAutoOff((off) => {
-      if (off) {
-        if (resumeTimerRef.current !== null)
-          window.clearTimeout(resumeTimerRef.current);
-        resumeTimerRef.current = null;
-        setPaused(false);
-        // 켜는 순간 게이지도 0에서 새로 센다 — 껐을 때 멈춰 있던 지점에서 이어 채우면
-        // 켜자마자 넘어가 버린다.
-        setRunId((n) => n + 1);
-      }
-      return !off;
-    });
-  }, []);
+    // 부수효과는 업데이터 밖에서 — 업데이터 콜백은 순수해야 하고 React가 두 번 부를 수
+    // 있다(StrictMode). `autoOff`가 이미 스코프에 있어 현재 값으로 분기하면 된다.
+    if (autoOff) {
+      if (resumeTimerRef.current !== null)
+        window.clearTimeout(resumeTimerRef.current);
+      resumeTimerRef.current = null;
+      setPaused(false);
+      // 켜는 순간 게이지도 0에서 새로 센다 — 껐을 때 멈춰 있던 지점에서 이어 채우면
+      // 켜자마자 넘어가 버린다.
+      setRunId((n) => n + 1);
+    }
+    setAutoOff((off) => !off);
+  }, [autoOff]);
 
   /** 게이지가 멈춰야 하는가 — 손이 닿았거나 · 테스트로 껐거나 · 탭이 숨었거나 */
   const frozen = paused || autoOff || hidden;
@@ -684,17 +685,20 @@ export function StoryLede({
         </div>
       )}
 
-      {/* 테스트용 임시 토글 — 자동 전환을 껐다 켠다. 검수 끝나면 이 블록만 지우면 된다. */}
-      <div className="flex justify-end pt-1">
-        <button
-          type="button"
-          onClick={toggleAuto}
-          aria-pressed={autoOff}
-          className="rounded-full border border-border px-2.5 py-1 font-numeric text-[10px] tracking-wide text-muted-foreground transition-colors active:scale-95 hover:bg-muted"
-        >
-          자동전환 {autoOff ? "OFF" : "ON"} (테스트)
-        </button>
-      </div>
+      {/* 테스트용 임시 토글 — 자동 전환을 껐다 켠다. **개발 모드에서만** 뜬다
+          (`NEXT_PUBLIC_ENABLE_DEV_MODE`) — 운영 지면엔 노출하지 않는다. 검수 끝나면 이 블록만 지운다. */}
+      {isDevModeEnabled() && (
+        <div className="flex justify-end pt-1">
+          <button
+            type="button"
+            onClick={toggleAuto}
+            aria-pressed={autoOff}
+            className="rounded-full border border-border px-2.5 py-1 font-numeric text-[10px] tracking-wide text-muted-foreground transition-colors active:scale-95 hover:bg-muted"
+          >
+            자동전환 {autoOff ? "OFF" : "ON"} (테스트)
+          </button>
+        </div>
+      )}
 
       <span className="sr-only" role="status">
         {total}건 중 {active + 1}번째 기사
