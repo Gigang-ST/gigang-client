@@ -1150,7 +1150,6 @@ export function MiniCalendar({
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <SectionLabel>SCHEDULE</SectionLabel>
           {/* 뷰 전환 토글 */}
           <div className="flex items-center rounded-md bg-secondary p-0.5">
             <button

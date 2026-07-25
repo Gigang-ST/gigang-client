@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { HeaderActions } from "@/components/common/header-actions";
 import { PageHeader } from "@/components/common/page-header";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -46,7 +47,12 @@ export default async function ProjectsPage({
   if (!event) {
     return (
       <div className="flex flex-col gap-0">
-        <PageHeader title="프로젝트" />
+        <PageHeader
+          variant="editorial"
+          label="Projects"
+          title="프로젝트"
+          action={<HeaderActions />}
+        />
         <div className="flex flex-col gap-7 px-6 pb-24">
           <MileageIntro />
           <MileageRulesButton />
@@ -89,7 +95,12 @@ export default async function ProjectsPage({
 
   return (
     <div className="flex flex-col gap-0">
-      <PageHeader title="프로젝트" />
+      <PageHeader
+        variant="editorial"
+        label="Projects"
+        title="프로젝트"
+        action={<HeaderActions />}
+      />
       <div className="flex flex-col gap-7 px-6 pb-24">
         <MonthTransitionProvider>
           {/* 이벤트명 + 월 네비게이터 */}

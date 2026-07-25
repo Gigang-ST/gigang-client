@@ -7,7 +7,8 @@ import { getMyTitleNames } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-import { H1 } from "@/components/common/typography";
+import { HeaderActions } from "@/components/common/header-actions";
+import { PageHeader } from "@/components/common/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { RecordsClient } from "./records-client";
@@ -273,9 +274,12 @@ export default function RecordsPage() {
 
   return (
     <div className="flex flex-col gap-0">
-      <div className="flex h-14 items-center px-6">
-        <H1 className="font-semibold">기강의 전당</H1>
-      </div>
+      <PageHeader
+        variant="editorial"
+        label="Hall of Fame"
+        title="기강의 전당"
+        action={<HeaderActions />}
+      />
       <Suspense fallback={<RecordsSkeleton />}>
         <RecordsContent />
       </Suspense>

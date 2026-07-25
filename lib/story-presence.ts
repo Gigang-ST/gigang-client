@@ -78,3 +78,44 @@ export function getPresencePersona(memId: string): PresencePersona {
     restless: 0.7 + (c / 100) * 1.1, // 0.7 ~ 1.8
   };
 }
+
+// ─────────────────────────────────────────────
+// 익명(비로그인) 접속자
+// ─────────────────────────────────────────────
+
+/**
+ * 익명 접속자의 id 접두어. 이걸로 로그인 멤버(uuid)와 익명을 구분한다 —
+ * 색·성격은 로그인과 똑같이 이 id를 해시해 뽑으므로(문자열이기만 하면 된다) 별도 로직이 없다.
+ */
+export const ANON_PREFIX = "anon-";
+
+/** 로그인 멤버가 아니라 익명 접속자인지 — 얼굴(유령)·이름 처리를 가른다 */
+export function isAnonPresence(id: string): boolean {
+  return id.startsWith(ANON_PREFIX);
+}
+
+/**
+ * 익명 접속자 이름을 짓는 재료 — **형용사 + 러너**.
+ *
+ * 로그인 크루원은 실명이라 개인이 드러나지만, 익명은 "지나가는 손님"이라 정체 대신 분위기를
+ * 준다. 기강 톤(달리기·크루 문화)에 맞춘 형용사라 지면에 섞여도 겉돌지 않는다. 이름은 익명
+ * id 해시로 고정 선택하므로 한 세션 내내 같은 이름이 유지된다(색·성격과 같은 원리).
+ */
+const ANON_ADJECTIVES = [
+  "새벽의", "숙취한", "잠 못 드는", "질주하는", "느긋한", "비 맞는",
+  "심박수 높은", "발 빠른", "숨찬", "야간의", "지친", "설레는",
+  "굳은살의", "바람 가르는", "완주하는", "페이스 잃은", "리듬 탄", "묵묵한",
+] as const;
+
+const ANON_NOUNS = [
+  "러너", "페이서", "질주자", "새벽런러", "마라토너", "트레커",
+  "스프린터", "조거", "러닝메이트", "달림이",
+] as const;
+
+/** 익명 id → 고정 이름. "새벽의 페이서"처럼 형용사+명사를 해시로 골라 붙인다 */
+export function getAnonName(id: string): string {
+  const h = hashId(id);
+  const adj = ANON_ADJECTIVES[(h >>> 3) % ANON_ADJECTIVES.length];
+  const noun = ANON_NOUNS[(h >>> 15) % ANON_NOUNS.length];
+  return `${adj} ${noun}`;
+}

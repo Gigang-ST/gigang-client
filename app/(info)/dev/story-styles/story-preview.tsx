@@ -9,7 +9,6 @@ import {
   MOCK_GHOSTS,
   MOCK_LEDE,
   MOCK_NEWBIES,
-  MOCK_PLEDGES,
   MOCK_RACE,
   MOCK_RECORDS,
   MOCK_WEATHER,
@@ -24,7 +23,7 @@ import type { SkinConfig } from "./skins";
  * "어떻게 보이는가"만 바꾼다. 그래야 9종을 나란히 놓았을 때 구조가 아니라 톤만 비교된다.
  * 존을 추가·삭제할 일이 생기면 이 파일 한 곳만 고치면 9종에 동시에 반영된다.
  *
- * 미리보기라 실동작은 없다: 리드는 1건 고정(스와이프 없음), 각오는 정지된 목록(비행 없음),
+ * 미리보기라 실동작은 없다: 리드는 1건 고정(스와이프 없음),
  * 떠다니는 아바타 오버레이·응원 카운트업은 생략. 비교 대상이 "톤"이라 정지 화면으로 충분하다.
  */
 export function StoryPreview({ skin }: { skin: SkinConfig }) {
@@ -57,21 +56,7 @@ export function StoryPreview({ skin }: { skin: SkinConfig }) {
           <Weather skin={skin} />
         </Section>
 
-        {/* ④ 각오 */}
-        <Section skin={skin} label="Pledges" lead="기강인들이 날린 각오">
-          <ul className="flex flex-col pt-1">
-            {MOCK_PLEDGES.slice(0, 4).map((p) => (
-              <li key={p.id} className={skin.rowClass}>
-                <span className={skin.rowLeadClass}>{p.text}</span>
-                <span className="shrink-0 text-[11px] text-muted-foreground">
-                  {p.mem_nm} · {p.when}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Section>
-
-        {/* ⑤ 기록 자랑 팻말 */}
+        {/* ④ 기록 자랑 팻말 */}
         <Section skin={skin} label="Course Signs" lead="코스에 꽂아둔 기록">
           <div className="flex gap-3 overflow-x-auto pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {MOCK_FLEX.map((f) => (
@@ -244,67 +229,6 @@ function Lede({ skin }: { skin: SkinConfig }) {
           </span>
         </div>
         <p className="mt-2 text-[13px] opacity-70">{d.standfirst}</p>
-      </div>
-    );
-  }
-
-  if (skin.ledeVariant === "magazine") {
-    return (
-      <div className="px-6 pt-6">
-        <span className={skin.sectionLabelClass}>{d.kicker}</span>
-        <p className={cn(skin.figureClass, "mt-2")}>{d.figure}</p>
-        <p className={cn("mt-1 text-[11px] uppercase tracking-[0.2em]", skin.accentClass)}>
-          {d.figureLabel}
-        </p>
-        <h2 className={cn(skin.headlineClass, "mt-4")}>{d.headline}</h2>
-        <p className="mt-1 text-[13px] opacity-60">{d.standfirst}</p>
-      </div>
-    );
-  }
-
-  if (skin.ledeVariant === "stat") {
-    return (
-      <div className="px-6 pt-6">
-        <span className={skin.sectionLabelClass}>{d.kicker}</span>
-        <p className={cn(skin.figureClass, "mt-2")}>{d.figure}</p>
-        <h2 className={cn(skin.headlineClass, "mt-3")}>{d.headline}</h2>
-        <p className="mt-1 text-[12px] opacity-60">
-          {d.standfirst} · {d.figureLabel}
-        </p>
-      </div>
-    );
-  }
-
-  if (skin.ledeVariant === "board") {
-    return (
-      <div className="px-6 pt-5">
-        <div className="border border-board-line p-4">
-          <span className={skin.sectionLabelClass}>{d.kicker}</span>
-          <h2 className={cn(skin.headlineClass, "mt-2")}>{d.headline}</h2>
-          <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-board-line pt-3">
-            <span className="font-numeric text-[10px] uppercase tracking-[0.2em] text-board-muted">
-              {d.figureLabel}
-            </span>
-            <span className={skin.figureClass}>{d.figure}</span>
-          </div>
-        </div>
-        <p className="mt-2 text-[11px] text-board-muted">{d.standfirst}</p>
-      </div>
-    );
-  }
-
-  if (skin.ledeVariant === "minimal") {
-    return (
-      <div className="px-6 pt-5">
-        <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4">
-          <span className={skin.sectionLabelClass}>{d.kicker}</span>
-          <h2 className={skin.headlineClass}>{d.headline}</h2>
-          <p className="text-[13px] text-muted-foreground">{d.standfirst}</p>
-          <div className="flex items-baseline justify-between gap-3 border-t border-border pt-3">
-            <span className="text-[12px] text-muted-foreground">{d.figureLabel}</span>
-            <span className={skin.figureClass}>{d.figure}</span>
-          </div>
-        </div>
       </div>
     );
   }

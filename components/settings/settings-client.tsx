@@ -21,8 +21,11 @@ import {
   Trophy,
   MessageSquare,
   KeyRound,
+  Megaphone,
+  Zap,
 } from "lucide-react";
 
+import { markBoardTypeRead } from "@/app/actions/mark-board-type-read";
 import { createClient } from "@/lib/supabase/client";
 
 import { ThemeToggle } from "@/components/common/theme-toggle";
@@ -61,9 +64,29 @@ const infoItems: MenuItem[] = [
   { label: "도움말 및 지원", href: "/join", icon: LifeBuoy },
 ];
 
-export function SettingsClient({ isAdmin }: { isAdmin: boolean }) {
+export function SettingsClient({
+  isAdmin,
+  boardUnread,
+}: {
+  isAdmin: boolean;
+  /** 공지·업데이트 안읽음 — 각 메뉴 옆 dot. 없으면 둘 다 false로 온다 */
+  boardUnread?: { notice: boolean; update: boolean };
+}) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
+  // 안읽음은 낙관적으로 끈다 — 눌러서 게시판으로 넘어가는 순간 dot을 지운다(서버 왕복을
+  // 기다리면 넘어간 뒤에도 잠깐 점이 남는다). 서버 읽음 처리는 fire-and-forget.
+  const [unread, setUnread] = useState(
+    boardUnread ?? { notice: false, update: false },
+  );
+
+  function openBoard(tab: "notice" | "update") {
+    if (unread[tab]) {
+      setUnread((u) => ({ ...u, [tab]: false }));
+      void markBoardTypeRead(tab);
+    }
+    router.push(`/board?tab=${tab}`);
+  }
 
   const handleLogout = async () => {
     if (loggingOut) return;
@@ -99,6 +122,44 @@ export function SettingsClient({ isAdmin }: { isAdmin: boolean }) {
             <ChevronRight className="size-5 text-border" />
           </Link>
         ))}
+      </div>
+
+      {/* BOARD — 공지·업데이트. 게시판 아이콘을 걷어내며 여기로 왔다. 각 항목 옆 dot이
+          안읽음을 가리키고, 눌러 들어가면 그 타입만 읽음 처리된다(실제로 본 것만). */}
+      <div className="flex flex-col">
+        <SectionLabel>BOARD</SectionLabel>
+        <button
+          type="button"
+          onClick={() => openBoard("notice")}
+          className="flex items-center justify-between border-b border-border py-4"
+        >
+          <div className="flex items-center gap-3">
+            <Megaphone className="size-5 text-muted-foreground" />
+            <span className="text-[15px] font-medium text-foreground">공지사항</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {unread.notice && (
+              <span className="size-1.5 rounded-full bg-destructive" />
+            )}
+            <ChevronRight className="size-5 text-border" />
+          </div>
+        </button>
+        <button
+          type="button"
+          onClick={() => openBoard("update")}
+          className="flex items-center justify-between border-b border-border py-4"
+        >
+          <div className="flex items-center gap-3">
+            <Zap className="size-5 text-muted-foreground" />
+            <span className="text-[15px] font-medium text-foreground">업데이트</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {unread.update && (
+              <span className="size-1.5 rounded-full bg-destructive" />
+            )}
+            <ChevronRight className="size-5 text-border" />
+          </div>
+        </button>
       </div>
 
       {/* TEAM */}

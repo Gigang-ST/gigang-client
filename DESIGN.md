@@ -172,23 +172,32 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 
 | 컴포넌트 | 파일 | 용도 |
 |----------|------|------|
-| StoryClient | `story-client.tsx` | 전광판 본문 — 리드 + 기상대 + 존 3개 + 프로필 카드 진입 |
+| StoryClient | `story-client.tsx` | 전광판 본문 — 리드 + 오버뷰 + 존 3개 + 프로필 카드 진입 |
 | StoryLede | `story-lede.tsx` | 1면 리드 — 종류당 한 칸(대회·새얼굴·기록·참가왕). 좌측 메인 + 우측 레일 |
-| StoryWeather | `story-weather.tsx` | 기강 기상대 — 크루 분위기 한 단어 + 수치 격자 + 8주 추세 |
+| StoryPulse | `story-pulse.tsx` | 기강 오버뷰 — 팀 심박수(심전도 파형 + BPM) + 이번 달 수치 격자 |
+| HeartRate | `heart-rate.tsx` | 팀 심박수 파형 — 활동 지수 4단계를 심전도(ECG) + BPM으로. 활발할수록 빠르게 뛴다 |
 | StoryReactionButton | `story-reaction-button.tsx` | 응원 카운트업 — 누른 만큼 오른다(취소 없음, 1인 99회) |
 | ActvHistorySheet | `actv-history-sheet.tsx` | 활동량 내역 바텀시트 — 이번 달 획득 내역 날짜 역순 + 합계 |
 | PledgeSigns | `pledge-signs.tsx` | 각오 팻말 — 코스변 손팻말, 가로 스크롤. 24시간 카운트다운 후 내려감(Realtime) |
 | PledgeCreateDialog | `pledge-create-dialog.tsx` | 각오 작성 — 한 줄(24자). 24시간 뒤 내려간다고 미리 알린다 |
-| RecordFlexFeed | `record-flex-feed.tsx` | 기록 자랑 폴라로이드 피드 — 2x2 한 면, 좌우 스와이프로 과거 |
+| RecordFlexFeed | `record-flex-feed.tsx` | 기록 자랑 — 사진 정사각 격자, 세로 2칸씩 가로로 흐름. 끝에 닿으면 더 불러오기(오프셋). 사진 없는 기록은 프로필사진으로 칸을 꽉 채운다 |
 | RecordFlexCreateDialog | `record-flex-create-dialog.tsx` | 기록 작성 — 사진·한마디·종목·거리·날짜 |
+| MessageCompose | `message-compose.tsx` | 종이비행기 한마디 작성 — 지면 인라인 한 줄 입력 + 날리기(이륙 연출). 24시간 뒤 사라짐 |
+| MessagePlanes | `message-planes.tsx` | 종이비행기 하늘 — 한마디들이 배너로 흐른다. 던진 거리(`fly_dist`)로 고도가 갈림 |
+| ThrowStage | `throw-stage.tsx` | 한마디 던지기 — 하늘 안에서 얼굴을 끌다 놓으면 관성으로 휙. 탭만 해도 기본 세기 |
+| ActvPile | `actv-pile.tsx` | 활동량 무더기 — 이번 달 활동량 있는 크루원 전원을 점수 비례 크기로 쌓는다(순위 목록 대체) |
+| FloatingAvatars | `floating-avatars.tsx` | 떠다니는 아바타 — 지금 /story를 보는 접속자(Realtime presence). 탭하면 튄다(broadcast) |
 
 - 데이터: `getStoryFeed()` (`lib/queries/story-feed.ts`) + `getTeamOverview()` (`lib/queries/team-overview.ts`)
   + `getStoryPosts()` (`lib/queries/story-posts.ts`) + `getStoryPledges()` (`lib/queries/story-pledges.ts`).
   모두 공개 집계만 캐시하고 내 리액션은 클라이언트가 오버레이한다.
-- **각오는 하루살이, 기록은 남는다**: 각오(팻말)와 기록 자랑(폴라로이드)은 형태로도 수명으로도
+- **각오는 하루살이, 기록은 남는다**: 각오(팻말)와 기록 자랑(사진 격자)은 형태로도 수명으로도
   구분한다 — 각오는 "앞으로"라 24시간 뒤 내려가고, 기록은 "이미 한 것"이라 지면에 쌓인다.
-  종이비행기(공유 하늘·착륙장·띄우기)는 걷어냈다: 각오가 하루살이가 되면서 띄울 대상도
-  내려앉을 자리도 없어졌다(시안 원본은 `/dev/story-styles` J·K안).
+- **종이비행기 한마디는 다시 들어왔다(공유 하늘 + 던지기)**: 각오(팻말)와는 별개 존이다 —
+  각오가 "다짐"이라면 한마디는 "지금 툭 던지는 말"(예: "오늘 한강 6시 같이 뛸 사람")이고,
+  24시간 뒤 사라지는 하루살이다. 쓰면(`MessageCompose`) 하늘(`MessagePlanes`)에 배너로 뜨고,
+  던지기(`ThrowStage`)로 얼마나 멀리 갔는지가 고도를 정한다. 저장은 던지기를 기다리지 않는다
+  (안 던져도 한마디는 이미 올라가 있다). 시안 원본은 `/dev/story-styles` J·K안.
 - **각오는 24시간**: 꽂은 순간 `24:00:00`에서 줄어들어 0이 되면 코스에서 사라진다. 기준은
   `float_at`이 아니라 **`crt_at`(쓴 시각)** — 띄우기가 없어져 float_at을 갱신할 경로가 없고,
   "올린 지 24시간"이 사용자가 이해하는 규칙이다. 수명·시계는 `lib/story-pledge.ts`
@@ -250,9 +259,14 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 - **리드 슬롯**: 종류당 **한 칸**이다. 신규 멤버가 넷이라고 네 칸을 쓰면 스와이프가 명단 낭독이 된다.
   가장 최근 1명(1건)을 대표로 크게, 나머지는 우측 레일(`w-12` + 세로 괘선)에 작게 — 빠지는 사람이 없게.
   자동 전환 5초, 손이 닿으면 10초 멈췄다 반응이 없으면 스스로 재개한다(영구 정지 금지).
-- **기상대**: 크루 분위기를 **먼저 말하고 근거를 뒤에** 붙인다. 단어는 프로필 카드의 개인 컨디션과
-  같은 4단계(`lib/team-weather.ts` ↔ `getActivityMood`) — 같은 척도임을 설명 없이 전달하기 위해서.
-  판정은 이번 주를 직전 4주 평균과 견준 비율이다(크루 규모마다 절대값이 달라서).
+- **오버뷰(팀 심박수)**: 크루 상태를 **먼저 말하고 근거를 뒤에** 붙인다. 왼쪽에 심박수(심전도 파형 +
+  BPM + 한 단어), 오른쪽에 이번 달 수치. 단어는 프로필 카드의 개인 컨디션과 같은 4단계
+  (`lib/team-pulse.ts` ↔ `getActivityMood`) — 같은 척도임을 설명 없이 전달하기 위해서.
+  판정은 이번 주를 직전 4주 평균과 견준 비율이다(크루 규모마다 절대값이 달라서). 이때 주는
+  **같은 요일 경과 시점끼리** 비교한다 — `get_team_overview` RPC가 과거 4주도 이번 주와 같은
+  요일까지만 세어 주므로(월요일=지난 4주의 월요일까지), 월요일에 심박이 무조건 죽는 톱니가 없다.
+  활발할수록 심박이 빠르고 진폭이 크며, 최소 단계는 느리고 얕게 뛴다(완전 평선은 만들지 않는다 —
+  활동이 적은 것과 죽은 것은 다르다).
 - **응원**: 탭은 즉시 반영하고 서버 전송은 700ms 디바운스로 모은다. `revalidateTag`를 부르지 않는다 —
   연타마다 무효화하면 `story-feed` 캐시가 남아나지 않는다. 표시 상수·한도는 `lib/story-reaction.ts` 한 곳.
 - **활동량**: 화면 명칭은 "활동량"으로 통일하고 제도 이름(포인트)은 쓰지 않는다. 집계는 **매달**(`aply_dt` 기준,

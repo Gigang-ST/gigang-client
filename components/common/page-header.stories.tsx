@@ -20,7 +20,7 @@ export const Default: Story = {
 
 export const WithAction: Story = {
   args: {
-    title: "내 프로필",
+    title: "프로필",
     action: (
       <Button variant="ghost" size="icon" asChild>
         <Link href="/settings">

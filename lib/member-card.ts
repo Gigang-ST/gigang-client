@@ -1,6 +1,7 @@
 import { dayjs } from "@/lib/dayjs";
 import { MOOD_SCALE, type MoodLevel } from "@/lib/mood-scale";
 import {
+  JOIN_PURP_LABELS,
   JOIN_PURP_SHORT_LABELS,
   PACE_LABELS,
   type AVG_PACE_CODES,
@@ -135,14 +136,17 @@ export function getDaysSinceJoin(joinDt: string | null): number | null {
 /**
  * 소개 섹션 데이터 — 온보딩에서 받은 값을 카드용으로 정리한다.
  *
- * 스크린 존(이름 밑)에 점으로 이어붙이던 한 줄을 대체한다. 거기는 "누구인가"를 보여주는
- * 자리라 페이스·거리·역을 나열하면 소개가 아니라 스펙표가 됐다.
- * 목적은 **짧은 라벨 칩**(JOIN_PURP_SHORT_LABELS)으로만 쓴다 — 문장형 라벨을 나열하면
- * 카드가 문단이 되고, 자유 텍스트(join_purp_txt)는 애초에 남에게 보여줄 글이 아니라 RPC가 안 준다.
+ * 카드에서는 "러닝 프로필"(rows)과 "가입 목적"(purposes/purposeTxt) 두 섹션으로 나눠 쓴다.
+ * 목적 칩은 **짧은 라벨**(JOIN_PURP_SHORT_LABELS = `코칭`·`대회`…)로 렌더하되,
+ * `코칭`만 봐선 무슨 뜻인지 안 읽히므로 **문장형 라벨**(JOIN_PURP_LABELS = `자세·훈련 코칭을
+ * 받고 싶어요`)을 칭호처럼 탭 툴팁으로 붙인다 — 그래서 칩마다 short/full을 함께 내려준다.
+ * 자유 텍스트(join_purp_txt)는 애초에 남에게 보여줄 글이 아니라 RPC가 안 준다.
  */
 export type MemberIntro = {
-  /** 가입 목적 짧은 라벨 — 칩으로 렌더. `purposeTxt`가 있으면 비어 있다 */
-  purposes: string[];
+  /**
+   * 가입 목적 칩 — `short`는 칩에 찍고 `full`은 탭 툴팁에 뜬다. `purposeTxt`가 있으면 비어 있다.
+   */
+  purposes: { short: string; full: string }[];
   /**
    * 본인이 직접 쓴 목적 한마디 — 있으면 칩 대신 이걸 보여준다.
    * 온보딩에서 칩을 고르고도 따로 문장을 남겼다면, 그 문장이 더 정확한 자기소개다.
@@ -151,6 +155,23 @@ export type MemberIntro = {
   /** 라벨-값 행 (평균 페이스 / 평균 거리 / 가까운 역) */
   rows: { label: string; value: string }[];
 };
+
+/**
+ * 가입 목적 코드 배열 → 칩 데이터(short/full 쌍). 알 수 없는 코드는 건너뛴다.
+ * `getMemberIntro`와 아래 헬퍼가 공유하는 단일 변환.
+ */
+function toPurposeChips(
+  cds: string[] | null | undefined,
+): { short: string; full: string }[] {
+  return (cds ?? [])
+    .map((cd) => {
+      const key = cd as (typeof JOIN_PURP_CODES)[number];
+      const short = JOIN_PURP_SHORT_LABELS[key];
+      if (!short) return null;
+      return { short, full: JOIN_PURP_LABELS[key] ?? short };
+    })
+    .filter((chip): chip is { short: string; full: string } => chip !== null);
+}
 
 /**
  * 러닝 프로필 한 줄 — `6'00"/km · 8km · 합정역`.
@@ -253,11 +274,7 @@ export function getMemberIntro(
 
   // 직접 쓴 한마디가 있으면 칩은 버린다 — 태그 나열보다 본인 말이 낫다.
   const purposeTxt = profile.join_purp_txt?.trim() || null;
-  const purposes = purposeTxt
-    ? []
-    : (profile.join_purp_cds ?? [])
-        .map((cd) => JOIN_PURP_SHORT_LABELS[cd as (typeof JOIN_PURP_CODES)[number]])
-        .filter((label): label is string => Boolean(label));
+  const purposes = purposeTxt ? [] : toPurposeChips(profile.join_purp_cds);
 
   const rows: { label: string; value: string }[] = [];
   const paceCd = profile.avg_pace_cd as (typeof AVG_PACE_CODES)[number] | null;

@@ -7,11 +7,6 @@ import { cn } from "@/lib/utils";
 
 import { SKINS } from "./skins";
 import { StoryPreview } from "./story-preview";
-import {
-  StylePledgeFlip,
-  StylePledgePlane,
-  StylePledgeSign,
-} from "./styles-3";
 
 /**
  * 기강이야기 스타일 비교 — 개발 전용 페이지(`/dev/story-styles`).
@@ -21,36 +16,8 @@ import {
  * 구조가 같아야 나란히 놓고 톤만 비교할 수 있다 — 조각 시안끼리 비교하면 구조 차이가
  * 톤 차이로 오인된다.
  *
- * 각오 J·K·L은 지면 톤이 아니라 **각오 존 전용 기능 시안**이라 전체 구조 대상이 아니다
- * (이미 J. 종이비행기로 채택됨 — 비교 기록으로만 남긴다).
- *
  * 실데이터·실동작(스와이프·리액션·실시간)은 없다. 톤이 정해지면 이 폴더는 통째로 지운다.
  */
-
-/** 각오 존 기능 시안 — 지면 톤(A~I)과 비교 대상이 아니다 */
-const PLEDGE_STYLES = [
-  {
-    key: "pledge-plane",
-    name: "각오 J. 종이비행기",
-    desc: "신문지를 접어 날린 비행기가 각오 배너를 끌고 지면을 가로지른다. 배너 방식이라 날면서도 읽힌다 (채택됨)",
-    render: () => <StylePledgePlane />,
-  },
-  {
-    key: "pledge-sign",
-    name: "각오 K. 코스 팻말",
-    desc: "마라톤 코스변 손팻말. 러너면 다 아는 물건이라 설명이 필요 없다 (기록 자랑이 이 형태를 물려받음)",
-    render: () => <StylePledgeSign />,
-  },
-  {
-    key: "pledge-flip",
-    name: "각오 L. 솔라리 보드",
-    desc: "공항 안내판. 프로필 카드의 앰버 전광판 언어를 재사용하지만 중복 위험",
-    render: () => <StylePledgeFlip />,
-  },
-] as const;
-
-/** 안내판 영역만 야간인 시안 — 전체가 고정 다크는 아니라 구분한다 */
-const PARTIAL_DARK = new Set(["pledge-flip"]);
 
 /** 미리보기 모드 — 앱 테마 따라가기 / 라이트 고정 / 다크 고정 / 좌우 동시 비교 */
 type ViewMode = "app" | "light" | "dark" | "split";
@@ -89,11 +56,9 @@ export default function StoryStylesPage() {
   const [mode, setMode] = useState<ViewMode>("app");
 
   const skin = SKINS.find((s) => s.key === active) ?? null;
-  const pledge = PLEDGE_STYLES.find((p) => p.key === active) ?? null;
-  const desc = skin?.desc ?? pledge?.desc ?? "";
+  const desc = skin?.desc ?? "";
 
-  const render = () =>
-    skin ? <StoryPreview skin={skin} /> : pledge ? pledge.render() : null;
+  const render = () => (skin ? <StoryPreview skin={skin} /> : null);
 
   return (
     <div className="flex flex-col">
@@ -116,23 +81,6 @@ export default function StoryStylesPage() {
               )}
             >
               {s.name}
-            </button>
-          ))}
-          {/* 구분 — 여기부터는 지면 톤이 아니라 각오 존 기능 시안 */}
-          <span aria-hidden className="mx-1 w-px shrink-0 bg-border" />
-          {PLEDGE_STYLES.map((p) => (
-            <button
-              key={p.key}
-              type="button"
-              onClick={() => setActive(p.key)}
-              className={cn(
-                "shrink-0 rounded-full border px-3 py-1.5 text-[12px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                active === p.key
-                  ? "border-foreground bg-foreground text-background"
-                  : "border-border text-muted-foreground hover:bg-muted",
-              )}
-            >
-              {p.name}
             </button>
           ))}
         </div>
@@ -169,12 +117,6 @@ export default function StoryStylesPage() {
             <span className="text-warning">
               {" "}
               · 이 시안은 항상 야간이라 테마 전환에 반응하지 않습니다.
-            </span>
-          )}
-          {PARTIAL_DARK.has(active) && (
-            <span className="text-warning">
-              {" "}
-              · 안내판 영역만 항상 야간입니다(나머지는 테마를 따라갑니다).
             </span>
           )}
         </p>
