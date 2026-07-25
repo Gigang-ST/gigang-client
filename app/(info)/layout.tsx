@@ -1,4 +1,4 @@
-import { BackHeader } from "@/components/back-header";
+import { InfoBackHeader } from "@/components/info-back-header";
 
 export default function InfoLayout({
   children,
@@ -7,7 +7,7 @@ export default function InfoLayout({
 }) {
   return (
     <div className="min-h-svh bg-background">
-      <BackHeader />
+      <InfoBackHeader />
       <main>{children}</main>
     </div>
   );

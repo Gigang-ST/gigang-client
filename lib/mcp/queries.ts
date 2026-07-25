@@ -85,6 +85,7 @@ export type TodayGatheringRow = {
   end_at: string | null;
   loc_txt: string | null;
   max_prt_cnt: number | null;
+  desc_txt: string | null;
   attendee_cnt: number;
 };
 
@@ -259,7 +260,7 @@ export async function listTodayGatherings(
   const { data, error } = await supabase
     .from("gthr_mst")
     .select(
-      "gthr_id, gthr_nm, gthr_type_enm, stt_at, end_at, loc_txt, max_prt_cnt, gthr_attd_rel(count)",
+      "gthr_id, gthr_nm, gthr_type_enm, stt_at, end_at, loc_txt, max_prt_cnt, desc_txt, gthr_attd_rel(count)",
     )
     .eq("team_id", teamId)
     .eq("del_yn", false)
@@ -277,6 +278,7 @@ export async function listTodayGatherings(
       end_at: (g.end_at as string | null) ?? null,
       loc_txt: (g.loc_txt as string | null) ?? null,
       max_prt_cnt: (g.max_prt_cnt as number | null) ?? null,
+      desc_txt: (g.desc_txt as string | null) ?? null,
       attendee_cnt: countRel?.[0]?.count ?? 0,
     };
   });
