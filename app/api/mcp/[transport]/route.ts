@@ -119,7 +119,7 @@ const handler = createMcpHandler(
       {
         title: "최근 가입 멤버",
         description:
-          "우리 팀에 최근 가입한 멤버 목록을 가입일 최신순으로 반환합니다. limit 기본 10.",
+          "우리 팀에 최근 가입한 멤버 목록을 가입일 최신순으로 반환합니다. 가까운 역·평균 러닝 거리·평균 페이스·가입 목적(가입 온보딩 러닝 프로필) 포함. limit 기본 10.",
         inputSchema: {
           limit: z.number().int().min(1).max(100).optional(),
         },
@@ -151,7 +151,7 @@ const handler = createMcpHandler(
       {
         title: "멤버 프로필",
         description:
-          "우리 팀 멤버 프로필(이름·생일·성별·가입일·역할·상태·소개·아바타)을 조회합니다. member_id(uuid) 또는 name 중 하나로 조회. 연락처·계좌 정보는 반환하지 않습니다.",
+          "우리 팀 멤버 프로필(이름·생일·성별·가입일·역할·상태·소개·아바타, 가까운 역·평균 러닝 거리·평균 페이스·가입 목적)을 조회합니다. member_id(uuid) 또는 name 중 하나로 조회. 연락처·계좌 정보는 반환하지 않습니다.",
         inputSchema: {
           member_id: z.string().uuid("member_id 는 uuid 여야 합니다.").optional(),
           name: z.string().min(1).optional(),
