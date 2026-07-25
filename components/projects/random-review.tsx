@@ -1,18 +1,11 @@
 import { dayjs, formatKoreanShortDate, todayKST } from "@/lib/dayjs";
-import { type MileageSport } from "@/lib/mileage";
 import { getMyTitleNames } from "@/lib/queries/member";
+import { SPORT_EMOJI, type SportCode } from "@/lib/sport";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import { RandomReviewRotator, type ReviewLine } from "@/components/projects/random-review-rotator";
 
 type RandomReviewProps = { evtId: string };
-
-const SPORT_EMOJI_MAP: Record<MileageSport, string> = {
-  RUNNING: "🏃",
-  TRAIL: "🏔️",
-  CYCLING: "🚴",
-  SWIMMING: "🏊",
-};
 
 export async function RandomReview({ evtId }: RandomReviewProps) {
   const supabase = createAdminClient();
@@ -80,8 +73,8 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
       const rel = item.evt_team_prt_rel as { mem_mst: { mem_id: string; mem_nm: string } };
       const memId = rel.mem_mst.mem_id;
       const name = rel.mem_mst.mem_nm;
-      const sport = item.sprt_enm as MileageSport;
-      const sportEmoji = SPORT_EMOJI_MAP[sport] ?? "🏃";
+      const sport = item.sprt_enm as SportCode;
+      const sportEmoji = SPORT_EMOJI[sport] ?? "🏃";
       const dist = Number(item.dst_km);
       const safeDist = Number.isFinite(dist) ? dist : 0;
       const formattedDist = safeDist % 1 === 0 ? safeDist : safeDist.toFixed(1);
