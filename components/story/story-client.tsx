@@ -44,6 +44,7 @@ export function StoryClient({
   overview,
   ghosts,
   posts,
+  initialPostPick,
   messages,
   teamId,
   myMemId,
@@ -58,6 +59,8 @@ export function StoryClient({
   ghosts: GhostMember[];
   /** 기록 자랑 — 팻말존에 쓴다. 피드와 캐시 태그가 갈려 있어 별도 prop이다 */
   posts: StoryPost[];
+  /** 운동 기록 슬롯의 진입 랜덤 인덱스 — 서버가 매 요청 뽑아 넘긴다(깜빡임·하이드레이션 안전) */
+  initialPostPick: number;
   /** 종이비행기 한마디 — 24시간 만료. 각오와 별개 데이터(msg_mst), 별도 캐시·별도 RPC */
   messages: StoryMessage[];
   teamId: string;
@@ -112,6 +115,8 @@ export function StoryClient({
         <StoryLede
           feed={feed}
           reactions={reactions}
+          posts={posts}
+          initialPostPick={initialPostPick}
           onSelectMember={selectMember}
         />
         <FloatingAvatars teamId={teamId} me={me} />

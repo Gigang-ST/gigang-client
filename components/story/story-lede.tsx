@@ -1,17 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 
 import { dayjs, secondsToTime } from "@/lib/dayjs";
 import { getRaceDday, getRecordLabel } from "@/lib/member-card";
 import { cn } from "@/lib/utils";
 
-import { Avatar } from "@/components/common/avatar";
+import { Avatar, buildFallbackAvatarUrl } from "@/components/common/avatar";
+import { TitleBadge } from "@/components/common/title-badge";
 import { StoryReactionButton } from "@/components/story/story-reaction-button";
 
 import { dedupePledgesByMember } from "@/lib/story-pledge";
 import { reactionKey } from "@/lib/story-reaction";
 import { isDevModeEnabled } from "@/lib/dev-mode";
+import { getSportEmoji } from "@/lib/sport";
 
 import type { CSSProperties, PointerEvent } from "react";
 import type {
@@ -21,6 +24,7 @@ import type {
   StoryRecord,
   StoryReactionCounts,
 } from "@/lib/queries/story-feed";
+import type { StoryPost } from "@/lib/queries/story-posts";
 
 /** 자동 전환 간격 — 한 장씩, 끝에 닿으면 처음으로 되돌아온다 */
 const ROTATE_MS = 4000;
@@ -62,6 +66,16 @@ type Lede = {
     count: number;
     /** 내가 이 항목에 누른 누적 횟수 — 점등·상한 판정용 */
     myCount: number;
+  } | null;
+  /**
+   * 운동 기록 칸 전용 — 사진 URL(있으면 헤드라인 대신 사진을 크게 싣는다).
+   * `null`이면 사진 없는 자랑이라 프사로 폴백한다(격자 존과 같은 규칙).
+   * `title`은 올린 사람의 대표 호칭(있으면 이름 옆 배지) — 없으면 배지 생략.
+   */
+  photo?: {
+    url: string | null;
+    person: Person;
+    title: { ttl_nm: string; badge_effect: string } | null;
   } | null;
   /** 좌측 메인 — 대회처럼 주인공이 여럿이면 겹쳐 쌓는다 */
   people: Person[];
@@ -150,10 +164,14 @@ function rotate<T>(arr: T[], n: number): T[] {
 function buildLedes(
   feed: StoryFeed,
   reactions: StoryReactionCounts,
+  /** 기록 자랑 — 리드 기록자랑 칸(§⑥)에 랜덤 1건 */
+  posts: StoryPost[],
   /** 각오 칸에 실을 인덱스 — 호출자가 마운트 후 굴린다(§⑤) */
   pledgePick: number,
   /** 기록 칸의 회전량 — 같은 이유로 호출자가 굴린다(§③) */
   recordPick: number,
+  /** 기록자랑 칸에 실을 인덱스 — 서버·클라 첫 렌더가 같게 0에서 출발, 호출자가 굴린다(§⑥) */
+  postPick: number,
 ): Lede[] {
   const ledes: Lede[] = [];
 
@@ -309,6 +327,69 @@ function buildLedes(
     });
   }
 
+  // ⑥ 운동 기록 — 레코드보드에 올라온 자랑 중 **랜덤 1건**. 하단 격자존은 그대로 두고,
+  //    리드에선 사진 한 장을 크게 + 한마디 + 수치(종목·거리·날짜) + 올린 사람으로 세운다.
+  //    주인공은 "그 사람이 한 운동"이라 러닝 프로필(페이스·역 등 간단 프로필)은 넣지 않는다 —
+  //    사진·한마디·수치와 경쟁해 시선이 흩어진다. 사람은 아바타+이름으로만 조연으로 둔다.
+  //    (사진 없으면 프사로 폴백 — 격자와 같은 규칙). postPick은 호출자가 굴린다(서버·클라 일치).
+  if (posts.length > 0) {
+    const post = posts[postPick % posts.length];
+    const person: Person = {
+      mem_id: post.mem_id,
+      mem_nm: post.mem_nm,
+      avatar_url: post.avatar_url,
+    };
+    // 날짜 · [종목 이모지] 거리 — 사진 옆 수치 줄. 이름은 여기 넣지 않는다(사람 줄이 맡는다).
+    // 종목은 글자 대신 이모지(🏃 🚴 …)로 — 프로젝트(마일리지런) 한마디와 같은 표기다.
+    // 이모지는 거리 앞에 붙여 "🏃 10.5km"로 묶는다(가운뎃점 사이에 홀로 두면 어색하다).
+    const emoji = getSportEmoji(post.sprt_enm);
+    const km =
+      post.dst_km != null && !Number.isNaN(post.dst_km)
+        ? `${Number(post.dst_km.toFixed(2))}km`
+        : null;
+    const sportDist = [emoji, km].filter(Boolean).join(" ") || null;
+    const meta = [
+      post.act_dt ? dayjs(post.act_dt).format("M월 D일") : null,
+      sportDist,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    ledes.push({
+      key: `post-${post.post_id}`,
+      kicker: "운동 기록",
+      entity: null,
+      // 사람은 렌더의 사진 옆 아바타+이름 줄이 맡는다(people 줄은 안 쓴다 — 사진 슬롯 전용 렌더).
+      people: [],
+      subs: [],
+      moreCount: 0,
+      // 헤드라인은 한마디(따옴표). 한마디가 비면 이름으로 대체한다.
+      headline: post.cmnt_txt ? `“${post.cmnt_txt}”` : `${post.mem_nm}의 기록`,
+      standfirst: meta,
+      figure: null,
+      figureLabel: null,
+      photo: {
+        url: post.photo_url,
+        person,
+        title: post.primary_title
+          ? {
+              ttl_nm: post.primary_title.ttl_nm,
+              badge_effect: post.badge_effect ?? "none",
+            }
+          : null,
+      },
+    });
+  }
+
+  // 스와이프 순서 — 지면 위계를 여기서 한 곳에 고정한다. 위 push 순서(존별 생성 편의)와
+  // 분리해 두면, 순서를 바꿀 때 블록을 옮기지 않고 이 표만 고치면 된다. 목록에 없는 존이
+  // 생기면(접두어 매칭 실패) 맨 뒤로 보낸다(ORDER에 없으면 큰 값).
+  const ORDER = ["post", "king", "newbie", "pledge", "race", "record"];
+  const rank = (key: string) => {
+    const i = ORDER.findIndex((p) => key.startsWith(`${p}-`));
+    return i === -1 ? ORDER.length : i;
+  };
+  ledes.sort((a, b) => rank(a.key) - rank(b.key));
+
   return ledes;
 }
 
@@ -324,11 +405,17 @@ function buildLedes(
 export function StoryLede({
   feed,
   reactions,
+  posts,
+  initialPostPick,
   onSelectMember,
 }: {
   feed: StoryFeed;
   /** 응원 집계 (모두의 총합 + 내 몫) — 응원 버튼 카운트 보정용 */
   reactions: StoryReactionCounts;
+  /** 기록 자랑 — 기록자랑 칸에 랜덤 1건 */
+  posts: StoryPost[];
+  /** 운동 기록 슬롯의 진입 랜덤 인덱스 — 서버가 뽑아 넘긴다(§story/page.tsx) */
+  initialPostPick: number;
   onSelectMember: (memId: string, name: string) => void;
 }) {
   // 각오 칸에 실을 각오 — 자동 전환이 한 바퀴 돌 때마다 갈린다(아래 타이머).
@@ -338,7 +425,13 @@ export function StoryLede({
   // 기록 칸 회전량 — 각오와 같은 이유로 0에서 출발한다(서버·클라 첫 렌더가 같아야 한다).
   // 굴리는 건 자동 전환 타이머 안에서만.
   const [recordPick, setRecordPick] = useState(0);
-  const ledes = buildLedes(feed, reactions, pledgePick, recordPick);
+  // 운동 기록 칸 랜덤 — **페이지를 열 때마다 하나를 무작위로 뽑는다**(새로고침하면 다른 기록).
+  // 어느 걸 고를지는 **서버가** 정해 넘긴다(initialPostPick). 클라에서 Math.random으로 굴리면
+  // "최신이 잠깐 보였다 랜덤으로 휙" 바뀌는 깜빡임(첫 렌더 0 → effect가 랜덤)이 생기거나
+  // 하이드레이션이 깨진다. 서버가 정하면 첫 화면부터 그 기록이라 깜빡임이 없다.
+  // 자동전환으로는 굴리지 않는다 — 페이지가 떠 있는 동안엔 같은 기록, 새로고침해야 바뀐다.
+  const [postPick] = useState(initialPostPick);
+  const ledes = buildLedes(feed, reactions, posts, pledgePick, recordPick, postPick);
   const total = ledes.length;
 
   const [active, setActive] = useState(0);
@@ -441,6 +534,8 @@ export function StoryLede({
       // 기록 칸도 같이 굴린다. 한 번에 2건을 싣고 있으니 2씩 밀어야 다음 바퀴에
       // 방금 본 사람이 또 나오지 않고 풀 전체를 순서대로 훑는다.
       setRecordPick((n) => n + RECORD_PICKS);
+      // 운동 기록 칸은 자동전환으로 굴리지 않는다 — "진입 시 랜덤 1건"이라, 페이지가 떠 있는
+      // 동안엔 같은 기록이 유지되고 새로고침해야 바뀐다(마운트 effect가 정한다).
     }, ROTATE_MS);
 
     return () => window.clearTimeout(timer);
@@ -489,21 +584,89 @@ export function StoryLede({
       className="touch-pan-y select-none px-6"
     >
     <div className="rounded-2xl border border-border p-5">
-      {/* 슬롯마다 내용 높이가 달라 자동 전환·스와이프 때 지면이 출렁인다.
-          가장 큰 슬롯(대회: 헤드라인 2줄 + 아바타 + 응원 버튼)에 맞춰 넉넉히 고정한다. */}
+      {/* 슬롯마다 내용 높이가 달라 자동 전환·스와이프 때 지면이 출렁인다 — 가장 큰 슬롯에
+          맞춰 고정한다. 다만 모바일 세로 화면에선 짧은 슬롯(운동 기록 등)이 이 높이를 절반만
+          채워 아래가 휑해 보인다. 가장 큰 대회 슬롯(헤드라인 2줄+아바타 lg+응원 버튼)이
+          잘리지 않는 선까지만 낮춘다(248→208). 이보다 더 낮추면 대회·각오 슬롯이 잘린다. */}
       <div
         key={lede.key}
-        className="lede-in flex min-h-[248px] items-start gap-3"
+        className="lede-in flex min-h-[208px] items-start gap-3"
       >
         <article className="flex min-w-0 flex-1 flex-col gap-3">
           <span className="font-numeric text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
             {lede.kicker}
           </span>
 
-          {/* 기록 칸 — 한 칸에 두 건이라 헤드라인 하나로는 담기지 않는다.
-              대신 사람마다 한 덩이(이름·종목 / 대회·날짜 / 기록)로 세워 나란히 읽힌다.
-              두 건이 같은 무게라 어느 쪽도 주인공이 아니어야 하므로 크기를 맞춘다. */}
-          {lede.records ? (
+          {/* 운동 기록 칸 — 위(사진 | 한마디) + 아래 메타 한 줄(사람 ↔ 수치).
+              · 위: 좌측 사진(크게, 정사각) / 우측 한마디
+              · 아래: 전체 폭 한 줄 — 왼쪽 프사·이름·칭호, 오른쪽 날짜·종목·거리
+              메타를 2단 밖 한 줄로 빼야 손그림처럼 사람과 수치가 같은 바닥선에서 마주본다.
+              사진은 컨테이너 좌패딩(p-5)을 음수 마진으로 조금 당겨 왼쪽 여백을 줄인다. */}
+          {lede.photo ? (
+            <div className="flex flex-1 flex-col gap-3">
+              {/* 위 — 사진(좌) + 한마디(우) */}
+              <div className="flex flex-1 items-start gap-3">
+                {/* 사진은 클릭 대상이 아니다 — 프로필 카드는 아래 프사·이름을 눌러야 열린다.
+                    사진은 그 운동의 장면일 뿐이라 눌러도 반응하지 않는 게 자연스럽다. */}
+                <div className="relative -ml-2 aspect-square w-[44%] shrink-0 overflow-hidden rounded-xl bg-muted">
+                  {/* 사진 → 프사 → DiceBear 폴백. 셋 다 없어 src=""가 되면 Image가 터지므로
+                      마지막 폴백까지 항상 값이 있게 한다(격자 존과 같은 폴백 사슬). */}
+                  <Image
+                    src={
+                      lede.photo.url ??
+                      lede.photo.person.avatar_url ??
+                      buildFallbackAvatarUrl(lede.photo.person.mem_id)
+                    }
+                    alt={lede.photo.person.mem_nm}
+                    fill
+                    sizes="45vw"
+                    // 격자 존·아바타와 동일하게 최적화를 끈다 — 이 프로젝트는 remotePatterns를
+                    // 설정하지 않고 외부 URL(Storage·DiceBear)을 unoptimized로 그린다.
+                    unoptimized
+                    className="object-cover"
+                  />
+                </div>
+                {/* 한마디 — 사진 옆이라 대회 헤드라인(26px)보다 작게(15px). */}
+                <h2 className="line-clamp-6 min-w-0 flex-1 text-pretty break-keep pt-0.5 font-serif text-[15px] font-normal leading-[1.5] text-foreground [overflow-wrap:anywhere]">
+                  {lede.headline}
+                </h2>
+              </div>
+
+              {/* 아래 메타 한 줄 — 왼쪽 사람(프사·이름·칭호), 오른쪽 수치(날짜·종목·거리) */}
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    onSelectMember(lede.photo!.person.mem_id, lede.photo!.person.mem_nm)
+                  }
+                  aria-label={`${lede.photo.person.mem_nm} 프로필 보기`}
+                  className="flex min-w-0 items-center gap-1.5 rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
+                >
+                  <Avatar
+                    src={lede.photo.person.avatar_url}
+                    seed={lede.photo.person.mem_id}
+                    alt={lede.photo.person.mem_nm}
+                    size="sm"
+                  />
+                  <span className="truncate text-[13px] font-bold text-foreground">
+                    {lede.photo.person.mem_nm}
+                  </span>
+                  {lede.photo.title && (
+                    <TitleBadge
+                      name={lede.photo.title.ttl_nm}
+                      effect={lede.photo.title.badge_effect}
+                      size="xs"
+                    />
+                  )}
+                </button>
+                {lede.standfirst && (
+                  <span className="shrink-0 font-numeric text-[12px] text-muted-foreground tabular-nums">
+                    {lede.standfirst}
+                  </span>
+                )}
+              </div>
+            </div>
+          ) : lede.records ? (
             <ul className="flex flex-col gap-3">
               {lede.records.map((r) => (
                 <li key={r.entityId} className="flex items-center gap-3">
@@ -544,13 +707,17 @@ export function StoryLede({
             </h2>
           )}
 
-          <p className="break-keep text-[13px] leading-relaxed text-muted-foreground">
-            {lede.standfirst}
-          </p>
+          {/* 리드문 — 기록 자랑(photo) 슬롯은 위 자체 렌더에서 수치·사람을 이미 그렸으므로
+              이 공통 줄들(standfirst·아바타 줄)을 건너뛴다(중복 방지). */}
+          {!lede.photo && (
+            <p className="break-keep text-[13px] leading-relaxed text-muted-foreground">
+              {lede.standfirst}
+            </p>
+          )}
 
           {/* 아바타·수치 줄 — 기록 칸은 사람과 기록을 이미 목록 안에 품고 있어 이 줄이
               통째로 비고, 빈 flex가 gap만 남겨 리드문 아래에 헛간격이 생긴다. */}
-          {(lede.people.length > 0 || lede.figure) && (
+          {!lede.photo && (lede.people.length > 0 || lede.figure) && (
           <div className="flex items-center gap-3 pt-0.5">
             <div className="flex shrink-0">
               {lede.people.map((p, i) => (

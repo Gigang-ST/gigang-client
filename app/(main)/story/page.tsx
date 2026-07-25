@@ -7,6 +7,7 @@ import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getStoryReactions, getStoryFeed } from "@/lib/queries/story-feed";
 import { getStoryMessages } from "@/lib/queries/story-messages";
 import { getStoryPosts } from "@/lib/queries/story-posts";
+import { pickRandomPostIndex } from "@/lib/story-post";
 import { getTeamOverview } from "@/lib/queries/team-overview";
 
 import { HeaderActions } from "@/components/common/header-actions";
@@ -44,12 +45,21 @@ async function StoryFeedSection() {
   // 읽는다 — 남이 누른 것도 실시간에 가깝게 쌓여 보이고, 새로고침해도 내 몫이 유지된다.
   const reactions = await getStoryReactions(teamId, member?.id ?? null);
 
+  // 운동 기록 슬롯은 **진입 시 랜덤 1건**이다. 어느 걸 고를지를 **서버에서** 정해 넘긴다:
+  // 클라에서 마운트 후 Math.random으로 굴리면 "최신이 잠깐 보였다 랜덤으로 휙" 바뀌는 깜빡임이
+  // 생기고(첫 렌더는 0=최신, effect가 그 뒤 랜덤), 렌더 중에 굴리면 하이드레이션이 깨진다.
+  // 서버가 정해 넘기면 서버·클라 첫 렌더가 같아 깜빡임 없이 첫 화면부터 그 기록이 뜬다.
+  // posts 배열은 캐시(5분)돼도 이 선택은 캐시 밖(매 요청 렌더)이라 새로고침마다 새로 뽑힌다.
+  // Math.random은 렌더 순수성 룰에 걸려 헬퍼(pickRandomPostIndex)로 빼 둔다.
+  const initialPostPick = pickRandomPostIndex(posts.length);
+
   return (
     <StoryClient
       feed={feed}
       overview={overview}
       ghosts={ghosts}
       posts={posts}
+      initialPostPick={initialPostPick}
       messages={messages}
       teamId={teamId}
       myMemId={member?.id ?? null}
