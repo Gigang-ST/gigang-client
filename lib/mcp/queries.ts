@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { dayjs } from "@/lib/dayjs";
 import type { Database } from "@/lib/supabase/database.types";
+import { JOIN_PURP_SHORT_LABELS, PACE_LABELS } from "@/lib/validations/member";
 
 /**
  * 기강 운영 MCP — 6개 읽기 도구의 쿼리 로직(SG-04, 스펙 §4·§5).
@@ -89,13 +90,24 @@ export type TodayGatheringRow = {
   attendee_cnt: number;
 };
 
+/**
+ * 가입 온보딩 러닝 프로필(`mem_onbd_prf`, mem_id 키·팀무관). 코드는 라벨로 디코딩해 노출한다.
+ * 유입경로(join_src)·전화·이메일·계좌는 원천 테이블 어디에도 select 하지 않는다(M-03 불변식).
+ */
+export type RunningProfile = {
+  near_stn: string | null;
+  avg_run_dist_km: number | null;
+  avg_pace: string | null;
+  join_purposes: string[];
+};
+
 export type RecentMemberRow = {
   mem_id: string;
   mem_nm: string;
   join_dt: string | null;
   team_role_cd: string;
   mem_st_cd: string;
-};
+} & RunningProfile;
 
 export type AttendanceRow = {
   mem_id: string;
@@ -115,7 +127,7 @@ export type MemberProfileRow = {
   mem_st_cd: string;
   intro_txt: string | null;
   avatar_url: string | null;
-};
+} & RunningProfile;
 
 export type PushStatusRow = {
   mem_id: string;
@@ -205,6 +217,24 @@ export function buildPushStatus(
   return rows;
 }
 
+/**
+ * `avg_pace_cd` → 사람이 읽는 페이스 라벨(`lib/validations/member.ts` PACE_LABELS 재사용).
+ * cmm코드가 아니므로 알 수 없는 코드가 들어와도 에러 없이 코드 원문을 그대로 반환한다.
+ */
+export function decodePaceLabel(code: string | null): string | null {
+  if (!code) return null;
+  return (PACE_LABELS as Record<string, string>)[code] ?? code;
+}
+
+/**
+ * `join_purp_cds` → 짧은 가입 목적 라벨 배열(JOIN_PURP_SHORT_LABELS 재사용).
+ * 알 수 없는 코드는 코드 원문을 유지, 데이터 없으면 빈 배열.
+ */
+export function decodeJoinPurposes(codes: string[] | null | undefined): string[] {
+  if (!codes || codes.length === 0) return [];
+  return codes.map((c) => (JOIN_PURP_SHORT_LABELS as Record<string, string>)[c] ?? c);
+}
+
 // ── 쿼리 함수(supabase 주입) ─────────────────────────────────────────────────
 
 /** 활성 팀 멤버(정본 vers=0) 시드 목록 — 5.3/5.5 공통 기반. */
@@ -230,6 +260,41 @@ async function fetchActiveMemberSeeds(
     };
   });
 }
+
+/**
+ * mem_id 목록으로 가입 온보딩 러닝 프로필을 배치 조회한다(쿼리 1회, `.in`).
+ * 팀 무관(mem_onbd_prf는 mem_id 키) — team_id 필터는 걸지 않고 호출측 mem_id 목록으로만 스코프.
+ * 온보딩 개편 전 가입자 등 행이 없는 멤버는 Map에 없음 → 호출측에서 null/[] 기본값 처리.
+ */
+async function fetchRunningProfiles(
+  supabase: Db,
+  memIds: readonly string[],
+): Promise<Map<string, RunningProfile>> {
+  const map = new Map<string, RunningProfile>();
+  if (memIds.length === 0) return map;
+  const { data, error } = await supabase
+    .from("mem_onbd_prf")
+    .select("mem_id, near_stn_nm, avg_run_dist_km, avg_pace_cd, join_purp_cds")
+    .in("mem_id", memIds);
+  if (error) throw error;
+  for (const r of data ?? []) {
+    map.set(r.mem_id, {
+      near_stn: r.near_stn_nm ?? null,
+      // numeric 컬럼은 드라이버가 문자열로 줄 수 있어 명시적으로 숫자화한다(lib/queries/onboarding-profile.ts 동일 패턴).
+      avg_run_dist_km: r.avg_run_dist_km != null ? Number(r.avg_run_dist_km) : null,
+      avg_pace: decodePaceLabel(r.avg_pace_cd ?? null),
+      join_purposes: decodeJoinPurposes(r.join_purp_cds),
+    });
+  }
+  return map;
+}
+
+const EMPTY_RUNNING_PROFILE: RunningProfile = {
+  near_stn: null,
+  avg_run_dist_km: null,
+  avg_pace: null,
+  join_purposes: [],
+};
 
 /** 과거(이미 시작된) 팀 모임 참석 이벤트 목록 — 5.3/5.5 공통 기반. */
 async function fetchPastAttendanceEvents(
@@ -301,7 +366,7 @@ export async function listRecentMembers(
     .order("crt_at", { ascending: false })
     .limit(limit);
   if (error) throw error;
-  return (data ?? []).map((r) => {
+  const rows = (data ?? []).map((r) => {
     const mem = pickOne(r.mem_mst as { mem_nm: string } | { mem_nm: string }[]);
     return {
       mem_id: r.mem_id as string,
@@ -311,6 +376,14 @@ export async function listRecentMembers(
       mem_st_cd: r.mem_st_cd as string,
     };
   });
+  const profiles = await fetchRunningProfiles(
+    supabase,
+    rows.map((r) => r.mem_id),
+  );
+  return rows.map((r) => ({
+    ...r,
+    ...(profiles.get(r.mem_id) ?? EMPTY_RUNNING_PROFILE),
+  }));
 }
 
 /** §5.3 멤버별 참석 현황(오래/전혀 안 나온 순). */
@@ -354,7 +427,7 @@ export async function getMemberProfile(
   }
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []).map((r) => {
+  const rows = (data ?? []).map((r) => {
     const mem = pickOne(
       r.mem_mst as
         | {
@@ -384,6 +457,14 @@ export async function getMemberProfile(
       avatar_url: mem?.avatar_url ?? null,
     };
   });
+  const profiles = await fetchRunningProfiles(
+    supabase,
+    rows.map((r) => r.mem_id).filter((id) => id !== ""),
+  );
+  return rows.map((r) => ({
+    ...r,
+    ...(profiles.get(r.mem_id) ?? EMPTY_RUNNING_PROFILE),
+  }));
 }
 
 /** §5.5 특정 모임 미참석 활성 멤버 + 각자 참석 현황. */

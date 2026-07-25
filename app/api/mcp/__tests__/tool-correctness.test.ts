@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateAttendance,
   buildPushStatus,
+  decodeJoinPurposes,
+  decodePaceLabel,
   escapeLikePattern,
   kstDayRange,
 } from "@/lib/mcp/queries";
@@ -38,6 +40,14 @@ import {
  *  ⚠️ 정본 규약 결정: §5 baseline 본문은 team_mem_rel 에 vers=0 필터가 없으나, dev 실데이터에는
  *     del_yn=false & vers>0 인 낡은 행이 있어 무필터 시 활성 147(=144+중복3), 'left' 멤버가
  *     'active'로 되살아난다. 앱 전역 정본 규약(vers=0)으로 보정한 baseline을 M-01 기준으로 삼음.
+ *
+ * ── dev 대조 결과(2026-07-25, 러닝 프로필 필드 추가) ──
+ *  mem_onbd_prf 실데이터(팀 c0ffee00…001 소속 확인) 로 라벨 디코딩 대조:
+ *   - mem_id=974e87ef… (get_member_profile 대상): near_stn_nm=선릉, avg_run_dist_km="15.0"→15,
+ *     avg_pace_cd=P430→avg_pace="4'30\"", join_purp_cds=[COACH]→join_purposes=[코칭].
+ *   - mem_id=5f6ae133…(list_recent_members head, AC-13과 동일 인물 '온보딩'): near_stn_nm=계산,
+ *     avg_run_dist_km="20.0"→20, avg_pace_cd=P600→"6'00\"", join_purp_cds=[COACH,RACE]→[코칭,대회].
+ *   - avg_run_dist_km 는 numeric 이라 PostgREST가 문자열("15.0")로 반환 → Number() 강제 변환 확인.
  */
 
 describe("kstDayRange — §5.1 KST 달력일 → UTC 반열림 구간", () => {
@@ -166,6 +176,42 @@ describe("escapeLikePattern — §5.4 get_member_profile name 와일드카드 �
     expect(escapeLikePattern("홍길동")).toBe("홍길동");
     expect(escapeLikePattern("hs")).toBe("hs");
     expect(escapeLikePattern("")).toBe("");
+  });
+});
+
+describe("decodePaceLabel — §5.2/§5.4 avg_pace_cd → 라벨(PACE_LABELS 재사용)", () => {
+  it("알려진 코드는 lib/validations/member.ts PACE_LABELS 라벨로 디코딩한다", () => {
+    // dev 실측: mem_id=974e87ef… avg_pace_cd=P430
+    expect(decodePaceLabel("P430")).toBe("4'30\"");
+    // dev 실측: mem_id=5f6ae133… avg_pace_cd=P600
+    expect(decodePaceLabel("P600")).toBe("6'00\"");
+  });
+
+  it("알 수 없는 코드는 코드 원문을 그대로 반환한다(cmm코드 아님)", () => {
+    expect(decodePaceLabel("P999")).toBe("P999");
+  });
+
+  it("null/미지정은 null", () => {
+    expect(decodePaceLabel(null)).toBeNull();
+  });
+});
+
+describe("decodeJoinPurposes — §5.2/§5.4 join_purp_cds → 짧은 라벨 배열(JOIN_PURP_SHORT_LABELS 재사용)", () => {
+  it("알려진 코드 배열을 짧은 라벨 배열로 디코딩한다", () => {
+    // dev 실측: mem_id=974e87ef… join_purp_cds=[COACH]
+    expect(decodeJoinPurposes(["COACH"])).toEqual(["코칭"]);
+    // dev 실측: mem_id=5f6ae133… join_purp_cds=[COACH, RACE]
+    expect(decodeJoinPurposes(["COACH", "RACE"])).toEqual(["코칭", "대회"]);
+  });
+
+  it("알 수 없는 코드는 코드 원문을 유지한다", () => {
+    expect(decodeJoinPurposes(["RUN_MATE", "MYSTERY"])).toEqual(["러닝메이트", "MYSTERY"]);
+  });
+
+  it("데이터 없음(null/undefined/빈 배열)은 빈 배열", () => {
+    expect(decodeJoinPurposes(null)).toEqual([]);
+    expect(decodeJoinPurposes(undefined)).toEqual([]);
+    expect(decodeJoinPurposes([])).toEqual([]);
   });
 });
 

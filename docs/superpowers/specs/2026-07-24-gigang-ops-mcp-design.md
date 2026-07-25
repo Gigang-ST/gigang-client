@@ -68,14 +68,15 @@
 | 도구 | 입력 | 출력(행) | 권한 |
 |---|---|---|---|
 | `list_today_gatherings` | `date?`(KST, 기본 오늘) | gthr_id, gthr_nm, gthr_type_enm, stt_at, end_at, loc_txt, max_prt_cnt, desc_txt, attendee_cnt | 멤버 |
-| `list_recent_members` | `limit?`(기본 10) | mem_id, mem_nm, join_dt, team_role_cd, mem_st_cd | 멤버 |
+| `list_recent_members` | `limit?`(기본 10) | mem_id, mem_nm, join_dt, team_role_cd, mem_st_cd, near_stn, avg_run_dist_km, avg_pace, join_purposes | 멤버 |
 | `list_members_attendance` | `limit?` | mem_id, mem_nm, join_dt, attendance_cnt, last_attended_at | 멤버 |
-| `get_member_profile` | `member_id`(uuid) \| `name` | mem_nm, birth_dt, gdr_enm, join_dt, team_role_cd, mem_st_cd, intro_txt, avatar_url | 멤버 (연락처·계좌 절대 미포함) |
+| `get_member_profile` | `member_id`(uuid) \| `name` | mem_nm, birth_dt, gdr_enm, join_dt, team_role_cd, mem_st_cd, intro_txt, avatar_url, near_stn, avg_run_dist_km, avg_pace, join_purposes | 멤버 (연락처·계좌 절대 미포함) |
 | `list_gathering_non_attendees` | `gathering_id`(uuid) | mem_id, mem_nm, join_dt, attendance_cnt, last_attended_at | 멤버 |
 | `list_push_status` | — | mem_id, mem_nm, mem_st_cd, push_enabled | 멤버 |
 | `send_push` | `member_ids`(uuid[]), `title`, `message` | sent_cnt, audit_id | **admin** |
 
 - 반환은 정렬된 JSON 배열. `list_members_attendance`·`list_gathering_non_attendees`는 `last_attended_at asc nulls first`(전혀/오래 안 나온 순)로 정렬해 주되, 최종 추천 판단은 AI가 한다.
+- `near_stn`·`avg_run_dist_km`·`avg_pace`·`join_purposes`(2026-07-25 추가)는 가입 온보딩 러닝 프로필(`mem_onbd_prf`, mem_id 키·팀무관)에서 조인. `avg_pace`·`join_purposes`는 각각 `avg_pace_cd`·`join_purp_cds`를 `lib/validations/member.ts`의 `PACE_LABELS`·`JOIN_PURP_SHORT_LABELS`로 디코딩한 라벨(알 수 없는 코드는 코드 원문 유지). 온보딩 행이 없는 멤버는 전부 null/빈 배열. 유입경로(join_src_cd)·전화·이메일·계좌는 여전히 영구 제외(M-03).
 
 ## 5. Ground-truth SQL baseline (AC-02)
 
@@ -97,12 +98,15 @@ order by g.stt_at;
 
 ### 5.2 list_recent_members
 ```sql
-select m.mem_id, m.mem_nm, r.join_dt, r.team_role_cd, r.mem_st_cd
+select m.mem_id, m.mem_nm, r.join_dt, r.team_role_cd, r.mem_st_cd,
+       o.near_stn_nm, o.avg_run_dist_km, o.avg_pace_cd, o.join_purp_cds
 from team_mem_rel r
 join mem_mst m on m.mem_id = r.mem_id and m.del_yn = false
+left join mem_onbd_prf o on o.mem_id = r.mem_id
 where r.team_id = :team_id and r.del_yn = false and r.vers = 0
 order by r.join_dt desc nulls last, r.crt_at desc
 limit :limit;   -- 기본 10
+-- 도구 출력의 avg_pace·join_purposes는 코드를 PACE_LABELS·JOIN_PURP_SHORT_LABELS로 디코딩한 라벨.
 ```
 
 ### 5.3 list_members_attendance
@@ -125,11 +129,14 @@ limit :limit;   -- 옵션
 연락처·계좌(phone_no·email_addr·bank_nm·bank_acct_no)는 **select 목록에서 영구 제외** — 코드 불변식.
 ```sql
 select m.mem_id, m.mem_nm, m.birth_dt, m.gdr_enm, m.avatar_url,
-       r.join_dt, r.team_role_cd, r.mem_st_cd, r.intro_txt
+       r.join_dt, r.team_role_cd, r.mem_st_cd, r.intro_txt,
+       o.near_stn_nm, o.avg_run_dist_km, o.avg_pace_cd, o.join_purp_cds
 from mem_mst m
 join team_mem_rel r on r.mem_id = m.mem_id and r.team_id = :team_id and r.del_yn = false and r.vers = 0
+left join mem_onbd_prf o on o.mem_id = m.mem_id
 where m.del_yn = false
   and (m.mem_id = :member_id or lower(m.mem_nm) = lower(:name));
+-- 도구 출력의 avg_pace·join_purposes는 코드를 PACE_LABELS·JOIN_PURP_SHORT_LABELS로 디코딩한 라벨.
 ```
 
 ### 5.5 list_gathering_non_attendees
