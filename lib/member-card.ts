@@ -245,7 +245,20 @@ export function getRunningProfileChips(
 }
 
 /**
+ * 가입 목적 코드 → 짧은 라벨 목록. 한마디(txt) 유무와 무관하게 **코드만** 라벨로 바꾼다.
+ * 한마디와 칩을 함께 보여줄지(둘 다)는 호출부가 정한다 — 이 함수는 판단하지 않는다.
+ */
+export function getJoinPurposeLabelsFromCds(
+  cds: string[] | null | undefined,
+): string[] {
+  return (cds ?? [])
+    .map((cd) => JOIN_PURP_SHORT_LABELS[cd as (typeof JOIN_PURP_CODES)[number]])
+    .filter((label): label is string => Boolean(label));
+}
+
+/**
  * 가입 목적 짧은 라벨 목록 — 칩으로 렌더. 직접 쓴 한마디가 있으면 빈 배열(카드가 한마디를 대신 쓴다).
+ * 한마디를 우선하는 기존 화면(MemberCardCompact·PersonProfile)이 쓴다.
  */
 export function getJoinPurposeLabels(
   profile: {
@@ -255,9 +268,7 @@ export function getJoinPurposeLabels(
 ): string[] {
   if (!profile) return [];
   if (profile.join_purp_txt?.trim()) return [];
-  return (profile.join_purp_cds ?? [])
-    .map((cd) => JOIN_PURP_SHORT_LABELS[cd as (typeof JOIN_PURP_CODES)[number]])
-    .filter((label): label is string => Boolean(label));
+  return getJoinPurposeLabelsFromCds(profile.join_purp_cds);
 }
 
 /** 소개할 내용이 하나도 없으면 null — 섹션 자체를 그리지 않는다 */

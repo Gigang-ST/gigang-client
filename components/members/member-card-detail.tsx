@@ -196,8 +196,10 @@ export function MemberCardDetail({
       className={cn(
         // 이 wrapper가 스크롤 컨테이너다 — 스크린 존을 sticky로 붙이려면 sticky 조상 중
         // overflow가 걸린 스크롤러가 바로 여기여야 한다(중간에 overflow:hidden이 끼면 sticky가 깨진다).
-        // 높이는 다이얼로그(max-h-88dvh)의 flex 영역을 따라간다.
-        "max-h-full overflow-y-auto rounded-2xl border-[1.5px] border-border",
+        // **min-h-0 flex-1**: 다이얼로그(max-h-88dvh flex flex-col)의 flex 높이를 받아 콘텐츠가
+        // 넘칠 때 shrink → overflow-y-auto가 스크롤을 건다. `max-h-full`(=max-height:100%)은
+        // 부모가 확정 height를 가져야 계산되는데 flex item엔 없어 무력화됐다(스크롤 안 걸린 원인).
+        "min-h-0 flex-1 overflow-y-auto rounded-2xl border-[1.5px] border-border",
         lit && "board-lit",
       )}
     >

@@ -19,10 +19,22 @@ export const RCTN_LABEL: Record<RctnCd, { emoji: string; label: string }> = {
 };
 
 /**
- * 1인 1항목 응원 상한. **DB CHECK(`ck_rctn_mst_rctn_cnt`, 1~99)와 같은 값이어야 한다.**
- * 여기서 막는 건 UI 편의고, 실제 강제는 DB가 한다(`bump_story_rctn`이 LEAST로 포화시킨다).
+ * 응원은 상한이 없다 — 누른 만큼 무한히 쌓인다(카운터는 DB에 그대로 누적).
+ *
+ * 다만 버튼 폭은 고정이라 숫자는 네 자리까지만 보이게 감는다: 표시값 = `count % RCTN_ROLL`이라
+ * 9999 다음이 0으로 보인다. **실제 누적치는 줄지 않는다** — 화면만 한 바퀴 돌 뿐.
  */
-export const MAX_MY_RCTN = 99;
+export const RCTN_ROLL = 10000;
+
+/** 화면에 보일 감긴 카운트(0~9999). 실제 누적치는 건드리지 않는다. */
+export function rolledCount(count: number): number {
+  return count % RCTN_ROLL;
+}
+
+/** 한 바퀴라도 돌았나(실제 누적 ≥ 10000) — 넘긴 순간부터 빨강으로 표시한다. */
+export function isRolledOver(count: number): boolean {
+  return count >= RCTN_ROLL;
+}
 
 /** 한 번의 flush가 담을 수 있는 최대 증분 — 클라이언트 디바운스와 서버 검증이 공유한다 */
 export const MAX_RCTN_DELTA = 20;

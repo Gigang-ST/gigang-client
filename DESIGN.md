@@ -177,7 +177,7 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 | PersonProfile | `person-profile.tsx` | 프로필 부품 조합 — 아바타+이름 위에 `parts`(칭호·소개·개인최고기록·러닝프로필)를 순서대로 쌓는다. 리드 활동지수 슬롯이 쓴다 |
 | StoryPulse | `story-pulse.tsx` | 기강 오버뷰 — 팀 심박수(심전도 파형 + BPM) + 이번 달 수치 격자 |
 | HeartRate | `heart-rate.tsx` | 팀 심박수 파형 — 활동 지수 4단계를 심전도(ECG) + BPM으로. 활발할수록 빠르게 뛴다 |
-| StoryReactionButton | `story-reaction-button.tsx` | 응원 카운트업 — 누른 만큼 오른다(취소 없음, 1인 99회) |
+| StoryReactionButton | `story-reaction-button.tsx` | 응원 카운트업 — 누른 만큼 오른다(취소 없음, 무한 누적·표시만 9999에서 감김) |
 | ActvHistorySheet | `actv-history-sheet.tsx` | 활동량 내역 바텀시트 — 이번 달 획득 내역 날짜 역순 + 합계 |
 | PledgeSigns | `pledge-signs.tsx` | 각오 팻말 — 코스변 손팻말, 가로 스크롤. 24시간 카운트다운 후 내려감(Realtime) |
 | PledgeCreateDialog | `pledge-create-dialog.tsx` | 각오 작성 — 한 줄(24자). 24시간 뒤 내려간다고 미리 알린다 |

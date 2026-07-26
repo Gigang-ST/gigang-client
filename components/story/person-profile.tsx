@@ -1,5 +1,3 @@
-import { Medal } from "lucide-react";
-
 import { secondsToTime } from "@/lib/dayjs";
 import {
   getJoinPurposeLabels,
@@ -10,6 +8,7 @@ import {
 import { Avatar } from "@/components/common/avatar";
 import { TitleBadge } from "@/components/common/title-badge";
 import { ProfileChip, PurposeChip } from "@/components/members/profile-chip";
+import { IntroQuote } from "@/components/story/intro-quote";
 
 import type { ReactNode } from "react";
 import type { TitleDescVisibility } from "@/components/common/title-badge";
@@ -63,24 +62,37 @@ export type PersonProfilePerson = {
 export function PersonProfile({
   person,
   parts,
+  rank,
+  reactionSlot,
   onSelect,
 }: {
   person: PersonProfilePerson;
   parts: PersonProfilePart[];
+  /** 이번 달 활동지수 순위 — 주면 이름 아래에 "활동지수 N위" 배지를 얹는다(왜 이 사람이 떴는지) */
+  rank?: number;
+  /**
+   * 인용구(한마디) 줄 우측에 끼울 노드 — 활동지수 슬롯의 응원 버튼이 여기 온다.
+   * 왼쪽 인용구는 남는 폭을 다 쓰고, 이 슬롯은 오른쪽 끝에 붙는다(같은 바닥선에서 마주본다).
+   */
+  reactionSlot?: ReactNode;
   onSelect?: (memId: string, name: string) => void;
 }) {
   const showTitle = parts.includes("title") && person.primary_title != null;
 
   // 이름 옆 헤더(아바타 + 이름 + 칭호) — title 부품은 여기서 소비한다(이름 옆이 칭호의 자리).
+  // 이름 + 칭호를 세로로 쌓는다(가로 나열이 아니라) — 칭호가 길면 flex-wrap이 이름 아래로
+  // 떨어뜨려 아바타와 세로 중심이 어긋난다. 블록 자체는 아바타와 세로 중앙(items-center)에서
+  // 마주보고, 이름·칭호는 그 안에서 가로 가운데 정렬 — 칭호 배지가 이름보다 넓어도 이름이
+  // 배지 폭 한가운데에 오게(왼쪽 정렬이면 이름이 왼쪽으로 쏠려 보인다).
   const header = (
-    <div className="flex min-w-0 items-center gap-2">
+    <div className="flex min-w-0 items-center gap-2.5">
       <Avatar
         src={person.avatar_url}
         seed={person.mem_id}
         alt={person.mem_nm}
         size="lg"
       />
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <div className="flex min-w-0 flex-col items-center gap-1">
         <span className="truncate text-[17px] font-bold text-foreground">
           {person.mem_nm}
         </span>
@@ -90,6 +102,13 @@ export function PersonProfile({
             effect={person.badge_effect ?? "none"}
             size="xs"
           />
+        )}
+        {/* 활동지수 순위 — "왜 이 사람이 여기 떴는지"를 이름 아래에서 곧바로 말한다.
+            점수(actv_score)는 노출하지 않고 순위만(히든 운영 결). */}
+        {rank != null && (
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 font-numeric text-[11px] font-semibold text-primary tabular-nums">
+            활동지수 {rank}위
+          </span>
         )}
       </div>
     </div>
@@ -108,39 +127,77 @@ export function PersonProfile({
     header
   );
 
-  // 이번 달 수치 — 참석·기록 중 하나라도 값이 있으면 오른쪽 칸을 그린다.
+  // 이번 달 수치 — 참석·기록 중 하나라도 값이 있으면 오른쪽 칸에 싣는다.
   const hasCounts =
     person.mth_attd_cnt != null || person.mth_rec_cnt != null;
 
+  // 상단은 좌우 2단 — 왼쪽 "이 사람이 누구인지"(아바타·이름·칭호·순위), 오른쪽 "이 사람의
+  // 실적"(최고기록 + 이번 달 참석·기록). 인용구(intro)와 러닝프로필은 이 2단에서 빼서
+  // **아래 전체 폭 줄**로 내린다 — 좌우 컬럼은 인물/실적만 담아 높이가 서로 비슷하게 맞는다.
+  const topParts = parts.filter(
+    (p) => p !== "bestRecord" && p !== "intro",
+  );
+  const showRecords = parts.includes("bestRecord");
+  const showIntro = parts.includes("intro");
+
+  const topLeftNodes = topParts
+    .map((part) => renderPart(part, person))
+    .filter((node): node is ReactNode => node != null);
+
+  const records = showRecords ? renderPart("bestRecord", person) : null;
+  const intro = showIntro ? renderPart("intro", person) : null;
+  // 오른쪽 컬럼은 최고기록·수치 중 하나라도 있을 때만 그린다(둘 다 없으면 왼쪽이 폭을 다 쓴다).
+  const hasRight = records != null || hasCounts;
+  // 아래 줄 — 인용구(왼쪽)와 응원(오른쪽). 둘 중 하나라도 있을 때만 그린다.
+  const hasBottom = intro != null || reactionSlot != null;
+
   return (
-    <div className="flex min-w-0 flex-1 items-start gap-3">
-      <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-        {headerNode}
-        {/* title은 헤더에서 소비했으니 body에선 나머지 부품만. null 조각은 걸러 gap 헛간격 방지. */}
-        {parts
-          .map((part) => renderPart(part, person))
-          .filter((node): node is ReactNode => node != null)}
+    <div className="flex min-w-0 flex-1 flex-col gap-3">
+      {/* 상단 2단 — items-stretch로 좌우 컬럼 높이를 맞춘다(짧은 쪽이 늘어나 바닥선이 맞음) */}
+      <div className="flex min-w-0 items-stretch gap-4">
+        <div className="flex min-w-0 flex-1 flex-col justify-center gap-2.5">
+          {headerNode}
+          {topLeftNodes}
+        </div>
+
+        {/* 오른쪽 — 실적. 위에 대표 최고기록, 아래에 이번 달 참석·기록 수치.
+            둘 사이 얇은 괘선으로 "역대 최고기록"과 "이번 달 활동"을 가른다. */}
+        {hasRight && (
+          <div className="flex shrink-0 flex-col items-end justify-center gap-2.5">
+            {records}
+            {hasCounts && (
+              <div className="flex flex-col items-end gap-2">
+                {records && <div className="h-px w-full bg-border" aria-hidden />}
+                <div className="flex items-start gap-4">
+                  <CountStat value={person.mth_attd_cnt ?? 0} label="참석" />
+                  <CountStat value={person.mth_rec_cnt ?? 0} label="기록" />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* 오른쪽 — 이번 달 참석·기록 수치. 프로필(왼쪽)과 세로 위 정렬로 나란히. */}
-      {hasCounts && (
-        <div className="flex shrink-0 flex-col items-end gap-2 pt-0.5">
-          <CountStat value={person.mth_attd_cnt ?? 0} label="참석" />
-          <CountStat value={person.mth_rec_cnt ?? 0} label="기록" />
+      {/* 아래 — 인용구 한 줄(왼쪽, 남는 폭을 다 씀) ↔ 응원 버튼(오른쪽 끝). 같은 바닥선에서
+          마주본다. intro는 여기서 한 줄로 길게 눕는다(2단 안에선 폭이 좁아 두 줄로 접혔다). */}
+      {hasBottom && (
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">{intro}</div>
+          {reactionSlot && <div className="shrink-0">{reactionSlot}</div>}
         </div>
       )}
     </div>
   );
 }
 
-/** 이번 달 수치 한 칸 — 큰 숫자 + 작은 라벨(참석/기록) */
+/** 이번 달 수치 한 칸 — 라벨(위·작게) + 숫자(아래·크게). 최고기록 아래 두 칸을 나란히 세운다. */
 function CountStat({ value, label }: { value: number; label: string }) {
   return (
-    <div className="flex items-baseline gap-1">
-      <span className="font-numeric text-[20px] font-semibold leading-none text-foreground tabular-nums">
+    <div className="flex flex-col items-center gap-0.5">
+      <span className="text-[10px] leading-none text-muted-foreground">{label}</span>
+      <span className="font-numeric text-[17px] font-semibold leading-none text-foreground tabular-nums">
         {value}
       </span>
-      <span className="text-[11px] text-muted-foreground">{label}</span>
     </div>
   );
 }
@@ -158,41 +215,27 @@ function renderPart(
     case "intro": {
       const txt = person.intro_txt?.trim();
       if (!txt) return null;
-      return (
-        <p
-          key="intro"
-          className="line-clamp-2 break-keep text-[13px] leading-relaxed text-muted-foreground"
-        >
-          {txt}
-        </p>
-      );
+      // 사람의 말이라 인용구로 — 한 줄로 눕다 넘치면 …로 자르고, 탭하면 전체가 툴팁으로 뜬다.
+      return <IntroQuote key="intro" text={txt} />;
     }
 
     case "bestRecord": {
       const recs = person.best_records ?? [];
+      // 기록이 없으면 이 조각은 아예 그리지 않는다(프로필 나머지는 정상). 빈 줄을 남기지 않는다.
       if (recs.length === 0) return null;
-      // 종목별 최고기록 목록 — 각 줄: [메달] 종목 라벨(풀코스/하프/…) + 완주 기록. 거리 긴 순.
-      // 한 줄씩이라 각 행은 세로 가운데 정렬(items-center). 자리가 남아 여러 종목을 나란히 싣는다.
+      // 대표 최고기록 **1건만** — recs는 RPC가 풀 > 하프 > 10K 우선(그 외 종목은 뒤로)으로 주므로
+      // recs[0]은 풀코스(있으면) → 없으면 하프 → 10K 순의 대표다. 여러 건을 세우면 오른쪽이
+      // 목록 낭독이 돼 무게중심이 아래로 쏠린다. 라벨(작게) 위에 기록(크게)을 세로로 쌓아 또렷이.
+      const rec = recs[0];
       return (
-        <ul key="bestRecords" className="flex min-w-0 flex-col gap-1">
-          {recs.map((rec) => (
-            <li
-              key={`${rec.sport}-${rec.evt}`}
-              className="flex min-w-0 items-center gap-1.5"
-            >
-              <Medal
-                className="size-3.5 shrink-0 text-muted-foreground"
-                aria-hidden
-              />
-              <span className="shrink-0 text-[13px] font-semibold text-foreground">
-                {getRecordLabel(rec)}
-              </span>
-              <span className="shrink-0 font-numeric text-[13px] font-medium text-foreground tabular-nums">
-                {secondsToTime(rec.rec_time_sec)}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <div key="bestRecord" className="flex flex-col items-end gap-0.5">
+          <span className="text-[11px] font-medium text-muted-foreground">
+            {getRecordLabel(rec)}
+          </span>
+          <span className="font-numeric text-[22px] font-semibold leading-none text-foreground tabular-nums">
+            {secondsToTime(rec.rec_time_sec)}
+          </span>
+        </div>
       );
     }
 

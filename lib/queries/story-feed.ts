@@ -24,7 +24,7 @@ export const RCTN_CODES = [
 export type RctnCd = (typeof RCTN_CODES)[number];
 
 /** 리액션이 붙을 수 있는 아이템 종류 */
-export type StoryEntityType = "newbie" | "record" | "race";
+export type StoryEntityType = "newbie" | "record" | "race" | "actv";
 
 type ReactableItem = {
   entity_type: StoryEntityType;
@@ -99,7 +99,7 @@ export type StoryActvRankEntry = {
   intro_txt?: string | null;
   primary_title?: MemberCardCompactData["primary_title"];
   running_profile?: MemberCardCompactData["running_profile"];
-  /** 개인 최고기록 목록 — 종목별 최고기록을 거리 긴 순으로 상위 4종(RPC가 comp_evt_type 거리로 뽑는다) */
+  /** 개인 최고기록 목록 — 종목별 최고기록 상위 4종. 풀 > 하프 > 10K 우선, 그 외는 뒤로(RPC 정렬). [0]이 대표 */
   best_records?: MemberCardRecord[];
   /** 이번 달 모임 참석 수 */
   mth_attd_cnt?: number;

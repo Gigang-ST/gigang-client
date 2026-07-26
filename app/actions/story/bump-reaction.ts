@@ -11,7 +11,7 @@ import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { MAX_RCTN_DELTA } from "@/lib/story-reaction";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const ENTITY_TYPES: StoryEntityType[] = ["newbie", "record", "race"];
+const ENTITY_TYPES: StoryEntityType[] = ["newbie", "record", "race", "actv"];
 
 /**
  * 응원 대상이 **지금 이 팀 전광판에 실제로 올라온 항목**인지 확인한다.
@@ -28,13 +28,21 @@ async function isOnBoard(
   entityId: string,
 ): Promise<boolean> {
   const feed = await getStoryFeed(teamId);
-  const items =
-    entityType === "newbie"
-      ? feed.newbies
-      : entityType === "record"
-        ? feed.records
-        : feed.races;
-  return items.some((item) => item.entity_id === entityId);
+
+  if (entityType === "newbie") {
+    return feed.newbies.some((item) => item.entity_id === entityId);
+  }
+  if (entityType === "record") {
+    return feed.records.some((item) => item.entity_id === entityId);
+  }
+  if (entityType === "race") {
+    return feed.races.some((item) => item.entity_id === entityId);
+  }
+  // "actv": entity_id는 응원 대상 멤버의 mem_id — 이번 달 활동지수 랭킹에 실제로 올라온 멤버인지 검증
+  if (entityType === "actv") {
+    return feed.actv_rank.some((item) => item.mem_id === entityId);
+  }
+  return false;
 }
 
 export type BumpResult =
