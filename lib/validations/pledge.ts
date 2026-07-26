@@ -10,7 +10,7 @@ export const PLEDGE_TXT_MAX = 24;
 
 /**
  * 각오(pledge) 작성 입력 검증.
- * 클라이언트 검증은 UX 편의고, 실제 강제는 DB가 한다(story-reaction의 MAX_MY_RCTN과 같은 이중검증 원칙).
+ * 클라이언트 검증은 UX 편의고, 실제 강제는 DB가 한다(story-reaction의 MAX_RCTN_DELTA와 같은 이중검증 원칙).
  */
 export const createPledgeSchema = z.object({
   pldg_txt: z

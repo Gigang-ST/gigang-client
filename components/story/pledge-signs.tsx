@@ -44,8 +44,8 @@ export function PledgeSigns({
       </div>
       <p className="px-6 pt-2.5 font-serif text-[15px] text-muted-foreground">
         {hasPledges
-          ? "코스에 꽂아둔 각오 — 옆으로 밀어 지나가세요"
-          : "코스가 아직 비어 있어요 — 첫 각오를 꽂아보세요"}
+          ? "코스에 꽂아둔 목표 한마디 — 옆으로 밀어 지나가세요"
+          : "코스가 아직 비어 있어요 — 첫 목표 한마디를 꽂아보세요"}
       </p>
 
       {hasPledges && (
@@ -60,7 +60,7 @@ export function PledgeSigns({
                   key={p.pldg_id}
                   type="button"
                   onClick={() => onSelectMember(p.mem_id, p.mem_nm)}
-                  aria-label={`${p.mem_nm}의 각오 · 프로필 보기`}
+                  aria-label={`${p.mem_nm}의 목표 한마디 · 프로필 보기`}
                   style={{ transform: `rotate(${TILTS[i % TILTS.length]}deg)` }}
                   className="flex w-[150px] shrink-0 flex-col items-center py-1 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
                 >
@@ -95,7 +95,7 @@ export function PledgeSigns({
             onClick={() => setWriting(true)}
             className="flex w-full items-center justify-center gap-2 rounded-2xl border-[1.5px] border-dashed border-border py-3.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            내 각오 팻말 꽂기
+            내 목표 한마디 꽂기
           </button>
         </div>
       )}

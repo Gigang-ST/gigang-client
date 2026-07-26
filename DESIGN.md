@@ -173,13 +173,14 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 | 컴포넌트 | 파일 | 용도 |
 |----------|------|------|
 | StoryClient | `story-client.tsx` | 전광판 본문 — 리드 + 오버뷰 + 존 3개 + 프로필 카드 진입 |
-| StoryLede | `story-lede.tsx` | 1면 리드 — 종류당 한 칸(대회·새얼굴·기록·참가왕). 좌측 메인 + 우측 레일 |
+| StoryLede | `story-lede.tsx` | 1면 리드 — 종류당 한 칸(대회·새얼굴·기록·활동지수·목표 한마디·운동기록). 좌측 메인 + 우측 레일 |
+| PersonProfile | `person-profile.tsx` | 프로필 부품 조합 — 아바타+이름 위에 `parts`(칭호·소개·개인최고기록·러닝프로필)를 순서대로 쌓는다. 리드 활동지수·목표 한마디 슬롯이 쓴다 |
 | StoryPulse | `story-pulse.tsx` | 기강 오버뷰 — 팀 심박수(심전도 파형 + BPM) + 이번 달 수치 격자 |
 | HeartRate | `heart-rate.tsx` | 팀 심박수 파형 — 활동 지수 4단계를 심전도(ECG) + BPM으로. 활발할수록 빠르게 뛴다 |
-| StoryReactionButton | `story-reaction-button.tsx` | 응원 카운트업 — 누른 만큼 오른다(취소 없음, 1인 99회) |
+| StoryReactionButton | `story-reaction-button.tsx` | 응원 카운트업 — 누른 만큼 오른다(취소 없음, 무한 누적·표시만 9999에서 감김) |
 | ActvHistorySheet | `actv-history-sheet.tsx` | 활동량 내역 바텀시트 — 이번 달 획득 내역 날짜 역순 + 합계 |
-| PledgeSigns | `pledge-signs.tsx` | 각오 팻말 — 코스변 손팻말, 가로 스크롤. 24시간 카운트다운 후 내려감(Realtime) |
-| PledgeCreateDialog | `pledge-create-dialog.tsx` | 각오 작성 — 한 줄(24자). 24시간 뒤 내려간다고 미리 알린다 |
+| PledgeSigns | `pledge-signs.tsx` | 목표 한마디 팻말 — 코스변 손팻말, 가로 스크롤. 만료 없이 쌓인다(1인 1개) |
+| PledgeCreateDialog | `pledge-create-dialog.tsx` | 목표 한마디 작성 — 한 줄. 코스변 팻말로 서서 모두에게 보인다 |
 | RecordFlexFeed | `record-flex-feed.tsx` | 기록 자랑 — 사진 정사각 격자, 세로 2칸씩 가로로 흐름. 끝에 닿으면 더 불러오기(오프셋). 사진 없는 기록은 프로필사진으로 칸을 꽉 채운다 |
 | RecordFlexCreateDialog | `record-flex-create-dialog.tsx` | 기록 작성 — 사진·한마디·종목·거리·날짜 |
 | MessageCompose | `message-compose.tsx` | 종이비행기 한마디 작성 — 지면 인라인 한 줄 입력 + 날리기(이륙 연출). 24시간 뒤 사라짐 |
@@ -191,28 +192,21 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 - 데이터: `getStoryFeed()` (`lib/queries/story-feed.ts`) + `getTeamOverview()` (`lib/queries/team-overview.ts`)
   + `getStoryPosts()` (`lib/queries/story-posts.ts`) + `getStoryPledges()` (`lib/queries/story-pledges.ts`).
   모두 공개 집계만 캐시하고 내 리액션은 클라이언트가 오버레이한다.
-- **각오는 하루살이, 기록은 남는다**: 각오(팻말)와 기록 자랑(사진 격자)은 형태로도 수명으로도
-  구분한다 — 각오는 "앞으로"라 24시간 뒤 내려가고, 기록은 "이미 한 것"이라 지면에 쌓인다.
-- **종이비행기 한마디는 다시 들어왔다(공유 하늘 + 던지기)**: 각오(팻말)와는 별개 존이다 —
-  각오가 "다짐"이라면 한마디는 "지금 툭 던지는 말"(예: "오늘 한강 6시 같이 뛸 사람")이고,
+- **목표 한마디는 남고, 종이비행기 한마디는 하루살이**: 목표 한마디(팻말)는 "앞으로 이렇게
+  하겠다"는 다짐이라 만료 없이 코스에 쌓이고, 종이비행기 한마디는 "지금 툭 던지는 말"이라
+  24시간 뒤 사라진다. 형태로도 수명으로도 구분한다(팻말 ↔ 비행기).
+- **종이비행기 한마디는 다시 들어왔다(공유 하늘 + 던지기)**: 목표 한마디(팻말)와는 별개 존이다 —
+  목표 한마디가 "다짐"이라면 종이비행기는 "지금 툭 던지는 말"(예: "오늘 한강 6시 같이 뛸 사람")이고,
   24시간 뒤 사라지는 하루살이다. 쓰면(`MessageCompose`) 하늘(`MessagePlanes`)에 배너로 뜨고,
   던지기(`ThrowStage`)로 얼마나 멀리 갔는지가 고도를 정한다. 저장은 던지기를 기다리지 않는다
   (안 던져도 한마디는 이미 올라가 있다). 시안 원본은 `/dev/story-styles` J·K안.
-- **각오는 24시간**: 꽂은 순간 `24:00:00`에서 줄어들어 0이 되면 코스에서 사라진다. 기준은
-  `float_at`이 아니라 **`crt_at`(쓴 시각)** — 띄우기가 없어져 float_at을 갱신할 경로가 없고,
-  "올린 지 24시간"이 사용자가 이해하는 규칙이다. 수명·시계는 `lib/story-pledge.ts`
-  (`PLEDGE_TTL_MS`·`pledgeRemainMs`·`pledgeCountdown`) 한 곳이 정본.
-  **행은 지우지 않는다** — 화면에서 빼는 것과 데이터를 없애는 건 다른 일이라 이력은 남긴다.
-- **만료는 서버·클라 양쪽에서 거른다**: `get_team_pledges` RPC가 24시간 지난 걸 애초에 안 주고
-  (안 그러면 조회 상한 20건이 만료분으로 채워진다), 페이지를 열어둔 채 만료 시각을 넘긴 화면은
-  `PledgeSigns`의 1초 타이머가 치운다(서버만으로는 `00:00:00`에 멈춘 팻말이 남는다).
-  리드의 각오 칸도 같은 24시간을 적용하되 1분 간격으로 본다 — 거기선 초를 표시하지 않으므로.
-  `feed.pledges`(큰 피드 RPC)에는 만료 필터가 없어 `story-lede.tsx`가 클라에서 거른다:
-  `get_team_story_feed`는 CTE 10개+라 존 하나 때문에 다시 배포할 이득이 없다.
-- **각오는 1인 1개**: 새로 쓰면 이전 각오가 지면에서 내려간다(`del_yn` 소프트삭제 — 이력은 남긴다).
+- **목표 한마디는 만료가 없다**: 팻말은 "앞으로"라 하루 만에 지울 이유가 없어 코스변에 계속
+  쌓인다(24시간 카운트다운은 종이비행기 한마디 쪽 규칙이다 — 혼동 금지). `lib/story-pledge.ts`엔
+  수명·시계 로직이 없고 `dedupePledgesByMember`(1인 1개 정리)만 있다.
+- **목표 한마디는 1인 1개**: 새로 쓰면 이전 것이 지면에서 내려간다(`del_yn` 소프트삭제 — 이력은 남긴다).
   DB 유니크 제약은 걸지 않는다(걸면 고쳐 쓰려는 사람이 아무것도 못 올린다) — 화면 정합은
   `dedupePledgesByMember()`(`lib/story-pledge.ts`)가 사람당 최신 1건으로 좁혀 지킨다.
-- **각오 캐시는 피드와 분리**(`story-pledges` 태그 · `get_team_pledges` RPC): 각오 한 건이 큰 피드
+- **목표 한마디 캐시는 피드와 분리**(`story-pledges` 태그 · `get_team_pledges` RPC): 한 건이 큰 피드
   (`get_team_story_feed`, CTE 10개+) 캐시를 끌고 내려가지 않게 record_flex와 같이 떼어 뒀다.
   꽂으면 `pldg_mst` Realtime 구독으로 열린 모든 화면이 함께 갱신된다(알림·댓글과 같은 패턴).
 - **폴라로이드는 2x2**: 3x3(9칸)은 375px에서 칸당 ~105px이라 사진 아래 한마디가 안 들어간다.
@@ -226,7 +220,7 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
   아바타는 없다. 탭하면 통통 튀는데 그 **튕김(누구·방향·세기)은 broadcast로 모두에게** 전해져 같은 공을
   주고받고 서로 방해도 된다. 물리는 각자 화면이 돌려 위치는 조금씩 다르고(정밀 동기화 아님), 공이 바닥에
   **안착할 때 그 주인이 위치를 한 번 흘려보내**(pos broadcast) 느슨히 재정렬한다. presence·broadcast는
-  DB 복제가 아니라 Realtime 메시징이라 마이그레이션이 없다(각오 팻말과 다른 점 — 저긴 `pldg_mst`
+  DB 복제가 아니라 Realtime 메시징이라 마이그레이션이 없다(목표 한마디 팻말과 다른 점 — 저긴 `pldg_mst`
   postgres_changes 구독이라 테이블이 publication에 올라가 있어야 한다).
 - **떠다니는 아바타는 `onPointerDown`으로 받는다**: 매 프레임 움직이는 요소는 down과 up이 같은
   요소 위에서 끝나지 않아 `click`이 통째로 씹힌다. 공중에서 연타하려면 down에서 힘을 실어야 한다.
@@ -259,6 +253,25 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 - **리드 슬롯**: 종류당 **한 칸**이다. 신규 멤버가 넷이라고 네 칸을 쓰면 스와이프가 명단 낭독이 된다.
   가장 최근 1명(1건)을 대표로 크게, 나머지는 우측 레일(`w-12` + 세로 괘선)에 작게 — 빠지는 사람이 없게.
   자동 전환 5초, 손이 닿으면 10초 멈췄다 반응이 없으면 스스로 재개한다(영구 정지 금지).
+- **리드 랜덤은 "한 바퀴마다" 갱신**: 랜덤이 있는 슬롯(새얼굴·기록·목표 한마디·활동지수·운동기록)은 초기값을
+  **서버가 뽑아** 넘기고(`initial*Pick` — 첫 화면부터 랜덤·하이드레이션 안전, `story/page.tsx`),
+  이후엔 **자동전환/수동 스와이프가 마지막 장을 지나 처음으로 완주하는 순간에만** 한꺼번에 재추첨한다
+  (`rerollAllPicks`). 한 사이클 내내는 고정 — 뒤로 스와이프해도 방금 본 슬롯이 안 바뀐다(매 전환마다
+  굴리면 이전 걸 다시 보려다 새 걸 보게 된다). 뒤로 감길 땐(처음→마지막) 굴리지 않는다. "다가오는
+  대회"만 고정(가장 임박한 1건). 렌더 본문에 `Math.random` 금지 — 굴리는 건 타이머 콜백 안에서만.
+- **활동지수 슬롯("이번 달 기강 잡는")**: 이번 달 활동량 상위 3명 중 하나(랜덤)를 **소개**한다 —
+  활동량 수치·순위는 노출하지 않는다("포인트"는 히든 운영). 우측 레일 없이 대표 1명을
+  `PersonProfile` 부품 조합(칭호·소개 한마디·개인 최고기록·러닝 프로필)으로 그린다. 개인 최고기록은
+  **가장 긴 거리 종목 1건** — `get_team_story_feed`의 `actv_rank`가 `comp_evt_type` 문자열에서 거리를
+  유도해(NNK 정규식 + FULL/HALF/OLYMPIC 등 매핑, 파싱 불가는 최고기록 폴백) 뽑아 준다.
+- **목표 한마디 슬롯("여러분께 고합니다")**: 코스변 팻말(`PledgeSigns`)에 꽂힌 목표 중 하나(랜덤)를
+  활동지수 슬롯과 **같은 방식**으로 그린다 — 명조 헤드라인=목표 문장 + `PersonProfile` 부품
+  (`parts: ["title", "intro"]` — 칭호·소개만, 최고기록·러닝프로필은 뺀다. 목표 문장이 이미 헤드라인이라
+  부품을 더하면 시선이 흩어진다). 그래서 `get_team_story_feed`의 `pledges`가 `actv_rank`처럼
+  칭호·소개·배지·프레임을 함께 실어 준다(러닝프로필·최고기록은 안 실음). **응원 대상은 목표 팻말이
+  아니라 그 목표를 쓴 사람**이다 — `buildEntity("actv", mem_id, "fire")`로 활동지수 슬롯과 같은
+  멤버 기준 카운터를 쓴다. 그래서 같은 사람이 두 슬롯에 모두 대표로 뜨면 🔥 응원이 합산된다
+  (의도 — "그 사람을 응원").
 - **오버뷰(팀 심박수)**: 크루 상태를 **먼저 말하고 근거를 뒤에** 붙인다. 왼쪽에 심박수(심전도 파형 +
   BPM + 한 단어), 오른쪽에 이번 달 수치. 단어는 프로필 카드의 개인 컨디션과 같은 4단계
   (`lib/team-pulse.ts` ↔ `getActivityMood`) — 같은 척도임을 설명 없이 전달하기 위해서.

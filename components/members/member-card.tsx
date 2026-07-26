@@ -1,5 +1,3 @@
-import { MapPin, Timer, Footprints } from "lucide-react";
-
 import {
   getJoinPurposeLabels,
   getRunningProfileChips,
@@ -9,43 +7,10 @@ import { cn } from "@/lib/utils";
 
 import { Avatar } from "@/components/common/avatar";
 import { TitleBadge } from "@/components/common/title-badge";
+import { ProfileChip, PurposeChip } from "@/components/members/profile-chip";
 import { CardItem } from "@/components/ui/card";
 
-import type { LucideIcon } from "lucide-react";
-import type { RunningProfileChip } from "@/lib/member-card";
 import type { MemberCardCompactData } from "@/lib/queries/member-card";
-
-/** 러닝 프로필 조각별 아이콘 — lib은 lucide를 모르므로 여기서 붙인다 */
-const CHIP_ICON: Record<RunningProfileChip["kind"], LucideIcon> = {
-  pace: Timer,
-  dist: Footprints,
-  stn: MapPin,
-};
-
-/**
- * 러닝 프로필 아이콘 칩 — `⏱ 6'00"/km` 처럼 아이콘 + 값 한 조각.
- * 값이 뭘 뜻하는지 아이콘으로 한눈에 잡히게, 밋밋한 텍스트 나열을 대신한다.
- */
-function ProfileChip({ chip }: { chip: RunningProfileChip }) {
-  const Icon = CHIP_ICON[chip.kind];
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5">
-      <Icon className="size-3 shrink-0 text-muted-foreground" aria-hidden />
-      <span className="font-numeric text-[11px] text-foreground tabular-nums">
-        {chip.value}
-      </span>
-    </span>
-  );
-}
-
-/** 가입 목적 칩 — 러닝 프로필과 톤을 구분하려 테두리형으로 */
-function PurposeChip({ label }: { label: string }) {
-  return (
-    <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
-      {label}
-    </span>
-  );
-}
 
 /**
  * 컴팩트 프로필 카드 — "이 사람이 누구인지"를 한 장에.

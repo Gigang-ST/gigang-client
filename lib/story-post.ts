@@ -20,3 +20,29 @@
  * 스크롤이 끊긴다. 반대로 크게 잡으면 첫 진입에 안 볼 사진의 URL까지 들고 온다.
  */
 export const STORY_POST_LIMIT = 16;
+
+// 종목 라벨은 lib/sport.ts(개인 운동 종목 공통 상수)의 getSportLabel을 쓴다 — 대회 종목과
+// 섞였던 옛 맵은 제거했다(post_mst의 옛 road_run 값은 데이터 이전으로 RUNNING으로 정리).
+
+/**
+ * 운동 기록 슬롯의 진입 랜덤 인덱스를 뽑는다(0 ~ count-1). count가 0/1이면 0.
+ *
+ * 서버 컴포넌트 렌더에서 `Math.random()`을 직접 부르면 react-hooks/purity 룰이 막는다
+ * (렌더는 순수해야 한다는 규칙 — 서버 컴포넌트에도 적용된다). 실제로는 서버 요청마다 한 번
+ * 뽑는 게 의도지만, 그 비순수 호출을 렌더 본문 밖 이 헬퍼로 빼 룰과 충돌하지 않게 한다.
+ */
+export function pickRandomPostIndex(count: number): number {
+  if (count <= 1) return 0;
+  return Math.floor(Math.random() * count);
+}
+
+/**
+ * 활동지수 슬롯의 대표 진입 인덱스를 뽑는다 — **상위 3명 중 하나**(0~2). 1등만 세우면
+ * 재미가 없어 1·2·3등 중에서 새로고침·한 바퀴마다 굴린다. 표본이 얇으면(2명→0~1,
+ * 1명→0) 있는 만큼만 범위를 좁힌다. `pickRandomPostIndex`와 같은 이유로 렌더 밖에서 뽑는다.
+ */
+export function pickActvLeadIndex(rankLen: number): number {
+  const cap = Math.min(3, rankLen);
+  if (cap <= 1) return 0;
+  return Math.floor(Math.random() * cap);
+}

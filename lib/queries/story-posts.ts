@@ -23,6 +23,14 @@ export type StoryPost = {
   /** manual=직접 작성, mlg_auto=마일리지런에서 자동 유입 */
   src_enm: "manual" | "mlg_auto";
   crt_at: string;
+  /**
+   * 올린 사람의 대표 호칭 — 전광판 리드 "운동 기록" 슬롯이 이름 옆 배지로 쓴다.
+   * `get_team_posts` RPC가 아직 안 내려주므로 **옵셔널**이다(마이그레이션 전엔 undefined →
+   * 배지 생략). RPC가 조인해 내려주기 시작하면 코드 변경 없이 배지가 켜진다.
+   */
+  primary_title?: { ttl_nm: string; ttl_desc: string | null } | null;
+  /** 대표 호칭 배지 이펙트 — 위 호칭과 짝. 마이그레이션 전엔 undefined */
+  badge_effect?: string;
 };
 
 // 조회 개수 상수는 `lib/story-post.ts`에 있다 — 클라이언트 컴포넌트도 읽어야 하는데

@@ -113,8 +113,11 @@ export function MemberCardDialog({
         </DialogHeader>
 
         {/* 스크롤은 카드(MemberCardDetail) 내부에서 처리한다 — 스크린 존 sticky가 깨지지 않도록
-            여기서 overflow를 걸지 않는다. 스켈레톤·폴백은 짧아 넘칠 일이 없다. */}
-        <div className="min-h-0 flex-1">
+            여기서 overflow를 걸지 않는다. 스켈레톤·폴백은 짧아 넘칠 일이 없다.
+            **flex flex-col + min-h-0**: 이 래퍼가 flex 컨테이너여야 자식(카드 루트)이 `flex-1`로
+            부모 높이를 flex 흐름으로 받아 shrink한다. 이게 없으면 카드 루트의 `max-h-full`
+            (=max-height:100%)이 참조할 확정 높이가 없어 무력화되고, 스크롤이 안 걸린다. */}
+        <div className="flex min-h-0 flex-1 flex-col">
           {state.status === "loading" && <MemberCardSkeleton />}
 
           {state.status === "ready" && memId && (

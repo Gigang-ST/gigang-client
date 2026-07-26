@@ -85,8 +85,18 @@ type Ball = {
   goalX: number;
   /** 클릭 링 남은 프레임 */
   pop: number;
-  /** 링 색 인덱스 — 사람마다 고정(mem_id 해시) */
+  /** 링 색 인덱스 — 사람마다 고정(mem_id 해시). 이름표·정적 배치 등 "이 사람 색"에 쓴다 */
   ringIdx: number;
+  /**
+   * 지금 켜진 네온 링 색 인덱스 — **맞은 사람이 아니라 누른 사람 색**이다.
+   * 내가 누르면 내 색으로 빛나 "저 주황이 눌렀다"가 색으로 읽힌다. pop이 켜질 때마다 갱신된다.
+   */
+  popColorIdx: number;
+  /**
+   * 튕긴 횟수 스택 — **누른 사람 색 인덱스 → 누적 횟수**. 아바타 우측 상단에 색별 ×N 배지로 쌓인다.
+   * 바닥에 안착하면 비운다("땅에 떨어지기 전까지"). 여러 명이 연타하면 색깔별로 여러 배지가 쌓인다.
+   */
+  hits: Map<number, number>;
   /** 사람별 성격 — 걸음 속도·멈춤 성향 */
   pace: number;
   stillness: number;
@@ -95,8 +105,14 @@ type Ball = {
   sway: number;
 };
 
-/** 브로드캐스트 메시지 — 튕김만 주고받는다(위치는 각자 화면이 알아서 굴린다) */
-type BumpMsg = { mem_id: string; hitX: number };
+/**
+ * 브로드캐스트 메시지 — 튕김만 주고받는다(위치는 각자 화면이 알아서 굴린다).
+ *
+ * `by`(누른 사람 id)를 함께 싣는다 — 예전엔 안 실었다(색을 각 화면이 맞은 사람 id 해시로 알아서
+ * 계산했으므로). 이제 네온·배지 색이 **누른 사람 색**이라, 받는 쪽이 "누가 눌렀는지"를 알아야
+ * 같은 색을 계산할 수 있다. 색 문자열이 아니라 id만 실어 보내면 팔레트를 바꿔도 포맷이 안 바뀐다.
+ */
+type BumpMsg = { mem_id: string; hitX: number; by: string };
 
 /** 탭 하이라이트 지속 프레임 — 이 값에서 0으로 줄며 네온이 서서히 꺼진다(60fps 기준 약 1초) */
 const POP_MAX = 60;
@@ -145,6 +161,38 @@ function neonRing(ringIdx: number, pop: number): string {
 /** [min,max) 정수 랜덤 */
 function randInt(min: number, max: number): number {
   return Math.floor(min + Math.random() * (max - min));
+}
+
+/**
+ * 튕김 배지 스택을 DOM에 직접 그린다 — 누른 사람 색별 `×N`이 아바타 우측 상단에 위로 쌓인다.
+ *
+ * React state가 아니라 DOM을 직접 만지는 이유: 물리와 같은 rAF 루프에서 매 프레임 갱신하므로
+ * (공과 함께 움직이고 튕길 때마다 즉시 반영), state로 올리면 프레임마다 리렌더가 돈다. 아바타
+ * 위치·회전·네온과 똑같은 방식이다.
+ *
+ * 색이 **사람에게 고정**이라 배지 순서도 색 인덱스로 정렬해 둔다 — 매 프레임 Map 순회 순서가
+ * 흔들려 배지가 아래위로 튀지 않게(먼저 친 사람이 아래에 남아 "쌓인" 느낌이 유지된다).
+ * DOM 노드는 재사용하고 개수만 맞춘다(매 프레임 innerHTML 재생성은 낭비).
+ */
+function renderHitBadges(host: HTMLElement, hits: Map<number, number>): void {
+  const entries = Array.from(hits.entries()).sort((a, b) => a[0] - b[0]);
+  // 개수 맞추기 — 남으면 지우고, 모자라면 만든다
+  while (host.childElementCount > entries.length) {
+    host.lastElementChild?.remove();
+  }
+  while (host.childElementCount < entries.length) {
+    const chip = document.createElement("span");
+    // 배경 없이 **글씨 자체가 색**인 ×N. 배경 위에서도 읽히게 얇은 외곽선(textShadow)만 깐다.
+    chip.className = "font-numeric text-[10px] font-bold leading-[14px]";
+    chip.style.textShadow =
+      "0 0 2px var(--background), 0 0 2px var(--background), 0 0 3px var(--background)";
+    host.appendChild(chip);
+  }
+  entries.forEach(([idx, count], i) => {
+    const chip = host.children[i] as HTMLElement;
+    chip.style.color = PRESENCE_COLORS[idx % PRESENCE_COLORS.length];
+    chip.textContent = `×${count}`;
+  });
 }
 
 /**
@@ -296,13 +344,19 @@ export function FloatingAvatars({
   const presenceNm = meId ? (meNm ?? "") : getAnonName(anonId);
   const presenceAvatar = meId ? meAvatar : null; // 익명은 아바타 없음 → 유령 얼굴로 폴백
 
-  const applyBump = (memId: string, hitX: number) => {
+  // 튕김 적용 — `by`는 누른 사람 id(네온·배지 색의 소스). 튕긴 공(`memId`)이 아니라 누른 쪽 색이다.
+  const applyBump = (memId: string, hitX: number, by: string) => {
     const b = ballsRef.current.get(memId);
     if (!b) return;
     b.airborne = true;
     b.vy = -POP_UP;
     b.vx = -(hitX - 0.5) * 2 * POP_SIDE; // 가운데=수직, 가장자리=옆으로
     b.pop = POP_MAX;
+    // 네온 색 = 누른 사람 색. 여러 명이 번갈아 치면 마지막에 친 사람 색으로 링이 바뀐다.
+    const byIdx = getPresenceColorIdx(by);
+    b.popColorIdx = byIdx;
+    // 배지 스택 — 누른 사람 색별로 +1. 착지 전까지 쌓인다.
+    b.hits.set(byIdx, (b.hits.get(byIdx) ?? 0) + 1);
   };
 
   // ── Realtime presence + broadcast 채널 ──
@@ -336,7 +390,7 @@ export function FloatingAvatars({
       })
       .on("broadcast", { event: "bump" }, ({ payload }) => {
         const p = payload as BumpMsg;
-        applyBump(p.mem_id, p.hitX);
+        applyBump(p.mem_id, p.hitX, p.by);
       })
       .subscribe((status) => {
         // 로그인이든 익명이든 자기 얼굴을 올린다(track). 익명은 유령 얼굴 + 익명 이름으로 뜬다.
@@ -383,6 +437,9 @@ export function FloatingAvatars({
         pop: 0,
         // 색은 랜덤이 아니라 사람에게 고정 — 누가 치는지 색으로 알아보게
         ringIdx: getPresenceColorIdx(p.mem_id),
+        // 아직 안 눌림 — 첫 튕김 때 누른 사람 색으로 세팅된다(자기 색으로 초기화만 해 둔다)
+        popColorIdx: getPresenceColorIdx(p.mem_id),
+        hits: new Map(),
         pace: persona.pace,
         stillness: persona.stillness,
         restless: persona.restless,
@@ -484,6 +541,10 @@ export function FloatingAvatars({
         // 바닥 — 튕기거나 안착
         if (b.y >= floor) {
           b.y = floor;
+          // 바닥에 **닿는 순간** 튕김 스택을 비운다 — 튕겨 다시 올라가든(bounce) 멈추든 상관없이.
+          // 완전히 멈출 때(airborne=false)까지 기다리면, 바닥에 닿고도 몇 번 더 튕기는 동안
+          // 카운트가 남아 "땅에 닿았는데 안 지워진다"로 보인다.
+          if (b.hits.size > 0) b.hits.clear();
           if (b.vy > REST_VY) {
             b.vy = -b.vy * BOUNCE;
           } else if (b.airborne) {
@@ -516,8 +577,12 @@ export function FloatingAvatars({
           const face = node.firstElementChild as HTMLElement | null;
           if (face) {
             face.style.transform = `rotate(${b.rot}deg)`;
-            face.style.boxShadow = b.pop > 0 ? neonRing(b.ringIdx, b.pop) : "";
+            // 네온 색은 **누른 사람 색**(popColorIdx) — 맞은 사람 자기 색이 아니다
+            face.style.boxShadow = b.pop > 0 ? neonRing(b.popColorIdx, b.pop) : "";
           }
+          // 튕김 배지 스택 — 얼굴 다음 형제(두 번째 자식). 색별 ×N을 위로 쌓는다.
+          const badges = node.children[1] as HTMLElement | null;
+          if (badges) renderHitBadges(badges, b.hits);
         }
       }
       raf = window.requestAnimationFrame(step);
@@ -583,7 +648,7 @@ export function FloatingAvatars({
                 />
               </span>
               <span
-                className="max-w-full truncate text-[9px] leading-none"
+                className="whitespace-nowrap text-[9px] leading-none"
                 style={{ color: PRESENCE_COLORS[getPresenceColorIdx(p.mem_id)] }}
               >
                 {p.mem_nm}
@@ -626,11 +691,12 @@ export function FloatingAvatars({
               const face = e.currentTarget.firstElementChild as HTMLElement | null;
               const rect = (face ?? e.currentTarget).getBoundingClientRect();
               const hitX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-              applyBump(person.mem_id, hitX); // 내 화면 즉시 반영
+              // by=내 presenceId — 네온·배지가 **내 색**으로 뜬다(맞은 사람이 아니라 누른 나).
+              applyBump(person.mem_id, hitX, presenceId); // 내 화면 즉시 반영
               channelRef.current?.send({
                 type: "broadcast",
                 event: "bump",
-                payload: { mem_id: person.mem_id, hitX },
+                payload: { mem_id: person.mem_id, hitX, by: presenceId },
               });
             }}
             // 히트 영역만 넓힌다(HIT_PAD): 손가락으로 누르기 쉽게 아바타 둘레에 투명 여백을
@@ -657,9 +723,18 @@ export function FloatingAvatars({
                 avatarUrl={person.avatar_url}
               />
             </span>
+            {/* 튕김 배지 스택 — 얼굴의 두 번째 형제(children[1]). 루프가 매 프레임 채운다.
+                우측 상단에 얹되 위로 쌓이도록 column-reverse(먼저 친 색이 아래에 남는다).
+                절대배치라 이름표 레이아웃을 밀지 않는다. 버튼엔 HIT_PAD 패딩이 있으므로
+                얼굴 span 오른쪽 위 모서리(HIT_PAD + SIZE, HIT_PAD)를 기준으로 살짝 겹쳐 얹는다. */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute flex flex-col-reverse items-start gap-0.5"
+              style={{ left: HIT_PAD + SIZE + 4, top: HIT_PAD - 6 }}
+            />
             {/* 이름표 — 사람 고정색. 배경 위에서 읽히게 얇은 외곽선을 깐다 */}
             <span
-              className="pointer-events-none max-w-[52px] truncate text-[9px] font-medium leading-none"
+              className="pointer-events-none whitespace-nowrap text-[9px] font-medium leading-none"
               style={{
                 color,
                 textShadow:
