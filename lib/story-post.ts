@@ -35,3 +35,14 @@ export function pickRandomPostIndex(count: number): number {
   if (count <= 1) return 0;
   return Math.floor(Math.random() * count);
 }
+
+/**
+ * 활동지수 슬롯의 대표 진입 인덱스를 뽑는다 — **상위 3명 중 하나**(0~2). 1등만 세우면
+ * 재미가 없어 1·2·3등 중에서 새로고침·한 바퀴마다 굴린다. 표본이 얇으면(2명→0~1,
+ * 1명→0) 있는 만큼만 범위를 좁힌다. `pickRandomPostIndex`와 같은 이유로 렌더 밖에서 뽑는다.
+ */
+export function pickActvLeadIndex(rankLen: number): number {
+  const cap = Math.min(3, rankLen);
+  if (cap <= 1) return 0;
+  return Math.floor(Math.random() * cap);
+}

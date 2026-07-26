@@ -45,6 +45,10 @@ export function StoryClient({
   ghosts,
   posts,
   initialPostPick,
+  initialNewbiePick,
+  initialPledgePick,
+  initialRecordPick,
+  initialActvPick,
   messages,
   teamId,
   myMemId,
@@ -59,8 +63,13 @@ export function StoryClient({
   ghosts: GhostMember[];
   /** 기록 자랑 — 팻말존에 쓴다. 피드와 캐시 태그가 갈려 있어 별도 prop이다 */
   posts: StoryPost[];
-  /** 운동 기록 슬롯의 진입 랜덤 인덱스 — 서버가 매 요청 뽑아 넘긴다(깜빡임·하이드레이션 안전) */
+  /** 리드 각 랜덤 슬롯의 진입 인덱스 — 서버가 매 요청 뽑아 넘긴다(깜빡임·하이드레이션 안전).
+   *  새 얼굴·각오·기록·활동지수·운동기록이 첫 화면부터 랜덤이고, 한 바퀴마다 클라가 재추첨한다. */
   initialPostPick: number;
+  initialNewbiePick: number;
+  initialPledgePick: number;
+  initialRecordPick: number;
+  initialActvPick: number;
   /** 종이비행기 한마디 — 24시간 만료. 각오와 별개 데이터(msg_mst), 별도 캐시·별도 RPC */
   messages: StoryMessage[];
   teamId: string;
@@ -116,6 +125,10 @@ export function StoryClient({
           feed={feed}
           reactions={reactions}
           posts={posts}
+          initialNewbiePick={initialNewbiePick}
+          initialPledgePick={initialPledgePick}
+          initialRecordPick={initialRecordPick}
+          initialActvPick={initialActvPick}
           initialPostPick={initialPostPick}
           onSelectMember={selectMember}
         />

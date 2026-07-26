@@ -6,7 +6,10 @@ import { reactionKey, type MyReactionMap } from "@/lib/story-reaction";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isRequestAbortError } from "@/lib/supabase/is-abort-error";
 
-import type { MemberCardCompactData } from "@/lib/queries/member-card";
+import type {
+  MemberCardCompactData,
+  MemberCardRecord,
+} from "@/lib/queries/member-card";
 
 /** 리액션 코드 정본 6종 — DB CHECK 제약(`rctn_mst_rctn_cd_chk`)과 동일 목록 */
 export const RCTN_CODES = [
@@ -86,6 +89,22 @@ export type StoryActvRankEntry = {
   mem_nm: string;
   avatar_url: string | null;
   actv_score: number;
+  /**
+   * 프로필 부품(§story 리드 "이번 달 기강 잡는" 슬롯 전용) — 칭호·소개·러닝프로필·개인최고기록.
+   * 구버전 RPC(배포 스큐)에서는 없을 수 있어 **전부 옵셔널**이다(부품이 빠질 뿐 크래시하지 않는다).
+   * 무더기(ActvPile)는 이 필드들을 쓰지 않으므로 payload가 커져도 그쪽엔 영향이 없다.
+   */
+  badge_effect?: string;
+  frame_cd?: string;
+  intro_txt?: string | null;
+  primary_title?: MemberCardCompactData["primary_title"];
+  running_profile?: MemberCardCompactData["running_profile"];
+  /** 개인 최고기록 목록 — 종목별 최고기록을 거리 긴 순으로 상위 4종(RPC가 comp_evt_type 거리로 뽑는다) */
+  best_records?: MemberCardRecord[];
+  /** 이번 달 모임 참석 수 */
+  mth_attd_cnt?: number;
+  /** 이번 달 대회 기록 등록 수 */
+  mth_rec_cnt?: number;
 };
 
 /** 이번 주(KST, 월요일 시작 ~ now) 크루 합계 통계 */

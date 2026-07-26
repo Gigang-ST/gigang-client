@@ -9,9 +9,15 @@ import { cn } from "@/lib/utils";
 
 import { Avatar, buildFallbackAvatarUrl } from "@/components/common/avatar";
 import { TitleBadge } from "@/components/common/title-badge";
+import {
+  PersonProfile,
+  type PersonProfilePart,
+  type PersonProfilePerson,
+} from "@/components/story/person-profile";
 import { StoryReactionButton } from "@/components/story/story-reaction-button";
 
 import { dedupePledgesByMember } from "@/lib/story-pledge";
+import { pickActvLeadIndex, pickRandomPostIndex } from "@/lib/story-post";
 import { reactionKey } from "@/lib/story-reaction";
 import { isDevModeEnabled } from "@/lib/dev-mode";
 import { getSportEmoji } from "@/lib/sport";
@@ -52,6 +58,20 @@ const RECORD_WINDOW_DAYS = 7;
 const RECORD_PICKS = 2;
 /** 우측 레일에 얼굴을 몇 개까지 세울지. 나머지는 "외 N명" */
 const MAX_SUBS = 3;
+
+/**
+ * 활동지수 슬롯(§④) 헤드라인 멘트 — `{name}`이 대표 이름으로 치환된다.
+ * 한 바퀴마다 대표(actvPick)와 함께 굴러 매번 다른 문구가 걸린다(같은 pick으로 묶어 자연스럽게).
+ * "요즘 제일 뜨거운" 결을 살린 캐주얼 톤. 활동량 수치는 말하지 않는다(히든 운영).
+ */
+const ACTV_HEADLINES = [
+  "{name}, 요즘 제일 뜨겁다",
+  "{name}, 이번 달 쉬는 날이 없다",
+  "{name}, 지칠 줄을 모른다",
+  "{name}, 이번 달 기강의 기준",
+  "{name}, 요즘 심장이 제일 뛴다",
+  "{name}, 이번 달 제일 부지런하다",
+];
 
 type Person = { mem_id: string; mem_nm: string; avatar_url: string | null };
 
@@ -95,6 +115,14 @@ type Lede = {
    * 이게 있으면 헤드라인/아바타 대신 이 목록을 그린다(§③).
    */
   records?: RecordLine[];
+  /**
+   * 활동지수 슬롯 전용 — 프로필 부품 조합(§④). 있으면 kicker 아래를 이 사람 프로필로 그린다.
+   * `parts` 순서대로 조각을 쌓는다(칭호·소개·개인최고기록·러닝프로필 중 골라).
+   */
+  profile?: {
+    person: PersonProfilePerson;
+    parts: PersonProfilePart[];
+  } | null;
 };
 
 /** 기록 칸의 한 줄 — 사람 · 종목 · 기록 */
@@ -159,18 +187,26 @@ function rotate<T>(arr: T[], n: number): T[] {
  * 대신 가장 최근 한 명(한 건)을 대표로 크게 싣고, 나머지는 우측 레일에 작게 세운다 —
  * 지면에서 빠지는 사람이 없게. 레일의 얼굴도 탭하면 각자의 카드가 열린다.
  *
- * 순서는 시의성: 임박한 대회 → 새 얼굴 → 기록 → 이달의 참가왕.
+ * 순서는 시의성: 임박한 대회 → 새 얼굴 → 기록 → 이달의 활동지수.
+ *
+ * **랜덤 슬롯은 초기값을 서버가 뽑아 넘긴다**(첫 화면부터 랜덤·하이드레이션 안전). 이후
+ * 굴리는 건 자동전환/수동 한 바퀴 완주 때만 — 한 사이클 내내는 고정이라 뒤로 스와이프해도
+ * 방금 본 슬롯이 안 바뀐다. "다가오는 대회"만 고정(가장 임박한 1건).
  */
 function buildLedes(
   feed: StoryFeed,
   reactions: StoryReactionCounts,
   /** 기록 자랑 — 리드 기록자랑 칸(§⑥)에 랜덤 1건 */
   posts: StoryPost[],
-  /** 각오 칸에 실을 인덱스 — 호출자가 마운트 후 굴린다(§⑤) */
+  /** 새 얼굴 대표 회전량 — 최근 30일 새 얼굴 중 대표를 굴린다(§②) */
+  newbiePick: number,
+  /** 각오 칸에 실을 인덱스(§⑤) */
   pledgePick: number,
-  /** 기록 칸의 회전량 — 같은 이유로 호출자가 굴린다(§③) */
+  /** 기록 칸의 회전량(§③) */
   recordPick: number,
-  /** 기록자랑 칸에 실을 인덱스 — 서버·클라 첫 렌더가 같게 0에서 출발, 호출자가 굴린다(§⑥) */
+  /** 활동지수 대표 인덱스 — 상위 3명 중 하나(§④) */
+  actvPick: number,
+  /** 기록자랑 칸에 실을 인덱스(§⑥) */
   postPick: number,
 ): Lede[] {
   const ledes: Lede[] = [];
@@ -217,8 +253,11 @@ function buildLedes(
     });
   }
 
-  // ② 새 얼굴 — 최근 30일. 가장 최근 1명이 대표, 나머지는 레일.
-  const newbies = feed.newbies.filter((n) => withinDays(n.event_at, WINDOW_DAYS));
+  // ② 새 얼굴 — 최근 30일. 대표를 한 바퀴마다 굴린다(rotate라 한 바퀴에 모두 정확히 한 번씩
+  //    대표가 된다 — 기록 칸과 같은 방식). 최근 1명 고정이 아니라, 최근 30일 새 얼굴 중에서
+  //    돌아가며 한 명씩 대표로 크게 세운다.
+  const newbiesAll = feed.newbies.filter((n) => withinDays(n.event_at, WINDOW_DAYS));
+  const newbies = rotate(newbiesAll, newbiePick);
   const [newbieLead, ...restNewbies] = newbies;
   if (newbieLead) {
     ledes.push({
@@ -288,20 +327,49 @@ function buildLedes(
     });
   }
 
-  // ④ 이달의 참가왕 — 하단 섹션에서 뺐으므로 여기가 유일한 자리다.
-  const king = feed.month_rank[0];
-  if (king) {
+  // ④ 이번 달 기강 잡는 — 이번 달 활동량 상위 3명 중 하나를 대표로 세운다(랜덤 pick, 한
+  //    바퀴마다 갱신). 1등만 세우면 재미가 없어 1·2·3등을 돌아가며 크게 싣는다. 표본이 얇으면
+  //    (2명→후보 0~1, 1명→0) 있는 만큼만 pick 범위다.
+  //    **활동량 수치·순위는 노출하지 않는다** — 이 사람을 "소개"하는 자리라, 부품 조합
+  //    (칭호·소개 한마디·개인 최고기록·러닝 프로필)으로 프로필을 그린다. "포인트"는 히든 운영.
+  const actvRank = feed.actv_rank; // rank 오름차순으로 이미 정렬돼 온다
+  if (actvRank.length > 0) {
+    const cap = Math.min(3, actvRank.length); // 대표 후보는 상위 3명(있는 만큼)
+    const leadIdx = ((actvPick % cap) + cap) % cap; // 서버가 넉넉히 뽑아도 여기서 clamp
+    const lead = actvRank[leadIdx];
     ledes.push({
-      key: `king-${king.mem_id}`,
-      kicker: `${dayjs().format("M월")} 참가왕`,
+      key: `actv-${lead.mem_id}`,
+      kicker: "이번 달 기강 잡는",
       entity: null,
-      people: [king],
-      subs: feed.month_rank.slice(1, 1 + MAX_SUBS),
+      // 사람·수치·레일은 쓰지 않는다 — 아래 profile 렌더가 프로필 부품으로 통째로 그린다.
+      people: [],
+      subs: [],
       moreCount: 0,
-      headline: `${king.mem_nm}, 이번 달 가장 많이 나오다`,
-      standfirst: "모임 참석 1위",
-      figure: String(king.attd_cnt),
-      figureLabel: "회 참석",
+      // 명조 헤드라인 — 여러 멘트 중 하나(대표와 같은 actvPick으로 골라 한 바퀴마다 함께 굴린다).
+      headline: ACTV_HEADLINES[actvPick % ACTV_HEADLINES.length].replace(
+        "{name}",
+        lead.mem_nm,
+      ),
+      standfirst: "",
+      figure: null,
+      figureLabel: null,
+      profile: {
+        person: {
+          mem_id: lead.mem_id,
+          mem_nm: lead.mem_nm,
+          avatar_url: lead.avatar_url,
+          badge_effect: lead.badge_effect,
+          frame_cd: lead.frame_cd,
+          intro_txt: lead.intro_txt,
+          primary_title: lead.primary_title,
+          running_profile: lead.running_profile,
+          best_records: lead.best_records,
+          mth_attd_cnt: lead.mth_attd_cnt,
+          mth_rec_cnt: lead.mth_rec_cnt,
+        },
+        // 칭호(이름 옆) → 소개 한마디 → 개인 최고기록 → 러닝 프로필 순으로 쌓는다.
+        parts: ["title", "intro", "bestRecord", "runningProfile"],
+      },
     });
   }
 
@@ -356,7 +424,9 @@ function buildLedes(
       .join(" · ");
     ledes.push({
       key: `post-${post.post_id}`,
-      kicker: "운동 기록",
+      // "운동 기록"은 딱딱해 친목 러닝크루 톤에 안 맞는다 — "오늘, 기강은"으로 서술체.
+      // 오늘 기강 회원이 이렇게 달렸다는 이야기가 사진·한마디로 이어지는 결.
+      kicker: "오늘, 기강은",
       entity: null,
       // 사람은 렌더의 사진 옆 아바타+이름 줄이 맡는다(people 줄은 안 쓴다 — 사진 슬롯 전용 렌더).
       people: [],
@@ -383,7 +453,7 @@ function buildLedes(
   // 스와이프 순서 — 지면 위계를 여기서 한 곳에 고정한다. 위 push 순서(존별 생성 편의)와
   // 분리해 두면, 순서를 바꿀 때 블록을 옮기지 않고 이 표만 고치면 된다. 목록에 없는 존이
   // 생기면(접두어 매칭 실패) 맨 뒤로 보낸다(ORDER에 없으면 큰 값).
-  const ORDER = ["post", "king", "newbie", "pledge", "race", "record"];
+  const ORDER = ["post", "actv", "newbie", "pledge", "race", "record"];
   const rank = (key: string) => {
     const i = ORDER.findIndex((p) => key.startsWith(`${p}-`));
     return i === -1 ? ORDER.length : i;
@@ -406,6 +476,10 @@ export function StoryLede({
   feed,
   reactions,
   posts,
+  initialNewbiePick,
+  initialPledgePick,
+  initialRecordPick,
+  initialActvPick,
   initialPostPick,
   onSelectMember,
 }: {
@@ -414,24 +488,34 @@ export function StoryLede({
   reactions: StoryReactionCounts;
   /** 기록 자랑 — 기록자랑 칸에 랜덤 1건 */
   posts: StoryPost[];
-  /** 운동 기록 슬롯의 진입 랜덤 인덱스 — 서버가 뽑아 넘긴다(§story/page.tsx) */
+  /** 리드 각 랜덤 슬롯의 진입 인덱스 — 서버가 매 요청 뽑아 넘긴다(§story/page.tsx).
+   *  첫 화면부터 랜덤이고 하이드레이션이 안전하다(렌더 중 Math.random 금지). */
+  initialNewbiePick: number;
+  initialPledgePick: number;
+  initialRecordPick: number;
+  initialActvPick: number;
   initialPostPick: number;
   onSelectMember: (memId: string, name: string) => void;
 }) {
-  // 각오 칸에 실을 각오 — 자동 전환이 한 바퀴 돌 때마다 갈린다(아래 타이머).
-  // 초기값을 0으로 고정하는 게 핵심이다: 렌더 중에 Math.random()을 부르면 서버와
-  // 클라이언트가 다른 각오를 골라 하이드레이션이 깨진다. 굴리는 건 타이머 콜백 안에서만.
-  const [pledgePick, setPledgePick] = useState(0);
-  // 기록 칸 회전량 — 각오와 같은 이유로 0에서 출발한다(서버·클라 첫 렌더가 같아야 한다).
-  // 굴리는 건 자동 전환 타이머 안에서만.
-  const [recordPick, setRecordPick] = useState(0);
-  // 운동 기록 칸 랜덤 — **페이지를 열 때마다 하나를 무작위로 뽑는다**(새로고침하면 다른 기록).
-  // 어느 걸 고를지는 **서버가** 정해 넘긴다(initialPostPick). 클라에서 Math.random으로 굴리면
-  // "최신이 잠깐 보였다 랜덤으로 휙" 바뀌는 깜빡임(첫 렌더 0 → effect가 랜덤)이 생기거나
-  // 하이드레이션이 깨진다. 서버가 정하면 첫 화면부터 그 기록이라 깜빡임이 없다.
-  // 자동전환으로는 굴리지 않는다 — 페이지가 떠 있는 동안엔 같은 기록, 새로고침해야 바뀐다.
-  const [postPick] = useState(initialPostPick);
-  const ledes = buildLedes(feed, reactions, posts, pledgePick, recordPick, postPick);
+  // 모든 랜덤 슬롯의 pick — 서버가 뽑은 초기값에서 출발한다(첫 화면부터 랜덤·하이드레이션
+  // 안전). 렌더 중 Math.random()을 부르면 서버·클라가 다른 걸 골라 하이드레이션이 깨진다.
+  // 굴리는 건 자동전환/수동이 **한 바퀴를 완주하는 순간**에만(아래 타이머·go). 한 사이클
+  // 내내는 고정이라 뒤로 스와이프해도 방금 본 슬롯이 안 바뀐다.
+  const [newbiePick, setNewbiePick] = useState(initialNewbiePick);
+  const [pledgePick, setPledgePick] = useState(initialPledgePick);
+  const [recordPick, setRecordPick] = useState(initialRecordPick);
+  const [actvPick, setActvPick] = useState(initialActvPick);
+  const [postPick, setPostPick] = useState(initialPostPick);
+  const ledes = buildLedes(
+    feed,
+    reactions,
+    posts,
+    newbiePick,
+    pledgePick,
+    recordPick,
+    actvPick,
+    postPick,
+  );
   const total = ledes.length;
 
   const [active, setActive] = useState(0);
@@ -449,6 +533,23 @@ export function StoryLede({
   const [hidden, setHidden] = useState(false);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
   const resumeTimerRef = useRef<number | null>(null);
+
+  /**
+   * 한 바퀴 완주 시 모든 랜덤 슬롯을 한꺼번에 다시 뽑는다.
+   *
+   * 매 전환마다 굴리면 뒤로 스와이프했을 때 방금 본 슬롯이 이미 바뀌어 있다 — 그래서 한
+   * 사이클(마지막 장 → 처음) 단위로만 굴린다. 회전 계열(새얼굴·기록·각오)은 인덱스를 계속
+   * 키워도 buildLedes가 pool 길이로 나눠 쓰므로 안전하고, 운동기록·활동지수는 pool 크기에
+   * 맞춰 새로 뽑는다. effect 밖(콜백)에서만 부른다 — 렌더 순수성 유지.
+   */
+  const rerollAllPicks = useCallback(() => {
+    setNewbiePick((n) => n + 1 + Math.floor(Math.random() * 3));
+    setPledgePick((n) => n + 1 + Math.floor(Math.random() * 3));
+    // 기록은 한 번에 2건을 실으니 2씩 밀어야 다음 바퀴에 방금 본 사람이 또 나오지 않는다.
+    setRecordPick((n) => n + RECORD_PICKS);
+    setActvPick(() => pickActvLeadIndex(feed.actv_rank.length));
+    setPostPick(() => pickRandomPostIndex(posts.length));
+  }, [feed.actv_rank.length, posts.length]);
 
   /**
    * 손이 닿았다 — 4초 완전히 멈췄다가 게이지를 처음부터 다시 굴린다(총 8초 뒤 다음 장).
@@ -498,9 +599,17 @@ export function StoryLede({
   const go = useCallback(
     (dir: 1 | -1) => {
       if (total === 0) return;
-      setActive((i) => (i + dir + total) % total);
+      // 수동으로도 한 바퀴를 앞으로 완주하면(마지막 → 처음) 재추첨한다 — 자동전환과 같은 규칙.
+      // 다만 **뒤로**(처음 → 마지막) 감길 땐 굴리지 않는다: 그건 방금 지나친 걸 다시 보려는
+      // 동작이라, 여기서 바꾸면 "이전 걸 보려다 새 걸 보게 되는" 원래 짜증이 그대로 재발한다.
+      let wrapped = false;
+      setActive((i) => {
+        wrapped = dir === 1 && i === total - 1;
+        return (i + dir + total) % total;
+      });
+      if (wrapped) rerollAllPicks();
     },
-    [total],
+    [total, rerollAllPicks],
   );
 
   /**
@@ -527,19 +636,20 @@ export function StoryLede({
     // 멈춰 있고 전환은 엉뚱한 시점에 온다. 같은 트리거(active·runId)로 다시 걸어야
     // "다 차는 순간 넘어간다"가 항상 맞는다.
     const timer = window.setTimeout(() => {
-      setActive((i) => (i + 1) % total);
-      // 각오 칸이 다시 돌아올 때 같은 각오면 지면이 고여 보인다 — 넘길 때마다 굴려 둔다.
-      // 인덱스는 `buildLedes`가 목록 길이로 나눠 쓰므로 계속 키워도 안전하다.
-      setPledgePick((n) => n + 1 + Math.floor(Math.random() * 3));
-      // 기록 칸도 같이 굴린다. 한 번에 2건을 싣고 있으니 2씩 밀어야 다음 바퀴에
-      // 방금 본 사람이 또 나오지 않고 풀 전체를 순서대로 훑는다.
-      setRecordPick((n) => n + RECORD_PICKS);
-      // 운동 기록 칸은 자동전환으로 굴리지 않는다 — "진입 시 랜덤 1건"이라, 페이지가 떠 있는
-      // 동안엔 같은 기록이 유지되고 새로고침해야 바뀐다(마운트 effect가 정한다).
+      // 마지막 장(total-1)에서 다음이 0으로 감기는 순간이 "한 바퀴 완주"다. 그때만 모든
+      // 랜덤 슬롯을 재추첨한다 — 한 사이클 내내는 고정이라 뒤로 스와이프해도 안 바뀐다.
+      // 판정만 업데이터에서 하고(순수 유지), 실제 재추첨은 업데이터 밖에서 부른다.
+      // setTimeout 콜백은 StrictMode에서 이중 실행되지 않아 wrapped 클로저가 안전하다.
+      let wrapped = false;
+      setActive((i) => {
+        wrapped = i === total - 1;
+        return (i + 1) % total;
+      });
+      if (wrapped) rerollAllPicks();
     }, ROTATE_MS);
 
     return () => window.clearTimeout(timer);
-  }, [frozen, total, active, runId]);
+  }, [frozen, total, active, runId, rerollAllPicks]);
 
   if (total === 0) {
     return (
@@ -583,32 +693,59 @@ export function StoryLede({
       // 붙지 않게). 안쪽 패딩은 p-5로 콘텐츠와 선 사이를 띄운다.
       className="touch-pan-y select-none px-6"
     >
-    <div className="rounded-2xl border border-border p-5">
+    {/* pt-4 — 프레임 테두리와 슬롯(kicker) 사이 위 여백을 좌우·아래(p-5, 20px)보다 조금
+        줄인다. 위가 떠 보인다는 피드백 반영. 모든 슬롯 공통. */}
+    <div className="rounded-2xl border border-border p-5 pt-2">
       {/* 슬롯마다 내용 높이가 달라 자동 전환·스와이프 때 지면이 출렁인다 — 가장 큰 슬롯에
-          맞춰 고정한다. 다만 모바일 세로 화면에선 짧은 슬롯(운동 기록 등)이 이 높이를 절반만
-          채워 아래가 휑해 보인다. 가장 큰 대회 슬롯(헤드라인 2줄+아바타 lg+응원 버튼)이
-          잘리지 않는 선까지만 낮춘다(248→208). 이보다 더 낮추면 대회·각오 슬롯이 잘린다. */}
+          맞춰 **고정**한다(min-h가 아니라 h). min-h면 내용이 많은 슬롯(기록 2건·긴 각오)이
+          이 값을 넘겨 다시 지면이 출렁인다. 짧은 슬롯(운동 기록 등)은 이 높이를 절반만 채워
+          아래가 휑해 보이지만, 출렁임을 없애려면 높이가 고정이어야 한다(items-start라
+          여백은 아래에 남는다). 값은 가장 큰 슬롯(대회: 헤드라인 2줄+아바타 lg+응원 버튼 /
+          운동 기록: 사진 144 + 메타 줄)이 잘리지 않는 232px — 이보다 낮추면 운동 기록 슬롯의
+          맨 아래 프로필 아바타가 overflow-hidden에 잘린다. */}
       <div
         key={lede.key}
-        className="lede-in flex min-h-[208px] items-start gap-3"
+        className="lede-in flex h-[224px] items-start gap-3 overflow-hidden"
       >
         <article className="flex min-w-0 flex-1 flex-col gap-3">
           <span className="font-numeric text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
             {lede.kicker}
           </span>
 
-          {/* 운동 기록 칸 — 위(사진 | 한마디) + 아래 메타 한 줄(사람 ↔ 수치).
+          {/* 활동지수 슬롯(§④) — 명조 헤드라인 + 프로필 부품 조합. 다른 슬롯처럼 신문 헤드라인을
+              얹고 그 아래 프로필(아바타+이름 위에 parts 순서대로 조각)을 쌓는다.
+              나머지 분기(사진·기록·헤드라인)보다 앞서 걸러 people/figure 공통 줄을 건너뛴다. */}
+          {lede.profile ? (
+            <div className="flex flex-1 flex-col gap-3">
+              {lede.headline && (
+                <h2 className="line-clamp-2 text-pretty break-keep font-serif text-[22px] font-normal leading-[1.3] text-foreground [overflow-wrap:anywhere]">
+                  {lede.headline}
+                </h2>
+              )}
+              <PersonProfile
+                person={lede.profile.person}
+                parts={lede.profile.parts}
+                onSelect={onSelectMember}
+              />
+            </div>
+          ) : /* 운동 기록 칸 — 위(사진 | 한마디) + 아래 메타 한 줄(사람 ↔ 수치).
               · 위: 좌측 사진(크게, 정사각) / 우측 한마디
               · 아래: 전체 폭 한 줄 — 왼쪽 프사·이름·칭호, 오른쪽 날짜·종목·거리
               메타를 2단 밖 한 줄로 빼야 손그림처럼 사람과 수치가 같은 바닥선에서 마주본다.
-              사진은 컨테이너 좌패딩(p-5)을 음수 마진으로 조금 당겨 왼쪽 여백을 줄인다. */}
-          {lede.photo ? (
+              사진은 컨테이너 좌패딩(p-5)을 음수 마진으로 조금 당겨 왼쪽 여백을 줄인다. */
+          lede.photo ? (
             <div className="flex flex-1 flex-col gap-3">
-              {/* 위 — 사진(좌) + 한마디(우) */}
-              <div className="flex flex-1 items-start gap-3">
+              {/* 위 — 사진(좌) + 한마디(우). */}
+              <div className="flex min-h-0 flex-1 items-start gap-3">
                 {/* 사진은 클릭 대상이 아니다 — 프로필 카드는 아래 프사·이름을 눌러야 열린다.
-                    사진은 그 운동의 장면일 뿐이라 눌러도 반응하지 않는 게 자연스럽다. */}
-                <div className="relative -ml-2 aspect-square w-[44%] shrink-0 overflow-hidden rounded-xl bg-muted">
+                    사진은 그 운동의 장면일 뿐이라 눌러도 반응하지 않는 게 자연스럽다.
+                    크기는 **픽셀 고정 정사각**(h-36 w-36 = 144px)이다 — h-full은 부모 높이가
+                    확정돼야 먹는데, 슬롯→article→photo 래퍼로 내려오는 높이 전파가
+                    items-start(위 정렬)에서 끊겨 0이 된다(사진이 안 보였던 원인). 슬롯 높이가
+                    고정이라 사진을 픽셀로 못박는다.
+                    음수 마진(-ml)은 두지 않는다 — 슬롯 컨테이너의 overflow-hidden(세로 잘림
+                    방지용)이 왼쪽으로 삐져나온 부분까지 잘라 사진 왼쪽이 잘렸다. */}
+                <div className="relative h-36 w-36 shrink-0 overflow-hidden rounded-xl bg-muted">
                   {/* 사진 → 프사 → DiceBear 폴백. 셋 다 없어 src=""가 되면 Image가 터지므로
                       마지막 폴백까지 항상 값이 있게 한다(격자 존과 같은 폴백 사슬). */}
                   <Image
@@ -707,17 +844,17 @@ export function StoryLede({
             </h2>
           )}
 
-          {/* 리드문 — 기록 자랑(photo) 슬롯은 위 자체 렌더에서 수치·사람을 이미 그렸으므로
-              이 공통 줄들(standfirst·아바타 줄)을 건너뛴다(중복 방지). */}
-          {!lede.photo && (
+          {/* 리드문 — 기록 자랑(photo)·활동지수(profile) 슬롯은 위 자체 렌더에서 사람·수치를
+              이미 그렸으므로 이 공통 줄들(standfirst·아바타 줄)을 건너뛴다(중복·헛간격 방지). */}
+          {!lede.photo && !lede.profile && (
             <p className="break-keep text-[13px] leading-relaxed text-muted-foreground">
               {lede.standfirst}
             </p>
           )}
 
-          {/* 아바타·수치 줄 — 기록 칸은 사람과 기록을 이미 목록 안에 품고 있어 이 줄이
-              통째로 비고, 빈 flex가 gap만 남겨 리드문 아래에 헛간격이 생긴다. */}
-          {!lede.photo && (lede.people.length > 0 || lede.figure) && (
+          {/* 아바타·수치 줄 — 기록·프로필 칸은 사람과 기록을 이미 목록/프로필 안에 품고 있어
+              이 줄이 통째로 비고, 빈 flex가 gap만 남겨 리드문 아래에 헛간격이 생긴다. */}
+          {!lede.photo && !lede.profile && (lede.people.length > 0 || lede.figure) && (
           <div className="flex items-center gap-3 pt-0.5">
             <div className="flex shrink-0">
               {lede.people.map((p, i) => (
@@ -852,25 +989,26 @@ export function StoryLede({
         </div>
       )}
 
-      {/* 테스트용 임시 토글 — 자동 전환을 껐다 켠다. **개발 모드에서만** 뜬다
-          (`NEXT_PUBLIC_ENABLE_DEV_MODE`) — 운영 지면엔 노출하지 않는다. 검수 끝나면 이 블록만 지운다. */}
-      {isDevModeEnabled() && (
-        <div className="flex justify-end pt-1">
-          <button
-            type="button"
-            onClick={toggleAuto}
-            aria-pressed={autoOff}
-            className="rounded-full border border-border px-2.5 py-1 font-numeric text-[10px] tracking-wide text-muted-foreground transition-colors active:scale-95 hover:bg-muted"
-          >
-            자동전환 {autoOff ? "OFF" : "ON"} (테스트)
-          </button>
-        </div>
-      )}
-
       <span className="sr-only" role="status">
         {total}건 중 {active + 1}번째 기사
       </span>
     </div>
+
+    {/* 테스트용 임시 토글 — 자동 전환을 껐다 켠다. **개발 모드에서만** 뜬다
+        (`NEXT_PUBLIC_ENABLE_DEV_MODE`) — 운영 지면엔 노출하지 않는다. 검수 끝나면 이 블록만 지운다.
+        프레임(전광판) **밖**에 둔다 — 어차피 지울 임시 UI라 프레임 안 높이 계산에 끼면 안 된다. */}
+    {isDevModeEnabled() && (
+      <div className="flex justify-end pt-1">
+        <button
+          type="button"
+          onClick={toggleAuto}
+          aria-pressed={autoOff}
+          className="rounded-full border border-border px-2.5 py-1 font-numeric text-[10px] tracking-wide text-muted-foreground transition-colors active:scale-95 hover:bg-muted"
+        >
+          자동전환 {autoOff ? "OFF" : "ON"} (테스트)
+        </button>
+      </div>
+    )}
     </section>
   );
 }
