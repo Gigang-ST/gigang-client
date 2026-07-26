@@ -191,7 +191,7 @@ function rotate<T>(arr: T[], n: number): T[] {
  * 대신 한 명(한 건)을 대표로 크게 싣고, 대표는 한 바퀴마다 회전(rotate)해 돌아가며 바뀐다 —
  * 지면에서 빠지는 사람이 없게(우측 레일 대신 시간으로 모두에게 자리를 준다).
  *
- * 순서는 시의성: 임박한 대회 → 새 얼굴 → 기록 → 이달의 활동지수.
+ * 스와이프 순서는 `ORDER`가 정한다: 운동기록 → 활동지수 → 새 얼굴 → 목표 한마디 → 대회 → 완주기록.
  *
  * **랜덤 슬롯은 초기값을 서버가 뽑아 넘긴다**(첫 화면부터 랜덤·하이드레이션 안전). 이후
  * 굴리는 건 자동전환/수동 한 바퀴 완주 때만 — 한 사이클 내내는 고정이라 뒤로 스와이프해도
@@ -755,12 +755,12 @@ export function StoryLede({
         줄인다. 위가 떠 보인다는 피드백 반영. 모든 슬롯 공통. */}
     <div className="rounded-2xl border border-border p-5 pt-2">
       {/* 슬롯마다 내용 높이가 달라 자동 전환·스와이프 때 지면이 출렁인다 — 가장 큰 슬롯에
-          맞춰 **고정**한다(min-h가 아니라 h). min-h면 내용이 많은 슬롯(기록 2건·긴 각오)이
-          이 값을 넘겨 다시 지면이 출렁인다. 짧은 슬롯(운동 기록 등)은 이 높이를 절반만 채워
-          아래가 휑해 보이지만, 출렁임을 없애려면 높이가 고정이어야 한다(items-start라
-          여백은 아래에 남는다). 값은 가장 큰 슬롯(대회: 헤드라인 2줄+아바타 lg+응원 버튼 /
-          운동 기록: 사진 144 + 메타 줄)이 잘리지 않는 232px — 이보다 낮추면 운동 기록 슬롯의
-          맨 아래 프로필 아바타가 overflow-hidden에 잘린다. */}
+          맞춰 **고정**한다(min-h가 아니라 h). min-h면 내용이 많은 슬롯(활동지수 2단·긴 목표)이
+          이 값을 넘겨 다시 지면이 출렁인다. 값은 가장 큰 슬롯(대회: 헤드라인 2줄+아바타 lg+응원 /
+          운동 기록: 사진 144 + 메타 줄)이 잘리지 않는 224px — 이보다 낮추면 운동 기록 슬롯의
+          맨 아래 프로필 아바타가 overflow-hidden에 잘린다.
+          items-stretch로 article이 이 높이를 꽉 채워, 짧은 슬롯(완주기록 등)은 자기 내용을
+          justify-center로 세로 가운데에 앉힌다(예전 items-start에선 아래만 휑했다). */}
       <div
         key={lede.key}
         className="lede-in flex h-[224px] items-stretch gap-3 overflow-hidden"
@@ -920,8 +920,10 @@ export function StoryLede({
                       마지막 폴백까지 항상 값이 있게 한다(격자 존과 같은 폴백 사슬). */}
                   <Image
                     src={
-                      lede.photo.url ??
-                      lede.photo.person.avatar_url ??
+                      // 빈 문자열("")도 폴백으로 내려가게 || 사슬 — photo_url·avatar_url이 text
+                      // nullable이라 ""가 들어올 수 있고, ??는 그걸 못 걸러 빈 src가 Image에 간다.
+                      lede.photo.url ||
+                      lede.photo.person.avatar_url ||
                       buildFallbackAvatarUrl(lede.photo.person.mem_id)
                     }
                     alt={lede.photo.person.mem_nm}
