@@ -152,7 +152,7 @@ export function PersonProfile({
   const hasBottom = intro != null || reactionSlot != null;
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-3">
+    <div className="flex min-w-0 flex-col gap-3">
       {/* 상단 2단 — items-stretch로 좌우 컬럼 높이를 맞춘다(짧은 쪽이 늘어나 바닥선이 맞음) */}
       <div className="flex min-w-0 items-stretch gap-4">
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-2.5">

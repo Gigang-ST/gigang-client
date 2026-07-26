@@ -81,7 +81,7 @@ function PledgeCreateForm({
       onCreated?.(trimmed);
       onOpenChange(false);
       router.refresh();
-      toast.success("각오를 코스에 꽂았어요");
+      toast.success("목표 한마디를 코스에 꽂았어요");
     } catch {
       toast.error("저장 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
@@ -96,7 +96,7 @@ function PledgeCreateForm({
         dialogClassName="max-w-sm"
       >
         <ResponsiveDrawerHeader className="px-4 py-4 text-left">
-          <ResponsiveDrawerTitle>각오 팻말 꽂기</ResponsiveDrawerTitle>
+          <ResponsiveDrawerTitle>목표 한마디 꽂기</ResponsiveDrawerTitle>
         </ResponsiveDrawerHeader>
 
         <div className="flex flex-col gap-3 px-4 pb-6">

@@ -56,8 +56,15 @@ export type StoryRecord = ReactableItem & {
   evt: string;
   rec_time_sec: number;
   race_nm: string | null;
-  /** 대회 개최일 YYYY-MM-DD — 목록에 함께 표시하고 최근 30일 판정에도 쓴다 */
+  /** 대회 개최일 YYYY-MM-DD — 함께 표시하고 최근 30일 판정(RPC 필터)에도 쓴다 */
   race_dt: string | null;
+  /**
+   * 프로필 부품(리드 "결승선을 넘다" 슬롯 전용) — 칭호·배지·프레임. 활동지수/목표 슬롯과 같은 방식.
+   * 배포 스큐 안전을 위해 옵셔널(부품이 빠질 뿐 크래시하지 않는다).
+   */
+  badge_effect?: string;
+  frame_cd?: string;
+  primary_title?: MemberCardCompactData["primary_title"];
 };
 
 export type StoryRace = ReactableItem & {
@@ -67,7 +74,13 @@ export type StoryRace = ReactableItem & {
   comp_nm: string;
   stt_dt: string;
   reg_cnt: number;
-  runners: { mem_id: string; mem_nm: string; avatar_url: string | null }[];
+  /** 참가자(participant)만 — 종목(evt)·이름 순. `evt`는 comp_evt_type 원문("" 가능), 라벨은 `compEvtTypeLabel` */
+  runners: {
+    mem_id: string;
+    mem_nm: string;
+    avatar_url: string | null;
+    evt: string;
+  }[];
 };
 
 export type StoryRankEntry = {
@@ -115,9 +128,16 @@ export type StoryWeekStat = {
 };
 
 /**
- * 멤버 각오(한 줄 다짐) — 만료 없이 누적, 최근순 노출.
- * 리액션이 붙지 않아(현재 스콥) `ReactableItem`을 상속하지 않는다 — newbie/record/race와
- * 형태가 다르다는 뜻이므로 스토리 UI에서 리액션 버튼을 실수로 붙이지 않도록 타입으로 막는다.
+ * 멤버 목표 한마디(한 줄 다짐) — 만료 없이 누적, 최근순 노출.
+ *
+ * 리드 "목표 한마디" 슬롯은 활동지수 슬롯과 같은 방식(PersonProfile 부품: 칭호·소개)으로 그린다.
+ * 그래서 칭호·소개·배지·프레임을 옵셔널로 싣는다 — actv_rank와 마찬가지로 구버전 RPC(배포 스큐)에선
+ * 없을 수 있어 **전부 옵셔널**(부품이 빠질 뿐 크래시하지 않는다). 러닝프로필·최고기록은 이 슬롯에서
+ * 쓰지 않으므로 싣지 않는다.
+ *
+ * 응원은 pldg row가 아니라 **멤버 기준**으로 건다(entity_type "actv" + mem_id — 활동지수 슬롯과 동일).
+ * 그래서 `ReactableItem`(entity_type/rctn_cd 등)을 상속하지 않는다 — 응원 대상은 목표 팻말이 아니라
+ * 그 목표를 쓴 사람이다.
  */
 export type StoryPledge = {
   pldg_id: string;
@@ -127,6 +147,11 @@ export type StoryPledge = {
   pldg_txt: string;
   /** ISO timestamptz 문자열 — 표시 시 dayjs(val)로 상대시간 변환 */
   crt_at: string;
+  /** 프로필 부품(리드 목표 슬롯 전용) — 배포 스큐 안전을 위해 옵셔널. actv_rank와 같은 방식 */
+  badge_effect?: string;
+  frame_cd?: string;
+  intro_txt?: string | null;
+  primary_title?: MemberCardCompactData["primary_title"];
 };
 
 export type StoryFeed = {
