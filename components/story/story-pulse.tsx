@@ -24,14 +24,16 @@ import type { TeamOverview } from "@/lib/queries/team-overview";
  * 주 단위는 크루가 작을 때 0~1을 오가 상태를 못 담는다(지수 판정만 주 단위로 남는다).
  */
 export function StoryPulse({ overview }: { overview: TeamOverview }) {
-  // 캐시에 남은 옛 payload에는 months가 아예 없을 수 있다(RPC를 바꿔도 unstable_cache는
-  // 최대 1시간 옛 모양을 그대로 준다). 타입상 배열이어도 런타임엔 undefined일 수 있어
-  // 여기서 한 번 더 받아낸다 — 지면 한 칸 때문에 /story 전체가 죽으면 안 된다.
-  const weeks = overview.weeks ?? [];
-  const months = overview.months ?? [];
+  // 캐시에 남은 옛 payload에는 weeks/months 필드 자체가 아예 없을 수 있다(RPC를 바꿔도
+  // unstable_cache는 최대 1시간 옛 모양을 그대로 준다). 타입상 배열이어도 런타임엔
+  // undefined일 수 있어, 필드가 없는 경우만 지면 한 칸 때문에 /story 전체가 죽지 않게
+  // 통째로 접는다. `weeks`가 빈 배열([])인 것과는 다르다 — 빈 배열은 JS에서 truthy라
+  // 여기 안 걸리고 아래로 흘러가 `getTeamPulse`가 무데이터 멘트를 보여준다(RPC는 항상
+  // 8주치를 채워 주므로 실제로는 거의 없지만, 있다면 접지 않고 보여주는 게 맞는 경우다).
+  if (!overview.weeks) return null;
 
-  // 데이터가 아예 없으면(RPC 미배포·신규 팀) 빈 상자를 그리느니 통째로 접는다.
-  if (weeks.length === 0) return null;
+  const weeks = overview.weeks;
+  const months = overview.months ?? [];
 
   // 지수는 여전히 주 단위 판정(이번 주 vs 직전 4주)이지만, 보여주는 수치는 이번 달 합계다.
   // 주 단위는 크루가 작을 때 0~1을 오가 상태를 못 담는다.

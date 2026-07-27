@@ -19,7 +19,11 @@ function weeksWith(past: number, current: number): TeamWeek[] {
 
 describe("getTeamPulse - 기준선이 없는 초기 크루 (절대량 판정)", () => {
   it("주 데이터가 아예 없으면 dormant", () => {
-    expect(getTeamPulse([])).toMatchObject({ level: "dormant", label: "완전 휴식" });
+    expect(getTeamPulse([])).toMatchObject({
+      level: "dormant",
+      label: "완전 휴식",
+      message: "아직 심박이 잡히지 않았어요",
+    });
   });
 
   it("활동 10이면 최상 — 경계값", () => {
