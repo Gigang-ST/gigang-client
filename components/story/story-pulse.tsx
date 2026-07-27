@@ -78,7 +78,7 @@ export function StoryPulse({ overview }: { overview: TeamOverview }) {
               bpm
             </span>
           </div>
-          <span className="text-center font-serif text-[15px] leading-tight text-foreground">
+          <span className="text-center text-[15px] leading-tight text-foreground">
             {pulse.label}
           </span>
         </div>

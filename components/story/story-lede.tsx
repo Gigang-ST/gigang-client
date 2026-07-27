@@ -26,7 +26,6 @@ import { compEvtTypeLabel } from "@/lib/comp-evt-type";
 import { dedupePledgesByMember } from "@/lib/story-pledge";
 import { pickActvLeadIndex, pickRandomPostIndex } from "@/lib/story-post";
 import { reactionKey } from "@/lib/story-reaction";
-import { isDevModeEnabled } from "@/lib/dev-mode";
 import { getSportEmoji } from "@/lib/sport";
 
 import type { CSSProperties, PointerEvent } from "react";
@@ -38,6 +37,18 @@ import type {
   StoryReactionCounts,
 } from "@/lib/queries/story-feed";
 import type { StoryPost } from "@/lib/queries/story-posts";
+
+/**
+ * 목표 한마디 리드 슬롯(§⑤) 잠정 중단 토글.
+ *
+ * **삭제가 아니라 잠정 중단이다** — 2026-07-28 UI 정리로 화면에서만 내렸다. 되살리려면
+ * 이 상수를 true로 되돌리면 된다(슬롯 생성 블록·ORDER 편입이 다시 살아난다).
+ *
+ * 성능: false일 때 §⑤ 블록 자체가 실행되지 않아 dedupePledgesByMember 계산도 돌지 않는다.
+ * 데이터(feed.pledges)는 get_team_story_feed RPC에 CTE로 묶여 어차피 오므로 추가 비용은 없다
+ * — 여기선 그걸 슬롯으로 만들지 않을 뿐이다. 하단 PledgeSigns 존도 함께 중단(§story-client).
+ */
+const SHOW_PLEDGE_LEDE = false;
 
 /** 자동 전환 간격 — 한 장씩, 끝에 닿으면 처음으로 되돌아온다 */
 const ROTATE_MS = 4000;
@@ -422,9 +433,10 @@ function buildLedes(
   //    최고기록·러닝프로필은 이 슬롯에서 안 쓴다(칭호·소개만) — 목표 문장과 경쟁해 시선이 흩어진다.
   //    어느 목표를 고를지는 호출자가 정한다(`pledgePick`) — 여기서 Math.random()을 쓰면
   //    서버와 클라이언트가 다른 목표를 골라 하이드레이션이 깨진다.
-  const pledgePool = dedupePledgesByMember(feed.pledges);
+  // SHOW_PLEDGE_LEDE=false면 이 슬롯을 통째로 건너뛴다(잠정 중단 — 파일 상단 상수 주석 참조).
+  const pledgePool = SHOW_PLEDGE_LEDE ? dedupePledgesByMember(feed.pledges) : [];
   const pledgeLead = pledgePool[pledgePick % Math.max(pledgePool.length, 1)];
-  if (pledgeLead) {
+  if (SHOW_PLEDGE_LEDE && pledgeLead) {
     ledes.push({
       key: `pledge-${pledgeLead.pldg_id}`,
       kicker: "여러분께 고합니다",
@@ -578,13 +590,6 @@ export function StoryLede({
 
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
-  /**
-   * 자동 전환 끄기 — **테스트용 임시 토글**이다(운영에 남길 UI 아님).
-   *
-   * `paused`(손이 닿아 8초 쉬는 중)와 분리해 둔다: 껐는데 8초 뒤 되살아나면 끈 게 아니고,
-   * 켤 때 남아있던 일시정지를 물려받으면 켜자마자 안 도는 것처럼 보인다.
-   */
-  const [autoOff, setAutoOff] = useState(false);
   /** 게이지를 처음부터 다시 굴리기 위한 세대 번호 — 같은 장에 머물러 재개할 때 필요 */
   const [runId, setRunId] = useState(0);
   /** 탭이 숨어 있나 — 초기값은 false로 둔다(서버 렌더와 첫 클라 렌더가 같아야 한다) */
@@ -628,24 +633,8 @@ export function StoryLede({
     }, FREEZE_MS);
   }, []);
 
-  /** 테스트 토글 — 켤 때는 남은 일시정지를 걷어내고 즉시 돌게 한다 */
-  const toggleAuto = useCallback(() => {
-    // 부수효과는 업데이터 밖에서 — 업데이터 콜백은 순수해야 하고 React가 두 번 부를 수
-    // 있다(StrictMode). `autoOff`가 이미 스코프에 있어 현재 값으로 분기하면 된다.
-    if (autoOff) {
-      if (resumeTimerRef.current !== null)
-        window.clearTimeout(resumeTimerRef.current);
-      resumeTimerRef.current = null;
-      setPaused(false);
-      // 켜는 순간 게이지도 0에서 새로 센다 — 껐을 때 멈춰 있던 지점에서 이어 채우면
-      // 켜자마자 넘어가 버린다.
-      setRunId((n) => n + 1);
-    }
-    setAutoOff((off) => !off);
-  }, [autoOff]);
-
-  /** 게이지가 멈춰야 하는가 — 손이 닿았거나 · 테스트로 껐거나 · 탭이 숨었거나 */
-  const frozen = paused || autoOff || hidden;
+  /** 게이지가 멈춰야 하는가 — 손이 닿았거나 · 탭이 숨었거나 */
+  const frozen = paused || hidden;
 
   useEffect(() => {
     return () => {
@@ -712,7 +701,7 @@ export function StoryLede({
   if (total === 0) {
     return (
       <div className="px-6 py-10 text-center">
-        <p className="font-serif text-[19px] text-foreground">
+        <p className="text-[19px] text-foreground">
           오늘은 전할 소식이 없습니다
         </p>
         <p className="mt-1.5 text-[13px] text-muted-foreground">
@@ -766,7 +755,7 @@ export function StoryLede({
         className="lede-in flex h-[224px] items-stretch gap-3 overflow-hidden"
       >
         <article className="flex h-full min-w-0 flex-1 flex-col gap-3">
-          <span className="font-numeric text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+          <span className="text-[11px] font-medium text-muted-foreground">
             {lede.kicker}
           </span>
 
@@ -777,7 +766,7 @@ export function StoryLede({
           {lede.newbie ? (
             <div className="flex flex-1 flex-col justify-center gap-3">
               {lede.headline && (
-                <h2 className="-mt-1 line-clamp-2 text-pretty break-keep font-serif text-[22px] font-normal leading-[1.3] text-foreground [overflow-wrap:anywhere]">
+                <h2 className="-mt-1 line-clamp-2 text-pretty break-keep text-[26px] font-normal leading-[1.28] text-foreground [overflow-wrap:anywhere]">
                   {lede.headline}
                 </h2>
               )}
@@ -821,7 +810,7 @@ export function StoryLede({
 
               {/* 소개 한마디 — 본인의 말이라 인용구로(§④ intro와 같은 스타일). 한 줄 말줄임. */}
               {lede.newbie.intro && (
-                <blockquote className="truncate rounded-r-md border-l-2 border-border bg-muted/50 py-1.5 pl-2.5 pr-2 font-serif text-[13.5px] leading-relaxed text-foreground">
+                <blockquote className="truncate rounded-r-md border-l-2 border-border bg-muted/50 py-1.5 pl-2.5 pr-2 text-[13.5px] leading-relaxed text-foreground">
                   “{lede.newbie.intro}”
                 </blockquote>
               )}
@@ -874,7 +863,7 @@ export function StoryLede({
               {lede.headline && (
                 // 명조 헤드라인은 line-box 상단 여백이 있어 kicker와의 간격이 사진 슬롯보다
                 // 커 보인다 — 첫 슬롯(운동기록) 기준에 맞추려고 상단 여백을 살짝 트림(-mt-1).
-                <h2 className="-mt-1 line-clamp-2 text-pretty break-keep font-serif text-[22px] font-normal leading-[1.3] text-foreground [overflow-wrap:anywhere]">
+                <h2 className="-mt-1 line-clamp-2 text-pretty break-keep text-[26px] font-normal leading-[1.28] text-foreground [overflow-wrap:anywhere]">
                   {lede.headline}
                 </h2>
               )}
@@ -936,7 +925,7 @@ export function StoryLede({
                   />
                 </div>
                 {/* 한마디 — 사진 옆이라 대회 헤드라인(26px)보다 작게(15px). */}
-                <h2 className="line-clamp-6 min-w-0 flex-1 text-pretty break-keep pt-0.5 font-serif text-[15px] font-normal leading-[1.5] text-foreground [overflow-wrap:anywhere]">
+                <h2 className="line-clamp-6 min-w-0 flex-1 text-pretty break-keep pt-0.5 text-[15px] font-normal leading-[1.5] text-foreground [overflow-wrap:anywhere]">
                   {lede.headline}
                 </h2>
               </div>
@@ -1047,7 +1036,7 @@ export function StoryLede({
             /* 각오처럼 띄어쓰기 없는 긴 문자열도 넘치지 않게 — break-keep(어절 유지)만으론
                연속 문자를 못 끊으니 overflow-wrap:anywhere를 더하고, 최대 3줄로 말줄임한다.
                -mt-1은 명조 상단 여백 트림 — kicker와의 간격을 첫 슬롯(운동기록) 기준에 맞춘다. */
-            <h2 className="-mt-1 line-clamp-3 text-pretty break-keep font-serif text-[26px] font-normal leading-[1.28] text-foreground [overflow-wrap:anywhere]">
+            <h2 className="-mt-1 line-clamp-3 text-pretty break-keep text-[26px] font-normal leading-[1.28] text-foreground [overflow-wrap:anywhere]">
               {lede.headline}
             </h2>
           )}
@@ -1069,7 +1058,7 @@ export function StoryLede({
                 {lede.standfirst}
               </p>
               {lede.raceRoster.length > 0 && (
-                <div className="min-h-0 flex-1 overflow-y-auto pt-0.5 [scrollbar-width:thin]">
+                <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto pt-0.5 [scrollbar-width:thin]">
                   {lede.raceRoster.map((g) => (
                     <div
                       key={g.evt}
@@ -1103,7 +1092,7 @@ export function StoryLede({
               {/* 하단 — D-day(왼쪽) + 응원(오른쪽). 다른 슬롯처럼 응원 버튼이 맨 아래에 온다. */}
               <div className="mt-auto flex items-center justify-between gap-3 pt-1">
                 {lede.figure && (
-                  <span className="font-serif text-[24px] font-medium leading-none tracking-[0.04em] text-foreground">
+                  <span className="text-[24px] font-medium leading-none tracking-[0.04em] text-foreground">
                     {lede.figure}
                   </span>
                 )}
@@ -1221,7 +1210,7 @@ export function StoryLede({
                     style={{ "--lede-dur": `${ROTATE_MS}ms` } as CSSProperties}
                     className={cn(
                       "absolute inset-0 origin-left rounded-full bg-foreground",
-                      autoOff ? "scale-x-50" : "lede-progress",
+                      "lede-progress",
                     )}
                   />
                 )}
@@ -1236,21 +1225,6 @@ export function StoryLede({
       </span>
     </div>
 
-    {/* 테스트용 임시 토글 — 자동 전환을 껐다 켠다. **개발 모드에서만** 뜬다
-        (`NEXT_PUBLIC_ENABLE_DEV_MODE`) — 운영 지면엔 노출하지 않는다. 검수 끝나면 이 블록만 지운다.
-        프레임(전광판) **밖**에 둔다 — 어차피 지울 임시 UI라 프레임 안 높이 계산에 끼면 안 된다. */}
-    {isDevModeEnabled() && (
-      <div className="flex justify-end pt-1">
-        <button
-          type="button"
-          onClick={toggleAuto}
-          aria-pressed={autoOff}
-          className="rounded-full border border-border px-2.5 py-1 font-numeric text-[10px] tracking-wide text-muted-foreground transition-colors active:scale-95 hover:bg-muted"
-        >
-          자동전환 {autoOff ? "OFF" : "ON"} (테스트)
-        </button>
-      </div>
-    )}
     </section>
   );
 }

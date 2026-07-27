@@ -64,21 +64,21 @@ export type SkinConfig = {
 const BASE: Omit<SkinConfig, "key" | "name" | "desc" | "ledeVariant"> = {
   frameClass: "newsprint bg-background text-foreground",
   mastheadClass:
-    "text-center font-serif text-[30px] leading-none tracking-[0.02em] text-foreground",
+    "text-center text-[30px] leading-none tracking-[0.02em] text-foreground",
   datelineClass:
     "mt-2.5 text-center font-numeric text-[10px] uppercase tracking-[0.16em] text-muted-foreground",
   mastheadRuleClass: "mt-3 border-t-[3px] border-foreground",
   sectionLabelClass:
     "font-numeric text-[11px] font-medium uppercase tracking-[0.2em] text-foreground",
   sectionRuleClass: "border-b border-foreground/70 pb-2",
-  sectionLeadClass: "pt-2.5 font-serif text-[15px] leading-snug text-muted-foreground",
+  sectionLeadClass: "pt-2.5 text-[15px] leading-snug text-muted-foreground",
   rowClass: "flex items-center gap-3 border-b border-border py-2.5",
   rowLeadClass: "min-w-0 flex-1 truncate text-[14px] text-foreground",
   rowTrailClass:
     "shrink-0 font-numeric text-[14px] font-medium text-foreground tabular-nums",
   figureClass: "font-numeric text-[26px] font-medium text-foreground tabular-nums",
   accentClass: "text-foreground",
-  headlineClass: "font-serif text-[22px] leading-tight text-foreground",
+  headlineClass: "text-[22px] leading-tight text-foreground",
 };
 
 export const SKINS: SkinConfig[] = [

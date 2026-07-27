@@ -5,7 +5,10 @@ import { getGhostMembers } from "@/lib/queries/ghost-members";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getStoryReactions, getStoryFeed } from "@/lib/queries/story-feed";
-import { getStoryMessages } from "@/lib/queries/story-messages";
+// 종이비행기 한마디(getStoryMessages) 잠정 중단(2026-07-28). MessagePlanes 존을 화면에서
+// 내리면서 RPC도 함께 끊어 비용을 0으로 만든다 — 되살릴 땐 이 import와 Promise.all 항목,
+// messages prop([])을 원복하고 story-client의 SHOW_MESSAGE_PLANES를 true로.
+// import { getStoryMessages } from "@/lib/queries/story-messages";
 import { getStoryPosts } from "@/lib/queries/story-posts";
 import { pickActvLeadIndex, pickRandomPostIndex } from "@/lib/story-post";
 import { getTeamOverview } from "@/lib/queries/team-overview";
@@ -32,12 +35,12 @@ export default function StoryPage() {
  */
 async function StoryFeedSection() {
   const { teamId } = await getRequestTeamContext();
-  const [feed, overview, ghosts, posts, messages, { member }] = await Promise.all([
+  const [feed, overview, ghosts, posts, { member }] = await Promise.all([
     getStoryFeed(teamId),
     getTeamOverview(teamId),
     getGhostMembers(teamId),
     getStoryPosts(teamId),
-    getStoryMessages(teamId),
+    // getStoryMessages(teamId), — 종이비행기 잠정 중단(위 import 주석 참조)
     getCurrentMember(),
   ]);
 
@@ -54,7 +57,9 @@ async function StoryFeedSection() {
   // Math.random은 렌더 순수성 룰에 걸려 헬퍼로 빼 둔다.
   const initialPostPick = pickRandomPostIndex(posts.length);
   const initialNewbiePick = pickRandomPostIndex(feed.newbies.length);
-  const initialPledgePick = pickRandomPostIndex(feed.pledges.length);
+  // 목표 한마디 리드 슬롯 잠정 중단(story-lede의 SHOW_PLEDGE_LEDE=false) — 서버 랜덤을
+  // 돌릴 이유가 없어 0으로 넘긴다. 되살릴 땐 pickRandomPostIndex(feed.pledges.length)로 원복.
+  const initialPledgePick = 0;
   const initialRecordPick = pickRandomPostIndex(feed.records.length);
   const initialActvPick = pickActvLeadIndex(feed.actv_rank.length);
 
@@ -69,7 +74,9 @@ async function StoryFeedSection() {
       initialPledgePick={initialPledgePick}
       initialRecordPick={initialRecordPick}
       initialActvPick={initialActvPick}
-      messages={messages}
+      // 종이비행기 잠정 중단 — 쿼리를 끊었으니 항상 빈 목록. 되살릴 땐 위 Promise.all에
+      // getStoryMessages를 되살리고 messages={messages}로 원복(파일 상단 import 주석 참조).
+      messages={[]}
       teamId={teamId}
       myMemId={member?.id ?? null}
       me={

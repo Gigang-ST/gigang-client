@@ -73,7 +73,7 @@ export function IntroQuote({ text }: { text: string }) {
         aria-label={`한마디: ${text}`}
         // 인용구 배경 블록 — 왼쪽 세로 바 + 은은한 배경으로 "사람의 말"임을 나타내고, 명조(리디바탕).
         // 한 줄로 눕다 넘치면 truncate(…). w-full로 남는 폭을 다 쓰고, 탭 영역이 곧 한마디 전체다.
-        className="block w-full truncate rounded-r-md border-l-2 border-border bg-muted/50 py-1.5 pl-2.5 pr-2 text-left font-serif text-[13.5px] leading-relaxed text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="block w-full truncate rounded-r-md border-l-2 border-border bg-muted/50 py-1.5 pl-2.5 pr-2 text-left text-[13.5px] leading-relaxed text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         “{text}”
       </button>
@@ -89,7 +89,7 @@ export function IntroQuote({ text }: { text: string }) {
             }
             className={cn(
               "z-[9999] max-w-[260px] whitespace-pre-wrap break-words rounded-md px-2.5 py-1.5",
-              "bg-zinc-800 font-serif text-[12px] leading-relaxed text-zinc-100",
+              "bg-zinc-800 text-[12px] leading-relaxed text-zinc-100",
               "dark:bg-zinc-700 dark:text-zinc-50",
               "pointer-events-none select-none",
               "animate-in fade-in-0 zoom-in-95 duration-150",

@@ -14,7 +14,6 @@
      톤이 다른 게 아니라 그 페이지만 튀어 보인다. 수치·라벨·경고는 산세리프로 남겨
      대비를 만든다 — 명조를 다 바르면 대비가 사라져 위계가 죽는다. */
   --font-sans: var(--font-pretendard), system-ui, sans-serif;
-  --font-serif: var(--font-ridibatang), var(--font-pretendard), serif;
   --font-numeric: var(--font-oswald), var(--font-pretendard), sans-serif;
 
   --color-background: var(--background);
