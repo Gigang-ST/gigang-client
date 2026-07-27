@@ -18,8 +18,8 @@ function weeksWith(past: number, current: number): TeamWeek[] {
 }
 
 describe("getTeamPulse - 기준선이 없는 초기 크루 (절대량 판정)", () => {
-  it("주 데이터가 아예 없으면 실종", () => {
-    expect(getTeamPulse([])).toMatchObject({ level: "dormant", label: "실종" });
+  it("주 데이터가 아예 없으면 dormant", () => {
+    expect(getTeamPulse([])).toMatchObject({ level: "dormant", label: "완전 휴식" });
   });
 
   it("활동 10이면 최상 — 경계값", () => {
@@ -55,7 +55,7 @@ describe("getTeamPulse - 직전 4주 평균 대비 비율 판정", () => {
   it("평균과 같으면(ratio 1.0) 최상 — 꾸준한 크루가 2단계에 갇히지 않게 한 경계", () => {
     expect(getTeamPulse(weeksWith(10, 10))).toMatchObject({
       level: "blazing",
-      label: "기강 그 자체",
+      label: "심장 폭발",
     });
   });
 

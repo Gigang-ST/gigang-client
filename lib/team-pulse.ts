@@ -1,6 +1,6 @@
 import { dayjs } from "@/lib/dayjs";
-import { MOOD_SCALE, type MoodLevel } from "@/lib/mood-scale";
 
+import type { MoodLevel } from "@/lib/mood-scale";
 import type { TeamWeek } from "@/lib/queries/team-overview";
 
 /** 그 달의 몇째 주인지 (1~5). 주 시작일(월요일)이 속한 달·날짜 기준으로 단순 계산 */
@@ -19,15 +19,28 @@ export function formatWeekLabel(wStart: string): string {
   return `${d.month() + 1}월 ${ORDINAL[nth]}주`;
 }
 
-/** 팀 활동 지수 결과 — 단어(label)·근거(message)·심박수(bpm)를 함께 담는다 */
+/** 팀 활동 지수 결과 — 단어(label)·멘트(message)·심박수(bpm)를 함께 담는다 */
 export type TeamPulse = {
   level: MoodLevel;
-  /** 표정 라벨 — 개인 컨디션과 같은 어휘 */
+  /** 러닝 페이스/존 은유 라벨 — Team Pulse 전용 어휘(TEAM_PULSE_SCALE) */
   label: string;
-  /** 판정 근거를 사람 말로. 숫자를 다시 읽어주지 않는다 */
+  /** 지금 크루 분위기를 러닝 톤으로. ratio·근거 수치를 다시 읽어주지 않는다 */
   message: string;
   /** 심박수(BPM) — ratio를 연속 매핑한 값. 50~200 */
   bpm: number;
+};
+
+/**
+ * Team Pulse 전용 4단계 라벨+멘트. 개인 프로필 카드의 컨디션(`MOOD_SCALE`)과는 더 이상 어휘를
+ * 공유하지 않는다 — 저쪽은 개인 활동 건수를 담담히 말하고, 여기는 BPM/심전도 그래픽에 맞춰
+ * 러닝 페이스·존 은유로 지금 크루가 얼마나 활발한지를 표현한다. 단계 키(`MoodLevel`)만
+ * 재사용하고 텍스트는 이 표 하나에만 둔다(ratio 분기·baseline-less 분기가 같이 참조).
+ */
+const TEAM_PULSE_SCALE: Record<MoodLevel, { label: string; message: string }> = {
+  blazing: { label: "심장 폭발", message: "인터벌 훈련을 고강도로 운동 중이에요" },
+  steady: { label: "꾸준한 페이스", message: "다들 꾸준한 페이스로 달리고 있어요" },
+  resting: { label: "가벼운 조깅", message: "다들 가볍게 몸을 풀고 있어요" },
+  dormant: { label: "완전 휴식", message: "회복도 훈련이에요, 보강 운동이나 식단도 잘 챙겨요" },
 };
 
 /** BPM 범위 — 안정 심박(하한)부터 최고조(상한)까지. `heart-rate.tsx`가 진폭·속도 매핑에 재사용한다 */
@@ -59,11 +72,13 @@ function ratioToBpm(ratio: number): number {
 }
 
 /**
- * 단계 키 + 근거 + BPM → 활동 지수. 라벨은 공유 척도에서 가져온다(개인 컨디션과 어휘 드리프트 방지).
+ * 단계 키 + BPM → 활동 지수. 라벨·멘트는 `TEAM_PULSE_SCALE`에서 가져온다.
  * bpm은 호출부가 ratio에서 계산해 넘긴다(초기 크루처럼 ratio가 없으면 대표값을 직접 준다).
+ * `message`를 넘기면 표 값 대신 그걸 쓴다 — 완전 무데이터처럼 단계로 안 담기는 예외 문구용.
  */
-function pulse(level: MoodLevel, message: string, bpm: number): TeamPulse {
-  return { level, label: MOOD_SCALE[level].label, message, bpm };
+function pulse(level: MoodLevel, bpm: number, message?: string): TeamPulse {
+  const scale = TEAM_PULSE_SCALE[level];
+  return { level, label: scale.label, message: message ?? scale.message, bpm };
 }
 
 /** 이번 주 활동량 = 참석 연인원 + 새 기록. 모임 개수는 규모를 안 담아 제외한다 */
@@ -74,11 +89,11 @@ function activityOf(week: TeamWeek): number {
 /**
  * 최근 8주 → 이번 주 팀 활동 지수. 크루 전체의 "지금 잘 달리고 있나"를 한 단어로.
  *
- * 프로필 카드의 개인 컨디션(`getActivityMood`)과 **같은 4단계 어휘**를 쓴다.
- * 개인 카드에서 "기강 잡아"를 본 사람이 크루 박스에서도 같은 말을 만나야
- * 두 지표가 같은 척도라는 게 설명 없이 전달된다.
+ * 단계 판정(`MoodLevel`)은 프로필 카드의 개인 컨디션(`getActivityMood`)과 같은 4단계 구조를
+ * 쓰지만, 라벨·멘트 텍스트는 공유하지 않는다(`TEAM_PULSE_SCALE`). 여기는 BPM/심전도
+ * 그래픽에 맞춰 러닝 페이스·존 은유로 지금 크루가 얼마나 활발한지를 표현한다.
  *
- * 다만 판정 기준은 다르다. 개인은 절대 건수(90일 10회/6회/1회)지만 크루는 규모에 따라
+ * 판정 기준도 다르다. 개인은 절대 건수(90일 10회/6회/1회)지만 크루는 규모에 따라
  * 절대값이 제각각이라, **이번 주를 직전 4주 평균과 비교한 비율**로 본다.
  * "지난달보다 활발한가"가 크루 분위기의 실제 질문이기 때문이다.
  *
@@ -92,7 +107,7 @@ function activityOf(week: TeamWeek): number {
  */
 export function getTeamPulse(weeks: TeamWeek[]): TeamPulse {
   const current = weeks.at(-1);
-  if (!current) return pulse("dormant", "아직 기록된 활동이 없습니다", BPM_MIN);
+  if (!current) return pulse("dormant", BPM_MIN, "아직 심박이 잡히지 않았어요");
 
   const now = activityOf(current);
 
@@ -104,20 +119,20 @@ export function getTeamPulse(weeks: TeamWeek[]): TeamPulse {
   // 기준선이 없는 초기 크루는 비율을 못 낸다 — 절대량으로 판정하고 BPM은 단계 대표값을 준다
   // (ratio가 없어 ratioToBpm을 못 쓴다). 대표값은 각 단계의 대략 중심.
   if (baseline <= 0) {
-    if (now >= 10) return pulse("blazing", "이번 주 크루가 제대로 달리는 중", 150);
-    if (now >= 4) return pulse("steady", "이번 주도 꾸준히 나오고 있습니다", 120);
-    if (now >= 1) return pulse("resting", "이번 주는 조용한 편입니다", 85);
-    return pulse("dormant", "이번 주는 아직 아무도 안 나왔습니다", BPM_MIN);
+    if (now >= 10) return pulse("blazing", 150);
+    if (now >= 4) return pulse("steady", 120);
+    if (now >= 1) return pulse("resting", 85);
+    return pulse("dormant", BPM_MIN);
   }
 
   const ratio = now / baseline;
   const bpm = ratioToBpm(ratio);
 
-  // 임계값: 1.0 / 0.5 / 0.3. 이번 주가 직전 4주 평균만큼만 해도 최상('기강 그 자체')이다 —
+  // 임계값: 1.0 / 0.5 / 0.3. 이번 주가 직전 4주 평균만큼만 해도 최상('심장 폭발')이다 —
   // 꾸준한 크루가 영원히 2단계에 머물지 않게 한 조정(예전엔 1.3배를 넘어야 최상이었다).
-  // 라벨(단계)은 임계값으로, BPM은 ratio를 log 매핑한 연속값으로 — 둘의 기준이 같은 ratio다.
-  if (ratio >= 1.0) return pulse("blazing", "지난 4주 평균만큼, 꾸준히 잘 달리는 중", bpm);
-  if (ratio >= 0.5) return pulse("steady", "지난 4주보다 살짝 잦아든 정도", bpm);
-  if (ratio >= 0.3) return pulse("resting", "지난 4주 평균보다 조용한 주", bpm);
-  return pulse("dormant", "이번 주는 크루가 많이 쉬고 있습니다", bpm);
+  // 단계는 임계값으로, BPM은 ratio를 log 매핑한 연속값으로 — 둘의 기준이 같은 ratio다.
+  if (ratio >= 1.0) return pulse("blazing", bpm);
+  if (ratio >= 0.5) return pulse("steady", bpm);
+  if (ratio >= 0.3) return pulse("resting", bpm);
+  return pulse("dormant", bpm);
 }
