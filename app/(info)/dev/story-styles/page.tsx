@@ -147,7 +147,8 @@ export default function StoryStylesPage() {
           지면 톤 9종은 모두 <strong>같은 10개 존·같은 순서</strong>로 그려집니다(톤만 비교).
         </p>
         <Link
-          href="/"
+          // 홈 스위치(HOME_PAGE)와 무관하게 전광판 고정 — 라벨이 "기강이야기"라서.
+          href="/story"
           className="rounded-full border border-border px-4 py-2 text-[12px] font-semibold text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           기강이야기로 돌아가기

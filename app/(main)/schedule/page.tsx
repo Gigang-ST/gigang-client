@@ -44,7 +44,9 @@ async function HomeHeader() {
     const dayDiff = stt.startOf("day").diff(dayjs().tz("Asia/Seoul").startOf("day"), "day");
     upcoming = {
       // uuid를 쓰면 딥링크가 마스터+상세+참석 병렬 1 RTT 패스트패스를 탄다 (short_id는 조회 선행 필요)
-      href: `/?gthr=${upcomingRow.gthr_id}`,
+      // 목적지는 /schedule 고정 — ?gthr= 를 읽는 건 MiniCalendar이고 그건 이 페이지에만 있다.
+      // 홈(/)은 HOME_PAGE에 따라 전광판일 수 있어, /로 보내면 모임 상세가 안 열린다.
+      href: `/schedule?gthr=${upcomingRow.gthr_id}`,
       dLabel: dayDiff <= 0 ? "오늘" : dayDiff === 1 ? "내일" : `D-${dayDiff}`,
       timeLabel: stt.format("ddd HH:mm"),
       title: upcomingRow.gthr_nm,

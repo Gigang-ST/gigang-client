@@ -62,9 +62,12 @@ export function BottomTabBar() {
       <div className="flex h-14 items-stretch">
         {TABS.map((tab) => {
           // 홈(`/`)만 정확히 일치로 본다 — startsWith면 모든 경로가 홈에 걸린다.
+          // 다만 `/story`는 홈과 **같은 화면**이라(app/(main)/page.tsx의 HOME_PAGE)
+          // 별칭으로 함께 켠다 — 안 그러면 /story 직접 진입 시 다섯 탭이 모두 꺼진다.
+          // HOME_PAGE를 "schedule"로 바꾸면 이 별칭도 "/schedule"로 함께 뒤집어야 한다.
           const isActive =
             tab.href === "/"
-              ? pathname === "/"
+              ? pathname === "/" || pathname === "/story"
               : pathname.startsWith(tab.href);
           const Icon = tab.icon;
           return (
