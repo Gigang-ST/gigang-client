@@ -14,8 +14,9 @@ import type { TeamOverview } from "@/lib/queries/team-overview";
  * **먼저 상태를 말하고 근거를 뒤에 붙인다.** 왼쪽에 팀 심박수(심전도 파형 + BPM),
  * 오른쪽에 이번 달 수치. "회원 42명"만 나열하는 통계 블록과 다른 점이다.
  *
- * 단어(기강 그 자체 / 기강 잡아 / 기며든다 / 실종)는 프로필 카드의 개인 컨디션과 같다 —
- * 두 지표가 같은 척도라는 걸 설명 없이 전달하기 위해서.
+ * 단어(심장 폭발 / 꾸준한 페이스 / 가벼운 조깅 / 완전 휴식)는 러닝 페이스·존 은유다
+ * (`lib/team-pulse.ts`의 `TEAM_PULSE_SCALE`) — 프로필 카드의 개인 컨디션 어휘와는 분리돼 있다,
+ * 심전도 그래픽·BPM에 맞춘 운동 톤이 목적이라서.
  *
  * **8주 추세 막대는 걷어냈다.** 막대 높이는 "지난주보다 높다"까지만 말하고 그 이상을
  * 못 했는데, 그걸 읽자고 탭해서 주를 고르는 장치까지 얹혀 있었다. 크루가 실제로 궁금한
@@ -23,14 +24,16 @@ import type { TeamOverview } from "@/lib/queries/team-overview";
  * 주 단위는 크루가 작을 때 0~1을 오가 상태를 못 담는다(지수 판정만 주 단위로 남는다).
  */
 export function StoryPulse({ overview }: { overview: TeamOverview }) {
-  // 캐시에 남은 옛 payload에는 months가 아예 없을 수 있다(RPC를 바꿔도 unstable_cache는
-  // 최대 1시간 옛 모양을 그대로 준다). 타입상 배열이어도 런타임엔 undefined일 수 있어
-  // 여기서 한 번 더 받아낸다 — 지면 한 칸 때문에 /story 전체가 죽으면 안 된다.
-  const weeks = overview.weeks ?? [];
-  const months = overview.months ?? [];
+  // 캐시에 남은 옛 payload에는 weeks/months 필드 자체가 아예 없을 수 있다(RPC를 바꿔도
+  // unstable_cache는 최대 1시간 옛 모양을 그대로 준다). 타입상 배열이어도 런타임엔
+  // undefined일 수 있어, 필드가 없는 경우만 지면 한 칸 때문에 /story 전체가 죽지 않게
+  // 통째로 접는다. `weeks`가 빈 배열([])인 것과는 다르다 — 빈 배열은 JS에서 truthy라
+  // 여기 안 걸리고 아래로 흘러가 `getTeamPulse`가 무데이터 멘트를 보여준다(RPC는 항상
+  // 8주치를 채워 주므로 실제로는 거의 없지만, 있다면 접지 않고 보여주는 게 맞는 경우다).
+  if (!overview.weeks) return null;
 
-  // 데이터가 아예 없으면(RPC 미배포·신규 팀) 빈 상자를 그리느니 통째로 접는다.
-  if (weeks.length === 0) return null;
+  const weeks = overview.weeks;
+  const months = overview.months ?? [];
 
   // 지수는 여전히 주 단위 판정(이번 주 vs 직전 4주)이지만, 보여주는 수치는 이번 달 합계다.
   // 주 단위는 크루가 작을 때 0~1을 오가 상태를 못 담는다.
@@ -54,9 +57,9 @@ export function StoryPulse({ overview }: { overview: TeamOverview }) {
         </h2>
         <div className="-my-2">
           <HelpTip title="기강 오버뷰">
-            심박수는 이번 주 크루 활동량을 지난 4주 평균과 견줘 나타냅니다. 프로필 카드의
-            개인 컨디션과 같은 척도예요. 아래 수치는 이번 달 합계이고, 기록은 대회 기록과
-            기록 자랑을 합한 값입니다.
+            심박수는 이번 주 크루 활동량을 지난 4주 평균과 견줘 나타냅니다. 회원 수는
+            크루 전체 인원이고, 나머지는 이번 달 합계예요. 기록은 대회 기록과 운동
+            기록을 합한 값입니다.
           </HelpTip>
         </div>
       </div>
