@@ -32,7 +32,7 @@ function formatKm(km: number | null): string | null {
  * 장인지는 IntersectionObserver로 읽어 필름 카운터(N/전체)에 쓴다.
  *
  * **무대는 어둡게, 글은 명조로.** 릴스의 관행(검은 배경·흰 글씨)을 따르되, 메타는 프로젝트의
- * 명조(font-serif)로 적어 "기록을 읽는" 지면의 결을 릴스 안에서도 잇는다. 사진 위 하단
+ * 한마디는 "기록을 읽는" 지면의 결을 릴스 안에서도 잇는다. 사진 위 하단
  * 그라디언트에 글을 얹는 인스타 정석 + 우리 서체 대비가 이 뷰어의 시그니처다.
  *
  * **사진 없는 기록**(마일리지런 자동 유입분 등)은 프사를 블러로 깔아 무대를 만들고 그 위에
@@ -221,7 +221,7 @@ const ReelCard = ({
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] flex flex-col bg-gradient-to-t from-black/85 via-black/55 to-transparent px-5 pb-[calc(env(safe-area-inset-bottom)+22px)] pt-20">
         {/* 한마디 — 사람이 쓴 말이라 명조로. 릴스라 격자보다 크게(두 줄까지). */}
         {post.cmnt_txt && (
-          <p className="pointer-events-auto line-clamp-3 text-balance font-serif text-[19px] font-normal leading-[1.45] text-white [overflow-wrap:anywhere] [text-shadow:0_1px_10px_rgba(0,0,0,0.5)]">
+          <p className="pointer-events-auto line-clamp-3 text-balance text-[19px] font-normal leading-[1.45] text-white [overflow-wrap:anywhere] [text-shadow:0_1px_10px_rgba(0,0,0,0.5)]">
             {post.cmnt_txt}
           </p>
         )}

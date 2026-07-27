@@ -191,7 +191,7 @@ export function MessagePlanes({
           Sky Notes
         </h2>
       </div>
-      <p className="px-6 pt-2.5 font-serif text-[15px] text-muted-foreground">
+      <p className="px-6 pt-2.5 text-[15px] text-muted-foreground">
         {hasMessages
           ? "기강인들이 날린 한마디 — 하루가 지나면 사라져요"
           : "하늘이 아직 비어 있어요 — 첫 한마디를 날려보세요"}

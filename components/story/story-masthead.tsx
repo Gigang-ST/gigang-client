@@ -26,7 +26,7 @@ export function StoryMasthead({ actions }: { actions?: ReactNode }) {
 
       {/* 지면 날짜 — 제호 위. "Since 창간일"을 빼고 그 자리에 오늘 날짜를 둔다(리드 좌상단에
           있던 걸 헤더로 되돌렸다). 이 헤더가 "오늘 지면"임을 제호 바로 위에서 밝힌다. */}
-      <p className="text-center font-numeric text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+      <p className="text-center text-[10px] text-muted-foreground">
         {dayjs().format("YYYY년 M월 D일 ddd요일")}
       </p>
       <h1 className="mt-0.5 text-center font-sans text-[30px] font-bold leading-none tracking-[0.02em] text-foreground">

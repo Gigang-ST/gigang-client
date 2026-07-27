@@ -33,6 +33,18 @@ import type { StoryPost } from "@/lib/queries/story-posts";
 import type { TeamOverview } from "@/lib/queries/team-overview";
 
 /**
+ * /story 존 잠정 중단 토글 — **삭제가 아니라 잠정 중단이다**(2026-07-28 UI 정리).
+ *
+ * 되살리려면 해당 상수를 true로 되돌린다. 그러면 존 렌더가 다시 살아난다.
+ * 성능: false일 땐 존 컴포넌트가 렌더 트리에서 통째로 빠진다(자식의 이펙트·구독·상태도 안 돈다).
+ * - 종이비행기는 서버 쿼리(getStoryMessages)까지 함께 끊어야 진짜로 비용이 0이 된다 →
+ *   그 조치는 app/(main)/story/page.tsx에서. messages prop은 이제 항상 [] 로 온다.
+ * - 목표 한마디는 리드 슬롯도 함께 중단(components/story/story-lede.tsx의 SHOW_PLEDGE_LEDE).
+ */
+const SHOW_MESSAGE_PLANES = false;
+const SHOW_PLEDGE_SIGNS = false;
+
+/**
  * 기강이야기 — 크루 소식 지면.
  *
  * 위계는 신문을 따른다: 제호 → 1면 리드 기사(크게, 자동 전환) → 면별 단신(괘선 구분).
@@ -120,7 +132,7 @@ export function StoryClient({
           형제들 위로 뜬다. 부모가 컨텍스트를 열어두지 않으면 그 아바타가 페이지 최상위에서
           `z-50` 다이얼로그와 직접 경쟁해 프로필 카드 위로 삐져나온다(overflow-hidden은
           자기 영역만 자를 뿐 위아래 순서와는 무관하다). 여기서 z-0으로 가둬 둔다. */}
-      <div className="relative z-0 pb-[54px] pt-4">
+      <div className="relative z-0 pb-[24px] pt-4">
         <StoryLede
           feed={feed}
           reactions={reactions}
@@ -145,20 +157,26 @@ export function StoryClient({
         <RecordFlexFeed posts={posts} myMemId={myMemId} teamId={teamId} />
 
         {/* 종이비행기 한마디 — 24시간 뒤 사라지는 한 줄(msg_mst).
-            각오와 **별개 데이터**다: 저긴 팻말·1인 1개·만료 없음, 여긴 비행기·1인 N개·하루살이. */}
-        <MessagePlanes
-          messages={messages}
-          teamId={teamId}
-          myMemId={myMemId}
-          me={me}
-        />
+            각오와 **별개 데이터**다: 저긴 팻말·1인 1개·만료 없음, 여긴 비행기·1인 N개·하루살이.
+            잠정 중단(SHOW_MESSAGE_PLANES) — 되살리려면 상수를 true로(파일 상단 주석 참조). */}
+        {SHOW_MESSAGE_PLANES && (
+          <MessagePlanes
+            messages={messages}
+            teamId={teamId}
+            myMemId={myMemId}
+            me={me}
+          />
+        )}
 
-        {/* 각오 팻말 — 코스변 손팻말. 만료 없이 쌓인다(1인 1개, 새로 쓰면 이전 것이 내려간다) */}
-        <PledgeSigns
-          pledges={feed.pledges}
-          myMemId={myMemId}
-          onSelectMember={selectMember}
-        />
+        {/* 각오 팻말 — 코스변 손팻말. 만료 없이 쌓인다(1인 1개, 새로 쓰면 이전 것이 내려간다).
+            잠정 중단(SHOW_PLEDGE_SIGNS) — 리드 슬롯(SHOW_PLEDGE_LEDE)과 함께 되살린다. */}
+        {SHOW_PLEDGE_SIGNS && (
+          <PledgeSigns
+            pledges={feed.pledges}
+            myMemId={myMemId}
+            onSelectMember={selectMember}
+          />
+        )}
 
         {/* 새 얼굴 — 최근 3명 + 더보기 */}
         <StorySection
@@ -172,11 +190,17 @@ export function StoryClient({
           initial={3}
           max={6}
           unit="명"
+          headerAction={
+            <HelpTip title="새 얼굴">
+              최근 30일 안에 기강에 새로 가입한 크루원입니다. 카드를 누르면 러닝 프로필과
+              소개 한마디를 볼 수 있어요.
+            </HelpTip>
+          }
         >
           {(newbies) => (
             // 새 얼굴은 실적이 없어 한 줄 목록으로는 이름밖에 남지 않는다.
             // 간단 프로필 카드로 러닝 프로필까지 보여주고, 탭하면 상세로 이어진다.
-            <ul className="flex flex-col gap-2 pt-2">
+            <ul className="flex flex-col gap-2">
               {newbies.map((nb) => (
                 <li key={nb.entity_id}>
                   <MemberCardCompact
@@ -225,8 +249,11 @@ export function StoryClient({
             <>
               {/* 리드 + 내 활동 내역 — 같은 줄 양끝. 리드는 명조 15px(다른 존 리드와 동일),
                   내 내역은 산세리프 캡스 11px 링크. 로그인·본인이 무더기에 있을 때만 뜬다. */}
-              <div className="flex items-baseline justify-between gap-3 pb-2.5">
-                <p className="font-serif text-[15px] leading-snug text-muted-foreground">
+              {/* pt-2.5 — 다른 존의 리드(StorySection의 lead prop)와 같은 윗 여백.
+                  이 존은 "내 활동 내역" 링크를 같은 줄에 놓아야 해서 lead prop을 못 쓰고
+                  직접 그리는데, 그러면 lead가 받던 pt-2.5를 놓쳐 괘선에 붙어 보인다. */}
+              <div className="flex items-baseline justify-between gap-3 pb-2.5 pt-2.5">
+                <p className="text-[15px] leading-snug text-muted-foreground">
                   {getActvMonthLabel()} 기강 활동량
                 </p>
                 {myMemId && feed.actv_rank.some((e) => e.mem_id === myMemId) && (
@@ -239,7 +266,7 @@ export function StoryClient({
                       if (mine)
                         setHistory({ memId: mine.mem_id, name: mine.mem_nm });
                     }}
-                    className="shrink-0 font-numeric text-[11px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="shrink-0 text-[11px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     내 활동 내역
                   </button>
@@ -255,7 +282,7 @@ export function StoryClient({
 
         {!hasAnything && (
           <div className="px-6 text-center">
-            <p className="font-serif text-[17px] text-foreground">
+            <p className="text-[17px] text-foreground">
               아직 전할 소식이 없습니다
             </p>
             <p className="mt-1.5 text-[13px] text-muted-foreground">

@@ -42,7 +42,7 @@ export function PledgeSigns({
           Course Signs
         </h2>
       </div>
-      <p className="px-6 pt-2.5 font-serif text-[15px] text-muted-foreground">
+      <p className="px-6 pt-2.5 text-[15px] text-muted-foreground">
         {hasPledges
           ? "코스에 꽂아둔 목표 한마디 — 옆으로 밀어 지나가세요"
           : "코스가 아직 비어 있어요 — 첫 목표 한마디를 꽂아보세요"}
@@ -67,7 +67,7 @@ export function PledgeSigns({
                   {/* 팻말 판 — 손글씨 느낌을 명조로. 긴 각오는 판 안에서 줄바꿈(break-words로
                       띄어쓰기 없는 긴 문자열도 강제로 끊어) 넘치면 3줄까지 말줄임. 고정 높이라
                       기울여도 이웃 팻말과 어긋나지 않는다. */}
-                  <span className="flex h-[84px] w-full items-center justify-center overflow-hidden rounded-md border-[2.5px] border-foreground bg-background px-2.5 py-2 text-center font-serif text-[13px] leading-snug text-foreground shadow-sm">
+                  <span className="flex h-[84px] w-full items-center justify-center overflow-hidden rounded-md border-[2.5px] border-foreground bg-background px-2.5 py-2 text-center text-[13px] leading-snug text-foreground shadow-sm">
                     <span className="line-clamp-3 break-words [word-break:break-word]">
                       {p.pldg_txt}
                     </span>

@@ -31,7 +31,7 @@ export function GhostWanted({
           Wanted
         </h2>
       </div>
-      <p className="px-6 pt-2.5 font-serif text-[15px] text-muted-foreground">
+      <p className="px-6 pt-2.5 text-[15px] text-muted-foreground">
         요즘 안 보이는 얼굴들 — 현상수배 중
       </p>
 

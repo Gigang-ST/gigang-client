@@ -250,7 +250,7 @@ export function MemberCardDetail({
           {(data.intro_txt || onEditIntro) && (
             <div className="board-rise board-rise-2 mt-0.5 flex items-start justify-center gap-1.5 px-2">
               {data.intro_txt ? (
-                <blockquote className="relative text-center font-serif text-[15px] leading-snug text-board-foreground">
+                <blockquote className="relative text-center text-[15px] leading-snug text-board-foreground">
                   <span aria-hidden className="text-board-amber/70">
                     &ldquo;
                   </span>
@@ -298,7 +298,7 @@ export function MemberCardDetail({
           <section className="flex flex-col gap-2">
             <SectionLabel>가입 목적</SectionLabel>
             {intro.purposeTxt ? (
-              <p className="font-serif text-[13.5px] leading-relaxed text-foreground">
+              <p className="text-[13.5px] leading-relaxed text-foreground">
                 &ldquo;{intro.purposeTxt}&rdquo;
               </p>
             ) : (

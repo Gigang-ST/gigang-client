@@ -74,20 +74,6 @@ const pretendard = localFont({
 });
 
 /**
- * 제호·헤드라인·사람의 말 — 리디바탕(SIL OFL).
- *
- * 전자책용으로 설계된 명조라 화면에서 나눔명조보다 잘 읽힌다(나눔명조는 인쇄용이라
- * 화면에서 획이 흩어진다 — 실제로 대보고 물렸다).
- * 산세리프 본문과의 대비가 "기사" 위계를 만든다. 한글 서브셋 woff2(278KB).
- */
-const ridibatang = localFont({
-  src: "./fonts/ridibatang/RIDIBatang.woff2",
-  variable: "--font-ridibatang",
-  display: "swap",
-  weight: "400",
-});
-
-/**
  * 기록·순위 숫자 — Oswald. **라틴만 로드**(한글은 절대 이 폰트로 렌더하지 않는다).
  * 6/8·1/7 구분이 좋은 콘덴스드라 기록표에 적합.
  */
@@ -106,7 +92,7 @@ export default function RootLayout({
   return (
     <html lang="ko" suppressHydrationWarning>
       <body
-        className={`${pretendard.variable} ${ridibatang.variable} ${oswald.variable} font-sans antialiased`}
+        className={`${pretendard.variable} ${oswald.variable} font-sans antialiased`}
       >
         <Providers>
           <NuqsAdapter>

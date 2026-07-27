@@ -33,7 +33,7 @@ const LABEL_H = 13;
  * 따로 잡으면 이름표까지 더해져 리드 아래 여백이 눈에 띄게 커진다. 겹쳐도 읽히는 이유는
  * 얼굴은 지나가고 라벨은 흐린 보조 텍스트라, 가려지는 건 한순간이기 때문.
  */
-const BADGE_LIFT = 16;
+const BADGE_LIFT = 0;
 
 // ── 물리 상수 ──
 /** 중력(px/frame²) — 낮춰서 체공을 늘린다. 연타로 이어 튕기기 쉬워진다 */
@@ -625,7 +625,7 @@ export function FloatingAvatars({
       className="pointer-events-none absolute left-6 z-10 flex items-center gap-1.5"
     >
       <span className="board-blink size-1.5 rounded-full bg-[#ff5d73]" />
-      <span className="font-numeric text-[12px] uppercase tracking-[0.16em] text-muted-foreground">
+      <span className="text-[12px] text-muted-foreground">
         지금 보는 중 {presence.length}명
       </span>
     </div>

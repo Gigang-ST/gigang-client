@@ -52,7 +52,7 @@ export function StorySection<T>({
         {headerAction && <div className="-my-2">{headerAction}</div>}
       </div>
       {lead && (
-        <p className="pt-2.5 font-serif text-[15px] leading-snug text-muted-foreground">
+        <p className="pt-2.5 text-[15px] leading-snug text-muted-foreground">
           {lead}
         </p>
       )}

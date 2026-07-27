@@ -143,7 +143,7 @@ export function SocialLinksGrid() {
             Social
           </h2>
         </div>
-        <p className="pt-2.5 font-serif text-[15px] leading-snug text-muted-foreground">
+        <p className="pt-2.5 text-[15px] leading-snug text-muted-foreground">
           기강이 모여 있는 곳
         </p>
         <div className="grid grid-cols-4 gap-2.5 pt-3">
@@ -152,7 +152,7 @@ export function SocialLinksGrid() {
               <CardItem asChild key={key} className="flex flex-col items-center gap-2 py-3">
                 <button type="button" onClick={handleKakaoClick}>
                   <Icon className="size-7 text-foreground" />
-                  <span className="whitespace-nowrap font-serif text-[13px] text-foreground">
+                  <span className="whitespace-nowrap text-[13px] text-foreground">
                     {label}
                   </span>
                 </button>
@@ -161,7 +161,7 @@ export function SocialLinksGrid() {
               <CardItem asChild key={key} className="flex flex-col items-center gap-2 py-3">
                 <a href={href} target="_blank" rel="noopener noreferrer">
                   <Icon className="size-7 text-foreground" />
-                  <span className="whitespace-nowrap font-serif text-[13px] text-foreground">
+                  <span className="whitespace-nowrap text-[13px] text-foreground">
                     {label}
                   </span>
                 </a>
