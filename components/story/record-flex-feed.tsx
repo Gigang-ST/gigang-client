@@ -4,59 +4,59 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 
 import { loadMorePosts } from "@/app/actions/story/load-more-posts";
-import { MILEAGE_SPORT_LABELS, type MileageSport } from "@/lib/mileage";
 // 상한은 `lib/story-post.ts`에서 가져온다 — `lib/queries/story-posts.ts`는 admin
 // 클라이언트(`server-only`)를 물고 있어 클라이언트 컴포넌트가 import하면 빌드가 깨진다.
 // 값 자체는 두 곳이 같아야 하므로(받은 개수 < 상한 = 끝) 정본은 story-post.ts 한 곳이다.
 import { STORY_POST_LIMIT } from "@/lib/story-post";
 
 import { buildFallbackAvatarUrl } from "@/components/common/avatar";
+import { MemberCardDialog } from "@/components/members/member-card-dialog";
 import { RecordFlexCreateDialog } from "@/components/story/record-flex-create-dialog";
+import { RecordReelViewer } from "@/components/story/record-reel-viewer";
 
 import type { StoryPost } from "@/lib/queries/story-posts";
 
-/** 종목 라벨 — 마일리지런과 같은 어휘를 쓴다(자동 유입분과 표기가 갈리지 않게) */
-function sportLabel(sprt: string | null): string | null {
-  if (!sprt) return null;
-  return MILEAGE_SPORT_LABELS[sprt as MileageSport] ?? null;
-}
-
-/** 거리 표기 — numeric이 10.20으로 와도 10.2로 줄인다(뒤 0은 정보가 아니다) */
-function formatKm(km: number | null): string | null {
-  if (km == null || Number.isNaN(km)) return null;
-  return `${Number(km.toFixed(2))}km`;
-}
-
 /**
- * 기록 자랑 — 인스타 피드형 격자.
+ * 기록 자랑 — 인스타 게시글형 격자.
  *
- * 사진(정사각) 아래 **한마디 한 줄 + 기록 한 줄**을 세우고, 세로 2칸을 한 열로 묶어
- * **가로로 계속 흘려보낸다.** 폴라로이드(기울인 흰 판에 이름·날짜까지)였던 걸 걷어냈다 —
- * 칸마다 네 줄이 들어가니 정작 사진이 작아지고, 격자가 사진이 아니라 종이 무더기로 읽혔다.
+ * 칸은 **사진만** 담는다(인스타 게시글 격자처럼). 세로 2칸을 한 열로 묶어 **가로로 계속
+ * 흘려보내고**, 한마디·거리·날짜는 칸을 눌러 릴스 뷰어(`RecordReelViewer`)에서 본다.
+ * 예전엔 사진 아래 한마디·기록을 얹었는데, 칸마다 텍스트가 들어가니 정작 사진이 작아지고
+ * 격자가 사진이 아니라 종이 무더기로 읽혔다 — 사진만 남겨 무더기가 사진으로 읽히게 한다.
  *
  * **면 넘기기와 진행 막대를 버렸다.** 막대는 기록이 늘수록 한 칸이 좁아져 결국 못 누르는
  * UI가 되고(400건이면 3px), 시간순 목록에서 "몇 면 중 몇 면"은 애초에 쓸모가 적다.
  * 지금은 손으로 밀면 계속 흘러가고 끝에서 멈춘다 — 감기지 않으므로 끝이 있다는 걸 손으로 안다.
  *
- * **이름·날짜를 뺀 게 핵심이다.** 격자에서 눈에 들어오는 건 사진과 기록이고, 누가 언제인지는
- * 눌러서 확인할 정보다. 두 줄 안에 넷을 다 넣으면 결국 아무것도 안 읽힌다.
- * 한마디도 한 줄로 자른다(두 줄까지 열면 칸마다 높이가 달라져 격자가 어긋난다).
- *
  * **사진이 없는 기록**(직접 올리며 사진을 안 넣었거나, 마일리지런 자동 유입분 `mlg_auto` —
  * 원천 `evt_mlg_act_hist`에 사진 컬럼이 없다)은 **프로필사진을 칸에 사각으로 꽉 채운다**.
- * 동그란 아바타 + 가운데 한마디였던 걸 걷어냈다 — 사진 있는 칸과 같은 사각 격자로 읽히게.
- * 사진을 안 올리는 사람이 훨씬 많을 텐데 빈 회색 칸으로 두면 자랑이 초라해 보여 다음부터
+ * 사진 있는 칸과 같은 사각 격자로 읽히게 — 빈 회색 칸으로 두면 자랑이 초라해 보여 다음부터
  * 안 올린다. 프사가 512px라 확대하면 다소 흐리지만, 얼굴이 보이는 편이 낫다는 판단.
  */
 export function RecordFlexFeed({
   posts,
   myMemId,
+  teamId,
 }: {
   posts: StoryPost[];
   /** 로그인 사용자 — 없으면 "올리기" 버튼을 감춘다(각오·응원과 동일 정책) */
   myMemId: string | null;
+  /** 릴스 뷰어 안에서 여는 프로필 카드에 넘긴다 */
+  teamId: string;
 }) {
   const [writing, setWriting] = useState(false);
+  /** 릴스 뷰어에서 처음 열 카드 — null이면 닫힘 */
+  const [openId, setOpenId] = useState<string | null>(null);
+  /**
+   * 릴스 뷰어에서 이름·프사를 눌러 여는 프로필 카드 — 뷰어 위에 겹친다(stacked).
+   * story-client의 공유 카드와 **분리**한다: 저 카드는 여러 진입점이 z-50로 공유하는데,
+   * 릴스 뷰어(z-50) 위에 뜨려면 z-[60]이 필요해 stacked를 켜야 한다. 뷰어가 자기 카드를
+   * 직접 들고 있어야 이 차이를 격리할 수 있다(공유 카드를 항상 stacked로 두면 다른 진입점이
+   * 깨진다).
+   */
+  const [reelMember, setReelMember] = useState<{ memId: string; name: string } | null>(
+    null,
+  );
   /** 서버가 준 첫 묶음 뒤로 이어붙인 것들 */
   const [extra, setExtra] = useState<StoryPost[]>([]);
   /** 더 남았나 — 받은 개수가 요청량보다 적으면 끝이다 */
@@ -149,7 +149,6 @@ export function RecordFlexFeed({
     return () => obs.disconnect();
   }, [posts, extra.length, fetchedExtra, done]);
 
-  const hasPosts = all.length > 0;
   // 2장씩 한 열 — 가로로 흐르는 격자라 세로 2칸을 채우고 다음 열로 넘어간다
   const columns: StoryPost[][] = [];
   for (let i = 0; i < all.length; i += 2) {
@@ -164,12 +163,10 @@ export function RecordFlexFeed({
         </h2>
       </div>
       <p className="px-6 pt-2.5 font-serif text-[15px] text-muted-foreground">
-        {hasPosts
-          ? "기강인들이 남긴 기록"
-          : "아직 올라온 기록이 없어요 — 오늘 뛴 기록을 남겨보세요"}
+        우리가 남긴 발자국
       </p>
 
-      {hasPosts && (
+      {
         /* 가로 스크롤 — 면을 끊어 넘기던 걸(프로그레스바 + 스와이프 판정) 걷어내고 손으로
            밀면 계속 흘러가게 했다. 면 표시 막대는 기록이 늘수록 한 칸이 좁아져 결국 못 누르는
            UI가 되는데, 여기는 시간순 목록이라 "몇 면 중 몇 면"이 애초에 쓸모가 적다.
@@ -190,55 +187,42 @@ export function RecordFlexFeed({
           aria-label="기록 자랑 목록 — 좌우로 스크롤"
           className="scrollbar-none snap-x snap-proximity scroll-pl-6 overflow-x-auto overscroll-x-contain pt-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <ul className="lede-in flex w-max gap-1.5 px-6">
+          <ul className="lede-in flex w-max gap-0.5 px-6">
             {columns.map((col, ci) => (
-              <li key={ci} className="flex snap-start flex-col gap-1.5">
-                {col.map((p) => {
-              const label = sportLabel(p.sprt_enm);
-              const km = formatKm(p.dst_km);
-              return (
+              <li key={ci} className="flex snap-start flex-col gap-0.5">
+                {col.map((p) => (
                 /* 폭 고정 — 가로 흐름이라 화면 폭의 절반쯤에 맞춰 "한 화면에 두 열"이
-                   보이게 한다(다음 열이 살짝 걸쳐 더 있다는 걸 알린다). */
-                <div key={p.post_id} className="flex w-[42vw] max-w-[180px] flex-col gap-1">
-                  {/* 사진 — 각진 정사각. 라운드를 주지 않는다(인스타 격자는 직각이 기본이고,
-                      둥근 모서리는 칸을 카드처럼 보이게 해 격자의 결이 흐려진다).
-                      배경이 흰 사진도 칸 경계가 보이도록 얇은 테두리를 두른다. */}
-                  <span className="block aspect-square w-full overflow-hidden border border-border bg-muted">
-                    {/* 사진 없이 올린 기록도 프로필사진을 **칸에 사각으로 꽉 채운다** —
-                        동그란 아바타 + 가운데 한마디였던 걸 걷어냈다. 사진 있는 칸과 같은
-                        aspect-square·object-cover라 격자가 한 결로 읽힌다(칸이 카드처럼
-                        따로 놀지 않는다). 프사가 512px라 확대하면 다소 흐리지만, 회색 빈
-                        칸보다 얼굴이 보이는 편이 자랑 피드로선 낫다. 프사 미설정자는
-                        DiceBear 폴백(SVG)이라 오히려 선명하다. 한마디는 사진 있는 칸과
-                        똑같이 아래 줄에 두고, 이름은 넣지 않는다(누구인지는 눌러서 본다). */}
-                    <Image
-                      src={p.photo_url ?? p.avatar_url ?? buildFallbackAvatarUrl(p.mem_id)}
-                      alt=""
-                      width={320}
-                      height={320}
-                      className="size-full object-cover"
-                      referrerPolicy="no-referrer"
-                      unoptimized
-                    />
-                  </span>
-
-                  {/* 한마디 — 사진 바로 아래 한 줄. 길이가 달라도 격자가 어긋나지 않게
-                      한 줄로 자른다(두 줄까지 열면 칸마다 높이가 달라진다).
-                      리디바탕(`font-serif`) — 사람이 쓴 말이라 본문 산세리프와 결을 나눈다.
-                      사진 유무와 무관하게 한마디를 쓴다 — 이제 사진 없는 칸도 사각 프사로
-                      꽉 차 있어 한마디가 칸 안에 따로 들어가지 않는다. */}
-                  <span className="truncate font-serif text-[13px] leading-snug text-foreground">
-                    {p.cmnt_txt}
-                  </span>
-
-                  {/* 기록 — 거리 · 종목. 이름·날짜는 뺐다(격자에서 읽히는 건 사진과 기록이고,
-                      누가 언제인지는 눌러서 볼 정보라 두 줄 안에 다 넣으면 아무것도 안 읽힌다) */}
-                  <span className="font-numeric text-[11px] text-muted-foreground tabular-nums">
-                    {[km, label].filter(Boolean).join(" · ") || "―"}
-                  </span>
-                </div>
-                  );
-                })}
+                   보이게 한다(다음 열이 살짝 걸쳐 더 있다는 걸 알린다).
+                   칸은 **사진만** 담는다(인스타 게시글 격자처럼) — 한마디·거리·날짜는 눌러서
+                   릴스 뷰어에서 본다. 격자에 텍스트를 얹으면 사진이 작아지고 무더기가 종이처럼
+                   읽힌다. 칸 전체가 버튼 — 누르면 릴스 뷰어가 이 장부터 열린다. */
+                <button
+                  key={p.post_id}
+                  type="button"
+                  onClick={() => setOpenId(p.post_id)}
+                  aria-label={`${p.mem_nm}의 기록 자세히 보기`}
+                  // 각진 정사각. 라운드를 주지 않는다(인스타 격자는 직각이 기본이고, 둥근
+                  // 모서리는 칸을 카드처럼 보이게 해 격자의 결이 흐려진다). 테두리도 두지
+                  // 않는다 — 인스타처럼 사진끼리 딱 붙이고, 좁은 gap(2px)이 흰 배경 사진의
+                  // 경계 역할을 대신한다.
+                  className="block aspect-square w-[42vw] max-w-[180px] overflow-hidden bg-muted transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
+                >
+                  {/* 사진 없이 올린 기록도 프로필사진을 **칸에 사각으로 꽉 채운다** — 사진 있는
+                      칸과 같은 aspect-square·object-cover라 격자가 한 결로 읽힌다(칸이 카드처럼
+                      따로 놀지 않는다). 프사가 512px라 확대하면 다소 흐리지만, 회색 빈 칸보다
+                      얼굴이 보이는 편이 자랑 피드로선 낫다. 프사 미설정자는 DiceBear 폴백(SVG)이라
+                      오히려 선명하다. */}
+                  <Image
+                    src={p.photo_url ?? p.avatar_url ?? buildFallbackAvatarUrl(p.mem_id)}
+                    alt=""
+                    width={320}
+                    height={320}
+                    className="size-full object-cover"
+                    referrerPolicy="no-referrer"
+                    unoptimized
+                  />
+                </button>
+                ))}
               </li>
             ))}
 
@@ -247,11 +231,11 @@ export function RecordFlexFeed({
             {!done && <li ref={sentinelRef} aria-hidden className="w-px shrink-0" />}
           </ul>
         </div>
-      )}
+      }
 
       {/* 기록 올리기 — 로그인 멤버만 */}
       {myMemId && (
-        <div className={hasPosts ? "px-6 pt-4" : "px-6 pt-5"}>
+        <div className="px-6 pt-4">
           <button
             type="button"
             onClick={() => setWriting(true)}
@@ -263,6 +247,32 @@ export function RecordFlexFeed({
       )}
 
       <RecordFlexCreateDialog open={writing} onOpenChange={setWriting} />
+
+      {/* 릴스 뷰어 — 격자 한 칸을 누르면 이 장부터 풀스크린으로. 격자와 같은 `all`을 넘겨
+          더보기로 이어붙인 것까지 순서 그대로 넘긴다. 프로필 카드는 story-client가 위에 겹쳐 연다. */}
+      <RecordReelViewer
+        posts={all}
+        startId={openId}
+        open={openId !== null}
+        onOpenChange={(o) => {
+          if (!o) setOpenId(null);
+        }}
+        onSelectMember={(memId, name) => setReelMember({ memId, name })}
+      />
+
+      {/* 릴스 뷰어 위에 겹쳐 뜨는 프로필 카드(stacked=z-[60]) — 뷰어를 닫지 않고 그 위에 얹는다.
+          카드를 닫으면 뷰어로 돌아온다(릴스는 그대로). */}
+      <MemberCardDialog
+        memId={reelMember?.memId ?? null}
+        memNm={reelMember?.name}
+        teamId={teamId}
+        open={reelMember !== null}
+        onOpenChange={(o) => {
+          if (!o) setReelMember(null);
+        }}
+        isOwner={reelMember?.memId != null && reelMember.memId === myMemId}
+        stacked
+      />
     </section>
   );
 }
