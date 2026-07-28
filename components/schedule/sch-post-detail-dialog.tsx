@@ -89,11 +89,13 @@ export function SchPostDetailDialog({
     startAt.format("YYYY년 M월 D일 (ddd) HH:mm") +
     (endAt ? ` ~ ${endAt.format("HH:mm")}` : "")
 
+  // 딥링크는 `/schedule`에 붙인다 — `?post=`를 읽는 MiniCalendar가 일정 페이지에만
+  // 있다(홈은 전광판 — lib/notifications/deep-link.ts).
   const postRef = post.short_id ?? post.id
   const pageUrl =
     typeof window !== "undefined"
-      ? `${window.location.origin}/?post=${postRef}`
-      : `/?post=${postRef}`
+      ? `${window.location.origin}/schedule?post=${postRef}`
+      : `/schedule?post=${postRef}`
 
   return (
     <>
@@ -165,7 +167,7 @@ export function SchPostDetailDialog({
                   isAdmin={isAdmin}
                   members={members}
                   initialComments={initialComments}
-                  loginReturnPath={`/?post=${post.short_id ?? post.id}`}
+                  loginReturnPath={`/schedule?post=${post.short_id ?? post.id}`}
                 />
               </div>
 

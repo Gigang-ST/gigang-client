@@ -162,11 +162,12 @@ export function GatheringDetailDialog({
   const typeLabel = gthrTypeLabels[gathering.post_type as GthrType] ?? gathering.post_type;
   const sprtLabel = gathering.sprt_cd ? (gthrSprtLabels[gathering.sprt_cd as GthrSprtType] ?? gathering.sprt_cd) : null;
 
-  // 공유 텍스트용
+  // 공유 텍스트용 — 딥링크는 `/schedule`에 붙인다. `?gthr=`를 읽어 상세를 여는 건
+  // MiniCalendar이고 그건 일정 페이지에만 있다(홈은 전광판 — lib/notifications/deep-link.ts).
   const gthrRef = gathering.short_id ?? gathering.id;
   const sharePageUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/?gthr=${gthrRef}`
-    : `/?gthr=${gthrRef}`;
+    ? `${window.location.origin}/schedule?gthr=${gthrRef}`
+    : `/schedule?gthr=${gthrRef}`;
 
   // 단톡방 공유 본문 — 정보 나열이 아니라 "같이 뛰어요 + CTA"로 참여를 유도한다.
   // 시간: 오전/오후 + 분 단위(A h:mm). 인원: 2명 이상일 때만(처음 공유는 작성자 1명뿐이라 생략).
@@ -490,7 +491,7 @@ export function GatheringDetailDialog({
                 isAdmin={isAdmin}
                 members={members}
                 initialComments={initialComments}
-                loginReturnPath={`/?gthr=${gathering.short_id ?? gathering.id}`}
+                loginReturnPath={`/schedule?gthr=${gathering.short_id ?? gathering.id}`}
               />
             </div>
 

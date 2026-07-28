@@ -44,6 +44,8 @@ export function StoryReactionButton({
   rctnCd,
   initialCount,
   initialMyCount = 0,
+  bumped = 0,
+  onBump,
   tone = "app",
   onInteract,
 }: {
@@ -57,13 +59,37 @@ export function StoryReactionButton({
   /** "board" — 전광판 스크린 존 안. 야간 배경이라 앰버/보드 토큰으로 갈아입는다 */
   tone?: "app" | "board";
   /**
+   * 이 화면에서 내가 이미 누른 몫 — 부모가 슬롯 밖에 쌓아 둔 값(`initial*`에 이미 더해져 온다).
+   * 서버 총합이 갱신돼 이 몫을 **이미 포함**하기 시작하면 그만큼 빼야 이중 계산이 안 된다.
+   */
+  bumped?: number;
+  /** 한 번 누를 때마다 부른다 — 부모가 슬롯 밖에 몫을 쌓아 언마운트에도 살아남게 한다 */
+  onBump?: () => void;
+  /**
    * 누를 때마다 부른다 — 리드가 손 밑에서 자동 전환되지 않게 리드 스와이프를 멈추기 위해.
    * 연타 내내 갱신돼야 하므로 매 탭마다 부른다(스와이프 pause와 같은 타이머를 물린다).
    */
   onInteract?: () => void;
 }) {
-  const [count, setCount] = useState(initialCount);
-  const [myCount, setMyCount] = useState(initialMyCount);
+  /**
+   * 표시값의 출발점 — 부모가 얹어 준 `bumped`(이 화면에서 누른 몫)를 서버가 따라잡았으면 걷어낸다.
+   *
+   * 부모는 슬롯을 오가도 내 응원이 안 사라지게 `bumped`를 서버값 위에 더해 넘긴다. 그런데
+   * 총합 캐시(30초)가 한 바퀴 돌면 서버값에 이미 그 몫이 들어 있어, 그대로 두면 두 번 세어
+   * 숫자가 실제보다 커진다. 서버가 준 순수 몫(`initialMyCount - bumped`)이 부모가 아는 값에
+   * 닿았다면 부모의 몫은 역할을 다한 것이므로 뺀다.
+   *
+   * 판정은 **렌더 중 순수 계산**으로 한다 — effect에서 setState하면 렌더가 두 번 돌고
+   * (react-hooks 룰도 막는다), 이 버튼은 슬롯이 바뀔 때마다 새 key로 마운트돼
+   * 어차피 매번 props를 새로 읽으므로 effect로 동기화할 이유가 없다.
+   */
+  const serverMine = initialMyCount - bumped;
+  const settled = bumped > 0 && serverMine >= bumped;
+  const [count, setCount] = useState(
+    settled ? initialCount - bumped : initialCount,
+  );
+  const [myCount, setMyCount] = useState(settled ? serverMine : initialMyCount);
+
   const [bursts, setBursts] = useState<Burst[]>([]);
   const [combo, setCombo] = useState(0);
 
@@ -100,7 +126,14 @@ export function StoryReactionButton({
       (result) => {
         if (result.ok) {
           // 더 나중에 보낸 요청이 이미 응답했다면(순서 역전) 오래된 값으로 덮지 않는다.
-          if (seq === flushSeqRef.current) setMyCount(result.myCount);
+          //
+          // 서버값이라도 **뒤로 물러나게는 하지 않는다**(Math.max). 이 응답이 날아간 뒤에도
+          // 손가락은 계속 눌리고 있어(pendingRef에 쌓인다) 서버의 myCount는 그 증분을 아직
+          // 모른다 — 그대로 대입하면 숫자가 잠깐 뒷걸음질하고 하이라이트가 깜빡인다.
+          // 응원은 취소가 없어 단조 증가라, 큰 값을 남기는 쪽이 항상 진실에 가깝다.
+          if (seq === flushSeqRef.current) {
+            setMyCount((m) => Math.max(m, result.myCount));
+          }
           return;
         }
         // 실패한 만큼만 되돌린다 — 그 사이 추가된 탭은 다음 flush가 책임진다.
@@ -140,6 +173,9 @@ export function StoryReactionButton({
 
     setCount((c) => c + 1);
     pendingRef.current += 1;
+    // 슬롯 밖(부모)에도 쌓는다 — 이 버튼은 슬롯이 바뀌면 언마운트되므로, 여기 없으면
+    // 넘겼다 돌아온 순간 방금 누른 게 서버 캐시값으로 되돌아간다.
+    onBump?.();
 
     // 콤보 — 끊기면 0으로 되돌아간다.
     setCombo((c) => c + 1);

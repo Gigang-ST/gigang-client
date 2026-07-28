@@ -367,7 +367,7 @@ export function MiniCalendar({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 알림 딥링크: /?post=<id> 또는 /?comp=<id>로 진입 시 해당 상세 자동 오픈
+  // 알림 딥링크: /schedule?post=<id> 또는 /schedule?comp=<id>로 진입 시 해당 상세 자동 오픈
   const searchParams = useSearchParams()
   const deepLinkPostId = searchParams.get("post")
   const deepLinkCompId = searchParams.get("comp")

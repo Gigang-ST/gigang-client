@@ -33,7 +33,7 @@ interface CommentSectionProps {
   isAdmin?: boolean
   members: MemberOption[]
   initialComments?: CmntRow[]
-  /** 비로그인 → 로그인 후 돌아올 경로. 예: "/?comp=abc123" */
+  /** 비로그인 → 로그인 후 돌아올 경로. 예: "/schedule?comp=abc123" */
   loginReturnPath?: string
 }
 

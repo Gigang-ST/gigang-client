@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 
 import { dayjs, formatPace, secondsToTime } from "@/lib/dayjs";
 import {
@@ -65,6 +66,15 @@ const FREEZE_MS = PAUSE_MS - ROTATE_MS;
 const WINDOW_DAYS = 30;
 
 /**
+ * 이 화면에서 누른 응원 몫을 담아 두는 sessionStorage 키.
+ *
+ * 응원 총합은 30초 캐시라 누른 직후 새로고침하면 서버가 옛 값을 준다. 그 사이에도 내가
+ * 누른 건 보여야 하므로 여기 담아 두고 서버값 위에 얹는다. 서버가 따라잡으면 버튼이
+ * 알아서 걷어낸다(`bumped` prop — 이중 계산 방지). 탭을 닫으면 사라진다.
+ */
+const BUMP_STORE_KEY = "gigang:story:my-bumps";
+
+/**
  * 활동지수 슬롯(§④) 헤드라인 멘트 — `{name}`이 대표 이름으로 치환된다.
  * 한 바퀴마다 대표(actvPick)와 함께 굴러 매번 다른 문구가 걸린다(같은 pick으로 묶어 자연스럽게).
  * "요즘 제일 뜨거운" 결을 살린 캐주얼 톤. 활동량 수치는 말하지 않는다(히든 운영).
@@ -102,10 +112,21 @@ type Lede = {
    * 되묻던 걸 대신한다 — 조건이 세 군데 흩어져 슬롯을 하나 더할 때마다 전부 고쳐야 했다.
    */
   hero: "headline" | "photo";
+  /**
+   * 헤드라인이 가리키는 곳 — 있으면 헤드라인이 링크가 된다(대회 슬롯 2종의 대회명).
+   *
+   * 딥링크는 `/schedule?comp=<short_id ?? comp_id>` 형태다. `/races`엔 상세 페이지가 없고
+   * 일정 페이지의 미니캘린더가 이 쿼리를 읽어 상세 다이얼로그를 여는 게 이 앱의 정본
+   * 패턴이라(`member-card-detail`의 다가오는 대회도 같은 링크를 쓴다) 그대로 따른다.
+   * 홈(`/`)이 아니라 `/schedule`인 이유는 lib/notifications/deep-link.ts 참조.
+   */
+  headlineHref?: string | null;
   entity: {
     // 활동지수 슬롯 응원까지 담으므로 좁은 유니온 대신 StoryEntityType("actv" 포함)을 쓴다.
     type: StoryEntityType;
     id: string;
+    /** `entity_type:entity_id` — 내가 누른 몫(`myBumps`)을 슬롯 밖에 쌓을 때 쓰는 키 */
+    key: string;
     rctnCd: RctnCd;
     count: number;
     /** 내가 이 항목에 누른 누적 횟수 — 점등·상한 판정용 */
@@ -259,6 +280,9 @@ function buildLedes(
     return {
       type,
       id,
+      // 이 화면에서 누른 몫을 슬롯 밖에 쌓아 둘 때 쓰는 키(`myBumps`) — 여기서 한 번만
+      // 만들어 넘긴다. 렌더 쪽에서 다시 조립하면 규칙이 두 곳으로 갈린다.
+      key,
       rctnCd,
       count: Math.max(cachedCount, total),
       myCount: reactions.mine[key] ?? 0,
@@ -294,6 +318,8 @@ function buildLedes(
       people: [],
       moreCount: 0,
       headline: race.comp_nm,
+      // 대회명을 누르면 상세로 — short_id가 있으면 그걸 쓴다(공유 링크와 같은 형태).
+      headlineHref: `/schedule?comp=${race.short_id ?? race.comp_id}`,
       standfirst: `${dayjs(race.stt_dt).format("M월 D일")}, 기강인 ${runnerCnt}명이 출발선에 선다`,
       figure: getRaceDday(race.stt_dt),
       figureLabel: null,
@@ -352,6 +378,8 @@ function buildLedes(
   //    30일 안에 완주가 없으면 이 슬롯 자체를 넣지 않는다(빈 칸을 만들지 않는다).
   if (feed.records.length > 0) {
     const rec = rotate(feed.records, recordPick)[0];
+    // 공유 링크와 같은 형태로 short_id 우선. 둘 다 없으면(구버전 RPC) 링크를 걸지 않는다.
+    const recCompRef = rec.short_id ?? rec.comp_id ?? null;
     ledes.push({
       key: `record-${rec.entity_id}`,
       // "기록" 명사는 다른 슬롯의 서술체 kicker 사이에서 튄다 — 대회 완주의 순간을 서술체로.
@@ -366,6 +394,8 @@ function buildLedes(
       people: [],
       moreCount: 0,
       headline: rec.race_nm ?? "",
+      // 대회명 → 상세. 구버전 RPC(배포 스큐)면 comp_id가 없어 링크 없이 이름만 나온다.
+      headlineHref: recCompRef ? `/schedule?comp=${recCompRef}` : null,
       // 대회 슬롯("9월 5일, 기강인 3명이 출발선에 선다")과 같은 형태의 리드문.
       //
       // **이름을 넣지 않는다.** 바로 아래 본문이 얼굴·이름을 크게 세우는데 리드문까지
@@ -556,9 +586,17 @@ function buildLedes(
       hero: "photo",
       // 기록 자랑도 응원을 받는다(🔥 대박) — 사진까지 올려 내놓은 기록이라 응원받기 가장
       // 자연스러운 자리인데, 예전엔 이 슬롯만 응원이 없어 3밴드 footer 오른쪽이 비었다.
-      // 피드 캐시엔 이 응원 수가 없어(post는 story-posts로 갈려 있다) 하한 0에서 시작하고
-      // 최신 집계(reactions.totals/mine)를 buildEntity가 얹는다 — actv 슬롯과 같은 방식.
-      entity: buildEntity("post", post.post_id, "fire", 0),
+      //
+      // **응원 대상은 글이 아니라 그 기록을 올린 사람이다** — 활동지수·목표 한마디 슬롯과
+      // 같은 멤버 기준 카운터(`actv` + mem_id)를 쓴다. 예전엔 `post` + post_id(글 단위)였는데,
+      // 이 슬롯은 매 진입마다 16건 중 랜덤 1건을 세우므로 방금 응원한 글이 다음 진입엔 거의
+      // 안 돌아온다 — 카운터는 DB에 정상 누적되는데도 "눌러도 반영이 안 된다"로 보였다.
+      // 사람 기준이면 어느 기록이 떠도 그 사람 응원이 이어서 쌓인다(같은 사람이 활동지수
+      // 슬롯에도 대표로 뜨면 🔥가 합산되는 것도 의도 — "그 사람을 응원").
+      //
+      // 피드 캐시엔 이 응원 수가 없어(actv는 원천 테이블이 아니다) 하한 0에서 시작하고,
+      // 최신 집계(reactions.totals/mine)를 buildEntity가 얹는다.
+      entity: buildEntity("actv", post.mem_id, "fire", 0),
       // 사람은 렌더의 사진 옆 아바타+이름 줄이 맡는다(people 줄은 안 쓴다 — 사진 슬롯 전용 렌더).
       people: [],
       moreCount: 0,
@@ -647,6 +685,51 @@ export function StoryLede({
     postPick,
   );
   const total = ledes.length;
+
+  /**
+   * 내가 이 화면에서 누른 응원 — `entity_type:entity_id` → 누른 횟수.
+   *
+   * **응원 버튼은 슬롯이 바뀔 때마다 언마운트된다**(슬롯 컨테이너가 `key={lede.key}`라
+   * 통째로 갈린다). 카운트를 버튼 안 useState로만 들고 있으면 넘겼다 돌아온 순간 props의
+   * 서버값으로 초기화돼 방금 누른 게 사라진다 — 서버엔 이미 저장돼 있는데도.
+   * 총합 캐시(30초)가 아직 안 돌았으면 그 사이 내내 되돌아간 값이 보인다.
+   *
+   * 그래서 누른 몫은 **버튼 바깥(여기)** 에 쌓는다. 지면이 살아 있는 동안 유지되므로
+   * 슬롯을 몇 번 오가도 내가 누른 건 그대로 남는다.
+   *
+   * **새로고침도 견딘다**(sessionStorage). 총합 캐시가 30초라, 누르고 바로 새로고침하면
+   * 서버는 아직 옛 총합을 준다 — 저장은 됐는데 화면만 되돌아가면 "안 눌렸나" 싶다.
+   * 30초 만에 새로고침해 확인하는 사람은 드물지만, 누른 직후 확인하는 사람은 흔하다.
+   * 탭을 닫으면 사라지는 sessionStorage라 오래 남아 서버값과 어긋날 일도 없다.
+   */
+  // 빈 맵으로 시작해 마운트 뒤 한 번 복원한다 — 초기 state에서 sessionStorage를 읽으면
+  // 서버 렌더(저장소가 없다)와 결과가 달라 하이드레이션이 깨진다.
+  const [myBumps, setMyBumps] = useState<Record<string, number>>({});
+  const [restored, setRestored] = useState(false);
+  if (!restored) {
+    // 렌더 중 1회 동기 복원 — effect에서 setState하면 렌더가 두 번 돌고 그 사이 한 프레임
+    // 동안 내 응원이 빠진 값이 보인다. 같은 렌더 안에서 state를 확정하면 깜빡임이 없다.
+    // (React가 공식적으로 허용하는 "이전 렌더 정보로 state 조정" 패턴)
+    setRestored(true);
+    try {
+      const raw = window.sessionStorage.getItem(BUMP_STORE_KEY);
+      if (raw) setMyBumps(JSON.parse(raw) as Record<string, number>);
+    } catch {
+      // 사파리 프라이빗 모드 등 — 저장이 막혀도 응원 자체는 동작해야 한다.
+    }
+  }
+
+  const addBump = useCallback((key: string) => {
+    setMyBumps((prev) => {
+      const next = { ...prev, [key]: (prev[key] ?? 0) + 1 };
+      try {
+        window.sessionStorage.setItem(BUMP_STORE_KEY, JSON.stringify(next));
+      } catch {
+        // 저장 실패는 무시 — 이번 세션 화면에는 이미 반영돼 있다.
+      }
+      return next;
+    });
+  }, []);
 
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -876,7 +959,22 @@ export function StoryLede({
             // 크기·자르기는 .lede-headline 한 곳(globals.css)에서 정한다.
             // -mt-1은 26px 글자의 line-box 윗 여백 트림 — kicker와의 간격을 눈에 맞춘다.
             <h2 className="lede-headline -mt-1 text-pretty break-keep text-[26px] font-normal leading-[1.28] text-foreground">
-              {lede.headline}
+              {/* 대회 슬롯 2종은 헤드라인이 대회명이라 상세로 들어갈 수 있다. 링크는 글자
+                  자리를 그대로 쓰고(inline) 밑줄만 은은히 깔아, 헤드라인 크기·줄바꿈
+                  (.lede-headline의 2줄 자르기)에 영향을 주지 않는다.
+                  자동 전환 중에 눌리는 자리라 onClick으로 스와이프를 멈춘다 — 손이 닿았는데
+                  지면이 넘어가면 엉뚱한 대회로 들어간다. */}
+              {lede.headlineHref ? (
+                <Link
+                  href={lede.headlineHref}
+                  onClick={pauseThenResume}
+                  className="underline decoration-border decoration-1 underline-offset-4 transition-colors hover:decoration-foreground"
+                >
+                  {lede.headline}
+                </Link>
+              ) : (
+                lede.headline
+              )}
             </h2>
           )}
 
@@ -1215,7 +1313,8 @@ export function StoryLede({
         {/* ── 밴드 3 · footer — 바닥 고정 ─────────────────────────
             왼쪽은 이 슬롯의 **한 줄 사실**(D-day·완주시간·날짜·거리·가입목적),
             오른쪽은 **응원**. 슬롯이 바뀌어도 응원 버튼은 같은 자리에 남는다.
-            다섯 슬롯 모두 응원을 받는다(운동기록도 `entity_type = "post"`로 붙였다). */}
+            다섯 슬롯 모두 응원을 받는다(운동기록은 글이 아니라 **올린 사람** 기준 —
+            `entity_type = "actv"` + mem_id로 활동지수·목표 슬롯과 카운터를 공유한다). */}
         <div className="flex shrink-0 items-center justify-between gap-3">
           <div className="min-w-0 flex-1">{footNote}</div>
           {lede.entity && (
@@ -1223,8 +1322,15 @@ export function StoryLede({
               entityType={lede.entity.type}
               entityId={lede.entity.id}
               rctnCd={lede.entity.rctnCd}
-              initialCount={lede.entity.count}
-              initialMyCount={lede.entity.myCount}
+              // 이 화면에서 누른 몫을 서버값 위에 얹는다 — 슬롯을 넘겼다 돌아와도(버튼 언마운트)
+              // 방금 누른 게 그대로 남는다. 서버 총합이 갱신되면(30초) 그쪽에 이미 포함돼
+              // 들어오므로, 그때는 `bumped`를 빼서 이중 계산을 막는다(아래 참조).
+              initialCount={lede.entity.count + (myBumps[lede.entity.key] ?? 0)}
+              initialMyCount={
+                lede.entity.myCount + (myBumps[lede.entity.key] ?? 0)
+              }
+              bumped={myBumps[lede.entity.key] ?? 0}
+              onBump={() => addBump(lede.entity!.key)}
               onInteract={pauseThenResume}
             />
           )}

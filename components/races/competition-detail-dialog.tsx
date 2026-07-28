@@ -356,10 +356,12 @@ export function CompetitionDetailDialog({
     if (result.ok) loadParticipants(competition.id);
   }
 
+  // 딥링크는 `/schedule`에 붙인다 — `?comp=`를 읽는 MiniCalendar가 일정 페이지에만
+  // 있다(`/races`엔 상세 페이지가 없다 — lib/notifications/deep-link.ts).
   const compRef = competition.short_id ?? competition.id;
   const sharePageUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/?comp=${compRef}`
-    : `/?comp=${compRef}`;
+    ? `${window.location.origin}/schedule?comp=${compRef}`
+    : `/schedule?comp=${compRef}`;
 
   return (
     <>
@@ -647,7 +649,7 @@ export function CompetitionDetailDialog({
                 <Button
                   className="w-full"
                   onClick={() => {
-                    const returnPath = `/?comp=${competition.short_id ?? competition.id}`;
+                    const returnPath = `/schedule?comp=${competition.short_id ?? competition.id}`;
                     const href =
                       memberStatus.status === "signed-out"
                         ? `/auth/login?next=${encodeURIComponent(returnPath)}`
@@ -758,7 +760,7 @@ export function CompetitionDetailDialog({
               isAdmin={isAdmin}
               members={members}
               initialComments={initialComments}
-              loginReturnPath={`/?comp=${competition.short_id ?? competition.id}`}
+              loginReturnPath={`/schedule?comp=${competition.short_id ?? competition.id}`}
             />
           </div>
 
