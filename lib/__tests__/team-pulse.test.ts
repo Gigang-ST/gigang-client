@@ -109,8 +109,8 @@ describe("getTeamPulse - 직전 4주 평균 대비 비율 판정", () => {
 
   it("5주보다 긴 배열이어도 직전 4주만 본다", () => {
     // 앞쪽 3주는 활동 0이지만 baseline에 들어가면 안 된다(직전 4주 = 전부 10).
-    // 섞였다면 baseline이 10에서 4.3으로 떨어져 ratio 2.3(blazing)이 됐을 것 —
-    // steady로 나오는 것 자체가 앞쪽 3주가 빠졌다는 증거다.
+    // 섞였다면 baseline이 10에서 (0×3 + 10×4)/7 ≈ 5.7로 떨어져 ratio ≈ 1.75(blazing)가
+    // 됐을 것 — steady로 나오는 것 자체가 앞쪽 3주가 빠졌다는 증거다.
     const weeks = [week(0), week(0), week(0), ...weeksWith(10, 10)];
     expect(getTeamPulse(weeks).level).toBe("steady");
   });

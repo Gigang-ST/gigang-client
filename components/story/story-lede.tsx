@@ -95,14 +95,13 @@ type Lede = {
   /**
    * 이 슬롯의 **주인공** — 상단에 26px 헤드라인을 세울지 여기서 선언한다.
    *
-   * · `headline` 글이 주인공(대회·새얼굴·활동지수·목표) → 헤드라인을 body 맨 위에
+   * · `headline` 글이 주인공(대회·완주기록·새얼굴·활동지수·목표) → 헤드라인을 body 맨 위에
    * · `photo`    사진이 주인공(운동기록) → 헤드라인 없이 사진이 위를 차지한다
-   * · `figure`   수치가 주인공(완주기록) → 헤드라인 없이 기록이 가운데 선다
    *
    * 슬롯마다 "헤드라인이 있나 없나"를 렌더에서 `!lede.photo && !lede.profile && …`로
    * 되묻던 걸 대신한다 — 조건이 세 군데 흩어져 슬롯을 하나 더할 때마다 전부 고쳐야 했다.
    */
-  hero: "headline" | "photo" | "figure";
+  hero: "headline" | "photo";
   entity: {
     // 활동지수 슬롯 응원까지 담으므로 좁은 유니온 대신 StoryEntityType("actv" 포함)을 쓴다.
     type: StoryEntityType;
@@ -472,9 +471,9 @@ function buildLedes(
           mth_attd_cnt: lead.mth_attd_cnt,
           mth_rec_cnt: lead.mth_rec_cnt,
         },
-        // 칭호(이름 옆) → 소개 한마디. 개인 최고기록은 **부품에서 뺐다** — 이 슬롯의 주어는
-        // "이번 달 얼마나 활동했나"인데 역대 PB가 오른쪽에서 제일 큰 숫자로 서 있으면
-        // 주어가 뒤바뀐다. PB는 footer의 한 줄 사실로 내려보낸다(§footNote).
+        // 칭호(이름 옆) → 소개 한마디. **개인 최고기록(PB)은 아예 뺐다** — 이 슬롯의 주어는
+        // "이번 달 얼마나 활동했나"(오른쪽 참석·기록 27px)인데, 역대 PB를 어디에 두든
+        // 그 옆에서 다른 시간대를 말해 주어가 흐려진다. PB는 프로필 카드에서 본다.
         // 러닝 프로필도 빼둔다 — 페이스·역은 "누구인지 모르는 새 얼굴"을 소개할 때 쓴다.
         parts: ["title", "intro"],
       },
@@ -807,9 +806,8 @@ export function StoryLede({
       {lede.standfirst}
     </span>
   ) : null;
-  // 활동지수 슬롯은 footer 왼쪽을 비운다 — PB는 이름·순위와 같은 "이 사람 소개" 덩어리라
-  // 떼어 footer에 두면 어디에 딸린 수치인지 흐려진다. 순위 배지 아래에 붙인다(§PersonProfile).
-  // 새 얼굴 슬롯은 footer 왼쪽을 비운다 — 가입목적은 폭이 필요해 body로 올렸다(§newbie 렌더).
+  // 활동지수 슬롯은 footer 왼쪽이 빈다 — 실을 한 줄 사실이 없다(PB는 슬롯에서 뺐다).
+  // 새 얼굴 슬롯도 비운다 — 가입목적은 폭이 필요해 body로 올렸다(§newbie 렌더).
 
   /** 스와이프 — 가로 이동이 세로보다 크고 40px 넘으면 한 칸 */
   function handlePointerUp(e: PointerEvent) {
@@ -1070,8 +1068,9 @@ export function StoryLede({
                 </div>
               )}
 
-              {!lede.newbie.intro &&
-                newbieBlank && (
+              {/* `newbieBlank`가 이미 소개 한마디 없음을 포함한다 — 앞에 `!intro`를 또 걸면
+                  항상 참인 조건이 하나 더 붙을 뿐이다. */}
+              {newbieBlank && (
                   // 가입 직후라 아무것도 안 채운 사람 — 이름과 NEW만 남아 슬롯이 텅 빈다.
                   // **단정하지 않는다**: 프로필이 비었다는 건 "러닝 경험이 적다"의 증거가 아니다
                   // (빠른 러너가 폼만 안 채웠을 수도 있다). 그래서 "일지도 몰라요"로 여지를 두고,
@@ -1216,7 +1215,7 @@ export function StoryLede({
         {/* ── 밴드 3 · footer — 바닥 고정 ─────────────────────────
             왼쪽은 이 슬롯의 **한 줄 사실**(D-day·완주시간·날짜·거리·가입목적),
             오른쪽은 **응원**. 슬롯이 바뀌어도 응원 버튼은 같은 자리에 남는다.
-            운동기록 슬롯만 entity가 없어 오른쪽이 빈다 — 응원을 붙일지는 별도 결정. */}
+            다섯 슬롯 모두 응원을 받는다(운동기록도 `entity_type = "post"`로 붙였다). */}
         <div className="flex shrink-0 items-center justify-between gap-3">
           <div className="min-w-0 flex-1">{footNote}</div>
           {lede.entity && (

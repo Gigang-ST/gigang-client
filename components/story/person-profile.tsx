@@ -1,7 +1,5 @@
-import { secondsToTime } from "@/lib/dayjs";
 import {
   getJoinPurposeLabels,
-  getRecordLabel,
   getRunningProfileChips,
 } from "@/lib/member-card";
 
@@ -223,25 +221,11 @@ function renderPart(
       return <IntroPlaceholder key="intro" />;
     }
 
-    case "bestRecord": {
-      const recs = person.best_records ?? [];
-      // 기록이 없으면 이 조각은 아예 그리지 않는다(프로필 나머지는 정상). 빈 줄을 남기지 않는다.
-      if (recs.length === 0) return null;
-      // 대표 최고기록 **1건만** — recs는 RPC가 풀 > 하프 > 10K 우선(그 외 종목은 뒤로)으로 주므로
-      // recs[0]은 풀코스(있으면) → 없으면 하프 → 10K 순의 대표다. 여러 건을 세우면 오른쪽이
-      // 목록 낭독이 돼 무게중심이 아래로 쏠린다. 라벨(작게) 위에 기록(크게)을 세로로 쌓아 또렷이.
-      const rec = recs[0];
-      return (
-        <div key="bestRecord" className="flex flex-col items-end gap-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground">
-            {getRecordLabel(rec)}
-          </span>
-          <span className="font-numeric text-[22px] font-semibold leading-none text-foreground tabular-nums">
-            {secondsToTime(rec.rec_time_sec)}
-          </span>
-        </div>
-      );
-    }
+    // `bestRecord`는 이 컴포넌트가 그리지 않는다 — 위 `topParts` 필터가 걸러내므로
+    // 여기까지 오지 않는다. 타입은 호출부 호환을 위해 남기되 렌더 분기는 두지 않는다
+    // (두면 "아직 그려지나?"를 매번 되짚게 된다). 개인 최고기록은 프로필 카드가 맡는다.
+    case "bestRecord":
+      return null;
 
     case "runningProfile": {
       const profile = person.running_profile ?? null;

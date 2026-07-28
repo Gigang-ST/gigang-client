@@ -138,11 +138,14 @@ export function StoryPulse({ overview }: { overview: TeamOverview }) {
       </p>
 
       {/* 근거 한 줄 — 기간을 맨 앞에 한 번만 쓰고 이번 달 수치 셋을 오른쪽으로 벌린다 */}
-      <dl className="flex items-baseline gap-4 px-6 pt-3">
+      {/* 기간 라벨은 `dt`/`dd` 쌍이 아니라 목록 전체에 붙는 머리말이라 dl 밖에 둔다 —
+          dl의 직접 자식은 dt·dd(또는 이를 감싼 div)만 허용돼, span을 넣으면 보조기술이
+          정의 목록 구조를 어긋나게 읽는다. 가로 정렬은 바깥 flex가 맡는다. */}
+      <div className="flex items-baseline gap-4 px-6 pt-3">
         <span className="shrink-0 font-numeric text-[11px] tracking-wide text-muted-foreground">
           {monthLabel}
         </span>
-        <div className="flex flex-1 items-baseline justify-between">
+        <dl className="flex flex-1 items-baseline justify-between">
           {stats.map((s) => (
             <div key={s.label} className="flex items-baseline gap-1.5">
               <dt className="text-[11px] text-muted-foreground">{s.label}</dt>
@@ -151,8 +154,8 @@ export function StoryPulse({ overview }: { overview: TeamOverview }) {
               </dd>
             </div>
           ))}
-        </div>
-      </dl>
+        </dl>
+      </div>
     </section>
   );
 }
