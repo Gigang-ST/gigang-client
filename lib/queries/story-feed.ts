@@ -23,8 +23,18 @@ export const RCTN_CODES = [
 
 export type RctnCd = (typeof RCTN_CODES)[number];
 
-/** 리액션이 붙을 수 있는 아이템 종류 */
-export type StoryEntityType = "newbie" | "record" | "race" | "actv";
+/**
+ * 리액션이 붙을 수 있는 아이템 종류.
+ *
+ * `rctn_mst.entity_type`은 CHECK 제약이 없는 `text`라 종류를 늘려도 마이그레이션이 필요 없다
+ * (제약은 `rctn_cd`에만 있다 — `rctn_mst_rctn_cd_chk`). 대신 아무 문자열이나 꽂히지 않게
+ * **여기 유니온 + `bump-reaction`의 `ENTITY_TYPES`·`isOnBoard`** 세 곳이 관문 역할을 한다.
+ *
+ * · `newbie`/`record`/`race` 피드 항목(entity_id = 그 항목의 id)
+ * · `actv`  멤버 기준(entity_id = mem_id) — 활동지수·목표 한마디 슬롯이 공유한다
+ * · `post`  기록 자랑(entity_id = post_id) — 캐시가 갈려 있어 검증도 `getStoryPosts`를 본다
+ */
+export type StoryEntityType = "newbie" | "record" | "race" | "actv" | "post";
 
 type ReactableItem = {
   entity_type: StoryEntityType;

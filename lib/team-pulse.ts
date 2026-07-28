@@ -34,7 +34,7 @@ export type TeamPulse = {
  * Team Pulse 전용 4단계 라벨+멘트. 개인 프로필 카드의 컨디션(`MOOD_SCALE`)과는 더 이상 어휘를
  * 공유하지 않는다 — 저쪽은 개인 활동 건수를 담담히 말하고, 여기는 BPM/심전도 그래픽에 맞춰
  * 러닝 페이스·존 은유로 지금 크루가 얼마나 활발한지를 표현한다. 단계 키(`MoodLevel`)만
- * 재사용하고 텍스트는 이 표 하나에만 둔다(ratio 분기·baseline-less 분기가 같이 참조).
+ * 재사용하고 텍스트는 이 표 하나에만 둔다.
  */
 const TEAM_PULSE_SCALE: Record<MoodLevel, { label: string; message: string }> = {
   blazing: { label: "심장 폭발", message: "인터벌 훈련을 고강도로 운동 중이에요" },
@@ -45,38 +45,77 @@ const TEAM_PULSE_SCALE: Record<MoodLevel, { label: string; message: string }> = 
 
 /** BPM 범위 — 안정 심박(하한)부터 최고조(상한)까지. `heart-rate.tsx`가 진폭·속도 매핑에 재사용한다 */
 export const BPM_MIN = 50;
-const BPM_MID = 120; // ratio 1.0(지난 4주 평균만큼) = 러닝 존2 중심
+/** ratio 1.0 — 직전 4주 평균만큼 뛴 지점. 곡선이 여기서 꺾인다 */
+const BPM_PAR = 140;
 export const BPM_MAX = 200;
-/**
- * log 기울기 — ratio가 2배(log2=1)일 때 중간값에서 얼마나 오르는지(+125 → 245는 상한 클램프).
- * 크게 잡을수록 좁은 ratio 변화도 BPM에 크게 반영된다. 실측 안정 범위(prd 0.77~1.25)를
- * 73~160으로 시원하게 벌리도록 125로 잡았다(ratio 1.25가 160이 되게 — 운영 판단).
- */
-const BPM_K = 125;
+/** 바늘이 상한(200)에 닿는 배수. 더 뛰어도 계기는 200에서 멈춘다 */
+const RATIO_TOP = 1.6;
 
 /**
- * ratio(이번 주 / 지난 4주 평균) → BPM. **log2 스케일**로 1.0을 중간값(120)에 두고 양쪽으로.
+ * ratio(이번 주 / 지난 4주 평균) → BPM. **1.0에서 꺾이는 두 직선.**
  *
- * `bpm = 120 + 125·log2(ratio)`, [50, 200]으로 자른다(상한은 클램프일 뿐 ratio 상한은 없다).
- * - ratio 0.5 → 50(클램프), 0.77 → 73, 1.0 → 120, 1.25 → 160, 1.6↑ → 200(클램프)
+ * - `ratio ≤ 1` : `50 + 90·ratio` — 0배 → 50, 1.0배 → 140
+ * - `ratio > 1` : `140 + 100·(ratio-1)` — 1.6배 → 200에서 클램프
  *
- * log를 쓰는 이유: 크루마다 활동 구성이 달라 ratio 분포 폭이 제각각이다(마일리지런이 매주
- * 깔린 크루는 0.8~1.3으로 좁고, 대회 위주 크루는 0.5~8로 넓다). 선형이면 좁은 크루는 심박이
- * 밋밋하고 넓은 크루는 늘 상한에 붙는다. log는 좁은 변화를 펴고 큰 튐(대회 폭발)은 눌러,
- * 어떤 크루든 평균(1.0=120) 주변에서 자연스럽게 뛰게 한다.
+ * **log2를 걷어낸 이유**: `log2(0)`은 -∞라 아래쪽이 구조적으로 무너졌다. 예전 식
+ * (`120 + 125·log2(ratio)`)은 ratio 0.68 아래가 전부 음수로 계산돼 **하한 50에 뭉쳐**,
+ * `완전 휴식`·`가벼운 조깅`·`꾸준한 페이스` 아래쪽이 모두 같은 파형·같은 숫자로 나왔다.
+ * 라벨만 다르고 계기는 똑같아 고장난 것처럼 보였다.
+ *
+ * 두 직선은 `ratio 0`에서도 유한하고, 상수가 전부 뜻을 갖는다(50=안정, 140=평균만큼,
+ * 200=최고조, 1.6=상한 배수). 무릎이 하나 생기지만 그게 **평균선(ratio 1.0)** 위에 앉아,
+ * "평소만큼까지는 완만히, 평소를 넘기면 급하게" 오르는 표현이 된다.
  */
 function ratioToBpm(ratio: number): number {
   if (ratio <= 0) return BPM_MIN;
-  const bpm = BPM_MID + BPM_K * Math.log2(ratio);
-  return Math.round(Math.min(BPM_MAX, Math.max(BPM_MIN, bpm)));
+  const bpm =
+    ratio <= 1
+      ? BPM_MIN + (BPM_PAR - BPM_MIN) * ratio
+      : BPM_PAR + ((BPM_MAX - BPM_PAR) * (ratio - 1)) / (RATIO_TOP - 1);
+  return Math.round(Math.min(BPM_MAX, bpm));
 }
 
 /**
- * 단계 키 + BPM → 활동 지수. 라벨·멘트는 `TEAM_PULSE_SCALE`에서 가져온다.
- * bpm은 호출부가 ratio에서 계산해 넘긴다(초기 크루처럼 ratio가 없으면 대표값을 직접 준다).
+ * 단계 경계 — 각 단계가 시작되는 **ratio 하한**, 높은 쪽부터.
+ *
+ * - `심장 폭발` 1.3배↑ — 평소의 1.3배는 뛰어야 최상이다
+ * - `꾸준한 페이스` 0.9~1.3배 — **평균만큼(1.0)이 여기 들어간다.** "꾸준한 페이스"가 곧
+ *   "평소대로"라는 뜻이므로, ratio 1.0은 반드시 이 단계여야 한다
+ * - `가벼운 조깅` 0.6~0.9배 — 평소보다 덜 뛴 주
+ * - `완전 휴식` 0.6배 미만
+ *
+ * **경계를 ratio로 적고 BPM은 `ratioToBpm`으로 환산해 쓴다.** BPM 하한을 직접 상수로 박으면
+ * 앵커(`BPM_PAR`·`RATIO_TOP`)를 조정하는 순간 경계가 조용히 어긋난다 — 같은 함수를 통과시키면
+ * 두 축이 늘 같은 곳을 가리킨다. 환산 결과는
+ * `완전 휴식 50~103 / 가벼운 조깅 104~130 / 꾸준한 페이스 131~169 / 심장 폭발 170~200`.
+ */
+const LEVEL_RATIO_FLOORS: ReadonlyArray<readonly [MoodLevel, number]> = [
+  ["blazing", 1.3],
+  ["steady", 0.9],
+  ["resting", 0.6],
+  ["dormant", 0],
+];
+
+/**
+ * BPM → 단계. **단계는 화면에 찍히는 BPM에서 읽는다** — ratio를 다시 보지 않는다.
+ *
+ * 예전엔 단계는 ratio 임계값으로, 숫자는 ratio를 매핑한 BPM으로 따로 뽑았다. 두 축이 같은
+ * ratio에서 나왔어도 클램프가 끼면 어긋나, 화면에 `50 bpm / 가벼운 조깅`과
+ * `50 bpm / 완전 휴식`이 나란히 뜰 수 있었다. 눈금 하나에서 둘 다 읽으면 숫자와 라벨이
+ * 어긋나는 일이 구조적으로 불가능해진다(초기 크루의 대표 BPM도 이 하나를 통과한다).
+ */
+function levelOf(bpm: number): MoodLevel {
+  return (
+    LEVEL_RATIO_FLOORS.find(([, r]) => bpm >= ratioToBpm(r))?.[0] ?? "dormant"
+  );
+}
+
+/**
+ * BPM → 활동 지수. 단계는 `levelOf`가, 라벨·멘트는 `TEAM_PULSE_SCALE`이 정한다.
  * `message`를 넘기면 표 값 대신 그걸 쓴다 — 완전 무데이터처럼 단계로 안 담기는 예외 문구용.
  */
-function pulse(level: MoodLevel, bpm: number, message?: string): TeamPulse {
+function pulse(bpm: number, message?: string): TeamPulse {
+  const level = levelOf(bpm);
   const scale = TEAM_PULSE_SCALE[level];
   return { level, label: scale.label, message: message ?? scale.message, bpm };
 }
@@ -107,7 +146,7 @@ function activityOf(week: TeamWeek): number {
  */
 export function getTeamPulse(weeks: TeamWeek[]): TeamPulse {
   const current = weeks.at(-1);
-  if (!current) return pulse("dormant", BPM_MIN, "아직 심박이 잡히지 않았어요");
+  if (!current) return pulse(BPM_MIN, "아직 심박이 잡히지 않았어요");
 
   const now = activityOf(current);
 
@@ -116,23 +155,15 @@ export function getTeamPulse(weeks: TeamWeek[]): TeamPulse {
   const baseline =
     past.length > 0 ? past.reduce((a, b) => a + b, 0) / past.length : 0;
 
-  // 기준선이 없는 초기 크루는 비율을 못 낸다 — 절대량으로 판정하고 BPM은 단계 대표값을 준다
-  // (ratio가 없어 ratioToBpm을 못 쓴다). 대표값은 각 단계의 대략 중심.
+  // 기준선이 없는 초기 크루는 비율을 못 낸다(ratioToBpm을 못 쓴다) — 절대량으로 단계 대표
+  // BPM을 직접 준다. 값은 각 단계 구간의 대략 중심이라, 단계는 `levelOf`가 그대로 뽑아낸다.
   if (baseline <= 0) {
-    if (now >= 10) return pulse("blazing", 150);
-    if (now >= 4) return pulse("steady", 120);
-    if (now >= 1) return pulse("resting", 85);
-    return pulse("dormant", BPM_MIN);
+    if (now >= 10) return pulse(185); // 심장 폭발 (170~200)
+    if (now >= 4) return pulse(150); // 꾸준한 페이스 (131~169)
+    if (now >= 1) return pulse(117); // 가벼운 조깅 (104~130)
+    return pulse(BPM_MIN); // 완전 휴식 (50~103) — 활동이 아예 없으면 바닥
   }
 
-  const ratio = now / baseline;
-  const bpm = ratioToBpm(ratio);
-
-  // 임계값: 1.0 / 0.5 / 0.3. 이번 주가 직전 4주 평균만큼만 해도 최상('심장 폭발')이다 —
-  // 꾸준한 크루가 영원히 2단계에 머물지 않게 한 조정(예전엔 1.3배를 넘어야 최상이었다).
-  // 단계는 임계값으로, BPM은 ratio를 log 매핑한 연속값으로 — 둘의 기준이 같은 ratio다.
-  if (ratio >= 1.0) return pulse("blazing", bpm);
-  if (ratio >= 0.5) return pulse("steady", bpm);
-  if (ratio >= 0.3) return pulse("resting", bpm);
-  return pulse("dormant", bpm);
+  // ratio 하나가 숫자와 단계를 다 정한다 — BPM을 뽑고 단계는 그 BPM에서 읽는다.
+  return pulse(ratioToBpm(now / baseline));
 }

@@ -3,6 +3,8 @@
 import { dayjs } from "@/lib/dayjs";
 
 import { Avatar } from "@/components/common/avatar";
+import { HelpTip } from "@/components/common/help-tip";
+import { StoryZoneHeader } from "@/components/story/story-zone-header";
 
 import type { GhostMember } from "@/lib/queries/ghost-members";
 
@@ -26,14 +28,17 @@ export function GhostWanted({
 
   return (
     <section className="flex flex-col">
-      <div className="rule-section mx-6 flex items-center justify-between gap-2 pb-2">
-        <h2 className="font-numeric text-[11px] font-medium uppercase tracking-[0.2em] text-foreground">
-          Wanted
-        </h2>
-      </div>
-      <p className="px-6 pt-2.5 text-[15px] text-muted-foreground">
-        요즘 안 보이는 얼굴들 — 현상수배 중
-      </p>
+      <StoryZoneHeader
+        bleed
+        label="Wanted"
+        lead="요즘 안 보이는 얼굴들 — 현상수배 중"
+        action={
+          <HelpTip title="현상수배">
+            60일 넘게 모임에도 대회에도 나타나지 않은 기강인이에요. 목격하면 러닝화를
+            신겨 출발선까지 데려와 주세요.
+          </HelpTip>
+        }
+      />
 
       {/* 가로 스크롤 수배 포스터들 */}
       <div className="mt-4 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

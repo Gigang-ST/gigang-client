@@ -56,35 +56,42 @@ describe("getTeamPulse - 기준선이 없는 초기 크루 (절대량 판정)", 
 });
 
 describe("getTeamPulse - 직전 4주 평균 대비 비율 판정", () => {
-  it("평균과 같으면(ratio 1.0) 최상 — 꾸준한 크루가 2단계에 갇히지 않게 한 경계", () => {
+  // 경계는 `LEVEL_RATIO_FLOORS`(blazing 1.3 / steady 0.9 / resting 0.6 / dormant 0)를 따른다.
+  // 평균만큼 뛴 주(ratio 1.0)는 **steady**다 — "평소대로"를 최상으로 부르면 최상이 기본값이
+  // 돼 위쪽이 안 남는다. 최상은 평소를 확실히 넘겼을 때(1.3배)만 준다.
+  it("평균과 같으면(ratio 1.0) steady — '평소대로'가 곧 꾸준한 페이스", () => {
     expect(getTeamPulse(weeksWith(10, 10))).toMatchObject({
-      level: "blazing",
-      label: "심장 폭발",
+      level: "steady",
+      label: "꾸준한 페이스",
     });
   });
 
-  it("평균을 넘으면 최상", () => {
-    expect(getTeamPulse(weeksWith(10, 15)).level).toBe("blazing");
+  it("ratio 1.3이면 blazing — 경계값", () => {
+    expect(getTeamPulse(weeksWith(10, 13)).level).toBe("blazing");
   });
 
-  it("ratio 0.9면 steady — 1.0 바로 아래", () => {
+  it("ratio 1.2면 steady — 1.3 바로 아래", () => {
+    expect(getTeamPulse(weeksWith(10, 12)).level).toBe("steady");
+  });
+
+  it("평균을 크게 넘으면 최상", () => {
+    expect(getTeamPulse(weeksWith(10, 20)).level).toBe("blazing");
+  });
+
+  it("ratio 0.9면 steady — 경계값", () => {
     expect(getTeamPulse(weeksWith(10, 9)).level).toBe("steady");
   });
 
-  it("ratio 0.5면 steady — 경계값", () => {
-    expect(getTeamPulse(weeksWith(10, 5)).level).toBe("steady");
+  it("ratio 0.8이면 resting — 0.9 바로 아래", () => {
+    expect(getTeamPulse(weeksWith(10, 8)).level).toBe("resting");
   });
 
-  it("ratio 0.4면 resting — 0.5 바로 아래", () => {
-    expect(getTeamPulse(weeksWith(10, 4)).level).toBe("resting");
+  it("ratio 0.6이면 resting — 경계값", () => {
+    expect(getTeamPulse(weeksWith(10, 6)).level).toBe("resting");
   });
 
-  it("ratio 0.3이면 resting — 경계값", () => {
-    expect(getTeamPulse(weeksWith(10, 3)).level).toBe("resting");
-  });
-
-  it("ratio 0.2면 실종 — 0.3 바로 아래", () => {
-    expect(getTeamPulse(weeksWith(10, 2)).level).toBe("dormant");
+  it("ratio 0.5면 dormant — 0.6 바로 아래", () => {
+    expect(getTeamPulse(weeksWith(10, 5)).level).toBe("dormant");
   });
 
   it("이번 주 활동 0이면 실종", () => {
@@ -102,8 +109,10 @@ describe("getTeamPulse - 직전 4주 평균 대비 비율 판정", () => {
 
   it("5주보다 긴 배열이어도 직전 4주만 본다", () => {
     // 앞쪽 3주는 활동 0이지만 baseline에 들어가면 안 된다(직전 4주 = 전부 10).
+    // 섞였다면 baseline이 10에서 (0×3 + 10×4)/7 ≈ 5.7로 떨어져 ratio ≈ 1.75(blazing)가
+    // 됐을 것 — steady로 나오는 것 자체가 앞쪽 3주가 빠졌다는 증거다.
     const weeks = [week(0), week(0), week(0), ...weeksWith(10, 10)];
-    expect(getTeamPulse(weeks).level).toBe("blazing");
+    expect(getTeamPulse(weeks).level).toBe("steady");
   });
 
   it("attd_cnt와 rec_cnt를 합산해 활동량을 낸다", () => {
@@ -111,7 +120,8 @@ describe("getTeamPulse - 직전 4주 평균 대비 비율 판정", () => {
       ...Array.from({ length: 4 }, () => week(10)),
       { w_start: "2026-07-20", gthr_cnt: 0, attd_cnt: 5, rec_cnt: 5 },
     ];
-    expect(getTeamPulse(weeks).level).toBe("blazing"); // 5+5=10 → ratio 1.0
+    // 5+5=10 → ratio 1.0. 하나만 셌다면 ratio 0.5로 dormant가 됐을 것.
+    expect(getTeamPulse(weeks).level).toBe("steady");
   });
 });
 

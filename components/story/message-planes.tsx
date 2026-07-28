@@ -9,8 +9,10 @@ import { flyAltitude, formatFlyDist } from "@/lib/story-throw";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
+import { HelpTip } from "@/components/common/help-tip";
 import { MessageCompose } from "@/components/story/message-compose";
 import { SkyFace } from "@/components/story/sky-face";
+import { StoryZoneHeader } from "@/components/story/story-zone-header";
 import { ThrowStage } from "@/components/story/throw-stage";
 
 import type { StoryMessage } from "@/lib/queries/story-messages";
@@ -186,16 +188,21 @@ export function MessagePlanes({
 
   return (
     <section className="flex flex-col">
-      <div className="rule-section mx-6 flex items-center justify-between gap-2 pb-2">
-        <h2 className="font-numeric text-[11px] font-medium uppercase tracking-[0.2em] text-foreground">
-          Sky Notes
-        </h2>
-      </div>
-      <p className="px-6 pt-2.5 text-[15px] text-muted-foreground">
-        {hasMessages
-          ? "기강인들이 날린 한마디 — 하루가 지나면 사라져요"
-          : "하늘이 아직 비어 있어요 — 첫 한마디를 날려보세요"}
-      </p>
+      <StoryZoneHeader
+        bleed
+        label="Sky Notes"
+        lead={
+          hasMessages
+            ? "기강인들이 날린 한마디 — 하루가 지나면 사라져요"
+            : "하늘이 아직 비어 있어요 — 첫 한마디를 날려보세요"
+        }
+        action={
+          <HelpTip title="종이비행기 한마디">
+            지금 하고 싶은 말을 종이비행기에 실어 날립니다. 24시간이 지나면 사라져요.
+            날릴 때 멀리 던질수록 하늘 높이 뜹니다.
+          </HelpTip>
+        }
+      />
 
       {/* 하늘 — 지면 위 여백을 비행 구역으로 쓴다. 잘라내야 화면 밖에서 들어오는 게 자연스럽다.
           던지는 동안에만 세로로 늘어난다(h-44 → h-64): 좁으면 손가락이 벽에 막혀 속도가

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { StoryZoneHeader } from "@/components/story/story-zone-header";
+
 /**
  * 기사 섹션 — 영문 라벨 + 한국어 리드문 + 괘선, 그리고 "더보기" 접기.
  *
@@ -17,6 +19,7 @@ export function StorySection<T>({
   max,
   unit = "건",
   headerAction,
+  leadAction,
   children,
 }: {
   /** 영문 섹션 라벨 — 신문의 면 이름 */
@@ -32,6 +35,8 @@ export function StorySection<T>({
   unit?: string;
   /** 라벨 우측 슬롯 — 설명이 필요한 지표는 여기에 `HelpTip`을 단다 */
   headerAction?: React.ReactNode;
+  /** 리드문 우측 슬롯("내 활동 내역" 링크 등) — 리드와 같은 줄 양끝 */
+  leadAction?: React.ReactNode;
   children: (items: T[]) => React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -44,18 +49,12 @@ export function StorySection<T>({
 
   return (
     <section className="flex flex-col px-6">
-      <div className="rule-section flex items-center justify-between gap-2 pb-2">
-        <h2 className="font-numeric text-[11px] font-medium uppercase tracking-[0.2em] text-foreground">
-          {label}
-        </h2>
-        {/* 괘선 높이가 물음표 히트영역(32px)에 밀리지 않게 음수 마진으로 흡수한다 */}
-        {headerAction && <div className="-my-2">{headerAction}</div>}
-      </div>
-      {lead && (
-        <p className="pt-2.5 text-[15px] leading-snug text-muted-foreground">
-          {lead}
-        </p>
-      )}
+      <StoryZoneHeader
+        label={label}
+        lead={lead}
+        action={headerAction}
+        leadAction={leadAction}
+      />
 
       <div className="pt-1">{children(shown)}</div>
 

@@ -3,18 +3,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 
-import { dayjs, secondsToTime } from "@/lib/dayjs";
+import { dayjs, formatPace, secondsToTime } from "@/lib/dayjs";
 import {
   getJoinPurposeLabelsFromCds,
   getRaceDday,
   getRecordLabel,
-  getRunningProfileChips,
+  getRunningProfileRows,
 } from "@/lib/member-card";
 import { cn } from "@/lib/utils";
 
 import { Avatar, buildFallbackAvatarUrl } from "@/components/common/avatar";
 import { TitleBadge } from "@/components/common/title-badge";
-import { ProfileChip, PurposeChip } from "@/components/members/profile-chip";
+import { PurposeChip } from "@/components/members/profile-chip";
 import {
   PersonProfile,
   type PersonProfilePart,
@@ -22,14 +22,13 @@ import {
 } from "@/components/story/person-profile";
 import { StoryReactionButton } from "@/components/story/story-reaction-button";
 
-import { compEvtTypeLabel } from "@/lib/comp-evt-type";
+import { compEvtTypeKm, compEvtTypeLabel } from "@/lib/comp-evt-type";
 import { dedupePledgesByMember } from "@/lib/story-pledge";
 import { pickActvLeadIndex, pickRandomPostIndex } from "@/lib/story-post";
 import { reactionKey } from "@/lib/story-reaction";
 import { getSportEmoji } from "@/lib/sport";
 
 import type { CSSProperties, PointerEvent } from "react";
-import type { RunningProfileChip } from "@/lib/member-card";
 import type {
   RctnCd,
   StoryEntityType,
@@ -93,6 +92,16 @@ type Lede = {
   key: string;
   /** 기사 분류 — 신문의 어깨제목 */
   kicker: string;
+  /**
+   * 이 슬롯의 **주인공** — 상단에 26px 헤드라인을 세울지 여기서 선언한다.
+   *
+   * · `headline` 글이 주인공(대회·완주기록·새얼굴·활동지수·목표) → 헤드라인을 body 맨 위에
+   * · `photo`    사진이 주인공(운동기록) → 헤드라인 없이 사진이 위를 차지한다
+   *
+   * 슬롯마다 "헤드라인이 있나 없나"를 렌더에서 `!lede.photo && !lede.profile && …`로
+   * 되묻던 걸 대신한다 — 조건이 세 군데 흩어져 슬롯을 하나 더할 때마다 전부 고쳐야 했다.
+   */
+  hero: "headline" | "photo";
   entity: {
     // 활동지수 슬롯 응원까지 담으므로 좁은 유니온 대신 StoryEntityType("actv" 포함)을 쓴다.
     type: StoryEntityType;
@@ -126,13 +135,10 @@ type Lede = {
   /**
    * 활동지수 슬롯 전용 — 프로필 부품 조합(§④). 있으면 kicker 아래를 이 사람 프로필로 그린다.
    * `parts` 순서대로 조각을 쌓는다(칭호·소개·개인최고기록·러닝프로필 중 골라).
-   * `rank`는 이번 달 활동지수 순위 — 프로필 안에 배지로 얹어 "왜 이 사람이 떴는지"를 말한다.
    */
   profile?: {
     person: PersonProfilePerson;
     parts: PersonProfilePart[];
-    /** 활동지수 슬롯만 순위 배지를 얹는다 — 새 얼굴 슬롯은 순위가 없다(undefined) */
-    rank?: number;
   } | null;
   /**
    * 새 얼굴 슬롯 전용(§②) — 스케치대로의 전용 레이아웃을 그린다.
@@ -142,8 +148,12 @@ type Lede = {
    */
   newbie?: {
     person: Person;
-    /** 페이스·거리·역 칩 — 오른쪽에 세로로 세운다 */
-    chips: RunningProfileChip[];
+    /**
+     * 러닝 프로필 라벨-값 행(평균 페이스·평균 거리·가까운 역) — 오른쪽에 세로로 세운다.
+     * 아이콘 칩이 아니라 **항목 이름을 글자로** 쓴다: 처음 보는 사람을 소개하는 칸이라
+     * `⏱ 6'00"`만 있으면 그게 평균인지 최고기록인지 알 수 없다(상세 카드와 같은 라벨).
+     */
+    rows: { label: string; value: string }[];
     /** 소개 한마디(intro_txt) — 없으면 생략 */
     intro: string | null;
     /** 직접 쓴 가입목적 한마디 — 있으면 인용으로. 칩(purposes)과 독립(둘 다 보여줄 수 있다) */
@@ -161,19 +171,23 @@ type Lede = {
     people: Person[];
   }[] | null;
   /**
-   * 대회 완주기록 슬롯 전용(§③) — 최근 30일 완주 1건을 활동지수 방식으로 세운다.
-   * 왼쪽(프사+이름+칭호) ↔ 오른쪽(종목·완주시간), 아래 작게 날짜·대회명 + 응원(`entity`).
+   * 완주기록 슬롯 전용(§③) — **한 사람의 완주 하나**를 크게 세운다.
+   *
+   * 예정 대회의 명단 형태(`raceRoster`)를 잠깐 같이 썼다가 되돌렸다: 명단은 여러 명을
+   * 훑는 옷이라, 한 명을 담으면 한 줄만 찍히고 나머지가 통째로 빈다. 주인공이 다르면
+   * (명단 ↔ 한 사람) 레이아웃도 달라야 한다.
    */
   raceRecord?: {
     person: PersonProfilePerson;
-    /** 종목 라벨(풀코스·하프·10K 등) */
-    evtLabel: string;
-    /** 완주시간 h:mm:ss */
-    time: string;
-    /** 날짜 · 대회명 (작은 글씨, 줄바꿈) */
-    meta: string;
+    /**
+     * 결과표 칸들 — 마라톤 기록증에 실리는 것과 같은 항목(종목·거리·페이스).
+     * 완주시간은 footer(대회 대표 숫자 자리)가 맡으므로 여기 넣지 않는다.
+     * 거리를 모르는 종목(철인3종·사이클 등)은 거리·페이스 칸이 빠진 채로 온다.
+     */
+    stats: { label: string; value: string }[];
   } | null;
 };
+
 
 /** 오늘 기준 N일 이내인가 (KST) */
 function withinDays(dateStr: string | null, days: number): boolean {
@@ -275,6 +289,7 @@ function buildLedes(
     ledes.push({
       key: `race-${race.entity_id}`,
       kicker: "다가오는 대회",
+      hero: "headline",
       entity: buildEntity("race", race.entity_id, race.rctn_cd, race.rctn_count),
       people: [],
       moreCount: 0,
@@ -296,6 +311,7 @@ function buildLedes(
     ledes.push({
       key: `newbie-${newbieLead.entity_id}`,
       kicker: "함께 달려요",
+      hero: "headline",
       entity: buildEntity(
         "newbie",
         newbieLead.entity_id,
@@ -318,7 +334,7 @@ function buildLedes(
           mem_nm: newbieLead.mem_nm,
           avatar_url: newbieLead.avatar_url,
         },
-        chips: getRunningProfileChips(newbieLead.running_profile ?? null),
+        rows: getRunningProfileRows(newbieLead.running_profile ?? null),
         intro: newbieLead.intro_txt?.trim() || null,
         // 한마디와 칩은 독립적으로 뽑는다 — 둘 다 있으면 둘 다 보여준다(렌더가 조합).
         purposeTxt: newbieLead.running_profile?.join_purp_txt?.trim() || null,
@@ -340,14 +356,39 @@ function buildLedes(
       key: `record-${rec.entity_id}`,
       // "기록" 명사는 다른 슬롯의 서술체 kicker 사이에서 튄다 — 대회 완주의 순간을 서술체로.
       kicker: "결승선을 넘다",
+      // **대회명이 헤드라인이다.** 예전엔 hero가 "figure"라 대회명이 footer 11px 회색 줄에
+      // 날짜와 함께 묻혀 "무슨 대회를 뛰었는지"가 안 보였다 — 완주 소식에서 가장 먼저
+      // 궁금한 건 기록 숫자가 아니라 어느 대회냐다. "다가오는 대회"와 같은 자리에 세워
+      // 두 대회 슬롯이 같은 방식으로 읽히게 한다.
+      hero: "headline",
       // 응원은 이 완주 기록에 건다(record는 ReactableItem — rctn_cd "fire").
       entity: buildEntity("record", rec.entity_id, rec.rctn_cd, rec.rctn_count),
       people: [],
       moreCount: 0,
-      headline: "",
-      standfirst: "",
-      figure: null,
+      headline: rec.race_nm ?? "",
+      // 대회 슬롯("9월 5일, 기강인 3명이 출발선에 선다")과 같은 형태의 리드문.
+      //
+      // **이름을 넣지 않는다.** 바로 아래 본문이 얼굴·이름을 크게 세우는데 리드문까지
+      // 이름을 부르면 한 화면에서 같은 사람을 두 번 소개하게 된다(대회 슬롯도 리드문은
+      // "3명"까지만 말하고 이름은 명단에 맡긴다). 여기선 날짜·종목만 맡고 "누가"는
+      // 얼굴이 답한다 — 한 줄이 한 가지만 말하게.
+      // 리드문은 **고생과 축하를 함께** 싣는다. "7월 1일에 완주했다"는 사실 보고라 축하도
+      // 존경도 없었다 — 완주 소식을 크루가 보는 자리이니 지면이 먼저 그 값을 알아줘야 한다.
+      // `버텨낸`이 대가를(존경), `값진`이 그 결과의 무게를(축하) 맡는다. 대회 슬롯의
+      // "출발선에 선다"가 설렘을 싣는 것과 짝이다.
+      //
+      // 명사로 닫는다 — 서술체(`…했다`)로 끝내면 사실 보고로 되돌아간다.
+      // 거리·종목은 넣지 않는다: 아래 결과표가 이미 말하고, 종목이 곧 거리라 겹친다.
+      // 285px에서 1줄에 들어가는 길이로 맞췄다 — 2줄이 되면 슬롯 예산(§높이 주석)을 넘는다.
+      standfirst: rec.race_dt
+        ? `${dayjs(rec.race_dt).format("M월 D일")}, 끝까지 버텨낸 값진 완주`
+        : "끝까지 버텨낸 값진 완주",
+      // **완주시간이 D-day의 자리에 온다.** 예정 대회는 "얼마 남았나"(D-39), 완주는
+      // "얼마 걸렸나"(3:54:15) — 둘 다 그 대회의 대표 숫자라 같은 칸(footer 왼쪽)에 둔다.
+      figure: secondsToTime(rec.rec_time_sec),
       figureLabel: null,
+      // 본문은 **한 사람**이다. 예정 대회의 명단 형태를 잠깐 같이 썼다가 되돌렸다 —
+      // 명단은 여럿을 훑는 옷이라 한 명만 담으면 한 줄 찍히고 나머지가 통째로 빈다.
       raceRecord: {
         person: {
           mem_id: rec.mem_id,
@@ -357,20 +398,33 @@ function buildLedes(
           frame_cd: rec.frame_cd,
           primary_title: rec.primary_title,
         },
-        evtLabel: getRecordLabel({
-          sport: rec.sport,
-          evt: rec.evt,
-          rec_time_sec: rec.rec_time_sec,
-          race_nm: rec.race_nm,
-          race_dt: rec.race_dt,
-        }),
-        time: secondsToTime(rec.rec_time_sec),
-        meta: [
-          rec.race_dt ? dayjs(rec.race_dt).format("M월 D일") : null,
-          rec.race_nm,
-        ]
-          .filter(Boolean)
-          .join(" · "),
+        // 종목 · 페이스. **거리는 넣지 않는다** — 러너에게 "풀코스"는 곧 42.195km라
+        // 종목이 이미 말한 걸 한 번 더 쓰는 칸이 된다(`55K`처럼 숫자가 라벨인 종목은
+        // 아예 같은 글자다). 페이스만 종목에서 못 읽는 값이라 남긴다.
+        //
+        // 페이스는 저장값이 아니라 계산이다(종목 코드 → 공식 거리, 총시간 ÷ 거리).
+        // 거리를 모르면(철인3종·자유입력 종목) 그 칸 없이 종목만 남는다 —
+        // 철인3종은 총시간을 총거리로 나눠도 세 종목이 섞여 의미가 없다.
+        stats: (() => {
+          const rows = [
+            {
+              label: "종목",
+              value: getRecordLabel({
+                sport: rec.sport,
+                evt: rec.evt,
+                rec_time_sec: rec.rec_time_sec,
+                race_nm: rec.race_nm,
+                race_dt: rec.race_dt,
+              }),
+            },
+          ];
+          const isRun = /run|ultra|trail/i.test(rec.sport ?? "");
+          const pace = isRun
+            ? formatPace(rec.rec_time_sec, compEvtTypeKm(rec.evt))
+            : null;
+          if (pace) rows.push({ label: "페이스", value: `${pace}/km` });
+          return rows;
+        })(),
       },
     });
   }
@@ -388,6 +442,7 @@ function buildLedes(
     ledes.push({
       key: `actv-${lead.mem_id}`,
       kicker: "이번 달 기강 잡는",
+      hero: "headline",
       // 응원 대상은 이 대표 멤버 — entity_type "actv" + mem_id로 무한 응원(🔥 대박)을 받는다.
       // 피드 캐시엔 이 응원 수가 없어(actv는 원천 테이블이 아니다) 하한 0에서 시작하고,
       // 최신 집계(reactions.totals/mine)를 buildEntity가 얹는다.
@@ -413,15 +468,14 @@ function buildLedes(
           intro_txt: lead.intro_txt,
           primary_title: lead.primary_title,
           running_profile: lead.running_profile,
-          best_records: lead.best_records,
           mth_attd_cnt: lead.mth_attd_cnt,
           mth_rec_cnt: lead.mth_rec_cnt,
         },
-        // 칭호(이름 옆) → 소개 한마디(왼쪽) → 개인 최고기록(오른쪽). 러닝 프로필은 빼둔다
-        // — 페이스·역 칩은 "누구인지 모르는 새 얼굴"을 소개할 때 필요한 거라 신입 슬롯에 맡긴다.
-        // 여기선 이미 실적(최고기록)으로 사람이 서므로 칩을 더하면 시선만 흩어진다.
-        parts: ["title", "intro", "bestRecord"],
-        rank: lead.rank,
+        // 칭호(이름 옆) → 소개 한마디. **개인 최고기록(PB)은 아예 뺐다** — 이 슬롯의 주어는
+        // "이번 달 얼마나 활동했나"(오른쪽 참석·기록 27px)인데, 역대 PB를 어디에 두든
+        // 그 옆에서 다른 시간대를 말해 주어가 흐려진다. PB는 프로필 카드에서 본다.
+        // 러닝 프로필도 빼둔다 — 페이스·역은 "누구인지 모르는 새 얼굴"을 소개할 때 쓴다.
+        parts: ["title", "intro"],
       },
     });
   }
@@ -440,6 +494,7 @@ function buildLedes(
     ledes.push({
       key: `pledge-${pledgeLead.pldg_id}`,
       kicker: "여러분께 고합니다",
+      hero: "headline",
       entity: buildEntity("actv", pledgeLead.mem_id, "fire", 0),
       // 사람·수치·레일은 쓰지 않는다 — 아래 profile 렌더가 프로필 부품으로 통째로 그린다.
       people: [],
@@ -498,7 +553,12 @@ function buildLedes(
       // "운동 기록"은 딱딱해 친목 러닝크루 톤에 안 맞는다 — "오늘, 기강은"으로 서술체.
       // 오늘 기강 회원이 이렇게 달렸다는 이야기가 사진·한마디로 이어지는 결.
       kicker: "오늘, 기강은",
-      entity: null,
+      hero: "photo",
+      // 기록 자랑도 응원을 받는다(🔥 대박) — 사진까지 올려 내놓은 기록이라 응원받기 가장
+      // 자연스러운 자리인데, 예전엔 이 슬롯만 응원이 없어 3밴드 footer 오른쪽이 비었다.
+      // 피드 캐시엔 이 응원 수가 없어(post는 story-posts로 갈려 있다) 하한 0에서 시작하고
+      // 최신 집계(reactions.totals/mine)를 buildEntity가 얹는다 — actv 슬롯과 같은 방식.
+      entity: buildEntity("post", post.post_id, "fire", 0),
       // 사람은 렌더의 사진 옆 아바타+이름 줄이 맡는다(people 줄은 안 쓴다 — 사진 슬롯 전용 렌더).
       people: [],
       moreCount: 0,
@@ -713,6 +773,42 @@ export function StoryLede({
 
   const lede = ledes[active];
 
+  /**
+   * 새 얼굴인데 러닝 프로필·소개·가입목적이 **모두** 비었나.
+   *
+   * 가입 직후라 아무것도 안 채운 사람은 이름과 NEW 배지만 남아 슬롯이 텅 빈다.
+   * 그 경우에만 안내 문구로 자리를 채운다(하나라도 있으면 그걸 보여주는 게 낫다).
+   */
+  const newbieBlank =
+    lede.newbie != null &&
+    lede.newbie.rows.length === 0 &&
+    !lede.newbie.intro &&
+    !lede.newbie.purposeTxt &&
+    lede.newbie.purposes.length === 0;
+
+  /**
+   * footer 왼쪽 — 이 슬롯의 **한 줄 사실** 하나.
+   *
+   * 슬롯마다 성격이 달라 무엇을 싣는지는 여기서 갈리지만, 자리와 높이는 하나다:
+   * **그 대회의 대표 숫자**(예정=D-39 / 완주=3:54:15) · 날짜·종목·거리(운동기록).
+   * 활동지수·목표 한마디·새 얼굴은 실을 사실이 없어 비운다(오른쪽 응원만 남는다).
+   * 한 줄을 넘기지 않는다 — footer 높이가 흔들리면 body가 따라 흔들린다.
+   */
+  const footNote = lede.figure ? (
+    // 예정 대회의 D-day와 완주 기록의 완주시간이 **같은 칸을 나눠 쓴다** — 둘 다
+    // "이 대회의 숫자"라서. 본문 구성(명단 ↔ 한 사람)은 달라도 이 칸은 같은 자리에 남는다.
+    // tabular-nums로 자릿수가 흔들리지 않게 한다.
+    <span className="font-numeric text-[24px] font-medium leading-none tracking-[0.04em] text-foreground tabular-nums">
+      {lede.figure}
+    </span>
+  ) : lede.photo ? (
+    <span className="truncate font-numeric text-[12px] text-muted-foreground tabular-nums">
+      {lede.standfirst}
+    </span>
+  ) : null;
+  // 활동지수 슬롯은 footer 왼쪽이 빈다 — 실을 한 줄 사실이 없다(PB는 슬롯에서 뺐다).
+  // 새 얼굴 슬롯도 비운다 — 가입목적은 폭이 필요해 body로 올렸다(§newbie 렌더).
+
   /** 스와이프 — 가로 이동이 세로보다 크고 40px 넘으면 한 칸 */
   function handlePointerUp(e: PointerEvent) {
     const start = dragStart.current;
@@ -743,40 +839,137 @@ export function StoryLede({
     {/* pt-4 — 프레임 테두리와 슬롯(kicker) 사이 위 여백을 좌우·아래(p-5, 20px)보다 조금
         줄인다. 위가 떠 보인다는 피드백 반영. 모든 슬롯 공통. */}
     <div className="rounded-2xl border border-border p-5 pt-2">
-      {/* 슬롯마다 내용 높이가 달라 자동 전환·스와이프 때 지면이 출렁인다 — 가장 큰 슬롯에
-          맞춰 **고정**한다(min-h가 아니라 h). min-h면 내용이 많은 슬롯(활동지수 2단·긴 목표)이
-          이 값을 넘겨 다시 지면이 출렁인다. 값은 가장 큰 슬롯(대회: 헤드라인 2줄+아바타 lg+응원 /
-          운동 기록: 사진 144 + 메타 줄)이 잘리지 않는 224px — 이보다 낮추면 운동 기록 슬롯의
-          맨 아래 프로필 아바타가 overflow-hidden에 잘린다.
-          items-stretch로 article이 이 높이를 꽉 채워, 짧은 슬롯(완주기록 등)은 자기 내용을
-          justify-center로 세로 가운데에 앉힌다(예전 items-start에선 아래만 휑했다). */}
+      {/* 슬롯은 **kicker / body / footer 3밴드**로 고정한다.
+
+          예전엔 슬롯마다 자기 레이아웃을 통째로 그리고 응원 버튼도 각자 자리에 박아서
+          (새얼굴=가입목적 옆, 완주기록=날짜 옆, 대회=D-day 옆, 활동지수=프로필 안쪽)
+          바닥에서 15~71px까지 흩어져 있었다 — 4초마다 넘어가는 지면에서 응원하려면
+          손가락을 매번 옮겨야 했다. 밴드를 고정하면 그 자리가 하나로 모인다.
+
+          **높이 264px는 "헤드라인 2줄"을 거의 견디는 값이다.** 지금 데이터는 대부분 1줄이라
+          26~56px이 남아 보이지만, 그 여백은 낭비가 아니라 2줄분 예약이다 — 1줄에 맞춰
+          깎으면 긴 대회명·긴 멘트가 들어오는 날 그 슬롯만 잘린다.
+
+          바닥을 정하는 건 **새 얼굴 슬롯**이다: 프로필을 다 채운 신입(러닝프로필 3행 +
+          소개 한마디 + 가입목적)에 헤드라인이 2줄로 겹치면 3px쯤 모자란다 — 그때만
+          가입목적 칩 줄이 눌리고, 다른 슬롯(활동지수 14 · 완주기록 26 · 운동기록 42)은
+          남는다. 대회는 명단이 스크롤이라 하한에 안 걸린다. 두 악조건이 동시에 겹치는
+          경우가 드물어 268 대신 264를 택했다 — 평소 4px을 돌려받는 쪽.
+
+          ⚠️ **측정은 반드시 375px 뷰포트에서** 한다. 창을 줄이는 방식은 브라우저 최소 폭
+          (500px)에 걸려 더 넓은 화면을 재게 되고, 그러면 헤드라인이 1줄로 접혀 "여유가 있다"는
+          잘못된 결론이 나온다(실제로 260px까지 내렸다가 되돌렸다). 기기 에뮬레이션을 쓸 것. */}
       <div
         key={lede.key}
-        className="lede-in flex h-[224px] items-stretch gap-3 overflow-hidden"
+        className="lede-in flex h-[264px] flex-col gap-3 overflow-hidden"
       >
-        <article className="flex h-full min-w-0 flex-1 flex-col gap-3">
-          <span className="text-[11px] font-medium text-muted-foreground">
-            {lede.kicker}
-          </span>
+        {/* ── 밴드 1 · kicker — 항상 맨 위 ───────────────────────── */}
+        <span className="shrink-0 text-[11px] font-medium text-muted-foreground">
+          {lede.kicker}
+        </span>
 
-          {/* 새 얼굴 슬롯(§②) — 명조 헤드라인 + 전용 프로필 레이아웃.
-              위: 왼쪽(아바타 + 이름 + new 배지) ↔ 오른쪽(러닝프로필 칩 세로 스택).
-              아래: 소개 한마디 → 가입목적 칩 ↔ 환영(응원) 버튼.
-              신입은 칭호가 없어 칭호 자리에 new 배지가 들어간다. */}
-          {lede.newbie ? (
-            <div className="flex flex-1 flex-col justify-center gap-3">
-              {lede.headline && (
-                <h2 className="-mt-1 line-clamp-2 text-pretty break-keep text-[26px] font-normal leading-[1.28] text-foreground [overflow-wrap:anywhere]">
+        {/* ── 밴드 2 · body — 남는 높이를 전부 흡수한다 ────────────
+            헤드라인이 1줄이든 2줄이든 늘고 준 만큼 여기서 소화되므로,
+            아래 footer는 움직이지 않는다(예약 높이를 정할 필요가 없는 이유). */}
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          {lede.hero === "headline" && lede.headline && (
+            // 크기·자르기는 .lede-headline 한 곳(globals.css)에서 정한다.
+            // -mt-1은 26px 글자의 line-box 윗 여백 트림 — kicker와의 간격을 눈에 맞춘다.
+            <h2 className="lede-headline -mt-1 text-pretty break-keep text-[26px] font-normal leading-[1.28] text-foreground">
+              {lede.headline}
+            </h2>
+          )}
+
+          {/* 리드문 — **헤드라인과 한 덩어리로 위에 고정한다.**
+              슬롯별 몸통 안에서 그리면 아래 `justify-center`에 함께 밀려, 내용이 짧은 슬롯
+              (완주기록 97px)은 리드문이 내려앉고 꽉 찬 슬롯(대회 149px)은 위에 붙어
+              같은 성격의 한 줄이 슬롯마다 다른 높이에 놓인다. 위 밴드로 올리면 헤드라인
+              바로 아래라는 자리가 고정된다.
+
+              `hero === "headline"`으로 거른다 — 운동기록은 `standfirst`에 날짜·거리를 담아
+              footer에서 쓰므로(§footNote) 여기서 그리면 같은 값이 두 번 나온다. */}
+          {lede.hero === "headline" && lede.standfirst && (
+            <p className="break-keep text-[13px] leading-relaxed text-muted-foreground">
+              {lede.standfirst}
+            </p>
+          )}
+
+          {/* 슬롯별 몸통 — 분기는 이 한 곳에만 둔다. 예전엔 "이 줄은 건너뛴다"는
+              조건(!lede.photo && !lede.profile && …)이 세 군데에 흩어져 있어
+              슬롯을 하나 더할 때마다 전부 고쳐야 했다.
+
+              남는 높이 안에서 **세로 가운데**에 앉힌다. 위로 붙이면 내용이 짧은 슬롯
+              (소개 한마디가 없는 새 얼굴 등)에서 헤드라인과 footer 사이가 통째로 비어 보인다. */}
+          <div className="flex min-h-0 flex-1 flex-col justify-center gap-3">
+          {lede.photo ? (
+            /* 운동 기록(§⑥) — 사진이 주인공. 사진(좌) ↔ 한마디(위)·올린 사람(아래).
+               사진은 눌러도 반응하지 않는다(프로필은 이름을 눌러 연다).
+
+               **사람은 사진 옆 칸 바닥에 붙인다**(`mt-auto`) — 사진 아래 별도 줄로 빼면
+               그 줄 높이(+간격)만큼 슬롯이 통째로 길어지는데, 정작 사진 옆은 한마디가 짧을 때
+               비어 있다. 바닥에 붙이면 사진 끝단과 이름 바닥이 한 선에서 맞아 덩어리가 닫히고,
+               그만큼 지면을 돌려받는다. 칭호는 뺐다 — 사진·한마디·이름이 이미 서 있는 칸에서
+               배지까지 더하면 조연이 넷이 된다(칭호는 프로필 카드에서 볼 수 있다). */
+            <div className="flex min-h-0 items-start gap-3">
+              <div className="relative h-36 w-36 shrink-0 overflow-hidden rounded-xl bg-muted">
+                {/* 사진 → 프사 → DiceBear 폴백. 빈 문자열("")도 내려가게 ??가 아닌 || 사슬 */}
+                <Image
+                  src={
+                    lede.photo.url ||
+                    lede.photo.person.avatar_url ||
+                    buildFallbackAvatarUrl(lede.photo.person.mem_id)
+                  }
+                  alt={lede.photo.person.mem_nm}
+                  fill
+                  sizes="45vw"
+                  unoptimized
+                  className="object-cover"
+                />
+              </div>
+              {/* **높이를 사진과 같게 못박는다**(h-36). 이 칸이 본문 높이만큼 늘어나면
+                  바닥에 붙인 이름이 사진 끝단보다 아래로 내려가 두 줄이 어긋난다.
+                  덩어리가 정확히 144px로 닫히면 아래 남는 여백은 본문이 통째로
+                  세로 가운데에 앉히므로 위아래가 고르게 나뉜다. */}
+              <div className="flex h-36 min-w-0 flex-1 flex-col">
+                {/* 한마디 — 사진 옆이라 헤드라인(26px)보다 작게. 사진 높이만큼 줄을 쓴다 */}
+                <p className="line-clamp-4 min-w-0 text-pretty break-keep text-[15px] leading-[1.5] text-foreground [overflow-wrap:anywhere]">
                   {lede.headline}
-                </h2>
-              )}
-              {/* 위 2단 — 왼쪽 인물(아바타·이름·new) ↔ 오른쪽 러닝프로필 칩 세로 스택.
-                  칩이 없어도(러닝 프로필 미입력) 왼쪽이 폭을 다 쓰게 오른쪽은 조건부. */}
+                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onSelectMember(
+                      lede.photo!.person.mem_id,
+                      lede.photo!.person.mem_nm,
+                    )
+                  }
+                  aria-label={`${lede.photo.person.mem_nm} 프로필 보기`}
+                  className="mt-auto flex min-w-0 items-center gap-1.5 self-start rounded-full pt-2 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
+                >
+                  <Avatar
+                    src={lede.photo.person.avatar_url}
+                    seed={lede.photo.person.mem_id}
+                    alt={lede.photo.person.mem_nm}
+                    size="xs"
+                  />
+                  <span className="truncate text-[12px] font-bold text-foreground">
+                    {lede.photo.person.mem_nm}
+                  </span>
+                </button>
+              </div>
+            </div>
+          ) : lede.newbie ? (
+            /* 새 얼굴(§②) — 왼쪽 인물(아바타·이름·new) ↔ 오른쪽 러닝프로필 칩, 아래 소개 한마디.
+               신입은 칭호가 없어 칭호 자리에 new 배지가 들어간다. 가입목적은 footer로 내렸다. */
+            <>
               <div className="flex items-start gap-4">
                 <button
                   type="button"
                   onClick={() =>
-                    onSelectMember(lede.newbie!.person.mem_id, lede.newbie!.person.mem_nm)
+                    onSelectMember(
+                      lede.newbie!.person.mem_id,
+                      lede.newbie!.person.mem_nm,
+                    )
                   }
                   aria-label={`${lede.newbie.person.mem_nm} 프로필 보기`}
                   className="flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl text-left transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]"
@@ -787,192 +980,132 @@ export function StoryLede({
                     alt={lede.newbie.person.mem_nm}
                     size="lg"
                   />
-                  {/* 이름 위, NEW 아래로 세로로 쌓고 가운데 정렬 — NEW는 칭호 자리(이름 아래)를 대신한다. */}
                   <div className="flex min-w-0 flex-col items-center gap-1">
                     <span className="truncate text-[17px] font-bold text-foreground">
                       {lede.newbie.person.mem_nm}
                     </span>
-                    {/* 신입 표식 — 칭호 자리를 대신한다. board-amber가 아닌 전용 강조(빨강). */}
                     <span className="shrink-0 rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none tracking-wide text-destructive">
                       new
                     </span>
                   </div>
                 </button>
 
-                {lede.newbie.chips.length > 0 && (
-                  <div className="flex shrink-0 flex-col items-end gap-1.5">
-                    {lede.newbie.chips.map((chip) => (
-                      <ProfileChip key={chip.kind} chip={chip} />
+                {/* 러닝 프로필 — 상세 카드와 같은 도트리더 행(라벨 ···· 값).
+                    폭이 좁아(≈145px) 점선은 min-w-2까지 줄어들되, 라벨과 값이
+                    양끝에 붙어 "무엇이 얼마인지"가 눈으로 이어진다.
+
+                    **한쪽만 비는 경우**(러닝 프로필만 없음)엔 자리를 비우지 않고 그 사실을
+                    한 줄로 적는다. 그냥 비우면 오른쪽이 휑해 레이아웃이 깨진 것처럼 보이고,
+                    읽는 사람도 "로딩 중인가" 하고 기다리게 된다. 전부 빈 사람은 아래
+                    안내문이 따로 받으므로(newbieBlank) 여기선 그리지 않는다. */}
+                {lede.newbie.rows.length > 0 ? (
+                  <ul className="flex w-[150px] shrink-0 flex-col gap-1">
+                    {lede.newbie.rows.map((row) => (
+                      <li key={row.label} className="flex items-baseline gap-1.5">
+                        <span className="shrink-0 text-[11px] text-muted-foreground">
+                          {row.label}
+                        </span>
+                        <span
+                          aria-hidden
+                          className="min-w-2 flex-1 -translate-y-0.5 border-b border-dashed border-border"
+                        />
+                        <span className="shrink-0 font-numeric text-[11px] text-foreground tabular-nums">
+                          {row.value}
+                        </span>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
+                ) : (
+                  !newbieBlank && (
+                    <span className="w-[150px] shrink-0 text-right text-[11px] leading-relaxed text-muted-foreground/70">
+                      러닝 프로필은
+                      <br />
+                      아직 비어 있어요
+                    </span>
+                  )
                 )}
               </div>
 
-              {/* 소개 한마디 — 본인의 말이라 인용구로(§④ intro와 같은 스타일). 한 줄 말줄임. */}
-              {lede.newbie.intro && (
+              {lede.newbie.intro ? (
                 <blockquote className="truncate rounded-r-md border-l-2 border-border bg-muted/50 py-1.5 pl-2.5 pr-2 text-[13.5px] leading-relaxed text-foreground">
                   “{lede.newbie.intro}”
                 </blockquote>
-              )}
+              ) : null}
 
-              {/* 아래 블록 — "가입목적" 라벨(위) + 그 내용(왼쪽) ↔ 환영 응원 버튼(오른쪽, 세로 중앙).
-                  직접 쓴 한마디(purposeTxt)와 고른 칩(purposes)은 독립적으로 그린다 —
-                  한마디만/칩만/둘 다 각 경우를 있는 그대로 보여준다(둘 다면 한마디 위·칩 아래).
-                  가입목적이 통째로 없어도 응원 버튼은 남아야 하므로 왼쪽 내용만 조건부. */}
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                  {(lede.newbie.purposeTxt || lede.newbie.purposes.length > 0) && (
-                    <>
-                      <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                        가입목적
+              {/* 가입목적 — footer가 아니라 여기(body 전체 폭)에 둔다.
+                  footer는 응원 버튼을 빼면 값이 쓸 폭이 375px 기준 118px뿐이라, 직접 쓴
+                  한마디("폼부터 잡아드려요, 편하게 물어보세요" = 189px)가 절반에서 잘리고
+                  칩까지 밀려났다. 본문은 285px이라 안 잘린다.
+                  라벨을 **윗줄**에 세우고 내용을 아랫줄에 놓아, 칩이든 한마디든 "무엇에 대한
+                  답인지"가 먼저 읽히게 한다. 한마디와 칩은 **둘 다** 보여준다 — 실제로 직접
+                  쓴 사람은 칩도 함께 고른다(고른 것과 쓴 것은 다른 정보다). */}
+              {!newbieBlank && (
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    가입목적
+                  </span>
+                  {lede.newbie.purposeTxt && (
+                    <span className="truncate text-[13px] leading-relaxed text-foreground">
+                      “{lede.newbie.purposeTxt}”
+                    </span>
+                  )}
+                  {lede.newbie.purposes.length > 0 && (
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      {lede.newbie.purposes.map((label) => (
+                        <PurposeChip key={label} label={label} />
+                      ))}
+                    </div>
+                  )}
+                  {/* 가입목적만 없는 경우 — 라벨은 세워두고 값 자리에 그 사실을 적는다.
+                      블록을 통째로 지우면 소개 한마디와 footer 사이가 벌어져 슬롯이
+                      균형을 잃는다. */}
+                  {!lede.newbie.purposeTxt &&
+                    lede.newbie.purposes.length === 0 && (
+                      <span className="text-[13px] leading-relaxed text-muted-foreground/70">
+                        아직 적지 않았어요
                       </span>
-                      {lede.newbie.purposeTxt && (
-                        <span className="min-w-0 truncate text-[13px] leading-relaxed text-foreground">
-                          “{lede.newbie.purposeTxt}”
-                        </span>
-                      )}
-                      {lede.newbie.purposes.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {lede.newbie.purposes.map((label) => (
-                            <PurposeChip key={label} label={label} />
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  )}
+                    )}
                 </div>
-                {lede.entity && (
-                  <div className="shrink-0">
-                    <StoryReactionButton
-                      entityType={lede.entity.type}
-                      entityId={lede.entity.id}
-                      rctnCd={lede.entity.rctnCd}
-                      initialCount={lede.entity.count}
-                      initialMyCount={lede.entity.myCount}
-                      onInteract={pauseThenResume}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : /* 활동지수 슬롯(§④) — 명조 헤드라인 + 프로필 부품 조합. 다른 슬롯처럼 신문 헤드라인을
-              얹고 그 아래 프로필(아바타+이름 위에 parts 순서대로 조각)을 쌓는다.
-              나머지 분기(사진·기록·헤드라인)보다 앞서 걸러 people/figure 공통 줄을 건너뛴다. */
-          lede.profile ? (
-            <div className="flex flex-1 flex-col justify-center gap-3">
-              {lede.headline && (
-                // 명조 헤드라인은 line-box 상단 여백이 있어 kicker와의 간격이 사진 슬롯보다
-                // 커 보인다 — 첫 슬롯(운동기록) 기준에 맞추려고 상단 여백을 살짝 트림(-mt-1).
-                <h2 className="-mt-1 line-clamp-2 text-pretty break-keep text-[26px] font-normal leading-[1.28] text-foreground [overflow-wrap:anywhere]">
-                  {lede.headline}
-                </h2>
               )}
-              <PersonProfile
-                person={lede.profile.person}
-                parts={lede.profile.parts}
-                rank={lede.profile.rank}
-                onSelect={onSelectMember}
-                // 인용구(한마디) 줄 우측에 응원 버튼 — 이 대표 멤버를 무한 응원(🔥 대박).
-                reactionSlot={
-                  lede.entity && (
-                    <StoryReactionButton
-                      entityType={lede.entity.type}
-                      entityId={lede.entity.id}
-                      rctnCd={lede.entity.rctnCd}
-                      initialCount={lede.entity.count}
-                      initialMyCount={lede.entity.myCount}
-                      onInteract={pauseThenResume}
-                    />
-                  )
-                }
-              />
-            </div>
-          ) : /* 운동 기록 칸 — 위(사진 | 한마디) + 아래 메타 한 줄(사람 ↔ 수치).
-              · 위: 좌측 사진(크게, 정사각) / 우측 한마디
-              · 아래: 전체 폭 한 줄 — 왼쪽 프사·이름·칭호, 오른쪽 날짜·종목·거리
-              메타를 2단 밖 한 줄로 빼야 손그림처럼 사람과 수치가 같은 바닥선에서 마주본다.
-              사진은 컨테이너 좌패딩(p-5)을 음수 마진으로 조금 당겨 왼쪽 여백을 줄인다. */
-          lede.photo ? (
-            <div className="flex flex-1 flex-col gap-3">
-              {/* 위 — 사진(좌) + 한마디(우). */}
-              <div className="flex min-h-0 flex-1 items-start gap-3">
-                {/* 사진은 클릭 대상이 아니다 — 프로필 카드는 아래 프사·이름을 눌러야 열린다.
-                    사진은 그 운동의 장면일 뿐이라 눌러도 반응하지 않는 게 자연스럽다.
-                    크기는 **픽셀 고정 정사각**(h-36 w-36 = 144px)이다 — h-full은 부모 높이가
-                    확정돼야 먹는데, 슬롯→article→photo 래퍼로 내려오는 높이 전파가
-                    items-start(위 정렬)에서 끊겨 0이 된다(사진이 안 보였던 원인). 슬롯 높이가
-                    고정이라 사진을 픽셀로 못박는다.
-                    음수 마진(-ml)은 두지 않는다 — 슬롯 컨테이너의 overflow-hidden(세로 잘림
-                    방지용)이 왼쪽으로 삐져나온 부분까지 잘라 사진 왼쪽이 잘렸다. */}
-                <div className="relative h-36 w-36 shrink-0 overflow-hidden rounded-xl bg-muted">
-                  {/* 사진 → 프사 → DiceBear 폴백. 셋 다 없어 src=""가 되면 Image가 터지므로
-                      마지막 폴백까지 항상 값이 있게 한다(격자 존과 같은 폴백 사슬). */}
-                  <Image
-                    src={
-                      // 빈 문자열("")도 폴백으로 내려가게 || 사슬 — photo_url·avatar_url이 text
-                      // nullable이라 ""가 들어올 수 있고, ??는 그걸 못 걸러 빈 src가 Image에 간다.
-                      lede.photo.url ||
-                      lede.photo.person.avatar_url ||
-                      buildFallbackAvatarUrl(lede.photo.person.mem_id)
-                    }
-                    alt={lede.photo.person.mem_nm}
-                    fill
-                    sizes="45vw"
-                    // 격자 존·아바타와 동일하게 최적화를 끈다 — 이 프로젝트는 remotePatterns를
-                    // 설정하지 않고 외부 URL(Storage·DiceBear)을 unoptimized로 그린다.
-                    unoptimized
-                    className="object-cover"
-                  />
-                </div>
-                {/* 한마디 — 사진 옆이라 대회 헤드라인(26px)보다 작게(15px). */}
-                <h2 className="line-clamp-6 min-w-0 flex-1 text-pretty break-keep pt-0.5 text-[15px] font-normal leading-[1.5] text-foreground [overflow-wrap:anywhere]">
-                  {lede.headline}
-                </h2>
-              </div>
 
-              {/* 아래 메타 한 줄 — 왼쪽 사람(프사·이름·칭호), 오른쪽 수치(날짜·종목·거리) */}
-              <div className="flex items-center justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={() =>
-                    onSelectMember(lede.photo!.person.mem_id, lede.photo!.person.mem_nm)
-                  }
-                  aria-label={`${lede.photo.person.mem_nm} 프로필 보기`}
-                  className="flex min-w-0 items-center gap-1.5 rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
-                >
-                  <Avatar
-                    src={lede.photo.person.avatar_url}
-                    seed={lede.photo.person.mem_id}
-                    alt={lede.photo.person.mem_nm}
-                    size="sm"
-                  />
-                  <span className="truncate text-[13px] font-bold text-foreground">
-                    {lede.photo.person.mem_nm}
-                  </span>
-                  {lede.photo.title && (
-                    <TitleBadge
-                      name={lede.photo.title.ttl_nm}
-                      effect={lede.photo.title.badge_effect}
-                      size="xs"
-                    />
-                  )}
-                </button>
-                {lede.standfirst && (
-                  <span className="shrink-0 font-numeric text-[12px] text-muted-foreground tabular-nums">
-                    {lede.standfirst}
-                  </span>
+              {/* `newbieBlank`가 이미 소개 한마디 없음을 포함한다 — 앞에 `!intro`를 또 걸면
+                  항상 참인 조건이 하나 더 붙을 뿐이다. */}
+              {newbieBlank && (
+                  // 가입 직후라 아무것도 안 채운 사람 — 이름과 NEW만 남아 슬롯이 텅 빈다.
+                  // **단정하지 않는다**: 프로필이 비었다는 건 "러닝 경험이 적다"의 증거가 아니다
+                  // (빠른 러너가 폼만 안 채웠을 수도 있다). 그래서 "일지도 몰라요"로 여지를 두고,
+                  // 크루가 할 일(먼저 인사)로 문장을 닫는다 — 빈 칸을 설명이 아니라 초대로 쓴다.
+                  <p className="break-keep text-[13px] leading-relaxed text-muted-foreground">
+                    러닝 프로필이 비어 있어요. 이제 막 달리기를 시작한
+                    새내기일지도 몰라요 — 만나면 먼저 인사 건네주세요.
+                  </p>
                 )}
-              </div>
-            </div>
+            </>
+          ) : lede.profile ? (
+            /* 활동지수(§④)·목표 한마디(§⑤) — 프로필 부품 조합.
+               응원 버튼은 여기서 그리지 않는다(footer가 맡는다). */
+            /* PB 블록은 걷어냈다 — 이 슬롯의 주어는 이번 달 활동(오른쪽 27px 수치)이고,
+               그 아래 자리는 소개 한마디가 이미 쓰고 있다. 역대 PB까지 얹으면 "이번 달"
+               이야기에 "역대" 이야기가 끼어들어 한 칸이 두 시간대를 말하게 된다. */
+            <PersonProfile
+              person={lede.profile.person}
+              parts={lede.profile.parts}
+              onSelect={onSelectMember}
+            />
           ) : lede.raceRecord ? (
-            /* 대회 완주기록 슬롯(§③) — 활동지수와 같은 결. 왼쪽 프사+이름+칭호 ↔ 오른쪽 종목·완주시간,
-               아래 작게 날짜·대회명 + 응원(🔥). 프로필 부품(PersonProfile) 대신 전용 레이아웃을 쓴다
-               — 오른쪽에 "이 완주의 종목·시간"을 세워야 하는데 그건 부품에 없는 형태라서.
-               내용이 짧아 슬롯(224px 고정)을 절반만 채운다 — 위로 붙이면 아래가 통째로 휑해서,
-               세로 가운데(justify-center)로 위아래 여백을 나눠 짧은 내용을 슬롯 중앙에 앉힌다. */
-            <div className="flex min-w-0 flex-1 flex-col justify-center gap-3">
+            /* 완주기록(§③) — **한 사람이 주인공.** 리드문 아래에 그 사람을 크게 세운다.
+               얼굴을 키운 건 장식이 아니다: 이 슬롯이 전하는 건 기록 숫자가 아니라
+               "우리 크루의 이 사람이 완주했다"는 소식이고, 숫자(완주시간)는 footer
+               왼쪽에서 D-day와 같은 자리를 지킨다. 종목은 이름 아래 한 줄로 받는다. */
+            <>
+              {/* 리드문은 위 밴드가 그린다(§body) — 여기서 또 그리면 두 번 나온다 */}
+
+              {/* 인물 ↔ 결과표를 **한 줄로** 마주 세운다.
+                  결과표를 인물 아래 별도 단으로 두면 그 단 높이(+간격 20px)만큼 슬롯이
+                  길어지는데, 정작 얼굴 오른쪽은 늘 비어 있었다. 옆으로 옮기면 빈 폭을 쓰고
+                  세로를 60px 가까이 돌려받는다 — 다른 슬롯의 "인물 ↔ 수치"(활동지수의
+                  참석·기록)와도 같은 배치가 된다. */}
               <div className="flex min-w-0 items-center gap-4">
-                {/* 왼쪽 — 프사 + 이름 + 칭호 */}
                 <button
                   type="button"
                   onClick={() =>
@@ -984,6 +1117,10 @@ export function StoryLede({
                   aria-label={`${lede.raceRecord.person.mem_nm} 프로필 보기`}
                   className="flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl text-left transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]"
                 >
+                  {/* 아바타 lg(56) + 이름 17px + 칭호 xs — **PersonProfile(활동지수 슬롯)과
+                      같은 치수**다. 같은 "사람 소개" 덩어리인데 슬롯마다 크기가 다르면
+                      스와이프할 때 인물이 커졌다 작아졌다 한다. 크기를 맞추려면 한쪽을
+                      골라야 해서, 공유 컴포넌트(PersonProfile) 쪽 값을 정본으로 삼았다. */}
                   <Avatar
                     src={lede.raceRecord.person.avatar_url}
                     seed={lede.raceRecord.person.mem_id}
@@ -1003,175 +1140,95 @@ export function StoryLede({
                     )}
                   </div>
                 </button>
-                {/* 오른쪽 — 종목(작게) + 완주시간(크게) */}
-                <div className="flex shrink-0 flex-col items-end">
-                  <span className="text-[11px] text-muted-foreground">
-                    {lede.raceRecord.evtLabel}
-                  </span>
-                  <span className="font-numeric text-[27px] font-medium leading-none text-foreground tabular-nums">
-                    {lede.raceRecord.time}
-                  </span>
-                </div>
-              </div>
-              {/* 아래 — 날짜·대회명(작게, 줄바꿈) ↔ 응원 */}
-              <div className="flex items-center justify-between gap-3">
-                {lede.raceRecord.meta && (
-                  <span className="min-w-0 flex-1 break-keep text-[11px] leading-relaxed text-muted-foreground">
-                    {lede.raceRecord.meta}
-                  </span>
-                )}
-                {lede.entity && (
-                  <StoryReactionButton
-                    entityType={lede.entity.type}
-                    entityId={lede.entity.id}
-                    rctnCd={lede.entity.rctnCd}
-                    initialCount={lede.entity.count}
-                    initialMyCount={lede.entity.myCount}
-                    onInteract={pauseThenResume}
-                  />
-                )}
-              </div>
-            </div>
-          ) : (
-            /* 각오처럼 띄어쓰기 없는 긴 문자열도 넘치지 않게 — break-keep(어절 유지)만으론
-               연속 문자를 못 끊으니 overflow-wrap:anywhere를 더하고, 최대 3줄로 말줄임한다.
-               -mt-1은 명조 상단 여백 트림 — kicker와의 간격을 첫 슬롯(운동기록) 기준에 맞춘다. */
-            <h2 className="-mt-1 line-clamp-3 text-pretty break-keep text-[26px] font-normal leading-[1.28] text-foreground [overflow-wrap:anywhere]">
-              {lede.headline}
-            </h2>
-          )}
 
-          {/* 리드문 — 기록 자랑(photo)·활동지수(profile)·새 얼굴(newbie)·대회(raceRoster) 슬롯은 위/아래
-              자체 렌더에서 사람·수치를 그리므로 이 공통 줄들(standfirst·아바타 줄)을 건너뛴다(중복·헛간격 방지). */}
-          {!lede.photo && !lede.profile && !lede.newbie && !lede.raceRoster && !lede.raceRecord && (
-            <p className="break-keep text-[13px] leading-relaxed text-muted-foreground">
-              {lede.standfirst}
-            </p>
-          )}
-
-          {/* 대회 슬롯(§①) — 참가자를 종목별로 묶어 나열(B안). standfirst → 나열(남는 공간 스크롤)
-              → 하단 D-day + 응원. 여백은 조정안 B(촘촘) — kicker/헤드라인 공통 gap-3 위에서
-              나열 영역만 flex-1로 늘리고 줄 간격을 좁게 준다. */}
-          {lede.raceRoster && (
+                {/* 결과표 — 라벨 왼쪽, 값 오른쪽으로 세로 두 줄. 옆단이라 폭이 좁아
+                    라벨을 값 위에 얹으면 칸이 두 배로 넓어진다(그러면 이름이 밀린다). */}
+                <dl className="flex shrink-0 flex-col gap-1.5">
+                  {lede.raceRecord.stats.map((s) => (
+                    <div key={s.label} className="flex items-baseline gap-2">
+                      <dt className="w-8 shrink-0 text-[11px] text-muted-foreground">
+                        {s.label}
+                      </dt>
+                      <dd className="font-numeric text-[16px] font-medium text-foreground tabular-nums">
+                        {s.value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            </>
+          ) : lede.raceRoster ? (
+            /* 대회(§①) — 참가자를 종목별로 묶어 나열. 명단이 길면 이 영역만 스크롤한다
+               (헤드라인이 2줄로 늘면 그만큼 여기서 줄어든다 — 잘리지 않는다).
+               D-day는 footer로 내렸다. */
             <div className="flex min-h-0 flex-1 flex-col gap-1.5">
-              <p className="break-keep text-[13px] leading-relaxed text-muted-foreground">
-                {lede.standfirst}
-              </p>
+              {/* 리드문은 위 밴드가 그린다(§body) — 여기서 또 그리면 두 번 나온다 */}
               {lede.raceRoster.length > 0 && (
                 <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto pt-0.5 [scrollbar-width:thin]">
                   {lede.raceRoster.map((g) => (
-                    <div
-                      key={g.evt}
-                      className="flex items-baseline gap-2.5 py-0.5"
-                    >
-                      {/* 종목 라벨 — 스크린 존이 아니라 board-amber는 못 쓴다(DESIGN 규칙).
-                          primary로 종목을 도드라지게, 이름은 foreground로 둔다. */}
-                      <span className="min-w-[42px] shrink-0 font-numeric text-[12px] font-bold text-primary tabular-nums">
+                    <div key={g.evt} className="flex items-start gap-2.5 py-1">
+                      {/* 스크린 존이 아니라 board-amber는 못 쓴다(DESIGN 규칙) —
+                          primary로 종목을 도드라지게, 이름은 foreground로 둔다.
+                          프사가 붙어 행이 높아졌으므로 라벨을 살짝 내려 첫 줄에 맞춘다. */}
+                      <span className="mt-1 min-w-[42px] shrink-0 font-numeric text-[12px] font-bold text-primary tabular-nums">
                         {g.evt}
                       </span>
-                      <span className="text-[14px] leading-relaxed text-foreground">
-                        {g.people.map((p, i) => (
-                          <span key={p.mem_id}>
-                            {i > 0 && (
-                              <span className="text-muted-foreground">, </span>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => onSelectMember(p.mem_id, p.mem_nm)}
-                              className="rounded transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            >
+                      {/* 이름만 나열하면 누가 나가는지 훑어지지 않는다 — 얼굴이 붙어야
+                          "아는 사람이 있네"가 한눈에 잡힌다. 넘치면 줄바꿈하고, 그래도
+                          넘치면 이 영역만 세로로 스크롤된다(슬롯 높이는 그대로). */}
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                        {g.people.map((p) => (
+                          <button
+                            key={p.mem_id}
+                            type="button"
+                            onClick={() => onSelectMember(p.mem_id, p.mem_nm)}
+                            aria-label={`${p.mem_nm} 프로필 보기`}
+                            className="flex shrink-0 items-center gap-1 rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
+                          >
+                            <Avatar
+                              src={p.avatar_url}
+                              seed={p.mem_id}
+                              alt={p.mem_nm}
+                              size="xs"
+                            />
+                            <span className="text-[13px] leading-none text-foreground">
                               {p.mem_nm}
-                            </button>
-                          </span>
+                            </span>
+                          </button>
                         ))}
-                      </span>
+                      </div>
                     </div>
                   ))}
                 </div>
               )}
-              {/* 하단 — D-day(왼쪽) + 응원(오른쪽). 다른 슬롯처럼 응원 버튼이 맨 아래에 온다. */}
-              <div className="mt-auto flex items-center justify-between gap-3 pt-1">
-                {lede.figure && (
-                  <span className="text-[24px] font-medium leading-none tracking-[0.04em] text-foreground">
-                    {lede.figure}
-                  </span>
-                )}
-                {lede.entity && (
-                  <StoryReactionButton
-                    entityType={lede.entity.type}
-                    entityId={lede.entity.id}
-                    rctnCd={lede.entity.rctnCd}
-                    initialCount={lede.entity.count}
-                    initialMyCount={lede.entity.myCount}
-                    onInteract={pauseThenResume}
-                  />
-                )}
-              </div>
             </div>
+          ) : (
+            lede.standfirst && (
+              <p className="break-keep text-[13px] leading-relaxed text-muted-foreground">
+                {lede.standfirst}
+              </p>
+            )
           )}
-
-          {/* 아바타·수치 줄 — 기록·프로필·새 얼굴·대회 칸은 사람과 기록을 이미 목록/프로필 안에 품고 있어
-              이 줄이 통째로 비고, 빈 flex가 gap만 남겨 리드문 아래에 헛간격이 생긴다. */}
-          {!lede.photo && !lede.profile && !lede.newbie && !lede.raceRoster && !lede.raceRecord && (lede.people.length > 0 || lede.figure) && (
-          <div className="flex items-center gap-3 pt-0.5">
-            <div className="flex shrink-0">
-              {lede.people.map((p, i) => (
-                <button
-                  key={p.mem_id}
-                  type="button"
-                  onClick={() => onSelectMember(p.mem_id, p.mem_nm)}
-                  aria-label={`${p.mem_nm} 프로필 보기`}
-                  className={cn(
-                    "rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95",
-                    i > 0 && "-ml-2.5",
-                    lede.people.length > 1 && "ring-2 ring-background",
-                  )}
-                >
-                  <Avatar
-                    src={p.avatar_url}
-                    seed={p.mem_id}
-                    alt={p.mem_nm}
-                    size={lede.people.length > 1 ? "sm" : "lg"}
-                  />
-                </button>
-              ))}
-              {lede.people.length > 1 && lede.moreCount > 0 && (
-                <span className="ml-1.5 self-center font-numeric text-[11px] text-muted-foreground tabular-nums">
-                  외 {lede.moreCount}
-                </span>
-              )}
-            </div>
-
-            {lede.figure && (
-              <div className="ml-auto flex shrink-0 flex-col items-end">
-                <span className="font-numeric text-[27px] font-medium leading-none text-foreground tabular-nums">
-                  {lede.figure}
-                </span>
-                {lede.figureLabel && (
-                  <span className="mt-1 text-[11px] text-muted-foreground">
-                    {lede.figureLabel}
-                  </span>
-                )}
-              </div>
-            )}
           </div>
-          )}
+        </div>
 
-          {/* 공통 응원 버튼 — 활동지수(profile)·새 얼굴(newbie)·대회(raceRoster)·완주기록(raceRecord)
-              슬롯은 자체 렌더에서 이미 응원 버튼을 그렸으므로 여기선 건너뛴다(중복 방지). */}
-          {lede.entity && !lede.profile && !lede.newbie && !lede.raceRoster && !lede.raceRecord && (
-            <div className="pt-1">
-              <StoryReactionButton
-                entityType={lede.entity.type}
-                entityId={lede.entity.id}
-                rctnCd={lede.entity.rctnCd}
-                initialCount={lede.entity.count}
-                initialMyCount={lede.entity.myCount}
-                onInteract={pauseThenResume}
-              />
-            </div>
+        {/* ── 밴드 3 · footer — 바닥 고정 ─────────────────────────
+            왼쪽은 이 슬롯의 **한 줄 사실**(D-day·완주시간·날짜·거리·가입목적),
+            오른쪽은 **응원**. 슬롯이 바뀌어도 응원 버튼은 같은 자리에 남는다.
+            다섯 슬롯 모두 응원을 받는다(운동기록도 `entity_type = "post"`로 붙였다). */}
+        <div className="flex shrink-0 items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">{footNote}</div>
+          {lede.entity && (
+            <StoryReactionButton
+              entityType={lede.entity.type}
+              entityId={lede.entity.id}
+              rctnCd={lede.entity.rctnCd}
+              initialCount={lede.entity.count}
+              initialMyCount={lede.entity.myCount}
+              onInteract={pauseThenResume}
+            />
           )}
-        </article>
+        </div>
       </div>
 
       {total > 1 && (

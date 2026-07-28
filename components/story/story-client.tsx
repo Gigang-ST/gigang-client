@@ -192,7 +192,7 @@ export function StoryClient({
           unit="명"
           headerAction={
             <HelpTip title="새 얼굴">
-              최근 30일 안에 기강에 새로 가입한 크루원입니다. 카드를 누르면 러닝 프로필과
+              최근 30일 안에 새로 들어온 기강인이에요. 카드를 누르면 러닝 프로필과
               소개 한마디를 볼 수 있어요.
             </HelpTip>
           }
@@ -232,11 +232,12 @@ export function StoryClient({
             전달되지 않았다. 접기(initial/max)를 쓰지 않는 이유가 그것이다 — 무더기는
             전원이 모여야 밀도로 읽히고, 잘라내면 그냥 큰 원 몇 개가 된다.
 
-            리드문("7월 기강 활동량") 우측에 "내 활동 내역"을 같은 줄로 붙인다 — 별도
-            줄로 아래에 두면 무더기와 리드 사이가 벌어져 어디에 딸린 버튼인지 흐려진다.
+            리드문("7월 기강 활동량") 우측에 "내 활동 내역"을 같은 줄로 붙인다(leadAction) —
+            별도 줄로 아래에 두면 무더기와 리드 사이가 벌어져 어디에 딸린 버튼인지 흐려진다.
             리드가 이번 달 활동량을 말하는 줄이니, 내 내역도 같은 줄에서 답한다. */}
         <StorySection
           label="Activity Index"
+          lead={`${getActvMonthLabel()} 기강 활동량`}
           items={feed.actv_rank}
           initial={feed.actv_rank.length}
           max={feed.actv_rank.length}
@@ -244,36 +245,30 @@ export function StoryClient({
           headerAction={
             <HelpTip title="기강 활동량">{ACTV_HELP_TEXT}</HelpTip>
           }
+          leadAction={
+            myMemId && feed.actv_rank.some((e) => e.mem_id === myMemId) ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const mine = feed.actv_rank.find(
+                    (e) => e.mem_id === myMemId,
+                  );
+                  if (mine)
+                    setHistory({ memId: mine.mem_id, name: mine.mem_nm });
+                }}
+                className="shrink-0 text-[11px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                내 활동 내역
+              </button>
+            ) : undefined
+          }
         >
           {(entries) => (
-            <>
-              {/* 리드 + 내 활동 내역 — 같은 줄 양끝. 리드는 명조 15px(다른 존 리드와 동일),
-                  내 내역은 산세리프 캡스 11px 링크. 로그인·본인이 무더기에 있을 때만 뜬다. */}
-              {/* pt-2.5 — 다른 존의 리드(StorySection의 lead prop)와 같은 윗 여백.
-                  이 존은 "내 활동 내역" 링크를 같은 줄에 놓아야 해서 lead prop을 못 쓰고
-                  직접 그리는데, 그러면 lead가 받던 pt-2.5를 놓쳐 괘선에 붙어 보인다. */}
-              <div className="flex items-baseline justify-between gap-3 pb-2.5 pt-2.5">
-                <p className="text-[15px] leading-snug text-muted-foreground">
-                  {getActvMonthLabel()} 기강 활동량
-                </p>
-                {myMemId && feed.actv_rank.some((e) => e.mem_id === myMemId) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const mine = feed.actv_rank.find(
-                        (e) => e.mem_id === myMemId,
-                      );
-                      if (mine)
-                        setHistory({ memId: mine.mem_id, name: mine.mem_nm });
-                    }}
-                    className="shrink-0 text-[11px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    내 활동 내역
-                  </button>
-                )}
-              </div>
+            // pt-1.5 — 리드와 무더기 사이 간격을 예전(리드 줄 pb-2.5 = 10px)과 같게 유지.
+            // StorySection의 children 래퍼 pt-1(4px)에 6px를 더한다.
+            <div className="pt-1.5">
               <ActvPile entries={entries} onSelectMember={selectMember} />
-            </>
+            </div>
           )}
         </StorySection>
 

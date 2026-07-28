@@ -195,6 +195,27 @@ export function secondsToTime(totalSeconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+/**
+ * 완주 페이스 — 총시간(초)과 거리(km)로 1km당 페이스를 낸다. `5'20"` 형태.
+ *
+ * 러닝 프로필의 평균 페이스(`6'00"`)와 **같은 표기**를 쓴다 — 한 앱 안에서 페이스가
+ * 두 가지 모양으로 보이면 비교가 안 된다. 초는 반올림하고 60초가 되면 분으로 올린다
+ * (`5'59.7"`가 `5'60"`으로 찍히지 않게).
+ *
+ * 거리를 모르거나 0이면 `null` — 호출부가 그 칸을 아예 그리지 않는다.
+ */
+export function formatPace(
+  totalSeconds: number,
+  distanceKm: number | null,
+): string | null {
+  if (!distanceKm || distanceKm <= 0 || !totalSeconds || totalSeconds <= 0)
+    return null;
+  const perKm = Math.round(totalSeconds / distanceKm);
+  const m = Math.floor(perKm / 60);
+  const s = perKm % 60;
+  return `${m}'${String(s).padStart(2, "0")}"`;
+}
+
 /** "H:MM:SS" 또는 "M:SS" → 초 (유효하지 않으면 null) */
 export function timeStringToSeconds(timeStr: string): number | null {
   const parts = timeStr.trim().split(":").map(Number);
