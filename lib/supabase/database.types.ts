@@ -561,6 +561,7 @@ export type Database = {
           dst_km: number
           elv_m: number | null
           final_mlg: number
+          photo_url: string | null
           prt_id: string
           review: string | null
           sprt_enm: Database["public"]["Enums"]["evt_mlg_sprt_enm"]
@@ -575,6 +576,7 @@ export type Database = {
           dst_km: number
           elv_m?: number | null
           final_mlg: number
+          photo_url?: string | null
           prt_id: string
           review?: string | null
           sprt_enm: Database["public"]["Enums"]["evt_mlg_sprt_enm"]
@@ -589,6 +591,7 @@ export type Database = {
           dst_km?: number
           elv_m?: number | null
           final_mlg?: number
+          photo_url?: string | null
           prt_id?: string
           review?: string | null
           sprt_enm?: Database["public"]["Enums"]["evt_mlg_sprt_enm"]

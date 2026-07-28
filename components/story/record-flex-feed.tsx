@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 
+import { Zap } from "lucide-react";
+
 import { loadMorePosts } from "@/app/actions/story/load-more-posts";
 // 상한은 `lib/story-post.ts`에서 가져온다 — `lib/queries/story-posts.ts`는 admin
 // 클라이언트(`server-only`)를 물고 있어 클라이언트 컴포넌트가 import하면 빌드가 깨진다.
 // 값 자체는 두 곳이 같아야 하므로(받은 개수 < 상한 = 끝) 정본은 story-post.ts 한 곳이다.
 import { STORY_POST_LIMIT } from "@/lib/story-post";
 
-import { buildFallbackAvatarUrl } from "@/components/common/avatar";
 import { HelpTip } from "@/components/common/help-tip";
 import { MemberCardDialog } from "@/components/members/member-card-dialog";
 import { RecordFlexCreateDialog } from "@/components/story/record-flex-create-dialog";
@@ -30,10 +31,13 @@ import type { StoryPost } from "@/lib/queries/story-posts";
  * UI가 되고(400건이면 3px), 시간순 목록에서 "몇 면 중 몇 면"은 애초에 쓸모가 적다.
  * 지금은 손으로 밀면 계속 흘러가고 끝에서 멈춘다 — 감기지 않으므로 끝이 있다는 걸 손으로 안다.
  *
- * **사진이 없는 기록**(직접 올리며 사진을 안 넣었거나, 마일리지런 자동 유입분 `mlg_auto` —
- * 원천 `evt_mlg_act_hist`에 사진 컬럼이 없다)은 **프로필사진을 칸에 사각으로 꽉 채운다**.
- * 사진 있는 칸과 같은 사각 격자로 읽히게 — 빈 회색 칸으로 두면 자랑이 초라해 보여 다음부터
- * 안 올린다. 프사가 512px라 확대하면 다소 흐리지만, 얼굴이 보이는 편이 낫다는 판단.
+ * **사진 없는 기록은 아예 안 뜬다.** 예전엔 프로필사진으로 칸을 채웠는데, 그러면 격자가
+ * 기록이 아니라 얼굴 무더기로 읽혔다. 이 지면은 수치를 겨루는 자리가 아니라 친목·응원이고
+ * 그 매개가 사진이라, 사진이 없으면 세울 것이 없다 — 거르는 건 `get_team_posts` RPC
+ * (`photo_url IS NOT NULL`)라 클라이언트는 폴백을 갖지 않는다.
+ *
+ * 마일리지런에서 온 기록(`src_enm === "mlg_auto"`)은 사진을 올린 것만 여기 서고, 출처가
+ * 다르다는 표시로 ⚡ 배지만 붙인다. 수치는 격자에 적지 않는다(칸은 사진만 담는다).
  */
 export function RecordFlexFeed({
   posts,
@@ -41,7 +45,7 @@ export function RecordFlexFeed({
   teamId,
 }: {
   posts: StoryPost[];
-  /** 로그인 사용자 — 없으면 "올리기" 버튼을 감춘다(각오·응원과 동일 정책) */
+  /** 로그인 사용자 — 없으면 "올리기" 버튼을 감춘다(목표 한마디·응원과 동일 정책) */
   myMemId: string | null;
   /** 릴스 뷰어 안에서 여는 프로필 카드에 넘긴다 */
   teamId: string;
@@ -209,15 +213,15 @@ export function RecordFlexFeed({
                   // 모서리는 칸을 카드처럼 보이게 해 격자의 결이 흐려진다). 테두리도 두지
                   // 않는다 — 인스타처럼 사진끼리 딱 붙이고, 좁은 gap(2px)이 흰 배경 사진의
                   // 경계 역할을 대신한다.
-                  className="block aspect-square w-[42vw] max-w-[180px] overflow-hidden bg-muted transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
+                  className="relative block aspect-square w-[42vw] max-w-[180px] overflow-hidden bg-muted transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
                 >
-                  {/* 사진 없이 올린 기록도 프로필사진을 **칸에 사각으로 꽉 채운다** — 사진 있는
-                      칸과 같은 aspect-square·object-cover라 격자가 한 결로 읽힌다(칸이 카드처럼
-                      따로 놀지 않는다). 프사가 512px라 확대하면 다소 흐리지만, 회색 빈 칸보다
-                      얼굴이 보이는 편이 자랑 피드로선 낫다. 프사 미설정자는 DiceBear 폴백(SVG)이라
-                      오히려 선명하다. */}
+                  {/* 사진은 항상 있다 — 프사 폴백을 걷어냈다. 이 지면에 서는 조건 자체가
+                      "사진이 있을 것"이고(`get_team_posts`가 사진 없는 행을 안 내려준다),
+                      얼굴로 칸을 때우면 기록 격자가 아니라 얼굴 격자가 된다.
+                      `photo_url`이 타입상 nullable인 건 마일리지런 자동 유입분이 사진 없이도
+                      DB에 남기 때문이다 — 조회에서 걸러지므로 여기 닿지 않는다. */}
                   <Image
-                    src={p.photo_url ?? p.avatar_url ?? buildFallbackAvatarUrl(p.mem_id)}
+                    src={p.photo_url ?? ""}
                     alt=""
                     width={320}
                     height={320}
@@ -225,6 +229,18 @@ export function RecordFlexFeed({
                     referrerPolicy="no-referrer"
                     unoptimized
                   />
+
+                  {/* 마일리지런에서 올라온 기록 — 같은 운동기록이되 출처가 다르다는 표시만.
+                      수치를 다시 적지 않는다(격자는 사진만 담는 자리다). 사진이 밝든 어둡든
+                      읽히게 반투명 검정 판 위에 흰 아이콘으로 얹는다. */}
+                  {p.src_enm === "mlg_auto" && (
+                    <span
+                      aria-label="마일리지런 기록"
+                      className="pointer-events-none absolute right-1.5 top-1.5 flex size-6 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm"
+                    >
+                      <Zap className="size-3.5 fill-current" />
+                    </span>
+                  )}
                 </button>
                 ))}
               </li>

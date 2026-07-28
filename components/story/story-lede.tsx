@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
+import { Zap } from "lucide-react";
+
 import { dayjs, formatPace, secondsToTime } from "@/lib/dayjs";
 import {
   getJoinPurposeLabelsFromCds,
@@ -13,7 +15,7 @@ import {
 } from "@/lib/member-card";
 import { cn } from "@/lib/utils";
 
-import { Avatar, buildFallbackAvatarUrl } from "@/components/common/avatar";
+import { Avatar } from "@/components/common/avatar";
 import { TitleBadge } from "@/components/common/title-badge";
 import { PurposeChip } from "@/components/members/profile-chip";
 import {
@@ -21,6 +23,7 @@ import {
   type PersonProfilePart,
   type PersonProfilePerson,
 } from "@/components/story/person-profile";
+import { RecordReelViewer } from "@/components/story/record-reel-viewer";
 import { StoryReactionButton } from "@/components/story/story-reaction-button";
 
 import { compEvtTypeKm, compEvtTypeLabel } from "@/lib/comp-evt-type";
@@ -133,14 +136,18 @@ type Lede = {
     myCount: number;
   } | null;
   /**
-   * 운동 기록 칸 전용 — 사진 URL(있으면 헤드라인 대신 사진을 크게 싣는다).
-   * `null`이면 사진 없는 자랑이라 프사로 폴백한다(격자 존과 같은 규칙).
+   * 운동 기록 칸 전용 — 사진 URL(헤드라인 대신 사진을 크게 싣는다).
+   * 이 슬롯에 오르는 기록은 사진이 있는 것뿐이라(`get_team_posts`가 걸러 준다) 폴백이 없다.
    * `title`은 올린 사람의 대표 호칭(있으면 이름 옆 배지) — 없으면 배지 생략.
+   * `mileage`는 마일리지런에서 자동 유입된 기록 — 사진 위 ⚡ 배지로 출처를 알린다.
    */
   photo?: {
     url: string | null;
     person: Person;
+    mileage?: boolean;
     title: { ttl_nm: string; badge_effect: string } | null;
+    /** 이 사진의 기록 id — 사진을 누르면 릴스 뷰어를 이 장부터 연다 */
+    postId: string;
   } | null;
   /** 좌측 메인 — 대회처럼 주인공이 여럿이면 겹쳐 쌓는다 */
   people: Person[];
@@ -555,7 +562,8 @@ function buildLedes(
   //    리드에선 사진 한 장을 크게 + 한마디 + 수치(종목·거리·날짜) + 올린 사람으로 세운다.
   //    주인공은 "그 사람이 한 운동"이라 러닝 프로필(페이스·역 등 간단 프로필)은 넣지 않는다 —
   //    사진·한마디·수치와 경쟁해 시선이 흩어진다. 사람은 아바타+이름으로만 조연으로 둔다.
-  //    (사진 없으면 프사로 폴백 — 격자와 같은 규칙). postPick은 호출자가 굴린다(서버·클라 일치).
+  //    사진은 항상 있다 — 사진 없는 기록은 `get_team_posts`가 안 내려준다(프사 폴백 없앰).
+  //    postPick은 호출자가 굴린다(서버·클라 일치).
   if (posts.length > 0) {
     const post = posts[postPick % posts.length];
     const person: Person = {
@@ -600,14 +608,20 @@ function buildLedes(
       // 사람은 렌더의 사진 옆 아바타+이름 줄이 맡는다(people 줄은 안 쓴다 — 사진 슬롯 전용 렌더).
       people: [],
       moreCount: 0,
-      // 헤드라인은 한마디(따옴표). 한마디가 비면 이름으로 대체한다.
-      headline: post.cmnt_txt ? `“${post.cmnt_txt}”` : `${post.mem_nm}의 기록`,
+      // 헤드라인은 한마디(따옴표). **한마디가 없으면 비운다** — 예전엔 "OOO의 기록"으로
+      // 채웠는데, 그건 사람이 쓴 말이 아니라 시스템이 지어낸 문장이라 읽는 사람에게 주는
+      // 정보가 없다(이름은 바로 아래 줄에 이미 있다). 빈 줄로 두면 렌더가 그 자리를
+      // 사진에 넘겨 사진이 커진다 — 한마디가 없는 기록은 사진이 곧 전부이므로.
+      headline: post.cmnt_txt ? `“${post.cmnt_txt}”` : "",
       standfirst: meta,
       figure: null,
       figureLabel: null,
       photo: {
         url: post.photo_url,
         person,
+        postId: post.post_id,
+        // 마일리지런에서 올라온 기록이면 사진 위에 ⚡ 배지를 얹는다(격자·릴스와 같은 표시)
+        mileage: post.src_enm === "mlg_auto",
         title: post.primary_title
           ? {
               ttl_nm: post.primary_title.ttl_nm,
@@ -704,6 +718,9 @@ export function StoryLede({
    */
   // 빈 맵으로 시작해 마운트 뒤 한 번 복원한다 — 초기 state에서 sessionStorage를 읽으면
   // 서버 렌더(저장소가 없다)와 결과가 달라 하이드레이션이 깨진다.
+  /** 사진을 눌러 연 릴스 뷰어의 시작 장 — null이면 닫힘(격자존과 같은 방식) */
+  const [reelId, setReelId] = useState<string | null>(null);
+
   const [myBumps, setMyBumps] = useState<Record<string, number>>({});
   const [restored, setRestored] = useState(false);
   if (!restored) {
@@ -1008,53 +1025,115 @@ export function StoryLede({
                비어 있다. 바닥에 붙이면 사진 끝단과 이름 바닥이 한 선에서 맞아 덩어리가 닫히고,
                그만큼 지면을 돌려받는다. 칭호는 뺐다 — 사진·한마디·이름이 이미 서 있는 칸에서
                배지까지 더하면 조연이 넷이 된다(칭호는 프로필 카드에서 볼 수 있다). */
-            <div className="flex min-h-0 items-start gap-3">
-              <div className="relative h-36 w-36 shrink-0 overflow-hidden rounded-xl bg-muted">
-                {/* 사진 → 프사 → DiceBear 폴백. 빈 문자열("")도 내려가게 ??가 아닌 || 사슬 */}
+            <div className="flex min-h-0 flex-col gap-2">
+              {/* **사진 크기는 슬롯이 남긴 높이가 정한다(158px).**
+                  예전 144px은 위아래로 7px씩 여백을 남기고 끝났다 — body 밴드가
+                  `justify-center`라 남는 높이가 사진 위아래로 갈렸기 때문이다. 그 여백을
+                  사진이 먹게 해 지면을 더 쓴다.
+
+                  158px이 나온 계산(슬롯 264px 기준):
+                    264 − kicker 16 − gap 12 − footer 34 − gap 12 = 190 (본문 영역)
+                    190 − 이름줄 24 − gap 8 = 158 (사진이 쓸 수 있는 최대)
+                  **상한에 딱 붙인 값이라 여유가 0이다.** 폰트 렌더링·칭호 배지 높이가
+                  기기마다 1~2px 흔들리면 footer가 밀릴 수 있다 — 실기기에서 응원 버튼 줄이
+                  잘리거나 내려앉으면 152px로 내린다(그 값은 6px 여유를 둔 것이었다).
+
+                  **정사각은 반드시 유지한다**: `w-full`로 늘리면 가로로 긴 띠가 되어
+                  정사각인 격자·릴스와 결이 어긋난다(실제로 그렇게 만들었다가 되돌렸다).
+                  ⚠️ 더 키우려면 슬롯 높이(h-[264px])부터 375px에서 다시 재야 한다. */}
+              <div
+                className={
+                  lede.headline
+                    ? "flex min-h-0 items-start gap-3"
+                    : "flex min-h-0 flex-col"
+                }
+              >
+              {/* 사진을 누르면 그 기록의 릴스 뷰어가 이 장부터 열린다(격자 칸과 같은 동작).
+                  예전엔 "사진은 눌러도 반응하지 않는다"였는데, 리드에서 사진만 보고 한마디
+                  전문·거리·날짜를 보려면 아래 격자까지 내려가 같은 장을 다시 찾아야 했다. */}
+              <button
+                type="button"
+                onClick={() => setReelId(lede.photo!.postId)}
+                aria-label={`${lede.photo.person.mem_nm}의 기록 자세히 보기`}
+                className={`relative size-[158px] shrink-0 overflow-hidden rounded-xl bg-muted transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]`}
+              >
+                {/* 사진은 항상 있다 — 프사 폴백은 걷어냈다(조회에서 사진 없는 기록을 거른다) */}
                 <Image
-                  src={
-                    lede.photo.url ||
-                    lede.photo.person.avatar_url ||
-                    buildFallbackAvatarUrl(lede.photo.person.mem_id)
-                  }
+                  src={lede.photo.url ?? ""}
                   alt={lede.photo.person.mem_nm}
                   fill
-                  sizes="45vw"
+                  sizes="50vw"
                   unoptimized
                   className="object-cover"
                 />
-              </div>
-              {/* **높이를 사진과 같게 못박는다**(h-36). 이 칸이 본문 높이만큼 늘어나면
-                  바닥에 붙인 이름이 사진 끝단보다 아래로 내려가 두 줄이 어긋난다.
-                  덩어리가 정확히 144px로 닫히면 아래 남는 여백은 본문이 통째로
-                  세로 가운데에 앉히므로 위아래가 고르게 나뉜다. */}
-              <div className="flex h-36 min-w-0 flex-1 flex-col">
-                {/* 한마디 — 사진 옆이라 헤드라인(26px)보다 작게. 사진 높이만큼 줄을 쓴다 */}
-                <p className="line-clamp-4 min-w-0 text-pretty break-keep text-[15px] leading-[1.5] text-foreground [overflow-wrap:anywhere]">
-                  {lede.headline}
-                </p>
-                <button
-                  type="button"
-                  onClick={() =>
-                    onSelectMember(
-                      lede.photo!.person.mem_id,
-                      lede.photo!.person.mem_nm,
-                    )
-                  }
-                  aria-label={`${lede.photo.person.mem_nm} 프로필 보기`}
-                  className="mt-auto flex min-w-0 items-center gap-1.5 self-start rounded-full pt-2 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
-                >
-                  <Avatar
-                    src={lede.photo.person.avatar_url}
-                    seed={lede.photo.person.mem_id}
-                    alt={lede.photo.person.mem_nm}
-                    size="xs"
-                  />
-                  <span className="truncate text-[12px] font-bold text-foreground">
-                    {lede.photo.person.mem_nm}
+                {/* 마일리지런에서 온 기록 — 격자·릴스와 같은 ⚡ 표시. 이 칸은 144px로 작아
+                    글자 없이 아이콘만 얹는다(라벨까지 넣으면 사진을 가린다). */}
+                {lede.photo.mileage && (
+                  <span
+                    aria-label="마일리지런 기록"
+                    className="absolute right-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm"
+                  >
+                    <Zap className="size-3 fill-current" />
                   </span>
-                </button>
+                )}
+              </button>
+              {/* 한마디 — 사진 옆이라 헤드라인(26px)보다 작게. **높이를 사진과 같게 못박는다
+                  (158px)** — 한마디가 짧아도 이 칸이 사진보다 일찍 끝나 덩어리 우측이
+                  들쭉날쭉해지지 않게. 한마디가 없으면 칸 자체를 그리지 않는다(사진만 선다).
+
+                  **줄 수는 사진 높이에 맞춘 7줄이다.** 예전 `line-clamp-4`는 4줄 = 90px
+                  (15px × leading-1.5 × 4)이라 사진 옆에 54px을 남기고 끝났다 — 글이
+                  더 있는데도 사진 바닥에 한참 못 미쳐 잘렸다. 7줄이면 157.5px로 158px 사진과
+                  거의 정확히 맞는다.
+                  ⚠️ 사진 높이를 바꾸면 이 줄 수도 함께 고쳐야 한다 — 높이 ÷ 22.5px.
+                  `overflow-hidden`으로 흘려보내면 이 숫자가 필요 없지만, 그러면 잘릴 때
+                  말줄임(…)이 사라져 "글이 더 있다"는 신호가 없어진다. */}
+              {lede.headline && (
+                <div className="flex h-[158px] min-w-0 flex-1 flex-col">
+                  <p className="line-clamp-7 min-w-0 text-pretty break-keep text-[15px] leading-[1.5] text-foreground [overflow-wrap:anywhere]">
+                    {lede.headline}
+                  </p>
+                </div>
+              )}
               </div>
+
+              {/* 올린 사람 — **사진 아래 제 줄로 내렸다.** 예전엔 사진 옆 칸 바닥에
+                  붙였는데(mt-auto), 한마디가 짧으면 사진 옆이 텅 비고 그만큼 이름이
+                  덩어리 안에 갇혀 사진 아래 여백만 남았다. 밖으로 내리면 그 여백을
+                  이름이 쓰고, 사진 왼쪽 끝에 맞춰 서서 "이 사진을 올린 사람"으로 읽힌다.
+                  self-start라 이름 길이만큼만 눌린다(줄 전체가 버튼이 되지 않게). */}
+              <button
+                type="button"
+                onClick={() =>
+                  onSelectMember(
+                    lede.photo!.person.mem_id,
+                    lede.photo!.person.mem_nm,
+                  )
+                }
+                aria-label={`${lede.photo.person.mem_nm} 프로필 보기`}
+                className="flex min-w-0 items-center gap-1.5 self-start rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
+              >
+                <Avatar
+                  src={lede.photo.person.avatar_url}
+                  seed={lede.photo.person.mem_id}
+                  alt={lede.photo.person.mem_nm}
+                  size="xs"
+                />
+                <span className="truncate text-[12px] font-bold text-foreground">
+                  {lede.photo.person.mem_nm}
+                </span>
+                {/* 칭호 — 이름과 같은 급으로 옆에 세운다(sm=11px, 이름 12px). 예전엔
+                    "조연이 넷이 된다"고 뺐지만, 이름이 사진 아래 제 줄을 갖게 되면서
+                    그 줄에 여유가 생겼다. shrink-0으로 이름이 길어도 배지가 안 눌린다. */}
+                {lede.photo.title && (
+                  <TitleBadge
+                    name={lede.photo.title.ttl_nm}
+                    effect={lede.photo.title.badge_effect}
+                    size="sm"
+                    className="shrink-0"
+                  />
+                )}
+              </button>
             </div>
           ) : lede.newbie ? (
             /* 새 얼굴(§②) — 왼쪽 인물(아바타·이름·new) ↔ 오른쪽 러닝프로필 칩, 아래 소개 한마디.
@@ -1388,6 +1467,17 @@ export function StoryLede({
       </span>
     </div>
 
+      {/* 사진을 눌러 여는 릴스 뷰어 — 격자존과 같은 부품·같은 목록(posts)을 쓴다.
+          누른 장부터 열리고, 위아래로 밀어 다른 기록으로 넘어갈 수 있다. */}
+      <RecordReelViewer
+        posts={posts}
+        startId={reelId}
+        open={reelId !== null}
+        onOpenChange={(o) => {
+          if (!o) setReelId(null);
+        }}
+        onSelectMember={onSelectMember}
+      />
     </section>
   );
 }

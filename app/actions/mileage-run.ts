@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { after } from "next/server";
 
 import { dayjs } from "@/lib/dayjs";
@@ -25,6 +25,11 @@ import {
   type MileageSport,
 } from "@/lib/mileage";
 import { withActive } from "@/lib/actions/auth";
+import {
+  postPhotoPathFromUrl,
+  removePostPhoto,
+  uploadPostPhoto,
+} from "@/lib/storage/post-photo";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 import { activityLogBatchSchema, activityLogSchema } from "@/lib/validations/mileage";
@@ -40,6 +45,11 @@ export interface ActivityLogInput {
   elevation_m: number;
   applied_mult_ids: string[]; // evt_mlg_mult_cfg.mult_id 배열
   review: string | null;
+  /**
+   * 사진 공개 URL(선택). 값이 있으면 DB 트리거가 이 기록을 기강이야기 운동기록에도 세운다.
+   * 파일 업로드는 `uploadActivityPhoto`가 먼저 처리하고 여기엔 URL만 온다.
+   */
+  photo_url?: string | null;
 }
 
 type ActionResult = { ok: boolean; message: string | null; grantedTitles?: string[] };
@@ -101,6 +111,47 @@ async function buildAppliedMults(
   }
 
   return { appliedMults, multValues, error: null };
+}
+
+// ─────────────────────────────────────────
+// 0. 활동 사진 업로드 (기강이야기 유입용)
+// ─────────────────────────────────────────
+
+export type UploadActivityPhotoResult =
+  | { ok: false; message: string }
+  | { ok: true; url: string };
+
+/**
+ * 마일리지런 기록에 붙일 사진을 올리고 공개 URL을 돌려준다.
+ *
+ * **업로드와 기록 저장을 갈라 둔 이유**: 마일리지런 폼은 배율·고도·미리보기까지 얹힌
+ * JSON 액션(`logActivity`)이라 `File`을 실어 보낼 수 없다(브라우저 전용 타입). 그래서
+ * 사진만 먼저 FormData로 올려 URL을 받고, 그 URL을 기존 JSON 흐름에 문자열 한 칸으로 태운다.
+ * 기강이야기 직접 작성(`createRecordFlex`)은 필드가 셋뿐이라 통째로 FormData면 되지만
+ * 여기는 그 방식이 안 맞는다 — 사진 처리 자체는 `uploadPostPhoto`로 공유한다.
+ *
+ * 사진을 올렸다가 기록 저장을 취소하면 파일이 고아로 남는다. 그건 감수한다 —
+ * 되돌리기를 하려면 폼이 업로드 시점부터 경로를 들고 있어야 하는데, 그 복잡도가
+ * webp 몇 십 KB보다 비싸다(기강이야기 쪽은 한 액션 안이라 되돌릴 수 있어서 되돌린다).
+ */
+export async function uploadActivityPhoto(
+  formData: FormData,
+): Promise<UploadActivityPhotoResult> {
+  const file = formData.get("photo") as File | null;
+  if (!file || file.size === 0) {
+    return { ok: false, message: "사진을 선택해 주세요." };
+  }
+
+  try {
+    return await withActive(async ({ member, supabase }) => {
+      const uploaded = await uploadPostPhoto(supabase, member.id, file);
+      if (!uploaded.ok) return { ok: false as const, message: uploaded.message };
+      return { ok: true as const, url: uploaded.url };
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "잠시 후 다시 시도해 주세요";
+    return { ok: false, message };
+  }
 }
 
 // ─────────────────────────────────────────
@@ -243,9 +294,15 @@ export async function logActivity(
       dst_km: validInput.distance_km, elv_m: validInput.elevation_m,
       base_mlg: baseMlg, aply_mults: appliedMults, final_mlg: finalMlg,
       review: validInput.review?.trim() || null,
+      // 사진이 있으면 DB 트리거가 이 기록을 기강이야기 운동기록에도 세운다(사진이 게이트)
+      photo_url: validInput.photo_url || null,
     });
 
     if (error) return { ok: false, message: "활동 기록 추가에 실패했습니다" };
+
+    // 사진이 붙었으면 지면이 바뀐다 — 전광판 캐시(5분)를 기다리지 않고 즉시 반영한다.
+    // `revalidatePath("/projects")`만으론 /story의 `story-posts` 태그가 안 풀린다.
+    if (validInput.photo_url) updateTag("story-posts");
 
     try {
       await recalcGoalsFromMonth(evtId, participant.prt_id);
@@ -316,6 +373,7 @@ export async function logActivitiesBatch(
       aply_mults: { mult_id: string; mult_nm: string; mult_val: number }[];
       final_mlg: number;
       review: string | null;
+      photo_url: string | null;
     }[] = [];
 
     for (let i = 0; i < validInputs.length; i++) {
@@ -334,6 +392,8 @@ export async function logActivitiesBatch(
         dst_km: input.distance_km, elv_m: input.elevation_m,
         base_mlg: baseMlg, aply_mults: appliedMults, final_mlg: finalMlg,
         review: input.review?.trim() || null,
+        // 사진이 있으면 DB 트리거가 이 기록을 기강이야기 운동기록에도 세운다(사진이 게이트)
+        photo_url: input.photo_url || null,
       });
     }
 
@@ -352,6 +412,9 @@ export async function logActivitiesBatch(
 
     const { error } = await db.from("evt_mlg_act_hist").insert(rows);
     if (error) return { ok: false, message: "활동 기록 저장에 실패했습니다" };
+
+    // 한 건이라도 사진이 붙었으면 기강이야기 지면이 바뀐다(트리거가 post를 세운다)
+    if (rows.some((r) => r.photo_url)) updateTag("story-posts");
 
     try {
       await recalcGoalsFromMonth(evtId, participant.prt_id);
@@ -403,13 +466,13 @@ export async function updateActivity(
   if (!parsed.success) return { ok: false, message: "입력값이 올바르지 않습니다" };
   const validInput = parsed.data;
 
-  return withActive(async ({ member }) => {
+  return withActive(async ({ member, supabase }) => {
     const isAdmin = !!member.admin;
     const db = createAdminClient();
 
     const { data: existing, error: fetchErr } = await db
       .from("evt_mlg_act_hist")
-      .select("act_id, prt_id, evt_team_prt_rel!inner(mem_id, evt_id)")
+      .select("act_id, prt_id, photo_url, evt_team_prt_rel!inner(mem_id, evt_id)")
       .eq("act_id", actId)
       .single();
 
@@ -430,16 +493,29 @@ export async function updateActivity(
     const baseMlg = roundMileage(calcBaseMileage(validInput.sprt_enm, validInput.distance_km, validInput.elevation_m));
     const finalMlg = roundMileage(calcFinalMileage(baseMlg, multValues));
 
+    const prevPhotoUrl = existing.photo_url as string | null;
+    const nextPhotoUrl = validInput.photo_url || null;
+
     const { error } = await db
       .from("evt_mlg_act_hist")
       .update({
         act_dt: validInput.act_dt, sprt_enm: validInput.sprt_enm, dst_km: validInput.distance_km,
         elv_m: validInput.elevation_m, base_mlg: baseMlg, aply_mults: appliedMults,
-        final_mlg: finalMlg, review: validInput.review?.trim() || null, updated_at: dayjs().toISOString(),
+        final_mlg: finalMlg, review: validInput.review?.trim() || null,
+        photo_url: nextPhotoUrl, updated_at: dayjs().toISOString(),
       })
       .eq("act_id", actId);
 
     if (error) return { ok: false, message: "활동 기록 수정에 실패했습니다" };
+
+    // 사진을 갈아끼웠거나 지웠으면 이전 파일은 아무도 참조하지 않는다 — Storage에서 치운다.
+    // DB 갱신이 성공한 뒤에 지운다: 먼저 지우면 갱신이 실패했을 때 원본이 사진을 잃는다.
+    if (prevPhotoUrl && prevPhotoUrl !== nextPhotoUrl) {
+      const prevPath = postPhotoPathFromUrl(prevPhotoUrl);
+      if (prevPath) await removePostPhoto(supabase, prevPath);
+    }
+    // 사진이 붙거나 떨어지면 기강이야기 지면이 바뀐다(트리거가 post를 세우거나 내린다)
+    if (prevPhotoUrl || nextPhotoUrl) updateTag("story-posts");
 
     try {
       await recalcGoalsFromMonth(existingParticipant.evt_id, existing.prt_id);
@@ -458,13 +534,13 @@ export async function updateActivity(
 // ─────────────────────────────────────────
 
 export async function deleteActivity(actId: string): Promise<ActionResult> {
-  return withActive(async ({ member }) => {
+  return withActive(async ({ member, supabase }) => {
     const isAdmin = !!member.admin;
     const db = createAdminClient();
 
     const { data: existing, error: fetchErr } = await db
       .from("evt_mlg_act_hist")
-      .select("act_id, prt_id, act_dt, evt_team_prt_rel!inner(mem_id, evt_id)")
+      .select("act_id, prt_id, act_dt, photo_url, evt_team_prt_rel!inner(mem_id, evt_id)")
       .eq("act_id", actId)
       .single();
 
@@ -477,8 +553,17 @@ export async function deleteActivity(actId: string): Promise<ActionResult> {
     const dateErr = validateActivityDate(existing.act_dt, isAdmin);
     if (dateErr) return { ok: false, message: dateErr };
 
+    const photoUrl = existing.photo_url as string | null;
+
     const { error } = await db.from("evt_mlg_act_hist").delete().eq("act_id", actId);
     if (error) return { ok: false, message: "활동 기록 삭제에 실패했습니다" };
+
+    // 원본이 사라지면 트리거가 대응 post를 내린다 — 사진 파일도 같이 치우고 지면을 갱신한다
+    if (photoUrl) {
+      const path = postPhotoPathFromUrl(photoUrl);
+      if (path) await removePostPhoto(supabase, path);
+      updateTag("story-posts");
+    }
 
     try {
       await recalcGoalsFromMonth(existingParticipant.evt_id, existing.prt_id);

@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { X } from "lucide-react";
+import { X, Zap } from "lucide-react";
 
 import { dayjs } from "@/lib/dayjs";
 import { getSportEmoji, getSportLabel } from "@/lib/sport";
 
-import { Avatar, buildFallbackAvatarUrl } from "@/components/common/avatar";
+import { Avatar } from "@/components/common/avatar";
 import { TitleBadge } from "@/components/common/title-badge";
 import { Dialog } from "@/components/ui/dialog";
 
@@ -35,9 +35,9 @@ function formatKm(km: number | null): string | null {
  * 한마디는 "기록을 읽는" 지면의 결을 릴스 안에서도 잇는다. 사진 위 하단
  * 그라디언트에 글을 얹는 인스타 정석 + 우리 서체 대비가 이 뷰어의 시그니처다.
  *
- * **사진 없는 기록**(마일리지런 자동 유입분 등)은 프사를 블러로 깔아 무대를 만들고 그 위에
- * 프사를 또렷하게 세운다 — 격자에선 프사로 칸을 꽉 채웠지만, 풀스크린에선 512px 프사를
- * 그대로 늘리면 뭉개져 무대가 초라해진다. 블러 배경이 그 빈자리를 메운다.
+ * **사진은 항상 있다.** 사진 없는 기록은 조회 단계(`get_team_posts`)에서 걸러지므로
+ * 여기 닿지 않는다 — 예전의 프사 폴백 무대는 걷어냈다(얼굴을 세우면 기록 자랑이 아니라
+ * 프로필 열람이 된다). 마일리지런에서 온 기록은 상단 ⚡ 배지로만 구분한다.
  */
 export function RecordReelViewer({
   posts,
@@ -152,9 +152,9 @@ const ReelCard = ({
   const km = formatKm(post.dst_km);
   const label = getSportLabel(post.sprt_enm);
   const emoji = getSportEmoji(post.sprt_enm);
-  const hasPhoto = Boolean(post.photo_url);
-  // 사진이 없으면 프사를 무대에 세운다(블러 배경 + 또렷한 중앙 프사)
-  const bgSrc = post.photo_url ?? post.avatar_url ?? buildFallbackAvatarUrl(post.mem_id);
+  // 사진은 항상 있다 — 사진 없는 기록은 조회에서 걸러진다(`get_team_posts`).
+  // 프사 폴백을 두던 자리인데, 얼굴을 무대에 세우면 "기록 자랑"이 아니라 프로필 열람이 된다.
+  const bgSrc = post.photo_url ?? "";
 
   // 거리·종목·날짜는 **한 줄에 묶지 않는다** — 이 자리는 "얼마나 달렸나"를 자랑하는 곳이라
   // 거리가 주인공이어야 한다. 거리를 큰 숫자로 세우고(종목 이모지·라벨은 그 옆 보조),
@@ -168,51 +168,34 @@ const ReelCard = ({
       ref={ref}
       className="relative flex h-full snap-start snap-always items-center justify-center overflow-hidden"
     >
-      {hasPhoto ? (
-        <>
-          {/* 사진 뒤 블러 확장 — 세로/가로 비율이 화면과 달라 생기는 레터박스를 사진 자신의
-              블러로 메운다(검은 띠 대신). object-cover라 꽉 차고, 위 또렷한 사진이 그 위에 뜬다. */}
-          <Image
-            src={bgSrc}
-            alt=""
-            fill
-            sizes="100vw"
-            unoptimized
-            aria-hidden
-            className="scale-110 object-cover opacity-40 blur-2xl"
-          />
-          {/* 또렷한 본 사진 — 비율 유지(contain). 무대 가운데. */}
-          <Image
-            src={bgSrc}
-            alt={`${post.mem_nm}의 기록 사진`}
-            fill
-            sizes="100vw"
-            unoptimized
-            className="object-contain"
-          />
-        </>
-      ) : (
-        // 사진 없는 기록 — 프사 블러 무대 + 중앙 또렷 프사(격자는 꽉 채우지만 풀스크린은 세워둔다)
-        <>
-          <Image
-            src={bgSrc}
-            alt=""
-            fill
-            sizes="100vw"
-            unoptimized
-            aria-hidden
-            className="scale-110 object-cover opacity-30 blur-3xl"
-          />
-          <div className="relative">
-            <Avatar
-              src={post.avatar_url}
-              seed={post.mem_id}
-              alt={post.mem_nm}
-              size="2xl"
-              className="ring-2 ring-white/20"
-            />
-          </div>
-        </>
+      {/* 사진 뒤 블러 확장 — 세로/가로 비율이 화면과 달라 생기는 레터박스를 사진 자신의
+          블러로 메운다(검은 띠 대신). object-cover라 꽉 차고, 위 또렷한 사진이 그 위에 뜬다. */}
+      <Image
+        src={bgSrc}
+        alt=""
+        fill
+        sizes="100vw"
+        unoptimized
+        aria-hidden
+        className="scale-110 object-cover opacity-40 blur-2xl"
+      />
+      {/* 또렷한 본 사진 — 비율 유지(contain). 무대 가운데. */}
+      <Image
+        src={bgSrc}
+        alt={`${post.mem_nm}의 기록 사진`}
+        fill
+        sizes="100vw"
+        unoptimized
+        className="object-contain"
+      />
+
+      {/* 마일리지런에서 온 기록 표시 — 상단에 띄운다. 하단은 그라디언트 정보 영역이라
+          자리가 없고, 위쪽은 사진 여백이라 배지 하나가 사진을 덜 가린다. */}
+      {post.src_enm === "mlg_auto" && (
+        <span className="absolute left-5 top-[calc(env(safe-area-inset-top)+16px)] z-[1] flex items-center gap-1 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
+          <Zap className="size-3 fill-current" />
+          마일리지런
+        </span>
       )}
 
       {/* 하단 그라디언트 + 정보 — 사진 위로 겹쳐 오른다. pointer-events는 버튼만 받게 좁힌다.
