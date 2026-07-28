@@ -407,7 +407,7 @@ export function ActivityLogBatchForm({ evtId, onSuccess, isInactive = false, ina
                     안내이지 오류가 아니므로 destructive(빨강)를 쓰지 않는다 — 같은 화면의
                     실제 오류 메시지와 색이 같으면 입력이 잘못된 줄로 읽힌다. */}
                 <p className="text-[12px] text-primary">
-                  사진 추가 시, 기강이야기의 운동기록에도 등록돼요.
+                  사진 추가 시, 기강이야기의 깅스타그램에도 등록돼요.
                 </p>
               </div>
                 </div>

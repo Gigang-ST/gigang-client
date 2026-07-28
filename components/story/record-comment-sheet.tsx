@@ -104,7 +104,7 @@ export function RecordCommentSheet({
             {postAuthorName ? `${postAuthorName}님의 기록` : "댓글"}
           </ResponsiveDrawerTitle>
           <ResponsiveDrawerDescription className="sr-only">
-            운동기록 댓글
+            깅스타그램 댓글
           </ResponsiveDrawerDescription>
         </ResponsiveDrawerHeader>
 

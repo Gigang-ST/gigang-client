@@ -79,6 +79,9 @@ async function StoryFeedSection() {
       messages={[]}
       teamId={teamId}
       myMemId={member?.id ?? null}
+      // 기록 삭제 권한 — 관리자는 남의 기록도 지울 수 있다(작성자 판정은 myMemId가 한다).
+      // 서버가 최종 방어하므로(§deleteRecordFlex) 이건 버튼을 보일지 정하는 안내값이다.
+      isAdmin={member?.admin ?? false}
       me={
         member
           ? { id: member.id, name: member.full_name, avatarUrl: member.avatar_url }

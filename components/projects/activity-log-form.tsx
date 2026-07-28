@@ -410,7 +410,7 @@ export function ActivityLogForm({
             색은 primary — 안내이지 오류가 아니다. destructive를 쓰면 같은 화면의 실제
             오류 메시지와 구분이 안 돼 입력이 잘못된 줄로 읽힌다(다건 폼과 동일 규칙). */}
         <p className="text-[13px] text-primary">
-          사진 추가 시, 기강이야기의 운동기록에도 등록돼요.
+          사진 추가 시, 기강이야기의 깅스타그램에도 등록돼요.
         </p>
       </div>
 
