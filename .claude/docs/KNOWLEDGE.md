@@ -95,8 +95,9 @@ Supabase JS `.upsert({ onConflict: "a,b,c" })` 는 `ON CONFLICT (a,b,c)` 만 보
 `fee_mem_bal_snap`은 파생 스냅샷이라 회원 상태 변경(`team_mem_rel.mem_st_cd='left'|'inactive'`)과 동시에 삭제되지 않는다. 회비 현황에서 탈퇴 처리한 회원을 계속 보여주지 않으려면 `getDuesLedger()`가 `team_mem_rel`의 현재 active 멤버 id를 먼저 구한 뒤 스냅샷을 `.in("mem_id", activeIds)`로 필터링해야 한다. 재계산 액션도 active 회원만 대상으로 하므로 이 화면의 기본 범위는 active가 맞다.
 
 ### 딥링크로 다이얼로그를 열 때 URL 정리는 setOpen 전에 네이티브 replaceState로
-알림 딥링크(`/?post=`·`/?comp=`·`/?gthr=`)로 상세 다이얼로그를 열고 `router.replace("/")`로 쿼리를 지우는 순서(setOpen → router.replace)는 **무한 재오픈 루프**를 만든다. `router.replace`는 transition이라 실제 히스토리 교체가 다이얼로그의 `useDialogHistoryBack` pushState보다 **늦게** 일어나, 히스토리가 `[이전, "/?gthr=id", "/"]`로 남는다. 뒤로가기(popstate)든 스와이프 닫기(cleanup의 `history.back()`)든 `/?gthr=id` 항목으로 복귀 → `useSearchParams` 동기화 → 딥링크 이펙트 재발동 → 상세 재오픈 반복.
-**해결:** 다이얼로그를 열기 **전에** 동기 API `window.history.replaceState(null, "", "/")`를 호출한다(`mini-calendar.tsx`의 `clearDeepLinkParams`). Next 14.1+는 네이티브 push/replaceState를 패치해 `useSearchParams`도 함께 동기화하므로 `router.replace` 후속 호출은 필요 없다.
+알림 딥링크(`/schedule?post=`·`?comp=`·`?gthr=`)로 상세 다이얼로그를 열고 `router.replace`로 쿼리를 지우는 순서(setOpen → router.replace)는 **무한 재오픈 루프**를 만든다. `router.replace`는 transition이라 실제 히스토리 교체가 다이얼로그의 `useDialogHistoryBack` pushState보다 **늦게** 일어나, 히스토리가 `[이전, "/schedule?gthr=id", "/schedule"]`로 남는다. 뒤로가기(popstate)든 스와이프 닫기(cleanup의 `history.back()`)든 `?gthr=id` 항목으로 복귀 → `useSearchParams` 동기화 → 딥링크 이펙트 재발동 → 상세 재오픈 반복.
+**해결:** 다이얼로그를 열기 **전에** 동기 API `window.history.replaceState`를 호출한다(`mini-calendar.tsx`의 `clearDeepLinkParams`). Next 14.1+는 네이티브 push/replaceState를 패치해 `useSearchParams`도 함께 동기화하므로 `router.replace` 후속 호출은 필요 없다.
+**경로를 `/`로 갈아끼우지 않는다** — `post`·`comp`·`gthr` 키만 지우고 경로·나머지 쿼리·해시는 보존한다. 딥링크가 `/schedule`에 붙게 된 뒤로(홈이 전광판이 되며 `/`엔 읽는 쪽이 없다) 경로를 `/`로 덮으면 상세를 닫는 순간 엉뚱한 화면으로 튄다.
 
 ### SW `getRegistration` 인자는 스코프(디렉토리)지 스크립트 경로가 아니다
 `navigator.serviceWorker.getRegistration("/sw.js")`처럼 스크립트 경로를 넘기면 브라우저마다 다르게 동작(Safari는 undefined 반환 가능). 등록 스코프 기준으로 조회해야 한다.
