@@ -28,6 +28,14 @@ function Drawer({
   return (
     <DrawerPrimitive.Root
       data-slot="drawer"
+      // vaul의 키보드 대응(repositionInputs, 기본 켜짐)을 끈다. 켜져 있으면 드로어 안
+      // input에 포커스될 때 vaul이 bottom을 키보드 높이만큼 들어올리고 height를
+      // visualViewport 높이로 강제해(§onVisualViewportChange), 내용은 h-auto라 그대로인
+      // 시트만 늘어나 **입력칸과 키보드 사이에 거대한 빈 흰 판**이 생긴다. 안드로이드에서도
+      // 절반, 키보드가 더 높고 innerHeight가 안 줄어드는 iOS에선 화면 전체를 가렸다.
+      // 끄면 브라우저 기본 동작(포커스된 input을 보이는 영역으로 스크롤/팬)이 처리한다.
+      // input 없는 드로어는 이 코드 경로 자체를 안 타므로 영향이 없다.
+      repositionInputs={false}
       open={open}
       defaultOpen={defaultOpen}
       onOpenChange={handleOpenChange}

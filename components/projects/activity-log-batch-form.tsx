@@ -14,10 +14,12 @@ import { createClient } from "@/lib/supabase/client";
 
 import {
   logActivitiesBatch,
+  uploadActivityPhoto,
   type ActivityLogInput,
 } from "@/app/actions/mileage-run";
 
 import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";
+import { PhotoPicker } from "@/components/common/photo-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,6 +48,11 @@ type ActivityDraft = {
   elevation_m: string;
   applied_mult_ids: string[];
   review: string;
+  /**
+   * 이 기록에 붙일 사진(선택). 업로드는 저장 버튼을 누를 때 한 번에 한다 —
+   * 고를 때마다 올리면 저장을 취소했을 때 고아 파일이 20개까지 쌓인다.
+   */
+  photo: File | null;
 };
 
 type ActivityLogBatchFormProps = {
@@ -72,6 +79,7 @@ function createDraft(today: string): ActivityDraft {
     elevation_m: "0",
     applied_mult_ids: [],
     review: "",
+    photo: null,
   };
 }
 
@@ -139,6 +147,8 @@ export function ActivityLogBatchForm({ evtId, onSuccess, isInactive = false, ina
       return;
     }
 
+    // 먼저 입력값을 전부 검증한다 — 사진 업로드는 그 다음이다.
+    // 순서를 섞으면 3번째 기록의 거리가 비었을 때 이미 올린 사진 두 장이 고아로 남는다.
     const payload: ActivityLogInput[] = [];
     for (let i = 0; i < drafts.length; i++) {
       const d = drafts[i];
@@ -164,6 +174,22 @@ export function ActivityLogBatchForm({ evtId, onSuccess, isInactive = false, ina
 
     setSubmitting(true);
     try {
+      // 사진은 저장 시점에 한 번에 올린다(고를 때마다 올리면 취소 시 고아가 쌓인다).
+      // 한 장이라도 실패하면 저장 자체를 멈춘다 — 올린 줄 알았는데 조용히 빠지면
+      // 기강이야기에 안 뜨는 이유를 알 길이 없다.
+      for (let i = 0; i < drafts.length; i++) {
+        const file = drafts[i].photo;
+        if (!file) continue;
+        const fd = new FormData();
+        fd.set("photo", file);
+        const uploaded = await uploadActivityPhoto(fd);
+        if (!uploaded.ok) {
+          setError(`${i + 1}번째 기록의 사진: ${uploaded.message}`);
+          return;
+        }
+        payload[i].photo_url = uploaded.url;
+      }
+
       const result = await logActivitiesBatch(evtId, payload);
       if (!result.ok) {
         setError(result.message ?? "오류가 발생했습니다.");
@@ -365,6 +391,24 @@ export function ActivityLogBatchForm({ evtId, onSuccess, isInactive = false, ina
                   onChange={(e) => updateDraft(d.id, { review: e.target.value })}
                   className="h-10 rounded-lg border text-sm"
                 />
+              </div>
+
+              {/* 사진 — 마일리지런은 수치가 본체라 선택값이다. 다만 올리면 기강이야기에도 함께 선다.
+                  다건 폼이라 칸이 좁아 미리보기를 절반 폭으로 줄인다(20건까지 쌓이는 자리다). */}
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs">사진 (선택)</Label>
+                <PhotoPicker
+                  key={d.id}
+                  onPick={(f) => updateDraft(d.id, { photo: f })}
+                  emptyLabel="사진 추가"
+                  size="half"
+                />
+                {/* 사진이 곧 기강이야기 유입 스위치라, 누르기 전에 알려 준다.
+                    안내이지 오류가 아니므로 destructive(빨강)를 쓰지 않는다 — 같은 화면의
+                    실제 오류 메시지와 색이 같으면 입력이 잘못된 줄로 읽힌다. */}
+                <p className="text-[12px] text-primary">
+                  사진 추가 시, 기강이야기의 운동기록에도 등록돼요.
+                </p>
               </div>
                 </div>
               </>

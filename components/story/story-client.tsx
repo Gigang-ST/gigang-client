@@ -143,6 +143,9 @@ export function StoryClient({
           initialActvPick={initialActvPick}
           initialPostPick={initialPostPick}
           onSelectMember={selectMember}
+          teamId={teamId}
+          myMemId={myMemId}
+          me={me}
         />
         <FloatingAvatars teamId={teamId} me={me} />
       </div>
@@ -154,7 +157,7 @@ export function StoryClient({
         {/* 기록 자랑 — 인스타형 격자. 한 칸을 누르면 릴스 뷰어가 이 장부터 풀스크린으로 열리고,
             위아래로 밀어 다음 발자국을 본다. 뷰어 안 이름·프사를 누르면 프로필 카드가 그 위에
             겹쳐 뜬다(뷰어가 자체 관리 — story-client 공유 카드와 z-index가 안 부딪히게). */}
-        <RecordFlexFeed posts={posts} myMemId={myMemId} teamId={teamId} />
+        <RecordFlexFeed posts={posts} myMemId={myMemId} me={me} teamId={teamId} />
 
         {/* 종이비행기 한마디 — 24시간 뒤 사라지는 한 줄(msg_mst).
             각오와 **별개 데이터**다: 저긴 팻말·1인 1개·만료 없음, 여긴 비행기·1인 N개·하루살이.

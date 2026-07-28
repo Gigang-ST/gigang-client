@@ -18,8 +18,12 @@ import type { MemberCardCompactData } from "@/lib/queries/member-card";
  * 상세 카드가 "이 사람의 실적"(기록·칭호 목록·최근활동)이라면 이쪽은 자기소개다.
  * 그래서 기록·수치는 넣지 않는다 — 실적이 아직 없는 신규 멤버도 채워지는 카드여야 한다.
  *
- * **리드 새 얼굴 슬롯과 같은 화법을 쓴다**: 러닝 프로필은 도트리더 행(라벨 ···· 값),
- * 가입목적은 라벨을 윗줄에 세우고 아랫줄에 한마디+칩. 아이콘 칩(`getRunningProfileChips`)이
+ * **라벨은 전부 값과 같은 줄에서 시작한다** — 러닝 프로필은 도트리더 행(라벨 ···· 값),
+ * 가입목적은 라벨 옆에 칩 나열 또는 직접 쓴 한마디(점선 없이). 값의 성격이 달라 연결
+ * 방식만 갈린다: 앞은 1:1로 맞물리는 표, 뒤는 개수가 정해지지 않은 나열이라 점선이
+ * 오히려 흐트러져 보인다.
+ * (리드 새 얼굴 슬롯은 264px 고정이라 사정이 다르다 — 거긴 라벨을 윗줄에 세워도 남는
+ * 높이가 어차피 여백으로 간다.) 아이콘 칩(`getRunningProfileChips`)이
  * 아니라 행(`getRunningProfileRows`)인 이유는 §lib/member-card.ts에 적힌 그대로다 — 칩은
  * 폭이 좁은 목록용이고, **처음 보는 사람을 소개하는 자리**에서 `⏱ 6'00"`만 있으면 그게
  * 평균인지 최고기록인지 알 수 없다. 이 섹션이 바로 그 자리다.
@@ -60,12 +64,11 @@ export function MemberCardCompact({
   const clickable = onSelect != null;
 
   const rows = getRunningProfileRows(data.running_profile);
-  // 한마디와 칩을 **둘 다** 싣는다 — 직접 쓴 사람도 칩을 함께 고르고, 고른 것과 쓴 것은
-  // 다른 정보다(`getJoinPurposeLabels`는 한마디가 있으면 칩을 버리므로 쓰지 않는다).
-  const purposes = getJoinPurposeLabelsFromCds(
-    data.running_profile?.join_purp_cds,
-  );
   const purposeTxt = data.running_profile?.join_purp_txt?.trim() || null;
+  // 직접 쓴 한마디가 있으면 칩은 아예 뽑지 않는다 — 렌더가 어차피 문장만 그린다.
+  const purposes = purposeTxt
+    ? []
+    : getJoinPurposeLabelsFromCds(data.running_profile?.join_purp_cds);
 
   const hasPurpose = Boolean(purposeTxt) || purposes.length > 0;
   // 가입 직후라 아무것도 안 채운 사람 — 빈 칸을 둘로 쪼개 각각 "비어 있어요"라고 적으면
@@ -141,30 +144,44 @@ export function MemberCardCompact({
         )}
       </div>
 
-      {/* 가입목적 — 라벨을 윗줄에 세우고 내용을 아랫줄에. 칩이든 한마디든 "무엇에 대한
-          답인지"가 먼저 읽히게 한다. 한마디는 **최대 두 줄**에서 자르고 넘치면 …:
-          `join_purp_txt`는 500자까지 허용되는 자유 입력이라 한 줄 truncate로는 첫 어절만
-          남는 경우가 있고, 목록 카드에서 세 줄을 주면 카드끼리 높이가 크게 벌어진다. */}
+      {/* 가입목적 — **라벨을 눕혀 칩과 한 줄에 세운다**. 이 카드는 고정 높이가 아니라
+          줄이 줄면 카드가 실제로 짧아진다(목록에 6장이 쌓이는 자리다). 라벨을 윗줄에
+          세우던 때는 칩을 1~2개만 고른 사람 — 대다수다 — 에게서 라벨 한 줄과 칩 한 줄이
+          두 행을 쓰면서 정작 실린 정보는 단어 하나였다.
+
+          **직접 쓴 한마디가 있으면 그 문장만 싣고 칩은 버린다.** 칩은 보기에서 고른
+          근사값이고 한마디는 본인이 직접 쓴 말이라, 같은 질문("왜 들어왔나")에 대한 답이
+          둘일 이유가 없다 — 나란히 두면 정확한 쪽(문장)이 고른 쪽(칩)에 묻힌다.
+          `lib/member-card.ts`의 `MemberIntro.purposeTxt`가 원래부터 정한 규칙이다.
+
+          **도트리더는 쓰지 않는다.** 위 러닝 프로필은 라벨과 값이 1:1로 맞물리는 표라
+          점선이 "이 라벨의 값은 이것"을 이어 주지만, 칩은 개수가 정해지지 않은 나열이다.
+          점선을 깔면 칩이 오른쪽 끝으로 밀려 라벨과 멀어지고, 개수에 따라 점선 길이가
+          들쭉날쭉해 표가 흐트러진 것처럼 보인다.
+
+          **한마디도 칩과 같은 줄에서 시작한다.** 라벨을 윗줄에 세우면 한마디를 쓴 사람만
+          한 행을 더 쓰는데, 답이 문장이냐 칩이냐는 읽는 사람에게 다른 종류의 정보가
+          아니다 — 같은 질문에 대한 답이니 같은 자리에서 시작해야 카드끼리도 줄이 맞는다.
+          문장은 라벨 옆에서 시작해 남는 폭을 채우고 **최대 두 줄**에서 자른다(넘치면 …):
+          `join_purp_txt`는 500자까지 허용되는 자유 입력이라 한 줄로는 첫 어절만 남는
+          경우가 있고, 목록 카드에서 세 줄을 주면 카드끼리 높이가 크게 벌어진다. */}
       {!blank && (
-        <div className="flex min-w-0 flex-col gap-1">
-          <span className="text-[11px] font-medium text-muted-foreground">
+        /* 칩이 많아 한 줄을 넘기면 다음 줄로 흐른다. 이때 라벨은 첫 줄 위쪽에
+           머물러야 하므로(가운데로 내려앉지 않게) items-baseline. */
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1.5">
+          <span className="shrink-0 text-[11px] font-medium text-muted-foreground">
             가입목적
           </span>
-          {purposeTxt && (
-            <span className="line-clamp-2 text-[13px] leading-relaxed text-foreground">
+          {purposeTxt ? (
+            // min-w-0 + flex-1 — 라벨 옆 남는 폭을 전부 쓰고 그 안에서 두 줄로 접힌다.
+            // (flex 자식은 min-w-0이 없으면 긴 글에서 줄바꿈 대신 칸을 밀어낸다.)
+            <span className="line-clamp-2 min-w-0 flex-1 text-[13px] leading-relaxed text-foreground">
               “{purposeTxt}”
             </span>
-          )}
-          {purposes.length > 0 && (
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-              {purposes.map((label) => (
-                <PurposeChip key={label} label={label} />
-              ))}
-            </div>
-          )}
-          {/* 가입목적만 없는 경우 — 라벨은 세워두고 값 자리에 그 사실을 적는다. */}
-          {!hasPurpose && (
-            <span className="text-[13px] leading-relaxed text-muted-foreground/70">
+          ) : purposes.length > 0 ? (
+            purposes.map((label) => <PurposeChip key={label} label={label} />)
+          ) : (
+            <span className="shrink-0 text-[11px] text-muted-foreground/70">
               아직 적지 않았어요
             </span>
           )}

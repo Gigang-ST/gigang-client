@@ -16,7 +16,8 @@ import { CommentItem, type CmntRow } from "./comment-item"
 import { MentionInput, parseMentionsFromText, type MemberOption } from "./mention-input"
 
 interface CommentSectionProps {
-  entityType: "sch_post" | "comp" | "gathering"
+  /** "post" = 기강이야기 운동기록. DB CHECK 제약·zod enum과 함께 움직인다 */
+  entityType: "sch_post" | "comp" | "gathering" | "post"
   entityId: string
   teamId: string
   currentMemberId?: string
@@ -33,7 +34,7 @@ interface CommentSectionProps {
   isAdmin?: boolean
   members: MemberOption[]
   initialComments?: CmntRow[]
-  /** 비로그인 → 로그인 후 돌아올 경로. 예: "/?comp=abc123" */
+  /** 비로그인 → 로그인 후 돌아올 경로. 예: "/schedule?comp=abc123" */
   loginReturnPath?: string
 }
 

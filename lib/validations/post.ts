@@ -7,9 +7,6 @@ import { z } from "zod";
  */
 export const POST_CMNT_MAX = 200;
 
-/** 거리 상한 — 하루 활동으로 물리적으로 가능한 범위(울트라·장거리 라이딩 포함) */
-export const POST_DST_KM_MAX = 500;
-
 /** 사진 업로드 상한 — 아바타(10MB)와 동일 */
 export const POST_PHOTO_MAX_BYTES = 10 * 1024 * 1024;
 
@@ -22,33 +19,30 @@ export const POST_PHOTO_TYPES = [
   "image/heif",
 ];
 
-/** 종목 — 마일리지런 `evt_mlg_sprt_enm`과 같은 값 집합(자동 유입분과 표기를 맞춘다) */
-export const POST_SPRT_KEYS = [
-  "RUNNING",
-  "TRAIL",
-  "CYCLING",
-  "SWIMMING",
-] as const;
-
 /**
- * 기록 자랑 작성 입력 검증.
+ * 기강이야기 운동기록 작성 입력 검증.
+ *
+ * **거리·종목이 없다.** 이 지면의 운동기록은 수치를 겨루는 자리가 아니라 친목·응원의
+ * 자리다 — 사진 한 장과 한마디면 "오늘 뛰었다"가 전해진다. 수치가 필요한 기록은
+ * 마일리지런이 맡고(`lib/validations/mileage.ts`), 거기서 사진을 올리면 이 지면에도
+ * 같이 선다. 그래서 두 다이얼로그의 공통분모는 **사진·한마디·날짜** 셋뿐이고,
+ * 필수 여부만 반대다: 여기선 사진이 필수(사진 없는 칸은 얼굴 격자가 된다),
+ * 마일리지런에선 선택(수치가 본체라 사진 없이도 기록은 성립한다).
  *
  * 사진은 여기서 검증하지 않는다 — `File`은 FormData로 오므로 서버 액션이 크기·타입을 직접 본다.
- * 클라이언트 검증은 UX 편의고 실제 강제는 서버 액션 + DB CHECK가 한다(createPledgeSchema와 동일 원칙).
+ * 클라이언트 검증은 UX 편의고 실제 강제는 서버 액션이 한다(createPledgeSchema와 동일 원칙).
  */
 export const createRecordFlexSchema = z.object({
+  /**
+   * 한마디는 **선택**이다. 이 경로에서 필수인 건 사진 하나뿐 — 사진이 지면에 서는
+   * 조건이고 글은 거든다. 마일리지런 후기도 선택이라 두 경로 규칙이 여기서 맞는다
+   * (`post_mst.cmnt_txt` nullable · record_flex CHECK도 풀려 있다).
+   */
   cmnt_txt: z
     .string()
     .trim()
-    .min(1, "한마디를 입력해주세요.")
-    .max(POST_CMNT_MAX, `한마디는 ${POST_CMNT_MAX}자 이하로 입력해주세요.`),
-  dst_km: z
-    .number()
-    .positive("거리를 입력해주세요.")
-    // dst_km은 numeric(6,2) — 마일리지런과 같은 정밀도로 맞춰 저장값/표시값 불일치를 막는다
-    .multipleOf(0.01, "거리는 소수점 둘째 자리까지 입력할 수 있어요.")
-    .max(POST_DST_KM_MAX, `거리는 ${POST_DST_KM_MAX}km 이하로 입력해주세요.`),
-  sprt_enm: z.enum(POST_SPRT_KEYS, { message: "종목을 선택해 주세요." }),
+    .max(POST_CMNT_MAX, `한마디는 ${POST_CMNT_MAX}자 이하로 입력해주세요.`)
+    .optional(),
   act_dt: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "날짜 형식이 올바르지 않습니다."),

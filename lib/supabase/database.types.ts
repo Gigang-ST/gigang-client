@@ -561,6 +561,7 @@ export type Database = {
           dst_km: number
           elv_m: number | null
           final_mlg: number
+          photo_url: string | null
           prt_id: string
           review: string | null
           sprt_enm: Database["public"]["Enums"]["evt_mlg_sprt_enm"]
@@ -575,6 +576,7 @@ export type Database = {
           dst_km: number
           elv_m?: number | null
           final_mlg: number
+          photo_url?: string | null
           prt_id: string
           review?: string | null
           sprt_enm: Database["public"]["Enums"]["evt_mlg_sprt_enm"]
@@ -589,6 +591,7 @@ export type Database = {
           dst_km?: number
           elv_m?: number | null
           final_mlg?: number
+          photo_url?: string | null
           prt_id?: string
           review?: string | null
           sprt_enm?: Database["public"]["Enums"]["evt_mlg_sprt_enm"]
@@ -3105,6 +3108,7 @@ export type Database = {
         | "mlg_goal"
         | "sch_post"
         | "manual"
+        | "post_record"
       pt_txn_type_enm: "earn" | "revoke" | "spend" | "manual_adj"
       ttl_kind_enm: "auto" | "awarded"
     }
@@ -3256,6 +3260,7 @@ export const Constants = {
         "mlg_goal",
         "sch_post",
         "manual",
+        "post_record",
       ],
       pt_txn_type_enm: ["earn", "revoke", "spend", "manual_adj"],
       ttl_kind_enm: ["auto", "awarded"],

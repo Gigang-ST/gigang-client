@@ -186,7 +186,7 @@ export function MemberCardDetail({
   const hiddenCount = data.titles.length - TITLES_COLLAPSED;
 
   const raceHref = data.upcoming_race
-    ? `/?comp=${data.upcoming_race.short_id ?? data.upcoming_race.comp_id}`
+    ? `/schedule?comp=${data.upcoming_race.short_id ?? data.upcoming_race.comp_id}`
     : null;
 
   // 칭호에서 고른 프레임 이펙트(getFrameCls)는 카드에 적용하지 않는다 — 화려한 테두리가

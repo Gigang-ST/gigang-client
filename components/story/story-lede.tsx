@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
+
+import { Zap } from "lucide-react";
 
 import { dayjs, formatPace, secondsToTime } from "@/lib/dayjs";
 import {
@@ -12,7 +15,7 @@ import {
 } from "@/lib/member-card";
 import { cn } from "@/lib/utils";
 
-import { Avatar, buildFallbackAvatarUrl } from "@/components/common/avatar";
+import { Avatar } from "@/components/common/avatar";
 import { TitleBadge } from "@/components/common/title-badge";
 import { PurposeChip } from "@/components/members/profile-chip";
 import {
@@ -20,6 +23,7 @@ import {
   type PersonProfilePart,
   type PersonProfilePerson,
 } from "@/components/story/person-profile";
+import { RecordReelViewer } from "@/components/story/record-reel-viewer";
 import { StoryReactionButton } from "@/components/story/story-reaction-button";
 
 import { compEvtTypeKm, compEvtTypeLabel } from "@/lib/comp-evt-type";
@@ -65,6 +69,15 @@ const FREEZE_MS = PAUSE_MS - ROTATE_MS;
 const WINDOW_DAYS = 30;
 
 /**
+ * 이 화면에서 누른 응원 몫을 담아 두는 sessionStorage 키.
+ *
+ * 응원 총합은 30초 캐시라 누른 직후 새로고침하면 서버가 옛 값을 준다. 그 사이에도 내가
+ * 누른 건 보여야 하므로 여기 담아 두고 서버값 위에 얹는다. 서버가 따라잡으면 버튼이
+ * 알아서 걷어낸다(`bumped` prop — 이중 계산 방지). 탭을 닫으면 사라진다.
+ */
+const BUMP_STORE_KEY = "gigang:story:my-bumps";
+
+/**
  * 활동지수 슬롯(§④) 헤드라인 멘트 — `{name}`이 대표 이름으로 치환된다.
  * 한 바퀴마다 대표(actvPick)와 함께 굴러 매번 다른 문구가 걸린다(같은 pick으로 묶어 자연스럽게).
  * "요즘 제일 뜨거운" 결을 살린 캐주얼 톤. 활동량 수치는 말하지 않는다(히든 운영).
@@ -102,24 +115,39 @@ type Lede = {
    * 되묻던 걸 대신한다 — 조건이 세 군데 흩어져 슬롯을 하나 더할 때마다 전부 고쳐야 했다.
    */
   hero: "headline" | "photo";
+  /**
+   * 헤드라인이 가리키는 곳 — 있으면 헤드라인이 링크가 된다(대회 슬롯 2종의 대회명).
+   *
+   * 딥링크는 `/schedule?comp=<short_id ?? comp_id>` 형태다. `/races`엔 상세 페이지가 없고
+   * 일정 페이지의 미니캘린더가 이 쿼리를 읽어 상세 다이얼로그를 여는 게 이 앱의 정본
+   * 패턴이라(`member-card-detail`의 다가오는 대회도 같은 링크를 쓴다) 그대로 따른다.
+   * 홈(`/`)이 아니라 `/schedule`인 이유는 lib/notifications/deep-link.ts 참조.
+   */
+  headlineHref?: string | null;
   entity: {
     // 활동지수 슬롯 응원까지 담으므로 좁은 유니온 대신 StoryEntityType("actv" 포함)을 쓴다.
     type: StoryEntityType;
     id: string;
+    /** `entity_type:entity_id` — 내가 누른 몫(`myBumps`)을 슬롯 밖에 쌓을 때 쓰는 키 */
+    key: string;
     rctnCd: RctnCd;
     count: number;
     /** 내가 이 항목에 누른 누적 횟수 — 점등·상한 판정용 */
     myCount: number;
   } | null;
   /**
-   * 운동 기록 칸 전용 — 사진 URL(있으면 헤드라인 대신 사진을 크게 싣는다).
-   * `null`이면 사진 없는 자랑이라 프사로 폴백한다(격자 존과 같은 규칙).
+   * 운동 기록 칸 전용 — 사진 URL(헤드라인 대신 사진을 크게 싣는다).
+   * 이 슬롯에 오르는 기록은 사진이 있는 것뿐이라(`get_team_posts`가 걸러 준다) 폴백이 없다.
    * `title`은 올린 사람의 대표 호칭(있으면 이름 옆 배지) — 없으면 배지 생략.
+   * `mileage`는 마일리지런에서 자동 유입된 기록 — 사진 위 ⚡ 배지로 출처를 알린다.
    */
   photo?: {
     url: string | null;
     person: Person;
+    mileage?: boolean;
     title: { ttl_nm: string; badge_effect: string } | null;
+    /** 이 사진의 기록 id — 사진을 누르면 릴스 뷰어를 이 장부터 연다 */
+    postId: string;
   } | null;
   /** 좌측 메인 — 대회처럼 주인공이 여럿이면 겹쳐 쌓는다 */
   people: Person[];
@@ -259,6 +287,9 @@ function buildLedes(
     return {
       type,
       id,
+      // 이 화면에서 누른 몫을 슬롯 밖에 쌓아 둘 때 쓰는 키(`myBumps`) — 여기서 한 번만
+      // 만들어 넘긴다. 렌더 쪽에서 다시 조립하면 규칙이 두 곳으로 갈린다.
+      key,
       rctnCd,
       count: Math.max(cachedCount, total),
       myCount: reactions.mine[key] ?? 0,
@@ -294,6 +325,8 @@ function buildLedes(
       people: [],
       moreCount: 0,
       headline: race.comp_nm,
+      // 대회명을 누르면 상세로 — short_id가 있으면 그걸 쓴다(공유 링크와 같은 형태).
+      headlineHref: `/schedule?comp=${race.short_id ?? race.comp_id}`,
       standfirst: `${dayjs(race.stt_dt).format("M월 D일")}, 기강인 ${runnerCnt}명이 출발선에 선다`,
       figure: getRaceDday(race.stt_dt),
       figureLabel: null,
@@ -352,6 +385,8 @@ function buildLedes(
   //    30일 안에 완주가 없으면 이 슬롯 자체를 넣지 않는다(빈 칸을 만들지 않는다).
   if (feed.records.length > 0) {
     const rec = rotate(feed.records, recordPick)[0];
+    // 공유 링크와 같은 형태로 short_id 우선. 둘 다 없으면(구버전 RPC) 링크를 걸지 않는다.
+    const recCompRef = rec.short_id ?? rec.comp_id ?? null;
     ledes.push({
       key: `record-${rec.entity_id}`,
       // "기록" 명사는 다른 슬롯의 서술체 kicker 사이에서 튄다 — 대회 완주의 순간을 서술체로.
@@ -366,6 +401,8 @@ function buildLedes(
       people: [],
       moreCount: 0,
       headline: rec.race_nm ?? "",
+      // 대회명 → 상세. 구버전 RPC(배포 스큐)면 comp_id가 없어 링크 없이 이름만 나온다.
+      headlineHref: recCompRef ? `/schedule?comp=${recCompRef}` : null,
       // 대회 슬롯("9월 5일, 기강인 3명이 출발선에 선다")과 같은 형태의 리드문.
       //
       // **이름을 넣지 않는다.** 바로 아래 본문이 얼굴·이름을 크게 세우는데 리드문까지
@@ -525,7 +562,8 @@ function buildLedes(
   //    리드에선 사진 한 장을 크게 + 한마디 + 수치(종목·거리·날짜) + 올린 사람으로 세운다.
   //    주인공은 "그 사람이 한 운동"이라 러닝 프로필(페이스·역 등 간단 프로필)은 넣지 않는다 —
   //    사진·한마디·수치와 경쟁해 시선이 흩어진다. 사람은 아바타+이름으로만 조연으로 둔다.
-  //    (사진 없으면 프사로 폴백 — 격자와 같은 규칙). postPick은 호출자가 굴린다(서버·클라 일치).
+  //    사진은 항상 있다 — 사진 없는 기록은 `get_team_posts`가 안 내려준다(프사 폴백 없앰).
+  //    postPick은 호출자가 굴린다(서버·클라 일치).
   if (posts.length > 0) {
     const post = posts[postPick % posts.length];
     const person: Person = {
@@ -556,20 +594,34 @@ function buildLedes(
       hero: "photo",
       // 기록 자랑도 응원을 받는다(🔥 대박) — 사진까지 올려 내놓은 기록이라 응원받기 가장
       // 자연스러운 자리인데, 예전엔 이 슬롯만 응원이 없어 3밴드 footer 오른쪽이 비었다.
-      // 피드 캐시엔 이 응원 수가 없어(post는 story-posts로 갈려 있다) 하한 0에서 시작하고
-      // 최신 집계(reactions.totals/mine)를 buildEntity가 얹는다 — actv 슬롯과 같은 방식.
-      entity: buildEntity("post", post.post_id, "fire", 0),
+      //
+      // **응원 대상은 글이 아니라 그 기록을 올린 사람이다** — 활동지수·목표 한마디 슬롯과
+      // 같은 멤버 기준 카운터(`actv` + mem_id)를 쓴다. 예전엔 `post` + post_id(글 단위)였는데,
+      // 이 슬롯은 매 진입마다 16건 중 랜덤 1건을 세우므로 방금 응원한 글이 다음 진입엔 거의
+      // 안 돌아온다 — 카운터는 DB에 정상 누적되는데도 "눌러도 반영이 안 된다"로 보였다.
+      // 사람 기준이면 어느 기록이 떠도 그 사람 응원이 이어서 쌓인다(같은 사람이 활동지수
+      // 슬롯에도 대표로 뜨면 🔥가 합산되는 것도 의도 — "그 사람을 응원").
+      //
+      // 피드 캐시엔 이 응원 수가 없어(actv는 원천 테이블이 아니다) 하한 0에서 시작하고,
+      // 최신 집계(reactions.totals/mine)를 buildEntity가 얹는다.
+      entity: buildEntity("actv", post.mem_id, "fire", 0),
       // 사람은 렌더의 사진 옆 아바타+이름 줄이 맡는다(people 줄은 안 쓴다 — 사진 슬롯 전용 렌더).
       people: [],
       moreCount: 0,
-      // 헤드라인은 한마디(따옴표). 한마디가 비면 이름으로 대체한다.
-      headline: post.cmnt_txt ? `“${post.cmnt_txt}”` : `${post.mem_nm}의 기록`,
+      // 헤드라인은 한마디(따옴표). **한마디가 없으면 비운다** — 예전엔 "OOO의 기록"으로
+      // 채웠는데, 그건 사람이 쓴 말이 아니라 시스템이 지어낸 문장이라 읽는 사람에게 주는
+      // 정보가 없다(이름은 바로 아래 줄에 이미 있다). 빈 줄로 두면 렌더가 그 자리를
+      // 사진에 넘겨 사진이 커진다 — 한마디가 없는 기록은 사진이 곧 전부이므로.
+      headline: post.cmnt_txt ? `“${post.cmnt_txt}”` : "",
       standfirst: meta,
       figure: null,
       figureLabel: null,
       photo: {
         url: post.photo_url,
         person,
+        postId: post.post_id,
+        // 마일리지런에서 올라온 기록이면 사진 위에 ⚡ 배지를 얹는다(격자·릴스와 같은 표시)
+        mileage: post.src_enm === "mlg_auto",
         title: post.primary_title
           ? {
               ttl_nm: post.primary_title.ttl_nm,
@@ -612,6 +664,9 @@ export function StoryLede({
   initialActvPick,
   initialPostPick,
   onSelectMember,
+  teamId,
+  myMemId,
+  me,
 }: {
   feed: StoryFeed;
   /** 응원 집계 (모두의 총합 + 내 몫) — 응원 버튼 카운트 보정용 */
@@ -626,6 +681,10 @@ export function StoryLede({
   initialActvPick: number;
   initialPostPick: number;
   onSelectMember: (memId: string, name: string) => void;
+  /** 아래 릴스 뷰어(운동기록 슬롯의 사진 탭)의 댓글에 넘긴다 */
+  teamId: string;
+  myMemId: string | null;
+  me: { id: string; name: string; avatarUrl: string | null } | null;
 }) {
   // 모든 랜덤 슬롯의 pick — 서버가 뽑은 초기값에서 출발한다(첫 화면부터 랜덤·하이드레이션
   // 안전). 렌더 중 Math.random()을 부르면 서버·클라가 다른 걸 골라 하이드레이션이 깨진다.
@@ -647,6 +706,66 @@ export function StoryLede({
     postPick,
   );
   const total = ledes.length;
+
+  /**
+   * 내가 이 화면에서 누른 응원 — `entity_type:entity_id` → 누른 횟수.
+   *
+   * **응원 버튼은 슬롯이 바뀔 때마다 언마운트된다**(슬롯 컨테이너가 `key={lede.key}`라
+   * 통째로 갈린다). 카운트를 버튼 안 useState로만 들고 있으면 넘겼다 돌아온 순간 props의
+   * 서버값으로 초기화돼 방금 누른 게 사라진다 — 서버엔 이미 저장돼 있는데도.
+   * 총합 캐시(30초)가 아직 안 돌았으면 그 사이 내내 되돌아간 값이 보인다.
+   *
+   * 그래서 누른 몫은 **버튼 바깥(여기)** 에 쌓는다. 지면이 살아 있는 동안 유지되므로
+   * 슬롯을 몇 번 오가도 내가 누른 건 그대로 남는다.
+   *
+   * **새로고침도 견딘다**(sessionStorage). 총합 캐시가 30초라, 누르고 바로 새로고침하면
+   * 서버는 아직 옛 총합을 준다 — 저장은 됐는데 화면만 되돌아가면 "안 눌렸나" 싶다.
+   * 30초 만에 새로고침해 확인하는 사람은 드물지만, 누른 직후 확인하는 사람은 흔하다.
+   * 탭을 닫으면 사라지는 sessionStorage라 오래 남아 서버값과 어긋날 일도 없다.
+   */
+  // 빈 맵으로 시작해 마운트 뒤 한 번 복원한다 — 초기 state에서 sessionStorage를 읽으면
+  // 서버 렌더(저장소가 없다)와 결과가 달라 하이드레이션이 깨진다.
+  /** 사진을 눌러 연 릴스 뷰어의 시작 장 — null이면 닫힘(격자존과 같은 방식) */
+  const [reelId, setReelId] = useState<string | null>(null);
+
+  const [myBumps, setMyBumps] = useState<Record<string, number>>({});
+
+  /**
+   * 복원은 **effect에서** 한다(렌더 중이 아니라).
+   *
+   * 예전엔 렌더 본문에서 sessionStorage를 읽었는데, 이 컴포넌트는 서버에서도 렌더된다 —
+   * 서버엔 `window`가 없어 catch로 삼켜져 빈 맵으로 마크업이 만들어지고, 클라이언트 첫
+   * 렌더는 복원값을 들고 시작한다. 그러면 응원 카운트 텍스트가 서버 출력과 달라
+   * 하이드레이션 불일치가 난다(React 경고 + 값이 한 번 튄다).
+   *
+   * effect로 옮기면 첫 페인트에 내 몫이 잠깐 빠져 보이지만, 이건 **누른 직후 새로고침한
+   * 사람만** 겪는 한 프레임이고, 하이드레이션이 깨지면 그 아래 트리 전체가 다시 그려진다.
+   * 깜빡임보다 정합이 먼저다.
+   */
+  useEffect(() => {
+    try {
+      const raw = window.sessionStorage.getItem(BUMP_STORE_KEY);
+      // sessionStorage는 React 밖의 외부 저장소라, 마운트 뒤 한 번 읽어 state에 옮기는 건
+      // 이 규칙이 말하는 "외부 시스템에서 값을 가져오는" 정당한 용례다. 마운트 1회뿐이라
+      // 캐스케이드도 없다(deps=[]).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (raw) setMyBumps(JSON.parse(raw) as Record<string, number>);
+    } catch {
+      // 사파리 프라이빗 모드 등 — 저장이 막혀도 응원 자체는 동작해야 한다.
+    }
+  }, []);
+
+  const addBump = useCallback((key: string) => {
+    setMyBumps((prev) => {
+      const next = { ...prev, [key]: (prev[key] ?? 0) + 1 };
+      try {
+        window.sessionStorage.setItem(BUMP_STORE_KEY, JSON.stringify(next));
+      } catch {
+        // 저장 실패는 무시 — 이번 세션 화면에는 이미 반영돼 있다.
+      }
+      return next;
+    });
+  }, []);
 
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -876,7 +995,22 @@ export function StoryLede({
             // 크기·자르기는 .lede-headline 한 곳(globals.css)에서 정한다.
             // -mt-1은 26px 글자의 line-box 윗 여백 트림 — kicker와의 간격을 눈에 맞춘다.
             <h2 className="lede-headline -mt-1 text-pretty break-keep text-[26px] font-normal leading-[1.28] text-foreground">
-              {lede.headline}
+              {/* 대회 슬롯 2종은 헤드라인이 대회명이라 상세로 들어갈 수 있다. 링크는 글자
+                  자리를 그대로 쓰고(inline) 밑줄만 은은히 깔아, 헤드라인 크기·줄바꿈
+                  (.lede-headline의 2줄 자르기)에 영향을 주지 않는다.
+                  자동 전환 중에 눌리는 자리라 onClick으로 스와이프를 멈춘다 — 손이 닿았는데
+                  지면이 넘어가면 엉뚱한 대회로 들어간다. */}
+              {lede.headlineHref ? (
+                <Link
+                  href={lede.headlineHref}
+                  onClick={pauseThenResume}
+                  className="underline decoration-border decoration-1 underline-offset-4 transition-colors hover:decoration-foreground"
+                >
+                  {lede.headline}
+                </Link>
+              ) : (
+                lede.headline
+              )}
             </h2>
           )}
 
@@ -910,53 +1044,115 @@ export function StoryLede({
                비어 있다. 바닥에 붙이면 사진 끝단과 이름 바닥이 한 선에서 맞아 덩어리가 닫히고,
                그만큼 지면을 돌려받는다. 칭호는 뺐다 — 사진·한마디·이름이 이미 서 있는 칸에서
                배지까지 더하면 조연이 넷이 된다(칭호는 프로필 카드에서 볼 수 있다). */
-            <div className="flex min-h-0 items-start gap-3">
-              <div className="relative h-36 w-36 shrink-0 overflow-hidden rounded-xl bg-muted">
-                {/* 사진 → 프사 → DiceBear 폴백. 빈 문자열("")도 내려가게 ??가 아닌 || 사슬 */}
+            <div className="flex min-h-0 flex-col gap-2">
+              {/* **사진 크기는 슬롯이 남긴 높이가 정한다(158px).**
+                  예전 144px은 위아래로 7px씩 여백을 남기고 끝났다 — body 밴드가
+                  `justify-center`라 남는 높이가 사진 위아래로 갈렸기 때문이다. 그 여백을
+                  사진이 먹게 해 지면을 더 쓴다.
+
+                  158px이 나온 계산(슬롯 264px 기준):
+                    264 − kicker 16 − gap 12 − footer 34 − gap 12 = 190 (본문 영역)
+                    190 − 이름줄 24 − gap 8 = 158 (사진이 쓸 수 있는 최대)
+                  **상한에 딱 붙인 값이라 여유가 0이다.** 폰트 렌더링·칭호 배지 높이가
+                  기기마다 1~2px 흔들리면 footer가 밀릴 수 있다 — 실기기에서 응원 버튼 줄이
+                  잘리거나 내려앉으면 152px로 내린다(그 값은 6px 여유를 둔 것이었다).
+
+                  **정사각은 반드시 유지한다**: `w-full`로 늘리면 가로로 긴 띠가 되어
+                  정사각인 격자·릴스와 결이 어긋난다(실제로 그렇게 만들었다가 되돌렸다).
+                  ⚠️ 더 키우려면 슬롯 높이(h-[264px])부터 375px에서 다시 재야 한다. */}
+              <div
+                className={
+                  lede.headline
+                    ? "flex min-h-0 items-start gap-3"
+                    : "flex min-h-0 flex-col"
+                }
+              >
+              {/* 사진을 누르면 그 기록의 릴스 뷰어가 이 장부터 열린다(격자 칸과 같은 동작).
+                  예전엔 "사진은 눌러도 반응하지 않는다"였는데, 리드에서 사진만 보고 한마디
+                  전문·거리·날짜를 보려면 아래 격자까지 내려가 같은 장을 다시 찾아야 했다. */}
+              <button
+                type="button"
+                onClick={() => setReelId(lede.photo!.postId)}
+                aria-label={`${lede.photo.person.mem_nm}의 기록 자세히 보기`}
+                className={`relative size-[158px] shrink-0 overflow-hidden rounded-xl bg-muted transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]`}
+              >
+                {/* 사진은 항상 있다 — 프사 폴백은 걷어냈다(조회에서 사진 없는 기록을 거른다) */}
                 <Image
-                  src={
-                    lede.photo.url ||
-                    lede.photo.person.avatar_url ||
-                    buildFallbackAvatarUrl(lede.photo.person.mem_id)
-                  }
+                  src={lede.photo.url ?? ""}
                   alt={lede.photo.person.mem_nm}
                   fill
-                  sizes="45vw"
+                  sizes="50vw"
                   unoptimized
                   className="object-cover"
                 />
-              </div>
-              {/* **높이를 사진과 같게 못박는다**(h-36). 이 칸이 본문 높이만큼 늘어나면
-                  바닥에 붙인 이름이 사진 끝단보다 아래로 내려가 두 줄이 어긋난다.
-                  덩어리가 정확히 144px로 닫히면 아래 남는 여백은 본문이 통째로
-                  세로 가운데에 앉히므로 위아래가 고르게 나뉜다. */}
-              <div className="flex h-36 min-w-0 flex-1 flex-col">
-                {/* 한마디 — 사진 옆이라 헤드라인(26px)보다 작게. 사진 높이만큼 줄을 쓴다 */}
-                <p className="line-clamp-4 min-w-0 text-pretty break-keep text-[15px] leading-[1.5] text-foreground [overflow-wrap:anywhere]">
-                  {lede.headline}
-                </p>
-                <button
-                  type="button"
-                  onClick={() =>
-                    onSelectMember(
-                      lede.photo!.person.mem_id,
-                      lede.photo!.person.mem_nm,
-                    )
-                  }
-                  aria-label={`${lede.photo.person.mem_nm} 프로필 보기`}
-                  className="mt-auto flex min-w-0 items-center gap-1.5 self-start rounded-full pt-2 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
-                >
-                  <Avatar
-                    src={lede.photo.person.avatar_url}
-                    seed={lede.photo.person.mem_id}
-                    alt={lede.photo.person.mem_nm}
-                    size="xs"
-                  />
-                  <span className="truncate text-[12px] font-bold text-foreground">
-                    {lede.photo.person.mem_nm}
+                {/* 마일리지런에서 온 기록 — 격자·릴스와 같은 ⚡ 표시. 이 칸은 158px로 작아
+                    글자 없이 아이콘만 얹는다(라벨까지 넣으면 사진을 가린다). */}
+                {lede.photo.mileage && (
+                  <span
+                    aria-label="마일리지런 기록"
+                    className="absolute right-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm"
+                  >
+                    <Zap className="size-3 fill-current" />
                   </span>
-                </button>
+                )}
+              </button>
+              {/* 한마디 — 사진 옆이라 헤드라인(26px)보다 작게. **높이를 사진과 같게 못박는다
+                  (158px)** — 한마디가 짧아도 이 칸이 사진보다 일찍 끝나 덩어리 우측이
+                  들쭉날쭉해지지 않게. 한마디가 없으면 칸 자체를 그리지 않는다(사진만 선다).
+
+                  **줄 수는 사진 높이에 맞춘 7줄이다.** 예전 `line-clamp-4`는 4줄 = 90px
+                  (15px × leading-1.5 × 4)이라 사진 옆에 54px을 남기고 끝났다 — 글이
+                  더 있는데도 사진 바닥에 한참 못 미쳐 잘렸다. 7줄이면 157.5px로 158px 사진과
+                  거의 정확히 맞는다.
+                  ⚠️ 사진 높이를 바꾸면 이 줄 수도 함께 고쳐야 한다 — 높이 ÷ 22.5px.
+                  `overflow-hidden`으로 흘려보내면 이 숫자가 필요 없지만, 그러면 잘릴 때
+                  말줄임(…)이 사라져 "글이 더 있다"는 신호가 없어진다. */}
+              {lede.headline && (
+                <div className="flex h-[158px] min-w-0 flex-1 flex-col">
+                  <p className="line-clamp-7 min-w-0 text-pretty break-keep text-[15px] leading-[1.5] text-foreground [overflow-wrap:anywhere]">
+                    {lede.headline}
+                  </p>
+                </div>
+              )}
               </div>
+
+              {/* 올린 사람 — **사진 아래 제 줄로 내렸다.** 예전엔 사진 옆 칸 바닥에
+                  붙였는데(mt-auto), 한마디가 짧으면 사진 옆이 텅 비고 그만큼 이름이
+                  덩어리 안에 갇혀 사진 아래 여백만 남았다. 밖으로 내리면 그 여백을
+                  이름이 쓰고, 사진 왼쪽 끝에 맞춰 서서 "이 사진을 올린 사람"으로 읽힌다.
+                  self-start라 이름 길이만큼만 눌린다(줄 전체가 버튼이 되지 않게). */}
+              <button
+                type="button"
+                onClick={() =>
+                  onSelectMember(
+                    lede.photo!.person.mem_id,
+                    lede.photo!.person.mem_nm,
+                  )
+                }
+                aria-label={`${lede.photo.person.mem_nm} 프로필 보기`}
+                className="flex min-w-0 items-center gap-1.5 self-start rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
+              >
+                <Avatar
+                  src={lede.photo.person.avatar_url}
+                  seed={lede.photo.person.mem_id}
+                  alt={lede.photo.person.mem_nm}
+                  size="xs"
+                />
+                <span className="truncate text-[12px] font-bold text-foreground">
+                  {lede.photo.person.mem_nm}
+                </span>
+                {/* 칭호 — 이름과 같은 급으로 옆에 세운다(sm=11px, 이름 12px). 예전엔
+                    "조연이 넷이 된다"고 뺐지만, 이름이 사진 아래 제 줄을 갖게 되면서
+                    그 줄에 여유가 생겼다. shrink-0으로 이름이 길어도 배지가 안 눌린다. */}
+                {lede.photo.title && (
+                  <TitleBadge
+                    name={lede.photo.title.ttl_nm}
+                    effect={lede.photo.title.badge_effect}
+                    size="sm"
+                    className="shrink-0"
+                  />
+                )}
+              </button>
             </div>
           ) : lede.newbie ? (
             /* 새 얼굴(§②) — 왼쪽 인물(아바타·이름·new) ↔ 오른쪽 러닝프로필 칩, 아래 소개 한마디.
@@ -1215,7 +1411,8 @@ export function StoryLede({
         {/* ── 밴드 3 · footer — 바닥 고정 ─────────────────────────
             왼쪽은 이 슬롯의 **한 줄 사실**(D-day·완주시간·날짜·거리·가입목적),
             오른쪽은 **응원**. 슬롯이 바뀌어도 응원 버튼은 같은 자리에 남는다.
-            다섯 슬롯 모두 응원을 받는다(운동기록도 `entity_type = "post"`로 붙였다). */}
+            다섯 슬롯 모두 응원을 받는다(운동기록은 글이 아니라 **올린 사람** 기준 —
+            `entity_type = "actv"` + mem_id로 활동지수·목표 슬롯과 카운터를 공유한다). */}
         <div className="flex shrink-0 items-center justify-between gap-3">
           <div className="min-w-0 flex-1">{footNote}</div>
           {lede.entity && (
@@ -1223,8 +1420,15 @@ export function StoryLede({
               entityType={lede.entity.type}
               entityId={lede.entity.id}
               rctnCd={lede.entity.rctnCd}
-              initialCount={lede.entity.count}
-              initialMyCount={lede.entity.myCount}
+              // 이 화면에서 누른 몫을 서버값 위에 얹는다 — 슬롯을 넘겼다 돌아와도(버튼 언마운트)
+              // 방금 누른 게 그대로 남는다. 서버 총합이 갱신되면(30초) 그쪽에 이미 포함돼
+              // 들어오므로, 그때는 `bumped`를 빼서 이중 계산을 막는다(아래 참조).
+              initialCount={lede.entity.count + (myBumps[lede.entity.key] ?? 0)}
+              initialMyCount={
+                lede.entity.myCount + (myBumps[lede.entity.key] ?? 0)
+              }
+              bumped={myBumps[lede.entity.key] ?? 0}
+              onBump={() => addBump(lede.entity!.key)}
               onInteract={pauseThenResume}
             />
           )}
@@ -1282,6 +1486,21 @@ export function StoryLede({
       </span>
     </div>
 
+      {/* 사진을 눌러 여는 릴스 뷰어 — 격자존과 같은 부품·같은 목록(posts)을 쓴다.
+          누른 장부터 열리고, 위아래로 밀어 다른 기록으로 넘어갈 수 있다. */}
+      <RecordReelViewer
+        posts={posts}
+        startId={reelId}
+        open={reelId !== null}
+        onOpenChange={(o) => {
+          if (!o) setReelId(null);
+        }}
+        onSelectMember={onSelectMember}
+        teamId={teamId}
+        myMemId={myMemId}
+        myName={me?.name}
+        myAvatarUrl={me?.avatarUrl}
+      />
     </section>
   );
 }

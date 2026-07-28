@@ -1,15 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { X } from "lucide-react";
+import { X, Zap } from "lucide-react";
 
 import { dayjs } from "@/lib/dayjs";
+import { usePostComments } from "@/lib/hooks/use-post-comments";
 import { getSportEmoji, getSportLabel } from "@/lib/sport";
 
-import { Avatar, buildFallbackAvatarUrl } from "@/components/common/avatar";
+import { Avatar } from "@/components/common/avatar";
 import { TitleBadge } from "@/components/common/title-badge";
+import { RecordCommentBar } from "@/components/story/record-comment-bar";
+import { RecordCommentSheet } from "@/components/story/record-comment-sheet";
+import { RecordCommentTicker } from "@/components/story/record-comment-ticker";
 import { Dialog } from "@/components/ui/dialog";
 
 import type { StoryPost } from "@/lib/queries/story-posts";
@@ -35,9 +39,9 @@ function formatKm(km: number | null): string | null {
  * 한마디는 "기록을 읽는" 지면의 결을 릴스 안에서도 잇는다. 사진 위 하단
  * 그라디언트에 글을 얹는 인스타 정석 + 우리 서체 대비가 이 뷰어의 시그니처다.
  *
- * **사진 없는 기록**(마일리지런 자동 유입분 등)은 프사를 블러로 깔아 무대를 만들고 그 위에
- * 프사를 또렷하게 세운다 — 격자에선 프사로 칸을 꽉 채웠지만, 풀스크린에선 512px 프사를
- * 그대로 늘리면 뭉개져 무대가 초라해진다. 블러 배경이 그 빈자리를 메운다.
+ * **사진은 항상 있다.** 사진 없는 기록은 조회 단계(`get_team_posts`)에서 걸러지므로
+ * 여기 닿지 않는다 — 예전의 프사 폴백 무대는 걷어냈다(얼굴을 세우면 기록 자랑이 아니라
+ * 프로필 열람이 된다). 마일리지런에서 온 기록은 상단 ⚡ 배지로만 구분한다.
  */
 export function RecordReelViewer({
   posts,
@@ -45,6 +49,11 @@ export function RecordReelViewer({
   open,
   onOpenChange,
   onSelectMember,
+  teamId,
+  myMemId,
+  myName,
+  myAvatarUrl,
+  isAdmin,
 }: {
   posts: StoryPost[];
   /** 격자에서 누른 카드의 post_id — 이 장부터 연다 */
@@ -53,8 +62,27 @@ export function RecordReelViewer({
   onOpenChange: (open: boolean) => void;
   /** 이름·프사 탭 → 프로필 카드(위에 겹쳐 열린다). story-client가 stacked로 처리 */
   onSelectMember: (memId: string, name: string) => void;
+  /** 댓글 조회·작성에 쓴다 */
+  teamId: string;
+  /** 비로그인이면 null — 댓글 시트가 로그인 유도로 바뀐다(CommentSection이 처리) */
+  myMemId: string | null;
+  myName?: string | null;
+  myAvatarUrl?: string | null;
+  isAdmin?: boolean;
 }) {
   const cardRefs = useRef<Map<string, HTMLElement>>(new Map());
+  /**
+   * 지금 보이는 장의 post_id. 티커가 "보이는 장만" 쿼리·타이머를 돌리게 하는 스위치다 —
+   * 릴스는 전 장이 한꺼번에 마운트돼 있어(scroll-snap 목록) 이게 없으면 400장이 동시에
+   * 댓글을 읽는다.
+   */
+  // 초기값은 **누른 장**, 없으면 첫 장이다. null로 두면 관찰자가 첫 콜백을 줄 때까지
+  // 어느 장도 "보는 중"이 아니라 댓글을 안 읽고, 스크롤을 안 하면 영영 안 뜬다.
+  const [activeId, setActiveId] = useState<string | null>(
+    startId ?? posts[0]?.post_id ?? null,
+  );
+  /** 티커를 눌러 연 댓글 시트 — 릴스 위에 겹친다 */
+  const [sheetPost, setSheetPost] = useState<StoryPost | null>(null);
 
   const startIdx = startId
     ? Math.max(
@@ -62,6 +90,56 @@ export function RecordReelViewer({
         posts.findIndex((p) => p.post_id === startId),
       )
     : 0;
+
+  /**
+   * 어느 장을 보고 있는지 관찰한다. 스크롤 위치를 직접 재지 않는 건 snap 목록이라
+   * IntersectionObserver가 훨씬 싸고(스크롤 핸들러 0개) 관성 중에도 정확하기 때문.
+   * threshold 0.6 — 반 이상 넘어온 장을 "보고 있는 장"으로 친다.
+   */
+  useEffect(() => {
+    if (!open) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            const id = (e.target as HTMLElement).dataset.postId;
+            if (id) setActiveId(id);
+          }
+        }
+      },
+      { threshold: 0.6 },
+    );
+
+    // **다음 프레임에 관찰을 건다.** Radix는 열릴 때 콘텐츠를 이 effect보다 늦게 마운트해서,
+    // 지금 바로 훑으면 `cardRefs`가 비어 있어 **아무것도 관찰하지 못한다** — 그러면 activeId가
+    // 영영 안 바뀌고, 그 장의 댓글을 아예 안 읽어 말풍선도 개수도 안 뜬다(둘 다 같은 원인).
+    // 아래 scrollIntoView 효과가 이미 같은 이유로 rAF를 쓰고 있다.
+    const raf = requestAnimationFrame(() => {
+      for (const el of cardRefs.current.values()) obs.observe(el);
+    });
+
+    return () => {
+      cancelAnimationFrame(raf);
+      obs.disconnect();
+    };
+    // posts.length가 바뀌면(더보기로 이어붙임) 새 장들도 관찰해야 한다.
+  }, [open, posts.length]);
+
+  // 열릴 때는 누른 장이 곧 보는 장이다 — 관찰이 첫 콜백을 주기 전에도 티커가 바로 뜨게
+  // 초기값을 맞춰 준다(안 맞추면 첫 장 티커가 한 박자 늦게 나타난다).
+  //
+  // effect가 아니라 **렌더 중 조정**이다(React 공식 "You Might Not Need an Effect" —
+  // prop이 바뀌면 렌더 중에 맞춘다). effect로 하면 옛 장의 티커를 한 번 그린 뒤 지우는
+  // 캐스케이드 렌더가 되고, 그 사이 프레임에 엉뚱한 장의 댓글이 스친다.
+  //
+  // startId가 null인 채 열릴 수도 있다(리드 슬롯 진입) — 그땐 첫 장을 보는 것으로 친다.
+  // 뷰어는 닫혀도 마운트된 채 남아 useState 초기값이 다시 안 돌기 때문에, 여기서 매번
+  // 맞춰 주지 않으면 두 번째 진입부터 이전 장의 activeId가 남는다.
+  const [seenStartId, setSeenStartId] = useState(startId);
+  if (open && seenStartId !== startId) {
+    setSeenStartId(startId);
+    setActiveId(startId ?? posts[0]?.post_id ?? null);
+  }
 
   /**
    * 열릴 때 누른 장으로 즉시 점프한다 — 애니메이션 없이(`instant`). 부드럽게 굴리면 첫 장부터
@@ -124,11 +202,32 @@ export function RecordReelViewer({
                 ref={registerCard(post.post_id)}
                 post={post}
                 onSelectMember={onSelectMember}
+                teamId={teamId}
+                active={open && activeId === post.post_id}
+                onOpenComments={() => setSheetPost(post)}
+                myMemId={myMemId}
+                myAvatarUrl={myAvatarUrl}
               />
             ))}
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
+
+      {/* 댓글 시트 — 릴스(z-50) 위에 z-[60]으로 겹친다. 닫으면 보던 장 그대로 돌아온다.
+          Dialog 안에 두는 건 릴스가 열려 있는 동안만 존재하면 되기 때문. */}
+      <RecordCommentSheet
+        postId={sheetPost?.post_id ?? null}
+        postAuthorName={sheetPost?.mem_nm}
+        teamId={teamId}
+        open={sheetPost !== null}
+        onOpenChange={(o) => {
+          if (!o) setSheetPost(null);
+        }}
+        myMemId={myMemId}
+        myName={myName}
+        myAvatarUrl={myAvatarUrl}
+        isAdmin={isAdmin}
+      />
     </Dialog>
   );
 }
@@ -144,17 +243,33 @@ const ReelCard = ({
   ref,
   post,
   onSelectMember,
+  teamId,
+  active,
+  onOpenComments,
+  myMemId,
+  myAvatarUrl,
 }: {
   ref: (el: HTMLElement | null) => void;
   post: StoryPost;
   onSelectMember: (memId: string, name: string) => void;
+  teamId: string;
+  /** 지금 보고 있는 장인가 — 댓글 조회·티커 타이머 스위치 */
+  active: boolean;
+  onOpenComments: () => void;
+  myMemId: string | null;
+  myAvatarUrl?: string | null;
 }) => {
+  // 말풍선 티커와 하단 입력줄의 개수가 **같은 출처**를 본다 — 따로 읽으면 Realtime이
+  // 한쪽에만 닿아 "말풍선엔 새 댓글이 떴는데 숫자는 그대로"가 된다.
+  const comments = usePostComments(post.post_id, teamId, active);
   const km = formatKm(post.dst_km);
   const label = getSportLabel(post.sprt_enm);
   const emoji = getSportEmoji(post.sprt_enm);
-  const hasPhoto = Boolean(post.photo_url);
-  // 사진이 없으면 프사를 무대에 세운다(블러 배경 + 또렷한 중앙 프사)
-  const bgSrc = post.photo_url ?? post.avatar_url ?? buildFallbackAvatarUrl(post.mem_id);
+  // 사진은 항상 있다 — 사진 없는 기록은 조회에서 걸러진다(`get_team_posts`).
+  // 프사 폴백을 두던 자리인데, 얼굴을 무대에 세우면 "기록 자랑"이 아니라 프로필 열람이 된다.
+  // `?? ""`로 때우지 않는 이유: 빈 src는 브라우저가 **현재 페이지 URL을 이미지로 재요청**하게
+  // 만들어 깨진 그림이 뜬다. null이면 아예 안 그린다(검은 무대만 남는다).
+  const bgSrc = post.photo_url;
 
   // 거리·종목·날짜는 **한 줄에 묶지 않는다** — 이 자리는 "얼마나 달렸나"를 자랑하는 곳이라
   // 거리가 주인공이어야 한다. 거리를 큰 숫자로 세우고(종목 이모지·라벨은 그 옆 보조),
@@ -166,53 +281,60 @@ const ReelCard = ({
   return (
     <article
       ref={ref}
+      // 관찰자가 "지금 어느 장인지"를 이 값으로 읽는다(엘리먼트→id 역참조를 위해).
+      data-post-id={post.post_id}
       className="relative flex h-full snap-start snap-always items-center justify-center overflow-hidden"
     >
-      {hasPhoto ? (
-        <>
-          {/* 사진 뒤 블러 확장 — 세로/가로 비율이 화면과 달라 생기는 레터박스를 사진 자신의
-              블러로 메운다(검은 띠 대신). object-cover라 꽉 차고, 위 또렷한 사진이 그 위에 뜬다. */}
-          <Image
-            src={bgSrc}
-            alt=""
-            fill
-            sizes="100vw"
-            unoptimized
-            aria-hidden
-            className="scale-110 object-cover opacity-40 blur-2xl"
-          />
-          {/* 또렷한 본 사진 — 비율 유지(contain). 무대 가운데. */}
-          <Image
-            src={bgSrc}
-            alt={`${post.mem_nm}의 기록 사진`}
-            fill
-            sizes="100vw"
-            unoptimized
-            className="object-contain"
-          />
-        </>
-      ) : (
-        // 사진 없는 기록 — 프사 블러 무대 + 중앙 또렷 프사(격자는 꽉 채우지만 풀스크린은 세워둔다)
-        <>
-          <Image
-            src={bgSrc}
-            alt=""
-            fill
-            sizes="100vw"
-            unoptimized
-            aria-hidden
-            className="scale-110 object-cover opacity-30 blur-3xl"
-          />
-          <div className="relative">
-            <Avatar
-              src={post.avatar_url}
-              seed={post.mem_id}
-              alt={post.mem_nm}
-              size="2xl"
-              className="ring-2 ring-white/20"
+      {/*
+        스토리 캔버스 — **9:16 고정**(인스타 스토리와 같은 규격, 1080×1920).
+
+        화면 전체를 쓰지 않는 이유: 요즘 폰은 9:19.5~9:21로 더 길쭉해서 화면을 꽉 채우면
+        기기마다 무대 비율이 달라진다. 여긴 나중에 **인스타 스토리로 바로 내보내기**를
+        붙일 자리라, 화면에서 보이는 그림과 인스타에 올라갈 그림이 같아야 한다 —
+        캔버스를 9:16으로 고정해야 "보이는 대로 올라간다"가 성립한다.
+
+        `h-full` + `aspect-[9/16]`로 **높이를 먼저 채우고 폭을 비율로 유도**한다.
+        `w-full`로 하면 길쭉한 폰에서 캔버스가 화면 밖으로 넘쳐 하단 정보(입력줄·말풍선)가
+        잘린다 — 화면 안에 들어가는 최대 9:16이어야 한다. 폭이 좁고 짧은 기기에선 반대로
+        폭이 먼저 차야 하므로 `max-w-full`.
+      */}
+      <div className="relative aspect-[9/16] h-full max-h-full w-auto max-w-full overflow-hidden">
+        {bgSrc && (
+          <>
+            {/* 사진 뒤 블러 확장 — 사진 비율이 9:16과 달라 생기는 여백(3:4 사진이면 위아래)을
+                사진 자신의 블러로 메운다. 검은 띠 대신 블러를 쓰는 것도 인스타 스토리와 같다.
+                object-cover라 캔버스를 꽉 채우고, 위 또렷한 사진이 그 위에 뜬다. */}
+            <Image
+              src={bgSrc}
+              alt=""
+              fill
+              sizes="100vw"
+              unoptimized
+              aria-hidden
+              className="scale-110 object-cover opacity-40 blur-2xl"
             />
-          </div>
-        </>
+            {/* 또렷한 본 사진 — 원본 비율 유지(contain), 캔버스 가운데. **잘리지 않는다.**
+                crop하지 않는 건 러닝 사진이 세로·가로 제각각이라 강제로 자르면 사람이 잘리기
+                때문이다(인스타는 올릴 때 사용자가 직접 crop 위치를 정하지만 여긴 그 단계가 없다). */}
+            <Image
+              src={bgSrc}
+              alt={`${post.mem_nm}의 기록 사진`}
+              fill
+              sizes="100vw"
+              unoptimized
+              className="object-contain"
+            />
+          </>
+        )}
+      </div>
+
+      {/* 마일리지런에서 온 기록 표시 — 상단에 띄운다. 하단은 그라디언트 정보 영역이라
+          자리가 없고, 위쪽은 사진 여백이라 배지 하나가 사진을 덜 가린다. */}
+      {post.src_enm === "mlg_auto" && (
+        <span className="absolute left-5 top-[calc(env(safe-area-inset-top)+16px)] z-[1] flex items-center gap-1 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
+          <Zap className="size-3 fill-current" />
+          마일리지런
+        </span>
       )}
 
       {/* 하단 그라디언트 + 정보 — 사진 위로 겹쳐 오른다. pointer-events는 버튼만 받게 좁힌다.
@@ -245,9 +367,19 @@ const ReelCard = ({
           </div>
         )}
 
+        {/* 댓글 말풍선 — **작성자 이름 바로 위**. 사진에 달린 반응이라 기록 정보(이름·거리)
+            위에 얹히고, 맨 아래는 입력칸 자리다(인스타 스토리와 같은 층위). */}
+        <div className="mt-4">
+          <RecordCommentTicker
+            comments={comments}
+            active={active}
+            onOpen={onOpenComments}
+          />
+        </div>
+
         {/* 사람 줄 — 왼쪽 프사·이름·칭호(탭하면 프로필 카드), 오른쪽 날짜(보조).
-            위 거리 그룹과는 정보가 갈리므로 더 띄운다(mt-4). */}
-        <div className="mt-4 flex items-center justify-between gap-3">
+            위 말풍선과는 정보가 갈리므로 살짝 띄운다. */}
+        <div className="mt-1.5 flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => onSelectMember(post.mem_id, post.mem_nm)}
@@ -280,6 +412,17 @@ const ReelCard = ({
               {dateLabel}
             </span>
           )}
+        </div>
+
+        {/* 댓글 입력 줄 — 맨 아래(스토리의 "메시지 보내기" 칸 자리). 엄지가 닿는 곳이고,
+            오른쪽 숫자가 "이 사진에 반응이 몇 개"를 알린다. */}
+        <div className="mt-4">
+          <RecordCommentBar
+            count={comments?.length ?? 0}
+            myMemId={myMemId}
+            myAvatarUrl={myAvatarUrl}
+            onOpen={onOpenComments}
+          />
         </div>
       </div>
     </article>

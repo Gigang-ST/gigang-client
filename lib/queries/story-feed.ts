@@ -69,6 +69,13 @@ export type StoryRecord = ReactableItem & {
   /** 대회 개최일 YYYY-MM-DD — 함께 표시하고 최근 30일 판정(RPC 필터)에도 쓴다 */
   race_dt: string | null;
   /**
+   * 이 기록이 달린 대회 — 리드 "결승선을 넘다" 슬롯에서 대회명을 상세로 링크할 때 쓴다
+   * (`/schedule?comp=<short_id ?? comp_id>`). RPC가 `comp_mst`를 이미 조인하고 있어 payload에만 얹었다.
+   * 배포 스큐 안전을 위해 **옵셔널** — 구버전 RPC에선 링크만 빠지고 이름은 그대로 나온다.
+   */
+  comp_id?: string | null;
+  short_id?: string | null;
+  /**
    * 프로필 부품(리드 "결승선을 넘다" 슬롯 전용) — 칭호·배지·프레임. 활동지수/목표 슬롯과 같은 방식.
    * 배포 스큐 안전을 위해 옵셔널(부품이 빠질 뿐 크래시하지 않는다).
    */

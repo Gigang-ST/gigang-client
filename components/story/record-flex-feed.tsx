@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
+
+import { Zap } from "lucide-react";
 
 import { loadMorePosts } from "@/app/actions/story/load-more-posts";
 // 상한은 `lib/story-post.ts`에서 가져온다 — `lib/queries/story-posts.ts`는 admin
@@ -9,7 +12,6 @@ import { loadMorePosts } from "@/app/actions/story/load-more-posts";
 // 값 자체는 두 곳이 같아야 하므로(받은 개수 < 상한 = 끝) 정본은 story-post.ts 한 곳이다.
 import { STORY_POST_LIMIT } from "@/lib/story-post";
 
-import { buildFallbackAvatarUrl } from "@/components/common/avatar";
 import { HelpTip } from "@/components/common/help-tip";
 import { MemberCardDialog } from "@/components/members/member-card-dialog";
 import { RecordFlexCreateDialog } from "@/components/story/record-flex-create-dialog";
@@ -30,25 +32,38 @@ import type { StoryPost } from "@/lib/queries/story-posts";
  * UI가 되고(400건이면 3px), 시간순 목록에서 "몇 면 중 몇 면"은 애초에 쓸모가 적다.
  * 지금은 손으로 밀면 계속 흘러가고 끝에서 멈춘다 — 감기지 않으므로 끝이 있다는 걸 손으로 안다.
  *
- * **사진이 없는 기록**(직접 올리며 사진을 안 넣었거나, 마일리지런 자동 유입분 `mlg_auto` —
- * 원천 `evt_mlg_act_hist`에 사진 컬럼이 없다)은 **프로필사진을 칸에 사각으로 꽉 채운다**.
- * 사진 있는 칸과 같은 사각 격자로 읽히게 — 빈 회색 칸으로 두면 자랑이 초라해 보여 다음부터
- * 안 올린다. 프사가 512px라 확대하면 다소 흐리지만, 얼굴이 보이는 편이 낫다는 판단.
+ * **사진 없는 기록은 아예 안 뜬다.** 예전엔 프로필사진으로 칸을 채웠는데, 그러면 격자가
+ * 기록이 아니라 얼굴 무더기로 읽혔다. 이 지면은 수치를 겨루는 자리가 아니라 친목·응원이고
+ * 그 매개가 사진이라, 사진이 없으면 세울 것이 없다 — 거르는 건 `get_team_posts` RPC
+ * (`photo_url IS NOT NULL`)라 클라이언트는 폴백을 갖지 않는다.
+ *
+ * 마일리지런에서 온 기록(`src_enm === "mlg_auto"`)은 사진을 올린 것만 여기 서고, 출처가
+ * 다르다는 표시로 ⚡ 배지만 붙인다. 수치는 격자에 적지 않는다(칸은 사진만 담는다).
  */
 export function RecordFlexFeed({
   posts,
   myMemId,
+  me,
   teamId,
 }: {
   posts: StoryPost[];
-  /** 로그인 사용자 — 없으면 "올리기" 버튼을 감춘다(각오·응원과 동일 정책) */
+  /** 로그인 사용자 — 없으면 "올리기" 버튼을 감춘다(목표 한마디·응원과 동일 정책) */
   myMemId: string | null;
+  /**
+   * 로그인 사용자 표시정보 — 릴스 댓글의 낙관적 표시(내 이름·프사)에 쓴다.
+   * 멘션 멤버 목록이 늦게 와도 내 댓글은 바로 내 얼굴로 뜬다(CommentSection 규칙).
+   */
+  me: { id: string; name: string; avatarUrl: string | null } | null;
   /** 릴스 뷰어 안에서 여는 프로필 카드에 넘긴다 */
   teamId: string;
 }) {
   const [writing, setWriting] = useState(false);
   /** 릴스 뷰어에서 처음 열 카드 — null이면 닫힘 */
   const [openId, setOpenId] = useState<string | null>(null);
+
+  /** 댓글 알림 딥링크(`/story?rec=<post_id>`) — 아래 `all`이 준비된 뒤 처리한다 */
+  const recParam = useSearchParams().get("rec");
+  const [handledRec, setHandledRec] = useState<string | null>(null);
   /**
    * 릴스 뷰어에서 이름·프사를 눌러 여는 프로필 카드 — 뷰어 위에 겹친다(stacked).
    * story-client의 공유 카드와 **분리**한다: 저 카드는 여러 진입점이 z-50로 공유하는데,
@@ -103,6 +118,25 @@ export function RecordFlexFeed({
     const seen = new Set(posts.map((p) => p.post_id));
     return [...posts, ...extra.filter((p) => !seen.has(p.post_id))];
   })();
+
+  /**
+   * 댓글 알림 딥링크(`/story?rec=<post_id>`) — 그 기록을 릴스로 바로 연다.
+   * 이걸 안 읽으면 알림을 눌러도 전광판 맨 위만 뜨고 정작 그 기록은 안 보인다
+   * (deep-link.ts가 경고하는 "주소는 살아 있는데 화면이 안 뜨는" 상태).
+   *
+   * **찾을 때까지 `handledRec`을 굳히지 않는다.** 서버가 주는 첫 묶음은 16건뿐이라
+   * 조금만 오래된 기록이면 여기 없다 — 못 찾았는데 처리했다고 표시해 버리면, 나중에
+   * 더보기로 그 기록이 들어와도 영영 안 열린다. 목록에 나타나는 순간 열리게 둔다
+   * (사용자가 스크롤하면 자연히 채워지고, 안 하면 지면을 보는 것이라 손해가 없다).
+   *
+   * 렌더 중 조정으로 처리한다 — effect로 열면 전광판을 한 번 그린 뒤 릴스가 덮는
+   * 캐스케이드가 되고, 린트(set-state-in-effect)에도 걸린다.
+   * 한 번 열고 나면 `handledRec`이 굳어, 닫은 뒤 다시 열리지 않는다(주소는 그대로 남으므로).
+   */
+  if (recParam && handledRec !== recParam && all.some((p) => p.post_id === recParam)) {
+    setHandledRec(recParam);
+    setOpenId(recParam);
+  }
 
   /** 오른쪽 끝 sentinel이 보이면 다음 묶음 — 캘린더 리스트뷰와 같은 장치(방향만 가로) */
   useEffect(() => {
@@ -209,22 +243,39 @@ export function RecordFlexFeed({
                   // 모서리는 칸을 카드처럼 보이게 해 격자의 결이 흐려진다). 테두리도 두지
                   // 않는다 — 인스타처럼 사진끼리 딱 붙이고, 좁은 gap(2px)이 흰 배경 사진의
                   // 경계 역할을 대신한다.
-                  className="block aspect-square w-[42vw] max-w-[180px] overflow-hidden bg-muted transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
+                  className="relative block aspect-square w-[42vw] max-w-[180px] overflow-hidden bg-muted transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
                 >
-                  {/* 사진 없이 올린 기록도 프로필사진을 **칸에 사각으로 꽉 채운다** — 사진 있는
-                      칸과 같은 aspect-square·object-cover라 격자가 한 결로 읽힌다(칸이 카드처럼
-                      따로 놀지 않는다). 프사가 512px라 확대하면 다소 흐리지만, 회색 빈 칸보다
-                      얼굴이 보이는 편이 자랑 피드로선 낫다. 프사 미설정자는 DiceBear 폴백(SVG)이라
-                      오히려 선명하다. */}
-                  <Image
-                    src={p.photo_url ?? p.avatar_url ?? buildFallbackAvatarUrl(p.mem_id)}
-                    alt=""
-                    width={320}
-                    height={320}
-                    className="size-full object-cover"
-                    referrerPolicy="no-referrer"
-                    unoptimized
-                  />
+                  {/* 사진은 항상 있다 — 프사 폴백을 걷어냈다. 이 지면에 서는 조건 자체가
+                      "사진이 있을 것"이고(`get_team_posts`가 사진 없는 행을 안 내려준다),
+                      얼굴로 칸을 때우면 기록 격자가 아니라 얼굴 격자가 된다.
+                      `photo_url`이 타입상 nullable인 건 마일리지런 자동 유입분이 사진 없이도
+                      DB에 남기 때문이다 — 조회에서 걸러지므로 여기 닿지 않는다.
+                      그래도 `?? ""`로 때우지는 않는다: 빈 src는 브라우저가 **현재 페이지 URL을
+                      다시 요청**하게 만들어(문서를 이미지로 받으려다 실패) 깨진 아이콘이 뜬다.
+                      RPC 배포 전이나 스큐가 있는 순간에도 빈 칸(bg-muted)으로 조용히 넘어가게 둔다. */}
+                  {p.photo_url && (
+                    <Image
+                      src={p.photo_url}
+                      alt=""
+                      width={320}
+                      height={320}
+                      className="size-full object-cover"
+                      referrerPolicy="no-referrer"
+                      unoptimized
+                    />
+                  )}
+
+                  {/* 마일리지런에서 올라온 기록 — 같은 운동기록이되 출처가 다르다는 표시만.
+                      수치를 다시 적지 않는다(격자는 사진만 담는 자리다). 사진이 밝든 어둡든
+                      읽히게 반투명 검정 판 위에 흰 아이콘으로 얹는다. */}
+                  {p.src_enm === "mlg_auto" && (
+                    <span
+                      aria-label="마일리지런 기록"
+                      className="pointer-events-none absolute right-1.5 top-1.5 flex size-6 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm"
+                    >
+                      <Zap className="size-3.5 fill-current" />
+                    </span>
+                  )}
                 </button>
                 ))}
               </li>
@@ -262,6 +313,10 @@ export function RecordFlexFeed({
           if (!o) setOpenId(null);
         }}
         onSelectMember={(memId, name) => setReelMember({ memId, name })}
+        teamId={teamId}
+        myMemId={myMemId}
+        myName={me?.name}
+        myAvatarUrl={me?.avatarUrl}
       />
 
       {/* 릴스 뷰어 위에 겹쳐 뜨는 프로필 카드(stacked=z-[60]) — 뷰어를 닫지 않고 그 위에 얹는다.
