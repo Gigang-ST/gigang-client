@@ -8,10 +8,17 @@ import {
   type StoryEntityType,
 } from "@/lib/queries/story-feed";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getStoryPosts } from "@/lib/queries/story-posts";
 import { MAX_RCTN_DELTA } from "@/lib/story-reaction";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const ENTITY_TYPES: StoryEntityType[] = ["newbie", "record", "race", "actv"];
+const ENTITY_TYPES: StoryEntityType[] = [
+  "newbie",
+  "record",
+  "race",
+  "actv",
+  "post",
+];
 
 /**
  * 응원 대상이 **지금 이 팀 전광판에 실제로 올라온 항목**인지 확인한다.
@@ -43,6 +50,19 @@ async function isOnBoard(
     return feed.actv_rank.some((item) => item.mem_id === entityId);
   }
   return false;
+}
+
+/**
+ * 기록 자랑은 피드가 아니라 `getStoryPosts`에 있다 — 캐시 태그가 갈려 있어서다
+ * (`story-posts` vs `story-feed`). 그래서 위 `isOnBoard`와 분리해 따로 확인한다.
+ * 이쪽도 캐시된 조회라 왕복이 늘지 않는다.
+ */
+async function isPostOnBoard(
+  teamId: string,
+  entityId: string,
+): Promise<boolean> {
+  const posts = await getStoryPosts(teamId);
+  return posts.some((p) => p.post_id === entityId);
 }
 
 export type BumpResult =
@@ -87,7 +107,12 @@ export async function bumpStoryReaction(input: {
       const { teamId } = await getRequestTeamContext();
 
       // 팀·존재 확인은 저장 직전에. 통과 못 하면 RPC까지 가지 않는다.
-      if (!(await isOnBoard(teamId, input.entityType, input.entityId))) {
+      // 기록 자랑만 조회처가 다르다(피드가 아니라 story-posts 캐시).
+      const onBoard =
+        input.entityType === "post"
+          ? await isPostOnBoard(teamId, input.entityId)
+          : await isOnBoard(teamId, input.entityType, input.entityId);
+      if (!onBoard) {
         return { ok: false as const, message: "이미 전광판에서 내려간 소식입니다" };
       }
 

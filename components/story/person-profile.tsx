@@ -62,19 +62,10 @@ export type PersonProfilePerson = {
 export function PersonProfile({
   person,
   parts,
-  rank,
-  reactionSlot,
   onSelect,
 }: {
   person: PersonProfilePerson;
   parts: PersonProfilePart[];
-  /** 이번 달 활동지수 순위 — 주면 이름 아래에 "활동지수 N위" 배지를 얹는다(왜 이 사람이 떴는지) */
-  rank?: number;
-  /**
-   * 인용구(한마디) 줄 우측에 끼울 노드 — 활동지수 슬롯의 응원 버튼이 여기 온다.
-   * 왼쪽 인용구는 남는 폭을 다 쓰고, 이 슬롯은 오른쪽 끝에 붙는다(같은 바닥선에서 마주본다).
-   */
-  reactionSlot?: ReactNode;
   onSelect?: (memId: string, name: string) => void;
 }) {
   const showTitle = parts.includes("title") && person.primary_title != null;
@@ -103,13 +94,9 @@ export function PersonProfile({
             size="xs"
           />
         )}
-        {/* 활동지수 순위 — "왜 이 사람이 여기 떴는지"를 이름 아래에서 곧바로 말한다.
-            점수(actv_score)는 노출하지 않고 순위만(히든 운영 결). */}
-        {rank != null && (
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 font-numeric text-[11px] font-semibold text-primary tabular-nums">
-            활동지수 {rank}위
-          </span>
-        )}
+        {/* "활동지수 N위" 배지는 걷어냈다 — kicker("이번 달 기강 잡는")가 이미 같은 말을
+            하고 있어 이름 아래에서 한 번 더 붙일 값이 아니었다. 이름 스택이 64→44px로
+            줄면서 헤드라인이 2줄이 돼도 슬롯이 안 눌린다(§story-lede 높이 주석). */}
       </div>
     </div>
   );
@@ -134,22 +121,20 @@ export function PersonProfile({
   // 상단은 좌우 2단 — 왼쪽 "이 사람이 누구인지"(아바타·이름·칭호·순위), 오른쪽 "이 사람의
   // 실적"(최고기록 + 이번 달 참석·기록). 인용구(intro)와 러닝프로필은 이 2단에서 빼서
   // **아래 전체 폭 줄**로 내린다 — 좌우 컬럼은 인물/실적만 담아 높이가 서로 비슷하게 맞는다.
+  // `bestRecord`는 더 이상 이 컴포넌트가 그리지 않는다 — 리드 슬롯 footer로 내려갔다.
+  // parts에 남아 있어도 무시한다(호출부가 함께 정리될 때까지 조용히 넘어가게).
   const topParts = parts.filter(
     (p) => p !== "bestRecord" && p !== "intro",
   );
-  const showRecords = parts.includes("bestRecord");
   const showIntro = parts.includes("intro");
 
   const topLeftNodes = topParts
     .map((part) => renderPart(part, person))
     .filter((node): node is ReactNode => node != null);
 
-  const records = showRecords ? renderPart("bestRecord", person) : null;
   const intro = showIntro ? renderPart("intro", person) : null;
-  // 오른쪽 컬럼은 최고기록·수치 중 하나라도 있을 때만 그린다(둘 다 없으면 왼쪽이 폭을 다 쓴다).
-  const hasRight = records != null || hasCounts;
-  // 아래 줄 — 인용구(왼쪽)와 응원(오른쪽). 둘 중 하나라도 있을 때만 그린다.
-  const hasBottom = intro != null || reactionSlot != null;
+  // 아래 줄 — 인용구. 응원 버튼은 리드 슬롯의 footer 밴드가 맡는다(여기서 그리지 않는다).
+  const hasBottom = intro != null;
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
@@ -160,42 +145,59 @@ export function PersonProfile({
           {topLeftNodes}
         </div>
 
-        {/* 오른쪽 — 실적. 위에 대표 최고기록, 아래에 이번 달 참석·기록 수치.
-            둘 사이 얇은 괘선으로 "역대 최고기록"과 "이번 달 활동"을 가른다. */}
-        {hasRight && (
-          <div className="flex shrink-0 flex-col items-end justify-center gap-2.5">
-            {records}
-            {hasCounts && (
-              <div className="flex flex-col items-end gap-2">
-                {records && <div className="h-px w-full bg-border" aria-hidden />}
-                <div className="flex items-start gap-4">
-                  <CountStat value={person.mth_attd_cnt ?? 0} label="참석" />
-                  <CountStat value={person.mth_rec_cnt ?? 0} label="기록" />
-                </div>
-              </div>
-            )}
+        {/* 오른쪽 — **이번 달 활동이 주인공이다.**
+            예전엔 최고기록(22px)이 위에 크게 서고 참석·기록(17px)이 그 아래 작게 붙어,
+            "이번 달 얼마나 뛰었나"를 말하는 슬롯인데 역대 PB가 제일 큰 숫자였다.
+            지금은 참석·기록을 27px로 키워 이 칸의 주어로 삼는다. 최고기록은 이 컬럼에서
+            빼서 리드 슬롯 footer의 한 줄 사실로 내려보낸다(§story-lede footNote). */}
+        {hasCounts && (
+          <div className="flex shrink-0 items-start gap-4 self-center">
+            <CountStat value={person.mth_attd_cnt ?? 0} label="참석" />
+            <CountStat value={person.mth_rec_cnt ?? 0} label="기록" />
           </div>
         )}
       </div>
 
-      {/* 아래 — 인용구 한 줄(왼쪽, 남는 폭을 다 씀) ↔ 응원 버튼(오른쪽 끝). 같은 바닥선에서
-          마주본다. intro는 여기서 한 줄로 길게 눕는다(2단 안에선 폭이 좁아 두 줄로 접혔다). */}
-      {hasBottom && (
-        <div className="flex items-center gap-3">
-          <div className="min-w-0 flex-1">{intro}</div>
-          {reactionSlot && <div className="shrink-0">{reactionSlot}</div>}
-        </div>
-      )}
+      {/* 아래 — 인용구 한 줄. 전체 폭을 쓴다(2단 안에선 폭이 좁아 두 줄로 접혔다). */}
+      {hasBottom && <div className="min-w-0">{intro}</div>}
     </div>
   );
 }
 
-/** 이번 달 수치 한 칸 — 라벨(위·작게) + 숫자(아래·크게). 최고기록 아래 두 칸을 나란히 세운다. */
+/**
+ * 한마디를 아직 안 쓴 사람의 자리 채움 문구 — **한 줄로 고정**이다.
+ *
+ * 사람마다 다른 문구를 돌리면 "이 사람이 저런 말을 골랐나" 하고 개인의 말처럼 읽히기
+ * 시작한다. 하나로 고정하면 몇 번만 봐도 "한마디를 안 쓴 사람 자리"라는 표시로 학습돼,
+ * 오히려 오해가 없다.
+ *
+ * 사실을 주장하지 않는 문장이라는 점도 중요하다 — "출석부는 꽉 찼다" 같은 건 그 사람이
+ * 실제로 그런지 알 수 없고, 아니면 크루 앞에서 잘못 소개하는 셈이 된다. 이 문장은
+ * "말이 없다"는 상태 자체를 농담으로 받는 말이라 누구에게 붙어도 틀리지 않는다.
+ */
+const INTRO_PLACEHOLDER = "고수는 말이 필요 없는 법";
+
+/**
+ * 한마디 자리의 빈 상태 — 인용구와 **같은 블록**이라 줄 높이가 어긋나지 않는다.
+ *
+ * 다만 **본인이 한 말인 척하지 않는다**: 따옴표를 빼고 색을 흐리게 둬서, 읽는 사람이
+ * "이건 이 사람이 쓴 게 아니라 아직 안 쓴 것"임을 한눈에 구분하게 한다. 탭 툴팁도 없다
+ * (펼칠 뒷말이 없다).
+ */
+function IntroPlaceholder() {
+  return (
+    <p className="block w-full truncate rounded-r-md border-l-2 border-border/60 bg-muted/30 py-1.5 pl-2.5 pr-2 text-[13.5px] leading-relaxed text-muted-foreground/80">
+      {INTRO_PLACEHOLDER}
+    </p>
+  );
+}
+
+/** 이번 달 수치 한 칸 — 라벨(위·작게) + 숫자(아래·크게). 이 슬롯의 주어라 크게 세운다. */
 function CountStat({ value, label }: { value: number; label: string }) {
   return (
-    <div className="flex flex-col items-center gap-0.5">
-      <span className="text-[10px] leading-none text-muted-foreground">{label}</span>
-      <span className="font-numeric text-[17px] font-semibold leading-none text-foreground tabular-nums">
+    <div className="flex flex-col items-center gap-1">
+      <span className="text-[11px] leading-none text-muted-foreground">{label}</span>
+      <span className="font-numeric text-[27px] font-medium leading-none text-foreground tabular-nums">
         {value}
       </span>
     </div>
@@ -214,9 +216,11 @@ function renderPart(
 
     case "intro": {
       const txt = person.intro_txt?.trim();
-      if (!txt) return null;
       // 사람의 말이라 인용구로 — 한 줄로 눕다 넘치면 …로 자르고, 탭하면 전체가 툴팁으로 뜬다.
-      return <IntroQuote key="intro" text={txt} />;
+      if (txt) return <IntroQuote key="intro" text={txt} />;
+      // 한마디가 없어도 **자리는 남긴다** — 쓴 사람과 안 쓴 사람 사이에 슬롯 구성이
+      // 달라지면 스와이프할 때마다 아래 내용이 위아래로 뛴다.
+      return <IntroPlaceholder key="intro" />;
     }
 
     case "bestRecord": {

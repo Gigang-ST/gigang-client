@@ -10,6 +10,8 @@ import {
   KakaoIcon,
   SomoimIcon,
 } from "@/components/social-icons";
+import { HelpTip } from "@/components/common/help-tip";
+import { StoryZoneHeader } from "@/components/story/story-zone-header";
 import { CardItem } from "@/components/ui/card";
 import {
   Dialog,
@@ -138,14 +140,16 @@ export function SocialLinksGrid() {
       {/* 판권면 — 지면 맨 끝에서 크루 바깥으로 나가는 문. 다른 존과 같은 괘선·라벨을 써야
           별도 위젯이 아니라 이 신문의 마지막 단으로 읽힌다 */}
       <div className="flex flex-col">
-        <div className="rule-section flex items-center justify-between gap-2 pb-2">
-          <h2 className="font-numeric text-[11px] font-medium uppercase tracking-[0.2em] text-foreground">
-            Social
-          </h2>
-        </div>
-        <p className="pt-2.5 text-[15px] leading-snug text-muted-foreground">
-          기강이 모여 있는 곳
-        </p>
+        <StoryZoneHeader
+          label="Social"
+          lead="기강이 모여 있는 곳"
+          action={
+            <HelpTip title="기강 채널">
+              기강 소식이 오가는 바깥 채널이에요. 오픈채팅 비밀번호는 가입한
+              기강인에게만 보여요.
+            </HelpTip>
+          }
+        />
         <div className="grid grid-cols-4 gap-2.5 pt-3">
           {SOCIAL_LINKS.map(({ key, label, href, Icon }) =>
             key === "kakao" ? (

@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 
+import { HelpTip } from "@/components/common/help-tip";
 import { PledgeCreateDialog } from "@/components/story/pledge-create-dialog";
+import { StoryZoneHeader } from "@/components/story/story-zone-header";
 
 import type { StoryPledge } from "@/lib/queries/story-feed";
 
@@ -37,16 +39,21 @@ export function PledgeSigns({
 
   return (
     <section className="flex flex-col">
-      <div className="rule-section mx-6 flex items-center justify-between gap-2 pb-2">
-        <h2 className="font-numeric text-[11px] font-medium uppercase tracking-[0.2em] text-foreground">
-          Course Signs
-        </h2>
-      </div>
-      <p className="px-6 pt-2.5 text-[15px] text-muted-foreground">
-        {hasPledges
-          ? "코스에 꽂아둔 목표 한마디 — 옆으로 밀어 지나가세요"
-          : "코스가 아직 비어 있어요 — 첫 목표 한마디를 꽂아보세요"}
-      </p>
+      <StoryZoneHeader
+        bleed
+        label="Course Signs"
+        lead={
+          hasPledges
+            ? "코스에 꽂아둔 목표 한마디 — 옆으로 밀어 지나가세요"
+            : "코스가 아직 비어 있어요 — 첫 목표 한마디를 꽂아보세요"
+        }
+        action={
+          <HelpTip title="목표 한마디">
+            앞으로 이렇게 달리겠다는 다짐을 코스변 팻말로 꽂아둡니다. 한 사람당 하나라
+            새로 쓰면 이전 팻말이 내려가고, 사라지는 기한은 없어요.
+          </HelpTip>
+        }
+      />
 
       {hasPledges && (
         <>

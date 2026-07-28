@@ -10,9 +10,11 @@ import { loadMorePosts } from "@/app/actions/story/load-more-posts";
 import { STORY_POST_LIMIT } from "@/lib/story-post";
 
 import { buildFallbackAvatarUrl } from "@/components/common/avatar";
+import { HelpTip } from "@/components/common/help-tip";
 import { MemberCardDialog } from "@/components/members/member-card-dialog";
 import { RecordFlexCreateDialog } from "@/components/story/record-flex-create-dialog";
 import { RecordReelViewer } from "@/components/story/record-reel-viewer";
+import { StoryZoneHeader } from "@/components/story/story-zone-header";
 
 import type { StoryPost } from "@/lib/queries/story-posts";
 
@@ -157,14 +159,16 @@ export function RecordFlexFeed({
 
   return (
     <section className="flex flex-col">
-      <div className="rule-section mx-6 flex items-center justify-between gap-2 pb-2">
-        <h2 className="font-numeric text-[11px] font-medium uppercase tracking-[0.2em] text-foreground">
-          Record Board
-        </h2>
-      </div>
-      <p className="px-6 pt-2.5 text-[15px] text-muted-foreground">
-        우리가 남긴 발자국
-      </p>
+      <StoryZoneHeader
+        bleed
+        label="Record Board"
+        lead="우리가 남긴 발자국"
+        action={
+          <HelpTip title="기록 자랑">
+            기강인이 올린 운동 기록이에요. 오늘 뛰었다면 여기에 자랑해보세요.
+          </HelpTip>
+        }
+      />
 
       {
         /* 가로 스크롤 — 면을 끊어 넘기던 걸(프로그레스바 + 스와이프 판정) 걷어내고 손으로

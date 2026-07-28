@@ -287,6 +287,31 @@ export function getMemberIntro(
   const purposeTxt = profile.join_purp_txt?.trim() || null;
   const purposes = purposeTxt ? [] : toPurposeChips(profile.join_purp_cds);
 
+  const rows = getRunningProfileRows(profile);
+
+  if (purposes.length === 0 && rows.length === 0 && !purposeTxt) return null;
+  return { purposes, purposeTxt, rows };
+}
+
+/**
+ * 러닝 프로필 라벨-값 행 — `평균 페이스 / 평균 거리 / 가까운 역`.
+ *
+ * 아이콘 칩(`getRunningProfileChips`)과 달리 **항목 이름을 글자로 말한다**. 칩은 폭이
+ * 좁은 목록용이고, 이쪽은 "이 숫자가 뭔지" 처음 보는 사람에게 설명해야 하는 자리용이다
+ * (상세 카드의 러닝 프로필 섹션, 리드의 새 얼굴 슬롯) — 처음 보는 사람을 소개하는 칸에서
+ * `⏱ 6'00"`만 있으면 그게 평균인지 최고기록인지 알 수 없다.
+ *
+ * 상세 카드(`getMemberIntro`)와 리드가 같은 함수를 쓴다 — 한쪽만 고치면 라벨이 갈라진다.
+ */
+export function getRunningProfileRows(
+  profile: {
+    avg_pace_cd: string | null;
+    avg_run_dist_km: number | null;
+    near_stn_nm?: string | null;
+  } | null,
+): { label: string; value: string }[] {
+  if (!profile) return [];
+
   const rows: { label: string; value: string }[] = [];
   const paceCd = profile.avg_pace_cd as (typeof AVG_PACE_CODES)[number] | null;
   // UNKNOWN("잘 모르겠어요")은 정보가 없는 것과 같으므로 행을 만들지 않는다.
@@ -301,7 +326,5 @@ export function getMemberIntro(
   if (stn) {
     rows.push({ label: "가까운 역", value: stn.endsWith("역") ? stn : `${stn}역` });
   }
-
-  if (purposes.length === 0 && rows.length === 0 && !purposeTxt) return null;
-  return { purposes, purposeTxt, rows };
+  return rows;
 }

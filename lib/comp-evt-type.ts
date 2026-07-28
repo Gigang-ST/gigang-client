@@ -53,6 +53,31 @@ export function compEvtTypeLabel(value: string | null | undefined): string | nul
   return COMP_EVT_LABEL[key] ?? key;
 }
 
+/** 표준 종목의 공식 거리(km). `37K`처럼 숫자로 적힌 종목은 아래 정규식이 받는다. */
+const COMP_EVT_KM: Record<string, number> = {
+  FULL: 42.195,
+  HALF: 21.0975,
+};
+
+/**
+ * 종목 코드 → 거리(km). 모르면 `null`.
+ *
+ * 페이스를 계산하려면 거리가 있어야 하는데, 종목 코드는 표준값(FULL·HALF)과
+ * 자유 입력(`37K`·`55K`)이 섞여 있다. 마라톤·하프는 소수점까지 정확히 잡아야
+ * 페이스가 어긋나지 않는다(42km로 두면 풀코스에서 약 3초/km가 밀린다).
+ *
+ * **달리기 종목에만 쓴다.** 철인3종·사이클은 구간이 나뉘어 있어 총시간을 총거리로
+ * 나눈 값이 아무 의미가 없다 — 호출부가 `sport`로 먼저 거른다.
+ */
+export function compEvtTypeKm(value: string | null | undefined): number | null {
+  const key = normalizeCompEvtTypeKey(String(value ?? ""));
+  if (!key) return null;
+  if (COMP_EVT_KM[key]) return COMP_EVT_KM[key];
+  // `10K` `37K` `55K` — 숫자+K 형태만 받는다(소수점 허용: `21.1K`)
+  const m = /^(\d+(?:\.\d+)?)K$/.exec(key);
+  return m ? Number(m[1]) : null;
+}
+
 /**
  * `comp_evt_cfg`에 나온 종목을 먼저 두고, 스포츠 기본 종목 중 아직 없는 것만 뒤에 붙인다.
  * (동일 종목은 정규화 키 기준 한 번만 노출)
