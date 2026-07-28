@@ -125,15 +125,37 @@ export async function evaluateAndGrantTitles(
     const asPrimary = !hasPrimary;
 
     // 활성 행은 항상 vers=0 — 회수 시 vers가 변경되므로 재지급 시 충돌 없이 INSERT 가능
-    const { error } = await db.from("mem_ttl_rel").insert({
+    const grantRow = {
       team_id: ctx.teamId,
       team_mem_id: ctx.teamMemId,
       ttl_id: title.ttl_id,
       grnt_rsn_txt: `자동수여 (trigger=${ctx.trigger})`,
-      is_prmy_yn: asPrimary,
       vers: 0,
       del_yn: false,
-    });
+    };
+
+    let { error } = await db
+      .from("mem_ttl_rel")
+      .insert({ ...grantRow, is_prmy_yn: asPrimary });
+
+    // 대표 자리를 다른 요청이 먼저 차지했으면(동시 실행) 대표 단일성 제약에 걸린다 —
+    // `uk_mem_ttl_rel_team_mem_primary_current`(team_mem_id 부분 유니크). 이때 그냥
+    // 넘기면 **정당하게 얻은 칭호가 통째로 사라진다**. 대표는 어차피 하나면 되므로
+    // 대표 표시만 떼고 다시 넣는다 — 칭호 수여가 대표 경쟁 때문에 실패해선 안 된다.
+    //
+    // 판정은 Postgres 유니크 위반 코드(23505)로 한다. 메시지 문자열로 보면 로케일·문구
+    // 변경에 깨진다. (`ttl_id` 중복도 같은 코드지만, 그건 위 `activeIds`가 이미 걸러
+    // 여기 닿지 않는다 — 닿았다면 어차피 이미 가진 칭호라 재삽입 실패가 정상이다.)
+    if (error && asPrimary && error.code === "23505") {
+      console.info(
+        `[title-engine] 대표 자리 선점됨 — 일반 수여로 재시도: ${title.ttl_nm}`,
+      );
+      ({ error } = await db
+        .from("mem_ttl_rel")
+        .insert({ ...grantRow, is_prmy_yn: false }));
+      // 다른 요청이 대표를 세웠다는 뜻이므로 이 루프에서도 더는 대표를 노리지 않는다
+      hasPrimary = true;
+    }
 
     if (error) {
       console.error(`[title-engine] 칭호 부여 실패 ttl_id=${title.ttl_id}`, error);

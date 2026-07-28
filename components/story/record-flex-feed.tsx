@@ -224,9 +224,13 @@ export function RecordFlexFeed({
   };
 
   const startPress = (p: StoryPost) => (e: React.PointerEvent) => {
+    // **권한 판정보다 먼저** 리셋한다: `firedRef`는 격자 전체가 공유하는 하나뿐이라,
+    // 삭제 가능한 칸에서 길게눌러 삭제창이 뜬 뒤(true로 굳음) 그 칸의 click이 오버레이에
+    // 가로막혀 리셋을 못 하면, 다음에 **권한 없는 칸**을 짧게 눌렀을 때 이 플래그가 남아
+    // 그 탭까지 삼킨다(릴스가 안 열리고 한 번 더 눌러야 한다).
+    firedRef.current = false;
     if (!canDelete(p)) return;
     const { clientX: x, clientY: y } = e;
-    firedRef.current = false;
     clearPress();
     pressRef.current = {
       x,
