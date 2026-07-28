@@ -3108,6 +3108,7 @@ export type Database = {
         | "mlg_goal"
         | "sch_post"
         | "manual"
+        | "post_record"
       pt_txn_type_enm: "earn" | "revoke" | "spend" | "manual_adj"
       ttl_kind_enm: "auto" | "awarded"
     }
@@ -3259,6 +3260,7 @@ export const Constants = {
         "mlg_goal",
         "sch_post",
         "manual",
+        "post_record",
       ],
       pt_txn_type_enm: ["earn", "revoke", "spend", "manual_adj"],
       ttl_kind_enm: ["auto", "awarded"],
