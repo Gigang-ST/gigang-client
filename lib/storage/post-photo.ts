@@ -2,28 +2,17 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import {
+  PHOTO_MAX_HEIGHT,
+  PHOTO_MAX_WIDTH,
+  PHOTO_QUALITY,
+} from "@/lib/image/post-photo-compress";
 import { POST_PHOTO_MAX_BYTES, POST_PHOTO_TYPES } from "@/lib/validations/post";
 
-/**
- * 자랑 사진 최대 폭 — 아바타(512 정사각 crop)와 달리 비율을 유지하고 폭만 제한한다.
- * 1080은 **인스타 업로드 상한과 같은 값**이다(그보다 크게 올려도 인스타가 1080으로 줄인다).
- */
-const PHOTO_MAX_WIDTH = 1080;
-
-/**
- * 최대 높이 — 9:16 스토리(1080×1920) 기준. 세로로 아주 긴 사진(파노라마 등)이
- * 폭 제한만으로는 안 잡혀 용량이 터지는 걸 막는다. 일반 세로사진(3:4=1440)은 안 걸린다.
- */
-const PHOTO_MAX_HEIGHT = 1920;
-
-/**
- * 품질 90 — 예전 80에서 올렸다.
- *
- * **인스타 스토리 내보내기가 목적**이라서다: 우리 서버 사진이 곧 인스타에 올라갈 원본이
- * 되는데, 80으로 한 번 깎은 걸 인스타가 다시 재인코딩하면 손실이 두 번 겹친다.
- * 90이면 눈으로는 원본과 구분이 어렵고 용량은 감당할 만하다(대략 2~3배).
- */
-const PHOTO_QUALITY = 90;
+// 규격 상수(1080×1920 · 품질 90)는 `lib/image/post-photo-compress.ts`에 있다 —
+// 클라이언트가 업로드 전에 **같은 크기로** 미리 줄이기 때문이다(이 파일은 `server-only`라
+// 클라이언트가 import할 수 없어 상수를 그쪽에 뒀다). 두 값이 갈리면 브라우저가 줄여 보낸
+// 사진을 서버가 한 번 더 줄여 손실이 겹치므로, 반드시 한 출처를 공유한다.
 
 /** 사진이 사는 버킷. 멤버별 폴더(`{mem_id}/{timestamp}.webp`) */
 export const POST_PHOTO_BUCKET = "post-photos";

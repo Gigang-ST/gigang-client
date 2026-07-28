@@ -81,12 +81,22 @@ export async function evaluateAndGrantTitles(
   // 4. 현재 활성 보유 칭호 ID (vers=0, del_yn=false) — 중복 수여 방지 및 회수 대상 파악
   const { data: existing } = await db
     .from("mem_ttl_rel")
-    .select("mem_ttl_id, ttl_id, vers")
+    .select("mem_ttl_id, ttl_id, vers, is_prmy_yn")
     .eq("team_mem_id", ctx.teamMemId)
     .eq("vers", 0)
     .eq("del_yn", false);
 
   const activeIds = new Set((existing ?? []).map((r) => r.ttl_id));
+
+  // 대표 칭호가 하나도 없으면 첫 자동 수여분을 대표로 세운다.
+  //
+  // 대표는 원래 본인이 프로필에서 직접 고르는 값이라 자동 수여는 항상 false로 넣었는데,
+  // 그러면 아무것도 안 고른 사람은 카드 이름 옆 칭호 자리가 영원히 빈다. 신규 멤버는
+  // 가입 직후 "뉴비"(membership_days: 0) 하나만 받으므로, 이 폴백이 곧 "새로 가입한
+  // 사람은 뉴비가 대표"가 된다 — 새 얼굴 카드가 이름 밑에 보여줄 것이 생긴다.
+  //
+  // 이미 대표가 있으면(직접 골랐든 이 폴백이 채웠든) 건드리지 않는다 — 본인 선택이 항상 이긴다.
+  let hasPrimary = (existing ?? []).some((r) => r.is_prmy_yn);
 
 
   // 5. 조건 평가 → 통과한 미보유 칭호 수여
@@ -110,13 +120,17 @@ export async function evaluateAndGrantTitles(
 
     if (!passed) continue;
 
+    // 대표가 비어 있으면 이번 수여분이 대표가 된다(§4). 한 번 세우면 이 루프 안에서도
+    // 다시 세우지 않는다 — 같은 트리거에서 여러 칭호가 한꺼번에 통과할 수 있어서다.
+    const asPrimary = !hasPrimary;
+
     // 활성 행은 항상 vers=0 — 회수 시 vers가 변경되므로 재지급 시 충돌 없이 INSERT 가능
     const { error } = await db.from("mem_ttl_rel").insert({
       team_id: ctx.teamId,
       team_mem_id: ctx.teamMemId,
       ttl_id: title.ttl_id,
       grnt_rsn_txt: `자동수여 (trigger=${ctx.trigger})`,
-      is_prmy_yn: false,
+      is_prmy_yn: asPrimary,
       vers: 0,
       del_yn: false,
     });
@@ -125,6 +139,9 @@ export async function evaluateAndGrantTitles(
       console.error(`[title-engine] 칭호 부여 실패 ttl_id=${title.ttl_id}`, error);
       continue;
     }
+
+    // INSERT가 성공한 뒤에 올린다 — 실패한 행을 대표로 세면 다음 칭호가 대표를 못 받는다.
+    if (asPrimary) hasPrimary = true;
 
     granted.push(title.ttl_nm);
     console.info(`[title-engine] 칭호 부여 완료: ${title.ttl_nm} → team_mem_id=${ctx.teamMemId}`);

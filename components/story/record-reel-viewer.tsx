@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { X, Zap } from "lucide-react";
+import { Trash2, X, Zap } from "lucide-react";
 
 import { dayjs } from "@/lib/dayjs";
 import { usePostComments } from "@/lib/hooks/use-post-comments";
@@ -54,6 +54,7 @@ export function RecordReelViewer({
   myName,
   myAvatarUrl,
   isAdmin,
+  onRequestDelete,
 }: {
   posts: StoryPost[];
   /** 격자에서 누른 카드의 post_id — 이 장부터 연다 */
@@ -69,6 +70,11 @@ export function RecordReelViewer({
   myName?: string | null;
   myAvatarUrl?: string | null;
   isAdmin?: boolean;
+  /**
+   * 삭제 요청 — 확인 다이얼로그는 부모(`RecordFlexFeed`)가 갖는다.
+   * 뷰어가 직접 들고 있으면 격자 길게누르기와 문구·처리가 둘로 갈린다.
+   */
+  onRequestDelete?: (post: StoryPost) => void;
 }) {
   const cardRefs = useRef<Map<string, HTMLElement>>(new Map());
   /**
@@ -165,6 +171,15 @@ export function RecordReelViewer({
     [],
   );
 
+  // 지금 보는 장 — 상단 삭제 버튼이 이 기록에 걸린다. 삭제 권한은 격자와 같은 규칙
+  // (내 것이거나 관리자)이고, 서버가 최종 판정한다(§deleteRecordFlex).
+  const activePost = posts.find((p) => p.post_id === activeId) ?? null;
+  const canDeleteActive =
+    activePost != null &&
+    onRequestDelete != null &&
+    myMemId != null &&
+    (isAdmin === true || activePost.mem_id === myMemId);
+
   return (
     // 프로젝트 Dialog 래퍼를 쓴다(primitive Root 직접 사용 금지) — 안드로이드 뒤로가기가
     // 앱 종료가 아니라 릴스 닫기로 동작하려면 이 래퍼의 useDialogHistoryBack 연동이 필요하다.
@@ -185,9 +200,23 @@ export function RecordReelViewer({
             기강 기록 자세히 보기
           </DialogPrimitive.Title>
 
-          {/* 상단 바 — 닫기(우)만. 필름 카운터는 뺐다(피드백). 사진 위에 떠 있어
-              그라디언트 없이도 읽히도록 살짝 그림자를 준다. z로 스크롤 콘텐츠 위에 고정. */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-end px-5 pt-[calc(env(safe-area-inset-top)+14px)] pb-3">
+          {/* 상단 바 — 삭제(⋮)와 닫기(✕). 필름 카운터는 뺐다(피드백). 사진 위에 떠 있어
+              그라디언트 없이도 읽히도록 살짝 그림자를 준다. z로 스크롤 콘텐츠 위에 고정.
+              삭제는 **지금 보는 장**(activeId)에 건다 — 릴스는 전 장이 한꺼번에 마운트돼
+              있어 "이 화면의 기록"을 activeId로만 특정할 수 있다. */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-end gap-1 px-5 pt-[calc(env(safe-area-inset-top)+14px)] pb-3">
+            {canDeleteActive && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (activePost) onRequestDelete?.(activePost);
+                }}
+                aria-label="이 기록 삭제"
+                className="pointer-events-auto flex size-9 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              >
+                <Trash2 className="size-[18px]" />
+              </button>
+            )}
             <DialogPrimitive.Close className="pointer-events-auto -mr-1.5 flex size-9 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
               <X className="size-5" />
               <span className="sr-only">닫기</span>
@@ -354,7 +383,7 @@ const ReelCard = ({
         {(km || label) && (
           <div className="mt-2.5 flex items-baseline gap-2.5 [text-shadow:0_1px_10px_rgba(0,0,0,0.55)]">
             {km && (
-              <span className="font-numeric text-[34px] font-bold leading-none tracking-tight tabular-nums text-white">
+              <span className="font-numeric text-[24px] font-bold leading-none tracking-tight tabular-nums text-white">
                 {km}
               </span>
             )}

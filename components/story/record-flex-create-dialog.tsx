@@ -115,7 +115,7 @@ function RecordFlexCreateForm({
       }
       onOpenChange(false);
       router.refresh();
-      toast.success("기록을 올렸어요");
+      toast.success("피드를 공유했어요");
     } catch {
       toast.error("저장 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
@@ -130,7 +130,7 @@ function RecordFlexCreateForm({
         dialogClassName="max-w-sm"
       >
         <ResponsiveDrawerHeader className="px-4 py-4 text-left">
-          <ResponsiveDrawerTitle>운동 기록 공유하기</ResponsiveDrawerTitle>
+          <ResponsiveDrawerTitle>Gingstargram</ResponsiveDrawerTitle>
         </ResponsiveDrawerHeader>
 
         <form
@@ -145,12 +145,20 @@ function RecordFlexCreateForm({
             </Label>
             {/* 판은 절반 폭(면적 1/4) — 꽉 찬 정사각은 375px에서 ~343px이라 사진 하나가
                 폼을 다 먹고 한마디·날짜가 스크롤 밖으로 밀렸다. 고른 사진 확인엔 이만해도
-                충분하고, 되찾은 높이를 아래 입력들이 쓴다. */}
-            <PhotoPicker onPick={handlePick} invalid={photoError} size="half" />
+                충분하고, 되찾은 높이를 아래 입력들이 쓴다.
+                가운데 정렬 — 이 폼은 입력이 셋뿐이라 절반 판이 왼쪽에 붙으면 오른쪽 절반이
+                통째로 비어 균형이 무너진다. 사진이 이 폼의 얼굴이니 가운데에 세운다
+                (여러 칸이 줄지어 선 마일리지런 폼은 정렬선이 필요해 왼쪽 그대로 둔다). */}
+            <PhotoPicker
+              onPick={handlePick}
+              invalid={photoError}
+              size="half"
+              align="center"
+            />
             <Caption className={photoError ? "text-destructive" : undefined}>
               {photoError
                 ? "사진을 한 장 올려주세요."
-                : "사진이 있어야 기강이야기에 올라가요."}
+                : "사진이 있어야 기강이야기에 올라가요"}
             </Caption>
           </div>
 
@@ -168,7 +176,7 @@ function RecordFlexCreateForm({
               <Caption className={errors.cmnt_txt ? "text-destructive" : undefined}>
                 {/* 격자 칸은 사진만 담는다 — 한마디는 칸을 눌러 여는 릴스 뷰어에서 보인다.
                     "판에 적힌다"고 하면 격자에 글이 뜰 거라 기대하게 된다. */}
-                {errors.cmnt_txt?.message ?? "사진을 누르면 함께 보여요."}
+                {errors.cmnt_txt?.message ?? "사진을 누르면 함께 보여요"}
               </Caption>
               <Caption>
                 {cmnt.length}/{POST_CMNT_MAX}

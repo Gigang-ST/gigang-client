@@ -8,7 +8,6 @@ import {
   ACTV_HELP_TEXT,
   getActvMonthLabel,
 } from "@/lib/activity-index";
-import { dayjs } from "@/lib/dayjs";
 
 import { HelpTip } from "@/components/common/help-tip";
 import { MemberCardCompact } from "@/components/members/member-card";
@@ -64,6 +63,7 @@ export function StoryClient({
   messages,
   teamId,
   myMemId,
+  isAdmin,
   me,
   reactions,
   mastheadActions,
@@ -87,6 +87,8 @@ export function StoryClient({
   teamId: string;
   /** 로그인 사용자 — 본인 카드면 한마디를 바로 수정할 수 있다 */
   myMemId: string | null;
+  /** 관리자 여부 — 남의 기록도 삭제할 수 있다(서버가 최종 방어, 이건 버튼 노출용) */
+  isAdmin?: boolean;
   /** 로그인 사용자 표시정보 — 떠다니는 아바타 프레즌스에 내 얼굴을 등록하는 데 쓴다(비로그인이면 null) */
   me: { id: string; name: string; avatarUrl: string | null } | null;
   /** 응원 집계 (모두의 총합 + 내 몫) — 캐시 없이 최신값. 리드 응원 버튼 보정용 */
@@ -157,7 +159,13 @@ export function StoryClient({
         {/* 기록 자랑 — 인스타형 격자. 한 칸을 누르면 릴스 뷰어가 이 장부터 풀스크린으로 열리고,
             위아래로 밀어 다음 발자국을 본다. 뷰어 안 이름·프사를 누르면 프로필 카드가 그 위에
             겹쳐 뜬다(뷰어가 자체 관리 — story-client 공유 카드와 z-index가 안 부딪히게). */}
-        <RecordFlexFeed posts={posts} myMemId={myMemId} me={me} teamId={teamId} />
+        <RecordFlexFeed
+          posts={posts}
+          myMemId={myMemId}
+          isAdmin={isAdmin}
+          me={me}
+          teamId={teamId}
+        />
 
         {/* 종이비행기 한마디 — 24시간 뒤 사라지는 한 줄(msg_mst).
             각오와 **별개 데이터**다: 저긴 팻말·1인 1개·만료 없음, 여긴 비행기·1인 N개·하루살이.
@@ -206,15 +214,13 @@ export function StoryClient({
             <ul className="flex flex-col gap-2">
               {newbies.map((nb) => (
                 <li key={nb.entity_id}>
+                  {/* 이름 밑에는 가입일이 아니라 대표 칭호("뉴비")가 선다 — 카드가 이미
+                      이름 아래에 칭호 배지를 그리므로 meta를 넘기지 않는다. 날짜는 존 자체가
+                      "최근 30일"로 좁혀져 있어 이미 답한 질문을 한 번 더 답하는 값이었다. */}
                   <MemberCardCompact
                     memId={nb.mem_id}
                     data={nb}
                     onSelect={() => selectMember(nb.mem_id, nb.mem_nm)}
-                    meta={
-                      <span className="font-numeric text-[11px] text-muted-foreground tabular-nums">
-                        {dayjs(nb.event_at).format("M.DD")}
-                      </span>
-                    }
                   />
                 </li>
               ))}

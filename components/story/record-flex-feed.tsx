@@ -14,6 +14,7 @@ import { STORY_POST_LIMIT } from "@/lib/story-post";
 
 import { HelpTip } from "@/components/common/help-tip";
 import { MemberCardDialog } from "@/components/members/member-card-dialog";
+import { RecordDeleteDialog } from "@/components/story/record-delete-dialog";
 import { RecordFlexCreateDialog } from "@/components/story/record-flex-create-dialog";
 import { RecordReelViewer } from "@/components/story/record-reel-viewer";
 import { StoryZoneHeader } from "@/components/story/story-zone-header";
@@ -43,12 +44,15 @@ import type { StoryPost } from "@/lib/queries/story-posts";
 export function RecordFlexFeed({
   posts,
   myMemId,
+  isAdmin,
   me,
   teamId,
 }: {
   posts: StoryPost[];
   /** 로그인 사용자 — 없으면 "올리기" 버튼을 감춘다(목표 한마디·응원과 동일 정책) */
   myMemId: string | null;
+  /** 관리자면 남의 기록도 지울 수 있다 — 서버가 최종 방어하고 여긴 노출 판정만 */
+  isAdmin?: boolean;
   /**
    * 로그인 사용자 표시정보 — 릴스 댓글의 낙관적 표시(내 이름·프사)에 쓴다.
    * 멘션 멤버 목록이 늦게 와도 내 댓글은 바로 내 얼굴로 뜬다(CommentSection 규칙).
@@ -74,6 +78,8 @@ export function RecordFlexFeed({
   const [reelMember, setReelMember] = useState<{ memId: string; name: string } | null>(
     null,
   );
+  /** 길게 눌러 지우려는 기록 — null이면 확인 다이얼로그가 닫혀 있다 */
+  const [deleting, setDeleting] = useState<StoryPost | null>(null);
   /** 서버가 준 첫 묶음 뒤로 이어붙인 것들 */
   const [extra, setExtra] = useState<StoryPost[]>([]);
   /** 더 남았나 — 받은 개수가 요청량보다 적으면 끝이다 */
@@ -191,15 +197,66 @@ export function RecordFlexFeed({
     columns.push(all.slice(i, i + 2));
   }
 
+  /** 이 기록을 내가 지울 수 있나 — 내 것이거나 관리자. 서버가 다시 판정한다(§deleteRecordFlex) */
+  const canDelete = (p: StoryPost) =>
+    myMemId != null && (isAdmin === true || p.mem_id === myMemId);
+
+  /**
+   * 길게 누르기 — 500ms 눌러야 삭제 시트가 열린다.
+   *
+   * **가로 스크롤 지면이라 손가락이 움직이면 취소해야 한다.** 격자를 밀어 넘기는 동작이
+   * 곧 포인터를 누른 채 끄는 것이라, 취소가 없으면 스크롤할 때마다 삭제창이 뜬다.
+   * 10px 넘게 움직이면 "스크롤하려던 것"으로 보고 타이머를 버린다.
+   *
+   * 타이머가 터져 시트를 열었으면 뒤따르는 click을 삼킨다(`firedRef`) — 안 그러면 손을
+   * 떼는 순간 릴스 뷰어까지 함께 열려 삭제창 위에 사진이 덮인다.
+   */
+  const pressRef = useRef<{
+    timer: ReturnType<typeof setTimeout>;
+    x: number;
+    y: number;
+  } | null>(null);
+  const firedRef = useRef(false);
+
+  const clearPress = () => {
+    if (pressRef.current) clearTimeout(pressRef.current.timer);
+    pressRef.current = null;
+  };
+
+  const startPress = (p: StoryPost) => (e: React.PointerEvent) => {
+    if (!canDelete(p)) return;
+    const { clientX: x, clientY: y } = e;
+    firedRef.current = false;
+    clearPress();
+    pressRef.current = {
+      x,
+      y,
+      timer: setTimeout(() => {
+        firedRef.current = true;
+        pressRef.current = null;
+        setDeleting(p);
+      }, 500),
+    };
+  };
+
+  const movePress = (e: React.PointerEvent) => {
+    const press = pressRef.current;
+    if (!press) return;
+    if (Math.abs(e.clientX - press.x) > 10 || Math.abs(e.clientY - press.y) > 10) {
+      clearPress();
+    }
+  };
+
   return (
     <section className="flex flex-col">
       <StoryZoneHeader
         bleed
-        label="Record Board"
+        label="Gingstargram"
         lead="우리가 남긴 발자국"
         action={
-          <HelpTip title="기록 자랑">
-            기강인이 올린 운동 기록이에요. 오늘 뛰었다면 여기에 자랑해보세요.
+          <HelpTip title="깅스타그램">
+            기강인들의 일상을 나누는 곳이에요. 운동이든 일상이든, 기강인의 삶을 편하게
+            공유해보세요.
           </HelpTip>
         }
       />
@@ -237,7 +294,23 @@ export function RecordFlexFeed({
                 <button
                   key={p.post_id}
                   type="button"
-                  onClick={() => setOpenId(p.post_id)}
+                  onClick={() => {
+                    // 길게 눌러 삭제창을 이미 열었으면 이 click은 그 여파다 — 삼킨다.
+                    if (firedRef.current) {
+                      firedRef.current = false;
+                      return;
+                    }
+                    setOpenId(p.post_id);
+                  }}
+                  onPointerDown={startPress(p)}
+                  onPointerMove={movePress}
+                  onPointerUp={clearPress}
+                  onPointerCancel={clearPress}
+                  // 길게 누르면 iOS/안드로이드가 사진 저장·복사 메뉴를 띄운다 — 우리 삭제
+                  // 시트와 겹치므로 막는다. 데스크톱 우클릭도 같은 자리를 쓴다.
+                  onContextMenu={(e) => {
+                    if (canDelete(p)) e.preventDefault();
+                  }}
                   aria-label={`${p.mem_nm}의 기록 자세히 보기`}
                   // 각진 정사각. 라운드를 주지 않는다(인스타 격자는 직각이 기본이고, 둥근
                   // 모서리는 칸을 카드처럼 보이게 해 격자의 결이 흐려진다). 테두리도 두지
@@ -296,7 +369,7 @@ export function RecordFlexFeed({
             onClick={() => setWriting(true)}
             className="flex w-full items-center justify-center gap-2 rounded-2xl border-[1.5px] border-dashed border-border py-3.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            내 기록 공유하기
+            피드 업로드
           </button>
         </div>
       )}
@@ -317,6 +390,20 @@ export function RecordFlexFeed({
         myMemId={myMemId}
         myName={me?.name}
         myAvatarUrl={me?.avatarUrl}
+        isAdmin={isAdmin}
+        // 릴스 ⋮ 메뉴도 같은 확인 다이얼로그를 연다(격자 길게누르기와 한 곳에서 처리).
+        onRequestDelete={(p) => setDeleting(p)}
+      />
+
+      {/* 삭제 확인 — 격자 길게누르기와 릴스 ⋮ 메뉴가 함께 쓴다. 지운 뒤 릴스가 열려 있으면
+          그 장이 사라진 목록을 보게 되므로 닫는다(router.refresh()는 다이얼로그가 부른다). */}
+      <RecordDeleteDialog
+        post={deleting}
+        open={deleting !== null}
+        onOpenChange={(o) => {
+          if (!o) setDeleting(null);
+        }}
+        onDeleted={() => setOpenId(null)}
       />
 
       {/* 릴스 뷰어 위에 겹쳐 뜨는 프로필 카드(stacked=z-[60]) — 뷰어를 닫지 않고 그 위에 얹는다.
