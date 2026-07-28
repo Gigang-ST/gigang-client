@@ -138,17 +138,23 @@ function hexToRgb(hex: string): string {
  * 지금은 링 하나만 남긴다. 색은 `mem_id` 해시로 사람마다 고정이라(§lib/story-presence),
  * 번짐 없이도 "저 초록이 준민"이 읽힌다 — 정보는 색이 나르고 굵기는 세기만 나른다.
  *
- * `pop`(POP_MAX→0)으로 **굵기와 알파를 함께** 줄인다: 튕긴 순간 2.5px로 또렷하고 1초에 걸쳐
+ * 두께는 **4px**다. glow가 있을 땐 번짐이 존재감을 대신 내줘서 1.5px로도 보였지만, 링만
+ * 남기고 나니 그 두께로는 32px 아바타(size="sm") 둘레에서 눈에 안 걸린다. 아바타 반지름의
+ * 1/4쯤 돼야 "테두리가 켜졌다"가 한눈에 읽힌다.
+ *
+ * `pop`(POP_MAX→0)으로 **굵기와 알파를 함께** 줄인다: 튕긴 순간 가장 굵고 1초에 걸쳐
  * 가늘어지며 사라진다. 예전엔 두께를 고정하고 glow만 껐는데, 그러면 빛이 꺼진 뒤에도 실선이
  * 남아 "아직 눌린 상태인가" 싶었다.
  */
+const RING_PX = 4;
+
 function neonRing(ringIdx: number, pop: number): string {
   const rgb = hexToRgb(PRESENCE_COLORS[ringIdx % PRESENCE_COLORS.length]);
   const t = Math.max(0, Math.min(1, pop / POP_MAX)); // 1=방금 눌림, 0=꺼짐
   // 알파는 t를 살짝 완만하게(제곱근) — 후반부에 너무 급히 꺼지지 않게
   const a = Math.sqrt(t);
-  // 굵기도 같이 페이드한다(2.5px → 0). 소수 두 자리까지 남겨 계단지지 않게.
-  const w = (2.5 * a).toFixed(2);
+  // 굵기도 같이 페이드한다(RING_PX → 0). 소수 두 자리까지 남겨 계단지지 않게.
+  const w = (RING_PX * a).toFixed(2);
   return `0 0 0 ${w}px rgba(${rgb},${a.toFixed(2)})`;
 }
 
