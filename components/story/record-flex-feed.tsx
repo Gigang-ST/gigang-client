@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 
 import { Zap } from "lucide-react";
 
@@ -42,17 +43,40 @@ import type { StoryPost } from "@/lib/queries/story-posts";
 export function RecordFlexFeed({
   posts,
   myMemId,
+  me,
   teamId,
 }: {
   posts: StoryPost[];
   /** 로그인 사용자 — 없으면 "올리기" 버튼을 감춘다(목표 한마디·응원과 동일 정책) */
   myMemId: string | null;
+  /**
+   * 로그인 사용자 표시정보 — 릴스 댓글의 낙관적 표시(내 이름·프사)에 쓴다.
+   * 멘션 멤버 목록이 늦게 와도 내 댓글은 바로 내 얼굴로 뜬다(CommentSection 규칙).
+   */
+  me: { id: string; name: string; avatarUrl: string | null } | null;
   /** 릴스 뷰어 안에서 여는 프로필 카드에 넘긴다 */
   teamId: string;
 }) {
   const [writing, setWriting] = useState(false);
   /** 릴스 뷰어에서 처음 열 카드 — null이면 닫힘 */
   const [openId, setOpenId] = useState<string | null>(null);
+
+  /**
+   * 댓글 알림 딥링크(`/story?rec=<post_id>`) — 그 기록을 릴스로 바로 연다.
+   * 이걸 안 읽으면 알림을 눌러도 전광판 맨 위만 뜨고 정작 그 기록은 안 보인다
+   * (deep-link.ts가 경고하는 "주소는 살아 있는데 화면이 안 뜨는" 상태).
+   *
+   * 렌더 중 조정으로 처리한다 — effect로 열면 전광판을 한 번 그린 뒤 릴스가 덮는
+   * 캐스케이드가 되고, 린트(set-state-in-effect)에도 걸린다.
+   * `handledRec`으로 한 번만 반응해, 닫은 뒤 다시 열리지 않게 한다(주소는 그대로 남으므로).
+   */
+  const recParam = useSearchParams().get("rec");
+  const [handledRec, setHandledRec] = useState<string | null>(null);
+  if (recParam && handledRec !== recParam) {
+    setHandledRec(recParam);
+    // 목록에 없는 id(오래돼 잘려나간 기록)면 열지 않는다 — 빈 릴스를 띄우느니 지면을 보여준다.
+    if (posts.some((p) => p.post_id === recParam)) setOpenId(recParam);
+  }
   /**
    * 릴스 뷰어에서 이름·프사를 눌러 여는 프로필 카드 — 뷰어 위에 겹친다(stacked).
    * story-client의 공유 카드와 **분리**한다: 저 카드는 여러 진입점이 z-50로 공유하는데,
@@ -278,6 +302,10 @@ export function RecordFlexFeed({
           if (!o) setOpenId(null);
         }}
         onSelectMember={(memId, name) => setReelMember({ memId, name })}
+        teamId={teamId}
+        myMemId={myMemId}
+        myName={me?.name}
+        myAvatarUrl={me?.avatarUrl}
       />
 
       {/* 릴스 뷰어 위에 겹쳐 뜨는 프로필 카드(stacked=z-[60]) — 뷰어를 닫지 않고 그 위에 얹는다.

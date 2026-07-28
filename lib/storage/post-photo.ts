@@ -4,9 +4,26 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { POST_PHOTO_MAX_BYTES, POST_PHOTO_TYPES } from "@/lib/validations/post";
 
-/** 자랑 사진 최대 폭 — 아바타(512 정사각 crop)와 달리 비율을 유지하고 폭만 제한한다 */
+/**
+ * 자랑 사진 최대 폭 — 아바타(512 정사각 crop)와 달리 비율을 유지하고 폭만 제한한다.
+ * 1080은 **인스타 업로드 상한과 같은 값**이다(그보다 크게 올려도 인스타가 1080으로 줄인다).
+ */
 const PHOTO_MAX_WIDTH = 1080;
-const PHOTO_QUALITY = 80;
+
+/**
+ * 최대 높이 — 9:16 스토리(1080×1920) 기준. 세로로 아주 긴 사진(파노라마 등)이
+ * 폭 제한만으로는 안 잡혀 용량이 터지는 걸 막는다. 일반 세로사진(3:4=1440)은 안 걸린다.
+ */
+const PHOTO_MAX_HEIGHT = 1920;
+
+/**
+ * 품질 90 — 예전 80에서 올렸다.
+ *
+ * **인스타 스토리 내보내기가 목적**이라서다: 우리 서버 사진이 곧 인스타에 올라갈 원본이
+ * 되는데, 80으로 한 번 깎은 걸 인스타가 다시 재인코딩하면 손실이 두 번 겹친다.
+ * 90이면 눈으로는 원본과 구분이 어렵고 용량은 감당할 만하다(대략 2~3배).
+ */
+const PHOTO_QUALITY = 90;
 
 /** 사진이 사는 버킷. 멤버별 폴더(`{mem_id}/{timestamp}.webp`) */
 export const POST_PHOTO_BUCKET = "post-photos";
@@ -65,8 +82,20 @@ export async function uploadPostPhoto(
     resized = await sharp(buffer)
       // .rotate()는 EXIF 방향을 적용한다 — 없으면 세로로 찍은 사진이 눕는다
       .rotate()
-      .resize({ width: PHOTO_MAX_WIDTH, withoutEnlargement: true })
-      .webp({ quality: PHOTO_QUALITY })
+      // fit: "inside" — 폭·높이 **둘 다** 상한 안에 들어가게 줄이되 비율은 유지한다.
+      // crop이 아니다(잘리는 픽셀 없음). 세로로 긴 사진만 높이에 먼저 걸린다.
+      .resize({
+        width: PHOTO_MAX_WIDTH,
+        height: PHOTO_MAX_HEIGHT,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      // **JPEG로 저장한다(WebP 아님).** 인스타 스토리 업로드가 WebP를 받지 않아서다 —
+      // 나중에 "인스타로 바로 올리기"를 붙일 때 우리 서버 파일이 그대로 원본이 되려면
+      // 인스타가 먹는 포맷이어야 한다. WebP로 두면 내보내는 순간 재인코딩이 필요하고,
+      // 그건 이미 손실 압축된 것 위에 손실을 한 번 더 얹는 것이다.
+      // mozjpeg — 같은 품질에서 파일이 더 작다(JPEG 전환으로 늘어난 용량을 일부 상쇄).
+      .jpeg({ quality: PHOTO_QUALITY, mozjpeg: true })
       .toBuffer();
   } catch (e) {
     console.error("[uploadPostPhoto] sharp 실패", e);
@@ -76,10 +105,12 @@ export async function uploadPostPhoto(
     };
   }
 
-  const path = `${memId}/${Date.now()}.webp`;
+  // 확장자·contentType은 위 `.jpeg()`와 **함께 움직여야 한다** — 한쪽만 바꾸면 브라우저가
+  // 엉뚱한 타입으로 받아 캐시·다운로드에서 어긋난다(내보내기에서 특히 문제가 된다).
+  const path = `${memId}/${Date.now()}.jpg`;
   const { error } = await supabase.storage
     .from(POST_PHOTO_BUCKET)
-    .upload(path, resized, { contentType: "image/webp" });
+    .upload(path, resized, { contentType: "image/jpeg" });
   if (error) {
     console.error("[uploadPostPhoto] 업로드 실패", error);
     return { ok: false, message: "사진 업로드에 실패했습니다." };

@@ -33,6 +33,8 @@ const NOTI_ICON: Record<string, React.ElementType> = {
   gthr_cmnt: MessageCircle,
   gthr_reply: MessageCircle,
   gthr_mention: MessageCircle,
+  post_cmnt: MessageCircle,
+  post_reply: MessageCircle,
   fdbk_new: MessageSquareText,
   fdbk_rspd: MessageSquareText,
   reactivate_req: Users,

@@ -12,8 +12,10 @@
  * 이 경로는 손댈 필요가 없다.
  */
 const SCHEDULE = "/schedule";
+/** 기강이야기 전광판 — 운동기록(릴스)이 사는 곳. `?rec=`로 그 장을 연다. */
+const STORY = "/story";
 
-/** 댓글 멘션/답글 공용: refType에 따라 대회·모임·정보 게시물로 분기 */
+/** 댓글 멘션/답글 공용: refType에 따라 대회·모임·운동기록·정보 게시물로 분기 */
 function commentTargetRoute(
   refId: string | null,
   refType: string | null,
@@ -22,6 +24,11 @@ function commentTargetRoute(
     return refId ? `${SCHEDULE}?comp=${refId}` : SCHEDULE;
   if (refType === "gathering")
     return refId ? `${SCHEDULE}?gthr=${refId}` : SCHEDULE;
+  // 운동기록(기강이야기 릴스)은 `/schedule`이 아니라 **전광판**에 산다 — 저 페이지엔
+  // 이 글을 열 화면이 없다. `?post=`를 그대로 흘려보내면 MiniCalendar가 sch_post_id로
+  // 읽어 조용히 아무것도 안 여는 게 더 나쁘다(주소는 살아 있는데 화면이 안 뜬다).
+  if (refType === "post")
+    return refId ? `${STORY}?rec=${refId}` : STORY;
   return refId ? `${SCHEDULE}?post=${refId}` : SCHEDULE;
 }
 
@@ -48,6 +55,9 @@ const NOTI_ROUTE: Record<
   gthr_cmnt: (refId) => (refId ? `${SCHEDULE}?gthr=${refId}` : SCHEDULE),
   gthr_reply: (refId) => (refId ? `${SCHEDULE}?gthr=${refId}` : SCHEDULE),
   gthr_mention: (refId) => (refId ? `${SCHEDULE}?gthr=${refId}` : SCHEDULE),
+  // 운동기록 댓글·답글 — 전광판의 그 기록(릴스)을 연다. refId는 post_id.
+  post_cmnt: (refId) => (refId ? `${STORY}?rec=${refId}` : STORY),
+  post_reply: (refId) => (refId ? `${STORY}?rec=${refId}` : STORY),
   fdbk_new: () => "/admin/feedback",
   fdbk_rspd: () => "/profile/feedback",
   // 게시판 공지·업데이트 — 새 글이 올라오면 팀 전체에 알림. 클릭 시 그 글 상세로.

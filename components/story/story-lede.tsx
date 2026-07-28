@@ -664,6 +664,9 @@ export function StoryLede({
   initialActvPick,
   initialPostPick,
   onSelectMember,
+  teamId,
+  myMemId,
+  me,
 }: {
   feed: StoryFeed;
   /** 응원 집계 (모두의 총합 + 내 몫) — 응원 버튼 카운트 보정용 */
@@ -678,6 +681,10 @@ export function StoryLede({
   initialActvPick: number;
   initialPostPick: number;
   onSelectMember: (memId: string, name: string) => void;
+  /** 아래 릴스 뷰어(운동기록 슬롯의 사진 탭)의 댓글에 넘긴다 */
+  teamId: string;
+  myMemId: string | null;
+  me: { id: string; name: string; avatarUrl: string | null } | null;
 }) {
   // 모든 랜덤 슬롯의 pick — 서버가 뽑은 초기값에서 출발한다(첫 화면부터 랜덤·하이드레이션
   // 안전). 렌더 중 Math.random()을 부르면 서버·클라가 다른 걸 골라 하이드레이션이 깨진다.
@@ -1477,6 +1484,10 @@ export function StoryLede({
           if (!o) setReelId(null);
         }}
         onSelectMember={onSelectMember}
+        teamId={teamId}
+        myMemId={myMemId}
+        myName={me?.name}
+        myAvatarUrl={me?.avatarUrl}
       />
     </section>
   );
