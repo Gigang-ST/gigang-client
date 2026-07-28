@@ -107,7 +107,12 @@ export async function uploadPostPhoto(
 
   // 확장자·contentType은 위 `.jpeg()`와 **함께 움직여야 한다** — 한쪽만 바꾸면 브라우저가
   // 엉뚱한 타입으로 받아 캐시·다운로드에서 어긋난다(내보내기에서 특히 문제가 된다).
-  const path = `${memId}/${Date.now()}.jpg`;
+  //
+  // 뒤에 랜덤 접미사를 붙인다: 다건 입력(최대 20건)은 저장을 누를 때 사진을 한꺼번에
+  // 올리므로 두 장이 같은 밀리초에 걸릴 수 있다. `upsert: false`(기본)라 덮어쓰기 대신
+  // 업로드 실패로 끝나는데, 사용자에겐 원인 모를 "사진 업로드 실패"로만 보인다.
+  const suffix = Math.random().toString(36).slice(2, 8);
+  const path = `${memId}/${Date.now()}-${suffix}.jpg`;
   const { error } = await supabase.storage
     .from(POST_PHOTO_BUCKET)
     .upload(path, resized, { contentType: "image/jpeg" });

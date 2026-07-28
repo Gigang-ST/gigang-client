@@ -167,7 +167,9 @@ export function SchPostDetailDialog({
                   isAdmin={isAdmin}
                   members={members}
                   initialComments={initialComments}
-                  loginReturnPath={`/schedule?post=${post.short_id ?? post.id}`}
+                  // 위에서 뽑아 둔 postRef를 재사용한다 — 같은 폴백 규칙을 두 곳에 적으면
+                  // 한쪽만 바뀌었을 때 공유 URL과 로그인 복귀 경로가 조용히 어긋난다.
+                  loginReturnPath={`/schedule?post=${postRef}`}
                 />
               </div>
 

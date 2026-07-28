@@ -56,21 +56,30 @@ export function PhotoPicker({
   // 언마운트 때 남은 하나는 아래 effect가 치운다.
   const [preview, setPreview] = useState<string | null>(null);
 
+  /**
+   * 지금 살아 있는 objectURL — 언마운트 정리에 쓴다.
+   *
+   * cleanup에서 `setPreview(prev => ...)`로 해제하면 안 된다: 이미 언마운트된 컴포넌트의
+   * 상태 갱신은 React가 무시하고 updater 실행 자체가 보장되지 않아, revoke가 안 불려
+   * objectURL이 남는다(사진을 여러 번 고르고 폼을 닫으면 그만큼 샌다).
+   * 상태와 무관하게 ref로 들고 있다가 직접 해제한다.
+   */
+  const previewRef = useRef<string | null>(null);
+
   useEffect(() => {
     return () => {
-      setPreview((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return null;
-      });
+      if (previewRef.current) {
+        URL.revokeObjectURL(previewRef.current);
+        previewRef.current = null;
+      }
     };
   }, []);
 
   /** 미리보기를 갈아끼운다 — 이전 objectURL은 여기서 반드시 해제한다(누수 방지) */
   function swapPreview(next: string | null) {
-    setPreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return next;
-    });
+    if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+    previewRef.current = next;
+    setPreview(next);
   }
 
   // 새로 고른 파일이 있으면 그걸, 없으면 이미 올라간 사진을 보여 준다

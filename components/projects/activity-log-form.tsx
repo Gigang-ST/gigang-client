@@ -406,8 +406,10 @@ export function ActivityLogForm({
           emptyLabel="사진 추가 (선택)"
         />
         {/* 사진이 곧 기강이야기 유입 스위치라, 누르기 전에 알려 준다.
-            "올리면 다른 데도 뜬다"는 건 되돌리기 어려운 공개라 사후 안내로는 늦다 */}
-        <p className="text-[13px] text-destructive">
+            "올리면 다른 데도 뜬다"는 건 되돌리기 어려운 공개라 사후 안내로는 늦다.
+            색은 primary — 안내이지 오류가 아니다. destructive를 쓰면 같은 화면의 실제
+            오류 메시지와 구분이 안 돼 입력이 잘못된 줄로 읽힌다(다건 폼과 동일 규칙). */}
+        <p className="text-[13px] text-primary">
           사진 추가 시, 기강이야기의 운동기록에도 등록돼요.
         </p>
       </div>

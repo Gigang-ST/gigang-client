@@ -729,19 +729,31 @@ export function StoryLede({
   const [reelId, setReelId] = useState<string | null>(null);
 
   const [myBumps, setMyBumps] = useState<Record<string, number>>({});
-  const [restored, setRestored] = useState(false);
-  if (!restored) {
-    // 렌더 중 1회 동기 복원 — effect에서 setState하면 렌더가 두 번 돌고 그 사이 한 프레임
-    // 동안 내 응원이 빠진 값이 보인다. 같은 렌더 안에서 state를 확정하면 깜빡임이 없다.
-    // (React가 공식적으로 허용하는 "이전 렌더 정보로 state 조정" 패턴)
-    setRestored(true);
+
+  /**
+   * 복원은 **effect에서** 한다(렌더 중이 아니라).
+   *
+   * 예전엔 렌더 본문에서 sessionStorage를 읽었는데, 이 컴포넌트는 서버에서도 렌더된다 —
+   * 서버엔 `window`가 없어 catch로 삼켜져 빈 맵으로 마크업이 만들어지고, 클라이언트 첫
+   * 렌더는 복원값을 들고 시작한다. 그러면 응원 카운트 텍스트가 서버 출력과 달라
+   * 하이드레이션 불일치가 난다(React 경고 + 값이 한 번 튄다).
+   *
+   * effect로 옮기면 첫 페인트에 내 몫이 잠깐 빠져 보이지만, 이건 **누른 직후 새로고침한
+   * 사람만** 겪는 한 프레임이고, 하이드레이션이 깨지면 그 아래 트리 전체가 다시 그려진다.
+   * 깜빡임보다 정합이 먼저다.
+   */
+  useEffect(() => {
     try {
       const raw = window.sessionStorage.getItem(BUMP_STORE_KEY);
+      // sessionStorage는 React 밖의 외부 저장소라, 마운트 뒤 한 번 읽어 state에 옮기는 건
+      // 이 규칙이 말하는 "외부 시스템에서 값을 가져오는" 정당한 용례다. 마운트 1회뿐이라
+      // 캐스케이드도 없다(deps=[]).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (raw) setMyBumps(JSON.parse(raw) as Record<string, number>);
     } catch {
       // 사파리 프라이빗 모드 등 — 저장이 막혀도 응원 자체는 동작해야 한다.
     }
-  }
+  }, []);
 
   const addBump = useCallback((key: string) => {
     setMyBumps((prev) => {
@@ -1073,7 +1085,7 @@ export function StoryLede({
                   unoptimized
                   className="object-cover"
                 />
-                {/* 마일리지런에서 온 기록 — 격자·릴스와 같은 ⚡ 표시. 이 칸은 144px로 작아
+                {/* 마일리지런에서 온 기록 — 격자·릴스와 같은 ⚡ 표시. 이 칸은 158px로 작아
                     글자 없이 아이콘만 얹는다(라벨까지 넣으면 사진을 가린다). */}
                 {lede.photo.mileage && (
                   <span

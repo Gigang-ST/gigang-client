@@ -61,22 +61,9 @@ export function RecordFlexFeed({
   /** 릴스 뷰어에서 처음 열 카드 — null이면 닫힘 */
   const [openId, setOpenId] = useState<string | null>(null);
 
-  /**
-   * 댓글 알림 딥링크(`/story?rec=<post_id>`) — 그 기록을 릴스로 바로 연다.
-   * 이걸 안 읽으면 알림을 눌러도 전광판 맨 위만 뜨고 정작 그 기록은 안 보인다
-   * (deep-link.ts가 경고하는 "주소는 살아 있는데 화면이 안 뜨는" 상태).
-   *
-   * 렌더 중 조정으로 처리한다 — effect로 열면 전광판을 한 번 그린 뒤 릴스가 덮는
-   * 캐스케이드가 되고, 린트(set-state-in-effect)에도 걸린다.
-   * `handledRec`으로 한 번만 반응해, 닫은 뒤 다시 열리지 않게 한다(주소는 그대로 남으므로).
-   */
+  /** 댓글 알림 딥링크(`/story?rec=<post_id>`) — 아래 `all`이 준비된 뒤 처리한다 */
   const recParam = useSearchParams().get("rec");
   const [handledRec, setHandledRec] = useState<string | null>(null);
-  if (recParam && handledRec !== recParam) {
-    setHandledRec(recParam);
-    // 목록에 없는 id(오래돼 잘려나간 기록)면 열지 않는다 — 빈 릴스를 띄우느니 지면을 보여준다.
-    if (posts.some((p) => p.post_id === recParam)) setOpenId(recParam);
-  }
   /**
    * 릴스 뷰어에서 이름·프사를 눌러 여는 프로필 카드 — 뷰어 위에 겹친다(stacked).
    * story-client의 공유 카드와 **분리**한다: 저 카드는 여러 진입점이 z-50로 공유하는데,
@@ -131,6 +118,25 @@ export function RecordFlexFeed({
     const seen = new Set(posts.map((p) => p.post_id));
     return [...posts, ...extra.filter((p) => !seen.has(p.post_id))];
   })();
+
+  /**
+   * 댓글 알림 딥링크(`/story?rec=<post_id>`) — 그 기록을 릴스로 바로 연다.
+   * 이걸 안 읽으면 알림을 눌러도 전광판 맨 위만 뜨고 정작 그 기록은 안 보인다
+   * (deep-link.ts가 경고하는 "주소는 살아 있는데 화면이 안 뜨는" 상태).
+   *
+   * **찾을 때까지 `handledRec`을 굳히지 않는다.** 서버가 주는 첫 묶음은 16건뿐이라
+   * 조금만 오래된 기록이면 여기 없다 — 못 찾았는데 처리했다고 표시해 버리면, 나중에
+   * 더보기로 그 기록이 들어와도 영영 안 열린다. 목록에 나타나는 순간 열리게 둔다
+   * (사용자가 스크롤하면 자연히 채워지고, 안 하면 지면을 보는 것이라 손해가 없다).
+   *
+   * 렌더 중 조정으로 처리한다 — effect로 열면 전광판을 한 번 그린 뒤 릴스가 덮는
+   * 캐스케이드가 되고, 린트(set-state-in-effect)에도 걸린다.
+   * 한 번 열고 나면 `handledRec`이 굳어, 닫은 뒤 다시 열리지 않는다(주소는 그대로 남으므로).
+   */
+  if (recParam && handledRec !== recParam && all.some((p) => p.post_id === recParam)) {
+    setHandledRec(recParam);
+    setOpenId(recParam);
+  }
 
   /** 오른쪽 끝 sentinel이 보이면 다음 묶음 — 캘린더 리스트뷰와 같은 장치(방향만 가로) */
   useEffect(() => {
@@ -243,16 +249,21 @@ export function RecordFlexFeed({
                       "사진이 있을 것"이고(`get_team_posts`가 사진 없는 행을 안 내려준다),
                       얼굴로 칸을 때우면 기록 격자가 아니라 얼굴 격자가 된다.
                       `photo_url`이 타입상 nullable인 건 마일리지런 자동 유입분이 사진 없이도
-                      DB에 남기 때문이다 — 조회에서 걸러지므로 여기 닿지 않는다. */}
-                  <Image
-                    src={p.photo_url ?? ""}
-                    alt=""
-                    width={320}
-                    height={320}
-                    className="size-full object-cover"
-                    referrerPolicy="no-referrer"
-                    unoptimized
-                  />
+                      DB에 남기 때문이다 — 조회에서 걸러지므로 여기 닿지 않는다.
+                      그래도 `?? ""`로 때우지는 않는다: 빈 src는 브라우저가 **현재 페이지 URL을
+                      다시 요청**하게 만들어(문서를 이미지로 받으려다 실패) 깨진 아이콘이 뜬다.
+                      RPC 배포 전이나 스큐가 있는 순간에도 빈 칸(bg-muted)으로 조용히 넘어가게 둔다. */}
+                  {p.photo_url && (
+                    <Image
+                      src={p.photo_url}
+                      alt=""
+                      width={320}
+                      height={320}
+                      className="size-full object-cover"
+                      referrerPolicy="no-referrer"
+                      unoptimized
+                    />
+                  )}
 
                   {/* 마일리지런에서 올라온 기록 — 같은 운동기록이되 출처가 다르다는 표시만.
                       수치를 다시 적지 않는다(격자는 사진만 담는 자리다). 사진이 밝든 어둡든

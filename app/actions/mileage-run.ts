@@ -30,6 +30,7 @@ import {
   removePostPhoto,
   uploadPostPhoto,
 } from "@/lib/storage/post-photo";
+import { isOwnPostPhotoUrl } from "@/lib/storage/post-photo-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 import { activityLogBatchSchema, activityLogSchema } from "@/lib/validations/mileage";
@@ -263,6 +264,14 @@ export async function logActivity(
     const dateErr = validateActivityDate(validInput.act_dt, isAdmin);
     if (dateErr) return { ok: false, message: dateErr };
 
+    // 사진은 **본인 폴더**의 것만 붙일 수 있다. 스키마가 출처(우리 버킷)는 봤지만 소유권은
+    // mem_id를 알아야 판정할 수 있어 여기서 본다 — 없으면 남이 올린 공개 URL을 그대로
+    // 자기 기록에 붙여 남의 사진을 자기 것으로 전광판에 세울 수 있다
+    // (Storage RLS는 *쓰기*만 막지, 남의 공개 URL을 *참조*하는 건 못 막는다).
+    if (validInput.photo_url && !isOwnPostPhotoUrl(validInput.photo_url, member.id)) {
+      return { ok: false, message: "사진 주소가 올바르지 않습니다" };
+    }
+
     const db = createAdminClient();
     const { data: participant, error: participantErr } = await db
       .from("evt_team_prt_rel")
@@ -351,6 +360,15 @@ export async function logActivitiesBatch(
 
   return withActive(async ({ member }) => {
     const isAdmin = !!member.admin;
+
+    // 사진 소유권 — 한 건이라도 남의 폴더면 통째로 막는다(단건 경로와 같은 규칙).
+    if (
+      validInputs.some(
+        (i) => i.photo_url && !isOwnPostPhotoUrl(i.photo_url, member.id),
+      )
+    ) {
+      return { ok: false, message: "사진 주소가 올바르지 않습니다" };
+    }
 
     const db = createAdminClient();
     const { data: participant, error: participantErr } = await db
@@ -484,6 +502,17 @@ export async function updateActivity(
 
     const dateErr = validateActivityDate(validInput.act_dt, isAdmin);
     if (dateErr) return { ok: false, message: dateErr };
+
+    // 사진 소유권은 **기록 주인**(existingParticipant.mem_id) 기준이다 — 수정하는 사람이
+    // 아니라. 관리자가 남의 기록을 고칠 때 자기 폴더 사진을 붙이면, 그 기록의 주인 이름으로
+    // 엉뚱한 사진이 전광판에 선다. 업로드 액션도 자기 폴더에만 쓰므로 관리자가 남의 기록에
+    // 새 사진을 붙이는 건 애초에 불가능하고, 여기선 기존 사진 유지만 통과하면 된다.
+    if (
+      validInput.photo_url &&
+      !isOwnPostPhotoUrl(validInput.photo_url, existingParticipant.mem_id)
+    ) {
+      return { ok: false, message: "사진 주소가 올바르지 않습니다" };
+    }
 
     const { appliedMults, multValues, error: multErr } = await buildAppliedMults(
       existingParticipant.evt_id, validInput.applied_mult_ids, validInput.act_dt,

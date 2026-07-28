@@ -267,7 +267,9 @@ const ReelCard = ({
   const emoji = getSportEmoji(post.sprt_enm);
   // 사진은 항상 있다 — 사진 없는 기록은 조회에서 걸러진다(`get_team_posts`).
   // 프사 폴백을 두던 자리인데, 얼굴을 무대에 세우면 "기록 자랑"이 아니라 프로필 열람이 된다.
-  const bgSrc = post.photo_url ?? "";
+  // `?? ""`로 때우지 않는 이유: 빈 src는 브라우저가 **현재 페이지 URL을 이미지로 재요청**하게
+  // 만들어 깨진 그림이 뜬다. null이면 아예 안 그린다(검은 무대만 남는다).
+  const bgSrc = post.photo_url;
 
   // 거리·종목·날짜는 **한 줄에 묶지 않는다** — 이 자리는 "얼마나 달렸나"를 자랑하는 곳이라
   // 거리가 주인공이어야 한다. 거리를 큰 숫자로 세우고(종목 이모지·라벨은 그 옆 보조),
@@ -297,29 +299,33 @@ const ReelCard = ({
         폭이 먼저 차야 하므로 `max-w-full`.
       */}
       <div className="relative aspect-[9/16] h-full max-h-full w-auto max-w-full overflow-hidden">
-        {/* 사진 뒤 블러 확장 — 사진 비율이 9:16과 달라 생기는 여백(3:4 사진이면 위아래)을
-            사진 자신의 블러로 메운다. 검은 띠 대신 블러를 쓰는 것도 인스타 스토리와 같다.
-            object-cover라 캔버스를 꽉 채우고, 위 또렷한 사진이 그 위에 뜬다. */}
-        <Image
-          src={bgSrc}
-          alt=""
-          fill
-          sizes="100vw"
-          unoptimized
-          aria-hidden
-          className="scale-110 object-cover opacity-40 blur-2xl"
-        />
-        {/* 또렷한 본 사진 — 원본 비율 유지(contain), 캔버스 가운데. **잘리지 않는다.**
-            crop하지 않는 건 러닝 사진이 세로·가로 제각각이라 강제로 자르면 사람이 잘리기
-            때문이다(인스타는 올릴 때 사용자가 직접 crop 위치를 정하지만 여긴 그 단계가 없다). */}
-        <Image
-          src={bgSrc}
-          alt={`${post.mem_nm}의 기록 사진`}
-          fill
-          sizes="100vw"
-          unoptimized
-          className="object-contain"
-        />
+        {bgSrc && (
+          <>
+            {/* 사진 뒤 블러 확장 — 사진 비율이 9:16과 달라 생기는 여백(3:4 사진이면 위아래)을
+                사진 자신의 블러로 메운다. 검은 띠 대신 블러를 쓰는 것도 인스타 스토리와 같다.
+                object-cover라 캔버스를 꽉 채우고, 위 또렷한 사진이 그 위에 뜬다. */}
+            <Image
+              src={bgSrc}
+              alt=""
+              fill
+              sizes="100vw"
+              unoptimized
+              aria-hidden
+              className="scale-110 object-cover opacity-40 blur-2xl"
+            />
+            {/* 또렷한 본 사진 — 원본 비율 유지(contain), 캔버스 가운데. **잘리지 않는다.**
+                crop하지 않는 건 러닝 사진이 세로·가로 제각각이라 강제로 자르면 사람이 잘리기
+                때문이다(인스타는 올릴 때 사용자가 직접 crop 위치를 정하지만 여긴 그 단계가 없다). */}
+            <Image
+              src={bgSrc}
+              alt={`${post.mem_nm}의 기록 사진`}
+              fill
+              sizes="100vw"
+              unoptimized
+              className="object-contain"
+            />
+          </>
+        )}
       </div>
 
       {/* 마일리지런에서 온 기록 표시 — 상단에 띄운다. 하단은 그라디언트 정보 영역이라

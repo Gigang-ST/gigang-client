@@ -491,7 +491,9 @@ export function GatheringDetailDialog({
                 isAdmin={isAdmin}
                 members={members}
                 initialComments={initialComments}
-                loginReturnPath={`/schedule?gthr=${gathering.short_id ?? gathering.id}`}
+                // 위에서 뽑아 둔 gthrRef를 재사용한다 — 같은 폴백 규칙을 두 곳에 적으면
+                // 한쪽만 바뀌었을 때 공유 URL과 로그인 복귀 경로가 조용히 어긋난다.
+                loginReturnPath={`/schedule?gthr=${gthrRef}`}
               />
             </div>
 
