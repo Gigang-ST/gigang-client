@@ -35,6 +35,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "invalid url" }, { status: 400 });
   }
 
+  // 미리보기를 못 만들어도 호스트명은 URL만으로 늘 알 수 있다 —
+  // "어디로 가는 링크인지"는 어떤 실패 경로에서도 알려준다.
+  const hostname = parsed.hostname.replace(/^www\./, "");
+  const bare = { title: null, image: null, description: null, hostname };
+
   try {
     // 리다이렉트를 수동으로 따라가며 홉마다 호스트를 재검증 —
     // 공개 URL이 내부망으로 리다이렉트해 최초 검사를 우회하는 SSRF 방지
@@ -43,7 +48,14 @@ export async function GET(req: NextRequest) {
     let res: Response | undefined;
     for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
       res = await fetch(target.toString(), {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1)" },
+        // Googlebot을 사칭하면 오히려 손해다 — 봇 차단 WAF는 역DNS로 진짜 구글인지 검증하므로
+        // 데이터센터 IP에서 온 Googlebot은 명백한 위조로 걸린다. 평범한 브라우저로 요청한다.
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          Accept: "text/html,application/xhtml+xml",
+          "Accept-Language": "ko-KR,ko;q=0.9",
+        },
         redirect: "manual",
         next: { revalidate: 3600 },
       });
@@ -57,25 +69,50 @@ export async function GET(req: NextRequest) {
       }
       target = next;
     }
-    // 리다이렉트 한도 초과 등으로 최종 응답을 못 얻으면 미리보기 없음 처리
-    if (!res || (res.status >= 300 && res.status < 400)) {
-      return NextResponse.json({ title: null, image: null, description: null, hostname: null });
-    }
+    // 에러 응답의 본문은 읽지 않는다 — 봇 차단(403)·404·로그인벽 페이지의 <title>은
+    // "Access Denied" 같은 남의 문구라, 파싱하면 그게 우리 미리보기 제목으로 새어 나온다.
+    // (리다이렉트 한도 초과로 최종 응답을 못 얻은 경우도 여기서 함께 걸린다)
+    if (!res || !res.ok) return NextResponse.json(bare);
+
     const html = await res.text();
 
+    // 엔티티를 남겨두면 og:image URL의 &amp;가 그대로 src에 박혀 이미지가 깨진다
+    const decode = (s: string) =>
+      s
+        .replace(/&amp;/g, "&")
+        .replace(/&quot;/g, '"')
+        .replace(/&#0?39;/g, "'")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&nbsp;/g, " ");
+
+    /**
+     * og:*(property) → twitter:*(name) 순으로 찾는다.
+     * 트위터 카드만 넣고 OG는 빠뜨린 사이트가 흔해서, 그 경우 썸네일을 통째로 놓친다.
+     * 속성 순서가 뒤집힌 표기(content가 먼저)도 함께 본다.
+     */
     const get = (prop: string) => {
-      const m = html.match(new RegExp(`<meta[^>]+property=["']og:${prop}["'][^>]+content=["']([^"']+)["']`, "i"))
-        ?? html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:${prop}["']`, "i"));
-      return m?.[1] ?? null;
+      const keys = [
+        ["property", `og:${prop}`],
+        ["name", `twitter:${prop}`],
+        ["property", `twitter:${prop}`],
+      ] as const;
+      for (const [attr, key] of keys) {
+        const m =
+          html.match(new RegExp(`<meta[^>]+${attr}=["']${key}["'][^>]+content=["']([^"']+)["']`, "i")) ??
+          html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+${attr}=["']${key}["']`, "i"));
+        if (m?.[1]) return decode(m[1]);
+      }
+      return null;
     };
 
-    const title = get("title") ?? html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] ?? null;
+    const rawTitle = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1];
+    const title = get("title") ?? (rawTitle ? decode(rawTitle) : null);
     const image = get("image");
     const description = get("description");
-    const hostname = new URL(url).hostname.replace(/^www\./, "");
 
     return NextResponse.json({ title, image, description, hostname });
   } catch {
-    return NextResponse.json({ title: null, image: null, description: null, hostname: null });
+    return NextResponse.json(bare);
   }
 }

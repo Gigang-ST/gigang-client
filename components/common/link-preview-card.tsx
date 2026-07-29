@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { ExternalLink } from "lucide-react";
 
@@ -14,6 +14,17 @@ type OgData = {
 export function LinkPreviewCard({ url }: { url: string }) {
   const [og, setOg] = useState<OgData | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // 미리보기를 못 만들어도 목적지는 알려준다 — 게시글 제목은 이미 카드 위에 있어서
+  // "링크 바로가기"는 아무 정보도 주지 않는다. 호스트명은 URL만으로 늘 구할 수 있으므로
+  // /api/og 응답이 아예 실패해도(og === null) 이 라벨은 남는다.
+  const hostname = useMemo(() => {
+    try {
+      return new URL(url).hostname.replace(/^www\./, "");
+    } catch {
+      return null;
+    }
+  }, [url]);
 
   useEffect(() => {
     fetch(`/api/og?url=${encodeURIComponent(url)}`)
@@ -39,7 +50,7 @@ export function LinkPreviewCard({ url }: { url: string }) {
         className="flex items-center justify-center gap-2 rounded-md border border-border py-2 text-sm transition-colors hover:bg-muted"
       >
         <ExternalLink className="size-3.5" />
-        {og?.title ?? "링크 바로가기"}
+        {og?.title ?? (hostname ? `${hostname} 열기` : "링크 바로가기")}
       </a>
     );
   }
