@@ -1,6 +1,6 @@
 "use client";
 
-import { dayjs } from "@/lib/dayjs";
+import { dayjs, formatKST } from "@/lib/dayjs";
 import type { ProcessedTxn } from "@/lib/queries/dues";
 
 import { Body, Caption, Micro } from "@/components/common/typography";
@@ -54,7 +54,7 @@ export function ProcessedRows({
           <td className="px-2 py-2">
             <div className="flex items-center gap-2">
               <Micro>
-                {dayjs(t.cfmAt).format("MM.DD HH:mm")} 확정
+                {formatKST(t.cfmAt, "MM.DD HH:mm")} 확정
                 {t.cfmByName ? ` · ${t.cfmByName}` : ""}
               </Micro>
               <Button

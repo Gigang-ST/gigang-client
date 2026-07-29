@@ -4,7 +4,7 @@ import { useRef, useState, useEffect } from "react";
 
 import { Bell, Trash2 } from "lucide-react";
 
-import { dayjs } from "@/lib/dayjs";
+import { formatKST, todayKST } from "@/lib/dayjs";
 import type { Notification } from "@/lib/queries/notification";
 
 import { deleteAllNotifications } from "@/app/actions/delete-all-notifications";
@@ -73,9 +73,11 @@ export function NotificationsClient({ initialNotifications, memberId: _memberId 
     setNotifications((prev) => prev.filter((n) => n.noti_id !== notiId));
   }
 
-  const today = dayjs().format("YYYY-MM-DD");
-  const todayNotis = notifications.filter((n) => dayjs(n.crt_at).format("YYYY-MM-DD") === today);
-  const prevNotis = notifications.filter((n) => dayjs(n.crt_at).format("YYYY-MM-DD") !== today);
+  // "오늘"도, 비교 대상인 crt_at(timestamptz)도 **KST로 찍어야** 같은 기준이 된다 —
+  // 서버(UTC)에서 그리면 KST 새벽에 온 알림이 '이전'으로 밀린다(§lib/dayjs formatKST).
+  const today = todayKST();
+  const todayNotis = notifications.filter((n) => formatKST(n.crt_at, "YYYY-MM-DD") === today);
+  const prevNotis = notifications.filter((n) => formatKST(n.crt_at, "YYYY-MM-DD") !== today);
 
   return (
     <div className="flex flex-col">

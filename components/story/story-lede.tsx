@@ -6,7 +6,13 @@ import Link from "next/link";
 
 import { Zap } from "lucide-react";
 
-import { dayjs, formatPace, secondsToTime } from "@/lib/dayjs";
+import {
+  dayjs,
+  formatPace,
+  parseEventTime,
+  secondsToTime,
+  todayStartKST,
+} from "@/lib/dayjs";
 import {
   getJoinPurposeLabelsFromCds,
   getRaceDday,
@@ -217,10 +223,10 @@ type Lede = {
 };
 
 
-/** 오늘 기준 N일 이내인가 (KST) */
+/** 오늘 기준 N일 이내인가 (KST) — 양쪽 다 KST로 맞춘다(§lib/dayjs nowKST) */
 function withinDays(dateStr: string | null, days: number): boolean {
   if (!dateStr) return false;
-  const diff = dayjs().startOf("day").diff(dayjs(dateStr).startOf("day"), "day");
+  const diff = todayStartKST().diff(parseEventTime(dateStr).startOf("day"), "day");
   return diff >= 0 && diff <= days;
 }
 

@@ -2,7 +2,7 @@
 
 import { after } from "next/server";
 
-import { dayjs } from "@/lib/dayjs";
+import { dayjs, nowKST } from "@/lib/dayjs";
 import { withActive, withMember } from "@/lib/actions/auth";
 import { isPastLockedFor, PAST_EVENT_ERROR } from "@/lib/past-event";
 import { insertNotiMany } from "@/lib/notifications/insert-noti";
@@ -66,7 +66,7 @@ export async function createSchPost(input: {
           teamId,
           memIds: members.map((m) => m.mem_id),
           notiTypeEnm: "sch_post_new",
-          notiNm: `${dayjs().format("M월 D일")} 새 정보가 등록됐습니다.`,
+          notiNm: `${nowKST().format("M월 D일")} 새 정보가 등록됐습니다.`,
           notiCont: `[정보] ${postName}`,
           refId: data.short_id ?? postId,
           refTypeEnm: "sch_post",

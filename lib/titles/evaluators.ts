@@ -8,12 +8,9 @@
  * 새 CondRule 타입을 추가하면 evaluateCondition() switch 에 케이스를 추가한다.
  */
 
-import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
-import timezone from "dayjs/plugin/timezone";
-
-dayjs.extend(utc);
-dayjs.extend(timezone);
+// 플러그인(utc·timezone)·로케일은 `@/lib/dayjs`가 한 번만 설정한다 — 여기서 다시 extend하면
+// 설정이 두 곳으로 갈려, 한쪽만 바뀌었을 때 같은 값이 파일마다 다르게 해석된다.
+import { dayjs } from "@/lib/dayjs";
 
 const KST = "Asia/Seoul";
 

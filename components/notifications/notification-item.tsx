@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { Bell, Coins, MessageCircle, Trophy, Trash2, FileText, Users, MessageSquareText } from "lucide-react";
 
-import { dayjs } from "@/lib/dayjs";
+import { dayjs, formatKST } from "@/lib/dayjs";
 import { resolveNotiDeepLink } from "@/lib/notifications/deep-link";
 import type { Notification } from "@/lib/queries/notification";
 import { cn } from "@/lib/utils";
@@ -41,6 +41,8 @@ const NOTI_ICON: Record<string, React.ElementType> = {
 };
 
 function formatRelative(crtAt: string) {
+  // 경과시간은 **절대시각끼리의 차이**라 타임존과 무관하다 — 여기는 그대로 둔다.
+  // 아래 날짜 표시(7일 넘은 알림)만 KST로 찍어야 한다(§lib/dayjs formatKST).
   const diff = dayjs().diff(dayjs(crtAt), "minute");
   if (diff < 1) return "방금 전";
   if (diff < 60) return `${diff}분 전`;
@@ -48,7 +50,7 @@ function formatRelative(crtAt: string) {
   if (hours < 24) return `${hours}시간 전`;
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days}일 전`;
-  return dayjs(crtAt).format("MM.DD");
+  return formatKST(crtAt, "MM.DD");
 }
 
 type NotificationItemProps = {

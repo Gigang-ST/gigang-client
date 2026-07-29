@@ -1,6 +1,6 @@
 "use client";
 
-import { dayjs } from "@/lib/dayjs";
+import { dayjs, nowKST } from "@/lib/dayjs";
 import { getTeamPulse } from "@/lib/team-pulse";
 
 import { HelpTip } from "@/components/common/help-tip";
@@ -64,7 +64,7 @@ export function StoryPulse({ overview }: { overview: TeamOverview }) {
   // 어긋나지 않게. months가 비면(RPC 미배포) 이번 달로 적는다.
   const monthLabel = active
     ? dayjs(active.m_start).format("M월")
-    : dayjs().format("M월");
+    : nowKST().format("M월");
 
   // 근거 수치 — 전부 이번 달 값으로 통일한다(기간 기준이 하나여야 각주가 필요 없다).
   // months가 비면 0으로 그린다 — 수치만 비고 심박은 살아 있다.

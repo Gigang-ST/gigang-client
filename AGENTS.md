@@ -29,7 +29,13 @@ Before any Next.js work, find and read the relevant doc in `node_modules/next/di
 - 언어: 한국어 (코드 주석, UI 텍스트 모두 한국어)
 - 패키지 매니저: `pnpm`
 - 경로 별칭: `@/*` → 프로젝트 루트
-- **날짜/시간**: `import { dayjs } from "@/lib/dayjs"` 만 사용. `import dayjs from "dayjs"` 직접 import 금지. `new Date()` 직접 사용 금지. 날짜 포맷팅 시 `.slice()` / `.replace()` 문자열 조작 금지 — 반드시 `dayjs(val).format("YY.MM.DD")` 형태로. KST 기준
+- **날짜/시간**: `import { dayjs } from "@/lib/dayjs"` 만 사용(직접 import·`new Date()` 금지). 포맷팅에 `.slice()`/`.replace()` 문자열 조작 금지.
+  **사용자에게 보이는 날짜·집계는 항상 KST.** 배포처가 UTC라 KST 00~09시에 서버·브라우저의 "오늘"이 갈린다. 경계는 *표시냐 계산이냐*가 아니라 **"날짜" 개념이 끼느냐**다:
+  - "지금/오늘" 판정 → `nowKST()` · `todayKST()` · `todayStartKST()`
+  - 날짜 차이(D-day·N일 전) → **양쪽 다** KST로. 상대편 date 문자열은 `parseEventTime()`
+  - **timestamptz(`_at`) 표시** → `formatKST(value, fmt)`. `dayjs(val).format()`은 로컬로 찍혀 하루 밀린다
+  - date 컬럼(`_dt`) 표시, 절대시각 차이(`diff(x,"minute")`), `toISOString()` 저장 → 그대로 안전
+  - ESLint(`no-restricted-syntax`)가 위험한 형태를 막는다 — 회귀 테스트는 `lib/__tests__/kst-boundary.test.ts`
 - **환경변수**: `lib/env.ts`에서 import. `process.env` 직접 접근 금지 (t3-env가 런타임 검증)
 - **멤버 조회**: `getCurrentMember()` (`lib/queries/member.ts`) — React cache()로 같은 렌더 내 중복 쿼리 방지
 - **폼 검증**: Zod 스키마를 `lib/validations/`에 정의하고 React Hook Form과 통합

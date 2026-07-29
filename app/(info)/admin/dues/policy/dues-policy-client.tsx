@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 
-import dayjs from "dayjs";
+import { dayjs, todayKST } from "@/lib/dayjs";
 
 import { updatePolicy } from "@/app/actions/dues/update-policy";
 
@@ -32,7 +32,7 @@ export function DuesPolicyClient({
   const [isPending, startTransition] = useTransition();
   const [showPolicyForm, setShowPolicyForm] = useState(false);
   const [policyForm, setPolicyForm] = useState({
-    aplySttDt: dayjs().format("YYYY-MM-DD"),
+    aplySttDt: todayKST(),
     aplyEndDt: "2099-12-31",
     monthlyFeeAmt: "2000",
   });

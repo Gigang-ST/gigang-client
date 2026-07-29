@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Pin } from "lucide-react";
-import dayjs from "dayjs";
+import { formatKST } from "@/lib/dayjs";
 import type { BoardPostSummary } from "@/lib/queries/board";
 import { Body, Caption } from "@/components/common/typography";
 
@@ -21,7 +21,7 @@ export function PostCard({ post }: PostCardProps) {
         <Body className="truncate">{post.post_nm}</Body>
       </div>
       <Caption className="shrink-0">
-        {dayjs(post.crt_at).format("MM/DD")}
+        {formatKST(post.crt_at, "MM/DD")}
       </Caption>
     </Link>
   );

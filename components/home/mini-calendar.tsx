@@ -9,7 +9,14 @@ import { toast } from "sonner";
 
 import { buildWeeklyShareText } from "@/components/home/build-weekly-share-text";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
-import { dayjs, todayKST, currentMonthKST, daysInMonth, gridDateRange } from "@/lib/dayjs";
+import {
+  dayjs,
+  todayKST,
+  currentMonthKST,
+  daysInMonth,
+  formatKST,
+  gridDateRange,
+} from "@/lib/dayjs";
 import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
 import { createClient } from "@/lib/supabase/client";
@@ -479,7 +486,8 @@ export function MiniCalendar({
           id: data.sch_post_id,
           short_id: data.short_id ?? null,
           title: data.sch_nm,
-          start_date: data.evt_stt_at ? dayjs(data.evt_stt_at).format("YYYY-MM-DD") : dayjs().format("YYYY-MM-DD"),
+          // evt_stt_at은 timestamptz라 KST로 찍어야 날짜가 하루 밀리지 않는다(§lib/dayjs formatKST)
+          start_date: formatKST(data.evt_stt_at, "YYYY-MM-DD", todayKST()),
           type: "schedule",
           url: data.url ?? null,
           cont_txt: data.cont_txt ?? null,
