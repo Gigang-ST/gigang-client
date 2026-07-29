@@ -10,6 +10,7 @@ import {
   roundMileage,
   type MileageSport,
 } from "@/lib/mileage";
+import { pickQuip } from "@/lib/quips";
 import { createClient } from "@/lib/supabase/client";
 
 import {
@@ -381,12 +382,15 @@ export function ActivityLogBatchForm({ evtId, onSuccess, isInactive = false, ina
                 </div>
               )}
 
+              {/* 한마디 — 깅스타그램 작성 폼과 같은 말을 쓴다(DB 컬럼은 `review` 그대로).
+                  예시 문구는 행 id를 seed로 뽑는다 — 20건까지 쌓이는 자리라 칸마다 다른 게
+                  떠야 지루하지 않고, id가 이미 randomUUID라 별도 상태 필드 없이 행마다 고정된다 */}
               <div className="flex flex-col gap-1">
-                <Label className="text-xs">후기 (선택, 최대 200자)</Label>
+                <Label className="text-xs">한마디 (선택, 최대 200자)</Label>
                 <Input
                   type="text"
                   maxLength={200}
-                  placeholder="한 줄 후기를 남겨보세요"
+                  placeholder={pickQuip(d.id)}
                   value={d.review}
                   onChange={(e) => updateDraft(d.id, { review: e.target.value })}
                   className="h-10 rounded-lg border text-sm"

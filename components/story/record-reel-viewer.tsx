@@ -308,9 +308,10 @@ const ReelCard = ({
   // 만들어 깨진 그림이 뜬다. null이면 아예 안 그린다(검은 무대만 남는다).
   const bgSrc = post.photo_url;
 
-  // 거리·종목·날짜는 **한 줄에 묶지 않는다** — 이 자리는 "얼마나 달렸나"를 자랑하는 곳이라
-  // 거리가 주인공이어야 한다. 거리를 큰 숫자로 세우고(종목 이모지·라벨은 그 옆 보조),
-  // 날짜는 그 위 작은 kicker로 뺀다.
+  // 거리·종목·날짜는 **오른쪽 아래 한 덩어리**다 — 셋 다 "이 기록이 뭐냐"를 말하는 같은
+  // 성격의 메타라, 왼쪽(사람·한마디)과 갈라 놓아야 두 축이 안 섞인다. 예전엔 거리·종목이
+  // 한마디 아래 왼쪽에 크게(24px) 붙고 날짜만 오른쪽에 떨어져 있어, 같은 메타가 화면
+  // 양쪽으로 흩어져 있었다.
   const dateLabel = post.act_dt
     ? dayjs(post.act_dt).format("YYYY.MM.DD (ddd)")
     : null;
@@ -384,33 +385,14 @@ const ReelCard = ({
       )}
 
       {/* 하단 그라디언트 + 정보 — 사진 위로 겹쳐 오른다. pointer-events는 버튼만 받게 좁힌다.
-          세로 리듬은 위계로 준다: 한마디→거리는 같은 자랑의 흐름이라 붙이고(mt-2), 거리→사람은
-          정보 그룹이 바뀌므로 더 띄운다(mt-4). 균등 gap 대신 mt로 그룹을 눈에 나누게 한다. */}
+          세로로는 한마디 → 말풍선 → 사람 줄 → 입력칸 순이고, 기록 메타(거리·종목·날짜)는
+          자기 줄을 갖지 않고 사람 줄 **오른쪽**에 붙는다. 균등 gap 대신 mt로 그룹을 나눈다. */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] flex flex-col bg-gradient-to-t from-black/85 via-black/55 to-transparent px-5 pb-[calc(env(safe-area-inset-bottom)+22px)] pt-20">
         {/* 한마디 — 사람이 쓴 말이라 명조로. 릴스라 격자보다 크게(두 줄까지). */}
         {post.cmnt_txt && (
           <p className="pointer-events-auto line-clamp-3 text-balance text-[19px] font-normal leading-[1.45] text-white [overflow-wrap:anywhere] [text-shadow:0_1px_10px_rgba(0,0,0,0.5)]">
             {post.cmnt_txt}
           </p>
-        )}
-
-        {/* 거리 — 이 자리의 주인공. "얼마나 달렸나"가 한눈에 들어오도록 큰 숫자로 세운다.
-            종목(이모지+라벨)은 그 옆에 baseline을 맞춰 보조로 붙인다. 거리가 없으면
-            (드문 경우) 종목만이라도 남긴다. 한마디가 있으면 그 아래로 살짝만 띄워 붙인다. */}
-        {(km || label) && (
-          <div className="mt-2.5 flex items-baseline gap-2.5 [text-shadow:0_1px_10px_rgba(0,0,0,0.55)]">
-            {km && (
-              <span className="font-numeric text-[24px] font-bold leading-none tracking-tight tabular-nums text-white">
-                {km}
-              </span>
-            )}
-            {label && (
-              <span className="text-[15px] font-medium text-white/90">
-                {emoji ? `${emoji} ` : ""}
-                {label}
-              </span>
-            )}
-          </div>
         )}
 
         {/* 댓글 말풍선 — **작성자 이름 바로 위**. 사진에 달린 반응이라 기록 정보(이름·거리)
@@ -423,7 +405,7 @@ const ReelCard = ({
           />
         </div>
 
-        {/* 사람 줄 — 왼쪽 프사·이름·칭호(탭하면 프로필 카드), 오른쪽 날짜(보조).
+        {/* 사람 줄 — 왼쪽 프사·이름·칭호(탭하면 프로필 카드), 오른쪽 기록 메타(거리·종목/날짜).
             위 말풍선과는 정보가 갈리므로 살짝 띄운다. */}
         <div className="mt-1.5 flex items-center justify-between gap-3">
           <button
@@ -453,10 +435,35 @@ const ReelCard = ({
             </span>
           </button>
 
-          {dateLabel && (
-            <span className="pointer-events-none shrink-0 font-numeric text-[13px] font-medium tabular-nums text-white/80 [text-shadow:0_1px_8px_rgba(0,0,0,0.6)]">
-              {dateLabel}
-            </span>
+          {/* 기록 메타 — 날짜 자리(우하단)에 거리·종목을 **그 위로 쌓는다.** 오른쪽 끝을
+              맞춰야 두 줄이 한 덩어리로 읽히므로 `items-end`(우측정렬)다.
+              거리는 여전히 이 기록의 주인공이라 크게 두되, 왼쪽 이름(15px)을 누르지 않도록
+              20px까지 낮췄다 — 사진이 무대의 주인공인 릴스에서 수치가 더 커질 이유는 없다.
+              `shrink-0`: 이름이 길어도 이쪽이 먼저 찌그러지면 안 된다(왼쪽 버튼이 min-w-0으로
+              말줄임을 맡는다). */}
+          {(km || label || dateLabel) && (
+            <div className="pointer-events-none flex shrink-0 flex-col items-end gap-1 [text-shadow:0_1px_8px_rgba(0,0,0,0.6)]">
+              {(km || label) && (
+                <span className="flex items-baseline gap-1.5">
+                  {km && (
+                    <span className="font-numeric text-[20px] font-bold leading-none tracking-tight tabular-nums text-white">
+                      {km}
+                    </span>
+                  )}
+                  {label && (
+                    <span className="text-[13px] font-medium leading-none text-white/90">
+                      {emoji ? `${emoji} ` : ""}
+                      {label}
+                    </span>
+                  )}
+                </span>
+              )}
+              {dateLabel && (
+                <span className="font-numeric text-[13px] font-medium leading-none tabular-nums text-white/80">
+                  {dateLabel}
+                </span>
+              )}
+            </div>
           )}
         </div>
 
