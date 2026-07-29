@@ -67,10 +67,13 @@ const infoItems: MenuItem[] = [
 export function SettingsClient({
   isAdmin,
   boardUnread,
+  duesUnpaid = false,
 }: {
   isAdmin: boolean;
   /** 공지·업데이트 안읽음 — 각 메뉴 옆 dot. 없으면 둘 다 false로 온다 */
   boardUnread?: { notice: boolean; update: boolean };
+  /** 회비 잔액이 마이너스인가 — "회비 내역" 줄 옆 dot */
+  duesUnpaid?: boolean;
 }) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -119,7 +122,15 @@ export function SettingsClient({
                 {item.label}
               </span>
             </div>
-            <ChevronRight className="size-5 text-border" />
+            <div className="flex items-center gap-2">
+              {/* 회비 미납 dot — 프로필탭의 바로가기 4버튼을 걷어내면서 이 줄이 유일한
+                  표면이 됐다. 공지 안읽음 dot과 같은 규칙: 햄버거 아이콘엔 배지를 안 달고
+                  "뭘 봐야 하는지"를 대상 옆에서 가리킨다. */}
+              {item.href === "/profile/dues" && duesUnpaid && (
+                <span className="size-1.5 rounded-full bg-destructive" />
+              )}
+              <ChevronRight className="size-5 text-border" />
+            </div>
           </Link>
         ))}
       </div>
