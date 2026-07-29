@@ -32,6 +32,7 @@ import {
 import { RecordReelViewer } from "@/components/story/record-reel-viewer";
 import { StoryReactionButton } from "@/components/story/story-reaction-button";
 
+import { goToLogin } from "@/lib/auth/go-to-login";
 import { compEvtTypeKm, compEvtTypeLabel } from "@/lib/comp-evt-type";
 import { dedupePledgesByMember } from "@/lib/story-pledge";
 import { pickActvLeadIndex, pickRandomPostIndex } from "@/lib/story-post";
@@ -1137,8 +1138,20 @@ export function StoryLede({
                   전문·거리·날짜를 보려면 아래 격자까지 내려가 같은 장을 다시 찾아야 했다. */}
               <button
                 type="button"
-                onClick={() => setReelId(lede.photo!.postId)}
-                aria-label={`${lede.photo.person.mem_nm}의 기록 자세히 보기`}
+                // 비로그인은 릴스 대신 로그인으로 — 격자존(§openReel)과 같은 문턱이다.
+                // 여기만 열어 두면 리드를 통해 안쪽 지면이 그대로 새어 나간다.
+                onClick={() => {
+                  if (myMemId == null) {
+                    goToLogin("/story");
+                    return;
+                  }
+                  setReelId(lede.photo!.postId);
+                }}
+                aria-label={
+                  myMemId == null
+                    ? "로그인하고 기록 보기"
+                    : `${lede.photo.person.mem_nm}의 기록 자세히 보기`
+                }
                 className={`relative size-[158px] shrink-0 overflow-hidden rounded-xl bg-muted transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]`}
               >
                 {/* 사진은 항상 있다 — 프사 폴백은 걷어냈다(조회에서 사진 없는 기록을 거른다).

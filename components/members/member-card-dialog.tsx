@@ -68,6 +68,17 @@ export function MemberCardDialog({
   const supabase = useMemo(() => createClient(), []);
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [introOpen, setIntroOpen] = useState(false);
+  /**
+   * 보는 사람이 로그인했나 — 비로그인이면 카드 아래 실적 존을 가린다(§MemberCardDetail).
+   *
+   * 호출부에서 prop으로 받지 않고 **여기서 직접 확인**한다. 이 카드를 여는 자리가 여섯 곳인데
+   * (전광판·격자·랭킹·모임·프로필·일정) 그중 로그인 여부를 이미 아는 곳은 일부뿐이라,
+   * prop으로 내리면 한 곳만 안 넘겨도 그 경로에서 조용히 다 보인다. 가림막은 빠뜨리면
+   * 티가 안 나는 종류라 판정을 카드 쪽에 둔다.
+   *
+   * `null`은 "아직 모름" — 확인 전에는 가리지도 열지도 않는다(한 프레임 깜빡임 방지).
+   */
+  const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
 
   // 연속 탭으로 요청이 겹칠 때 늦게 온 응답이 화면을 덮어쓰지 않게 한다.
   const reqIdRef = useRef(0);
@@ -94,6 +105,19 @@ export function MemberCardDialog({
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [open, memId, load]);
+
+  // 로그인 여부 — 카드를 열 때 한 번 확인한다(카드 조회와 나란히 나가므로 지연이 안 늘어난다).
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    void supabase.auth.getUser().then(({ data, error }) => {
+      if (!active) return;
+      setLoggedIn(!error && data.user != null);
+    });
+    return () => {
+      active = false;
+    };
+  }, [open, supabase]);
 
   return (
     <Dialog open={open && memId !== null} onOpenChange={onOpenChange}>
@@ -125,6 +149,9 @@ export function MemberCardDialog({
               memId={memId}
               data={state.data}
               onEditIntro={isOwner ? () => setIntroOpen(true) : undefined}
+              // 확인 전(null)에는 가리지 않는다 — 잠깐 가렸다 열리면 깜빡임으로 보인다.
+              // 비로그인으로 확정됐을 때만 실적 존을 덮는다.
+              locked={loggedIn === false}
             />
           )}
 

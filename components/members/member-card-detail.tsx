@@ -8,10 +8,12 @@ import {
   CalendarDays,
   ChevronDown,
   ChevronRight,
+  Lock,
   Pencil,
   Plus,
 } from "lucide-react";
 
+import { goToLogin } from "@/lib/auth/go-to-login";
 import { dayjs, secondsToTime } from "@/lib/dayjs";
 import {
   getActivityMood,
@@ -27,7 +29,8 @@ import { cn } from "@/lib/utils";
 
 import { Avatar } from "@/components/common/avatar";
 import { TitleBadge } from "@/components/common/title-badge";
-import { Caption, Micro, SectionLabel } from "@/components/common/typography";
+import { Body, Caption, Micro, SectionLabel } from "@/components/common/typography";
+import { Button } from "@/components/ui/button";
 
 import type { ActivityMood } from "@/lib/member-card";
 import type { MemberCardData } from "@/lib/queries/member-card";
@@ -160,11 +163,20 @@ export function MemberCardDetail({
   memId,
   data,
   onEditIntro,
+  locked = false,
 }: {
   memId: string;
   data: MemberCardData;
   /** 본인 카드일 때만 전달 — 한마디 옆 연필 버튼이 생긴다 */
   onEditIntro?: () => void;
+  /**
+   * 비로그인인가 — true면 아래 정보 존(가입목적·러닝프로필·기록·활동·칭호)을 흐리게 덮고
+   * 로그인 안내를 얹는다. 스크린 존(얼굴·이름·칭호)은 그대로 보인다.
+   *
+   * **가리되 없애지는 않는다**: 빈 카드를 보여주면 "이 사람은 실적이 없구나"로 읽히지만,
+   * 흐린 판 아래 뭔가 있는 게 비치면 "로그인하면 볼 수 있는 것"으로 읽힌다.
+   */
+  locked?: boolean;
 }) {
   const [lit, setLit] = useState(false);
   const [titlesOpen, setTitlesOpen] = useState(false);
@@ -288,8 +300,23 @@ export function MemberCardDetail({
         </div>
       </div>
 
-      {/* ── 정보 존 (앱 테마) ───────────────────────────────── */}
-      <div className="flex flex-col gap-5 bg-card p-5">
+      {/* ── 정보 존 (앱 테마) ─────────────────────────────────
+          비로그인이면 이 존만 흐리게 덮고 로그인 안내를 얹는다(`locked`). 스크린 존은 그대로
+          두는데, "누구인지"까지 막으면 얼굴을 눌러 카드를 연 동작 자체가 헛수고가 된다.
+          여기부터가 크루원끼리 보는 실적이라 문턱은 이 경계에 세운다. */}
+      <div className="relative">
+        <div
+          className={cn(
+            "flex flex-col gap-5 bg-card p-5",
+            // `select-none`까지 걸어 흐린 글자를 드래그로 긁어가지 못하게 한다.
+            // 진짜 차단은 아니지만(클라이언트 가림막이다), 실수로 읽히는 건 막는다.
+            locked && "pointer-events-none select-none blur-[5px]",
+          )}
+          // 흐려진 내용은 스크린리더에도 읽히면 안 된다 — 눈으로 못 보는 걸 소리로는
+          // 다 들려주면 가린 의미가 없다.
+          aria-hidden={locked || undefined}
+          inert={locked || undefined}
+        >
         {/* 가입 목적 — 왜 기강에 들어왔는지. 스크린 존의 "한마디"(자유 인용구)와 성격이
             다르므로 별도 섹션·별도 라벨로 확실히 구분한다. 직접 쓴 한마디가 있으면 그 문장을,
             없으면 목적 칩을 보여준다. 칩은 짧은 라벨(`코칭`)이라 뜻이 안 읽히므로 탭하면
@@ -563,6 +590,24 @@ export function MemberCardDetail({
               </button>
             )}
           </section>
+        )}
+        </div>
+
+        {/* 로그인 유도 — 흐린 판 위에 얹는다. 위쪽을 살짝 비워(pt-14) 흐려진 내용이 조금
+            비치게 두면 "뭔가 더 있다"가 읽힌다. 판을 꽉 덮으면 그냥 잠긴 상자로 보인다. */}
+        {locked && (
+          <div className="absolute inset-0 flex flex-col items-center justify-start gap-3 px-6 pt-14 text-center">
+            <div className="flex flex-col items-center gap-1.5">
+              <Lock className="size-5 text-muted-foreground" />
+              <Body className="font-semibold">기강인만 볼 수 있어요</Body>
+              <Caption>
+                로그인하면 기록·활동·칭호를 모두 볼 수 있어요.
+              </Caption>
+            </div>
+            <Button size="sm" onClick={() => goToLogin()}>
+              로그인
+            </Button>
+          </div>
         )}
       </div>
     </div>

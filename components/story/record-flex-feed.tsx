@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 import { loadMorePosts } from "@/app/actions/story/load-more-posts";
 import { loadStoryPost } from "@/app/actions/story/load-post";
+import { goToLogin } from "@/lib/auth/go-to-login";
 import { clearDeepLinkParams } from "@/lib/notifications/deep-link";
 // 상한은 `lib/story-post.ts`에서 가져온다 — `lib/queries/story-posts.ts`는 admin
 // 클라이언트(`server-only`)를 물고 있어 클라이언트 컴포넌트가 import하면 빌드가 깨진다.
@@ -20,6 +21,7 @@ import { HelpTip } from "@/components/common/help-tip";
 import { MemberCardDialog } from "@/components/members/member-card-dialog";
 import { RecordDeleteDialog } from "@/components/story/record-delete-dialog";
 import { RecordFlexCreateDialog } from "@/components/story/record-flex-create-dialog";
+import { RecordFlexEditDialog } from "@/components/story/record-flex-edit-dialog";
 import { RecordReelViewer } from "@/components/story/record-reel-viewer";
 import { StoryZoneHeader } from "@/components/story/story-zone-header";
 
@@ -108,6 +110,8 @@ export function RecordFlexFeed({
   );
   /** 길게 눌러 지우려는 기록 — null이면 확인 다이얼로그가 닫혀 있다 */
   const [deleting, setDeleting] = useState<StoryPost | null>(null);
+  /** 한마디를 고치려는 기록 — null이면 편집 다이얼로그가 닫혀 있다 */
+  const [editing, setEditing] = useState<StoryPost | null>(null);
   /** 서버가 준 첫 묶음 뒤로 이어붙인 것들 */
   const [extra, setExtra] = useState<StoryPost[]>([]);
   /** 더 남았나 — 받은 개수가 요청량보다 적으면 끝이다 */
@@ -204,6 +208,13 @@ export function RecordFlexFeed({
    */
   useEffect(() => {
     if (!recParam || !recReady) return;
+    // 비로그인이 알림·공유 링크를 타고 들어온 경우 — 릴스 대신 로그인으로 보낸다(§openReel).
+    // 주소의 `?rec=`은 **남겨 둔다**: 로그인 후 `/story`로 돌아오면 다시 이 자리에 서고,
+    // 그때는 빗장이 풀려 그 기록이 열린다.
+    if (myMemId == null) {
+      goToLogin("/story");
+      return;
+    }
     // 같은 post_id를 이미 열었고 **아직 그 뷰어가 떠 있으면** 아무것도 안 한다.
     // 닫은 뒤(`openId === null`)라면 같은 알림을 다시 누른 것이므로 다시 연다 — 이미
     // `/story`에 서 있으면 라우트가 그대로라 컴포넌트가 안 갈아엎어지고, 빗장만 보고
@@ -212,7 +223,7 @@ export function RecordFlexFeed({
     handledRecRef.current = recParam;
     clearDeepLinkParams();
     setOpenId(recParam);
-  }, [recParam, recReady, openId]);
+  }, [recParam, recReady, openId, myMemId]);
 
   /**
    * 목록에 없는 딥링크 — 그 한 건만 서버에서 받아온다(§loadStoryPost).
@@ -223,6 +234,9 @@ export function RecordFlexFeed({
    */
   useEffect(() => {
     if (!recParam || recReady) return;
+    // 비로그인은 어차피 릴스가 안 열린다(위 effect가 로그인으로 보낸다) — 보여줄 수 없는
+    // 기록을 미리 받아 오지 않는다.
+    if (myMemId == null) return;
     if (deepFetchedRef.current === recParam) return;
     deepFetchedRef.current = recParam;
 
@@ -253,7 +267,7 @@ export function RecordFlexFeed({
     return () => {
       cancelled = true;
     };
-  }, [recParam, recReady]);
+  }, [recParam, recReady, myMemId]);
 
   /** 오른쪽 끝 sentinel이 보이면 다음 묶음 — 캘린더 리스트뷰와 같은 장치(방향만 가로) */
   useEffect(() => {
@@ -311,6 +325,26 @@ export function RecordFlexFeed({
   /** 이 기록을 내가 지울 수 있나 — 내 것이거나 관리자. 서버가 다시 판정한다(§deleteRecordFlex) */
   const canDelete = (p: StoryPost) =>
     myMemId != null && (isAdmin === true || p.mem_id === myMemId);
+
+  /**
+   * 릴스 뷰어를 연다 — **비로그인이면 대신 로그인으로 보낸다.**
+   *
+   * 격자(사진 무더기)는 누구에게나 열어 두되, 한 장을 크게 펼치는 릴스부터는 크루원 자리다:
+   * 릴스는 한마디·거리·날짜에 댓글까지 붙는 "안쪽" 지면인데, 정작 댓글은 `cmnt_mst` RLS가
+   * 인증 전용이라 비로그인에게는 **영영 빈 칸**으로만 보인다. 반쯤 열어 두면 고장으로 읽히므로
+   * 문턱을 문 앞에 세운다.
+   *
+   * 진입점이 둘(격자 탭 · 알림 딥링크)이라 **여기 한 곳**을 지나가게 한다 — 한쪽만 막으면
+   * 알림을 타고 들어온 비로그인에게는 그대로 열린다.
+   */
+  const openReel = (postId: string) => {
+    if (myMemId == null) {
+      // 로그인 후 이 지면으로 돌아온다. 인앱브라우저 분기는 goToLogin이 맡는다.
+      goToLogin("/story");
+      return;
+    }
+    setOpenId(postId);
+  };
 
   /**
    * 길게 누르기 — 500ms 눌러야 삭제 시트가 열린다.
@@ -425,7 +459,7 @@ export function RecordFlexFeed({
                       firedRef.current = false;
                       return;
                     }
-                    setOpenId(p.post_id);
+                    openReel(p.post_id);
                   }}
                   onPointerDown={startPress(p)}
                   onPointerMove={movePress}
@@ -436,7 +470,11 @@ export function RecordFlexFeed({
                   onContextMenu={(e) => {
                     if (canDelete(p)) e.preventDefault();
                   }}
-                  aria-label={`${p.mem_nm}의 기록 자세히 보기`}
+                  aria-label={
+                    myMemId == null
+                      ? "로그인하고 기록 보기"
+                      : `${p.mem_nm}의 기록 자세히 보기`
+                  }
                   // 각진 정사각. 라운드를 주지 않는다(인스타 격자는 직각이 기본이고, 둥근
                   // 모서리는 칸을 카드처럼 보이게 해 격자의 결이 흐려진다). 테두리도 두지
                   // 않는다 — 인스타처럼 사진끼리 딱 붙이고, 좁은 gap(2px)이 흰 배경 사진의
@@ -519,6 +557,7 @@ export function RecordFlexFeed({
         isAdmin={isAdmin}
         // 릴스 ⋮ 메뉴도 같은 확인 다이얼로그를 연다(격자 길게누르기와 한 곳에서 처리).
         onRequestDelete={(p) => setDeleting(p)}
+        onRequestEdit={(p) => setEditing(p)}
       />
 
       {/* 삭제 확인 — 격자 길게누르기와 릴스 ⋮ 메뉴가 함께 쓴다. 지운 뒤 릴스가 열려 있으면
@@ -530,6 +569,27 @@ export function RecordFlexFeed({
           if (!o) setDeleting(null);
         }}
         onDeleted={() => setOpenId(null)}
+      />
+
+      {/* 한마디 수정 — 릴스 연필에서만 연다. 삭제와 달리 **릴스를 닫지 않는다**: 고친 한마디는
+          그 장에 그대로 남으므로 보던 사진으로 돌아오는 게 맞다(refresh는 다이얼로그가 부른다). */}
+      <RecordFlexEditDialog
+        post={editing}
+        open={editing !== null}
+        onOpenChange={(o) => {
+          if (!o) setEditing(null);
+        }}
+        // 클라이언트가 들고 있는 목록(더보기로 이어붙인 것·딥링크 단건)에도 반영한다 —
+        // 저쪽은 `router.refresh()`가 닿지 않아 그냥 두면 방금 고친 한마디가 릴스에
+        // 옛 값으로 남는다. 서버 첫 묶음(`posts`)은 refresh가 알아서 갱신한다.
+        onSaved={(postId, cmntTxt) => {
+          setExtra((prev) =>
+            prev.map((p) => (p.post_id === postId ? { ...p, cmnt_txt: cmntTxt } : p)),
+          );
+          setDeepPost((prev) =>
+            prev && prev.post_id === postId ? { ...prev, cmnt_txt: cmntTxt } : prev,
+          );
+        }}
       />
 
       {/* 릴스 뷰어 위에 겹쳐 뜨는 프로필 카드(stacked=z-[60]) — 뷰어를 닫지 않고 그 위에 얹는다.

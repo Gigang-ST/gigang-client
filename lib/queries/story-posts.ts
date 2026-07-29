@@ -12,8 +12,14 @@ export type StoryPost = {
   avatar_url: string | null;
   /** Storage 공개 URL. 마일리지런 자동 유입분은 사진이 없어 null */
   photo_url: string | null;
-  /** 한마디 — 마일리지런 `review`와 같은 역할 */
-  cmnt_txt: string;
+  /**
+   * 한마디 — 마일리지런 `review`와 같은 역할. **선택 입력이라 없을 수 있다**(nullable).
+   *
+   * 이 지면에 사진이 서는 조건은 사진이지 글이 아니다 — 작성 액션이 빈 한마디를 `null`로
+   * 눕히고(§createRecordFlex), 유입분도 `NULLIF(btrim(review),'')`라 후기 없는 기록은 null이다.
+   * 쓰는 쪽은 모두 `post.cmnt_txt && (...)`로 감싸 없으면 그 줄을 안 그린다.
+   */
+  cmnt_txt: string | null;
   /** 거리(km). numeric이라 Supabase가 number로 준다 */
   dst_km: number | null;
   /** 종목 — 마일리지런 `evt_mlg_sprt_enm` 값 문자열 */
