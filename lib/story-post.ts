@@ -46,3 +46,19 @@ export function pickActvLeadIndex(rankLen: number): number {
   if (cap <= 1) return 0;
   return Math.floor(Math.random() * cap);
 }
+
+/**
+ * 현상수배존의 정렬 시드를 뽑는다 — 진입마다 다른 얼굴 조합이 앞에 서게.
+ *
+ * 대상이 30명 상한보다 많아(운영계 44명) 순서가 곧 "누가 뜨느냐"다. 오래된 순으로 두면
+ * 최고참 실종자만 영구 박제되고 뒷사람은 영영 안 나오므로 RPC에서 시드 랜덤으로 뽑는다.
+ *
+ * DB에서 `random()`을 쓰지 않고 **시드를 서버가 넘기는** 이유: 이 조회는 캐시가 없어
+ * (`getGhostMembers`) 매 요청 실행되는데, DB 랜덤이면 한 진입 안에서도 재조회마다 순서가
+ * 튄다 — 가로 스크롤 도중 얼굴이 바뀐다. 시드가 고정이면 그 진입 동안은 순서가 안 흔들린다.
+ *
+ * `pickRandomPostIndex`와 같은 이유로 렌더 본문 밖(이 헬퍼)에서 뽑는다.
+ */
+export function pickGhostSeed(): string {
+  return Math.random().toString(36).slice(2);
+}

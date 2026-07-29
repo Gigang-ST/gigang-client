@@ -3,10 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { Trash2, X, Zap } from "lucide-react";
+import { Pencil, Trash2, X, Zap } from "lucide-react";
 
 import { dayjs } from "@/lib/dayjs";
-import { usePostComments } from "@/lib/hooks/use-post-comments";
+import {
+  usePostComments,
+  visiblePostComments,
+  type PostComment,
+} from "@/lib/hooks/use-post-comments";
 import { getSportEmoji, getSportLabel } from "@/lib/sport";
 
 import { Avatar } from "@/components/common/avatar";
@@ -55,6 +59,7 @@ export function RecordReelViewer({
   myAvatarUrl,
   isAdmin,
   onRequestDelete,
+  onRequestEdit,
 }: {
   posts: StoryPost[];
   /** 격자에서 누른 카드의 post_id — 이 장부터 연다 */
@@ -75,6 +80,10 @@ export function RecordReelViewer({
    * 뷰어가 직접 들고 있으면 격자 길게누르기와 문구·처리가 둘로 갈린다.
    */
   onRequestDelete?: (post: StoryPost) => void;
+  /**
+   * 한마디 수정 요청 — 확인/저장 다이얼로그는 부모(`RecordFlexFeed`)가 갖는다(삭제와 같은 이유).
+   */
+  onRequestEdit?: (post: StoryPost) => void;
 }) {
   const cardRefs = useRef<Map<string, HTMLElement>>(new Map());
   /**
@@ -174,11 +183,35 @@ export function RecordReelViewer({
   // 지금 보는 장 — 상단 삭제 버튼이 이 기록에 걸린다. 삭제 권한은 격자와 같은 규칙
   // (내 것이거나 관리자)이고, 서버가 최종 판정한다(§deleteRecordFlex).
   const activePost = posts.find((p) => p.post_id === activeId) ?? null;
-  const canDeleteActive =
+
+  /**
+   * 보는 장의 댓글 — **조회는 여기 한 곳뿐**이고, 말풍선 티커·하단 개수·댓글 시트가
+   * 모두 이 결과를 나눠 쓴다.
+   *
+   * 예전엔 장(`ReelCard`)마다 읽고 **시트가 열릴 때 또 읽었다**. 그래서 개수를 이미
+   * 알면서도 시트는 `댓글 불러오는 중...`을 띄우고 같은 답을 다시 받아 왔다 — 0건일 때
+   * 특히 도드라졌다(0건인 걸 알면서 0건을 확인하러 감). 지금은 시트에
+   * `initialComments`로 넘겨 조회 없이 즉시 그린다(모임 상세가 SSR 댓글을 내려주는 것과
+   * 같은 분기 — `CommentSection`의 `!initialComments` 가드).
+   *
+   * **비로그인은 아예 읽지 않는다**: `cmnt_mst`는 SELECT까지 인증 전용(RLS)이라 익명으로
+   * 조회하면 에러 없이 0행이 온다 — 쿼리와 Realtime 구독만 헛돌고 화면엔 "댓글 없음"으로
+   * 보인다. 못 읽는다는 사실은 하단 줄이 "로그인하고 댓글 보기"로 밝힌다(§RecordCommentBar).
+   */
+  const activeComments = usePostComments(
+    activeId ?? "",
+    teamId,
+    open && activeId != null && myMemId != null,
+  );
+  /** 사진 위 표시용(삭제분 제외) — 시트는 자리표시자가 필요해 원본을 그대로 받는다 */
+  const visibleActiveComments = visiblePostComments(activeComments);
+  /** 지금 보는 장이 내 것인가(또는 내가 관리자인가) — 수정·삭제가 같은 경계를 쓴다 */
+  const canManageActive =
     activePost != null &&
-    onRequestDelete != null &&
     myMemId != null &&
     (isAdmin === true || activePost.mem_id === myMemId);
+  const canDeleteActive = canManageActive && onRequestDelete != null;
+  const canEditActive = canManageActive && onRequestEdit != null;
 
   return (
     // 프로젝트 Dialog 래퍼를 쓴다(primitive Root 직접 사용 금지) — 안드로이드 뒤로가기가
@@ -205,6 +238,20 @@ export function RecordReelViewer({
               삭제는 **지금 보는 장**(activeId)에 건다 — 릴스는 전 장이 한꺼번에 마운트돼
               있어 "이 화면의 기록"을 activeId로만 특정할 수 있다. */}
           <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-end gap-1 px-5 pt-[calc(env(safe-area-inset-top)+14px)] pb-3">
+            {/* 한마디 수정 — 삭제 왼쪽에 둔다(파괴적인 쪽을 바깥에, 되돌릴 수 있는 쪽을 안쪽에).
+                사진은 고칠 수 없다: 갈아끼우려면 지우고 다시 올린다(§RecordFlexEditDialog). */}
+            {canEditActive && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (activePost) onRequestEdit?.(activePost);
+                }}
+                aria-label="한마디 수정"
+                className="pointer-events-auto flex size-9 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              >
+                <Pencil className="size-[17px]" />
+              </button>
+            )}
             {canDeleteActive && (
               <button
                 type="button"
@@ -231,8 +278,10 @@ export function RecordReelViewer({
                 ref={registerCard(post.post_id)}
                 post={post}
                 onSelectMember={onSelectMember}
-                teamId={teamId}
                 active={open && activeId === post.post_id}
+                // 보는 장만 실제 목록을 받는다 — 나머지 장은 어차피 화면 밖이고,
+                // 넘겨 봐야 그 장의 댓글도 아니다(조회는 보는 장 한 건만 돈다).
+                comments={activeId === post.post_id ? visibleActiveComments : null}
                 onOpenComments={() => setSheetPost(post)}
                 myMemId={myMemId}
                 myAvatarUrl={myAvatarUrl}
@@ -248,6 +297,15 @@ export function RecordReelViewer({
         postId={sheetPost?.post_id ?? null}
         postAuthorName={sheetPost?.mem_nm}
         teamId={teamId}
+        // 이미 읽어 둔 목록을 그대로 넘긴다 — 시트가 다시 조회하지 않게(스피너 제거).
+        // 티커와 달리 **삭제분을 안 거른다**: 시트는 "삭제된 댓글입니다" 자리표시자로
+        // 스레드 맥락을 지켜야 한다. 보는 장과 시트의 장이 어긋나면(전환 중 한 프레임)
+        // 넘기지 않는다 — 엉뚱한 장의 댓글을 그리느니 시트가 스스로 읽는 게 맞다.
+        initialComments={
+          sheetPost != null && sheetPost.post_id === activeId
+            ? (activeComments ?? undefined)
+            : undefined
+        }
         open={sheetPost !== null}
         onOpenChange={(o) => {
           if (!o) setSheetPost(null);
@@ -272,8 +330,8 @@ const ReelCard = ({
   ref,
   post,
   onSelectMember,
-  teamId,
   active,
+  comments,
   onOpenComments,
   myMemId,
   myAvatarUrl,
@@ -281,24 +339,17 @@ const ReelCard = ({
   ref: (el: HTMLElement | null) => void;
   post: StoryPost;
   onSelectMember: (memId: string, name: string) => void;
-  teamId: string;
-  /** 지금 보고 있는 장인가 — 댓글 조회·티커 타이머 스위치 */
+  /** 지금 보고 있는 장인가 — 티커 타이머 스위치 */
   active: boolean;
+  /**
+   * 이 장의 댓글(삭제분 제외) — 조회는 뷰어가 **보는 장 한 곳에서만** 한다.
+   * null = 아직 조회 전(또는 비로그인이라 안 읽음).
+   */
+  comments: PostComment[] | null;
   onOpenComments: () => void;
   myMemId: string | null;
   myAvatarUrl?: string | null;
 }) => {
-  // 말풍선 티커와 하단 입력줄의 개수가 **같은 출처**를 본다 — 따로 읽으면 Realtime이
-  // 한쪽에만 닿아 "말풍선엔 새 댓글이 떴는데 숫자는 그대로"가 된다.
-  //
-  // **비로그인은 아예 읽지 않는다**: `cmnt_mst`는 SELECT까지 인증 전용(RLS)이라 익명으로
-  // 조회하면 에러 없이 0행이 온다 — 쿼리와 Realtime 구독만 헛돌고 화면엔 "댓글 없음"으로
-  // 보인다. 못 읽는다는 사실은 하단 줄이 "로그인하고 댓글 보기"로 밝힌다(§RecordCommentBar).
-  const comments = usePostComments(
-    post.post_id,
-    teamId,
-    active && myMemId != null,
-  );
   const km = formatKm(post.dst_km);
   const label = getSportLabel(post.sprt_enm);
   const emoji = getSportEmoji(post.sprt_enm);

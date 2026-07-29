@@ -49,3 +49,24 @@ export const createRecordFlexSchema = z.object({
 });
 
 export type CreateRecordFlexInput = z.infer<typeof createRecordFlexSchema>;
+
+/**
+ * 기강이야기 운동기록 **한마디 수정** 입력 검증.
+ *
+ * **고칠 수 있는 건 한마디뿐이다.** 사진은 수정 경로를 두지 않는다 — 갈아끼우려면 지우고
+ * 다시 올리면 되고(그 편이 Storage 고아 파일·EXIF 재처리를 안 만든다), 날짜(`act_dt`)는
+ * 포인트 트리거(`trg_pt_post_mst`)가 회수·재적립을 도는 값이라 편집으로 건드릴 자리가 아니다.
+ * 그래서 여기 담기는 필드는 `cmnt_txt` 하나다.
+ *
+ * 작성과 마찬가지로 한마디는 **선택**이다 — 비워서 저장하면 한마디가 지워진다(사진은 남는다).
+ */
+export const updateRecordFlexSchema = z.object({
+  post_id: z.string().uuid("잘못된 요청입니다."),
+  cmnt_txt: z
+    .string()
+    .trim()
+    .max(POST_CMNT_MAX, `한마디는 ${POST_CMNT_MAX}자 이하로 입력해주세요.`)
+    .optional(),
+});
+
+export type UpdateRecordFlexInput = z.infer<typeof updateRecordFlexSchema>;
