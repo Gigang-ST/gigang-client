@@ -345,8 +345,14 @@ export function ProfileEditForm({
         )}
       </div>
 
-      {/* ── 러닝 프로필 — 프로필 카드 "소개"에 그대로 나가는 값들 ───────────── */}
-      <div className="flex flex-col gap-4 rounded-2xl border-[1.5px] border-border p-4">
+      {/* ── 러닝 프로필 — 프로필 카드 "소개"에 그대로 나가는 값들 ─────────────
+          `id`는 프로필탭의 연필·빈 칸이 걸어 오는 앵커다(`/profile/edit#running-profile`).
+          가입 목적도 이 블록 안에 있어 한 진입점이 둘 다 커버한다 — 같은 테이블·같은 액션.
+          `scroll-mt-20`은 (info) 레이아웃의 상단 BackHeader에 제목이 가리지 않게 띄우는 몫. */}
+      <div
+        id="running-profile"
+        className="flex scroll-mt-20 flex-col gap-4 rounded-2xl border-[1.5px] border-border p-4"
+      >
         <div className="flex flex-col gap-0.5">
           <Label className="text-[15px] font-semibold">러닝 프로필</Label>
           <Caption>내 프로필 카드의 &lsquo;소개&rsquo;에 보여요.</Caption>

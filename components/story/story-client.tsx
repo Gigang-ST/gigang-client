@@ -314,7 +314,6 @@ export function StoryClient({
         onOpenChange={(open) => {
           if (!open) setSelected(null);
         }}
-        isOwner={selected?.memId != null && selected.memId === myMemId}
       />
 
       <ActvHistorySheet

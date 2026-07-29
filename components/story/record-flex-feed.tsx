@@ -608,7 +608,6 @@ export function RecordFlexFeed({
         onOpenChange={(o) => {
           if (!o) setReelMember(null);
         }}
-        isOwner={reelMember?.memId != null && reelMember.memId === myMemId}
         stacked
       />
     </section>
