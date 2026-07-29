@@ -56,6 +56,9 @@ const MAX_ROWS = 200;
  * 합계가 랭킹 숫자와 안 맞으면 그게 곧 버그로 읽힌다. 그래서 경계를 `getActvMonthRange()`
  * 한 곳에서 가져온다. 상한(`to`=오늘)이 특히 중요하다: 대회 적립은 **개최일**에 귀속되므로
  * 없으면 미래 대회 신청분이 이번 달에 미리 잡힌다.
+ *
+ * 범위를 넓히지 않는 이유는 `lib/activity-index.ts`의 주석 참조 — 활동량은 매달 리셋되는
+ * 제도라 "이번 달"이 이 지표의 단위이고, 목록과 합계가 같은 구간이어야 설명이 필요 없다.
  */
 export async function getActvHistory(memId: string): Promise<ActvHistoryResult> {
   try {

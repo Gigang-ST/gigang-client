@@ -74,14 +74,22 @@ export function ActvHistorySheet({
 
   return (
     <ResponsiveDrawer open={open && memId !== null} onOpenChange={onOpenChange}>
-      <ResponsiveDrawerContent className="max-h-[80svh] overflow-y-auto">
-        <ResponsiveDrawerHeader>
+      {/* 스크롤은 **안쪽 div**가 건다. 예전엔 `overflow-y-auto`를 이 Content에 직접 걸었는데,
+          이 요소는 vaul이 "밀어서 닫기" 제스처를 잡는 판이라 세로 스크롤이 드래그에 먹혀
+          목록이 아예 안 움직였다. 바깥은 높이를 정해 flex 기둥만 세우고(`h-[80dvh] flex-col`),
+          안쪽 `flex-1 overflow-y-auto`가 스크롤러가 된다(과거 기록 다이얼로그와 같은 정본). */}
+      <ResponsiveDrawerContent
+        className="flex flex-col gap-0 p-0"
+        dialogClassName="max-h-[85dvh] max-w-lg overflow-hidden"
+        drawerClassName="h-[80dvh] max-h-[80dvh]"
+      >
+        <ResponsiveDrawerHeader className="shrink-0 border-b border-border px-4 py-4 text-left">
           <ResponsiveDrawerTitle>
             {memNm} · {month} 활동 내역
           </ResponsiveDrawerTitle>
         </ResponsiveDrawerHeader>
 
-        <div className="px-4 pb-6">
+        <div className="flex-1 overflow-y-auto px-4 pb-6 pt-2">
           {state.status === "loading" && (
             <div className="flex flex-col gap-3 pt-2">
               <Skeleton className="h-10 w-full rounded" />

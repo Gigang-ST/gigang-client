@@ -34,7 +34,7 @@ export function GhostWanted({
         lead="요즘 안 보이는 얼굴들 — 현상수배 중"
         action={
           <HelpTip title="현상수배">
-            60일 넘게 모임에도 대회에도 나타나지 않은 기강인이에요. 목격하면 러닝화를
+            100일 넘게 모임에도 대회에도 보이지 않는 기강인이에요. 목격하면 러닝화를
             신겨 출발선까지 데려와 주세요.
           </HelpTip>
         }
@@ -48,7 +48,11 @@ export function GhostWanted({
               key={g.mem_id}
               type="button"
               onClick={() => onSelectMember(g.mem_id, g.mem_nm)}
-              aria-label={`${g.mem_nm} · ${g.days_ago}일째 실종 · 프로필 보기`}
+              aria-label={`${g.mem_nm} · ${
+                g.never_actv
+                  ? `가입 ${g.days_ago}일째 무소식`
+                  : `${g.days_ago}일째 실종`
+              } · 프로필 보기`}
               className="flex w-[128px] shrink-0 flex-col items-center gap-2 rounded-sm border-2 border-double border-foreground/70 bg-muted/40 px-3 py-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
             >
               <span className="font-numeric text-[11px] font-bold uppercase tracking-[0.24em] text-foreground">
@@ -65,11 +69,15 @@ export function GhostWanted({
               <span className="truncate text-[14px] font-bold text-foreground">
                 {g.mem_nm}
               </span>
+              {/* 한 번도 안 나온 사람에게 "최종 목격"은 거짓말이라(그 날짜는 가입일이다)
+                  문구를 가른다 — 목격된 적 없는 사람은 "가입 후 무소식". */}
               <span className="font-numeric text-[11px] font-semibold text-destructive tabular-nums">
-                {g.days_ago}일째 실종
+                {g.never_actv ? "가입 후 무소식" : `${g.days_ago}일째 실종`}
               </span>
               <span className="font-numeric text-[10px] text-muted-foreground tabular-nums">
-                최종 목격 {dayjs(g.last_actv_dt).format("YY.M.DD")}
+                {g.never_actv
+                  ? `가입 ${dayjs(g.last_actv_dt).format("YY.M.DD")} · ${g.days_ago}일`
+                  : `최종 목격 ${dayjs(g.last_actv_dt).format("YY.M.DD")}`}
               </span>
             </button>
           ))}
