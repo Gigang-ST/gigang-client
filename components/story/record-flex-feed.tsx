@@ -77,9 +77,16 @@ export function RecordFlexFeed({
    * 화면에 안 쓰이므로 state가 아니라 ref다: effect 안에서만 읽고 쓰므로 렌더가 순수하게 남고,
    * 값이 바뀌어도 리렌더가 안 걸린다.
    *
-   * 주소에서 `?rec=`가 사라지면 **반드시 풀어야 한다**(아래 effect). 안 풀면, 이미 `/story`에
-   * 서 있는 사람이 같은 기록의 알림을 다시 눌렀을 때 — 라우트가 그대로라 컴포넌트가 안
-   * 갈아엎어진다 — 빗장이 남아 **조용히 아무 일도 안 일어난다.**
+   * **푸는 조건은 "뷰어가 닫혀 있음"이지 "주소가 비었음"이 아니다.** 예전엔 `?rec=`가 주소에서
+   * 사라지면 풀었는데, 그건 자기가 방금 건 빗장을 즉시 지우는 코드였다 —
+   * `clearDeepLinkParams()`가 `useSearchParams`를 **동기로** 갱신하므로(Next가 replaceState를
+   * 패치) `recParam`이 곧바로 null이 되고, 같은 effect가 다시 돌며 빗장을 되돌렸다. 그때 실제로
+   * "두 번 열림"을 막던 건 빗장이 아니라 `!recParam` early return이었다.
+   *
+   * 그래서 지금은 `openId`와 함께 본다: 같은 post_id라도 **뷰어를 이미 닫았으면**(`openId`가
+   * null) 다시 연다. 이미 `/story`에 서 있는 사람이 같은 기록의 알림을 다시 누르는 경우가
+   * 이것이고 — 라우트가 그대로라 컴포넌트가 안 갈아엎어진다 — 빗장만 보고 막으면 **조용히
+   * 아무 일도 안 일어난다.**
    */
   const handledRecRef = useRef<string | null>(null);
   /**
@@ -196,18 +203,16 @@ export function RecordFlexFeed({
    * 주소로 되돌아가 릴스가 다시 열리는 무한루프가 된다.
    */
   useEffect(() => {
-    if (!recParam) {
-      // 주소에서 사라졌다 = 이 딥링크는 처리가 끝났다. 빗장을 풀어 **같은 기록의 알림을
-      // 다시 눌러도** 열리게 한다(§handledRecRef).
-      handledRecRef.current = null;
-      deepFetchedRef.current = null;
-      return;
-    }
-    if (!recReady || handledRecRef.current === recParam) return;
+    if (!recParam || !recReady) return;
+    // 같은 post_id를 이미 열었고 **아직 그 뷰어가 떠 있으면** 아무것도 안 한다.
+    // 닫은 뒤(`openId === null`)라면 같은 알림을 다시 누른 것이므로 다시 연다 — 이미
+    // `/story`에 서 있으면 라우트가 그대로라 컴포넌트가 안 갈아엎어지고, 빗장만 보고
+    // 막으면 **조용히 무반응**이 된다(§handledRecRef).
+    if (handledRecRef.current === recParam && openId !== null) return;
     handledRecRef.current = recParam;
     clearDeepLinkParams();
     setOpenId(recParam);
-  }, [recParam, recReady]);
+  }, [recParam, recReady, openId]);
 
   /**
    * 목록에 없는 딥링크 — 그 한 건만 서버에서 받아온다(§loadStoryPost).
@@ -218,7 +223,6 @@ export function RecordFlexFeed({
    */
   useEffect(() => {
     if (!recParam || recReady) return;
-    if (handledRecRef.current === recParam) return;
     if (deepFetchedRef.current === recParam) return;
     deepFetchedRef.current = recParam;
 
@@ -229,9 +233,10 @@ export function RecordFlexFeed({
     void loadStoryPost(recParam).then((res) => {
       if (cancelled) return;
       if (!res.ok) {
-        // 일시 오류는 주소를 남겨 둔다 — 다시 들어오면 시도할 수 있어야 한다. 그래서
-        // 빗장도 함께 푼다(안 풀면 이 화면에 머무는 동안 그 기록은 영영 안 열린다).
-        deepFetchedRef.current = null;
+        // 일시 오류는 **주소를 남겨** 둔다 — 새로고침하면 다시 시도할 수 있어야 한다.
+        // `deepFetchedRef`는 풀지 않는다: 이 effect의 deps(`recParam`·`recReady`)가 그대로라
+        // ref를 비워도 재실행이 안 걸려 재시도가 일어나지 않고, 나중에 더보기로 `recReady`가
+        // 뒤집힐 때 중복 요청 문만 열린다. 재시도 경로는 새로고침이다.
         toast.error("기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
         return;
       }
