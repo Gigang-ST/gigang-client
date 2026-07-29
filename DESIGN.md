@@ -171,8 +171,8 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 | 컴포넌트 | 파일 | Props | 용도 |
 |----------|------|-------|------|
 | MemberCardCompact | `member-card.tsx` | `memId`, `data`, `meta?`, `onSelect?` | 간단 카드 — "이 사람이 누구인지". 한마디 + 러닝 프로필 한 줄. `meta`는 우측 슬롯(가입일 등), `onSelect`를 주면 카드 전체가 버튼 |
-| MemberCardDetail | `member-card-detail.tsx` | `memId`, `data`, `onEditIntro?`, `locked?`, `edit?` | 소개판 본체 — **한 컴포넌트가 두 판을 그린다**(§아래). `edit`이 있으면 편집판(프로필탭), 없으면 공개판(팝업) |
-| MemberCardDialog | `member-card-dialog.tsx` | `memId`, `memNm?`, `teamId`, `open`, `onOpenChange`, `stacked?`, `isOwner?` | 오픈 시 RPC 1회 + 스켈레톤·재시도·탈퇴 폴백. `stacked`로 다른 시트 위에 겹침 |
+| MemberCardDetail | `member-card-detail.tsx` | `memId`, `data`, `locked?`, `edit?` | 소개판 본체 — **한 컴포넌트가 두 판을 그린다**(§아래). `edit`이 있으면 편집판(프로필탭), 없으면 공개판(팝업). 편집 핸들러는 전부 `edit` 안에 모여 있다(한마디 포함) |
+| MemberCardDialog | `member-card-dialog.tsx` | `memId`, `memNm?`, `teamId`, `open`, `onOpenChange`, `stacked?` | **공개판 전용.** 오픈 시 RPC 1회 + 스켈레톤·재시도·탈퇴 폴백. `stacked`로 다른 시트 위에 겹침. `isOwner`는 없다 — 내 카드를 열어도 편집 어포던스가 없다 |
 | IntroEditDialog | `intro-edit-dialog.tsx` | `open`, `onOpenChange`, `initialValue`, `onSaved?`, `stacked?` | 한마디 한 줄 인라인 편집(페이지 이동 없음) |
 | ProfileTabCard | `profile/profile-tab-card.tsx` | `memId`, `teamMemId`, `teamId`, `card`, `utmb`, … | 프로필탭 본문 — `MemberCardDetail`에 `edit`을 물리고 편집 다이얼로그들을 연결 |
 
@@ -274,8 +274,20 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 - RPC는 `mem_st_cd = 'active'`만 돌려주므로 **비활성·탈퇴면 카드가 null**이다 — 빈 화면 대신
   "계정이 비활성 상태예요" 안내를 세운다.
 - 내 정보·내 계좌·회비·건의 4버튼은 걷어냈다(설정에 전부 있다). **회비 미납 빨간 점**은 그 버튼이
-  유일한 표면이었으므로 설정 화면 "회비 내역" 줄로 옮겼다(공지 안읽음 dot과 같은 규칙 — 햄버거
-  아이콘엔 배지를 안 단다).
+  유일한 표면이었으므로 설정 화면 "회비 내역" 줄로 옮겼다. 다만 조건을 좁혔다 —
+  `bal_amt < 0`이 아니라 **미납 4,000원 이상**(`bal_amt <= -4000`)일 때만 켠다. 끝수 미납까지
+  점을 띄우면(prd 실측 미납자 122명 중 24명이 1,000~3,000원대) 다음 회비에 얹히면 정리될 금액에
+  지울 수 없는 점만 다는 꼴이다.
+
+> **빨간 점 규칙 — 햄버거 아이콘엔 배지를 달지 않는다.** 반복해서 다시 논의되는 주제라 이유를 남긴다:
+> ① 공지·업데이트는 글이 올라가는 순간 팀 전원에게 알림이 나가므로(`insertNotiForTeam`) **알림 벨이
+> 이미 그 사건을 알린다**. 점을 또 찍으면 같은 사건을 두 곳이 가리키는데 **꺼지는 조건이 다르다** —
+> 벨은 *알림을 읽으면*, 점은 *게시글을 열어야* 꺼져서 알림만 확인한 사람에겐 점이 계속 남는다.
+> ② 설정은 여러 메뉴가 든 큰 방이라 그 위 점이 "뭘 봐야 하는지"를 못 가리킨다.
+> 안읽음 점은 **설정 화면 안 각 줄에만** 찍는다. 회비 점은 애초에 후보가 아니다 — **사용자가
+> 지울 수 없는 점**이라서(돈을 내고 운영진이 반영해야 꺼진다) 바깥에 올리면 미납자가 몇 주씩
+> 점을 이고 다닌다. 새 dot을 만들기 전에 **"사용자가 지울 수 있나 / 알림 벨이 이미 알리고 있나"**를
+> 먼저 묻는다.
 
 ### 기강 전광판 (`components/story/`)
 

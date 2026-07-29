@@ -125,10 +125,17 @@ export function SettingsClient({
             </div>
             <div className="flex items-center gap-2">
               {/* 회비 미납 dot — 프로필탭의 바로가기 4버튼을 걷어내면서 이 줄이 유일한
-                  표면이 됐다. 공지 안읽음 dot과 같은 규칙: 햄버거 아이콘엔 배지를 안 달고
-                  "뭘 봐야 하는지"를 대상 옆에서 가리킨다. */}
+                  표면이 됐다. **여기까지만 올라간다** — 햄버거 아이콘엔 안 단다(§HeaderActions:
+                  미납은 사용자가 지울 수 없는 점이라 바깥에 두면 몇 주씩 켜져 있다).
+                  색만으로는 뜻이 안 전해지므로 스크린리더용 텍스트를 함께 둔다. */}
               {item.href === "/profile/dues" && duesUnpaid && (
-                <span className="size-1.5 rounded-full bg-destructive" />
+                <>
+                  <span
+                    aria-hidden
+                    className="size-1.5 rounded-full bg-destructive"
+                  />
+                  <span className="sr-only">회비 미납</span>
+                </>
               )}
               <ChevronRight className="size-5 text-border" />
             </div>

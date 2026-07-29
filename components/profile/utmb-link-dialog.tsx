@@ -60,6 +60,19 @@ export function UtmbLinkDialog({
 		return match ? match[1] : url;
 	};
 
+	/**
+	 * 입력값 → utmb.world 프로필 URL.
+	 *
+	 * 입력칸은 `123456.gildong.hong` 같은 짧은 id를 기대하지만 전체 URL을 그대로 붙여넣는
+	 * 사람도 있다. 조회·저장·"프로필 보기" **세 곳이 같은 규칙을 써야** 한다 — 예전엔 링크만
+	 * 무조건 접두를 붙여서, URL을 붙여넣으면 `.../runner/https://utmb.world/runner/...`로
+	 * 깨진 주소가 열렸다.
+	 */
+	const toProfileUrl = (input: string) => {
+		const v = input.trim();
+		return v.startsWith("http") ? v : `https://utmb.world/en/runner/${v}`;
+	};
+
 	const handleOpenChange = (v: boolean) => {
 		onOpenChange(v);
 		if (v) {
@@ -82,23 +95,28 @@ export function UtmbLinkDialog({
 		}
 		setFetching(true);
 		setMessage(null);
-		const fullUrl = utmbUrl.trim().startsWith("http")
-			? utmbUrl.trim()
-			: `https://utmb.world/en/runner/${utmbUrl.trim()}`;
-		const result = await fetchUtmbIndex(fullUrl);
-		setFetching(false);
-		if (result.ok) {
-			setUtmbIndex(result.index);
-			setUtmbName(result.name);
-			if (result.recentRaceName) setRecentRaceName(result.recentRaceName);
-			if (result.recentRaceRecord) setRecentRaceRecord(result.recentRaceRecord);
-			setMessage(null);
-			setIsError(false);
-		} else {
-			setUtmbIndex(null);
-			setUtmbName("");
-			setMessage(result.error);
+		// 로딩 플래그 해제는 반드시 finally에서 — 서버 액션이 reject되면(네트워크 끊김 등)
+		// 성공 경로에 둔 리셋에 도달하지 못해 버튼이 영구히 disabled로 굳는다.
+		try {
+			const result = await fetchUtmbIndex(toProfileUrl(utmbUrl));
+			if (result.ok) {
+				setUtmbIndex(result.index);
+				setUtmbName(result.name);
+				if (result.recentRaceName) setRecentRaceName(result.recentRaceName);
+				if (result.recentRaceRecord) setRecentRaceRecord(result.recentRaceRecord);
+				setMessage(null);
+				setIsError(false);
+			} else {
+				setUtmbIndex(null);
+				setUtmbName("");
+				setMessage(result.error);
+				setIsError(true);
+			}
+		} catch {
+			setMessage("조회 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.");
 			setIsError(true);
+		} finally {
+			setFetching(false);
 		}
 	};
 
@@ -115,44 +133,54 @@ export function UtmbLinkDialog({
 		}
 		setSaving(true);
 		setMessage(null);
-		const fullUrl = utmbUrl.trim().startsWith("http")
-			? utmbUrl.trim()
-			: `https://utmb.world/en/runner/${utmbUrl.trim()}`;
+		const fullUrl = toProfileUrl(utmbUrl);
 		const trimmedRaceName = recentRaceName.trim() || null;
 		const trimmedRaceRecord = recentRaceRecord.trim() || null;
-		const result = await saveUtmbProfile({
-			profileUrl: fullUrl,
-			utmbIndex,
-			recentRaceName: trimmedRaceName,
-			recentRaceRecord: trimmedRaceRecord,
-		});
-		setSaving(false);
-		if (!result.ok) {
-			setMessage(result.message);
+		try {
+			const result = await saveUtmbProfile({
+				profileUrl: fullUrl,
+				utmbIndex,
+				recentRaceName: trimmedRaceName,
+				recentRaceRecord: trimmedRaceRecord,
+			});
+			if (!result.ok) {
+				setMessage(result.message);
+				setIsError(true);
+				return;
+			}
+			onSaved({
+				utmb_profile_url: fullUrl,
+				utmb_index: utmbIndex,
+				recent_race_name: trimmedRaceName,
+				recent_race_record: trimmedRaceRecord,
+			});
+			onOpenChange(false);
+		} catch {
+			setMessage("저장 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.");
 			setIsError(true);
-			return;
+		} finally {
+			setSaving(false);
 		}
-		onSaved({
-			utmb_profile_url: fullUrl,
-			utmb_index: utmbIndex,
-			recent_race_name: trimmedRaceName,
-			recent_race_record: trimmedRaceRecord,
-		});
-		onOpenChange(false);
 	};
 
 	const handleDelete = async () => {
 		if (!window.confirm("UTMB Index 정보를 삭제하시겠습니까?")) return;
 		setSaving(true);
-		const result = await deleteUtmbProfile();
-		setSaving(false);
-		if (!result.ok) {
-			setMessage(result.message);
+		try {
+			const result = await deleteUtmbProfile();
+			if (!result.ok) {
+				setMessage(result.message);
+				setIsError(true);
+				return;
+			}
+			onSaved(null);
+			onOpenChange(false);
+		} catch {
+			setMessage("삭제 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.");
 			setIsError(true);
-			return;
+		} finally {
+			setSaving(false);
 		}
-		onSaved(null);
-		onOpenChange(false);
 	};
 
 	return (
@@ -217,7 +245,7 @@ export function UtmbLinkDialog({
 									)}
 								</div>
 								<a
-									href={`https://utmb.world/en/runner/${utmbUrl.trim()}`}
+									href={toProfileUrl(utmbUrl)}
 									target="_blank"
 									rel="noopener noreferrer"
 									className="text-xs text-primary underline"

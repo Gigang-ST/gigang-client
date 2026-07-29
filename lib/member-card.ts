@@ -435,10 +435,10 @@ export function getMemberIntro(
 /**
  * 러닝 프로필 3칸 — **미입력도 자리를 지킨다**(값이 `null`).
  *
- * `getRunningProfileRows`가 채워진 행만 돌려주는 것과 반대다. 편집판은 "뭘 아직 안 썼는지"가
- * 보여야 채우므로 빈 칸에 `—`를 찍고, 공개판은 남에게 빈 줄을 보일 이유가 없어 여전히
- * `getRunningProfileRows`(채워진 것만)를 쓴다. 라벨 문구는 두 함수가 같아야 하므로
- * **한쪽을 고치면 반드시 다른 쪽도** 고친다.
+ * 편집판은 "뭘 아직 안 썼는지"가 보여야 채우므로 빈 칸에 `—`를 찍고, 공개판은 남에게 빈 줄을
+ * 보일 이유가 없어 채워진 것만 쓴다. **이 함수가 라벨·값 규칙의 단일 정본**이고,
+ * `getRunningProfileRows`(채워진 것만)는 여기서 파생된다 — 두 벌로 두면 라벨 문구나
+ * UNKNOWN 처리가 한쪽만 고쳐져 편집판과 공개판이 조용히 어긋난다.
  */
 export function getRunningProfileSlots(
   profile: {
@@ -477,6 +477,9 @@ export function getRunningProfileSlots(
  * `⏱ 6'00"`만 있으면 그게 평균인지 최고기록인지 알 수 없다.
  *
  * 상세 카드(`getMemberIntro`)와 리드가 같은 함수를 쓴다 — 한쪽만 고치면 라벨이 갈라진다.
+ *
+ * **`getRunningProfileSlots`에서 파생한다.** 라벨 문구·UNKNOWN 처리·역 접미 규칙을 두 벌로
+ * 두면 한쪽만 수정됐을 때 편집판과 공개판이 조용히 어긋나므로, 규칙은 슬롯 쪽 한 곳에만 둔다.
  */
 export function getRunningProfileRows(
   profile: {
@@ -487,19 +490,7 @@ export function getRunningProfileRows(
 ): { label: string; value: string }[] {
   if (!profile) return [];
 
-  const rows: { label: string; value: string }[] = [];
-  const paceCd = profile.avg_pace_cd as (typeof AVG_PACE_CODES)[number] | null;
-  // UNKNOWN("잘 모르겠어요")은 정보가 없는 것과 같으므로 행을 만들지 않는다.
-  if (paceCd && paceCd !== "UNKNOWN" && PACE_LABELS[paceCd]) {
-    rows.push({ label: "평균 페이스", value: PACE_LABELS[paceCd] });
-  }
-  if (profile.avg_run_dist_km != null && profile.avg_run_dist_km > 0) {
-    rows.push({ label: "평균 거리", value: `${profile.avg_run_dist_km}km` });
-  }
-  // 역명에 "역"이 이미 붙어 있으면 중복해서 붙이지 않는다.
-  const stn = profile.near_stn_nm?.trim();
-  if (stn) {
-    rows.push({ label: "가까운 역", value: stn.endsWith("역") ? stn : `${stn}역` });
-  }
-  return rows;
+  return getRunningProfileSlots(profile).filter(
+    (slot): slot is { label: string; value: string } => slot.value !== null,
+  );
 }
