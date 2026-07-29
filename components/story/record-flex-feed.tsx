@@ -5,8 +5,10 @@ import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 
 import { Zap } from "lucide-react";
+import { toast } from "sonner";
 
 import { loadMorePosts } from "@/app/actions/story/load-more-posts";
+import { loadStoryPost } from "@/app/actions/story/load-post";
 // 상한은 `lib/story-post.ts`에서 가져온다 — `lib/queries/story-posts.ts`는 admin
 // 클라이언트(`server-only`)를 물고 있어 클라이언트 컴포넌트가 import하면 빌드가 깨진다.
 // 값 자체는 두 곳이 같아야 하므로(받은 개수 < 상한 = 끝) 정본은 story-post.ts 한 곳이다.
@@ -69,6 +71,13 @@ export function RecordFlexFeed({
   const recParam = useSearchParams().get("rec");
   const [handledRec, setHandledRec] = useState<string | null>(null);
   /**
+   * 딥링크가 가리키는데 목록에 없어서 **따로 받아온** 한 건.
+   * 격자에는 넣지 않는다(시간순 격자에 옛 기록이 끼면 순서가 깨진다) — 릴스 목록에만 얹는다.
+   */
+  const [deepPost, setDeepPost] = useState<StoryPost | null>(null);
+  /** 이 post_id로 이미 단건 조회를 시도했나 — 실패·못찾음까지 포함해 한 번만 부른다 */
+  const deepFetchedRef = useRef<string | null>(null);
+  /**
    * 릴스 뷰어에서 이름·프사를 눌러 여는 프로필 카드 — 뷰어 위에 겹친다(stacked).
    * story-client의 공유 카드와 **분리**한다: 저 카드는 여러 진입점이 z-50로 공유하는데,
    * 릴스 뷰어(z-50) 위에 뜨려면 z-[60]이 필요해 stacked를 켜야 한다. 뷰어가 자기 카드를
@@ -126,23 +135,67 @@ export function RecordFlexFeed({
   })();
 
   /**
+   * 릴스가 훑을 목록 — 격자(`all`)에 딥링크로 따로 받아온 한 건을 얹은 것.
+   *
+   * 격자는 손대지 않는다: 시간순으로 흐르는 격자 한가운데에 옛 기록이 끼면 순서가 깨지고,
+   * 오프셋 페이지네이션 기준(`posts.length + fetchedExtra`)도 어긋난다. 릴스는 "지금 이 장을
+   * 연다"가 목적이라 목록 순서에 기대지 않으므로 여기에만 얹는다.
+   *
+   * 맨 앞에 둬서 열자마자 그 장이 보이게 하고, 아래로 밀면 평소 목록으로 이어진다.
+   * 더보기로 같은 기록이 뒤늦게 목록에 들어오면 중복되지 않게 걸러낸다.
+   */
+  const reelPosts =
+    deepPost && !all.some((p) => p.post_id === deepPost.post_id)
+      ? [deepPost, ...all]
+      : all;
+
+  /** 딥링크 대상이 릴스 목록에 준비됐나 — 첫 묶음에 있었거나, 단건으로 받아왔거나 */
+  const recReady =
+    recParam != null && reelPosts.some((p) => p.post_id === recParam);
+
+  /**
    * 댓글 알림 딥링크(`/story?rec=<post_id>`) — 그 기록을 릴스로 바로 연다.
    * 이걸 안 읽으면 알림을 눌러도 전광판 맨 위만 뜨고 정작 그 기록은 안 보인다
    * (deep-link.ts가 경고하는 "주소는 살아 있는데 화면이 안 뜨는" 상태).
    *
-   * **찾을 때까지 `handledRec`을 굳히지 않는다.** 서버가 주는 첫 묶음은 16건뿐이라
-   * 조금만 오래된 기록이면 여기 없다 — 못 찾았는데 처리했다고 표시해 버리면, 나중에
-   * 더보기로 그 기록이 들어와도 영영 안 열린다. 목록에 나타나는 순간 열리게 둔다
-   * (사용자가 스크롤하면 자연히 채워지고, 안 하면 지면을 보는 것이라 손해가 없다).
+   * **목록에 없으면 아래 effect가 그 한 건만 따로 받아온다.** 예전엔 "못 찾으면 굳히지 않고
+   * 목록에 나타나는 순간 열리게 둔다(스크롤하면 채워지니 손해가 없다)"였는데, 그 전제가
+   * 틀렸다 — 알림을 눌러 들어온 사람은 스크롤할 이유를 모른다. 첫 묶음은 16건뿐이라
+   * 조금만 오래된 기록이면 영영 안 열렸다(QS-13).
    *
-   * 렌더 중 조정으로 처리한다 — effect로 열면 전광판을 한 번 그린 뒤 릴스가 덮는
+   * 여는 것 자체는 렌더 중 조정이다 — effect로 열면 전광판을 한 번 그린 뒤 릴스가 덮는
    * 캐스케이드가 되고, 린트(set-state-in-effect)에도 걸린다.
    * 한 번 열고 나면 `handledRec`이 굳어, 닫은 뒤 다시 열리지 않는다(주소는 그대로 남으므로).
    */
-  if (recParam && handledRec !== recParam && all.some((p) => p.post_id === recParam)) {
+  if (recParam && handledRec !== recParam && recReady) {
     setHandledRec(recParam);
     setOpenId(recParam);
   }
+
+  /**
+   * 목록에 없는 딥링크 — 그 한 건만 서버에서 받아온다(§loadStoryPost).
+   *
+   * 조회는 **한 post_id당 한 번**이다(`deepFetchedRef`). 못 찾았을 때도 굳히는 이유는,
+   * 삭제된 기록이면 몇 번을 물어도 답이 같아서다 — 대신 그 사실을 토스트로 알린다.
+   * 예전엔 이 경우 아무 일도 안 일어나 사용자가 원인을 알 수 없었다.
+   */
+  useEffect(() => {
+    if (!recParam || handledRec === recParam || recReady) return;
+    if (deepFetchedRef.current === recParam) return;
+    deepFetchedRef.current = recParam;
+
+    void loadStoryPost(recParam).then((res) => {
+      if (!res.ok) {
+        toast.error("기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
+        return;
+      }
+      if (!res.post) {
+        toast.error("이미 삭제됐거나 볼 수 없는 기록이에요.");
+        return;
+      }
+      setDeepPost(res.post);
+    });
+  }, [recParam, handledRec, recReady]);
 
   /** 오른쪽 끝 sentinel이 보이면 다음 묶음 — 캘린더 리스트뷰와 같은 장치(방향만 가로) */
   useEffect(() => {
@@ -380,10 +433,11 @@ export function RecordFlexFeed({
 
       <RecordFlexCreateDialog open={writing} onOpenChange={setWriting} />
 
-      {/* 릴스 뷰어 — 격자 한 칸을 누르면 이 장부터 풀스크린으로. 격자와 같은 `all`을 넘겨
-          더보기로 이어붙인 것까지 순서 그대로 넘긴다. 프로필 카드는 story-client가 위에 겹쳐 연다. */}
+      {/* 릴스 뷰어 — 격자 한 칸을 누르면 이 장부터 풀스크린으로. 격자 목록(더보기로 이어붙인
+          것까지)에 딥링크로 받아온 한 건을 얹은 `reelPosts`를 넘긴다(§reelPosts).
+          프로필 카드는 story-client가 위에 겹쳐 연다. */}
       <RecordReelViewer
-        posts={all}
+        posts={reelPosts}
         startId={openId}
         open={openId !== null}
         onOpenChange={(o) => {
