@@ -10,10 +10,7 @@ import { IntroQuote } from "@/components/story/intro-quote";
 
 import type { ReactNode } from "react";
 import type { TitleDescVisibility } from "@/components/common/title-badge";
-import type {
-  MemberCardCompactData,
-  MemberCardRecord,
-} from "@/lib/queries/member-card";
+import type { MemberCardCompactData } from "@/lib/queries/member-card";
 
 /**
  * 프로필 부품 — 리드 슬롯이 원하는 조각만 골라 조립한다.
@@ -34,7 +31,6 @@ export type PersonProfilePerson = {
   avatar_url: string | null;
   /** 아래는 부품에 따라 필요한 것만 채워지므로 전부 옵셔널(배포 스큐 시 undefined일 수도) */
   badge_effect?: string;
-  frame_cd?: string;
   intro_txt?: string | null;
   primary_title?: {
     ttl_nm: string;
@@ -42,8 +38,6 @@ export type PersonProfilePerson = {
     desc_visibility: TitleDescVisibility;
   } | null;
   running_profile?: MemberCardCompactData["running_profile"];
-  /** 개인 최고기록 목록 — 종목별 최고기록(거리 긴 순). bestRecord 부품이 목록으로 그린다 */
-  best_records?: MemberCardRecord[];
   /** 이번 달 모임 참석 수 — 오른쪽 수치 칸에 쓴다(있을 때만) */
   mth_attd_cnt?: number;
   /** 이번 달 대회 기록 등록 수 */

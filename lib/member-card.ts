@@ -1,4 +1,4 @@
-import { dayjs } from "@/lib/dayjs";
+import { parseEventTime, todayStartKST } from "@/lib/dayjs";
 import { MOOD_SCALE, type MoodLevel } from "@/lib/mood-scale";
 import {
   JOIN_PURP_LABELS,
@@ -57,8 +57,9 @@ export function getActivityMood(
   if (recentCount >= 1) return mood("resting", "기강에 관심이 생기는 정도");
 
   // 90일간 활동 0 — 이력이 아예 없는 신규와 오래 쉰 멤버를 구분한다.
+  // 날짜 차이는 **양쪽 다 KST**로 맞춘다 — 한쪽만 고치면 여전히 어긋난다(§lib/dayjs nowKST).
   const days = lastActvDt
-    ? dayjs().startOf("day").diff(dayjs(lastActvDt).startOf("day"), "day")
+    ? todayStartKST().diff(parseEventTime(lastActvDt).startOf("day"), "day")
     : null;
 
   return mood(
@@ -112,7 +113,7 @@ const NEW_RECORD_DAYS = 90;
 /** 최근 90일 이내 기록인가 (KST 기준) */
 export function isNewRecord(raceDt: string | null): boolean {
   if (!raceDt) return false;
-  const diff = dayjs().diff(dayjs(raceDt), "day");
+  const diff = todayStartKST().diff(parseEventTime(raceDt).startOf("day"), "day");
   return diff >= 0 && diff <= NEW_RECORD_DAYS;
 }
 
@@ -121,7 +122,7 @@ export function isNewRecord(raceDt: string | null): boolean {
  * 이미 지난 대회면 null.
  */
 export function getRaceDday(sttDt: string): string | null {
-  const diff = dayjs(sttDt).startOf("day").diff(dayjs().startOf("day"), "day");
+  const diff = parseEventTime(sttDt).startOf("day").diff(todayStartKST(), "day");
   if (diff < 0) return null;
   return diff === 0 ? "D-DAY" : `D-${diff}`;
 }
@@ -129,7 +130,7 @@ export function getRaceDday(sttDt: string): string | null {
 /** 합류일 기준 "N일째" — join_dt가 없으면 null */
 export function getDaysSinceJoin(joinDt: string | null): number | null {
   if (!joinDt) return null;
-  const days = dayjs().startOf("day").diff(dayjs(joinDt).startOf("day"), "day");
+  const days = todayStartKST().diff(parseEventTime(joinDt).startOf("day"), "day");
   return days >= 0 ? days + 1 : null;
 }
 

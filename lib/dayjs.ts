@@ -34,9 +34,32 @@ export function parseEventTime(value: string): dayjs.Dayjs {
   return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? dayjs.tz(trimmed, KST) : dayjs(trimmed);
 }
 
-/** KST 기준 현재 dayjs 인스턴스 */
-function nowKST() {
+/**
+ * KST 기준 현재 dayjs 인스턴스.
+ *
+ * **"지금/오늘"을 판정할 때는 반드시 이걸 쓴다** — tz 없는 `dayjs()`는 실행 환경 타임존을
+ * 따르므로 브라우저(KST)와 Vercel 서버(UTC)가 서로 다른 "오늘"을 본다. KST 00:00~09:00
+ * 사이에 서버가 그린 HTML은 날짜가 하루 밀려 있고, 하이드레이션도 그 지점에서 깨진다.
+ *
+ * 판단 기준은 "표시냐 계산이냐"가 아니라 **"날짜" 개념이 끼는가**다:
+ * `2026-07-29`라는 날짜는 시점이 아니라 어디서 보느냐에 따라 다른 24시간 구간이지만,
+ * "지금 이 순간"은 어디서 보든 하나다. 그래서
+ * - `startOf("day")`·D-day·"N일 전"·월 라벨·날짜 그룹핑 → **KST 고정 필요**
+ * - 두 절대시각의 경과시간(`diff(..., "minute")`)·`toISOString()` 저장 → 그대로 안전
+ */
+export function nowKST() {
   return dayjs().tz(KST);
+}
+
+/**
+ * KST 기준 오늘 자정 — "며칠 전/후"를 셀 때의 기준점.
+ *
+ * 날짜 차이를 낼 땐 **양쪽 다** KST로 맞춰야 한다. 한쪽만 고쳐도 여전히 어긋나는데,
+ * `dayjs("2026-07-24")` 같은 date-only 문자열이 로컬 자정으로 파싱되기 때문이다
+ * (그쪽은 `parseEventTime()`이 KST 자정으로 고정해 준다).
+ */
+export function todayStartKST() {
+  return nowKST().startOf("day");
 }
 
 /** KST 기준 현재 시간 Date 객체 */
@@ -240,9 +263,29 @@ export function paceToString(paceMin: number): string {
   return `${m}'${String(s).padStart(2, "0")}"`;
 }
 
-/** 1년 전 날짜 문자열 (YYYY-MM-DD) */
+/** 1년 전 날짜 문자열 (YYYY-MM-DD) — KST 기준 */
 export function oneYearAgoDateString(): string {
-  return dayjs().subtract(1, "year").format("YYYY-MM-DD");
+  return nowKST().subtract(1, "year").format("YYYY-MM-DD");
+}
+
+/**
+ * **timestamptz 값을 KST로 찍는다** — 화면에 날짜·시각을 보여줄 때 쓴다.
+ *
+ * `dayjs(value).format(...)`은 값의 오프셋을 무시하고 **실행 환경 타임존**으로 그린다.
+ * 브라우저(KST)에서는 맞게 보이지만 서버 렌더(UTC)에서는 KST 00:00~09:00에 만들어진
+ * 데이터가 하루 전 날짜로 찍힌다 — 알림 목록의 "오늘" 그룹, 게시글 작성일 등이 그렇게 샜다.
+ *
+ * **date 컬럼(`_dt`)에는 쓰지 않아도 된다**: date-only 문자열은 로컬 자정으로 파싱돼
+ * 로컬로 찍히므로 어느 타임존에서도 같은 날짜가 나온다. 이 함수는 **timestamptz(`_at`)** 용이다.
+ * (DB 규약: `_dt` = date, `_at` = timestamptz. 예외는 `last_calc_dt` 하나뿐이다.)
+ */
+export function formatKST(
+  value: string | null | undefined,
+  fmt: string,
+  fallback = "",
+): string {
+  if (!value) return fallback;
+  return dayjs(value).tz(KST).format(fmt);
 }
 
 /** ISO 문자열을 KST 기준 'YYYY-MM-DD HH:mm' 포맷으로 변환 */

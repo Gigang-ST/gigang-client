@@ -22,6 +22,11 @@ export type PostComment = {
  *
  * **보이는 장만 읽는다**(`active`): 릴스는 전 장이 한꺼번에 마운트돼 있어(scroll-snap
  * 목록) 이게 없으면 화면에 없는 수백 장이 동시에 댓글을 조회한다.
+ *
+ * ⚠️ **비로그인일 때는 `active`를 false로 넘긴다**(호출부 책임). `cmnt_mst`의 SELECT 정책이
+ * `authenticated` 전용이라 익명 세션은 **에러 없이 0행**을 받는다 — 실패가 아니라 빈 목록으로
+ * 보여서 "댓글이 없는 사진"과 구분되지 않는다. 여기서 막지 않으면 쿼리와 Realtime 구독이
+ * 헛돌기만 한다. 못 읽는다는 사실은 화면(하단 줄)이 로그인 안내로 밝힌다.
  */
 export function usePostComments(postId: string, teamId: string, active: boolean) {
   const [comments, setComments] = useState<PostComment[] | null>(null);

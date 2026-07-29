@@ -1,4 +1,4 @@
-import { currentMonthKST, dayjs, todayKST } from "@/lib/dayjs";
+import { currentMonthKST, nowKST, todayKST } from "@/lib/dayjs";
 
 /**
  * 기강 활동량 — 표시 규칙 한 곳.
@@ -44,7 +44,7 @@ export function getActvMonthRange(): { from: string; to: string } {
 
 /** "7월" — 섹션 리드문·내역 시트 제목에 쓴다 */
 export function getActvMonthLabel(): string {
-  return dayjs().format("M월");
+  return nowKST().format("M월");
 }
 
 /** 활동량 도움말 본문 — 물음표 팝오버와 빈 상태가 같은 문구를 공유한다 */

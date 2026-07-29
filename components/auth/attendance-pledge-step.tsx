@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { Users } from "lucide-react";
 
-import { dayjs } from "@/lib/dayjs";
+import { formatKST } from "@/lib/dayjs";
 import type { PledgeGathering } from "@/lib/queries/onboarding-gatherings";
 
 import { Body, Caption, H2 } from "@/components/common/typography";
@@ -102,7 +102,7 @@ export function AttendancePledgeStep({
             <div className="flex min-w-0 flex-col gap-0.5">
               <Body className="truncate font-semibold">{g.gthrNm}</Body>
               <Caption>
-                {dayjs(g.sttAt).format("M/D(ddd) HH:mm")}
+                {formatKST(g.sttAt, "M/D(ddd) HH:mm")}
                 {g.locTxt ? ` · ${g.locTxt}` : ""}
               </Caption>
               <Caption className="flex items-center gap-1 text-primary">

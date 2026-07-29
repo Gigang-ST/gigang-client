@@ -454,9 +454,26 @@ export function FloatingAvatars({
     }
   }, [presence]);
 
+  /**
+   * 하늘이 화면 안에 있나 — 밖이면 물리 루프를 멈춘다.
+   *
+   * 지면을 내려 아래 존을 보는 동안에도 rAF가 매 프레임 돌며 수십 개 아바타의 좌표·회전·
+   * 네온을 계산하고 DOM에 찍고 있었다. 아무도 안 보는 화면이라 순수 낭비고, 모바일에선
+   * 배터리로 직결된다. 초기값 true — 첫 렌더에는 리드와 함께 화면에 있다.
+   */
+  const [onScreen, setOnScreen] = useState(true);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([e]) => setOnScreen(e.isIntersecting));
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
   // ── 애니메이션 루프 ──
   useEffect(() => {
-    if (!allow) return;
+    if (!allow || !onScreen) return;
     let raf = 0;
     let last = 0;
     const step = (now: number) => {
@@ -601,7 +618,9 @@ export function FloatingAvatars({
       window.cancelAnimationFrame(raf);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [allow]);
+    // onScreen이 false가 되면 cleanup이 rAF를 취소하고, 다시 보이면 루프가 새로 걸린다.
+    // 복귀 첫 프레임은 last=0에서 시작하므로(위 onVisible과 같은 이유) 튀지 않는다.
+  }, [allow, onScreen]);
 
   if (presence.length === 0) return null;
 

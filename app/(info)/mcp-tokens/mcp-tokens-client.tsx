@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { Check, Copy, KeyRound, Trash2 } from "lucide-react";
 
 import { createMcpToken, revokeMcpToken, type McpTokenSummary } from "@/app/actions/mcp-token";
-import { dayjs } from "@/lib/dayjs";
+import { formatKST } from "@/lib/dayjs";
 import { MCP_TOKEN_LABEL_MAX } from "@/lib/validations/mcp-token";
 
 import { Body, Caption, Micro } from "@/components/common/typography";
@@ -142,9 +142,9 @@ export function McpTokensClient({ initialTokens }: Props) {
                   )}
                 </div>
                 <Micro>
-                  발급 {dayjs(token.created_at).format("YY.MM.DD HH:mm")}
+                  발급 {formatKST(token.created_at, "YY.MM.DD HH:mm")}
                   {token.last_used_at &&
-                    ` · 최근 사용 ${dayjs(token.last_used_at).format("YY.MM.DD HH:mm")}`}
+                    ` · 최근 사용 ${formatKST(token.last_used_at, "YY.MM.DD HH:mm")}`}
                 </Micro>
               </div>
               {!token.revoked && (

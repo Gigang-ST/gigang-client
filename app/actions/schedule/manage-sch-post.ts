@@ -2,7 +2,7 @@
 
 import { after } from "next/server";
 
-import { dayjs } from "@/lib/dayjs";
+import { dayjs, nowKST } from "@/lib/dayjs";
 import { withActive, withMember } from "@/lib/actions/auth";
 import { isPastLockedFor, PAST_EVENT_ERROR } from "@/lib/past-event";
 import { insertNotiMany } from "@/lib/notifications/insert-noti";
@@ -38,7 +38,7 @@ export async function createSchPost(input: {
         url: parsed.url || null, cont_txt: parsed.cont_txt ?? null,
         crt_by: member.id, vers: 0, del_yn: false,
       })
-      .select("sch_post_id, short_id")
+      .select("sch_post_id")
       .single();
 
     if (error || !data) throw new Error("일정 등록에 실패했습니다.");
@@ -66,9 +66,12 @@ export async function createSchPost(input: {
           teamId,
           memIds: members.map((m) => m.mem_id),
           notiTypeEnm: "sch_post_new",
-          notiNm: `${dayjs().format("M월 D일")} 새 정보가 등록됐습니다.`,
+          notiNm: `${nowKST().format("M월 D일")} 새 정보가 등록됐습니다.`,
           notiCont: `[정보] ${postName}`,
-          refId: data.short_id ?? postId,
+          // ref_id는 uuid 컬럼이다 — short_id(text)를 넣으면 INSERT가 통째로 실패해
+          // 크루원 전원의 알림이 조용히 사라진다(after 안 + try/catch라 등록은 성공한 채로).
+          // 딥링크는 안 깨진다: MiniCalendar가 short_id·uuid 양쪽을 받는다.
+          refId: postId,
           refTypeEnm: "sch_post",
         });
       } catch (e) {

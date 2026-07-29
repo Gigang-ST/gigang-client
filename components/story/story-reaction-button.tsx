@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { bumpStoryReaction } from "@/app/actions/story/bump-reaction";
+import { goToLogin } from "@/lib/auth/go-to-login";
 import {
   isRolledOver,
   MAX_RCTN_DELTA,
@@ -46,6 +47,8 @@ export function StoryReactionButton({
   initialMyCount = 0,
   bumped = 0,
   onBump,
+  onBumpFailed,
+  canReact = true,
   tone = "app",
   onInteract,
 }: {
@@ -65,6 +68,21 @@ export function StoryReactionButton({
   bumped?: number;
   /** 한 번 누를 때마다 부른다 — 부모가 슬롯 밖에 몫을 쌓아 언마운트에도 살아남게 한다 */
   onBump?: () => void;
+  /**
+   * 서버 저장이 **실패한** 만큼 부른다 — 부모가 쌓아 둔 몫에서도 그만큼 빼라는 신호.
+   *
+   * 이게 없으면 실패해도 버튼 안 카운트만 되돌아가고 부모의 `myBumps`(sessionStorage)는
+   * 그대로 남아, 슬롯이 한 바퀴 돌아 이 버튼이 재마운트될 때 `initialCount`에 실패분이
+   * 다시 얹혀 **부풀린 숫자가 세션 내내 유지된다**.
+   */
+  onBumpFailed?: (delta: number) => void;
+  /**
+   * 응원할 수 있는 상태인가(로그인 + 활동 회원). false면 누를 때 낙관 반영 대신 로그인으로 보낸다.
+   *
+   * **버튼을 숨기지는 않는다**: 응원 버튼은 다섯 슬롯 바닥에서 같은 자리를 지키는 게 규칙이라
+   * (§DESIGN 리드 3밴드) 비로그인에게만 사라지면 슬롯마다 바닥이 달라진다.
+   */
+  canReact?: boolean;
   /**
    * 누를 때마다 부른다 — 리드가 손 밑에서 자동 전환되지 않게 리드 스와이프를 멈추기 위해.
    * 연타 내내 갱신돼야 하므로 매 탭마다 부른다(스와이프 pause와 같은 타이머를 물린다).
@@ -99,6 +117,21 @@ export function StoryReactionButton({
   const burstIdRef = useRef(0);
   // flush 요청 순번. 응답이 순서 역전돼 도착해도 최신 요청의 값만 반영한다.
   const flushSeqRef = useRef(0);
+
+  /**
+   * 실패 콜백은 **ref로 받는다** — `flush`의 의존성에 넣으면 안 된다.
+   *
+   * 호출부가 인라인 화살표(`onBumpFailed={(d) => removeBumps(key, d)}`)를 넘기므로 매 렌더마다
+   * 참조가 바뀐다. 그게 deps에 있으면 `flush`가 매번 새로 만들어지고, `flush`를 deps로 쓰는
+   * 아래 이탈 감지 effect가 매 렌더 재실행되며 **cleanup에서 flush()를 부른다** — 그러면
+   * 디바운스 타이머가 그때마다 취소돼 연타를 모으지 못하고 탭마다 요청이 나간다.
+   */
+  const onBumpFailedRef = useRef(onBumpFailed);
+  // 렌더 중 ref 쓰기는 금지(react-hooks) — 렌더가 끝난 뒤 최신 콜백으로 갈아 끼운다.
+  // deps를 두지 않아 매 렌더 후 갱신된다("latest ref" 패턴).
+  useEffect(() => {
+    onBumpFailedRef.current = onBumpFailed;
+  });
 
   const [reduced] = useState(
     () =>
@@ -139,6 +172,9 @@ export function StoryReactionButton({
         // 실패한 만큼만 되돌린다 — 그 사이 추가된 탭은 다음 flush가 책임진다.
         setCount((c) => Math.max(0, c - delta));
         setMyCount((m) => Math.max(0, m - delta));
+        // 부모가 슬롯 밖에 쌓아 둔 몫에서도 뺀다. 여기서 안 알리면 이 버튼이 언마운트됐다
+        // 돌아올 때 실패분이 initialCount로 되살아난다(§onBumpFailed).
+        onBumpFailedRef.current?.(delta);
         toast.error(result.message);
       },
     );
@@ -168,6 +204,14 @@ export function StoryReactionButton({
   }, []);
 
   function handleClick() {
+    // 비로그인은 서버가 어차피 거부한다(withActive) — **낙관 반영·pending 적립 전에** 끊는다.
+    // 예전엔 그대로 세고 나서 실패 토스트만 띄웠는데, 실패해도 부모의 몫은 남아 누를수록
+    // 숫자가 계속 부풀었다(§onBumpFailed). 같은 지면의 댓글은 로그인으로 잇고 있어 결도 어긋났다.
+    if (!canReact) {
+      goToLogin("/story");
+      return;
+    }
+
     // 누르는 동안 리드가 자동 전환되면 항목이 손 밑에서 사라진다 — 매 탭마다 스와이프를 멈춘다.
     onInteract?.();
 

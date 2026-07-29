@@ -104,7 +104,26 @@ export async function uploadPostPhoto(
   const path = `${memId}/${Date.now()}-${suffix}.jpg`;
   const { error } = await supabase.storage
     .from(POST_PHOTO_BUCKET)
-    .upload(path, resized, { contentType: "image/jpeg" });
+    .upload(path, resized, {
+      contentType: "image/jpeg",
+      /**
+       * 1년 캐시 — **재방문 전송량을 없애는 가장 싼 수단**이다.
+       *
+       * 지정하지 않으면 Supabase 기본값이 **1시간**이라, 아침에 격자를 본 사람이 저녁에
+       * 다시 들어오면 사진 16장을 통째로 다시 받는다. 무료 플랜 egress(5GB/월)에서 이
+       * 반복분이 실제 트래픽의 대부분을 차지한다 — 첫 조회는 사람당 한 번뿐이지만
+       * 재방문은 매일 쌓이기 때문.
+       *
+       * **1년이 안전한 이유**: 경로가 `{mem_id}/{타임스탬프}-{랜덤}.jpg`라 업로드마다 새
+       * 주소이고 `upsert: false`(기본)라 덮어쓰지 않는다. 즉 **같은 URL의 내용이 바뀌는 일이
+       * 구조적으로 없다**. 사진을 교체하면 새 URL이 생기고 DB가 그걸 가리키므로 헌 캐시는
+       * 아무도 안 본다.
+       *
+       * ⚠️ 아바타(`update-profile.ts`)에는 걸면 안 된다 — 저긴 `upsert: true`로 **같은 경로를
+       * 덮어쓰므로** 길게 캐시하면 프로필 사진을 바꿔도 안 바뀐 것처럼 보인다.
+       */
+      cacheControl: "31536000",
+    });
   if (error) {
     console.error("[uploadPostPhoto] 업로드 실패", error);
     return { ok: false, message: "사진 업로드에 실패했습니다." };

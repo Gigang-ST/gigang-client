@@ -6,10 +6,7 @@ import { reactionKey, type MyReactionMap } from "@/lib/story-reaction";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isRequestAbortError } from "@/lib/supabase/is-abort-error";
 
-import type {
-  MemberCardCompactData,
-  MemberCardRecord,
-} from "@/lib/queries/member-card";
+import type { MemberCardCompactData } from "@/lib/queries/member-card";
 
 /** 리액션 코드 정본 6종 — DB CHECK 제약(`rctn_mst_rctn_cd_chk`)과 동일 목록 */
 export const RCTN_CODES = [
@@ -100,14 +97,6 @@ export type StoryRace = ReactableItem & {
   }[];
 };
 
-export type StoryRankEntry = {
-  rank: number;
-  mem_id: string;
-  mem_nm: string;
-  avatar_url: string | null;
-  attd_cnt: number;
-};
-
 /**
  * 기강활동지수 랭킹 항목 (전체 누적 합산, 상위 10명).
  * `actv_score`는 내부적으로 기강 포인트 원장(`pt_txn_hist`)을 합산한 값이지만,
@@ -120,29 +109,31 @@ export type StoryActvRankEntry = {
   avatar_url: string | null;
   actv_score: number;
   /**
-   * 프로필 부품(§story 리드 "이번 달 기강 잡는" 슬롯 전용) — 칭호·소개·러닝프로필·개인최고기록.
-   * 구버전 RPC(배포 스큐)에서는 없을 수 있어 **전부 옵셔널**이다(부품이 빠질 뿐 크래시하지 않는다).
-   * 무더기(ActvPile)는 이 필드들을 쓰지 않으므로 payload가 커져도 그쪽엔 영향이 없다.
+   * 프로필 부품 — 리드 "이번 달 기강 잡는" 슬롯이 대표 1명을 그리는 데 쓴다.
+   *
+   * **상위 3명(`rank <= 3`)에만 실려 온다.** 나머지 행에는 키 자체가 없다 — 이 배열은 이번 달
+   * 활동량이 있는 크루원 **전원**(수십 명)을 담는데(무더기 `ActvPile`가 전원을 그린다),
+   * 정작 부품을 쓰는 건 상위 3명 중 랜덤 1명뿐이라 나머지 몫은 전송량도 DB 시간도 순낭비였다
+   * (dev 68명 기준 22.3KB·9.7ms → 10.4KB·2.5ms). 그래서 옵셔널이다 — 배포 스큐 대비가 아니라
+   * **설계상 없는 것**이다.
+   *
+   * ⚠️ 대표 추첨 범위(`pickActvLeadIndex`의 `cap = Math.min(3, …)`)와 RPC의 `rn <= 3`이 같은
+   * 3을 가리킨다. 바꾸려면 **반드시 양쪽을 함께** — 한쪽만 고치면 부품이 빈 사람이 대표로 서서
+   * 칭호·소개가 통째로 사라진다.
+   *
+   * `running_profile`·`best_records`·`frame_cd`는 **아예 내려오지 않는다**: 이 슬롯의 부품 조합은
+   * `["title","intro"]`뿐이고, 개인 최고기록 블록은 "이번 달 이야기에 역대 이야기가 끼어든다"는
+   * 이유로 화면에서 걷어냈다(§story-lede PB 블록). 프레임은 `PersonProfile`이 그리지 않는다.
    */
   badge_effect?: string;
-  frame_cd?: string;
   intro_txt?: string | null;
   primary_title?: MemberCardCompactData["primary_title"];
-  running_profile?: MemberCardCompactData["running_profile"];
-  /** 개인 최고기록 목록 — 종목별 최고기록 상위 4종. 풀 > 하프 > 10K 우선, 그 외는 뒤로(RPC 정렬). [0]이 대표 */
-  best_records?: MemberCardRecord[];
   /** 이번 달 모임 참석 수 */
   mth_attd_cnt?: number;
   /** 이번 달 대회 기록 등록 수 */
   mth_rec_cnt?: number;
 };
 
-/** 이번 주(KST, 월요일 시작 ~ now) 크루 합계 통계 */
-export type StoryWeekStat = {
-  gthr_cnt: number;
-  attd_cnt: number;
-  rec_cnt: number;
-};
 
 /**
  * 멤버 목표 한마디(한 줄 다짐) — 만료 없이 누적, 최근순 노출.
@@ -171,13 +162,19 @@ export type StoryPledge = {
   primary_title?: MemberCardCompactData["primary_title"];
 };
 
+/**
+ * 전광판 피드.
+ *
+ * `month_rank`(이달의 참석왕)·`week_stat`(이번 주 합계)은 **걷어냈다** — 읽는 화면이 없어진
+ * 지 오래인데 RPC가 계속 만들고 있었다(그것 때문에 CTE 5개가 매번 돌았다). 참석왕은
+ * 활동량 지표가 생기면서 "월 랭킹 두 개가 연달아 서면 같은 걸 두 번 본 것처럼 읽힌다"는
+ * 이유로 화면에서 내렸고, 주간 합계는 오버뷰가 `get_team_overview`를 쓰게 되며 쓸모가 없어졌다.
+ */
 export type StoryFeed = {
   newbies: StoryNewbie[];
   records: StoryRecord[];
   races: StoryRace[];
-  month_rank: StoryRankEntry[];
   actv_rank: StoryActvRankEntry[];
-  week_stat: StoryWeekStat;
   pledges: StoryPledge[];
 };
 
@@ -185,9 +182,7 @@ const EMPTY_FEED: StoryFeed = {
   newbies: [],
   records: [],
   races: [],
-  month_rank: [],
   actv_rank: [],
-  week_stat: { gthr_cnt: 0, attd_cnt: 0, rec_cnt: 0 },
   pledges: [],
 };
 

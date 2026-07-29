@@ -290,7 +290,15 @@ const ReelCard = ({
 }) => {
   // 말풍선 티커와 하단 입력줄의 개수가 **같은 출처**를 본다 — 따로 읽으면 Realtime이
   // 한쪽에만 닿아 "말풍선엔 새 댓글이 떴는데 숫자는 그대로"가 된다.
-  const comments = usePostComments(post.post_id, teamId, active);
+  //
+  // **비로그인은 아예 읽지 않는다**: `cmnt_mst`는 SELECT까지 인증 전용(RLS)이라 익명으로
+  // 조회하면 에러 없이 0행이 온다 — 쿼리와 Realtime 구독만 헛돌고 화면엔 "댓글 없음"으로
+  // 보인다. 못 읽는다는 사실은 하단 줄이 "로그인하고 댓글 보기"로 밝힌다(§RecordCommentBar).
+  const comments = usePostComments(
+    post.post_id,
+    teamId,
+    active && myMemId != null,
+  );
   const km = formatKm(post.dst_km);
   const label = getSportLabel(post.sprt_enm);
   const emoji = getSportEmoji(post.sprt_enm);
@@ -312,6 +320,15 @@ const ReelCard = ({
       ref={ref}
       // 관찰자가 "지금 어느 장인지"를 이 값으로 읽는다(엘리먼트→id 역참조를 위해).
       data-post-id={post.post_id}
+      // `content-visibility: auto` — 화면 밖 장은 **브라우저가 렌더·레이아웃을 건너뛴다.**
+      // 릴스는 전 장이 한꺼번에 마운트되는 구조라(scroll-snap 목록) 더보기로 수백 장이
+      // 쌓이면 DOM 비용이 그대로 쌓인다. 가상화는 snap 위치 계산을 직접 떠안아야 해서
+      // 위험이 큰데, 이 한 줄이면 구조를 안 건드리고 같은 효과를 얻는다.
+      // `contain-intrinsic-size`로 건너뛴 장의 크기를 알려 줘야 스크롤 길이가 안 흔들린다.
+      style={{
+        contentVisibility: "auto",
+        containIntrinsicSize: "100vw 100dvh",
+      }}
       className="relative flex h-full snap-start snap-always items-center justify-center overflow-hidden"
     >
       {/*

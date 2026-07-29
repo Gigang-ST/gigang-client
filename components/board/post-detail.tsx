@@ -7,7 +7,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSlug from "rehype-slug";
 import { ChevronLeft, ChevronUp } from "lucide-react";
-import { dayjs } from "@/lib/dayjs";
+import { formatKST } from "@/lib/dayjs";
 import type { BoardPost } from "@/lib/queries/board";
 import { checkBoardPermission } from "@/app/actions/check-board-permission";
 import { recordBoardReadAction } from "@/app/actions/record-board-read";
@@ -72,7 +72,7 @@ export function PostDetail({ post }: PostDetailProps) {
       <div className="flex flex-col gap-1">
         <Body className="text-[17px] font-semibold leading-snug">{post.post_nm}</Body>
         <Caption>
-          {post.writ_mem_nm ?? "관리자"} · {dayjs(post.crt_at).format("YY.MM.DD")}
+          {post.writ_mem_nm ?? "관리자"} · {formatKST(post.crt_at, "YY.MM.DD")}
         </Caption>
       </div>
 
