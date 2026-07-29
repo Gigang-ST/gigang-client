@@ -86,7 +86,7 @@ export function RecordDeleteDialog({
           {fromMileage ? (
             <>
               마일리지런에서 올린 사진이에요. 삭제하면 <b className="text-foreground">사진만</b>{" "}
-              지워지고 거리·후기는 마일리지런에 그대로 남아요.
+              지워지고 거리·한마디는 마일리지런에 그대로 남아요.
             </>
           ) : (
             <>이 사진을 삭제할까요? 한마디도 함께 지워지고 되돌릴 수 없어요.</>

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 import { createRecordFlex } from "@/app/actions/story/create-record-flex";
 import { todayKST } from "@/lib/dayjs";
+import { pickQuip } from "@/lib/quips";
 import { createRecordFlexSchema, POST_CMNT_MAX } from "@/lib/validations/post";
 
 import { PhotoPicker } from "@/components/common/photo-picker";
@@ -75,6 +76,9 @@ function RecordFlexCreateForm({
   const [file, setFile] = useState<File | null>(null);
   const [photoError, setPhotoError] = useState(false);
   const [saving, setSaving] = useState(false);
+  // 예시 문구는 열 때 한 번 뽑고 입력 중엔 고정한다 — 이 폼은 열릴 때만 마운트되므로(위 `if (!open)`)
+  // 서버가 다른 문구로 그려 놓을 일이 없다
+  const [quip] = useState(pickQuip);
 
   const {
     register,
@@ -169,7 +173,7 @@ function RecordFlexCreateForm({
               id="rf-cmnt"
               {...register("cmnt_txt")}
               maxLength={POST_CMNT_MAX}
-              placeholder="오늘 날씨가 너무 좋았어요"
+              placeholder={quip}
               className="h-12 rounded-xl border-[1.5px] text-[15px]"
             />
             <div className="flex items-center justify-between gap-2">
