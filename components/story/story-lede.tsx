@@ -760,16 +760,26 @@ export function StoryLede({
     }
   }, []);
 
+  /**
+   * 누른 몫을 sessionStorage에 반영한다 — **updater가 아니라 여기서.**
+   *
+   * 예전엔 `setMyBumps` 업데이터 안에서 바로 `setItem`을 불렀는데, React는 업데이터를 순수
+   * 함수로 보고 개발 모드(StrictMode)·동시성 렌더링에서 **한 번 이상 호출할 수 있다**.
+   * 저장 자체는 멱등이라 지금까지 티가 안 났을 뿐, 규칙 위반이고 정적분석에도 걸린다.
+   * 상태가 정해진 뒤 effect에서 한 번 쓰면 업데이터는 순수해지고 저장은 그대로 남는다.
+   *
+   * 마운트 직후 복원값을 그대로 되쓰는 셈이지만(같은 값) 무해하다.
+   */
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(BUMP_STORE_KEY, JSON.stringify(myBumps));
+    } catch {
+      // 사파리 프라이빗 모드 등 — 저장이 막혀도 이번 세션 화면에는 이미 반영돼 있다.
+    }
+  }, [myBumps]);
+
   const addBump = useCallback((key: string) => {
-    setMyBumps((prev) => {
-      const next = { ...prev, [key]: (prev[key] ?? 0) + 1 };
-      try {
-        window.sessionStorage.setItem(BUMP_STORE_KEY, JSON.stringify(next));
-      } catch {
-        // 저장 실패는 무시 — 이번 세션 화면에는 이미 반영돼 있다.
-      }
-      return next;
-    });
+    setMyBumps((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 }));
   }, []);
 
   /**
@@ -786,11 +796,6 @@ export function StoryLede({
       // 0이면 키를 지운다 — 남겨두면 저장소가 쓰지도 않는 키로 계속 불어난다.
       if (left > 0) next[key] = left;
       else delete next[key];
-      try {
-        window.sessionStorage.setItem(BUMP_STORE_KEY, JSON.stringify(next));
-      } catch {
-        /* 저장 실패는 무시 — 화면 상태는 이미 되돌아갔다 */
-      }
       return next;
     });
   }, []);

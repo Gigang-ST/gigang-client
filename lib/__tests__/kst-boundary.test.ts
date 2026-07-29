@@ -10,6 +10,18 @@
  * 테스트가 통과해 버린다 — 실행 환경을 UTC로 고정해야 배포 환경을 흉내 낼 수 있다.
  * vi.setSystemTime으로 위험 구간의 한 순간(KST 7/29 00:30 = UTC 7/28 15:30)에 시계를 세운다.
  */
+/**
+ * ⚠️ 이 파일은 `process.env.TZ`와 `new Date()`를 **의도적으로** 직접 쓴다.
+ *
+ * 프로젝트 규칙(`lib/env.ts` 경유, `new Date()` 금지)은 **앱 코드**를 위한 것이다. 여기서
+ * 검사하려는 대상이 바로 "실행 환경의 타임존"이라, 그걸 세우고 확인하려면 원시 수단이 필요하다.
+ * `lib/dayjs`로는 프로세스 타임존을 바꿀 수 없고, `dayjs`로 오프셋을 재면 우리가 검증하려는
+ * 그 계층을 우리가 만든 도구로 검증하는 셈이 되어 의미가 없다.
+ *
+ * 다만 **전역 오염은 되돌린다**: TZ는 워커 프로세스 단위라 같은 워커를 나눠 쓰는 다른 테스트
+ * 파일로 샌다(파일 실행 순서에 따라 결과가 갈리는 종류의 사고). 원래 값을 저장해 두고 복원한다.
+ */
+const ORIGINAL_TZ = process.env.TZ;
 process.env.TZ = "UTC";
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -27,6 +39,9 @@ describe("KST 경계 (UTC 서버 가정)", () => {
   });
   afterAll(() => {
     vi.useRealTimers();
+    // 같은 워커를 쓰는 다음 테스트 파일이 UTC를 물려받지 않게 되돌린다.
+    if (ORIGINAL_TZ === undefined) delete process.env.TZ;
+    else process.env.TZ = ORIGINAL_TZ;
   });
 
   it("실행 환경이 UTC로 고정돼 있다 (이게 아니면 아래 테스트가 무의미하다)", () => {

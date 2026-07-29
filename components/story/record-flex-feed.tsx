@@ -190,17 +190,30 @@ export function RecordFlexFeed({
     if (deepFetchedRef.current === recParam) return;
     deepFetchedRef.current = recParam;
 
+    // 응답이 오는 사이 다른 알림으로 옮겨가면(`?rec=`가 바뀌면) 이 요청은 남의 것이 된다.
+    // 그대로 반영하면 엉뚱한 기록이 릴스 앞에 얹히거나 지난 토스트가 뒤늦게 뜬다.
+    let cancelled = false;
+
     void loadStoryPost(recParam).then((res) => {
+      if (cancelled) return;
       if (!res.ok) {
+        // 일시 오류는 주소를 남겨 둔다 — 새로고침하면 다시 시도할 수 있어야 한다.
         toast.error("기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
         return;
       }
       if (!res.post) {
+        // 삭제됐거나 볼 수 없는 기록 — 몇 번을 물어도 답이 같으므로 **주소에서 지운다**.
+        // 안 지우면 새로고침할 때마다 같은 토스트가 반복된다.
         toast.error("이미 삭제됐거나 볼 수 없는 기록이에요.");
+        clearDeepLinkParams();
         return;
       }
       setDeepPost(res.post);
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [recParam, handledRec, recReady]);
 
   /** 오른쪽 끝 sentinel이 보이면 다음 묶음 — 캘린더 리스트뷰와 같은 장치(방향만 가로) */
