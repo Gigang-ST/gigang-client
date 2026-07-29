@@ -2,16 +2,23 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import type { CmntRow } from "@/components/comment/comment-item";
+
 import { createClient } from "@/lib/supabase/client";
 
-/** 릴스 표시용 댓글 한 줄 — 목록 표시에 필요한 것만(수정/삭제 메타는 시트가 맡는다) */
-export type PostComment = {
-  cmnt_id: string;
-  mem_id: string;
-  mem_nm: string;
-  avatar_url: string | null;
-  cont_txt: string;
-};
+/**
+ * 운동기록 댓글 한 줄 — **댓글 시트(`CommentSection`)와 같은 모양**(`CmntRow`)이다.
+ *
+ * 예전엔 표시에 필요한 것만(이름·본문) 담은 좁은 타입이었는데, 그러면 시트가 이 결과를
+ * 재사용하지 못해 **열 때 똑같은 쿼리를 한 번 더** 날렸다(스레드·수정표시·삭제 자리표시자에
+ * `prnt_id`·`edit_yn`·`del_yn`·`crt_at`·`upd_at`이 필요해서). 그 두 번째 왕복이 곧
+ * "댓글이 0건인데도 뜨는 `댓글 불러오는 중...`"의 정체였다 — 개수는 이미 알고 있으면서
+ * 0건을 재확인하느라 스피너를 띄운 셈이다.
+ *
+ * 한 번 읽어 둘이 나눠 쓴다: 티커·개수는 필요한 필드만 골라 보고, 시트는 통째로
+ * `initialComments`로 받아 조회 없이 즉시 그린다(모임 상세가 SSR로 내려주는 것과 같은 분기).
+ */
+export type PostComment = CmntRow;
 
 /**
  * 운동기록 한 건의 댓글 목록 — 말풍선 티커와 하단 입력줄(개수)이 **함께** 쓴다.
@@ -49,14 +56,15 @@ export function usePostComments(postId: string, teamId: string, active: boolean)
     void supabase
       .from("cmnt_mst")
       .select(
-        "cmnt_id, mem_id, cont_txt, mem_mst!cmnt_mst_mem_id_fkey(mem_nm, avatar_url)",
+        "cmnt_id, prnt_id, mem_id, cont_txt, edit_yn, del_yn, crt_at, upd_at, mem_mst!cmnt_mst_mem_id_fkey(mem_nm, avatar_url)",
       )
       .eq("entity_type", "post")
       .eq("entity_id", postId)
       .eq("team_id", teamId)
-      // 삭제된 댓글은 뺀다 — "삭제된 댓글입니다" 자리표시자는 스레드 맥락을 지키는 장치라
-      // 목록(시트) 안에서만 뜻이 있다. 흐르는 말풍선·개수에 섞이면 그냥 고장으로 읽힌다.
-      .eq("del_yn", false)
+      // 삭제된 댓글도 **받아 둔다**. "삭제된 댓글입니다" 자리표시자는 스레드 맥락을 지키는
+      // 장치라 시트 안에서 뜻이 있고, 흐르는 말풍선·개수에는 섞이면 안 된다 — 거르는 건
+      // 여기가 아니라 쓰는 쪽(`visiblePostComments`)이다. 여기서 미리 지우면 시트가
+      // 이 결과를 못 쓰고 다시 조회해야 한다(그게 예전 스피너의 원인).
       .order("crt_at", { ascending: true })
       .then(({ data, error }) => {
         if (cancelled) return;
@@ -73,10 +81,15 @@ export function usePostComments(postId: string, teamId: string, active: boolean)
             const mem = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst;
             return {
               cmnt_id: row.cmnt_id,
+              prnt_id: row.prnt_id,
               mem_id: row.mem_id,
               mem_nm: (mem as { mem_nm?: string | null })?.mem_nm ?? "멤버",
               avatar_url: (mem as { avatar_url?: string | null })?.avatar_url ?? null,
               cont_txt: row.cont_txt,
+              edit_yn: row.edit_yn,
+              del_yn: row.del_yn,
+              crt_at: row.crt_at,
+              upd_at: row.upd_at,
             };
           }),
         );
@@ -108,9 +121,13 @@ export function usePostComments(postId: string, teamId: string, active: boolean)
           if (payload.eventType === "INSERT") {
             const incoming = payload.new as {
               cmnt_id: string;
+              prnt_id: string | null;
               mem_id: string;
               cont_txt: string;
+              edit_yn: boolean;
               del_yn: boolean;
+              crt_at: string;
+              upd_at: string;
             };
             if (incoming.del_yn) return;
             setComments((prev) => {
@@ -120,11 +137,16 @@ export function usePostComments(postId: string, teamId: string, active: boolean)
                 ...list,
                 {
                   cmnt_id: incoming.cmnt_id,
+                  prnt_id: incoming.prnt_id ?? null,
                   mem_id: incoming.mem_id,
                   // Realtime payload엔 조인이 안 실린다 — 이름·프사는 다음 진입 조회에서 채워진다.
                   mem_nm: "멤버",
                   avatar_url: null,
                   cont_txt: incoming.cont_txt,
+                  edit_yn: incoming.edit_yn ?? false,
+                  del_yn: false,
+                  crt_at: incoming.crt_at,
+                  upd_at: incoming.upd_at,
                 },
               ];
             });
@@ -132,16 +154,25 @@ export function usePostComments(postId: string, teamId: string, active: boolean)
             const updated = payload.new as {
               cmnt_id: string;
               cont_txt: string;
+              edit_yn: boolean;
               del_yn: boolean;
+              upd_at: string;
             };
             setComments((prev) => {
               const list = prev ?? [];
-              // 삭제(soft)면 빼고, 수정이면 본문만 갈아끼운다.
-              if (updated.del_yn) {
-                return list.filter((c) => c.cmnt_id !== updated.cmnt_id);
-              }
+              // 삭제(soft)여도 **목록에서 빼지 않는다** — del_yn만 세워 둔다. 말풍선·개수는
+              // 쓰는 쪽에서 걸러지고, 시트는 이 행이 있어야 "삭제된 댓글입니다" 자리표시자로
+              // 스레드 맥락을 지킨다.
               return list.map((c) =>
-                c.cmnt_id === updated.cmnt_id ? { ...c, cont_txt: updated.cont_txt } : c,
+                c.cmnt_id === updated.cmnt_id
+                  ? {
+                      ...c,
+                      cont_txt: updated.cont_txt,
+                      edit_yn: updated.edit_yn ?? c.edit_yn,
+                      del_yn: updated.del_yn,
+                      upd_at: updated.upd_at ?? c.upd_at,
+                    }
+                  : c,
               );
             });
           }
@@ -155,4 +186,18 @@ export function usePostComments(postId: string, teamId: string, active: boolean)
   }, [active, postId, teamId, supabase]);
 
   return comments;
+}
+
+/**
+ * 사진 위에 **보일** 댓글만 — 흐르는 말풍선과 하단 개수가 쓴다.
+ *
+ * 훅은 시트가 그대로 쓸 수 있도록 삭제된 댓글까지 담아 두므로(스레드 자리표시자용),
+ * 표시 쪽은 여기서 한 번 걸러 낸다. "3개"라고 적혀 있는데 열어 보니 삭제 안내만 있는
+ * 어긋남을 막는 곳이 여기다.
+ */
+export function visiblePostComments(
+  comments: PostComment[] | null,
+): PostComment[] | null {
+  if (comments === null) return null;
+  return comments.filter((c) => !c.del_yn);
 }

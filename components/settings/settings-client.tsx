@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 
 import { markBoardTypeRead } from "@/app/actions/mark-board-type-read";
+import { APP_VERSION } from "@/lib/app-version";
 import { createClient } from "@/lib/supabase/client";
 
 import { ThemeToggle } from "@/components/common/theme-toggle";
@@ -67,10 +68,13 @@ const infoItems: MenuItem[] = [
 export function SettingsClient({
   isAdmin,
   boardUnread,
+  duesUnpaid = false,
 }: {
   isAdmin: boolean;
   /** 공지·업데이트 안읽음 — 각 메뉴 옆 dot. 없으면 둘 다 false로 온다 */
   boardUnread?: { notice: boolean; update: boolean };
+  /** 회비 잔액이 마이너스인가 — "회비 내역" 줄 옆 dot */
+  duesUnpaid?: boolean;
 }) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -119,7 +123,22 @@ export function SettingsClient({
                 {item.label}
               </span>
             </div>
-            <ChevronRight className="size-5 text-border" />
+            <div className="flex items-center gap-2">
+              {/* 회비 미납 dot — 프로필탭의 바로가기 4버튼을 걷어내면서 이 줄이 유일한
+                  표면이 됐다. **여기까지만 올라간다** — 햄버거 아이콘엔 안 단다(§HeaderActions:
+                  미납은 사용자가 지울 수 없는 점이라 바깥에 두면 몇 주씩 켜져 있다).
+                  색만으로는 뜻이 안 전해지므로 스크린리더용 텍스트를 함께 둔다. */}
+              {item.href === "/profile/dues" && duesUnpaid && (
+                <>
+                  <span
+                    aria-hidden
+                    className="size-1.5 rounded-full bg-destructive"
+                  />
+                  <span className="sr-only">회비 미납</span>
+                </>
+              )}
+              <ChevronRight className="size-5 text-border" />
+            </div>
           </Link>
         ))}
       </div>
@@ -242,7 +261,7 @@ export function SettingsClient({
               버전 정보
             </span>
           </div>
-          <span className="text-sm text-muted-foreground">v1.2.1</span>
+          <span className="text-sm text-muted-foreground">{APP_VERSION}</span>
         </div>
       </div>
 

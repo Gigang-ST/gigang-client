@@ -2949,7 +2949,10 @@ export type Database = {
           url: string
         }[]
       }
-      get_team_ghost_members: { Args: { p_team_id: string }; Returns: Json }
+      get_team_ghost_members: {
+        Args: { p_seed?: string; p_team_id: string }
+        Returns: Json
+      }
       get_team_messages: {
         Args: { p_limit?: number; p_team_id: string }
         Returns: Json

@@ -1,4 +1,4 @@
-import { parseEventTime, todayStartKST } from "@/lib/dayjs";
+import { parseEventTime, secondsToTime, todayStartKST } from "@/lib/dayjs";
 import { MOOD_SCALE, type MoodLevel } from "@/lib/mood-scale";
 import {
   JOIN_PURP_LABELS,
@@ -8,7 +8,10 @@ import {
   type JOIN_PURP_CODES,
 } from "@/lib/validations/member";
 
-import type { MemberCardRecord } from "@/lib/queries/member-card";
+import type {
+  MemberCardRaceRecord,
+  MemberCardRecord,
+} from "@/lib/queries/member-card";
 
 /**
  * 활동 컨디션 — 최근 90일(3개월) 활동량을 4단계 "기강" 척도로 보여준다.
@@ -107,6 +110,21 @@ export function getRecordLabel(record: MemberCardRecord): string {
   return getSportLabel(record.sport);
 }
 
+/**
+ * 기록 목록 한 줄의 **코드 표기** — `FULL` · `HALF` · `10K`.
+ *
+ * `getRecordLabel`(풀코스·하프)과 갈라 둔 건 자리가 다르기 때문이다:
+ * 카드의 기록 목록은 바로 아래 페이스 추이 차트 범례(`10K HALF FULL`)와 나란히 서므로
+ * 같은 것을 두 이름으로 부르면 안 되고, 기강이야기 리드는 `종목 · 풀코스`처럼 **한국어 문장
+ * 안**이라 코드가 어색하다. 한쪽을 고쳐 다른 쪽까지 끌려가지 않게 함수를 둘로 둔다.
+ *
+ * 철인3종·사이클은 거리 규격이 아니라 **종목 이름**이라 여기서도 한글을 쓴다.
+ */
+export function getRecordCodeLabel(record: MemberCardRecord): string {
+  if (record.sport === "road_run") return record.evt.toUpperCase();
+  return getSportLabel(record.sport);
+}
+
 /** NEW 태그를 붙일 기간 — 최근 90일 이내 기록 */
 const NEW_RECORD_DAYS = 90;
 
@@ -125,6 +143,126 @@ export function getRaceDday(sttDt: string): string | null {
   const diff = parseEventTime(sttDt).startOf("day").diff(todayStartKST(), "day");
   if (diff < 0) return null;
   return diff === 0 ? "D-DAY" : `D-${diff}`;
+}
+
+/** 값이 아직 없는 기록 칸 — "0초에 완주"로 읽힐 여지가 있는 `00:00:00` 대신 빈 눈금을 쓴다 */
+const PB_EMPTY_TIME = "--:--";
+
+/** 로드 3종 — 기록이 없어도 늘 자리를 지키는 칸. 순서가 곧 화면 순서다 */
+const PB_ROAD_SLATE = ["FULL", "HALF", "10K"] as const;
+
+/**
+ * 개인 최고기록 한 줄.
+ *
+ * `value`가 `null`이면 아직 안 채운 칸이다 — 화면은 `--:--`(UTMB는 `--`)를 찍고 종목 점도
+ * 회색으로 죽여 "안 켜진 줄"로 보이게 한다. 편집판은 UTMB 빈 칸에 `연동하기` 버튼을 세운다.
+ */
+export type PbRow = {
+  /** 화면 라벨 — `FULL` · `HALF` · `10K` · `철인3종` · `UTMB INDEX` */
+  label: string;
+  /** 종목 도트 색 클래스 */
+  dotCls: string;
+  /** 표시값. `null`이면 미입력 */
+  value: string | null;
+  /** UTMB 행인가 — 미연동일 때 편집판이 연동 버튼을 세울지 판단한다 */
+  isUtmb: boolean;
+  /** 최근 90일 이내 기록 */
+  isNew: boolean;
+};
+
+/**
+ * 기록 칸을 **늘 같은 골격**으로 세운다 — FULL / HALF / 10K (+ 있는 종목) / UTMB INDEX.
+ *
+ * 빈 판(`아직 등록된 기록이 없습니다`)을 세우는 대신 칸을 남겨 두는 이유: 채워야 할 칸이
+ * 몇 개인지가 눈에 보이고, 기록을 넣은 뒤에도 레이아웃이 안 바뀐다.
+ *
+ * 로드 3종은 값이 없어도 자리를 지키지만 **철인3종·사이클은 있을 때만** 붙인다 —
+ * 로드 러너의 카드에 안 켜진 철인 칸까지 세우면 "해야 할 일"처럼 보인다.
+ */
+export function buildPbRows(
+  bestRecords: MemberCardRecord[],
+  utmbIndex: number | null,
+): PbRow[] {
+  const byEvt = new Map<string, MemberCardRecord>();
+  const others: MemberCardRecord[] = [];
+  for (const rec of bestRecords) {
+    if (rec.sport === "road_run") {
+      byEvt.set(rec.evt.toUpperCase(), rec);
+    } else {
+      others.push(rec);
+    }
+  }
+
+  const rows: PbRow[] = PB_ROAD_SLATE.map((evt) => {
+    const rec = byEvt.get(evt);
+    return {
+      label: evt,
+      dotCls: rec ? getSportDotCls("road_run") : "bg-border",
+      value: rec ? secondsToTime(rec.rec_time_sec) : null,
+      isUtmb: false,
+      isNew: rec ? isNewRecord(rec.race_dt) : false,
+    };
+  });
+
+  for (const rec of others) {
+    rows.push({
+      label: getRecordCodeLabel(rec),
+      dotCls: getSportDotCls(rec.sport),
+      value: secondsToTime(rec.rec_time_sec),
+      isUtmb: false,
+      isNew: isNewRecord(rec.race_dt),
+    });
+  }
+
+  rows.push({
+    label: "UTMB INDEX",
+    dotCls: utmbIndex != null ? getSportDotCls("trail_run") : "bg-border",
+    value: utmbIndex != null ? String(utmbIndex) : null,
+    isUtmb: true,
+    isNew: false,
+  });
+
+  return rows;
+}
+
+/** 미입력 칸에 찍을 문자열 — UTMB 인덱스는 시간이 아니라 점수라 자릿수를 흉내 내지 않는다 */
+export function pbEmptyValue(row: PbRow): string {
+  return row.isUtmb ? "--" : PB_EMPTY_TIME;
+}
+
+/**
+ * 페이스 추이를 그릴 만한가 — **같은 종목 기록이 2건 이상**이어야 한다.
+ *
+ * 점 하나짜리는 추이가 아니다. 판정은 **전체 이력 기준**이고, 기간 토글(최근 1년/전체)로
+ * 점이 줄어드는 건 차트 안에서 처리한다 — 섹션이 토글마다 나타났다 사라지면 그게 더 이상하다.
+ */
+export function hasPaceTrend(
+  records: MemberCardRaceRecord[] | undefined,
+): boolean {
+  if (!records?.length) return false;
+  const seen = new Set<string>();
+  for (const rec of records) {
+    if (seen.has(rec.evt)) return true;
+    seen.add(rec.evt);
+  }
+  return false;
+}
+
+/** 카드 payload → PaceChart props. 두 화면(탭·팝업)이 같은 변환을 쓴다 */
+export function toPaceChartRecords(
+  records: MemberCardRaceRecord[] | undefined,
+): {
+  event_type: string;
+  record_time_sec: number;
+  race_name: string;
+  race_date: string;
+}[] {
+  return (records ?? []).map((rec) => ({
+    event_type: rec.evt,
+    record_time_sec: rec.rec_time_sec,
+    race_name: rec.race_nm,
+    race_date: rec.race_dt,
+  }));
 }
 
 /** 합류일 기준 "N일째" — join_dt가 없으면 null */
@@ -295,6 +433,42 @@ export function getMemberIntro(
 }
 
 /**
+ * 러닝 프로필 3칸 — **미입력도 자리를 지킨다**(값이 `null`).
+ *
+ * 편집판은 "뭘 아직 안 썼는지"가 보여야 채우므로 빈 칸에 `—`를 찍고, 공개판은 남에게 빈 줄을
+ * 보일 이유가 없어 채워진 것만 쓴다. **이 함수가 라벨·값 규칙의 단일 정본**이고,
+ * `getRunningProfileRows`(채워진 것만)는 여기서 파생된다 — 두 벌로 두면 라벨 문구나
+ * UNKNOWN 처리가 한쪽만 고쳐져 편집판과 공개판이 조용히 어긋난다.
+ */
+export function getRunningProfileSlots(
+  profile: {
+    avg_pace_cd: string | null;
+    avg_run_dist_km: number | null;
+    near_stn_nm?: string | null;
+  } | null,
+): { label: string; value: string | null }[] {
+  const paceCd = profile?.avg_pace_cd as (typeof AVG_PACE_CODES)[number] | null;
+  // UNKNOWN("잘 모르겠어요")은 정보가 없는 것과 같게 취급한다(rows와 동일 규칙).
+  const pace =
+    paceCd && paceCd !== "UNKNOWN" && PACE_LABELS[paceCd]
+      ? PACE_LABELS[paceCd]
+      : null;
+
+  const dist =
+    profile?.avg_run_dist_km != null && profile.avg_run_dist_km > 0
+      ? `${profile.avg_run_dist_km}km`
+      : null;
+
+  const stn = profile?.near_stn_nm?.trim();
+
+  return [
+    { label: "평균 페이스", value: pace },
+    { label: "평균 거리", value: dist },
+    { label: "가까운 역", value: stn ? (stn.endsWith("역") ? stn : `${stn}역`) : null },
+  ];
+}
+
+/**
  * 러닝 프로필 라벨-값 행 — `평균 페이스 / 평균 거리 / 가까운 역`.
  *
  * 아이콘 칩(`getRunningProfileChips`)과 달리 **항목 이름을 글자로 말한다**. 칩은 폭이
@@ -303,6 +477,9 @@ export function getMemberIntro(
  * `⏱ 6'00"`만 있으면 그게 평균인지 최고기록인지 알 수 없다.
  *
  * 상세 카드(`getMemberIntro`)와 리드가 같은 함수를 쓴다 — 한쪽만 고치면 라벨이 갈라진다.
+ *
+ * **`getRunningProfileSlots`에서 파생한다.** 라벨 문구·UNKNOWN 처리·역 접미 규칙을 두 벌로
+ * 두면 한쪽만 수정됐을 때 편집판과 공개판이 조용히 어긋나므로, 규칙은 슬롯 쪽 한 곳에만 둔다.
  */
 export function getRunningProfileRows(
   profile: {
@@ -313,19 +490,7 @@ export function getRunningProfileRows(
 ): { label: string; value: string }[] {
   if (!profile) return [];
 
-  const rows: { label: string; value: string }[] = [];
-  const paceCd = profile.avg_pace_cd as (typeof AVG_PACE_CODES)[number] | null;
-  // UNKNOWN("잘 모르겠어요")은 정보가 없는 것과 같으므로 행을 만들지 않는다.
-  if (paceCd && paceCd !== "UNKNOWN" && PACE_LABELS[paceCd]) {
-    rows.push({ label: "평균 페이스", value: PACE_LABELS[paceCd] });
-  }
-  if (profile.avg_run_dist_km != null && profile.avg_run_dist_km > 0) {
-    rows.push({ label: "평균 거리", value: `${profile.avg_run_dist_km}km` });
-  }
-  // 역명에 "역"이 이미 붙어 있으면 중복해서 붙이지 않는다.
-  const stn = profile.near_stn_nm?.trim();
-  if (stn) {
-    rows.push({ label: "가까운 역", value: stn.endsWith("역") ? stn : `${stn}역` });
-  }
-  return rows;
+  return getRunningProfileSlots(profile).filter(
+    (slot): slot is { label: string; value: string } => slot.value !== null,
+  );
 }

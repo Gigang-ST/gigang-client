@@ -44,6 +44,19 @@ export type MemberCardRecord = {
 };
 
 /**
+ * 페이스 추이 그래프용 로드런 기록 1건 — `best_records`(종목당 최고 1건)와 달리 **이력 전부**다.
+ *
+ * 범위는 RPC에서 `road_run` + FULL/HALF/10K로 이미 좁혀서 온다 — 차트가 공식 거리를 나눠
+ * 페이스를 계산하므로 트레일·울트라가 끼면 숫자가 거짓이 된다.
+ */
+export type MemberCardRaceRecord = {
+  evt: string;
+  rec_time_sec: number;
+  race_nm: string;
+  race_dt: string;
+};
+
+/**
  * 컴팩트 카드가 그리는 데 실제로 필요한 필드만.
  *
  * `MemberCardCompact`가 `MemberCardData` 전체를 요구하면, 전광판 피드처럼 카드 한 장만
@@ -99,6 +112,22 @@ export type MemberCardData = MemberCardCompactData & {
   recent_actv: MemberCardActivity[];
   titles: MemberCardTitle[];
   best_records: MemberCardRecord[];
+  /**
+   * 페이스 추이용 로드런 기록 이력(날짜 오름차순).
+   *
+   * **옵셔널인 건 배포 스큐 때문**이다 — 구버전 RPC(v2)가 응답하면 이 키가 통째로 없다.
+   * 그때는 페이스 추이 섹션만 빠지고 나머지는 그대로 그려진다(크래시 없음).
+   */
+  race_records?: MemberCardRaceRecord[];
+  /**
+   * 이 멤버가 **받은** 응원 총합 — 환영·대박을 하나로 합친 값.
+   * (활동지수·새 얼굴 슬롯 + 본인 대회 기록 + 본인 깅스타그램 글에 달린 것의 합)
+   *
+   * 대회에 달리는 응원(`race`/cheer)은 빼고 센다 — 그건 사람이 받은 게 아니라 대회에 달린 것이라,
+   * 같은 대회 출전자 전원이 같은 수치를 나눠 갖게 되어 개인 지표로 성립하지 않는다.
+   * 배포 스큐 시 `undefined` → 카운터를 0으로 그린다.
+   */
+  rctn_recv_cnt?: number;
   stats: {
     gthr_attd_cnt: number;
     comp_reg_cnt: number;

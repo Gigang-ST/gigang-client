@@ -13,7 +13,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Body, Caption } from "@/components/common/typography";
-import { IntroEditDialog } from "@/components/members/intro-edit-dialog";
 import { MemberCardDetail } from "@/components/members/member-card-detail";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,10 +27,15 @@ type LoadState =
   | { status: "error" };
 
 /**
- * 멤버 프로필 카드 다이얼로그.
+ * 멤버 프로필 카드 다이얼로그 — **공개판 전용**.
  *
  * 오픈 시 RPC 1회 조회(prefetch 없음). 다른 다이얼로그 위에 겹칠 수 있어(`stacked`)
  * 모임 상세처럼 이미 열려 있는 시트 위에서도 쓸 수 있다.
+ *
+ * **내 카드를 열어도 편집 어포던스가 없다.** 고치는 자리는 프로필탭 한 곳이고, 이 팝업은
+ * "남들에게 보이는 내 카드"를 확인하는 자리다 — 여기서 손을 대면 그 성격이 흐려지고 같은 값을
+ * 두 곳에서 고치게 된다(예전엔 `isOwner`로 한마디만 열어 뒀는데, 프로필탭이 전부 편집하게
+ * 되면서 그 예외가 필요 없어졌다).
  *
  * 모바일에서도 바텀시트가 아니라 **가운데 팝업**이다 — 카드는 손에 쥐는 물건처럼
  * 화면 중앙에 떠 있어야 하고, 시트로 올라오면 상단 스크린 존이 뷰포트 위쪽으로 밀려
@@ -44,8 +48,6 @@ export function MemberCardDialog({
   open,
   onOpenChange,
   stacked = false,
-  isOwner = false,
-  onIntroSaved,
 }: {
   /** null이면 닫힌 상태로 취급 — 호출부가 선택된 멤버를 비울 때 */
   memId: string | null;
@@ -56,18 +58,20 @@ export function MemberCardDialog({
   onOpenChange: (open: boolean) => void;
   /** 다른 다이얼로그 위에 열릴 때 z-index를 올린다 */
   stacked?: boolean;
-  /** 본인 카드 — 한마디를 여기서 바로 수정할 수 있다 */
-  isOwner?: boolean;
-  /**
-   * 본인이 이 카드 안에서 한마디를 수정했을 때 호출부에 알린다.
-   * 호출부(예: ProfileCard)가 카드 밖에서 같은 한마디를 따로 표시하면
-   * 서버 리페치 전까지 두 표시가 어긋나므로, 여기로 갱신값을 흘려준다.
-   */
-  onIntroSaved?: (next: string) => void;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [state, setState] = useState<LoadState>({ status: "loading" });
-  const [introOpen, setIntroOpen] = useState(false);
+  /**
+   * 보는 사람이 로그인했나 — 비로그인이면 카드 아래 실적 존을 가린다(§MemberCardDetail).
+   *
+   * 호출부에서 prop으로 받지 않고 **여기서 직접 확인**한다. 이 카드를 여는 자리가 여섯 곳인데
+   * (전광판·격자·랭킹·모임·프로필·일정) 그중 로그인 여부를 이미 아는 곳은 일부뿐이라,
+   * prop으로 내리면 한 곳만 안 넘겨도 그 경로에서 조용히 다 보인다. 가림막은 빠뜨리면
+   * 티가 안 나는 종류라 판정을 카드 쪽에 둔다.
+   *
+   * `null`은 "아직 모름" — 확인 전에는 가리지도 열지도 않는다(한 프레임 깜빡임 방지).
+   */
+  const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
 
   // 연속 탭으로 요청이 겹칠 때 늦게 온 응답이 화면을 덮어쓰지 않게 한다.
   const reqIdRef = useRef(0);
@@ -94,6 +98,19 @@ export function MemberCardDialog({
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [open, memId, load]);
+
+  // 로그인 여부 — 카드를 열 때 한 번 확인한다(카드 조회와 나란히 나가므로 지연이 안 늘어난다).
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    void supabase.auth.getUser().then(({ data, error }) => {
+      if (!active) return;
+      setLoggedIn(!error && data.user != null);
+    });
+    return () => {
+      active = false;
+    };
+  }, [open, supabase]);
 
   return (
     <Dialog open={open && memId !== null} onOpenChange={onOpenChange}>
@@ -124,7 +141,9 @@ export function MemberCardDialog({
             <MemberCardDetail
               memId={memId}
               data={state.data}
-              onEditIntro={isOwner ? () => setIntroOpen(true) : undefined}
+              // 확인 전(null)에는 가리지 않는다 — 잠깐 가렸다 열리면 깜빡임으로 보인다.
+              // 비로그인으로 확정됐을 때만 실적 존을 덮는다.
+              locked={loggedIn === false}
             />
           )}
 
@@ -150,25 +169,6 @@ export function MemberCardDialog({
           )}
         </div>
       </DialogContent>
-
-      {isOwner && (
-        <IntroEditDialog
-          open={introOpen}
-          onOpenChange={setIntroOpen}
-          initialValue={state.status === "ready" ? (state.data.intro_txt ?? "") : ""}
-          // 카드를 다시 조회하지 않고 열려 있는 화면의 값만 갈아끼운다.
-          onSaved={(next) => {
-            setState((prev) =>
-              prev.status === "ready"
-                ? { status: "ready", data: { ...prev.data, intro_txt: next || null } }
-                : prev,
-            );
-            // 카드 밖에서 같은 한마디를 표시하는 호출부도 함께 갱신한다.
-            onIntroSaved?.(next);
-          }}
-          stacked
-        />
-      )}
     </Dialog>
   );
 }

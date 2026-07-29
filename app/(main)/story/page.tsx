@@ -10,7 +10,11 @@ import { getStoryReactions, getStoryFeed } from "@/lib/queries/story-feed";
 // messages prop([])을 원복하고 story-client의 SHOW_MESSAGE_PLANES를 true로.
 // import { getStoryMessages } from "@/lib/queries/story-messages";
 import { getStoryPosts } from "@/lib/queries/story-posts";
-import { pickActvLeadIndex, pickRandomPostIndex } from "@/lib/story-post";
+import {
+  pickActvLeadIndex,
+  pickGhostSeed,
+  pickRandomPostIndex,
+} from "@/lib/story-post";
 import { getTeamOverview } from "@/lib/queries/team-overview";
 
 import { HeaderActions } from "@/components/common/header-actions";
@@ -35,10 +39,13 @@ export default function StoryPage() {
  */
 async function StoryFeedSection() {
   const { teamId } = await getRequestTeamContext();
+  // 현상수배 정렬 시드 — 진입마다 다른 얼굴 조합이 앞에 서게 한다(대상이 30명 상한보다
+  // 많아 순서가 곧 "누가 뜨느냐"다). 조회 인자라 Promise.all보다 먼저 뽑는다.
+  const ghostSeed = pickGhostSeed();
   const [feed, overview, ghosts, posts, { member }] = await Promise.all([
     getStoryFeed(teamId),
     getTeamOverview(teamId),
-    getGhostMembers(teamId),
+    getGhostMembers(teamId, ghostSeed),
     getStoryPosts(teamId),
     // getStoryMessages(teamId), — 종이비행기 잠정 중단(위 import 주석 참조)
     getCurrentMember(),

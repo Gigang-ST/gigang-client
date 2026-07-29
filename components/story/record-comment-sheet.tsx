@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { getMentionMembers } from "@/app/actions/comment/get-mention-members";
 
 import { CommentSection } from "@/components/comment/comment-section";
+import type { CmntRow } from "@/components/comment/comment-item";
 import type { MemberOption } from "@/components/comment/mention-input";
 import {
   ResponsiveDrawer,
@@ -39,6 +40,7 @@ export function RecordCommentSheet({
   myName,
   myAvatarUrl,
   isAdmin,
+  initialComments,
 }: {
   postId: string | null;
   /** 시트 제목에 쓴다 — "누구의 기록"에 다는 댓글인지 */
@@ -50,6 +52,14 @@ export function RecordCommentSheet({
   myName?: string | null;
   myAvatarUrl?: string | null;
   isAdmin?: boolean;
+  /**
+   * 릴스가 **이미 읽어 둔** 이 기록의 댓글(삭제분 포함 — 자리표시자용).
+   *
+   * 주면 `CommentSection`이 조회를 건너뛰고 즉시 그린다. 안 주면 스스로 읽는다(= 예전 동작).
+   * 이게 없던 시절엔 릴스가 개수를 알면서도 시트가 같은 쿼리를 다시 날려,
+   * **댓글이 0건인데도 `댓글 불러오는 중...`**이 한참 떠 있었다.
+   */
+  initialComments?: CmntRow[];
 }) {
   const [members, setMembers] = useState<MemberOption[] | null>(null);
 
@@ -126,6 +136,7 @@ export function RecordCommentSheet({
             currentMemberAvatarUrl={myAvatarUrl}
             isAdmin={isAdmin}
             members={members ?? []}
+            initialComments={initialComments}
             loginReturnPath="/story"
           />
         </div>

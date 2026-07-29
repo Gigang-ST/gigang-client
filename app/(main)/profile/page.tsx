@@ -3,20 +3,17 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { CreditCard, MessageSquare, UserPen, Wallet } from "lucide-react";
-
-import { dayjs } from "@/lib/dayjs";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
+import { getPublicMemberCard } from "@/lib/queries/member-card";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 
 import { HeaderActions } from "@/components/common/header-actions";
 import { PageHeader } from "@/components/common/page-header";
-import { PaceChartDynamic } from "@/components/profile/pace-chart-dynamic";
-import { PersonalBestGrid } from "@/components/profile/personal-best-grid";
-import { ProfileCard } from "@/components/profile/profile-card";
+import { Body, Caption } from "@/components/common/typography";
+import { ProfileTabCard } from "@/components/profile/profile-tab-card";
 import type { MemberStatus } from "@/components/races/types";
-import { CardItem } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 async function ProfileContent() {
@@ -31,59 +28,53 @@ async function ProfileContent() {
     redirect("/onboarding?next=/profile");
   }
 
-  const [{ data: raceResults }, { data: utmbProfile }, cmmCdRows, { data: primaryTitle }, { data: balSnap }] = await Promise.all([
-    supabase
-      .from("rec_race_hist")
-      .select("comp_evt_cfg(comp_evt_type), rec_time_sec, race_nm, race_dt")
-      .eq("mem_id", member.id)
-      .eq("vers", 0)
-      .eq("del_yn", false),
-    supabase
-      .from("mem_utmb_prf")
-      .select("utmb_prf_url, utmb_idx, rct_race_nm, rct_race_rec")
-      .eq("mem_id", member.id)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .maybeSingle(),
-    getCachedCmmCdRows(),
-    supabase
-      .from("mem_ttl_rel")
-      .select("ttl_id, is_prmy_yn, ttl_mst(ttl_nm, ttl_desc, desc_visibility, rarity_level, ttl_ctgr_cd)")
-      .eq("team_mem_id", member.team_mem_id)
-      .eq("vers", 0)
-      .eq("del_yn", false),
-    supabase
-      .from("fee_mem_bal_snap")
-      .select("bal_amt")
-      .eq("team_id", teamId)
-      .eq("mem_id", member.id)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .maybeSingle(),
-  ]);
+  // 카드 본문은 공개 카드 RPC 한 번으로 전부 받는다 — 남이 보는 카드와 **같은 데이터**라야
+  // 두 화면이 어긋나지 않는다. 서버에서 부르는 게 중요한데, 클라이언트 조회로 옮기면
+  // 편집 액션들의 `revalidatePath("/profile")`이 통째로 무력화된다.
+  const [card, { data: utmbProfile }, cmmCdRows, { data: titleRows }] =
+    await Promise.all([
+      getPublicMemberCard(supabase, member.id, teamId),
+      supabase
+        .from("mem_utmb_prf")
+        .select("utmb_prf_url, utmb_idx, rct_race_nm, rct_race_rec")
+        .eq("mem_id", member.id)
+        .eq("vers", 0)
+        .eq("del_yn", false)
+        .maybeSingle(),
+      getCachedCmmCdRows(),
+      supabase
+        .from("mem_ttl_rel")
+        .select("ttl_id, is_prmy_yn, ttl_mst(rarity_level, ttl_ctgr_cd)")
+        .eq("team_mem_id", member.team_mem_id)
+        .eq("vers", 0)
+        .eq("del_yn", false),
+    ]);
 
-  // Build best records map: for each event_type, pick the one with lowest record_time_sec
-  const bestRecords: Record<string, { record_time_sec: number; race_name: string; race_dt: string | null }> = {};
-  (raceResults ?? []).forEach((r) => {
-    const evt = (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type?.toUpperCase() ?? "";
-    if (!["FULL", "HALF", "10K"].includes(evt)) return;
-    const existing = bestRecords[evt];
-    if (!existing || r.rec_time_sec < existing.record_time_sec) {
-      bestRecords[evt] = { record_time_sec: r.rec_time_sec, race_name: r.race_nm, race_dt: r.race_dt ?? null };
-    }
-  });
+  // RPC는 `mem_st_cd = 'active'`만 돌려준다 — 비활성·탈퇴 상태면 카드가 통째로 비므로
+  // 빈 화면 대신 사유를 말한다(예전 프로필탭은 이 상태에서도 화면을 보여줬다).
+  if (!card) {
+    return (
+      <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
+        <div className="flex flex-col gap-1.5">
+          <Body className="font-semibold">계정이 비활성 상태예요</Body>
+          <Caption>
+            프로필 카드는 활동 중인 기강인에게만 보여요. 운영진에게 문의해 주세요.
+          </Caption>
+        </div>
+        <Button asChild size="sm" variant="outline">
+          <Link href="/settings">설정으로</Link>
+        </Button>
+      </div>
+    );
+  }
 
-  const joinedDate = member.joined_at
-    ? dayjs(member.joined_at).format("YY.MM.DD")
-    : "";
-
-  // 보유 칭호 목록에서 대표 칭호와 최고 등급 계산
-  const allTitles = (primaryTitle ?? []) as { ttl_id: string; is_prmy_yn: boolean; ttl_mst: { ttl_nm: string; ttl_desc?: string | null; desc_visibility?: string; rarity_level: number; ttl_ctgr_cd: string } | null }[];
-  const primaryTitleRow = allTitles.find((t) => t.is_prmy_yn);
-  const primaryTtlNm = primaryTitleRow?.ttl_mst?.ttl_nm ?? null;
-  const primaryTtlDesc = primaryTitleRow?.ttl_mst?.ttl_desc ?? null;
-  const primaryTtlDescVisibility = (primaryTitleRow?.ttl_mst?.desc_visibility ?? "others") as "always" | "others" | "held" | "never";
-  const primaryTtlId = primaryTitleRow?.ttl_id ?? null;
+  // 컬렉션 시트가 요구하는 값 — 대표 칭호 id와 해금 기준 최고 등급.
+  const allTitles = (titleRows ?? []) as {
+    ttl_id: string;
+    is_prmy_yn: boolean;
+    ttl_mst: { rarity_level: number; ttl_ctgr_cd: string } | null;
+  }[];
+  const primaryTtlId = allTitles.find((t) => t.is_prmy_yn)?.ttl_id ?? null;
   const maxRarityLevel = allTitles.reduce((max, t) => {
     if (t.ttl_mst?.ttl_ctgr_cd === "event") return max; // Event 칭호는 해금에 영향 없음
     const lvl = t.ttl_mst?.rarity_level ?? 1;
@@ -110,88 +101,50 @@ async function ProfileContent() {
         };
 
   return (
-    <div className="flex flex-col gap-4 px-6 pb-6">
-        {/* Profile Card */}
-        <ProfileCard
-          fullName={member.full_name}
-          avatarUrl={member.avatar_url}
-          memId={member.id}
-          joinedDate={joinedDate}
-          teamMemId={member.team_mem_id}
-          teamId={teamId}
-          primaryTtlId={primaryTtlId}
-          primaryTtlNm={primaryTtlNm}
-          primaryTtlDesc={primaryTtlDesc}
-          primaryTtlDescVisibility={primaryTtlDescVisibility}
-          selectedBadgeEffect={member.selected_badge_effect}
-          selectedFrameCd={member.selected_frame_cd}
-          maxRarityLevel={maxRarityLevel}
-          introTxt={member.intro_txt}
-        />
-
-        {/* 바로가기 */}
-        <div className="grid grid-cols-4 gap-2">
-          {[
-            { href: "/profile/edit", icon: UserPen, label: "내 정보", dot: false },
-            { href: "/profile/bank", icon: CreditCard, label: "내 계좌", dot: false },
-            { href: "/profile/dues", icon: Wallet, label: "회비", dot: (balSnap?.bal_amt ?? 0) < 0 },
-            { href: "/profile/feedback", icon: MessageSquare, label: "건의", dot: false },
-          ].map(({ href, icon: Icon, label, dot }) => (
-            <Link key={href} href={href}>
-              <div className="relative flex items-center justify-center gap-2 rounded-xl border border-border py-2.5">
-                <Icon className="size-3.5 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">{label}</span>
-                {dot && (
-                  <span className="absolute right-2 top-2 size-1.5 rounded-full bg-destructive" />
-                )}
-              </div>
-            </Link>
-          ))}
-        </div>
-
-        {/* Personal Best */}
-        <PersonalBestGrid
-          bestRecords={bestRecords}
-          utmbData={utmbProfile?.utmb_prf_url && utmbProfile?.utmb_idx != null ? { utmb_profile_url: utmbProfile.utmb_prf_url, utmb_index: utmbProfile.utmb_idx, recent_race_name: utmbProfile.rct_race_nm, recent_race_record: utmbProfile.rct_race_rec } : null}
-          memberId={member.id}
-          teamId={teamId}
-          cmmCdRows={cmmCdRows}
-          competitionRegisterMemberStatus={competitionRegisterMemberStatus}
-        />
-
-        {/* 페이스 그래프 */}
-        <PaceChartDynamic records={(raceResults ?? []).map((r) => ({ event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type?.toUpperCase() ?? "", record_time_sec: r.rec_time_sec, race_name: r.race_nm, race_date: r.race_dt }))} />
-
-
-      </div>
+    <div className="px-6">
+      <ProfileTabCard
+        memId={member.id}
+        teamMemId={member.team_mem_id}
+        teamId={teamId}
+        card={card}
+        utmb={
+          utmbProfile?.utmb_prf_url && utmbProfile?.utmb_idx != null
+            ? {
+                utmb_profile_url: utmbProfile.utmb_prf_url,
+                utmb_index: utmbProfile.utmb_idx,
+                recent_race_name: utmbProfile.rct_race_nm,
+                recent_race_record: utmbProfile.rct_race_rec,
+              }
+            : null
+        }
+        primaryTtlId={primaryTtlId}
+        maxRarityLevel={maxRarityLevel}
+        cmmCdRows={cmmCdRows}
+        competitionRegisterMemberStatus={competitionRegisterMemberStatus}
+      />
+    </div>
   );
 }
 
+/** 실제 레이아웃(전폭 스크린 존 + 섹션들)을 모사한 스켈레톤 */
 function ProfileSkeleton() {
   return (
-    <div className="flex flex-col gap-6 px-6 pb-6">
-      {/* Profile Card */}
-      <CardItem className="flex items-center gap-4 p-5">
-        <Skeleton className="size-16 rounded-full" />
-        <div className="flex flex-1 flex-col gap-2">
-          <Skeleton className="h-5 w-24" />
-          <Skeleton className="h-3 w-32" />
-        </div>
-        <Skeleton className="h-8 w-12 rounded-lg" />
-      </CardItem>
-      {/* Personal Best */}
-      <div className="flex flex-col gap-3">
-        <Skeleton className="h-4 w-28" />
-        <div className="grid grid-cols-2 gap-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 rounded-2xl" />
-          ))}
-        </div>
+    <div className="flex flex-col">
+      {/* 스크린 존 — 전폭이라 좌우 패딩 밖으로 나간다 */}
+      <div className="flex flex-col items-center gap-2.5 bg-board px-6 py-6">
+        <Skeleton className="size-24 rounded-full bg-board-line" />
+        <Skeleton className="h-6 w-28 rounded bg-board-line" />
+        <Skeleton className="h-5 w-40 rounded bg-board-line" />
+        <Skeleton className="h-4 w-32 rounded bg-board-line" />
       </div>
-      {/* UTMB */}
-      <div className="flex flex-col gap-3">
-        <Skeleton className="h-4 w-24" />
-        <Skeleton className="h-20 rounded-2xl" />
+      <div className="flex flex-col gap-5 px-6 py-6">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="flex flex-col gap-2">
+            <Skeleton className="h-3 w-20 rounded" />
+            <Skeleton className="h-4 w-full rounded" />
+            <Skeleton className="h-4 w-4/5 rounded" />
+          </div>
+        ))}
       </div>
     </div>
   );
