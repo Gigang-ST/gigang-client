@@ -4,16 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 
-import { Zap } from "lucide-react";
+import { ImageIcon, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import { loadMorePosts } from "@/app/actions/story/load-more-posts";
 import { loadStoryPost } from "@/app/actions/story/load-post";
+import { clearDeepLinkParams } from "@/lib/notifications/deep-link";
 // 상한은 `lib/story-post.ts`에서 가져온다 — `lib/queries/story-posts.ts`는 admin
 // 클라이언트(`server-only`)를 물고 있어 클라이언트 컴포넌트가 import하면 빌드가 깨진다.
 // 값 자체는 두 곳이 같아야 하므로(받은 개수 < 상한 = 끝) 정본은 story-post.ts 한 곳이다.
 import { STORY_POST_LIMIT } from "@/lib/story-post";
 
+import { EmptyState } from "@/components/common/empty-state";
 import { HelpTip } from "@/components/common/help-tip";
 import { MemberCardDialog } from "@/components/members/member-card-dialog";
 import { RecordDeleteDialog } from "@/components/story/record-delete-dialog";
@@ -169,6 +171,10 @@ export function RecordFlexFeed({
    */
   if (recParam && handledRec !== recParam && recReady) {
     setHandledRec(recParam);
+    // 주소에서 `?rec=`를 먼저 지운다 — **뷰어를 열기 전에**(§clearDeepLinkParams).
+    // 남겨두면 닫은 뒤 새로고침·뒤로가기에 릴스가 다시 열려 "닫았는데 또 뜨는" 상태가 된다
+    // (handledRec은 메모리라 새로고침에 초기화된다).
+    clearDeepLinkParams();
     setOpenId(recParam);
   }
 
@@ -318,7 +324,17 @@ export function RecordFlexFeed({
         }
       />
 
-      {
+      {/* 아직 사진이 하나도 없을 때 — 빈 가로 스크롤만 남기면 존이 고장난 것처럼 보인다.
+          여기가 무엇을 하는 자리인지 한 줄로 알리고, 올리기 버튼(아래)이 행동을 받는다. */}
+      {all.length === 0 ? (
+        <div className="px-6 pt-4">
+          <EmptyState
+            variant="card"
+            icon={ImageIcon}
+            message="아직 올라온 사진이 없어요. 첫 사진을 올려주세요."
+          />
+        </div>
+      ) : (
         /* 가로 스크롤 — 면을 끊어 넘기던 걸(프로그레스바 + 스와이프 판정) 걷어내고 손으로
            밀면 계속 흘러가게 했다. 면 표시 막대는 기록이 늘수록 한 칸이 좁아져 결국 못 누르는
            UI가 되는데, 여기는 시간순 목록이라 "몇 면 중 몇 면"이 애초에 쓸모가 적다.
@@ -416,7 +432,7 @@ export function RecordFlexFeed({
             {!done && <li ref={sentinelRef} aria-hidden className="w-px shrink-0" />}
           </ul>
         </div>
-      }
+      )}
 
       {/* 기록 올리기 — 로그인 멤버만 */}
       {myMemId && (

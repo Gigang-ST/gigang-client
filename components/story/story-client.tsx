@@ -106,12 +106,16 @@ export function StoryClient({
   const selectMember = (memId: string, name: string) =>
     setSelected({ memId, name });
 
+  // "전할 소식이 없다"는 **화면에 실제로 아무것도 안 떴을 때만** 맞는 말이다.
+  // 예전엔 화면에 없는 month_rank를 세고 정작 화면에 있는 깅스타그램(posts)·현상수배(ghosts)는
+  // 안 세서, 사진만 올라온 날 격자와 "소식이 없습니다"가 나란히 떴다.
   const hasAnything =
     feed.newbies.length > 0 ||
     feed.records.length > 0 ||
     feed.races.length > 0 ||
-    feed.month_rank.length > 0 ||
-    feed.actv_rank.length > 0;
+    feed.actv_rank.length > 0 ||
+    posts.length > 0 ||
+    ghosts.length > 0;
 
   return (
     // select-none — 이 지면은 스와이프·던지기 제스처가 많은데, 그때 손가락을 끌면 글자가

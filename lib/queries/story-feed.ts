@@ -97,14 +97,6 @@ export type StoryRace = ReactableItem & {
   }[];
 };
 
-export type StoryRankEntry = {
-  rank: number;
-  mem_id: string;
-  mem_nm: string;
-  avatar_url: string | null;
-  attd_cnt: number;
-};
-
 /**
  * 기강활동지수 랭킹 항목 (전체 누적 합산, 상위 10명).
  * `actv_score`는 내부적으로 기강 포인트 원장(`pt_txn_hist`)을 합산한 값이지만,
@@ -142,12 +134,6 @@ export type StoryActvRankEntry = {
   mth_rec_cnt?: number;
 };
 
-/** 이번 주(KST, 월요일 시작 ~ now) 크루 합계 통계 */
-export type StoryWeekStat = {
-  gthr_cnt: number;
-  attd_cnt: number;
-  rec_cnt: number;
-};
 
 /**
  * 멤버 목표 한마디(한 줄 다짐) — 만료 없이 누적, 최근순 노출.
@@ -176,13 +162,19 @@ export type StoryPledge = {
   primary_title?: MemberCardCompactData["primary_title"];
 };
 
+/**
+ * 전광판 피드.
+ *
+ * `month_rank`(이달의 참석왕)·`week_stat`(이번 주 합계)은 **걷어냈다** — 읽는 화면이 없어진
+ * 지 오래인데 RPC가 계속 만들고 있었다(그것 때문에 CTE 5개가 매번 돌았다). 참석왕은
+ * 활동량 지표가 생기면서 "월 랭킹 두 개가 연달아 서면 같은 걸 두 번 본 것처럼 읽힌다"는
+ * 이유로 화면에서 내렸고, 주간 합계는 오버뷰가 `get_team_overview`를 쓰게 되며 쓸모가 없어졌다.
+ */
 export type StoryFeed = {
   newbies: StoryNewbie[];
   records: StoryRecord[];
   races: StoryRace[];
-  month_rank: StoryRankEntry[];
   actv_rank: StoryActvRankEntry[];
-  week_stat: StoryWeekStat;
   pledges: StoryPledge[];
 };
 
@@ -190,9 +182,7 @@ const EMPTY_FEED: StoryFeed = {
   newbies: [],
   records: [],
   races: [],
-  month_rank: [],
   actv_rank: [],
-  week_stat: { gthr_cnt: 0, attd_cnt: 0, rec_cnt: 0 },
   pledges: [],
 };
 

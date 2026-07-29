@@ -320,6 +320,15 @@ const ReelCard = ({
       ref={ref}
       // 관찰자가 "지금 어느 장인지"를 이 값으로 읽는다(엘리먼트→id 역참조를 위해).
       data-post-id={post.post_id}
+      // `content-visibility: auto` — 화면 밖 장은 **브라우저가 렌더·레이아웃을 건너뛴다.**
+      // 릴스는 전 장이 한꺼번에 마운트되는 구조라(scroll-snap 목록) 더보기로 수백 장이
+      // 쌓이면 DOM 비용이 그대로 쌓인다. 가상화는 snap 위치 계산을 직접 떠안아야 해서
+      // 위험이 큰데, 이 한 줄이면 구조를 안 건드리고 같은 효과를 얻는다.
+      // `contain-intrinsic-size`로 건너뛴 장의 크기를 알려 줘야 스크롤 길이가 안 흔들린다.
+      style={{
+        contentVisibility: "auto",
+        containIntrinsicSize: "100vw 100dvh",
+      }}
       className="relative flex h-full snap-start snap-always items-center justify-center overflow-hidden"
     >
       {/*

@@ -1136,15 +1136,23 @@ export function StoryLede({
                 aria-label={`${lede.photo.person.mem_nm}의 기록 자세히 보기`}
                 className={`relative size-[158px] shrink-0 overflow-hidden rounded-xl bg-muted transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]`}
               >
-                {/* 사진은 항상 있다 — 프사 폴백은 걷어냈다(조회에서 사진 없는 기록을 거른다) */}
-                <Image
-                  src={lede.photo.url ?? ""}
-                  alt={lede.photo.person.mem_nm}
-                  fill
-                  sizes="50vw"
-                  unoptimized
-                  className="object-cover"
-                />
+                {/* 사진은 항상 있다 — 프사 폴백은 걷어냈다(조회에서 사진 없는 기록을 거른다).
+                    그래도 **`?? ""`로 때우지 않는다**: 빈 src는 브라우저가 현재 페이지 URL을
+                    이미지로 다시 요청하게 만들어(문서를 이미지로 받으려다 실패) 깨진 아이콘이
+                    뜨고 요청 하나가 샌다. 격자·릴스가 이미 같은 이유로 값이 없으면 안 그린다 —
+                    여기만 빠져 있었다. 평소엔 RPC 필터가 가려 주지만, `unstable_cache`에 남은
+                    옛 payload가 내려오면 드러난다(실제로 서버 재시작 첫 렌더에서 경고를 봤다).
+                    없으면 그냥 빈 판(bg-muted)으로 둔다. */}
+                {lede.photo.url && (
+                  <Image
+                    src={lede.photo.url}
+                    alt={lede.photo.person.mem_nm}
+                    fill
+                    sizes="50vw"
+                    unoptimized
+                    className="object-cover"
+                  />
+                )}
                 {/* 마일리지런에서 온 기록 — 격자·릴스와 같은 ⚡ 표시. 이 칸은 158px로 작아
                     글자 없이 아이콘만 얹는다(라벨까지 넣으면 사진을 가린다). */}
                 {lede.photo.mileage && (
