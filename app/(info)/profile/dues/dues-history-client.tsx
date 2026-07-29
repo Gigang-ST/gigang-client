@@ -105,7 +105,13 @@ export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, monthlyFeeA
       <CardItem className="flex flex-col gap-2 p-4">
         <div className="flex items-center justify-between">
           <Caption>현재 잔액</Caption>
-          {lastCalcDt && <Caption className="text-muted-foreground">{lastCalcDt} 기준</Caption>}
+          {/* 계산 기준 일시 — 흐린 회색 한 줄이라 지나치는 사람이 많아 **일시만 굵게** 세운다.
+              "기준"은 보조어라 흐린 채로 둬야 숫자가 도드라진다(전체를 굵게 하면 다시 뭉갠다). */}
+          {lastCalcDt && (
+            <Caption className="text-muted-foreground">
+              <span className="font-bold text-foreground">{lastCalcDt}</span> 기준
+            </Caption>
+          )}
         </div>
         <div className="flex items-center justify-between">
           <Body className={`text-2xl font-bold ${balColor}`}>
@@ -234,8 +240,28 @@ export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, monthlyFeeA
           <DialogHeader>
             <DialogTitle>회비 문의</DialogTitle>
           </DialogHeader>
+
+          {/* 계산 기준 일시를 **문의를 누르기 직전에 한 번 더** 보여준다.
+              문의의 상당수가 "기준 시각 이후에 입금했는데 반영이 안 됐다"는 오해라,
+              여기서 시점을 못 박으면 사람이 스스로 알아채고 문의를 접을 수 있다.
+              카드의 회색 한 줄은 지나치기 쉬우므로 여기선 빨간 판으로 세운다. */}
+          {lastCalcDt && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
+              <Caption className="text-foreground">
+                지금 보시는 회비 내역은
+                <br />
+                <span className="text-[15px] font-bold text-destructive">
+                  {lastCalcDt}
+                </span>{" "}
+                기준으로 계산된 금액이에요.
+                <br />
+                이후 입금분은 아직 반영되지 않았을 수 있어요.
+              </Caption>
+            </div>
+          )}
+
           <Caption className="whitespace-pre-line text-muted-foreground">
-            {"회비 내역에 문제가 있으신가요?\n관리자에게 확인을 요청합니다."}
+            {"그래도 회비 내역에 문제가 있으신가요?\n관리자에게 확인을 요청합니다."}
           </Caption>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setConfirmOpen(false)}>취소</Button>

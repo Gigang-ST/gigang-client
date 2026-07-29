@@ -10,7 +10,9 @@ function send(event: string, params?: Record<string, string | number | boolean>)
 }
 
 export const analytics = {
-  tabClick: (tab: "home" | "story" | "projects" | "records" | "profile") =>
+  // "story"는 가운데 로고 탭(홈 `/` = 전광판), "schedule"은 달력(구 홈).
+  // 과거 데이터의 "home"은 달력 탭을 뜻한다 — 지표 비교 시 주의.
+  tabClick: (tab: "schedule" | "story" | "projects" | "records" | "profile") =>
     send("tab_click", { tab }),
 
   boardTabSwitch: (tab: "notice" | "update") =>

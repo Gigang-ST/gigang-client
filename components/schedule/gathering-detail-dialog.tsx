@@ -34,6 +34,7 @@ import {
 } from "@/components/common/responsive-drawer";
 import { Caption, Micro } from "@/components/common/typography";
 import type { CalendarRace } from "@/components/home/mini-calendar";
+import { MemberCardDialog } from "@/components/members/member-card-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -108,6 +109,11 @@ export function GatheringDetailDialog({
   const togglingRef = useRef(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  // 참석자 탭 → 프로필 카드. 이 다이얼로그 위에 겹쳐 연다(stacked).
+  const [selectedMember, setSelectedMember] = useState<{
+    memId: string;
+    name: string;
+  } | null>(null);
   // 방금 등록한 직후에만 공유 유도 안내 노출. 공유하기를 누르면 숨긴다.
   const [showShareHint, setShowShareHint] = useState(justCreated ?? false);
   // 등록 직후 다이얼로그가 맨 위에서 열려 하단 공유 유도가 안 보이는 문제 → 공유 영역으로 스크롤
@@ -156,11 +162,12 @@ export function GatheringDetailDialog({
   const typeLabel = gthrTypeLabels[gathering.post_type as GthrType] ?? gathering.post_type;
   const sprtLabel = gathering.sprt_cd ? (gthrSprtLabels[gathering.sprt_cd as GthrSprtType] ?? gathering.sprt_cd) : null;
 
-  // 공유 텍스트용
+  // 공유 텍스트용 — 딥링크는 `/schedule`에 붙인다. `?gthr=`를 읽어 상세를 여는 건
+  // MiniCalendar이고 그건 일정 페이지에만 있다(홈은 전광판 — lib/notifications/deep-link.ts).
   const gthrRef = gathering.short_id ?? gathering.id;
   const sharePageUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/?gthr=${gthrRef}`
-    : `/?gthr=${gthrRef}`;
+    ? `${window.location.origin}/schedule?gthr=${gthrRef}`
+    : `/schedule?gthr=${gthrRef}`;
 
   // 단톡방 공유 본문 — 정보 나열이 아니라 "같이 뛰어요 + CTA"로 참여를 유도한다.
   // 시간: 오전/오후 + 분 단위(A h:mm). 인원: 2명 이상일 때만(처음 공유는 작성자 1명뿐이라 생략).
@@ -396,10 +403,18 @@ export function GatheringDetailDialog({
             ) : attendees.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {attendees.map((a) => (
-                  <div key={a.mem_id} className="flex flex-col items-center gap-0.5">
+                  <button
+                    key={a.mem_id}
+                    type="button"
+                    onClick={() =>
+                      setSelectedMember({ memId: a.mem_id, name: a.mem_nm ?? "" })
+                    }
+                    aria-label={`${a.mem_nm ?? "멤버"} 프로필 보기`}
+                    className="flex flex-col items-center gap-0.5 rounded-lg p-0.5 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
                     <Avatar src={a.avatar_url} seed={a.mem_id} alt={a.mem_nm ?? ""} size="sm" />
                     <Micro className="leading-tight">{a.mem_nm ?? ""}</Micro>
-                  </div>
+                  </button>
                 ))}
               </div>
             ) : null}
@@ -476,7 +491,9 @@ export function GatheringDetailDialog({
                 isAdmin={isAdmin}
                 members={members}
                 initialComments={initialComments}
-                loginReturnPath={`/?gthr=${gathering.short_id ?? gathering.id}`}
+                // 위에서 뽑아 둔 gthrRef를 재사용한다 — 같은 폴백 규칙을 두 곳에 적으면
+                // 한쪽만 바뀌었을 때 공유 URL과 로그인 복귀 경로가 조용히 어긋난다.
+                loginReturnPath={`/schedule?gthr=${gthrRef}`}
               />
             </div>
 
@@ -506,6 +523,16 @@ export function GatheringDetailDialog({
       onOpenChange={setCancelDialogOpen}
       sttAt={gathering.evt_stt_at ?? gathering.start_date}
       onConfirm={handleCancelConfirm}
+    />
+    <MemberCardDialog
+      memId={selectedMember?.memId ?? null}
+      memNm={selectedMember?.name}
+      teamId={teamId}
+      open={selectedMember !== null}
+      onOpenChange={(open) => {
+        if (!open) setSelectedMember(null);
+      }}
+      stacked
     />
 
     </>

@@ -3,6 +3,7 @@ import "server-only";
 import { dayjs } from "@/lib/dayjs";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isRequestAbortError } from "@/lib/supabase/is-abort-error";
 
 /**
  * 온보딩 6단계(참석 약속) 모임 선택 화면에 노출할 열린 모임.
@@ -47,7 +48,9 @@ export async function getOpenGatheringsForPledge(): Promise<PledgeGathering[]> {
     .limit(PLEDGE_GATHERING_LIMIT * 2);
 
   if (error) {
-    console.error("[onboarding] 참석 약속용 모임 조회 실패", error.message);
+    if (!isRequestAbortError(error)) {
+      console.error("[onboarding] 참석 약속용 모임 조회 실패", error.message);
+    }
     return [];
   }
   if (!gatherings?.length) return [];
@@ -64,7 +67,9 @@ export async function getOpenGatheringsForPledge(): Promise<PledgeGathering[]> {
     );
 
   if (attdErr) {
-    console.error("[onboarding] 모임 참석수 집계 실패", attdErr.message);
+    if (!isRequestAbortError(attdErr)) {
+      console.error("[onboarding] 모임 참석수 집계 실패", attdErr.message);
+    }
   } else {
     attdCountByGthrId = (attdRows ?? []).reduce((acc, r) => {
       acc.set(r.gthr_id, (acc.get(r.gthr_id) ?? 0) + 1);

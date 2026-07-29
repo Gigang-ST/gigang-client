@@ -75,6 +75,8 @@ interface ResponsiveDrawerContentProps {
   className?: string
   dialogClassName?: string
   drawerClassName?: string
+  /** 오버레이에만 적용 — 다른 다이얼로그/드로어 위에 쌓을 때 z-index 조정용 */
+  overlayClassName?: string
 }
 
 function ResponsiveDrawerContent({
@@ -82,17 +84,24 @@ function ResponsiveDrawerContent({
   className,
   dialogClassName,
   drawerClassName,
+  overlayClassName,
 }: ResponsiveDrawerContentProps) {
   const { isDesktop } = React.useContext(ResponsiveDrawerContext)
   if (isDesktop) {
     return (
-      <DialogContent className={cn(className, dialogClassName)}>
+      <DialogContent
+        className={cn(className, dialogClassName)}
+        overlayClassName={overlayClassName}
+      >
         {children}
       </DialogContent>
     )
   }
   return (
-    <DrawerContent className={cn(className, drawerClassName)}>
+    <DrawerContent
+      className={cn(className, drawerClassName)}
+      overlayClassName={overlayClassName}
+    >
       {children}
     </DrawerContent>
   )

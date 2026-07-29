@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { Check } from "lucide-react";
 
-import { dayjs } from "@/lib/dayjs";
+import { formatKST } from "@/lib/dayjs";
 import { cn } from "@/lib/utils";
 
 import { sendNotification, type NotiTypeEnm } from "@/app/actions/admin/send-notification";
@@ -264,7 +264,7 @@ export function AdminNotificationsClient({
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpandedBatch(expandedBatch === batch.batchId ? null : batch.batchId); } }}
                   >
                     <TableCell className="text-center whitespace-nowrap">
-                      <Caption>{batch.crtAt ? dayjs(batch.crtAt).format("YY.MM.DD HH:mm") : "-"}</Caption>
+                      <Caption>{formatKST(batch.crtAt, "YY.MM.DD HH:mm", "-")}</Caption>
                     </TableCell>
                     <TableCell className="text-center whitespace-nowrap">
                       <Caption className={batch.notiTypeEnm === "dues_notice" ? "text-primary font-medium" : ""}>

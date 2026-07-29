@@ -1,6 +1,6 @@
 "use client";
 
-import { dayjs } from "@/lib/dayjs";
+import { formatKST } from "@/lib/dayjs";
 
 import { EmptyState } from "@/components/common/empty-state";
 import { SectionHeader } from "@/components/common/section-header";
@@ -40,7 +40,7 @@ export function FeedbackList({ items }: { items: FeedbackItem[] }) {
           {items.map((item) => (
             <CardItem key={item.id} className="flex flex-col gap-3 p-4">
               <div className="flex items-center justify-between">
-                <Caption>{dayjs(item.created_at).format("YY.MM.DD")}</Caption>
+                <Caption>{formatKST(item.created_at, "YY.MM.DD")}</Caption>
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CLASS[item.status]}`}>
                   {STATUS_LABEL[item.status]}
                 </span>

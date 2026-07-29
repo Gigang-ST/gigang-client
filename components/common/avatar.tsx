@@ -6,6 +6,9 @@ import { UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const SIZE_MAP = {
+  // xs — 이름 옆에 얼굴만 얹는 촘촘한 나열용(대회 참가자 명단 등). sm(32)은 한 행에
+  // 여러 명을 줄세우면 행이 뚱뚱해져 목록이 몇 줄 안 들어간다.
+  xs: "size-6",
   sm: "size-8",
   md: "size-10",
   lg: "size-14",
@@ -14,6 +17,7 @@ const SIZE_MAP = {
 } as const;
 
 const SIZE_PX: Record<AvatarSize, number> = {
+  xs: 24,
   sm: 32,
   md: 40,
   lg: 56,
@@ -22,6 +26,7 @@ const SIZE_PX: Record<AvatarSize, number> = {
 };
 
 const ICON_SIZE_MAP = {
+  xs: "size-3",
   sm: "size-4",
   md: "size-5",
   lg: "size-7",
@@ -40,7 +45,7 @@ type AvatarSize = keyof typeof SIZE_MAP;
 const FALLBACK_AVATAR_STYLE = "dylan";
 
 /** seed(멤버 id 등)로 고정된 DiceBear 아바타 SVG URL을 만든다. */
-function buildFallbackAvatarUrl(seed: string | number): string {
+export function buildFallbackAvatarUrl(seed: string | number): string {
   return `https://api.dicebear.com/9.x/${FALLBACK_AVATAR_STYLE}/svg?seed=${encodeURIComponent(String(seed))}`;
 }
 

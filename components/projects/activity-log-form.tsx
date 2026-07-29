@@ -13,12 +13,20 @@ import {
   MILEAGE_SPORT_LABELS,
   type MileageSport,
 } from "@/lib/mileage";
+import { pickQuip } from "@/lib/quips";
 import { createClient } from "@/lib/supabase/client";
 import { activityLogSchema } from "@/lib/validations/mileage";
 
-import { logActivity, updateActivity, type ActivityLogInput } from "@/app/actions/mileage-run";
+import {
+  logActivity,
+  updateActivity,
+  uploadActivityPhoto,
+  type ActivityLogInput,
+} from "@/app/actions/mileage-run";
 
 import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";
+import { PhotoPicker } from "@/components/common/photo-picker";
+import { RequiredMark } from "@/components/common/required-mark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,6 +69,8 @@ export type ActivityLogFormProps = {
     elevation_m: number | null;
     applied_mults: { mult_id: string; mult_nm: string; mult_val: number }[] | null;
     review: string | null;
+    /** 이미 올라가 있는 사진(있으면 수정 화면에서 미리보기로 뜬다) */
+    photo_url?: string | null;
   };
   onSuccess: () => void;
   /** 비활성/탈퇴 회원 — true면 저장 시도 시 공통 안내 게이트를 연다 */
@@ -103,6 +113,14 @@ export function ActivityLogForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inactiveGateOpen, setInactiveGateOpen] = useState(false);
+  // 예시 문구는 열 때 한 번 뽑고 입력 중엔 고정한다 — 이 폼은 수정 시트 안에서만 마운트되므로
+  // (`editTarget && <ActivityLogForm …>`) 서버가 다른 문구로 그려 놓을 일이 없다
+  const [quip] = useState(pickQuip);
+
+  // 사진 — 새로 고른 파일과 "이미 올라가 있던 URL"을 따로 든다.
+  // 수정 화면에서 셋이 갈린다: 파일 있음=교체, 파일 없고 URL 있음=그대로, 둘 다 없음=지움.
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(editData?.photo_url ?? null);
 
   const {
     register,
@@ -178,6 +196,22 @@ export function ActivityLogForm({
 
     setSubmitting(true);
     try {
+      // 사진을 새로 골랐으면 먼저 올려 URL을 받는다 — 기록 저장은 JSON 액션이라
+      // 파일을 실을 수 없어서다(자세한 이유는 uploadActivityPhoto 주석).
+      // 업로드가 실패하면 기록도 저장하지 않는다: 사진을 올린 줄 알았는데 조용히 빠지면
+      // 기강이야기에 안 뜨는 이유를 사용자가 알 길이 없다.
+      let nextPhotoUrl = photoUrl;
+      if (photoFile) {
+        const fd = new FormData();
+        fd.set("photo", photoFile);
+        const uploaded = await uploadActivityPhoto(fd);
+        if (!uploaded.ok) {
+          setError(uploaded.message);
+          return;
+        }
+        nextPhotoUrl = uploaded.url;
+      }
+
       // 서버 액션 타입으로 변환 (default 값 명시 적용)
       const input: ActivityLogInput = {
         act_dt: values.act_dt,
@@ -186,6 +220,7 @@ export function ActivityLogForm({
         elevation_m: values.elevation_m ?? 0,
         applied_mult_ids: selectedMultIds,
         review: values.review?.trim() || null,
+        photo_url: nextPhotoUrl,
       };
 
       const result = editData?.act_id
@@ -210,7 +245,10 @@ export function ActivityLogForm({
     <form onSubmit={onSubmit} className="flex flex-col gap-4 pb-4">
       {/* 날짜 */}
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="act_dt">날짜</Label>
+        <Label htmlFor="act_dt">
+          날짜
+          <RequiredMark />
+        </Label>
         <Input
           id="act_dt"
           type="date"
@@ -225,7 +263,10 @@ export function ActivityLogForm({
 
       {/* 종목 */}
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="sprt_enm">종목</Label>
+        <Label htmlFor="sprt_enm">
+          종목
+          <RequiredMark />
+        </Label>
         <Controller
           control={control}
           name="sprt_enm"
@@ -256,7 +297,10 @@ export function ActivityLogForm({
 
       {/* 거리 */}
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="distance_km">거리 (km)</Label>
+        <Label htmlFor="distance_km">
+          거리 (km)
+          <RequiredMark />
+        </Label>
         <Input
           id="distance_km"
           type="number"
@@ -339,17 +383,39 @@ export function ActivityLogForm({
         </div>
       )}
 
-      {/* 후기 */}
+      {/* 한마디 — 깅스타그램 작성 폼과 같은 말을 쓴다(DB 컬럼은 `review` 그대로) */}
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="review">후기 (선택, 최대 200자)</Label>
+        <Label htmlFor="review">한마디 (선택, 최대 200자)</Label>
         <Input
           id="review"
           type="text"
           maxLength={200}
-          placeholder="한 줄 후기를 남겨보세요"
+          placeholder={quip}
           className="h-12 rounded-xl border-[1.5px] text-[15px]"
           {...register("review")}
         />
+      </div>
+
+      {/* 사진 — 마일리지런은 수치가 본체라 선택값이다. 다만 올리면 기강이야기에도 함께 선다 */}
+      <div className="flex flex-col gap-1.5">
+        <Label>사진 (선택)</Label>
+        <PhotoPicker
+          onPick={(f) => {
+            setPhotoFile(f);
+            // 지우기를 누르면 이미 올라가 있던 사진도 함께 뗀다 —
+            // 안 그러면 미리보기만 사라지고 저장 시 옛 사진이 되살아난다
+            if (!f) setPhotoUrl(null);
+          }}
+          initialUrl={photoUrl}
+          emptyLabel="사진 추가 (선택)"
+        />
+        {/* 사진이 곧 기강이야기 유입 스위치라, 누르기 전에 알려 준다.
+            "올리면 다른 데도 뜬다"는 건 되돌리기 어려운 공개라 사후 안내로는 늦다.
+            색은 primary — 안내이지 오류가 아니다. destructive를 쓰면 같은 화면의 실제
+            오류 메시지와 구분이 안 돼 입력이 잘못된 줄로 읽힌다(다건 폼과 동일 규칙). */}
+        <p className="text-[13px] text-primary">
+          사진 추가 시, 기강이야기의 깅스타그램에도 등록돼요.
+        </p>
       </div>
 
       {/* 저장 버튼 */}

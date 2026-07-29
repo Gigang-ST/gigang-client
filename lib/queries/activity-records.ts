@@ -11,6 +11,8 @@ export type ActivityRecord = {
   applied_mults: { mult_id: string; mult_nm: string; mult_val: number }[] | null;
   final_mlg: number;
   review: string | null;
+  /** 사진 공개 URL(선택). 값이 있으면 기강이야기 운동기록에도 이 기록이 서 있다 */
+  photo_url: string | null;
 };
 
 /**
@@ -33,7 +35,9 @@ export async function fetchActivityRecords(
 
   const { data } = await supabase
     .from("evt_mlg_act_hist")
-    .select("act_id, act_dt, sprt_enm, dst_km, elv_m, base_mlg, aply_mults, final_mlg, review")
+    .select(
+      "act_id, act_dt, sprt_enm, dst_km, elv_m, base_mlg, aply_mults, final_mlg, review, photo_url",
+    )
     .eq("prt_id", prtId)
     .gte("act_dt", month)
     .lt("act_dt", monthEnd)
@@ -49,5 +53,6 @@ export async function fetchActivityRecords(
     applied_mults: (r.aply_mults ?? null) as ActivityRecord["applied_mults"],
     final_mlg: Number(r.final_mlg),
     review: r.review ?? null,
+    photo_url: r.photo_url ?? null,
   }));
 }

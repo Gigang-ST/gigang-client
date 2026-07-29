@@ -6,7 +6,7 @@ import Link from "next/link";
 
 /** 헤더 중앙 롤링에 표시할 참석 예정 모임 (라벨은 서버에서 계산해 전달) */
 export type HeaderUpcoming = {
-  /** 모임 상세 딥링크 (/?gthr=gthr_id — uuid를 넘겨야 병렬 1 RTT 패스트패스를 탄다) */
+  /** 모임 상세 딥링크 (/schedule?gthr=gthr_id — uuid를 넘겨야 병렬 1 RTT 패스트패스를 탄다) */
   href: string;
   /** 오늘 | 내일 | D-n */
   dLabel: string;
@@ -66,7 +66,9 @@ export function HeaderTicker({ upcoming }: { upcoming: HeaderUpcoming | null }) 
 
   if (!upcoming) {
     return (
-      <div className="pointer-events-none absolute left-0 right-0 flex flex-col items-center justify-center">
+      // inset-0 + items-center로 부모(h-8) 안에서 세로 가운데. left-0 right-0만 주면
+      // 세로가 top:0에 붙어, 로딩 스켈레톤(가운데 정렬)에서 넘어올 때 슬로건이 위로 튄다.
+      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
         <Slogan />
       </div>
     );
@@ -80,7 +82,7 @@ export function HeaderTicker({ upcoming }: { upcoming: HeaderUpcoming | null }) 
         : "-translate-y-3 opacity-0 transition-all duration-500 ease-in-out motion-reduce:transition-none";
 
   return (
-    <div className="pointer-events-none absolute left-0 right-0 flex justify-center">
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
       <div className="relative h-8 w-56">
         <div className={`absolute inset-0 flex flex-col items-center justify-center ${faceClass("slogan")}`}>
           <Slogan />

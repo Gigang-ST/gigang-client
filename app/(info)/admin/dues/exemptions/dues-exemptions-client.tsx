@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 
-import { dayjs } from "@/lib/dayjs";
+import { dayjs, nowKST } from "@/lib/dayjs";
 import { duplicateNames, memberLabel } from "@/lib/dues/homonyms";
 import { cn } from "@/lib/utils";
 
@@ -156,7 +156,7 @@ type RuleFormState = {
 };
 
 function defaultRuleForm(): RuleFormState {
-  return { memId: "", exmTpEnm: "full", exmAmt: "", aplySttYm: dayjs().format("YYYY-MM"), aplyEndYm: "", rsnTxt: "" };
+  return { memId: "", exmTpEnm: "full", exmAmt: "", aplySttYm: nowKST().format("YYYY-MM"), aplyEndYm: "", rsnTxt: "" };
 }
 
 function ExemptionRulesTab({
@@ -358,7 +358,7 @@ type HistFormState = {
 };
 
 function defaultHistForm(): HistFormState {
-  return { memId: "", aplyYm: dayjs().format("YYYY-MM"), exmAmt: "", rsnTxt: "" };
+  return { memId: "", aplyYm: nowKST().format("YYYY-MM"), exmAmt: "", rsnTxt: "" };
 }
 
 function ExemptionHistsTab({

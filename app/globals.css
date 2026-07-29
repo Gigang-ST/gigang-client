@@ -6,6 +6,16 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* 폰트 3역할 — 본문(Pretendard) / 제호·사람의 말(리디바탕) / 수치(Oswald).
+     변수는 app/layout.tsx의 next/font가 주입한다.
+     Oswald는 라틴 전용이라 한글에 쓰면 안 된다 — 뒤에 Pretendard를 폴백으로 둔다.
+     명조는 기강이야기 전용이 아니다: "사람이 쓴 문장"과 "앱이 사람에게 거는 말"이
+     있는 곳이면 지면 밖에서도 쓴다(프로필 한마디·가입안내). 한 페이지에만 있으면
+     톤이 다른 게 아니라 그 페이지만 튀어 보인다. 수치·라벨·경고는 산세리프로 남겨
+     대비를 만든다 — 명조를 다 바르면 대비가 사라져 위계가 죽는다. */
+  --font-sans: var(--font-pretendard), system-ui, sans-serif;
+  --font-numeric: var(--font-oswald), var(--font-pretendard), sans-serif;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 
@@ -48,6 +58,14 @@
   --color-sport-trail-run: var(--sport-trail-run);
   --color-sport-triathlon: var(--sport-triathlon);
   --color-sport-cycling: var(--sport-cycling);
+
+  /* 전광판 스크린 존 (Board) — 프로필 카드 상단. 테마 불변(항상 야간) */
+  --color-board: var(--board);
+  --color-board-foreground: var(--board-foreground);
+  --color-board-muted: var(--board-muted);
+  --color-board-line: var(--board-line);
+  --color-board-amber: var(--board-amber);
+  --color-pulse-neon: var(--pulse-neon);
 
   /* chart-* 은 sport-* 참조 (하위호환) */
   --color-chart-1: var(--sport-road-run);
@@ -103,6 +121,21 @@
   --event-full: oklch(0.623 0.188 260);
   --event-half: oklch(0.527 0.154 150);
   --event-10k: oklch(0.618 0.181 44);
+
+  /* 전광판 스크린 존 — 프로필 카드 상단 "라인업 콜" 전용.
+     라이트/다크 모두 동일한 야간 값을 쓴다(.dark에서 재정의하지 않음):
+     glow 기반 프레임·칭호 이펙트가 흰 배경에서 죽는 문제를 이 존이 해결한다.
+     --board-amber는 스크린 존 안에서만 사용 — 존 밖으로 내보내지 말 것. */
+  --board: oklch(0.19 0.012 268);
+  --board-foreground: oklch(0.95 0.006 268);
+  --board-muted: oklch(0.64 0.021 268);
+  --board-line: oklch(0.28 0.017 268);
+  --board-amber: oklch(0.81 0.146 82);
+
+  /* 팀 심박수(Team Pulse) 심전도 네온 — 실제 ECG 모니터의 형광 청록. board 존과 같은
+     야간값이라 라이트/다크 공통(스크린 존 밖에서 쓰지 않는 board-amber와 같은 원리).
+     심전도는 어두운 판 위에서만 빛나므로, story-pulse가 파형 뒤에 board 배경을 깐다. */
+  --pulse-neon: oklch(0.86 0.16 175);
 
   --radius: 0.75rem;
 }
@@ -1332,4 +1365,554 @@
     font-size: 12px !important;
     line-height: 1rem !important;
   }
+}
+
+/* -----------------------------------------------------------------
+   프로필 카드 "라인업 콜" — 점등 시퀀스
+   전광판이 켜지듯 스크린 존이 플리커 -> 스포트라이트 -> 텍스트 상승.
+   설계서: docs/superpowers/specs/2026-07-22-멤버-프로필-카드-design.md §6.3
+   ----------------------------------------------------------------- */
+@keyframes board-flicker {
+  0% { opacity: 0.15; }
+  40% { opacity: 1; }
+  62% { opacity: 0.45; }
+  100% { opacity: 1; }
+}
+
+@keyframes board-amber-blink {
+  50% { opacity: 0.25; }
+}
+
+.board-flicker {
+  animation: board-flicker 0.28s steps(3, end) 1;
+}
+
+/* LIVE 도트·NEW 태그 — 도트매트릭스 점멸 */
+.board-blink {
+  animation: board-amber-blink 1.4s steps(2, start) infinite;
+}
+
+/* 스포트라이트 콘 — 아바타를 비추는 조명. 점등 전엔 투명 */
+.board-cone {
+  opacity: 0;
+  transition: opacity 0.45s ease;
+  background: radial-gradient(
+    ellipse 70% 62% at 50% -12%,
+    rgb(238 241 248 / 0.16),
+    transparent 62%
+  );
+}
+.board-lit .board-cone {
+  opacity: 1;
+}
+
+/* 이름·칭호·한마디 스태거 상승 */
+.board-rise {
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease;
+}
+.board-lit .board-rise {
+  opacity: 1;
+  transform: none;
+}
+.board-lit .board-rise-1 { transition-delay: 0.1s; }
+.board-lit .board-rise-2 { transition-delay: 0.16s; }
+.board-lit .board-rise-3 { transition-delay: 0.22s; }
+.board-lit .board-rise-4 { transition-delay: 0.28s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .board-flicker,
+  .board-blink {
+    animation: none;
+  }
+  .board-cone,
+  .board-rise {
+    transition: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+
+/* -----------------------------------------------------------------
+   기강이야기 — 에디토리얼(신문) 레이아웃
+   앱 나머지는 라운드 카드 톤을 유지하고, 이 페이지만 괘선·명조로 기사처럼 읽힌다.
+   위계는 색이 아니라 "서체 대비 + 괘선 굵기"로 만든다.
+   ----------------------------------------------------------------- */
+
+/* 리드 헤드라인 — 슬롯 네 곳이 제각각(clamp 2 / 2 / 3 / 6)이던 걸 한 곳으로 모은다.
+   2줄에서 자르고 넘치면 …. 줄 수를 바꾸려면 `--lede-headline-lines` 한 줄만 고치면 되고,
+   슬롯을 새로 만들 때도 이 클래스만 붙이면 나머지와 저절로 같아진다.
+
+   예약 높이(min-height)는 두지 않는다. footer가 `mt-auto`로 바닥에 고정돼 있어
+   헤드라인이 1줄이든 2줄이든 응원 버튼이 안 움직이고, 남는 높이는 body가 흡수한다 —
+   "몇 줄을 미리 잡아둘까"를 정할 필요 자체가 없어진다. */
+.lede-headline {
+  --lede-headline-lines: 2;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--lede-headline-lines);
+  overflow: hidden;
+  /* break-keep(어절 유지)만으론 띄어쓰기 없는 긴 문자열을 못 끊는다 */
+  overflow-wrap: anywhere;
+}
+
+/* 괘선 3종 — 신문의 위계는 선 굵기가 절반을 만든다.
+   제호 아래(굵게) / 섹션 사이(보통) / 데이터 행 사이(점선) */
+.rule-masthead {
+  border-bottom: 2.5px solid var(--foreground);
+}
+.rule-section {
+  border-bottom: 1px solid var(--foreground);
+}
+.rule-row {
+  border-bottom: 1px solid var(--border);
+}
+
+/* 신문 지질(newsprint) — SVG feTurbulence 인라인. 외부 이미지 요청 0.
+   아주 옅게만 얹어 종이의 결을 흉내낸다(다크 테마에선 더 죽인다). */
+.newsprint::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.dark .newsprint::before {
+  opacity: 0.05;
+}
+
+/* 리드 기사 진입 — 신문을 펼치듯 위에서 한 번만 내려온다 */
+@keyframes lede-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* 새 리드가 오른쪽에서 미끄러져 들어온다 — 신문을 넘기는 감각. cubic-bezier로 끝을 부드럽게
+   감속시키고, 너무 바로 바뀐다는 인상을 없애려 시간을 넉넉히(0.55s) 준다. */
+.lede-in {
+  animation: lede-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lede-in {
+    animation: none;
+  }
+}
+
+/* 운동기록 댓글 티커 — 한 줄이 아래에서 위로 밀려 올라온다(인스타 스토리 답장 미리보기).
+   위→아래가 아니라 아래→위인 건 "다음 것"의 방향 은유가 스크롤과 같아야 손의 기대와
+   어긋나지 않기 때문. 창(부모)이 overflow-hidden이라 밖으로 나간 부분은 잘린다. */
+@keyframes ticker-rise {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* 2초마다 갈아끼우므로 전환은 짧아야 한다 — 길면 다음 줄이 올라오는 도중에 또 바뀐다.
+   0.32s면 "밀려 올라왔다"가 보이면서도 읽을 시간(1.7s 남짓)을 잡아먹지 않는다. */
+.ticker-rise {
+  animation: ticker-rise 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 모션을 줄이면 미는 동작만 없애고 **순환은 유지**한다 — 애니메이션을 이유로 한 줄에
+   고정해 버리면 나머지 댓글을 아예 못 보게 된다(정보 손실). 교체는 즉시 일어난다. */
+@media (prefers-reduced-motion: reduce) {
+  .ticker-rise {
+    animation: none;
+  }
+}
+
+/* 리드 진행 게이지 — 회색 홈 위로 검정이 차오르고, 다 차면 다음 기사로 넘어간다.
+   채우는 걸 JS 타이머로 그리면 4초 동안 수십 번 리렌더가 돌아 리드 본문과 그 위를
+   떠다니는 아바타까지 같이 흔들린다. CSS 애니메이션은 컴포지터가 처리해 리렌더가 0이다.
+   기간(--lede-dur)은 자동 전환 간격과 같은 상수를 컴포넌트가 인라인으로 내려준다 —
+   둘이 어긋나면 막대가 다 찼는데 안 넘어가거나, 덜 찼는데 넘어간다.
+
+   **절반에서 시작한다**: 0에서 출발하면 손으로 넘긴 직후 멈춰 있는 4초 동안 현재 칸의
+   검정이 통째로 사라져 모든 칸이 회색으로 보인다 — 지금 어디인지 알 수 없어진다.
+   절반을 미리 채워 두면 현재 칸은 언제 봐도 절반 이상 검어서 위치가 바로 읽히고,
+   나머지 절반이 자라는 것으로 남은 시간도 그대로 보인다(막대 하나가 두 일을 겸한다). */
+@keyframes lede-progress {
+  from {
+    transform: scaleX(0.5);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.lede-progress {
+  transform-origin: left;
+  animation: lede-progress var(--lede-dur, 4000ms) linear both;
+}
+/* 손이 닿아 멈춘 동안에는 게이지도 그 자리에 선다 — 막대만 계속 차면
+   "다 찼는데 안 넘어간다"가 되어 멈춘 게 고장으로 보인다. */
+.lede-progress[data-paused="true"] {
+  animation-play-state: paused;
+}
+
+/* 모션을 줄이는 설정에선 차오르지 않는다. 다만 가득(scaleX(1))이 아니라 절반에 세운다 —
+   가득이면 "다 찬 칸"으로 읽혀 곧 넘어갈 것처럼 보이는데, 이 설정에선 자동 전환이 아예
+   돌지 않는다. 절반은 "현재 칸"만 말하고 시간에 대해선 아무 말도 하지 않는다. */
+@media (prefers-reduced-motion: reduce) {
+  .lede-progress {
+    animation: none;
+    transform: scaleX(0.5);
+  }
+}
+
+/* 응원 버튼 3층 모션 — 누르는 맛을 만드는 장치.
+   ① 숫자 롤업 ② 튀어오르는 이모지 ③ 콤보 배지. 셋 다 짧게 끝난다(0.7s 이내). */
+@keyframes rctn-roll {
+  from {
+    transform: translateY(100%);
+    opacity: 0.2;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.rctn-roll {
+  animation: rctn-roll 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 좌우 흩어짐(--rctn-dx)과 회전(--rctn-rot)은 탭마다 컴포넌트가 인라인으로 준다 */
+@keyframes rctn-burst {
+  from {
+    transform: translate(-50%, 0) scale(0.6) rotate(0deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  to {
+    transform: translate(calc(-50% + var(--rctn-dx, 0px)), -46px) scale(1.6)
+      rotate(var(--rctn-rot, 0deg));
+    opacity: 0;
+  }
+}
+.rctn-burst {
+  animation: rctn-burst 0.7s ease-out both;
+}
+
+@keyframes rctn-combo {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.25);
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.rctn-combo {
+  animation: rctn-combo 0.22s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 숫자는 페이드만 남기고, 버스트·콤보는 움직이지 않는다 */
+  .rctn-roll {
+    animation: none;
+  }
+  .rctn-burst {
+    display: none;
+  }
+  .rctn-combo {
+    animation: none;
+  }
+}
+
+/* 종이비행기 각오 (J안 채택 — components/story/pledge-planes.tsx).
+   .pledge-fly / .pledge-unfold는 프로덕션이 쓴다. .pledge-flip만 아직 시안 전용(L안). */
+
+/* 배너 견인 비행기 — 오→왼 횡단. 높이가 살짝 출렁여야 종이가 뜬 느낌이 난다.
+   방향이 오른쪽에서 왼쪽인 이유: 배너 글자는 왼쪽부터 읽는데, 왼→오로 날면 글자가
+   읽는 방향으로 함께 도망가 눈이 따라잡지 못한다. 뉴스 티커가 죄다 오→왼인 것과 같은 이유다. */
+@keyframes pledge-fly {
+  from {
+    transform: translateX(105vw) translateY(0);
+  }
+  50% {
+    transform: translateX(0%) translateY(-6px);
+  }
+  to {
+    transform: translateX(-105%) translateY(0);
+  }
+}
+.pledge-fly {
+  animation: pledge-fly linear infinite;
+}
+
+/* 접힌 종이가 펼쳐지듯 — 위에서 아래로 펴진다 */
+@keyframes pledge-unfold {
+  from {
+    opacity: 0;
+    transform: perspective(500px) rotateX(-72deg);
+    transform-origin: top center;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    transform-origin: top center;
+  }
+}
+.pledge-unfold {
+  animation: pledge-unfold 0.34s ease-out both;
+}
+
+/* 솔라리 타일 — 글자 하나가 철컥 넘어간다. index만큼 지연시켜 좌→우로 흐르게.
+   시안 전용(/dev/story-styles L안) — 채택되지 않았다 */
+@keyframes pledge-flip {
+  from {
+    transform: rotateX(-90deg);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.pledge-flip {
+  animation: pledge-flip 0.26s ease-out both;
+  transform-origin: center top;
+}
+
+/* 착륙장 이륙 — 비행기가 왼쪽으로 부웅 날아가며(살짝 위로) 사라진다. 오→왼 비행 방향과 같게.
+   transform은 PaperPlane 바깥 span에 걸린다(img 자신의 scaleX와 충돌 안 하게). */
+@keyframes pledge-liftoff {
+  0% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-360px, -20px);
+    opacity: 0;
+  }
+}
+.pledge-liftoff {
+  animation: pledge-liftoff 0.64s cubic-bezier(0.45, 0, 0.7, 0.2) forwards;
+}
+
+/* ─── 한마디 던지기 (ThrowStage) ───
+   슬링샷으로 놓은 얼굴이 포물선을 그리며 날아간다. 거리·시간은 컴포넌트가 CSS 변수로
+   내려주고(--throw-x/y/dur) keyframe이 그린다 — JS로 매 프레임 좌표를 갱신하면 리렌더가
+   수십 번 돌아 오버레이 전체가 흔들린다(리드 게이지와 같은 판단).
+
+   포물선을 두 축으로 나눠 만드는 게 핵심이다: 가로는 등속(linear), 세로는 위로 솟았다
+   떨어지게(ease-out → ease-in). 한 애니메이션으로 대각선을 그으면 직선으로 날아가
+   "던졌다"가 아니라 "미끄러졌다"로 보인다. 그래서 바깥이 가로, 안쪽이 세로를 맡는다. */
+@keyframes throw-fly-x {
+  from {
+    transform: translateX(var(--throw-from-x, 0px));
+  }
+  to {
+    transform: translateX(calc(var(--throw-from-x, 0px) + var(--throw-x, 300px)));
+  }
+}
+/* 세로는 던진 방향으로 솟았다 중력에 지는 포물선. 정점(45%)에서 --throw-y만큼 갔다가
+   아래로 떨어진다 — 위로 뿌리면 위로 솟고, 아래로 뿌리면 그대로 처박힌다. */
+@keyframes throw-fly-y {
+  0% {
+    transform: translateY(var(--throw-from-y, 0px));
+  }
+  45% {
+    transform: translateY(calc(var(--throw-from-y, 0px) + var(--throw-y, -120px)));
+  }
+  100% {
+    transform: translateY(calc(var(--throw-from-y, 0px) + var(--throw-y, -120px) + 180px));
+  }
+}
+/* 얼굴만 구른다 — 배너(글씨)는 세워 둬야 읽힌다 */
+@keyframes throw-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(520deg);
+  }
+}
+.throw-fly {
+  animation: throw-fly-x var(--throw-dur, 1200ms) linear forwards;
+}
+/* 세로는 안쪽 요소가 맡는다 — 같은 요소에 transform 두 개를 걸면 뒤엣것이 앞엣것을 지운다 */
+.throw-fly > * {
+  animation: throw-fly-y var(--throw-dur, 1200ms) cubic-bezier(0.33, 0, 0.66, 1) forwards;
+}
+.throw-fly .throw-spin {
+  animation: throw-spin var(--throw-dur, 1200ms) linear forwards;
+}
+
+/* 착지 결과 — 거리 숫자가 툭 떨어지듯 나타난다 */
+@keyframes throw-result {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.throw-result {
+  animation: throw-result 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .throw-fly,
+  .throw-fly > *,
+  .throw-fly .throw-spin,
+  .throw-result {
+    animation: none;
+  }
+}
+
+/* 각오 문장 지우기 — 비행기가 지나가며 오른쪽부터 왼쪽으로 쓸어 지운다(clip-path inset 우측 증가) */
+@keyframes pledge-wipe {
+  from {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+  to {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0;
+  }
+}
+.pledge-wipe {
+  animation: pledge-wipe 0.6s ease-in forwards;
+}
+
+/* 활동량 무더기 — 아바타가 위에서 떨어져 제자리에 앉는다. 순서대로 지연시켜(컴포넌트가
+   animationDelay를 준다) 하나씩 쌓이는 것처럼 보이게. 착지 후 살짝 눌리는 맛은 주지 않는다 —
+   66개가 동시에 출렁이면 지면 전체가 흔들려 보인다. */
+@keyframes actv-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-24px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.actv-drop {
+  animation: actv-drop 0.42s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 비행기는 멈추면 화면 밖에 머무르므로, 정지 대신 제자리에 세운다 */
+  .pledge-fly {
+    animation: none;
+    transform: translateX(8px);
+  }
+  /* 무더기는 떨어지는 연출만 빼고 제자리에 그대로 둔다(배치 자체는 정적이라 문제없다) */
+  .actv-drop {
+    animation: none;
+  }
+  .pledge-unfold,
+  .pledge-flip {
+    animation: none;
+  }
+  /* 이륙 연출은 컴포넌트가 reduced-motion이면 애초에 재생하지 않지만, 방어적으로 정지 */
+  .pledge-liftoff,
+  .pledge-wipe {
+    animation: none;
+  }
+}
+
+/* 팀 심박수 파형(components/story/heart-rate.tsx) — 실제 심전도 모니터처럼 좌→우로
+   그려졌다 사라진다(파형은 제자리, 빛만 지나간다). path에 pathLength=1이 걸려 있어 전체 길이가
+   1이라, dasharray/offset을 픽셀과 무관하게 0~1로 다룬다.
+
+   원리: "보이는 구간 + 긴 빈 구간"짜리 dash를 만들어 화면엔 늘 한 조각만 뜨게 하고,
+   그 조각을 dashoffset으로 경로를 따라 좌에서 우로 흘려보낸다. 조각이 경로 끝을 지나면 잠시
+   아무것도 안 보이다가(빈 구간) 다시 왼쪽에서 나타난다 — 이게 "그렸다 사라졌다"의 반복이다.
+   linear여야 실제 모니터처럼 일정한 속도로 훑는다(ease를 주면 스파이크 구간만 빨라져 어색하다).
+
+   **dash 값은 박자 수(`beats`)와 무관하게 고정이다.** 경로 길이 1로 정규화돼 있어서, 0.42는
+   박자가 몇 개든 늘 "폭의 42%가 빛난다"를 뜻한다 — 넓은 띠에서도 훑고 지난 궤적이 그만큼
+   남아 심전도로 읽힌다. 박자 수로 나누면 빛나는 구간이 절반으로 쪼그라들어 짧은 빛 한 조각이
+   지나가는 것처럼 보인다. 박자 수에 맞춰 조정하는 건 **속도뿐**이다(컴포넌트가 --ecg-dur로
+   넘긴다 — 빠른 심장일수록 짧다 × 박자 수).
+
+   0.42 + 1.6 = 2.02 > 1이라 화면엔 늘 한 조각만 뜬다(두 조각이 동시에 보이지 않는다). */
+.ecg .ecg-trace {
+  stroke-dasharray: 0.42 1.6;
+  animation: ecg-trace var(--ecg-dur, 1400ms) linear infinite;
+  /* 네온 발광 — 선 색(currentColor=청록)으로 두 겹 glow를 얹는다. 안쪽 좁은 빛 +
+     바깥쪽 넓은 번짐. 어두운 board 배경 위라야 이 빛이 산다(밝은 배경이면 뿌옇게만 뜬다). */
+  filter: drop-shadow(0 0 2px currentcolor) drop-shadow(0 0 6px currentcolor);
+}
+@keyframes ecg-trace {
+  /* 조각이 왼쪽 밖에서 대기 → 경로를 훑고 → 오른쪽 밖으로 빠져 사라진다.
+     offset 0.42(조각이 완전히 경로 앞쪽 밖) → -1.6(조각이 완전히 경로 뒤쪽 밖). */
+  from {
+    stroke-dashoffset: 0.42;
+  }
+  to {
+    stroke-dashoffset: -1.6;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* 멈추면 파형 전체를 정적으로 보여준다(그리기 대신 완성된 한 줄). */
+  .ecg .ecg-trace {
+    stroke-dasharray: none;
+    animation: none;
+  }
+}
+
+/* -----------------------------------------------------------------
+   /dev/story-styles 시안 전용 장치
+   스타일 확정 후 채택되지 않은 것은 이 블록과 함께 삭제한다.
+   ----------------------------------------------------------------- */
+
+/* 망점(halftone) — 인쇄물 질감. radial-gradient를 contrast로 임계화해
+   부드러운 점을 하드에지 망점으로 만든다. 이미지 파일 0바이트. */
+.halftone {
+  background-image: radial-gradient(
+    circle at center,
+    currentcolor 42%,
+    transparent 43%
+  );
+  background-size: 5px 5px;
+  opacity: 0.16;
+}
+
+/* 사진 자리 망점 블록 — 신문 사진 제판 느낌 */
+.halftone-plate {
+  background-image: radial-gradient(
+    circle at center,
+    var(--foreground) 38%,
+    transparent 39%
+  );
+  background-size: 4px 4px;
+}
+
+/* 속도감 — 스포츠 타이포의 기울기. 숫자에만 아주 살짝. */
+.speed-skew {
+  transform: skewX(-8deg);
+}
+
+/* 브랜드 톤 — 넓은 자간의 얇은 라벨 */
+.brand-track {
+  letter-spacing: 0.42em;
 }

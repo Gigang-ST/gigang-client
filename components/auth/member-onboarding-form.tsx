@@ -9,7 +9,7 @@ import { ChevronLeft } from "lucide-react";
 import Confetti from "react-confetti";
 import { useForm } from "react-hook-form";
 
-import { dayjs } from "@/lib/dayjs";
+import { formatKST } from "@/lib/dayjs";
 import { digitsOnly, formatPhone, isValidPhone } from "@/lib/phone-utils";
 import type { PledgeGathering } from "@/lib/queries/onboarding-gatherings";
 import {
@@ -375,7 +375,7 @@ export function MemberOnboardingForm({
               {result?.pledgeGthrId ? (
                 pledgedGathering ? (
                   <p className="mt-1.5 text-sm font-semibold text-primary">
-                    {dayjs(pledgedGathering.sttAt).format("M/D(ddd)")}{" "}
+                    {formatKST(pledgedGathering.sttAt, "M/D(ddd)")}{" "}
                     {pledgedGathering.gthrNm}에서 봬요! 참가 신청 완료됐어요 ✅
                   </p>
                 ) : (

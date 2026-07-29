@@ -9,7 +9,15 @@ import { toast } from "sonner";
 
 import { buildWeeklyShareText } from "@/components/home/build-weekly-share-text";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
-import { dayjs, todayKST, currentMonthKST, daysInMonth, gridDateRange } from "@/lib/dayjs";
+import {
+  dayjs,
+  todayKST,
+  currentMonthKST,
+  daysInMonth,
+  formatKST,
+  gridDateRange,
+} from "@/lib/dayjs";
+import { clearDeepLinkParams } from "@/lib/notifications/deep-link";
 import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
 import { createClient } from "@/lib/supabase/client";
@@ -93,27 +101,6 @@ const ShareSheet = dynamic(
   () => import("@/components/common/share-sheet").then((m) => m.ShareSheet),
   { ssr: false }
 );
-
-/**
- * 딥링크 쿼리(?post=·?comp=·?gthr=)만 현재 URL에서 골라 동기 제거한다.
- * 다른 쿼리·해시·경로는 보존한다. (키 목록은 lib/notifications/deep-link.ts
- * 라우트 규칙과 짝 — 새 딥링크 키를 추가하면 여기도 함께 갱신할 것)
- *
- * 반드시 상세 다이얼로그를 열기(setOpen) 전에 호출할 것 — router.replace는
- * transition이라 다이얼로그의 pushState(useDialogHistoryBack)가 먼저 쌓인 뒤
- * 그 위 항목만 교체되고, 뒤로가기가 딥링크 URL 항목으로 돌아가 상세가
- * 다시 열리는 무한 루프가 생긴다. 네이티브 replaceState는 동기 실행이며
- * Next가 패치해 useSearchParams도 함께 동기화된다.
- *
- * 비동기 콜백(fetch .then)에서 호출할 땐 이펙트의 cancelled 가드를 먼저
- * 통과할 것 — 대상 키만 지우므로 경로는 보존되지만, 페이지를 떠난 뒤의
- * 히스토리 조작 자체가 부수효과다.
- */
-function clearDeepLinkParams() {
-  const url = new URL(window.location.href);
-  for (const key of ["post", "comp", "gthr"]) url.searchParams.delete(key);
-  window.history.replaceState(null, "", url.pathname + url.search + url.hash);
-}
 
 /**
  * 딥링크 대상이 삭제·미존재로 조회되지 않을 때 — 무반응 대신 안내하고,
@@ -367,7 +354,7 @@ export function MiniCalendar({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 알림 딥링크: /?post=<id> 또는 /?comp=<id>로 진입 시 해당 상세 자동 오픈
+  // 알림 딥링크: /schedule?post=<id> 또는 /schedule?comp=<id>로 진입 시 해당 상세 자동 오픈
   const searchParams = useSearchParams()
   const deepLinkPostId = searchParams.get("post")
   const deepLinkCompId = searchParams.get("comp")
@@ -479,7 +466,8 @@ export function MiniCalendar({
           id: data.sch_post_id,
           short_id: data.short_id ?? null,
           title: data.sch_nm,
-          start_date: data.evt_stt_at ? dayjs(data.evt_stt_at).format("YYYY-MM-DD") : dayjs().format("YYYY-MM-DD"),
+          // evt_stt_at은 timestamptz라 KST로 찍어야 날짜가 하루 밀리지 않는다(§lib/dayjs formatKST)
+          start_date: formatKST(data.evt_stt_at, "YYYY-MM-DD", todayKST()),
           type: "schedule",
           url: data.url ?? null,
           cont_txt: data.cont_txt ?? null,
@@ -1150,7 +1138,6 @@ export function MiniCalendar({
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <SectionLabel>SCHEDULE</SectionLabel>
           {/* 뷰 전환 토글 */}
           <div className="flex items-center rounded-md bg-secondary p-0.5">
             <button

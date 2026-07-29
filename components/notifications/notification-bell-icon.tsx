@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Bell, Settings, Trash2, ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
 
-import { dayjs } from "@/lib/dayjs";
+import { formatKST, todayKST } from "@/lib/dayjs";
 import {
   canUsePush,
   getPermission,
@@ -268,9 +268,10 @@ export function NotificationBellIcon({ initialCount, initialNotifications, membe
     return prefs.find((p) => p.noti_type_enm === type)?.enabled_yn ?? true;
   }
 
-  const today = dayjs().format("YYYY-MM-DD");
-  const todayNotis = notifications.filter((n) => dayjs(n.crt_at).format("YYYY-MM-DD") === today);
-  const prevNotis = notifications.filter((n) => dayjs(n.crt_at).format("YYYY-MM-DD") !== today);
+  // "오늘"도, 비교 대상인 crt_at(timestamptz)도 **KST로 찍어야** 같은 기준이 된다(§lib/dayjs formatKST)
+  const today = todayKST();
+  const todayNotis = notifications.filter((n) => formatKST(n.crt_at, "YYYY-MM-DD") === today);
+  const prevNotis = notifications.filter((n) => formatKST(n.crt_at, "YYYY-MM-DD") !== today);
 
   if (disabled) {
     return (

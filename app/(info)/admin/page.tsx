@@ -18,6 +18,7 @@ import {
   Wallet,
   MessageSquare,
   CalendarDays,
+  KeyRound,
 } from "lucide-react";
 
 import {
@@ -217,6 +218,12 @@ export default function AdminDashboardPage() {
           icon={RefreshCw}
           label="UTMB 인덱스 갱신"
           hint="등록된 회원 전체 재조회"
+        />
+        <ToolCard
+          href="/mcp-tokens"
+          icon={KeyRound}
+          label="MCP 토큰"
+          hint="운영진 AI 조회·알림용 개인 액세스 토큰 관리"
         />
         <CardItem
           className="flex cursor-pointer flex-col gap-2 transition-colors active:bg-secondary"

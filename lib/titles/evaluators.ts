@@ -8,12 +8,9 @@
  * 새 CondRule 타입을 추가하면 evaluateCondition() switch 에 케이스를 추가한다.
  */
 
-import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
-import timezone from "dayjs/plugin/timezone";
-
-dayjs.extend(utc);
-dayjs.extend(timezone);
+// 플러그인(utc·timezone)·로케일은 `@/lib/dayjs`가 한 번만 설정한다 — 여기서 다시 extend하면
+// 설정이 두 곳으로 갈려, 한쪽만 바뀌었을 때 같은 값이 파일마다 다르게 해석된다.
+import { dayjs, parseEventTime, todayStartKST } from "@/lib/dayjs";
 
 const KST = "Asia/Seoul";
 
@@ -168,7 +165,17 @@ export async function evalMembershipDaysInternal(
 
   if (!data?.join_dt) return false;
 
-  const diffDays = dayjs().tz(KST).diff(dayjs(data.join_dt).tz(KST), "day");
+  // 가입일은 **달력 날짜**로 센다 — 양쪽을 KST 자정에 맞춘 뒤 뺀다.
+  //
+  // 예전 `dayjs(join_dt).tz(KST)`는 안전해 보이지만 아니다: `dayjs("2026-07-28")`이 **로컬**
+  // 자정으로 먼저 파싱되고 `.tz()`는 그 순간을 KST로 옮길 뿐이라, UTC 서버에서는 KST 09:00이
+  // 된다. 그 9시간이 일수 계산을 갉아먹어 KST 새벽에는 "가입 1일째"가 0일로 나온다
+  // (같은 코드가 KST 노트북에서는 1일로 나와 재현이 안 된다).
+  // `parseEventTime`은 date-only 문자열을 처음부터 KST 자정으로 고정한다.
+  const diffDays = todayStartKST().diff(
+    parseEventTime(data.join_dt).startOf("day"),
+    "day",
+  );
   return diffDays >= rule.days;
 }
 

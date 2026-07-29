@@ -26,6 +26,21 @@ export const profileEditSchema = z.object({
 
 export type ProfileEditValues = z.infer<typeof profileEditSchema>;
 
+/** 한마디(자기소개) — 프로필 카드에 인용체로 노출. DB CHECK(60자)와 같은 상한 */
+export const INTRO_TXT_MAX = 60;
+
+export const introTxtSchema = z
+  .string()
+  .trim()
+  .max(INTRO_TXT_MAX, `한마디는 ${INTRO_TXT_MAX}자 이하로 입력해 주세요`);
+
+/** 한마디 편집 폼 */
+export const introEditSchema = z.object({
+  intro_txt: introTxtSchema,
+});
+
+export type IntroEditValues = z.infer<typeof introEditSchema>;
+
 /** 타입 안전성 확인: DB gender enum 값들이 스키마에 포함되어 있는지 체크 */
 type _DbGender = Enums<"gender">;
 type _AssertDbGenderCovered = _DbGender extends Exclude<(typeof genderValues)[number], "">
@@ -135,10 +150,29 @@ export type OnboardingProfileValues = z.infer<typeof onboardingProfileSchema>;
 
 /**
  * 프로필 편집(`/profile/edit`)에서 수정 가능한 온보딩 항목 — 가까운 역 하나뿐.
- * 나머지 온보딩 답변(거리·페이스·가입 목적 등)은 가입 시점 스냅샷이라 편집 대상이 아니다.
+ * 나머지 온보딩 답변(유입 경로 등)은 가입 시점 스냅샷이라 편집 대상이 아니다.
  */
 export const nearStationEditSchema = z.object({
   nearStnNm: z.string().max(30).nullable(),
 });
 
 export type NearStationEditValues = z.infer<typeof nearStationEditSchema>;
+
+/**
+ * 러닝 프로필 편집 — 프로필 카드 "소개" 섹션에 노출되는 값들.
+ *
+ * 온보딩 스냅샷 중 **남에게 보여지는 것만** 편집 대상으로 연다. 페이스·거리는 몸 상태가
+ * 변하면 옛 값이 되고, 목적도 크루 생활이 길어지면 달라진다.
+ * 유입 경로(`joinSrcCd`)와 참석 약속(`attd_pldg_at`)은 가입 시점 기록이라 건드리지 않는다
+ * — 특히 참석 약속은 넛지 크론이 참조하므로 편집 경로에서 제외해야 한다.
+ *
+ * 온보딩과 달리 목적은 `min(1)`을 걸지 않는다 — 편집 화면에서 전부 해제할 수 있어야 한다.
+ */
+export const runningProfileEditSchema = z.object({
+  avgRunDistKm: z.number().min(1).max(100).nullable(),
+  avgPaceCd: z.enum(AVG_PACE_CODES).nullable(),
+  joinPurpCds: z.array(z.enum(JOIN_PURP_CODES)),
+  joinPurpTxt: z.string().max(500).nullable(),
+});
+
+export type RunningProfileEditValues = z.infer<typeof runningProfileEditSchema>;

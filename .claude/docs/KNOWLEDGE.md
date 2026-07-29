@@ -20,6 +20,14 @@
 
 ## 함정
 
+### 개발 전용 UI 게이트는 `isDevModeEnabled()`만 쓴다
+`env.NEXT_PUBLIC_ENABLE_DEV_MODE`를 컴포넌트에서 **직접** 읽으면 로컬 `pnpm dev`에서 그 변수를 안 둔 경우 해당 UI만 사라진다. 정본은 `lib/dev-mode.ts`의 `isDevModeEnabled()`이고, 이건 `NODE_ENV === "development"`면 자동으로 true다. 그래서 다른 개발 전용 기능(이메일 로그인 등)은 전부 보이는데 **직접 읽는 한 곳만** 안 보이는, 원인 찾기 어려운 상태가 된다. (전광판 제호의 "스타일 비교" 버튼이 이렇게 사라졌음)
+**확인법:** `grep -rn "NEXT_PUBLIC_ENABLE_DEV_MODE" app components lib` 결과에 `lib/env.ts`·`lib/dev-mode.ts` 외의 파일이 있으면 그게 버그다.
+
+### 시안(mock) 폴더끼리 import로 물리면 한쪽만 못 지운다
+`/dev/*` 시안 화면은 결론이 나면 폴더째 지우는 게 전제다. 그런데 A 시안 폴더가 B 시안 폴더의 `mock.ts`를 import하면 B를 지울 때 A가 깨진다. 게다가 상대경로 import는 프로젝트 `no-restricted-imports` 규칙에도 걸린다.
+**해결:** 시안 폴더마다 자기 `mock.ts`를 둔다. 목업 데이터 중복은 감수한다 — 독립적으로 삭제 가능한 게 더 중요하다.
+
 ### (info) route group은 BackHeader를 강제한다
 `app/(info)/layout.tsx`는 모든 하위 페이지에 `BackHeader`(`sticky top-0 z-40`)를 렌더한다. 상단 고정(`fixed top-0`) 컴포넌트(예: 가입 진행바 `SignupProgress`)를 쓰는 페이지를 `(info)`에 두면 BackHeader와 위치·z-index가 겹친다. 또 카톡 공유 등 **외부에서 직접 진입하는 랜딩**은 뒤로 갈 history가 없어 BackHeader가 무의미하다.
 **해결:** 그런 페이지는 route group 밖(`app/<route>/`)에 두어 RootLayout만 적용받게 한다. route group은 URL에 영향 없으므로 URL은 유지된다. (가입 위저드 `/newbie`를 `app/(info)/newbie` → `app/newbie`로 이동한 사례)
@@ -31,6 +39,12 @@ husky pre-commit의 `lint-staged`가 `eslint --fix`로 `import/order`를 정렬�
 ### pnpm run build는 로컬 env 미설정 시 컴파일 후 실패한다
 `.env` 미설정 시 `pnpm run build`가 `✓ Compiled successfully` 직후 t3-env(`lib/env.ts`) 런타임 검증에서 실패한다. 코드/타입 오류가 아니다.
 **확인법:** 코드 검증은 `npx tsc --noEmit` 또는 build의 "Compiled successfully" 단계 통과를 기준으로 한다. 라우트 이동 후 tsc가 `.next/types/validator.ts`의 옛 경로를 참조해 에러를 내면 stale 캐시이므로 `rm -rf .next/types .next/dev/types` 후 재확인.
+
+### cacheComponents dev 렌더 재시작이 uncached fetch를 abort → supabase가 error로 반환
+`next.config.ts`의 `cacheComponents: true` dev 서버는 캐시 미스를 만나면 렌더를 `AbortController.abort()`로 중단하고 다시 그린다(`renderWithRestartOnCacheMissInDev` — dev 런타임 `app-page-turbo.runtime.dev.js` **전용**, 프로덕션엔 없음). 이때 진행 중이던 **uncached** supabase fetch가 함께 끊기는데, supabase-js는 이 중단을 **throw 하지 않고** `{ error }`로 정규화해 돌려준다(`message: "AbortError..."`, `hint: "Request was aborted (timeout or manual cancellation)"`). 그래서 조회부의 `if (error) console.error(...)`가 **정상 취소를 조회 실패인 것처럼** 로깅한다. 증상: dev 서버 콘솔에 `[getGhostMembers] 유령회원 조회 실패 { AbortError ... }` — 그런데 화면은 재시작 렌더로 멀쩡히 그려진다.
+**같은 abort는 운영에서도 날 수 있다** — dev 재시작이 아니라 **실제 요청 취소/타임아웃**(유저가 렌더 도중 이탈)일 때. 둘 다 코드 결함이 아니다.
+**해결(형제 전수):** abort 판정을 `lib/supabase/is-abort-error.ts`의 `isRequestAbortError(error)` 한 곳에 가두고, "에러 삼키고 폴백 반환"하는 조회부는 `if (!isRequestAbortError(error)) console.error(...)`로 abort만 로그에서 뺀다(진짜 오류 — RPC 없음·RLS 거부·SQL 오류 등 — 은 그대로 남는다). 적용: `ghost-members`·`story-feed`(3)·`team-overview`·`story-posts`·`story-pledges`·`gathering-cancel-history(.client)`·`onboarding-gatherings`(2)·`onboarding-profile`. **throw 하는 조회부**(`cmm-cd-cached`·`home-calendar`)는 abort면 throw가 Next 재시작 machinery로 정상 처리되므로 이 스코프에서 제외.
+**확인법:** 새 uncached 조회부에서 supabase `error`를 `console.error`로 찍는다면 `isRequestAbortError` 가드를 함께 붙일 것.
 
 ### 제어 input은 모바일 자동완성 값을 놓쳐 RHF가 빈 값으로 본다
 `value={field.value}` 제어 컴포넌트는 모바일 브라우저 **자동완성(autofill)이 DOM `.value`만 채우고 React `onChange`를 발화하지 않을 때** RHF 상태가 빈 채로 남는다. 화면엔 값이 보이지만 `required` 검증이 실패한다(증상: 회색으로 번호가 보이는데 그 밑에 "연락처를 입력해 주세요"). 신규 가입자에게만 집중 발생(기존 회원은 해당 화면 미경유). 추가로 iOS 연락처는 국가번호 `+82` 형식으로 채워 `010` 검증을 통과하지 못한다.
@@ -81,8 +95,9 @@ Supabase JS `.upsert({ onConflict: "a,b,c" })` 는 `ON CONFLICT (a,b,c)` 만 보
 `fee_mem_bal_snap`은 파생 스냅샷이라 회원 상태 변경(`team_mem_rel.mem_st_cd='left'|'inactive'`)과 동시에 삭제되지 않는다. 회비 현황에서 탈퇴 처리한 회원을 계속 보여주지 않으려면 `getDuesLedger()`가 `team_mem_rel`의 현재 active 멤버 id를 먼저 구한 뒤 스냅샷을 `.in("mem_id", activeIds)`로 필터링해야 한다. 재계산 액션도 active 회원만 대상으로 하므로 이 화면의 기본 범위는 active가 맞다.
 
 ### 딥링크로 다이얼로그를 열 때 URL 정리는 setOpen 전에 네이티브 replaceState로
-알림 딥링크(`/?post=`·`/?comp=`·`/?gthr=`)로 상세 다이얼로그를 열고 `router.replace("/")`로 쿼리를 지우는 순서(setOpen → router.replace)는 **무한 재오픈 루프**를 만든다. `router.replace`는 transition이라 실제 히스토리 교체가 다이얼로그의 `useDialogHistoryBack` pushState보다 **늦게** 일어나, 히스토리가 `[이전, "/?gthr=id", "/"]`로 남는다. 뒤로가기(popstate)든 스와이프 닫기(cleanup의 `history.back()`)든 `/?gthr=id` 항목으로 복귀 → `useSearchParams` 동기화 → 딥링크 이펙트 재발동 → 상세 재오픈 반복.
-**해결:** 다이얼로그를 열기 **전에** 동기 API `window.history.replaceState(null, "", "/")`를 호출한다(`mini-calendar.tsx`의 `clearDeepLinkParams`). Next 14.1+는 네이티브 push/replaceState를 패치해 `useSearchParams`도 함께 동기화하므로 `router.replace` 후속 호출은 필요 없다.
+알림 딥링크(`/schedule?post=`·`?comp=`·`?gthr=`)로 상세 다이얼로그를 열고 `router.replace`로 쿼리를 지우는 순서(setOpen → router.replace)는 **무한 재오픈 루프**를 만든다. `router.replace`는 transition이라 실제 히스토리 교체가 다이얼로그의 `useDialogHistoryBack` pushState보다 **늦게** 일어나, 히스토리가 `[이전, "/schedule?gthr=id", "/schedule"]`로 남는다. 뒤로가기(popstate)든 스와이프 닫기(cleanup의 `history.back()`)든 `?gthr=id` 항목으로 복귀 → `useSearchParams` 동기화 → 딥링크 이펙트 재발동 → 상세 재오픈 반복.
+**해결:** 다이얼로그를 열기 **전에** 동기 API `window.history.replaceState`를 호출한다(`mini-calendar.tsx`의 `clearDeepLinkParams`). Next 14.1+는 네이티브 push/replaceState를 패치해 `useSearchParams`도 함께 동기화하므로 `router.replace` 후속 호출은 필요 없다.
+**경로를 `/`로 갈아끼우지 않는다** — `post`·`comp`·`gthr` 키만 지우고 경로·나머지 쿼리·해시는 보존한다. 딥링크가 `/schedule`에 붙게 된 뒤로(홈이 전광판이 되며 `/`엔 읽는 쪽이 없다) 경로를 `/`로 덮으면 상세를 닫는 순간 엉뚱한 화면으로 튄다.
 
 ### SW `getRegistration` 인자는 스코프(디렉토리)지 스크립트 경로가 아니다
 `navigator.serviceWorker.getRegistration("/sw.js")`처럼 스크립트 경로를 넘기면 브라우저마다 다르게 동작(Safari는 undefined 반환 가능). 등록 스코프 기준으로 조회해야 한다.
@@ -110,6 +125,20 @@ Postgres는 새 함수에 기본적으로 PUBLIC EXECUTE를 부여하고, Supaba
 ### 관리자 화면 브라우저 QA는 dev0X 이메일 계정으로 불가 (전부 일반 회원)
 dev DB의 이메일 로그인 테스트 계정(dev01~05@dev.com)은 모두 비관리자 멤버라 `/admin/*` 화면 QA에 못 쓴다. 관리자 권한 계정은 전부 OAuth(카카오/구글)라 자동화 세션 확보 불가. 관리자 화면을 에이전트가 브라우저로 검증하려면 dev 환경에서 dev 계정 하나에 admin 역할(`team_mem_rel.team_role_cd`)을 부여해 둬야 한다(운영자 결정 필요). 그 전까지는 임베드 쿼리 REST 스모크(200/400) + SQL 기대값 대조 + 라우트 컴파일 확인이 최선의 proxy. (2026-07-14 참여현황 기능에서 확인)
 
+### 새 RPC를 만든 직후엔 PostgREST 스키마 캐시 때문에 앱에서만 "함수 없음"이 난다
+`apply_migration`으로 함수를 만들면 **SQL로는 즉시 호출되는데 앱(PostgREST `/rpc/`)에서는 한동안 실패**한다. PostgREST가 스키마를 캐시하고 있어서다. 증상이 고약한 이유: RPC 실패를 빈 배열로 폴백하는 쿼리(`getStoryPosts` 등)면 에러가 안 보이고 **화면만 계속 빈 상태**로 뜬다 — 데이터가 없는 건지 함수를 못 찾는 건지 화면으론 구분이 안 간다. 게다가 `unstable_cache`가 그 빈 결과를 revalidate 시간만큼 붙잡는다(이중 지연).
+**해결:** 새 함수 마이그레이션 뒤에 `NOTIFY pgrst, 'reload schema';`를 한 번 실행한다. 진단 순서는 ① SQL로 직접 호출해 함수 자체를 확인 → ② 되면 스키마 캐시 → ③ 그래도 비면 `unstable_cache` 만료 대기(또는 dev 서버 재시작). (2026-07-24 `get_team_posts` 신설에서 확인)
+
+### 자주 쓰는 소규모 데이터는 큰 피드 RPC/캐시에서 떼어낸다 (무효화 전염 차단)
+`get_team_story_feed`(CTE 10개+, `story-feed` 태그, 5분 캐시)에 새 존을 계속 얹으면, 그 존의 잦은 쓰기가 `revalidateTag("story-feed")`로 **피드 전체를 재계산**시킨다. 특히 놀이성 상호작용(응원 연타·각오 띄우기)은 무효화가 잦아 캐시가 남아나지 않는다. **패턴:** 그런 슬라이스는 별도 RPC + 별도 캐시 태그로 분리한다 — `get_team_posts`/`story-posts`(기록자랑), `get_team_pledges`/`story-pledges`(각오 하늘). 그러면 그 슬라이스의 쓰기가 자기 태그만 무효화하고 큰 피드는 안 건드린다. 실시간이 필요하면 그 테이블만 `supabase_realtime`에 얹고 클라이언트가 구독→`router.refresh()`(알림 `noti_mst`/댓글 `cmnt_mst`와 동일). **단, 그 refresh가 최신값을 받으려면 쓰기 액션이 `updateTag`여야 한다** — `revalidateTag(tag,"max")`면 SWR이라 낡은 값이 온다(아래 §`revalidateTag(tag, "max")` 항목). 리액션은 아예 `revalidateTag`를 안 부르고 30초 캐시로 흡수하는 더 강한 변형(§`story-reaction`). (2026-07-24 각오 공유 하늘 Realtime에서 확인)
+
+### `revalidateTag(tag, "max")`는 서버 액션이 **자기 쓰기를 되읽지 못하게** 막는다 → `updateTag`
+Next 16의 `revalidateTag(tag, profile)`에서 프로필을 주면 그건 **stale-while-revalidate 갱신**이라, Next가 **의도적으로** `store.pathWasRevalidated`를 안 찍는다. `next/dist/server/web/spec-extension/revalidate.js`의 주석 그대로: _"if profile is provided and this is a stale-while-revalidate update we do not mark the path as revalidated **so that server actions don't pull their own writes**"_ — `expire === 0`일 때만 revalidate로 표시한다. 기본 프로필 `max`는 `expire: 60*60*24*365`(≠0)라 항상 이 SWR 경로를 탄다.
+**증상:** 저장 직후 `router.refresh()`가 **낡은 캐시**를 받고 갱신은 백그라운드로만 돈다 → "각오/기록을 올렸는데 새로고침해야 보인다". Realtime 구독으로 `router.refresh()`를 도는 **다른 사람 화면도 똑같이 낡은 값**을 받아, 낙관적 UI가 있는 작성자에게만 보이는 **반쪽 실시간**이 된다(각오 띄우기가 이 케이스).
+**해결:** 쓰기 직후 즉시 보여야 하는 서버 액션은 `revalidateTag(tag, "max")` 대신 **`updateTag(tag)`**(Next 16, 즉시 만료 + read-your-own-writes). `unstable_cache` 태그에도 그대로 통한다(내부적으로 프로필 없는 옛 `revalidateTag`와 같은 경로).
+**주의:** `updateTag`는 **서버 액션 전용**이다 — `workStore.page`가 `/route`로 끝나면 throw한다. 라우트 핸들러(`app/api/revalidate/route.ts` 등)와 "지금 안 보여도 되는" 저빈도 무효화는 `revalidateTag(tag, "max")`를 유지한다.
+**남은 형제:** 같은 패턴이 board(`create-post`·`update-post`·`delete-post`)·대회(`create-competition`·`manage-competition`·`revalidate-competitions`)·기록(`save-race-record`·`save-utmb-profile`·`refresh-utmb-indexes`·`revalidate-cache`)에 그대로 있다. 그 화면에서 "저장했는데 안 보임"이 보고되면 같은 처방. (2026-07-24 전광판 각오·기록자랑에서 확인)
+
 ### MCP generate_typescript_types 결과에는 재정렬 노이즈가 섞인다
 dev MCP로 `database.types.ts`를 재생성하면 기존 테이블 블록이 diff상 삭제+재추가로 보일 수 있다(예: fee_policy_cfg 44줄). 실제 손실인지 이동인지 `git diff | grep "^+" | grep <이름>`으로 반드시 재확인할 것 — dev/prd drift로 진짜 소실될 수도 있다(TODO의 "스키마 drift" 항목 참조).
 
@@ -136,3 +165,9 @@ dev MCP로 `database.types.ts`를 재생성하면 기존 테이블 블록이 dif
 
 ### "개편 후 신규 가입자" 식별은 위성 테이블 row 존재가 아니라 전용 플래그로
 `mem_onbd_prf`는 온보딩에서도 생기고 기존 회원이 프로필 편집에서 러닝 프로필을 입력해도 생긴다(upsert). 따라서 "row 존재 = 신규 온보딩 가입자"가 아니다. 넛지 크론 대상 판별은 **`attd_pldg_at IS NOT NULL`**(참석 서약은 온보딩 경로에서만 기록)로 한다. 프로필 편집 서버 액션(`update-running-profile`)은 `attd_pldg_at`/`pldg_gthr_id`/`join_src_cd`/`join_src_txt`를 payload에서 제외해 절대 덮어쓰지 않는다.
+
+### Tailwind v4 빌드가 "globals.css:1 Invalid code point"로 실패하면 — 소스의 이모지를 찾아라
+`RangeError: Invalid code point`가 나면서 에러 위치가 `app/globals.css:1:1`(`@import "tailwindcss"`)로 찍히면 **CSS는 범인이 아니다.** Tailwind v4 스캐너가 소스 파일 전체에서 클래스 후보를 뽑아 CSS 이스케이프를 되돌리는데, astral-plane 문자(이모지, U+FFFF 초과)가 있으면 서로게이트 페어를 깨뜨려 `String.fromCodePoint`가 터진다. CSS 파일을 아무리 이등분해도 안 잡히고(=CSS를 통째로 지워도 재현), 스택에 `at Function.fromCodePoint / at String.replace`만 보이는 게 단서. **JSX 텍스트의 이모지를 `lucide-react` 아이콘으로 교체**하면 해결. 기존 파일(예: 카톡 공유 문구)의 이모지는 문자열 리터럴이라 괜찮았고, 새로 추가한 JSX 본문 이모지(📣)에서 터졌다. 디버깅 시 `git stash -u`로 전체를 되돌려 HEAD가 빌드되는지부터 확인할 것 — 그래야 "내 변경이 원인"을 먼저 확정한다. (2026-07-22 프로필 카드 구현)
+
+### `gthr_attd_rel`에는 취소 플래그가 없다 — 살아있는 행이 곧 유효 참석
+모임 참석 취소는 행을 UPDATE하지 않고 **삭제 + `gthr_attd_hist`에 이벤트 기록**(`evt_cd`)으로 처리한다. 따라서 참석 횟수 집계에 "취소 제외" 조건을 따로 걸 필요가 없고, 걸려고 컬럼을 찾으면 없다. 과거 참석만 세려면 `gthr_mst.stt_at < now()`를 더한다. 취소자 표시가 필요한 화면은 `gthr_attd_hist`를 별도 조회한다(`gathering-canceled-attendees.tsx` 선례). (2026-07-22 프로필 카드 `gthr_attd_cnt` 구현)

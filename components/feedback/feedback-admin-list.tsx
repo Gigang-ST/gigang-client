@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 
-import { dayjs } from "@/lib/dayjs";
+import { formatKST } from "@/lib/dayjs";
 import type { FeedbackStatus } from "@/lib/validations/feedback";
 
 import { respondFeedback } from "@/app/actions/feedback/respond-feedback";
@@ -63,7 +63,7 @@ function FeedbackAdminCard({ item }: { item: AdminFeedbackItem }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Body className="font-medium">{item.mem_nm}</Body>
-          <Caption>{dayjs(item.created_at).format("YY.MM.DD HH:mm")}</Caption>
+          <Caption>{formatKST(item.created_at, "YY.MM.DD HH:mm")}</Caption>
         </div>
         <Select
           value={item.status}

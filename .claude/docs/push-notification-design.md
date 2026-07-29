@@ -32,22 +32,43 @@
 
 ### 현재 알림 타입 (`noti_type_enm`)
 
+정본은 `lib/notifications/deep-link.ts`의 `NOTI_ROUTE` 한 곳이다 — 인앱 클릭
+(`notification-item`)과 푸시 클릭(`sw.js`)이 같은 목적지로 가야 하므로 양쪽이 이걸 재사용한다.
+표가 코드와 어긋나면 **코드가 정본**이다.
+
+> ⚠️ **딥링크 쿼리(`?post=`·`?comp=`·`?gthr=`)는 `/schedule`에 붙인다.** 이 쿼리를 읽어
+> 상세를 여는 건 `MiniCalendar`이고 그건 일정 페이지에만 있다. 예전엔 홈(`/`)이 곧 달력이라
+> `/?gthr=`로 충분했지만, 홈이 전광판으로 바뀌면서 `/`에는 읽는 쪽이 없어졌다 — 주소는 살아
+> 있는데 파라미터만 조용히 무시된다(에러도 안 난다). 홈을 다시 달력으로 되돌리더라도
+> `/schedule`은 그대로 살아 있으므로 이 경로는 손댈 필요가 없다.
+
 | 타입 | 설명 | 딥링크 |
 |------|------|--------|
 | `adm_cust` | 관리자 공지 | 없음 |
 | `dues_notice` | 회비 안내 | `/profile/dues` |
 | `dues_check_req` | 회비 확인 요청 | 없음 |
 | `ttl_grnt` | 타이틀 획득 | `/profile` |
-| `sch_post_new` | 정보 일정 등록 | `/?post={ref_id}` |
-| `sch_post_cmnt` | 정보 일정 댓글 | `/?post={ref_id}` |
+| `reactivate_req` | 재활성 문의 (관리자) | `/admin/members?member={ref_id}` |
+| `sch_post_new` | 정보 일정 등록 | `/schedule?post={ref_id}` |
+| `sch_post_cmnt` | 정보 일정 댓글 | `/schedule?post={ref_id}` |
 | `cmnt_mention` | 댓글 멘션 | ref_type에 따라 분기 |
 | `cmnt_reply` | 댓글 답글 | ref_type에 따라 분기 |
-| `gthr_new` | 모임 등록 (전체 멤버) | `/?gthr={ref_id}` |
-| `gthr_upd` | 참가 모임 수정 (참석자) | `/?gthr={ref_id}` |
-| `gthr_del` | 참가 모임 삭제 (참석자) | `/` |
-| `gthr_cmnt` | 모임 댓글 | `/?gthr={ref_id}` |
-| `gthr_reply` | 모임 답글 | `/?gthr={ref_id}` |
-| `gthr_mention` | 모임 멘션 | `/?gthr={ref_id}` |
+| `gthr_new` | 모임 등록 (전체 멤버) | `/schedule?gthr={ref_id}` |
+| `gthr_upd` | 참가 모임 수정 (참석자) | `/schedule?gthr={ref_id}` |
+| `gthr_del` | 참가 모임 삭제 (참석자) | `/schedule` |
+| `gthr_cncl` | 모임 취소 | `/schedule?gthr={ref_id}` |
+| `gthr_cmnt` | 모임 댓글 | `/schedule?gthr={ref_id}` |
+| `gthr_reply` | 모임 답글 | `/schedule?gthr={ref_id}` |
+| `gthr_mention` | 모임 멘션 | `/schedule?gthr={ref_id}` |
+| `fdbk_new` | 피드백 등록 (관리자) | `/admin/feedback` |
+| `fdbk_rspd` | 피드백 답변 | `/profile/feedback` |
+| `brd_notice` | 게시판 공지 | `/board/{ref_id}` (없으면 `/board?tab=notice`) |
+| `brd_update` | 게시판 업데이트 | `/board/{ref_id}` (없으면 `/board?tab=update`) |
+| `newbie_nudge_14` | 뉴비 미참석 넛지 (14일) | `/schedule` |
+| `newbie_nudge_28` | 뉴비 미참석 넛지 (28일) | `/schedule` |
+
+`cmnt_mention`·`cmnt_reply`의 분기(`commentTargetRoute`): `ref_type`이 `comp` → `?comp=`,
+`gathering` → `?gthr=`, 그 외 → `?post=`. `ref_id`가 없으면 `/schedule` 목록으로 떨어진다.
 
 ### 인앱 알림 흐름
 
@@ -174,7 +195,7 @@ showNotification("새 모임이 등록됐습니다", {
   body: "양재천 자유러닝",
   tag: `noti-${notiId}`,
   group: "gigang",
-  data: { url: "/?gthr=xxx" },
+  data: { url: "/schedule?gthr=xxx" },
 })
 
 // 그룹 요약 (접혔을 때 보이는 1줄)

@@ -151,7 +151,7 @@ export default function JoinPage() {
 
       <section className="mt-8 space-y-3">
         {intro.paragraphs.map((p, i) => (
-          <p key={i} className="text-muted-foreground leading-relaxed">
+          <p key={i} className="leading-relaxed text-muted-foreground">
             {p}
           </p>
         ))}

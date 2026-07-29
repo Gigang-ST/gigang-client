@@ -44,6 +44,8 @@ export type ActivityRecord = {
   applied_mults: { mult_id: string; mult_nm: string; mult_val: number }[];
   final_mlg: number;
   review: string | null;
+  /** 사진 공개 URL(선택). 수정 시 미리보기로 뜨고, 값이 있으면 기강이야기에도 서 있다 */
+  photo_url?: string | null;
 };
 
 type Props = {

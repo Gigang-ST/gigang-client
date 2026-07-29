@@ -101,6 +101,38 @@ export async function createComment(input: CreateCommentInput) {
           }
         }
 
+        // 운동기록(기강이야기 릴스) — 소식·모임과 같은 규칙:
+        // 답글이면 원댓글 작성자에게, 최상위 댓글이면 기록 작성자에게.
+        // 이미 멘션 알림을 받을 사람은 중복으로 보내지 않는다(아래 uniqueMentions 체크).
+        if (parsed.entityType === "post") {
+          const { data: postMeta } = await admin
+            .from("post_mst")
+            .select("mem_id")
+            .eq("post_id", parsed.entityId)
+            .maybeSingle()
+
+          if (parsed.prntId) {
+            const { data: parentCmnt } = await admin
+              .from("cmnt_mst").select("mem_id").eq("cmnt_id", parsed.prntId).maybeSingle()
+            const parentAuthorId = parentCmnt?.mem_id
+            if (parentAuthorId && parentAuthorId !== member.id && !uniqueMentions.includes(parentAuthorId)) {
+              await insertNoti({
+                teamId, memId: parentAuthorId, notiTypeEnm: "post_reply",
+                notiNm: "내 댓글에 답글",
+                notiCont: `${commenterName}: ${preview}`,
+                refId: parsed.entityId, refTypeEnm: "post",
+              })
+            }
+          } else if (postMeta && postMeta.mem_id !== member.id && !uniqueMentions.includes(postMeta.mem_id)) {
+            await insertNoti({
+              teamId, memId: postMeta.mem_id, notiTypeEnm: "post_cmnt",
+              notiNm: "내 운동기록에 새 댓글",
+              notiCont: `${commenterName}: ${preview}`,
+              refId: parsed.entityId, refTypeEnm: "post",
+            })
+          }
+        }
+
         // 멘션 알림 (여러 명)
         if (uniqueMentions.length > 0) {
           await insertNotiMany({

@@ -87,7 +87,6 @@ export function RecentRecordsGrid({
                           desc: title.ttl_desc,
                           visibility: title.desc_visibility,
                           isHeld: myTitleNameSet.has(title.ttl_nm),
-                          isOwner: false,
                         }}
                       />
                     )}

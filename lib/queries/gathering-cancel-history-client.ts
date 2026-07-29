@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { deriveCanceledAttendees } from "@/lib/gathering/derive-canceled-attendees";
+import { isRequestAbortError } from "@/lib/supabase/is-abort-error";
 
 import type { CanceledAttendee } from "@/app/(info)/gatherings/[id]/gathering-canceled-attendees";
 
@@ -38,7 +39,9 @@ export async function fetchGatheringCancelHistoryRowsClient(
     .order("evt_at", { ascending: false });
 
   if (error) {
-    console.error("[gathering] 취소 이력 조회 실패", error.message);
+    if (!isRequestAbortError(error)) {
+      console.error("[gathering] 취소 이력 조회 실패", error.message);
+    }
     return [];
   }
 

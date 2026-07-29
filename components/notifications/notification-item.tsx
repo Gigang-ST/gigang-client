@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { Bell, Coins, MessageCircle, Trophy, Trash2, FileText, Users, MessageSquareText } from "lucide-react";
 
-import { dayjs } from "@/lib/dayjs";
+import { dayjs, formatKST } from "@/lib/dayjs";
 import { resolveNotiDeepLink } from "@/lib/notifications/deep-link";
 import type { Notification } from "@/lib/queries/notification";
 import { cn } from "@/lib/utils";
@@ -33,12 +33,16 @@ const NOTI_ICON: Record<string, React.ElementType> = {
   gthr_cmnt: MessageCircle,
   gthr_reply: MessageCircle,
   gthr_mention: MessageCircle,
+  post_cmnt: MessageCircle,
+  post_reply: MessageCircle,
   fdbk_new: MessageSquareText,
   fdbk_rspd: MessageSquareText,
   reactivate_req: Users,
 };
 
 function formatRelative(crtAt: string) {
+  // 경과시간은 **절대시각끼리의 차이**라 타임존과 무관하다 — 여기는 그대로 둔다.
+  // 아래 날짜 표시(7일 넘은 알림)만 KST로 찍어야 한다(§lib/dayjs formatKST).
   const diff = dayjs().diff(dayjs(crtAt), "minute");
   if (diff < 1) return "방금 전";
   if (diff < 60) return `${diff}분 전`;
@@ -46,7 +50,7 @@ function formatRelative(crtAt: string) {
   if (hours < 24) return `${hours}시간 전`;
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days}일 전`;
-  return dayjs(crtAt).format("MM.DD");
+  return formatKST(crtAt, "MM.DD");
 }
 
 type NotificationItemProps = {
@@ -70,6 +74,23 @@ export function NotificationItem({ noti, onDelete, onRead, onClose }: Notificati
 
   const Icon = NOTI_ICON[noti.noti_type_enm] ?? Bell;
   const route = resolveNotiDeepLink(noti.noti_type_enm, noti.ref_id, noti.ref_type_enm);
+
+  /**
+   * 목적지를 **미리 받아 둔다** — 알림은 지금 보고 있는 탭이 아니라 남의 페이지를 가리키는
+   * 일이 많아, 누르는 순간 라우트 하나를 통째로 새로 여는 비용이 그대로 체감된다
+   * (홈에서 운동기록 알림을 누르면 `/story`를 처음부터 세운다).
+   *
+   * 이 컴포넌트는 **팝오버가 열려 있을 때만** 그려지므로, 프리페치도 알림함을 연 사람에게만
+   * 걸린다 — 앱 어디서나 미리 받아 두는 게 아니다.
+   *
+   * 쿼리(`?rec=`·`?gthr=`…)는 떼고 **경로만** 받는다: 딥링크 쿼리는 알림마다 달라 캐시가
+   * 안 겹치는데, 정작 무거운 건 페이지 자체다. 경로만 받아 두면 알림 20건이 같은 `/story`
+   * 하나를 공유한다(Next가 같은 경로를 중복 요청하지 않는다).
+   */
+  useEffect(() => {
+    if (!route) return;
+    router.prefetch(route.split("?")[0]);
+  }, [route, router]);
 
   function handleRead() {
     if (!isRead) {

@@ -2,11 +2,16 @@
 
 import { useState } from "react";
 
-import Image from "next/image";
-
 import { getKakaoChatPassword } from "@/app/actions/social/get-kakao-password";
-import { SectionLabel } from "@/components/common/typography";
 import { detectInAppBrowser, openExternalBrowser } from "@/components/in-app-browser-gate";
+import {
+  GarminIcon,
+  InstagramIcon,
+  KakaoIcon,
+  SomoimIcon,
+} from "@/components/social-icons";
+import { HelpTip } from "@/components/common/help-tip";
+import { StoryZoneHeader } from "@/components/story/story-zone-header";
 import { CardItem } from "@/components/ui/card";
 import {
   Dialog,
@@ -17,31 +22,31 @@ import {
 
 const KAKAO_OPEN_CHAT_URL = "https://open.kakao.com/o/grnMFGng";
 
+/** 채널 넷. 아이콘은 단색 SVG라 `currentColor`로 테마를 따라간다(컬러 PNG를 대체) */
 const SOCIAL_LINKS = [
   {
     key: "kakao",
     label: "오픈채팅",
     href: KAKAO_OPEN_CHAT_URL,
-    logo: "/kakao.png",
+    Icon: KakaoIcon,
   },
   {
     key: "instagram",
     label: "인스타",
     href: "https://www.instagram.com/team_gigang",
-    logo: "/Instagram.png",
+    Icon: InstagramIcon,
   },
   {
     key: "somoim",
     label: "소모임",
     href: "https://www.somoim.co.kr/3beed52a-0620-11ef-a71d-0aebcbdc4a071",
-    logo: "/somoim.png",
+    Icon: SomoimIcon,
   },
   {
     key: "garmin",
     label: "가민",
     href: "https://connect.garmin.com/app/group/4857390",
-    logo: "/garmin.png",
-    invertOnDark: true,
+    Icon: GarminIcon,
   },
 ];
 
@@ -51,7 +56,7 @@ export function SocialLinksRow() {
   return (
     <>
       <div className="flex items-center justify-center gap-5">
-        {SOCIAL_LINKS.map(({ key, label, href, logo, invertOnDark }) =>
+        {SOCIAL_LINKS.map(({ key, label, href, Icon }) =>
           key === "kakao" ? (
             <button
               key={key}
@@ -59,7 +64,7 @@ export function SocialLinksRow() {
               onClick={() => setOpen(true)}
               className="flex flex-col items-center gap-1"
             >
-              <Image src={logo} alt={label} width={32} height={32} className={invertOnDark ? "dark:invert" : undefined} />
+              <Icon className="size-8 text-foreground" />
               <span className="text-[10px] font-medium text-muted-foreground">
                 {label}
               </span>
@@ -72,7 +77,7 @@ export function SocialLinksRow() {
               rel="noopener noreferrer"
               className="flex flex-col items-center gap-1"
             >
-              <Image src={logo} alt={label} width={32} height={32} className={invertOnDark ? "dark:invert" : undefined} />
+              <Icon className="size-8 text-foreground" />
               <span className="text-[10px] font-medium text-muted-foreground">
                 {label}
               </span>
@@ -132,31 +137,35 @@ export function SocialLinksGrid() {
 
   return (
     <>
-      <div className="flex flex-col gap-4">
-        <SectionLabel>SOCIAL</SectionLabel>
-        <div className="grid grid-cols-4 gap-2.5">
-          {SOCIAL_LINKS.map(({ key, label, href, logo, invertOnDark }) =>
+      {/* 판권면 — 지면 맨 끝에서 크루 바깥으로 나가는 문. 다른 존과 같은 괘선·라벨을 써야
+          별도 위젯이 아니라 이 신문의 마지막 단으로 읽힌다 */}
+      <div className="flex flex-col">
+        <StoryZoneHeader
+          label="Social"
+          lead="기강이 모여 있는 곳"
+          action={
+            <HelpTip title="기강 채널">
+              기강 소식이 오가는 바깥 채널이에요. 오픈채팅 비밀번호는 가입한
+              기강인에게만 보여요.
+            </HelpTip>
+          }
+        />
+        <div className="grid grid-cols-4 gap-2.5 pt-3">
+          {SOCIAL_LINKS.map(({ key, label, href, Icon }) =>
             key === "kakao" ? (
               <CardItem asChild key={key} className="flex flex-col items-center gap-2 py-3">
-                <button
-                  type="button"
-                  onClick={handleKakaoClick}
-                >
-                  <Image src={logo} alt={label} width={28} height={28} className={invertOnDark ? "dark:invert" : undefined} />
-                  <span className="whitespace-nowrap text-xs font-semibold text-foreground">
+                <button type="button" onClick={handleKakaoClick}>
+                  <Icon className="size-7 text-foreground" />
+                  <span className="whitespace-nowrap text-[13px] text-foreground">
                     {label}
                   </span>
                 </button>
               </CardItem>
             ) : (
               <CardItem asChild key={key} className="flex flex-col items-center gap-2 py-3">
-                <a
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Image src={logo} alt={label} width={28} height={28} className={invertOnDark ? "dark:invert" : undefined} />
-                  <span className="whitespace-nowrap text-xs font-semibold text-foreground">
+                <a href={href} target="_blank" rel="noopener noreferrer">
+                  <Icon className="size-7 text-foreground" />
+                  <span className="whitespace-nowrap text-[13px] text-foreground">
                     {label}
                   </span>
                 </a>

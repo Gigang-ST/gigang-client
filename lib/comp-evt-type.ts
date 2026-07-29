@@ -28,6 +28,57 @@ export function sanitizeAsciiUpperCompEvtTypeInput(raw: string): string {
 }
 
 /**
+ * 종목 코드 → 화면 라벨.
+ *
+ * DB `comp_evt_type`은 두 부류다: 표준 코드(FULL·HALF·OLYMPIC·TRIATHLON_HALF·GRANFONDO 등)와
+ * 이미 사람이 읽는 거리 코드(37K·50K·100K·12K 등). 후자는 그대로가 곧 라벨이라 손대지 않고,
+ * 전자만 한글로 바꾼다. 알 수 없는 값은 원문 그대로(정규화만) 돌려준다 — 임의 거리 코드도
+ * 화면에 뜨게. 빈 값은 `null`(호출부가 "종목 미정" 등으로 처리).
+ */
+const COMP_EVT_LABEL: Record<string, string> = {
+  FULL: "풀코스",
+  HALF: "하프",
+  OLYMPIC: "올림픽",
+  TRIATHLON_OLYMPIC: "철인 올림픽",
+  TRIATHLON_HALF: "철인 하프",
+  TRIATHLON_FULL: "철인",
+  GRANFONDO: "그란폰도",
+  MEDIOFONDO: "메디오폰도",
+  TRAIL: "트레일",
+};
+
+export function compEvtTypeLabel(value: string | null | undefined): string | null {
+  const key = normalizeCompEvtTypeKey(String(value ?? ""));
+  if (!key) return null;
+  return COMP_EVT_LABEL[key] ?? key;
+}
+
+/** 표준 종목의 공식 거리(km). `37K`처럼 숫자로 적힌 종목은 아래 정규식이 받는다. */
+const COMP_EVT_KM: Record<string, number> = {
+  FULL: 42.195,
+  HALF: 21.0975,
+};
+
+/**
+ * 종목 코드 → 거리(km). 모르면 `null`.
+ *
+ * 페이스를 계산하려면 거리가 있어야 하는데, 종목 코드는 표준값(FULL·HALF)과
+ * 자유 입력(`37K`·`55K`)이 섞여 있다. 마라톤·하프는 소수점까지 정확히 잡아야
+ * 페이스가 어긋나지 않는다(42km로 두면 풀코스에서 약 3초/km가 밀린다).
+ *
+ * **달리기 종목에만 쓴다.** 철인3종·사이클은 구간이 나뉘어 있어 총시간을 총거리로
+ * 나눈 값이 아무 의미가 없다 — 호출부가 `sport`로 먼저 거른다.
+ */
+export function compEvtTypeKm(value: string | null | undefined): number | null {
+  const key = normalizeCompEvtTypeKey(String(value ?? ""));
+  if (!key) return null;
+  if (COMP_EVT_KM[key]) return COMP_EVT_KM[key];
+  // `10K` `37K` `55K` — 숫자+K 형태만 받는다(소수점 허용: `21.1K`)
+  const m = /^(\d+(?:\.\d+)?)K$/.exec(key);
+  return m ? Number(m[1]) : null;
+}
+
+/**
  * `comp_evt_cfg`에 나온 종목을 먼저 두고, 스포츠 기본 종목 중 아직 없는 것만 뒤에 붙인다.
  * (동일 종목은 정규화 키 기준 한 번만 노출)
  */

@@ -1,13 +1,12 @@
 // lib/mileage.ts — 마일리지런 계산 유틸리티 (순수 함수)
 
-export type MileageSport = "RUNNING" | "TRAIL" | "CYCLING" | "SWIMMING";
+// 종목 코드·라벨의 정본은 lib/sport.ts(개인 운동 종목 공통 상수)로 옮겼다 — 마일리지·기록자랑·
+// 향후 통합 기록입력이 같은 상수를 쓴다. 기존 이름(MileageSport·MILEAGE_SPORT_LABELS)은
+// 여기서 재export해 14곳의 import를 그대로 유지한다(값은 동일 — 이름만 공용 정본을 가리킨다).
+import { SPORT_LABELS, type SportCode } from "@/lib/sport";
 
-export const MILEAGE_SPORT_LABELS: Record<MileageSport, string> = {
-  RUNNING: "러닝",
-  TRAIL: "트레일러닝",
-  CYCLING: "자전거",
-  SWIMMING: "수영",
-};
+export type MileageSport = SportCode;
+export const MILEAGE_SPORT_LABELS = SPORT_LABELS;
 
 /**
  * 종목별 기본 마일리지 계산 (이벤트 배율 미적용)
