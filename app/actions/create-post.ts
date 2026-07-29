@@ -42,15 +42,19 @@ export async function createPost(input: {
     // `after()`로 응답 반환 뒤에 보낸다 — 서버리스는 응답 후 프로세스가 죽을 수 있어
     // await 안 한 프로미스가 끊긴다. 알림이 실패해도 게시글 등록은 이미 끝났고 되돌릴
     // 이유가 없다(insertNoti 계열은 내부에서 에러를 삼키고 로그만 남긴다 — 다른 발송처와 동일).
+    //
+    // 본문(`notiCont`)은 **고정 문구**다. 푸시는 제목만 있으면 잠금화면에서 한 줄로 휑하게
+    // 뜨는데, 그렇다고 `post_cont` 앞부분을 잘라 넣으면 마크다운(`##`·`**`)이 날것으로
+    // 노출된다. 어차피 눌러서 읽을 글이라 본문은 "왔다"만 말하면 된다.
+    const isNotice = parsed.post_type_enm === "notice";
     after(() =>
       insertNotiForTeam({
         teamId: parsed.team_id,
-        notiTypeEnm: parsed.post_type_enm === "notice" ? "brd_notice" : "brd_update",
-        notiNm:
-          parsed.post_type_enm === "notice"
-            ? `[공지] ${parsed.post_nm}`
-            : `[업데이트] ${parsed.post_nm}`,
-        notiCont: null,
+        notiTypeEnm: isNotice ? "brd_notice" : "brd_update",
+        notiNm: `${isNotice ? "[공지]" : "[업데이트]"} ${parsed.post_nm}`,
+        notiCont: isNotice
+          ? "새 공지가 올라왔어요."
+          : "새 업데이트가 올라왔어요.",
         refId: post.post_id,
         refTypeEnm: "board",
       }),
