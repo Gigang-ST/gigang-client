@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 
 import { markBoardTypeRead } from "@/app/actions/mark-board-type-read";
+import { APP_VERSION } from "@/lib/app-version";
 import { createClient } from "@/lib/supabase/client";
 
 import { ThemeToggle } from "@/components/common/theme-toggle";
@@ -253,7 +254,7 @@ export function SettingsClient({
               버전 정보
             </span>
           </div>
-          <span className="text-sm text-muted-foreground">v1.2.1</span>
+          <span className="text-sm text-muted-foreground">{APP_VERSION}</span>
         </div>
       </div>
 
