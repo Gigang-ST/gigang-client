@@ -290,7 +290,15 @@ const ReelCard = ({
 }) => {
   // 말풍선 티커와 하단 입력줄의 개수가 **같은 출처**를 본다 — 따로 읽으면 Realtime이
   // 한쪽에만 닿아 "말풍선엔 새 댓글이 떴는데 숫자는 그대로"가 된다.
-  const comments = usePostComments(post.post_id, teamId, active);
+  //
+  // **비로그인은 아예 읽지 않는다**: `cmnt_mst`는 SELECT까지 인증 전용(RLS)이라 익명으로
+  // 조회하면 에러 없이 0행이 온다 — 쿼리와 Realtime 구독만 헛돌고 화면엔 "댓글 없음"으로
+  // 보인다. 못 읽는다는 사실은 하단 줄이 "로그인하고 댓글 보기"로 밝힌다(§RecordCommentBar).
+  const comments = usePostComments(
+    post.post_id,
+    teamId,
+    active && myMemId != null,
+  );
   const km = formatKm(post.dst_km);
   const label = getSportLabel(post.sprt_enm);
   const emoji = getSportEmoji(post.sprt_enm);
