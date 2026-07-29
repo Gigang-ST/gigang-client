@@ -438,7 +438,6 @@ function buildLedes(
           mem_nm: rec.mem_nm,
           avatar_url: rec.avatar_url,
           badge_effect: rec.badge_effect,
-          frame_cd: rec.frame_cd,
           primary_title: rec.primary_title,
         },
         // 종목 · 페이스. **거리는 넣지 않는다** — 러너에게 "풀코스"는 곧 42.195km라
@@ -501,16 +500,17 @@ function buildLedes(
       standfirst: "",
       figure: null,
       figureLabel: null,
+      // 부품은 **상위 3명에게만** RPC가 실어 준다(§story-feed.ts StoryActvRankEntry).
+      // 위 `leadIdx`가 상위 3명 안에서만 고르므로 여기 값들은 항상 채워져 있다 —
+      // 추첨 범위를 넓히려면 RPC의 `rn <= 3`도 함께 넓혀야 한다.
       profile: {
         person: {
           mem_id: lead.mem_id,
           mem_nm: lead.mem_nm,
           avatar_url: lead.avatar_url,
           badge_effect: lead.badge_effect,
-          frame_cd: lead.frame_cd,
           intro_txt: lead.intro_txt,
           primary_title: lead.primary_title,
-          running_profile: lead.running_profile,
           mth_attd_cnt: lead.mth_attd_cnt,
           mth_rec_cnt: lead.mth_rec_cnt,
         },
@@ -553,7 +553,6 @@ function buildLedes(
           mem_nm: pledgeLead.mem_nm,
           avatar_url: pledgeLead.avatar_url,
           badge_effect: pledgeLead.badge_effect,
-          frame_cd: pledgeLead.frame_cd,
           intro_txt: pledgeLead.intro_txt,
           primary_title: pledgeLead.primary_title,
         },
@@ -773,6 +772,29 @@ export function StoryLede({
     });
   }, []);
 
+  /**
+   * 서버 저장이 실패한 만큼 되돌린다 — `addBump`의 짝.
+   *
+   * 버튼은 자기 카운트를 스스로 되돌리지만, **여기 쌓인 몫은 버튼 바깥에 살아남는다**.
+   * 그래서 이 정리가 없으면 슬롯이 한 바퀴 돌아 버튼이 재마운트될 때 실패분이 `initialCount`로
+   * 되살아나, 실제로는 저장되지도 않은 응원이 세션 내내 숫자에 남는다.
+   */
+  const removeBumps = useCallback((key: string, delta: number) => {
+    setMyBumps((prev) => {
+      const left = (prev[key] ?? 0) - delta;
+      const next = { ...prev };
+      // 0이면 키를 지운다 — 남겨두면 저장소가 쓰지도 않는 키로 계속 불어난다.
+      if (left > 0) next[key] = left;
+      else delete next[key];
+      try {
+        window.sessionStorage.setItem(BUMP_STORE_KEY, JSON.stringify(next));
+      } catch {
+        /* 저장 실패는 무시 — 화면 상태는 이미 되돌아갔다 */
+      }
+      return next;
+    });
+  }, []);
+
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
   /** 게이지를 처음부터 다시 굴리기 위한 세대 번호 — 같은 장에 머물러 재개할 때 필요 */
@@ -781,6 +803,8 @@ export function StoryLede({
   const [hidden, setHidden] = useState(false);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
   const resumeTimerRef = useRef<number | null>(null);
+  /** 지면 전체 — 화면 안/밖 판정(IntersectionObserver)의 대상 */
+  const sectionRef = useRef<HTMLElement>(null);
 
   /**
    * 한 바퀴 완주 시 모든 랜덤 슬롯을 한꺼번에 다시 뽑는다.
@@ -818,14 +842,43 @@ export function StoryLede({
     }, FREEZE_MS);
   }, []);
 
-  /** 게이지가 멈춰야 하는가 — 손이 닿았거나 · 탭이 숨었거나 */
-  const frozen = paused || hidden;
+  /** 지면이 화면 안에 있나 — 스크롤로 벗어나면 굴릴 이유가 없다(초기값 true: 첫 화면엔 보인다) */
+  const [onScreen, setOnScreen] = useState(true);
+  /** 릴스 뷰어가 열려 있나 — 같은 문서 안 다이얼로그라 `document.hidden`으로는 안 잡힌다 */
+  const reelOpen = reelId !== null;
+
+  /**
+   * 게이지가 멈춰야 하는가 — 손이 닿았거나 · 탭이 숨었거나 · **화면 밖이거나** · 릴스가 덮었거나.
+   *
+   * 화면 밖·릴스 중에는 **되감지 않고 그냥 선다**: 안 보는 동안 소식이 흘러가 버리면 돌아왔을 때
+   * 볼 게 없고, 릴스를 보다 닫았는데 뒤에서 슬롯이 바뀌어 있으면 맥락이 끊긴다.
+   */
+  const frozen = paused || hidden || !onScreen || reelOpen;
 
   useEffect(() => {
     return () => {
       if (resumeTimerRef.current !== null)
         window.clearTimeout(resumeTimerRef.current);
     };
+  }, []);
+
+  /**
+   * 지면이 화면 밖으로 나가면 자동 전환을 멈춘다.
+   *
+   * 스크롤로 아래 존들을 보는 동안에도 4초마다 슬롯이 넘어가고 있었다 — 아무도 안 보는
+   * 화면을 굴리느라 타이머·CSS 애니메이션만 돌고, 다시 올라오면 소식이 몇 장 지나가 있다.
+   * `threshold: 0.3` — 절반 넘게 가려지면 "안 보는 것"으로 친다(살짝 걸친 상태에서 껐다 켰다
+   * 하지 않게 여유를 둔다).
+   */
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => setOnScreen(entry.isIntersecting),
+      { threshold: 0.3 },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
   }, []);
 
   const go = useCallback(
@@ -948,6 +1001,7 @@ export function StoryLede({
 
   return (
     <section
+      ref={sectionRef}
       aria-label="오늘의 기강"
       onPointerDown={(e) => {
         dragStart.current = { x: e.clientX, y: e.clientY };
@@ -1435,6 +1489,12 @@ export function StoryLede({
               }
               bumped={myBumps[lede.entity.key] ?? 0}
               onBump={() => addBump(lede.entity!.key)}
+              // 저장이 실패하면 여기 쌓아 둔 몫도 되돌린다 — 안 그러면 슬롯을 넘겼다 돌아올 때
+              // 저장되지도 않은 응원이 숫자에 되살아난다(§removeBumps).
+              onBumpFailed={(delta) => removeBumps(lede.entity!.key, delta)}
+              // 비로그인은 서버가 거부하므로 누르면 낙관 반영 대신 로그인으로 보낸다.
+              // 버튼 자체는 숨기지 않는다 — 슬롯 바닥의 응원 자리는 전 슬롯이 공유한다.
+              canReact={myMemId != null}
               onInteract={pauseThenResume}
             />
           )}
