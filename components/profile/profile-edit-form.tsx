@@ -430,12 +430,12 @@ export function ProfileEditForm({
         </div>
 
         <div className="flex flex-col gap-2">
-          <Label>더 하고 싶은 말 (선택)</Label>
+          <Label>가입목적 추가 작성 (선택)</Label>
           <Textarea
             value={joinPurpTxt}
             onChange={(e) => setJoinPurpTxt(e.target.value)}
             maxLength={PURP_TXT_MAX}
-            placeholder="올해는 꼭 서브4 찍고 싶어요"
+            placeholder="한강에서 달리기할 사람 찾아요"
             className="rounded-xl border-[1.5px] text-[15px]"
           />
           <div className="flex items-center justify-end gap-2">

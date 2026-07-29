@@ -196,6 +196,29 @@ function renderHitBadges(host: HTMLElement, hits: Map<number, number>): void {
 }
 
 /**
+ * 모든 공의 **현재 좌표를 DOM에 반영**한다 — 물리를 진행시키지 않고 위치만 찍는다.
+ *
+ * transform을 찍는 곳은 원래 rAF 루프뿐이라, 루프가 멈춰 있는 동안(하늘이 화면 밖) 새로
+ * 등장한 얼굴은 버튼 CSS의 `left-0 top-0` 그대로 **좌상단에 붙박인 채** 남는다. 루프 밖에서
+ * "지금 상태를 화면에 맞추는" 용도로 쓴다(새 얼굴 등장 직후, 루프 재시작 직후).
+ *
+ * 물리 계산과 분리해 둬야 이 호출이 공을 한 프레임 앞당기는 부작용이 없다. 네온 링
+ * (boxShadow)은 건드리지 않는다 — 그건 `pop`이 매 프레임 줄어드는 값이라 루프의 것이다.
+ */
+function syncTransforms(
+  balls: Map<string, Ball>,
+  els: Map<string, HTMLButtonElement | null>,
+): void {
+  for (const [memId, b] of balls) {
+    const node = els.get(memId);
+    if (!node) continue;
+    node.style.transform = `translate(${b.x}px, ${b.y}px)`;
+    const face = node.firstElementChild as HTMLElement | null;
+    if (face) face.style.transform = `rotate(${b.rot}deg)`;
+  }
+}
+
+/**
  * 다음 바닥 행동을 뽑는다 — 사람별 성격(stillness/pace/restless)이 확률과 길이를 흔든다.
  *
  * 행동을 여기 한 함수에 모아 둔 이유: 루프 안에 인라인으로 흩어 두면 "왜 얘는 안 움직이지"를
@@ -452,24 +475,47 @@ export function FloatingAvatars({
         elsRef.current.delete(key);
       }
     }
+    // 초기 좌표를 DOM에 **즉시 한 번** 찍는다. transform을 찍는 곳이 rAF 루프뿐이라,
+    // 루프가 멈춘 동안(화면 밖) 들어온 새 얼굴은 버튼 CSS의 `left-0 top-0` 그대로
+    // 좌상단에 그려진 채 남는다. 루프가 도는 중이면 다음 프레임에 덮어쓰므로 무해하고,
+    // 멈춰 있을 때만 제자리를 잡아 준다.
+    syncTransforms(ballsRef.current, elsRef.current);
   }, [presence]);
 
   /**
    * 하늘이 화면 안에 있나 — 밖이면 물리 루프를 멈춘다.
    *
    * 지면을 내려 아래 존을 보는 동안에도 rAF가 매 프레임 돌며 수십 개 아바타의 좌표·회전·
-   * 네온을 계산하고 DOM에 찍고 있었다. 아무도 안 보는 화면이라 순수 낭비고, 모바일에선
-   * 배터리로 직결된다. 초기값 true — 첫 렌더에는 리드와 함께 화면에 있다.
+   * 네온을 계산하고 DOM에 찍고 있었다. 아무도 안 보는 화면이라 순수 낭비고, 스크롤 중에는
+   * 매 프레임 style 쓰기가 스크롤 자체를 미세하게 갉는다.
+   *
+   * ⚠️ **이 최적화는 "다시 보면 반드시 되살아난다"가 보장될 때만 성립한다.** 멈춘 채 못 깨어나면
+   * 아바타가 좌상단에 붙박여 클릭도 안 되는 죽은 화면이 된다 — 아껴서 얻는 것보다 잃는 게 크다.
+   * 그래서 감지가 조금이라도 불확실하면 **멈추지 않는 쪽으로 기운다**(아래 폴백).
+   *
+   * 초기값 true — 첫 렌더에는 리드와 함께 화면에 있다.
    */
   const [onScreen, setOnScreen] = useState(true);
 
+  // deps에 `presence.length > 0`이 있는 이유: 접속자가 없으면 아래에서 `return null`이라
+  // wrap div 자체가 없고 `wrapRef.current`도 null이다. deps가 `[]`이면 그 첫 렌더에 한 번
+  // 돌고 빠져나간 뒤 **다시는 돌지 않아 옵저버가 영영 안 붙는다** — 그러면 "다시 보고 있다"를
+  // 감지할 길이 없어 onScreen이 false에 굳고, 화면에 띄워도 물리가 멈춘 채 아바타가
+  // 좌상단(0,0)에 붙박인다(transform은 루프만 찍으므로). 접속자 유무가 바뀔 때마다 다시 붙여
+  // 그 고착을 막는다.
+  const hasPresence = presence.length > 0;
   useEffect(() => {
     const el = wrapRef.current;
-    if (!el) return;
+    // 붙일 대상이 없다(아직 렌더 전) → **멈춤을 포기하고 계속 돌린다**. 여기서 그냥 return하면
+    // onScreen이 마지막 값에 굳는데, 그게 false였다면 깨워 줄 사람이 아무도 없다.
+    if (!el) {
+      setOnScreen(true);
+      return;
+    }
     const obs = new IntersectionObserver(([e]) => setOnScreen(e.isIntersecting));
     obs.observe(el);
     return () => obs.disconnect();
-  }, []);
+  }, [hasPresence]);
 
   // ── 애니메이션 루프 ──
   useEffect(() => {
@@ -604,6 +650,10 @@ export function FloatingAvatars({
       }
       raf = window.requestAnimationFrame(step);
     };
+    // 루프를 다시 걸기 전에 현재 좌표를 한 번 찍는다 — 멈춰 있던 동안 등장한 얼굴이 아직
+    // 좌상단(0,0)에 있을 수 있다. 첫 프레임이 어차피 덮어쓰지만, 그 한 프레임 사이의 깜빡임을
+    // 없앤다(rAF는 다음 페인트까지 최대 한 프레임을 기다린다).
+    syncTransforms(ballsRef.current, elsRef.current);
     raf = window.requestAnimationFrame(step);
 
     // 탭 복귀 시 last를 리셋한다 — 백그라운드에서 rAF가 멈춘 사이 흐른 시간이 첫 프레임의
