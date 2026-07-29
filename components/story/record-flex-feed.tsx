@@ -207,14 +207,20 @@ export function RecordFlexFeed({
    * 주소로 되돌아가 릴스가 다시 열리는 무한루프가 된다.
    */
   useEffect(() => {
-    if (!recParam || !recReady) return;
+    if (!recParam) return;
     // 비로그인이 알림·공유 링크를 타고 들어온 경우 — 릴스 대신 로그인으로 보낸다(§openReel).
     // 주소의 `?rec=`은 **남겨 둔다**: 로그인 후 `/story`로 돌아오면 다시 이 자리에 서고,
     // 그때는 빗장이 풀려 그 기록이 열린다.
+    //
+    // 이 판정은 **`recReady`보다 먼저** 와야 한다. 목록 밖 기록은 아래 단건 조회 effect가
+    // `deepPost`를 채워야 `recReady`가 서는데, 그 effect는 비로그인이면 조회를 건너뛴다 —
+    // 순서를 뒤집으면 둘이 서로를 기다려 `recReady`가 영영 false로 남고, 로그인 분기까지
+    // 닿지 못해 **조용히 무반응**이 된다(§handledRecRef가 경계한 바로 그 증상).
     if (myMemId == null) {
       goToLogin("/story");
       return;
     }
+    if (!recReady) return;
     // 같은 post_id를 이미 열었고 **아직 그 뷰어가 떠 있으면** 아무것도 안 한다.
     // 닫은 뒤(`openId === null`)라면 같은 알림을 다시 누른 것이므로 다시 연다 — 이미
     // `/story`에 서 있으면 라우트가 그대로라 컴포넌트가 안 갈아엎어지고, 빗장만 보고
