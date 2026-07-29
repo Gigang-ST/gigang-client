@@ -71,7 +71,17 @@ export function RecordFlexFeed({
 
   /** 댓글 알림 딥링크(`/story?rec=<post_id>`) — 아래 `all`이 준비된 뒤 처리한다 */
   const recParam = useSearchParams().get("rec");
-  const [handledRec, setHandledRec] = useState<string | null>(null);
+  /**
+   * 이 post_id는 이미 열었다 — 같은 딥링크가 두 번 열리는 것만 막는 **빗장**이다.
+   *
+   * 화면에 안 쓰이므로 state가 아니라 ref다: effect 안에서만 읽고 쓰므로 렌더가 순수하게 남고,
+   * 값이 바뀌어도 리렌더가 안 걸린다.
+   *
+   * 주소에서 `?rec=`가 사라지면 **반드시 풀어야 한다**(아래 effect). 안 풀면, 이미 `/story`에
+   * 서 있는 사람이 같은 기록의 알림을 다시 눌렀을 때 — 라우트가 그대로라 컴포넌트가 안
+   * 갈아엎어진다 — 빗장이 남아 **조용히 아무 일도 안 일어난다.**
+   */
+  const handledRecRef = useRef<string | null>(null);
   /**
    * 딥링크가 가리키는데 목록에 없어서 **따로 받아온** 한 건.
    * 격자에는 넣지 않는다(시간순 격자에 옛 기록이 끼면 순서가 깨진다) — 릴스 목록에만 얹는다.
@@ -165,18 +175,39 @@ export function RecordFlexFeed({
    * 틀렸다 — 알림을 눌러 들어온 사람은 스크롤할 이유를 모른다. 첫 묶음은 16건뿐이라
    * 조금만 오래된 기록이면 영영 안 열렸다(QS-13).
    *
-   * 여는 것 자체는 렌더 중 조정이다 — effect로 열면 전광판을 한 번 그린 뒤 릴스가 덮는
-   * 캐스케이드가 되고, 린트(set-state-in-effect)에도 걸린다.
-   * 한 번 열고 나면 `handledRec`이 굳어, 닫은 뒤 다시 열리지 않는다(주소는 그대로 남으므로).
+   * ⚠️ **렌더가 아니라 effect에서 연다 — 이 파일에서 가장 미끄러운 곳이다.**
+   *
+   * 예전엔 이 판정을 렌더 중에 하면서 `clearDeepLinkParams()`(= `history.replaceState`)까지
+   * 렌더 안에서 불렀다. 그런데 `router.push()`는 **전환(transition)**이라, 새 화면을 그리는
+   * 동안 주소창은 아직 *떠나온* 페이지다. 그 타이밍에 `window.location.href`를 읽으면
+   * 목적지가 아니라 **출발지**가 잡히고, 그 값으로 replaceState를 하면 `?rec=`를 지우는 게
+   * 아니라 **진행 중인 이동을 출발지 주소로 덮어써 걷어찬다.**
+   *
+   * - 홈(`/`)에서 알림을 누르면 → 주소가 `/`로 되돌아가 홈이 다시 뜬다
+   * - 일정탭에서 누르면 → 전광판은 뜨는데 `rec`이 사라져 릴스가 안 열린다
+   * - 주소를 직접 입력할 때만 멀쩡했다 → 전환이 없어 출발지 = 목적지라서
+   *
+   * effect는 **커밋 뒤**에 돈다 = 이동이 끝나 주소가 목적지로 확정된 뒤다. 그래서 안전하다.
+   * 대신 전광판이 한 프레임 보인 뒤 릴스가 덮는데, 단건 조회 경로(아래)는 원래 그랬으므로
+   * 두 경로의 모양이 오히려 같아진다.
+   *
+   * 순서는 여전히 **지우고 → 연다**여야 한다(§clearDeepLinkParams): 뷰어가 열리며 쌓는
+   * 히스토리 항목(`useDialogHistoryBack`) 위에 replaceState가 얹히면, 뒤로가기가 딥링크
+   * 주소로 되돌아가 릴스가 다시 열리는 무한루프가 된다.
    */
-  if (recParam && handledRec !== recParam && recReady) {
-    setHandledRec(recParam);
-    // 주소에서 `?rec=`를 먼저 지운다 — **뷰어를 열기 전에**(§clearDeepLinkParams).
-    // 남겨두면 닫은 뒤 새로고침·뒤로가기에 릴스가 다시 열려 "닫았는데 또 뜨는" 상태가 된다
-    // (handledRec은 메모리라 새로고침에 초기화된다).
+  useEffect(() => {
+    if (!recParam) {
+      // 주소에서 사라졌다 = 이 딥링크는 처리가 끝났다. 빗장을 풀어 **같은 기록의 알림을
+      // 다시 눌러도** 열리게 한다(§handledRecRef).
+      handledRecRef.current = null;
+      deepFetchedRef.current = null;
+      return;
+    }
+    if (!recReady || handledRecRef.current === recParam) return;
+    handledRecRef.current = recParam;
     clearDeepLinkParams();
     setOpenId(recParam);
-  }
+  }, [recParam, recReady]);
 
   /**
    * 목록에 없는 딥링크 — 그 한 건만 서버에서 받아온다(§loadStoryPost).
@@ -186,7 +217,8 @@ export function RecordFlexFeed({
    * 예전엔 이 경우 아무 일도 안 일어나 사용자가 원인을 알 수 없었다.
    */
   useEffect(() => {
-    if (!recParam || handledRec === recParam || recReady) return;
+    if (!recParam || recReady) return;
+    if (handledRecRef.current === recParam) return;
     if (deepFetchedRef.current === recParam) return;
     deepFetchedRef.current = recParam;
 
@@ -197,7 +229,9 @@ export function RecordFlexFeed({
     void loadStoryPost(recParam).then((res) => {
       if (cancelled) return;
       if (!res.ok) {
-        // 일시 오류는 주소를 남겨 둔다 — 새로고침하면 다시 시도할 수 있어야 한다.
+        // 일시 오류는 주소를 남겨 둔다 — 다시 들어오면 시도할 수 있어야 한다. 그래서
+        // 빗장도 함께 푼다(안 풀면 이 화면에 머무는 동안 그 기록은 영영 안 열린다).
+        deepFetchedRef.current = null;
         toast.error("기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
         return;
       }
@@ -214,7 +248,7 @@ export function RecordFlexFeed({
     return () => {
       cancelled = true;
     };
-  }, [recParam, handledRec, recReady]);
+  }, [recParam, recReady]);
 
   /** 오른쪽 끝 sentinel이 보이면 다음 묶음 — 캘린더 리스트뷰와 같은 장치(방향만 가로) */
   useEffect(() => {
