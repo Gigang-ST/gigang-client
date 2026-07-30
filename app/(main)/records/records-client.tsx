@@ -47,11 +47,17 @@ function memberRowProps(entry: { memId: string; name: string }, onSelect: Select
 const ROW_INTERACTIVE_CLS =
   "cursor-pointer transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1";
 
-/** 스크린 존 안의 진입점 — 흰 지면용 ring 색은 board 위에서 보이지 않는다 */
-const BOARD_INTERACTIVE_CLS =
-  "cursor-pointer transition-colors hover:bg-board-foreground/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-board-amber";
+/** 챔피언 카드 진입점 — 행 카드와 달리 ring offset을 두지 않는다(프레임 테두리와 겹친다) */
+const CHAMPION_INTERACTIVE_CLS =
+  "cursor-pointer transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
-/** 내 행으로 보내는 앵커 id — 판독선이 이걸 찾아 스크롤한다 */
+/**
+ * 내 행으로 보내는 앵커 id — 판독선이 이걸 찾아 스크롤한다.
+ *
+ * 내 행에 색을 칠하지는 않는다. 바로 위 판독선이 이미 내 순위를 말하고 눌러서 데려다주므로,
+ * 강조까지 더하면 같은 사실을 두 번 말한다. 게다가 1위일 땐 내 행이 목록에 없어(띠로 올라감)
+ * 강조가 통째로 사라지는데, 그러면 **1등이 되는 순간 화면에서 내 존재감이 오히려 약해진다**.
+ */
 const myRowId = (memId: string) => `hof-me-${memId}`;
 
 /* ------------------------------------------------------------------ */
@@ -139,13 +145,9 @@ type CategoryKey = (typeof CATEGORIES)[number]["value"];
 /* ------------------------------------------------------------------ */
 
 /**
- * 등수 표시 — **숫자가 정보를 지고 색은 거든다.**
- *
- * 예전엔 1~3위를 같은 메달 아이콘에 색만 달리해 구분했다. 색각 이상이면 셋이 같고
- * 다크 테마에선 동메달이 배경에 묻었다. 1위는 이제 board 띠로 올라가므로 여기 남는 건 2·3위다.
- */
-/**
  * 시상대 표시 — 은·동은 **어두운 메달 칩 위에 메탈릭 shimmer 숫자**.
+ *
+ * 1위는 띠로 올라가므로 여기 남는 건 2·3위다.
  *
  * 색만 바꾼 맨숫자는 등수가 아니라 그냥 회색 글씨로 보였다. 앱엔 이미 금속 질감을 내는 표현이
  * 있으므로(`title-effect-silver/bronze` — 칭호 이펙트) 그걸 그대로 쓴다. 새 어휘를 만들지 않고,
@@ -183,25 +185,27 @@ function RankMark({ rank, size = "sm" }: { rank: number; size?: "sm" | "md" }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  스크린 존 — 챔피언 띠 + 내 기록 판독선                              */
+/*  챔피언 띠 + 내 기록 판독선                                          */
 /* ------------------------------------------------------------------ */
 
 /**
- * 전당의 스크린 존.
+ * 전당 머리 띠 — 화면 좌우 끝까지 붙되 **지면과 같은 색**이다.
  *
- * 화면 좌우 끝까지 붙는 어두운 띠다 — glow를 쓰는 칭호 프레임·배지는 흰 지면에서 빛나지 않고
- * 뿌옇게 번지기만 한다(§DESIGN.md Board 토큰). 흰 지면 중간에 떠 있는 검은 상자는 광고 배너로
- * 읽히지만, 지면을 가로지르는 띠는 끼워 넣은 계기 출력물로 읽힌다.
+ * 한때 이 자리를 `bg-board`(항상 야간)로 깔았다. 칭호 프레임 glow가 어두운 판에서만 제대로
+ * 켜진다는 이유였는데, 실제로 라이트 테마에서 보면 **다크모드가 깨진 것처럼** 읽혔다.
+ * DESIGN.md가 board 토큰에 붙여 둔 경고("glow가 없는 요소를 어둡게 만들려고 board를 가져다
+ * 쓰지 않는다 — 그건 그냥 검은 상자")가 이 자리에도 그대로 들어맞았다:
+ * 프레임을 가진 사람은 소수라 대부분의 화면에선 발광할 게 없고, 검은 띠만 남았다.
  *
- * 프로필 카드 팝업과 달리 점등(flicker·cone)은 켜지 않는다 — 탭은 매번 들어오는 자리라
- * 진입할 때마다 깜빡이면 피곤하다(편집판이 플리커를 끈 것과 같은 이유).
+ * 그래서 배경은 테마를 따르고(`bg-background`), 띠라는 건 위아래 괘선으로만 말한다.
+ * 메탈릭 시상대 숫자처럼 **어두운 바탕이 꼭 필요한 것만** 자기 칩을 들고 다닌다.
  */
-function BoardBand({ eyebrow, action, children }: { eyebrow: string; action?: React.ReactNode; children: React.ReactNode }) {
+function ChampionBand({ eyebrow, action, children }: { eyebrow: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-2.5 bg-board px-6 pb-4 pt-3.5 text-board-foreground">
+    <div className="flex flex-col gap-2.5 border-y border-border bg-background px-6 pb-4 pt-3.5">
       <div className="flex items-center justify-between">
-        {/* 전당의 제호다 — 앰버 대신 칭호 이펙트의 금빛 shimmer를 그대로 쓰되, `.hof-masthead`로
-            훑는 속도를 5s → 16s로 죽인다. 배지 크기에 맞춘 속도를 제호에 그대로 쓰면 번쩍인다. */}
+        {/* 제호의 금빛 shimmer는 지면 색과 무관하게 유지한다 — `title-effect-gold`는
+            어두운 구간(#92681a)부터 시작하는 그라데이션이라 흰 지면에서도 글자가 남는다. */}
         <span className="title-effect-gold hof-masthead font-mono text-[15px] font-bold uppercase tracking-[0.28em]">
           {eyebrow}
         </span>
@@ -233,7 +237,7 @@ function ChampionNameBlock({
     <div className="flex min-w-0 flex-1 flex-col gap-1">
       <span
         className={cn(
-          "min-w-0 truncate font-semibold text-board-foreground",
+          "min-w-0 truncate font-semibold text-foreground",
           size === "sm" ? "text-[14px]" : "text-[16px]",
         )}
       >
@@ -261,12 +265,12 @@ function ChampionNameBlock({
  */
 function ChampionQuote({ text }: { text: string | null | undefined }) {
   return (
-    <p className="line-clamp-2 min-h-[30px] text-[11px] leading-snug text-board-muted">
+    <p className="line-clamp-2 min-h-[30px] text-[11px] leading-snug text-muted-foreground">
       {text && (
         <>
-          <span aria-hidden className="text-board-amber/70">&ldquo;</span>
+          <span aria-hidden className="text-primary/60">&ldquo;</span>
           {text}
-          <span aria-hidden className="text-board-amber/70">&rdquo;</span>
+          <span aria-hidden className="text-primary/60">&rdquo;</span>
         </>
       )}
     </p>
@@ -278,8 +282,8 @@ function ChampionQuote({ text }: { text: string | null | undefined }) {
  *
  * `card-frame-*`는 이름 그대로 카드용이라 아바타에 붙이면 Avatar의 `overflow-hidden`에
  * pseudo-element가 잘려 22종 중 4종이 아예 안 켜지고, 켜지는 것도 32px 링이라 존재감이 없다.
- * 블록에 두르면 전부 켜지고 이펙트가 그만큼 크게 보인다(§`.board-frame-host` — 존 안에서
- * 카드 바탕을 board로 바꿔 흰 판이 뜨는 걸 막는다).
+ * 블록에 두르면 전부 켜지고 이펙트가 그만큼 크게 보인다. 띠가 지면 색을 쓰게 된 뒤로는
+ * 프레임 안쪽을 덮는 `var(--card)`가 그대로 맞아떨어져 별도 오버라이드가 필요 없다.
  */
 function ChampionCard({
   entry,
@@ -294,8 +298,8 @@ function ChampionCard({
   return (
     <div
       className={cn(
-        "board-frame-host flex min-w-0 flex-col gap-1.5 rounded-2xl border border-board-line p-2.5",
-        BOARD_INTERACTIVE_CLS,
+        "flex min-w-0 flex-col gap-1.5 rounded-2xl border border-border p-2.5",
+        CHAMPION_INTERACTIVE_CLS,
         getFrameCls(title?.frame_cd),
       )}
       {...memberRowProps(entry, ctx.onSelectMember)}
@@ -332,7 +336,7 @@ function MyStandingBand({
       <span className="text-[12px] font-semibold text-primary">{standing.rank}위</span>
       {standing.gap && (
         <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
-          1위까지{" "}
+          1위보다{" "}
           <b className="font-mono font-bold tabular-nums text-foreground">{standing.gap}</b>
         </span>
       )}
@@ -388,10 +392,10 @@ function RegisterPrompt({ message }: { message: string }) {
 function BoardRowLabel({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="shrink-0 font-mono text-[9px] tracking-[0.2em] text-board-muted">
+      <span className="shrink-0 font-mono text-[9px] tracking-[0.2em] text-muted-foreground">
         {label}
       </span>
-      <span aria-hidden className="h-px flex-1 bg-board-line" />
+      <span aria-hidden className="h-px flex-1 bg-border" />
     </div>
   );
 }
@@ -421,16 +425,16 @@ function MarathonChampionSlot({
           <ChampionQuote text={meta?.intro_txt} />
           <div className="min-w-0">
             {/* 기록은 등번호와 같은 계기 숫자다 — 이 존에서 앰버가 붙는 자리 */}
-            <div className="font-mono text-[21px] font-bold leading-none tracking-tight tabular-nums text-board-amber">
+            <div className="font-mono text-[21px] font-bold leading-none tracking-tight tabular-nums text-primary">
               {entry.record}
             </div>
-            <div className="mt-1.5 truncate text-[10px] text-board-muted">
+            <div className="mt-1.5 truncate text-[10px] text-muted-foreground">
               {entry.raceName ?? "-"}
             </div>
           </div>
         </ChampionCard>
       ) : (
-        <p className="py-3 text-[11px] text-board-muted">아직 기록이 없어요</p>
+        <p className="py-3 text-[11px] text-muted-foreground">아직 기록이 없어요</p>
       )}
     </div>
   );
@@ -456,7 +460,6 @@ function MarathonHalfCard({
         "flex w-full min-w-0 flex-col gap-0.5 p-2",
         ROW_INTERACTIVE_CLS,
         getFrameCls(title?.frame_cd),
-        isMe && "border-primary/45 bg-primary/[0.05]",
       )}
       {...memberRowProps(entry, ctx.onSelectMember)}
     >
@@ -536,13 +539,13 @@ function MarathonContent({ events, ctx }: { events: MarathonEvent[]; ctx: BoardC
             {/* 제호는 "Champion"이 아니다 — 이 사람은 어떤 경기에서 이긴 게 아니라 크루 안에서
                 가장 빠른 기록을 갖고 있는 사람이다(그 대회에선 3,000등이었을 수도 있다).
                 겨루는 자리가 아니라 친목·응원이라는 이 앱의 톤과도 승패 어휘는 어긋난다. */}
-            <BoardBand eyebrow="Record Holder">
+            <ChampionBand eyebrow="Record Holder">
               {/* 프레임 카드가 각 칸의 경계를 이미 그리므로 가운데 괘선은 두지 않는다 */}
               <div className="grid grid-cols-2 items-start gap-2.5">
                 <MarathonChampionSlot who="MEN" entry={male.champion} ctx={ctx} />
                 <MarathonChampionSlot who="WOMEN" entry={female.champion} ctx={ctx} />
               </div>
-            </BoardBand>
+            </ChampionBand>
 
             {standing ? (
               <MyStandingBand
@@ -554,21 +557,17 @@ function MarathonContent({ events, ctx }: { events: MarathonEvent[]; ctx: BoardC
             )}
           </div>
 
-          {/* 챔피언뿐이면(양쪽 다 1명) 목록이 통째로 빈다 — 남자/여자 머리글만 남겨 두지 않는다 */}
+          {/* 남자/여자 머리글은 두지 않는다 — 바로 위 띠가 `MEN` · `WOMEN`으로 같은 좌우 축을
+              이미 세웠고, 목록도 그 축을 그대로 잇는다. 한 화면에서 같은 구분을 두 번,
+              그것도 한쪽은 영문 한쪽은 한글로 말하면 두 개의 다른 구분처럼 읽힌다. */}
           {maxRows > 0 && (
-            <div className="flex flex-col gap-1.5 px-6">
-              <div className="grid grid-cols-2 gap-2">
-                <span className="text-center text-[11px] font-semibold text-muted-foreground">남자</span>
-                <span className="text-center text-[11px] font-semibold text-muted-foreground">여자</span>
-              </div>
-              <div className="flex flex-col gap-2">
-                {Array.from({ length: maxRows }).map((_, i) => (
-                  <div key={i} className="grid grid-cols-2 gap-2">
-                    <MarathonHalfCard entry={male.rest[i]} ctx={ctx} />
-                    <MarathonHalfCard entry={female.rest[i]} ctx={ctx} />
-                  </div>
-                ))}
-              </div>
+            <div className="flex flex-col gap-2 px-6">
+              {Array.from({ length: maxRows }).map((_, i) => (
+                <div key={i} className="grid grid-cols-2 gap-2">
+                  <MarathonHalfCard entry={male.rest[i]} ctx={ctx} />
+                  <MarathonHalfCard entry={female.rest[i]} ctx={ctx} />
+                </div>
+              ))}
             </div>
           )}
         </>
@@ -586,7 +585,7 @@ function MarathonContent({ events, ctx }: { events: MarathonEvent[]; ctx: BoardC
 /* ------------------------------------------------------------------ */
 
 const UTMB_HELP = (
-  <HelpTip title="UTMB INDEX" align="end" className="-my-2 size-8 text-board-muted hover:text-board-foreground">
+  <HelpTip title="UTMB INDEX" align="end" className="-my-2 size-8 text-muted-foreground hover:text-foreground">
     UTMB가 대회 완주 기록으로 산정하는 트레일 러너 실력 지수예요. 높을수록 상위이고, 대회를 완주할
     때마다 갱신돼요.
   </HelpTip>
@@ -611,7 +610,7 @@ export function TrailContent({ entries, ctx }: { entries: TrailEntry[]; ctx: Boa
       <div className="flex flex-col">
         {/* 트레일만 제호가 갈린다 — UTMB INDEX는 기록이 아니라 지수라 "Record Holder"가 안 맞는다.
             판을 이미 셋으로 갈라 뒀으니 제호가 달라도 어색하지 않다. */}
-        <BoardBand eyebrow="Top Index" action={UTMB_HELP}>
+        <ChampionBand eyebrow="Top Index" action={UTMB_HELP}>
           <ChampionCard entry={champion} ctx={ctx}>
             <div className="flex items-center gap-3">
               <Avatar
@@ -621,21 +620,21 @@ export function TrailContent({ entries, ctx }: { entries: TrailEntry[]; ctx: Boa
               />
               <ChampionNameBlock entry={champion} ctx={ctx} size="md" />
               <div className="shrink-0 text-right">
-                <div className="font-mono text-[30px] font-bold leading-none tracking-tight tabular-nums text-board-amber">
+                <div className="font-mono text-[30px] font-bold leading-none tracking-tight tabular-nums text-primary">
                   {champion.utmbIndex}
                 </div>
-                <div className="mt-1.5 font-mono text-[8.5px] tracking-[0.18em] text-board-muted">
+                <div className="mt-1.5 font-mono text-[8.5px] tracking-[0.18em] text-muted-foreground">
                   UTMB INDEX
                 </div>
               </div>
             </div>
             <ChampionQuote text={ctx.memberMeta[champion.memId]?.intro_txt} />
-            <p className="truncate text-[10px] text-board-muted">
+            <p className="truncate text-[10px] text-muted-foreground">
               {champion.recentRaceName ?? "-"}
               {champion.recentRaceRecord ? ` · ${champion.recentRaceRecord}` : ""}
             </p>
           </ChampionCard>
-        </BoardBand>
+        </ChampionBand>
 
         {standing ? (
           <MyStandingBand
@@ -660,7 +659,6 @@ export function TrailContent({ entries, ctx }: { entries: TrailEntry[]; ctx: Boa
                 "flex items-center gap-4 p-3",
                 ROW_INTERACTIVE_CLS,
                 getFrameCls(title?.frame_cd),
-                isMe && "border-primary/45 bg-primary/[0.05]",
               )}
               {...memberRowProps(entry, ctx.onSelectMember)}
             >
@@ -738,7 +736,6 @@ export function TriathlonContent({ events, ctx }: { events: TriathlonEvent[]; ct
     <div className="flex flex-col gap-2 px-6">
       {rows.map(({ chip, entry }) => {
         const title = ctx.memberTitles[entry.memId];
-        const isMe = entry.memId === ctx.myMemId;
         return (
           <CardItem
             key={`${chip}-${entry.memId}`}
@@ -746,7 +743,6 @@ export function TriathlonContent({ events, ctx }: { events: TriathlonEvent[]; ct
               "flex items-center gap-3 p-3",
               ROW_INTERACTIVE_CLS,
               getFrameCls(title?.frame_cd),
-              isMe && "border-primary/45 bg-primary/[0.05]",
             )}
             {...memberRowProps(entry, ctx.onSelectMember)}
           >

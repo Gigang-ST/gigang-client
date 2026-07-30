@@ -1429,16 +1429,6 @@
   }
 }
 
-/* 스크린 존 안에 세우는 프레임 카드(기강의 전당 챔피언).
-   card-frame-* 중 pseudo-element를 쓰는 것들(rainbow·aurora…)은 ::after가 `var(--card)`로
-   안쪽을 덮어 테두리만 남긴다. 그 값이 흰색이면 어두운 판 위에 흰 판이 뜬다 —
-   존 안에서만 카드 바탕을 board로 바꿔 프레임이 board 위에서 제 모양으로 켜지게 한다.
-   프레임을 아바타에 붙이면 Avatar의 overflow-hidden에 pseudo-element가 잘려 22종 중 4종이
-   아예 안 보였다. 블록에 두르면 전부 켜지고 이펙트도 그만큼 크게 보인다. */
-.board-frame-host {
-  --card: var(--board);
-}
-
 /* 스포트라이트 콘 — 아바타를 비추는 조명. 점등 전엔 투명 */
 .board-cone {
   opacity: 0;

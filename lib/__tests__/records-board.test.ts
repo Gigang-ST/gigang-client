@@ -67,8 +67,9 @@ describe("getMyIndexStanding — 클수록 상위", () => {
     { rank: 3, memId: "me", utmbIndex: 512 },
   ];
 
-  it("격차 부호가 시간과 반대로 뒤집히지 않는다", () => {
-    expect(getMyIndexStanding(entries, "me")).toEqual({ rank: 3, value: "512", gap: "106" });
+  // 문구가 "1위보다"라 부호가 곧 방향이다 — 지수는 낮을수록 아래이므로 시간(`+`)과 반대다
+  it("격차는 1위보다 얼마나 낮은지를 음수로 말한다", () => {
+    expect(getMyIndexStanding(entries, "me")).toEqual({ rank: 3, value: "512", gap: "-106" });
   });
 
   it("내가 1위면 격차가 없다", () => {

@@ -97,8 +97,7 @@ const ctx: BoardContext = {
 describe("마라톤 판", () => {
   const html = render();
 
-  it("1위는 board 띠로 올라간다", () => {
-    expect(html).toContain("bg-board");
+  it("1위는 띠로 올라간다", () => {
     // "Champion"이 아니다 — 경기에서 이긴 게 아니라 크루 기록을 갖고 있는 사람이다
     expect(html).toContain("Record Holder");
     expect(html).not.toContain("Champion");
@@ -113,7 +112,7 @@ describe("마라톤 판", () => {
   });
 
   it("목록은 2위부터다 — 챔피언이 아래에 한 번 더 나오지 않는다", () => {
-    const listOnly = html.slice(html.lastIndexOf("남자"));
+    const listOnly = html.slice(html.lastIndexOf("내 기록"));
     expect(listOnly).not.toContain("송창준");
     expect(listOnly).toContain("김준민");
   });
@@ -140,24 +139,25 @@ describe("마라톤 판", () => {
 
   it("카드 이펙트는 아바타가 아니라 챔피언 블록에 두른다", () => {
     // 아바타에 붙이면 overflow-hidden에 pseudo-element가 잘려 프레임 4종이 안 켜진다
-    expect(html).toContain("board-frame-host");
-    expect(html).toMatch(/board-frame-host[^"]*card-frame-gold/);
+    expect(html).toContain("card-frame-gold");
+    expect(html).toMatch(/rounded-2xl border border-border[^"]*card-frame-gold/);
   });
 
-  it("챔피언 기록은 계기 숫자라 앰버로 찍는다", () => {
-    expect(html).toContain("text-board-amber");
+  it("띠는 지면 색을 쓴다 — 라이트에서 검은 상자가 되지 않게", () => {
+    expect(html).toContain("bg-background");
+    expect(html).not.toContain("bg-board");
   });
 
   it("판독선이 내 기록·순위·1위와의 격차를 단다", () => {
     const t = text(html);
     expect(t).toContain("내 기록");
     expect(t).toContain("3:02:33");
-    expect(t).toContain("1위까지");
+    expect(t).toContain("1위보다");
     expect(t).toContain("+14:03");
   });
 
   it("내가 1위면 격차를 달지 않는다", () => {
-    expect(text(render({ myMemId: "m1" }))).not.toContain("1위까지");
+    expect(text(render({ myMemId: "m1" }))).not.toContain("1위보다");
   });
 
   it("로그인했는데 그 종목 기록이 없으면 등록으로 보낸다", () => {
@@ -170,7 +170,7 @@ describe("마라톤 판", () => {
     expect(t).not.toContain("기록 등록");
   });
 
-  it("챔피언뿐이면 남자/여자 머리글만 덩그러니 남기지 않는다", () => {
+  it("챔피언뿐이면 목록 자리가 통째로 사라진다", () => {
     const onlyChampions = {
       ...DATA,
       marathon: {
@@ -185,7 +185,7 @@ describe("마라톤 판", () => {
     };
     const t = text(render({ data: onlyChampions, myMemId: null }));
     expect(t).toContain("송창준"); // 띠는 선다
-    expect(t).not.toContain("남자");
+    expect(t).not.toContain("김준민"); // 2위 이하가 없다
   });
 
   it("등수는 숫자가 진다 — 스크린리더에도 순위가 남는다", () => {
@@ -217,8 +217,8 @@ describe("트레일 판 — 성별을 나누지 않아 띠 구성이 다르다",
   it("지수 격차는 부호가 뒤집히지 않는다(클수록 상위)", () => {
     const t = text(html);
     expect(t).toContain("내 지수");
-    expect(t).toContain("1위까지");
-    expect(t).toContain("106");
+    expect(t).toContain("1위보다");
+    expect(t).toContain("-106");
   });
 
   it("UTMB INDEX가 뭔지 그 자리에서 답한다", () => {
@@ -227,7 +227,7 @@ describe("트레일 판 — 성별을 나누지 않아 띠 구성이 다르다",
 
   it("연동한 멤버가 없으면 띠를 세우지 않는다", () => {
     const empty = renderToStaticMarkup(createElement(TrailContent, { entries: [], ctx }));
-    expect(empty).not.toContain("bg-board");
+    expect(empty).not.toContain("Top Index");
   });
 });
 
@@ -256,7 +256,6 @@ describe("철인3종 판 — 순위가 아니라 명단", () => {
   const html = renderToStaticMarkup(createElement(TriathlonContent, { events, ctx }));
 
   it("띠를 세우지 않는다 — 세 명 중 하나를 올리면 목록에 둘이 남는다", () => {
-    expect(html).not.toContain("bg-board");
     expect(html).not.toContain("Record Holder");
   });
 

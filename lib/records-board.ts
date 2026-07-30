@@ -73,6 +73,10 @@ export type MyStanding = {
    *
    * 순위 숫자만 있으면 이 줄이 "N위 행"으로 읽혀 바로 위 챔피언 띠와 순위축이 엉킨다.
    * 격차가 붙어야 나와 전당 사이를 재는 계기가 된다.
+   *
+   * **부호는 "1위보다 어떤가"를 말한다** — 시간은 느릴수록 큰 값이라 `+`, 지수는 낮을수록
+   * 작은 값이라 `-`. 화면 문구도 `1위까지`가 아니라 `1위보다`다: `1위까지 +1:30`은
+   * "1위에 도달하려면 +1:30"으로 읽혀 부호가 거꾸로 걸린다.
    */
   gap: string | null;
 };
@@ -118,7 +122,8 @@ export function getMyIndexStanding(
   return {
     rank: mine.rank,
     value: String(mine.utmbIndex),
-    gap: gap > 0 ? String(gap) : null,
+    // 지수는 낮을수록 아래다 — 시간(`+`)과 부호가 반대로 나가야 "1위보다"가 사실이 된다
+    gap: gap > 0 ? `-${gap}` : null,
   };
 }
 
