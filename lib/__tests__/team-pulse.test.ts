@@ -5,8 +5,9 @@ import { formatWeekLabel, getTeamPulse } from "@/lib/team-pulse";
 import type { TeamWeek } from "@/lib/queries/team-overview";
 
 /**
- * 활동량 = attd_cnt + rec_cnt. 임계값 경계를 정확히 짚어야 하므로 attd_cnt 하나로만 만든다
- * (gthr_cnt는 판정에 안 들어간다 — 모임 개수는 규모를 안 담아 제외된 값이다).
+ * 활동량 = attd_cnt × 1 + rec_cnt × 0.25. 임계값 경계를 정확히 짚어야 하므로 가중치 1인
+ * attd_cnt 하나로만 만든다 (gthr_cnt는 판정에 안 들어간다 — 모임 개수는 규모를 안 담아
+ * 제외된 값이다).
  */
 function week(activity: number, wStart = "2026-07-20"): TeamWeek {
   return { w_start: wStart, gthr_cnt: 99, attd_cnt: activity, rec_cnt: 0 };
@@ -118,10 +119,62 @@ describe("getTeamPulse - 직전 4주 평균 대비 비율 판정", () => {
   it("attd_cnt와 rec_cnt를 합산해 활동량을 낸다", () => {
     const weeks: TeamWeek[] = [
       ...Array.from({ length: 4 }, () => week(10)),
-      { w_start: "2026-07-20", gthr_cnt: 0, attd_cnt: 5, rec_cnt: 5 },
+      { w_start: "2026-07-20", gthr_cnt: 0, attd_cnt: 5, rec_cnt: 20 },
     ];
-    // 5+5=10 → ratio 1.0. 하나만 셌다면 ratio 0.5로 dormant가 됐을 것.
+    // 5 + 20×0.25 = 10 → ratio 1.0. 참석만 셌다면 ratio 0.5로 dormant가 됐을 것.
     expect(getTeamPulse(weeks).level).toBe("steady");
+  });
+});
+
+/**
+ * 활동량 가중치 — 참석 1 : 기록 0.25 (`ATTD_WEIGHT`/`REC_WEIGHT`).
+ *
+ * 경계값은 prd 실측(2026-07-30, 참석 baseline 12 / 깅스타그램 주 7건)으로 골랐다.
+ * 여기 숫자를 손보려면 가중치를 바꿔야 하는 상황인지 먼저 확인할 것.
+ */
+describe("getTeamPulse - 참석 1 : 기록 0.25 가중", () => {
+  /** 참석·기록을 따로 주는 주 */
+  function mixed(attd: number, rec: number): TeamWeek {
+    return {
+      w_start: "2026-07-20",
+      gthr_cnt: 0,
+      attd_cnt: attd,
+      rec_cnt: rec,
+    };
+  }
+  /** 직전 4주를 같은 (참석, 기록)으로 채운 뒤 이번 주를 붙인다 */
+  function mixedWeeks(past: TeamWeek, current: TeamWeek): TeamWeek[] {
+    return [...Array.from({ length: 4 }, () => past), current];
+  }
+
+  it("기록 한 건은 참석 한 명의 1/4만큼만 센다", () => {
+    // 참석 10 baseline에 이번 주 참석 10 + 기록 4 → 10 + 1 = 11 → ratio 1.1 (steady).
+    // 1:1이었다면 14 → ratio 1.4로 blazing이 됐을 것.
+    expect(getTeamPulse(weeksWith(10, 0)).level).toBe("dormant"); // sanity
+    expect(getTeamPulse(mixedWeeks(week(10), mixed(10, 4))).level).toBe(
+      "steady",
+    );
+  });
+
+  it("참석이 평소인데 기록만 폭증하면 최상까지 안 간다 — 파밍 내성", () => {
+    // baseline 참석 12 + 기록 7 = 13.75. 이번 주 참석 12 + 기록 20 = 17 → ratio 1.24.
+    // 1:1이었다면 32/19 = 1.68로 blazing. 깅스타그램은 1일 제한이 없어 혼자 연타할 수 있다.
+    expect(getTeamPulse(mixedWeeks(mixed(12, 7), mixed(12, 20))).level).toBe(
+      "steady",
+    );
+  });
+
+  it("참석이 실제로 늘어난 주는 최상이 나온다 — 둔감해진 게 아니다", () => {
+    // baseline 13.75. 이번 주 참석 20 + 기록 7 = 21.75 → ratio 1.58 → blazing.
+    expect(getTeamPulse(mixedWeeks(mixed(12, 7), mixed(20, 7))).level).toBe(
+      "blazing",
+    );
+  });
+
+  it("기준선 없는 초기 크루도 가중치를 거친다 — 기록만이면 40건이어야 최상", () => {
+    // 절대량 분기(baseline 0)의 임계값 10도 가중 후 활동량 기준이다.
+    expect(getTeamPulse([mixed(0, 40)]).level).toBe("blazing");
+    expect(getTeamPulse([mixed(0, 36)]).level).toBe("steady"); // 9 → 10 미만
   });
 });
 
