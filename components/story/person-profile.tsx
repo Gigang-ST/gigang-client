@@ -176,12 +176,35 @@ const INTRO_PLACEHOLDER = "고수는 말이 필요 없는 법";
  * "이건 이 사람이 쓴 게 아니라 아직 안 쓴 것"임을 한눈에 구분하게 한다. 탭 툴팁도 없다
  * (펼칠 뒷말이 없다).
  */
-function IntroPlaceholder() {
+function IntroPlaceholder({ text = INTRO_PLACEHOLDER }: { text?: string }) {
   return (
     <p className="block w-full truncate rounded-r-md border-l-2 border-border/60 bg-muted/30 py-1.5 pl-2.5 pr-2 text-[13.5px] leading-relaxed text-muted-foreground/80">
-      {INTRO_PLACEHOLDER}
+      {text}
     </p>
   );
+}
+
+/**
+ * 한마디 한 칸 — 있으면 인용구, 없으면 빈 상태. **자리는 늘 남는다.**
+ *
+ * 완주기록 슬롯은 `PersonProfile`을 안 쓰고 전용 레이아웃(인물 ↔ 결과표를 한 줄로 마주 세움)이라
+ * 부품을 통째로 못 가져다 쓴다. 그렇다고 거기서 인용구를 다시 만들면 두 슬롯의 한마디가
+ * 서서히 어긋나므로(빈 상태 문구·줄 높이·툴팁 유무), 이 한 칸만 떼어 공유한다.
+ *
+ * `fallback` — 한마디가 없을 때 그 자리에 대신 세울 말. 안 주면 기본 문구
+ * ("고수는 말이 필요 없는 법")가 뜬다. **완주기록 슬롯은 여기에 기록을 넣는다** —
+ * 기록 소식을 보는 자리라 빈 자리를 농담으로 때우는 것보다 기록 한 줄이 낫다.
+ */
+export function PersonIntro({
+  text,
+  fallback,
+}: {
+  text: string | null | undefined;
+  fallback?: string | null;
+}) {
+  const txt = text?.trim();
+  if (txt) return <IntroQuote text={txt} />;
+  return <IntroPlaceholder text={fallback?.trim() || undefined} />;
 }
 
 /** 이번 달 수치 한 칸 — 라벨(위·작게) + 숫자(아래·크게). 이 슬롯의 주어라 크게 세운다. */
@@ -206,14 +229,11 @@ function renderPart(
     case "title":
       return null;
 
-    case "intro": {
-      const txt = person.intro_txt?.trim();
-      // 사람의 말이라 인용구로 — 한 줄로 눕다 넘치면 …로 자르고, 탭하면 전체가 툴팁으로 뜬다.
-      if (txt) return <IntroQuote key="intro" text={txt} />;
-      // 한마디가 없어도 **자리는 남긴다** — 쓴 사람과 안 쓴 사람 사이에 슬롯 구성이
-      // 달라지면 스와이프할 때마다 아래 내용이 위아래로 뛴다.
-      return <IntroPlaceholder key="intro" />;
-    }
+    // 사람의 말이라 인용구로 — 한 줄로 눕다 넘치면 …로 자르고, 탭하면 전체가 툴팁으로 뜬다.
+    // 한마디가 없어도 **자리는 남긴다** — 쓴 사람과 안 쓴 사람 사이에 슬롯 구성이 달라지면
+    // 스와이프할 때마다 아래 내용이 위아래로 뛴다.
+    case "intro":
+      return <PersonIntro key="intro" text={person.intro_txt} />;
 
     // `bestRecord`는 이 컴포넌트가 그리지 않는다 — 위 `topParts` 필터가 걸러내므로
     // 여기까지 오지 않는다. 타입은 호출부 호환을 위해 남기되 렌더 분기는 두지 않는다

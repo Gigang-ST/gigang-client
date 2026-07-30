@@ -25,6 +25,7 @@ import { Avatar } from "@/components/common/avatar";
 import { TitleBadge } from "@/components/common/title-badge";
 import { PurposeChip } from "@/components/members/profile-chip";
 import {
+  PersonIntro,
   PersonProfile,
   type PersonProfilePart,
   type PersonProfilePerson,
@@ -214,6 +215,8 @@ type Lede = {
    */
   raceRecord?: {
     person: PersonProfilePerson;
+    /** 한마디를 안 쓴 사람의 빈 자리에 대신 세울 기록 한 줄 */
+    introFallback?: string | null;
     /**
      * 결과표 칸들 — 마라톤 기록증에 실리는 것과 같은 항목(종목·거리·페이스).
      * 완주시간은 footer(대회 대표 숫자 자리)가 맡으므로 여기 넣지 않는다.
@@ -439,8 +442,13 @@ function buildLedes(
           mem_nm: rec.mem_nm,
           avatar_url: rec.avatar_url,
           badge_effect: rec.badge_effect,
+          intro_txt: rec.intro_txt,
           primary_title: rec.primary_title,
         },
+        // 한마디를 안 쓴 사람의 빈 자리 문구. 기본값("고수는 말이 필요 없는 법")과 같은 결의
+        // 농담이되 **이 슬롯에 맞춘 말**이다 — 완주 기록을 보는 자리라, 말수가 적은 게 아니라
+        // 기록으로 말하는 사람이라는 쪽이 그 자리에 어울린다.
+        introFallback: "말보단 기록으로 보여주는 편",
         // 종목 · 페이스. **거리는 넣지 않는다** — 러너에게 "풀코스"는 곧 42.195km라
         // 종목이 이미 말한 걸 한 번 더 쓰는 칸이 된다(`55K`처럼 숫자가 라벨인 종목은
         // 아예 같은 글자다). 페이스만 종목에서 못 읽는 값이라 남긴다.
@@ -1438,6 +1446,14 @@ export function StoryLede({
                   ))}
                 </dl>
               </div>
+
+              {/* 한마디 — 얼굴 바로 아래. 활동지수·목표 슬롯과 **같은 칸**(PersonIntro)을 쓴다.
+                  사람을 세우는 리드 넷 중 여기만 빠져 있었고, 인물 한 줄 + 결과표라 아래가 비어 있었다.
+                  안 쓴 사람도 자리는 남는다 — 스와이프마다 아래 내용이 위아래로 뛰지 않게. */}
+              <PersonIntro
+                text={lede.raceRecord.person.intro_txt}
+                fallback={lede.raceRecord.introFallback}
+              />
             </>
           ) : lede.raceRoster ? (
             /* 대회(§①) — 참가자를 종목별로 묶어 나열. 명단이 길면 이 영역만 스크롤한다
