@@ -3,8 +3,9 @@ import { Suspense } from "react";
 import { unstable_cache } from "next/cache";
 
 import { secondsToTime } from "@/lib/dayjs";
-import { getMyTitleNames } from "@/lib/queries/member";
+import { getCurrentMember, getMyTitleNames } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { MARATHON_EVENTS, TRIATHLON_EVENTS } from "@/lib/records-board";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import { HeaderActions } from "@/components/common/header-actions";
@@ -14,30 +15,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RecordsClient } from "./records-client";
 
 
-const MARATHON_EVENTS = [
-  { eventType: "FULL", label: "풀마라톤" },
-  { eventType: "HALF", label: "하프마라톤" },
-  { eventType: "10K", label: "10K" },
-] as const;
-
-const TRIATHLON_EVENTS = [
-  { eventType: "TRIATHLON_FULL", label: "킹", filter: null },
-  { eventType: "TRIATHLON_HALF", label: "하프", filter: null },
-  { eventType: "TRIATHLON_OLYMPIC_TY", label: "올림픽 - 통영", filter: (name: string | null) => name?.includes("통영") ?? false },
-  { eventType: "TRIATHLON_OLYMPIC_ETC", label: "올림픽 - 기타", filter: (name: string | null) => !(name?.includes("통영") ?? false) },
-] as const;
-
 async function RecordsContent() {
   const { teamId } = await getRequestTeamContext();
-  const [serializedData, myTitleNames] = await Promise.all([
+  // getCurrentMember()는 React cache()라 getMyTitleNames() 안의 호출과 합쳐진다(쿼리 추가 없음).
+  const [serializedData, myTitleNames, { member }] = await Promise.all([
     getCachedRecordsData(teamId),
     getMyTitleNames(),
+    getCurrentMember(),
   ]);
 
   return (
     <RecordsClient
       data={serializedData}
       myTitleNames={[...myTitleNames]}
+      myMemId={member?.id ?? null}
       teamId={teamId}
     />
   );
@@ -48,20 +39,40 @@ function getCachedRecordsData(teamId: string) {
     async () => {
       const supabase = createAdminClient();
 
-      // 마라톤 + 철인3종 기록, UTMB 프로필, 대표 칭호 동시 조회
-      const [{ data: raceData }, { data: utmbData }, { data: titleData }] = await Promise.all([
-        supabase.rpc("get_public_team_race_rankings", { p_team_id: teamId }),
-        supabase.rpc("get_public_team_utmb_rankings", { p_team_id: teamId }),
-        supabase
-          .from("mem_ttl_rel")
-          .select("team_mem_rel!inner(mem_id, selected_badge_effect, selected_frame_cd), ttl_mst!inner(ttl_nm, ttl_desc, desc_visibility)")
-          .eq("team_mem_rel.team_id", teamId)
-          // 운영에서 내린 칭호는 대표로 걸려 있어도 배지를 세우지 않는다(카드·전광판 RPC와 같은 규칙)
-          .eq("ttl_mst.use_yn", true)
-          .eq("is_prmy_yn", true)
-          .eq("vers", 0)
-          .eq("del_yn", false),
-      ]);
+      // 마라톤 + 철인3종 기록, UTMB 프로필, 대표 칭호, 멤버 표면(얼굴·한마디) 동시 조회
+      const [{ data: raceData }, { data: utmbData }, { data: titleData }, { data: relData }] =
+        await Promise.all([
+          supabase.rpc("get_public_team_race_rankings", { p_team_id: teamId }),
+          supabase.rpc("get_public_team_utmb_rankings", { p_team_id: teamId }),
+          supabase
+            .from("mem_ttl_rel")
+            .select("team_mem_rel!inner(mem_id, selected_badge_effect, selected_frame_cd), ttl_mst!inner(ttl_nm, ttl_desc, desc_visibility)")
+            .eq("team_mem_rel.team_id", teamId)
+            // 운영에서 내린 칭호는 대표로 걸려 있어도 배지를 세우지 않는다(카드·전광판 RPC와 같은 규칙)
+            .eq("ttl_mst.use_yn", true)
+            .eq("is_prmy_yn", true)
+            .eq("vers", 0)
+            .eq("del_yn", false),
+          // 챔피언 띠가 얼굴과 한마디를 세운다 — 랭킹 RPC엔 둘 다 없어 팀 전체를 한 번에 받아 맵으로 쓴다.
+          // (팀 규모가 수십 명이라 행 수가 랭킹 결과보다 작다. 등번호는 띠에 쓰지 않으므로 받지 않는다.)
+          supabase
+            .from("team_mem_rel")
+            .select("mem_id, intro_txt, mem_mst!inner(avatar_url)")
+            .eq("team_id", teamId)
+            .eq("vers", 0)
+            .eq("del_yn", false),
+        ]);
+
+      // mem_id → { avatar_url, intro_txt } 맵
+      const memberMeta: Record<string, { avatar_url: string | null; intro_txt: string | null }> = {};
+      for (const row of relData ?? []) {
+        if (!row.mem_id) continue;
+        const mst = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst;
+        memberMeta[row.mem_id] = {
+          avatar_url: (mst as { avatar_url?: string | null } | null)?.avatar_url ?? null,
+          intro_txt: row.intro_txt ?? null,
+        };
+      }
 
       // mem_id → { ttl_nm, badge_effect, frame_cd } 맵
       const memberTitleMap = new Map<string, { ttl_nm: string; ttl_desc: string | null; desc_visibility: "always" | "others" | "held" | "never"; badge_effect: string; frame_cd: string }>();
@@ -144,6 +155,8 @@ function getCachedRecordsData(teamId: string) {
           memId: r.memId,
           name: r.name,
           record: r.record,
+          // 판독선이 1위와의 격차를 재려면 표시 문자열이 아니라 원본 초가 필요하다
+          recordSec: r.sortKey,
           raceName: r.raceName,
         });
 
@@ -218,8 +231,8 @@ function getCachedRecordsData(teamId: string) {
             memId: r.memId,
             name: r.name,
             record: r.record,
+            recordSec: r.sortKey,
             raceName: r.raceName,
-            isMain: false,
           })),
         };
       });
@@ -233,41 +246,36 @@ function getCachedRecordsData(teamId: string) {
         trail: { entries: trailEntries },
         triathlon: { events: triathlonEvents },
         memberTitles,
+        memberMeta,
       };
     },
-    [`records-team-v2-${teamId}`],
+    // v3 — 페이로드에 recordSec·memberMeta가 생겼다. 키를 안 올리면 배포 직후 남아 있는
+    // v2 캐시가 그 필드 없이 돌아와 챔피언 띠·판독선이 조용히 비어 보인다.
+    [`records-team-v5-${teamId}`],
     { revalidate: 60 * 60 * 24, tags: ["records", `records:${teamId}`] },
   )();
 }
 
+/** 실제 판과 같은 순서로 자리를 잡는다 — 세그먼트 → 종목 pill → 챔피언 띠 → 반칸 카드 */
 function RecordsSkeleton() {
   return (
-    <>
-      <div className="flex flex-wrap gap-2 px-6 pt-4">
+    <div className="flex flex-col gap-4">
+      <div className="px-6 pt-1">
+        <Skeleton className="h-11 w-full rounded-xl" />
+      </div>
+      <div className="flex gap-2 px-6">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-7 w-20 rounded-full" />
+        ))}
+      </div>
+      {/* 챔피언 띠는 전폭이라 스켈레톤도 좌우 끝까지 — 로딩 중 지면 폭이 흔들리지 않게 */}
+      <Skeleton className="h-[140px] w-full rounded-none" />
+      <div className="grid grid-cols-2 gap-2 px-6">
         {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-9 w-16 rounded-full" />
+          <Skeleton key={i} className="h-[62px] rounded-2xl" />
         ))}
       </div>
-      <div className="flex gap-0 px-6 py-2">
-        <Skeleton className="h-9 flex-1 rounded-lg" />
-        <Skeleton className="h-9 flex-1 rounded-lg" />
-      </div>
-      <div className="flex flex-col px-6 pt-2">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div
-            key={i}
-            className="flex items-center gap-4 border-b border-border py-4 last:border-b-0"
-          >
-            <Skeleton className="size-8 rounded-full" />
-            <div className="flex flex-1 flex-col gap-1.5">
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-3 w-32" />
-            </div>
-            <Skeleton className="h-5 w-16" />
-          </div>
-        ))}
-      </div>
-    </>
+    </div>
   );
 }
 

@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 import { withActive } from "@/lib/actions/auth";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { introTxtSchema } from "@/lib/validations/member";
 
@@ -70,6 +71,9 @@ export async function setIntroTxt(introTxt: string) {
 
     if (error) return { ok: false, message: "저장에 실패했습니다" };
     revalidatePath("/profile");
+    // 랭킹탭 챔피언 띠가 한마디를 세운다 — 그 캐시는 24시간이라 안 털면 전당에만 옛 말이 남는다.
+    const { teamId } = await getRequestTeamContext();
+    revalidateTag(`records:${teamId}`, "max");
     return { ok: true, message: null };
   });
 }
