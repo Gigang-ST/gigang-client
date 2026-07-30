@@ -351,9 +351,14 @@ function MyStandingBand({
   return (
     <button
       type="button"
-      onClick={() =>
-        document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "center" })
-      }
+      onClick={() => {
+        const target = document.getElementById(targetId);
+        if (!target) return;
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        // 스크롤만 하면 포커스가 이 버튼에 남아, 키보드·스크린리더 사용자는 "내 행으로 갔다"를
+        // 알 수 없다. 대상 카드가 이미 role="button" tabIndex=0이라 그대로 받을 수 있다.
+        target.focus({ preventScroll: true });
+      }}
       className={cn(
         cls,
         "transition-colors hover:bg-primary/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
