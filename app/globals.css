@@ -59,6 +59,10 @@
   --color-sport-triathlon: var(--sport-triathlon);
   --color-sport-cycling: var(--sport-cycling);
 
+  /* 시상대 색 (Rank) — 랭킹탭 2·3위 숫자 */
+  --color-rank-silver: var(--rank-silver);
+  --color-rank-bronze: var(--rank-bronze);
+
   /* 전광판 스크린 존 (Board) — 프로필 카드 상단. 테마 불변(항상 야간) */
   --color-board: var(--board);
   --color-board-foreground: var(--board-foreground);
@@ -122,6 +126,12 @@
   --event-half: oklch(0.527 0.154 150);
   --event-10k: oklch(0.618 0.181 44);
 
+  /* 시상대 색 — 랭킹탭 2·3위 숫자. **색은 거들 뿐 등수는 숫자가 진다**(색각 이상이면
+     은/동이 구분되지 않으므로 색만으로 등수를 말하지 않는다). 그래서 채도를 낮추고
+     본문 대비를 지키는 밝기로 잡는다 — 1위는 board 띠로 올라가 여기 금색은 쓰지 않는다. */
+  --rank-silver: oklch(0.55 0.018 268);
+  --rank-bronze: oklch(0.5 0.088 60);
+
   /* 전광판 스크린 존 — 프로필 카드 상단 "라인업 콜" 전용.
      라이트/다크 모두 동일한 야간 값을 쓴다(.dark에서 재정의하지 않음):
      glow 기반 프레임·칭호 이펙트가 흰 배경에서 죽는 문제를 이 존이 해결한다.
@@ -159,6 +169,10 @@
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 15%);
+
+  /* 시상대 색 — 어두운 지면에선 밝기를 올려야 읽힌다(라이트 값 그대로 두면 동메달이 배경에 묻는다) */
+  --rank-silver: oklch(0.78 0.018 268);
+  --rank-bronze: oklch(0.75 0.1 65);
   --ring: oklch(0.5 0.1 260);
 
   /* 상태 색상 */
@@ -1390,6 +1404,29 @@
 /* LIVE 도트·NEW 태그 — 도트매트릭스 점멸 */
 .board-blink {
   animation: board-amber-blink 1.4s steps(2, start) infinite;
+}
+
+/* 전당 제호(CHAMPION)의 금빛 — `title-effect-gold`와 같은 표현이되 훨씬 느리게 훑는다.
+   칭호 배지는 손톱만 해서 5s여야 겨우 반짝이지만, 제호는 15px에 자간까지 넓어 같은 속도면
+   지면에서 계속 번쩍인다. 반짝임은 남기고 속도만 죽인다(원본 이펙트는 건드리지 않는다 —
+   배지 48종이 같이 느려진다). */
+.hof-masthead {
+  animation-duration: 24s;
+  animation-timing-function: linear;
+}
+
+/* 시상대 은·동 숫자 — 같은 이유로 늦춘다. 배지용 속도(5~6s)는 20px 숫자에서 계속 일렁인다.
+   제호만큼 죽이진 않는다: 칩이 작아 너무 느리면 아예 멈춘 것처럼 보인다. */
+.hof-podium {
+  animation-duration: 12s;
+  animation-timing-function: linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hof-masthead,
+  .hof-podium {
+    animation: none;
+  }
 }
 
 /* 스포트라이트 콘 — 아바타를 비추는 조명. 점등 전엔 투명 */
