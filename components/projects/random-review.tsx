@@ -27,7 +27,7 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
               selected_badge_effect, selected_frame_cd,
               mem_ttl_rel!left(
                 is_prmy_yn, vers, del_yn,
-                ttl_mst!inner(ttl_nm, ttl_desc, desc_visibility)
+                ttl_mst!inner(ttl_nm, ttl_desc, desc_visibility, use_yn)
               )
             )
           )
@@ -48,13 +48,15 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
   // join 결과에서 칭호 맵 구성
   const titleMap = new Map<string, { ttl_nm: string; ttl_desc: string | null; desc_visibility: "always" | "others" | "held" | "never"; badge_effect: string; frame_cd: string }>();
   for (const item of reviews) {
-    const rel = item.evt_team_prt_rel as { mem_mst: { mem_id: string; mem_nm: string; team_mem_rel?: { selected_badge_effect?: string | null; selected_frame_cd?: string | null; mem_ttl_rel?: { is_prmy_yn: boolean; vers: number; del_yn: boolean; ttl_mst: { ttl_nm: string; ttl_desc: string | null; desc_visibility: string } | null }[] }[] } };
+    const rel = item.evt_team_prt_rel as { mem_mst: { mem_id: string; mem_nm: string; team_mem_rel?: { selected_badge_effect?: string | null; selected_frame_cd?: string | null; mem_ttl_rel?: { is_prmy_yn: boolean; vers: number; del_yn: boolean; ttl_mst: { ttl_nm: string; ttl_desc: string | null; desc_visibility: string; use_yn: boolean } | null }[] }[] } };
     const memMst = rel?.mem_mst;
     if (!memMst) continue;
     const tmr = Array.isArray(memMst.team_mem_rel) ? memMst.team_mem_rel[0] : memMst.team_mem_rel;
     if (!tmr) continue;
+    // use_yn은 쿼리가 아니라 여기서 거른다 — mem_ttl_rel이 !left라 임베드 컬럼에 필터를 걸면
+    // 칭호 없는 멤버의 후기까지 통째로 떨어진다. 내린 칭호는 배지만 빠지고 후기는 남아야 한다.
     const primaryTitle = (tmr.mem_ttl_rel ?? []).find(
-      (t) => t.is_prmy_yn && t.vers === 0 && !t.del_yn && t.ttl_mst,
+      (t) => t.is_prmy_yn && t.vers === 0 && !t.del_yn && t.ttl_mst && t.ttl_mst.use_yn,
     );
     if (!primaryTitle?.ttl_mst) continue;
     titleMap.set(memMst.mem_id, {
