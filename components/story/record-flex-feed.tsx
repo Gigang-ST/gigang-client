@@ -18,7 +18,7 @@ import { STORY_POST_LIMIT } from "@/lib/story-post";
 
 import { EmptyState } from "@/components/common/empty-state";
 import { HelpTip } from "@/components/common/help-tip";
-import { MemberCardDialog } from "@/components/members/member-card-dialog";
+import { MemberCardDialogDynamic as MemberCardDialog } from "@/components/members/member-card-dialog-dynamic";
 import { RecordDeleteDialog } from "@/components/story/record-delete-dialog";
 import { RecordFlexCreateDialog } from "@/components/story/record-flex-create-dialog";
 import { RecordFlexEditDialog } from "@/components/story/record-flex-edit-dialog";

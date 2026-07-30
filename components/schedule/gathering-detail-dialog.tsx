@@ -34,7 +34,7 @@ import {
 } from "@/components/common/responsive-drawer";
 import { Caption, Micro } from "@/components/common/typography";
 import type { CalendarRace } from "@/components/home/mini-calendar";
-import { MemberCardDialog } from "@/components/members/member-card-dialog";
+import { MemberCardDialogDynamic as MemberCardDialog } from "@/components/members/member-card-dialog-dynamic";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";

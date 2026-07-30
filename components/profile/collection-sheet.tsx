@@ -24,7 +24,6 @@ type AllTitle = {
   rarity_level: number;
   ttl_ctgr_cd: string;
   ttl_group_cd: number | null;
-  use_yn: boolean;
 };
 
 type UnlockCond =
@@ -200,13 +199,17 @@ export function CollectionSheet({
     setLoading(true);
     const supabase = createClient();
     Promise.all([
-      // 전체 칭호 목록
+      // 전체 칭호 목록 — 운영에서 내린 칭호(use_yn=false)는 아예 받지 않는다.
+      // 예전엔 받아 놓고 "표시하되 선택 불가"로 뒀는데, desc_visibility='always'인 칭호는
+      // 마스킹도 안 걸려 이름이 그대로 보이면서 눌러도 반응이 없는 상태가 됐다(단거리왕).
+      // 엔진·모든 RPC가 use_yn=true로 거르므로 도감만 예외로 두면 도감이 카드보다 더 많이 안다.
       supabase
         .from("ttl_mst")
-        .select("ttl_id, ttl_nm, ttl_desc, desc_visibility, rarity_level, ttl_ctgr_cd, ttl_group_cd, use_yn")
+        .select("ttl_id, ttl_nm, ttl_desc, desc_visibility, rarity_level, ttl_ctgr_cd, ttl_group_cd")
         .eq("team_id", teamId)
         .eq("vers", 0)
         .eq("del_yn", false)
+        .eq("use_yn", true)
         .order("ttl_ctgr_cd")
         .order("ttl_group_cd", { nullsFirst: false })
         .order("sort_ord"),
@@ -233,9 +236,9 @@ export function CollectionSheet({
     });
   }, [open, teamMemId, teamId]);
 
-  // 칭호 분리
+  // 칭호 분리 (use_yn 필터는 쿼리에서 이미 끝났다)
   const regularTitles = allTitles.filter((t) => t.ttl_ctgr_cd !== "event");
-  const eventTitles = allTitles.filter((t) => t.ttl_ctgr_cd === "event" && t.use_yn);
+  const eventTitles = allTitles.filter((t) => t.ttl_ctgr_cd === "event");
 
   // 그룹별 보유 최고 rarity — 같은 ttl_group_cd 내 최고 rarity만 선택 가능
   // ttl_group_cd가 NULL이면 독립 선택 (기강킹, 수여 칭호 등)
@@ -365,9 +368,9 @@ export function CollectionSheet({
                     <div className="flex flex-wrap gap-2">
                       {regularTitles.map((t) => {
                         const owned = ownedTitleIds.has(t.ttl_id);
-                        const masked = t.desc_visibility !== "always" && (!owned || !t.use_yn);
-                        const blocked = owned && t.use_yn && isBlockedByHigher(t);
-                        const selectable = owned && t.use_yn && !blocked;
+                        const masked = t.desc_visibility !== "always" && !owned;
+                        const blocked = owned && isBlockedByHigher(t);
+                        const selectable = owned && !blocked;
                         const isSelected = selectedTtlId === t.ttl_id;
                         // always라 마스킹은 없지만 미보유 — blocked(그룹막힘)와 시각적으로 구분
                         const dimmed = !masked && !owned;

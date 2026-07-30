@@ -27,6 +27,36 @@ type LoadState =
   | { status: "error" };
 
 /**
+ * 상태 + 그게 **누구의** 상태인지(캐시 키).
+ *
+ * 키를 함께 들고 있어야 하는 이유: 조회는 오픈 직후 다음 태스크로 미뤄지므로(아래 effect)
+ * 멤버를 갈아 열은 직후 한 틱 동안 state는 **이전 사람의 `ready`**로 남는다. 키 없이 그리면
+ * 새 `memId`에 이전 사람의 데이터가 조합돼 남의 프로필이 한 프레임 스친다.
+ */
+type KeyedState = LoadState & { key: string | null };
+
+/**
+ * 사람 단위 카드 캐시(모듈 스코프 = 탭을 옮겨 다녀도 유지, 새로고침하면 사라짐).
+ *
+ * 카드를 여는 자리가 여섯 곳인데 전광판·격자·랭킹에서는 **여러 명을 연달아 눌러보는** 게
+ * 기본 사용 패턴이다. 캐시가 없으면 방금 닫은 사람을 다시 열어도 스켈레톤부터 다시 시작한다.
+ *
+ * **Map인 게 핵심이다** — "마지막 한 명"만 들고 있으면 준민↔서준을 번갈아 볼 때 매번 미스라
+ * 캐시가 있으나 마나다. 여러 명이 동시에 남아야 두 바퀴째부터 전부 즉시 뜬다.
+ *
+ * 상한은 두지 않는다. payload가 수 KB고 한 세션에 열어보는 사람이 많아야 수십 명이라
+ * 메모리가 문제될 규모가 아닌데, 상한을 두면 "몇 개까지·뭘 먼저 버릴지"를 정해야 한다.
+ *
+ * `null`(탈퇴·비활성)은 캐시하지 않고 **들고 있던 항목도 지운다** — 드문 경로라 캐시해서 얻는
+ * 게 없고, 그 사이 재가입한 사람이 계속 "함께 달렸던 멤버"로 남는 쪽이 손해다. 반대 방향도
+ * 마찬가지라, 떠난 사람의 낡은 카드를 남겨두면 다음 오픈에서 그게 먼저 그려진다.
+ */
+const cardCache = new Map<string, MemberCardData>();
+
+/** 같은 mem_id라도 팀이 다르면 다른 카드다 — 키에 team_id를 함께 넣는다. */
+const cacheKey = (teamId: string, memId: string) => `${teamId}:${memId}`;
+
+/**
  * 멤버 프로필 카드 다이얼로그 — **공개판 전용**.
  *
  * 오픈 시 RPC 1회 조회(prefetch 없음). 다른 다이얼로그 위에 겹칠 수 있어(`stacked`)
@@ -41,14 +71,7 @@ type LoadState =
  * 화면 중앙에 떠 있어야 하고, 시트로 올라오면 상단 스크린 존이 뷰포트 위쪽으로 밀려
  * 프레임·칭호 이펙트가 잘린다.
  */
-export function MemberCardDialog({
-  memId,
-  memNm,
-  teamId,
-  open,
-  onOpenChange,
-  stacked = false,
-}: {
+export interface MemberCardDialogProps {
   /** null이면 닫힌 상태로 취급 — 호출부가 선택된 멤버를 비울 때 */
   memId: string | null;
   /** RPC 실패·탈퇴 폴백에 쓸 이름(호출부가 이미 알고 있는 값) */
@@ -58,9 +81,21 @@ export function MemberCardDialog({
   onOpenChange: (open: boolean) => void;
   /** 다른 다이얼로그 위에 열릴 때 z-index를 올린다 */
   stacked?: boolean;
-}) {
+}
+
+export function MemberCardDialog({
+  memId,
+  memNm,
+  teamId,
+  open,
+  onOpenChange,
+  stacked = false,
+}: MemberCardDialogProps) {
   const supabase = useMemo(() => createClient(), []);
-  const [state, setState] = useState<LoadState>({ status: "loading" });
+  const [state, setState] = useState<KeyedState>({
+    status: "loading",
+    key: null,
+  });
   /**
    * 보는 사람이 로그인했나 — 비로그인이면 카드 아래 실적 존을 가린다(§MemberCardDetail).
    *
@@ -76,41 +111,79 @@ export function MemberCardDialog({
   // 연속 탭으로 요청이 겹칠 때 늦게 온 응답이 화면을 덮어쓰지 않게 한다.
   const reqIdRef = useRef(0);
 
+  /**
+   * 카드 조회 — stale-while-revalidate.
+   *
+   * 캐시가 있으면 그걸 **먼저 그리고**(stale) 조회는 그대로 진행해 갱신한다(revalidate).
+   * 사용자는 스켈레톤을 건너뛰고, 그 사이 오른 응원 수 같은 건 조용히 따라붙는다.
+   * 재검증이 실패하면 화면을 에러로 바꾸지 않는다 — 보이는 게 조금 낡았을 뿐 멀쩡한데
+   * 지울 이유가 없다. 캐시 없이 실패했을 때만 재시도 UI를 띄운다.
+   */
   const load = useCallback(async () => {
     if (!memId) return;
     const reqId = ++reqIdRef.current;
-    setState({ status: "loading" });
+    const key = cacheKey(teamId, memId);
+    const cached = cardCache.get(key);
+    setState(
+      cached
+        ? { status: "ready", key, data: cached }
+        : { status: "loading", key },
+    );
 
     try {
       const data = await getPublicMemberCard(supabase, memId, teamId);
       if (reqId !== reqIdRef.current) return;
-      setState(data ? { status: "ready", data } : { status: "gone" });
+      // null(탈퇴·비활성)이면 **들고 있던 캐시도 버린다.** 안 버리면 다음 오픈에서 이미
+      // 떠난 사람의 낡은 카드가 stale로 먼저 그려지고, 그때 재검증이 실패하면(아래 catch가
+      // 캐시가 있을 때 화면을 유지한다) 그 카드가 세션 내내 남는다.
+      if (data) cardCache.set(key, data);
+      else cardCache.delete(key);
+      setState(data ? { status: "ready", key, data } : { status: "gone", key });
     } catch (error) {
       if (reqId !== reqIdRef.current) return;
       console.error("[MemberCardDialog] 카드 조회 실패", error);
-      setState({ status: "error" });
+      if (cached) return;
+      setState({ status: "error", key });
     }
   }, [memId, teamId, supabase]);
 
   useEffect(() => {
     if (!open || !memId) return;
+
+    // 페이스 추이 차트(recharts)는 무거워서 dynamic인데, `ready`가 돼야 렌더되는 탓에
+    // 청크 다운로드가 RPC **뒤에** 직렬로 붙는다. 여는 순간 미리 찔러 둘을 나란히 보낸다.
+    void import("@/components/profile/pace-chart");
+
     // 오픈 직후 동기 setState로 인한 연쇄 렌더를 피해 다음 태스크로 넘긴다.
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [open, memId, load]);
 
   // 로그인 여부 — 카드를 열 때 한 번 확인한다(카드 조회와 나란히 나가므로 지연이 안 늘어난다).
+  //
+  // `getUser()`가 아니라 `getSession()`인 이유: 전자는 매번 인증 서버로 왕복해 카드 조회와
+  // 같은 크기의 지연을 하나 더 만든다. 여기서 쓰는 판정은 **실적 존을 가릴지 말지**라는
+  // 코스메틱 게이트라 로컬 세션만 봐도 충분하다 — 카드 RPC 자체가 `SECURITY DEFINER`로
+  // 비로그인에게도 공개되는 값이라(랭킹 공개 정책과 동일) 세션을 위조해도 얻는 게 없다.
+  // 서버 판정이 필요한 자리였다면 `getSession()`을 쓰면 안 된다.
   useEffect(() => {
     if (!open) return;
     let active = true;
-    void supabase.auth.getUser().then(({ data, error }) => {
+    void supabase.auth.getSession().then(({ data, error }) => {
       if (!active) return;
-      setLoggedIn(!error && data.user != null);
+      setLoggedIn(!error && data.session != null);
     });
     return () => {
       active = false;
     };
   }, [open, supabase]);
+
+  // state가 가리키는 사람이 지금 열린 사람과 다르면(멤버 전환 직후 한 틱) 스켈레톤으로
+  // 되돌린다 — 남의 데이터를 그리는 것보다 로딩이 맞다. `gone`·`error`도 같이 걸러야
+  // "함께 달렸던 멤버"·재시도 화면이 다음 사람에게 스치지 않는다.
+  const currentKey = memId ? cacheKey(teamId, memId) : null;
+  const view: LoadState =
+    state.key === currentKey ? state : { status: "loading" };
 
   return (
     <Dialog open={open && memId !== null} onOpenChange={onOpenChange}>
@@ -135,19 +208,19 @@ export function MemberCardDialog({
             부모 높이를 flex 흐름으로 받아 shrink한다. 이게 없으면 카드 루트의 `max-h-full`
             (=max-height:100%)이 참조할 확정 높이가 없어 무력화되고, 스크롤이 안 걸린다. */}
         <div className="flex min-h-0 flex-1 flex-col">
-          {state.status === "loading" && <MemberCardSkeleton />}
+          {view.status === "loading" && <MemberCardSkeleton />}
 
-          {state.status === "ready" && memId && (
+          {view.status === "ready" && memId && (
             <MemberCardDetail
               memId={memId}
-              data={state.data}
+              data={view.data}
               // 확인 전(null)에는 가리지 않는다 — 잠깐 가렸다 열리면 깜빡임으로 보인다.
               // 비로그인으로 확정됐을 때만 실적 존을 덮는다.
               locked={loggedIn === false}
             />
           )}
 
-          {state.status === "gone" && (
+          {view.status === "gone" && (
             <div className="flex flex-col items-center gap-1.5 rounded-2xl border-[1.5px] border-dashed border-border p-8 text-center">
               <Body className="font-semibold">
                 {memNm ? `${memNm}님` : "이 멤버"}은 함께 달렸던 멤버예요
@@ -156,7 +229,7 @@ export function MemberCardDialog({
             </div>
           )}
 
-          {state.status === "error" && (
+          {view.status === "error" && (
             <div className="flex flex-col items-center gap-3 rounded-2xl border-[1.5px] border-border p-8 text-center">
               <div className="flex flex-col gap-1.5">
                 <Body className="font-semibold">프로필을 불러오지 못했어요</Body>

@@ -104,7 +104,9 @@
 | Queen | 10 | 기강 여자 풀코스 1위 | `race_rank_by_gender` | `{"type":"race_rank_by_gender","sport":"FULL","gender":"female","rank":1}` |
 | 하프킹 | 8 | 기강 남자 하프 1위 | `race_rank_by_gender` | `{"type":"race_rank_by_gender","sport":"HALF","gender":"male","rank":1}` |
 | 하프퀸 | 8 | 기강 여자 하프 1위 | `race_rank_by_gender` | `{"type":"race_rank_by_gender","sport":"HALF","gender":"female","rank":1}` |
-| 단거리왕 | 7 | 기강 10K 1위 | `race_rank_by_gender` | `{"type":"race_rank_by_gender","sport":"10K","gender":"any","rank":1}` |
+| 총알왕자 | 7 | 기강 남자 10K 1위 | `race_rank_by_gender` | `{"type":"race_rank_by_gender","sport":"10K","gender":"male","rank":1}` |
+| 총알공주 | 7 | 기강 여자 10K 1위 | `race_rank_by_gender` | `{"type":"race_rank_by_gender","sport":"10K","gender":"female","rank":1}` |
+| ~~단거리왕~~ | 7 | ~~기강 10K 1위~~ (`gender:"any"`) | — | **2026-07-30 내림**(`use_yn=false`). 위 둘로 분리 — 조건식은 그대로고 이름만 갈렸다. 행은 남긴다(`mem_ttl_rel` 이력) |
 | 마지막영웅 | 3 | 풀·하프·10K 남녀 각각 꼴찌 기록 | `race_rank_last` | `{"type":"race_rank_last","sports":["FULL","HALF","10K"],"gender":"any"}` |
 | 억울해? | 4 | 풀코스 PB가 SUB4/330/싱글/SUB3 목표 기록 5초 이내 미달 | `race_pb_within_sec_of_target` | `{"type":"race_pb_within_sec_of_target","sport":"FULL","targets":[14400,12600,11400,10800],"within_sec":5}` |
 

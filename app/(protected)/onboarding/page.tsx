@@ -56,9 +56,13 @@ async function OnboardingContent({
     typeof rawAvatarUrl === "string" &&
     (rawAvatarUrl.includes("default_profile") ||
       rawAvatarUrl.includes("googleusercontent.com"));
+  // 카카오는 프사 주소를 `http://`로 준다. 그대로 저장하면 https 페이지에서 mixed content가
+  // 되어 브라우저가 콘솔 경고를 쏟고(아바타는 화면마다 수십 번 그려진다) 자동 https 승격에
+  // 실패하는 환경에선 이미지가 차단된다. k.kakaocdn.net은 https를 지원하므로 여기서 승격해
+  // 저장한다. 호스트를 안 가리고 올리는 건, 어떤 출처든 http 프사는 그 자체로 버그라서.
   const initialAvatarUrl =
     typeof rawAvatarUrl === "string" && !isPlatformDefaultAvatar
-      ? rawAvatarUrl
+      ? rawAvatarUrl.replace(/^http:\/\//i, "https://")
       : null;
 
   // OAuth 이름 후보 추출 — 한글 2~5자만 prefill(검증 통과 값), 그 외는 빈 값
