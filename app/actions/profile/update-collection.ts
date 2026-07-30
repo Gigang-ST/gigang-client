@@ -1,9 +1,8 @@
 "use server";
 
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 
 import { withActive } from "@/lib/actions/auth";
-import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { introTxtSchema } from "@/lib/validations/member";
 
@@ -71,9 +70,11 @@ export async function setIntroTxt(introTxt: string) {
 
     if (error) return { ok: false, message: "저장에 실패했습니다" };
     revalidatePath("/profile");
-    // 랭킹탭 챔피언 띠가 한마디를 세운다 — 그 캐시는 24시간이라 안 털면 전당에만 옛 말이 남는다.
-    const { teamId } = await getRequestTeamContext();
-    revalidateTag(`records:${teamId}`, "max");
+    // 랭킹탭(전당) 캐시는 **일부러 안 턴다.** 한마디가 거기 보이는 건 종목별 1위뿐인데
+    // 무효화는 작성자를 못 가려서, 아무나 한마디를 고칠 때마다 전당 전체가 캐시 미스가 된다.
+    // 어긋나는 범위도 좁다 — 한마디를 먼저 쓰고 나중에 1위가 되면 기록 등록이 캐시를 털어
+    // 최신 한마디가 같이 들어오므로, 남는 건 "이미 챔피언인 사람이 한마디를 고칠 때"뿐이고
+    // 그마저 24시간 뒤 자연히 맞는다(대표 칭호도 같은 이유로 안 턴다).
     return { ok: true, message: null };
   });
 }

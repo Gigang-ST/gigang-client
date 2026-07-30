@@ -53,8 +53,10 @@ function getCachedRecordsData(teamId: string) {
             .eq("is_prmy_yn", true)
             .eq("vers", 0)
             .eq("del_yn", false),
-          // 챔피언 띠가 얼굴과 한마디를 세운다 — 랭킹 RPC엔 둘 다 없어 팀 전체를 한 번에 받아 맵으로 쓴다.
-          // (팀 규모가 수십 명이라 행 수가 랭킹 결과보다 작다. 등번호는 띠에 쓰지 않으므로 받지 않는다.)
+          // 챔피언 띠가 세우는 얼굴·한마디 — 랭킹 RPC엔 둘 다 없다.
+          // 누가 챔피언인지는 랭킹을 다 계산해야 알 수 있으므로 팀 전체를 한 번에 받고,
+          // **캐시에 담을 때 챔피언 것만 남긴다**(아래 championIds). 조회는 290행 스캔에
+          // 15ms·버퍼 15로 옆 RPC들보다 훨씬 가볍고, 같은 Promise.all이라 병렬이다.
           supabase
             .from("team_mem_rel")
             .select("mem_id, intro_txt, mem_mst!inner(avatar_url)")
@@ -62,17 +64,6 @@ function getCachedRecordsData(teamId: string) {
             .eq("vers", 0)
             .eq("del_yn", false),
         ]);
-
-      // mem_id → { avatar_url, intro_txt } 맵
-      const memberMeta: Record<string, { avatar_url: string | null; intro_txt: string | null }> = {};
-      for (const row of relData ?? []) {
-        if (!row.mem_id) continue;
-        const mst = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst;
-        memberMeta[row.mem_id] = {
-          avatar_url: (mst as { avatar_url?: string | null } | null)?.avatar_url ?? null,
-          intro_txt: row.intro_txt ?? null,
-        };
-      }
 
       // mem_id → { ttl_nm, badge_effect, frame_cd } 맵
       const memberTitleMap = new Map<string, { ttl_nm: string; ttl_desc: string | null; desc_visibility: "always" | "others" | "held" | "never"; badge_effect: string; frame_cd: string }>();
@@ -237,6 +228,27 @@ function getCachedRecordsData(teamId: string) {
         };
       });
 
+      // --- 멤버 표면(얼굴·한마디) ---
+      // **챔피언 것만 담는다.** 이 표면을 쓰는 건 띠에 서는 사람들뿐이다
+      // (마라톤 종목 3개 × 남녀 + 트레일 1위 = 최대 7명). 목록 카드는 안 쓴다.
+      // 팀 전원을 담으면 쓰지도 않을 수십 행이 캐시와 RSC payload에 매번 실려 나간다.
+      const championIds = new Set<string>(
+        [
+          ...marathonEvents.flatMap((e) => [e.male[0]?.memId, e.female[0]?.memId]),
+          trailEntries[0]?.memId,
+        ].filter((id): id is string => !!id),
+      );
+
+      const memberMeta: Record<string, { avatar_url: string | null; intro_txt: string | null }> = {};
+      for (const row of relData ?? []) {
+        if (!row.mem_id || !championIds.has(row.mem_id)) continue;
+        const mst = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst;
+        memberMeta[row.mem_id] = {
+          avatar_url: (mst as { avatar_url?: string | null } | null)?.avatar_url ?? null,
+          intro_txt: row.intro_txt ?? null,
+        };
+      }
+
       // mem_id → 칭호 맵 직렬화 (unstable_cache는 plain object만 반환 가능)
       const memberTitles: Record<string, { ttl_nm: string; ttl_desc: string | null; desc_visibility: "always" | "others" | "held" | "never"; badge_effect: string; frame_cd: string }> =
         Object.fromEntries(memberTitleMap.entries());
@@ -249,9 +261,9 @@ function getCachedRecordsData(teamId: string) {
         memberMeta,
       };
     },
-    // v3 — 페이로드에 recordSec·memberMeta가 생겼다. 키를 안 올리면 배포 직후 남아 있는
-    // v2 캐시가 그 필드 없이 돌아와 챔피언 띠·판독선이 조용히 비어 보인다.
-    [`records-team-v5-${teamId}`],
+    // 페이로드 모양이 바뀌면 **키를 올린다**. 안 올리면 배포 직후 남아 있는 옛 캐시가
+    // 새 필드(recordSec·memberMeta) 없이 돌아와 챔피언 띠·판독선이 조용히 비어 보인다.
+    [`records-team-v6-${teamId}`],
     { revalidate: 60 * 60 * 24, tags: ["records", `records:${teamId}`] },
   )();
 }
