@@ -32,15 +32,20 @@ SELECT src.team_id, src.ttl_kind_enm, src.ttl_ctgr_cd, v.ttl_nm, v.ttl_desc,
    ('총알공주', '기강 여자 10K 1위',  'female', 35)
  ) AS v(ttl_nm, ttl_desc, gender, sort_ord)
  WHERE src.ttl_nm = '단거리왕' AND src.vers = 0 AND src.del_yn = false
-   -- 재실행 안전장치
+   -- 재실행 안전장치. **팀 단위로 판정한다** — `ttl_mst`는 team_id별 데이터라 이름만 보면
+   -- 한 팀에 이미 있을 때 다른 팀의 INSERT까지 건너뛴다(지금은 팀이 하나지만 그때 조용히 빠진다).
    AND NOT EXISTS (
      SELECT 1 FROM public.ttl_mst x
-      WHERE x.ttl_nm = v.ttl_nm AND x.vers = 0 AND x.del_yn = false
+      WHERE x.team_id = src.team_id
+        AND x.ttl_nm = v.ttl_nm AND x.vers = 0 AND x.del_yn = false
    );
 
 -- ── 3) 기존 보유자 이관 ──
 -- **행을 지우고 새로 넣지 않는다.** ttl_id만 갈아끼워 `is_prmy_yn`(대표 칭호)·`grnt_at`을
 -- 보존한다 — prd 이지현 님이 이걸 대표로 걸어둬서, 새로 부여하는 방식이면 대표 자리가 빈다.
+--
+-- 출발 칭호·도착 칭호 모두 **보유자가 속한 팀**(`tmr.team_id`)으로 묶는다. 이름만으로 조인하면
+-- 여러 팀에 같은 이름이 있을 때 남의 팀 ttl_id로 비결정적으로 옮겨간다.
 UPDATE public.mem_ttl_rel r
    SET ttl_id = tgt.ttl_id
   FROM public.ttl_mst old,
@@ -50,14 +55,16 @@ UPDATE public.mem_ttl_rel r
  WHERE old.ttl_nm = '단거리왕' AND old.vers = 0 AND old.del_yn = false
    AND r.ttl_id = old.ttl_id AND r.vers = 0 AND r.del_yn = false
    AND tmr.team_mem_id = r.team_mem_id AND tmr.vers = 0 AND tmr.del_yn = false
+   AND old.team_id = tmr.team_id
    AND m.mem_id = tmr.mem_id AND m.vers = 0 AND m.del_yn = false
    AND m.gdr_enm IN ('male', 'female')
+   AND tgt.team_id = tmr.team_id
    AND tgt.vers = 0 AND tgt.del_yn = false
    AND tgt.ttl_nm = CASE WHEN m.gdr_enm = 'male' THEN '총알왕자' ELSE '총알공주' END;
 
 -- ── 4) 단거리왕 비활성화 ──
 -- 행은 남긴다(mem_ttl_rel이 FK로 물고 있어 지우면 이력이 깨진다). use_yn=false면 엔진이
--- 평가 대상에서 빼므로 재부여되지 않는다 — 안 내리면 1위가 도령/낭자와 단거리왕을 둘 다 단다.
+-- 평가 대상에서 빼므로 재부여되지 않는다 — 안 내리면 1위가 총알왕자/총알공주와 단거리왕을 둘 다 단다.
 UPDATE public.ttl_mst
    SET use_yn = false
  WHERE ttl_nm = '단거리왕' AND vers = 0 AND del_yn = false;
