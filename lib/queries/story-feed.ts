@@ -73,11 +73,12 @@ export type StoryRecord = ReactableItem & {
   comp_id?: string | null;
   short_id?: string | null;
   /**
-   * 프로필 부품(리드 "결승선을 넘다" 슬롯 전용) — 칭호·배지·프레임. 활동지수/목표 슬롯과 같은 방식.
-   * 배포 스큐 안전을 위해 옵셔널(부품이 빠질 뿐 크래시하지 않는다).
+   * 프로필 부품(리드 "결승선을 넘다" 슬롯 전용) — 칭호·배지·프레임·한마디.
+   * 활동지수/목표 슬롯과 같은 방식이고, 배포 스큐 안전을 위해 옵셔널(부품이 빠질 뿐 크래시하지 않는다).
    */
   badge_effect?: string;
   frame_cd?: string;
+  intro_txt?: string | null;
   primary_title?: MemberCardCompactData["primary_title"];
 };
 

@@ -2,16 +2,27 @@
 
 import { useState } from "react";
 
-import { Medal, Search } from "lucide-react";
+import Link from "next/link";
 
 import { getFrameCls } from "@/lib/title-effects";
+import {
+  flattenTriathlon,
+  getEmptyTriathlonSlots,
+  getMyIndexStanding,
+  getMyTimeStanding,
+  splitChampion,
+  type MyStanding,
+} from "@/lib/records-board";
 import { cn } from "@/lib/utils";
 
+import { Avatar } from "@/components/common/avatar";
+import { EmptyState } from "@/components/common/empty-state";
+import { HelpTip } from "@/components/common/help-tip";
+import { SegmentControl } from "@/components/common/segment-control";
 import { TitleBadge } from "@/components/common/title-badge";
 import { MemberCardDialogDynamic as MemberCardDialog } from "@/components/members/member-card-dialog-dynamic";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 
 /** 엔트리 행을 탭하면 그 멤버의 프로필 카드를 연다 */
 type SelectMember = (memId: string, name: string) => void;
@@ -36,6 +47,19 @@ function memberRowProps(entry: { memId: string; name: string }, onSelect: Select
 const ROW_INTERACTIVE_CLS =
   "cursor-pointer transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1";
 
+/** 챔피언 카드 진입점 — 행 카드와 달리 ring offset을 두지 않는다(프레임 테두리와 겹친다) */
+const CHAMPION_INTERACTIVE_CLS =
+  "cursor-pointer transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+/**
+ * 내 행으로 보내는 앵커 id — 판독선이 이걸 찾아 스크롤한다.
+ *
+ * 내 행에 색을 칠하지는 않는다. 바로 위 판독선이 이미 내 순위를 말하고 눌러서 데려다주므로,
+ * 강조까지 더하면 같은 사실을 두 번 말한다. 게다가 1위일 땐 내 행이 목록에 없어(띠로 올라감)
+ * 강조가 통째로 사라지는데, 그러면 **1등이 되는 순간 화면에서 내 존재감이 오히려 약해진다**.
+ */
+const myRowId = (memId: string) => `hof-me-${memId}`;
+
 /* ------------------------------------------------------------------ */
 /*  타입 정의                                                          */
 /* ------------------------------------------------------------------ */
@@ -44,11 +68,15 @@ type DescVisibility = "always" | "others" | "held" | "never";
 type MemberTitleBase = { ttl_nm: string; ttl_desc: string | null; desc_visibility: DescVisibility; badge_effect: string; frame_cd: string };
 type MemberTitle = MemberTitleBase & { isHeld: boolean };
 
+/** 랭킹 RPC엔 없는 표면 — 챔피언 띠가 얼굴과 한마디를 세운다 */
+type MemberMeta = { avatar_url: string | null; intro_txt: string | null };
+
 type RankingEntry = {
   rank: number;
   memId: string;
   name: string;
   record: string;
+  recordSec: number;
   raceName: string | null;
 };
 
@@ -74,8 +102,8 @@ type TriathlonEntry = {
   memId: string;
   name: string;
   record: string;
+  recordSec: number;
   raceName: string | null;
-  isMain: boolean;
 };
 
 type TriathlonEvent = {
@@ -89,6 +117,15 @@ type RecordsData = {
   trail: { entries: TrailEntry[] };
   triathlon: { events: TriathlonEvent[] };
   memberTitles: Record<string, MemberTitleBase>;
+  memberMeta: Record<string, MemberMeta>;
+};
+
+/** 세 판이 공통으로 들고 다니는 표면 — prop 목록이 함수마다 길어지는 걸 막는다 */
+export type BoardContext = {
+  memberTitles: Record<string, MemberTitle>;
+  memberMeta: Record<string, MemberMeta>;
+  myMemId: string | null;
+  onSelectMember: SelectMember;
 };
 
 /* ------------------------------------------------------------------ */
@@ -96,125 +133,363 @@ type RecordsData = {
 /* ------------------------------------------------------------------ */
 
 const CATEGORIES = [
-  { key: "marathon", label: "마라톤" },
-  { key: "trail", label: "트레일러닝" },
-  { key: "triathlon", label: "철인3종" },
+  { value: "marathon", label: "마라톤" },
+  { value: "trail", label: "트레일러닝" },
+  { value: "triathlon", label: "철인3종" },
 ] as const;
 
-type CategoryKey = (typeof CATEGORIES)[number]["key"];
+type CategoryKey = (typeof CATEGORIES)[number]["value"];
 
 /* ------------------------------------------------------------------ */
-/*  MedalBadge                                                        */
+/*  순위 표시                                                          */
 /* ------------------------------------------------------------------ */
 
-function MedalBadge({ rank }: { rank: number }) {
-  const color: Record<number, string> = {
-    1: "text-amber-500",
-    2: "text-slate-400",
-    3: "text-amber-700",
-  };
+/**
+ * 시상대 표시 — 은·동은 **어두운 메달 칩 위에 메탈릭 shimmer 숫자**.
+ *
+ * 1위는 띠로 올라가므로 여기 남는 건 2·3위다.
+ *
+ * 색만 바꾼 맨숫자는 등수가 아니라 그냥 회색 글씨로 보였다. 앱엔 이미 금속 질감을 내는 표현이
+ * 있으므로(`title-effect-silver/bronze` — 칭호 이펙트) 그걸 그대로 쓴다. 새 어휘를 만들지 않고,
+ * 외부 이미지도 받지 않는다(아티팩트·PWA 모두 외부 요청이 없는 편이 낫다).
+ *
+ * 칩 바탕이 어두운 건 필수다 — 이 효과는 `background-clip: text`라 밝은 지면에선 은색이
+ * 흰 종이에 흰 글씨가 된다(대비 2.4:1). 칭호 배지가 `bg-zinc-900`인 것과 같은 이유.
+ */
+const PODIUM_CHIP: Record<number, string> = {
+  2: "bg-zinc-900 ring-1 ring-rank-silver/50",
+  3: "bg-zinc-900 ring-1 ring-rank-bronze/50",
+};
+const PODIUM_NUM: Record<number, string> = {
+  2: "title-effect-silver",
+  3: "title-effect-bronze",
+};
+
+function RankMark({ rank, size = "sm" }: { rank: number; size?: "sm" | "md" }) {
+  const chip = PODIUM_CHIP[rank];
   return (
-    <div
+    <span
       className={cn(
-        "flex size-8 shrink-0 items-center justify-center rounded-full bg-muted/40",
-        color[rank],
+        "flex shrink-0 items-center justify-center font-mono font-bold tabular-nums",
+        size === "sm" ? "size-5 text-[11px]" : "size-7 text-[15px]",
+        // 4위 이하는 맨숫자 — 시상대에 선 둘만 메달을 단다
+        chip ? cn("rounded-full", chip) : "text-muted-foreground",
       )}
-      title={`${rank}등`}
+      aria-label={`${rank}위`}
     >
-      <Medal className="size-5" strokeWidth={2} />
-    </div>
-  );
-}
-
-function RankBadge({ rank }: { rank: number }) {
-  if (rank <= 3) return <MedalBadge rank={rank} />;
-  return (
-    <span className="flex size-8 shrink-0 items-center justify-center text-xl font-bold text-muted-foreground">
-      {rank}
+      <span className={cn("inline-block", PODIUM_NUM[rank] && `${PODIUM_NUM[rank]} hof-podium`)}>
+        {rank}
+      </span>
     </span>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/*  빈 상태                                                            */
+/*  챔피언 띠 + 내 기록 판독선                                          */
 /* ------------------------------------------------------------------ */
 
-function EmptyState() {
+/**
+ * 전당 머리 띠 — 화면 좌우 끝까지 붙되 **지면과 같은 색**이다.
+ *
+ * 한때 이 자리를 `bg-board`(항상 야간)로 깔았다. 칭호 프레임 glow가 어두운 판에서만 제대로
+ * 켜진다는 이유였는데, 실제로 라이트 테마에서 보면 **다크모드가 깨진 것처럼** 읽혔다.
+ * DESIGN.md가 board 토큰에 붙여 둔 경고("glow가 없는 요소를 어둡게 만들려고 board를 가져다
+ * 쓰지 않는다 — 그건 그냥 검은 상자")가 이 자리에도 그대로 들어맞았다:
+ * 프레임을 가진 사람은 소수라 대부분의 화면에선 발광할 게 없고, 검은 띠만 남았다.
+ *
+ * 그래서 배경은 테마를 따르고(`bg-background`), 띠라는 건 위아래 괘선으로만 말한다.
+ * 메탈릭 시상대 숫자처럼 **어두운 바탕이 꼭 필요한 것만** 자기 칩을 들고 다닌다.
+ */
+function ChampionBand({ eyebrow, action, children }: { eyebrow: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <p className="py-12 text-center text-sm text-muted-foreground">
-      아직 등록된 기록이 없습니다.
+    <div className="flex flex-col gap-2.5 border-y border-border bg-background px-6 pb-4 pt-3.5">
+      <div className="flex items-center justify-between">
+        {/* 제호의 금빛 shimmer는 지면 색과 무관하게 유지한다 — `title-effect-gold`는
+            어두운 구간(#92681a)부터 시작하는 그라데이션이라 흰 지면에서도 글자가 남는다. */}
+        <span className="title-effect-gold hof-masthead font-mono text-[15px] font-bold uppercase tracking-[0.28em]">
+          {eyebrow}
+        </span>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * 얼굴 오른쪽에 서는 이름 덩이 — 이름 위, 칭호 아래.
+ *
+ * 한 줄에 나란히 두면 반칸(약 131px 안쪽)에서 긴 칭호가 이름을 다 갉아먹는다. 위아래로 쌓으면
+ * 둘 다 남는 폭을 온전히 쓴다. **칭호가 없어도 자리를 비워 둔다**(`min-h`) — 남/여 두 칸이
+ * 나란한 판이라 한쪽만 칭호가 있으면 아래 기록·대회명 줄이 서로 어긋나 계기판이 깨진다.
+ */
+function ChampionNameBlock({
+  entry,
+  ctx,
+  size,
+}: {
+  entry: { memId: string; name: string };
+  ctx: BoardContext;
+  size: "sm" | "md";
+}) {
+  const title = ctx.memberTitles[entry.memId];
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <span
+        className={cn(
+          "min-w-0 truncate font-semibold text-foreground",
+          size === "sm" ? "text-[14px]" : "text-[16px]",
+        )}
+      >
+        {entry.name}
+      </span>
+      <div className="flex min-h-[18px] min-w-0 overflow-hidden">
+        {title && (
+          <TitleBadge
+            name={title.ttl_nm}
+            effect={title.badge_effect}
+            size="xs"
+            tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility, isHeld: title.isHeld }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 한마디 — **최대 두 줄**, 넘치면 말줄임.
+ *
+ * 한 줄로 자르면 60자까지 쓸 수 있는 문장이 서너 글자 만에 잘리고, 줄 수를 열어 두면 긴 한마디
+ * 하나가 옆 칸과 높이를 어긋나게 한다. 없어도 두 줄 높이를 예약해 두 칸이 늘 같은 판이 되게 한다.
+ */
+function ChampionQuote({ text }: { text: string | null | undefined }) {
+  return (
+    <p className="line-clamp-2 min-h-[30px] text-[11px] leading-snug text-muted-foreground">
+      {text && (
+        <>
+          <span aria-hidden className="text-primary/60">&ldquo;</span>
+          {text}
+          <span aria-hidden className="text-primary/60">&rdquo;</span>
+        </>
+      )}
     </p>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  마라톤 — 반칸 카드 (남/여 각각 flex-1)                               */
-/* ------------------------------------------------------------------ */
-
-const MEDAL_COLOR: Record<number, string> = {
-  1: "text-amber-500",
-  2: "text-slate-400",
-  3: "text-amber-700",
-};
-
-function MarathonHalfCard({
+/**
+ * 챔피언 판 — **카드 이펙트를 여기에 두른다.**
+ *
+ * `card-frame-*`는 이름 그대로 카드용이라 아바타에 붙이면 Avatar의 `overflow-hidden`에
+ * pseudo-element가 잘려 22종 중 4종이 아예 안 켜지고, 켜지는 것도 32px 링이라 존재감이 없다.
+ * 블록에 두르면 전부 켜지고 이펙트가 그만큼 크게 보인다. 띠가 지면 색을 쓰게 된 뒤로는
+ * 프레임 안쪽을 덮는 `var(--card)`가 그대로 맞아떨어져 별도 오버라이드가 필요 없다.
+ */
+function ChampionCard({
   entry,
-  memberTitles,
-  onSelectMember,
+  ctx,
+  children,
 }: {
-  entry?: RankingEntry;
-  memberTitles: Record<string, MemberTitle>;
-  onSelectMember: SelectMember;
+  entry: { memId: string; name: string };
+  ctx: BoardContext;
+  children: React.ReactNode;
 }) {
-  if (!entry) return <div />;
-  const title = memberTitles[entry.memId];
-  const frameCls = getFrameCls(title?.frame_cd);
+  const title = ctx.memberTitles[entry.memId];
+  return (
+    <div
+      className={cn(
+        "flex min-w-0 flex-col gap-1.5 rounded-2xl border border-border p-2.5",
+        CHAMPION_INTERACTIVE_CLS,
+        getFrameCls(title?.frame_cd),
+      )}
+      {...memberRowProps(entry, ctx.onSelectMember)}
+    >
+      {children}
+    </div>
+  );
+}
 
-  const rankEl =
-    entry.rank <= 3 ? (
-      <div
-        className={cn(
-          "flex size-5 shrink-0 items-center justify-center rounded-full bg-muted/60",
-          MEDAL_COLOR[entry.rank],
-        )}
-      >
-        <Medal className="size-3" strokeWidth={2.5} />
-      </div>
-    ) : (
-      <span className="flex size-5 shrink-0 items-center justify-center text-[11px] font-bold text-muted-foreground">
-        {entry.rank}
+/**
+ * 내 기록 판독선 — 띠 **밑단에 간격 없이 붙는다.**
+ *
+ * 이 줄은 순위축 위에 놓인다(1위 다음에 내가 오고 그 다음이 2위다). 카드처럼 떠 있으면 목록의
+ * 한 행으로 읽혀 순위가 1, N, 2, 3으로 깨지므로, 띠에 딸린 판독선으로 층을 뗀다.
+ * 격차(`1위까지 …`)가 붙어야 이 줄이 "N위 행"이 아니라 나와 전당 사이를 재는 계기가 된다.
+ */
+function MyStandingBand({
+  standing,
+  unit,
+  targetId,
+}: {
+  standing: MyStanding;
+  /** 값 뒤에 붙는 말 — 시간 종목은 없고 트레일은 "지수" */
+  unit?: string;
+  /** 목록 안 내 행의 앵커. 내가 1위면 목록에 없으므로 준 쪽만 버튼이 된다 */
+  targetId?: string;
+}) {
+  const body = (
+    <>
+      <span className="shrink-0 text-[10.5px] text-muted-foreground">
+        내 {unit ?? "기록"}
       </span>
-    );
+      <span className="font-mono text-[15px] font-bold tabular-nums">{standing.value}</span>
+      <span className="text-[12px] font-semibold text-primary">{standing.rank}위</span>
+      {standing.gap && (
+        <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
+          1위보다{" "}
+          <b className="font-mono font-bold tabular-nums text-foreground">{standing.gap}</b>
+        </span>
+      )}
+    </>
+  );
+
+  const cls =
+    "flex w-full items-center gap-2 border-b border-border bg-primary/[0.07] px-6 py-2 text-left";
+
+  if (!targetId) return <div className={cls}>{body}</div>;
 
   return (
-    // size-5 (20px) + gap-1 (4px) = pl-6 으로 줄 2 들여쓰기
+    <button
+      type="button"
+      onClick={() => {
+        const target = document.getElementById(targetId);
+        if (!target) return;
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        // 스크롤만 하면 포커스가 이 버튼에 남아, 키보드·스크린리더 사용자는 "내 행으로 갔다"를
+        // 알 수 없다. 대상 카드가 이미 role="button" tabIndex=0이라 그대로 받을 수 있다.
+        target.focus({ preventScroll: true });
+      }}
+      className={cn(
+        cls,
+        "transition-colors hover:bg-primary/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+      )}
+    >
+      {body}
+    </button>
+  );
+}
+
+/**
+ * 기록이 없는 사람에게 보이는 판독선 자리 — 등록으로 보낸다.
+ *
+ * 전당을 보고 "나도 올려야지"가 되는 게 이 화면의 자연스러운 출구인데, 기록 등록은
+ * 프로필탭 다이얼로그에만 있어 여기서 갈 곳이 없었다.
+ */
+function RegisterPrompt({ message }: { message: string }) {
+  return (
+    <div className="flex items-center gap-2 border-b border-border bg-muted/40 px-6 py-2">
+      <span className="min-w-0 flex-1 truncate text-[11.5px] text-muted-foreground">{message}</span>
+      <Link
+        href="/profile"
+        className="shrink-0 rounded-full border border-primary/35 px-2.5 py-1 text-[12px] font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        기록 등록
+      </Link>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  마라톤                                                             */
+/* ------------------------------------------------------------------ */
+
+/** 라벨 옆으로 괘선을 늘려 계기판 머리글로 만든다 — 오른쪽을 비워 두면 행이 반쪽만 남는다 */
+function BoardRowLabel({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="shrink-0 font-mono text-[9px] tracking-[0.2em] text-muted-foreground">
+        {label}
+      </span>
+      <span aria-hidden className="h-px flex-1 bg-border" />
+    </div>
+  );
+}
+
+/** 챔피언 띠의 한 칸(남/여). 비어 있으면 "아직 안 켜진 계기"로 남긴다 */
+function MarathonChampionSlot({
+  who,
+  entry,
+  ctx,
+}: {
+  who: string;
+  entry: RankingEntry | null;
+  ctx: BoardContext;
+}) {
+  const meta = entry ? ctx.memberMeta[entry.memId] : undefined;
+
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <BoardRowLabel label={who} />
+
+      {entry ? (
+        <ChampionCard entry={entry} ctx={ctx}>
+          <div className="flex min-w-0 items-center gap-2">
+            <Avatar src={meta?.avatar_url} seed={entry.memId} size="md" />
+            <ChampionNameBlock entry={entry} ctx={ctx} size="sm" />
+          </div>
+          <ChampionQuote text={meta?.intro_txt} />
+          <div className="min-w-0">
+            {/* 기록은 등번호와 같은 계기 숫자다 — 이 존에서 앰버가 붙는 자리 */}
+            <div className="font-mono text-[21px] font-bold leading-none tracking-tight tabular-nums text-primary">
+              {entry.record}
+            </div>
+            <div className="mt-1.5 truncate text-[10px] text-muted-foreground">
+              {entry.raceName ?? "-"}
+            </div>
+          </div>
+        </ChampionCard>
+      ) : (
+        <p className="py-3 text-[11px] text-muted-foreground">아직 기록이 없어요</p>
+      )}
+    </div>
+  );
+}
+
+/** 마라톤 반칸 카드 — 2위부터. 대회명을 뗀 자리에 기록이 커진다 */
+function MarathonHalfCard({
+  entry,
+  ctx,
+}: {
+  entry?: RankingEntry;
+  ctx: BoardContext;
+}) {
+  if (!entry) return <div />;
+  const title = ctx.memberTitles[entry.memId];
+  const isMe = entry.memId === ctx.myMemId;
+
+  return (
+    // size-5(20px) + gap-1(4px) = pl-6 으로 줄 2 들여쓰기
     <CardItem
-      className={cn("flex min-w-0 w-full flex-col gap-0.5 p-2", ROW_INTERACTIVE_CLS, frameCls)}
-      {...memberRowProps(entry, onSelectMember)}
+      id={isMe ? myRowId(entry.memId) : undefined}
+      className={cn(
+        "flex w-full min-w-0 flex-col gap-0.5 p-2",
+        ROW_INTERACTIVE_CLS,
+        getFrameCls(title?.frame_cd),
+      )}
+      {...memberRowProps(entry, ctx.onSelectMember)}
     >
       {/* 줄 1 — 순위 · 이름 · 칭호 */}
       <div className="flex min-w-0 items-center gap-1">
-        {rankEl}
+        <RankMark rank={entry.rank} />
         <div className="flex min-w-0 flex-1 items-center gap-1">
-          <span className="truncate text-[12px] font-semibold text-foreground">
-            {entry.name}
-          </span>
+          <span className="truncate text-[13.5px] font-semibold text-foreground">{entry.name}</span>
           {title && (
-            <TitleBadge name={title.ttl_nm} effect={title.badge_effect} size="xs" tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility as "always" | "others" | "held" | "never", isHeld: title.isHeld}} />
+            <TitleBadge
+              name={title.ttl_nm}
+              effect={title.badge_effect}
+              size="xs"
+              tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility, isHeld: title.isHeld }}
+            />
           )}
         </div>
       </div>
-      {/* 줄 2 — 대회명(말줄임) · 기록 */}
-      <div className="flex min-w-0 items-center gap-1 pl-6">
-        <span className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
+      {/* 줄 2·3 — 대회명과 기록. 한 줄에 나란히 두면 163px에서 기록이 11px까지 눌리므로
+          줄을 갈라 기록을 16px로 세운다(어느 대회 기록인지는 랭킹에서 여전히 필요한 정보다). */}
+      <div className="min-w-0 pl-6">
+        <div className="truncate text-[10px] leading-tight text-muted-foreground">
           {entry.raceName ?? "-"}
-        </span>
-        <span
-          className={cn(
-            "shrink-0 font-mono text-[11px] font-bold",
-            entry.rank === 1 ? "text-primary" : "text-foreground",
-          )}
-        >
+        </div>
+        <span className="font-mono text-[16px] font-bold tracking-tight tabular-nums text-foreground">
           {entry.record}
         </span>
       </div>
@@ -222,30 +497,23 @@ function MarathonHalfCard({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  마라톤 탭 콘텐츠                                                    */
-/* ------------------------------------------------------------------ */
-
-function MarathonContent({
-  events,
-  memberTitles,
-  onSelectMember,
-}: {
-  events: MarathonEvent[];
-  memberTitles: Record<string, MemberTitle>;
-  onSelectMember: SelectMember;
-}) {
+function MarathonContent({ events, ctx }: { events: MarathonEvent[]; ctx: BoardContext }) {
   const [selectedEvent, setSelectedEvent] = useState(events[0]?.eventType ?? "");
 
   const currentEvent = events.find((e) => e.eventType === selectedEvent);
-  const maxRows = Math.max(
-    currentEvent?.male.length ?? 0,
-    currentEvent?.female.length ?? 0,
-  );
+  const male = splitChampion(currentEvent?.male ?? []);
+  const female = splitChampion(currentEvent?.female ?? []);
+  const maxRows = Math.max(male.rest.length, female.rest.length);
+  const hasAny = (currentEvent?.male.length ?? 0) + (currentEvent?.female.length ?? 0) > 0;
+
+  // 내 판독선은 성별과 무관하게 "내가 있는 목록"에서 잡는다 — 어느 쪽에 있든 한 곳만 맞는다.
+  const standing =
+    getMyTimeStanding(currentEvent?.male ?? [], ctx.myMemId) ??
+    getMyTimeStanding(currentEvent?.female ?? [], ctx.myMemId);
 
   return (
     <>
-      {/* 종목 서브탭 */}
+      {/* 종목 서브탭 — 카테고리는 세그먼트라 층이 갈린다 */}
       {events.length > 1 && (
         <div className="flex gap-2 px-6">
           {events.map((evt) => (
@@ -254,6 +522,7 @@ function MarathonContent({
               type="button"
               variant="ghost"
               size="xs"
+              aria-pressed={selectedEvent === evt.eventType}
               onClick={() => setSelectedEvent(evt.eventType)}
               className={cn(
                 "rounded-full px-3",
@@ -268,202 +537,260 @@ function MarathonContent({
         </div>
       )}
 
-      {/* 헤더 + 본문 */}
-      <div className="flex flex-col gap-1.5 px-6">
-        <div className="grid grid-cols-2 gap-2">
-          <span className="text-center text-[11px] font-semibold text-muted-foreground">남자</span>
-          <span className="text-center text-[11px] font-semibold text-muted-foreground">여자</span>
-        </div>
-        <div className="flex flex-col gap-2">
-          {maxRows === 0 ? (
-            <EmptyState />
-          ) : (
-            Array.from({ length: maxRows }).map((_, i) => {
-              const male = currentEvent?.male[i];
-              const female = currentEvent?.female[i];
-              return (
+      {hasAny ? (
+        <>
+          {/* 띠와 판독선은 한 덩이 — 사이에 간격이 생기면 판독선이 목록의 첫 행으로 읽힌다 */}
+          <div className="flex flex-col">
+            {/* 제호는 "Champion"이 아니다 — 이 사람은 어떤 경기에서 이긴 게 아니라 크루 안에서
+                가장 빠른 기록을 갖고 있는 사람이다(그 대회에선 3,000등이었을 수도 있다).
+                겨루는 자리가 아니라 친목·응원이라는 이 앱의 톤과도 승패 어휘는 어긋난다. */}
+            <ChampionBand eyebrow="Record Holder">
+              {/* 프레임 카드가 각 칸의 경계를 이미 그리므로 가운데 괘선은 두지 않는다 */}
+              <div className="grid grid-cols-2 items-start gap-2.5">
+                <MarathonChampionSlot who="MEN" entry={male.champion} ctx={ctx} />
+                <MarathonChampionSlot who="WOMEN" entry={female.champion} ctx={ctx} />
+              </div>
+            </ChampionBand>
+
+            {standing ? (
+              <MyStandingBand
+                standing={standing}
+                targetId={standing.rank > 1 ? myRowId(ctx.myMemId ?? "") : undefined}
+              />
+            ) : (
+              ctx.myMemId && <RegisterPrompt message="이 종목에 등록한 기록이 없어요" />
+            )}
+          </div>
+
+          {/* 남자/여자 머리글은 두지 않는다 — 바로 위 띠가 `MEN` · `WOMEN`으로 같은 좌우 축을
+              이미 세웠고, 목록도 그 축을 그대로 잇는다. 한 화면에서 같은 구분을 두 번,
+              그것도 한쪽은 영문 한쪽은 한글로 말하면 두 개의 다른 구분처럼 읽힌다. */}
+          {maxRows > 0 && (
+            <div className="flex flex-col gap-2 px-6">
+              {Array.from({ length: maxRows }).map((_, i) => (
                 <div key={i} className="grid grid-cols-2 gap-2">
-                  <MarathonHalfCard
-                    entry={male}
-                    memberTitles={memberTitles}
-                    onSelectMember={onSelectMember}
-                  />
-                  <MarathonHalfCard
-                    entry={female}
-                    memberTitles={memberTitles}
-                    onSelectMember={onSelectMember}
-                  />
+                  <MarathonHalfCard entry={male.rest[i]} ctx={ctx} />
+                  <MarathonHalfCard entry={female.rest[i]} ctx={ctx} />
                 </div>
-              );
-            })
+              ))}
+            </div>
           )}
+        </>
+      ) : (
+        <div className="px-6">
+          <EmptyState variant="card" message="아직 등록된 기록이 없어요. 첫 기록이 전당의 첫 줄이 됩니다." />
         </div>
+      )}
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  트레일러닝                                                         */
+/* ------------------------------------------------------------------ */
+
+const UTMB_HELP = (
+  <HelpTip title="UTMB INDEX" align="end" className="-my-2 size-8 text-muted-foreground hover:text-foreground">
+    UTMB가 대회 완주 기록으로 산정하는 트레일 러너 실력 지수예요. 높을수록 상위이고, 대회를 완주할
+    때마다 갱신돼요.
+  </HelpTip>
+);
+
+/** @internal 렌더 테스트가 카테고리 전환 없이 이 판만 그려 보려고 꺼내 쓴다 */
+export function TrailContent({ entries, ctx }: { entries: TrailEntry[]; ctx: BoardContext }) {
+  const { champion, rest } = splitChampion(entries);
+  const standing = getMyIndexStanding(entries, ctx.myMemId);
+
+  if (!champion) {
+    return (
+      <div className="px-6">
+        <EmptyState variant="card" message="아직 UTMB 프로필을 연동한 멤버가 없어요." />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {/* 성별을 나누지 않는 단일 목록이라 좌우 2열이 성립하지 않는다 — 챔피언 하나에 지수를 크게 */}
+      <div className="flex flex-col">
+        {/* 트레일만 제호가 갈린다 — UTMB INDEX는 기록이 아니라 지수라 "Record Holder"가 안 맞는다.
+            판을 이미 셋으로 갈라 뒀으니 제호가 달라도 어색하지 않다. */}
+        <ChampionBand eyebrow="Top Index" action={UTMB_HELP}>
+          <ChampionCard entry={champion} ctx={ctx}>
+            <div className="flex items-center gap-3">
+              <Avatar
+                src={ctx.memberMeta[champion.memId]?.avatar_url}
+                seed={champion.memId}
+                size="xl"
+              />
+              <ChampionNameBlock entry={champion} ctx={ctx} size="md" />
+              <div className="shrink-0 text-right">
+                <div className="font-mono text-[30px] font-bold leading-none tracking-tight tabular-nums text-primary">
+                  {champion.utmbIndex}
+                </div>
+                <div className="mt-1.5 font-mono text-[8.5px] tracking-[0.18em] text-muted-foreground">
+                  UTMB INDEX
+                </div>
+              </div>
+            </div>
+            <ChampionQuote text={ctx.memberMeta[champion.memId]?.intro_txt} />
+            <p className="truncate text-[10px] text-muted-foreground">
+              {champion.recentRaceName ?? "-"}
+              {champion.recentRaceRecord ? ` · ${champion.recentRaceRecord}` : ""}
+            </p>
+          </ChampionCard>
+        </ChampionBand>
+
+        {standing ? (
+          <MyStandingBand
+            standing={standing}
+            unit="지수"
+            targetId={standing.rank > 1 ? myRowId(ctx.myMemId ?? "") : undefined}
+          />
+        ) : (
+          ctx.myMemId && <RegisterPrompt message="UTMB 프로필을 연동하면 여기 순위가 보여요" />
+        )}
+      </div>
+
+      <div className="flex flex-col gap-2 px-6">
+        {rest.map((entry) => {
+          const title = ctx.memberTitles[entry.memId];
+          const isMe = entry.memId === ctx.myMemId;
+          return (
+            <CardItem
+              key={entry.memId}
+              id={isMe ? myRowId(entry.memId) : undefined}
+              className={cn(
+                "flex items-center gap-4 p-3",
+                ROW_INTERACTIVE_CLS,
+                getFrameCls(title?.frame_cd),
+              )}
+              {...memberRowProps(entry, ctx.onSelectMember)}
+            >
+              <RankMark rank={entry.rank} size="md" />
+
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  {entry.utmbProfileUrl ? (
+                    // 이름은 UTMB 외부 프로필로 유지하고, 카드 열기는 행의 나머지 영역이 담당한다.
+                    <a
+                      href={entry.utmbProfileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="truncate text-[15px] font-semibold text-primary hover:underline"
+                    >
+                      {entry.name}
+                    </a>
+                  ) : (
+                    <span className="truncate text-[15px] font-semibold text-foreground">
+                      {entry.name}
+                    </span>
+                  )}
+                  {title && (
+                    <TitleBadge
+                      name={title.ttl_nm}
+                      effect={title.badge_effect}
+                      size="xs"
+                      tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility, isHeld: title.isHeld }}
+                    />
+                  )}
+                </div>
+                <span className="truncate text-xs text-muted-foreground">
+                  {entry.recentRaceName ?? "-"}
+                </span>
+              </div>
+
+              <div className="flex shrink-0 flex-col items-end gap-0.5">
+                <span className="font-mono text-lg font-bold tabular-nums text-foreground">
+                  {entry.utmbIndex}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {entry.recentRaceRecord ?? "-"}
+                </span>
+              </div>
+            </CardItem>
+          );
+        })}
       </div>
     </>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/*  트레일러닝 탭 콘텐츠                                                */
+/*  철인3종 — 순위가 아니라 명단                                        */
 /* ------------------------------------------------------------------ */
 
-function TrailContent({
-  entries,
-  memberTitles,
-  onSelectMember,
-}: {
-  entries: TrailEntry[];
-  memberTitles: Record<string, MemberTitle>;
-  onSelectMember: SelectMember;
-}) {
-  if (entries.length === 0) {
+const CHIP_CLS =
+  "shrink-0 rounded-full bg-muted px-2 py-1 text-[10px] leading-none text-muted-foreground";
+
+/** @internal 렌더 테스트가 카테고리 전환 없이 이 판만 그려 보려고 꺼내 쓴다 */
+export function TriathlonContent({ events, ctx }: { events: TriathlonEvent[]; ctx: BoardContext }) {
+  const rows = flattenTriathlon(events);
+  const emptySlots = getEmptyTriathlonSlots(events);
+
+  if (rows.length === 0 && emptySlots.length === 0) {
     return (
       <div className="px-6">
-        <EmptyState />
+        <EmptyState variant="card" message="아직 등록된 철인3종 기록이 없어요." />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-2 px-6 pt-2">
-      {entries.map((entry) => {
-        const title = memberTitles[entry.memId];
-        const frameCls = getFrameCls(title?.frame_cd);
+    <div className="flex flex-col gap-2 px-6">
+      {rows.map(({ chip, entry }) => {
+        const title = ctx.memberTitles[entry.memId];
         return (
           <CardItem
-            key={`t-${entry.rank}-${entry.name}`}
-            className={cn("flex items-center gap-4 p-3", ROW_INTERACTIVE_CLS, frameCls)}
-            {...memberRowProps(entry, onSelectMember)}
+            key={`${chip}-${entry.memId}`}
+            className={cn(
+              "flex items-center gap-3 p-3",
+              ROW_INTERACTIVE_CLS,
+              getFrameCls(title?.frame_cd),
+            )}
+            {...memberRowProps(entry, ctx.onSelectMember)}
           >
-            <RankBadge rank={entry.rank} />
-
+            <span className={CHIP_CLS}>{chip}</span>
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <div className="flex flex-wrap items-center gap-1.5">
-                {entry.utmbProfileUrl ? (
-                  // 이름은 UTMB 외부 프로필로 유지하고, 카드 열기는 행의 나머지 영역이 담당한다.
-                  <a
-                    href={entry.utmbProfileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-[15px] font-semibold text-primary hover:underline"
-                  >
-                    {entry.name}
-                  </a>
-                ) : (
-                  <span className="text-[15px] font-semibold text-foreground">
-                    {entry.name}
-                  </span>
-                )}
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className="truncate text-[15px] font-semibold text-foreground">
+                  {entry.name}
+                </span>
                 {title && (
                   <TitleBadge
                     name={title.ttl_nm}
                     effect={title.badge_effect}
                     size="xs"
-                    tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility as "always" | "others" | "held" | "never", isHeld: title.isHeld}}
+                    tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility, isHeld: title.isHeld }}
                   />
                 )}
               </div>
-              <span className="truncate text-xs text-muted-foreground">
-                {entry.recentRaceName ?? "-"}
-              </span>
+              <span className="truncate text-xs text-muted-foreground">{entry.raceName ?? "-"}</span>
             </div>
-
-            <div className="flex shrink-0 flex-col items-end gap-0.5">
-              <span
-                className={cn(
-                  "font-mono text-lg font-bold",
-                  entry.rank === 1 ? "text-primary" : "text-foreground",
-                )}
-              >
-                {entry.utmbIndex}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {entry.recentRaceRecord ?? "-"}
-              </span>
-            </div>
+            <span className="shrink-0 font-mono text-lg font-bold tabular-nums text-foreground">
+              {entry.record}
+            </span>
           </CardItem>
         );
       })}
-    </div>
-  );
-}
 
-/* ------------------------------------------------------------------ */
-/*  철인3종 탭 콘텐츠                                                   */
-/* ------------------------------------------------------------------ */
-
-function TriathlonContent({
-  events,
-  memberTitles,
-  onSelectMember,
-}: {
-  events: TriathlonEvent[];
-  memberTitles: Record<string, MemberTitle>;
-  onSelectMember: SelectMember;
-}) {
-  const hasAny = events.some((e) => e.entries.length > 0);
-
-  if (!hasAny) {
-    return (
-      <div className="px-6">
-        <EmptyState />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-4 px-6 pt-2">
-      {events.map((evt) => {
-        if (evt.entries.length === 0) return null;
-
-        return (
-          <div key={evt.eventType} className="flex flex-col gap-2">
-            <h3 className="text-xs font-semibold tracking-wide text-muted-foreground">
-              {evt.label}
-            </h3>
-            {evt.entries.map((entry) => {
-              const title = memberTitles[entry.memId];
-              const frameCls = getFrameCls(title?.frame_cd);
-              return (
-                <CardItem
-                  key={`tri-${entry.rank}-${entry.name}`}
-                  className={cn("flex items-center gap-4 p-3", ROW_INTERACTIVE_CLS, frameCls)}
-                  {...memberRowProps(entry, onSelectMember)}
-                >
-                  <RankBadge rank={entry.rank} />
-                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-[15px] font-semibold text-foreground">
-                        {entry.name}
-                      </span>
-                      {title && (
-                        <TitleBadge
-                          name={title.ttl_nm}
-                          effect={title.badge_effect}
-                          size="xs"
-                          tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility, isHeld: title.isHeld}}
-                        />
-                      )}
-                    </div>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {entry.raceName ?? "-"}
-                    </span>
-                  </div>
-                  <span
-                    className={cn(
-                      "shrink-0 font-mono text-lg font-bold",
-                      entry.rank === 1 ? "text-primary" : "text-foreground",
-                    )}
-                  >
-                    {entry.record}
-                  </span>
-                </CardItem>
-              );
-            })}
-          </div>
-        );
-      })}
+      {/* 전당의 빈 칸은 채우라고 말한다 */}
+      {emptySlots.map((slot) => (
+        <CardItem key={slot.eventType} variant="dashed" className="flex items-center gap-3 p-3.5">
+          <span className={CHIP_CLS}>{slot.chip}</span>
+          <p className="min-w-0 flex-1 text-xs leading-relaxed text-muted-foreground">
+            아직 완주자가 없어요.
+            <br />첫 완주가 전당의 첫 줄이 됩니다.
+          </p>
+          <Link
+            href="/profile"
+            className="shrink-0 rounded-full border border-primary/35 px-2.5 py-1 text-[12px] font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            기록 등록
+          </Link>
+        </CardItem>
+      ))}
     </div>
   );
 }
@@ -475,109 +802,50 @@ function TriathlonContent({
 export function RecordsClient({
   data,
   myTitleNames = [],
+  myMemId = null,
   teamId,
 }: {
   data: RecordsData;
   myTitleNames?: string[];
+  myMemId?: string | null;
   teamId: string;
 }) {
   const myTitleNameSet = new Set(myTitleNames);
-  const [selectedMember, setSelectedMember] = useState<{
-    memId: string;
-    name: string;
-  } | null>(null);
+  const [selectedMember, setSelectedMember] = useState<{ memId: string; name: string } | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<CategoryKey>("marathon");
 
   // memberTitles에 isHeld 주입
   const memberTitles: Record<string, MemberTitle> = Object.fromEntries(
     Object.entries(data.memberTitles).map(([memId, t]) => [
       memId,
       { ...t, isHeld: myTitleNameSet.has(t.ttl_nm) },
-    ])
+    ]),
   );
-  const [selectedCategory, setSelectedCategory] =
-    useState<CategoryKey>("marathon");
-  const [query, setQuery] = useState("");
 
-  const q = query.trim().toLowerCase();
-
-  const handleSelectMember: SelectMember = (memId, name) =>
-    setSelectedMember({ memId, name });
-
-  const filteredMarathon = {
-    events: data.marathon.events.map((evt) => ({
-      ...evt,
-      male: evt.male.filter((e) => e.name.toLowerCase().includes(q)),
-      female: evt.female.filter((e) => e.name.toLowerCase().includes(q)),
-    })),
-  };
-
-  const filteredTrail = {
-    entries: data.trail.entries.filter((e) =>
-      e.name.toLowerCase().includes(q),
-    ),
-  };
-
-  const filteredTriathlon = {
-    events: data.triathlon.events.map((evt) => ({
-      ...evt,
-      entries: evt.entries.filter((e) => e.name.toLowerCase().includes(q)),
-    })),
+  const ctx: BoardContext = {
+    memberTitles,
+    memberMeta: data.memberMeta ?? {},
+    myMemId,
+    onSelectMember: (memId, name) => setSelectedMember({ memId, name }),
   };
 
   return (
     <div className="flex flex-col gap-4">
-      {/* 카테고리 탭 */}
-      <div className="flex gap-2 px-6">
-        {CATEGORIES.map((cat) => (
-          <Button
-            key={cat.key}
-            type="button"
-            size="sm"
-            onClick={() => setSelectedCategory(cat.key)}
-            className={cn(
-              "rounded-full px-4 text-[13px] font-medium",
-              selectedCategory === cat.key
-                ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                : "border-[1.5px] border-border bg-transparent text-muted-foreground hover:bg-transparent hover:text-foreground",
-            )}
-          >
-            {cat.label}
-          </Button>
-        ))}
-      </div>
-
-      {/* 검색창 */}
-      <div className="relative px-6">
-        <Search className="absolute left-9 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="이름으로 검색"
-          className="pl-9"
+      {/* 카테고리 — 세그먼트. 아래 종목 서브탭이 pill이라 두 층이 형태로 갈린다 */}
+      <div className="px-6">
+        <SegmentControl
+          segments={CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
+          value={selectedCategory}
+          onValueChange={(v) => setSelectedCategory(v as CategoryKey)}
         />
       </div>
 
-      {/* 카테고리별 콘텐츠 */}
       {selectedCategory === "marathon" && (
-        <MarathonContent
-          events={filteredMarathon.events}
-          memberTitles={memberTitles}
-          onSelectMember={handleSelectMember}
-        />
+        <MarathonContent events={data.marathon.events} ctx={ctx} />
       )}
-      {selectedCategory === "trail" && (
-        <TrailContent
-          entries={filteredTrail.entries}
-          memberTitles={memberTitles}
-          onSelectMember={handleSelectMember}
-        />
-      )}
+      {selectedCategory === "trail" && <TrailContent entries={data.trail.entries} ctx={ctx} />}
       {selectedCategory === "triathlon" && (
-        <TriathlonContent
-          events={filteredTriathlon.events}
-          memberTitles={memberTitles}
-          onSelectMember={handleSelectMember}
-        />
+        <TriathlonContent events={data.triathlon.events} ctx={ctx} />
       )}
 
       <MemberCardDialog
