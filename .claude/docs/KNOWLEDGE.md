@@ -142,6 +142,13 @@ Next 16의 `revalidateTag(tag, profile)`에서 프로필을 주면 그건 **stal
 ### MCP generate_typescript_types 결과에는 재정렬 노이즈가 섞인다
 dev MCP로 `database.types.ts`를 재생성하면 기존 테이블 블록이 diff상 삭제+재추가로 보일 수 있다(예: fee_policy_cfg 44줄). 실제 손실인지 이동인지 `git diff | grep "^+" | grep <이름>`으로 반드시 재확인할 것 — dev/prd drift로 진짜 소실될 수도 있다(TODO의 "스키마 drift" 항목 참조).
 
+### 내린 칭호(`ttl_mst.use_yn = false`)는 **관리자 화면 밖 모든 곳에서 안 보여야 한다**
+칭호를 운영에서 내릴 때 `use_yn = false`로만 두고 행은 남긴다(`mem_ttl_rel`이 FK로 물고 있어 지우면 이력이 깨진다). 엔진(`lib/titles/engine.ts` 3곳)과 RPC 3종(`get_public_member_card`·`get_team_story_feed`·`get_team_posts`)은 전부 조인에서 `use_yn = true`를 걸지만, **앱 코드의 `ttl_mst` 직접 조회는 각자 걸어야 한다**. 빠뜨리면 조용히 실패하지 않고 *더 나쁘게* 실패한다 — `desc_visibility = 'always'`인 칭호는 마스킹도 안 걸려 **이름이 그대로 보이는데 눌러도 반응이 없는** 상태가 된다. _(2026-07-30: 단거리왕 → 총알도령/총알낭자 분리 후 도감에 단거리왕이 남아 발견. 도감·랭킹 배지·마일리지런 후기 배지 3곳이 동시에 빠져 있었다.)_
+
+- **거는 곳**: 유저에게 보이는 모든 경로. 도감(`collection-sheet.tsx`)은 쿼리에서 아예 받지 않는다 — 받아 놓고 "표시하되 선택 불가"로 두면 위 상태가 된다.
+- **안 거는 곳**: 칭호 관리·수여 이력·관리자 멤버 상세(내린 칭호를 봐야 토글·회수를 한다), 그리고 엔진의 조건 평가용 메타 조회(`lib/titles/snapshot.ts` — 표시가 아니다).
+- **`!left` 아래 중첩된 임베드에는 `.eq("...ttl_mst.use_yn", true)`를 쓰지 말 것.** PostgREST가 부모 조인을 좁혀 *칭호 없는 멤버의 행 자체*를 떨군다(마일리지런 후기가 통째로 사라진다). 그 경우 `use_yn`을 select해서 JS로 거른다.
+
 ## 재사용 패턴
 
 ### 상세 다이얼로그 오픈 = "인스턴트 오픈 + 백필 + 댓글 자체조회" (전 경로 공통 원칙)

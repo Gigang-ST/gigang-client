@@ -56,6 +56,8 @@ function getCachedRecordsData(teamId: string) {
           .from("mem_ttl_rel")
           .select("team_mem_rel!inner(mem_id, selected_badge_effect, selected_frame_cd), ttl_mst!inner(ttl_nm, ttl_desc, desc_visibility)")
           .eq("team_mem_rel.team_id", teamId)
+          // 운영에서 내린 칭호는 대표로 걸려 있어도 배지를 세우지 않는다(카드·전광판 RPC와 같은 규칙)
+          .eq("ttl_mst.use_yn", true)
           .eq("is_prmy_yn", true)
           .eq("vers", 0)
           .eq("del_yn", false),
