@@ -27,6 +27,26 @@ type LoadState =
   | { status: "error" };
 
 /**
+ * 사람 단위 카드 캐시(모듈 스코프 = 탭을 옮겨 다녀도 유지, 새로고침하면 사라짐).
+ *
+ * 카드를 여는 자리가 여섯 곳인데 전광판·격자·랭킹에서는 **여러 명을 연달아 눌러보는** 게
+ * 기본 사용 패턴이다. 캐시가 없으면 방금 닫은 사람을 다시 열어도 스켈레톤부터 다시 시작한다.
+ *
+ * **Map인 게 핵심이다** — "마지막 한 명"만 들고 있으면 준민↔서준을 번갈아 볼 때 매번 미스라
+ * 캐시가 있으나 마나다. 여러 명이 동시에 남아야 두 바퀴째부터 전부 즉시 뜬다.
+ *
+ * 상한은 두지 않는다. payload가 수 KB고 한 세션에 열어보는 사람이 많아야 수십 명이라
+ * 메모리가 문제될 규모가 아닌데, 상한을 두면 "몇 개까지·뭘 먼저 버릴지"를 정해야 한다.
+ *
+ * `null`(탈퇴·비활성)은 캐시하지 않는다 — 드문 경로라 얻는 게 없고, 그 사이 재가입한
+ * 사람이 계속 "함께 달렸던 멤버"로 남는 쪽이 손해다.
+ */
+const cardCache = new Map<string, MemberCardData>();
+
+/** 같은 mem_id라도 팀이 다르면 다른 카드다 — 키에 team_id를 함께 넣는다. */
+const cacheKey = (teamId: string, memId: string) => `${teamId}:${memId}`;
+
+/**
  * 멤버 프로필 카드 다이얼로그 — **공개판 전용**.
  *
  * 오픈 시 RPC 1회 조회(prefetch 없음). 다른 다이얼로그 위에 겹칠 수 있어(`stacked`)
@@ -41,14 +61,7 @@ type LoadState =
  * 화면 중앙에 떠 있어야 하고, 시트로 올라오면 상단 스크린 존이 뷰포트 위쪽으로 밀려
  * 프레임·칭호 이펙트가 잘린다.
  */
-export function MemberCardDialog({
-  memId,
-  memNm,
-  teamId,
-  open,
-  onOpenChange,
-  stacked = false,
-}: {
+export interface MemberCardDialogProps {
   /** null이면 닫힌 상태로 취급 — 호출부가 선택된 멤버를 비울 때 */
   memId: string | null;
   /** RPC 실패·탈퇴 폴백에 쓸 이름(호출부가 이미 알고 있는 값) */
@@ -58,7 +71,16 @@ export function MemberCardDialog({
   onOpenChange: (open: boolean) => void;
   /** 다른 다이얼로그 위에 열릴 때 z-index를 올린다 */
   stacked?: boolean;
-}) {
+}
+
+export function MemberCardDialog({
+  memId,
+  memNm,
+  teamId,
+  open,
+  onOpenChange,
+  stacked = false,
+}: MemberCardDialogProps) {
   const supabase = useMemo(() => createClient(), []);
   const [state, setState] = useState<LoadState>({ status: "loading" });
   /**
@@ -76,36 +98,59 @@ export function MemberCardDialog({
   // 연속 탭으로 요청이 겹칠 때 늦게 온 응답이 화면을 덮어쓰지 않게 한다.
   const reqIdRef = useRef(0);
 
+  /**
+   * 카드 조회 — stale-while-revalidate.
+   *
+   * 캐시가 있으면 그걸 **먼저 그리고**(stale) 조회는 그대로 진행해 갱신한다(revalidate).
+   * 사용자는 스켈레톤을 건너뛰고, 그 사이 오른 응원 수 같은 건 조용히 따라붙는다.
+   * 재검증이 실패하면 화면을 에러로 바꾸지 않는다 — 보이는 게 조금 낡았을 뿐 멀쩡한데
+   * 지울 이유가 없다. 캐시 없이 실패했을 때만 재시도 UI를 띄운다.
+   */
   const load = useCallback(async () => {
     if (!memId) return;
     const reqId = ++reqIdRef.current;
-    setState({ status: "loading" });
+    const key = cacheKey(teamId, memId);
+    const cached = cardCache.get(key);
+    setState(cached ? { status: "ready", data: cached } : { status: "loading" });
 
     try {
       const data = await getPublicMemberCard(supabase, memId, teamId);
       if (reqId !== reqIdRef.current) return;
+      if (data) cardCache.set(key, data);
       setState(data ? { status: "ready", data } : { status: "gone" });
     } catch (error) {
       if (reqId !== reqIdRef.current) return;
       console.error("[MemberCardDialog] 카드 조회 실패", error);
+      if (cached) return;
       setState({ status: "error" });
     }
   }, [memId, teamId, supabase]);
 
   useEffect(() => {
     if (!open || !memId) return;
+
+    // 페이스 추이 차트(recharts)는 무거워서 dynamic인데, `ready`가 돼야 렌더되는 탓에
+    // 청크 다운로드가 RPC **뒤에** 직렬로 붙는다. 여는 순간 미리 찔러 둘을 나란히 보낸다.
+    void import("@/components/profile/pace-chart");
+
     // 오픈 직후 동기 setState로 인한 연쇄 렌더를 피해 다음 태스크로 넘긴다.
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [open, memId, load]);
 
   // 로그인 여부 — 카드를 열 때 한 번 확인한다(카드 조회와 나란히 나가므로 지연이 안 늘어난다).
+  //
+  // `getUser()`가 아니라 `getSession()`인 이유: 전자는 매번 인증 서버로 왕복해 카드 조회와
+  // 같은 크기의 지연을 하나 더 만든다. 여기서 쓰는 판정은 **실적 존을 가릴지 말지**라는
+  // 코스메틱 게이트라 로컬 세션만 봐도 충분하다 — 카드 RPC 자체가 `SECURITY DEFINER`로
+  // 비로그인에게도 공개되는 값이라(랭킹 공개 정책과 동일) 세션을 위조해도 얻는 게 없다.
+  // 서버 판정이 필요한 자리였다면 `getSession()`을 쓰면 안 된다.
   useEffect(() => {
     if (!open) return;
     let active = true;
-    void supabase.auth.getUser().then(({ data, error }) => {
+    void supabase.auth.getSession().then(({ data, error }) => {
       if (!active) return;
-      setLoggedIn(!error && data.user != null);
+      setLoggedIn(!error && data.session != null);
     });
     return () => {
       active = false;

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { IntroEditDialog } from "@/components/members/intro-edit-dialog";
 import { MemberCardDetail } from "@/components/members/member-card-detail";
-import { MemberCardDialog } from "@/components/members/member-card-dialog";
+import { MemberCardDialogDynamic as MemberCardDialog } from "@/components/members/member-card-dialog-dynamic";
 import { CollectionSheet } from "@/components/profile/collection-sheet";
 import { RaceHistoryDialog } from "@/components/profile/race-history-dialog";
 import { RaceRecordDialog } from "@/components/profile/race-record-dialog";

@@ -8,7 +8,7 @@ import { getFrameCls } from "@/lib/title-effects";
 import { cn } from "@/lib/utils";
 
 import { TitleBadge } from "@/components/common/title-badge";
-import { MemberCardDialog } from "@/components/members/member-card-dialog";
+import { MemberCardDialogDynamic as MemberCardDialog } from "@/components/members/member-card-dialog-dynamic";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";

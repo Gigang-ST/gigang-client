@@ -11,7 +11,7 @@ import {
 
 import { HelpTip } from "@/components/common/help-tip";
 import { MemberCardCompact } from "@/components/members/member-card";
-import { MemberCardDialog } from "@/components/members/member-card-dialog";
+import { MemberCardDialogDynamic as MemberCardDialog } from "@/components/members/member-card-dialog-dynamic";
 import { ActvHistorySheet } from "@/components/story/actv-history-sheet";
 import { ActvPile } from "@/components/story/actv-pile";
 import { FloatingAvatars } from "@/components/story/floating-avatars";
