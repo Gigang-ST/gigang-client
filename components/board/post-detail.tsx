@@ -85,7 +85,7 @@ export function PostDetail({ post }: PostDetailProps) {
       {showScrollTop && (
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          className="fixed bottom-24 right-5 flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md"
+          className="app-fab fixed bottom-24 flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md [--fab-x:1.25rem]"
           aria-label="맨 위로"
         >
           <ChevronUp className="size-5" />

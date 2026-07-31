@@ -119,7 +119,7 @@ export function ActivityLogFab({ evtId, memId: _memId, isInactive = false, inact
 
       <Button
         size="icon"
-        className="fixed bottom-24 right-6 z-50 size-14 rounded-full shadow-lg"
+        className="app-fab fixed bottom-24 z-50 size-14 rounded-full shadow-lg"
         onClick={() => { analytics.activityLogOpened(); setOpen(true); }}
         aria-label="기록 입력"
       >

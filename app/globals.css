@@ -1953,3 +1953,75 @@
 .brand-track {
   letter-spacing: 0.42em;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   앱 셸 — 데스크톱에서 본문을 폰 폭으로 묶는다.
+
+   이 앱의 모든 화면은 375px 기준으로 설계돼 있어(리드 슬롯 264px 등) 폭이
+   풀리면 px-6·grid-cols-2 간격이 그대로 늘어나 계기판이 흩어진다. 화면마다
+   데스크톱 레이아웃을 따로 두는 대신, 지면 자체를 폰 폭으로 고정한다.
+
+   ⚠️ 셸에 transform/contain을 걸어 fixed 자식을 한 번에 묶는 트릭은 쓰지 않는다 —
+   그러면 fixed가 스크롤을 안 따라가(셸이 containing block이 된다) 문서가 길 때
+   탭바가 화면 하단이 아니라 문서 맨 끝에 붙는다. fixed 요소는 .app-fixed /
+   .app-fab으로 하나씩 셸 폭에 맞춘다. 문서 스크롤은 그대로 두는 게 핵심이다.
+   ───────────────────────────────────────────────────────────────────────── */
+:root {
+  --app-max-w: 480px;
+  --app-outside: oklch(0.93 0.004 260);
+}
+
+.dark {
+  --app-outside: oklch(0.16 0 0);
+}
+
+.app-shell {
+  margin-inline: auto;
+  width: 100%;
+  max-width: var(--app-max-w);
+  min-height: 100svh;
+  background: var(--background);
+}
+
+/* 셸이 실제로 좁혀지는 폭부터만 지면을 갈라 보인다.
+
+   ⚠️ 바깥 배경을 미디어쿼리 밖에 두지 않는다 — body가 회색이면 iOS의 고무줄
+   오버스크롤에서 위아래 끝에 그 회색이 비친다. 셸이 화면을 꽉 채우는 폭(=폰)에선
+   보일 일이 없어야 하는 색이라, 실제로 셸이 좁아지는 480px부터만 켠다.
+   @layer base의 `body { bg-background }`를 이겨야 하므로 레이어 밖에 둔다
+   (unlayered 규칙이 layered보다 우선). */
+@media (min-width: 480px) {
+  .app-viewport {
+    background: var(--app-outside);
+  }
+
+  .app-shell {
+    box-shadow:
+      0 0 0 1px var(--border),
+      0 0 40px rgb(0 0 0 / 0.06);
+  }
+}
+
+/* 뷰포트 고정이되 가로는 셸 폭에 맞추는 요소(탭바·상단 배너·바텀시트).
+   `inset-x-0`과 함께 쓴다(좌우 0이 폭을 만들고 max-width가 자른 뒤 auto 마진이 가운데로).
+
+   ⚠️ `left:50% + translateX(-50%)`로 하지 않는다 — 바텀시트의 슬라이드업
+   애니메이션이 transform을 덮어쓰는 순간 가로 위치가 화면 오른쪽으로 튄다. */
+.app-fixed {
+  max-width: var(--app-max-w);
+  margin-inline: auto;
+}
+
+/* 셸 오른쪽 안쪽에 붙는 떠 있는 버튼(FAB·맨위로).
+   fixed 요소의 %는 뷰포트 기준이라 50%가 곧 화면 중앙이다.
+   좁은 화면에선 계산값이 음수가 되므로 자기 여백(--fab-x)으로 떨어진다 —
+   즉 셸이 화면을 꽉 채우는 폭에선 원래 `right-*`와 픽셀까지 같다.
+
+   여백이 1.5rem이 아닌 자리는 `[--fab-x:1.25rem]`으로 자기 값을 들고 온다.
+   여기서 한 값으로 통일해 버리면 모바일에서 버튼이 4px 움직인다. */
+.app-fab {
+  right: max(
+    var(--fab-x, 1.5rem),
+    calc(50% - var(--app-max-w) / 2 + var(--fab-x, 1.5rem))
+  );
+}

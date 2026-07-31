@@ -55,7 +55,7 @@ export function BottomTabBar() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background pb-[env(safe-area-inset-bottom,0px)]">
+    <nav className="app-fixed fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background pb-[env(safe-area-inset-bottom,0px)]">
       {/* 탭 5개를 정확히 1/5씩 나눈다(flex-1 basis-0) — justify-around는 라벨
           글자수만큼 탭 폭이 달라져 아이콘이 각 칸의 중앙에서 밀린다.
           items-stretch로 각 탭이 바 높이를 그대로 받아 세로 가운데에 앉는다. */}
