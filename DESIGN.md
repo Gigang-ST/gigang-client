@@ -122,6 +122,41 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 | 버튼/입력 반지름 | `rounded-md` (6px) | Button, Input |
 | 그리드 간격 | `gap-3` | 카드 그리드 |
 
+### 앱 셸 — 데스크톱에서 지면을 폰 폭으로 묶는다
+
+이 앱의 모든 화면은 375px 기준으로 설계돼 있다(리드 슬롯 264px, 반칸 카드 163px 등). PC
+브라우저에서 폭이 풀리면 `px-6`·`grid-cols-2` 간격이 그대로 늘어나 계기판이 흩어진다. 화면마다
+데스크톱 레이아웃을 따로 두는 건 웹앱을 고른 이유(복잡도 회피)와 정면으로 충돌하므로,
+**지면 자체를 폰 폭으로 고정한다.**
+
+| 유틸 (globals.css) | 붙이는 곳 |
+|---|---|
+| `--app-max-w` | 셸 폭. **여기 한 줄만 고치면 전부 따라온다** |
+| `.app-shell` | 본문 래퍼 하나 (`app/layout.tsx`) |
+| `.app-fixed` | `fixed inset-x-0` 요소 — 탭바·상단 배너·바텀시트 |
+| `.app-fab` | 셸 오른쪽 안쪽에 붙는 떠 있는 버튼 — FAB·맨위로 |
+
+- **기기가 아니라 뷰포트 폭이 기준이다.** UA 감지가 아니라 `max-width` 하나라, 480px 미만에선
+  계산상 완전히 동일하다 — max-width가 안 걸리고 `margin-inline: auto`도 남는 폭이 없어
+  무의미하며, `.app-fab`은 `max()`가 원래 `right-*` 값으로 떨어진다. 폰·폰 PWA는 무영향이고
+  **폴드 펼침·태블릿은 셸이 걸린다**("PC 전용"이 아니다).
+- **새 `fixed` 요소를 추가하면 반드시 둘 중 하나를 붙인다.** 안 붙이면 그것만 데스크톱에서
+  화면 전체 폭으로 남아 셸 밖에 떠 있는다. Radix Dialog/Sheet는 `<body>`로 포털돼 셸 밖이지만
+  모달은 전체 화면을 덮는 게 맞아 그대로 둔다.
+- **`.app-fab`의 여백은 `--fab-x`로 각자 들고 온다**(기본 1.5rem). 한 값으로 통일하면 원래
+  `right-5`였던 자리가 모바일에서 4px 움직인다.
+
+> ⚠️ **셸에 `transform`/`contain`을 걸어 fixed 자식을 한 번에 묶지 않는다.** 그 트릭은 셸을
+> containing block으로 만들어 `position: fixed`가 **스크롤을 안 따라가게** 한다. 셸 높이가
+> 콘텐츠 전체 높이인 이 구조에선 탭바가 화면 하단이 아니라 문서 맨 끝에 붙어 모바일까지 깨진다.
+> 셸이 내부 스크롤 컨테이너(`height: 100svh; overflow-y: auto`)가 되면 성립하지만, 그러면
+> 모바일 주소창 자동 숨김·스크롤 복원·`window.scrollY`가 전부 끌려간다. **문서 스크롤을 그대로
+> 두는 게 핵심이다** — fixed 요소는 하나씩 맞춘다.
+
+> ⚠️ **셸 바깥 배경(`.app-viewport`)은 반드시 `@media (min-width: 480px)` 안에 둔다.**
+> 미디어쿼리 밖에 두면 body가 회색이라 iOS 고무줄 오버스크롤에서 위아래 끝에 그 회색이 비친다.
+> 셸이 화면을 꽉 채우는 폭에선 **보일 일이 없어야 하는 색**이다.
+
 ---
 
 ## 앱 네비게이션
@@ -811,3 +846,4 @@ import { InfoRow } from "@/components/common/info-row";
 12. **환경변수**: `process.env` 직접 접근 금지 → `lib/env.ts`에서 import
 13. **기능 설명**: 설명이 필요한 지표·규칙 옆에는 `HelpTip` 사용 (커스텀 툴팁 작성 금지)
 14. **폼 검증**: Zod 스키마는 `lib/validations/`에 정의, React Hook Form의 `zodResolver`와 통합
+15. **새 `fixed` 요소**: 반드시 `.app-fixed`(전폭 요소) 또는 `.app-fab`(우측 떠 있는 버튼)을 함께 붙인다 (§앱 셸)
