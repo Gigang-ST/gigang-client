@@ -10,6 +10,7 @@ import Script from "next/script";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Toaster } from "sonner";
 
+import { AppWidthControl } from "@/components/app-width-control";
 import { InAppBrowserGate } from "@/components/in-app-browser-gate";
 import { Providers } from "@/components/providers";
 import { PwaInstallPromptGate } from "@/components/pwa-install-prompt-gate";
@@ -17,6 +18,7 @@ import { ServiceWorkerRegister } from "@/components/service-worker-register";
 
 import "./globals.css";
 import { siteContent } from "@/config";
+import { shellWidthBootScript } from "@/lib/app-shell";
 
 const SITE_URL = "https://gigang.team";
 
@@ -92,20 +94,30 @@ export default function RootLayout({
   return (
     <html lang="ko" suppressHydrationWarning>
       <body
-        className={`${pretendard.variable} ${oswald.variable} font-sans antialiased`}
+        className={`${pretendard.variable} ${oswald.variable} app-viewport font-sans antialiased`}
       >
+        {/* 셸 폭 — 첫 페인트 전에 저장된 폭을 적용한다(next-themes가 테마에 하는 것과 같은 이유).
+            이게 없으면 새로고침마다 기본 폭으로 그렸다가 넓어지는 점프가 보인다. */}
+        <script dangerouslySetInnerHTML={{ __html: shellWidthBootScript }} />
         <Providers>
-          <NuqsAdapter>
-            <Suspense fallback={null}>
-              <InAppBrowserGate>{children}</InAppBrowserGate>
-            </Suspense>
-            {/* 설치 배너: 비로그인 포함 전원 노출. 로그인 조회는 Suspense 경계 안에 가둬
-                cookies() 접근이 페이지 본문 렌더를 막지 않게 한다. */}
-            <Suspense fallback={null}>
-              <PwaInstallPromptGate />
-            </Suspense>
-            <ServiceWorkerRegister />
-          </NuqsAdapter>
+          {/* 앱 셸 — 데스크톱에서 본문을 폰 폭으로 묶는다(globals.css `.app-shell`).
+              모바일에선 max-width가 안 걸려 아무 영향이 없다. 셸 안의 `fixed` 요소는
+              여기 갇히지 않으므로(뷰포트 기준) 각자 `.app-fixed`/`.app-fab`을 붙인다. */}
+          <div className="app-shell">
+            <NuqsAdapter>
+              <Suspense fallback={null}>
+                <InAppBrowserGate>{children}</InAppBrowserGate>
+              </Suspense>
+              {/* 설치 배너: 비로그인 포함 전원 노출. 로그인 조회는 Suspense 경계 안에 가둬
+                  cookies() 접근이 페이지 본문 렌더를 막지 않게 한다. */}
+              <Suspense fallback={null}>
+                <PwaInstallPromptGate />
+              </Suspense>
+              <ServiceWorkerRegister />
+            </NuqsAdapter>
+          </div>
+          {/* 폭 컨트롤 — 셸 바깥 지면에 서므로 셸 밖에 둔다. 지면이 안 남으면(=폰) 렌더 안 함. */}
+          <AppWidthControl />
           {/* 전역 토스트 — 참석 피드백·배치 결과 등. sonner 기본 흥(아이콘·애니메이션) 유지하고
               폭(내용만큼)·모서리·그림자만 프로젝트 카드 톤으로 보정. richColors 미사용(투박함 제거). */}
           <Toaster

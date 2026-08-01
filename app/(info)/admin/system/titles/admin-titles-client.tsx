@@ -495,7 +495,7 @@ export function AdminTitlesClient({
           />
 
           {/* 바텀시트 */}
-          <div className="fixed inset-x-0 bottom-0 z-[100] flex max-h-[70dvh] flex-col rounded-t-2xl bg-background">
+          <div className="app-fixed fixed inset-x-0 bottom-0 z-[100] flex max-h-[70dvh] flex-col rounded-t-2xl bg-background">
             {/* 시트 헤더 */}
             <div className="flex items-center justify-between px-6 py-4">
               <p className="text-sm font-semibold text-foreground">{sheetRow.ttl_nm}</p>

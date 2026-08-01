@@ -1953,3 +1953,109 @@
 .brand-track {
   letter-spacing: 0.42em;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   앱 셸 — 데스크톱에서 본문을 폰 폭으로 묶는다.
+
+   이 앱의 모든 화면은 375px 기준으로 설계돼 있어(리드 슬롯 264px 등) 폭이
+   풀리면 px-6·grid-cols-2 간격이 그대로 늘어나 계기판이 흩어진다. 화면마다
+   데스크톱 레이아웃을 따로 두는 대신, 지면 자체를 폰 폭으로 고정한다.
+
+   ⚠️ 셸에 transform/contain을 걸어 fixed 자식을 한 번에 묶는 트릭은 쓰지 않는다 —
+   그러면 fixed가 스크롤을 안 따라가(셸이 containing block이 된다) 문서가 길 때
+   탭바가 화면 하단이 아니라 문서 맨 끝에 붙는다. fixed 요소는 .app-fixed /
+   .app-fab으로 하나씩 셸 폭에 맞춘다. 문서 스크롤은 그대로 두는 게 핵심이다.
+   ───────────────────────────────────────────────────────────────────────── */
+/* 셸 폭의 기본값 — 셸·.app-fixed·.app-fab·폭 컨트롤이 전부 이 변수 하나를 본다.
+
+   데스크톱에서는 사용자가 고른 폭이 `lib/app-shell.ts`(첫 페인트 전 인라인 스크립트 +
+   AppWidthControl)에서 html 인라인 스타일로 덮어쓴다. 그래서 이 값은 "폰 기본값"이자
+   고를 수 있는 폭의 하한이다 — 바꾸려면 `APP_WIDTHS[0]`과 같이 고친다. */
+:root {
+  --app-max-w: 480px;
+  --app-wide-max-w: 768px;
+  --app-outside: oklch(0.93 0.004 260);
+}
+
+.dark {
+  --app-outside: oklch(0.16 0 0);
+}
+
+.app-shell {
+  margin-inline: auto;
+  width: 100%;
+  max-width: var(--app-max-w);
+  min-height: 100svh;
+  background: var(--background);
+}
+
+/* 셸 양옆에 지면이 실제로 남을 때만 갈라 보인다.
+
+   ⚠️ 조건을 `@media (min-width: …)`로 걸지 않는다 — 미디어쿼리는 var()를 못 읽어
+   (스펙상 불가) 셸 폭과 같은 숫자를 리터럴로 하나 더 들고 있어야 했고, 폭이
+   사용자 설정으로 움직이는 지금은 그 숫자가 늘 어긋난다. 대신 폭을 계산하는 쪽
+   (`lib/app-shell.ts`)이 `data-shell-inset`을 켠다 — 어떤 폭이든 정확히 맞는다.
+
+   ⚠️ 바깥 배경을 이 조건 밖으로 꺼내지 않는다 — body가 회색이면 iOS의 고무줄
+   오버스크롤에서 위아래 끝에 그 회색이 비친다. 셸이 화면을 꽉 채우는 폭(=폰)에선
+   보일 일이 없어야 하는 색인데, 그 조건이 곧 이 속성이라 구조적으로 안 켜진다.
+   @layer base의 `body { bg-background }`를 이겨야 하므로 레이어 밖에 둔다
+   (unlayered 규칙이 layered보다 우선). */
+html[data-shell-inset] .app-viewport {
+  background: var(--app-outside);
+}
+
+html[data-shell-inset] .app-shell {
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 0 40px rgb(0 0 0 / 0.06);
+}
+
+/* 셸 왼쪽 바깥 지면에 붙는 요소(폭 컨트롤). fixed의 %는 뷰포트 기준이라
+   50%가 곧 화면 중앙 — 거기서 셸 반폭만큼 나가면 셸의 왼쪽 테두리다.
+   지면이 좁으면 화면 왼쪽 끝(0.5rem)으로 떨어진다. */
+.app-rail {
+  left: max(0.5rem, calc(50% - var(--app-max-w) / 2 - 2.75rem));
+}
+
+/* 특정 페이지만 넓게 — 그 페이지 안에 `.app-wide`를 단 요소를 하나 두면 된다.
+
+     <div className="app-wide">…</div>   // 셸 안이면 위치는 아무 데나
+
+   ⚠️ 재정의는 반드시 body(.app-viewport)에서 한다. 셸에 걸면(`.app-shell:has()`)
+   body로 포털되는 바텀시트·탭바(.app-fixed)와 FAB이 못 따라와 그 페이지에서만
+   본문과 탭바 폭이 어긋난다. 여기서 갈아끼우면 셋 다 같은 값을 본다.
+
+   ⚠️ 넓힌다고 그 페이지가 알아서 넓은 레이아웃이 되진 않는다 — 이 앱 화면은
+   375px 기준이라 grid-cols-2가 반칸 카드를 그대로 두 배로 늘린다. 넓힐 페이지는
+   자기 안에서 열 수·max-width를 따로 잡아야 의미가 있다.
+
+   폭이 다른 페이지가 또 필요하면 값을 안에서 넘기려 하지 말고(커스텀 속성은
+   위로 상속되지 않아 셸까지 못 올라간다) 여기에 클래스를 하나 더 만든다. */
+.app-viewport:has(.app-wide) {
+  --app-max-w: var(--app-wide-max-w);
+}
+
+/* 뷰포트 고정이되 가로는 셸 폭에 맞추는 요소(탭바·상단 배너·바텀시트).
+   `inset-x-0`과 함께 쓴다(좌우 0이 폭을 만들고 max-width가 자른 뒤 auto 마진이 가운데로).
+
+   ⚠️ `left:50% + translateX(-50%)`로 하지 않는다 — 바텀시트의 슬라이드업
+   애니메이션이 transform을 덮어쓰는 순간 가로 위치가 화면 오른쪽으로 튄다. */
+.app-fixed {
+  max-width: var(--app-max-w);
+  margin-inline: auto;
+}
+
+/* 셸 오른쪽 안쪽에 붙는 떠 있는 버튼(FAB·맨위로).
+   fixed 요소의 %는 뷰포트 기준이라 50%가 곧 화면 중앙이다.
+   좁은 화면에선 계산값이 음수가 되므로 자기 여백(--fab-x)으로 떨어진다 —
+   즉 셸이 화면을 꽉 채우는 폭에선 원래 `right-*`와 픽셀까지 같다.
+
+   여백이 1.5rem이 아닌 자리는 `[--fab-x:1.25rem]`으로 자기 값을 들고 온다.
+   여기서 한 값으로 통일해 버리면 모바일에서 버튼이 4px 움직인다. */
+.app-fab {
+  right: max(
+    var(--fab-x, 1.5rem),
+    calc(50% - var(--app-max-w) / 2 + var(--fab-x, 1.5rem))
+  );
+}

@@ -778,7 +778,7 @@ export function RaceListView({
 			<Button
 				onClick={() => setRegisterOpen(true)}
 				size="icon-lg"
-				className="fixed bottom-24 right-5 z-40 size-14 rounded-full shadow-lg active:scale-95"
+				className="app-fab fixed bottom-24 z-40 size-14 rounded-full shadow-lg active:scale-95 [--fab-x:1.25rem]"
 			>
 				<Plus className="size-6" />
 			</Button>

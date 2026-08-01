@@ -313,7 +313,7 @@ export default function NewbiePage() {
         </section>
 
         {/* 6. 하단 고정 CTA */}
-        <div className="fixed inset-x-0 bottom-0 z-50 bg-gradient-to-t from-background via-background/90 to-transparent px-4 pb-4 pt-6">
+        <div className="app-fixed fixed inset-x-0 bottom-0 z-50 bg-gradient-to-t from-background via-background/90 to-transparent px-4 pb-4 pt-6">
           <div className="mx-auto max-w-md">
             <div className="grid grid-cols-2 gap-2.5">
               <Button

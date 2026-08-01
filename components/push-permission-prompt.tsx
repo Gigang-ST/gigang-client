@@ -82,7 +82,7 @@ export function PushPermissionPrompt({ loggedIn }: { loggedIn: boolean }) {
   return (
     <div
       className={cn(
-        "fixed inset-x-0 top-[calc(3.5rem+env(safe-area-inset-top,0px))] z-40 px-4",
+        "app-fixed fixed inset-x-0 top-[calc(3.5rem+env(safe-area-inset-top,0px))] z-40 px-4",
       )}
     >
       <div className="mx-auto flex max-w-md flex-col gap-3 rounded-2xl border-[1.5px] border-border bg-background p-4 shadow-lg">
