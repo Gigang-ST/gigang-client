@@ -63,7 +63,7 @@ export function AddScheduleDropdown({ onAddSchedule, onAddCompetition, onAddGath
   }
 
   return (
-    <div ref={containerRef} className={cn("fixed bottom-24 right-6 z-50 flex flex-col items-end gap-2", !open && "pointer-events-none")}>
+    <div ref={containerRef} className={cn("app-fab fixed bottom-24 z-50 flex flex-col items-end gap-2", !open && "pointer-events-none")}>
       {/* Speed dial 카드 */}
       <div
         className={cn(

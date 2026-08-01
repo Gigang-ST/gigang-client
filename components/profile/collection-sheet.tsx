@@ -292,7 +292,7 @@ export function CollectionSheet({
     <>
       <div className="fixed inset-0 z-[99] bg-black/50" onClick={onClose} />
 
-      <div className="fixed inset-x-0 bottom-0 z-[100] flex h-[70dvh] flex-col rounded-t-2xl bg-background">
+      <div className="app-fixed fixed inset-x-0 bottom-0 z-[100] flex h-[70dvh] flex-col rounded-t-2xl bg-background">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4">
           <h2 className="text-base font-bold text-foreground">내 컬렉션</h2>

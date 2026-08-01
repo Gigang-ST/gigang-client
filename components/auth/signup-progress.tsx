@@ -29,7 +29,7 @@ export function SignupProgress({ step, done = false }: SignupProgressProps) {
   const currentLabel = done ? "완료" : STEP_LABELS[step - 1];
 
   return (
-    <div className="fixed inset-x-0 top-0 z-40 bg-background/90 backdrop-blur-sm">
+    <div className="app-fixed fixed inset-x-0 top-0 z-40 bg-background/90 backdrop-blur-sm">
       <div className="mx-auto flex max-w-md flex-col gap-2 px-6 pb-3 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)]">
         <div className="flex items-center justify-between">
           <Caption className="font-semibold text-foreground">

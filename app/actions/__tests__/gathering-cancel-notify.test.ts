@@ -28,7 +28,8 @@ const h = vi.hoisted(() => {
     gthr: {
       data: {
         max_prt_cnt: null,
-        stt_at: "2026-08-01T10:00:00Z",
+        // beforeEach가 매번 먼 미래로 덮는다(vi.hoisted라 여기선 dayjs를 못 쓴다).
+        stt_at: "",
         end_at: null as string | null,
         gthr_nm: "양재천 저녁런",
         crt_by: "mem-organizer",
@@ -60,12 +61,17 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 
 import { toggleGatheringAttendance } from "@/app/actions/gathering/toggle-attendance";
+import { dayjs } from "@/lib/dayjs";
+
+/** 취소 사유가 필요 없는 먼 미래(§gathering-cancel-history.test.ts의 같은 상수) */
+const farFutureStart = () => dayjs().add(30, "day").toISOString();
 
 beforeEach(() => {
   h.rpc.mockReset();
   h.rpc.mockResolvedValue({ error: null });
   h.insertNoti.mockReset();
   h.cfg.gthr.data.crt_by = "mem-organizer";
+  h.cfg.gthr.data.stt_at = farFutureStart();
 });
 
 describe("toggleGatheringAttendance — 참가자 취소 시 모임장 알림", () => {
@@ -94,7 +100,7 @@ describe("toggleGatheringAttendance — 참가자 취소 시 모임장 알림", 
   });
 
   it("AC-14: 사유 없이 취소하면 notiCont는 null이다", async () => {
-    h.cfg.gthr.data.stt_at = "2026-08-01T10:00:00Z";
+    h.cfg.gthr.data.stt_at = farFutureStart();
     await toggleGatheringAttendance("gthr-1");
 
     expect(h.insertNoti).toHaveBeenCalledWith(

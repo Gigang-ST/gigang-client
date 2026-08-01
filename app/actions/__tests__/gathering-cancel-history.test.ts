@@ -24,7 +24,8 @@ const h = vi.hoisted(() => {
   };
 
   const cfg = {
-    gthr: { data: { max_prt_cnt: null, stt_at: "2026-08-01T10:00:00Z", end_at: null } },
+    // stt_at은 beforeEach가 매번 먼 미래로 덮는다(vi.hoisted라 여기선 dayjs를 못 쓴다).
+    gthr: { data: { max_prt_cnt: null, stt_at: "", end_at: null } },
     existing: { data: { attd_id: "attd-1" } },
     verify: { data: { gthr_id: "gthr-1" } },
     selfMember: { id: "mem-self", admin: false, status: "active" },
@@ -60,10 +61,15 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 import { removeGatheringAttendance } from "@/app/actions/admin/manage-gathering-attendance";
 import { toggleGatheringAttendance } from "@/app/actions/gathering/toggle-attendance";
+import { dayjs } from "@/lib/dayjs";
 
 beforeEach(() => {
   h.rpc.mockReset();
   h.rpc.mockResolvedValue({ error: null });
+  // 시작 5시간 전부터는 취소에 사유가 필수다(isCancelReasonRequired). 픽스처에 날짜를 박아 두면
+  // 그날이 오는 순간 "사유 없이 취소" 케이스가 통째로 깨진다 — 실제로 2026-08-01에 그렇게 됐다.
+  // 시각이 검증 대상이 아닌 테스트이므로 매번 사유가 필요 없는 먼 미래로 잡는다.
+  h.cfg.gthr.data.stt_at = dayjs().add(30, "day").toISOString();
 });
 
 describe("본인 참석 취소 (toggleGatheringAttendance)", () => {
