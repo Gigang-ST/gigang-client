@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { IntroEditDialog } from "@/components/members/intro-edit-dialog";
 import { MemberCardDetail } from "@/components/members/member-card-detail";
 import { MemberCardDialogDynamic as MemberCardDialog } from "@/components/members/member-card-dialog-dynamic";
+import { AvatarEditDialog } from "@/components/profile/avatar-edit-dialog";
 import { CollectionSheet } from "@/components/profile/collection-sheet";
 import { RaceHistoryDialog } from "@/components/profile/race-history-dialog";
 import { RaceRecordDialog } from "@/components/profile/race-record-dialog";
@@ -58,6 +59,7 @@ export function ProfileTabCard({
   const [collectionOpen, setCollectionOpen] = useState(false);
   const [publicCardOpen, setPublicCardOpen] = useState(false);
   const [introOpen, setIntroOpen] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
   const [recordOpen, setRecordOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [utmbOpen, setUtmbOpen] = useState(false);
@@ -65,11 +67,16 @@ export function ProfileTabCard({
   // 저장 직후 router.refresh()가 돌기 전에도 바뀐 값이 보이도록 낙관적으로 덮어쓴다.
   const [intro, setIntro] = useState(card.intro_txt ?? "");
   const [utmbState, setUtmbState] = useState(utmb);
+  // undefined = 아직 안 고침(서버 값 그대로). null은 "기본 이미지로 되돌림"이라 구분이 필요하다.
+  const [avatarUrl, setAvatarUrl] = useState<string | null | undefined>(
+    undefined,
+  );
 
   const view: MemberCardData = {
     ...card,
     intro_txt: intro || null,
     utmb_index: utmbState?.utmb_index ?? null,
+    ...(avatarUrl !== undefined && { avatar_url: avatarUrl }),
   };
 
   return (
@@ -79,6 +86,7 @@ export function ProfileTabCard({
         data={view}
         edit={{
           onOpenPublicCard: () => setPublicCardOpen(true),
+          onEditAvatar: () => setAvatarOpen(true),
           onEditIntro: () => setIntroOpen(true),
           onEditTitles: () => setCollectionOpen(true),
           onEditProfile: () => router.push(RUNNING_PROFILE_HREF),
@@ -87,6 +95,15 @@ export function ProfileTabCard({
           onLinkUtmb: () => setUtmbOpen(true),
           point: card.stats.activity_score,
         }}
+      />
+
+      <AvatarEditDialog
+        open={avatarOpen}
+        onOpenChange={setAvatarOpen}
+        memId={memId}
+        memNm={card.mem_nm}
+        currentUrl={view.avatar_url}
+        onSaved={setAvatarUrl}
       />
 
       <IntroEditDialog
