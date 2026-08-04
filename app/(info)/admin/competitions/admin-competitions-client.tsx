@@ -213,7 +213,16 @@ function CompetitionsContent({
         : b.start_date.localeCompare(a.start_date),
     );
 
-  const loadRegistrations = async (competitionId: string) => {
+  /**
+   * `isStale`은 **응답이 늦게 도착했는지** 묻는다. 대회를 빠르게 갈아타면 앞선 요청이 뒤늦게
+   * 끝나 새 대회의 화면에 옛 참가자를 덮어쓸 수 있다(그러면 `regLoadedFor`가 옛 id로 되돌아가
+   * 로딩 표시가 다시 켜지고 조회가 한 번 더 나간다). 호출자(이펙트)가 cleanup에서 플래그를
+   * 세우고, 여기선 state를 만지기 직전마다 물어본다.
+   */
+  const loadRegistrations = async (
+    competitionId: string,
+    isStale: () => boolean = () => false,
+  ) => {
     const supabase = createClient();
     const { data: plans } = await supabase
       .from("team_comp_plan_rel")
@@ -224,6 +233,7 @@ function CompetitionsContent({
       .eq("del_yn", false);
     const teamCompIds = (plans ?? []).map((p) => p.team_comp_id);
     if (teamCompIds.length === 0) {
+      if (isStale()) return;
       setRegistrations([]);
       setRegLoadedFor(competitionId);
       return;
@@ -250,6 +260,7 @@ function CompetitionsContent({
       event_type: r.comp_evt_id ? (evtCdById.get(r.comp_evt_id) ?? null) : null,
       member: { full_name: memNameById.get(r.mem_id) ?? null },
     }));
+    if (isStale()) return;
     setRegistrations(mapped);
     setRegLoadedFor(competitionId);
   };
@@ -269,6 +280,16 @@ function CompetitionsContent({
   // 스칠 수 있지만, 렌더 중 setState는 React가 공식 지원하는 패턴이라 중간 결과를 버리고
   // 즉시 다시 그린다(https://react.dev/learn/you-might-not-need-an-effect).
   // `formSeededFor`가 사용자가 입력 중인 값을 덮어쓰는 걸 막는다 — 대회당 한 번만 메운다.
+  //
+  // ⚠️ 편집 화면을 벗어나면 **반드시 시드를 푼다.** 안 그러면 같은 대회로 다시 들어왔을 때
+  //    `formSeededFor === selected.id`라 재시드가 안 걸려 아까 입력하다 만 값이 그대로 뜬다.
+  //    "취소" 버튼마다 개별로 푸는 건 부족하다 — `mode`가 URL 상태(nuqs)라 **브라우저 뒤로가기**로도
+  //    edit에 되돌아오는데 그 경로엔 핸들러가 없다. 나가는 쪽이 아니라 "edit이 아니면 푼다"로
+  //    두면 어떤 경로로 나갔든 다시 들어올 때 현재 대회 값으로 새로 채워진다.
+  if (mode !== "edit" && formSeededFor !== null) {
+    setFormSeededFor(null);
+  }
+
   if (mode === "edit" && selected && formSeededFor !== selected.id) {
     setFormSeededFor(selected.id);
     setForm({
@@ -286,10 +307,15 @@ function CompetitionsContent({
   // 이건 네트워크 요청이라 렌더 중에 할 수 없어 이펙트로 남긴다. `regLoadedFor` 덕분에
   // 클릭으로 들어온 경우엔 다시 부르지 않는다(예전엔 openDetail과 이 이펙트가 겹쳐 **두 번** 돌았다).
   useEffect(() => {
-    if (mode === "detail" && selected && regLoadedFor !== selected.id) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- setState가 전부 await 뒤라 동기 연쇄가 아니다(위 목록 조회와 같은 사정)
-      loadRegistrations(selected.id);
-    }
+    if (mode !== "detail" || !selected || regLoadedFor === selected.id) return;
+
+    // 대회를 갈아타면 cleanup이 이 플래그를 세워, 늦게 온 앞선 응답이 새 화면을 덮지 못하게 한다.
+    let stale = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- setState가 전부 await 뒤라 동기 연쇄가 아니다(위 목록 조회와 같은 사정)
+    void loadRegistrations(selected.id, () => stale);
+    return () => {
+      stale = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadRegistrations는 매 렌더 새로 만들어져 넣으면 무한루프가 된다
   }, [mode, selected, regLoadedFor]);
 
