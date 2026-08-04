@@ -13,6 +13,7 @@ import {
   ChevronDown,
   LogOut,
   Loader2,
+  Pencil,
 } from "lucide-react";
 
 import { dayjs } from "@/lib/dayjs";
@@ -32,6 +33,7 @@ import {
   deactivateMember,
   batchDeactivateMembers,
   batchReactivateMembers,
+  updateMemberName,
 } from "@/app/actions/admin/manage-member";
 import { revokeTitle } from "@/app/actions/admin/revoke-title";
 
@@ -788,6 +790,11 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
   const [deactivateTarget, setDeactivateTarget] = useState<{ ids: string[] } | null>(null);
   const [deactivateReason, setDeactivateReason] = useState("");
   const [statusChangeMember, setStatusChangeMember] = useState<Member | null>(null);
+  // 이름 변경 — 상세 시트 이름 옆 연필로 연다
+  const [nameEditMember, setNameEditMember] = useState<Member | null>(null);
+  const [nameDraft, setNameDraft] = useState("");
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [savingName, setSavingName] = useState(false);
 
   const loadMembers = useCallback(async () => {
     const supabase = createClient();
@@ -920,6 +927,37 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
       alert(result.message);
     }
     setActioning(false);
+  };
+
+  function openNameEdit(member: Member) {
+    setNameEditMember(member);
+    setNameDraft(member.full_name ?? "");
+    setNameError(null);
+  }
+
+  const handleRenameMember = async () => {
+    if (!nameEditMember) return;
+    const next = nameDraft.trim();
+    // 안 바뀌었으면 서버까지 갈 이유가 없다 — 그냥 닫는다.
+    if (next === (nameEditMember.full_name ?? "")) {
+      setNameEditMember(null);
+      return;
+    }
+    setSavingName(true);
+    setNameError(null);
+    const result = await updateMemberName(nameEditMember.id, next);
+    if (result.ok) {
+      const memberId = nameEditMember.id;
+      setNameEditMember(null);
+      // 열려 있는 상세 시트도 같이 갱신 — loadMembers는 목록만 새로 만든다.
+      setSelectedMember((prev) =>
+        prev?.id === memberId ? { ...prev, full_name: result.name } : prev,
+      );
+      await loadMembers();
+    } else {
+      setNameError(result.message);
+    }
+    setSavingName(false);
   };
 
   const handleToggleAdmin = async (memberId: string, isAdmin: boolean) => {
@@ -1242,6 +1280,17 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
                     <span className="text-lg font-bold text-foreground">
                       {selectedMember.full_name ?? "이름 없음"}
                     </span>
+                    {/* 이름 옆 연필 — 앱 공통 편집 어포던스(§DESIGN 프로필 카드)와 같은 어법 */}
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => openNameEdit(selectedMember)}
+                      disabled={actioning || isPending}
+                      aria-label="이름 변경"
+                      className="text-muted-foreground"
+                    >
+                      <Pencil className="size-3.5" />
+                    </Button>
                     {selectedMember.admin && (
                       <Badge variant="default" className="text-[11px]">관리자</Badge>
                     )}
@@ -1370,6 +1419,56 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
           </div>
         </div>
       )}
+
+      {/* 이름 변경 다이얼로그 */}
+      <Dialog
+        open={!!nameEditMember}
+        onOpenChange={(o) => {
+          if (!o) {
+            setNameEditMember(null);
+            setNameError(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>이름 변경</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 pt-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="member-name-input">이름</Label>
+              <Input
+                id="member-name-input"
+                value={nameDraft}
+                onChange={(e) => {
+                  setNameDraft(e.target.value);
+                  setNameError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !savingName) handleRenameMember();
+                }}
+                placeholder="한글 2~5자"
+                maxLength={5}
+                autoFocus
+              />
+              {nameError && (
+                <Micro className="text-destructive">{nameError}</Micro>
+              )}
+            </div>
+            {/* 회비 매칭이 이름을 보므로 미리 알린다 — 누른 뒤에 알면 늦다 */}
+            <Micro className="leading-relaxed">
+              아직 확정하지 않은 회비 입금의 이름 매칭이 새 이름 기준으로 다시
+              계산됩니다. 확정된 내역과 학습된 입금자 별칭은 그대로예요.
+            </Micro>
+            <Button
+              onClick={handleRenameMember}
+              disabled={savingName || !nameDraft.trim()}
+            >
+              {savingName ? <LoadingSpinner /> : "변경"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* 비활성 설정 다이얼로그 */}
       <Dialog
