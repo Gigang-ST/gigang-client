@@ -96,7 +96,7 @@ export const PACE_LABELS: Record<(typeof AVG_PACE_CODES)[number], string> = {
   P630: "6'30\"",
   P700: "7'00\"",
   P730: "7'30\"",
-  P730_OVER: "7'30\"보다 여유롭게",
+  P730_OVER: "슬로우러닝",
   UNKNOWN: "잘 모르겠어요",
 };
 

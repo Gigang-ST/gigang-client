@@ -8,6 +8,7 @@ import { dayjs } from "@/lib/dayjs";
 import { sealBalanceAnchor } from "@/lib/dues/seal-anchor";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { koreanNameSchema } from "@/lib/validations/member";
 
 export async function approveMember(memberId: string) {
   return withAdmin(async () => {
@@ -54,6 +55,58 @@ export async function rejectMember(memberId: string) {
     });
     if (error) return { ok: false, message: "거절에 실패했습니다" };
     return { ok: true, message: null };
+  });
+}
+
+/**
+ * 이름 변경 — 관리자가 회원의 이름(`mem_mst.mem_nm`)을 고친다.
+ *
+ * 본인이 가입할 때 적은 이름이지만 오타·별명("효인" ↔ "김효인")으로 들어오는 일이 잦고,
+ * 본인은 프로필 수정에서 고칠 수 있어도 **관리자에겐 고칠 자리가 없었다**.
+ *
+ * ⚠️ **회비 입금자명 매칭이 이 이름을 본다**(`matchPayer`). 바꾸면 **아직 확정하지 않은**
+ * 거래의 자동 매칭이 새 이름 기준으로 다시 계산된다(인박스는 읽는 시점에 매칭한다).
+ * 이미 확정된 거래는 `mem_id`가 박혀 있어 영향이 없고, 학습된 별칭(`fee_payer_alias`)도
+ * 그대로 남아 **옛 이름으로 들어온 입금은 계속 붙는다** — 잔액·부과 로직은 건드리지 않는다.
+ *
+ * `mem_mst`는 팀에 매이지 않은 전역 신원이라, 우리 팀 소속인지 먼저 확인하고 손댄다.
+ */
+export async function updateMemberName(memberId: string, name: string) {
+  return withAdmin(async () => {
+    const parsed = koreanNameSchema.safeParse(name);
+    if (!parsed.success) {
+      return {
+        ok: false as const,
+        message: parsed.error.issues[0]?.message ?? "이름을 확인해 주세요",
+      };
+    }
+    const newName = parsed.data;
+
+    const { teamId } = await getRequestTeamContext();
+    const db = createAdminClient();
+
+    const { data: rel } = await db
+      .from("team_mem_rel")
+      .select("team_mem_id")
+      .eq("mem_id", memberId)
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .maybeSingle();
+    if (!rel) return { ok: false as const, message: "변경할 수 있는 대상이 아닙니다" };
+
+    const { error } = await db
+      .from("mem_mst")
+      .update({ mem_nm: newName })
+      .eq("mem_id", memberId)
+      .eq("vers", 0)
+      .eq("del_yn", false);
+    if (error) return { ok: false as const, message: "이름 변경에 실패했습니다" };
+
+    revalidatePath("/admin/members");
+    // 회비 인박스가 이름으로 입금자를 맞추므로 함께 턴다(매칭 결과가 즉시 새 이름 기준이 되게).
+    revalidatePath("/admin/dues");
+    return { ok: true as const, message: null, name: newName };
   });
 }
 
