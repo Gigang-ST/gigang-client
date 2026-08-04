@@ -486,8 +486,8 @@ export function MiniCalendar({
     if (deepLinkCompId) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deepLinkCompId)
       const query = isUuid
-        ? supabase.from("comp_mst").select("comp_id, short_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)").eq("comp_id", deepLinkCompId).maybeSingle()
-        : supabase.from("comp_mst").select("comp_id, short_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)").eq("short_id", deepLinkCompId).maybeSingle()
+        ? supabase.from("comp_mst").select("comp_id, short_id, crt_by, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)").eq("comp_id", deepLinkCompId).maybeSingle()
+        : supabase.from("comp_mst").select("comp_id, short_id, crt_by, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)").eq("short_id", deepLinkCompId).maybeSingle()
 
       query.then(({ data }) => {
         if (cancelled) return
@@ -498,6 +498,7 @@ export function MiniCalendar({
         setSelectedCompetition({
           id: data.comp_id,
           short_id: data.short_id ?? null,
+          crt_by: data.crt_by ?? null,
           external_id: "",
           sport: data.comp_sprt_cd ?? null,
           title: data.comp_nm,
@@ -670,7 +671,7 @@ export function MiniCalendar({
     try {
       const { data } = await supabase
         .from("comp_mst")
-        .select("comp_id, short_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)")
+        .select("comp_id, short_id, crt_by, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)")
         .eq("comp_id", race.id)
         .single();
       if (!data) return;
@@ -679,6 +680,7 @@ export function MiniCalendar({
         ? {
             ...prev,
             short_id: data.short_id ?? null,
+            crt_by: data.crt_by ?? null,
             sport: data.comp_sprt_cd ?? null,
             title: data.comp_nm,
             start_date: data.stt_dt,

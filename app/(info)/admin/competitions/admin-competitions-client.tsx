@@ -120,7 +120,16 @@ function CompetitionsContent({
   );
   const selected = competitions.find((c) => c.id === selectedId) ?? null;
   const [registrations, setRegistrations] = useState<Registration[]>([]);
-  const [regLoading, setRegLoading] = useState(false);
+  /**
+   * 참가자를 이미 불러온 대회 id. "로딩 중인가"를 별도 state로 들지 않고 이걸로 **파생**한다.
+   *
+   * 예전엔 `setRegLoading(true)`가 이펙트에서 동기로 불렸는데, 이펙트는 화면을 커밋한 *뒤에*
+   * 돌기 때문에 그 사이 브라우저가 "참가자 0명"을 한 프레임 그릴 수 있었다. 파생하면 첫 렌더부터
+   * 이미 "불러오는 중"이라 그 깜빡임이 구조적으로 안 생긴다.
+   */
+  const [regLoadedFor, setRegLoadedFor] = useState<string | null>(null);
+  /** 폼을 이미 채운 대회 id — URL 직접 진입 보정이 사용자가 입력 중인 값을 덮어쓰지 않게 한다 */
+  const [formSeededFor, setFormSeededFor] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [customEtInput, setCustomEtInput] = useState("");
 
@@ -176,7 +185,14 @@ function CompetitionsContent({
     setLoading(false);
   }, [teamId]);
 
+  // 마운트 시 1회 목록 조회.
+  //
+  // ⚠️ 아래 disable은 **규칙이 대는 이유가 여기엔 해당하지 않아서**다: `loadCompetitions`의
+  // setState는 전부 `await Promise.all(...)` 뒤에 있어 동기 연쇄 렌더가 아니다. 규칙이 async
+  // 함수 안을 못 들여다보고 "이펙트가 setState 든 함수를 부른다"만 보고 잡는다.
+  // (같은 이유로 걸리는 자리가 아래 참가자 조회 이펙트에 하나 더 있다.)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 위 주석 참고
     loadCompetitions();
   }, [loadCompetitions]);
 
@@ -197,8 +213,16 @@ function CompetitionsContent({
         : b.start_date.localeCompare(a.start_date),
     );
 
-  const loadRegistrations = async (competitionId: string) => {
-    setRegLoading(true);
+  /**
+   * `isStale`은 **응답이 늦게 도착했는지** 묻는다. 대회를 빠르게 갈아타면 앞선 요청이 뒤늦게
+   * 끝나 새 대회의 화면에 옛 참가자를 덮어쓸 수 있다(그러면 `regLoadedFor`가 옛 id로 되돌아가
+   * 로딩 표시가 다시 켜지고 조회가 한 번 더 나간다). 호출자(이펙트)가 cleanup에서 플래그를
+   * 세우고, 여기선 state를 만지기 직전마다 물어본다.
+   */
+  const loadRegistrations = async (
+    competitionId: string,
+    isStale: () => boolean = () => false,
+  ) => {
     const supabase = createClient();
     const { data: plans } = await supabase
       .from("team_comp_plan_rel")
@@ -209,8 +233,9 @@ function CompetitionsContent({
       .eq("del_yn", false);
     const teamCompIds = (plans ?? []).map((p) => p.team_comp_id);
     if (teamCompIds.length === 0) {
+      if (isStale()) return;
       setRegistrations([]);
-      setRegLoading(false);
+      setRegLoadedFor(competitionId);
       return;
     }
     const { data } = await supabase
@@ -235,8 +260,9 @@ function CompetitionsContent({
       event_type: r.comp_evt_id ? (evtCdById.get(r.comp_evt_id) ?? null) : null,
       member: { full_name: memNameById.get(r.mem_id) ?? null },
     }));
+    if (isStale()) return;
     setRegistrations(mapped);
-    setRegLoading(false);
+    setRegLoadedFor(competitionId);
   };
 
   // URL로 직접 접근 시 대회를 찾을 수 없으면 목록으로 복귀
@@ -247,36 +273,64 @@ function CompetitionsContent({
     }
   }, [mode, selectedId, selected, loading, setMode, setSelectedId]);
 
-  // URL로 edit 모드 직접 접근 시 폼 데이터 채우기
-  useEffect(() => {
-    if (mode === "edit" && selected) {
-      setForm({
-        title: selected.title,
-        sport: selected.sport ?? "road_run",
-        startDate: selected.start_date,
-        endDate: selected.end_date ?? "",
-        location: selected.location ?? "",
-        eventTypes: selected.event_types ?? [],
-        sourceUrl: selected.source_url ?? "",
-      });
-    }
-  }, [mode, selected]);
+  // URL로 edit 모드에 직접 들어온 경우 폼 채우기 — 그때는 목록이 아직 안 와서 `selected`가
+  // null이라 `openEdit`이 못 채운다. 목록이 도착해 `selected`가 생기는 순간 여기서 메운다.
+  //
+  // **이펙트가 아니라 렌더 중에 한다.** 이펙트는 화면을 커밋한 뒤에 돌아서 빈 폼이 한 프레임
+  // 스칠 수 있지만, 렌더 중 setState는 React가 공식 지원하는 패턴이라 중간 결과를 버리고
+  // 즉시 다시 그린다(https://react.dev/learn/you-might-not-need-an-effect).
+  // `formSeededFor`가 사용자가 입력 중인 값을 덮어쓰는 걸 막는다 — 대회당 한 번만 메운다.
+  //
+  // ⚠️ 편집 화면을 벗어나면 **반드시 시드를 푼다.** 안 그러면 같은 대회로 다시 들어왔을 때
+  //    `formSeededFor === selected.id`라 재시드가 안 걸려 아까 입력하다 만 값이 그대로 뜬다.
+  //    "취소" 버튼마다 개별로 푸는 건 부족하다 — `mode`가 URL 상태(nuqs)라 **브라우저 뒤로가기**로도
+  //    edit에 되돌아오는데 그 경로엔 핸들러가 없다. 나가는 쪽이 아니라 "edit이 아니면 푼다"로
+  //    두면 어떤 경로로 나갔든 다시 들어올 때 현재 대회 값으로 새로 채워진다.
+  if (mode !== "edit" && formSeededFor !== null) {
+    setFormSeededFor(null);
+  }
 
-  // URL로 detail 모드 직접 접근 시 참가자 로드
+  if (mode === "edit" && selected && formSeededFor !== selected.id) {
+    setFormSeededFor(selected.id);
+    setForm({
+      title: selected.title,
+      sport: selected.sport ?? defaultSportCd,
+      startDate: selected.start_date,
+      endDate: selected.end_date ?? "",
+      location: selected.location ?? "",
+      eventTypes: selected.event_types ?? [],
+      sourceUrl: selected.source_url ?? "",
+    });
+  }
+
+  // 참가자도 같은 사정 — URL로 detail에 직접 들어오면 `openDetail`이 안 거쳐진다.
+  // 이건 네트워크 요청이라 렌더 중에 할 수 없어 이펙트로 남긴다. `regLoadedFor` 덕분에
+  // 클릭으로 들어온 경우엔 다시 부르지 않는다(예전엔 openDetail과 이 이펙트가 겹쳐 **두 번** 돌았다).
   useEffect(() => {
-    if (mode === "detail" && selected) {
-      loadRegistrations(selected.id);
-    }
-  }, [mode, selected]);
+    if (mode !== "detail" || !selected || regLoadedFor === selected.id) return;
+
+    // 대회를 갈아타면 cleanup이 이 플래그를 세워, 늦게 온 앞선 응답이 새 화면을 덮지 못하게 한다.
+    let stale = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- setState가 전부 await 뒤라 동기 연쇄가 아니다(위 목록 조회와 같은 사정)
+    void loadRegistrations(selected.id, () => stale);
+    return () => {
+      stale = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadRegistrations는 매 렌더 새로 만들어져 넣으면 무한루프가 된다
+  }, [mode, selected, regLoadedFor]);
 
   const openDetail = (comp: Competition) => {
     setSelectedId(comp.id);
     setMode("detail");
-    loadRegistrations(comp.id);
+    // 조회는 **위 이펙트 한 곳**이 맡는다. 여기서도 부르면 이펙트와 겹쳐 두 번 돌았다.
+    // null로 되돌려 "아직 안 불러온 대회"로 만들면 이펙트가 받아서 조회하고, 그동안
+    // `regLoading`(파생)이 켜져 이전 대회의 참가자 목록이 비치지 않는다.
+    setRegLoadedFor(null);
   };
 
   const openEdit = (comp: Competition) => {
     setSelectedId(comp.id);
+    setFormSeededFor(comp.id);
     setForm({
       title: comp.title,
       sport: comp.sport ?? defaultSportCd,
@@ -291,6 +345,7 @@ function CompetitionsContent({
 
   const openCreate = () => {
     setSelectedId("");
+    setFormSeededFor(null);
     setForm({
       title: "",
       sport: sportSelectOptions[0]?.cd ?? "road_run",
@@ -302,6 +357,10 @@ function CompetitionsContent({
     });
     setMode("create");
   };
+
+  /** 참가자 로딩 표시 — state가 아니라 파생값이라 첫 렌더부터 이미 "불러오는 중"이다 */
+  const regLoading =
+    mode === "detail" && selected != null && regLoadedFor !== selected.id;
 
   const formEventTypeCodes = eventTypeCodesForSprtFromCmmRows(cmmCdRows, form.sport);
 

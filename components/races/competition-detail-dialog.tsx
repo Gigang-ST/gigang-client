@@ -136,8 +136,24 @@ export function CompetitionDetailDialog({
   const [shareOpen, setShareOpen] = useState(false);
   const [inactiveGateOpen, setInactiveGateOpen] = useState(false);
 
-  // 관리자 수정 모드
+  // 댓글 삭제 권한 등 진짜 관리자 전용 표면에만 쓴다
   const isAdmin = memberStatus.status === "ready" && memberStatus.admin;
+
+  /**
+   * 대회 정보 수정 — **내가 만든 대회이거나, 내가 관리자일 때**.
+   *
+   * 등록이 이미 전 회원에게 열려 있어서, 수정만 관리자 전용이면 날짜를 잘못 넣은 사람이
+   * 자기가 만든 대회조차 못 고치고 운영진을 기다려야 했다.
+   *
+   * `crt_by`가 없으면(외부 수집분 · 컬럼 도입 이전 등록분) 관리자만 보인다.
+   * 서버(`updateCompetition`)가 다시 판정하므로 이 게이트는 어포던스일 뿐이다.
+   */
+  // `competition`은 아래에서 null 가드를 하지만 훅 순서 때문에 이 줄이 먼저 온다 — 옵셔널 체이닝.
+  const canEdit =
+    isAdmin ||
+    (memberStatus.status === "ready" &&
+      competition?.crt_by != null &&
+      competition.crt_by === memberStatus.memberId);
   const [editing, setEditing] = useState(false);
 
   // 뷰어 파생값 — ready/inactive 둘 다 memberId 를 가지므로, 댓글에 회원 식별자를 넘겨
@@ -505,7 +521,7 @@ export function CompetitionDetailDialog({
                 <Share2 className="size-3.5" />
                 공유하기
               </Button>
-              {isAdmin && (
+              {canEdit && (
                 <Button
                   variant="outline"
                   size="sm"
