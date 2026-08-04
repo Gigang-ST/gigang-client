@@ -1,6 +1,14 @@
 export type Competition = {
   id: string;
   short_id?: string | null;
+  /**
+   * 만든 사람(`comp_mst.crt_by`). 상세에서 "내가 만든 대회인가"(수정 버튼 노출) 판정에 쓴다.
+   *
+   * `null`이면 외부 수집분이거나 컬럼 도입 이전 등록분이라 관리자만 고칠 수 있고,
+   * `undefined`면 **이 목록이 값을 안 실어 보낸 것**이다 — 그 화면에선 작성자 본인도
+   * 버튼을 못 본다. 상세를 여는 경로를 새로 만들면 이 값도 같이 실어야 한다.
+   */
+  crt_by?: string | null;
   external_id: string;
   sport: string | null;
   title: string;
