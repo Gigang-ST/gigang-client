@@ -421,6 +421,7 @@ export type Database = {
           comp_nm: string
           comp_sprt_cd: string | null
           crt_at: string
+          crt_by: string | null
           del_yn: boolean
           end_dt: string | null
           ext_id: string | null
@@ -436,6 +437,7 @@ export type Database = {
           comp_nm: string
           comp_sprt_cd?: string | null
           crt_at?: string
+          crt_by?: string | null
           del_yn?: boolean
           end_dt?: string | null
           ext_id?: string | null
@@ -451,6 +453,7 @@ export type Database = {
           comp_nm?: string
           comp_sprt_cd?: string | null
           crt_at?: string
+          crt_by?: string | null
           del_yn?: boolean
           end_dt?: string | null
           ext_id?: string | null
@@ -2830,11 +2833,13 @@ export type Database = {
           comp_id: string
           comp_nm: string
           comp_sprt_cd: string
+          crt_by: string
           end_dt: string
           ext_id: string
           loc_nm: string
           reg_count: number
           reg_evt_types: string[]
+          short_id: string
           src_url: string
           stt_dt: string
         }[]

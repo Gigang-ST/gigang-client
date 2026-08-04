@@ -20,7 +20,7 @@ interface CreateCompetitionInput {
 }
 
 export async function createCompetition(input: CreateCompetitionInput) {
-  return withActive(async () => {
+  return withActive(async ({ member }) => {
     const cmmRows = await getCachedCmmCdRows();
     if (!isValidCompSprtCd(cmmRows, input.sport.trim())) return { ok: false, message: "유효하지 않은 종목입니다." };
 
@@ -36,6 +36,9 @@ export async function createCompetition(input: CreateCompetitionInput) {
         ext_id: `manual:${crypto.randomUUID()}`, comp_sprt_cd: input.sport,
         comp_nm: input.title.trim(), stt_dt: input.startDate, end_dt: input.endDate || null,
         loc_nm: input.location.trim() || null, src_url: input.sourceUrl.trim() || null,
+        // 만든 사람 — 나중에 본인이 고칠 수 있는 유일한 근거다(§updateCompetition).
+        // 여기서 안 적으면 그 대회는 영영 관리자만 고칠 수 있다.
+        crt_by: member.id,
         vers: 0, del_yn: false,
       })
       .select("comp_id")

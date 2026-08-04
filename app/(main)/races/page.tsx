@@ -25,7 +25,7 @@ const getUpcomingCompetitions = unstable_cache(
     const { data } = await supabase
       .from("comp_mst")
       .select(
-        "comp_id, ext_id, comp_sprt_cd, comp_nm, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)",
+        "comp_id, short_id, crt_by, ext_id, comp_sprt_cd, comp_nm, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)",
       )
       .eq("vers", 0)
       .eq("del_yn", false)
@@ -34,6 +34,9 @@ const getUpcomingCompetitions = unstable_cache(
       .order("stt_dt", { ascending: true });
     const competitions: Competition[] = (data ?? []).map((row) => ({
       id: row.comp_id,
+      // 공유 링크가 이걸 쓴다 — 안 실으면 상세 다이얼로그가 uuid로 폴백한다
+      short_id: row.short_id ?? null,
+      crt_by: row.crt_by ?? null,
       external_id: row.ext_id ?? "",
       sport: row.comp_sprt_cd,
       title: row.comp_nm,
@@ -45,7 +48,10 @@ const getUpcomingCompetitions = unstable_cache(
     }));
     return { competitions, today };
   },
-  ["competitions-upcoming"],
+  // ⚠️ 페이로드 모양을 바꾸면 **키를 올린다**(`-v2`, `-v3`…). 안 올리면 배포 직후에도
+  // 옛 캐시가 새 필드 없이 돌아와(revalidate 24시간) 고친 게 하루 동안 안 보인다 —
+  // short_id를 넣은 게 정확히 그 경우였다.
+  ["competitions-upcoming-v2"],
   cacheOptions,
 );
 
@@ -64,6 +70,8 @@ async function fetchTeamCompetitionsForTeam(teamId: string) {
     .map((row) => {
       return {
         id: row.comp_id,
+        short_id: row.short_id ?? null,
+        crt_by: row.crt_by ?? null,
         external_id: row.ext_id ?? "",
         sport: row.comp_sprt_cd,
         title: row.comp_nm,
