@@ -45,6 +45,7 @@ const BASE: MemberCardData = {
 
 const EDIT = {
   onOpenPublicCard: () => {},
+  onEditAvatar: () => {},
   onEditIntro: () => {},
   onEditTitles: () => {},
   onEditProfile: () => {},
@@ -108,6 +109,14 @@ describe("편집판(내 프로필탭)", () => {
     expect(render({ rctn_recv_cnt: 1484 }, true)).toContain("1,484");
   });
 
+  // 얼굴 탭은 공개판 팝업을 여는 자리라, 사진 변경 진입점은 별도 배지여야 한다.
+  // 하나로 합치면 사진을 바꾸려던 탭이 팝업을 연다.
+  it("얼굴에 사진 변경 배지가 붙고, 카드 보기 버튼과 따로 선다", () => {
+    const html = render({}, true);
+    expect(html).toContain("프로필 사진 변경");
+    expect(html).toContain("남들에게 보이는 내 카드 보기");
+  });
+
   it("대표 칭호가 없으면 점선 껍데기가 자리를 지킨다", () => {
     expect(render({ primary_title: null }, true)).toContain("대표 칭호 고르기");
   });
@@ -166,6 +175,7 @@ describe("공개판(남이 보는 카드)", () => {
     // 고치는 자리는 프로필탭 한 곳이다. 팝업은 결과를 확인하는 자리라 한마디도 못 고친다.
     expect(html).not.toContain("한마디 수정");
     expect(html).not.toContain("한마디 남기기");
+    expect(html).not.toContain("프로필 사진 변경");
     expect(html).toContain("올해는 서브4 간다"); // 읽히기는 한다
   });
 

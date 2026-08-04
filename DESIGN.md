@@ -274,6 +274,7 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 | MemberCardDetail | `member-card-detail.tsx` | `memId`, `data`, `locked?`, `edit?` | 소개판 본체 — **한 컴포넌트가 두 판을 그린다**(§아래). `edit`이 있으면 편집판(프로필탭), 없으면 공개판(팝업). 편집 핸들러는 전부 `edit` 안에 모여 있다(한마디 포함) |
 | MemberCardDialog | `member-card-dialog.tsx` | `memId`, `memNm?`, `teamId`, `open`, `onOpenChange`, `stacked?` | **공개판 전용.** 오픈 시 RPC 1회 + 스켈레톤·재시도·탈퇴 폴백. `stacked`로 다른 시트 위에 겹침. `isOwner`는 없다 — 내 카드를 열어도 편집 어포던스가 없다 |
 | IntroEditDialog | `intro-edit-dialog.tsx` | `open`, `onOpenChange`, `initialValue`, `onSaved?`, `stacked?` | 한마디 한 줄 인라인 편집(페이지 이동 없음) |
+| AvatarEditDialog | `profile/avatar-edit-dialog.tsx` | `open`, `onOpenChange`, `memId`, `memNm`, `currentUrl`, `onSaved?` | 프로필 사진 인라인 변경 — 미리보기 + 기본 이미지로 되돌리기 |
 | ProfileTabCard | `profile/profile-tab-card.tsx` | `memId`, `teamMemId`, `teamId`, `card`, `utmb`, … | 프로필탭 본문 — `MemberCardDetail`에 `edit`을 물리고 편집 다이얼로그들을 연결 |
 
 - **간단 vs 상세**: 간단 카드는 "이 사람이 누구인지"(한마디·러닝 프로필), 상세 카드는 "이 사람의 실적".
@@ -366,9 +367,20 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 - **활동 포인트**(`stats.activity_score`) — 최근활동 헤더 우측 primary pill + `HelpTip`
   ("모임 참석·대회 출전·기록 등록으로 쌓여요"). 적립 규칙 전문은 여전히 비공개.
   **남의 카드에는 절대 노출하지 않는다** — 공개되면 사실상 공개 랭킹 지표가 된다(렌더 테스트가 지킨다).
-- **편집 진입점**: 한마디·칭호·기록 관리/추가·UTMB는 그 자리에서 다이얼로그로 열고,
+- **편집 진입점**: 사진·한마디·칭호·기록 관리/추가·UTMB는 그 자리에서 다이얼로그로 열고,
   **러닝 프로필 + 가입 목적만 `/profile/edit#running-profile`로 보낸다.** 역 콤보박스·페이스 셀렉트·
-  목적 칩을 다이얼로그로 다시 만들면 폼이 두 벌이 되어 한쪽만 고쳐 어긋난다.
+  목적 칩을 다이얼로그로 다시 만들면 폼이 두 벌이 되어 한쪽만 고쳐 어긋난다. 사진은 파일 하나를
+  고르는 일이라 폼이 두 벌이 되지 않으므로 다이얼로그 쪽이다.
+- **프로필 사진은 얼굴 우하단 카메라 배지**(`AvatarEditDialog`). 얼굴 탭은 이미 공개판 팝업을
+  여는 자리라 진입점을 겹칠 수 없어 배지로 뗐고, 배지는 아바타 버튼의 **형제**로 둔다(안에 넣으면
+  버튼 속 버튼이라 마크업이 깨지고 사진 변경 탭이 팝업까지 연다). 판 색 테(`ring-board`)로 얼굴에서
+  떼어 놓고 앰버는 쓰지 않는다 — 스크린 존 계기 표시 전용이라서.
+  **공개판엔 당연히 안 붙는다**(렌더 테스트가 지킨다).
+  `/profile/edit` 맨 위 사진 영역은 **그대로 둔다** — 편집 페이지에서 사진만 못 바꾸는 게 더
+  이상하다. 대신 서버 처리(HEIC 변환·EXIF 회전·512 정사각 webp·업로드·옛 파일 제거)는
+  `lib/storage/avatar.ts` 한 곳을 `updateProfile`·`updateAvatar` 두 액션이 공유한다
+  (각자 만들면 한쪽만 `.rotate()`를 빠뜨려 사진이 눕는 걸 눈으로만 알게 된다 —
+  `lib/storage/post-photo.ts`와 같은 이유). 사진을 바꿔도 **전당 캐시는 안 턴다**(§기강의 전당).
 - 프로필탭은 **서버에서** `getPublicMemberCard()`를 부른다. 클라이언트 조회로 옮기면 편집 액션들의
   `revalidatePath("/profile")`이 통째로 무력화된다.
 - RPC는 `mem_st_cd = 'active'`만 돌려주므로 **비활성·탈퇴면 카드가 null**이다 — 빈 화면 대신

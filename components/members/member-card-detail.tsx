@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import {
   CalendarDays,
+  Camera,
   ChevronDown,
   ChevronRight,
   History,
@@ -76,6 +77,8 @@ const PURPOSE_TIP_MS = 3000;
 export type MemberCardEdit = {
   /** 얼굴·이름 탭 → 남들에게 보이는 내 카드(팝업) */
   onOpenPublicCard: () => void;
+  /** 얼굴 우하단 카메라 배지 → 프로필 사진 변경 */
+  onEditAvatar: () => void;
   /** 한마디 줄 탭 → 한 줄 인라인 편집 */
   onEditIntro: () => void;
   /** 대표 칭호 옆 연필 → 내 컬렉션 */
@@ -349,20 +352,36 @@ export function MemberCardDetail({
 
         <div className="relative flex flex-col items-center gap-1.5">
           {edit ? (
-            <button
-              type="button"
-              onClick={edit.onOpenPublicCard}
-              aria-label="남들에게 보이는 내 카드 보기"
-              className="rounded-full transition-opacity active:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-board-amber"
-            >
-              <Avatar
-                src={data.avatar_url}
-                seed={memId}
-                alt={data.mem_nm}
-                size="2xl"
-                className="ring-2 ring-board-foreground/15"
-              />
-            </button>
+            // 얼굴 탭은 이미 공개판 팝업을 여는 자리라, 사진 변경은 우하단 배지로 뗀다.
+            // 배지는 아바타 버튼의 **형제**여야 한다 — 안에 넣으면 버튼 속 버튼이라 마크업이
+            // 깨지고, 사진 변경 탭이 팝업까지 같이 연다.
+            <div className="relative">
+              <button
+                type="button"
+                onClick={edit.onOpenPublicCard}
+                aria-label="남들에게 보이는 내 카드 보기"
+                className="rounded-full transition-opacity active:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-board-amber"
+              >
+                <Avatar
+                  src={data.avatar_url}
+                  seed={memId}
+                  alt={data.mem_nm}
+                  size="2xl"
+                  className="ring-2 ring-board-foreground/15"
+                />
+              </button>
+
+              {/* 판 색으로 테를 둘러(ring-board) 아바타에서 떼어 놓는다. 앰버는 계기 표시
+                  전용이라 여기 안 쓰고, 히트 영역은 28px로 손가락이 겨냥할 수 있게 잡는다. */}
+              <button
+                type="button"
+                onClick={edit.onEditAvatar}
+                aria-label="프로필 사진 변경"
+                className="absolute bottom-0 right-0 inline-flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-board transition-opacity active:opacity-80 focus-visible:outline-none focus-visible:ring-board-amber"
+              >
+                <Camera aria-hidden className="size-3.5" />
+              </button>
+            </div>
           ) : (
             <Avatar
               src={data.avatar_url}
