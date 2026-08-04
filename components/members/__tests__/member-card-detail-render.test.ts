@@ -110,11 +110,19 @@ describe("편집판(내 프로필탭)", () => {
   });
 
   // 얼굴 탭은 공개판 팝업을 여는 자리라, 사진 변경 진입점은 별도 배지여야 한다.
-  // 하나로 합치면 사진을 바꾸려던 탭이 팝업을 연다.
-  it("얼굴에 사진 변경 배지가 붙고, 카드 보기 버튼과 따로 선다", () => {
+  // 배지를 아바타 버튼 **안에** 넣으면 버튼 속 버튼이라 마크업이 깨지고, 사진을 바꾸려던
+  // 탭이 팝업까지 연다 — 라벨 존재만 보면 그 회귀를 못 잡으므로 중첩 여부를 직접 못박는다.
+  it("얼굴에 사진 변경 배지가 붙고, 카드 보기 버튼 안에 중첩되지 않는다", () => {
     const html = render({}, true);
     expect(html).toContain("프로필 사진 변경");
-    expect(html).toContain("남들에게 보이는 내 카드 보기");
+
+    const cardBtnAt = html.indexOf("남들에게 보이는 내 카드 보기");
+    const cardBtnEnd = html.indexOf("</button>", cardBtnAt);
+    const badgeAt = html.indexOf("프로필 사진 변경");
+
+    expect(cardBtnAt).toBeGreaterThan(-1);
+    // 배지가 카드 보기 버튼이 닫힌 뒤에 나온다 = 그 안에 들어 있지 않다
+    expect(badgeAt).toBeGreaterThan(cardBtnEnd);
   });
 
   it("대표 칭호가 없으면 점선 껍데기가 자리를 지킨다", () => {

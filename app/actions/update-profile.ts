@@ -46,11 +46,14 @@ export async function updateProfile(formData: FormData): Promise<Result> {
     // undefined = avatar_url 미변경
     let newAvatarUrl: string | null | undefined = undefined;
     let oldPathToRemove: string | null = null;
+    // 방금 올린 파일 — DB가 안 받으면 되돌려 지운다(아래 eMst 분기)
+    let newPathToRollback: string | null = null;
 
     if (hasFile) {
       const uploaded = await uploadAvatar(supabase, member.id, file);
       if (!uploaded.ok) return { ok: false, message: uploaded.message };
       newAvatarUrl = uploaded.url;
+      newPathToRollback = uploaded.path;
       oldPathToRemove = currentInBucket;
     } else if (removeAvatar) {
       newAvatarUrl = null;
@@ -75,6 +78,8 @@ export async function updateProfile(formData: FormData): Promise<Result> {
 
     if (eMst) {
       console.error("[update-profile] mem_mst error:", eMst);
+      // DB가 안 받았으면 방금 올린 파일은 아무도 참조하지 않는다 — 고아로 남기지 않는다
+      await removeAvatarFile(supabase, newPathToRollback);
       return { ok: false, message: "저장에 실패했습니다." };
     }
 

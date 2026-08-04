@@ -61,13 +61,19 @@ export function avatarPathInBucket(
 
 export type UploadAvatarResult =
   | { ok: false; message: string }
-  | { ok: true; url: string };
+  | { ok: true; url: string; path: string };
 
 /**
  * 아바타 업로드 — HEIC 변환 → 512 정사각 webp → Storage.
  *
- * 옛 파일 제거는 **여기서 하지 않는다.** DB 커밋이 실패했는데 파일을 먼저 지우면 프로필
- * 사진이 통째로 사라지므로, 호출자가 `mem_mst` update 성공 후에 `removeAvatarFile()`을 부른다.
+ * 파일 제거는 **여기서 하지 않는다.** 사진을 먼저 올리고 DB를 나중에 쓰는 순서라 양쪽으로
+ * 보상이 필요한데, 어느 쪽인지는 호출자만 안다:
+ * - DB 커밋 **성공** → 옛 파일을 지운다(`removeAvatarFile(oldPath)`). 여기서 미리 지우면
+ *   커밋이 실패했을 때 프로필 사진이 통째로 사라진다.
+ * - DB 커밋 **실패** → 방금 올린 파일을 지운다(`removeAvatarFile(path)`). 아무도 참조하지
+ *   않는 채 스토리지에 쌓이기만 한다.
+ *
+ * 반환하는 `path`가 그 되돌리기용이다(`uploadPostPhoto`와 같은 계약).
  */
 export async function uploadAvatar(
   supabase: SupabaseClient,
@@ -118,14 +124,20 @@ export async function uploadAvatar(
     .from(AVATAR_BUCKET)
     .upload(filePath, resized, { upsert: true, contentType: "image/webp" });
   if (error) {
+    // 원문은 로그에만 — Storage 내부 문구는 사용자가 이해할 수 없고 버킷 정책 같은
+    // 내부 사정이 그대로 화면에 실린다.
     console.error("[avatar] storage error:", error);
-    return { ok: false, message: `업로드 실패: ${error.message}` };
+    return {
+      ok: false,
+      message: "사진 업로드에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+    };
   }
 
   return {
     ok: true,
     url: supabase.storage.from(AVATAR_BUCKET).getPublicUrl(filePath).data
       .publicUrl,
+    path: filePath,
   };
 }
 

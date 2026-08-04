@@ -45,10 +45,13 @@ export async function updateAvatar(formData: FormData): Promise<Result> {
     const oldPath = avatarPathInBucket(supabase, member.avatar_url);
 
     let avatarUrl: string | null = null;
+    // 방금 올린 파일 — DB가 안 받으면 되돌려 지운다(아래 error 분기)
+    let newPath: string | null = null;
     if (hasFile) {
       const uploaded = await uploadAvatar(supabase, member.id, file);
       if (!uploaded.ok) return { ok: false, message: uploaded.message };
       avatarUrl = uploaded.url;
+      newPath = uploaded.path;
     }
 
     const { error } = await supabase
@@ -60,6 +63,8 @@ export async function updateAvatar(formData: FormData): Promise<Result> {
 
     if (error) {
       console.error("[update-avatar] mem_mst error:", error);
+      // DB가 안 받았으면 방금 올린 파일은 아무도 참조하지 않는다 — 고아로 남기지 않는다
+      await removeAvatarFile(supabase, newPath);
       return { ok: false, message: "저장에 실패했습니다." };
     }
 

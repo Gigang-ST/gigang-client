@@ -95,7 +95,9 @@ function AvatarEditForm({
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 언마운트/상태 교체 시 미리보기 objectURL 정리
+  // 미리보기 objectURL 정리는 **여기 한 곳**이 맡는다. `state`가 deps라 사진을 바꿔 끼울
+  // 때도 cleanup이 직전 URL을 들고 돌고, 언마운트도 같은 경로다 — 고르기·되돌리기 쪽에서
+  // 따로 해제하면 같은 책임이 세 군데로 흩어진다.
   useEffect(() => {
     return () => {
       if (state.kind === "new") URL.revokeObjectURL(state.previewUrl);
@@ -115,10 +117,10 @@ function AvatarEditForm({
     setCompressing(true);
     try {
       const processed = await compressAvatarFile(file);
-      const previewUrl = URL.createObjectURL(processed);
-      setState((prev) => {
-        if (prev.kind === "new") URL.revokeObjectURL(prev.previewUrl);
-        return { kind: "new", file: processed, previewUrl };
+      setState({
+        kind: "new",
+        file: processed,
+        previewUrl: URL.createObjectURL(processed),
       });
     } catch {
       toast.error("이미지를 불러오지 못했습니다. 다른 사진으로 시도해 주세요.");
@@ -128,10 +130,7 @@ function AvatarEditForm({
   }
 
   function handleRemovePhoto() {
-    setState((prev) => {
-      if (prev.kind === "new") URL.revokeObjectURL(prev.previewUrl);
-      return { kind: "removed" };
-    });
+    setState({ kind: "removed" });
   }
 
   const previewSrc =
