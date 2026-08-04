@@ -332,8 +332,10 @@ export function getRunningProfileLine(
   const paceCd = profile.avg_pace_cd as (typeof AVG_PACE_CODES)[number] | null;
   // UNKNOWN("잘 모르겠어요")은 정보가 없는 것과 같다.
   if (paceCd && paceCd !== "UNKNOWN" && PACE_LABELS[paceCd]) {
-    // P730_OVER만 문장형 라벨이라 "/km"를 붙이면 말이 안 된다.
-    parts.push(paceCd === "P730_OVER" ? `7'30" 이상` : `${PACE_LABELS[paceCd]}/km`);
+    // P730_OVER만 숫자가 아니라 구간 이름("슬로우러닝")이라 "/km"를 붙이면 말이 안 된다.
+    parts.push(
+      paceCd === "P730_OVER" ? PACE_LABELS[paceCd] : `${PACE_LABELS[paceCd]}/km`,
+    );
   }
   if (profile.avg_run_dist_km != null && profile.avg_run_dist_km > 0) {
     parts.push(`${profile.avg_run_dist_km}km`);
@@ -370,7 +372,8 @@ export function getRunningProfileChips(
   if (paceCd && paceCd !== "UNKNOWN" && PACE_LABELS[paceCd]) {
     chips.push({
       kind: "pace",
-      value: paceCd === "P730_OVER" ? `7'30"+` : `${PACE_LABELS[paceCd]}/km`,
+      // 한 줄(getRunningProfileLine)과 같은 이유로 P730_OVER만 "/km"를 안 붙인다.
+      value: paceCd === "P730_OVER" ? PACE_LABELS[paceCd] : `${PACE_LABELS[paceCd]}/km`,
     });
   }
   if (profile.avg_run_dist_km != null && profile.avg_run_dist_km > 0) {

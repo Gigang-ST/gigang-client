@@ -333,7 +333,7 @@ export function MemberOnboardingForm({
     const paceMsg = !wizardProfile.avgPaceCd
       ? "페이스는 같이 뛰다 보면 금방 알게 돼요.\n잘 오셨어요!"
       : wizardProfile.avgPaceCd === "P730_OVER"
-        ? "여유로운 페이스 환영이에요.\n기강은 같이 달리는 게 전부예요 🙌"
+        ? "슬로우러닝 환영이에요.\n기강은 같이 달리는 게 전부예요 🙌"
         : wizardProfile.avgPaceCd === "UNKNOWN"
           ? "페이스는 같이 뛰다 보면 금방 알게 돼요.\n잘 오셨어요!"
           : `${PACE_LABELS[wizardProfile.avgPaceCd]} 페이스요? 기강이랑 딱 맞는 속도예요.\n첫 모임에서 봬요 🔥`;
