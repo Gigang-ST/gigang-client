@@ -68,3 +68,15 @@ export function weekdayLabels(weekStart: WeekStart): readonly string[] {
 export function weekdayColumn(dow: number, weekStart: WeekStart): number {
   return (dow - weekStart + 7) % 7;
 }
+
+/**
+ * 그리드 열 인덱스 → dayjs `.day()`(0=일). `weekdayColumn`의 역함수.
+ *
+ * **열 인덱스를 요일로 바로 쓰지 말라고 있는 함수다.** 일요일 시작에서는 둘이 우연히
+ * 같아서(0열=일, 6열=토) `colIdx === 0`으로 색을 칠해도 맞지만, 월요일 시작이 되는 순간
+ * 0열은 월요일이다 — 그러면 **월요일이 빨갛고 일요일이 파랗고 토요일이 검은** 달력이 된다.
+ * 실제로 이 PR 리뷰에서 잡힌 버그이고, 에러가 아니라 색으로만 드러나 눈으로 봐야 안다.
+ */
+export function columnWeekday(column: number, weekStart: WeekStart): number {
+  return (column + weekStart) % 7;
+}

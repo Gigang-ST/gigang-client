@@ -4,6 +4,7 @@ import { dayjs, gridDateRange, gridFetchRange, daysInMonth } from "@/lib/dayjs";
 import {
   DEFAULT_WEEK_START,
   WEEK_STARTS,
+  columnWeekday,
   parseWeekStart,
   weekdayColumn,
   weekdayLabels,
@@ -64,6 +65,41 @@ describe("weekdayColumn", () => {
   });
 });
 
+describe("columnWeekday — 열 인덱스를 요일로 되돌린다", () => {
+  it("weekdayColumn의 역함수다(왕복이 항상 제자리)", () => {
+    for (const ws of WEEK_STARTS) {
+      for (let dow = 0; dow < 7; dow++) {
+        expect(columnWeekday(weekdayColumn(dow, ws), ws)).toBe(dow);
+      }
+    }
+  });
+
+  it("일요일 시작에서는 열 인덱스와 요일이 같다", () => {
+    // 이 우연한 일치가 버그를 숨겼다 — 일요일 시작만 보면 colIdx로 색을 칠해도 맞는다.
+    for (let col = 0; col < 7; col++) {
+      expect(columnWeekday(col, 0)).toBe(col);
+    }
+  });
+
+  it("월요일 시작에서 0열은 월요일, 5열이 토요일, 6열이 일요일이다", () => {
+    // 회귀: colIdx로 주말 색을 칠하면 **월요일이 빨갛고 일요일이 파랗고 토요일이 검게** 나온다.
+    // (PR #481 리뷰에서 잡힌 버그 — 에러가 아니라 색으로만 드러나 테스트가 없으면 다시 들어온다.)
+    expect(columnWeekday(0, 1)).toBe(1); // 월
+    expect(columnWeekday(5, 1)).toBe(6); // 토
+    expect(columnWeekday(6, 1)).toBe(0); // 일
+  });
+
+  it("주말이 서는 열은 시작 요일마다 다르다(위치로 판정하면 안 되는 이유)", () => {
+    const weekendCols = (ws: WeekStart) =>
+      [0, 1, 2, 3, 4, 5, 6].filter((col) => {
+        const dow = columnWeekday(col, ws);
+        return dow === 0 || dow === 6;
+      });
+    expect(weekendCols(0)).toEqual([0, 6]); // 일요일 시작: 양 끝
+    expect(weekendCols(1)).toEqual([5, 6]); // 월요일 시작: 오른쪽에 붙음
+  });
+});
+
 describe("weekdayLabels", () => {
   it("시작 요일에 맞춰 회전한다", () => {
     expect(weekdayLabels(0)).toEqual(["일", "월", "화", "수", "목", "금", "토"]);
@@ -81,6 +117,9 @@ describe("weekdayLabels", () => {
     }
   });
 
+  // ⚠️ 헤더 색은 라벨 문자열(`wd === "일"`)로 걸려 있어 회전만으로 따라오지만,
+  // **날짜 셀 색은 그렇지 않다** — 열 인덱스를 쓰면 안 되고 columnWeekday를 거쳐야 한다.
+  // 두 곳의 판정 기준이 다르다는 걸 놓쳐서 실제로 버그가 났다(위 columnWeekday describe 참조).
   it("일·토가 항상 들어 있다(헤더 색상이 라벨 문자열로 걸려 있음)", () => {
     for (const ws of WEEK_STARTS) {
       expect(weekdayLabels(ws)).toContain("일");

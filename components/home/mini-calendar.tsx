@@ -17,7 +17,7 @@ import {
   formatKST,
   gridDateRange,
 } from "@/lib/dayjs";
-import { weekdayColumn, weekdayLabels, type WeekStart } from "@/lib/week-start";
+import { columnWeekday, weekdayColumn, weekdayLabels, type WeekStart } from "@/lib/week-start";
 import { clearDeepLinkParams } from "@/lib/notifications/deep-link";
 import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
@@ -1310,6 +1310,10 @@ export function MiniCalendar({
                         const isToday = dateStr === today;
                         const outMonth = !cell.inMonth;
                         const overflowCount = Math.max(0, (eventsByDate.get(dateStr)?.length ?? 0) - 3);
+                        // 주말 색은 **열 위치가 아니라 실제 요일**로 정한다. 월요일 시작이면
+                        // 0열이 월요일이라, colIdx로 칠하면 월요일이 빨개진다(헤더의 `일`/`토`
+                        // 라벨 판정과 같은 기준을 쓰려면 요일로 되돌려야 한다).
+                        const dow = columnWeekday(colIdx, weekStart);
                         return (
                           <div
                             key={`d-${dateStr}`}
@@ -1322,9 +1326,9 @@ export function MiniCalendar({
                                   isToday && "bg-primary text-primary-foreground font-bold",
                                   // 다른 달: 평일/주말 색을 흐리게 통일
                                   !isToday && outMonth && "text-muted-foreground/40",
-                                  !isToday && !outMonth && colIdx === 0 && "text-destructive",
-                                  !isToday && !outMonth && colIdx === 6 && "text-primary",
-                                  !isToday && !outMonth && colIdx !== 0 && colIdx !== 6 && "text-foreground",
+                                  !isToday && !outMonth && dow === 0 && "text-destructive",
+                                  !isToday && !outMonth && dow === 6 && "text-primary",
+                                  !isToday && !outMonth && dow !== 0 && dow !== 6 && "text-foreground",
                                 )}
                               >
                                 {cell.day}
