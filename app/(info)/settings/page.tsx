@@ -1,6 +1,9 @@
+import { cookies } from "next/headers";
+
 import { hasUnreadBoardPosts } from "@/lib/queries/board";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { WEEK_START_COOKIE, parseWeekStart } from "@/lib/week-start";
 import { SettingsClient } from "@/components/settings/settings-client";
 
 /**
@@ -17,6 +20,9 @@ export default async function SettingsPage() {
   const { member, supabase } = await getCurrentMember();
   const { teamId } = await getRequestTeamContext();
   const isAdmin = member?.admin ?? false;
+
+  // 현재 시작 요일은 서버가 읽어 내려준다 — 컨트롤이 첫 렌더부터 실제 값을 켠 채로 뜬다.
+  const weekStart = parseWeekStart((await cookies()).get(WEEK_START_COOKIE)?.value);
 
   // 점은 두 종류가 있고 **바깥(햄버거)까지 올라가는지가 갈린다**(§HeaderActions):
   //
@@ -54,6 +60,7 @@ export default async function SettingsPage() {
       isAdmin={isAdmin}
       boardUnread={boardUnread}
       duesUnpaid={(balSnapRes.data?.bal_amt ?? 0) <= -DUES_DOT_MIN_UNPAID}
+      weekStart={weekStart}
     />
   );
 }

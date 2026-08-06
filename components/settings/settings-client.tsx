@@ -23,14 +23,17 @@ import {
   KeyRound,
   Megaphone,
   Zap,
+  CalendarDays,
 } from "lucide-react";
 
 import { markBoardTypeRead } from "@/app/actions/mark-board-type-read";
 import { APP_VERSION } from "@/lib/app-version";
 import { createClient } from "@/lib/supabase/client";
+import type { WeekStart } from "@/lib/week-start";
 
 import { ThemeToggle } from "@/components/common/theme-toggle";
-import { SectionLabel } from "@/components/common/typography";
+import { Caption, SectionLabel } from "@/components/common/typography";
+import { WeekStartControl } from "@/components/settings/week-start-control";
 import { Button } from "@/components/ui/button";
 
 import type { LucideIcon } from "lucide-react";
@@ -69,12 +72,15 @@ export function SettingsClient({
   isAdmin,
   boardUnread,
   duesUnpaid = false,
+  weekStart,
 }: {
   isAdmin: boolean;
   /** 공지·업데이트 안읽음 — 각 메뉴 옆 dot. 없으면 둘 다 false로 온다 */
   boardUnread?: { notice: boolean; update: boolean };
   /** 회비 잔액이 마이너스인가 — "회비 내역" 줄 옆 dot */
   duesUnpaid?: boolean;
+  /** 주 시작 요일 — 서버가 쿠키에서 읽어 넘긴다(§lib/week-start) */
+  weekStart: WeekStart;
 }) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -210,6 +216,18 @@ export function SettingsClient({
             <span className="text-[15px] font-medium text-foreground">다크모드</span>
           </div>
           <ThemeToggle />
+        </div>
+        {/* 어디에 적용되는지를 라벨 밑에 적는다 — 이 설정은 **다른 화면**(일정탭)에서만
+            결과가 보여서, 바꾸고 나서 이 화면에 아무 변화가 없다. */}
+        <div className="flex items-center justify-between border-b border-border py-4">
+          <div className="flex items-center gap-3">
+            <CalendarDays className="size-5 text-muted-foreground" />
+            <div className="flex flex-col">
+              <span className="text-[15px] font-medium text-foreground">주 시작 요일</span>
+              <Caption>일정탭 캘린더</Caption>
+            </div>
+          </div>
+          <WeekStartControl weekStart={weekStart} />
         </div>
       </div>
 

@@ -7,6 +7,8 @@ import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
 import "dayjs/locale/ko";
 
+import { WEEK_STARTS, weekdayColumn, type WeekStart } from "@/lib/week-start";
+
 dayjs.extend(utc);
 dayjs.extend(timezone);
 dayjs.extend(duration);
@@ -127,10 +129,18 @@ export function monthLastDay(year: number, month: number): string {
  * - `fetchStart`: 조회 전용 시작일 — `start`보다 1주 앞당긴다. RPC가 "시작 시각이 범위 안"인 행만
  *   주므로, 그리드 시작 직전(예: 일요일 시작 달의 전날)에 시작해 그리드 안으로 이어지는 일정이
  *   누락되는 걸 막는다. 화면 칸은 `start~end` 그대로라 당겨온 일정 중 범위 밖 건 렌더되지 않는다.
+ *
+ * `weekStart`는 **기본값을 두지 않는다.** 기본값이 있으면 넘기는 걸 빠뜨린 호출부를 tsc가
+ * 안 잡아 주고, 그 자리만 조용히 일요일 그리드를 조회한다 — 화면은 월요일로 그려지는데
+ * 데이터만 다른 범위라, 가장자리 일정이 소리 없이 사라지는 형태로만 드러난다.
  */
-export function gridDateRange(year: number, month: number): { start: string; end: string; fetchStart: string } {
+export function gridDateRange(
+  year: number,
+  month: number,
+  weekStart: WeekStart,
+): { start: string; end: string; fetchStart: string } {
   const first = dayjs.tz(`${year}-${String(month).padStart(2, "0")}-01`, "Asia/Seoul");
-  const firstDow = first.day();
+  const firstDow = weekdayColumn(first.day(), weekStart);
   const total = daysInMonth(year, month);
   // 최소 5주 보장 — MiniCalendar의 weeks 계산과 동일 기준으로 fetch/render 범위를 일치시킨다.
   const weekCount = Math.max(5, Math.ceil((firstDow + total) / 7));
@@ -140,6 +150,27 @@ export function gridDateRange(year: number, month: number): { start: string; end
     start: gridStart.format("YYYY-MM-DD"),
     end: gridEnd.format("YYYY-MM-DD"),
     fetchStart: gridStart.subtract(7, "day").format("YYYY-MM-DD"),
+  };
+}
+
+/**
+ * 시작 요일과 **무관하게** 그리드를 덮는 합집합 조회 범위.
+ *
+ * 홈 캘린더 공개 데이터 캐시(`lib/queries/home-calendar.ts`)는 `(teamId, year, month)` 키의
+ * **팀 공용** 엔트리다. 여기에 시작 요일을 키로 더하면 엔트리가 두 배로 갈라져 전 회원의
+ * 캐시 히트율이 떨어진다 — 개인 설정 하나가 팀 전체 성능에 붙는 건 값이 안 맞는다.
+ * 대신 범위를 두 시작 요일의 합집합으로 넓혀 **엔트리 하나가 둘 다 서빙**하게 한다.
+ * 늘어나는 건 페이로드 몇 행이고, 범위 밖 행은 각 화면이 자기 `gridDateRange`로 거른다.
+ *
+ * 합집합을 손으로 적지 않고 `gridDateRange`를 실제로 돌려 min/max를 취한다 — 그래야
+ * 그리드 계산식이 바뀌어도 이 범위가 따라오지, 상수로 박아 두면 조용히 어긋난다.
+ * ('YYYY-MM-DD'는 사전순 비교가 곧 날짜순 비교다.)
+ */
+export function gridFetchRange(year: number, month: number): { fetchStart: string; end: string } {
+  const ranges = WEEK_STARTS.map((ws) => gridDateRange(year, month, ws));
+  return {
+    fetchStart: ranges.map((r) => r.fetchStart).sort()[0],
+    end: ranges.map((r) => r.end).sort()[ranges.length - 1],
   };
 }
 
