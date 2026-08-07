@@ -34,6 +34,8 @@ export type RecentTitleRow = {
   desc_visibility: "always" | "others" | "held" | "never";
   /** 이 칭호의 가장 최근 수여 시각 — RPC 정렬 기준(내림차순) */
   last_grnt_at: string;
+  /** 전체 수여 건수(같은 30일 창 기준) — grants는 상위 10건만 실린다(§RPC 주석) */
+  grant_cnt: number;
   grants: RecentTitleGrantPerson[];
 };
 

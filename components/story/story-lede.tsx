@@ -244,8 +244,16 @@ type Lede = {
       desc_visibility: "always" | "others" | "held" | "never";
       /** 보여줄 얼굴(최신 획득순, 최대 TITLE_ROW_FACES명) */
       people: Person[];
-      /** 얼굴에 못 담은 인원 — `외 N` */
+      /** 얼굴에 못 담은 인원 — `외 N`. RPC가 실어주는 grant_cnt(전체 건수) 기준
+       *  (grants 배열 자체는 상위 10건뿐이라 길이로 셀 수 없다) */
       moreCount: number;
+      /**
+       * 내가 이 칭호를 보유했는가 — RPC가 실어주는 최신 10명(rn<=10) 안에 내
+       * mem_id가 있는지로 근사한다. 렌더에서 `row.people.some(...)`(slice 후
+       * 5명)으로 판정하면 근사 범위가 더 좁아지므로, slice 전 명단(`grants`
+       * 전체 — 최대 10명)을 기준으로 여기서 미리 계산해 내려보낸다.
+       */
+      heldByMe: boolean;
     }[];
     /** 30일 내 총 수여 건수 — footer 왼쪽 사실 한 줄 */
     totalGrantCnt: number;
@@ -305,6 +313,8 @@ function buildLedes(
   grants: RecentTitleRow[],
   /** 칭호 페이지 회전 오프셋(§⑦) — 한 바퀴마다 TITLE_LEDE_PAGE씩 전진 */
   titlePick: number,
+  /** 로그인 멤버 id — 칭호획득 슬롯의 isHeld 근사 판정에 쓴다(§⑦). 비로그인이면 null */
+  myMemId: string | null,
 ): Lede[] {
   const ledes: Lede[] = [];
 
@@ -681,6 +691,9 @@ function buildLedes(
   //    지면(sweep)이라 칭호별 묶음이 소식의 실제 단위다. 페이지는 랜덤이 아니라 회전
   //    (rotateTitlePage + 한 바퀴마다 +TITLE_LEDE_PAGE) — 셔플이면 운 나쁘게 같은
   //    칭호만 반복 노출된다(rotate 주석과 같은 원칙). 30일 창·뉴비 제외는 RPC가 건다.
+  //    RPC는 칭호당 grants를 최신 10건으로 잘라 보내므로(payload 상한), moreCount·
+  //    총합은 잘리지 않는 grant_cnt(전체 건수)로 계산한다 — grants.length는 10 상한에
+  //    묶여 실제 인원보다 적게 나온다.
   if (grants.length > 0) {
     const rows = rotateTitlePage(grants, titlePick).map((g) => ({
       ttl_id: g.ttl_id,
@@ -692,7 +705,10 @@ function buildLedes(
         mem_nm: p.mem_nm,
         avatar_url: p.avatar_url,
       })),
-      moreCount: Math.max(0, g.grants.length - TITLE_ROW_FACES),
+      moreCount: Math.max(0, g.grant_cnt - TITLE_ROW_FACES),
+      // slice 전(최대 10명) 명단 기준 — 렌더가 `row.people`(slice 후 5명)로 판정하면
+      // 근사 범위가 더 좁아진다(§Lede.titleRoster.rows.heldByMe 주석).
+      heldByMe: myMemId != null && g.grants.some((p) => p.mem_id === myMemId),
     }));
     ledes.push({
       // 페이지(보이는 칭호 조합)가 바뀌면 key도 바뀌어 슬롯 진입 모션이 다시 돈다 —
@@ -712,7 +728,9 @@ function buildLedes(
       figureLabel: null,
       titleRoster: {
         rows,
-        totalGrantCnt: grants.reduce((n, g) => n + g.grants.length, 0),
+        // grant_cnt 합산 — grants.length 합은 칭호당 10건 상한에 묶여 실제 총
+        // 수여 건수보다 적게 나온다(위 moreCount와 같은 이유).
+        totalGrantCnt: grants.reduce((n, g) => n + g.grant_cnt, 0),
       },
     });
   }
@@ -797,6 +815,7 @@ export function StoryLede({
     postPick,
     grants,
     titlePick,
+    myMemId,
   );
   const total = ledes.length;
 
@@ -1599,14 +1618,20 @@ export function StoryLede({
                     name={row.ttl_nm}
                     effect={null}
                     size="sm"
-                    className="shrink-0"
+                    // 배지가 아니라 얼굴·`외 N`이 남아야 한다 — 잘릴 때 사라져도 되는
+                    // 건 배지 꼬리뿐, `외 N`이 사라지면 인원 정보가 통째로 없어진다.
+                    // shrink-0 대신 min-w-0 overflow-hidden으로 배지가 양보하게 한다
+                    // (title-badge.tsx 내부는 48종 이펙트 사용처가 있어 손대지 않고
+                    // 호출부 className만으로 해결한다).
+                    className="min-w-0 overflow-hidden"
                     tooltip={{
                       desc: row.ttl_desc,
                       visibility: row.desc_visibility,
-                      // 근사 판정 — 30일 내 획득자 명단 기준. 옛 보유자는 false로
+                      // 근사 판정 — RPC가 실어주는 최신 10명(row.heldByMe, slice 전
+                      // 명단) 기준. 옛 보유자·11번째 이후 최근 보유자는 false로
                       // 떨어지지만(desc_visibility "held" 설명이 안 보이는 정도)
                       // 정확히 하려면 내 보유 칭호 전체 조회가 따로 필요해 범위 밖(스펙).
-                      isHeld: row.people.some((p) => p.mem_id === myMemId),
+                      isHeld: row.heldByMe,
                     }}
                   />
                   <div className="flex min-w-0 flex-1 items-center gap-1">
