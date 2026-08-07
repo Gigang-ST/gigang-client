@@ -13,6 +13,7 @@ import {
   sanitizeAsciiUpperCompEvtTypeInput,
 } from "@/lib/comp-evt-type";
 import { todayKST } from "@/lib/dayjs";
+import { PREFERRED_COMP_SPRT_CD, defaultCompSprtCd } from "@/lib/comp-sprt-default";
 import {
   cmmCdRowsForGrp,
   eventTypeCodesForSprtFromCmmRows,
@@ -54,7 +55,7 @@ import type { Competition, MemberStatus } from "./types";
 
 const defaultValues: CompetitionRegisterValues = {
   title: "",
-  sport: "road_run",
+  sport: PREFERRED_COMP_SPRT_CD,
   startDate: "",
   endDate: "",
   location: "",
@@ -149,7 +150,7 @@ export function CompetitionRegisterDialog({
 
   useEffect(() => {
     if (open) {
-      const defaultSport = sportOptions.find((o) => o.cd === "road_run")?.cd ?? sportOptions[0]?.cd ?? "";
+      const defaultSport = defaultCompSprtCd(sportOptions);
       reset({
         ...defaultValues,
         sport: defaultSport,

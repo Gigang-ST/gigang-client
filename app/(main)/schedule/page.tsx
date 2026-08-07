@@ -1,7 +1,9 @@
 import { Suspense } from "react";
 
+import { cookies } from "next/headers";
 
 import { dayjs, currentMonthKST, gridDateRange } from "@/lib/dayjs";
+import { WEEK_START_COOKIE, parseWeekStart } from "@/lib/week-start";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCachedHomeCalendar } from "@/lib/queries/home-calendar";
 import { getCurrentMember } from "@/lib/queries/member";
@@ -77,10 +79,16 @@ async function HomeContent() {
   const { teamId } = await getRequestTeamContext();
   const monthStart = currentMonthKST();
 
+  // 시작 요일은 **쿠키에서 서버가 읽는다** — 그래야 첫 렌더부터 맞는 그리드가 나온다.
+  // 이 컴포넌트는 이미 getCurrentMember()가 쿠키를 읽어 동적 렌더고 Suspense 안이라,
+  // 쿠키를 하나 더 읽는 데 드는 추가 비용이 없다(§lib/week-start).
+  const weekStart = parseWeekStart((await cookies()).get(WEEK_START_COOKIE)?.value);
+
   const [yearStr, monthStr] = monthStart.split("-");
   const year = parseInt(yearStr, 10);
   const month = parseInt(monthStr, 10);
-  const { end: gridEnd } = gridDateRange(year, month);
+  // 표시 범위는 **이 회원의** 시작 요일 기준(조회 범위는 합집합이라 더 넓다).
+  const { end: gridEnd } = gridDateRange(year, month, weekStart);
 
   // 캐시된 공개 데이터 조회 — DB 쿼리 0개 (캐시 히트 시)
   const [{ comps: calendarComps, schPosts: schPostRows, gatherings: gthrRows }, cmmCdRows] =
@@ -178,6 +186,7 @@ async function HomeContent() {
             cmmCdRows={cmmCdRows}
             initialMemberStatus={initialMemberStatus}
             initialRegistrationsByCompetitionId={{}}
+            weekStart={weekStart}
           />
         </Suspense>
       </div>

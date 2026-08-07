@@ -6,6 +6,7 @@ import { Calendar, ChevronRight, MapPin, Plus, Trophy } from "lucide-react";
 
 import { sanitizeAsciiUpperCompEvtTypeInput } from "@/lib/comp-evt-type";
 import { dayjs, todayKST } from "@/lib/dayjs";
+import { defaultCompSprtCd } from "@/lib/comp-sprt-default";
 import {
   cmmCdRowsForGrp,
   eventTypeCodesForSprtFromCmmRows,
@@ -66,7 +67,7 @@ export function CompetitionPickerDialog({
 
   // 대회 추가 폼 상태
   const sportSelectOptions = useMemo(() => cmmCdRowsForGrp(cmmCdRows, "COMP_SPRT_CD"), [cmmCdRows]);
-  const defaultSportCd = sportSelectOptions[0]?.cd ?? "road_run";
+  const defaultSportCd = defaultCompSprtCd(sportSelectOptions);
   const [form, setForm] = useState({
     title: "",
     sport: defaultSportCd,

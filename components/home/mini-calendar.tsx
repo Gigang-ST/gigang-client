@@ -17,6 +17,7 @@ import {
   formatKST,
   gridDateRange,
 } from "@/lib/dayjs";
+import { columnWeekday, weekdayColumn, weekdayLabels, type WeekStart } from "@/lib/week-start";
 import { clearDeepLinkParams } from "@/lib/notifications/deep-link";
 import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
@@ -151,9 +152,13 @@ type MiniCalendarProps = {
   cmmCdRows: CachedCmmCdRow[];
   initialMemberStatus: MemberStatus;
   initialRegistrationsByCompetitionId: Record<string, CompetitionRegistration>;
+  /**
+   * 주 시작 요일 — 서버가 쿠키에서 읽어 넘긴다(§lib/week-start).
+   * 클라이언트에서 직접 읽지 않는다: 마운트 후에야 알게 되면 일요일로 그렸다가
+   * 모든 날짜가 한 칸 밀리는 재배치가 보인다.
+   */
+  weekStart: WeekStart;
 };
-
-const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"] as const;
 
 import { type FilterType, FILTER_TYPES, matchesFilter } from "./schedule-filter";
 
@@ -180,7 +185,9 @@ export function MiniCalendar({
   cmmCdRows,
   initialMemberStatus,
   initialRegistrationsByCompetitionId,
+  weekStart,
 }: MiniCalendarProps) {
+  const weekdays = useMemo(() => weekdayLabels(weekStart), [weekStart]);
   const supabase = useMemo(() => createClient(), []);
   const initialMonth = currentMonthKST();
   const [viewMonth, setViewMonth] = useState(initialMonth);
@@ -526,7 +533,11 @@ export function MiniCalendar({
   const month = parseInt(monthStr, 10);
 
   const totalDays = daysInMonth(year, month);
-  const firstDayOfWeek = dayjs.tz(`${year}-${String(month).padStart(2, "0")}-01`, "Asia/Seoul").day();
+  // 1일이 그리드 첫 줄의 몇 번째 칸인지 — 시작 요일이 걸리므로 weekdayColumn을 통과시킨다.
+  const firstDayOfWeek = weekdayColumn(
+    dayjs.tz(`${year}-${String(month).padStart(2, "0")}-01`, "Asia/Seoul").day(),
+    weekStart,
+  );
 
   const allRaces = useMemo(() => [...myRaces, ...schPosts, ...gigangRaces, ...gatherings], [myRaces, schPosts, gigangRaces, gatherings]);
 
@@ -560,7 +571,7 @@ export function MiniCalendar({
   // 주차별로 날짜 그룹핑 — 앞뒤 빈칸을 이전/다음 달 날짜로 채워 6주 그리드를 메운다.
   // inMonth=false 셀은 흐리게 표시하고, 클릭 시 해당 달로 전환한다.
   const weeks = useMemo(() => {
-    // 그리드 첫 셀 = 이번 달 1일이 속한 주의 일요일
+    // 그리드 첫 셀 = 이번 달 1일이 속한 주의 시작 요일(기본 일요일, 설정에 따라 월요일)
     const firstCell = dayjs
       .tz(`${year}-${String(month).padStart(2, "0")}-01`, "Asia/Seoul")
       .subtract(firstDayOfWeek, "day");
@@ -795,7 +806,8 @@ export function MiniCalendar({
     const m = parseInt(mStr, 10);
     // 그리드에 실제 그려지는 범위(이전 달 며칠 ~ 다음 달 며칠)로 조회해 앞뒤 달 일정도 함께 표시한다.
     // fetchStart는 start보다 1주 앞 — 그리드 시작 직전에 시작해 그리드 안으로 이어지는 일정 누락 방지.
-    const { start: gridStart, end: gridEnd, fetchStart } = gridDateRange(y, m);
+    // 팀 공용 캐시가 아니라 이 회원의 직접 조회라, 합집합이 아닌 자기 시작 요일 범위를 쓴다.
+    const { start: gridStart, end: gridEnd, fetchStart } = gridDateRange(y, m, weekStart);
 
     const [
       { data: teamComps },
@@ -953,7 +965,7 @@ export function MiniCalendar({
       const [yStr, mStr] = initialMonth.split("-");
       const y = parseInt(yStr, 10);
       const m = parseInt(mStr, 10);
-      const { start: gridStart, end: gridEnd, fetchStart } = gridDateRange(y, m);
+      const { start: gridStart, end: gridEnd, fetchStart } = gridDateRange(y, m, weekStart);
 
       const [{ data: myRegs }, { data: gthrWithAttd }] = await Promise.all([
         // 내 대회 등록 — 등록 상세 필드 포함 (CompetitionDetailDialog에서 수정/취소에 필요)
@@ -1245,7 +1257,7 @@ export function MiniCalendar({
           >
             {/* 요일 헤더 */}
             <div className="grid grid-cols-7 text-center">
-              {WEEKDAYS.map((wd) => (
+              {weekdays.map((wd) => (
                 <Micro
                   key={wd}
                   className={cn(
@@ -1298,6 +1310,10 @@ export function MiniCalendar({
                         const isToday = dateStr === today;
                         const outMonth = !cell.inMonth;
                         const overflowCount = Math.max(0, (eventsByDate.get(dateStr)?.length ?? 0) - 3);
+                        // 주말 색은 **열 위치가 아니라 실제 요일**로 정한다. 월요일 시작이면
+                        // 0열이 월요일이라, colIdx로 칠하면 월요일이 빨개진다(헤더의 `일`/`토`
+                        // 라벨 판정과 같은 기준을 쓰려면 요일로 되돌려야 한다).
+                        const dow = columnWeekday(colIdx, weekStart);
                         return (
                           <div
                             key={`d-${dateStr}`}
@@ -1310,9 +1326,9 @@ export function MiniCalendar({
                                   isToday && "bg-primary text-primary-foreground font-bold",
                                   // 다른 달: 평일/주말 색을 흐리게 통일
                                   !isToday && outMonth && "text-muted-foreground/40",
-                                  !isToday && !outMonth && colIdx === 0 && "text-destructive",
-                                  !isToday && !outMonth && colIdx === 6 && "text-primary",
-                                  !isToday && !outMonth && colIdx !== 0 && colIdx !== 6 && "text-foreground",
+                                  !isToday && !outMonth && dow === 0 && "text-destructive",
+                                  !isToday && !outMonth && dow === 6 && "text-primary",
+                                  !isToday && !outMonth && dow !== 0 && dow !== 6 && "text-foreground",
                                 )}
                               >
                                 {cell.day}
