@@ -149,6 +149,9 @@ dev MCP로 `database.types.ts`를 재생성하면 기존 테이블 블록이 dif
 - **안 거는 곳**: 칭호 관리·수여 이력·관리자 멤버 상세(내린 칭호를 봐야 토글·회수를 한다), 그리고 엔진의 조건 평가용 메타 조회(`lib/titles/snapshot.ts` — 표시가 아니다).
 - **`!left` 아래 중첩된 임베드에는 `.eq("...ttl_mst.use_yn", true)`를 쓰지 말 것.** PostgREST가 부모 조인을 좁혀 *칭호 없는 멤버의 행 자체*를 떨군다(마일리지런 후기가 통째로 사라진다). 그 경우 `use_yn`을 select해서 JS로 거른다.
 
+### "렌더 안 되면 비용 0"은 런타임에만 참이다 — 플래그·삼항으로는 번들에서 안 빠진다
+`SHOW_MESSAGE_PLANES = false` 같은 토글은 **렌더 트리에서만** 존을 걷어낸다. `import`가 파일 상단에 정적으로 남아 있으면 JS는 그대로 전송된다(실측: 중단된 종이비행기·목표 한마디 존 8.3KB가 홈 초기 번들에 남아 있었다 — `story-client.tsx` 주석은 반대로 적고 있다). 같은 함정이 `app/(main)/page.tsx`의 홈 스위치에도 있다: `HOME_PAGE === "story" ? StoryPage : SchedulePage`는 **런타임 값**이라 번들러가 가지치기를 못 해, 홈에서 렌더되지도 않는 `mini-calendar.tsx` 29.9KB가 딸려 온다. **번들에서 빼려면 `dynamic()`이거나 빌드타임에 접히는 형태여야 한다.** 반대로 "안 여는 다이얼로그"는 정적 import만으로 zod 108KB + react-hook-form 26KB를 초기 번들에 올린다(`record-flex-create-dialog`). 선례 패턴은 `components/members/member-card-dialog-dynamic.tsx`. 실측·개선안 전문은 [`perf/home-tab-optimization.md`](perf/home-tab-optimization.md). (2026-08-07 홈탭 최적화 조사)
+
 ## 재사용 패턴
 
 ### 상세 다이얼로그 오픈 = "인스턴트 오픈 + 백필 + 댓글 자체조회" (전 경로 공통 원칙)
