@@ -29,6 +29,7 @@ import type { GhostMember } from "@/lib/queries/ghost-members";
 import type { StoryFeed, StoryReactionCounts } from "@/lib/queries/story-feed";
 import type { StoryMessage } from "@/lib/queries/story-messages";
 import type { StoryPost } from "@/lib/queries/story-posts";
+import type { RecentTitleRow } from "@/lib/story-title";
 import type { TeamOverview } from "@/lib/queries/team-overview";
 
 /**
@@ -55,6 +56,8 @@ export function StoryClient({
   overview,
   ghosts,
   posts,
+  grants,
+  initialTitlePick,
   initialPostPick,
   initialNewbiePick,
   initialPledgePick,
@@ -75,6 +78,9 @@ export function StoryClient({
   ghosts: GhostMember[];
   /** 기록 자랑 — 팻말존에 쓴다. 피드와 캐시 태그가 갈려 있어 별도 prop이다 */
   posts: StoryPost[];
+  /** 칭호획득 — 리드 칭호 슬롯에 쓴다. 피드와 캐시 태그가 갈려 있어 별도 prop이다 */
+  grants: RecentTitleRow[];
+  initialTitlePick: number;
   /** 리드 각 랜덤 슬롯의 진입 인덱스 — 서버가 매 요청 뽑아 넘긴다(깜빡임·하이드레이션 안전).
    *  새 얼굴·각오·기록·활동지수·운동기록이 첫 화면부터 랜덤이고, 한 바퀴마다 클라가 재추첨한다. */
   initialPostPick: number;
@@ -115,6 +121,7 @@ export function StoryClient({
     feed.races.length > 0 ||
     feed.actv_rank.length > 0 ||
     posts.length > 0 ||
+    grants.length > 0 ||
     ghosts.length > 0;
 
   return (
@@ -143,6 +150,8 @@ export function StoryClient({
           feed={feed}
           reactions={reactions}
           posts={posts}
+          grants={grants}
+          initialTitlePick={initialTitlePick}
           initialNewbiePick={initialNewbiePick}
           initialPledgePick={initialPledgePick}
           initialRecordPick={initialRecordPick}

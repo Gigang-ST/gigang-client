@@ -38,6 +38,11 @@ import { compEvtTypeKm, compEvtTypeLabel } from "@/lib/comp-evt-type";
 import { dedupePledgesByMember } from "@/lib/story-pledge";
 import { pickActvLeadIndex, pickRandomPostIndex } from "@/lib/story-post";
 import { reactionKey } from "@/lib/story-reaction";
+import {
+  TITLE_LEDE_PAGE,
+  TITLE_ROW_FACES,
+  rotateTitlePage,
+} from "@/lib/story-title";
 import { getSportEmoji } from "@/lib/sport";
 
 import type { CSSProperties, PointerEvent } from "react";
@@ -48,6 +53,7 @@ import type {
   StoryReactionCounts,
 } from "@/lib/queries/story-feed";
 import type { StoryPost } from "@/lib/queries/story-posts";
+import type { RecentTitleRow } from "@/lib/story-title";
 
 /**
  * 목표 한마디 리드 슬롯(§⑤) 잠정 중단 토글.
@@ -224,6 +230,26 @@ type Lede = {
      */
     stats: { label: string; value: string }[];
   } | null;
+  /**
+   * 칭호획득 슬롯 전용(§⑦) — 최근 30일 새 칭호를 **칭호별 획득자 묶음**으로 나열한다
+   * (대회 roster와 같은 문법 — 종목별 묶음 ↔ 칭호별 묶음). 사람 중심 대표를 세우지
+   * 않는 이유·응원이 없는 이유는 스펙 결정 표 참조
+   * (docs/superpowers/specs/2026-08-07-칭호획득-리드슬롯-design.md).
+   */
+  titleRoster?: {
+    rows: {
+      ttl_id: string;
+      ttl_nm: string;
+      ttl_desc: string | null;
+      desc_visibility: "always" | "others" | "held" | "never";
+      /** 보여줄 얼굴(최신 획득순, 최대 TITLE_ROW_FACES명) */
+      people: Person[];
+      /** 얼굴에 못 담은 인원 — `외 N` */
+      moreCount: number;
+    }[];
+    /** 30일 내 총 수여 건수 — footer 왼쪽 사실 한 줄 */
+    totalGrantCnt: number;
+  } | null;
 };
 
 
@@ -275,6 +301,10 @@ function buildLedes(
   actvPick: number,
   /** 기록자랑 칸에 실을 인덱스(§⑥) */
   postPick: number,
+  /** 칭호획득 — 최근 30일 수여를 칭호별 묶음으로(§⑦) */
+  grants: RecentTitleRow[],
+  /** 칭호 페이지 회전 오프셋(§⑦) — 한 바퀴마다 TITLE_LEDE_PAGE씩 전진 */
+  titlePick: number,
 ): Lede[] {
   const ledes: Lede[] = [];
 
@@ -646,10 +676,51 @@ function buildLedes(
     });
   }
 
+  // ⑦ 칭호획득 — 최근 30일 새 칭호를 **칭호별 묶음**으로 나열한다(대회 roster 문법).
+  //    사람 대표를 세우지 않고 명단이 주인공이다 — 같은 칭호를 여러 명이 동시에 따는
+  //    지면(sweep)이라 칭호별 묶음이 소식의 실제 단위다. 페이지는 랜덤이 아니라 회전
+  //    (rotateTitlePage + 한 바퀴마다 +TITLE_LEDE_PAGE) — 셔플이면 운 나쁘게 같은
+  //    칭호만 반복 노출된다(rotate 주석과 같은 원칙). 30일 창·뉴비 제외는 RPC가 건다.
+  if (grants.length > 0) {
+    const rows = rotateTitlePage(grants, titlePick).map((g) => ({
+      ttl_id: g.ttl_id,
+      ttl_nm: g.ttl_nm,
+      ttl_desc: g.ttl_desc,
+      desc_visibility: g.desc_visibility,
+      people: g.grants.slice(0, TITLE_ROW_FACES).map((p) => ({
+        mem_id: p.mem_id,
+        mem_nm: p.mem_nm,
+        avatar_url: p.avatar_url,
+      })),
+      moreCount: Math.max(0, g.grants.length - TITLE_ROW_FACES),
+    }));
+    ledes.push({
+      // 페이지(보이는 칭호 조합)가 바뀌면 key도 바뀌어 슬롯 진입 모션이 다시 돈다 —
+      // 다른 슬롯이 대표 entity_id로 key를 바꾸는 것과 같은 동작.
+      key: `title-${rows.map((r) => r.ttl_id).join("-")}`,
+      kicker: "기강에 새 역사를 쓰다",
+      hero: "headline",
+      // 응원 없음 — 여러 칭호 × 여러 사람이라 대상이 성립하지 않는다(스펙 결정 표).
+      // 대회 응원의 교훈(여럿이 나눠 갖는 카운터는 개인 지표로 성립 안 함)과 같은 구조.
+      entity: null,
+      people: [],
+      moreCount: 0,
+      // T = 30일 내 전체 칭호 종류 수 — 화면에 뽑힌 3개가 아니라서 회전해도 안 변한다.
+      headline: `최근 30일, 새 칭호 ${grants.length}개 풀리다`,
+      standfirst: "",
+      figure: null,
+      figureLabel: null,
+      titleRoster: {
+        rows,
+        totalGrantCnt: grants.reduce((n, g) => n + g.grants.length, 0),
+      },
+    });
+  }
+
   // 스와이프 순서 — 지면 위계를 여기서 한 곳에 고정한다. 위 push 순서(존별 생성 편의)와
   // 분리해 두면, 순서를 바꿀 때 블록을 옮기지 않고 이 표만 고치면 된다. 목록에 없는 존이
   // 생기면(접두어 매칭 실패) 맨 뒤로 보낸다(ORDER에 없으면 큰 값).
-  const ORDER = ["post", "actv", "newbie", "pledge", "race", "record"];
+  const ORDER = ["post", "actv", "newbie", "pledge", "race", "record", "title"];
   const rank = (key: string) => {
     const i = ORDER.findIndex((p) => key.startsWith(`${p}-`));
     return i === -1 ? ORDER.length : i;
@@ -672,6 +743,8 @@ export function StoryLede({
   feed,
   reactions,
   posts,
+  grants,
+  initialTitlePick,
   initialNewbiePick,
   initialPledgePick,
   initialRecordPick,
@@ -687,6 +760,9 @@ export function StoryLede({
   reactions: StoryReactionCounts;
   /** 기록 자랑 — 기록자랑 칸에 랜덤 1건 */
   posts: StoryPost[];
+  /** 칭호획득 — 칭호별 묶음(§⑦). 피드와 캐시 태그가 갈려 있어 별도 prop이다 */
+  grants: RecentTitleRow[];
+  initialTitlePick: number;
   /** 리드 각 랜덤 슬롯의 진입 인덱스 — 서버가 매 요청 뽑아 넘긴다(§story/page.tsx).
    *  첫 화면부터 랜덤이고 하이드레이션이 안전하다(렌더 중 Math.random 금지). */
   initialNewbiePick: number;
@@ -709,6 +785,7 @@ export function StoryLede({
   const [recordPick, setRecordPick] = useState(initialRecordPick);
   const [actvPick, setActvPick] = useState(initialActvPick);
   const [postPick, setPostPick] = useState(initialPostPick);
+  const [titlePick, setTitlePick] = useState(initialTitlePick);
   const ledes = buildLedes(
     feed,
     reactions,
@@ -718,6 +795,8 @@ export function StoryLede({
     recordPick,
     actvPick,
     postPick,
+    grants,
+    titlePick,
   );
   const total = ledes.length;
 
@@ -835,6 +914,9 @@ export function StoryLede({
     setRecordPick((n) => n + 1 + Math.floor(Math.random() * 3));
     setActvPick(() => pickActvLeadIndex(feed.actv_rank.length));
     setPostPick(() => pickRandomPostIndex(posts.length));
+    // 칭호는 랜덤 재추첨이 아니라 **페이지 전진**이다 — 3줄씩 넘겨 모든 칭호가
+    // 빠짐없이 오르게 한다(§lib/story-title.ts rotateTitlePage).
+    setTitlePick((n) => n + TITLE_LEDE_PAGE);
   }, [feed.actv_rank.length, posts.length]);
 
   /**
@@ -996,6 +1078,11 @@ export function StoryLede({
   ) : lede.photo ? (
     <span className="truncate font-numeric text-[12px] text-muted-foreground tabular-nums">
       {lede.standfirst}
+    </span>
+  ) : lede.titleRoster ? (
+    // 칭호획득 — 총 수여 건수. 기간("최근 30일")은 헤드라인이 이미 말하므로 다시 안 쓴다.
+    <span className="truncate text-[12px] text-muted-foreground">
+      획득 {lede.titleRoster.totalGrantCnt}건
     </span>
   ) : null;
   // 활동지수 슬롯은 footer 왼쪽이 빈다 — 실을 한 줄 사실이 없다(PB는 슬롯에서 뺐다).
@@ -1499,6 +1586,54 @@ export function StoryLede({
                   ))}
                 </div>
               )}
+            </div>
+          ) : lede.titleRoster ? (
+            /* 칭호획득(§⑦) — 칭호 배지 + 획득자 얼굴 나열, 한 칭호 한 줄(대회 roster 문법).
+               배지는 effect null(기본 스타일) — 이펙트는 칭호가 아니라 사람의 소유라
+               (team_mem_rel.selected_badge_effect) 공유 칭호 나열에선 성립하지 않는다.
+               배지 탭 → 설명 툴팁, 얼굴 탭 → 프로필 카드. `외 N`은 눌리지 않는 숫자다. */
+            <div className="flex flex-col gap-2.5">
+              {lede.titleRoster.rows.map((row) => (
+                <div key={row.ttl_id} className="flex min-w-0 items-center gap-2.5">
+                  <TitleBadge
+                    name={row.ttl_nm}
+                    effect={null}
+                    size="sm"
+                    className="shrink-0"
+                    tooltip={{
+                      desc: row.ttl_desc,
+                      visibility: row.desc_visibility,
+                      // 근사 판정 — 30일 내 획득자 명단 기준. 옛 보유자는 false로
+                      // 떨어지지만(desc_visibility "held" 설명이 안 보이는 정도)
+                      // 정확히 하려면 내 보유 칭호 전체 조회가 따로 필요해 범위 밖(스펙).
+                      isHeld: row.people.some((p) => p.mem_id === myMemId),
+                    }}
+                  />
+                  <div className="flex min-w-0 flex-1 items-center gap-1">
+                    {row.people.map((p) => (
+                      <button
+                        key={p.mem_id}
+                        type="button"
+                        onClick={() => onSelectMember(p.mem_id, p.mem_nm)}
+                        aria-label={`${p.mem_nm} 프로필 보기`}
+                        className="shrink-0 rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
+                      >
+                        <Avatar
+                          src={p.avatar_url}
+                          seed={p.mem_id}
+                          alt={p.mem_nm}
+                          size="xs"
+                        />
+                      </button>
+                    ))}
+                    {row.moreCount > 0 && (
+                      <span className="shrink-0 pl-0.5 text-[11px] text-muted-foreground">
+                        외 {row.moreCount}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             lede.standfirst && (
