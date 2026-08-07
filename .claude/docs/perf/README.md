@@ -7,6 +7,7 @@
 | 영역 | 문서 | 내용 |
 |------|------|------|
 | 프론트엔드 | [lighthouse/](lighthouse/README.md) | Lighthouse 성능 측정·개선 이력 (v1~v3, TBT/LCP/SI 등) |
+| 프론트엔드 | [home-tab-optimization.md](home-tab-optimization.md) | 홈탭(전광판) 번들·이미지·서버 워터폴 실측과 개선안 (2026-08-07, 미적용) |
 | 백엔드(DB) | [db-lock-management.md](db-lock-management.md) | DB 락 이론 + 대용량 실무 패턴 + 우리 적용(타임아웃·마이그레이션 규약) |
 
 ## 관련
