@@ -464,7 +464,15 @@ export type Database = {
           upd_at?: string
           vers?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_comp_mst__crt_by"
+            columns: ["crt_by"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
       }
       comp_reg_rel: {
         Row: {
@@ -2954,10 +2962,9 @@ export type Database = {
           url: string
         }[]
       }
-      get_team_ghost_members: {
-        Args: { p_seed?: string; p_team_id: string }
-        Returns: Json
-      }
+      get_team_ghost_members:
+        | { Args: { p_team_id: string }; Returns: Json }
+        | { Args: { p_seed?: string; p_team_id: string }; Returns: Json }
       get_team_messages: {
         Args: { p_limit?: number; p_team_id: string }
         Returns: Json
@@ -2968,7 +2975,16 @@ export type Database = {
         Returns: Json
       }
       get_team_posts: {
-        Args: { p_limit?: number; p_team_id: string }
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_post_id?: string
+          p_team_id: string
+        }
+        Returns: Json
+      }
+      get_team_recent_title_grants: {
+        Args: { p_days?: number; p_team_id: string }
         Returns: Json
       }
       get_team_story_feed: {
@@ -3010,6 +3026,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      pt_earn_post_record: {
+        Args: {
+          p_aply_dt: string
+          p_mem_id: string
+          p_post_id: string
+          p_rsn_txt: string
+          p_team_id: string
+        }
+        Returns: undefined
+      }
       pt_gthr_actv_type: {
         Args: { p_gthr_type_enm: string }
         Returns: Database["public"]["Enums"]["pt_actv_type_enm"]
@@ -3024,6 +3050,23 @@ export type Database = {
         Returns: number
       }
       pt_net_mlg_record: {
+        Args: { p_aply_dt: string; p_mem_id: string }
+        Returns: number
+      }
+      pt_net_post_record: { Args: { p_post_id: string }; Returns: number }
+      pt_post_record_amt: {
+        Args: { p_src: Database["public"]["Enums"]["post_src_enm"] }
+        Returns: number
+      }
+      pt_post_record_amt_for: {
+        Args: {
+          p_aply_dt: string
+          p_mem_id: string
+          p_src: Database["public"]["Enums"]["post_src_enm"]
+        }
+        Returns: number
+      }
+      pt_post_record_mlg_auto_cnt: {
         Args: { p_aply_dt: string; p_mem_id: string }
         Returns: number
       }
@@ -3043,6 +3086,16 @@ export type Database = {
         Args: {
           p_aply_dt: string
           p_mem_id: string
+          p_rsn_txt: string
+          p_team_id: string
+        }
+        Returns: undefined
+      }
+      pt_revoke_post_record: {
+        Args: {
+          p_aply_dt: string
+          p_mem_id: string
+          p_post_id: string
           p_rsn_txt: string
           p_team_id: string
         }

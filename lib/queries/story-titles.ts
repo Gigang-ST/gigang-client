@@ -18,11 +18,9 @@ export function getRecentTitleGrants(teamId: string): Promise<RecentTitleRow[]> 
   return unstable_cache(
     async () => {
       const supabase = createAdminClient();
-      // 생성 타입(database.types.ts)에 아직 없는 함수라 이름을 캐스트로 넘긴다.
-      // 마이그레이션을 dev에 적용하고 `pnpm run db:types`를 돌리면 캐스트를 지울 수 있다.
       const { data, error } = await supabase.rpc(
-        "get_team_recent_title_grants" as never,
-        { p_team_id: teamId } as never,
+        "get_team_recent_title_grants",
+        { p_team_id: teamId },
       );
 
       if (error) {
