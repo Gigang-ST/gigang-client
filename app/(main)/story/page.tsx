@@ -15,7 +15,7 @@ import {
   pickGhostSeed,
   pickRandomPostIndex,
 } from "@/lib/story-post";
-import { pickTitleLedeStart } from "@/lib/story-title";
+import { buildTitleLeadPool, pickTitleLedeStart } from "@/lib/story-title";
 import { getTeamOverview } from "@/lib/queries/team-overview";
 import { getRecentTitleGrants } from "@/lib/queries/story-titles";
 
@@ -72,10 +72,10 @@ async function StoryFeedSection() {
   const initialPledgePick = 0;
   const initialRecordPick = pickRandomPostIndex(feed.records.length);
   const initialActvPick = pickActvLeadIndex(feed.actv_rank.length);
-  // 칭호획득 슬롯의 회전 시작 오프셋 — 방문마다 다른 페이지에서 시작한다(첫 화면 다양성).
-  // 이후 전진은 클라가 한 바퀴 완주마다 페이지 단위(+3)로 민다 — 랜덤이 아니라 회전이라
-  // 모든 칭호가 빠짐없이 오른다(§lib/story-title.ts).
-  const initialTitlePick = pickTitleLedeStart(grants.length);
+  // 칭호획득 슬롯의 대표 회전 시작 오프셋 — 방문마다 다른 사람에서 시작한다(첫 화면 다양성).
+  // 기준은 칭호 수가 아니라 **사람 pool 길이**(사람별 최신 1건 dedupe — §lib/story-title.ts).
+  // 이후 전진은 클라가 한 바퀴 완주마다 +1 — 랜덤이 아니라 회전이라 전원이 빠짐없이 오른다.
+  const initialTitlePick = pickTitleLedeStart(buildTitleLeadPool(grants).length);
 
   return (
     <StoryClient
