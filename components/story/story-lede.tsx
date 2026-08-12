@@ -305,7 +305,7 @@ function buildLedes(
   postPick: number,
   /** 칭호획득 — 최근 30일 수여를 칭호별 묶음으로(§⑦) */
   grants: RecentTitleRow[],
-  /** 칭호 페이지 회전 오프셋(§⑦) — 한 바퀴마다 TITLE_LEDE_PAGE씩 전진 */
+  /** 칭호획득 대표 회전 오프셋(§⑦) — 한 바퀴마다 +1 전진(lib/story-title.ts의 pickTitleLead) */
   titlePick: number,
   /** 로그인 멤버 id — 칭호획득 슬롯의 isHeld 근사 판정에 쓴다(§⑦). 비로그인이면 null */
   myMemId: string | null,
@@ -1699,8 +1699,9 @@ export function StoryLede({
         {/* ── 밴드 3 · footer — 바닥 고정 ─────────────────────────
             왼쪽은 이 슬롯의 **한 줄 사실**(D-day·완주시간·날짜·거리·가입목적),
             오른쪽은 **응원**. 슬롯이 바뀌어도 응원 버튼은 같은 자리에 남는다.
-            다섯 슬롯 모두 응원을 받는다(운동기록은 글이 아니라 **올린 사람** 기준 —
-            `entity_type = "actv"` + mem_id로 활동지수·목표 슬롯과 카운터를 공유한다). */}
+            모든 슬롯이 응원을 받는다(운동기록은 글이 아니라 **올린 사람** 기준 —
+            `entity_type = "actv"` + mem_id로 활동지수·목표 슬롯과 카운터를 공유한다.
+            칭호획득도 같다 — 대상은 칭호가 아니라 그 칭호를 새로 단 대표 멤버). */}
         <div className="flex shrink-0 items-center justify-between gap-3">
           <div className="min-w-0 flex-1">{footNote}</div>
           {lede.entity && (
