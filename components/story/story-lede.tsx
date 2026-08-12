@@ -1739,7 +1739,13 @@ export function StoryLede({
                           alt={p.mem_nm}
                           size="xs"
                         />
-                        <span className="max-w-full truncate text-[12px] leading-none text-foreground">
+                        {/* 이름은 **자르지 않는다.** 칸이 좁으면 옆 이름과 겹치게 두는
+                            쪽이 낫다 — 여기서 알아야 할 건 "누가 받았나"인데 `…`로
+                            잘리면 그걸 못 읽는다(가려서 얻는 게 없다).
+                            `whitespace-nowrap`은 남긴다: 두 줄로 접히면 칩 높이가
+                            달라져 한 줄 배치가 무너진다. 넘친 글자는 폭을 늘리지 않고
+                            (부모가 min-w-0) 시각적으로만 이웃 위로 흐른다. */}
+                        <span className="whitespace-nowrap text-[12px] leading-none text-foreground">
                           {p.mem_nm}
                         </span>
                       </button>
