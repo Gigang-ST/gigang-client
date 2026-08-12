@@ -22,7 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { Avatar } from "@/components/common/avatar";
-import { TitleBadge } from "@/components/common/title-badge";
+import { resolveDescVisible, TitleBadge } from "@/components/common/title-badge";
 import { PurposeChip } from "@/components/members/profile-chip";
 import {
   PersonIntro,
@@ -38,11 +38,7 @@ import { compEvtTypeKm, compEvtTypeLabel } from "@/lib/comp-evt-type";
 import { dedupePledgesByMember } from "@/lib/story-pledge";
 import { pickActvLeadIndex, pickRandomPostIndex } from "@/lib/story-post";
 import { reactionKey } from "@/lib/story-reaction";
-import {
-  TITLE_LEDE_PAGE,
-  TITLE_ROW_FACES,
-  rotateTitlePage,
-} from "@/lib/story-title";
+import { buildTitleLeadPool, pickTitleLead } from "@/lib/story-title";
 import { getSportEmoji } from "@/lib/sport";
 
 import type { CSSProperties, PointerEvent } from "react";
@@ -54,6 +50,7 @@ import type {
 } from "@/lib/queries/story-feed";
 import type { StoryPost } from "@/lib/queries/story-posts";
 import type { RecentTitleRow } from "@/lib/story-title";
+import type { TitleDescVisibility } from "@/components/common/title-badge";
 
 /**
  * 목표 한마디 리드 슬롯(§⑤) 잠정 중단 토글.
@@ -231,30 +228,27 @@ type Lede = {
     stats: { label: string; value: string }[];
   } | null;
   /**
-   * 칭호획득 슬롯 전용(§⑦) — 최근 30일 새 칭호를 **칭호별 획득자 묶음**으로 나열한다
-   * (대회 roster와 같은 문법 — 종목별 묶음 ↔ 칭호별 묶음). 사람 중심 대표를 세우지
-   * 않는 이유·응원이 없는 이유는 스펙 결정 표 참조
-   * (docs/superpowers/specs/2026-08-07-칭호획득-리드슬롯-design.md).
+   * 칭호획득 슬롯 전용(§⑦ v2) — 최근 30일 획득자 중 **사람 대표 1명**(한 바퀴마다 +1 회전)
+   * + 나머지 획득자 얼굴+이름 칩 명단. v1(칭호별 묶음 나열)은 실데이터에서 칭호당 1~2명이
+   * 대부분이라 줄 오른쪽이 텅 비고, 아바타뿐이라 익명이었다
+   * (docs/superpowers/specs/2026-08-12-칭호획득-슬롯-사람대표-design.md).
    */
-  titleRoster?: {
-    rows: {
-      ttl_id: string;
+  titleLead?: {
+    lead: {
+      person: Person;
+      /** 대표가 새로 딴 칭호 — 배지는 effect null(이펙트는 사람 소유, v1 결정 유지) */
       ttl_nm: string;
-      ttl_desc: string | null;
-      desc_visibility: "always" | "others" | "held" | "never";
-      /** 보여줄 얼굴(최신 획득순, 최대 TITLE_ROW_FACES명) */
-      people: Person[];
-      /** 얼굴에 못 담은 인원 — `외 N`. RPC가 실어주는 grant_cnt(전체 건수) 기준
-       *  (grants 배열 자체는 상위 10건뿐이라 길이로 셀 수 없다) */
-      moreCount: number;
-      /**
-       * 내가 이 칭호를 보유했는가 — RPC가 실어주는 최신 10명(rn<=10) 안에 내
-       * mem_id가 있는지로 근사한다. 렌더에서 `row.people.some(...)`(slice 후
-       * 5명)으로 판정하면 근사 범위가 더 좁아지므로, slice 전 명단(`grants`
-       * 전체 — 최대 10명)을 기준으로 여기서 미리 계산해 내려보낸다.
-       */
-      heldByMe: boolean;
-    }[];
+      /** 설명 줄 — visibility 게이트를 통과했을 때만 채워 온다(아니면 null → 줄 생략) */
+      desc: string | null;
+      /** 배지 탭 툴팁용 원본 — 설명 줄과 별개로 TitleBadge에 그대로 넘긴다(v1 유지) */
+      tooltip: {
+        desc: string | null;
+        visibility: TitleDescVisibility;
+        isHeld: boolean;
+      };
+    };
+    /** 대표를 뺀 나머지 획득자 — 최신순 고정(사람 dedupe 후). 탭 → 프로필 카드 */
+    others: Person[];
     /** 30일 내 총 수여 건수 — footer 왼쪽 사실 한 줄 */
     totalGrantCnt: number;
   } | null;
@@ -686,50 +680,59 @@ function buildLedes(
     });
   }
 
-  // ⑦ 칭호획득 — 최근 30일 새 칭호를 **칭호별 묶음**으로 나열한다(대회 roster 문법).
-  //    사람 대표를 세우지 않고 명단이 주인공이다 — 같은 칭호를 여러 명이 동시에 따는
-  //    지면(sweep)이라 칭호별 묶음이 소식의 실제 단위다. 페이지는 랜덤이 아니라 회전
-  //    (rotateTitlePage + 한 바퀴마다 +TITLE_LEDE_PAGE) — 셔플이면 운 나쁘게 같은
-  //    칭호만 반복 노출된다(rotate 주석과 같은 원칙). 30일 창·뉴비 제외는 RPC가 건다.
-  //    RPC는 칭호당 grants를 최신 10건으로 잘라 보내므로(payload 상한), moreCount·
-  //    총합은 잘리지 않는 grant_cnt(전체 건수)로 계산한다 — grants.length는 10 상한에
-  //    묶여 실제 인원보다 적게 나온다.
-  if (grants.length > 0) {
-    const rows = rotateTitlePage(grants, titlePick).map((g) => ({
-      ttl_id: g.ttl_id,
-      ttl_nm: g.ttl_nm,
-      ttl_desc: g.ttl_desc,
-      desc_visibility: g.desc_visibility,
-      people: g.grants.slice(0, TITLE_ROW_FACES).map((p) => ({
-        mem_id: p.mem_id,
-        mem_nm: p.mem_nm,
-        avatar_url: p.avatar_url,
-      })),
-      moreCount: Math.max(0, g.grant_cnt - TITLE_ROW_FACES),
-      // slice 전(최대 10명) 명단 기준 — 렌더가 `row.people`(slice 후 5명)로 판정하면
-      // 근사 범위가 더 좁아진다(§Lede.titleRoster.rows.heldByMe 주석).
-      heldByMe: myMemId != null && g.grants.some((p) => p.mem_id === myMemId),
-    }));
+  // ⑦ 칭호획득(v2) — 최근 30일 획득자 중 **사람 대표 1명** + 나머지 얼굴+이름 명단.
+  //    v1(칭호별 묶음 나열)은 실데이터에서 칭호당 1~2명이 대부분이라 지면이 휑하고
+  //    익명이었다(스펙 v2 §배경). 대표는 한 바퀴마다 +1 회전(rotate 원칙 — 전원이
+  //    돌아가며 대표가 된다), 명단은 최신순 고정. 30일 창·뉴비 제외는 RPC가 걸고,
+  //    사람 dedupe(사람별 최신 수여 1건)는 buildTitleLeadPool이 한다.
+  const titlePicked = pickTitleLead(buildTitleLeadPool(grants), titlePick);
+  if (titlePicked) {
+    const { lead, others } = titlePicked;
+    // 내가 이 칭호를 보유했는가 — RPC가 실어주는 최신 10명(title.grants) 기준 근사(v1 동일).
+    const heldByMe =
+      myMemId != null && lead.title.grants.some((p) => p.mem_id === myMemId);
     ledes.push({
-      // 페이지(보이는 칭호 조합)가 바뀌면 key도 바뀌어 슬롯 진입 모션이 다시 돈다 —
-      // 다른 슬롯이 대표 entity_id로 key를 바꾸는 것과 같은 동작.
-      key: `title-${rows.map((r) => r.ttl_id).join("-")}`,
+      // 대표가 바뀌면 key도 바뀌어 슬롯 진입 모션이 다시 돈다(다른 슬롯과 같은 동작).
+      key: `title-${lead.person.mem_id}`,
       kicker: "기강에 새 역사를 쓰다",
       hero: "headline",
-      // 응원 없음 — 여러 칭호 × 여러 사람이라 대상이 성립하지 않는다(스펙 결정 표).
-      // 대회 응원의 교훈(여럿이 나눠 갖는 카운터는 개인 지표로 성립 안 함)과 같은 구조.
-      entity: null,
+      // 응원 대상은 대표 멤버 — 활동지수·목표 슬롯과 같은 멤버 기준 카운터(actv).
+      // 피드 캐시엔 이 응원 수가 없어 하한 0에서 시작한다(활동지수 슬롯과 동일).
+      // 검증 관문은 bump-reaction isOnBoard의 actv 네 번째 출처(story-titles 캐시).
+      entity: buildEntity("actv", lead.person.mem_id, "fire", 0),
       people: [],
       moreCount: 0,
-      // T = 30일 내 전체 칭호 종류 수 — 화면에 뽑힌 3개가 아니라서 회전해도 안 변한다.
-      headline: `최근 30일, 새 칭호 ${grants.length}개 풀리다`,
+      // 칭호명을 헤드라인에 넣지 않는다 — 을/를 조사가 칭호마다 갈리고(山神을/HALF를),
+      // 칭호명은 아래 배지가 실물로 말한다. 문구는 화면 보고 다듬기(스펙 결정 표).
+      headline: `${lead.person.mem_nm}, 새 칭호를 달다`,
       standfirst: "",
       figure: null,
       figureLabel: null,
-      titleRoster: {
-        rows,
+      titleLead: {
+        lead: {
+          person: {
+            mem_id: lead.person.mem_id,
+            mem_nm: lead.person.mem_nm,
+            avatar_url: lead.person.avatar_url,
+          },
+          ttl_nm: lead.title.ttl_nm,
+          // 설명 줄 게이트 — 배지 탭 툴팁(TitleBadge 내부)과 같은 규칙을 여기서도 쓴다.
+          desc: resolveDescVisible(lead.title.desc_visibility, heldByMe)
+            ? lead.title.ttl_desc?.trim() || null
+            : null,
+          tooltip: {
+            desc: lead.title.ttl_desc,
+            visibility: lead.title.desc_visibility,
+            isHeld: heldByMe,
+          },
+        },
+        others: others.map((e) => ({
+          mem_id: e.person.mem_id,
+          mem_nm: e.person.mem_nm,
+          avatar_url: e.person.avatar_url,
+        })),
         // grant_cnt 합산 — grants.length 합은 칭호당 10건 상한에 묶여 실제 총
-        // 수여 건수보다 적게 나온다(위 moreCount와 같은 이유).
+        // 수여 건수보다 적게 나온다(v1과 같은 이유).
         totalGrantCnt: grants.reduce((n, g) => n + g.grant_cnt, 0),
       },
     });
@@ -933,9 +936,9 @@ export function StoryLede({
     setRecordPick((n) => n + 1 + Math.floor(Math.random() * 3));
     setActvPick(() => pickActvLeadIndex(feed.actv_rank.length));
     setPostPick(() => pickRandomPostIndex(posts.length));
-    // 칭호는 랜덤 재추첨이 아니라 **페이지 전진**이다 — 3줄씩 넘겨 모든 칭호가
-    // 빠짐없이 오르게 한다(§lib/story-title.ts rotateTitlePage).
-    setTitlePick((n) => n + TITLE_LEDE_PAGE);
+    // 칭호는 랜덤 재추첨이 아니라 **대표 전진**이다 — +1로 획득자 전원이 돌아가며
+    // 대표가 된다(§lib/story-title.ts pickTitleLead).
+    setTitlePick((n) => n + 1);
   }, [feed.actv_rank.length, posts.length]);
 
   /**
@@ -1098,10 +1101,10 @@ export function StoryLede({
     <span className="truncate font-numeric text-[12px] text-muted-foreground tabular-nums">
       {lede.standfirst}
     </span>
-  ) : lede.titleRoster ? (
-    // 칭호획득 — 총 수여 건수. 기간("최근 30일")은 헤드라인이 이미 말하므로 다시 안 쓴다.
+  ) : lede.titleLead ? (
+    // 칭호획득 — 총 수여 건수. 30일 창은 RPC 기본값이라 화면엔 안 적는다(v2 헤드라인엔 기간이 없다).
     <span className="truncate text-[12px] text-muted-foreground">
-      획득 {lede.titleRoster.totalGrantCnt}건
+      획득 {lede.titleLead.totalGrantCnt}건
     </span>
   ) : null;
   // 활동지수 슬롯은 footer 왼쪽이 빈다 — 실을 한 줄 사실이 없다(PB는 슬롯에서 뺐다).
@@ -1606,42 +1609,67 @@ export function StoryLede({
                 </div>
               )}
             </div>
-          ) : lede.titleRoster ? (
-            /* 칭호획득(§⑦) — 칭호 배지 + 획득자 얼굴 나열, 한 칭호 한 줄(대회 roster 문법).
-               배지는 effect null(기본 스타일) — 이펙트는 칭호가 아니라 사람의 소유라
-               (team_mem_rel.selected_badge_effect) 공유 칭호 나열에선 성립하지 않는다.
-               배지 탭 → 설명 툴팁, 얼굴 탭 → 프로필 카드. `외 N`은 눌리지 않는 숫자다. */
-            <div className="flex flex-col gap-2.5">
-              {lede.titleRoster.rows.map((row) => (
-                <div key={row.ttl_id} className="flex min-w-0 items-center gap-2.5">
-                  <TitleBadge
-                    name={row.ttl_nm}
-                    effect={null}
-                    size="sm"
-                    // 배지가 아니라 얼굴·`외 N`이 남아야 한다 — 잘릴 때 사라져도 되는
-                    // 건 배지 꼬리뿐, `외 N`이 사라지면 인원 정보가 통째로 없어진다.
-                    // shrink-0 대신 min-w-0 overflow-hidden으로 배지가 양보하게 한다
-                    // (title-badge.tsx 내부는 48종 이펙트 사용처가 있어 손대지 않고
-                    // 호출부 className만으로 해결한다).
-                    className="min-w-0 overflow-hidden"
-                    tooltip={{
-                      desc: row.ttl_desc,
-                      visibility: row.desc_visibility,
-                      // 근사 판정 — RPC가 실어주는 최신 10명(row.heldByMe, slice 전
-                      // 명단) 기준. 옛 보유자·11번째 이후 최근 보유자는 false로
-                      // 떨어지지만(desc_visibility "held" 설명이 안 보이는 정도)
-                      // 정확히 하려면 내 보유 칭호 전체 조회가 따로 필요해 범위 밖(스펙).
-                      isHeld: row.heldByMe,
-                    }}
+          ) : lede.titleLead ? (
+            /* 칭호획득(§⑦ v2) — 대표 1명(아바타·이름·새 칭호 배지·칭호 설명) + 괘선 아래
+               나머지 획득자 얼굴+이름 칩(대회 명단 문법 재사용). 배지 탭 → 설명 툴팁(v1 유지),
+               얼굴·이름 탭 → 프로필 카드. */
+            <div className="flex min-h-0 flex-col gap-3">
+              {/* 대표 헤더 — PersonProfile(활동지수 슬롯)의 아바타+이름 결을 따르되 부품을
+                  그대로 못 쓴다: PersonProfile 배지엔 tooltip prop이 없고, intro 자리는
+                  "사람의 말" 그릇(인용구+폴백 문구)이라 칭호 설명을 넣으면 본인 발언처럼
+                  읽힌다. 배지는 버튼 밖 형제다 — 안에 넣으면 배지 탭(툴팁)이 프로필
+                  카드까지 연다(프로필탭 카메라 배지를 형제로 두는 것과 같은 이유). */}
+              <div className="flex min-w-0 items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    onSelectMember(
+                      lede.titleLead!.lead.person.mem_id,
+                      lede.titleLead!.lead.person.mem_nm,
+                    )
+                  }
+                  aria-label={`${lede.titleLead.lead.person.mem_nm} 프로필 보기`}
+                  className="flex min-w-0 items-center gap-2.5 rounded-2xl text-left transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]"
+                >
+                  <Avatar
+                    src={lede.titleLead.lead.person.avatar_url}
+                    seed={lede.titleLead.lead.person.mem_id}
+                    alt={lede.titleLead.lead.person.mem_nm}
+                    size="lg"
                   />
-                  <div className="flex min-w-0 flex-1 items-center gap-1">
-                    {row.people.map((p) => (
+                  <span className="truncate text-[17px] font-bold text-foreground">
+                    {lede.titleLead.lead.person.mem_nm}
+                  </span>
+                </button>
+                <TitleBadge
+                  name={lede.titleLead.lead.ttl_nm}
+                  effect={null}
+                  size="sm"
+                  className="shrink-0"
+                  tooltip={lede.titleLead.lead.tooltip}
+                />
+              </div>
+              {/* 칭호 설명 — 이 사람이 뭘 해냈는지를 칭호가 대신 말한다("기강 남자 10K 1위").
+                  게이트(desc null)면 줄째 생략 — 빈 자리를 남기지 않는다(모이는 것 규칙). */}
+              {lede.titleLead.lead.desc && (
+                <p className="line-clamp-2 break-keep text-[13px] leading-relaxed text-muted-foreground">
+                  {lede.titleLead.lead.desc}
+                </p>
+              )}
+              {/* 나머지 획득자 — 대회 명단과 같은 얼굴+이름 칩. 넘치면 이 영역만 스크롤한다
+                  (헤드라인이 2줄로 늘어도 잘리는 대신 여기가 줄어든다 — 대회 슬롯과 동일).
+                  `외 N`은 없다: RPC가 칭호당 10건으로 잘라 사람 수 전체를 정확히 못 세고,
+                  총량은 footer `획득 N건`이 말한다(스펙 §지면 설계). */}
+              {lede.titleLead.others.length > 0 && (
+                <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto border-t border-border pt-2.5 [scrollbar-width:thin]">
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
+                    {lede.titleLead.others.map((p) => (
                       <button
                         key={p.mem_id}
                         type="button"
                         onClick={() => onSelectMember(p.mem_id, p.mem_nm)}
                         aria-label={`${p.mem_nm} 프로필 보기`}
-                        className="shrink-0 rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
+                        className="flex shrink-0 items-center gap-1 rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
                       >
                         <Avatar
                           src={p.avatar_url}
@@ -1649,16 +1677,14 @@ export function StoryLede({
                           alt={p.mem_nm}
                           size="xs"
                         />
+                        <span className="text-[13px] leading-none text-foreground">
+                          {p.mem_nm}
+                        </span>
                       </button>
                     ))}
-                    {row.moreCount > 0 && (
-                      <span className="shrink-0 pl-0.5 text-[11px] text-muted-foreground">
-                        외 {row.moreCount}
-                      </span>
-                    )}
                   </div>
                 </div>
-              ))}
+              )}
             </div>
           ) : (
             lede.standfirst && (
