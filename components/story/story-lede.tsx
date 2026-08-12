@@ -22,7 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { Avatar } from "@/components/common/avatar";
-import { resolveDescVisible, TitleBadge } from "@/components/common/title-badge";
+import { TitleBadge, resolveDescVisible } from "@/components/common/title-badge";
 import { PurposeChip } from "@/components/members/profile-chip";
 import {
   PersonIntro,
@@ -38,7 +38,12 @@ import { compEvtTypeKm, compEvtTypeLabel } from "@/lib/comp-evt-type";
 import { dedupePledgesByMember } from "@/lib/story-pledge";
 import { pickActvLeadIndex, pickRandomPostIndex } from "@/lib/story-post";
 import { reactionKey } from "@/lib/story-reaction";
-import { buildTitleLeadPool, pickTitleLead } from "@/lib/story-title";
+import {
+  TITLE_OTHERS_MAX,
+  buildTitleLeadPool,
+  countTitleMoreMembers,
+  pickTitleLead,
+} from "@/lib/story-title";
 import { getSportEmoji } from "@/lib/sport";
 
 import type { CSSProperties, PointerEvent } from "react";
@@ -238,17 +243,22 @@ type Lede = {
       person: Person;
       /** 대표가 새로 딴 칭호 — 배지는 effect null(이펙트는 사람 소유, v1 결정 유지) */
       ttl_nm: string;
-      /** 설명 줄 — visibility 게이트를 통과했을 때만 채워 온다(아니면 null → 줄 생략) */
+      /**
+       * 대표 오른쪽 글상자에 세울 칭호 설명 — `desc_visibility` 게이트를 통과했을 때만
+       * 채워 온다(아니면 null → 상자째 생략). 배지 툴팁과 **같은 판정**을 쓴다.
+       */
       desc: string | null;
-      /** 배지 탭 툴팁용 원본 — 설명 줄과 별개로 TitleBadge에 그대로 넘긴다(v1 유지) */
+      /** 배지 탭 툴팁 — 원본 그대로 넘긴다(게이트 판정은 TitleBadge 안에서 한 번 더) */
       tooltip: {
         desc: string | null;
         visibility: TitleDescVisibility;
         isHeld: boolean;
       };
     };
-    /** 대표를 뺀 나머지 획득자 — 최신순 고정(사람 dedupe 후). 탭 → 프로필 카드 */
+    /** 대표를 뺀 나머지 획득자 — 최신순 고정(사람 dedupe 후), `TITLE_OTHERS_MAX`까지 */
     others: Person[];
+    /** 명단에 못 실은 획득자 수 — `외 N명`. 0이면 안 그린다 */
+    moreCount: number;
     /** 30일 내 총 수여 건수 — footer 왼쪽 사실 한 줄 */
     totalGrantCnt: number;
   } | null;
@@ -716,7 +726,7 @@ function buildLedes(
             avatar_url: lead.person.avatar_url,
           },
           ttl_nm: lead.title.ttl_nm,
-          // 설명 줄 게이트 — 배지 탭 툴팁(TitleBadge 내부)과 같은 규칙을 여기서도 쓴다.
+          // 지면 글상자용 — 툴팁과 같은 게이트를 통과한 것만(§resolveDescVisible).
           desc: resolveDescVisible(lead.title.desc_visibility, heldByMe)
             ? lead.title.ttl_desc?.trim() || null
             : null,
@@ -726,11 +736,17 @@ function buildLedes(
             isHeld: heldByMe,
           },
         },
-        others: others.map((e) => ({
+        others: others.slice(0, TITLE_OTHERS_MAX).map((e) => ({
           mem_id: e.person.mem_id,
           mem_nm: e.person.mem_nm,
           avatar_url: e.person.avatar_url,
         })),
+        // `외 N명` — 대표 1명 + 명단에 선 인원을 뺀 나머지(§countTitleMoreMembers).
+        // pool 길이로 세면 안 된다는 규칙이 그 헬퍼 안에 있다.
+        moreCount: countTitleMoreMembers(
+          grants,
+          1 + Math.min(others.length, TITLE_OTHERS_MAX),
+        ),
         // grant_cnt 합산 — grants.length 합은 칭호당 10건 상한에 묶여 실제 총
         // 수여 건수보다 적게 나온다(v1과 같은 이유).
         totalGrantCnt: grants.reduce((n, g) => n + g.grant_cnt, 0),
@@ -1102,9 +1118,11 @@ export function StoryLede({
       {lede.standfirst}
     </span>
   ) : lede.titleLead ? (
-    // 칭호획득 — 총 수여 건수. 30일 창은 RPC 기본값이라 화면엔 안 적는다(v2 헤드라인엔 기간이 없다).
+    // 칭호획득 — 총 수여 건수. **"최근"을 붙인다**: 맨숫자만 있으면 크루가 여태 딴
+    // 칭호를 다 합친 값으로 읽히는데, 실제로는 30일 창의 집계다. 일수까지 적지는 않는다
+    // (창 길이는 RPC 기본값이고, 헤드라인·명단이 이미 "요즘 소식"으로 읽힌다).
     <span className="truncate text-[12px] text-muted-foreground">
-      획득 {lede.titleLead.totalGrantCnt}건
+      최근 획득 {lede.titleLead.totalGrantCnt}건
     </span>
   ) : null;
   // 활동지수 슬롯은 footer 왼쪽이 빈다 — 실을 한 줄 사실이 없다(PB는 슬롯에서 뺐다).
@@ -1610,9 +1628,11 @@ export function StoryLede({
               )}
             </div>
           ) : lede.titleLead ? (
-            /* 칭호획득(§⑦ v2) — 대표 1명(아바타·이름·새 칭호 배지·칭호 설명) + 괘선 아래
-               나머지 획득자 얼굴+이름 칩(대회 명단 문법 재사용). 배지 탭 → 설명 툴팁(v1 유지),
-               얼굴·이름 탭 → 프로필 카드. */
+            /* 칭호획득(§⑦ v2) — 대표 1명(아바타·이름·새 칭호 배지) + 괘선 아래 나머지
+               획득자 명단. 배지 탭 → 칭호 설명 툴팁, 얼굴·이름 탭 → 프로필 카드.
+
+               **설명 줄은 두지 않는다** — 배지를 누르면 어차피 뜨는 말이라 지면에 또 적으면
+               같은 말이 두 번이고, 그 줄이 빠져야 명단이 헤드라인 바로 아래로 올라온다. */
             <div className="flex min-h-0 flex-col gap-3">
               {/* 대표 헤더 — PersonProfile(활동지수 슬롯)의 아바타+이름 결을 따르되 부품을
                   그대로 못 쓴다: PersonProfile 배지엔 tooltip prop이 없고, intro 자리는
@@ -1648,28 +1668,40 @@ export function StoryLede({
                   className="shrink-0"
                   tooltip={lede.titleLead.lead.tooltip}
                 />
+                {/* 칭호 설명 — 배지 오른쪽 빈 자리를 글상자로 채운다. 이 칭호가 무엇인지가
+                    "그래서 뭘 해냈나"를 대신 말해 주는데, 배지를 눌러야만 보이면 지나치는
+                    사람이 대부분이다(툴팁은 그대로 남는다 — 좁은 화면에서 잘린 뒷말은 거기서).
+
+                    **인용부호를 쓰지 않고 상자로 두른다**: 여기 있는 건 사람의 말이 아니라
+                    칭호에 붙은 설명이라, 소개 한마디(IntroQuote)의 어법을 빌리면 본인이
+                    한 말처럼 읽힌다.
+
+                    폭은 남는 만큼만 쓰고(min-w-0 + flex-1) 3줄에서 자른다 — 375px에선
+                    아바타·이름·배지가 먼저 자리를 가져가 상자가 좁아진다. */}
+                {lede.titleLead.lead.desc && (
+                  <p className="line-clamp-3 min-w-0 flex-1 break-keep rounded-lg bg-muted/40 px-2.5 py-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                    {lede.titleLead.lead.desc}
+                  </p>
+                )}
               </div>
-              {/* 칭호 설명 — 이 사람이 뭘 해냈는지를 칭호가 대신 말한다("기강 남자 10K 1위").
-                  게이트(desc null)면 줄째 생략 — 빈 자리를 남기지 않는다(모이는 것 규칙). */}
-              {lede.titleLead.lead.desc && (
-                <p className="line-clamp-2 break-keep text-[13px] leading-relaxed text-muted-foreground">
-                  {lede.titleLead.lead.desc}
-                </p>
-              )}
-              {/* 나머지 획득자 — 대회 명단과 같은 얼굴+이름 칩. 넘치면 이 영역만 스크롤한다
-                  (헤드라인이 2줄로 늘어도 잘리는 대신 여기가 줄어든다 — 대회 슬롯과 동일).
-                  `외 N`은 없다: RPC가 칭호당 10건으로 잘라 사람 수 전체를 정확히 못 세고,
-                  총량은 footer `획득 N건`이 말한다(스펙 §지면 설계). */}
+              {/* 나머지 획득자 — **스크롤을 두지 않는다.** 4초마다 넘어가는 지면에서
+                  스크롤은 손이 닿기 전에 사라지는 조작이라, 대신 `TITLE_OTHERS_MAX`에서
+                  자르고 남은 인원을 `외 N명`으로 말한다(리드의 moreCount 문법).
+
+                  칩은 **얼굴 위·이름 아래** 세로 스택이다: 이름을 옆에 두면 칩 폭이
+                  아바타+이름이라 한 줄에 서너 명뿐인데, 아래로 내리면 폭을 이름만 정해
+                  같은 두 줄에 두 배가 선다. `외 N명`은 얼굴 줄 높이(h-6)에 맞춰
+                  같은 흐름에 눕는다 — 이름 칸까지 차지하면 빈 자리로 떠 보인다. */}
               {lede.titleLead.others.length > 0 && (
-                <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto border-t border-border pt-2.5 [scrollbar-width:thin]">
-                  <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
+                <div className="min-w-0 overflow-hidden border-t border-border pt-2.5">
+                  <div className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1.5">
                     {lede.titleLead.others.map((p) => (
                       <button
                         key={p.mem_id}
                         type="button"
                         onClick={() => onSelectMember(p.mem_id, p.mem_nm)}
                         aria-label={`${p.mem_nm} 프로필 보기`}
-                        className="flex shrink-0 items-center gap-1 rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
+                        className="flex max-w-[72px] shrink-0 flex-col items-center gap-1 rounded-lg transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
                       >
                         <Avatar
                           src={p.avatar_url}
@@ -1677,11 +1709,18 @@ export function StoryLede({
                           alt={p.mem_nm}
                           size="xs"
                         />
-                        <span className="text-[13px] leading-none text-foreground">
+                        <span className="max-w-full truncate text-[12px] leading-none text-foreground">
                           {p.mem_nm}
                         </span>
                       </button>
                     ))}
+                    {lede.titleLead.moreCount > 0 && (
+                      // 칩(얼굴+이름) 전체 높이의 **세로 가운데**에 놓는다(self-center).
+                      // 얼굴 줄에만 맞추면 이름 줄만큼 위로 뜬 것처럼 보인다.
+                      <span className="shrink-0 self-center text-[12px] text-muted-foreground">
+                        외 {lede.titleLead.moreCount}명
+                      </span>
+                    )}
                   </div>
                 </div>
               )}

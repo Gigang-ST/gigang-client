@@ -129,7 +129,10 @@ export type TitleDescVisibility = "always" | "others" | "held" | "never";
  * others가 무조건 true인 건 의도다 — 툴팁이 붙는 맥락은 이미 보유자가 있는 화면
  * (남의 카드·획득 피드·내 도감)이라, "보유자가 있으면 공개"가 곧 true다.
  * 누구 카드인지(isOwner)는 공개 여부를 가르지 않으므로 인자로 받지 않는다.
- * 칭호획득 리드 슬롯이 설명 줄 게이트로 재사용한다(§story-lede titleLead).
+ *
+ * 툴팁 밖에서도 쓴다 — 칭호획득 리드 슬롯이 대표 옆 글상자에 같은 설명을 싣는다
+ * (§story-lede titleLead). **게이트는 반드시 이 함수 하나를 통과해야 한다**: 지면과
+ * 툴팁이 각자 판정하면 `held`·`never` 칭호의 설명이 한쪽에만 새어 나온다.
  */
 export function resolveDescVisible(
   visibility: TitleDescVisibility,

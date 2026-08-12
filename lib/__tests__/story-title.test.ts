@@ -2,17 +2,24 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildTitleLeadPool,
+  countTitleMoreMembers,
   pickTitleLead,
   pickTitleLedeStart,
 } from "@/lib/story-title";
 
 import type { RecentTitleRow } from "@/lib/story-title";
 
-/** 테스트용 칭호 row — grants는 [mem_id, grnt_at] 튜플로 짧게 적는다 */
+/**
+ * 테스트용 칭호 row — grants는 [mem_id, grnt_at] 튜플로 짧게 적는다.
+ *
+ * `total_mem_cnt`는 창 전체 고유 획득자 수(모든 row에 같은 값)라 이 헬퍼가 알 수 없다 —
+ * 기본은 이 row의 인원으로 두고, 잘림(10건 상한)을 재현하는 테스트만 명시로 넘긴다.
+ */
 function row(
   ttl_id: string,
   grants: [string, string][],
   grant_cnt = grants.length,
+  total_mem_cnt = grants.length,
 ): RecentTitleRow {
   return {
     ttl_id,
@@ -21,6 +28,7 @@ function row(
     desc_visibility: "others",
     last_grnt_at: grants[0]?.[1] ?? "2026-08-01T00:00:00+00:00",
     grant_cnt,
+    total_mem_cnt,
     grants: grants.map(([mem_id, grnt_at]) => ({
       mem_id,
       mem_nm: mem_id,
@@ -103,6 +111,31 @@ describe("pickTitleLead", () => {
 
   it("빈 pool이면 null", () => {
     expect(pickTitleLead([], 0)).toBeNull();
+  });
+});
+
+describe("countTitleMoreMembers", () => {
+  it("총원에서 지면에 선 인원(대표 포함)을 뺀다", () => {
+    const rows = [row("A", [["m1", "2026-08-10T00:00:00+00:00"]], 1, 12)];
+    expect(countTitleMoreMembers(rows, 1 + 8)).toBe(3);
+  });
+
+  it("grants가 10건에서 잘려도 총원 기준이라 정확하다 — pool로 세면 어긋난다", () => {
+    // prd 실측 형태: 고유 획득자 75명인데 10건 상한 탓에 명단엔 41명만 실려 온다.
+    const grants: [string, string][] = Array.from({ length: 10 }, (_, i) => [
+      `m${i}`,
+      "2026-08-12T04:18:47+00:00",
+    ]);
+    const rows = [row("SWEEP", grants, 50, 75)];
+    const pool = buildTitleLeadPool(rows);
+    expect(pool).toHaveLength(10); // 지면이 아는 사람은 10명뿐이지만
+    expect(countTitleMoreMembers(rows, 1 + 8)).toBe(66); // 세는 건 75명 기준
+  });
+
+  it("총원이 없거나(옛 캐시 payload) 노출 인원보다 작으면 0 — 음수를 지면에 올리지 않는다", () => {
+    expect(countTitleMoreMembers([], 9)).toBe(0);
+    const rows = [row("A", [["m1", "2026-08-10T00:00:00+00:00"]], 1, 3)];
+    expect(countTitleMoreMembers(rows, 9)).toBe(0);
   });
 });
 

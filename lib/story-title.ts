@@ -26,8 +26,25 @@ export type RecentTitleRow = {
   last_grnt_at: string;
   /** 전체 수여 건수(같은 30일 창 기준) — grants는 상위 10건만 실린다(§RPC 주석) */
   grant_cnt: number;
+  /**
+   * 창 전체의 **고유 획득자 수** — 모든 row에 같은 값이 실려 온다(RPC가 배열이라
+   * 스칼라를 얹을 자리가 없어 복사한다. §20260812100000 마이그레이션 주석).
+   *
+   * `외 N명`은 반드시 이 값으로 센다. `grants`가 칭호당 10건에서 잘리므로 명단을
+   * 세면 실제보다 적게 나온다 — prd 실측으로 75명이 41명으로 보였다.
+   */
+  total_mem_cnt: number;
   grants: RecentTitleGrantPerson[];
 };
+
+/**
+ * 명단(대표 제외)에 얼굴을 몇 개까지 세울까 — 넘치면 `외 N명`.
+ *
+ * 칩이 **얼굴 위·이름 아래** 세로 스택이라 폭은 이름이 정한다(3자 ≈ 39px). 375px에서
+ * 슬롯 안쪽 폭이 287px이므로 한 줄에 5~6개가 서고, 8이면 이름이 길어도 두 줄을 넘지
+ * 않는다. 스크롤을 두지 않는 이상 이 상한이 곧 높이 보증이다.
+ */
+export const TITLE_OTHERS_MAX = 8;
 
 /** 칭호획득 슬롯의 대표 후보 한 명 — 사람 + 그 사람의 최신 수여 칭호(원본 row) */
 export type TitleLeadEntry = {
@@ -78,6 +95,24 @@ export function pickTitleLead(
   if (pool.length === 0) return null;
   const at = ((pick % pool.length) + pool.length) % pool.length;
   return { lead: pool[at], others: pool.filter((_, i) => i !== at) };
+}
+
+/**
+ * 지면에 못 실은 획득자 수 — `외 N명`. `shown`은 **대표 1명까지 포함한** 노출 인원이다.
+ *
+ * 반드시 RPC의 `total_mem_cnt`로 센다. `buildTitleLeadPool`의 길이로 세면 **적게 나온다** —
+ * grants가 칭호당 10건에서 잘리기 때문이고, 하필 그 잘림이 크게 벌어지는 때가
+ * sweep(이 슬롯이 존재하는 이유)이다. prd 실측으로 실제 75명이 pool에선 41명이었다.
+ *
+ * 값이 없거나(배포 스큐로 옛 payload가 캐시에 남은 경우) 노출 인원보다 작으면 0 —
+ * "외 -3명" 같은 게 지면에 뜨지 않게.
+ */
+export function countTitleMoreMembers(
+  rows: RecentTitleRow[],
+  shown: number,
+): number {
+  const total = rows[0]?.total_mem_cnt ?? 0;
+  return Math.max(0, total - shown);
 }
 
 /**
