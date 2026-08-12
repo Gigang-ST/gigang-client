@@ -714,7 +714,7 @@ function buildLedes(
       moreCount: 0,
       // 칭호명을 헤드라인에 넣지 않는다 — 을/를 조사가 칭호마다 갈리고(山神을/HALF를),
       // 칭호명은 아래 배지가 실물로 말한다. 문구는 화면 보고 다듬기(스펙 결정 표).
-      headline: `${lead.person.mem_nm}, 새 칭호를 달다`,
+      headline: `${lead.person.mem_nm}, 새 칭호를 획득하다`,
       standfirst: "",
       figure: null,
       figureLabel: null,
@@ -1640,6 +1640,14 @@ export function StoryLede({
                   읽힌다. 배지는 버튼 밖 형제다 — 안에 넣으면 배지 탭(툴팁)이 프로필
                   카드까지 연다(프로필탭 카메라 배지를 형제로 두는 것과 같은 이유). */}
               <div className="flex min-w-0 items-center gap-2.5">
+                {/* 얼굴과 이름이 **버튼 둘로 갈린다.** 칭호가 이름 밑으로 내려오면서
+                    이름·배지가 한 세로 단이 됐는데, 배지는 여전히 버튼 밖에 있어야
+                    하기 때문이다(배지 탭은 설명 툴팁, 얼굴·이름 탭은 프로필 카드 —
+                    한 버튼에 넣으면 툴팁을 열려다 카드까지 열린다).
+
+                    아바타가 lg(56)가 아니라 md(40)인 건 이름(17) + 간격(4) + 배지(19)
+                    세로 단이 정확히 40px이기 때문이다 — 옆에 세우는 두 덩어리의 높이가
+                    맞고, lg일 때보다 16px을 슬롯에 돌려준다(§264px 예산). */}
                 <button
                   type="button"
                   onClick={() =>
@@ -1649,59 +1657,81 @@ export function StoryLede({
                     )
                   }
                   aria-label={`${lede.titleLead.lead.person.mem_nm} 프로필 보기`}
-                  className="flex min-w-0 items-center gap-2.5 rounded-2xl text-left transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]"
+                  className="shrink-0 rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
                 >
                   <Avatar
                     src={lede.titleLead.lead.person.avatar_url}
                     seed={lede.titleLead.lead.person.mem_id}
                     alt={lede.titleLead.lead.person.mem_nm}
-                    size="lg"
+                    size="md"
                   />
-                  <span className="truncate text-[17px] font-bold text-foreground">
-                    {lede.titleLead.lead.person.mem_nm}
-                  </span>
                 </button>
-                <TitleBadge
-                  name={lede.titleLead.lead.ttl_nm}
-                  effect={null}
-                  size="sm"
-                  className="shrink-0"
-                  tooltip={lede.titleLead.lead.tooltip}
-                />
-                {/* 칭호 설명 — 배지 오른쪽 빈 자리를 글상자로 채운다. 이 칭호가 무엇인지가
-                    "그래서 뭘 해냈나"를 대신 말해 주는데, 배지를 눌러야만 보이면 지나치는
-                    사람이 대부분이다(툴팁은 그대로 남는다 — 좁은 화면에서 잘린 뒷말은 거기서).
+                <div className="flex min-w-0 max-w-[45%] shrink-0 flex-col items-start gap-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onSelectMember(
+                        lede.titleLead!.lead.person.mem_id,
+                        lede.titleLead!.lead.person.mem_nm,
+                      )
+                    }
+                    aria-label={`${lede.titleLead.lead.person.mem_nm} 프로필 보기`}
+                    className="min-w-0 max-w-full rounded-md text-left transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
+                  >
+                    <span className="block truncate text-[17px] font-bold leading-tight text-foreground">
+                      {lede.titleLead.lead.person.mem_nm}
+                    </span>
+                  </button>
+                  <TitleBadge
+                    name={lede.titleLead.lead.ttl_nm}
+                    effect={null}
+                    size="sm"
+                    className="min-w-0 max-w-full overflow-hidden"
+                    tooltip={lede.titleLead.lead.tooltip}
+                  />
+                </div>
+                {/* 칭호 설명 — 이름·배지 오른쪽 빈 자리를 글상자로 채운다. 이 칭호가
+                    무엇인지가 "그래서 뭘 해냈나"를 대신 말해 주는데, 배지를 눌러야만
+                    보이면 지나치는 사람이 대부분이다(툴팁은 그대로 남는다 — 여기서
+                    …로 잘린 뒷말을 거기서 읽는다).
 
-                    **인용부호를 쓰지 않고 상자로 두른다**: 여기 있는 건 사람의 말이 아니라
-                    칭호에 붙은 설명이라, 소개 한마디(IntroQuote)의 어법을 빌리면 본인이
-                    한 말처럼 읽힌다.
+                    **인용부호를 쓰지 않고 상자로 두른다**: 여기 있는 건 사람의 말이
+                    아니라 칭호에 붙은 설명이라, 소개 한마디(IntroQuote)의 어법을 빌리면
+                    본인이 한 말처럼 읽힌다.
 
-                    폭은 남는 만큼만 쓰고(min-w-0 + flex-1) 3줄에서 자른다 — 375px에선
-                    아바타·이름·배지가 먼저 자리를 가져가 상자가 좁아진다. */}
+                    **높이를 h-12로 못박는다**(2줄분 36px + 안쪽 여백 12px): 설명 길이가
+                    칭호마다 제각각이라 열어 두면 대표 블록이 한 줄짜리·두 줄짜리 사이를
+                    오가고, 4초마다 넘어가는 지면에서 그 아래 명단이 위아래로 뛴다. */}
                 {lede.titleLead.lead.desc && (
-                  <p className="line-clamp-3 min-w-0 flex-1 break-keep rounded-lg bg-muted/40 px-2.5 py-1.5 text-[11px] leading-relaxed text-muted-foreground">
-                    {lede.titleLead.lead.desc}
+                  <p className="flex h-12 min-w-0 flex-1 items-center rounded-lg bg-muted/40 px-2.5 text-[11px] leading-relaxed text-muted-foreground">
+                    <span className="line-clamp-2 break-keep">
+                      {lede.titleLead.lead.desc}
+                    </span>
                   </p>
                 )}
               </div>
-              {/* 나머지 획득자 — **스크롤을 두지 않는다.** 4초마다 넘어가는 지면에서
-                  스크롤은 손이 닿기 전에 사라지는 조작이라, 대신 `TITLE_OTHERS_MAX`에서
-                  자르고 남은 인원을 `외 N명`으로 말한다(리드의 moreCount 문법).
+              {/* 나머지 획득자 — **스크롤도 줄바꿈도 없다.** 4초마다 넘어가는 지면에서
+                  스크롤은 손이 닿기 전에 사라지는 조작이고, 두 줄은 264px 예산에서
+                  헤드라인이 2줄이 되는 순간 바닥이 잘린다(실제로 잘린 걸 화면에서 봤다).
+                  그래서 `TITLE_OTHERS_MAX`(6)에서 자르고 나머지는 `외 N명`으로 말한다.
 
-                  칩은 **얼굴 위·이름 아래** 세로 스택이다: 이름을 옆에 두면 칩 폭이
-                  아바타+이름이라 한 줄에 서너 명뿐인데, 아래로 내리면 폭을 이름만 정해
-                  같은 두 줄에 두 배가 선다. `외 N명`은 얼굴 줄 높이(h-6)에 맞춰
-                  같은 흐름에 눕는다 — 이름 칸까지 차지하면 빈 자리로 떠 보인다. */}
+                  칩은 **얼굴 위·이름 아래** 세로 스택이다 — 이름을 옆에 두면 칩 폭이
+                  아바타+이름이라 한 줄에 서넛뿐인데, 아래로 내리면 폭을 이름만 정해
+                  같은 한 줄에 여섯이 선다.
+
+                  `flex-nowrap` + 칩마다 `min-w-0 flex-1`인 이유: 이름 길이는 사람마다
+                  다른데 고정 폭이면 긴 이름이 들어온 날만 줄이 넘어간다. 남는 폭을
+                  나눠 갖게 하면 이름이 …로 줄지언정 **한 줄은 무조건 지켜진다.** */}
               {lede.titleLead.others.length > 0 && (
-                <div className="min-w-0 overflow-hidden border-t border-border pt-2.5">
-                  <div className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1.5">
+                <div className="flex min-w-0 flex-col gap-1.5 border-t border-border pt-2.5">
+                  <div className="flex min-w-0 flex-nowrap items-start gap-x-2">
                     {lede.titleLead.others.map((p) => (
                       <button
                         key={p.mem_id}
                         type="button"
                         onClick={() => onSelectMember(p.mem_id, p.mem_nm)}
                         aria-label={`${p.mem_nm} 프로필 보기`}
-                        className="flex max-w-[72px] shrink-0 flex-col items-center gap-1 rounded-lg transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
+                        className="flex min-w-0 max-w-[72px] flex-1 flex-col items-center gap-1 rounded-lg transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
                       >
                         <Avatar
                           src={p.avatar_url}
@@ -1714,14 +1744,15 @@ export function StoryLede({
                         </span>
                       </button>
                     ))}
-                    {lede.titleLead.moreCount > 0 && (
-                      // 칩(얼굴+이름) 전체 높이의 **세로 가운데**에 놓는다(self-center).
-                      // 얼굴 줄에만 맞추면 이름 줄만큼 위로 뜬 것처럼 보인다.
-                      <span className="shrink-0 self-center text-[12px] text-muted-foreground">
-                        외 {lede.titleLead.moreCount}명
-                      </span>
-                    )}
                   </div>
+                  {/* `외 N명`은 얼굴 줄 **아래 제 줄**에 둔다. 칩 옆에 끼우면 그 자리
+                      하나가 얼굴 몫에서 빠지는데, 이 줄은 여섯 명이 꽉 차는 한 줄이라
+                      한 자리가 아깝다. 왼쪽 끝에 맞춰 명단에 딸린 꼬리로 읽히게 한다. */}
+                  {lede.titleLead.moreCount > 0 && (
+                    <span className="text-[12px] text-muted-foreground">
+                      외 {lede.titleLead.moreCount}명
+                    </span>
+                  )}
                 </div>
               )}
             </div>
