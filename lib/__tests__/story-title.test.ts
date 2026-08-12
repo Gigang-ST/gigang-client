@@ -1,45 +1,108 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  TITLE_LEDE_PAGE,
+  buildTitleLeadPool,
+  pickTitleLead,
   pickTitleLedeStart,
-  rotateTitlePage,
 } from "@/lib/story-title";
 
-describe("rotateTitlePage", () => {
-  const arr7 = ["a", "b", "c", "d", "e", "f", "g"];
+import type { RecentTitleRow } from "@/lib/story-title";
 
-  it("pick 0이면 앞에서 3개", () => {
-    expect(rotateTitlePage(arr7, 0)).toEqual(["a", "b", "c"]);
+/** 테스트용 칭호 row — grants는 [mem_id, grnt_at] 튜플로 짧게 적는다 */
+function row(
+  ttl_id: string,
+  grants: [string, string][],
+  grant_cnt = grants.length,
+): RecentTitleRow {
+  return {
+    ttl_id,
+    ttl_nm: ttl_id,
+    ttl_desc: null,
+    desc_visibility: "others",
+    last_grnt_at: grants[0]?.[1] ?? "2026-08-01T00:00:00+00:00",
+    grant_cnt,
+    grants: grants.map(([mem_id, grnt_at]) => ({
+      mem_id,
+      mem_nm: mem_id,
+      avatar_url: null,
+      grnt_at,
+    })),
+  };
+}
+
+describe("buildTitleLeadPool", () => {
+  it("칭호별 묶음을 평탄화해 사람 단위 최신순으로 세운다", () => {
+    const pool = buildTitleLeadPool([
+      row("A", [
+        ["kim", "2026-08-10T00:00:00+00:00"],
+        ["lee", "2026-08-08T00:00:00+00:00"],
+      ]),
+      row("B", [["park", "2026-08-09T00:00:00+00:00"]]),
+    ]);
+    expect(pool.map((e) => e.person.mem_id)).toEqual(["kim", "park", "lee"]);
   });
 
-  it("pick만큼 회전해서 3개 — 끝을 넘으면 처음으로 감긴다", () => {
-    expect(rotateTitlePage(arr7, 6)).toEqual(["g", "a", "b"]);
+  it("같은 사람이 여러 칭호를 따면 최신 수여 1건만 남는다 — 칭호도 그 수여의 것", () => {
+    const pool = buildTitleLeadPool([
+      row("OLD", [["kim", "2026-08-05T00:00:00+00:00"]]),
+      row("NEW", [["kim", "2026-08-10T00:00:00+00:00"]]),
+    ]);
+    expect(pool).toHaveLength(1);
+    expect(pool[0].person.grnt_at).toBe("2026-08-10T00:00:00+00:00");
+    expect(pool[0].title.ttl_id).toBe("NEW");
   });
 
-  it("step 3 전진이 전 칭호를 커버한다 — 셔플의 굶주림이 구조적으로 불가능", () => {
-    // 한 바퀴마다 pick += TITLE_LEDE_PAGE(§story-lede rerollAllPicks). 어떤 길이든
-    // 몇 바퀴 안에 모든 원소가 지면에 오른다(스펙 §회전 규칙).
-    for (const len of [1, 2, 3, 4, 5, 6, 7, 10]) {
-      const arr = Array.from({ length: len }, (_, i) => i);
-      const seen = new Set<number>();
-      for (let cycle = 0; cycle < len; cycle++) {
-        for (const v of rotateTitlePage(arr, cycle * TITLE_LEDE_PAGE)) seen.add(v);
-      }
-      expect([...seen].sort((a, b) => a - b)).toEqual(arr);
+  it("sweep(동시각 수여)에서도 사람 수만큼 나온다 — 유실 없음", () => {
+    const t = "2026-08-12T04:18:47+00:00";
+    const pool = buildTitleLeadPool([
+      row("A", [["m1", t], ["m2", t], ["m3", t]]),
+      row("B", [["m2", t], ["m4", t]]),
+    ]);
+    expect(pool.map((e) => e.person.mem_id).sort()).toEqual([
+      "m1", "m2", "m3", "m4",
+    ]);
+  });
+
+  it("빈 입력이면 빈 pool", () => {
+    expect(buildTitleLeadPool([])).toEqual([]);
+  });
+});
+
+describe("pickTitleLead", () => {
+  const pool = buildTitleLeadPool([
+    row("A", [
+      ["m1", "2026-08-10T00:00:00+00:00"],
+      ["m2", "2026-08-09T00:00:00+00:00"],
+      ["m3", "2026-08-08T00:00:00+00:00"],
+    ]),
+  ]);
+
+  it("pick 0이면 최신 획득자가 대표", () => {
+    expect(pickTitleLead(pool, 0)?.lead.person.mem_id).toBe("m1");
+  });
+
+  it("끝을 넘으면 처음으로 감기고, 음수도 안전하다", () => {
+    expect(pickTitleLead(pool, 3)?.lead.person.mem_id).toBe("m1");
+    expect(pickTitleLead(pool, 4)?.lead.person.mem_id).toBe("m2");
+    expect(pickTitleLead(pool, -1)?.lead.person.mem_id).toBe("m3");
+  });
+
+  it("others는 대표만 뺀 최신순 그대로다 — 회전해도 명단은 안 섞인다", () => {
+    const picked = pickTitleLead(pool, 1);
+    expect(picked?.lead.person.mem_id).toBe("m2");
+    expect(picked?.others.map((e) => e.person.mem_id)).toEqual(["m1", "m3"]);
+  });
+
+  it("+1 전진이 전원을 커버한다 — 굶는 사람이 구조적으로 없다", () => {
+    const seen = new Set<string>();
+    for (let cycle = 0; cycle < pool.length; cycle++) {
+      seen.add(pickTitleLead(pool, cycle)!.lead.person.mem_id);
     }
+    expect([...seen].sort()).toEqual(["m1", "m2", "m3"]);
   });
 
-  it("pool이 3개 이하면 전부, 빈 배열이면 빈 배열", () => {
-    expect(rotateTitlePage(["a", "b"], 5)).toEqual(
-      expect.arrayContaining(["a", "b"]),
-    );
-    expect(rotateTitlePage(["a", "b"], 5)).toHaveLength(2);
-    expect(rotateTitlePage([], 3)).toEqual([]);
-  });
-
-  it("음수 pick도 안전하다(기존 rotate와 같은 방어)", () => {
-    expect(rotateTitlePage(arr7, -1)).toHaveLength(3);
+  it("빈 pool이면 null", () => {
+    expect(pickTitleLead([], 0)).toBeNull();
   });
 });
 

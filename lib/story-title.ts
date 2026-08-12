@@ -1,22 +1,12 @@
 /**
- * 칭호획득 리드 슬롯 표시 상수·헬퍼 — **클라이언트가 읽어도 되는 것만** 둔다.
+ * 칭호획득 리드 슬롯 표시 헬퍼 — **클라이언트가 읽어도 되는 것만** 둔다.
  *
  * 조회 쪽(`lib/queries/story-titles.ts`)은 `createAdminClient`를 타고 `server-only`에
  * 닿는 서버 모듈이라 여기와 분리한다(`lib/story-post.ts`와 같은 이유 — 상수 하나만
  * 가져와도 클라이언트 번들이 서버 모듈을 통째로 끌어와 브라우저에서 터진다).
  *
- * 설계 문서: docs/superpowers/specs/2026-08-07-칭호획득-리드슬롯-design.md
+ * 설계 문서: docs/superpowers/specs/2026-08-12-칭호획득-슬롯-사람대표-design.md
  */
-
-/** 한 화면에 보여줄 칭호 줄 수 — 264px 슬롯 예산에 맞춘 값(스펙 §264px 예산) */
-export const TITLE_LEDE_PAGE = 3;
-
-/**
- * 한 줄에 보여줄 얼굴 수 — 넘치는 인원은 `외 N`으로 줄인다.
- * 한 칭호는 무조건 한 줄이다(줄바꿈하면 3줄 예산이 무너진다).
- * xs 아바타(24px) 5개 + 배지가 375px 본문 폭(≈287px)에 들어가는 값.
- */
-export const TITLE_ROW_FACES = 5;
 
 /** `get_team_recent_title_grants` RPC의 획득자 한 명 */
 export type RecentTitleGrantPerson = {
@@ -39,6 +29,57 @@ export type RecentTitleRow = {
   grants: RecentTitleGrantPerson[];
 };
 
+/** 칭호획득 슬롯의 대표 후보 한 명 — 사람 + 그 사람의 최신 수여 칭호(원본 row) */
+export type TitleLeadEntry = {
+  person: RecentTitleGrantPerson;
+  /** 이 수여의 칭호 row — 배지·설명·heldByMe 근사(grants 명단)에 쓴다 */
+  title: RecentTitleRow;
+};
+
+/**
+ * 칭호별 묶음(RPC 반환)을 **사람 단위 pool**로 평탄화한다 — 사람별 최신 수여 1건만
+ * 남기고(목표 팻말 `dedupePledgesByMember`와 같은 원칙 — 한 사람이 칭호 셋을 동시에
+ * 따도 대표 3연속·명단 3중복이 안 되게) 최신순으로 정렬한다.
+ *
+ * `grnt_at` 비교가 사전순인 이유: RPC(jsonb)가 같은 오프셋(+00:00) ISO 문자열로 주므로
+ * 사전순이 곧 시간순이다. dayjs를 안 쓰는 건 이 파일이 클라이언트 번들에 실려서다
+ * (파일 머리 주석 — server-only 오염 방지와 같은 결).
+ */
+export function buildTitleLeadPool(rows: RecentTitleRow[]): TitleLeadEntry[] {
+  const byMem = new Map<string, TitleLeadEntry>();
+  for (const row of rows) {
+    for (const person of row.grants) {
+      const prev = byMem.get(person.mem_id);
+      if (!prev || person.grnt_at > prev.person.grnt_at) {
+        byMem.set(person.mem_id, { person, title: row });
+      }
+    }
+  }
+  return [...byMem.values()].sort((a, b) =>
+    a.person.grnt_at < b.person.grnt_at
+      ? 1
+      : a.person.grnt_at > b.person.grnt_at
+        ? -1
+        : 0,
+  );
+}
+
+/**
+ * pick으로 대표를 뽑는다 — 나머지(others)는 **최신순 그대로**(대표만 뺀 목록).
+ *
+ * 회전이지 셔플이 아니다: 한 바퀴 완주마다 호출자가 pick을 +1 하면 전원이 빠짐없이
+ * 돌아가며 대표가 된다(리드의 rotate 원칙 — story-lede.tsx의 rotate 주석 참조).
+ * others를 회전시키지 않는 이유: 매 바퀴 명단까지 뒤섞이면 어지럽다(스펙 §회전 규칙).
+ */
+export function pickTitleLead(
+  pool: TitleLeadEntry[],
+  pick: number,
+): { lead: TitleLeadEntry; others: TitleLeadEntry[] } | null {
+  if (pool.length === 0) return null;
+  const at = ((pick % pool.length) + pool.length) % pool.length;
+  return { lead: pool[at], others: pool.filter((_, i) => i !== at) };
+}
+
 /**
  * 칭호획득 슬롯의 진입 회전 오프셋을 뽑는다(0 ~ count-1). count가 0/1이면 0.
  *
@@ -48,18 +89,4 @@ export type RecentTitleRow = {
 export function pickTitleLedeStart(count: number): number {
   if (count <= 1) return 0;
   return Math.floor(Math.random() * count);
-}
-
-/**
- * pick만큼 회전한 뒤 앞 `TITLE_LEDE_PAGE`개 — 칭호획득 슬롯의 "이번 바퀴 페이지".
- *
- * **랜덤(셔플)이 아니라 회전이다.** 셔플이면 운 나쁘게 같은 칭호만 반복 노출되고
- * 누군가는 몇 바퀴를 돌아도 안 나올 수 있다(리드의 rotate 원칙과 동일 —
- * story-lede.tsx의 rotate 주석 참조). 한 바퀴 완주마다 호출자가 pick을
- * `TITLE_LEDE_PAGE`씩 키우면(페이지 전진) 모든 칭호가 빠짐없이 주기적으로 오른다.
- */
-export function rotateTitlePage<T>(arr: T[], pick: number): T[] {
-  if (arr.length === 0) return [];
-  const at = ((pick % arr.length) + arr.length) % arr.length;
-  return [...arr.slice(at), ...arr.slice(0, at)].slice(0, TITLE_LEDE_PAGE);
 }
