@@ -87,6 +87,21 @@
 - `ix_mem_ttl_rel_team_ttl`: (`team_id`, `ttl_id`, `vers`, `del_yn`)
 - `ix_mem_ttl_rel_exp`: (`team_id`, `exp_at`) where `exp_at is not null`
 
+트리거:
+- `trg_mem_ttl_rel_promote_latest_primary` (AFTER INSERT, 2026-08-12):
+  새로 수여된 칭호를 **대표(`is_prmy_yn`)로 승격**하고 이전 대표를 내린다.
+  - **앱이 아니라 DB에 둔 이유**: 수여 경로가 넷이라(engine 트리거평가 · 일괄 sweep ·
+    마일리지 배치 · 관리자 수동수여) 앱에서 각자 처리하면 새 경로를 추가할 때마다 조용히
+    빠진다. 앱은 `is_prmy_yn`을 넘기지 않고(기본 `false`) 승격은 전적으로 이 트리거 몫이다.
+  - **BEFORE가 아니라 AFTER인 이유**: bulk INSERT(sweep·배치)에서 BEFORE는 같은 명령 안의
+    다른 행을 못 봐 전부 `true`로 들어가고 대표 단일성 부분 유니크에 걸린다. AFTER면 행이
+    들어간 뒤 순서대로 돌아 **마지막 행이 대표로 남는다.**
+  - **승격하지 않는 경우**: 회수분(`vers<>0`)·소프트삭제분, 이미 만료된 칭호(`exp_at`),
+    그리고 **같은 `ttl_group_cd`에 더 높은 `rarity_level`을 보유 중일 때**(컬렉션의
+    "그룹 내 최고 등급만 대표 선택 가능" 규칙과 어긋나지 않게).
+  - 본인이 프로필에서 고르는 경로(`setPrimaryTitle`)와 관리자 대표 지정은 **UPDATE**라
+    이 트리거에 걸리지 않는다 — 사람이 고른 값은 덮이지 않는다.
+
 운영 규칙:
 - 자동 칭호 재계산 시 카테고리별 정본(`vers=0`) 1건만 유지하고 이전 정본은 이력화(`vers>0`)한다.
 - 수여 칭호 회수는 소프트삭제(`del_yn=true`) 또는 버전 이력화 방식 중 하나로 통일한다.
