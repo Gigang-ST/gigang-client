@@ -160,11 +160,42 @@ export function parseStoredBatchResult(json: unknown): StoredBatchResult | null 
 }
 
 /**
- * 직전 성공 실행 대비 증감. **월 배치에선 이게 곧 "지난달 대비"**라, 숫자 하나로 이상 징후가
+ * 지난 회차 대비 증감. **월 배치에선 이게 곧 "지난달 대비"**라, 숫자 하나로 이상 징후가
  * 잡힌다(감면이 5명 → 0명이면 뭔가 잘못된 것이다).
  *
  * 이전 실행에 없던 라벨은 비교하지 않는다(0에서 늘어난 것처럼 보이면 오히려 오해를 만든다).
+ *
+ * ⚠️ **비교 상대는 `findComparableRun`이 고른다** — 아무 직전 성공이나 잡으면 안 된다.
  */
+export type ComparableRun = {
+  param_json: Record<string, string> | null;
+  result_json: unknown;
+};
+
+/**
+ * 증감을 비교할 **지난 회차**를 고른다. 없으면 null(증감을 안 그린다).
+ *
+ * 후보는 최신순으로 넘어오고, 그중 **파라미터가 다른 첫 실행**을 고른다.
+ *
+ * ⚠️ **"직전 성공"을 그냥 잡으면 안 된다.** 같은 달을 다시 돌리면 두 번째는 이미 부여돼
+ * 0이 나오는데, 직전 성공(=같은 달 첫 실행)과 비교해 `▼3`이 뜬다 — 정상 동작인데 경고처럼
+ * 보인다. 실제로 그렇게 나와서 고쳤다. 보고 싶은 건 "지난달과 얼마나 다른가"이지
+ * "같은 달을 두 번 돌리면 두 번째는 0"이 아니다.
+ */
+export function findComparableRun(
+  current: ComparableRun,
+  olderRuns: ComparableRun[],
+): StoredBatchResult | null {
+  const key = (r: ComparableRun) => JSON.stringify(r.param_json ?? {});
+  const currentKey = key(current);
+  for (const run of olderRuns) {
+    if (key(run) === currentKey) continue; // 같은 파라미터 = 같은 회차의 재실행
+    const parsed = parseStoredBatchResult(run.result_json);
+    if (parsed) return parsed;
+  }
+  return null;
+}
+
 export function metricDeltas(
   current: BatchMetric[],
   previous: BatchMetric[] | null,

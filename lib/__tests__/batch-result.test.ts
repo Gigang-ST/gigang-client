@@ -4,6 +4,7 @@ import {
   BATCH_CHANGES_LIMIT,
   capChanges,
   didChange,
+  findComparableRun,
   metricDeltas,
   parseStoredBatchResult,
 } from "@/lib/batch/types";
@@ -100,7 +101,46 @@ describe("didChange — '변화 없음' 판정", () => {
   });
 });
 
-describe("metricDeltas — 직전 성공 대비 증감", () => {
+describe("findComparableRun — 비교 상대 고르기", () => {
+  const run = (base_month: string, granted: number) => ({
+    param_json: { base_month },
+    result_json: { metrics: [{ label: "부여", value: granted }], changedCount: granted },
+  });
+
+  it("⚠️ 같은 파라미터 재실행은 건너뛴다 — 그게 ▼3 노이즈의 원인이었다", () => {
+    // 2026-07을 두 번 돌리면 두 번째는 이미 부여돼 0이다. 첫 실행과 비교하면
+    // ▼3이 뜨는데, 그건 이상 징후가 아니라 정상 동작이다.
+    const current = run("2026-07", 0);
+    const older = [run("2026-07", 3), run("2026-06", 5)];
+    expect(findComparableRun(current, older)?.metrics).toEqual([{ label: "부여", value: 5 }]);
+  });
+
+  it("파라미터가 다른 가장 가까운 회차를 고른다(지난달)", () => {
+    const current = run("2026-08", 2);
+    expect(findComparableRun(current, [run("2026-07", 3), run("2026-06", 9)])?.metrics).toEqual([
+      { label: "부여", value: 3 },
+    ]);
+  });
+
+  it("결과가 없는(옛) 이력은 건너뛰고 더 뒤에서 찾는다", () => {
+    const current = run("2026-08", 2);
+    const older = [{ param_json: { base_month: "2026-07" }, result_json: null }, run("2026-06", 9)];
+    expect(findComparableRun(current, older)?.metrics).toEqual([{ label: "부여", value: 9 }]);
+  });
+
+  it("비교할 회차가 없으면 null — 첫 실행엔 증감을 안 그린다", () => {
+    expect(findComparableRun(run("2026-07", 3), [run("2026-07", 1)])).toBeNull();
+    expect(findComparableRun(run("2026-07", 3), [])).toBeNull();
+  });
+
+  it("파라미터가 없는 배치끼리는 같은 회차로 본다(증감 없음)", () => {
+    const current = { param_json: null, result_json: { changedCount: 1 } };
+    const older = [{ param_json: null, result_json: { changedCount: 5 } }];
+    expect(findComparableRun(current, older)).toBeNull();
+  });
+});
+
+describe("metricDeltas — 지난 회차 대비 증감", () => {
   const m = (o: Record<string, number>) =>
     Object.entries(o).map(([label, value]) => ({ label, value }));
 

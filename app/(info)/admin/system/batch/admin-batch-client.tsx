@@ -7,7 +7,12 @@ import { useRouter } from "next/navigation";
 import { Play, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 
-import { didChange, metricDeltas, parseStoredBatchResult } from "@/lib/batch/types";
+import {
+  didChange,
+  findComparableRun,
+  metricDeltas,
+  parseStoredBatchResult,
+} from "@/lib/batch/types";
 import { currentMonthKST, formatKSTDateTime, prevMonthStr, todayKST } from "@/lib/dayjs";
 
 import { runBatch, getBatchRunHist, getActiveEvents } from "@/app/actions/admin/run-batch";
@@ -335,12 +340,9 @@ export function AdminBatchClient({ initialJobs }: { initialJobs: BatchJob[] }) {
                     <div className="divide-y divide-border">
                       {(histMap[job.job_id] ?? []).map((run, idx, arr) => {
                         const parsed = parseStoredBatchResult(run.result_json);
-                        // 직전 **성공** 실행과 비교한다(실패는 값이 없어 비교 기준이 못 된다).
+                        // 비교 상대는 **파라미터가 다른** 지난 회차다(같은 달 재실행이 아니라).
                         // 목록이 최신순이라 나보다 뒤(오래된 쪽)에서 찾는다.
-                        const prev = arr
-                          .slice(idx + 1)
-                          .map((r) => parseStoredBatchResult(r.result_json))
-                          .find((p): p is NonNullable<typeof p> => p !== null);
+                        const prev = findComparableRun(run, arr.slice(idx + 1));
                         const deltas = parsed
                           ? metricDeltas(parsed.metrics, prev?.metrics ?? null)
                           : {};
