@@ -4,6 +4,7 @@ import { updateTag } from "next/cache";
 
 import { withActive } from "@/lib/actions/auth";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 import { uploadPostPhoto, removePostPhoto } from "@/lib/storage/post-photo";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createRecordFlexSchema } from "@/lib/validations/post";
@@ -88,6 +89,15 @@ export async function createRecordFlex(
       // 올리자마자 router.refresh()가 낡은 캐시를 받아 "새로고침해야 기록이 보이는" 증상이 난다.
       // (같은 이유·같은 처방이 createPledge에도 적용돼 있다.)
       updateTag("story-posts");
+
+      // 깅스타그램 칭호(오운완·깅플루언서·연재작가·유물발굴)는 글이 올라가는 순간 확정된다.
+      // catch가 삼키므로 칭호 부여 실패가 이미 올라간 글을 되돌리지 않는다.
+      await evaluateAndGrantTitles({
+        trigger: "post_create",
+        teamId,
+        teamMemId: member.team_mem_id,
+      }).catch((e) => console.error("[title-engine] post_create 평가 실패", e));
+
       return { ok: true as const, post_id: data.post_id };
     });
   } catch (e) {

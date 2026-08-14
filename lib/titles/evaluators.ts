@@ -23,6 +23,19 @@ import {
   evalGthrSameDayCount,
 } from "./evaluators-gathering";
 import type { GatheringCache, GatheringWindow } from "./evaluators-gathering";
+import {
+  evalCmntMentionCount,
+  evalCmntMonthlyTop,
+  evalCmntReplyCount,
+  evalPostBackfillDays,
+  evalPostCount,
+  evalPostDaysInMonth,
+  evalPostSelfFirstComment,
+  evalRacePairReversal,
+  evalRaceTimeExactHour,
+  evalRctnRecvTotal,
+} from "./evaluators-social";
+import type { SocialWindow } from "./evaluators-social";
 
 const KST = "Asia/Seoul";
 
@@ -957,6 +970,8 @@ export async function evaluateCondition(
     effStartDt,
     cache,
   };
+  // 깅스타그램·댓글·대회 계열은 창에 상한이 없다 — 적용일만 본다(모임처럼 유예가 필요 없다).
+  const socialWindow: SocialWindow = { effStartDt, cache };
 
   switch (rule.type) {
     // --- 모임 계열 (2026-08 신규) ---
@@ -983,6 +998,40 @@ export async function evaluateCondition(
 
     case "attend_on_birthday":
       return evalAttendOnBirthday(rule, memId, ctx.teamId, gthrWindow, db);
+
+    // --- 깅스타그램 · 댓글 · 응원 · 대회 계열 (2026-08 신규) ---
+    case "post_count":
+      return evalPostCount(rule, memId, socialWindow, db);
+
+    case "post_days_in_month":
+      return evalPostDaysInMonth(rule, memId, socialWindow, db);
+
+    case "post_backfill_days":
+      return evalPostBackfillDays(rule, memId, socialWindow, db);
+
+    case "post_self_first_comment":
+      return evalPostSelfFirstComment(rule, memId, socialWindow, db);
+
+    case "cmnt_reply_count":
+      return evalCmntReplyCount(rule, memId, socialWindow, db);
+
+    case "cmnt_mention_count":
+      return evalCmntMentionCount(rule, memId, socialWindow, db);
+
+    case "cmnt_monthly_top":
+      // 월이 끝나야 1위가 확정된다 — 월 배치가 아니면 평가하지 않는다.
+      return ctx.trigger === "title_monthly"
+        ? evalCmntMonthlyTop(rule, memId, ctx.teamId, ctx.baseMonth, socialWindow, db)
+        : false;
+
+    case "rctn_recv_total":
+      return evalRctnRecvTotal(rule, memId, ctx.teamId, db);
+
+    case "race_time_exact_hour":
+      return evalRaceTimeExactHour(rule, memId, socialWindow, db);
+
+    case "race_pair_reversal":
+      return evalRacePairReversal(rule, memId, ctx.teamId, socialWindow, db);
 
     case "race_pb_under_sec":
       return evalRacePbUnderSecInternal(rule, memId, db);
@@ -1321,6 +1370,17 @@ export function evaluateConditionFromSnapshot(
     case "gthr_same_day_count":
     case "gthr_last_slot":
     case "attend_on_birthday":
+    // 깅스타그램·댓글·응원·대회 계열도 같다 — 스냅샷에 그 데이터가 없다.
+    case "post_count":
+    case "post_days_in_month":
+    case "post_backfill_days":
+    case "post_self_first_comment":
+    case "cmnt_reply_count":
+    case "cmnt_mention_count":
+    case "cmnt_monthly_top":
+    case "rctn_recv_total":
+    case "race_time_exact_hour":
+    case "race_pair_reversal":
       return false;
 
     default:

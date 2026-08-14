@@ -292,6 +292,56 @@ export type CondAttendOnBirthday = {
   count: number;
 };
 
+// ---------------------------------------------------------------------------
+// 깅스타그램 · 댓글 · 응원 · 대회 계열 (2026-08 신규) — 평가는 `evaluators-social.ts`
+// ---------------------------------------------------------------------------
+
+/** #11 깅스타그램 사진 글 누적 N장 (오운완 3장 · 깅플루언서 10장) */
+export type CondPostCount = { type: "post_count"; count: number };
+
+/** #12 같은 KST 월에 사진 글을 올린 서로 다른 `act_dt` 수 (연재작가 월 5일) */
+export type CondPostDaysInMonth = { type: "post_days_in_month"; days: number };
+
+/** #13 활동일보다 N일 이상 늦게 올린 글 (유물발굴) — 날짜끼리 비교, 경과 시각이 아니다 */
+export type CondPostBackfillDays = { type: "post_backfill_days"; days: number; count: number };
+
+/** #14 자기 게시물의 최초 댓글을 본인이 단 횟수 (자문자답) */
+export type CondPostSelfFirstComment = { type: "post_self_first_comment"; count: number };
+
+/** #15 대댓글 N개 (말대꾸) — 삭제 제외 */
+export type CondCmntReplyCount = { type: "cmnt_reply_count"; count: number };
+
+/** #16 @멘션 N회 (소환술사) — 자기 자신 멘션 제외, 같은 사람 반복은 포함 */
+export type CondCmntMentionCount = { type: "cmnt_mention_count"; count: number };
+
+/**
+ * #17 한 KST 달력월의 댓글 수 1위 (투머치토커)
+ *
+ * 동률 1위면 아무에게도 안 준다. 월이 끝나야 확정되므로 월 마감 배치 전용이다.
+ */
+export type CondCmntMonthlyTop = {
+  type: "cmnt_monthly_top";
+  /** 그 달 최소 댓글 수 — 조용한 달에 2개 쓰고 1위가 되는 걸 막는다 */
+  min_count: number;
+};
+
+/** #18 받은 응원 누적 N (인간화로) — race(대회 응원) 제외. 적용일 필터 불가(§7.5) */
+export type CondRctnRecvTotal = { type: "rctn_recv_total"; count: number };
+
+/** #19 완주 기록이 정확히 시간 단위로 떨어짐 (완벽한기록) */
+export type CondRaceTimeExactHour = { type: "race_time_exact_hour"; count: number };
+
+/**
+ * #21 같은 종목 맞대결 역전 (하수야~ / 고수님..)
+ *
+ * 적용일은 **역전이 일어난 나중 대회** 기준이다 — 둘 다 요구하면 발급까지 몇 년 걸린다.
+ */
+export type CondRacePairReversal = {
+  type: "race_pair_reversal";
+  /** "winner" = 먼저 지고 나중에 이긴 쪽(하수야~), "loser" = 그 반대(고수님..) */
+  direction: "winner" | "loser";
+};
+
 /** 모든 조건 유형의 유니온 — 새 조건 추가 시 여기에 타입을 추가한다 */
 export type CondRule =
   | CondRacePersonalBestUnderSec
@@ -327,7 +377,18 @@ export type CondRule =
   | CondGthrSameDayCount
   | CondGthrLastSlot
   | CondGthrCancelReason
-  | CondAttendOnBirthday;
+  | CondAttendOnBirthday
+  // 깅스타그램 · 댓글 · 응원 · 대회 계열 (2026-08 신규)
+  | CondPostCount
+  | CondPostDaysInMonth
+  | CondPostBackfillDays
+  | CondPostSelfFirstComment
+  | CondCmntReplyCount
+  | CondCmntMentionCount
+  | CondCmntMonthlyTop
+  | CondRctnRecvTotal
+  | CondRaceTimeExactHour
+  | CondRacePairReversal;
 
 // ---------------------------------------------------------------------------
 // TriggerKind — 트리거 종류
@@ -342,7 +403,9 @@ export type TriggerKind =
   // --- 2026-08 신규 (설계 §7.2) ---
   | "gathering_attend"  // 모임 참석·취소 액션 — 그 순간 확정되는 것만
   | "gathering_daily"   // 일 배치 — 끝난 지 3일 지난 모임까지 (참석 계열)
-  | "title_monthly";    // 월 마감 배치 — 달이 끝나야 값이 정해지는 것
+  | "post_create"       // 깅스타그램 게시
+  | "comment_create"    // 댓글 작성
+  | "title_monthly";    // 월 마감 배치 — 달이 끝나야 값이 정해지는 것 + 전원 재평가
 
 // ---------------------------------------------------------------------------
 // TRIGGER_COND_MAP — 트리거별로 평가할 CondRule 타입 목록
@@ -369,6 +432,8 @@ export const TRIGGER_COND_MAP = {
     "race_pb_within_sec_of_target",
     "race_finish_all_titles",
     "has_title_in_categories",
+    // 완벽한기록 — 기록을 저장하는 그 순간 확정된다(추가 훅이 필요 없다).
+    "race_time_exact_hour",
   ],
   mileage_run: [
     "mileage_run_complete",
@@ -438,9 +503,25 @@ export const TRIGGER_COND_MAP = {
   // 즉시 판정하면 ① 아직 안 열린 모임을 신청만 해도 붙고 ② 비회수라 취소해도 안 없어진다.
   gathering_daily: ["gthr_attend_in_month", "gthr_attend_streak", "gthr_same_day_count", "attend_on_birthday"],
 
-  // 달이 끝나야 값이 정해지는 것. 참석률은 달 중간에 75%였다가 남은 모임을 빠지면 최종이
-  // 70% 아래로 내려가는데, 비회수라 먼저 준 칭호는 안 돌아온다.
-  title_monthly: ["gthr_month_attend_rate"],
+  post_create: ["post_count", "post_days_in_month", "post_backfill_days"],
+
+  comment_create: ["post_self_first_comment", "cmnt_reply_count", "cmnt_mention_count"],
+
+  // 달이 끝나야 값이 정해지는 것(참석률·월 1위)과 **전원 재평가가 필요한 것**(응원·페어).
+  //
+  // 참석률은 달 중간에 75%였다가 남은 모임을 빠지면 최종이 70% 아래로 내려가는데,
+  // 비회수라 먼저 준 칭호는 안 돌아온다.
+  //
+  // 응원(#18)·페어(#21)를 여기 두는 이유는 다르다 — **실시간 훅으로 하기엔 비싸서**다.
+  // 응원은 연타마다 액션이 나가고, 페어는 상대 데이터를 봐야 해 단일 멤버 훅으로 못 푼다.
+  // ⚠️ 그렇다고 `manual_sweep`에만 두면 **단장이 버튼을 누를 때까지 아무에게도 안 붙어**
+  // 그 둘만 수동이 된다. 월 배치가 어차피 전원을 도므로 여기 얹는다(설계 §7.2).
+  title_monthly: [
+    "gthr_month_attend_rate",
+    "cmnt_monthly_top",
+    "rctn_recv_total",
+    "race_pair_reversal",
+  ],
 } satisfies Record<TriggerKind, CondRule["type"][]>;
 
 // ---------------------------------------------------------------------------
@@ -491,9 +572,12 @@ export type TitleEvalContextManualSweep = {
   teamMemId: string;
 };
 
-/** 모임 참석·취소 액션 — 그 순간 확정되는 조건만 평가한다(추가 데이터 없음). */
+/**
+ * 그 순간 확정되는 조건만 평가하는 액션 트리거들 — 추가 데이터가 없어 한 모양을 공유한다.
+ * (모임 참석·취소 / 깅스타그램 게시 / 댓글 작성)
+ */
 export type TitleEvalContextGatheringAttend = {
-  trigger: "gathering_attend";
+  trigger: "gathering_attend" | "post_create" | "comment_create";
   teamId: string;
   teamMemId: string;
 };
