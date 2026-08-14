@@ -266,21 +266,28 @@ export async function evalCmntMonthlyTop(
   // 적용일이 기준 월 이후면 그 달은 애초에 판정 대상이 아니다.
   if (win.effStartDt && baseMonth < win.effStartDt.slice(0, 7)) return false;
 
-  const monthStart = dayjs.tz(`${baseMonth}-01`, KST);
-  const nextMonth = monthStart.add(1, "month");
+  // ⚠️ **팀 공통 집계라 캐시 키에 memId를 넣지 않는다.** 1위가 누구인지는 멤버와 무관하게
+  // 한 번 계산하면 되는데, 예전엔 멤버마다 팀 전체 댓글을 다시 읽어 200번 나갔다
+  // (월 배치 20초의 주범이었다).
+  const counts = await cached(win, `team-comments:${teamId}:${baseMonth}`, async () => {
+    const monthStart = dayjs.tz(`${baseMonth}-01`, KST);
+    const nextMonth = monthStart.add(1, "month");
 
-  const { data } = await db
-    .from("cmnt_mst")
-    .select("mem_id, crt_at")
-    .eq("team_id", teamId)
-    .eq("del_yn", false)
-    .gte("crt_at", monthStart.toISOString())
-    .lt("crt_at", nextMonth.toISOString());
+    const { data } = await db
+      .from("cmnt_mst")
+      .select("mem_id, crt_at")
+      .eq("team_id", teamId)
+      .eq("del_yn", false)
+      .gte("crt_at", monthStart.toISOString())
+      .lt("crt_at", nextMonth.toISOString());
 
-  const counts = new Map<string, number>();
-  for (const r of (data ?? []) as { mem_id: string }[]) {
-    counts.set(r.mem_id, (counts.get(r.mem_id) ?? 0) + 1);
-  }
+    const m = new Map<string, number>();
+    for (const r of (data ?? []) as { mem_id: string }[]) {
+      m.set(r.mem_id, (m.get(r.mem_id) ?? 0) + 1);
+    }
+    return m;
+  });
+
   if (!counts.size) return false;
 
   const max = Math.max(...counts.values());
@@ -316,34 +323,43 @@ export async function evalRctnRecvTotal(
   rule: CondRctnRecvTotal,
   memId: string,
   teamId: string,
+  win: SocialWindow,
   db: DB,
 ): Promise<boolean> {
-  const sumOf = (rows: { rctn_cnt: number }[] | null) =>
-    (rows ?? []).reduce((n, r) => n + (r.rctn_cnt ?? 0), 0);
+  // 응원 원장 전체를 **팀 단위로 한 번** 읽어 entity_id로 색인해 둔다.
+  // 예전엔 멤버당 5쿼리(직접·내기록·내글 + 기록응원·글응원)가 나갔다.
+  const byEntity = await cached(win, `team-reactions:${teamId}`, async () => {
+    const { data } = await db
+      .from("rctn_mst")
+      .select("entity_type, entity_id, rctn_cnt")
+      .eq("team_id", teamId)
+      .in("entity_type", ["actv", "newbie", "record", "post"]);
 
-  const [direct, myRaces, myPosts] = await Promise.all([
-    db.from("rctn_mst").select("rctn_cnt")
-      .eq("team_id", teamId).in("entity_type", ["actv", "newbie"]).eq("entity_id", memId),
-    db.from("rec_race_hist").select("race_result_id")
-      .eq("mem_id", memId).eq("vers", 0).eq("del_yn", false),
-    db.from("post_mst").select("post_id").eq("mem_id", memId).eq("del_yn", false),
-  ]);
+    const m = new Map<string, number>();
+    for (const r of (data ?? []) as { entity_type: string; entity_id: string; rctn_cnt: number }[]) {
+      const key = `${r.entity_type}|${r.entity_id}`;
+      m.set(key, (m.get(key) ?? 0) + (r.rctn_cnt ?? 0));
+    }
+    return m;
+  });
 
-  let total = sumOf(direct.data);
+  const sumKeys = (type: string, ids: string[]) =>
+    ids.reduce((n, id) => n + (byEntity.get(`${type}|${id}`) ?? 0), 0);
 
-  const raceIds = ((myRaces.data ?? []) as { race_result_id: string }[]).map((r) => r.race_result_id);
-  if (raceIds.length) {
-    const { data } = await db.from("rctn_mst").select("rctn_cnt")
-      .eq("team_id", teamId).eq("entity_type", "record").in("entity_id", raceIds);
-    total += sumOf(data);
-  }
+  // ① actv·newbie — entity_id가 곧 mem_id
+  let total = sumKeys("actv", [memId]) + sumKeys("newbie", [memId]);
 
-  const postIds = ((myPosts.data ?? []) as { post_id: string }[]).map((r) => r.post_id);
-  if (postIds.length) {
-    const { data } = await db.from("rctn_mst").select("rctn_cnt")
-      .eq("team_id", teamId).eq("entity_type", "post").in("entity_id", postIds);
-    total += sumOf(data);
-  }
+  // ② record — 본인 대회 기록에 달린 것
+  const raceIds = await cached(win, `my-race-ids:${memId}`, async () => {
+    const { data } = await db.from("rec_race_hist").select("race_result_id")
+      .eq("mem_id", memId).eq("vers", 0).eq("del_yn", false);
+    return ((data ?? []) as { race_result_id: string }[]).map((r) => r.race_result_id);
+  });
+  total += sumKeys("record", raceIds);
+
+  // ③ post — 본인 깅스타그램 글에 달린 것
+  const posts = await loadPhotoPosts(db, memId, { effStartDt: null, cache: win.cache });
+  total += sumKeys("post", posts.map((p) => p.postId));
 
   return total >= rule.count;
 }

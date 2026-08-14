@@ -1025,7 +1025,7 @@ export async function evaluateCondition(
         : false;
 
     case "rctn_recv_total":
-      return evalRctnRecvTotal(rule, memId, ctx.teamId, db);
+      return evalRctnRecvTotal(rule, memId, ctx.teamId, socialWindow, db);
 
     case "race_time_exact_hour":
       return evalRaceTimeExactHour(rule, memId, socialWindow, db);

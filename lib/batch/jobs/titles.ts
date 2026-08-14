@@ -118,12 +118,21 @@ async function evaluateTeam(
   // 같은 `ttl_mst` 전체 조회가 나간다 — dev에서 배치가 30초를 넘긴 원인 중 하나였다.
   const autoTitles = await loadAutoTitles(db, teamId);
 
+  // 실행 1회짜리 조회 캐시를 **모든 멤버가 공유한다.** 팀 공통 조회(그 달 모임 수·팀 댓글
+  // 1위·응원 원장)가 멤버 수만큼 반복되던 걸 1번으로 묶는다 — 월 배치 20초의 주범이었다.
+  // 멤버별 조회는 캐시 키에 mem_id가 들어 있어 공유해도 각자 1번 그대로다.
+  const sharedCache = new Map<string, unknown>();
+
   const changes: BatchChange[] = [];
   const errors: string[] = [];
 
   for (const m of members) {
     try {
-      const granted = await evaluateAndGrantTitles(makeCtx(m.team_mem_id), autoTitles);
+      const granted = await evaluateAndGrantTitles(
+        makeCtx(m.team_mem_id),
+        autoTitles,
+        sharedCache,
+      );
       for (const ttlNm of granted) {
         changes.push({
           memNm: nameById.get(m.mem_id) ?? m.mem_id,

@@ -369,19 +369,24 @@ export async function evalGthrMonthAttendRate(
   if (!attended.length) return false;
 
   // 분모: 그 달에 열린 팀 모임 전체(취소분 제외).
-  const { data: allRows } = await db
-    .from("gthr_mst")
-    .select("stt_at")
-    .eq("team_id", teamId)
-    .eq("del_yn", false);
+  // ⚠️ **팀 공통 데이터라 캐시 키에 memId를 넣지 않는다** — 배치가 캐시를 공유하면
+  // 멤버 수만큼 반복되던 조회가 1번이 된다(월 배치 20초의 주범이었다).
+  const heldByMonth = await cached(win, `team-gatherings:${teamId}`, async () => {
+    const { data: allRows } = await db
+      .from("gthr_mst")
+      .select("stt_at")
+      .eq("team_id", teamId)
+      .eq("del_yn", false);
 
-  const heldByMonth = new Map<string, number>();
-  for (const r of (allRows ?? []) as { stt_at: string }[]) {
-    const startKst = dayjs(r.stt_at).tz(KST);
-    if (!inWindow(startKst, win)) continue;
-    const ym = startKst.format("YYYY-MM");
-    heldByMonth.set(ym, (heldByMonth.get(ym) ?? 0) + 1);
-  }
+    const byMonth = new Map<string, number>();
+    for (const r of (allRows ?? []) as { stt_at: string }[]) {
+      const startKst = dayjs(r.stt_at).tz(KST);
+      if (!inWindow(startKst, win)) continue;
+      const ym = startKst.format("YYYY-MM");
+      byMonth.set(ym, (byMonth.get(ym) ?? 0) + 1);
+    }
+    return byMonth;
+  });
 
   const mineByMonth = new Map<string, number>();
   for (const a of attended) {

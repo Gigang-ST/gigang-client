@@ -204,6 +204,52 @@ describe("#17 cmnt_monthly_top — 투머치토커", () => {
   });
 });
 
+describe("팀 공통 조회는 멤버 수만큼 반복되지 않는다", () => {
+  function countingDb(rows: unknown[]) {
+    let calls = 0;
+    const make = () => {
+      const q: Record<string, unknown> = {};
+      for (const m of ["eq", "in", "not", "gt", "gte", "lte", "lt", "order"]) q[m] = () => q;
+      q.select = () => q;
+      q.then = (res: (v: { data: unknown[] }) => unknown) => {
+        calls += 1;
+        return Promise.resolve({ data: rows }).then(res);
+      };
+      return q;
+    };
+    return { db: { from: () => make() } as never, calls: () => calls };
+  }
+
+  it("⚠️ 투머치토커의 팀 댓글 집계는 캐시를 공유하면 1번이다", async () => {
+    // 1위가 누구인지는 멤버와 무관하다. 예전엔 멤버마다 팀 전체 댓글을 다시 읽어
+    // 200번이 나갔고, 그게 월 배치 20초의 주범이었다.
+    const rows = Array.from({ length: 12 }, () => ({
+      mem_id: "top", crt_at: ts("2026-07-10T10:00:00"),
+    }));
+    const { db, calls } = countingDb(rows);
+    const win: SocialWindow = { effStartDt: null, cache: new Map() };
+    const rule = { type: "cmnt_monthly_top", min_count: 10 } as const;
+
+    // 멤버 셋을 연달아 평가 — 배치가 캐시를 공유하는 상황
+    await evalCmntMonthlyTop(rule, "m1", TEAM, "2026-07", win, db);
+    await evalCmntMonthlyTop(rule, "m2", TEAM, "2026-07", win, db);
+    await evalCmntMonthlyTop(rule, "m3", TEAM, "2026-07", win, db);
+
+    expect(calls()).toBe(1);
+  });
+
+  it("기준 월이 다르면 캐시를 공유하지 않는다", async () => {
+    const { db, calls } = countingDb([]);
+    const win: SocialWindow = { effStartDt: null, cache: new Map() };
+    const rule = { type: "cmnt_monthly_top", min_count: 10 } as const;
+
+    await evalCmntMonthlyTop(rule, "m1", TEAM, "2026-07", win, db);
+    await evalCmntMonthlyTop(rule, "m1", TEAM, "2026-06", win, db);
+
+    expect(calls()).toBe(2);
+  });
+});
+
 describe("#19 race_time_exact_hour — 완벽한기록", () => {
   it("정확히 3시간이면 통과", async () => {
     const db = fakeDb({ rec_race_hist: [{ rec_time_sec: 10800, race_dt: "2026-08-15" }] });

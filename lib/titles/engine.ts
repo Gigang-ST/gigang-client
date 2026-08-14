@@ -85,6 +85,16 @@ export async function evaluateAndGrantTitles(
    * 그대로 두면 된다.
    */
   preloadedTitles?: TtlMstRow[],
+  /**
+   * 조회 캐시. **배치는 실행 1회짜리 캐시를 만들어 모든 멤버에 공유한다.**
+   *
+   * 캐시 키가 `memId`를 포함하는 것(참석·취소·글·댓글)은 공유해도 멤버당 1번 그대로지만,
+   * **팀 공통 조회**(그 달 팀 모임 수, 팀 댓글 1위, 응원 원장)는 200번이 1번이 된다 —
+   * 월 배치가 20초 걸린 주범이었다.
+   *
+   * 안 넘기면 멤버마다 새로 만든다(실시간 트리거는 어차피 한 번만 부르므로 그게 맞다).
+   */
+  sharedCache?: Map<string, unknown>,
 ): Promise<string[]> {
   const db = createAdminClient();
 
@@ -140,9 +150,9 @@ export async function evaluateAndGrantTitles(
   // 5. 조건 평가 → 통과한 미보유 칭호 수여
   const granted: string[] = [];
 
-  // 이 멤버를 평가하는 동안 조건들이 나눠 쓰는 조회 캐시.
+  // 조건들이 나눠 쓰는 조회 캐시. 배치가 넘겨줬으면 그걸 쓴다(팀 공통 조회가 1번이 된다).
   // 모임 칭호 6종이 전부 같은 참석 목록을 보므로, 없으면 같은 쿼리가 6번 나간다.
-  const evalCache = new Map<string, unknown>();
+  const evalCache = sharedCache ?? new Map<string, unknown>();
 
   for (const title of titles) {
     if (activeIds.has(title.ttl_id)) continue; // 현재 활성 보유 중이면 스킵
