@@ -2686,6 +2686,7 @@ export type Database = {
           crt_by: string | null
           del_yn: boolean
           desc_visibility: string
+          eff_stt_dt: string | null
           rarity_level: number
           sort_ord: number
           team_id: string
@@ -2706,6 +2707,7 @@ export type Database = {
           crt_by?: string | null
           del_yn?: boolean
           desc_visibility?: string
+          eff_stt_dt?: string | null
           rarity_level?: number
           sort_ord?: number
           team_id: string
@@ -2726,6 +2728,7 @@ export type Database = {
           crt_by?: string | null
           del_yn?: boolean
           desc_visibility?: string
+          eff_stt_dt?: string | null
           rarity_level?: number
           sort_ord?: number
           team_id?: string

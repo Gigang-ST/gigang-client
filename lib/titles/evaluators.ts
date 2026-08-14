@@ -12,6 +12,18 @@
 // 설정이 두 곳으로 갈려, 한쪽만 바뀌었을 때 같은 값이 파일마다 다르게 해석된다.
 import { dayjs, parseEventTime, todayStartKST } from "@/lib/dayjs";
 
+import {
+  evalAttendOnBirthday,
+  evalGthrAttendInMonth,
+  evalGthrAttendStreak,
+  evalGthrCancelCount,
+  evalGthrCancelReason,
+  evalGthrLastSlot,
+  evalGthrMonthAttendRate,
+  evalGthrSameDayCount,
+} from "./evaluators-gathering";
+import type { GatheringWindow } from "./evaluators-gathering";
+
 const KST = "Asia/Seoul";
 
 import type { Database } from "@/lib/supabase/database.types";
@@ -925,8 +937,44 @@ export async function evaluateCondition(
   ctx: TitleEvalContext,
   memId: string,
   db: DB,
+  /**
+   * `ttl_mst.eff_stt_dt` — 이 날짜(KST)부터 발생한 활동만 센다. null이면 소급 제한 없음.
+   * 기존 64종은 null이라 동작이 그대로다(설계 §7.5).
+   */
+  effStartDt: string | null = null,
 ): Promise<boolean> {
+  // 모임 계열이 볼 수 있는 창 — 일 배치의 3일 유예(asOfDt)와 적용 시작일을 함께 넘긴다.
+  const gthrWindow: GatheringWindow = {
+    asOfDt: ctx.trigger === "gathering_daily" ? ctx.asOfDt : null,
+    effStartDt,
+  };
+
   switch (rule.type) {
+    // --- 모임 계열 (2026-08 신규) ---
+    case "gthr_attend_in_month":
+      return evalGthrAttendInMonth(rule, memId, ctx.teamId, gthrWindow, db);
+
+    case "gthr_cancel_count":
+      return evalGthrCancelCount(rule, memId, ctx.teamId, gthrWindow, db);
+
+    case "gthr_cancel_reason":
+      return evalGthrCancelReason(rule, memId, ctx.teamId, gthrWindow, db);
+
+    case "gthr_attend_streak":
+      return evalGthrAttendStreak(rule, memId, ctx.teamId, gthrWindow, db);
+
+    case "gthr_month_attend_rate":
+      return evalGthrMonthAttendRate(rule, memId, ctx.teamId, gthrWindow, db);
+
+    case "gthr_same_day_count":
+      return evalGthrSameDayCount(rule, memId, ctx.teamId, gthrWindow, db);
+
+    case "gthr_last_slot":
+      return evalGthrLastSlot(rule, memId, ctx.teamId, gthrWindow, db);
+
+    case "attend_on_birthday":
+      return evalAttendOnBirthday(rule, memId, ctx.teamId, gthrWindow, db);
+
     case "race_pb_under_sec":
       return evalRacePbUnderSecInternal(rule, memId, db);
 
@@ -1235,6 +1283,24 @@ export function evaluateConditionFromSnapshot(
         return sportTotal / total >= rule.min_ratio;
       });
     }
+
+    // ⚠️ **모임 계열은 스냅샷으로 평가하지 않는다.** `MemberSnapshot`에는 모임 데이터가
+    // 없다(설계 §7.3 스냅샷 확장 미구현). 여기 오면 무조건 false인데, 그건 "조건 미충족"과
+    // 구분이 안 돼 **조용히 아무에게도 안 붙는** 형태로만 드러난다.
+    //
+    // 그래서 `TRIGGER_COND_MAP`의 `manual_sweep`·`mileage_batch`에 **등록하지 않았다** —
+    // 이 경로로 올 일이 없다. 스냅샷을 확장해 sweep에서도 재평가하려면 `snapshot.ts`에
+    // 모임 테이블을 실은 **뒤에** 여기를 구현하고 그때 맵에 등록한다. 순서를 뒤집으면
+    // 등록만 되고 평가는 안 되는 상태가 된다.
+    case "gthr_attend_in_month":
+    case "gthr_cancel_count":
+    case "gthr_cancel_reason":
+    case "gthr_attend_streak":
+    case "gthr_month_attend_rate":
+    case "gthr_same_day_count":
+    case "gthr_last_slot":
+    case "attend_on_birthday":
+      return false;
 
     default:
       rule satisfies never;

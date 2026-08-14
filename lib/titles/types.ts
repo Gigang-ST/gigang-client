@@ -216,6 +216,82 @@ export type CondMileageSportRatio = {
   min_ratio: number;
 };
 
+// ---------------------------------------------------------------------------
+// 모임 계열 (2026-08 신규) — 평가는 `evaluators-gathering.ts`
+// 설계: docs/design/2026-07-30-신규-칭호-후보-모임-깅스타그램.md §7.1
+//
+// ⚠️ 이 계열은 전부 `ttl_mst.eff_stt_dt`(적용 시작일) 필터를 받고, 기준은 **모임이 실제로
+//    열린 날**(`gthr_mst.stt_at`, KST 환산)이다 — 신청·취소 시각이 아니다(§7.5).
+// ---------------------------------------------------------------------------
+
+/** #1 한 달력월(KST)에 조건에 맞는 모임 참석 N회 (미라클·올빼미·오픈런) */
+export type CondGthrAttendInMonth = {
+  type: "gthr_attend_in_month";
+  count: number;
+  /** 모임 시작 시각(KST) 하한 "HH:mm" — 이 시각 **이후** 시작 (올빼미: "21:00") */
+  after_time?: string;
+  /** 모임 시작 시각(KST) 상한 "HH:mm" — 이 시각 **이전** 시작 (미라클: "07:00") */
+  before_time?: string;
+  /** true면 그 모임의 첫 신청자(개설자 제외)인 것만 센다 (오픈런) */
+  first_applicant?: boolean;
+};
+
+/** #2 self 취소 누적 N회 (다음엔꼭·회전문·월요병) */
+export type CondGthrCancelCount = {
+  type: "gthr_cancel_count";
+  count: number;
+  /** true면 취소일 = 모임 당일(KST)인 것만 (다음엔꼭) */
+  same_day?: boolean;
+  /** 지정 시 그 요일(0=일 … 1=월)에 열린 모임의 취소만 (월요병) */
+  weekday?: number;
+  /** true면 "같은 모임에서 N건" 기준으로 센다 (회전문) */
+  same_gathering?: boolean;
+};
+
+/** #3 모임 참석일이 N일 연속 (3연벙) — 하루에 여러 개 나가도 그날은 1일 */
+export type CondGthrAttendStreak = {
+  type: "gthr_attend_streak";
+  days: number;
+};
+
+/** #4 한 달력월(KST) 모임 참석률이 N 이상 (프로참석러). 달이 끝나야 확정 → 월 배치 전용 */
+export type CondGthrMonthAttendRate = {
+  type: "gthr_month_attend_rate";
+  /** 0~1. 0.7 = 70% */
+  min_rate: number;
+  /** 그 달에 이 수 이상 열린 달만 판정 */
+  min_gatherings: number;
+};
+
+/** #5 같은 KST 날짜의 서로 다른 모임 N건에 모두 참석한 날이 M일 (하루에두번) */
+export type CondGthrSameDayCount = {
+  type: "gthr_same_day_count";
+  per_day: number;
+  count: number;
+};
+
+/** #6 정원이 있는 모임에서 신청 순번이 정확히 정원 번째 (막차) */
+export type CondGthrLastSlot = {
+  type: "gthr_last_slot";
+  count: number;
+};
+
+/** #10 self 취소 사유 조건 (칼퇴실패·구구절절) */
+export type CondGthrCancelReason = {
+  type: "gthr_cancel_reason";
+  count: number;
+  /** 사유에 이 문자열이 포함된 것만 (칼퇴실패: "야근") */
+  keyword?: string;
+  /** 사유 길이가 이 값 이상인 것만 (구구절절: 40) */
+  min_length?: number;
+};
+
+/** #22 생일(월·일)에 크루와 함께 나감 — 모임 참석 또는 대회 출전 (생일축하해) */
+export type CondAttendOnBirthday = {
+  type: "attend_on_birthday";
+  count: number;
+};
+
 /** 모든 조건 유형의 유니온 — 새 조건 추가 시 여기에 타입을 추가한다 */
 export type CondRule =
   | CondRacePersonalBestUnderSec
@@ -242,7 +318,16 @@ export type CondRule =
   | CondMileageGoalFailedMonths
   | CondMileageRocketInMonths
   | CondMileageGoalAchievedBySingleSport
-  | CondMileageSportRatio;
+  | CondMileageSportRatio
+  // 모임 계열 (2026-08 신규)
+  | CondGthrAttendInMonth
+  | CondGthrCancelCount
+  | CondGthrAttendStreak
+  | CondGthrMonthAttendRate
+  | CondGthrSameDayCount
+  | CondGthrLastSlot
+  | CondGthrCancelReason
+  | CondAttendOnBirthday;
 
 // ---------------------------------------------------------------------------
 // TriggerKind — 트리거 종류
@@ -252,8 +337,12 @@ export type TriggerKind =
   | "race_record"    // 대회 기록 등록/수정
   | "mileage_run"    // 마일리지런 기록 등록
   | "mileage_batch"  // 마일리지런 월초 배치 (전월 마감 후 확정 조건)
-  | "attendance"     // 로그인 / 출석 체크
-  | "manual_sweep";  // 관리자 수동 전체 재계산
+  | "attendance"        // 로그인 / 출석 체크
+  | "manual_sweep"      // 관리자 수동 전체 재계산
+  // --- 2026-08 신규 (설계 §7.2) ---
+  | "gathering_attend"  // 모임 참석·취소 액션 — 그 순간 확정되는 것만
+  | "gathering_daily"   // 일 배치 — 끝난 지 3일 지난 모임까지 (참석 계열)
+  | "title_monthly";    // 월 마감 배치 — 달이 끝나야 값이 정해지는 것
 
 // ---------------------------------------------------------------------------
 // TRIGGER_COND_MAP — 트리거별로 평가할 CondRule 타입 목록
@@ -323,7 +412,27 @@ export const TRIGGER_COND_MAP = {
     "mileage_rocket_in_months",
     // 배치 전용 조건은 manual_sweep 제외 — 월 마감 후 고정 시점에만 의미있음
     // mileage_goal_failed_months, mileage_goal_achieved_by_single_sport, mileage_sport_ratio
+    //
+    // ⚠️ **모임 계열은 여기 없다.** sweep은 `MemberSnapshot`(메모리)만 보는데 거기엔 모임
+    // 데이터가 없다(설계 §7.3 스냅샷 확장 미구현). 등록하면 스냅샷 경로가 항상 false를
+    // 돌려줘 **조용히 아무에게도 안 붙는다** — 그게 이 엔진에서 가장 찾기 어려운 실패다.
+    // 대신 아래 두 배치가 그 역할을 하므로 재계산 없이도 붙는다.
   ],
+
+  // --- 2026-08 신규 트리거 ---
+
+  // 그 순간 확정되는 것만: 취소 계열과 막차.
+  // 막차만 참석 액션에 남는 이유 — 신청 순번의 사건이라 3일 뒤로 미루면 그 사이 노쇼가
+  // 지워져 "정확히 정원 번째" 행이 아예 사라진다(미루면 오히려 아무도 못 딴다).
+  gathering_attend: ["gthr_cancel_count", "gthr_cancel_reason", "gthr_last_slot"],
+
+  // 참석 계열 — 끝난 지 3일 지난 모임만 본다. 운영진이 노쇼를 사후 취소 처리하는 시간이다.
+  // 즉시 판정하면 ① 아직 안 열린 모임을 신청만 해도 붙고 ② 비회수라 취소해도 안 없어진다.
+  gathering_daily: ["gthr_attend_in_month", "gthr_attend_streak", "gthr_same_day_count", "attend_on_birthday"],
+
+  // 달이 끝나야 값이 정해지는 것. 참석률은 달 중간에 75%였다가 남은 모임을 빠지면 최종이
+  // 70% 아래로 내려가는데, 비회수라 먼저 준 칭호는 안 돌아온다.
+  title_monthly: ["gthr_month_attend_rate"],
 } satisfies Record<TriggerKind, CondRule["type"][]>;
 
 // ---------------------------------------------------------------------------
@@ -374,9 +483,50 @@ export type TitleEvalContextManualSweep = {
   teamMemId: string;
 };
 
+/** 모임 참석·취소 액션 — 그 순간 확정되는 조건만 평가한다(추가 데이터 없음). */
+export type TitleEvalContextGatheringAttend = {
+  trigger: "gathering_attend";
+  teamId: string;
+  teamMemId: string;
+};
+
+/**
+ * 일 배치 — 참석 계열.
+ *
+ * `asOfDt`는 **"이 날짜까지 시작한 모임만 센다"**는 상한이다(KST, YYYY-MM-DD).
+ * 배치가 `오늘 − ATTEND_GRACE_DAYS`를 넣어 유예를 만든다 — 판정 시점을 인자로 받아야
+ * 테스트가 시계를 고정할 수 있고, 유예 일수를 바꿀 때 한 곳만 고친다.
+ */
+export type TitleEvalContextGatheringDaily = {
+  trigger: "gathering_daily";
+  teamId: string;
+  teamMemId: string;
+  asOfDt: string;
+};
+
+/** 월 마감 배치 — `baseMonth`(YYYY-MM)는 **지난 달**이어야 한다(진행 중인 달은 값이 안 정해짐). */
+export type TitleEvalContextTitleMonthly = {
+  trigger: "title_monthly";
+  teamId: string;
+  teamMemId: string;
+  baseMonth: string;
+};
+
 export type TitleEvalContext =
   | TitleEvalContextRaceRecord
   | TitleEvalContextMileageRun
   | TitleEvalContextMileageBatch
   | TitleEvalContextAttendance
-  | TitleEvalContextManualSweep;
+  | TitleEvalContextManualSweep
+  | TitleEvalContextGatheringAttend
+  | TitleEvalContextGatheringDaily
+  | TitleEvalContextTitleMonthly;
+
+/**
+ * 모임 참석 판정을 미루는 유예(일).
+ *
+ * `gthr_attd_rel`에는 **출석 체크 컬럼이 없다** — 실제로 나갔는지를 DB가 모른다.
+ * 대신 운영진이 안 나온 사람을 사후에 취소 처리하므로(보통 2~3일 안) 출석부는 늦게나마
+ * 정확해진다. 그래서 참석 계열은 **끝난 지 이만큼 지난 모임만** 센다(설계 §4.1).
+ */
+export const ATTEND_GRACE_DAYS = 3;

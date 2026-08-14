@@ -38,6 +38,11 @@ type TtlMstRow = {
   ttl_id: string;
   ttl_nm: string;
   cond_rule_json: unknown;
+  /**
+   * 적용 시작일(KST). 이 날짜부터 발생한 활동만 센다. **null이면 소급 제한 없음** —
+   * 기존 64종은 전부 null이라 동작이 그대로다(설계 §7.5).
+   */
+  eff_stt_dt?: string | null;
 };
 
 /**
@@ -73,7 +78,7 @@ export async function evaluateAndGrantTitles(
   // 3. 이 팀의 사용 중인 auto 칭호 전체 조회 후 이 트리거에서 평가할 조건 유형만 필터링
   const { data: allTitles } = await db
     .from("ttl_mst")
-    .select("ttl_id, ttl_nm, cond_rule_json")
+    .select("ttl_id, ttl_nm, cond_rule_json, eff_stt_dt")
     .eq("team_id", ctx.teamId)
     .eq("ttl_kind_enm", "auto")
     .eq("use_yn", true)
@@ -122,6 +127,8 @@ export async function evaluateAndGrantTitles(
         ctx,
         memId,
         db,
+        // 적용 시작일 — 이 날짜부터 발생한 활동만 센다. 기존 64종은 null이라 그대로 소급된다.
+        title.eff_stt_dt ?? null,
       );
     } catch (e) {
       console.error(`[title-engine] 조건 평가 실패 ttl_id=${title.ttl_id}`, e);
@@ -181,7 +188,7 @@ export async function sweepEvaluateAndGrant(
   // 2. 팀의 auto 칭호 전체 조회 (1번 — 멤버 수와 무관)
   const { data: allTitles } = await db
     .from("ttl_mst")
-    .select("ttl_id, ttl_nm, cond_rule_json")
+    .select("ttl_id, ttl_nm, cond_rule_json, eff_stt_dt")
     .eq("team_id", teamId)
     .eq("ttl_kind_enm", "auto")
     .eq("use_yn", true)
@@ -302,7 +309,7 @@ export async function batchEvaluateAndGrant(
 
   const { data: allTitles } = await db
     .from("ttl_mst")
-    .select("ttl_id, ttl_nm, cond_rule_json")
+    .select("ttl_id, ttl_nm, cond_rule_json, eff_stt_dt")
     .eq("team_id", teamId)
     .eq("ttl_kind_enm", "auto")
     .eq("use_yn", true)
