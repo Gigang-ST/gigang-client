@@ -50,7 +50,8 @@ export async function executeBatch(
   jobId: string,
   params: BatchParams,
   trigType: "manual" | "auto",
-  ctx: BatchContext,
+  /** `jobId`는 이 함수가 채운다 — 호출부는 팀·실행자만 알면 된다. */
+  ctx: Omit<BatchContext, "jobId">,
 ): Promise<ExecuteOutcome> {
   const db = createAdminClient();
 
@@ -105,7 +106,8 @@ export async function executeBatch(
   let result: BatchResult | null = null;
 
   try {
-    result = await action(ctx, params);
+    // jobId는 호출부가 몰라도 되게 여기서 채운다 — 핸들러가 자기 지난 실행을 볼 수 있어야 한다.
+    result = await action({ ...ctx, jobId }, params);
     resultMsg = result.msg;
   } catch (e) {
     status = "failed";

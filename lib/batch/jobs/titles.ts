@@ -1,3 +1,4 @@
+import { lookbackStartFrom } from "@/lib/batch/lookback";
 import { capChanges } from "@/lib/batch/types";
 import { dayjs } from "@/lib/dayjs";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -8,6 +9,64 @@ import type { BatchChange, BatchContext, BatchResult } from "@/lib/batch/types";
 import type { TitleEvalContext } from "@/lib/titles/types";
 
 const KST = "Asia/Seoul";
+
+async function resolveLookbackStart(
+  db: ReturnType<typeof createAdminClient>,
+  jobId: string,
+  asOfDt: string,
+): Promise<string> {
+  const { data } = await db
+    .from("batch_run_hist")
+    .select("started_at")
+    .eq("job_id", jobId)
+    .eq("status", "success")
+    .order("started_at", { ascending: false })
+    .limit(1);
+
+  return lookbackStartFrom((data ?? [])[0]?.started_at ?? null, asOfDt);
+}
+
+/**
+ * 구간에 **모임에 참석했거나 대회를 뛴** 멤버.
+ *
+ * 참석 계열 조건(#1·#3·#5)은 전부 "내가 참석한 모임"에 기반하므로, 그 구간에 새로 잡히는
+ * 모임에 안 나간 사람은 값이 그대로라 새로 통과할 수가 없다.
+ *
+ * ⚠️ **대회도 함께 본다** — `생일축하해`(#22)는 모임뿐 아니라 **대회 출전**으로도 붙는다.
+ * 모임 참석자만 추리면 생일에 대회만 뛴 사람이 조용히 빠진다.
+ */
+async function membersWithActivityBetween(
+  db: ReturnType<typeof createAdminClient>,
+  teamId: string,
+  sinceDt: string,
+  asOfDt: string,
+): Promise<Set<string>> {
+  const startTs = dayjs.tz(sinceDt, KST).toISOString();
+  // 상한은 그날 끝까지 — `asOfDt` 당일에 시작한 모임도 포함해야 한다.
+  const endTs = dayjs.tz(asOfDt, KST).add(1, "day").toISOString();
+
+  const [gthr, race] = await Promise.all([
+    db
+      .from("gthr_attd_rel")
+      .select("mem_id, gthr_mst!inner(stt_at, team_id, del_yn)")
+      .eq("gthr_mst.team_id", teamId)
+      .eq("gthr_mst.del_yn", false)
+      .gte("gthr_mst.stt_at", startTs)
+      .lt("gthr_mst.stt_at", endTs),
+    db
+      .from("rec_race_hist")
+      .select("mem_id")
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .gte("race_dt", sinceDt)
+      .lte("race_dt", asOfDt),
+  ]);
+
+  const ids = new Set<string>();
+  for (const r of (gthr.data ?? []) as { mem_id: string }[]) ids.add(r.mem_id);
+  for (const r of (race.data ?? []) as { mem_id: string }[]) ids.add(r.mem_id);
+  return ids;
+}
 
 /**
  * 팀의 활성 멤버를 돌며 칭호를 평가한다. 두 배치가 공유하는 몸통.
@@ -21,10 +80,21 @@ const KST = "Asia/Seoul";
 async function evaluateTeam(
   teamId: string,
   makeCtx: (teamMemId: string) => TitleEvalContext,
+  /**
+   * 평가할 `mem_id` 집합. **null이면 활성 멤버 전원**.
+   *
+   * 일 배치는 "값이 바뀔 수 있는 사람"으로 좁혀 넘긴다 — 참석 계열은 창에 새 모임이
+   * 들어온 사람만 값이 커지므로, 대부분의 날 나머지를 도는 건 통째로 낭비다.
+   */
+  onlyMemIds: Set<string> | null = null,
 ): Promise<{ evaluated: number; changes: BatchChange[]; errors: string[] }> {
   const db = createAdminClient();
 
-  const { data: members, error } = await db
+  if (onlyMemIds && onlyMemIds.size === 0) {
+    return { evaluated: 0, changes: [], errors: [] };
+  }
+
+  const { data: allMembers, error } = await db
     .from("team_mem_rel")
     .select("team_mem_id, mem_id")
     .eq("team_id", teamId)
@@ -32,7 +102,11 @@ async function evaluateTeam(
     .eq("vers", 0)
     .eq("del_yn", false);
   if (error) throw new Error(`대상 멤버 조회 실패: ${error.message}`);
-  if (!members?.length) return { evaluated: 0, changes: [], errors: [] };
+
+  const members = onlyMemIds
+    ? (allMembers ?? []).filter((m) => onlyMemIds.has(m.mem_id))
+    : (allMembers ?? []);
+  if (!members.length) return { evaluated: 0, changes: [], errors: [] };
 
   const { data: memRows } = await db
     .from("mem_mst")
@@ -76,16 +150,27 @@ async function evaluateTeam(
  * ② 엔진이 비회수라 취소해도 안 없어진다.
  */
 export async function batchTitleGatheringDaily(ctx: BatchContext): Promise<BatchResult> {
+  const db = createAdminClient();
   const asOfDt = dayjs().tz(KST).subtract(ATTEND_GRACE_DAYS, "day").format("YYYY-MM-DD");
 
-  const { evaluated, changes, errors } = await evaluateTeam(ctx.teamId, (teamMemId) => ({
-    trigger: "gathering_daily",
-    teamId: ctx.teamId,
-    teamMemId,
-    asOfDt,
-  }));
+  // 창에 **새로 들어온** 모임의 참석자만 값이 바뀔 수 있다 — 나머지를 도는 건 낭비다.
+  const sinceDt = await resolveLookbackStart(db, ctx.jobId, asOfDt);
+  const targets = await membersWithActivityBetween(db, ctx.teamId, sinceDt, asOfDt);
 
-  const msg = `${evaluated}명 평가, ${changes.length}개 칭호 부여 (${asOfDt}까지 끝난 모임 기준)`;
+  const { evaluated, changes, errors } = await evaluateTeam(
+    ctx.teamId,
+    (teamMemId) => ({
+      trigger: "gathering_daily",
+      teamId: ctx.teamId,
+      teamMemId,
+      asOfDt,
+    }),
+    targets,
+  );
+
+  const msg =
+    `${evaluated}명 평가, ${changes.length}개 칭호 부여 ` +
+    `(${sinceDt}~${asOfDt}에 활동한 사람 대상)`;
   if (errors.length) {
     throw new Error(`${msg} / 오류 ${errors.length}건: ${errors.slice(0, 3).join("; ")}`);
   }
@@ -124,6 +209,9 @@ export async function batchTitleMonthly(
   // 그 달 안에서만 판정하도록 상한을 월말로 준다.
   const monthEnd = dayjs.tz(`${ym}-01`, KST).endOf("month").format("YYYY-MM-DD");
 
+  // ⚠️ 월 배치는 **전원을 돈다**(좁히지 않는다). 조건이 넷인데 대상이 서로 달라서다 —
+  // 참석률은 그 달 참석자, 댓글 1위는 그 달 댓글 작성자, 응원(#18)은 누구나, 페어(#21)는
+  // 대회 기록 보유자. 합집합이 사실상 전원이라 좁히는 이득이 없고, 월 1회라 감당된다.
   const { evaluated, changes, errors } = await evaluateTeam(ctx.teamId, (teamMemId) => ({
     trigger: "title_monthly",
     teamId: ctx.teamId,

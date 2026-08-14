@@ -15,6 +15,13 @@ export type BatchContext = {
   teamId: string;
   /** 실행을 일으킨 관리자. **자동 실행이면 null**이다. */
   actorMemId: string | null;
+  /**
+   * 이 배치의 `batch_job_mst.job_id`.
+   *
+   * 핸들러가 **자기 지난 실행 이력**을 볼 수 있게 넘긴다 — 일 배치가 "마지막 성공 이후
+   * 새로 생긴 것"만 훑어 대상을 좁히는 데 쓴다(전원을 도는 건 대부분 낭비다).
+   */
+  jobId: string;
 };
 
 /** 이번 실행이 실제로 바꾼 것 한 건. */
