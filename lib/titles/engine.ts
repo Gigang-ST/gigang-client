@@ -22,6 +22,18 @@ import { TRIGGER_COND_MAP } from "./types";
 import type { CondRule, TitleEvalContext } from "./types";
 import type { MemberSnapshot } from "./snapshot";
 
+/** 이번 배치가 실제로 부여한 칭호 한 건 — 실행 이력 화면이 "누가 무엇을 받았는지"에 쓴다. */
+export type BatchGrant = { memId: string; ttlNm: string };
+
+export type BatchGrantOutcome = {
+  granted: number;
+  /**
+   * 부여 내역. **`granted`와 길이가 다를 수 있다** — 스냅샷에 `memId`가 없는 행은 여기서
+   * 빠진다(부여는 됐고 알림만 못 가는 경우). 건수의 정본은 `granted`다.
+   */
+  grants: BatchGrant[];
+};
+
 type TtlMstRow = {
   ttl_id: string;
   ttl_nm: string;
@@ -280,13 +292,13 @@ export async function batchEvaluateAndGrant(
   teamMemIds: string[],
   baseMonth: string,
   evtId?: string,
-): Promise<{ granted: number }> {
-  if (teamMemIds.length === 0) return { granted: 0 };
+): Promise<BatchGrantOutcome> {
+  if (teamMemIds.length === 0) return { granted: 0, grants: [] };
 
   const db = createAdminClient();
 
   const snapshots = await loadMemberSnapshots(db, teamId, teamMemIds, evtId);
-  if (snapshots.size === 0) return { granted: 0 };
+  if (snapshots.size === 0) return { granted: 0, grants: [] };
 
   const { data: allTitles } = await db
     .from("ttl_mst")
@@ -298,7 +310,7 @@ export async function batchEvaluateAndGrant(
     .eq("del_yn", false);
 
   const titles = (allTitles as TtlMstRow[] ?? []).filter((t) => t.cond_rule_json != null);
-  if (titles.length === 0) return { granted: 0 };
+  if (titles.length === 0) return { granted: 0, grants: [] };
 
   const allowedCondTypes = new Set<string>(TRIGGER_COND_MAP["mileage_batch"]);
   const snapshotsByMemId = new Map<string, MemberSnapshot>(
@@ -348,6 +360,7 @@ export async function batchEvaluateAndGrant(
   }
 
   let granted = 0;
+  const grants: BatchGrant[] = [];
   if (toGrant.length > 0) {
     const { data, error } = await db
       .from("mem_ttl_rel")
@@ -361,6 +374,15 @@ export async function batchEvaluateAndGrant(
     if (data && data.length > 0) {
       const titleNameMap = new Map(titles.map((t) => [t.ttl_id, t.ttl_nm]));
       const snapByTeamMemId = new Map([...snapshots.entries()]);
+
+      // 부여 내역을 호출부(배치)에 돌려준다 — 실행 이력 화면이 "누가 무슨 칭호를 받았는지"를
+      // 보여주려면 이 정보가 필요하다. 알림에 쓰려고 이미 만들어 둔 맵을 그대로 재사용한다.
+      for (const row of data) {
+        const snap = snapByTeamMemId.get(row.team_mem_id);
+        if (!snap?.memId) continue;
+        grants.push({ memId: snap.memId, ttlNm: titleNameMap.get(row.ttl_id) ?? "칭호" });
+      }
+
       Promise.all(
         data.map((row) => {
           const snap = snapByTeamMemId.get(row.team_mem_id);
@@ -378,5 +400,5 @@ export async function batchEvaluateAndGrant(
     }
   }
 
-  return { granted };
+  return { granted, grants };
 }

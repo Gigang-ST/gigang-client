@@ -1,12 +1,20 @@
+import { capChanges } from "@/lib/batch/types";
 import { dayjs } from "@/lib/dayjs";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { batchEvaluateAndGrant } from "@/lib/titles/engine";
 
-import type { BatchContext, BatchResult } from "@/lib/batch/types";
+import type { BatchChange, BatchContext, BatchResult } from "@/lib/batch/types";
+import type { BatchGrant } from "@/lib/titles/engine";
 
 const KST = "Asia/Seoul";
 
-type SeasonOutcome = { evtNm: string; evaluated: number; granted: number; note: string | null };
+type SeasonOutcome = {
+  evtNm: string;
+  evaluated: number;
+  granted: number;
+  grants: BatchGrant[];
+  note: string | null;
+};
 
 /** 시즌 하나를 평가한다. 참여자가 없으면 granted 0으로 조용히 끝난다. */
 async function runOneSeason(
@@ -27,8 +35,12 @@ async function runOneSeason(
     .lte("evt_team_mst.stt_dt", baseMonthLastDay)
     .gte("evt_team_mst.end_dt", baseMonthStart);
 
-  if (error) return { evtNm, evaluated: 0, granted: 0, note: `참여자 조회 실패: ${error.message}` };
-  if (!prtRows?.length) return { evtNm, evaluated: 0, granted: 0, note: "평가 대상 참여자 없음" };
+  if (error) {
+    return { evtNm, evaluated: 0, granted: 0, grants: [], note: `참여자 조회 실패: ${error.message}` };
+  }
+  if (!prtRows?.length) {
+    return { evtNm, evaluated: 0, granted: 0, grants: [], note: "평가 대상 참여자 없음" };
+  }
 
   const memIds = [...new Set(prtRows.map((r) => r.mem_id))];
   const evtTeamIds = [
@@ -49,7 +61,7 @@ async function runOneSeason(
     .eq("del_yn", false);
 
   if (!teamMemRows?.length) {
-    return { evtNm, evaluated: memIds.length, granted: 0, note: "team_mem_rel 매핑 실패" };
+    return { evtNm, evaluated: memIds.length, granted: 0, grants: [], note: "team_mem_rel 매핑 실패" };
   }
 
   const memEvtMap = new Map<string, string>();
@@ -63,12 +75,14 @@ async function runOneSeason(
   }
 
   let granted = 0;
+  const grants: BatchGrant[] = [];
   for (const [teamId, { teamMemIds, evtId: mapEvtId }] of teamMap.entries()) {
     const res = await batchEvaluateAndGrant(teamId, teamMemIds, resolvedMonth, mapEvtId);
     granted += res.granted;
+    grants.push(...res.grants);
   }
 
-  return { evtNm, evaluated: memIds.length, granted, note: null };
+  return { evtNm, evaluated: memIds.length, granted, grants, note: null };
 }
 
 /**
@@ -144,7 +158,22 @@ export async function batchMileageTitles(
   const evaluated = outcomes.reduce((n, o) => n + o.evaluated, 0);
   const granted = outcomes.reduce((n, o) => n + o.granted, 0);
   const notes = outcomes.filter((o) => o.note).map((o) => `${o.evtNm}: ${o.note}`);
+  const allGrants = outcomes.flatMap((o) => o.grants);
 
+  // 누가 무슨 칭호를 받았는지 — 이름은 여기서 한 번에 붙인다(엔진은 mem_id만 안다).
+  const grantChanges: BatchChange[] = [];
+  if (allGrants.length) {
+    const { data: memRows } = await db
+      .from("mem_mst")
+      .select("mem_id, mem_nm")
+      .in("mem_id", [...new Set(allGrants.map((g) => g.memId))]);
+    const nameById = new Map((memRows ?? []).map((r) => [r.mem_id, r.mem_nm]));
+    for (const g of allGrants) {
+      grantChanges.push({ memNm: nameById.get(g.memId) ?? g.memId, what: `'${g.ttlNm}' 칭호 획득` });
+    }
+  }
+
+  const capped = capChanges(grantChanges, notes);
   return {
     msg: `${seasons.length}개 시즌 · ${evaluated}명 평가 완료, ${granted}개 칭호 부여 (기준 월: ${resolvedMonth})`,
     metrics: [
@@ -152,11 +181,9 @@ export async function batchMileageTitles(
       { label: "평가", value: evaluated },
       { label: "부여", value: granted },
     ],
-    // 부여한 칭호 수가 곧 이번 실행의 변화다. **`changes`가 비었다고 "변화 없음"이 아니다** —
-    // 누구에게 무슨 칭호가 붙었는지는 엔진이 bulk INSERT로 처리해 여기까지 안 올라온다.
-    // 회원에겐 칭호 획득 알림이 개별로 나가므로 여기서는 건수만 남긴다.
+    // 건수의 정본은 granted다 — grants는 스냅샷에 memId가 없는 행이 빠질 수 있어 더 짧을 수 있다.
     changedCount: granted,
-    changes: [],
-    warnings: notes.length ? notes : null,
+    changes: capped.changes,
+    warnings: capped.warnings.length ? capped.warnings : null,
   };
 }
