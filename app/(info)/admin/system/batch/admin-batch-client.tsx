@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Play, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 
+import { metricDeltas, parseStoredBatchResult } from "@/lib/batch/types";
 import { currentMonthKST, formatKSTDateTime, prevMonthStr, todayKST } from "@/lib/dayjs";
 
 import { runBatch, getBatchRunHist, getActiveEvents } from "@/app/actions/admin/run-batch";
@@ -63,6 +64,7 @@ type BatchJob = {
   job_cd: string;
   job_desc: string | null;
   cron_expr: string | null;
+  freq_cd: string | null;
   param_schema_json: ParamField[] | null;
   use_yn: boolean;
   crt_at: string;
@@ -74,6 +76,7 @@ type HistRow = {
   trig_type: string;
   status: string;
   result_msg: string | null;
+  result_json: unknown;
   started_at: string;
   finished_at: string | null;
   duration_ms: number | null;
@@ -87,11 +90,55 @@ function resolveDefault(def?: string): string {
   return def ?? "";
 }
 
-function StatusBadge({ status }: { status: string }) {
-  if (status === "success") return <Badge className="bg-success/15 text-success border-0">성공</Badge>;
+/**
+ * 성공 배지 — **변화가 0이면 회색 "변화 없음"으로 갈린다.**
+ *
+ * 대상이 없어 아무것도 안 한 실행과 5명에게 감면을 준 실행이 같은 초록 배지면,
+ * 매달 훑어볼 때 이상 징후가 안 보인다. `status` enum은 건드리지 않는다 —
+ * "변화 없음"은 별도 상태가 아니라 *변화 건수가 0인 success*다(설계 §4.3).
+ */
+function StatusBadge({ status, changed }: { status: string; changed?: boolean }) {
+  if (status === "success") {
+    if (changed === false) return <Badge variant="outline" className="text-muted-foreground">변화 없음</Badge>;
+    return <Badge className="bg-success/15 text-success border-0">성공</Badge>;
+  }
   if (status === "failed") return <Badge variant="destructive">실패</Badge>;
   if (status === "running") return <Badge className="bg-warning/15 text-warning border-0">실행중</Badge>;
   return null;
+}
+
+/** 지표 칩 — 배치마다 키가 다르므로 **키를 모른 채** 그린다(설계 §4.2). */
+function MetricChips({
+  metrics,
+  deltas,
+}: {
+  metrics: Record<string, number>;
+  deltas: Record<string, number>;
+}) {
+  const entries = Object.entries(metrics);
+  if (!entries.length) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {entries.map(([label, value]) => {
+        const d = deltas[label];
+        return (
+          <span
+            key={label}
+            className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5"
+          >
+            <Micro className="text-muted-foreground">{label}</Micro>
+            <Micro className="text-foreground font-semibold">{value}</Micro>
+            {d !== undefined && (
+              // 직전 성공 실행 대비. 월 배치에선 이게 곧 "지난달 대비"다.
+              <Micro className={d > 0 ? "text-success" : "text-destructive"}>
+                {d > 0 ? `▲${d}` : `▼${Math.abs(d)}`}
+              </Micro>
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
 }
 
 function TrigTypeBadge({ type }: { type: string }) {
@@ -113,10 +160,14 @@ function formatDate(dt: string | null) {
   return formatKSTDateTime(dt);
 }
 
-function cronLabel(expr: string | null) {
-  if (!expr) return "수동만";
-  if (expr === "0 15 1 * *") return "매월 1일 자정 (KST)";
-  return expr;
+/**
+ * 실제 자동 실행 여부는 **`freq_cd`가 정한다** — `cron_expr`은 표시용으로만 남아 있다.
+ * 크론은 표현식을 파싱하지 않고 "이번 주기에 이미 성공했나"로 판정한다(설계 §3.2).
+ */
+function scheduleLabel(freqCd: string | null) {
+  if (freqCd === "daily") return "매일 자동 (KST)";
+  if (freqCd === "monthly") return "매월 자동 (KST)";
+  return "수동만";
 }
 
 export function AdminBatchClient({ initialJobs }: { initialJobs: BatchJob[] }) {
@@ -130,6 +181,8 @@ export function AdminBatchClient({ initialJobs }: { initialJobs: BatchJob[] }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+  /** 변경 목록을 펼친 실행 — 한 번에 하나만 편다(이력이 길어 여러 개면 못 읽는다). */
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
   const [histMap, setHistMap] = useState<Record<string, HistRow[]>>({});
   const [histLoading, setHistLoading] = useState<string | null>(null);
   const [eventOptions, setEventOptions] = useState<EventOption[]>([]);
@@ -228,7 +281,7 @@ export function AdminBatchClient({ initialJobs }: { initialJobs: BatchJob[] }) {
                 <div className="flex flex-col gap-1.5 border-t border-border pt-3">
                   <div className="flex items-center justify-between">
                     <Caption className="text-muted-foreground">스케줄</Caption>
-                    <Caption>{cronLabel(job.cron_expr)}</Caption>
+                    <Caption>{scheduleLabel(job.freq_cd)}</Caption>
                   </div>
                   {job.latestRun ? (
                     <>
@@ -281,32 +334,80 @@ export function AdminBatchClient({ initialJobs }: { initialJobs: BatchJob[] }) {
                     </div>
                   ) : (
                     <div className="divide-y divide-border">
-                      {(histMap[job.job_id] ?? []).map((run) => (
-                        <div key={run.run_id} className="flex flex-col gap-1.5 px-4 py-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <TrigTypeBadge type={run.trig_type} />
-                              <StatusBadge status={run.status} />
+                      {(histMap[job.job_id] ?? []).map((run, idx, arr) => {
+                        const parsed = parseStoredBatchResult(run.result_json);
+                        // 직전 **성공** 실행과 비교한다(실패는 값이 없어 비교 기준이 못 된다).
+                        // 목록이 최신순이라 나보다 뒤(오래된 쪽)에서 찾는다.
+                        const prev = arr
+                          .slice(idx + 1)
+                          .map((r) => parseStoredBatchResult(r.result_json))
+                          .find((p): p is NonNullable<typeof p> => p !== null);
+                        const deltas = parsed
+                          ? metricDeltas(parsed.metrics, prev?.metrics ?? null)
+                          : {};
+                        const changed = parsed ? parsed.changes.length > 0 : undefined;
+
+                        return (
+                          <div key={run.run_id} className="flex flex-col gap-1.5 px-4 py-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <TrigTypeBadge type={run.trig_type} />
+                                <StatusBadge status={run.status} changed={changed} />
+                              </div>
+                              <Caption>{formatDate(run.started_at)}</Caption>
                             </div>
-                            <Caption>{formatDate(run.started_at)}</Caption>
-                          </div>
-                          {run.param_json && Object.keys(run.param_json).length > 0 && (
-                            <Micro className="text-muted-foreground">
-                              파라미터: {Object.entries(run.param_json).map(([k, v]) => `${k}=${v}`).join(", ")}
-                            </Micro>
-                          )}
-                          <div className="flex items-center justify-between">
-                            {run.result_msg && (
-                              <Micro className="text-muted-foreground flex-1 min-w-0 truncate pr-2">
-                                {run.result_msg}
+                            {run.param_json && Object.keys(run.param_json).length > 0 && (
+                              <Micro className="text-muted-foreground">
+                                파라미터: {Object.entries(run.param_json).map(([k, v]) => `${k}=${v}`).join(", ")}
                               </Micro>
                             )}
-                            <Micro className="text-muted-foreground shrink-0">
-                              {formatDuration(run.duration_ms)}
-                            </Micro>
+                            {parsed && <MetricChips metrics={parsed.metrics} deltas={deltas} />}
+                            <div className="flex items-center justify-between">
+                              {run.result_msg && (
+                                <Micro className="text-muted-foreground flex-1 min-w-0 truncate pr-2">
+                                  {run.result_msg}
+                                </Micro>
+                              )}
+                              <Micro className="text-muted-foreground shrink-0">
+                                {formatDuration(run.duration_ms)}
+                              </Micro>
+                            </div>
+
+                            {parsed && parsed.warnings.length > 0 && (
+                              <div className="flex flex-col gap-0.5 rounded-md bg-warning/10 px-2 py-1.5">
+                                {parsed.warnings.map((w, i) => (
+                                  <Micro key={i} className="text-warning">{w}</Micro>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* 누구에게 무엇이 바뀌었는지 — 접어 두고 필요할 때 편다 */}
+                            {parsed && parsed.changes.length > 0 && (
+                              <button
+                                onClick={() =>
+                                  setExpandedRunId((cur) => (cur === run.run_id ? null : run.run_id))
+                                }
+                                className="flex items-center gap-1 self-start text-muted-foreground"
+                              >
+                                <Micro>변경 {parsed.changes.length}건</Micro>
+                                {expandedRunId === run.run_id
+                                  ? <ChevronUp className="h-3 w-3" />
+                                  : <ChevronDown className="h-3 w-3" />}
+                              </button>
+                            )}
+                            {parsed && expandedRunId === run.run_id && (
+                              <div className="flex flex-col gap-1 rounded-md bg-muted px-2 py-1.5">
+                                {parsed.changes.map((c, i) => (
+                                  <div key={i} className="flex items-baseline gap-2">
+                                    <Micro className="text-foreground font-semibold shrink-0">{c.memNm}</Micro>
+                                    <Micro className="text-muted-foreground">{c.what}</Micro>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </CardItem>

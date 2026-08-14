@@ -74,3 +74,67 @@ export function capChanges(
 export function hasChanges(result: BatchResult): boolean {
   return (result.changes?.length ?? 0) > 0;
 }
+
+/** `batch_run_hist.result_json`에서 읽어 온 값(스키마를 못 믿는 자리). */
+export type StoredBatchResult = {
+  metrics: Record<string, number>;
+  changes: BatchChange[];
+  warnings: string[];
+};
+
+/**
+ * `result_json`을 화면이 쓸 모양으로 좁힌다.
+ *
+ * jsonb는 **무엇이든 들어올 수 있다** — 옛 이력은 아예 null이고, 배치가 바뀌면 키도 바뀐다.
+ * 화면이 `result.metrics.대상`처럼 곧바로 파고들면 옛 행 하나에 관리자 페이지가 통째로
+ * 터진다. 여기서 한 번 거르고 나면 렌더는 안심하고 돈다.
+ */
+export function parseStoredBatchResult(json: unknown): StoredBatchResult | null {
+  if (!json || typeof json !== "object" || Array.isArray(json)) return null;
+  const raw = json as Record<string, unknown>;
+
+  const metrics: Record<string, number> = {};
+  if (raw.metrics && typeof raw.metrics === "object" && !Array.isArray(raw.metrics)) {
+    for (const [k, v] of Object.entries(raw.metrics as Record<string, unknown>)) {
+      if (typeof v === "number" && Number.isFinite(v)) metrics[k] = v;
+    }
+  }
+
+  const changes: BatchChange[] = [];
+  if (Array.isArray(raw.changes)) {
+    for (const c of raw.changes) {
+      if (!c || typeof c !== "object") continue;
+      const row = c as Record<string, unknown>;
+      if (typeof row.memNm === "string" && typeof row.what === "string") {
+        changes.push({ memNm: row.memNm, what: row.what });
+      }
+    }
+  }
+
+  const warnings = Array.isArray(raw.warnings)
+    ? raw.warnings.filter((w): w is string => typeof w === "string")
+    : [];
+
+  if (!Object.keys(metrics).length && !changes.length && !warnings.length) return null;
+  return { metrics, changes, warnings };
+}
+
+/**
+ * 직전 성공 실행 대비 증감. **월 배치에선 이게 곧 "지난달 대비"**라, 숫자 하나로 이상 징후가
+ * 잡힌다(감면이 5명 → 0명이면 뭔가 잘못된 것이다).
+ *
+ * 이전 실행에 없던 키는 비교하지 않는다(0에서 늘어난 것처럼 보이면 오히려 오해를 만든다).
+ */
+export function metricDeltas(
+  current: Record<string, number>,
+  previous: Record<string, number> | null,
+): Record<string, number> {
+  if (!previous) return {};
+  const deltas: Record<string, number> = {};
+  for (const [k, v] of Object.entries(current)) {
+    if (!(k in previous)) continue;
+    const d = v - previous[k];
+    if (d !== 0) deltas[k] = d;
+  }
+  return deltas;
+}

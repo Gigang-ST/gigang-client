@@ -70,6 +70,7 @@ export type Database = {
           finished_at: string | null
           job_id: string
           param_json: Json | null
+          result_json: Json | null
           result_msg: string | null
           run_id: string
           started_at: string
@@ -82,6 +83,7 @@ export type Database = {
           finished_at?: string | null
           job_id: string
           param_json?: Json | null
+          result_json?: Json | null
           result_msg?: string | null
           run_id?: string
           started_at?: string
@@ -94,6 +96,7 @@ export type Database = {
           finished_at?: string | null
           job_id?: string
           param_json?: Json | null
+          result_json?: Json | null
           result_msg?: string | null
           run_id?: string
           started_at?: string

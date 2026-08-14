@@ -112,6 +112,10 @@ export async function executeBatch(
       .update({
         status,
         result_msg: resultMsg,
+        // 실패면 남길 구조가 없다(핸들러가 던지고 나왔으므로). 성공분만 구조로 남긴다.
+        result_json: result
+          ? { metrics: result.metrics, changes: result.changes, warnings: result.warnings }
+          : null,
         finished_at: new Date().toISOString(),
         duration_ms: durationMs,
       })
