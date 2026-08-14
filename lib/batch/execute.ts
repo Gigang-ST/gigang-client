@@ -1,3 +1,4 @@
+import { dayjs } from "@/lib/dayjs";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import { batchDuesExemption } from "@/lib/batch/jobs/dues-exemption";
@@ -57,12 +58,20 @@ export async function executeBatch(
 
   const { data: job } = await db
     .from("batch_job_mst")
-    .select("job_id, job_cd, use_yn")
+    .select("job_id, job_cd, use_yn, team_id")
     .eq("job_id", jobId)
     .single();
 
   if (!job || !job.use_yn) {
     return { ok: false, message: "배치를 찾을 수 없습니다", runId: null, result: null };
+  }
+
+  // ⚠️ **job의 팀과 실행 컨텍스트의 팀이 같은지 서버에서 다시 본다.**
+  // 핸들러는 `ctx.teamId`로 데이터를 처리하고 이력은 `jobId`로 남으므로, 검증이 없으면
+  // 남의 팀 `job_id`로 **내 팀 데이터를 돌리고 그 팀 이력에 기록**하는 어긋남이 생긴다.
+  // `team_id`가 비어 있는 job(팀 미지정)은 예전 행이라 통과시킨다 — 크론은 애초에 걸러낸다.
+  if (job.team_id && job.team_id !== ctx.teamId) {
+    return { ok: false, message: "다른 팀의 배치는 실행할 수 없습니다", runId: null, result: null };
   }
 
   const action = BATCH_ACTION_MAP[job.job_cd];
@@ -75,7 +84,7 @@ export async function executeBatch(
     };
   }
 
-  const startedAt = new Date().toISOString();
+  const startedAt = dayjs().toISOString();
   const { data: runRow, error: insertError } = await db
     .from("batch_run_hist")
     .insert({
@@ -130,7 +139,7 @@ export async function executeBatch(
               warnings: result.warnings,
             }
           : null,
-        finished_at: new Date().toISOString(),
+        finished_at: dayjs().toISOString(),
         duration_ms: durationMs,
       })
       .eq("run_id", runId);

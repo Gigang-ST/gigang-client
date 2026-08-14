@@ -73,6 +73,28 @@ async function cached<T>(win: GatheringWindow, key: string, load: () => Promise<
   return value;
 }
 
+/**
+ * `YYYY-MM-DD` date 문자열에서 `MM-DD`를 뽑는다.
+ *
+ * date 컬럼(`_dt`)이라 타임존 변환은 필요 없지만(§8), 날짜 포맷팅에 `.slice()`를 쓰지
+ * 않는다는 규칙(CLAUDE.md)을 지켜 dayjs 포맷으로 뽑는다.
+ */
+function monthDay(dt: string): string {
+  return dayjs(dt).format("MM-DD");
+}
+
+/**
+ * 캐시 키에 붙이는 **창 서명**.
+ *
+ * ⚠️ 창(`effStartDt`·`asOfDt`)은 **칭호마다 다르다**(`ttl_mst.eff_stt_dt`). 그런데 캐시는
+ * 멤버·배치 단위로 공유되므로, 창을 키에서 빼면 **먼저 평가된 칭호가 걸러 놓은 목록을
+ * 다음 칭호가 물려받는다** — 적용일이 이른 칭호가 늦은 칭호의 결과를 조용히 부풀리거나
+ * 그 반대가 된다. 캐시가 창 안에서 거르는 함수는 전부 이 서명을 키에 붙인다.
+ */
+function winSig(win: GatheringWindow): string {
+  return `${win.effStartDt ?? "all"}~${win.asOfDt ?? "now"}`;
+}
+
 /** 모임 시작 시각(KST)이 이 조건의 창 안에 드는가. */
 function inWindow(startKst: dayjs.Dayjs, win: GatheringWindow): boolean {
   const d = startKst.format("YYYY-MM-DD");
@@ -95,7 +117,7 @@ function loadAttended(
   win: GatheringWindow,
 ): Promise<AttendedGathering[]> {
   // 모임 칭호 6종이 전부 이 목록을 본다 — 캐시가 이 조회를 멤버당 1번으로 묶는다.
-  return cached(win, `attended:${memId}`, async () => {
+  return cached(win, `attended:${teamId}:${memId}:${winSig(win)}`, async () => {
     const { data } = await db
       .from("gthr_attd_rel")
       .select("gthr_id, gthr_mst!inner(stt_at, team_id, del_yn)")
@@ -230,7 +252,9 @@ function loadSelfCancels(
   win: GatheringWindow,
 ): Promise<SelfCancel[]> {
   // 취소 계열 5종(다음엔꼭·회전문·월요병·칼퇴실패·구구절절)이 같은 목록을 본다.
-  return cached(win, `cancels:${memId}`, () => loadSelfCancelsUncached(db, memId, teamId, win));
+  return cached(win, `cancels:${teamId}:${memId}:${winSig(win)}`, () =>
+    loadSelfCancelsUncached(db, memId, teamId, win),
+  );
 }
 
 async function loadSelfCancelsUncached(
@@ -371,7 +395,7 @@ export async function evalGthrMonthAttendRate(
   // 분모: 그 달에 열린 팀 모임 전체(취소분 제외).
   // ⚠️ **팀 공통 데이터라 캐시 키에 memId를 넣지 않는다** — 배치가 캐시를 공유하면
   // 멤버 수만큼 반복되던 조회가 1번이 된다(월 배치 20초의 주범이었다).
-  const heldByMonth = await cached(win, `team-gatherings:${teamId}`, async () => {
+  const heldByMonth = await cached(win, `team-gatherings:${teamId}:${winSig(win)}`, async () => {
     const { data: allRows } = await db
       .from("gthr_mst")
       .select("stt_at")
@@ -522,7 +546,8 @@ export async function evalAttendOnBirthday(
 
   const birthDt = (mem as { birth_dt: string | null } | null)?.birth_dt;
   if (!birthDt) return false; // 생일 미입력이면 영원히 판정 불가
-  const mmdd = birthDt.slice(5); // "MM-DD" — date 컬럼이라 KST 변환이 필요 없다(§8)
+  // "MM-DD" — date 컬럼이라 KST 변환이 필요 없다(§8). 문자열을 자르지 않고 포맷으로 뽑는다.
+  const mmdd = monthDay(birthDt);
 
   const onBirthday = new Set<string>();
 
@@ -530,19 +555,25 @@ export async function evalAttendOnBirthday(
   const attended = await loadAttended(db, memId, teamId, win);
   for (const a of attended) {
     const d = a.startKst.format("YYYY-MM-DD");
-    if (d.slice(5) === mmdd) onBirthday.add(d);
+    if (a.startKst.format("MM-DD") === mmdd) onBirthday.add(d);
   }
 
-  // ② 대회 출전 — race_dt는 date 컬럼이라 그대로 안전하다
+  // ② 대회 출전 — race_dt는 date 컬럼이라 그대로 안전하다.
+  //
+  // ⚠️ **`vers = 0` · `del_yn = false`를 반드시 건다.** `rec_race_hist`는 버전 테이블이라
+  // 안 걸면 수정 이력과 지운 기록까지 딸려 와, **생일에 뛴 대회를 삭제해도 칭호가 붙는다**.
+  // 같은 계열인 `evalRaceTimeExactHour`·`evalRacePairReversal`은 이미 걸고 있었다.
   const { data: races } = await db
     .from("rec_race_hist")
     .select("race_dt")
-    .eq("mem_id", memId);
+    .eq("mem_id", memId)
+    .eq("vers", 0)
+    .eq("del_yn", false);
   for (const r of (races ?? []) as { race_dt: string }[]) {
     if (!r.race_dt) continue;
     if (win.effStartDt && r.race_dt < win.effStartDt) continue;
     if (win.asOfDt && r.race_dt > win.asOfDt) continue;
-    if (r.race_dt.slice(5) === mmdd) onBirthday.add(r.race_dt);
+    if (monthDay(r.race_dt) === mmdd) onBirthday.add(r.race_dt);
   }
 
   return onBirthday.size >= rule.count;

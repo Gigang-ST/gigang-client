@@ -73,13 +73,26 @@ type PostRow = { postId: string; actDt: string | null; crtAt: string };
  * 사진이 이 지면에 서는 유일한 조건이라(`get_team_posts` RPC가 `photo_url IS NOT NULL`로
  * 거른다), 칭호도 같은 기준을 쓴다 — 화면에 안 뜨는 글로 칭호가 붙으면 안 된다.
  * 출처(`src_enm`)는 가리지 않는다: 마일리지런에서 유입된 것도 본인이 올린 사진이다.
+ *
+ * ⚠️ **팀으로 좁힌다.** 한 사람이 여러 팀에 속하면 다른 팀에 올린 글이 이 팀 칭호로
+ * 집계된다. 같은 파일의 `evalCmntMonthlyTop`은 이미 팀을 걸고 있어 기준이 갈려 있었다.
  */
-function loadPhotoPosts(db: DB, memId: string, win: SocialWindow): Promise<PostRow[]> {
-  return cached(win, `posts:${memId}`, async () => {
+function loadPhotoPosts(
+  db: DB,
+  memId: string,
+  teamId: string,
+  win: SocialWindow,
+): Promise<PostRow[]> {
+  // ⚠️ **캐시 키에 `effStartDt`를 넣는다.** 창은 칭호마다 다른데(`ttl_mst.eff_stt_dt`)
+  // 캐시는 멤버·배치 단위로 공유되므로, 창을 키에서 빼면 **먼저 평가된 칭호가 걸러 놓은
+  // 목록을 다음 칭호가 물려받는다** — 특히 `인간화로`는 창 없이(`null`) 전체를 봐야 하는데
+  // 앞서 `오운완`이 적용일로 자른 목록을 받아 조용히 적게 센다.
+  return cached(win, `posts:${teamId}:${memId}:${win.effStartDt ?? "all"}`, async () => {
     const { data } = await db
       .from("post_mst")
       .select("post_id, act_dt, crt_at")
       .eq("mem_id", memId)
+      .eq("team_id", teamId)
       .eq("del_yn", false)
       .not("photo_url", "is", null);
 
@@ -94,10 +107,11 @@ function loadPhotoPosts(db: DB, memId: string, win: SocialWindow): Promise<PostR
 export async function evalPostCount(
   rule: CondPostCount,
   memId: string,
+  teamId: string,
   win: SocialWindow,
   db: DB,
 ): Promise<boolean> {
-  const posts = await loadPhotoPosts(db, memId, win);
+  const posts = await loadPhotoPosts(db, memId, teamId, win);
   return posts.length >= rule.count;
 }
 
@@ -111,10 +125,11 @@ export async function evalPostCount(
 export async function evalPostDaysInMonth(
   rule: CondPostDaysInMonth,
   memId: string,
+  teamId: string,
   win: SocialWindow,
   db: DB,
 ): Promise<boolean> {
-  const posts = await loadPhotoPosts(db, memId, win);
+  const posts = await loadPhotoPosts(db, memId, teamId, win);
   const daysByMonth = new Map<string, Set<string>>();
   for (const p of posts) {
     const d = p.actDt ?? dayjs(p.crtAt).tz(KST).format("YYYY-MM-DD");
@@ -133,10 +148,11 @@ export async function evalPostDaysInMonth(
 export async function evalPostBackfillDays(
   rule: CondPostBackfillDays,
   memId: string,
+  teamId: string,
   win: SocialWindow,
   db: DB,
 ): Promise<boolean> {
-  const posts = await loadPhotoPosts(db, memId, win);
+  const posts = await loadPhotoPosts(db, memId, teamId, win);
   const hits = posts.filter((p) => {
     if (!p.actDt) return false;
     const uploaded = dayjs.tz(dayjs(p.crtAt).tz(KST).format("YYYY-MM-DD"), KST);
@@ -152,13 +168,24 @@ export async function evalPostBackfillDays(
 
 type CommentRow = { cmntId: string; entityType: string; entityId: string; prntId: string | null; crtAt: string };
 
-/** 이 멤버가 쓴 댓글(삭제 제외). 적용일은 작성 시각(KST) 기준 — 댓글은 실행일이 곧 적재일이다. */
-function loadMyComments(db: DB, memId: string, win: SocialWindow): Promise<CommentRow[]> {
-  return cached(win, `comments:${memId}`, async () => {
+/**
+ * 이 멤버가 쓴 댓글(삭제 제외). 적용일은 작성 시각(KST) 기준 — 댓글은 실행일이 곧 적재일이다.
+ *
+ * `loadPhotoPosts`와 같은 이유로 **팀으로 좁힌다**.
+ */
+function loadMyComments(
+  db: DB,
+  memId: string,
+  teamId: string,
+  win: SocialWindow,
+): Promise<CommentRow[]> {
+  // 창을 키에 넣는 이유는 `loadPhotoPosts`와 같다.
+  return cached(win, `comments:${teamId}:${memId}:${win.effStartDt ?? "all"}`, async () => {
     const { data } = await db
       .from("cmnt_mst")
       .select("cmnt_id, entity_type, entity_id, prnt_id, crt_at")
       .eq("mem_id", memId)
+      .eq("team_id", teamId)
       .eq("del_yn", false);
 
     return ((data ?? []) as {
@@ -176,10 +203,11 @@ function loadMyComments(db: DB, memId: string, win: SocialWindow): Promise<Comme
 export async function evalCmntReplyCount(
   rule: CondCmntReplyCount,
   memId: string,
+  teamId: string,
   win: SocialWindow,
   db: DB,
 ): Promise<boolean> {
-  const comments = await loadMyComments(db, memId, win);
+  const comments = await loadMyComments(db, memId, teamId, win);
   return comments.filter((c) => c.prntId !== null).length >= rule.count;
 }
 
@@ -193,10 +221,11 @@ export async function evalCmntReplyCount(
 export async function evalCmntMentionCount(
   rule: CondCmntMentionCount,
   memId: string,
+  teamId: string,
   win: SocialWindow,
   db: DB,
 ): Promise<boolean> {
-  const comments = await loadMyComments(db, memId, win);
+  const comments = await loadMyComments(db, memId, teamId, win);
   if (!comments.length) return false;
 
   const { data } = await db
@@ -220,10 +249,11 @@ export async function evalCmntMentionCount(
 export async function evalPostSelfFirstComment(
   rule: CondPostSelfFirstComment,
   memId: string,
+  teamId: string,
   win: SocialWindow,
   db: DB,
 ): Promise<boolean> {
-  const posts = await loadPhotoPosts(db, memId, win);
+  const posts = await loadPhotoPosts(db, memId, teamId, win);
   if (!posts.length) return false;
 
   const { data } = await db
@@ -358,7 +388,7 @@ export async function evalRctnRecvTotal(
   total += sumKeys("record", raceIds);
 
   // ③ post — 본인 깅스타그램 글에 달린 것
-  const posts = await loadPhotoPosts(db, memId, { effStartDt: null, cache: win.cache });
+  const posts = await loadPhotoPosts(db, memId, teamId, { effStartDt: null, cache: win.cache });
   total += sumKeys("post", posts.map((p) => p.postId));
 
   return total >= rule.count;

@@ -382,6 +382,8 @@ export function AdminBatchClient({ initialJobs }: { initialJobs: BatchJob[] }) {
                             {/* 누구에게 무엇이 바뀌었는지 — 접어 두고 필요할 때 편다 */}
                             {parsed && parsed.changes.length > 0 && (
                               <button
+                                type="button"
+                                aria-expanded={expandedRunId === run.run_id}
                                 onClick={() =>
                                   setExpandedRunId((cur) => (cur === run.run_id ? null : run.run_id))
                                 }

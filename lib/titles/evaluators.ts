@@ -1001,22 +1001,22 @@ export async function evaluateCondition(
 
     // --- 깅스타그램 · 댓글 · 응원 · 대회 계열 (2026-08 신규) ---
     case "post_count":
-      return evalPostCount(rule, memId, socialWindow, db);
+      return evalPostCount(rule, memId, ctx.teamId, socialWindow, db);
 
     case "post_days_in_month":
-      return evalPostDaysInMonth(rule, memId, socialWindow, db);
+      return evalPostDaysInMonth(rule, memId, ctx.teamId, socialWindow, db);
 
     case "post_backfill_days":
-      return evalPostBackfillDays(rule, memId, socialWindow, db);
+      return evalPostBackfillDays(rule, memId, ctx.teamId, socialWindow, db);
 
     case "post_self_first_comment":
-      return evalPostSelfFirstComment(rule, memId, socialWindow, db);
+      return evalPostSelfFirstComment(rule, memId, ctx.teamId, socialWindow, db);
 
     case "cmnt_reply_count":
-      return evalCmntReplyCount(rule, memId, socialWindow, db);
+      return evalCmntReplyCount(rule, memId, ctx.teamId, socialWindow, db);
 
     case "cmnt_mention_count":
-      return evalCmntMentionCount(rule, memId, socialWindow, db);
+      return evalCmntMentionCount(rule, memId, ctx.teamId, socialWindow, db);
 
     case "cmnt_monthly_top":
       // 월이 끝나야 1위가 확정된다 — 월 배치가 아니면 평가하지 않는다.

@@ -55,7 +55,7 @@ export async function loadAutoTitles(
   db: ReturnType<typeof createAdminClient>,
   teamId: string,
 ): Promise<TtlMstRow[]> {
-  const { data } = await db
+  const { data, error } = await db
     .from("ttl_mst")
     .select("ttl_id, ttl_nm, cond_rule_json, eff_stt_dt")
     .eq("team_id", teamId)
@@ -63,6 +63,11 @@ export async function loadAutoTitles(
     .eq("use_yn", true)
     .eq("vers", 0)
     .eq("del_yn", false);
+
+  // ⚠️ **조회 실패를 빈 배열로 넘기지 않는다.** 넘기면 "평가할 칭호 0건"이 되어 배치가
+  // **아무것도 안 하고 성공**으로 끝난다 — 실행 이력에도 흔적이 안 남아 며칠 뒤에야
+  // "왜 칭호가 안 붙지"로 발견된다. 실시간 훅에서 던져도 호출부가 `.catch()`로 로깅한다.
+  if (error) throw new Error(`칭호 목록 조회 실패: ${error.message}`);
   return (data as TtlMstRow[]) ?? [];
 }
 

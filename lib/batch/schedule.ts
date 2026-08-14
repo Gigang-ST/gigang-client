@@ -52,15 +52,27 @@ export type RunRow = {
  * 변해 표준 cron으로 표현이 안 된다. "이번 주기에 이미 성공했나"로 판정하면
  * **크론이 밀려도 따라잡고**(catch-up) **수동으로 먼저 돌렸으면 건너뛴다**(멱등).
  */
-export function currentCycleStart(freq: FreqCd, now = dayjs().tz(KST)): string {
+export function currentCycleStart(freq: FreqCd, now = dayjs()): string {
   const base = now.tz(KST);
   return (freq === "daily" ? base.startOf("day") : base.startOf("month")).toISOString();
+}
+
+/**
+ * `started_at`이 기준 시각 **이후**인가.
+ *
+ * ⚠️ **문자열로 비교하지 않는다.** PostgREST는 timestamptz를 `2026-08-14T09:00:00+00:00`
+ * 형태로 돌려주는데 `toISOString()`은 `2026-08-14T09:00:00.000Z`다. 같은 순간이라도
+ * 오프셋 표기(`+00:00`)와 `Z`, 소수 자릿수가 달라 사전식 비교가 실제 시각과 어긋난다
+ * (`+`(0x2B) < `.`(0x2E) < `Z`). 파싱해서 절대 시각으로 비교한다.
+ */
+function isAtOrAfter(startedAt: string, since: string): boolean {
+  return !dayjs(startedAt).isBefore(dayjs(since));
 }
 
 /** 이번 주기에 이미 성공한 실행이 있나 — 있으면 자동 실행은 건너뛴다. */
 export function hasSucceededThisCycle(runs: RunRow[], freq: FreqCd, now?: dayjs.Dayjs): boolean {
   const since = currentCycleStart(freq, now);
-  return runs.some((r) => r.status === "success" && r.started_at >= since);
+  return runs.some((r) => r.status === "success" && isAtOrAfter(r.started_at, since));
 }
 
 /**
@@ -71,7 +83,7 @@ export function hasSucceededThisCycle(runs: RunRow[], freq: FreqCd, now?: dayjs.
  */
 export function hasLiveRun(runs: RunRow[], now = dayjs()): boolean {
   const cutoff = now.subtract(STALE_RUNNING_MINUTES, "minute").toISOString();
-  return runs.some((r) => r.status === "running" && r.started_at >= cutoff);
+  return runs.some((r) => r.status === "running" && isAtOrAfter(r.started_at, cutoff));
 }
 
 /** 좀비로 판정되어 `failed`로 마감해야 할 실행들. */
@@ -80,7 +92,9 @@ export function staleRunningIds<T extends RunRow & { run_id: string }>(
   now = dayjs(),
 ): string[] {
   const cutoff = now.subtract(STALE_RUNNING_MINUTES, "minute").toISOString();
-  return runs.filter((r) => r.status === "running" && r.started_at < cutoff).map((r) => r.run_id);
+  return runs
+    .filter((r) => r.status === "running" && !isAtOrAfter(r.started_at, cutoff))
+    .map((r) => r.run_id);
 }
 
 /**

@@ -8,6 +8,22 @@ import type { BatchGrant } from "@/lib/titles/engine";
 
 const KST = "Asia/Seoul";
 
+/**
+ * `YYYY-MM` → 그 달의 첫날·마지막날(둘 다 KST 기준).
+ *
+ * ⚠️ **`dayjs.tz(문자열, KST)`로 파싱해야 한다.** `dayjs("2026-08-01").tz(KST)`는 문자열을
+ * **서버 로컬 자정**으로 먼저 읽고 그 순간을 KST로 옮길 뿐이라, 서버 타임존이 KST보다
+ * 앞서면 순간이 전월로 밀려 `endOf("month")`가 **전월 마지막 날**을 돌려준다.
+ * 지금 배포처는 UTC(KST보다 뒤)라 결과가 우연히 맞지만, 그 우연에 기대지 않는다.
+ */
+function monthBounds(ym: string): { baseMonthStart: string; baseMonthLastDay: string } {
+  const start = dayjs.tz(`${ym}-01`, KST);
+  return {
+    baseMonthStart: start.format("YYYY-MM-DD"),
+    baseMonthLastDay: start.endOf("month").format("YYYY-MM-DD"),
+  };
+}
+
 type SeasonOutcome = {
   evtNm: string;
   evaluated: number;
@@ -19,18 +35,20 @@ type SeasonOutcome = {
 /** 시즌 하나를 평가한다. 참여자가 없으면 granted 0으로 조용히 끝난다. */
 async function runOneSeason(
   db: ReturnType<typeof createAdminClient>,
+  teamId: string,
   evtId: string,
   evtNm: string,
   resolvedMonth: string,
 ): Promise<SeasonOutcome> {
-  const baseMonthStart = `${resolvedMonth}-01`;
-  const baseMonthLastDay = dayjs(baseMonthStart).tz(KST).endOf("month").format("YYYY-MM-DD");
+  const { baseMonthStart, baseMonthLastDay } = monthBounds(resolvedMonth);
 
   // 기준 월에 걸치는 시즌인지를 여기서 한 번 더 거른다 — 안 겹치면 참여자가 0으로 나온다.
   const { data: prtRows, error } = await db
     .from("evt_team_prt_rel")
     .select("mem_id, evt_id, evt_team_mst!inner(team_id, stt_dt, end_dt)")
     .eq("evt_id", evtId)
+    // 팀 경계 — 조인된 시즌이 이 배치의 팀 것인지 DB에서 다시 확인한다.
+    .eq("evt_team_mst.team_id", teamId)
     .eq("aprv_yn", true)
     .lte("evt_team_mst.stt_dt", baseMonthLastDay)
     .gte("evt_team_mst.end_dt", baseMonthStart);
@@ -52,7 +70,7 @@ async function runOneSeason(
     ),
   ];
 
-  const { data: teamMemRows } = await db
+  const { data: teamMemRows, error: teamMemErr } = await db
     .from("team_mem_rel")
     .select("mem_id, team_mem_id, team_id")
     .in("mem_id", memIds)
@@ -60,6 +78,13 @@ async function runOneSeason(
     .eq("vers", 0)
     .eq("del_yn", false);
 
+  // 조회 실패와 "매핑할 게 없음"을 갈라 적는다 — 합치면 DB 오류가 배치 성공 안에 묻힌다.
+  if (teamMemErr) {
+    return {
+      evtNm, evaluated: memIds.length, granted: 0, grants: [],
+      note: `team_mem_rel 조회 실패: ${teamMemErr.message}`,
+    };
+  }
   if (!teamMemRows?.length) {
     return { evtNm, evaluated: memIds.length, granted: 0, grants: [], note: "team_mem_rel 매핑 실패" };
   }
@@ -102,7 +127,7 @@ async function runOneSeason(
  * `executeBatch`를 부르면 주기 체크(§3.2)가 첫 시즌의 성공만 보고 나머지를 건너뛰게 된다.
  */
 export async function batchMileageTitles(
-  _ctx: BatchContext,
+  ctx: BatchContext,
   evtId: string | undefined,
   baseMonth?: string,
 ): Promise<BatchResult> {
@@ -111,16 +136,21 @@ export async function batchMileageTitles(
   const resolvedMonth = baseMonth
     ? baseMonth
     : dayjs().tz(KST).subtract(1, "month").format("YYYY-MM");
-  const baseMonthStart = `${resolvedMonth}-01`;
-  const baseMonthLastDay = dayjs(baseMonthStart).tz(KST).endOf("month").format("YYYY-MM-DD");
+  const { baseMonthStart, baseMonthLastDay } = monthBounds(resolvedMonth);
 
   // 대상 시즌 결정 — 지정됐으면 그것, 아니면 기준 월에 걸치는 ACTIVE 전부.
+  //
+  // ⚠️ **두 분기 모두 `team_id`로 좁힌다.** 안 좁히면 ① 관리자가 다른 팀의 `evt_id`를 넘겨
+  // 그 팀 시즌을 평가시킬 수 있고(이 파일이 `"use server"` 밖인 이유가 무색해진다)
+  // ② 크론이 `batch_job_mst.team_id`를 무시한 채 **모든 팀**의 ACTIVE 시즌을 돌아
+  // 남의 팀 멤버에게 칭호를 주고 알림까지 보낸다.
   let seasons: { evt_id: string; evt_nm: string }[];
   if (evtId) {
     const { data } = await db
       .from("evt_team_mst")
       .select("evt_id, evt_nm")
       .eq("evt_id", evtId)
+      .eq("team_id", ctx.teamId)
       .maybeSingle();
     if (!data) throw new Error(`이벤트를 찾을 수 없습니다: ${evtId}`);
     seasons = [data];
@@ -128,6 +158,7 @@ export async function batchMileageTitles(
     const { data, error } = await db
       .from("evt_team_mst")
       .select("evt_id, evt_nm")
+      .eq("team_id", ctx.teamId)
       .eq("stts_enm", "ACTIVE")
       .lte("stt_dt", baseMonthLastDay)
       .gte("end_dt", baseMonthStart)
@@ -152,7 +183,7 @@ export async function batchMileageTitles(
 
   const outcomes: SeasonOutcome[] = [];
   for (const s of seasons) {
-    outcomes.push(await runOneSeason(db, s.evt_id, s.evt_nm, resolvedMonth));
+    outcomes.push(await runOneSeason(db, ctx.teamId, s.evt_id, s.evt_nm, resolvedMonth));
   }
 
   const evaluated = outcomes.reduce((n, o) => n + o.evaluated, 0);

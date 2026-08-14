@@ -191,12 +191,19 @@ export async function recalculateBalance(memIds?: string[]) {
         // 규칙 면제와 참여 감면(배치)이 서로를 모른 채 각자 적재해 합이 부과액을 넘고
         // **잔액이 +로 가는** 사고가 있었다(2026-07). 적재 전에 남은 여유분만 준다.
         // 멤버당 1회 조회로 맵을 만들어 월 루프에서 참조한다(달마다 조회하면 N+1이 는다).
-        const { data: allExms } = await db
+        const { data: allExms, error: exmErr } = await db
           .from("fee_due_exm_hist")
           .select("aply_ym, exm_amt")
           .eq("team_id", teamId)
           .eq("mem_id", mid)
           .eq("del_yn", false);
+        // ⚠️ **실패를 빈 배열로 넘기지 않는다.** 조회가 실패하면 기존 면제가 0으로 계산돼
+        // 캡이 통째로 풀리고, 이 캡이 막으려던 바로 그 초과 적재가 다시 일어난다.
+        // 이 사람만 건너뛰고 나머지는 계속 본다(회원끼리는 독립이다).
+        if (exmErr) {
+          errors.push(`기존 면제 조회 실패 (${mid}): ${exmErr.message}`);
+          return;
+        }
         const exemptedByYm = new Map<string, number>();
         for (const e of allExms ?? []) {
           exemptedByYm.set(e.aply_ym, (exemptedByYm.get(e.aply_ym) ?? 0) + (e.exm_amt ?? 0));
