@@ -2,7 +2,7 @@
 
 import { withAdminOrThrow } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
-import { calcExemption } from "@/lib/dues/calc-exemption";
+import { calcExemption, capExemptionAmount } from "@/lib/dues/calc-exemption";
 import {
   buildActiveIntervals,
   isFullyActiveMonth,
@@ -82,6 +82,7 @@ export async function batchDuesExemption(baseMonth?: string): Promise<string> {
     const errors: string[] = [];
 
     let skippedInactive = 0;
+    let cappedCount = 0;
 
     for (const m of targets) {
       // 대상 월에 온전히 active였던 회원만 감면 — 재계산(buildChargeMonths+isFullyActiveMonth)이
@@ -137,12 +138,31 @@ export async function batchDuesExemption(baseMonth?: string): Promise<string> {
         .maybeSingle();
       if (existing) { alreadyGranted++; continue; }
 
+      // 면제는 감면이지 환급이 아니다 — 그 달 면제 총액은 부과액을 못 넘는다.
+      // 규칙 면제(rule_attd)를 이미 받은 회원이 참여 감면까지 받으면 합이 부과액을 넘어
+      // 잔액이 +로 간다(2026-07 실제 발생). 두 경로가 서로를 모르므로 여기서 확인한다.
+      // ※ 출처를 가리지 않고 그 달 전체를 본다 — 관리자 수동 면제도 같은 예산을 쓴다.
+      const { data: sameMonthExms, error: exmSumErr } = await db
+        .from("fee_due_exm_hist")
+        .select("exm_amt")
+        .eq("team_id", teamId)
+        .eq("mem_id", m.mem_id)
+        .eq("aply_ym", ym)
+        .eq("del_yn", false);
+      if (exmSumErr) { errors.push(`${m.mem_id} 기존 면제 조회 실패: ${exmSumErr.message}`); continue; }
+
+      const alreadyExempted = (sameMonthExms ?? []).reduce((s, e) => s + (e.exm_amt ?? 0), 0);
+      const cappedAmt = capExemptionAmount(result.exmAmt, monthlyFeeAmt, alreadyExempted);
+      // 여유가 0이면 적재하지 않는다. 0원짜리 면제 행은 내역만 어지럽히고 의미가 없다.
+      if (cappedAmt <= 0) { cappedCount++; continue; }
+      if (cappedAmt < result.exmAmt) cappedCount++;
+
       const { error: insErr } = await db.from("fee_due_exm_hist").insert({
         team_id: teamId,
         mem_id: m.mem_id,
         exm_cfg_id: null,
         aply_ym: ym,
-        exm_amt: result.exmAmt,
+        exm_amt: cappedAmt,
         grant_src_enm: "rule_attd_quest",
         rsn_txt: rsnTxt,
         aprv_by_mem_id: member.id,
@@ -157,7 +177,8 @@ export async function batchDuesExemption(baseMonth?: string): Promise<string> {
 
     const dupSuffix = alreadyGranted > 0 ? `, ${alreadyGranted}명 기존 부여(스킵)` : "";
     const inactSuffix = skippedInactive > 0 ? `, ${skippedInactive}명 비활성월(제외)` : "";
-    const summary = `대상 월 ${ym}: ${targets.length}명 중 ${granted}명 감면 부여, ${skippedZero}명 미해당${inactSuffix}${dupSuffix}`;
+    const capSuffix = cappedCount > 0 ? `, ${cappedCount}명 기존 면제로 한도 초과(감액·제외)` : "";
+    const summary = `대상 월 ${ym}: ${targets.length}명 중 ${granted}명 감면 부여, ${skippedZero}명 미해당${inactSuffix}${dupSuffix}${capSuffix}`;
 
     // 멤버별 처리 오류가 하나라도 있으면 throw → 실행 이력에 status='failed'로 남긴다(성공 오기록 방지).
     // 성공분(granted)은 이미 INSERT됐고, 처리 요약을 메시지에 함께 담아 어디까지 됐는지 보이게 한다.
