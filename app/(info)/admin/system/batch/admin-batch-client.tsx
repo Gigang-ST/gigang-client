@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { Play, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 
-import { metricDeltas, parseStoredBatchResult } from "@/lib/batch/types";
+import { didChange, metricDeltas, parseStoredBatchResult } from "@/lib/batch/types";
 import { currentMonthKST, formatKSTDateTime, prevMonthStr, todayKST } from "@/lib/dayjs";
 
 import { runBatch, getBatchRunHist, getActiveEvents } from "@/app/actions/admin/run-batch";
@@ -112,14 +112,13 @@ function MetricChips({
   metrics,
   deltas,
 }: {
-  metrics: Record<string, number>;
+  metrics: { label: string; value: number }[];
   deltas: Record<string, number>;
 }) {
-  const entries = Object.entries(metrics);
-  if (!entries.length) return null;
+  if (!metrics.length) return null;
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      {entries.map(([label, value]) => {
+      {metrics.map(({ label, value }) => {
         const d = deltas[label];
         return (
           <span
@@ -345,7 +344,10 @@ export function AdminBatchClient({ initialJobs }: { initialJobs: BatchJob[] }) {
                         const deltas = parsed
                           ? metricDeltas(parsed.metrics, prev?.metrics ?? null)
                           : {};
-                        const changed = parsed ? parsed.changes.length > 0 : undefined;
+                        // 변화 여부는 핸들러가 선언한 changedCount가 정본이다.
+                        // changes 길이로 추측하면 그걸 안 채우는 배치(마일리지런)가
+                        // 칭호를 부여하고도 "변화 없음"으로 나온다.
+                        const changed = parsed ? didChange(parsed) : undefined;
 
                         return (
                           <div key={run.run_id} className="flex flex-col gap-1.5 px-4 py-3">

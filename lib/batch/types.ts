@@ -44,16 +44,33 @@ export type BatchResult = {
   /** 한 줄 요약. `batch_run_hist.result_msg`에 그대로 들어간다. */
   msg: string;
   /**
-   * 라벨 → 숫자. **고정 필드가 아니다** — 배치마다 세는 게 달라서
-   * (회비는 `부여/미해당/기존부여`, 마일리지런은 `평가/부여`) 컬럼을 고정하면
-   * 배치를 추가할 때마다 UI를 고쳐야 한다. 화면은 키를 모른 채 칩으로 그린다(설계 §4.2).
+   * 지표 — **고정 필드가 아니다.** 배치마다 세는 게 달라서(회비는 `대상/부여/미해당`,
+   * 마일리지런은 `시즌/평가/부여`) 컬럼을 고정하면 배치를 추가할 때마다 UI를 고쳐야 한다.
+   * 화면은 라벨을 모른 채 칩으로 그린다(설계 §4.2).
+   *
+   * ⚠️ **맵이 아니라 배열이다.** `Record<string, number>`로 두면 jsonb에 저장될 때
+   * **Postgres가 키를 정렬해**(길이순 → 사전순) 순서가 뒤섞인다 — `시즌·평가·부여`로 넣은 게
+   * 화면에 `부여·시즌·평가`로 나왔다. 지표는 읽는 순서에 뜻이 있으므로(대상 → 부여 → 미해당)
+   * 순서를 보존하는 배열로 담는다.
    */
-  metrics: Record<string, number> | null;
-  /** 실제로 바뀐 대상만. 안 바뀐 건 담지 않는다. */
+  metrics: BatchMetric[] | null;
+  /**
+   * **이번 실행이 실제로 바꾼 건수.** 화면의 "변화 없음" 판정은 이 값이 정본이다.
+   *
+   * `changes.length`로 추측하면 안 된다 — `changes`는 *상세 목록*이라 상한(200)에 잘리기도
+   * 하고, 아예 안 채우는 배치도 있다(마일리지런은 누가 무슨 칭호를 받았는지가 엔진 bulk
+   * INSERT 안에 있어 여기까지 안 올라온다). 실제로 **칭호 3개를 부여하고도 "변화 없음"**
+   * 으로 표시된 적이 있다.
+   */
+  changedCount: number;
+  /** 실제로 바뀐 대상 목록(상세). 담을 수 있는 배치만 담는다. */
   changes: BatchChange[] | null;
   /** 실패는 아니지만 사람이 봐야 하는 것. */
   warnings: string[] | null;
 };
+
+/** 지표 한 칸. 배열로 담아 **순서를 보존한다**(jsonb 객체는 키 순서가 뒤섞인다). */
+export type BatchMetric = { label: string; value: number };
 
 /** `changes`를 상한으로 자르고, 잘렸으면 경고를 한 줄 붙인다. */
 export function capChanges(
@@ -70,17 +87,25 @@ export function capChanges(
   };
 }
 
-/** 이번 실행이 실제로 뭔가를 바꿨나 — 화면이 "변화 없음"을 구분하는 데 쓴다. */
-export function hasChanges(result: BatchResult): boolean {
-  return (result.changes?.length ?? 0) > 0;
-}
-
 /** `batch_run_hist.result_json`에서 읽어 온 값(스키마를 못 믿는 자리). */
 export type StoredBatchResult = {
-  metrics: Record<string, number>;
+  metrics: BatchMetric[];
+  /** null = 옛 이력이라 알 수 없음. 화면은 이때만 `changes.length`로 폴백한다. */
+  changedCount: number | null;
   changes: BatchChange[];
   warnings: string[];
 };
+
+/**
+ * 이번 실행이 실제로 뭔가를 바꿨나.
+ *
+ * `changedCount`가 정본이고, **없을 때만**(이 필드가 생기기 전에 쌓인 이력) `changes` 길이로
+ * 폴백한다. 폴백을 기본으로 두면 changes를 안 채우는 배치가 영원히 "변화 없음"이 된다.
+ */
+export function didChange(stored: StoredBatchResult): boolean {
+  if (stored.changedCount !== null) return stored.changedCount > 0;
+  return stored.changes.length > 0;
+}
 
 /**
  * `result_json`을 화면이 쓸 모양으로 좁힌다.
@@ -93,12 +118,27 @@ export function parseStoredBatchResult(json: unknown): StoredBatchResult | null 
   if (!json || typeof json !== "object" || Array.isArray(json)) return null;
   const raw = json as Record<string, unknown>;
 
-  const metrics: Record<string, number> = {};
-  if (raw.metrics && typeof raw.metrics === "object" && !Array.isArray(raw.metrics)) {
+  const metrics: BatchMetric[] = [];
+  if (Array.isArray(raw.metrics)) {
+    for (const m of raw.metrics) {
+      if (!m || typeof m !== "object") continue;
+      const row = m as Record<string, unknown>;
+      if (typeof row.label === "string" && typeof row.value === "number" && Number.isFinite(row.value)) {
+        metrics.push({ label: row.label, value: row.value });
+      }
+    }
+  } else if (raw.metrics && typeof raw.metrics === "object") {
+    // 배열로 바꾸기 전(2026-08-14 이전)에 쌓인 이력은 객체다. 순서는 이미 뒤섞였지만
+    // 값은 살아 있으므로 읽어는 준다 — 옛 행이 빈칸으로 보이는 것보다 낫다.
     for (const [k, v] of Object.entries(raw.metrics as Record<string, unknown>)) {
-      if (typeof v === "number" && Number.isFinite(v)) metrics[k] = v;
+      if (typeof v === "number" && Number.isFinite(v)) metrics.push({ label: k, value: v });
     }
   }
+
+  const changedCount =
+    typeof raw.changedCount === "number" && Number.isFinite(raw.changedCount)
+      ? raw.changedCount
+      : null;
 
   const changes: BatchChange[] = [];
   if (Array.isArray(raw.changes)) {
@@ -115,26 +155,28 @@ export function parseStoredBatchResult(json: unknown): StoredBatchResult | null 
     ? raw.warnings.filter((w): w is string => typeof w === "string")
     : [];
 
-  if (!Object.keys(metrics).length && !changes.length && !warnings.length) return null;
-  return { metrics, changes, warnings };
+  if (!metrics.length && !changes.length && !warnings.length && changedCount === null) return null;
+  return { metrics, changedCount, changes, warnings };
 }
 
 /**
  * 직전 성공 실행 대비 증감. **월 배치에선 이게 곧 "지난달 대비"**라, 숫자 하나로 이상 징후가
  * 잡힌다(감면이 5명 → 0명이면 뭔가 잘못된 것이다).
  *
- * 이전 실행에 없던 키는 비교하지 않는다(0에서 늘어난 것처럼 보이면 오히려 오해를 만든다).
+ * 이전 실행에 없던 라벨은 비교하지 않는다(0에서 늘어난 것처럼 보이면 오히려 오해를 만든다).
  */
 export function metricDeltas(
-  current: Record<string, number>,
-  previous: Record<string, number> | null,
+  current: BatchMetric[],
+  previous: BatchMetric[] | null,
 ): Record<string, number> {
   if (!previous) return {};
+  const prevByLabel = new Map(previous.map((m) => [m.label, m.value]));
   const deltas: Record<string, number> = {};
-  for (const [k, v] of Object.entries(current)) {
-    if (!(k in previous)) continue;
-    const d = v - previous[k];
-    if (d !== 0) deltas[k] = d;
+  for (const m of current) {
+    const prev = prevByLabel.get(m.label);
+    if (prev === undefined) continue;
+    const d = m.value - prev;
+    if (d !== 0) deltas[m.label] = d;
   }
   return deltas;
 }

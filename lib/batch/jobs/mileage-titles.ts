@@ -125,7 +125,12 @@ export async function batchMileageTitles(
   if (!seasons.length) {
     return {
       msg: `기준 월(${resolvedMonth})에 해당하는 활성 마일리지런 시즌이 없습니다.`,
-      metrics: { 시즌: 0, 평가: 0, 부여: 0 },
+      metrics: [
+        { label: "시즌", value: 0 },
+        { label: "평가", value: 0 },
+        { label: "부여", value: 0 },
+      ],
+      changedCount: 0,
       changes: [],
       warnings: null,
     };
@@ -142,9 +147,15 @@ export async function batchMileageTitles(
 
   return {
     msg: `${seasons.length}개 시즌 · ${evaluated}명 평가 완료, ${granted}개 칭호 부여 (기준 월: ${resolvedMonth})`,
-    metrics: { 시즌: seasons.length, 평가: evaluated, 부여: granted },
+    metrics: [
+      { label: "시즌", value: seasons.length },
+      { label: "평가", value: evaluated },
+      { label: "부여", value: granted },
+    ],
+    // 부여한 칭호 수가 곧 이번 실행의 변화다. **`changes`가 비었다고 "변화 없음"이 아니다** —
     // 누구에게 무슨 칭호가 붙었는지는 엔진이 bulk INSERT로 처리해 여기까지 안 올라온다.
     // 회원에겐 칭호 획득 알림이 개별로 나가므로 여기서는 건수만 남긴다.
+    changedCount: granted,
     changes: [],
     warnings: notes.length ? notes : null,
   };

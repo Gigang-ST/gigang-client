@@ -70,7 +70,8 @@ export async function batchDuesExemption(
   if (!policy) {
     return {
       msg: `대상 월(${ym})에 적용되는 회비 정책이 없습니다.`,
-      metrics: { 대상: 0, 부여: 0 },
+      metrics: [{ label: "대상", value: 0 }, { label: "부여", value: 0 }],
+      changedCount: 0,
       changes: [],
       warnings: [`${ym}에 적용되는 회비 정책이 없어 아무것도 하지 않았습니다.`],
     };
@@ -91,7 +92,8 @@ export async function batchDuesExemption(
   if (!targets.length) {
     return {
       msg: `대상 멤버가 없습니다 (대상 월: ${ym}).`,
-      metrics: { 대상: 0, 부여: 0 },
+      metrics: [{ label: "대상", value: 0 }, { label: "부여", value: 0 }],
+      changedCount: 0,
       changes: [],
       warnings: null,
     };
@@ -239,14 +241,16 @@ export async function batchDuesExemption(
   const capped = capChanges(changes);
   return {
     msg: summary,
-    metrics: {
-      대상: targets.length,
-      부여: granted,
-      미해당: skippedZero,
-      ...(alreadyGranted > 0 ? { 기존부여: alreadyGranted } : {}),
-      ...(skippedInactive > 0 ? { 비활성월: skippedInactive } : {}),
-      ...(cappedCount > 0 ? { 한도초과: cappedCount } : {}),
-    },
+    // 읽는 순서에 뜻이 있다: 대상 → 부여 → 나머지 사유. 배열이라 순서가 보존된다.
+    metrics: [
+      { label: "대상", value: targets.length },
+      { label: "부여", value: granted },
+      { label: "미해당", value: skippedZero },
+      ...(alreadyGranted > 0 ? [{ label: "기존부여", value: alreadyGranted }] : []),
+      ...(skippedInactive > 0 ? [{ label: "비활성월", value: skippedInactive }] : []),
+      ...(cappedCount > 0 ? [{ label: "한도초과", value: cappedCount }] : []),
+    ],
+    changedCount: granted,
     changes: capped.changes,
     warnings: capped.warnings.length ? capped.warnings : null,
   };
