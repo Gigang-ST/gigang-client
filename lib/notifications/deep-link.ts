@@ -99,6 +99,9 @@ const NOTI_ROUTE: Record<
   // 목적지는 달력이어야 한다. 예전 `/`는 홈이 곧 달력이라 성립했지만 지금은 전광판이다.
   newbie_nudge_14: () => SCHEDULE,
   newbie_nudge_28: () => SCHEDULE,
+  // 자동 배치 실패 — 운영진에게만 간다. 결과·이력을 그 자리에서 보고 다시 돌릴 수 있게
+  // 배치 관리 화면으로(설계 §3.4). 관리자가 아니면 그 화면이 막으므로 별도 분기는 없다.
+  batch_failed: () => "/admin/system/batch",
 };
 
 /** 알림 타입+ref로 딥링크 URL을 해석한다. 매핑이 없으면 null. */

@@ -18,37 +18,51 @@ export type Database = {
         Row: {
           cron_expr: string | null
           crt_at: string
+          freq_cd: string | null
           job_cd: string
           job_desc: string | null
           job_id: string
           job_nm: string
           param_schema_json: Json | null
+          team_id: string | null
           upd_at: string | null
           use_yn: boolean
         }
         Insert: {
           cron_expr?: string | null
           crt_at?: string
+          freq_cd?: string | null
           job_cd: string
           job_desc?: string | null
           job_id?: string
           job_nm: string
           param_schema_json?: Json | null
+          team_id?: string | null
           upd_at?: string | null
           use_yn?: boolean
         }
         Update: {
           cron_expr?: string | null
           crt_at?: string
+          freq_cd?: string | null
           job_cd?: string
           job_desc?: string | null
           job_id?: string
           job_nm?: string
           param_schema_json?: Json | null
+          team_id?: string | null
           upd_at?: string | null
           use_yn?: boolean
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "batch_job_mst_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
       }
       batch_run_hist: {
         Row: {
