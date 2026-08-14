@@ -510,6 +510,11 @@ export type TitleEvalContextTitleMonthly = {
   teamId: string;
   teamMemId: string;
   baseMonth: string;
+  /**
+   * 모임 조회 상한(KST, YYYY-MM-DD) — 배치가 **기준 월의 말일**을 넣는다.
+   * 안 주면 다음 달 모임이 섞여 "그 달 참석률"이 아니게 된다.
+   */
+  asOfDt: string;
 };
 
 export type TitleEvalContext =

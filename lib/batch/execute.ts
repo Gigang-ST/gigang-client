@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 import { batchDuesExemption } from "@/lib/batch/jobs/dues-exemption";
 import { batchMileageTitles } from "@/lib/batch/jobs/mileage-titles";
+import { batchTitleGatheringDaily, batchTitleMonthly } from "@/lib/batch/jobs/titles";
 import type { BatchContext, BatchResult } from "@/lib/batch/types";
 
 export type BatchParams = Record<string, string>;
@@ -20,6 +21,12 @@ const BATCH_ACTION_MAP: Record<
   MILEAGE_TITLE_BATCH: (ctx, params) =>
     batchMileageTitles(ctx, params.evt_id || undefined, params.base_month),
   DUES_EXEMPTION_BATCH: (ctx, params) => batchDuesExemption(ctx, params.base_month),
+
+  // 참석 계열 칭호 — 끝난 지 3일 지난 모임까지 본다(운영진의 노쇼 정리를 기다린다).
+  TITLE_GATHERING_DAILY: (ctx) => batchTitleGatheringDaily(ctx),
+
+  // 달이 끝나야 값이 정해지는 칭호(지금은 프로참석러 하나).
+  TITLE_MONTHLY: (ctx, params) => batchTitleMonthly(ctx, params.base_month),
 };
 
 export type ExecuteOutcome = {

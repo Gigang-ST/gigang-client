@@ -945,7 +945,8 @@ export async function evaluateCondition(
 ): Promise<boolean> {
   // 모임 계열이 볼 수 있는 창 — 일 배치의 3일 유예(asOfDt)와 적용 시작일을 함께 넘긴다.
   const gthrWindow: GatheringWindow = {
-    asOfDt: ctx.trigger === "gathering_daily" ? ctx.asOfDt : null,
+    asOfDt:
+      ctx.trigger === "gathering_daily" || ctx.trigger === "title_monthly" ? ctx.asOfDt : null,
     effStartDt,
   };
 
