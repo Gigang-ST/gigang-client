@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Play, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 
+import { scheduleLabel } from "@/lib/batch/schedule";
 import {
   didChange,
   findComparableRun,
@@ -164,15 +165,6 @@ function formatDate(dt: string | null) {
   return formatKSTDateTime(dt);
 }
 
-/**
- * 실제 자동 실행 여부는 **`freq_cd`가 정한다** — `cron_expr`은 표시용으로만 남아 있다.
- * 크론은 표현식을 파싱하지 않고 "이번 주기에 이미 성공했나"로 판정한다(설계 §3.2).
- */
-function scheduleLabel(freqCd: string | null) {
-  if (freqCd === "daily") return "매일 자동 (KST)";
-  if (freqCd === "monthly") return "매월 자동 (KST)";
-  return "수동만";
-}
 
 export function AdminBatchClient({ initialJobs }: { initialJobs: BatchJob[] }) {
   const router = useRouter();
@@ -261,7 +253,9 @@ export function AdminBatchClient({ initialJobs }: { initialJobs: BatchJob[] }) {
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-2">
           <SectionHeader label="배치 목록" />
-          <Caption className="text-muted-foreground">· 자동 스케줄 배치 미구현</Caption>
+          <Caption className="text-muted-foreground">
+            · 스케줄이 있는 배치는 자동 실행됩니다
+          </Caption>
         </div>
         <div className="flex flex-col gap-3">
           {jobs.map((job) => (

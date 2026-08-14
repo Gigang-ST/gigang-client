@@ -12,6 +12,33 @@ export const STALE_RUNNING_MINUTES = 30;
 
 export type FreqCd = "daily" | "monthly";
 
+/**
+ * 배치 디스패처 크론이 도는 시각(KST 기준 시).
+ *
+ * ⚠️ **`vercel.json`의 `/api/cron/batch` 스케줄과 같이 고쳐야 한다.** Vercel 크론은 UTC라
+ * `0 0 * * *`(UTC 자정)가 KST 09:00이다. json은 TS를 못 읽어 두 곳에 나뉠 수밖에 없으므로,
+ * 화면 라벨이 실제와 어긋나지 않게 여기 상수를 정본으로 두고 한쪽을 고칠 때 반드시 같이 본다.
+ *
+ * 자정이 아니라 09:00인 건 알림 때문이다 — 칭호 부여가 푸시까지 나가므로 자정 배치는
+ * 새벽에 알림을 쏜다(설계 §2).
+ */
+export const BATCH_CRON_HOUR_KST = 9;
+
+/**
+ * 화면에 보여줄 실제 스케줄 문구.
+ *
+ * `freq_cd`와 크론 시각을 **함께** 읽어 만든다 — 예전엔 "매월 자동"처럼 고정 문자열이라
+ * 언제 도는지를 알 수 없었고, 그 전엔 `cron_expr`을 그대로 보여줘 `0 15 1 * *`(=KST 2일
+ * 자정)라는 **틀린 시각**을 적고 있었다.
+ */
+export function scheduleLabel(freqCd: string | null): string {
+  const hh = `${String(BATCH_CRON_HOUR_KST).padStart(2, "0")}:00`;
+  if (freqCd === "daily") return `매일 ${hh} (KST)`;
+  // 월 배치는 "그 달에 아직 성공 안 했으면" 도는 구조라, 실제로는 매월 1일 크론에서 걸린다.
+  if (freqCd === "monthly") return `매월 1일 ${hh} (KST)`;
+  return "수동 전용";
+}
+
 export type RunRow = {
   status: string;
   started_at: string;
