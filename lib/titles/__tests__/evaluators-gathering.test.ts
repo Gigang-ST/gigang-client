@@ -47,6 +47,59 @@ const attd = (gthrId: string, kstLocal: string) => ({
   gthr_mst: { stt_at: ts(kstLocal), team_id: TEAM, del_yn: false },
 });
 
+describe("조회 캐시 — 같은 목록을 조건마다 다시 읽지 않는다", () => {
+  /** 조회 횟수를 세는 fakeDb */
+  function countingDb(rows: unknown[]) {
+    let calls = 0;
+    const make = () => {
+      const q: Record<string, unknown> = {};
+      for (const m of ["eq", "in", "not", "gte", "lte", "order"]) q[m] = () => q;
+      q.select = () => q;
+      q.then = (res: (v: { data: unknown[] }) => unknown) => {
+        calls += 1;
+        return Promise.resolve({ data: rows }).then(res);
+      };
+      return q;
+    };
+    return { db: { from: () => make() } as never, calls: () => calls };
+  }
+
+  it("⚠️ 캐시를 주면 참석 목록을 한 번만 읽는다 — 6종이 같은 목록을 본다", async () => {
+    // 캐시가 없으면 멤버당 6번, 200명이면 1,200번이다. dev에서 배치가 30초를 넘긴 원인.
+    const { db, calls } = countingDb([attd("g1", "2026-08-01T06:00:00")]);
+    const win: GatheringWindow = { asOfDt: null, effStartDt: null, cache: new Map() };
+
+    await evalGthrAttendInMonth({ type: "gthr_attend_in_month", count: 1 }, ME, TEAM, win, db);
+    await evalGthrAttendStreak({ type: "gthr_attend_streak", days: 1 }, ME, TEAM, win, db);
+    await evalGthrSameDayCount(
+      { type: "gthr_same_day_count", per_day: 1, count: 1 }, ME, TEAM, win, db,
+    );
+
+    expect(calls()).toBe(1);
+  });
+
+  it("캐시를 안 주면 조건마다 다시 읽는다(동작은 같다)", async () => {
+    const { db, calls } = countingDb([attd("g1", "2026-08-01T06:00:00")]);
+    const win: GatheringWindow = { asOfDt: null, effStartDt: null };
+
+    await evalGthrAttendInMonth({ type: "gthr_attend_in_month", count: 1 }, ME, TEAM, win, db);
+    await evalGthrAttendStreak({ type: "gthr_attend_streak", days: 1 }, ME, TEAM, win, db);
+
+    expect(calls()).toBe(2);
+  });
+
+  it("창(asOfDt/effStartDt)이 다르면 캐시를 공유하지 않는다", async () => {
+    const { db, calls } = countingDb([attd("g1", "2026-08-01T06:00:00")]);
+    const cache = new Map();
+    const rule = { type: "gthr_attend_in_month", count: 1 } as const;
+
+    await evalGthrAttendInMonth(rule, ME, TEAM, { asOfDt: "2026-08-31", effStartDt: null, cache }, db);
+    await evalGthrAttendInMonth(rule, ME, TEAM, { asOfDt: "2026-07-31", effStartDt: null, cache }, db);
+
+    expect(calls()).toBe(2);
+  });
+});
+
 describe("#1 gthr_attend_in_month — 미라클·올빼미", () => {
   it("한 달 안에 3회여야 한다 — 달을 걸치면 미달", () => {
     const db = fakeDb({

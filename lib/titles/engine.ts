@@ -46,6 +46,27 @@ type TtlMstRow = {
 };
 
 /**
+ * 팀의 사용 중인 auto 칭호 전체.
+ *
+ * 배치는 **루프 밖에서 한 번** 불러 `evaluateAndGrantTitles`에 넘긴다 — 멤버마다 부르면
+ * 같은 조회가 멤버 수만큼 반복된다.
+ */
+export async function loadAutoTitles(
+  db: ReturnType<typeof createAdminClient>,
+  teamId: string,
+): Promise<TtlMstRow[]> {
+  const { data } = await db
+    .from("ttl_mst")
+    .select("ttl_id, ttl_nm, cond_rule_json, eff_stt_dt")
+    .eq("team_id", teamId)
+    .eq("ttl_kind_enm", "auto")
+    .eq("use_yn", true)
+    .eq("vers", 0)
+    .eq("del_yn", false);
+  return (data as TtlMstRow[]) ?? [];
+}
+
+/**
  * 주어진 컨텍스트 기준으로 자동 칭호를 평가하고, 조건을 충족하는 미보유 칭호를 부여한다.
  *
  * - service_role 클라이언트를 사용하므로 RLS를 우회한다.
@@ -56,6 +77,14 @@ type TtlMstRow = {
  */
 export async function evaluateAndGrantTitles(
   ctx: TitleEvalContext,
+  /**
+   * 팀의 auto 칭호 목록. **배치가 미리 한 번 읽어 넘긴다.**
+   *
+   * 안 넘기면 이 함수가 직접 조회하는데, 배치가 멤버마다 부르면 **멤버 수만큼 같은
+   * `ttl_mst` 전체 조회**가 나간다(200명이면 200번). 실시간 트리거는 한 번만 부르므로
+   * 그대로 두면 된다.
+   */
+  preloadedTitles?: TtlMstRow[],
 ): Promise<string[]> {
   const db = createAdminClient();
 
@@ -76,14 +105,8 @@ export async function evaluateAndGrantTitles(
   const memId = relRow.mem_id;
 
   // 3. 이 팀의 사용 중인 auto 칭호 전체 조회 후 이 트리거에서 평가할 조건 유형만 필터링
-  const { data: allTitles } = await db
-    .from("ttl_mst")
-    .select("ttl_id, ttl_nm, cond_rule_json, eff_stt_dt")
-    .eq("team_id", ctx.teamId)
-    .eq("ttl_kind_enm", "auto")
-    .eq("use_yn", true)
-    .eq("vers", 0)
-    .eq("del_yn", false);
+  //    (배치가 미리 읽어 넘겼으면 그걸 쓴다 — 멤버마다 같은 조회를 반복하지 않는다)
+  const allTitles = preloadedTitles ?? (await loadAutoTitles(db, ctx.teamId));
 
   const titles = (allTitles as TtlMstRow[] ?? []).filter((t) => {
     const rule = t.cond_rule_json as CondRule | null;
@@ -117,6 +140,10 @@ export async function evaluateAndGrantTitles(
   // 5. 조건 평가 → 통과한 미보유 칭호 수여
   const granted: string[] = [];
 
+  // 이 멤버를 평가하는 동안 조건들이 나눠 쓰는 조회 캐시.
+  // 모임 칭호 6종이 전부 같은 참석 목록을 보므로, 없으면 같은 쿼리가 6번 나간다.
+  const evalCache = new Map<string, unknown>();
+
   for (const title of titles) {
     if (activeIds.has(title.ttl_id)) continue; // 현재 활성 보유 중이면 스킵
 
@@ -129,6 +156,7 @@ export async function evaluateAndGrantTitles(
         db,
         // 적용 시작일 — 이 날짜부터 발생한 활동만 센다. 기존 64종은 null이라 그대로 소급된다.
         title.eff_stt_dt ?? null,
+        evalCache,
       );
     } catch (e) {
       console.error(`[title-engine] 조건 평가 실패 ttl_id=${title.ttl_id}`, e);
@@ -165,25 +193,34 @@ export async function evaluateAndGrantTitles(
 // ---------------------------------------------------------------------------
 
 /**
- * 팀 전체 멤버를 대상으로 auto 칭호를 일괄 재평가하고 부여/회수한다.
+ * 팀 전체 멤버를 대상으로 auto 칭호를 일괄 재평가하고 **부여한다**.
  *
- * DB 쿼리 수: 멤버·칭호 수에 무관하게 약 7번 고정.
+ * ⚠️ **이 엔진은 부여 전용이다 — 회수하지 않는다.** 예전 주석·반환값(`revoked`)은 회수를
+ * 하는 것처럼 적혀 있었지만 그 코드는 처음부터 없었고, 화면엔 늘 "자동 회수 0개"가 찍혀
+ * 없는 기능이 정상 동작하는 것처럼 보였다. 2026-08-14에 걷어냈다.
+ *
+ * 회수는 **관리자 수동**(`app/actions/admin/revoke-title.ts`의 `revokeTitle`)이 유일한 경로다.
+ * 자동 회수를 넣지 않는 건 정책이다(회비 감면 설계 §6.4와 같은 태도):
+ *   - 운영진이 노쇼를 정리하는 순간 이미 준 칭호가 걷힌다
+ *   - 회수 알림이 없어 사용자는 칭호가 사라진 것만 알게 된다
+ *   - 참석 계열에 3일 유예를 둔 것부터가 "회수할 일을 안 만들려고"였다
+ *
+ * DB 쿼리 수: 멤버·칭호 수에 무관하게 약 5번 고정.
  *   - loadMemberSnapshots: 3번 (team_mem_rel, rec_race_hist, mem_ttl_rel)
  *   - ttl_mst 조회: 1번
- *   - bulk UPDATE (회수): 1번
- *   - bulk UPSERT (부여): 1번
+ *   - bulk INSERT (부여): 1번
  */
 export async function sweepEvaluateAndGrant(
   teamId: string,
   teamMemIds: string[],
-): Promise<{ granted: number; revoked: number }> {
-  if (teamMemIds.length === 0) return { granted: 0, revoked: 0 };
+): Promise<{ granted: number }> {
+  if (teamMemIds.length === 0) return { granted: 0 };
 
   const db = createAdminClient();
 
   // 1. 멤버 전체 스냅샷 로드
   const snapshots = await loadMemberSnapshots(db, teamId, teamMemIds);
-  if (snapshots.size === 0) return { granted: 0, revoked: 0 };
+  if (snapshots.size === 0) return { granted: 0 };
 
   // 2. 팀의 auto 칭호 전체 조회 (1번 — 멤버 수와 무관)
   const { data: allTitles } = await db
@@ -196,7 +233,7 @@ export async function sweepEvaluateAndGrant(
     .eq("del_yn", false);
 
   const titles = (allTitles as TtlMstRow[] ?? []).filter((t) => t.cond_rule_json != null);
-  if (titles.length === 0) return { granted: 0, revoked: 0 };
+  if (titles.length === 0) return { granted: 0 };
 
   const allowedCondTypes = new Set<string>(TRIGGER_COND_MAP["manual_sweep"]);
   const snapshotsByMemId = new Map<string, MemberSnapshot>(
@@ -234,6 +271,9 @@ export async function sweepEvaluateAndGrant(
         title.cond_rule_json as CondRule,
         snapshot,
         snapshotsByMemId,
+        undefined,
+        // 적용 시작일 — sweep이라고 과거를 소급하면 안 된다(§7.5).
+        title.eff_stt_dt ?? null,
       );
       if (!passed) continue;
 
@@ -283,7 +323,7 @@ export async function sweepEvaluateAndGrant(
     }
   }
 
-  return { granted, revoked: 0 };
+  return { granted };
 }
 
 /**
@@ -350,6 +390,7 @@ export async function batchEvaluateAndGrant(
         snapshot,
         snapshotsByMemId,
         baseMonth,
+        title.eff_stt_dt ?? null,
       );
       if (!passed) continue;
 

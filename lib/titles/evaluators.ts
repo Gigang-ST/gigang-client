@@ -22,7 +22,7 @@ import {
   evalGthrMonthAttendRate,
   evalGthrSameDayCount,
 } from "./evaluators-gathering";
-import type { GatheringWindow } from "./evaluators-gathering";
+import type { GatheringCache, GatheringWindow } from "./evaluators-gathering";
 
 const KST = "Asia/Seoul";
 
@@ -942,12 +942,20 @@ export async function evaluateCondition(
    * 기존 64종은 null이라 동작이 그대로다(설계 §7.5).
    */
   effStartDt: string | null = null,
+  /**
+   * 한 멤버를 평가하는 동안 조건들이 나눠 쓰는 조회 캐시(호출부가 멤버마다 새로 만든다).
+   *
+   * 안 넘겨도 동작은 같지만 **같은 조회가 조건 수만큼 반복된다** — 모임 칭호 6종이 전부
+   * 같은 참석 목록을 보므로 멤버당 6번이 된다.
+   */
+  cache?: GatheringCache,
 ): Promise<boolean> {
   // 모임 계열이 볼 수 있는 창 — 일 배치의 3일 유예(asOfDt)와 적용 시작일을 함께 넘긴다.
   const gthrWindow: GatheringWindow = {
     asOfDt:
       ctx.trigger === "gathering_daily" || ctx.trigger === "title_monthly" ? ctx.asOfDt : null,
     effStartDt,
+    cache,
   };
 
   switch (rule.type) {
@@ -1099,7 +1107,19 @@ export function evaluateConditionFromSnapshot(
   allSnapshots: Map<string, MemberSnapshot>,
   /** mileage_batch 전용: 평가 기준 월 (YYYY-MM). 월 고정 조건 필터링에 사용. */
   baseMonth?: string,
+  /**
+   * `ttl_mst.eff_stt_dt` — 이 날짜(KST)부터 발생한 활동만 센다. null이면 소급 제한 없음.
+   *
+   * ⚠️ **여기 새 조건을 구현할 때 이 값을 반드시 반영한다.** 안 하면 관리자가 "전체 재계산"을
+   * 누르는 순간 **적용일 이전 과거가 통째로 소급 부여**된다 — 그게 이 컬럼을 만든 이유다(§7.5).
+   * 인자로 받아 두는 건 그때 이 값이 손에 없어서 그냥 넘어가는 일을 막기 위한 것이다.
+   *
+   * 지금 이 경로를 쓰는 조건(대회·마일리지런 계열)은 전부 `eff_stt_dt`가 null이라
+   * 동작이 그대로다.
+   */
+  effStartDt: string | null = null,
 ): boolean {
+  void effStartDt; // 아직 이 값을 보는 조건이 없다 — 위 경고 참조.
   switch (rule.type) {
     case "race_pb_under_sec":
       return evalRacePbUnderSecFromSnapshot(rule, snapshot.raceHist);

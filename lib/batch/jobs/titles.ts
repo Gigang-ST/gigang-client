@@ -1,7 +1,7 @@
 import { capChanges } from "@/lib/batch/types";
 import { dayjs } from "@/lib/dayjs";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { evaluateAndGrantTitles } from "@/lib/titles/engine";
+import { evaluateAndGrantTitles, loadAutoTitles } from "@/lib/titles/engine";
 import { ATTEND_GRACE_DAYS } from "@/lib/titles/types";
 
 import type { BatchChange, BatchContext, BatchResult } from "@/lib/batch/types";
@@ -40,12 +40,16 @@ async function evaluateTeam(
     .in("mem_id", members.map((m) => m.mem_id));
   const nameById = new Map((memRows ?? []).map((r) => [r.mem_id, r.mem_nm]));
 
+  // 칭호 목록은 **루프 밖에서 한 번**만 읽는다. 안에서 부르면 멤버 수만큼(수백 번)
+  // 같은 `ttl_mst` 전체 조회가 나간다 — dev에서 배치가 30초를 넘긴 원인 중 하나였다.
+  const autoTitles = await loadAutoTitles(db, teamId);
+
   const changes: BatchChange[] = [];
   const errors: string[] = [];
 
   for (const m of members) {
     try {
-      const granted = await evaluateAndGrantTitles(makeCtx(m.team_mem_id));
+      const granted = await evaluateAndGrantTitles(makeCtx(m.team_mem_id), autoTitles);
       for (const ttlNm of granted) {
         changes.push({
           memNm: nameById.get(m.mem_id) ?? m.mem_id,

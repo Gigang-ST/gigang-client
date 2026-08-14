@@ -40,13 +40,38 @@ type AttendedGathering = {
   startKst: dayjs.Dayjs;
 };
 
+/**
+ * 한 멤버를 평가하는 동안 살아 있는 조회 캐시.
+ *
+ * ⚠️ **이게 없으면 같은 조회를 조건마다 다시 한다.** 한 멤버의 모임 칭호는 6종인데
+ * (미라클·오픈런·올빼미·3연벙·하루에두번·생일축하해) 전부 같은 참석 목록을 본다 —
+ * 캐시가 없으면 **멤버당 6번 같은 쿼리**가 나가고, 200명이면 1,200번이다.
+ * 실제로 dev에서 배치가 30초를 넘겼다.
+ *
+ * 수명은 **멤버 하나**다(엔진이 멤버마다 새로 만든다). 배치 전체로 늘리면 빨라지지만
+ * 그건 팀 단위 프리페치로 가는 게 맞다 — 여기서 오래 들고 있으면 그만큼 메모리에 쌓인다.
+ */
+export type GatheringCache = Map<string, unknown>;
+
 /** 이 조건이 볼 수 있는 모임의 시작 시각 상한(KST). 일 배치의 3일 유예가 여기로 들어온다. */
 export type GatheringWindow = {
   /** 이 날짜(YYYY-MM-DD, KST)까지 **시작한** 모임만 본다. null이면 지금까지 전부. */
   asOfDt: string | null;
   /** 칭호 적용 시작일(YYYY-MM-DD, KST). null이면 소급 제한 없음. */
   effStartDt: string | null;
+  /** 같은 멤버의 조건들이 조회를 나눠 쓰는 캐시. 없으면 매번 새로 조회한다. */
+  cache?: GatheringCache;
 };
+
+/** 캐시가 있으면 재사용하고, 없으면 조회해서 채운다. */
+async function cached<T>(win: GatheringWindow, key: string, load: () => Promise<T>): Promise<T> {
+  const k = `${key}|${win.asOfDt ?? ""}|${win.effStartDt ?? ""}`;
+  const hit = win.cache?.get(k);
+  if (hit !== undefined) return hit as T;
+  const value = await load();
+  win.cache?.set(k, value);
+  return value;
+}
 
 /** 모임 시작 시각(KST)이 이 조건의 창 안에 드는가. */
 function inWindow(startKst: dayjs.Dayjs, win: GatheringWindow): boolean {
@@ -63,25 +88,28 @@ function inWindow(startKst: dayjs.Dayjs, win: GatheringWindow): boolean {
  * 운영진이 안 나온 사람을 사후에 취소 처리하므로, 일 배치가 3일 유예(`asOfDt`)를 줘서
  * 명단이 정리된 뒤에 센다(§4.1).
  */
-async function loadAttended(
+function loadAttended(
   db: DB,
   memId: string,
   teamId: string,
   win: GatheringWindow,
 ): Promise<AttendedGathering[]> {
-  const { data } = await db
-    .from("gthr_attd_rel")
-    .select("gthr_id, gthr_mst!inner(stt_at, team_id, del_yn)")
-    .eq("mem_id", memId)
-    .eq("gthr_mst.team_id", teamId)
-    .eq("gthr_mst.del_yn", false);
+  // 모임 칭호 6종이 전부 이 목록을 본다 — 캐시가 이 조회를 멤버당 1번으로 묶는다.
+  return cached(win, `attended:${memId}`, async () => {
+    const { data } = await db
+      .from("gthr_attd_rel")
+      .select("gthr_id, gthr_mst!inner(stt_at, team_id, del_yn)")
+      .eq("mem_id", memId)
+      .eq("gthr_mst.team_id", teamId)
+      .eq("gthr_mst.del_yn", false);
 
-  return (data ?? [])
-    .map((r: { gthr_id: string; gthr_mst: { stt_at: string } | { stt_at: string }[] }) => {
-      const g = Array.isArray(r.gthr_mst) ? r.gthr_mst[0] : r.gthr_mst;
-      return { gthrId: r.gthr_id, startKst: dayjs(g.stt_at).tz(KST) };
-    })
-    .filter((a: AttendedGathering) => inWindow(a.startKst, win));
+    return (data ?? [])
+      .map((r: { gthr_id: string; gthr_mst: { stt_at: string } | { stt_at: string }[] }) => {
+        const g = Array.isArray(r.gthr_mst) ? r.gthr_mst[0] : r.gthr_mst;
+        return { gthrId: r.gthr_id, startKst: dayjs(g.stt_at).tz(KST) };
+      })
+      .filter((a: AttendedGathering) => inWindow(a.startKst, win));
+  });
 }
 
 /** "HH:mm" 문자열을 그날의 분 단위로. 시각 비교를 문자열 파싱 없이 하기 위한 것. */
@@ -195,7 +223,17 @@ type SelfCancel = {
  * 발급한다** — 월요일 모임에 안 나와서 지웠더니 `월요병`이 붙고, 운영진이 적은 취소 사유가
  * `칼퇴실패`·`구구절절`이 되는 식이다(§4.1).
  */
-async function loadSelfCancels(
+function loadSelfCancels(
+  db: DB,
+  memId: string,
+  teamId: string,
+  win: GatheringWindow,
+): Promise<SelfCancel[]> {
+  // 취소 계열 5종(다음엔꼭·회전문·월요병·칼퇴실패·구구절절)이 같은 목록을 본다.
+  return cached(win, `cancels:${memId}`, () => loadSelfCancelsUncached(db, memId, teamId, win));
+}
+
+async function loadSelfCancelsUncached(
   db: DB,
   memId: string,
   teamId: string,
