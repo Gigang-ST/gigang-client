@@ -311,6 +311,8 @@ describe("#21 race_pair_reversal — 하수야~ / 고수님..", () => {
           rec_time_sec: r.theirs, mem_id: RIVAL,
         },
       ]),
+      // 맞대결 상대는 **우리 팀 사람**이어야 센다(아래 팀 경계 테스트 참조).
+      team_mem_rel: [{ mem_id: ME }, { mem_id: RIVAL }],
     });
 
   it("맞대결이 1회뿐이면 역전이 성립하지 않는다", async () => {
@@ -356,6 +358,35 @@ describe("#21 race_pair_reversal — 하수야~ / 고수님..", () => {
     await expect(
       evalRacePairReversal(
         { type: "race_pair_reversal", direction: "winner" }, ME, TEAM, OPEN, fakeDb({}),
+      ),
+    ).resolves.toBe(false);
+  });
+
+  it("⚠️ 다른 팀 사람과의 맞대결은 세지 않는다", async () => {
+    // rec_race_hist엔 team 컬럼이 없어 대회 id만으로 조회하면 남의 팀 기록까지 딸려 온다.
+    // 같은 공개 대회(동아마라톤 등)를 뛴 남에게 '하수야~'가 붙으면 안 된다.
+    const rows = [
+      { comp_evt_id: "e1", comp_evt_type: "FULL", race_dt: "2026-05-10", rec_time_sec: 11000, mem_id: ME },
+      { comp_evt_id: "e1", comp_evt_type: "FULL", race_dt: "2026-05-10", rec_time_sec: 10000, mem_id: RIVAL },
+      { comp_evt_id: "e2", comp_evt_type: "FULL", race_dt: "2026-08-15", rec_time_sec: 9000, mem_id: ME },
+      { comp_evt_id: "e2", comp_evt_type: "FULL", race_dt: "2026-08-15", rec_time_sec: 9500, mem_id: RIVAL },
+    ];
+
+    // 상대가 우리 팀이면 역전이 성립한다.
+    await expect(
+      evalRacePairReversal(
+        { type: "race_pair_reversal", direction: "winner" }, ME, TEAM,
+        { effStartDt: null, cache: new Map() },
+        fakeDb({ rec_race_hist: rows, team_mem_rel: [{ mem_id: ME }, { mem_id: RIVAL }] }),
+      ),
+    ).resolves.toBe(true);
+
+    // 같은 데이터인데 상대가 우리 팀 명단에 없으면 성립하지 않는다.
+    await expect(
+      evalRacePairReversal(
+        { type: "race_pair_reversal", direction: "winner" }, ME, TEAM,
+        { effStartDt: null, cache: new Map() },
+        fakeDb({ rec_race_hist: rows, team_mem_rel: [{ mem_id: ME }] }),
       ),
     ).resolves.toBe(false);
   });

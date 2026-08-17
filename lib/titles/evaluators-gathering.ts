@@ -14,6 +14,7 @@
  */
 
 import { dayjs } from "@/lib/dayjs";
+import { selectInChunks } from "@/lib/titles/query-chunk";
 
 import type {
   CondAttendOnBirthday,
@@ -199,18 +200,21 @@ async function filterFirstApplicantGatherings(
 ): Promise<Set<string>> {
   if (!gthrIds.length) return new Set();
 
-  const { data } = await db
-    .from("gthr_attd_rel")
-    .select("gthr_id, mem_id, crt_at, gthr_mst!inner(crt_by)")
-    .in("gthr_id", gthrIds)
-    .order("crt_at", { ascending: true });
-
-  const firstByGthr = new Map<string, string>();
-  for (const r of (data ?? []) as {
+  // 청크마다 따로 정렬되지만, 한 모임의 신청 행은 한 청크 안에 모이므로 "모임별 첫 신청자"는 정확하다.
+  const rows = await selectInChunks<{
     gthr_id: string;
     mem_id: string;
     gthr_mst: { crt_by: string } | { crt_by: string }[];
-  }[]) {
+  }>(gthrIds, (chunk) =>
+    db
+      .from("gthr_attd_rel")
+      .select("gthr_id, mem_id, crt_at, gthr_mst!inner(crt_by)")
+      .in("gthr_id", chunk)
+      .order("crt_at", { ascending: true }),
+  );
+
+  const firstByGthr = new Map<string, string>();
+  for (const r of rows) {
     const g = Array.isArray(r.gthr_mst) ? r.gthr_mst[0] : r.gthr_mst;
     if (r.mem_id === g.crt_by) continue; // 개설자 자동 등록분은 후보에서 제외
     if (!firstByGthr.has(r.gthr_id)) firstByGthr.set(r.gthr_id, r.mem_id);
@@ -497,14 +501,19 @@ export async function evalGthrLastSlot(
 
   // 각 모임의 신청 순번을 매긴다. 취소로 빠진 사람은 행이 없어 순번이 당겨지는데,
   // 그건 "지금 명단 기준 마지막"이라는 뜻이라 이 조건의 취지에 맞다.
-  const { data: allRows } = await db
-    .from("gthr_attd_rel")
-    .select("gthr_id, mem_id, crt_at")
-    .in("gthr_id", mine.map((m) => m.gthrId))
-    .order("crt_at", { ascending: true });
+  // 청크마다 따로 정렬되지만, 한 모임의 신청 행은 한 청크 안에 모이므로 순번은 정확하다.
+  const allRows = await selectInChunks<{ gthr_id: string; mem_id: string }>(
+    mine.map((m) => m.gthrId),
+    (chunk) =>
+      db
+        .from("gthr_attd_rel")
+        .select("gthr_id, mem_id, crt_at")
+        .in("gthr_id", chunk)
+        .order("crt_at", { ascending: true }),
+  );
 
   const orderByGthr = new Map<string, string[]>();
-  for (const r of (allRows ?? []) as { gthr_id: string; mem_id: string }[]) {
+  for (const r of allRows) {
     const list = orderByGthr.get(r.gthr_id) ?? [];
     list.push(r.mem_id);
     orderByGthr.set(r.gthr_id, list);

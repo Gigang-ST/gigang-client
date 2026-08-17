@@ -12,6 +12,7 @@
  */
 
 import { dayjs } from "@/lib/dayjs";
+import { selectInChunks } from "@/lib/titles/query-chunk";
 
 import type {
   CondCmntMentionCount,
@@ -228,15 +229,13 @@ export async function evalCmntMentionCount(
   const comments = await loadMyComments(db, memId, teamId, win);
   if (!comments.length) return false;
 
-  const { data } = await db
-    .from("cmnt_mention_rel")
-    .select("cmnt_id, mem_id")
-    .in("cmnt_id", comments.map((c) => c.cmntId));
+  const rows = await selectInChunks<{ cmnt_id: string; mem_id: string }>(
+    comments.map((c) => c.cmntId),
+    (chunk) => db.from("cmnt_mention_rel").select("cmnt_id, mem_id").in("cmnt_id", chunk),
+  );
 
   // 내가 쓴 댓글에 달린 멘션 중, 대상이 나 자신이 아닌 것.
-  const hits = ((data ?? []) as { cmnt_id: string; mem_id: string }[]).filter(
-    (m) => m.mem_id !== memId,
-  );
+  const hits = rows.filter((m) => m.mem_id !== memId);
   return hits.length >= rule.count;
 }
 
@@ -256,16 +255,21 @@ export async function evalPostSelfFirstComment(
   const posts = await loadPhotoPosts(db, memId, teamId, win);
   if (!posts.length) return false;
 
-  const { data } = await db
-    .from("cmnt_mst")
-    .select("entity_id, mem_id, crt_at")
-    .eq("entity_type", "post")
-    .eq("del_yn", false)
-    .in("entity_id", posts.map((p) => p.postId))
-    .order("crt_at", { ascending: true });
+  // 청크마다 따로 정렬되지만, 한 글의 댓글은 한 청크 안에 모이므로 "글별 첫 댓글"은 정확하다.
+  const rows = await selectInChunks<{ entity_id: string; mem_id: string }>(
+    posts.map((p) => p.postId),
+    (chunk) =>
+      db
+        .from("cmnt_mst")
+        .select("entity_id, mem_id, crt_at")
+        .eq("entity_type", "post")
+        .eq("del_yn", false)
+        .in("entity_id", chunk)
+        .order("crt_at", { ascending: true }),
+  );
 
   const firstByPost = new Map<string, string>();
-  for (const r of (data ?? []) as { entity_id: string; mem_id: string }[]) {
+  for (const r of rows) {
     if (!firstByPost.has(r.entity_id)) firstByPost.set(r.entity_id, r.mem_id);
   }
 
@@ -465,22 +469,39 @@ export async function evalRacePairReversal(
   const evtIds = [...new Set(myRaces.map((r) => r.compEvtId).filter(Boolean))] as string[];
   if (!evtIds.length) return false;
 
-  const { data: others } = await db
-    .from("rec_race_hist")
-    .select("mem_id, comp_evt_id, comp_evt_type, race_dt, rec_time_sec")
-    .in("comp_evt_id", evtIds)
-    .eq("vers", 0)
-    .eq("del_yn", false)
-    .gt("rec_time_sec", 0);
+  const others = await selectInChunks<{
+    mem_id: string; comp_evt_id: string; comp_evt_type: string | null;
+    race_dt: string; rec_time_sec: number;
+  }>(evtIds, (chunk) =>
+    db
+      .from("rec_race_hist")
+      .select("mem_id, comp_evt_id, comp_evt_type, race_dt, rec_time_sec")
+      .in("comp_evt_id", chunk)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .gt("rec_time_sec", 0),
+  );
+
+  // ⚠️ **상대를 우리 팀으로 좁힌다.** `rec_race_hist`에는 team 컬럼이 없어 대회 id만으로
+  // 조회하면 **다른 팀 사람과의 맞대결**까지 세어, 같은 공개 대회를 뛴 남에게 "하수야~"가
+  // 붙는다. 팀 멤버 목록은 팀 공통이라 캐시 키에 memId를 넣지 않는다.
+  const teamMemIds = await cached(win, `team-mem-ids:${teamId}`, async () => {
+    const { data } = await db
+      .from("team_mem_rel")
+      .select("mem_id")
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false);
+    return new Set(((data ?? []) as { mem_id: string }[]).map((r) => r.mem_id));
+  });
 
   // (상대 × 종목)별로 맞대결을 시간순으로 모은다.
   type Duel = { raceDt: string; iWon: boolean };
   const duels = new Map<string, Duel[]>();
 
-  for (const o of (others ?? []) as {
-    mem_id: string; comp_evt_id: string; comp_evt_type: string | null; race_dt: string; rec_time_sec: number;
-  }[]) {
+  for (const o of others) {
     if (o.mem_id === memId) continue;
+    if (!teamMemIds.has(o.mem_id)) continue;
     const my = myRaces.find(
       (m) => m.compEvtId === o.comp_evt_id && m.evtType === o.comp_evt_type,
     );
