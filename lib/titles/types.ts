@@ -401,7 +401,8 @@ export type TriggerKind =
   | "attendance"        // 로그인 / 출석 체크
   | "manual_sweep"      // 관리자 수동 전체 재계산
   // --- 2026-08 신규 (설계 §7.2) ---
-  | "gathering_attend"  // 모임 참석·취소 액션 — 그 순간 확정되는 것만
+  | "gathering_attend"  // 모임 참석 액션 — 신청 순번의 사건(막차)만
+  | "gathering_cancel"  // 모임 취소 액션 — 취소 계열만
   | "gathering_daily"   // 일 배치 — 끝난 지 3일 지난 모임까지 (참석 계열)
   | "post_create"       // 깅스타그램 게시
   | "comment_create"    // 댓글 작성
@@ -494,10 +495,17 @@ export const TRIGGER_COND_MAP = {
 
   // --- 2026-08 신규 트리거 ---
 
-  // 그 순간 확정되는 것만: 취소 계열과 막차.
-  // 막차만 참석 액션에 남는 이유 — 신청 순번의 사건이라 3일 뒤로 미루면 그 사이 노쇼가
+  // 그 순간 확정되는 것만. **등록과 취소를 나눠 둔다** — 한 트리거로 묶으면 취소할 때마다
+  // 막차(신청 순번)까지 평가해 **취소와 무관한 조회 2번**이 응답 안에 그대로 얹힌다.
+  // 취소 계열 5종은 같은 취소 이력을 캐시로 나눠 쓰지만 막차는 그 캐시를 안 타므로
+  // (`evalGthrLastSlot`), 취소 경로에서 가장 무거운 몫이 정확히 필요 없는 몫이었다.
+  //
+  // 막차가 참석 액션에 남는 이유 — 신청 순번의 사건이라 3일 뒤로 미루면 그 사이 노쇼가
   // 지워져 "정확히 정원 번째" 행이 아예 사라진다(미루면 오히려 아무도 못 딴다).
-  gathering_attend: ["gthr_cancel_count", "gthr_cancel_reason", "gthr_last_slot"],
+  gathering_attend: ["gthr_last_slot"],
+
+  // 취소 계열 — 취소 이력(`gthr_attd_hist`)만 보므로 등록 액션에서 평가할 이유가 없다.
+  gathering_cancel: ["gthr_cancel_count", "gthr_cancel_reason"],
 
   // 참석 계열 — 끝난 지 3일 지난 모임만 본다. 운영진이 노쇼를 사후 취소 처리하는 시간이다.
   // 즉시 판정하면 ① 아직 안 열린 모임을 신청만 해도 붙고 ② 비회수라 취소해도 안 없어진다.
@@ -574,10 +582,12 @@ export type TitleEvalContextManualSweep = {
 
 /**
  * 그 순간 확정되는 조건만 평가하는 액션 트리거들 — 추가 데이터가 없어 한 모양을 공유한다.
- * (모임 참석·취소 / 깅스타그램 게시 / 댓글 작성)
+ * (모임 참석 / 모임 취소 / 깅스타그램 게시 / 댓글 작성)
+ *
+ * 참석과 취소는 **같은 모양이지만 다른 트리거다** — 보는 조건이 갈린다(TRIGGER_COND_MAP).
  */
 export type TitleEvalContextGatheringAttend = {
-  trigger: "gathering_attend" | "post_create" | "comment_create";
+  trigger: "gathering_attend" | "gathering_cancel" | "post_create" | "comment_create";
   teamId: string;
   teamMemId: string;
 };

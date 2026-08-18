@@ -35,6 +35,10 @@ const h = vi.hoisted(() => {
 });
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+// 액션은 뒷일(모임장 알림·칭호 평가)을 `after()`로 응답 밖에 넘긴다. 요청 스코프가 없는
+// 단위 테스트에서 진짜 `after`는 던지므로, 콜백을 그 자리에서 실행하는 스텁으로 바꾼다.
+// 콜백 본문의 Promise.all 배열은 동기적으로 만들어지므로 insertNoti 호출은 즉시 일어난다.
+vi.mock("next/server", () => ({ after: (fn: () => unknown) => { void fn(); } }));
 vi.mock("@/lib/past-event", () => ({ isPastLockedFor: () => false }));
 vi.mock("@/lib/queries/request-team", () => ({
   getRequestTeamContext: async () => ({ teamId: "team-1" }),
@@ -44,7 +48,8 @@ vi.mock("@/lib/gathering/join-gathering", () => ({
 }));
 // toggle-attendance.ts가 취소 성공 후 모임장 알림을 위해 import한다(SG-05) — 이 테스트는 알림 발송
 // 자체를 검증 대상으로 하지 않으므로 no-op으로 스텁(실제 발송 검증은 gathering-cancel-notify.test.ts).
-vi.mock("@/lib/notifications/insert-noti", () => ({ insertNoti: vi.fn() }));
+// 실제 insertNoti는 async — 호출부가 .catch()를 물리므로 모킹도 Promise를 돌려준다.
+vi.mock("@/lib/notifications/insert-noti", () => ({ insertNoti: vi.fn(async () => {}) }));
 vi.mock("@/lib/actions/auth", () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   withActive: async (fn: any) =>

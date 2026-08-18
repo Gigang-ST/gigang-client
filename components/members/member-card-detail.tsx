@@ -83,6 +83,8 @@ export type MemberCardEdit = {
   onEditIntro: () => void;
   /** 대표 칭호 옆 연필 → 내 컬렉션 */
   onEditTitles: () => void;
+  /** 하단 칭호 섹션 우측 "획득 이력" → 언제 무엇을 땄나(시간축) */
+  onOpenTitleHistory: () => void;
   /** 러닝 프로필 + 가입 목적 — 같은 테이블·같은 액션이라 진입점도 하나다 */
   onEditProfile: () => void;
   onManageRecords: () => void;
@@ -879,9 +881,23 @@ export function MemberCardDetail({
               위 스크린 존의 `?` 껍데기가 맡으므로 여기엔 연필을 달지 않는다. */}
           {data.titles.length > 0 && (
             <section className="flex flex-col gap-2">
-              <SectionLabel>
-                칭호 ({data.titles.length})
-              </SectionLabel>
+              {/* 우측 "획득 이력"은 **연필이 아니다** — 고치는 자리가 아니라 시간축으로 훑는
+                  자리라 위 규칙("하단 칭호 섹션엔 연필을 달지 않는다")과 충돌하지 않는다.
+                  이 줄이 도감(등급·카테고리 순)과 이력(시간 역순)의 갈림길이다. */}
+              <div className="flex items-center justify-between gap-2">
+                <SectionLabel>
+                  칭호 ({data.titles.length})
+                </SectionLabel>
+                {edit && (
+                  <button
+                    type="button"
+                    onClick={edit.onOpenTitleHistory}
+                    className="shrink-0 text-[11px] text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    획득 이력
+                  </button>
+                )}
+              </div>
               <div className="flex flex-wrap items-center gap-1.5">
                 {visibleTitles.map((title) => (
                   <TitleBadge

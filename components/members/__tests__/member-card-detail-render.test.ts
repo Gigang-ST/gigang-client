@@ -48,6 +48,7 @@ const EDIT = {
   onEditAvatar: () => {},
   onEditIntro: () => {},
   onEditTitles: () => {},
+  onOpenTitleHistory: () => {},
   onEditProfile: () => {},
   onManageRecords: () => {},
   onAddRecord: () => {},
@@ -140,6 +141,16 @@ describe("편집판(내 프로필탭)", () => {
     }
     // 플리커는 매번 들어오는 자리라 끈다
     expect(html).not.toContain("board-flicker");
+  });
+
+  // 획득 이력은 **본인만** 보는 자리다(서버 액션도 세션의 team_mem_id만 읽는다).
+  // 칭호가 있어야 섹션 자체가 뜨므로 빈 카드로는 이 회귀를 못 잡는다.
+  it("획득 이력 진입점은 편집판에만 뜨고 공개판엔 새지 않는다", () => {
+    const titles = [
+      { ttl_nm: "뉴비", ttl_desc: null, desc_visibility: "others" as const, rarity_level: 1, ttl_ctgr_cd: "base" },
+    ];
+    expect(render({ titles }, true)).toContain("획득 이력");
+    expect(render({ titles })).not.toContain("획득 이력");
   });
 
   it("칭호는 0개면 섹션째 빠진다(뉴비가 자동으로 붙어 사실상 0이 없다)", () => {
