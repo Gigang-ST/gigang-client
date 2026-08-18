@@ -192,16 +192,22 @@ function PurposeTooltipChip({ short, full }: { short: string; full: string }) {
 function EditPencil({
   label,
   onClick,
+  className,
 }: {
   label: string;
   onClick: () => void;
+  /** 줄 안에 낄 때 정렬 보정용(`self-center` 등). 섹션 헤더에선 필요 없다 */
+  className?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="-m-1.5 shrink-0 rounded p-1.5 text-muted-foreground/60 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className={cn(
+        "-m-1.5 shrink-0 rounded p-1.5 text-muted-foreground/60 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        className,
+      )}
     >
       <Pencil className="size-3" />
     </button>
@@ -842,6 +848,20 @@ export function MemberCardDetail({
                     <span className="shrink-0 rounded bg-warning/15 px-1 font-mono text-[9px] font-bold tracking-wider text-warning">
                       NEW
                     </span>
+                  )}
+                  {/* 연동된 UTMB를 고치는 자리 — 이 카드가 이미 "연필 = 고치는 자리"를
+                      가르쳐 놓았으므로(한마디·러닝 프로필) 여기만 새 어휘를 만들지 않는다.
+                      **값 옆이 아니라 라벨 옆이다**: 값들은 오른쪽 끝에 맞춰 선 계기판 열이라
+                      한 줄에만 아이콘을 덧붙이면 그 숫자만 왼쪽으로 밀려 열이 깨진다.
+                      도트 리더가 `flex-1`이라 라벨 쪽 폭 변화는 알아서 흡수된다.
+                      미연동일 땐 안 붙인다 — 그 자리는 `연동하기` pill이 이미 "채워라"라고
+                      말하고 있어, 연필까지 세우면 한 가지 일에 진입점이 둘이 된다. */}
+                  {row.isUtmb && edit && row.value && (
+                    <EditPencil
+                      label="UTMB 연동 수정"
+                      onClick={edit.onLinkUtmb}
+                      className="self-center"
+                    />
                   )}
                   <span
                     aria-hidden
