@@ -106,22 +106,38 @@ export async function evaluateAndGrantTitles(
   // 1. 이 트리거에서 평가할 조건 유형 목록
   const allowedCondTypes = new Set(TRIGGER_COND_MAP[ctx.trigger]);
 
-  // 2. team_mem_id → mem_id 변환
-  //    rec_race_hist 등 레거시 테이블이 mem_mst.mem_id 를 직접 참조하므로 필요하다.
-  const { data: relRow } = await db
-    .from("team_mem_rel")
-    .select("mem_id")
-    .eq("team_mem_id", ctx.teamMemId)
-    .eq("vers", 0)
-    .eq("del_yn", false)
-    .maybeSingle();
+  // 2~4. 서로 독립인 세 조회를 **한 번에** 보낸다. 직렬로 두면 왕복 3번이 그대로 응답
+  //       시간에 쌓이는데, 셋 중 어느 것도 앞의 결과를 쓰지 않는다.
+  //   ② team_mem_id → mem_id 변환 (rec_race_hist 등 레거시 테이블이 mem_id 를 직접 참조)
+  //   ③ 이 팀의 사용 중인 auto 칭호 전체 (배치가 미리 읽어 넘겼으면 그걸 쓴다)
+  //   ④ 현재 활성 보유 칭호 ID (vers=0, del_yn=false) — 중복 수여 방지
+  //
+  // ⚠️ 멤버가 없거나(탈퇴) 평가할 칭호가 0건이면 나머지 조회는 헛돈다 — 직렬일 땐
+  // early return으로 걸렀던 몫이다. 그 둘은 드물고(배치는 실존 멤버만 돈다) 왕복 2번은
+  // 매번 드는 비용이라, 늘 아끼는 쪽을 택했다.
+  const [relRow, allTitles, existing] = await Promise.all([
+    db
+      .from("team_mem_rel")
+      .select("mem_id")
+      .eq("team_mem_id", ctx.teamMemId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .maybeSingle()
+      .then((r) => r.data),
+    // 조회 실패는 여기서 던진다(loadAutoTitles 주석) — Promise.all이 그대로 전파하고
+    // 호출부의 .catch()가 로깅한다. 빈 배열로 눙치면 "평가 0건"으로 조용히 끝난다.
+    preloadedTitles ? Promise.resolve(preloadedTitles) : loadAutoTitles(db, ctx.teamId),
+    db
+      .from("mem_ttl_rel")
+      .select("ttl_id")
+      .eq("team_mem_id", ctx.teamMemId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .then((r) => r.data),
+  ]);
 
   if (!relRow?.mem_id) return [];
   const memId = relRow.mem_id;
-
-  // 3. 이 팀의 사용 중인 auto 칭호 전체 조회 후 이 트리거에서 평가할 조건 유형만 필터링
-  //    (배치가 미리 읽어 넘겼으면 그걸 쓴다 — 멤버마다 같은 조회를 반복하지 않는다)
-  const allTitles = preloadedTitles ?? (await loadAutoTitles(db, ctx.teamId));
 
   const titles = (allTitles as TtlMstRow[] ?? []).filter((t) => {
     const rule = t.cond_rule_json as CondRule | null;
@@ -132,14 +148,6 @@ export async function evaluateAndGrantTitles(
   console.info("[title-engine] 평가 대상 칭호:", titles.map(t => t.ttl_nm));
 
   if (titles.length === 0) return [];
-
-  // 4. 현재 활성 보유 칭호 ID (vers=0, del_yn=false) — 중복 수여 방지
-  const { data: existing } = await db
-    .from("mem_ttl_rel")
-    .select("ttl_id")
-    .eq("team_mem_id", ctx.teamMemId)
-    .eq("vers", 0)
-    .eq("del_yn", false);
 
   const activeIds = new Set((existing ?? []).map((r) => r.ttl_id));
 
@@ -154,6 +162,8 @@ export async function evaluateAndGrantTitles(
 
   // 5. 조건 평가 → 통과한 미보유 칭호 수여
   const granted: string[] = [];
+  /** 실제로 INSERT된 칭호 — 아래 알림 발송이 쓴다(이름만으론 딥링크 refId를 못 만든다). */
+  const grantedRows: { ttlId: string; ttlNm: string }[] = [];
 
   // 조건들이 나눠 쓰는 조회 캐시. 배치가 넘겨줬으면 그걸 쓴다(팀 공통 조회가 1번이 된다).
   // 모임 칭호 6종이 전부 같은 참석 목록을 보므로, 없으면 같은 쿼리가 6번 나간다.
@@ -197,7 +207,32 @@ export async function evaluateAndGrantTitles(
     }
 
     granted.push(title.ttl_nm);
+    grantedRows.push({ ttlId: title.ttl_id, ttlNm: title.ttl_nm });
     console.info(`[title-engine] 칭호 부여 완료: ${title.ttl_nm} → team_mem_id=${ctx.teamMemId}`);
+  }
+
+  // 6. 칭호 획득 알림(인앱 + 푸시).
+  //
+  // ⚠️ **이게 없어서 실시간 수여는 알림이 안 갔다.** `ttl_grnt`를 보내는 곳이 bulk 엔진
+  // (sweep · 마일리지 배치)과 관리자 수동수여뿐이라, 취소로 `월요병`을 딴 순간처럼 이 함수를
+  // 타고 붙은 칭호는 조용히 생겼다. 일·월 배치도 멤버마다 이 함수를 부르므로(batch/jobs/titles.ts)
+  // 같이 빠져 있었다 — 설계는 "칭호 부여는 insertNoti를 타고 푸시까지 나간다"가 전제다(§배치 09:00).
+  //
+  // 부여 0건이면 아무것도 안 한다 — 평상시(대부분의 호출)엔 비용이 0이고, 실제로 받은
+  // 순간에만 알림 왕복이 붙는다. 호출부가 `after()`로 응답 밖에서 돌리므로 사용자는 안 기다린다.
+  if (grantedRows.length > 0) {
+    await Promise.all(
+      grantedRows.map((g) =>
+        insertNoti({
+          teamId: ctx.teamId,
+          memId,
+          notiTypeEnm: "ttl_grnt",
+          notiNm: `'${g.ttlNm}' 칭호를 획득했습니다!`,
+          refId: g.ttlId,
+          refTypeEnm: "ttl",
+        }),
+      ),
+    ).catch((e) => console.error("[title-engine] 칭호 알림 발송 실패", e));
   }
 
   return granted;

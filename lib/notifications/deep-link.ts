@@ -67,7 +67,10 @@ const NOTI_ROUTE: Record<
   string,
   (refId: string | null, refType: string | null) => string | null
 > = {
-  ttl_grnt: () => "/profile",
+  // 프로필로만 보내면 "무엇이 새로 생겼는지"를 알 길이 없다 — 칭호는 조용히 붙고
+  // 카드의 칭호 줄은 이름만 나열하므로 방금 딴 게 어느 것인지 구분되지 않는다.
+  // 획득 이력 시트(시간 역순)를 바로 열어 맨 윗줄이 그 답이 되게 한다.
+  ttl_grnt: () => "/profile?ttl=history",
   adm_cust: () => null,
   dues_notice: () => "/profile/dues",
   dues_check_req: () => null,

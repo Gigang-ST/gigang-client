@@ -338,7 +338,11 @@ export async function logActivity(
         prevAchvYn,
       };
       console.info("[title-engine] ctx:", ctx);
-      await evaluateAndGrantTitles(ctx).catch((e) => console.error("[title-engine] mileage_run(log) 평가 실패", e));
+      // 응답 밖에서 — 기록은 이미 저장됐고 이 경로는 반환값(획득 칭호)을 쓰지 않는다.
+      // 획득 사실은 엔진이 보내는 인앱 알림+푸시(`ttl_grnt`)로 전해진다.
+      after(() =>
+        evaluateAndGrantTitles(ctx).catch((e) => console.error("[title-engine] mileage_run(log) 평가 실패", e)),
+      );
     }
 
     revalidatePath("/projects");

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 
 import { withActive } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
@@ -77,42 +78,47 @@ export async function toggleGatheringAttendance(
       });
       if (cancelError) throw new Error("참석 취소에 실패했습니다.");
 
-      // 모임장(개설자)에게 취소 알림 — 본인이 자기 모임을 취소한 경우엔 자기 자신에게 보내지 않는다.
-      // 알림은 부가 기능이라 실패해도 이미 완료된 취소 자체는 되돌리지 않는다(insertNoti 실패는 내부에서 로깅만).
-      // 수신거부는 gthr_cncl 자체 설정으로 판단한다 — 모임 수정·삭제(gthr_upd)와는 별개 항목으로,
-      // 알림 설정 UI의 "내 모임 참석 취소" 토글로 제어한다. prefTypeEnm 미지정 시 insertNoti가
-      // notiTypeEnm(gthr_cncl)으로 수신거부를 판단한다.
-      if (gthr.crt_by && gthr.crt_by !== member.id) {
-        try {
-          await insertNoti({
-            teamId,
-            memId: gthr.crt_by,
-            notiTypeEnm: "gthr_cncl",
-            notiNm: `${member.full_name}님이 '${gthr.gthr_nm}' 참석을 취소했어요`,
-            notiCont: reasonCheck.value ? `사유: ${reasonCheck.value}` : null,
-            refId: gthr_id,
-            refTypeEnm: "gathering",
-          });
-        } catch (e) {
-          console.error("[gthr_cncl] 알림 발송 실패", e);
-        }
-      }
-
       // 홈(/)은 dynamic 렌더(getCurrentMember가 cookies 사용)라 매 요청 새로 조회되므로
       // revalidatePath("/")는 무효화할 캐시가 없어 불필요 — 모임 상세 직접 URL만 무효화한다.
       revalidatePath(`/gatherings/${gthr_id}`);
 
-      // 취소 계열 칭호(다음엔꼭·회전문·월요병·칼퇴실패·구구절절)는 **취소 액션에서만** 붙는다 —
-      // 참석 액션에 훅만 달면 영원히 안 붙는다(취소는 다른 액션이다, 설계 §7.2).
+      // 뒷일(모임장 알림 · 칭호 평가)은 **응답 밖에서** 돈다.
       //
-      // `after()`가 아니라 await + catch인 이유: `after`는 요청 스코프를 요구해 서버 액션을
-      // 직접 부르는 테스트에서 던진다. `save-race-record.ts`도 같은 이유로 이 형태다.
-      // catch가 삼키므로 칭호 부여 실패가 이미 끝난 취소를 롤백시키지 않는다.
-      await evaluateAndGrantTitles({
-        trigger: "gathering_attend",
-        teamId,
-        teamMemId: member.team_mem_id,
-      }).catch((e) => console.error("[title-engine] gathering_attend(취소) 평가 실패", e));
+      // 취소는 위 RPC에서 이미 끝났고 이 둘은 성공 여부를 바꾸지 않는데, `await`로 두면
+      // 모임장 푸시(웹푸시 외부 HTTP)와 칭호 조회 왕복이 그대로 **취소 모달이 닫히는 시간**이
+      // 된다 — 클라이언트가 액션이 끝나야 모달을 닫기 때문이다(gathering-attend-button.tsx).
+      // 참석 등록과 달리 취소는 낙관적 업데이트가 모달에 가려 체감이 그대로 드러난다.
+      //
+      // 둘은 서로 독립이라 같이 출발시킨다. 각자 catch를 물고 있어 한쪽 실패가 다른 쪽을
+      // 막지 않고, 이미 끝난 취소를 되돌리지도 않는다.
+      after(async () => {
+        await Promise.all([
+          // 모임장(개설자)에게 취소 알림 — 본인이 자기 모임을 취소한 경우엔 보내지 않는다.
+          // 수신거부는 gthr_cncl 자체 설정으로 판단한다 — 모임 수정·삭제(gthr_upd)와는 별개
+          // 항목으로, 알림 설정 UI의 "내 모임 참석 취소" 토글로 제어한다. prefTypeEnm 미지정 시
+          // insertNoti가 notiTypeEnm(gthr_cncl)으로 수신거부를 판단한다.
+          gthr.crt_by && gthr.crt_by !== member.id
+            ? insertNoti({
+                teamId,
+                memId: gthr.crt_by,
+                notiTypeEnm: "gthr_cncl",
+                notiNm: `${member.full_name}님이 '${gthr.gthr_nm}' 참석을 취소했어요`,
+                notiCont: reasonCheck.value ? `사유: ${reasonCheck.value}` : null,
+                refId: gthr_id,
+                refTypeEnm: "gathering",
+              }).catch((e) => console.error("[gthr_cncl] 알림 발송 실패", e))
+            : Promise.resolve(),
+
+          // 취소 계열 칭호(다음엔꼭·회전문·월요병·칼퇴실패·구구절절)는 **취소 액션에서만**
+          // 붙는다 — 참석 액션에 훅만 달면 영원히 안 붙는다(취소는 다른 액션이다, 설계 §7.2).
+          // 트리거가 `gathering_attend`와 갈려 있어 여기선 막차(신청 순번)를 평가하지 않는다.
+          evaluateAndGrantTitles({
+            trigger: "gathering_cancel",
+            teamId,
+            teamMemId: member.team_mem_id,
+          }).catch((e) => console.error("[title-engine] gathering_cancel 평가 실패", e)),
+        ]);
+      });
 
       return { attending: false };
     }
@@ -140,11 +146,16 @@ export async function toggleGatheringAttendance(
     // 신청 순간에 확정되는 것만 여기서 본다 — 실질적으로 `막차`(정확히 정원 번째) 하나다.
     // 참석 계열(미라클·3연벙 등)은 여기 없다: 아직 열리지도 않은 모임을 **신청만 해도**
     // 붙어 버리고, 엔진이 비회수라 취소해도 안 없어진다. 그건 일 배치가 3일 유예를 두고 센다.
-    await evaluateAndGrantTitles({
-      trigger: "gathering_attend",
-      teamId,
-      teamMemId: member.team_mem_id,
-    }).catch((e) => console.error("[title-engine] gathering_attend(참석) 평가 실패", e));
+    //
+    // 취소 경로와 같은 이유로 응답 밖에서 돈다 — 판정 대상은 이미 INSERT된 신청 순번이라
+    // 응답 직후에 봐도 결과가 같다. 아래 월 참석 횟수 조회는 반환값(토스트)이라 여기 남는다.
+    after(() =>
+      evaluateAndGrantTitles({
+        trigger: "gathering_attend",
+        teamId,
+        teamMemId: member.team_mem_id,
+      }).catch((e) => console.error("[title-engine] gathering_attend(참석) 평가 실패", e)),
+    );
 
     // 이번 달(모임 귀속월) 본인 총참석 횟수 — 토스트 안내용(실패해도 참석 등록엔 영향 없음)
     let monthlyAttendCnt: number | undefined;

@@ -276,6 +276,7 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 | IntroEditDialog | `intro-edit-dialog.tsx` | `open`, `onOpenChange`, `initialValue`, `onSaved?`, `stacked?` | 한마디 한 줄 인라인 편집(페이지 이동 없음) |
 | AvatarEditDialog | `profile/avatar-edit-dialog.tsx` | `open`, `onOpenChange`, `memId`, `memNm`, `currentUrl`, `onSaved?` | 프로필 사진 인라인 변경 — 미리보기 + 기본 이미지로 되돌리기 |
 | ProfileTabCard | `profile/profile-tab-card.tsx` | `memId`, `teamMemId`, `teamId`, `card`, `utmb`, … | 프로필탭 본문 — `MemberCardDetail`에 `edit`을 물리고 편집 다이얼로그들을 연결 |
+| TitleHistorySheet | `profile/title-history-sheet.tsx` | `open`, `onOpenChange` | 칭호 획득 이력 — 수여 시각 역순. **본인 것만**(서버 액션이 세션 team_mem_id만 읽는다) |
 
 - **간단 vs 상세**: 간단 카드는 "이 사람이 누구인지"(한마디·러닝 프로필), 상세 카드는 "이 사람의 실적".
   실적이 없는 신규 멤버도 채워지도록 간단 카드에는 수치를 넣지 않는다.
@@ -367,6 +368,19 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 - **활동 포인트**(`stats.activity_score`) — 최근활동 헤더 우측 primary pill + `HelpTip`
   ("모임 참석·대회 출전·기록 등록으로 쌓여요"). 적립 규칙 전문은 여전히 비공개.
   **남의 카드에는 절대 노출하지 않는다** — 공개되면 사실상 공개 랭킹 지표가 된다(렌더 테스트가 지킨다).
+- **칭호 획득 이력**(`TitleHistorySheet`) — 하단 칭호 섹션 헤더 우측 `획득 이력`.
+  **도감(`CollectionSheet`)과 축이 다르다**: 도감은 등급·카테고리 순으로 *뭘 모았나*를, 이력은
+  시간 역순으로 *언제 땄나*를 말한다. 칭호는 대부분 조용히 붙어서(알림을 놓치면 언제 생겼는지
+  알 길이 없다) 시간축이 따로 필요하고, 그래서 **`ttl_grnt` 알림의 딥링크가 이 시트로 온다**
+  (`/profile?ttl=history`). 프로필로만 보내면 "무엇이 새로 생겼는지"를 못 짚어 알림이 절반만 일한다.
+  - 우측 `획득 이력`은 **연필이 아니라서** "하단 칭호 섹션엔 연필을 달지 않는다"와 충돌하지 않는다 —
+    고치는 자리(대표 칭호)는 여전히 상단 하나뿐이고, 이건 훑는 자리다.
+  - **회수분은 안 싣는다**(`del_yn=true` 제외). 회수는 운영진 행위인데 알림이 따로 없어,
+    이력에 남기면 본인은 영문을 모른 채 빼앗긴 줄만 보게 된다(자동 회수를 안 넣은 것과 같은 태도).
+  - 수여 사유(`grnt_rsn_txt`)는 `자동수여 (trigger=…)`라 **내부 용어라 화면에 쓰지 않는다** —
+    드문 쪽(운영진 수여)에만 라벨을 달고 자동은 무표시다(전 줄에 붙으면 정보가 아니라 배경이 된다).
+  - `grnt_at`은 timestamptz라 **`formatKST`로 찍는다**. 목록이 여러 해에 걸치므로 연도까지 쓴다
+    (활동량 내역은 이번 달뿐이라 `M.DD`).
 - **편집 진입점**: 사진·한마디·칭호·기록 관리/추가·UTMB는 그 자리에서 다이얼로그로 열고,
   **러닝 프로필 + 가입 목적만 `/profile/edit#running-profile`로 보낸다.** 역 콤보박스·페이스 셀렉트·
   목적 칩을 다이얼로그로 다시 만들면 폼이 두 벌이 되어 한쪽만 고쳐 어긋난다. 사진은 파일 하나를

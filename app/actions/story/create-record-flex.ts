@@ -1,6 +1,7 @@
 "use server";
 
 import { updateTag } from "next/cache";
+import { after } from "next/server";
 
 import { withActive } from "@/lib/actions/auth";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -91,12 +92,16 @@ export async function createRecordFlex(
       updateTag("story-posts");
 
       // 깅스타그램 칭호(오운완·깅플루언서·연재작가·유물발굴)는 글이 올라가는 순간 확정된다.
+      // **응답 밖에서** 돈다 — 글은 이미 저장·캐시 갱신까지 끝났고, 칭호 평가를 기다리게 하면
+      // 사진 업로드로 이미 긴 대기가 그만큼 더 늘어난다.
       // catch가 삼키므로 칭호 부여 실패가 이미 올라간 글을 되돌리지 않는다.
-      await evaluateAndGrantTitles({
-        trigger: "post_create",
-        teamId,
-        teamMemId: member.team_mem_id,
-      }).catch((e) => console.error("[title-engine] post_create 평가 실패", e));
+      after(() =>
+        evaluateAndGrantTitles({
+          trigger: "post_create",
+          teamId,
+          teamMemId: member.team_mem_id,
+        }).catch((e) => console.error("[title-engine] post_create 평가 실패", e)),
+      );
 
       return { ok: true as const, post_id: data.post_id };
     });

@@ -54,7 +54,19 @@ export function ActvHistorySheet({
     const reqId = ++reqIdRef.current;
     setState({ status: "loading" });
 
-    const result = await getActvHistory(memId);
+    // 서버 액션은 결과값으로 실패를 돌려주지만(내부 try/catch), **전송 자체가 실패하면 던진다**
+    // — 오프라인·배포 중 등. 안 잡으면 화면이 스켈레톤에 갇히고 재시도 버튼도 없어
+    // 시트를 닫았다 여는 것 말고 빠져나갈 길이 없다(`TitleHistorySheet`와 같은 처리).
+    let result: Awaited<ReturnType<typeof getActvHistory>>;
+    try {
+      result = await getActvHistory(memId);
+    } catch (e) {
+      console.error("[ActvHistorySheet] 내역 요청 실패", e);
+      if (reqId === reqIdRef.current) {
+        setState({ status: "error", message: "잠시 후 다시 시도해 주세요" });
+      }
+      return;
+    }
     if (reqId !== reqIdRef.current) return;
 
     setState(
