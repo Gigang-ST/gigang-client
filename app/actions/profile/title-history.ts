@@ -25,8 +25,8 @@ const MAX_ROWS = 200;
 
 type Row = {
   mem_ttl_id: string;
-  grnt_at: string | null;
-  crt_at: string;
+  /** `mem_ttl_rel.grnt_at`은 **NOT NULL DEFAULT now()**라 비는 일이 없다(§아래 정렬 주석) */
+  grnt_at: string;
   grnt_rsn_txt: string | null;
   ttl_mst:
     | { ttl_nm: string; ttl_desc: string | null; desc_visibility: string; rarity_level: number }
@@ -56,12 +56,16 @@ export async function getTitleHistory(): Promise<TitleHistoryResult> {
       const { data, error } = await db
         .from("mem_ttl_rel")
         .select(
-          "mem_ttl_id, grnt_at, crt_at, grnt_rsn_txt, ttl_mst(ttl_nm, ttl_desc, desc_visibility, rarity_level)",
+          "mem_ttl_id, grnt_at, grnt_rsn_txt, ttl_mst(ttl_nm, ttl_desc, desc_visibility, rarity_level)",
         )
         .eq("team_mem_id", member.team_mem_id)
         .eq("vers", 0)
         .eq("del_yn", false)
-        .order("grnt_at", { ascending: false, nullsFirst: false })
+        // `grnt_at` 하나로 정렬한다. 이 컬럼은 **NOT NULL DEFAULT now()**라 비지 않으므로
+        // `crt_at` 폴백도, nulls 처리도 필요 없다. 예전엔 방어적으로 `?? crt_at`을 뒀는데
+        // 그게 오히려 "null일 수 있다"고 읽혀 **정렬 키(grnt_at)와 표시 값(crt_at)이 갈리는
+        // 버그처럼** 보였다 — 없는 예외를 막는 코드는 그 자체가 잘못된 신호가 된다.
+        .order("grnt_at", { ascending: false })
         .limit(MAX_ROWS);
 
       if (error) {
@@ -80,8 +84,7 @@ export async function getTitleHistory(): Promise<TitleHistoryResult> {
           ttl_desc: t.ttl_desc,
           desc_visibility: (t.desc_visibility ?? "always") as TitleHistoryEntry["desc_visibility"],
           rarity_level: t.rarity_level,
-          // 옛 행에 grnt_at이 비어 있어도 줄이 사라지지 않게 생성 시각으로 받친다.
-          grnt_at: row.grnt_at ?? row.crt_at,
+          grnt_at: row.grnt_at,
           // 엔진이 남기는 사유는 `자동수여 (trigger=...)` 형태다 — 내부 용어라 그대로 쓰지 않고
           // 자동/수여 두 갈래로만 접는다.
           auto: (row.grnt_rsn_txt ?? "").startsWith("자동수여"),
