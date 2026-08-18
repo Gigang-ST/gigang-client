@@ -11,6 +11,7 @@ import { insertNoti } from "@/lib/notifications/insert-noti";
 import { isPastLockedFor } from "@/lib/past-event";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
+import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 
 /**
  * 모임 참석 토글.
@@ -100,6 +101,19 @@ export async function toggleGatheringAttendance(
       // 홈(/)은 dynamic 렌더(getCurrentMember가 cookies 사용)라 매 요청 새로 조회되므로
       // revalidatePath("/")는 무효화할 캐시가 없어 불필요 — 모임 상세 직접 URL만 무효화한다.
       revalidatePath(`/gatherings/${gthr_id}`);
+
+      // 취소 계열 칭호(다음엔꼭·회전문·월요병·칼퇴실패·구구절절)는 **취소 액션에서만** 붙는다 —
+      // 참석 액션에 훅만 달면 영원히 안 붙는다(취소는 다른 액션이다, 설계 §7.2).
+      //
+      // `after()`가 아니라 await + catch인 이유: `after`는 요청 스코프를 요구해 서버 액션을
+      // 직접 부르는 테스트에서 던진다. `save-race-record.ts`도 같은 이유로 이 형태다.
+      // catch가 삼키므로 칭호 부여 실패가 이미 끝난 취소를 롤백시키지 않는다.
+      await evaluateAndGrantTitles({
+        trigger: "gathering_attend",
+        teamId,
+        teamMemId: member.team_mem_id,
+      }).catch((e) => console.error("[title-engine] gathering_attend(취소) 평가 실패", e));
+
       return { attending: false };
     }
 
@@ -122,6 +136,15 @@ export async function toggleGatheringAttendance(
 
     // 홈(/)은 dynamic이라 revalidate 불필요(위 취소 경로 주석 참고). 모임 상세 직접 URL만 무효화.
     revalidatePath(`/gatherings/${gthr_id}`);
+
+    // 신청 순간에 확정되는 것만 여기서 본다 — 실질적으로 `막차`(정확히 정원 번째) 하나다.
+    // 참석 계열(미라클·3연벙 등)은 여기 없다: 아직 열리지도 않은 모임을 **신청만 해도**
+    // 붙어 버리고, 엔진이 비회수라 취소해도 안 없어진다. 그건 일 배치가 3일 유예를 두고 센다.
+    await evaluateAndGrantTitles({
+      trigger: "gathering_attend",
+      teamId,
+      teamMemId: member.team_mem_id,
+    }).catch((e) => console.error("[title-engine] gathering_attend(참석) 평가 실패", e));
 
     // 이번 달(모임 귀속월) 본인 총참석 횟수 — 토스트 안내용(실패해도 참석 등록엔 영향 없음)
     let monthlyAttendCnt: number | undefined;

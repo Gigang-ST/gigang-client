@@ -36,6 +36,8 @@ export async function grantTitle(teamMemId: string, ttlId: string, teamId: strin
       ttl_id: ttlId,
       grnt_by_mem_id: member.id,
       grnt_rsn_txt: "관리자 수동 수여",
+      // false로 넣어도 INSERT 직후 트리거가 이 칭호를 대표로 승격한다
+      // (`trg_mem_ttl_rel_promote_latest_primary`) — 수여 경로와 무관한 규칙이다.
       is_prmy_yn: false,
       vers: 0,
       del_yn: false,

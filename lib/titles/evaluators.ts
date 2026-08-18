@@ -12,6 +12,31 @@
 // 설정이 두 곳으로 갈려, 한쪽만 바뀌었을 때 같은 값이 파일마다 다르게 해석된다.
 import { dayjs, parseEventTime, todayStartKST } from "@/lib/dayjs";
 
+import {
+  evalAttendOnBirthday,
+  evalGthrAttendInMonth,
+  evalGthrAttendStreak,
+  evalGthrCancelCount,
+  evalGthrCancelReason,
+  evalGthrLastSlot,
+  evalGthrMonthAttendRate,
+  evalGthrSameDayCount,
+} from "./evaluators-gathering";
+import type { GatheringCache, GatheringWindow } from "./evaluators-gathering";
+import {
+  evalCmntMentionCount,
+  evalCmntMonthlyTop,
+  evalCmntReplyCount,
+  evalPostBackfillDays,
+  evalPostCount,
+  evalPostDaysInMonth,
+  evalPostSelfFirstComment,
+  evalRacePairReversal,
+  evalRaceTimeExactHour,
+  evalRctnRecvTotal,
+} from "./evaluators-social";
+import type { SocialWindow } from "./evaluators-social";
+
 const KST = "Asia/Seoul";
 
 import type { Database } from "@/lib/supabase/database.types";
@@ -925,8 +950,89 @@ export async function evaluateCondition(
   ctx: TitleEvalContext,
   memId: string,
   db: DB,
+  /**
+   * `ttl_mst.eff_stt_dt` — 이 날짜(KST)부터 발생한 활동만 센다. null이면 소급 제한 없음.
+   * 기존 64종은 null이라 동작이 그대로다(설계 §7.5).
+   */
+  effStartDt: string | null = null,
+  /**
+   * 한 멤버를 평가하는 동안 조건들이 나눠 쓰는 조회 캐시(호출부가 멤버마다 새로 만든다).
+   *
+   * 안 넘겨도 동작은 같지만 **같은 조회가 조건 수만큼 반복된다** — 모임 칭호 6종이 전부
+   * 같은 참석 목록을 보므로 멤버당 6번이 된다.
+   */
+  cache?: GatheringCache,
 ): Promise<boolean> {
+  // 모임 계열이 볼 수 있는 창 — 일 배치의 3일 유예(asOfDt)와 적용 시작일을 함께 넘긴다.
+  const gthrWindow: GatheringWindow = {
+    asOfDt:
+      ctx.trigger === "gathering_daily" || ctx.trigger === "title_monthly" ? ctx.asOfDt : null,
+    effStartDt,
+    cache,
+  };
+  // 깅스타그램·댓글·대회 계열은 창에 상한이 없다 — 적용일만 본다(모임처럼 유예가 필요 없다).
+  const socialWindow: SocialWindow = { effStartDt, cache };
+
   switch (rule.type) {
+    // --- 모임 계열 (2026-08 신규) ---
+    case "gthr_attend_in_month":
+      return evalGthrAttendInMonth(rule, memId, ctx.teamId, gthrWindow, db);
+
+    case "gthr_cancel_count":
+      return evalGthrCancelCount(rule, memId, ctx.teamId, gthrWindow, db);
+
+    case "gthr_cancel_reason":
+      return evalGthrCancelReason(rule, memId, ctx.teamId, gthrWindow, db);
+
+    case "gthr_attend_streak":
+      return evalGthrAttendStreak(rule, memId, ctx.teamId, gthrWindow, db);
+
+    case "gthr_month_attend_rate":
+      return evalGthrMonthAttendRate(rule, memId, ctx.teamId, gthrWindow, db);
+
+    case "gthr_same_day_count":
+      return evalGthrSameDayCount(rule, memId, ctx.teamId, gthrWindow, db);
+
+    case "gthr_last_slot":
+      return evalGthrLastSlot(rule, memId, ctx.teamId, gthrWindow, db);
+
+    case "attend_on_birthday":
+      return evalAttendOnBirthday(rule, memId, ctx.teamId, gthrWindow, db);
+
+    // --- 깅스타그램 · 댓글 · 응원 · 대회 계열 (2026-08 신규) ---
+    case "post_count":
+      return evalPostCount(rule, memId, ctx.teamId, socialWindow, db);
+
+    case "post_days_in_month":
+      return evalPostDaysInMonth(rule, memId, ctx.teamId, socialWindow, db);
+
+    case "post_backfill_days":
+      return evalPostBackfillDays(rule, memId, ctx.teamId, socialWindow, db);
+
+    case "post_self_first_comment":
+      return evalPostSelfFirstComment(rule, memId, ctx.teamId, socialWindow, db);
+
+    case "cmnt_reply_count":
+      return evalCmntReplyCount(rule, memId, ctx.teamId, socialWindow, db);
+
+    case "cmnt_mention_count":
+      return evalCmntMentionCount(rule, memId, ctx.teamId, socialWindow, db);
+
+    case "cmnt_monthly_top":
+      // 월이 끝나야 1위가 확정된다 — 월 배치가 아니면 평가하지 않는다.
+      return ctx.trigger === "title_monthly"
+        ? evalCmntMonthlyTop(rule, memId, ctx.teamId, ctx.baseMonth, socialWindow, db)
+        : false;
+
+    case "rctn_recv_total":
+      return evalRctnRecvTotal(rule, memId, ctx.teamId, socialWindow, db);
+
+    case "race_time_exact_hour":
+      return evalRaceTimeExactHour(rule, memId, socialWindow, db);
+
+    case "race_pair_reversal":
+      return evalRacePairReversal(rule, memId, ctx.teamId, socialWindow, db);
+
     case "race_pb_under_sec":
       return evalRacePbUnderSecInternal(rule, memId, db);
 
@@ -1050,7 +1156,19 @@ export function evaluateConditionFromSnapshot(
   allSnapshots: Map<string, MemberSnapshot>,
   /** mileage_batch 전용: 평가 기준 월 (YYYY-MM). 월 고정 조건 필터링에 사용. */
   baseMonth?: string,
+  /**
+   * `ttl_mst.eff_stt_dt` — 이 날짜(KST)부터 발생한 활동만 센다. null이면 소급 제한 없음.
+   *
+   * ⚠️ **여기 새 조건을 구현할 때 이 값을 반드시 반영한다.** 안 하면 관리자가 "전체 재계산"을
+   * 누르는 순간 **적용일 이전 과거가 통째로 소급 부여**된다 — 그게 이 컬럼을 만든 이유다(§7.5).
+   * 인자로 받아 두는 건 그때 이 값이 손에 없어서 그냥 넘어가는 일을 막기 위한 것이다.
+   *
+   * 지금 이 경로를 쓰는 조건(대회·마일리지런 계열)은 전부 `eff_stt_dt`가 null이라
+   * 동작이 그대로다.
+   */
+  effStartDt: string | null = null,
 ): boolean {
+  void effStartDt; // 아직 이 값을 보는 조건이 없다 — 위 경고 참조.
   switch (rule.type) {
     case "race_pb_under_sec":
       return evalRacePbUnderSecFromSnapshot(rule, snapshot.raceHist);
@@ -1235,6 +1353,35 @@ export function evaluateConditionFromSnapshot(
         return sportTotal / total >= rule.min_ratio;
       });
     }
+
+    // ⚠️ **모임 계열은 스냅샷으로 평가하지 않는다.** `MemberSnapshot`에는 모임 데이터가
+    // 없다(설계 §7.3 스냅샷 확장 미구현). 여기 오면 무조건 false인데, 그건 "조건 미충족"과
+    // 구분이 안 돼 **조용히 아무에게도 안 붙는** 형태로만 드러난다.
+    //
+    // 그래서 `TRIGGER_COND_MAP`의 `manual_sweep`·`mileage_batch`에 **등록하지 않았다** —
+    // 이 경로로 올 일이 없다. 스냅샷을 확장해 sweep에서도 재평가하려면 `snapshot.ts`에
+    // 모임 테이블을 실은 **뒤에** 여기를 구현하고 그때 맵에 등록한다. 순서를 뒤집으면
+    // 등록만 되고 평가는 안 되는 상태가 된다.
+    case "gthr_attend_in_month":
+    case "gthr_cancel_count":
+    case "gthr_cancel_reason":
+    case "gthr_attend_streak":
+    case "gthr_month_attend_rate":
+    case "gthr_same_day_count":
+    case "gthr_last_slot":
+    case "attend_on_birthday":
+    // 깅스타그램·댓글·응원·대회 계열도 같다 — 스냅샷에 그 데이터가 없다.
+    case "post_count":
+    case "post_days_in_month":
+    case "post_backfill_days":
+    case "post_self_first_comment":
+    case "cmnt_reply_count":
+    case "cmnt_mention_count":
+    case "cmnt_monthly_top":
+    case "rctn_recv_total":
+    case "race_time_exact_hour":
+    case "race_pair_reversal":
+      return false;
 
     default:
       rule satisfies never;

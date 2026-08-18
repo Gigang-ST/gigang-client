@@ -1,8 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/cron/keep-alive",
-      "schedule": "0 0 */5 * *"
+      "path": "/api/cron/batch",
+      "schedule": "0 0 * * *"
     },
     {
       "path": "/api/cron/newbie-nudge",

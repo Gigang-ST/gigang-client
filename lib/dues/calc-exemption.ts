@@ -32,6 +32,37 @@ export type ExemptionResult = {
 };
 
 /**
+ * 한 귀속월에 더 줄 수 있는 면제 여유분(원).
+ *
+ * **면제는 감면이지 환급이 아니다** — 그 달 면제 총액은 그 달 부과액을 넘을 수 없다.
+ * `calcExemption`의 `Math.min(..., monthlyFeeAmt)`은 **한 건**의 상한만 지키므로,
+ * 같은 달에 면제가 **여러 건** 쌓이면(규칙 면제 `rule_attd` + 참여 감면 `rule_attd_quest`)
+ * 합계가 부과액을 넘어 **잔액이 +로 간다**(2026-07 실제 발생: 2,000원 회비에 2,000+2,000).
+ *
+ * 두 경로가 서로를 모르기 때문에 생기는 일이라, **적재하는 쪽이 그 달 기존 면제를 보고 깎는다.**
+ * 잔액 계산에서 뒤늦게 클램프하지 않는 이유는 그러면 **내역(4,000)과 잔액(2,000)이 어긋나**
+ * 회원이 "면제받았는데 왜 반영이 덜 됐지"를 묻게 되기 때문이다.
+ *
+ * @param monthlyFeeAmt      그 달 부과액(그 달에 적용되던 단가)
+ * @param alreadyExemptedAmt 그 달에 이미 적재된 면제 합(출처 무관, `del_yn=false`)
+ */
+export function remainingExemptionRoom(monthlyFeeAmt: number, alreadyExemptedAmt: number): number {
+  return Math.max(0, monthlyFeeAmt - Math.max(0, alreadyExemptedAmt));
+}
+
+/**
+ * 주려는 면제액을 그 달 여유분으로 깎는다. 여유가 없으면 0(= 적재하지 않는다).
+ * `remainingExemptionRoom`과 짝이며, 면제를 INSERT하는 모든 경로가 이 함수를 통과해야 한다.
+ */
+export function capExemptionAmount(
+  wantAmt: number,
+  monthlyFeeAmt: number,
+  alreadyExemptedAmt: number,
+): number {
+  return Math.min(Math.max(0, wantAmt), remainingExemptionRoom(monthlyFeeAmt, alreadyExemptedAmt));
+}
+
+/**
  * 게이트 + 티어 판정으로 당월 회비 감면액을 계산하는 순수 함수.
  *
  * 규칙은 한 곳(이 함수 + `DUES_QUEST` 상수)에 두고, 배치(§8)와 퀘스트 카드(§7)가
