@@ -23,6 +23,12 @@ export type AppMemberProfile = {
   selected_frame_cd: string | null;
   /** 한마디(자기소개) — 프로필 카드에 인용체로 노출. 최대 60자 */
   intro_txt: string | null;
+  /**
+   * 비활성/탈퇴 사유 — 관리자가 상태를 바꾸며 남긴 메모(`team_mem_rel.inact_rsn_txt`).
+   * 재활성화가 null 로 지우므로 정상 흐름에선 inactive/left 일 때만 차 있지만,
+   * 컬럼 하나로 두 상태를 겸하므로 읽는 쪽은 **`status`와 함께** 해석한다(비활성 사유/탈퇴 사유).
+   */
+  inact_rsn_txt: string | null;
 };
 
 type MemMstRow = Database["public"]["Tables"]["mem_mst"]["Row"];
@@ -90,5 +96,6 @@ export function mapMstRelToAppMemberProfile(
     selected_badge_effect: rel.selected_badge_effect ?? null,
     selected_frame_cd: rel.selected_frame_cd ?? null,
     intro_txt: rel.intro_txt ?? null,
+    inact_rsn_txt: rel.inact_rsn_txt ?? null,
   };
 }

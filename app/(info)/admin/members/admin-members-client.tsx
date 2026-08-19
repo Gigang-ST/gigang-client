@@ -712,6 +712,12 @@ function StatusChangeSheet({
                         placeholder="예: 장기 미참여, 자진 탈퇴 요청 등"
                         autoFocus
                       />
+                      {/* 비활성 사유만 본인에게 노출된다(탈퇴 사유는 안 보여준다) — 누르기 전에 알린다 */}
+                      {opt.action !== "leave" && (
+                        <Caption className="text-[12px] leading-snug text-primary">
+                          적은 사유는 본인이 참여를 시도할 때 그대로 보여요.
+                        </Caption>
+                      )}
                     </div>
                   )}
                   {isSelected && opt.action === "activate" && (
@@ -1494,6 +1500,10 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
                 onChange={(e) => setDeactivateReason(e.target.value)}
                 placeholder="예: 장기 미참여, 자진 탈퇴 요청 등"
               />
+              {/* 일괄 처리라 여러 명이 같은 문장을 보게 된다 — 인라인 입력칸과 같은 경고를 세운다 */}
+              <Caption className="text-[12px] leading-snug text-primary">
+                적은 사유는 본인이 참여를 시도할 때 그대로 보여요.
+              </Caption>
             </div>
             <Button
               onClick={() => {
