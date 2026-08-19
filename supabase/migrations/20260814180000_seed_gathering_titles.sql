@@ -7,7 +7,7 @@
 --    고인물이 한 번에 대여섯 개를 받고 푸시가 그만큼 나간다.
 --      · 월 단위 조건 4종 → 2026-08-01 (달 경계에 맞춰야 "반쪽짜리 달"이 안 생긴다.
 --        8/14에 열면 프로참석러는 남은 모임 하나만 나가도 70%가 된다.)
---      · 나머지 9종      → 2026-08-14 (오늘부터 새로 쌓는다)
+--      · 나머지 9종      → 2026-08-19 (배포일. 이 날부터 새로 쌓는다)
 --
 -- ⚠️ **시드 후 sweep을 돌리지 않는다.** eff_stt_dt가 과거를 끊으므로 소급 부여가 없고,
 --    그래서 "대표 승격 트리거를 끄고 sweep" 절차도 필요 없다 — 애초에 무더기로 붙을 일이 없다.
@@ -38,23 +38,23 @@ FROM (VALUES
 
   -- 나머지 — 오늘부터
   ('다음엔꼭',   '모임 당일에 참석을 취소하기를 3번 한 멤버',
-   '{"type":"gthr_cancel_count","count":3,"same_day":true}', 'others', 3, 310, '2026-08-14'),
+   '{"type":"gthr_cancel_count","count":3,"same_day":true}', 'others', 3, 310, '2026-08-19'),
   ('회전문',     '한 모임에서 신청과 취소를 오간 멤버',
-   '{"type":"gthr_cancel_count","count":2,"same_gathering":true}', 'others', 5, 311, '2026-08-14'),
+   '{"type":"gthr_cancel_count","count":2,"same_gathering":true}', 'others', 5, 311, '2026-08-19'),
   ('월요병',     '월요일 모임만 골라 3번 취소한 멤버',
-   '{"type":"gthr_cancel_count","count":3,"weekday":1}', 'others', 5, 312, '2026-08-14'),
+   '{"type":"gthr_cancel_count","count":3,"weekday":1}', 'others', 5, 312, '2026-08-19'),
   ('3연벙',      '사흘 연속으로 모임에 나온 멤버',
-   '{"type":"gthr_attend_streak","days":3}', 'held', 4, 313, '2026-08-14'),
+   '{"type":"gthr_attend_streak","days":3}', 'held', 4, 313, '2026-08-19'),
   ('하루에두번', '하루에 서로 다른 모임 2개를 모두 참석한 멤버',
-   '{"type":"gthr_same_day_count","per_day":2,"count":1}', 'always', 5, 314, '2026-08-14'),
+   '{"type":"gthr_same_day_count","per_day":2,"count":1}', 'always', 5, 314, '2026-08-19'),
   ('막차',       '정원의 마지막 자리를 채워 모임을 마감시킨 멤버',
-   '{"type":"gthr_last_slot","count":2}', 'others', 6, 315, '2026-08-14'),
+   '{"type":"gthr_last_slot","count":2}', 'others', 6, 315, '2026-08-19'),
   ('칼퇴실패',   '야근 때문에 모임을 3번 취소한 멤버',
-   '{"type":"gthr_cancel_reason","count":3,"keyword":"야근"}', 'others', 6, 316, '2026-08-14'),
+   '{"type":"gthr_cancel_reason","count":3,"keyword":"야근"}', 'others', 6, 316, '2026-08-19'),
   ('구구절절',   '취소 사유를 40자 넘게 적은 멤버',
-   '{"type":"gthr_cancel_reason","count":1,"min_length":40}', 'held', 4, 317, '2026-08-14'),
+   '{"type":"gthr_cancel_reason","count":1,"min_length":40}', 'held', 4, 317, '2026-08-19'),
   ('생일축하해', '생일에 크루와 함께 뛴 멤버',
-   '{"type":"attend_on_birthday","count":1}', 'others', 6, 318, '2026-08-14')
+   '{"type":"attend_on_birthday","count":1}', 'others', 6, 318, '2026-08-19')
 ) AS v(ttl_nm, ttl_desc, cond_rule_json, desc_visibility, rarity_level, sort_ord, eff_stt_dt)
 CROSS JOIN (SELECT team_id FROM team_mst WHERE team_cd = 'gigang' AND del_yn = false LIMIT 1) t
 -- 재실행 안전: 같은 이름이 이미 있으면 넣지 않는다.
