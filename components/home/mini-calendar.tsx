@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 import { buildWeeklyShareText } from "@/components/home/build-weekly-share-text";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
+import { buildRegistrationMap } from "@/lib/competition-registration";
 import {
   dayjs,
   todayKST,
@@ -199,7 +200,11 @@ export function MiniCalendar({
   const [isPending, startTransition] = useTransition();
 
   // 월별 데이터 캐시 — 이미 조회한 달은 즉시 반영, 인접 달은 프리페치
-  type MonthData = { gigang: CalendarRace[]; mine: CalendarRace[]; schPosts: CalendarRace[]; gatherings: CalendarRace[] };
+  // regs(내 대회 등록 맵)는 **달에 종속되지 않는다**. 그런데도 달 데이터에 함께 실어 두는 건,
+  // 어느 달을 불러도 맵이 최신으로 복구되게 하기 위해서다 — 예전엔 마운트 때 딱 한 번만
+  // 만들었고, 그 한 번을 놓치면(§fetchUserData) 그 페이지 세션 내내 빈 채로 남아 이미 신청한
+  // 사람이 "정보 수정"이 아니라 "참가 신청"을 보게 됐다(→ INSERT → 23505 → 막다른 길).
+  type MonthData = { gigang: CalendarRace[]; mine: CalendarRace[]; schPosts: CalendarRace[]; gatherings: CalendarRace[]; regs: Record<string, CompetitionRegistration> };
   const monthCacheRef = useRef(new Map<string, MonthData>());
   const cacheVersionRef = useRef(0);
 
@@ -786,7 +791,14 @@ export function MiniCalendar({
   };
 
   const deleteRegistration = async (registrationId: string, competitionId: string) => {
-    const { error } = await supabase.from("comp_reg_rel").delete().eq("comp_reg_id", registrationId);
+    if (!memberId) return { ok: false as const, message: "로그인이 필요합니다." };
+    // mem_id를 함께 건다 — 관리자는 RLS상 남의 등록도 지울 수 있어, 맵이 어긋난 상태에서
+    // 취소를 누르면 엉뚱한 사람의 신청이 지워질 수 있다(§race-list-view도 같은 조건).
+    const { error } = await supabase
+      .from("comp_reg_rel")
+      .delete()
+      .eq("comp_reg_id", registrationId)
+      .eq("mem_id", memberId);
     if (error) return { ok: false as const, message: "취소에 실패했습니다." };
     setRegistrationsByCompetitionId((prev) => {
       const next = { ...prev };
@@ -819,7 +831,9 @@ export function MiniCalendar({
       memberId
         ? supabase
             .from("comp_reg_rel")
-            .select("team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm))")
+            // 등록 상세(comp_reg_id·prt_role_cd·종목)까지 받는다 — 이게 빠져 있으면 달을
+            // 이동해도 등록 맵을 다시 만들 수 없어, 한 번 어긋난 맵이 영영 복구되지 않는다.
+            .select("comp_reg_id, mem_id, prt_role_cd, crt_at, comp_evt_cfg(comp_evt_type), team_comp_plan_rel!inner(comp_id, comp_mst!inner(comp_id, comp_nm, stt_dt, loc_nm))")
             .eq("mem_id", memberId)
             .eq("team_comp_plan_rel.team_id", teamId)
             .eq("vers", 0)
@@ -887,7 +901,13 @@ export function MiniCalendar({
       cmntCount: row.cmnt_count ? Number(row.cmnt_count) : undefined,
     }));
 
-    return { gigang: newGigang, mine: newMine, schPosts: newSchPosts, gatherings: newGatherings };
+    return {
+      gigang: newGigang,
+      mine: newMine,
+      schPosts: newSchPosts,
+      gatherings: newGatherings,
+      regs: buildRegistrationMap(myRegsResult.data),
+    };
   }
 
   const viewMonthRef = useRef(viewMonth);
@@ -918,6 +938,8 @@ export function MiniCalendar({
     setMyRaces(data.mine);
     setSchPosts(data.schPosts);
     setGatherings(data.gatherings);
+    // 달과 무관한 값이지만 여기서 같이 갱신한다 — 달을 한 번이라도 넘기면 등록 맵이 스스로 낫는다.
+    setRegistrationsByCompetitionId(data.regs);
   }, []);
 
   // 특정 월(YYYY-MM-01)로 이동하며 데이터를 교체. 흐린 다른 달 셀 클릭 시에도 재사용한다.
@@ -987,10 +1009,18 @@ export function MiniCalendar({
         }),
       ]);
 
-      // 월 이동이 발생했으면 늦게 온 응답을 버린다
+      // 등록 맵은 **달과 무관하므로 월 가드보다 먼저** 반영한다.
+      //
+      // 예전엔 아래 가드 뒤에 있었다. 대회는 대개 다음 달 이후라 사용자는 들어오자마자 달을
+      // 넘기는데, 그 스와이프가 이 응답보다 빠르면(모바일에선 흔하다) 맵이 통째로 버려지고
+      // **다시 만드는 경로가 없어** 그 페이지 세션 내내 빈 채로 남았다. 그러면 이미 신청한
+      // 사람에게도 상세가 "참가 신청"으로 열리고(취소 버튼도 안 뜬다), 제출하면 INSERT가
+      // uk_comp_reg_rel_team_comp_mem_vers(23505)에 걸려 "신청에 실패했습니다"만 떴다.
+      if (myRegs) setRegistrationsByCompetitionId(buildRegistrationMap(myRegs));
+
+      // 월 이동이 발생했으면 늦게 온 응답을 버린다 — 아래는 전부 이 달에 종속된 값이다
       if (viewMonthRef.current !== initialMonth) return;
 
-      // myRaces + registrationsByCompetitionId 구성
       if (myRegs) {
         const races = myRegs.flatMap((r) => {
           const plan = Array.isArray(r.team_comp_plan_rel)
@@ -1008,25 +1038,6 @@ export function MiniCalendar({
           return race.start_date >= gridStart && race.start_date <= gridEnd ? [race] : [];
         });
         setMyRaces(races);
-
-        // 등록 맵 구성 — 대회 클릭 시 수정/취소 흐름에 필요
-        const regs: Record<string, CompetitionRegistration> = {};
-        myRegs.forEach((r) => {
-          const plan = Array.isArray(r.team_comp_plan_rel)
-            ? r.team_comp_plan_rel[0]
-            : r.team_comp_plan_rel;
-          regs[plan.comp_id] = {
-            id: r.comp_reg_id,
-            competition_id: plan.comp_id,
-            member_id: r.mem_id,
-            role: r.prt_role_cd as CompetitionRegistration["role"],
-            event_type:
-              (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)
-                ?.comp_evt_type?.toUpperCase() ?? null,
-            created_at: r.crt_at,
-          } as CompetitionRegistration;
-        });
-        setRegistrationsByCompetitionId(regs);
       }
 
       // gathering is_attending overlay — 서버에서 "gathering"으로만 내려온 데이터에 참석 여부를 overlay

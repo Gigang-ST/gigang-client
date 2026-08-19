@@ -8,6 +8,7 @@ import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 
 import { analytics } from "@/lib/analytics";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
+import { buildRegistrationMap } from "@/lib/competition-registration";
 import {
 	fetchMemMstWithTeamRel,
 	mapMstRelToAppMemberProfile,
@@ -162,35 +163,7 @@ export function RaceListView({
 			.eq("team_comp_plan_rel.team_id", teamId)
 			.in("team_comp_plan_rel.comp_id", competitionIds);
 
-		const next: Record<string, CompetitionRegistration> = {};
-		(myRegs ?? []).forEach((reg) => {
-			const row = reg as unknown as {
-				comp_reg_id: string;
-				mem_id: string;
-				prt_role_cd: "participant" | "cheering" | "volunteer";
-				crt_at: string;
-				team_comp_plan_rel: { comp_id: string }[] | { comp_id: string };
-				comp_evt_cfg?:
-					| { comp_evt_type: string | null }[]
-					| { comp_evt_type: string | null };
-			};
-			const plan = Array.isArray(row.team_comp_plan_rel)
-				? row.team_comp_plan_rel[0]
-				: row.team_comp_plan_rel;
-			const evt = Array.isArray(row.comp_evt_cfg)
-				? row.comp_evt_cfg[0]
-				: row.comp_evt_cfg;
-			if (!plan?.comp_id) return;
-			next[plan.comp_id] = {
-				id: row.comp_reg_id,
-				competition_id: plan.comp_id,
-				member_id: row.mem_id,
-				role: row.prt_role_cd,
-				event_type: evt?.comp_evt_type?.toUpperCase() ?? null,
-				created_at: row.crt_at,
-			};
-		});
-		setRegistrationsByCompetitionId(next);
+		setRegistrationsByCompetitionId(buildRegistrationMap(myRegs));
 	};
 
 	const loadPastChunk = async (before: string) => {
