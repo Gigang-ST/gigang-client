@@ -27,7 +27,11 @@ vi.mock("sonner", () => ({ toast: { success: () => {}, error: () => {} } }));
 vi.mock("@/app/actions/mark-board-type-read", () => ({
   markBoardTypeRead: async () => {},
 }));
-vi.mock("@/app/actions/set-week-start", () => ({ setWeekStart: async () => {} }));
+// 실제 계약은 `{ ok, message? }`다 — 컨트롤이 `result.ok`를 읽으므로 `undefined`를 돌려주면
+// 상호작용 테스트를 붙이는 순간 TypeError가 난다(지금은 SSR만 해서 안 터진다).
+vi.mock("@/app/actions/set-week-start", () => ({
+  setWeekStart: async () => ({ ok: true as const }),
+}));
 vi.mock("@/app/actions/social/get-kakao-password", () => ({
   getKakaoChatPassword: async () => ({ status: "member", password: "1234" }),
 }));
@@ -64,8 +68,11 @@ describe("더보기 화면", () => {
   it("소셜이 맨 위에 서고, 두 덩어리 순서가 유지된다", () => {
     const t = text(render());
 
-    // 가는 문 → 띠 → 스위치·문서
-    const order = ["SOCIAL", "MY", "CREW", "설정", "앱 설정", "계정"];
+    // 가는 문 → 띠 → 스위치·문서.
+    // 덩어리 제목 "설정"은 이 배열에 넣지 않는다 — `indexOf("설정")`은 첫 등장을 찾는데,
+    // 상단 덩어리에 "설정"이 든 라벨(예: "알림 설정")이 생기면 그쪽을 가리켜 **엉뚱한
+    // 이유로** 이 단언이 깨진다. 하단 덩어리의 시작은 "앱 설정"이 이미 표시한다.
+    const order = ["SOCIAL", "MY", "CREW", "앱 설정", "계정"];
     const positions = order.map((label) => t.indexOf(label));
 
     expect(positions.every((p) => p >= 0)).toBe(true);
@@ -133,6 +140,22 @@ describe("더보기 화면", () => {
     // 점 라벨이 회비 내역과 건의하기 사이 = 그 줄에 붙었다
     expect(t.indexOf("회비 미납")).toBeGreaterThan(t.indexOf("회비 내역"));
     expect(t.indexOf("회비 미납")).toBeLessThan(t.indexOf("건의하기"));
+  });
+
+  it("로그아웃·회원 탈퇴도 같은 행 컴포넌트를 타고, 탈퇴는 아직 잠겨 있다", () => {
+    const html = render();
+    const t = text(html);
+
+    expect(t).toContain("로그아웃");
+    expect(t).toContain("회원 탈퇴");
+    expect(t).toContain("준비 중입니다");
+
+    // 탈퇴 줄을 감싼 `<button>`이 실제로 disabled인가 — 예전엔 눌리지 않는 버튼에
+    // `alert()` 핸들러가 죽은 채 붙어 있었다.
+    const at = html.indexOf("회원 탈퇴");
+    const openTag = html.lastIndexOf("<button", at);
+    expect(openTag).toBeGreaterThan(-1);
+    expect(html.slice(openTag, at)).toContain("disabled");
   });
 
   it("공지·업데이트 안읽음 점은 각 줄에 따로 붙는다", () => {

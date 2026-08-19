@@ -35,7 +35,6 @@ import { ThemeToggle } from "@/components/common/theme-toggle";
 import { Body, Caption, Micro, SectionLabel } from "@/components/common/typography";
 import { SOCIAL_HELP_TEXT, SocialTiles } from "@/components/social-links";
 import { WeekStartControl } from "@/components/settings/week-start-control";
-import { Button } from "@/components/ui/button";
 
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
@@ -117,8 +116,9 @@ const legalItems = [
  * 예전엔 같은 마크업이 그룹마다 복제돼 있어(Link 3벌 + button 2벌) dot 규칙이나 여백을
  * 고칠 때 다섯 군데를 찾아다녀야 했다. 한 곳으로 모은다.
  *
- * - `href` → `Link`, `onClick` → `button`, 둘 다 없으면 컨트롤 행(토글·세그먼트)
- * - `trailing`을 주면 chevron 대신 그걸 오른쪽에 세운다
+ * - `href` → `Link`, `onClick`·`disabled` → `button`, 아무것도 없으면 컨트롤 행(토글·세그먼트)
+ * - `trailing`을 주면 그걸 오른쪽에 세우고 chevron은 생략한다
+ * - chevron은 **이동 행에만** 선다. 로그아웃처럼 그 자리에서 실행되는 행은 `chevron={false}`
  */
 function MenuRow({
   icon: Icon,
@@ -129,6 +129,8 @@ function MenuRow({
   dot = false,
   dotLabel,
   trailing,
+  chevron,
+  disabled = false,
   tone = "default",
 }: {
   icon: LucideIcon;
@@ -141,6 +143,10 @@ function MenuRow({
   dot?: boolean;
   dotLabel?: string;
   trailing?: ReactNode;
+  /** 기본은 "trailing이 없는 이동 행". 실행 행(로그아웃)은 `false`로 끈다 */
+  chevron?: boolean;
+  /** 아직 못 쓰는 줄. 눌리지 않고 흐려진다 */
+  disabled?: boolean;
   tone?: RowTone;
 }) {
   const iconTone =
@@ -150,6 +156,10 @@ function MenuRow({
         ? "text-destructive"
         : "text-muted-foreground";
   const textTone = tone === "destructive" ? "text-destructive" : "text-foreground";
+  // chevron은 "이동한다"는 약속이다. trailing이 이미 오른쪽을 쓰고 있거나 그 자리에서
+  // 실행되는 행이면 세우지 않는다.
+  const showChevron =
+    chevron ?? (trailing === undefined && (href !== undefined || onClick !== undefined));
 
   const inner = (
     <>
@@ -167,14 +177,19 @@ function MenuRow({
             <span className="sr-only">{dotLabel}</span>
           </>
         )}
-        {trailing ??
-          ((href || onClick) && <ChevronRight className="size-5 text-border" />)}
+        {trailing}
+        {showChevron && <ChevronRight className="size-5 text-border" />}
       </div>
     </>
   );
 
-  const rowClass =
-    "flex items-center justify-between gap-3 border-b border-border py-4 text-left";
+  // 포커스 링은 여기 한 곳에서 준다 — 예전엔 계정 행만 `Button`이 그리고 나머지 링크 행엔
+  // 아예 없었다. 키보드로 훑으면 어디에 있는지 알 수 없는 줄이 대부분이었다는 뜻이다.
+  const rowClass = cn(
+    "flex w-full items-center justify-between gap-3 border-b border-border py-4 text-left",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+    "disabled:opacity-50",
+  );
 
   if (href) {
     return (
@@ -183,9 +198,14 @@ function MenuRow({
       </Link>
     );
   }
-  if (onClick) {
+  if (onClick || disabled) {
     return (
-      <button type="button" onClick={onClick} className={rowClass}>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className={rowClass}
+      >
         {inner}
       </button>
     );
@@ -365,29 +385,26 @@ export function SettingsClient({
             <SectionLabel className="font-semibold tracking-normal">
               계정
             </SectionLabel>
-            <Button
-              type="button"
-              variant="ghost"
+            {/* 이 둘도 `MenuRow`를 탄다 — 여기만 `Button`을 쓰면 행 여백·구분선 규칙이 두
+                곳에 살아서 한쪽만 고쳐진다(행 마크업을 하나로 모은 이유가 그것이다).
+                chevron은 끈다: 눌러도 이동하지 않고 그 자리에서 실행된다. */}
+            <MenuRow
+              icon={LogOut}
+              label={loggingOut ? "로그아웃 중..." : "로그아웃"}
               onClick={handleLogout}
               disabled={loggingOut}
-              className="h-auto w-full justify-start gap-3 rounded-none border-b border-border px-0 py-4"
-            >
-              <LogOut className="size-5 text-destructive" />
-              <Body className="font-medium text-destructive">
-                {loggingOut ? "로그아웃 중..." : "로그아웃"}
-              </Body>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
+              chevron={false}
+              tone="destructive"
+            />
+            {/* `onClick`을 주지 않는다 — `disabled` 버튼은 어차피 발화하지 않아서
+                `alert("준비 중입니다")`가 죽은 코드였다. 안내는 오른쪽 라벨이 한다. */}
+            <MenuRow
+              icon={Trash2}
+              label="회원 탈퇴"
               disabled
-              onClick={() => alert("준비 중입니다.")}
-              className="h-auto w-full justify-start gap-3 rounded-none px-0 py-4"
-            >
-              <Trash2 className="size-5 text-destructive" />
-              <Body className="font-medium text-destructive">회원 탈퇴</Body>
-              <Micro className="ml-auto">준비 중입니다</Micro>
-            </Button>
+              tone="destructive"
+              trailing={<Micro>준비 중입니다</Micro>}
+            />
           </div>
         </div>
       </div>

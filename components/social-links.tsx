@@ -235,8 +235,14 @@ export function SocialTiles({
           </DialogHeader>
           {/* 아직 모르는 것과 비멤버인 것은 다르다 — 모르면 스피너다(§KakaoState) */}
           {state.kind === "loading" ? (
-            <div className="flex items-center justify-center py-6">
+            // `role="status"`가 없으면 스크린리더엔 본문이 빈 다이얼로그로 들리고, 조회가
+            // 끝나 내용이 바뀌어도 알림이 없다(이 영역은 live region이라 교체를 읽어 준다).
+            <div
+              role="status"
+              className="flex items-center justify-center py-6"
+            >
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-primary" />
+              <span className="sr-only">비밀번호를 불러오는 중</span>
             </div>
           ) : state.kind === "member" ? (
             <>
