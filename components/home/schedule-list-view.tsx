@@ -16,6 +16,7 @@ import { Caption, Micro, SectionLabel } from "@/components/common/typography";
 
 import type { CalendarRace } from "./mini-calendar";
 import { type FilterType, matchesFilter } from "@/components/home/schedule-filter";
+import { seedScheduleMonths } from "@/lib/schedule-list";
 
 type MonthData = {
   monthKey: string; // "YYYY-MM"
@@ -313,12 +314,12 @@ export const ScheduleListView = memo(function ScheduleListView({
   const supabase = useMemo(() => createClient(), []);
   const today = todayKST();
 
-  const [months, setMonths] = useState<MonthData[]>(() => {
-    // start_date의 실제 월(YYYY-MM)로 분류 — 월 경계에 걸친 일정을 올바른 월에 배치
-    const result = racesToMonths(initialRaces);
-    if (result.length === 0) return [{ monthKey: initialMonthKey, races: [] }];
-    return result.map((m) => ({ ...m, races: [...m.races].sort((a, b) => a.start_date.localeCompare(b.start_date)) }));
-  });
+  // 시드는 캘린더의 **그리드 범위** 데이터라 앞뒤 달이 며칠씩 딸려 온다. 그 부분 월을
+  // 남기면 무한스크롤 커서(월 경계)가 나머지 날짜를 건너뛰므로, 온전한 이번 달만 남긴다.
+  // 앞뒤 달은 마운트 직후 sentinel이 RPC로 통째로 받아 온다. (§lib/schedule-list)
+  const [months, setMonths] = useState<MonthData[]>(() =>
+    seedScheduleMonths(initialRaces, initialMonthKey),
+  );
   const [loadingPrev, setLoadingPrev] = useState(false);
   const [loadingNext, setLoadingNext] = useState(false);
   const oldestMonth = months[0].monthKey;
