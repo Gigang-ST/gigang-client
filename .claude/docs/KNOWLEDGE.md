@@ -219,3 +219,12 @@ Postgres `jsonb`는 키를 **정렬해서 저장**한다(길이순 → 사전순
 - **새 차단 표면을 만들면 사유 문구를 새로 쓰지 말고** `InactiveReasonNote`(사유 칸) / `buildInactiveActionMessage()`(서버 문구) / `useReactivationRequest()`(문의 동작)를 가져다 쓴다. `withActive`가 이미 사유를 싣고 있어 서버 액션 쪽은 대개 손댈 게 없다.
 - **관리자 입력칸에 경고를 같이 세운다** — 원래 관리자끼리 보던 메모라 문구가 직설적이다. 노출 범위를 넓히면 입력 시점 경고도 같이 옮긴다(`admin-members-client.tsx` 인라인·일괄 두 곳).
 (2026-08-19 비활성 사유 노출 — `lib/inactive-notice.ts` · `components/common/inactive-reason-note.tsx` · `lib/hooks/use-reactivation-request.ts`)
+
+### 다이얼로그를 여는 길이 둘이 되면 조회는 클릭 핸들러가 아니라 `open`에 건다
+딥링크(`?social=kakao`, `?ttl=history`)로 기존 다이얼로그를 열 수 있게 만들 때 가장 잘 밟는 함정이다. 원래 이런 다이얼로그는 **클릭 핸들러 안에서** "열기 + 데이터 조회"를 같이 하는데, 딥링크는 `useEffect`에서 `setOpen(true)`만 하므로 **조회가 영영 안 돌아 스피너에 갇힌다.** 크래시도 에러 로그도 없고 타입도 통과해서, 딥링크를 실제로 눌러 보기 전엔 모른다.
+- 고치는 방향은 상태를 늘리는 게 아니라 **조회를 `open`에 매다는 것**이다(`useEffect(..., [open])` + `useRef` 가드로 한 번만). 여는 길이 몇 개든 조회 경로는 하나가 된다.
+- ⚠️ **그런데 그 이동 자체가 두 번째 버그를 만든다.** 핸들러에서 `setOpen(true)`와 `setLoading(true)`를 같이 부르던 걸 이펙트로 옮기면, React가 **렌더를 먼저 하고 이펙트를 나중에** 돌리므로 `loading=false` + `데이터=미조회` 프레임이 반드시 한 번 지나간다. 그 조합이 "조회했는데 없음"과 같은 화면으로 떨어지면 **멤버에게 "회원가입 하세요"가 다이얼로그 열림 애니메이션 내내 보인다**(실제로 그렇게 신고가 들어왔다). 타이밍을 맞추려 하지 말고 **상태를 유니온 하나로 들어 그 조합을 표현할 수 없게** 만든다(`{kind:"loading"|"member"|"guest"|"error"}`, 초기값 `loading`). 덤으로 실패를 `guest`로 못 박지 않게 되어, 네트워크가 흔들려도 멤버에게 가입 안내가 안 뜬다.
+- **이펙트 안에서 동기 `setState`를 하지 않는다** — `react-hooks/set-state-in-effect`가 잡아 준다. 초기값을 `loading`으로 두면 시작 시 상태를 건드릴 이유가 애초에 없다.
+- **`renderToStaticMarkup` 렌더 테스트로는 못 잡는다** — effect를 안 돌리고 환경도 jsdom이 아니라 node다. 이 경로는 브라우저 확인이 유일한 검증이라, 딥링크를 붙였으면 "터미널 검증 통과"를 완료로 읽지 않는다.
+- 서버 판정은 그대로 둔다: 링크가 새어 나가도 민감값이 안 나가는 건 조회 액션이 세션을 다시 보기 때문이다(`getKakaoChatPassword()` → `getCurrentMember()`). 딥링크를 추가할 때 **클라이언트에서 미리 걸러 두었다는 이유로 서버 판정을 빼지 않는다.**
+(2026-08-19 더보기 개편 — `components/social-links.tsx`의 `SocialTiles` · `docs/design/2026-08-19-더보기-소셜-정리.md`)
