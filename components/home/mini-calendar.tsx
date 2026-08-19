@@ -984,6 +984,9 @@ export function MiniCalendar({
     const memId = memberId; // TypeScript narrowing — async 함수 내에서 non-optional 사용
 
     async function fetchUserData() {
+      // 이 조회가 도는 동안 쓰기(신청·수정·취소)가 있었는지 재는 눈금.
+      // 쓰기는 전부 refreshMonthData()로 끝나고 거기서 이 값이 오른다.
+      const reqVersion = cacheVersionRef.current;
       const [yStr, mStr] = initialMonth.split("-");
       const y = parseInt(yStr, 10);
       const m = parseInt(mStr, 10);
@@ -1008,6 +1011,12 @@ export function MiniCalendar({
           p_mem_id: memId,
         }),
       ]);
+
+      // 그 사이 쓰기가 있었으면 refreshMonthData가 이미 최신 상태를 넣어 뒀다. 늦게 온 이
+      // 응답으로 덮으면 **방금 한 신청이 맵에서 사라져** 고치려던 그 막다른 길로 되돌아간다
+      // (취소한 등록이 "정보 수정"으로 되살아나는 것도 같은 경로). 다른 조회 경로 셋은
+      // 이미 이 눈금을 대조한다 — 여기만 빠져 있었다.
+      if (cacheVersionRef.current !== reqVersion) return;
 
       // 등록 맵은 **달과 무관하므로 월 가드보다 먼저** 반영한다.
       //

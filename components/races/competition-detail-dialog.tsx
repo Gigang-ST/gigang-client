@@ -370,6 +370,21 @@ export function CompetitionDetailDialog({
   const showInactiveMessage = memberStatus.status === "inactive";
   const showAuthMessage = !showInactiveMessage && memberStatus.status !== "ready";
 
+  /**
+   * 핸들러가 reject한 경우(서버 액션 네트워크 실패 등)의 처리.
+   *
+   * 이 자리는 `{ ok, message }`를 돌려받는 걸 전제로 쓰여 있어서, 예외가 나면 메시지도 없고
+   * `isSaving`도 안 풀려 **버튼이 영구 비활성인 채로 아무 반응 없는 다이얼로그**가 됐다.
+   * 서버 액션 예외는 프로덕션에서 내용이 가려지므로 화면엔 일반 문구를 쓰고 원문은 콘솔로 남긴다.
+   */
+  function reportSubmitFailure(error: unknown) {
+    console.error("참가 신청 처리 실패:", error);
+    setStatusMessage({
+      text: "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+      ok: false,
+    });
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!competition) return;
@@ -382,24 +397,34 @@ export function CompetitionDetailDialog({
     setIsSaving(true);
     const payload = { role, eventType: resolvedEventType };
 
-    const result = activeRegistration
-      ? await onUpdate(activeRegistration.id, competition.id, payload)
-      : await onCreate(competition.id, payload);
+    try {
+      const result = activeRegistration
+        ? await onUpdate(activeRegistration.id, competition.id, payload)
+        : await onCreate(competition.id, payload);
 
-    setIsSaving(false);
-    if (result.message) setStatusMessage({ text: result.message, ok: result.ok });
-    if (result.ok) loadParticipants(competition.id);
+      if (result.message) setStatusMessage({ text: result.message, ok: result.ok });
+      if (result.ok) loadParticipants(competition.id);
+    } catch (e) {
+      reportSubmitFailure(e);
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   async function handleDelete() {
     if (!activeRegistration || !competition) return;
     setIsSaving(true);
-    const result = await onDelete(activeRegistration.id, competition.id);
-    setIsSaving(false);
-    if (result.message) setStatusMessage({ text: result.message, ok: result.ok });
-    if (result.ok) {
-      setFetchedRegistration(undefined);
-      loadParticipants(competition.id);
+    try {
+      const result = await onDelete(activeRegistration.id, competition.id);
+      if (result.message) setStatusMessage({ text: result.message, ok: result.ok });
+      if (result.ok) {
+        setFetchedRegistration(undefined);
+        loadParticipants(competition.id);
+      }
+    } catch (e) {
+      reportSubmitFailure(e);
+    } finally {
+      setIsSaving(false);
     }
   }
 
