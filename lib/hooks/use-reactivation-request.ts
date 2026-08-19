@@ -20,14 +20,22 @@ export function useReactivationRequest() {
   const request = async () => {
     setSending(true);
     setError(null);
-    const res = await requestReactivation();
-    if (res.ok) {
-      setSent(true);
-    } else {
-      // "이미 문의를 보냈어요" 도 여기로 — 실패라기보다 이미 접수된 상태 안내
-      setError(res.message);
+    try {
+      const res = await requestReactivation();
+      if (res.ok) {
+        setSent(true);
+      } else {
+        // "이미 문의를 보냈어요" 도 여기로 — 실패라기보다 이미 접수된 상태 안내
+        setError(res.message);
+      }
+    } catch {
+      // 액션이 던지는 경우가 실제로 있다 — 세션이 끊기면 withMember 가 throw하고, 전송 자체가
+      // 실패할 수도 있다. 여기서 안 받으면 finally 도 못 가 **버튼이 영영 비활성으로 굳는다**
+      // (사용자에겐 "눌러도 아무 일이 안 일어남"으로 보인다).
+      setError("잠시 후 다시 시도해 주세요");
+    } finally {
+      setSending(false);
     }
-    setSending(false);
   };
 
   /** 다이얼로그가 닫힐 때처럼 처음 화면부터 다시 보여야 할 때 */

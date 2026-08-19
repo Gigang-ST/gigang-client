@@ -57,8 +57,12 @@ export function InactiveGateDialog({
 
   const copy = COPY[kind];
 
-  // 열릴 때마다 다시 묻는다 — 그 사이 관리자가 사유를 고쳤을 수 있다. 대신 닫아도 값은 남긴다:
-  // 두 번째 열 때부터는 이미 자리를 차지한 채로 떠서 사유가 뒤늦게 끼어들며 버튼을 밀지 않는다.
+  // 열릴 때마다 다시 묻고, **닫히면 버린다.**
+  //
+  // 값을 들고 있으면 노출 규칙(`getVisibleInactiveReason`)보다 오래 사는 캐시가 된다 — 이 컴포넌트는
+  // 페이지 트리에 `open={false}`로 계속 떠 있어서, 한 번 받은 사유가 세션 내내 남는다. 그 사이
+  // 관리자가 사유를 지우거나 재활성화해도 다음에 열면 없어진 사유가 먼저 뜬다(잠시 뒤 사라진다).
+  // 사유가 뒤늦게 들어오며 버튼을 한 번 미는 건 감수한다 — 여는 순간 손가락은 아직 방아쇠 쪽에 있다.
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -70,6 +74,7 @@ export function InactiveGateDialog({
       .catch(() => {});
     return () => {
       cancelled = true;
+      setReason(null);
     };
   }, [open]);
 
