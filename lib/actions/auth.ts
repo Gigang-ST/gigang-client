@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { buildInactiveActionMessage } from "@/lib/inactive-notice";
 import type { AppMemberProfile } from "@/lib/queries/app-member";
 import { getCurrentMember } from "@/lib/queries/member";
 import type { Database } from "@/lib/supabase/database.types";
@@ -18,10 +19,16 @@ export async function withMember<T>(fn: (ctx: ActionContext) => Promise<T>): Pro
   return fn({ member, supabase });
 }
 
-/** 로그인 + active 멤버만 허용 */
+/**
+ * 로그인 + active 멤버만 허용.
+ *
+ * 막을 때 **왜 막혔는지(비활성 사유)를 문구에 싣는다** — 이 문구는 기강이야기(응원·팻말·
+ * 한마디·깅스타그램)처럼 안내 다이얼로그가 없는 자리에서 사용자가 보는 유일한 설명이라,
+ * 여기서 이유를 말하지 않으면 그 자리들엔 이유가 닿을 길이 없다. 조립은 `lib/inactive-notice`.
+ */
 export async function withActive<T>(fn: (ctx: ActionContext) => Promise<T>): Promise<T> {
   return withMember(async (ctx) => {
-    if (ctx.member.status !== "active") throw new Error("비활성화된 회원입니다. 관리자에게 문의하세요.");
+    if (ctx.member.status !== "active") throw new Error(buildInactiveActionMessage(ctx.member));
     return fn(ctx);
   });
 }
