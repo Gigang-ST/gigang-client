@@ -155,7 +155,9 @@ const PB_ROAD_SLATE = ["FULL", "HALF", "10K"] as const;
  * 개인 최고기록 한 줄.
  *
  * `value`가 `null`이면 아직 안 채운 칸이다 — 화면은 `--:--`(UTMB는 `--`)를 찍고 종목 점도
- * 회색으로 죽여 "안 켜진 줄"로 보이게 한다. 편집판은 UTMB 빈 칸에 `연동하기` 버튼을 세운다.
+ * 회색으로 죽여 "안 켜진 줄"로 보이게 한다. 편집판의 UTMB 줄은 상태에 따라 진입점이 갈린다:
+ * 미연동이면 값 자리에 `연동하기` pill, 연동됐으면 라벨 옆 연필(수정·해제·최신화가 모두
+ * 같은 다이얼로그 하나로 들어간다).
  */
 export type PbRow = {
   /** 화면 라벨 — `FULL` · `HALF` · `10K` · `철인3종` · `UTMB INDEX` */
@@ -164,7 +166,7 @@ export type PbRow = {
   dotCls: string;
   /** 표시값. `null`이면 미입력 */
   value: string | null;
-  /** UTMB 행인가 — 미연동일 때 편집판이 연동 버튼을 세울지 판단한다 */
+  /** UTMB 행인가 — 편집판이 이 줄에 연동 진입점(pill·연필)을 세울지 판단한다 */
   isUtmb: boolean;
   /** 최근 90일 이내 기록 */
   isNew: boolean;

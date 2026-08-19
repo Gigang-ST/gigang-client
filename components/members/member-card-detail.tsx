@@ -83,6 +83,8 @@ export type MemberCardEdit = {
   onEditIntro: () => void;
   /** 대표 칭호 옆 연필 → 내 컬렉션 */
   onEditTitles: () => void;
+  /** 하단 칭호 섹션 우측 "획득 이력" → 언제 무엇을 땄나(시간축) */
+  onOpenTitleHistory: () => void;
   /** 러닝 프로필 + 가입 목적 — 같은 테이블·같은 액션이라 진입점도 하나다 */
   onEditProfile: () => void;
   onManageRecords: () => void;
@@ -190,16 +192,22 @@ function PurposeTooltipChip({ short, full }: { short: string; full: string }) {
 function EditPencil({
   label,
   onClick,
+  className,
 }: {
   label: string;
   onClick: () => void;
+  /** 줄 안에 낄 때 정렬 보정용(`self-center` 등). 섹션 헤더에선 필요 없다 */
+  className?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="-m-1.5 shrink-0 rounded p-1.5 text-muted-foreground/60 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className={cn(
+        "-m-1.5 shrink-0 rounded p-1.5 text-muted-foreground/60 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        className,
+      )}
     >
       <Pencil className="size-3" />
     </button>
@@ -841,6 +849,20 @@ export function MemberCardDetail({
                       NEW
                     </span>
                   )}
+                  {/* 연동된 UTMB를 고치는 자리 — 이 카드가 이미 "연필 = 고치는 자리"를
+                      가르쳐 놓았으므로(한마디·러닝 프로필) 여기만 새 어휘를 만들지 않는다.
+                      **값 옆이 아니라 라벨 옆이다**: 값들은 오른쪽 끝에 맞춰 선 계기판 열이라
+                      한 줄에만 아이콘을 덧붙이면 그 숫자만 왼쪽으로 밀려 열이 깨진다.
+                      도트 리더가 `flex-1`이라 라벨 쪽 폭 변화는 알아서 흡수된다.
+                      미연동일 땐 안 붙인다 — 그 자리는 `연동하기` pill이 이미 "채워라"라고
+                      말하고 있어, 연필까지 세우면 한 가지 일에 진입점이 둘이 된다. */}
+                  {row.isUtmb && edit && row.value && (
+                    <EditPencil
+                      label="UTMB 연동 수정"
+                      onClick={edit.onLinkUtmb}
+                      className="self-center"
+                    />
+                  )}
                   <span
                     aria-hidden
                     className="min-w-2 flex-1 -translate-y-0.5 border-b border-dashed border-border"
@@ -879,9 +901,23 @@ export function MemberCardDetail({
               위 스크린 존의 `?` 껍데기가 맡으므로 여기엔 연필을 달지 않는다. */}
           {data.titles.length > 0 && (
             <section className="flex flex-col gap-2">
-              <SectionLabel>
-                칭호 ({data.titles.length})
-              </SectionLabel>
+              {/* 우측 "획득 이력"은 **연필이 아니다** — 고치는 자리가 아니라 시간축으로 훑는
+                  자리라 위 규칙("하단 칭호 섹션엔 연필을 달지 않는다")과 충돌하지 않는다.
+                  이 줄이 도감(등급·카테고리 순)과 이력(시간 역순)의 갈림길이다. */}
+              <div className="flex items-center justify-between gap-2">
+                <SectionLabel>
+                  칭호 ({data.titles.length})
+                </SectionLabel>
+                {edit && (
+                  <button
+                    type="button"
+                    onClick={edit.onOpenTitleHistory}
+                    className="shrink-0 text-[11px] text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    획득 이력
+                  </button>
+                )}
+              </div>
               <div className="flex flex-wrap items-center gap-1.5">
                 {visibleTitles.map((title) => (
                   <TitleBadge

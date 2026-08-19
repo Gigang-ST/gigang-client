@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { IntroEditDialog } from "@/components/members/intro-edit-dialog";
 import { MemberCardDetail } from "@/components/members/member-card-detail";
@@ -9,6 +9,7 @@ import { MemberCardDialogDynamic as MemberCardDialog } from "@/components/member
 import { AvatarEditDialog } from "@/components/profile/avatar-edit-dialog";
 import { CollectionSheet } from "@/components/profile/collection-sheet";
 import { RaceHistoryDialog } from "@/components/profile/race-history-dialog";
+import { TitleHistorySheet } from "@/components/profile/title-history-sheet";
 import { RaceRecordDialog } from "@/components/profile/race-record-dialog";
 import {
   UtmbLinkDialog,
@@ -63,6 +64,16 @@ export function ProfileTabCard({
   const [recordOpen, setRecordOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [utmbOpen, setUtmbOpen] = useState(false);
+  const [titleHistoryOpen, setTitleHistoryOpen] = useState(false);
+
+  // 칭호 획득 알림(`ttl_grnt`)의 딥링크가 이 시트를 바로 연다 — 프로필로만 보내면
+  // "무엇이 새로 생겼는지"를 알 길이 없어 알림이 절반만 일한다(`lib/notifications/deep-link.ts`).
+  const searchParams = useSearchParams();
+  const wantTitleHistory = searchParams.get("ttl") === "history";
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (wantTitleHistory) setTitleHistoryOpen(true);
+  }, [wantTitleHistory]);
 
   // 저장 직후 router.refresh()가 돌기 전에도 바뀐 값이 보이도록 낙관적으로 덮어쓴다.
   const [intro, setIntro] = useState(card.intro_txt ?? "");
@@ -89,6 +100,7 @@ export function ProfileTabCard({
           onEditAvatar: () => setAvatarOpen(true),
           onEditIntro: () => setIntroOpen(true),
           onEditTitles: () => setCollectionOpen(true),
+          onOpenTitleHistory: () => setTitleHistoryOpen(true),
           onEditProfile: () => router.push(RUNNING_PROFILE_HREF),
           onManageRecords: () => setHistoryOpen(true),
           onAddRecord: () => setRecordOpen(true),
@@ -123,6 +135,11 @@ export function ProfileTabCard({
         currentFrameCd={card.frame_cd}
         maxRarityLevel={maxRarityLevel}
         memberName={card.mem_nm}
+      />
+
+      <TitleHistorySheet
+        open={titleHistoryOpen}
+        onOpenChange={setTitleHistoryOpen}
       />
 
       {/* 남들에게 보이는 내 카드 — 같은 판의 공개 뷰라 편집 어포던스가 하나도 없다.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,6 +12,7 @@ import {
   COMP_EVT_TYPE_OTHER as EVENT_TYPE_OTHER,
   sanitizeAsciiUpperCompEvtTypeInput,
 } from "@/lib/comp-evt-type";
+import { findMyRegistration, type RegistrationRow } from "@/lib/competition-registration";
 import { formatDateRange } from "@/lib/dayjs";
 import {
   cmmCdRowsForGrp,
@@ -166,6 +167,19 @@ export function CompetitionDetailDialog({
   const viewerInactiveKind =
     memberStatus.status === "inactive" ? memberStatus.memberSt : undefined;
 
+  /**
+   * 참가자 조회에서 되찾은 내 등록 — `registration` prop이 없을 때만 쓰는 폴백.
+   *
+   * 이 다이얼로그는 등록의 유무로 "정보 수정/신청 취소"와 "참가 신청"이 갈리므로, 부모의
+   * 맵이 비면 이미 신청한 사람이 신규 INSERT를 쏴 23505에 막힌다. 참가자 목록은 어차피
+   * 열 때 한 번 읽으니 추가 요청 없이 여기서 복구한다.
+   */
+  const [fetchedRegistration, setFetchedRegistration] = useState<
+    CompetitionRegistration | undefined
+  >(undefined);
+
+  const activeRegistration = registration ?? fetchedRegistration;
+
 
   const editForm = useForm<CompetitionEditValues>({
     defaultValues: { title: "", sport: "", startDate: "", endDate: "", location: "", sourceUrl: "", eventTypes: [] },
@@ -174,12 +188,16 @@ export function CompetitionDetailDialog({
 
   const supabase = useMemo(() => createClient(), []);
 
+  // 늦게 온 참가자 응답이 다른 대회의 화면을 덮지 않게 하는 토큰
+  const participantsReqRef = useRef(0);
+
   // 참가자 목록 로드 — team_comp_plan_rel inner join으로 단일 쿼리
   const loadParticipants = useCallback(async (competitionId: string) => {
+    const reqId = ++participantsReqRef.current;
     const { data, error } = await supabase
       .from("comp_reg_rel")
       .select(
-        "prt_role_cd, crt_at, comp_evt_cfg(comp_evt_type), mem_mst!fk_comp_reg_rel__mem_mst(mem_nm), team_comp_plan_rel!inner(comp_id, team_id, vers, del_yn)",
+        "comp_reg_id, mem_id, prt_role_cd, crt_at, comp_evt_cfg(comp_evt_type), mem_mst!fk_comp_reg_rel__mem_mst(mem_nm), team_comp_plan_rel!inner(comp_id, team_id, vers, del_yn)",
       )
       .eq("team_comp_plan_rel.comp_id", competitionId)
       .eq("team_comp_plan_rel.team_id", teamId)
@@ -188,11 +206,19 @@ export function CompetitionDetailDialog({
       .eq("vers", 0)
       .eq("del_yn", false)
       .order("crt_at", { ascending: true });
+    if (reqId !== participantsReqRef.current) return;
     if (error) {
       console.error("참가자 조회 실패:", error);
       setParticipants([]);
+      setFetchedRegistration(undefined);
       return;
     }
+    // 부모가 넘긴 등록 맵이 비어 있어도(늦게 온 응답을 버렸거나 다른 탭에서 신청했거나)
+    // 여기서 내 등록을 되찾는다. 안 그러면 이미 신청한 사람에게 "참가 신청" 폼이 열리고
+    // 제출이 23505로 막혀, 취소 버튼도 없는 막다른 길이 된다 — prd에서 실제로 터졌다.
+    setFetchedRegistration(
+      findMyRegistration(data as unknown as RegistrationRow[], viewerMemberId, competitionId),
+    );
     const mapped = (data ?? []).map((r) => {
       const row = r as unknown as {
         prt_role_cd: string;
@@ -210,10 +236,12 @@ export function CompetitionDetailDialog({
       };
     });
     setParticipants(mapped);
-  }, [supabase, teamId]);
+  }, [supabase, teamId, viewerMemberId]);
 
   useEffect(() => {
     if (!competition || !open) return;
+    // 다른 대회의 폴백이 남지 않게 비우고 다시 읽는다
+    setFetchedRegistration(undefined);
     loadParticipants(competition.id);
   }, [competition?.id, open, loadParticipants]);
 
@@ -251,8 +279,8 @@ export function CompetitionDetailDialog({
   useEffect(() => {
     if (!competition || !open) return;
 
-    const initialRole = registration?.role ?? "participant";
-    const regType = (registration?.event_type ?? "").trim().toUpperCase();
+    const initialRole = activeRegistration?.role ?? "participant";
+    const regType = (activeRegistration?.event_type ?? "").trim().toUpperCase();
     const isInOptions =
       regType && eventTypeOptions.some((o) => o.toUpperCase() === regType);
     const initialOther =
@@ -270,7 +298,7 @@ export function CompetitionDetailDialog({
       setEventType(defaultSelect);
     }
     setStatusMessage(null);
-  }, [competition?.id, open, registration?.id, registration?.role, registration?.event_type, eventTypeOptions]);
+  }, [competition?.id, open, activeRegistration?.id, activeRegistration?.role, activeRegistration?.event_type, eventTypeOptions]);
 
 
   function startEditing() {
@@ -342,6 +370,21 @@ export function CompetitionDetailDialog({
   const showInactiveMessage = memberStatus.status === "inactive";
   const showAuthMessage = !showInactiveMessage && memberStatus.status !== "ready";
 
+  /**
+   * 핸들러가 reject한 경우(서버 액션 네트워크 실패 등)의 처리.
+   *
+   * 이 자리는 `{ ok, message }`를 돌려받는 걸 전제로 쓰여 있어서, 예외가 나면 메시지도 없고
+   * `isSaving`도 안 풀려 **버튼이 영구 비활성인 채로 아무 반응 없는 다이얼로그**가 됐다.
+   * 서버 액션 예외는 프로덕션에서 내용이 가려지므로 화면엔 일반 문구를 쓰고 원문은 콘솔로 남긴다.
+   */
+  function reportSubmitFailure(error: unknown) {
+    console.error("참가 신청 처리 실패:", error);
+    setStatusMessage({
+      text: "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+      ok: false,
+    });
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!competition) return;
@@ -354,22 +397,35 @@ export function CompetitionDetailDialog({
     setIsSaving(true);
     const payload = { role, eventType: resolvedEventType };
 
-    const result = registration
-      ? await onUpdate(registration.id, competition.id, payload)
-      : await onCreate(competition.id, payload);
+    try {
+      const result = activeRegistration
+        ? await onUpdate(activeRegistration.id, competition.id, payload)
+        : await onCreate(competition.id, payload);
 
-    setIsSaving(false);
-    if (result.message) setStatusMessage({ text: result.message, ok: result.ok });
-    if (result.ok) loadParticipants(competition.id);
+      if (result.message) setStatusMessage({ text: result.message, ok: result.ok });
+      if (result.ok) loadParticipants(competition.id);
+    } catch (e) {
+      reportSubmitFailure(e);
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   async function handleDelete() {
-    if (!registration || !competition) return;
+    if (!activeRegistration || !competition) return;
     setIsSaving(true);
-    const result = await onDelete(registration.id, competition.id);
-    setIsSaving(false);
-    if (result.message) setStatusMessage({ text: result.message, ok: result.ok });
-    if (result.ok) loadParticipants(competition.id);
+    try {
+      const result = await onDelete(activeRegistration.id, competition.id);
+      if (result.message) setStatusMessage({ text: result.message, ok: result.ok });
+      if (result.ok) {
+        setFetchedRegistration(undefined);
+        loadParticipants(competition.id);
+      }
+    } catch (e) {
+      reportSubmitFailure(e);
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   // 딥링크는 `/schedule`에 붙인다 — `?comp=`를 읽는 MiniCalendar가 일정 페이지에만
@@ -732,10 +788,10 @@ export function CompetitionDetailDialog({
                 </div>
               )}
 
-              {registration && (
+              {activeRegistration && (
                 <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                  현재 상태: {roleLabels[registration.role]}
-                  {registration.event_type && ` · ${registration.event_type}`}
+                  현재 상태: {roleLabels[activeRegistration.role]}
+                  {activeRegistration.event_type && ` · ${activeRegistration.event_type}`}
                 </div>
               )}
 
@@ -747,9 +803,9 @@ export function CompetitionDetailDialog({
 
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <Button type="submit" disabled={!canSubmit || isSaving}>
-                  {registration ? "정보 수정" : "참가 신청"}
+                  {activeRegistration ? "정보 수정" : "참가 신청"}
                 </Button>
-                {registration && (
+                {activeRegistration && (
                   <Button
                     type="button"
                     variant="outline"

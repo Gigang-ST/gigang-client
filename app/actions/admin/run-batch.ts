@@ -1,72 +1,34 @@
 "use server";
 
 import { withAdmin, withAdminOrThrow } from "@/lib/actions/auth";
+import { executeBatch } from "@/lib/batch/execute";
+import type { BatchParams } from "@/lib/batch/execute";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { batchDuesExemption } from "./batch-dues-exemption";
-import { batchMileageTitles } from "./batch-mileage-titles";
 
-type BatchParams = Record<string, string>;
 type ActionResult = { ok: boolean; message: string; runId?: string | null };
 
-const BATCH_ACTION_MAP: Record<string, (params: BatchParams) => Promise<string>> = {
-  MILEAGE_TITLE_BATCH: (params) => {
-    if (!params.evt_id) throw new Error("evt_id 파라미터가 필요합니다");
-    return batchMileageTitles(params.evt_id, params.base_month);
-  },
-  DUES_EXEMPTION_BATCH: (params) => batchDuesExemption(params.base_month),
-};
-
+/**
+ * 관리자 화면의 수동 실행 — `executeBatch`를 감싸는 얇은 래퍼.
+ *
+ * **주기 체크(`freq_cd`)를 하지 않는다.** 그건 크론이 "자기 차례인지" 정하는 규칙이지
+ * job의 실행 조건이 아니다. 여기에 걸면 자동이 한 번 돈 뒤에는 손으로 다시 못 돌리는데,
+ * 결과가 이상해서 다시 돌리고 싶을 때가 정확히 그때다(설계 §3.7).
+ *
+ * 두 번 돌아도 안전하다 — 감면은 같은 달 이미 있으면 스킵, 칭호는 보유 중이면 스킵.
+ */
 export async function runBatch(jobId: string, params: BatchParams): Promise<ActionResult> {
   return withAdmin(async ({ member }) => {
-    const db = createAdminClient();
+    // 관리자 실행은 요청 컨텍스트가 있으므로 Host로 팀을 해석한다.
+    // (크론은 세션도 Host도 못 믿어 `batch_job_mst.team_id`를 쓴다 — 설계 §3.1)
+    const { teamId } = await getRequestTeamContext();
 
-    const { data: job } = await db
-      .from("batch_job_mst")
-      .select("job_id, job_cd, use_yn")
-      .eq("job_id", jobId)
-      .single();
+    const outcome = await executeBatch(jobId, params, "manual", {
+      teamId,
+      actorMemId: member.id ?? null,
+    });
 
-    if (!job || !job.use_yn) return { ok: false, message: "배치를 찾을 수 없습니다", runId: null };
-
-    const action = BATCH_ACTION_MAP[job.job_cd];
-    if (!action) return { ok: false, message: `job_cd(${job.job_cd})에 매핑된 액션이 없습니다`, runId: null };
-
-    const startedAt = new Date().toISOString();
-    const { data: runRow, error: insertError } = await db
-      .from("batch_run_hist")
-      .insert({
-        job_id: jobId,
-        trig_type: "manual",
-        trig_by: member.id ?? null,
-        param_json: params,
-        status: "running",
-        started_at: startedAt,
-      })
-      .select("run_id")
-      .single();
-
-    if (insertError) {
-      console.error("[run-batch] batch_run_hist INSERT 실패", insertError);
-      return { ok: false, message: `이력 생성 실패: ${insertError.message}`, runId: null };
-    }
-
-    const runId = runRow?.run_id ?? null;
-    const startMs = Date.now();
-    let status: "success" | "failed" = "success";
-    let resultMsg = "";
-
-    try { resultMsg = await action(params); }
-    catch (e) { status = "failed"; resultMsg = e instanceof Error ? e.message : "알 수 없는 오류"; }
-
-    const durationMs = Date.now() - startMs;
-    if (runId) {
-      await db
-        .from("batch_run_hist")
-        .update({ status, result_msg: resultMsg, finished_at: new Date().toISOString(), duration_ms: durationMs })
-        .eq("run_id", runId);
-    }
-
-    return { ok: status === "success", message: resultMsg, runId };
+    return { ok: outcome.ok, message: outcome.message, runId: outcome.runId };
   });
 }
 
@@ -85,7 +47,11 @@ export async function getActiveEvents() {
 export async function getBatchJobs() {
   return withAdminOrThrow(async () => {
     const db = createAdminClient();
-    const { data: jobs } = await db.from("batch_job_mst").select("*").eq("use_yn", true).order("crt_at", { ascending: true });
+    const { data: jobs } = await db
+      .from("batch_job_mst")
+      .select("*")
+      .eq("use_yn", true)
+      .order("crt_at", { ascending: true });
     if (!jobs?.length) return [];
 
     const jobIds = jobs.map((j) => j.job_id);

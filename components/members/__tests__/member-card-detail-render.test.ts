@@ -48,6 +48,7 @@ const EDIT = {
   onEditAvatar: () => {},
   onEditIntro: () => {},
   onEditTitles: () => {},
+  onOpenTitleHistory: () => {},
   onEditProfile: () => {},
   onManageRecords: () => {},
   onAddRecord: () => {},
@@ -100,6 +101,23 @@ describe("편집판(내 프로필탭)", () => {
     expect(html).toContain("연동하기");
   });
 
+  // 연필이 없으면 **이미 연동한 사람은 다이얼로그를 열 방법이 통째로 사라진다** —
+  // 잘못 연동해도 못 고치고 해제도 못 한다(실제로 그런 상태였다). 진입점 하나에
+  // 수정·해제·최신화가 다 걸려 있어 이 연필의 유무가 곧 그 셋의 존재 여부다.
+  it("연동된 UTMB는 편집판에서 라벨 옆 연필로 고친다", () => {
+    const html = render({ utmb_index: 618 }, true);
+    expect(html).toContain("618");
+    expect(html).toContain('aria-label="UTMB 연동 수정"');
+    expect(html).not.toContain("연동하기"); // 연동됐으니 pill은 안 선다
+  });
+
+  // pill과 연필이 같이 서면 한 가지 일에 진입점이 둘이 된다.
+  it("미연동 UTMB엔 pill만 서고 연필은 안 붙는다", () => {
+    const html = render({ utmb_index: null }, true);
+    expect(html).toContain("연동하기");
+    expect(html).not.toContain('aria-label="UTMB 연동 수정"');
+  });
+
   it("포인트는 편집판에만 뜬다", () => {
     expect(render({}, true)).toContain("1,240 P");
   });
@@ -142,6 +160,16 @@ describe("편집판(내 프로필탭)", () => {
     expect(html).not.toContain("board-flicker");
   });
 
+  // 획득 이력은 **본인만** 보는 자리다(서버 액션도 세션의 team_mem_id만 읽는다).
+  // 칭호가 있어야 섹션 자체가 뜨므로 빈 카드로는 이 회귀를 못 잡는다.
+  it("획득 이력 진입점은 편집판에만 뜨고 공개판엔 새지 않는다", () => {
+    const titles = [
+      { ttl_nm: "뉴비", ttl_desc: null, desc_visibility: "others" as const, rarity_level: 1, ttl_ctgr_cd: "base" },
+    ];
+    expect(render({ titles }, true)).toContain("획득 이력");
+    expect(render({ titles })).not.toContain("획득 이력");
+  });
+
   it("칭호는 0개면 섹션째 빠진다(뉴비가 자동으로 붙어 사실상 0이 없다)", () => {
     expect(sectionOrder(render({}, true))).not.toContain("칭호");
     const withTitle = render(
@@ -180,6 +208,8 @@ describe("공개판(남이 보는 카드)", () => {
     const html = render({ intro_txt: "올해는 서브4 간다" });
     expect(html).not.toContain("연동하기");
     expect(html).not.toContain("대표 칭호 고르기");
+    // 연동된 값도 공개판에선 맨 값이어야 한다 — 남의 카드에서 누를 수 있으면 안 된다
+    expect(render({ utmb_index: 618 })).not.toContain("UTMB 연동 수정");
     // 고치는 자리는 프로필탭 한 곳이다. 팝업은 결과를 확인하는 자리라 한마디도 못 고친다.
     expect(html).not.toContain("한마디 수정");
     expect(html).not.toContain("한마디 남기기");

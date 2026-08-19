@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { calcExemption } from "@/lib/dues/calc-exemption";
+import {
+  calcExemption,
+  capExemptionAmount,
+  remainingExemptionRoom,
+} from "@/lib/dues/calc-exemption";
 
 const FEE = 2000; // 기본 월 회비
 
@@ -64,6 +68,45 @@ describe("calcExemption — 회비 단가 변동", () => {
   it("회비가 바뀌면 감면액도 비례(단가 × 비율)", () => {
     const r = calcExemption({ attendCnt: 4, regularAttendCnt: 1, hostedCnt: 0 }, 3000);
     expect(r.exmAmt).toBe(1500);
+  });
+});
+
+describe("월별 면제 캡 — 감면은 감면이지 환급이 아니다", () => {
+  it("기존 면제가 없으면 원하는 만큼 다 준다", () => {
+    expect(capExemptionAmount(2000, FEE, 0)).toBe(2000);
+  });
+
+  it("2026-07 실제 사고: 규칙 면제 전액(2,000) + 참여 감면 전액(2,000) → 두 번째는 0원", () => {
+    // 이 캡이 없어서 합 4,000이 적재되고 잔액이 +2,000으로 갔다(회비 2,000원).
+    expect(capExemptionAmount(2000, FEE, 2000)).toBe(0);
+  });
+
+  it("일부만 면제받았으면 남은 만큼만 준다(감액)", () => {
+    // 규칙 면제 1,000을 이미 받은 회원이 참여 전액(2,000)을 받아도 1,000까지만
+    expect(capExemptionAmount(2000, FEE, 1000)).toBe(1000);
+  });
+
+  it("이미 부과액을 넘게 면제돼 있으면 0원(음수로 깎지 않는다)", () => {
+    expect(capExemptionAmount(2000, FEE, 5000)).toBe(0);
+  });
+
+  it("부과액이 0인 달(미부과)에는 아무것도 안 준다", () => {
+    // 가입 당월 미부과 회원의 감면이 '공돈'이 되던 케이스도 같은 규칙으로 막힌다
+    expect(capExemptionAmount(2000, 0, 0)).toBe(0);
+  });
+
+  it("여러 건이 순차로 들어와도 합계는 부과액을 못 넘는다", () => {
+    let already = 0;
+    for (const want of [800, 800, 800, 800]) {
+      already += capExemptionAmount(want, FEE, already);
+    }
+    expect(already).toBe(FEE);
+  });
+
+  it("remainingExemptionRoom은 음수를 만들지 않는다", () => {
+    expect(remainingExemptionRoom(FEE, 0)).toBe(2000);
+    expect(remainingExemptionRoom(FEE, 2000)).toBe(0);
+    expect(remainingExemptionRoom(FEE, 9999)).toBe(0);
   });
 });
 

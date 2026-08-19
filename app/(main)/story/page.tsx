@@ -15,7 +15,9 @@ import {
   pickGhostSeed,
   pickRandomPostIndex,
 } from "@/lib/story-post";
+import { buildTitleLeadPool, pickTitleLedeStart } from "@/lib/story-title";
 import { getTeamOverview } from "@/lib/queries/team-overview";
+import { getRecentTitleGrants } from "@/lib/queries/story-titles";
 
 import { HeaderActions } from "@/components/common/header-actions";
 import { StoryClient } from "@/components/story/story-client";
@@ -42,11 +44,12 @@ async function StoryFeedSection() {
   // 현상수배 정렬 시드 — 진입마다 다른 얼굴 조합이 앞에 서게 한다(대상이 30명 상한보다
   // 많아 순서가 곧 "누가 뜨느냐"다). 조회 인자라 Promise.all보다 먼저 뽑는다.
   const ghostSeed = pickGhostSeed();
-  const [feed, overview, ghosts, posts, { member }] = await Promise.all([
+  const [feed, overview, ghosts, posts, grants, { member }] = await Promise.all([
     getStoryFeed(teamId),
     getTeamOverview(teamId),
     getGhostMembers(teamId, ghostSeed),
     getStoryPosts(teamId),
+    getRecentTitleGrants(teamId),
     // getStoryMessages(teamId), — 종이비행기 잠정 중단(위 import 주석 참조)
     getCurrentMember(),
   ]);
@@ -69,6 +72,10 @@ async function StoryFeedSection() {
   const initialPledgePick = 0;
   const initialRecordPick = pickRandomPostIndex(feed.records.length);
   const initialActvPick = pickActvLeadIndex(feed.actv_rank.length);
+  // 칭호획득 슬롯의 대표 회전 시작 오프셋 — 방문마다 다른 사람에서 시작한다(첫 화면 다양성).
+  // 기준은 칭호 수가 아니라 **사람 pool 길이**(사람별 최신 1건 dedupe — §lib/story-title.ts).
+  // 이후 전진은 클라가 한 바퀴 완주마다 +1 — 랜덤이 아니라 회전이라 전원이 빠짐없이 오른다.
+  const initialTitlePick = pickTitleLedeStart(buildTitleLeadPool(grants).length);
 
   return (
     <StoryClient
@@ -81,6 +88,8 @@ async function StoryFeedSection() {
       initialPledgePick={initialPledgePick}
       initialRecordPick={initialRecordPick}
       initialActvPick={initialActvPick}
+      grants={grants}
+      initialTitlePick={initialTitlePick}
       // 종이비행기 잠정 중단 — 쿼리를 끊었으니 항상 빈 목록. 되살릴 땐 위 Promise.all에
       // getStoryMessages를 되살리고 messages={messages}로 원복(파일 상단 import 주석 참조).
       messages={[]}

@@ -15,6 +15,7 @@ import {
   type UpdateCommentInput,
   type DeleteCommentInput,
 } from "@/lib/validations/comment"
+import { evaluateAndGrantTitles } from "@/lib/titles/engine"
 
 export async function createComment(input: CreateCommentInput) {
   const parsed = createCommentSchema.parse(input)
@@ -149,6 +150,20 @@ export async function createComment(input: CreateCommentInput) {
         console.error("[comment] 알림 발송 실패", e)
       }
     })
+
+    // 댓글 칭호(말대꾸·소환술사·자문자답)는 댓글이 달리는 순간 확정된다.
+    //
+    // 위 알림과 같이 **응답 밖에서** 돈다 — 댓글은 이미 저장됐고 칭호는 그 성공 여부를
+    // 바꾸지 않는다. 이 세 조건은 내 댓글 목록·멘션·내 글의 첫 댓글을 보느라 왕복 4번을
+    // 쓰는데, `await`로 두면 그게 그대로 댓글이 화면에 붙는 시간이 된다.
+    // catch가 삼키므로 칭호 부여 실패가 이미 저장된 댓글을 되돌리지 않는다.
+    after(() =>
+      evaluateAndGrantTitles({
+        trigger: "comment_create",
+        teamId,
+        teamMemId: member.team_mem_id,
+      }).catch((e) => console.error("[title-engine] comment_create 평가 실패", e)),
+    )
 
     return { ok: true as const, data: cmnt }
   })
