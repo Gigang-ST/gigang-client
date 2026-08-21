@@ -1,16 +1,22 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import {
+  ToolDeniedError,
   aggregateAttendance,
   buildPushStatus,
   decodeJoinPurposes,
   decodePaceLabel,
   escapeLikePattern,
+  getMemberProfile,
   kstDayRange,
+  listGatheringNonAttendees,
+  listMembersAttendance,
 } from "@/lib/mcp/queries";
+import type { Database } from "@/lib/supabase/database.types";
 
 /**
  * SG-04 정확도 검증(M-01, AC-10~AC-15) — 6개 읽기 도구 vs 스펙 §5 baseline SQL.
@@ -215,27 +221,231 @@ describe("decodeJoinPurposes — §5.2/§5.4 join_purp_cds → 짧은 라벨 배
   });
 });
 
+// ── #496 admin 게이트 — 앱이 관리자에게만 보여주는 데이터가 멤버 토큰으로 새지 않는다 ──
+
+const TEAM_ID = "22222222-2222-2222-2222-222222222222";
+const MEM_ID = "aaaaaaaa-0000-4000-8000-000000000001";
+
+/**
+ * `getMemberProfile` 용 최소 Supabase 스텁.
+ * - team_mem_rel: `.select(…)` 문자열을 관측하고, await 하면 임베디드 mem_mst 1행을 반환한다.
+ * - mem_onbd_prf: 러닝 프로필 배치 조회(빈 결과) — 별도 builder 라 select 관측값을 덮지 않는다.
+ *
+ * `memMst` 는 "DB 가 실제로 돌려준 것"을 흉내 낸다 — 비-admin 경로에서는 select 에서 빠졌으므로
+ * birth_dt·gdr_enm 키가 애초에 없는 객체를 넘긴다.
+ */
+function makeProfileSupabase(memMst: Record<string, unknown>) {
+  const captured: { select: string | null } = { select: null };
+  const relBuilder: Record<string, unknown> = {
+    select: (s: string) => {
+      captured.select = s;
+      return relBuilder;
+    },
+    eq: () => relBuilder,
+    ilike: () => relBuilder,
+    then: (resolve: (v: unknown) => void) =>
+      resolve({
+        data: [
+          {
+            join_dt: "2026-07-09",
+            team_role_cd: "member",
+            mem_st_cd: "active",
+            intro_txt: "오늘도 달린다",
+            mem_mst: memMst,
+          },
+        ],
+        error: null,
+      }),
+  };
+  const onbdBuilder: Record<string, unknown> = {
+    select: () => onbdBuilder,
+    in: () => onbdBuilder,
+    then: (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+  };
+  const client = {
+    from: (table: string) => (table === "mem_onbd_prf" ? onbdBuilder : relBuilder),
+  } as unknown as SupabaseClient<Database>;
+  return { client, captured };
+}
+
+describe("#496 get_member_profile — 생년월일·성별은 admin 응답에만", () => {
+  const adminMemMst = {
+    mem_id: MEM_ID,
+    mem_nm: "온보딩",
+    birth_dt: "1986-05-30",
+    gdr_enm: "female",
+    avatar_url: null,
+  };
+  // 비-admin 경로는 select 에서 두 컬럼이 빠지므로 DB 도 키 없는 행을 돌려준다.
+  const memberMemMst = { mem_id: MEM_ID, mem_nm: "온보딩", avatar_url: null };
+
+  it("admin: select 에 birth_dt·gdr_enm 이 포함되고 응답에도 실린다", async () => {
+    const { client, captured } = makeProfileSupabase(adminMemMst);
+    const rows = await getMemberProfile(client, TEAM_ID, true, { memberId: MEM_ID });
+
+    expect(captured.select).toContain("birth_dt");
+    expect(captured.select).toContain("gdr_enm");
+    expect(rows[0]).toMatchObject({ birth_dt: "1986-05-30", gdr_enm: "female" });
+  });
+
+  it("비-admin: select 에서부터 빠지고 응답에 키 자체가 없다(뽑지 않으면 샐 수 없다)", async () => {
+    const { client, captured } = makeProfileSupabase(memberMemMst);
+    const rows = await getMemberProfile(client, TEAM_ID, false, { memberId: MEM_ID });
+
+    expect(captured.select).not.toContain("birth_dt");
+    expect(captured.select).not.toContain("gdr_enm");
+    // `birth_dt: undefined` 로 남기지 않는다 — 키 존재 자체를 형상으로 못박는다.
+    expect("birth_dt" in rows[0]).toBe(false);
+    expect("gdr_enm" in rows[0]).toBe(false);
+  });
+
+  it("비-admin 도 공개 프로필 카드에 이미 있는 필드는 그대로 받는다(도구는 계속 멤버 허용)", async () => {
+    const { client } = makeProfileSupabase(memberMemMst);
+    const rows = await getMemberProfile(client, TEAM_ID, false, { memberId: MEM_ID });
+
+    expect(rows[0]).toMatchObject({
+      mem_id: MEM_ID,
+      mem_nm: "온보딩",
+      join_dt: "2026-07-09",
+      team_role_cd: "member",
+      mem_st_cd: "active",
+      intro_txt: "오늘도 달린다",
+    });
+  });
+});
+
+describe("#496 list_members_attendance — admin 전용", () => {
+  /** 어떤 테이블에도 접근하면 실패하는 스텁 — 거부가 쿼리 '이전'에 일어나는지 확인한다. */
+  function makeForbiddenSupabase() {
+    const calls: string[] = [];
+    const client = {
+      from: (table: string) => {
+        calls.push(table);
+        throw new Error(`쿼리가 실행되면 안 됩니다: ${table}`);
+      },
+    } as unknown as SupabaseClient<Database>;
+    return { client, calls };
+  }
+
+  it("비-admin 은 ToolDeniedError 로 거부되고 쿼리를 한 번도 실행하지 않는다", async () => {
+    const { client, calls } = makeForbiddenSupabase();
+    await expect(
+      listMembersAttendance(client, TEAM_ID, false),
+    ).rejects.toBeInstanceOf(ToolDeniedError);
+    // 데이터를 뽑아 놓고 버리는 게 아니라, 애초에 뽑지 않는다.
+    expect(calls).toEqual([]);
+  });
+
+  it("거부 메시지는 사유만 담고 내부 정보(팀 id·SQL)를 흘리지 않는다(§7)", async () => {
+    const { client } = makeForbiddenSupabase();
+    await expect(listMembersAttendance(client, TEAM_ID, false)).rejects.toThrow(
+      /운영진\(admin\)만/,
+    );
+    await expect(
+      listMembersAttendance(client, TEAM_ID, false),
+    ).rejects.not.toThrow(new RegExp(TEAM_ID));
+  });
+});
+
+describe("#496 list_gathering_non_attendees — 참석 통계는 admin 응답에만", () => {
+  const GTHR_ID = "cccccccc-0000-4000-8000-000000000001";
+
+  /**
+   * 미참석자 조회용 스텁. `gthr_attd_rel` 조회 여부를 관측해, 비-admin 경로가 참석 이력을
+   * **아예 조회하지 않는지**까지 확인한다(뽑아서 버리는 게 아니라).
+   */
+  function makeNonAttendeeSupabase() {
+    const touched: string[] = [];
+    const make = (rows: unknown[]): Record<string, unknown> => {
+      const b: Record<string, unknown> = {
+        select: () => b,
+        eq: () => b,
+        lte: () => b,
+        maybeSingle: async () => ({ data: rows[0] ?? null, error: null }),
+        then: (resolve: (v: unknown) => void) => resolve({ data: rows, error: null }),
+      };
+      return b;
+    };
+    const client = {
+      from: (table: string) => {
+        touched.push(table);
+        switch (table) {
+          case "gthr_mst":
+            return make([{ gthr_id: GTHR_ID }]);
+          case "team_mem_rel":
+            return make([
+              { mem_id: "m2", join_dt: "2026-02-01", mem_mst: { mem_nm: "나달림" } },
+              { mem_id: "m1", join_dt: "2026-01-01", mem_mst: { mem_nm: "가달림" } },
+              { mem_id: "m3", join_dt: "2026-03-01", mem_mst: { mem_nm: "다달림" } },
+            ]);
+          case "gthr_attd_rel":
+            // 이 벙 참석자는 m3 뿐. (과거 참석 이력 조회도 같은 테이블을 쓴다)
+            return make([{ mem_id: "m3", gthr_mst: { stt_at: "2026-05-01T00:00:00+00:00" } }]);
+          default:
+            return make([]);
+        }
+      },
+    } as unknown as SupabaseClient<Database>;
+    return { client, touched };
+  }
+
+  it("admin: 참석 횟수·마지막 참석시각이 실린다", async () => {
+    const { client } = makeNonAttendeeSupabase();
+    const rows = await listGatheringNonAttendees(client, TEAM_ID, true, GTHR_ID);
+
+    expect(rows.map((r) => r.mem_id).sort()).toEqual(["m1", "m2"]);
+    expect(rows.every((r) => "attendance_cnt" in r && "last_attended_at" in r)).toBe(true);
+  });
+
+  it("비-admin: 통계 키가 아예 없고 참석 이력을 조회조차 하지 않는다", async () => {
+    const { client, touched } = makeNonAttendeeSupabase();
+    const rows = await listGatheringNonAttendees(client, TEAM_ID, false, GTHR_ID);
+
+    expect(rows.map((r) => r.mem_id).sort()).toEqual(["m1", "m2"]);
+    for (const r of rows) {
+      expect("attendance_cnt" in r).toBe(false);
+      expect("last_attended_at" in r).toBe(false);
+    }
+    // 이 벙 참석자 조회(gthr_attd_rel)는 1회뿐 — 과거 참석 이력 조회가 추가로 나가지 않는다.
+    expect(touched.filter((t) => t === "gthr_attd_rel")).toHaveLength(1);
+  });
+
+  it("비-admin 정렬은 이름순이다 — 줄 순서로 '누가 더 오래 안 나왔나'가 새지 않게", async () => {
+    const { client } = makeNonAttendeeSupabase();
+    const rows = await listGatheringNonAttendees(client, TEAM_ID, false, GTHR_ID);
+    // 숫자만 지우고 last_attended_at 순으로 늘어놓으면 가린 척일 뿐이다.
+    expect(rows.map((r) => r.mem_nm)).toEqual(["가달림", "나달림"]);
+  });
+});
+
 describe("M-03 불변식 — 민감정보(phone/email/bank) 미노출 (G-7 회귀 방지)", () => {
-  it("queries.ts 의 어떤 select 목록에도 연락처·계좌 컬럼이 없다", () => {
+  it("queries.ts 의 어떤 문자열 리터럴에도 연락처·계좌 컬럼이 없다", () => {
     const src = readFileSync(
       join(process.cwd(), "lib/mcp/queries.ts"),
       "utf8",
     );
-    // 코드가 실제로 select 하는 컬럼 표기만 검사(주석의 설명 문구는 별도 처리).
-    const selectArgs = [...src.matchAll(/\.select\(\s*(["'`])([\s\S]*?)\1/g)].map(
+    // 주석을 먼저 걷어낸다 — 이 파일의 헤더 주석은 금지 컬럼명을 '설명'으로 나열한다.
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    // `.select(…)` 인자만 보던 예전 검사는 select 문자열이 변수를 끼운 템플릿이 되는 순간
+    // 컬럼 목록이 스캔 밖으로 빠져나간다(#496 의 memColumns 분기가 그 사례). 코드의 모든
+    // 문자열/템플릿 리터럴을 훑어 컬럼 목록이 어디에 조립되든 걸리게 한다.
+    const literals = [...code.matchAll(/(["'`])((?:\\.|(?!\1)[\s\S])*?)\1/g)].map(
       (m) => m[2],
     );
-    expect(selectArgs.length).toBeGreaterThan(0);
+    expect(literals.length).toBeGreaterThan(0);
+    // select 컬럼 목록이 실제로 스캔에 잡히는지 자체 점검(정규식이 조용히 빗나가는 것 방지).
+    expect(literals.some((l) => l.includes("mem_mst!inner("))).toBe(true);
     const banned = ["phone_no", "email_addr", "bank_nm", "bank_acct_no"];
-    for (const sel of selectArgs) {
+    for (const lit of literals) {
       for (const col of banned) {
-        expect(sel.includes(col)).toBe(false);
+        expect(lit.includes(col)).toBe(false);
       }
     }
   });
 
   it("MemberProfileRow 출력 타입에 민감 키가 없다(형상 고정)", () => {
-    // get_member_profile 은 생일·성별·소개·아바타까지만. 연락처·계좌 키는 존재하지 않음.
+    // get_member_profile 은 생일·성별(admin 한정, #496)·소개·아바타까지만.
+    // 연락처·계좌 키는 어떤 권한으로도 존재하지 않는다.
     const sampleKeys = [
       "mem_id",
       "mem_nm",

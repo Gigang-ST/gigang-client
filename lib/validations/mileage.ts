@@ -1,24 +1,18 @@
 import { z } from "zod";
 
 import { isPostPhotoUrl } from "@/lib/storage/post-photo-url";
+import { activityLogBaseSchema } from "@/lib/validations/mileage-activity";
 
-/** 마일리지런 활동 종목 enum 값 */
-const SPRT_ENM_KEYS = ["RUNNING", "TRAIL", "CYCLING", "SWIMMING"] as const;
+export { SPRT_ENM_KEYS } from "@/lib/validations/mileage-activity";
 
-/** 활동 로그 등록 폼 */
-export const activityLogSchema = z.object({
-  act_dt: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "날짜 형식이 올바르지 않습니다"),
-  sprt_enm: z.enum(SPRT_ENM_KEYS, { message: "종목을 선택해 주세요" }),
-  distance_km: z
-    .number()
-    .positive("거리를 입력해주세요")
-    // dst_km은 numeric(6,2) — 소수 둘째 자리까지만 허용해 저장값/표시값 불일치 방지
-    .multipleOf(0.01, "거리는 소수점 둘째 자리까지 입력할 수 있어요"),
-  elevation_m: z.number().min(0).default(0),
-  applied_mult_ids: z.array(z.string().uuid()).default([]),
-  review: z.string().max(200).nullable().optional(),
+/**
+ * 활동 로그 등록 폼 = 본체(`activityLogBaseSchema`) + 사진.
+ *
+ * 수치·날짜·후기 규칙은 `mileage-activity.ts` 에 있다 — 사진 URL 검증이 Supabase 공개
+ * 환경변수를 물고 있어, 그 규칙까지 여기 두면 사진을 받지 않는 경로(운영 MCP)까지 환경변수에
+ * 묶인다.
+ */
+export const activityLogSchema = activityLogBaseSchema.extend({
   /**
    * 사진 공개 URL(선택). 마일리지런은 수치가 본체라 사진 없이도 기록이 성립한다.
    * 값이 있으면 DB 트리거가 이 기록을 기강이야기 운동기록에도 세운다(사진이 게이트).

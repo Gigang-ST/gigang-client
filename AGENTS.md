@@ -113,18 +113,19 @@ t3-env로 관리되며 `lib/env.ts`에서 import:
 - 퍼블리싱/UI·UX 디자인/비주얼 QA → `ui-ux-pro-max` 스킬
 - QA/테스트/검증 → `chrome-devtools` MCP 활용
 
-## 스킬
+## 스킬 — 저장소에 담지 않는다
 
-| 스킬 | 경로 | 용도 |
-|------|------|------|
-| PR 생성 | `.claude/skills/pr/` | feature → dev PR 생성 (이슈 연동, AS-IS/TO-BE) |
-| Next.js 베스트 프랙티스 | `.claude/skills/next-best-practices/` | Next.js 코딩 패턴 가이드 |
-| Supabase Postgres | `.claude/skills/supabase-postgres-best-practices/` | DB 성능 최적화 가이드 |
-| Vercel React | `.claude/skills/vercel-react-best-practices/` | React/Next.js 성능 패턴 |
+**스킬은 각자 로컬에서 돌린다.** 저장소는 스킬 파일을 갖지 않으며(`.claude/skills/`·`.agents/`·
+`.skillshare/` 는 전부 gitignore), 어떤 스킬을 쓸지는 쓰는 사람이 자기 머신에서 정한다.
 
-## 커스텀 커맨드
+예전엔 `.skillshare/skills` 를 정본으로 커밋하고 `skillshare sync` 로 미러링했는데, 정본이
+갈라진 채 굴러(한쪽은 ignore, 한쪽은 추적, 이름도 달랐다) 어느 게 진짜인지 알 수 없었다.
+저장소가 들고 있어야 할 것은 **코드와 이 문서들**이고, 도구는 사람 쪽에 둔다.
 
-- `/pr` — PR 생성 시 반드시 이 스킬을 사용할 것
+- 이 문서(AGENTS.md)·`CLAUDE.md`·`DESIGN.md`·`.claude/docs/` 는 계속 저장소 정본이다 —
+  스킬이 아니라 **프로젝트 규약**이라서, 누가 어떤 도구로 작업하든 같은 것을 봐야 한다.
+- `.claude/agents/` 서브에이전트 정의도 저장소에 남는다(위 표 참조).
+- 로컬 스킬이 저장소 규약과 어긋나면 **이 문서가 이긴다.**
 
 ## MCP 서버
 
@@ -139,16 +140,23 @@ t3-env로 관리되며 `lib/env.ts`에서 import:
 | `chrome-devtools` | 브라우저 테스트/QA |
 | `shadcn` | shadcn/ui 컴포넌트 검색 |
 
-## 에이전트/스킬/MCP 동기화 규칙
+## MCP 설정 동기화 규칙
 
-- `.skillshare/skills`를 이 저장소의 스킬 source of truth로 사용한다.
-- 스킬을 추가하거나 수정한 후 `skillshare sync`를 실행하면 `.claude/skills`와 `.agents/skills`에 자동 동기화된다.
-- Codex 프로젝트 설정 파일은 `.agents`가 아니라 `.codex/config.toml`에 둔다.
 - MCP 서버를 추가하거나 변경하면 `.mcp.json`, `.cursor/mcp.json`, `.codex/config.toml`을 함께 갱신한다.
-- Cursor는 Codex의 `.agents/skills`나 `.codex/config.toml`을 직접 읽지 않으므로, Cursor 전용 설정은 `.cursor/*`에서 별도로 관리한다.
+- Codex 프로젝트 설정 파일은 `.agents`가 아니라 `.codex/config.toml`에 둔다.
+- Cursor는 Codex의 `.codex/config.toml`을 직접 읽지 않으므로, Cursor 전용 설정은 `.cursor/*`에서 별도로 관리한다.
+- 스킬 동기화 규칙(`skillshare sync`)은 없어졌다 — §스킬 참조.
 
 ## 참고 문서
 
 - `DESIGN.md` — 디자인 시스템 (토큰, 컴포넌트 카탈로그, AI 규칙)
 - `.claude/docs/coding-standards.md` — 코딩 컨벤션, 보안, JSDoc, Git 규칙
 - `.claude/docs/component-conventions.md` — 컴포넌트 작성 규칙, shadcn/ui 사용법
+- `app/api/mcp/README.md` — **우리가 제공하는** 운영 MCP(`gigang-ops`) 연결·도구·권한 가이드. 설계 정본은 `docs/superpowers/specs/2026-07-24-gigang-ops-mcp-design.md`
+
+> ⚠️ **운영 MCP에 도구를 추가할 때 `app/actions/**` 의 서버 액션을 그대로 부를 수 없다.**
+> 액션은 `withMember`/`withActive` → `getCurrentMember()` → **Supabase 세션 쿠키**에 묶여 있는데
+> MCP 요청은 `Authorization: Bearer <PAT>` 만 들고 온다(팀도 Host 파싱이 아니라 토큰 컨텍스트에서 온다).
+> 도메인 로직은 `lib/` 의 **클라이언트 주입식 코어**로 빼서 액션·MCP가 공유하고
+> (예: `lib/mileage-run.ts`), 각 경로는 신원 해석과 `next/*` 부수효과만 맡는다.
+> 검증 스키마(`lib/validations/*`)는 반드시 앱과 같은 것을 쓴다.
