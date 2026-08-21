@@ -33,7 +33,22 @@ const EVT_ID = "44444444-4444-4444-8444-444444444444";
 const MY_PRT = "55555555-5555-4555-8555-555555555555";
 const OTHER_PRT = "66666666-6666-4666-8666-666666666666";
 const MULT_ID = "77777777-7777-4777-8777-777777777777";
+const MULT_ID_2 = "77777777-7777-4777-8777-777777777779";
 const OTHER_ACT_ID = "88888888-8888-4888-8888-888888888888";
+
+/** 기간 제한 없는 활성 배율 1행. 기간·이름·값만 덮어써 변형을 만든다. */
+function multRow(overrides: Partial<Row> = {}): Row {
+  return {
+    mult_id: MULT_ID,
+    evt_id: EVT_ID,
+    mult_nm: "여름 2배",
+    mult_val: 2,
+    stt_dt: null,
+    end_dt: null,
+    active_yn: true,
+    ...overrides,
+  };
+}
 
 const TODAY = todayKST();
 const MONTH_START = currentMonthKST(); // 'YYYY-MM-01'
@@ -177,23 +192,32 @@ describe("log_my_activity — 마일리지는 서버가 계산한다", () => {
     expect(result.notice).toMatch(/깅스타그램|기강이야기/);
   });
 
-  it("그날 걸려 있던 배율을 자동 적용하고 무엇이 붙었는지 응답에 적는다", async () => {
+  /**
+   * #504 회귀 — 한때 그날 걸려 있던 배율을 **전부** 자동으로 붙였다. 배율의 성립 조건
+   * (모임 참석·벙주/참석자·LSD 인원수)은 서버가 판정할 수 없으므로 앱 폼과 같은
+   * 자기신고여야 한다: **고른 것만 붙고, 안 고르면 아무것도 안 붙는다.**
+   */
+  it("배율을 안 고르면 그날 걸려 있어도 아무것도 붙지 않는다", async () => {
+    const d = seed({ evt_mlg_mult_cfg: [multRow()] });
+
+    const result = await logMyActivities(d.asClient(), ctxOf(), [
+      { act_dt: TODAY, sport: "RUNNING", distance_km: 10 },
+    ]);
+
+    expect(result.activities[0].final_mlg).toBe(10);
+    expect(result.activities[0].applied_mults).toEqual([]);
+  });
+
+  it("고른 배율만 적용하고 무엇이 붙었는지 응답에 적는다", async () => {
     const d = seed({
       evt_mlg_mult_cfg: [
-        {
-          mult_id: MULT_ID,
-          evt_id: EVT_ID,
-          mult_nm: "여름 2배",
-          mult_val: 2,
-          stt_dt: null,
-          end_dt: null,
-          active_yn: true,
-        },
+        multRow(),
+        multRow({ mult_id: MULT_ID_2, mult_nm: "정기런", mult_val: 1.2 }),
       ],
     });
 
     const result = await logMyActivities(d.asClient(), ctxOf(), [
-      { act_dt: TODAY, sport: "RUNNING", distance_km: 10 },
+      { act_dt: TODAY, sport: "RUNNING", distance_km: 10, multipliers: ["여름 2배"] },
     ]);
 
     expect(result.activities[0].final_mlg).toBe(20);
@@ -202,25 +226,51 @@ describe("log_my_activity — 마일리지는 서버가 계산한다", () => {
     ]);
   });
 
-  it("기간이 지난 배율은 자동 적용하지 않는다", async () => {
+  it("이름은 공백·대소문자 차이를 무시하고, mult_id 를 그대로 줘도 받는다", async () => {
+    const d = seed({ evt_mlg_mult_cfg: [multRow({ mult_nm: "3인이상 LSD" })] });
+
+    const byName = await logMyActivities(d.asClient(), ctxOf(), [
+      { act_dt: TODAY, sport: "RUNNING", distance_km: 10, multipliers: ["3인이상LSD"] },
+    ]);
+    expect(byName.activities[0].final_mlg).toBe(20);
+
+    const byId = await logMyActivities(d.asClient(), ctxOf(), [
+      { act_dt: TODAY, sport: "RUNNING", distance_km: 10, multipliers: [MULT_ID] },
+    ]);
+    expect(byId.activities[0].final_mlg).toBe(20);
+  });
+
+  /**
+   * 없는 이름을 조용히 빼면 "붙는 줄 알았는데 안 붙은" 마일리지가 남는다 — 보증금 환급이
+   * 걸린 숫자라 거부하고, 그날 고를 수 있는 목록을 오류에 실어 다시 부르게 한다.
+   */
+  it("그날 유효하지 않은 배율 이름은 조용히 빼지 않고 거부한다", async () => {
     const d = seed({
       evt_mlg_mult_cfg: [
-        {
-          mult_id: MULT_ID,
-          evt_id: EVT_ID,
+        multRow(),
+        multRow({
+          mult_id: MULT_ID_2,
           mult_nm: "지난 이벤트",
-          mult_val: 2,
           stt_dt: "2020-01-01",
           end_dt: "2020-01-31",
-          active_yn: true,
-        },
+        }),
       ],
     });
-    const result = await logMyActivities(d.asClient(), ctxOf(), [
-      { act_dt: TODAY, sport: "RUNNING", distance_km: 10 },
-    ]);
-    expect(result.activities[0].final_mlg).toBe(10);
-    expect(result.activities[0].applied_mults).toEqual([]);
+
+    await expect(
+      logMyActivities(d.asClient(), ctxOf(), [
+        { act_dt: TODAY, sport: "RUNNING", distance_km: 10, multipliers: ["지난 이벤트"] },
+      ]),
+    ).rejects.toThrow(ToolInputError);
+
+    await expect(
+      logMyActivities(d.asClient(), ctxOf(), [
+        { act_dt: TODAY, sport: "RUNNING", distance_km: 10, multipliers: ["없는 배율"] },
+      ]),
+    ).rejects.toThrow(/여름 2배/); // 고를 수 있는 목록을 답에 실어 준다
+
+    // 한 건이라도 걸리면 아무것도 저장되지 않는다.
+    expect(d.tables.evt_mlg_act_hist.filter((r) => r.prt_id === MY_PRT)).toHaveLength(0);
   });
 
   it("미래 날짜는 거부한다(앱과 같은 규칙)", async () => {
@@ -343,6 +393,35 @@ describe("update / delete — 내 기록", () => {
     expect(result.after.distance_km).toBe(12.4);
     expect(result.after.final_mlg).toBe(12.4);
     expect(result.month_after?.achv_mlg).toBe(12.4);
+  });
+
+  /**
+   * 앱 수정 폼이 기존 체크를 프리필하는 것과 같은 규약 — 거리 오타만 고치러 온 사람이
+   * 배율을 다시 나열하지 않아도 되어야 한다. 떼려면 빈 배열을 **명시**한다.
+   */
+  it("multipliers 를 안 주면 붙어 있던 배율을 그대로 잇고, [] 를 주면 전부 뗀다", async () => {
+    const d = seed({ evt_mlg_mult_cfg: [multRow()] });
+    const logged = await logMyActivities(d.asClient(), ctxOf(), [
+      { act_dt: TODAY, sport: "RUNNING", distance_km: 10, multipliers: ["여름 2배"] },
+    ]);
+    const actId = logged.activities[0].act_id;
+
+    const kept = await updateMyActivity(d.asClient(), ctxOf(), actId, {
+      act_dt: TODAY,
+      sport: "RUNNING",
+      distance_km: 20,
+    });
+    expect(kept.after.applied_mults).toEqual([{ mult_nm: "여름 2배", mult_val: 2 }]);
+    expect(kept.after.final_mlg).toBe(40);
+
+    const cleared = await updateMyActivity(d.asClient(), ctxOf(), actId, {
+      act_dt: TODAY,
+      sport: "RUNNING",
+      distance_km: 20,
+      multipliers: [],
+    });
+    expect(cleared.after.applied_mults).toEqual([]);
+    expect(cleared.after.final_mlg).toBe(20);
   });
 
   it("삭제하면 행이 사라지고 그 달 집계가 줄어든다", async () => {

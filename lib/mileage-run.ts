@@ -133,26 +133,33 @@ export async function buildAppliedMults(
 }
 
 /**
- * 그 날짜에 걸려 있던 배율 **전부**의 id 를 돌려준다.
+ * 그 날짜에 **유효한** 배율 목록(활성 + 기간 안). 판정은 `buildAppliedMults` 와 **같은 함수**
+ * (`isMultActiveOn`)를 쓴다 — 고를 때와 적용할 때가 갈리면 "적용됐다고 했는데 마일리지가
+ * 안 늘었다"가 된다.
  *
- * 폼은 사용자가 체크하지만 대화(MCP)에서는 배율 uuid 를 부를 일이 없다 — `act_dt` 기준으로
- * 서버가 자동으로 채우고, 무엇이 적용됐는지는 응답에 적어 준다(#497). 판정은 `buildAppliedMults`
- * 와 **같은 함수**(`isMultActiveOn`)를 쓴다 — 자동으로 고른 배율이 정작 적용 단계에서
- * 탈락하면 "적용됐다고 했는데 마일리지가 안 늘었다"가 된다.
+ * 여기서 돌려주는 건 **후보**일 뿐 적용 대상이 아니다. 배율의 성립 조건(모임 참석 여부·
+ * 벙주/참석자·LSD 인원수·주당 횟수)은 `evt_mlg_mult_cfg` 에 적을 칼럼조차 없어 서버가 판정할
+ * 수 없다. 그래서 앱 폼도 MCP 도구도 **사용자가 직접 고르는** 자기신고다 — 한때 MCP 만
+ * "그날 걸린 것 전부"를 자동으로 붙여, 혼자 1km 뛴 기록에 `3인이상 LSD`·`모임참석(벙주)`·
+ * `모임참석(참석자)` 가 동시에 곱해졌다(#504).
  */
-export async function autoMultiplierIdsFor(
+export async function listMultipliersActiveOn(
   db: Db,
   evtId: string,
   actDt: string,
-): Promise<string[]> {
+): Promise<{ mult_id: string; mult_nm: string; mult_val: number }[]> {
   const { data, error } = await db
     .from("evt_mlg_mult_cfg")
-    .select("mult_id, stt_dt, end_dt, active_yn")
+    .select("mult_id, mult_nm, mult_val, stt_dt, end_dt, active_yn")
     .eq("evt_id", evtId);
   if (error) return [];
   return (data ?? [])
     .filter((m) => isMultActiveOn(m, actDt))
-    .map((m) => m.mult_id as string);
+    .map((m) => ({
+      mult_id: m.mult_id as string,
+      mult_nm: m.mult_nm as string,
+      mult_val: Number(m.mult_val),
+    }));
 }
 
 /**

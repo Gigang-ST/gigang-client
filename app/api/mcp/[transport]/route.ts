@@ -129,6 +129,22 @@ async function runTool<T>(
  *   - **내 것**(마일리지런 개인 도구 7종, #497) — 대상 멤버를 인자로 받지 않고 `ctx.mem_id` 로만
  *     스코프한다. admin 이어도 남의 기록에는 손대지 못한다.
  */
+
+/**
+ * 활동 기록 도구 3종이 공유하는 배율 인자.
+ *
+ * **자동으로 붙지 않는다.** 배율마다 성립 조건이 다른데(모임 참석·벙주/참석자·LSD 인원수·
+ * 주당 횟수) `evt_mlg_mult_cfg` 에는 그 조건을 적을 칼럼이 없어 서버가 판정할 수 없다.
+ * 한때 "그날 걸린 것 전부"를 자동 적용해 혼자 1km 뛴 기록이 최대 90% 부풀려졌다(#504).
+ * 앱 폼의 체크박스와 같은 자기신고로 되돌렸다 — 고른 것만 붙는다.
+ */
+const MULTIPLIERS_ARG = z
+  .array(z.string())
+  .optional()
+  .describe(
+    "적용할 배율 이름 배열(list_mileage_multipliers 의 mult_nm). 해당되는 것만 고르세요 — 안 적으면 배율 없이 계산됩니다.",
+  );
+
 const handler = createMcpHandler(
   (server) => {
     server.registerTool(
@@ -363,7 +379,8 @@ const handler = createMcpHandler(
       {
         title: "마일리지 배율 목록",
         description:
-          "내가 참가 중인 마일리지런의 배율 이벤트 목록을 반환합니다(계산 근거 확인용). " +
+          "내가 참가 중인 마일리지런의 배율 이벤트 목록을 반환합니다. " +
+          "활동 기록을 넣기 전에 이걸로 고를 수 있는 배율 이름을 확인하고, 실제로 해당되는 것만 log_my_activity 의 multipliers 에 적으세요. " +
           "active_only=true 면 오늘 걸려 있는 것만.",
         inputSchema: {
           active_only: z.boolean().optional(),
@@ -378,7 +395,8 @@ const handler = createMcpHandler(
       {
         title: "내 활동 기록 등록",
         description:
-          "내 마일리지런 활동을 1건 등록합니다. 마일리지는 서버가 계산하고, 그날 걸려 있던 배율도 서버가 자동 적용해 무엇이 붙었는지 응답에 적어 줍니다. " +
+          "내 마일리지런 활동을 1건 등록합니다. 마일리지는 서버가 계산합니다. " +
+          "배율은 조건(모임 참석·벙주 여부·인원수 등)을 서버가 알 수 없어 자동으로 붙지 않습니다 — 해당되는 것만 multipliers 에 이름으로 적어 주세요(앱 폼의 체크박스와 같습니다). " +
           "⚠️ MCP로 넣은 기록은 사진을 붙일 수 없어 기강이야기(깅스타그램)에는 뜨지 않습니다 — 수치·후기는 정상 저장됩니다. 사진까지 올리려면 앱을 쓰세요.",
         inputSchema: {
           act_dt: z.string().describe("YYYY-MM-DD (KST)"),
@@ -386,6 +404,7 @@ const handler = createMcpHandler(
           distance_km: z.number().positive(),
           elevation_m: z.number().min(0).nullable().optional(),
           review: z.string().max(200).nullable().optional(),
+          multipliers: MULTIPLIERS_ARG,
         },
       },
       async (args, extra) =>
@@ -402,7 +421,7 @@ const handler = createMcpHandler(
         title: "내 활동 기록 몰아서 등록",
         description:
           `내 마일리지런 활동을 한 번에 여러 건 등록합니다(최대 ${MAX_BATCH_ACTIVITIES}건). ` +
-          "한 건이라도 검증에 걸리면 아무것도 저장하지 않습니다. " +
+          "한 건이라도 검증에 걸리면 아무것도 저장하지 않습니다. 배율은 기록마다 따로 고릅니다(안 적으면 미적용). " +
           "⚠️ 사진은 붙일 수 없어 기강이야기(깅스타그램)에는 뜨지 않습니다.",
         inputSchema: {
           activities: z
@@ -413,6 +432,7 @@ const handler = createMcpHandler(
                 distance_km: z.number().positive(),
                 elevation_m: z.number().min(0).nullable().optional(),
                 review: z.string().max(200).nullable().optional(),
+                multipliers: MULTIPLIERS_ARG,
               }),
             )
             .min(1)
@@ -433,7 +453,8 @@ const handler = createMcpHandler(
         title: "내 활동 기록 수정",
         description:
           "내 마일리지런 기록 1건을 고칩니다(오타 정정). act_id 는 list_my_activities 로 얻습니다. " +
-          "본인 기록만 수정할 수 있습니다. 마일리지·배율은 수정된 날짜 기준으로 다시 계산됩니다.",
+          "본인 기록만 수정할 수 있습니다. 마일리지는 수정된 날짜 기준으로 다시 계산됩니다. " +
+          "multipliers 를 안 주면 붙어 있던 배율을 그대로 두고, 빈 배열([])을 주면 전부 뗍니다.",
         inputSchema: {
           act_id: z.string().uuid("act_id 는 uuid 여야 합니다."),
           act_dt: z.string().describe("YYYY-MM-DD (KST)"),
@@ -441,6 +462,7 @@ const handler = createMcpHandler(
           distance_km: z.number().positive(),
           elevation_m: z.number().min(0).nullable().optional(),
           review: z.string().max(200).nullable().optional(),
+          multipliers: MULTIPLIERS_ARG,
         },
       },
       async (args, extra) =>
