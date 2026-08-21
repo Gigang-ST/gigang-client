@@ -133,6 +133,21 @@ export type AttendanceRow = {
 };
 
 /**
+ * `list_gathering_non_attendees` 출력. 참석 통계 두 칸은 **admin 응답에만** 붙는다(#496) —
+ * `list_members_attendance` 를 admin 으로 좁힌 것과 같은 데이터라서다. 비-admin 응답에는
+ * 키 자체가 없고 정렬도 이름순이다(§listGatheringNonAttendees).
+ */
+export type NonAttendeeRow = {
+  mem_id: string;
+  mem_nm: string;
+  join_dt: string | null;
+  /** admin 전용(#496). */
+  attendance_cnt?: number;
+  /** admin 전용(#496). */
+  last_attended_at?: string | null;
+};
+
+/**
  * `get_member_profile` 출력.
  *
  * `birth_dt`·`gdr_enm` 는 **admin 에게만** 실린다(#496). 이 둘은 공개 프로필 카드 RPC
@@ -518,12 +533,25 @@ export async function getMemberProfile(
   }));
 }
 
-/** §5.5 특정 모임 미참석 활성 멤버 + 각자 참석 현황. */
+/**
+ * §5.5 특정 모임 미참석 활성 멤버. **참석 통계는 admin 에게만**(#496).
+ *
+ * `list_members_attendance` 를 admin 으로 좁혀 놓고 이 도구를 그대로 두면, 같은 통계
+ * (`attendance_cnt`·`last_attended_at`)가 미참석자 목록에 얹혀 그대로 새어 나간다 —
+ * 막은 문 옆의 안 막은 창문이다. 그렇다고 도구째 막지는 않는다: **"이 벙에 누가 안 왔나"는
+ * 앱에서 참석자 목록이 공개라 뒤집으면 나오는 정보**라 멤버가 알아도 되는 사실이다.
+ * 그래서 `get_member_profile` 과 같은 방식으로 **필드만** 좁힌다.
+ *
+ * 비-admin 경로는 참석 이력을 **아예 조회하지 않는다**(뽑아서 버리지 않는다). 정렬도
+ * 이름순으로 바꾼다 — `last_attended_at` 순으로 늘어놓으면 값이 없어도 **줄 순서가 곧
+ * "누가 더 오래 안 나왔나"** 라서, 숫자만 지우는 건 가린 척일 뿐이다.
+ */
 export async function listGatheringNonAttendees(
   supabase: Db,
   teamId: string,
+  isAdmin: boolean,
   gatheringId: string,
-): Promise<AttendanceRow[]> {
+): Promise<NonAttendeeRow[]> {
   // 모임 존재·팀 스코프 검증(§7: 존재하지 않는 gathering_id → 안전 에러).
   const { data: gthr, error: gErr } = await supabase
     .from("gthr_mst")
@@ -535,17 +563,29 @@ export async function listGatheringNonAttendees(
   if (gErr) throw gErr;
   if (!gthr) throw new ToolInputError("해당 모임을 찾을 수 없습니다.");
 
+  const fetchAttendeeIds = async () => {
+    const { data, error } = await supabase
+      .from("gthr_attd_rel")
+      .select("mem_id")
+      .eq("gthr_id", gatheringId);
+    if (error) throw error;
+    return new Set((data ?? []).map((a) => a.mem_id as string));
+  };
+
+  if (!isAdmin) {
+    const [members, attendeeIds] = await Promise.all([
+      fetchActiveMemberSeeds(supabase, teamId),
+      fetchAttendeeIds(),
+    ]);
+    return members
+      .filter((m) => !attendeeIds.has(m.mem_id))
+      .sort((a, b) => a.mem_nm.localeCompare(b.mem_nm));
+  }
+
   const [members, events, attendeeIds] = await Promise.all([
     fetchActiveMemberSeeds(supabase, teamId),
     fetchPastAttendanceEvents(supabase, teamId),
-    (async () => {
-      const { data, error } = await supabase
-        .from("gthr_attd_rel")
-        .select("mem_id")
-        .eq("gthr_id", gatheringId);
-      if (error) throw error;
-      return new Set((data ?? []).map((a) => a.mem_id as string));
-    })(),
+    fetchAttendeeIds(),
   ]);
 
   const nonAttendees = members.filter((m) => !attendeeIds.has(m.mem_id));

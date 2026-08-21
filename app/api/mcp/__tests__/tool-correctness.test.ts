@@ -13,6 +13,7 @@ import {
   escapeLikePattern,
   getMemberProfile,
   kstDayRange,
+  listGatheringNonAttendees,
   listMembersAttendance,
 } from "@/lib/mcp/queries";
 import type { Database } from "@/lib/supabase/database.types";
@@ -343,6 +344,77 @@ describe("#496 list_members_attendance — admin 전용", () => {
     await expect(
       listMembersAttendance(client, TEAM_ID, false),
     ).rejects.not.toThrow(new RegExp(TEAM_ID));
+  });
+});
+
+describe("#496 list_gathering_non_attendees — 참석 통계는 admin 응답에만", () => {
+  const GTHR_ID = "cccccccc-0000-4000-8000-000000000001";
+
+  /**
+   * 미참석자 조회용 스텁. `gthr_attd_rel` 조회 여부를 관측해, 비-admin 경로가 참석 이력을
+   * **아예 조회하지 않는지**까지 확인한다(뽑아서 버리는 게 아니라).
+   */
+  function makeNonAttendeeSupabase() {
+    const touched: string[] = [];
+    const make = (rows: unknown[]): Record<string, unknown> => {
+      const b: Record<string, unknown> = {
+        select: () => b,
+        eq: () => b,
+        lte: () => b,
+        maybeSingle: async () => ({ data: rows[0] ?? null, error: null }),
+        then: (resolve: (v: unknown) => void) => resolve({ data: rows, error: null }),
+      };
+      return b;
+    };
+    const client = {
+      from: (table: string) => {
+        touched.push(table);
+        switch (table) {
+          case "gthr_mst":
+            return make([{ gthr_id: GTHR_ID }]);
+          case "team_mem_rel":
+            return make([
+              { mem_id: "m2", join_dt: "2026-02-01", mem_mst: { mem_nm: "나달림" } },
+              { mem_id: "m1", join_dt: "2026-01-01", mem_mst: { mem_nm: "가달림" } },
+              { mem_id: "m3", join_dt: "2026-03-01", mem_mst: { mem_nm: "다달림" } },
+            ]);
+          case "gthr_attd_rel":
+            // 이 벙 참석자는 m3 뿐. (과거 참석 이력 조회도 같은 테이블을 쓴다)
+            return make([{ mem_id: "m3", gthr_mst: { stt_at: "2026-05-01T00:00:00+00:00" } }]);
+          default:
+            return make([]);
+        }
+      },
+    } as unknown as SupabaseClient<Database>;
+    return { client, touched };
+  }
+
+  it("admin: 참석 횟수·마지막 참석시각이 실린다", async () => {
+    const { client } = makeNonAttendeeSupabase();
+    const rows = await listGatheringNonAttendees(client, TEAM_ID, true, GTHR_ID);
+
+    expect(rows.map((r) => r.mem_id).sort()).toEqual(["m1", "m2"]);
+    expect(rows.every((r) => "attendance_cnt" in r && "last_attended_at" in r)).toBe(true);
+  });
+
+  it("비-admin: 통계 키가 아예 없고 참석 이력을 조회조차 하지 않는다", async () => {
+    const { client, touched } = makeNonAttendeeSupabase();
+    const rows = await listGatheringNonAttendees(client, TEAM_ID, false, GTHR_ID);
+
+    expect(rows.map((r) => r.mem_id).sort()).toEqual(["m1", "m2"]);
+    for (const r of rows) {
+      expect("attendance_cnt" in r).toBe(false);
+      expect("last_attended_at" in r).toBe(false);
+    }
+    // 이 벙 참석자 조회(gthr_attd_rel)는 1회뿐 — 과거 참석 이력 조회가 추가로 나가지 않는다.
+    expect(touched.filter((t) => t === "gthr_attd_rel")).toHaveLength(1);
+  });
+
+  it("비-admin 정렬은 이름순이다 — 줄 순서로 '누가 더 오래 안 나왔나'가 새지 않게", async () => {
+    const { client } = makeNonAttendeeSupabase();
+    const rows = await listGatheringNonAttendees(client, TEAM_ID, false, GTHR_ID);
+    // 숫자만 지우고 last_attended_at 순으로 늘어놓으면 가린 척일 뿐이다.
+    expect(rows.map((r) => r.mem_nm)).toEqual(["가달림", "나달림"]);
   });
 });
 

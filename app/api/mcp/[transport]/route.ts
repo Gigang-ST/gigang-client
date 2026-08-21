@@ -65,8 +65,9 @@ async function runReadTool<T>(
  *
  * 권한: 도구 대부분은 인증된 팀 멤버면 호출할 수 있고, **앱이 관리자에게만 보여주는 것**만
  *   admin 으로 좁힌다(#496) — `send_push`·`list_members_attendance` 는 도구째,
- *   `get_member_profile` 의 생년월일·성별은 필드 단위로. 판정은 전부 `ctx.is_admin` 이며,
- *   게이트는 도구 핸들러가 아니라 **쿼리·발송 함수 안**에 있다(호출부가 늘어도 새지 않게).
+ *   `get_member_profile` 의 생년월일·성별과 `list_gathering_non_attendees` 의 참석 통계는
+ *   필드 단위로. 판정은 전부 `ctx.is_admin` 이며, 게이트는 도구 핸들러가 아니라
+ *   **쿼리·발송 함수 안**에 있다(호출부가 늘어도 새지 않게).
  */
 const handler = createMcpHandler(
   (server) => {
@@ -177,14 +178,19 @@ const handler = createMcpHandler(
       {
         title: "모임 미참석자",
         description:
-          "특정 모임에 참석하지 않은 우리 팀 활성 멤버 목록과 각자의 참석 현황을 반환합니다. gathering_id(uuid) 필요.",
+          "특정 모임에 참석하지 않은 우리 팀 활성 멤버 목록을 반환합니다. gathering_id(uuid) 필요. 각자의 누적 참석 횟수·마지막 참석시각은 운영진(admin)에게만 포함됩니다.",
         inputSchema: {
           gathering_id: z.string().uuid("gathering_id 는 uuid 여야 합니다."),
         },
       },
       async (args, extra) =>
         runReadTool(extra, (ctx, supabase) =>
-          listGatheringNonAttendees(supabase, ctx.team_id, args.gathering_id),
+          listGatheringNonAttendees(
+            supabase,
+            ctx.team_id,
+            ctx.is_admin,
+            args.gathering_id,
+          ),
         ),
     );
 
