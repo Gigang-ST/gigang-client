@@ -424,6 +424,49 @@ describe("update / delete — 내 기록", () => {
     expect(cleared.after.final_mlg).toBe(20);
   });
 
+  /**
+   * #504 후속 — 예전엔 `multipliers` 만 "생략=유지"였고 `review`·`elevation_m` 은
+   * "생략=null/0 으로 설정"이라 방향이 반대였다. 거리 오타만 고치러 온 호출에서 후기가
+   * 조용히 날아가고, 고도는 러닝 마일리지(거리 + 고도/100)에 들어가 **숫자까지 틀어졌다.**
+   */
+  it("수정에서 안 준 선택 항목(고도·후기)은 그대로 두고, 지우려면 명시해야 한다", async () => {
+    const logged = await logMyActivities(db.asClient(), ctxOf(), [
+      { act_dt: TODAY, sport: "RUNNING", distance_km: 10, elevation_m: 80, review: "정기런" },
+    ]);
+    const actId = logged.activities[0].act_id;
+    expect(logged.activities[0].final_mlg).toBe(10.8); // 10 + 80/100
+
+    // 거리만 고친다 — 고도·후기는 건드리지 않았으니 남아 있어야 한다.
+    const kept = await updateMyActivity(db.asClient(), ctxOf(), actId, {
+      act_dt: TODAY,
+      sport: "RUNNING",
+      distance_km: 12,
+    });
+    expect(kept.after.elevation_m).toBe(80);
+    expect(kept.after.review).toBe("정기런");
+    expect(kept.after.final_mlg).toBe(12.8);
+
+    // 지울 때는 명시한다.
+    const cleared = await updateMyActivity(db.asClient(), ctxOf(), actId, {
+      act_dt: TODAY,
+      sport: "RUNNING",
+      distance_km: 12,
+      elevation_m: 0,
+      review: null,
+    });
+    expect(cleared.after.elevation_m).toBe(0);
+    expect(cleared.after.review).toBeNull();
+    expect(cleared.after.final_mlg).toBe(12);
+  });
+
+  it("등록은 생략을 '없음'으로 본다 — 이을 기존 값이 없다", async () => {
+    const logged = await logMyActivities(db.asClient(), ctxOf(), [
+      { act_dt: TODAY, sport: "RUNNING", distance_km: 10 },
+    ]);
+    expect(logged.activities[0].elevation_m).toBe(0);
+    expect(logged.activities[0].final_mlg).toBe(10);
+  });
+
   it("삭제하면 행이 사라지고 그 달 집계가 줄어든다", async () => {
     const logged = await logMyActivities(db.asClient(), ctxOf(), [
       { act_dt: TODAY, sport: "RUNNING", distance_km: 12 },
