@@ -79,9 +79,16 @@ CLAUDE.local.md
 .mcp.json
 
 
-# skillshare로 자동 생성되는 스킬 디렉토리 (source: .skillshare/skills/)
+# 스킬은 저장소에 담지 않는다 — 각자 로컬에서 돌린다.
+# 예전엔 .skillshare/skills 를 정본으로 커밋하고 skillshare sync 로 아래 둘에 미러링했는데,
+# 정본이 갈라진 채(.claude/skills 는 ignore, .agents/skills 는 추적) 굴러 어느 쪽이 진짜인지
+# 알 수 없었다. 저장소는 스킬을 갖지 않고, 쓰는 사람이 자기 머신에 두는 것으로 정리한다.
 .claude/skills/
-.agents/skills/
+.agents/
+.skillshare/
+
+# Cygwin/MSYS 크래시 덤프 (Windows 로컬에서만 생김)
+*.stackdump
 
 # storybook
 /storybook-static

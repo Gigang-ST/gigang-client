@@ -12,8 +12,8 @@
 ## 관련
 
 - 마이그레이션 작성 규약(락 안전): [`supabase/migrations/README.md`](../../../supabase/migrations/README.md)
-- DB 성능 가이드 스킬: `.claude/skills/supabase-postgres-best-practices/`
-- React/Next 성능 스킬: `.claude/skills/vercel-react-best-practices/`
+- 성능 가이드 스킬(`supabase-postgres-best-practices`·`vercel-react-best-practices`)은 **저장소에 없다** —
+  스킬은 각자 로컬에 둔다(AGENTS.md §스킬). 쓰려면 자기 머신에 설치할 것.
 
 ## 추가 규칙
 
