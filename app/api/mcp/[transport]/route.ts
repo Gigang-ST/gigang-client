@@ -454,7 +454,8 @@ const handler = createMcpHandler(
         description:
           "내 마일리지런 기록 1건을 고칩니다(오타 정정). act_id 는 list_my_activities 로 얻습니다. " +
           "본인 기록만 수정할 수 있습니다. 마일리지는 수정된 날짜 기준으로 다시 계산됩니다. " +
-          "multipliers 를 안 주면 붙어 있던 배율을 그대로 두고, 빈 배열([])을 주면 전부 뗍니다.",
+          "⚠️ 선택 항목(elevation_m·review·multipliers)은 **안 주면 기존 값이 그대로 유지**됩니다 — 고치려는 것만 보내세요. " +
+          "지우려면 명시해야 합니다: review=null(후기 삭제), elevation_m=0(고도 없음), multipliers=[](배율 전부 해제).",
         inputSchema: {
           act_id: z.string().uuid("act_id 는 uuid 여야 합니다."),
           act_dt: z.string().describe("YYYY-MM-DD (KST)"),
