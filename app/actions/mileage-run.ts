@@ -5,18 +5,10 @@ import { after } from "next/server";
 
 import { dayjs } from "@/lib/dayjs";
 
-import {
-  currentMonthKST,
-  todayKST,
-  todayDayKST,
-  nextMonthStr,
-  prevMonthStr,
-} from "@/lib/dayjs";
+import { currentMonthKST, nextMonthStr, todayDayKST } from "@/lib/dayjs";
 import {
   calcBaseMileage,
   calcFinalMileage,
-  computeGoalChain,
-  isMonthAchieved,
   roundMileage,
   countMonths,
   DEPOSIT_PER_MONTH,
@@ -24,6 +16,12 @@ import {
   ENTRY_FEE_WITH_SINGLET,
   type MileageSport,
 } from "@/lib/mileage";
+import {
+  buildAppliedMults as buildAppliedMultsCore,
+  recalcGoalsFromMonth as recalcGoalsFromMonthCore,
+  validateActivityDate,
+  type ActivityLogInput,
+} from "@/lib/mileage-run";
 import { withActive } from "@/lib/actions/auth";
 import {
   postPhotoPathFromUrl,
@@ -39,79 +37,26 @@ import { activityLogBatchSchema, activityLogSchema } from "@/lib/validations/mil
 // 타입
 // ─────────────────────────────────────────
 
-export interface ActivityLogInput {
-  act_dt: string; // 'YYYY-MM-DD'
-  sprt_enm: MileageSport;
-  distance_km: number;
-  elevation_m: number;
-  applied_mult_ids: string[]; // evt_mlg_mult_cfg.mult_id 배열
-  review: string | null;
-  /**
-   * 사진 공개 URL(선택). 값이 있으면 DB 트리거가 이 기록을 기강이야기 운동기록에도 세운다.
-   * 파일 업로드는 `uploadActivityPhoto`가 먼저 처리하고 여기엔 URL만 온다.
-   */
-  photo_url?: string | null;
-}
+/**
+ * 활동 로그 입력. 정본은 `lib/mileage-run.ts`(액션·운영 MCP 공용 코어)에 있고
+ * 여기서는 기존 import 경로를 유지하기 위해 재export 한다.
+ */
+export type { ActivityLogInput } from "@/lib/mileage-run";
 
 type ActionResult = { ok: boolean; message: string | null; grantedTitles?: string[] };
 
 // ─────────────────────────────────────────
 // 내부 헬퍼
 // ─────────────────────────────────────────
+//
+// 날짜 규칙·배율 적용·목표 연쇄 재계산은 `lib/mileage-run.ts` 로 옮겼다.
+// 운영 MCP(#497)가 같은 판정을 써야 하는데, 이 파일은 `withActive`(세션 쿠키)에 묶여 있어
+// PAT 요청에서 호출할 수 없다. 보증금 환급이 걸린 계산이 두 벌이 되지 않도록 코어를 공유하고,
+// 이 파일은 신원 해석과 프레임워크 부수효과(revalidatePath·updateTag·after)만 맡는다.
 
-function validateActivityDate(actDt: string, isAdmin: boolean): string | null {
-  if (isAdmin) return null;
-
-  const today = todayKST();
-  if (actDt > today) return "미래 날짜에는 기록을 추가할 수 없습니다";
-
-  const currentMonth = currentMonthKST().slice(0, 7);
-  const actMonth = actDt.slice(0, 7);
-
-  if (actMonth < currentMonth) {
-    const dayOfMonth = todayDayKST();
-    const prevMonthStr2 = prevMonthStr(currentMonthKST()).slice(0, 7);
-
-    if (actMonth < prevMonthStr2) return "2개월 이전 기록은 추가할 수 없습니다";
-    if (dayOfMonth > 3) return "전월 기록은 매월 3일까지만 추가할 수 있습니다";
-  }
-
-  return null;
-}
-
-async function buildAppliedMults(
-  evtId: string,
-  multIds: string[],
-  actDt: string,
-): Promise<{
-  appliedMults: { mult_id: string; mult_nm: string; mult_val: number }[];
-  multValues: number[];
-  error: string | null;
-}> {
-  if (multIds.length === 0) return { appliedMults: [], multValues: [], error: null };
-
-  const db = createAdminClient();
-  const { data, error } = await db
-    .from("evt_mlg_mult_cfg")
-    .select("mult_id, mult_nm, mult_val, stt_dt, end_dt, active_yn")
-    .eq("evt_id", evtId)
-    .in("mult_id", multIds);
-
-  if (error) return { appliedMults: [], multValues: [], error: "배율 조회에 실패했습니다" };
-
-  const appliedMults: { mult_id: string; mult_nm: string; mult_val: number }[] = [];
-  const multValues: number[] = [];
-
-  for (const mult of data ?? []) {
-    if (!mult.active_yn) continue;
-    if (mult.stt_dt && actDt < mult.stt_dt) continue;
-    if (mult.end_dt && actDt > mult.end_dt) continue;
-
-    appliedMults.push({ mult_id: mult.mult_id, mult_nm: mult.mult_nm, mult_val: Number(mult.mult_val) });
-    multValues.push(Number(mult.mult_val));
-  }
-
-  return { appliedMults, multValues, error: null };
+/** 코어 함수에 넘길 service-role 클라이언트를 만들어 부분 적용한다(호출부 시그니처 유지용). */
+function buildAppliedMults(evtId: string, multIds: string[], actDt: string) {
+  return buildAppliedMultsCore(createAdminClient(), evtId, multIds, actDt);
 }
 
 // ─────────────────────────────────────────
@@ -659,89 +604,11 @@ export async function updateMonthlyGoal(goalId: string, newGoal: number): Promis
 // 7. 목표 연쇄 재계산 (내부)
 // ─────────────────────────────────────────
 
+/** 코어 함수에 service-role 클라이언트를 물려 준다 — 로직 정본은 `lib/mileage-run.ts`. */
 async function recalcGoalsFromMonth(
   evtId: string,
   prtId: string,
   anchorGoalId?: string,
 ): Promise<void> {
-  const db = createAdminClient();
-
-  const { data: evt } = await db.from("evt_team_mst").select("stt_dt, end_dt").eq("evt_id", evtId).single();
-  if (!evt) return;
-
-  const evtStartMonth = evt.stt_dt.slice(0, 7) + "-01";
-
-  const { data: goals } = await db
-    .from("evt_mlg_mth_snap")
-    .select("goal_id, base_dt, goal_mlg, achv_yn")
-    .eq("prt_id", prtId)
-    .order("base_dt", { ascending: true });
-
-  if (!goals || goals.length === 0) return;
-
-  const { data: allLogs } = await db
-    .from("evt_mlg_act_hist")
-    .select("act_dt, final_mlg")
-    .eq("prt_id", prtId);
-
-  const mlgByMonth = new Map<string, number>();
-  const cntByMonth = new Map<string, number>();
-  const lastDtByMonth = new Map<string, string>();
-  for (const log of allLogs ?? []) {
-    const m = (log.act_dt as string).slice(0, 7) + "-01";
-    mlgByMonth.set(m, (mlgByMonth.get(m) ?? 0) + Number(log.final_mlg));
-    cntByMonth.set(m, (cntByMonth.get(m) ?? 0) + 1);
-    const prevLast = lastDtByMonth.get(m);
-    const actDt = log.act_dt as string;
-    if (!prevLast || actDt > prevLast) lastDtByMonth.set(m, actDt);
-  }
-  const roundedAchvByMonth = new Map<string, number>();
-  for (const [month, totalMlg] of mlgByMonth.entries()) {
-    roundedAchvByMonth.set(month, roundMileage(totalMlg));
-  }
-
-  for (const g of goals) {
-    const month = g.base_dt as string;
-    const achvMlg = roundedAchvByMonth.get(month) ?? 0;
-    const actCnt = cntByMonth.get(month) ?? 0;
-    const lstActDt = lastDtByMonth.get(month) ?? null;
-    const achvYn = isMonthAchieved(achvMlg, Number(g.goal_mlg));
-
-    const { error: snapErr } = await db
-      .from("evt_mlg_mth_snap")
-      .update({ achv_mlg: achvMlg, act_cnt: actCnt, lst_act_dt: lstActDt, achv_yn: achvYn, updated_at: dayjs().toISOString() })
-      .eq("goal_id", g.goal_id);
-    if (snapErr) throw new Error(`월별 집계 갱신 실패 (goal_id=${g.goal_id}): ${snapErr.message}`);
-    g.achv_yn = achvYn;
-  }
-
-  let anchorIdx = 0;
-  if (anchorGoalId) {
-    const found = goals.findIndex((g) => g.goal_id === anchorGoalId);
-    if (found > 0) anchorIdx = found;
-  }
-
-  const chain = computeGoalChain(
-    goals.map((g) => ({
-      base_dt: g.base_dt as string,
-      goal_mlg: Number(g.goal_mlg),
-      achv_mlg: roundedAchvByMonth.get(g.base_dt as string) ?? 0,
-    })),
-    evtStartMonth,
-    anchorIdx,
-  );
-
-  for (let i = anchorIdx + 1; i < goals.length; i++) {
-    const cur = goals[i];
-    const next = chain[i];
-    if (Number(cur.goal_mlg) === next.goal_mlg) continue;
-
-    const { error: chainErr } = await db
-      .from("evt_mlg_mth_snap")
-      .update({ goal_mlg: next.goal_mlg, achv_yn: next.achv_yn, updated_at: dayjs().toISOString() })
-      .eq("goal_id", cur.goal_id);
-    if (chainErr) throw new Error(`목표 연쇄 갱신 실패 (goal_id=${cur.goal_id}): ${chainErr.message}`);
-    cur.goal_mlg = next.goal_mlg;
-    cur.achv_yn = next.achv_yn;
-  }
+  return recalcGoalsFromMonthCore(createAdminClient(), evtId, prtId, anchorGoalId);
 }

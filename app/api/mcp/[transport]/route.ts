@@ -1,10 +1,22 @@
+import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { after } from "next/server";
 
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
 
 import { resolveOperator, type OperatorContext } from "@/lib/mcp/auth";
 import { createGatheringViaMcp } from "@/lib/mcp/create-gathering";
+import {
+  MAX_BATCH_ACTIVITIES,
+  deleteMyActivity,
+  getMyMileage,
+  listMileageMultipliers,
+  listMyActivities,
+  logMyActivities,
+  updateMyActivity,
+  type TitleEvalSeed,
+} from "@/lib/mcp/mileage";
 import {
   ToolDeniedError,
   ToolInputError,
@@ -17,6 +29,7 @@ import {
 } from "@/lib/mcp/queries";
 import { sendPush } from "@/lib/mcp/send-push";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 import { GTHR_SPRT_TYPES, GTHR_TYPES } from "@/lib/validations/gathering";
 
 /** MCP 도구 응답 도우미 — 사실 payload를 text JSON 으로 감싼다. */
@@ -33,6 +46,24 @@ function errorResult(message: string) {
  * 응답에 실을 상세 URL 의 origin. `create_gathering` 이 만든 벙을 사람이 바로 열어 확인·정정할
  * 수 있게 하는 용도라, 못 구하면 **상대 경로로 물러난다**(URL 하나 때문에 개설을 실패시키지 않는다).
  */
+/**
+ * 마일리지런 쓰기 뒤 부수효과. **lib 쪽엔 `next/*` 를 넣지 않는다**(MCP 라우트와 서버 액션이
+ * 서로 다른 실행 컨텍스트를 갖는 문제가 도메인 모듈로 새어 들어간다) — 여기서 한다.
+ *
+ * 칭호 평가는 앱의 `logActivity` 와 같이 **응답 밖에서** 돌린다: 기록은 이미 저장됐고
+ * 이 경로는 반환값(획득 칭호)을 쓰지 않는다. 획득 사실은 엔진이 보내는 `ttl_grnt` 알림으로 전해진다.
+ */
+function afterMileageWrite(seeds: TitleEvalSeed[] = []) {
+  revalidatePath("/projects");
+  for (const seed of seeds) {
+    after(() =>
+      evaluateAndGrantTitles({ trigger: "mileage_run", ...seed }).catch((e) =>
+        console.error("[title-engine] mileage_run(mcp) 평가 실패", e),
+      ),
+    );
+  }
+}
+
 async function resolveBaseUrl(): Promise<string | null> {
   try {
     const h = await headers();
@@ -88,10 +119,15 @@ async function runTool<T>(
  *   토큰 해시·시크릿은 어떤 응답에도 노출하지 않는다.
  *
  * 권한: 도구 대부분은 인증된 팀 멤버면 호출할 수 있고, **앱이 관리자에게만 보여주는 것**만
- *   admin 으로 좁힌다(#496) — `send_push`·`list_members_attendance` 는 도구째,
- *   `get_member_profile` 의 생년월일·성별과 `list_gathering_non_attendees` 의 참석 통계는
- *   필드 단위로. 판정은 전부 `ctx.is_admin` 이며, 게이트는 도구 핸들러가 아니라
+ *   admin 으로 좁힌다(#496) — `send_push`·`list_members_attendance`·`create_gathering` 은
+ *   도구째, `get_member_profile` 의 생년월일·성별과 `list_gathering_non_attendees` 의 참석
+ *   통계는 필드 단위로. 판정은 전부 `ctx.is_admin` 이며, 게이트는 도구 핸들러가 아니라
  *   **쿼리·발송 함수 안**에 있다(호출부가 늘어도 새지 않게).
+ *
+ * 도구는 두 갈래다:
+ *   - **팀을 들여다보는 것**(운영진 용도) — 조회 6종 + 쓰기 2종(`send_push`·`create_gathering`).
+ *   - **내 것**(마일리지런 개인 도구 7종, #497) — 대상 멤버를 인자로 받지 않고 `ctx.mem_id` 로만
+ *     스코프한다. admin 이어도 남의 기록에는 손대지 못한다.
  */
 const handler = createMcpHandler(
   (server) => {
@@ -286,6 +322,152 @@ const handler = createMcpHandler(
         runTool(extra, async (ctx, supabase) =>
           createGatheringViaMcp(supabase, ctx, args, await resolveBaseUrl()),
         ),
+    );
+
+    // ── 마일리지런 개인 도구 7개(#497). 전부 **본인 스코프** — 대상 멤버를 인자로 받지 않고
+    //    ctx.mem_id 로만 스코프한다. admin 이어도 남의 기록에는 손대지 못한다. ──
+
+    server.registerTool(
+      "list_my_activities",
+      {
+        title: "내 마일리지런 기록",
+        description:
+          "내 마일리지런 활동 로그를 반환합니다(날짜·종목·거리·고도·적용 배율·최종 마일리지·후기). " +
+          "date 로 하루, from·to 로 구간을 지정하고, 아무것도 안 주면 이번 달입니다. 남의 기록은 볼 수 없습니다.",
+        inputSchema: {
+          date: z.string().optional().describe("YYYY-MM-DD (하루만)"),
+          from: z.string().optional().describe("YYYY-MM-DD"),
+          to: z.string().optional().describe("YYYY-MM-DD"),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, (ctx, supabase) => listMyActivities(supabase, ctx, args)),
+    );
+
+    server.registerTool(
+      "get_my_mileage",
+      {
+        title: "내 마일리지 현황",
+        description:
+          "내 그 달 목표·달성 마일리지·달성 여부·남은 양을 반환합니다. month 는 YYYY-MM, 미지정이면 당월(KST).",
+        inputSchema: {
+          month: z.string().optional().describe("YYYY-MM (미지정이면 당월)"),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, (ctx, supabase) => getMyMileage(supabase, ctx, args)),
+    );
+
+    server.registerTool(
+      "list_mileage_multipliers",
+      {
+        title: "마일리지 배율 목록",
+        description:
+          "내가 참가 중인 마일리지런의 배율 이벤트 목록을 반환합니다(계산 근거 확인용). " +
+          "active_only=true 면 오늘 걸려 있는 것만.",
+        inputSchema: {
+          active_only: z.boolean().optional(),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, (ctx, supabase) => listMileageMultipliers(supabase, ctx, args)),
+    );
+
+    server.registerTool(
+      "log_my_activity",
+      {
+        title: "내 활동 기록 등록",
+        description:
+          "내 마일리지런 활동을 1건 등록합니다. 마일리지는 서버가 계산하고, 그날 걸려 있던 배율도 서버가 자동 적용해 무엇이 붙었는지 응답에 적어 줍니다. " +
+          "⚠️ MCP로 넣은 기록은 사진을 붙일 수 없어 기강이야기(깅스타그램)에는 뜨지 않습니다 — 수치·후기는 정상 저장됩니다. 사진까지 올리려면 앱을 쓰세요.",
+        inputSchema: {
+          act_dt: z.string().describe("YYYY-MM-DD (KST)"),
+          sport: z.enum(["RUNNING", "TRAIL", "CYCLING", "SWIMMING"]),
+          distance_km: z.number().positive(),
+          elevation_m: z.number().min(0).nullable().optional(),
+          review: z.string().max(200).nullable().optional(),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, async (ctx, supabase) => {
+          const result = await logMyActivities(supabase, ctx, [args]);
+          afterMileageWrite(result.title_eval_seeds);
+          return result;
+        }),
+    );
+
+    server.registerTool(
+      "log_my_activities",
+      {
+        title: "내 활동 기록 몰아서 등록",
+        description:
+          `내 마일리지런 활동을 한 번에 여러 건 등록합니다(최대 ${MAX_BATCH_ACTIVITIES}건). ` +
+          "한 건이라도 검증에 걸리면 아무것도 저장하지 않습니다. " +
+          "⚠️ 사진은 붙일 수 없어 기강이야기(깅스타그램)에는 뜨지 않습니다.",
+        inputSchema: {
+          activities: z
+            .array(
+              z.object({
+                act_dt: z.string().describe("YYYY-MM-DD (KST)"),
+                sport: z.enum(["RUNNING", "TRAIL", "CYCLING", "SWIMMING"]),
+                distance_km: z.number().positive(),
+                elevation_m: z.number().min(0).nullable().optional(),
+                review: z.string().max(200).nullable().optional(),
+              }),
+            )
+            .min(1)
+            .max(MAX_BATCH_ACTIVITIES),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, async (ctx, supabase) => {
+          const result = await logMyActivities(supabase, ctx, args.activities);
+          afterMileageWrite(result.title_eval_seeds);
+          return result;
+        }),
+    );
+
+    server.registerTool(
+      "update_my_activity",
+      {
+        title: "내 활동 기록 수정",
+        description:
+          "내 마일리지런 기록 1건을 고칩니다(오타 정정). act_id 는 list_my_activities 로 얻습니다. " +
+          "본인 기록만 수정할 수 있습니다. 마일리지·배율은 수정된 날짜 기준으로 다시 계산됩니다.",
+        inputSchema: {
+          act_id: z.string().uuid("act_id 는 uuid 여야 합니다."),
+          act_dt: z.string().describe("YYYY-MM-DD (KST)"),
+          sport: z.enum(["RUNNING", "TRAIL", "CYCLING", "SWIMMING"]),
+          distance_km: z.number().positive(),
+          elevation_m: z.number().min(0).nullable().optional(),
+          review: z.string().max(200).nullable().optional(),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, async (ctx, supabase) => {
+          const { act_id, ...rest } = args;
+          const result = await updateMyActivity(supabase, ctx, act_id, rest);
+          afterMileageWrite();
+          return result;
+        }),
+    );
+
+    server.registerTool(
+      "delete_my_activity",
+      {
+        title: "내 활동 기록 삭제",
+        description:
+          "내 마일리지런 기록 1건을 지웁니다. 본인 기록만 지울 수 있고, 사진이 붙은 기록은 앱에서 지워야 합니다(사진 파일까지 정리해야 하므로).",
+        inputSchema: {
+          act_id: z.string().uuid("act_id 는 uuid 여야 합니다."),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, async (ctx, supabase) => {
+          const result = await deleteMyActivity(supabase, ctx, args.act_id);
+          afterMileageWrite();
+          return result;
+        }),
     );
   },
   {
