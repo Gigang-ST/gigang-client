@@ -152,3 +152,11 @@ t3-env로 관리되며 `lib/env.ts`에서 import:
 - `DESIGN.md` — 디자인 시스템 (토큰, 컴포넌트 카탈로그, AI 규칙)
 - `.claude/docs/coding-standards.md` — 코딩 컨벤션, 보안, JSDoc, Git 규칙
 - `.claude/docs/component-conventions.md` — 컴포넌트 작성 규칙, shadcn/ui 사용법
+- `app/api/mcp/README.md` — **우리가 제공하는** 운영 MCP(`gigang-ops`) 연결·도구·권한 가이드. 설계 정본은 `docs/superpowers/specs/2026-07-24-gigang-ops-mcp-design.md`
+
+> ⚠️ **운영 MCP에 도구를 추가할 때 `app/actions/**` 의 서버 액션을 그대로 부를 수 없다.**
+> 액션은 `withMember`/`withActive` → `getCurrentMember()` → **Supabase 세션 쿠키**에 묶여 있는데
+> MCP 요청은 `Authorization: Bearer <PAT>` 만 들고 온다(팀도 Host 파싱이 아니라 토큰 컨텍스트에서 온다).
+> 도메인 로직은 `lib/` 의 **클라이언트 주입식 코어**로 빼서 액션·MCP가 공유하고
+> (예: `lib/mileage-run.ts`), 각 경로는 신원 해석과 `next/*` 부수효과만 맡는다.
+> 검증 스키마(`lib/validations/*`)는 반드시 앱과 같은 것을 쓴다.

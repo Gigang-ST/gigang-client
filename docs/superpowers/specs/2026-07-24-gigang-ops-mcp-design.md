@@ -87,6 +87,26 @@
 - 반환은 정렬된 JSON 배열. `list_members_attendance`·`list_gathering_non_attendees`는 `last_attended_at asc nulls first`(전혀/오래 안 나온 순)로 정렬해 주되, 최종 추천 판단은 AI가 한다. **단 비-admin 의 `list_gathering_non_attendees` 는 이름순**이다(#496) — 이 정렬 자체가 admin 전용 통계를 순서로 흘리기 때문이다.
 - `near_stn`·`avg_run_dist_km`·`avg_pace`·`join_purposes`(2026-07-25 추가)는 가입 온보딩 러닝 프로필(`mem_onbd_prf`, mem_id 키·팀무관)에서 조인. `avg_pace`·`join_purposes`는 각각 `avg_pace_cd`·`join_purp_cds`를 `lib/validations/member.ts`의 `PACE_LABELS`·`JOIN_PURP_SHORT_LABELS`로 디코딩한 라벨(알 수 없는 코드는 코드 원문 유지). 온보딩 행이 없는 멤버는 전부 null/빈 배열. 유입경로(join_src_cd)·전화·이메일·계좌는 여전히 영구 제외(M-03).
 
+### 4.1 마일리지런 개인 도구 (#497)
+
+위 도구들이 **팀을 들여다보는** 것이라면 이쪽은 **내 것**이다. 대상 멤버를 인자로 받지 않고 `ctx.mem_id` 로만 스코프하며, **admin 우회가 없다** — 앱의 서버 액션은 admin 이 남의 기록을 고칠 수 있지만, 이 창구는 "내 기록을 보고 넣는" 자리라 그 예외가 없는 편이 놀랍지 않다.
+
+| 도구 | 입력 | 출력(행) | 권한 |
+|---|---|---|---|
+| `list_my_activities` | `date?` \| `from?`·`to?` | act_id, act_dt, sport(+label), distance_km, elevation_m, base_mlg, applied_mults, final_mlg, review, has_photo | 본인 |
+| `get_my_mileage` | `month?`(YYYY-MM) | month, evt_nm, goal_mlg, achv_mlg, achv_yn, remaining_mlg, act_cnt, lst_act_dt | 본인 |
+| `list_mileage_multipliers` | `active_only?` | mult_id, mult_nm, mult_val, stt_dt, end_dt, active_yn, in_effect_today | 본인 |
+| `log_my_activity` / `log_my_activities` | `act_dt`, `sport`, `distance_km`, `elevation_m?`, `review?` (배열은 최대 20건) | saved_cnt, activities[], month_after, notice, title_eval_seeds | 본인 |
+| `update_my_activity` | `act_id` + 위 필드 | act_id, before, after, month_after | 본인 |
+| `delete_my_activity` | `act_id` | deleted, month_after | 본인 |
+
+- **`evt_id` 를 인자로 받지 않는다.** 대화에서 이벤트 uuid 를 부를 일이 없어, 서버가 "진행 중 + 내가 승인된 참가" 이벤트를 찾아 채운다(`resolveMyParticipation`).
+- **배율도 인자로 받지 않는다.** 폼은 사용자가 체크하지만 대화에서는 `act_dt` 기준으로 그날 걸려 있던 배율을 서버가 자동 적용하고, **무엇이 붙었는지 응답에 적어 준다.** 자동 선별(`autoMultiplierIdsFor`)과 실제 적용(`buildAppliedMults`)이 **같은 판정 함수**를 쓴다 — 갈리면 "적용됐다는데 마일리지가 안 늘었다"가 된다.
+- **사진은 못 받는다**(`File` 이 JSON 경계를 못 넘는다). 사진이 기강이야기 게재 게이트이므로 **MCP 기록은 전광판에 안 뜬다** — 도구 description 과 응답 `notice` 에 명시한다. 사진이 붙은 기록의 삭제도 거부하고 앱으로 보낸다(Storage 파일 정리가 거기 있다).
+- **계산 코어는 앱과 공유한다**(`lib/mileage-run.ts`): 날짜 규칙·배율 적용·목표 연쇄 재계산. 보증금 환급이 걸린 계산이라 복사하면 한쪽만 고쳐지는 날 사람 돈이 어긋난다. `next/*` 부수효과(`revalidatePath`·`after`)는 코어가 아니라 각 호출부(라우트/액션)가 맡는다.
+- **`lib/queries/project-data.ts` 를 재사용하지 않는다.** `unstable_cache`·React `cache()` 로 감싸여 있어 방금 넣은 기록이 최대 60초 안 보인다 — "넣고 바로 확인"이 이 도구들의 기본 흐름이라 치명적이다.
+- 팀 전체를 건드리는 쓰기(참가 승인·배율 생성·이벤트 관리)는 **계속 제외**한다. 필요해지면 되돌리기·감사 설계를 붙여 별도 이슈로.
+
 ## 5. Ground-truth SQL baseline (AC-02)
 
 검증 기준 SQL. `:team_id`는 ctx에서 주입. KST = `Asia/Seoul`. 도구 출력은 아래 결과와 핵심 필드 기준 일치해야 M-01 PASS.
@@ -192,6 +212,9 @@ order by push_enabled asc, m.mem_nm;
 | G-17 | member | `list_gathering_non_attendees` | 응답에 attendance_cnt·last_attended_at **키 없음** + 이름순 정렬 + 참석 이력 쿼리 0회 — #496 |
 | G-12 | member | `create_gathering` | DENY (모임·알림·감사 0건) — #485 |
 | G-13 | owner/admin | `create_gathering` (`dry_run=true`) | 어떤 테이블에도 쓰지 않고 해석 결과만 반환 — #485 |
+| G-14 | 임의 토큰(admin 포함) | `update_my_activity`/`delete_my_activity` (남의 act_id) | DENY — 대상 행 무변경, 존재 여부도 미노출 — #497 |
+| G-15 | 임의 토큰 | `list_my_activities` | 내 `prt_id` 행만. 남의 기록 0건 — #497 |
+| G-16 | 미승인 참가자 | 마일리지런 개인 도구 전부 | DENY (승인 안내 메시지) — #497 |
 
 M-02 = 위 매트릭스 100% 통과. (민감정보는 권한 분기 없이 전면 차단 — G-7은 M-03 불변식과도 연결.)
 
