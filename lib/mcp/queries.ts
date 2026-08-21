@@ -30,6 +30,21 @@ export class ToolInputError extends Error {
   }
 }
 
+/**
+ * 권한 부족 거부(스펙 §6 G-2 / §7 403). MCP 는 단일 200 채널이라 HTTP 403 대신 tool error 로
+ * 반환하되, 사유는 안전 메시지만 노출한다.
+ *
+ * admin 게이트가 걸린 **모든** 도구가 이 타입을 공유한다 — `send_push` 의 `SendPushDeniedError`
+ * 도 이 타입을 상속하므로, 라우트는 `ToolDeniedError` 하나만 잡으면 된다. 게이트가 늘 때마다
+ * 라우트의 catch 목록을 손대야 하면 언젠가 한 곳을 빠뜨려 거부 사유가 일반 메시지로 마스킹된다.
+ */
+export class ToolDeniedError extends Error {
+  constructor(message = "이 작업은 운영진(admin)만 실행할 수 있습니다.") {
+    super(message);
+    this.name = "ToolDeniedError";
+  }
+}
+
 type Db = SupabaseClient<Database>;
 
 const KST = "Asia/Seoul";
@@ -117,17 +132,57 @@ export type AttendanceRow = {
   last_attended_at: string | null;
 };
 
+/**
+ * `list_gathering_non_attendees` 출력. 참석 통계 두 칸은 **admin 응답에만** 붙는다(#496) —
+ * `list_members_attendance` 를 admin 으로 좁힌 것과 같은 데이터라서다. 비-admin 응답에는
+ * 키 자체가 없고 정렬도 이름순이다(§listGatheringNonAttendees).
+ */
+export type NonAttendeeRow = {
+  mem_id: string;
+  mem_nm: string;
+  join_dt: string | null;
+  /** admin 전용(#496). */
+  attendance_cnt?: number;
+  /** admin 전용(#496). */
+  last_attended_at?: string | null;
+};
+
+/**
+ * `get_member_profile` 출력.
+ *
+ * `birth_dt`·`gdr_enm` 는 **admin 에게만** 실린다(#496). 이 둘은 공개 프로필 카드 RPC
+ * (`get_public_member_card`)에 없는 값이고, 앱에서 보이는 곳은 관리자 화면
+ * (`admin/members`·`admin/dues/exemptions`)과 본인 프로필 수정뿐이다. 나머지 필드는
+ * 공개판 카드에 이미 나오므로 멤버 토큰에도 그대로 준다(뉴비↔모임 매칭이 이 MCP 의 주 용도).
+ *
+ * 비-admin 응답에는 **키 자체가 없다** — select 목록에서 빼기 때문에 응답 후처리 누락으로
+ * 새어 나갈 여지가 구조적으로 없다.
+ */
 export type MemberProfileRow = {
   mem_id: string;
   mem_nm: string;
-  birth_dt: string | null;
-  gdr_enm: string | null;
+  /** admin 전용(#496). 비-admin 응답에는 키가 존재하지 않는다. */
+  birth_dt?: string | null;
+  /** admin 전용(#496). 비-admin 응답에는 키가 존재하지 않는다. */
+  gdr_enm?: string | null;
   join_dt: string | null;
   team_role_cd: string;
   mem_st_cd: string;
   intro_txt: string | null;
   avatar_url: string | null;
 } & RunningProfile;
+
+/**
+ * `getMemberProfile` 의 임베디드 `mem_mst` 형상. `birth_dt`·`gdr_enm` 은 admin select 에만
+ * 들어가므로 선택 키다(#496) — 비-admin 경로에서는 애초에 뽑히지 않는다.
+ */
+type MemMstEmbedded = {
+  mem_id: string;
+  mem_nm: string;
+  birth_dt?: string | null;
+  gdr_enm?: string | null;
+  avatar_url: string | null;
+};
 
 export type PushStatusRow = {
   mem_id: string;
@@ -386,12 +441,24 @@ export async function listRecentMembers(
   }));
 }
 
-/** §5.3 멤버별 참석 현황(오래/전혀 안 나온 순). */
+/**
+ * §5.3 멤버별 참석 현황(오래/전혀 안 나온 순). **admin 전용**(#496).
+ *
+ * 앱에서 같은 통계가 있는 곳은 관리자 전용 화면
+ * (`app/(info)/admin/members/participation-section.tsx`) 하나뿐이라, 멤버 토큰에 열어 두면
+ * MCP 가 앱보다 넓은 창구가 된다. 거부는 쿼리 이전에 — 데이터를 뽑고 버리지 않는다.
+ */
 export async function listMembersAttendance(
   supabase: Db,
   teamId: string,
+  isAdmin: boolean,
   limit?: number,
 ): Promise<AttendanceRow[]> {
+  if (!isAdmin) {
+    throw new ToolDeniedError(
+      "멤버별 참석 현황은 운영진(admin)만 조회할 수 있습니다.",
+    );
+  }
   const [members, events] = await Promise.all([
     fetchActiveMemberSeeds(supabase, teamId),
     fetchPastAttendanceEvents(supabase, teamId),
@@ -399,20 +466,30 @@ export async function listMembersAttendance(
   return aggregateAttendance(members, events, limit);
 }
 
-/** §5.4 멤버 프로필(연락처·계좌 절대 미포함). member_id 또는 name으로 조회. */
+/**
+ * §5.4 멤버 프로필(연락처·계좌 절대 미포함). member_id 또는 name으로 조회.
+ *
+ * `isAdmin` 이 false 면 생년월일·성별을 **select 목록에서부터** 뺀다(#496) — 뽑지 않으면
+ * 셀 수 없다. 응답에서 지우는 방식은 새 반환 경로가 생길 때마다 지우기를 빠뜨릴 수 있다.
+ * 인자를 선택값으로 두지 않는 것도 같은 이유다: 기본값이 있으면 새 호출부가 조용히 새는 쪽으로 붙는다.
+ */
 export async function getMemberProfile(
   supabase: Db,
   teamId: string,
+  isAdmin: boolean,
   params: { memberId?: string; name?: string },
 ): Promise<MemberProfileRow[]> {
   const { memberId, name } = params;
   if (!memberId && !name) {
     throw new ToolInputError("member_id 또는 name 중 하나는 필요합니다.");
   }
+  const memColumns = isAdmin
+    ? "mem_id, mem_nm, birth_dt, gdr_enm, avatar_url"
+    : "mem_id, mem_nm, avatar_url";
   let query = supabase
     .from("team_mem_rel")
     .select(
-      "join_dt, team_role_cd, mem_st_cd, intro_txt, mem_mst!inner(mem_id, mem_nm, birth_dt, gdr_enm, avatar_url)",
+      `join_dt, team_role_cd, mem_st_cd, intro_txt, mem_mst!inner(${memColumns})`,
     )
     .eq("team_id", teamId)
     .eq("del_yn", false)
@@ -429,27 +506,16 @@ export async function getMemberProfile(
   if (error) throw error;
   const rows = (data ?? []).map((r) => {
     const mem = pickOne(
-      r.mem_mst as
-        | {
-            mem_id: string;
-            mem_nm: string;
-            birth_dt: string | null;
-            gdr_enm: string | null;
-            avatar_url: string | null;
-          }
-        | Array<{
-            mem_id: string;
-            mem_nm: string;
-            birth_dt: string | null;
-            gdr_enm: string | null;
-            avatar_url: string | null;
-          }>,
+      r.mem_mst as MemMstEmbedded | MemMstEmbedded[],
     );
     return {
       mem_id: mem?.mem_id ?? "",
       mem_nm: mem?.mem_nm ?? "",
-      birth_dt: mem?.birth_dt ?? null,
-      gdr_enm: mem?.gdr_enm ?? null,
+      // admin 일 때만 키를 만든다. 비-admin 은 select 에서 이미 빠져 있어 undefined 이지만,
+      // 키를 `birth_dt: undefined` 로 남기면 JSON.stringify 가 지우더라도 형상 검증이 흐려진다.
+      ...(isAdmin
+        ? { birth_dt: mem?.birth_dt ?? null, gdr_enm: mem?.gdr_enm ?? null }
+        : {}),
       join_dt: (r.join_dt as string | null) ?? null,
       team_role_cd: r.team_role_cd as string,
       mem_st_cd: r.mem_st_cd as string,
@@ -467,12 +533,25 @@ export async function getMemberProfile(
   }));
 }
 
-/** §5.5 특정 모임 미참석 활성 멤버 + 각자 참석 현황. */
+/**
+ * §5.5 특정 모임 미참석 활성 멤버. **참석 통계는 admin 에게만**(#496).
+ *
+ * `list_members_attendance` 를 admin 으로 좁혀 놓고 이 도구를 그대로 두면, 같은 통계
+ * (`attendance_cnt`·`last_attended_at`)가 미참석자 목록에 얹혀 그대로 새어 나간다 —
+ * 막은 문 옆의 안 막은 창문이다. 그렇다고 도구째 막지는 않는다: **"이 벙에 누가 안 왔나"는
+ * 앱에서 참석자 목록이 공개라 뒤집으면 나오는 정보**라 멤버가 알아도 되는 사실이다.
+ * 그래서 `get_member_profile` 과 같은 방식으로 **필드만** 좁힌다.
+ *
+ * 비-admin 경로는 참석 이력을 **아예 조회하지 않는다**(뽑아서 버리지 않는다). 정렬도
+ * 이름순으로 바꾼다 — `last_attended_at` 순으로 늘어놓으면 값이 없어도 **줄 순서가 곧
+ * "누가 더 오래 안 나왔나"** 라서, 숫자만 지우는 건 가린 척일 뿐이다.
+ */
 export async function listGatheringNonAttendees(
   supabase: Db,
   teamId: string,
+  isAdmin: boolean,
   gatheringId: string,
-): Promise<AttendanceRow[]> {
+): Promise<NonAttendeeRow[]> {
   // 모임 존재·팀 스코프 검증(§7: 존재하지 않는 gathering_id → 안전 에러).
   const { data: gthr, error: gErr } = await supabase
     .from("gthr_mst")
@@ -484,17 +563,29 @@ export async function listGatheringNonAttendees(
   if (gErr) throw gErr;
   if (!gthr) throw new ToolInputError("해당 모임을 찾을 수 없습니다.");
 
+  const fetchAttendeeIds = async () => {
+    const { data, error } = await supabase
+      .from("gthr_attd_rel")
+      .select("mem_id")
+      .eq("gthr_id", gatheringId);
+    if (error) throw error;
+    return new Set((data ?? []).map((a) => a.mem_id as string));
+  };
+
+  if (!isAdmin) {
+    const [members, attendeeIds] = await Promise.all([
+      fetchActiveMemberSeeds(supabase, teamId),
+      fetchAttendeeIds(),
+    ]);
+    return members
+      .filter((m) => !attendeeIds.has(m.mem_id))
+      .sort((a, b) => a.mem_nm.localeCompare(b.mem_nm));
+  }
+
   const [members, events, attendeeIds] = await Promise.all([
     fetchActiveMemberSeeds(supabase, teamId),
     fetchPastAttendanceEvents(supabase, teamId),
-    (async () => {
-      const { data, error } = await supabase
-        .from("gthr_attd_rel")
-        .select("mem_id")
-        .eq("gthr_id", gatheringId);
-      if (error) throw error;
-      return new Set((data ?? []).map((a) => a.mem_id as string));
-    })(),
+    fetchAttendeeIds(),
   ]);
 
   const nonAttendees = members.filter((m) => !attendeeIds.has(m.mem_id));

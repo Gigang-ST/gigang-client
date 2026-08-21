@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { OperatorContext } from "@/lib/mcp/auth";
-import { ToolInputError } from "@/lib/mcp/queries";
+import { ToolDeniedError, ToolInputError } from "@/lib/mcp/queries";
 import { insertNotiMany } from "@/lib/notifications/insert-noti";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -44,8 +44,11 @@ export type SendPushResult = {
 /**
  * 비-admin 이 write 도구를 호출했을 때의 거부(스펙 §6 G-2 / §7 403).
  * MCP 는 단일 200 채널이라 HTTP 403 대신 tool error 로 반환하되, 사유는 안전 메시지만 노출한다.
+ *
+ * 공용 `ToolDeniedError` 를 상속한다(#496) — 라우트가 거부 타입 하나만 잡으면 되고,
+ * 이 이름에 기대는 기존 테스트(`toBeInstanceOf(SendPushDeniedError)`)도 그대로 성립한다.
  */
-export class SendPushDeniedError extends Error {
+export class SendPushDeniedError extends ToolDeniedError {
   constructor(message = "이 작업은 운영진(admin)만 실행할 수 있습니다.") {
     super(message);
     this.name = "SendPushDeniedError";
