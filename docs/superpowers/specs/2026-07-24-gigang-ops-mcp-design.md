@@ -63,7 +63,9 @@
   - **`list_members_attendance`**: `is_admin`만. 같은 통계가 앱엔 관리자 전용 화면(`app/(info)/admin/members/participation-section.tsx`)에만 있다. 거부는 쿼리 실행 **이전**에 — 뽑아서 버리지 않는다.
   - **`list_gathering_non_attendees`의 `attendance_cnt`·`last_attended_at`**: admin 응답에만 싣는다. 바로 위 도구와 **같은 통계**라, 하나만 막으면 옆 도구로 그대로 나간다(막은 문 옆의 안 막은 창문). 도구째 막지는 않는다 — "이 벙에 누가 안 왔나"는 앱에서 참석자 목록이 공개라 뒤집으면 나오는 사실이다. 비-admin 경로는 참석 이력을 **조회조차 하지 않고**, 정렬도 **이름순**으로 바꾼다: `last_attended_at` 순으로 늘어놓으면 값이 없어도 줄 순서가 곧 "누가 더 오래 안 나왔나"라서 숫자만 지우는 건 가린 척이다.
   - **`get_member_profile`의 `birth_dt`·`gdr_enm`**: admin 응답에만 싣는다. 공개 프로필 카드 RPC(`get_public_member_card`)에 없는 값이고, 앱에선 관리자 화면(`admin/members`·`admin/dues/exemptions`)과 본인 프로필 수정에만 보인다. **도구 자체는 멤버 허용을 유지**한다 — 뉴비↔모임 매칭(러닝 프로필 조회)이 이 MCP 의 주 용도이고 나머지 필드는 앱에서 이미 공개다. 구현은 **비-admin select 목록에서 두 컬럼을 빼는** 방식이다(응답 후처리로 지우면 새 반환 경로가 생길 때 빠뜨린다).
-- **`send_push`**: `is_admin`만. 아니면 **403**.
+- **쓰기 도구(`send_push`·`create_gathering`)**: `is_admin`만. 아니면 **403**. 되돌리기 어렵고 둘 다 팀에 알림이 나간다.
+  - **서버 액션을 재사용할 수 없다**(#485에서 확인). `app/actions/**` 는 `withMember`/`withActive` → `getCurrentMember()` → **Supabase 세션 쿠키**에 묶여 있는데 MCP 요청은 PAT 만 들고 온다. 팀도 `getRequestTeamContext()`(Host 파싱)가 아니라 `ctx.team_id` 에서 와야 한다. 그래서 쓰기 경로는 `lib/mcp/` 에 별도로 두되 **검증 스키마(`lib/validations/*`)는 앱과 공유**한다 — 앱으로 만든 것과 MCP 로 만든 것이 다르게 굴면 안 된다.
+  - **일시 입력은 KST 벽시계 형식 하나만 받는다**(`YYYY-MM-DD HH:mm`). `Z`·오프셋 표기를 섞어 받으면 `dayjs.tz(x,'Asia/Seoul')` 가 그 값을 다시 KST 로 해석해 **9시간이 조용히 밀린다** — 에러 없이 엉뚱한 시각에 벙이 선다.
 - **거부 타입은 하나로 공유한다**: `ToolDeniedError`(`lib/mcp/queries.ts`). `SendPushDeniedError`가 이를 상속하고, 라우트는 이 타입 하나만 잡아 사유를 노출한다. 게이트가 늘 때마다 라우트 catch 목록을 손대야 하면 언젠가 한 곳을 빠뜨려 사유가 일반 메시지로 마스킹된다.
 - **민감정보 전면 차단**: `phone_no·email_addr·bank_nm·bank_acct_no`는 **어떤 도구도, 어떤 권한(admin 포함)도 반환하지 않는다.** 쿼리 select 목록에서 아예 제외 — 코드 레벨 불변식(M-03). 이 불변식은 권한 분기가 아니라 절대선이며, 위의 생일·성별 분기와는 층이 다르다(저쪽은 admin이면 보인다).
 
@@ -80,6 +82,7 @@
 | `list_gathering_non_attendees` | `gathering_id`(uuid) | mem_id, mem_nm, join_dt **+ admin 한정 attendance_cnt·last_attended_at**(#496) | 멤버 |
 | `list_push_status` | — | mem_id, mem_nm, mem_st_cd, push_enabled | 멤버 |
 | `send_push` | `member_ids`(uuid[]), `title`, `message` | sent_cnt, audit_id | **admin** |
+| `create_gathering` | `gthr_nm`, `gthr_type_enm`, `sprt_cd`, `stt_at`(KST 벽시계), `end_at?`, `loc_txt?`, `desc_txt?`, `max_prt_cnt?`, `dry_run?` | dry_run, gthr_id, short_id, gthr_url, stt_at_kst, end_at_kst, notified_cnt, audit_id | **admin** (#485) |
 
 - 반환은 정렬된 JSON 배열. `list_members_attendance`·`list_gathering_non_attendees`는 `last_attended_at asc nulls first`(전혀/오래 안 나온 순)로 정렬해 주되, 최종 추천 판단은 AI가 한다. **단 비-admin 의 `list_gathering_non_attendees` 는 이름순**이다(#496) — 이 정렬 자체가 admin 전용 통계를 순서로 흘리기 때문이다.
 - `near_stn`·`avg_run_dist_km`·`avg_pace`·`join_purposes`(2026-07-25 추가)는 가입 온보딩 러닝 프로필(`mem_onbd_prf`, mem_id 키·팀무관)에서 조인. `avg_pace`·`join_purposes`는 각각 `avg_pace_cd`·`join_purp_cds`를 `lib/validations/member.ts`의 `PACE_LABELS`·`JOIN_PURP_SHORT_LABELS`로 디코딩한 라벨(알 수 없는 코드는 코드 원문 유지). 온보딩 행이 없는 멤버는 전부 null/빈 배열. 유입경로(join_src_cd)·전화·이메일·계좌는 여전히 영구 제외(M-03).
@@ -187,6 +190,8 @@ order by push_enabled asc, m.mem_nm;
 | G-10 | member | `get_member_profile` | 응답에 birth_dt·gdr_enm **키 자체가 없음**(select 에서 제외) — #496 |
 | G-11 | owner/admin | `get_member_profile` | 응답에 birth_dt·gdr_enm 포함 — #496 |
 | G-17 | member | `list_gathering_non_attendees` | 응답에 attendance_cnt·last_attended_at **키 없음** + 이름순 정렬 + 참석 이력 쿼리 0회 — #496 |
+| G-12 | member | `create_gathering` | DENY (모임·알림·감사 0건) — #485 |
+| G-13 | owner/admin | `create_gathering` (`dry_run=true`) | 어떤 테이블에도 쓰지 않고 해석 결과만 반환 — #485 |
 
 M-02 = 위 매트릭스 100% 통과. (민감정보는 권한 분기 없이 전면 차단 — G-7은 M-03 불변식과도 연결.)
 

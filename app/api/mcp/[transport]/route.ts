@@ -1,7 +1,10 @@
+import { headers } from "next/headers";
+
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
 
 import { resolveOperator, type OperatorContext } from "@/lib/mcp/auth";
+import { createGatheringViaMcp } from "@/lib/mcp/create-gathering";
 import {
   ToolDeniedError,
   ToolInputError,
@@ -14,6 +17,7 @@ import {
 } from "@/lib/mcp/queries";
 import { sendPush } from "@/lib/mcp/send-push";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { GTHR_SPRT_TYPES, GTHR_TYPES } from "@/lib/validations/gathering";
 
 /** MCP 도구 응답 도우미 — 사실 payload를 text JSON 으로 감싼다. */
 function textResult(payload: unknown) {
@@ -26,12 +30,32 @@ function errorResult(message: string) {
 }
 
 /**
- * 읽기 도구 공통 실행 래퍼. operator ctx(팀 스코프 신원)를 꺼내 service-role 클라이언트를
- * 만들고 쿼리를 실행한다. team_id 는 ctx 에서만 주입되며 도구 입력으로 받지 않는다.
+ * 응답에 실을 상세 URL 의 origin. `create_gathering` 이 만든 벙을 사람이 바로 열어 확인·정정할
+ * 수 있게 하는 용도라, 못 구하면 **상대 경로로 물러난다**(URL 하나 때문에 개설을 실패시키지 않는다).
+ */
+async function resolveBaseUrl(): Promise<string | null> {
+  try {
+    const h = await headers();
+    const host = h.get("x-forwarded-host") ?? h.get("host");
+    if (!host) return null;
+    const proto =
+      h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+    return `${proto}://${host}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 도구 공통 실행 래퍼(읽기·쓰기 공용). operator ctx(팀 스코프 신원)를 꺼내 service-role
+ * 클라이언트를 만들고 본체를 실행한다. team_id 는 ctx 에서만 주입되며 도구 입력으로 받지 않는다.
  * 알려진 입력·미존재 오류(ToolInputError)와 권한 거부(ToolDeniedError)만 메시지를 노출하고,
  * 그 외는 일반 메시지로 마스킹한다.
+ *
+ * 쓰기 도구도 같은 래퍼를 쓴다 — 예전엔 `send_push` 가 같은 코드를 자기 핸들러에 복제하고
+ * 있었고, #496 에서 거부 타입을 바꿀 때 그 복제본을 따로 고쳐야 했다.
  */
-async function runReadTool<T>(
+async function runTool<T>(
   extra: { authInfo?: { extra?: unknown } },
   fn: (ctx: OperatorContext, supabase: ReturnType<typeof createAdminClient>) => Promise<T>,
 ) {
@@ -116,7 +140,7 @@ const handler = createMcpHandler(
         },
       },
       async (args, extra) =>
-        runReadTool(extra, (ctx, supabase) =>
+        runTool(extra, (ctx, supabase) =>
           listTodayGatherings(supabase, ctx.team_id, args.date),
         ),
     );
@@ -132,7 +156,7 @@ const handler = createMcpHandler(
         },
       },
       async (args, extra) =>
-        runReadTool(extra, (ctx, supabase) =>
+        runTool(extra, (ctx, supabase) =>
           listRecentMembers(supabase, ctx.team_id, args.limit ?? 10),
         ),
     );
@@ -148,7 +172,7 @@ const handler = createMcpHandler(
         },
       },
       async (args, extra) =>
-        runReadTool(extra, (ctx, supabase) =>
+        runTool(extra, (ctx, supabase) =>
           listMembersAttendance(supabase, ctx.team_id, ctx.is_admin, args.limit),
         ),
     );
@@ -165,7 +189,7 @@ const handler = createMcpHandler(
         },
       },
       async (args, extra) =>
-        runReadTool(extra, (ctx, supabase) =>
+        runTool(extra, (ctx, supabase) =>
           getMemberProfile(supabase, ctx.team_id, ctx.is_admin, {
             memberId: args.member_id,
             name: args.name,
@@ -184,7 +208,7 @@ const handler = createMcpHandler(
         },
       },
       async (args, extra) =>
-        runReadTool(extra, (ctx, supabase) =>
+        runTool(extra, (ctx, supabase) =>
           listGatheringNonAttendees(
             supabase,
             ctx.team_id,
@@ -203,10 +227,10 @@ const handler = createMcpHandler(
         inputSchema: {},
       },
       async (_args, extra) =>
-        runReadTool(extra, (ctx, supabase) => listPushStatus(supabase, ctx.team_id)),
+        runTool(extra, (ctx, supabase) => listPushStatus(supabase, ctx.team_id)),
     );
 
-    // ── write 도구 1개(SG-05). admin 전용 · ctx.team_id 스코프 · 감사 로그 필수. ──
+    // ── write 도구 2개. 모두 admin 전용 · ctx.team_id 스코프 · 감사 로그 필수. ──
 
     server.registerTool(
       "send_push",
@@ -223,27 +247,45 @@ const handler = createMcpHandler(
           message: z.string().min(1, "내용을 입력하세요.").max(1000),
         },
       },
-      async (args, extra) => {
-        const ctx = extra.authInfo?.extra as OperatorContext | undefined;
-        if (!ctx) {
-          // withMcpAuth(required)가 미인증을 401로 이미 차단하므로 도달하지 않는 방어선.
-          return errorResult("인증 정보를 확인할 수 없습니다.");
-        }
-        try {
-          const supabase = createAdminClient();
-          const result = await sendPush(supabase, ctx, {
+      async (args, extra) =>
+        runTool(extra, (ctx, supabase) =>
+          sendPush(supabase, ctx, {
             memberIds: args.member_ids,
             title: args.title,
             message: args.message,
-          });
-          return textResult(result);
-        } catch (err) {
-          // 비-admin 거부(G-2/§7 403)·알려진 입력 오류만 메시지 노출, 그 외는 마스킹.
-          if (err instanceof ToolDeniedError) return errorResult(err.message);
-          if (err instanceof ToolInputError) return errorResult(err.message);
-          return errorResult("요청을 처리하지 못했습니다.");
-        }
+          }),
+        ),
+    );
+
+    server.registerTool(
+      "create_gathering",
+      {
+        title: "모임 개설",
+        description:
+          "우리 팀에 새 모임(벙)을 만듭니다. 운영진(admin) 전용입니다. " +
+          "일시는 **한국시간(KST) 기준 'YYYY-MM-DD HH:mm'** 으로 주세요(시간대 표기 없이 — 'Z'나 '+09:00'을 붙이면 거부됩니다). " +
+          "만들면 앱에서 만든 것과 똑같이 작성자가 자동 참석되고 팀 전원에게 새 모임 알림이 나갑니다 — 되돌리기 어려우니, " +
+          "자연어에서 날짜·장소를 뽑아낸 경우엔 먼저 dry_run=true 로 호출해 해석된 값을 사용자에게 확인받은 뒤 저장하세요. " +
+          "team_id 와 작성자는 토큰에서 채워집니다.",
+        inputSchema: {
+          gthr_nm: z.string().min(1, "제목을 입력하세요.").max(100),
+          gthr_type_enm: z.enum(GTHR_TYPES),
+          sprt_cd: z.enum(GTHR_SPRT_TYPES),
+          stt_at: z.string().min(1, "시작 일시를 입력하세요."),
+          end_at: z.string().nullable().optional(),
+          loc_txt: z.string().max(200).nullable().optional(),
+          desc_txt: z.string().max(2000).nullable().optional(),
+          max_prt_cnt: z.number().int().min(1).nullable().optional(),
+          dry_run: z
+            .boolean()
+            .optional()
+            .describe("true 면 검증만 하고 저장하지 않습니다(해석된 일시를 확인하는 용도)."),
+        },
       },
+      async (args, extra) =>
+        runTool(extra, async (ctx, supabase) =>
+          createGatheringViaMcp(supabase, ctx, args, await resolveBaseUrl()),
+        ),
     );
   },
   {
