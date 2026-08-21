@@ -408,6 +408,12 @@ export type LogActivityIn = {
   multipliers?: string[] | null;
 };
 
+/**
+ * 수정 입력 — **모든 필드가 선택**이다(PATCH). 안 준 것은 기존 기록에서 채운다.
+ * 등록(`LogActivityIn`)과 달리 날짜·종목·거리도 이을 값이 있으므로 다시 적을 필요가 없다.
+ */
+export type UpdateActivityIn = Partial<LogActivityIn>;
+
 /** 이름 매칭용 정규화 — 공백·대소문자 차이로 "그런 배율 없다"가 나지 않게. */
 function normalizeMultKey(s: string): string {
   return s.replace(/\s+/g, "").toLowerCase();
@@ -676,7 +682,7 @@ export async function updateMyActivity(
   db: Db,
   ctx: OperatorContext,
   actId: string,
-  input: LogActivityIn,
+  input: UpdateActivityIn,
 ): Promise<{ act_id: string; before: MyActivityRow; after: MyActivityRow; month_after: MyMileageRow | null }> {
   const prt = await resolveMyParticipation(db, ctx);
   const { mult_ids: prevMultIds, ...existing } = await fetchOwnActivity(
@@ -685,9 +691,20 @@ export async function updateMyActivity(
     actId,
   );
 
-  // 선택 필드를 안 주면 붙어 있던 값을 그대로 잇는다 — 앱 수정 폼이 기존 값을 프리필하는
+  // 안 준 필드는 전부 붙어 있던 값을 그대로 잇는다 — 앱 수정 폼이 기존 값을 프리필하는
   // 것과 같다. 지우려면 `[]`(배율) · `null`(후기) · `0`(고도)을 명시한다.
-  const n = await normalizeOne(db, prt.evt_id, ctx.is_admin, input, {
+  //
+  // 날짜·종목·거리도 여기서 채운다. 한때 이 셋만 required 라 "고도만 고치기"가
+  // `act_dt`·`sport`·`distance_km` 를 다시 안 적으면 거부됐다 — description 은 "고치려는
+  // 것만 보내라"고 하는데 실제로는 세 개를 늘 다시 적어야 해서, 말과 동작이 갈렸다(#504 코멘트).
+  const merged: LogActivityIn = {
+    ...input,
+    act_dt: input.act_dt ?? existing.act_dt,
+    sport: input.sport ?? existing.sport,
+    distance_km: input.distance_km ?? existing.distance_km,
+  };
+
+  const n = await normalizeOne(db, prt.evt_id, ctx.is_admin, merged, {
     multIds: prevMultIds,
     elevationM: existing.elevation_m,
     review: existing.review,

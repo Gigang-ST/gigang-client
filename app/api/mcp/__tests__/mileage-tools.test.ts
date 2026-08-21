@@ -459,6 +459,31 @@ describe("update / delete — 내 기록", () => {
     expect(cleared.after.final_mlg).toBe(12);
   });
 
+  /**
+   * #504 코멘트 후속 — 한때 `act_dt`·`sport`·`distance_km` 만 required 라 "고도만 고치기"가
+   * 셋을 다시 안 적으면 거부됐다. description 은 "고치려는 것만 보내라"고 하는데 실제로는
+   * 셋을 늘 다시 적어야 해서 말과 동작이 갈렸다.
+   */
+  it("act_id 말고 아무것도 안 줘도 되고, 준 것만 바뀐다", async () => {
+    const logged = await logMyActivities(db.asClient(), ctxOf(), [
+      { act_dt: TODAY, sport: "RUNNING", distance_km: 10, elevation_m: 80, review: "정기런" },
+    ]);
+    const actId = logged.activities[0].act_id;
+
+    const onlyElev = await updateMyActivity(db.asClient(), ctxOf(), actId, {
+      elevation_m: 200,
+    });
+    expect(onlyElev.after.act_dt).toBe(TODAY);
+    expect(onlyElev.after.sport).toBe("RUNNING");
+    expect(onlyElev.after.distance_km).toBe(10);
+    expect(onlyElev.after.review).toBe("정기런");
+    expect(onlyElev.after.final_mlg).toBe(12); // 10 + 200/100
+
+    // 아무것도 안 주면 아무것도 안 바뀐다(안전한 no-op).
+    const noop = await updateMyActivity(db.asClient(), ctxOf(), actId, {});
+    expect(noop.after).toEqual(noop.before);
+  });
+
   it("등록은 생략을 '없음'으로 본다 — 이을 기존 값이 없다", async () => {
     const logged = await logMyActivities(db.asClient(), ctxOf(), [
       { act_dt: TODAY, sport: "RUNNING", distance_km: 10 },
