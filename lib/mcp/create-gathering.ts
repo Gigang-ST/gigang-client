@@ -76,18 +76,36 @@ export type CreateGatheringResult = {
   audit_id: string | null;
 };
 
-/** KST 벽시계 문자열 → UTC ISO. 형식 위반은 안전 에러로 되돌린다(9시간 밀림 방지). */
+/**
+ * KST 벽시계 문자열 → UTC ISO. 형식 위반은 안전 에러로 되돌린다(9시간 밀림 방지).
+ *
+ * **`isValid()` 로는 부족하다**(2026-08-21 E2E 에서 실제로 통과했다): dayjs 는 범위를 벗어난
+ * 값을 거부하지 않고 **굴린다**. `2026-13-05` → `2027-01-05`, `2026-02-31` → `2026-03-03`,
+ * `25:99` → 다음 날 `02:39`. 전부 `isValid() === true` 라, 월을 잘못 적은 벙이 **에러 하나
+ * 없이 딴 달에 선다** — 오프셋 표기를 막아 놓고 정작 같은 결과를 다른 문으로 들여보내는 꼴이다.
+ *
+ * 그래서 파싱 결과를 **되찍어 입력과 대조**한다. 굴러간 값은 원문과 달라지므로 여기서 걸린다.
+ */
 function toUtcIsoKst(label: string, localDt: string): string {
-  if (!KST_DATETIME_RE.test(localDt.trim())) {
+  const raw = localDt.trim();
+  if (!KST_DATETIME_RE.test(raw)) {
     throw new ToolInputError(
       `${label} 은 KST 기준 'YYYY-MM-DD HH:mm' 형식이어야 합니다(시간대 표기 없이). 받은 값: ${localDt}`,
     );
   }
-  const iso = dayjs.tz(localDt.trim().replace(" ", "T"), "Asia/Seoul");
-  if (!iso.isValid()) {
+  const normalized = raw.replace(" ", "T");
+  const parsed = dayjs.tz(normalized, "Asia/Seoul");
+  if (!parsed.isValid()) {
     throw new ToolInputError(`${label} 이 실제 존재하는 일시가 아닙니다. 받은 값: ${localDt}`);
   }
-  return iso.toISOString();
+  // 초 표기가 있으면 초까지, 없으면 분까지 되찍어 원문과 맞대본다.
+  const fmt = normalized.length > 16 ? "YYYY-MM-DDTHH:mm:ss" : "YYYY-MM-DDTHH:mm";
+  if (parsed.format(fmt) !== normalized) {
+    throw new ToolInputError(
+      `${label} 이 실제 존재하는 일시가 아닙니다(${parsed.format("YYYY-MM-DD HH:mm")} 으로 해석됨). 받은 값: ${localDt}`,
+    );
+  }
+  return parsed.toISOString();
 }
 
 /** UTC ISO → 사람이 확인하기 좋은 KST 표기. */

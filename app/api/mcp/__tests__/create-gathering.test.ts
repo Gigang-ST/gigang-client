@@ -168,6 +168,44 @@ describe("create_gathering — 일시는 KST 벽시계만 받는다(9시간 밀�
     expect(calls.gthrInsert?.stt_at).toBe("2026-08-28T22:00:00.000Z");
   });
 
+  it("범위를 벗어난 날짜·시각을 거부한다 — dayjs 는 굴려서 딴 날로 만든다", async () => {
+    // E2E(2026-08-21)에서 실제로 통과했던 값들. `isValid()` 는 전부 true 라 못 잡는다.
+    //   2026-13-05 → 2027-01-05 · 2026-02-31 → 2026-03-03 · 25:99 → 다음 날 02:39
+    // 월을 잘못 적은 벙이 에러 없이 딴 달에 서는 것이라, 오프셋 표기를 막은 것과 같은 사고다.
+    for (const bad of [
+      "2026-13-05 07:00",
+      "2026-13-45 07:00",
+      "2026-02-31 07:00",
+      "2026-09-05 25:99",
+      "2026-00-10 07:00",
+    ]) {
+      const { client, touched } = makeForbiddenSupabase();
+      await expect(
+        createGatheringViaMcp(client, ctxOf(), validInput({ stt_at: bad })),
+      ).rejects.toBeInstanceOf(ToolInputError);
+      expect(touched).toEqual([]);
+    }
+  });
+
+  it("거부 메시지가 '무엇으로 해석됐는지'를 알려준다(오타를 눈으로 잡게)", async () => {
+    const { client } = makeForbiddenSupabase();
+    await expect(
+      createGatheringViaMcp(client, ctxOf(), validInput({ stt_at: "2026-13-05 07:00" })),
+    ).rejects.toThrow(/2027-01-05/);
+  });
+
+  it("경계값(윤년 2/29·23:59·12/31)은 통과한다 — 되찍기 대조가 정상값을 막지 않게", async () => {
+    for (const good of ["2028-02-29 07:00", "2026-12-31 23:59", "2026-09-05 00:00"]) {
+      const { client } = makeSupabase();
+      const r = await createGatheringViaMcp(
+        client,
+        ctxOf(),
+        validInput({ stt_at: good, dry_run: true }),
+      );
+      expect(r.stt_at_kst).toContain(good.slice(0, 10));
+    }
+  });
+
   it("시간대 표기(Z·+09:00)가 붙으면 거부한다 — 통과시키면 9시간이 조용히 밀린다", async () => {
     for (const bad of [
       "2026-08-29T07:00:00Z",

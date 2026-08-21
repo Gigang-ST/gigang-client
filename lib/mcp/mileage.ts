@@ -304,8 +304,18 @@ export async function getMyMileage(
   if (error) throw error;
 
   if (!data) {
+    // "참가 시작월 이후를 확인하라"고만 하면 도움이 안 된다 — 시작월 뒤인데도 행이 없는 경우가
+    // 실제로 있다(참가 도중 합류·데이터 보정 등). **있는 달을 그대로 알려준다.**
+    const { data: months } = await db
+      .from("evt_mlg_mth_snap")
+      .select("base_dt")
+      .eq("prt_id", prt.prt_id)
+      .order("base_dt", { ascending: true });
+    const have = (months ?? []).map((m) => (m.base_dt as string).slice(0, 7));
     throw new ToolInputError(
-      `${baseDt.slice(0, 7)} 의 목표가 아직 없습니다. 참가 시작월(${prt.stt_mth.slice(0, 7)}) 이후의 달을 확인해 주세요.`,
+      have.length
+        ? `${baseDt.slice(0, 7)} 의 목표가 없습니다. 목표가 있는 달: ${have.join(", ")}`
+        : `${prt.evt_nm} 에 아직 월별 목표가 만들어지지 않았습니다. 운영진에게 문의해 주세요.`,
     );
   }
   return toMileageRow(data, prt.evt_nm);
