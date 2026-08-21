@@ -392,10 +392,17 @@ describe("get_my_mileage / list_my_activities / list_mileage_multipliers", () =>
     expect(row).toMatchObject({ goal_mlg: 50, achv_mlg: 0, achv_yn: false, remaining_mlg: 50 });
   });
 
-  it("목표 행이 없는 달은 안내와 함께 거부한다", async () => {
+  it("목표 행이 없는 달은 **있는 달을 알려주며** 거부한다", async () => {
+    // "참가 시작월 이후를 확인하라"는 안내는 도움이 안 됐다 — 시작월 뒤인데도 행이 없는
+    // 경우가 실제로 있어(dev 실측), 사용자가 이미 맞는 달을 넣고도 같은 말을 듣는다.
     await expect(getMyMileage(db.asClient(), ctxOf(), { month: "2019-01" })).rejects.toThrow(
-      /목표가 아직 없습니다/,
+      new RegExp(`목표가 있는 달: ${MONTH_START.slice(0, 7)}`),
     );
+  });
+
+  it("목표 행이 하나도 없으면 운영진 문의로 안내한다", async () => {
+    const d = seed({ evt_mlg_mth_snap: [] });
+    await expect(getMyMileage(d.asClient(), ctxOf())).rejects.toThrow(/운영진에게 문의/);
   });
 
   it("month 형식이 틀리면 무엇이 잘못됐는지 알려준다", async () => {
