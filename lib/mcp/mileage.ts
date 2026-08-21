@@ -11,7 +11,7 @@ import {
   type MileageSport,
 } from "@/lib/mileage";
 import {
-  autoMultiplierIdsFor,
+  listMultipliersActiveOn,
   buildAppliedMults,
   recalcGoalsFromMonth,
   validateActivityDate,
@@ -123,7 +123,7 @@ export type LogActivityResult = {
     distance_km: number;
     elevation_m: number;
     base_mlg: number;
-    /** 서버가 그날 걸려 있던 배율을 자동 적용한 결과 — 무엇이 붙었는지 여기 적어 준다. */
+    /** 요청에서 고른 배율 중 그 날짜에 유효했던 것 — 무엇이 실제로 붙었는지 여기 적어 준다. */
     applied_mults: { mult_nm: string; mult_val: number }[];
     final_mlg: number;
   }[];
@@ -142,6 +142,14 @@ function toDisplayMults(raw: unknown): { mult_nm: string; mult_val: number }[] {
   return raw
     .filter((m): m is AppliedMult => !!m && typeof m === "object" && "mult_nm" in m)
     .map((m) => ({ mult_nm: String(m.mult_nm), mult_val: Number(m.mult_val) }));
+}
+
+/** `aply_mults` JSON 에서 mult_id 만 뽑는다 — 수정 시 "기존 선택 유지"의 재료. */
+function toMultIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((m): m is AppliedMult => !!m && typeof m === "object" && "mult_id" in m)
+    .map((m) => String(m.mult_id));
 }
 
 /** 'YYYY-MM' → 'YYYY-MM-01'. 형식 위반은 안전 에러로 되돌린다. */
@@ -390,17 +398,77 @@ export type LogActivityIn = {
   distance_km: number;
   elevation_m?: number | null;
   review?: string | null;
+  /**
+   * 적용할 배율을 **이름으로** 고른다(`list_mileage_multipliers` 가 돌려주는 `mult_nm`).
+   * 생략하거나 빈 배열이면 **아무것도 안 붙는다** — 앱 폼의 체크박스가 기본 미선택인 것과 같다.
+   */
+  multipliers?: string[] | null;
 };
 
+/** 이름 매칭용 정규화 — 공백·대소문자 차이로 "그런 배율 없다"가 나지 않게. */
+function normalizeMultKey(s: string): string {
+  return s.replace(/\s+/g, "").toLowerCase();
+}
+
 /**
- * 입력 1건을 앱 폼과 **같은 스키마**로 검증하고, 그날 걸려 있던 배율을 자동으로 채운다.
- * 배율 id 를 도구 인자로 받지 않는 이유: 대화에서 uuid 를 부를 일이 없다(#497).
+ * 사용자가 부른 배율 이름을 그 날짜에 유효한 배율 id 로 옮긴다.
+ *
+ * **못 찾으면 조용히 빼지 않고 거부한다.** 침묵 탈락은 "붙는 줄 알았는데 안 붙은" 마일리지를
+ * 남기는데, 이건 보증금 환급이 걸린 숫자다. 대신 그날 고를 수 있는 이름을 오류에 실어
+ * AI 가 곧바로 다시 부를 수 있게 한다.
+ */
+async function resolveMultiplierNames(
+  db: Db,
+  evtId: string,
+  actDt: string,
+  names: string[],
+): Promise<string[]> {
+  const wanted = names.map((n) => n.trim()).filter(Boolean);
+  if (wanted.length === 0) return [];
+
+  const available = await listMultipliersActiveOn(db, evtId, actDt);
+  const byKey = new Map(available.map((m) => [normalizeMultKey(m.mult_nm), m.mult_id]));
+  const byId = new Set(available.map((m) => m.mult_id));
+
+  const ids = new Set<string>();
+  const unknown: string[] = [];
+  for (const name of wanted) {
+    // uuid 를 그대로 넘겨도 받아 준다(list 응답에 mult_id 도 실려 있어 그쪽을 집는 AI 가 있다).
+    if (byId.has(name)) {
+      ids.add(name);
+      continue;
+    }
+    const hit = byKey.get(normalizeMultKey(name));
+    if (hit) ids.add(hit);
+    else unknown.push(name);
+  }
+
+  if (unknown.length > 0) {
+    const list = available.length
+      ? available.map((m) => `${m.mult_nm}(×${m.mult_val})`).join(", ")
+      : "(없음)";
+    throw new ToolInputError(
+      `${actDt} 에 적용할 수 없는 배율입니다: ${unknown.join(", ")} / 그날 고를 수 있는 배율: ${list}`,
+    );
+  }
+  return [...ids];
+}
+
+/**
+ * 입력 1건을 앱 폼과 **같은 스키마**로 검증하고, 사용자가 고른 배율만 적용한다.
+ *
+ * 예전엔 `act_dt` 기준으로 그날 걸린 배율을 **전부** 자동으로 붙였다(#497). 배율마다 성립
+ * 조건이 다른데(모임 참석·벙주 여부·인원수·주당 횟수) `evt_mlg_mult_cfg` 에는 그 조건을 적을
+ * 칼럼이 없어 서버가 판정할 수 없다 — 혼자 1km 뛴 기록이 최대 90% 부풀려졌다(#504).
+ * 앱 폼과 같은 자기신고로 되돌린다: 기본은 미적용, 고른 것만 적용.
  */
 async function normalizeOne(
   db: Db,
   evtId: string,
   isAdmin: boolean,
   input: LogActivityIn,
+  /** 이름 대신 id 를 직접 넘길 때(수정 시 기존 선택 유지). 있으면 `input.multipliers` 를 대신한다. */
+  fallbackMultIds?: string[],
 ): Promise<{
   actDt: string;
   sport: MileageSport;
@@ -430,11 +498,16 @@ async function normalizeOne(
   const dateErr = validateActivityDate(v.act_dt, isAdmin);
   if (dateErr) throw new ToolInputError(dateErr);
 
-  const autoIds = await autoMultiplierIdsFor(db, evtId, v.act_dt);
+  // 이름 → id. 인자를 안 준 수정이면 기존 선택(fallback)을 그대로 잇는다.
+  const multIds =
+    input.multipliers === undefined || input.multipliers === null
+      ? (fallbackMultIds ?? [])
+      : await resolveMultiplierNames(db, evtId, v.act_dt, input.multipliers);
+
   const { appliedMults, multValues, error: multErr } = await buildAppliedMults(
     db,
     evtId,
-    autoIds,
+    multIds,
     v.act_dt,
   );
   if (multErr) throw new ToolInputError(multErr);
@@ -594,9 +667,15 @@ export async function updateMyActivity(
   input: LogActivityIn,
 ): Promise<{ act_id: string; before: MyActivityRow; after: MyActivityRow; month_after: MyMileageRow | null }> {
   const prt = await resolveMyParticipation(db, ctx);
-  const existing = await fetchOwnActivity(db, prt.prt_id, actId);
+  const { mult_ids: prevMultIds, ...existing } = await fetchOwnActivity(
+    db,
+    prt.prt_id,
+    actId,
+  );
 
-  const n = await normalizeOne(db, prt.evt_id, ctx.is_admin, input);
+  // `multipliers` 를 안 주면 붙어 있던 배율을 그대로 잇는다 — 앱 수정 폼이 기존 체크를
+  // 프리필하는 것과 같다. 빈 배열을 명시하면 전부 뗀다.
+  const n = await normalizeOne(db, prt.evt_id, ctx.is_admin, input, prevMultIds);
 
   const { error } = await db
     .from("evt_mlg_act_hist")
@@ -648,7 +727,11 @@ export async function deleteMyActivity(
   actId: string,
 ): Promise<{ deleted: MyActivityRow; month_after: MyMileageRow | null }> {
   const prt = await resolveMyParticipation(db, ctx);
-  const existing = await fetchOwnActivity(db, prt.prt_id, actId);
+  const { mult_ids: _unusedMultIds, ...existing } = await fetchOwnActivity(
+    db,
+    prt.prt_id,
+    actId,
+  );
 
   const dateErr = validateActivityDate(existing.act_dt, ctx.is_admin);
   if (dateErr) throw new ToolInputError(dateErr);
@@ -681,7 +764,7 @@ async function fetchOwnActivity(
   db: Db,
   prtId: string,
   actId: string,
-): Promise<MyActivityRow> {
+): Promise<MyActivityRow & { readonly mult_ids: string[] }> {
   const { data, error } = await db
     .from("evt_mlg_act_hist")
     .select(
@@ -703,6 +786,7 @@ async function fetchOwnActivity(
     elevation_m: Number(data.elv_m ?? 0),
     base_mlg: Number(data.base_mlg),
     applied_mults: toDisplayMults(data.aply_mults),
+    mult_ids: toMultIds(data.aply_mults),
     final_mlg: Number(data.final_mlg),
     review: (data.review as string | null) ?? null,
     has_photo: !!data.photo_url,
