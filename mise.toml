@@ -7,32 +7,8 @@ vercel = "latest"
 [env]
 _.file = [".env.development.local", ".env.development"]
 
-[hooks]
-enter = { task = "skills:sync" }
-
-[tasks."skills:sync"]
-description = "스킬이 동기화되지 않은 경우 자동 sync"
-run = """
-#!/usr/bin/env bash
-src=$(ls .skillshare/skills 2>/dev/null | wc -l | tr -d ' ')
-dst=$(ls .claude/skills 2>/dev/null | wc -l | tr -d ' ')
-if [ "$src" != "$dst" ]; then
-  echo "🔄 스킬 동기화 중..."
-  skillshare sync
-fi
-"""
-
-[tasks."skills:sync:pwsh"]
-description = "스킬이 동기화되지 않은 경우 자동 sync (PowerShell)"
-shell = "pwsh"
-run = """
-$src = (Get-ChildItem .skillshare/skills -ErrorAction SilentlyContinue | Measure-Object).Count
-$dst = (Get-ChildItem .claude/skills -ErrorAction SilentlyContinue | Measure-Object).Count
-if ($src -ne $dst) {
-  Write-Output "🔄 스킬 동기화 중..."
-  skillshare sync
-}
-"""
+# 스킬 자동 sync 훅(`skills:sync`)은 걷어냈다 — 스킬은 저장소가 아니라 각자 로컬에 둔다(AGENTS.md §스킬).
+# 훅을 남겨 두면 디렉토리에 들어갈 때마다 저장소에 없는 `.skillshare/`를 찾아 sync 를 시도한다.
 
 [tasks."env:all"]
 description = "모든 환경변수 파일 생성"
