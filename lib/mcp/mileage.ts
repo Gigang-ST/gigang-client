@@ -396,11 +396,14 @@ export type LogActivityIn = {
   act_dt: string;
   sport: string;
   distance_km: number;
+  /** 수정에서 생략하면 기존 고도 유지. `0`·`null` 을 명시하면 0. */
   elevation_m?: number | null;
+  /** 수정에서 생략하면 기존 후기 유지. `null` 을 명시하면 지운다. */
   review?: string | null;
   /**
    * 적용할 배율을 **이름으로** 고른다(`list_mileage_multipliers` 가 돌려주는 `mult_nm`).
-   * 생략하거나 빈 배열이면 **아무것도 안 붙는다** — 앱 폼의 체크박스가 기본 미선택인 것과 같다.
+   * 등록에서 생략하면 **아무것도 안 붙고**(앱 폼의 체크박스가 기본 미선택인 것과 같다),
+   * 수정에서 생략하면 붙어 있던 것을 유지한다. `[]` 를 명시하면 전부 뗀다.
    */
   multipliers?: string[] | null;
 };
@@ -467,8 +470,11 @@ async function normalizeOne(
   evtId: string,
   isAdmin: boolean,
   input: LogActivityIn,
-  /** 이름 대신 id 를 직접 넘길 때(수정 시 기존 선택 유지). 있으면 `input.multipliers` 를 대신한다. */
-  fallbackMultIds?: string[],
+  /**
+   * 수정일 때 넘기는 **기존 값**. 선택 필드를 생략한 호출은 이걸로 채운다(PATCH 규약) —
+   * 등록일 때는 `undefined` 라 스키마 기본값(고도 0 · 후기 없음)이 그대로 간다.
+   */
+  prev?: { multIds: string[]; elevationM: number; review: string | null },
 ): Promise<{
   actDt: string;
   sport: MileageSport;
@@ -481,13 +487,19 @@ async function normalizeOne(
 }> {
   // 사진 없는 본체 스키마 — 앱 폼과 같은 수치·날짜·후기 규칙을 쓰되, 사진 URL 검증
   // (Supabase 공개 환경변수를 물고 있다)은 이 경로에 필요가 없어 붙이지 않는다.
+  //
+  // 선택 필드는 **생략 = 기존 값 유지**다(수정일 때). 예전엔 생략을 "0 / null 로 설정"으로
+  // 읽어, 거리 오타만 고치러 온 호출에서 고도와 후기가 조용히 날아갔다 — 고도는 러닝
+  // 마일리지(거리 + 고도/100)에 직접 들어가 숫자까지 틀어졌다(#504 후속). 지우려면
+  // `null`(후기) · `0`(고도)을 **명시**한다. `multipliers` 의 `[]` 와 같은 어법이다.
   const parsed = activityLogBaseSchema.safeParse({
     act_dt: input.act_dt,
     sprt_enm: input.sport,
     distance_km: input.distance_km,
-    elevation_m: input.elevation_m ?? 0,
+    elevation_m:
+      input.elevation_m === undefined ? (prev?.elevationM ?? 0) : (input.elevation_m ?? 0),
     applied_mult_ids: [],
-    review: input.review ?? null,
+    review: input.review === undefined ? (prev?.review ?? null) : input.review,
   });
   if (!parsed.success) {
     const first = parsed.error.issues[0];
@@ -498,10 +510,10 @@ async function normalizeOne(
   const dateErr = validateActivityDate(v.act_dt, isAdmin);
   if (dateErr) throw new ToolInputError(dateErr);
 
-  // 이름 → id. 인자를 안 준 수정이면 기존 선택(fallback)을 그대로 잇는다.
+  // 이름 → id. 인자를 안 준 수정이면 기존 선택을 그대로 잇는다.
   const multIds =
     input.multipliers === undefined || input.multipliers === null
-      ? (fallbackMultIds ?? [])
+      ? (prev?.multIds ?? [])
       : await resolveMultiplierNames(db, evtId, v.act_dt, input.multipliers);
 
   const { appliedMults, multValues, error: multErr } = await buildAppliedMults(
@@ -673,9 +685,13 @@ export async function updateMyActivity(
     actId,
   );
 
-  // `multipliers` 를 안 주면 붙어 있던 배율을 그대로 잇는다 — 앱 수정 폼이 기존 체크를
-  // 프리필하는 것과 같다. 빈 배열을 명시하면 전부 뗀다.
-  const n = await normalizeOne(db, prt.evt_id, ctx.is_admin, input, prevMultIds);
+  // 선택 필드를 안 주면 붙어 있던 값을 그대로 잇는다 — 앱 수정 폼이 기존 값을 프리필하는
+  // 것과 같다. 지우려면 `[]`(배율) · `null`(후기) · `0`(고도)을 명시한다.
+  const n = await normalizeOne(db, prt.evt_id, ctx.is_admin, input, {
+    multIds: prevMultIds,
+    elevationM: existing.elevation_m,
+    review: existing.review,
+  });
 
   const { error } = await db
     .from("evt_mlg_act_hist")
