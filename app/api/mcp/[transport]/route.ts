@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { resolveOperator, type OperatorContext } from "@/lib/mcp/auth";
 import {
+  ToolDeniedError,
   ToolInputError,
   getMemberProfile,
   listGatheringNonAttendees,
@@ -11,7 +12,7 @@ import {
   listRecentMembers,
   listTodayGatherings,
 } from "@/lib/mcp/queries";
-import { SendPushDeniedError, sendPush } from "@/lib/mcp/send-push";
+import { sendPush } from "@/lib/mcp/send-push";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /** MCP 도구 응답 도우미 — 사실 payload를 text JSON 으로 감싼다. */
@@ -27,7 +28,8 @@ function errorResult(message: string) {
 /**
  * 읽기 도구 공통 실행 래퍼. operator ctx(팀 스코프 신원)를 꺼내 service-role 클라이언트를
  * 만들고 쿼리를 실행한다. team_id 는 ctx 에서만 주입되며 도구 입력으로 받지 않는다.
- * 알려진 입력·미존재 오류(ToolInputError)만 메시지를 노출하고, 그 외는 일반 메시지로 마스킹한다.
+ * 알려진 입력·미존재 오류(ToolInputError)와 권한 거부(ToolDeniedError)만 메시지를 노출하고,
+ * 그 외는 일반 메시지로 마스킹한다.
  */
 async function runReadTool<T>(
   extra: { authInfo?: { extra?: unknown } },
@@ -43,6 +45,8 @@ async function runReadTool<T>(
     const data = await fn(ctx, supabase);
     return textResult(data);
   } catch (err) {
+    // 거부(권한)는 입력 오류보다 먼저 — SendPushDeniedError 도 ToolDeniedError 하위다.
+    if (err instanceof ToolDeniedError) return errorResult(err.message);
     if (err instanceof ToolInputError) return errorResult(err.message);
     return errorResult("요청을 처리하지 못했습니다.");
   }
@@ -59,8 +63,10 @@ async function runReadTool<T>(
  *   `AuthInfo.extra` 로 각 도구에 주입한다. 서버 전용 service-role 클라이언트만 사용하며
  *   토큰 해시·시크릿은 어떤 응답에도 노출하지 않는다.
  *
- * 이번 단계(SG-02)는 health 도구 `whoami` 하나만 노출한다. 6개 조회 도구·send_push 는
- * 후속 sub-goal 에서 추가한다.
+ * 권한: 도구 대부분은 인증된 팀 멤버면 호출할 수 있고, **앱이 관리자에게만 보여주는 것**만
+ *   admin 으로 좁힌다(#496) — `send_push`·`list_members_attendance` 는 도구째,
+ *   `get_member_profile` 의 생년월일·성별은 필드 단위로. 판정은 전부 `ctx.is_admin` 이며,
+ *   게이트는 도구 핸들러가 아니라 **쿼리·발송 함수 안**에 있다(호출부가 늘어도 새지 않게).
  */
 const handler = createMcpHandler(
   (server) => {
@@ -135,14 +141,14 @@ const handler = createMcpHandler(
       {
         title: "멤버 참석 현황",
         description:
-          "우리 팀 활성 멤버별 과거 모임 참석 횟수와 마지막 참석시각을 '오래/전혀 안 나온 순'으로 반환합니다. 호출 대상 판단은 사용자가 합니다.",
+          "우리 팀 활성 멤버별 과거 모임 참석 횟수와 마지막 참석시각을 '오래/전혀 안 나온 순'으로 반환합니다. 운영진(admin) 전용입니다. 호출 대상 판단은 사용자가 합니다.",
         inputSchema: {
           limit: z.number().int().min(1).max(500).optional(),
         },
       },
       async (args, extra) =>
         runReadTool(extra, (ctx, supabase) =>
-          listMembersAttendance(supabase, ctx.team_id, args.limit),
+          listMembersAttendance(supabase, ctx.team_id, ctx.is_admin, args.limit),
         ),
     );
 
@@ -151,7 +157,7 @@ const handler = createMcpHandler(
       {
         title: "멤버 프로필",
         description:
-          "우리 팀 멤버 프로필(이름·생일·성별·가입일·역할·상태·소개·아바타, 가까운 역·평균 러닝 거리·평균 페이스·가입 목적)을 조회합니다. member_id(uuid) 또는 name 중 하나로 조회. 연락처·계좌 정보는 반환하지 않습니다.",
+          "우리 팀 멤버 프로필(이름·가입일·역할·상태·소개·아바타, 가까운 역·평균 러닝 거리·평균 페이스·가입 목적)을 조회합니다. member_id(uuid) 또는 name 중 하나로 조회. 생년월일·성별은 운영진(admin)에게만 포함됩니다. 연락처·계좌 정보는 반환하지 않습니다.",
         inputSchema: {
           member_id: z.string().uuid("member_id 는 uuid 여야 합니다.").optional(),
           name: z.string().min(1).optional(),
@@ -159,7 +165,7 @@ const handler = createMcpHandler(
       },
       async (args, extra) =>
         runReadTool(extra, (ctx, supabase) =>
-          getMemberProfile(supabase, ctx.team_id, {
+          getMemberProfile(supabase, ctx.team_id, ctx.is_admin, {
             memberId: args.member_id,
             name: args.name,
           }),
@@ -227,7 +233,7 @@ const handler = createMcpHandler(
           return textResult(result);
         } catch (err) {
           // 비-admin 거부(G-2/§7 403)·알려진 입력 오류만 메시지 노출, 그 외는 마스킹.
-          if (err instanceof SendPushDeniedError) return errorResult(err.message);
+          if (err instanceof ToolDeniedError) return errorResult(err.message);
           if (err instanceof ToolInputError) return errorResult(err.message);
           return errorResult("요청을 처리하지 못했습니다.");
         }

@@ -57,9 +57,14 @@
 
 ### 3.3 권한 규칙
 
-- **읽기 도구 6개**: 인증된 팀 멤버 전원 허용.
+판정 기준은 하나다 — **앱에서 관리자에게만 보이는 데이터는 MCP 에서도 admin 에게만.** 토큰은 가입 완료 멤버 누구나 발급하므로(§3.1), 이 선을 넘으면 MCP 가 앱보다 넓은 창구가 된다.
+
+- **읽기 도구**: 원칙적으로 인증된 팀 멤버 전원 허용. 단 아래 둘은 좁힌다(#496, 2026-08-21).
+  - **`list_members_attendance`**: `is_admin`만. 같은 통계가 앱엔 관리자 전용 화면(`app/(info)/admin/members/participation-section.tsx`)에만 있다. 거부는 쿼리 실행 **이전**에 — 뽑아서 버리지 않는다.
+  - **`get_member_profile`의 `birth_dt`·`gdr_enm`**: admin 응답에만 싣는다. 공개 프로필 카드 RPC(`get_public_member_card`)에 없는 값이고, 앱에선 관리자 화면(`admin/members`·`admin/dues/exemptions`)과 본인 프로필 수정에만 보인다. **도구 자체는 멤버 허용을 유지**한다 — 뉴비↔모임 매칭(러닝 프로필 조회)이 이 MCP 의 주 용도이고 나머지 필드는 앱에서 이미 공개다. 구현은 **비-admin select 목록에서 두 컬럼을 빼는** 방식이다(응답 후처리로 지우면 새 반환 경로가 생길 때 빠뜨린다).
 - **`send_push`**: `is_admin`만. 아니면 **403**.
-- **민감정보 전면 차단**: `phone_no·email_addr·bank_nm·bank_acct_no`는 **어떤 도구도, 어떤 권한(admin 포함)도 반환하지 않는다.** 쿼리 select 목록에서 아예 제외 — 코드 레벨 불변식(M-03). `get_member_profile`은 생일·성별을 포함하되 연락처·계좌는 절대 미포함.
+- **거부 타입은 하나로 공유한다**: `ToolDeniedError`(`lib/mcp/queries.ts`). `SendPushDeniedError`가 이를 상속하고, 라우트는 이 타입 하나만 잡아 사유를 노출한다. 게이트가 늘 때마다 라우트 catch 목록을 손대야 하면 언젠가 한 곳을 빠뜨려 사유가 일반 메시지로 마스킹된다.
+- **민감정보 전면 차단**: `phone_no·email_addr·bank_nm·bank_acct_no`는 **어떤 도구도, 어떤 권한(admin 포함)도 반환하지 않는다.** 쿼리 select 목록에서 아예 제외 — 코드 레벨 불변식(M-03). 이 불변식은 권한 분기가 아니라 절대선이며, 위의 생일·성별 분기와는 층이 다르다(저쪽은 admin이면 보인다).
 
 ## 4. 도구 I/O 스키마
 
@@ -69,8 +74,8 @@
 |---|---|---|---|
 | `list_today_gatherings` | `date?`(KST, 기본 오늘) | gthr_id, gthr_nm, gthr_type_enm, stt_at, end_at, loc_txt, max_prt_cnt, desc_txt, attendee_cnt | 멤버 |
 | `list_recent_members` | `limit?`(기본 10) | mem_id, mem_nm, join_dt, team_role_cd, mem_st_cd, near_stn, avg_run_dist_km, avg_pace, join_purposes | 멤버 |
-| `list_members_attendance` | `limit?` | mem_id, mem_nm, join_dt, attendance_cnt, last_attended_at | 멤버 |
-| `get_member_profile` | `member_id`(uuid) \| `name` | mem_nm, birth_dt, gdr_enm, join_dt, team_role_cd, mem_st_cd, intro_txt, avatar_url, near_stn, avg_run_dist_km, avg_pace, join_purposes | 멤버 (연락처·계좌 절대 미포함) |
+| `list_members_attendance` | `limit?` | mem_id, mem_nm, join_dt, attendance_cnt, last_attended_at | **admin** (#496) |
+| `get_member_profile` | `member_id`(uuid) \| `name` | mem_nm, join_dt, team_role_cd, mem_st_cd, intro_txt, avatar_url, near_stn, avg_run_dist_km, avg_pace, join_purposes **+ admin 한정 birth_dt·gdr_enm**(#496) | 멤버 (연락처·계좌 절대 미포함) |
 | `list_gathering_non_attendees` | `gathering_id`(uuid) | mem_id, mem_nm, join_dt, attendance_cnt, last_attended_at | 멤버 |
 | `list_push_status` | — | mem_id, mem_nm, mem_st_cd, push_enabled | 멤버 |
 | `send_push` | `member_ids`(uuid[]), `title`, `message` | sent_cnt, audit_id | **admin** |
@@ -177,6 +182,9 @@ order by push_enabled asc, m.mem_nm;
 | G-5 | 비활성(mem_st_cd≠active) 멤버 토큰 | 임의 도구 | DENY 401 |
 | G-6 | 팀 T 토큰 | 읽기 도구 | 팀 T 행만 반환, 타 팀 데이터 0건 |
 | G-7 | 임의 토큰(admin 포함) | `get_member_profile` | 응답에 phone_no·email_addr·bank_nm·bank_acct_no **미포함** |
+| G-9 | member | `list_members_attendance` | DENY (쿼리 실행 0회) — #496 |
+| G-10 | member | `get_member_profile` | 응답에 birth_dt·gdr_enm **키 자체가 없음**(select 에서 제외) — #496 |
+| G-11 | owner/admin | `get_member_profile` | 응답에 birth_dt·gdr_enm 포함 — #496 |
 
 M-02 = 위 매트릭스 100% 통과. (민감정보는 권한 분기 없이 전면 차단 — G-7은 M-03 불변식과도 연결.)
 

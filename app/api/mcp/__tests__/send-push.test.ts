@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { OperatorContext } from "@/lib/mcp/auth";
-import { ToolInputError } from "@/lib/mcp/queries";
+import { ToolDeniedError, ToolInputError } from "@/lib/mcp/queries";
 import type { Database } from "@/lib/supabase/database.types";
 
 /**
@@ -154,6 +154,20 @@ describe("send_push — AC-17 non-admin 거부(발송 0·감사 없음)", () => 
     expect(insertNotiManyMock).not.toHaveBeenCalled();
     expect(calls.auditInsert).toBeNull();
     expect(calls.teamScopeIn).toBeNull(); // admin 게이트에서 조회 이전에 차단
+  });
+
+  it("거부는 공용 ToolDeniedError 하위다 — 라우트가 타입 하나만 잡아도 사유가 노출된다(#496)", async () => {
+    const { client } = makeSupabase({ validMemberIds: [M1] });
+
+    // 라우트는 `err instanceof ToolDeniedError` 하나로 거부를 분기한다. 이 상속이 끊기면
+    // 사유가 "요청을 처리하지 못했습니다."로 마스킹돼 왜 막혔는지 알 수 없게 된다.
+    await expect(
+      sendPush(client, adminCtx({ is_admin: false }), {
+        memberIds: [M1],
+        title: "공지",
+        message: "내용",
+      }),
+    ).rejects.toBeInstanceOf(ToolDeniedError);
   });
 });
 
