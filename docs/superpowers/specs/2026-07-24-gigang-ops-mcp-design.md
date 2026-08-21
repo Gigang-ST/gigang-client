@@ -96,12 +96,16 @@
 | `list_my_activities` | `date?` \| `from?`·`to?` | act_id, act_dt, sport(+label), distance_km, elevation_m, base_mlg, applied_mults, final_mlg, review, has_photo | 본인 |
 | `get_my_mileage` | `month?`(YYYY-MM) | month, evt_nm, goal_mlg, achv_mlg, achv_yn, remaining_mlg, act_cnt, lst_act_dt | 본인 |
 | `list_mileage_multipliers` | `active_only?` | mult_id, mult_nm, mult_val, stt_dt, end_dt, active_yn, in_effect_today | 본인 |
-| `log_my_activity` / `log_my_activities` | `act_dt`, `sport`, `distance_km`, `elevation_m?`, `review?` (배열은 최대 20건) | saved_cnt, activities[], month_after, notice, title_eval_seeds | 본인 |
+| `log_my_activity` / `log_my_activities` | `act_dt`, `sport`, `distance_km`, `elevation_m?`, `review?`, `multipliers?`(배율 **이름** 배열) (배열은 최대 20건) | saved_cnt, activities[], month_after, notice, title_eval_seeds | 본인 |
 | `update_my_activity` | `act_id` + 위 필드 | act_id, before, after, month_after | 본인 |
 | `delete_my_activity` | `act_id` | deleted, month_after | 본인 |
 
 - **`evt_id` 를 인자로 받지 않는다.** 대화에서 이벤트 uuid 를 부를 일이 없어, 서버가 "진행 중 + 내가 승인된 참가" 이벤트를 찾아 채운다(`resolveMyParticipation`).
-- **배율도 인자로 받지 않는다.** 폼은 사용자가 체크하지만 대화에서는 `act_dt` 기준으로 그날 걸려 있던 배율을 서버가 자동 적용하고, **무엇이 붙었는지 응답에 적어 준다.** 자동 선별(`autoMultiplierIdsFor`)과 실제 적용(`buildAppliedMults`)이 **같은 판정 함수**를 쓴다 — 갈리면 "적용됐다는데 마일리지가 안 늘었다"가 된다.
+- **배율은 자동으로 붙지 않는다 — 이름으로 받는다**(`multipliers?: string[]`, 기본 미적용). 배율마다 성립 조건이 다른데(모임 참석·벙주/참석자·LSD 인원수·주당 횟수) `evt_mlg_mult_cfg` 에는 그 조건을 적을 칼럼조차 없어 **서버가 판정할 수 없다.** 처음엔 "대화에서 uuid 를 부를 일이 없다"는 이유로 그날 걸린 것을 전부 자동 적용했는데, 혼자 1km 뛴 기록에 `3인이상 LSD`·`모임참석(벙주)`·`모임참석(참석자)`·`정기런` 이 동시에 곱해져 **최대 90% 부풀려졌다**(#504 — 벙주와 참석자는 애초에 양립하지 않는다). 앱 폼의 체크박스와 같은 **자기신고**로 되돌렸고, uuid 문제는 uuid 대신 **`mult_nm` 을 받는 것**으로 푼다(`list_mileage_multipliers` 가 이미 이름을 돌려준다).
+  - 못 찾은 이름은 **조용히 빼지 않고 거부**하고 그날 고를 수 있는 목록을 오류에 싣는다 — 침묵 탈락은 "붙는 줄 알았는데 안 붙은" 마일리지를 남기는데 보증금 환급이 걸린 숫자다.
+  - `update_my_activity` 는 인자를 **생략하면 기존 선택을 잇고**(앱 수정 폼의 프리필과 같다), `[]` 를 명시하면 전부 뗀다.
+  - 후보 선별(`listMultipliersActiveOn`)과 실제 적용(`buildAppliedMults`)은 **같은 판정 함수**를 쓴다 — 갈리면 "적용됐다는데 마일리지가 안 늘었다"가 된다.
+  - 벙주/참석자 상호배타는 **강제하지 않는다.** 조건 메타데이터가 없어 한글 이름 부분일치로 하드코딩해야 하는데 운영진이 배율 이름을 자유롭게 바꾼다. 기본 미적용이라 실수로 둘 다 붙을 일 자체가 없고, 이는 앱 폼과 같은 수준이다.
 - **사진은 못 받는다**(`File` 이 JSON 경계를 못 넘는다). 사진이 기강이야기 게재 게이트이므로 **MCP 기록은 전광판에 안 뜬다** — 도구 description 과 응답 `notice` 에 명시한다. 사진이 붙은 기록의 삭제도 거부하고 앱으로 보낸다(Storage 파일 정리가 거기 있다).
 - **계산 코어는 앱과 공유한다**(`lib/mileage-run.ts`): 날짜 규칙·배율 적용·목표 연쇄 재계산. 보증금 환급이 걸린 계산이라 복사하면 한쪽만 고쳐지는 날 사람 돈이 어긋난다. `next/*` 부수효과(`revalidatePath`·`after`)는 코어가 아니라 각 호출부(라우트/액션)가 맡는다.
 - **`lib/queries/project-data.ts` 를 재사용하지 않는다.** `unstable_cache`·React `cache()` 로 감싸여 있어 방금 넣은 기록이 최대 60초 안 보인다 — "넣고 바로 확인"이 이 도구들의 기본 흐름이라 치명적이다.
