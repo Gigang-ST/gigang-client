@@ -343,12 +343,25 @@ evaluateAndGrantTitles({
 
 #### 모임·깅스타그램 계열은 일괄 재계산으로 소급되지 않는다
 
-2026-08 신규 조건(`gthr_*` · `post_*` · `cmnt_*`)은 `manual_sweep`에 **등록돼 있지 않다**
-(§트리거-조건 연결표). 각자의 트리거에서만 평가된다 — `post_*`는 글 작성 시,
-`gthr_*`는 일/월 배치.
+2026-08 신규 조건(`gthr_*` · `post_*` · `cmnt_*`)은 `manual_sweep`에 **등록돼 있지 않다**.
+각자의 트리거에서만 평가되는데, **그 트리거가 하나가 아니다** — 등록과 취소를 나눠 둔
+이유가 `TRIGGER_COND_MAP`에 적혀 있다(취소마다 막차 조회까지 얹히지 않게).
 
-그래서 **문턱을 낮춰도 이미 조건을 넘긴 사람에게 바로 붙지 않는다.** 그 사람이 다음 글을
-올려야(또는 다음 배치가 돌아야) 그때 평가되면서 붙는다. 일괄 재계산 버튼을 눌러도 안 붙는다.
+| 조건 | 평가 트리거 | 다시 붙으려면 |
+|---|---|---|
+| `gthr_last_slot` | `gathering_attend` | 다음 모임 **참석 신청** |
+| `gthr_cancel_count` · `gthr_cancel_reason` | `gathering_cancel` | 다음 **취소** |
+| `gthr_attend_in_month` · `gthr_attend_streak` · `gthr_same_day_count` · `attend_on_birthday` | `gathering_daily` | 다음 **일 배치** |
+| `gthr_month_attend_rate` · `cmnt_monthly_top` | `title_monthly` | 다음 **월 배치** |
+| `post_count` · `post_days_in_month` · `post_backfill_days` | `post_create` | 다음 **글 작성** |
+| `post_self_first_comment` · `cmnt_reply_count` · `cmnt_mention_count` | `comment_create` | 다음 **댓글 작성** |
+
+그래서 **문턱을 낮춰도 이미 조건을 넘긴 사람에게 바로 붙지 않는다.** 위 표의 오른쪽 칸이
+한 번 더 일어나야 그때 평가되면서 붙는다. 일괄 재계산 버튼을 눌러도 안 붙는다.
+
+⚠️ **"다음 배치가 돌면 붙는다"로 뭉뚱그리지 말 것.** 취소·참석신청·댓글 계열은 배치가
+아무리 돌아도 평가되지 않는다 — 그 사용자가 그 행동을 다시 해야 한다. 배치를 기다리다
+"왜 안 붙지"로 시간을 버리는 자리다.
 
 `manual_sweep`에 넣어 해결하려 하지 말 것 — 스냅샷에 해당 데이터가 없어 항상 false가 되고,
 설령 확장하더라도 `eff_stt_dt`를 반영하기 전에 등록하면 재계산 한 번에 적용일 이전 과거가
