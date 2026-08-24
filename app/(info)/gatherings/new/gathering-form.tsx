@@ -9,7 +9,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 
 import { dayjs } from "@/lib/dayjs";
-import { GTHR_TYPES, gthrTypeLabels, createGthrSchema, type CreateGthrInput } from "@/lib/validations/gathering";
+import { GTHR_TYPES, gthrTypeLabels, createGthrFormSchema, type CreateGthrInput } from "@/lib/validations/gathering";
 
 import { createGathering, updateGathering } from "@/app/actions/gathering/manage-gathering";
 
@@ -33,7 +33,7 @@ import {
 import { AutoGrowTextarea } from "@/components/common/auto-grow-textarea";
 import { GatheringScheduleHint } from "@/components/schedule/gathering-schedule-hint";
 
-const formSchema = createGthrSchema.omit({ team_id: true });
+const formSchema = createGthrFormSchema;
 type FormValues = z.infer<typeof formSchema>;
 
 type Props = {
