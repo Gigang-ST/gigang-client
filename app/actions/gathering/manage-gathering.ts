@@ -9,7 +9,11 @@ import { isPastLockedFor, PAST_EVENT_ERROR } from "@/lib/past-event";
 import { insertNotiMany } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
-import { createGthrSchema, updateGthrSchema } from "@/lib/validations/gathering";
+import {
+  createGthrSchema,
+  updateGthrSchema,
+  END_BEFORE_START_ERROR,
+} from "@/lib/validations/gathering";
 
 function toUtcIso(localDt: string | null | undefined): string | null {
   if (!localDt) return null;
@@ -131,6 +135,15 @@ export async function updateGathering(input: {
     }
     if (isPastLockedFor(member.admin, existing.stt_at, existing.end_at)) {
       throw new Error(PAST_EVENT_ERROR);
+    }
+
+    // 한쪽만 바꾸는 수정은 스키마가 못 잡는다 — `updateGthrSchema`는 `.partial()`이라
+    // `end_at`만 올라오면 견줄 `stt_at`이 없다. 기존값과 합쳐 여기서 다시 본다(#495).
+    // 입력은 KST 로컬 문자열이고 기존값은 UTC라, 양쪽을 UTC 절대시각으로 맞춘 뒤 비교한다.
+    const nextSttAt = stt_at !== undefined ? toUtcIso(stt_at) : existing.stt_at;
+    const nextEndAt = end_at !== undefined ? toUtcIso(end_at) : existing.end_at;
+    if (nextSttAt && nextEndAt && dayjs(nextEndAt).isBefore(dayjs(nextSttAt))) {
+      throw new Error(END_BEFORE_START_ERROR);
     }
 
     const { error } = await supabase

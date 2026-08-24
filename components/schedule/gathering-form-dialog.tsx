@@ -18,7 +18,7 @@ import {
   GTHR_SPRT_TYPES,
   gthrTypeLabels,
   gthrSprtLabels,
-  createGthrSchema,
+  createGthrFormSchema,
   type CreateGthrInput,
 } from "@/lib/validations/gathering";
 
@@ -52,7 +52,7 @@ import { Separator } from "@/components/ui/separator";
 import { AutoGrowTextarea } from "@/components/common/auto-grow-textarea";
 import { GatheringScheduleHint } from "@/components/schedule/gathering-schedule-hint";
 
-const formSchema = createGthrSchema.omit({ team_id: true });
+const formSchema = createGthrFormSchema;
 type FormValues = z.infer<typeof formSchema>;
 
 /** 등록 직후 상세를 조회 없이 즉시 열기 위한 모임 데이터(폼 입력값 + 반환 id 기반). CalendarRace 호환. */
