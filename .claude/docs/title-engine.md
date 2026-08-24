@@ -144,7 +144,9 @@ app/actions/
 
 **sport 값** (`comp_evt_type` 기준): `FULL`, `HALF`, `10K`, `5K`, `IRONMAN`, `70.3`, `SPRINT`
 
-> **현재 DB 상태**: `ttl_mst`에 등록된 칭호들의 `cond_rule_json`이 모두 null이라 자동 부여가 실제로 동작하지 않는다. 관리자 페이지에서 조건을 입력해야 한다.
+> **현재 DB 상태**(prd 2026-08-21): 칭호 89종이 등록돼 있고 자동 부여가 동작 중이다.
+> 그중 24종이 2026-08 신규분(`eff_stt_dt` 보유)이며 일/월 배치가 매일 09:00 KST에 돈다.
+> 수치는 관리자 화면에서 조정하며 **DB가 정본**이다 — §10 「조건 수치는 DB가 정본이다」 참조.
 
 ---
 
@@ -317,3 +319,50 @@ evaluateAndGrantTitles({
 - `use_yn = false` 칭호는 엔진이 평가하지 않는다.
 - 조건을 변경해도 이미 부여된 칭호는 자동 회수되지 않는다 (수동 회수 필요).
 - 일괄 재계산은 이미 보유한 칭호를 중복 부여하지 않는다 — 새 칭호 추가 후 소급 적용 시 사용한다.
+
+#### 조건 수치는 DB가 정본이다 — 시드 파일이 아니다
+
+`count`·`days` 같은 **수치는 이 화면에서 조정하는 값이고, 그 순간부터 DB가 정본이다.**
+엔진은 평가할 때마다 `ttl_mst.cond_rule_json`을 읽으므로 배포가 필요 없다.
+
+시드 마이그레이션(`supabase/migrations/*_seed_*_titles.sql`)은 **초기값만** 책임진다.
+`WHERE NOT EXISTS (ttl_nm)`이라 재실행해도 현재 값을 덮어쓰지 않으므로, **파일과 DB가
+갈리는 것이 정상이다.** 파일의 숫자를 현재 규칙으로 읽지 말 것 — 반드시 DB를 본다.
+
+> 실측(2026-08-21): 깅플루언서 파일 `10` / DB `20`, 연재작가 파일 `5` / DB `7`.
+
+운영 중 조정을 마이그레이션으로 뒤쫓지 않는다 — 튜닝할 때마다 PR이 하나씩 따라붙어,
+관리자 화면을 만든 이유가 사라진다.
+
+- ⚠️ **`type`은 화면에서 바꾸지 않는다.** 코드에 구현되고 `TRIGGER_COND_MAP`에 등록된
+  것만 동작한다. 없는 type을 넣으면 오류가 아니라 **조용히 아무에게도 안 붙는다** —
+  이 엔진에서 가장 찾기 어려운 실패다. 데이터로 만질 수 있는 건 같은 type 안의 수치뿐이다.
+- ⚠️ **`ttl_desc`를 조건과 함께 고친다.** `desc_visibility = always`면 설명이 그대로
+  화면에 뜨므로 숫자만 바꾸면 설명이 거짓말을 한다. 자주 조정할 값이라면 아예 설명에서
+  숫자를 빼는 편이 낫다 — 깅플루언서가 그 예다("사진을 **많이** 올린 기강 인플루언서").
+
+#### 모임·깅스타그램 계열은 일괄 재계산으로 소급되지 않는다
+
+2026-08 신규 조건(`gthr_*` · `post_*` · `cmnt_*`)은 `manual_sweep`에 **등록돼 있지 않다**.
+각자의 트리거에서만 평가되는데, **그 트리거가 하나가 아니다** — 등록과 취소를 나눠 둔
+이유가 `TRIGGER_COND_MAP`에 적혀 있다(취소마다 막차 조회까지 얹히지 않게).
+
+| 조건 | 평가 트리거 | 다시 붙으려면 |
+|---|---|---|
+| `gthr_last_slot` | `gathering_attend` | 다음 모임 **참석 신청** |
+| `gthr_cancel_count` · `gthr_cancel_reason` | `gathering_cancel` | 다음 **취소** |
+| `gthr_attend_in_month` · `gthr_attend_streak` · `gthr_same_day_count` · `attend_on_birthday` | `gathering_daily` | 다음 **일 배치** |
+| `gthr_month_attend_rate` · `cmnt_monthly_top` | `title_monthly` | 다음 **월 배치** |
+| `post_count` · `post_days_in_month` · `post_backfill_days` | `post_create` | 다음 **글 작성** |
+| `post_self_first_comment` · `cmnt_reply_count` · `cmnt_mention_count` | `comment_create` | 다음 **댓글 작성** |
+
+그래서 **문턱을 낮춰도 이미 조건을 넘긴 사람에게 바로 붙지 않는다.** 위 표의 오른쪽 칸이
+한 번 더 일어나야 그때 평가되면서 붙는다. 일괄 재계산 버튼을 눌러도 안 붙는다.
+
+⚠️ **"다음 배치가 돌면 붙는다"로 뭉뚱그리지 말 것.** 취소·참석신청·댓글 계열은 배치가
+아무리 돌아도 평가되지 않는다 — 그 사용자가 그 행동을 다시 해야 한다. 배치를 기다리다
+"왜 안 붙지"로 시간을 버리는 자리다.
+
+`manual_sweep`에 넣어 해결하려 하지 말 것 — 스냅샷에 해당 데이터가 없어 항상 false가 되고,
+설령 확장하더라도 `eff_stt_dt`를 반영하기 전에 등록하면 재계산 한 번에 적용일 이전 과거가
+통째로 소급 부여된다(자세한 이유는 `lib/titles/types.ts`의 `manual_sweep` 주석).

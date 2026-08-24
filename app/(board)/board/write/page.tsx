@@ -20,7 +20,7 @@ export default async function BoardWritePage({
 
   return (
     <>
-      <BackHeader title="게시글 작성" />
+      <BackHeader title="게시글 작성" fallbackHref="/board" />
       <PostForm teamId={teamId} initialType={initialType} />
     </>
   );
