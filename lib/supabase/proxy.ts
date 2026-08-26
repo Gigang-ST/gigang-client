@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
+import { isPublicPath } from "@/lib/supabase/public-paths";
 
 /**
  * 모든 요청에서 실행되는 인증 미들웨어.
@@ -16,23 +17,11 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // 비로그인 상태에서도 접근 가능한 공개 경로 목록
+  // 비로그인 상태에서도 접근 가능한 경로인지 판정.
+  // 목록과 각 경로를 여는 이유는 lib/supabase/public-paths.ts에 있다 —
+  // env·@supabase/ssr 없이 테스트되어야 해서 순수 모듈로 떼어 뒀다.
   const pathname = request.nextUrl.pathname;
-  // `/`(홈)·`/story`(전광판)·`/schedule`(달력)은 모두 팀 공개 지면이라 비로그인 허용.
-  // 홈이 어느 쪽을 그리든(`app/(main)/page.tsx`의 HOME_PAGE) 셋 다 열려 있어야 한다.
-  const publicPaths = ["/", "/rules", "/join", "/newbie", "/races", "/records", "/schedule", "/story", "/projects", "/terms", "/privacy", "/policy", "/settings"];
-  // /board(게시판)은 공개 SSG 페이지 — 목록(/board)·상세(/board/[id]) 모두 비로그인 접근 허용.
-  //   (쓰기/수정 전용 하위 경로 /board/write·/board/[id]/edit는 admin 폼이라 아래 prefix로 공개되지만,
-  //    실제 인가는 페이지의 getCurrentMember 게이트와 서버 액션(withAdminOrThrow)이 재검증하므로 안전하다.)
-  // /api/* 는 각 라우트가 자체 인증(멤버 체크·웹훅 시크릿)을 수행하므로 리다이렉트 제외.
-  // 쿠키 없는 서버-투-서버 요청(revalidate 웹훅, OG 봇, 크론)을 로그인 페이지로 보내면 안 됨.
-  const isPublic =
-    publicPaths.includes(pathname) ||
-    pathname === "/board" ||
-    pathname.startsWith("/board/") ||
-    pathname.startsWith("/auth") ||
-    pathname === "/api" ||
-    pathname.startsWith("/api/");
+  const isPublic = isPublicPath(pathname);
 
   // 세션 쿠키가 아예 없으면 Supabase 서버 호출 없이 즉시 리다이렉트 (100~700ms 절약)
   // Supabase는 토큰이 크면 쿠키를 청크 분할함 (sb-*-auth-token.0, .1, ...)
