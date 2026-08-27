@@ -61,10 +61,17 @@ export function GatheringConditionFields({
   // 오류가 나면 접혀 있어도 펼친다 — 안 보이는 칸의 오류는 고칠 방법이 없다.
   const expanded = open || !!error;
 
-  /** 빈 칸은 0이 아니라 "안 정함"(null)이다. */
+  /**
+   * 빈 칸은 0이 아니라 "안 정함"(null)이다.
+   *
+   * ⚠️ `parseInt` 를 쓰지 않는다. `type="number"` 는 `1.5` 를 받는데 `parseInt("1.5")`
+   * 는 **1을 조용히 돌려줘** zod 의 `.int()` 검증을 건너뛰고 사용자가 안 쓴 값이 저장된다.
+   * `Number()` 로 그대로 넘겨 소수는 검증에서 걸리고 오류 문구가 뜨게 한다.
+   */
   function num(raw: string): number | null {
-    const n = parseInt(raw, 10);
-    return Number.isNaN(n) ? null : n;
+    if (raw.trim() === "") return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
   }
 
   return (
@@ -127,6 +134,7 @@ export function GatheringConditionFields({
                 id="req-attd-months"
                 type="number"
                 inputMode="numeric"
+                step={1}
                 min={1}
                 max={REQ_ATTD_MONTHS_MAX}
                 disabled={disabled}
@@ -141,6 +149,7 @@ export function GatheringConditionFields({
                 id="req-attd-cnt"
                 type="number"
                 inputMode="numeric"
+                step={1}
                 min={1}
                 max={REQ_ATTD_CNT_MAX}
                 disabled={disabled}

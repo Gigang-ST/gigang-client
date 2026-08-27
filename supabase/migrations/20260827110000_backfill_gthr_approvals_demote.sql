@@ -1,3 +1,6 @@
+-- 락 대기만 짧게 끊는다(실행 자체는 끝까지). supabase/migrations/README.md 체크리스트.
+SET lock_timeout = '3s';
+
 -- ============================================================
 -- backfill_gthr_approvals — 참석자가 사라진 `approved` 신청을 함께 정리한다.
 --   설계: docs/superpowers/specs/2026-08-25-모임-참여조건-승인제-design.md §8-3

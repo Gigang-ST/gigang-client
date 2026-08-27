@@ -260,9 +260,9 @@ export async function updateGathering(input: {
       }
     });
 
-    // 홈은 클라이언트 재조회가 갱신 담당 — 직접 URL 방문 대비 모임 상세만 무효화
+    // 홈은 클라이언트 재조회가 갱신 담당 — 직접 URL 방문 대비 모임 상세만 무효화.
+    // 홈 캘린더 캐시는 위(UPDATE 직후)에서 이미 털었다 — 여기서 또 부르지 않는다.
     revalidatePath(`/gatherings/${input.gthr_id}`);
-    updateTag(HOME_CALENDAR_CACHE_TAG);
   });
 }
 
@@ -290,6 +290,10 @@ export async function deleteGathering(gthr_id: string) {
       .eq("gthr_id", gthr_id);
 
     if (error) throw new Error("모임 삭제에 실패했습니다.");
+
+    // 지운 모임이 달력·리스트에서 바로 사라지게 — 안 털면 홈 캘린더 캐시(1시간) 때문에
+    // 삭제된 모임이 그대로 보이고, 눌러 열면 그제야 없다고 한다.
+    updateTag(HOME_CALENDAR_CACHE_TAG);
 
     after(async () => {
       try {

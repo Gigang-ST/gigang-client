@@ -82,40 +82,51 @@ export function GatheringApplicationsSection({
   const pending = applications.filter((a) => a.aply_st_cd === "pending");
   const processed = applications.filter((a) => a.aply_st_cd !== "pending");
 
-  async function run(fn: () => Promise<{ ok: boolean; message?: string }>, okMsg: string) {
-    if (busyRef.current) return;
+  /** 성공 여부를 돌려준다 — 실패한 뒤에도 입력 다이얼로그를 열어 둬야 하므로. */
+  async function run(
+    fn: () => Promise<{ ok: boolean; message?: string }>,
+    okMsg: string,
+  ): Promise<boolean> {
+    if (busyRef.current) return false;
     busyRef.current = true;
     try {
       const r = await fn();
       if (!r.ok) {
         // 정원 마감·이미 처리됨은 오류가 아니라 상태다 — 문구를 그대로 보여준다.
         toast.error(r.message ?? "처리에 실패했습니다.");
-        return;
+        return false;
       }
       toast.success(okMsg);
       // 승인하면 그 사람이 곧 참석자다 — 명단과 참석자 목록을 같이 다시 받는다.
       onChanged?.();
+      return true;
     } finally {
       busyRef.current = false;
     }
   }
 
   function approve(memId: string) {
-    startTransition(() => run(() => approveApplicationAction(gthrId, memId), "참가를 확정했어요."));
+    // startTransition 콜백은 void 를 요구한다 — run 의 boolean 반환을 여기선 안 쓴다.
+    startTransition(() => {
+      void run(() => approveApplicationAction(gthrId, memId), "참가를 확정했어요.");
+    });
   }
 
   function submitReject() {
     const target = rejectTarget;
     if (!target) return;
-    startTransition(() =>
-      run(
+    startTransition(() => {
+      void run(
         () => rejectApplicationAction(gthrId, target.mem_id, reason || undefined),
         "신청을 반려했어요.",
-      ).then(() => {
+      ).then((succeeded) => {
+        // 실패했으면 다이얼로그를 열어 둔다 — 닫으면 방금 적은 사유가 그대로 날아가고,
+        // 사용자는 처리된 줄 알고 떠난다(run 은 실패를 던지지 않고 false 로 알린다).
+        if (!succeeded) return;
         setRejectTarget(null);
         setReason("");
-      }),
-    );
+      });
+    });
   }
 
   return (

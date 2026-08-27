@@ -152,6 +152,8 @@ export function GatheringDetailDialog({
   const [myAply, setMyAply] = useState<MyGatheringApplication | null>(null);
   // 신청 관리(개설자·운영진 전용) — 승인하면 그 사람이 참석자가 되므로 명단과 참석자를 같이 갱신한다.
   const [applications, setApplications] = useState<GatheringApplication[] | null>(null);
+  // 모임 전환 시 늦은 응답을 버리기 위한 요청 번호(관리자 화면 currentGthrRef 와 같은 역할).
+  const viewerStateReqRef = useRef(0);
   const canReview = !!currentMemberId && (isAdmin === true || currentMemberId === gathering?.crt_by);
 
   // ⚠️ 승인제가 아니어도 **참여조건만 걸린 모임**이 있다. 둘은 독립 옵션이라
@@ -161,17 +163,25 @@ export function GatheringDetailDialog({
   const loadMyApplication = useCallback(() => {
     const gid = gathering?.id;
     if (!gid || !needsViewerState || !currentMemberId) return;
+
+    // 모임 A 를 열자마자 닫고 B 를 열면 A 의 늦은 응답이 B 화면을 덮는다.
+    // 요청마다 번호를 매겨 **마지막 요청의 응답만** 반영한다(관리자 화면의
+    // currentGthrRef 가드와 같은 이유). 실패 경로도 함께 막아야 한다 —
+    // 늦게 도착한 A 의 실패가 B 의 정상 상태를 기본값으로 되돌리면 안 된다.
+    const reqId = ++viewerStateReqRef.current;
+    const isStale = () => reqId !== viewerStateReqRef.current;
+
     void getMyGatheringApplication(gid)
-      .then(setMyAply)
+      .then((r) => { if (!isStale()) setMyAply(r); })
       // ⚠️ 실패를 null 로 되돌리면 아래 렌더가 "불러오는 중…"(disabled)에 **영영 갇힌다.**
       //    실제로 비활성 회원이 그랬다 — 이 액션은 withActive 라 그들에겐 항상 던진다.
       //    조건 없는 기본값으로 떨어뜨려 버튼은 서고, 최종 판정은 서버가 한다.
-      .catch(() => setMyAply(UNKNOWN_APPLICATION));
+      .catch(() => { if (!isStale()) setMyAply(UNKNOWN_APPLICATION); });
     // 신청 명단은 승인제 모임에만 있다(조건만 건 모임엔 신청 개념이 없다).
     if (canReview && gathering?.aprvReqYn) {
       void listGatheringApplications(gid)
-        .then(setApplications)
-        .catch(() => setApplications(null));
+        .then((r) => { if (!isStale()) setApplications(r); })
+        .catch(() => { if (!isStale()) setApplications(null); });
     }
   }, [gathering?.id, gathering?.aprvReqYn, needsViewerState, currentMemberId, canReview]);
 
