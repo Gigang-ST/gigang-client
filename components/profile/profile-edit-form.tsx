@@ -276,7 +276,10 @@ export function ProfileEditForm({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+          // 안드로이드는 accept가 정확한 와일드카드일 때만 사진첩 그리드 피커를 띄우고,
+          // 구체적 MIME 나열이면 카메라/파일뿐인 범용 초이서로 폴백한다. 실제 타입
+          // 검증은 서버(validateAvatarFile)가 하므로 여기선 UI 힌트로만 image/*를 쓴다.
+          accept="image/*"
           onChange={handlePickFile}
           className="hidden"
         />
