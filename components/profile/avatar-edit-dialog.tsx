@@ -22,7 +22,10 @@ import { Button } from "@/components/ui/button";
 /** 클라이언트 선검증 — 서버(`validateAvatarFile`)와 같은 값. 넘치면 올리기 전에 잡는다 */
 const MAX_BYTES = 10 * 1024 * 1024;
 
-const ACCEPT = "image/jpeg,image/png,image/webp,image/heic,image/heif";
+// 안드로이드는 accept가 정확한 와일드카드일 때만 사진첩 그리드 피커를 띄우고,
+// 구체적 MIME 나열이면 카메라/파일뿐인 범용 초이서로 폴백한다. 실제 타입 검증은
+// validateAvatarFile이 하므로 여기선 UI 힌트로만 image/*를 쓴다.
+const ACCEPT = "image/*";
 
 type AvatarState =
   | { kind: "current" }

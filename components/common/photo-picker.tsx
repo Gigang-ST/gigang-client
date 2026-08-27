@@ -169,7 +169,11 @@ export function PhotoPicker({
       <input
         ref={fileRef}
         type="file"
-        accept={POST_PHOTO_TYPES.join(",")}
+        // 안드로이드는 accept가 정확한 와일드카드일 때만 사진첩 그리드 피커를 띄우고,
+        // 구체적 MIME 나열(POST_PHOTO_TYPES.join(","))이면 카메라/파일뿐인 범용
+        // 초이서로 폴백한다. 실제 타입 검증은 handlePick의 POST_PHOTO_TYPES.includes가
+        // 하므로 여기선 UI 힌트로만 image/*를 쓴다.
+        accept="image/*"
         onChange={handlePick}
         className="hidden"
       />
