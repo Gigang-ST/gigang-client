@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Copy, ExternalLink, Lock, Pencil, Share2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -9,8 +9,19 @@ import { dayjs, parseEventTime } from "@/lib/dayjs";
 import { isPastLockedFor } from "@/lib/past-event";
 import { gthrTypeLabels, gthrSprtLabels, type GthrType, type GthrSprtType } from "@/lib/validations/gathering";
 
+import {
+  getMyGatheringApplication,
+  listGatheringApplications,
+  type MyGatheringApplication,
+} from "@/app/actions/gathering/manage-application";
 import { deleteGathering } from "@/app/actions/gathering/manage-gathering";
 import { toggleGatheringAttendance } from "@/app/actions/gathering/toggle-attendance";
+import { GatheringApplyButton } from "@/app/(info)/gatherings/[id]/gathering-apply-button";
+import {
+  GatheringApplicationsSection,
+  type GatheringApplication,
+} from "@/components/schedule/gathering-applications-section";
+import { GatheringJoinConditions } from "@/components/schedule/gathering-join-conditions";
 import { GatheringCancelDialog } from "@/app/(info)/gatherings/[id]/gathering-cancel-dialog";
 import {
   GatheringCanceledAttendees,
@@ -39,6 +50,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
+/**
+ * 내 신청 상태를 못 받아왔을 때의 기본값.
+ *
+ * 조회 실패(비활성 회원·네트워크)를 `null` 로 두면 로딩과 구분되지 않아 화면이 멈춘다.
+ * 조건은 "없음"으로 두어 버튼을 세우되, 실제 허용 여부는 서버 액션이 다시 판정한다.
+ */
+const UNKNOWN_APPLICATION = {
+  state: "none",
+  rejectReason: null,
+  conditions: { ok: true, conditions: [] },
+} as const satisfies MyGatheringApplication;
+
 export type GatheringAttendee = {
   mem_id: string;
   mem_nm: string | null;
@@ -48,6 +71,10 @@ export type GatheringAttendee = {
 export interface GatheringDetailDialogProps {
   gathering: (CalendarRace & {
     maxPrtCnt?: number | null;
+    /** 승인제·참여조건 — 신청 흐름은 모임 상세 페이지가 맡고 여기선 안내만 한다 */
+    aprvReqYn?: boolean | null;
+    reqAttdCnt?: number | null;
+    reqAttdMonths?: number | null;
     attendees?: GatheringAttendee[];
     canceledAttendees?: CanceledAttendee[];
     sprt_cd?: string | null;
@@ -119,6 +146,51 @@ export function GatheringDetailDialog({
   // 등록 직후 다이얼로그가 맨 위에서 열려 하단 공유 유도가 안 보이는 문제 → 공유 영역으로 스크롤
   const shareHintRef = useRef<HTMLDivElement>(null);
 
+  // 보는 사람 기준 상태 — "내 신청 상태 + 참여조건 판정". 클라이언트는 조건을 스스로 계산할
+  // 수 없어(팀 전체 모임 집계가 필요) 서버에 묻는다. get_gathering_detail RPC 에 실지 않는
+  // 이유: 그건 anon 실행이 허용된 SECURITY DEFINER 라 대기·반려가 비로그인에게까지 샌다(설계 §8-9).
+  const [myAply, setMyAply] = useState<MyGatheringApplication | null>(null);
+  // 신청 관리(개설자·운영진 전용) — 승인하면 그 사람이 참석자가 되므로 명단과 참석자를 같이 갱신한다.
+  const [applications, setApplications] = useState<GatheringApplication[] | null>(null);
+  // 모임 전환 시 늦은 응답을 버리기 위한 요청 번호(관리자 화면 currentGthrRef 와 같은 역할).
+  const viewerStateReqRef = useRef(0);
+  const canReview = !!currentMemberId && (isAdmin === true || currentMemberId === gathering?.crt_by);
+
+  // ⚠️ 승인제가 아니어도 **참여조건만 걸린 모임**이 있다. 둘은 독립 옵션이라
+  //    `aprvReqYn` 만 보고 조회를 건너뛰면 조건이 화면에 안 뜨고 참석 버튼도 안 잠긴다
+  //    (서버는 막으니 눌러야 비로소 알게 된다). 실제로 그렇게 뚫렸다.
+  const needsViewerState = !!gathering && (gathering.aprvReqYn === true || gathering.reqAttdCnt != null);
+  const loadMyApplication = useCallback(() => {
+    const gid = gathering?.id;
+    if (!gid || !needsViewerState || !currentMemberId) return;
+
+    // 모임 A 를 열자마자 닫고 B 를 열면 A 의 늦은 응답이 B 화면을 덮는다.
+    // 요청마다 번호를 매겨 **마지막 요청의 응답만** 반영한다(관리자 화면의
+    // currentGthrRef 가드와 같은 이유). 실패 경로도 함께 막아야 한다 —
+    // 늦게 도착한 A 의 실패가 B 의 정상 상태를 기본값으로 되돌리면 안 된다.
+    const reqId = ++viewerStateReqRef.current;
+    const isStale = () => reqId !== viewerStateReqRef.current;
+
+    void getMyGatheringApplication(gid)
+      .then((r) => { if (!isStale()) setMyAply(r); })
+      // ⚠️ 실패를 null 로 되돌리면 아래 렌더가 "불러오는 중…"(disabled)에 **영영 갇힌다.**
+      //    실제로 비활성 회원이 그랬다 — 이 액션은 withActive 라 그들에겐 항상 던진다.
+      //    조건 없는 기본값으로 떨어뜨려 버튼은 서고, 최종 판정은 서버가 한다.
+      .catch(() => { if (!isStale()) setMyAply(UNKNOWN_APPLICATION); });
+    // 신청 명단은 승인제 모임에만 있다(조건만 건 모임엔 신청 개념이 없다).
+    if (canReview && gathering?.aprvReqYn) {
+      void listGatheringApplications(gid)
+        .then((r) => { if (!isStale()) setApplications(r); })
+        .catch(() => { if (!isStale()) setApplications(null); });
+    }
+  }, [gathering?.id, gathering?.aprvReqYn, needsViewerState, currentMemberId, canReview]);
+
+  // 열릴 때마다 새로 받는다 — 다른 기기·운영진이 그 사이 승인했을 수 있다.
+  useEffect(() => {
+    if (!open) return;
+    loadMyApplication();
+  }, [open, loadMyApplication]);
+
   // gathering prop이 바뀌거나 justCreated가 바뀌면 로컬 상태 동기화
   // (렌더 중 파생 state 업데이트 — React 공식 패턴: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes)
   // gKey만 키로 쓰면 같은 모임을 재오픈할 때(gKey 동일) 힌트가 잔존하므로 justCreated도 키에 포함한다.
@@ -133,6 +205,32 @@ export function GatheringDetailDialog({
     setAttendees(gathering?.attendees ?? []);
     setCanceledAttendees(gathering?.canceledAttendees ?? []);
     setShowShareHint(justCreated ?? false);
+    // 다른 모임을 열면 이전 모임의 신청 상태가 잠깐 보이지 않게 지운다.
+    setMyAply(null);
+    setApplications(null);
+  }
+
+  // 참석자 명단이 **밖에서** 바뀌면 다시 받아 그린다.
+  //
+  // 일반 참석 토글은 낙관적 업데이트로 로컬 상태를 직접 고치니까 즉시 반영되지만,
+  // 승인·반려·신청취소는 부모가 상세를 다시 조회해 `gathering` prop 으로 흘려보낸다.
+  // 그런데 위 syncKey 는 `모임id:justCreated:detailLoading` 뿐이라 **참석자만 바뀐 갱신은
+  // 키가 그대로**여서 통째로 무시됐다 — 승인해도 "참석 N명"과 참석자 목록이 그 자리에서
+  // 안 변하고 다시 열어야 보였다.
+  //
+  // 키를 참석자 mem_id 목록으로 잡는다: 한 명이 빠지고 한 명이 들어오는 교대(정원이 찬
+  // 모임에서 흔하다)도 잡히고, 길이만 보면 놓친다. 낙관적 업데이트가 앞서 있는 동안엔
+  // prop 이 아직 옛 값이라 키가 안 변하므로 덮어쓰지 않는다.
+  const attdKey = `${gKey}:${(gathering?.attendees ?? []).map((a) => a.mem_id).join(",")}`;
+  const [lastAttdKey, setLastAttdKey] = useState(attdKey);
+  if (attdKey !== lastAttdKey) {
+    setLastAttdKey(attdKey);
+    const next = gathering?.attendees ?? [];
+    setAttendees(next);
+    setAttdCount(next.length);
+    // 내 참석 여부도 명단에서 다시 읽는다 — 운영진이 대신 승인·취소했을 수 있다.
+    if (currentMemberId) setAttending(next.some((a) => a.mem_id === currentMemberId));
+    setCanceledAttendees(gathering?.canceledAttendees ?? []);
   }
 
   // 등록 직후 열렸을 때, 다이얼로그 본문이 길어 하단 공유 유도가 가려지지 않도록 그 영역으로 스크롤.
@@ -149,6 +247,10 @@ export function GatheringDetailDialog({
 
   const isAuthor = currentMemberId === gathering.crt_by;
   const isFull = !attending && gathering.maxPrtCnt != null && attdCount >= gathering.maxPrtCnt;
+  // 참여조건 잠금은 **등록에만** 건다 — 이미 참석 중이면 취소는 열어 둔다(조건이 나중에
+  // 걸린 모임에서 빠져나올 길이 사라지면 안 된다). 아직 판정을 못 받았으면 잠그지 않는다
+  // — 서버가 최종 게이트라 여기서 성급히 막는 것보다 낫다.
+  const conditionLocked = !attending && myAply != null && !myAply.conditions.ok;
   // 지난 모임(KST 날짜 기준)은 수정·삭제·참석 변경 불가 — 관리자만 예외 (서버 액션에서도 동일 검증)
   const isPastLocked = isPastLockedFor(isAdmin, gathering.evt_stt_at ?? gathering.start_date, gathering.evt_end_at);
 
@@ -364,8 +466,61 @@ export function GatheringDetailDialog({
               </div>
             )}
 
+            {/* 참여 조건 — 모임 상세 페이지와 **같은 컴포넌트**로 그린다(문구·아이콘이 갈리지 않게). */}
+            <GatheringJoinConditions conditions={myAply?.conditions.conditions ?? []} />
+
+            {conditionLocked && !isPastLocked && (
+              <Micro>참여 조건을 채우면 참석할 수 있어요.</Micro>
+            )}
+
+            {/* 승인제 모임은 참석 토글 대신 신청 버튼이 **같은 자리에** 선다.
+                다른 화면으로 보내지 않는다 — 달력에서 연 사람에게 페이지 이동은 맥락을 끊고,
+                신청은 버튼 하나로 끝나는 일이라 넓은 화면이 필요하지도 않다.
+                (신청 "관리"만 모임 상세 페이지에 남는다 — 목록·메모를 봐야 하는 다른 일이라서.) */}
+            {/* 비활성 회원은 신청 대신 안내 게이트로 — 일반 참석 버튼과 같은 어법이다. */}
+            {currentMemberId && gathering.aprvReqYn && viewerInactive && (
+              <Button variant="outline" className="w-full" onClick={() => setInactiveGateOpen(true)}>
+                참가 신청
+              </Button>
+            )}
+
+            {currentMemberId && gathering.aprvReqYn && !viewerInactive && (
+              myAply ? (
+                <GatheringApplyButton
+                  gthrId={gathering.id}
+                  state={myAply.state}
+                  rejectReason={myAply.rejectReason}
+                  conditionsOk={myAply.conditions.ok}
+                  full={gathering.maxPrtCnt != null && attdCount >= gathering.maxPrtCnt}
+                  sttAt={gathering.evt_stt_at ?? gathering.start_date}
+                  pastLocked={isPastLocked}
+                  onChanged={() => {
+                    loadMyApplication();
+                    // 승인 후 취소는 자리를 반납하므로 참석자 목록·인원수도 다시 받아야 한다.
+                    onAttendanceChange?.();
+                  }}
+                />
+              ) : (
+                // 상태를 받아오기 전 — 버튼 자리를 비워 두면 레이아웃이 튄다.
+                <Button disabled variant="outline" className="w-full">불러오는 중…</Button>
+              )
+            )}
+
+            {/* 신청 관리 — 개설자·운영진에게만. 승인하면 아래 참석자 목록에 바로 나타난다. */}
+            {canReview && gathering.aprvReqYn && applications && (
+              <GatheringApplicationsSection
+                gthrId={gathering.id}
+                applications={applications}
+                onChanged={() => {
+                  loadMyApplication();
+                  onAttendanceChange?.();
+                }}
+                onSelectMember={(memId, name) => setSelectedMember({ memId, name })}
+              />
+            )}
+
             {/* 참석 버튼 — 비활성 회원이면 참석 대신 안내 게이트를 연다 */}
-            {currentMemberId && (
+            {currentMemberId && !gathering.aprvReqYn && (
               <Button
                 onClick={viewerInactive ? () => setInactiveGateOpen(true) : handleToggleAttendance}
                 // 처리 중엔 disabled 대신 handleToggleAttendance의 togglingRef 가드로 재클릭만 막아 흐려지지 않게.
@@ -373,7 +528,7 @@ export function GatheringDetailDialog({
                 // detailLoading 중엔 내 참석 여부를 아직 몰라 토글이 꼬일 수 있으므로 잠근다.
                 // 지난 모임은 참석/해제 불가(관리자 예외) — 서버에서도 차단.
                 // 비활성 회원은 마감·잠금과 무관하게 눌러 안내 게이트를 열 수 있어야 하므로 disabled 제외.
-                disabled={!viewerInactive && (isFull || detailLoading || isPastLocked)}
+                disabled={!viewerInactive && (isFull || detailLoading || isPastLocked || conditionLocked)}
                 variant={attending ? "default" : "outline"}
                 className={attending ? "w-full bg-success hover:bg-success/90 border-success" : "w-full"}
               >
@@ -382,8 +537,8 @@ export function GatheringDetailDialog({
                   "참석하기"
                 ) : (
                   <>
-                    {/* 지난 모임: 문구 변경 없이 잠금 아이콘 + disabled 흐림으로만 표시 */}
-                    {isPastLocked && <Lock className="size-3.5" />}
+                    {/* 지난 모임·조건 미달: 문구 변경 없이 잠금 아이콘 + disabled 흐림으로만 표시 */}
+                    {(isPastLocked || conditionLocked) && <Lock className="size-3.5" />}
                     {!isPastLocked && isFull ? "인원 마감" : attending ? "✅ 참석" : "참석하기"}
                   </>
                 )}
@@ -458,7 +613,15 @@ export function GatheringDetailDialog({
                 {(isAuthor || isAdmin) && !isPastLocked && (
                   <>
                     {/* 수정은 작성자 + 관리자 모두 가능 (RLS도 팀 owner/admin 허용). 지난 모임은 관리자만. */}
-                    <Button variant="outline" size="sm" onClick={onEdit} disabled={isDeleting}>
+                    {/* 로딩 중 수정하면 아직 안 채워진 승인제·참여조건이 폼 기본값(꺼짐/없음)으로
+                        들어가 **저장하는 순간 조용히 지워진다** — 복제를 잠그는 것과 같은 이유이고,
+                        이쪽은 복사가 아니라 원본이 바뀌므로 더 위험하다. */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={onEdit}
+                      disabled={isDeleting || detailLoading}
+                    >
                       <Pencil className="size-3.5" />
                       수정
                     </Button>

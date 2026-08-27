@@ -22,6 +22,12 @@ type Props = {
   sttAt: string;
   /** 지난 모임(KST) — 참석/해제 잠금 (관리자는 서버 페이지에서 false로 내려옴) */
   pastLocked?: boolean;
+  /**
+   * 참여조건 충족 여부. 미달이면 **등록만** 막는다 — 이미 참석 중인 사람의 취소까지 막으면
+   * 조건이 나중에 걸린 모임에서 빠져나올 길이 사라진다. 서버도 등록에만 조건을 건다.
+   * 조건이 없는 모임은 true 로 내려온다.
+   */
+  conditionsOk?: boolean;
 };
 
 export function GatheringAttendButton({
@@ -31,6 +37,7 @@ export function GatheringAttendButton({
   currentAttdCount,
   sttAt,
   pastLocked,
+  conditionsOk = true,
 }: Props) {
   const [attending, setAttending] = useState(initialAttending);
   const [attdCount, setAttdCount] = useState(currentAttdCount);
@@ -40,6 +47,8 @@ export function GatheringAttendButton({
   const togglingRef = useRef(false);
 
   const isFull = !attending && maxPrtCnt !== null && attdCount >= maxPrtCnt;
+  // 조건 잠금은 등록에만 — 이미 참석 중이면 취소는 열어 둔다(위 prop 주석 참고).
+  const conditionLocked = !attending && !conditionsOk;
 
   // 참석 등록 — 기존과 동일하게 원탭 즉시 처리(낙관적 업데이트).
   function handleJoin() {
@@ -85,7 +94,7 @@ export function GatheringAttendButton({
   }
 
   function handleClick() {
-    if (isFull || pastLocked || togglingRef.current) return; // 처리 중이면 재클릭 무시(중복 방지) — 버튼은 흐려지지 않음
+    if (isFull || pastLocked || conditionLocked || togglingRef.current) return; // 처리 중이면 재클릭 무시(중복 방지) — 버튼은 흐려지지 않음
     if (attending) {
       // 참석 취소는 원탭 즉시 처리 대신 사유 확인 모달을 거친다(참석 등록 경로는 그대로 1탭).
       setCancelDialogOpen(true);
@@ -100,7 +109,7 @@ export function GatheringAttendButton({
         onClick={handleClick}
         // 처리 중(isPending)엔 disabled 대신 handleClick 가드로 재클릭만 막아 버튼이 흐려지지 않게 한다.
         // 낙관적 업데이트로 색이 즉시 바뀌므로 사용자는 "바로 눌렸다"고 느낀다.
-        disabled={isFull || pastLocked}
+        disabled={isFull || pastLocked || conditionLocked}
         variant={attending ? "default" : "outline"}
         className={cn(
           "w-full",
@@ -108,7 +117,7 @@ export function GatheringAttendButton({
         )}
       >
         {/* 지난 모임: 문구 변경 없이 잠금 아이콘 + disabled 흐림으로만 표시 */}
-        {pastLocked && <Lock className="size-3.5" />}
+        {(pastLocked || conditionLocked) && <Lock className="size-3.5" />}
         {!pastLocked && isFull ? "인원 마감" : attending ? "✅ 참석" : "참석하기"}
       </Button>
 

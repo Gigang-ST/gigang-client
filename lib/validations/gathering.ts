@@ -24,6 +24,30 @@ export const gthrSprtLabels: Record<GthrSprtType, string> = {
 
 export const END_BEFORE_START_ERROR = "종료 일시는 시작 일시보다 빠를 수 없어요.";
 
+/** 참여조건 값 범위 — DB CHECK(ck_gthr_mst_req_attd_range)와 같은 숫자를 쓴다. */
+export const REQ_ATTD_CNT_MAX = 100;
+export const REQ_ATTD_MONTHS_MAX = 36;
+
+export const REQ_ATTD_PAIR_ERROR = "기간만 정할 수는 없어요. 참석 횟수를 입력해 주세요.";
+
+/**
+ * 참여조건의 주인은 **횟수**다. 기간(`req_attd_months`)은 선택이고, 비우면 전체 기간
+ * 누적으로 센다. 반대로 기간만 있고 횟수가 없으면 판정할 대상이 없으므로 그건 막는다.
+ * DB 에도 같은 CHECK(ck_gthr_mst_req_attd)가 있어 이중 방어.
+ *
+ * ⚠️ `updateGthrSchema` 는 `.partial()` 이라 **한쪽만 담긴 수정은 여기서 못 잡는다**
+ * (둘 다 undefined 면 통과해야 하므로). 서버 액션이 기존값과 합쳐 다시 본다 —
+ * `endNotBeforeStart` 와 같은 구조다.
+ */
+function reqAttdPaired(v: { req_attd_cnt?: number | null; req_attd_months?: number | null }) {
+  return v.req_attd_months == null || v.req_attd_cnt != null;
+}
+
+const REQ_ATTD_PAIR_CHECK = {
+  message: REQ_ATTD_PAIR_ERROR,
+  path: ["req_attd_cnt"],
+};
+
 /**
  * 종료가 시작보다 앞선 모임을 입력 시점에 막는다.
  *
@@ -65,20 +89,40 @@ const gthrBaseSchema = z.object({
   loc_txt: z.string().max(200).nullable().optional(),
   desc_txt: z.string().max(2000).nullable().optional(),
   max_prt_cnt: z.number().int().min(1, "최대 인원은 1명 이상이어야 합니다.").nullable().optional(),
+  // ── 참여조건 · 승인제 (둘 다 모임별 옵션이고 서로 독립) ──
+  aprv_req_yn: z.boolean().optional(),
+  req_attd_cnt: z
+    .number()
+    .int()
+    .min(1, "참석 횟수는 1회 이상이어야 합니다.")
+    .max(REQ_ATTD_CNT_MAX, `참석 횟수는 ${REQ_ATTD_CNT_MAX}회 이하로 입력해 주세요.`)
+    .nullable()
+    .optional(),
+  req_attd_months: z
+    .number()
+    .int()
+    .min(1, "기간은 1개월 이상이어야 합니다.")
+    .max(REQ_ATTD_MONTHS_MAX, `기간은 ${REQ_ATTD_MONTHS_MAX}개월 이하로 입력해 주세요.`)
+    .nullable()
+    .optional(),
 });
 
-export const createGthrSchema = gthrBaseSchema.refine(endNotBeforeStart, END_AFTER_START_CHECK);
+export const createGthrSchema = gthrBaseSchema
+  .refine(endNotBeforeStart, END_AFTER_START_CHECK)
+  .refine(reqAttdPaired, REQ_ATTD_PAIR_CHECK);
 
 /** 폼용 — team_id는 서버가 채운다. `createGthrSchema.omit()`은 위 이유로 못 쓴다. */
 export const createGthrFormSchema = gthrBaseSchema
   .omit({ team_id: true })
-  .refine(endNotBeforeStart, END_AFTER_START_CHECK);
+  .refine(endNotBeforeStart, END_AFTER_START_CHECK)
+  .refine(reqAttdPaired, REQ_ATTD_PAIR_CHECK);
 
 export const updateGthrSchema = gthrBaseSchema
   .omit({ team_id: true })
   .partial()
   .extend({ gthr_id: z.string().uuid() })
-  .refine(endNotBeforeStart, END_AFTER_START_CHECK);
+  .refine(endNotBeforeStart, END_AFTER_START_CHECK)
+  .refine(reqAttdPaired, REQ_ATTD_PAIR_CHECK);
 
 export type CreateGthrInput = z.infer<typeof createGthrSchema>;
 export type CreateGthrFormInput = z.infer<typeof createGthrFormSchema>;

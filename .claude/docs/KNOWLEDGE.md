@@ -252,3 +252,34 @@ Postgres `jsonb`는 키를 **정렬해서 저장**한다(길이순 → 사전순
 - **`renderToStaticMarkup` 렌더 테스트로는 못 잡는다** — effect를 안 돌리고 환경도 jsdom이 아니라 node다. 이 경로는 브라우저 확인이 유일한 검증이라, 딥링크를 붙였으면 "터미널 검증 통과"를 완료로 읽지 않는다.
 - 서버 판정은 그대로 둔다: 링크가 새어 나가도 민감값이 안 나가는 건 조회 액션이 세션을 다시 보기 때문이다(`getKakaoChatPassword()` → `getCurrentMember()`). 딥링크를 추가할 때 **클라이언트에서 미리 걸러 두었다는 이유로 서버 판정을 빼지 않는다.**
 (2026-08-19 더보기 개편 — `components/social-links.tsx`의 `SocialTiles` · `docs/design/2026-08-19-더보기-소셜-정리.md`)
+
+### supabase-js `.insert()`/`.update()`는 **초과 속성 검사를 안 한다** — 새 컬럼 오타를 tsc가 안 잡는다
+`database.types.ts`의 `Insert`/`Update` 타입에 **없는 컬럼을 넘겨도 tsc가 통과한다.** 객체가 제네릭 타입 인자를 거쳐 들어가서 TypeScript의 excess property check가 발동하지 않기 때문이다(객체 리터럴을 변수에 담거나 `...rest`로 스프레드하면 더 확실히 새어 나간다).
+- 그래서 **마이그레이션을 아직 안 돌린 상태에서 새 컬럼을 insert/update에 얹으면 조용히 컴파일된다.** 반대로 **같은 컬럼을 `.select()`에 쓰면 즉시 터진다**(`SelectQueryError<"column ... does not exist">`) — 그래서 "select만 고치면 되는구나" 하고 캐스팅으로 덮고 넘어가기 쉬운데, 그때 insert 쪽 오타는 그대로 남아 **런타임에 그 컬럼만 안 들어간다.**
+- 컬럼명을 손볼 땐 **gen types를 먼저 돌린다.** 못 돌리는 상황(마이그레이션 미적용)이면 select 캐스팅 자리에 "gen types 후 제거" 주석을 남기고, insert/update 쪽도 같이 훑는다 — 한쪽만 고쳐도 tsc가 아무 말을 안 한다.
+- 같은 이유로 **DTO 필드를 `?:`(optional)로 두지 않는다**(`X | null`로). 컴파일러 방어를 두 번 끄는 셈이 된다.
+(2026-08-25 모임 참여조건·승인제 — `app/actions/gathering/manage-gathering.ts`)
+
+### 상태가 없는 릴레이션에 "대기" 상태를 얹기 전에 그 릴레이션에 매달린 트리거를 먼저 센다
+`gthr_attd_rel`은 **행이 있으면 곧 참석 확정**이라 상태 컬럼이 없고, 그 전제에 70개 파일이 매달려 있다 — 특히 `trg_pt_gthr_attd_rel`(`AFTER INSERT`)이 포인트를 적립한다. 여기에 `st_cd = 'pending'`을 얹었다면 **신청만 해도 포인트가 붙고 활동량·팀 펄스·전광판·유령회원 판정에 잡혔을 것이다.**
+- **DB 트리거는 앱 코드에 훅이 없어 grep에도 리뷰에도 안 걸린다**(AGENTS.md 기강포인트 항목과 같은 이야기). "COUNT(*)를 쓰는 곳을 전부 고치면 된다"는 계획은 트리거를 세지 않는다.
+- 대안은 **대기를 별도 테이블에 담고 확정되는 순간에만 원래 릴레이션에 INSERT**하는 것이다. 그러면 옵션을 안 켠 기존 행의 코드 경로가 **완전히 그대로**라 회귀 위험이 새 옵션을 켠 행에만 갇힌다.
+- 판단 기준 한 줄: **"이 테이블에 행이 생기는 것이 곧 무슨 사건인가"**를 먼저 답한다. 그 사건에 트리거·집계가 걸려 있으면 상태 컬럼으로 의미를 흐리지 않는다.
+(2026-08-25 모임 참여조건·승인제 — `docs/superpowers/specs/2026-08-25-모임-참여조건-승인제-design.md` §2)
+
+### 홈 캘린더는 **쓰기 액션이 직접 `updateTag`** 해야 한다 — DB 트리거 웹훅만으론 로컬에서 영영 안 돈다
+`/schedule`(일정탭)의 서버 렌더는 `getCachedHomeCalendar`(`unstable_cache`, 1시간)를 읽는데, 무효화를 **DB 트리거 웹훅**(`app/api/revalidate`)에만 맡겨 두면 두 군데서 샌다.
+- **웹훅은 배포 URL로 쏜다 → 로컬 개발에선 아예 안 닿는다.** 그래서 로컬에서 만든 모임이 **1시간 동안** 일정탭에 안 나타난다.
+- 프로드에서도 웹훅이 쓰는 건 `revalidateTag(tag, "max")`(SWR)이라 **바로 다음 읽기는 낡은 값**이다.
+- **증상이 헷갈리는 이유**: 달력 안에서 만들면 `refreshMonthData()`가 **클라이언트에서 RPC를 직접** 불러 즉시 보인다(캐시를 안 거친다). 그래서 **"만들 땐 보였는데 새로고침하니 사라진다"**로 나타나고, DB·RPC를 아무리 뒤져도 멀쩡하다. 실제로 여기서 한 번 헛짚었다 — 원인을 가르는 질문은 **"만든 직후엔 보였나"** 하나다.
+- **처방**: 모임 생성·수정·삭제·참석토글·신청/승인/취소 **쓰기 액션마다** `updateTag(HOME_CALENDAR_CACHE_TAG)`. 참석자 수(`attd_count`)도 같은 캐시 payload라 참석 계열도 빠뜨리면 **남의 화면과 새로고침 후 숫자가 최대 1시간 낡는다.**
+- ⚠️ **라우트 핸들러에선 `updateTag`가 throw한다**(서버 액션 전용). MCP 도구(`lib/mcp/create-gathering.ts`)처럼 `/route` 아래인 곳은 `revalidateTag(tag, "max")`를 쓴다.
+- ⚠️ 태그 상수를 `lib/queries/home-calendar.ts`에서 가져오면 **그 파일의 `import "server-only"`가 딸려 와** 서버 액션 단위 테스트가 `Cannot find package 'server-only'`로 죽는다. 정본은 의존성 없는 `lib/home-calendar-cache-tag.ts`에 둔다(`lib/common-codes-cache-tag.ts`와 같은 이유).
+(2026-08-27 모임 참여조건·승인제 — §KNOWLEDGE "저장했는데 안 보임"의 모임 형제. board·대회·기록 형제는 아직 그대로다)
+
+### 같은 테이블로 가는 FK가 둘이면 PostgREST 임베드가 **요청째 거절**된다 — 그걸 `data`만 받으면 "없음"으로 보인다
+`gthr_aply_rel` 은 `mem_mst` 로 가는 FK 가 둘이다(`mem_id` 신청자 / `rvw_by` 심사자). 이때 `.select("..., mem_mst(mem_nm)")` 처럼 **관계를 특정하지 않으면** PostgREST 가 어느 FK 인지 몰라 응답 전체를 에러로 돌려준다.
+- **증상이 "버그"로 안 보인다**: 호출부가 `const { data } = await ...` 로 error 를 안 보면 `data`가 null → 빈 배열 → 화면엔 **"신청이 없어요"**. 실제로 본인이 대기 중인데 신청 관리 목록이 비어 보였다. 크래시도 로그도 없다.
+- **처방**: 임베드에 FK 이름을 박는다 — `mem_mst!gthr_aply_rel_mem_id_fkey(mem_nm, avatar_url)`. 그리고 **`error` 를 반드시 받아 로그로 남긴다**(빈 결과와 실패를 구분할 수 있게).
+- **새 테이블을 만들 때 미리 본다**: `mem_mst` 를 두 번 참조하는 컬럼 조합(작성자+처리자, 신청자+승인자, 대상+행위자)은 이 프로젝트에 흔하다 — `gthr_attd_hist`(`mem_id`+`actor_mem_id`)도 같은 모양이다.
+(2026-08-27 모임 승인제 신청 명단 — `app/actions/gathering/manage-application.ts`)
