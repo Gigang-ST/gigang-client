@@ -2,7 +2,6 @@
 
 import { withAdminOrThrow } from "@/lib/actions/auth";
 import { currentMonthKST, nextMonthStr } from "@/lib/dayjs";
-import { env } from "@/lib/env";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -23,17 +22,12 @@ export type AdminStats = {
   pendingParticipationCount: number;
   unpaidMemberCount: number;
   openFeedbackCount: number;
-  _debug?: Record<string, unknown>;
 };
 
 export async function getAdminStats(): Promise<AdminStats> {
   return withAdminOrThrow(async () => {
-    const { teamId, teamCd } = await getRequestTeamContext();
+    const { teamId } = await getRequestTeamContext();
     const admin = createAdminClient();
-
-    const noFilter = await admin.from("team_mem_rel").select("*", { count: "exact", head: true });
-    const keyPrefix = env.SUPABASE_SERVICE_ROLE_KEY.slice(0, 20);
-    console.log("[getAdminStats] teamId:", teamId, "keyPrefix:", keyPrefix, "noFilterCount:", noFilter.count, "noFilterError:", noFilter.error);
 
     const [total, active, competitions, records, activeProjects, pendingPrt, unpaidResult, openFeedback, pendingAply] = await Promise.all([
       admin.from("team_mem_rel").select("*", { count: "exact", head: true }).eq("team_id", teamId).eq("vers", 0).eq("del_yn", false)
@@ -74,11 +68,6 @@ export async function getAdminStats(): Promise<AdminStats> {
       pendingParticipationCount: pendingPrt.count ?? 0,
       unpaidMemberCount,
       openFeedbackCount: openFeedback.count ?? 0,
-      _debug: {
-        teamId, teamCd, keyPrefix,
-        noFilterCount: noFilter.count, noFilterError: noFilter.error,
-        errors: { total: total.error, activeProjects: activeProjects.error, pendingPrt: pendingPrt.error },
-      },
     };
   });
 }
