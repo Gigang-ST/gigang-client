@@ -61,7 +61,10 @@ const generalCards: Card[] = [
     label: "모임 관리",
     href: "/admin/gatherings",
     icon: CalendarDays,
-    getValue: (s) => s.monthlyGatheringCount,
+    // 이 달 모임 수(구경거리)가 아니라 **처리해야 할 승인 대기 건수**를 보여준다 —
+    // 대시보드 카드는 "내가 손댈 게 있나"에 답하는 자리다(회비 미납·미처리 건의와 같은 성격).
+    getValue: (s) => s.pendingGatheringApplicationCount,
+    getAccentValue: (s) => s.pendingGatheringApplicationCount,
   },
   {
     key: "competitions",

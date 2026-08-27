@@ -3,10 +3,11 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 
 import { gridFetchRange } from "@/lib/dayjs";
+import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-/** 홈 캘린더 공개 데이터 캐시 태그 */
-export const HOME_CALENDAR_CACHE_TAG = "home-calendar";
+// 태그 정본은 의존성 없는 모듈에 있다 — 서버 액션이 이 파일(server-only)을 끌어오지 않게.
+export { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
 
 async function loadHomeCalendar(teamId: string, year: number, month: number) {
   const supabase = createAdminClient();

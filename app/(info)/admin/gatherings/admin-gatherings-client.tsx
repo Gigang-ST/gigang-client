@@ -14,6 +14,12 @@ import {
   addGatheringAttendance,
   removeGatheringAttendance,
 } from "@/app/actions/admin/manage-gathering-attendance";
+import {
+  listGatheringApplications,
+  listPendingApplicationGatherings,
+  type GatheringApplicationRow,
+  type PendingApplicationGathering,
+} from "@/app/actions/gathering/manage-application";
 
 import { Avatar } from "@/components/common/avatar";
 import {
@@ -36,7 +42,9 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { GatheringApplicationsSection } from "@/components/schedule/gathering-applications-section";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type Gathering = {
@@ -76,6 +84,55 @@ const TYPE_BADGE_CLASS: Record<string, string> = {
   general: "border-transparent bg-muted text-muted-foreground",
 };
 
+/**
+ * 모임 카드 — **대기 목록과 월 목록이 함께 쓴다.**
+ *
+ * 한때 두 목록이 각자 마크업을 갖고 있었고, 그래서 대기 카드만 타입 배지·참석자 수가
+ * 빠진 채 `대기 N` 만 덩그러니 있었다. 같은 것을 두 곳에서 그리면 반드시 갈린다 —
+ * 카드가 하나면 그럴 자리가 없다.
+ */
+function GatheringAdminCard({
+  gathering,
+  pendingCnt,
+  onClick,
+}: {
+  gathering: Gathering;
+  pendingCnt: number;
+  onClick: () => void;
+}) {
+  const stt = dayjs(gathering.stt_at).tz("Asia/Seoul");
+  const typeLabel =
+    gthrTypeLabels[gathering.gthr_type_enm as GthrType] ?? gathering.gthr_type_enm;
+  const typeBadgeClass =
+    TYPE_BADGE_CLASS[gathering.gthr_type_enm] ?? TYPE_BADGE_CLASS.general;
+
+  return (
+    <CardItem asChild className="flex flex-col gap-2">
+      <button onClick={onClick} className="text-left transition-colors active:bg-secondary">
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className={typeBadgeClass}>
+            {typeLabel}
+          </Badge>
+          <Caption>{stt.format("M.D(ddd) HH:mm")}</Caption>
+        </div>
+        <Body className="font-semibold">{gathering.gthr_nm}</Body>
+        <Micro className="flex items-center gap-2">
+          <span className="flex items-center gap-1">
+            <Users className="size-3" />
+            <span>참석 {gathering.attd_count}명</span>
+          </span>
+          {/* 처리할 신청이 남았으면 목록에서 바로 보이게 — 어느 모임을 눌러야 할지가 답이다 */}
+          {pendingCnt > 0 && (
+            <Badge variant="outline" className="border-transparent bg-warning/10 text-warning">
+              대기 {pendingCnt}
+            </Badge>
+          )}
+        </Micro>
+      </button>
+    </CardItem>
+  );
+}
+
 export function AdminGatheringsClient({ teamId }: { teamId: string }) {
   const [month, setMonth] = useState(() => currentMonthKST());
   const [gatherings, setGatherings] = useState<Gathering[]>([]);
@@ -92,6 +149,28 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
   const [addOpen, setAddOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [removingMemId, setRemovingMemId] = useState<string | null>(null);
+
+  // 처리 대기가 남은 모임 — **월 필터를 무시하고** 팀 전체에서 모은다.
+  // 12월 송년회 신청은 10·11월에 들어오므로, 월에 갇히면 다른 달 대기 건을 영영 못 본다.
+  const [pending, setPending] = useState<PendingApplicationGathering[]>([]);
+  // 이 모임의 신청 명단(승인/반려용) — 다이얼로그를 열 때만 받는다.
+  const [applications, setApplications] = useState<GatheringApplicationRow[] | null>(null);
+
+  const loadPending = useCallback(() => {
+    void listPendingApplicationGatherings()
+      .then(setPending)
+      .catch(() => setPending([]));
+  }, []);
+
+  useEffect(() => {
+    loadPending();
+  }, [loadPending]);
+
+  // 월 목록에 배지를 달기 위한 조회표. 상단 목록과 같은 출처를 쓴다(숫자가 갈리지 않게).
+  const pendingByGthr = useMemo(
+    () => new Map(pending.map((p) => [p.gthr_id, p.pending_cnt])),
+    [pending],
+  );
 
   const monthLabel = dayjs(month).format("YYYY년 M월");
 
@@ -116,7 +195,9 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
       .eq("del_yn", false)
       .gte("stt_at", monthStartIso)
       .lt("stt_at", monthEndIso)
-      .order("stt_at", { ascending: true });
+      // 최신 모임순(내림차순) — 관리 화면에서 손대는 건 대개 방금 열렸거나 곧 열릴 모임이다.
+      // 참석자 정리·승인은 지난 것부터 훑는 일이 아니라 최근 것부터 보는 일이라 위로 올린다.
+      .order("stt_at", { ascending: false });
 
     // 응답 도착 시점에 이미 다른 달로 이동했다면 이 응답은 버린다 (더 빠른 요청이 늦게 도착하는 경우 대비).
     if (latestMonthRequestRef.current !== targetMonth) return;
@@ -226,9 +307,15 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
     currentGthrRef.current = g.gthr_id;
     setSelected(g);
     setDialogOpen(true);
+    setApplications(null);
     loadAttendees(g.gthr_id);
     loadActiveMembers();
     loadCancelHistory(g.gthr_id);
+    // 승인제가 아닌 모임이면 빈 배열이 와서 섹션이 안 그려진다 — 여기서 미리 가르지 않는다
+    // (월 목록 쿼리는 aprv_req_yn 을 안 싣고, 그걸 위해 쿼리를 늘릴 값어치가 없다).
+    void listGatheringApplications(g.gthr_id)
+      .then((rows) => { if (currentGthrRef.current === g.gthr_id) setApplications(rows); })
+      .catch(() => setApplications(null));
   };
 
   const handleDialogOpenChange = (open: boolean) => {
@@ -335,6 +422,45 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
         </Button>
       </div>
 
+      {/* 처리할 참가 신청 — **월 필터를 무시**한다(다른 달 대기 건을 놓치지 않게).
+          탭으로 만들지 않은 이유: 승인제 모임은 소수라 탭을 세우면 대부분의 날에 빈 탭이
+          상시로 서 있게 된다. 대기가 0이면 이 블록은 아예 렌더되지 않아 평소 화면은 그대로다. */}
+      {pending.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <Caption className="text-muted-foreground">
+            처리할 참가 신청 {pending.reduce((n, p) => n + p.pending_cnt, 0)}건
+          </Caption>
+          {pending.map((p) => (
+            <GatheringAdminCard
+              key={p.gthr_id}
+              gathering={{
+                gthr_id: p.gthr_id,
+                gthr_nm: p.gthr_nm,
+                gthr_type_enm: p.gthr_type_enm,
+                stt_at: p.stt_at,
+                loc_txt: p.loc_txt,
+                attd_count: p.attd_count,
+              }}
+              pendingCnt={p.pending_cnt}
+              onClick={() =>
+                openGathering({
+                  gthr_id: p.gthr_id,
+                  gthr_nm: p.gthr_nm,
+                  gthr_type_enm: p.gthr_type_enm,
+                  stt_at: p.stt_at,
+                  loc_txt: p.loc_txt,
+                  attd_count: p.attd_count,
+                })
+              }
+            />
+          ))}
+
+          {/* 두 목록은 성격이 다르다(월 무시 ↔ 이 달) — 구분선으로 층을 나눈다.
+              안 나누면 대기 카드가 이 달 목록의 첫 항목처럼 읽힌다. */}
+          <Separator className="mt-2" />
+        </div>
+      )}
+
       {/* 모임 목록 */}
       {loading ? (
         <div className="flex flex-col gap-3">
@@ -350,33 +476,14 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
         />
       ) : (
         <div className="flex flex-col gap-3">
-          {gatherings.map((g) => {
-            const stt = dayjs(g.stt_at).tz("Asia/Seoul");
-            const typeLabel = gthrTypeLabels[g.gthr_type_enm as GthrType] ?? g.gthr_type_enm;
-            const typeBadgeClass = TYPE_BADGE_CLASS[g.gthr_type_enm] ?? TYPE_BADGE_CLASS.general;
-            return (
-              <CardItem asChild key={g.gthr_id} className="flex flex-col gap-2">
-                <button
-                  onClick={() => openGathering(g)}
-                  className="text-left transition-colors active:bg-secondary"
-                >
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={typeBadgeClass}>
-                      {typeLabel}
-                    </Badge>
-                    <Caption>{stt.format("M.D(ddd) HH:mm")}</Caption>
-                  </div>
-                  <Body className="font-semibold">
-                    {g.gthr_nm}
-                  </Body>
-                  <Micro className="flex items-center gap-1">
-                    <Users className="size-3" />
-                    <span>참석 {g.attd_count}명</span>
-                  </Micro>
-                </button>
-              </CardItem>
-            );
-          })}
+          {gatherings.map((g) => (
+            <GatheringAdminCard
+              key={g.gthr_id}
+              gathering={g}
+              pendingCnt={pendingByGthr.get(g.gthr_id) ?? 0}
+              onClick={() => openGathering(g)}
+            />
+          ))}
         </div>
       )}
 
@@ -441,6 +548,22 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
                   </Command>
                 </PopoverContent>
               </Popover>
+
+              {/* 신청 관리 — 일정탭 모임 다이얼로그와 **같은 컴포넌트**를 쓴다.
+                  따로 만들면 승인/반려 문구·동작이 두 화면에서 갈린다. */}
+              {selected && applications && applications.length > 0 && (
+                <GatheringApplicationsSection
+                  gthrId={selected.gthr_id}
+                  applications={applications}
+                  onChanged={() => {
+                    // 승인하면 그 사람이 곧 참석자다 — 명단·참석자·상단 대기 목록을 함께 갱신.
+                    void listGatheringApplications(selected.gthr_id).then(setApplications);
+                    loadAttendees(selected.gthr_id);
+                    loadPending();
+                    loadGatherings(month);
+                  }}
+                />
+              )}
 
               {/* 참가자 목록 */}
               <div className="flex flex-col gap-2">

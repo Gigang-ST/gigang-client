@@ -119,15 +119,24 @@ export default function RootLayout({
           {/* 폭 컨트롤 — 셸 바깥 지면에 서므로 셸 밖에 둔다. 지면이 안 남으면(=폰) 렌더 안 함. */}
           <AppWidthControl />
           {/* 전역 토스트 — 참석 피드백·배치 결과 등. sonner 기본 흥(아이콘·애니메이션) 유지하고
-              폭(내용만큼)·모서리·그림자만 프로젝트 카드 톤으로 보정. richColors 미사용(투박함 제거). */}
+              모서리·그림자만 프로젝트 카드 톤으로 보정. richColors 미사용(투박함 제거).
+
+              ⚠️ `--width` 에 `fit-content` 같은 **내재적(intrinsic) 값을 주면 안 된다.**
+              sonner 는 데스크톱에서 `[data-sonner-toaster] { width: var(--width) }` 인데
+              토스트는 `[data-sonner-toast] { position: absolute }` 라 **부모의 fit-content
+              계산에 아무것도 기여하지 않는다** → 컨테이너 폭이 0으로 붕괴하고, 그 안의 글자가
+              한 자씩 세로로 흐른다. 모바일에서 안 보이던 이유는 sonner 의
+              `@media (max-width: 600px)` 가 `width: 100%` 로 덮어쓰기 때문 — 그래서
+              **PC 에서만** 세로로 나왔다(오래 있던 버그, 2026-08-27 수정).
+              폭은 반드시 확정 길이로 준다. */}
           <Toaster
             position="bottom-center"
             offset="80px"
             mobileOffset="80px"
-            style={{ "--width": "fit-content" } as React.CSSProperties}
+            style={{ "--width": "min(90vw, 380px)" } as React.CSSProperties}
             toastOptions={{
               classNames: {
-                toast: "!rounded-2xl !border-border !shadow-lg !max-w-[90vw]",
+                toast: "!rounded-2xl !border-border !shadow-lg",
                 title: "!text-sm !font-medium",
               },
             }}

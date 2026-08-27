@@ -38,6 +38,10 @@ type Props = {
     loc_txt: string | null;
     desc_txt: string | null;
     max_prt_cnt: number | null;
+    // 수정 폼이 이 값을 그대로 되돌려 보낸다 — 빠지면 수정하는 것만으로 승인제가 꺼진다.
+    aprv_req_yn: boolean | null;
+    req_attd_cnt: number | null;
+    req_attd_months: number | null;
   };
 };
 

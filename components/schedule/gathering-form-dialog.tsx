@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { AutoGrowTextarea } from "@/components/common/auto-grow-textarea";
+import { GatheringConditionFields } from "./gathering-condition-fields";
 import { GatheringScheduleHint } from "@/components/schedule/gathering-schedule-hint";
 
 const formSchema = createGthrFormSchema;
@@ -69,6 +70,11 @@ export type CreatedGathering = {
   evt_stt_at: string;
   evt_end_at: string | null;
   maxPrtCnt: number | null;
+  // 승인제·참여조건도 실어야 한다. 안 실으면 방금 만든 승인제 모임이 **일반 참석 버튼**으로
+  // 열리고(누르면 서버가 거부), 그 상태에서 수정을 누르면 승인제가 조용히 꺼진다.
+  aprvReqYn: boolean;
+  reqAttdCnt: number | null;
+  reqAttdMonths: number | null;
 };
 
 /** 복제("이 내용으로 새 모임") 등 등록 폼 내용 프리필. 일시는 새 모임 기준이라 제외. */
@@ -98,6 +104,9 @@ export type GatheringFormDialogProps = {
     loc_txt?: string | null;
     desc_txt?: string | null;
     max_prt_cnt?: number | null;
+    aprv_req_yn?: boolean | null;
+    req_attd_cnt?: number | null;
+    req_attd_months?: number | null;
   };
   /** 등록(create) 성공 시 새 모임 id·데이터 전달. 수정(edit)일 땐 둘 다 undefined */
   onSuccess?: (createdGthrId?: string, createdRace?: CreatedGathering) => void | Promise<void>;
@@ -133,6 +142,9 @@ export function GatheringFormDialog({
       end_at: null,
       loc_txt: null,
       desc_txt: null,
+      aprv_req_yn: false,
+      req_attd_cnt: null,
+      req_attd_months: null,
     } as FormValues,
   });
 
@@ -140,6 +152,10 @@ export function GatheringFormDialog({
   const { isSubmitting, dirtyFields } = form.formState;
   // 시작일시 구독 — 개설 일정 안내(GatheringScheduleHint)의 임박 판정에 사용.
   const sttAtWatch = useWatch({ control: form.control, name: "stt_at" });
+  // 참여조건·승인제는 RHF 에 묶지 않은 공용 컴포넌트가 그린다(두 폼의 FormValues 타입이 달라서)
+  const aprvReqYn = useWatch({ control: form.control, name: "aprv_req_yn" });
+  const reqAttdCnt = useWatch({ control: form.control, name: "req_attd_cnt" });
+  const reqAttdMonths = useWatch({ control: form.control, name: "req_attd_months" });
 
   const persistKey = "gathering-form-draft";
   const { clear: clearDraft } = useFormPersist(persistKey, form, open && mode === "create");
@@ -164,6 +180,9 @@ export function GatheringFormDialog({
         loc_txt: initialData.loc_txt ?? null,
         desc_txt: initialData.desc_txt ?? null,
         max_prt_cnt: initialData.max_prt_cnt ?? undefined,
+        aprv_req_yn: initialData.aprv_req_yn ?? false,
+        req_attd_cnt: initialData.req_attd_cnt ?? null,
+        req_attd_months: initialData.req_attd_months ?? null,
       });
     } else {
       const defaultSttAt = defaultDate
@@ -275,6 +294,9 @@ export function GatheringFormDialog({
           evt_stt_at: sttIso,
           evt_end_at: endIso,
           maxPrtCnt: values.max_prt_cnt ?? null,
+          aprvReqYn: values.aprv_req_yn ?? false,
+          reqAttdCnt: values.req_attd_cnt ?? null,
+          reqAttdMonths: values.req_attd_months ?? null,
         };
       }
       clearDraft();
@@ -496,6 +518,22 @@ export function GatheringFormDialog({
                   <FormMessage />
                 </FormItem>
               )}
+            />
+
+            {/* 참여 조건 · 승인 (접이식, 기본 접힘) */}
+            <GatheringConditionFields
+              value={{
+                aprv_req_yn: aprvReqYn ?? false,
+                req_attd_cnt: reqAttdCnt ?? null,
+                req_attd_months: reqAttdMonths ?? null,
+              }}
+              disabled={isSubmitting}
+              error={form.formState.errors.req_attd_cnt?.message ?? form.formState.errors.req_attd_months?.message ?? null}
+              onChange={(v) => {
+                form.setValue("aprv_req_yn", v.aprv_req_yn, { shouldDirty: true });
+                form.setValue("req_attd_cnt", v.req_attd_cnt, { shouldDirty: true });
+                form.setValue("req_attd_months", v.req_attd_months, { shouldDirty: true });
+              }}
             />
 
             {rootError && (
