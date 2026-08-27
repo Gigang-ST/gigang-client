@@ -51,7 +51,7 @@ export const getEventGoalsCumulative = cache(
         });
       },
       [`goals-cumulative-${evtId}-${queryStart}-${endMonth}-${isCurrentMonth ? "60" : "3600"}`],
-      { revalidate: isCurrentMonth ? 60 : 3600 },
+      { revalidate: isCurrentMonth ? 60 : 3600, tags: [`mileage-${evtId}`] },
     )();
   },
 );
@@ -109,7 +109,7 @@ export const getEventLogsCumulative = cache(
         });
       },
       [`logs-cumulative-${evtId}-${queryStart}-${endMonth}-${isCurrentMonth ? "60" : "3600"}`],
-      { revalidate: isCurrentMonth ? 60 : 3600 },
+      { revalidate: isCurrentMonth ? 60 : 3600, tags: [`mileage-${evtId}`] },
     )();
   },
 );

@@ -41,7 +41,7 @@ import type { ReactNode } from "react";
 
 /**
  * 더보기 화면 — 햄버거 뒤의 큰 방. 주소는 `/settings` 그대로다(북마크·알림 딥링크·
- * `InfoBackHeader`의 강제 href가 전부 이 경로를 가리킨다). 바뀐 건 **화면이 자기를 뭐라고
+ * `InfoBackHeader`의 `/mcp-tokens` 폴백이 전부 이 경로를 가리킨다). 바뀐 건 **화면이 자기를 뭐라고
  * 부르는가**와 그 안의 정렬이다.
  *
  * ## 한 화면, 두 덩어리

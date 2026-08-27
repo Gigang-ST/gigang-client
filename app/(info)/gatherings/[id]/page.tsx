@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { dayjs } from "@/lib/dayjs";
 import { deriveCanceledAttendees } from "@/lib/gathering/derive-canceled-attendees";
+import { evaluateJoinConditions, NO_JOIN_CONDITION } from "@/lib/gathering/join-condition";
 import { isPastLockedFor } from "@/lib/past-event";
 import { getGatheringAttendanceHistory } from "@/lib/queries/gathering-cancel-history";
 import { getCurrentMember } from "@/lib/queries/member";
@@ -16,6 +17,9 @@ import { Avatar } from "@/components/common/avatar";
 import { H2, Caption, Micro, SectionLabel } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
 
+import { GatheringJoinConditions } from "@/components/schedule/gathering-join-conditions";
+
+import { GatheringApplyButton, type MyApplicationState } from "./gathering-apply-button";
 import { GatheringAttendButton } from "./gathering-attend-button";
 import { GatheringCanceledAttendees } from "./gathering-canceled-attendees";
 import { GatheringMenuButton } from "./gathering-menu-button";
@@ -32,7 +36,9 @@ export default async function GatheringDetailPage({
   const [{ data: gthr }, membersForComment] = await Promise.all([
     supabase
       .from("gthr_mst")
-      .select("gthr_id, gthr_nm, gthr_type_enm, sprt_cd, stt_at, end_at, loc_txt, desc_txt, max_prt_cnt, crt_by, team_id")
+      .select(
+        "gthr_id, gthr_nm, gthr_type_enm, sprt_cd, stt_at, end_at, loc_txt, desc_txt, max_prt_cnt, crt_by, team_id, aprv_req_yn, req_attd_cnt, req_attd_months",
+      )
       .eq("gthr_id", id)
       .eq("del_yn", false)
       .single(),
@@ -87,6 +93,29 @@ export default async function GatheringDetailPage({
   // 지난 모임(KST 날짜 기준)은 수정·삭제·참석 변경 불가 — 관리자만 예외 (서버 액션에서도 동일 검증)
   const isPastLocked = isPastLockedFor(member?.admin, gthr.stt_at, gthr.end_at);
 
+  // ── 참여조건 · 승인제 ──
+  // 조건은 **로그인한 사람 기준**으로만 평가한다(비로그인은 보여줄 "현재 N회"가 없다).
+  const conditions = member
+    ? await evaluateJoinConditions(admin, { spec: gthr, memId: member.id, teamId })
+    : NO_JOIN_CONDITION;
+
+  // 내 신청 상태 — 승인제 모임에서만. 대기·반려는 RLS 로도 본인·개설자·운영진만 볼 수
+  // 있지만, 여기서는 admin 클라이언트로 읽으므로 **본인 것으로 코드가 다시 좁힌다**
+  // (RLS 우회 경로는 스코프를 코드가 강제한다 — KNOWLEDGE.md).
+  //
+  // 신청 "관리"(대기 명단·승인·반려)는 이 페이지에 두지 않는다 — 모임 상세 다이얼로그가
+  // 맡는다. 알림 딥링크도 달력을 열므로, 승인만 여기 두면 운영진이 도달하지 못한다.
+  const { data: myAply } = member && gthr.aprv_req_yn
+    ? await admin
+        .from("gthr_aply_rel")
+        .select("aply_st_cd, rvw_memo_txt")
+        .eq("gthr_id", id)
+        .eq("mem_id", member.id)
+        .maybeSingle()
+    : { data: null };
+
+  const myApplicationState = (myAply?.aply_st_cd ?? "none") as MyApplicationState;
+
   const stt = dayjs(gthr.stt_at).tz("Asia/Seoul");
   const end = gthr.end_at ? dayjs(gthr.end_at).tz("Asia/Seoul") : null;
   const dateStr = stt.format("YYYY년 M월 D일 (ddd)");
@@ -116,6 +145,9 @@ export default async function GatheringDetailPage({
                 loc_txt: gthr.loc_txt ?? null,
                 desc_txt: gthr.desc_txt ?? null,
                 max_prt_cnt: gthr.max_prt_cnt ?? null,
+                aprv_req_yn: gthr.aprv_req_yn ?? false,
+                req_attd_cnt: gthr.req_attd_cnt ?? null,
+                req_attd_months: gthr.req_attd_months ?? null,
               }}
             />
           </div>
@@ -164,17 +196,32 @@ export default async function GatheringDetailPage({
           )}
         </div>
 
-        {/* 참석 버튼 */}
-        {member && (
-          <GatheringAttendButton
-            gthrId={id}
-            initialAttending={isAttending}
-            maxPrtCnt={gthr.max_prt_cnt ?? null}
-            currentAttdCount={attendees?.length ?? 0}
-            sttAt={gthr.stt_at}
-            pastLocked={isPastLocked}
-          />
-        )}
+        {/* 참여 조건 — 로그인한 사람에게만(비로그인은 "현재 N회"를 낼 수 없다) */}
+        <GatheringJoinConditions conditions={conditions.conditions} />
+
+        {/* 참가 버튼 — 승인제면 신청 흐름, 아니면 기존 원탭 토글 */}
+        {member &&
+          (gthr.aprv_req_yn ? (
+            <GatheringApplyButton
+              gthrId={id}
+              state={myApplicationState}
+              rejectReason={myAply?.rvw_memo_txt ?? null}
+              conditionsOk={conditions.ok}
+              full={gthr.max_prt_cnt != null && (attendees?.length ?? 0) >= gthr.max_prt_cnt}
+              sttAt={gthr.stt_at}
+              pastLocked={isPastLocked}
+            />
+          ) : (
+            <GatheringAttendButton
+              gthrId={id}
+              initialAttending={isAttending}
+              maxPrtCnt={gthr.max_prt_cnt ?? null}
+              currentAttdCount={attendees?.length ?? 0}
+              sttAt={gthr.stt_at}
+              pastLocked={isPastLocked}
+              conditionsOk={conditions.ok}
+            />
+          ))}
 
         {/* 참석자 목록 */}
         {(attendees?.length ?? 0) > 0 && (

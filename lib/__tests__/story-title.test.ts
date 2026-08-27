@@ -5,6 +5,7 @@ import {
   countTitleMoreMembers,
   pickTitleLead,
   pickTitleLedeStart,
+  summarizeRecentTitleGrants,
 } from "@/lib/story-title";
 
 import type { RecentTitleRow } from "@/lib/story-title";
@@ -95,10 +96,25 @@ describe("pickTitleLead", () => {
     expect(pickTitleLead(pool, -1)?.lead.person.mem_id).toBe("m3");
   });
 
-  it("others는 대표만 뺀 최신순 그대로다 — 회전해도 명단은 안 섞인다", () => {
+  it("others는 대표와 같은 칭호를 딴 사람만, 대표 본인만 뺀다", () => {
     const picked = pickTitleLead(pool, 1);
     expect(picked?.lead.person.mem_id).toBe("m2");
-    expect(picked?.others.map((e) => e.person.mem_id)).toEqual(["m1", "m3"]);
+    expect(picked?.others.map((p) => p.mem_id)).toEqual(["m1", "m3"]);
+  });
+
+  it("다른 칭호를 딴 사람은 others에 섞이지 않는다", () => {
+    const mixedPool = buildTitleLeadPool([
+      row("A", [
+        ["m1", "2026-08-10T00:00:00+00:00"],
+        ["m2", "2026-08-09T00:00:00+00:00"],
+      ]),
+      row("B", [["m3", "2026-08-08T00:00:00+00:00"]]),
+    ]);
+    // 정렬: m1(A,10) → m2(A,9) → m3(B,8)
+    const picked = pickTitleLead(mixedPool, 0);
+    expect(picked?.lead.person.mem_id).toBe("m1");
+    // m3은 다른 칭호(B)라 대표(m1, 칭호 A)의 others엔 안 들어간다.
+    expect(picked?.others.map((p) => p.mem_id)).toEqual(["m2"]);
   });
 
   it("+1 전진이 전원을 커버한다 — 굶는 사람이 구조적으로 없다", () => {
@@ -115,27 +131,80 @@ describe("pickTitleLead", () => {
 });
 
 describe("countTitleMoreMembers", () => {
-  it("총원에서 지면에 선 인원(대표 포함)을 뺀다", () => {
-    const rows = [row("A", [["m1", "2026-08-10T00:00:00+00:00"]], 1, 12)];
-    expect(countTitleMoreMembers(rows, 1 + 8)).toBe(3);
+  it("그 칭호의 grant_cnt에서 지면에 선 인원(대표 포함)을 뺀다", () => {
+    const title = row("A", [["m1", "2026-08-10T00:00:00+00:00"]], 12);
+    expect(countTitleMoreMembers(title, 1 + 8)).toBe(3);
   });
 
-  it("grants가 10건에서 잘려도 총원 기준이라 정확하다 — pool로 세면 어긋난다", () => {
-    // prd 실측 형태: 고유 획득자 75명인데 10건 상한 탓에 명단엔 41명만 실려 온다.
+  it("grants가 10건에서 잘려도 grant_cnt 기준이라 정확하다 — 실린 이름 수로 세면 어긋난다", () => {
+    // prd 실측 형태: 이 칭호를 딴 50명인데 10건 상한 탓에 명단엔 10명만 실려 온다.
     const grants: [string, string][] = Array.from({ length: 10 }, (_, i) => [
       `m${i}`,
       "2026-08-12T04:18:47+00:00",
     ]);
-    const rows = [row("SWEEP", grants, 50, 75)];
-    const pool = buildTitleLeadPool(rows);
+    const title = row("SWEEP", grants, 50);
+    const pool = buildTitleLeadPool([title]);
     expect(pool).toHaveLength(10); // 지면이 아는 사람은 10명뿐이지만
-    expect(countTitleMoreMembers(rows, 1 + 8)).toBe(66); // 세는 건 75명 기준
+    expect(countTitleMoreMembers(title, 1 + 8)).toBe(41); // 세는 건 50명 기준
   });
 
-  it("총원이 없거나(옛 캐시 payload) 노출 인원보다 작으면 0 — 음수를 지면에 올리지 않는다", () => {
-    expect(countTitleMoreMembers([], 9)).toBe(0);
-    const rows = [row("A", [["m1", "2026-08-10T00:00:00+00:00"]], 1, 3)];
-    expect(countTitleMoreMembers(rows, 9)).toBe(0);
+  it("노출 인원이 grant_cnt 이상이면 0 — 음수를 지면에 올리지 않는다", () => {
+    const title = row("A", [["m1", "2026-08-10T00:00:00+00:00"]], 3);
+    expect(countTitleMoreMembers(title, 9)).toBe(0);
+  });
+});
+
+describe("summarizeRecentTitleGrants", () => {
+  it("칭호별로 이름을 그대로 묶는다 — 사람 단위로 다시 풀지 않는다", () => {
+    const rows = [
+      row(
+        "A",
+        [
+          ["kim", "2026-08-10T00:00:00+00:00"],
+          ["lee", "2026-08-08T00:00:00+00:00"],
+        ],
+        2,
+      ),
+      row("B", [["park", "2026-08-09T00:00:00+00:00"]], 1),
+    ];
+    expect(summarizeRecentTitleGrants(rows, null)).toEqual([
+      {
+        ttl_id: "A",
+        ttl_nm: "A",
+        ttl_desc: null,
+        desc_visibility: "others",
+        isHeld: false,
+        names: ["kim", "lee"],
+        moreCount: 0,
+      },
+      {
+        ttl_id: "B",
+        ttl_nm: "B",
+        ttl_desc: null,
+        desc_visibility: "others",
+        isHeld: false,
+        names: ["park"],
+        moreCount: 0,
+      },
+    ]);
+  });
+
+  it("grant_cnt가 실린 이름 수보다 크면 moreCount로 남긴다", () => {
+    const rows = [row("SWEEP", [["m1", "2026-08-12T00:00:00+00:00"]], 5)];
+    expect(summarizeRecentTitleGrants(rows, null)[0].moreCount).toBe(4);
+  });
+
+  it("뷰어 본인이 그 칭호를 받은 창에 있으면 isHeld — 배지 툴팁의 held 게이트용", () => {
+    const rows = [
+      row("A", [
+        ["kim", "2026-08-10T00:00:00+00:00"],
+        ["me", "2026-08-09T00:00:00+00:00"],
+      ]),
+      row("B", [["lee", "2026-08-08T00:00:00+00:00"]]),
+    ];
+    const summary = summarizeRecentTitleGrants(rows, "me");
+    expect(summary.find((g) => g.ttl_id === "A")?.isHeld).toBe(true);
+    expect(summary.find((g) => g.ttl_id === "B")?.isHeld).toBe(false);
   });
 });
 

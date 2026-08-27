@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -19,6 +19,7 @@ import { updateProfile } from "@/app/actions/update-profile";
 import { updateNearStation } from "@/app/actions/profile/update-near-station";
 import { updateRunningProfile } from "@/app/actions/profile/update-running-profile";
 import { compressAvatarFile } from "@/lib/image/avatar-compress";
+import { useBackNav } from "@/lib/use-back-nav";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/common/avatar";
 import { Caption } from "@/components/common/typography";
@@ -73,7 +74,9 @@ export function ProfileEditForm({
   member: MemberData;
   initialRunningProfile: InitialRunningProfile;
 }) {
-  const router = useRouter();
+  // 저장 후 복귀. 직접 진입(알림 딥링크 등)이면 뒤로 갈 데가 없어 맨 `router.back()`은
+  // 조용히 죽는다 — 토스트만 뜨고 폼에 남아 다시 저장을 누르게 된다(#450).
+  const goBack = useBackNav("/profile");
   const [avatarState, setAvatarState] = useState<AvatarState>({
     kind: "current",
   });
@@ -239,7 +242,7 @@ export function ProfileEditForm({
         return;
       }
       toast.success("저장했어요");
-      router.back();
+      goBack();
     } catch {
       toast.error("저장 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.");
     }
@@ -273,7 +276,10 @@ export function ProfileEditForm({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+          // 안드로이드는 accept가 정확한 와일드카드일 때만 사진첩 그리드 피커를 띄우고,
+          // 구체적 MIME 나열이면 카메라/파일뿐인 범용 초이서로 폴백한다. 실제 타입
+          // 검증은 서버(validateAvatarFile)가 하므로 여기선 UI 힌트로만 image/*를 쓴다.
+          accept="image/*"
           onChange={handlePickFile}
           className="hidden"
         />

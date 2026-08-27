@@ -1501,6 +1501,67 @@ export type Database = {
           },
         ]
       }
+      gthr_aply_rel: {
+        Row: {
+          aply_id: string
+          aply_memo_txt: string | null
+          aply_st_cd: string
+          crt_at: string
+          gthr_id: string
+          mem_id: string
+          rvw_at: string | null
+          rvw_by: string | null
+          rvw_memo_txt: string | null
+          upd_at: string
+        }
+        Insert: {
+          aply_id?: string
+          aply_memo_txt?: string | null
+          aply_st_cd: string
+          crt_at?: string
+          gthr_id: string
+          mem_id: string
+          rvw_at?: string | null
+          rvw_by?: string | null
+          rvw_memo_txt?: string | null
+          upd_at?: string
+        }
+        Update: {
+          aply_id?: string
+          aply_memo_txt?: string | null
+          aply_st_cd?: string
+          crt_at?: string
+          gthr_id?: string
+          mem_id?: string
+          rvw_at?: string | null
+          rvw_by?: string | null
+          rvw_memo_txt?: string | null
+          upd_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gthr_aply_rel_gthr_id_fkey"
+            columns: ["gthr_id"]
+            isOneToOne: false
+            referencedRelation: "gthr_mst"
+            referencedColumns: ["gthr_id"]
+          },
+          {
+            foreignKeyName: "gthr_aply_rel_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "gthr_aply_rel_rvw_by_fkey"
+            columns: ["rvw_by"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
       gthr_attd_hist: {
         Row: {
           actor_cd: string
@@ -1594,6 +1655,7 @@ export type Database = {
       }
       gthr_mst: {
         Row: {
+          aprv_req_yn: boolean
           crt_at: string
           crt_by: string
           del_yn: boolean
@@ -1604,6 +1666,8 @@ export type Database = {
           gthr_type_enm: string
           loc_txt: string | null
           max_prt_cnt: number | null
+          req_attd_cnt: number | null
+          req_attd_months: number | null
           short_id: string
           sprt_cd: string | null
           stt_at: string
@@ -1611,6 +1675,7 @@ export type Database = {
           upd_at: string
         }
         Insert: {
+          aprv_req_yn?: boolean
           crt_at?: string
           crt_by: string
           del_yn?: boolean
@@ -1621,6 +1686,8 @@ export type Database = {
           gthr_type_enm: string
           loc_txt?: string | null
           max_prt_cnt?: number | null
+          req_attd_cnt?: number | null
+          req_attd_months?: number | null
           short_id?: string
           sprt_cd?: string | null
           stt_at: string
@@ -1628,6 +1695,7 @@ export type Database = {
           upd_at?: string
         }
         Update: {
+          aprv_req_yn?: boolean
           crt_at?: string
           crt_by?: string
           del_yn?: boolean
@@ -1638,6 +1706,8 @@ export type Database = {
           gthr_type_enm?: string
           loc_txt?: string | null
           max_prt_cnt?: number | null
+          req_attd_cnt?: number | null
+          req_attd_months?: number | null
           short_id?: string
           sprt_cd?: string | null
           stt_at?: string
@@ -2772,6 +2842,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_add_gthr_attendance: {
+        Args: {
+          p_actor_mem_id: string
+          p_gthr_id: string
+          p_mem_id: string
+          p_team_id: string
+        }
+        Returns: string
+      }
       apply_team_mem_rel_change: {
         Args: { p_changes: Json; p_eff_at?: string; p_team_mem_id: string }
         Returns: undefined
@@ -2779,6 +2858,19 @@ export type Database = {
       apply_team_mem_rel_delete: {
         Args: { p_eff_at?: string; p_team_mem_id: string }
         Returns: undefined
+      }
+      approve_gthr_application: {
+        Args: {
+          p_actor_mem_id: string
+          p_gthr_id: string
+          p_mem_id: string
+          p_team_id: string
+        }
+        Returns: string
+      }
+      backfill_gthr_approvals: {
+        Args: { p_actor_mem_id: string; p_gthr_id: string; p_team_id: string }
+        Returns: number
       }
       bump_story_rctn: {
         Args: {
@@ -2790,6 +2882,17 @@ export type Database = {
           p_team_id: string
         }
         Returns: number
+      }
+      cancel_gthr_application: {
+        Args: {
+          p_actor_cd: string
+          p_actor_mem_id?: string
+          p_gthr_id: string
+          p_mem_id: string
+          p_reason?: string
+          p_team_id: string
+        }
+        Returns: string
       }
       cancel_gthr_attendance: {
         Args: {

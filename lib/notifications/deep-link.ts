@@ -86,6 +86,11 @@ const NOTI_ROUTE: Record<
   // 알림과 아무 상관 없는 화면이 뜬다.
   gthr_del: () => SCHEDULE,
   gthr_cncl: (refId) => (refId ? `${SCHEDULE}?gthr=${refId}` : SCHEDULE),
+  // 모임 참가 신청·확정·반려 — 셋 다 그 모임으로. 신청 알림을 받은 운영진은 거기서
+  // 신청 관리 섹션을 보고, 신청자는 자기 상태(확정/반려 사유)를 같은 자리에서 본다.
+  gthr_aply: (refId) => (refId ? `${SCHEDULE}?gthr=${refId}` : SCHEDULE),
+  gthr_aprv: (refId) => (refId ? `${SCHEDULE}?gthr=${refId}` : SCHEDULE),
+  gthr_rjct: (refId) => (refId ? `${SCHEDULE}?gthr=${refId}` : SCHEDULE),
   gthr_cmnt: (refId) => (refId ? `${SCHEDULE}?gthr=${refId}` : SCHEDULE),
   gthr_reply: (refId) => (refId ? `${SCHEDULE}?gthr=${refId}` : SCHEDULE),
   gthr_mention: (refId) => (refId ? `${SCHEDULE}?gthr=${refId}` : SCHEDULE),

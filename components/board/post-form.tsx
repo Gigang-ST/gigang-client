@@ -6,6 +6,7 @@ import { useTheme } from "next-themes";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createPostSchema, type CreatePostInput } from "@/lib/validations/board";
+import { useBackNav } from "@/lib/use-back-nav";
 import { createPost } from "@/app/actions/create-post";
 import { updatePost } from "@/app/actions/update-post";
 import type { BoardPost } from "@/lib/queries/board";
@@ -28,6 +29,8 @@ export function PostForm({ teamId, initialData, initialType = "notice" }: PostFo
   const router = useRouter();
   const { resolvedTheme } = useTheme();
   const isEdit = Boolean(initialData);
+  // 직접 진입(북마크·딥링크)이면 뒤로 갈 데가 없다 — 헤더 화살표와 같은 규칙으로 빠진다(#450).
+  const goBack = useBackNav(initialData ? `/board/${initialData.post_id}` : "/board");
 
   const form = useForm<CreatePostInput>({
     resolver: zodResolver(createPostSchema),
@@ -142,7 +145,7 @@ export function PostForm({ teamId, initialData, initialType = "notice" }: PostFo
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.back()}
+            onClick={goBack}
             disabled={form.formState.isSubmitting}
           >
             취소

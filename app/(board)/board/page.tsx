@@ -17,7 +17,7 @@ export default async function BoardPage() {
 
   return (
     <div className="flex flex-col">
-      <BackHeader title="게시판" href="/" />
+      <BackHeader title="게시판" fallbackHref="/" />
       <BoardClient initialNotices={notices} initialUpdates={updates} />
     </div>
   );

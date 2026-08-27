@@ -9,7 +9,9 @@ import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 
 import { dayjs } from "@/lib/dayjs";
-import { GTHR_TYPES, gthrTypeLabels, createGthrSchema, type CreateGthrInput } from "@/lib/validations/gathering";
+import { GTHR_TYPES, gthrTypeLabels, createGthrFormSchema, type CreateGthrInput } from "@/lib/validations/gathering";
+
+import { GatheringConditionFields } from "@/components/schedule/gathering-condition-fields";
 
 import { createGathering, updateGathering } from "@/app/actions/gathering/manage-gathering";
 
@@ -33,7 +35,7 @@ import {
 import { AutoGrowTextarea } from "@/components/common/auto-grow-textarea";
 import { GatheringScheduleHint } from "@/components/schedule/gathering-schedule-hint";
 
-const formSchema = createGthrSchema.omit({ team_id: true });
+const formSchema = createGthrFormSchema;
 type FormValues = z.infer<typeof formSchema>;
 
 type Props = {
@@ -49,6 +51,9 @@ type Props = {
     loc_txt?: string | null;
     desc_txt?: string | null;
     max_prt_cnt?: number | null;
+    aprv_req_yn?: boolean | null;
+    req_attd_cnt?: number | null;
+    req_attd_months?: number | null;
   };
   onSuccess?: () => void;
 };
@@ -73,6 +78,9 @@ export function GatheringForm(props: Props) {
             loc_txt: props.initialData.loc_txt ?? "",
             desc_txt: props.initialData.desc_txt ?? "",
             max_prt_cnt: props.initialData.max_prt_cnt ?? undefined,
+            aprv_req_yn: props.initialData.aprv_req_yn ?? false,
+            req_attd_cnt: props.initialData.req_attd_cnt ?? null,
+            req_attd_months: props.initialData.req_attd_months ?? null,
           }
         : {
             gthr_type_enm: "general",
@@ -81,12 +89,19 @@ export function GatheringForm(props: Props) {
             end_at: null,
             loc_txt: "",
             desc_txt: "",
+            aprv_req_yn: false,
+            req_attd_cnt: null,
+            req_attd_months: null,
           },
   });
 
   const { isSubmitting } = form.formState;
   // 시작일시 구독 — 개설 일정 안내(GatheringScheduleHint)의 임박 판정에 사용.
   const sttAtWatch = useWatch({ control: form.control, name: "stt_at" });
+  // 참여조건·승인제는 RHF 에 안 묶인 공용 컴포넌트가 그린다(다이얼로그 폼과 같은 한 벌)
+  const aprvReqYn = useWatch({ control: form.control, name: "aprv_req_yn" });
+  const reqAttdCnt = useWatch({ control: form.control, name: "req_attd_cnt" });
+  const reqAttdMonths = useWatch({ control: form.control, name: "req_attd_months" });
 
   useEffect(() => {
     if (props.mode !== "edit") return;
@@ -98,6 +113,9 @@ export function GatheringForm(props: Props) {
       loc_txt: props.initialData.loc_txt ?? "",
       desc_txt: props.initialData.desc_txt ?? "",
       max_prt_cnt: props.initialData.max_prt_cnt ?? undefined,
+      aprv_req_yn: props.initialData.aprv_req_yn ?? false,
+      req_attd_cnt: props.initialData.req_attd_cnt ?? null,
+      req_attd_months: props.initialData.req_attd_months ?? null,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.mode === "edit" && props.initialData.gthr_id]);
@@ -292,6 +310,22 @@ export function GatheringForm(props: Props) {
               <FormMessage />
             </FormItem>
           )}
+        />
+
+        {/* 참여 조건 · 승인 (접이식, 기본 접힘) */}
+        <GatheringConditionFields
+          value={{
+            aprv_req_yn: aprvReqYn ?? false,
+            req_attd_cnt: reqAttdCnt ?? null,
+            req_attd_months: reqAttdMonths ?? null,
+          }}
+          disabled={isSubmitting}
+          error={form.formState.errors.req_attd_cnt?.message ?? form.formState.errors.req_attd_months?.message ?? null}
+          onChange={(v) => {
+            form.setValue("aprv_req_yn", v.aprv_req_yn, { shouldDirty: true });
+            form.setValue("req_attd_cnt", v.req_attd_cnt, { shouldDirty: true });
+            form.setValue("req_attd_months", v.req_attd_months, { shouldDirty: true });
+          }}
         />
 
         {rootError && (

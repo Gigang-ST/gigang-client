@@ -1,15 +1,18 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { after } from "next/server";
 
 import { withActive } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
+import { APPROVAL_GATHERING_MESSAGE } from "@/lib/gathering/application";
 import { CANCEL_REASON_REQUIRED_MESSAGE, isCancelReasonRequired } from "@/lib/gathering/cancel-imminent";
 import { validateCancelReason } from "@/lib/gathering/cancel-reason";
+import { evaluateJoinConditions, joinConditionErrorMessage } from "@/lib/gathering/join-condition";
 import { joinGatheringWithCapCheck } from "@/lib/gathering/join-gathering";
 import { insertNoti } from "@/lib/notifications/insert-noti";
 import { isPastLockedFor } from "@/lib/past-event";
+import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
@@ -34,7 +37,9 @@ export async function toggleGatheringAttendance(
     const [{ data: gthr }, { data: existing }] = await Promise.all([
       admin
         .from("gthr_mst")
-        .select("max_prt_cnt, stt_at, end_at, gthr_nm, crt_by")
+        .select(
+          "max_prt_cnt, stt_at, end_at, gthr_nm, crt_by, aprv_req_yn, req_attd_cnt, req_attd_months",
+        )
         .eq("gthr_id", gthr_id)
         .eq("team_id", teamId)
         .eq("del_yn", false)
@@ -52,6 +57,17 @@ export async function toggleGatheringAttendance(
     // 지난 모임(KST 날짜 기준)은 참석/참석해제 불가 — 관리자만 예외
     if (isPastLockedFor(member.admin, gthr.stt_at, gthr.end_at)) {
       throw new Error("지난 모임은 참석 변경이 불가합니다.");
+    }
+
+    // 승인제 모임은 이 액션을 아예 타지 않는다 — 등록도 취소도.
+    //
+    // 등록을 막는 건 승인제를 통째로 우회하기 때문이고(버튼을 감추는 건 안내일 뿐, gthr_id만
+    // 알면 이 액션은 직접 호출된다), **취소도 같이 막는 게 핵심**이다: 여기서 취소하면
+    // gthr_attd_rel 행만 지워지고 gthr_aply_rel 은 approved 로 남아, 신청 관리 목록엔
+    // 확정으로 보이는데 실제 참석자엔 없는 유령이 생긴다. 승인제 모임의 취소 경로는
+    // cancelMyApplicationAction 하나뿐이다(RPC가 두 테이블을 한 트랜잭션으로 정리한다).
+    if (gthr.aprv_req_yn) {
+      throw new Error(APPROVAL_GATHERING_MESSAGE);
     }
 
     if (existing) {
@@ -81,6 +97,8 @@ export async function toggleGatheringAttendance(
       // 홈(/)은 dynamic 렌더(getCurrentMember가 cookies 사용)라 매 요청 새로 조회되므로
       // revalidatePath("/")는 무효화할 캐시가 없어 불필요 — 모임 상세 직접 URL만 무효화한다.
       revalidatePath(`/gatherings/${gthr_id}`);
+      // 참석자 수는 달력·리스트 칩에 그대로 찍히므로 홈 캘린더 캐시도 즉시 턴다.
+      updateTag(HOME_CALENDAR_CACHE_TAG);
 
       // 뒷일(모임장 알림 · 칭호 평가)은 **응답 밖에서** 돈다.
       //
@@ -123,6 +141,15 @@ export async function toggleGatheringAttendance(
       return { attending: false };
     }
 
+    // 참여조건은 **등록에만** 건다(취소는 조건과 무관하다 — 위 취소 분기는 이미 반환됐다).
+    // 조건 미달이면 화면에서 버튼이 잠기지만, 그건 안내일 뿐이라 서버가 최종 판정한다.
+    // 어떤 조건이 얼마나 모자란지를 메시지에 실어 — 클라이언트가 조건 블록을 다시 조회하지
+    // 않고도 그대로 보여줄 수 있게 한다.
+    const conditions = await evaluateJoinConditions(admin, { spec: gthr, memId: member.id, teamId });
+    if (!conditions.ok) {
+      throw new Error(joinConditionErrorMessage(conditions));
+    }
+
     // 정원 재확인 + upsert는 온보딩(onboardingCreateMember)과 공유하는 유틸 사용
     // (모임 존재·지난모임잠금은 위에서 이미 검증했으므로 여기선 정원+upsert만 수행됨).
     // INSERT는 member의 RLS 클라이언트(supabase)로 — 참석 등록의 self-only insert 정책을
@@ -142,6 +169,7 @@ export async function toggleGatheringAttendance(
 
     // 홈(/)은 dynamic이라 revalidate 불필요(위 취소 경로 주석 참고). 모임 상세 직접 URL만 무효화.
     revalidatePath(`/gatherings/${gthr_id}`);
+    updateTag(HOME_CALENDAR_CACHE_TAG);
 
     // 신청 순간에 확정되는 것만 여기서 본다 — 실질적으로 `막차`(정확히 정원 번째) 하나다.
     // 참석 계열(미라클·3연벙 등)은 여기 없다: 아직 열리지도 않은 모임을 **신청만 해도**

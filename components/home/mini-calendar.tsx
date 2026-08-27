@@ -128,6 +128,14 @@ export type CalendarRace = {
   regCount?: number;
   /** gathering 전용 — 최대 인원 (null=제한 없음) */
   maxPrtCnt?: number | null;
+  /**
+   * gathering 전용 — 승인제·참여조건.
+   * **수정 폼이 이 값을 그대로 되돌려 보내므로 반드시 실어야 한다.** 빠지면 달력에서
+   * 모임을 수정하는 것만으로 승인제가 조용히 꺼지고 참여조건이 지워진다.
+   */
+  aprvReqYn?: boolean | null;
+  reqAttdCnt?: number | null;
+  reqAttdMonths?: number | null;
   // schedule / gathering 전용
   url?: string | null;
   cont_txt?: string | null;
@@ -331,7 +339,7 @@ export function MiniCalendar({
     setGthrDetailLoading(true);
     setGthrDetailOpen(true);
     try {
-      type GthrDetail = { max_prt_cnt: number | null; sprt_cd: string | null; attendees: GatheringAttendee[] };
+      type GthrDetail = { max_prt_cnt: number | null; sprt_cd: string | null; aprv_req_yn: boolean | null; req_attd_cnt: number | null; req_attd_months: number | null; attendees: GatheringAttendee[] };
       // 댓글은 함께 기다리지 않는다 — undefined로 넘기면 CommentSection이 스스로 조회·로딩 표시한다.
       // 취소 이력은 참석자 RPC와 병렬로 받아 지연 없이 취소자 판정에 합친다(판정엔 현재 참석자 집합 필요).
       const [attdResult, gthrDetailResult, cancelRows] = await Promise.all([
@@ -352,7 +360,7 @@ export function MiniCalendar({
       const attendees: GatheringAttendee[] = gthrData?.attendees ?? [];
       const canceledAttendees = deriveCanceledFromRows(cancelRows, attendees.map((a) => a.mem_id));
       setGthrDetailRace((prev) => prev && prev.id === race.id
-        ? { ...prev, regCount: attendees.length, maxPrtCnt: gthrData?.max_prt_cnt ?? null, attendees, canceledAttendees, sprt_cd: gthrData?.sprt_cd ?? prev.sprt_cd ?? null }
+        ? { ...prev, regCount: attendees.length, maxPrtCnt: gthrData?.max_prt_cnt ?? null, aprvReqYn: gthrData?.aprv_req_yn ?? null, reqAttdCnt: gthrData?.req_attd_cnt ?? null, reqAttdMonths: gthrData?.req_attd_months ?? null, attendees, canceledAttendees, sprt_cd: gthrData?.sprt_cd ?? prev.sprt_cd ?? null }
         : prev);
       // 등록 직후(justCreated)엔 작성자가 자동 참석되므로 무조건 참석 상태로 확정한다.
       // (자동 참석 INSERT 직후라 attd 조회가 read-after-write 지연으로 null을 반환할 수 있어
@@ -382,7 +390,7 @@ export function MiniCalendar({
       if (isUuid) {
         // 알림·헤더칩 딥링크(uuid): 마스터+상세+참석을 병렬 1 RTT로 조회 후 완결 상태로 오픈.
         // (기존엔 마스터 조회 → 상세 조회 직렬 2 RTT)
-        type GthrDetail = { max_prt_cnt: number | null; sprt_cd: string | null; attendees: GatheringAttendee[] }
+        type GthrDetail = { max_prt_cnt: number | null; sprt_cd: string | null; aprv_req_yn: boolean | null; req_attd_cnt: number | null; req_attd_months: number | null; attendees: GatheringAttendee[] }
         const reqId = ++gthrOpenReqRef.current
         Promise.all([
           supabase.from("gthr_mst").select(masterSelect).eq("gthr_id", deepLinkGthrId).maybeSingle(),
@@ -418,6 +426,9 @@ export function MiniCalendar({
             crt_by: data.crt_by,
             regCount: attendees.length,
             maxPrtCnt: gthrData?.max_prt_cnt ?? null,
+            aprvReqYn: gthrData?.aprv_req_yn ?? null,
+            reqAttdCnt: gthrData?.req_attd_cnt ?? null,
+            reqAttdMonths: gthrData?.req_attd_months ?? null,
             attendees,
             canceledAttendees,
             sprt_cd: gthrData?.sprt_cd ?? null,
@@ -1615,6 +1626,9 @@ export function MiniCalendar({
           loc_txt: gthrEditTarget.location ?? null,
           desc_txt: gthrEditTarget.cont_txt ?? null,
           max_prt_cnt: gthrDetailRace?.maxPrtCnt ?? null,
+          aprv_req_yn: gthrDetailRace?.aprvReqYn ?? false,
+          req_attd_cnt: gthrDetailRace?.reqAttdCnt ?? null,
+          req_attd_months: gthrDetailRace?.reqAttdMonths ?? null,
         } : undefined}
         onSuccess={(createdGthrId, createdRace) => {
           setGthrEditTarget(null);
@@ -1668,7 +1682,7 @@ export function MiniCalendar({
         }}
         onDelete={refreshMonthData}
         onAttendanceChange={async () => {
-          type GthrDetail = { max_prt_cnt: number | null; sprt_cd: string | null; attendees: GatheringAttendee[] };
+          type GthrDetail = { max_prt_cnt: number | null; sprt_cd: string | null; aprv_req_yn: boolean | null; req_attd_cnt: number | null; req_attd_months: number | null; attendees: GatheringAttendee[] };
           const [, gthrDetailResult, attdResult, cancelRows] = await Promise.all([
             refreshMonthData(),
             gthrDetailRace

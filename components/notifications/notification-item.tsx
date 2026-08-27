@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 
 import { useRouter } from "next/navigation";
 
-import { Bell, Coins, MessageCircle, Trophy, Trash2, FileText, Users, MessageSquareText } from "lucide-react";
+import { Bell, Coins, MessageCircle, Trophy, Trash2, FileText, Users, UserCheck, UserPlus, UserX, MessageSquareText } from "lucide-react";
 
 import { dayjs, formatKST } from "@/lib/dayjs";
 import { resolveNotiDeepLink } from "@/lib/notifications/deep-link";
@@ -30,6 +30,9 @@ const NOTI_ICON: Record<string, React.ElementType> = {
   gthr_upd: Users,
   gthr_del: Users,
   gthr_cncl: Users,
+  gthr_aply: UserPlus,
+  gthr_aprv: UserCheck,
+  gthr_rjct: UserX,
   gthr_cmnt: MessageCircle,
   gthr_reply: MessageCircle,
   gthr_mention: MessageCircle,

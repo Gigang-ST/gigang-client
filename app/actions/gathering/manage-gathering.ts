@@ -1,15 +1,22 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { after } from "next/server";
 
 import { dayjs } from "@/lib/dayjs";
 import { withActive, withMember } from "@/lib/actions/auth";
 import { isPastLockedFor, PAST_EVENT_ERROR } from "@/lib/past-event";
 import { insertNotiMany } from "@/lib/notifications/insert-noti";
+import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
-import { createGthrSchema, updateGthrSchema } from "@/lib/validations/gathering";
+import { backfillApprovals, countPendingApplications } from "@/lib/gathering/application";
+import {
+  createGthrSchema,
+  updateGthrSchema,
+  END_BEFORE_START_ERROR,
+  REQ_ATTD_PAIR_ERROR,
+} from "@/lib/validations/gathering";
 
 function toUtcIso(localDt: string | null | undefined): string | null {
   if (!localDt) return null;
@@ -25,6 +32,9 @@ export async function createGathering(input: {
   loc_txt?: string | null;
   desc_txt?: string | null;
   max_prt_cnt?: number | null;
+  aprv_req_yn?: boolean;
+  req_attd_cnt?: number | null;
+  req_attd_months?: number | null;
 }) {
   // 모임 개설은 active 회원만 — 비활성/탈퇴는 클라이언트 게이트가 안내, 서버가 최종 방어.
   return withActive(async ({ member, supabase }) => {
@@ -43,6 +53,9 @@ export async function createGathering(input: {
         loc_txt: parsed.loc_txt ?? null,
         desc_txt: parsed.desc_txt ?? null,
         max_prt_cnt: parsed.max_prt_cnt ?? null,
+        aprv_req_yn: parsed.aprv_req_yn ?? false,
+        req_attd_cnt: parsed.req_attd_cnt ?? null,
+        req_attd_months: parsed.req_attd_months ?? null,
         crt_by: member.id,
         del_yn: false,
       })
@@ -68,6 +81,12 @@ export async function createGathering(input: {
         // 자동 참석 등록 (응답 경로에서 분리). after는 요청 컨텍스트 종료 후라 admin 클라이언트 사용.
         const { error: attdError } = await admin.from("gthr_attd_rel").insert({ gthr_id: gthrId, mem_id: authorId });
         if (attdError) console.error("[gthr_new] 자동 참석 등록 실패", attdError);
+
+        // 승인제로 열었다면 방금 넣은 개설자 참석에 대응하는 신청 행(approved)도 만든다.
+        // 안 하면 **모임을 만든 사람 자신이** 정원엔 잡히는데 신청 관리 목록엔 안 보인다.
+        if (parsed.aprv_req_yn) {
+          await backfillApprovals(admin, { gthrId, teamId, actorMemId: authorId });
+        }
 
         const { data: members } = await admin
           .from("team_mem_rel")
@@ -97,7 +116,13 @@ export async function createGathering(input: {
       }
     });
 
-    // 홈(/)은 dynamic 렌더라 revalidatePath("/")는 no-op — 갱신은 클라이언트 재조회(refreshMonthData) + DB 트리거 웹훅이 담당
+    // 홈 캘린더 캐시(1시간 TTL)를 **여기서** 턴다.
+    // 예전엔 DB 트리거 웹훅(app/api/revalidate)에만 맡겼는데 그건 둘 다 샌다:
+    //  ① 웹훅은 배포 URL로 쏘므로 **로컬 개발에선 아예 안 닿아** 만든 모임이 1시간 동안 안 보인다
+    //  ② 웹훅이 쓰는 `revalidateTag(tag, "max")`는 stale-while-revalidate라 프로드에서도
+    //     **바로 다음 읽기가 낡은 값**이다(KNOWLEDGE.md "저장했는데 안 보임").
+    // 서버 액션 전용 `updateTag`는 즉시 만료 + read-your-own-writes 라 이 자리에 맞다.
+    updateTag(HOME_CALENDAR_CACHE_TAG);
     return { gthr_id: gthrId, short_id: data.short_id };
   });
 }
@@ -111,6 +136,9 @@ export async function updateGathering(input: {
   loc_txt?: string | null;
   desc_txt?: string | null;
   max_prt_cnt?: number | null;
+  aprv_req_yn?: boolean;
+  req_attd_cnt?: number | null;
+  req_attd_months?: number | null;
 }) {
   return withMember(async ({ member, supabase }) => {
     const parsed = updateGthrSchema.parse(input);
@@ -119,7 +147,7 @@ export async function updateGathering(input: {
     // 지난 모임(KST 날짜 기준) 수정 차단 — 관리자만 예외. 알림용 기존 모임명도 같이 조회.
     const { data: existing } = await supabase
       .from("gthr_mst")
-      .select("gthr_nm, stt_at, end_at, crt_by")
+      .select("gthr_nm, stt_at, end_at, crt_by, aprv_req_yn, req_attd_cnt, req_attd_months")
       .eq("gthr_id", gthr_id)
       .single();
     if (!existing) throw new Error("모임을 찾을 수 없습니다.");
@@ -131,6 +159,58 @@ export async function updateGathering(input: {
     }
     if (isPastLockedFor(member.admin, existing.stt_at, existing.end_at)) {
       throw new Error(PAST_EVENT_ERROR);
+    }
+
+    // 한쪽만 바꾸는 수정은 스키마가 못 잡는다 — `updateGthrSchema`는 `.partial()`이라
+    // `end_at`만 올라오면 견줄 `stt_at`이 없다. 기존값과 합쳐 여기서 다시 본다(#495).
+    // 입력은 KST 로컬 문자열이고 기존값은 UTC라, 양쪽을 UTC 절대시각으로 맞춘 뒤 비교한다.
+    const nextSttAt = stt_at !== undefined ? toUtcIso(stt_at) : existing.stt_at;
+    const nextEndAt = end_at !== undefined ? toUtcIso(end_at) : existing.end_at;
+    if (nextSttAt && nextEndAt && dayjs(nextEndAt).isBefore(dayjs(nextSttAt))) {
+      throw new Error(END_BEFORE_START_ERROR);
+    }
+
+    // 참여조건도 같은 이유로 여기서 다시 본다 — `.partial()`이라 한쪽만 올라오면
+    // 스키마의 검사가 통과해 버린다(§lib/validations/gathering reqAttdPaired).
+    // 기간은 선택(비우면 전체 기간)이고, 횟수 없이 기간만 남는 조합만 막는다.
+    const nextReqCnt =
+      parsed.req_attd_cnt !== undefined ? parsed.req_attd_cnt : existing.req_attd_cnt;
+    const nextReqMonths =
+      parsed.req_attd_months !== undefined ? parsed.req_attd_months : existing.req_attd_months;
+    if (nextReqMonths != null && nextReqCnt == null) {
+      throw new Error(REQ_ATTD_PAIR_ERROR);
+    }
+
+    // 승인제를 **끄는** 수정은 대기 건이 0일 때만 허용한다(설계 §9-g).
+    // 자동 승인은 정원을 넘길 수 있고, 그냥 두면 신청자가 영원히 대기에 갇힌다 —
+    // 승인제가 꺼진 모임엔 신청 관리 화면 자체가 안 뜨기 때문이다.
+    const turningApprovalOff =
+      parsed.aprv_req_yn === false && existing.aprv_req_yn === true;
+    if (turningApprovalOff) {
+      const pending = await countPendingApplications(createUntypedAdminClient(), gthr_id);
+      if (pending !== 0) {
+        throw new Error(
+          pending > 0
+            ? `아직 처리하지 않은 참가 신청이 ${pending}건 있어요. 승인 또는 반려한 뒤에 해제할 수 있어요.`
+            : "신청 현황을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+        );
+      }
+    }
+
+    // 승인제를 **켜는** 수정이면 기존 참석자를 확정 신청으로 먼저 채운다.
+    // 순서가 중요하다 — 플래그를 먼저 켜고 백필이 실패하면, 승인제 모임인데 기존
+    // 참석자가 전원 신청 관리에 안 보이는 유령이 된 채로 "저장됐어요"가 뜬다.
+    // 먼저 맞춰 두면 실패했을 때 아무것도 안 바꾼 상태로 되돌아간다(플래그가 아직 꺼져 있음).
+    if (parsed.aprv_req_yn === true && existing.aprv_req_yn !== true) {
+      const { teamId: tid } = await getRequestTeamContext();
+      const filled = await backfillApprovals(createUntypedAdminClient(), {
+        gthrId: gthr_id,
+        teamId: tid,
+        actorMemId: member.id,
+      });
+      if (filled === null) {
+        throw new Error("기존 참석자를 정리하지 못했어요. 잠시 후 다시 시도해 주세요.");
+      }
     }
 
     const { error } = await supabase
@@ -145,7 +225,11 @@ export async function updateGathering(input: {
 
     if (error) throw new Error("모임 수정에 실패했습니다.");
 
+    updateTag(HOME_CALENDAR_CACHE_TAG);
+
     const { teamId } = await getRequestTeamContext();
+
+
     // gthr_nm이 생략됐을 때 빈 문자열로 알림이 발송되지 않도록 기존 모임명 사용
     const gthrNm = parsed.gthr_nm || (existing.gthr_nm ?? "");
 
@@ -176,7 +260,8 @@ export async function updateGathering(input: {
       }
     });
 
-    // 홈은 클라이언트 재조회가 갱신 담당 — 직접 URL 방문 대비 모임 상세만 무효화
+    // 홈은 클라이언트 재조회가 갱신 담당 — 직접 URL 방문 대비 모임 상세만 무효화.
+    // 홈 캘린더 캐시는 위(UPDATE 직후)에서 이미 털었다 — 여기서 또 부르지 않는다.
     revalidatePath(`/gatherings/${input.gthr_id}`);
   });
 }
@@ -205,6 +290,10 @@ export async function deleteGathering(gthr_id: string) {
       .eq("gthr_id", gthr_id);
 
     if (error) throw new Error("모임 삭제에 실패했습니다.");
+
+    // 지운 모임이 달력·리스트에서 바로 사라지게 — 안 털면 홈 캘린더 캐시(1시간) 때문에
+    // 삭제된 모임이 그대로 보이고, 눌러 열면 그제야 없다고 한다.
+    updateTag(HOME_CALENDAR_CACHE_TAG);
 
     after(async () => {
       try {

@@ -32,6 +32,11 @@ import {
 } from "@/components/story/person-profile";
 import { RecordReelViewer } from "@/components/story/record-reel-viewer";
 import { StoryReactionButton } from "@/components/story/story-reaction-button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 import { goToLogin } from "@/lib/auth/go-to-login";
 import { compEvtTypeKm, compEvtTypeLabel } from "@/lib/comp-evt-type";
@@ -43,6 +48,7 @@ import {
   buildTitleLeadPool,
   countTitleMoreMembers,
   pickTitleLead,
+  summarizeRecentTitleGrants,
 } from "@/lib/story-title";
 import { getSportEmoji } from "@/lib/sport";
 
@@ -692,11 +698,13 @@ function buildLedes(
     });
   }
 
-  // ⑦ 칭호획득(v2) — 최근 30일 획득자 중 **사람 대표 1명** + 나머지 얼굴+이름 명단.
-  //    v1(칭호별 묶음 나열)은 실데이터에서 칭호당 1~2명이 대부분이라 지면이 휑하고
-  //    익명이었다(스펙 v2 §배경). 대표는 한 바퀴마다 +1 회전(rotate 원칙 — 전원이
-  //    돌아가며 대표가 된다), 명단은 최신순 고정. 30일 창·뉴비 제외는 RPC가 걸고,
-  //    사람 dedupe(사람별 최신 수여 1건)는 buildTitleLeadPool이 한다.
+  // ⑦ 칭호획득(v3) — 최근 30일 획득자 중 **사람 대표 1명** + 대표와 **같은 칭호**를
+  //    함께 딴 사람들. v2는 이 자리에 칭호 무관 최근 획득자 전원을 넣었는데, 그러면
+  //    헤드라인(`{대표}, 새 칭호를 획득하다`)과 명단이 서로 다른 이야기를 하게 돼
+  //    같은 칭호로 좁혔다(§pickTitleLead 주석). 대표는 한 바퀴마다 +1 회전
+  //    (rotate 원칙 — 전원이 돌아가며 대표가 된다, 회전은 칭호 무관 전체 pool 기준),
+  //    명단은 최신순 고정. 30일 창·뉴비 제외는 RPC가 걸고, 사람 dedupe(사람별 최신
+  //    수여 1건)는 buildTitleLeadPool이 한다.
   const titlePicked = pickTitleLead(buildTitleLeadPool(grants), titlePick);
   if (titlePicked) {
     const { lead, others } = titlePicked;
@@ -738,15 +746,16 @@ function buildLedes(
             isHeld: heldByMe,
           },
         },
-        others: others.slice(0, TITLE_OTHERS_MAX).map((e) => ({
-          mem_id: e.person.mem_id,
-          mem_nm: e.person.mem_nm,
-          avatar_url: e.person.avatar_url,
+        others: others.slice(0, TITLE_OTHERS_MAX).map((p) => ({
+          mem_id: p.mem_id,
+          mem_nm: p.mem_nm,
+          avatar_url: p.avatar_url,
         })),
-        // `외 N명` — 대표 1명 + 명단에 선 인원을 뺀 나머지(§countTitleMoreMembers).
-        // pool 길이로 세면 안 된다는 규칙이 그 헬퍼 안에 있다.
+        // `외 N명` — 대표의 칭호를 함께 딴 사람 중, 대표 1명 + 명단에 선 인원을 뺀
+        // 나머지(§countTitleMoreMembers). 이제 그 칭호 하나(`lead.title`)의 `grant_cnt`
+        // 기준이다 — 다른 칭호 딴 사람은 여기 안 섞인다.
         moreCount: countTitleMoreMembers(
-          grants,
+          lead.title,
           1 + Math.min(others.length, TITLE_OTHERS_MAX),
         ),
         // grant_cnt 합산 — grants.length 합은 칭호당 10건 상한에 묶여 실제 총
@@ -862,6 +871,9 @@ export function StoryLede({
   // 서버 렌더(저장소가 없다)와 결과가 달라 하이드레이션이 깨진다.
   /** 사진을 눌러 연 릴스 뷰어의 시작 장 — null이면 닫힘(격자존과 같은 방식) */
   const [reelId, setReelId] = useState<string | null>(null);
+
+  /** 칭호획득 "최근 획득 N건" 팝오버가 열려 있나 — 열린 동안은 릴스와 같은 방식으로 정지시킨다 */
+  const [titlePopoverOpen, setTitlePopoverOpen] = useState(false);
 
   const [myBumps, setMyBumps] = useState<Record<string, number>>({});
 
@@ -986,12 +998,15 @@ export function StoryLede({
   const reelOpen = reelId !== null;
 
   /**
-   * 게이지가 멈춰야 하는가 — 손이 닿았거나 · 탭이 숨었거나 · **화면 밖이거나** · 릴스가 덮었거나.
+   * 게이지가 멈춰야 하는가 — 손이 닿았거나 · 탭이 숨었거나 · **화면 밖이거나** · 릴스가 덮었거나 ·
+   * 칭호획득 팝오버가 열려 있거나.
    *
-   * 화면 밖·릴스 중에는 **되감지 않고 그냥 선다**: 안 보는 동안 소식이 흘러가 버리면 돌아왔을 때
-   * 볼 게 없고, 릴스를 보다 닫았는데 뒤에서 슬롯이 바뀌어 있으면 맥락이 끊긴다.
+   * 화면 밖·릴스·팝오버 중에는 **되감지 않고 그냥 선다**: 안 보는 동안 소식이 흘러가 버리면
+   * 돌아왔을 때 볼 게 없고, 읽던 도중 뒤에서 슬롯이 바뀌면 맥락이 끊긴다. 팝오버는 사람마다
+   * 읽는 시간이 달라(칭호 수가 많으면 오래 걸린다) `pauseThenResume`의 고정 8초 유예로는
+   * 부족하다 — 열려 있는 동안은 무조건 얼려 둔다.
    */
-  const frozen = paused || hidden || !onScreen || reelOpen;
+  const frozen = paused || hidden || !onScreen || reelOpen || titlePopoverOpen;
 
   useEffect(() => {
     return () => {
@@ -1125,9 +1140,52 @@ export function StoryLede({
     // 칭호획득 — 총 수여 건수. **"최근"을 붙인다**: 맨숫자만 있으면 크루가 여태 딴
     // 칭호를 다 합친 값으로 읽히는데, 실제로는 30일 창의 집계다. 일수까지 적지는 않는다
     // (창 길이는 RPC 기본값이고, 헤드라인·명단이 이미 "요즘 소식"으로 읽힌다).
-    <span className="truncate text-[12px] text-muted-foreground">
-      최근 획득 {lede.titleLead.totalGrantCnt}건
-    </span>
+    // **지금 뜬 대표의 칭호와는 무관하다** — 명단(로스터)은 대표와 같은 칭호로 좁혔지만,
+    // 이 숫자와 아래 팝오버는 대표와 상관없이 이 30일 창에 있었던 일 전체를 조망한다.
+    // 열린 동안은 자동전환을 멈춘다(§titlePopoverOpen — 릴스 뷰어와 같은 방식, 손댄 뒤
+    // 8초면 풀리는 pauseThenResume이 아니라 open 상태 자체로 얼린다) — 사람이 읽는
+    // 시간은 칭호 수마다 달라, 고정 유예로는 다 읽기 전에 슬롯이 넘어갈 수 있다.
+    <Popover open={titlePopoverOpen} onOpenChange={setTitlePopoverOpen}>
+      <PopoverTrigger
+        type="button"
+        aria-label={`최근 획득 ${lede.titleLead.totalGrantCnt}건 보기`}
+        className="block w-full truncate rounded-sm text-left text-[12px] text-muted-foreground underline decoration-dotted underline-offset-2 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        최근 획득 {lede.titleLead.totalGrantCnt}건
+      </PopoverTrigger>
+      {/* 가벼운 팝오버 하나로 끝낸다 — 화면 가운데 뜨는 모임류 다이얼로그가 아니라
+          텍스트 바로 아래 붙는 작은 말풍선. 로스터가 "대표와 같은 칭호"로 좁아진 대신,
+          "이 30일 동안 무슨 일이 있었나" 전체는 여기서 칭호별로 그대로 훑는다
+          (§summarizeRecentTitleGrants — RPC가 이미 칭호 단위로 묶어 준 걸 사람 단위로
+          다시 안 푼다). */}
+      <PopoverContent align="start" className="max-h-64 w-72 overflow-y-auto p-3">
+        <ul className="flex flex-col gap-2.5">
+          {summarizeRecentTitleGrants(grants, myMemId).map((g) => (
+            <li
+              key={g.ttl_id}
+              className="flex flex-wrap items-center gap-x-1.5 gap-y-1"
+            >
+              {/* 다른 칭호 배지와 같은 칩 — 탭하면 설명 말풍선(TitleBadge 내장 동작).
+                  게이트는 지면·툴팁이 공유하는 resolveDescVisible 하나뿐이다. */}
+              <TitleBadge
+                name={g.ttl_nm}
+                effect="none"
+                size="xs"
+                tooltip={{
+                  desc: g.ttl_desc,
+                  visibility: g.desc_visibility,
+                  isHeld: g.isHeld,
+                }}
+              />
+              <span className="min-w-0 text-[12px] leading-relaxed text-muted-foreground">
+                {g.names.join(", ")}
+                {g.moreCount > 0 && ` 외 ${g.moreCount}명`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
   ) : null;
   // 활동지수 슬롯은 footer 왼쪽이 빈다 — 실을 한 줄 사실이 없다(PB는 슬롯에서 뺐다).
   // 새 얼굴 슬롯도 비운다 — 가입목적은 폭이 필요해 body로 올렸다(§newbie 렌더).

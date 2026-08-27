@@ -28,7 +28,7 @@ export default async function BoardEditPage({
 
   return (
     <>
-      <BackHeader title="게시글 수정" />
+      <BackHeader title="게시글 수정" fallbackHref={`/board/${id}`} />
       <PostForm teamId={teamId} initialData={post} />
     </>
   );

@@ -245,7 +245,7 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 ### 더보기 (햄버거 뒤 — `/settings`)
 
 우상단 햄버거(`HeaderActions`)가 여는 큰 방. **주소는 `/settings` 그대로다** — 북마크·알림
-딥링크·`InfoBackHeader`의 `/mcp-tokens` 강제 href가 전부 이 경로를 가리켜서, 바꾸면 다 깨진다.
+딥링크·`InfoBackHeader`의 `/mcp-tokens` 폴백이 전부 이 경로를 가리켜서, 바꾸면 다 깨진다.
 **헤더에 제목은 안 단다**(§Route Group) — 이 방의 얼굴은 맨 위 소셜 격자다.
 
 **한 화면, 두 덩어리.** 위는 **어디론가 가는 문**, 아래는 **한 번 정하거나 평생 안 누르는 것**.

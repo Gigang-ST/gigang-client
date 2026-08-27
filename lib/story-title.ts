@@ -86,37 +86,87 @@ export function buildTitleLeadPool(rows: RecentTitleRow[]): TitleLeadEntry[] {
 }
 
 /**
- * pick으로 대표를 뽑는다 — 나머지(others)는 **최신순 그대로**(대표만 뺀 목록).
+ * pick으로 대표를 뽑는다 — others는 대표가 딴 **같은 칭호**를 최근에 함께 딴 사람들이다
+ * (대표 본인만 뺀, `lead.title.grants` 그대로).
+ *
+ * v2는 이 자리에 "대표를 뺀 pool 전체"(칭호 무관 최근 획득자 전원)를 넣었는데, 그러면
+ * 슬롯이 "누가 무슨 칭호를 땄나"가 아니라 "요즘 누가 활발한가"를 말하게 돼 헤드라인
+ * (`{대표}, 새 칭호를 획득하다`)과 명단이 서로 다른 이야기를 한다. 명단은 대표의 칭호
+ * 이야기를 잇는 사람들이어야 한다 — 그래서 같은 칭호로 좁힌다.
+ *
+ * 대표를 뽑는 pool은 그대로 칭호 무관 전체다(누가 대표가 될 차례인지는 회전 원칙대로).
+ * 바뀌는 건 대표가 정해진 **다음**의 others뿐이다.
  *
  * 회전이지 셔플이 아니다: 한 바퀴 완주마다 호출자가 pick을 +1 하면 전원이 빠짐없이
  * 돌아가며 대표가 된다(리드의 rotate 원칙 — story-lede.tsx의 rotate 주석 참조).
- * others를 회전시키지 않는 이유: 매 바퀴 명단까지 뒤섞이면 어지럽다(스펙 §회전 규칙).
  */
 export function pickTitleLead(
   pool: TitleLeadEntry[],
   pick: number,
-): { lead: TitleLeadEntry; others: TitleLeadEntry[] } | null {
+): { lead: TitleLeadEntry; others: RecentTitleGrantPerson[] } | null {
   if (pool.length === 0) return null;
   const at = ((pick % pool.length) + pool.length) % pool.length;
-  return { lead: pool[at], others: pool.filter((_, i) => i !== at) };
+  const lead = pool[at];
+  const others = lead.title.grants.filter(
+    (p) => p.mem_id !== lead.person.mem_id,
+  );
+  return { lead, others };
 }
 
 /**
- * 지면에 못 실은 획득자 수 — `외 N명`. `shown`은 **대표 1명까지 포함한** 노출 인원이다.
+ * 지면에 못 실은 **같은 칭호** 획득자 수 — `외 N명`. `shown`은 **대표 1명까지 포함한**
+ * 노출 인원이다.
  *
- * 반드시 RPC의 `total_mem_cnt`로 센다. `buildTitleLeadPool`의 길이로 세면 **적게 나온다** —
- * grants가 칭호당 10건에서 잘리기 때문이고, 하필 그 잘림이 크게 벌어지는 때가
- * sweep(이 슬롯이 존재하는 이유)이다. prd 실측으로 실제 75명이 pool에선 41명이었다.
+ * `title.grant_cnt`(그 칭호의 30일 창 전체 수여 건수)로 센다 — `total_mem_cnt`(팀 전체,
+ * 모든 칭호 합산 고유인원)를 쓰면 다른 칭호를 딴 사람까지 "외 N명"에 섞인다. others가
+ * 같은 칭호로 좁혀진 지금은 남은 인원도 같은 칭호 기준이어야 앞뒤가 맞는다.
  *
- * 값이 없거나(배포 스큐로 옛 payload가 캐시에 남은 경우) 노출 인원보다 작으면 0 —
- * "외 -3명" 같은 게 지면에 뜨지 않게.
+ * `grants`가 칭호당 10건에서 잘려도 `grant_cnt`는 잘리지 않은 총원이라 정확하다
+ * (§`RecentTitleRow.grant_cnt` 주석과 같은 이유).
  */
 export function countTitleMoreMembers(
-  rows: RecentTitleRow[],
+  title: RecentTitleRow,
   shown: number,
 ): number {
-  const total = rows[0]?.total_mem_cnt ?? 0;
-  return Math.max(0, total - shown);
+  return Math.max(0, title.grant_cnt - shown);
+}
+
+/** "최근 획득 N건" 팝오버 한 줄 — 칭호 하나(배지로 그릴 재료) + 그 칭호를 딴 이름들 */
+export type TitleGrantSummary = {
+  ttl_id: string;
+  ttl_nm: string;
+  /** `TitleBadge`의 `tooltip.desc`·`tooltip.visibility` 재료 — 지면·툴팁이 같은 게이트를
+   *  타야 하므로(`resolveDescVisible`) row 원본 그대로 넘긴다. */
+  ttl_desc: string | null;
+  desc_visibility: RecentTitleRow["desc_visibility"];
+  /** 이 칭호를 이 창에서 받은 사람 중 뷰어 본인이 있는가 — `desc_visibility: "held"` 게이트용 */
+  isHeld: boolean;
+  /** RPC가 실어준 이름(칭호당 최신 10명 상한) */
+  names: string[];
+  /** 10명 상한에서 잘린 나머지 — `grant_cnt`와 실린 이름 수의 차 */
+  moreCount: number;
+};
+
+/**
+ * "최근 획득 N건" 클릭 팝오버용 — 칭호별로 이름을 그대로 묶는다.
+ *
+ * 로스터(`pickTitleLead`의 others)와는 다른 용도다: 로스터는 "지금 뜬 대표와 같은 칭호"만
+ * 좁혀 보여주지만, 이건 대표와 무관하게 **이 30일 창에 있었던 일 전체**를 조망한다.
+ * RPC가 이미 칭호 단위로 묶어 주므로 사람 단위로 다시 풀지 않고 그대로 매핑한다.
+ */
+export function summarizeRecentTitleGrants(
+  rows: RecentTitleRow[],
+  myMemId: string | null,
+): TitleGrantSummary[] {
+  return rows.map((row) => ({
+    ttl_id: row.ttl_id,
+    ttl_nm: row.ttl_nm,
+    ttl_desc: row.ttl_desc,
+    desc_visibility: row.desc_visibility,
+    isHeld: myMemId != null && row.grants.some((p) => p.mem_id === myMemId),
+    names: row.grants.map((p) => p.mem_nm),
+    moreCount: Math.max(0, row.grant_cnt - row.grants.length),
+  }));
 }
 
 /**

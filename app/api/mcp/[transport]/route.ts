@@ -3,7 +3,11 @@ import { headers } from "next/headers";
 import { after } from "next/server";
 
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
+import { revalidateTag } from "next/cache";
+
 import { z } from "zod";
+
+import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
 
 import { resolveOperator, type OperatorContext } from "@/lib/mcp/auth";
 import { createGatheringViaMcp } from "@/lib/mcp/create-gathering";
@@ -335,9 +339,15 @@ const handler = createMcpHandler(
         },
       },
       async (args, extra) =>
-        runTool(extra, async (ctx, supabase) =>
-          createGatheringViaMcp(supabase, ctx, args, await resolveBaseUrl()),
-        ),
+        runTool(extra, async (ctx, supabase) => {
+          const result = await createGatheringViaMcp(supabase, ctx, args, await resolveBaseUrl());
+          // 홈 캘린더 캐시(1시간)를 턴다 — 안 하면 MCP 로 만든 모임이 일정탭 새로고침에서
+          // 최대 1시간 안 보인다(앱 생성 경로와 같은 함정, KNOWLEDGE.md).
+          // 무효화는 **경로 계층인 여기** 몫이다: lib/mcp 의 도메인 코어는 next/* 를 모른다.
+          // 라우트 핸들러라 `updateTag`(서버 액션 전용)는 throw 하므로 revalidateTag 를 쓴다.
+          if (!args.dry_run) revalidateTag(HOME_CALENDAR_CACHE_TAG, "max");
+          return result;
+        }),
     );
 
     // ── 마일리지런 개인 도구 7개(#497). 전부 **본인 스코프** — 대상 멤버를 인자로 받지 않고

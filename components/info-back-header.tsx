@@ -3,17 +3,10 @@
 import { usePathname } from "next/navigation";
 
 import { BackHeader } from "@/components/back-header";
+import { DEFAULT_BACK_HREF } from "@/lib/back-nav";
 
 /**
- * `(info)` 레이아웃 전용 BackHeader 래퍼.
- *
- * `/mcp-tokens`는 설정 화면(`/settings`)에서만 진입 링크가 있지만, 사용자가 북마크나
- * 알림 등으로 직접 진입하면 브라우저 히스토리가 비어 있어 `BackHeader`의 기본 동작인
- * `router.back()` 폴백이 먹통이 된다(#447). 이 경로에서만 `href="/settings"`를 강제해
- * 뒤로가기가 항상 동작하도록 한다. 다른 (info) 페이지는 기존 `router.back()` 동작 유지.
- *
- * ⚠️ BackHeader의 빈-히스토리 폴백을 전역적으로 고치는 근본수정은 별도 이슈(#450) 범위다.
- * 여기서는 mcp-tokens 경로 하나만 스코프로 좁혀 처리한다.
+ * `(info)` 레이아웃 전용 BackHeader 래퍼. 경로에 따라 **제목**과 **폴백**을 정해 넘긴다.
  */
 
 /**
@@ -40,16 +33,32 @@ const TITLES: Record<string, string> = {
   "/profile/feedback": "건의하기",
 };
 
+/**
+ * 경로 → **돌아갈 데가 없을 때만** 갈 곳.
+ *
+ * `href`가 아니라 `fallbackHref`인 것이 핵심이다. `/mcp-tokens`는 한때 `href="/settings"`를
+ * 강제해 빈 히스토리를 우회했는데(#447), 그건 `BackHeader`에 폴백이 없던 시절의 임시
+ * 처방이었다. `href`는 히스토리와 무관하게 **늘** 그리로 보내므로, 설정에서 정상 진입한
+ * 사람의 뒤로가기까지 "뒤로"가 아니게 된다. 폴백이 전역으로 생긴 지금은 목적지만 남기고
+ * "항상"을 걷어낸다(#450).
+ *
+ * **경로별 부모 맵을 전부 채우지 않는다.** `(info)` 라우트가 40개인데 대부분은 기본값(`/`)
+ * 으로 충분하고, 목록을 통째로 들고 있으면 라우트가 늘 때마다 여기도 같이 고쳐야 하는 짐이
+ * 된다. 기본값이 어색한 화면만 여기 적는다.
+ */
+const FALLBACKS: Record<string, string> = {
+  // 앱 안에서 이리로 오는 링크가 설정 한 곳뿐이라, 정상 진입이면 어차피 여기로 돌아간다.
+  // 이 줄이 사는 자리는 북마크·딥링크로 곧장 들어온 경우다.
+  "/mcp-tokens": "/settings",
+};
+
 export function InfoBackHeader() {
   const pathname = usePathname();
 
   // 완전 일치만 본다 — `startsWith`면 `/profile/dues/...` 같은 하위 화면까지 부모 이름을
   // 뒤집어쓴다(관리자 하위 20여 개가 전부 "관리자"가 되는 식).
   const title = TITLES[pathname];
+  const fallbackHref = FALLBACKS[pathname] ?? DEFAULT_BACK_HREF;
 
-  if (pathname === "/mcp-tokens") {
-    return <BackHeader href="/settings" />;
-  }
-
-  return <BackHeader title={title} />;
+  return <BackHeader title={title} fallbackHref={fallbackHref} />;
 }
