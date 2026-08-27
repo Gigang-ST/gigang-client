@@ -254,10 +254,6 @@ export async function logActivity(
 
     if (error) return { ok: false, message: "활동 기록 추가에 실패했습니다" };
 
-    // DB엔 이미 기록이 들어갔으니, 뒤에서 재계산이 실패해도 캐시는 낡은 값을 들고 있으면 안 된다
-    // — recalc try/catch보다 먼저 지운다.
-    updateTag(`mileage-${evtId}`);
-
     // 사진이 붙었으면 지면이 바뀐다 — 전광판 캐시(5분)를 기다리지 않고 즉시 반영한다.
     // `revalidatePath("/projects")`만으론 /story의 `story-posts` 태그가 안 풀린다.
     if (validInput.photo_url) updateTag("story-posts");
@@ -384,10 +380,6 @@ export async function logActivitiesBatch(
     const { error } = await db.from("evt_mlg_act_hist").insert(rows);
     if (error) return { ok: false, message: "활동 기록 저장에 실패했습니다" };
 
-    // DB엔 이미 기록이 들어갔으니, 뒤에서 재계산이 실패해도 캐시는 낡은 값을 들고 있으면 안 된다
-    // — recalc try/catch보다 먼저 지운다.
-    updateTag(`mileage-${evtId}`);
-
     // 한 건이라도 사진이 붙었으면 기강이야기 지면이 바뀐다(트리거가 post를 세운다)
     if (rows.some((r) => r.photo_url)) updateTag("story-posts");
 
@@ -494,10 +486,6 @@ export async function updateActivity(
 
     if (error) return { ok: false, message: "활동 기록 수정에 실패했습니다" };
 
-    // DB엔 이미 반영됐으니, 뒤에서 재계산이 실패해도 캐시는 낡은 값을 들고 있으면 안 된다
-    // — recalc try/catch보다 먼저 지운다.
-    updateTag(`mileage-${existingParticipant.evt_id}`);
-
     // 사진을 갈아끼웠거나 지웠으면 이전 파일은 아무도 참조하지 않는다 — Storage에서 치운다.
     // DB 갱신이 성공한 뒤에 지운다: 먼저 지우면 갱신이 실패했을 때 원본이 사진을 잃는다.
     if (prevPhotoUrl && prevPhotoUrl !== nextPhotoUrl) {
@@ -547,10 +535,6 @@ export async function deleteActivity(actId: string): Promise<ActionResult> {
 
     const { error } = await db.from("evt_mlg_act_hist").delete().eq("act_id", actId);
     if (error) return { ok: false, message: "활동 기록 삭제에 실패했습니다" };
-
-    // DB에서 이미 지워졌으니, 뒤에서 재계산이 실패해도 캐시는 낡은 값을 들고 있으면 안 된다
-    // — recalc try/catch보다 먼저 지운다.
-    updateTag(`mileage-${existingParticipant.evt_id}`);
 
     // 원본이 사라지면 트리거가 대응 post를 내린다 — 사진 파일도 같이 치우고 지면을 갱신한다
     if (photoUrl) {

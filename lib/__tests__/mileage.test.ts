@@ -86,6 +86,14 @@ describe("calcMonthRefundRate", () => {
   it("정확히 100% 달성", () => {
     expect(calcMonthRefundRate(100, 100)).toBe(1.0);
   });
+
+  it("isMonthAchieved와 같은 반올림 기준 — 199.96/200은 달성이니 100% 환급", () => {
+    expect(calcMonthRefundRate(199.96, 200)).toBe(1.0);
+  });
+
+  it("반올림해도 미달성이면 원래 비율 그대로", () => {
+    expect(calcMonthRefundRate(199.94, 200)).toBeCloseTo(0.9997, 4);
+  });
 });
 
 describe("calcPaceRatio", () => {
