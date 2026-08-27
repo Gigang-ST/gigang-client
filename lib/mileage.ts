@@ -87,13 +87,20 @@ export function computeGoalChain(
   return out;
 }
 
-/** 월 환급률 (0.0 ~ 1.0) */
+/**
+ * 월 환급률 (0.0 ~ 1.0)
+ *
+ * "달성" 여부는 `isMonthAchieved`와 같은 기준(소수 첫째 자리 반올림)을 쓴다 — 안 그러면
+ * 199.96/200 처럼 반올림하면 달성인데 환급률만 0.9998로 깎이는 어긋남이 생긴다
+ * (달성 배지는 "달성"이라고 하면서 환급은 100%를 안 주는 상태).
+ */
 export function calcMonthRefundRate(
   achievedMileage: number,
   goalKm: number,
 ): number {
   if (goalKm === 0) return 0;
-  return Math.min(achievedMileage / goalKm, 1.0);
+  if (isMonthAchieved(achievedMileage, goalKm)) return 1.0;
+  return achievedMileage / goalKm;
 }
 
 /** 기간 대비 달성률 */
