@@ -291,6 +291,7 @@ export async function logActivity(
     }
 
     revalidatePath("/projects");
+    updateTag(`mileage-${evtId}`);
     return { ok: true, message: null };
   });
 }
@@ -417,6 +418,7 @@ export async function logActivitiesBatch(
     }
 
     revalidatePath("/projects");
+    updateTag(`mileage-${evtId}`);
     return { ok: true, message: null, grantedTitles: allGranted };
   });
 }
@@ -503,6 +505,7 @@ export async function updateActivity(
     }
 
     revalidatePath("/projects");
+    updateTag(`mileage-${existingParticipant.evt_id}`);
     return { ok: true, message: null };
   });
 }
@@ -551,6 +554,7 @@ export async function deleteActivity(actId: string): Promise<ActionResult> {
     }
 
     revalidatePath("/projects");
+    updateTag(`mileage-${existingParticipant.evt_id}`);
     return { ok: true, message: null };
   });
 }
