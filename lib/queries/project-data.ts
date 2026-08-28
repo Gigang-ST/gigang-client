@@ -14,11 +14,15 @@ const PAGE_SIZE = 1000;
  * 쿼리를 돌려줘야 한다(정렬 없이 range()만 반복하면 페이지 사이에 행이 중복되거나 빠질 수 있다).
  */
 async function fetchAllRows<T>(
-  queryBuilder: (from: number, to: number) => PromiseLike<{ data: T[] | null }>,
+  queryBuilder: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
 ): Promise<T[]> {
   const rows: T[] = [];
   for (let from = 0; ; from += PAGE_SIZE) {
-    const { data } = await queryBuilder(from, from + PAGE_SIZE - 1);
+    const { data, error } = await queryBuilder(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(`fetchAllRows 페이지 조회 실패(from=${from}): ${error.message}`);
     if (!data || data.length === 0) break;
     rows.push(...data);
     if (data.length < PAGE_SIZE) break;
