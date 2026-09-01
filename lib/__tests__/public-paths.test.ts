@@ -13,6 +13,15 @@ describe("isPublicPath", () => {
     expect(isPublicPath("/llms.txt")).toBe(true);
   });
 
+  // robots.txt·sitemap.xml도 같은 함정에 빠진다. 크롤러는 302를 에러로 안 알려주고
+  // 조용히 색인을 포기하므로, 고장을 알아챌 방법이 이 테스트뿐이다.
+  it.each(["/robots.txt", "/sitemap.xml"])(
+    "검색엔진용 %s 은 비로그인으로 읽을 수 있어야 한다",
+    (pathname) => {
+      expect(isPublicPath(pathname)).toBe(true);
+    },
+  );
+
   it.each([
     "/",
     "/story",

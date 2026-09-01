@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { unstable_cache } from "next/cache";
@@ -290,6 +291,12 @@ function RecordsSkeleton() {
     </div>
   );
 }
+
+export const metadata: Metadata = {
+  title: "기강의 전당 — 크루 최고 기록",
+  description: "기강 러닝크루 종목별 최고 기록. 5K·10K·하프·풀코스 크루원 기록을 모았습니다.",
+  alternates: { canonical: "/records" },
+};
 
 export default function RecordsPage() {
   void getRequestTeamContext();

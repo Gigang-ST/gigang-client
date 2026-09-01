@@ -1,3 +1,17 @@
+import type { Metadata } from "next";
+
+/**
+ * 약관류는 열려 있지만 검색으로 찾아올 지면이 아니다 — `robots.ts`에서 크롤을 막고
+ * 여기서 `index: false`로 한 번 더 못박는다. 그래도 제목·설명은 고유해야 한다:
+ * 비워 두면 루트 값을 상속해 **홈과 같은 제목·설명을 쓰는 문서**가 되고, 네이버는
+ * 그걸 중복 문서로 본다(웹마스터 가이드 「동일 설명문 발견」).
+ */
+export const metadata: Metadata = {
+  title: "운영정책",
+  description: "기강 러닝크루 운영정책 — 안전수칙과 모임 운영 기준.",
+  robots: { index: false, follow: true },
+};
+
 export default function PolicyPage() {
   const policy = {
     heading: "운영정책",

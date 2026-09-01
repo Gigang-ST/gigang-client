@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 
 const intro = {
   heading: "기강단 소개",
@@ -143,6 +144,12 @@ const contact = {
 };
 
 const feeRule = rules.items.find((item) => item.id === 5);
+
+export const metadata: Metadata = {
+  title: "가입 신청",
+  description: "기강 러닝크루 가입 신청. 양재천·강남 정기 모임 장소와 시간, 크루 규칙, 문의 방법을 확인하고 신청하세요.",
+  alternates: { canonical: "/join" },
+};
 
 export default function JoinPage() {
   return (

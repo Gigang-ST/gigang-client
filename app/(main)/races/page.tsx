@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Skeleton } from "@/components/ui/skeleton";
 import { H1 } from "@/components/common/typography";
 import { createClient as createPublicClient } from "@supabase/supabase-js";
@@ -129,6 +130,12 @@ function RacesSkeleton() {
     </>
   );
 }
+
+export const metadata: Metadata = {
+  title: "참가 대회",
+  description: "기강 러닝크루가 함께 나가는 마라톤·대회 일정과 크루원 참가 현황.",
+  alternates: { canonical: "/races" },
+};
 
 export default function RacesPage() {
   void getRequestTeamContext();
