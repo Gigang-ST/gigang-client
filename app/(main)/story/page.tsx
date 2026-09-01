@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import { Suspense } from "react";
 
@@ -22,6 +23,16 @@ import { getRecentTitleGrants } from "@/lib/queries/story-titles";
 import { HeaderActions } from "@/components/common/header-actions";
 import { StoryClient } from "@/components/story/story-client";
 import { Skeleton } from "@/components/ui/skeleton";
+
+/**
+ * `/story`는 홈(`/`)과 **같은 화면**이다 — `app/(main)/page.tsx`의 `HOME_PAGE`가
+ * "story"라 홈이 이 페이지를 그대로 그린다. 둘 다 색인되면 중복 문서가 되므로
+ * 대표 URL을 홈으로 몰아준다. (HOME_PAGE를 "schedule"로 바꾸면 이 canonical과
+ * `lib/seo/indexable-routes.ts`의 목록을 함께 뒤집어야 한다.)
+ */
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 export default function StoryPage() {
   return (
