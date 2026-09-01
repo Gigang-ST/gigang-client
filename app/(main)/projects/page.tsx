@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,6 +20,16 @@ import { RefundStatus } from "@/components/projects/refund-status";
 import { MySportChart } from "@/components/projects/my-sport-chart-server";
 import { MyActivityList } from "@/components/projects/my-activity-list";
 import { ActivityLogFab } from "@/components/projects/activity-log-fab";
+
+/**
+ * 비로그인은 `/auth/login`으로 튕기는 지면이다 — 크롤러는 내용을 볼 수 없다.
+ * 색인시키면 로그인 화면이 "프로젝트"라는 제목으로 검색결과에 남는다.
+ */
+export const metadata: Metadata = {
+  title: "프로젝트",
+  description: "기강 러닝크루의 마일리지런 등 기간제 활동. 크루원 로그인이 필요합니다.",
+  robots: { index: false, follow: false },
+};
 
 export default async function ProjectsPage({
   searchParams,

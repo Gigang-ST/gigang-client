@@ -26,10 +26,21 @@ type PageHeaderProps = React.HTMLAttributes<HTMLDivElement> & {
   label?: string;
   /** 라벨 줄에 겹치는 가운데 슬롯. `editorial`에서만. 일정 탭 슬로건 자리 */
   center?: React.ReactNode;
+  /**
+   * Suspense 폴백(스켈레톤)으로 쓸 때 켠다 — 제목을 `h1`이 아닌 `div`로 낮춘다.
+   *
+   * 폴백과 본 헤더가 **같은 제목을 두 번** 그리는데, 스트리밍 HTML에는 둘 다 담긴다.
+   * 그대로 두면 JS를 안 돌리는 검색로봇 눈에 h1이 두 개다(`/schedule`에서 실제로 그랬다).
+   * 보이는 모양은 그대로다 — 클래스가 같다.
+   */
+  decorative?: boolean;
 };
 
 const PageHeader = React.forwardRef<HTMLDivElement, PageHeaderProps>(
-  ({ className, title, action, variant = "plain", label, center, ...props }, ref) => {
+  (
+    { className, title, action, variant = "plain", label, center, decorative, ...props },
+    ref,
+  ) => {
     if (variant === "editorial") {
       return (
         <div
@@ -54,7 +65,9 @@ const PageHeader = React.forwardRef<HTMLDivElement, PageHeaderProps>(
             {/* 헤더 제목은 프리텐다드(font-sans) 볼드 — H1의 원래 규격(28px bold, DESIGN.md).
                 명조(리디바탕)일 땐 가짜 볼드가 생겨 font-normal로 눌렀지만, 프리텐다드는
                 진짜 볼드 웨이트가 있어 되살렸다(H1 기본이 font-bold라 클래스 추가 불필요). */}
-            <H1 className="font-sans leading-tight">{title}</H1>
+            <H1 as={decorative ? "div" : "h1"} className="font-sans leading-tight">
+              {title}
+            </H1>
           </div>
 
           {/* 액션 — 우측 세로 가운데. 라벨·제목 덩이와 같은 축에 놓여 위에 붙지 않는다. */}
@@ -78,7 +91,7 @@ const PageHeader = React.forwardRef<HTMLDivElement, PageHeaderProps>(
         className={cn("flex h-14 items-center justify-between px-6", className)}
         {...props}
       >
-        <H1>{title}</H1>
+        <H1 as={decorative ? "div" : "h1"}>{title}</H1>
         {action}
       </div>
     );

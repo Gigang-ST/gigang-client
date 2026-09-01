@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Check } from "lucide-react";
@@ -119,6 +120,12 @@ function Toggle({
 }
 
 /* ─── 페이지 ─── */
+
+export const metadata: Metadata = {
+  title: "신입 가입 안내",
+  description: "기강 러닝크루에 처음 오시는 분을 위한 안내. 가입 절차, 러닝 등급, 안전수칙, 회비를 한 장에 정리했습니다.",
+  alternates: { canonical: "/newbie" },
+};
 
 export default function NewbiePage() {
   return (

@@ -1,3 +1,10 @@
+import type { Metadata } from "next";
+export const metadata: Metadata = {
+  title: "회칙",
+  description: "기강 러닝크루 회칙 — 함께 달리기 위해 지키는 활동 원칙.",
+  alternates: { canonical: "/rules" },
+};
+
 export default function RulesPage() {
   const rules = {
     heading: "회칙",

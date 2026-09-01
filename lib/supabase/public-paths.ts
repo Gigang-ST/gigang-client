@@ -25,6 +25,12 @@ const PUBLIC_PATHS = [
   // proxy matcher가 `.txt`를 제외하지 않아 정적 파일인데도 미들웨어를 탄다.
   // 여기서 빠지면 쿠키 없는 요청이 로그인으로 302되어 파일이 조용히 죽는다.
   "/llms.txt",
+  // 검색엔진용 두 파일(app/robots.ts · app/sitemap.ts가 생성).
+  // llms.txt와 똑같은 이유로 여기 있어야 한다 — matcher가 `.txt`/`.xml`을 제외하지
+  // 않으므로, 빠지면 크롤러(쿠키 없음)가 로그인 화면으로 302된다. 크롤러는 그걸
+  // 에러로 보고하지 않고 그냥 색인을 안 할 뿐이라 고장이 눈에 안 띈다.
+  "/robots.txt",
+  "/sitemap.xml",
 ];
 
 /**

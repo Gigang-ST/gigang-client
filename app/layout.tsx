@@ -17,15 +17,35 @@ import { PwaInstallPromptGate } from "@/components/pwa-install-prompt-gate";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 
 import "./globals.css";
-import { siteContent } from "@/config";
+import { NAVER_SITE_VERIFICATION, SITE_URL, siteContent } from "@/config";
 import { shellWidthBootScript } from "@/lib/app-shell";
-
-const SITE_URL = "https://gigang.team";
+import { jsonLdScript, organizationJsonLd } from "@/lib/seo/structured-data";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: siteContent.metadata.title,
+  /**
+   * `default`는 홈 제목, `template`은 하위 지면 제목이다.
+   * 지면마다 제목이 갈려야 검색결과에서 서로 다른 문서로 잡힌다 — 전 지면이 "기강"
+   * 하나를 쓰면 중복 문서로 묶여 색인에서 밀린다.
+   */
+  title: {
+    default: siteContent.metadata.searchTitle,
+    template: siteContent.metadata.titleTemplate,
+  },
   description: siteContent.metadata.description,
+  /** 홈의 대표 URL. www 호스트로 들어와도 apex 한 곳으로 모은다. */
+  alternates: { canonical: "/" },
+  /**
+   * 네이버 서치어드바이저 소유확인 태그.
+   *
+   * 파일 업로드 방식을 안 쓴 이유: `public/naverXXXX.html`을 올려도 `proxy.ts` matcher가
+   * `.html`을 제외하지 않아 미들웨어를 타고, `PUBLIC_PATHS`에 없으면 쿠키 없는
+   * 네이버 요청이 /auth/login으로 302된다(`llms.txt`가 겪은 그 함정). 태그는 그 경로를
+   * 아예 안 탄다.
+   */
+  verification: {
+    other: { "naver-site-verification": NAVER_SITE_VERIFICATION },
+  },
   icons: {
     icon: [
       { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
@@ -37,15 +57,16 @@ export const metadata: Metadata = {
     ],
   },
   openGraph: {
-    title: siteContent.metadata.title,
+    title: siteContent.metadata.searchTitle,
     description: siteContent.metadata.description,
     siteName: siteContent.brand.fullName,
+    url: SITE_URL,
     locale: "ko_KR",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: siteContent.metadata.title,
+    title: siteContent.metadata.searchTitle,
     description: siteContent.metadata.description,
   },
   appleWebApp: {
@@ -99,6 +120,12 @@ export default function RootLayout({
         {/* 셸 폭 — 첫 페인트 전에 저장된 폭을 적용한다(next-themes가 테마에 하는 것과 같은 이유).
             이게 없으면 새로고침마다 기본 폭으로 그렸다가 넓어지는 점프가 보인다. */}
         <script dangerouslySetInnerHTML={{ __html: shellWidthBootScript }} />
+        {/* 구조화 데이터 — 검색엔진에 "이 사이트는 어떤 단체인가"를 기계가 읽는 형태로 준다.
+            본문 텍스트만으로는 크루 이름·활동 지역·공식 SNS가 엮이지 않는다. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(organizationJsonLd) }}
+        />
         <Providers>
           {/* 앱 셸 — 데스크톱에서 본문을 폰 폭으로 묶는다(globals.css `.app-shell`).
               모바일에선 max-width가 안 걸려 아무 영향이 없다. 셸 안의 `fixed` 요소는
