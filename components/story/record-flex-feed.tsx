@@ -498,7 +498,10 @@ export function RecordFlexFeed({
                   {p.photo_url && (
                     <Image
                       src={p.photo_url}
-                      alt=""
+                      // 장식이 아니라 콘텐츠 이미지다 — 네이버 웹마스터 가이드가 「Alt 속성
+                      // 누락」으로 잡는 자리고, 이미지 검색에도 이 문구로 걸린다.
+                      // 부모 버튼의 aria-label 은 스크린리더용이라 크롤러가 이미지에 잇지 못한다.
+                      alt={`${p.mem_nm ?? "크루원"} 님의 기록 사진`}
                       width={320}
                       height={320}
                       className="size-full object-cover"
