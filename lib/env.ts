@@ -10,9 +10,6 @@ export const env = createEnv({
     // optional: 미설정 시 크론 라우트가 503으로 스스로 막는다(발송 사고 방지, 앱 기동은 막지 않음).
     CRON_SECRET: z.string().min(1).optional(),
     GEMINI_API_KEY: z.string().min(1).optional(),
-    // 네이버 서치어드바이저 사이트 소유확인 코드(<meta name="naver-site-verification">).
-    // optional: 서치어드바이저 등록 전에는 값이 없다 — 미설정이면 태그를 안 낼 뿐 앱은 뜬다.
-    NAVER_SITE_VERIFICATION: z.string().min(1).optional(),
     NODE_ENV: z.enum(["development", "production", "test"]),
     // 웹 푸시(VAPID) — 서버에서 발송 시 사용. NEXT_PUBLIC_ 금지(비밀키)
     // optional: 환경변수 미설정(빌드/일부 환경)에서도 앱이 떠야 하므로. 미설정이면 발송만 스킵.
@@ -39,7 +36,6 @@ export const env = createEnv({
     KAKAO_CHAT_PASSWORD: process.env.KAKAO_CHAT_PASSWORD,
     CRON_SECRET: process.env.CRON_SECRET,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-    NAVER_SITE_VERIFICATION: process.env.NAVER_SITE_VERIFICATION,
     NODE_ENV: process.env.NODE_ENV,
     VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
     VAPID_SUBJECT: process.env.VAPID_SUBJECT,

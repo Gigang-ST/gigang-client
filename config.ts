@@ -14,6 +14,19 @@ type SiteContent = {
 /** 정규 도메인. 사이트맵·robots·canonical이 모두 이 값을 기준으로 절대 URL을 만든다. */
 export const SITE_URL = "https://gigang.team";
 
+/**
+ * 네이버 서치어드바이저 사이트 소유확인 코드 (searchadvisor.naver.com 발급, 2026-09-01).
+ *
+ * 환경변수로 빼지 않는다 — 어차피 페이지 HTML에 그대로 실려 나가는 공개값이라 감출 것이
+ * 없고, 환경변수로 두면 Vercel에 넣는 걸 잊었을 때 **태그가 조용히 사라져** 소유확인이
+ * 실패한다. 코드에 있으면 배포만으로 붙는다.
+ *
+ * ⚠ 지우지 마라. 네이버는 1년마다 소유권 재확인을 요구하는데, 이 태그가 그대로 남아
+ * 있어야 서치어드바이저에서 "소유연장" 버튼 한 번으로 연장된다. 태그가 없으면 처음부터다.
+ */
+export const NAVER_SITE_VERIFICATION =
+  "1133f48045ef9b8e0f086eae69f7b1e17a5e57d1";
+
 export const siteContent: SiteContent = {
   metadata: {
     /** 앱 안에서 쓰는 짧은 이름 — PWA 설치명·상단 표시용. */

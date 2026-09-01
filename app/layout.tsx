@@ -17,9 +17,8 @@ import { PwaInstallPromptGate } from "@/components/pwa-install-prompt-gate";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 
 import "./globals.css";
-import { SITE_URL, siteContent } from "@/config";
+import { NAVER_SITE_VERIFICATION, SITE_URL, siteContent } from "@/config";
 import { shellWidthBootScript } from "@/lib/app-shell";
-import { env } from "@/lib/env";
 import { organizationJsonLd } from "@/lib/seo/structured-data";
 
 export const metadata: Metadata = {
@@ -37,20 +36,16 @@ export const metadata: Metadata = {
   /** 홈의 대표 URL. www 호스트로 들어와도 apex 한 곳으로 모은다. */
   alternates: { canonical: "/" },
   /**
-   * 네이버 서치어드바이저 소유확인.
+   * 네이버 서치어드바이저 소유확인 태그.
    *
-   * 값은 서치어드바이저에서 사이트를 등록해야 나온다 — 미설정이면 태그를 아예 안 낸다
-   * (빈 content로 나가면 확인이 실패한다). 메타태그 방식은 연 1회 재인증이 필요하다.
+   * 파일 업로드 방식을 안 쓴 이유: `public/naverXXXX.html`을 올려도 `proxy.ts` matcher가
+   * `.html`을 제외하지 않아 미들웨어를 타고, `PUBLIC_PATHS`에 없으면 쿠키 없는
+   * 네이버 요청이 /auth/login으로 302된다(`llms.txt`가 겪은 그 함정). 태그는 그 경로를
+   * 아예 안 탄다.
    */
-  ...(env.NAVER_SITE_VERIFICATION
-    ? {
-        verification: {
-          other: {
-            "naver-site-verification": env.NAVER_SITE_VERIFICATION,
-          },
-        },
-      }
-    : {}),
+  verification: {
+    other: { "naver-site-verification": NAVER_SITE_VERIFICATION },
+  },
   icons: {
     icon: [
       { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
