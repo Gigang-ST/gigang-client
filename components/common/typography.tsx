@@ -3,7 +3,9 @@ import { cn } from "@/lib/utils";
 
 /* ---------- H1: 메인 탭 페이지 제목 (28px bold) ---------- */
 
-type H1Props = React.HTMLAttributes<HTMLHeadingElement> & {
+// `as`로 요소가 갈리므로 ref 계약도 그에 맞춰 넓힌다 — `as="div"`인데 ref 타입만
+// HTMLHeadingElement로 두면 실제 `ref.current`(HTMLDivElement)와 어긋난 타입이 나간다.
+type H1Props = React.HTMLAttributes<HTMLElement> & {
   /**
    * 렌더할 요소. 기본 `h1`.
    *
@@ -15,17 +17,23 @@ type H1Props = React.HTMLAttributes<HTMLHeadingElement> & {
   as?: "h1" | "div";
 };
 
-const H1 = React.forwardRef<HTMLHeadingElement, H1Props>(
-  ({ className, as: Tag = "h1", ...props }, ref) => (
-    <Tag
-      ref={ref}
-      className={cn(
-        "text-[28px] font-bold leading-[1.2] -tracking-[0.025em] text-foreground",
-        className,
-      )}
-      {...props}
-    />
-  ),
+const H1 = React.forwardRef<HTMLElement, H1Props>(
+  ({ className, as = "h1", ...props }, ref) => {
+    // `"h1" | "div"` 유니온을 그대로 JSX 태그로 쓰면 ref 타입이 두 요소를 동시에
+    // 만족해야 해서 컴파일이 안 된다(HTMLHeadingElement vs HTMLDivElement).
+    // 넓힌 ref 계약(HTMLElement)에 맞춰 태그 쪽도 한 단계 넓힌다.
+    const Tag = as as React.ElementType;
+    return (
+      <Tag
+        ref={ref}
+        className={cn(
+          "text-[28px] font-bold leading-[1.2] -tracking-[0.025em] text-foreground",
+          className,
+        )}
+        {...props}
+      />
+    );
+  },
 );
 H1.displayName = "H1";
 

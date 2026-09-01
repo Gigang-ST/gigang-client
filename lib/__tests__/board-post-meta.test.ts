@@ -31,6 +31,22 @@ describe("boardPostDescription", () => {
     expect(out.endsWith("…")).toBe(true);
   });
 
+  // slice()는 UTF-16 코드 단위라 이모지를 반토막 낸다 — 깨진 글자가 스니펫에 뜬다.
+  it("이모지를 반토막 내지 않는다", () => {
+    const out = boardPostDescription("🏃".repeat(300), "제목");
+    expect(Array.from(out)).toHaveLength(150);
+    expect(out).not.toContain("�");
+    // 말줄임을 뺀 본문이 온전한 이모지로만 이뤄져야 한다.
+    expect(out.slice(0, -1)).toBe("🏃".repeat(149));
+  });
+
+  // 폴백 경로가 제한을 안 타면 긴 제목이 그대로 나간다.
+  it("제목으로 폴백할 때도 길이 제한을 지킨다", () => {
+    const out = boardPostDescription("", "제".repeat(300));
+    expect(out).toHaveLength(150);
+    expect(out.endsWith("…")).toBe(true);
+  });
+
   it("150자 이하는 그대로 둔다", () => {
     expect(boardPostDescription("짧은 글", "제목")).toBe("짧은 글");
   });

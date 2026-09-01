@@ -10,6 +10,19 @@
  */
 const MAX = 150;
 
+/**
+ * 길이 제한.
+ *
+ * `Array.from`으로 코드 포인트를 세는 건 이모지 때문이다 — `slice()`는 UTF-16 코드 단위로
+ * 잘라서 서로게이트 쌍을 반토막 낸다(게시글 제목에 이모지가 실제로 들어 있다).
+ * 반토막 난 문자는 검색결과 스니펫에 깨진 글자로 뜬다.
+ */
+function truncate(value: string): string {
+  const chars = Array.from(value);
+  if (chars.length <= MAX) return value;
+  return `${chars.slice(0, MAX - 1).join("").trimEnd()}…`;
+}
+
 export function boardPostDescription(content: string, fallbackTitle: string): string {
   const plain = content
     .replace(/```[\s\S]*?```/g, " ") // 코드 블록
@@ -21,6 +34,6 @@ export function boardPostDescription(content: string, fallbackTitle: string): st
     .replace(/\s+/g, " ")
     .trim();
 
-  if (!plain) return fallbackTitle;
-  return plain.length <= MAX ? plain : `${plain.slice(0, MAX - 1).trimEnd()}…`;
+  // 폴백도 같은 제한을 탄다 — 긴 제목이 그대로 나가면 본문일 때만 지키던 규격이 무너진다.
+  return truncate(plain || fallbackTitle);
 }

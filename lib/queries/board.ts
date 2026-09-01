@@ -115,6 +115,45 @@ export function getCachedBoardPosts(
   )();
 }
 
+/** 사이트맵이 쓰는 최소 정보 — 목록·상세와 달리 본문·작성자가 필요 없다. */
+export type BoardPostRef = Pick<BoardPost, "post_id" | "crt_at" | "upd_at">;
+
+/**
+ * 색인 대상 게시글 **전량**의 id·시각.
+ *
+ * 목록용 `getBoardPosts` 를 사이트맵에 그대로 쓰면 안 된다 — 그쪽은 화면 한 페이지를
+ * 위한 `limit 20` 이라 **21번째 글부터 사이트맵에서 조용히 빠진다.** 목록 화면은
+ * 무한스크롤로 이어 볼 수 있지만 크롤러는 그 길이 없어서, 사이트맵이 빠지면 그 글은
+ * 어디에서도 발견되지 않는다.
+ *
+ * 정렬·고정(pin) 여부가 필요 없으므로 두 타입을 한 번에 가져온다.
+ */
+export async function getBoardPostRefs(teamId: string): Promise<BoardPostRef[]> {
+  const admin = createUntypedAdminClient();
+
+  const { data } = await admin
+    .from("brd_post_mst")
+    .select("post_id, crt_at, upd_at")
+    .eq("team_id", teamId)
+    .eq("del_yn", false)
+    .order("crt_at", { ascending: false });
+
+  return (data ?? []).map((row) => ({
+    post_id: row.post_id,
+    crt_at: row.crt_at,
+    upd_at: row.upd_at,
+  }));
+}
+
+/** 사이트맵용 캐시 래퍼. 목록과 같은 태그를 써서 글이 바뀌면 사이트맵도 함께 갱신된다. */
+export function getCachedBoardPostRefs(teamId: string): Promise<BoardPostRef[]> {
+  return unstable_cache(
+    () => getBoardPostRefs(teamId),
+    [`board-post-refs-${teamId}`],
+    { tags: [BOARD_POSTS_CACHE_TAG], revalidate: 3600 },
+  )();
+}
+
 /**
  * 게시글 상세 캐시 래퍼. 상세 페이지 온디맨드 캐시용.
  * 태그 2개: 전체 목록 무효화(board-posts)와 특정 글 무효화(board-post:{id}) 둘 다에 반응하도록 유지.

@@ -1,8 +1,9 @@
 import type { MetadataRoute } from "next";
 
 import { SITE_URL } from "@/config";
+import { dayjs } from "@/lib/dayjs";
 import { DEFAULT_FALLBACK_TEAM_ID } from "@/lib/constants/gigang-team";
-import { getCachedBoardPosts } from "@/lib/queries/board";
+import { getCachedBoardPostRefs } from "@/lib/queries/board";
 import { INDEXABLE_ROUTES } from "@/lib/seo/indexable-routes";
 
 /**
@@ -16,7 +17,7 @@ import { INDEXABLE_ROUTES } from "@/lib/seo/indexable-routes";
  * 쿠키 없는 크롤러 요청이 /auth/login 으로 302 된다(`/llms.txt` 가 겪었던 고장).
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const now = new Date();
+  const now = dayjs().toDate();
 
   const staticRoutes = INDEXABLE_ROUTES.map(
     ({ path, changeFrequency, priority }) => ({
@@ -35,22 +36,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 /**
  * 게시글(`/board/{id}`) — 공지·업데이트는 지면마다 제목이 다른 실제 콘텐츠라 색인 대상이다.
  *
- * 목록 페이지가 20건 + 무한스크롤이라 **21번째 글부터는 크롤러가 따라갈 링크가 없다**
- * (`components/board/post-list.tsx`). 사이트맵이 그 구멍을 메우는 유일한 경로다.
+ * 목록 화면은 20건씩 무한스크롤이라 크롤러가 21번째 글부터는 따라갈 링크가 없다
+ * (`components/board/post-list.tsx`). 그래서 여기서는 목록용 조회가 아니라 **전량을 주는**
+ * `getCachedBoardPostRefs` 를 쓴다 — 목록용을 그대로 쓰면 사이트맵도 20건에서 잘려
+ * 구멍을 못 메운다.
  *
  * 조회가 실패해도 사이트맵 전체를 죽이지 않는다 — 정적 목록만이라도 나가는 편이
  * 500 을 돌려주는 것보다 낫다(크롤러는 500 을 받으면 사이트맵을 통째로 버린다).
  */
 async function boardPostRoutes(): Promise<MetadataRoute.Sitemap> {
   try {
-    const [notices, updates] = await Promise.all([
-      getCachedBoardPosts(DEFAULT_FALLBACK_TEAM_ID, "notice"),
-      getCachedBoardPosts(DEFAULT_FALLBACK_TEAM_ID, "update"),
-    ]);
+    const posts = await getCachedBoardPostRefs(DEFAULT_FALLBACK_TEAM_ID);
 
-    return [...notices, ...updates].map((post) => ({
+    return posts.map((post) => ({
       url: new URL(`/board/${post.post_id}`, SITE_URL).toString(),
-      lastModified: new Date(post.upd_at ?? post.crt_at),
+      lastModified: dayjs(post.upd_at ?? post.crt_at).toDate(),
       changeFrequency: "monthly" as const,
       priority: 0.4,
     }));
