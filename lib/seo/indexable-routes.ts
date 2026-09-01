@@ -45,6 +45,8 @@ export const DISALLOWED_PREFIXES = [
   "/mcp-tokens",
   "/gatherings/",
   "/settings",
+  // 비로그인이면 /auth/login 으로 튕긴다 — 크롤러가 볼 내용이 없다.
+  "/projects",
   "/board/write",
   "/terms",
   "/privacy",

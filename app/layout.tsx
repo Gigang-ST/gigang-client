@@ -19,7 +19,7 @@ import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import "./globals.css";
 import { NAVER_SITE_VERIFICATION, SITE_URL, siteContent } from "@/config";
 import { shellWidthBootScript } from "@/lib/app-shell";
-import { organizationJsonLd } from "@/lib/seo/structured-data";
+import { jsonLdScript, organizationJsonLd } from "@/lib/seo/structured-data";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -124,7 +124,7 @@ export default function RootLayout({
             본문 텍스트만으로는 크루 이름·활동 지역·공식 SNS가 엮이지 않는다. */}
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(organizationJsonLd) }}
         />
         <Providers>
           {/* 앱 셸 — 데스크톱에서 본문을 폰 폭으로 묶는다(globals.css `.app-shell`).

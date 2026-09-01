@@ -216,6 +216,7 @@ function HomeHeaderSkeleton() {
   return (
     <PageHeader
       variant="editorial"
+      decorative
       label="Schedule"
       title="일정"
       action={
