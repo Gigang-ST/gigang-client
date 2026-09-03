@@ -145,18 +145,40 @@ export async function updateCompetition(
 
     if (compErr) return { ok: false, message: "수정에 실패했습니다" };
 
-    // 종목 목록은 전량 교체다(부분 갱신이 아니다)
-    const { error: delErr } = await db
+    // 종목 목록은 diff로 반영한다 — 안 바뀐 종목의 comp_evt_id는 그대로 둔다.
+    // ⚠️ 예전엔 전량 delete 후 insert했는데, comp_reg_rel.comp_evt_id가 이 id를 FK로
+    //    참조한다(ON DELETE SET NULL). 종목 문자열이 그대로여도 delete+insert는 새
+    //    comp_evt_id를 만들어 옛 id가 사라지므로, 이미 그 종목으로 등록한 참가자 전원의
+    //    comp_evt_id가 NULL로 날아갔다 — 대회 정보를 아무거나(날짜 등) 고치기만 해도 발생했다.
+    const { data: existingTypes, error: existingErr } = await db
       .from("comp_evt_cfg")
-      .delete()
+      .select("comp_evt_id, comp_evt_type")
       .eq("comp_id", competitionId)
       .eq("vers", 0)
       .eq("del_yn", false);
-    if (delErr) return { ok: false, message: "수정에 실패했습니다" };
+    if (existingErr) return { ok: false, message: "수정에 실패했습니다" };
 
-    if (nextTypes.length > 0) {
+    const existingByType = new Map(
+      (existingTypes ?? []).map((row) => [row.comp_evt_type, row.comp_evt_id]),
+    );
+    const nextTypeSet = new Set(nextTypes);
+    const toRemove = (existingTypes ?? []).filter((row) => !nextTypeSet.has(row.comp_evt_type));
+    const toAdd = nextTypes.filter((t) => !existingByType.has(t));
+
+    if (toRemove.length > 0) {
+      const { error: delErr } = await db
+        .from("comp_evt_cfg")
+        .delete()
+        .in(
+          "comp_evt_id",
+          toRemove.map((row) => row.comp_evt_id),
+        );
+      if (delErr) return { ok: false, message: "수정에 실패했습니다" };
+    }
+
+    if (toAdd.length > 0) {
       const { error: insErr } = await db.from("comp_evt_cfg").insert(
-        nextTypes.map((t) => ({
+        toAdd.map((t) => ({
           comp_id: competitionId,
           comp_evt_type: t,
           vers: 0,
