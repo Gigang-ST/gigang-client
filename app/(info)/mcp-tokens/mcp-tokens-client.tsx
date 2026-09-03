@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 
 import { Check, Copy, KeyRound, Trash2 } from "lucide-react";
 
-import { createMcpToken, revokeMcpToken, type McpTokenSummary } from "@/app/actions/mcp-token";
+import { createMcpToken, revokeMcpToken } from "@/app/actions/mcp-token";
+import type { McpTokenSummary } from "@/lib/mcp/issue-token";
 import { formatKST } from "@/lib/dayjs";
 import { MCP_TOKEN_LABEL_MAX } from "@/lib/validations/mcp-token";
 
