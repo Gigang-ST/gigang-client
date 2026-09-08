@@ -264,7 +264,8 @@ function getCachedRecordsData(teamId: string) {
     },
     // 페이로드 모양이 바뀌면 **키를 올린다**. 안 올리면 배포 직후 남아 있는 옛 캐시가
     // 새 필드(recordSec·memberMeta) 없이 돌아와 챔피언 띠·판독선이 조용히 비어 보인다.
-    [`records-team-v6-${teamId}`],
+    // v7: RPC가 가입 전 기록을 거르게 되어(#528) 옛 캐시의 순위가 24시간 동안 남지 않게 올렸다.
+    [`records-team-v7-${teamId}`],
     { revalidate: 60 * 60 * 24, tags: ["records", `records:${teamId}`] },
   )();
 }
