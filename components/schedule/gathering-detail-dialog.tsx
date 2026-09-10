@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { dayjs, parseEventTime } from "@/lib/dayjs";
 import { isPastLockedFor } from "@/lib/past-event";
+import { cn } from "@/lib/utils";
 import { gthrTypeLabels, gthrSprtLabels, type GthrType, type GthrSprtType } from "@/lib/validations/gathering";
 
 import {
@@ -49,6 +50,13 @@ import { MemberCardDialogDynamic as MemberCardDialog } from "@/components/member
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+
+import {
+  attendButtonLabel,
+  attendStateOf,
+  waitHintText,
+  type AttendState,
+} from "@/lib/gathering/waitlist";
 
 /**
  * 내 신청 상태를 못 받아왔을 때의 기본값.
@@ -126,7 +134,18 @@ export function GatheringDetailDialog({
   onClone,
 }: GatheringDetailDialogProps) {
   const [inactiveGateOpen, setInactiveGateOpen] = useState(false);
-  const [attending, setAttending] = useState(initialIsAttending ?? false);
+  // 참석·대기·없음 3상태. 대기열이 생기며 boolean 으로는 표현할 수 없게 됐다.
+  //
+  // ⚠️ 이 다이얼로그의 부모(mini-calendar.tsx)는 아직 내 대기 여부·순번을 조회해 넘기지
+  // 않는다(get_gathering_detail RPC가 anon 실행 허용 SECURITY DEFINER 라 대기 명단까지
+  // 실으면 비로그인에게 샌다 — 상세 페이지 주석과 같은 문제). 그래서 초기값은 항상
+  // waiting:false 로 좁혀 시작한다 — 이미 대기 중이던 사람이 다이얼로그를 다시 열면
+  // 버튼이 "참석하기"로 보이는 건 알려진 제약이고, 대기 명단을 함께 붙이는 후속 작업의 몫이다.
+  const [state, setState] = useState<AttendState>(
+    attendStateOf({ attending: initialIsAttending ?? false, waiting: false }),
+  );
+  const [waitRank, setWaitRank] = useState<number | null>(null);
+  const [waitCount, setWaitCount] = useState(0);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [attdCount, setAttdCount] = useState(gathering?.regCount ?? 0);
   const [attendees, setAttendees] = useState(gathering?.attendees ?? []);
@@ -200,7 +219,11 @@ export function GatheringDetailDialog({
   const [lastSyncKey, setLastSyncKey] = useState(syncKey);
   if (syncKey !== lastSyncKey) {
     setLastSyncKey(syncKey);
-    setAttending(initialIsAttending ?? false);
+    // 대기 상태도 같이 맞춘다 — 안 그러면 다른 모임을 열었을 때 이전 모임의 대기
+    // 순번·인원이 그대로 남는다. 위 state 선언부 주석대로 waiting 은 아직 항상 false로 시작.
+    setState(attendStateOf({ attending: initialIsAttending ?? false, waiting: false }));
+    setWaitRank(null);
+    setWaitCount(0);
     setAttdCount(gathering?.regCount ?? 0);
     setAttendees(gathering?.attendees ?? []);
     setCanceledAttendees(gathering?.canceledAttendees ?? []);
@@ -229,7 +252,15 @@ export function GatheringDetailDialog({
     setAttendees(next);
     setAttdCount(next.length);
     // 내 참석 여부도 명단에서 다시 읽는다 — 운영진이 대신 승인·취소했을 수 있다.
-    if (currentMemberId) setAttending(next.some((a) => a.mem_id === currentMemberId));
+    // 대기 중이었는데 참석자 명단에 없다면(아직 승급 전) 대기 상태를 그대로 둔다 —
+    // 이 목록은 참석자만 알려줄 뿐 대기 여부를 말해 주지 않는다.
+    if (currentMemberId) {
+      const nowAttending = next.some((a) => a.mem_id === currentMemberId);
+      setState((prev) => {
+        if (nowAttending) return "attending";
+        return prev === "attending" ? "none" : prev;
+      });
+    }
     setCanceledAttendees(gathering?.canceledAttendees ?? []);
   }
 
@@ -246,11 +277,11 @@ export function GatheringDetailDialog({
   if (!gathering) return null;
 
   const isAuthor = currentMemberId === gathering.crt_by;
-  const isFull = !attending && gathering.maxPrtCnt != null && attdCount >= gathering.maxPrtCnt;
-  // 참여조건 잠금은 **등록에만** 건다 — 이미 참석 중이면 취소는 열어 둔다(조건이 나중에
-  // 걸린 모임에서 빠져나올 길이 사라지면 안 된다). 아직 판정을 못 받았으면 잠그지 않는다
-  // — 서버가 최종 게이트라 여기서 성급히 막는 것보다 낫다.
-  const conditionLocked = !attending && myAply != null && !myAply.conditions.ok;
+  const isFull = state === "none" && gathering.maxPrtCnt != null && attdCount >= gathering.maxPrtCnt;
+  // 참여조건 잠금은 **등록에만** 건다 — 이미 참석 중이거나 대기 중이면 취소는 열어 둔다
+  // (조건이 나중에 걸린 모임에서 빠져나올 길이 사라지면 안 된다). 아직 판정을 못 받았으면
+  // 잠그지 않는다 — 서버가 최종 게이트라 여기서 성급히 막는 것보다 낫다.
+  const conditionLocked = state === "none" && myAply != null && !myAply.conditions.ok;
   // 지난 모임(KST 날짜 기준)은 수정·삭제·참석 변경 불가 — 관리자만 예외 (서버 액션에서도 동일 검증)
   const isPastLocked = isPastLockedFor(isAdmin, gathering.evt_stt_at ?? gathering.start_date, gathering.evt_end_at);
 
@@ -286,27 +317,69 @@ export function GatheringDetailDialog({
   const gthrShareText = shareLines.join("\n");
 
   async function handleToggleAttendance() {
-    if (!currentMemberId || isFull || togglingRef.current) return;
-    // 참석 취소는 사유 확인 모달을 거친다(임박 시 사유 필수) — 참석 등록은 그대로 즉시 처리.
-    if (attending) {
+    // isFull 은 더 이상 차단 사유가 아니다 — 만석이면 대기 신청으로 간다.
+    if (!currentMemberId || togglingRef.current) return;
+
+    // 참석 취소는 사유 확인 모달을 거친다(임박 시 사유 필수) — 등록·대기 신청은 그대로 즉시 처리.
+    if (state === "attending") {
       setCancelDialogOpen(true);
       return;
     }
+
+    // 대기 취소 — 참석 취소와 달리 확인 모달이 없다. 자리를 갖고 있던 게 아니라 남에게
+    // 미치는 영향이 없고, 다시 걸면 맨 뒤로 갈 뿐이라 되돌리기도 쉽다.
+    if (state === "waiting") {
+      togglingRef.current = true;
+      const prevRank = waitRank;
+      const prevWaitCount = waitCount;
+      setState("none");
+      setWaitRank(null);
+      setWaitCount((c) => Math.max(0, c - 1));
+      try {
+        const result = await toggleGatheringAttendance(gathering!.id);
+        setState(result.state);
+      } catch (e) {
+        setState("waiting");
+        setWaitRank(prevRank);
+        setWaitCount(prevWaitCount);
+        toast.error(e instanceof Error ? e.message : "대기 취소에 실패했습니다.");
+      } finally {
+        togglingRef.current = false;
+      }
+      return;
+    }
+
+    // 미참석 — 자리가 있으면 참석, 만석이면 대기 신청. 둘 다 원탭 즉시 처리(낙관적 업데이트).
     togglingRef.current = true;
-    const prev = attending;
+    const optimistic: AttendState = isFull ? "waiting" : "attending";
     const prevCanceled = canceledAttendees;
     const myEntry = { mem_id: currentMemberId, mem_nm: currentMemberName ?? null, avatar_url: currentMemberAvatarUrl ?? null };
-    setAttending(!prev);
-    setAttdCount((c) => (!prev ? c + 1 : c - 1));
-    setAttendees((list) => !prev ? [...list, myEntry] : list.filter((a) => a.mem_id !== currentMemberId));
-    // 재참석(!prev=참석 등록)이면 취소자 목록에서 본인을 즉시 뺀다 — 안 그러면 같은 모달 안에서
-    // 취소→재참석 시 참석·취소 양쪽에 동시에 보인다(재오픈 전까지). 재오픈하면 rel 우선 파생으로 자동 정리.
-    if (!prev) setCanceledAttendees((list) => list.filter((c) => c.mem_id !== currentMemberId));
+    setState(optimistic);
+    if (optimistic === "attending") {
+      setAttdCount((c) => c + 1);
+      setAttendees((list) => [...list, myEntry]);
+      // 재참석이면 취소자 목록에서 본인을 즉시 뺀다 — 안 그러면 같은 모달 안에서
+      // 취소→재참석 시 참석·취소 양쪽에 동시에 보인다(재오픈 전까지). 재오픈하면 rel 우선 파생으로 자동 정리.
+      setCanceledAttendees((list) => list.filter((c) => c.mem_id !== currentMemberId));
+    } else {
+      // 대기 신청은 attdCount 를 올리지 않는다(참석자가 아니다). 순번은 서버가 정한다 —
+      // 낙관적으로 지어내면 "3번이었는데 5번이 됐다"로 보인다.
+      setWaitRank(null);
+    }
     try {
       const result = await toggleGatheringAttendance(gathering!.id);
-      setAttending(result.attending);
-      if (result.attending && result.monthlyAttendCnt) {
+      setState(result.state);
+      setWaitRank(result.waitRank ?? null);
+      if (result.waitCount !== undefined) setWaitCount(result.waitCount);
+      // 참석 등록 시에만 담백한 횟수 피드백(대기는 아래에서 별도 안내)
+      if (result.state === "attending" && result.monthlyAttendCnt) {
         toast.success(`이번 달 ${result.monthlyAttendCnt}회 참여!`);
+      }
+      // 대기는 "됐다"는 확인이 특히 중요하다 — 참석과 달리 아무 일도 안 일어난 것처럼 보인다.
+      if (result.state === "waiting") {
+        toast.success(
+          result.waitRank ? `대기 ${result.waitRank}번으로 등록했어요` : "대기로 등록했어요",
+        );
       }
       // 부가 갱신(달력·참석자 재조회)은 참석 처리와 독립 — 여기서 reject돼도 위 성공한 토글을
       // 롤백하면 안 되므로 try 밖에서 삼킨다(catch 흐름 오염·unhandled rejection 방지).
@@ -314,11 +387,14 @@ export function GatheringDetailDialog({
         console.error("[gathering] 참석 변경 후 갱신 실패", err);
       });
     } catch (e) {
-      setAttending(prev);
-      setAttdCount((c) => (prev ? c + 1 : c - 1));
-      setAttendees(gathering!.attendees ?? []);
+      setState("none");
+      if (optimistic === "attending") {
+        setAttdCount((c) => c - 1);
+        setAttendees(gathering!.attendees ?? []);
+      }
+      setWaitRank(null);
       setCanceledAttendees(prevCanceled);
-      // 서버 거절 사유(지난 모임·인원 마감 등)를 안내 — 무음 롤백이면 버튼 고장으로 오인한다
+      // 서버 거절 사유(지난 모임·참여조건 등)를 안내 — 무음 롤백이면 버튼 고장으로 오인한다
       toast.error(e instanceof Error ? e.message : "참석 처리에 실패했습니다.");
     } finally {
       togglingRef.current = false;
@@ -332,7 +408,7 @@ export function GatheringDetailDialog({
     const prevCount = attdCount;
     const prevAttendees = attendees;
     const prevCanceled = canceledAttendees;
-    setAttending(false);
+    setState("none");
     setAttdCount((c) => c - 1);
     setAttendees((list) => list.filter((a) => a.mem_id !== currentMemberId));
     // 취소 즉시 취소자 목록에 본인을 낙관적으로 올려 "흔적 없음"을 없앤다(재오픈·재조회 전에도 바로 보이게).
@@ -355,7 +431,7 @@ export function GatheringDetailDialog({
         console.error("[gathering] 취소 후 갱신 실패", err);
       });
     } catch (e) {
-      setAttending(true);
+      setState("attending");
       setAttdCount(prevCount);
       setAttendees(prevAttendees);
       setCanceledAttendees(prevCanceled);
@@ -521,28 +597,38 @@ export function GatheringDetailDialog({
 
             {/* 참석 버튼 — 비활성 회원이면 참석 대신 안내 게이트를 연다 */}
             {currentMemberId && !gathering.aprvReqYn && (
-              <Button
-                onClick={viewerInactive ? () => setInactiveGateOpen(true) : handleToggleAttendance}
-                // 처리 중엔 disabled 대신 handleToggleAttendance의 togglingRef 가드로 재클릭만 막아 흐려지지 않게.
-                // 낙관적 업데이트로 색이 즉시 바뀌어 "바로 눌렸다"고 느끼게 한다.
-                // detailLoading 중엔 내 참석 여부를 아직 몰라 토글이 꼬일 수 있으므로 잠근다.
-                // 지난 모임은 참석/해제 불가(관리자 예외) — 서버에서도 차단.
-                // 비활성 회원은 마감·잠금과 무관하게 눌러 안내 게이트를 열 수 있어야 하므로 disabled 제외.
-                disabled={!viewerInactive && (isFull || detailLoading || isPastLocked || conditionLocked)}
-                variant={attending ? "default" : "outline"}
-                className={attending ? "w-full bg-success hover:bg-success/90 border-success" : "w-full"}
-              >
-                {/* 비활성이면 참석 유도 문구로 게이트를 열게 한다 */}
-                {viewerInactive ? (
-                  "참석하기"
-                ) : (
-                  <>
-                    {/* 지난 모임·조건 미달: 문구 변경 없이 잠금 아이콘 + disabled 흐림으로만 표시 */}
-                    {(isPastLocked || conditionLocked) && <Lock className="size-3.5" />}
-                    {!isPastLocked && isFull ? "인원 마감" : attending ? "✅ 참석" : "참석하기"}
-                  </>
+              <div className="flex flex-col gap-1.5">
+                <Button
+                  onClick={viewerInactive ? () => setInactiveGateOpen(true) : handleToggleAttendance}
+                  // 처리 중엔 disabled 대신 handleToggleAttendance의 togglingRef 가드로 재클릭만 막아 흐려지지 않게.
+                  // 낙관적 업데이트로 색이 즉시 바뀌어 "바로 눌렸다"고 느끼게 한다.
+                  // detailLoading 중엔 내 참석 여부를 아직 몰라 토글이 꼬일 수 있으므로 잠근다.
+                  // 지난 모임은 참석/해제 불가(관리자 예외) — 서버에서도 차단.
+                  // isFull 은 더 이상 차단 사유가 아니다 — 만석이면 대기 신청으로 간다.
+                  // 비활성 회원은 마감·잠금과 무관하게 눌러 안내 게이트를 열 수 있어야 하므로 disabled 제외.
+                  disabled={!viewerInactive && (detailLoading || isPastLocked || conditionLocked)}
+                  variant={state === "attending" ? "default" : "outline"}
+                  className={cn(
+                    "w-full",
+                    state === "attending" && "bg-success hover:bg-success/90 border-success",
+                  )}
+                >
+                  {/* 비활성이면 참석 유도 문구로 게이트를 열게 한다 */}
+                  {viewerInactive ? (
+                    "참석하기"
+                  ) : (
+                    <>
+                      {/* 지난 모임·조건 미달: 문구 변경 없이 잠금 아이콘 + disabled 흐림으로만 표시 */}
+                      {(isPastLocked || conditionLocked) && <Lock className="size-3.5" />}
+                      {attendButtonLabel(state, isFull)}
+                    </>
+                  )}
+                </Button>
+
+                {!viewerInactive && waitHintText(state, waitRank, waitCount) && (
+                  <Caption className="text-center">{waitHintText(state, waitRank, waitCount)}</Caption>
                 )}
-              </Button>
+              </div>
             )}
 
             {/* 참석자 목록 (로딩 중엔 참석수만큼 스켈레톤 — 즉시 오픈 뒤 채워짐) */}

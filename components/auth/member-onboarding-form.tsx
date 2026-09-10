@@ -159,6 +159,8 @@ export function MemberOnboardingForm({
   const [result, setResult] = useState<{
     pledgeGthrId: string | null;
     pledgeJoined?: boolean;
+    /** 정원이 차서 대기열로 들어갔다 — 완료 화면 문구가 갈린다 */
+    pledgeWaiting?: boolean;
   } | null>(null);
   // 5단계 검증 실패 시 첫 에러 섹션으로 스크롤하기 위한 ref (§8)
   const joinSrcSectionRef = useRef<HTMLDivElement | null>(null);
@@ -318,7 +320,11 @@ export function MemberOnboardingForm({
         return;
       }
 
-      setResult({ pledgeGthrId, pledgeJoined: res.pledgeJoined });
+      setResult({
+        pledgeGthrId,
+        pledgeJoined: res.pledgeJoined,
+        pledgeWaiting: res.pledgeWaiting,
+      });
       setStage("success");
     } catch {
       setSubmitError(
@@ -338,8 +344,10 @@ export function MemberOnboardingForm({
           ? "페이스는 같이 뛰다 보면 금방 알게 돼요.\n잘 오셨어요!"
           : `${PACE_LABELS[wizardProfile.avgPaceCd]} 페이스요? 기강이랑 딱 맞는 속도예요.\n첫 모임에서 봬요 🔥`;
 
+    // 참석 확정이든 대기 등록이든 "그 모임"을 찾아 이름·날짜를 보여준다 —
+    // 갈리는 건 아래 문구뿐이다. 대기는 실패가 아니라서 마감 안내로 밀지 않는다.
     const pledgedGathering =
-      result?.pledgeJoined && result.pledgeGthrId
+      (result?.pledgeJoined || result?.pledgeWaiting) && result.pledgeGthrId
         ? gatherings.find((g) => g.gthrId === result.pledgeGthrId)
         : null;
 
@@ -374,10 +382,18 @@ export function MemberOnboardingForm({
               </p>
               {result?.pledgeGthrId ? (
                 pledgedGathering ? (
-                  <p className="mt-1.5 text-sm font-semibold text-primary">
-                    {formatKST(pledgedGathering.sttAt, "M/D(ddd)")}{" "}
-                    {pledgedGathering.gthrNm}에서 봬요! 참가 신청 완료됐어요 ✅
-                  </p>
+                  result?.pledgeWaiting ? (
+                    <p className="mt-1.5 text-sm font-semibold text-primary">
+                      {formatKST(pledgedGathering.sttAt, "M/D(ddd)")}{" "}
+                      {pledgedGathering.gthrNm}은 정원이 차서 대기로 등록했어요
+                      — 자리가 나면 알림으로 알려드릴게요
+                    </p>
+                  ) : (
+                    <p className="mt-1.5 text-sm font-semibold text-primary">
+                      {formatKST(pledgedGathering.sttAt, "M/D(ddd)")}{" "}
+                      {pledgedGathering.gthrNm}에서 봬요! 참가 신청 완료됐어요 ✅
+                    </p>
+                  )
                 ) : (
                   <p className="mt-1.5 text-sm text-muted-foreground">
                     모임 신청이 마감됐어요 — 홈 일정에서 다른 모임을 신청해

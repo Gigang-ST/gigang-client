@@ -18,6 +18,9 @@ import { H2, Caption, Micro, SectionLabel } from "@/components/common/typography
 import { Badge } from "@/components/ui/badge";
 
 import { GatheringJoinConditions } from "@/components/schedule/gathering-join-conditions";
+import { GatheringWaitlist, type WaitlistMember } from "@/components/schedule/gathering-waitlist";
+
+import { waitRankOf } from "@/lib/gathering/waitlist";
 
 import { GatheringApplyButton, type MyApplicationState } from "./gathering-apply-button";
 import { GatheringAttendButton } from "./gathering-attend-button";
@@ -48,12 +51,20 @@ export default async function GatheringDetailPage({
   if (!gthr || gthr.team_id !== teamId) notFound();
 
   const admin = createUntypedAdminClient();
-  const [{ data: attendees }, myAttd, { data: comments }, cancelHist] = await Promise.all([
+  const [{ data: attendees }, { data: waitRows }, myAttd, { data: comments }, cancelHist] = await Promise.all([
     // 참석자 목록: RLS 없이 공개 노출 (팀 멤버 확인은 gthr_mst SELECT RLS가 보장)
     admin
       .from("gthr_attd_rel")
       .select("mem_id, mem_mst(mem_id, mem_nm, avatar_url)")
       .eq("gthr_id", id),
+    // 대기 명단: gthr_wait_rel은 신규 테이블이라 아직 DB 타입 미생성 → untyped 관리자
+    // 클라이언트로 조회(gen types 후 교체 예정). RLS 우회지만 대기 명단은 참석자 목록과
+    // 같은 수준으로 팀 멤버 전체 공개다.
+    admin
+      .from("gthr_wait_rel")
+      .select("mem_id, wait_at, mem_mst(mem_id, mem_nm, avatar_url)")
+      .eq("gthr_id", id)
+      .eq("wait_st_cd", "waiting"),
     member
       ? supabase
           .from("gthr_attd_rel")
@@ -74,6 +85,21 @@ export default async function GatheringDetailPage({
   ]);
 
   const isAttending = !!myAttd?.data;
+
+  // 대기 명단 — 참석자 조회와 같은 조인 표기(mem_mst가 배열로 온다)를 그대로 따른다.
+  const waitlist: WaitlistMember[] = (waitRows ?? []).map((w) => {
+    const mem = Array.isArray(w.mem_mst) ? w.mem_mst[0] : w.mem_mst;
+    return {
+      mem_id: w.mem_id,
+      wait_at: w.wait_at,
+      mem_nm: mem?.mem_nm ?? null,
+      avatar_url: mem?.avatar_url ?? null,
+    };
+  });
+  // 참석 버튼 props용 — waitRankOf는 정렬돼 있지 않은 입력도 받는다.
+  const myWaitRank = member ? waitRankOf(waitlist, member.id) : null;
+  const isWaiting = myWaitRank !== null;
+
   // 취소자 = rel에 없고(재참석 시 rel 재존재로 자동 제외) hist상 마지막 이벤트가 cancel인 멤버.
   // 참석자 수·정원 카운트(attendees.length)에는 포함되지 않는다.
   const canceledAttendees = deriveCanceledAttendees(
@@ -220,6 +246,9 @@ export default async function GatheringDetailPage({
               sttAt={gthr.stt_at}
               pastLocked={isPastLocked}
               conditionsOk={conditions.ok}
+              initialWaiting={isWaiting}
+              initialWaitRank={myWaitRank}
+              initialWaitCount={waitlist.length}
             />
           ))}
 
@@ -240,6 +269,9 @@ export default async function GatheringDetailPage({
             </div>
           </div>
         )}
+
+        {/* 대기 명단 */}
+        <GatheringWaitlist entries={waitlist} />
 
         {/* 취소자 목록 */}
         <GatheringCanceledAttendees attendees={canceledAttendees} />

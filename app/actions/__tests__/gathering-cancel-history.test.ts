@@ -46,7 +46,7 @@ vi.mock("@/lib/queries/request-team", () => ({
   getRequestTeamContext: async () => ({ teamId: "team-1" }),
 }));
 vi.mock("@/lib/gathering/join-gathering", () => ({
-  joinGatheringWithCapCheck: async () => ({ joined: true }),
+  joinGatheringWithCapCheck: async () => ({ joined: true, waiting: false }),
 }));
 // toggle-attendance.ts가 취소 성공 후 모임장 알림을 위해 import한다(SG-05) — 이 테스트는 알림 발송
 // 자체를 검증 대상으로 하지 않으므로 no-op으로 스텁(실제 발송 검증은 gathering-cancel-notify.test.ts).
@@ -71,7 +71,7 @@ import { dayjs } from "@/lib/dayjs";
 
 beforeEach(() => {
   h.rpc.mockReset();
-  h.rpc.mockResolvedValue({ error: null });
+  h.rpc.mockResolvedValue({ data: [], error: null });
   // 시작 5시간 전부터는 취소에 사유가 필수다(isCancelReasonRequired). 픽스처에 날짜를 박아 두면
   // 그날이 오는 순간 "사유 없이 취소" 케이스가 통째로 깨진다 — 실제로 2026-08-01에 그렇게 됐다.
   // 시각이 검증 대상이 아닌 테스트이므로 매번 사유가 필요 없는 먼 미래로 잡는다.
@@ -82,7 +82,7 @@ describe("본인 참석 취소 (toggleGatheringAttendance)", () => {
   it("취소 시 cancel_gthr_attendance RPC 를 actor_cd='self' + 사유로 호출한다", async () => {
     const result = await toggleGatheringAttendance("gthr-1", "부상으로 불참");
 
-    expect(result).toEqual({ attending: false });
+    expect(result).toEqual({ state: "none" });
     expect(h.rpc).toHaveBeenCalledWith("cancel_gthr_attendance", {
       p_gthr_id: "gthr-1",
       p_mem_id: "mem-self",
@@ -110,7 +110,7 @@ describe("본인 참석 취소 (toggleGatheringAttendance)", () => {
   });
 
   it("RPC 실패 시 참석 취소 에러를 던진다", async () => {
-    h.rpc.mockResolvedValue({ error: { message: "boom" } });
+    h.rpc.mockResolvedValue({ data: null, error: { message: "boom" } });
     await expect(toggleGatheringAttendance("gthr-1")).rejects.toThrow("참석 취소에 실패했습니다.");
   });
 });
@@ -137,7 +137,7 @@ describe("관리자 참석 취소 (removeGatheringAttendance)", () => {
   });
 
   it("RPC 실패 시 ok:false 를 반환한다", async () => {
-    h.rpc.mockResolvedValue({ error: { message: "boom" } });
+    h.rpc.mockResolvedValue({ data: null, error: { message: "boom" } });
     const result = await removeGatheringAttendance("gthr-1", "mem-2");
     expect(result).toEqual({ ok: false, message: "참석 취소에 실패했습니다" });
   });
