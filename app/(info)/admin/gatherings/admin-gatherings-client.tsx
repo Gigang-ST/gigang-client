@@ -7,12 +7,15 @@ import { toast } from "sonner";
 
 import { currentMonthKST, dayjs, nextMonthStr, prevMonthStr } from "@/lib/dayjs";
 import { deriveCanceledAttendees } from "@/lib/gathering/derive-canceled-attendees";
+import { sortWaitlist } from "@/lib/gathering/waitlist";
 import { createClient } from "@/lib/supabase/client";
 import { gthrTypeLabels, type GthrType } from "@/lib/validations/gathering";
 
 import {
   addGatheringAttendance,
+  listGatheringWaitlist,
   removeGatheringAttendance,
+  type GatheringWaitlistRow,
 } from "@/app/actions/admin/manage-gathering-attendance";
 import {
   listGatheringApplications,
@@ -144,6 +147,7 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
   const [attendeesLoading, setAttendeesLoading] = useState(false);
   const [canceledAttendees, setCanceledAttendees] = useState<CanceledAttendee[]>([]);
   const [canceledLoading, setCanceledLoading] = useState(false);
+  const [waitlist, setWaitlist] = useState<GatheringWaitlistRow[]>([]);
 
   const [activeMembers, setActiveMembers] = useState<ActiveMember[]>([]);
   const [addOpen, setAddOpen] = useState(false);
@@ -303,6 +307,18 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
     );
   }, [teamId]);
 
+  /**
+   * 대기 명단(`waiting` 행) — 정원이 차 줄 서 있는 사람들.
+   * `gthr_wait_rel` 이 신규 테이블이라 database.types.ts 에 없어, 클라이언트가 직접
+   * 조회하지 못하고 untyped 관리자 클라이언트를 쓰는 서버 액션을 거친다
+   * (`listGatheringApplications` 와 같은 이유·같은 자리).
+   */
+  const loadWaitlist = useCallback(async (gthrId: string) => {
+    const rows = await listGatheringWaitlist(gthrId).catch(() => []);
+    if (currentGthrRef.current !== gthrId) return; // 다른 모임으로 전환됨 — 늦은 응답 폐기
+    setWaitlist(rows);
+  }, []);
+
   const openGathering = (g: Gathering) => {
     currentGthrRef.current = g.gthr_id;
     setSelected(g);
@@ -311,6 +327,7 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
     loadAttendees(g.gthr_id);
     loadActiveMembers();
     loadCancelHistory(g.gthr_id);
+    loadWaitlist(g.gthr_id);
     // 승인제가 아닌 모임이면 빈 배열이 와서 섹션이 안 그려진다 — 여기서 미리 가르지 않는다
     // (월 목록 쿼리는 aprv_req_yn 을 안 싣고, 그걸 위해 쿼리를 늘릴 값어치가 없다).
     void listGatheringApplications(g.gthr_id)
@@ -323,6 +340,7 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
     if (!open) {
       currentGthrRef.current = null; // 닫힌 뒤 도착하는 응답/롤백 무효화
       setCanceledAttendees([]); // 다음 모임 열 때 이전 취소 이력이 잠깐 보이는 걸 방지
+      setWaitlist([]); // 다음 모임 열 때 이전 대기 명단이 잠깐 보이는 걸 방지
     }
   };
 
@@ -389,6 +407,8 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
       toast.success(`${member.mem_nm ?? "이름 없음"}님을 참석 처리했습니다`);
       // 재참석이면 취소 목록에서 빠져야 하므로 다시 불러온다.
       if (currentGthrRef.current === gthrId) loadCancelHistory(gthrId);
+      // 대기 중이었다면 RPC 가 그 행을 promoted 로 닫았으므로 명단에서도 빠져야 한다.
+      if (currentGthrRef.current === gthrId) loadWaitlist(gthrId);
     }
     setAdding(false);
   };
@@ -602,6 +622,47 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
                   ))
                 )}
               </div>
+
+              {/* 대기 명단 — 정원이 차 줄 서 있는 사람들(순번은 sortWaitlist 가 정한다).
+                  "바로 추가"는 참가자 추가와 같은 handleAddAttendee 를 그대로 쓴다 — 정원을
+                  안 보는 것도 그대로다. 이게 "필요한 사람 우겨넣기"의 정식 경로이고, RPC 가
+                  이 사람의 대기 행을 자동으로 promoted 로 닫는다. 대기 순서를 손으로 바꾸는
+                  기능은 만들지 않는다 — 바로 추가가 같은 일을 더 직접적으로 한다(설계 §9). */}
+              {waitlist.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <Caption className="text-muted-foreground">
+                    대기 ({waitlist.length}명)
+                  </Caption>
+                  {sortWaitlist(waitlist).map((w, i) => (
+                    <div
+                      key={w.mem_id}
+                      className="flex items-center justify-between rounded-xl border border-border px-3 py-2.5"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Micro className="w-4 shrink-0 text-right tabular-nums text-muted-foreground">
+                          {i + 1}
+                        </Micro>
+                        <Avatar src={w.avatar_url} seed={w.mem_id} alt={w.mem_nm ?? ""} size="sm" />
+                        <Body className="font-medium">{w.mem_nm ?? "이름 없음"}</Body>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={adding}
+                        onClick={() =>
+                          handleAddAttendee({
+                            mem_id: w.mem_id,
+                            mem_nm: w.mem_nm,
+                            avatar_url: w.avatar_url,
+                          })
+                        }
+                      >
+                        바로 추가
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* 취소 이력 간단 노출(SG-03 §4, 선택 범위) — 사유 포함 팀 멤버 전체 공개 정책과 동일 */}
               {!canceledLoading && canceledAttendees.length > 0 && (

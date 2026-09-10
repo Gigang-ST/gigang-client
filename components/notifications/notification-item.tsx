@@ -30,6 +30,7 @@ const NOTI_ICON: Record<string, React.ElementType> = {
   gthr_upd: Users,
   gthr_del: Users,
   gthr_cncl: Users,
+  gthr_promo: Users,
   gthr_aply: UserPlus,
   gthr_aprv: UserCheck,
   gthr_rjct: UserX,

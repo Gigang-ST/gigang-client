@@ -45,7 +45,7 @@ vi.mock("@/lib/queries/request-team", () => ({
   getRequestTeamContext: async () => ({ teamId: "team-1" }),
 }));
 vi.mock("@/lib/gathering/join-gathering", () => ({
-  joinGatheringWithCapCheck: async () => ({ joined: true }),
+  joinGatheringWithCapCheck: async () => ({ joined: true, waiting: false }),
 }));
 // toggle-attendance.ts가 취소 성공 후 모임장 알림을 위해 import한다(SG-05) — 이 테스트는 알림 발송
 // 자체를 검증 대상으로 하지 않으므로 no-op으로 스텁(실제 발송 검증은 gathering-cancel-notify.test.ts).
@@ -66,7 +66,7 @@ import { toggleGatheringAttendance } from "@/app/actions/gathering/toggle-attend
 
 beforeEach(() => {
   h.rpc.mockReset();
-  h.rpc.mockResolvedValue({ error: null });
+  h.rpc.mockResolvedValue({ data: [], error: null });
 });
 
 describe("toggleGatheringAttendance — 임박 취소 사유 필수 서버 강제", () => {
@@ -93,7 +93,7 @@ describe("toggleGatheringAttendance — 임박 취소 사유 필수 서버 강�
 
     const result = await toggleGatheringAttendance("gthr-1", "몸살이 나서 못 갈 것 같아요");
 
-    expect(result).toEqual({ attending: false });
+    expect(result).toEqual({ state: "none" });
     expect(h.rpc).toHaveBeenCalledWith(
       "cancel_gthr_attendance",
       expect.objectContaining({ p_reason: "몸살이 나서 못 갈 것 같아요" }),
@@ -105,7 +105,7 @@ describe("toggleGatheringAttendance — 임박 취소 사유 필수 서버 강�
 
     const result = await toggleGatheringAttendance("gthr-1");
 
-    expect(result).toEqual({ attending: false });
+    expect(result).toEqual({ state: "none" });
     expect(h.rpc).toHaveBeenCalledWith(
       "cancel_gthr_attendance",
       expect.objectContaining({ p_reason: null }),
