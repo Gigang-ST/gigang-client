@@ -9,7 +9,15 @@ import { cn } from "@/lib/utils";
 
 import { toggleGatheringAttendance } from "@/app/actions/gathering/toggle-attendance";
 
+import { Caption } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
+
+import {
+  attendButtonLabel,
+  attendStateOf,
+  waitHintText,
+  type AttendState,
+} from "@/lib/gathering/waitlist";
 
 import { GatheringCancelDialog } from "./gathering-cancel-dialog";
 
@@ -23,11 +31,17 @@ type Props = {
   /** 지난 모임(KST) — 참석/해제 잠금 (관리자는 서버 페이지에서 false로 내려옴) */
   pastLocked?: boolean;
   /**
-   * 참여조건 충족 여부. 미달이면 **등록만** 막는다 — 이미 참석 중인 사람의 취소까지 막으면
-   * 조건이 나중에 걸린 모임에서 빠져나올 길이 사라진다. 서버도 등록에만 조건을 건다.
-   * 조건이 없는 모임은 true 로 내려온다.
+   * 참여조건 충족 여부. 미달이면 **등록·대기 신청만** 막는다 — 이미 참석 중이거나
+   * 대기 중인 사람이 빠져나올 길까지 막으면 조건이 나중에 걸린 모임에서 갇힌다.
+   * 서버도 등록에만 조건을 건다. 조건이 없는 모임은 true 로 내려온다.
    */
   conditionsOk?: boolean;
+  /** 내가 대기 중인가 (서버가 판정해 내려준다) */
+  initialWaiting?: boolean;
+  /** 내 대기 순번(1-based). 대기 중이 아니면 null */
+  initialWaitRank?: number | null;
+  /** 이 모임의 총 대기 인원 */
+  initialWaitCount?: number;
 };
 
 export function GatheringAttendButton({
@@ -38,36 +52,79 @@ export function GatheringAttendButton({
   sttAt,
   pastLocked,
   conditionsOk = true,
+  initialWaiting,
+  initialWaitRank,
+  initialWaitCount,
 }: Props) {
-  const [attending, setAttending] = useState(initialAttending);
+  // 참석·대기·없음 3상태. 대기열이 생기며 boolean 으로는 표현할 수 없게 됐다.
+  const [state, setState] = useState<AttendState>(
+    attendStateOf({ attending: initialAttending, waiting: !!initialWaiting }),
+  );
   const [attdCount, setAttdCount] = useState(currentAttdCount);
+  const [waitRank, setWaitRank] = useState<number | null>(initialWaitRank ?? null);
+  const [waitCount, setWaitCount] = useState(initialWaitCount ?? 0);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [, startTransition] = useTransition();
   // 동기적 재진입 가드 — isPending(리렌더 의존)은 같은 렌더 내 연타를 못 막으므로 ref로 막는다.
   const togglingRef = useRef(false);
 
-  const isFull = !attending && maxPrtCnt !== null && attdCount >= maxPrtCnt;
-  // 조건 잠금은 등록에만 — 이미 참석 중이면 취소는 열어 둔다(위 prop 주석 참고).
-  const conditionLocked = !attending && !conditionsOk;
+  const isFull = state === "none" && maxPrtCnt !== null && attdCount >= maxPrtCnt;
+  // 조건 잠금은 등록·대기 신청에만 — 이미 참석/대기 중이면 취소는 열어 둔다(위 prop 주석 참고).
+  const conditionLocked = state === "none" && !conditionsOk;
 
-  // 참석 등록 — 기존과 동일하게 원탭 즉시 처리(낙관적 업데이트).
+  // 참석 등록(만석이면 대기 신청) — 기존과 동일하게 원탭 즉시 처리(낙관적 업데이트).
   function handleJoin() {
     togglingRef.current = true;
+    const optimistic: AttendState = isFull ? "waiting" : "attending";
     startTransition(async () => {
-      setAttending(true);
-      setAttdCount((c) => c + 1);
+      setState(optimistic);
+      if (optimistic === "attending") setAttdCount((c) => c + 1);
+      // 순번은 서버가 정한다 — 낙관적으로 지어내면 "3번이었는데 5번이 됐다"로 보인다.
+      if (optimistic === "waiting") setWaitRank(null);
       try {
         const result = await toggleGatheringAttendance(gthrId);
-        setAttending(result.attending);
+        setState(result.state);
+        setWaitRank(result.waitRank ?? null);
+        if (result.waitCount !== undefined) setWaitCount(result.waitCount);
         // 참석 등록 시에만 담백한 횟수 피드백(취소는 조용히)
-        if (result.attending && result.monthlyAttendCnt) {
+        if (result.state === "attending" && result.monthlyAttendCnt) {
           toast.success(`이번 달 ${result.monthlyAttendCnt}회 참여!`);
         }
+        // 대기는 "됐다"는 확인이 특히 중요하다 — 참석과 달리 아무 일도 안 일어난 것처럼 보인다.
+        if (result.state === "waiting") {
+          toast.success(
+            result.waitRank ? `대기 ${result.waitRank}번으로 등록했어요` : "대기로 등록했어요",
+          );
+        }
       } catch (e) {
-        setAttending(false);
-        setAttdCount((c) => c - 1);
-        // 서버 거절 사유(지난 모임·인원 마감 등)를 안내 — 무음 롤백이면 버튼 고장으로 오인한다
+        setState("none");
+        if (optimistic === "attending") setAttdCount((c) => c - 1);
+        setWaitRank(null);
+        // 서버 거절 사유(지난 모임·참여조건 등)를 안내 — 무음 롤백이면 버튼 고장으로 오인한다
         toast.error(e instanceof Error ? e.message : "참석 처리에 실패했습니다.");
+      } finally {
+        togglingRef.current = false;
+      }
+    });
+  }
+
+  // 대기 취소 — 참석 취소와 달리 확인 모달이 없다. 자리를 갖고 있던 게 아니라
+  // 남에게 미치는 영향이 없고, 다시 걸면 맨 뒤로 갈 뿐이라 되돌리기도 쉽다.
+  function handleWaitCancel() {
+    togglingRef.current = true;
+    const prevRank = waitRank;
+    startTransition(async () => {
+      setState("none");
+      setWaitRank(null);
+      setWaitCount((c) => Math.max(0, c - 1));
+      try {
+        const result = await toggleGatheringAttendance(gthrId);
+        setState(result.state);
+      } catch (e) {
+        setState("waiting");
+        setWaitRank(prevRank);
+        setWaitCount((c) => c + 1);
+        toast.error(e instanceof Error ? e.message : "대기 취소에 실패했습니다.");
       } finally {
         togglingRef.current = false;
       }
@@ -79,13 +136,13 @@ export function GatheringAttendButton({
   async function handleCancelConfirm(reason?: string) {
     togglingRef.current = true;
     const prevAttdCount = attdCount;
-    setAttending(false);
+    setState("none");
     setAttdCount((c) => c - 1);
     try {
       await toggleGatheringAttendance(gthrId, reason);
       setCancelDialogOpen(false);
     } catch (e) {
-      setAttending(true);
+      setState("attending");
       setAttdCount(prevAttdCount);
       throw e;
     } finally {
@@ -94,32 +151,43 @@ export function GatheringAttendButton({
   }
 
   function handleClick() {
-    if (isFull || pastLocked || conditionLocked || togglingRef.current) return; // 처리 중이면 재클릭 무시(중복 방지) — 버튼은 흐려지지 않음
-    if (attending) {
-      // 참석 취소는 원탭 즉시 처리 대신 사유 확인 모달을 거친다(참석 등록 경로는 그대로 1탭).
+    // isFull 은 더 이상 차단 사유가 아니다 — 만석이면 대기 신청으로 간다.
+    if (pastLocked || conditionLocked || togglingRef.current) return; // 처리 중이면 재클릭 무시(중복 방지) — 버튼은 흐려지지 않음
+    if (state === "attending") {
+      // 참석 취소만 사유 확인 모달을 거친다(등록·대기 경로는 그대로 1탭).
       setCancelDialogOpen(true);
+      return;
+    }
+    if (state === "waiting") {
+      handleWaitCancel();
       return;
     }
     handleJoin();
   }
 
+  const hint = waitHintText(state, waitRank, waitCount);
+
   return (
     <>
-      <Button
-        onClick={handleClick}
-        // 처리 중(isPending)엔 disabled 대신 handleClick 가드로 재클릭만 막아 버튼이 흐려지지 않게 한다.
-        // 낙관적 업데이트로 색이 즉시 바뀌므로 사용자는 "바로 눌렸다"고 느낀다.
-        disabled={isFull || pastLocked || conditionLocked}
-        variant={attending ? "default" : "outline"}
-        className={cn(
-          "w-full",
-          attending && "bg-success hover:bg-success/90 border-success",
-        )}
-      >
-        {/* 지난 모임: 문구 변경 없이 잠금 아이콘 + disabled 흐림으로만 표시 */}
-        {(pastLocked || conditionLocked) && <Lock className="size-3.5" />}
-        {!pastLocked && isFull ? "인원 마감" : attending ? "✅ 참석" : "참석하기"}
-      </Button>
+      <div className="flex flex-col gap-1.5">
+        <Button
+          onClick={handleClick}
+          // 처리 중(isPending)엔 disabled 대신 handleClick 가드로 재클릭만 막아 버튼이 흐려지지 않게 한다.
+          // 낙관적 업데이트로 색이 즉시 바뀌므로 사용자는 "바로 눌렸다"고 느낀다.
+          disabled={pastLocked || conditionLocked}
+          variant={state === "attending" ? "default" : "outline"}
+          className={cn(
+            "w-full",
+            state === "attending" && "bg-success hover:bg-success/90 border-success",
+          )}
+        >
+          {/* 지난 모임: 문구 변경 없이 잠금 아이콘 + disabled 흐림으로만 표시 */}
+          {(pastLocked || conditionLocked) && <Lock className="size-3.5" />}
+          {attendButtonLabel(state, isFull)}
+        </Button>
+
+        {hint && <Caption className="text-center">{hint}</Caption>}
+      </div>
 
       <GatheringCancelDialog
         open={cancelDialogOpen}

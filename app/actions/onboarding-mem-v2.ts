@@ -133,7 +133,13 @@ export async function onboardingCreateMember(args: {
   onbdProfile: OnboardingProfileValues;
   pledgeGthrId: string | null;
 }): Promise<
-  | { ok: true; alreadyRegistered?: boolean; pledgeJoined?: boolean }
+  | {
+      ok: true;
+      alreadyRegistered?: boolean;
+      pledgeJoined?: boolean;
+      /** 정원이 차서 대기열로 들어간 경우 — 실패가 아니다(설계 §6 #19). */
+      pledgeWaiting?: boolean;
+    }
   | { ok: false; message: string }
 > {
   const profileParsed = onboardingProfileSchema.safeParse(args.onbdProfile);
@@ -257,8 +263,11 @@ export async function onboardingCreateMember(args: {
   // 참석 약속 모임 신청 — toggleGatheringAttendance와 공유하는 joinGatheringWithCapCheck 사용
   // (모임 존재·team_id 일치·지난모임잠금·정원재확인·upsert). 방금 만든 회원이라 withMember 래퍼
   // (getCurrentMember 캐시)를 재사용할 수 없어 admin 클라이언트로 직접 처리.
-  // 실패해도 가입 성공 + pledgeJoined:false (완료 화면에서 안내).
+  // **만석이면 오류가 아니라 대기 등록이다.** 예전엔 여기서 실패해 가입 도중에
+  // "모임 신청이 마감됐어요"만 남겼는데, 정원이 찬 정기런을 고른 뉴비가 정확히 그
+  // 경우다. 실패해도 가입 자체는 성공 + pledgeJoined:false (완료 화면에서 안내).
   let pledgeJoined = false;
+  let pledgeWaiting = false;
   if (args.pledgeGthrId) {
     try {
       const result = await joinGatheringWithCapCheck(untypedAdmin, {
@@ -268,7 +277,8 @@ export async function onboardingCreateMember(args: {
         isAdmin: false,
       });
       pledgeJoined = result.joined;
-      if (!result.joined) {
+      pledgeWaiting = result.waiting;
+      if (!result.joined && !result.waiting) {
         console.error("[onboarding] 참석 약속 모임 신청 실패", uid, result.reason);
       }
     } catch (e) {
@@ -276,5 +286,5 @@ export async function onboardingCreateMember(args: {
     }
   }
 
-  return { ok: true, pledgeJoined };
+  return { ok: true, pledgeJoined, pledgeWaiting };
 }

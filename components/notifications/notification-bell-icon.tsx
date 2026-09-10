@@ -41,6 +41,7 @@ const NOTI_TYPE_LABELS: Record<string, string> = {
   gthr_new: "새 모임 등록",
   gthr_upd: "참가 모임 수정·삭제",
   gthr_cncl: "내 모임 참석 취소",
+  gthr_promo: "대기 승급",
   // 새 참가 신청은 개설자·운영진이 받는 운영성 알림이라 끌 수 있다.
   // 반대로 확정(gthr_aprv)·반려(gthr_rjct)는 여기 넣지 않는다 — 입금해 놓고 결과를 못 받으면
   // 사용자는 영문도 모른 채 기다리게 된다. fdbk_rspd 와 같은 이유의 필수 알림이다.

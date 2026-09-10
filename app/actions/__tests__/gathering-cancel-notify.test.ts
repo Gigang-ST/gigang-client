@@ -55,7 +55,7 @@ vi.mock("@/lib/queries/request-team", () => ({
   getRequestTeamContext: async () => ({ teamId: "team-1" }),
 }));
 vi.mock("@/lib/gathering/join-gathering", () => ({
-  joinGatheringWithCapCheck: async () => ({ joined: true }),
+  joinGatheringWithCapCheck: async () => ({ joined: true, waiting: false }),
 }));
 vi.mock("@/lib/notifications/insert-noti", () => ({ insertNoti: h.insertNoti }));
 vi.mock("@/lib/actions/auth", () => ({
@@ -75,7 +75,7 @@ const farFutureStart = () => dayjs().add(30, "day").toISOString();
 
 beforeEach(() => {
   h.rpc.mockReset();
-  h.rpc.mockResolvedValue({ error: null });
+  h.rpc.mockResolvedValue({ data: [], error: null });
   h.insertNoti.mockReset();
   h.cfg.gthr.data.crt_by = "mem-organizer";
   h.cfg.gthr.data.stt_at = farFutureStart();
@@ -85,7 +85,7 @@ describe("toggleGatheringAttendance — 참가자 취소 시 모임장 알림", 
   it("AC-14: 본인 취소 시 모임장에게 gthr_cncl 타입으로 인앱+푸시 알림을 발송한다(수신거부는 gthr_cncl 자체로 판단 — 모임 수정·삭제와 별개)", async () => {
     const result = await toggleGatheringAttendance("gthr-1", "몸살이 나서 못 갈 것 같아요");
 
-    expect(result).toEqual({ attending: false });
+    expect(result).toEqual({ state: "none" });
     expect(h.insertNoti).toHaveBeenCalledTimes(1);
     expect(h.insertNoti).toHaveBeenCalledWith({
       teamId: "team-1",
@@ -120,7 +120,7 @@ describe("toggleGatheringAttendance — 참가자 취소 시 모임장 알림", 
 
     const result = await toggleGatheringAttendance("gthr-1", "일정 변경");
 
-    expect(result).toEqual({ attending: false });
+    expect(result).toEqual({ state: "none" });
     expect(h.insertNoti).not.toHaveBeenCalled();
   });
 
@@ -129,6 +129,6 @@ describe("toggleGatheringAttendance — 참가자 취소 시 모임장 알림", 
 
     const result = await toggleGatheringAttendance("gthr-1", "부상");
 
-    expect(result).toEqual({ attending: false });
+    expect(result).toEqual({ state: "none" });
   });
 });

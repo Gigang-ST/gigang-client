@@ -10,6 +10,7 @@ import { CANCEL_REASON_REQUIRED_MESSAGE, isCancelReasonRequired } from "@/lib/ga
 import { validateCancelReason } from "@/lib/gathering/cancel-reason";
 import { evaluateJoinConditions, joinConditionErrorMessage } from "@/lib/gathering/join-condition";
 import { joinGatheringWithCapCheck } from "@/lib/gathering/join-gathering";
+import { waitRankOf } from "@/lib/gathering/waitlist";
 import { insertNoti } from "@/lib/notifications/insert-noti";
 import { isPastLockedFor } from "@/lib/past-event";
 import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
@@ -18,23 +19,45 @@ import { createUntypedAdminClient } from "@/lib/supabase/admin";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 
 /**
- * 모임 참석 토글.
+ * 참석 토글 결과.
+ *
+ * 대기열이 생기며 boolean 으로는 표현할 수 없게 됐다 — 참석/대기/없음 셋이다
+ * (설계 docs/superpowers/specs/2026-09-10-모임-대기열-design.md §9).
+ */
+export type ToggleAttendanceResult = {
+  state: "attending" | "waiting" | "none";
+  /** 대기 순번(1-based). state === "waiting" 일 때만 실린다. */
+  waitRank?: number;
+  /** 이 모임의 총 대기 인원. */
+  waitCount?: number;
+  /** 참석 확정 시 그 달 본인 총참석 횟수(토스트용). */
+  monthlyAttendCnt?: number;
+};
+
+/**
+ * 모임 참석 토글 — 참석 ↔ 대기 ↔ 없음을 한 번 누를 때마다 순환시킨다.
+ *
+ * - 미참석 + 자리 있음 → 참석(`attending`)
+ * - 미참석 + 만석      → **대기 등록**(`waiting`). 예전엔 "인원이 마감됐습니다"로 거절했다
+ * - 대기 중            → 대기 취소(`none`)
+ * - 참석 중            → 참석 취소(`none`) + 자리가 났으니 대기 1번 자동 승급
+ *
  * 참석 등록 시 `monthlyAttendCnt`(그 모임 stt_at 월 기준 본인 총참석 횟수)를 함께 반환해,
- * 클라이언트가 "이번 달 N회 참석" 토스트를 띄울 수 있게 한다. 취소 시엔 undefined.
+ * 클라이언트가 "이번 달 N회 참석" 토스트를 띄울 수 있게 한다.
  *
  * 취소 시 `reason`(선택 또는 필수)을 넘기면 취소 이력(gthr_attd_hist)에 사유로 저장된다.
  * 모임 시작 GATHERING_CANCEL_IMMINENT_HOURS 시간 전부터의 취소는 사유가 필수다(클라이언트 모달
- * 뿐 아니라 여기서도 재검증 — 클라이언트를 신뢰하지 않음). 등록 토글 시 reason 은 무시.
+ * 뿐 아니라 여기서도 재검증 — 클라이언트를 신뢰하지 않음). 등록·대기 토글 시 reason 은 무시.
  */
 export async function toggleGatheringAttendance(
   gthr_id: string,
   reason?: string,
-): Promise<{ attending: boolean; monthlyAttendCnt?: number }> {
+): Promise<ToggleAttendanceResult> {
   return withActive(async ({ member, supabase }) => {
     // 모임 검증용 조회와 내 참석 여부 조회는 독립적 — 병렬 1 RTT로 (직렬 2 RTT 방지)
     const admin = createUntypedAdminClient();
     const { teamId } = await getRequestTeamContext();
-    const [{ data: gthr }, { data: existing }] = await Promise.all([
+    const [{ data: gthr }, { data: existing }, { data: myWait }] = await Promise.all([
       admin
         .from("gthr_mst")
         .select(
@@ -49,6 +72,18 @@ export async function toggleGatheringAttendance(
         .select("attd_id")
         .eq("gthr_id", gthr_id)
         .eq("mem_id", member.id)
+        .maybeSingle(),
+      // 내 대기 행. 참석 행이 없을 때만 의미가 있지만, 세 상태 판정을 한 왕복에 끝내려고
+      // 함께 가져온다(직렬로 나누면 대기 취소 때만 RTT 가 하나 늘어난다).
+      // 신규 테이블이라 아직 DB 타입 미생성 → untyped 관리자 클라이언트로 조회
+      // (gen types 후 supabase 로 교체 예정). mem_id 를 세션 값으로 못박아 읽으므로
+      // RLS 를 우회해도 남의 행이 나올 수 없다.
+      admin
+        .from("gthr_wait_rel")
+        .select("wait_id")
+        .eq("gthr_id", gthr_id)
+        .eq("mem_id", member.id)
+        .eq("wait_st_cd", "waiting")
         .maybeSingle(),
     ]);
 
@@ -70,6 +105,24 @@ export async function toggleGatheringAttendance(
       throw new Error(APPROVAL_GATHERING_MESSAGE);
     }
 
+    // 대기 취소 — 참석 취소와 **다른 일**이다. 자리를 갖고 있던 게 아니므로
+    // 임박 취소 사유도, 모임장 알림도, 취소 이력(gthr_attd_hist)도 없다.
+    // 그 이력 테이블은 "참석했다가 빠진 사람"을 위한 것이고, 모임 상세의 "취소한 사람"
+    // 표시에 대기자가 섞이면 뜻이 흐려진다. 다시 걸면 맨 뒤로 갈 뿐이라 되돌리기도 쉽다.
+    if (!existing && myWait) {
+      const { error: waitCancelErr } = await admin
+        .from("gthr_wait_rel")
+        .update({ wait_st_cd: "canceled", upd_at: dayjs().toISOString() })
+        .eq("gthr_id", gthr_id)
+        .eq("mem_id", member.id)
+        .eq("wait_st_cd", "waiting");
+      if (waitCancelErr) throw new Error("대기 취소에 실패했습니다.");
+
+      revalidatePath(`/gatherings/${gthr_id}`);
+      updateTag(HOME_CALENDAR_CACHE_TAG);
+      return { state: "none" };
+    }
+
     if (existing) {
       // 사유 길이 상한(500자) 서버 강제 — 초과 시 잘라내지 않고 거부.
       const reasonCheck = validateCancelReason(reason);
@@ -82,10 +135,14 @@ export async function toggleGatheringAttendance(
         throw new Error(CANCEL_REASON_REQUIRED_MESSAGE);
       }
 
-      // 취소 = gthr_attd_rel DELETE + gthr_attd_hist(cancel) INSERT 를 원자적으로.
+      // 취소 = gthr_attd_rel DELETE + gthr_attd_hist(cancel) INSERT + **대기열 승급**을
+      // 원자적으로. 승급을 별도 RPC로 나눠 부르면 ① 두 명이 동시에 취소할 때 둘 다 같은
+      // 대기 1번을 올리려 하고 ② 두 호출 사이에서 죽으면 자리가 빈 채로 영영 남는다
+      // (다음 취소가 나기 전까지 아무도 안 올라간다). 설계 §3-1.
+      //
       // cancel_gthr_attendance RPC 는 service_role 전용(authenticated·anon EXECUTE 회수)이라
       // 본인 인가가 끝난 admin 클라이언트로 호출한다. actor 는 본인(self).
-      const { error: cancelError } = await admin.rpc("cancel_gthr_attendance", {
+      const { data: promotedRaw, error: cancelError } = await admin.rpc("cancel_gthr_attendance", {
         p_gthr_id: gthr_id,
         p_mem_id: member.id,
         p_actor_cd: "self",
@@ -93,6 +150,9 @@ export async function toggleGatheringAttendance(
         p_reason: reasonCheck.value,
       });
       if (cancelError) throw new Error("참석 취소에 실패했습니다.");
+      // RPC 는 승급된 mem_id 배열을 돌려준다. 정원이 여전히 차 있으면(운영진이 우겨넣어
+      // 초과 상태면) 빈 배열이다 — 그게 의도다(설계 §5-1).
+      const promoted: string[] = Array.isArray(promotedRaw) ? promotedRaw : [];
 
       // 홈(/)은 dynamic 렌더(getCurrentMember가 cookies 사용)라 매 요청 새로 조회되므로
       // revalidatePath("/")는 무효화할 캐시가 없어 불필요 — 모임 상세 직접 URL만 무효화한다.
@@ -135,10 +195,47 @@ export async function toggleGatheringAttendance(
             teamId,
             teamMemId: member.team_mem_id,
           }).catch((e) => console.error("[title-engine] gathering_cancel 평가 실패", e)),
+
+          // 대기 → 참석으로 올라간 사람에게. 이 알림이 없으면 자리가 났다는 걸 아무도
+          // 모른다 — 대기열의 존재 이유 자체다. 수신거부는 gthr_promo 자체 설정으로 판단.
+          ...promoted.map((promotedMemId) =>
+            insertNoti({
+              teamId,
+              memId: promotedMemId,
+              notiTypeEnm: "gthr_promo",
+              notiNm: `'${gthr.gthr_nm}' 자리가 나서 참석이 확정됐어요`,
+              notiCont: "대기 중이던 모임에 자리가 생겨 자동으로 참석 처리했어요.",
+              refId: gthr_id,
+              refTypeEnm: "gathering",
+            }).catch((e) => console.error("[gthr_promo] 알림 발송 실패", e)),
+          ),
+
+          // 승급자의 칭호 평가 — 승급도 참석 확정이다. 안 돌리면 정확히 정원 번째로
+          // 올라간 사람이 `막차`를 못 받는다. RPC 는 mem_id 만 주므로 team_mem_id 를 찾는다.
+          promoted.length
+            ? (async () => {
+                const { data: rels } = await admin
+                  .from("team_mem_rel")
+                  .select("team_mem_id")
+                  .eq("team_id", teamId)
+                  .eq("vers", 0)
+                  .eq("del_yn", false)
+                  .in("mem_id", promoted);
+                await Promise.all(
+                  ((rels ?? []) as { team_mem_id: string }[]).map((r) =>
+                    evaluateAndGrantTitles({
+                      trigger: "gathering_attend",
+                      teamId,
+                      teamMemId: r.team_mem_id,
+                    }).catch((e) => console.error("[title-engine] 승급자 평가 실패", e)),
+                  ),
+                );
+              })()
+            : Promise.resolve(),
         ]);
       });
 
-      return { attending: false };
+      return { state: "none" };
     }
 
     // 참여조건은 **등록에만** 건다(취소는 조건과 무관하다 — 위 취소 분기는 이미 반환됐다).
@@ -150,26 +247,45 @@ export async function toggleGatheringAttendance(
       throw new Error(joinConditionErrorMessage(conditions));
     }
 
-    // 정원 재확인 + upsert는 온보딩(onboardingCreateMember)과 공유하는 유틸 사용
-    // (모임 존재·지난모임잠금은 위에서 이미 검증했으므로 여기선 정원+upsert만 수행됨).
-    // INSERT는 member의 RLS 클라이언트(supabase)로 — 참석 등록의 self-only insert 정책을
-    // DB 레벨에서 유지한다(admin 우회 회귀 방지). 조회/정원은 admin으로.
+    // 정원 재확인 + INSERT(또는 대기 등록)는 온보딩(onboardingCreateMember)과 공유하는
+    // 유틸 사용. 그 안에서 join_gthr_or_wait RPC 가 모임 행을 FOR UPDATE 로 잠그고
+    // 처리하므로 여기서 정원을 따로 세지 않는다 — 예전의 COUNT→upsert 2단계는
+    // 원자적이지 않아 만석 직전 동시 클릭에 정원+1 이 됐다(설계 §4).
+    //
+    // INSERT 가 RPC(service_role) 안으로 들어가며 "본인만 INSERT" RLS 정책의 보호가
+    // 사라지므로, RPC 는 authenticated·anon EXECUTE 를 회수했고 `memId` 에는 세션에서
+    // 꺼낸 member.id 만 넘긴다(클라이언트 입력이 이 인자에 닿는 경로를 만들지 않는다).
     const joinResult = await joinGatheringWithCapCheck(admin, {
       gthrId: gthr_id,
       memId: member.id,
       teamId,
       isAdmin: member.admin,
-      writeClient: supabase,
     });
 
-    if (!joinResult.joined) {
-      if (joinResult.reason === "full") throw new Error("인원이 마감됐습니다.");
+    if (!joinResult.joined && !joinResult.waiting) {
       throw new Error("참석 등록에 실패했습니다.");
     }
 
     // 홈(/)은 dynamic이라 revalidate 불필요(위 취소 경로 주석 참고). 모임 상세 직접 URL만 무효화.
     revalidatePath(`/gatherings/${gthr_id}`);
     updateTag(HOME_CALENDAR_CACHE_TAG);
+
+    // 만석이라 대기로 들어간 경우 — 순번은 **서버가 정한다.** 클라이언트가 낙관적으로
+    // 지어낼 수 없는 값이라 여기서 계산해 돌려준다(설계 §9).
+    // 칭호 평가도 하지 않는다: 아직 참석이 아니다.
+    if (joinResult.waiting) {
+      const { data: waitRows } = await admin
+        .from("gthr_wait_rel")
+        .select("mem_id, wait_at")
+        .eq("gthr_id", gthr_id)
+        .eq("wait_st_cd", "waiting");
+      const entries = (waitRows ?? []) as { mem_id: string; wait_at: string }[];
+      return {
+        state: "waiting",
+        waitRank: waitRankOf(entries, member.id) ?? undefined,
+        waitCount: entries.length,
+      };
+    }
 
     // 신청 순간에 확정되는 것만 여기서 본다 — 실질적으로 `막차`(정확히 정원 번째) 하나다.
     // 참석 계열(미라클·3연벙 등)은 여기 없다: 아직 열리지도 않은 모임을 **신청만 해도**
@@ -199,6 +315,6 @@ export async function toggleGatheringAttendance(
       monthlyAttendCnt = undefined;
     }
 
-    return { attending: true, monthlyAttendCnt };
+    return { state: "attending", monthlyAttendCnt };
   });
 }

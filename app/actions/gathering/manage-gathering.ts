@@ -6,7 +6,7 @@ import { after } from "next/server";
 import { dayjs } from "@/lib/dayjs";
 import { withActive, withMember } from "@/lib/actions/auth";
 import { isPastLockedFor, PAST_EVENT_ERROR } from "@/lib/past-event";
-import { insertNotiMany } from "@/lib/notifications/insert-noti";
+import { insertNoti, insertNotiMany } from "@/lib/notifications/insert-noti";
 import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
@@ -147,7 +147,9 @@ export async function updateGathering(input: {
     // 지난 모임(KST 날짜 기준) 수정 차단 — 관리자만 예외. 알림용 기존 모임명도 같이 조회.
     const { data: existing } = await supabase
       .from("gthr_mst")
-      .select("gthr_nm, stt_at, end_at, crt_by, aprv_req_yn, req_attd_cnt, req_attd_months")
+      .select(
+        "gthr_nm, stt_at, end_at, crt_by, aprv_req_yn, req_attd_cnt, req_attd_months, max_prt_cnt",
+      )
       .eq("gthr_id", gthr_id)
       .single();
     if (!existing) throw new Error("모임을 찾을 수 없습니다.");
@@ -259,6 +261,45 @@ export async function updateGathering(input: {
         console.error("[gthr_upd] 알림 발송 실패", e);
       }
     });
+
+    // 정원이 **늘어난** 경우에만 대기열을 당긴다(설계 §5, §6 #6).
+    //
+    // 줄어든 경우엔 아무것도 하지 않는다 — 이미 확정된 참석자를 시스템이 내리지 않는다.
+    // 정원을 처음 지정한 경우(null → 숫자)도 제외한다: 늘린 게 아니라 **제한을 건** 것이라
+    // 그 전까지는 무제한이었고, 무제한 모임엔 대기자가 생길 수 없다.
+    //
+    // 위 gthr_upd 알림과 같은 after() 에 묶지 않는다 — 그쪽은 참석자가 없으면 early return
+    // 하므로 참석자가 0명인 모임(정원을 늘리는 그 순간엔 만석이라 있을 수 없지만, 구조적으로)
+    // 에서 승급이 통째로 건너뛰어진다.
+    const capBefore = existing.max_prt_cnt;
+    const capAfter = parsed.max_prt_cnt !== undefined ? parsed.max_prt_cnt : capBefore;
+    if (capBefore !== null && capAfter !== null && capAfter > capBefore) {
+      after(async () => {
+        try {
+          const admin = createUntypedAdminClient();
+          const { data: promotedRaw } = await admin.rpc("promote_gthr_waitlist", {
+            p_gthr_id: gthr_id,
+            p_team_id: teamId,
+          });
+          const promoted: string[] = Array.isArray(promotedRaw) ? promotedRaw : [];
+          await Promise.all(
+            promoted.map((memId) =>
+              insertNoti({
+                teamId,
+                memId,
+                notiTypeEnm: "gthr_promo",
+                notiNm: `'${gthrNm}' 정원이 늘어 참석이 확정됐어요`,
+                notiCont: "대기 중이던 모임에 자리가 생겨 자동으로 참석 처리했어요.",
+                refId: gthr_id,
+                refTypeEnm: "gathering",
+              }).catch((e) => console.error("[gthr_promo] 정원 증가 알림 실패", e)),
+            ),
+          );
+        } catch (e) {
+          console.error("[gthr_promo] 정원 증가 승급 실패", e);
+        }
+      });
+    }
 
     // 홈은 클라이언트 재조회가 갱신 담당 — 직접 URL 방문 대비 모임 상세만 무효화.
     // 홈 캘린더 캐시는 위(UPDATE 직후)에서 이미 털었다 — 여기서 또 부르지 않는다.
