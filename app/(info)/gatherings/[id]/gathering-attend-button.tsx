@@ -5,11 +5,13 @@ import { useRef, useState, useTransition } from "react";
 import { Lock } from "lucide-react";
 import { toast } from "sonner";
 
+import { isWaitlistOpenToAll } from "@/lib/gathering/cancel-imminent";
 import { cn } from "@/lib/utils";
 
 import { toggleGatheringAttendance } from "@/app/actions/gathering/toggle-attendance";
 
 import { Caption } from "@/components/common/typography";
+import { WaitConfirmDialog } from "@/components/schedule/wait-confirm-dialog";
 import { Button } from "@/components/ui/button";
 
 import {
@@ -64,6 +66,7 @@ export function GatheringAttendButton({
   const [waitRank, setWaitRank] = useState<number | null>(initialWaitRank ?? null);
   const [waitCount, setWaitCount] = useState(initialWaitCount ?? 0);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [waitConfirmOpen, setWaitConfirmOpen] = useState(false);
   const [, startTransition] = useTransition();
   // 동기적 재진입 가드 — isPending(리렌더 의존)은 같은 렌더 내 연타를 못 막으므로 ref로 막는다.
   const togglingRef = useRef(false);
@@ -71,6 +74,10 @@ export function GatheringAttendButton({
   const isFull = state === "none" && maxPrtCnt !== null && attdCount >= maxPrtCnt;
   // 조건 잠금은 등록·대기 신청에만 — 이미 참석/대기 중이면 취소는 열어 둔다(위 prop 주석 참고).
   const conditionLocked = state === "none" && !conditionsOk;
+  // 시작 2시간 전부터는 대기 순번이 없고 선착순이다 — 버튼·안내·확인 문구가 통째로 갈린다.
+  // 렌더마다 다시 계산해 모달이 열려 있는 동안 경계를 넘어도 값이 굳지 않게 한다
+  // (GatheringCancelDialog 의 reasonRequired 와 같은 태도).
+  const openToAll = isWaitlistOpenToAll(sttAt);
 
   // 참석 등록(만석이면 대기 신청) — 기존과 동일하게 원탭 즉시 처리(낙관적 업데이트).
   function handleJoin() {
@@ -162,10 +169,17 @@ export function GatheringAttendButton({
       handleWaitCancel();
       return;
     }
+    // 만석이라 대기(또는 빈 자리 알림 요청)로 들어가는 경우에만 확인을 받는다 —
+    // 자리가 나면 **자동으로 참석자가 되는데** 그건 되돌리기 번거로운 일이라
+    // 누르기 전에 알려야 한다. 자리가 있어 바로 참석하는 경로는 그대로 1탭이다.
+    if (isFull) {
+      setWaitConfirmOpen(true);
+      return;
+    }
     handleJoin();
   }
 
-  const hint = waitHintText(state, waitRank, waitCount);
+  const hint = waitHintText(state, waitRank, waitCount, openToAll);
 
   return (
     <>
@@ -183,7 +197,7 @@ export function GatheringAttendButton({
         >
           {/* 지난 모임: 문구 변경 없이 잠금 아이콘 + disabled 흐림으로만 표시 */}
           {(pastLocked || conditionLocked) && <Lock className="size-3.5" />}
-          {attendButtonLabel(state, isFull)}
+          {attendButtonLabel(state, isFull, openToAll)}
         </Button>
 
         {hint && <Caption className="text-center">{hint}</Caption>}
@@ -194,6 +208,13 @@ export function GatheringAttendButton({
         onOpenChange={setCancelDialogOpen}
         sttAt={sttAt}
         onConfirm={handleCancelConfirm}
+      />
+
+      <WaitConfirmDialog
+        open={waitConfirmOpen}
+        onOpenChange={setWaitConfirmOpen}
+        openToAll={openToAll}
+        onConfirm={handleJoin}
       />
     </>
   );

@@ -27,6 +27,7 @@ import {
 } from "@/components/schedule/gathering-applications-section";
 import { GatheringJoinConditions } from "@/components/schedule/gathering-join-conditions";
 import { GatheringWaitlist, type WaitlistMember } from "@/components/schedule/gathering-waitlist";
+import { WaitConfirmDialog } from "@/components/schedule/wait-confirm-dialog";
 import { GatheringCancelDialog } from "@/app/(info)/gatherings/[id]/gathering-cancel-dialog";
 import {
   GatheringCanceledAttendees,
@@ -151,6 +152,7 @@ export function GatheringDetailDialog({
   const [waitCount, setWaitCount] = useState(0);
   const [waitlist, setWaitlist] = useState<WaitlistMember[]>([]);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [waitConfirmOpen, setWaitConfirmOpen] = useState(false);
   const [attdCount, setAttdCount] = useState(gathering?.regCount ?? 0);
   const [attendees, setAttendees] = useState(gathering?.attendees ?? []);
   const [canceledAttendees, setCanceledAttendees] = useState<CanceledAttendee[]>(gathering?.canceledAttendees ?? []);
@@ -409,7 +411,22 @@ export function GatheringDetailDialog({
       return;
     }
 
-    // 미참석 — 자리가 있으면 참석, 만석이면 대기 신청. 둘 다 원탭 즉시 처리(낙관적 업데이트).
+    // 미참석 + 만석 — 대기(또는 빈 자리 알림 요청)로 들어가기 전에 확인을 받는다.
+    // 자리가 나면 **자동으로 참석자가 되는데** 되돌리기 번거로운 일이라 누르기 전에 알린다.
+    // 자리가 있어 바로 참석하는 경로는 그대로 1탭이다(§4-2).
+    if (isFull) {
+      setWaitConfirmOpen(true);
+      return;
+    }
+
+    await handleJoin();
+  }
+
+  /** 실제 등록(참석 또는 대기) — 만석이면 확인 모달을 거쳐 여기로 온다. */
+  async function handleJoin() {
+    if (!currentMemberId || togglingRef.current) return;
+
+    // 자리가 있으면 참석, 만석이면 대기 신청. 둘 다 원탭 즉시 처리(낙관적 업데이트).
     togglingRef.current = true;
     const optimistic: AttendState = isFull ? "waiting" : "attending";
     const prevCanceled = canceledAttendees;
@@ -838,6 +855,13 @@ export function GatheringDetailDialog({
       onOpenChange={setCancelDialogOpen}
       sttAt={gathering.evt_stt_at ?? gathering.start_date}
       onConfirm={handleCancelConfirm}
+    />
+    {/* 상세 페이지와 **같은 컴포넌트**를 쓴다 — 각자 만들면 문구가 한쪽만 바뀐다. */}
+    <WaitConfirmDialog
+      open={waitConfirmOpen}
+      onOpenChange={setWaitConfirmOpen}
+      openToAll={waitlistOpenToAll}
+      onConfirm={() => void handleJoin()}
     />
     <MemberCardDialog
       memId={selectedMember?.memId ?? null}
