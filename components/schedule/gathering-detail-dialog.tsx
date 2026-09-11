@@ -6,7 +6,10 @@ import { Copy, ExternalLink, Lock, Pencil, Share2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { dayjs, parseEventTime } from "@/lib/dayjs";
+import { isWaitlistOpenToAll } from "@/lib/gathering/cancel-imminent";
+import { waitRankOf } from "@/lib/gathering/waitlist";
 import { isPastLockedFor } from "@/lib/past-event";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { gthrTypeLabels, gthrSprtLabels, type GthrType, type GthrSprtType } from "@/lib/validations/gathering";
 
@@ -23,6 +26,7 @@ import {
   type GatheringApplication,
 } from "@/components/schedule/gathering-applications-section";
 import { GatheringJoinConditions } from "@/components/schedule/gathering-join-conditions";
+import { GatheringWaitlist, type WaitlistMember } from "@/components/schedule/gathering-waitlist";
 import { GatheringCancelDialog } from "@/app/(info)/gatherings/[id]/gathering-cancel-dialog";
 import {
   GatheringCanceledAttendees,
@@ -136,16 +140,16 @@ export function GatheringDetailDialog({
   const [inactiveGateOpen, setInactiveGateOpen] = useState(false);
   // 참석·대기·없음 3상태. 대기열이 생기며 boolean 으로는 표현할 수 없게 됐다.
   //
-  // ⚠️ 이 다이얼로그의 부모(mini-calendar.tsx)는 아직 내 대기 여부·순번을 조회해 넘기지
-  // 않는다(get_gathering_detail RPC가 anon 실행 허용 SECURITY DEFINER 라 대기 명단까지
-  // 실으면 비로그인에게 샌다 — 상세 페이지 주석과 같은 문제). 그래서 초기값은 항상
-  // waiting:false 로 좁혀 시작한다 — 이미 대기 중이던 사람이 다이얼로그를 다시 열면
-  // 버튼이 "참석하기"로 보이는 건 알려진 제약이고, 대기 명단을 함께 붙이는 후속 작업의 몫이다.
+  // 부모(mini-calendar.tsx)는 내 대기 여부를 넘기지 않는다 — get_gathering_detail RPC 가
+  // anon 실행 허용이라 대기 명단을 실으면 비로그인에게 새기 때문이다. 그래서 초기값은
+  // waiting:false 로 시작하고, 열린 뒤 loadWaitlist()가 테이블을 직접 읽어 맞춘다
+  // (gthr_wait_rel 의 RLS 가 비로그인·타팀을 막는다 — 설계 §4-1).
   const [state, setState] = useState<AttendState>(
     attendStateOf({ attending: initialIsAttending ?? false, waiting: false }),
   );
   const [waitRank, setWaitRank] = useState<number | null>(null);
   const [waitCount, setWaitCount] = useState(0);
+  const [waitlist, setWaitlist] = useState<WaitlistMember[]>([]);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [attdCount, setAttdCount] = useState(gathering?.regCount ?? 0);
   const [attendees, setAttendees] = useState(gathering?.attendees ?? []);
@@ -173,6 +177,8 @@ export function GatheringDetailDialog({
   const [applications, setApplications] = useState<GatheringApplication[] | null>(null);
   // 모임 전환 시 늦은 응답을 버리기 위한 요청 번호(관리자 화면 currentGthrRef 와 같은 역할).
   const viewerStateReqRef = useRef(0);
+  /** 대기 명단 조회의 늦은 응답 폐기용(위와 같은 이유, 다른 요청이라 카운터를 따로 둔다). */
+  const waitlistReqRef = useRef(0);
   const canReview = !!currentMemberId && (isAdmin === true || currentMemberId === gathering?.crt_by);
 
   // ⚠️ 승인제가 아니어도 **참여조건만 걸린 모임**이 있다. 둘은 독립 옵션이라
@@ -204,11 +210,46 @@ export function GatheringDetailDialog({
     }
   }, [gathering?.id, gathering?.aprvReqYn, needsViewerState, currentMemberId, canReview]);
 
+  /**
+   * 대기 명단 — **RPC 가 아니라 테이블을 직접 읽는다.**
+   *
+   * `get_gathering_detail` 은 anon 실행이 허용된 SECURITY DEFINER 라 대기자 이름을 실으면
+   * 비로그인에게 샌다. 반면 `gthr_wait_rel` 에는 `authenticated` + 팀 멤버 한정 SELECT RLS 가
+   * 걸려 있어, 세션 클라이언트로 직접 읽으면 RLS 가 알아서 막는다(비로그인 0행, 타팀 0행).
+   * 그래서 RPC 수정도 마이그레이션도 없다(설계 §4-1).
+   *
+   * 늦은 응답 폐기는 viewerStateReqRef 와 같은 이유로 필요하다 — 모임 A 를 열자마자 닫고
+   * B 를 열면 A 의 명단이 B 화면을 덮는다.
+   */
+  const loadWaitlist = useCallback(async (gthrId: string) => {
+    const reqId = ++waitlistReqRef.current;
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("gthr_wait_rel")
+      .select("mem_id, wait_at, mem_mst(mem_nm, avatar_url)")
+      .eq("gthr_id", gthrId)
+      .eq("wait_st_cd", "waiting");
+    if (reqId !== waitlistReqRef.current) return;
+
+    setWaitlist(
+      (data ?? []).map((w) => {
+        const mem = Array.isArray(w.mem_mst) ? w.mem_mst[0] : w.mem_mst;
+        return {
+          mem_id: w.mem_id,
+          wait_at: w.wait_at,
+          mem_nm: mem?.mem_nm ?? null,
+          avatar_url: mem?.avatar_url ?? null,
+        };
+      }),
+    );
+  }, []);
+
   // 열릴 때마다 새로 받는다 — 다른 기기·운영진이 그 사이 승인했을 수 있다.
   useEffect(() => {
     if (!open) return;
     loadMyApplication();
-  }, [open, loadMyApplication]);
+    if (gathering?.id) void loadWaitlist(gathering.id);
+  }, [open, gathering?.id, loadMyApplication, loadWaitlist]);
 
   // gathering prop이 바뀌거나 justCreated가 바뀌면 로컬 상태 동기화
   // (렌더 중 파생 state 업데이트 — React 공식 패턴: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes)
@@ -220,10 +261,11 @@ export function GatheringDetailDialog({
   if (syncKey !== lastSyncKey) {
     setLastSyncKey(syncKey);
     // 대기 상태도 같이 맞춘다 — 안 그러면 다른 모임을 열었을 때 이전 모임의 대기
-    // 순번·인원이 그대로 남는다. 위 state 선언부 주석대로 waiting 은 아직 항상 false로 시작.
+    // 순번·인원이 그대로 남는다. waiting 은 false 로 시작하고 명단이 도착하면 아래에서 맞춘다.
     setState(attendStateOf({ attending: initialIsAttending ?? false, waiting: false }));
     setWaitRank(null);
     setWaitCount(0);
+    setWaitlist([]);
     setAttdCount(gathering?.regCount ?? 0);
     setAttendees(gathering?.attendees ?? []);
     setCanceledAttendees(gathering?.canceledAttendees ?? []);
@@ -231,6 +273,22 @@ export function GatheringDetailDialog({
     // 다른 모임을 열면 이전 모임의 신청 상태가 잠깐 보이지 않게 지운다.
     setMyAply(null);
     setApplications(null);
+  }
+
+  // 대기 명단이 도착하면 내 상태·순번·인원을 한 번 맞춘다.
+  //
+  // **명단이 바뀔 때만** 맞춘다(waitKey). 토글을 누른 뒤에는 서버 액션의 응답이 정본이라,
+  // 매 렌더 덮어쓰면 낙관적 업데이트가 조회 결과로 되돌아간다.
+  // 참석이 대기를 이기는 판정은 attendStateOf 와 같은 방향이다 — 승급 직후 대기 행이
+  // 아직 안 닫힌 찰나에도 "참석"으로 보여야 한다.
+  const myWaitRank = currentMemberId ? waitRankOf(waitlist, currentMemberId) : null;
+  const waitKey = `${gKey}:${waitlist.map((w) => w.mem_id).join(",")}`;
+  const [lastWaitKey, setLastWaitKey] = useState(waitKey);
+  if (waitKey !== lastWaitKey) {
+    setLastWaitKey(waitKey);
+    setWaitCount(waitlist.length);
+    setWaitRank(myWaitRank);
+    if (!initialIsAttending && myWaitRank !== null) setState("waiting");
   }
 
   // 참석자 명단이 **밖에서** 바뀌면 다시 받아 그린다.
@@ -284,6 +342,8 @@ export function GatheringDetailDialog({
   const conditionLocked = state === "none" && myAply != null && !myAply.conditions.ok;
   // 지난 모임(KST 날짜 기준)은 수정·삭제·참석 변경 불가 — 관리자만 예외 (서버 액션에서도 동일 검증)
   const isPastLocked = isPastLockedFor(isAdmin, gathering.evt_stt_at ?? gathering.start_date, gathering.evt_end_at);
+  // 시작 2시간 전부터는 대기 순번이 없고 선착순이다 — 버튼·안내 문구가 통째로 갈린다.
+  const waitlistOpenToAll = isWaitlistOpenToAll(gathering.evt_stt_at ?? gathering.start_date);
 
   // evt_stt_at 없으면 start_date(날짜만)로 폴백 — parseEventTime이 KST 자정으로 고정해
   // 기기 타임존에 따라 시각 표시가 어긋나지 않게 한다(isPastLocked·취소 판정과 동일 기준).
@@ -620,13 +680,15 @@ export function GatheringDetailDialog({
                     <>
                       {/* 지난 모임·조건 미달: 문구 변경 없이 잠금 아이콘 + disabled 흐림으로만 표시 */}
                       {(isPastLocked || conditionLocked) && <Lock className="size-3.5" />}
-                      {attendButtonLabel(state, isFull)}
+                      {attendButtonLabel(state, isFull, waitlistOpenToAll)}
                     </>
                   )}
                 </Button>
 
-                {!viewerInactive && waitHintText(state, waitRank, waitCount) && (
-                  <Caption className="text-center">{waitHintText(state, waitRank, waitCount)}</Caption>
+                {!viewerInactive && waitHintText(state, waitRank, waitCount, waitlistOpenToAll) && (
+                  <Caption className="text-center">
+                    {waitHintText(state, waitRank, waitCount, waitlistOpenToAll)}
+                  </Caption>
                 )}
               </div>
             )}
@@ -659,6 +721,10 @@ export function GatheringDetailDialog({
                 ))}
               </div>
             ) : null}
+
+            {/* 대기 명단 — 상세 페이지와 **같은 컴포넌트**를 쓴다(각자 만들면 순번 표기가
+                한쪽만 바뀐다). 대기자가 없으면 스스로 아무것도 그리지 않는다. */}
+            <GatheringWaitlist entries={waitlist} />
 
             {/* 취소자 목록 — 상세 페이지(SG-03)와 동등한 회색 표시(취소 시각·사유). 카운트엔 미포함. */}
             <GatheringCanceledAttendees attendees={canceledAttendees} />

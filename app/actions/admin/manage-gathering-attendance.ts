@@ -184,10 +184,8 @@ export type GatheringWaitlistRow = {
 /**
  * 대기 명단 조회 — `wait_st_cd = 'waiting'` 행만.
  *
- * `gthr_wait_rel` 은 신규 테이블이라 아직 database.types.ts 에 없다 → untyped 관리자
- * 클라이언트로 조회한다(gen types 후 typed 클라이언트로 교체 예정). FK 는 mem_id → mem_mst
- * 하나뿐이라(gthr_aply_rel 과 달리 mem_id/rvw_by 둘이 아니다) 임베드에 별도 FK 이름
- * 지정이 필요 없다.
+ * FK 는 mem_id → mem_mst 하나뿐이라(gthr_aply_rel 과 달리 mem_id/rvw_by 둘이 아니다)
+ * 임베드에 별도 FK 이름 지정이 필요 없다.
  */
 export async function listGatheringWaitlist(gthrId: string): Promise<GatheringWaitlistRow[]> {
   return withAdminOrThrow(async () => {
@@ -197,8 +195,7 @@ export async function listGatheringWaitlist(gthrId: string): Promise<GatheringWa
     const inTeam = await verifyGatheringInTeam(db, gthrId, teamId);
     if (!inTeam) return [];
 
-    const untyped = createUntypedAdminClient();
-    const { data, error } = await untyped
+    const { data, error } = await db
       .from("gthr_wait_rel")
       .select("mem_id, wait_at, mem_mst(mem_nm, avatar_url)")
       .eq("gthr_id", gthrId)
@@ -209,14 +206,13 @@ export async function listGatheringWaitlist(gthrId: string): Promise<GatheringWa
       return [];
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (data ?? []).map((row: any) => {
+    return (data ?? []).map((row) => {
       const m = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst;
       return {
-        mem_id: row.mem_id as string,
-        wait_at: row.wait_at as string,
-        mem_nm: (m?.mem_nm as string | null) ?? null,
-        avatar_url: (m?.avatar_url as string | null) ?? null,
+        mem_id: row.mem_id,
+        wait_at: row.wait_at,
+        mem_nm: m?.mem_nm ?? null,
+        avatar_url: m?.avatar_url ?? null,
       };
     });
   });
