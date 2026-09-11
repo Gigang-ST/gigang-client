@@ -87,6 +87,9 @@ const NOTI_ROUTE: Record<
   gthr_del: () => SCHEDULE,
   gthr_cncl: (refId) => (refId ? `${SCHEDULE}?gthr=${refId}` : SCHEDULE),
   gthr_promo: (refId) => (refId ? `${SCHEDULE}?gthr=${refId}` : SCHEDULE),
+  // 선착순 구간 빈 자리 — 목적지는 gthr_promo 와 같지만 할 일이 다르다.
+  // 저건 이미 확정된 통보이고, 이건 가서 **직접 참석을 눌러야** 한다.
+  gthr_seat: (refId) => (refId ? `${SCHEDULE}?gthr=${refId}` : SCHEDULE),
   // 모임 참가 신청·확정·반려 — 셋 다 그 모임으로. 신청 알림을 받은 운영진은 거기서
   // 신청 관리 섹션을 보고, 신청자는 자기 상태(확정/반려 사유)를 같은 자리에서 본다.
   gthr_aply: (refId) => (refId ? `${SCHEDULE}?gthr=${refId}` : SCHEDULE),

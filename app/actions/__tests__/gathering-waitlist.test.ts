@@ -293,14 +293,23 @@ describe("선착순 구간 취소 — 승급 대신 빈 자리 알림", () => {
     );
   });
 
-  it("시작 5시간 전 취소면 보내지 않는다 — 자동 승급이 도는 구간이다", async () => {
+  // 두 경계 사이(2~5시간): 취소 사유는 필수지만 대기 순번은 아직 살아 있다.
+  // 여기서 빈 자리 알림이 나가면 자동 승급과 이중으로 알리는 꼴이 된다.
+  //
+  // ⚠️ "정확히 5시간"으로 잡지 않는다 — 액션이 도는 몇 ms 사이에 5시간 미만이 되어
+  //    사유 필수에 걸리고, 통과 여부가 밀리초로 갈리는 플레이키가 된다(실제로 겪었다).
+  it("시작 3시간 전 취소면 보내지 않는다 — 자동 승급이 도는 구간이다", async () => {
     h.cfg.existing.data = { attd_id: "attd-1" };
-    h.cfg.gthr.data.stt_at = dayjs().add(5, "hour").toISOString();
+    h.cfg.gthr.data.stt_at = dayjs().add(3, "hour").toISOString();
     h.rpc.mockResolvedValue({ data: ["mem-next"], error: null });
 
-    await toggleGatheringAttendance("gthr-1");
+    await toggleGatheringAttendance("gthr-1", "개인 사정");
 
     expect(h.notifyOpenSeat).not.toHaveBeenCalled();
+    // 대신 승급자에게는 확정 알림이 나간다.
+    expect(h.insertNoti).toHaveBeenCalledWith(
+      expect.objectContaining({ notiTypeEnm: "gthr_promo", memId: "mem-next" }),
+    );
   });
 
   it("먼 미래 모임 취소도 보내지 않는다", async () => {
