@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // 선착순 구간(시작 2시간 전~) 빈 자리 알림. 대기자 전원에게, 모임당 1회.
 
 const h = vi.hoisted(() => ({
-  insertNotiMany: vi.fn(async () => ({ inAppOk: true, notifiedMemIds: [] as string[] })),
+  // 인자 타입을 명시해야 mock.calls[0][0] 로 문구를 꺼내 볼 수 있다.
+  insertNotiMany: vi.fn(async (_input: { notiNm: string; notiCont: string }) => ({
+    inAppOk: true,
+    notifiedMemIds: [] as string[],
+  })),
   waiting: { data: [] as { mem_id: string }[] },
   alreadySent: { data: [] as { mem_id: string }[] },
 }));
@@ -68,10 +72,7 @@ describe("notifyOpenSeat", () => {
 
     await notifyOpenSeat(admin, ARGS);
 
-    const arg = h.insertNotiMany.mock.calls[0][0] as unknown as {
-      notiNm: string;
-      notiCont: string;
-    };
+    const arg = h.insertNotiMany.mock.calls[0][0];
     expect(arg.notiNm).toBe("'수요 한강런' 빈 자리가 났어요");
     expect(arg.notiCont).toBe("지금은 순번 없이 먼저 누르는 분이 참석하실 수 있어요.");
     // "몇 시부터"를 적으면 그 사이 자리가 차서 거짓말이 된다.

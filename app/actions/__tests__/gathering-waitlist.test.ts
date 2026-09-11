@@ -65,7 +65,20 @@ const h = vi.hoisted(() => {
   /** gthr_wait_rel 이 몇 번째로 불렸는지 — 내 대기 행 조회와 명단 조회를 가른다. */
   const waitCalls = { n: 0 };
 
-  return { rpc, insertNoti, evaluateAndGrantTitles, join, waitUpdate, waitCalls, queryStub, cfg };
+  /** 선착순 구간 빈 자리 알림 — 코어는 seat-notice.test.ts 가 따로 검증한다. */
+  const notifyOpenSeat = vi.fn(async () => [] as string[]);
+
+  return {
+    rpc,
+    insertNoti,
+    evaluateAndGrantTitles,
+    join,
+    waitUpdate,
+    waitCalls,
+    queryStub,
+    cfg,
+    notifyOpenSeat,
+  };
 });
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
@@ -82,6 +95,7 @@ vi.mock("@/lib/gathering/join-condition", () => ({
   joinConditionErrorMessage: () => "조건 미달",
 }));
 vi.mock("@/lib/notifications/insert-noti", () => ({ insertNoti: h.insertNoti }));
+vi.mock("@/lib/gathering/seat-notice", () => ({ notifyOpenSeat: h.notifyOpenSeat }));
 vi.mock("@/lib/titles/engine", () => ({ evaluateAndGrantTitles: h.evaluateAndGrantTitles }));
 vi.mock("@/lib/actions/auth", () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -130,6 +144,8 @@ beforeEach(() => {
   h.cfg.waitlist.data = [];
   h.cfg.rels.data = [];
   h.waitCalls.n = 0;
+  h.notifyOpenSeat.mockReset();
+  h.notifyOpenSeat.mockResolvedValue([]);
 });
 
 describe("toggleGatheringAttendance — 3상태", () => {
@@ -259,5 +275,50 @@ describe("toggleGatheringAttendance — 승급 알림", () => {
     const r = await toggleGatheringAttendance("gthr-1", "부상");
 
     expect(r.state).toBe("none");
+  });
+});
+
+describe("선착순 구간 취소 — 승급 대신 빈 자리 알림", () => {
+  it("시작 1시간 전 취소면 대기자에게 빈 자리 알림을 보낸다", async () => {
+    h.cfg.existing.data = { attd_id: "attd-1" };
+    h.cfg.gthr.data.stt_at = dayjs().add(1, "hour").toISOString();
+    // RPC 가 게이트에 걸려 아무도 안 올린다.
+    h.rpc.mockResolvedValue({ data: [], error: null });
+
+    await toggleGatheringAttendance("gthr-1", "개인 사정");
+
+    expect(h.notifyOpenSeat).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ gthrId: "gthr-1", teamId: "team-1" }),
+    );
+  });
+
+  it("시작 5시간 전 취소면 보내지 않는다 — 자동 승급이 도는 구간이다", async () => {
+    h.cfg.existing.data = { attd_id: "attd-1" };
+    h.cfg.gthr.data.stt_at = dayjs().add(5, "hour").toISOString();
+    h.rpc.mockResolvedValue({ data: ["mem-next"], error: null });
+
+    await toggleGatheringAttendance("gthr-1");
+
+    expect(h.notifyOpenSeat).not.toHaveBeenCalled();
+  });
+
+  it("먼 미래 모임 취소도 보내지 않는다", async () => {
+    h.cfg.existing.data = { attd_id: "attd-1" };
+
+    await toggleGatheringAttendance("gthr-1");
+
+    expect(h.notifyOpenSeat).not.toHaveBeenCalled();
+  });
+
+  it("대기 취소(참석 아님)는 자리가 나는 사건이 아니라 알림이 없다", async () => {
+    h.cfg.existing.data = null;
+    h.cfg.myWait.data = { wait_id: "w-1" };
+    h.cfg.gthr.data.stt_at = dayjs().add(1, "hour").toISOString();
+
+    const r = await toggleGatheringAttendance("gthr-1");
+
+    expect(r.state).toBe("none");
+    expect(h.notifyOpenSeat).not.toHaveBeenCalled();
   });
 });

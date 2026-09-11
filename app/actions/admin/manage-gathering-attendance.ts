@@ -3,7 +3,9 @@
 import { after } from "next/server";
 
 import { withAdmin, withAdminOrThrow } from "@/lib/actions/auth";
+import { isWaitlistOpenToAll } from "@/lib/gathering/cancel-imminent";
 import { validateCancelReason } from "@/lib/gathering/cancel-reason";
+import { notifyOpenSeat } from "@/lib/gathering/seat-notice";
 import { insertNoti } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient, createUntypedAdminClient } from "@/lib/supabase/admin";
@@ -90,17 +92,23 @@ export async function removeGatheringAttendance(gthrId: string, memId: string, r
 
     // 운영진이 뺀 것도 자리가 나는 사건이다 — 올라온 사람은 알아야 한다.
     // 취소 자체는 이미 끝났으므로 알림 실패가 결과를 바꾸지 않는다(응답 밖에서 돈다).
+    //
+    // 모임명·시작시각은 **승급자가 없어도** 필요하다 — 선착순 구간이면 승급 대신
+    // 대기자 전원에게 빈 자리 알림을 보내기 때문이다(설계 §3). 예전엔 `promoted.length`
+    // 안에서만 조회했다.
     const promoted: string[] = Array.isArray(promotedRaw) ? promotedRaw : [];
-    if (promoted.length) {
-      const { data: gthrRow } = await db
-        .from("gthr_mst")
-        .select("gthr_nm")
-        .eq("gthr_id", gthrId)
-        .maybeSingle();
-      const gthrNm = gthrRow?.gthr_nm ?? "모임";
+    const { data: gthrRow } = await db
+      .from("gthr_mst")
+      .select("gthr_nm, stt_at")
+      .eq("gthr_id", gthrId)
+      .maybeSingle();
+    const gthrNm = gthrRow?.gthr_nm ?? "모임";
+    const openToAll = gthrRow?.stt_at ? isWaitlistOpenToAll(gthrRow.stt_at) : false;
+
+    if (promoted.length || openToAll) {
       after(async () => {
-        await Promise.all(
-          promoted.map((promotedMemId) =>
+        await Promise.all([
+          ...promoted.map((promotedMemId) =>
             insertNoti({
               teamId,
               memId: promotedMemId,
@@ -111,7 +119,14 @@ export async function removeGatheringAttendance(gthrId: string, memId: string, r
               refTypeEnm: "gathering",
             }).catch((e) => console.error("[gthr_promo] 알림 발송 실패", e)),
           ),
-        );
+          // 선착순 구간이면 아무도 안 올라온다 — 본인 취소 경로와 **같은 코어**를 쓴다
+          // (각자 만들면 한쪽만 1회 제한을 빠뜨린다).
+          openToAll
+            ? notifyOpenSeat(untyped, { gthrId, gthrNm, teamId }).catch((e) =>
+                console.error("[gthr_seat] 빈 자리 알림 발송 실패", e),
+              )
+            : Promise.resolve(),
+        ]);
       });
     }
 

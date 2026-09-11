@@ -6,7 +6,12 @@ import { after } from "next/server";
 import { withActive } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
 import { APPROVAL_GATHERING_MESSAGE } from "@/lib/gathering/application";
-import { CANCEL_REASON_REQUIRED_MESSAGE, isCancelReasonRequired } from "@/lib/gathering/cancel-imminent";
+import {
+  CANCEL_REASON_REQUIRED_MESSAGE,
+  isCancelReasonRequired,
+  isWaitlistOpenToAll,
+} from "@/lib/gathering/cancel-imminent";
+import { notifyOpenSeat } from "@/lib/gathering/seat-notice";
 import { validateCancelReason } from "@/lib/gathering/cancel-reason";
 import { evaluateJoinConditions, joinConditionErrorMessage } from "@/lib/gathering/join-condition";
 import { joinGatheringWithCapCheck } from "@/lib/gathering/join-gathering";
@@ -209,6 +214,20 @@ export async function toggleGatheringAttendance(
               refTypeEnm: "gathering",
             }).catch((e) => console.error("[gthr_promo] 알림 발송 실패", e)),
           ),
+
+          // 선착순 구간(시작 2시간 전~)이면 promote RPC 가 게이트에 걸려 아무도 안 올린다.
+          // 대신 대기자 전원에게 "빈 자리가 났어요"를 보낸다 — 이 알림이 없으면 자동 승급도
+          // 알림도 없어 대기자 전원이 모른 채 자리가 빈 채로 모임이 시작된다(설계 §3).
+          //
+          // `promoted.length === 0` 을 조건으로 쓰지 않는다: 빈 배열은 "올릴 사람이 없었다"
+          // 와도 같은 값이라, 시각으로 판정하는 쪽이 뜻이 분명하다.
+          isWaitlistOpenToAll(gthr.stt_at)
+            ? notifyOpenSeat(admin, {
+                gthrId: gthr_id,
+                gthrNm: gthr.gthr_nm,
+                teamId,
+              }).catch((e) => console.error("[gthr_seat] 빈 자리 알림 발송 실패", e))
+            : Promise.resolve(),
 
           // 승급자의 칭호 평가 — 승급도 참석 확정이다. 안 돌리면 정확히 정원 번째로
           // 올라간 사람이 `막차`를 못 받는다. RPC 는 mem_id 만 주므로 team_mem_id 를 찾는다.
