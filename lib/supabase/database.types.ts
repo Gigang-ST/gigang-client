@@ -3159,6 +3159,10 @@ export type Database = {
         Args: { p_mem_id?: string; p_team_id: string }
         Returns: Json
       }
+      gthr_open_seat_notice_yn: {
+        Args: { p_gthr_id: string; p_team_id: string }
+        Returns: boolean
+      }
       is_legacy_platform_admin: { Args: never; Returns: boolean }
       join_gthr_or_wait: {
         Args: { p_gthr_id: string; p_mem_id: string; p_team_id: string }
@@ -3180,6 +3184,10 @@ export type Database = {
       promote_gthr_waitlist: {
         Args: { p_gthr_id: string; p_team_id: string }
         Returns: string[]
+      }
+      promote_gthr_waitlist_notice: {
+        Args: { p_gthr_id: string; p_team_id: string }
+        Returns: Json
       }
       pt_earn: {
         Args: {

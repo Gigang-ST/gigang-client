@@ -12,7 +12,7 @@ import {
   isWaitlistOpenToAll,
 } from "@/lib/gathering/cancel-imminent";
 import { parseCancelResult } from "@/lib/gathering/cancel-result";
-import { notifyOpenSeat } from "@/lib/gathering/seat-notice";
+import { runPromotionFollowups } from "@/lib/gathering/promotion-followup";
 import { validateCancelReason } from "@/lib/gathering/cancel-reason";
 import { evaluateJoinConditions, joinConditionErrorMessage } from "@/lib/gathering/join-condition";
 import { joinGatheringWithCapCheck } from "@/lib/gathering/join-gathering";
@@ -220,57 +220,18 @@ export async function toggleGatheringAttendance(
             teamMemId: member.team_mem_id,
           }).catch((e) => console.error("[title-engine] gathering_cancel 평가 실패", e)),
 
-          // 대기 → 참석으로 올라간 사람에게. 이 알림이 없으면 자리가 났다는 걸 아무도
-          // 모른다 — 대기열의 존재 이유 자체다. 수신거부는 gthr_promo 자체 설정으로 판단.
-          ...promoted.map((promotedMemId) =>
-            insertNoti({
-              teamId,
-              memId: promotedMemId,
-              notiTypeEnm: "gthr_promo",
-              notiNm: `'${gthr.gthr_nm}' 자리가 나서 참석이 확정됐어요`,
-              notiCont: "대기 중이던 모임에 자리가 생겨 자동으로 참석 처리했어요.",
-              refId: gthr_id,
-              refTypeEnm: "gathering",
-            }).catch((e) => console.error("[gthr_promo] 알림 발송 실패", e)),
-          ),
-
-          // 선착순 구간(시작 2시간 전~)이면 promote RPC 가 게이트에 걸려 아무도 안 올린다.
-          // 대신 대기자 전원에게 "빈 자리가 났어요"를 보낸다 — 이 알림이 없으면 자동 승급도
-          // 알림도 없어 대기자 전원이 모른 채 자리가 빈 채로 모임이 시작된다(설계 §3).
-          //
-          // 보낼지는 **RPC 가 트랜잭션 안에서 정한 값**을 따른다. 앱이 시작 시각만 보고 정하면
-          // ① 정원 초과 모임(22/20)에서 취소 뒤에도 자리가 없는데 알림이 나가고, 1회 제한 때문에
-          // 정작 진짜 빈자리 알림이 막히며 ② 2시간 경계에서 승급과 판정의 시각이 갈린다(PR #532 리뷰).
-          cancelResult.notifyOpenSeat
-            ? notifyOpenSeat(admin, {
-                gthrId: gthr_id,
-                gthrNm: gthr.gthr_nm,
-                teamId,
-              }).catch((e) => console.error("[gthr_seat] 빈 자리 알림 발송 실패", e))
-            : Promise.resolve(),
-
-          // 승급자의 칭호 평가 — 승급도 참석 확정이다. 안 돌리면 정확히 정원 번째로
-          // 올라간 사람이 `막차`를 못 받는다. RPC 는 mem_id 만 주므로 team_mem_id 를 찾는다.
-          promoted.length
-            ? (async () => {
-                const { data: rels } = await admin
-                  .from("team_mem_rel")
-                  .select("team_mem_id")
-                  .eq("team_id", teamId)
-                  .eq("vers", 0)
-                  .eq("del_yn", false)
-                  .in("mem_id", promoted);
-                await Promise.all(
-                  ((rels ?? []) as { team_mem_id: string }[]).map((r) =>
-                    evaluateAndGrantTitles({
-                      trigger: "gathering_attend",
-                      teamId,
-                      teamMemId: r.team_mem_id,
-                    }).catch((e) => console.error("[title-engine] 승급자 평가 실패", e)),
-                  ),
-                );
-              })()
-            : Promise.resolve(),
+          // 대기열이 움직인 뒷처리(승급 알림 · 빈 자리 알림 · 승급자 칭호)는 세 경로(본인 취소 ·
+          // 운영진 제거 · 정원 증가)가 **공유한다** — 경로마다 따로 만들면 한쪽만 빠진다(실제로 칭호
+          // 평가가 운영진 제거·정원 증가에 빠져 있었다). 판정값은 RPC 가 트랜잭션 안에서 정한 것을
+          // 그대로 넘긴다. 이 함수는 reject 하지 않는다.
+          runPromotionFollowups(admin, {
+            teamId,
+            gthrId: gthr_id,
+            gthrNm: gthr.gthr_nm,
+            cause: "cancel",
+            promoted,
+            notifyOpenSeat: cancelResult.notifyOpenSeat,
+          }),
         ]);
       });
 

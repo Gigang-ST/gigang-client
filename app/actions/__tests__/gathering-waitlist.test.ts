@@ -65,8 +65,8 @@ const h = vi.hoisted(() => {
   /** gthr_wait_rel 이 몇 번째로 불렸는지 — 내 대기 행 조회와 명단 조회를 가른다. */
   const waitCalls = { n: 0 };
 
-  /** 선착순 구간 빈 자리 알림 — 코어는 seat-notice.test.ts 가 따로 검증한다. */
-  const notifyOpenSeat = vi.fn(async () => [] as string[]);
+  /** 대기열 뒷처리(승급 알림 · 빈 자리 알림 · 칭호) — 세부 동작은 promotion-followup.test.ts 가 검증한다. */
+  const runPromotionFollowups = vi.fn(async (_admin: unknown, _args: unknown) => {});
 
   return {
     rpc,
@@ -77,7 +77,7 @@ const h = vi.hoisted(() => {
     waitCalls,
     queryStub,
     cfg,
-    notifyOpenSeat,
+    runPromotionFollowups,
   };
 });
 
@@ -95,7 +95,9 @@ vi.mock("@/lib/gathering/join-condition", () => ({
   joinConditionErrorMessage: () => "조건 미달",
 }));
 vi.mock("@/lib/notifications/insert-noti", () => ({ insertNoti: h.insertNoti }));
-vi.mock("@/lib/gathering/seat-notice", () => ({ notifyOpenSeat: h.notifyOpenSeat }));
+vi.mock("@/lib/gathering/promotion-followup", () => ({
+  runPromotionFollowups: h.runPromotionFollowups,
+}));
 vi.mock("@/lib/titles/engine", () => ({ evaluateAndGrantTitles: h.evaluateAndGrantTitles }));
 vi.mock("@/lib/actions/auth", () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -144,8 +146,8 @@ beforeEach(() => {
   h.cfg.waitlist.data = [];
   h.cfg.rels.data = [];
   h.waitCalls.n = 0;
-  h.notifyOpenSeat.mockReset();
-  h.notifyOpenSeat.mockResolvedValue([]);
+  h.runPromotionFollowups.mockReset();
+  h.runPromotionFollowups.mockResolvedValue(undefined);
 });
 
 describe("toggleGatheringAttendance — 3상태", () => {
@@ -212,69 +214,56 @@ describe("toggleGatheringAttendance — 3상태", () => {
   });
 });
 
-describe("toggleGatheringAttendance — 승급 알림", () => {
+// 승급 알림 · 빈 자리 알림 · 승급자 칭호의 세부 동작은 promotion-followup.test.ts 가 검증한다.
+// 여기선 액션이 RPC 결과를 **그대로** 공용 뒷처리에 넘기는지만 본다 — 세 경로(본인 취소 · 운영진
+// 제거 · 정원 증가)가 같은 함수를 부르게 한 게 이 구조의 요점이다(PR #532 점검).
+describe("toggleGatheringAttendance — 승급 뒷처리", () => {
   beforeEach(() => {
     h.cfg.existing.data = { attd_id: "attd-1" }; // 나는 참석 중 → 취소 분기
   });
 
-  it("취소로 자리가 나서 승급자가 생기면 그 사람에게 gthr_promo 알림을 보낸다", async () => {
-    h.rpc.mockResolvedValue({ data: ["mem-promoted"], error: null });
+  it("취소로 승급자가 생기면 그 결과를 공용 뒷처리에 넘긴다", async () => {
+    h.rpc.mockResolvedValue({
+      data: { promoted: ["mem-promoted"], notify_open_seat: false },
+      error: null,
+    });
 
     await toggleGatheringAttendance("gthr-1", "몸살");
 
-    expect(h.insertNoti).toHaveBeenCalledWith(
+    expect(h.runPromotionFollowups).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({
         teamId: "team-1",
-        memId: "mem-promoted",
-        notiTypeEnm: "gthr_promo",
-        refId: "gthr-1",
-        refTypeEnm: "gathering",
+        gthrId: "gthr-1",
+        cause: "cancel",
+        promoted: ["mem-promoted"],
+        notifyOpenSeat: false,
       }),
     );
   });
 
-  it("승급자가 여러 명이면 각자에게 보낸다", async () => {
+  it("옛 RPC 응답(uuid[])이어도 승급자는 넘긴다 — 배포 순서가 뒤집힌 경우", async () => {
     h.rpc.mockResolvedValue({ data: ["mem-a", "mem-b"], error: null });
 
     await toggleGatheringAttendance("gthr-1", "몸살");
 
-    const promoCalls = h.insertNoti.mock.calls.filter(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (c: any[]) => c[0]?.notiTypeEnm === "gthr_promo",
+    expect(h.runPromotionFollowups).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ promoted: ["mem-a", "mem-b"], notifyOpenSeat: false }),
     );
-    expect(promoCalls).toHaveLength(2);
   });
 
-  it("승급자가 없으면(정원 초과 상태라 자리가 안 남) gthr_promo 알림을 보내지 않는다", async () => {
-    h.rpc.mockResolvedValue({ data: [], error: null });
+  it("승급 알림은 액션이 직접 보내지 않는다 — 공용 뒷처리만 보낸다", async () => {
+    h.rpc.mockResolvedValue({
+      data: { promoted: ["mem-promoted"], notify_open_seat: false },
+      error: null,
+    });
 
     await toggleGatheringAttendance("gthr-1", "몸살");
 
     expect(h.insertNoti).not.toHaveBeenCalledWith(
       expect.objectContaining({ notiTypeEnm: "gthr_promo" }),
     );
-  });
-
-  it("승급자에게도 참석 칭호(gathering_attend)를 평가한다 — 막차를 못 받으면 안 된다", async () => {
-    h.rpc.mockResolvedValue({ data: ["mem-promoted"], error: null });
-    h.cfg.rels.data = [{ team_mem_id: "tm-promoted" }];
-
-    await toggleGatheringAttendance("gthr-1", "몸살");
-
-    expect(h.evaluateAndGrantTitles).toHaveBeenCalledWith({
-      trigger: "gathering_attend",
-      teamId: "team-1",
-      teamMemId: "tm-promoted",
-    });
-  });
-
-  it("승급 알림이 실패해도 취소 자체는 성공이다", async () => {
-    h.rpc.mockResolvedValue({ data: ["mem-promoted"], error: null });
-    h.insertNoti.mockRejectedValue(new Error("push down"));
-
-    const r = await toggleGatheringAttendance("gthr-1", "부상");
-
-    expect(r.state).toBe("none");
   });
 });
 
@@ -287,9 +276,9 @@ describe("선착순 구간 취소 — 승급 대신 빈 자리 알림", () => {
 
     await toggleGatheringAttendance("gthr-1", "개인 사정");
 
-    expect(h.notifyOpenSeat).toHaveBeenCalledWith(
+    expect(h.runPromotionFollowups).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ gthrId: "gthr-1", teamId: "team-1" }),
+      expect.objectContaining({ gthrId: "gthr-1", teamId: "team-1", notifyOpenSeat: true }),
     );
   });
 
@@ -302,7 +291,10 @@ describe("선착순 구간 취소 — 승급 대신 빈 자리 알림", () => {
 
     await toggleGatheringAttendance("gthr-1", "개인 사정");
 
-    expect(h.notifyOpenSeat).not.toHaveBeenCalled();
+    expect(h.runPromotionFollowups).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ notifyOpenSeat: true }),
+    );
   });
 
   // 두 경계 사이(2~5시간): 취소 사유는 필수지만 대기 순번은 아직 살아 있다.
@@ -317,10 +309,14 @@ describe("선착순 구간 취소 — 승급 대신 빈 자리 알림", () => {
 
     await toggleGatheringAttendance("gthr-1", "개인 사정");
 
-    expect(h.notifyOpenSeat).not.toHaveBeenCalled();
-    // 대신 승급자에게는 확정 알림이 나간다.
-    expect(h.insertNoti).toHaveBeenCalledWith(
-      expect.objectContaining({ notiTypeEnm: "gthr_promo", memId: "mem-next" }),
+    expect(h.runPromotionFollowups).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ notifyOpenSeat: true }),
+    );
+    // 대신 승급자는 공용 뒷처리로 넘어간다(확정 알림은 거기서 나간다).
+    expect(h.runPromotionFollowups).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ promoted: ["mem-next"], notifyOpenSeat: false }),
     );
   });
 
@@ -329,7 +325,10 @@ describe("선착순 구간 취소 — 승급 대신 빈 자리 알림", () => {
 
     await toggleGatheringAttendance("gthr-1");
 
-    expect(h.notifyOpenSeat).not.toHaveBeenCalled();
+    expect(h.runPromotionFollowups).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ notifyOpenSeat: true }),
+    );
   });
 
   it("대기 취소(참석 아님)는 자리가 나는 사건이 아니라 알림이 없다", async () => {
@@ -340,7 +339,10 @@ describe("선착순 구간 취소 — 승급 대신 빈 자리 알림", () => {
     const r = await toggleGatheringAttendance("gthr-1");
 
     expect(r.state).toBe("none");
-    expect(h.notifyOpenSeat).not.toHaveBeenCalled();
+    expect(h.runPromotionFollowups).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ notifyOpenSeat: true }),
+    );
   });
 });
 

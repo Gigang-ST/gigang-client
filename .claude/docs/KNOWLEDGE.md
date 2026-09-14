@@ -296,6 +296,19 @@ Postgres `jsonb`는 키를 **정렬해서 저장**한다(길이순 → 사전순
 - 판단 기준 한 줄: **"이 테이블에 행이 생기는 것이 곧 무슨 사건인가"**를 먼저 답한다. 그 사건에 트리거·집계가 걸려 있으면 상태 컬럼으로 의미를 흐리지 않는다.
 (2026-08-25 모임 참여조건·승인제 — `docs/superpowers/specs/2026-08-25-모임-참여조건-승인제-design.md` §2)
 
+### 대기열을 움직이는 경로는 셋이다 — 뒷처리를 경로마다 만들면 한쪽이 빠진다
+모임 대기열(`gthr_wait_rel`)이 당겨지는 사건은 **본인 참석 취소 · 운영진 참석자 제거 · 정원 증가**
+셋이다. 처음엔 경로마다 승급 알림 · 빈 자리 알림 · 칭호 평가를 따로 붙였고, 그 결과 칭호 평가(`막차`)는
+본인 취소에만 있었고 빈 자리 알림은 정원 증가에서 빠졌다(PR #532 점검에서 발견).
+
+- **처방**: 판정은 SQL이 한다 — `gthr_open_seat_notice_yn`을 `cancel_gthr_attendance`와
+  `promote_gthr_waitlist_notice`가 공유한다. 뒷처리는 `runPromotionFollowups`
+  (`lib/gathering/promotion-followup.ts`) 하나가 맡는다. 대기열을 움직이는 새 경로를 만들면
+  **RPC 결과를 `parseCancelResult`로 읽어 이 함수에 넘기기만** 한다.
+- **자리 수를 바꾸는 쓰기 경로를 찾을 땐** `gthr_attd_rel` 삽입·삭제뿐 아니라 `max_prt_cnt` 변경과
+  `aprv_req_yn` 전환까지 grep한다. 승인제 전환도 대기열을 건드린다 — 켜면 대기 행을 지워야
+  대기자가 갇히지 않는다.
+
 ### 홈 캘린더는 **쓰기 액션이 직접 `updateTag`** 해야 한다 — DB 트리거 웹훅만으론 로컬에서 영영 안 돈다
 `/schedule`(일정탭)의 서버 렌더는 `getCachedHomeCalendar`(`unstable_cache`, 1시간)를 읽는데, 무효화를 **DB 트리거 웹훅**(`app/api/revalidate`)에만 맡겨 두면 두 군데서 샌다.
 - **웹훅은 배포 URL로 쏜다 → 로컬 개발에선 아예 안 닿는다.** 그래서 로컬에서 만든 모임이 **1시간 동안** 일정탭에 안 나타난다.

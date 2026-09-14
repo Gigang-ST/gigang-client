@@ -1,7 +1,8 @@
 /**
- * `cancel_gthr_attendance` RPC 응답 해석 — 두 호출부(본인 취소·운영진 제거)가 공유한다.
+ * 대기열을 움직이는 RPC 응답 해석 — 세 경로(본인 취소 · 운영진 제거 · 정원 증가)가 공유한다.
  *
- * RPC 가 `{promoted: uuid[], notify_open_seat: boolean}` 을 돌려준다.
+ * `cancel_gthr_attendance` · `promote_gthr_waitlist_notice` 둘 다
+ * `{promoted: uuid[], notify_open_seat: boolean}` 을 돌려준다(판정은 SQL `gthr_open_seat_notice_yn`).
  * 빈 자리 알림 여부를 앱이 조립하지 않고 **트랜잭션 안에서 계산된 값 하나**를 쓰는 이유는
  * 20260914100000_gthr_cancel_result_jsonb.sql 헤더 참고(정원 초과 모임에서 빈자리 없는
  * 알림이 나가던 문제, 2시간 경계에서 승급과 알림 판정의 시각이 갈리던 문제).

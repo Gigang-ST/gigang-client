@@ -1,12 +1,13 @@
 "use server";
 
+import { revalidatePath, updateTag } from "next/cache";
 import { after } from "next/server";
 
 import { withAdmin, withAdminOrThrow } from "@/lib/actions/auth";
 import { parseCancelResult } from "@/lib/gathering/cancel-result";
 import { validateCancelReason } from "@/lib/gathering/cancel-reason";
-import { notifyOpenSeat } from "@/lib/gathering/seat-notice";
-import { insertNoti } from "@/lib/notifications/insert-noti";
+import { runPromotionFollowups } from "@/lib/gathering/promotion-followup";
+import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient, createUntypedAdminClient } from "@/lib/supabase/admin";
 
@@ -77,10 +78,12 @@ export async function removeGatheringAttendance(gthrId: string, memId: string, r
       });
       if (error) return { ok: false, message: "참석 취소에 실패했습니다" };
       if (data !== "ok") return { ok: false, message: "취소할 참석 내역이 없습니다" };
+      bustGatheringCaches(gthrId);
       return { ok: true, message: null };
     }
 
-    // RPC 가 취소·이력·**대기열 승급**을 한 트랜잭션으로 처리하고 승급된 mem_id 를 돌려준다.
+    // RPC 가 취소·이력·**대기열 승급**을 한 트랜잭션으로 처리하고 {승급자, 빈 자리 알림 여부}를
+    // 돌려준다(판정은 SQL gthr_open_seat_notice_yn — 본인 취소·정원 증가와 같은 헬퍼).
     const { data: cancelRaw, error } = await untyped.rpc("cancel_gthr_attendance", {
       p_gthr_id: gthrId,
       p_mem_id: memId,
@@ -90,47 +93,45 @@ export async function removeGatheringAttendance(gthrId: string, memId: string, r
     });
     if (error) return { ok: false, message: "참석 취소에 실패했습니다" };
 
-    // 운영진이 뺀 것도 자리가 나는 사건이다 — 올라온 사람은 알아야 한다.
-    // 취소 자체는 이미 끝났으므로 알림 실패가 결과를 바꾸지 않는다(응답 밖에서 돈다).
-    //
-    // 빈 자리 알림 여부는 **RPC 가 트랜잭션 안에서 계산한 값**을 쓴다(본인 취소 경로와 같은
-    // 파서). 앱이 시작 시각만 보고 정하면 정원 초과 모임(22/20)에서 빈자리가 없는데도 알림이
-    // 나가고, 2시간 경계에서 승급과 판정의 시각이 갈린다(PR #532 리뷰).
-    const { promoted, notifyOpenSeat: shouldNotifySeat } = parseCancelResult(cancelRaw);
+    bustGatheringCaches(gthrId);
 
-    if (promoted.length || shouldNotifySeat) {
+    // 운영진이 뺀 것도 자리가 나는 사건이다. 뒷처리(승급 알림 · 빈 자리 알림 · 승급자 칭호)는
+    // 본인 취소 경로와 **같은 함수**로 응답 밖에서 돈다 — 예전엔 여기만 칭호 평가가 빠져 있어
+    // 운영진 제거로 올라간 사람이 `막차`를 못 받았다(PR #532 점검).
+    const { promoted, notifyOpenSeat } = parseCancelResult(cancelRaw);
+    if (promoted.length > 0 || notifyOpenSeat) {
       const { data: gthrRow } = await db
         .from("gthr_mst")
         .select("gthr_nm")
         .eq("gthr_id", gthrId)
         .maybeSingle();
       const gthrNm = gthrRow?.gthr_nm ?? "모임";
-      after(async () => {
-        await Promise.all([
-          ...promoted.map((promotedMemId) =>
-            insertNoti({
-              teamId,
-              memId: promotedMemId,
-              notiTypeEnm: "gthr_promo",
-              notiNm: `'${gthrNm}' 자리가 나서 참석이 확정됐어요`,
-              notiCont: "대기 중이던 모임에 자리가 생겨 자동으로 참석 처리했어요.",
-              refId: gthrId,
-              refTypeEnm: "gathering",
-            }).catch((e) => console.error("[gthr_promo] 알림 발송 실패", e)),
-          ),
-          // 선착순 구간이면서 실제 빈자리가 있을 때만 — 본인 취소 경로와 **같은 코어**를 쓴다
-          // (각자 만들면 한쪽만 1회 제한을 빠뜨린다).
-          shouldNotifySeat
-            ? notifyOpenSeat(untyped, { gthrId, gthrNm, teamId }).catch((e) =>
-                console.error("[gthr_seat] 빈 자리 알림 발송 실패", e),
-              )
-            : Promise.resolve(),
-        ]);
-      });
+      after(() =>
+        runPromotionFollowups(untyped, {
+          teamId,
+          gthrId,
+          gthrNm,
+          cause: "cancel",
+          promoted,
+          notifyOpenSeat,
+        }),
+      );
     }
 
     return { ok: true, message: null };
   });
+}
+
+/**
+ * 참석자 수가 바뀌는 관리자 쓰기 뒤에 캐시를 즉시 턴다(PR #532 점검).
+ *
+ * 홈 캘린더 칩과 모임 상세가 참석자 수를 그대로 찍는데, 이 파일의 두 액션만 무효화가 없어
+ * 운영진이 추가·제거해도 남의 화면과 새로고침 후 숫자가 최대 1시간 낡았다(KNOWLEDGE §홈 캘린더 —
+ * "쓰기 액션마다 updateTag"). updateTag 는 서버 액션 본문 전용이라 after() 안에서 부르지 않는다.
+ */
+function bustGatheringCaches(gthrId: string) {
+  updateTag(HOME_CALENDAR_CACHE_TAG);
+  revalidatePath(`/gatherings/${gthrId}`);
 }
 
 /**

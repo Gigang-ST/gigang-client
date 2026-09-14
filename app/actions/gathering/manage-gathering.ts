@@ -6,11 +6,13 @@ import { after } from "next/server";
 import { dayjs } from "@/lib/dayjs";
 import { withActive, withMember } from "@/lib/actions/auth";
 import { isPastLockedFor, PAST_EVENT_ERROR } from "@/lib/past-event";
-import { insertNoti, insertNotiMany } from "@/lib/notifications/insert-noti";
+import { insertNotiMany } from "@/lib/notifications/insert-noti";
 import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 import { backfillApprovals, countPendingApplications } from "@/lib/gathering/application";
+import { parseCancelResult } from "@/lib/gathering/cancel-result";
+import { runPromotionFollowups } from "@/lib/gathering/promotion-followup";
 import {
   createGthrSchema,
   updateGthrSchema,
@@ -227,13 +229,78 @@ export async function updateGathering(input: {
 
     if (error) throw new Error("모임 수정에 실패했습니다.");
 
-    updateTag(HOME_CALENDAR_CACHE_TAG);
-
     const { teamId } = await getRequestTeamContext();
 
+    // 승인제를 **켰으면** 줄 서 있던 대기자를 지운다(PR #532 점검).
+    //
+    // 승인제 모임엔 대기열이 없다. 토글이 승인제 모임을 막아 대기자가 스스로 뺄 방법이 없고,
+    // promote 도 승인제면 돌지 않아 그대로 두면 **영영 갇힌다**(대기 명단도 계속 화면에 뜬다).
+    // 알림은 보내지 않는다 — 운영진이 단톡방으로 안내한다(오너 결정).
+    //
+    // 플래그를 켠 **뒤에** 지운다. 수정이 실패했는데 대기자만 사라지면 되돌릴 수 없다. 켠 뒤로는
+    // 토글이 승인제 모임을 막으므로 그 사이 새 대기자가 끼어들 틈도 없다.
+    // 실패해도 저장 자체는 이미 끝났으니 던지지 않고 기록한다.
+    if (parsed.aprv_req_yn === true && existing.aprv_req_yn !== true) {
+      const { error: waitDelError } = await createUntypedAdminClient()
+        .from("gthr_wait_rel")
+        .delete()
+        .eq("gthr_id", gthr_id)
+        .eq("wait_st_cd", "waiting");
+      if (waitDelError) {
+        console.error("[gthr-waitlist] 승인제 전환 대기자 정리 실패", waitDelError.message);
+      }
+    }
+
+    // 정원이 **늘어난** 경우에만 대기열을 당긴다(설계 §5, §6 #6).
+    //
+    // 줄어든 경우엔 아무것도 하지 않는다 — 이미 확정된 참석자를 시스템이 내리지 않는다.
+    // 정원을 처음 지정한 경우(null → 숫자)도 제외한다: 늘린 게 아니라 **제한을 건** 것이라
+    // 그 전까지는 무제한이었고, 무제한 모임엔 대기자가 생길 수 없다.
+    //
+    // 승급은 **응답 전에** 끝낸다. 참석자 수가 바뀌므로 아래 캘린더 캐시 무효화보다 먼저여야 한다 —
+    // 예전엔 after() 안에서 돌아, 이미 턴 캐시가 옛 참석자 수로 다시 채워질 수 있었다. updateTag 는
+    // 서버 액션 본문 전용이라 after() 안으로 따라 옮길 수도 없다(KNOWLEDGE §홈 캘린더).
+    //
+    // 선착순 구간(시작 2시간 전~)이면 아무도 안 올라가고, 대신 **실제 빈자리가 생겼으면** 대기자에게
+    // 빈 자리 알림을 보낸다. 판정은 취소 경로와 같은 SQL 헬퍼가 트랜잭션 안에서 한다(PR #532 점검 —
+    // 예전엔 이 경로만 빈 자리 알림이 없어, 시작 1시간 전에 정원을 늘리면 대기자가 몰랐다).
+    const capBefore = existing.max_prt_cnt;
+    const capAfter = parsed.max_prt_cnt !== undefined ? parsed.max_prt_cnt : capBefore;
+    let promotion: ReturnType<typeof parseCancelResult> | null = null;
+    if (capBefore !== null && capAfter !== null && capAfter > capBefore) {
+      const { data: promoteRaw, error: promoteError } = await createUntypedAdminClient().rpc(
+        "promote_gthr_waitlist_notice",
+        { p_gthr_id: gthr_id, p_team_id: teamId },
+      );
+      if (promoteError) {
+        // 모임 수정은 이미 끝났다 — 승급 실패로 저장까지 실패시키지 않는다.
+        // 대기열은 다음 취소나 정원 변경 때 다시 당겨진다.
+        console.error("[gthr_promo] 정원 증가 승급 실패", promoteError.message);
+      } else {
+        promotion = parseCancelResult(promoteRaw);
+      }
+    }
+
+    updateTag(HOME_CALENDAR_CACHE_TAG);
 
     // gthr_nm이 생략됐을 때 빈 문자열로 알림이 발송되지 않도록 기존 모임명 사용
     const gthrNm = parsed.gthr_nm || (existing.gthr_nm ?? "");
+
+    // 승급 뒷처리(승급 알림 · 빈 자리 알림 · 칭호)는 취소 경로와 같은 함수로, 응답 밖에서.
+    // 아래 gthr_upd 알림과 같은 after() 에 묶지 않는다 — 그쪽은 참석자가 없으면 early return 한다.
+    if (promotion && (promotion.promoted.length > 0 || promotion.notifyOpenSeat)) {
+      const { promoted, notifyOpenSeat } = promotion;
+      after(() =>
+        runPromotionFollowups(createUntypedAdminClient(), {
+          teamId,
+          gthrId: gthr_id,
+          gthrNm,
+          cause: "capacity",
+          promoted,
+          notifyOpenSeat,
+        }),
+      );
+    }
 
     after(async () => {
       try {
@@ -261,45 +328,6 @@ export async function updateGathering(input: {
         console.error("[gthr_upd] 알림 발송 실패", e);
       }
     });
-
-    // 정원이 **늘어난** 경우에만 대기열을 당긴다(설계 §5, §6 #6).
-    //
-    // 줄어든 경우엔 아무것도 하지 않는다 — 이미 확정된 참석자를 시스템이 내리지 않는다.
-    // 정원을 처음 지정한 경우(null → 숫자)도 제외한다: 늘린 게 아니라 **제한을 건** 것이라
-    // 그 전까지는 무제한이었고, 무제한 모임엔 대기자가 생길 수 없다.
-    //
-    // 위 gthr_upd 알림과 같은 after() 에 묶지 않는다 — 그쪽은 참석자가 없으면 early return
-    // 하므로 참석자가 0명인 모임(정원을 늘리는 그 순간엔 만석이라 있을 수 없지만, 구조적으로)
-    // 에서 승급이 통째로 건너뛰어진다.
-    const capBefore = existing.max_prt_cnt;
-    const capAfter = parsed.max_prt_cnt !== undefined ? parsed.max_prt_cnt : capBefore;
-    if (capBefore !== null && capAfter !== null && capAfter > capBefore) {
-      after(async () => {
-        try {
-          const admin = createUntypedAdminClient();
-          const { data: promotedRaw } = await admin.rpc("promote_gthr_waitlist", {
-            p_gthr_id: gthr_id,
-            p_team_id: teamId,
-          });
-          const promoted: string[] = Array.isArray(promotedRaw) ? promotedRaw : [];
-          await Promise.all(
-            promoted.map((memId) =>
-              insertNoti({
-                teamId,
-                memId,
-                notiTypeEnm: "gthr_promo",
-                notiNm: `'${gthrNm}' 정원이 늘어 참석이 확정됐어요`,
-                notiCont: "대기 중이던 모임에 자리가 생겨 자동으로 참석 처리했어요.",
-                refId: gthr_id,
-                refTypeEnm: "gathering",
-              }).catch((e) => console.error("[gthr_promo] 정원 증가 알림 실패", e)),
-            ),
-          );
-        } catch (e) {
-          console.error("[gthr_promo] 정원 증가 승급 실패", e);
-        }
-      });
-    }
 
     // 홈은 클라이언트 재조회가 갱신 담당 — 직접 URL 방문 대비 모임 상세만 무효화.
     // 홈 캘린더 캐시는 위(UPDATE 직후)에서 이미 털었다 — 여기서 또 부르지 않는다.
