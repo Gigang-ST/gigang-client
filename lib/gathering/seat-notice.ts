@@ -38,29 +38,39 @@ export async function notifyOpenSeat(
   admin: SupabaseLike,
   { gthrId, gthrNm, teamId }: { gthrId: string; gthrNm: string; teamId: string },
 ): Promise<string[]> {
-  const { data: waitRows } = await admin
+  // 조회 오류는 **던진다.** 호출부가 .catch 로 기록한다.
+  // 삼키면 ① 대기 명단 실패는 알림이 조용히 사라지고 ② 발송 이력 조회 실패는 `data=null` 이
+  // "아무도 안 받았다"로 읽혀 대기자 전원에게 중복 발송된다.
+  const { data: waitRows, error: waitError } = await admin
     .from("gthr_wait_rel")
     .select("mem_id")
     .eq("gthr_id", gthrId)
     .eq("wait_st_cd", "waiting");
+  if (waitError) throw waitError;
 
   const waiting = ((waitRows ?? []) as { mem_id: string }[]).map((w) => w.mem_id);
   if (waiting.length === 0) return [];
 
   // 이 모임에 대해 이미 gthr_seat 를 받은 사람 제외(1회 제한).
   // del_yn 은 보지 않는다 — 알림을 지운 것과 "안 받은 것"은 다르다.
-  const { data: sentRows } = await admin
+  //
+  // ⚠️ 조회와 INSERT 가 원자적이지 않아, 같은 모임에서 두 취소가 ms 차이로 겹치면 중복 발송될
+  //    수 있다. 부분 유니크 인덱스로 막지 않는 이유: insertNotiMany 가 대상 전원을 INSERT 한 번에
+  //    넣으므로 1건만 충돌해도 배치 전체가 실패해 **아무도 못 받는다.** 막으려면 공용 알림 관문을
+  //    ON CONFLICT 로 바꿔야 해 모든 알림 타입에 영향이 간다. 최악이 중복 1건이라 감수한다(PR #532 리뷰).
+  const { data: sentRows, error: sentError } = await admin
     .from("noti_mst")
     .select("mem_id")
     .eq("ref_id", gthrId)
     .eq("noti_type_enm", "gthr_seat")
     .in("mem_id", waiting);
+  if (sentError) throw sentError;
 
   const already = new Set(((sentRows ?? []) as { mem_id: string }[]).map((r) => r.mem_id));
   const targets = waiting.filter((memId) => !already.has(memId));
   if (targets.length === 0) return [];
 
-  await insertNotiMany({
+  const { notifiedMemIds } = await insertNotiMany({
     teamId,
     memIds: targets,
     notiTypeEnm: "gthr_seat",
@@ -70,5 +80,6 @@ export async function notifyOpenSeat(
     refTypeEnm: "gathering",
   });
 
-  return targets;
+  // 실제로 저장된 수신자만 — 수신거부·INSERT 실패는 targets 에 있어도 받지 않았다.
+  return notifiedMemIds;
 }

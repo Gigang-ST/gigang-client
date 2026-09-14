@@ -11,6 +11,7 @@ import {
   isCancelReasonRequired,
   isWaitlistOpenToAll,
 } from "@/lib/gathering/cancel-imminent";
+import { parseCancelResult } from "@/lib/gathering/cancel-result";
 import { notifyOpenSeat } from "@/lib/gathering/seat-notice";
 import { validateCancelReason } from "@/lib/gathering/cancel-reason";
 import { evaluateJoinConditions, joinConditionErrorMessage } from "@/lib/gathering/join-condition";
@@ -57,6 +58,11 @@ export type ToggleAttendanceResult = {
 export async function toggleGatheringAttendance(
   gthr_id: string,
   reason?: string,
+  /**
+   * `"join"` — 선착순 구간(시작 2시간 전~)에 **대기 중인 사람이 빈 자리로 참석**하려는 경우에만.
+   * 생략하면 기존 토글이다(대기 중이면 대기 취소). 선착순 구간 전에 넘기면 거절한다.
+   */
+  intent?: "join",
 ): Promise<ToggleAttendanceResult> {
   return withActive(async ({ member, supabase }) => {
     // 모임 검증용 조회와 내 참석 여부 조회는 독립적 — 병렬 1 RTT로 (직렬 2 RTT 방지)
@@ -114,7 +120,19 @@ export async function toggleGatheringAttendance(
     // 임박 취소 사유도, 모임장 알림도, 취소 이력(gthr_attd_hist)도 없다.
     // 그 이력 테이블은 "참석했다가 빠진 사람"을 위한 것이고, 모임 상세의 "취소한 사람"
     // 표시에 대기자가 섞이면 뜻이 흐려진다. 다시 걸면 맨 뒤로 갈 뿐이라 되돌리기도 쉽다.
-    if (!existing && myWait) {
+    // 선착순 구간(시작 2시간 전~)에 대기 중인 사람이 빈 자리로 **직접 참석**하려는 경우.
+    // 토글만으로는 "대기 취소"와 구분이 안 돼 의도(intent)를 받는다(PR #532 리뷰).
+    //
+    // 새 RPC 는 필요 없다 — 아래 참석 등록의 join_gthr_or_wait 가 이미 모임 행 잠금 → 빈자리 확인
+    // → 참석 INSERT → 대기 행 promoted 종료를 한 트랜잭션으로 한다. 그 사이 자리가 찼으면
+    // 대기 순번을 그대로 유지한 채 waiting 을 돌려준다.
+    const joinFromWait = !existing && !!myWait && intent === "join";
+    if (joinFromWait && !isWaitlistOpenToAll(gthr.stt_at)) {
+      // 선착순 구간 전에는 대기자가 직접 들어오면 앞 순번을 제치게 된다 — 자동 승급만 허용한다.
+      throw new Error("아직은 대기 순번대로 자동 참석돼요.");
+    }
+
+    if (!existing && myWait && !joinFromWait) {
       const { error: waitCancelErr } = await admin
         .from("gthr_wait_rel")
         .update({ wait_st_cd: "canceled", upd_at: dayjs().toISOString() })
@@ -147,7 +165,7 @@ export async function toggleGatheringAttendance(
       //
       // cancel_gthr_attendance RPC 는 service_role 전용(authenticated·anon EXECUTE 회수)이라
       // 본인 인가가 끝난 admin 클라이언트로 호출한다. actor 는 본인(self).
-      const { data: promotedRaw, error: cancelError } = await admin.rpc("cancel_gthr_attendance", {
+      const { data: cancelRaw, error: cancelError } = await admin.rpc("cancel_gthr_attendance", {
         p_gthr_id: gthr_id,
         p_mem_id: member.id,
         p_actor_cd: "self",
@@ -155,9 +173,10 @@ export async function toggleGatheringAttendance(
         p_reason: reasonCheck.value,
       });
       if (cancelError) throw new Error("참석 취소에 실패했습니다.");
-      // RPC 는 승급된 mem_id 배열을 돌려준다. 정원이 여전히 차 있으면(운영진이 우겨넣어
-      // 초과 상태면) 빈 배열이다 — 그게 의도다(설계 §5-1).
-      const promoted: string[] = Array.isArray(promotedRaw) ? promotedRaw : [];
+      // RPC 가 **트랜잭션 안에서** 계산한 승급자와 빈 자리 알림 여부를 돌려준다. 정원이 여전히
+      // 차 있으면(운영진이 우겨넣어 초과 상태면) 승급자도 알림도 없다 — 그게 의도다(설계 §5-1).
+      const cancelResult = parseCancelResult(cancelRaw);
+      const promoted = cancelResult.promoted;
 
       // 홈(/)은 dynamic 렌더(getCurrentMember가 cookies 사용)라 매 요청 새로 조회되므로
       // revalidatePath("/")는 무효화할 캐시가 없어 불필요 — 모임 상세 직접 URL만 무효화한다.
@@ -219,9 +238,10 @@ export async function toggleGatheringAttendance(
           // 대신 대기자 전원에게 "빈 자리가 났어요"를 보낸다 — 이 알림이 없으면 자동 승급도
           // 알림도 없어 대기자 전원이 모른 채 자리가 빈 채로 모임이 시작된다(설계 §3).
           //
-          // `promoted.length === 0` 을 조건으로 쓰지 않는다: 빈 배열은 "올릴 사람이 없었다"
-          // 와도 같은 값이라, 시각으로 판정하는 쪽이 뜻이 분명하다.
-          isWaitlistOpenToAll(gthr.stt_at)
+          // 보낼지는 **RPC 가 트랜잭션 안에서 정한 값**을 따른다. 앱이 시작 시각만 보고 정하면
+          // ① 정원 초과 모임(22/20)에서 취소 뒤에도 자리가 없는데 알림이 나가고, 1회 제한 때문에
+          // 정작 진짜 빈자리 알림이 막히며 ② 2시간 경계에서 승급과 판정의 시각이 갈린다(PR #532 리뷰).
+          cancelResult.notifyOpenSeat
             ? notifyOpenSeat(admin, {
                 gthrId: gthr_id,
                 gthrNm: gthr.gthr_nm,

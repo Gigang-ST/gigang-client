@@ -2947,7 +2947,7 @@ export type Database = {
           p_mem_id: string
           p_reason?: string
         }
-        Returns: string[]
+        Returns: Json
       }
       create_noti_for_team:
         | {

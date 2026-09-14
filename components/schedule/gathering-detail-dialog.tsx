@@ -290,7 +290,14 @@ export function GatheringDetailDialog({
     setLastWaitKey(waitKey);
     setWaitCount(waitlist.length);
     setWaitRank(myWaitRank);
-    if (!initialIsAttending && myWaitRank !== null) setState("waiting");
+    // 명단에 내가 있으면 대기, 없으면(그 사이 대기 취소·승급) 대기 상태를 **푼다.** 안 풀면
+    // 다음 클릭이 존재하지 않는 대기 행의 취소 분기로 들어간다(PR #532 리뷰).
+    // 참석 상태는 건드리지 않는다 — 승급 여부는 참석자 명단 동기화(attdKey)가 맡는다.
+    if (myWaitRank !== null) {
+      if (!initialIsAttending) setState("waiting");
+    } else {
+      setState((prev) => (prev === "waiting" ? "none" : prev));
+    }
   }
 
   // 참석자 명단이 **밖에서** 바뀌면 다시 받아 그린다.
@@ -337,7 +344,10 @@ export function GatheringDetailDialog({
   if (!gathering) return null;
 
   const isAuthor = currentMemberId === gathering.crt_by;
-  const isFull = state === "none" && gathering.maxPrtCnt != null && attdCount >= gathering.maxPrtCnt;
+  // 실제 정원 판정 — **대기 중인 사람에게도** 필요하다. 예전엔 `state === "none"` 일 때만 true 라
+  // 선착순 구간의 대기자는 만석이어도 늘 "참석하기"를 봤다(PR #532 리뷰). 참석 중인 사람은
+  // 자기 자리가 있으니 만석 여부가 버튼을 바꾸지 않는다.
+  const isFull = state !== "attending" && gathering.maxPrtCnt != null && attdCount >= gathering.maxPrtCnt;
   // 참여조건 잠금은 **등록에만** 건다 — 이미 참석 중이거나 대기 중이면 취소는 열어 둔다
   // (조건이 나중에 걸린 모임에서 빠져나올 길이 사라지면 안 된다). 아직 판정을 못 받았으면
   // 잠그지 않는다 — 서버가 최종 게이트라 여기서 성급히 막는 것보다 낫다.
@@ -391,6 +401,12 @@ export function GatheringDetailDialog({
     // 대기 취소 — 참석 취소와 달리 확인 모달이 없다. 자리를 갖고 있던 게 아니라 남에게
     // 미치는 영향이 없고, 다시 걸면 맨 뒤로 갈 뿐이라 되돌리기도 쉽다.
     if (state === "waiting") {
+      // 선착순 구간에 자리가 났으면 버튼이 "참석하기"다 — 누르면 대기 취소가 아니라 **참석**이다.
+      // 예전엔 라벨만 "참석하기"로 바뀌고 이 분기가 대기 취소를 불러 대기만 사라졌다(PR #532 리뷰).
+      if (waitlistOpenToAll && !isFull) {
+        await handleJoin(true);
+        return;
+      }
       togglingRef.current = true;
       const prevRank = waitRank;
       const prevWaitCount = waitCount;
@@ -423,13 +439,17 @@ export function GatheringDetailDialog({
   }
 
   /** 실제 등록(참석 또는 대기) — 만석이면 확인 모달을 거쳐 여기로 온다. */
-  async function handleJoin() {
+  async function handleJoin(fromWait = false) {
     if (!currentMemberId || togglingRef.current) return;
 
     // 자리가 있으면 참석, 만석이면 대기 신청. 둘 다 원탭 즉시 처리(낙관적 업데이트).
+    //
+    // `fromWait` — 선착순 구간(시작 2시간 전~)에 대기 중이던 사람이 빈 자리로 **직접** 들어오는
+    // 경우. 토글만으로는 "대기 취소"와 구분이 안 돼 서버에 의도("join")를 넘긴다(PR #532 리뷰).
     togglingRef.current = true;
-    const optimistic: AttendState = isFull ? "waiting" : "attending";
+    const optimistic: AttendState = fromWait || !isFull ? "attending" : "waiting";
     const prevCanceled = canceledAttendees;
+    const prevRank = waitRank;
     const myEntry = { mem_id: currentMemberId, mem_nm: currentMemberName ?? null, avatar_url: currentMemberAvatarUrl ?? null };
     setState(optimistic);
     if (optimistic === "attending") {
@@ -444,19 +464,33 @@ export function GatheringDetailDialog({
       setWaitRank(null);
     }
     try {
-      const result = await toggleGatheringAttendance(gathering!.id);
+      const result = await toggleGatheringAttendance(
+        gathering!.id,
+        undefined,
+        fromWait ? "join" : undefined,
+      );
       setState(result.state);
       setWaitRank(result.waitRank ?? null);
       if (result.waitCount !== undefined) setWaitCount(result.waitCount);
+      // 대기에서 참석으로 넘어왔으면 대기 인원도 하나 준다(서버는 참석 결과에 인원을 싣지 않는다).
+      if (fromWait && result.state === "attending") setWaitCount((c) => Math.max(0, c - 1));
       // 참석 등록 시에만 담백한 횟수 피드백(대기는 아래에서 별도 안내)
       if (result.state === "attending" && result.monthlyAttendCnt) {
         toast.success(`이번 달 ${result.monthlyAttendCnt}회 참여!`);
       }
-      // 대기는 "됐다"는 확인이 특히 중요하다 — 참석과 달리 아무 일도 안 일어난 것처럼 보인다.
       if (result.state === "waiting") {
-        toast.success(
-          result.waitRank ? `대기 ${result.waitRank}번으로 등록했어요` : "대기로 등록했어요",
-        );
+        if (fromWait) {
+          // 누르는 사이 다른 사람이 자리를 가져갔다 — 서버가 대기를 순번 그대로 유지했다.
+          // 낙관적으로 올린 참석을 되돌린다.
+          setAttdCount((c) => c - 1);
+          setAttendees(gathering!.attendees ?? []);
+          toast.info("그 사이 자리가 찼어요. 알림 요청은 그대로 유지돼요.");
+        } else {
+          // 대기는 "됐다"는 확인이 특히 중요하다 — 참석과 달리 아무 일도 안 일어난 것처럼 보인다.
+          toast.success(
+            result.waitRank ? `대기 ${result.waitRank}번으로 등록했어요` : "대기로 등록했어요",
+          );
+        }
       }
       // 부가 갱신(달력·참석자 재조회)은 참석 처리와 독립 — 여기서 reject돼도 위 성공한 토글을
       // 롤백하면 안 되므로 try 밖에서 삼킨다(catch 흐름 오염·unhandled rejection 방지).
@@ -464,12 +498,14 @@ export function GatheringDetailDialog({
         console.error("[gathering] 참석 변경 후 갱신 실패", err);
       });
     } catch (e) {
-      setState("none");
+      // 대기에서 들어오다 실패했으면 대기 상태로 되돌린다 — none 으로 두면 대기 행이 남아 있는데
+      // 버튼이 "빈 자리 알림 요청"으로 보인다.
+      setState(fromWait ? "waiting" : "none");
       if (optimistic === "attending") {
         setAttdCount((c) => c - 1);
         setAttendees(gathering!.attendees ?? []);
       }
-      setWaitRank(null);
+      setWaitRank(fromWait ? prevRank : null);
       setCanceledAttendees(prevCanceled);
       // 서버 거절 사유(지난 모임·참여조건 등)를 안내 — 무음 롤백이면 버튼 고장으로 오인한다
       toast.error(e instanceof Error ? e.message : "참석 처리에 실패했습니다.");

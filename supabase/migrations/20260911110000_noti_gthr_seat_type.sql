@@ -2,7 +2,7 @@
 SET lock_timeout = '3s';
 
 -- ============================================================
--- 모임 대기열 — 알림 타입 gthr_seat (선착순 구간 빈 자리 발생)
+-- 모임 대기열 — 알림 타입 gthr_seat (선착순 구간 빈 자리 발생) + batch_failed 복원
 --   설계: docs/superpowers/specs/2026-09-11-모임-대기열-임박구간-design.md §3
 --
 -- gthr_promo(자동 승급)와 **반드시 갈라 둔다.** 어휘가 다르기 때문이다 —
@@ -10,6 +10,17 @@ SET lock_timeout = '3s';
 --   gthr_seat  : "빈 자리가 났어요"              (직접 눌러야 한다)
 -- 같은 타입으로 묶으면 선착순 구간 알림을 받고 "확정됐구나" 하고 안 누르는 사람이 생긴다.
 -- 수신거부도 각자 따로 끌 수 있어야 한다.
+--
+-- ⚠️ batch_failed 를 되살린다. 20260814130000 이 추가한 값인데 20260825140000 이 CHECK 를
+--    재생성하면서 빠뜨렸고, 이후 마이그레이션들이 그 목록을 그대로 복사했다. 그 사이 배치
+--    실패 알림 INSERT 가 전부 거부됐다(insertNoti 가 catch 로 삼켜 조용했다).
+--    prd 에는 2026-09-14 핫픽스(noti_type_restore_batch_failed)로 먼저 복원했고, 이 파일은
+--    그 목록의 상위집합이라 prd 에 다시 돌려도 결과가 같다.
+--    **이 CHECK 를 다시 만드는 사람은 직전 목록을 복사하지 말고 prd 의 실제 정의를 먼저 읽을 것**
+--    (select pg_get_constraintdef(oid) from pg_constraint where conname = 'noti_mst_noti_type_enm_check').
+--
+-- VALIDATE 는 20260911110100 에서 **별도 트랜잭션**으로 한다. 같은 트랜잭션이면 DROP CONSTRAINT
+-- 가 잡은 ACCESS EXCLUSIVE 가 검증 스캔 끝까지 유지돼 NOT VALID 로 나눈 의미가 없다.
 --
 -- 딥링크 맵(lib/notifications/deep-link.ts)과 알림 라벨·아이콘도 함께 갱신해야 한다 —
 -- 여기만 열고 맵을 빼먹으면 알림을 눌러도 아무 데도 안 간다.
@@ -32,14 +43,13 @@ ALTER TABLE public.noti_mst ADD CONSTRAINT noti_mst_noti_type_enm_check
     -- 모임 대기열 승급
     'gthr_promo'::text,
     -- 모임 선착순 구간 빈 자리 발생
-    'gthr_seat'::text
+    'gthr_seat'::text,
+    -- 자동 배치 실패(운영진) — 20260825140000 에서 유실됐던 값 복원
+    'batch_failed'::text
   ])) NOT VALID;
-
--- 기존 행 검증 — 행 락을 잡지 않는다(SHARE UPDATE EXCLUSIVE).
-ALTER TABLE public.noti_mst VALIDATE CONSTRAINT noti_mst_noti_type_enm_check;
 
 -- ============================================================
 -- REVERT (수동 롤백용)
 -- ------------------------------------------------------------
--- 20260910120000_noti_gthr_promo_type.sql 의 배열(gthr_seat 제외)로 되돌린다.
+-- gthr_seat 만 뺀 배열로 되돌린다. batch_failed 는 **빼지 않는다** — 유실 버그를 되살린다.
 -- ============================================================

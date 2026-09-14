@@ -62,6 +62,7 @@ export function attendStateOf({
  */
 export function attendButtonLabel(
   state: AttendState,
+  /** 실제 정원이 찼는가 — **내 상태와 무관하게** 계산해 넘긴다(대기자도 이 값이 필요하다). */
   isFull: boolean,
   openToAll: boolean,
 ): string {

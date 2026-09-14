@@ -3,7 +3,7 @@
 import { after } from "next/server";
 
 import { withAdmin, withAdminOrThrow } from "@/lib/actions/auth";
-import { isWaitlistOpenToAll } from "@/lib/gathering/cancel-imminent";
+import { parseCancelResult } from "@/lib/gathering/cancel-result";
 import { validateCancelReason } from "@/lib/gathering/cancel-reason";
 import { notifyOpenSeat } from "@/lib/gathering/seat-notice";
 import { insertNoti } from "@/lib/notifications/insert-noti";
@@ -81,7 +81,7 @@ export async function removeGatheringAttendance(gthrId: string, memId: string, r
     }
 
     // RPC 가 취소·이력·**대기열 승급**을 한 트랜잭션으로 처리하고 승급된 mem_id 를 돌려준다.
-    const { data: promotedRaw, error } = await untyped.rpc("cancel_gthr_attendance", {
+    const { data: cancelRaw, error } = await untyped.rpc("cancel_gthr_attendance", {
       p_gthr_id: gthrId,
       p_mem_id: memId,
       p_actor_cd: "admin",
@@ -93,19 +93,18 @@ export async function removeGatheringAttendance(gthrId: string, memId: string, r
     // 운영진이 뺀 것도 자리가 나는 사건이다 — 올라온 사람은 알아야 한다.
     // 취소 자체는 이미 끝났으므로 알림 실패가 결과를 바꾸지 않는다(응답 밖에서 돈다).
     //
-    // 모임명·시작시각은 **승급자가 없어도** 필요하다 — 선착순 구간이면 승급 대신
-    // 대기자 전원에게 빈 자리 알림을 보내기 때문이다(설계 §3). 예전엔 `promoted.length`
-    // 안에서만 조회했다.
-    const promoted: string[] = Array.isArray(promotedRaw) ? promotedRaw : [];
-    const { data: gthrRow } = await db
-      .from("gthr_mst")
-      .select("gthr_nm, stt_at")
-      .eq("gthr_id", gthrId)
-      .maybeSingle();
-    const gthrNm = gthrRow?.gthr_nm ?? "모임";
-    const openToAll = gthrRow?.stt_at ? isWaitlistOpenToAll(gthrRow.stt_at) : false;
+    // 빈 자리 알림 여부는 **RPC 가 트랜잭션 안에서 계산한 값**을 쓴다(본인 취소 경로와 같은
+    // 파서). 앱이 시작 시각만 보고 정하면 정원 초과 모임(22/20)에서 빈자리가 없는데도 알림이
+    // 나가고, 2시간 경계에서 승급과 판정의 시각이 갈린다(PR #532 리뷰).
+    const { promoted, notifyOpenSeat: shouldNotifySeat } = parseCancelResult(cancelRaw);
 
-    if (promoted.length || openToAll) {
+    if (promoted.length || shouldNotifySeat) {
+      const { data: gthrRow } = await db
+        .from("gthr_mst")
+        .select("gthr_nm")
+        .eq("gthr_id", gthrId)
+        .maybeSingle();
+      const gthrNm = gthrRow?.gthr_nm ?? "모임";
       after(async () => {
         await Promise.all([
           ...promoted.map((promotedMemId) =>
@@ -119,9 +118,9 @@ export async function removeGatheringAttendance(gthrId: string, memId: string, r
               refTypeEnm: "gathering",
             }).catch((e) => console.error("[gthr_promo] 알림 발송 실패", e)),
           ),
-          // 선착순 구간이면 아무도 안 올라온다 — 본인 취소 경로와 **같은 코어**를 쓴다
+          // 선착순 구간이면서 실제 빈자리가 있을 때만 — 본인 취소 경로와 **같은 코어**를 쓴다
           // (각자 만들면 한쪽만 1회 제한을 빠뜨린다).
-          openToAll
+          shouldNotifySeat
             ? notifyOpenSeat(untyped, { gthrId, gthrNm, teamId }).catch((e) =>
                 console.error("[gthr_seat] 빈 자리 알림 발송 실패", e),
               )
