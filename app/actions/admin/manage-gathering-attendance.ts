@@ -1,10 +1,13 @@
 "use server";
 
+import { revalidatePath, updateTag } from "next/cache";
 import { after } from "next/server";
 
 import { withAdmin, withAdminOrThrow } from "@/lib/actions/auth";
+import { parseCancelResult } from "@/lib/gathering/cancel-result";
 import { validateCancelReason } from "@/lib/gathering/cancel-reason";
-import { insertNoti } from "@/lib/notifications/insert-noti";
+import { runPromotionFollowups } from "@/lib/gathering/promotion-followup";
+import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient, createUntypedAdminClient } from "@/lib/supabase/admin";
 
@@ -75,11 +78,13 @@ export async function removeGatheringAttendance(gthrId: string, memId: string, r
       });
       if (error) return { ok: false, message: "참석 취소에 실패했습니다" };
       if (data !== "ok") return { ok: false, message: "취소할 참석 내역이 없습니다" };
+      bustGatheringCaches(gthrId);
       return { ok: true, message: null };
     }
 
-    // RPC 가 취소·이력·**대기열 승급**을 한 트랜잭션으로 처리하고 승급된 mem_id 를 돌려준다.
-    const { data: promotedRaw, error } = await untyped.rpc("cancel_gthr_attendance", {
+    // RPC 가 취소·이력·**대기열 승급**을 한 트랜잭션으로 처리하고 {승급자, 빈 자리 알림 여부}를
+    // 돌려준다(판정은 SQL gthr_open_seat_notice_yn — 본인 취소·정원 증가와 같은 헬퍼).
+    const { data: cancelRaw, error } = await untyped.rpc("cancel_gthr_attendance", {
       p_gthr_id: gthrId,
       p_mem_id: memId,
       p_actor_cd: "admin",
@@ -88,35 +93,45 @@ export async function removeGatheringAttendance(gthrId: string, memId: string, r
     });
     if (error) return { ok: false, message: "참석 취소에 실패했습니다" };
 
-    // 운영진이 뺀 것도 자리가 나는 사건이다 — 올라온 사람은 알아야 한다.
-    // 취소 자체는 이미 끝났으므로 알림 실패가 결과를 바꾸지 않는다(응답 밖에서 돈다).
-    const promoted: string[] = Array.isArray(promotedRaw) ? promotedRaw : [];
-    if (promoted.length) {
+    bustGatheringCaches(gthrId);
+
+    // 운영진이 뺀 것도 자리가 나는 사건이다. 뒷처리(승급 알림 · 빈 자리 알림 · 승급자 칭호)는
+    // 본인 취소 경로와 **같은 함수**로 응답 밖에서 돈다 — 예전엔 여기만 칭호 평가가 빠져 있어
+    // 운영진 제거로 올라간 사람이 `막차`를 못 받았다(PR #532 점검).
+    const { promoted, notifyOpenSeat } = parseCancelResult(cancelRaw);
+    if (promoted.length > 0 || notifyOpenSeat) {
       const { data: gthrRow } = await db
         .from("gthr_mst")
         .select("gthr_nm")
         .eq("gthr_id", gthrId)
         .maybeSingle();
       const gthrNm = gthrRow?.gthr_nm ?? "모임";
-      after(async () => {
-        await Promise.all(
-          promoted.map((promotedMemId) =>
-            insertNoti({
-              teamId,
-              memId: promotedMemId,
-              notiTypeEnm: "gthr_promo",
-              notiNm: `'${gthrNm}' 자리가 나서 참석이 확정됐어요`,
-              notiCont: "대기 중이던 모임에 자리가 생겨 자동으로 참석 처리했어요.",
-              refId: gthrId,
-              refTypeEnm: "gathering",
-            }).catch((e) => console.error("[gthr_promo] 알림 발송 실패", e)),
-          ),
-        );
-      });
+      after(() =>
+        runPromotionFollowups(untyped, {
+          teamId,
+          gthrId,
+          gthrNm,
+          cause: "cancel",
+          promoted,
+          notifyOpenSeat,
+        }),
+      );
     }
 
     return { ok: true, message: null };
   });
+}
+
+/**
+ * 참석자 수가 바뀌는 관리자 쓰기 뒤에 캐시를 즉시 턴다(PR #532 점검).
+ *
+ * 홈 캘린더 칩과 모임 상세가 참석자 수를 그대로 찍는데, 이 파일의 두 액션만 무효화가 없어
+ * 운영진이 추가·제거해도 남의 화면과 새로고침 후 숫자가 최대 1시간 낡았다(KNOWLEDGE §홈 캘린더 —
+ * "쓰기 액션마다 updateTag"). updateTag 는 서버 액션 본문 전용이라 after() 안에서 부르지 않는다.
+ */
+function bustGatheringCaches(gthrId: string) {
+  updateTag(HOME_CALENDAR_CACHE_TAG);
+  revalidatePath(`/gatherings/${gthrId}`);
 }
 
 /**
@@ -169,10 +184,8 @@ export type GatheringWaitlistRow = {
 /**
  * 대기 명단 조회 — `wait_st_cd = 'waiting'` 행만.
  *
- * `gthr_wait_rel` 은 신규 테이블이라 아직 database.types.ts 에 없다 → untyped 관리자
- * 클라이언트로 조회한다(gen types 후 typed 클라이언트로 교체 예정). FK 는 mem_id → mem_mst
- * 하나뿐이라(gthr_aply_rel 과 달리 mem_id/rvw_by 둘이 아니다) 임베드에 별도 FK 이름
- * 지정이 필요 없다.
+ * FK 는 mem_id → mem_mst 하나뿐이라(gthr_aply_rel 과 달리 mem_id/rvw_by 둘이 아니다)
+ * 임베드에 별도 FK 이름 지정이 필요 없다.
  */
 export async function listGatheringWaitlist(gthrId: string): Promise<GatheringWaitlistRow[]> {
   return withAdminOrThrow(async () => {
@@ -182,8 +195,7 @@ export async function listGatheringWaitlist(gthrId: string): Promise<GatheringWa
     const inTeam = await verifyGatheringInTeam(db, gthrId, teamId);
     if (!inTeam) return [];
 
-    const untyped = createUntypedAdminClient();
-    const { data, error } = await untyped
+    const { data, error } = await db
       .from("gthr_wait_rel")
       .select("mem_id, wait_at, mem_mst(mem_nm, avatar_url)")
       .eq("gthr_id", gthrId)
@@ -194,14 +206,13 @@ export async function listGatheringWaitlist(gthrId: string): Promise<GatheringWa
       return [];
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (data ?? []).map((row: any) => {
+    return (data ?? []).map((row) => {
       const m = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst;
       return {
-        mem_id: row.mem_id as string,
-        wait_at: row.wait_at as string,
-        mem_nm: (m?.mem_nm as string | null) ?? null,
-        avatar_url: (m?.avatar_url as string | null) ?? null,
+        mem_id: row.mem_id,
+        wait_at: row.wait_at,
+        mem_nm: m?.mem_nm ?? null,
+        avatar_url: m?.avatar_url ?? null,
       };
     });
   });
