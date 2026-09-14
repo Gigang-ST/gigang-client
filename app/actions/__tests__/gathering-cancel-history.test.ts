@@ -36,6 +36,8 @@ const h = vi.hoisted(() => {
 });
 
 // updateTag: 참석 토글이 홈 캘린더 캐시를 즉시 턴다(로컬·SWR 에서 "만든 모임이 안 보임" 방지).
+// toggle-attendance 가 seat-notice 를 거쳐 "server-only"를 끌어온다 — vitest 에서는 해석되지 않는다.
+vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 // 액션은 뒷일(모임장 알림·칭호 평가)을 `after()`로 응답 밖에 넘긴다. 요청 스코프가 없는
 // 단위 테스트에서 진짜 `after`는 던지므로, 콜백을 그 자리에서 실행하는 스텁으로 바꾼다.

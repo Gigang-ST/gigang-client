@@ -6,7 +6,10 @@ import { Copy, ExternalLink, Lock, Pencil, Share2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { dayjs, parseEventTime } from "@/lib/dayjs";
+import { isWaitlistOpenToAll } from "@/lib/gathering/cancel-imminent";
+import { applyMyWaitOverride, waitRankOf } from "@/lib/gathering/waitlist";
 import { isPastLockedFor } from "@/lib/past-event";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { gthrTypeLabels, gthrSprtLabels, type GthrType, type GthrSprtType } from "@/lib/validations/gathering";
 
@@ -23,6 +26,8 @@ import {
   type GatheringApplication,
 } from "@/components/schedule/gathering-applications-section";
 import { GatheringJoinConditions } from "@/components/schedule/gathering-join-conditions";
+import { GatheringWaitlist, type WaitlistMember } from "@/components/schedule/gathering-waitlist";
+import { WaitConfirmDialog } from "@/components/schedule/wait-confirm-dialog";
 import { GatheringCancelDialog } from "@/app/(info)/gatherings/[id]/gathering-cancel-dialog";
 import {
   GatheringCanceledAttendees,
@@ -136,17 +141,22 @@ export function GatheringDetailDialog({
   const [inactiveGateOpen, setInactiveGateOpen] = useState(false);
   // 참석·대기·없음 3상태. 대기열이 생기며 boolean 으로는 표현할 수 없게 됐다.
   //
-  // ⚠️ 이 다이얼로그의 부모(mini-calendar.tsx)는 아직 내 대기 여부·순번을 조회해 넘기지
-  // 않는다(get_gathering_detail RPC가 anon 실행 허용 SECURITY DEFINER 라 대기 명단까지
-  // 실으면 비로그인에게 샌다 — 상세 페이지 주석과 같은 문제). 그래서 초기값은 항상
-  // waiting:false 로 좁혀 시작한다 — 이미 대기 중이던 사람이 다이얼로그를 다시 열면
-  // 버튼이 "참석하기"로 보이는 건 알려진 제약이고, 대기 명단을 함께 붙이는 후속 작업의 몫이다.
+  // 부모(mini-calendar.tsx)는 내 대기 여부를 넘기지 않는다 — get_gathering_detail RPC 가
+  // anon 실행 허용이라 대기 명단을 실으면 비로그인에게 새기 때문이다. 그래서 초기값은
+  // waiting:false 로 시작하고, 열린 뒤 loadWaitlist()가 테이블을 직접 읽어 맞춘다
+  // (gthr_wait_rel 의 RLS 가 비로그인·타팀을 막는다 — 설계 §4-1).
   const [state, setState] = useState<AttendState>(
     attendStateOf({ attending: initialIsAttending ?? false, waiting: false }),
   );
   const [waitRank, setWaitRank] = useState<number | null>(null);
   const [waitCount, setWaitCount] = useState(0);
+  // 대기 명단은 둘로 나눈다 — 참석자 명단(gathering.attendees prop ↔ attendees state)과 같은 짜임이다.
+  // loadedWaitlist 는 조회 결과(동기화 기준), waitlist 는 화면에 그리는 목록이라 신청·취소 때 바로 고친다.
+  // 하나로 두면 토글로 고친 목록이 아래 동기화 블록을 다시 돌려, 서버가 준 순번·인원을 로컬 목록 기준으로 덮는다.
+  const [loadedWaitlist, setLoadedWaitlist] = useState<WaitlistMember[]>([]);
+  const [waitlist, setWaitlist] = useState<WaitlistMember[]>([]);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [waitConfirmOpen, setWaitConfirmOpen] = useState(false);
   const [attdCount, setAttdCount] = useState(gathering?.regCount ?? 0);
   const [attendees, setAttendees] = useState(gathering?.attendees ?? []);
   const [canceledAttendees, setCanceledAttendees] = useState<CanceledAttendee[]>(gathering?.canceledAttendees ?? []);
@@ -173,6 +183,8 @@ export function GatheringDetailDialog({
   const [applications, setApplications] = useState<GatheringApplication[] | null>(null);
   // 모임 전환 시 늦은 응답을 버리기 위한 요청 번호(관리자 화면 currentGthrRef 와 같은 역할).
   const viewerStateReqRef = useRef(0);
+  /** 대기 명단 조회의 늦은 응답 폐기용(위와 같은 이유, 다른 요청이라 카운터를 따로 둔다). */
+  const waitlistReqRef = useRef(0);
   const canReview = !!currentMemberId && (isAdmin === true || currentMemberId === gathering?.crt_by);
 
   // ⚠️ 승인제가 아니어도 **참여조건만 걸린 모임**이 있다. 둘은 독립 옵션이라
@@ -204,11 +216,46 @@ export function GatheringDetailDialog({
     }
   }, [gathering?.id, gathering?.aprvReqYn, needsViewerState, currentMemberId, canReview]);
 
+  /**
+   * 대기 명단 — **RPC 가 아니라 테이블을 직접 읽는다.**
+   *
+   * `get_gathering_detail` 은 anon 실행이 허용된 SECURITY DEFINER 라 대기자 이름을 실으면
+   * 비로그인에게 샌다. 반면 `gthr_wait_rel` 에는 `authenticated` + 팀 멤버 한정 SELECT RLS 가
+   * 걸려 있어, 세션 클라이언트로 직접 읽으면 RLS 가 알아서 막는다(비로그인 0행, 타팀 0행).
+   * 그래서 RPC 수정도 마이그레이션도 없다(설계 §4-1).
+   *
+   * 늦은 응답 폐기는 viewerStateReqRef 와 같은 이유로 필요하다 — 모임 A 를 열자마자 닫고
+   * B 를 열면 A 의 명단이 B 화면을 덮는다.
+   */
+  const loadWaitlist = useCallback(async (gthrId: string) => {
+    const reqId = ++waitlistReqRef.current;
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("gthr_wait_rel")
+      .select("mem_id, wait_at, mem_mst(mem_nm, avatar_url)")
+      .eq("gthr_id", gthrId)
+      .eq("wait_st_cd", "waiting");
+    if (reqId !== waitlistReqRef.current) return;
+
+    setLoadedWaitlist(
+      (data ?? []).map((w) => {
+        const mem = Array.isArray(w.mem_mst) ? w.mem_mst[0] : w.mem_mst;
+        return {
+          mem_id: w.mem_id,
+          wait_at: w.wait_at,
+          mem_nm: mem?.mem_nm ?? null,
+          avatar_url: mem?.avatar_url ?? null,
+        };
+      }),
+    );
+  }, []);
+
   // 열릴 때마다 새로 받는다 — 다른 기기·운영진이 그 사이 승인했을 수 있다.
   useEffect(() => {
     if (!open) return;
     loadMyApplication();
-  }, [open, loadMyApplication]);
+    if (gathering?.id) void loadWaitlist(gathering.id);
+  }, [open, gathering?.id, loadMyApplication, loadWaitlist]);
 
   // gathering prop이 바뀌거나 justCreated가 바뀌면 로컬 상태 동기화
   // (렌더 중 파생 state 업데이트 — React 공식 패턴: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes)
@@ -220,10 +267,12 @@ export function GatheringDetailDialog({
   if (syncKey !== lastSyncKey) {
     setLastSyncKey(syncKey);
     // 대기 상태도 같이 맞춘다 — 안 그러면 다른 모임을 열었을 때 이전 모임의 대기
-    // 순번·인원이 그대로 남는다. 위 state 선언부 주석대로 waiting 은 아직 항상 false로 시작.
+    // 순번·인원이 그대로 남는다. waiting 은 false 로 시작하고 명단이 도착하면 아래에서 맞춘다.
     setState(attendStateOf({ attending: initialIsAttending ?? false, waiting: false }));
     setWaitRank(null);
     setWaitCount(0);
+    setWaitlist([]);
+    setLoadedWaitlist([]);
     setAttdCount(gathering?.regCount ?? 0);
     setAttendees(gathering?.attendees ?? []);
     setCanceledAttendees(gathering?.canceledAttendees ?? []);
@@ -231,6 +280,31 @@ export function GatheringDetailDialog({
     // 다른 모임을 열면 이전 모임의 신청 상태가 잠깐 보이지 않게 지운다.
     setMyAply(null);
     setApplications(null);
+  }
+
+  // 대기 명단이 도착하면 내 상태·순번·인원을 한 번 맞춘다.
+  //
+  // **조회 결과가 바뀔 때만** 맞춘다(waitKey). 신청·취소로 화면 목록을 고쳐도 여기는 다시 돌지 않는다. 토글을 누른 뒤에는 서버 액션의 응답이 정본이라,
+  // 매 렌더 덮어쓰면 낙관적 업데이트가 조회 결과로 되돌아간다.
+  // 참석이 대기를 이기는 판정은 attendStateOf 와 같은 방향이다 — 승급 직후 대기 행이
+  // 아직 안 닫힌 찰나에도 "참석"으로 보여야 한다.
+  const myWaitRank = currentMemberId ? waitRankOf(loadedWaitlist, currentMemberId) : null;
+  const waitKey = `${gKey}:${loadedWaitlist.map((w) => w.mem_id).join(",")}`;
+  const [lastWaitKey, setLastWaitKey] = useState(waitKey);
+  if (waitKey !== lastWaitKey) {
+    setLastWaitKey(waitKey);
+    // 화면 목록을 조회 결과로 덮는다 — 참석자 명단(attdKey)이 prop 으로 로컬 목록을 덮는 것과 같다.
+    setWaitlist(loadedWaitlist);
+    setWaitCount(loadedWaitlist.length);
+    setWaitRank(myWaitRank);
+    // 명단에 내가 있으면 대기, 없으면(그 사이 대기 취소·승급) 대기 상태를 **푼다.** 안 풀면
+    // 다음 클릭이 존재하지 않는 대기 행의 취소 분기로 들어간다(PR #532 리뷰).
+    // 참석 상태는 건드리지 않는다 — 승급 여부는 참석자 명단 동기화(attdKey)가 맡는다.
+    if (myWaitRank !== null) {
+      if (!initialIsAttending) setState("waiting");
+    } else {
+      setState((prev) => (prev === "waiting" ? "none" : prev));
+    }
   }
 
   // 참석자 명단이 **밖에서** 바뀌면 다시 받아 그린다.
@@ -277,13 +351,18 @@ export function GatheringDetailDialog({
   if (!gathering) return null;
 
   const isAuthor = currentMemberId === gathering.crt_by;
-  const isFull = state === "none" && gathering.maxPrtCnt != null && attdCount >= gathering.maxPrtCnt;
+  // 실제 정원 판정 — **대기 중인 사람에게도** 필요하다. 예전엔 `state === "none"` 일 때만 true 라
+  // 선착순 구간의 대기자는 만석이어도 늘 "참석하기"를 봤다(PR #532 리뷰). 참석 중인 사람은
+  // 자기 자리가 있으니 만석 여부가 버튼을 바꾸지 않는다.
+  const isFull = state !== "attending" && gathering.maxPrtCnt != null && attdCount >= gathering.maxPrtCnt;
   // 참여조건 잠금은 **등록에만** 건다 — 이미 참석 중이거나 대기 중이면 취소는 열어 둔다
   // (조건이 나중에 걸린 모임에서 빠져나올 길이 사라지면 안 된다). 아직 판정을 못 받았으면
   // 잠그지 않는다 — 서버가 최종 게이트라 여기서 성급히 막는 것보다 낫다.
   const conditionLocked = state === "none" && myAply != null && !myAply.conditions.ok;
   // 지난 모임(KST 날짜 기준)은 수정·삭제·참석 변경 불가 — 관리자만 예외 (서버 액션에서도 동일 검증)
   const isPastLocked = isPastLockedFor(isAdmin, gathering.evt_stt_at ?? gathering.start_date, gathering.evt_end_at);
+  // 시작 2시간 전부터는 대기 순번이 없고 선착순이다 — 버튼·안내 문구가 통째로 갈린다.
+  const waitlistOpenToAll = isWaitlistOpenToAll(gathering.evt_stt_at ?? gathering.start_date);
 
   // evt_stt_at 없으면 start_date(날짜만)로 폴백 — parseEventTime이 KST 자정으로 고정해
   // 기기 타임존에 따라 시각 표시가 어긋나지 않게 한다(isPastLocked·취소 판정과 동일 기준).
@@ -329,12 +408,21 @@ export function GatheringDetailDialog({
     // 대기 취소 — 참석 취소와 달리 확인 모달이 없다. 자리를 갖고 있던 게 아니라 남에게
     // 미치는 영향이 없고, 다시 걸면 맨 뒤로 갈 뿐이라 되돌리기도 쉽다.
     if (state === "waiting") {
+      // 선착순 구간에 자리가 났으면 버튼이 "참석하기"다 — 누르면 대기 취소가 아니라 **참석**이다.
+      // 예전엔 라벨만 "참석하기"로 바뀌고 이 분기가 대기 취소를 불러 대기만 사라졌다(PR #532 리뷰).
+      if (waitlistOpenToAll && !isFull) {
+        await handleJoin(true);
+        return;
+      }
       togglingRef.current = true;
       const prevRank = waitRank;
       const prevWaitCount = waitCount;
+      const prevWaitlist = waitlist;
       setState("none");
       setWaitRank(null);
       setWaitCount((c) => Math.max(0, c - 1));
+      // 명단에서도 바로 뺀다(재조회 없이) — 참석 취소가 참석자 명단에서 나를 바로 빼는 것과 같다.
+      setWaitlist((list) => applyMyWaitOverride(list, currentMemberId, null));
       try {
         const result = await toggleGatheringAttendance(gathering!.id);
         setState(result.state);
@@ -342,6 +430,7 @@ export function GatheringDetailDialog({
         setState("waiting");
         setWaitRank(prevRank);
         setWaitCount(prevWaitCount);
+        setWaitlist(prevWaitlist);
         toast.error(e instanceof Error ? e.message : "대기 취소에 실패했습니다.");
       } finally {
         togglingRef.current = false;
@@ -349,10 +438,30 @@ export function GatheringDetailDialog({
       return;
     }
 
-    // 미참석 — 자리가 있으면 참석, 만석이면 대기 신청. 둘 다 원탭 즉시 처리(낙관적 업데이트).
+    // 미참석 + 만석 — 대기(또는 빈 자리 알림 요청)로 들어가기 전에 확인을 받는다.
+    // 자리가 나면 **자동으로 참석자가 되는데** 되돌리기 번거로운 일이라 누르기 전에 알린다.
+    // 자리가 있어 바로 참석하는 경로는 그대로 1탭이다(§4-2).
+    if (isFull) {
+      setWaitConfirmOpen(true);
+      return;
+    }
+
+    await handleJoin();
+  }
+
+  /** 실제 등록(참석 또는 대기) — 만석이면 확인 모달을 거쳐 여기로 온다. */
+  async function handleJoin(fromWait = false) {
+    if (!currentMemberId || togglingRef.current) return;
+
+    // 자리가 있으면 참석, 만석이면 대기 신청. 둘 다 원탭 즉시 처리(낙관적 업데이트).
+    //
+    // `fromWait` — 선착순 구간(시작 2시간 전~)에 대기 중이던 사람이 빈 자리로 **직접** 들어오는
+    // 경우. 토글만으로는 "대기 취소"와 구분이 안 돼 서버에 의도("join")를 넘긴다(PR #532 리뷰).
     togglingRef.current = true;
-    const optimistic: AttendState = isFull ? "waiting" : "attending";
+    const optimistic: AttendState = fromWait || !isFull ? "attending" : "waiting";
     const prevCanceled = canceledAttendees;
+    const prevRank = waitRank;
+    const prevWaitlist = waitlist;
     const myEntry = { mem_id: currentMemberId, mem_nm: currentMemberName ?? null, avatar_url: currentMemberAvatarUrl ?? null };
     setState(optimistic);
     if (optimistic === "attending") {
@@ -361,25 +470,54 @@ export function GatheringDetailDialog({
       // 재참석이면 취소자 목록에서 본인을 즉시 뺀다 — 안 그러면 같은 모달 안에서
       // 취소→재참석 시 참석·취소 양쪽에 동시에 보인다(재오픈 전까지). 재오픈하면 rel 우선 파생으로 자동 정리.
       setCanceledAttendees((list) => list.filter((c) => c.mem_id !== currentMemberId));
+      // 대기에서 들어오는 거면 대기 명단에서도 바로 뺀다.
+      if (fromWait) setWaitlist((list) => applyMyWaitOverride(list, currentMemberId, null));
     } else {
-      // 대기 신청은 attdCount 를 올리지 않는다(참석자가 아니다). 순번은 서버가 정한다 —
-      // 낙관적으로 지어내면 "3번이었는데 5번이 됐다"로 보인다.
+      // 대기 신청은 attdCount 를 올리지 않는다(참석자가 아니다). 순번 **숫자**는 서버가 정한다 —
+      // 낙관적으로 지어내면 "3번이었는데 5번이 됐다"로 보인다. 명단에는 바로 넣는다(방금 줄 섰으니 맨 뒤).
       setWaitRank(null);
+      setWaitlist((list) =>
+        applyMyWaitOverride(list, currentMemberId, { ...myEntry, wait_at: dayjs().toISOString() }),
+      );
     }
     try {
-      const result = await toggleGatheringAttendance(gathering!.id);
+      const result = await toggleGatheringAttendance(
+        gathering!.id,
+        undefined,
+        fromWait ? "join" : undefined,
+      );
       setState(result.state);
       setWaitRank(result.waitRank ?? null);
+      // 명단도 서버가 정한 상태에 맞춘다 — 낙관적으로 얹은 게 틀렸으면(그 사이 자리가 났거나 찼으면) 바로잡는다.
+      if (result.state === "attending") {
+        setWaitlist((list) => applyMyWaitOverride(list, currentMemberId, null));
+      } else if (result.state === "waiting") {
+        if (fromWait) setWaitlist(prevWaitlist);
+        else
+          setWaitlist((list) =>
+            applyMyWaitOverride(list, currentMemberId, { ...myEntry, wait_at: dayjs().toISOString() }),
+          );
+      }
       if (result.waitCount !== undefined) setWaitCount(result.waitCount);
+      // 대기에서 참석으로 넘어왔으면 대기 인원도 하나 준다(서버는 참석 결과에 인원을 싣지 않는다).
+      if (fromWait && result.state === "attending") setWaitCount((c) => Math.max(0, c - 1));
       // 참석 등록 시에만 담백한 횟수 피드백(대기는 아래에서 별도 안내)
       if (result.state === "attending" && result.monthlyAttendCnt) {
         toast.success(`이번 달 ${result.monthlyAttendCnt}회 참여!`);
       }
-      // 대기는 "됐다"는 확인이 특히 중요하다 — 참석과 달리 아무 일도 안 일어난 것처럼 보인다.
       if (result.state === "waiting") {
-        toast.success(
-          result.waitRank ? `대기 ${result.waitRank}번으로 등록했어요` : "대기로 등록했어요",
-        );
+        if (fromWait) {
+          // 누르는 사이 다른 사람이 자리를 가져갔다 — 서버가 대기를 순번 그대로 유지했다.
+          // 낙관적으로 올린 참석을 되돌린다.
+          setAttdCount((c) => c - 1);
+          setAttendees(gathering!.attendees ?? []);
+          toast.info("그 사이 자리가 찼어요. 알림 요청은 그대로 유지돼요.");
+        } else {
+          // 대기는 "됐다"는 확인이 특히 중요하다 — 참석과 달리 아무 일도 안 일어난 것처럼 보인다.
+          toast.success(
+            result.waitRank ? `대기 ${result.waitRank}번으로 등록했어요` : "대기로 등록했어요",
+          );
+        }
       }
       // 부가 갱신(달력·참석자 재조회)은 참석 처리와 독립 — 여기서 reject돼도 위 성공한 토글을
       // 롤백하면 안 되므로 try 밖에서 삼킨다(catch 흐름 오염·unhandled rejection 방지).
@@ -387,13 +525,16 @@ export function GatheringDetailDialog({
         console.error("[gathering] 참석 변경 후 갱신 실패", err);
       });
     } catch (e) {
-      setState("none");
+      // 대기에서 들어오다 실패했으면 대기 상태로 되돌린다 — none 으로 두면 대기 행이 남아 있는데
+      // 버튼이 "빈 자리 알림 요청"으로 보인다.
+      setState(fromWait ? "waiting" : "none");
       if (optimistic === "attending") {
         setAttdCount((c) => c - 1);
         setAttendees(gathering!.attendees ?? []);
       }
-      setWaitRank(null);
+      setWaitRank(fromWait ? prevRank : null);
       setCanceledAttendees(prevCanceled);
+      setWaitlist(prevWaitlist);
       // 서버 거절 사유(지난 모임·참여조건 등)를 안내 — 무음 롤백이면 버튼 고장으로 오인한다
       toast.error(e instanceof Error ? e.message : "참석 처리에 실패했습니다.");
     } finally {
@@ -620,13 +761,15 @@ export function GatheringDetailDialog({
                     <>
                       {/* 지난 모임·조건 미달: 문구 변경 없이 잠금 아이콘 + disabled 흐림으로만 표시 */}
                       {(isPastLocked || conditionLocked) && <Lock className="size-3.5" />}
-                      {attendButtonLabel(state, isFull)}
+                      {attendButtonLabel(state, isFull, waitlistOpenToAll)}
                     </>
                   )}
                 </Button>
 
-                {!viewerInactive && waitHintText(state, waitRank, waitCount) && (
-                  <Caption className="text-center">{waitHintText(state, waitRank, waitCount)}</Caption>
+                {!viewerInactive && waitHintText(state, waitRank, waitCount, waitlistOpenToAll) && (
+                  <Caption className="text-center">
+                    {waitHintText(state, waitRank, waitCount, waitlistOpenToAll)}
+                  </Caption>
                 )}
               </div>
             )}
@@ -659,6 +802,10 @@ export function GatheringDetailDialog({
                 ))}
               </div>
             ) : null}
+
+            {/* 대기 명단 — 상세 페이지와 **같은 컴포넌트**를 쓴다(각자 만들면 순번 표기가
+                한쪽만 바뀐다). 대기자가 없으면 스스로 아무것도 그리지 않는다. */}
+            <GatheringWaitlist entries={waitlist} />
 
             {/* 취소자 목록 — 상세 페이지(SG-03)와 동등한 회색 표시(취소 시각·사유). 카운트엔 미포함. */}
             <GatheringCanceledAttendees attendees={canceledAttendees} />
@@ -772,6 +919,13 @@ export function GatheringDetailDialog({
       onOpenChange={setCancelDialogOpen}
       sttAt={gathering.evt_stt_at ?? gathering.start_date}
       onConfirm={handleCancelConfirm}
+    />
+    {/* 상세 페이지와 **같은 컴포넌트**를 쓴다 — 각자 만들면 문구가 한쪽만 바뀐다. */}
+    <WaitConfirmDialog
+      open={waitConfirmOpen}
+      onOpenChange={setWaitConfirmOpen}
+      openToAll={waitlistOpenToAll}
+      onConfirm={() => void handleJoin()}
     />
     <MemberCardDialog
       memId={selectedMember?.memId ?? null}

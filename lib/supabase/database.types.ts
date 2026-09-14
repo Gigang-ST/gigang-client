@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.4"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -1731,6 +1731,51 @@ export type Database = {
           },
         ]
       }
+      gthr_wait_rel: {
+        Row: {
+          crt_at: string
+          gthr_id: string
+          mem_id: string
+          upd_at: string
+          wait_at: string
+          wait_id: string
+          wait_st_cd: string
+        }
+        Insert: {
+          crt_at?: string
+          gthr_id: string
+          mem_id: string
+          upd_at?: string
+          wait_at?: string
+          wait_id?: string
+          wait_st_cd?: string
+        }
+        Update: {
+          crt_at?: string
+          gthr_id?: string
+          mem_id?: string
+          upd_at?: string
+          wait_at?: string
+          wait_id?: string
+          wait_st_cd?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gthr_wait_rel_gthr_id_fkey"
+            columns: ["gthr_id"]
+            isOneToOne: false
+            referencedRelation: "gthr_mst"
+            referencedColumns: ["gthr_id"]
+          },
+          {
+            foreignKeyName: "gthr_wait_rel_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
       mcp_audit_log: {
         Row: {
           actor_mem_id: string
@@ -2902,7 +2947,7 @@ export type Database = {
           p_mem_id: string
           p_reason?: string
         }
-        Returns: undefined
+        Returns: Json
       }
       create_noti_for_team:
         | {
@@ -3114,7 +3159,15 @@ export type Database = {
         Args: { p_mem_id?: string; p_team_id: string }
         Returns: Json
       }
+      gthr_open_seat_notice_yn: {
+        Args: { p_gthr_id: string; p_team_id: string }
+        Returns: boolean
+      }
       is_legacy_platform_admin: { Args: never; Returns: boolean }
+      join_gthr_or_wait: {
+        Args: { p_gthr_id: string; p_mem_id: string; p_team_id: string }
+        Returns: string
+      }
       kst_day_end_excl: { Args: { d: string }; Returns: string }
       kst_day_start: { Args: { d: string }; Returns: string }
       mem_mst_mem_ids_by_norm_phone: {
@@ -3128,6 +3181,14 @@ export type Database = {
       }
       migration_v2_norm_email: { Args: { p_input: string }; Returns: string }
       migration_v2_norm_phone: { Args: { p_input: string }; Returns: string }
+      promote_gthr_waitlist: {
+        Args: { p_gthr_id: string; p_team_id: string }
+        Returns: string[]
+      }
+      promote_gthr_waitlist_notice: {
+        Args: { p_gthr_id: string; p_team_id: string }
+        Returns: Json
+      }
       pt_earn: {
         Args: {
           p_actv: Database["public"]["Enums"]["pt_actv_type_enm"]
@@ -3310,12 +3371,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3339,11 +3400,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3364,11 +3425,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3389,11 +3450,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3406,11 +3467,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
