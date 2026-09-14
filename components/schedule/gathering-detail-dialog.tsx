@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 import { dayjs, parseEventTime } from "@/lib/dayjs";
 import { isWaitlistOpenToAll } from "@/lib/gathering/cancel-imminent";
-import { waitRankOf } from "@/lib/gathering/waitlist";
+import { applyMyWaitOverride, waitRankOf } from "@/lib/gathering/waitlist";
 import { isPastLockedFor } from "@/lib/past-event";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -150,6 +150,10 @@ export function GatheringDetailDialog({
   );
   const [waitRank, setWaitRank] = useState<number | null>(null);
   const [waitCount, setWaitCount] = useState(0);
+  // 대기 명단은 둘로 나눈다 — 참석자 명단(gathering.attendees prop ↔ attendees state)과 같은 짜임이다.
+  // loadedWaitlist 는 조회 결과(동기화 기준), waitlist 는 화면에 그리는 목록이라 신청·취소 때 바로 고친다.
+  // 하나로 두면 토글로 고친 목록이 아래 동기화 블록을 다시 돌려, 서버가 준 순번·인원을 로컬 목록 기준으로 덮는다.
+  const [loadedWaitlist, setLoadedWaitlist] = useState<WaitlistMember[]>([]);
   const [waitlist, setWaitlist] = useState<WaitlistMember[]>([]);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [waitConfirmOpen, setWaitConfirmOpen] = useState(false);
@@ -233,7 +237,7 @@ export function GatheringDetailDialog({
       .eq("wait_st_cd", "waiting");
     if (reqId !== waitlistReqRef.current) return;
 
-    setWaitlist(
+    setLoadedWaitlist(
       (data ?? []).map((w) => {
         const mem = Array.isArray(w.mem_mst) ? w.mem_mst[0] : w.mem_mst;
         return {
@@ -268,6 +272,7 @@ export function GatheringDetailDialog({
     setWaitRank(null);
     setWaitCount(0);
     setWaitlist([]);
+    setLoadedWaitlist([]);
     setAttdCount(gathering?.regCount ?? 0);
     setAttendees(gathering?.attendees ?? []);
     setCanceledAttendees(gathering?.canceledAttendees ?? []);
@@ -279,16 +284,18 @@ export function GatheringDetailDialog({
 
   // 대기 명단이 도착하면 내 상태·순번·인원을 한 번 맞춘다.
   //
-  // **명단이 바뀔 때만** 맞춘다(waitKey). 토글을 누른 뒤에는 서버 액션의 응답이 정본이라,
+  // **조회 결과가 바뀔 때만** 맞춘다(waitKey). 신청·취소로 화면 목록을 고쳐도 여기는 다시 돌지 않는다. 토글을 누른 뒤에는 서버 액션의 응답이 정본이라,
   // 매 렌더 덮어쓰면 낙관적 업데이트가 조회 결과로 되돌아간다.
   // 참석이 대기를 이기는 판정은 attendStateOf 와 같은 방향이다 — 승급 직후 대기 행이
   // 아직 안 닫힌 찰나에도 "참석"으로 보여야 한다.
-  const myWaitRank = currentMemberId ? waitRankOf(waitlist, currentMemberId) : null;
-  const waitKey = `${gKey}:${waitlist.map((w) => w.mem_id).join(",")}`;
+  const myWaitRank = currentMemberId ? waitRankOf(loadedWaitlist, currentMemberId) : null;
+  const waitKey = `${gKey}:${loadedWaitlist.map((w) => w.mem_id).join(",")}`;
   const [lastWaitKey, setLastWaitKey] = useState(waitKey);
   if (waitKey !== lastWaitKey) {
     setLastWaitKey(waitKey);
-    setWaitCount(waitlist.length);
+    // 화면 목록을 조회 결과로 덮는다 — 참석자 명단(attdKey)이 prop 으로 로컬 목록을 덮는 것과 같다.
+    setWaitlist(loadedWaitlist);
+    setWaitCount(loadedWaitlist.length);
     setWaitRank(myWaitRank);
     // 명단에 내가 있으면 대기, 없으면(그 사이 대기 취소·승급) 대기 상태를 **푼다.** 안 풀면
     // 다음 클릭이 존재하지 않는 대기 행의 취소 분기로 들어간다(PR #532 리뷰).
@@ -410,9 +417,12 @@ export function GatheringDetailDialog({
       togglingRef.current = true;
       const prevRank = waitRank;
       const prevWaitCount = waitCount;
+      const prevWaitlist = waitlist;
       setState("none");
       setWaitRank(null);
       setWaitCount((c) => Math.max(0, c - 1));
+      // 명단에서도 바로 뺀다(재조회 없이) — 참석 취소가 참석자 명단에서 나를 바로 빼는 것과 같다.
+      setWaitlist((list) => applyMyWaitOverride(list, currentMemberId, null));
       try {
         const result = await toggleGatheringAttendance(gathering!.id);
         setState(result.state);
@@ -420,6 +430,7 @@ export function GatheringDetailDialog({
         setState("waiting");
         setWaitRank(prevRank);
         setWaitCount(prevWaitCount);
+        setWaitlist(prevWaitlist);
         toast.error(e instanceof Error ? e.message : "대기 취소에 실패했습니다.");
       } finally {
         togglingRef.current = false;
@@ -450,6 +461,7 @@ export function GatheringDetailDialog({
     const optimistic: AttendState = fromWait || !isFull ? "attending" : "waiting";
     const prevCanceled = canceledAttendees;
     const prevRank = waitRank;
+    const prevWaitlist = waitlist;
     const myEntry = { mem_id: currentMemberId, mem_nm: currentMemberName ?? null, avatar_url: currentMemberAvatarUrl ?? null };
     setState(optimistic);
     if (optimistic === "attending") {
@@ -458,10 +470,15 @@ export function GatheringDetailDialog({
       // 재참석이면 취소자 목록에서 본인을 즉시 뺀다 — 안 그러면 같은 모달 안에서
       // 취소→재참석 시 참석·취소 양쪽에 동시에 보인다(재오픈 전까지). 재오픈하면 rel 우선 파생으로 자동 정리.
       setCanceledAttendees((list) => list.filter((c) => c.mem_id !== currentMemberId));
+      // 대기에서 들어오는 거면 대기 명단에서도 바로 뺀다.
+      if (fromWait) setWaitlist((list) => applyMyWaitOverride(list, currentMemberId, null));
     } else {
-      // 대기 신청은 attdCount 를 올리지 않는다(참석자가 아니다). 순번은 서버가 정한다 —
-      // 낙관적으로 지어내면 "3번이었는데 5번이 됐다"로 보인다.
+      // 대기 신청은 attdCount 를 올리지 않는다(참석자가 아니다). 순번 **숫자**는 서버가 정한다 —
+      // 낙관적으로 지어내면 "3번이었는데 5번이 됐다"로 보인다. 명단에는 바로 넣는다(방금 줄 섰으니 맨 뒤).
       setWaitRank(null);
+      setWaitlist((list) =>
+        applyMyWaitOverride(list, currentMemberId, { ...myEntry, wait_at: dayjs().toISOString() }),
+      );
     }
     try {
       const result = await toggleGatheringAttendance(
@@ -471,6 +488,16 @@ export function GatheringDetailDialog({
       );
       setState(result.state);
       setWaitRank(result.waitRank ?? null);
+      // 명단도 서버가 정한 상태에 맞춘다 — 낙관적으로 얹은 게 틀렸으면(그 사이 자리가 났거나 찼으면) 바로잡는다.
+      if (result.state === "attending") {
+        setWaitlist((list) => applyMyWaitOverride(list, currentMemberId, null));
+      } else if (result.state === "waiting") {
+        if (fromWait) setWaitlist(prevWaitlist);
+        else
+          setWaitlist((list) =>
+            applyMyWaitOverride(list, currentMemberId, { ...myEntry, wait_at: dayjs().toISOString() }),
+          );
+      }
       if (result.waitCount !== undefined) setWaitCount(result.waitCount);
       // 대기에서 참석으로 넘어왔으면 대기 인원도 하나 준다(서버는 참석 결과에 인원을 싣지 않는다).
       if (fromWait && result.state === "attending") setWaitCount((c) => Math.max(0, c - 1));
@@ -507,6 +534,7 @@ export function GatheringDetailDialog({
       }
       setWaitRank(fromWait ? prevRank : null);
       setCanceledAttendees(prevCanceled);
+      setWaitlist(prevWaitlist);
       // 서버 거절 사유(지난 모임·참여조건 등)를 안내 — 무음 롤백이면 버튼 고장으로 오인한다
       toast.error(e instanceof Error ? e.message : "참석 처리에 실패했습니다.");
     } finally {

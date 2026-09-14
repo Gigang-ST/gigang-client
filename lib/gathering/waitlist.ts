@@ -138,3 +138,21 @@ export function waitConfirmCopy(openToAll: boolean): WaitConfirmCopy {
     confirmLabel: "대기 신청",
   };
 }
+
+/**
+ * 조회해 둔 대기 명단에 **내 대기 행 변경만** 얹는다 — 토글 뒤 재조회 없이 화면 명단을 맞추려고.
+ * 참석자 명단이 참석·취소 때 `setAttendees`로 낙관적으로 바뀌는 것과 같은 방식이다.
+ *
+ * `mine`: `undefined` = 바꿀 것 없음(그대로) / `null` = 나를 뺀다 / 값 = 나를 넣는다(이미 있으면 교체).
+ * 새로 넣는 행의 `wait_at`은 호출부가 지금 시각으로 넘긴다 — 방금 줄 섰으니 맨 뒤 순번이다.
+ * 원본 배열은 건드리지 않고, 바꿀 게 없으면 같은 참조를 돌려준다(불필요한 렌더 방지).
+ */
+export function applyMyWaitOverride<T extends WaitEntry>(
+  entries: T[],
+  memId: string | null | undefined,
+  mine: T | null | undefined,
+): T[] {
+  if (!memId || mine === undefined) return entries;
+  const others = entries.filter((e) => e.mem_id !== memId);
+  return mine ? [...others, mine] : others;
+}

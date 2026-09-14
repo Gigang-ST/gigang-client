@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  applyMyWaitOverride,
   attendButtonLabel,
   attendStateOf,
   sortWaitlist,
@@ -166,5 +167,38 @@ describe("waitConfirmCopy — 누르기 전에 무슨 일이 일어나는지 알
   it("선착순 구간 문구에는 '대기'라는 말이 없다 — 순번을 기대하게 만들지 않는다", () => {
     const copy = waitConfirmCopy(true);
     expect([copy.title, ...copy.lines, copy.confirmLabel].join(" ")).not.toContain("대기");
+  });
+});
+
+describe("applyMyWaitOverride — 토글 뒤 재조회 없이 내 대기 행만 명단에 얹는다", () => {
+  const LIST = [E("a", "2026-09-10T01:00:00Z"), E("me", "2026-09-10T02:00:00Z"), E("b", "2026-09-10T03:00:00Z")];
+
+  it("얹을 게 없으면(undefined) 조회 결과를 그대로 쓴다", () => {
+    expect(applyMyWaitOverride(LIST, "me", undefined)).toBe(LIST);
+  });
+
+  it("대기 취소(null)면 나만 뺀다", () => {
+    expect(applyMyWaitOverride(LIST, "me", null).map((e) => e.mem_id)).toEqual(["a", "b"]);
+  });
+
+  it("대기 신청(값)이면 나를 넣는다 — 방금 줄 섰으니 맨 뒤 순번이다", () => {
+    const out = applyMyWaitOverride([E("a", "2026-09-10T01:00:00Z")], "me", E("me", "2026-09-10T05:00:00Z"));
+    expect(out.map((e) => e.mem_id)).toEqual(["a", "me"]);
+    expect(waitRankOf(out, "me")).toBe(2);
+  });
+
+  it("이미 명단에 있으면 중복으로 넣지 않고 교체한다", () => {
+    const out = applyMyWaitOverride(LIST, "me", E("me", "2026-09-10T09:00:00Z"));
+    expect(out.filter((e) => e.mem_id === "me")).toHaveLength(1);
+    expect(out).toHaveLength(3);
+  });
+
+  it("비로그인(memId 없음)이면 아무것도 바꾸지 않는다", () => {
+    expect(applyMyWaitOverride(LIST, null, null)).toBe(LIST);
+  });
+
+  it("원본 배열을 바꾸지 않는다", () => {
+    applyMyWaitOverride(LIST, "me", null);
+    expect(LIST.map((e) => e.mem_id)).toEqual(["a", "me", "b"]);
   });
 });
