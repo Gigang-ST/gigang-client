@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 
-import { ImageIcon, Zap } from "lucide-react";
+import { ImageIcon, MessageCircle, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import { loadMorePosts } from "@/app/actions/story/load-more-posts";
@@ -14,7 +14,7 @@ import { clearDeepLinkParams } from "@/lib/notifications/deep-link";
 // 상한은 `lib/story-post.ts`에서 가져온다 — `lib/queries/story-posts.ts`는 admin
 // 클라이언트(`server-only`)를 물고 있어 클라이언트 컴포넌트가 import하면 빌드가 깨진다.
 // 값 자체는 두 곳이 같아야 하므로(받은 개수 < 상한 = 끝) 정본은 story-post.ts 한 곳이다.
-import { STORY_POST_LIMIT } from "@/lib/story-post";
+import { resolveCommentCount, STORY_POST_LIMIT } from "@/lib/story-post";
 
 import { EmptyState } from "@/components/common/empty-state";
 import { HelpTip } from "@/components/common/help-tip";
@@ -112,6 +112,26 @@ export function RecordFlexFeed({
   const [deleting, setDeleting] = useState<StoryPost | null>(null);
   /** 한마디를 고치려는 기록 — null이면 편집 다이얼로그가 닫혀 있다 */
   const [editing, setEditing] = useState<StoryPost | null>(null);
+  /**
+   * 릴스에서 실측한 댓글 수 — `post_id → count`. 서버가 준 `cmnt_cnt` 위에 덮는다.
+   *
+   * 서버 값은 5분 캐시(`getStoryPosts`)라 방금 단 댓글이 안 잡힌다. 릴스를 열면 그 장의
+   * 댓글을 Realtime으로 읽고 있으므로(`usePostComments`) 그 개수를 받아 두면, 릴스를 닫고
+   * 격자로 돌아왔을 때 배지가 바로 맞는다 — 응원 버튼에서 겪은 "눌러도 반영이 안 된다"를
+   * 캐시를 털지 않고 푸는 방법이다(§resolveCommentCount).
+   */
+  const [commentCounts, setCommentCounts] = useState<Map<string, number>>(
+    () => new Map(),
+  );
+  /**
+   * 같은 값이면 **이전 Map을 그대로 돌려줘** 리렌더를 끊는다. 릴스가 보는 장이 바뀔 때마다
+   * 개수를 올려보내는데, 매번 새 Map을 만들면 격자 전체가 다시 그려진다.
+   */
+  const handleCommentCount = useCallback((postId: string, count: number) => {
+    setCommentCounts((prev) =>
+      prev.get(postId) === count ? prev : new Map(prev).set(postId, count),
+    );
+  }, []);
   /** 서버가 준 첫 묶음 뒤로 이어붙인 것들 */
   const [extra, setExtra] = useState<StoryPost[]>([]);
   /** 더 남았나 — 받은 개수가 요청량보다 적으면 끝이다 */
@@ -450,7 +470,14 @@ export function RecordFlexFeed({
           <ul className="lede-in flex w-max gap-0.5 px-6">
             {columns.map((col, ci) => (
               <li key={ci} className="flex snap-start flex-col gap-0.5">
-                {col.map((p) => (
+                {col.map((p) => {
+                // 서버 값(5분 캐시) 위에 릴스에서 실측한 개수를 덮는다 — `??` 합성이라
+                // 댓글을 다 지워 0이 된 경우에도 옛 값으로 되돌아가지 않는다.
+                const commentCount = resolveCommentCount(
+                  p.cmnt_cnt,
+                  commentCounts.get(p.post_id),
+                );
+                return (
                 /* 폭 고정 — 가로 흐름이라 화면 폭의 절반쯤에 맞춰 "한 화면에 두 열"이
                    보이게 한다(다음 열이 살짝 걸쳐 더 있다는 걸 알린다).
                    칸은 **사진만** 담는다(인스타 게시글 격자처럼) — 한마디·거리·날짜는 눌러서
@@ -521,8 +548,31 @@ export function RecordFlexFeed({
                       <Zap className="size-3.5 fill-current" />
                     </span>
                   )}
+
+                  {/* 댓글 수 — ⚡의 대각선(우하단). 격자는 사진만 담는 자리지만 이건 기록의
+                      내용이 아니라 "여기 대화가 붙었다"는 계기 표시라, 출처를 말하는 ⚡와 같은
+                      층위다. 실측상 사진 여섯 중 하나꼴로만 켜져(prd 17.4%) 켜진 칸이 눈에 띈다.
+
+                      **0이면 안 그린다** — 릴스 하단 바와 같은 규칙이다(0을 적으면 텅 빈 걸
+                      강조하게 된다). 숫자가 들어가니 ⚡의 원형이 아니라 알약이고, 판·색은
+                      같게 둬 두 배지가 한 벌로 읽히게 한다.
+
+                      `pointer-events-none`도 ⚡와 같이 — 칸 전체가 이미 릴스를 여는 버튼이라
+                      배지에 따로 핸들러를 달면 한 가지 일에 진입점이 둘이 된다. */}
+                  {commentCount > 0 && (
+                    <span
+                      aria-label={`댓글 ${commentCount}개`}
+                      className="pointer-events-none absolute bottom-1.5 right-1.5 flex h-6 items-center gap-1 rounded-full bg-black/45 px-1.5 text-white backdrop-blur-sm"
+                    >
+                      <MessageCircle className="size-3.5" />
+                      <span className="font-numeric text-[11px] font-semibold tabular-nums">
+                        {commentCount}
+                      </span>
+                    </span>
+                  )}
                 </button>
-                ))}
+                );
+                })}
               </li>
             ))}
 
@@ -553,6 +603,8 @@ export function RecordFlexFeed({
           프로필 카드는 story-client가 위에 겹쳐 연다. */}
       <RecordReelViewer
         posts={reelPosts}
+        // 릴스가 Realtime으로 읽은 개수를 격자 배지에 흘려보낸다(§commentCounts)
+        onCommentCountChange={handleCommentCount}
         startId={openId}
         open={openId !== null}
         onOpenChange={(o) => {

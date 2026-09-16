@@ -30,6 +30,17 @@ export type StoryPost = {
   src_enm: "manual" | "mlg_auto";
   crt_at: string;
   /**
+   * 살아 있는 댓글 수 — 격자 칸 우하단 배지(0이면 안 그린다).
+   *
+   * `primary_title`과 같은 이유로 **옵셔널**이다: RPC(20260916104500)가 아직 안 나간 환경에선
+   * undefined로 와 배지만 안 켜지고 화면은 멀쩡하다. 덕분에 마이그레이션·앱의 배포 순서를
+   * 맞출 필요가 없다.
+   *
+   * 캐시가 5분이라 이 값은 금방 낡는다 — 방금 단 댓글은 릴스에서 실측한 개수를 클라이언트가
+   * 덮어쓴다(`resolveCommentCount`, `lib/story-post.ts`).
+   */
+  cmnt_cnt?: number;
+  /**
    * 올린 사람의 대표 호칭 — 전광판 리드 "운동 기록" 슬롯이 이름 옆 배지로 쓴다.
    * `get_team_posts` RPC가 아직 안 내려주므로 **옵셔널**이다(마이그레이션 전엔 undefined →
    * 배지 생략). RPC가 조인해 내려주기 시작하면 코드 변경 없이 배지가 켜진다.

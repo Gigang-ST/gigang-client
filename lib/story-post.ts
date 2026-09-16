@@ -62,3 +62,27 @@ export function pickActvLeadIndex(rankLen: number): number {
 export function pickGhostSeed(): string {
   return Math.random().toString(36).slice(2);
 }
+
+/**
+ * 격자 칸에 찍을 댓글 수 — 서버가 준 값 위에 릴스에서 실측한 값을 덮는다.
+ *
+ * **왜 오버레이가 필요한가**: `getStoryPosts`가 5분 캐시(`revalidate: 300`)라, 댓글을 달고
+ * 시트를 닫으면 격자 숫자가 한동안 옛 값으로 남는다 — 응원 버튼에서 이미 겪은
+ * "눌러도 반영이 안 된다"와 같은 오독이다. 그렇다고 `revalidateTag("story-posts")`를 부를
+ * 수는 없다(댓글 한 건이 격자 캐시 전체를 날린다 — 응원이 태그를 안 터는 것과 같은 이유).
+ * 릴스가 이미 Realtime으로 들고 있는 개수를 클라이언트에서 덮어 쓰는 쪽이 싸고 정확하다.
+ *
+ * ⚠️ **`??`여야 한다. `||`로 쓰면 안 된다** — override가 `0`(댓글을 다 지운 직후)일 때
+ * falsy라 서버의 옛 값으로 되돌아가, 지웠는데 숫자가 남는다. 이 함수가 따로 있는 이유가
+ * 그 한 글자다(회귀 테스트: `lib/__tests__/story-post.test.ts`).
+ *
+ * @param server  RPC(`get_team_posts`)의 `cmnt_cnt`. 마이그레이션 전 응답엔 없다(undefined)
+ * @param override 릴스에서 실측한 개수. 아직 그 칸을 안 열었으면 undefined
+ */
+export function resolveCommentCount(
+  server: number | undefined,
+  override: number | undefined,
+): number {
+  const raw = override ?? server ?? 0;
+  return Math.max(0, Math.floor(raw));
+}
