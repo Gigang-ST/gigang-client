@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { pickVisiblePresence } from "@/lib/presence/pick";
+import { swallowNextClick } from "@/lib/presence/swallow-click";
 import {
   setPresenceList,
   usePresenceDrawing,
@@ -34,16 +35,20 @@ const HIT_PAD = 12;
 /** 이름표를 놓을 아바타 아래 여유(px) — 바닥 판정은 이 띠를 뺀 높이 기준 */
 const LABEL_H = 13;
 /**
- * 레이어(띠)의 높이(px) — 공이 뛰어오를 수 있는 **머리 위 공간**까지 포함한다.
+ * 높이를 아직 못 쟀을 때 쓰는 폴백(px) — 첫 프레임에만 스친다.
  *
- * 바닥(`floor`)은 `STRIP_H - SIZE - LABEL_H`라, 이 값이 공+이름표와 같으면 floor가 0이 되어
- * **공이 아예 안 뜬다**(탭해서 튕겨도 천장에 즉시 막힌다). 튕김 최고점은 물리 상수가 정한다 —
- * `POP_UP²/(2·GRAVITY)` ≈ 177px. 거기에 공(32)과 이름표(13)를 더해 224로 잡는다.
+ * **천장은 화면 끝이다.** 층이 탭바 위부터 화면 맨 위까지 차지하므로 실제 높이는 뷰포트가
+ * 정하고, ResizeObserver가 재서 `heightRef`에 담는다(§heightRef).
  *
- * 띠가 이만큼 높아도 화면을 가리지 않는다: 배경이 없고 `pointer-events-none`이라 공 말고는
- * 아무것도 없는 투명한 층이다. 공만 바닥 근처에 붙어 있다.
+ * 한때 이 값이 층의 고정 높이(224px)였다 — "전력으로 튄 공 한 번이 딱 들어가는" 높이로
+ * 계산한 것이다(`POP_UP²/(2·GRAVITY)` ≈ 177 + 공 32 + 이름표 13). 그 매직넘버를 없앴다:
+ * 천장이 화면 끝이면 공중에 뜬 공을 **한 번 더 쳐서 계속 올려 보낼 수 있고**(224 천장에선
+ * 막혀 튕겼다), 높이를 계산할 이유 자체가 사라진다.
+ *
+ * 층이 화면을 다 덮어도 가리는 건 없다: 배경이 없고 `pointer-events-none`이라 공 말고는
+ * 아무것도 없는 투명한 층이다. 평소 공은 바닥 근처에만 붙어 있다.
  */
-const STRIP_H = 224;
+const FALLBACK_H = 224;
 
 // ── 물리 상수 ──
 /** 중력(px/frame²) — 낮춰서 체공을 늘린다. 연타로 이어 튕기기 쉬워진다 */
@@ -348,7 +353,19 @@ export function PresenceLayer({
   me: { id: string; name: string; avatarUrl: string | null } | null;
 }) {
   const allow = useAllowMotion();
-  const wrapRef = useRef<HTMLDivElement>(null);
+  /**
+   * 층 엘리먼트 — **ref가 아니라 state로 들고 있다.**
+   *
+   * 치수를 재려면 "이 노드가 생겼을 때" effect가 돌아야 하는데, ref는 값이 바뀌어도 리렌더도
+   * effect 재실행도 안 시킨다. 실제로 그것 때문에 한 번 깨졌다: 옵저버를 `[drawing]` 의존으로
+   * 걸었더니, `drawing`이 켜진 순간 아직 명단이 비어 `null`을 반환하는 동안엔 노드가 없어
+   * early return하고 — 그 뒤 명단이 도착해 노드가 생겨도 **deps가 안 바뀌어 다시 안 돌았다.**
+   * 높이를 영영 못 재 폴백에 머물렀고, 천장을 화면 끝으로 연 뒤엔 그 폴백 좌표가 화면 상단이라
+   * **공이 공중에 떠 있었다.**
+   *
+   * 콜백 ref를 state에 넣으면 노드가 생기고 사라질 때 정확히 그때 effect가 돈다.
+   */
+  const [wrapEl, setWrapEl] = useState<HTMLDivElement | null>(null);
 
   /** 현재 접속자 목록 — 채널이 store에 쓰고 여기서 되읽는다 */
   const presence = usePresenceList();
@@ -482,26 +499,31 @@ export function PresenceLayer({
    * 프레임 강제되는 건 그대로다). 폭이 바뀌는 건 창 크기·셸 폭 설정이 바뀔 때뿐이라
    * ResizeObserver로 받아 두면 루프는 순수 계산만 남는다.
    *
-   * 높이는 상수(`STRIP_H`)라 아예 측정하지 않는다.
+   * 높이도 같이 받는다 — 천장이 화면 끝이라 뷰포트에 따라 달라진다(주소창이 접히거나
+   * 기기를 돌리면 바뀐다). 둘 다 **여기서 한 번씩** 받아 두면 루프는 순수 계산만 남는다.
    *
-   * 초기값 320은 레이아웃 확정 전 첫 프레임용 폴백이다. `clientWidth`가 0일 때
+   * 초기값은 레이아웃 확정 전 첫 프레임용 폴백이다. `clientWidth/Height`가 0일 때
    * `?? 폴백`이 안 먹는 함정(`0 ?? x`는 0)을 피하려고 양수일 때만 받아 적는다 — 0이 들어가면
    * floor·벽 계산이 음수가 되어 공이 등장하자마자 구석에 박힌다.
    */
   const widthRef = useRef(320);
+  const heightRef = useRef(FALLBACK_H);
   useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
+    if (!wrapEl) return;
     const read = () => {
-      const w = el.clientWidth;
+      const w = wrapEl.clientWidth;
+      const h = wrapEl.clientHeight;
       if (w > 0) widthRef.current = w;
+      // 바닥은 이 높이에서 역산한다. 화면이 커지면 floor가 내려가는데, 루프가
+      // "바닥에 있어야 할 공이 floor보다 위로 뜨면 다시 떨어뜨린다"를 이미 처리한다.
+      if (h > SIZE + LABEL_H) heightRef.current = h;
     };
     read();
     const obs = new ResizeObserver(read);
-    obs.observe(el);
+    obs.observe(wrapEl);
     return () => obs.disconnect();
-    // drawing이 켜질 때 요소가 새로 생기므로 그때 다시 붙인다(꺼져 있으면 el이 null이다).
-  }, [drawing]);
+    // **노드 자체가 deps다** — 생길 때 붙고 사라질 때 떨어진다(§wrapEl).
+  }, [wrapEl]);
 
   // ── 접속 목록 → 공(Ball) 맞춤: 새 얼굴은 위에서 떨어지며 등장, 나간 얼굴은 제거 ──
   // Math.random은 effect 안에서만(렌더/ref콜백에서 금지 — react-hooks/purity).
@@ -510,7 +532,7 @@ export function PresenceLayer({
     presence.forEach((p) => {
       if (ballsRef.current.has(p.mem_id)) return;
       const w = widthRef.current;
-      const h = STRIP_H;
+      const h = heightRef.current;
       const persona = getPresencePersona(p.mem_id);
       ballsRef.current.set(p.mem_id, {
         x: Math.random() * (w - SIZE),
@@ -577,7 +599,7 @@ export function PresenceLayer({
       // 측정할 것도 없다.
       const bw = widthRef.current;
       // 이름표가 잘리지 않을 만큼만 올린다 — 공은 이 선 위에 선다.
-      const floor = STRIP_H - SIZE - LABEL_H;
+      const floor = heightRef.current - SIZE - LABEL_H;
 
       for (const [memId, b] of ballsRef.current) {
         // 바닥 상태(air=false)는 "지금 y가 floor다"를 전제로 좌우로만 걷는다. 그런데 floor가
@@ -728,7 +750,7 @@ export function PresenceLayer({
 
   return (
     <div
-      ref={wrapRef}
+      ref={setWrapEl}
       aria-hidden
       // `.app-fixed` — 데스크톱에서 셸 폭에 맞춘다(§DESIGN.md 앱 셸). 안 붙이면 이 레이어만
       // 화면 전폭으로 남아 공이 셸 밖 회색 지면을 걸어다닌다.
@@ -738,9 +760,15 @@ export function PresenceLayer({
       // `pointer-events-none` — 층 전체는 입력을 통과시키고 공(button)만 `auto`로 되받는다.
       // 배경도 없다: 공 말고는 아무것도 없는 투명한 층이라 224px이 화면을 가리지 않는다.
       //
-      // `overflow-hidden` — 튕겨 올라간 공이 띠 밖으로 새지 않게 자른다.
-      className="app-fixed pointer-events-none fixed inset-x-0 z-40 overflow-hidden"
-      style={{ bottom: "var(--tabbar-h)", height: STRIP_H }}
+      // `top-0` — **천장이 화면 끝이다.** 층은 탭바 위부터 화면 맨 위까지 차지한다. 한때
+      // 224px 띠였는데, 그 높이는 "전력으로 튄 공 한 번이 딱 들어가는" 계산값이라 공중에 뜬
+      // 공을 한 번 더 치면 천장에 막혔다. 화면 끝까지 열어 두면 계속 위로 올려 보낼 수 있고,
+      // 높이를 계산할 이유 자체가 없어진다. 실제 높이는 ResizeObserver가 잰다.
+      //
+      // `overflow-hidden` — 그래도 자른다. 화면 밖으로 날아간 공이 문서 크기를 늘려
+      // 스크롤바를 만들지 않게.
+      className="app-fixed pointer-events-none fixed inset-x-0 top-0 z-40 overflow-hidden"
+      style={{ bottom: "var(--tabbar-h)" }}
     >
       {visible.map((person) => {
         const color = PRESENCE_COLORS[getPresenceColorIdx(person.mem_id)];
@@ -755,12 +783,18 @@ export function PresenceLayer({
             }}
             // 매 프레임 움직이는 요소라 `click`은 씹힌다 — down에서 즉시 힘을 싣고 남들에게 알린다.
             onPointerDown={(e) => {
-              // 아바타를 눌렀으면 그 입력은 여기서 끝낸다 — 넓힌 히트 영역이 뒤에 겹친 리드
-              // 카드·응원 버튼 위에 얹히면, 아바타를 튕기려던 탭이 뒤 요소까지 누르는(관통)
-              // 문제가 생긴다. stopPropagation으로 버블을 끊고 preventDefault로 뒤따르는
-              // click/합성 이벤트가 뒤 요소로 흘러가는 것도 막는다.
+              // 아바타를 눌렀으면 그 입력은 여기서 끝낸다 — 이 층은 화면 전체를 덮고 있어
+              // 뒤에 늘 다른 버튼(깅스타그램 칸 등)이 있다.
               e.stopPropagation();
               e.preventDefault();
+              // ⚠️ **위 두 줄로는 관통이 안 막힌다.** 공은 누르는 순간 위로 튀어 커서 밑에서
+              // 사라지는 **움직이는 표적**이라, 뗄 때 그 자리엔 뒤 요소가 남아 있다. 게다가
+              // `preventDefault()`는 `click`을 막지 못할 뿐 아니라(스펙상 mousedown/mouseup까지)
+              // **`mousedown`을 없애 버려** 브라우저가 "누른 요소"를 기록하지 못하게 만든다 —
+              // 그러면 평소 누른 곳과 뗀 곳의 공통 조상(대개 아무 핸들러 없는 `<body>`)에서 났을
+              // click이 **뗀 자리 요소**로 떨어진다. 관통을 막으려던 방어가 관통을 만들고 있었다.
+              // 그래서 이 탭에서 비롯된 click 한 번을 따로 삼킨다(§lib/presence/swallow-click.ts).
+              swallowNextClick();
               // hitX는 **아바타(얼굴) 기준**이어야 튕기는 방향이 맞다. 히트 영역이 아바타보다
               // 넓어졌으므로 버튼 rect가 아니라 안쪽 얼굴 span의 rect로 잰다. 넓힌 여백을
               // 눌러 0~1 밖으로 나가면 튕김 세기(applyBump)가 과해지므로 0~1로 가둔다.
