@@ -7,28 +7,36 @@ function p(mem_id: string) {
   return { mem_id };
 }
 
-/** "a","b","c",… n명 */
+/**
+ * n명. id는 `m00`·`m01`… 제로패딩이라 **사전순 = 숫자순**이다(패딩이 없으면 `m10 < m2`라
+ * 정렬 기대가 어긋난다). 아래 "나" 역할로 쓰는 `zzz`는 이들보다 항상 뒤에 선다.
+ */
 function many(n: number) {
   return Array.from({ length: n }, (_, i) =>
-    p(String.fromCharCode(97 + i).repeat(3)),
+    p(`m${String(i).padStart(3, "0")}`),
   );
 }
 
+/** 상한을 넘기는 인원 — 상수를 바꿔도 테스트가 따라온다 */
+const OVER = PRESENCE_RENDER_LIMIT + 8;
+
 describe("pickVisiblePresence", () => {
   it("상한 이하면 전원을 그린다", () => {
-    const list = many(5);
-    expect(pickVisiblePresence(list, null)).toHaveLength(5);
+    const list = many(PRESENCE_RENDER_LIMIT - 2);
+    expect(pickVisiblePresence(list, null)).toHaveLength(
+      PRESENCE_RENDER_LIMIT - 2,
+    );
   });
 
   it("상한을 넘으면 상한만큼만 그린다", () => {
-    const list = many(20);
+    const list = many(OVER);
     expect(pickVisiblePresence(list, null)).toHaveLength(PRESENCE_RENDER_LIMIT);
   });
 
   it("같은 명단이면 항상 같은 결과다 — 순서가 섞여 들어와도", () => {
     // presence sync는 객체 키 순회라 순서가 보장되지 않는다. 순서에 따라 결과가 달라지면
     // sync마다 얼굴이 갈려 깜빡인다.
-    const list = many(20);
+    const list = many(OVER);
     const shuffled = [...list].reverse();
     expect(pickVisiblePresence(shuffled, null)).toEqual(
       pickVisiblePresence(list, null),
@@ -37,21 +45,21 @@ describe("pickVisiblePresence", () => {
 
   it("나는 잘리지 않는다 — 정렬상 뒤쪽이어도", () => {
     // "zzz"는 mem_id 오름차순에서 맨 뒤라 상한에 걸려 잘릴 자리다.
-    const list = [...many(20), p("zzz")];
+    const list = [...many(OVER), p("zzz")];
     const picked = pickVisiblePresence(list, "zzz");
     expect(picked).toHaveLength(PRESENCE_RENDER_LIMIT);
     expect(picked.map((x) => x.mem_id)).toContain("zzz");
   });
 
   it("내가 명단에 없으면 그냥 앞에서 채운다", () => {
-    const list = many(20);
+    const list = many(OVER);
     const picked = pickVisiblePresence(list, "없는사람");
     expect(picked).toHaveLength(PRESENCE_RENDER_LIMIT);
     expect(picked.map((x) => x.mem_id)).not.toContain("없는사람");
   });
 
   it("나를 넣어도 상한을 넘지 않는다", () => {
-    const list = [...many(20), p("zzz")];
+    const list = [...many(OVER), p("zzz")];
     expect(pickVisiblePresence(list, "zzz")).toHaveLength(PRESENCE_RENDER_LIMIT);
   });
 

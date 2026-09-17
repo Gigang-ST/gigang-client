@@ -189,7 +189,7 @@ function randInt(min: number, max: number): number {
 function renderHitBadges(host: HTMLElement, hits: Map<number, number>): void {
   // **평상시 경로를 먼저 끊는다.** 아무도 안 누르고 있으면 `hits`는 비어 있고 배지 DOM도
   // 이미 없다 — 그게 거의 모든 프레임이다. 그냥 통과시키면 공마다 매 프레임 `Array.from` +
-  // `sort`로 쓰레기를 만든다(12명이면 초당 720개). 일이 없을 땐 아무것도 안 하고 나간다.
+  // `sort`로 쓰레기를 만든다(30명이면 초당 1,800개). 일이 없을 땐 아무것도 안 하고 나간다.
   if (hits.size === 0 && host.childElementCount === 0) return;
 
   const entries = Array.from(hits.entries()).sort((a, b) => a[0] - b[0]);
@@ -744,8 +744,8 @@ export function PresenceLayer({
   // 셋 다 렌더 전에 끊어야 아래 `pickVisiblePresence`와 DOM ref 등록이 헛돌지 않는다.
   if (!drawing || !allow || presence.length === 0) return null;
 
-  // 그릴 얼굴만 추린다 — 상한 12명(§lib/presence/pick.ts). 사람이 몰려도 띠가 안 들어차고,
-  // 매 프레임 일도 12개로 고정된다. 총원은 전광판 라벨이 말한다.
+  // 그릴 얼굴만 추린다 — 상한 30명(§lib/presence/pick.ts). 실사용에선 안 걸리는 뚜껑이고,
+  // 겹치는 건 막지 않는다(의도다). 총원은 전광판 라벨이 말한다.
   const visible = pickVisiblePresence(presence, presenceId);
 
   return (
