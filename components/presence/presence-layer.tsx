@@ -2,6 +2,14 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
+import { pickVisiblePresence } from "@/lib/presence/pick";
+import { swallowNextClick } from "@/lib/presence/swallow-click";
+import {
+  setPresenceList,
+  usePresenceDrawing,
+  usePresenceList,
+  type Presence,
+} from "@/lib/presence/store";
 import {
   ANON_PREFIX,
   PRESENCE_COLORS,
@@ -27,13 +35,20 @@ const HIT_PAD = 12;
 /** 이름표를 놓을 아바타 아래 여유(px) — 바닥 판정은 이 띠를 뺀 높이 기준 */
 const LABEL_H = 13;
 /**
- * LIVE 라벨을 바닥선에서 얼마나 **띄울지**(px).
+ * 높이를 아직 못 쟀을 때 쓰는 폴백(px) — 첫 프레임에만 스친다.
  *
- * 라벨은 자기 자리를 따로 갖지 않는다 — 아바타 바닥선 위에 겹쳐 떠 있다. 라벨 몫으로 띠를
- * 따로 잡으면 이름표까지 더해져 리드 아래 여백이 눈에 띄게 커진다. 겹쳐도 읽히는 이유는
- * 얼굴은 지나가고 라벨은 흐린 보조 텍스트라, 가려지는 건 한순간이기 때문.
+ * **천장은 화면 끝이다.** 층이 탭바 위부터 화면 맨 위까지 차지하므로 실제 높이는 뷰포트가
+ * 정하고, ResizeObserver가 재서 `heightRef`에 담는다(§heightRef).
+ *
+ * 한때 이 값이 층의 고정 높이(224px)였다 — "전력으로 튄 공 한 번이 딱 들어가는" 높이로
+ * 계산한 것이다(`POP_UP²/(2·GRAVITY)` ≈ 177 + 공 32 + 이름표 13). 그 매직넘버를 없앴다:
+ * 천장이 화면 끝이면 공중에 뜬 공을 **한 번 더 쳐서 계속 올려 보낼 수 있고**(224 천장에선
+ * 막혀 튕겼다), 높이를 계산할 이유 자체가 사라진다.
+ *
+ * 층이 화면을 다 덮어도 가리는 건 없다: 배경이 없고 `pointer-events-none`이라 공 말고는
+ * 아무것도 없는 투명한 층이다. 평소 공은 바닥 근처에만 붙어 있다.
  */
-const BADGE_LIFT = 0;
+const FALLBACK_H = 224;
 
 // ── 물리 상수 ──
 /** 중력(px/frame²) — 낮춰서 체공을 늘린다. 연타로 이어 튕기기 쉬워진다 */
@@ -63,9 +78,6 @@ const VEL_LERP = 0.055;
  * 서성이다 방향을 바꾼다. 이 셋을 나눠 두면 같은 화면에서도 사람마다 다른 리듬이 보인다.
  */
 type Act = "stroll" | "watch" | "trek" | "fidget";
-
-/** 접속자 한 명 — presence로 실어 나르는 표시정보 */
-type Presence = { mem_id: string; mem_nm: string; avatar_url: string | null };
 
 /** 물리 상태 — React state가 아니라 ref로만 들고 DOM을 직접 갱신한다(매 프레임 리렌더 방지) */
 type Ball = {
@@ -175,6 +187,11 @@ function randInt(min: number, max: number): number {
  * DOM 노드는 재사용하고 개수만 맞춘다(매 프레임 innerHTML 재생성은 낭비).
  */
 function renderHitBadges(host: HTMLElement, hits: Map<number, number>): void {
+  // **평상시 경로를 먼저 끊는다.** 아무도 안 누르고 있으면 `hits`는 비어 있고 배지 DOM도
+  // 이미 없다 — 그게 거의 모든 프레임이다. 그냥 통과시키면 공마다 매 프레임 `Array.from` +
+  // `sort`로 쓰레기를 만든다(30명이면 초당 1,800개). 일이 없을 땐 아무것도 안 하고 나간다.
+  if (hits.size === 0 && host.childElementCount === 0) return;
+
   const entries = Array.from(hits.entries()).sort((a, b) => a[0] - b[0]);
   // 개수 맞추기 — 남으면 지우고, 모자라면 만든다
   while (host.childElementCount > entries.length) {
@@ -277,14 +294,34 @@ function useAllowMotion(): boolean {
 }
 
 /**
- * 떠다니는 아바타 — **지금 전광판을 보고 있는 크루원**이 리드 위를 유영한다.
+ * 전역 접속자 레이어 — **지금 앱을 같이 보고 있는 크루원**이 하단 탭바 위를 걸어다닌다.
  *
  * 피드에 등장한 얼굴이 아니라 **실시간 접속자**다(Supabase Realtime presence). 로그인 사용자가
- * `/story`를 열면 자기 얼굴을 하늘에 올리고(track), 나가면 사라진다. 비로그인도 이 하늘을 보지만
- * 자기 아바타는 없다 — "지금 누가 같이 보고 있나"를 얼굴로 전한다.
+ * 앱을 열면 자기 얼굴을 올리고(track), 닫으면 사라진다. 비로그인도 이 층을 보지만 자기
+ * 아바타는 없다 — "지금 누가 같이 있나"를 얼굴로 전한다.
  *
- * 이 정체를 모르면 그냥 굴러다니는 장식으로 보이므로, 좌상단에 **"LIVE · 지금 보는 중 N"** 라벨을
- * 상시로 띄우고 그 옆 `HelpTip`이 노는 법까지 답한다. 라벨이 없으면 아무도 안 물어보고 안 논다.
+ * ## 채널은 루트에 한 번, 그리기는 화면마다
+ *
+ * 예전엔 전광판(`/story`) 리드 위에서만 유영했고 채널도 그 컴포넌트가 들고 있었다. 전역으로
+ * 올리면서 **채널 소유와 그리기를 분리**했다(§`lib/presence/store.ts`).
+ *
+ * - **채널은 루트 레이아웃에 한 번 붙는다.** 앱을 켜면 join, 닫으면 leave. 페이지를 옮겨도
+ *   안 끊긴다. 페이지마다 붙였다 떼면 presence join/leave가 **접속 중인 전원에게** sync를
+ *   쏘는데, 받는 쪽마다 상태를 다시 계산하고 목록을 리렌더한다 — 비용이 내 기기가 아니라
+ *   남의 기기에서 인원수만큼 불어난다. 더 나쁜 건 눈에 보이는 결함이다: 내가 설정에 잠깐
+ *   들어갔다 나올 때마다 **남들 화면에서 내 공이 사라졌다 새로 떨어진다.**
+ * - **공은 탭바가 있는 화면에서만 그린다**(`usePresenceDrawing`). `(info)`·`(protected)`엔
+ *   탭바가 없어 바닥이 안전영역까지 내려가는데 거기가 **폼 제출 버튼이 사는 자리**다.
+ *   탭바가 있는 화면에선 탭바 자체가 방패라 그 충돌이 없다.
+ *
+ * 그래서 이 컴포넌트는 **언마운트되지 않는다** — 안 그리는 화면에서도 마운트된 채 채널만
+ * 유지하고 렌더와 rAF 루프를 건너뛴다. 덕분에 공 좌표(`ballsRef`)가 살아 있어, 탭바 있는
+ * 화면으로 돌아오면 다들 아까 걷던 자리 그대로다(위에서 새로 떨어지지 않는다).
+ *
+ * ## 층 순서
+ *
+ * `z-40` — 탭바·FAB·다이얼로그(`z-50`) **아래**다. 공이 FAB 뒤로 지나가고 탭은 FAB이 받는다.
+ * 이게 없으면 굴러다니는 32px 원이 버튼을 가려 "눌러도 안 눌리는" 화면이 된다.
  *
  * 탭하면 그 아바타가 통통 튀는데, **이 튕김은 broadcast로 모두에게 전해진다**(같은 mem_id에
  * 같은 임펄스가 실린다). 그래서 서로 같은 공을 주고받고, 남이 튕기는 걸 방해할 수도 있다.
@@ -299,10 +336,15 @@ function useAllowMotion(): boolean {
  * 걸음도 사람마다 다르다(persona): 목적지를 잡고 쭉 걷는 사람(trek), 한참 멈춰 구경하는
  * 사람(watch), 제자리에서 서성이는 사람(fidget), 목적 없이 어슬렁대는 사람(stroll)이 섞인다.
  *
- * 물리 상태는 ref(Map)에 두고 rAF에서 DOM transform을 직접 갱신한다. `prefers-reduced-motion`이면
- * 유영을 멈추고 접속자를 하단에 정적으로 늘어놓는다(누가 있는지는 여전히 보이게).
+ * 물리 상태는 ref(Map)에 두고 rAF에서 DOM transform을 직접 갱신한다 — **매 프레임 리렌더가
+ * 없다.** `prefers-reduced-motion`이면 아무것도 그리지 않는다: 예전엔 유영 대신 얼굴을 정적으로
+ * 늘어놓았는데, 그건 전광판 한 지면에서나 성립하는 처리였다. 모든 화면 하단에 상시로 얼굴 줄이
+ * 깔리면 그건 장식이 아니라 방해다.
+ *
+ * 접속자 수는 여기서 안 그린다 — 전광판의 `지금 보는 중 N명`이 store에서 읽어 그린다
+ * (§`components/story/presence-count.tsx`). 인원수 카운터가 모든 화면에 상주할 이유가 없다.
  */
-export function FloatingAvatars({
+export function PresenceLayer({
   teamId,
   me,
 }: {
@@ -311,10 +353,24 @@ export function FloatingAvatars({
   me: { id: string; name: string; avatarUrl: string | null } | null;
 }) {
   const allow = useAllowMotion();
-  const wrapRef = useRef<HTMLDivElement>(null);
+  /**
+   * 층 엘리먼트 — **ref가 아니라 state로 들고 있다.**
+   *
+   * 치수를 재려면 "이 노드가 생겼을 때" effect가 돌아야 하는데, ref는 값이 바뀌어도 리렌더도
+   * effect 재실행도 안 시킨다. 실제로 그것 때문에 한 번 깨졌다: 옵저버를 `[drawing]` 의존으로
+   * 걸었더니, `drawing`이 켜진 순간 아직 명단이 비어 `null`을 반환하는 동안엔 노드가 없어
+   * early return하고 — 그 뒤 명단이 도착해 노드가 생겨도 **deps가 안 바뀌어 다시 안 돌았다.**
+   * 높이를 영영 못 재 폴백에 머물렀고, 천장을 화면 끝으로 연 뒤엔 그 폴백 좌표가 화면 상단이라
+   * **공이 공중에 떠 있었다.**
+   *
+   * 콜백 ref를 state에 넣으면 노드가 생기고 사라질 때 정확히 그때 effect가 돈다.
+   */
+  const [wrapEl, setWrapEl] = useState<HTMLDivElement | null>(null);
 
-  /** 현재 접속자 목록 — presence sync로 갱신 */
-  const [presence, setPresence] = useState<Presence[]>([]);
+  /** 현재 접속자 목록 — 채널이 store에 쓰고 여기서 되읽는다 */
+  const presence = usePresenceList();
+  /** 지금 화면이 공을 그리는 화면인가(탭바 있음) */
+  const drawing = usePresenceDrawing();
 
   /** 물리 상태 — mem_id → Ball */
   const ballsRef = useRef<Map<string, Ball>>(new Map());
@@ -409,7 +465,7 @@ export function FloatingAvatars({
             });
           }
         }
-        setPresence(list);
+        setPresenceList(list);
       })
       .on("broadcast", { event: "bump" }, ({ payload }) => {
         const p = payload as BumpMsg;
@@ -429,9 +485,45 @@ export function FloatingAvatars({
 
     return () => {
       channelRef.current = null;
+      // 명단을 비운다 — 안 비우면 정체가 바뀌어 재구독하는 동안 옛 얼굴이 남는다.
+      setPresenceList([]);
       void supabase.removeChannel(channel);
     };
   }, [teamId, presenceId, presenceNm, presenceAvatar]);
+
+  /**
+   * 띠의 폭 — **매 프레임 읽지 않고 캐시한다.**
+   *
+   * 예전엔 루프 안에서 `clientWidth/clientHeight`를 프레임마다 읽었다. 그 읽기는 브라우저에
+   * **레이아웃 플러시를 강제**한다(스타일을 쓰기 전에 읽으므로 thrashing은 아니지만, 매
+   * 프레임 강제되는 건 그대로다). 폭이 바뀌는 건 창 크기·셸 폭 설정이 바뀔 때뿐이라
+   * ResizeObserver로 받아 두면 루프는 순수 계산만 남는다.
+   *
+   * 높이도 같이 받는다 — 천장이 화면 끝이라 뷰포트에 따라 달라진다(주소창이 접히거나
+   * 기기를 돌리면 바뀐다). 둘 다 **여기서 한 번씩** 받아 두면 루프는 순수 계산만 남는다.
+   *
+   * 초기값은 레이아웃 확정 전 첫 프레임용 폴백이다. `clientWidth/Height`가 0일 때
+   * `?? 폴백`이 안 먹는 함정(`0 ?? x`는 0)을 피하려고 양수일 때만 받아 적는다 — 0이 들어가면
+   * floor·벽 계산이 음수가 되어 공이 등장하자마자 구석에 박힌다.
+   */
+  const widthRef = useRef(320);
+  const heightRef = useRef(FALLBACK_H);
+  useEffect(() => {
+    if (!wrapEl) return;
+    const read = () => {
+      const w = wrapEl.clientWidth;
+      const h = wrapEl.clientHeight;
+      if (w > 0) widthRef.current = w;
+      // 바닥은 이 높이에서 역산한다. 화면이 커지면 floor가 내려가는데, 루프가
+      // "바닥에 있어야 할 공이 floor보다 위로 뜨면 다시 떨어뜨린다"를 이미 처리한다.
+      if (h > SIZE + LABEL_H) heightRef.current = h;
+    };
+    read();
+    const obs = new ResizeObserver(read);
+    obs.observe(wrapEl);
+    return () => obs.disconnect();
+    // **노드 자체가 deps다** — 생길 때 붙고 사라질 때 떨어진다(§wrapEl).
+  }, [wrapEl]);
 
   // ── 접속 목록 → 공(Ball) 맞춤: 새 얼굴은 위에서 떨어지며 등장, 나간 얼굴은 제거 ──
   // Math.random은 effect 안에서만(렌더/ref콜백에서 금지 — react-hooks/purity).
@@ -439,12 +531,8 @@ export function FloatingAvatars({
     const ids = new Set(presence.map((p) => p.mem_id));
     presence.forEach((p) => {
       if (ballsRef.current.has(p.mem_id)) return;
-      // 0-폴백 함정 회피: clientWidth/Height가 0이면 `?? 폴백`이 안 먹으므로 직접 거른다
-      // (루프의 bw/bh 계산과 같은 이유). 여기서 잘못 잡히면 초기 y가 어긋난다.
-      const rawW = wrapRef.current?.clientWidth ?? 0;
-      const rawH = wrapRef.current?.clientHeight ?? 0;
-      const w = rawW > 0 ? rawW : 320;
-      const h = rawH > 0 ? rawH : 176;
+      const w = widthRef.current;
+      const h = heightRef.current;
       const persona = getPresencePersona(p.mem_id);
       ballsRef.current.set(p.mem_id, {
         x: Math.random() * (w - SIZE),
@@ -483,43 +571,20 @@ export function FloatingAvatars({
   }, [presence]);
 
   /**
-   * 하늘이 화면 안에 있나 — 밖이면 물리 루프를 멈춘다.
+   * **`IntersectionObserver`는 버렸다.**
    *
-   * 지면을 내려 아래 존을 보는 동안에도 rAF가 매 프레임 돌며 수십 개 아바타의 좌표·회전·
-   * 네온을 계산하고 DOM에 찍고 있었다. 아무도 안 보는 화면이라 순수 낭비고, 스크롤 중에는
-   * 매 프레임 style 쓰기가 스크롤 자체를 미세하게 갉는다.
+   * 전광판 리드 위 밴드였던 시절엔 "지면을 내리면 화면 밖"이라는 상태가 있어서, 그때 루프를
+   * 멈추려고 옵저버를 붙였다. 고정 레이어는 **항상 화면에 있으므로 관찰할 대상 자체가 없다.**
+   * 옵저버가 `return null` 타이밍에 안 붙어 아바타가 좌상단에 붙박이던 함정(`hasPresence`
+   * deps 우회)도 같이 사라졌다.
    *
-   * ⚠️ **이 최적화는 "다시 보면 반드시 되살아난다"가 보장될 때만 성립한다.** 멈춘 채 못 깨어나면
-   * 아바타가 좌상단에 붙박여 클릭도 안 되는 죽은 화면이 된다 — 아껴서 얻는 것보다 잃는 게 크다.
-   * 그래서 감지가 조금이라도 불확실하면 **멈추지 않는 쪽으로 기운다**(아래 폴백).
-   *
-   * 초기값 true — 첫 렌더에는 리드와 함께 화면에 있다.
+   * "안 보일 땐 안 움직인다"는 형태를 바꿔 남아 있다 — 스크롤 위치가 아니라 **이 화면이 공을
+   * 그리는 화면인가**(`drawing`)로 판정한다. 관찰이 없어 더 싸고 판정도 명확하다.
    */
-  const [onScreen, setOnScreen] = useState(true);
-
-  // deps에 `presence.length > 0`이 있는 이유: 접속자가 없으면 아래에서 `return null`이라
-  // wrap div 자체가 없고 `wrapRef.current`도 null이다. deps가 `[]`이면 그 첫 렌더에 한 번
-  // 돌고 빠져나간 뒤 **다시는 돌지 않아 옵저버가 영영 안 붙는다** — 그러면 "다시 보고 있다"를
-  // 감지할 길이 없어 onScreen이 false에 굳고, 화면에 띄워도 물리가 멈춘 채 아바타가
-  // 좌상단(0,0)에 붙박인다(transform은 루프만 찍으므로). 접속자 유무가 바뀔 때마다 다시 붙여
-  // 그 고착을 막는다.
-  const hasPresence = presence.length > 0;
-  useEffect(() => {
-    const el = wrapRef.current;
-    // 붙일 대상이 없다(아직 렌더 전) → **멈춤을 포기하고 계속 돌린다**. 여기서 그냥 return하면
-    // onScreen이 마지막 값에 굳는데, 그게 false였다면 깨워 줄 사람이 아무도 없다.
-    if (!el) {
-      setOnScreen(true);
-      return;
-    }
-    const obs = new IntersectionObserver(([e]) => setOnScreen(e.isIntersecting));
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [hasPresence]);
 
   // ── 애니메이션 루프 ──
   useEffect(() => {
-    if (!allow || !onScreen) return;
+    if (!allow || !drawing) return;
     let raf = 0;
     let last = 0;
     const step = (now: number) => {
@@ -529,16 +594,12 @@ export function FloatingAvatars({
       const d = last ? Math.min((now - last) / 16.667, 3) : 1;
       last = now;
 
-      const el = wrapRef.current;
-      // `?? 폴백`은 clientWidth/Height가 **0일 때 안 먹는다**(`0 ?? x`는 0을 반환). 레이아웃
-      // 확정 전 첫 프레임엔 0이 나올 수 있는데, 그대로 floor를 계산하면 floor가 음수가 돼
-      // 등장하자마자 바닥에 붙는다("안 떨어짐" 버그의 다른 절반). 0/비정상값이면 폴백을 쓴다.
-      const rawW = el?.clientWidth ?? 0;
-      const rawH = el?.clientHeight ?? 0;
-      const bw = rawW > 0 ? rawW : 320;
-      const bh = rawH > SIZE + LABEL_H ? rawH : 176;
-      // 이름표가 잘리지 않을 만큼만 올린다. LIVE 라벨은 이 바닥선 위에 겹쳐 뜨므로 빼지 않는다.
-      const floor = bh - SIZE - LABEL_H;
+      // 치수는 **여기서 읽지 않는다** — ResizeObserver가 채워 둔 캐시를 쓴다(§widthRef).
+      // 프레임마다 clientWidth를 읽으면 그때마다 레이아웃 플러시가 강제된다. 높이는 상수라
+      // 측정할 것도 없다.
+      const bw = widthRef.current;
+      // 이름표가 잘리지 않을 만큼만 올린다 — 공은 이 선 위에 선다.
+      const floor = heightRef.current - SIZE - LABEL_H;
 
       for (const [memId, b] of ballsRef.current) {
         // 바닥 상태(air=false)는 "지금 y가 floor다"를 전제로 좌우로만 걷는다. 그런데 floor가
@@ -650,9 +711,14 @@ export function FloatingAvatars({
       }
       raf = window.requestAnimationFrame(step);
     };
-    // 루프를 다시 걸기 전에 현재 좌표를 한 번 찍는다 — 멈춰 있던 동안 등장한 얼굴이 아직
-    // 좌상단(0,0)에 있을 수 있다. 첫 프레임이 어차피 덮어쓰지만, 그 한 프레임 사이의 깜빡임을
-    // 없앤다(rAF는 다음 페인트까지 최대 한 프레임을 기다린다).
+    // 루프를 다시 걸기 전에 현재 좌표를 한 번 찍는다.
+    //
+    // **탭바 있는 화면으로 돌아온 순간이 이 경로다**: 안 그리는 동안 DOM 노드가 사라졌다가
+    // 방금 새로 생겼으므로, 버튼 CSS의 `left-0 top-0` 그대로 좌상단에 있다. 공 좌표
+    // (`ballsRef`)는 컴포넌트가 언마운트되지 않아 살아 있으니, 여기서 한 번 찍어 주면
+    // **다들 아까 걷던 자리 그대로** 다시 나타난다(위에서 새로 떨어지지 않는다).
+    // 첫 프레임이 어차피 덮어쓰지만 rAF는 다음 페인트까지 한 프레임을 기다리므로,
+    // 그 사이의 깜빡임을 없앤다.
     syncTransforms(ballsRef.current, elsRef.current);
     raf = window.requestAnimationFrame(step);
 
@@ -668,74 +734,43 @@ export function FloatingAvatars({
       window.cancelAnimationFrame(raf);
       document.removeEventListener("visibilitychange", onVisible);
     };
-    // onScreen이 false가 되면 cleanup이 rAF를 취소하고, 다시 보이면 루프가 새로 걸린다.
+    // `drawing`이 false가 되면(탭바 없는 화면) cleanup이 rAF를 취소하고, 돌아오면 루프가 새로
+    // 걸린다. **이 cleanup이 이 파일에서 가장 중요한 줄이다** — 취소가 안 되면 루프가 겹쳐
+    // 돌면서 공이 두 배 속도로 움직이고 프레임 비용도 배가 된다("갑자기 느려졌다"의 정체).
     // 복귀 첫 프레임은 last=0에서 시작하므로(위 onVisible과 같은 이유) 튀지 않는다.
-  }, [allow, onScreen]);
+  }, [allow, drawing]);
 
-  if (presence.length === 0) return null;
+  // 안 그리는 화면(탭바 없음)·모션 비선호·아무도 없음 — 전부 아무것도 안 그린다.
+  // 셋 다 렌더 전에 끊어야 아래 `pickVisiblePresence`와 DOM ref 등록이 헛돌지 않는다.
+  if (!drawing || !allow || presence.length === 0) return null;
 
-  /**
-   * LIVE 라벨 — "이 얼굴들이 뭔가"에 답하는 장치. 없으면 그냥 장식으로 보인다.
-   *
-   * 위가 아니라 **아래**에 둔다: 위엔 리드 기사의 어깨제목(kicker)이 있어 겹치고, 무엇보다
-   * 아바타가 걸어다니는 바닥선 옆에 붙어야 "이 라벨이 저 얼굴들 설명"이라고 읽힌다.
-   *
-   * 설명은 붙이지 않는다 — 점멸하는 점 + 인원수면 "지금 몇 명이 보고 있다"는 충분히 읽히고,
-   * 노는 법(탭하면 튄다)은 한 번 눌러보면 아는 것이라 물음표를 세울 만큼의 값이 아니다.
-   * 포인터도 통과시킨다: 아무것도 누를 게 없는데 막으면 이 띠에서 리드 스와이프만 죽는다.
-   *
-   * 바닥선 **위에 겹쳐** 띄운다(BADGE_LIFT). 아래에 따로 자리를 주면 이름표 몫까지 더해져
-   * 리드 아래 여백만 커진다 — 지나가는 얼굴에 잠깐 가려지는 편이 낫다.
-   */
-  const liveBadge = (
-    <div
-      aria-hidden
-      style={{ bottom: BADGE_LIFT }}
-      className="pointer-events-none absolute left-6 z-10 flex items-center gap-1.5"
-    >
-      <span className="board-blink size-1.5 rounded-full bg-[#ff5d73]" />
-      <span className="text-[12px] text-muted-foreground">
-        지금 보는 중 {presence.length}명
-      </span>
-    </div>
-  );
-
-  // prefers-reduced-motion — 유영 대신 하단에 정적으로 늘어놓는다(누가 있는지는 보이게)
-  if (!allow) {
-    return (
-      <div className="pointer-events-none absolute inset-0">
-        {liveBadge}
-        {/* 정적 배치라 라벨과 자리가 고정으로 겹칠 수 있다 — 얼굴 줄만 라벨 왼쪽을 비켜 시작한다 */}
-        <div className="pointer-events-none absolute inset-x-6 bottom-0 flex flex-wrap items-end gap-2 pl-24">
-          {presence.map((p) => (
-            <div key={p.mem_id} className="flex w-11 flex-col items-center gap-0.5">
-              <span className="block size-8">
-                <PresenceFace
-                  id={p.mem_id}
-                  name={p.mem_nm}
-                  avatarUrl={p.avatar_url}
-                />
-              </span>
-              <span
-                className="whitespace-nowrap text-[9px] leading-none"
-                style={{ color: PRESENCE_COLORS[getPresenceColorIdx(p.mem_id)] }}
-              >
-                {p.mem_nm}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
+  // 그릴 얼굴만 추린다 — 상한 30명(§lib/presence/pick.ts). 실사용에선 안 걸리는 뚜껑이고,
+  // 겹치는 건 막지 않는다(의도다). 총원은 전광판 라벨이 말한다.
+  const visible = pickVisiblePresence(presence, presenceId);
 
   return (
     <div
-      ref={wrapRef}
-      className="pointer-events-none absolute inset-0 overflow-hidden"
+      ref={setWrapEl}
+      aria-hidden
+      // `.app-fixed` — 데스크톱에서 셸 폭에 맞춘다(§DESIGN.md 앱 셸). 안 붙이면 이 레이어만
+      // 화면 전폭으로 남아 공이 셸 밖 회색 지면을 걸어다닌다.
+      //
+      // `z-40` — 탭바·FAB·다이얼로그(z-50) **아래**. 공이 FAB 뒤로 지나가고 탭은 FAB이 받는다.
+      //
+      // `pointer-events-none` — 층 전체는 입력을 통과시키고 공(button)만 `auto`로 되받는다.
+      // 배경도 없다: 공 말고는 아무것도 없는 투명한 층이라 224px이 화면을 가리지 않는다.
+      //
+      // `top-0` — **천장이 화면 끝이다.** 층은 탭바 위부터 화면 맨 위까지 차지한다. 한때
+      // 224px 띠였는데, 그 높이는 "전력으로 튄 공 한 번이 딱 들어가는" 계산값이라 공중에 뜬
+      // 공을 한 번 더 치면 천장에 막혔다. 화면 끝까지 열어 두면 계속 위로 올려 보낼 수 있고,
+      // 높이를 계산할 이유 자체가 없어진다. 실제 높이는 ResizeObserver가 잰다.
+      //
+      // `overflow-hidden` — 그래도 자른다. 화면 밖으로 날아간 공이 문서 크기를 늘려
+      // 스크롤바를 만들지 않게.
+      className="app-fixed pointer-events-none fixed inset-x-0 top-0 z-40 overflow-hidden"
+      style={{ bottom: "var(--tabbar-h)" }}
     >
-      {liveBadge}
-      {presence.map((person) => {
+      {visible.map((person) => {
         const color = PRESENCE_COLORS[getPresenceColorIdx(person.mem_id)];
         return (
           <button
@@ -748,12 +783,18 @@ export function FloatingAvatars({
             }}
             // 매 프레임 움직이는 요소라 `click`은 씹힌다 — down에서 즉시 힘을 싣고 남들에게 알린다.
             onPointerDown={(e) => {
-              // 아바타를 눌렀으면 그 입력은 여기서 끝낸다 — 넓힌 히트 영역이 뒤에 겹친 리드
-              // 카드·응원 버튼 위에 얹히면, 아바타를 튕기려던 탭이 뒤 요소까지 누르는(관통)
-              // 문제가 생긴다. stopPropagation으로 버블을 끊고 preventDefault로 뒤따르는
-              // click/합성 이벤트가 뒤 요소로 흘러가는 것도 막는다.
+              // 아바타를 눌렀으면 그 입력은 여기서 끝낸다 — 이 층은 화면 전체를 덮고 있어
+              // 뒤에 늘 다른 버튼(깅스타그램 칸 등)이 있다.
               e.stopPropagation();
               e.preventDefault();
+              // ⚠️ **위 두 줄로는 관통이 안 막힌다.** 공은 누르는 순간 위로 튀어 커서 밑에서
+              // 사라지는 **움직이는 표적**이라, 뗄 때 그 자리엔 뒤 요소가 남아 있다. 게다가
+              // `preventDefault()`는 `click`을 막지 못할 뿐 아니라(스펙상 mousedown/mouseup까지)
+              // **`mousedown`을 없애 버려** 브라우저가 "누른 요소"를 기록하지 못하게 만든다 —
+              // 그러면 평소 누른 곳과 뗀 곳의 공통 조상(대개 아무 핸들러 없는 `<body>`)에서 났을
+              // click이 **뗀 자리 요소**로 떨어진다. 관통을 막으려던 방어가 관통을 만들고 있었다.
+              // 그래서 이 탭에서 비롯된 click 한 번을 따로 삼킨다(§lib/presence/swallow-click.ts).
+              swallowNextClick();
               // hitX는 **아바타(얼굴) 기준**이어야 튕기는 방향이 맞다. 히트 영역이 아바타보다
               // 넓어졌으므로 버튼 rect가 아니라 안쪽 얼굴 span의 rect로 잰다. 넓힌 여백을
               // 눌러 0~1 밖으로 나가면 튕김 세기(applyBump)가 과해지므로 0~1로 가둔다.

@@ -1973,6 +1973,10 @@
    고를 수 있는 폭의 하한이다 — 바꾸려면 `APP_WIDTHS[0]`과 같이 고친다. */
 :root {
   --app-max-w: 480px;
+  /* 하단 탭바 높이 — `(main)` 본문 하단 패딩과 전역 접속자 레이어의 바닥선이 **같은 값**을
+     본다. 예전엔 `(main)/layout.tsx`에 `calc(3.5rem + env(...))`로 박혀 있었는데, 그 자리에
+     서는 것이 둘이 되면서 한쪽만 고치면 공이 탭바에 파묻힌다. 정본을 여기 하나로 둔다. */
+  --tabbar-h: calc(3.5rem + env(safe-area-inset-bottom, 0px));
   --app-wide-max-w: 768px;
   --app-outside: oklch(0.93 0.004 260);
 }

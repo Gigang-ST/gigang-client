@@ -11,6 +11,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Toaster } from "sonner";
 
 import { AppWidthControl } from "@/components/app-width-control";
+import { PresenceLayerGate } from "@/components/presence/presence-layer-gate";
 import { InAppBrowserGate } from "@/components/in-app-browser-gate";
 import { Providers } from "@/components/providers";
 import { PwaInstallPromptGate } from "@/components/pwa-install-prompt-gate";
@@ -145,6 +146,14 @@ export default function RootLayout({
           </div>
           {/* 폭 컨트롤 — 셸 바깥 지면에 서므로 셸 밖에 둔다. 지면이 안 남으면(=폰) 렌더 안 함. */}
           <AppWidthControl />
+          {/* 전역 접속자 레이어 — 지금 앱을 같이 보고 있는 사람들이 탭바 위를 걸어다닌다.
+              **여기(루트)에 두는 게 핵심이다**: 채널이 페이지 이동에 안 끊겨야 내가 설정에
+              들락거려도 남들 화면에서 내 공이 안 깜빡인다. 공을 실제로 그리는 건 탭바가 있는
+              화면뿐이다(§components/presence/presence-floor.tsx).
+              조회가 쿠키를 읽으므로 설치 배너와 같은 이유로 Suspense 경계에 가둔다. */}
+          <Suspense fallback={null}>
+            <PresenceLayerGate />
+          </Suspense>
           {/* 전역 토스트 — 참석 피드백·배치 결과 등. sonner 기본 흥(아이콘·애니메이션) 유지하고
               모서리·그림자만 프로젝트 카드 톤으로 보정. richColors 미사용(투박함 제거).
 
