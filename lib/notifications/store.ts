@@ -39,14 +39,27 @@ let hasMore = true;
 /** 다음 페이지 커서 — 마지막 항목의 `crt_at` */
 let cursor: string | null = null;
 /**
- * Realtime이 store를 건드릴 때마다 오르는 눈금.
+ * 안읽음 수가 **이 store 안에서** 움직인 누적 증감.
  *
- * 서버가 안읽음 수를 센 **뒤**, 목록 fetch가 **끝나기 전**에 새 알림이 도착하면
- * `syncUnreadCount`가 그 증가분을 덮어써 뱃지가 1 모자라게 된다. fetch를 시작할 때 눈금을
- * 적어 두고(`getRealtimeEpoch`), 돌아왔을 때 눈금이 변했으면 서버 값을 버린다 —
- * 그 경우 Realtime이 들고 있는 값이 더 최신이다.
+ * 서버가 안읽음 수를 센 **뒤**, 목록 fetch가 **끝나기 전**에 새 알림이 도착하면 서버 값은
+ * 이미 그만큼 낡았다. fetch를 시작할 때 이 눈금을 적어 두고(`getUnreadDelta`), 돌아왔을 때
+ * **벌어진 차이만큼 서버 값에 더한다**(`syncUnreadCount`).
+ *
+ * ⚠️ **어긋났다고 서버 값을 버리면 안 된다.** 한때 그렇게 했는데, 첫 로드엔 기준값이 0이라
+ * 버리는 순간 뱃지가 "그 사이 도착한 1건"만 세게 된다 — 안읽음 5건이 **1**로 보였다.
+ *
+ * 로컬 낙관적 처리(읽음·삭제)도 여기에 반영한다. 안 하면 fetch가 도는 동안 "모두 읽음"을
+ * 누른 사람에게 **뒤늦게 도착한 서버 스냅샷이 옛 숫자를 되살린다.**
  */
-let realtimeEpoch = 0;
+let unreadDelta = 0;
+
+/**
+ * 첫 로드가 끝나기 전에 Realtime으로 도착한 알림 — 응답과 병합한다.
+ *
+ * 서버가 목록을 뜬 뒤에 도착한 알림은 그 응답에 **없다.** 그냥 버리면(예전 동작) 다음
+ * 재조회 때까지 목록에서 사라진 채로 남는다 — 뱃지만 오르고 열어 보면 없는 상태.
+ */
+let pendingInserts: Notification[] = [];
 
 /** 서버 스냅샷용 고정 빈 배열 — 매번 `[]`를 만들면 참조가 달라져 무한 리렌더가 된다 */
 const EMPTY: Notification[] = [];
@@ -115,10 +128,25 @@ export function getHasMore(): boolean {
   return hasMore;
 }
 
-/** 첫 로드 — 목록을 통째로 갈아끼운다 */
+/**
+ * 첫 로드 — 목록을 통째로 갈아끼운다.
+ *
+ * fetch가 도는 동안 Realtime으로 온 알림(`pendingInserts`)을 **앞에 되붙인다.** 서버가
+ * 목록을 뜬 뒤에 도착한 것이라 응답에는 없고, 안 붙이면 뱃지만 오르고 목록엔 없는 상태가
+ * 다음 재조회까지 간다.
+ */
 export function setNotifications(next: Notification[]): void {
-  notifications = next;
+  notifications =
+    pendingInserts.length > 0
+      ? [
+          ...pendingInserts.filter((p) => !next.some((n) => n.noti_id === p.noti_id)),
+          ...next,
+        ]
+      : next;
+  pendingInserts = EMPTY;
   loaded = true;
+  // 커서·더보기 판정은 **서버가 준 장(next)** 기준이다. 끼워 넣은 pending까지 세면
+  // 다음 장 커서가 어긋나거나 20건이 안 되는 장을 "더 있다"로 읽는다.
   cursor = next.length > 0 ? next[next.length - 1].crt_at : null;
   hasMore = next.length >= 20;
   emit();
@@ -137,36 +165,58 @@ export function appendNotifications(next: Notification[]): void {
 /**
  * Realtime INSERT — 맨 앞에 끼운다.
  *
- * **목록을 아직 안 받아온 상태면 목록엔 넣지 않는다**(카운트만 올린다). 넣어 버리면
- * 나중에 첫 로드가 통째로 갈아끼우기 전까지 "달랑 1건만 있는 목록"이 보인다.
+ * **목록을 아직 안 받아온 상태면 목록엔 넣지 않는다.** 넣어 버리면 나중에 첫 로드가 통째로
+ * 갈아끼우기 전까지 "달랑 1건만 있는 목록"이 보인다. 대신 **버리지도 않고**
+ * `pendingInserts`에 재워 뒀다가 첫 로드 응답과 병합한다(§setNotifications).
  */
 export function prependNotification(noti: Notification): void {
-  if (loaded && !notifications.some((n) => n.noti_id === noti.noti_id)) {
-    notifications = [noti, ...notifications];
+  if (loaded) {
+    if (!notifications.some((n) => n.noti_id === noti.noti_id)) {
+      notifications = [noti, ...notifications];
+    }
+  } else if (!pendingInserts.some((n) => n.noti_id === noti.noti_id)) {
+    pendingInserts = [noti, ...pendingInserts];
   }
   unreadCount += 1;
-  realtimeEpoch += 1;
+  unreadDelta += 1;
   emit();
 }
 
 /** Realtime UPDATE — 같은 id를 갈아끼우고 읽음 전환이면 카운트를 보정한다 */
 export function updateNotification(updated: Notification): void {
-  realtimeEpoch += 1;
-  const existing = notifications.find((n) => n.noti_id === updated.noti_id);
-  if (existing) {
-    if (!existing.read_yn && updated.read_yn) unreadCount = Math.max(0, unreadCount - 1);
-    else if (existing.read_yn && !updated.read_yn) unreadCount += 1;
-    notifications = notifications.map((n) =>
-      n.noti_id === updated.noti_id ? { ...n, ...updated } : n,
-    );
+  // 첫 로드 중이면 대상이 `pendingInserts`에 있을 수 있다(도착 직후 읽힌 경우).
+  const existing =
+    notifications.find((n) => n.noti_id === updated.noti_id) ??
+    pendingInserts.find((n) => n.noti_id === updated.noti_id);
+  // 모르는 알림의 UPDATE — 바뀌는 게 없으니 리렌더도 일으키지 않는다.
+  if (!existing) return;
+
+  if (!existing.read_yn && updated.read_yn) {
+    unreadCount = Math.max(0, unreadCount - 1);
+    unreadDelta -= 1;
+  } else if (existing.read_yn && !updated.read_yn) {
+    unreadCount += 1;
+    unreadDelta += 1;
   }
+  const merge = (n: Notification) =>
+    n.noti_id === updated.noti_id ? { ...n, ...updated } : n;
+  notifications = notifications.map(merge);
+  if (pendingInserts.length > 0) pendingInserts = pendingInserts.map(merge);
   emit();
 }
 
-/** 낙관적 읽음 처리 — 서버 응답을 기다리지 않는다 */
+/**
+ * 낙관적 읽음 처리 — 서버 응답을 기다리지 않는다.
+ *
+ * 줄어든 만큼 `unreadDelta`도 내린다 — 조회가 도는 동안 눌렀을 때 **뒤늦게 오는 서버
+ * 스냅샷이 옛 숫자를 되살리지 않게**(아래 셋 모두 같은 이유).
+ */
 export function markRead(notiId: string): void {
   const target = notifications.find((n) => n.noti_id === notiId);
-  if (target && !target.read_yn) unreadCount = Math.max(0, unreadCount - 1);
+  if (target && !target.read_yn) {
+    unreadCount = Math.max(0, unreadCount - 1);
+    unreadDelta -= 1;
+  }
   notifications = notifications.map((n) =>
     n.noti_id === notiId ? { ...n, read_yn: true } : n,
   );
@@ -175,19 +225,25 @@ export function markRead(notiId: string): void {
 
 export function markAllRead(): void {
   notifications = notifications.map((n) => ({ ...n, read_yn: true }));
+  unreadDelta -= unreadCount;
   unreadCount = 0;
   emit();
 }
 
 export function removeNotification(notiId: string): void {
   const target = notifications.find((n) => n.noti_id === notiId);
-  if (target && !target.read_yn) unreadCount = Math.max(0, unreadCount - 1);
+  if (target && !target.read_yn) {
+    unreadCount = Math.max(0, unreadCount - 1);
+    unreadDelta -= 1;
+  }
   notifications = notifications.filter((n) => n.noti_id !== notiId);
   emit();
 }
 
 export function clearAll(): void {
   notifications = EMPTY;
+  pendingInserts = EMPTY;
+  unreadDelta -= unreadCount;
   unreadCount = 0;
   cursor = null;
   hasMore = false;
@@ -203,18 +259,20 @@ export function clearAll(): void {
  * (탭 이동에는 store에 이미 있어 안 깜빡인다).
  *
  * 값이 같으면 알리지 않는다(헛된 리렌더 방지).
+ *
+ * **서버 값을 그대로 쓰지 않고 그 사이 벌어진 차이를 더한다** — 이유는 `unreadDelta` 주석.
  */
-export function syncUnreadCount(next: number, epochAtFetchStart?: number): void {
-  // fetch가 도는 동안 Realtime이 store를 건드렸으면 서버 값이 이미 낡았다 — 버린다.
-  if (epochAtFetchStart !== undefined && epochAtFetchStart !== realtimeEpoch) return;
-  if (unreadCount === next) return;
-  unreadCount = next;
+export function syncUnreadCount(next: number, deltaAtFetchStart?: number): void {
+  const drift = deltaAtFetchStart === undefined ? 0 : unreadDelta - deltaAtFetchStart;
+  const resolved = Math.max(0, next + drift);
+  if (unreadCount === resolved) return;
+  unreadCount = resolved;
   emit();
 }
 
 /** fetch를 시작할 때 눈금을 적어 두고, 끝나면 `syncUnreadCount`에 되돌려준다 */
-export function getRealtimeEpoch(): number {
-  return realtimeEpoch;
+export function getUnreadDelta(): number {
+  return unreadDelta;
 }
 
 /**
@@ -223,7 +281,9 @@ export function getRealtimeEpoch(): number {
  */
 export function resetNotifications(): void {
   notifications = EMPTY;
+  pendingInserts = EMPTY;
   unreadCount = 0;
+  unreadDelta = 0;
   loaded = false;
   hasMore = true;
   cursor = null;

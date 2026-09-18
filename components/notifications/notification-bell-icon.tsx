@@ -18,7 +18,7 @@ import {
   appendNotifications,
   clearAll,
   getCursor,
-  getRealtimeEpoch,
+  getUnreadDelta,
   markAllRead as storeMarkAllRead,
   markRead,
   removeNotification,
@@ -100,6 +100,16 @@ export function NotificationBellIcon({ memberId, disabled }: NotificationBellIco
   // "아직 알림이 없어요"가 떠서 사용자가 "없구나"로 오해하고 재시도할 생각을 못 한다.
   const [loadError, setLoadError] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  /**
+   * 지금 이 순간의 주인 — 진행 중인 조회가 **누구 것이었는지** 대조하는 데 쓴다.
+   *
+   * `fetchMore`의 클로저 `memberId`는 요청을 **띄운 시점**의 값이라, 응답이 오는 사이
+   * 계정이 바뀌어도 그대로다. ref로 현재 값을 따로 들고 있어야 둘을 비교할 수 있다.
+   */
+  const memberIdRef = useRef(memberId);
+  useEffect(() => {
+    memberIdRef.current = memberId;
+  }, [memberId]);
 
   /**
    * 목록을 더 받는다 — 커서가 있으면 다음 장, 없으면 첫 장.
@@ -111,8 +121,11 @@ export function NotificationBellIcon({ memberId, disabled }: NotificationBellIco
     if (!memberId || loading) return;
     setLoading(true);
     setLoadError(false);
+    // 누구 것인지 적어 둔다 — 응답이 오기 전에 계정이 바뀌면 이 결과는 **남의 알림**이다.
+    // 채널 쪽 `resetNotifications()`가 store를 비운 뒤 이게 도착하면 비운 걸 되살린다.
+    const owner = memberId;
     // fetch가 도는 동안 도착한 Realtime 알림이 서버 카운트에 덮이지 않게 눈금을 적어 둔다.
-    const epoch = getRealtimeEpoch();
+    const delta = getUnreadDelta();
     try {
       const params = new URLSearchParams({ limit: "20" });
       const cur = getCursor();
@@ -128,12 +141,14 @@ export function NotificationBellIcon({ memberId, disabled }: NotificationBellIco
         return;
       }
       const json = await res.json();
+      // 기다리는 사이 주인이 바뀌었으면 통째로 버린다(§owner).
+      if (memberIdRef.current !== owner) return;
       const items: Notification[] = json.notifications ?? [];
       if (cur) {
         appendNotifications(items);
       } else {
         storeSetNotifications(items);
-        if (typeof json.unreadCount === "number") syncUnreadCount(json.unreadCount, epoch);
+        if (typeof json.unreadCount === "number") syncUnreadCount(json.unreadCount, delta);
       }
     } catch {
       setLoadError(true);

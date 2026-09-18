@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 import {
-  getRealtimeEpoch,
+  getUnreadDelta,
   isLoaded,
   prependNotification,
   resetNotifications,
@@ -43,7 +43,7 @@ export function NotificationChannel({ memberId }: { memberId: string }) {
 
     let cancelled = false;
     // fetch가 도는 동안 도착한 Realtime 알림이 서버 카운트에 덮이지 않게 눈금을 적어 둔다.
-    const epoch = getRealtimeEpoch();
+    const delta = getUnreadDelta();
     void (async () => {
       try {
         const res = await fetch("/api/notifications?limit=20");
@@ -52,7 +52,7 @@ export function NotificationChannel({ memberId }: { memberId: string }) {
         if (cancelled) return;
         setNotifications((json.notifications ?? []) as Notification[]);
         // 첫 장 응답엔 안읽음 수가 함께 온다 — 뱃지가 여기서 켜진다(§app/api/notifications).
-        if (typeof json.unreadCount === "number") syncUnreadCount(json.unreadCount, epoch);
+        if (typeof json.unreadCount === "number") syncUnreadCount(json.unreadCount, delta);
       } catch {
         // 알림은 없어도 화면이 도는 부가 기능이다 — 실패하면 벨을 열 때 다시 시도한다
         // (`loaded`가 false로 남으므로). 여기서 토스트를 띄우진 않는다.
