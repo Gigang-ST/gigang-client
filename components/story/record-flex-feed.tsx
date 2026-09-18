@@ -116,7 +116,7 @@ export function RecordFlexFeed({
    * 릴스에서 실측한 댓글 수 — `post_id → count`. 서버가 준 `cmnt_cnt` 위에 덮는다.
    *
    * 서버 값은 5분 캐시(`getStoryPosts`)라 방금 단 댓글이 안 잡힌다. 릴스를 열면 그 장의
-   * 댓글을 Realtime으로 읽고 있으므로(`usePostComments`) 그 개수를 받아 두면, 릴스를 닫고
+   * 댓글을 읽고 있으므로(`usePostComments`) 그 개수를 받아 두면, 릴스를 닫고
    * 격자로 돌아왔을 때 배지가 바로 맞는다 — 응원 버튼에서 겪은 "눌러도 반영이 안 된다"를
    * 캐시를 털지 않고 푸는 방법이다(§resolveCommentCount).
    */
@@ -145,7 +145,7 @@ export function RecordFlexFeed({
   // 누적 개수(중복 제거 전)를 따로 센다 — 실제 오프셋은 `posts.length + fetchedExtra`.
   const [fetchedExtra, setFetchedExtra] = useState(0);
 
-  // 서버 데이터가 **내용상** 바뀌면(작성·Realtime 갱신) 이어붙인 건 버린다 — 앞이 바뀐 채로
+  // 서버 데이터가 **내용상** 바뀌면(작성·재검증) 이어붙인 건 버린다 — 앞이 바뀐 채로
   // 뒤를 유지하면 오프셋이 어긋나 같은 기록이 두 번 보인다.
   //
   // 배열 자체(`posts`)로 비교하면 안 된다: 서버 렌더마다 새 참조가 와서 내용이 같아도
@@ -603,7 +603,7 @@ export function RecordFlexFeed({
           프로필 카드는 story-client가 위에 겹쳐 연다. */}
       <RecordReelViewer
         posts={reelPosts}
-        // 릴스가 Realtime으로 읽은 개수를 격자 배지에 흘려보낸다(§commentCounts)
+        // 릴스가 읽은 개수를 격자 배지에 흘려보낸다(§commentCounts)
         onCommentCountChange={handleCommentCount}
         startId={openId}
         open={openId !== null}
