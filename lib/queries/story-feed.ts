@@ -214,7 +214,9 @@ export function getStoryFeed(teamId: string): Promise<StoryFeed> {
       return { ...EMPTY_FEED, ...((data as Partial<StoryFeed> | null) ?? {}) };
     },
     ["story-feed", teamId],
-    { tags: ["story-feed", "gatherings", "records", "competitions"], revalidate: 300 },
+    // `gatherings`는 뺐다 — 터는 쪽이 없어 한 번도 무효화된 적이 없다. 다시 넣지 말 것:
+    // 모임 하나 바뀔 때마다 이 무거운 캐시(호출당 5,134버퍼)가 통째로 날아간다.
+    { tags: ["story-feed", "records", "competitions"], revalidate: 300 },
   )();
 }
 
