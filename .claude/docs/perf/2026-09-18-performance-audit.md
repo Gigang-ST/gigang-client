@@ -253,16 +253,86 @@ supabase_realtime 퍼블리케이션: cmnt_mst, msg_mst, noti_mst, pldg_mst
 구독 수에 비례한다. 알림 설계의 의도된 대가라 그대로 두되, **퍼블리케이션에 테이블을 추가할
 때는 이 곱셈을 기억할 것.**
 
-### 2-2. PostgREST 스키마 캐시 재적재 7.7%
+### 2-2. PostgREST 스키마 캐시 재적재 7.7% — **조사 완료: §1의 증상이다**
 
-| 문장 | 호출 | mean |
+| 문장 | 호출 | mean | min |
+|---|---|---|---|
+| `SELECT name FROM pg_timezone_names` | 9,659 | **709.2ms** | 52.2ms |
+| 도메인 base_types 재귀 조회 | 9,685 / 9,330 | 127.7 / 85.4ms | |
+
+세 쿼리의 호출 수가 거의 같다 — **한 번의 스키마 캐시 적재가 약 9,600회 돌았다**는 뜻이다.
+`pg_timezone_names`는 OS 타임존 DB를 훑어 **최소 52ms**로 원래 무거운 쿼리다(환경 배율과 별개).
+
+**원인은 마이그레이션이 아니라 PostgREST 재시작이었다.** `postgrest_logs` 최근 24시간:
+
+| 메시지 | 횟수 |
+|---|---|
+| `Successfully connected to PostgreSQL 17.6…` | **106** |
+| `Connection Pool initialized with a maximum size of 10 connections` | **106** |
+| `Config reloaded` | **106** |
+| `Schema cache loaded 52 Relations, 51 Relationships, 65 Functions, … 1196 Timezones` | **105** |
+| `Received a schema cache reload message on the "pgrst" channel` | 246 |
+
+프로세스가 새로 뜰 때만 나오는 줄 셋이 전부 106이다 →
+**Data API 계층(PostgREST) 프로세스가 하루 106회 재시작된다.**
+상주 서버라 정상 범위는 **하루 0~수 회**다. (`NOTIFY`로 오는 246회는 변경이 없어
+`Schema cache loaded in 1.2 milliseconds`로 끝나므로 비용이 아니다 — 비싼 건 재시작 쪽이다.)
+
+**재시작은 부하에 비례한다** (시간대 분포, KST):
+
+| 시간 | 재시작 |
+|---|---|
+| **22시 (저녁 피크)** | **14회** |
+| 낮 | 2~8회/시간 |
+| **03~06시 (새벽)** | **0회** |
+
+정기 재활용이라면 새벽에도 나와야 한다. **부하에 반응하는 재시작**이다.
+
+**Postgres 본체는 멀쩡하다** — `postgres_logs`에 `FATAL`·크래시·OOM 메시지가 0건이다.
+대신 `unexpected EOF on standby connection` 33회 + `starting logical decoding for slot` 32회가
+찍힌다 → **Realtime도 반복해서 끊기고 재연결한다.** 한 서비스의 버그가 아니라 **여러 서비스가
+동시에 불안정**하다는 뜻이고, Postgres가 `shared_buffers`를 선점한 뒤 곁다리(PostgREST=Haskell,
+Realtime=BEAM)가 밀리는 메모리 압박의 전형적인 모양이다.
+
+```
+메모리 초과 커밋(1.4GB > 1.2GB) → 상시 스왑
+  → 자원 부족 / 요청 지연
+    → PostgREST 재시작 (하루 106회, 피크에 집중)
+      → 스키마 캐시 전체 재적재 (타임존 709ms + 타입 조회)
+        → DB CPU 7.7%
+```
+
+> ⚠️ **확정이 아니다.** 죽이는 직접 메커니즘을 못 봤다 — ① OOM kill ② 헬스체크 타임아웃 후
+> 플랫폼 재시작 ③ 무료 등급 자원 제한 중 로그로는 갈리지 않는다. ①②는 뿌리가 메모리라
+> 조치가 같고, ③이면 상향해도 안 줄어든다(다만 새벽 0회 패턴이 ③과 안 맞는다).
+> **검증은 §1을 하고 같은 로그 쿼리를 다시 돌리는 것** — 줄면 확정, 그대로면 지원 문의.
+
+### ⭐ 이것이 §1의 심각도를 바꾼다
+
+§1을 "느리다"로만 규정했는데 로그는 다른 얘기를 한다:
+
+| | 기존 인식 | 실제 |
 |---|---|---|
-| `SELECT name FROM pg_timezone_names` | 9,626 | **708.7ms** |
-| 도메인 base_types 재귀 조회 | 9,652 / 9,297 | 127.7 / 85.2ms |
+| 증상 | 응답이 느림 | **API 계층이 하루 106번 죽었다 살아남** |
+| 사용자 체감 | 가끔 답답함 | 재시작 순간의 요청은 **에러·연결거부·멈춤** |
 
-**9,626번 재적재**, 회당 약 920ms. 마이그레이션 횟수보다 훨씬 많다 — PostgREST 재시작이
-잦거나 `pgrst_ddl_watch` 이벤트 트리거가 예상보다 자주 발화한다. **운영 측 조사 항목.**
-(§1-7의 스키마 복잡도와 같은 뿌리 — 재적재 1회 비용이 테이블·함수 수에 비례한다.)
+재시작 한 번에 수 초가 걸리고 **저녁 피크에 몰린다.** "가끔 안 눌려요 / 새로고침하면 돼요"
+류의 제보가 있었다면 코드 버그가 아니라 **창구가 비어 있던 것**일 수 있다.
+
+**재시작 자체가 원인이 아니라 결과**라는 점이 중요하다 — 재시작을 막으려 할 게 아니라
+그것을 유발하는 자원 부족(§1)을 없애야 한다.
+
+**재확인용 쿼리** (Logs → 쿼리):
+
+```sql
+select count(*) from postgrest_logs
+where event_message like 'Successfully connected to PostgreSQL%';
+
+select toStartOfHour(timestamp) as hr, count(*)
+from postgrest_logs
+where event_message like 'Successfully connected to PostgreSQL%'
+group by hr order by hr;
+```
 
 ### 2-3. `get_team_ghost_members` — 주석의 근거가 프로덕션에서 무효
 
@@ -397,7 +467,7 @@ const notificationsLoaded = useRef(initialNotifications !== undefined);
 | 4 | **알림을 페이지 렌더에서 분리** (§3-2) | 구조 변경 | **여섯 지면 렌더 대기 2건 → 0건** | ✅ **완료** (`a4b5cdc`) |
 | 5 | `fetchMemMstWithTeamRel` 임베딩 1회로 (§3-1) | 쿼리 1개 | **모든 인증 렌더에서 직렬 왕복 2→1** | ✅ **완료** (`d4c0743`) |
 | 6 | `getReactionTotals`를 `Promise.all`에 합류 (§3-3) | 3줄 | **구조 정리에 가깝다** — 실측 이득은 작다(아래) | ✅ **완료** (`af93091`) |
-| 7 | PostgREST 스키마 캐시 재적재 원인 추적 (§2-2) | 조사 | DB CPU 7.7% | ☐ 대기 (운영 측) |
+| ~~7~~ | PostgREST 스키마 캐시 재적재 원인 추적 (§2-2) | 조사 | — | ✅ **조사 완료 — §1의 증상.** PostgREST가 **하루 106회 재시작**해서였다. 코드로 할 일 없음 |
 | 8 | `get_team_story_feed`의 `upcoming` 이중 스캔 정리 (§2-4) | 쿼리 재작성 | 호출당 37MB 버퍼 접근 축소 | ☐ 대기 |
 
 ### 완료분 상세 (브랜치 `feature/perf-reduce-server-roundtrips`)
