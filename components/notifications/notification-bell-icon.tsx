@@ -14,8 +14,21 @@ import {
   subscribePush,
   unsubscribePush,
 } from "@/lib/push/client";
+import {
+  appendNotifications,
+  clearAll,
+  getCursor,
+  markAllRead as storeMarkAllRead,
+  markRead,
+  removeNotification,
+  setNotifications as storeSetNotifications,
+  syncUnreadCount,
+  useHasMore,
+  useNotifications,
+  useNotificationsLoaded,
+  useUnreadCount,
+} from "@/lib/notifications/store";
 import type { Notification, NotificationPref } from "@/lib/queries/notification";
-import { createClient } from "@/lib/supabase/client";
 
 import { deleteAllNotifications } from "@/app/actions/delete-all-notifications";
 import { markAllNotificationsRead } from "@/app/actions/mark-all-notifications-read";
@@ -30,8 +43,6 @@ import { Switch } from "@/components/ui/switch";
 import { NotificationItem } from "./notification-item";
 
 type NotificationBellIconProps = {
-  initialCount: number;
-  initialNotifications?: Notification[];
   memberId?: string;
   disabled?: boolean;
 };
@@ -59,11 +70,21 @@ const NOTI_TYPE_LABELS: Record<string, string> = {
 
 type ViewType = "list" | "settings";
 
-export function NotificationBellIcon({ initialCount, initialNotifications, memberId, disabled }: NotificationBellIconProps) {
+export function NotificationBellIcon({ memberId, disabled }: NotificationBellIconProps) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<ViewType>("list");
-  const [unreadCount, setUnreadCount] = useState(initialCount);
-  const [notifications, setNotifications] = useState<Notification[]>(initialNotifications ?? []);
+  /**
+   * 목록·뱃지수·페이지네이션은 전부 **모듈 store**가 들고 있다(`lib/notifications/store.ts`).
+   *
+   * 이 컴포넌트는 각 탭 헤더 안에 있어 **탭을 옮길 때마다 죽고 새로 태어난다.**
+   * state로 들면 이동마다 목록이 사라져 다시 받아야 하고, Realtime 채널도 끊겼다 붙는다.
+   * store는 앱이 켜져 있는 동안 살아 있으므로 몇 번을 다시 태어나도 그대로다.
+   * 채널 소유와 최초 로드는 루트의 `NotificationChannel`이 맡는다 — 여기선 **읽기만** 한다.
+   */
+  const notifications = useNotifications();
+  const unreadCount = useUnreadCount();
+  const hasMore = useHasMore();
+  const loaded = useNotificationsLoaded();
   const [prefs, setPrefs] = useState<NotificationPref[]>([]);
   // 푸시: null=판단중, "on"/"off"=토글 가능, "denied"=OS 차단, "install"=iOS 설치 필요, "unsupported"=대상 아님
   const [pushState, setPushState] = useState<
@@ -72,34 +93,31 @@ export function NotificationBellIcon({ initialCount, initialNotifications, membe
   const [loading, setLoading] = useState(false);
   // 푸시 토글 처리 중 여부 — 응답 오기 전까지 중복 클릭 차단
   const [pushPending, setPushPending] = useState(false);
-  const [hasMore, setHasMore] = useState((initialNotifications ?? []).length === 20);
-  const [cursor, setCursor] = useState<string | null>(
-    initialNotifications && initialNotifications.length > 0 ? initialNotifications[initialNotifications.length - 1].crt_at : null,
-  );
-  // 서버에서 initialNotifications를 명시적으로 내려준 경우 이미 로딩 완료로 간주
-  const notificationsLoaded = useRef(initialNotifications !== undefined);
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const realtimeRef = useRef<any>(null);
 
-  async function fetchNotifications(replace = false, cur?: string | null) {
-    if (!memberId) return;
+  /**
+   * 목록을 더 받는다 — 커서가 있으면 다음 장, 없으면 첫 장.
+   *
+   * 첫 장은 보통 루트의 `NotificationChannel`이 이미 받아 뒀다. 여기서 첫 장을 받는 건
+   * **그게 실패했을 때뿐**이다(그 경우 store의 `loaded`가 false로 남는다).
+   */
+  async function fetchMore() {
+    if (!memberId || loading) return;
     setLoading(true);
     try {
       const params = new URLSearchParams({ limit: "20" });
-      const useCursor = cur !== undefined ? cur : cursor;
-      if (useCursor) params.set("cursor", useCursor);
+      const cur = getCursor();
+      if (cur) params.set("cursor", cur);
       const res = await fetch(`/api/notifications?${params}`);
       const json = await res.json();
-      const newItems: Notification[] = json.notifications ?? [];
-      if (newItems.length < 20) setHasMore(false);
-      if (replace) {
-        setNotifications(newItems);
+      const items: Notification[] = json.notifications ?? [];
+      if (cur) {
+        appendNotifications(items);
       } else {
-        setNotifications((prev) => [...prev, ...newItems]);
+        storeSetNotifications(items);
+        if (typeof json.unreadCount === "number") syncUnreadCount(json.unreadCount);
       }
-      if (newItems.length > 0) setCursor(newItems[newItems.length - 1].crt_at);
     } finally {
       setLoading(false);
     }
@@ -168,103 +186,53 @@ export function NotificationBellIcon({ initialCount, initialNotifications, membe
     }
   }
 
-  // realtime 구독은 팝오버 open 여부와 무관하게 로그인(memberId) 상태면 항상 유지한다.
-  // → 홈탭 등 다른 화면에 있어도 알림이 오면 빨간 뱃지가 실시간으로 갱신된다.
+  // Realtime 구독은 **여기 없다.** 루트의 `NotificationChannel`이 소유한다 — 벨이 들고 있으면
+  // 탭을 옮길 때마다 끊겼다 붙는다(§components/notifications/notification-channel.tsx).
+
+  // 팝오버를 열었는데 아직 목록이 없으면(루트의 최초 로드가 실패했을 때) 여기서 다시 시도한다.
+  // `fetchMore`가 맨 앞에서 `setLoading(true)`를 하므로 **마이크로태스크로 한 번 미룬다** —
+  // effect 본문에서 동기로 setState 하면 연쇄 렌더가 된다(react-hooks/set-state-in-effect).
   useEffect(() => {
-    if (!memberId) return;
-
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`noti_mst_${memberId}`)
-      .on("postgres_changes", {
-        event: "INSERT",
-        schema: "public",
-        table: "noti_mst",
-        filter: `mem_id=eq.${memberId}`,
-      }, (payload) => {
-        const noti = payload.new as Notification;
-        setUnreadCount((c) => c + 1);
-        // 목록이 이미 로드된 경우에만 앞에 추가 (중복 방지)
-        if (notificationsLoaded.current) {
-          setNotifications((prev) =>
-            prev.some((n) => n.noti_id === noti.noti_id) ? prev : [noti, ...prev],
-          );
-        }
-      })
-      .on("postgres_changes", {
-        event: "UPDATE",
-        schema: "public",
-        table: "noti_mst",
-        filter: `mem_id=eq.${memberId}`,
-      }, (payload) => {
-        const updated = payload.new as Notification;
-        setNotifications((prev) => {
-          const existing = prev.find((n) => n.noti_id === updated.noti_id);
-          if (existing && !existing.read_yn && updated.read_yn) {
-            setUnreadCount((c) => Math.max(0, c - 1));
-          } else if (existing && existing.read_yn && !updated.read_yn) {
-            setUnreadCount((c) => c + 1);
-          }
-          return prev.map((n) => n.noti_id === updated.noti_id ? { ...n, ...updated } : n);
-        });
-      })
-      .subscribe();
-
-    realtimeRef.current = channel;
+    if (!open || !memberId || loaded || loading) return;
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (!cancelled) void fetchMore();
+    });
     return () => {
-      supabase.removeChannel(channel);
-      realtimeRef.current = null;
+      cancelled = true;
     };
-  }, [memberId]);
-
-  // 알림 목록은 팝오버를 처음 열 때 1회 로드 (뱃지 카운트와 분리)
-  useEffect(() => {
-    if (!open || !memberId) return;
-    if (notificationsLoaded.current) return;
-    notificationsLoaded.current = true;
-    setCursor(null);
-    setHasMore(true);
-    fetchNotifications(true, null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, memberId]);
+  }, [open, memberId, loaded]);
 
   // 팝오버 내부 스크롤 무한스크롤
   useEffect(() => {
     if (!hasMore || loading || !open) return;
     const observer = new IntersectionObserver(
-      (entries) => { if (entries[0].isIntersecting) fetchNotifications(); },
+      (entries) => { if (entries[0].isIntersecting) void fetchMore(); },
       { threshold: 0.1 },
     );
     if (sentinelRef.current) observer.observe(sentinelRef.current);
     return () => observer.disconnect();
-  }, [hasMore, loading, open, cursor]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasMore, loading, open, notifications.length]);
 
   async function handleMarkAllRead() {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read_yn: true })));
-    setUnreadCount(0);
+    storeMarkAllRead();
     await markAllNotificationsRead();
   }
 
   async function handleDeleteAll() {
-    setNotifications([]);
-    setUnreadCount(0);
+    clearAll();
     setDeleteAllOpen(false);
     await deleteAllNotifications();
   }
 
   function handleReadItem(notiId: string) {
-    setUnreadCount((c) => Math.max(0, c - 1));
-    setNotifications((prev) =>
-      prev.map((n) => n.noti_id === notiId ? { ...n, read_yn: true } : n),
-    );
+    markRead(notiId);
   }
 
   function handleDeleteItem(notiId: string) {
-    setNotifications((prev) => {
-      const item = prev.find((n) => n.noti_id === notiId);
-      if (item && !item.read_yn) setUnreadCount((c) => Math.max(0, c - 1));
-      return prev.filter((n) => n.noti_id !== notiId);
-    });
+    removeNotification(notiId);
   }
 
   async function handlePrefToggle(type: string, enabled: boolean) {
@@ -345,7 +313,10 @@ export function NotificationBellIcon({ initialCount, initialNotifications, membe
           <div className="max-h-96 overflow-y-auto">
             {view === "list" && (
               <>
-                {notifications.length === 0 && !loading ? (
+                {/* ⚠️ 빈 상태는 **다 받아왔을 때만**(`loaded`) 보여준다. 아직 받는 중인데
+                    "없어요"를 띄우면, 알림이 있는 사람에게 한 번 깜빡이고 목록이 뒤늦게
+                    들어찬다 — 목록을 서버 렌더에서 뗀 뒤 실제로 그 증상이 났다. */}
+                {notifications.length === 0 && !loading && loaded ? (
                   <div className="flex flex-col items-center justify-center gap-2 py-10">
                     <Bell className="size-8 text-muted-foreground/30" />
                     <Caption>아직 알림이 없어요</Caption>

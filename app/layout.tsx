@@ -13,6 +13,7 @@ import { Toaster } from "sonner";
 import { AppWidthControl } from "@/components/app-width-control";
 import { PresenceLayerGate } from "@/components/presence/presence-layer-gate";
 import { InAppBrowserGate } from "@/components/in-app-browser-gate";
+import { NotificationChannelGate } from "@/components/notifications/notification-channel-gate";
 import { Providers } from "@/components/providers";
 import { PwaInstallPromptGate } from "@/components/pwa-install-prompt-gate";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
@@ -153,6 +154,15 @@ export default function RootLayout({
               조회가 쿠키를 읽으므로 설치 배너와 같은 이유로 Suspense 경계에 가둔다. */}
           <Suspense fallback={null}>
             <PresenceLayerGate />
+          </Suspense>
+          {/* 알림 채널 — 아무것도 그리지 않는다. **여기(루트)에 두는 게 핵심이다**:
+              벨은 탭마다 다른 헤더 안에 있어 이동할 때마다 죽고 새로 태어나는데, 채널과
+              목록을 벨이 들고 있으면 이동마다 재구독·재조회가 난다. 루트는 클라이언트
+              네비게이션에 안 죽으므로 둘 다 앱을 여는 동안 1회로 끝난다.
+              **알림은 페이지 렌더와 무관해야 한다** — 그래서 목록도 뱃지 숫자도 서버 렌더가
+              아니라 마운트 뒤 클라이언트가 받는다(§components/notifications/). */}
+          <Suspense fallback={null}>
+            <NotificationChannelGate />
           </Suspense>
           {/* 전역 토스트 — 참석 피드백·배치 결과 등. sonner 기본 흥(아이콘·애니메이션) 유지하고
               모서리·그림자만 프로젝트 카드 톤으로 보정. richColors 미사용(투박함 제거).
