@@ -136,13 +136,17 @@ export function usePostComments(postId: string, teamId: string, active: boolean)
    * 마운트 직후 한 번은 우리가 넘긴 `initialComments`와 같은 내용으로 돌아온다. 그대로
    * 받으면 매번 새 객체라 리렌더가 한 바퀴 더 돈다.
    *
-   * **다른 글의 것은 안 받는다.** 장을 넘긴 직후 닫히는 시트가 늦게 부를 수 있다.
+   * **어느 글의 것인지는 부르는 쪽이 같이 준다**(`fromPostId`). 장을 넘긴 직후 닫히는 시트가
+   * 늦게 부를 수 있어 그건 버려야 하는데, **우리 `loaded`를 기준으로 판단하면 안 된다** —
+   * 아직 안 읽었거나(전환 중) 조회가 실패해 `loaded`가 `null`이면 **시트가 제대로 가져온
+   * 목록까지 통째로 버리게 된다**(그 경우 시트는 `initialComments`를 못 받아 스스로 읽는다).
+   * 그러면 말풍선·개수가 영영 안 채워진다. 그래서 `null`이어도 **글이 맞으면 받아 둔다.**
    */
   const syncComments = useCallback(
-    (list: PostComment[]) => {
+    (fromPostId: string, list: PostComment[]) => {
+      if (fromPostId !== postId) return;
       setLoaded((prev) => {
-        if (!prev || prev.postId !== postId) return prev;
-        if (signature(prev.list) === signature(list)) return prev;
+        if (prev?.postId === postId && signature(prev.list) === signature(list)) return prev;
         return { postId, list };
       });
     },

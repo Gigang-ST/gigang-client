@@ -84,30 +84,44 @@ export function CommentItem({
   // 성공했을 때만 편집을 닫고 목록에 반영한다. 예전엔 결과를 아예 안 보고 무조건 닫았는데,
   // Realtime이 고쳐 주던 시절엔 실패해도 목록이 원본 그대로라 티가 안 났다. 이제는 이 콜백이
   // 유일한 반영 경로라 성공·실패를 갈라야 한다 — 실패 시 입력을 열어 둬야 쓴 글이 안 날아간다.
+  // ⚠️ **두 액션은 결과 객체 대신 던질 수도 있다.** `withMember`가 세션이 없으면
+  // `throw new Error("로그인이 필요합니다.")` 하고, `updateCommentSchema.parse`도 입력이
+  // 어긋나면 reject한다. `finally`가 없으면 그 경로에서 `setLoading(false)`에 못 닿아
+  // **버튼이 비활성인 채로 굳고 실패 메시지도 안 뜬다.**
   const handleUpdate = async () => {
     const next = editText.trim()
     if (!next) return
     setLoading(true)
-    const result = await updateComment({ cmntId: comment.cmnt_id, contTxt: next, mentionedMemIds: parseMentionsFromText(next, members) })
-    setLoading(false)
-    if (!result.ok) {
-      toast(result.message ?? "댓글 수정 실패")
-      return
+    try {
+      const result = await updateComment({ cmntId: comment.cmnt_id, contTxt: next, mentionedMemIds: parseMentionsFromText(next, members) })
+      if (!result.ok) {
+        toast(result.message ?? "댓글 수정 실패")
+        return
+      }
+      setEditing(false)
+      onEdited?.(comment.cmnt_id, next)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "댓글 수정 실패")
+    } finally {
+      setLoading(false)
     }
-    setEditing(false)
-    onEdited?.(comment.cmnt_id, next)
   }
 
   const handleDelete = async () => {
     if (!confirm("댓글을 삭제할까요?")) return
     setLoading(true)
-    const result = await deleteComment({ cmntId: comment.cmnt_id })
-    setLoading(false)
-    if (!result.ok) {
-      toast(result.message ?? "댓글 삭제 실패")
-      return
+    try {
+      const result = await deleteComment({ cmntId: comment.cmnt_id })
+      if (!result.ok) {
+        toast(result.message ?? "댓글 삭제 실패")
+        return
+      }
+      onDeleted?.(comment.cmnt_id)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "댓글 삭제 실패")
+    } finally {
+      setLoading(false)
     }
-    onDeleted?.(comment.cmnt_id)
   }
 
   return (

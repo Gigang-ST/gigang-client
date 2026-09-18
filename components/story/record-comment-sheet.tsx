@@ -65,7 +65,7 @@ export function RecordCommentSheet({
    * 시트에서 일어난 작성·수정·삭제를 위로 돌려보낸다 — 말풍선·하단 개수·격자 배지가
    * 같은 데이터를 쓰기 때문이다. 실시간 구독을 걷어낸 뒤로(§성능 점검 C) **이게 유일한 경로다.**
    */
-  onCommentsChange?: (comments: CmntRow[]) => void;
+  onCommentsChange?: (postId: string, comments: CmntRow[]) => void;
 }) {
   const [members, setMembers] = useState<MemberOption[] | null>(null);
 
@@ -144,7 +144,11 @@ export function RecordCommentSheet({
             members={members ?? []}
             initialComments={initialComments}
             loginReturnPath="/story"
-            onCommentsChange={onCommentsChange}
+            // 어느 글의 것인지를 같이 올려보낸다 — 받는 쪽이 자기 상태로 추측하면
+            // 아직 안 읽혔거나 조회가 실패한 경우 유효한 목록까지 버리게 된다(§syncComments).
+            onCommentsChange={
+              onCommentsChange ? (comments) => onCommentsChange(postId, comments) : undefined
+            }
           />
         </div>
       </ResponsiveDrawerContent>
