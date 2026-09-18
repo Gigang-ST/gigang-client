@@ -38,6 +38,15 @@ let loaded = false;
 let hasMore = true;
 /** 다음 페이지 커서 — 마지막 항목의 `crt_at` */
 let cursor: string | null = null;
+/**
+ * Realtime이 store를 건드릴 때마다 오르는 눈금.
+ *
+ * 서버가 안읽음 수를 센 **뒤**, 목록 fetch가 **끝나기 전**에 새 알림이 도착하면
+ * `syncUnreadCount`가 그 증가분을 덮어써 뱃지가 1 모자라게 된다. fetch를 시작할 때 눈금을
+ * 적어 두고(`getRealtimeEpoch`), 돌아왔을 때 눈금이 변했으면 서버 값을 버린다 —
+ * 그 경우 Realtime이 들고 있는 값이 더 최신이다.
+ */
+let realtimeEpoch = 0;
 
 /** 서버 스냅샷용 고정 빈 배열 — 매번 `[]`를 만들면 참조가 달라져 무한 리렌더가 된다 */
 const EMPTY: Notification[] = [];
@@ -136,11 +145,13 @@ export function prependNotification(noti: Notification): void {
     notifications = [noti, ...notifications];
   }
   unreadCount += 1;
+  realtimeEpoch += 1;
   emit();
 }
 
 /** Realtime UPDATE — 같은 id를 갈아끼우고 읽음 전환이면 카운트를 보정한다 */
 export function updateNotification(updated: Notification): void {
+  realtimeEpoch += 1;
   const existing = notifications.find((n) => n.noti_id === updated.noti_id);
   if (existing) {
     if (!existing.read_yn && updated.read_yn) unreadCount = Math.max(0, unreadCount - 1);
@@ -193,10 +204,17 @@ export function clearAll(): void {
  *
  * 값이 같으면 알리지 않는다(헛된 리렌더 방지).
  */
-export function syncUnreadCount(next: number): void {
+export function syncUnreadCount(next: number, epochAtFetchStart?: number): void {
+  // fetch가 도는 동안 Realtime이 store를 건드렸으면 서버 값이 이미 낡았다 — 버린다.
+  if (epochAtFetchStart !== undefined && epochAtFetchStart !== realtimeEpoch) return;
   if (unreadCount === next) return;
   unreadCount = next;
   emit();
+}
+
+/** fetch를 시작할 때 눈금을 적어 두고, 끝나면 `syncUnreadCount`에 되돌려준다 */
+export function getRealtimeEpoch(): number {
+  return realtimeEpoch;
 }
 
 /**

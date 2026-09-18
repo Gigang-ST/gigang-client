@@ -18,9 +18,11 @@ import {
   appendNotifications,
   clearAll,
   getCursor,
+  getRealtimeEpoch,
   markAllRead as storeMarkAllRead,
   markRead,
   removeNotification,
+  resetNotifications,
   setNotifications as storeSetNotifications,
   syncUnreadCount,
   useHasMore,
@@ -94,6 +96,9 @@ export function NotificationBellIcon({ memberId, disabled }: NotificationBellIco
   // 푸시 토글 처리 중 여부 — 응답 오기 전까지 중복 클릭 차단
   const [pushPending, setPushPending] = useState(false);
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  // 조회 실패를 **빈 상태와 구분해서** 보여주기 위한 플래그. 이게 없으면 실패했을 때도
+  // "아직 알림이 없어요"가 떠서 사용자가 "없구나"로 오해하고 재시도할 생각을 못 한다.
+  const [loadError, setLoadError] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   /**
@@ -105,19 +110,33 @@ export function NotificationBellIcon({ memberId, disabled }: NotificationBellIco
   async function fetchMore() {
     if (!memberId || loading) return;
     setLoading(true);
+    setLoadError(false);
+    // fetch가 도는 동안 도착한 Realtime 알림이 서버 카운트에 덮이지 않게 눈금을 적어 둔다.
+    const epoch = getRealtimeEpoch();
     try {
       const params = new URLSearchParams({ limit: "20" });
       const cur = getCursor();
       if (cur) params.set("cursor", cur);
       const res = await fetch(`/api/notifications?${params}`);
+      // ⚠️ **`res.ok`를 반드시 본다.** 이 API는 실패해도 `{ error }`라는 **정상 JSON**을
+      // 돌려주므로, 안 보면 `json.notifications`가 undefined → 빈 배열로 읽힌다. 그러면
+      // `storeSetNotifications([])`가 `loaded = true`·`hasMore = false`로 만들어
+      // **"아직 알림이 없어요"가 뜨고 재시도 경로 둘이 세션 내내 닫힌다**(루트 채널의
+      // `isLoaded()` 가드 + 아래 open 이펙트). 알림이 있는데도 영영 안 보이게 된다.
+      if (!res.ok) {
+        setLoadError(true);
+        return;
+      }
       const json = await res.json();
       const items: Notification[] = json.notifications ?? [];
       if (cur) {
         appendNotifications(items);
       } else {
         storeSetNotifications(items);
-        if (typeof json.unreadCount === "number") syncUnreadCount(json.unreadCount);
+        if (typeof json.unreadCount === "number") syncUnreadCount(json.unreadCount, epoch);
       }
+    } catch {
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -216,15 +235,30 @@ export function NotificationBellIcon({ memberId, disabled }: NotificationBellIco
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasMore, loading, open, notifications.length]);
 
+  // 낙관적으로 먼저 반영하되 **실패하면 되돌린다.** store가 세션 내내 살아 있어서
+  // (탭을 옮겨도 리마운트로 초기화되지 않는다) 실패를 방치하면 그 화면이 계속 남는다.
+  // 되돌리는 방법은 서버에서 다시 받아오는 것 — 낙관적 변경 전 상태를 따로 들고 있지 않다.
   async function handleMarkAllRead() {
     storeMarkAllRead();
-    await markAllNotificationsRead();
+    try {
+      await markAllNotificationsRead();
+    } catch {
+      toast.error("읽음 처리에 실패했어요");
+      resetNotifications();
+      await fetchMore();
+    }
   }
 
   async function handleDeleteAll() {
     clearAll();
     setDeleteAllOpen(false);
-    await deleteAllNotifications();
+    try {
+      await deleteAllNotifications();
+    } catch {
+      toast.error("알림을 지우지 못했어요");
+      resetNotifications();
+      await fetchMore();
+    }
   }
 
   function handleReadItem(notiId: string) {
@@ -313,10 +347,23 @@ export function NotificationBellIcon({ memberId, disabled }: NotificationBellIco
           <div className="max-h-96 overflow-y-auto">
             {view === "list" && (
               <>
-                {/* ⚠️ 빈 상태는 **다 받아왔을 때만**(`loaded`) 보여준다. 아직 받는 중인데
-                    "없어요"를 띄우면, 알림이 있는 사람에게 한 번 깜빡이고 목록이 뒤늦게
-                    들어찬다 — 목록을 서버 렌더에서 뗀 뒤 실제로 그 증상이 났다. */}
-                {notifications.length === 0 && !loading && loaded ? (
+                {/* 실패는 빈 상태와 **다르게** 말한다 — "없다"로 보이면 재시도할 생각을 못 한다. */}
+                {notifications.length === 0 && !loading && loadError ? (
+                  <div className="flex flex-col items-center justify-center gap-2 py-10">
+                    <Bell className="size-8 text-muted-foreground/30" />
+                    <Caption>알림을 불러오지 못했어요</Caption>
+                    <button
+                      type="button"
+                      onClick={() => void fetchMore()}
+                      className="text-xs text-primary"
+                    >
+                      다시 시도
+                    </button>
+                  </div>
+                ) : /* ⚠️ 빈 상태는 **다 받아왔을 때만**(`loaded`) 보여준다. 아직 받는 중인데
+                      "없어요"를 띄우면, 알림이 있는 사람에게 한 번 깜빡이고 목록이 뒤늦게
+                      들어찬다 — 목록을 서버 렌더에서 뗀 뒤 실제로 그 증상이 났다. */
+                notifications.length === 0 && !loading && loaded ? (
                   <div className="flex flex-col items-center justify-center gap-2 py-10">
                     <Bell className="size-8 text-muted-foreground/30" />
                     <Caption>아직 알림이 없어요</Caption>

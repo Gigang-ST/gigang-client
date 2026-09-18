@@ -56,8 +56,8 @@ export default function StoryPage() {
  */
 async function StoryFeedSection() {
   const { teamId } = await getRequestTeamContext();
-  // 현상수배 정렬 시드 — 진입마다 다른 얼굴 조합이 앞에 서게 한다(대상이 30명 상한보다
-  // 많아 순서가 곧 "누가 뜨느냐"다). 조회 인자라 Promise.all보다 먼저 뽑는다.
+  // 현상수배 정렬 시드 — 진입마다 다른 얼굴 조합이 앞에 서게 한다. 셔플·상한은
+  // `arrangeGhosts`가 맡는다(§lib/ghost-members.ts). 조회 인자라 Promise.all보다 먼저 뽑는다.
   const ghostSeed = pickGhostSeed();
   const [feed, overview, ghosts, posts, grants, { member }, reactionTotals] =
     await Promise.all([

@@ -33,14 +33,16 @@ export type GhostMember = {
  * 기록할 페이지가 없던 시절 가입자라 잠수의 근거가 못 된다.
  * 프로필 카드의 "실종" 컨디션과 같은 결이다 — 전광판 하단 현상수배존에 쓴다.
  *
- * **시드는 빈 문자열로 고정**한다. 시드는 `ORDER BY`에만 쓰여 *누가 후보인가*와 무관한데,
- * 진입마다 다른 값을 넣으면 캐시 키가 매번 달라져 캐시 자체가 성립하지 않는다.
- * 순서는 `arrangeGhosts`가 정한다.
+ * **RPC는 "누가 후보인가"만 돌려준다** — 정렬도 상한도 없다(마이그레이션 20260918160000).
+ * 그래야 시드와 무관해져 캐시할 수 있다. 순서와 30명 상한은 `arrangeGhosts`가 정한다.
  *
- * ⚠️ **인자를 생략하지 말 것.** `get_team_ghost_members`에는 `(uuid)` 오버로드가 남아 있고,
- * 그건 상한 8명 · 오래된 순 · **`never_actv` 필드가 없는 옛 버전**이다. `p_seed`를 빼면
- * 그쪽이 걸려 화면이 가입일을 "최종 목격"이라 찍는다(주석이 경계하던 바로 그 거짓말).
- * 오버로드는 별도 마이그레이션으로 지우지만, **지워지기 전에도 안전하도록** 명시한다.
+ * ⚠️ **RPC 안에 `LIMIT`을 되살리지 말 것.** 시드를 ''로 고정한 채 RPC가 자르면 **캐시에
+ * 담기는 30명이 고정된다** — 후보가 30을 넘는 순간 시드가 *누가 뜨는지*를 못 바꾸고
+ * *그 30명 안의 순서*만 바꾸게 되어, 시드를 도입한 이유였던 "최고참 영구 박제"가
+ * 그대로 되살아난다(prd 27명이라 가려져 있지만 dev는 이미 30명을 넘었다).
+ *
+ * ⚠️ **`p_seed` 인자를 생략하지 말 것.** `(uuid)` 오버로드가 남아 있는 환경에선 그쪽이
+ * 걸리고, 그건 **`never_actv`가 없는 옛 버전**이라 화면이 가입일을 "최종 목격"이라 찍는다.
  *
  * ⚠️ **예전 주석의 근거 두 개가 프로덕션에서 무효였다**(2026-09-18 실측):
  * ① "실측 2.5ms라 매 요청 읽어도 부담 없다" → **평균 395ms · 호출 11,458회 · 누적 1.26시간**
@@ -64,13 +66,11 @@ function getGhostCandidates(teamId: string): Promise<GhostMember[]> {
         p_seed: "",
       });
 
-      if (error) {
-        // abort(dev 렌더 재시작·요청 취소)는 코드 결함이 아니므로 로그에서 제외한다.
-        if (!isRequestAbortError(error)) {
-          console.error("[getGhostCandidates] 유령회원 조회 실패", error);
-        }
-        return [];
-      }
+      // ⚠️ **여기서 빈 배열로 폴백하면 안 된다.** `unstable_cache`는 콜백이 돌려준 값을
+      // 그대로 캐시하므로, 일시적 오류 한 번이 **빈 현상수배존을 24시간 고정**시킨다
+      // (태그를 터는 곳도 없어 스스로 못 빠져나온다). 던지면 캐시에 안 담기고
+      // 다음 요청이 다시 시도한다 — 폴백은 호출부(`getGhostMembers`)가 맡는다.
+      if (error) throw error;
 
       return (data as GhostMember[] | null) ?? [];
     },
@@ -91,6 +91,15 @@ export async function getGhostMembers(
   teamId: string,
   seed: string,
 ): Promise<GhostMember[]> {
-  const candidates = await getGhostCandidates(teamId);
-  return arrangeGhosts(candidates, seed);
+  try {
+    const candidates = await getGhostCandidates(teamId);
+    return arrangeGhosts(candidates, seed);
+  } catch (error) {
+    // 폴백은 **캐시 바깥**에서 한다(§getGhostCandidates) — 빈 결과가 24시간 굳지 않게.
+    // abort(dev 렌더 재시작·요청 취소)는 코드 결함이 아니므로 로그에서 제외한다.
+    if (!isRequestAbortError(error)) {
+      console.error("[getGhostMembers] 유령회원 조회 실패", error);
+    }
+    return [];
+  }
 }
