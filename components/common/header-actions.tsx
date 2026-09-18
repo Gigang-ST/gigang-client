@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Menu } from "lucide-react";
 
 import { getCurrentMember } from "@/lib/queries/member";
-import { getNotifications, getUnreadNotificationCount } from "@/lib/queries/notification";
 
 import { NotificationBellIcon } from "@/components/notifications/notification-bell-icon";
 
@@ -36,19 +35,18 @@ import { NotificationBellIcon } from "@/components/notifications/notification-be
 export async function HeaderActions() {
   const { member } = await getCurrentMember();
 
-  const [unreadCount, initialNotifications] = await Promise.all([
-    getUnreadNotificationCount(member?.id),
-    member ? getNotifications(member.id, { limit: 20 }) : Promise.resolve([]),
-  ]);
-
+  // **알림 조회가 여기 하나도 없다.** 목록도 뱃지 숫자도 서버 렌더에서 읽지 않는다 —
+  // 이 컴포넌트는 여섯 지면(전광판·일정·랭킹·프로젝트·프로필·설정)의 헤더에 들어가므로,
+  // 여기서 한 번 조회하면 **그 여섯 지면의 모든 렌더가 알림을 기다린다**(prd 실측 누적
+  // 목록 41,410회 + 카운트 41,992회). 알림은 페이지 렌더와 무관해야 하는 정보다.
+  //
+  // 둘 다 루트 레이아웃의 `NotificationChannelGate`가 마운트 뒤 클라이언트에서 받아
+  // `lib/notifications/store.ts`에 넣고, 벨은 거기서 읽는다. 루트는 탭 이동에 안 죽으므로
+  // 앱을 여는 동안 1회로 끝난다. `getCurrentMember`는 React cache라 각 페이지가 이미 부른
+  // 것과 중복되지 않는다(= 여기엔 추가 왕복이 0이다).
   return (
     <div className="flex shrink-0 items-center gap-1">
-      <NotificationBellIcon
-        initialCount={unreadCount}
-        initialNotifications={initialNotifications}
-        memberId={member?.id}
-        disabled={!member}
-      />
+      <NotificationBellIcon memberId={member?.id} disabled={!member} />
       {/* 햄버거 = 설정 진입. 아이콘만 Menu로 바꿨고 목적지는 기존 설정 그대로.
           비로그인도 보이되 설정은 로그인 화면으로 흐른다(설정 페이지가 알아서 막는다). */}
       <Link

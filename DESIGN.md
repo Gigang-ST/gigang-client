@@ -242,9 +242,11 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
   방해도 된다. 물리는 각자 화면이 돌려 위치는 조금씩 다르다(**정밀 동기화 하지 않는다** — 예전엔
   안착할 때 주인이 좌표를 흘려보내 재정렬했는데, 튕기고 내려앉을 때마다 공이 순간이동해 더
   거슬렸다). 눈에 보이는 자리를 누르면 그게 그 공이라 조금 어긋나도 노는 데 지장이 없다.
-  presence·broadcast는 DB 복제가 아니라 Realtime 메시징이라 **마이그레이션이 없다**(목표 한마디
-  팻말과 다른 점 — 저긴 `pldg_mst` postgres_changes 구독이라 테이블이 publication에 올라가 있어야
-  한다).
+  presence·broadcast는 DB 복제가 아니라 Realtime 메시징이라 **마이그레이션이 없다** — 반면
+  `postgres_changes`로 듣는 것(알림 `noti_mst`, 댓글 `cmnt_mst`)은 테이블이
+  `supabase_realtime` publication에 올라가 있어야 한다. 예전엔 여기 목표 한마디 팻말을
+  예로 들었는데 **팻말엔 구독 코드가 없다**(§목표 한마디 캐시) — 등록만 돼 있고 듣는 쪽이
+  없다. publication 등록과 구독은 별개다: **등록해도 듣는 코드가 없으면 아무 일도 안 난다.**
 - **`onPointerDown`으로 받는다**: 매 프레임 움직이는 요소는 down과 up이 같은 요소 위에서 끝나지
   않아 `click`이 통째로 씹힌다. 공중에서 연타하려면 down에서 힘을 실어야 한다. 히트 영역은
   `HIT_PAD`로 둘레를 넓혀 56px로 키우되 음수 마진으로 상쇄해 **아바타 위치·물리는 그대로** 둔다.
@@ -614,7 +616,8 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 | PresenceCount | `presence-count.tsx` | `지금 보는 중 N명` — 개수만. 얼굴은 전역 레이어가 탭바 위에 그린다(§앱 셸) |
 
 - 데이터: `getStoryFeed()` (`lib/queries/story-feed.ts`) + `getTeamOverview()` (`lib/queries/team-overview.ts`)
-  + `getStoryPosts()` (`lib/queries/story-posts.ts`) + `getStoryPledges()` (`lib/queries/story-pledges.ts`).
+  + `getStoryPosts()` (`lib/queries/story-posts.ts`). 목표 한마디는 전용 조회가 없다 —
+  `getStoryFeed()`의 `pledges`에 실려 온다(§목표 한마디 캐시).
   모두 공개 집계만 캐시하고 내 리액션은 클라이언트가 오버레이한다.
 - **"팻말·꽂기" 어휘는 목표 한마디 존 전용이다**: 코스변 손팻말(`PledgeSigns`)에만 쓴다.
   깅스타그램은 인스타형 사진 격자라 코스도 팻말도 없으므로 **"올린다/공유한다"**로 말한다
@@ -635,9 +638,21 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 - **목표 한마디는 1인 1개**: 새로 쓰면 이전 것이 지면에서 내려간다(`del_yn` 소프트삭제 — 이력은 남긴다).
   DB 유니크 제약은 걸지 않는다(걸면 고쳐 쓰려는 사람이 아무것도 못 올린다) — 화면 정합은
   `dedupePledgesByMember()`(`lib/story-pledge.ts`)가 사람당 최신 1건으로 좁혀 지킨다.
-- **목표 한마디 캐시는 피드와 분리**(`story-pledges` 태그 · `get_team_pledges` RPC): 한 건이 큰 피드
-  (`get_team_story_feed`, CTE 10개+) 캐시를 끌고 내려가지 않게 record_flex와 같이 떼어 뒀다.
-  꽂으면 `pldg_mst` Realtime 구독으로 열린 모든 화면이 함께 갱신된다(알림·댓글과 같은 패턴).
+- **목표 한마디는 피드 캐시를 같이 쓴다**(`story-feed` 태그): 한때 전용 캐시
+  (`story-pledges` 태그 · `get_team_pledges` RPC)로 떼어 뒀는데, 그건 **종이비행기가 각오를
+  실어 나르던 시절** `float_at` 편성을 위한 것이었다. 비행기가 한마디(`msg_mst`)로 옮겨가면서
+  그 캐시를 읽는 곳이 없어져 걷어냈다 — 지금은 리드·팻말존이 모두 `get_team_story_feed`의
+  `pledges`를 읽는다. RPC는 DB에 남아 있지만 앱은 안 부른다.
+  - 무효화는 작성 액션(`app/actions/story/create-pledge.ts`)의 **`updateTag("story-feed")`**다.
+    `revalidateTag`가 아닌 이유는 그 함수 주석에 있다 — stale-while-revalidate라 **액션이
+    자기 쓰기를 되읽지 못해** "새로고침해야 보이는" 증상이 났다. `updateTag`는 즉시 만료 +
+    read-your-own-writes다.
+  - ⚠️ **실시간 갱신은 되지 않는다** — 한때 "꽂으면 `pldg_mst` Realtime 구독으로 열린 모든
+    화면이 함께 갱신된다"고 적어 뒀는데 **그 구독 코드는 없다**(2026-09-18 전수 확인. 팻말
+    컴포넌트 `pledge-signs.tsx`는 처음부터 채널을 가진 적이 없다). **다른 사람 화면은 다음
+    조회 때** 바뀐다. 테이블은 `supabase_realtime` publication에 올라가 **있지만**, 듣는 쪽이
+    없어 아무 일도 하지 않는다(그래서 비용도 0이다 — 실측 INSERT 누적 0건). 되살릴 때
+    **구독 코드를 새로 짜야 한다** — "이미 돼 있으니 켜기만 하면 된다"고 믿지 말 것.
 - **기록 격자 칸은 사진만 담는다**(폴라로이드·면 넘기기 폐기): 칸마다 한마디를 얹으면 정작
   사진이 작아지고 격자가 사진이 아니라 종이 무더기로 읽힌다. 한마디·거리·날짜는 칸을 눌러
   여는 릴스 뷰어(`RecordReelViewer`)가 맡는다. 그래서 **작성 다이얼로그의 말도 "판에 적힌다"가
