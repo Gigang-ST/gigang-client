@@ -60,6 +60,7 @@ export function RecordReelViewer({
   isAdmin,
   onRequestDelete,
   onRequestEdit,
+  onCommentCountChange,
 }: {
   posts: StoryPost[];
   /** 격자에서 누른 카드의 post_id — 이 장부터 연다 */
@@ -84,6 +85,18 @@ export function RecordReelViewer({
    * 한마디 수정 요청 — 확인/저장 다이얼로그는 부모(`RecordFlexFeed`)가 갖는다(삭제와 같은 이유).
    */
   onRequestEdit?: (post: StoryPost) => void;
+  /**
+   * 지금 보는 장의 **실측** 댓글 수를 부모(격자)에 올려보낸다.
+   *
+   * 격자 배지가 쓰는 서버 값(`cmnt_cnt`)은 5분 캐시라, 댓글을 달거나 지우고 릴스를 닫으면
+   * 숫자가 옛 값으로 남는다. 그렇다고 `revalidateTag`를 부를 수는 없다(댓글 한 건이 격자
+   * 캐시 전체를 날린다 — 응원이 태그를 안 터는 것과 같은 이유). 여기서 이미 Realtime으로
+   * 들고 있는 개수를 그대로 올려보내면 공짜다.
+   *
+   * **하단 바가 쓰는 값과 같은 것을 보낸다** — 소스가 하나라 격자와 릴스의 숫자가
+   * 어긋날 수 없다.
+   */
+  onCommentCountChange?: (postId: string, count: number) => void;
 }) {
   const cardRefs = useRef<Map<string, HTMLElement>>(new Map());
   /**
@@ -205,6 +218,18 @@ export function RecordReelViewer({
   );
   /** 사진 위 표시용(삭제분 제외) — 시트는 자리표시자가 필요해 원본을 그대로 받는다 */
   const visibleActiveComments = visiblePostComments(activeComments);
+  /**
+   * 격자로 올려보낼 실측 개수 — 아직 안 읽었으면(로딩·비로그인) null이라 안 보낸다.
+   *
+   * **길이만 뽑아 의존성으로 쓴다.** `visibleActiveComments`는 `filter` 결과라 렌더마다
+   * 새 배열이고, 그걸 그대로 effect 의존성에 넣으면 매 렌더 콜백이 나가 부모 setState →
+   * 리렌더가 맞물린다. 숫자는 값 비교라 실제로 바뀔 때만 돈다.
+   */
+  const activeCommentCount = visibleActiveComments?.length ?? null;
+  useEffect(() => {
+    if (activeId == null || activeCommentCount == null) return;
+    onCommentCountChange?.(activeId, activeCommentCount);
+  }, [activeId, activeCommentCount, onCommentCountChange]);
   /** 지금 보는 장이 내 것인가(또는 내가 관리자인가) — 수정·삭제가 같은 경계를 쓴다 */
   const canManageActive =
     activePost != null &&
