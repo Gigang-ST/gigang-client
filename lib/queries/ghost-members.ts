@@ -1,7 +1,13 @@
 import "server-only";
 
+import { unstable_cache } from "next/cache";
+
+import { arrangeGhosts } from "@/lib/ghost-members";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isRequestAbortError } from "@/lib/supabase/is-abort-error";
+
+/** 수동·관리자 무효화 통로. 시간 만료(24h)가 주 경로라 평소엔 안 쓴다 */
+export const GHOST_MEMBERS_CACHE_TAG = "ghost-members";
 
 /** 현상수배 대상 — 오래 안 나온 활동 멤버 한 명 */
 export type GhostMember = {
@@ -20,37 +26,80 @@ export type GhostMember = {
 };
 
 /**
- * 유령회원(현상수배) 조회.
+ * 유령회원 **후보 명단** 조회 — 24시간 캐시.
  *
  * 마지막 활동일(모임 참석일 + 대회 기록일의 max)이 100일 이전인 활동 멤버, 그리고 활동
  * 이력이 아예 없는 멤버는 **가입 30~100일**인 경우만 — 100일이 넘으면 기록이 없는 게 아니라
- * 기록할 페이지가 없던 시절 가입자라 잠수의 근거가 못 된다. 최대 30명을 시드 랜덤 순으로.
- * 프로필 카드의 "실종" 컨디션과 같은 결이다(오래 안 나온 사람) — 전광판 하단 현상수배존에 쓴다.
+ * 기록할 페이지가 없던 시절 가입자라 잠수의 근거가 못 된다.
+ * 프로필 카드의 "실종" 컨디션과 같은 결이다 — 전광판 하단 현상수배존에 쓴다.
  *
- * `seed`는 진입마다 서버가 뽑아(`pickGhostSeed`) 넘긴다 — 대상이 30명 상한보다 많아 순서가
- * 곧 "누가 뜨느냐"라, 오래된 순으로 두면 최고참만 영구 박제된다. 자세한 배경은 그 헬퍼 주석에.
+ * **RPC는 "누가 후보인가"만 돌려준다** — 정렬도 상한도 없다(마이그레이션 20260918160000).
+ * 그래야 시드와 무관해져 캐시할 수 있다. 순서와 30명 상한은 `arrangeGhosts`가 정한다.
  *
- * 캐시하지 않는다 — 30명 짜리 가벼운 조회라(실측 2.5ms, 전량 버퍼 히트) 매 요청 최신값을
- * 읽어도 부담이 없고, 캐시를 걸면 로직을 고쳐도 옛 결과가 남아 화면과 DB가 어긋난다
- * (실제로 그 혼란을 겪었다). 시드 랜덤도 매 진입 새 조합이 나오려면 캐시가 없어야 한다.
+ * ⚠️ **RPC 안에 `LIMIT`을 되살리지 말 것.** 시드를 ''로 고정한 채 RPC가 자르면 **캐시에
+ * 담기는 30명이 고정된다** — 후보가 30을 넘는 순간 시드가 *누가 뜨는지*를 못 바꾸고
+ * *그 30명 안의 순서*만 바꾸게 되어, 시드를 도입한 이유였던 "최고참 영구 박제"가
+ * 그대로 되살아난다(prd 27명이라 가려져 있지만 dev는 이미 30명을 넘었다).
+ *
+ * ⚠️ **`p_seed` 인자를 생략하지 말 것.** `(uuid)` 오버로드가 남아 있는 환경에선 그쪽이
+ * 걸리고, 그건 **`never_actv`가 없는 옛 버전**이라 화면이 가입일을 "최종 목격"이라 찍는다.
+ *
+ * ⚠️ **예전 주석의 근거 두 개가 프로덕션에서 무효였다**(2026-09-18 실측):
+ * ① "실측 2.5ms라 매 요청 읽어도 부담 없다" → **평균 395ms · 호출 11,458회 · 누적 1.26시간**
+ *    으로 RPC 중 2위였다. min은 여전히 2.4ms라 당시 측정이 틀린 게 아니라, 인스턴스가
+ *    부풀린 값이 실전 평균이 된 것이다(§.claude/docs/perf/2026-09-18-performance-audit.md).
+ * ② "대상이 30명 상한보다 많아 순서가 곧 누가 뜨느냐" → **후보 27명**으로 상한에 안 걸린다.
+ *    전원이 매번 뜨고 시드가 정하는 건 *순서*뿐이다.
+ * 장식용 존 하나 때문에 홈에 들어오는 전원이 그 시간을 기다리고 있었다.
+ *
+ * 24시간은 **안전망**이다(§home-calendar와 같은 규약). 만료돼도 stale-while-revalidate라
+ * 기다리는 사람이 없고, 후보가 "100일 이상 안 나온 사람"이라 하루 묵어도 한두 명 차이다.
+ * `gatherings`·`records` 태그는 달지 않았다 — 전자는 **터는 쪽이 없는 죽은 태그**이고,
+ * 후자는 유령 판정과 관계가 약하다.
+ */
+function getGhostCandidates(teamId: string): Promise<GhostMember[]> {
+  return unstable_cache(
+    async () => {
+      const supabase = createAdminClient();
+      const { data, error } = await supabase.rpc("get_team_ghost_members", {
+        p_team_id: teamId,
+        p_seed: "",
+      });
+
+      // ⚠️ **여기서 빈 배열로 폴백하면 안 된다.** `unstable_cache`는 콜백이 돌려준 값을
+      // 그대로 캐시하므로, 일시적 오류 한 번이 **빈 현상수배존을 24시간 고정**시킨다
+      // (태그를 터는 곳도 없어 스스로 못 빠져나온다). 던지면 캐시에 안 담기고
+      // 다음 요청이 다시 시도한다 — 폴백은 호출부(`getGhostMembers`)가 맡는다.
+      if (error) throw error;
+
+      return (data as GhostMember[] | null) ?? [];
+    },
+    ["ghost-members", teamId],
+    { tags: [GHOST_MEMBERS_CACHE_TAG], revalidate: 86400 },
+  )();
+}
+
+/**
+ * 현상수배 존에 세울 명단 — 캐시된 후보를 이 진입의 시드로 섞어 돌려준다.
+ *
+ * `seed`는 진입마다 서버가 뽑아(`pickGhostSeed`) 넘긴다. 오래된 순으로 두면 최고참만
+ * 영구 박제되므로 매번 조합을 새로 뽑되, **같은 시드면 같은 순서**라 한 진입 안에서
+ * 재조회가 나도 가로 스크롤 도중 얼굴이 바뀌지 않는다(그 성질이 필요해서 DB `random()`을
+ * 안 쓰는 것이었고, 셔플이 JS로 옮겨온 지금도 그대로다).
  */
 export async function getGhostMembers(
   teamId: string,
   seed: string,
 ): Promise<GhostMember[]> {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase.rpc("get_team_ghost_members", {
-    p_team_id: teamId,
-    p_seed: seed,
-  });
-
-  if (error) {
+  try {
+    const candidates = await getGhostCandidates(teamId);
+    return arrangeGhosts(candidates, seed);
+  } catch (error) {
+    // 폴백은 **캐시 바깥**에서 한다(§getGhostCandidates) — 빈 결과가 24시간 굳지 않게.
     // abort(dev 렌더 재시작·요청 취소)는 코드 결함이 아니므로 로그에서 제외한다.
     if (!isRequestAbortError(error)) {
       console.error("[getGhostMembers] 유령회원 조회 실패", error);
     }
     return [];
   }
-
-  return (data as GhostMember[] | null) ?? [];
 }

@@ -77,6 +77,8 @@ export function getTeamOverview(teamId: string): Promise<TeamOverview> {
       };
     },
     ["team-overview", teamId],
-    { tags: ["team-overview", "gatherings", "records"], revalidate: 3600 },
+    // `gatherings`는 뺐다 — 터는 쪽이 없어 한 번도 무효화된 적이 없다.
+    // 주 단위 집계라 1시간 TTL로 충분하다.
+    { tags: ["team-overview", "records"], revalidate: 3600 },
   )();
 }

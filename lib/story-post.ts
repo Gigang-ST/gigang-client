@@ -50,15 +50,44 @@ export function pickActvLeadIndex(rankLen: number): number {
 /**
  * 현상수배존의 정렬 시드를 뽑는다 — 진입마다 다른 얼굴 조합이 앞에 서게.
  *
- * 대상이 30명 상한보다 많아(운영계 44명) 순서가 곧 "누가 뜨느냐"다. 오래된 순으로 두면
- * 최고참 실종자만 영구 박제되고 뒷사람은 영영 안 나오므로 RPC에서 시드 랜덤으로 뽑는다.
+ * 오래된 순으로 두면 최고참 실종자만 영구 박제되고 뒷사람은 영영 안 나오므로 매 진입
+ * 조합을 새로 뽑는다. 섞는 건 **`arrangeGhosts`(lib/ghost-members.ts)** 다 — 예전엔 RPC의
+ * `ORDER BY md5(mem_id || seed)`였는데, 시드가 인자로 들어가면 캐시 키가 매번 달라져
+ * 캐시를 못 걸었다. 필터만 캐시하고 순서는 JS로 옮겨 둘 다 얻었다(§getGhostCandidates).
  *
- * DB에서 `random()`을 쓰지 않고 **시드를 서버가 넘기는** 이유: 이 조회는 캐시가 없어
- * (`getGhostMembers`) 매 요청 실행되는데, DB 랜덤이면 한 진입 안에서도 재조회마다 순서가
- * 튄다 — 가로 스크롤 도중 얼굴이 바뀐다. 시드가 고정이면 그 진입 동안은 순서가 안 흔들린다.
+ * 진입 안에서 **고정된 시드**를 쓰는 이유(DB `random()`이나 매번 새 난수가 아니라): 한 진입
+ * 동안 재조회·리렌더가 나도 순서가 안 흔들려야 한다 — 가로 스크롤 도중 얼굴이 바뀌면 안 된다.
+ *
+ * ⚠️ 한때 여기 "대상이 30명 상한보다 많아(운영계 44명) 순서가 곧 누가 뜨느냐"라고 적혀
+ * 있었는데 **지금은 후보가 27명**이라 상한에 안 걸린다(2026-09-18 실측). 전원이 매번 뜨고
+ * 시드가 정하는 건 *순서*뿐이다. 후보가 다시 30을 넘으면 그때 "누가 뜨느냐"가 된다.
  *
  * `pickRandomPostIndex`와 같은 이유로 렌더 본문 밖(이 헬퍼)에서 뽑는다.
  */
 export function pickGhostSeed(): string {
   return Math.random().toString(36).slice(2);
+}
+
+/**
+ * 격자 칸에 찍을 댓글 수 — 서버가 준 값 위에 릴스에서 실측한 값을 덮는다.
+ *
+ * **왜 오버레이가 필요한가**: `getStoryPosts`가 5분 캐시(`revalidate: 300`)라, 댓글을 달고
+ * 시트를 닫으면 격자 숫자가 한동안 옛 값으로 남는다 — 응원 버튼에서 이미 겪은
+ * "눌러도 반영이 안 된다"와 같은 오독이다. 그렇다고 `revalidateTag("story-posts")`를 부를
+ * 수는 없다(댓글 한 건이 격자 캐시 전체를 날린다 — 응원이 태그를 안 터는 것과 같은 이유).
+ * 릴스가 이미 Realtime으로 들고 있는 개수를 클라이언트에서 덮어 쓰는 쪽이 싸고 정확하다.
+ *
+ * ⚠️ **`??`여야 한다. `||`로 쓰면 안 된다** — override가 `0`(댓글을 다 지운 직후)일 때
+ * falsy라 서버의 옛 값으로 되돌아가, 지웠는데 숫자가 남는다. 이 함수가 따로 있는 이유가
+ * 그 한 글자다(회귀 테스트: `lib/__tests__/story-post.test.ts`).
+ *
+ * @param server  RPC(`get_team_posts`)의 `cmnt_cnt`. 마이그레이션 전 응답엔 없다(undefined)
+ * @param override 릴스에서 실측한 개수. 아직 그 칸을 안 열었으면 undefined
+ */
+export function resolveCommentCount(
+  server: number | undefined,
+  override: number | undefined,
+): number {
+  const raw = override ?? server ?? 0;
+  return Math.max(0, Math.floor(raw));
 }

@@ -14,7 +14,7 @@ import { MemberCardCompact } from "@/components/members/member-card";
 import { MemberCardDialogDynamic as MemberCardDialog } from "@/components/members/member-card-dialog-dynamic";
 import { ActvHistorySheet } from "@/components/story/actv-history-sheet";
 import { ActvPile } from "@/components/story/actv-pile";
-import { FloatingAvatars } from "@/components/story/floating-avatars";
+import { PresenceCount } from "@/components/story/presence-count";
 import { SocialLinksGrid } from "@/components/social-links";
 import { GhostWanted } from "@/components/story/ghost-wanted";
 import { MessagePlanes } from "@/components/story/message-planes";
@@ -131,21 +131,14 @@ export function StoryClient({
     <div className="flex flex-col select-none break-keep">
       <StoryMasthead actions={mastheadActions} />
 
-      {/* 리드 위 투명 레이어에 크루 아바타가 유영한다 — 탭하면 통통 튄다(놀이 요소).
-          레이어는 포인터를 통과시키고(리드 스와이프 유지) 아바타만 클릭을 받는다.
+      {/* 접속자 얼굴은 **여기 없다** — 2026-09-16부터 전역 레이어가 하단 탭바 위에 그린다
+          (§components/presence/presence-layer.tsx). 이 지면엔 개수를 말하는 라벨만 남는다.
 
-          하단 패딩은 여백이 아니라 **아바타가 걸어다닐 바닥**이다. 이게 얕으면 아바타가
-          리드의 진행 표시(현재 칸 막대) 높이에서 굴러 그걸 가린다 — 아바타 바닥선이
-          막대보다 아래로 내려가도록 띠를 확보한다. 40px(pb-10)에 아바타 아래 **이름표(13px)**
-          몫만 더한다(FloatingAvatars의 LABEL_H와 짝 — 한쪽만 바꾸면 다시 겹친다).
-          "지금 보는 중" 라벨은 바닥선 위에 겹쳐 뜨므로 여기서 자리를 주지 않는다 — 라벨까지
-          더하면 리드 아래 여백만 커진다. */}
-      {/* `z-0`은 장식이 아니라 **스태킹 컨텍스트 격리**다. 아바타는 매 프레임 transform을
-          찍는데, transform이 걸린 요소는 스스로 스태킹 컨텍스트를 만들어 z-index 없는
-          형제들 위로 뜬다. 부모가 컨텍스트를 열어두지 않으면 그 아바타가 페이지 최상위에서
-          `z-50` 다이얼로그와 직접 경쟁해 프로필 카드 위로 삐져나온다(overflow-hidden은
-          자기 영역만 자를 뿐 위아래 순서와는 무관하다). 여기서 z-0으로 가둬 둔다. */}
-      <div className="relative z-0 pb-[24px] pt-4">
+          그래서 옛 제약이 여럿 풀렸다: 아바타가 걸어다닐 바닥을 확보하려고 리드 아래에
+          이름표(13px) 몫까지 더해 두던 패딩, 라벨을 바닥선 위에 겹쳐 띄우던 `BADGE_LIFT`,
+          그리고 매 프레임 transform을 찍는 자식 때문에 필요했던 `z-0` 스태킹 컨텍스트
+          격리까지 — 격리할 자식이 없어졌다. 리드는 이제 자기 여백만 가지면 된다. */}
+      <div className="pt-4">
         <StoryLede
           feed={feed}
           reactions={reactions}
@@ -162,8 +155,11 @@ export function StoryClient({
           myMemId={myMemId}
           me={me}
         />
-        <FloatingAvatars teamId={teamId} me={me} />
       </div>
+
+      {/* 지금 보는 중 N명 — 얼굴은 탭바 위에 있고 개수만 여기서 말한다. 리드 바로 아래에
+          두는 건 이 지면이 "지금 크루가 어떤가"를 말하는 자리이기 때문이다. */}
+      <PresenceCount />
 
       <div className="flex flex-col gap-8 pb-8 pt-6">
         {/* 기강 오버뷰 — 개별 소식(리드) 다음에 크루 전체 활동 지수(심박수) */}

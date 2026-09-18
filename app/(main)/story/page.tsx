@@ -5,7 +5,11 @@ import { Suspense } from "react";
 import { getGhostMembers } from "@/lib/queries/ghost-members";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { getStoryReactions, getStoryFeed } from "@/lib/queries/story-feed";
+import {
+  getMyReactions,
+  getReactionTotals,
+  getStoryFeed,
+} from "@/lib/queries/story-feed";
 // 종이비행기 한마디(getStoryMessages) 잠정 중단(2026-07-28). MessagePlanes 존을 화면에서
 // 내리면서 RPC도 함께 끊어 비용을 0으로 만든다 — 되살릴 땐 이 import와 Promise.all 항목,
 // messages prop([])을 원복하고 story-client의 SHOW_MESSAGE_PLANES를 true로.
@@ -52,22 +56,30 @@ export default function StoryPage() {
  */
 async function StoryFeedSection() {
   const { teamId } = await getRequestTeamContext();
-  // 현상수배 정렬 시드 — 진입마다 다른 얼굴 조합이 앞에 서게 한다(대상이 30명 상한보다
-  // 많아 순서가 곧 "누가 뜨느냐"다). 조회 인자라 Promise.all보다 먼저 뽑는다.
+  // 현상수배 정렬 시드 — 진입마다 다른 얼굴 조합이 앞에 서게 한다. 셔플·상한은
+  // `arrangeGhosts`가 맡는다(§lib/ghost-members.ts). 조회 인자라 Promise.all보다 먼저 뽑는다.
   const ghostSeed = pickGhostSeed();
-  const [feed, overview, ghosts, posts, grants, { member }] = await Promise.all([
-    getStoryFeed(teamId),
-    getTeamOverview(teamId),
-    getGhostMembers(teamId, ghostSeed),
-    getStoryPosts(teamId),
-    getRecentTitleGrants(teamId),
-    // getStoryMessages(teamId), — 종이비행기 잠정 중단(위 import 주석 참조)
-    getCurrentMember(),
-  ]);
+  const [feed, overview, ghosts, posts, grants, { member }, reactionTotals] =
+    await Promise.all([
+      getStoryFeed(teamId),
+      getTeamOverview(teamId),
+      getGhostMembers(teamId, ghostSeed),
+      getStoryPosts(teamId),
+      getRecentTitleGrants(teamId),
+      // getStoryMessages(teamId), — 종이비행기 잠정 중단(위 import 주석 참조)
+      getCurrentMember(),
+      // 응원 총합은 **멤버와 무관한 공개 집계**라 여기서 같이 출발한다. 예전엔 내 몫과 한
+      // 함수로 묶여 있어 총합까지 멤버 조회 뒤에 줄을 섰다 — 그만큼이 임계경로였다.
+      getReactionTotals(teamId),
+    ]);
 
   // 응원 카운트(모두의 총합 + 내 몫)는 캐시된 피드(최대 5분 지연)에서 떼어내 매 요청 최신으로
   // 읽는다 — 남이 누른 것도 실시간에 가깝게 쌓여 보이고, 새로고침해도 내 몫이 유지된다.
-  const reactions = await getStoryReactions(teamId, member?.id ?? null);
+  // 내 몫만 멤버에 의존하므로 이것만 뒤에 붙는다(비로그인은 조회 자체가 없다).
+  const reactions = {
+    totals: reactionTotals,
+    mine: member ? await getMyReactions(teamId, member.id) : {},
+  };
 
   // 리드 랜덤 슬롯들의 **진입 인덱스를 서버가 뽑아** 넘긴다. 클라에서 마운트 후 Math.random으로
   // 굴리면 "최신이 잠깐 보였다 랜덤으로 휙" 바뀌는 깜빡임이 생기고(첫 렌더=0, effect가 그 뒤

@@ -36,7 +36,23 @@ export type PostComment = CmntRow;
  * 헛돌기만 한다. 못 읽는다는 사실은 화면(하단 줄)이 로그인 안내로 밝힌다.
  */
 export function usePostComments(postId: string, teamId: string, active: boolean) {
-  const [comments, setComments] = useState<PostComment[] | null>(null);
+  /**
+   * **목록과 "어느 글의 것인지"를 함께** 들고 있는다.
+   *
+   * 예전엔 목록만 들었다. 그래서 장을 넘겨 `postId`가 바뀌어도 새 쿼리가 끝날 때까지
+   * **이전 글의 댓글이 그대로 남았고**, 쓰는 쪽은 그게 남의 것인지 알 방법이 없었다 —
+   * B 사진 위에 A의 말풍선이 뜨고, 하단 개수도 A의 것이었다.
+   *
+   * 격자 배지가 생기면서 그 어긋남이 **남게** 됐다: 전환 중 값이
+   * `commentCounts[B] = A의 개수`로 저장되고, B의 쿼리가 실패하거나 영영 안 끝나면
+   * 그 상태로 굳는다(릴스는 다음 응답에 저절로 고쳐지지만 오버레이 맵은 아니다).
+   *
+   * id를 같이 들면 "지금 글의 것"만 내보낼 수 있어 그 창이 **구조적으로** 사라진다.
+   */
+  const [loaded, setLoaded] = useState<{
+    postId: string;
+    list: PostComment[];
+  } | null>(null);
   const supabase = useMemo(() => createClient(), []);
   /**
    * 이미 읽은 장의 post_id — 스와이프로 오갈 때마다 쿼리가 다시 나가지 않게 한다.
@@ -70,14 +86,19 @@ export function usePostComments(postId: string, teamId: string, active: boolean)
         if (cancelled) return;
         if (error) {
           // 실패는 표시하지 않는다 — loadedForRef를 그대로 둬야 다음 진입에 다시 시도한다.
+          //
+          // **빈 배열로도 두지 않는다.** 예전엔 `setComments([])`였는데, 그건 "이 글엔 댓글이
+          // 없다"는 **적극적인 주장**이라 격자 배지가 그걸 받아 0으로 덮어쓴다 — 서버가 준
+          // 맞는 개수(캐시)가 조회 한 번 실패했다고 지워진다. 모르면 모른다고 두는 게 맞다.
+          // 화면상 차이는 없다: 릴스 하단 바는 `?? 0`이라 어느 쪽이든 0으로 보인다.
           console.error("[usePostComments] 댓글 조회 실패", error);
-          setComments([]);
           return;
         }
         // **성공한 뒤에** 읽음 표시. 이 순서가 핵심이다(위 loadedForRef 주석 참조).
         loadedForRef.current = postId;
-        setComments(
-          (data ?? []).map((row) => {
+        setLoaded({
+          postId,
+          list: (data ?? []).map((row) => {
             const mem = Array.isArray(row.mem_mst) ? row.mem_mst[0] : row.mem_mst;
             return {
               cmnt_id: row.cmnt_id,
@@ -92,7 +113,7 @@ export function usePostComments(postId: string, teamId: string, active: boolean)
               upd_at: row.upd_at,
             };
           }),
-        );
+        });
       });
 
     return () => {
@@ -130,11 +151,17 @@ export function usePostComments(postId: string, teamId: string, active: boolean)
               upd_at: string;
             };
             if (incoming.del_yn) return;
-            setComments((prev) => {
-              const list = prev ?? [];
-              if (list.some((c) => c.cmnt_id === incoming.cmnt_id)) return list;
-              return [
-                ...list,
+            // 지금 들고 있는 게 **이 글의 목록일 때만** 얹는다. 장을 넘긴 직후 A의 이벤트가
+            // 늦게 도착해 B의 목록에 A의 댓글이 끼어드는 걸 막는다(구독은 글마다 따로지만
+            // 이벤트는 해지 직전에도 올 수 있다).
+            setLoaded((prev) => {
+              if (!prev || prev.postId !== postId) return prev;
+              const list = prev.list;
+              if (list.some((c) => c.cmnt_id === incoming.cmnt_id)) return prev;
+              return {
+                postId,
+                list: [
+                  ...list,
                 {
                   cmnt_id: incoming.cmnt_id,
                   prnt_id: incoming.prnt_id ?? null,
@@ -146,9 +173,10 @@ export function usePostComments(postId: string, teamId: string, active: boolean)
                   edit_yn: incoming.edit_yn ?? false,
                   del_yn: false,
                   crt_at: incoming.crt_at,
-                  upd_at: incoming.upd_at,
-                },
-              ];
+                    upd_at: incoming.upd_at,
+                  },
+                ],
+              };
             });
           } else if (payload.eventType === "UPDATE") {
             const updated = payload.new as {
@@ -158,12 +186,13 @@ export function usePostComments(postId: string, teamId: string, active: boolean)
               del_yn: boolean;
               upd_at: string;
             };
-            setComments((prev) => {
-              const list = prev ?? [];
+            setLoaded((prev) => {
+              // INSERT와 같은 이유로 이 글의 목록일 때만 고친다.
+              if (!prev || prev.postId !== postId) return prev;
               // 삭제(soft)여도 **목록에서 빼지 않는다** — del_yn만 세워 둔다. 말풍선·개수는
               // 쓰는 쪽에서 걸러지고, 시트는 이 행이 있어야 "삭제된 댓글입니다" 자리표시자로
               // 스레드 맥락을 지킨다.
-              return list.map((c) =>
+              const list = prev.list.map((c) =>
                 c.cmnt_id === updated.cmnt_id
                   ? {
                       ...c,
@@ -174,6 +203,7 @@ export function usePostComments(postId: string, teamId: string, active: boolean)
                     }
                   : c,
               );
+              return { postId, list };
             });
           }
         },
@@ -185,7 +215,15 @@ export function usePostComments(postId: string, teamId: string, active: boolean)
     };
   }, [active, postId, teamId, supabase]);
 
-  return comments;
+  /**
+   * **지금 글의 것만 내보낸다.** 아직 안 읽었거나(전환 중·로딩) 들고 있는 게 다른 글의
+   * 목록이면 `null`이다 — 쓰는 쪽은 그걸 "모른다"로 받아 자기 판단을 미룬다
+   * (격자 배지는 서버 값을 그대로 두고, 말풍선은 아무것도 안 그린다).
+   *
+   * 옛 목록을 잠깐 보여 주는 것보다 안 보여 주는 게 낫다: 남의 글 댓글이 뜨는 건
+   * 비어 보이는 것과 달리 **틀린 정보**다.
+   */
+  return loaded && loaded.postId === postId ? loaded.list : null;
 }
 
 /**

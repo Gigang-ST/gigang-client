@@ -214,7 +214,9 @@ export function getStoryFeed(teamId: string): Promise<StoryFeed> {
       return { ...EMPTY_FEED, ...((data as Partial<StoryFeed> | null) ?? {}) };
     },
     ["story-feed", teamId],
-    { tags: ["story-feed", "gatherings", "records", "competitions"], revalidate: 300 },
+    // `gatherings`는 뺐다 — 터는 쪽이 없어 한 번도 무효화된 적이 없다. 다시 넣지 말 것:
+    // 모임 하나 바뀔 때마다 이 무거운 캐시(호출당 5,134버퍼)가 통째로 날아간다.
+    { tags: ["story-feed", "records", "competitions"], revalidate: 300 },
   )();
 }
 
@@ -236,7 +238,7 @@ export type StoryReactionCounts = {
  *
  * `rctn_mst`는 (팀 × 항목 × 멤버) 1행 구조라 한 팀 분량은 작다. 항목이 많아지면 DB 집계 RPC로 옮긴다.
  */
-function getReactionTotals(teamId: string): Promise<MyReactionMap> {
+export function getReactionTotals(teamId: string): Promise<MyReactionMap> {
   return unstable_cache(
     async () => {
       const supabase = createAdminClient();
@@ -265,19 +267,18 @@ function getReactionTotals(teamId: string): Promise<MyReactionMap> {
 }
 
 /**
- * 전광판 응원 집계 — 총합(30초 캐시)과 내 몫(비캐시)을 합쳐 돌려준다.
+ * 내가 누른 응원 — 사용자별이라 **캐시하지 않는다**(캐시하면 사용자마다 갈라진다).
+ * 내 행만 읽어 가벼우며, 클라이언트가 리드의 총합 위에 이걸 오버레이한다.
  *
- * 총합은 사용자와 무관하니 캐시에서 공유하고, 내 몫은 사용자별이라 캐시하면 갈라지므로 매번
- * 최신으로 읽는다(내 필터라 가볍다). 클라이언트는 리드의 총합·내 몫을 이걸로 오버레이한다.
- * memId가 없으면(비로그인) mine은 빈 맵.
+ * 총합(`getReactionTotals`)과 **일부러 분리해 뒀다.** 총합은 멤버와 무관해서 호출부가
+ * `getCurrentMember`를 기다릴 이유가 없는데, 예전엔 둘이 한 함수(`getStoryReactions`)로 묶여
+ * 있어 **총합까지 멤버 조회 뒤로 줄을 섰다.** 전광판은 이 지연이 임계경로에 그대로 얹힌다
+ * — 총합은 `Promise.all`에 넣고 이것만 뒤에 붙인다(§app/(main)/story/page.tsx).
  */
-export async function getStoryReactions(
+export async function getMyReactions(
   teamId: string,
-  memId: string | null,
-): Promise<StoryReactionCounts> {
-  const totals = await getReactionTotals(teamId);
-  if (!memId) return { totals, mine: {} };
-
+  memId: string,
+): Promise<MyReactionMap> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("rctn_mst")
@@ -287,9 +288,9 @@ export async function getStoryReactions(
 
   if (error) {
     if (!isRequestAbortError(error)) {
-      console.error("[getStoryReactions] 내 응원 조회 실패", error);
+      console.error("[getMyReactions] 내 응원 조회 실패", error);
     }
-    return { totals, mine: {} };
+    return {};
   }
 
   const mine: MyReactionMap = {};
@@ -297,5 +298,5 @@ export async function getStoryReactions(
     mine[reactionKey(row.entity_type as StoryEntityType, row.entity_id)] =
       row.rctn_cnt;
   }
-  return { totals, mine };
+  return mine;
 }
