@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 
 import { createClient } from "@/lib/supabase/client"
@@ -36,6 +36,16 @@ interface CommentSectionProps {
   initialComments?: CmntRow[]
   /** 비로그인 → 로그인 후 돌아올 경로. 예: "/schedule?comp=abc123" */
   loginReturnPath?: string
+  /**
+   * 목록이 바뀔 때마다(작성·수정·삭제·첫 조회) 그 결과를 위로 올려보낸다.
+   *
+   * ⚠️ **참조가 안정적이어야 한다**(`useCallback`) — effect 의존성에 들어간다.
+   *
+   * 시트가 곧 전부인 지면(모임·대회·일정 상세)은 안 넘겨도 된다. 릴스처럼 **같은 댓글이
+   * 시트 밖에도 그려지는 곳**만 넘긴다 — 예전엔 `cmnt_mst` Realtime이 두 표면을 각각
+   * 갱신해 줘서 배선이 필요 없었다(§성능 점검 C).
+   */
+  onCommentsChange?: (comments: CmntRow[]) => void
 }
 
 type CommentWithReplies = CmntRow & { replies: CmntRow[] }
@@ -68,6 +78,7 @@ export function CommentSection({
   members,
   initialComments,
   loginReturnPath,
+  onCommentsChange,
 }: CommentSectionProps) {
   const [inactiveGateOpen, setInactiveGateOpen] = useState(false)
   const [comments, setComments] = useState<CmntRow[]>(initialComments ?? [])
@@ -85,8 +96,6 @@ export function CommentSection({
   const [replyText, setReplyText] = useState("")
 
   const supabase = useMemo(() => createClient(), [])
-  const membersRef = useRef(members)
-  useEffect(() => { membersRef.current = members }, [members])
 
   // 댓글 클라이언트 직접 조회
   useEffect(() => {
@@ -124,56 +133,38 @@ export function CommentSection({
     return () => { cancelled = true }
   }, [entityType, entityId, teamId, currentMemberId, supabase])
 
-  // 실시간 구독
+  /**
+   * 목록이 바뀔 때마다 위로 올려보낸다 — **시트 밖 표면**(릴스 말풍선·하단 개수·격자 배지)이
+   * 이 결과를 나눠 쓴다(§RecordReelViewer). 시트가 곧 전부인 지면(모임·대회·일정)은 안 넘긴다.
+   *
+   * 마운트 직후 한 번은 `initialComments`와 같은 내용으로 도는데, 받는 쪽이 내용 서명으로
+   * 걸러 낸다(§usePostComments의 `syncComments`).
+   */
   useEffect(() => {
-    if (!currentMemberId) return
-    const channel = supabase
-      .channel(`cmnt:${entityType}:${entityId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "cmnt_mst",
-          filter: `entity_id=eq.${entityId}`,
-        },
-        (payload) => {
-          const row = payload.new as Record<string, unknown>
-          // entity_type, team_id 추가 검증 — 동일 entity_id를 공유하는 다른 팀/타입 댓글 혼입 방지
-          if (row.entity_type !== entityType || row.team_id !== teamId) return
-          if (payload.eventType === "INSERT") {
-            const incoming = payload.new as CmntRow
-            setComments((prev) => {
-              if (prev.some((c) => c.cmnt_id === incoming.cmnt_id)) return prev
-              // 내가 보낸 optimistic 댓글이 아직 교체 안 된 상태에서 Realtime이 먼저 온 경우 → optimistic 교체
-              const optimisticIdx = prev.findIndex(
-                (c) => c.optimistic && c.mem_id === incoming.mem_id && c.cont_txt === incoming.cont_txt && c.prnt_id === incoming.prnt_id
-              )
-              if (optimisticIdx !== -1) {
-                const next = [...prev]
-                next[optimisticIdx] = { ...incoming, mem_nm: prev[optimisticIdx].mem_nm, avatar_url: prev[optimisticIdx].avatar_url }
-                return next
-              }
-              const mem = membersRef.current.find((m) => m.mem_id === incoming.mem_id)
-              return [...prev, { ...incoming, mem_nm: mem?.mem_nm ?? "멤버", avatar_url: incoming.avatar_url ?? mem?.avatar_url ?? null }]
-            })
-          } else if (payload.eventType === "UPDATE") {
-            setComments((prev) =>
-              prev.map((c) =>
-                c.cmnt_id === (payload.new as CmntRow).cmnt_id
-                  ? { ...c, ...(payload.new as CmntRow) }
-                  : c
-              )
-            )
-          }
-        }
-      )
-      .subscribe()
+    onCommentsChange?.(comments)
+  }, [comments, onCommentsChange])
 
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [entityType, entityId, currentMemberId, supabase])
+  /** 수정 성공 — 이 행만 갈아끼운다(§CommentItem의 onEdited) */
+  const handleEdited = (cmntId: string, contTxt: string) => {
+    setComments((prev) =>
+      prev.map((c) =>
+        c.cmnt_id === cmntId
+          ? { ...c, cont_txt: contTxt, edit_yn: true, upd_at: new Date().toISOString() }
+          : c
+      )
+    )
+  }
+
+  /** 삭제 성공 — 행은 남기고 `del_yn`만 세운다(자리표시자로 스레드 맥락 유지) */
+  const handleDeleted = (cmntId: string) => {
+    setComments((prev) =>
+      prev.map((c) =>
+        c.cmnt_id === cmntId
+          ? { ...c, del_yn: true, upd_at: new Date().toISOString() }
+          : c
+      )
+    )
+  }
 
   const handleSubmitComment = async () => {
     if (!newText.trim() || !currentMemberId) return
@@ -326,6 +317,8 @@ export function CommentSection({
                 isAdmin={isAdmin}
                 members={members}
                 onReply={!currentMemberId ? undefined : viewerInactive ? () => setInactiveGateOpen(true) : (c) => { setReplyTo(c); setReplyText(`@${c.mem_nm} `) }}
+                onEdited={handleEdited}
+                onDeleted={handleDeleted}
               />
               {cmnt.replies.map((reply) => (
                 <CommentItem
@@ -336,6 +329,8 @@ export function CommentSection({
                   members={members}
                   isReply
                   onReply={!currentMemberId ? undefined : viewerInactive ? () => setInactiveGateOpen(true) : (c) => { setReplyTo(c); setReplyText(`@${c.mem_nm} `) }}
+                  onEdited={handleEdited}
+                  onDeleted={handleDeleted}
                 />
               ))}
 

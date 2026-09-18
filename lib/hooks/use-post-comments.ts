@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { CmntRow } from "@/components/comment/comment-item";
 
@@ -23,17 +23,21 @@ export type PostComment = CmntRow;
 /**
  * 운동기록 한 건의 댓글 목록 — 말풍선 티커와 하단 입력줄(개수)이 **함께** 쓴다.
  *
- * 두 컴포넌트가 각자 조회하면 같은 장에서 쿼리가 두 번 나가고, 더 나쁘게는 Realtime이
+ * 두 컴포넌트가 각자 조회하면 같은 장에서 쿼리가 두 번 나가고, 더 나쁘게는 갱신이
  * 한쪽에만 닿아 "말풍선엔 새 댓글이 뜨는데 숫자는 그대로"인 어긋남이 생긴다. 한 곳에서
  * 읽고 내려보낸다.
+ *
+ * **실시간 구독은 없다**(2026-09-18, §성능 점검 C). 남이 쓴 댓글은 다음 진입 조회에서
+ * 들어오고, **내가 쓴 것은 시트가 `syncComments`로 올려보낸다.** 그 배선이 빠지면 방금 쓴
+ * 댓글이 시트 안에만 보이고 말풍선·개수·격자 배지엔 안 뜬다.
  *
  * **보이는 장만 읽는다**(`active`): 릴스는 전 장이 한꺼번에 마운트돼 있어(scroll-snap
  * 목록) 이게 없으면 화면에 없는 수백 장이 동시에 댓글을 조회한다.
  *
  * ⚠️ **비로그인일 때는 `active`를 false로 넘긴다**(호출부 책임). `cmnt_mst`의 SELECT 정책이
  * `authenticated` 전용이라 익명 세션은 **에러 없이 0행**을 받는다 — 실패가 아니라 빈 목록으로
- * 보여서 "댓글이 없는 사진"과 구분되지 않는다. 여기서 막지 않으면 쿼리와 Realtime 구독이
- * 헛돌기만 한다. 못 읽는다는 사실은 화면(하단 줄)이 로그인 안내로 밝힌다.
+ * 보여서 "댓글이 없는 사진"과 구분되지 않는다. 여기서 막지 않으면 쿼리가 헛돌기만 한다.
+ * 못 읽는다는 사실은 화면(하단 줄)이 로그인 안내로 밝힌다.
  */
 export function usePostComments(postId: string, teamId: string, active: boolean) {
   /**
@@ -121,109 +125,56 @@ export function usePostComments(postId: string, teamId: string, active: boolean)
     };
   }, [active, postId, teamId, supabase]);
 
-  // 시트에서 쓰고 닫았을 때 뒤 배경의 말풍선·개수가 옛 목록인 채로 남지 않게 한다.
-  useEffect(() => {
-    if (!active) return;
-    const channel = supabase
-      .channel(`cmnt-post:${postId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "cmnt_mst",
-          filter: `entity_id=eq.${postId}`,
-        },
-        (payload) => {
-          const row = payload.new as Record<string, unknown>;
-          // 같은 entity_id를 다른 타입/팀이 쓸 수 있으므로 한 번 더 좁힌다(CommentSection 동일 방어).
-          if (row?.entity_type !== "post" || row?.team_id !== teamId) return;
-
-          if (payload.eventType === "INSERT") {
-            const incoming = payload.new as {
-              cmnt_id: string;
-              prnt_id: string | null;
-              mem_id: string;
-              cont_txt: string;
-              edit_yn: boolean;
-              del_yn: boolean;
-              crt_at: string;
-              upd_at: string;
-            };
-            if (incoming.del_yn) return;
-            // 지금 들고 있는 게 **이 글의 목록일 때만** 얹는다. 장을 넘긴 직후 A의 이벤트가
-            // 늦게 도착해 B의 목록에 A의 댓글이 끼어드는 걸 막는다(구독은 글마다 따로지만
-            // 이벤트는 해지 직전에도 올 수 있다).
-            setLoaded((prev) => {
-              if (!prev || prev.postId !== postId) return prev;
-              const list = prev.list;
-              if (list.some((c) => c.cmnt_id === incoming.cmnt_id)) return prev;
-              return {
-                postId,
-                list: [
-                  ...list,
-                {
-                  cmnt_id: incoming.cmnt_id,
-                  prnt_id: incoming.prnt_id ?? null,
-                  mem_id: incoming.mem_id,
-                  // Realtime payload엔 조인이 안 실린다 — 이름·프사는 다음 진입 조회에서 채워진다.
-                  mem_nm: "멤버",
-                  avatar_url: null,
-                  cont_txt: incoming.cont_txt,
-                  edit_yn: incoming.edit_yn ?? false,
-                  del_yn: false,
-                  crt_at: incoming.crt_at,
-                    upd_at: incoming.upd_at,
-                  },
-                ],
-              };
-            });
-          } else if (payload.eventType === "UPDATE") {
-            const updated = payload.new as {
-              cmnt_id: string;
-              cont_txt: string;
-              edit_yn: boolean;
-              del_yn: boolean;
-              upd_at: string;
-            };
-            setLoaded((prev) => {
-              // INSERT와 같은 이유로 이 글의 목록일 때만 고친다.
-              if (!prev || prev.postId !== postId) return prev;
-              // 삭제(soft)여도 **목록에서 빼지 않는다** — del_yn만 세워 둔다. 말풍선·개수는
-              // 쓰는 쪽에서 걸러지고, 시트는 이 행이 있어야 "삭제된 댓글입니다" 자리표시자로
-              // 스레드 맥락을 지킨다.
-              const list = prev.list.map((c) =>
-                c.cmnt_id === updated.cmnt_id
-                  ? {
-                      ...c,
-                      cont_txt: updated.cont_txt,
-                      edit_yn: updated.edit_yn ?? c.edit_yn,
-                      del_yn: updated.del_yn,
-                      upd_at: updated.upd_at ?? c.upd_at,
-                    }
-                  : c,
-              );
-              return { postId, list };
-            });
-          }
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [active, postId, teamId, supabase]);
-
   /**
-   * **지금 글의 것만 내보낸다.** 아직 안 읽었거나(전환 중·로딩) 들고 있는 게 다른 글의
-   * 목록이면 `null`이다 — 쓰는 쪽은 그걸 "모른다"로 받아 자기 판단을 미룬다
-   * (격자 배지는 서버 값을 그대로 두고, 말풍선은 아무것도 안 그린다).
+   * **시트에서 일어난 변경을 이 목록에 반영한다** — 작성·수정·삭제 전부.
    *
-   * 옛 목록을 잠깐 보여 주는 것보다 안 보여 주는 게 낫다: 남의 글 댓글이 뜨는 건
-   * 비어 보이는 것과 달리 **틀린 정보**다.
+   * 예전엔 `cmnt_mst` Realtime이 시트와 여기를 각각 갱신해 줘서 배선이 필요 없었다.
+   * 구독을 걷어낸 뒤로는(§성능 점검 C) 시트가 유일한 변경 지점이므로, 그 결과를 여기로
+   * 흘려보내지 않으면 **내가 방금 쓴 댓글이 말풍선·하단 개수·격자 배지에 안 뜬다.**
+   *
+   * **내용 서명으로 걸러 낸다.** `CommentSection`은 자기 목록이 바뀔 때마다 부르는데,
+   * 마운트 직후 한 번은 우리가 넘긴 `initialComments`와 같은 내용으로 돌아온다. 그대로
+   * 받으면 매번 새 객체라 리렌더가 한 바퀴 더 돈다.
+   *
+   * **어느 글의 것인지는 부르는 쪽이 같이 준다**(`fromPostId`). 장을 넘긴 직후 닫히는 시트가
+   * 늦게 부를 수 있어 그건 버려야 하는데, **우리 `loaded`를 기준으로 판단하면 안 된다** —
+   * 아직 안 읽었거나(전환 중) 조회가 실패해 `loaded`가 `null`이면 **시트가 제대로 가져온
+   * 목록까지 통째로 버리게 된다**(그 경우 시트는 `initialComments`를 못 받아 스스로 읽는다).
+   * 그러면 말풍선·개수가 영영 안 채워진다. 그래서 `null`이어도 **글이 맞으면 받아 둔다.**
    */
-  return loaded && loaded.postId === postId ? loaded.list : null;
+  const syncComments = useCallback(
+    (fromPostId: string, list: PostComment[]) => {
+      if (fromPostId !== postId) return;
+      setLoaded((prev) => {
+        if (prev?.postId === postId && signature(prev.list) === signature(list)) return prev;
+        return { postId, list };
+      });
+    },
+    [postId],
+  );
+
+  return {
+    /**
+     * **지금 글의 것만 내보낸다.** 아직 안 읽었거나(전환 중·로딩) 들고 있는 게 다른 글의
+     * 목록이면 `null`이다 — 쓰는 쪽은 그걸 "모른다"로 받아 자기 판단을 미룬다
+     * (격자 배지는 서버 값을 그대로 두고, 말풍선은 아무것도 안 그린다).
+     *
+     * 옛 목록을 잠깐 보여 주는 것보다 안 보여 주는 게 낫다: 남의 글 댓글이 뜨는 건
+     * 비어 보이는 것과 달리 **틀린 정보**다.
+     */
+    comments: loaded && loaded.postId === postId ? loaded.list : null,
+    syncComments,
+  };
+}
+
+/**
+ * 목록이 실제로 달라졌는지 가리는 값 — 표시에 쓰이는 것만 담는다.
+ * `optimistic` 댓글은 id가 임시(`optimistic-…`)였다가 진짜 id로 바뀌므로 그 전환도 잡힌다.
+ */
+function signature(list: PostComment[]): string {
+  return list
+    .map((c) => `${c.cmnt_id}:${c.del_yn ? 1 : 0}:${c.edit_yn ? 1 : 0}:${c.cont_txt}`)
+    .join("|");
 }
 
 /**

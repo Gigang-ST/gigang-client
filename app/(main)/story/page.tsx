@@ -59,7 +59,23 @@ async function StoryFeedSection() {
   // 현상수배 정렬 시드 — 진입마다 다른 얼굴 조합이 앞에 서게 한다. 셔플·상한은
   // `arrangeGhosts`가 맡는다(§lib/ghost-members.ts). 조회 인자라 Promise.all보다 먼저 뽑는다.
   const ghostSeed = pickGhostSeed();
-  const [feed, overview, ghosts, posts, grants, { member }, reactionTotals] =
+
+  /**
+   * 내 응원 몫 — **멤버에 의존하지만 다른 조회를 기다릴 이유는 없다.**
+   *
+   * `getCurrentMember()`는 React `cache()`라 아래 `Promise.all`의 것과 **같은 호출로 합쳐진다**
+   * (쿼리가 늘지 않는다). 여기서 체인으로 걸어 두면 멤버가 정해지는 즉시 출발해, 옆의 피드·
+   * 오버뷰·현상수배가 도는 동안 같이 끝난다.
+   *
+   * 예전엔 `Promise.all`이 **전부** 끝난 뒤에야 이 조회를 시작했다 — 멤버는 그 안에서 제일
+   * 먼저 정해지는데도 가장 느린 것까지 기다린 셈이라, 로그인 사용자마다 홈 임계경로에
+   * 직렬 왕복이 하나 얹혀 있었다(§perf 문서 §3-0 — 왕복 하나가 곧 스왑 복권 한 장이다).
+   */
+  const myReactionsPromise = getCurrentMember().then(({ member }) =>
+    member ? getMyReactions(teamId, member.id) : {},
+  );
+
+  const [feed, overview, ghosts, posts, grants, { member }, reactionTotals, myReactions] =
     await Promise.all([
       getStoryFeed(teamId),
       getTeamOverview(teamId),
@@ -71,14 +87,15 @@ async function StoryFeedSection() {
       // 응원 총합은 **멤버와 무관한 공개 집계**라 여기서 같이 출발한다. 예전엔 내 몫과 한
       // 함수로 묶여 있어 총합까지 멤버 조회 뒤에 줄을 섰다 — 그만큼이 임계경로였다.
       getReactionTotals(teamId),
+      myReactionsPromise,
     ]);
 
   // 응원 카운트(모두의 총합 + 내 몫)는 캐시된 피드(최대 5분 지연)에서 떼어내 매 요청 최신으로
   // 읽는다 — 남이 누른 것도 실시간에 가깝게 쌓여 보이고, 새로고침해도 내 몫이 유지된다.
-  // 내 몫만 멤버에 의존하므로 이것만 뒤에 붙는다(비로그인은 조회 자체가 없다).
+  // 내 몫도 위에서 함께 출발시켜 둔다(비로그인은 조회 자체가 없다 — `myReactionsPromise` 참조).
   const reactions = {
     totals: reactionTotals,
-    mine: member ? await getMyReactions(teamId, member.id) : {},
+    mine: myReactions,
   };
 
   // 리드 랜덤 슬롯들의 **진입 인덱스를 서버가 뽑아** 넘긴다. 클라에서 마운트 후 Math.random으로
