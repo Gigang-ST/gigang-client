@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { toast } from "sonner"
 
 import { dayjs } from "@/lib/dayjs"
 
@@ -35,6 +36,23 @@ interface CommentItemProps {
   members: MemberOption[]
   onReply?: (cmnt: CmntRow) => void
   isReply?: boolean
+  /**
+   * 수정 성공 — 목록을 들고 있는 쪽이 이 행을 갈아끼운다.
+   *
+   * ⚠️ **이 콜백이 없으면 내가 고친 댓글이 화면에서 안 바뀐다.** 예전엔 `cmnt_mst`
+   * Realtime UPDATE가 돌아와 목록을 고쳐 줬는데, 그 구독을 걷어내면서(§성능 점검 C)
+   * 되돌아올 경로가 없어졌다 — 수정 후 `setEditing(false)`가 원본 `comment.cont_txt`로
+   * 되돌리므로 **고치기 전 내용이 그대로 남는다.**
+   */
+  onEdited?: (cmntId: string, contTxt: string) => void
+  /**
+   * 삭제 성공 — 목록을 들고 있는 쪽이 `del_yn`을 세운다(행은 남긴다).
+   *
+   * ⚠️ 위와 같은 이유로 필수다. 없으면 방금 지운 댓글이 그대로 보인다.
+   * **목록에서 빼지 않고 `del_yn`만 세우는 것**이 규칙이다 — 시트는 이 행이 있어야
+   * "삭제된 댓글입니다" 자리표시자로 스레드 맥락을 지킨다.
+   */
+  onDeleted?: (cmntId: string) => void
 }
 
 export function CommentItem({
@@ -44,6 +62,8 @@ export function CommentItem({
   members,
   onReply,
   isReply,
+  onEdited,
+  onDeleted,
 }: CommentItemProps) {
   const [editing, setEditing] = useState(false)
   const [editText, setEditText] = useState(comment.cont_txt)
@@ -61,19 +81,33 @@ export function CommentItem({
     )
   }
 
+  // 성공했을 때만 편집을 닫고 목록에 반영한다. 예전엔 결과를 아예 안 보고 무조건 닫았는데,
+  // Realtime이 고쳐 주던 시절엔 실패해도 목록이 원본 그대로라 티가 안 났다. 이제는 이 콜백이
+  // 유일한 반영 경로라 성공·실패를 갈라야 한다 — 실패 시 입력을 열어 둬야 쓴 글이 안 날아간다.
   const handleUpdate = async () => {
-    if (!editText.trim()) return
+    const next = editText.trim()
+    if (!next) return
     setLoading(true)
-    await updateComment({ cmntId: comment.cmnt_id, contTxt: editText.trim(), mentionedMemIds: parseMentionsFromText(editText.trim(), members) })
+    const result = await updateComment({ cmntId: comment.cmnt_id, contTxt: next, mentionedMemIds: parseMentionsFromText(next, members) })
     setLoading(false)
+    if (!result.ok) {
+      toast(result.message ?? "댓글 수정 실패")
+      return
+    }
     setEditing(false)
+    onEdited?.(comment.cmnt_id, next)
   }
 
   const handleDelete = async () => {
     if (!confirm("댓글을 삭제할까요?")) return
     setLoading(true)
-    await deleteComment({ cmntId: comment.cmnt_id })
+    const result = await deleteComment({ cmntId: comment.cmnt_id })
     setLoading(false)
+    if (!result.ok) {
+      toast(result.message ?? "댓글 삭제 실패")
+      return
+    }
+    onDeleted?.(comment.cmnt_id)
   }
 
   return (

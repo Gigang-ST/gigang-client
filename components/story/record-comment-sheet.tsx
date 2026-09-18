@@ -24,7 +24,7 @@ import {
  * **릴스(z-50) 위에 겹쳐 뜬다.** `overlayClassName`으로 오버레이를 z-[60]까지 올려야
  * 릴스가 시트를 덮지 않는다(프로필 카드의 `stacked`와 같은 처리).
  *
- * 본문은 `CommentSection` 그대로다 — 답글·멘션·수정/삭제·Realtime이 이미 그 안에 있다.
+ * 본문은 `CommentSection` 그대로다 — 답글·멘션·수정/삭제가 이미 그 안에 있다.
  * 여기서 하는 일은 (1) 릴스 위에 얹을 판을 만들고 (2) 멘션용 멤버 목록을 열릴 때 채우는 것뿐.
  *
  * **멤버 목록은 열 때 받는다.** 릴스 장마다 미리 받아두면 안 열어 볼 시트를 위해 매번
@@ -41,6 +41,7 @@ export function RecordCommentSheet({
   myAvatarUrl,
   isAdmin,
   initialComments,
+  onCommentsChange,
 }: {
   postId: string | null;
   /** 시트 제목에 쓴다 — "누구의 기록"에 다는 댓글인지 */
@@ -60,6 +61,11 @@ export function RecordCommentSheet({
    * **댓글이 0건인데도 `댓글 불러오는 중...`**이 한참 떠 있었다.
    */
   initialComments?: CmntRow[];
+  /**
+   * 시트에서 일어난 작성·수정·삭제를 위로 돌려보낸다 — 말풍선·하단 개수·격자 배지가
+   * 같은 데이터를 쓰기 때문이다. 실시간 구독을 걷어낸 뒤로(§성능 점검 C) **이게 유일한 경로다.**
+   */
+  onCommentsChange?: (comments: CmntRow[]) => void;
 }) {
   const [members, setMembers] = useState<MemberOption[] | null>(null);
 
@@ -138,6 +144,7 @@ export function RecordCommentSheet({
             members={members ?? []}
             initialComments={initialComments}
             loginReturnPath="/story"
+            onCommentsChange={onCommentsChange}
           />
         </div>
       </ResponsiveDrawerContent>

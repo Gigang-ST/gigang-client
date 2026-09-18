@@ -208,10 +208,13 @@ export function RecordReelViewer({
    * 같은 분기 — `CommentSection`의 `!initialComments` 가드).
    *
    * **비로그인은 아예 읽지 않는다**: `cmnt_mst`는 SELECT까지 인증 전용(RLS)이라 익명으로
-   * 조회하면 에러 없이 0행이 온다 — 쿼리와 Realtime 구독만 헛돌고 화면엔 "댓글 없음"으로
-   * 보인다. 못 읽는다는 사실은 하단 줄이 "로그인하고 댓글 보기"로 밝힌다(§RecordCommentBar).
+   * 조회하면 에러 없이 0행이 온다 — 쿼리만 헛돌고 화면엔 "댓글 없음"으로 보인다.
+   * 못 읽는다는 사실은 하단 줄이 "로그인하고 댓글 보기"로 밝힌다(§RecordCommentBar).
+   *
+   * **시트에서 쓴 댓글은 `syncComments`로 돌아온다.** 실시간 구독을 걷어낸 뒤로(§성능 점검 C)
+   * 이게 유일한 경로다 — 안 물리면 내가 방금 쓴 댓글이 말풍선·개수·격자 배지에 안 뜬다.
    */
-  const activeComments = usePostComments(
+  const { comments: activeComments, syncComments } = usePostComments(
     activeId ?? "",
     teamId,
     open && activeId != null && myMemId != null,
@@ -335,6 +338,8 @@ export function RecordReelViewer({
         onOpenChange={(o) => {
           if (!o) setSheetPost(null);
         }}
+        // 시트에서 일어난 작성·수정·삭제를 말풍선·개수·격자 배지로 되돌린다.
+        onCommentsChange={syncComments}
         myMemId={myMemId}
         myName={myName}
         myAvatarUrl={myAvatarUrl}
