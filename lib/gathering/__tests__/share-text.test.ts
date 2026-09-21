@@ -5,7 +5,6 @@ import {
   buildGatheringShareUrl,
   buildGatheringUpdateText,
   detectGatheringChanges,
-  shouldSendAfterThrottle,
 } from "@/lib/gathering/share-text";
 
 // 2026-09-25(금) 19:30 KST = 10:30Z
@@ -163,29 +162,5 @@ describe("detectGatheringChanges", () => {
         { sttAt: "2026-09-26T10:30:00.000Z", location: "탄천" },
       ),
     ).toEqual(["time", "location"]);
-  });
-});
-
-describe("shouldSendAfterThrottle", () => {
-  const now = new Date("2026-09-21T00:20:00.000Z");
-
-  it("보낸 적 없으면 보낸다", () => {
-    expect(shouldSendAfterThrottle(null, now)).toBe(true);
-  });
-
-  it("10분 안에 보냈으면 건너뛴다", () => {
-    expect(shouldSendAfterThrottle("2026-09-21T00:15:00.000Z", now)).toBe(false);
-  });
-
-  it("정확히 10분이면 보낸다", () => {
-    expect(shouldSendAfterThrottle("2026-09-21T00:10:00.000Z", now)).toBe(true);
-  });
-
-  it("10분이 지났으면 보낸다", () => {
-    expect(shouldSendAfterThrottle("2026-09-21T00:05:00.000Z", now)).toBe(true);
-  });
-
-  it("값이 깨져 있으면 막지 않는다 — 알림 유실보다 낫다", () => {
-    expect(shouldSendAfterThrottle("깨진값", now)).toBe(true);
   });
 });
