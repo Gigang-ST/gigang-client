@@ -1664,6 +1664,7 @@ export type Database = {
           gthr_id: string
           gthr_nm: string
           gthr_type_enm: string
+          kakao_sent_at: string | null
           loc_txt: string | null
           max_prt_cnt: number | null
           req_attd_cnt: number | null
@@ -1684,6 +1685,7 @@ export type Database = {
           gthr_id?: string
           gthr_nm: string
           gthr_type_enm: string
+          kakao_sent_at?: string | null
           loc_txt?: string | null
           max_prt_cnt?: number | null
           req_attd_cnt?: number | null
@@ -1704,6 +1706,7 @@ export type Database = {
           gthr_id?: string
           gthr_nm?: string
           gthr_type_enm?: string
+          kakao_sent_at?: string | null
           loc_txt?: string | null
           max_prt_cnt?: number | null
           req_attd_cnt?: number | null
