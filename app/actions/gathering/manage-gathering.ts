@@ -89,7 +89,7 @@ export async function createGathering(input: {
         const admin = createUntypedAdminClient();
 
         // 단톡방 공지 — 인앱 알림과 별개 경로다. 발송 실패는 안에서 삼킨다(모임은 이미 만들어졌다).
-        await notifyGatheringCreated(admin, {
+        await notifyGatheringCreated({
           gthrId,
           ref: data.short_id ?? gthrId,
           origin,
@@ -171,9 +171,8 @@ export async function updateGathering(input: {
     const { data: existing } = await supabase
       .from("gthr_mst")
       .select(
-        // loc_txt·short_id·kakao_sent_at 는 단톡방 변경 공지용 — 장소가 실제로 바뀌었는지 견주고,
-        // 링크를 만들고, 직전 발송이 묶음 창(10분) 안인지 본다.
-        "gthr_nm, stt_at, end_at, loc_txt, short_id, kakao_sent_at, crt_by, aprv_req_yn, req_attd_cnt, req_attd_months, max_prt_cnt",
+        // loc_txt·short_id 는 단톡방 변경 공지용 — 장소가 실제로 바뀌었는지 견주고 링크를 만든다.
+        "gthr_nm, stt_at, end_at, loc_txt, short_id, crt_by, aprv_req_yn, req_attd_cnt, req_attd_months, max_prt_cnt",
       )
       .eq("gthr_id", gthr_id)
       .single();
@@ -334,7 +333,7 @@ export async function updateGathering(input: {
         const admin = createUntypedAdminClient();
 
         // 단톡방 변경 공지 — 일시·장소가 실제로 바뀌었을 때만, 10분 묶음으로.
-        await notifyGatheringUpdated(admin, {
+        await notifyGatheringUpdated({
           gthrId: gthr_id,
           ref: existing.short_id ?? gthr_id,
           origin,
@@ -343,7 +342,6 @@ export async function updateGathering(input: {
           endAt: nextEndAt,
           location: nextLocTxt,
           prev: { sttAt: existing.stt_at, endAt: existing.end_at, location: existing.loc_txt ?? null },
-          lastSentAt: existing.kakao_sent_at ?? null,
         });
 
         const { data: attendees } = await admin
@@ -407,7 +405,7 @@ export async function deleteGathering(gthr_id: string) {
     after(async () => {
       try {
         // 단톡방 취소 공지 — 묶음 판정을 거치지 않는다. 모르면 사람이 실제로 헛걸음한다.
-        await notifyGatheringCanceled(admin, {
+        await notifyGatheringCanceled({
           gthrId: gthr_id,
           title: gthr.gthr_nm ?? "",
           sttAt: gthr.stt_at,

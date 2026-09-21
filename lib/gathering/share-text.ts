@@ -126,20 +126,3 @@ export function detectGatheringChanges(
   return changes;
 }
 
-/** 같은 모임에 연속 수정이 쏟아질 때 톡방 도배를 막는 묶음 창(10분). */
-export const KAKAO_NOTIFY_THROTTLE_MS = 10 * 60 * 1000;
-
-/**
- * 직전 발송이 묶음 창 안이면 보내지 않는다. `lastSentAt`이 없으면(첫 발송) 보낸다.
- * 등록·취소는 1회성이라 이 판정을 거치지 않는다 — 취소는 사람이 헛걸음하므로 무조건 보낸다.
- */
-export function shouldSendAfterThrottle(
-  lastSentAt: string | null | undefined,
-  now: Date = new Date(),
-  windowMs: number = KAKAO_NOTIFY_THROTTLE_MS,
-): boolean {
-  if (!lastSentAt) return true;
-  const last = dayjs(lastSentAt).valueOf();
-  if (Number.isNaN(last)) return true;
-  return now.getTime() - last >= windowMs;
-}
