@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { dayjs, parseEventTime } from "@/lib/dayjs";
 import { isWaitlistOpenToAll } from "@/lib/gathering/cancel-imminent";
+import { buildGatheringShareText, formatShareDateTime } from "@/lib/gathering/share-text";
 import { applyMyWaitOverride, waitRankOf } from "@/lib/gathering/waitlist";
 import { isPastLockedFor } from "@/lib/past-event";
 import { createClient } from "@/lib/supabase/client";
@@ -381,19 +382,18 @@ export function GatheringDetailDialog({
     ? `${window.location.origin}/schedule?gthr=${gthrRef}`
     : `/schedule?gthr=${gthrRef}`;
 
-  // 단톡방 공유 본문 — 정보 나열이 아니라 "같이 뛰어요 + CTA"로 참여를 유도한다.
-  // 시간: 오전/오후 + 분 단위(A h:mm). 인원: 2명 이상일 때만(처음 공유는 작성자 1명뿐이라 생략).
-  const shareDateTime = end
-    ? `${stt.format("M/D (ddd) A h:mm")} ~ ${stt.format("YYYY-MM-DD") === end.format("YYYY-MM-DD") ? end.format("A h:mm") : end.format("M/D (ddd) A h:mm")}`
-    : stt.format("M/D (ddd) A h:mm");
-  const shareLines = ["🏃‍♂️ 같이 뛰어요!", "", `「${gathering.title}」`, `🗓 ${shareDateTime}`];
-  if (gathering.location) shareLines.push(`📍 ${gathering.location}`);
-  if (gathering.crt_by_nm) shareLines.push(`🙋 ${gathering.crt_by_nm}`);
-  if (attdCount >= 2) {
-    shareLines.push(`👥 ${gathering.maxPrtCnt != null ? `${attdCount}/${gathering.maxPrtCnt}명` : `${attdCount}명`}`);
-  }
-  shareLines.push("", "참여하기 👇", sharePageUrl);
-  const gthrShareText = shareLines.join("\n");
+  // 단톡방 공유 본문 — 조립은 `lib/gathering/share-text.ts` 한 곳이다. 모임 등록 시 자동으로
+  // 나가는 카톡 공지가 **같은 함수**를 쓴다(두 벌로 두면 한쪽만 고쳐져 화면과 톡방이 갈린다).
+  const gthrShareText = buildGatheringShareText({
+    title: gathering.title,
+    sttAt: gathering.evt_stt_at ?? gathering.start_date,
+    endAt: gathering.evt_end_at,
+    location: gathering.location,
+    authorName: gathering.crt_by_nm,
+    attendeeCount: attdCount,
+    maxCount: gathering.maxPrtCnt,
+    url: sharePageUrl,
+  });
 
   async function handleToggleAttendance() {
     // isFull 은 더 이상 차단 사유가 아니다 — 만석이면 대기 신청으로 간다.
@@ -909,7 +909,7 @@ export function GatheringDetailDialog({
       open={shareOpen}
       onOpenChange={setShareOpen}
       title={gathering.title}
-      timeLabel={shareDateTime}
+      timeLabel={formatShareDateTime(gathering.evt_stt_at ?? gathering.start_date, gathering.evt_end_at)}
       pageUrl={sharePageUrl}
       shareText={gthrShareText}
     />

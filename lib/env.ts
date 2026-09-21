@@ -6,6 +6,12 @@ export const env = createEnv({
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
     REVALIDATE_SECRET: z.string().min(1),
     KAKAO_CHAT_PASSWORD: z.string().optional(),
+    // 카톡 브리지(n8n) 웹훅 — 모임 등록·수정·취소를 단톡방에 알린다(lib/kakao/notify.ts).
+    // 셋 다 optional: 미설정이면 발송만 꺼진다. 로컬·preview가 실제 톡방에 쏘지 않게 하는
+    // 안전장치가 이 "미설정 = 비활성"이라, 값을 넣은 환경에서만 발송된다.
+    KAKAO_WEBHOOK_URL: z.url().optional(),
+    KAKAO_WEBHOOK_SECRET: z.string().min(1).optional(),
+    KAKAO_ROOM: z.string().min(1).optional(),
     // 뉴비 온보딩 미참석 넛지 크론(app/api/cron/newbie-nudge) 인증용.
     // optional: 미설정 시 크론 라우트가 503으로 스스로 막는다(발송 사고 방지, 앱 기동은 막지 않음).
     CRON_SECRET: z.string().min(1).optional(),
@@ -34,6 +40,9 @@ export const env = createEnv({
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     REVALIDATE_SECRET: process.env.REVALIDATE_SECRET,
     KAKAO_CHAT_PASSWORD: process.env.KAKAO_CHAT_PASSWORD,
+    KAKAO_WEBHOOK_URL: process.env.KAKAO_WEBHOOK_URL,
+    KAKAO_WEBHOOK_SECRET: process.env.KAKAO_WEBHOOK_SECRET,
+    KAKAO_ROOM: process.env.KAKAO_ROOM,
     CRON_SECRET: process.env.CRON_SECRET,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     NODE_ENV: process.env.NODE_ENV,
