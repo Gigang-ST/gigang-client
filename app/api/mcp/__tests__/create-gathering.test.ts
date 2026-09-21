@@ -47,6 +47,7 @@ function validInput(overrides: Record<string, unknown> = {}) {
     gthr_type_enm: "regular",
     sprt_cd: "running",
     stt_at: "2026-08-29 07:00",
+    loc_txt: "잠수교",
     ...overrides,
   } as Parameters<typeof createGatheringViaMcp>[2];
 }

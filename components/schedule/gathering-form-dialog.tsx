@@ -51,6 +51,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { AutoGrowTextarea } from "@/components/common/auto-grow-textarea";
 import { GatheringConditionFields } from "./gathering-condition-fields";
+import { GatheringConfirmDialog } from "./gathering-confirm-dialog";
 import { GatheringScheduleHint } from "@/components/schedule/gathering-schedule-hint";
 
 const formSchema = createGthrFormSchema;
@@ -127,6 +128,11 @@ export function GatheringFormDialog({
 }: GatheringFormDialogProps) {
   const [rootError, setRootError] = useState<string | null>(null);
 
+  // 등록/저장 전 확인 다이얼로그 — 검증 통과 값을 잠시 들고 있다가 확정되면 실제 제출.
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingValues, setPendingValues] = useState<FormValues | null>(null);
+  const [confirmSubmitting, setConfirmSubmitting] = useState(false);
+
   // 최근 모임 불러오기 팝업 상태. 목록은 버튼 클릭 시 1회만 조회하고 세션 동안 캐시.
   const [recentOpen, setRecentOpen] = useState(false);
   const [recentList, setRecentList] = useState<RecentGathering[] | null>(null);
@@ -140,7 +146,7 @@ export function GatheringFormDialog({
       sprt_cd: "running",
       stt_at: "",
       end_at: null,
-      loc_txt: null,
+      loc_txt: "",
       desc_txt: null,
       aprv_req_yn: false,
       req_attd_cnt: null,
@@ -177,7 +183,7 @@ export function GatheringFormDialog({
         sprt_cd: (initialData.sprt_cd ?? "running") as CreateGthrInput["sprt_cd"],
         stt_at: toDatetimeLocal(initialData.stt_at),
         end_at: initialData.end_at ? toDatetimeLocal(initialData.end_at) : null,
-        loc_txt: initialData.loc_txt ?? null,
+        loc_txt: initialData.loc_txt ?? "",
         desc_txt: initialData.desc_txt ?? null,
         max_prt_cnt: initialData.max_prt_cnt ?? undefined,
         aprv_req_yn: initialData.aprv_req_yn ?? false,
@@ -196,7 +202,7 @@ export function GatheringFormDialog({
           sprt_cd: (prefill.sprt_cd ?? "running") as CreateGthrInput["sprt_cd"],
           stt_at: defaultSttAt,
           end_at: null,
-          loc_txt: prefill.loc_txt ?? null,
+          loc_txt: prefill.loc_txt ?? "",
           desc_txt: prefill.desc_txt ?? null,
           max_prt_cnt: prefill.max_prt_cnt ?? undefined,
         });
@@ -211,7 +217,7 @@ export function GatheringFormDialog({
           sprt_cd: "running",
           stt_at: defaultSttAt,
           end_at: null,
-          loc_txt: null,
+          loc_txt: "",
           desc_txt: null,
         });
       }
@@ -262,13 +268,13 @@ export function GatheringFormDialog({
     form.setValue("gthr_nm", g.gthr_nm, { shouldDirty: true });
     form.setValue("gthr_type_enm", g.gthr_type_enm as FormValues["gthr_type_enm"], { shouldDirty: true });
     form.setValue("sprt_cd", (g.sprt_cd ?? "running") as FormValues["sprt_cd"], { shouldDirty: true });
-    form.setValue("loc_txt", g.loc_txt ?? null, { shouldDirty: true });
+    form.setValue("loc_txt", g.loc_txt ?? "", { shouldDirty: true });
     form.setValue("max_prt_cnt", g.max_prt_cnt ?? undefined, { shouldDirty: true });
     form.setValue("desc_txt", g.desc_txt ?? null, { shouldDirty: true });
     setRecentOpen(false);
   }
 
-  async function onSubmit(values: FormValues) {
+  async function doSubmit(values: FormValues) {
     setRootError(null);
     try {
       let createdGthrId: string | undefined;
@@ -300,10 +306,28 @@ export function GatheringFormDialog({
         };
       }
       clearDraft();
+      setConfirmOpen(false);
       onOpenChange(false);
       onSuccess?.(createdGthrId, createdRace);
     } catch (e) {
       setRootError(e instanceof Error ? e.message : "오류가 발생했습니다. 다시 시도해 주세요.");
+      setConfirmOpen(false);
+    }
+  }
+
+  // 필수값 검증을 통과한 뒤에만 호출된다 — 여기서 제목·장소·시간을 한 번 더 보여준다.
+  function openConfirm(values: FormValues) {
+    setPendingValues(values);
+    setConfirmOpen(true);
+  }
+
+  async function handleConfirm() {
+    if (!pendingValues) return;
+    setConfirmSubmitting(true);
+    try {
+      await doSubmit(pendingValues);
+    } finally {
+      setConfirmSubmitting(false);
     }
   }
 
@@ -318,7 +342,7 @@ export function GatheringFormDialog({
         <Separator />
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4 overflow-y-auto px-5 py-4">
+          <form onSubmit={form.handleSubmit(openConfirm)} className="flex flex-col gap-4 overflow-y-auto px-5 py-4">
 
             {/* 제목 */}
             <FormField
@@ -414,13 +438,12 @@ export function GatheringFormDialog({
               name="loc_txt"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>장소</FormLabel>
+                  <FormLabel>장소 <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
                     <Input
                       placeholder="예: 여의도역 9호선 B1 클룸보관함"
                       {...field}
                       value={field.value ?? ""}
-                      onChange={(e) => field.onChange(e.target.value || null)}
                     />
                   </FormControl>
                   <FormMessage />
@@ -614,6 +637,17 @@ export function GatheringFormDialog({
         </div>
       </DialogContent>
     </Dialog>
+
+    <GatheringConfirmDialog
+      open={confirmOpen}
+      onOpenChange={setConfirmOpen}
+      gthrNm={pendingValues?.gthr_nm ?? ""}
+      locTxt={pendingValues?.loc_txt ?? ""}
+      sttAt={pendingValues?.stt_at ?? ""}
+      onConfirm={handleConfirm}
+      submitting={confirmSubmitting}
+      confirmLabel={mode === "create" ? "등록할게요" : "저장할게요"}
+    />
     </>
   );
 }

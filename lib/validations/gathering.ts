@@ -86,7 +86,7 @@ const gthrBaseSchema = z.object({
   sprt_cd: z.enum(GTHR_SPRT_TYPES, { message: "종목을 선택해 주세요." }),
   stt_at: z.string().min(1, "시작 일시를 입력해 주세요."),
   end_at: z.string().nullable().optional(),
-  loc_txt: z.string().max(200).nullable().optional(),
+  loc_txt: z.string().trim().min(1, "장소를 입력해 주세요.").max(200, "장소는 200자 이내로 입력해 주세요."),
   desc_txt: z.string().max(2000).nullable().optional(),
   max_prt_cnt: z.number().int().min(1, "최대 인원은 1명 이상이어야 합니다.").nullable().optional(),
   // ── 참여조건 · 승인제 (둘 다 모임별 옵션이고 서로 독립) ──
