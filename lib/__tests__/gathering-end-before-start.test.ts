@@ -13,6 +13,7 @@ const base = {
   gthr_nm: "테스트 모임",
   gthr_type_enm: "event" as const,
   sprt_cd: "trail_run" as const,
+  loc_txt: "테스트 장소",
 };
 
 describe("모임 종료<시작 원천 차단 (#495)", () => {
