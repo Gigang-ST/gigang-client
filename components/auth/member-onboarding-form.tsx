@@ -20,8 +20,8 @@ import {
   JOIN_PURP_LABELS,
   JOIN_SRC_LABELS,
   SIGNUP_BIRTH_MIN,
-  checkSignupBirthday,
   signupBirthMax,
+  signupBirthdaySchema,
   type OnboardingProfileValues,
 } from "@/lib/validations/member";
 import { cn } from "@/lib/utils";
@@ -241,9 +241,9 @@ export function MemberOnboardingForm({
       form.setError("gender", { message: "성별을 선택해 주세요." });
       return;
     }
-    const birthdayError = checkSignupBirthday(values.birthday);
-    if (birthdayError) {
-      form.setError("birthday", { message: birthdayError });
+    const birthday = signupBirthdaySchema.safeParse(values.birthday);
+    if (!birthday.success) {
+      form.setError("birthday", { message: birthday.error.issues[0]?.message });
       return;
     }
     setStage("profile");

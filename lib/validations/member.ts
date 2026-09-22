@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { nowKST } from "@/lib/dayjs";
+import { dayjs, nowKST } from "@/lib/dayjs";
 import type { Enums } from "@/lib/supabase/database.types";
 
 /** DB gender enum + 빈 문자열(미선택) 허용 */
@@ -30,19 +30,28 @@ export function signupBirthMax(): string {
 }
 
 /**
- * 가입 생년월일 검증 — 통과면 null, 아니면 안내 문구.
- * 입력칸의 min/max는 달력 선택 범위일 뿐이라 서버 액션에서도 이 함수로 다시 막는다.
+ * 가입 생년월일 — "86년생부터 성인까지". 폼 단계 검증과 서버 액션(`onboardingCreateMember`)이
+ * **같은 스키마**를 쓴다. 입력칸의 min/max는 달력 선택 범위일 뿐이라 서버에서 다시 막아야 한다.
+ *
+ * 실재하는 날짜인지도 본다 — 형식만 맞는 `1990-02-30`이 범위 비교를 통과하면 `birth_dt`(date)
+ * INSERT에서 DB 오류로 터진다. UTC로 파싱해 되찍었을 때 그대로인지로 판정한다(월 넘김을 잡고,
+ * 실행 환경 타임존과 무관하다).
  *
  * ⚠️ **가입에만 쓴다.** 프로필 수정에 걸면 이 기준 이전에 들어온 기존 회원이
  * 프로필을 아예 저장하지 못하게 된다.
  */
-export function checkSignupBirthday(birthday: string): string | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(birthday)) return "생년월일을 입력해 주세요.";
-  if (birthday < SIGNUP_BIRTH_MIN || birthday > signupBirthMax()) {
-    return "1986년생부터 성인까지 가입할 수 있어요.";
+export const signupBirthdaySchema = z.string().superRefine((birthday, ctx) => {
+  const isRealDate =
+    /^\d{4}-\d{2}-\d{2}$/.test(birthday) &&
+    dayjs.utc(birthday).format("YYYY-MM-DD") === birthday;
+  if (!isRealDate) {
+    ctx.addIssue({ code: "custom", message: "생년월일을 입력해 주세요." });
+    return;
   }
-  return null;
-}
+  if (birthday < SIGNUP_BIRTH_MIN || birthday > signupBirthMax()) {
+    ctx.addIssue({ code: "custom", message: "1986년생부터 성인까지 가입할 수 있어요." });
+  }
+});
 
 /** 프로필 수정 폼 */
 export const profileEditSchema = z.object({
