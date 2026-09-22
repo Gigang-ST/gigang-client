@@ -8,6 +8,7 @@ import remarkGfm from "remark-gfm";
 import rehypeSlug from "rehype-slug";
 import { ChevronLeft, ChevronUp } from "lucide-react";
 import { formatKST } from "@/lib/dayjs";
+import { useBackNav } from "@/lib/use-back-nav";
 import type { BoardPost } from "@/lib/queries/board";
 import { checkBoardPermission } from "@/app/actions/check-board-permission";
 import { recordBoardReadAction } from "@/app/actions/record-board-read";
@@ -42,14 +43,19 @@ export function PostDetail({ post }: PostDetailProps) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // 목록에서 들어왔으면 **진짜 뒤로** 간다(탭은 목록 URL에 이미 실려 있다). 알림 딥링크처럼
+  // 돌아갈 데가 없을 때만 이 글 종류의 탭으로 보낸다. 예전엔 화살표가 이 주소로 가는 Link라
+  // 기록이 `목록 → 글 → 목록`으로 쌓였고, 목록에서 뒤로를 누르면 다시 글로 들어가 빠져나올 수 없었다.
   const backHref = `/board?tab=${post.post_type_enm}`;
+  const goBack = useBackNav(backHref);
 
   async function handleDelete() {
     setDeleting(true);
     try {
       await deletePost(post.post_id);
       setDeleteOpen(false);
-      router.push(backHref);
+      // push면 지운 글이 기록에 남아 목록에서 뒤로를 누르면 없는 글로 간다.
+      router.replace(backHref);
       router.refresh();
     } catch {
       alert("게시글 삭제에 실패했습니다.");
@@ -60,12 +66,10 @@ export function PostDetail({ post }: PostDetailProps) {
 
   return (
     <div className="flex flex-col">
-      {/* 자체 BackHeader — post_type_enm 기반으로 올바른 탭으로 복귀 */}
+      {/* 자체 BackHeader — 직접 진입이면 post_type_enm 기반 탭으로 복귀 */}
       <header className="sticky top-0 z-40 flex h-12 items-center border-b border-border bg-background px-4">
-        <Button variant="ghost" size="icon-sm" asChild aria-label="뒤로가기">
-          <Link href={backHref}>
-            <ChevronLeft className="size-5" />
-          </Link>
+        <Button variant="ghost" size="icon-sm" onClick={goBack} aria-label="뒤로가기">
+          <ChevronLeft className="size-5" />
         </Button>
       </header>
     <div className="flex flex-col gap-4 px-6 pb-8 pt-4">
