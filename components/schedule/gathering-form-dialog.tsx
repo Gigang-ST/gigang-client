@@ -410,6 +410,13 @@ export function GatheringFormDialog({
                           className="cursor-pointer text-[13px]"
                           onClick={(e) => {
                             const hidden = (e.target as HTMLElement).nextElementSibling as HTMLInputElement;
+                            // 비어 있으면 시작일시 + 2시간으로 채워서 연다 — 오늘 날짜가 잡힌 채 시간만 고르다 시작보다 앞서는 실수 방지
+                            const stt = form.getValues("stt_at");
+                            if (!field.value && stt && hidden) {
+                              const def = dayjs(stt).add(2, "hour").format("YYYY-MM-DDTHH:mm");
+                              hidden.value = def;
+                              field.onChange(def);
+                            }
                             hidden?.showPicker?.();
                             hidden?.focus();
                           }}
