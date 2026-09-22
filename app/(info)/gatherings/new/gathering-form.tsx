@@ -12,6 +12,7 @@ import { dayjs } from "@/lib/dayjs";
 import { GTHR_TYPES, gthrTypeLabels, createGthrFormSchema, type CreateGthrInput } from "@/lib/validations/gathering";
 
 import { GatheringConditionFields } from "@/components/schedule/gathering-condition-fields";
+import { GatheringConfirmDialog } from "@/components/schedule/gathering-confirm-dialog";
 
 import { createGathering, updateGathering } from "@/app/actions/gathering/manage-gathering";
 
@@ -65,6 +66,9 @@ function toDatetimeLocal(utcIso: string) {
 export function GatheringForm(props: Props) {
   const router = useRouter();
   const [rootError, setRootError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingValues, setPendingValues] = useState<FormValues | null>(null);
+  const [confirmSubmitting, setConfirmSubmitting] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -120,7 +124,7 @@ export function GatheringForm(props: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.mode === "edit" && props.initialData.gthr_id]);
 
-  async function onSubmit(values: FormValues) {
+  async function doSubmit(values: FormValues) {
     setRootError(null);
     try {
       if (props.mode === "edit") {
@@ -132,14 +136,33 @@ export function GatheringForm(props: Props) {
           router.push(`/gatherings/${result.gthr_id}`);
         }
       }
+      setConfirmOpen(false);
     } catch (e) {
       setRootError(e instanceof Error ? e.message : "오류가 발생했습니다. 다시 시도해 주세요.");
+      setConfirmOpen(false);
+    }
+  }
+
+  // 필수값 검증을 통과한 뒤에만 호출된다 — 여기서 제목·장소·시간을 한 번 더 보여준다.
+  function openConfirm(values: FormValues) {
+    setPendingValues(values);
+    setConfirmOpen(true);
+  }
+
+  async function handleConfirm() {
+    if (!pendingValues) return;
+    setConfirmSubmitting(true);
+    try {
+      await doSubmit(pendingValues);
+    } finally {
+      setConfirmSubmitting(false);
     }
   }
 
   return (
+    <>
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
+      <form onSubmit={form.handleSubmit(openConfirm)} className="flex flex-col gap-4">
 
         {/* 제목 */}
         <FormField
@@ -235,7 +258,7 @@ export function GatheringForm(props: Props) {
           name="loc_txt"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>장소</FormLabel>
+              <FormLabel>장소 <span className="text-destructive">*</span></FormLabel>
               <FormControl>
                 <Input placeholder="예: 여의도역 9호선 B1 클룸보관함" {...field} value={field.value ?? ""} />
               </FormControl>
@@ -341,5 +364,17 @@ export function GatheringForm(props: Props) {
         </div>
       </form>
     </Form>
+
+    <GatheringConfirmDialog
+      open={confirmOpen}
+      onOpenChange={setConfirmOpen}
+      gthrNm={pendingValues?.gthr_nm ?? ""}
+      locTxt={pendingValues?.loc_txt ?? ""}
+      sttAt={pendingValues?.stt_at ?? ""}
+      onConfirm={handleConfirm}
+      submitting={confirmSubmitting}
+      confirmLabel={props.mode === "edit" ? "저장할게요" : "등록할게요"}
+    />
+    </>
   );
 }

@@ -10,7 +10,13 @@ import { insertNotiMany } from "@/lib/notifications/insert-noti";
 import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
+import { getRequestOrigin } from "@/lib/request-origin";
 import { backfillApprovals, countPendingApplications } from "@/lib/gathering/application";
+import {
+  notifyGatheringCanceled,
+  notifyGatheringCreated,
+  notifyGatheringUpdated,
+} from "@/lib/gathering/kakao-dispatch";
 import { parseCancelResult } from "@/lib/gathering/cancel-result";
 import { runPromotionFollowups } from "@/lib/gathering/promotion-followup";
 import {
@@ -69,6 +75,8 @@ export async function createGathering(input: {
     const gthrId = data.gthr_id;
     const authorId = member.id;
     const gthrNm = parsed.gthr_nm;
+    // 카톡 공지 링크용 origin — `after()` 안에선 요청 헤더를 못 읽으므로 여기서 받아 둔다.
+    const origin = await getRequestOrigin();
     const gthrType = parsed.gthr_type_enm;
     const notiTypeMap: Record<string, string> = {
       general: "gthr_new", regular: "gthr_new", event: "gthr_new",
@@ -79,6 +87,19 @@ export async function createGathering(input: {
     after(async () => {
       try {
         const admin = createUntypedAdminClient();
+
+        // 단톡방 공지 — 인앱 알림과 별개 경로다. 발송 실패는 안에서 삼킨다(모임은 이미 만들어졌다).
+        await notifyGatheringCreated({
+          gthrId,
+          ref: data.short_id ?? gthrId,
+          origin,
+          title: gthrNm,
+          sttAt: toUtcIso(parsed.stt_at)!,
+          endAt: toUtcIso(parsed.end_at),
+          location: parsed.loc_txt ?? null,
+          authorName: member.full_name ?? null,
+          maxCount: parsed.max_prt_cnt ?? null,
+        });
 
         // 자동 참석 등록 (응답 경로에서 분리). after는 요청 컨텍스트 종료 후라 admin 클라이언트 사용.
         const { error: attdError } = await admin.from("gthr_attd_rel").insert({ gthr_id: gthrId, mem_id: authorId });
@@ -150,7 +171,8 @@ export async function updateGathering(input: {
     const { data: existing } = await supabase
       .from("gthr_mst")
       .select(
-        "gthr_nm, stt_at, end_at, crt_by, aprv_req_yn, req_attd_cnt, req_attd_months, max_prt_cnt",
+        // loc_txt·short_id 는 단톡방 변경 공지용 — 장소가 실제로 바뀌었는지 견주고 링크를 만든다.
+        "gthr_nm, stt_at, end_at, loc_txt, short_id, crt_by, aprv_req_yn, req_attd_cnt, req_attd_months, max_prt_cnt",
       )
       .eq("gthr_id", gthr_id)
       .single();
@@ -302,9 +324,25 @@ export async function updateGathering(input: {
       );
     }
 
+    // 카톡 공지 링크용 origin — `after()` 안에선 요청 헤더를 못 읽으므로 여기서 받아 둔다.
+    const origin = await getRequestOrigin();
+    const nextLocTxt = rest.loc_txt !== undefined ? (rest.loc_txt ?? null) : (existing.loc_txt ?? null);
+
     after(async () => {
       try {
         const admin = createUntypedAdminClient();
+
+        // 단톡방 변경 공지 — 일시·장소가 실제로 바뀌었을 때만, 10분 묶음으로.
+        await notifyGatheringUpdated({
+          gthrId: gthr_id,
+          ref: existing.short_id ?? gthr_id,
+          origin,
+          title: gthrNm,
+          sttAt: nextSttAt!,
+          endAt: nextEndAt,
+          location: nextLocTxt,
+          prev: { sttAt: existing.stt_at, endAt: existing.end_at, location: existing.loc_txt ?? null },
+        });
 
         const { data: attendees } = await admin
           .from("gthr_attd_rel")
@@ -339,7 +377,7 @@ export async function deleteGathering(gthr_id: string) {
   return withMember(async ({ member, supabase }) => {
     const { data: gthr } = await supabase
       .from("gthr_mst")
-      .select("crt_by, team_id, gthr_nm, stt_at, end_at")
+      .select("crt_by, team_id, gthr_nm, stt_at, end_at, loc_txt")
       .eq("gthr_id", gthr_id)
       .single();
     if (!gthr) throw new Error("모임을 찾을 수 없습니다.");
@@ -366,6 +404,15 @@ export async function deleteGathering(gthr_id: string) {
 
     after(async () => {
       try {
+        // 단톡방 취소 공지 — 묶음 판정을 거치지 않는다. 모르면 사람이 실제로 헛걸음한다.
+        await notifyGatheringCanceled({
+          gthrId: gthr_id,
+          title: gthr.gthr_nm ?? "",
+          sttAt: gthr.stt_at,
+          endAt: gthr.end_at,
+          location: gthr.loc_txt ?? null,
+        });
+
         const { data: attendees } = await admin
           .from("gthr_attd_rel")
           .select("mem_id")
