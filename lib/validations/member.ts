@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { nowKST } from "@/lib/dayjs";
 import type { Enums } from "@/lib/supabase/database.types";
 
 /** DB gender enum + 빈 문자열(미선택) 허용 */
@@ -12,6 +13,36 @@ export const koreanNameSchema = z
   .regex(/^[가-힣]+$/, "한글 이름만 입력해 주세요")
   .min(2, "이름은 2자 이상 입력해 주세요")
   .max(5, "이름은 5자 이하로 입력해 주세요");
+
+/** 가입 가능한 가장 이른 생년월일 — "86년생부터"(이용약관 §가입 자격) */
+export const SIGNUP_BIRTH_MIN = "1986-01-01";
+/** 한국 나이 20살 = 출생연도 + 19년이 되는 해부터 */
+const SIGNUP_MIN_YEAR_AGE = 19;
+
+/**
+ * 가입 가능한 가장 늦은 생년월일 = 올해(KST) 한국 나이 20살이 되는 해의 12월 31일.
+ * **생일을 따지지 않는다** — 크루 기준이 "한국 나이 20살부터"라, 올해 20살이 되는 해에
+ * 태어났으면 생일 전이어도 가입할 수 있다(2026년엔 2007년생 전원).
+ * 숫자로 박아 두면 해가 바뀌어도 그대로라 매년 한 살 어린 사람이 통과하므로 올해에서 계산한다.
+ */
+export function signupBirthMax(): string {
+  return `${nowKST().year() - SIGNUP_MIN_YEAR_AGE}-12-31`;
+}
+
+/**
+ * 가입 생년월일 검증 — 통과면 null, 아니면 안내 문구.
+ * 입력칸의 min/max는 달력 선택 범위일 뿐이라 서버 액션에서도 이 함수로 다시 막는다.
+ *
+ * ⚠️ **가입에만 쓴다.** 프로필 수정에 걸면 이 기준 이전에 들어온 기존 회원이
+ * 프로필을 아예 저장하지 못하게 된다.
+ */
+export function checkSignupBirthday(birthday: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(birthday)) return "생년월일을 입력해 주세요.";
+  if (birthday < SIGNUP_BIRTH_MIN || birthday > signupBirthMax()) {
+    return "1986년생부터 성인까지 가입할 수 있어요.";
+  }
+  return null;
+}
 
 /** 프로필 수정 폼 */
 export const profileEditSchema = z.object({

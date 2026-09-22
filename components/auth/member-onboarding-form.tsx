@@ -19,6 +19,9 @@ import {
   PACE_LABELS,
   JOIN_PURP_LABELS,
   JOIN_SRC_LABELS,
+  SIGNUP_BIRTH_MIN,
+  checkSignupBirthday,
+  signupBirthMax,
   type OnboardingProfileValues,
 } from "@/lib/validations/member";
 import { cn } from "@/lib/utils";
@@ -238,8 +241,9 @@ export function MemberOnboardingForm({
       form.setError("gender", { message: "성별을 선택해 주세요." });
       return;
     }
-    if (!values.birthday) {
-      form.setError("birthday", { message: "생년월일을 입력해 주세요." });
+    const birthdayError = checkSignupBirthday(values.birthday);
+    if (birthdayError) {
+      form.setError("birthday", { message: birthdayError });
       return;
     }
     setStage("profile");
@@ -823,8 +827,8 @@ export function MemberOnboardingForm({
                       <FormControl>
                         <Input
                           type="date"
-                          min="1986-01-01"
-                          max="2008-12-31"
+                          min={SIGNUP_BIRTH_MIN}
+                          max={signupBirthMax()}
                           {...field}
                         />
                       </FormControl>
