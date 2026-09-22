@@ -4,8 +4,10 @@ import { Suspense } from "react";
 import { cookies } from "next/headers";
 
 import { dayjs, currentMonthKST, gridDateRange } from "@/lib/dayjs";
+import { buildGatheringMetadata } from "@/lib/gathering-og";
 import { WEEK_START_COOKIE, parseWeekStart } from "@/lib/week-start";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
+import { getCachedGatheringOg } from "@/lib/queries/gathering-og";
 import { getCachedHomeCalendar } from "@/lib/queries/home-calendar";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -240,11 +242,36 @@ function HomeHeaderSkeleton() {
 }
 
 /** 일정(달력) 지면 — 예전 홈(`/`). 홈 자리는 전광판이 가져갔다. */
-export const metadata: Metadata = {
+const SCHEDULE_METADATA: Metadata = {
   title: "모임 일정",
   description: "기강 러닝크루의 다가오는 러닝·자전거·수영 모임과 참가 대회 일정.",
   alternates: { canonical: "/schedule" },
 };
+
+/**
+ * `?gthr=<short_id|uuid>` 딥링크는 **그 모임의** 제목·설명·이미지를 낸다.
+ *
+ * 모임 공유 링크가 전부 `/schedule?gthr=`라(다이얼로그 공유·알림·헤더 티커) 카톡에 붙이면
+ * 모든 모임이 같은 미리보기를 냈다. 표시 규칙은 `lib/gathering-og.ts` 한 곳 — 이미지 라우트와
+ * 같은 문구를 쓴다. 못 찾으면(삭제·오타) 지면 기본 metadata로 물러난다.
+ *
+ * `searchParams`는 `page`에서만 받을 수 있다(`layout` 불가). `cacheComponents`에서 이걸 읽으면
+ * metadata가 request time으로 미뤄지는데, 이 페이지는 본문도 쿠키를 읽는 동적 렌더라
+ * (Suspense 안 `getCurrentMember`) 정적 셸 + 스트리밍으로 그대로 성립한다. 카톡 스크래퍼 UA는
+ * `facebookexternalhit`를 달고 와 Next 기본 `htmlLimitedBots`에 걸리므로 블로킹으로 `<head>`에 박힌다.
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<Metadata> {
+  const { gthr } = await searchParams;
+  if (typeof gthr !== "string" || !gthr) return SCHEDULE_METADATA;
+
+  const { teamId } = await getRequestTeamContext();
+  const src = await getCachedGatheringOg(gthr, teamId);
+  return src ? buildGatheringMetadata(src) : SCHEDULE_METADATA;
+}
 
 export default function SchedulePage() {
   // 두 컴포넌트가 같은 데이터를 쓰므로 렌더 시작 시점에 미리 워밍업
