@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 
 import { dayjs, currentMonthKST, gridDateRange } from "@/lib/dayjs";
 import { buildGatheringMetadata } from "@/lib/gathering-og";
+import { getRequestOrigin } from "@/lib/request-origin";
 import { WEEK_START_COOKIE, parseWeekStart } from "@/lib/week-start";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCachedGatheringOg } from "@/lib/queries/gathering-og";
@@ -268,9 +269,10 @@ export async function generateMetadata({
   const { gthr } = await searchParams;
   if (typeof gthr !== "string" || !gthr) return SCHEDULE_METADATA;
 
-  const { teamId } = await getRequestTeamContext();
+  const [{ teamId }, origin] = await Promise.all([getRequestTeamContext(), getRequestOrigin()]);
   const src = await getCachedGatheringOg(gthr, teamId);
-  return src ? buildGatheringMetadata(src) : SCHEDULE_METADATA;
+  // 이미지는 요청 호스트 기준 절대 URL — metadataBase(프로덕션)로 채워지면 dev에서 404다.
+  return src ? buildGatheringMetadata(src, origin) : SCHEDULE_METADATA;
 }
 
 export default function SchedulePage() {
