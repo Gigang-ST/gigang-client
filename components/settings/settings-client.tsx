@@ -12,6 +12,7 @@ import {
   Wallet,
   ShieldCheck,
   LifeBuoy,
+  LogIn,
   LogOut,
   Trash2,
   Moon,
@@ -215,11 +216,14 @@ function MenuRow({
 
 export function SettingsClient({
   isAdmin,
+  isLoggedIn,
   boardUnread,
   duesUnpaid = false,
   weekStart,
 }: {
   isAdmin: boolean;
+  /** 세션이 있는가 — 없으면 계정 그룹이 로그아웃 대신 로그인 한 줄이 된다 */
+  isLoggedIn: boolean;
   /** 공지·업데이트 안읽음 — 각 메뉴 옆 dot. 없으면 둘 다 false로 온다 */
   boardUnread?: { notice: boolean; update: boolean };
   /** 회비 잔액이 마이너스인가 — "회비 내역" 줄 옆 dot */
@@ -388,23 +392,37 @@ export function SettingsClient({
             {/* 이 둘도 `MenuRow`를 탄다 — 여기만 `Button`을 쓰면 행 여백·구분선 규칙이 두
                 곳에 살아서 한쪽만 고쳐진다(행 마크업을 하나로 모은 이유가 그것이다).
                 chevron은 끈다: 눌러도 이동하지 않고 그 자리에서 실행된다. */}
-            <MenuRow
-              icon={LogOut}
-              label={loggingOut ? "로그아웃 중..." : "로그아웃"}
-              onClick={handleLogout}
-              disabled={loggingOut}
-              chevron={false}
-              tone="destructive"
-            />
-            {/* `onClick`을 주지 않는다 — `disabled` 버튼은 어차피 발화하지 않아서
-                `alert("준비 중입니다")`가 죽은 코드였다. 안내는 오른쪽 라벨이 한다. */}
-            <MenuRow
-              icon={Trash2}
-              label="회원 탈퇴"
-              disabled
-              tone="destructive"
-              trailing={<Micro>준비 중입니다</Micro>}
-            />
+            {isLoggedIn ? (
+              <>
+                <MenuRow
+                  icon={LogOut}
+                  label={loggingOut ? "로그아웃 중..." : "로그아웃"}
+                  onClick={handleLogout}
+                  disabled={loggingOut}
+                  chevron={false}
+                  tone="destructive"
+                />
+                {/* `onClick`을 주지 않는다 — `disabled` 버튼은 어차피 발화하지 않아서
+                    `alert("준비 중입니다")`가 죽은 코드였다. 안내는 오른쪽 라벨이 한다. */}
+                <MenuRow
+                  icon={Trash2}
+                  label="회원 탈퇴"
+                  disabled
+                  tone="destructive"
+                  trailing={<Micro>준비 중입니다</Micro>}
+                />
+              </>
+            ) : (
+              // 비로그인이면 로그아웃할 세션도, 탈퇴할 계정도 없다 — 로그인으로 가는 문 하나.
+              // 이동 행이라 chevron은 켠다. 색은 로그아웃과 같은 톤 — 계정 줄이 로그인 상태에
+              // 따라 색까지 바뀌면 같은 자리가 다른 물건처럼 읽힌다.
+              <MenuRow
+                icon={LogIn}
+                label="로그인"
+                href="/auth/login"
+                tone="destructive"
+              />
+            )}
           </div>
         </div>
       </div>
