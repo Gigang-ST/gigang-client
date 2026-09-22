@@ -126,11 +126,20 @@ export function gatheringOgImagePath(src: GatheringOgSource): string {
  * `openGraph`는 루트와 **깊은 병합이 안 된다**(Next 규칙: 페이지가 정의하면 통째로 덮는다)
  * — siteName·locale·type을 여기서 다시 적는 이유. canonical은 `/schedule` 고정이다:
  * `?gthr=` 변형마다 별개 문서가 되면 「동일 제목 다수」가 재발한다. OG는 canonical과 무관하게 읽힌다.
+ *
+ * **이미지 URL은 `origin`(요청 호스트)으로 절대경로를 만든다.** 상대경로로 두면 Next가
+ * `metadataBase`(= 프로덕션 `SITE_URL`)로 채워서, dev·preview에서 공유한 링크의 `og:image`가
+ * 프로덕션을 가리킨다 — 거기엔 그 모임도 (배포 전엔) 라우트도 없어 404가 되고 카톡은 빈 흰
+ * 칸을 띄운다(2026-09-23 dev 실측). `getRequestOrigin()`이 같은 이유로 이미 존재한다.
  */
-export function buildGatheringMetadata(src: GatheringOgSource): Metadata {
+export function buildGatheringMetadata(
+  src: GatheringOgSource,
+  origin?: string | null,
+): Metadata {
   const text = buildGatheringOgText(src);
+  const path = gatheringOgImagePath(src);
   const image = {
-    url: gatheringOgImagePath(src),
+    url: origin ? `${origin}${path}` : path,
     width: 1200,
     height: 630,
     alt: `${text.title} — ${text.whenLabel}`,

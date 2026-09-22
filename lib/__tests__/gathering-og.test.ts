@@ -109,4 +109,15 @@ describe("buildGatheringMetadata", () => {
     expect(tw.card).toBe("summary_large_image");
     expect(tw.images[0]).toBe("/api/og/gathering?g=9klzyNd&v=1789873200");
   });
+
+  it("origin을 주면 이미지가 그 호스트의 절대 URL — dev에서 공유한 링크가 프로덕션(404)을 가리키지 않게", () => {
+    const m = buildGatheringMetadata(src(), "https://dev.gigang.team");
+    const og = m.openGraph as { images: { url: string }[] };
+    const tw = m.twitter as { images: string[] };
+    expect(og.images[0].url).toBe("https://dev.gigang.team/api/og/gathering?g=9klzyNd&v=1789873200");
+    expect(tw.images[0]).toBe("https://dev.gigang.team/api/og/gathering?g=9klzyNd&v=1789873200");
+    // origin을 못 읽으면(null) 상대경로로 물러나 metadataBase가 채운다
+    const fallback = buildGatheringMetadata(src(), null).openGraph as { images: { url: string }[] };
+    expect(fallback.images[0].url).toBe("/api/og/gathering?g=9klzyNd&v=1789873200");
+  });
 });
