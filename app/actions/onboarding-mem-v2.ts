@@ -11,6 +11,7 @@ import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 import { joinGatheringWithCapCheck } from "@/lib/gathering/join-gathering";
 import {
   onboardingProfileSchema,
+  signupBirthdaySchema,
   type OnboardingProfileValues,
 } from "@/lib/validations/member";
 
@@ -142,6 +143,12 @@ export async function onboardingCreateMember(args: {
     }
   | { ok: false; message: string }
 > {
+  // 폼의 달력 범위(min/max)는 선택기만 좁힐 뿐이라 여기서 한 번 더 막는다.
+  const birthdayParsed = signupBirthdaySchema.safeParse(args.birthday);
+  if (!birthdayParsed.success) {
+    return { ok: false, message: birthdayParsed.error.issues[0]?.message ?? "생년월일을 확인해 주세요." };
+  }
+
   const profileParsed = onboardingProfileSchema.safeParse(args.onbdProfile);
   if (!profileParsed.success) {
     return { ok: false, message: "온보딩 프로필 입력값이 올바르지 않습니다." };

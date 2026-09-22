@@ -17,7 +17,7 @@ import { SettingsClient } from "@/components/settings/settings-client";
 const DUES_DOT_MIN_UNPAID = 4000;
 
 export default async function SettingsPage() {
-  const { member, supabase } = await getCurrentMember();
+  const { user, member, supabase } = await getCurrentMember();
   const { teamId } = await getRequestTeamContext();
   const isAdmin = member?.admin ?? false;
 
@@ -58,6 +58,7 @@ export default async function SettingsPage() {
   return (
     <SettingsClient
       isAdmin={isAdmin}
+      isLoggedIn={!!user}
       boardUnread={boardUnread}
       duesUnpaid={(balSnapRes.data?.bal_amt ?? 0) <= -DUES_DOT_MIN_UNPAID}
       weekStart={weekStart}

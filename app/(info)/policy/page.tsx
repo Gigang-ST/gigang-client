@@ -15,7 +15,8 @@ export const metadata: Metadata = {
 export default function PolicyPage() {
   const policy = {
     heading: "운영정책",
-    effectiveDate: "2026-03-02",
+    effectiveDate: "2026-09-30",
+    history: ["2026-03-02 제정", "2026-09-30 개정 — 사진 게시·제재 절차·비활성 조항 정비"],
     sections: [
       {
         id: 1,
@@ -38,8 +39,8 @@ export default function PolicyPage() {
         id: 3,
         title: "사진 및 기록",
         details: [
-          "모임 기록 목적의 촬영 및 공유가 있습니다.",
-          "외부 게시가 필요한 경우 별도 안내합니다.",
+          "모임 중 촬영한 사진은 기강 앱과 크루 공식 인스타그램 등 SNS에 게시될 수 있습니다.",
+          "게시를 원하지 않는 사진은 운영진에게 요청하면 삭제합니다.",
         ],
       },
       {
@@ -47,20 +48,30 @@ export default function PolicyPage() {
         title: "매너 및 금지행위",
         details: [
           "욕설, 비하, 성희롱, 차별 행위 금지",
-          "타인 촬영 및 게시 시 사전 동의 필요",
+          "촬영을 원하지 않는 회원의 의사를 존중합니다.",
         ],
       },
       {
         id: 5,
         title: "제재",
         details: [
-          "경고 후 반복 시 일정 기간 참여 제한 또는 제명될 수 있습니다.",
+          "운영정책 위반 시 먼저 경고하며, 제재 전에 사유를 알리고 소명할 기회를 드립니다.",
+          "경고 후에도 반복되면 일정 기간 참여 제한 또는 제명될 수 있습니다.",
         ],
       },
       {
         id: 6,
+        title: "비활성 회원",
+        details: [
+          "회원은 운영진에게 요청하여 비활성 상태로 전환할 수 있습니다.",
+          "운영진은 운영정책에 따라 회원을 비활성 처리할 수 있습니다.",
+          "비활성 회원은 모임 참여·기록 등록 등 크루 활동이 제한되며, 활동을 재개하려면 운영진 승인이 필요합니다.",
+        ],
+      },
+      {
+        id: 7,
         title: "정책 변경",
-        details: ["변경 사항은 사전에 공지합니다."],
+        details: ["변경 사항은 시행 7일 전에 앱 공지사항으로 알립니다."],
       },
     ],
   };
@@ -86,6 +97,13 @@ export default function PolicyPage() {
           </li>
         ))}
       </ol>
+
+      <div className="mt-10 space-y-1 text-sm text-muted-foreground">
+        <p className="font-semibold">변경 이력</p>
+        {policy.history.map((h) => (
+          <p key={h}>{h}</p>
+        ))}
+      </div>
     </div>
   );
 }

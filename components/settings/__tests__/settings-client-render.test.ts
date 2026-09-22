@@ -58,6 +58,7 @@ function render(
   return renderToStaticMarkup(
     createElement(SettingsClient, {
       isAdmin: false,
+      isLoggedIn: true,
       weekStart: "sun",
       ...props,
     } as Parameters<typeof SettingsClient>[0]),
@@ -156,6 +157,16 @@ describe("더보기 화면", () => {
     const openTag = html.lastIndexOf("<button", at);
     expect(openTag).toBeGreaterThan(-1);
     expect(html.slice(openTag, at)).toContain("disabled");
+  });
+
+  it("비로그인이면 계정 그룹이 로그인 한 줄이 된다", () => {
+    const html = render({ isLoggedIn: false });
+    const t = text(html);
+
+    expect(t).toContain("로그인");
+    expect(t).not.toContain("로그아웃");
+    expect(t).not.toContain("회원 탈퇴");
+    expect(html).toContain('href="/auth/login"');
   });
 
   it("공지·업데이트 안읽음 점은 각 줄에 따로 붙는다", () => {

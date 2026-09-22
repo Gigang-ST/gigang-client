@@ -18,7 +18,7 @@ export default function RulesPage() {
         id: 2,
         title: "나이 제한",
         details: [
-          "20 ~ 40 세 사이 (07년생 ~ 86년생)",
+          "성인 ~ 86년생",
           "지인 소개 가입은 나이제한 없음",
         ],
       },
