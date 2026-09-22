@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { ImageResponse } from "next/og";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { buildGatheringOgText, getGatheringOgSport, OG_COLORS } from "@/lib/gathering-og";
+import { buildGatheringOgText, getGatheringOgSport, OG_COLORS, OG_SLOGAN } from "@/lib/gathering-og";
 import { getCachedGatheringOg } from "@/lib/queries/gathering-og";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 
@@ -75,7 +75,7 @@ function GatheringCard({ text, sport }: CardProps) {
         fontFamily: "Pretendard",
       }}
     >
-      {/* ── 날짜 블록 (종목색) ── */}
+      {/* ── 날짜 블록 — board(검정). 종목은 오른쪽 칩이 말한다 ── */}
       <div
         style={{
           width: 372,
@@ -83,8 +83,8 @@ function GatheringCard({ text, sport }: CardProps) {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: sport.bg,
-          color: sport.fg,
+          backgroundColor: OG_COLORS.board,
+          color: OG_COLORS.boardForeground,
         }}
       >
         <div
@@ -128,9 +128,23 @@ function GatheringCard({ text, sport }: CardProps) {
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          padding: "76px 68px",
+          padding: "56px 68px 64px",
         }}
       >
+        {/* 슬로건 — 홈 헤더와 같은 어법(black · italic · uppercase). 이탤릭 폰트가 없어 skew로 기울인다 */}
+        <div
+          style={{
+            fontWeight: 800,
+            fontSize: 22,
+            letterSpacing: "-0.03em",
+            textTransform: "uppercase",
+            transform: "skewX(-10deg)",
+            color: OG_COLORS.foreground,
+            marginBottom: 22,
+          }}
+        >
+          {OG_SLOGAN}
+        </div>
         <div
           style={{
             display: "flex",
@@ -141,7 +155,7 @@ function GatheringCard({ text, sport }: CardProps) {
             borderRadius: 99,
             backgroundColor: sport.bg,
             color: sport.fg,
-            marginBottom: 26,
+            marginBottom: 22,
           }}
         >
           {sport.label}

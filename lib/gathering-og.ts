@@ -38,14 +38,20 @@ export const OG_COLORS = {
   primary: "#3c82f6",
   mutedForeground: "#737373",
   board: "#111419",
+  boardForeground: "#edeef3",
+  boardMuted: "#878c99",
 } as const;
+
+/** 크루 슬로건 — 홈 헤더 티커(`components/home/header-ticker.tsx`)와 같은 문구 */
+export const OG_SLOGAN = "No time to be weak";
 
 export type OgSportBlock = { label: string; bg: string; fg: string };
 
 /**
- * 모임 종목(`gthr_mst.sprt_cd`) → 날짜 블록 색.
+ * 모임 종목(`gthr_mst.sprt_cd`) → 종목 칩 색.
  * 대회 종목 토큰(`--sport-*`)을 빌려 쓴다 — 수영은 철인 계열 청록, 하이록스는 울트라 주황.
  * 밝은 색(트레일·하이록스) 위엔 흰 글자가 안 읽혀(대비 2.2:1) board 색 글자를 올린다.
+ * 날짜 블록은 종목과 무관하게 board(검정)다 — 종목은 칩 하나로 말한다.
  */
 const SPORT_BLOCK: Record<GthrSprtType, Omit<OgSportBlock, "label">> = {
   running: { bg: "#e2644d", fg: "#ffffff" }, // --sport-road-run
