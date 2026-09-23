@@ -7,20 +7,25 @@ import type { Notification } from "@/lib/queries/notification";
 /**
  * 알림의 **단일 출처**.
  *
- * 채널을 소유한 전역 컴포넌트(`components/notifications/notification-channel.tsx`)가 여기에
- * 쓰고, 각 탭 헤더의 벨(`notification-bell-icon.tsx`)이 여기서 읽는다.
- * `lib/presence/store.ts`와 **같은 패턴·같은 이유**다.
+ * 조회·쓰기 조율은 `lib/notifications/refresh.ts`가 하고, 이 파일은 **상태만** 들고 있다.
+ * 루트의 `notification-channel.tsx`가 세션을 열어 조회를 걸고, 각 탭 헤더의 벨
+ * (`notification-bell-icon.tsx`)이 여기서 읽는다. `lib/presence/store.ts`와 같은 패턴이다.
  *
  * **왜 컴포넌트 state가 아닌가**: 벨은 헤더 안에 있는데 헤더는 탭마다 제목이 달라
  * (`PageHeader`의 `action` 슬롯 / 전광판은 제호의 `mastheadActions`) 레이아웃으로 못 올린다.
- * 그래서 **탭을 옮길 때마다 벨이 통째로 새로 태어난다** — `useState`에 담아 두면 목록도
- * Realtime 채널도 같이 죽고, 새 탭에서 처음부터 다시 받는다(실측 하루 약 280회 재조회 +
- * 같은 횟수의 재구독). 모듈 store는 컴포넌트와 무관하게 앱이 켜져 있는 동안 살아 있으므로
- * 벨이 몇 번 죽고 태어나든 데이터가 유지된다.
+ * 그래서 **탭을 옮길 때마다 벨이 통째로 새로 태어난다** — `useState`에 담아 두면 목록이 같이
+ * 죽고 새 탭에서 처음부터 다시 받는다(실측 하루 약 280회 재조회). 모듈 store는 컴포넌트와
+ * 무관하게 앱이 켜져 있는 동안 살아 있으므로 벨이 몇 번 죽고 태어나든 데이터가 유지된다.
  *
  * **왜 Provider가 아닌가**: `AGENTS.md`가 Context/Provider를 쓰지 않는다고 못박고 있고,
  * 같은 문제를 같은 방식으로 푼 선례가 둘 있다 — `lib/presence/store.ts`,
  * `components/app-width-control.tsx`.
+ *
+ * ⚠️ **`noti_mst` Realtime 구독은 없다**(2026-09-23 제거). 예전엔 이 store가 INSERT/UPDATE를
+ * 받아 목록에 끼워 넣었고, 그래서 "서버가 센 뒤 fetch가 끝나기 전에 도착한 알림"을 보정하는
+ * 누산기(`unreadDelta`)와 대기 버퍼(`pendingInserts`)가 있었다. 지금은 최초 진입·복귀·푸시
+ * 수신·알림창 열기에만 조회하고, **낡은 응답은 보정하는 대신 `revision`으로 버린다** — 그래서
+ * 그 둘이 통째로 사라졌다. 되살릴 땐 구독 코드를 새로 짜야 한다(등록과 구독은 별개다).
  *
  * ⚠️ **스냅샷은 같은 참조를 유지해야 한다.** `useSyncExternalStore`는 `Object.is`로 비교하므로
  * 매번 새 배열을 만들면 무한 리렌더가 된다. 바뀔 때만 갈아끼운다.
@@ -32,37 +37,37 @@ const listeners = new Set<Listener>();
 
 let notifications: Notification[] = [];
 let unreadCount = 0;
-/** 목록을 한 번이라도 받아왔는가 — 탭을 옮겨도 재조회하지 않게 하는 가드 */
+/** 목록을 한 번이라도 받아왔는가 — 벨이 "받는 중"과 "정말 비었음"을 가르는 데 쓴다 */
 let loaded = false;
 /** 더 받을 게 남았는가 (무한스크롤) */
 let hasMore = true;
 /** 다음 페이지 커서 — 마지막 항목의 `crt_at` */
 let cursor: string | null = null;
 /**
- * 안읽음 수가 **이 store 안에서** 움직인 누적 증감.
+ * 목록이 바뀐 횟수 — **조회를 띄운 뒤 그 결과가 아직 유효한지** 대조하는 눈금.
  *
- * 서버가 안읽음 수를 센 **뒤**, 목록 fetch가 **끝나기 전**에 새 알림이 도착하면 서버 값은
- * 이미 그만큼 낡았다. fetch를 시작할 때 이 눈금을 적어 두고(`getUnreadDelta`), 돌아왔을 때
- * **벌어진 차이만큼 서버 값에 더한다**(`syncUnreadCount`).
- *
- * ⚠️ **어긋났다고 서버 값을 버리면 안 된다.** 한때 그렇게 했는데, 첫 로드엔 기준값이 0이라
- * 버리는 순간 뱃지가 "그 사이 도착한 1건"만 세게 된다 — 안읽음 5건이 **1**로 보였다.
- *
- * 로컬 낙관적 처리(읽음·삭제)도 여기에 반영한다. 안 하면 fetch가 도는 동안 "모두 읽음"을
- * 누른 사람에게 **뒤늦게 도착한 서버 스냅샷이 옛 숫자를 되살린다.**
+ * 조회는 왕복하는 동안 사용자가 읽음·삭제를 누를 수 있다. 응답이 그 뒤에 도착해 그대로
+ * 덮이면 방금 지운 알림이 되살아난다. 조회 시작 때 이 값을 적어 두고 돌아와서 달라졌으면
+ * **응답을 버린다**(§refresh.ts) — 예전 `unreadDelta` 보정을 대신하는 장치다.
  */
-let unreadDelta = 0;
+let revision = 0;
 
-/**
- * 첫 로드가 끝나기 전에 Realtime으로 도착한 알림 — 응답과 병합한다.
- *
- * 서버가 목록을 뜬 뒤에 도착한 알림은 그 응답에 **없다.** 그냥 버리면(예전 동작) 다음
- * 재조회 때까지 목록에서 사라진 채로 남는다 — 뱃지만 오르고 열어 보면 없는 상태.
- */
-let pendingInserts: Notification[] = [];
+export function getNotificationRevision(): number {
+  return revision;
+}
 
 /** 서버 스냅샷용 고정 빈 배열 — 매번 `[]`를 만들면 참조가 달라져 무한 리렌더가 된다 */
 const EMPTY: Notification[] = [];
+
+/**
+ * 한 장의 크기 — **조회 쪽 `limit`과 반드시 같은 값이어야 한다.**
+ *
+ * 이 값은 "받아온 장이 꽉 찼는가"로 `hasMore`와 첫 장 병합 여부를 판정하는 데 쓴다.
+ * 조회가 15개만 달라 오면 꽉 찬 장도 `hasMore = false`가 되어 무한스크롤이 조용히 끝나고,
+ * 첫 장이 "서버에 이게 전부"로 오판돼 뒷장이 통째로 사라진다. 그래서 상수를 여기 두고
+ * `refresh.ts`·벨이 **이걸 가져다 쓴다** — 양쪽에 숫자를 따로 적으면 언젠가 갈라진다.
+ */
+export const PAGE_SIZE = 20;
 
 function emit(): void {
   for (const l of listeners) l();
@@ -116,106 +121,97 @@ export function useNotificationsLoaded(): boolean {
 
 // ── 쓰기 ────────────────────────────────────────────────────────────
 
-export function isLoaded(): boolean {
-  return loaded;
-}
-
 export function getCursor(): string | null {
   return cursor;
 }
 
-export function getHasMore(): boolean {
-  return hasMore;
-}
-
 /**
- * 첫 로드 — 목록을 통째로 갈아끼운다.
+ * 첫 장 — 새로 받은 장을 앞에 놓고 **그보다 오래된 것만** 뒤에 남긴다.
  *
- * fetch가 도는 동안 Realtime으로 온 알림(`pendingInserts`)을 **앞에 되붙인다.** 서버가
- * 목록을 뜬 뒤에 도착한 것이라 응답에는 없고, 안 붙이면 뱃지만 오르고 목록엔 없는 상태가
- * 다음 재조회까지 간다.
+ * 통째로 갈아끼우면 무한스크롤로 받아 둔 장이 사라진다 — 60건까지 내려 읽던 중 복귀·푸시
+ * 조회가 끼면 목록이 20건으로 접히면서 읽던 자리를 잃는다. 새 첫 장은 **그 구간의 정본**이라
+ * 그 안의 변화(새 알림·읽음·삭제)는 그대로 반영되고, 뒷장은 손대지 않아 자리가 유지된다.
+ *
+ * **이어붙이지 않고 갈아끼우는 경우가 둘 있다**(§`resolveTail`) — 둘 다 이으면 목록이
+ * 거짓말을 하게 되는 경우라, 자리를 잃더라도 정확한 쪽을 택한다.
+ *
+ * ⚠️ 뒷장은 이 조회가 확인해 준 범위가 아니다. 거기서 지워지거나 읽힌 건 그 장을 다시
+ * 받을 때까지 옛 상태로 남는다 — 화면 위쪽은 항상 최신이고 아래로 갈수록 오래된, 받아들인
+ * 대가다. 통째로 갈아끼우던 옛 동작은 이 어긋남이 없는 대신 **읽던 자리를 매번 잃었다.**
  */
 export function setNotifications(next: Notification[]): void {
-  notifications =
-    pendingInserts.length > 0
-      ? [
-          ...pendingInserts.filter((p) => !next.some((n) => n.noti_id === p.noti_id)),
-          ...next,
-        ]
-      : next;
-  pendingInserts = EMPTY;
+  revision += 1;
+  const tail = resolveTail(next);
+  notifications = tail.length > 0 ? [...next, ...tail] : next;
   loaded = true;
-  // 커서·더보기 판정은 **서버가 준 장(next)** 기준이다. 끼워 넣은 pending까지 세면
-  // 다음 장 커서가 어긋나거나 20건이 안 되는 장을 "더 있다"로 읽는다.
-  cursor = next.length > 0 ? next[next.length - 1].crt_at : null;
-  hasMore = next.length >= 20;
+  const last = notifications[notifications.length - 1];
+  cursor = last ? last.crt_at : null;
+  // 뒷장을 살렸으면 그 **뒤에** 더 있는지는 이 조회가 답하지 않는다 — 그때 판정한 값 그대로다.
+  if (tail.length === 0) hasMore = next.length >= PAGE_SIZE;
   emit();
 }
 
-/** 무한스크롤 다음 장 — 뒤에 잇는다 */
+/**
+ * 새 첫 장 뒤에 남길 기존 항목 — 없으면 통째로 갈아끼운다는 뜻이다.
+ *
+ * 남기지 않는 두 경우:
+ *
+ * 1. **첫 장이 꽉 차지 않았다** → 서버에 그게 전부다. 들고 있던 뒷장은 지워진 것이므로
+ *    남기면 화면에만 있는 유령이 된다.
+ * 2. **새 첫 장이 기존 목록과 한 건도 안 겹친다** → 그 사이에 우리가 못 본 알림이 있을 수
+ *    있다(자리를 비운 사이 한 장 넘게 쌓인 경우). 그대로 이으면 **가운데가 빈 목록**이
+ *    되는데, 빠진 알림은 스크롤해도 영영 안 나온다. 한 건이라도 겹치면 그 항목보다 새로운
+ *    건 전부 이 장 안에 있으므로 사이가 비지 않는다.
+ *
+ * ⚠️ **경계를 `crt_at` 비교로 잡지 않는다.** 두 목록 다 최신순이고 새 첫 장은 그 앞부분이라,
+ * **겹치는 마지막 자리**가 곧 이 장이 덮는 끝이다. 시각으로 자르면 `crt_at`(timestamptz)
+ * 문자열이 늘 같은 폭으로 온다는 데 기대게 되는데(소수 자릿수가 행마다 다르다) 그 가정이
+ * 깨지는 날 목록이 조용히 어긋난다. 자리로 자르면 그런 가정이 아예 필요 없다.
+ *
+ * 겹치는 자리보다 **앞인데 새 장에 없는 항목은 지워진 것이다** — 새 장은 최신 한 장이므로,
+ * 살아 있다면 거기 들어 있어야 한다. 그래서 자연히 떨어져 나간다.
+ */
+function resolveTail(next: Notification[]): Notification[] {
+  if (next.length < PAGE_SIZE || notifications.length === 0) return EMPTY;
+  const fresh = new Set(next.map((n) => n.noti_id));
+  let lastShared = -1;
+  for (let i = 0; i < notifications.length; i++) {
+    if (fresh.has(notifications[i].noti_id)) lastShared = i;
+  }
+  if (lastShared === -1) return EMPTY;
+  // `filter`는 보수적 안전장치다 — 같은 `noti_id`가 두 번 들어가면 React key가 충돌한다.
+  return notifications.slice(lastShared + 1).filter((n) => !fresh.has(n.noti_id));
+}
+
+/**
+ * 무한스크롤 다음 장 — 뒤에 잇는다.
+ *
+ * `revision`을 올려 **떠 있던 첫 장 조회를 버린다.** 그 응답은 이 장이 붙기 전의 스냅샷이라
+ * 자기가 못 본 목록을 두고 뒷장 경계를 정하게 된다 — 특히 그 장이 꽉 차지 않았으면
+ * (`resolveTail`의 첫 조건) 방금 붙인 장을 "지워진 것"으로 보고 걷어낸다. 버려도 손해는
+ * 뱃지 동기화 한 번을 건너뛰는 정도이고, 다음 복귀·푸시·알림창 열기가 다시 채운다.
+ */
 export function appendNotifications(next: Notification[]): void {
+  revision += 1;
   if (next.length > 0) {
     notifications = [...notifications, ...next];
     cursor = next[next.length - 1].crt_at;
   }
-  hasMore = next.length >= 20;
-  emit();
-}
-
-/**
- * Realtime INSERT — 맨 앞에 끼운다.
- *
- * **목록을 아직 안 받아온 상태면 목록엔 넣지 않는다.** 넣어 버리면 나중에 첫 로드가 통째로
- * 갈아끼우기 전까지 "달랑 1건만 있는 목록"이 보인다. 대신 **버리지도 않고**
- * `pendingInserts`에 재워 뒀다가 첫 로드 응답과 병합한다(§setNotifications).
- */
-export function prependNotification(noti: Notification): void {
-  if (loaded) {
-    if (!notifications.some((n) => n.noti_id === noti.noti_id)) {
-      notifications = [noti, ...notifications];
-    }
-  } else if (!pendingInserts.some((n) => n.noti_id === noti.noti_id)) {
-    pendingInserts = [noti, ...pendingInserts];
-  }
-  unreadCount += 1;
-  unreadDelta += 1;
-  emit();
-}
-
-/** Realtime UPDATE — 같은 id를 갈아끼우고 읽음 전환이면 카운트를 보정한다 */
-export function updateNotification(updated: Notification): void {
-  // 첫 로드 중이면 대상이 `pendingInserts`에 있을 수 있다(도착 직후 읽힌 경우).
-  const existing =
-    notifications.find((n) => n.noti_id === updated.noti_id) ??
-    pendingInserts.find((n) => n.noti_id === updated.noti_id);
-  // 모르는 알림의 UPDATE — 바뀌는 게 없으니 리렌더도 일으키지 않는다.
-  if (!existing) return;
-
-  if (!existing.read_yn && updated.read_yn) {
-    unreadCount = Math.max(0, unreadCount - 1);
-    unreadDelta -= 1;
-  } else if (existing.read_yn && !updated.read_yn) {
-    unreadCount += 1;
-    unreadDelta += 1;
-  }
-  const merge = (n: Notification) =>
-    n.noti_id === updated.noti_id ? { ...n, ...updated } : n;
-  notifications = notifications.map(merge);
-  if (pendingInserts.length > 0) pendingInserts = pendingInserts.map(merge);
+  hasMore = next.length >= PAGE_SIZE;
   emit();
 }
 
 /**
  * 낙관적 읽음 처리 — 서버 응답을 기다리지 않는다.
  *
- * 줄어든 만큼 `unreadDelta`도 내린다 — 조회가 도는 동안 눌렀을 때 **뒤늦게 오는 서버
- * 스냅샷이 옛 숫자를 되살리지 않게**(아래 셋 모두 같은 이유).
+ * `revision`을 올려 **조회가 도는 동안 누른 것을 뒤늦은 서버 스냅샷이 되돌리지 않게** 한다
+ * (아래 셋 모두 같은 이유).
  */
 export function markRead(notiId: string): void {
+  revision += 1;
   const target = notifications.find((n) => n.noti_id === notiId);
   if (target && !target.read_yn) {
     unreadCount = Math.max(0, unreadCount - 1);
-    unreadDelta -= 1;
   }
   notifications = notifications.map((n) =>
     n.noti_id === notiId ? { ...n, read_yn: true } : n,
@@ -224,26 +220,25 @@ export function markRead(notiId: string): void {
 }
 
 export function markAllRead(): void {
+  revision += 1;
   notifications = notifications.map((n) => ({ ...n, read_yn: true }));
-  unreadDelta -= unreadCount;
   unreadCount = 0;
   emit();
 }
 
 export function removeNotification(notiId: string): void {
+  revision += 1;
   const target = notifications.find((n) => n.noti_id === notiId);
   if (target && !target.read_yn) {
     unreadCount = Math.max(0, unreadCount - 1);
-    unreadDelta -= 1;
   }
   notifications = notifications.filter((n) => n.noti_id !== notiId);
   emit();
 }
 
 export function clearAll(): void {
+  revision += 1;
   notifications = EMPTY;
-  pendingInserts = EMPTY;
-  unreadDelta -= unreadCount;
   unreadCount = 0;
   cursor = null;
   hasMore = false;
@@ -258,21 +253,14 @@ export function clearAll(): void {
  * 클라이언트가 받는다. 대가는 **세션당 한 번, 뱃지가 잠깐 늦게 뜨는 것**뿐이다
  * (탭 이동에는 store에 이미 있어 안 깜빡인다).
  *
- * 값이 같으면 알리지 않는다(헛된 리렌더 방지).
- *
- * **서버 값을 그대로 쓰지 않고 그 사이 벌어진 차이를 더한다** — 이유는 `unreadDelta` 주석.
+ * 호출부가 `revision`으로 **낡은 응답을 아예 걸러 주므로** 여기서 보정하지 않는다 — 값이
+ * 같으면 알리지도 않는다(헛된 리렌더 방지).
  */
-export function syncUnreadCount(next: number, deltaAtFetchStart?: number): void {
-  const drift = deltaAtFetchStart === undefined ? 0 : unreadDelta - deltaAtFetchStart;
-  const resolved = Math.max(0, next + drift);
+export function syncUnreadCount(next: number): void {
+  const resolved = Math.max(0, next);
   if (unreadCount === resolved) return;
   unreadCount = resolved;
   emit();
-}
-
-/** fetch를 시작할 때 눈금을 적어 두고, 끝나면 `syncUnreadCount`에 되돌려준다 */
-export function getUnreadDelta(): number {
-  return unreadDelta;
 }
 
 /**
@@ -280,10 +268,9 @@ export function getUnreadDelta(): number {
  * 안 버리면 남의 알림이 잠깐 보인다.
  */
 export function resetNotifications(): void {
+  revision += 1;
   notifications = EMPTY;
-  pendingInserts = EMPTY;
   unreadCount = 0;
-  unreadDelta = 0;
   loaded = false;
   hasMore = true;
   cursor = null;

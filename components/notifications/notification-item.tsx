@@ -4,9 +4,12 @@ import { useState, useRef, useEffect } from "react";
 
 import { useRouter } from "next/navigation";
 
+import { toast } from "sonner";
+
 import { Bell, Coins, MessageCircle, Trophy, Trash2, FileText, Users, UserCheck, UserPlus, UserX, MessageSquareText } from "lucide-react";
 
 import { dayjs, formatKST } from "@/lib/dayjs";
+import { mutateNotifications } from "@/lib/notifications/refresh";
 import { resolveNotiDeepLink } from "@/lib/notifications/deep-link";
 import type { Notification } from "@/lib/queries/notification";
 import { cn } from "@/lib/utils";
@@ -100,8 +103,10 @@ export function NotificationItem({ noti, onDelete, onRead, onClose }: Notificati
   function handleRead() {
     if (!isRead) {
       setIsRead(true);
-      onRead(noti.noti_id);
-      markNotificationRead(noti.noti_id); // fire-and-forget: UI 블로킹 없이 백그라운드 처리
+      void mutateNotifications(
+        () => onRead(noti.noti_id),
+        () => markNotificationRead(noti.noti_id),
+      ).catch(() => toast.error("읽음 처리에 실패했어요"));
     }
   }
 
@@ -113,8 +118,14 @@ export function NotificationItem({ noti, onDelete, onRead, onClose }: Notificati
   }
 
   async function handleDelete() {
-    onDelete(noti.noti_id);
-    await deleteNotification(noti.noti_id);
+    try {
+      await mutateNotifications(
+        () => onDelete(noti.noti_id),
+        () => deleteNotification(noti.noti_id),
+      );
+    } catch {
+      toast.error("알림을 지우지 못했어요");
+    }
   }
 
   function onTouchStart(e: React.TouchEvent) {
