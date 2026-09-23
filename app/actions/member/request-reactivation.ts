@@ -2,7 +2,7 @@
 
 import { after } from "next/server";
 
-import { withMember } from "@/lib/actions/auth";
+import { withMemberAnyStatus } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
 import { insertNotiMany } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -20,7 +20,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * 중복 방지: requestDuesCheck 와 동일하게 하루 1회. 관리자 알림 도배를 막는다.
  */
 export async function requestReactivation() {
-  return withMember(async ({ member }) => {
+  return withMemberAnyStatus(async ({ member }) => {
     if (member.status === "active") {
       return { ok: false as const, message: "이미 활동 중인 회원입니다." };
     }
