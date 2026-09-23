@@ -24,7 +24,31 @@ import { PresenceLayer } from "@/components/presence/presence-layer";
  * - **멤버 조회만 실패** → 레이어는 세우고 `me`만 null로 둔다. 로그인 사용자가 그 한 번의
  *   렌더에서 익명 얼굴로 보이지만, 레이어를 통째로 빼는 것보다 낫다(남들은 계속 보인다).
  */
+/**
+ * 전역 접속자 레이어 잠정 중단 토글 — **삭제가 아니라 잠정 중단이다**(2026-09-24).
+ *
+ * **왜 껐나**: Realtime 클라이언트가 접속하면 Supabase가 `realtime.messages` 일자 파티션을
+ * 정비하면서 `ALTER TABLE ... OWNER TO`를 **소유자가 이미 맞는데도 매번** 실행한다. 그게
+ * `pgrst_ddl_watch` 이벤트 트리거를 울려 PostgREST가 **스키마 캐시를 전면 재적재**한다.
+ * prd 실측 272 ALTER/일 → 재적재 약 170회/일이고, 2026-09-23 84분 장애가 이 경로였다
+ * (`PGRST002` 336건이 한 시간에 몰림). 우리 코드 버그가 아니라 Supabase 쪽 버그이고
+ * 수정이 진행 중이다 — supabase/postgres#2464.
+ *
+ * **왜 이 레이어가 방아쇠인가**: 파티션 정비는 **클라이언트 접속에 반응한다**(공식 문서 —
+ * "the first time a client joins a channel for the project"). 이 레이어는 루트 레이아웃에
+ * 붙어 **비로그인 포함 모든 방문자**가 채널을 열게 하므로 깨우는 횟수가 최대가 된다.
+ * 실측 대조: prd 272회/일 vs dev 약 20회/일.
+ *
+ * **되살리기**: 이 상수만 `true`로. 아래 코드는 한 줄도 안 건드렸다.
+ * 끄면 탭바 위 얼굴·공 튕기기가 사라지고, 전광판의 `지금 보는 중 N명`은 인원이 0이라
+ * 스스로 안 그려진다(§components/story/presence-count.tsx). 되살릴 조건은 셋 중 하나다 —
+ * ① supabase/postgres#2464 반영 ② PostgREST 16+ (재적재 비용 80%↓, #5100) ③ RAM 상향.
+ */
+const PRESENCE_ENABLED = false;
+
 export async function PresenceLayerGate() {
+  if (!PRESENCE_ENABLED) return null;
+
   const [team, me] = await Promise.allSettled([
     getRequestTeamContext(),
     getCurrentMember(),
