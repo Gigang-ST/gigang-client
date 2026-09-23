@@ -2,7 +2,7 @@
  * 푸시 수신 전용 서비스워커 (얇은 파일).
  *
  * 이 프로젝트는 캐싱/오프라인 목적의 서비스워커를 쓰지 않는다.
- * 오직 웹 푸시 수신(push 이벤트)과 알림 클릭 처리(notificationclick)만 담당한다.
+ * 웹 푸시 수신·열린 화면 갱신 신호·알림 클릭 처리만 담당한다.
  * 탭이 닫혀 있어도 OS가 이 서비스워커를 깨워 push 이벤트를 전달한다.
  *
  * ⚠️ serwist/next-pwa 미사용 — 빌드로 덮어쓰이지 않으므로 이 파일을 직접 관리한다.
@@ -28,17 +28,39 @@ self.addEventListener("push", (event) => {
   // 개별 알림만 띄운다. 같은 앱 알림의 "N개" 묶음(접으면 1줄, 펼치면 개별)은
   // 안드로이드 OS가 자동으로 처리하므로 수동 요약을 만들지 않는다.
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body: payload.body || "",
-      // icon(우측 large icon): 알림에 표시할 대표 이미지(컬러 로고).
-      icon: "/GIGANG.png",
-      // badge(상태바 단색 아이콘): 흰색 실루엣 + 투명 배경 전용 PNG.
-      badge: "/notification-badge.png",
-      tag: payload.tag || `gigang-${Date.now()}`,
-      data: { url },
+    Promise.allSettled([
+      self.registration.showNotification(title, {
+        body: payload.body || "",
+        // icon(우측 large icon): 알림에 표시할 대표 이미지(컬러 로고).
+        icon: "/GIGANG.png",
+        // badge(상태바 단색 아이콘): 흰색 실루엣 + 투명 배경 전용 PNG.
+        badge: "/notification-badge.png",
+        tag: payload.tag || `gigang-${Date.now()}`,
+        data: { url },
+      }),
+      notifyOpenWindows(),
+    ]).then((results) => {
+      // ⚠️ `allSettled`는 **절대 reject하지 않는다.** 격리 자체는 의도다(열린 화면 갱신이
+      // OS 알림 표시를 막으면 안 된다). 다만 그대로 두면 표시 실패(권한·쿼터·잘못된 아이콘)가
+      // 흔적 없이 사라져, 알림이 안 뜬 이유를 어디서도 알 수 없다. 예전 `waitUntil(show…)`은
+      // 적어도 서비스워커 unhandled rejection으로 남았다.
+      for (const result of results) {
+        if (result.status === "rejected") console.error("[sw] push 처리 실패", result.reason);
+      }
     }),
   );
 });
+
+/** 알림 내용은 전달하지 않는다 — 열린 페이지가 현재 로그인 계정으로 다시 조회한다. */
+async function notifyOpenWindows() {
+  const windows = await self.clients.matchAll({
+    type: "window",
+    includeUncontrolled: true,
+  });
+  for (const client of windows) {
+    client.postMessage({ type: "NOTIFICATIONS_CHANGED" });
+  }
+}
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
