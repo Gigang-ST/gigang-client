@@ -5,6 +5,7 @@ import {
   formatMaintenanceUntil,
   isMaintenanceActive,
   preCheckMaintenance,
+  withTimeout,
   type MaintenanceConfig,
 } from "@/lib/maintenance";
 
@@ -108,5 +109,27 @@ describe("MaintenanceConfig 타입 계약", () => {
   it("until 은 선택값이다", () => {
     const cfg: MaintenanceConfig = { enabled: true, until: null };
     expect(cfg.until).toBeNull();
+  });
+});
+
+describe("withTimeout — 설정 읽기가 화면을 멈추지 않게", () => {
+  /**
+   * `@vercel/global-config` 1.5.1 의 원격 조회에는 중단 장치가 없다(dist 에 timeout·
+   * AbortSignal 이 한 번도 안 나온다). 원격이 멈추면 `catch` 조차 안 돌아 fail-open 이
+   * 무력화되고, 미들웨어는 화면 요청마다 거기 매달린다 — 그 경우를 여기서 막는다.
+   */
+  it("제때 끝나면 그 값을 그대로 돌려준다", async () => {
+    await expect(withTimeout(Promise.resolve("v"), 50, "fallback")).resolves.toBe("v");
+  });
+
+  it("실패하면 fallback", async () => {
+    await expect(withTimeout(Promise.reject(new Error("x")), 50, "fallback")).resolves.toBe(
+      "fallback",
+    );
+  });
+
+  it("**끝나지 않으면** fallback — 영영 매달리지 않는다", async () => {
+    const never = new Promise<string>(() => {});
+    await expect(withTimeout(never, 10, "fallback")).resolves.toBe("fallback");
   });
 });

@@ -58,6 +58,26 @@ export function preCheckMaintenance(input: {
 }
 
 /**
+ * 프로미스에 상한을 건다. 넘기거나 실패하면 `fallback` 으로 떨어진다.
+ *
+ * Global Config 읽기에 쓴다. SDK 1.5.1 의 원격 조회에는 **중단 장치가 없다**
+ * (dist 에 `timeout`·`AbortSignal`·`AbortController` 가 한 번도 안 나온다 — 맨 `fetch` 다).
+ * 원격이 응답을 멈추면 `await` 가 영영 안 풀리고 `catch` 도 안 돌아서, **설정 저장소 장애가
+ * 정상 서비스 요청까지 멈춘다** — 아래 fail-open 이 무력화되는 자리다. 미들웨어는 화면 요청마다
+ * 이걸 기다리므로 상한이 없으면 안 된다.
+ */
+export function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise<T>((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    const settle = (value: T) => {
+      clearTimeout(timer);
+      resolve(value);
+    };
+    promise.then(settle, () => settle(fallback));
+  });
+}
+
+/**
  * 점검 모드가 실제로 켜져 있는가.
  *
  * **`null`(= Edge Config 를 못 읽음)은 "정상 서비스"다.** 설정 저장소가 흔들렸다고 멀쩡한

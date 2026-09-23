@@ -40,7 +40,10 @@ export async function requestReactivation() {
       .eq("team_id", teamId)
       .in("team_role_cd", ["owner", "admin"])
       .eq("vers", 0)
-      .eq("del_yn", false);
+      .eq("del_yn", false)
+      // 활동 중인 관리자만 — `withAdmin` 이 active 를 요구하므로 비활성·탈퇴 관리자에게
+      // 보내면 "받았지만 처리할 수 없는" 알림이 된다(manage-application 과 같은 기준).
+      .eq("mem_st_cd", "active");
     if (!admins?.length) return { ok: false as const, message: "관리자를 찾을 수 없습니다." };
 
     const adminIds = admins.map((a) => a.mem_id);

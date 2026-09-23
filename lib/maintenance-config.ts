@@ -1,7 +1,7 @@
 import { getAll } from "@vercel/global-config";
 
 import { env } from "@/lib/env";
-import type { MaintenanceConfig } from "@/lib/maintenance";
+import { withTimeout, type MaintenanceConfig } from "@/lib/maintenance";
 
 /**
  * 점검 설정 읽기 — **Vercel Global Config**(옛 Edge Config)에서 가져온다.
@@ -17,6 +17,12 @@ import type { MaintenanceConfig } from "@/lib/maintenance";
  *
  * 실패하면 `null` 을 돌려주고, 그걸 `isMaintenanceActive` 가 "정상 서비스"로 읽는다(fail-open).
  */
+/**
+ * Global Config 읽기 상한(ms). 평소 응답은 한 자릿수 ms 라 넉넉하고, 원격이 멈췄을 때
+ * 화면 요청이 무는 지연의 상한이기도 하다. 넘으면 "못 읽음" = 정상 서비스로 떨어진다.
+ */
+const CONFIG_READ_TIMEOUT_MS = 1000;
+
 export async function readMaintenanceConfig(): Promise<MaintenanceConfig | null> {
   // 로컬·프리뷰에서 Global Config 없이 화면만 확인할 때 쓰는 우회로.
   // 운영에서는 쓰지 않는다 — 환경변수는 바꿀 때마다 재배포가 필요해서 장애 대응에 못 쓴다.
@@ -26,7 +32,14 @@ export async function readMaintenanceConfig(): Promise<MaintenanceConfig | null>
 
   try {
     // 연결 문자열(GLOBAL_CONFIG/EDGE_CONFIG)이 없으면 여기서 throw 한다 → catch → fail-open.
-    const all = await getAll<Record<string, unknown>>();
+    // 상한을 거는 이유는 `withTimeout` 주석에 있다 — SDK 에 중단 장치가 없어서, 상한이 없으면
+    // 원격이 멈출 때 화면 요청이 통째로 여기 매달린다.
+    const all = await withTimeout<Record<string, unknown> | null>(
+      getAll<Record<string, unknown>>().then((v) => v ?? null),
+      CONFIG_READ_TIMEOUT_MS,
+      null,
+    );
+    if (!all) return null;
     return {
       enabled: all?.maintenance === true,
       until: typeof all?.maintenanceUntil === "string" ? all.maintenanceUntil : null,
