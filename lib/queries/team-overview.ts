@@ -47,8 +47,19 @@ const EMPTY_OVERVIEW: TeamOverview = { mem_cnt: 0, weeks: [], months: [] };
 /**
  * 크루 오버뷰 조회 — 회원 수 + 최근 8주 활동량.
  *
- * 전부 공개 집계라 사용자별로 갈라지지 않는다. 주 단위 수치라 1시간 캐시로 충분하고,
- * 모임·기록 태그로도 무효화해 새 활동이 그날 안에 반영되게 한다.
+ * 전부 공개 집계라 사용자별로 갈라지지 않는다. 주 단위 수치라 1시간 캐시로 충분하다.
+ *
+ * ⚠️ **이 캐시를 터는 코드는 지금 하나도 없다**(2026-09-23 전수 확인). 태그는
+ * `team-overview`·`records`인데 `team-overview`를 부르는 곳이 없고, `records`는
+ * `personal_best`·`utmb_profile` 변경 때만 털린다(`/api/revalidate`). 정작 수치를 만드는 건
+ * `team_mem_rel`(mem_cnt)·`gthr_mst`(gthr_cnt)·`gthr_attd_rel`(attd_cnt)·
+ * `rec_race_hist`+`post_mst`(rec_cnt)라 **갱신 경로는 사실상 이 TTL 하나뿐이다.**
+ * (대회기록은 `save-race-record`가 `records:${teamId}` 스코프 태그만 털어 여기 안 닿는다.)
+ *
+ * 그래서 **TTL을 늘리려면 무효화를 먼저 붙여야 한다** — `revalidateHomeCalendar()`에
+ * `revalidateTag("team-overview", "max")` 한 줄이면 모임·참석이 함께 잡힌다
+ * (`HOME_TABLES`가 `gthr_mst`·`gthr_attd_rel`를 이미 포함). 심박(`lib/team-pulse`)의 분자는
+ * `attd_cnt × 1 + rec_cnt × 0.25`라 **모임 수는 심박을 움직이지 않는다** — 참석·기록이 움직인다.
  */
 export function getTeamOverview(teamId: string): Promise<TeamOverview> {
   return unstable_cache(
@@ -62,7 +73,12 @@ export function getTeamOverview(teamId: string): Promise<TeamOverview> {
         if (!isRequestAbortError(error)) {
           console.error("[getTeamOverview] 오버뷰 조회 실패", error);
         }
-        return EMPTY_OVERVIEW;
+        // 여기서 폴백을 `return`하면 unstable_cache가 "갱신 성공"으로 보고
+        // (`.then` → `cacheNewResult`) 직전 정상값을 이 빈 값으로 **덮어쓴다**.
+        // 그러면 DB가 복구돼도 TTL이 끝날 때까지 빈 화면이 남는다(2026-09-23 장애).
+        // `throw`하면 `.catch`로 빠져 캐시에 아무것도 쓰지 않아 직전 값이 유지된다 —
+        // 화면 폴백은 캐시 **바깥**의 catch가 맡는다(그 값은 캐시에 남지 않는다).
+        throw error;
       }
 
       // RPC가 아직 배포 안 된 환경에서도 화면이 터지지 않게 기본값 위에 덮는다.
@@ -80,5 +96,5 @@ export function getTeamOverview(teamId: string): Promise<TeamOverview> {
     // `gatherings`는 뺐다 — 터는 쪽이 없어 한 번도 무효화된 적이 없다.
     // 주 단위 집계라 1시간 TTL로 충분하다.
     { tags: ["team-overview", "records"], revalidate: 3600 },
-  )();
+  )().catch(() => EMPTY_OVERVIEW);
 }

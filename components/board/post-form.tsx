@@ -43,11 +43,13 @@ export function PostForm({ teamId, initialData, initialType = "notice" }: PostFo
     },
   });
 
+  // 저장 후엔 push가 아니라 replace — 작성·수정 화면을 기록에 남기면 글에서 뒤로를 눌렀을 때
+  // 다 쓴 폼으로 되돌아간다.
   async function onSubmit(values: CreatePostInput) {
     try {
       if (isEdit && initialData) {
         await updatePost({ post_id: initialData.post_id, ...values });
-        router.push(`/board/${initialData.post_id}`);
+        router.replace(`/board/${initialData.post_id}`);
       } else {
         const result = await createPost({
           post_type_enm: values.post_type_enm,
@@ -55,7 +57,7 @@ export function PostForm({ teamId, initialData, initialType = "notice" }: PostFo
           post_cont: values.post_cont,
           pin_yn: values.pin_yn,
         });
-        router.push(`/board/${result.post_id}`);
+        router.replace(`/board/${result.post_id}`);
       }
       router.refresh();
     } catch (err) {

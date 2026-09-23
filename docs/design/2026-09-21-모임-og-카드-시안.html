@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>모임 OG 카드 시안</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* ── 기강 토큰 (app/globals.css 그대로) ───────────────────── */
+  :root {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+    --primary: oklch(0.623 0.188 260);
+    --muted: oklch(0.961 0 0);
+    --muted-foreground: oklch(0.556 0 0);
+    --border: oklch(0.922 0 0);
+
+    --board: oklch(0.19 0.012 268);
+    --board-foreground: oklch(0.95 0.006 268);
+    --board-muted: oklch(0.64 0.021 268);
+    --board-line: oklch(0.28 0.017 268);
+    --board-amber: oklch(0.81 0.146 82);
+    --pulse-neon: oklch(0.86 0.16 175);
+
+    --sport-road-run: oklch(0.655 0.162 32);
+    --sport-ultra: oklch(0.731 0.168 58);
+    --sport-trail-run: oklch(0.762 0.134 82);
+    --sport-triathlon: oklch(0.521 0.095 179);
+    --sport-cycling: oklch(0.322 0.052 220);
+
+    --font-sans: "Pretendard Variable", Pretendard, system-ui, sans-serif;
+    --font-numeric: "Oswald", var(--font-sans);
+  }
+
+  /* ── 지면 ──────────────────────────────────────────────── */
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 32px 96px;
+    background: oklch(0.97 0.003 268);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1320px; margin: 0 auto; }
+
+  h1 { font-size: 26px; font-weight: 800; margin: 0 0 6px; letter-spacing: -0.02em; }
+  .sub { font-size: 14px; color: var(--muted-foreground); margin: 0 0 40px; line-height: 1.7; }
+  .sub code { background: var(--muted); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+
+  .case { margin-bottom: 56px; }
+  .case-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+  .case-no {
+    font-family: var(--font-numeric); font-size: 13px; font-weight: 600;
+    letter-spacing: .14em; color: var(--primary);
+  }
+  .case-title { font-size: 19px; font-weight: 700; letter-spacing: -0.015em; }
+  .case-note { font-size: 13.5px; color: var(--muted-foreground); margin: 0 0 18px; line-height: 1.65; max-width: 880px; }
+  .case-note b { color: var(--foreground); font-weight: 600; }
+  .flag {
+    display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .04em;
+    padding: 2px 7px; border-radius: 5px; vertical-align: 2px; margin-left: 2px;
+  }
+  .flag.ok { background: oklch(0.93 0.06 150); color: oklch(0.42 0.12 150); }
+  .flag.warn { background: oklch(0.94 0.07 75); color: oklch(0.45 0.13 62); }
+
+  /* 1200×630을 실측으로 그리고 보기만 축소한다 */
+  .rowcards { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .stage { width: 600px; height: 315px; overflow: hidden; border-radius: 10px;
+           box-shadow: 0 1px 2px rgb(0 0 0 / .08), 0 8px 24px rgb(0 0 0 / .07); }
+  .stage.sm { width: 400px; height: 210px; }
+  .og { width: 1200px; height: 630px; transform-origin: 0 0; transform: scale(0.5); position: relative; display: flex; }
+  .stage.sm .og { transform: scale(0.3333); }
+  .stage-cap { font-size: 12px; color: var(--muted-foreground); margin-top: 8px; }
+
+  /* ══════════════════════════════════════════════════════════
+     A. 전광판 — board 존 어법
+     ══════════════════════════════════════════════════════════ */
+  .og-a {
+    background: var(--board); color: var(--board-foreground);
+    flex-direction: column; justify-content: space-between;
+    padding: 72px 80px;
+  }
+  .og-a .scanline {
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, rgb(255 255 255 / .022) 0 2px, transparent 2px 4px);
+  }
+  .og-a .topbar { display: flex; align-items: center; justify-content: space-between; }
+  .og-a .crew {
+    font-family: var(--font-numeric); font-size: 26px; font-weight: 600;
+    letter-spacing: .3em; color: var(--board-muted);
+  }
+  .og-a .dday {
+    font-family: var(--font-numeric); font-size: 46px; font-weight: 700;
+    color: var(--board-amber); letter-spacing: .04em; line-height: 1;
+  }
+  .og-a .title {
+    font-size: 78px; font-weight: 800; letter-spacing: -0.035em; line-height: 1.16;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .og-a .meta { display: flex; flex-direction: column; gap: 20px; }
+  .og-a .rule { height: 1px; background: var(--board-line); }
+  .og-a .row { display: flex; gap: 56px; }
+  .og-a .cell { display: flex; flex-direction: column; gap: 9px; }
+  .og-a .k {
+    font-family: var(--font-numeric); font-size: 19px; font-weight: 500;
+    letter-spacing: .2em; color: var(--board-muted);
+  }
+  .og-a .v { font-size: 34px; font-weight: 600; letter-spacing: -0.02em; }
+
+  /* ══════════════════════════════════════════════════════════
+     B. 편집면 — 라이트 계기판 (PageHeader editorial 어법)
+     ══════════════════════════════════════════════════════════ */
+  .og-b {
+    background: var(--background); color: var(--foreground);
+    flex-direction: column; padding: 70px 80px 66px;
+  }
+  .og-b .kicker {
+    display: flex; align-items: center; gap: 18px;
+    font-family: var(--font-numeric); font-size: 22px; font-weight: 600;
+    letter-spacing: .26em; color: var(--primary);
+  }
+  .og-b .kicker .dot { width: 9px; height: 9px; border-radius: 99px; background: var(--primary); }
+  .og-b .toprule { height: 3px; background: var(--foreground); margin: 26px 0 44px; }
+  .og-b .title {
+    font-size: 80px; font-weight: 800; letter-spacing: -0.038em; line-height: 1.14;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .og-b .spacer { flex: 1; }
+  .og-b .botrule { height: 1px; background: var(--border); margin-bottom: 30px; }
+  .og-b .foot { display: flex; align-items: flex-end; justify-content: space-between; }
+  .og-b .facts { display: flex; gap: 52px; }
+  .og-b .cell { display: flex; flex-direction: column; gap: 8px; }
+  .og-b .k { font-size: 20px; font-weight: 500; color: var(--muted-foreground); letter-spacing: -0.01em; }
+  .og-b .v { font-size: 34px; font-weight: 700; letter-spacing: -0.025em; }
+  .og-b .brand {
+    font-family: var(--font-numeric); font-size: 21px; font-weight: 600;
+    letter-spacing: .24em; color: var(--muted-foreground);
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     C. 달력 — 날짜 블록 + 종목색
+     ══════════════════════════════════════════════════════════ */
+  .og-c { background: var(--background); }
+  .og-c .date {
+    width: 372px; flex-shrink: 0; background: var(--sport-road-run); color: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  }
+  .og-c .mon {
+    font-family: var(--font-numeric); font-size: 30px; font-weight: 500;
+    letter-spacing: .24em; opacity: .85;
+  }
+  .og-c .day { font-family: var(--font-numeric); font-size: 186px; font-weight: 700; line-height: .92; }
+  .og-c .dow { font-size: 30px; font-weight: 600; letter-spacing: .06em; opacity: .9; margin-top: 8px; }
+  .og-c .dday {
+    margin-top: 26px; font-family: var(--font-numeric); font-size: 22px; font-weight: 600;
+    letter-spacing: .16em; background: rgb(0 0 0 / .22); padding: 8px 20px; border-radius: 99px;
+  }
+  .og-c .body { flex: 1; display: flex; flex-direction: column; padding: 76px 68px; }
+  .og-c .chip {
+    align-self: flex-start; font-size: 21px; font-weight: 700; letter-spacing: -0.01em;
+    color: var(--sport-road-run); background: oklch(0.655 0.162 32 / .1);
+    padding: 9px 20px; border-radius: 99px; margin-bottom: 26px;
+  }
+  .og-c .title {
+    font-size: 66px; font-weight: 800; letter-spacing: -0.035em; line-height: 1.17;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .og-c .spacer { flex: 1; }
+  .og-c .facts { display: flex; flex-direction: column; gap: 16px; }
+  .og-c .line { display: flex; align-items: center; gap: 16px; font-size: 32px; font-weight: 600; letter-spacing: -0.02em; }
+  .og-c .line svg { flex-shrink: 0; }
+  .og-c .brand {
+    margin-top: 34px; font-family: var(--font-numeric); font-size: 20px; font-weight: 600;
+    letter-spacing: .24em; color: var(--muted-foreground);
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     D. 미니멀 — 제목이 거의 전부
+     ══════════════════════════════════════════════════════════ */
+  .og-d {
+    background: var(--board); color: var(--board-foreground);
+    flex-direction: column; justify-content: center; padding: 0 92px; gap: 40px;
+  }
+  .og-d .glow {
+    position: absolute; width: 760px; height: 760px; border-radius: 99px; left: -220px; top: -330px;
+    background: radial-gradient(circle, oklch(0.81 0.146 82 / .16) 0%, transparent 68%);
+  }
+  .og-d .when {
+    font-family: var(--font-numeric); font-size: 30px; font-weight: 600;
+    letter-spacing: .2em; color: var(--board-amber);
+  }
+  .og-d .title {
+    font-size: 96px; font-weight: 800; letter-spacing: -0.042em; line-height: 1.1;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .og-d .foot { display: flex; align-items: center; gap: 22px; font-size: 34px; color: var(--board-muted); font-weight: 500; }
+  .og-d .sep { width: 5px; height: 5px; border-radius: 99px; background: var(--board-line); }
+
+  /* ── 카톡 말풍선 시뮬레이션 ─────────────────────────────── */
+  .kakao { background: #b2c7d9; padding: 26px 22px; border-radius: 12px; display: inline-block; }
+  .kakao-row { display: flex; gap: 10px; align-items: flex-start; }
+  .kakao-av { width: 38px; height: 38px; border-radius: 13px; background: #fff; flex-shrink: 0; }
+  .kakao-col { display: flex; flex-direction: column; gap: 5px; }
+  .kakao-nm { font-size: 12px; color: #3a4a56; }
+  .kakao-card { width: 246px; background: #fff; border-radius: 4px; overflow: hidden; }
+  .kakao-thumb { width: 246px; height: 129px; overflow: hidden; }
+  .kakao-thumb .og { transform: scale(0.205); }
+  .kakao-txt { padding: 9px 11px 11px; }
+  .kakao-t { font-size: 12.5px; font-weight: 600; line-height: 1.35; color: #111; }
+  .kakao-d { font-size: 11px; color: #888; margin-top: 3px; line-height: 1.35; }
+  .kakao-u { font-size: 10px; color: #aaa; margin-top: 5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>모임 OG 카드 시안</h1>
+  <p class="sub">
+    1200×630 실측으로 그리고 보기만 50%로 줄였습니다. 색·폰트는 <code>app/globals.css</code> 토큰과
+    실제 로드되는 Pretendard·Oswald 그대로입니다.<br />
+    데이터는 <code>gthr_nm</code>(제목) · <code>loc_txt</code>(장소) · <code>stt_at</code>(시간) 셋뿐 —
+    지금 스키마에 있는 것만 씁니다.
+    <span class="flag ok">Satori OK</span>는 <code>next/og</code>의 <code>ImageResponse</code>로 그대로 옮겨지는 안,
+    <span class="flag warn">손봐야</span>는 지원 안 되는 CSS가 섞여 대체가 필요한 안입니다.
+  </p>
+
+  <!-- ─────────────────────────── A ─────────────────────────── -->
+  <div class="case">
+    <div class="case-head">
+      <span class="case-no">A</span>
+      <span class="case-title">전광판</span>
+      <span class="flag ok">Satori OK</span>
+    </div>
+    <p class="case-note">
+      앱의 <b>board 존</b> 어법 그대로 — 어두운 판 · 앰버 D-day · Oswald 라벨. 카톡 대화창(연한 청회색)에서
+      가장 강하게 튑니다. <b>D-day가 앰버로 먼저 읽히는 게 이 안의 핵심</b>이라, 지난 모임 링크에는 어울리지 않습니다
+      (그땐 D-day 자리를 비우거나 날짜로 바꿔야 함).
+    </p>
+    <div class="rowcards">
+      <div>
+        <div class="stage">
+          <div class="og og-a">
+            <div class="scanline"></div>
+            <div class="topbar">
+              <div class="crew">GIGANG</div>
+              <div class="dday">D-3</div>
+            </div>
+            <div class="title">수요 한강 나이트런 10K</div>
+            <div class="meta">
+              <div class="rule"></div>
+              <div class="row">
+                <div class="cell"><div class="k">WHEN</div><div class="v">9월 24일 (수) 20:00</div></div>
+                <div class="cell"><div class="k">WHERE</div><div class="v">뚝섬유원지역 3번 출구</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="stage-cap">짧은 제목</div>
+      </div>
+      <div>
+        <div class="stage">
+          <div class="og og-a">
+            <div class="scanline"></div>
+            <div class="topbar">
+              <div class="crew">GIGANG</div>
+              <div class="dday">D-12</div>
+            </div>
+            <div class="title">잠실 종합운동장 트랙 인터벌 400m × 12</div>
+            <div class="meta">
+              <div class="rule"></div>
+              <div class="row">
+                <div class="cell"><div class="k">WHEN</div><div class="v">10월 3일 (금) 06:30</div></div>
+                <div class="cell"><div class="k">WHERE</div><div class="v">보조경기장</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="stage-cap">긴 제목 2줄 — 넘치면 말줄임</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────── B ─────────────────────────── -->
+  <div class="case">
+    <div class="case-head">
+      <span class="case-no">B</span>
+      <span class="case-title">편집면</span>
+      <span class="flag ok">Satori OK</span>
+    </div>
+    <p class="case-note">
+      일정 탭 헤더의 <b>editorial 양식</b>(굵은 괘선 + 영문 라벨)을 카드로 옮긴 안. 흰 바탕이라 카톡에서는
+      A만큼 튀지 않지만, <b>인스타 스토리·블로그처럼 흰 지면에 붙였을 때 이물감이 없습니다.</b>
+      장소·시간 라벨을 한글로 둔 건 이 안이 지면 어법이라 영문 약물이 겉돌아서입니다.
+    </p>
+    <div class="rowcards">
+      <div>
+        <div class="stage">
+          <div class="og og-b">
+            <div class="kicker"><span class="dot"></span>GIGANG · GATHERING</div>
+            <div class="toprule"></div>
+            <div class="title">수요 한강 나이트런 10K</div>
+            <div class="spacer"></div>
+            <div class="botrule"></div>
+            <div class="foot">
+              <div class="facts">
+                <div class="cell"><div class="k">언제</div><div class="v">9.24 (수) 20:00</div></div>
+                <div class="cell"><div class="k">어디서</div><div class="v">뚝섬유원지역 3번 출구</div></div>
+              </div>
+              <div class="brand">D-3</div>
+            </div>
+          </div>
+        </div>
+        <div class="stage-cap">짧은 제목</div>
+      </div>
+      <div>
+        <div class="stage">
+          <div class="og og-b">
+            <div class="kicker"><span class="dot"></span>GIGANG · GATHERING</div>
+            <div class="toprule"></div>
+            <div class="title">잠실 종합운동장 트랙 인터벌 400m × 12</div>
+            <div class="spacer"></div>
+            <div class="botrule"></div>
+            <div class="foot">
+              <div class="facts">
+                <div class="cell"><div class="k">언제</div><div class="v">10.3 (금) 06:30</div></div>
+                <div class="cell"><div class="k">어디서</div><div class="v">보조경기장</div></div>
+              </div>
+              <div class="brand">D-12</div>
+            </div>
+          </div>
+        </div>
+        <div class="stage-cap">긴 제목 2줄</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────── C ─────────────────────────── -->
+  <div class="case">
+    <div class="case-head">
+      <span class="case-no">C</span>
+      <span class="case-title">달력</span>
+      <span class="flag ok">Satori OK</span>
+    </div>
+    <p class="case-note">
+      왼쪽 날짜 블록이 <b>종목색</b>(<code>sprt_cd</code> → <code>--sport-*</code>)을 입습니다 —
+      러닝·자전거·수영이 색으로 갈려, 카톡방에 여러 벙이 올라와도 <b>썸네일만 보고 종류가 구분됩니다.</b>
+      다만 제목 자리가 셋 중 가장 좁아(폭 절반) 긴 제목이 3줄까지 갑니다.
+    </p>
+    <div class="rowcards">
+      <div>
+        <div class="stage">
+          <div class="og og-c">
+            <div class="date">
+              <div class="mon">SEP</div>
+              <div class="day">24</div>
+              <div class="dow">수요일</div>
+              <div class="dday">D-3</div>
+            </div>
+            <div class="body">
+              <div class="chip">러닝</div>
+              <div class="title">수요 한강 나이트런 10K</div>
+              <div class="spacer"></div>
+              <div class="facts">
+                <div class="line">
+                  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                  저녁 8:00
+                </div>
+                <div class="line">
+                  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0116 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                  뚝섬유원지역 3번 출구
+                </div>
+              </div>
+              <div class="brand">GIGANG</div>
+            </div>
+          </div>
+        </div>
+        <div class="stage-cap">러닝 — <code>--sport-road-run</code></div>
+      </div>
+      <div>
+        <div class="stage">
+          <div class="og og-c">
+            <div class="date" style="background: var(--sport-cycling)">
+              <div class="mon">OCT</div>
+              <div class="day">3</div>
+              <div class="dow">금요일</div>
+              <div class="dday">D-12</div>
+            </div>
+            <div class="body">
+              <div class="chip" style="color: var(--sport-cycling); background: oklch(0.322 0.052 220 / .1)">자전거</div>
+              <div class="title">남양주 북한강 자전거길 왕복 라이딩</div>
+              <div class="spacer"></div>
+              <div class="facts">
+                <div class="line">
+                  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                  아침 6:30
+                </div>
+                <div class="line">
+                  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0116 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                  미사경정공원 주차장
+                </div>
+              </div>
+              <div class="brand">GIGANG</div>
+            </div>
+          </div>
+        </div>
+        <div class="stage-cap">자전거 — <code>--sport-cycling</code></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────── D ─────────────────────────── -->
+  <div class="case">
+    <div class="case-head">
+      <span class="case-no">D</span>
+      <span class="case-title">미니멀</span>
+      <span class="flag warn">손봐야</span>
+    </div>
+    <p class="case-note">
+      제목 하나로 밀어붙이는 안. <b>카톡 썸네일이 실제로는 246px 폭</b>이라 작은 글씨는 어차피 안 읽히는데,
+      이 안은 그 조건에서 가장 잘 버팁니다. 대신 정보가 셋 다 한 줄에 눕는 구조라
+      <b>장소가 길면 잘립니다.</b> 좌상단 앰버 번짐은 <code>radial-gradient</code>라
+      Satori에서 <code>backgroundImage</code>로 다시 써야 합니다.
+    </p>
+    <div class="rowcards">
+      <div>
+        <div class="stage">
+          <div class="og og-d">
+            <div class="glow"></div>
+            <div class="when">D-3 · 9.24 WED 20:00</div>
+            <div class="title">수요 한강 나이트런 10K</div>
+            <div class="foot">뚝섬유원지역 3번 출구<span class="sep"></span>기강</div>
+          </div>
+        </div>
+        <div class="stage-cap">짧은 제목</div>
+      </div>
+      <div>
+        <div class="stage">
+          <div class="og og-d">
+            <div class="glow"></div>
+            <div class="when">D-12 · 10.3 FRI 06:30</div>
+            <div class="title">잠실 트랙 인터벌 400m × 12</div>
+            <div class="foot">보조경기장<span class="sep"></span>기강</div>
+          </div>
+        </div>
+        <div class="stage-cap">긴 제목</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────── 카톡 실사이즈 ─────────────────── -->
+  <div class="case">
+    <div class="case-head">
+      <span class="case-no">★</span>
+      <span class="case-title">카톡 말풍선 실제 크기</span>
+    </div>
+    <p class="case-note">
+      실전에서 보이는 크기는 이겁니다. <b>썸네일 폭 246px</b> — 카드 안의 작은 글씨는 사실상 안 읽히고,
+      그 밑 <b>OG 제목·설명 텍스트가 정보를 실어 나릅니다.</b> 이미지는 "무슨 벙인지 한눈에 감 잡는" 역할까지만 하면 됩니다.
+    </p>
+    <div class="rowcards">
+      <div class="kakao">
+        <div class="kakao-row">
+          <div class="kakao-av"></div>
+          <div class="kakao-col">
+            <div class="kakao-nm">기강봇</div>
+            <div class="kakao-card">
+              <div class="kakao-thumb">
+                <div class="og og-a">
+                  <div class="scanline"></div>
+                  <div class="topbar"><div class="crew">GIGANG</div><div class="dday">D-3</div></div>
+                  <div class="title">수요 한강 나이트런 10K</div>
+                  <div class="meta">
+                    <div class="rule"></div>
+                    <div class="row">
+                      <div class="cell"><div class="k">WHEN</div><div class="v">9월 24일 (수) 20:00</div></div>
+                      <div class="cell"><div class="k">WHERE</div><div class="v">뚝섬유원지역 3번 출구</div></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="kakao-txt">
+                <div class="kakao-t">수요 한강 나이트런 10K</div>
+                <div class="kakao-d">9월 24일 (수) 저녁 8:00 · 뚝섬유원지역 3번 출구</div>
+                <div class="kakao-u">gigang.team</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="kakao">
+        <div class="kakao-row">
+          <div class="kakao-av"></div>
+          <div class="kakao-col">
+            <div class="kakao-nm">기강봇</div>
+            <div class="kakao-card">
+              <div class="kakao-thumb">
+                <div class="og og-c">
+                  <div class="date">
+                    <div class="mon">SEP</div><div class="day">24</div><div class="dow">수요일</div>
+                    <div class="dday">D-3</div>
+                  </div>
+                  <div class="body">
+                    <div class="chip">러닝</div>
+                    <div class="title">수요 한강 나이트런 10K</div>
+                    <div class="spacer"></div>
+                    <div class="facts">
+                      <div class="line">
+                        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                        저녁 8:00
+                      </div>
+                      <div class="line">
+                        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0116 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                        뚝섬유원지역 3번 출구
+                      </div>
+                    </div>
+                    <div class="brand">GIGANG</div>
+                  </div>
+                </div>
+              </div>
+              <div class="kakao-txt">
+                <div class="kakao-t">수요 한강 나이트런 10K</div>
+                <div class="kakao-d">9월 24일 (수) 저녁 8:00 · 뚝섬유원지역 3번 출구</div>
+                <div class="kakao-u">gigang.team</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="kakao">
+        <div class="kakao-row">
+          <div class="kakao-av"></div>
+          <div class="kakao-col">
+            <div class="kakao-nm">기강봇</div>
+            <div class="kakao-card">
+              <div class="kakao-thumb">
+                <div class="og og-d">
+                  <div class="glow"></div>
+                  <div class="when">D-3 · 9.24 WED 20:00</div>
+                  <div class="title">수요 한강 나이트런 10K</div>
+                  <div class="foot">뚝섬유원지역 3번 출구<span class="sep"></span>기강</div>
+                </div>
+              </div>
+              <div class="kakao-txt">
+                <div class="kakao-t">수요 한강 나이트런 10K</div>
+                <div class="kakao-d">9월 24일 (수) 저녁 8:00 · 뚝섬유원지역 3번 출구</div>
+                <div class="kakao-u">gigang.team</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

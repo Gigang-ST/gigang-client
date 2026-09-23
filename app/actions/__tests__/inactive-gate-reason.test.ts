@@ -17,9 +17,12 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/actions/auth", () => ({
-  // 실제 withMember 는 비로그인이면 throw — 이 테스트는 로그인 이후 분기만 본다.
+  // 실제 withMemberAnyStatus 는 비로그인이면 throw — 이 테스트는 로그인 이후 분기만 본다.
+  // `withMember`(탈퇴 차단)가 아니라 `withMemberAnyStatus` 인 게 이 액션의 핵심이다:
+  // 게이트 다이얼로그는 탈퇴 회원에게도 열리므로 액션이 불리긴 해야 하고, 사유를 감추는 건
+  // `getVisibleInactiveReason` 이 맡는다(아래 left 케이스).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  withMember: async (fn: any) => fn({ member: h.member, supabase: {} }),
+  withMemberAnyStatus: async (fn: any) => fn({ member: h.member, supabase: {} }),
 }));
 
 import { getMyInactiveReason } from "@/app/actions/member/get-inactive-reason";

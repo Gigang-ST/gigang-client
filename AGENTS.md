@@ -88,6 +88,19 @@ t3-env로 관리되며 `lib/env.ts`에서 import:
 | `VAPID_PRIVATE_KEY` | 서버 | 웹 푸시 발송 비밀키 (절대 노출 금지) |
 | `VAPID_SUBJECT` | 서버 | 웹 푸시 운영자 연락처 (`mailto:` 또는 `https://`) |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | 클라이언트 | 웹 푸시 구독 발급용 공개키 |
+| `MAINTENANCE_BYPASS_SECRET` | 서버 | 점검 중 운영자 우회 열쇠 (미설정 시 우회 차단) |
+| `MAINTENANCE_MODE` / `MAINTENANCE_UNTIL` | 서버 | 로컬에서 점검 화면 확인용 (운영 미사용) |
+
+> **점검 모드**: 스위치는 **Vercel Global Config**(옛 Edge Config)에 있다 — `maintenance`(boolean)와
+> `maintenanceUntil`(선택, **한국시간** `YYYY-MM-DD HH:mm`). 저장소를 Supabase 가 아니라 Vercel 쪽에
+> 둔 게 핵심이다: 점검이 필요한 상황은 대개 Supabase 가 죽은 때라, 스위치를 DB 에 두면 "점검 중인가?"를
+> 묻는 질문 자체가 타임아웃 난다. 값을 바꾸면 **재배포 없이 즉시** 반영된다.
+> 판정은 `lib/maintenance.ts`(순수·테스트됨) + `lib/maintenance-config.ts`(읽기), 분기는 `proxy.ts` 가
+> **`updateSession()` 앞에서** 한다 — 그 함수의 `getClaims()` 가 Supabase 장애 때 막히는 지점이라,
+> 뒤에 두면 점검 모드가 의미가 없다. 화면은 `app/maintenance/route.ts`(503 + `Retry-After`, 인라인 HTML).
+> **`/api/*` 는 점검 중에도 통과**시킨다(cron 2개·`/api/revalidate` 웹훅 유지).
+> Global Config 를 못 읽으면 **정상 서비스**로 떨어진다(fail-open) — 설정 저장소가 흔들렸다고 멀쩡한 앱을
+> 내리면 점검 모드가 장애의 원인이 된다.
 
 > 웹 푸시: `push_sub_rel` 테이블(구독 정보) + `public/sw.js`(수신). 발송은 `insertNoti()`(`lib/notifications/insert-noti.ts`)가 인앱 알림 INSERT 직후 `sendPushToMember`를 fire-and-forget 호출 → 모든 알림 타입 자동 푸시. 설계·함정은 `.claude/docs/push-notification-design.md` / `KNOWLEDGE.md`. VAPID 키는 dev/prd 분리.
 
