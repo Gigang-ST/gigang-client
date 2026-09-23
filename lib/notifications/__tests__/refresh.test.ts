@@ -75,6 +75,33 @@ describe("알림 이벤트 조회", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  // 복귀 간격(30초)을 넓히면서 생긴 구멍 — 숨긴 동안 온 푸시를 버리고 복귀 조회까지
+  // 제한에 걸리면 "푸시를 받고 앱에 돌아왔는데 뱃지가 그대로"가 된다.
+  it("숨긴 동안 받은 푸시는 복귀 제한을 건너뛰고 반영된다", async () => {
+    fetchMock.mockResolvedValue(response());
+    await refreshNotifications("member-a", "resume");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    vi.stubGlobal("document", { visibilityState: "hidden" });
+    await refreshNotifications("member-a", "push");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // 방금 복귀 조회를 했으므로 제한 안이지만, 놓친 푸시가 있어 통과해야 한다.
+    vi.stubGlobal("document", { visibilityState: "visible" });
+    await refreshNotifications("member-a", "resume");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("놓친 푸시가 없으면 잦은 복귀는 여전히 제한된다", async () => {
+    fetchMock.mockResolvedValue(response());
+    await refreshNotifications("member-a", "resume");
+    vi.stubGlobal("document", { visibilityState: "hidden" });
+    await refreshNotifications("member-a", "resume"); // 숨겨질 때도 같은 리스너가 돈다
+    vi.stubGlobal("document", { visibilityState: "visible" });
+    await refreshNotifications("member-a", "resume");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("로그아웃 전 응답이 목록을 되살리지 않는다", async () => {
     const pending = deferred<ReturnType<typeof response>>();
     fetchMock.mockReturnValue(pending.promise);

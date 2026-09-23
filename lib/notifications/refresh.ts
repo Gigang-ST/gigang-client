@@ -16,6 +16,8 @@ type Session = {
   queued: boolean;
   mutations: number;
   lastResume: number;
+  /** 숨긴 동안 푸시를 받고도 조회를 건너뛴 적이 있는가 — 복귀 제한을 한 번 풀어 준다. */
+  missedPush: boolean;
 };
 
 let session: Session | null = null;
@@ -28,6 +30,11 @@ let session: Session | null = null;
  * 탭은 계속 `visible`이라 `visibilitychange`가 안 뜨고(`focus`만 뜬다), 모바일 앱 복귀·탭
  * 전환은 반대다. 그래서 리스너는 둘 다 두고 **간격으로 줄인다.** 1초였을 땐 알트탭·DevTools
  * 왕복마다 service-role 쿼리 2개짜리 조회가 나갔다 — 거의 안 변하는 뱃지에 치르기엔 비싸다.
+ *
+ * ⚠️ **숨긴 동안 푸시를 놓쳤으면 이 제한을 건너뛴다**(`missedPush`). 안 그러면 간격을 넓힌
+ * 만큼 "푸시를 받고 앱에 돌아왔는데 뱃지가 그대로"인 창이 함께 넓어진다 — 알림을 눌러 들어온
+ * 경우까지 그렇다(같은 URL 탭이 있으면 서비스워커가 `navigate` 없이 `focus`만 해서
+ * 리마운트가 없다, §public/sw.js). 이 기능이 피하려던 실패가 정확히 그 화면이다.
  */
 const RESUME_THROTTLE_MS = 30_000;
 
@@ -42,6 +49,7 @@ export function startNotificationSession(memberId: string): () => void {
     queued: false,
     mutations: 0,
     lastResume: -Infinity,
+    missedPush: false,
   };
   session = current;
   return () => {
@@ -67,21 +75,31 @@ export function refreshNotifications(
   reason: "open" | "resume" | "push" | "initial" = "open",
 ): Promise<boolean> {
   const current = session;
-  if (!current || current.memberId !== memberId || document.visibilityState === "hidden") {
+  if (!current || current.memberId !== memberId) return Promise.resolve(false);
+  if (document.visibilityState === "hidden") {
+    // 숨긴 탭은 조회하지 않는다 — 복귀할 때 받으면 된다. 다만 **놓친 푸시는 표시를 남긴다**:
+    // 안 남기면 복귀 조회가 간격 제한에 걸려 그 푸시가 뱃지에 끝내 안 올라온다.
+    if (reason === "push") current.missedPush = true;
     return Promise.resolve(false);
   }
   if (reason === "resume") {
     const now = performance.now();
-    if (now - current.lastResume < RESUME_THROTTLE_MS) return current.request ?? Promise.resolve(true);
+    if (!current.missedPush && now - current.lastResume < RESUME_THROTTLE_MS) {
+      return current.request ?? Promise.resolve(true);
+    }
     current.lastResume = now;
   }
+  // 놓친 푸시를 받으러 온 길이면 **떠 있는 조회로 갈음하지 않는다** — 그 조회는 푸시보다
+  // 먼저 떴을 수 있어 새 알림이 없다. 여기부터는 어느 갈래든 조회가 한 번 더 보장된다.
+  const urgent = reason === "push" || current.missedPush;
+  current.missedPush = false;
   if (current.mutations > 0) {
     current.queued = true;
     return Promise.resolve(true);
   }
   if (current.request) {
     // 이미 뜬 서버 스냅샷에는 나중에 받은 푸시가 없을 수 있으므로 한 번 더 받는다.
-    if (reason === "push") current.queued = true;
+    if (urgent) current.queued = true;
     return current.request;
   }
 
