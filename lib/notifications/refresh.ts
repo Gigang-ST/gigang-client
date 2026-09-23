@@ -2,6 +2,7 @@
 
 import {
   getNotificationRevision,
+  PAGE_SIZE,
   resetNotifications,
   setNotifications,
   syncUnreadCount,
@@ -90,7 +91,7 @@ export function refreshNotifications(
       current.queued = false;
       const revision = getNotificationRevision();
       try {
-        const response = await fetch("/api/notifications?limit=20", {
+        const response = await fetch(`/api/notifications?limit=${PAGE_SIZE}`, {
           signal: current.controller.signal,
           cache: "no-store",
         });

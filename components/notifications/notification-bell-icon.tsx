@@ -21,6 +21,7 @@ import {
   getNotificationRevision,
   markAllRead as storeMarkAllRead,
   markRead,
+  PAGE_SIZE,
   removeNotification,
   useHasMore,
   useNotifications,
@@ -110,7 +111,7 @@ export function NotificationBellIcon({ memberId, disabled }: NotificationBellIco
         if (getNotificationSession(memberId) === owner) setLoadError(!ok);
         return;
       }
-      const params = new URLSearchParams({ limit: "20", cursor: cur });
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE), cursor: cur });
       const res = await fetch(`/api/notifications?${params}`, { cache: "no-store" });
       if (!res.ok) throw new Error("알림 조회 실패");
       const json = await res.json();

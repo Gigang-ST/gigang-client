@@ -59,6 +59,16 @@ export function getNotificationRevision(): number {
 /** 서버 스냅샷용 고정 빈 배열 — 매번 `[]`를 만들면 참조가 달라져 무한 리렌더가 된다 */
 const EMPTY: Notification[] = [];
 
+/**
+ * 한 장의 크기 — **조회 쪽 `limit`과 반드시 같은 값이어야 한다.**
+ *
+ * 이 값은 "받아온 장이 꽉 찼는가"로 `hasMore`와 첫 장 병합 여부를 판정하는 데 쓴다.
+ * 조회가 15개만 달라 오면 꽉 찬 장도 `hasMore = false`가 되어 무한스크롤이 조용히 끝나고,
+ * 첫 장이 "서버에 이게 전부"로 오판돼 뒷장이 통째로 사라진다. 그래서 상수를 여기 두고
+ * `refresh.ts`·벨이 **이걸 가져다 쓴다** — 양쪽에 숫자를 따로 적으면 언젠가 갈라진다.
+ */
+export const PAGE_SIZE = 20;
+
 function emit(): void {
   for (const l of listeners) l();
 }
@@ -116,27 +126,70 @@ export function getCursor(): string | null {
 }
 
 /**
- * 첫 장 — 목록을 통째로 갈아끼운다.
+ * 첫 장 — 새로 받은 장을 앞에 놓고 **그보다 오래된 것만** 뒤에 남긴다.
  *
- * ⚠️ **무한스크롤로 더 받아 둔 장은 여기서 사라진다.** 목록이 20건으로 접히면서 커서도
- * 첫 장 기준으로 돌아간다. 읽던 중 복귀·푸시 조회가 끼면 눈에 보이는 결함이라 알고 있는
- * 한계이고, 제대로 고치려면 "첫 장 교체 + 뒷장 유지 + 서버에서 지워진 것 제거"를 병합으로
- * 풀어야 해서 따로 다룬다. 지금은 **`revision`을 올려 최소한 조회가 서로를 덮지는 않게** 한다.
+ * 통째로 갈아끼우면 무한스크롤로 받아 둔 장이 사라진다 — 60건까지 내려 읽던 중 복귀·푸시
+ * 조회가 끼면 목록이 20건으로 접히면서 읽던 자리를 잃는다. 새 첫 장은 **그 구간의 정본**이라
+ * 그 안의 변화(새 알림·읽음·삭제)는 그대로 반영되고, 뒷장은 손대지 않아 자리가 유지된다.
+ *
+ * **이어붙이지 않고 갈아끼우는 경우가 둘 있다**(§`resolveTail`) — 둘 다 이으면 목록이
+ * 거짓말을 하게 되는 경우라, 자리를 잃더라도 정확한 쪽을 택한다.
+ *
+ * ⚠️ 뒷장은 이 조회가 확인해 준 범위가 아니다. 거기서 지워지거나 읽힌 건 그 장을 다시
+ * 받을 때까지 옛 상태로 남는다 — 화면 위쪽은 항상 최신이고 아래로 갈수록 오래된, 받아들인
+ * 대가다. 통째로 갈아끼우던 옛 동작은 이 어긋남이 없는 대신 **읽던 자리를 매번 잃었다.**
  */
 export function setNotifications(next: Notification[]): void {
   revision += 1;
-  notifications = next;
+  const tail = resolveTail(next);
+  notifications = tail.length > 0 ? [...next, ...tail] : next;
   loaded = true;
-  cursor = next.length > 0 ? next[next.length - 1].crt_at : null;
-  hasMore = next.length >= 20;
+  const last = notifications[notifications.length - 1];
+  cursor = last ? last.crt_at : null;
+  // 뒷장을 살렸으면 그 **뒤에** 더 있는지는 이 조회가 답하지 않는다 — 그때 판정한 값 그대로다.
+  if (tail.length === 0) hasMore = next.length >= PAGE_SIZE;
   emit();
+}
+
+/**
+ * 새 첫 장 뒤에 남길 기존 항목 — 없으면 통째로 갈아끼운다는 뜻이다.
+ *
+ * 남기지 않는 두 경우:
+ *
+ * 1. **첫 장이 꽉 차지 않았다** → 서버에 그게 전부다. 들고 있던 뒷장은 지워진 것이므로
+ *    남기면 화면에만 있는 유령이 된다.
+ * 2. **새 첫 장이 기존 목록과 한 건도 안 겹친다** → 그 사이에 우리가 못 본 알림이 있을 수
+ *    있다(자리를 비운 사이 한 장 넘게 쌓인 경우). 그대로 이으면 **가운데가 빈 목록**이
+ *    되는데, 빠진 알림은 스크롤해도 영영 안 나온다. 한 건이라도 겹치면 그 항목보다 새로운
+ *    건 전부 이 장 안에 있으므로 사이가 비지 않는다.
+ *
+ * ⚠️ **경계를 `crt_at` 비교로 잡지 않는다.** 두 목록 다 최신순이고 새 첫 장은 그 앞부분이라,
+ * **겹치는 마지막 자리**가 곧 이 장이 덮는 끝이다. 시각으로 자르면 `crt_at`(timestamptz)
+ * 문자열이 늘 같은 폭으로 온다는 데 기대게 되는데(소수 자릿수가 행마다 다르다) 그 가정이
+ * 깨지는 날 목록이 조용히 어긋난다. 자리로 자르면 그런 가정이 아예 필요 없다.
+ *
+ * 겹치는 자리보다 **앞인데 새 장에 없는 항목은 지워진 것이다** — 새 장은 최신 한 장이므로,
+ * 살아 있다면 거기 들어 있어야 한다. 그래서 자연히 떨어져 나간다.
+ */
+function resolveTail(next: Notification[]): Notification[] {
+  if (next.length < PAGE_SIZE || notifications.length === 0) return EMPTY;
+  const fresh = new Set(next.map((n) => n.noti_id));
+  let lastShared = -1;
+  for (let i = 0; i < notifications.length; i++) {
+    if (fresh.has(notifications[i].noti_id)) lastShared = i;
+  }
+  if (lastShared === -1) return EMPTY;
+  // `filter`는 보수적 안전장치다 — 같은 `noti_id`가 두 번 들어가면 React key가 충돌한다.
+  return notifications.slice(lastShared + 1).filter((n) => !fresh.has(n.noti_id));
 }
 
 /**
  * 무한스크롤 다음 장 — 뒤에 잇는다.
  *
- * `revision`을 올린다: 이걸 안 올리면 **떠 있는 첫 장 조회가 방금 붙인 장을 모르고** 돌아와
- * 목록을 통째로 덮는다(그 가드가 revision 비교다). 올려 두면 늦게 온 응답이 버려진다.
+ * `revision`을 올려 **떠 있던 첫 장 조회를 버린다.** 그 응답은 이 장이 붙기 전의 스냅샷이라
+ * 자기가 못 본 목록을 두고 뒷장 경계를 정하게 된다 — 특히 그 장이 꽉 차지 않았으면
+ * (`resolveTail`의 첫 조건) 방금 붙인 장을 "지워진 것"으로 보고 걷어낸다. 버려도 손해는
+ * 뱃지 동기화 한 번을 건너뛰는 정도이고, 다음 복귀·푸시·알림창 열기가 다시 채운다.
  */
 export function appendNotifications(next: Notification[]): void {
   revision += 1;
@@ -144,7 +197,7 @@ export function appendNotifications(next: Notification[]): void {
     notifications = [...notifications, ...next];
     cursor = next[next.length - 1].crt_at;
   }
-  hasMore = next.length >= 20;
+  hasMore = next.length >= PAGE_SIZE;
   emit();
 }
 
