@@ -118,6 +118,16 @@ t3-env로 관리되며 `lib/env.ts`에서 import:
 | 백엔드 개발자 | `.claude/agents/backend-developer.md` | DB/API/인증/RLS/서버 액션 |
 | DevOps 엔지니어 | `.claude/agents/devops-engineer.md` | CI/CD, Vercel 배포, Supabase 인프라 |
 
+**정본은 `.claude/agents/*.md`이고 `.codex/agents/*.toml`은 그 미러다**(Codex가 md 프론트매터를
+안 읽어 형식을 따로 둔다). 내용은 **한 글자도 갈라지지 않게** 같이 고친다 — 여기서 갈라지면
+같은 역할의 에이전트가 도구에 따라 다른 지시를 받는데, 어느 쪽이 맞는지 알 방법이 없다
+(`.skillshare/skills` 정본이 갈라진 채 굴렀던 것과 같은 사고다 — §스킬).
+
+⚠️ **변환할 때 `claude`를 일괄치환하지 않는다.** 바꾸는 건 **정본 파일을 가리키는 이름**
+(`CLAUDE.md` → `AGENTS.md`) 하나뿐이다. `.claude/docs/coding-standards.md` 같은 **실제 경로는
+그대로 둔다** — 실제로 `.Codex/docs/`라는 없는 디렉터리를 가리킨 채 커밋될 뻔했고, 그러면
+에이전트가 컨벤션 문서를 못 찾은 채 조용히 자기 판단으로 일한다.
+
 ## 작업 분배 원칙
 
 - 페이지/컴포넌트 UI, 스타일링, 반응형 → **프론트엔드 개발자**

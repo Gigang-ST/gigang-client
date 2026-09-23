@@ -18,18 +18,17 @@ import {
   appendNotifications,
   clearAll,
   getCursor,
-  getUnreadDelta,
+  getNotificationRevision,
   markAllRead as storeMarkAllRead,
   markRead,
+  PAGE_SIZE,
   removeNotification,
-  resetNotifications,
-  setNotifications as storeSetNotifications,
-  syncUnreadCount,
   useHasMore,
   useNotifications,
   useNotificationsLoaded,
   useUnreadCount,
 } from "@/lib/notifications/store";
+import { getNotificationSession, isNotificationMutationPending, mutateNotifications, refreshNotifications } from "@/lib/notifications/refresh";
 import type { Notification, NotificationPref } from "@/lib/queries/notification";
 
 import { deleteAllNotifications } from "@/app/actions/delete-all-notifications";
@@ -42,7 +41,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 
-import { NotificationItem } from "./notification-item";
+import { NotificationItem } from "@/components/notifications/notification-item";
 
 type NotificationBellIconProps = {
   memberId?: string;
@@ -75,14 +74,8 @@ type ViewType = "list" | "settings";
 export function NotificationBellIcon({ memberId, disabled }: NotificationBellIconProps) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<ViewType>("list");
-  /**
-   * 목록·뱃지수·페이지네이션은 전부 **모듈 store**가 들고 있다(`lib/notifications/store.ts`).
-   *
-   * 이 컴포넌트는 각 탭 헤더 안에 있어 **탭을 옮길 때마다 죽고 새로 태어난다.**
-   * state로 들면 이동마다 목록이 사라져 다시 받아야 하고, Realtime 채널도 끊겼다 붙는다.
-   * store는 앱이 켜져 있는 동안 살아 있으므로 몇 번을 다시 태어나도 그대로다.
-   * 채널 소유와 최초 로드는 루트의 `NotificationChannel`이 맡는다 — 여기선 **읽기만** 한다.
-   */
+  // 목록·뱃지는 탭 이동에도 유지한다. 최초 조회·복귀·푸시는 루트에서,
+  // 알림창 열기와 더보기는 여기서 요청한다.
   const notifications = useNotifications();
   const unreadCount = useUnreadCount();
   const hasMore = useHasMore();
@@ -100,59 +93,54 @@ export function NotificationBellIcon({ memberId, disabled }: NotificationBellIco
   // "아직 알림이 없어요"가 떠서 사용자가 "없구나"로 오해하고 재시도할 생각을 못 한다.
   const [loadError, setLoadError] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  /**
-   * 지금 이 순간의 주인 — 진행 중인 조회가 **누구 것이었는지** 대조하는 데 쓴다.
-   *
-   * `fetchMore`의 클로저 `memberId`는 요청을 **띄운 시점**의 값이라, 응답이 오는 사이
-   * 계정이 바뀌어도 그대로다. ref로 현재 값을 따로 들고 있어야 둘을 비교할 수 있다.
-   */
-  const memberIdRef = useRef(memberId);
-  useEffect(() => {
-    memberIdRef.current = memberId;
-  }, [memberId]);
-
-  /**
-   * 목록을 더 받는다 — 커서가 있으면 다음 장, 없으면 첫 장.
-   *
-   * 첫 장은 보통 루트의 `NotificationChannel`이 이미 받아 뒀다. 여기서 첫 장을 받는 건
-   * **그게 실패했을 때뿐**이다(그 경우 store의 `loaded`가 false로 남는다).
-   */
+  /** 다음 장만 덧붙인다. 최신 첫 장은 공유 조회를 사용한다. */
   async function fetchMore() {
-    if (!memberId || loading) return;
+    // 쓰기가 도는 동안엔 다음 장을 받지 않는다 — 받아 봐야 아래 revision 가드에서 버려지고,
+    // 버린 채 `hasMore`가 그대로면 센티넬이 계속 교차해 조회만 반복한다. 쓰기는 왕복 한 번
+    // 길이라 곧 풀리고, 그 사이 스크롤이 조금만 움직여도 교차 이벤트가 다시 뜬다.
+    if (!memberId || loading || isNotificationMutationPending()) return;
+    const owner = getNotificationSession(memberId);
+    if (!owner) return;
     setLoading(true);
     setLoadError(false);
-    // 누구 것인지 적어 둔다 — 응답이 오기 전에 계정이 바뀌면 이 결과는 **남의 알림**이다.
-    // 채널 쪽 `resetNotifications()`가 store를 비운 뒤 이게 도착하면 비운 걸 되살린다.
-    const owner = memberId;
-    // fetch가 도는 동안 도착한 Realtime 알림이 서버 카운트에 덮이지 않게 눈금을 적어 둔다.
-    const delta = getUnreadDelta();
+    const revision = getNotificationRevision();
     try {
-      const params = new URLSearchParams({ limit: "20" });
       const cur = getCursor();
-      if (cur) params.set("cursor", cur);
-      const res = await fetch(`/api/notifications?${params}`);
-      // ⚠️ **`res.ok`를 반드시 본다.** 이 API는 실패해도 `{ error }`라는 **정상 JSON**을
-      // 돌려주므로, 안 보면 `json.notifications`가 undefined → 빈 배열로 읽힌다. 그러면
-      // `storeSetNotifications([])`가 `loaded = true`·`hasMore = false`로 만들어
-      // **"아직 알림이 없어요"가 뜨고 재시도 경로 둘이 세션 내내 닫힌다**(루트 채널의
-      // `isLoaded()` 가드 + 아래 open 이펙트). 알림이 있는데도 영영 안 보이게 된다.
-      if (!res.ok) {
-        setLoadError(true);
+      if (!cur) {
+        const ok = await refreshNotifications(memberId);
+        if (getNotificationSession(memberId) === owner) setLoadError(!ok);
         return;
       }
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE), cursor: cur });
+      const res = await fetch(`/api/notifications?${params}`, { cache: "no-store" });
+      if (!res.ok) throw new Error("알림 조회 실패");
       const json = await res.json();
-      // 기다리는 사이 주인이 바뀌었으면 통째로 버린다(§owner).
-      if (memberIdRef.current !== owner) return;
-      const items: Notification[] = json.notifications ?? [];
-      if (cur) {
-        appendNotifications(items);
-      } else {
-        storeSetNotifications(items);
-        if (typeof json.unreadCount === "number") syncUnreadCount(json.unreadCount, delta);
-      }
+      // 계정 전환·첫 장 교체·읽음/삭제 뒤 도착한 옛 페이지는 버린다.
+      if (getNotificationSession(memberId) !== owner || getNotificationRevision() !== revision || isNotificationMutationPending()) return;
+      appendNotifications((json.notifications ?? []) as Notification[]);
     } catch {
-      setLoadError(true);
+      if (getNotificationSession(memberId) === owner) setLoadError(true);
     } finally {
+      setLoading(false);
+    }
+  }
+
+  async function refreshList() {
+    if (!memberId) return;
+    const owner = getNotificationSession(memberId);
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const ok = await refreshNotifications(memberId);
+      // ⚠️ `owner`가 null일 때도(세션이 아직/영영 없을 때) 실패로 표시한다. 예전엔 `owner &&`로
+      // 걸러서, 그 경우 `length 0 · loading false · loadError false · loaded false`가 되어
+      // **아래 렌더 분기 셋이 전부 빗나가 본문이 아무 문구 없는 흰 칸**으로 남았다.
+      if (getNotificationSession(memberId) === owner) setLoadError(!ok);
+    } catch {
+      if (getNotificationSession(memberId) === owner) setLoadError(true);
+    } finally {
+      // 던지면 로딩이 true에 굳고, 그러면 빈 상태·에러 상태가 둘 다 `!loading` 뒤에 가려
+      // "로딩 중..."만 남는다. `fetchMore`와 같은 형태로 맞춘다.
       setLoading(false);
     }
   }
@@ -220,23 +208,16 @@ export function NotificationBellIcon({ memberId, disabled }: NotificationBellIco
     }
   }
 
-  // Realtime 구독은 **여기 없다.** 루트의 `NotificationChannel`이 소유한다 — 벨이 들고 있으면
-  // 탭을 옮길 때마다 끊겼다 붙는다(§components/notifications/notification-channel.tsx).
-
-  // 팝오버를 열었는데 아직 목록이 없으면(루트의 최초 로드가 실패했을 때) 여기서 다시 시도한다.
-  // `fetchMore`가 맨 앞에서 `setLoading(true)`를 하므로 **마이크로태스크로 한 번 미룬다** —
-  // effect 본문에서 동기로 setState 하면 연쇄 렌더가 된다(react-hooks/set-state-in-effect).
+  // 알림창은 열 때마다 최신 첫 장을 받는다. 기존 목록은 조회 중에도 유지한다.
   useEffect(() => {
-    if (!open || !memberId || loaded || loading) return;
+    if (!open || !memberId) return;
     let cancelled = false;
     void Promise.resolve().then(() => {
-      if (!cancelled) void fetchMore();
+      if (!cancelled) void refreshList();
     });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, memberId, loaded]);
+  }, [open, memberId]);
 
   // 팝오버 내부 스크롤 무한스크롤
   useEffect(() => {
@@ -252,27 +233,21 @@ export function NotificationBellIcon({ memberId, disabled }: NotificationBellIco
 
   // 낙관적으로 먼저 반영하되 **실패하면 되돌린다.** store가 세션 내내 살아 있어서
   // (탭을 옮겨도 리마운트로 초기화되지 않는다) 실패를 방치하면 그 화면이 계속 남는다.
-  // 되돌리는 방법은 서버에서 다시 받아오는 것 — 낙관적 변경 전 상태를 따로 들고 있지 않다.
+  // 공유 쓰기 가드가 액션 종료 전 재조회를 보류하고, 실패 시 서버 값으로 복원한다.
   async function handleMarkAllRead() {
-    storeMarkAllRead();
     try {
-      await markAllNotificationsRead();
+      await mutateNotifications(storeMarkAllRead, markAllNotificationsRead);
     } catch {
       toast.error("읽음 처리에 실패했어요");
-      resetNotifications();
-      await fetchMore();
     }
   }
 
   async function handleDeleteAll() {
-    clearAll();
     setDeleteAllOpen(false);
     try {
-      await deleteAllNotifications();
+      await mutateNotifications(clearAll, deleteAllNotifications);
     } catch {
       toast.error("알림을 지우지 못했어요");
-      resetNotifications();
-      await fetchMore();
     }
   }
 
@@ -367,9 +342,11 @@ export function NotificationBellIcon({ memberId, disabled }: NotificationBellIco
                   <div className="flex flex-col items-center justify-center gap-2 py-10">
                     <Bell className="size-8 text-muted-foreground/30" />
                     <Caption>알림을 불러오지 못했어요</Caption>
+                    {/* 재시도는 `refreshList` — 로딩·에러 표면을 소유한 쪽이다. `fetchMore`는
+                        쓰기 중이면 아무 표시 없이 빠져나가 눌러도 반응이 없는 버튼이 된다. */}
                     <button
                       type="button"
-                      onClick={() => void fetchMore()}
+                      onClick={() => void refreshList()}
                       className="text-xs text-primary"
                     >
                       다시 시도
