@@ -79,12 +79,17 @@ export function getStoryPosts(teamId: string): Promise<StoryPost[]> {
         if (!isRequestAbortError(error)) {
           console.error("[getStoryPosts] 기록 자랑 조회 실패", error);
         }
-        return [];
+        // 여기서 폴백을 `return`하면 unstable_cache가 "갱신 성공"으로 보고
+        // (`.then` → `cacheNewResult`) 직전 정상값을 이 빈 값으로 **덮어쓴다**.
+        // 그러면 DB가 복구돼도 TTL이 끝날 때까지 빈 화면이 남는다(2026-09-23 장애).
+        // `throw`하면 `.catch`로 빠져 캐시에 아무것도 쓰지 않아 직전 값이 유지된다 —
+        // 화면 폴백은 캐시 **바깥**의 catch가 맡는다(그 값은 캐시에 남지 않는다).
+        throw error;
       }
 
       return (data as StoryPost[] | null) ?? [];
     },
     ["story-posts", teamId],
     { tags: ["story-posts"], revalidate: 300 },
-  )();
+  )().catch((): StoryPost[] => []);
 }

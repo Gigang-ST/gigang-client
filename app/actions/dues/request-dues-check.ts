@@ -13,7 +13,7 @@ export async function requestDuesCheck() {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
 
-    const { data: owners } = await db.from("team_mem_rel").select("mem_id").eq("team_id", teamId).eq("team_role_cd", "owner").eq("vers", 0).eq("del_yn", false);
+    const { data: owners } = await db.from("team_mem_rel").select("mem_id").eq("team_id", teamId).eq("team_role_cd", "owner").eq("vers", 0).eq("del_yn", false).eq("mem_st_cd", "active");
     if (!owners?.length) return { ok: false as const, message: "owner를 찾을 수 없습니다." };
 
     // "오늘"의 시작은 KST 자정이다 — 서버(UTC)에서 재면 KST 새벽 요청이 어제로 잡힌다

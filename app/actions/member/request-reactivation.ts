@@ -2,7 +2,7 @@
 
 import { after } from "next/server";
 
-import { withMember } from "@/lib/actions/auth";
+import { withMemberAnyStatus } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
 import { insertNotiMany } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -20,7 +20,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * 중복 방지: requestDuesCheck 와 동일하게 하루 1회. 관리자 알림 도배를 막는다.
  */
 export async function requestReactivation() {
-  return withMember(async ({ member }) => {
+  return withMemberAnyStatus(async ({ member }) => {
     if (member.status === "active") {
       return { ok: false as const, message: "이미 활동 중인 회원입니다." };
     }
@@ -40,7 +40,10 @@ export async function requestReactivation() {
       .eq("team_id", teamId)
       .in("team_role_cd", ["owner", "admin"])
       .eq("vers", 0)
-      .eq("del_yn", false);
+      .eq("del_yn", false)
+      // 활동 중인 관리자만 — `withAdmin` 이 active 를 요구하므로 비활성·탈퇴 관리자에게
+      // 보내면 "받았지만 처리할 수 없는" 알림이 된다(manage-application 과 같은 기준).
+      .eq("mem_st_cd", "active");
     if (!admins?.length) return { ok: false as const, message: "관리자를 찾을 수 없습니다." };
 
     const adminIds = admins.map((a) => a.mem_id);

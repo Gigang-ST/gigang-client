@@ -37,7 +37,9 @@ export async function submitFeedback(body: string) {
           .eq("team_id", teamId)
           .in("team_role_cd", ["admin", "owner"])
           .eq("vers", 0)
-          .eq("del_yn", false);
+          .eq("del_yn", false)
+          // 활동 중인 관리자만 — 처리할 수 없는 사람에게 보내지 않는다.
+          .eq("mem_st_cd", "active");
 
         if (!admins?.length) return;
 

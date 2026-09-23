@@ -206,7 +206,12 @@ export function getStoryFeed(teamId: string): Promise<StoryFeed> {
         if (!isRequestAbortError(error)) {
           console.error("[getStoryFeed] 전광판 피드 조회 실패", error);
         }
-        return EMPTY_FEED;
+        // 여기서 폴백을 `return`하면 unstable_cache가 "갱신 성공"으로 보고
+        // (`.then` → `cacheNewResult`) 직전 정상값을 이 빈 값으로 **덮어쓴다**.
+        // 그러면 DB가 복구돼도 TTL이 끝날 때까지 빈 화면이 남는다(2026-09-23 장애).
+        // `throw`하면 `.catch`로 빠져 캐시에 아무것도 쓰지 않아 직전 값이 유지된다 —
+        // 화면 폴백은 캐시 **바깥**의 catch가 맡는다(그 값은 캐시에 남지 않는다).
+        throw error;
       }
 
       // 구버전 RPC가 아직 배포된 환경에서는 새 키(actv_rank·week_stat)가 없다.
@@ -217,7 +222,7 @@ export function getStoryFeed(teamId: string): Promise<StoryFeed> {
     // `gatherings`는 뺐다 — 터는 쪽이 없어 한 번도 무효화된 적이 없다. 다시 넣지 말 것:
     // 모임 하나 바뀔 때마다 이 무거운 캐시(호출당 5,134버퍼)가 통째로 날아간다.
     { tags: ["story-feed", "records", "competitions"], revalidate: 300 },
-  )();
+  )().catch(() => EMPTY_FEED);
 }
 
 /** 항목별 응원 — 모두의 누적 총합(total)과 내가 누른 몫(mine) */
@@ -251,7 +256,12 @@ export function getReactionTotals(teamId: string): Promise<MyReactionMap> {
         if (!isRequestAbortError(error)) {
           console.error("[getReactionTotals] 응원 총합 조회 실패", error);
         }
-        return {};
+        // 여기서 폴백을 `return`하면 unstable_cache가 "갱신 성공"으로 보고
+        // (`.then` → `cacheNewResult`) 직전 정상값을 이 빈 값으로 **덮어쓴다**.
+        // 그러면 DB가 복구돼도 TTL이 끝날 때까지 빈 화면이 남는다(2026-09-23 장애).
+        // `throw`하면 `.catch`로 빠져 캐시에 아무것도 쓰지 않아 직전 값이 유지된다 —
+        // 화면 폴백은 캐시 **바깥**의 catch가 맡는다(그 값은 캐시에 남지 않는다).
+        throw error;
       }
 
       const totals: MyReactionMap = {};
@@ -263,7 +273,7 @@ export function getReactionTotals(teamId: string): Promise<MyReactionMap> {
     },
     ["story-reaction-totals", teamId],
     { tags: ["story-reactions"], revalidate: 30 },
-  )();
+  )().catch((): MyReactionMap => ({}));
 }
 
 /**

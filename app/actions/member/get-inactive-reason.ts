@@ -1,6 +1,6 @@
 "use server";
 
-import { withMember } from "@/lib/actions/auth";
+import { withMemberAnyStatus } from "@/lib/actions/auth";
 import { getVisibleInactiveReason } from "@/lib/inactive-notice";
 
 /**
@@ -19,7 +19,7 @@ import { getVisibleInactiveReason } from "@/lib/inactive-notice";
  * `withActive` 가 아니라 `withMember` 인 이유는 requestReactivation 과 같다(비활성 회원이 쓴다).
  */
 export async function getMyInactiveReason(): Promise<{ reason: string | null }> {
-  return withMember(async ({ member }) => ({
+  return withMemberAnyStatus(async ({ member }) => ({
     reason: getVisibleInactiveReason(member),
   }));
 }
