@@ -19,6 +19,7 @@ import {
   listGatheringApplications,
   type MyGatheringApplication,
 } from "@/app/actions/gathering/manage-application";
+import { announceGatheringToKakao } from "@/app/actions/gathering/announce-gathering";
 import { deleteGathering } from "@/app/actions/gathering/manage-gathering";
 import { toggleGatheringAttendance } from "@/app/actions/gathering/toggle-attendance";
 import { GatheringApplyButton } from "@/app/(info)/gatherings/[id]/gathering-apply-button";
@@ -70,6 +71,15 @@ import {
  * 조회 실패(비활성 회원·네트워크)를 `null` 로 두면 로딩과 구분되지 않아 화면이 멈춘다.
  * 조건은 "없음"으로 두어 버튼을 세우되, 실제 허용 여부는 서버 액션이 다시 판정한다.
  */
+/**
+ * 등록 직후 "공유하기를 눌러 단톡방에 알려주세요" 안내 + 버튼 반짝임.
+ *
+ * **꺼 둔 것이지 지운 게 아니다.** 등록 순간 노티봇(`lib/kakao/notify.ts`)이 단톡방에 자동으로
+ * 공지해서 사람이 한 번 더 올리면 같은 글이 두 번 뜬다. 노티봇을 못 쓰게 되면(브리지 폰·n8n 중단 등)
+ * 이 값만 `true`로 되돌리면 옛 유도가 그대로 살아난다.
+ */
+const SHARE_HINT_ENABLED = false;
+
 const UNKNOWN_APPLICATION = {
   state: "none",
   rejectReason: null,
@@ -172,7 +182,8 @@ export function GatheringDetailDialog({
     name: string;
   } | null>(null);
   // 방금 등록한 직후에만 공유 유도 안내 노출. 공유하기를 누르면 숨긴다.
-  const [showShareHint, setShowShareHint] = useState(justCreated ?? false);
+  // 지금은 꺼 둔다(SHARE_HINT_ENABLED) — 등록 순간 노티봇이 단톡방에 자동 공지해 사람이 또 올릴 필요가 없다.
+  const [showShareHint, setShowShareHint] = useState(SHARE_HINT_ENABLED && (justCreated ?? false));
   // 등록 직후 다이얼로그가 맨 위에서 열려 하단 공유 유도가 안 보이는 문제 → 공유 영역으로 스크롤
   const shareHintRef = useRef<HTMLDivElement>(null);
 
@@ -277,7 +288,7 @@ export function GatheringDetailDialog({
     setAttdCount(gathering?.regCount ?? 0);
     setAttendees(gathering?.attendees ?? []);
     setCanceledAttendees(gathering?.canceledAttendees ?? []);
-    setShowShareHint(justCreated ?? false);
+    setShowShareHint(SHARE_HINT_ENABLED && (justCreated ?? false));
     // 다른 모임을 열면 이전 모임의 신청 상태가 잠깐 보이지 않게 지운다.
     setMyAply(null);
     setApplications(null);
@@ -341,7 +352,7 @@ export function GatheringDetailDialog({
 
   // 등록 직후 열렸을 때, 다이얼로그 본문이 길어 하단 공유 유도가 가려지지 않도록 그 영역으로 스크롤.
   useEffect(() => {
-    if (!open || !justCreated) return;
+    if (!SHARE_HINT_ENABLED || !open || !justCreated) return;
     // 다이얼로그/콘텐츠 마운트 후 레이아웃이 잡힌 다음 스크롤
     const id = setTimeout(() => {
       shareHintRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -912,6 +923,8 @@ export function GatheringDetailDialog({
       timeLabel={formatShareDateTime(gathering.evt_stt_at ?? gathering.start_date, gathering.evt_end_at)}
       pageUrl={sharePageUrl}
       shareText={gthrShareText}
+      // 노티봇 원버튼 — 수정 권한과 같은 경계(작성자·관리자, 지난 모임 제외). 서버가 다시 판정한다.
+      onAnnounce={(isAuthor || isAdmin) && !isPastLocked ? () => announceGatheringToKakao(gathering.id) : undefined}
     />
     <InactiveGateDialog open={inactiveGateOpen} onOpenChange={setInactiveGateOpen} kind={viewerInactiveKind} />
     <GatheringCancelDialog
