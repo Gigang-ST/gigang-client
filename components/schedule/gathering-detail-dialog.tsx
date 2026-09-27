@@ -923,8 +923,8 @@ export function GatheringDetailDialog({
       timeLabel={formatShareDateTime(gathering.evt_stt_at ?? gathering.start_date, gathering.evt_end_at)}
       pageUrl={sharePageUrl}
       shareText={gthrShareText}
-      // 노티봇 원버튼 — 수정 권한과 같은 경계(작성자·관리자, 지난 모임 제외). 서버가 다시 판정한다.
-      onAnnounce={(isAuthor || isAdmin) && !isPastLocked ? () => announceGatheringToKakao(gathering.id) : undefined}
+      // 노티봇 원버튼 — 활동 멤버면 누구나(남의 모임도), 지난 모임 제외. 서버가 다시 판정한다.
+      onAnnounce={currentMemberId && !viewerInactive && !isPastLocked ? () => announceGatheringToKakao(gathering.id) : undefined}
     />
     <InactiveGateDialog open={inactiveGateOpen} onOpenChange={setInactiveGateOpen} kind={viewerInactiveKind} />
     <GatheringCancelDialog
