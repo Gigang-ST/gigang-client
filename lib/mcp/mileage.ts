@@ -683,7 +683,13 @@ export async function updateMyActivity(
   ctx: OperatorContext,
   actId: string,
   input: UpdateActivityIn,
-): Promise<{ act_id: string; before: MyActivityRow; after: MyActivityRow; month_after: MyMileageRow | null }> {
+): Promise<{
+  act_id: string;
+  before: MyActivityRow;
+  after: MyActivityRow;
+  month_after: MyMileageRow | null;
+  title_eval_seeds: TitleEvalSeed[];
+}> {
   const prt = await resolveMyParticipation(db, ctx);
   const { mult_ids: prevMultIds, ...existing } = await fetchOwnActivity(
     db,
@@ -710,6 +716,16 @@ export async function updateMyActivity(
     review: existing.review,
   });
 
+  // 수정으로도 목표를 넘길 수 있다 — 등록과 같이 "저장 직전 달성 여부"를 잡아 칭호 엔진에 넘긴다.
+  // 조회 실패는 "이미 달성"으로 둔다(앱 updateActivity와 같은 이유 — 일회성 막판스퍼트만 막는다).
+  const { data: prevSnap, error: prevSnapErr } = await db
+    .from("evt_mlg_mth_snap")
+    .select("achv_yn")
+    .eq("prt_id", prt.prt_id)
+    .eq("base_dt", n.actDt.slice(0, 7) + "-01")
+    .maybeSingle();
+  if (prevSnapErr) console.error("[mcp] 수정 전 달성 여부 조회 실패(updateMyActivity)", prevSnapErr);
+
   const { error } = await db
     .from("evt_mlg_act_hist")
     .update({
@@ -731,6 +747,17 @@ export async function updateMyActivity(
 
   await recalcGoalsFromMonth(db, prt.evt_id, prt.prt_id);
 
+  const teamMemRow = await fetchTeamMemRow(db, ctx);
+  const seeds: TitleEvalSeed[] = teamMemRow
+    ? [{
+        teamId: teamMemRow.team_id,
+        teamMemId: teamMemRow.team_mem_id,
+        projectId: prt.evt_id,
+        actDt: n.actDt,
+        prevAchvYn: prevSnapErr ? true : (prevSnap?.achv_yn ?? false),
+      }]
+    : [];
+
   return {
     act_id: actId,
     before: existing,
@@ -750,6 +777,7 @@ export async function updateMyActivity(
       review: n.review,
     },
     month_after: await safeMonthAfter(db, prt, n.actDt),
+    title_eval_seeds: seeds,
   };
 }
 

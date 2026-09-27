@@ -308,7 +308,8 @@ export async function sweepEvaluateAndGrant(
       const rule = t.cond_rule_json as CondRule;
       if (!allowedCondTypes.has(rule.type)) return false;
       // manual_sweep에서 mileage_goal_achieved_months는 count=1(목표달성)만 평가
-      // count=5(내돈내놔)는 mileage_batch 전용 — 월 마감 후에만 의미 있음
+      // 그 이상은 sweep에서 평가하지 않는다(시즌 여럿이면 스냅샷이 한 시즌만 싣는다).
+      // 마런정복자는 `mileage_goal_achieved_all_months`로 옮겨 갔다 — 실시간 + 월초 배치가 맡는다.
       if (rule.type === "mileage_goal_achieved_months" && rule.count !== 1) return false;
       return true;
     });
