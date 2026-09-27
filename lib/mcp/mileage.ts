@@ -717,12 +717,14 @@ export async function updateMyActivity(
   });
 
   // 수정으로도 목표를 넘길 수 있다 — 등록과 같이 "저장 직전 달성 여부"를 잡아 칭호 엔진에 넘긴다.
-  const { data: prevSnap } = await db
+  // 조회 실패는 "이미 달성"으로 둔다(앱 updateActivity와 같은 이유 — 일회성 막판스퍼트만 막는다).
+  const { data: prevSnap, error: prevSnapErr } = await db
     .from("evt_mlg_mth_snap")
     .select("achv_yn")
     .eq("prt_id", prt.prt_id)
     .eq("base_dt", n.actDt.slice(0, 7) + "-01")
     .maybeSingle();
+  if (prevSnapErr) console.error("[mcp] 수정 전 달성 여부 조회 실패(updateMyActivity)", prevSnapErr);
 
   const { error } = await db
     .from("evt_mlg_act_hist")
@@ -752,7 +754,7 @@ export async function updateMyActivity(
         teamMemId: teamMemRow.team_mem_id,
         projectId: prt.evt_id,
         actDt: n.actDt,
-        prevAchvYn: prevSnap?.achv_yn ?? false,
+        prevAchvYn: prevSnapErr ? true : (prevSnap?.achv_yn ?? false),
       }]
     : [];
 

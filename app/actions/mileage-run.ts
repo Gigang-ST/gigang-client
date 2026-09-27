@@ -439,12 +439,19 @@ export async function updateActivity(
 
     const { data: existing, error: fetchErr } = await db
       .from("evt_mlg_act_hist")
-      .select("act_id, prt_id, photo_url, evt_team_prt_rel!inner(mem_id, evt_id)")
+      .select("act_id, prt_id, photo_url, evt_team_prt_rel!inner(mem_id, evt_id, evt_team_mst!inner(team_id))")
       .eq("act_id", actId)
       .single();
 
     if (fetchErr || !existing) return { ok: false, message: "기록을 찾을 수 없습니다" };
-    const existingParticipant = existing.evt_team_prt_rel as { mem_id: string; evt_id: string };
+    const existingParticipant = existing.evt_team_prt_rel as {
+      mem_id: string;
+      evt_id: string;
+      evt_team_mst: { team_id: string } | { team_id: string }[];
+    };
+    const evtTeam = Array.isArray(existingParticipant.evt_team_mst)
+      ? existingParticipant.evt_team_mst[0]
+      : existingParticipant.evt_team_mst;
     if (!isAdmin && existingParticipant.mem_id !== member.id) {
       return { ok: false, message: "본인 기록만 수정할 수 있습니다" };
     }
@@ -476,13 +483,18 @@ export async function updateActivity(
 
     // 수정으로도 목표를 넘긴다(방금 넣은 값을 고쳐 달성) — 등록과 같이 저장 직전 달성 여부를 잡는다.
     // 이게 없어서 2026-09-27 이하늘의 마런정복자가 누락됐다(입력 땐 미달, 수정으로 달성).
-    const { data: prevSnap } = await db
+    //
+    // 조회가 **실패**하면 "이미 달성"으로 둔다 — 이 값을 읽는 건 일회성인 막판스퍼트뿐이라,
+    // 모르는 채 false로 두면 이미 달성한 달에도 붙을 수 있다. 판정 자체를 건너뛰면 다른 칭호가
+    // 또 조용히 빠지므로(이 수정의 원래 사고) 판정은 돌리고 일회성 조건만 막는다.
+    const { data: prevSnap, error: prevSnapErr } = await db
       .from("evt_mlg_mth_snap")
       .select("achv_yn")
       .eq("prt_id", existing.prt_id)
       .eq("base_dt", validInput.act_dt.slice(0, 7) + "-01")
       .maybeSingle();
-    const prevAchvYn = prevSnap?.achv_yn ?? false;
+    if (prevSnapErr) console.error("[mileage] 수정 전 달성 여부 조회 실패(updateActivity)", prevSnapErr);
+    const prevAchvYn = prevSnapErr ? true : (prevSnap?.achv_yn ?? false);
 
     const { error } = await db
       .from("evt_mlg_act_hist")
@@ -513,13 +525,19 @@ export async function updateActivity(
     }
 
     // 칭호는 **기록 주인** 기준이다 — 관리자가 남의 기록을 고쳤을 때 관리자에게 붙으면 안 된다.
-    const { data: ownerRow } = await db
-      .from("team_mem_rel")
-      .select("team_mem_id, team_id")
-      .eq("mem_id", existingParticipant.mem_id)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .maybeSingle();
+    // 팀은 **이벤트의 팀**으로 좁힌다 — 여러 팀에 활성 소속이면 mem_id만으론 여러 행이 나와
+    // maybeSingle이 실패하고 판정이 조용히 빠진다.
+    const { data: ownerRow, error: ownerErr } = evtTeam
+      ? await db
+          .from("team_mem_rel")
+          .select("team_mem_id, team_id")
+          .eq("mem_id", existingParticipant.mem_id)
+          .eq("team_id", evtTeam.team_id)
+          .eq("vers", 0)
+          .eq("del_yn", false)
+          .maybeSingle()
+      : { data: null, error: null };
+    if (ownerErr) console.error("[title-engine] 기록 주인 조회 실패(updateActivity)", ownerErr);
     if (ownerRow) {
       const ctx = {
         trigger: "mileage_run" as const,
