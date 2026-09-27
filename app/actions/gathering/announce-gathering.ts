@@ -11,11 +11,12 @@ export type AnnounceGatheringResult =
   | { ok: false; reason: "disabled" | "unconfirmed"; message: string };
 
 /**
- * 공유 시트의 "단톡방에 알리기" — 노티봇(카톡 브리지)으로 모임 공지를 한 번 더 올린다.
+ * 공유 시트의 "단톡방에 알림" — 노티봇(카톡 브리지)으로 모임 공지를 한 번 더 올린다.
  *
- * 등록 순간엔 자동 공지가 이미 나간다(`createGathering`). 이건 **리마인드용 수동 발송**이라
- * 누구나 누르게 두면 단톡방이 도배된다 — 수정 권한과 같은 경계(작성자·관리자)로 좁힌다.
- * 버튼을 감추는 건 안내일 뿐이고 여기서 다시 판정한다.
+ * 등록 순간엔 자동 공지가 이미 나간다(`createGathering`). 이건 **리마인드용 수동 발송**이다.
+ * 활동 멤버면 **남의 모임도** 올릴 수 있다 — 같이 가는 사람이 "사람 모아요" 하고 올리는 게
+ * 이 버튼의 쓸모라서다. 대신 누가 보냈는지 로그에 남긴다(도배가 나면 그 사람과 얘기한다).
+ * 비활성·탈퇴는 `withActive`가, 지난 모임은 아래 판정이 막는다.
  *
  * 재시도하지 않는 건 `sendKakao` 의 규칙 그대로다: 브리지는 카톡엔 도착했는데 5xx 가 오는
  * 구간이 있어, 실패 응답이 곧 미발송이 아니다. 그래서 실패 문구도 "다시 눌러라"가 아니라
@@ -25,14 +26,11 @@ export async function announceGatheringToKakao(gthrId: string): Promise<Announce
   return withActive(async ({ member, supabase }) => {
     const { data: gthr } = await supabase
       .from("gthr_mst")
-      .select("gthr_nm, stt_at, end_at, loc_txt, short_id, crt_by, max_prt_cnt, del_yn, mem_mst!gthr_mst_crt_by_fkey(mem_nm)")
+      .select("gthr_nm, stt_at, end_at, loc_txt, short_id, max_prt_cnt, del_yn, mem_mst!gthr_mst_crt_by_fkey(mem_nm)")
       .eq("gthr_id", gthrId)
       .single();
     if (!gthr || gthr.del_yn) throw new Error("모임을 찾을 수 없습니다.");
 
-    if (gthr.crt_by !== member.id && !member.admin) {
-      throw new Error("모임을 연 사람이나 운영진만 단톡방에 알릴 수 있어요.");
-    }
     // 지난 모임을 톡방에 올릴 이유가 없다 — 수정·삭제 잠금과 같은 기준.
     if (isPastLockedFor(member.admin, gthr.stt_at, gthr.end_at)) {
       throw new Error("이미 지난 모임이에요.");
@@ -55,6 +53,15 @@ export async function announceGatheringToKakao(gthrId: string): Promise<Announce
       authorName: author?.mem_nm ?? null,
       attendeeCount: count ?? null,
       maxCount: gthr.max_prt_cnt ?? null,
+    });
+
+    // 누가 보냈는지 — sendKakao 로그엔 본문 크기·방 이름뿐이라 여기서 남긴다. 성공·실패 모두.
+    console.info("[kakao] 단톡방에 알림", {
+      gthrId,
+      memId: member.id,
+      memNm: member.full_name,
+      ok: result.ok,
+      skipped: result.skipped ?? null,
     });
 
     if (result.ok) return { ok: true };
