@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
-import { Check, Copy, Share2 } from "lucide-react";
+import { Check, Copy, Megaphone, Share2 } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   ResponsiveDrawer,
@@ -34,6 +35,11 @@ type ShareSheetProps = {
   shareText?: string;
   /** 시트 상단 제목 (기본 "공유하기") — 주간 일정 등 용도별 문구 지정용 */
   headerTitle?: string;
+  /**
+   * "단톡방에 알림" — 주면 맨 위에 노티봇 원버튼이 선다(모임처럼 봇 발송 경로가 있는 곳만).
+   * 실패해도 던지지 말고 `{ ok: false, message }`로 돌려준다 — 문구는 그대로 토스트에 뜬다.
+   */
+  onAnnounce?: () => Promise<{ ok: true } | { ok: false; message: string }>;
 };
 
 export function ShareSheet({
@@ -47,8 +53,11 @@ export function ShareSheet({
   pageUrl,
   shareText,
   headerTitle = "공유하기",
+  onAnnounce,
 }: ShareSheetProps) {
   const [copiedText, setCopiedText] = useState(false);
+  // 닫히는 애니메이션 사이 연타 방지 — 연타가 곧 단톡방 도배다. 리렌더를 기다리지 않게 ref.
+  const announcingRef = useRef(false);
 
   function getUrl() {
     return pageUrl ?? (typeof window !== "undefined" ? window.location.href : "");
@@ -75,6 +84,26 @@ export function ShareSheet({
     await navigator.clipboard.writeText(buildText());
     setCopiedText(true);
     setTimeout(() => setCopiedText(false), 1500);
+  }
+
+  /**
+   * 누르면 시트는 바로 닫고 결과는 토스트가 말한다 — 시트에 남아 기다릴 이유가 없다.
+   * 같은 토스트 id로 "올리는 중" → 결과로 갈아 끼워 토스트가 두 장 쌓이지 않게 한다.
+   */
+  async function handleAnnounce() {
+    if (!onAnnounce || announcingRef.current) return;
+    announcingRef.current = true;
+    onOpenChange(false);
+    const id = toast.loading("단톡방에 올리는 중...");
+    try {
+      const res = await onAnnounce();
+      if (res.ok) toast.success("모임을 단톡방에 공유했어요", { id });
+      else toast.error(res.message, { id });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "단톡방에 알리지 못했어요.", { id });
+    } finally {
+      announcingRef.current = false;
+    }
   }
 
   async function handleNativeShare() {
@@ -107,6 +136,22 @@ export function ShareSheet({
               {buildText()}
             </Caption>
           </div>
+
+          {onAnnounce && (
+            <button
+              type="button"
+              onClick={handleAnnounce}
+              className="flex items-center gap-3 rounded-xl border border-primary/40 bg-primary/5 px-4 py-3 text-left transition-colors active:bg-primary/10"
+            >
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                <Megaphone className="size-4" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[14px] font-medium">단톡방에 알림</span>
+                <span className="text-[12px] text-muted-foreground">노티봇이 위 내용을 단톡방에 바로 알림</span>
+              </div>
+            </button>
+          )}
 
           <button
             type="button"
