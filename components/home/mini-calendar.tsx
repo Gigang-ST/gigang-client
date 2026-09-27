@@ -315,7 +315,13 @@ export function MiniCalendar({
       : [];
     gthrOpenReqRef.current += 1; // 진행 중이던 이전 상세 조회 무효화
     setGthrJustCreated(true);
-    setGthrDetailRace({ ...race, regCount: me.length, maxPrtCnt: race.maxPrtCnt ?? null, attendees: me, sprt_cd: race.sprt_cd ?? null });
+    // 작성자는 나다 — 폼 입력값엔 crt_by 가 없어, 안 채우면 방금 만든 모임에서 isAuthor 가 false 로
+    // 떨어져 작성자 전용 버튼(수정·삭제·단톡방에 알림)이 숨고 공유문의 🙋 이름 줄도 빠진다.
+    // 나갔다 다시 열면(DB 조회) 그제야 보였다.
+    const author = memberStatus.status === "ready"
+      ? { crt_by: memberStatus.memberId, crt_by_nm: memberStatus.fullName ?? null }
+      : {};
+    setGthrDetailRace({ ...race, ...author, regCount: me.length, maxPrtCnt: race.maxPrtCnt ?? null, attendees: me, sprt_cd: race.sprt_cd ?? null });
     setGthrDetailAttending(true); // 작성자는 자동 참석
     setGthrDetailLoading(false);   // 입력값으로 완결 — 스켈레톤 불필요
     setGthrDetailComments([]);     // 새 모임 — 댓글 없음
