@@ -12,6 +12,8 @@
 // 설정이 두 곳으로 갈려, 한쪽만 바뀌었을 때 같은 값이 파일마다 다르게 해석된다.
 import { dayjs, parseEventTime, todayStartKST } from "@/lib/dayjs";
 
+import { isAllSeasonMonthsAchieved } from "./mileage-months";
+
 import {
   evalAttendOnBirthday,
   evalGthrAttendInMonth,
@@ -632,6 +634,41 @@ export async function evalMileageGoalAchievedMonthsInternal(
   return (count ?? 0) >= rule.count;
 }
 
+/** 시즌 실행기간의 모든 달을 달성한 경우 (예: 마런정복자) — 판정은 `isAllSeasonMonthsAchieved` */
+export async function evalMileageGoalAchievedAllMonthsInternal(
+  teamMemId: string,
+  evtId: string,
+  db: DB,
+): Promise<boolean> {
+  const { data: memRow } = await db
+    .from("team_mem_rel")
+    .select("mem_id")
+    .eq("team_mem_id", teamMemId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (!memRow?.mem_id) return false;
+
+  const { data: prtRow } = await db
+    .from("evt_team_prt_rel")
+    .select("prt_id, evt_team_mst!inner(stt_dt, end_dt)")
+    .eq("mem_id", memRow.mem_id)
+    .eq("evt_id", evtId)
+    .eq("aprv_yn", true)
+    .maybeSingle();
+  if (!prtRow) return false;
+
+  const evtMst = (Array.isArray(prtRow.evt_team_mst) ? prtRow.evt_team_mst[0] : prtRow.evt_team_mst) as
+    { stt_dt: string; end_dt: string } | null;
+
+  const { data: snaps } = await db
+    .from("evt_mlg_mth_snap")
+    .select("base_dt, achv_yn")
+    .eq("prt_id", prtRow.prt_id);
+
+  return isAllSeasonMonthsAchieved(evtMst?.stt_dt ?? null, evtMst?.end_dt ?? null, snaps ?? []);
+}
+
 /**
  * act_dt가 해당 월 마지막 날인 기록으로 처음 월 목표를 달성한 경우 (예: 막판스퍼트)
  * ctx.prevAchvYn: 기록 입력 전 당월 achv_yn (engine에서 주입)
@@ -1092,6 +1129,11 @@ export async function evaluateCondition(
         ? evalMileageGoalAchievedMonthsInternal(rule, ctx.teamMemId, ctx.projectId, db)
         : false;
 
+    case "mileage_goal_achieved_all_months":
+      return ctx.trigger === "mileage_run"
+        ? evalMileageGoalAchievedAllMonthsInternal(ctx.teamMemId, ctx.projectId, db)
+        : false;
+
     case "mileage_goal_achieved_on_last_day":
       return evalMileageGoalAchievedOnLastDayInternal(
         rule, ctx, ctx.teamMemId,
@@ -1280,6 +1322,13 @@ export function evaluateConditionFromSnapshot(
       const achieved = snaps.filter((s) => s.achv_yn).length;
       return achieved >= rule.count;
     }
+
+    case "mileage_goal_achieved_all_months":
+      return isAllSeasonMonthsAchieved(
+        snapshot.mileageEvtSttDt,
+        snapshot.mileageEvtEndDt,
+        snapshot.mileageMthSnaps,
+      );
 
     case "mileage_goal_achieved_on_last_day":
       // sweep은 실시간 입력 이벤트가 아니므로 평가 불가 — false

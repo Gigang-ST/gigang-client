@@ -231,14 +231,30 @@ export async function loadMemberSnapshots(
   }
 
   // 7-3. 활동 기록
+  //
+  // ⚠️ **페이지로 나눠 끝까지 읽는다.** PostgREST는 한 요청에 최대 1000행만 돌려주고
+  // 잘렸다는 에러도 없다. 시즌 전체 기록은 참가자 30명 기준 한 달에 약 400행씩 쌓여
+  // 9/1 배치 때 이미 1,681행이었다 — 잘린 나머지 멤버는 "기록 0건"으로 평가돼
+  // 러닝원툴·종목 비율 칭호가 조용히 빠졌다(prd 실측: 김지민 8월 러닝원툴 누락).
   const actHistByPrtId = new Map<string, MileageActRow[]>();
   if (allPrtIds.length > 0) {
-    const { data: actRows } = await db
-      .from("evt_mlg_act_hist")
-      .select("prt_id, act_dt, sprt_enm, final_mlg")
-      .in("prt_id", allPrtIds);
+    const PAGE = 1000;
+    const actRows: { prt_id: string; act_dt: string; sprt_enm: string; final_mlg: number | string }[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await db
+        .from("evt_mlg_act_hist")
+        .select("prt_id, act_dt, sprt_enm, final_mlg")
+        .in("prt_id", allPrtIds)
+        // 페이지 경계가 흔들리지 않게 유일 키로 정렬한다
+        .order("act_id", { ascending: true })
+        .range(from, from + PAGE - 1);
+      // 중간 페이지 실패를 0건으로 눙치면 뒤 멤버가 또 조용히 빠진다 — 배치를 실패시킨다
+      if (error) throw new Error(`마일리지 활동 기록 조회 실패: ${error.message}`);
+      actRows.push(...(data ?? []));
+      if (!data || data.length < PAGE) break;
+    }
 
-    for (const r of actRows ?? []) {
+    for (const r of actRows) {
       if (!actHistByPrtId.has(r.prt_id)) actHistByPrtId.set(r.prt_id, []);
       actHistByPrtId.get(r.prt_id)!.push({
         act_dt: r.act_dt as string,

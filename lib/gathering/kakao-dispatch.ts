@@ -62,3 +62,15 @@ export async function notifyGatheringUpdated(
 export async function notifyGatheringCanceled(facts: GatheringFacts): Promise<void> {
   await sendKakao(buildGatheringCancelText(facts));
 }
+
+/**
+ * 단톡방에 알리기 — 공유 시트에서 사람이 **직접 눌러** 보내는 공지. 등록 공지와 같은 문구지만
+ * 그 사이 모인 참석 인원을 싣는다(등록 순간엔 작성자 1명뿐이라 빠지던 줄).
+ *
+ * 다른 셋과 달리 결과를 돌려준다 — 누른 사람에게 됐는지 말해 줘야 해서다. 그래도 던지지는 않는다.
+ */
+export async function announceGathering(
+  facts: GatheringFacts,
+): Promise<Awaited<ReturnType<typeof sendKakao>>> {
+  return sendKakao(buildGatheringShareText({ ...facts, url: linkOf(facts) }));
+}

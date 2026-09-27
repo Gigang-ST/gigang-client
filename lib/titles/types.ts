@@ -168,10 +168,21 @@ export type CondMileageJoined = {
   type: "mileage_joined";
 };
 
-/** 마일리지런에서 월 목표를 N번 이상 달성한 경우 (예: 목표달성=1, 내돈내놔=5) */
+/** 마일리지런에서 월 목표를 N번 이상 달성한 경우 (예: 목표달성=1) */
 export type CondMileageGoalAchievedMonths = {
   type: "mileage_goal_achieved_months";
   count: number;
+};
+
+/**
+ * 프로젝트 실행기간(stt_dt~end_dt)의 **모든 달**을 달성한 경우 (예: 마런정복자).
+ *
+ * 예전엔 `mileage_goal_achieved_months` + `count: 5`였다. 시즌이 5개월이라 우연히 맞았을 뿐,
+ * 뜻은 "누적 5번"이 아니라 "전월 달성"이다 — 시즌 길이가 바뀌면 숫자가 어긋난다.
+ * 달 수를 규칙에 박지 않고 시즌 기간에서 뽑는다.
+ */
+export type CondMileageGoalAchievedAllMonths = {
+  type: "mileage_goal_achieved_all_months";
 };
 
 /** 마일리지런에서 act_dt가 해당 월 마지막 날인 기록으로 처음 월 목표를 달성한 경우 (예: 막판스퍼트) */
@@ -363,6 +374,7 @@ export type CondRule =
   | CondUtmbIdxRank
   | CondMileageJoined
   | CondMileageGoalAchievedMonths
+  | CondMileageGoalAchievedAllMonths
   | CondMileageGoalAchievedOnLastDay
   | CondMileageAllSportsInMonth
   | CondMileageGoalFailedMonths
@@ -440,12 +452,14 @@ export const TRIGGER_COND_MAP = {
     "mileage_run_complete",
     "mileage_joined",
     "mileage_goal_achieved_months",
+    "mileage_goal_achieved_all_months",
     "mileage_goal_achieved_on_last_day",
     "mileage_all_sports_in_month",
     "mileage_rocket_in_months",
   ],
   mileage_batch: [
     "mileage_goal_achieved_months",
+    "mileage_goal_achieved_all_months",
     "mileage_goal_failed_months",
     "mileage_goal_achieved_by_single_sport",
     "mileage_sport_ratio",

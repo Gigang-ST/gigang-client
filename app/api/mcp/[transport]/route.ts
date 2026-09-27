@@ -480,7 +480,8 @@ const handler = createMcpHandler(
         runTool(extra, async (ctx, supabase) => {
           const { act_id, ...rest } = args;
           const result = await updateMyActivity(supabase, ctx, act_id, rest);
-          afterMileageWrite();
+          // 수정으로 목표를 넘기는 경우가 있다(오늘 입력한 값을 고쳐 달성) — 등록과 같이 평가한다
+          afterMileageWrite(result.title_eval_seeds);
           return result;
         }),
     );
