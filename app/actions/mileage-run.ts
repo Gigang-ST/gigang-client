@@ -474,6 +474,16 @@ export async function updateActivity(
     const prevPhotoUrl = existing.photo_url as string | null;
     const nextPhotoUrl = validInput.photo_url || null;
 
+    // 수정으로도 목표를 넘긴다(방금 넣은 값을 고쳐 달성) — 등록과 같이 저장 직전 달성 여부를 잡는다.
+    // 이게 없어서 2026-09-27 이하늘의 마런정복자가 누락됐다(입력 땐 미달, 수정으로 달성).
+    const { data: prevSnap } = await db
+      .from("evt_mlg_mth_snap")
+      .select("achv_yn")
+      .eq("prt_id", existing.prt_id)
+      .eq("base_dt", validInput.act_dt.slice(0, 7) + "-01")
+      .maybeSingle();
+    const prevAchvYn = prevSnap?.achv_yn ?? false;
+
     const { error } = await db
       .from("evt_mlg_act_hist")
       .update({
@@ -500,6 +510,28 @@ export async function updateActivity(
     } catch (e) {
       console.error("[mileage] 목표 재계산 실패(updateActivity)", e);
       return { ok: false, message: "목표 재계산에 실패했습니다. 잠시 후 다시 시도해주세요" };
+    }
+
+    // 칭호는 **기록 주인** 기준이다 — 관리자가 남의 기록을 고쳤을 때 관리자에게 붙으면 안 된다.
+    const { data: ownerRow } = await db
+      .from("team_mem_rel")
+      .select("team_mem_id, team_id")
+      .eq("mem_id", existingParticipant.mem_id)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .maybeSingle();
+    if (ownerRow) {
+      const ctx = {
+        trigger: "mileage_run" as const,
+        teamId: ownerRow.team_id,
+        teamMemId: ownerRow.team_mem_id,
+        projectId: existingParticipant.evt_id,
+        actDt: validInput.act_dt,
+        prevAchvYn,
+      };
+      after(() =>
+        evaluateAndGrantTitles(ctx).catch((e) => console.error("[title-engine] mileage_run(update) 평가 실패", e)),
+      );
     }
 
     revalidatePath("/projects");

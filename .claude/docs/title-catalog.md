@@ -242,7 +242,7 @@
 |--------|-------------|------|---------------|
 | 시작이반 | 2 | [마일리지런] 이벤트에 참가 신청한 멤버 | `{"type":"mileage_joined"}` |
 | 목표달성 | 4 | [마일리지런] 월 목표를 1번이라도 달성한 멤버 | `{"type":"mileage_goal_achieved_months","count":1}` |
-| 내돈내놔 | 7 | [마일리지런] 5개월 누적 전월 달성 | `{"type":"mileage_goal_achieved_months","count":5}` |
+| 마런정복자 | 7 | 기강 마일리지 프로젝트 전월 목표달성 — 시즌 실행기간(stt_dt~end_dt)의 **모든 달** 달성. 누적 횟수가 아니다(한 달 실패 = 불가). 달 수는 시즌 기간에서 뽑는다. 실시간(기록 등록·**수정**) + 월초 배치 | `{"type":"mileage_goal_achieved_all_months"}` |
 | 막판스퍼트 | 4 | [마일리지런] 마지막 날 기록입력으로 월 목표를 달성한 멤버 | `{"type":"mileage_goal_achieved_on_last_day"}` |
 | 올라운더 | 5 | [마일리지런] 한 달 안에 러닝·트레일·자전거·수영 4종목 모두 1회 이상 기록한 멤버 | `{"type":"mileage_all_sports_in_month","sports":["RUNNING","TRAIL","CYCLING","SWIMMING"]}` |
 | 보증금증발 | 2 | [마일리지런] 월 목표 달성 실패 | `{"type":"mileage_goal_failed_months","count":1}` |
