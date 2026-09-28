@@ -6,6 +6,12 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* 인트로(/intro) 전용 지면·잉크. 앱 토큰과 이름이 겹치지 않게 접두를 단다. */
+  --color-intro-paper: #ffffff;
+  --color-intro-ink: #0b0b0b;
+  --color-intro-dim: #6d6d6d;
+  --color-intro-line: #e4e4e4;
+
   /* 폰트 3역할 — 본문(Pretendard) / 제호·사람의 말(리디바탕) / 수치(Oswald).
      변수는 app/layout.tsx의 next/font가 주입한다.
      Oswald는 라틴 전용이라 한글에 쓰면 안 된다 — 뒤에 Pretendard를 폴백으로 둔다.

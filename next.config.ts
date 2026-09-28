@@ -35,6 +35,18 @@ const nextConfig: NextConfig = {
    * Vercel 대시보드의 도메인 리다이렉트 설정으로도 같은 일을 할 수 있다 —
    * 그쪽을 켜면 이 블록은 중복이니 하나만 남긴다.
    */
+  /**
+   * 인트로 사진(/crew, /lines)은 내용이 바뀌면 이름이나 폴더가 바뀐다. 그러니 브라우저가
+   * 1년간 묻지 않고 써도 된다 — max-age=0이면 버스트에서 프레임마다 재검증이 돌아
+   * 깜빡임으로 보인다(랜딩 저장소에서 실측: 24회 → 0회).
+   */
+  async headers() {
+    const year = "public, max-age=31536000, immutable";
+    return [
+      { source: "/crew/:path*", headers: [{ key: "Cache-Control", value: year }] },
+      { source: "/lines/:path*", headers: [{ key: "Cache-Control", value: year }] },
+    ];
+  },
   async redirects() {
     return [
       {

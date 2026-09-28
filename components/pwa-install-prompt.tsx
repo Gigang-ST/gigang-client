@@ -1,5 +1,7 @@
 "use client";
 
+import { usePathname } from "next/navigation";
+
 import { useEffect, useState } from "react";
 
 import { Share, X } from "lucide-react";
@@ -51,6 +53,7 @@ export function PwaInstallPrompt({
   variant = "banner",
   className,
 }: PwaInstallPromptProps) {
+  const pathname = usePathname();
   const [visible, setVisible] = useState(false);
   const [iosGuide, setIosGuide] = useState(false);
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
@@ -83,6 +86,9 @@ export function PwaInstallPrompt({
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, [variant]);
 
+  // 인트로(/intro)는 한 화면짜리 연출이라 설치 배너가 그 위에 올라오면 안 된다.
+  // 훅은 전부 돈 뒤에 가른다(훅 순서 고정).
+  if (pathname === "/intro") return null;
   if (!visible) return null;
 
   // 정책: 웹(브라우저)에서는 푸시 권한을 요청하지 않는다 (iOS·Android 공통).
