@@ -9,6 +9,8 @@
 /** 완전 일치로 공개되는 경로. prefix 매칭이면 하위 경로까지 덩달아 열린다. */
 const PUBLIC_PATHS = [
   "/",
+  // 인트로 — 비로그인 첫 화면. 사진은 .webp라 matcher를 안 타고, /api/frames는 /api/*로 열려 있다.
+  "/intro",
   "/rules",
   "/join",
   "/newbie",

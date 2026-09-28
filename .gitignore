@@ -104,3 +104,6 @@ CLAUDE.local.md
 .gstack/
 .claude/dev-profile.toml
 .claude/set-project-state.json
+
+# proxmox MCP 서버가 작업 디렉터리 루트에 쓰는 임시 파일
+proxmox-jobs.sqlite3*
