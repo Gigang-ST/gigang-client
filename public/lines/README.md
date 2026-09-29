@@ -11,13 +11,15 @@
 ```
 
 마지막 줄 `NO TIME TO BE WEAK`은 사진 없이 흰 지면으로 간다
-(`src/lib/data.ts`에서 `src: null`).
+(`lib/intro/data.ts`에서 `src: null`).
 
 ## 바꾸는 법
 
-같은 이름으로 덮어쓰면 끝이다. 코드는 건드리지 않는다.
-`.webp`가 아니어도 되지만, 확장자를 바꿨다면 `src/lib/media.ts`의
-`LINE_FRAMES` 경로도 같이 고쳐야 한다.
+**같은 이름으로 덮어쓰지 않는다.** 이 폴더는 브라우저가 1년간 묻지 않고 쓰는
+immutable 캐시라(`next.config.ts`의 `/lines` 헤더 — 프레임마다 재검증이 돌면 연출이
+깜빡여서), 같은 이름에 다른 내용을 넣으면 재방문자는 옛 사진을 본다. 새 파일은
+이름을 바꿔 넣고(`01b-no-give-up.webp` 등) `lib/intro/media.ts`의 `LINE_FRAMES`
+경로를 그 이름으로 고친다. 확장자를 바꿨을 때도 같다.
 
 원본이 크면 미리 줄여서 넣는 편이 낫다 (가로 1600px, 품질 70 정도):
 
@@ -31,7 +33,7 @@ cwebp -q 70 -resize 1600 0 원본.jpg -o 01-no-give-up.webp
 - 인물이 **화면 한가운데** 오면 문장에 덮인다. 좌우나 위아래로 치우친 컷이 낫다.
 - **색 보정은 파일에서 끝낸다.** 페이지는 어떤 필터도 걸지 않는다 —
   흑백으로 넣으면 흑백으로, 일부만 컬러로 남긴 보정본이면 그대로 나온다.
-- 밝기는 `src/lib/data.ts`의 `tone`으로 맞춘다: 어두운 사진이면 `"dark"`
+- 밝기는 `lib/intro/data.ts`의 `tone`으로 맞춘다: 어두운 사진이면 `"dark"`
   (흰 글자), 밝은 사진이면 `"light"` (검정 글자).
 - 인물이 한쪽으로 치우쳤으면 같은 파일의 `focus`로 크롭 창을 옮긴다
   (`"64% 50%"` 처럼).
@@ -39,6 +41,6 @@ cwebp -q 70 -resize 1600 0 원본.jpg -o 01-no-give-up.webp
 
 ## 문장을 더하거나 뺄 때
 
-문장 목록은 `src/components/hero.tsx`의 `TAILS`에 있다. 거기서 빼면
-`src/lib/media.ts`의 `LINE_FRAMES`와 `src/lib/data.ts`의 `crewFrames`에서도
+문장 목록은 `components/intro/hero.tsx`의 `TAILS`에 있다. 거기서 빼면
+`lib/intro/media.ts`의 `LINE_FRAMES`와 `lib/intro/data.ts`의 `crewFrames`에서도
 같은 줄을 빼고, 이 폴더의 파일 번호를 앞당긴다 — 셋의 순서가 곧 매핑이다.
