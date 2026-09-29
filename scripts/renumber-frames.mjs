@@ -5,6 +5,11 @@
  * only for keeping the names tidy once the pruning is done. Play order is the
  * current numeric order, so the run still ends on whatever is last now.
  *
+ * ⚠️ /crew is served with a 1-year immutable Cache-Control (next.config.ts), so
+ * renumbering hands an existing name to a different photograph — returning
+ * visitors keep the old one until their cache expires. Prefer leaving gaps;
+ * run this only when the folder is being rebuilt anyway.
+ *
  *   pnpm frames:renumber
  */
 import { readdir, rename, mkdir, rm } from "node:fs/promises";
@@ -31,8 +36,11 @@ for (const [i, file] of files.entries()) {
   await rename(path.join(dir, file), path.join(staging, next));
 }
 
-await rm(dir, { recursive: true, force: true });
-await rename(staging, dir);
+// dir 자체는 지우지 않는다 — .webp만 옮겼으니 다른 확장자 파일이 남아 있을 수 있다.
+for (const file of await readdir(staging)) {
+  await rename(path.join(staging, file), path.join(dir, file));
+}
+await rm(staging, { recursive: true, force: true });
 
 console.log(
   `renumbered ${files.length} frames: 01..${String(files.length).padStart(width, "0")} (last frame unchanged)`,

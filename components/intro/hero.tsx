@@ -41,9 +41,17 @@ export function Hero() {
   /** The rendered line reserves the longest tail plus the NO, so it runs a
    *  hair wider than the ruler. Back off so nothing touches the edge. */
   const size = fitted * 0.92;
-  const [step, setStep] = useState(() => (reduced ? SEQUENCE.length - 1 : -1));
-  const [centered, setCentered] = useState(() => Boolean(reduced));
-  const [burst, setBurst] = useState(false);
+  const [stepTimed, setStep] = useState(-1);
+  const [centeredTimed, setCentered] = useState(false);
+  const [burstTimed, setBurst] = useState(false);
+  /** 모션 감소면 연출을 건너뛰고 문이 열리는 순간 마지막 장에 서 있다. state로
+   *  들지 않고 파생하는 이유: useReducedMotion()이 첫 렌더에 null이라 useState
+   *  초기값으론 못 잡고, effect에서 setState로 맞추면 한 프레임 늦게 튄다.
+   *  burst까지 켜야 Burst의 나가는 버튼이 활성화된다. */
+  const skip = Boolean(reduced) && introDone;
+  const step = skip ? SEQUENCE.length - 1 : stepTimed;
+  const centered = skip || centeredTimed;
+  const burst = skip || burstTimed;
 
   useEffect(() => {
     if (!introDone || reduced) return;

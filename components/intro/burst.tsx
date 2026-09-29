@@ -22,7 +22,9 @@ export function Burst({ play }: { play: boolean }) {
   const [settled, setSettled] = useState(false);
   const last = Math.max(0, BURST.length - 1);
   const frame = reduced ? last : i;
-  const landed = reduced ? play : settled;
+  /** 프레임 목록이 비면(API 실패·빈 폴더) 넘길 게 없으니 play 즉시 착지 —
+   *  안 그러면 settled가 영영 false라 홈으로 가는 버튼이 켜지지 않는다. */
+  const landed = reduced || BURST.length === 0 ? play : settled;
   const [leaving, setLeaving] = useState(false);
 
   /** The line itself is the way out. */
