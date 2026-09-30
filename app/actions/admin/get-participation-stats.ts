@@ -6,7 +6,13 @@ import {
   RECENT_WINDOW_DAYS,
 } from "@/lib/constants/participation";
 import { dayjs, recentMonthBucketsKST } from "@/lib/dayjs";
-import { summarizeCancels, type CancelEvent } from "@/lib/gathering/cancel-stats";
+import {
+  attendKey,
+  CANCEL_HIST_SELECT,
+  summarizeCancels,
+  toCancelEvents,
+  type CancelHistRow,
+} from "@/lib/gathering/cancel-stats";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 
@@ -57,14 +63,6 @@ export type ParticipationStats = {
   monthly: { ym: string; label: string; attendCnt: number; gthrCnt: number }[];
 };
 
-type CancelHistRow = {
-  mem_id: string;
-  gthr_id: string;
-  evt_at: string;
-  reason_txt: string | null;
-  actor_cd: "self" | "admin";
-  gthr_mst: { gthr_nm: string; stt_at: string } | { gthr_nm: string; stt_at: string }[];
-};
 
 type RegRow = {
   mem_id: string;
@@ -146,17 +144,15 @@ export async function getParticipationStats(
             .order("race_result_id", { ascending: true }),
         { label: "participation:rec_race_hist" },
       ),
-      // 본인·운영진 취소 모두 — 운영진 취소는 대개 노쇼 정리다(lib/gathering/cancel-stats.ts)
+      // 본인·운영진 취소 모두 — 운영진 취소는 대개 노쇼 정리다(lib/gathering/cancel-stats.ts).
+      // ⚠️ 기간으로 자르지 않는다: (회원, 모임) 쌍의 마지막 취소를 고른 뒤 기간을 걸어야
+      // 취소→재참석→재취소가 두 기간에 겹쳐 잡히지 않는다(summarizeCancels).
       fetchAllRows(
         () =>
           supabase
             .from("gthr_attd_hist")
-            .select(
-              "mem_id, gthr_id, evt_at, reason_txt, actor_cd, gthr_mst!inner(gthr_nm, stt_at, team_id, del_yn)",
-            )
+            .select(CANCEL_HIST_SELECT)
             .eq("evt_cd", "cancel")
-            .gte("evt_at", from.toISOString())
-            .lt("evt_at", to.toISOString())
             .eq("gthr_mst.team_id", teamId)
             .eq("gthr_mst.del_yn", false)
             .order("hist_id", { ascending: true }),
@@ -266,23 +262,15 @@ export async function getParticipationStats(
       bumpLast(s, dt.toISOString());
     }
 
-    // 기간 필터는 쿼리가 이미 걸었다(취소한 시각 기준) — 여기선 집계만
-    const cancelEvents: CancelEvent[] = (cnclRows as unknown as CancelHistRow[]).map(
-      (r) => {
-        const g = Array.isArray(r.gthr_mst) ? r.gthr_mst[0] : r.gthr_mst;
-        return {
-          memId: r.mem_id,
-          gthrId: r.gthr_id,
-          gthrNm: g.gthr_nm,
-          sttAt: g.stt_at,
-          evtAt: r.evt_at,
-          reason: r.reason_txt,
-          actor: r.actor_cd,
-        };
-      },
+    // 지금 참석 중인 (회원, 모임) — 취소했다가 다시 참석한 쌍은 취소가 아니다
+    const attending = new Set(attdRows.map((a) => attendKey(a.mem_id, a.gthr_id)));
+    const cancels = summarizeCancels(
+      toCancelEvents(cnclRows as unknown as CancelHistRow[]),
+      attending,
+      { from, to },
     );
     // 팀 합계는 싣지 않는다 — 탭이 활동 회원 명단에서 합산해야 카드 숫자와 필터 결과가 맞는다
-    for (const [memId, c] of summarizeCancels(cancelEvents).byMember) {
+    for (const [memId, c] of cancels.byMember) {
       const s = stats.get(memId);
       if (!s) continue; // 탈퇴 등 현 재적 외
       s.cancelCnt = c.cancelCnt;

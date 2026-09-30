@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getVisibleInactiveReason } from "@/lib/inactive-notice";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
+import { getMemberCancelCount } from "@/lib/queries/member-cancel-count";
 import { getPublicMemberCard } from "@/lib/queries/member-card";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 
@@ -37,7 +38,7 @@ async function ProfileContent() {
     { data: utmbProfile },
     cmmCdRows,
     { data: titleRows },
-    { count: cancelCnt },
+    cancelCnt,
   ] = await Promise.all([
     getPublicMemberCard(supabase, member.id, teamId),
     supabase
@@ -55,14 +56,8 @@ async function ProfileContent() {
       .eq("vers", 0)
       .eq("del_yn", false),
     // 모임 취소 수 — 본인 화면 전용이라 공개 카드 RPC에 싣지 않고 따로 센다.
-    // 기준(본인·운영진 취소 모두)은 lib/gathering/cancel-stats.ts 와 같다.
-    supabase
-      .from("gthr_attd_hist")
-      .select("hist_id, gthr_mst!inner(team_id, del_yn)", { count: "exact", head: true })
-      .eq("mem_id", member.id)
-      .eq("evt_cd", "cancel")
-      .eq("gthr_mst.team_id", teamId)
-      .eq("gthr_mst.del_yn", false),
+    // 같은 모임 여러 번 취소는 1번, 다시 참석한 모임은 빼는 규칙이 lib/gathering/cancel-stats.ts 에 있다.
+    getMemberCancelCount(supabase, member.id, teamId),
   ]);
 
   // RPC는 `mem_st_cd = 'active'`만 돌려준다 — 비활성·탈퇴 상태면 카드가 통째로 비므로
@@ -127,7 +122,7 @@ async function ProfileContent() {
         teamMemId={member.team_mem_id}
         teamId={teamId}
         card={card}
-        cancelCnt={cancelCnt ?? 0}
+        cancelCnt={cancelCnt}
         utmb={
           utmbProfile?.utmb_prf_url && utmbProfile?.utmb_idx != null
             ? {
