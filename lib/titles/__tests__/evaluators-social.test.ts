@@ -32,7 +32,7 @@ function fakeDb(tables: Record<string, unknown[]>) {
   const make = (rows: unknown[]) => {
     let cur = rows;
     const q: Record<string, unknown> = {};
-    for (const m of ["in", "not", "gt", "gte", "lte", "lt", "order"]) q[m] = () => q;
+    for (const m of ["in", "not", "gt", "gte", "lte", "lt", "order", "range"]) q[m] = () => q;
     q.eq = (col: string, val: unknown) => {
       cur = cur.filter((r) => {
         const row = r as Record<string, unknown>;
@@ -224,7 +224,7 @@ describe("팀 공통 조회는 멤버 수만큼 반복되지 않는다", () => {
     let calls = 0;
     const make = () => {
       const q: Record<string, unknown> = {};
-      for (const m of ["eq", "in", "not", "gt", "gte", "lte", "lt", "order"]) q[m] = () => q;
+      for (const m of ["eq", "in", "not", "gt", "gte", "lte", "lt", "order", "range"]) q[m] = () => q;
       q.select = () => q;
       q.then = (res: (v: { data: unknown[] }) => unknown) => {
         calls += 1;
@@ -303,11 +303,11 @@ describe("#21 race_pair_reversal — 하수야~ / 고수님..", () => {
     fakeDb({
       rec_race_hist: rows.flatMap((r) => [
         {
-          comp_evt_id: r.evt, comp_evt_type: r.type, race_dt: r.dt,
+          comp_evt_id: r.evt, comp_evt_cfg: { comp_evt_type: r.type }, race_dt: r.dt,
           rec_time_sec: r.mine, mem_id: ME,
         },
         {
-          comp_evt_id: r.evt, comp_evt_type: r.type, race_dt: r.dt,
+          comp_evt_id: r.evt, comp_evt_cfg: { comp_evt_type: r.type }, race_dt: r.dt,
           rec_time_sec: r.theirs, mem_id: RIVAL,
         },
       ]),
@@ -362,14 +362,41 @@ describe("#21 race_pair_reversal — 하수야~ / 고수님..", () => {
     ).resolves.toBe(false);
   });
 
+  it("⚠️ 종목은 comp_evt_cfg 조인에서 읽는다 — rec_race_hist엔 comp_evt_type 칼럼이 없다", async () => {
+    // 칼럼으로 직접 고르면 실제 PostgREST가 매번 에러를 내고, 예전 코드는 그걸 삼켜
+    // 이 칭호가 한 번도 발급되지 않았다. 가짜 DB는 없는 칼럼을 몰라 못 잡으므로 select 문자열을 본다.
+    const selects: string[] = [];
+    const base = duel([{ evt: "e1", type: "FULL", dt: "2026-05-10", mine: 11000, theirs: 10000 }]) as {
+      from: (t: string) => { select: (s: string) => unknown };
+    };
+    const db = {
+      from: (t: string) => {
+        const q = base.from(t);
+        const orig = q.select.bind(q);
+        q.select = (s: string) => {
+          if (t === "rec_race_hist") selects.push(s);
+          return orig(s);
+        };
+        return q;
+      },
+    } as never;
+    await evalRacePairReversal({ type: "race_pair_reversal", direction: "winner" }, ME, TEAM, OPEN, db);
+
+    expect(selects.length).toBeGreaterThan(0);
+    for (const s of selects) {
+      // 조인 안(comp_evt_cfg!inner(comp_evt_type))은 괜찮고, 맨 칼럼 comp_evt_type은 안 된다
+      expect(s.replace(/comp_evt_cfg!inner\([^)]*\)/g, "")).not.toMatch(/\bcomp_evt_type\b/);
+    }
+  });
+
   it("⚠️ 다른 팀 사람과의 맞대결은 세지 않는다", async () => {
     // rec_race_hist엔 team 컬럼이 없어 대회 id만으로 조회하면 남의 팀 기록까지 딸려 온다.
     // 같은 공개 대회(동아마라톤 등)를 뛴 남에게 '하수야~'가 붙으면 안 된다.
     const rows = [
-      { comp_evt_id: "e1", comp_evt_type: "FULL", race_dt: "2026-05-10", rec_time_sec: 11000, mem_id: ME },
-      { comp_evt_id: "e1", comp_evt_type: "FULL", race_dt: "2026-05-10", rec_time_sec: 10000, mem_id: RIVAL },
-      { comp_evt_id: "e2", comp_evt_type: "FULL", race_dt: "2026-08-15", rec_time_sec: 9000, mem_id: ME },
-      { comp_evt_id: "e2", comp_evt_type: "FULL", race_dt: "2026-08-15", rec_time_sec: 9500, mem_id: RIVAL },
+      { comp_evt_id: "e1", comp_evt_cfg: { comp_evt_type: "FULL" }, race_dt: "2026-05-10", rec_time_sec: 11000, mem_id: ME },
+      { comp_evt_id: "e1", comp_evt_cfg: { comp_evt_type: "FULL" }, race_dt: "2026-05-10", rec_time_sec: 10000, mem_id: RIVAL },
+      { comp_evt_id: "e2", comp_evt_cfg: { comp_evt_type: "FULL" }, race_dt: "2026-08-15", rec_time_sec: 9000, mem_id: ME },
+      { comp_evt_id: "e2", comp_evt_cfg: { comp_evt_type: "FULL" }, race_dt: "2026-08-15", rec_time_sec: 9500, mem_id: RIVAL },
     ];
 
     // 상대가 우리 팀이면 역전이 성립한다.

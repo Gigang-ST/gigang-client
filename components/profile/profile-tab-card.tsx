@@ -39,6 +39,7 @@ export function ProfileTabCard({
   teamMemId,
   teamId,
   card,
+  cancelCnt,
   utmb,
   primaryTtlId,
   maxRarityLevel,
@@ -49,6 +50,8 @@ export function ProfileTabCard({
   teamMemId: string;
   teamId: string;
   card: MemberCardData;
+  /** 모임 취소 수(운영진이 뺀 것 포함) — 공개 카드 RPC 밖에서 따로 받는다(본인 화면 전용) */
+  cancelCnt: number;
   /** UTMB 연동 다이얼로그의 현재값 — 카드가 쓰는 `utmb_index`보다 상세하다(URL·최근 대회) */
   utmb: UtmbProfile | null;
   primaryTtlId: string | null;
@@ -106,6 +109,7 @@ export function ProfileTabCard({
           onAddRecord: () => setRecordOpen(true),
           onLinkUtmb: () => setUtmbOpen(true),
           point: card.stats.activity_score,
+          cancelCnt,
         }}
       />
 

@@ -23,6 +23,7 @@ const ACTV_TYPE_LABEL: Record<string, string> = {
   mlg_record: "마일리지런 기록",
   mlg_goal: "마일리지런 목표 달성",
   sch_post: "정보 등록",
+  post_record: "깅스타그램",
   manual: "운영 조정",
 };
 

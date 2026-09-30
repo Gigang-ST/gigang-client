@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { dayjs } from "@/lib/dayjs";
 import type { Database } from "@/lib/supabase/database.types";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { JOIN_PURP_SHORT_LABELS, PACE_LABELS } from "@/lib/validations/member";
 
 /**
@@ -357,14 +358,20 @@ async function fetchPastAttendanceEvents(
   teamId: string,
 ): Promise<AttendanceEvent[]> {
   const nowIso = dayjs().toISOString();
-  const { data, error } = await supabase
-    .from("gthr_attd_rel")
-    .select("mem_id, gthr_mst!inner(stt_at)")
-    .eq("gthr_mst.team_id", teamId)
-    .eq("gthr_mst.del_yn", false)
-    .lte("gthr_mst.stt_at", nowIso);
-  if (error) throw error;
-  return (data ?? []).map((r) => {
+  // 팀 전체·전 기간 참석이라 달마다 는다 — 1000행에서 잘리면 마지막 참석일이 틀리고
+  // 멀쩡한 사람이 불참자로 뜬다. 끝까지 읽는다(실패하면 던진다).
+  const data = await fetchAllRows(
+    () =>
+      supabase
+        .from("gthr_attd_rel")
+        .select("mem_id, gthr_mst!inner(stt_at)")
+        .eq("gthr_mst.team_id", teamId)
+        .eq("gthr_mst.del_yn", false)
+        .lte("gthr_mst.stt_at", nowIso)
+        .order("attd_id", { ascending: true }),
+    { label: "mcp:past-attendance" },
+  );
+  return data.map((r) => {
     const g = pickOne(r.gthr_mst as { stt_at: string } | { stt_at: string }[]);
     return { mem_id: r.mem_id as string, stt_at: (g?.stt_at as string) ?? null };
   });

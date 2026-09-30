@@ -2,33 +2,7 @@
 import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { nextMonthStr } from "@/lib/dayjs";
-
-const PAGE_SIZE = 1000;
-
-/**
- * PostgREST 기본 응답 상한(1000행)을 넘는 쿼리를 `.range()`로 끝까지 긁어온다.
- *
- * `getEventLogsCumulative`가 이 페이지네이션 없이 5개월치(1,401건)를 한 번에 읽다가
- * 뒤 401건이 조용히 잘려 환급 예정액이 낮게 계산된 사고가 있었다(2026-08-27) — 에러가
- * 안 나서 한참을 캐시 문제로 오인했다. `queryBuilder`는 매 페이지 **정렬 기준이 고정된**
- * 쿼리를 돌려줘야 한다(정렬 없이 range()만 반복하면 페이지 사이에 행이 중복되거나 빠질 수 있다).
- */
-async function fetchAllRows<T>(
-  queryBuilder: (
-    from: number,
-    to: number,
-  ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
-): Promise<T[]> {
-  const rows: T[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await queryBuilder(from, from + PAGE_SIZE - 1);
-    if (error) throw new Error(`fetchAllRows 페이지 조회 실패(from=${from}): ${error.message}`);
-    if (!data || data.length === 0) break;
-    rows.push(...data);
-    if (data.length < PAGE_SIZE) break;
-  }
-  return rows;
-}
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 
 /** 이벤트 승인 참여자 (이름 포함) */
 export const getEventParticipants = cache(async (evtId: string) => {
@@ -70,15 +44,14 @@ export const getEventGoalsCumulative = cache(
   async (evtId: string, startMonth: string, endMonth: string) => {
     const queryStart = startMonth <= endMonth ? startMonth : endMonth;
     const db = createAdminClient();
-    const data = await fetchAllRows((from, to) =>
+    const data = await fetchAllRows(() =>
       db
         .from("evt_mlg_mth_snap")
         .select("goal_id, prt_id, base_dt, goal_mlg, achv_yn, act_cnt, achv_mlg, lst_act_dt, evt_team_prt_rel!inner(mem_id, evt_id)")
         .eq("evt_team_prt_rel.evt_id", evtId)
         .gte("base_dt", queryStart)
         .lte("base_dt", endMonth)
-        .order("goal_id", { ascending: true })
-        .range(from, to),
+        .order("goal_id", { ascending: true }),
     );
     return data.map((row) => {
       const rel = row.evt_team_prt_rel as { mem_id: string; evt_id: string };
@@ -90,15 +63,21 @@ export const getEventGoalsCumulative = cache(
 /** 이벤트 당월 활동 로그 (month ~ nextMonth 1일 exclusive) */
 export const getEventLogsMonthly = cache(async (evtId: string, month: string) => {
   const db = createAdminClient();
-  const { data } = await db
-    .from("evt_mlg_act_hist")
-    .select(
-      "act_id, prt_id, act_dt, final_mlg, sprt_enm, dst_km, elv_m, base_mlg, aply_mults, review, evt_team_prt_rel!inner(mem_id, evt_id)",
-    )
-    .eq("evt_team_prt_rel.evt_id", evtId)
-    .gte("act_dt", month)
-    .lt("act_dt", nextMonthStr(month));
-  return (data ?? []).map((row) => {
+  // 한 달 치라도 참가자 수만큼 늘어난다(prd 최대 390행/월) — 끝까지 읽는다
+  const data = await fetchAllRows(
+    () =>
+      db
+        .from("evt_mlg_act_hist")
+        .select(
+          "act_id, prt_id, act_dt, final_mlg, sprt_enm, dst_km, elv_m, base_mlg, aply_mults, review, evt_team_prt_rel!inner(mem_id, evt_id)",
+        )
+        .eq("evt_team_prt_rel.evt_id", evtId)
+        .gte("act_dt", month)
+        .lt("act_dt", nextMonthStr(month))
+        .order("act_id", { ascending: true }),
+    { label: "getEventLogsMonthly" },
+  );
+  return data.map((row) => {
     const rel = row.evt_team_prt_rel as { mem_id: string; evt_id: string };
     return {
       ...row,
@@ -120,7 +99,7 @@ export const getEventLogsCumulative = cache(
   async (evtId: string, startDate: string, endMonth: string) => {
     const queryStart = startDate <= endMonth ? startDate : endMonth;
     const db = createAdminClient();
-    const data = await fetchAllRows((from, to) =>
+    const data = await fetchAllRows(() =>
       db
         .from("evt_mlg_act_hist")
         .select(
@@ -129,8 +108,7 @@ export const getEventLogsCumulative = cache(
         .eq("evt_team_prt_rel.evt_id", evtId)
         .gte("act_dt", queryStart)
         .lt("act_dt", nextMonthStr(endMonth))
-        .order("act_id", { ascending: true })
-        .range(from, to),
+        .order("act_id", { ascending: true }),
     );
     return data.map((row) => {
       const rel = row.evt_team_prt_rel as { mem_id: string; evt_id: string };

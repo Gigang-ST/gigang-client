@@ -54,6 +54,7 @@ const EDIT = {
   onAddRecord: () => {},
   onLinkUtmb: () => {},
   point: 1240,
+  cancelCnt: 7,
 };
 
 function render(data: Partial<MemberCardData>, edit = false) {
@@ -116,6 +117,13 @@ describe("편집판(내 프로필탭)", () => {
     const html = render({ utmb_index: null }, true);
     expect(html).toContain("연동하기");
     expect(html).not.toContain('aria-label="UTMB 연동 수정"');
+  });
+
+  it("모임 취소 수는 편집판에만 뜬다 — 모임·취소·대회 순", () => {
+    const html = render({}, true);
+    expect(html).toMatch(/취소 <span[^>]*>7</);
+    expect(html.indexOf("모임 <span")).toBeLessThan(html.indexOf("취소 <span"));
+    expect(html.indexOf("취소 <span")).toBeLessThan(html.indexOf("대회 <span"));
   });
 
   it("포인트는 편집판에만 뜬다", () => {
@@ -196,6 +204,10 @@ describe("공개판(남이 보는 카드)", () => {
     const html = render({});
     expect(html).toContain("최근활동");
     expect(html).toContain("--:--");
+  });
+
+  it("모임 취소 수는 절대 새지 않는다 — 공개 낙인이 된다", () => {
+    expect(render({})).not.toMatch(/취소 <span/);
   });
 
   it("포인트는 절대 새지 않는다", () => {

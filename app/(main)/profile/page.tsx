@@ -32,24 +32,38 @@ async function ProfileContent() {
   // 카드 본문은 공개 카드 RPC 한 번으로 전부 받는다 — 남이 보는 카드와 **같은 데이터**라야
   // 두 화면이 어긋나지 않는다. 서버에서 부르는 게 중요한데, 클라이언트 조회로 옮기면
   // 편집 액션들의 `revalidatePath("/profile")`이 통째로 무력화된다.
-  const [card, { data: utmbProfile }, cmmCdRows, { data: titleRows }] =
-    await Promise.all([
-      getPublicMemberCard(supabase, member.id, teamId),
-      supabase
-        .from("mem_utmb_prf")
-        .select("utmb_prf_url, utmb_idx, rct_race_nm, rct_race_rec")
-        .eq("mem_id", member.id)
-        .eq("vers", 0)
-        .eq("del_yn", false)
-        .maybeSingle(),
-      getCachedCmmCdRows(),
-      supabase
-        .from("mem_ttl_rel")
-        .select("ttl_id, is_prmy_yn, ttl_mst(rarity_level, ttl_ctgr_cd)")
-        .eq("team_mem_id", member.team_mem_id)
-        .eq("vers", 0)
-        .eq("del_yn", false),
-    ]);
+  const [
+    card,
+    { data: utmbProfile },
+    cmmCdRows,
+    { data: titleRows },
+    { count: cancelCnt },
+  ] = await Promise.all([
+    getPublicMemberCard(supabase, member.id, teamId),
+    supabase
+      .from("mem_utmb_prf")
+      .select("utmb_prf_url, utmb_idx, rct_race_nm, rct_race_rec")
+      .eq("mem_id", member.id)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .maybeSingle(),
+    getCachedCmmCdRows(),
+    supabase
+      .from("mem_ttl_rel")
+      .select("ttl_id, is_prmy_yn, ttl_mst(rarity_level, ttl_ctgr_cd)")
+      .eq("team_mem_id", member.team_mem_id)
+      .eq("vers", 0)
+      .eq("del_yn", false),
+    // 모임 취소 수 — 본인 화면 전용이라 공개 카드 RPC에 싣지 않고 따로 센다.
+    // 기준(본인·운영진 취소 모두)은 lib/gathering/cancel-stats.ts 와 같다.
+    supabase
+      .from("gthr_attd_hist")
+      .select("hist_id, gthr_mst!inner(team_id, del_yn)", { count: "exact", head: true })
+      .eq("mem_id", member.id)
+      .eq("evt_cd", "cancel")
+      .eq("gthr_mst.team_id", teamId)
+      .eq("gthr_mst.del_yn", false),
+  ]);
 
   // RPC는 `mem_st_cd = 'active'`만 돌려준다 — 비활성·탈퇴 상태면 카드가 통째로 비므로
   // 빈 화면 대신 사유를 말한다(예전 프로필탭은 이 상태에서도 화면을 보여줬다).
@@ -113,6 +127,7 @@ async function ProfileContent() {
         teamMemId={member.team_mem_id}
         teamId={teamId}
         card={card}
+        cancelCnt={cancelCnt ?? 0}
         utmb={
           utmbProfile?.utmb_prf_url && utmbProfile?.utmb_idx != null
             ? {

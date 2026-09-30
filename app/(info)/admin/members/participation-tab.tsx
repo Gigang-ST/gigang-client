@@ -25,6 +25,8 @@ import { Caption, SectionLabel } from "@/components/common/typography";
 import { CardItem } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
+import { CancelSection } from "./cancel-section";
+
 // ---------------------------------------------------------------------------
 // 참여 탭 — 팀 요약 통계 + 회원별 참여 명단
 //
@@ -57,7 +59,13 @@ type ListFilter =
   | { key: "participated"; label: string }
   | { key: "upcoming"; label: string }
   | { key: "never"; label: string }
+  | { key: "canceled"; label: string }
+  | { key: "imminent"; label: string }
   | { key: "temp"; temp: Temperature; label: string };
+
+/** 취소 필터가 걸리면 명단은 참석 수가 아니라 취소 수로 줄 세운다 */
+const isCancelFilter = (f: ListFilter | null) =>
+  f?.key === "canceled" || f?.key === "imminent";
 
 export type ParticipationTabMember = {
   id: string;
@@ -76,6 +84,8 @@ const EMPTY_STAT: Omit<MemberParticipationStat, "memId"> = {
   recentAttendCnt: 0,
   upcomingReg: false,
   lastAt: null,
+  cancelCnt: 0,
+  imminentCnt: 0,
 };
 
 function periodRange(period: Period): { from: string; to: string } {
@@ -185,7 +195,28 @@ export function ParticipationTab({
     const never = rows.filter((r) => r.stat.attendAllCnt === 0).length;
     // 카드 값과 클릭 시 필터 결과가 같은 모집단(active rows)을 보도록 여기서 파생
     const upcoming = rows.filter((r) => r.stat.upcomingReg).length;
-    return { activeCnt, participated, tempCnt, never, upcoming };
+    // 취소 합계도 같은 모집단에서 — 서버 합계를 쓰면 탈퇴자 몫만큼 카드와 필터 결과가 어긋난다
+    let cancelTotal = 0;
+    let imminentTotal = 0;
+    let cancelMembers = 0;
+    let imminentMembers = 0;
+    for (const r of rows) {
+      cancelTotal += r.stat.cancelCnt;
+      imminentTotal += r.stat.imminentCnt;
+      if (r.stat.cancelCnt > 0) cancelMembers += 1;
+      if (r.stat.imminentCnt > 0) imminentMembers += 1;
+    }
+    return {
+      activeCnt,
+      participated,
+      tempCnt,
+      never,
+      upcoming,
+      cancelTotal,
+      imminentTotal,
+      cancelMembers,
+      imminentMembers,
+    };
   }, [rows]);
 
   const filteredRows = useMemo(() => {
@@ -193,9 +224,17 @@ export function ParticipationTab({
     if (filter?.key === "participated") list = list.filter((r) => r.stat.attendCnt > 0);
     else if (filter?.key === "upcoming") list = list.filter((r) => r.stat.upcomingReg);
     else if (filter?.key === "never") list = list.filter((r) => r.stat.attendAllCnt === 0);
+    else if (filter?.key === "canceled") list = list.filter((r) => r.stat.cancelCnt > 0);
+    else if (filter?.key === "imminent") list = list.filter((r) => r.stat.imminentCnt > 0);
     else if (filter?.key === "temp") list = list.filter((r) => r.temp === filter.temp);
+    const byCancel = isCancelFilter(filter);
     return [...list].sort((a, b) => {
-      const diff = a.stat.attendCnt - b.stat.attendCnt;
+      // 취소 필터: 직전 필터면 직전 수 먼저, 그다음 전체 취소 수 / 평소: 참석 수
+      const diff = byCancel
+        ? (filter?.key === "imminent" ? a.stat.imminentCnt - b.stat.imminentCnt : 0) ||
+          a.stat.cancelCnt - b.stat.cancelCnt ||
+          a.stat.imminentCnt - b.stat.imminentCnt
+        : a.stat.attendCnt - b.stat.attendCnt;
       if (diff !== 0) return sortAsc ? diff : -diff;
       return (a.member.full_name ?? "").localeCompare(b.member.full_name ?? "", "ko");
     });
@@ -291,6 +330,24 @@ export function ParticipationTab({
               }
             />
           </div>
+
+          {/* 모임 취소 — 카드 탭 → 명단이 취소 많은 순으로 필터 */}
+          <CancelSection
+            periodLabel={PERIOD_LABELS[period]}
+            cancelTotal={summary.cancelTotal}
+            cancelMembers={summary.cancelMembers}
+            imminentTotal={summary.imminentTotal}
+            imminentMembers={summary.imminentMembers}
+            onFilter={(kind) => {
+              // 취소 필터는 많은 순이 기본 — 참석 적은순을 켜 둔 채 넘어오면 거꾸로 선다
+              setSortAsc(false);
+              applyFilter(
+                kind === "canceled"
+                  ? { key: "canceled", label: "모임 취소" }
+                  : { key: "imminent", label: "직전 취소" },
+              );
+            }}
+          />
 
           {/* 참여 온도 — 세그먼트 탭 → 해당 온도 필터 */}
           <CardItem className="flex flex-col gap-2.5 p-4">
@@ -393,7 +450,13 @@ export function ParticipationTab({
                 ) : (
                   <ArrowDownWideNarrow className="size-3" />
                 )}
-                {sortAsc ? "참석 적은순" : "참석 많은순"}
+                {isCancelFilter(filter)
+                  ? sortAsc
+                    ? "취소 적은순"
+                    : "취소 많은순"
+                  : sortAsc
+                    ? "참석 적은순"
+                    : "참석 많은순"}
               </button>
             </div>
 
@@ -427,6 +490,13 @@ export function ParticipationTab({
                         모임 {stat.attendCnt} · 정모 {stat.regularCnt} · 대회{" "}
                         {stat.compRegCnt}
                         {stat.hostedCnt > 0 && ` · 개설 ${stat.hostedCnt}`}
+                        {stat.cancelCnt > 0 && (
+                          <span className="text-destructive">
+                            {" "}
+                            · 취소 {stat.cancelCnt}
+                            {stat.imminentCnt > 0 && ` (직전 ${stat.imminentCnt})`}
+                          </span>
+                        )}
                       </Caption>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">

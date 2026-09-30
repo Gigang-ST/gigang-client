@@ -29,7 +29,7 @@ const OPEN: GatheringWindow = { asOfDt: null, effStartDt: null };
 function fakeDb(tables: Record<string, unknown[]>) {
   const make = (rows: unknown[]) => {
     const q: Record<string, unknown> = {};
-    for (const m of ["eq", "in", "not", "gte", "lte", "order"]) {
+    for (const m of ["eq", "in", "not", "gte", "lte", "order", "range"]) {
       q[m] = () => q;
     }
     q.select = () => q;
@@ -53,7 +53,7 @@ describe("조회 캐시 — 같은 목록을 조건마다 다시 읽지 않는�
     let calls = 0;
     const make = () => {
       const q: Record<string, unknown> = {};
-      for (const m of ["eq", "in", "not", "gte", "lte", "order"]) q[m] = () => q;
+      for (const m of ["eq", "in", "not", "gte", "lte", "order", "range"]) q[m] = () => q;
       q.select = () => q;
       q.then = (res: (v: { data: unknown[] }) => unknown) => {
         calls += 1;

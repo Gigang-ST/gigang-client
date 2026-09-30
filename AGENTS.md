@@ -37,6 +37,9 @@ Before any Next.js work, find and read the relevant doc in `node_modules/next/di
   - date 컬럼(`_dt`) 표시, 절대시각 차이(`diff(x,"minute")`), `toISOString()` 저장 → 그대로 안전
   - ESLint(`no-restricted-syntax`)가 위험한 형태를 막는다 — 회귀 테스트는 `lib/__tests__/kst-boundary.test.ts`
 - **환경변수**: `lib/env.ts`에서 import. `process.env` 직접 접근 금지 (t3-env가 런타임 검증)
+- **대량 조회**: 결과가 **시간이 갈수록 느는** 조회(팀 전체·기간 전체 — 참석·기록·취소·칭호 보유·대회 목록…)는
+  `fetchAllRows`(`lib/supabase/fetch-all.ts`)로 끝까지 읽는다. PostgREST는 1000행에서 **에러 없이** 자른다 —
+  이걸로 세 번 사고가 났다. 지금 몇 백 행이어도 쓴다. 기준·예외는 `.claude/docs/coding-standards.md` §대량 조회
 - **멤버 조회**: `getCurrentMember()` (`lib/queries/member.ts`) — React cache()로 같은 렌더 내 중복 쿼리 방지
 - **폼 검증**: Zod 스키마를 `lib/validations/`에 정의하고 React Hook Form과 통합
 - **에이전트 활용**: 작업 영역에 맞는 서브에이전트에 위임할 것 (프론트엔드, 백엔드, DevOps)

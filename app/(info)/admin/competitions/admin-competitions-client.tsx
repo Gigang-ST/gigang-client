@@ -24,6 +24,7 @@ import {
 } from "@/lib/queries/cmm-cd-cached";
 import { sanitizeAsciiUpperCompEvtTypeInput } from "@/lib/comp-evt-type";
 import { createClient } from "@/lib/supabase/client";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { cn } from "@/lib/utils";
 
 import {
@@ -82,6 +83,27 @@ const FILTERS: { value: Filter; label: string }[] = [
 ];
 
 const modes = ["list", "create", "edit", "detail"] as const;
+
+/**
+ * 관리자 대회 목록 — 전 팀 공용 `comp_mst` 전체라 1000행을 넘는다(prd 1,115건).
+ * 잘리면 오래된 대회가 목록에서 사라져 수정·삭제를 못 한다 — 끝까지 읽는다.
+ * 정렬은 날짜만으로는 동률이 있어 comp_id를 덧붙인다(페이지 경계에서 겹침·누락 방지).
+ */
+function fetchCompetitionRows(supabase: ReturnType<typeof createClient>) {
+  return fetchAllRows(
+    () =>
+      supabase
+        .from("comp_mst")
+        .select(
+          "comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)",
+        )
+        .eq("vers", 0)
+        .eq("del_yn", false)
+        .order("stt_dt", { ascending: false })
+        .order("comp_id", { ascending: true }),
+    { label: "admin-competitions:comp_mst" },
+  );
+}
 
 export function AdminCompetitionsClient({
   teamId,
@@ -146,22 +168,24 @@ function CompetitionsContent({
 
   const loadCompetitions = useCallback(async () => {
     const supabase = createClient();
-    const [{ data }, { data: planRows }] = await Promise.all([
-      supabase
-        .from("comp_mst")
-        .select(
-          "comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)",
-        )
-        .eq("vers", 0)
-        .eq("del_yn", false)
-        .order("stt_dt", { ascending: false }),
-      supabase
-        .from("team_comp_plan_rel")
-        .select("comp_id, comp_reg_rel(count)")
-        .eq("team_id", teamId)
-        .eq("vers", 0)
-        .eq("del_yn", false),
-    ]);
+    // 실패하면 목록을 비우지 않고 이전 상태를 둔 채 로그만 남긴다.
+    let data: Awaited<ReturnType<typeof fetchCompetitionRows>>;
+    let planRows: unknown[] | null;
+    try {
+      [data, { data: planRows }] = await Promise.all([
+        fetchCompetitionRows(supabase),
+        supabase
+          .from("team_comp_plan_rel")
+          .select("comp_id, comp_reg_rel(count)")
+          .eq("team_id", teamId)
+          .eq("vers", 0)
+          .eq("del_yn", false),
+      ]);
+    } catch (error) {
+      console.error("대회 목록 조회 실패:", error);
+      setLoading(false);
+      return;
+    }
 
     const regCountByComp = new Map<string, number>();
     for (const row of (planRows ?? []) as unknown as TeamPlanRegCountRow[]) {
@@ -170,7 +194,7 @@ function CompetitionsContent({
     }
 
     setCompetitions(
-      (data ?? []).map((c: Record<string, unknown>) => ({
+      data.map((c: Record<string, unknown>) => ({
         id: c.comp_id as string,
         title: c.comp_nm as string,
         sport: c.comp_sprt_cd as string | null,

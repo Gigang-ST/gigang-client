@@ -210,7 +210,8 @@ async function filterFirstApplicantGatherings(
       .from("gthr_attd_rel")
       .select("gthr_id, mem_id, crt_at, gthr_mst!inner(crt_by)")
       .in("gthr_id", chunk)
-      .order("crt_at", { ascending: true }),
+      .order("crt_at", { ascending: true })
+      .order("attd_id", { ascending: true }),
   );
 
   const firstByGthr = new Map<string, string>();
@@ -509,7 +510,8 @@ export async function evalGthrLastSlot(
         .from("gthr_attd_rel")
         .select("gthr_id, mem_id, crt_at")
         .in("gthr_id", chunk)
-        .order("crt_at", { ascending: true }),
+        .order("crt_at", { ascending: true })
+        .order("attd_id", { ascending: true }),
   );
 
   const orderByGthr = new Map<string, string[]>();
