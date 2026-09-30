@@ -7,7 +7,14 @@ import {
   MONTHLY_WINDOW,
 } from "@/lib/constants/participation";
 import { dayjs, formatKST, recentMonthBucketsKST, secondsToTime } from "@/lib/dayjs";
-import { summarizeCancels, type CancelRecord } from "@/lib/gathering/cancel-stats";
+import {
+  attendKey,
+  CANCEL_HIST_SELECT,
+  summarizeCancels,
+  toCancelEvents,
+  type CancelHistRow,
+  type CancelRecord,
+} from "@/lib/gathering/cancel-stats";
 import { createClient } from "@/lib/supabase/client";
 
 import { EmptyState } from "@/components/common/empty-state";
@@ -50,14 +57,6 @@ type CompRegRow = {
   team_comp_plan_rel: {
     comp_mst: { comp_nm: string; stt_dt: string } | null;
   };
-};
-
-type CancelHistRow = {
-  gthr_id: string;
-  evt_at: string;
-  reason_txt: string | null;
-  actor_cd: "self" | "admin";
-  gthr_mst: { gthr_nm: string; stt_at: string } | { gthr_nm: string; stt_at: string }[];
 };
 
 type RaceRow = {
@@ -188,7 +187,7 @@ export function ParticipationSection({
       // 5) 모임 취소 — 본인·운영진 모두 (운영진 취소는 대개 노쇼 정리 — lib/gathering/cancel-stats.ts)
       supabase
         .from("gthr_attd_hist")
-        .select("gthr_id, evt_at, reason_txt, actor_cd, gthr_mst!inner(gthr_nm, stt_at, team_id, del_yn)")
+        .select(CANCEL_HIST_SELECT)
         .eq("mem_id", memId)
         .eq("evt_cd", "cancel")
         .eq("gthr_mst.team_id", teamId)
@@ -264,19 +263,10 @@ export function ParticipationSection({
           }),
         ].sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
 
+        // 같은 모임 여러 번 취소는 1번, 다시 참석한 모임은 취소가 아니다(lib/gathering/cancel-stats.ts)
         const cancelSummary = summarizeCancels(
-          ((cnclRes.data ?? []) as unknown as CancelHistRow[]).map((r) => {
-            const g = Array.isArray(r.gthr_mst) ? r.gthr_mst[0] : r.gthr_mst;
-            return {
-              memId,
-              gthrId: r.gthr_id,
-              gthrNm: g.gthr_nm,
-              sttAt: g.stt_at,
-              evtAt: r.evt_at,
-              reason: r.reason_txt,
-              actor: r.actor_cd,
-            };
-          }),
+          toCancelEvents((cnclRes.data ?? []) as unknown as CancelHistRow[]),
+          new Set(attends.map((a) => attendKey(memId, a.gthr_id))),
         );
 
         const lastCandidates = [
