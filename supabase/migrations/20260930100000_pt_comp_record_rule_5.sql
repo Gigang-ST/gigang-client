@@ -28,25 +28,46 @@ AS $function$
   END;
 $function$;
 
-INSERT INTO public.pt_txn_hist (team_id, mem_id, actv_type_enm, txn_type_enm, pt_amt, aply_dt, ref_type_txt, ref_id, rsn_txt)
-SELECT e.team_id, n.mem_id, 'comp_record', 'manual_adj',
-       public.pt_rule_amt('comp_record') - n.net,
-       e.aply_dt, e.ref_type_txt, n.ref_id,
-       '배점 조정: 대회 기록 등록 20→5'
-FROM (
-  SELECT mem_id, ref_id, SUM(pt_amt)::integer AS net
-  FROM public.pt_txn_hist
-  WHERE actv_type_enm = 'comp_record'
-  GROUP BY mem_id, ref_id
-  HAVING SUM(pt_amt) > public.pt_rule_amt('comp_record')
-) n
-CROSS JOIN LATERAL (
-  SELECT h.team_id, h.aply_dt, h.ref_type_txt
-  FROM public.pt_txn_hist h
-  WHERE h.actv_type_enm = 'comp_record'
-    AND h.txn_type_enm = 'earn'
-    AND h.mem_id = n.mem_id
-    AND h.ref_id IS NOT DISTINCT FROM n.ref_id
-  ORDER BY h.crt_at DESC
-  LIMIT 1
-) e;
+-- 소급 조정 — ref마다 pt_revoke()/pt_earn()과 **같은 advisory lock**을 먼저 잡고, 잡은 뒤에
+-- 순액을 다시 읽어 조정 줄을 넣는다. 잠금 없이 한 번의 INSERT … SELECT로 하면, 마이그레이션
+-- 도중 누가 기록을 지웠을 때 두 쪽이 모두 순액 20을 보고 회수(-20)와 조정(-15)이 겹쳐
+-- 순액이 -15가 된다. 잠금 대기 전 스냅샷을 쓰지 않도록 순액은 **잠금 다음 문장에서** 계산한다
+-- (plpgsql의 각 SQL 문은 READ COMMITTED에서 새 스냅샷을 잡는다).
+-- 후보 목록은 잠금 전에 뽑아도 된다 — 잠근 뒤 순액을 다시 보고 5 이하면 건너뛴다.
+DO $$
+DECLARE
+  r     record;
+  v_net integer;
+  v_amt integer := public.pt_rule_amt('comp_record');
+  e     record;
+BEGIN
+  FOR r IN
+    SELECT mem_id, ref_id
+    FROM public.pt_txn_hist
+    WHERE actv_type_enm = 'comp_record'
+    GROUP BY mem_id, ref_id
+    HAVING SUM(pt_amt) > v_amt
+  LOOP
+    PERFORM pg_advisory_xact_lock(
+      hashtext('pt_ref:' || r.mem_id::text || ':comp_record:' || coalesce(r.ref_id::text, ''))::bigint);
+
+    v_net := public.pt_net_by_ref(r.mem_id, 'comp_record', r.ref_id);
+    CONTINUE WHEN v_net <= v_amt;
+
+    SELECT h.team_id, h.aply_dt, h.ref_type_txt INTO e
+    FROM public.pt_txn_hist h
+    WHERE h.actv_type_enm = 'comp_record'
+      AND h.txn_type_enm = 'earn'
+      AND h.mem_id = r.mem_id
+      AND h.ref_id IS NOT DISTINCT FROM r.ref_id
+    ORDER BY h.crt_at DESC
+    LIMIT 1;
+    -- earn 줄 없이 순액만 남은 ref는 귀속 정보를 알 수 없다 — 예전 INSERT … SELECT(CROSS JOIN)도 건너뛰던 경우
+    CONTINUE WHEN NOT FOUND;
+
+    INSERT INTO public.pt_txn_hist (team_id, mem_id, actv_type_enm, txn_type_enm, pt_amt, aply_dt, ref_type_txt, ref_id, rsn_txt)
+    VALUES (e.team_id, r.mem_id, 'comp_record', 'manual_adj', v_amt - v_net,
+            e.aply_dt, e.ref_type_txt, r.ref_id, '배점 조정: 대회 기록 등록 20→5');
+  END LOOP;
+END;
+$$;
