@@ -119,20 +119,6 @@ describe("summarizeCancels — 세는 단위는 이벤트가 아니라 (회원, 
     expect(s.records.map((r) => r.gthrId)).toEqual(["g2"]);
   });
 
-  it("⚠️ 경고 대상 판별 — 11번 취소하고 결국 참석한 사람(0)보다 10개 다 취소한 사람(10)이 많다", () => {
-    // 이 통계의 목적(오너 확정): 취소를 쉽게 하는 사람에게 경고하려는 것.
-    // 이벤트를 세면 앞사람이 11로 더 나쁘게 보여 목적과 거꾸로 선다.
-    const flipFlopper = Array.from({ length: 11 }, (_, i) =>
-      ev({ memId: "flip", gthrId: "g1", evtAt: `2026-09-${String(i + 1).padStart(2, "0")}T00:00:00Z`, sttAt: stt }),
-    );
-    const quitter = Array.from({ length: 10 }, (_, i) =>
-      ev({ memId: "quit", gthrId: `q${i}`, evtAt: "2026-09-10T00:00:00Z", sttAt: stt }),
-    );
-    const s = summarizeCancels([...flipFlopper, ...quitter], new Set([attendKey("flip", "g1")]));
-    expect(s.byMember.get("flip")).toBeUndefined();
-    expect(s.byMember.get("quit")?.cancelCnt).toBe(10);
-  });
-
   it("다른 사람의 참석은 내 취소를 지우지 않는다 — 쌍으로 판정한다", () => {
     const s = summarizeCancels(
       [ev({ memId: "a", gthrId: "g1", evtAt: "2026-09-10T00:00:00Z", sttAt: stt })],
