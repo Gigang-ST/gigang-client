@@ -10,6 +10,7 @@ import { formatKSTDateTime } from "@/lib/dayjs";
 import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { cmmCdRowsForGrp } from "@/lib/queries/cmm-cd-cached";
 import { createClient } from "@/lib/supabase/client";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { cn } from "@/lib/utils";
 
 import { createTitle, grantTitle, revokeTitle, toggleTitleUseYn, updateTitle } from "@/app/actions/admin/manage-title";
@@ -599,26 +600,36 @@ function TitleGrantList({
   const loadGrants = useCallback(async () => {
     setLoading(true);
     const supabase = createClient();
-    const { data, error } = await supabase
-      .from("mem_ttl_rel")
-      .select(`
-        mem_ttl_id,
-        team_mem_id,
-        grnt_at,
-        grnt_by_mem_id,
-        grnt_rsn_txt,
-        is_prmy_yn,
-        del_yn,
-        team_mem_rel!inner(
-          mem_mst!inner(mem_nm)
-        )
-      `)
-      .eq("ttl_id", ttlId)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .order("grnt_at", { ascending: false });
-    if (error) console.error("수여 내역 조회 실패:", error);
-    setGrants((data ?? []) as unknown as GrantRow[]);
+    // 흔한 칭호(뉴비 등)는 보유자가 회원 수만큼 쌓인다 — 끝까지 읽는다
+    try {
+      const data = await fetchAllRows(
+        () =>
+          supabase
+            .from("mem_ttl_rel")
+            .select(`
+              mem_ttl_id,
+              team_mem_id,
+              grnt_at,
+              grnt_by_mem_id,
+              grnt_rsn_txt,
+              is_prmy_yn,
+              del_yn,
+              team_mem_rel!inner(
+                mem_mst!inner(mem_nm)
+              )
+            `)
+            .eq("ttl_id", ttlId)
+            .eq("vers", 0)
+            .eq("del_yn", false)
+            .order("grnt_at", { ascending: false })
+            .order("mem_ttl_id", { ascending: true }),
+        { label: "admin-titles:grants" },
+      );
+      setGrants(data as unknown as GrantRow[]);
+    } catch (error) {
+      console.error("수여 내역 조회 실패:", error);
+      setGrants([]);
+    }
     setLoading(false);
   }, [ttlId]);
 

@@ -39,6 +39,7 @@ import {
   type StatsRow,
 } from "@/lib/projects/crew-progress-chart";
 import { createClient } from "@/lib/supabase/client";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 
 import { SegmentControl } from "@/components/common/segment-control";
 import { Body } from "@/components/common/typography";
@@ -235,19 +236,36 @@ export function CrewProgressChart({
       return;
     }
 
-    const [{ data: logs }, { data: goals }] = await Promise.all([
-      supabase
-        .from("evt_mlg_act_hist")
-        .select("prt_id, act_dt, final_mlg")
-        .in("prt_id", participants.map((p) => p.prt_id))
-        .gte("act_dt", month)
-        .lte("act_dt", monthEnd),
-      supabase
-        .from("evt_mlg_mth_snap")
-        .select("prt_id, goal_mlg")
-        .in("prt_id", participants.map((p) => p.prt_id))
-        .eq("base_dt", month),
-    ]);
+    // 한 달 치 기록도 참가자 수만큼 는다(prd 최대 390행/월) — 끝까지 읽는다.
+    // fetchAllRows는 실패하면 던진다 — 여기서 받지 않으면 로딩/동기화 표시가 영영 안 꺼진다.
+    // 실패하면 이전 차트를 그대로 두고 표시만 끈다.
+    let logs: { prt_id: string; act_dt: string; final_mlg: number }[];
+    let goals: { prt_id: string; goal_mlg: number }[] | null;
+    try {
+      [logs, { data: goals }] = await Promise.all([
+        fetchAllRows(
+          () =>
+            supabase
+              .from("evt_mlg_act_hist")
+              .select("prt_id, act_dt, final_mlg")
+              .in("prt_id", participants.map((p) => p.prt_id))
+              .gte("act_dt", month)
+              .lte("act_dt", monthEnd)
+              .order("act_id", { ascending: true }),
+          { label: "crew-progress:evt_mlg_act_hist" },
+        ),
+        supabase
+          .from("evt_mlg_mth_snap")
+          .select("prt_id, goal_mlg")
+          .in("prt_id", participants.map((p) => p.prt_id))
+          .eq("base_dt", month),
+      ]);
+    } catch (error) {
+      console.error("크루 진행 차트 조회 실패:", error);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
 
     const memIdByPrtId = new Map<string, string>();
     for (const p of participants) {
