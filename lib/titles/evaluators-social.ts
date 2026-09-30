@@ -412,6 +412,22 @@ export async function evalRctnRecvTotal(
 type RaceRow = { compEvtId: string | null; evtType: string | null; raceDt: string; sec: number; memId: string };
 
 /**
+ * 종목은 `comp_evt_cfg` 조인에서 읽는다 — **`rec_race_hist`에는 `comp_evt_type` 칼럼이 없다.**
+ * 예전엔 칼럼으로 직접 골랐는데 조회가 매번 실패했고, 에러를 안 보고 `data ?? []`로 떨어져
+ * "맞대결 없음"으로 끝났다 — **하수야~/고수님.. 칭호가 추가된 뒤 한 번도 발급되지 않았다**
+ * (2026-09-30, 실제 PostgREST로 조회를 돌려 보다 발견). 다른 판정들(`evaluators.ts`)과 같은
+ * 방식으로 조인하고 대문자로 맞춘다.
+ */
+const RACE_EVT_SELECT = "comp_evt_id, race_dt, rec_time_sec, comp_evt_cfg!inner(comp_evt_type)";
+
+type RaceEvtCfg = { comp_evt_type: string | null } | { comp_evt_type: string | null }[] | null;
+
+function evtTypeOf(cfg: RaceEvtCfg): string | null {
+  const c = Array.isArray(cfg) ? cfg[0] : cfg;
+  return c?.comp_evt_type?.toUpperCase() ?? null;
+}
+
+/**
  * #19 완주 기록이 정확히 시간 단위로 떨어짐 (완벽한기록)
  *
  * ⚠️ **`rec_time_sec > 0` 가드가 필요하다.** `0 % 3600 = 0`이라 기록이 0인 행이 생기면
@@ -456,18 +472,20 @@ export async function evalRacePairReversal(
   db: DB,
 ): Promise<boolean> {
   // 내가 뛴 대회·종목 목록
-  const { data: mine } = await db
+  const { data: mine, error: mineErr } = await db
     .from("rec_race_hist")
-    .select("comp_evt_id, comp_evt_type, race_dt, rec_time_sec")
+    .select(RACE_EVT_SELECT)
     .eq("mem_id", memId)
     .eq("vers", 0)
     .eq("del_yn", false)
     .gt("rec_time_sec", 0);
+  // 실패를 "대회 없음"으로 눙치면 이 칭호가 또 조용히 죽는다 — 던진다(호출부가 로깅)
+  if (mineErr) throw new Error(`맞대결 판정 — 내 대회 기록 조회 실패: ${mineErr.message}`);
 
   const myRaces = ((mine ?? []) as {
-    comp_evt_id: string | null; comp_evt_type: string | null; race_dt: string; rec_time_sec: number;
+    comp_evt_id: string | null; race_dt: string; rec_time_sec: number; comp_evt_cfg: RaceEvtCfg;
   }[]).map((r) => ({
-    compEvtId: r.comp_evt_id, evtType: r.comp_evt_type, raceDt: r.race_dt,
+    compEvtId: r.comp_evt_id, evtType: evtTypeOf(r.comp_evt_cfg), raceDt: r.race_dt,
     sec: r.rec_time_sec, memId,
   })) as RaceRow[];
   if (myRaces.length < 2) return false;
@@ -476,19 +494,20 @@ export async function evalRacePairReversal(
   const evtIds = [...new Set(myRaces.map((r) => r.compEvtId).filter(Boolean))] as string[];
   if (!evtIds.length) return false;
 
-  const others = await selectInChunks<{
-    mem_id: string; comp_evt_id: string; comp_evt_type: string | null;
-    race_dt: string; rec_time_sec: number;
+  const otherRows = await selectInChunks<{
+    mem_id: string; comp_evt_id: string; race_dt: string; rec_time_sec: number;
+    comp_evt_cfg: RaceEvtCfg;
   }>(evtIds, (chunk) =>
     db
       .from("rec_race_hist")
-      .select("mem_id, comp_evt_id, comp_evt_type, race_dt, rec_time_sec")
+      .select(`mem_id, ${RACE_EVT_SELECT}`)
       .in("comp_evt_id", chunk)
       .eq("vers", 0)
       .eq("del_yn", false)
       .gt("rec_time_sec", 0)
       .order("race_result_id", { ascending: true }),
   );
+  const others = otherRows.map((o) => ({ ...o, comp_evt_type: evtTypeOf(o.comp_evt_cfg) }));
 
   // ⚠️ **상대를 우리 팀으로 좁힌다.** `rec_race_hist`에는 team 컬럼이 없어 대회 id만으로
   // 조회하면 **다른 팀 사람과의 맞대결**까지 세어, 같은 공개 대회를 뛴 남에게 "하수야~"가

@@ -118,16 +118,21 @@ export async function loadMemberSnapshots(
     genderMap.set(r.mem_id, r.gdr_enm ?? "");
   }
 
-  // 3. rec_race_hist: 전체 멤버 기록 한 번에 (stt_dt 포함)
-  const { data: histRows } = await db
-    .from("rec_race_hist")
-    .select("mem_id, rec_time_sec, comp_evt_cfg!inner(comp_evt_type), comp_mst!inner(comp_sprt_cd, stt_dt)")
-    .in("mem_id", memIds)
-    .eq("del_yn", false)
-    .eq("vers", 0);
+  // 3. rec_race_hist: 전체 멤버 기록 한 번에 (stt_dt 포함) — 팀 전체 기록이라 해마다 는다
+  const histRows = await fetchAllRows(
+    () =>
+      db
+        .from("rec_race_hist")
+        .select("mem_id, rec_time_sec, comp_evt_cfg!inner(comp_evt_type), comp_mst!inner(comp_sprt_cd, stt_dt)")
+        .in("mem_id", memIds)
+        .eq("del_yn", false)
+        .eq("vers", 0)
+        .order("race_result_id", { ascending: true }),
+    { label: "snapshot:rec_race_hist" },
+  );
 
   const histMap = new Map<string, RaceHistRow[]>();
-  for (const row of histRows ?? []) {
+  for (const row of histRows) {
     const evtCfg = Array.isArray(row.comp_evt_cfg) ? row.comp_evt_cfg[0] : row.comp_evt_cfg;
     const mst = Array.isArray(row.comp_mst) ? row.comp_mst[0] : row.comp_mst;
     const evtType = (evtCfg as { comp_evt_type?: string } | null)?.comp_evt_type?.toUpperCase() ?? "";
