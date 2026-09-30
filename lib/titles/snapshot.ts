@@ -9,6 +9,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 
 type DB = SupabaseClient<Database>;
 
@@ -157,15 +158,25 @@ export async function loadMemberSnapshots(
   }
 
   // 5. mem_ttl_rel: 전체 멤버 보유 칭호 한 번에
-  const { data: heldRows } = await db
-    .from("mem_ttl_rel")
-    .select("team_mem_id, mem_ttl_id, ttl_id, vers")
-    .in("team_mem_id", teamMemIds)
-    .eq("vers", 0)
-    .eq("del_yn", false);
+  //
+  // ⚠️ **끝까지 읽는다.** 활동 멤버 전원의 보유 칭호는 이미 767행이고 한 달에 ~100행씩
+  // 는다. 1000행에서 잘리면 뒤쪽 멤버가 "칭호 없음"으로 보여 이미 가진 칭호를 다시
+  // 부여하려 하고, 유니크 인덱스에 막혀 **bulk INSERT 한 방이 통째로 실패한다** —
+  // 그 회차엔 아무도 칭호를 못 받는다. 실패하면 던진다(빈 목록으로 눙치면 같은 사고다).
+  const heldRows = await fetchAllRows(
+    () =>
+      db
+        .from("mem_ttl_rel")
+        .select("team_mem_id, mem_ttl_id, ttl_id, vers")
+        .in("team_mem_id", teamMemIds)
+        .eq("vers", 0)
+        .eq("del_yn", false)
+        .order("mem_ttl_id", { ascending: true }),
+    { label: "snapshot:mem_ttl_rel" },
+  );
 
   const heldMap = new Map<string, HeldTitleRow[]>();
-  for (const r of heldRows ?? []) {
+  for (const r of heldRows) {
     if (!heldMap.has(r.team_mem_id)) heldMap.set(r.team_mem_id, []);
     heldMap.get(r.team_mem_id)!.push({
       mem_ttl_id: r.mem_ttl_id,
@@ -238,21 +249,16 @@ export async function loadMemberSnapshots(
   // 러닝원툴·종목 비율 칭호가 조용히 빠졌다(prd 실측: 김지민 8월 러닝원툴 누락).
   const actHistByPrtId = new Map<string, MileageActRow[]>();
   if (allPrtIds.length > 0) {
-    const PAGE = 1000;
-    const actRows: { prt_id: string; act_dt: string; sprt_enm: string; final_mlg: number | string }[] = [];
-    for (let from = 0; ; from += PAGE) {
-      const { data, error } = await db
-        .from("evt_mlg_act_hist")
-        .select("prt_id, act_dt, sprt_enm, final_mlg")
-        .in("prt_id", allPrtIds)
-        // 페이지 경계가 흔들리지 않게 유일 키로 정렬한다
-        .order("act_id", { ascending: true })
-        .range(from, from + PAGE - 1);
-      // 중간 페이지 실패를 0건으로 눙치면 뒤 멤버가 또 조용히 빠진다 — 배치를 실패시킨다
-      if (error) throw new Error(`마일리지 활동 기록 조회 실패: ${error.message}`);
-      actRows.push(...(data ?? []));
-      if (!data || data.length < PAGE) break;
-    }
+    // 중간 페이지 실패는 던진다 — 0건으로 눙치면 뒤 멤버가 또 조용히 빠진다
+    const actRows = await fetchAllRows(
+      () =>
+        db
+          .from("evt_mlg_act_hist")
+          .select("prt_id, act_dt, sprt_enm, final_mlg")
+          .in("prt_id", allPrtIds)
+          .order("act_id", { ascending: true }),
+      { label: "snapshot:evt_mlg_act_hist" },
+    );
 
     for (const r of actRows) {
       if (!actHistByPrtId.has(r.prt_id)) actHistByPrtId.set(r.prt_id, []);

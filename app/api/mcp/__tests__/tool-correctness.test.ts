@@ -361,6 +361,9 @@ describe("#496 list_gathering_non_attendees — 참석 통계는 admin 응답에
         select: () => b,
         eq: () => b,
         lte: () => b,
+        // 참석 이력은 fetchAllRows로 끝까지 읽는다 — 정렬 + range가 붙는다
+        order: () => b,
+        range: () => b,
         maybeSingle: async () => ({ data: rows[0] ?? null, error: null }),
         then: (resolve: (v: unknown) => void) => resolve({ data: rows, error: null }),
       };

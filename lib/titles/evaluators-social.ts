@@ -231,7 +231,13 @@ export async function evalCmntMentionCount(
 
   const rows = await selectInChunks<{ cmnt_id: string; mem_id: string }>(
     comments.map((c) => c.cmntId),
-    (chunk) => db.from("cmnt_mention_rel").select("cmnt_id, mem_id").in("cmnt_id", chunk),
+    (chunk) =>
+      db
+        .from("cmnt_mention_rel")
+        .select("cmnt_id, mem_id")
+        .in("cmnt_id", chunk)
+        .order("cmnt_id", { ascending: true })
+        .order("mem_id", { ascending: true }),
   );
 
   // 내가 쓴 댓글에 달린 멘션 중, 대상이 나 자신이 아닌 것.
@@ -265,7 +271,8 @@ export async function evalPostSelfFirstComment(
         .eq("entity_type", "post")
         .eq("del_yn", false)
         .in("entity_id", chunk)
-        .order("crt_at", { ascending: true }),
+        .order("crt_at", { ascending: true })
+        .order("cmnt_id", { ascending: true }),
   );
 
   const firstByPost = new Map<string, string>();
@@ -479,7 +486,8 @@ export async function evalRacePairReversal(
       .in("comp_evt_id", chunk)
       .eq("vers", 0)
       .eq("del_yn", false)
-      .gt("rec_time_sec", 0),
+      .gt("rec_time_sec", 0)
+      .order("race_result_id", { ascending: true }),
   );
 
   // ⚠️ **상대를 우리 팀으로 좁힌다.** `rec_race_hist`에는 team 컬럼이 없어 대회 id만으로

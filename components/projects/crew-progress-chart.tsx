@@ -39,6 +39,7 @@ import {
   type StatsRow,
 } from "@/lib/projects/crew-progress-chart";
 import { createClient } from "@/lib/supabase/client";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 
 import { SegmentControl } from "@/components/common/segment-control";
 import { Body } from "@/components/common/typography";
@@ -235,13 +236,19 @@ export function CrewProgressChart({
       return;
     }
 
-    const [{ data: logs }, { data: goals }] = await Promise.all([
-      supabase
-        .from("evt_mlg_act_hist")
-        .select("prt_id, act_dt, final_mlg")
-        .in("prt_id", participants.map((p) => p.prt_id))
-        .gte("act_dt", month)
-        .lte("act_dt", monthEnd),
+    // 한 달 치 기록도 참가자 수만큼 는다(prd 최대 390행/월) — 끝까지 읽는다
+    const [logs, { data: goals }] = await Promise.all([
+      fetchAllRows(
+        () =>
+          supabase
+            .from("evt_mlg_act_hist")
+            .select("prt_id, act_dt, final_mlg")
+            .in("prt_id", participants.map((p) => p.prt_id))
+            .gte("act_dt", month)
+            .lte("act_dt", monthEnd)
+            .order("act_id", { ascending: true }),
+        { label: "crew-progress:evt_mlg_act_hist" },
+      ),
       supabase
         .from("evt_mlg_mth_snap")
         .select("prt_id, goal_mlg")

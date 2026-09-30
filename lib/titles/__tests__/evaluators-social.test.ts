@@ -32,7 +32,7 @@ function fakeDb(tables: Record<string, unknown[]>) {
   const make = (rows: unknown[]) => {
     let cur = rows;
     const q: Record<string, unknown> = {};
-    for (const m of ["in", "not", "gt", "gte", "lte", "lt", "order"]) q[m] = () => q;
+    for (const m of ["in", "not", "gt", "gte", "lte", "lt", "order", "range"]) q[m] = () => q;
     q.eq = (col: string, val: unknown) => {
       cur = cur.filter((r) => {
         const row = r as Record<string, unknown>;
@@ -224,7 +224,7 @@ describe("팀 공통 조회는 멤버 수만큼 반복되지 않는다", () => {
     let calls = 0;
     const make = () => {
       const q: Record<string, unknown> = {};
-      for (const m of ["eq", "in", "not", "gt", "gte", "lte", "lt", "order"]) q[m] = () => q;
+      for (const m of ["eq", "in", "not", "gt", "gte", "lte", "lt", "order", "range"]) q[m] = () => q;
       q.select = () => q;
       q.then = (res: (v: { data: unknown[] }) => unknown) => {
         calls += 1;
