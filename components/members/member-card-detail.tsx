@@ -92,6 +92,11 @@ export type MemberCardEdit = {
   onLinkUtmb: () => void;
   /** 총 활동 포인트 — **본인 화면에만** 노출한다(공개판엔 없음) */
   point: number;
+  /**
+   * 모임 취소 수(운영진이 뺀 것 포함) — **본인 화면에만**. 남의 카드에 띄우면 공개 낙인이 된다.
+   * 공개 카드 RPC(`get_public_member_card`)에 싣지 않는 이유도 같다 — 누구나 부를 수 있다.
+   */
+  cancelCnt: number;
 };
 
 /**
@@ -638,7 +643,7 @@ export function MemberCardDetail({
               쌓이는 격자라 값이 0이어도 자리를 지킨다(양쪽 판 공통).
               누적 참석·출전은 헤더 우측으로 올려 자리를 안 쓰면서 대비된다. */}
           <section className="flex flex-col gap-2">
-            {/* 375px에서 `최근활동 + 모임 N + 대회 N + 포인트 + 물음표`가 한 줄에 들어가지만
+            {/* 375px에서 `최근활동 + 모임 N + 취소 N + 대회 N + 포인트 + 물음표`가 한 줄에 들어가지만
                 자릿수가 늘면(10,000 P) 빠듯하다 — 넘치면 가로 스크롤이 생기는 대신 아래로
                 접히도록 wrap을 열어 둔다. 물음표가 버튼(28px)이라 baseline 대신 center 정렬. */}
             <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
@@ -652,6 +657,15 @@ export function MemberCardDetail({
                     {data.stats.gthr_attd_cnt}
                   </span>
                 </Micro>
+                {/* 취소는 **본인 화면에만** — 포인트와 같은 경계 */}
+                {edit && (
+                  <Micro>
+                    취소{" "}
+                    <span className="font-mono font-bold text-foreground tabular-nums">
+                      {edit.cancelCnt}
+                    </span>
+                  </Micro>
+                )}
                 <Micro>
                   대회{" "}
                   <span className="font-mono font-bold text-foreground tabular-nums">
