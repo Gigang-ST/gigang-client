@@ -6,7 +6,8 @@ import {
   INACTIVE_WARN_DAYS,
   MONTHLY_WINDOW,
 } from "@/lib/constants/participation";
-import { dayjs, recentMonthBucketsKST, secondsToTime } from "@/lib/dayjs";
+import { dayjs, formatKST, recentMonthBucketsKST, secondsToTime } from "@/lib/dayjs";
+import { summarizeCancels, type CancelRecord } from "@/lib/gathering/cancel-stats";
 import { createClient } from "@/lib/supabase/client";
 
 import { EmptyState } from "@/components/common/empty-state";
@@ -29,6 +30,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 const KST = "Asia/Seoul";
 /** 타임라인 기본 표시 건수 ("전체 보기"로 확장) */
 const TIMELINE_PREVIEW_COUNT = 4;
+/** 취소 내역 기본 표시 건수 */
+const CANCEL_PREVIEW_COUNT = 3;
 
 type GthrAttdRow = {
   gthr_id: string;
@@ -47,6 +50,14 @@ type CompRegRow = {
   team_comp_plan_rel: {
     comp_mst: { comp_nm: string; stt_dt: string } | null;
   };
+};
+
+type CancelHistRow = {
+  gthr_id: string;
+  evt_at: string;
+  reason_txt: string | null;
+  actor_cd: "self" | "admin";
+  gthr_mst: { gthr_nm: string; stt_at: string } | { gthr_nm: string; stt_at: string }[];
 };
 
 type RaceRow = {
@@ -77,22 +88,27 @@ type Participation = {
   timeline: TimelineItem[];
   /** 마지막 참여(모임 참석·완주 기록) 시점. 신청은 몸으로 한 참여가 아니라 제외 */
   lastAt: string | null;
+  /** 모임 취소 — 본인·운영진 모두 (최신순). 기준은 lib/gathering/cancel-stats.ts */
+  cancels: CancelRecord[];
+  imminentCnt: number;
 };
 
-/** 값 강조형 미니 pill — 모임(파랑)/대회(주황) 계열 색 고정 */
+/** 값 강조형 미니 pill — 모임(파랑)/대회(주황)/취소(빨강) 계열 색 고정 */
 function CountPill({
   tone,
   label,
   value,
 }: {
-  tone: "gthr" | "comp";
+  tone: "gthr" | "comp" | "cncl";
   label: string;
   value: number;
 }) {
   const toneCls =
     tone === "gthr"
       ? "bg-primary/10 text-primary"
-      : "bg-sport-road-run/10 text-sport-road-run";
+      : tone === "cncl"
+        ? "bg-destructive/10 text-destructive"
+        : "bg-sport-road-run/10 text-sport-road-run";
   return (
     <span className={`inline-flex items-baseline gap-1 rounded-md px-2 py-1 ${toneCls}`}>
       <span className="text-[11px]">{label}</span>
@@ -126,6 +142,7 @@ export function ParticipationSection({
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [cancelExpanded, setCancelExpanded] = useState(false);
 
   useEffect(() => {
     // memId별 remount(호출부 key)라 loading 초기값(true)이 그대로 적용된다.
@@ -168,12 +185,26 @@ export function ParticipationSection({
         .eq("vers", 0)
         .eq("del_yn", false)
         .order("race_dt", { ascending: false }),
+      // 5) 모임 취소 — 본인·운영진 모두 (운영진 취소는 대개 노쇼 정리 — lib/gathering/cancel-stats.ts)
+      supabase
+        .from("gthr_attd_hist")
+        .select("gthr_id, evt_at, reason_txt, actor_cd, gthr_mst!inner(gthr_nm, stt_at, team_id, del_yn)")
+        .eq("mem_id", memId)
+        .eq("evt_cd", "cancel")
+        .eq("gthr_mst.team_id", teamId)
+        .eq("gthr_mst.del_yn", false),
     ]).then(
-      ([attdRes, hostedRes, regRes, raceRes]) => {
+      ([attdRes, hostedRes, regRes, raceRes, cnclRes]) => {
         if (!alive) return;
         // supabase 쿼리는 실패해도 reject 대신 { error }로 resolve — 무시하면
         // "참여 기록 없음"으로 오인 표시되므로 명시적으로 에러 상태를 켠다.
-        if (attdRes.error || hostedRes.error || regRes.error || raceRes.error) {
+        if (
+          attdRes.error ||
+          hostedRes.error ||
+          regRes.error ||
+          raceRes.error ||
+          cnclRes.error
+        ) {
           setFailed(true);
           setLoading(false);
           return;
@@ -233,6 +264,21 @@ export function ParticipationSection({
           }),
         ].sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
 
+        const cancelSummary = summarizeCancels(
+          ((cnclRes.data ?? []) as unknown as CancelHistRow[]).map((r) => {
+            const g = Array.isArray(r.gthr_mst) ? r.gthr_mst[0] : r.gthr_mst;
+            return {
+              memId,
+              gthrId: r.gthr_id,
+              gthrNm: g.gthr_nm,
+              sttAt: g.stt_at,
+              evtAt: r.evt_at,
+              reason: r.reason_txt,
+              actor: r.actor_cd,
+            };
+          }),
+        );
+
         const lastCandidates = [
           ...pastAttends.map((a) => a.gthr_mst.stt_at),
           ...pastRaces.map((r) => dayjs.tz(r.race_dt, KST).toISOString()),
@@ -248,6 +294,8 @@ export function ParticipationSection({
           monthly,
           timeline,
           lastAt: lastCandidates[0] ?? null,
+          cancels: cancelSummary.records,
+          imminentCnt: cancelSummary.imminentTotal,
         });
         setLoading(false);
       },
@@ -273,7 +321,8 @@ export function ParticipationSection({
     data.hostedCnt === 0 &&
     data.compRegCnt === 0 &&
     data.raceRecCnt === 0 &&
-    data.timeline.length === 0;
+    data.timeline.length === 0 &&
+    data.cancels.length === 0;
 
   const daysSinceLast = data?.lastAt
     ? dayjs().tz(KST).startOf("day").diff(dayjs(data.lastAt).tz(KST).startOf("day"), "day")
@@ -282,6 +331,9 @@ export function ParticipationSection({
   const visibleTimeline = expanded
     ? data?.timeline
     : data?.timeline.slice(0, TIMELINE_PREVIEW_COUNT);
+  const visibleCancels = cancelExpanded
+    ? data?.cancels
+    : data?.cancels.slice(0, CANCEL_PREVIEW_COUNT);
 
   return (
     <div className="flex flex-col gap-3">
@@ -305,6 +357,10 @@ export function ParticipationSection({
               <CountPill tone="gthr" label="모임 참석" value={data.attendCnt} />
               <CountPill tone="gthr" label="정모" value={data.regularCnt} />
               <CountPill tone="gthr" label="개설" value={data.hostedCnt} />
+              <CountPill tone="cncl" label="취소" value={data.cancels.length} />
+              {data.imminentCnt > 0 && (
+                <CountPill tone="cncl" label="직전" value={data.imminentCnt} />
+              )}
             </div>
             <div className="flex flex-wrap gap-1.5">
               <CountPill tone="comp" label="대회 신청" value={data.compRegCnt} />
@@ -384,6 +440,54 @@ export function ParticipationSection({
                   className="pt-2 text-center text-[12px] font-semibold text-primary"
                 >
                   {expanded ? "접기" : `전체 활동 보기 (${data.timeline.length})`}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* 취소 내역 — 사유까지 (직전 = 시작 5시간 이내) */}
+          {data.cancels.length > 0 && (
+            <div className="flex flex-col">
+              <Caption className="text-[11px]">취소 내역</Caption>
+              {visibleCancels?.map((c, i) => (
+                <div
+                  key={`${c.gthrId}-${c.evtAt}-${i}`}
+                  className="flex flex-col gap-0.5 border-b border-border py-2 last:border-b-0"
+                >
+                  <div className="flex items-center gap-2">
+                    {c.imminent && (
+                      <span className="shrink-0 rounded-md bg-destructive/10 px-1.5 py-0.5 text-[10px] font-bold text-destructive">
+                        직전
+                      </span>
+                    )}
+                    {/* 운영진이 대신 뺀 것 — 대개 불참 정리라 본인 취소와 구분해 보여 준다 */}
+                    {c.actor === "admin" && (
+                      <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">
+                        운영진
+                      </span>
+                    )}
+                    <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
+                      {c.gthrNm}
+                    </span>
+                    <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                      {formatKST(c.evtAt, "M.D HH:mm")}
+                    </span>
+                  </div>
+                  <span
+                    className={`text-[12px] leading-snug ${
+                      c.reason ? "text-foreground/80" : "text-muted-foreground"
+                    }`}
+                  >
+                    {c.reason ?? "사유 없음"}
+                  </span>
+                </div>
+              ))}
+              {data.cancels.length > CANCEL_PREVIEW_COUNT && (
+                <button
+                  onClick={() => setCancelExpanded((v) => !v)}
+                  className="pt-2 text-center text-[12px] font-semibold text-primary"
+                >
+                  {cancelExpanded ? "접기" : `전체 취소 보기 (${data.cancels.length})`}
                 </button>
               )}
             </div>

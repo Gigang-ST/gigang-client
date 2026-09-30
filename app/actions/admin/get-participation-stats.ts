@@ -6,6 +6,7 @@ import {
   RECENT_WINDOW_DAYS,
 } from "@/lib/constants/participation";
 import { dayjs, recentMonthBucketsKST } from "@/lib/dayjs";
+import { summarizeCancels, type CancelEvent } from "@/lib/gathering/cancel-stats";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 
 // ---------------------------------------------------------------------------
@@ -39,6 +40,10 @@ export type MemberParticipationStat = {
   upcomingReg: boolean;
   /** 마지막 참여 시각 — 모임 참석·완주 기록 중 최신 (신청은 제외, 전체 기간) */
   lastAt: string | null;
+  /** 기간 내 모임 취소 수 — 본인·운영진 취소 모두 (취소한 시각 기준) */
+  cancelCnt: number;
+  /** 그중 시작 5시간 이내 취소 */
+  imminentCnt: number;
 };
 
 export type ParticipationStats = {
@@ -49,6 +54,15 @@ export type ParticipationStats = {
   attendTotal: number;
   /** 최근 6개월 월별 참석 연인원·모임 수 (기간 필터 무관, 오래된 달 → 이번 달) */
   monthly: { ym: string; label: string; attendCnt: number; gthrCnt: number }[];
+};
+
+type CancelHistRow = {
+  mem_id: string;
+  gthr_id: string;
+  evt_at: string;
+  reason_txt: string | null;
+  actor_cd: "self" | "admin";
+  gthr_mst: { gthr_nm: string; stt_at: string } | { gthr_nm: string; stt_at: string }[];
 };
 
 type RegRow = {
@@ -73,7 +87,7 @@ export async function getParticipationStats(
 
     const { teamId } = await getRequestTeamContext();
 
-    const [memRes, gthrRes, attdRes, regRes, raceRes] = await Promise.all([
+    const [memRes, gthrRes, attdRes, regRes, raceRes, cnclRes] = await Promise.all([
       supabase
         .from("team_mem_rel")
         .select("mem_id")
@@ -104,11 +118,24 @@ export async function getParticipationStats(
         .select("mem_id, race_dt")
         .eq("vers", 0)
         .eq("del_yn", false),
+      // 본인·운영진 취소 모두 — 운영진 취소는 대개 노쇼 정리다(lib/gathering/cancel-stats.ts)
+      supabase
+        .from("gthr_attd_hist")
+        .select(
+          "mem_id, gthr_id, evt_at, reason_txt, actor_cd, gthr_mst!inner(gthr_nm, stt_at, team_id, del_yn)",
+        )
+        .eq("evt_cd", "cancel")
+        .gte("evt_at", from.toISOString())
+        .lt("evt_at", to.toISOString())
+        .eq("gthr_mst.team_id", teamId)
+        .eq("gthr_mst.del_yn", false),
     ]);
 
     // supabase 쿼리는 실패해도 reject 대신 { error }로 resolve — 하나라도 실패면
     // "0으로 집계된 가짜 성공"이 되므로 여기서 명시적으로 throw 한다.
-    const failed = [memRes, gthrRes, attdRes, regRes, raceRes].find((r) => r.error);
+    const failed = [memRes, gthrRes, attdRes, regRes, raceRes, cnclRes].find(
+      (r) => r.error,
+    );
     if (failed?.error) throw new Error(`참여 통계 조회 실패: ${failed.error.message}`);
 
     const now = dayjs().tz(KST);
@@ -135,6 +162,8 @@ export async function getParticipationStats(
           recentAttendCnt: 0,
           upcomingReg: false,
           lastAt: null,
+          cancelCnt: 0,
+          imminentCnt: 0,
         },
       ]),
     );
@@ -209,6 +238,29 @@ export async function getParticipationStats(
       const dt = dayjs.tz(r.race_dt, KST); // date 컬럼 → KST 자정 앵커로 정규화
       if (dt.isAfter(now)) continue; // 미래 날짜 수기 기록은 "참여"가 아님
       bumpLast(s, dt.toISOString());
+    }
+
+    // 기간 필터는 쿼리가 이미 걸었다(취소한 시각 기준) — 여기선 집계만
+    const cancelEvents: CancelEvent[] = ((cnclRes.data ?? []) as unknown as CancelHistRow[]).map(
+      (r) => {
+        const g = Array.isArray(r.gthr_mst) ? r.gthr_mst[0] : r.gthr_mst;
+        return {
+          memId: r.mem_id,
+          gthrId: r.gthr_id,
+          gthrNm: g.gthr_nm,
+          sttAt: g.stt_at,
+          evtAt: r.evt_at,
+          reason: r.reason_txt,
+          actor: r.actor_cd,
+        };
+      },
+    );
+    // 팀 합계는 싣지 않는다 — 탭이 활동 회원 명단에서 합산해야 카드 숫자와 필터 결과가 맞는다
+    for (const [memId, c] of summarizeCancels(cancelEvents).byMember) {
+      const s = stats.get(memId);
+      if (!s) continue; // 탈퇴 등 현 재적 외
+      s.cancelCnt = c.cancelCnt;
+      s.imminentCnt = c.imminentCnt;
     }
 
     return {
