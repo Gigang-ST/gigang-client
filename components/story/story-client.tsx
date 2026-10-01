@@ -31,6 +31,7 @@ import type { StoryMessage } from "@/lib/queries/story-messages";
 import type { StoryPost } from "@/lib/queries/story-posts";
 import type { RecentTitleRow } from "@/lib/story-title";
 import type { TeamOverview } from "@/lib/queries/team-overview";
+import type { RecapTeaser } from "@/lib/mileage-recap";
 
 /**
  * /story 존 잠정 중단 토글 — **삭제가 아니라 잠정 중단이다**(2026-07-28 UI 정리).
@@ -70,6 +71,7 @@ export function StoryClient({
   me,
   reactions,
   mastheadActions,
+  recap = null,
 }: {
   feed: StoryFeed;
   /** 크루 총량 — 기상대 상자에 쓴다 */
@@ -101,6 +103,8 @@ export function StoryClient({
   reactions: StoryReactionCounts;
   /** 제호 우상단 액션([알림][햄버거]) — 서버에서 그려 넘긴 노드(§story/page.tsx) */
   mastheadActions?: ReactNode;
+  /** 끝난 마일리지런 시즌 — 종료 후 30일 동안 리드 맨 앞 칸(§story-lede ⓪). 없으면 null */
+  recap?: RecapTeaser | null;
 }) {
   const [selected, setSelected] = useState<{ memId: string; name: string } | null>(
     null,
@@ -122,7 +126,8 @@ export function StoryClient({
     feed.actv_rank.length > 0 ||
     posts.length > 0 ||
     grants.length > 0 ||
-    ghosts.length > 0;
+    ghosts.length > 0 ||
+    recap !== null;
 
   return (
     // select-none — 이 지면은 스와이프·던지기 제스처가 많은데, 그때 손가락을 끌면 글자가
@@ -154,6 +159,7 @@ export function StoryClient({
           teamId={teamId}
           myMemId={myMemId}
           me={me}
+          recap={recap}
         />
       </div>
 

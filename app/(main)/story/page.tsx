@@ -23,6 +23,8 @@ import {
 import { buildTitleLeadPool, pickTitleLedeStart } from "@/lib/story-title";
 import { getTeamOverview } from "@/lib/queries/team-overview";
 import { getRecentTitleGrants } from "@/lib/queries/story-titles";
+import { getMileageRecapTeaser } from "@/lib/queries/mileage-recap";
+import { pickTeaserFaces } from "@/lib/mileage-recap";
 
 import { HeaderActions } from "@/components/common/header-actions";
 import { StoryClient } from "@/components/story/story-client";
@@ -75,8 +77,17 @@ async function StoryFeedSection() {
     member ? getMyReactions(teamId, member.id) : {},
   );
 
-  const [feed, overview, ghosts, posts, grants, { member }, reactionTotals, myReactions] =
-    await Promise.all([
+  const [
+    feed,
+    overview,
+    ghosts,
+    posts,
+    grants,
+    { member },
+    reactionTotals,
+    myReactions,
+    recapTeaser,
+  ] = await Promise.all([
       getStoryFeed(teamId),
       getTeamOverview(teamId),
       getGhostMembers(teamId, ghostSeed),
@@ -88,6 +99,9 @@ async function StoryFeedSection() {
       // 함수로 묶여 있어 총합까지 멤버 조회 뒤에 줄을 섰다 — 그만큼이 임계경로였다.
       getReactionTotals(teamId),
       myReactionsPromise,
+      // 끝난 마일리지런 시즌 — 종료 후 30일에만 값이 온다(창 밖이면 가벼운 조회 하나로 null).
+      // 따로 캐시돼 있고 실패하면 null로 삼켜 홈을 막지 않는다(§getMileageRecapTeaser).
+      getMileageRecapTeaser(teamId),
     ]);
 
   // 응원 카운트(모두의 총합 + 내 몫)는 캐시된 피드(최대 5분 지연)에서 떼어내 매 요청 최신으로
@@ -116,6 +130,16 @@ async function StoryFeedSection() {
   // 기준은 칭호 수가 아니라 **사람 pool 길이**(사람별 최신 1건 dedupe — §lib/story-title.ts).
   // 이후 전진은 클라가 한 바퀴 완주마다 +1 — 랜덤이 아니라 회전이라 전원이 빠짐없이 오른다.
   const initialTitlePick = pickTitleLedeStart(buildTitleLeadPool(grants).length);
+  // 시즌 완주 칸의 얼굴 더미 — 이름순 앞사람만 매번 서지 않게 시작점을 서버가 굴린다.
+  // 7명이 285px 폭에서 "N명이 함께 달렸다"와 한 줄에 들어가는 최대다.
+  const recap = recapTeaser && {
+    ...recapTeaser,
+    faces: pickTeaserFaces(
+      recapTeaser.faces,
+      pickRandomPostIndex(recapTeaser.faces.length),
+      7,
+    ),
+  };
 
   return (
     <StoryClient
@@ -147,6 +171,7 @@ async function StoryFeedSection() {
       // 제호 우상단 [알림][햄버거] — 서버에서 그려 클라이언트로 넘긴다(HeaderActions는
       // async 서버 컴포넌트라 client인 StoryClient 안에서 직접 렌더할 수 없다).
       mastheadActions={<HeaderActions />}
+      recap={recap}
     />
   );
 }

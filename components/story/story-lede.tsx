@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
-import { Zap } from "lucide-react";
+import { ChevronRight, Zap } from "lucide-react";
 
 import {
   dayjs,
@@ -52,7 +52,7 @@ import {
 } from "@/lib/story-title";
 import { getSportEmoji } from "@/lib/sport";
 
-import type { CSSProperties, PointerEvent } from "react";
+import type { CSSProperties, MouseEvent, PointerEvent } from "react";
 import type {
   RctnCd,
   StoryEntityType,
@@ -61,6 +61,7 @@ import type {
 } from "@/lib/queries/story-feed";
 import type { StoryPost } from "@/lib/queries/story-posts";
 import type { RecentTitleRow } from "@/lib/story-title";
+import type { RecapTeaser } from "@/lib/mileage-recap";
 import type { TitleDescVisibility } from "@/components/common/title-badge";
 
 /**
@@ -87,6 +88,8 @@ const ROTATE_MS = 4000;
 const PAUSE_MS = 8000;
 /** 완전 정지 구간 — 이 시간이 지나면 게이지가 처음부터 다시 돈다(위 주석의 앞 4초) */
 const FREEZE_MS = PAUSE_MS - ROTATE_MS;
+/** 스와이프 직후 이 시간 안에 온 click은 스와이프의 꼬리로 보고 버린다(§swipedAtRef) */
+const SWIPE_CLICK_GUARD_MS = 400;
 /** 새 얼굴 슬롯이 다루는 기간 */
 const WINDOW_DAYS = 30;
 
@@ -239,6 +242,22 @@ type Lede = {
     stats: { label: string; value: string }[];
   } | null;
   /**
+   * 마일리지런 시즌 완주 슬롯 전용(§⓪) — 끝난 시즌을 **크루 전체의 숫자 하나**로 세우고
+   * 돌아보기(`/projects/recap`)로 보낸다. 사람 한 명이 주인공인 다른 슬롯과 달리 주인공이
+   * "우리"라, 얼굴은 겹친 더미로만 싣는다(누구 하나를 크게 세우지 않는다).
+   */
+  recap?: {
+    href: string;
+    km: number;
+    /** 지구 반대편(둘레의 절반) 대비 % — 소수 첫째 자리 내림 */
+    antipodePct: number;
+    faces: Person[];
+    /** 기록을 1건 이상 남긴 사람 — "N명이 함께 달렸다" */
+    runners: number;
+    acts: number;
+    photos: number;
+  } | null;
+  /**
    * 칭호획득 슬롯 전용(§⑦ v2) — 최근 30일 획득자 중 **사람 대표 1명**(한 바퀴마다 +1 회전)
    * + 나머지 획득자 얼굴+이름 칩 명단. v1(칭호별 묶음 나열)은 실데이터에서 칭호당 1~2명이
    * 대부분이라 줄 오른쪽이 텅 비고, 아바타뿐이라 익명이었다
@@ -298,9 +317,9 @@ function rotate<T>(arr: T[], n: number): T[] {
  * 대신 한 명(한 건)을 대표로 크게 싣고, 대표는 한 바퀴마다 회전(rotate)해 돌아가며 바뀐다 —
  * 지면에서 빠지는 사람이 없게(우측 레일 대신 시간으로 모두에게 자리를 준다).
  *
- * 스와이프 순서는 `ORDER`가 정한다: 깅스타그램 → 활동지수 → 새 얼굴 → 목표 한마디 →
- * 완주기록 → 칭호획득 → 대회. (목표 한마디는 `SHOW_PLEDGE_LEDE=false`로 잠정 중단이라
- * 실제로 뜨는 건 여섯이다.)
+ * 스와이프 순서는 `ORDER`가 정한다: (시즌 완주) → 깅스타그램 → 활동지수 → 새 얼굴 →
+ * 목표 한마디 → 완주기록 → 칭호획득 → 대회. (목표 한마디는 `SHOW_PLEDGE_LEDE=false`로 잠정
+ * 중단이라 실제로 뜨는 건 여섯이다. 시즌 완주는 마일리지런 종료 후 30일에만 선다.)
  *
  * **랜덤 슬롯은 초기값을 서버가 뽑아 넘긴다**(첫 화면부터 랜덤·하이드레이션 안전). 이후
  * 굴리는 건 자동전환/수동 한 바퀴 완주 때만 — 한 사이클 내내는 고정이라 뒤로 스와이프해도
@@ -327,8 +346,38 @@ function buildLedes(
   titlePick: number,
   /** 로그인 멤버 id — 칭호획득 슬롯의 isHeld 근사 판정에 쓴다(§⑦). 비로그인이면 null */
   myMemId: string | null,
+  /** 끝난 마일리지런 시즌 — 종료 후 30일 동안만 온다(§⓪). 없으면 null */
+  recap: RecapTeaser | null,
 ): Lede[] {
   const ledes: Lede[] = [];
+
+  // ⓪ 마일리지런 시즌 완주 — 끝난 시즌을 한 칸으로 세우고 돌아보기로 보낸다. 종료 후
+  //    `RECAP_LEDE_DAYS`일 동안만 서버가 실어 준다(창 판정은 조회 쪽 — §getMileageRecapTeaser).
+  //    **맨 앞 칸이다**: 한 시즌에 한 번 오는 소식이라 매일 도는 소식보다 먼저 선다.
+  //    응원은 받지 않는다 — 대상이 한 사람이 아니라 크루 전체라, 누구의 🔥로 쌓을지가 없다.
+  if (recap) {
+    ledes.push({
+      key: `recap-${recap.evt_nm}`,
+      kicker: "프로젝트 완료",
+      hero: "headline",
+      entity: null,
+      people: [],
+      moreCount: 0,
+      headline: `${recap.evt_nm}, 완주!`,
+      standfirst: "",
+      figure: null,
+      figureLabel: null,
+      recap: {
+        href: "/projects/recap",
+        km: recap.km,
+        antipodePct: Math.floor(recap.antipodeRatio * 1000) / 10,
+        faces: recap.faces,
+        runners: recap.runners,
+        acts: recap.acts,
+        photos: recap.photos,
+      },
+    });
+  }
 
   /**
    * 리액션 항목 하나의 카운트를 최신 집계로 보정한다.
@@ -770,7 +819,8 @@ function buildLedes(
   // 생기면(접두어 매칭 실패) 맨 뒤로 보낸다(ORDER에 없으면 큰 값).
   // 뒤쪽 셋은 **완주기록 → 칭호획득 → 대회** 순이다: 해낸 일(기록) 옆에 그 결과로 받은
   // 것(칭호)을 붙이고, 앞으로의 일(대회)을 맨 끝에 둬 "지나온 것 → 다가올 것"으로 닫는다.
-  const ORDER = ["post", "actv", "newbie", "pledge", "record", "title", "race"];
+  // 시즌 완주(recap)는 맨 앞 — 한 시즌에 한 번 오는 소식이다(§⓪).
+  const ORDER = ["recap", "post", "actv", "newbie", "pledge", "record", "title", "race"];
   const rank = (key: string) => {
     const i = ORDER.findIndex((p) => key.startsWith(`${p}-`));
     return i === -1 ? ORDER.length : i;
@@ -804,6 +854,7 @@ export function StoryLede({
   teamId,
   myMemId,
   me,
+  recap,
 }: {
   feed: StoryFeed;
   /** 응원 집계 (모두의 총합 + 내 몫) — 응원 버튼 카운트 보정용 */
@@ -825,6 +876,8 @@ export function StoryLede({
   teamId: string;
   myMemId: string | null;
   me: { id: string; name: string; avatarUrl: string | null } | null;
+  /** 끝난 마일리지런 시즌 — 종료 후 30일 동안만 맨 앞 칸(§⓪). 없으면 null */
+  recap: RecapTeaser | null;
 }) {
   // 모든 랜덤 슬롯의 pick — 서버가 뽑은 초기값에서 출발한다(첫 화면부터 랜덤·하이드레이션
   // 안전). 렌더 중 Math.random()을 부르면 서버·클라가 다른 걸 골라 하이드레이션이 깨진다.
@@ -848,6 +901,7 @@ export function StoryLede({
     grants,
     titlePick,
     myMemId,
+    recap,
   );
   const total = ledes.length;
 
@@ -949,6 +1003,16 @@ export function StoryLede({
   /** 탭이 숨어 있나 — 초기값은 false로 둔다(서버 렌더와 첫 클라 렌더가 같아야 한다) */
   const [hidden, setHidden] = useState(false);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
+  /**
+   * 마지막 스와이프 시각 — 시즌 완주 칸은 본문 전체가 링크라, 옆으로 넘기려고 민 손가락이
+   * 링크 위에서 떨어지면 click이 이어 붙어 돌아보기로 넘어가 버린다. pointerup(스와이프 판정)이
+   * click보다 먼저 오므로 여기 적어 두고 링크가 읽어 막는다.
+   *
+   * **참/거짓 깃발이 아니라 시각이다**: 깃발은 다음 pointerdown에서야 풀려서, 스와이프한 뒤
+   * 키보드(Enter)나 스크린리더로 링크를 누르면 묵은 깃발에 막혀 링크가 죽는다.
+   * 스와이프 직후 잠깐(`SWIPE_CLICK_GUARD_MS`)만 막으면 그런 일이 없다.
+   */
+  const swipedAtRef = useRef(Number.NEGATIVE_INFINITY);
   const resumeTimerRef = useRef<number | null>(null);
   /** 지면 전체 — 화면 안/밖 판정(IntersectionObserver)의 대상 */
   const sectionRef = useRef<HTMLElement>(null);
@@ -1125,7 +1189,13 @@ export function StoryLede({
    * 활동지수·목표 한마디·새 얼굴은 실을 사실이 없어 비운다(오른쪽 응원만 남는다).
    * 한 줄을 넘기지 않는다 — footer 높이가 흔들리면 body가 따라 흔들린다.
    */
-  const footNote = lede.figure ? (
+  const footNote = lede.recap ? (
+    // 시즌 완주 — 크루가 남긴 것의 부피(기록·사진). 거리는 본문이 이미 크게 말했다.
+    <span className="truncate font-numeric text-[12px] text-muted-foreground tabular-nums">
+      기록 {lede.recap.acts.toLocaleString("ko-KR")}개 · 사진{" "}
+      {lede.recap.photos.toLocaleString("ko-KR")}장
+    </span>
+  ) : lede.figure ? (
     // 예정 대회의 D-day와 완주 기록의 완주시간이 **같은 칸을 나눠 쓴다** — 둘 다
     // "이 대회의 숫자"라서. 본문 구성(명단 ↔ 한 사람)은 달라도 이 칸은 같은 자리에 남는다.
     // tabular-nums로 자릿수가 흔들리지 않게 한다.
@@ -1198,8 +1268,30 @@ export function StoryLede({
     const dx = e.clientX - start.x;
     const dy = e.clientY - start.y;
     if (Math.abs(dx) < 40 || Math.abs(dx) <= Math.abs(dy)) return;
+    // 이벤트 자신의 시각(timeStamp)을 쓴다 — click의 timeStamp와 같은 시계라 그대로 뺄 수 있다
+    swipedAtRef.current = e.timeStamp;
     pauseThenResume();
     go(dx < 0 ? 1 : -1);
+  }
+
+  /**
+   * 시즌 완주 칸의 링크 — 스와이프 끝에 붙어 온 click이면 이동을 막는다(§swipedAtRef).
+   *
+   * 비로그인은 로그인으로 보내되 **돌아올 곳을 싣는다**: 돌아보기는 크루원 전용이라 그냥
+   * 링크를 타면 proxy가 로그인으로 튕기는데, 그 리다이렉트는 `next`를 안 실어 로그인 뒤 홈에
+   * 떨어진다(사진 칸의 `goToLogin("/story")`와 같은 문턱).
+   */
+  function handleRecapLinkClick(e: MouseEvent<HTMLAnchorElement>, href: string) {
+    if (e.timeStamp - swipedAtRef.current < SWIPE_CLICK_GUARD_MS) {
+      e.preventDefault();
+      return;
+    }
+    if (myMemId == null) {
+      e.preventDefault();
+      goToLogin(href);
+      return;
+    }
+    pauseThenResume();
   }
 
   return (
@@ -1298,7 +1390,57 @@ export function StoryLede({
               남는 높이 안에서 **세로 가운데**에 앉힌다. 위로 붙이면 내용이 짧은 슬롯
               (소개 한마디가 없는 새 얼굴 등)에서 헤드라인과 footer 사이가 통째로 비어 보인다. */}
           <div className="flex min-h-0 flex-1 flex-col justify-center gap-3">
-          {lede.photo ? (
+          {lede.recap ? (
+            /* 시즌 완주(§⓪) — 주인공은 "우리"다. 크루 전체 거리 하나를 크게, 그 아래 지구
+               반대편까지의 막대(돌아보기 지면의 척추와 같은 그림), 맨 아래 함께한 얼굴 더미.
+               **본문 전체가 돌아보기로 가는 링크다** — 숫자를 누르는 게 가장 자연스러운
+               동작이라서. 스와이프 끝에 붙어 온 click은 `handleRecapLinkClick`이 막는다. */
+            <Link
+              href={lede.recap.href}
+              onClick={(e) => handleRecapLinkClick(e, lede.recap!.href)}
+              // 마우스로 끌어 넘길 때 브라우저의 링크 끌기(드래그)가 끼어들어 pointercancel이
+              // 나면 스와이프가 안 먹는다 — 링크 끌기를 끈다.
+              draggable={false}
+              aria-label={`${lede.headline} — 시즌 돌아보기`}
+              className="flex flex-col gap-2.5 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-numeric text-[40px] font-medium leading-none text-foreground tabular-nums">
+                  {Math.round(lede.recap.km).toLocaleString("ko-KR")}
+                </span>
+                <span className="text-[15px] text-muted-foreground">km</span>
+                <span className="ml-auto text-right text-[12px] text-muted-foreground">
+                  지구 반대편까지{" "}
+                  <span className="font-numeric text-[14px] font-medium text-primary tabular-nums">
+                    {lede.recap.antipodePct}%
+                  </span>
+                </span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{ width: `${Math.min(lede.recap.antipodePct, 100)}%` }}
+                />
+              </div>
+              <div className="flex min-w-0 items-center gap-2 pt-1">
+                <div className="flex shrink-0 -space-x-1.5">
+                  {lede.recap.faces.map((p) => (
+                    <Avatar
+                      key={p.mem_id}
+                      src={p.avatar_url}
+                      seed={p.mem_id}
+                      alt={p.mem_nm}
+                      size="xs"
+                      className="ring-2 ring-background"
+                    />
+                  ))}
+                </div>
+                <span className="min-w-0 truncate text-[13px] text-foreground">
+                  {lede.recap.runners}명이 함께 뛰었어요
+                </span>
+              </div>
+            </Link>
+          ) : lede.photo ? (
             /* 운동 기록(§⑥) — 사진이 주인공. 사진(좌) ↔ 한마디(위)·올린 사람(아래).
                사진은 눌러도 반응하지 않는다(프로필은 이름을 눌러 연다).
 
@@ -1842,6 +1984,22 @@ export function StoryLede({
             칭호획득도 같다 — 대상은 칭호가 아니라 그 칭호를 새로 단 대표 멤버). */}
         <div className="flex shrink-0 items-center justify-between gap-3">
           <div className="min-w-0 flex-1">{footNote}</div>
+          {/* 시즌 완주 칸은 응원 대신 "돌아보기" — 응원 버튼과 **같은 상자**(border + py-1.5 +
+              13px)라 footer 높이가 안 변하고, 스와이프하는 손가락이 오른쪽 아래에서 늘 버튼을
+              만난다. */}
+          {lede.recap && (
+            <Link
+              href={lede.recap.href}
+              onClick={(e) => handleRecapLinkClick(e, lede.recap!.href)}
+              // 마우스로 끌어 넘길 때 브라우저의 링크 끌기(드래그)가 끼어들어 pointercancel이
+              // 나면 스와이프가 안 먹는다 — 링크 끌기를 끈다.
+              draggable={false}
+              className="flex shrink-0 items-center gap-0.5 rounded-full border border-primary bg-primary py-1.5 pl-3.5 pr-2.5 text-[13px] font-semibold text-primary-foreground transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-95"
+            >
+              돌아보기
+              <ChevronRight className="size-4" aria-hidden />
+            </Link>
+          )}
           {lede.entity && (
             <StoryReactionButton
               entityType={lede.entity.type}
