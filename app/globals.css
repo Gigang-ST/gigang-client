@@ -1918,6 +1918,273 @@
 }
 
 /* -----------------------------------------------------------------
+   마일리지런 시즌 돌아보기 (/projects/recap)
+   오로지 재미로 훑는 지면이라 여기만 움직임이 많다 — 대신 전부 **한 번만** 돈다(반복 없음)
+   그리고 모션을 줄인 사람에겐 완성된 모습만 보인다.
+   ----------------------------------------------------------------- */
+
+/* 오도미터 — 자릿수마다 0~9 띠를 두 바퀴(20칸) 세워 목표 칸까지 굴린다. 두 바퀴인 이유:
+   목표가 1이면 한 칸만 움직여 "굴렀다"는 느낌이 없다(+10칸 = 최소 한 바퀴는 돈다).
+   **최종 위치가 기본값**이다 — 애니메이션은 거기로 "오는" 것만 그린다(`from`만 적는다).
+   그래서 JS가 없어도, 모션을 꺼도 숫자는 제자리에 서 있다. */
+.odo {
+  --odo-h: 1.12em;
+  display: inline-flex;
+  line-height: var(--odo-h);
+}
+.odo-col {
+  display: inline-block;
+  height: var(--odo-h);
+  overflow: hidden;
+}
+.odo-strip {
+  display: flex;
+  flex-direction: column;
+  transform: translateY(calc(var(--d) * var(--odo-h) * -1));
+}
+/* 가운데 정렬 — Oswald엔 고정폭 숫자(tnum)가 없어 칸 폭이 가장 넓은 숫자에 맞춰진다.
+   왼쪽에 붙이면 1·7처럼 좁은 숫자 뒤로 빈칸이 생겨 "1,37 8"처럼 벌어져 보인다. */
+.odo-strip > span {
+  height: var(--odo-h);
+  text-align: center;
+}
+@keyframes odo-roll {
+  from {
+    transform: translateY(0);
+  }
+}
+/* 첫 화면(히어로)은 로드와 함께, 아래쪽은 화면에 들어올 때(`[data-reveal="in"]`) 돈다 */
+.odo-autoplay .odo-strip,
+[data-reveal="in"] .odo-strip {
+  animation: odo-roll 1.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+[data-reveal="pending"] .odo-strip {
+  transform: translateY(0);
+}
+
+/* 스크롤 등장 — `RecapReveal`이 화면 아래 있는 것만 pending으로 숨겼다가 들어오면 in.
+   마운트 때 이미 보이는 건 건드리지 않는다(로드 직후 멀쩡한 게 사라졌다 나타나지 않게). */
+[data-reveal="pending"] {
+  opacity: 0;
+  transform: translateY(24px);
+}
+[data-reveal="in"] {
+  transition:
+    opacity 0.7s ease,
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 도시 도장 — 기울기(--rot)·순번(--i)은 도장마다 인라인으로 준다.
+   도착한 도시(.stamp-press)는 하나씩 쾅·쾅·쾅 내려찍힌다: 크게 떠 있다가 **가속하며** 떨어져
+   살짝 눌리고(0.9) 선다 — 감속으로 내려오면 "놓는" 느낌이지 "찍는" 느낌이 안 난다.
+   찍히는 순간 잉크가 번지듯 테두리 고리가 한 번 퍼진다(::after).
+   못 간 도시(.stamp-miss)는 도착 도장이 다 찍힌 뒤 툭 떨어져 아쉽게 흔들리고, 다짐 딱지
+   (.stamp-vow)가 통 튀어 붙는다 — "아깝다, 다음엔 꼭". 간격(--stamp-gap)은 셋이 같이 본다. */
+.stamp-press,
+.stamp-miss {
+  --stamp-gap: 140ms;
+  position: relative;
+  transform: rotate(var(--rot, 0deg));
+}
+@keyframes stamp-slam {
+  0% {
+    opacity: 0;
+    transform: scale(2.3) rotate(var(--rot, 0deg));
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.9) rotate(var(--rot, 0deg));
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(var(--rot, 0deg));
+  }
+}
+@keyframes stamp-ink {
+  0% {
+    opacity: 0.55;
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+.stamp-press::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 9999px;
+  border: 2px solid currentcolor;
+  opacity: 0;
+  pointer-events: none;
+}
+@keyframes stamp-miss {
+  0% {
+    opacity: 0;
+    transform: translateY(-16px) rotate(var(--rot, 0deg));
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(0) rotate(var(--rot, 0deg));
+  }
+  55% {
+    transform: rotate(calc(var(--rot, 0deg) - 6deg));
+  }
+  72% {
+    transform: rotate(calc(var(--rot, 0deg) + 4deg));
+  }
+  88% {
+    transform: rotate(calc(var(--rot, 0deg) - 2deg));
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(var(--rot, 0deg));
+  }
+}
+@keyframes stamp-vow {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) rotate(-8deg);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.15) rotate(-8deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(-8deg);
+  }
+}
+.stamp-vow {
+  transform: rotate(-8deg);
+}
+[data-reveal="pending"] .stamp-press,
+[data-reveal="pending"] .stamp-miss,
+[data-reveal="pending"] .stamp-vow {
+  opacity: 0;
+}
+[data-reveal="in"] .stamp-press {
+  animation: stamp-slam 0.34s both;
+  animation-delay: calc(var(--i, 0) * var(--stamp-gap) + 250ms);
+}
+[data-reveal="in"] .stamp-press::after {
+  animation: stamp-ink 0.55s ease-out both;
+  /* 내려찍히는 순간(0.34s × 60%)에 맞춰 번진다 */
+  animation-delay: calc(var(--i, 0) * var(--stamp-gap) + 250ms + 200ms);
+}
+[data-reveal="in"] .stamp-miss {
+  animation: stamp-miss 0.9s ease-out both;
+  animation-delay: calc(var(--i, 0) * var(--stamp-gap) + 500ms);
+}
+[data-reveal="in"] .stamp-vow {
+  animation: stamp-vow 0.4s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+  animation-delay: calc(var(--i, 0) * 140ms + 500ms + 700ms);
+}
+
+/* 막대 — 바닥(세로)·왼쪽(가로)에서 자라난다 */
+@keyframes recap-grow-y {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes recap-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+.recap-grow-y {
+  transform-origin: bottom;
+}
+.recap-grow-x {
+  transform-origin: left;
+}
+[data-reveal="pending"] .recap-grow-y {
+  transform: scaleY(0);
+}
+[data-reveal="pending"] .recap-grow-x {
+  transform: scaleX(0);
+}
+[data-reveal="in"] .recap-grow-y {
+  animation: recap-grow-y 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+[data-reveal="in"] .recap-grow-x,
+.recap-autoplay .recap-grow-x {
+  animation: recap-grow-x 1.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* 크루 얼굴 — 그리드 한가운데 위쪽에서 크게 튀어나와 각자 자리로 한 명씩 딱·딱·딱 박힌다.
+   출발점(--fx, --fy)은 "그리드 가운데까지의 거리"를 칸 단위로 컴포넌트가 넘긴다 — 퍼센트가
+   자기 크기 기준이라 칸 폭 + 간격의 배수로 쓰면 화면 폭이 바뀌어도 가운데에서 출발한다.
+
+   **박자가 들려야 한다**: 간격(55ms)에 비해 비행이 길면 여러 명이 한꺼번에 날아
+   "휙 뿌려지는" 느낌이 된다(처음 55ms/0.5s가 그랬다 — 실사용 피드백). 비행은 짧게, 날아오는 동안은
+   **가속**(ease-in)으로 붙어 제자리에서 쾅 찌그러지고(0.82) 한 번 튀었다(1.08) 선다 —
+   도시 도장(`stamp-slam`)과 같은 손맛이다.
+   **전체 약 2초**(크루가 정했다): 30 × 55ms + 시작 0.1s + 마지막 비행 0.24s ≈ 2.0s. 간격을 줄일 땐
+   비행도 같이 줄여야 박자가 산다(처음 55ms에 비행 0.5s였을 땐 한꺼번에 뿌려지는 느낌이었다).
+   인원이 크게 달라지면 이 계산으로 간격을 다시 잡는다. */
+@keyframes crew-drop {
+  0% {
+    opacity: 0;
+    transform: translate(var(--fx, 0), var(--fy, 0)) scale(2.4);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  55% {
+    opacity: 1;
+    transform: translate(0, 0) scale(0.82);
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  78% {
+    transform: translate(0, 0) scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* 크루는 존이 아니라 그리드(.crew-grid) 자신의 등장 시점에 박힌다 — 그리드는 통째로 흐려지지
+   않고(얼굴이 하나씩 나타나는 게 전부라) 안의 얼굴만 숨겨 둔다 */
+.crew-grid[data-reveal="pending"] {
+  opacity: 1;
+  transform: none;
+}
+.crew-grid[data-reveal="pending"] .crew-drop {
+  opacity: 0;
+}
+.crew-grid[data-reveal="in"] .crew-drop {
+  animation: crew-drop 0.24s both;
+  animation-delay: calc(var(--i, 0) * 55ms + 100ms);
+}
+
+/* 필름 날짜 각인 — 옛 필름카메라가 사진 구석에 찍던 주황 숫자 */
+.film-date {
+  text-shadow: 0 0 4px rgb(0 0 0 / 0.55);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .odo-autoplay .odo-strip,
+  .recap-autoplay .recap-grow-x,
+  [data-reveal] .odo-strip,
+  [data-reveal] .stamp-press,
+  [data-reveal] .stamp-press::after,
+  [data-reveal] .stamp-miss,
+  [data-reveal] .stamp-vow,
+  [data-reveal] .recap-grow-y,
+  [data-reveal] .recap-grow-x,
+  [data-reveal] .crew-drop {
+    animation: none;
+  }
+  [data-reveal] {
+    transition: none;
+  }
+}
+
+/* -----------------------------------------------------------------
    /dev/story-styles 시안 전용 장치
    스타일 확정 후 채택되지 않은 것은 이 블록과 함께 삭제한다.
    ----------------------------------------------------------------- */
