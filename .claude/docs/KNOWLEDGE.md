@@ -329,3 +329,9 @@ Postgres `jsonb`는 키를 **정렬해서 저장**한다(길이순 → 사전순
 - **처방**: 임베드에 FK 이름을 박는다 — `mem_mst!gthr_aply_rel_mem_id_fkey(mem_nm, avatar_url)`. 그리고 **`error` 를 반드시 받아 로그로 남긴다**(빈 결과와 실패를 구분할 수 있게).
 - **새 테이블을 만들 때 미리 본다**: `mem_mst` 를 두 번 참조하는 컬럼 조합(작성자+처리자, 신청자+승인자, 대상+행위자)은 이 프로젝트에 흔하다 — `gthr_attd_hist`(`mem_id`+`actor_mem_id`)도 같은 모양이다.
 (2026-08-27 모임 승인제 신청 명단 — `app/actions/gathering/manage-application.ts`)
+
+### `unstable_cache` 안에서 다른 `unstable_cache`를 부르면 **안쪽 캐시는 안 읽힌다** — 겉보기만 두 겹이다
+Next 16.1.6 `unstable-cache.js`는 캐시 콜백 안에서 또 `unstable_cache`가 불리면 `isNestedUnstableCache`로 보고 **읽기를 건너뛰고 쓰기만** 한다. "티저 캐시가 본체 캐시를 부르니 본체는 캐시에서 나오겠지"라고 짜면, 티저가 미스날 때마다 본체 계산이 **통째로 새로** 돈다. 에러도 경고도 없다.
+- **처방**: 캐시 없는 계산 함수 하나를 빼고, 두 캐시가 **각자** 그걸 부른다(`lib/queries/mileage-recap.ts`의 `computeLatestRecap`).
+- **덤 — 캐시 키에 "오늘"을 넣지 말고 콜백 안에서 읽는다**: 날짜가 키에 있으면 KST 자정마다 키가 바뀌어 그날 첫 요청이 캐시 없이 막힌다. 콜백 안에서 읽으면 판정이 최대 TTL만큼 늦을 뿐이고 그 사이엔 옛 값을 주며 뒤에서 갱신한다.
+(2026-10-01 마일리지런 시즌 돌아보기 — 리드 티저 캐시)
