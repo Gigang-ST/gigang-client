@@ -4,8 +4,6 @@ import { useState } from "react";
 
 import { useRouter } from "next/navigation";
 
-import { Check, Copy } from "lucide-react";
-
 import { currentMonthKST } from "@/lib/dayjs";
 import {
 	countMonths,
@@ -18,49 +16,13 @@ import { joinProject } from "@/app/actions/mileage-run";
 import { analytics } from "@/lib/analytics";
 
 import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";
+import { AccountCopyButton } from "@/components/projects/account-copy-button";
 import { Caption } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-
-const MEETING_ACCOUNT = {
-  bank: "카카오뱅크",
-  number: "3333096788223",
-  displayNumber: "3333-09-6788223",
-};
-
-function AccountCopyButton() {
-  const [copied, setCopied] = useState(false);
-
-  async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(MEETING_ACCOUNT.number);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      alert("복사에 실패했습니다.");
-    }
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-    >
-      <span>
-        {MEETING_ACCOUNT.bank} {MEETING_ACCOUNT.displayNumber}
-      </span>
-      {copied ? (
-        <Check className="size-4 text-green-600" />
-      ) : (
-        <Copy className="size-4 text-muted-foreground" />
-      )}
-    </button>
-  );
-}
 
 type JoinSectionProps = {
 	evtId: string;

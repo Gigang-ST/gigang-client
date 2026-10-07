@@ -93,7 +93,7 @@ const generalCards: Card[] = [
 const projectCards: Card[] = [
   {
     key: "mileage",
-    label: "마일리지런 관리",
+    label: "프로젝트 관리",
     href: "/admin/mileage",
     icon: FolderKanban,
     getValue: (s) => s.pendingParticipationCount,

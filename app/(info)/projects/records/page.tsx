@@ -23,12 +23,17 @@ export default async function ProjectRecordsPage() {
 
   const { teamId } = await getRequestTeamContext();
 
-  // ACTIVE 이벤트 조회
+  // ACTIVE 마일리지런 이벤트 조회 — 이 화면은 거리 기록 전용이다.
+  // 타입 필터가 없으면 ACTIVE인 PB 클래스(거리 기록이 없다)를 집을 수 있고, ACTIVE가 둘이면
+  // `.maybeSingle()`이 에러가 나 조용히 /projects로 튕긴다. 최신 시작 1건으로 좁힌다.
   const { data: event } = await supabase
     .from("evt_team_mst")
     .select("evt_id, evt_nm, stt_dt, end_dt")
     .eq("team_id", teamId)
     .eq("stts_enm", "ACTIVE")
+    .eq("evt_type_cd", "MILEAGE_RUN")
+    .order("stt_dt", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (!event) redirect("/projects");
