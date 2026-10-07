@@ -12,6 +12,7 @@ import {
   type PbSessLink,
   type PbSessType,
 } from "@/lib/pb-class";
+import { parseEventTime } from "@/lib/dayjs";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import type { Database, Tables } from "@/lib/supabase/database.types";
 
@@ -315,7 +316,7 @@ async function loadCfgRow(db: Db, evtId: string): Promise<Tables<"evt_pb_cfg"> |
   return data;
 }
 
-async function loadLinkRows(db: Db, evtId: string): Promise<PbLinkRow[]> {
+async function loadLinkRows(db: Db, evtId: string, evtSttDt: string): Promise<PbLinkRow[]> {
   // 연결은 프로젝트당 많아야 십수 건(12주 + 측정)이라 한 번에 읽어도 상한에 닿지 않는다
   const { data, error } = await db
     .from("evt_gthr_rel")
@@ -326,8 +327,21 @@ async function loadLinkRows(db: Db, evtId: string): Promise<PbLinkRow[]> {
   const out: PbLinkRow[] = [];
   for (const r of data ?? []) {
     const g = first(r.gthr_mst);
-    // FK(ON DELETE CASCADE)라 벙 없는 연결은 없다 — 있어도 화면을 깨지 않게 건너뛴다
-    if (!g) continue;
+    // 벙이 안 보이면 **삭제된(한파 취소) 벙**이다. 행 자체는 FK(CASCADE)로 남아 있지만 회원 세션은
+    // gthr_mst RLS(`del_yn = false`)에 막혀 임베드가 null 로 온다(관리자 화면은 service role 이라 보인다).
+    // 건너뛰면 회원 띠에서 그 칸이 `취소`가 아니라 `미정`으로 보여 관리자 화면과 말이 갈린다 —
+    // 취소로 살려 둔다. 시각은 모르니 그 주차의 수요일로 채워 주차 불일치 경고가 헛돌지 않게 한다.
+    if (!g) {
+      out.push({
+        gthr_id: r.gthr_id,
+        wk_no: r.wk_no,
+        sess_type_cd: r.sess_type_cd,
+        gthr_nm: "취소된 벙",
+        stt_at: parseEventTime(evtSttDt).add((r.wk_no - 1) * 7, "day").toISOString(),
+        del_yn: true,
+      });
+      continue;
+    }
     out.push({
       gthr_id: r.gthr_id,
       wk_no: r.wk_no,
@@ -400,7 +414,7 @@ export async function loadPbClassBoard(
 
   const [cfgRow, links, prtData] = await Promise.all([
     loadCfgRow(db, evtId),
-    loadLinkRows(db, evtId),
+    loadLinkRows(db, evtId, evt.stt_dt),
     fetchAllRows(
       () => db.from("evt_pb_prt_rel").select(PRT_SELECT).eq("evt_id", evtId).order("prt_id", { ascending: true }),
       { label: "pb-class:evt_pb_prt_rel" },
@@ -424,7 +438,7 @@ export async function loadMyPbClass(
 
   const [cfgRow, links, myPrtData] = await Promise.all([
     loadCfgRow(db, evtId),
-    loadLinkRows(db, evtId),
+    loadLinkRows(db, evtId, evt.stt_dt),
     db.from("evt_pb_prt_rel").select(PRT_SELECT).eq("evt_id", evtId).eq("mem_id", memId).maybeSingle(),
   ]);
   if (myPrtData.error) throw new Error(`loadMyPbClass 참가 조회 실패: ${myPrtData.error.message}`);

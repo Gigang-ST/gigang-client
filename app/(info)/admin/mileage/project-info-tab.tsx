@@ -107,7 +107,12 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
     if (!savedEvtId || !savedIsPb) return;
     let cancelled = false;
     void getPbClassAdminBoard(savedEvtId).then((res) => {
-      if (cancelled || !res.ok) return;
+      if (cancelled) return;
+      if (!res.ok) {
+        // 못 읽으면 편집을 잠근 채 둔다(아래 수정 버튼) — 기본값이 저장값을 덮어쓰지 않게
+        toast.error(res.message ?? "PB 설정을 불러오지 못했어요. 새로고침해 주세요.");
+        return;
+      }
       const next = toPbCfgForm(res.board.cfg);
       setCfgForm(next);
       setSavedCfgForm(next);
@@ -141,6 +146,11 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
         return;
       }
       pbCfg = parsed.cfg;
+      // 정보부터 저장한 뒤 설정에서 막히면 반쯤 저장된 상태가 남는다 — 저장을 시작하기 전에 거른다
+      if (!isCreate && savedIsPb && !cfgLoaded) {
+        toast.error("PB 설정을 아직 불러오지 못했어요. 새로고침 후 다시 저장해 주세요.");
+        return;
+      }
     }
     setSaving(true);
 
@@ -178,7 +188,11 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
         alert(result.message);
         return;
       }
-      if (pbCfg) {
+      // 설정은 **실제로 바뀌었을 때만** 저장한다. 상태를 종료로 바꾸는 것 같은 정보 수정이
+      // 설정 행을 매번 다시 쓰면, 어긋난 폼 값 하나가 환급 기준을 조용히 바꾼다.
+      const cfgChanged =
+        !cfgSaved || !savedIsPb || JSON.stringify(cfgForm) !== JSON.stringify(savedCfgForm);
+      if (pbCfg && cfgChanged) {
         const cfgRes = await savePbCfg(project.evt_id, pbCfg);
         if (!cfgRes.ok) {
           setSaving(false);
@@ -242,6 +256,9 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
               variant="outline"
               size="icon-sm"
               onClick={() => setEditing(true)}
+              // PB 설정이 오기 전에 편집을 열면 폼에 기본값이 들어 있어, 정보만 고쳐 저장해도
+              // 설정이 기본값으로 덮인다 — 환급은 실시간 계산이라 전원 금액이 소급해서 바뀐다.
+              disabled={savedIsPb && !cfgLoaded}
               className="rounded-lg"
               aria-label="수정"
             >

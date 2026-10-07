@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { withAdmin } from "@/lib/actions/auth";
-import { dayjs, parseEventTime } from "@/lib/dayjs";
+import { dayjs, formatKST, parseEventTime } from "@/lib/dayjs";
 import {
   PB_CLASS_TYPE,
   feesForJoinWeek,
@@ -250,6 +250,27 @@ export async function linkPbSession(evtId: string, gthrId: string, sessType: PbS
     // 주차는 클라이언트가 보내지 않는다 — 벙 시작 시각에서 서버가 계산해 저장한다.
     const wkNo = weekNoOf(gthr.stt_at, evt.stt_dt);
     if (wkNo < 1) return { ok: false, message: "프로젝트 시작 전의 벙은 연결할 수 없어요" };
+    // 후보 목록은 기간으로 거르지만 액션은 gthr_id 만 받으므로 여기서 다시 막는다
+    if (formatKST(gthr.stt_at, "YYYY-MM-DD") > evt.end_dt) {
+      return { ok: false, message: "프로젝트 종료일 이후의 벙은 연결할 수 없어요" };
+    }
+
+    // 공식훈련은 W1~W(총회차-1) 칸에만 선다(회차 띠·남은 회차 산술이 그 전제다). 그 밖의 주차에
+    // 훈련을 걸면 출석은 세지는데 회원 띠에는 칸이 없어, 체크 수와 출석 수가 어긋난다.
+    if (parsedType.data === "TRAINING") {
+      const { data: cfgRow } = await db
+        .from("evt_pb_cfg")
+        .select("*")
+        .eq("evt_id", parsedEvt.data)
+        .maybeSingle();
+      const lastTrainingWk = cfgFromRow(cfgRow ?? null).totSessCnt - 1;
+      if (wkNo > lastTrainingWk) {
+        return {
+          ok: false,
+          message: `공식훈련은 W1~W${lastTrainingWk}에만 연결할 수 있어요 (이 벙은 W${wkNo}). 측정 일정이면 종류를 측정으로 골라 주세요`,
+        };
+      }
+    }
 
     const { error } = await db.from("evt_gthr_rel").insert({
       gthr_id: parsedGthr.data,
