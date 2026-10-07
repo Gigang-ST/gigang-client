@@ -370,8 +370,8 @@ describe("PbTraining — 주차별 훈련과 목적", () => {
 
   it("첫 10K 그룹은 첫 10K 세션이 먼저, 38~50분 세션은 참고로 낮춘다", () => {
     const out = html(createElement(PbTraining, { ...base, trnGrpCd: "E", phase: { kind: "week", wkNo: 2 } }));
-    const first = out.indexOf("6 × 400m");
-    const main = out.indexOf("8 × 400m");
+    const first = out.indexOf("같은 방식으로 6회");
+    const main = out.indexOf("400m를 목표 페이스보다 15초 빠르게");
     expect(first).toBeGreaterThan(-1);
     expect(first).toBeLessThan(main);
     expect(out).toContain("내 훈련팀");
@@ -387,7 +387,7 @@ describe("PbTraining — 주차별 훈련과 목적", () => {
     expect(out).not.toContain(">A~D<");
     expect(out).not.toContain(">E<");
     // 내 그룹(38~50분) 줄이 먼저고 첫 10K 줄은 참고
-    expect(out.indexOf("8 × 400m")).toBeLessThan(out.indexOf("6 × 400m"));
+    expect(out.indexOf("400m를 목표 페이스보다 15초 빠르게")).toBeLessThan(out.indexOf("같은 방식으로 6회"));
   });
 
   it("내 훈련팀 카드는 목표 시간 이름 + 10K 목표기록 + 대회 페이스만 — 주간 거리는 없다", () => {
