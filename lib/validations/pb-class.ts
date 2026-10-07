@@ -124,11 +124,10 @@ export type PbSessPlanInput = z.infer<typeof pbSessPlanSchema>;
 export const pbSessNoSchema = pbSessPlanSchema.shape.sessNo;
 
 // ─────────────────────────────────────────
-// 2·3단계 — 규칙·팀·기록·미션
+// 2·3단계 — 규칙·팀·기록
 // ─────────────────────────────────────────
 
 export const pbGrpIdSchema = z.string().uuid("팀 정보가 올바르지 않습니다");
-export const pbMsnIdSchema = z.string().uuid("미션 정보가 올바르지 않습니다");
 
 /** 정수 필드 하나 — 범위 밖이면 사람 말로 막는다(DB 가 아니라 여기서) */
 const intField = (label: string, min: number, max: number) =>
@@ -209,21 +208,6 @@ const sortOrdSchema = intField("순서", 0, 999);
 
 export const pbGroupInputSchema = z.object({ grpNm: grpNmSchema, colorNo: colorNoSchema });
 export const pbGroupUpdateSchema = pbGroupInputSchema.extend({ sortOrd: sortOrdSchema });
-
-/** 팀 미션 — 주차는 없을 수 있다(예: 측정 일정 전원 완주) */
-const msnNmSchema = z
-  .string({ error: "미션 이름을 입력해 주세요" })
-  .trim()
-  .min(1, "미션 이름을 입력해 주세요")
-  .max(100, "미션 이름은 100자 이하여야 합니다");
-const msnWkSchema = intField("미션 주차", 1, 60).nullable();
-
-export const pbMissionInputSchema = z.object({
-  wkNo: msnWkSchema,
-  msnNm: msnNmSchema,
-  pt: ptField("미션 점수"),
-});
-export const pbMissionUpdateSchema = pbMissionInputSchema.extend({ sortOrd: sortOrdSchema });
 
 /** 한 번에 편성할 수 있는 참가자 수 상한 — 요청 크기 안전망(프로젝트 규모는 수십~백여 명) */
 const MAX_BATCH_ROWS = 500;

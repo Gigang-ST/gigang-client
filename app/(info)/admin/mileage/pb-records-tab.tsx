@@ -2,32 +2,32 @@
 
 import { useMemo, useState } from "react";
 
-import { Check } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  confirmPbRecord,
-  setPbGoalByAdmin,
-  upsertPbRecords,
-} from "@/app/actions/admin/manage-pb-class-game";
+import { setPbGoalByAdmin, upsertPbRecords } from "@/app/actions/admin/manage-pb-class-game";
 import { wkLabel } from "@/lib/pb-class";
-import { formatSec, parseTimeInput, type PbRecType } from "@/lib/pb-class-score";
+import { formatSec, parseTimeInput } from "@/lib/pb-class-score";
 import type { PbGame, PbGameParticipant } from "@/lib/queries/pb-class-game";
 import { cn } from "@/lib/utils";
 
 import { Avatar } from "@/components/common/avatar";
 import { EmptyState } from "@/components/common/empty-state";
-import { Body, Caption, Micro } from "@/components/common/typography";
-import { Badge } from "@/components/ui/badge";
+import { Caption, Micro } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 import { PbGameLoadError, PbGameSkeleton } from "./pb-game-parts";
 import { usePbGame, type PbRun } from "./use-pb-game";
 
-/** 입력 칸 종류 — 목표 하나 + 관리자가 직접 넣는 5K·10K 기록 셋. 대구 10K는 회원이 올린 값을 확인만 한다 */
-type Field = "goal" | "BASE_5K" | "MID_5K" | "FINAL_10K";
-const REC_FIELDS: Exclude<Field, "goal">[] = ["BASE_5K", "MID_5K", "FINAL_10K"];
+/**
+ * 입력 칸 종류 — 목표 하나 + 기록 넷(5K·10K 측정 셋 + 대구 10K).
+ *
+ * 기록은 이제 회원이 직접 올리고 올리는 즉시 점수에 들어간다(확인 단계가 없다). 그래서 이 표는
+ * 입력 화면이 아니라 **교정 화면**이다 — 회원이 잘못 넣은 값을 고칠 길이 있어야 하므로 대구 10K도
+ * 읽기 전용이 아니라 같은 입력 칸으로 둔다(예전엔 「확인」 버튼만 있어 틀린 값을 고칠 방법이 없었다).
+ */
+type Field = "goal" | "BASE_5K" | "MID_5K" | "FINAL_10K" | "DAEGU_10K";
+const REC_FIELDS: Exclude<Field, "goal">[] = ["BASE_5K", "MID_5K", "FINAL_10K", "DAEGU_10K"];
 
 const cellKey = (prtId: string, field: Field) => `${prtId}:${field}`;
 
@@ -138,50 +138,38 @@ function RecordsBody({
     BASE_5K: `${wkLabel(1)} 5K`,
     MID_5K: `${wkLabel(rule.midWkNo)} 5K`,
     FINAL_10K: "10K 최종",
+    DAEGU_10K: "대구 10K",
   };
 
   const cellInput = (p: PbGameParticipant, field: Field) => {
     const key = cellKey(p.prtId, field);
-    const rec = field === "goal" ? null : p.recs[field];
     const bad = invalidKeys.has(key);
     return (
-      <div className="flex flex-col gap-1">
-        <Input
-          value={edits[key] ?? serverText(p, field)}
-          onChange={(e) => setCell(p, field, e.target.value)}
-          inputMode="numeric"
-          placeholder="2530"
-          disabled={locked}
-          aria-invalid={bad}
-          aria-label={`${p.memNm} ${field === "goal" ? "목표" : recHead[field]}`}
-          className={cn(
-            "h-10 w-[84px] rounded-lg px-2 text-center",
-            bad && "border-destructive focus-visible:ring-destructive",
-            edits[key] !== undefined && !bad && "border-primary",
-          )}
-        />
-        {/* 회원이 올려 확인 전인 기록 — 확인해야 점수에 들어간다 */}
-        {rec && !rec.cnfm && edits[key] === undefined && (
-          <button
-            type="button"
-            disabled={locked}
-            onClick={() =>
-              void run(`confirm:${p.prtId}:${field}`, () => confirmPbRecord(p.prtId, field as PbRecType, true), "확인했어요")
-            }
-            className="inline-flex h-7 items-center justify-center rounded-md bg-warning/10 px-2 disabled:opacity-50"
-          >
-            <Micro className="font-semibold text-warning">확인 대기 · 확인</Micro>
-          </button>
+      <Input
+        value={edits[key] ?? serverText(p, field)}
+        onChange={(e) => setCell(p, field, e.target.value)}
+        inputMode="numeric"
+        placeholder="2530"
+        disabled={locked}
+        aria-invalid={bad}
+        aria-label={`${p.memNm} ${field === "goal" ? "목표" : recHead[field]}`}
+        className={cn(
+          "h-10 w-[84px] rounded-lg px-2 text-center",
+          bad && "border-destructive focus-visible:ring-destructive",
+          edits[key] !== undefined && !bad && "border-primary",
         )}
-      </div>
+      />
     );
   };
 
   return (
     <div className="flex flex-col gap-4">
-      <Caption>
-        칸을 비우고 저장하면 그 기록은 지워져요. {wkLabel(2)}~{wkLabel(rule.midWkNo - 1)} 합류자는 {wkLabel(rule.midWkNo)} 5K가 기준기록이에요.
-      </Caption>
+      <div className="flex flex-col gap-1">
+        <Caption className="text-foreground">회원이 직접 올려요. 잘못 들어간 값만 고치세요.</Caption>
+        <Caption>
+          칸을 비우고 저장하면 그 기록은 지워져요. {wkLabel(2)}~{wkLabel(rule.midWkNo - 1)} 합류자는 {wkLabel(rule.midWkNo)} 5K가 기준기록이에요.
+        </Caption>
+      </div>
 
       <div className="overflow-x-auto rounded-2xl border-[1.5px] border-border">
         <table className="w-full min-w-[640px] border-collapse text-left">
@@ -198,84 +186,31 @@ function RecordsBody({
                   <Micro>{recHead[f]}</Micro>
                 </th>
               ))}
-              <th className="px-2 py-2 text-center">
-                <Micro>대구 10K</Micro>
-              </th>
             </tr>
           </thead>
           <tbody>
-            {approved.map((p) => {
-              const daegu = p.recs.DAEGU_10K;
-              return (
-                <tr key={p.prtId} className="border-b border-border last:border-b-0">
-                  <td className="sticky left-0 z-10 bg-background px-3 py-2 align-top">
-                    <div className="flex items-center gap-1.5">
-                      <Avatar src={p.avatarUrl} seed={p.memId} size="xs" />
-                      <div className="flex min-w-0 flex-col">
-                        <Caption className="truncate font-semibold text-foreground">{p.memNm}</Caption>
-                        <Micro>
-                          {wkLabel(p.joinWkNo)}
-                          {p.late ? " · 팀전 제외" : ""}
-                        </Micro>
-                      </div>
+            {approved.map((p) => (
+              <tr key={p.prtId} className="border-b border-border last:border-b-0">
+                <td className="sticky left-0 z-10 bg-background px-3 py-2 align-top">
+                  <div className="flex items-center gap-1.5">
+                    <Avatar src={p.avatarUrl} seed={p.memId} size="xs" />
+                    <div className="flex min-w-0 flex-col">
+                      <Caption className="truncate font-semibold text-foreground">{p.memNm}</Caption>
+                      <Micro>
+                        {wkLabel(p.joinWkNo)}
+                        {p.late ? " · 팀전 제외" : ""}
+                      </Micro>
                     </div>
+                  </div>
+                </td>
+                <td className="px-2 py-2 align-top">{cellInput(p, "goal")}</td>
+                {REC_FIELDS.map((f) => (
+                  <td key={f} className="px-2 py-2 align-top">
+                    {cellInput(p, f)}
                   </td>
-                  <td className="px-2 py-2 align-top">{cellInput(p, "goal")}</td>
-                  {REC_FIELDS.map((f) => (
-                    <td key={f} className="px-2 py-2 align-top">
-                      {cellInput(p, f)}
-                    </td>
-                  ))}
-                  <td className="px-2 py-2 text-center align-top">
-                    {daegu ? (
-                      <div className="flex flex-col items-center gap-1">
-                        <Body className="font-semibold">{formatSec(daegu.sec)}</Body>
-                        {daegu.cnfm ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 gap-1 rounded-md px-2"
-                            disabled={locked}
-                            onClick={() =>
-                              void run(
-                                `confirm:${p.prtId}:DAEGU_10K`,
-                                () => confirmPbRecord(p.prtId, "DAEGU_10K", false),
-                                "확인을 취소했어요",
-                              )
-                            }
-                          >
-                            <Check className="size-3 text-success" aria-hidden />
-                            <Micro className="text-foreground">확인됨</Micro>
-                          </Button>
-                        ) : (
-                          <>
-                            <Badge variant="outline" className="border-warning px-1.5 py-0">
-                              <Micro className="text-warning">확인 대기</Micro>
-                            </Badge>
-                            <Button
-                              size="sm"
-                              className="h-7 rounded-md px-2"
-                              disabled={locked}
-                              onClick={() =>
-                                void run(
-                                  `confirm:${p.prtId}:DAEGU_10K`,
-                                  () => confirmPbRecord(p.prtId, "DAEGU_10K", true),
-                                  "확인했어요",
-                                )
-                              }
-                            >
-                              <Micro className="text-primary-foreground">확인</Micro>
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    ) : (
-                      <Micro>—</Micro>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
+                ))}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

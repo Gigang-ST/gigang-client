@@ -60,19 +60,3 @@ export async function guardGroup(
     .maybeSingle();
   return data ? { grp_id: data.grp_id, evt_id: data.evt_id } : null;
 }
-
-/** msn_id 로 지정되는 액션용 — 미션이 요청 팀의 PB_CLASS 프로젝트 소속인지 확인 */
-export async function guardMission(
-  db: Db,
-  msnId: string,
-  teamId: string,
-): Promise<{ msn_id: string; evt_id: string } | null> {
-  const { data } = await db
-    .from("evt_pb_msn_mst")
-    .select("msn_id, evt_id, evt_team_mst!inner(team_id, evt_type_cd)")
-    .eq("msn_id", msnId)
-    .eq("evt_team_mst.team_id", teamId)
-    .eq("evt_team_mst.evt_type_cd", PB_CLASS_TYPE)
-    .maybeSingle();
-  return data ? { msn_id: data.msn_id, evt_id: data.evt_id } : null;
-}

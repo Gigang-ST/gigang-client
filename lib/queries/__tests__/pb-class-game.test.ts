@@ -14,7 +14,6 @@ import {
   type PbGamePrtRow,
   type PbGthrRow,
   type PbGrpRow,
-  type PbMsnRow,
   type PbRecRow,
 } from "@/lib/queries/pb-class-game";
 
@@ -79,13 +78,6 @@ const GRPS: PbGrpRow[] = [
   { grp_id: "g1", grp_nm: "가팀", color_no: 1, sort_ord: 0 },
 ];
 
-const MSNS: PbMsnRow[] = [
-  { msn_id: "m-none", wk_no: null, msn_nm: "측정 전원 완주", pt: 30, sort_ord: 0 },
-  { msn_id: "m-w4", wk_no: 4, msn_nm: "포즈 사진", pt: 10, sort_ord: 1 },
-  { msn_id: "m-w2b", wk_no: 2, msn_nm: "팀 결성(뒤)", pt: 10, sort_ord: 5 },
-  { msn_id: "m-w2a", wk_no: 2, msn_nm: "팀 결성(앞)", pt: 10, sort_ord: 1 },
-];
-
 const base = () => ({
   evt: EVT,
   cfgRow: null,
@@ -100,8 +92,6 @@ const base = () => ({
   ],
   recs: [] as PbRecRow[],
   grps: GRPS,
-  msns: MSNS,
-  msnRslts: [{ msn_id: "m-w2a", grp_id: "g1" }],
   gthrs: [
     gthr("t1", "2026-11-04T10:30:00Z"),
     gthr("t2", "2026-11-11T10:30:00Z"),
@@ -160,15 +150,16 @@ describe("assembleGame — 참가자·점수판 경계", () => {
     expect(d).toMatchObject({ inGame: false, total: 0 });
   });
 
-  it("팀 점수 = 주차별 평균 합 + 전원 출석 보너스 + 미션, 팀·미션은 정렬돼 나온다", () => {
+  it("팀 점수 = 주차별 평균 합 + 전원 출석 보너스, 팀은 sort_ord 순으로 나온다", () => {
     const g1 = game.scoreboard.groups.find((g) => g.grpId === "g1")!;
-    // W1 18(a 만 등록) + W2 10 + W3 10 = 38, 전원 출석 3주 × 20 = 60, 미션 m-w2a 10
-    expect(g1).toMatchObject({ avgSum: 38, allAttendBonus: 60, missionBonus: 10, total: 108, rank: 1 });
+    // W1 18(a 만 등록) + W2 10 + W3 10 = 38, 전원 출석 3주 × 20 = 60 — 팀 미션은 없어졌다(2026-10-07)
+    expect(g1).toMatchObject({ avgSum: 38, allAttendBonus: 60, total: 98, rank: 1 });
     expect(game.groups.map((g) => g.grpNm)).toEqual(["가팀", "나팀"]); // sort_ord 순
-    // 주차 오름차순(없는 주차는 맨 뒤), 같은 주차는 sort_ord
-    expect(game.missions.map((m) => m.msnId)).toEqual(["m-w2a", "m-w2b", "m-w4", "m-none"]);
-    expect(game.missions[0].succGrpIds).toEqual(["g1"]);
-    expect(game.missions[1].succGrpIds).toEqual([]);
+  });
+
+  it("미션은 게임에도 점수판에도 없다 — 옛 필드가 조용히 되살아나지 않게", () => {
+    expect(game).not.toHaveProperty("missions");
+    expect(game.scoreboard.groups[0]).not.toHaveProperty("missionBonus");
   });
 
   it("이름·주차·현재 주차를 채운다", () => {

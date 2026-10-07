@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Timer } from "lucide-react";
 
 import { parseEventTime } from "@/lib/dayjs";
 import {
@@ -10,7 +10,14 @@ import {
   type PbStripCell,
   type PbStripState,
 } from "@/lib/pb-class";
-import { PB_PLAN_NOTES, PB_TRN_GROUP_GUIDE, type PbSessPlan } from "@/lib/pb-class-plan";
+import {
+  PB_FIRST_10K_GROUP_CD,
+  PB_PLAN_NOTES,
+  PB_TRN_GROUPS,
+  trnGroupNm,
+  type PbSessPlan,
+} from "@/lib/pb-class-plan";
+import { formatSec } from "@/lib/pb-class-score";
 import type { PbEvent, PbParticipant, PbSession } from "@/lib/queries/pb-class";
 import { cn } from "@/lib/utils";
 
@@ -22,13 +29,23 @@ import { PbPhaseBadge } from "./pb-phase-badge";
 import { PbScrollIntoView } from "./pb-scroll-into-view";
 import { PbZone } from "./pb-zone";
 
-/** 훈련팀 코드 → 안내 행. D1·D2처럼 쪼갠 반도 D 행을 본다 */
+/** 훈련팀 코드 → 안내 행(목표 시간·페이스). D1·D2처럼 쪼갠 반도 D 행을 본다 */
 export function trnGroupOf(cd: string | null | undefined) {
   if (!cd) return null;
-  return PB_TRN_GROUP_GUIDE.find((g) => g.cd === cd) ?? PB_TRN_GROUP_GUIDE.find((g) => cd.startsWith(g.cd)) ?? null;
+  return PB_TRN_GROUPS.find((g) => g.cd === cd) ?? PB_TRN_GROUPS.find((g) => cd.startsWith(g.cd)) ?? null;
 }
 
-const isEasyGroup = (cd: string | null | undefined) => !!cd && cd.startsWith("E");
+/**
+ * 회원 화면에 찍는 훈련팀 이름 — **목표 시간으로 부른다**(오너 지시: 「트레이닝그룹 ABCD는 목표 시간으로 불러라」).
+ * 쪼갠 반(D1·D2)도 같은 목표 시간 그룹이라 부모 행의 이름을 쓴다. 코어 `trnGroupNm`은 목록에 없는 코드를
+ * 그대로 돌려주는데, 그러면 회원 화면에 「D1」 같은 알파벳이 새어 나간다 — 어느 행에도 안 걸리는 코드만 코어 폴백.
+ */
+export function trnGroupLabel(cd: string | null | undefined): string | null {
+  return trnGroupOf(cd)?.nm ?? trnGroupNm(cd);
+}
+
+/** 첫 10K 그룹(6:00/km)인가 — 이 그룹만 줄인 세션(easyTxt)을 따로 받는다 */
+const isFirst10kGroup = (cd: string | null | undefined) => !!cd && cd.startsWith(PB_FIRST_10K_GROUP_CD);
 
 export type PbFocus = { sessNo: number; tag: string };
 
@@ -74,13 +91,23 @@ function railNodeClass(state: PbStripState | null, past: boolean, focus: boolean
   return past ? "bg-muted-foreground/30" : "bg-background ring-[1.5px] ring-border";
 }
 
-/** 세션 한 줄 — 「A~D / E / 전원」 꼬리표 + 내용. 내 팀 줄이 주인공이고 다른 팀 줄은 참고로 낮춘다 */
+/**
+ * 세션 줄 꼬리표 — 훈련팀을 목표 시간으로 부르므로 세션도 같은 말로 가른다(알파벳 코드를 화면에 안 쓴다).
+ * 「38~50분」은 첫 10K를 뺀 그룹들의 목표 시간 범위라 `PB_TRN_GROUPS`에서 뽑는다 — 그룹이 바뀌면 같이 바뀐다.
+ */
+const MAIN_GROUPS = PB_TRN_GROUPS.filter((g) => g.cd !== PB_FIRST_10K_GROUP_CD);
+const TAG_MAIN = `${MAIN_GROUPS[0].goalSec / 60}~${MAIN_GROUPS[MAIN_GROUPS.length - 1].goalSec / 60}분`;
+const TAG_FIRST_10K = "첫 10K";
+const TAG_ALL = "전원";
+
+/** 세션 한 줄 — 「38~50분 / 첫 10K / 전원」 꼬리표 + 내용. 내 팀 줄이 주인공이고 다른 팀 줄은 참고로 낮춘다 */
 function SessLine({ tag, text, primary }: { tag: string; text: string; primary: boolean }) {
   return (
     <div className="flex items-baseline gap-2.5">
       <span
         className={cn(
-          "inline-flex h-5 min-w-9 shrink-0 items-center justify-center rounded-md px-1.5 text-[11px] font-semibold",
+          // 「38~50분」과 「첫 10K」의 폭이 달라 내용 시작선이 어긋나지 않게 최소 폭을 맞춘다
+          "inline-flex h-5 min-w-16 shrink-0 items-center justify-center rounded-md px-1.5 text-[11px] font-semibold",
           primary ? "bg-foreground text-background" : "bg-secondary text-muted-foreground",
         )}
       >
@@ -96,18 +123,18 @@ function SessLine({ tag, text, primary }: { tag: string; text: string; primary: 
 }
 
 function SessBody({ plan, trnGrpCd, link }: { plan: PbSessPlan; trnGrpCd: string | null; link: PbSession | null }) {
-  const easy = isEasyGroup(trnGrpCd);
-  // E 세션이 따로 없으면(타임트라이얼 등) 모두 같은 세션이다 — 「전원」 한 줄로 말한다
+  const easy = isFirst10kGroup(trnGrpCd);
+  // 첫 10K 세션이 따로 없으면(타임트라이얼 등) 모두 같은 세션이다 — 「전원」 한 줄로 말한다
   const lines = !plan.easyTxt
-    ? [{ tag: "전원", text: plan.mainTxt, primary: true }]
+    ? [{ tag: TAG_ALL, text: plan.mainTxt, primary: true }]
     : easy
       ? [
-          { tag: "E", text: plan.easyTxt, primary: true },
-          { tag: "A~D", text: plan.mainTxt, primary: false },
+          { tag: TAG_FIRST_10K, text: plan.easyTxt, primary: true },
+          { tag: TAG_MAIN, text: plan.mainTxt, primary: false },
         ]
       : [
-          { tag: "A~D", text: plan.mainTxt, primary: true },
-          { tag: "E", text: plan.easyTxt, primary: !trnGrpCd },
+          { tag: TAG_MAIN, text: plan.mainTxt, primary: true },
+          { tag: TAG_FIRST_10K, text: plan.easyTxt, primary: !trnGrpCd },
         ];
 
   return (
@@ -240,18 +267,25 @@ function PlanItem({
 /** 훈련표 머리 — 내 훈련팀(있으면) + 모든 세션 공통 규칙 */
 function PlanHeader({ trnGrpCd, participant }: { trnGrpCd: string | null; participant: boolean }) {
   const grp = trnGroupOf(trnGrpCd);
+  const nm = trnGroupLabel(trnGrpCd);
   return (
     <>
-      {grp ? (
+      {nm ? (
         <div className="flex items-center gap-3 rounded-2xl bg-secondary px-4 py-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-foreground font-numeric text-lg font-semibold text-background">
-            {trnGrpCd}
+          {/* 예전엔 이 자리에 알파벳(A~E) 코드가 큰 글씨로 섰다 — 이제 팀 이름이 목표 시간이라 아이콘이 대신한다 */}
+          <span
+            aria-hidden
+            className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-foreground text-background"
+          >
+            <Timer className="size-5" />
           </span>
           <span className="flex min-w-0 flex-col gap-0.5">
-            <Caption className="font-semibold text-foreground">내 훈련팀</Caption>
-            <Micro className="tabular-nums">
-              10K {grp.tenK} · 페이스 {grp.pace} · 주 {grp.weeklyKm}
-            </Micro>
+            <Micro>내 훈련팀</Micro>
+            <Body className="font-semibold leading-snug">{nm}</Body>
+            {/* 목표기록·대회 페이스만 — 주간 거리는 안내에서 걷었다(오너 지시). 쪼갠 코드 등 행을 못 찾으면 이름만 */}
+            {grp && (
+              <Micro className="tabular-nums">{`10K 목표 ${formatSec(grp.goalSec)} 이내 · 대회 페이스 ${grp.paceTxt}`}</Micro>
+            )}
           </span>
         </div>
       ) : (

@@ -1,6 +1,9 @@
 "use client";
 
+import { trnGroupNm } from "@/lib/pb-class-plan";
+
 import { EmptyState } from "@/components/common/empty-state";
+import { Micro } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -31,6 +34,24 @@ export function GroupDot({ colorNo, className }: { colorNo: number | null | unde
       aria-hidden
       className={cn("inline-block size-3 shrink-0 rounded-full", groupColorClass(colorNo), className)}
     />
+  );
+}
+
+/**
+ * 훈련팀 이름표 — 「38분 이하 · A」.
+ *
+ * 훈련팀은 목표 시간으로 부른다(오너 지시). A~E는 DB에 남는 내부 코드라 이름 곁에 작게만 붙인다 —
+ * 운영진이 시트·대화에서 아직 「A팀」으로 부르는 동안 두 말을 이어 주기 위한 징검다리다.
+ * 목록에 없는 코드(D1처럼 쪼갠 것)는 이름이 코드와 같아 중복해서 찍지 않는다.
+ * 인라인 `span`만 쓴다 — Select 트리거는 한 줄 말줄임이라 `flex`를 끼우면 잘림이 어긋난다.
+ */
+export function TrnGroupLabel({ cd }: { cd: string }) {
+  const nm = trnGroupNm(cd) ?? cd;
+  return (
+    <span>
+      {nm}
+      {nm !== cd && <Micro className="ml-1.5">· {cd}</Micro>}
+    </span>
   );
 }
 

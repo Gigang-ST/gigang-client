@@ -15,7 +15,6 @@ import { PbApplySection } from "./pb-apply-section";
 import { PbGoalCard } from "./pb-goal-card";
 import { PbGuide } from "./pb-guide";
 import { PbHero, pbPhaseOf } from "./pb-hero";
-import { PbMissionBoard } from "./pb-mission-board";
 import { PbMyStatus } from "./pb-my-status";
 import { PbMyTeam } from "./pb-my-team";
 import { PbPendingCard } from "./pb-pending-card";
@@ -155,19 +154,12 @@ export async function PbClassView({ event, view, readOnly = false, isInactive, i
 
       {active === "score" &&
         (game ? (
-          <>
-            <PbScoreboard
-              scoreboard={game.scoreboard}
-              rule={game.rule}
-              myGrpId={approved ? (gameMe?.grpId ?? null) : null}
-              me={approved && gameMe ? { memId: member.id, late: gameMe.late } : null}
-            />
-            <PbMissionBoard
-              missions={game.missions}
-              groups={game.scoreboard.groups}
-              myGrpId={approved ? (gameMe?.grpId ?? null) : null}
-            />
-          </>
+          <PbScoreboard
+            scoreboard={game.scoreboard}
+            rule={game.rule}
+            myGrpId={approved ? (gameMe?.grpId ?? null) : null}
+            me={approved && gameMe ? { memId: member.id, late: gameMe.late } : null}
+          />
         ) : (
           <EmptyState variant="card" message="점수판을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요." />
         ))}
@@ -190,7 +182,6 @@ export async function PbClassView({ event, view, readOnly = false, isInactive, i
             evt={evt}
             cfg={cfg}
             rule={game?.rule ?? null}
-            missions={game?.missions ?? null}
             mlgAlumni={data.mlgAlumni ?? false}
             me={me}
             trnGrpCd={trnGrpCd}

@@ -12,6 +12,7 @@ import {
   updatePbGroup,
 } from "@/app/actions/admin/manage-pb-class-game";
 import { wkLabel } from "@/lib/pb-class";
+import { PB_TRN_GROUPS } from "@/lib/pb-class-plan";
 import type { PbGame, PbGameParticipant } from "@/lib/queries/pb-class-game";
 
 import { Avatar } from "@/components/common/avatar";
@@ -22,12 +23,22 @@ import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-import { GroupDot, PB_GROUP_COLOR_NOS, PbGameLoadError, PbGameSkeleton } from "./pb-game-parts";
+import { GroupDot, PB_GROUP_COLOR_NOS, PbGameLoadError, PbGameSkeleton, TrnGroupLabel } from "./pb-game-parts";
 import { PbGroupDialog, type PbGroupFormValues } from "./pb-group-dialog";
 import { usePbGame, type PbRun } from "./use-pb-game";
 
-/** 훈련팀 코드 — 공식훈련을 나눠 뛰는 팀(게임팀과 별개 축) */
-const TRAIN_CODES = ["A", "B", "C", "D", "E"] as const;
+/**
+ * 훈련팀 선택지 코드 — 표준 5개(`PB_TRN_GROUPS`) + 이미 배정돼 있는데 목록에 없는 코드.
+ *
+ * 훈련팀은 공식훈련을 나눠 뛰는 팀이라 게임팀과 별개 축이다. 운영진이 D1·D2처럼 쪼갠 코드가 DB에 있으면
+ * Radix Select는 value와 맞는 항목이 없을 때 트리거를 비워 버려 「배정 안 됨」으로 오독하게 된다 —
+ * 쓰이는 코드는 선택지에 같이 세워 이름(없으면 코드 그대로)이 보이게 한다.
+ */
+export function trnGroupCodes(used: readonly (string | null)[]): string[] {
+  const std = PB_TRN_GROUPS.map((g) => g.cd);
+  const extra = [...new Set(used.filter((c): c is string => !!c && !std.includes(c)))].sort();
+  return [...std, ...extra];
+}
 /** Radix Select는 빈 문자열 value를 못 쓴다 — 「없음」은 이 값으로 대신하고 저장 때 null로 되돌린다 */
 const NONE = "__none__";
 
@@ -65,6 +76,7 @@ function TeamsBody({
   const { groups } = game;
   const locked = busyKey !== null;
   const approved = useMemo(() => game.participants.filter((p) => p.aprvYn), [game.participants]);
+  const trnCodes = useMemo(() => trnGroupCodes(game.participants.map((p) => p.trnGrpCd)), [game.participants]);
   const groupIds = useMemo(() => new Set(groups.map((g) => g.grpId)), [groups]);
 
   // 배정은 「서버 값 위에 덮은 변경분」만 로컬에 든다. 서버 값을 state로 복사해 두면 재조회 때마다
@@ -146,7 +158,7 @@ function TeamsBody({
   };
 
   const handleDeleteGroup = (grpId: string, name: string) => {
-    if (!confirm(`"${name}" 팀을 삭제할까요?\n이 팀의 배정과 미션 결과도 함께 사라질 수 있어요.`)) return;
+    if (!confirm(`"${name}" 팀을 삭제할까요?\n이 팀의 배정도 함께 사라질 수 있어요.`)) return;
     void run(`group:delete:${grpId}`, () => deletePbGroup(grpId), "팀을 삭제했어요");
   };
 
@@ -339,36 +351,38 @@ function TeamsBody({
                       </Badge>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="flex flex-col gap-1">
-                      <Micro>훈련팀</Micro>
+                  {/* 라벨을 위가 아니라 왼쪽에 둔다 — 훈련팀 이름이 「첫 10K · 60분 이하 · E」처럼 길어서
+                      반칸(약 150px) 트리거에는 안 들어간다. 한 줄씩 쌓으면 이름이 전부 읽힌다 */}
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <Micro className="w-12 shrink-0">훈련팀</Micro>
                       <Select
                         value={v.trnGrpCd ?? NONE}
                         onValueChange={(val) => setAssign(p, { trnGrpCd: val === NONE ? null : val })}
                         disabled={locked}
                       >
-                        <SelectTrigger className="h-11 rounded-lg" aria-label={`${p.memNm} 훈련팀`}>
+                        <SelectTrigger className="h-11 min-w-0 flex-1 rounded-lg" aria-label={`${p.memNm} 훈련팀`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {TRAIN_CODES.map((c) => (
+                          {trnCodes.map((c) => (
                             <SelectItem key={c} value={c}>
-                              {c}
+                              <TrnGroupLabel cd={c} />
                             </SelectItem>
                           ))}
                           <SelectItem value={NONE}>없음</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="flex flex-col gap-1">
-                      <Micro>게임팀</Micro>
+                    <div className="flex items-center gap-2">
+                      <Micro className="w-12 shrink-0">게임팀</Micro>
                       <Select
                         value={v.grpId ?? NONE}
                         onValueChange={(val) => setAssign(p, { grpId: val === NONE ? null : val })}
                         // 늦은 합류자는 팀전에서 빠진다 — 배정해도 점수에 안 들어가니 아예 못 고르게 한다
                         disabled={locked || p.late}
                       >
-                        <SelectTrigger className="h-11 rounded-lg" aria-label={`${p.memNm} 게임팀`}>
+                        <SelectTrigger className="h-11 min-w-0 flex-1 rounded-lg" aria-label={`${p.memNm} 게임팀`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
