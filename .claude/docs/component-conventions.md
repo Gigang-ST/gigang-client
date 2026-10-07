@@ -74,7 +74,7 @@ badge, button, card, dialog, form, input, label, loading-spinner, select, separa
 자식의 `useState`가 매번 초기값으로 리셋된다. 사용자가 유지하길 기대하는
 선택 상태(탭, 정렬 등)는 URL 쿼리에 동기화해 보존한다.
 
-- 예: `app/(main)/projects/page.tsx`의 `<CrewProgressChartServer key={selectedMonth}>` —
+- 예: `components/projects/mileage-project-view.tsx`의 `<CrewProgressChartServer key={selectedMonth}>` —
   월 이동 시 리마운트되므로 차트 상단 탭(`mode`)을 `?tab=`에 동기화 (`crew-progress-chart.tsx`).
 - **탭 클릭처럼 서버 데이터에 영향 없는 갱신은 `window.history.replaceState`** 로
   URL만 조용히 바꾼다 (`router.push`/`replace`는 서버 컴포넌트를 재실행시켜 불필요한 재쿼리 유발).

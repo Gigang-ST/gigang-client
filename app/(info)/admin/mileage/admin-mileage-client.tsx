@@ -5,10 +5,12 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { Plus } from "lucide-react";
 import { useQueryState, parseAsString, parseAsStringLiteral } from "nuqs";
 
+import { PB_CLASS_TYPE } from "@/lib/pb-class";
 import { createClient } from "@/lib/supabase/client";
 
 import { EmptyState } from "@/components/common/empty-state";
 import { SegmentControl } from "@/components/common/segment-control";
+import { H2 } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -22,6 +24,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { GoalTab } from "./goal-tab";
 import { MultiplierTab } from "./multiplier-tab";
 import { ParticipantsTab } from "./participants-tab";
+import { PbParticipantsTab } from "./pb-participants-tab";
+import { PbRecordsTab } from "./pb-records-tab";
+import { PbScoreTab } from "./pb-score-tab";
+import { PbSessionsTab } from "./pb-sessions-tab";
+import { PbTeamsTab } from "./pb-teams-tab";
 import { ProjectInfoTab } from "./project-info-tab";
 
 type Project = {
@@ -43,14 +50,25 @@ const STATUS_BADGE: Record<
   CLOSED: { label: "종료", variant: "outline" },
 };
 
-const tabs = ["info", "multiplier", "goal", "participants"] as const;
+const tabs = ["info", "multiplier", "goal", "participants", "sessions", "teams", "records", "score"] as const;
 type Tab = (typeof tabs)[number];
 
-const TAB_SEGMENTS = [
+// 탭은 프로젝트 타입이 정한다 — 배율·목표는 마일리지런 개념이고 회차(공식훈련 벙 연결)는 PB 클래스 개념이다.
+const MILEAGE_TAB_SEGMENTS: { value: Tab; label: string }[] = [
   { value: "info", label: "정보" },
   { value: "multiplier", label: "배율" },
   { value: "goal", label: "목표" },
   { value: "participants", label: "참여자" },
+];
+
+const PB_TAB_SEGMENTS: { value: Tab; label: string }[] = [
+  { value: "info", label: "정보" },
+  { value: "sessions", label: "회차" },
+  { value: "participants", label: "참여자" },
+  // 2·3단계 — 게임팀 배정, 목표·기록, 점수판·미션·배점
+  { value: "teams", label: "팀" },
+  { value: "records", label: "기록" },
+  { value: "score", label: "점수" },
 ];
 
 export function AdminMileageClient({ teamId }: { teamId: string }) {
@@ -157,9 +175,18 @@ export function AdminMileageClient({ teamId }: { teamId: string }) {
   }
 
   const isCreating = projectId === "";
+  const isPb = selectedProject?.evt_type_cd === PB_CLASS_TYPE;
+  const tabSegments = isPb ? PB_TAB_SEGMENTS : MILEAGE_TAB_SEGMENTS;
+  // URL에 남은 ?tab= 이 이 프로젝트에 없는 탭이면(예: PB 프로젝트로 옮겨 온 multiplier) 정보 탭으로 떨어진다.
+  // 빈 화면 대신 항상 존재하는 탭 하나를 보여 주려는 가드다.
+  const activeTab: Tab = tabSegments.some((t) => t.value === tab) ? tab : "info";
 
   return (
     <div className="flex flex-col gap-4 pb-6 pt-4">
+      <div className="px-6">
+        <H2>프로젝트 관리</H2>
+      </div>
+
       {/* 프로젝트 셀렉터 */}
       <div className="flex items-center gap-2 px-6">
         <div className="flex-1">
@@ -225,17 +252,19 @@ export function AdminMileageClient({ teamId }: { teamId: string }) {
       {/* 탭 */}
       <div className="px-6">
         <SegmentControl
-          segments={TAB_SEGMENTS}
-          value={tab}
+          segments={tabSegments}
+          value={activeTab}
           onValueChange={(v) => setTab(v as Tab)}
+          // PB는 탭이 6개라 좁은 폭에서 글자가 두 줄로 꺾인다 — 줄바꿈을 막고 넘치면 가로로 밀게 한다
+          className={isPb ? "overflow-x-auto [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>button]:px-3" : undefined}
         />
       </div>
 
       {/* 탭 콘텐츠 */}
-      {tab === "info" && (
+      {activeTab === "info" && (
         <div className="px-6">
           <ProjectInfoTab
-            key={projectId || "create"}
+            key={isCreating ? "create" : projectId || "create"}
             project={isCreating ? null : selectedProject}
             onSaved={handleSaved}
             onCancel={handleCancel}
@@ -244,7 +273,7 @@ export function AdminMileageClient({ teamId }: { teamId: string }) {
         </div>
       )}
 
-      {tab !== "info" && !projectId && (
+      {activeTab !== "info" && !projectId && (
         <div className="px-6">
           <EmptyState
             variant="card"
@@ -253,21 +282,49 @@ export function AdminMileageClient({ teamId }: { teamId: string }) {
         </div>
       )}
 
-      {tab === "multiplier" && projectId && (
+      {activeTab === "multiplier" && projectId && (
         <div className="px-6">
           <MultiplierTab evtId={projectId} />
         </div>
       )}
 
-      {tab === "goal" && projectId && (
+      {activeTab === "goal" && projectId && (
         <div className="px-6">
           <GoalTab evtId={projectId} />
         </div>
       )}
 
-      {tab === "participants" && projectId && (
+      {activeTab === "sessions" && projectId && (
         <div className="px-6">
-          <ParticipantsTab evtId={projectId} />
+          <PbSessionsTab key={projectId} evtId={projectId} />
+        </div>
+      )}
+
+      {activeTab === "teams" && projectId && (
+        <div className="px-6">
+          <PbTeamsTab key={projectId} evtId={projectId} />
+        </div>
+      )}
+
+      {activeTab === "records" && projectId && (
+        <div className="px-6">
+          <PbRecordsTab key={projectId} evtId={projectId} />
+        </div>
+      )}
+
+      {activeTab === "score" && projectId && (
+        <div className="px-6">
+          <PbScoreTab key={projectId} evtId={projectId} />
+        </div>
+      )}
+
+      {activeTab === "participants" && projectId && (
+        <div className="px-6">
+          {isPb ? (
+            <PbParticipantsTab key={projectId} evtId={projectId} teamId={teamId} />
+          ) : (
+            <ParticipantsTab evtId={projectId} />
+          )}
         </div>
       )}
     </div>
