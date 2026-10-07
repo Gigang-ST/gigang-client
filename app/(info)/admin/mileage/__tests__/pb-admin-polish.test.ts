@@ -148,10 +148,10 @@ describe("훈련표 탭", () => {
     expect(html).not.toContain("A~D");
     expect(html).not.toContain("E 첫 10K");
     expect(html).toContain("목적");
-    expect(html).toContain("킥오프 + 5K 타임트라이얼");
+    expect(html).toContain("킥오프 + 5K 기록 측정");
     // 1회차는 첫 10K 세션이 없어 「38~50분 그룹과 같아요」, 2회차는 따로 있다
     expect(html).toContain("38~50분 그룹과 같아요");
-    expect(html).toContain("6 × 400m");
+    expect(html).toContain("같은 방식으로 6회");
     // 1·2회차 모두 비고가 있고, 같은 칸이 빈 회차(예: 4회차)에서는 라벨이 안 선다
     const noNote = render(makeBoard({ sessPlans: [PB_DEFAULT_SESS_PLANS[3]] }));
     expect(noNote).not.toContain("비고");

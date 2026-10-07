@@ -92,3 +92,14 @@ describe("ensureDefaultSessPlans", () => {
     await expect(ensureDefaultSessPlans(db, "e1")).rejects.toThrow("boom");
   });
 });
+
+describe("기본 훈련표 표기", () => {
+  it("코치 약어(크루즈·P±초·N × 거리)를 쓰지 않고, 반복 훈련엔 쉬는 방법이 적혀 있다", () => {
+    for (const p of PB_DEFAULT_SESS_PLANS) {
+      const txt = `${p.ttl} ${p.mainTxt} ${p.easyTxt ?? ""} ${p.purpTxt}`;
+      expect(txt).not.toMatch(/크루즈|최대산소섭취량|P[+-]\d|\d+\s*×\s*\d/);
+      if (p.mainTxt.includes("회")) expect(p.mainTxt).toMatch(/조깅|걷/);
+    }
+    expect(PB_DEFAULT_SESS_PLANS[6].purpTxt).toContain("VO2max");
+  });
+});
