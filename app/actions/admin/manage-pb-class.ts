@@ -14,6 +14,7 @@ import {
 import { guardEvent, guardParticipant } from "@/lib/pb-class-guard";
 import { PB_DEFAULT_SESS_PLANS, type PbSessPlan } from "@/lib/pb-class-plan";
 import { cfgFromRow, isMileageAlumni, loadPbClassBoard, type PbClassBoard } from "@/lib/queries/pb-class";
+import { ensureDefaultSessPlans } from "@/lib/pb-class-seed";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
@@ -502,44 +503,21 @@ export async function seedPbSessPlans(evtId: string): Promise<R> {
     const evt = await guardEvent(db, parsedEvt.data, teamId);
     if (!evt) return { ok: false, message: NOT_FOUND };
 
-    const { data: cfgRow, error: cfgError } = await db
-      .from("evt_pb_cfg")
-      .select("*")
-      .eq("evt_id", parsedEvt.data)
-      .maybeSingle();
-    if (cfgError) return { ok: false, message: GENERIC_FAIL };
-    const totSessCnt = cfgFromRow(cfgRow).totSessCnt;
-    if (totSessCnt !== PB_DEFAULT_SESS_PLANS.length) {
-      return {
-        ok: false,
-        message: `기본 훈련표는 총 ${PB_DEFAULT_SESS_PLANS.length}회차용이에요. 총 회차가 ${totSessCnt}회차라서 회차마다 직접 입력해 주세요`,
-      };
-    }
-
-    const { count, error: countError } = await db
-      .from("evt_pb_sess_plan")
-      .select("sess_no", { count: "exact", head: true })
-      .eq("evt_id", parsedEvt.data);
-    if (countError) return { ok: false, message: GENERIC_FAIL };
-    const EXISTS = "이미 훈련표가 있어요. 회차마다 직접 고쳐 주세요";
-    if ((count ?? 0) > 0) return { ok: false, message: EXISTS };
-
-    const { error } = await db.from("evt_pb_sess_plan").insert(
-      PB_DEFAULT_SESS_PLANS.map((p) => ({
-        evt_id: parsedEvt.data,
-        sess_no: p.sessNo,
-        phase_nm: p.phaseNm,
-        ttl: p.ttl,
-        main_txt: p.mainTxt,
-        easy_txt: p.easyTxt,
-        purp_txt: p.purpTxt,
-        note_txt: p.noteTxt,
-      })),
-    );
-    if (error) {
-      if (error.code === "23505") return { ok: false, message: EXISTS };
+    // 진행중 전환 때 자동으로 채우는 것과 같은 함수 — 규칙(13회차일 때만, 비어 있을 때만)이 한 곳에 있다
+    let result: Awaited<ReturnType<typeof ensureDefaultSessPlans>>;
+    try {
+      result = await ensureDefaultSessPlans(db, parsedEvt.data);
+    } catch {
       return { ok: false, message: "기본 훈련표를 불러오지 못했습니다" };
     }
+    if (result === "exists") return { ok: false, message: "이미 훈련표가 있어요. 회차마다 직접 고쳐 주세요" };
+    if (result === "cfg_mismatch") {
+      return {
+        ok: false,
+        message: `기본 훈련표는 총 ${PB_DEFAULT_SESS_PLANS.length}회차용이에요. 총 회차가 달라서 회차마다 직접 입력해 주세요`,
+      };
+    }
+    if (result === "not_pb") return { ok: false, message: NOT_FOUND };
 
     revalidatePath("/projects");
     return { ok: true, message: null };

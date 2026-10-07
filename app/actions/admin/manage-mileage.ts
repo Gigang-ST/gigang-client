@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { withAdmin } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
 import { PB_CLASS_DEFAULT_CFG, PB_CLASS_TYPE, pbEndDtFor } from "@/lib/pb-class";
+import { ensureDefaultSessPlans } from "@/lib/pb-class-seed";
 import { cfgFromRow } from "@/lib/queries/pb-class";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -31,6 +32,19 @@ async function countEventParticipants(
 }
 
 const PARTICIPANTS_BLOCK_DELETE = "참가자가 있는 프로젝트는 삭제할 수 없어요. 종료하면 지난 프로젝트로 보관돼요";
+
+/**
+ * PB 프로젝트를 진행중으로 열 때 훈련표가 비어 있으면 기본 훈련표를 넣는다(오너 지시 — "활성화하면 알아서").
+ * **실패해도 상태 변경은 되돌리지 않는다** — 훈련표는 관리자 「기본 훈련표 불러오기」로 언제든 다시 채울 수
+ * 있지만, 공개가 막히면 모집이 멈춘다. 그래서 로그만 남긴다.
+ */
+async function seedPlansOnActivate(db: ReturnType<typeof createAdminClient>, evtId: string) {
+  try {
+    await ensureDefaultSessPlans(db, evtId);
+  } catch (e) {
+    console.error("[pb] 진행중 전환 시 기본 훈련표 자동 채우기 실패", evtId, e);
+  }
+}
 
 export async function createEvent(input: {
   evt_nm: string;
@@ -68,6 +82,7 @@ export async function createEvent(input: {
       .single();
 
     if (error) return { ok: false, message: "이벤트 생성에 실패했습니다" };
+    if (input.stts_enm === "ACTIVE") await seedPlansOnActivate(db, data.evt_id);
     revalidatePath("/projects");
     return { ok: true, message: null, evt_id: data.evt_id };
   });
@@ -133,6 +148,7 @@ export async function updateEvent(
       .eq("evt_id", evtId)
       .eq("team_id", teamId);
     if (error) return { ok: false, message: "이벤트 수정에 실패했습니다" };
+    if (input.stts_enm === "ACTIVE") await seedPlansOnActivate(db, evtId);
     revalidatePath("/projects");
     return { ok: true, message: null };
   });
@@ -168,6 +184,7 @@ export async function setEventStatus(
       .select("evt_id");
     if (error) return { ok: false, message: "상태 변경에 실패했습니다" };
     if (!data || data.length === 0) return { ok: false, message: "이벤트를 찾을 수 없습니다" };
+    if (status === "ACTIVE") await seedPlansOnActivate(db, parsedEvt.data);
 
     revalidatePath("/projects");
     return { ok: true, message: null };
