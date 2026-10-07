@@ -11,6 +11,8 @@ type Props = {
   month: string;
   evtStartMonth: string;
   evtEndMonth: string;
+  /** 종료된 프로젝트(보관용) — 수정/삭제 버튼과 「전체 기록 보기」(진행 중 시즌 전용 화면)를 거둔다 */
+  readOnly?: boolean;
   /** 비활성/탈퇴 회원 — true면 수정/삭제 시 공통 안내 게이트를 연다 */
   isInactive?: boolean;
   /** 비활성/탈퇴 세부 구분 — InactiveGateDialog 문구 분기용 */
@@ -21,6 +23,7 @@ export async function MyActivityList({
   evtId,
   memId,
   month,
+  readOnly = false,
   isInactive = false,
   inactiveKind,
 }: Props) {
@@ -60,6 +63,7 @@ export async function MyActivityList({
       memId={memId}
       month={month}
       totalCount={totalCount}
+      readOnly={readOnly}
       isInactive={isInactive}
       inactiveKind={inactiveKind}
     />

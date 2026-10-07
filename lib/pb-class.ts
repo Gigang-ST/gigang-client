@@ -32,6 +32,8 @@ export type PbClassCfg = {
   depositAmt: number;
   /** 참가비(돌려주지 않는다) */
   entryFeeAmt: number;
+  /** 마일리지런에 참가했던 사람의 보증금 할인액(오너 지시 2026-10-07) */
+  mlgDcAmt: number;
 };
 
 export const PB_CLASS_DEFAULT_CFG: PbClassCfg = {
@@ -40,6 +42,7 @@ export const PB_CLASS_DEFAULT_CFG: PbClassCfg = {
   lateJoinWkNo: 6,
   depositAmt: 30_000,
   entryFeeAmt: 10_000,
+  mlgDcAmt: 5_000,
 };
 
 /**
@@ -180,7 +183,7 @@ export type PbStripState =
   | "before_join"; // 합류 전 주차 — 이 사람에겐 세지 않는다
 
 export type PbStripCell = {
-  /** "W1" … "W12" / "측정" */
+  /** "1주차" … "12주차" / "측정" */
   label: string;
   sessType: PbSessType;
   wkNo: number | null;
@@ -214,7 +217,7 @@ export function buildSessStrip(args: {
   for (let wk = 1; wk <= trainingWeeks; wk += 1) {
     const link = links.find((l) => l.sessType === "TRAINING" && l.wkNo === wk);
     cells.push({
-      label: `W${wk}`,
+      label: wkLabel(wk),
       sessType: "TRAINING",
       wkNo: wk,
       gthrId: link?.gthrId ?? null,
@@ -233,9 +236,35 @@ export function buildSessStrip(args: {
 }
 
 /** 합류 주차에 맞는 납부액 — 늦은 합류면 보증금 0 */
-export function feesForJoinWeek(joinWkNo: number, cfg: PbClassCfg): { depositAmt: number; entryFeeAmt: number } {
-  return {
-    depositAmt: isLateJoin(joinWkNo, cfg) ? 0 : cfg.depositAmt,
-    entryFeeAmt: cfg.entryFeeAmt,
-  };
+export function feesForJoinWeek(
+  joinWkNo: number,
+  cfg: PbClassCfg,
+  opts: { mlgAlumni?: boolean } = {},
+): { depositAmt: number; entryFeeAmt: number; depositDcAmt: number } {
+  if (isLateJoin(joinWkNo, cfg)) return { depositAmt: 0, entryFeeAmt: cfg.entryFeeAmt, depositDcAmt: 0 };
+  // 마일리지런 참가자는 보증금에서 깎는다. 환급은 **실제로 낸 보증금** 기준이라(refundAmt 가 참가자 행의
+  // deposit_amt 를 쓴다) 9회를 채우면 깎인 금액 전액이 돌아온다 — 할인이 환급 공식을 건드리지 않게.
+  const dc = opts.mlgAlumni ? Math.min(cfg.mlgDcAmt, cfg.depositAmt) : 0;
+  return { depositAmt: cfg.depositAmt - dc, entryFeeAmt: cfg.entryFeeAmt, depositDcAmt: dc };
+}
+
+/**
+ * 프로젝트 종료일 = 시작일(W1 수요일) + (총회차 + 1)주 − 1일.
+ * 공식훈련 (총회차−1)주 + 측정이 W13·W14 중 하루라 측정 주간 끝까지 덮는다(11/4 시작이면 2/9 화).
+ * 관리자가 손으로 넣으면 W12 날짜로 끊어 측정 벙 연결이 막히는 일이 실제로 있었다 — 그래서 계산으로 정한다.
+ */
+export function pbEndDtFor(evtSttDt: string, cfg: PbClassCfg): string {
+  return parseEventTime(evtSttDt)
+    .add((cfg.totSessCnt + 1) * 7 - 1, "day")
+    .format("YYYY-MM-DD");
+}
+
+/** n주차가 시작하는 날(수요일) — 훈련표·띠에 날짜를 찍을 때 */
+export function weekStartDt(evtSttDt: string, wkNo: number): string {
+  return parseEventTime(evtSttDt).add((wkNo - 1) * 7, "day").format("YYYY-MM-DD");
+}
+
+/** 화면 표기 — 「W9」가 아니라 「9주차」(오너 지시). 측정은 주차가 아니라 「측정」 */
+export function wkLabel(wkNo: number): string {
+  return `${wkNo}주차`;
 }

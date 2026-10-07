@@ -11,7 +11,7 @@ import {
   unlinkPbSession,
 } from "@/app/actions/admin/manage-pb-class";
 import { formatKST } from "@/lib/dayjs";
-import { PB_SESS_TYPE_LABEL, type PbSessType } from "@/lib/pb-class";
+import { PB_SESS_TYPE_LABEL, wkLabel, type PbSessType } from "@/lib/pb-class";
 import type { PbSession } from "@/lib/queries/pb-class";
 import { cn } from "@/lib/utils";
 import { gthrTypeLabels, type GthrType } from "@/lib/validations/gathering";
@@ -116,7 +116,7 @@ export function PbSessionsTab({ evtId }: { evtId: string }) {
       sessType === "TRAINING" &&
       sessions.some((s) => s.sessType === "TRAINING" && s.wkNo === target.wkNo)
     ) {
-      toast.error(`W${target.wkNo}에는 이미 공식훈련이 연결돼 있어요.`);
+      toast.error(`${wkLabel(target.wkNo)}에는 이미 공식훈련이 연결돼 있어요.`);
       return;
     }
     const ok = await run("link", () => linkPbSession(evtId, target.gthrId, sessType), "벙을 연결했어요");
@@ -156,7 +156,7 @@ export function PbSessionsTab({ evtId }: { evtId: string }) {
               <CardItem key={s.gthrId} className="flex flex-col gap-2">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                    <Badge variant="outline">W{s.wkNo}</Badge>
+                    <Badge variant="outline">{wkLabel(s.wkNo)}</Badge>
                     <Badge variant={s.sessType === "MEASURE" ? "default" : "secondary"}>
                       {PB_SESS_TYPE_LABEL[s.sessType]}
                     </Badge>
@@ -181,7 +181,7 @@ export function PbSessionsTab({ evtId }: { evtId: string }) {
                   <div className="flex items-start gap-1.5 rounded-lg bg-warning/10 p-2">
                     <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warning" aria-hidden />
                     <Caption className="text-warning">
-                      날짜가 바뀌어 W{s.computedWkNo}에 해당 — 연결을 풀고 다시 걸어주세요
+                      날짜가 바뀌어 {wkLabel(s.computedWkNo)}에 해당 — 연결을 풀고 다시 걸어주세요
                     </Caption>
                   </div>
                 )}
@@ -236,7 +236,7 @@ export function PbSessionsTab({ evtId }: { evtId: string }) {
                         )}
                       >
                         <span className="flex items-center gap-1.5">
-                          <Badge variant="outline">W{c.wkNo}</Badge>
+                          <Badge variant="outline">{wkLabel(c.wkNo)}</Badge>
                           <Caption>{gthrTypeLabels[c.gthrTypeEnm as GthrType] ?? c.gthrTypeEnm}</Caption>
                         </span>
                         <Body className="truncate font-semibold">{c.gthrNm}</Body>

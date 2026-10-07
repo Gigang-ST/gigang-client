@@ -10,6 +10,7 @@ import {
   setPbGoalByAdmin,
   upsertPbRecords,
 } from "@/app/actions/admin/manage-pb-class-game";
+import { wkLabel } from "@/lib/pb-class";
 import { formatSec, parseTimeInput, type PbRecType } from "@/lib/pb-class-score";
 import type { PbGame, PbGameParticipant } from "@/lib/queries/pb-class-game";
 import { cn } from "@/lib/utils";
@@ -134,8 +135,8 @@ function RecordsBody({
   }
 
   const recHead: Record<Exclude<Field, "goal">, string> = {
-    BASE_5K: "W1 5K",
-    MID_5K: `W${rule.midWkNo} 5K`,
+    BASE_5K: `${wkLabel(1)} 5K`,
+    MID_5K: `${wkLabel(rule.midWkNo)} 5K`,
     FINAL_10K: "10K 최종",
   };
 
@@ -179,7 +180,7 @@ function RecordsBody({
   return (
     <div className="flex flex-col gap-4">
       <Caption>
-        칸을 비우고 저장하면 그 기록은 지워져요. W2~W{rule.midWkNo - 1} 합류자는 W{rule.midWkNo} 5K가 기준기록이에요.
+        칸을 비우고 저장하면 그 기록은 지워져요. {wkLabel(2)}~{wkLabel(rule.midWkNo - 1)} 합류자는 {wkLabel(rule.midWkNo)} 5K가 기준기록이에요.
       </Caption>
 
       <div className="overflow-x-auto rounded-2xl border-[1.5px] border-border">
@@ -213,7 +214,7 @@ function RecordsBody({
                       <div className="flex min-w-0 flex-col">
                         <Caption className="truncate font-semibold text-foreground">{p.memNm}</Caption>
                         <Micro>
-                          W{p.joinWkNo}
+                          {wkLabel(p.joinWkNo)}
                           {p.late ? " · 팀전 제외" : ""}
                         </Micro>
                       </div>

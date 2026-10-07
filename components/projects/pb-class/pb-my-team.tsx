@@ -2,10 +2,10 @@ import type { PbScoreGroup } from "@/lib/pb-class-score";
 import type { PbGameParticipant } from "@/lib/queries/pb-class-game";
 
 import { InfoRow } from "@/components/common/info-row";
-import { SectionHeader } from "@/components/common/section-header";
 import { Caption } from "@/components/common/typography";
 import { CardItem } from "@/components/ui/card";
 import { PbTeamDot } from "./pb-team-color";
+import { PbZone } from "./pb-zone";
 
 /**
  * 내 팀 — 훈련팀(운영진이 정한 훈련 그룹)과 게임팀(점수를 겨루는 팀) 두 가지를 나란히 말한다.
@@ -24,8 +24,7 @@ export function PbMyTeam({
   const group = me.grpId ? (groups.find((g) => g.grpId === me.grpId) ?? null) : null;
 
   return (
-    <div className="flex flex-col gap-4">
-      <SectionHeader label="MY TEAM" />
+    <PbZone label="My Team" lead="같이 훈련하는 팀과 같이 겨루는 팀">
       <CardItem className="flex flex-col py-1">
         <InfoRow label="훈련팀" value={me.trnGrpCd ?? <span className="text-muted-foreground">배정 전</span>} />
         <InfoRow
@@ -49,6 +48,6 @@ export function PbMyTeam({
           <Caption className="pb-3 leading-relaxed">늦은 합류 — 팀전 대상이 아니에요</Caption>
         )}
       </CardItem>
-    </div>
+    </PbZone>
   );
 }

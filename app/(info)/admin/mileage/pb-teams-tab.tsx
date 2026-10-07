@@ -11,6 +11,7 @@ import {
   deletePbGroup,
   updatePbGroup,
 } from "@/app/actions/admin/manage-pb-class-game";
+import { wkLabel } from "@/lib/pb-class";
 import type { PbGame, PbGameParticipant } from "@/lib/queries/pb-class-game";
 
 import { Avatar } from "@/components/common/avatar";
@@ -314,7 +315,7 @@ function TeamsBody({
         >
           <Shuffle className="size-4" />뱀 드래프트로 채우기
         </Button>
-        <Caption>미배정 인원을 W1 5K 기록 빠른 순으로 세워 팀에 왕복 배분해요. 저장 전까지 바뀌지 않아요.</Caption>
+        <Caption>미배정 인원을 {wkLabel(1)} 5K 기록 빠른 순으로 세워 팀에 왕복 배분해요. 저장 전까지 바뀌지 않아요.</Caption>
 
         {approved.length === 0 ? (
           <EmptyState variant="card" message="승인된 참가자가 없어요." />
@@ -331,7 +332,7 @@ function TeamsBody({
                   <div className="flex items-center gap-2">
                     <Avatar src={p.avatarUrl} seed={p.memId} size="sm" />
                     <Body className="min-w-0 truncate font-semibold">{p.memNm}</Body>
-                    <Micro className="shrink-0">W{p.joinWkNo}</Micro>
+                    <Micro className="shrink-0">{wkLabel(p.joinWkNo)}</Micro>
                     {p.late && (
                       <Badge variant="outline" className="shrink-0">
                         팀전 제외

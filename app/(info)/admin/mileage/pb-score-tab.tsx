@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { wkLabel } from "@/lib/pb-class";
 import { PB_PT_CDS, PB_PT_LABEL, type PbPtCd } from "@/lib/pb-class-score";
 import type { PbGame } from "@/lib/queries/pb-class-game";
 import { cn } from "@/lib/utils";
@@ -93,7 +94,7 @@ function ScoreboardPreview({ game }: { game: PbGame }) {
                 <div className="flex flex-col gap-0.5">
                   <Micro>전원 출석</Micro>
                   <Body className="font-semibold">+{g.allAttendBonus}</Body>
-                  {g.allAttendWeeks.length > 0 && <Micro>W{g.allAttendWeeks.join(" · W")}</Micro>}
+                  {g.allAttendWeeks.length > 0 && <Micro>{g.allAttendWeeks.map(wkLabel).join(" · ")}</Micro>}
                 </div>
                 <div className="flex flex-col gap-0.5">
                   <Micro>미션</Micro>

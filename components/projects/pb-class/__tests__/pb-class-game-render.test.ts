@@ -124,7 +124,7 @@ describe("PbScoreboard", () => {
     );
 
     expect(out).toContain("팀 발표 전이에요");
-    expect(out).not.toContain("MY SCORE");
+    expect(out).not.toContain("My Score");
   });
 
   it("구경하는 사람(me 없음)에겐 내 점수 블록이 없다", () => {
@@ -132,7 +132,7 @@ describe("PbScoreboard", () => {
       createElement(PbScoreboard, { scoreboard: BOARD, rule: PB_DEFAULT_RULE, myGrpId: null, me: null }),
     );
 
-    expect(out).not.toContain("MY SCORE");
+    expect(out).not.toContain("My Score");
   });
 
   it("내 점수는 0이 아닌 항목만 풀어 보여 준다", () => {
@@ -149,7 +149,7 @@ describe("PbScoreboard", () => {
       }),
     );
 
-    expect(out).toContain("MY SCORE");
+    expect(out).toContain("My Score");
     expect(out).toContain("36점");
     expect(out).toContain("공식훈련 출석");
     expect(out).toContain("+30점");
@@ -259,7 +259,8 @@ describe("PbGoalCard", () => {
 
     expect(out).toContain("50:00");
     expect(out).toContain("목표 고치기");
-    expect(out).toContain("W2까지 고칠 수 있어요 · 60분 이내");
+    expect(out).toContain("2주차까지 고칠 수 있어요 · 60분 이내");
+    expect(out).not.toMatch(/W\d/); // 회원 화면엔 「W2」 표기를 쓰지 않는다(오너 지시)
   });
 
   it("목표가 없으면 정하기 버튼이 서고 값 자리는 미설정이다", () => {
@@ -303,28 +304,29 @@ describe("PbRecordsCard", () => {
       }),
     );
 
-    expect(out).toContain("W1 5K TT · 기준");
+    expect(out).toContain("1주차 5K · 기준기록");
     expect(out).toContain("25:00");
-    expect(out).toContain("W6 5K TT · 중간점검");
-    expect(out).toContain("10K TT · 최종");
+    expect(out).toContain("6주차 5K · 중간점검");
+    expect(out).toContain("10K 측정 · 최종");
+    expect(out).not.toMatch(/W\d/);
     expect(out).toContain("대구마라톤 10K");
     expect(out).toContain("운영진이 입력해요"); // 아직 기록 없는 줄
     expect(out).not.toContain("기준기록은");
   });
 
-  it("W2~W5 합류자는 W1 줄이 없고 W6 5K가 기준기록이다", () => {
+  it("2~5주차 합류자는 1주차 줄이 없고 6주차 5K가 기준기록이다", () => {
     const out = html(createElement(PbRecordsCard, { ...base, joinWkNo: 3, late: false, recs: {} }));
 
-    expect(out).not.toContain("W1 5K TT");
-    expect(out).toContain("W6 5K TT · 기준");
-    expect(out).toContain("W3 합류라 기준기록은 W6 5K 기록이에요");
+    expect(out).not.toContain("1주차 5K");
+    expect(out).toContain("6주차 5K · 기준기록");
+    expect(out).toContain("3주차 합류라 기준기록은 6주차 5K 기록이에요");
   });
 
   it("늦은 합류자는 최종 10K와 대구만 남고 기록 점수 없음을 말한다", () => {
     const out = html(createElement(PbRecordsCard, { ...base, joinWkNo: 6, late: true, recs: {} }));
 
-    expect(out).not.toContain("5K TT");
-    expect(out).toContain("10K TT · 최종");
+    expect(out).not.toContain("5K ·");
+    expect(out).toContain("10K 측정 · 최종");
     expect(out).toContain("대구마라톤 10K");
     expect(out).toContain("기록 점수가 없어요");
   });
@@ -362,6 +364,32 @@ describe("PbRecordsCard", () => {
     expect(out).not.toContain("지우기");
     expect(out).not.toContain("고치기");
     expect(out).not.toContain("올리기");
+  });
+});
+
+describe("PbRecordsCard · 보관용(readOnly)", () => {
+  it("종료된 프로젝트에선 대구 입력·수정 버튼이 하나도 없다", () => {
+    const none = html(
+      createElement(PbRecordsCard, { evtId: "e1", midWkNo: 6, joinWkNo: 1, late: false, recs: {}, readOnly: true }),
+    );
+    expect(none).toContain("대구마라톤 10K");
+    expect(none).toContain("기록 없음");
+    expect(none).not.toContain("올리기");
+    expect(none).not.toContain("<input");
+
+    const waiting = html(
+      createElement(PbRecordsCard, {
+        evtId: "e1",
+        midWkNo: 6,
+        joinWkNo: 1,
+        late: false,
+        recs: { DAEGU_10K: { sec: 3150, cnfm: false } },
+        readOnly: true,
+      }),
+    );
+    expect(waiting).toContain("52:30");
+    expect(waiting).not.toContain("고치기");
+    expect(waiting).not.toContain("지우기");
   });
 });
 
@@ -406,6 +434,7 @@ function participant(over: { prtId: string; memId: string; memNm: string; joinWk
       cfg: CFG,
     }),
     attendedGthrIds: over.attended,
+    depositDcAmt: 0,
   };
 }
 
@@ -425,6 +454,7 @@ function board(participants: PbParticipant[]): PbClassBoard {
       unrefundedSum: approved.reduce((n, p) => n + p.summary.unrefunded, 0),
       entryFeeSum: approved.reduce((n, p) => n + p.entryFeeAmt, 0),
     },
+    sessPlans: [],
   };
 }
 

@@ -1,27 +1,41 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { dayjs } from "@/lib/dayjs";
 import { PB_CLASS_DEFAULT_CFG, summarizeRefund, type PbClassCfg } from "@/lib/pb-class";
-import type { PbParticipant, PbSession } from "@/lib/queries/pb-class";
+import { PB_DEFAULT_SESS_PLANS } from "@/lib/pb-class-plan";
+import { PB_DEFAULT_RULE } from "@/lib/pb-class-score";
+import type { PbEvent, PbParticipant, PbSession } from "@/lib/queries/pb-class";
 
 import { ProjectSwitcher } from "@/components/projects/project-switcher";
+import { PbApplySection } from "@/components/projects/pb-class/pb-apply-section";
+import { PbGuide } from "@/components/projects/pb-class/pb-guide";
+import { PbHero, pbPhaseOf } from "@/components/projects/pb-class/pb-hero";
 import { PbMyStatus } from "@/components/projects/pb-class/pb-my-status";
-import { PbRulesContent } from "@/components/projects/pb-class/pb-rules-content";
+import { PbPendingCard } from "@/components/projects/pb-class/pb-pending-card";
 import { PbSessionStrip } from "@/components/projects/pb-class/pb-session-strip";
+import { PbTraining, pbFocusOf } from "@/components/projects/pb-class/pb-training";
+import { PbViewTabs, pbGuideTop, resolvePbView } from "@/components/projects/pb-class/pb-view-tabs";
+import { ArchivedBanner, ProjectArchive } from "@/components/projects/project-archive";
+
+// 신청 카드가 부르는 라우터·서버 액션은 이 테스트가 보는 대상이 아니다(서버 액션 모듈은 node 에서 로드조차 안 된다)
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => {} }) }));
+vi.mock("@/app/actions/pb-class", () => ({ joinPbClass: vi.fn() }));
+// 비활성 안내 다이얼로그는 서버 액션(세션 쿠키·env)을 끌고 들어온다 — 열리지 않는 상태라 빈 껍데기로 충분하다
+vi.mock("@/components/common/inactive-gate-dialog", () => ({ InactiveGateDialog: () => null }));
 
 /**
  * PB 클래스 회원 화면의 **규칙이 마크업에 실제로 나오는지** 못박는다.
  *
  * 숫자 계산은 `lib/__tests__/pb-class.test.ts`가 지킨다. 여기서 보는 건 그 결과를 화면이
- * 어떻게 말하느냐다 — 정식 참가자의 분모 13, 중간 합류자의 「W3 합류」 표기, 늦은 합류자에게
+ * 어떻게 말하느냐다 — 정식 참가자의 분모 13, 중간 합류자의 「3주차 합류」 표기, 늦은 합류자에게
  * 환급 칸이 아예 안 서는 것, 합류 전 회차가 흐려지는 것. 전부 틀려도 크래시가 안 나는 종류다.
  */
 
 const CFG = PB_CLASS_DEFAULT_CFG;
 
-/** W1~W12 공식훈련 + W13 측정. 앞 4주(W1~W4)만 이미 열렸다 */
+/** 1~12주차 공식훈련 + 13주차 측정. 앞 4주만 이미 열렸다 */
 function makeSessions(): PbSession[] {
   const w1 = dayjs("2026-11-04T19:30:00+09:00");
   return Array.from({ length: 13 }, (_, i) => {
@@ -61,6 +75,7 @@ function makeMe(joinWkNo: number, attended: string[], cfg: PbClassCfg = CFG): Pb
       cfg,
     }),
     attendedGthrIds: attended,
+    depositDcAmt: 0,
   };
 }
 
@@ -72,9 +87,9 @@ describe("PbSessionStrip", () => {
     const out = html(createElement(PbSessionStrip, { me, sessions: makeSessions(), cfg: CFG }));
 
     expect(out.match(/<li /g)).toHaveLength(13);
-    expect(out).toContain('aria-label="W1 출석"');
-    expect(out).toContain('aria-label="W3 결석"'); // 열렸는데 안 나온 회차
-    expect(out).toContain('aria-label="W5 예정"'); // 아직 안 열린 회차
+    expect(out).toContain('aria-label="1주차 출석"');
+    expect(out).toContain('aria-label="3주차 결석"'); // 열렸는데 안 나온 회차
+    expect(out).toContain('aria-label="5주차 예정"'); // 아직 안 열린 회차
     expect(out).toContain('aria-label="측정 예정"');
   });
 
@@ -82,9 +97,9 @@ describe("PbSessionStrip", () => {
     const me = makeMe(3, ["g3"]);
     const out = html(createElement(PbSessionStrip, { me, sessions: makeSessions(), cfg: CFG }));
 
-    expect(out).toContain('aria-label="W1 합류 전"');
-    expect(out).toContain('aria-label="W2 합류 전"');
-    expect(out).toContain('aria-label="W3 출석"');
+    expect(out).toContain('aria-label="1주차 합류 전"');
+    expect(out).toContain('aria-label="2주차 합류 전"');
+    expect(out).toContain('aria-label="3주차 출석"');
   });
 
   it("벙이 연결되지 않은 칸은 미정이다", () => {
@@ -92,7 +107,7 @@ describe("PbSessionStrip", () => {
     const sessions = makeSessions().filter((s) => s.wkNo !== 6);
     const out = html(createElement(PbSessionStrip, { me, sessions, cfg: CFG }));
 
-    expect(out).toContain('aria-label="W6 미정"');
+    expect(out).toContain('aria-label="6주차 미정"');
   });
 });
 
@@ -105,7 +120,8 @@ describe("PbMyStatus", () => {
     expect(out).toContain("/ 13");
     expect(out).toContain("10,000원");
     expect(out).toContain("6회");
-    expect(out).not.toContain("W1 합류"); // 정식은 합류 주차를 말하지 않는다
+    expect(out).not.toContain("1주차 합류"); // 정식은 합류 주차를 말하지 않는다
+    expect(out).not.toMatch(/W\d/);
   });
 
   it("전액 기준을 채우면 '전액 확보'가 된다", () => {
@@ -131,7 +147,8 @@ describe("PbMyStatus", () => {
     const me = makeMe(3, ["g3", "g4"]);
     const out = html(createElement(PbMyStatus, { me, cfg: CFG }));
 
-    expect(out).toContain("W3 합류");
+    expect(out).toContain("3주차 합류");
+    expect(out).not.toMatch(/W\d/);
     expect(out).toContain("/ 11"); // 13 − (3−1)
   });
 
@@ -145,25 +162,289 @@ describe("PbMyStatus", () => {
   });
 });
 
-describe("PbRulesContent", () => {
-  it("숫자를 설정값에서 뽑는다 — 설정이 바뀌면 문장도 바뀐다", () => {
-    const base = html(createElement(PbRulesContent, { cfg: CFG }));
-    expect(base).toContain("4만 원");
-    expect(base).toContain("13회 중 9회");
-    expect(base).toContain("W6부터");
+const EVT: PbEvent = {
+  evtId: "e1",
+  evtNm: "겨울 10K PB 클래스",
+  sttDt: "2026-11-04",
+  endDt: "2027-02-09",
+  sttsEnm: "ACTIVE",
+};
 
+/** n주차 수요일 정오(KST)에서 day일 뒤 */
+const nowAtWeek = (wk: number, day = 1) =>
+  dayjs("2026-11-04T12:00:00+09:00").add((wk - 1) * 7 + day, "day").toISOString();
+
+describe("PbGuide — 규칙이 곧 안내", () => {
+  const props = {
+    evt: EVT,
+    rule: PB_DEFAULT_RULE,
+    missions: [],
+    mlgAlumni: false,
+    me: null,
+    trnGrpCd: null,
+  };
+
+  it("금액·회차·배점을 설정값에서 뽑아 말한다", () => {
+    const out = html(createElement(PbGuide, { ...props, cfg: CFG }));
+
+    expect(out).toContain("13회");
+    expect(out).toContain("9회");
+    expect(out).toContain("30,000원"); // 보증금
+    expect(out).toContain("마일리지런 참가자 보증금 −5,000원");
+    expect(out).toContain("할인돼도 9회 출석하면 낸 보증금 전액을 돌려받아요");
+    expect(out).toContain(`+${PB_DEFAULT_RULE.pt.attend}`);
+    expect(out).toContain(`+${PB_DEFAULT_RULE.pt.allAttend}점`);
+    expect(out).toContain(String(PB_DEFAULT_RULE.tenKFactor));
+    // 회원 화면엔 W 표기가 없다(오너 지시) — 「W6부터」가 아니라 「6주차부터」
+    expect(out).not.toMatch(/W\d/);
+    expect(out).toMatch(/6주차(<!-- -->)?부터/); // SSR 은 이웃한 텍스트 노드 사이에 주석을 끼운다
+  });
+
+  it("출석 → 환급 표는 refundAmt 로 계산한다(정식 참가 기준)", () => {
+    const out = html(createElement(PbGuide, { ...props, cfg: CFG }));
+
+    expect(out).toContain("보증금 30,000원 · 1주차 합류 기준");
+    expect(out).toMatch(/출석 3회<\/dt><dd[^>]*>10,000원/); // 30,000 × 3/9
+    expect(out).toMatch(/출석 9회<\/dt><dd[^>]*>30,000원/);
+    expect(out).not.toContain("출석 10회");
+  });
+
+  it("중간 합류 표는 주차별 남은 회차·전액 기준을 requiredAttdCnt 로 낸다", () => {
+    const out = html(createElement(PbGuide, { ...props, cfg: CFG }));
+
+    // 2주차: 남은 12회 → floor(12×9/13) = 8회
+    expect(out).toMatch(/2주차<\/td><td[^>]*>12회<\/td><td[^>]*>8회/);
+    expect(out).toContain("6주차~");
+  });
+
+  it("설정이 바뀌면 문장·표도 같이 바뀐다", () => {
     const custom: PbClassCfg = {
       totSessCnt: 10,
       fullRfndAttdCnt: 7,
       lateJoinWkNo: 5,
       depositAmt: 20_000,
       entryFeeAmt: 5_000,
+      mlgDcAmt: 3_000,
     };
-    const changed = html(createElement(PbRulesContent, { cfg: custom }));
-    expect(changed).toContain("25,000원");
-    expect(changed).toContain("10회 중 7회");
-    expect(changed).toContain("W5부터");
-    expect(changed).not.toContain("13회");
+    const out = html(createElement(PbGuide, { ...props, cfg: custom }));
+
+    expect(out).toContain("10회");
+    expect(out).toContain("−3,000원");
+    expect(out).toContain("5주차~");
+    expect(out).toMatch(/출석 7회<\/dt><dd[^>]*>20,000원/);
+    expect(out).not.toContain("13회");
+    expect(out).not.toContain("6주차~");
+  });
+
+  it("마일리지런 참가자에겐 할인된 보증금으로 환급 표를 그린다", () => {
+    const out = html(createElement(PbGuide, { ...props, cfg: CFG, mlgAlumni: true }));
+
+    expect(out).toContain("할인 대상이에요");
+    expect(out).toContain("보증금 25,000원 · 1주차 합류 기준");
+    expect(out).toMatch(/출석 9회<\/dt><dd[^>]*>25,000원/);
+  });
+
+  it("배점(rule)을 못 읽으면 점수·목표 칸을 지어내지 않고 목차에서도 뺀다", () => {
+    const out = html(createElement(PbGuide, { ...props, cfg: CFG, rule: null, missions: null }));
+
+    expect(out).not.toContain('href="#pb-guide-score"');
+    expect(out).not.toContain('id="pb-guide-score"');
+    expect(out).not.toContain('id="pb-guide-missions"');
+    expect(out).toContain("점수 규칙을 불러오지 못했어요");
+  });
+
+  it("팀 미션은 데이터에서 — 주차·이름·점수", () => {
+    const out = html(
+      createElement(PbGuide, {
+        ...props,
+        cfg: CFG,
+        missions: [{ msnId: "m1", wkNo: 2, msnNm: "팀 결성 단체사진", pt: 10, succGrpIds: [], sortOrd: 1 }],
+      }),
+    );
+    expect(out).toContain("팀 결성 단체사진");
+    expect(out).toMatch(/2주차<\/span>/);
+  });
+});
+
+describe("PbTraining — 주차별 훈련과 목적", () => {
+  const base = {
+    plans: PB_DEFAULT_SESS_PLANS,
+    evt: EVT,
+    cfg: CFG,
+    sessions: makeSessions(),
+    me: null,
+    trnGrpCd: null,
+  };
+
+  it("주차 라벨은 「n주차 · M/D(요일)」, 측정은 「측정」이다", () => {
+    const out = html(createElement(PbTraining, { ...base, phase: { kind: "week", wkNo: 5 } }));
+
+    expect(out).toContain(">5주차</span>");
+    expect(out).toContain("· 12/2(수) 19:30"); // 연결된 벙 시각(KST)
+    expect(out).toContain(">측정</span>");
+    expect(out).toContain("목적");
+    expect(out).toContain(PB_DEFAULT_SESS_PLANS[4].purpTxt);
+    expect(out).not.toMatch(/W\d/);
+  });
+
+  it("이번 주 칸 하나만 펼치고 짚는다", () => {
+    const out = html(createElement(PbTraining, { ...base, phase: { kind: "week", wkNo: 5 } }));
+
+    expect(out.match(/<details[^>]* open=""/g)).toHaveLength(1);
+    expect(out).toMatch(/id="pb-sess-5" data-focus="true"/);
+    expect(out).toContain("이번 주");
+  });
+
+  it("이번 주 공식훈련이 이미 열렸으면 다음 주를 펼친다", () => {
+    // 4주차 벙은 held=true — 금요일에 연 사람이 볼 건 다음 수요일
+    expect(pbFocusOf({ kind: "week", wkNo: 4 }, makeSessions(), CFG)).toEqual({ sessNo: 5, tag: "다음 훈련" });
+  });
+
+  it("시작 전엔 1주차, 종료 뒤엔 펼칠 칸이 없다", () => {
+    expect(pbFocusOf({ kind: "before", dDay: 3 }, makeSessions(), CFG)?.sessNo).toBe(1);
+    expect(pbFocusOf({ kind: "closed" }, makeSessions(), CFG)).toBeNull();
+  });
+
+  it("벙이 안 걸린 주는 그 주 시작일, 측정은 날짜 미정", () => {
+    const out = html(createElement(PbTraining, { ...base, sessions: [], phase: { kind: "week", wkNo: 1 } }));
+
+    expect(out).toContain("· 11/4(수)"); // weekStartDt(1주차)
+    expect(out).toContain("· 11/11(수)");
+    expect(out).toContain("날짜 미정");
+  });
+
+  it("E팀은 E 세션이 먼저, A~D 는 참고로 낮춘다", () => {
+    const out = html(createElement(PbTraining, { ...base, trnGrpCd: "E", phase: { kind: "week", wkNo: 2 } }));
+    const e = out.indexOf("6 × 400m");
+    const ad = out.indexOf("8 × 400m");
+    expect(e).toBeGreaterThan(-1);
+    expect(e).toBeLessThan(ad);
+    expect(out).toContain("내 훈련팀");
+  });
+
+  it("참가자에겐 회차마다 내 출석 상태를 단다", () => {
+    const me = makeMe(1, ["g1", "g2", "g4"]);
+    const out = html(createElement(PbTraining, { ...base, me, phase: { kind: "week", wkNo: 5 } }));
+
+    expect(out.match(/>출석<\/span>/g)).toHaveLength(3);
+    expect(out).toContain(">결석</span>");
+  });
+
+  it("훈련표가 비면 준비 중이라고 말한다", () => {
+    const out = html(createElement(PbTraining, { ...base, plans: [], phase: { kind: "week", wkNo: 1 } }));
+    expect(out).toContain("운영진이 훈련표를 준비하고 있어요");
+  });
+});
+
+describe("PbHero", () => {
+  it("지금 주차·다음 공식훈련·내 출석 요약을 한 칸에", () => {
+    const me = makeMe(1, ["g1", "g2", "g4"]);
+    const out = html(
+      createElement(PbHero, { evt: EVT, cfg: CFG, sessions: makeSessions(), nowIso: nowAtWeek(5, 0), me }),
+    );
+
+    expect(out).toContain("지금 5주차");
+    expect(out).toContain('href="/gatherings/g5"');
+    expect(out).toContain("다음 5주차 공식훈련");
+    expect(out).toContain('aria-label="13회 중 3회 출석"');
+    expect(out).toContain("10,000원");
+  });
+
+  it("시작 전엔 D-n, 종료면 종료 칩이고 다음 훈련 카드가 없다", () => {
+    expect(pbPhaseOf(EVT, CFG, "2026-11-01T03:00:00Z")).toEqual({ kind: "before", dDay: 3 });
+    expect(pbPhaseOf({ ...EVT, sttsEnm: "CLOSED" }, CFG, nowAtWeek(5))).toEqual({ kind: "closed" });
+
+    const out = html(
+      createElement(PbHero, {
+        evt: { ...EVT, sttsEnm: "CLOSED" },
+        cfg: CFG,
+        sessions: makeSessions(),
+        nowIso: nowAtWeek(5),
+        me: null,
+      }),
+    );
+    expect(out).toContain("종료");
+    expect(out).not.toContain("/gatherings/");
+  });
+});
+
+describe("탭", () => {
+  it("승인된 참가자는 내 현황부터, 그 밖은 안내부터 — 볼 수 없는 탭은 기본으로 떨어진다", () => {
+    expect(resolvePbView(undefined, true)).toEqual({
+      tabs: ["status", "training", "score", "guide"],
+      active: "status",
+    });
+    expect(resolvePbView(undefined, false).active).toBe("guide");
+    expect(resolvePbView("status", false).active).toBe("guide");
+    expect(resolvePbView("training", false).active).toBe("training");
+    expect(resolvePbView("nope", true).active).toBe("status");
+  });
+
+  it("탭은 ?evt=&view= 링크이고 지금 탭만 current 다", () => {
+    const out = html(
+      createElement(PbViewTabs, { evtId: "e1", tabs: ["status", "training", "score", "guide"], active: "training" }),
+    );
+
+    expect(out).toContain('href="/projects?evt=e1&amp;view=guide"');
+    expect(out.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(out).toMatch(/aria-current="page"[^>]*>훈련/);
+    for (const label of ["내 현황", "훈련", "점수판", "안내"]) expect(out).toContain(label);
+  });
+
+  it("종료된 프로젝트(보관용)에선 신청도 입금 안내도 세우지 않는다", () => {
+    expect(pbGuideTop(false, null)).toBe("apply");
+    expect(pbGuideTop(false, { aprvYn: false })).toBe("pending");
+    expect(pbGuideTop(false, { aprvYn: true })).toBeNull();
+    expect(pbGuideTop(true, null)).toBeNull();
+    expect(pbGuideTop(true, { aprvYn: false })).toBeNull();
+  });
+});
+
+describe("신청·입금 대기 — 마일리지런 할인", () => {
+  it("할인 대상이면 원래 금액을 지우고 사유와 깎인 금액을 보여 준다", () => {
+    const out = html(createElement(PbApplySection, { evtId: "e1", cfg: CFG, currentWkNo: 1, mlgAlumni: true }));
+
+    expect(out).toContain("마일리지런 참가자 보증금 −5,000원");
+    expect(out).toMatch(/line-through[^>]*>30,000원/);
+    expect(out).toContain("25,000원");
+    expect(out).toContain("35,000원으로 참가 신청");
+  });
+
+  it("중간 합류면 주차와 줄어든 기준을 말한다(W 표기 없이)", () => {
+    const out = html(createElement(PbApplySection, { evtId: "e1", cfg: CFG, currentWkNo: 3, mlgAlumni: false }));
+    expect(out).toContain("3주차 합류 — 7회 나오면 보증금 전액");
+    expect(out).not.toMatch(/W\d/);
+    expect(out).not.toContain("line-through");
+  });
+
+  it("입금 대기 카드는 저장된 할인·금액을 그대로 적는다", () => {
+    const out = html(
+      createElement(PbPendingCard, { me: { depositAmt: 25_000, entryFeeAmt: 10_000, depositDcAmt: 5_000, joinWkNo: 1 } }),
+    );
+    expect(out).toContain("35,000");
+    expect(out).toContain("마일리지런 참가자 보증금 −5,000원");
+  });
+});
+
+describe("지난 프로젝트", () => {
+  it("종료된 프로젝트를 종류·기간과 함께 ?evt= 링크로 나열한다", () => {
+    const out = html(
+      createElement(ProjectArchive, {
+        events: [
+          { evt_id: "c1", evt_nm: "26 마일리지런 시즌3", evt_type_cd: "MILEAGE_RUN", stt_dt: "2026-03-01", end_dt: "2026-05-31" },
+        ],
+      }),
+    );
+    expect(out).toContain('href="/projects?evt=c1"');
+    expect(out).toContain("마일리지런");
+    expect(out).toContain("2026.3.1 – 2026.5.31");
+  });
+
+  it("목록이 비면 칸째 안 그리고, 보관 띠는 읽기 전용을 먼저 말한다", () => {
+    expect(html(createElement(ProjectArchive, { events: [] }))).toBe("");
+    const banner = html(createElement(ArchivedBanner, { hasActive: true }));
+    expect(banner).toContain("종료된 프로젝트 · 기록 보관용");
+    expect(banner).toContain('href="/projects"');
   });
 });
 

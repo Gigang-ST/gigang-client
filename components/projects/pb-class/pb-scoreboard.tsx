@@ -10,12 +10,12 @@ import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/common/empty-state";
 import { HelpTip } from "@/components/common/help-tip";
 import { InfoRow } from "@/components/common/info-row";
-import { SectionHeader } from "@/components/common/section-header";
 import { StatCard } from "@/components/common/stat-card";
 import { Body, Caption, Micro } from "@/components/common/typography";
 import { CardItem } from "@/components/ui/card";
 import { formatPt } from "./format";
 import { PbTeamDot } from "./pb-team-color";
+import { PbZone } from "./pb-zone";
 
 type PbScoreboardProps = {
   scoreboard: PbScoreboard;
@@ -31,7 +31,7 @@ type PbScoreboardProps = {
 
 function TeamScoreHelp({ rule }: { rule: PbRule }) {
   return (
-    <HelpTip title="팀 점수는 이렇게 매겨요" className="-mr-2">
+    <HelpTip title="팀 점수는 이렇게 매겨요">
       팀 점수 = 주마다 팀원 1인당 평균 점수의 합 + 전원 출석 보너스 + 팀 미션.
       <br />
       합계가 아니라 평균이라 인원이 많다고 유리하지 않아요. 그 주 팀원이 모두 공식훈련에 나오면
@@ -44,7 +44,7 @@ function TeamScoreHelp({ rule }: { rule: PbRule }) {
 function PointRuleHelp({ rule }: { rule: PbRule }) {
   const { pt } = rule;
   return (
-    <HelpTip title="점수는 이렇게 쌓여요" className="-mr-2">
+    <HelpTip title="점수는 이렇게 쌓여요">
       <ul className="flex flex-col gap-1">
         <li>출석 {pt.attend}점 · 공식훈련·측정</li>
         <li>일정 참여 {pt.join}점 · 공식훈련 밖 벙(본인 포함 {pt.joinMinAttd}명 이상 모인 벙)</li>
@@ -85,7 +85,7 @@ function MyScore({ me, scoreboard }: { me: { memId: string; late: boolean }; sco
 
   return (
     <div className="flex flex-col gap-3">
-      <StatCard value={`${formatPt(mine.total)}점`} label="내 점수" />
+      <StatCard value={`${formatPt(mine.total)}점`} label="내 점수" className="tabular-nums" />
       {rows.length > 0 ? (
         <CardItem className="flex flex-col py-1">
           {rows.map((cd, i) => (
@@ -116,11 +116,8 @@ export function PbScoreboard({ scoreboard, rule, myGrpId, me }: PbScoreboardProp
   const { groups } = scoreboard;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <SectionHeader label="SCOREBOARD" />
-        <TeamScoreHelp rule={rule} />
-      </div>
+    <div className="flex flex-col gap-7">
+      <PbZone label="Scoreboard" lead="게임팀 순위 — 주마다 평균으로 겨뤄요" action={<TeamScoreHelp rule={rule} />}>
 
       {groups.length === 0 ? (
         <EmptyState variant="card" message="팀 발표 전이에요" />
@@ -134,19 +131,21 @@ export function PbScoreboard({ scoreboard, rule, myGrpId, me }: PbScoreboardProp
                   data-mine={isMine ? "true" : undefined}
                   className={cn("flex items-center gap-3", isMine && "border-primary")}
                 >
-                  <Body className="w-6 shrink-0 text-center text-lg font-bold">{g.rank}</Body>
+                  <span className="w-6 shrink-0 text-center font-numeric text-xl font-medium tabular-nums text-foreground">
+                    {g.rank}
+                  </span>
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <div className="flex items-center gap-2">
                       <PbTeamDot colorNo={g.colorNo} />
                       <Body className="truncate font-semibold">{g.grpNm}</Body>
                       {isMine && <Micro className="shrink-0 font-semibold text-primary">내 팀</Micro>}
                     </div>
-                    <Micro>
+                    <Micro className="tabular-nums">
                       평균 {formatPt(g.avgSum)} · 전원출석 +{formatPt(g.allAttendBonus)} · 미션 +
                       {formatPt(g.missionBonus)}
                     </Micro>
                   </div>
-                  <Body className="shrink-0 text-2xl font-bold">
+                  <Body className="shrink-0 font-numeric text-2xl font-medium tabular-nums">
                     {formatPt(g.total)}
                     <span className="text-base font-medium text-muted-foreground">점</span>
                   </Body>
@@ -156,16 +155,13 @@ export function PbScoreboard({ scoreboard, rule, myGrpId, me }: PbScoreboardProp
           })}
         </ol>
       )}
+      </PbZone>
 
       {/* 팀이 발표되기 전엔 누구도 점수를 못 받는다 — 빈 「내 점수」 블록을 세울 이유가 없다 */}
       {me && groups.length > 0 && (
-        <>
-          <div className="flex items-center justify-between">
-            <SectionHeader label="MY SCORE" />
-            <PointRuleHelp rule={rule} />
-          </div>
+        <PbZone label="My Score" lead="내가 팀에 보탠 점수" action={<PointRuleHelp rule={rule} />}>
           <MyScore me={me} scoreboard={scoreboard} />
-        </>
+        </PbZone>
       )}
     </div>
   );

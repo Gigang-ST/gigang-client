@@ -6,7 +6,7 @@ import { withActive } from "@/lib/actions/auth";
 import { nowKST, todayKST } from "@/lib/dayjs";
 import { PB_CLASS_TYPE, currentWeekNo, feesForJoinWeek } from "@/lib/pb-class";
 import { canEditGoal, goalEditLastWk, ruleFromJson } from "@/lib/pb-class-score";
-import { cfgFromRow } from "@/lib/queries/pb-class";
+import { cfgFromRow, isMileageAlumni } from "@/lib/queries/pb-class";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkGoalCap, pbEvtIdSchema, pbGoalSecSchema, pbRecSecSchema } from "@/lib/validations/pb-class";
@@ -53,14 +53,25 @@ export async function joinPbClass(evtId: string): Promise<ActionResult> {
       if (cfgError) return { ok: false, message: "참가 신청에 실패했습니다" };
       const cfg = cfgFromRow(cfgRow);
 
+      // 마일리지런 참가 이력은 클라이언트가 아니라 서버가 판정한다 — 화면의 `mlgAlumni`는 표시용일 뿐이다.
+      // 조회가 실패하면 신청을 막는다: 「이력 없음」으로 눙치면 할인 대상자가 말없이 더 낸다.
+      let mlgAlumni: boolean;
+      try {
+        mlgAlumni = await isMileageAlumni(db, teamId, member.id);
+      } catch (e) {
+        console.error("[joinPbClass] 마일리지런 이력 조회 실패", e);
+        return { ok: false, message: "참가 신청에 실패했습니다" };
+      }
+
       const joinWkNo = currentWeekNo(evt.stt_dt, nowKST().toISOString());
-      const fees = feesForJoinWeek(joinWkNo, cfg);
+      const fees = feesForJoinWeek(joinWkNo, cfg, { mlgAlumni });
 
       const { error } = await db.from("evt_pb_prt_rel").insert({
         evt_id: parsed.data,
         mem_id: member.id,
         join_wk_no: joinWkNo,
         deposit_amt: fees.depositAmt,
+        deposit_dc_amt: fees.depositDcAmt,
         entry_fee_amt: fees.entryFeeAmt,
         aprv_yn: false,
       });

@@ -11,6 +11,7 @@ import {
   setPbMissionResult,
   updatePbMission,
 } from "@/app/actions/admin/manage-pb-class-game";
+import { wkLabel } from "@/lib/pb-class";
 import { midImprovedRatio, PB_DEFAULT_MISSIONS } from "@/lib/pb-class-score";
 import type { PbGame } from "@/lib/queries/pb-class-game";
 import { cn } from "@/lib/utils";
@@ -71,7 +72,7 @@ function MissionForm({
             <SelectContent>
               {Array.from({ length: maxWk }, (_, i) => i + 1).map((n) => (
                 <SelectItem key={n} value={String(n)}>
-                  W{n}
+                  {wkLabel(n)}
                 </SelectItem>
               ))}
               <SelectItem value={MEASURE}>측정 일정 (주차 없음)</SelectItem>
@@ -175,7 +176,7 @@ export function PbMissionSection({
     void run("msn:seed", () => seedPbDefaultMissions(evtId), "기본 미션을 불러왔어요");
   };
 
-  /** W6 중간점검 미션 판정 보조 — 팀별 「기준기록 대비 빨라짐 n/m명」. 판정은 관리자가 한다 */
+  /** 중간점검 주차(기본 6주차) 미션 판정 보조 — 팀별 「기준기록 대비 빨라짐 n/m명」. 판정은 관리자가 한다 */
   const midHint = (m: Mission) => {
     if (m.wkNo !== rule.midWkNo) return null;
     const rows = groups.map((g) => ({
@@ -217,7 +218,7 @@ export function PbMissionSection({
         <CardItem key={m.msnId} className="flex flex-col gap-3">
           <div className="flex items-start gap-2">
             <Badge variant={m.wkNo === null ? "default" : "outline"} className="shrink-0">
-              {m.wkNo === null ? "측정" : `W${m.wkNo}`}
+              {m.wkNo === null ? "측정" : wkLabel(m.wkNo)}
             </Badge>
             <Body className="min-w-0 flex-1 font-semibold">{m.msnNm}</Body>
             <Caption className="shrink-0 font-semibold text-foreground">+{m.pt}점</Caption>

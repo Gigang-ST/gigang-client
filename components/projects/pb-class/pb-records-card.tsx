@@ -7,20 +7,16 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { setMyDaeguRecord } from "@/app/actions/pb-class";
-import {
-  PB_REC_TYPE_LABEL,
-  formatSec,
-  parseTimeInput,
-  type PbRecType,
-  type PbRecValue,
-} from "@/lib/pb-class-score";
+import { wkLabel } from "@/lib/pb-class";
+import { formatSec, parseTimeInput, type PbRecType, type PbRecValue } from "@/lib/pb-class-score";
 
-import { SectionHeader } from "@/components/common/section-header";
 import { Caption } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { PbZone } from "./pb-zone";
 
 /** 10K 10분 미만은 사람이 낼 수 있는 기록이 아니다 — "55"를 초로 읽어 저장하는 오타만 막는 바닥값 */
 const RECORD_FLOOR_SEC = 600;
@@ -30,9 +26,28 @@ type PbRecordsCardProps = {
   recs: Partial<Record<PbRecType, PbRecValue>>;
   joinWkNo: number;
   late: boolean;
-  /** 중간점검 주차 — W2~W5 합류자의 기준기록이 이 주의 5K 라서 문구에 쓴다 */
+  /** 중간점검 주차 — 중간 합류자의 기준기록이 이 주의 5K 라서 문구에 쓴다 */
   midWkNo: number;
+  /** 종료된 프로젝트(보관용) — 대구 기록 입력·수정 버튼을 전부 거둔다 */
+  readOnly?: boolean;
 };
+
+/**
+ * 회원 화면의 기록 이름. 코어의 `PB_REC_TYPE_LABEL`은 관리자 표의 짧은 이름(「W6 5K TT」)이라
+ * 회원에겐 「6주차」로 풀어 쓴다(오너 지시 — 회원 화면엔 W 표기를 쓰지 않는다). 중간점검 주차는 rule 값이다.
+ */
+export function pbRecLabel(t: PbRecType, midWkNo: number, midIsBase = false): string {
+  switch (t) {
+    case "BASE_5K":
+      return "1주차 5K · 기준기록";
+    case "MID_5K":
+      return midIsBase ? `${wkLabel(midWkNo)} 5K · 기준기록` : `${wkLabel(midWkNo)} 5K · 중간점검`;
+    case "FINAL_10K":
+      return "10K 측정 · 최종";
+    case "DAEGU_10K":
+      return "대구마라톤 10K";
+  }
+}
 
 /** 운영진 입력이라는 표시와 확인 대기 배지를 한 곳에서 — 값 옆에 같은 모양으로 붙는다 */
 function PendingBadge() {
@@ -44,17 +59,17 @@ function PendingBadge() {
 }
 
 /** 읽기 전용 기록 한 줄 — 값이 없으면 숫자 자리 대신 누가 넣는지 말한다 */
-function ReadOnlyRow({ label, rec }: { label: string; rec: PbRecValue | undefined }) {
+function ReadOnlyRow({ label, rec, last = false }: { label: string; rec: PbRecValue | undefined; last?: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-border py-2.5">
+    <div className={cn("flex min-h-11 items-center justify-between gap-3 py-2.5", !last && "border-b border-border")}>
       <Caption>{label}</Caption>
       {rec ? (
-        <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+        <span className="flex items-center gap-2 text-sm font-medium tabular-nums text-foreground">
           {formatSec(rec.sec)}
           {!rec.cnfm && <PendingBadge />}
         </span>
       ) : (
-        <Caption className="text-muted-foreground/70">운영진이 입력해요</Caption>
+        <Caption className="text-muted-foreground/70">{last ? "기록 없음" : "운영진이 입력해요"}</Caption>
       )}
     </div>
   );
@@ -72,7 +87,7 @@ function DaeguRow({ evtId, rec }: { evtId: string; rec: PbRecValue | undefined }
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const label = PB_REC_TYPE_LABEL.DAEGU_10K;
+  const label = pbRecLabel("DAEGU_10K", 0);
   const locked = rec?.cnfm === true;
   const showForm = !rec || editing;
 
@@ -115,7 +130,7 @@ function DaeguRow({ evtId, rec }: { evtId: string; rec: PbRecValue | undefined }
       <div className="flex items-center justify-between gap-3">
         <Caption>{label}</Caption>
         {rec && !showForm && (
-          <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <span className="flex items-center gap-2 text-sm font-medium tabular-nums text-foreground">
             {formatSec(rec.sec)}
             {rec.cnfm ? <Caption>확인됨</Caption> : <PendingBadge />}
           </span>
@@ -151,7 +166,7 @@ function DaeguRow({ evtId, rec }: { evtId: string; rec: PbRecValue | undefined }
             <Input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="mm:ss 또는 h:mm:ss"
+              placeholder="예) 52:30 또는 5230"
               aria-label={label}
               aria-invalid={error !== null}
               autoComplete="off"
@@ -191,7 +206,7 @@ function DaeguRow({ evtId, rec }: { evtId: string; rec: PbRecValue | undefined }
  * - W2~W5 합류: W1 기록이 없다 — W6 5K가 곧 기준기록이라 그 줄을 「기준」으로 부른다
  * - W6+ 늦은 합류: 기록 점수가 없다 — 최종 10K만 남는다(목표 달성 배지용)
  */
-export function PbRecordsCard({ evtId, recs, joinWkNo, late, midWkNo }: PbRecordsCardProps) {
+export function PbRecordsCard({ evtId, recs, joinWkNo, late, midWkNo, readOnly = false }: PbRecordsCardProps) {
   const midIsBase = !late && joinWkNo > 1;
   const types: PbRecType[] = late
     ? ["FINAL_10K"]
@@ -200,21 +215,24 @@ export function PbRecordsCard({ evtId, recs, joinWkNo, late, midWkNo }: PbRecord
       : ["MID_5K", "FINAL_10K"];
 
   return (
-    <div className="flex flex-col gap-4">
-      <SectionHeader label="RECORDS" />
+    <PbZone label="Records" lead="재는 날의 기록은 운영진이 적어요">
       <CardItem className="flex flex-col py-1">
         {types.map((t) => (
           <ReadOnlyRow
             key={t}
-            label={t === "MID_5K" && midIsBase ? `W${midWkNo} 5K TT · 기준` : PB_REC_TYPE_LABEL[t]}
+            label={pbRecLabel(t, midWkNo, midIsBase)}
             rec={recs[t]}
           />
         ))}
-        <DaeguRow evtId={evtId} rec={recs.DAEGU_10K} />
+        {readOnly ? (
+          <ReadOnlyRow label={pbRecLabel("DAEGU_10K", midWkNo)} rec={recs.DAEGU_10K} last />
+        ) : (
+          <DaeguRow evtId={evtId} rec={recs.DAEGU_10K} />
+        )}
       </CardItem>
       {midIsBase && (
         <Caption className="leading-relaxed">
-          W{joinWkNo} 합류라 기준기록은 W{midWkNo} 5K 기록이에요.
+          {wkLabel(joinWkNo)} 합류라 기준기록은 {wkLabel(midWkNo)} 5K 기록이에요.
         </Caption>
       )}
       {late && (
@@ -222,6 +240,6 @@ export function PbRecordsCard({ evtId, recs, joinWkNo, late, midWkNo }: PbRecord
           늦은 합류는 기록 점수가 없어요. 10K 기록이 목표 이내면 「목표 달성」 배지를 받아요.
         </Caption>
       )}
-    </div>
+    </PbZone>
   );
 }
