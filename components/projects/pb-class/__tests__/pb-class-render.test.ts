@@ -72,9 +72,9 @@ describe("PbSessionStrip", () => {
     const out = html(createElement(PbSessionStrip, { me, sessions: makeSessions(), cfg: CFG }));
 
     expect(out.match(/<li /g)).toHaveLength(13);
-    expect(out).toContain('aria-label="W1 출석"');
-    expect(out).toContain('aria-label="W3 결석"'); // 열렸는데 안 나온 회차
-    expect(out).toContain('aria-label="W5 예정"'); // 아직 안 열린 회차
+    expect(out).toContain('aria-label="1주차 출석"');
+    expect(out).toContain('aria-label="3주차 결석"'); // 열렸는데 안 나온 회차
+    expect(out).toContain('aria-label="5주차 예정"'); // 아직 안 열린 회차
     expect(out).toContain('aria-label="측정 예정"');
   });
 
@@ -82,9 +82,9 @@ describe("PbSessionStrip", () => {
     const me = makeMe(3, ["g3"]);
     const out = html(createElement(PbSessionStrip, { me, sessions: makeSessions(), cfg: CFG }));
 
-    expect(out).toContain('aria-label="W1 합류 전"');
-    expect(out).toContain('aria-label="W2 합류 전"');
-    expect(out).toContain('aria-label="W3 출석"');
+    expect(out).toContain('aria-label="1주차 합류 전"');
+    expect(out).toContain('aria-label="2주차 합류 전"');
+    expect(out).toContain('aria-label="3주차 출석"');
   });
 
   it("벙이 연결되지 않은 칸은 미정이다", () => {
@@ -92,7 +92,7 @@ describe("PbSessionStrip", () => {
     const sessions = makeSessions().filter((s) => s.wkNo !== 6);
     const out = html(createElement(PbSessionStrip, { me, sessions, cfg: CFG }));
 
-    expect(out).toContain('aria-label="W6 미정"');
+    expect(out).toContain('aria-label="6주차 미정"');
   });
 });
 

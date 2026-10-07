@@ -9,6 +9,9 @@ import {
   countAttd,
   buildSessStrip,
   feesForJoinWeek,
+  pbEndDtFor,
+  weekStartDt,
+  wkLabel,
   isSessHeld,
   isLateJoin,
   refundAmt,
@@ -213,8 +216,30 @@ describe("buildSessStrip", () => {
 
 describe("feesForJoinWeek", () => {
   it("W5까지 4만 원(보증금 3만 + 참가비 1만), W6부터 1만 원", () => {
-    expect(feesForJoinWeek(1, CFG)).toEqual({ depositAmt: 30_000, entryFeeAmt: 10_000 });
-    expect(feesForJoinWeek(5, CFG)).toEqual({ depositAmt: 30_000, entryFeeAmt: 10_000 });
-    expect(feesForJoinWeek(6, CFG)).toEqual({ depositAmt: 0, entryFeeAmt: 10_000 });
+    expect(feesForJoinWeek(1, CFG)).toMatchObject({ depositAmt: 30_000, entryFeeAmt: 10_000 });
+    expect(feesForJoinWeek(5, CFG)).toMatchObject({ depositAmt: 30_000, entryFeeAmt: 10_000 });
+    expect(feesForJoinWeek(6, CFG)).toMatchObject({ depositAmt: 0, entryFeeAmt: 10_000 });
+  });
+});
+
+describe("마일리지런 참가자 보증금 할인 · 종료일 자동", () => {
+  it("정식 참가자 할인 5,000원 — 보증금 25,000", () => {
+    expect(feesForJoinWeek(1, CFG, { mlgAlumni: true })).toEqual({ depositAmt: 25_000, entryFeeAmt: 10_000, depositDcAmt: 5_000 });
+    expect(feesForJoinWeek(1, CFG)).toEqual({ depositAmt: 30_000, entryFeeAmt: 10_000, depositDcAmt: 0 });
+  });
+
+  it("늦은 합류는 보증금이 없어 할인도 없다", () => {
+    expect(feesForJoinWeek(6, CFG, { mlgAlumni: true })).toEqual({ depositAmt: 0, entryFeeAmt: 10_000, depositDcAmt: 0 });
+  });
+
+  it("할인된 보증금도 9회면 낸 만큼 전액 환급", () => {
+    expect(refundAmt(25_000, 9, 9)).toBe(25_000);
+    expect(refundAmt(25_000, 1, 9)).toBe(2_777);
+  });
+
+  it("종료일 = 시작 + 14주 − 1일 (측정 주간 끝)", () => {
+    expect(pbEndDtFor("2026-11-04", CFG)).toBe("2027-02-09");
+    expect(weekStartDt("2026-11-04", 9)).toBe("2026-12-30");
+    expect(wkLabel(9)).toBe("9주차");
   });
 });
