@@ -1,10 +1,11 @@
-import { remainingSessCnt, type PbClassCfg } from "@/lib/pb-class";
+import { remainingSessCnt, wkLabel, type PbClassCfg } from "@/lib/pb-class";
 import type { PbParticipant } from "@/lib/queries/pb-class";
 
 import { HelpTip } from "@/components/common/help-tip";
 import { StatCard } from "@/components/common/stat-card";
 import { Caption } from "@/components/common/typography";
 import { CardItem } from "@/components/ui/card";
+import { PbZone } from "./pb-zone";
 
 /**
  * 승인된 참가자의 숫자 3개 — 내 출석 · 환급 예상 · 전액까지.
@@ -16,7 +17,7 @@ import { CardItem } from "@/components/ui/card";
 export function PbMyStatus({ me, cfg }: { me: PbParticipant; cfg: PbClassCfg }) {
   const { summary } = me;
   const remaining = remainingSessCnt(me.joinWkNo, cfg);
-  const attdLabel = me.joinWkNo > 1 ? `내 출석 · W${me.joinWkNo} 합류` : "내 출석";
+  const attdLabel = me.joinWkNo > 1 ? `내 출석 · ${wkLabel(me.joinWkNo)} 합류` : "내 출석";
   const attdValue = (
     <>
       {summary.attdCnt}
@@ -27,14 +28,14 @@ export function PbMyStatus({ me, cfg }: { me: PbParticipant; cfg: PbClassCfg }) 
   // 늦은 합류 — 환급 칸이 전부 0원/없음이라 보여 줄수록 오해만 낳는다. 줄을 통째로 바꾼다.
   if (summary.late || summary.required === null) {
     return (
-      <div className="flex flex-col gap-3">
-        <StatCard value={attdValue} label={attdLabel} />
+      <PbZone label="Attendance" lead="함께 나온 날을 세요">
+        <StatCard value={attdValue} label={attdLabel} className="tabular-nums" />
         <CardItem variant="dashed" className="text-center">
           <Caption className="text-foreground">
             보증금 없이 참가 중이에요 — 환급 대상이 아니에요
           </Caption>
         </CardItem>
-      </div>
+      </PbZone>
     );
   }
 
@@ -43,7 +44,8 @@ export function PbMyStatus({ me, cfg }: { me: PbParticipant; cfg: PbClassCfg }) 
   const full = toFull === 0;
 
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <PbZone label="Attendance" lead="나온 만큼 보증금이 돌아와요">
+    <div className="grid grid-cols-2 gap-3 tabular-nums">
       <StatCard value={attdValue} label={attdLabel} />
       <StatCard
         value={full ? "전액 확보" : `${toFull}회`}
@@ -56,10 +58,11 @@ export function PbMyStatus({ me, cfg }: { me: PbParticipant; cfg: PbClassCfg }) 
         <HelpTip title="환급 예상" className="absolute right-1 top-1">
           출석 1회마다 보증금의 1/{required}({perAttd.toLocaleString()}원)을 돌려받아요.{" "}
           {me.joinWkNo > 1
-            ? `W${me.joinWkNo} 합류라 남은 ${remaining}회 중 ${required}회 출석하면 전액이에요.`
+            ? `${wkLabel(me.joinWkNo)} 합류라 남은 ${remaining}회 중 ${required}회 출석하면 전액이에요.`
             : `${cfg.totSessCnt}회 중 ${required}회 출석하면 전액이에요.`}
         </HelpTip>
       </div>
     </div>
+    </PbZone>
   );
 }

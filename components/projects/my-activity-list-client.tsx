@@ -54,6 +54,8 @@ type Props = {
   memId: string;
   month: string;
   totalCount: number;
+  /** 종료된 프로젝트(보관용) — 수정/삭제 버튼과 「전체 기록 보기」를 거둔다(그 화면은 진행 중 시즌 전용) */
+  readOnly?: boolean;
   /** 비활성/탈퇴 회원 — true면 수정 폼에서 공통 안내 게이트를 연다 */
   isInactive?: boolean;
   /** 비활성/탈퇴 세부 구분 — InactiveGateDialog 문구 분기용 */
@@ -72,6 +74,7 @@ export function MyActivityListClient({
   evtId,
   memId,
   totalCount,
+  readOnly = false,
   isInactive = false,
   inactiveKind,
 }: Props) {
@@ -150,7 +153,7 @@ export function MyActivityListClient({
                   </div>
                 </div>
 
-                {locked ? (
+                {readOnly ? null : locked ? (
                   <div className="flex items-center gap-1">
                     <Lock className="size-3 text-muted-foreground" />
                     <Micro>전월 기록은 매월 3일까지만 수정/삭제 가능</Micro>
@@ -178,12 +181,14 @@ export function MyActivityListClient({
         })}
       </ul>
 
-      <Button variant="outline" asChild className="w-full rounded-xl gap-1">
-        <Link href="/projects/records">
-          전체 기록 보기
-          <ChevronRight className="size-4" />
-        </Link>
-      </Button>
+      {!readOnly && (
+        <Button variant="outline" asChild className="w-full rounded-xl gap-1">
+          <Link href="/projects/records">
+            전체 기록 보기
+            <ChevronRight className="size-4" />
+          </Link>
+        </Button>
+      )}
 
       {/* 삭제 확인 */}
       <Dialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>

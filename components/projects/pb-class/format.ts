@@ -1,5 +1,7 @@
 // PB 클래스 화면 공용 표기 헬퍼 — 금액을 사람이 읽는 말로 바꾼다.
 
+import { formatKST, parseEventTime } from "@/lib/dayjs";
+
 /**
  * 금액 표기. 만 원 단위로 딱 떨어지면 "4만 원", 아니면 "35,000원".
  *
@@ -29,4 +31,32 @@ export function formatLimit(sec: number): string {
   const m = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
   const s = String(Math.floor(sec % 60)).padStart(2, "0");
   return h > 0 ? `${h}:${m}:${s}` : `${Number(m)}:${s}`;
+}
+
+/**
+ * date 컬럼(`_dt`, "YYYY-MM-DD") → "11/4(수)".
+ * `parseEventTime`이 date-only 를 KST 자정으로 고정해 주므로 서버(UTC)에서 찍어도 하루 밀리지 않는다.
+ */
+export function formatDtShort(dt: string): string {
+  return parseEventTime(dt).format("M/D(dd)");
+}
+
+/** timestamptz(`_at`) → "11/4(수) 19:30" — KST 로 찍는다(AGENTS.md §날짜) */
+export function formatAtShort(at: string): string {
+  return formatKST(at, "M/D(dd) HH:mm");
+}
+
+/**
+ * 기간 표기 — 같은 해면 끝 날짜의 연도를 생략한다("2026.11.4 – 12.30"),
+ * 해를 넘기면 둘 다 적는다("2026.11.4 – 2027.2.9"). 겨울 클래스는 거의 항상 해를 넘긴다.
+ */
+export function formatPeriod(sttDt: string, endDt: string): string {
+  const s = parseEventTime(sttDt);
+  const e = parseEventTime(endDt);
+  return `${s.format("YYYY.M.D")} – ${e.format(s.year() === e.year() ? "M.D" : "YYYY.M.D")}`;
+}
+
+/** 두 date 문자열의 날짜 차이(b − a). 양쪽 다 KST 자정으로 맞춘다 */
+export function dayDiff(fromDt: string, toDt: string): number {
+  return parseEventTime(toDt).diff(parseEventTime(fromDt), "day");
 }

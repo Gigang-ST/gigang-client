@@ -17,8 +17,8 @@ export const PB_REC_TYPES = ["BASE_5K", "MID_5K", "FINAL_10K", "DAEGU_10K"] as c
 export type PbRecType = (typeof PB_REC_TYPES)[number];
 
 export const PB_REC_TYPE_LABEL: Record<PbRecType, string> = {
-  BASE_5K: "W1 5K TT · 기준",
-  MID_5K: "W6 5K TT · 중간점검",
+  BASE_5K: "1주차 5K TT · 기준",
+  MID_5K: "6주차 5K TT · 중간점검",
   FINAL_10K: "10K TT · 최종",
   DAEGU_10K: "대구마라톤 10K",
 };

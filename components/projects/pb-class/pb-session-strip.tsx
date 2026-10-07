@@ -5,8 +5,8 @@ import { formatKST } from "@/lib/dayjs";
 import type { PbParticipant, PbSession } from "@/lib/queries/pb-class";
 import { cn } from "@/lib/utils";
 
-import { SectionHeader } from "@/components/common/section-header";
 import { Micro } from "@/components/common/typography";
+import { PbZone } from "./pb-zone";
 
 /** 칸 상태별 모양 — 색은 토큰만 쓴다. 상태는 색만으로 구분하지 않고 글리프·테두리 모양도 갈린다 */
 const CELL_STYLE: Record<PbStripState, string> = {
@@ -49,7 +49,7 @@ function StripCell({ cell, sttAt }: { cell: PbStripCell; sttAt: string | null })
         <CellGlyph state={cell.state} />
       </span>
       {/* 날짜는 연결된 벙이 있고 합류 전이 아닐 때만 — 빈 칸에 날짜를 지어내지 않는다 */}
-      <Micro className="leading-none text-inherit opacity-80">
+      <Micro className="leading-none tabular-nums text-inherit opacity-80">
         {sttAt && cell.state !== "before_join" ? formatKST(sttAt, "M/D") : "\u00A0"}
       </Micro>
     </li>
@@ -87,8 +87,7 @@ export function PbSessionStrip({
   const sttAtOf = new Map(sessions.map((s) => [s.gthrId, s.sttAt]));
 
   return (
-    <div className="flex flex-col gap-4">
-      <SectionHeader label="SESSIONS" />
+    <PbZone label="Sessions" lead="회차마다 내 출석">
       <ul className="grid grid-cols-7 gap-1.5">
         {cells.map((cell) => (
           <StripCell
@@ -106,6 +105,6 @@ export function PbSessionStrip({
           </span>
         ))}
       </div>
-    </div>
+    </PbZone>
   );
 }

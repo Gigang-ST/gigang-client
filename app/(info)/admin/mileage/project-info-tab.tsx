@@ -5,17 +5,25 @@ import {
   createEvent,
   updateEvent,
   deleteEvent,
+  getEventParticipantCount,
+  setEventStatus,
 } from "@/app/actions/admin/manage-mileage";
 import { getPbClassAdminBoard, savePbCfg } from "@/app/actions/admin/manage-pb-class";
-import { Pencil, Trash2, X } from "lucide-react";
+import { Pencil, X } from "lucide-react";
 import { toast } from "sonner";
 import { parseEventTime } from "@/lib/dayjs";
-import { PB_CLASS_DEFAULT_CFG, PB_CLASS_TYPE, type PbClassCfg } from "@/lib/pb-class";
+import {
+  PB_CLASS_DEFAULT_CFG,
+  PB_CLASS_TYPE,
+  pbEndDtFor,
+  wkLabel,
+  type PbClassCfg,
+} from "@/lib/pb-class";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { CardItem } from "@/components/ui/card";
-import { Caption } from "@/components/common/typography";
+import { Body, Caption } from "@/components/common/typography";
 import { InfoRow } from "@/components/common/info-row";
 import {
   Select,
@@ -27,13 +35,15 @@ import {
 import { cn } from "@/lib/utils";
 import { PbCfgFields, parsePbCfgForm, toPbCfgForm, type PbCfgForm } from "./pb-cfg-fields";
 
+type Status = "READY" | "ACTIVE" | "CLOSED";
+
 type Project = {
   evt_id: string;
   evt_nm: string;
   evt_type_cd: string;
   stt_dt: string;
   end_dt: string;
-  stts_enm: "READY" | "ACTIVE" | "CLOSED";
+  stts_enm: Status;
   desc_txt: string | null;
 };
 
@@ -66,17 +76,37 @@ const EVT_TYPE_LABELS: Record<string, string> = {
 
 const DEFAULT_CFG_FORM = toPbCfgForm(PB_CLASS_DEFAULT_CFG);
 
+/**
+ * PB 종료일 미리보기 — 폼의 시작일 + 총 회차로 **입력하는 즉시** 계산한다.
+ *
+ * 서버가 저장할 때 같은 `pbEndDtFor`로 다시 계산하므로(클라이언트 값은 무시된다) 이건 화면용 거울이다.
+ * 총 회차 칸이 비었거나 하한(2회) 미만이면 저장도 막히는 입력이라 계산하지 않고 null — 엉뚱한 날짜를
+ * 보여 주느니 비워 두는 편이 낫다.
+ */
+export function previewPbEndDt(sttDt: string, totSessCntText: string): string | null {
+  const tot = /^\d+$/.test(totSessCntText.trim()) ? Number(totSessCntText.trim()) : Number.NaN;
+  if (!sttDt || !Number.isInteger(tot) || tot < 2) return null;
+  const end = pbEndDtFor(sttDt, { ...PB_CLASS_DEFAULT_CFG, totSessCnt: tot });
+  // 연도 칸을 입력하는 도중(예: 0002)에는 형식이 깨진 날짜가 나올 수 있다
+  return /^\d{4}-\d{2}-\d{2}$/.test(end) ? end : null;
+}
+
 export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props) {
   const isCreate = project === null;
   const [editing, setEditing] = useState(isCreate);
   const [saving, setSaving] = useState(false);
+  // 공개·종료·다시 열기 처리 중 — 버튼 연타로 같은 요청이 두 번 나가지 않게 한다
+  const [statusBusy, setStatusBusy] = useState(false);
+  // 삭제 링크는 참가자 0명이 **확인된** 뒤에만 연다. 조회 전·실패는 false로 둬서
+  // 모르는 채로 지우는 길이 열리지 않게 한다(보증금·기록은 종료로 보관하는 게 원칙).
+  const [deletable, setDeletable] = useState(false);
 
   const [form, setForm] = useState<{
     evt_nm: string;
     evt_type_cd: string;
     stt_dt: string;
     end_dt: string;
-    stts_enm: "READY" | "ACTIVE" | "CLOSED";
+    stts_enm: Status;
     desc_txt: string;
   }>({
     evt_nm: project?.evt_nm ?? "",
@@ -124,16 +154,33 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
     };
   }, [savedEvtId, savedIsPb]);
 
+  // 참가자 수 — 삭제 링크를 보일지 정한다(마일리지런·PB 공통). 서버가 삭제 때 한 번 더 막는다.
+  useEffect(() => {
+    if (!savedEvtId) return;
+    let cancelled = false;
+    getEventParticipantCount(savedEvtId)
+      .then((res) => {
+        if (!cancelled) setDeletable(res.ok && res.count === 0);
+      })
+      .catch(() => {
+        // 실패하면 삭제 링크를 열지 않는다(deletable 기본값 유지)
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [savedEvtId]);
+
   const handleSave = async () => {
     if (!form.evt_nm.trim()) {
       alert("이벤트명은 필수입니다");
       return;
     }
-    if (!form.stt_dt || !form.end_dt) {
-      alert("시작일과 종료일은 필수입니다");
+    // PB는 종료일을 입력받지 않는다(시작일에서 계산) — 마일리지런만 직접 받는다
+    if (!form.stt_dt || (!isPbForm && !form.end_dt)) {
+      alert(isPbForm ? "시작일은 필수입니다" : "시작일과 종료일은 필수입니다");
       return;
     }
-    if (form.stt_dt > form.end_dt) {
+    if (!isPbForm && form.stt_dt > form.end_dt) {
       alert("종료일은 시작일 이후여야 합니다");
       return;
     }
@@ -158,7 +205,9 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
       evt_nm: form.evt_nm,
       evt_type_cd: form.evt_type_cd,
       stt_dt: form.stt_dt,
-      end_dt: form.end_dt,
+      // 검증을 통과한 설정으로 계산한다. 서버도 같은 식으로 덮어쓰지만, 보내는 값이 화면과
+      // 다르면 "미리보기와 저장 결과가 다른" 순간이 생기므로 여기서도 같은 값을 보낸다.
+      end_dt: pbCfg ? pbEndDtFor(form.stt_dt, pbCfg) : form.end_dt,
       stts_enm: form.stts_enm,
       desc_txt: form.desc_txt || null,
     };
@@ -208,18 +257,44 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
     }
   };
 
+  /**
+   * 상태 전환 — 공개하기(READY→ACTIVE) · 프로젝트 종료(ACTIVE→CLOSED) · 다시 열기(CLOSED→ACTIVE).
+   *
+   * 끝난 프로젝트를 지우지 않고 「지난 프로젝트」로 보관하는 게 이 흐름의 목적이다. 수정 폼의
+   * 상태 셀렉트와 달리 정보를 건드리지 않고 상태만 바꾸는 서버 액션이라, PB 설정이 어긋난 폼 값으로
+   * 덮일 일도 없다.
+   */
+  const changeStatus = async (next: Status, confirmMsg: string | null, okMsg: string) => {
+    if (!project) return;
+    if (confirmMsg && !confirm(confirmMsg)) return;
+    setStatusBusy(true);
+    try {
+      const res = await setEventStatus(project.evt_id, next);
+      if (!res.ok) {
+        toast.error(res.message ?? "상태를 바꾸지 못했어요. 다시 시도해 주세요.");
+        return;
+      }
+      toast.success(okMsg);
+      // 목록을 다시 읽어 셀렉터의 그룹(진행 중·준비 중 ↔ 지난 프로젝트)과 이 카드를 맞춘다
+      onSaved();
+    } catch {
+      toast.error("상태를 바꾸지 못했어요. 다시 시도해 주세요.");
+    } finally {
+      setStatusBusy(false);
+    }
+  };
+
   const handleDelete = async () => {
-    if (
-      !confirm(
-        project!.evt_type_cd === PB_CLASS_TYPE
-          ? "이벤트를 삭제하시겠습니까? 연결된 회차 지정이 함께 삭제됩니다. (참가자가 있으면 삭제되지 않아요)"
-          : "이벤트를 삭제하시겠습니까? 배율, 참여자, 활동 기록이 모두 삭제됩니다.",
-      )
-    )
-      return;
-    const result = await deleteEvent(project!.evt_id);
+    if (!project) return;
+    const lead = "이 프로젝트를 삭제할까요?\n참가자가 없어서 지울 수 있어요.";
+    const detail =
+      project.evt_type_cd === PB_CLASS_TYPE
+        ? "연결된 회차 지정·훈련표·설정이 함께 지워지고 되돌릴 수 없어요."
+        : "배율 설정이 함께 지워지고 되돌릴 수 없어요.";
+    if (!confirm(`${lead}\n${detail}\n(데이터를 남기려면 삭제 대신 프로젝트 종료를 쓰세요)`)) return;
+    const result = await deleteEvent(project.evt_id);
     if (!result.ok) {
-      alert(result.message);
+      toast.error(result.message ?? "삭제하지 못했어요. 다시 시도해 주세요.");
       return;
     }
     onDeleted();
@@ -245,35 +320,25 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
   // 뷰 모드
   if (!isCreate && !editing) {
     const badge = STATUS_BADGE[project!.stts_enm] ?? STATUS_BADGE.READY;
+    const mlgDcAmt = Number(savedCfgForm.mlgDcAmt);
     return (
-      <CardItem className="flex flex-col gap-3">
+      <CardItem className="flex flex-col gap-4">
         <div className="flex items-start justify-between gap-3">
           <Badge variant={badge.variant} className="text-[11px]">
             {badge.label}
           </Badge>
-          <div className="flex shrink-0 gap-1.5">
-            <Button
-              variant="outline"
-              size="icon-sm"
-              onClick={() => setEditing(true)}
-              // PB 설정이 오기 전에 편집을 열면 폼에 기본값이 들어 있어, 정보만 고쳐 저장해도
-              // 설정이 기본값으로 덮인다 — 환급은 실시간 계산이라 전원 금액이 소급해서 바뀐다.
-              disabled={savedIsPb && !cfgLoaded}
-              className="rounded-lg"
-              aria-label="수정"
-            >
-              <Pencil className="size-3.5" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              onClick={handleDelete}
-              className="rounded-lg text-destructive hover:text-destructive"
-              aria-label="삭제"
-            >
-              <Trash2 className="size-3.5" />
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            onClick={() => setEditing(true)}
+            // PB 설정이 오기 전에 편집을 열면 폼에 기본값이 들어 있어, 정보만 고쳐 저장해도
+            // 설정이 기본값으로 덮인다 — 환급은 실시간 계산이라 전원 금액이 소급해서 바뀐다.
+            disabled={savedIsPb && !cfgLoaded}
+            className="shrink-0 rounded-lg"
+            aria-label="수정"
+          >
+            <Pencil className="size-3.5" />
+          </Button>
         </div>
         <div>
           <InfoRow label="이름" value={project!.evt_nm} />
@@ -292,8 +357,15 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
             <>
               <InfoRow label="총 회차" value={`${savedCfgForm.totSessCnt}회`} />
               <InfoRow label="전액 환급 기준" value={`${savedCfgForm.fullRfndAttdCnt}회 출석`} />
-              <InfoRow label="늦은 합류" value={`W${savedCfgForm.lateJoinWkNo}부터 보증금 없음`} />
+              <InfoRow
+                label="늦은 합류"
+                value={`${wkLabel(Number(savedCfgForm.lateJoinWkNo))}부터 보증금 없음`}
+              />
               <InfoRow label="보증금" value={`${Number(savedCfgForm.depositAmt).toLocaleString()}원`} />
+              <InfoRow
+                label="마일리지런 할인"
+                value={mlgDcAmt > 0 ? `보증금 −${mlgDcAmt.toLocaleString()}원` : "없음"}
+              />
               <InfoRow label="참가비" value={`${Number(savedCfgForm.entryFeeAmt).toLocaleString()}원`} />
             </>
           )}
@@ -303,13 +375,84 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
             PB 설정이 아직 저장되지 않아 기본값으로 동작 중이에요. 수정에서 저장해 주세요.
           </Caption>
         )}
+
+        {/* 상태별 주 동작 — 지우지 않고 공개 → 종료(보관) → 다시 열기로 돌린다 */}
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
+          {project!.stts_enm === "READY" && (
+            <>
+              <Button
+                onClick={() =>
+                  void changeStatus(
+                    "ACTIVE",
+                    "공개하면 회원 프로젝트 탭에 바로 보여요. 공개할까요?",
+                    "프로젝트를 공개했어요",
+                  )
+                }
+                disabled={statusBusy}
+                className="h-12 w-full rounded-xl text-base font-semibold"
+              >
+                {statusBusy ? "처리 중..." : "공개하기"}
+              </Button>
+              <Caption>준비 중인 프로젝트는 회원 프로젝트 탭에 보이지 않아요</Caption>
+            </>
+          )}
+          {project!.stts_enm === "ACTIVE" && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() =>
+                  void changeStatus(
+                    "CLOSED",
+                    "종료하면 회원 프로젝트 탭에서 내려가고 「지난 프로젝트」로 보관돼요. 기록·참가자 데이터는 그대로 남아요.",
+                    "프로젝트를 종료했어요. 「지난 프로젝트」에서 볼 수 있어요",
+                  )
+                }
+                disabled={statusBusy}
+                className="h-12 w-full rounded-xl text-base font-semibold"
+              >
+                {statusBusy ? "처리 중..." : "프로젝트 종료"}
+              </Button>
+              <Caption>종료해도 지우지 않고 「지난 프로젝트」로 보관돼요</Caption>
+            </>
+          )}
+          {project!.stts_enm === "CLOSED" && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => void changeStatus("ACTIVE", null, "프로젝트를 다시 열었어요")}
+                disabled={statusBusy}
+                className="h-12 w-full rounded-xl text-base font-semibold"
+              >
+                {statusBusy ? "처리 중..." : "다시 열기"}
+              </Button>
+              <Caption>「지난 프로젝트」로 보관 중이에요. 다시 열면 회원 프로젝트 탭에 보여요</Caption>
+            </>
+          )}
+        </div>
+
+        {/* 참가자가 0명일 때만 — 보증금·기록이 걸린 프로젝트는 지우는 길 자체를 보여 주지 않는다 */}
+        {deletable && (
+          <button
+            type="button"
+            onClick={() => void handleDelete()}
+            disabled={statusBusy}
+            className="-mb-1 self-center py-2 disabled:opacity-50"
+          >
+            <Caption className="text-destructive underline underline-offset-2">이 프로젝트 삭제</Caption>
+          </button>
+        )}
       </CardItem>
     );
   }
 
-  // 시작일이 W1이다 — 주 경계(수 00:00 ~ 화 23:59)가 stt_dt에서 파생되므로 수요일이 아니면 주차가 어긋난다
+  // 시작일이 1주차 첫날이다 — 주 경계(수 00:00 ~ 화 23:59)가 stt_dt에서 파생되므로 수요일이 아니면 주차가 어긋난다
   const sttDay = isPbForm && form.stt_dt ? parseEventTime(form.stt_dt) : null;
   const sttNotWednesday = sttDay !== null && sttDay.day() !== 3;
+
+  // PB 종료일(자동) — 시작일·총 회차를 고치는 즉시 따라 움직인다
+  const pbEndDt = isPbForm ? previewPbEndDt(form.stt_dt, cfgForm.totSessCnt) : null;
+  const pbTotSessCnt = Number(cfgForm.totSessCnt);
+  const pbTotValid = /^\d+$/.test(cfgForm.totSessCnt.trim()) && pbTotSessCnt >= 2;
 
   // 편집/생성 폼
   return (
@@ -323,6 +466,7 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
           size="icon-sm"
           onClick={handleCancel}
           className="text-muted-foreground"
+          aria-label="닫기"
         >
           <X className="size-5" />
         </Button>
@@ -356,8 +500,11 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
 
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium text-foreground">시작일</label>
+          <label htmlFor="evt-stt-dt" className="text-sm font-medium text-foreground">
+            시작일
+          </label>
           <Input
+            id="evt-stt-dt"
             type="date"
             max="9999-12-31"
             value={form.stt_dt}
@@ -366,7 +513,7 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
           />
           {isPbForm && (
             <Caption>
-              시작일이 W1이에요. 주차는 수요일~화요일로 끊기니 시작일을 수요일로 설정해 주세요.
+              시작일이 1주차 첫날이에요. 주차는 수요일~화요일로 끊기니 시작일을 수요일로 설정해 주세요.
             </Caption>
           )}
           {sttNotWednesday && sttDay && (
@@ -375,23 +522,52 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
             </Caption>
           )}
         </div>
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium text-foreground">종료일</label>
-          <Input
-            type="date"
-            max="9999-12-31"
-            value={form.end_dt}
-            onChange={(e) => setForm({ ...form, end_dt: e.target.value })}
-            className="h-12 rounded-xl border-[1.5px] text-[15px]"
-          />
-        </div>
+        {isPbForm ? (
+          // 입력칸이 아니라 계산 결과다 — 손으로 넣으면 12주차 날짜로 끊어 측정 벙 연결이 막히는 일이
+          // 실제로 있어서(lib/pb-class.ts `pbEndDtFor`) 아예 입력할 수 없게 했다.
+          <div className="flex flex-col gap-2">
+            <span id="pb-end-dt-label" className="text-sm font-medium text-foreground">
+              종료일 <span className="font-normal text-muted-foreground">(자동)</span>
+            </span>
+            <output
+              htmlFor="evt-stt-dt pb-cfg-totSessCnt"
+              aria-labelledby="pb-end-dt-label"
+              className="flex h-12 items-center rounded-xl border-[1.5px] border-border bg-secondary/50 px-3"
+            >
+              {pbEndDt ? (
+                <Body>{parseEventTime(pbEndDt).format("YYYY-MM-DD (dd)")}</Body>
+              ) : (
+                <Body className="text-muted-foreground">시작일을 정하면 자동으로 잡혀요</Body>
+              )}
+            </output>
+            <Caption>
+              {pbTotValid
+                ? `시작일로부터 ${pbTotSessCnt + 1}주 — 10K 측정 주간까지 자동으로 잡혀요`
+                : "총 회차를 입력하면 종료일이 자동으로 잡혀요"}
+            </Caption>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <label htmlFor="evt-end-dt" className="text-sm font-medium text-foreground">
+              종료일
+            </label>
+            <Input
+              id="evt-end-dt"
+              type="date"
+              max="9999-12-31"
+              value={form.end_dt}
+              onChange={(e) => setForm({ ...form, end_dt: e.target.value })}
+              className="h-12 rounded-xl border-[1.5px] text-[15px]"
+            />
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-2">
         <label className="text-sm font-medium text-foreground">상태</label>
         <Select
           value={form.stts_enm}
-          onValueChange={(v) => setForm({ ...form, stts_enm: v as "READY" | "ACTIVE" | "CLOSED" })}
+          onValueChange={(v) => setForm({ ...form, stts_enm: v as Status })}
         >
           <SelectTrigger className="h-12 rounded-xl border-[1.5px] text-[15px]">
             <SelectValue />
@@ -404,6 +580,7 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
             ))}
           </SelectContent>
         </Select>
+        {isCreate && <Caption>준비중으로 만들고, 다 갖춰지면 「공개하기」로 회원에게 열어 주세요.</Caption>}
       </div>
 
       {isPbForm && <PbCfgFields value={cfgForm} onChange={setCfgForm} />}

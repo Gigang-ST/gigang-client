@@ -22,6 +22,11 @@ type MileageProjectViewProps = {
   event: { evt_id: string; evt_nm: string; stt_dt: string; end_dt: string };
   /** `?month=` 쿼리 원문 — 범위 검증은 여기서 한다 */
   month?: string;
+  /**
+   * 종료된 프로젝트를 보관용으로 여는 중 — 신청·기록 입력(FAB)·기록 수정/삭제를 전부 거둔다.
+   * 미참여 소개(`MileageIntro`)도 뺀다: 끝난 시즌에 "같이 뛰어요"를 말하면 거짓말이다.
+   */
+  readOnly?: boolean;
   isInactive: boolean;
   inactiveKind?: "inactive" | "left";
 };
@@ -38,6 +43,7 @@ type MileageProjectViewProps = {
 export async function MileageProjectView({
   event,
   month,
+  readOnly = false,
   isInactive,
   inactiveKind,
 }: MileageProjectViewProps) {
@@ -67,7 +73,7 @@ export async function MileageProjectView({
         : event.stt_dt;
 
   // 페이지가 비로그인을 막으므로 여기선 항상 로그인 상태 — 참여자가 아니면 신청 섹션을 연다
-  const showJoin = !isParticipant;
+  const showJoin = !isParticipant && !readOnly;
 
   return (
     <MonthTransitionProvider>
@@ -84,7 +90,7 @@ export async function MileageProjectView({
       </div>
 
       {/* 미참여 시 소개 */}
-      {!isParticipant && <MileageIntro />}
+      {!isParticipant && !readOnly && <MileageIntro />}
 
       {/* 참여 신청 섹션 */}
       {showJoin && (
@@ -138,9 +144,11 @@ export async function MileageProjectView({
               <MySportChart evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
             </Suspense>
             <Suspense fallback={<Skeleton className="h-48 w-full rounded-2xl" />}>
-              <MyActivityList evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} isInactive={isInactive} inactiveKind={inactiveKind} />
+              <MyActivityList evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} readOnly={readOnly} isInactive={isInactive} inactiveKind={inactiveKind} />
             </Suspense>
-            <ActivityLogFab evtId={event.evt_id} memId={member.id} isInactive={isInactive} inactiveKind={inactiveKind} />
+            {!readOnly && (
+              <ActivityLogFab evtId={event.evt_id} memId={member.id} isInactive={isInactive} inactiveKind={inactiveKind} />
+            )}
           </>
         )}
       </TransitionOverlay>

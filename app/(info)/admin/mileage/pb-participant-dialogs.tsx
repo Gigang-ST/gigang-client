@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronsUpDown, Plus } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
-import { feesForJoinWeek, requiredAttdCnt, type PbClassCfg } from "@/lib/pb-class";
+import { feesForJoinWeek, requiredAttdCnt, wkLabel, type PbClassCfg } from "@/lib/pb-class";
 import type { PbParticipant } from "@/lib/queries/pb-class";
 
 import { Avatar } from "@/components/common/avatar";
@@ -77,8 +77,8 @@ function RequiredHint({ joinWkNo, cfg }: { joinWkNo: number; cfg: PbClassCfg }) 
   return (
     <Caption>
       {required === null
-        ? `W${joinWkNo} 합류는 보증금 없이 참가비만 내요. 환급 대상이 아니에요.`
-        : `W${joinWkNo} 합류의 전액 환급 기준은 ${required}회 출석이에요.`}
+        ? `${wkLabel(joinWkNo)} 합류는 보증금 없이 참가비만 내요. 환급 대상이 아니에요.`
+        : `${wkLabel(joinWkNo)} 합류의 전액 환급 기준은 ${required}회 출석이에요.`}
     </Caption>
   );
 }
@@ -110,7 +110,9 @@ function EditForm({
     setJoinWk(v);
     const n = toInt(v);
     if (Number.isInteger(n) && n >= 1) {
-      const fees = feesForJoinWeek(n, cfg);
+      // 이미 마일리지런 할인을 받은 사람이면 새 주차에서도 할인을 이어 준다 — 정가로 되돌리면
+      // 주차만 바꿨는데 보증금이 슬그머니 올라간다(늦은 합류로 가면 어차피 0이다)
+      const fees = feesForJoinWeek(n, cfg, { mlgAlumni: participant.depositDcAmt > 0 });
       setDeposit(String(fees.depositAmt));
       setEntryFee(String(fees.entryFeeAmt));
     }
@@ -326,6 +328,11 @@ function AddForm({
             납부액은 보증금 {fees.depositAmt.toLocaleString()}원 + 참가비 {fees.entryFeeAmt.toLocaleString()}원이에요.
             추가 후 참여자 목록의 수정에서 바꿀 수 있어요.
           </Caption>
+        )}
+        {/* 서버가 마일리지런 참가 이력을 보고 정한다 — 여기선 고를 수 없다는 것만 알려 준다.
+            할인이 0원이거나 늦은 합류(보증금 자체가 없음)면 해당 없는 말이라 안 띄운다 */}
+        {fees && fees.depositAmt > 0 && cfg.mlgDcAmt > 0 && (
+          <Caption>마일리지런 참가자면 할인이 자동으로 적용돼요 (보증금 −{cfg.mlgDcAmt.toLocaleString()}원).</Caption>
         )}
       </div>
       <div className="shrink-0 border-t border-border p-4">

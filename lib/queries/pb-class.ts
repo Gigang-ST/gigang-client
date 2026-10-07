@@ -12,9 +12,11 @@ import {
   type PbSessLink,
   type PbSessType,
 } from "@/lib/pb-class";
+import type { PbSessPlan } from "@/lib/pb-class-plan";
 import { parseEventTime } from "@/lib/dayjs";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import type { Database, Tables } from "@/lib/supabase/database.types";
+import { selectInChunks } from "@/lib/titles/query-chunk";
 
 /**
  * 겨울 10K PB 클래스 조회 코어 — 회원 화면·관리자 화면·(향후) 운영 MCP가 공유한다.
@@ -67,6 +69,11 @@ export type PbParticipant = {
   joinWkNo: number;
   depositAmt: number;
   entryFeeAmt: number;
+  /**
+   * 신청 때 적용된 보증금 할인(마일리지런 참가자 할인). `depositAmt`는 **할인 뒤** 실제 보증금이라
+   * 환급 계산엔 들어가지 않고 화면 표시("5,000원 할인")·감사용이다.
+   */
+  depositDcAmt: number;
   aprvYn: boolean;
   aprvAt: string | null;
   summary: PbRefundSummary;
@@ -92,6 +99,8 @@ export type PbClassBoard = {
   sessions: PbSession[];
   participants: PbParticipant[];
   totals: PbTotals;
+  /** 회차별 훈련표(sessNo 오름차순). 아직 안 채웠으면 빈 배열 — 관리자 화면이 「기본 훈련표 불러오기」를 띄운다 */
+  sessPlans: PbSessPlan[];
 };
 
 export type MyPbClass = {
@@ -101,6 +110,13 @@ export type MyPbClass = {
   /** 신청 전이면 null. 입금 대기(`aprvYn=false`)도 행이 있으므로 null 이 아니다 */
   me: PbParticipant | null;
   currentWkNo: number;
+  /** 회차별 훈련표(sessNo 오름차순). 비어 있으면 훈련표 섹션을 안 그린다 */
+  sessPlans: PbSessPlan[];
+  /**
+   * 같은 팀 마일리지런에 승인 참가한 적이 있는가 — 신청 **전에** 보증금 할인을 보여 주려는 값이다.
+   * 신청 때의 실제 할인은 `joinPbClass`가 서버에서 다시 판정하므로(이 값을 믿고 깎지 않는다) 표시용일 뿐이다.
+   */
+  mlgAlumni: boolean;
 };
 
 // ─────────────────────────────────────────
@@ -116,6 +132,7 @@ export function cfgFromRow(row: Tables<"evt_pb_cfg"> | null): PbClassCfg {
     lateJoinWkNo: row.late_join_wk_no,
     depositAmt: row.deposit_amt,
     entryFeeAmt: row.entry_fee_amt,
+    mlgDcAmt: row.mlg_dc_amt,
   };
 }
 
@@ -138,12 +155,31 @@ export type PbLinkRow = {
 };
 export type PbPrtRow = Pick<
   Tables<"evt_pb_prt_rel">,
-  "prt_id" | "mem_id" | "join_wk_no" | "deposit_amt" | "entry_fee_amt" | "aprv_yn" | "aprv_at"
+  "prt_id" | "mem_id" | "join_wk_no" | "deposit_amt" | "deposit_dc_amt" | "entry_fee_amt" | "aprv_yn" | "aprv_at"
 > & {
   mem_nm: string;
   avatar_url: string | null;
 };
 export type PbAttdRow = { gthr_id: string; mem_id: string };
+export type PbSessPlanRow = Pick<
+  Tables<"evt_pb_sess_plan">,
+  "sess_no" | "phase_nm" | "ttl" | "main_txt" | "easy_txt" | "purp_txt" | "note_txt"
+>;
+
+/** 훈련표 행 → 화면 모양. 회차 순으로 줄을 세운다(DB 정렬에 기대지 않는다) */
+export function toSessPlans(rows: readonly PbSessPlanRow[]): PbSessPlan[] {
+  return rows
+    .map((r) => ({
+      sessNo: r.sess_no,
+      phaseNm: r.phase_nm,
+      ttl: r.ttl,
+      mainTxt: r.main_txt,
+      easyTxt: r.easy_txt,
+      purpTxt: r.purp_txt,
+      noteTxt: r.note_txt,
+    }))
+    .sort((a, b) => a.sessNo - b.sessNo);
+}
 
 export function toPbEvent(row: PbEvtRow): PbEvent {
   return {
@@ -188,6 +224,7 @@ function toParticipant(
     joinWkNo: row.join_wk_no,
     depositAmt: row.deposit_amt,
     entryFeeAmt: row.entry_fee_amt,
+    depositDcAmt: row.deposit_dc_amt,
     aprvYn: row.aprv_yn,
     aprvAt: row.aprv_at,
     // 입금 대기자도 같은 함수로 요약한다 — 승인되면 숫자가 바뀌지 않고 그대로 확정된다
@@ -231,9 +268,11 @@ export function assembleBoard(args: {
   links: readonly PbLinkRow[];
   prts: readonly PbPrtRow[];
   attds: readonly PbAttdRow[];
+  /** 훈련표 행 — 안 넘기면 빈 훈련표(이전 호출부 호환) */
+  planRows?: readonly PbSessPlanRow[];
   nowIso: string;
 }): PbClassBoard {
-  const { evt: evtRow, cfgRow, links, prts, attds, nowIso } = args;
+  const { evt: evtRow, cfgRow, links, prts, attds, planRows = [], nowIso } = args;
   const evt = toPbEvent(evtRow);
   const cfg = cfgFromRow(cfgRow);
   const sessions = toSessions(links, evt, nowIso);
@@ -259,7 +298,7 @@ export function assembleBoard(args: {
     entryFeeSum: approved.reduce((n, p) => n + p.entryFeeAmt, 0),
   };
 
-  return { evt, cfg, cfgSaved: cfgRow !== null, sessions, participants, totals };
+  return { evt, cfg, cfgSaved: cfgRow !== null, sessions, participants, totals, sessPlans: toSessPlans(planRows) };
 }
 
 /** 회원 화면 조립 — 내 행 하나와 회차 목록만. 남의 출석·합계는 싣지 않는다 */
@@ -269,16 +308,28 @@ export function assembleMyPbClass(args: {
   links: readonly PbLinkRow[];
   myPrt: PbPrtRow | null;
   myAttds: readonly PbAttdRow[];
+  /** 훈련표 행 — 안 넘기면 빈 훈련표 */
+  planRows?: readonly PbSessPlanRow[];
+  /** 마일리지런 참가 이력 — 안 넘기면 false */
+  mlgAlumni?: boolean;
   nowIso: string;
 }): MyPbClass {
-  const { evt: evtRow, cfgRow, links, myPrt, myAttds, nowIso } = args;
+  const { evt: evtRow, cfgRow, links, myPrt, myAttds, planRows = [], mlgAlumni = false, nowIso } = args;
   const evt = toPbEvent(evtRow);
   const cfg = cfgFromRow(cfgRow);
   const sessions = toSessions(links, evt, nowIso);
   const me = myPrt
     ? toParticipant(myPrt, sessions, new Set(myAttds.map((a) => a.gthr_id)), cfg)
     : null;
-  return { evt, cfg, sessions, me, currentWkNo: currentWeekNo(evt.sttDt, nowIso) };
+  return {
+    evt,
+    cfg,
+    sessions,
+    me,
+    currentWkNo: currentWeekNo(evt.sttDt, nowIso),
+    sessPlans: toSessPlans(planRows),
+    mlgAlumni,
+  };
 }
 
 // ─────────────────────────────────────────
@@ -374,6 +425,7 @@ function toPrtRow(r: {
   mem_id: string;
   join_wk_no: number;
   deposit_amt: number;
+  deposit_dc_amt: number;
   entry_fee_amt: number;
   aprv_yn: boolean;
   aprv_at: string | null;
@@ -385,6 +437,7 @@ function toPrtRow(r: {
     mem_id: r.mem_id,
     join_wk_no: r.join_wk_no,
     deposit_amt: r.deposit_amt,
+    deposit_dc_amt: r.deposit_dc_amt,
     entry_fee_amt: r.entry_fee_amt,
     aprv_yn: r.aprv_yn,
     aprv_at: r.aprv_at,
@@ -394,7 +447,7 @@ function toPrtRow(r: {
 }
 
 const PRT_SELECT =
-  "prt_id, mem_id, join_wk_no, deposit_amt, entry_fee_amt, aprv_yn, aprv_at, mem_mst(mem_nm, avatar_url)";
+  "prt_id, mem_id, join_wk_no, deposit_amt, deposit_dc_amt, entry_fee_amt, aprv_yn, aprv_at, mem_mst(mem_nm, avatar_url)";
 
 /**
  * 연결된 벙들의 참석 행.
@@ -415,7 +468,72 @@ async function loadAttdRows(db: Db, gthrIds: readonly string[], memId?: string):
 }
 
 /**
- * 관리자 보드 — 설정·연결 벙·참가자(출석·환급 요약)·합계.
+ * 회차별 훈련표 행. 회차는 많아야 52칸(CHECK)이라 PostgREST 1,000행 상한에 닿을 수 없어
+ * `fetchAllRows` 없이 한 번에 읽는다.
+ */
+export async function loadSessPlanRows(db: Db, evtId: string): Promise<PbSessPlanRow[]> {
+  const { data, error } = await db
+    .from("evt_pb_sess_plan")
+    .select("sess_no, phase_nm, ttl, main_txt, easy_txt, purp_txt, note_txt")
+    .eq("evt_id", evtId)
+    .order("sess_no", { ascending: true });
+  if (error) throw new Error(`loadPbSessPlans 조회 실패: ${error.message}`);
+  return data ?? [];
+}
+
+// ─────────────────────────────────────────
+// 마일리지런 참가 이력 (보증금 할인 자격)
+// ─────────────────────────────────────────
+
+/** evt_team_mst.evt_type_cd — 마일리지런. PB 할인 자격은 이 종류의 프로젝트 참가 이력으로만 본다 */
+const MILEAGE_RUN_TYPE = "MILEAGE_RUN";
+
+/**
+ * 마일리지런 이력이 있는가 = **같은 팀**의 `MILEAGE_RUN` 프로젝트에 **승인된**(`aprv_yn=true`) 참가 행이 하나라도 있다.
+ *
+ * - 승인만 센다: 신청만 하고 입금 확인이 안 된 사람은 실제로 참가한 게 아니다(거부는 행이 지워진다).
+ * - 팀 범위: 다른 팀의 마일리지런 이력으로 이 팀 PB 보증금이 깎이지 않게 한다.
+ * - 프로젝트 상태(ACTIVE/CLOSED)는 안 본다 — 지난 시즌 참가자가 정확히 이 할인의 대상이다.
+ * - **조회가 실패하면 던진다**(0건으로 눙치지 않는다). 신청 액션이 이걸로 금액을 정하므로, 에러를 「이력 없음」으로
+ *   삼키면 할인 대상자가 말없이 5천 원을 더 내게 된다. 화면 표시용 호출부(`loadMyPbClass`)만 따로 물러난다.
+ */
+export async function isMileageAlumni(db: Db, teamId: string, memId: string): Promise<boolean> {
+  // 한 사람 몫이고 존재 여부만 필요해 1건에서 멈춘다(fetchAllRows 대상이 아니다)
+  const { data, error } = await db
+    .from("evt_team_prt_rel")
+    .select("prt_id, evt_team_mst!inner(team_id, evt_type_cd)")
+    .eq("mem_id", memId)
+    .eq("aprv_yn", true)
+    .eq("evt_team_mst.team_id", teamId)
+    .eq("evt_team_mst.evt_type_cd", MILEAGE_RUN_TYPE)
+    .limit(1);
+  if (error) throw new Error(`isMileageAlumni 조회 실패: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+
+/**
+ * 여러 멤버의 마일리지런 이력을 한 번에 — 관리자 화면에서 후보 N명의 할인 자격을 보여 줄 때 쓴다.
+ * 판정 기준은 `isMileageAlumni`와 같다(두 함수가 갈라지면 같은 사람이 화면마다 다른 금액을 본다).
+ * 참가 행은 멤버 수 × 마일리지 시즌 수라 `.in()` 목록이 길어질 수 있어 청크로 나눠 끝까지 읽는다.
+ */
+export async function mileageAlumniSet(db: Db, teamId: string, memIds: readonly string[]): Promise<Set<string>> {
+  const unique = [...new Set(memIds)];
+  const rows = await selectInChunks<{ mem_id: string }>(unique, (chunk) =>
+    db
+      .from("evt_team_prt_rel")
+      .select("mem_id, prt_id, evt_team_mst!inner(team_id, evt_type_cd)")
+      .in("mem_id", chunk)
+      .eq("aprv_yn", true)
+      .eq("evt_team_mst.team_id", teamId)
+      .eq("evt_team_mst.evt_type_cd", MILEAGE_RUN_TYPE)
+      // prt_id 는 유일해서 페이지 경계에서 행이 겹치거나 빠지지 않는다
+      .order("prt_id", { ascending: true }),
+  );
+  return new Set(rows.map((r) => r.mem_id));
+}
+
+/**
+ * 관리자 보드 — 설정·연결 벙·참가자(출석·환급 요약)·합계·훈련표.
  * 프로젝트가 없거나 `PB_CLASS`가 아니면 null. `opts.teamId`를 주면 그 팀 프로젝트만 연다.
  */
 export async function loadPbClassBoard(
@@ -427,38 +545,51 @@ export async function loadPbClassBoard(
   const evt = await loadEvt(db, evtId, opts.teamId);
   if (!evt) return null;
 
-  const [cfgRow, links, prtData] = await Promise.all([
+  const [cfgRow, links, prtData, planRows] = await Promise.all([
     loadCfgRow(db, evtId),
     loadLinkRows(db, evtId, evt.stt_dt),
     fetchAllRows(
       () => db.from("evt_pb_prt_rel").select(PRT_SELECT).eq("evt_id", evtId).order("prt_id", { ascending: true }),
       { label: "pb-class:evt_pb_prt_rel" },
     ),
+    loadSessPlanRows(db, evtId),
   ]);
   const prts = prtData.map(toPrtRow);
   const attds = await loadAttdRows(db, links.map((l) => l.gthr_id));
 
-  return assembleBoard({ evt, cfgRow, links, prts, attds, nowIso });
+  return assembleBoard({ evt, cfgRow, links, prts, attds, planRows, nowIso });
 }
 
-/** 회원 화면용 — 내 참가 행 하나와 회차 목록. 남의 출석은 읽지도 않는다 */
+/**
+ * 회원 화면용 — 내 참가 행 하나와 회차 목록·훈련표·할인 자격. 남의 출석은 읽지도 않는다.
+ *
+ * 할인 자격(`mlgAlumni`)은 **신청 화면이 금액을 미리 보여 주려는 표시값**이다. 실제 신청 금액은
+ * `joinPbClass`가 서버에서 다시 판정하므로, 여기서 조회가 실패해도(예: 일시 장애) 프로젝트 화면 전체를
+ * 죽이지 않고 false 로 물러난다 — 신청 때 제대로 깎이므로 돈이 틀어지지 않는다.
+ */
 export async function loadMyPbClass(
   db: Db,
   evtId: string,
   memId: string,
   nowIso: string,
 ): Promise<MyPbClass | null> {
-  const evt = await loadEvt(db, evtId);
-  if (!evt) return null;
+  const found = await loadEvtWithTeam(db, evtId);
+  if (!found) return null;
+  const { evt, teamId } = found;
 
-  const [cfgRow, links, myPrtData] = await Promise.all([
+  const [cfgRow, links, myPrtData, planRows, mlgAlumni] = await Promise.all([
     loadCfgRow(db, evtId),
     loadLinkRows(db, evtId, evt.stt_dt),
     db.from("evt_pb_prt_rel").select(PRT_SELECT).eq("evt_id", evtId).eq("mem_id", memId).maybeSingle(),
+    loadSessPlanRows(db, evtId),
+    isMileageAlumni(db, teamId, memId).catch((e: unknown) => {
+      console.error("[loadMyPbClass] 마일리지런 이력 조회 실패 — 할인 표시만 생략", e);
+      return false;
+    }),
   ]);
   if (myPrtData.error) throw new Error(`loadMyPbClass 참가 조회 실패: ${myPrtData.error.message}`);
   const myPrt = myPrtData.data ? toPrtRow(myPrtData.data) : null;
   const myAttds = myPrt ? await loadAttdRows(db, links.map((l) => l.gthr_id), memId) : [];
 
-  return assembleMyPbClass({ evt, cfgRow, links, myPrt, myAttds, nowIso });
+  return assembleMyPbClass({ evt, cfgRow, links, myPrt, myAttds, planRows, mlgAlumni, nowIso });
 }

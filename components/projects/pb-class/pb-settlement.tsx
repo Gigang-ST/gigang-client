@@ -1,8 +1,8 @@
 import type { PbClassBoard } from "@/lib/queries/pb-class";
 
-import { SectionHeader } from "@/components/common/section-header";
 import { StatCard } from "@/components/common/stat-card";
 import { Body, Caption, Micro } from "@/components/common/typography";
+import { PbZone } from "./pb-zone";
 
 /**
  * 정산 — 승인된 참가자 전원의 출석·환급 현황을 한눈에.
@@ -18,10 +18,8 @@ export function PbSettlement({ board, myMemId }: { board: PbClassBoard; myMemId?
   const approved = board.participants.filter((p) => p.aprvYn);
 
   return (
-    <div className="flex flex-col gap-4">
-      <SectionHeader label="SETTLEMENT" />
-
-      <div className="grid grid-cols-2 gap-3">
+    <PbZone label="Settlement" lead="지금까지의 출석이면 이렇게 돌려드려요">
+      <div className="grid grid-cols-2 gap-3 tabular-nums">
         {/* 보증금 합계는 두 칸 — 7자리 금액이 반칸에 들어가면 넘친다 */}
         <StatCard className="col-span-2" value={`${totals.depositSum.toLocaleString()}원`} label="보증금 합계" />
         <StatCard value={`${totals.refundSum.toLocaleString()}원`} label="환급 예정" />
@@ -43,8 +41,8 @@ export function PbSettlement({ board, myMemId }: { board: PbClassBoard; myMemId?
                   <Body className="truncate">{p.memNm}</Body>
                   {p.memId === myMemId && <Micro className="shrink-0 font-semibold text-primary">나</Micro>}
                 </span>
-                <Caption className="w-10 text-right text-foreground">{p.summary.attdCnt}회</Caption>
-                <Caption className="w-20 text-right text-foreground">
+                <Caption className="w-10 text-right tabular-nums text-foreground">{p.summary.attdCnt}회</Caption>
+                <Caption className="w-20 text-right tabular-nums text-foreground">
                   {noRefund ? "환급 없음" : `${p.summary.refund.toLocaleString()}원`}
                 </Caption>
               </li>
@@ -56,6 +54,6 @@ export function PbSettlement({ board, myMemId }: { board: PbClassBoard; myMemId?
       <Caption className="leading-relaxed">
         출석이 늘면 매주 바뀌어요. 시즌이 끝나면 이 금액으로 정산해요.
       </Caption>
-    </div>
+    </PbZone>
   );
 }

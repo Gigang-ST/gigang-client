@@ -44,6 +44,13 @@ export const pbCfgSchema = z
       .min(2, "늦은 합류 주차는 2주차 이상이어야 합니다"),
     depositAmt: amtSchema("보증금"),
     entryFeeAmt: amtSchema("참가비"),
+    // 마일리지런 참가자 할인 — 상한 10만 원은 오타 방지 안전망이다. 보증금보다 커도 `feesForJoinWeek`가
+    // 보증금까지만 깎으므로(음수 보증금이 안 나온다) 보증금과의 대소는 따로 막지 않는다.
+    mlgDcAmt: z
+      .number({ error: "마일리지런 할인액을 입력해 주세요" })
+      .int("마일리지런 할인액은 원 단위 정수여야 합니다")
+      .min(0, "마일리지런 할인액은 0원 이상이어야 합니다")
+      .max(100_000, "마일리지런 할인액은 100,000원 이하여야 합니다"),
   })
   .refine((c) => c.fullRfndAttdCnt <= c.totSessCnt, {
     // 기준이 총 회차보다 크면 아무도 전액을 못 받는다(DB CHECK 와 같은 규칙)
@@ -68,10 +75,53 @@ export const pbParticipantUpdateSchema = z.object({
   joinWkNo: pbJoinWkNoSchema,
   depositAmt: amtSchema("보증금"),
   entryFeeAmt: amtSchema("참가비"),
+  // 신청 때 적용된 할인(표시·감사용). 안 보내면 저장된 값을 그대로 둔다 — 이전 폼도 그대로 동작한다
+  depositDcAmt: amtSchema("보증금 할인").optional(),
 });
 
 export type PbCfgInput = z.infer<typeof pbCfgSchema>;
 export type PbParticipantUpdateInput = z.infer<typeof pbParticipantUpdateSchema>;
+
+/**
+ * 회차별 훈련표 한 칸(evt_pb_sess_plan) — `PbSessPlan`과 같은 모양.
+ *
+ * 글자 수 상한은 DB CHECK(`ck_evt_pb_sess_plan_len`, 1000자)와 같다. 선택 칸(E 세션·비고)은
+ * 빈 문자열을 null 로 접는다 — 관리자 폼에서 칸을 비우면 "" 가 오는데 그걸 그대로 저장하면
+ * 화면이 빈 줄을 그리고, 「없으면 A~D와 같음」 판정(`easyTxt === null`)이 어긋난다.
+ * 회차 번호의 상한(≤ 총 회차)은 스키마가 설정을 몰라서 액션이 설정을 읽은 뒤에 막는다.
+ */
+const requiredText = (label: string, max: number) =>
+  z
+    .string({ error: `${label}을(를) 입력해 주세요` })
+    .trim()
+    .min(1, `${label}을(를) 입력해 주세요`)
+    .max(max, `${label}은(는) ${max}자 이하여야 합니다`);
+
+const optionalText = (label: string, max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max, `${label}은(는) ${max}자 이하여야 합니다`)
+    .transform((v) => (v === "" ? null : v))
+    .nullable();
+
+export const pbSessPlanSchema = z.object({
+  sessNo: z
+    .number({ error: "회차 번호를 입력해 주세요" })
+    .int("회차 번호는 정수여야 합니다")
+    .min(1, "회차 번호는 1 이상이어야 합니다")
+    .max(52, "회차 번호는 52 이하여야 합니다"),
+  phaseNm: requiredText("단계", 10),
+  ttl: requiredText("제목", 60),
+  mainTxt: requiredText("훈련 내용", 1000),
+  easyTxt: optionalText("첫 10K 훈련 내용", 1000),
+  purpTxt: requiredText("목적", 1000),
+  noteTxt: optionalText("비고", 1000),
+});
+export type PbSessPlanInput = z.infer<typeof pbSessPlanSchema>;
+
+/** 훈련표 삭제용 — 회차 번호만 */
+export const pbSessNoSchema = pbSessPlanSchema.shape.sessNo;
 
 // ─────────────────────────────────────────
 // 2·3단계 — 규칙·팀·기록·미션

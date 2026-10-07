@@ -214,3 +214,14 @@ evt_team_mst (evt_type_cd='PB_CLASS')
 | `evt_pb_msn_mst` / `evt_pb_msn_rslt_rel` | 팀 미션 / 성공(행 = 성공) | PK(`msn_id`,`grp_id`) |
 
 - **점수는 테이블이 없다** — `lib/pb-class-score.ts`가 벙·참석·기록·미션 판정에서 매번 계산한다(장부를 두면 원천과 갈라진다).
+
+### 다듬기 (`20261007140000_evt_pb_class_polish.sql`)
+
+| 테이블/컬럼 | 내용 |
+|---|---|
+| `evt_pb_cfg.mlg_dc_amt` | 마일리지런 참가자 보증금 할인액(기본 5,000) |
+| `evt_pb_prt_rel.deposit_dc_amt` | 신청 때 적용된 할인. `deposit_amt`는 할인 **뒤** 실제 보증금 — 환급은 이 값 기준 |
+| `evt_pb_sess_plan` | 회차별 훈련표 PK(`evt_id`,`sess_no`). `sess_no` 1~(N−1) = 그 주차 공식훈련, N = 10K 측정. 단계·제목·A~D·E·목적·비고 |
+
+- PB `end_dt`는 서버가 `pbEndDtFor(stt_dt, cfg)`로 정한다(클라이언트 값 무시).
+- 프로젝트 삭제는 참가자(마일리지·PB)가 하나라도 있으면 거부 — 끝난 프로젝트는 `CLOSED`로 보관한다.

@@ -773,6 +773,7 @@ export type Database = {
           evt_id: string
           full_rfnd_attd_cnt: number
           late_join_wk_no: number
+          mlg_dc_amt: number
           rule_json: Json
           tot_sess_cnt: number
           updated_at: string
@@ -784,6 +785,7 @@ export type Database = {
           evt_id: string
           full_rfnd_attd_cnt?: number
           late_join_wk_no?: number
+          mlg_dc_amt?: number
           rule_json?: Json
           tot_sess_cnt?: number
           updated_at?: string
@@ -795,6 +797,7 @@ export type Database = {
           evt_id?: string
           full_rfnd_attd_cnt?: number
           late_join_wk_no?: number
+          mlg_dc_amt?: number
           rule_json?: Json
           tot_sess_cnt?: number
           updated_at?: string
@@ -927,6 +930,7 @@ export type Database = {
           aprv_yn: boolean
           created_at: string
           deposit_amt: number
+          deposit_dc_amt: number
           entry_fee_amt: number
           evt_id: string
           goal_sec: number | null
@@ -942,6 +946,7 @@ export type Database = {
           aprv_yn?: boolean
           created_at?: string
           deposit_amt: number
+          deposit_dc_amt?: number
           entry_fee_amt: number
           evt_id: string
           goal_sec?: number | null
@@ -957,6 +962,7 @@ export type Database = {
           aprv_yn?: boolean
           created_at?: string
           deposit_amt?: number
+          deposit_dc_amt?: number
           entry_fee_amt?: number
           evt_id?: string
           goal_sec?: number | null
@@ -1036,6 +1042,53 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "evt_pb_prt_rel"
             referencedColumns: ["prt_id"]
+          },
+        ]
+      }
+      evt_pb_sess_plan: {
+        Row: {
+          created_at: string
+          easy_txt: string | null
+          evt_id: string
+          main_txt: string
+          note_txt: string | null
+          phase_nm: string
+          purp_txt: string
+          sess_no: number
+          ttl: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          easy_txt?: string | null
+          evt_id: string
+          main_txt: string
+          note_txt?: string | null
+          phase_nm: string
+          purp_txt: string
+          sess_no: number
+          ttl: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          easy_txt?: string | null
+          evt_id?: string
+          main_txt?: string
+          note_txt?: string | null
+          phase_nm?: string
+          purp_txt?: string
+          sess_no?: number
+          ttl?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evt_pb_sess_plan_evt_id_fkey"
+            columns: ["evt_id"]
+            isOneToOne: false
+            referencedRelation: "evt_team_mst"
+            referencedColumns: ["evt_id"]
           },
         ]
       }

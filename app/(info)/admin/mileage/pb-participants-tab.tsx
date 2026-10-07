@@ -11,7 +11,7 @@ import {
   revokePbApproval,
   updatePbParticipant,
 } from "@/app/actions/admin/manage-pb-class";
-import { currentWeekNo } from "@/lib/pb-class";
+import { currentWeekNo, wkLabel } from "@/lib/pb-class";
 import { nowKST } from "@/lib/dayjs";
 import type { PbParticipant } from "@/lib/queries/pb-class";
 
@@ -36,11 +36,12 @@ type Tab = "pending" | "approved";
 
 const wonText = (n: number) => `${n.toLocaleString()}원`;
 
-function InfoItem({ label, value }: { label: string; value: string }) {
+function InfoItem({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <div className="flex flex-col gap-0.5">
       <Caption>{label}</Caption>
       <Body className="font-medium">{value}</Body>
+      {note && <Micro>{note}</Micro>}
     </div>
   );
 }
@@ -175,7 +176,15 @@ export function PbParticipantsTab({ evtId, teamId }: { evtId: string; teamId: st
                     <Body className="truncate font-semibold">{p.memNm ?? "이름 없음"}</Body>
                     {summary.late && <Badge variant="outline">늦은 합류</Badge>}
                   </div>
-                  <Micro>W{p.joinWkNo} 합류</Micro>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Micro>{wkLabel(p.joinWkNo)} 합류</Micro>
+                    {/* 마일리지런에 참가했던 사람 — 보증금에서 이미 깎인 금액이라 납부액엔 반영돼 있다 */}
+                    {p.depositDcAmt > 0 && (
+                      <Badge variant="outline" className="border-primary px-1.5 py-0">
+                        <Micro className="text-primary">마일리지런 −{p.depositDcAmt.toLocaleString()}원</Micro>
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -190,7 +199,11 @@ export function PbParticipantsTab({ evtId, teamId }: { evtId: string; teamId: st
                     <InfoItem label="미환급" value={wonText(summary.unrefunded)} />
                   </>
                 )}
-                <InfoItem label="납부" value={wonText(p.depositAmt + p.entryFeeAmt)} />
+                <InfoItem
+                  label="납부"
+                  value={wonText(p.depositAmt + p.entryFeeAmt)}
+                  note={p.depositDcAmt > 0 ? `마일리지런 할인 −${p.depositDcAmt.toLocaleString()}원 반영` : undefined}
+                />
                 {!p.aprvYn && (
                   <InfoItem
                     label="보증금 · 참가비"

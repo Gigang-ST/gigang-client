@@ -7,9 +7,9 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { setMyPbGoal } from "@/app/actions/pb-class";
+import { wkLabel } from "@/lib/pb-class";
 import { formatSec, parseTimeInput } from "@/lib/pb-class-score";
 
-import { SectionHeader } from "@/components/common/section-header";
 import { StatCard } from "@/components/common/stat-card";
 import { Caption } from "@/components/common/typography";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { formatLimit } from "./format";
+import { PbZone } from "./pb-zone";
 
 /**
  * 10K 10분 미만은 사람이 낼 수 있는 기록이 아니다(세계기록이 26분대).
@@ -90,9 +91,9 @@ export function PbGoalCard({ evtId, goalSec, goalMaxSec, editUntilWk, editable, 
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <SectionHeader label="GOAL" />
+    <PbZone label="Goal" lead="측정일의 10K, 얼마에 끊을까요">
       <StatCard
+        className="tabular-nums"
         label="10K 목표 기록"
         value={
           <span className="flex flex-wrap items-center gap-2">
@@ -159,9 +160,9 @@ export function PbGoalCard({ evtId, goalSec, goalMaxSec, editUntilWk, editable, 
 
       <Caption className="leading-relaxed">
         {editable
-          ? `W${editUntilWk}까지 고칠 수 있어요 · ${formatLimit(goalMaxSec)} 이내`
+          ? `${wkLabel(editUntilWk)}까지 고칠 수 있어요 · ${formatLimit(goalMaxSec)} 이내`
           : "목표가 확정됐어요"}
       </Caption>
-    </div>
+    </PbZone>
   );
 }
