@@ -25,7 +25,10 @@ import { GoalTab } from "./goal-tab";
 import { MultiplierTab } from "./multiplier-tab";
 import { ParticipantsTab } from "./participants-tab";
 import { PbParticipantsTab } from "./pb-participants-tab";
+import { PbRecordsTab } from "./pb-records-tab";
+import { PbScoreTab } from "./pb-score-tab";
 import { PbSessionsTab } from "./pb-sessions-tab";
+import { PbTeamsTab } from "./pb-teams-tab";
 import { ProjectInfoTab } from "./project-info-tab";
 
 type Project = {
@@ -47,7 +50,7 @@ const STATUS_BADGE: Record<
   CLOSED: { label: "종료", variant: "outline" },
 };
 
-const tabs = ["info", "multiplier", "goal", "participants", "sessions"] as const;
+const tabs = ["info", "multiplier", "goal", "participants", "sessions", "teams", "records", "score"] as const;
 type Tab = (typeof tabs)[number];
 
 // 탭은 프로젝트 타입이 정한다 — 배율·목표는 마일리지런 개념이고 회차(공식훈련 벙 연결)는 PB 클래스 개념이다.
@@ -62,6 +65,10 @@ const PB_TAB_SEGMENTS: { value: Tab; label: string }[] = [
   { value: "info", label: "정보" },
   { value: "sessions", label: "회차" },
   { value: "participants", label: "참여자" },
+  // 2·3단계 — 게임팀 배정, 목표·기록, 점수판·미션·배점
+  { value: "teams", label: "팀" },
+  { value: "records", label: "기록" },
+  { value: "score", label: "점수" },
 ];
 
 export function AdminMileageClient({ teamId }: { teamId: string }) {
@@ -248,6 +255,8 @@ export function AdminMileageClient({ teamId }: { teamId: string }) {
           segments={tabSegments}
           value={activeTab}
           onValueChange={(v) => setTab(v as Tab)}
+          // PB는 탭이 6개라 좁은 폭에서 글자가 두 줄로 꺾인다 — 줄바꿈을 막고 넘치면 가로로 밀게 한다
+          className={isPb ? "overflow-x-auto [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>button]:px-3" : undefined}
         />
       </div>
 
@@ -288,6 +297,24 @@ export function AdminMileageClient({ teamId }: { teamId: string }) {
       {activeTab === "sessions" && projectId && (
         <div className="px-6">
           <PbSessionsTab key={projectId} evtId={projectId} />
+        </div>
+      )}
+
+      {activeTab === "teams" && projectId && (
+        <div className="px-6">
+          <PbTeamsTab key={projectId} evtId={projectId} />
+        </div>
+      )}
+
+      {activeTab === "records" && projectId && (
+        <div className="px-6">
+          <PbRecordsTab key={projectId} evtId={projectId} />
+        </div>
+      )}
+
+      {activeTab === "score" && projectId && (
+        <div className="px-6">
+          <PbScoreTab key={projectId} evtId={projectId} />
         </div>
       )}
 

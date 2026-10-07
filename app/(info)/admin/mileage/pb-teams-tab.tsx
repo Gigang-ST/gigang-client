@@ -1,0 +1,418 @@
+"use client";
+
+import { useMemo, useState } from "react";
+
+import { ArrowDown, ArrowUp, Pencil, Plus, Shuffle, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+
+import {
+  assignPbParticipants,
+  createPbGroup,
+  deletePbGroup,
+  updatePbGroup,
+} from "@/app/actions/admin/manage-pb-class-game";
+import type { PbGame, PbGameParticipant } from "@/lib/queries/pb-class-game";
+
+import { Avatar } from "@/components/common/avatar";
+import { EmptyState } from "@/components/common/empty-state";
+import { Body, Caption, Micro } from "@/components/common/typography";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { CardItem } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+import { GroupDot, PB_GROUP_COLOR_NOS, PbGameLoadError, PbGameSkeleton } from "./pb-game-parts";
+import { PbGroupDialog, type PbGroupFormValues } from "./pb-group-dialog";
+import { usePbGame, type PbRun } from "./use-pb-game";
+
+/** 훈련팀 코드 — 공식훈련을 나눠 뛰는 팀(게임팀과 별개 축) */
+const TRAIN_CODES = ["A", "B", "C", "D", "E"] as const;
+/** Radix Select는 빈 문자열 value를 못 쓴다 — 「없음」은 이 값으로 대신하고 저장 때 null로 되돌린다 */
+const NONE = "__none__";
+
+type Assign = { trnGrpCd: string | null; grpId: string | null };
+
+const sameAssign = (a: Assign, b: Assign) => a.trnGrpCd === b.trnGrpCd && a.grpId === b.grpId;
+
+/** 5K 기준기록 오름차순(빠른 순). 기록 없는 사람은 맨 뒤 */
+const byBase5k = (a: PbGameParticipant, b: PbGameParticipant) => {
+  const x = a.recs.BASE_5K?.sec ?? Number.POSITIVE_INFINITY;
+  const y = b.recs.BASE_5K?.sec ?? Number.POSITIVE_INFINITY;
+  if (x === y) return a.memNm.localeCompare(b.memNm, "ko");
+  return x - y;
+};
+
+export function PbTeamsTab({ evtId }: { evtId: string }) {
+  const { game, loading, error, reload, run, busyKey } = usePbGame(evtId);
+
+  if (loading) return <PbGameSkeleton />;
+  if (!game) return <PbGameLoadError message={error} onRetry={() => void reload()} />;
+  return <TeamsBody game={game} evtId={evtId} run={run} busyKey={busyKey} />;
+}
+
+function TeamsBody({
+  game,
+  evtId,
+  run,
+  busyKey,
+}: {
+  game: PbGame;
+  evtId: string;
+  run: PbRun;
+  busyKey: string | null;
+}) {
+  const { groups } = game;
+  const locked = busyKey !== null;
+  const approved = useMemo(() => game.participants.filter((p) => p.aprvYn), [game.participants]);
+  const groupIds = useMemo(() => new Set(groups.map((g) => g.grpId)), [groups]);
+
+  // 배정은 「서버 값 위에 덮은 변경분」만 로컬에 든다. 서버 값을 state로 복사해 두면 재조회 때마다
+  // 동기화 이펙트가 필요하고, 그 틈에 사람이 고친 값이 날아간다 — 변경분만 들면 저장 후 비우는 것으로 끝난다.
+  const [drafts, setDrafts] = useState<Record<string, Assign>>({});
+
+  const baseOf = (p: PbGameParticipant): Assign => ({ trnGrpCd: p.trnGrpCd, grpId: p.grpId });
+  /** 지금 화면에 보이는 값 — 삭제돼 사라진 팀을 가리키는 변경분은 미배정으로 본다 */
+  const viewOf = (p: PbGameParticipant): Assign => {
+    const d = drafts[p.prtId] ?? baseOf(p);
+    return { trnGrpCd: d.trnGrpCd, grpId: d.grpId && groupIds.has(d.grpId) ? d.grpId : null };
+  };
+
+  const setAssign = (p: PbGameParticipant, patch: Partial<Assign>) => {
+    const next = { ...viewOf(p), ...patch };
+    setDrafts((prev) => {
+      const copy = { ...prev };
+      // 서버 값과 같아지면 변경분에서 뺀다 — 「저장 n건」 표시가 거짓말을 안 하게
+      if (sameAssign(next, baseOf(p))) delete copy[p.prtId];
+      else copy[p.prtId] = next;
+      return copy;
+    });
+  };
+
+  const changed = approved.filter((p) => !sameAssign(viewOf(p), baseOf(p)));
+
+  // 팀 인원 — 팀전 대상(늦은 합류 제외)만 센다. 늦은 합류자는 팀 평균에 안 들어가므로 인원에도 안 넣는다.
+  const counts = new Map<string, number>(groups.map((g) => [g.grpId, 0]));
+  let unassigned = 0;
+  for (const p of approved) {
+    if (p.late) continue;
+    const gid = viewOf(p).grpId;
+    if (gid) counts.set(gid, (counts.get(gid) ?? 0) + 1);
+    else unassigned += 1;
+  }
+  const countValues = [...counts.values()];
+  const gap = countValues.length >= 2 ? Math.max(...countValues) - Math.min(...countValues) : 0;
+
+  const lateCnt = approved.filter((p) => p.late).length;
+
+  /* ---------- 게임팀 CRUD ---------- */
+
+  // 닫을 때 open만 내리고 나머지는 둔다 — 비우면 닫히는 애니메이션 동안 폼이 「추가」 모드로 깜빡 바뀐다
+  const [dialog, setDialog] = useState<{
+    open: boolean;
+    mode: "create" | "edit";
+    key: string;
+    grpId?: string;
+    index?: number;
+  }>({ open: false, mode: "create", key: "init" });
+  const [dialogSeq, setDialogSeq] = useState(0);
+
+  const usedColorNos = (exceptGrpId?: string) =>
+    groups.filter((g) => g.grpId !== exceptGrpId && g.colorNo != null).map((g) => g.colorNo as number);
+
+  const openCreate = () => {
+    setDialogSeq((n) => n + 1);
+    setDialog({ open: true, mode: "create", key: `create:${dialogSeq + 1}` });
+  };
+  const openEdit = (grpId: string, index: number) => setDialog({ open: true, mode: "edit", key: `edit:${grpId}`, grpId, index });
+
+  const editTarget = dialog.mode === "edit" ? groups.find((g) => g.grpId === dialog.grpId) : undefined;
+  const createInitial: PbGroupFormValues = {
+    grpNm: "",
+    // 안 쓰는 색부터 고른다 — 같은 색이 겹치면 점수판에서 팀을 가를 수 없다
+    colorNo: PB_GROUP_COLOR_NOS.find((n) => !usedColorNos().includes(n)) ?? 1,
+  };
+
+  const handleGroupSubmit = async (values: PbGroupFormValues) => {
+    let ok: boolean;
+    if (dialog.mode === "edit" && dialog.grpId !== undefined) {
+      const { grpId, index = 0 } = dialog;
+      // 순서는 목록 위치를 sortOrd로 쓴다 — 이동 버튼도 같은 규칙이라 둘이 어긋나지 않는다
+      ok = await run(`group:edit:${grpId}`, () => updatePbGroup(grpId, { ...values, sortOrd: index }), "팀을 수정했어요");
+    } else {
+      ok = await run("group:create", () => createPbGroup(evtId, values), "팀을 만들었어요");
+    }
+    if (ok) setDialog((d) => ({ ...d, open: false }));
+  };
+
+  const handleDeleteGroup = (grpId: string, name: string) => {
+    if (!confirm(`"${name}" 팀을 삭제할까요?\n이 팀의 배정과 미션 결과도 함께 사라질 수 있어요.`)) return;
+    void run(`group:delete:${grpId}`, () => deletePbGroup(grpId), "팀을 삭제했어요");
+  };
+
+  /**
+   * 순서 이동 — 바꾼 두 팀만이 아니라 **전원의 sortOrd를 목록 위치로 다시 매긴다**.
+   * 처음 만든 팀들의 sortOrd가 전부 같은 값(0)일 수 있어서, 둘만 바꾸면 나머지와 동률로 남아 순서가 흔들린다.
+   */
+  const moveGroup = (index: number, dir: -1 | 1) => {
+    const to = index + dir;
+    if (to < 0 || to >= groups.length) return;
+    const next = [...groups];
+    [next[index], next[to]] = [next[to], next[index]];
+    void run(
+      `group:move:${index}`,
+      async () => {
+        for (let i = 0; i < next.length; i += 1) {
+          const g = next[i];
+          const res = await updatePbGroup(g.grpId, { grpNm: g.grpNm, colorNo: g.colorNo ?? 1, sortOrd: i });
+          if (!res.ok) return res;
+        }
+        return { ok: true, message: null };
+      },
+      "순서를 바꿨어요",
+    );
+  };
+
+  /* ---------- 배정 ---------- */
+
+  /**
+   * 뱀 드래프트 — 미배정 팀전 대상자를 5K 기준기록 빠른 순으로 세워 1→n, n→1 으로 번갈아 나눈다.
+   * 빠른 사람부터 한 줄로 배분하면 1번 팀만 계속 강해지므로 왕복(snake)으로 실력을 고르게 편다.
+   * 로컬 변경분만 채운다 — 저장은 관리자가 직접 누른다(되돌릴 수 있게).
+   */
+  const snakeDraft = () => {
+    if (groups.length === 0) {
+      toast.error("게임팀을 먼저 만들어 주세요.");
+      return;
+    }
+    const pool = approved.filter((p) => !p.late && viewOf(p).grpId === null).sort(byBase5k);
+    if (pool.length === 0) {
+      toast.info("배정할 미배정 인원이 없어요.");
+      return;
+    }
+    const n = groups.length;
+    setDrafts((prev) => {
+      const copy = { ...prev };
+      pool.forEach((p, i) => {
+        const pos = i % n;
+        const idx = Math.floor(i / n) % 2 === 0 ? pos : n - 1 - pos;
+        const next = { ...viewOf(p), grpId: groups[idx].grpId };
+        if (sameAssign(next, baseOf(p))) delete copy[p.prtId];
+        else copy[p.prtId] = next;
+      });
+      return copy;
+    });
+    toast.success(`${pool.length}명을 채웠어요. 확인 후 「배정 저장」을 눌러 주세요.`);
+  };
+
+  const handleSave = async () => {
+    const rows = changed.map((p) => {
+      const v = viewOf(p);
+      return { prtId: p.prtId, trnGrpCd: v.trnGrpCd, grpId: v.grpId };
+    });
+    const ok = await run("assign", () => assignPbParticipants(evtId, rows), "배정을 저장했어요");
+    if (ok) setDrafts({});
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* 게임팀 */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <Body className="font-semibold">게임팀</Body>
+          <Button variant="outline" className="h-11 gap-1.5 rounded-xl" onClick={openCreate} disabled={locked}>
+            <Plus className="size-4" />팀 추가
+          </Button>
+        </div>
+
+        {groups.length === 0 ? (
+          <EmptyState variant="card" message="아직 게임팀이 없어요. 팀을 추가해 주세요." />
+        ) : (
+          groups.map((g, i) => (
+            <CardItem key={g.grpId} className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <GroupDot colorNo={g.colorNo} className="size-4" />
+                <Body className="min-w-0 flex-1 truncate font-semibold">{g.grpNm}</Body>
+                <Caption className="shrink-0 text-foreground">{counts.get(g.grpId) ?? 0}명</Caption>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="size-11 rounded-lg"
+                  disabled={locked || i === 0}
+                  onClick={() => moveGroup(i, -1)}
+                  aria-label={`${g.grpNm} 위로`}
+                >
+                  <ArrowUp className="size-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="size-11 rounded-lg"
+                  disabled={locked || i === groups.length - 1}
+                  onClick={() => moveGroup(i, 1)}
+                  aria-label={`${g.grpNm} 아래로`}
+                >
+                  <ArrowDown className="size-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="size-11 rounded-lg"
+                  disabled={locked}
+                  onClick={() => openEdit(g.grpId, i)}
+                  aria-label={`${g.grpNm} 수정`}
+                >
+                  <Pencil className="size-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="size-11 rounded-lg text-destructive hover:text-destructive"
+                  disabled={locked}
+                  onClick={() => handleDeleteGroup(g.grpId, g.grpNm)}
+                  aria-label={`${g.grpNm} 삭제`}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+            </CardItem>
+          ))
+        )}
+      </section>
+
+      {/* 배정 */}
+      <section className="flex flex-col gap-3">
+        <Body className="font-semibold">팀 배정</Body>
+
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          {groups.map((g) => (
+            <span key={g.grpId} className="inline-flex items-center gap-1.5">
+              <GroupDot colorNo={g.colorNo} />
+              <Caption className="text-foreground">
+                {g.grpNm} {counts.get(g.grpId) ?? 0}
+              </Caption>
+            </span>
+          ))}
+          <Caption>미배정 {unassigned}</Caption>
+          {lateCnt > 0 && <Caption>팀전 제외 {lateCnt}</Caption>}
+        </div>
+
+        {gap > 1 && (
+          <div className="rounded-lg bg-warning/10 p-2.5">
+            <Caption className="text-warning">
+              팀 인원 차이가 {gap}명이에요. 팀 인원은 ±1 이내로 — 늦게 온 사람은 인원 적은 팀에 넣어 주세요.
+            </Caption>
+          </div>
+        )}
+
+        <Button
+          variant="outline"
+          className="h-11 gap-1.5 rounded-xl"
+          onClick={snakeDraft}
+          disabled={locked || groups.length === 0}
+        >
+          <Shuffle className="size-4" />뱀 드래프트로 채우기
+        </Button>
+        <Caption>미배정 인원을 W1 5K 기록 빠른 순으로 세워 팀에 왕복 배분해요. 저장 전까지 바뀌지 않아요.</Caption>
+
+        {approved.length === 0 ? (
+          <EmptyState variant="card" message="승인된 참가자가 없어요." />
+        ) : (
+          <div className="flex flex-col gap-2">
+            {approved.map((p) => {
+              const v = viewOf(p);
+              const dirty = !sameAssign(v, baseOf(p));
+              return (
+                <CardItem
+                  key={p.prtId}
+                  className={dirty ? "flex flex-col gap-2.5 border-primary p-3" : "flex flex-col gap-2.5 p-3"}
+                >
+                  <div className="flex items-center gap-2">
+                    <Avatar src={p.avatarUrl} seed={p.memId} size="sm" />
+                    <Body className="min-w-0 truncate font-semibold">{p.memNm}</Body>
+                    <Micro className="shrink-0">W{p.joinWkNo}</Micro>
+                    {p.late && (
+                      <Badge variant="outline" className="shrink-0">
+                        팀전 제외
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-col gap-1">
+                      <Micro>훈련팀</Micro>
+                      <Select
+                        value={v.trnGrpCd ?? NONE}
+                        onValueChange={(val) => setAssign(p, { trnGrpCd: val === NONE ? null : val })}
+                        disabled={locked}
+                      >
+                        <SelectTrigger className="h-11 rounded-lg" aria-label={`${p.memNm} 훈련팀`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TRAIN_CODES.map((c) => (
+                            <SelectItem key={c} value={c}>
+                              {c}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value={NONE}>없음</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Micro>게임팀</Micro>
+                      <Select
+                        value={v.grpId ?? NONE}
+                        onValueChange={(val) => setAssign(p, { grpId: val === NONE ? null : val })}
+                        // 늦은 합류자는 팀전에서 빠진다 — 배정해도 점수에 안 들어가니 아예 못 고르게 한다
+                        disabled={locked || p.late}
+                      >
+                        <SelectTrigger className="h-11 rounded-lg" aria-label={`${p.memNm} 게임팀`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {groups.map((g) => (
+                            <SelectItem key={g.grpId} value={g.grpId}>
+                              <span className="flex items-center gap-2">
+                                <GroupDot colorNo={g.colorNo} />
+                                {g.grpNm}
+                              </span>
+                            </SelectItem>
+                          ))}
+                          <SelectItem value={NONE}>없음</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardItem>
+              );
+            })}
+          </div>
+        )}
+
+        <Button
+          onClick={() => void handleSave()}
+          disabled={locked || changed.length === 0}
+          className="h-[52px] w-full rounded-xl text-base font-semibold"
+        >
+          {busyKey === "assign" ? "저장 중..." : changed.length > 0 ? `배정 저장 (${changed.length}명)` : "배정 저장"}
+        </Button>
+      </section>
+
+      <PbGroupDialog
+        open={dialog.open}
+        onOpenChange={(o) => setDialog((d) => ({ ...d, open: o }))}
+        mode={dialog.mode}
+        formKey={dialog.key}
+        initial={
+          editTarget
+            ? { grpNm: editTarget.grpNm, colorNo: editTarget.colorNo ?? createInitial.colorNo }
+            : createInitial
+        }
+        usedColorNos={usedColorNos(editTarget?.grpId)}
+        busy={busyKey === "group:create" || (busyKey?.startsWith("group:edit:") ?? false)}
+        onSubmit={(values) => void handleGroupSubmit(values)}
+      />
+    </div>
+  );
+}
