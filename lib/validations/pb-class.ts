@@ -108,6 +108,7 @@ export const pbRuleSchema = z.object({
     attend: ptField("공식훈련 출석 점수"),
     join: ptField("일정 참여 점수"),
     host: ptField("일정 개설 점수"),
+    joinMinAttd: intField("참여 인정 최소 참석 인원", 1, 20),
     hostMinAttd: intField("개설 인정 최소 참석 인원", 1, 20),
     improvePerPct: ptField("1% 단축당 점수"),
     improveMidMax: ptField("중간점검 향상 상한"),
@@ -125,7 +126,9 @@ export const pbRecTypeSchema = z.enum(PB_REC_TYPES, { error: "기록 종류가 �
 export const pbRecSecSchema = z
   .number({ error: "기록을 입력해 주세요" })
   .int("기록 형식이 올바르지 않습니다")
-  .min(1, "기록은 0보다 커야 합니다")
+  // 5K TT도 10분 아래는 사람이 낼 수 없다 — 숫자 오타(`55` → 55초)가 그대로 저장돼 목표 달성·향상
+  // 점수가 한꺼번에 붙는 걸 막는다(회원 폼의 하한과 같은 값)
+  .min(600, "기록은 10:00 이상으로 입력해 주세요")
   .max(21_599, "기록은 6시간 미만이어야 합니다");
 
 /**

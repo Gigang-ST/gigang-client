@@ -54,12 +54,15 @@ describe("parseTimeInput / formatSec", () => {
     ["45:30", 2730],
     ["1:02:03", 3723],
     [" 59:59 ", 3599],
-    ["2730", 2730],
+    // 폰 숫자 키패드엔 ":"가 없다 — 숫자만이면 시계 표기로 읽는다(2530초가 아니라 25:30)
+    ["2530", 1530],
+    ["530", 330],
+    ["10203", 3723],
   ])("%s → %i초", (raw, sec) => {
     expect(parseTimeInput(raw)).toBe(sec);
   });
 
-  it.each(["", "abc", "45:60", "1:60:00", "0:00", "1:2:3:4"])("%s → null", (raw) => {
+  it.each(["", "abc", "45:60", "1:60:00", "0:00", "1:2:3:4", "55", "2575", "16000", "1234567"])("%s → null", (raw) => {
     expect(parseTimeInput(raw)).toBeNull();
   });
 
@@ -104,6 +107,15 @@ describe("개인 점수", () => {
     const a = s.members[0];
     expect(a.byCd).toMatchObject({ ATTEND: 10, JOIN: 6, HOST: 5 });
     expect(a.total).toBe(21);
+  });
+
+  it("혼자 연 벙에 혼자 참석 — 참여·개설 점수 없음 / 개설자가 안 나온 벙 — 개설 점수 없음", () => {
+    const g: PbScoreGathering[] = [
+      { gthrId: "solo", wkNo: 1, crtBy: "a", attendeeMemIds: ["a"], linked: null },
+      { gthrId: "away", wkNo: 1, crtBy: "a", attendeeMemIds: ["z1", "z2", "z3"], linked: null },
+    ];
+    const s = computeScoreboard(input({ members: [mem({ prtId: "a" })], gatherings: g }));
+    expect(s.members[0].byCd).toMatchObject({ JOIN: 0, HOST: 0 });
   });
 
   it("공식훈련·측정 벙은 개설 점수 대상이 아니다", () => {

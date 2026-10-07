@@ -41,8 +41,9 @@ describe("pbRuleSchema", () => {
 });
 
 describe("기록·목표 스키마", () => {
-  it("기록은 1초~6시간 미만 정수", () => {
-    expect(pbRecSecSchema.safeParse(1).success).toBe(true);
+  it("기록은 10분~6시간 미만 정수 — 10분 아래는 숫자 오타로 본다", () => {
+    expect(pbRecSecSchema.safeParse(600).success).toBe(true);
+    expect(pbRecSecSchema.safeParse(599).success).toBe(false);
     expect(pbRecSecSchema.safeParse(21_599).success).toBe(true);
     expect(pbRecSecSchema.safeParse(0).success).toBe(false);
     expect(pbRecSecSchema.safeParse(21_600).success).toBe(false);
@@ -92,19 +93,19 @@ describe("팀·미션·일괄 입력", () => {
 
   it("기록 일괄: null 은 삭제, 같은 (참가자, 종류) 중복은 거절", () => {
     expect(pbRecordRowsSchema.safeParse([{ prtId: UUID_A, recTypeCd: "BASE_5K", recSec: null }]).success).toBe(true);
-    expect(pbRecordRowsSchema.safeParse([{ prtId: UUID_A, recTypeCd: "NOPE", recSec: 100 }]).success).toBe(false);
+    expect(pbRecordRowsSchema.safeParse([{ prtId: UUID_A, recTypeCd: "NOPE", recSec: 1000 }]).success).toBe(false);
     expect(
       pbRecordRowsSchema.safeParse([
-        { prtId: UUID_A, recTypeCd: "BASE_5K", recSec: 100 },
-        { prtId: UUID_A, recTypeCd: "BASE_5K", recSec: 200 },
+        { prtId: UUID_A, recTypeCd: "BASE_5K", recSec: 1000 },
+        { prtId: UUID_A, recTypeCd: "BASE_5K", recSec: 2000 },
       ]).success,
     ).toBe(false);
     // 종류가 다르면 같은 참가자도 한 번에 넣을 수 있다
     expect(
       pbRecordRowsSchema.safeParse([
-        { prtId: UUID_A, recTypeCd: "BASE_5K", recSec: 100 },
-        { prtId: UUID_A, recTypeCd: "MID_5K", recSec: 200 },
-        { prtId: UUID_B, recTypeCd: "BASE_5K", recSec: 300 },
+        { prtId: UUID_A, recTypeCd: "BASE_5K", recSec: 1000 },
+        { prtId: UUID_A, recTypeCd: "MID_5K", recSec: 2000 },
+        { prtId: UUID_B, recTypeCd: "BASE_5K", recSec: 3000 },
       ]).success,
     ).toBe(true);
   });

@@ -149,7 +149,7 @@ function RecordsBody({
           value={edits[key] ?? serverText(p, field)}
           onChange={(e) => setCell(p, field, e.target.value)}
           inputMode="numeric"
-          placeholder="mm:ss"
+          placeholder="2530"
           disabled={locked}
           aria-invalid={bad}
           aria-label={`${p.memNm} ${field === "goal" ? "목표" : recHead[field]}`}

@@ -47,7 +47,7 @@ function PointRuleHelp({ rule }: { rule: PbRule }) {
     <HelpTip title="점수는 이렇게 쌓여요" className="-mr-2">
       <ul className="flex flex-col gap-1">
         <li>출석 {pt.attend}점 · 공식훈련·측정</li>
-        <li>일정 참여 {pt.join}점 · 공식훈련 밖 벙</li>
+        <li>일정 참여 {pt.join}점 · 공식훈련 밖 벙(본인 포함 {pt.joinMinAttd}명 이상 모인 벙)</li>
         <li>
           일정 개설 {pt.host}점 · 본인 포함 {pt.hostMinAttd}명 이상 참석
         </li>

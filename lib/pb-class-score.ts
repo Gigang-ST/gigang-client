@@ -23,11 +23,25 @@ export const PB_REC_TYPE_LABEL: Record<PbRecType, string> = {
   DAEGU_10K: "대구마라톤 10K",
 };
 
-/** "45:30" · "1:02:03" · "2730"(초) → 초. 못 읽으면 null */
+/**
+ * "45:30" · "1:02:03" · "4530"(= 45:30) · "10203"(= 1:02:03) → 초. 못 읽으면 null.
+ *
+ * **숫자만 들어오면 초가 아니라 시계 표기로 읽는다.** 폰 숫자 키패드(`inputMode="numeric"`)에는
+ * `:`가 없어서 25:30을 `2530`으로 칠 수밖에 없는데, 그걸 2530초(42:10)로 저장하면 기록 점수가
+ * 통째로 틀어진다(리뷰 P1). 끝 두 자리가 초, 그 앞 두 자리가 분, 남는 앞자리가 시간이다.
+ */
 export function parseTimeInput(raw: string): number | null {
   const s = raw.trim();
   if (!s) return null;
-  if (/^\d+$/.test(s)) return Number(s) > 0 ? Number(s) : null;
+  if (/^\d+$/.test(s)) {
+    if (s.length < 3 || s.length > 6) return null;
+    const sec = Number(s.slice(-2));
+    const min = Number(s.slice(-4, -2));
+    const hr = s.length > 4 ? Number(s.slice(0, -4)) : 0;
+    if (sec >= 60 || (s.length > 4 && min >= 60)) return null;
+    const total = hr * 3600 + min * 60 + sec;
+    return total > 0 ? total : null;
+  }
   const parts = s.split(":").map((p) => p.trim());
   if (parts.length < 2 || parts.length > 3 || parts.some((p) => !/^\d+$/.test(p))) return null;
   const nums = parts.map(Number);
@@ -67,6 +81,11 @@ export type PbRule = {
     attend: number;
     /** 공식훈련 외 앱 벙 참석 1회(종류 무관) */
     join: number;
+    /**
+     * 일정 참여로 인정하는 최소 참석 인원(본인 포함). 혼자 연 벙에 혼자 참석해 점수를 무한히
+     * 쌓는 걸 막는다 — 「모임에 잘 나와라」가 취지라 혼자 뛴 건 모임이 아니다(리뷰 P2).
+     */
+    joinMinAttd: number;
     /** 본인이 연 벙에 본인 포함 hostMinAttd명 이상 참석 */
     host: number;
     hostMinAttd: number;
@@ -89,6 +108,7 @@ export const PB_DEFAULT_RULE: PbRule = {
   pt: {
     attend: 10,
     join: 3,
+    joinMinAttd: 2,
     host: 5,
     hostMinAttd: 3,
     improvePerPct: 3,
@@ -247,9 +267,12 @@ function memberEntries(m: PbScoreMember, input: PbScoreInput): PbPtEntry[] {
       if (attended) out.push({ ptCd: "ATTEND", wkNo: g.wkNo, pt: rule.pt.attend, gthrId: g.gthrId });
       continue; // 공식훈련·측정 벙은 일정 참여·개설 대상이 아니다(#577 리뷰 3번)
     }
-    if (attended) out.push({ ptCd: "JOIN", wkNo: g.wkNo, pt: rule.pt.join, gthrId: g.gthrId });
-    // 개설 점수는 빈 벙을 열어 점수를 따는 걸 막으려고 본인 포함 N명 이상일 때만
-    if (g.crtBy === m.memId && g.attendeeMemIds.length >= rule.pt.hostMinAttd) {
+    if (attended && g.attendeeMemIds.length >= rule.pt.joinMinAttd) {
+      out.push({ ptCd: "JOIN", wkNo: g.wkNo, pt: rule.pt.join, gthrId: g.gthrId });
+    }
+    // 개설 점수는 빈 벙을 열어 점수를 따는 걸 막으려고 **본인 포함** N명 이상일 때만 —
+    // 개설자가 정작 안 나온 벙은 「본인 포함」이 아니다
+    if (g.crtBy === m.memId && attended && g.attendeeMemIds.length >= rule.pt.hostMinAttd) {
       out.push({ ptCd: "HOST", wkNo: g.wkNo, pt: rule.pt.host, gthrId: g.gthrId });
     }
   }

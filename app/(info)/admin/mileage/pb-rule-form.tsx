@@ -39,7 +39,7 @@ function parseRuleForm(form: RuleForm): { rule: PbRule } | { error: string } {
     (Object.keys(PB_DEFAULT_RULE.pt) as PtKey[]).map((k) => [k, int(form.pt[k])]),
   ) as PbRule["pt"];
   if (Object.values(pt).some(Number.isNaN)) return { error: "점수 칸은 0 이상의 정수로 입력해 주세요" };
-  if (pt.hostMinAttd < 1) return { error: "일정 개설 인정 인원은 1명 이상이어야 해요" };
+  if (pt.hostMinAttd < 1 || pt.joinMinAttd < 1) return { error: "인정 최소 인원은 1명 이상이어야 해요" };
 
   const goalMaxSec = parseTimeInput(form.top.goalMaxSec);
   if (goalMaxSec === null) return { error: "목표 상한 시간을 mm:ss 형식으로 입력해 주세요 (예: 60:00)" };
@@ -63,6 +63,7 @@ type FieldDef = { label: string; unit: string; hint?: string };
 const PT_FIELDS: ({ key: PtKey } & FieldDef)[] = [
   { key: "attend", label: "공식훈련·측정 출석", unit: "점/회" },
   { key: "join", label: "일정 참여", unit: "점/회", hint: "공식훈련 밖 앱 벙 참석 1회" },
+  { key: "joinMinAttd", label: "참여 인정 최소 참석", unit: "명", hint: "본인 포함 이 인원 이상 모인 벙만 참여 점수 — 혼자 연 벙 제외" },
   { key: "host", label: "일정 개설", unit: "점/회" },
   { key: "hostMinAttd", label: "개설 인정 최소 참석", unit: "명", hint: "개설자 포함 이 인원 이상일 때만 개설 점수" },
   { key: "improvePerPct", label: "기록 1% 단축당", unit: "점" },
