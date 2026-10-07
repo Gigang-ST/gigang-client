@@ -169,7 +169,7 @@ export function PlanBody({
       {plans.length === 0 ? (
         <EmptyState
           variant="card"
-          message="아직 훈련표가 없어요."
+          message="아직 훈련표가 없어요. 프로젝트를 공개(진행중)하면 기본 훈련표가 자동으로 들어가요."
           action={
             <div className="flex flex-col items-center gap-2">
               <Button className="h-11 rounded-xl" onClick={handleSeed} disabled={locked || !canSeed}>

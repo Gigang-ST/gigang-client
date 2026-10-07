@@ -393,7 +393,10 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
               >
                 {statusBusy ? "처리 중..." : "공개하기"}
               </Button>
-              <Caption>준비 중인 프로젝트는 회원 프로젝트 탭에 보이지 않아요</Caption>
+              <Caption>
+                준비 중인 프로젝트는 회원 프로젝트 탭에 보이지 않아요.
+                {project!.evt_type_cd === PB_CLASS_TYPE && " 공개하면 훈련표가 비어 있을 때 기본 훈련표가 자동으로 들어가요."}
+              </Caption>
             </>
           )}
           {project!.stts_enm === "ACTIVE" && (
