@@ -60,3 +60,11 @@ export function formatPeriod(sttDt: string, endDt: string): string {
 export function dayDiff(fromDt: string, toDt: string): number {
   return parseEventTime(toDt).diff(parseEventTime(fromDt), "day");
 }
+
+/**
+ * 돈의 쓰임새 문구 — 안내(참가비·정산)와 정산 캡션이 **같은 말**을 해야 한다.
+ * 오너가 못박은 표현이라(2026-10-07) 화면마다 손으로 풀어 쓰면 한쪽만 옛 문구("회식비·대회 참가비",
+ * "운영(장소·용품 등)")로 남는다. 한 곳에서 내보낸다.
+ */
+export const PB_MONEY_USE_TXT = "돌려주지 않은 보증금과 참가비는 회식비와 프로젝트 운영비로 써요";
+export const PB_MONEY_USE_DETAIL_TXT = "쓰임새는 동계훈련용품 · 회식비 · 대구마라톤 응원 관련 비용(계획 중)이에요";

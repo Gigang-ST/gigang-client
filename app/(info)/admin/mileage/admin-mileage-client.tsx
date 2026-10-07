@@ -80,7 +80,7 @@ const PB_TAB_SEGMENTS: { value: Tab; label: string }[] = [
   // 회차(벙 연결)와 붙여 둔다 — 「몇 주차에 어떤 훈련을 하나」가 회차 설정의 연장이라서
   { value: "plans", label: "훈련표" },
   { value: "participants", label: "참여자" },
-  // 2·3단계 — 게임팀 배정, 목표·기록, 점수판·미션·배점
+  // 2·3단계 — 게임팀 배정, 목표·기록, 점수판·배점
   { value: "teams", label: "팀" },
   { value: "records", label: "기록" },
   { value: "score", label: "점수" },

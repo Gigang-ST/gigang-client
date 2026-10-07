@@ -4,11 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import { dayjs } from "@/lib/dayjs";
 import { PB_CLASS_DEFAULT_CFG, summarizeRefund, type PbClassCfg } from "@/lib/pb-class";
-import { PB_DEFAULT_SESS_PLANS } from "@/lib/pb-class-plan";
+import { PB_DEFAULT_SESS_PLANS, PB_TRN_GROUPS } from "@/lib/pb-class-plan";
 import { PB_DEFAULT_RULE } from "@/lib/pb-class-score";
 import type { PbEvent, PbParticipant, PbSession } from "@/lib/queries/pb-class";
 
 import { ProjectSwitcher } from "@/components/projects/project-switcher";
+import { PB_MONEY_USE_DETAIL_TXT, PB_MONEY_USE_TXT } from "@/components/projects/pb-class/format";
 import { PbApplySection } from "@/components/projects/pb-class/pb-apply-section";
 import { PbGuide } from "@/components/projects/pb-class/pb-guide";
 import { PbHero, pbPhaseOf } from "@/components/projects/pb-class/pb-hero";
@@ -178,7 +179,6 @@ describe("PbGuide — 규칙이 곧 안내", () => {
   const props = {
     evt: EVT,
     rule: PB_DEFAULT_RULE,
-    missions: [],
     mlgAlumni: false,
     me: null,
     trnGrpCd: null,
@@ -245,24 +245,79 @@ describe("PbGuide — 규칙이 곧 안내", () => {
   });
 
   it("배점(rule)을 못 읽으면 점수·목표 칸을 지어내지 않고 목차에서도 뺀다", () => {
-    const out = html(createElement(PbGuide, { ...props, cfg: CFG, rule: null, missions: null }));
+    const out = html(createElement(PbGuide, { ...props, cfg: CFG, rule: null }));
 
     expect(out).not.toContain('href="#pb-guide-score"');
     expect(out).not.toContain('id="pb-guide-score"');
-    expect(out).not.toContain('id="pb-guide-missions"');
     expect(out).toContain("점수 규칙을 불러오지 못했어요");
   });
 
-  it("팀 미션은 데이터에서 — 주차·이름·점수", () => {
-    const out = html(
-      createElement(PbGuide, {
-        ...props,
-        cfg: CFG,
-        missions: [{ msnId: "m1", wkNo: 2, msnNm: "팀 결성 단체사진", pt: 10, succGrpIds: [], sortOrd: 1 }],
-      }),
-    );
-    expect(out).toContain("팀 결성 단체사진");
-    expect(out).toMatch(/2주차<\/span>/);
+  it("팀 미션은 안내 어디에도 없다 — 칸도 목차 칩도 점수 공식도(오너 지시)", () => {
+    const out = html(createElement(PbGuide, { ...props, cfg: CFG }));
+
+    expect(out).not.toContain("미션");
+    expect(out).not.toContain("Team Missions");
+    expect(out).not.toContain("pb-guide-missions");
+    expect(out).toContain("주마다 팀원 1인당 평균 점수의 합 + 전원 출석 보너스");
+  });
+
+  it("훈련팀 표는 목표 시간 이름 + 10K 목표기록 + 대회 페이스만 — 알파벳도 주간 거리도 없다", () => {
+    const out = html(createElement(PbGuide, { ...props, cfg: CFG }));
+    const table = out.slice(out.indexOf('id="pb-guide-groups"'), out.indexOf('id="pb-guide-score"'));
+
+    for (const th of ["그룹", "10K 목표기록", "대회 페이스"]) expect(table).toContain(`>${th}<`);
+    for (const nm of PB_TRN_GROUPS.map((g) => g.nm)) expect(table).toContain(nm);
+    expect(table).toContain("38분 이하");
+    expect(table).toContain("첫 10K · 60분 이하");
+    expect(table).toContain("38분 이내");
+    expect(table).toContain("45분 이내");
+    expect(table).toContain("60분 이내"); // "1:00:00 이내"가 아니라
+    expect(table).toContain("3:48/km");
+    expect(table).toContain("6:00/km");
+    expect(table).not.toContain("주간 거리");
+    expect(table).not.toMatch(/\d+~\d+km/);
+    for (const letter of ["A", "B", "C", "D", "E"]) expect(table).not.toContain(`>${letter}<`);
+    expect(table.match(/<tr/g)).toHaveLength(PB_TRN_GROUPS.length + 1); // 머리 + 다섯 행
+    expect(table).not.toContain("내 팀");
+  });
+
+  it("내 훈련팀 행에만 내 팀 표시가 붙는다(쪼갠 반 D1도 D 행에)", () => {
+    for (const [cd, nm] of [
+      ["C", "45분 이하"],
+      ["D1", "50분 이하"],
+    ] as const) {
+      const out = html(createElement(PbGuide, { ...props, cfg: CFG, trnGrpCd: cd }));
+      const table = out.slice(out.indexOf('id="pb-guide-groups"'), out.indexOf('id="pb-guide-score"'));
+
+      expect(table.match(/내 팀/g)).toHaveLength(1);
+      expect(table.indexOf("내 팀")).toBeGreaterThan(table.indexOf(nm));
+      expect(table).toMatch(/<tr class="bg-primary\/5">/);
+    }
+  });
+
+  it("목표·기록·대구는 본인이 직접 올린다 — 운영진이 적는다는 말이 없다", () => {
+    const out = html(createElement(PbGuide, { ...props, cfg: CFG }));
+
+    expect(out).toContain("목표도 기록도 내가 직접 올려요");
+    expect(out).toContain("직접 올리면 바로 점수에 반영돼요");
+    expect(out).toContain("기록은 「내 현황」에서 직접 올려요");
+    expect(out).not.toContain("운영진");
+    expect(out).not.toContain("확인하면 확정");
+  });
+
+  it("돈의 쓰임새는 회식비와 프로젝트 운영비 — 참가비·정산 칸이 같은 말을 한다", () => {
+    const out = html(createElement(PbGuide, { ...props, cfg: CFG }));
+    const fees = out.slice(out.indexOf('id="pb-guide-fees"'), out.indexOf('id="pb-guide-refund"'));
+    const settle = out.slice(out.indexOf('id="pb-guide-settle"'));
+
+    expect(fees).toContain(PB_MONEY_USE_TXT);
+    expect(settle).toContain(PB_MONEY_USE_TXT);
+    expect(settle).toContain(PB_MONEY_USE_DETAIL_TXT);
+    expect(settle).toContain("동계훈련용품 · 회식비 · 대구마라톤 응원 관련 비용(계획 중)");
+    // 옛 문구
+    expect(out).not.toContain("회식비와 대회 참가비");
+    expect(out).not.toContain("운영(장소·용품 등)");
+    expect(out).not.toContain("회식비·대회비");
   });
 });
 
@@ -313,13 +368,52 @@ describe("PbTraining — 주차별 훈련과 목적", () => {
     expect(out).toContain("날짜 미정");
   });
 
-  it("E팀은 E 세션이 먼저, A~D 는 참고로 낮춘다", () => {
+  it("첫 10K 그룹은 첫 10K 세션이 먼저, 38~50분 세션은 참고로 낮춘다", () => {
     const out = html(createElement(PbTraining, { ...base, trnGrpCd: "E", phase: { kind: "week", wkNo: 2 } }));
-    const e = out.indexOf("6 × 400m");
-    const ad = out.indexOf("8 × 400m");
-    expect(e).toBeGreaterThan(-1);
-    expect(e).toBeLessThan(ad);
+    const first = out.indexOf("6 × 400m");
+    const main = out.indexOf("8 × 400m");
+    expect(first).toBeGreaterThan(-1);
+    expect(first).toBeLessThan(main);
     expect(out).toContain("내 훈련팀");
+    expect(out).toContain(">첫 10K · 60분 이하<");
+  });
+
+  it("세션 꼬리표는 알파벳(A~D·E)이 아니라 38~50분 · 첫 10K · 전원이다", () => {
+    const out = html(createElement(PbTraining, { ...base, trnGrpCd: "C", phase: { kind: "week", wkNo: 2 } }));
+
+    expect(out).toContain(">38~50분<");
+    expect(out).toContain(">첫 10K<");
+    expect(out).toContain(">전원<"); // 타임트라이얼 같은 공통 세션
+    expect(out).not.toContain(">A~D<");
+    expect(out).not.toContain(">E<");
+    // 내 그룹(38~50분) 줄이 먼저고 첫 10K 줄은 참고
+    expect(out.indexOf("8 × 400m")).toBeLessThan(out.indexOf("6 × 400m"));
+  });
+
+  it("내 훈련팀 카드는 목표 시간 이름 + 10K 목표기록 + 대회 페이스만 — 주간 거리는 없다", () => {
+    const out = html(createElement(PbTraining, { ...base, trnGrpCd: "C", phase: { kind: "week", wkNo: 2 } }));
+
+    expect(out).toContain("내 훈련팀");
+    expect(out).toContain(">45분 이하<");
+    expect(out).toContain("10K 목표 45:00 이내 · 대회 페이스 4:30/km");
+    expect(out).not.toContain("주간 거리");
+    expect(out).not.toMatch(/주 \d+~?\d*km/);
+    expect(out).not.toContain(">C<"); // 알파벳 코드를 큰 글씨로 세우지 않는다
+  });
+
+  it("쪼갠 반(D1)도 50분 이하 그룹으로 읽히고 알파벳이 새지 않는다", () => {
+    const out = html(createElement(PbTraining, { ...base, trnGrpCd: "D1", phase: { kind: "week", wkNo: 2 } }));
+
+    expect(out).toContain(">50분 이하<");
+    expect(out).toContain("10K 목표 50:00 이내 · 대회 페이스 5:00/km");
+    expect(out).not.toContain("D1");
+  });
+
+  it("훈련팀이 아직 없으면 정해지는 방법을 말한다", () => {
+    const out = html(createElement(PbTraining, { ...base, me: makeMe(1, []), phase: { kind: "week", wkNo: 2 } }));
+
+    expect(out).toContain("훈련팀은 1주차 5K 기록으로 정해져요");
+    expect(out).not.toContain("내 훈련팀");
   });
 
   it("참가자에겐 회차마다 내 출석 상태를 단다", () => {

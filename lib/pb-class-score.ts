@@ -3,7 +3,7 @@
 // 점수는 **저장하지 않고 원천에서 매번 다시 계산한다**(벙·참석·기록·미션 판정 → 점수).
 // 이슈(#577 보강 2번)가 바란 건 "배점이 바뀌어도 다시 계산되게"였고, 개인 점수는 전부 벙 기록에서
 // 자동으로 나오므로 장부 테이블을 따로 쌓으면 원천과 장부가 갈라질 자리만 생긴다.
-// 관리자가 손으로 넣는 건 팀 미션 성공 여부 하나뿐이다(evt_pb_msn_rslt_rel).
+// 팀 미션은 오너 지시로 없앴다(2026-10-07) — 관리자가 손으로 넣는 점수는 이제 하나도 없다.
 //
 // 화면·관리자·(향후)MCP가 전부 이 파일을 부른다 — 복사 금지.
 
@@ -17,11 +17,29 @@ export const PB_REC_TYPES = ["BASE_5K", "MID_5K", "FINAL_10K", "DAEGU_10K"] as c
 export type PbRecType = (typeof PB_REC_TYPES)[number];
 
 export const PB_REC_TYPE_LABEL: Record<PbRecType, string> = {
-  BASE_5K: "1주차 5K TT · 기준",
-  MID_5K: "6주차 5K TT · 중간점검",
-  FINAL_10K: "10K TT · 최종",
+  BASE_5K: "1주차 5K · 기준기록",
+  MID_5K: "6주차 5K · 중간점검",
+  FINAL_10K: "10K 측정 · 최종",
   DAEGU_10K: "대구마라톤 10K",
 };
+
+/**
+ * 합류 주차별로 **본인이 직접 적을 수 있는** 기록 종류(오너 지시 2026-10-07: 기록은 운영진이 아니라 본인이 적는다).
+ *
+ * 기준기록이 없는 사람이 그 기록을 적으면 점수 판정이 엉킨다 — 그래서 합류 시점이 정한다.
+ * - 정식(W1): 전부. 5K 기준기록 → 중간 5K → 10K 측정이 향상 점수의 사슬이다.
+ * - 중간 합류(W2 ~ 늦은 합류 직전): W1 기준기록이 없다. W6(중간점검) 5K 가 곧 기준기록이라 `BASE_5K` 만 뺀다.
+ * - 늦은 합류(≥ lateJoinWkNo): 팀전·기록 점수가 없고 목표 달성 배지만 본다 — 10K 기록 둘만.
+ *
+ * 서버 액션(`setMyPbRecord`)이 이 함수로 거른다. 화면의 칸 구성(`pb-records-card.tsx`의 `pbRecTypesOf`)은 같은 규칙을
+ * 따로 들고 있다 — 한쪽만 고치면 화면엔 칸이 있는데 저장은 거절되거나, 칸이 없는데 서버가 받아 주는 어긋남이
+ * 생기므로 규칙을 바꿀 땐 둘을 같이 고친다(테스트: `lib/__tests__/pb-class-score.test.ts`).
+ */
+export function recTypesForJoinWeek(joinWkNo: number, lateJoinWkNo: number): readonly PbRecType[] {
+  if (joinWkNo >= lateJoinWkNo) return ["FINAL_10K", "DAEGU_10K"];
+  if (joinWkNo >= 2) return ["MID_5K", "FINAL_10K", "DAEGU_10K"];
+  return PB_REC_TYPES;
+}
 
 /**
  * "45:30" · "1:02:03" · "4530"(= 45:30) · "10203"(= 1:02:03) → 초. 못 읽으면 null.
@@ -144,7 +162,7 @@ export function ruleFromJson(json: unknown): PbRule {
 export const PB_PT_CDS = ["ATTEND", "JOIN", "HOST", "IMPROVE_MID", "IMPROVE_FINAL", "GOAL"] as const;
 export type PbPtCd = (typeof PB_PT_CDS)[number];
 
-export const PB_PT_LABEL: Record<PbPtCd | "ALL_ATTEND" | "MISSION", string> = {
+export const PB_PT_LABEL: Record<PbPtCd | "ALL_ATTEND", string> = {
   ATTEND: "공식훈련 출석",
   JOIN: "일정 참여",
   HOST: "일정 개설",
@@ -152,7 +170,6 @@ export const PB_PT_LABEL: Record<PbPtCd | "ALL_ATTEND" | "MISSION", string> = {
   IMPROVE_FINAL: "최종 향상",
   GOAL: "목표 달성",
   ALL_ATTEND: "팀 전원 출석",
-  MISSION: "팀 미션",
 };
 
 /** 1% 단축마다 perPct점, 상한 max. 느려졌거나 같으면 0. 퍼센트는 내림 */
@@ -193,19 +210,11 @@ export type PbScoreGathering = {
 };
 
 export type PbScoreGroup = { grpId: string; grpNm: string; colorNo: number | null };
-export type PbScoreMission = {
-  msnId: string;
-  wkNo: number | null;
-  msnNm: string;
-  pt: number;
-  succGrpIds: readonly string[];
-};
 
 export type PbScoreInput = {
   members: readonly PbScoreMember[];
   gatherings: readonly PbScoreGathering[];
   groups: readonly PbScoreGroup[];
-  missions: readonly PbScoreMission[];
   rule: PbRule;
   /** 측정 벙의 주차(연결 전이면 null — 최종 기록 점수는 측정이 연결돼야 붙는다) */
   measureWkNo: number | null;
@@ -236,7 +245,6 @@ export type PbGroupScore = {
   avgSum: number;
   allAttendWeeks: number[];
   allAttendBonus: number;
-  missionBonus: number;
   total: number;
   rank: number;
 };
@@ -307,14 +315,14 @@ function memberEntries(m: PbScoreMember, input: PbScoreInput): PbPtEntry[] {
  * 점수판 계산.
  *
  * - 개인 점수: 팀전 대상(늦은 합류 아님 · 게임팀 배정)만. 늦은 합류자는 0점이고 목표 달성 여부만 낸다.
- * - 팀 점수 = Σ주차(그 주 등록 팀원 1인당 평균) + 전원 출석 보너스 + 미션.
+ * - 팀 점수 = Σ주차(그 주 등록 팀원 1인당 평균) + 전원 출석 보너스.
  *   주마다 평균을 내는 이유: 중간 합류자는 합류 전 주에 0점이라 시즌 평균이면 합류자를 받은 팀이 손해다.
  *   합계가 아니라 평균이라 인원 많은 팀이 유리하지 않다.
  * - 전원 출석: 그 주에 열린 공식훈련·측정 벙이 있고, 그 주 등록 팀원이 1명 이상이며 전원 참석.
  *   한파로 취소된 주는 벙이 없어 보너스도 없다.
  */
 export function computeScoreboard(input: PbScoreInput): PbScoreboard {
-  const { groups, missions, gatherings, rule } = input;
+  const { groups, gatherings, rule } = input;
   const grpIds = new Set(groups.map((g) => g.grpId));
 
   const members: PbMemberScore[] = input.members.map((m) => {
@@ -368,9 +376,6 @@ export function computeScoreboard(input: PbScoreInput): PbScoreboard {
       if (reg.length > 0 && reg.every((m) => g.attendeeMemIds.includes(m.memId))) allAttendWeeks.push(wk);
     }
     const allAttendBonus = allAttendWeeks.length * rule.pt.allAttend;
-    const missionBonus = missions
-      .filter((ms) => ms.succGrpIds.includes(grp.grpId))
-      .reduce((s, ms) => s + ms.pt, 0);
 
     return {
       grpId: grp.grpId,
@@ -380,8 +385,7 @@ export function computeScoreboard(input: PbScoreInput): PbScoreboard {
       avgSum: round1(avgSum),
       allAttendWeeks,
       allAttendBonus,
-      missionBonus,
-      total: round1(avgSum + allAttendBonus + missionBonus),
+      total: round1(avgSum + allAttendBonus),
       rank: 0,
     };
   });
@@ -407,24 +411,3 @@ export function canEditGoal(currentWkNo: number, rule: PbRule, joinWkNo = 1): bo
   return currentWkNo <= goalEditLastWk(rule, joinWkNo);
 }
 
-/** #577 보강 4번의 기본 팀 미션 7개 — 관리자 「기본 미션 불러오기」가 넣는다 */
-export const PB_DEFAULT_MISSIONS: { wkNo: number | null; msnNm: string; pt: number }[] = [
-  { wkNo: 2, msnNm: "팀 결성 — 팀 이름·팀 색 정하고 단체사진", pt: 10 },
-  { wkNo: 4, msnNm: "팀 전원 「기강 포즈」 단체사진", pt: 10 },
-  { wkNo: 6, msnNm: "중간점검에서 팀원 절반 이상이 기준기록보다 빨라짐", pt: 20 },
-  { wkNo: 9, msnNm: "올해 마지막 런 — 팀 응원 영상 15초", pt: 20 },
-  { wkNo: 10, msnNm: "팀원이 앱에 벙을 열고 팀원 3명 이상 참석(공식훈련 밖)", pt: 20 },
-  { wkNo: 12, msnNm: "마지막 공식훈련 팀 전원 참석", pt: 20 },
-  { wkNo: null, msnNm: "측정 일정 — 팀 전원 완주", pt: 30 },
-];
-
-/**
- * W6 미션 「절반 이상이 기준기록보다 빨라짐」 자동 판정 보조(#577 리뷰 9번).
- * 분모는 **기준기록이 W1인 팀원만**(W2~W5 합류자는 W6이 곧 기준이라 비교 불가). 대상 0명이면 null.
- */
-export function midImprovedRatio(team: readonly PbScoreMember[]): { improved: number; eligible: number } | null {
-  const eligible = team.filter((m) => !m.late && m.joinWkNo === 1 && m.recs.BASE_5K?.cnfm && m.recs.MID_5K?.cnfm);
-  if (eligible.length === 0) return null;
-  const improved = eligible.filter((m) => m.recs.MID_5K!.sec < m.recs.BASE_5K!.sec).length;
-  return { improved, eligible: eligible.length };
-}

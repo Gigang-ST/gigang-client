@@ -14,11 +14,10 @@ import { Badge } from "@/components/ui/badge";
 import { CardItem } from "@/components/ui/card";
 
 import { GroupDot, PbGameLoadError, PbGameSkeleton } from "./pb-game-parts";
-import { PbMissionSection } from "./pb-mission-section";
 import { PbRuleForm } from "./pb-rule-form";
 import { usePbGame } from "./use-pb-game";
 
-type View = "board" | "mission" | "rule";
+type View = "board" | "rule";
 
 /** 개인 점수표 열 머리 — 전체 이름은 title로 */
 const PT_SHORT: Record<PbPtCd, string> = {
@@ -42,7 +41,6 @@ export function PbScoreTab({ evtId }: { evtId: string }) {
       <SegmentControl
         segments={[
           { value: "board", label: "점수판" },
-          { value: "mission", label: "팀 미션" },
           { value: "rule", label: "배점 설정" },
         ]}
         value={view}
@@ -50,10 +48,9 @@ export function PbScoreTab({ evtId }: { evtId: string }) {
       />
 
       {view === "board" && <ScoreboardPreview game={game} />}
-      {view === "mission" && <PbMissionSection game={game} evtId={evtId} run={run} busyKey={busyKey} />}
       {view === "rule" && (
         // 서버 규칙이 바뀌면(저장 후 재조회) 폼을 새 값으로 다시 세운다. 규칙이 그대로면 key도 그대로라
-        // 미션 토글 같은 다른 재조회가 고치던 입력을 날리지 않는다.
+        // 다른 변경(배정·기록 저장)의 재조회가 고치던 입력을 날리지 않는다.
         <PbRuleForm key={JSON.stringify(game.rule)} rule={game.rule} evtId={evtId} run={run} busyKey={busyKey} />
       )}
     </div>
@@ -86,7 +83,7 @@ function ScoreboardPreview({ game }: { game: PbGame }) {
                 <Caption className="shrink-0">{g.memberCnt}명</Caption>
                 <Body className="shrink-0 text-xl font-bold">{g.total}점</Body>
               </div>
-              <div className="grid grid-cols-3 gap-2 rounded-xl bg-secondary/60 p-3">
+              <div className="grid grid-cols-2 gap-2 rounded-xl bg-secondary/60 p-3">
                 <div className="flex flex-col gap-0.5">
                   <Micro>팀원 평균 합</Micro>
                   <Body className="font-semibold">{g.avgSum}</Body>
@@ -95,10 +92,6 @@ function ScoreboardPreview({ game }: { game: PbGame }) {
                   <Micro>전원 출석</Micro>
                   <Body className="font-semibold">+{g.allAttendBonus}</Body>
                   {g.allAttendWeeks.length > 0 && <Micro>{g.allAttendWeeks.map(wkLabel).join(" · ")}</Micro>}
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <Micro>미션</Micro>
-                  <Body className="font-semibold">+{g.missionBonus}</Body>
                 </div>
               </div>
             </CardItem>
@@ -166,7 +159,7 @@ function ScoreboardPreview({ game }: { game: PbGame }) {
           </div>
         )}
         <Caption>
-          팀 점수 = 주차별 팀원 평균 점수의 합 + 전원 출석 보너스 + 미션. 늦은 합류자와 미배정은 점수에서 빠져요.
+          팀 점수 = 주차별 팀원 평균 점수의 합 + 전원 출석 보너스. 늦은 합류자와 미배정은 점수에서 빠져요.
         </Caption>
       </section>
     </div>

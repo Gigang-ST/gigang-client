@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 
 import { withAdmin } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
-import { guardEvent, guardGroup, guardMission, guardParticipant } from "@/lib/pb-class-guard";
-import { PB_DEFAULT_MISSIONS, ruleFromJson, type PbRecType, type PbRule } from "@/lib/pb-class-score";
+import { guardEvent, guardGroup, guardParticipant } from "@/lib/pb-class-guard";
+import { ruleFromJson, type PbRecType, type PbRule } from "@/lib/pb-class-score";
 import { loadPbGame, type PbGame } from "@/lib/queries/pb-class-game";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -18,24 +18,24 @@ import {
   pbGrpIdSchema,
   pbGroupInputSchema,
   pbGroupUpdateSchema,
-  pbMissionInputSchema,
-  pbMissionUpdateSchema,
-  pbMsnIdSchema,
   pbPrtIdSchema,
   pbRecordRowsSchema,
-  pbRecTypeSchema,
   pbRuleSchema,
 } from "@/lib/validations/pb-class";
 
 /**
- * 겨울 10K PB 클래스 2·3단계 관리자 액션 — 게임팀·목표·기록·미션.
+ * 겨울 10K PB 클래스 2·3단계 관리자 액션 — 게임팀·목표·기록.
+ *
+ * 팀 미션 액션(생성·수정·삭제·기본값·결과)과 기록 확인(`confirmPbRecord`)은 오너 지시로 없앴다(2026-10-07).
+ * 점수에 관리자가 손으로 넣는 값이 남아 있으면 「누가 왜 이 점수를 줬나」를 따져야 하고, 회원이 자기 기록을
+ * 직접 적게 하면서 확인 단계도 필요 없어졌다. 관리자 기록 입력(`upsertPbRecords`)은 정정용으로 남는다.
  *
  * ## 모든 쓰기가 service role 이다 (`manage-pb-class.ts`와 같다)
- * 새 테이블 넷(`evt_pb_grp_mst`·`evt_pb_rec_hist`·`evt_pb_msn_mst`·`evt_pb_msn_rslt_rel`)에도 쓰기 RLS 정책이
- * 없다. RLS 백스톱이 없으니 매 액션마다 ① 관리자인가(`withAdmin`) ② 대상이 **요청 팀의 PB_CLASS 프로젝트**에
- * 속하는가(`lib/pb-class-guard.ts`)를 직접 확인한다. id 를 받는 액션은 그 id 가 가리키는 행의 프로젝트로
- * 판정하고, 한 액션에 id 가 둘 이상 섞이면(편성·미션 결과) **같은 프로젝트 소속인지**까지 교차 확인한다 —
- * 안 그러면 내 프로젝트의 미션에 남의 프로젝트 팀을 걸 수 있다.
+ * 새 테이블 둘(`evt_pb_grp_mst`·`evt_pb_rec_hist`)에도 쓰기 RLS 정책이 없다. RLS 백스톱이 없으니 매 액션마다
+ * ① 관리자인가(`withAdmin`) ② 대상이 **요청 팀의 PB_CLASS 프로젝트**에 속하는가(`lib/pb-class-guard.ts`)를
+ * 직접 확인한다. id 를 받는 액션은 그 id 가 가리키는 행의 프로젝트로 판정하고, 한 액션에 id 가 둘 이상 섞이면
+ * (편성) **같은 프로젝트 소속인지**까지 교차 확인한다 — 안 그러면 내 프로젝트의 참가자에 남의 프로젝트 팀을
+ * 걸 수 있다.
  */
 
 type R = { ok: boolean; message: string | null };
@@ -63,14 +63,10 @@ async function loadRule(db: ReturnType<typeof createAdminClient>, evtId: string)
   return ruleFromJson(data?.rule_json);
 }
 
-/** 다음 sort_ord — 새 항목은 맨 뒤에 선다 */
-async function nextSortOrd(
-  db: ReturnType<typeof createAdminClient>,
-  table: "evt_pb_grp_mst" | "evt_pb_msn_mst",
-  evtId: string,
-): Promise<number> {
+/** 다음 게임팀 sort_ord — 새 팀은 맨 뒤에 선다 */
+async function nextGroupSortOrd(db: ReturnType<typeof createAdminClient>, evtId: string): Promise<number> {
   const { data } = await db
-    .from(table)
+    .from("evt_pb_grp_mst")
     .select("sort_ord")
     .eq("evt_id", evtId)
     .order("sort_ord", { ascending: false })
@@ -158,7 +154,7 @@ export async function createPbGroup(
       evt_id: parsedEvt.data,
       grp_nm: parsedInput.data.grpNm,
       color_no: parsedInput.data.colorNo,
-      sort_ord: await nextSortOrd(db, "evt_pb_grp_mst", parsedEvt.data),
+      sort_ord: await nextGroupSortOrd(db, parsedEvt.data),
     });
     if (error) {
       if (error.code === "23505") return { ok: false, message: "같은 이름의 팀이 이미 있어요" };
@@ -214,7 +210,7 @@ export async function deletePbGroup(grpId: string): Promise<R> {
 
     if (!(await guardGroup(db, parsed.data, teamId))) return { ok: false, message: "팀을 찾을 수 없습니다" };
 
-    // FK 가 알아서 처리한다: 소속 참가자는 미배정(SET NULL)으로 돌아가고 미션 성공 기록은 함께 지워진다(CASCADE)
+    // FK 가 알아서 처리한다: 소속 참가자는 미배정(SET NULL)으로 돌아간다
     const { error } = await db.from("evt_pb_grp_mst").delete().eq("grp_id", parsed.data);
     if (error) return { ok: false, message: "팀 삭제에 실패했습니다" };
 
@@ -338,7 +334,8 @@ export async function setPbGoalByAdmin(prtId: string, goalSec: number | null): P
 }
 
 /**
- * 측정 기록 일괄 입력 — `recSec: null` 은 삭제. 관리자가 넣은 기록은 곧바로 확인(`cnfm_yn=true`)된 것이다.
+ * 측정 기록 일괄 입력(정정용) — `recSec: null` 은 삭제. 기록은 회원이 직접 적는 게 원칙이고(`setMyPbRecord`),
+ * 이 액션은 잘못 적은 기록·대리 입력을 고치는 길이다. 확인 단계가 없어져 모든 기록이 `cnfm_yn=true` 로 저장된다.
  * 같은 (참가자, 종류)가 이미 있으면 덮어쓴다(종류당 1건 — UNIQUE).
  */
 export async function upsertPbRecords(
@@ -407,193 +404,6 @@ export async function upsertPbRecords(
     } catch (e) {
       console.error("[upsertPbRecords]", e);
       return { ok: false, message: "기록 저장에 실패했습니다" };
-    }
-
-    revalidatePath("/projects");
-    return { ok: true, message: null };
-  });
-}
-
-/** 회원이 올린 기록(대구 10K)을 운영진이 확인/확인 취소한다 — 확인된 기록만 점수·달성 판정에 쓰인다 */
-export async function confirmPbRecord(prtId: string, recTypeCd: PbRecType, cnfm: boolean): Promise<R> {
-  const parsedPrt = pbPrtIdSchema.safeParse(prtId);
-  if (!parsedPrt.success) return { ok: false, message: firstIssue(parsedPrt.error) };
-  const parsedType = pbRecTypeSchema.safeParse(recTypeCd);
-  if (!parsedType.success) return { ok: false, message: firstIssue(parsedType.error) };
-
-  return withAdmin(async () => {
-    const { teamId } = await getRequestTeamContext();
-    const db = createAdminClient();
-
-    if (!(await guardParticipant(db, parsedPrt.data, teamId))) return { ok: false, message: "참가자를 찾을 수 없습니다" };
-
-    const { data, error } = await db
-      .from("evt_pb_rec_hist")
-      .update({ cnfm_yn: cnfm === true, updated_at: dayjs().toISOString() })
-      .eq("prt_id", parsedPrt.data)
-      .eq("rec_type_cd", parsedType.data)
-      .select("rec_id");
-    if (error) return { ok: false, message: "기록 확인 처리에 실패했습니다" };
-    if (!data || data.length === 0) return { ok: false, message: "기록을 찾을 수 없습니다" };
-
-    revalidatePath("/projects");
-    return { ok: true, message: null };
-  });
-}
-
-// ─────────────────────────────────────────
-// 팀 미션
-// ─────────────────────────────────────────
-
-export async function createPbMission(
-  evtId: string,
-  input: { wkNo: number | null; msnNm: string; pt: number },
-): Promise<R> {
-  const parsedEvt = pbEvtIdSchema.safeParse(evtId);
-  if (!parsedEvt.success) return { ok: false, message: firstIssue(parsedEvt.error) };
-  const parsedInput = pbMissionInputSchema.safeParse(input);
-  if (!parsedInput.success) return { ok: false, message: firstIssue(parsedInput.error) };
-
-  return withAdmin(async () => {
-    const { teamId } = await getRequestTeamContext();
-    const db = createAdminClient();
-
-    const evt = await guardEvent(db, parsedEvt.data, teamId);
-    if (!evt) return { ok: false, message: NOT_FOUND };
-
-    const { error } = await db.from("evt_pb_msn_mst").insert({
-      evt_id: parsedEvt.data,
-      wk_no: parsedInput.data.wkNo,
-      msn_nm: parsedInput.data.msnNm,
-      pt: parsedInput.data.pt,
-      sort_ord: await nextSortOrd(db, "evt_pb_msn_mst", parsedEvt.data),
-    });
-    if (error) return { ok: false, message: "미션 추가에 실패했습니다" };
-
-    revalidatePath("/projects");
-    return { ok: true, message: null };
-  });
-}
-
-export async function updatePbMission(
-  msnId: string,
-  input: { wkNo: number | null; msnNm: string; pt: number; sortOrd: number },
-): Promise<R> {
-  const parsedMsn = pbMsnIdSchema.safeParse(msnId);
-  if (!parsedMsn.success) return { ok: false, message: firstIssue(parsedMsn.error) };
-  const parsedInput = pbMissionUpdateSchema.safeParse(input);
-  if (!parsedInput.success) return { ok: false, message: firstIssue(parsedInput.error) };
-
-  return withAdmin(async () => {
-    const { teamId } = await getRequestTeamContext();
-    const db = createAdminClient();
-
-    if (!(await guardMission(db, parsedMsn.data, teamId))) return { ok: false, message: "미션을 찾을 수 없습니다" };
-
-    const { error } = await db
-      .from("evt_pb_msn_mst")
-      .update({
-        wk_no: parsedInput.data.wkNo,
-        msn_nm: parsedInput.data.msnNm,
-        pt: parsedInput.data.pt,
-        sort_ord: parsedInput.data.sortOrd,
-        updated_at: dayjs().toISOString(),
-      })
-      .eq("msn_id", parsedMsn.data);
-    if (error) return { ok: false, message: "미션 수정에 실패했습니다" };
-
-    revalidatePath("/projects");
-    return { ok: true, message: null };
-  });
-}
-
-export async function deletePbMission(msnId: string): Promise<R> {
-  const parsed = pbMsnIdSchema.safeParse(msnId);
-  if (!parsed.success) return { ok: false, message: firstIssue(parsed.error) };
-
-  return withAdmin(async () => {
-    const { teamId } = await getRequestTeamContext();
-    const db = createAdminClient();
-
-    if (!(await guardMission(db, parsed.data, teamId))) return { ok: false, message: "미션을 찾을 수 없습니다" };
-
-    // 성공 기록은 FK(CASCADE)로 함께 지워진다
-    const { error } = await db.from("evt_pb_msn_mst").delete().eq("msn_id", parsed.data);
-    if (error) return { ok: false, message: "미션 삭제에 실패했습니다" };
-
-    revalidatePath("/projects");
-    return { ok: true, message: null };
-  });
-}
-
-/**
- * 기본 팀 미션 7개를 넣는다 — **미션이 하나도 없는 프로젝트에만**. 이미 있으면 거절한다:
- * 두 번 누르면 같은 미션이 둘씩 생겨 팀 점수가 두 배로 오른다.
- */
-export async function seedPbDefaultMissions(evtId: string): Promise<R> {
-  const parsedEvt = pbEvtIdSchema.safeParse(evtId);
-  if (!parsedEvt.success) return { ok: false, message: firstIssue(parsedEvt.error) };
-
-  return withAdmin(async () => {
-    const { teamId } = await getRequestTeamContext();
-    const db = createAdminClient();
-
-    const evt = await guardEvent(db, parsedEvt.data, teamId);
-    if (!evt) return { ok: false, message: NOT_FOUND };
-
-    const { count, error: countError } = await db
-      .from("evt_pb_msn_mst")
-      .select("msn_id", { count: "exact", head: true })
-      .eq("evt_id", parsedEvt.data);
-    if (countError) return { ok: false, message: GENERIC_FAIL };
-    if ((count ?? 0) > 0) return { ok: false, message: "이미 미션이 있어요" };
-
-    const { error } = await db.from("evt_pb_msn_mst").insert(
-      PB_DEFAULT_MISSIONS.map((m, i) => ({
-        evt_id: parsedEvt.data,
-        wk_no: m.wkNo,
-        msn_nm: m.msnNm,
-        pt: m.pt,
-        sort_ord: i,
-      })),
-    );
-    if (error) return { ok: false, message: "기본 미션을 불러오지 못했습니다" };
-
-    revalidatePath("/projects");
-    return { ok: true, message: null };
-  });
-}
-
-/** 팀의 미션 성공 여부를 켜고 끈다 — 행이 있으면 성공이다(`evt_pb_msn_rslt_rel`) */
-export async function setPbMissionResult(msnId: string, grpId: string, succ: boolean): Promise<R> {
-  const parsedMsn = pbMsnIdSchema.safeParse(msnId);
-  if (!parsedMsn.success) return { ok: false, message: firstIssue(parsedMsn.error) };
-  const parsedGrp = pbGrpIdSchema.safeParse(grpId);
-  if (!parsedGrp.success) return { ok: false, message: firstIssue(parsedGrp.error) };
-
-  return withAdmin(async () => {
-    const { teamId } = await getRequestTeamContext();
-    const db = createAdminClient();
-
-    const msn = await guardMission(db, parsedMsn.data, teamId);
-    if (!msn) return { ok: false, message: "미션을 찾을 수 없습니다" };
-    // 팀이 **같은 프로젝트** 소속이어야 한다 — 팀 id 만 팀 기준으로 확인하면 다른 프로젝트 팀에 성공을 걸 수 있다
-    const grp = await guardGroup(db, parsedGrp.data, teamId);
-    if (!grp || grp.evt_id !== msn.evt_id) return { ok: false, message: "팀을 찾을 수 없습니다" };
-
-    if (succ === true) {
-      // 이미 성공이어도 에러가 아니다(두 번 눌러도 같은 상태) — 충돌 행은 무시한다
-      const { error } = await db
-        .from("evt_pb_msn_rslt_rel")
-        .upsert({ msn_id: parsedMsn.data, grp_id: parsedGrp.data }, { onConflict: "msn_id,grp_id", ignoreDuplicates: true });
-      if (error) return { ok: false, message: "미션 결과 저장에 실패했습니다" };
-    } else {
-      const { error } = await db
-        .from("evt_pb_msn_rslt_rel")
-        .delete()
-        .eq("msn_id", parsedMsn.data)
-        .eq("grp_id", parsedGrp.data);
-      if (error) return { ok: false, message: "미션 결과 저장에 실패했습니다" };
     }
 
     revalidatePath("/projects");

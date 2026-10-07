@@ -9,14 +9,19 @@ import {
   wkLabel,
   type PbClassCfg,
 } from "@/lib/pb-class";
-import { PB_TRN_GROUP_GUIDE } from "@/lib/pb-class-plan";
-import type { PbRule } from "@/lib/pb-class-score";
+import { PB_TRN_GROUPS } from "@/lib/pb-class-plan";
+import { type PbRule } from "@/lib/pb-class-score";
 import type { PbEvent, PbParticipant } from "@/lib/queries/pb-class";
-import type { PbGameMission } from "@/lib/queries/pb-class-game";
 import { cn } from "@/lib/utils";
 
 import { Body, Caption, Micro } from "@/components/common/typography";
-import { formatLimit, formatPeriod, formatPt, formatWon } from "./format";
+import {
+  PB_MONEY_USE_DETAIL_TXT,
+  PB_MONEY_USE_TXT,
+  formatLimit,
+  formatPeriod,
+  formatWon,
+} from "./format";
 import { trnGroupOf } from "./pb-training";
 import { PbZone } from "./pb-zone";
 
@@ -24,7 +29,7 @@ import { PbZone } from "./pb-zone";
  * 안내 탭 — 「PB 클래스 규칙이 곧 안내사항」(오너). 예전엔 규칙 카드 한 장 + 같은 내용의 시트가 따로 있었고
  * 둘 다 여섯 줄짜리 요약이라, 정작 「몇 번 나오면 얼마 돌려받나」「3주차에 들어가면?」을 물으러 왔다.
  *
- * **숫자는 하나도 박지 않는다** — 전부 cfg(금액·회차)·rule(배점·목표)·데이터(미션)에서 뽑는다.
+ * **숫자는 하나도 박지 않는다** — 전부 cfg(금액·회차)·rule(배점·목표)·훈련팀 표(`PB_TRN_GROUPS`)에서 뽑는다.
  * 관리자가 설정을 바꾸는 순간 안내가 거짓말이 되면, 돈이 걸린 안내라 사고다.
  * 말투는 해요체, 한 문장에 한 사실.
  */
@@ -36,7 +41,6 @@ const TOC: { id: string; label: string }[] = [
   { id: "pb-guide-join", label: "중간 합류" },
   { id: "pb-guide-groups", label: "훈련팀" },
   { id: "pb-guide-score", label: "점수" },
-  { id: "pb-guide-missions", label: "미션" },
   { id: "pb-guide-goal", label: "목표·기록" },
   { id: "pb-guide-daegu", label: "대구" },
   { id: "pb-guide-settle", label: "정산" },
@@ -132,6 +136,7 @@ function Fees({ cfg, mlgAlumni }: { cfg: PbClassCfg; mlgAlumni: boolean }) {
           <Body className="font-semibold tabular-nums">{(cfg.depositAmt + cfg.entryFeeAmt).toLocaleString()}원</Body>
         </div>
       </div>
+      <Caption className="break-keep leading-relaxed">{PB_MONEY_USE_TXT}.</Caption>
       {dc && (
         <div
           className={cn(
@@ -264,30 +269,26 @@ function Groups({ trnGrpCd }: { trnGrpCd: string | null }) {
   const mine = trnGroupOf(trnGrpCd);
   return (
     <PbZone id="pb-guide-groups" label="Training Groups" lead="1주차 5K 기록으로 페이스가 비슷한 사람끼리 묶어요">
+      {/* 훈련팀은 알파벳이 아니라 목표 시간으로 부른다 — 표엔 목표기록과 대회 페이스만 둔다(주간 거리는 걷었다) */}
       <table className="w-full border-collapse">
         <thead>
           <tr className="rule-row">
-            <th className={TH}>팀</th>
-            <th className={TH}>10K</th>
-            <th className={TH}>페이스</th>
-            <th className={cn(TH, "text-right")}>주간 거리</th>
+            <th className={cn(TH, "pl-1")}>그룹</th>
+            <th className={TH}>10K 목표기록</th>
+            <th className={cn(TH, "text-right")}>대회 페이스</th>
           </tr>
         </thead>
         <tbody>
-          {PB_TRN_GROUP_GUIDE.map((g) => {
+          {PB_TRN_GROUPS.map((g) => {
             const isMine = mine?.cd === g.cd;
             return (
               <tr key={g.cd} className={cn(isMine && "bg-primary/5")}>
-                <td className={cn(TD, "pl-1 font-numeric text-base font-medium")}>
-                  {g.cd}
-                  {isMine && <span className="ml-1 text-[11px] font-semibold text-primary">내 팀</span>}
+                <td className={cn(TD, "pl-1 font-medium")}>
+                  {g.nm}
+                  {isMine && <span className="mt-0.5 block text-[11px] font-semibold text-primary">내 팀</span>}
                 </td>
-                <td className={TD}>
-                  {g.tenK}
-                  {g.note && <span className="mt-0.5 block text-[11px] text-muted-foreground">{g.note}</span>}
-                </td>
-                <td className={TD}>{g.pace}</td>
-                <td className={cn(TD, "text-right")}>{g.weeklyKm}</td>
+                <td className={TD}>{`${formatLimit(g.goalSec)} 이내`}</td>
+                <td className={cn(TD, "text-right")}>{g.paceTxt}</td>
               </tr>
             );
           })}
@@ -330,7 +331,7 @@ function Scoring({ rule, cfg }: { rule: PbRule; cfg: PbClassCfg }) {
       <div className="flex flex-col gap-1.5 rounded-2xl bg-muted/60 px-4 py-3.5">
         <Caption className="font-semibold text-foreground">팀 점수</Caption>
         <Caption className="break-keep leading-relaxed text-foreground">
-          주마다 팀원 1인당 평균 점수를 더하고 + 전원 출석 보너스 + 팀 미션
+          주마다 팀원 1인당 평균 점수의 합 + 전원 출석 보너스
         </Caption>
         <Micro className="break-keep leading-relaxed">
           합계가 아니라 평균이라 인원이 많다고 유리하지 않아요. 그 주 팀원이 모두 공식훈련에 나오면 +{pt.allAttend}점.
@@ -341,31 +342,9 @@ function Scoring({ rule, cfg }: { rule: PbRule; cfg: PbClassCfg }) {
   );
 }
 
-function Missions({ missions }: { missions: PbGameMission[] }) {
-  return (
-    <PbZone id="pb-guide-missions" label="Team Missions" lead="팀이 함께 해내면 팀 점수에 더해져요">
-      {missions.length === 0 ? (
-        <Caption>운영진이 미션을 준비하고 있어요.</Caption>
-      ) : (
-        <ul className="flex flex-col">
-          {missions.map((m) => (
-            <li key={m.msnId} className="rule-row flex items-start gap-3 py-2.5">
-              <Micro className="w-12 shrink-0 pt-px font-semibold tabular-nums text-foreground">
-                {m.wkNo !== null ? wkLabel(m.wkNo) : "시즌 중"}
-              </Micro>
-              <Caption className="min-w-0 flex-1 break-keep leading-snug text-foreground">{m.msnNm}</Caption>
-              <span className="shrink-0 font-numeric text-sm font-medium tabular-nums text-primary">+{formatPt(m.pt)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </PbZone>
-  );
-}
-
 function GoalRecords({ rule, cfg }: { rule: PbRule; cfg: PbClassCfg }) {
   return (
-    <PbZone id="pb-guide-goal" label="Goal & Records" lead="목표는 내가, 기록은 운영진이 적어요">
+    <PbZone id="pb-guide-goal" label="Goal & Records" lead="목표도 기록도 내가 직접 올려요">
       <Bullets
         items={[
           <>
@@ -374,7 +353,7 @@ function GoalRecords({ rule, cfg }: { rule: PbRule; cfg: PbClassCfg }) {
           </>,
           <>
             기록은 세 번 재요 — 1주차 5K(기준), <N>{wkLabel(rule.midWkNo)}</N> 5K(중간점검), 마지막 10K 측정.
-            운영진이 입력해요.
+            잰 뒤 「내 현황」에서 직접 올리면 바로 점수에 반영돼요.
           </>,
           <>
             5K 기록 × <N>{rule.tenKFactor}</N>을 10K 기준으로 삼아 최종 향상을 매겨요.
@@ -394,7 +373,7 @@ function Daegu() {
       <Bullets
         items={[
           "대구마라톤 10K는 나가고 싶은 사람만 나가요.",
-          "기록은 「내 현황」에서 직접 올리고, 운영진이 확인하면 확정돼요.",
+          "기록은 「내 현황」에서 직접 올려요. 올린 뒤에도 고치거나 지울 수 있어요.",
           "목표 달성·향상 점수는 측정 10K로 매겨요. 대구를 안 뛰어도 손해가 없어요.",
         ]}
       />
@@ -404,12 +383,13 @@ function Daegu() {
 
 function Settle() {
   return (
-    <PbZone id="pb-guide-settle" label="Settlement" lead="돌려주지 않은 보증금은 다시 우리에게 써요">
+    <PbZone id="pb-guide-settle" label="Settlement" lead="돌려주지 않은 돈은 다시 우리에게 써요">
+      {/* 쓰임새 문구는 정산 캡션(pb-settlement)과 같은 상수 — 오너가 정한 표현이라 두 곳이 갈라지면 안 된다 */}
       <Bullets
         items={[
           "시즌이 끝나면 출석대로 보증금을 돌려드려요.",
-          "돌려주지 않은 보증금은 회식비와 대회 참가비로 써요.",
-          "참가비는 운영(장소·용품 등)에 쓰고 돌려주지 않아요.",
+          `${PB_MONEY_USE_TXT}.`,
+          `${PB_MONEY_USE_DETAIL_TXT}.`,
         ]}
       />
     </PbZone>
@@ -419,14 +399,13 @@ function Settle() {
 /**
  * PB 클래스 안내 — 규칙 전부를 한 지면에.
  *
- * `rule`·`missions`는 게임 조회에서 오는데 그 조회는 실패할 수 있다(`loadGameSafely`). 그때 배점을
+ * `rule`은 게임 조회에서 오는데 그 조회는 실패할 수 있다(`loadGameSafely`). 그때 배점을
  * 기본값으로 지어내면 관리자가 바꾼 값과 어긋날 수 있어, 그 칸들은 빼고 목차에서도 지운다.
  */
 export function PbGuide({
   evt,
   cfg,
   rule,
-  missions,
   mlgAlumni,
   me,
   trnGrpCd,
@@ -434,7 +413,6 @@ export function PbGuide({
   evt: PbEvent;
   cfg: PbClassCfg;
   rule: PbRule | null;
-  missions: PbGameMission[] | null;
   /** 보는 사람이 마일리지런 참가자인가 — 할인 칸을 「내 얘기」로 칠한다 */
   mlgAlumni: boolean;
   /** 승인·대기 상관없이 참가 행이 있으면 — 환급 표를 내 보증금으로 그린다 */
@@ -446,7 +424,6 @@ export function PbGuide({
     ids.delete("pb-guide-score");
     ids.delete("pb-guide-goal");
   }
-  if (!missions) ids.delete("pb-guide-missions");
 
   return (
     <div className="flex flex-col gap-7">
@@ -457,7 +434,6 @@ export function PbGuide({
       <LateJoin cfg={cfg} />
       <Groups trnGrpCd={trnGrpCd} />
       {rule && <Scoring rule={rule} cfg={cfg} />}
-      {missions && <Missions missions={missions} />}
       {rule && <GoalRecords rule={rule} cfg={cfg} />}
       <Daegu />
       <Settle />

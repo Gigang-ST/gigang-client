@@ -12,13 +12,13 @@ export type PbSessPlan = {
   phaseNm: string;
   /** 제목 한 줄 */
   ttl: string;
-  /** A~D 훈련팀 세션 */
+  /** 38~50분 그룹 세션 */
   mainTxt: string;
-  /** E(첫 10K) 세션 — 같은 세션을 P=6:00으로, 개수만 줄인다. 없으면 A~D와 같음 */
+  /** 첫 10K 그룹 세션 — 같은 세션을 P=6:00으로, 개수만 줄인다. 없으면 다른 그룹과 같음 */
   easyTxt: string | null;
   /** 이 훈련을 하는 이유 */
   purpTxt: string;
-  /** 비고(팀 미션·행사 등) */
+  /** 비고(행사·주의사항 등) */
   noteTxt: string | null;
 };
 
@@ -102,7 +102,7 @@ export const PB_DEFAULT_SESS_PLANS: PbSessPlan[] = [
     mainTxt: "파틀렉 30분 (1분 빠르게 / 1분 편하게)",
     easyTxt: "25분",
     purpTxt: "빠르게·편하게를 번갈아 속도 전환에 몸을 적응시킨다. 레이스 중 치고 나갔다 리듬을 되찾는 연습.",
-    noteTxt: "올해 마지막 런 — 팀 미션",
+    noteTxt: "올해 마지막 런",
   },
   {
     sessNo: 10,
@@ -144,16 +144,40 @@ export const PB_DEFAULT_SESS_PLANS: PbSessPlan[] = [
 
 /** 훈련표 머리말 — 모든 세션에 공통으로 붙는 것 */
 export const PB_PLAN_NOTES = [
-  "P = 내 목표 10K 페이스. E(첫 10K)는 6:00/km.",
+  "P = 내 목표 10K 페이스. 첫 10K 그룹은 6:00/km.",
   "모든 세션은 워밍업 2~3km + 드릴 + 쿨다운 1~2km를 앞뒤로 붙인다.",
   "개인 이지런·롱런은 각자 — 권장하지만 출석으로 인정하지 않는다.",
 ];
 
-/** 훈련팀 — 페이스 그룹(상세계획 §4). 실력·인원에 따라 합치거나 쪼갠다 */
-export const PB_TRN_GROUP_GUIDE: { cd: string; tenK: string; pace: string; weeklyKm: string; note?: string }[] = [
-  { cd: "A", tenK: "38~40분", pace: "3:48~4:00", weeklyKm: "50~70km", note: "인원 적으면 B와 합반" },
-  { cd: "B", tenK: "40~43분", pace: "4:00~4:18", weeklyKm: "50~70km" },
-  { cd: "C", tenK: "43~47분", pace: "4:18~4:42", weeklyKm: "35~50km" },
-  { cd: "D", tenK: "47~60분", pace: "4:42~6:00", weeklyKm: "25~35km", note: "인원 많으면 D1·D2로" },
-  { cd: "E", tenK: "첫 10K", pace: "목표 6:00 이내", weeklyKm: "20~30km", note: "고정 · 같은 세션을 개수만 줄여서" },
+/**
+ * 훈련팀 — **목표 시간으로 부른다**(오너 지시 2026-10-07: "트레이닝그룹 ABCD는 목표 시간으로 불러라").
+ * A~E는 DB(`evt_pb_prt_rel.trn_grp_cd`)에 남는 내부 코드일 뿐, 화면엔 `nm`이 나간다.
+ * 안내엔 10K 목표기록과 대회 페이스만 적는다(주간거리는 걷었다).
+ */
+export type PbTrnGroup = {
+  /** 내부 코드 — trn_grp_cd */
+  cd: string;
+  /** 화면 이름 */
+  nm: string;
+  /** 10K 목표기록 상한(초) */
+  goalSec: number;
+  /** 대회 페이스(목표기록 ÷ 10) */
+  paceTxt: string;
+};
+
+export const PB_TRN_GROUPS: PbTrnGroup[] = [
+  { cd: "A", nm: "38분 이하", goalSec: 38 * 60, paceTxt: "3:48/km" },
+  { cd: "B", nm: "40분 이하", goalSec: 40 * 60, paceTxt: "4:00/km" },
+  { cd: "C", nm: "45분 이하", goalSec: 45 * 60, paceTxt: "4:30/km" },
+  { cd: "D", nm: "50분 이하", goalSec: 50 * 60, paceTxt: "5:00/km" },
+  { cd: "E", nm: "첫 10K · 60분 이하", goalSec: 60 * 60, paceTxt: "6:00/km" },
 ];
+
+/** 훈련팀 코드 → 화면 이름. 목록에 없는 코드(운영진이 D1·D2처럼 쪼갠 경우)는 코드 그대로 */
+export function trnGroupNm(cd: string | null | undefined): string | null {
+  if (!cd) return null;
+  return PB_TRN_GROUPS.find((g) => g.cd === cd)?.nm ?? cd;
+}
+
+/** 첫 10K 그룹인가 — 훈련표에서 E 세션을 먼저 보여 줄지 */
+export const PB_FIRST_10K_GROUP_CD = "E";

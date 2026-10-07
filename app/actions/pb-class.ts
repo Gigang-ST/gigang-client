@@ -5,11 +5,17 @@ import { revalidatePath } from "next/cache";
 import { withActive } from "@/lib/actions/auth";
 import { nowKST, todayKST } from "@/lib/dayjs";
 import { PB_CLASS_TYPE, currentWeekNo, feesForJoinWeek } from "@/lib/pb-class";
-import { canEditGoal, goalEditLastWk, ruleFromJson } from "@/lib/pb-class-score";
+import { canEditGoal, goalEditLastWk, recTypesForJoinWeek, ruleFromJson, type PbRecType } from "@/lib/pb-class-score";
 import { cfgFromRow, isMileageAlumni } from "@/lib/queries/pb-class";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkGoalCap, pbEvtIdSchema, pbGoalSecSchema, pbRecSecSchema } from "@/lib/validations/pb-class";
+import {
+  checkGoalCap,
+  pbEvtIdSchema,
+  pbGoalSecSchema,
+  pbRecSecSchema,
+  pbRecTypeSchema,
+} from "@/lib/validations/pb-class";
 
 type ActionResult = { ok: boolean; message: string | null };
 
@@ -183,19 +189,28 @@ export async function setMyPbGoal(evtId: string, goalSec: number | null): Promis
 }
 
 /**
- * 내 대구마라톤 10K 기록 입력·삭제.
+ * 내 측정 기록 입력·삭제(`recSec: null` 이면 지움) — 오너 지시(2026-10-07): **기록은 운영진이 아니라 본인이 적는다.**
  *
- * 승인된 참가자만 — 입금 확인 전 신청자의 기록이 점수판 근처에 오가는 걸 막는다.
- * 본인이 올린 기록은 **확인 전(`cnfm_yn=false`)** 으로 들어가고 운영진이 확인해야 점수·달성 판정에 쓰인다
- * (기록 입력은 거짓말 한 줄이면 점수가 나는 자리라 사람 눈을 거친다).
+ * 예전엔 대구마라톤 10K 만 본인이 적고 나머지는 운영진이 대신 넣었으며, 본인 기록은 운영진이 「확인」해야
+ * 점수에 쓰였다. 확인 단계를 없앴으므로 여기서 적은 기록은 곧바로 점수·달성 판정에 쓰인다(`cnfm_yn=true`).
+ * 거짓 입력은 사람 눈이 아니라 하한(`pbRecSecSchema` 10분)과 아래 종류 제한, 그리고 운영진의 사후 정정
+ * (`upsertPbRecords`)이 막는다 — 기록은 같은 크루원이 보는 점수판에 바로 서서 어색한 값은 금방 눈에 띈다.
  *
- * 이미 확인된 기록은 회원이 고치거나 지울 수 없다(운영진에게 문의). 고치게 두면 확인된 기록이 조용히
- * 미확인으로 돌아가 점수가 사라지는데 본인도 운영진도 모른다. 쓰기는 `cnfm_yn=false` 조건을 함께 걸어
- * 읽고 쓰는 사이에 운영진이 확인해도 덮어쓰지 않게 한다.
+ * - 승인된 참가자만 — 입금 확인 전 신청자의 기록이 점수판 근처에 오가는 걸 막는다.
+ * - 적을 수 있는 종류는 **합류 주차가 정한다**(`recTypesForJoinWeek`): 정식은 전부, 중간 합류는 기준기록(`BASE_5K`)
+ *   없이 W6 5K 부터, 늦은 합류는 10K 둘만. 안 그러면 기준기록이 없는 사람의 값이 점수 사슬에 끼어든다.
+ * - 같은 종류를 다시 적으면 덮어쓴다(참가자당 종류별 1건 — UNIQUE).
+ * - 기간(`end_dt`)은 보지 않는다 — 대구마라톤 10K 처럼 종료일 뒤에 나오는 기록이 있다(`findMyPbParticipation`).
  */
-export async function setMyDaeguRecord(evtId: string, recSec: number | null): Promise<ActionResult> {
+export async function setMyPbRecord(
+  evtId: string,
+  recTypeCd: PbRecType,
+  recSec: number | null,
+): Promise<ActionResult> {
   const parsedEvt = pbEvtIdSchema.safeParse(evtId);
   if (!parsedEvt.success) return { ok: false, message: parsedEvt.error.issues[0]?.message ?? "잘못된 요청입니다" };
+  const parsedType = pbRecTypeSchema.safeParse(recTypeCd);
+  if (!parsedType.success) return { ok: false, message: parsedType.error.issues[0]?.message ?? "잘못된 요청입니다" };
   const parsedSec = pbRecSecSchema.nullable().safeParse(recSec);
   if (!parsedSec.success) return { ok: false, message: parsedSec.error.issues[0]?.message ?? "잘못된 요청입니다" };
 
@@ -208,46 +223,39 @@ export async function setMyDaeguRecord(evtId: string, recSec: number | null): Pr
       if (!mine.ok) return mine;
       if (!mine.aprvYn) return { ok: false, message: "참가 승인 후에 기록을 입력할 수 있어요" };
 
-      const { data: existing, error: readError } = await db
-        .from("evt_pb_rec_hist")
-        .select("rec_id, cnfm_yn")
-        .eq("prt_id", mine.prtId)
-        .eq("rec_type_cd", "DAEGU_10K")
+      // 늦은 합류 주차는 프로젝트마다 다르다(설정값) — 설정 행이 없으면 기본값으로 채워진다
+      const { data: cfgRow, error: cfgError } = await db
+        .from("evt_pb_cfg")
+        .select("*")
+        .eq("evt_id", parsedEvt.data)
         .maybeSingle();
-      if (readError) return { ok: false, message: "기록 저장에 실패했습니다" };
-      if (existing?.cnfm_yn) return { ok: false, message: "이미 확인된 기록은 고칠 수 없어요. 운영진에게 문의해 주세요" };
+      if (cfgError) return { ok: false, message: "기록 저장에 실패했습니다" };
+      const cfg = cfgFromRow(cfgRow);
 
-      // 조건부 쓰기가 0행이면 그 사이 운영진이 확인한 것이다 — 성공으로 눙치지 않고 알린다
-      const CONFIRMED_NOW = "방금 운영진이 확인한 기록이에요. 고치려면 운영진에게 문의해 주세요";
-      const now = nowKST().toISOString();
+      if (!recTypesForJoinWeek(mine.joinWkNo, cfg.lateJoinWkNo).includes(parsedType.data)) {
+        return { ok: false, message: "이 기록은 입력하지 않아도 돼요" };
+      }
+
       if (parsedSec.data === null) {
-        if (existing) {
-          const { data, error } = await db
-            .from("evt_pb_rec_hist")
-            .delete()
-            .eq("rec_id", existing.rec_id)
-            .eq("cnfm_yn", false)
-            .select("rec_id");
-          if (error) return { ok: false, message: "기록 삭제에 실패했습니다" };
-          if (!data || data.length === 0) return { ok: false, message: CONFIRMED_NOW };
-        }
-      } else if (existing) {
-        const { data, error } = await db
+        const { error } = await db
           .from("evt_pb_rec_hist")
-          .update({ rec_sec: parsedSec.data, cnfm_yn: false, crt_by: member.id, updated_at: now })
-          .eq("rec_id", existing.rec_id)
-          .eq("cnfm_yn", false)
-          .select("rec_id");
-        if (error) return { ok: false, message: "기록 저장에 실패했습니다" };
-        if (!data || data.length === 0) return { ok: false, message: CONFIRMED_NOW };
+          .delete()
+          .eq("prt_id", mine.prtId)
+          .eq("rec_type_cd", parsedType.data);
+        if (error) return { ok: false, message: "기록 삭제에 실패했습니다" };
       } else {
-        const { error } = await db.from("evt_pb_rec_hist").insert({
-          prt_id: mine.prtId,
-          rec_type_cd: "DAEGU_10K",
-          rec_sec: parsedSec.data,
-          cnfm_yn: false,
-          crt_by: member.id,
-        });
+        // (참가자, 종류)가 UNIQUE 라 한 번에 upsert 한다 — 읽고 쓰는 사이 두 탭이 겹쳐도 한 건만 남는다
+        const { error } = await db.from("evt_pb_rec_hist").upsert(
+          {
+            prt_id: mine.prtId,
+            rec_type_cd: parsedType.data,
+            rec_sec: parsedSec.data,
+            cnfm_yn: true,
+            crt_by: member.id,
+            updated_at: nowKST().toISOString(),
+          },
+          { onConflict: "prt_id,rec_type_cd" },
+        );
         if (error) return { ok: false, message: "기록 저장에 실패했습니다" };
       }
 

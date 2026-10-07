@@ -9,8 +9,8 @@ import {
   computeScoreboard,
   formatSec,
   improvementPts,
-  midImprovedRatio,
   parseTimeInput,
+  recTypesForJoinWeek,
   ruleFromJson,
   type PbScoreGathering,
   type PbScoreInput,
@@ -43,7 +43,6 @@ const input = (over: Partial<PbScoreInput>): PbScoreInput => ({
     { grpId: "A", grpNm: "A팀", colorNo: 1 },
     { grpId: "B", grpNm: "B팀", colorNo: 2 },
   ],
-  missions: [],
   rule: RULE,
   measureWkNo: 13,
   ...over,
@@ -207,33 +206,17 @@ describe("팀 점수 — 주차별 평균의 합 + 전원 출석 + 미션", () =
     expect(a.allAttendWeeks).toEqual([1]); // 그 주 등록 팀원(a1) 전원 출석
   });
 
-  it("한 명이라도 빠지면 전원 출석 보너스 없음, 미션은 성공 팀만", () => {
+  it("한 명이라도 빠지면 전원 출석 보너스 없음", () => {
     const members = [mem({ prtId: "a1" }), mem({ prtId: "a2" }), mem({ prtId: "b1", grpId: "B" })];
-    const s = computeScoreboard(
-      input({
-        members,
-        gatherings: [training(1, ["a1", "b1"])],
-        missions: [{ msnId: "m1", wkNo: 2, msnNm: "단체사진", pt: 10, succGrpIds: ["A"] }],
-      }),
-    );
+    const s = computeScoreboard(input({ members, gatherings: [training(1, ["a1", "b1"])] }));
     const byId = Object.fromEntries(s.groups.map((g) => [g.grpId, g]));
-    expect(byId.A).toMatchObject({ avgSum: 5, allAttendBonus: 0, missionBonus: 10, total: 15 });
-    expect(byId.B).toMatchObject({ avgSum: 10, allAttendBonus: 20, missionBonus: 0, total: 30 });
+    expect(byId.A).toMatchObject({ avgSum: 5, allAttendBonus: 0, total: 5 });
+    expect(byId.B).toMatchObject({ avgSum: 10, allAttendBonus: 20, total: 30 });
     expect(s.groups[0].grpId).toBe("B");
   });
+
 });
 
-describe("midImprovedRatio — W6 미션 판정 보조", () => {
-  it("기준기록이 W1인 팀원만 분모", () => {
-    const team = [
-      mem({ prtId: "a", recs: { BASE_5K: { sec: 1500, cnfm: true }, MID_5K: { sec: 1450, cnfm: true } } }),
-      mem({ prtId: "b", recs: { BASE_5K: { sec: 1500, cnfm: true }, MID_5K: { sec: 1550, cnfm: true } } }),
-      mem({ prtId: "c", joinWkNo: 3, recs: { MID_5K: { sec: 1400, cnfm: true } } }),
-    ];
-    expect(midImprovedRatio(team)).toEqual({ improved: 1, eligible: 2 });
-    expect(midImprovedRatio([team[2]])).toBeNull();
-  });
-});
 
 describe("canEditGoal — 늦게 합류한 사람은 자기 합류 주차까지", () => {
   it("정식 참가자는 W2까지, W4 합류자는 W4까지", () => {
@@ -241,5 +224,31 @@ describe("canEditGoal — 늦게 합류한 사람은 자기 합류 주차까지"
     expect(canEditGoal(3, RULE)).toBe(false);
     expect(canEditGoal(4, RULE, 4)).toBe(true);
     expect(canEditGoal(5, RULE, 4)).toBe(false);
+  });
+});
+
+
+describe("recTypesForJoinWeek — 합류 주차가 본인이 적을 수 있는 기록을 정한다", () => {
+  const LATE = 6; // 늦은 합류 주차(기본 설정)
+
+  it("정식(W1)은 네 종류 전부", () => {
+    expect(recTypesForJoinWeek(1, LATE)).toEqual(["BASE_5K", "MID_5K", "FINAL_10K", "DAEGU_10K"]);
+  });
+
+  it("중간 합류(W2~W5)는 기준기록(BASE_5K) 없이 W6 5K 부터 — W6 5K 가 곧 기준기록이다", () => {
+    for (const wk of [2, 3, 5]) {
+      expect(recTypesForJoinWeek(wk, LATE), `W${wk}`).toEqual(["MID_5K", "FINAL_10K", "DAEGU_10K"]);
+    }
+  });
+
+  it("늦은 합류(W6+)는 10K 둘만 — 팀전·기록 점수가 없고 목표 달성 배지만 본다", () => {
+    for (const wk of [6, 7, 13]) {
+      expect(recTypesForJoinWeek(wk, LATE), `W${wk}`).toEqual(["FINAL_10K", "DAEGU_10K"]);
+    }
+  });
+
+  it("늦은 합류 주차는 설정값을 따른다(W4 로 당기면 W4 부터 늦은 합류)", () => {
+    expect(recTypesForJoinWeek(3, 4)).toEqual(["MID_5K", "FINAL_10K", "DAEGU_10K"]);
+    expect(recTypesForJoinWeek(4, 4)).toEqual(["FINAL_10K", "DAEGU_10K"]);
   });
 });

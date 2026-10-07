@@ -14,8 +14,9 @@ import type { PbClassBoard, PbParticipant, PbSession } from "@/lib/queries/pb-cl
 
 import { PbGoalCard } from "@/components/projects/pb-class/pb-goal-card";
 import { PbMyTeam } from "@/components/projects/pb-class/pb-my-team";
-import { PbRecordsCard } from "@/components/projects/pb-class/pb-records-card";
+import { PbRecordForm, PbRecordsCard, pbRecTypesOf } from "@/components/projects/pb-class/pb-records-card";
 import { PbScoreboard } from "@/components/projects/pb-class/pb-scoreboard";
+import { PB_MONEY_USE_DETAIL_TXT, PB_MONEY_USE_TXT } from "@/components/projects/pb-class/format";
 import { PbSettlement } from "@/components/projects/pb-class/pb-settlement";
 import { teamColorClass } from "@/components/projects/pb-class/pb-team-color";
 
@@ -24,7 +25,7 @@ import { teamColorClass } from "@/components/projects/pb-class/pb-team-color";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => {} }) }));
 vi.mock("@/app/actions/pb-class", () => ({
   setMyPbGoal: vi.fn(),
-  setMyDaeguRecord: vi.fn(),
+  setMyPbRecord: vi.fn(),
 }));
 
 /**
@@ -48,7 +49,6 @@ function group(over: Partial<PbGroupScore> & Pick<PbGroupScore, "grpId" | "grpNm
     avgSum: over.total,
     allAttendWeeks: [],
     allAttendBonus: 0,
-    missionBonus: 0,
     ...over,
   };
 }
@@ -72,8 +72,8 @@ function memberScore(over: Partial<PbMemberScore> = {}): PbMemberScore {
 const BOARD: PbScoreboardData = {
   members: [memberScore()],
   groups: [
-    group({ grpId: "g2", grpNm: "번개팀", colorNo: 2, rank: 1, total: 132.5, avgSum: 82.5, allAttendBonus: 40, missionBonus: 10 }),
-    group({ grpId: "g1", grpNm: "불꽃팀", colorNo: 1, rank: 2, total: 90, avgSum: 70, allAttendBonus: 20, missionBonus: 0 }),
+    group({ grpId: "g2", grpNm: "번개팀", colorNo: 2, rank: 1, total: 122.5, avgSum: 82.5, allAttendBonus: 40 }),
+    group({ grpId: "g1", grpNm: "불꽃팀", colorNo: 1, rank: 2, total: 90, avgSum: 70, allAttendBonus: 20 }),
     group({ grpId: "g3", grpNm: "바람팀", colorNo: null, rank: 3, total: 40 }),
   ],
 };
@@ -86,18 +86,20 @@ describe("PbScoreboard", () => {
 
     expect(out.indexOf("번개팀")).toBeLessThan(out.indexOf("불꽃팀"));
     expect(out.indexOf("불꽃팀")).toBeLessThan(out.indexOf("바람팀"));
-    expect(out).toContain("132.5"); // 소수 한 자리는 그대로
+    expect(out).toContain("122.5"); // 소수 한 자리는 그대로
     expect(out).toContain("90"); // 정수는 .0 을 달지 않는다
     expect(out).not.toContain("90.0");
     expect(out.match(/<li>/g)).toHaveLength(3);
   });
 
-  it("점수 근거 한 줄에 평균·전원출석·미션이 따로 나온다", () => {
+  it("점수 근거 한 줄에 평균·전원출석이 따로 나온다 — 팀 미션은 없다(오너 지시)", () => {
     const out = html(
       createElement(PbScoreboard, { scoreboard: BOARD, rule: PB_DEFAULT_RULE, myGrpId: null, me: null }),
     );
 
-    expect(out).toContain("평균 82.5 · 전원출석 +40 · 미션 +10");
+    expect(out).toContain("평균 82.5 · 전원출석 +40");
+    expect(out).not.toContain("미션");
+    expect(out).not.toContain("Team Missions");
   });
 
   it("내 팀만 테두리로 짚고 배지를 단다", () => {
@@ -221,12 +223,14 @@ describe("teamColorClass", () => {
 describe("PbMyTeam", () => {
   const groups = BOARD.groups;
 
-  it("훈련팀과 게임팀(이름)을 나란히 말한다", () => {
+  it("훈련팀(목표 시간)과 게임팀(이름)을 나란히 말한다", () => {
     const out = html(createElement(PbMyTeam, { groups, me: { trnGrpCd: "A", grpId: "g2", late: false } }));
 
     expect(out).toContain("훈련팀");
     expect(out).toContain("게임팀");
-    expect(out).toContain(">A<");
+    // 알파벳 코드(A)가 아니라 목표 시간으로 부른다(오너 지시)
+    expect(out).toContain(">38분 이하<");
+    expect(out).not.toContain(">A<");
     expect(out).toContain("번개팀");
     expect(out).toContain("bg-chart-2");
     expect(out).not.toContain("배정 전");
@@ -244,6 +248,23 @@ describe("PbMyTeam", () => {
     expect(out).toContain("늦은 합류 — 팀전 대상이 아니에요");
     expect(out).toContain("해당 없음");
     expect(out.match(/배정 전/g)).toBeNull();
+    expect(out).toContain(">40분 이하<"); // B → 목표 시간
+  });
+
+  it("모든 훈련팀 코드가 목표 시간 이름으로 나온다 — 첫 10K 그룹과 쪼갠 반(D1)도 알파벳이 새지 않는다", () => {
+    const names: Record<string, string> = {
+      A: "38분 이하",
+      B: "40분 이하",
+      C: "45분 이하",
+      D: "50분 이하",
+      D1: "50분 이하", // 운영진이 쪼갠 반은 같은 목표 시간 그룹이다
+      E: "첫 10K · 60분 이하",
+    };
+    for (const [cd, nm] of Object.entries(names)) {
+      const out = html(createElement(PbMyTeam, { groups, me: { trnGrpCd: cd, grpId: "g2", late: false } }));
+      expect(out).toContain(`>${nm}<`);
+      expect(out).not.toContain(`>${cd}<`);
+    }
   });
 });
 
@@ -291,10 +312,18 @@ describe("PbGoalCard", () => {
 // 기록
 // ─────────────────────────────────────────
 
+describe("pbRecTypesOf — 합류 시점별 올릴 수 있는 기록", () => {
+  it("정식(1주차)은 네 개, 2~5주차 합류는 6주차 5K부터, 늦은 합류는 최종 10K와 대구만", () => {
+    expect(pbRecTypesOf(1, false)).toEqual(["BASE_5K", "MID_5K", "FINAL_10K", "DAEGU_10K"]);
+    expect(pbRecTypesOf(3, false)).toEqual(["MID_5K", "FINAL_10K", "DAEGU_10K"]);
+    expect(pbRecTypesOf(6, true)).toEqual(["FINAL_10K", "DAEGU_10K"]);
+  });
+});
+
 describe("PbRecordsCard", () => {
   const base = { evtId: "e1", midWkNo: 6 };
 
-  it("정식 참가자는 기준·중간·최종과 대구 입력까지 네 줄이다", () => {
+  it("정식 참가자는 기준·중간·최종·대구 네 줄을 전부 본인이 올린다", () => {
     const out = html(
       createElement(PbRecordsCard, {
         ...base,
@@ -304,22 +333,52 @@ describe("PbRecordsCard", () => {
       }),
     );
 
+    expect(out).toContain("기록은 직접 올려요 — 올리면 바로 점수에 반영돼요");
     expect(out).toContain("1주차 5K · 기준기록");
     expect(out).toContain("25:00");
     expect(out).toContain("6주차 5K · 중간점검");
     expect(out).toContain("10K 측정 · 최종");
-    expect(out).not.toMatch(/W\d/);
     expect(out).toContain("대구마라톤 10K");
-    expect(out).toContain("운영진이 입력해요"); // 아직 기록 없는 줄
+    expect(out).not.toMatch(/W\d/);
+    // 값이 있는 줄은 고치기, 없는 세 줄은 올리기 — 어느 줄이든 직접 누를 수 있다
+    expect(out.match(/>고치기</g)).toHaveLength(1);
+    expect(out.match(/>올리기</g)).toHaveLength(3);
+    expect(out).toContain('aria-label="6주차 5K · 중간점검 올리기"');
+    // 운영진이 적는다는 말도, 확인 단계도 없다
+    expect(out).not.toContain("운영진");
+    expect(out).not.toContain("확인 대기");
+    expect(out).not.toContain("확인됨");
     expect(out).not.toContain("기준기록은");
   });
 
-  it("2~5주차 합류자는 1주차 줄이 없고 6주차 5K가 기준기록이다", () => {
+  it("확정 여부(cnfm)와 상관없이 올린 기록은 언제나 고칠 수 있다", () => {
+    const out = html(
+      createElement(PbRecordsCard, {
+        ...base,
+        joinWkNo: 1,
+        late: false,
+        recs: {
+          BASE_5K: { sec: 1500, cnfm: true },
+          MID_5K: { sec: 1440, cnfm: false },
+          FINAL_10K: { sec: 3000, cnfm: true },
+          DAEGU_10K: { sec: 3150, cnfm: false },
+        },
+      }),
+    );
+
+    expect(out.match(/>고치기</g)).toHaveLength(4);
+    expect(out).not.toContain(">올리기<");
+    expect(out).toContain("52:30");
+    expect(out).not.toContain("확인");
+  });
+
+  it("2~5주차 합류자는 1주차 줄이 없고 6주차 5K가 기준기록이다 — 그 줄도 직접 올린다", () => {
     const out = html(createElement(PbRecordsCard, { ...base, joinWkNo: 3, late: false, recs: {} }));
 
     expect(out).not.toContain("1주차 5K");
     expect(out).toContain("6주차 5K · 기준기록");
     expect(out).toContain("3주차 합류라 기준기록은 6주차 5K 기록이에요");
+    expect(out.match(/>올리기</g)).toHaveLength(3); // 기준(6주차 5K) · 최종 · 대구
   });
 
   it("늦은 합류자는 최종 10K와 대구만 남고 기록 점수 없음을 말한다", () => {
@@ -329,55 +388,74 @@ describe("PbRecordsCard", () => {
     expect(out).toContain("10K 측정 · 최종");
     expect(out).toContain("대구마라톤 10K");
     expect(out).toContain("기록 점수가 없어요");
+    expect(out.match(/>올리기</g)).toHaveLength(2);
   });
+});
 
-  it("대구 기록이 없으면 올리기, 확인 대기면 고치기·지우기 + 배지", () => {
-    const none = html(createElement(PbRecordsCard, { ...base, joinWkNo: 1, late: false, recs: {} }));
-    expect(none).toContain("올리기");
-
-    const waiting = html(
-      createElement(PbRecordsCard, {
-        ...base,
-        joinWkNo: 1,
-        late: false,
-        recs: { DAEGU_10K: { sec: 3150, cnfm: false } },
-      }),
-    );
-    expect(waiting).toContain("52:30");
-    expect(waiting).toContain("확인 대기");
-    expect(waiting).toContain("고치기");
-    expect(waiting).toContain("지우기");
-  });
-
-  it("확인된 대구 기록은 더 손댈 수 없다", () => {
-    const out = html(
-      createElement(PbRecordsCard, {
-        ...base,
-        joinWkNo: 1,
-        late: false,
-        recs: { DAEGU_10K: { sec: 3150, cnfm: true } },
+describe("PbRecordForm — 입력·고치기·지우기", () => {
+  const form = (rec: { sec: number; cnfm: boolean } | undefined) =>
+    html(
+      createElement(PbRecordForm, {
+        label: "대구마라톤 10K",
+        rec,
+        pending: false,
+        error: null,
+        onSave: () => {},
+        onClear: () => {},
+        onCancel: () => {},
       }),
     );
 
-    expect(out).toContain("52:30");
-    expect(out).toContain("확인됨");
+  it("처음 올릴 땐 빈 입력칸과 올리기, 지우기는 없다", () => {
+    const out = form(undefined);
+
+    expect(out).toContain('placeholder="예) 24:30 또는 2430"');
+    expect(out).toContain('aria-label="대구마라톤 10K"');
+    expect(out).toContain(">올리기<");
+    expect(out).toContain(">취소<");
     expect(out).not.toContain("지우기");
-    expect(out).not.toContain("고치기");
-    expect(out).not.toContain("올리기");
+  });
+
+  it("올린 기록을 고칠 땐 값이 채워지고 저장·지우기가 선다", () => {
+    const out = form({ sec: 3150, cnfm: false });
+
+    expect(out).toContain('value="52:30"');
+    expect(out).toContain(">저장<");
+    expect(out).toContain(">지우기<");
+    expect(out).not.toContain(">올리기<");
+  });
+
+  it("오류는 alert 로 입력칸 아래에 붙는다", () => {
+    const out = html(
+      createElement(PbRecordForm, {
+        label: "10K 측정 · 최종",
+        rec: undefined,
+        pending: false,
+        error: "분:초 또는 시:분:초로 입력해 주세요 (예: 24:30)",
+        onSave: () => {},
+        onClear: () => {},
+        onCancel: () => {},
+      }),
+    );
+
+    expect(out).toContain('role="alert"');
+    expect(out).toContain('aria-invalid="true"');
   });
 });
 
 describe("PbRecordsCard · 보관용(readOnly)", () => {
-  it("종료된 프로젝트에선 대구 입력·수정 버튼이 하나도 없다", () => {
+  it("종료된 프로젝트에선 올리기·고치기·지우기와 입력칸이 하나도 없다", () => {
     const none = html(
       createElement(PbRecordsCard, { evtId: "e1", midWkNo: 6, joinWkNo: 1, late: false, recs: {}, readOnly: true }),
     );
     expect(none).toContain("대구마라톤 10K");
-    expect(none).toContain("기록 없음");
+    expect(none.match(/기록 없음/g)).toHaveLength(4); // 줄마다 — 운영진이 넣는다는 말로 채우지 않는다
     expect(none).not.toContain("올리기");
     expect(none).not.toContain("<input");
+    expect(none).not.toContain("<button");
+    expect(none).not.toContain("기록은 직접 올려요");
 
-    const waiting = html(
+    const filled = html(
       createElement(PbRecordsCard, {
         evtId: "e1",
         midWkNo: 6,
@@ -387,9 +465,10 @@ describe("PbRecordsCard · 보관용(readOnly)", () => {
         readOnly: true,
       }),
     );
-    expect(waiting).toContain("52:30");
-    expect(waiting).not.toContain("고치기");
-    expect(waiting).not.toContain("지우기");
+    expect(filled).toContain("52:30");
+    expect(filled).not.toContain("고치기");
+    expect(filled).not.toContain("지우기");
+    expect(filled).not.toContain("확인 대기");
   });
 });
 
@@ -473,8 +552,19 @@ describe("PbSettlement", () => {
     expect(out).toContain("보증금 합계");
     expect(out).toContain(`${b.totals.depositSum.toLocaleString()}원`); // 승인 2명 × 3만 원
     expect(out).toContain("환급 예정");
-    expect(out).toContain("미환급");
+    expect(out).toContain("미환급 · 회식비·운영비");
     expect(out).toContain("출석이 늘면 매주 바뀌어요. 시즌이 끝나면 이 금액으로 정산해요.");
+  });
+
+  it("돌려주지 않은 돈은 회식비와 프로젝트 운영비로 쓴다고 말한다(옛 문구는 남기지 않는다)", () => {
+    const out = html(createElement(PbSettlement, { board: board(people) }));
+
+    expect(out).toContain(PB_MONEY_USE_TXT);
+    expect(out).toContain("회식비와 프로젝트 운영비");
+    expect(out).toContain(PB_MONEY_USE_DETAIL_TXT);
+    expect(out).toContain("동계훈련용품 · 회식비 · 대구마라톤 응원 관련 비용(계획 중)");
+    expect(out).not.toContain("대회비");
+    expect(out).not.toContain("대회 참가비");
   });
 
   it("승인된 참가자만 목록에 올리고 입금 대기자는 뺀다", () => {

@@ -210,10 +210,10 @@ evt_team_mst (evt_type_cd='PB_CLASS')
 | `evt_pb_cfg.rule_json` | 배점·목표 규칙 jsonb — 앱이 `PB_DEFAULT_RULE`과 병합 | NOT NULL DEFAULT `{}` |
 | `evt_pb_grp_mst` | 게임팀 `grp_nm` · `color_no`(1~5) · `sort_ord` | UNIQUE(`evt_id`,`grp_nm`), CASCADE |
 | `evt_pb_prt_rel` + | `trn_grp_cd`(A~E) · `grp_id`(→게임팀, SET NULL) · `goal_sec`(1200~7200) | |
-| `evt_pb_rec_hist` | `rec_type_cd`(BASE_5K/MID_5K/FINAL_10K/DAEGU_10K) · `rec_sec` · `cnfm_yn` · `crt_by` | UNIQUE(`prt_id`,`rec_type_cd`) |
-| `evt_pb_msn_mst` / `evt_pb_msn_rslt_rel` | 팀 미션 / 성공(행 = 성공) | PK(`msn_id`,`grp_id`) |
+| `evt_pb_rec_hist` | `rec_type_cd`(BASE_5K/MID_5K/FINAL_10K/DAEGU_10K) · `rec_sec` · `cnfm_yn`(늘 true — 회원이 직접 올린다) · `crt_by` | UNIQUE(`prt_id`,`rec_type_cd`) |
+| ~~`evt_pb_msn_mst` / `evt_pb_msn_rslt_rel`~~ | 팀 미션 — **오너 지시로 삭제**(`20261007150000_evt_pb_class_drop_mission.sql`) | |
 
-- **점수는 테이블이 없다** — `lib/pb-class-score.ts`가 벙·참석·기록·미션 판정에서 매번 계산한다(장부를 두면 원천과 갈라진다).
+- **점수는 테이블이 없다** — `lib/pb-class-score.ts`가 벙·참석·기록에서 매번 계산한다(장부를 두면 원천과 갈라진다).
 
 ### 다듬기 (`20261007140000_evt_pb_class_polish.sql`)
 

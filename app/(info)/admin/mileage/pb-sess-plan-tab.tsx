@@ -47,6 +47,13 @@ function sessLabel(sessNo: number, totSessCnt: number): string {
   return sessNo === totSessCnt ? "측정" : wkLabel(sessNo);
 }
 
+/**
+ * 세션 칸 이름 — 훈련팀을 목표 시간으로 부르므로 세션도 같은 말로 가른다(오너 지시 2026-10-07).
+ * 38~50분(A~D)은 같은 세션이고 첫 10K(E)만 개수를 줄여서, 칸은 둘뿐이다. 코드(A~E)는 화면에 안 쓴다.
+ */
+const MAIN_GROUP_NM = "38~50분 그룹";
+const EASY_GROUP_NM = "첫 10K 그룹";
+
 /** n주차의 날짜 범위(수~화) — 훈련표를 달력과 맞춰 보라고 카드에 찍는다 */
 function weekRange(evtSttDt: string, wkNo: number): string {
   const start = parseEventTime(weekStartDt(evtSttDt, wkNo));
@@ -105,7 +112,7 @@ export function PlanBody({
   const used = new Set(plans.map((p) => p.sessNo));
   const freeSessNos = Array.from({ length: totSessCnt }, (_, i) => i + 1).filter((n) => !used.has(n));
 
-  // 닫을 때 open만 내린다 — 값까지 비우면 닫히는 동안 폼이 「추가」로 깜빡 바뀐다(미션 다이얼로그와 같은 이유)
+  // 닫을 때 open만 내린다 — 값까지 비우면 닫히는 동안 폼이 「추가」로 깜빡 바뀐다(팀 다이얼로그와 같은 이유)
   const [dialog, setDialog] = useState<{ open: boolean; key: string; target: PbSessPlan | null }>({
     open: false,
     key: "init",
@@ -294,11 +301,11 @@ function PlanCard({
       </div>
 
       <dl className="flex flex-col gap-2.5">
-        <PlanField label="A~D 훈련팀">
+        <PlanField label={MAIN_GROUP_NM}>
           <Body>{plan.mainTxt}</Body>
         </PlanField>
-        <PlanField label="E 첫 10K">
-          {plan.easyTxt ? <Body>{plan.easyTxt}</Body> : <Caption>A~D와 같아요</Caption>}
+        <PlanField label={EASY_GROUP_NM}>
+          {plan.easyTxt ? <Body>{plan.easyTxt}</Body> : <Caption>{MAIN_GROUP_NM}과 같아요</Caption>}
         </PlanField>
         {/* 목적은 이 화면의 핵심이라 면을 따로 준다 — 세션 내용과 한 덩어리로 읽히면 "왜"가 묻힌다 */}
         <div className="flex flex-col gap-0.5 rounded-xl bg-secondary/60 p-3">
@@ -383,7 +390,7 @@ function PlanForm({
       phaseNm: phaseNm.trim(),
       ttl: ttl.trim(),
       mainTxt: mainTxt.trim(),
-      // 비우면 「A~D와 같음」(null) — 빈 문자열이 저장되면 회원 화면에 빈 E 칸이 뜬다
+      // 비우면 「38~50분 그룹과 같음」(null) — 빈 문자열이 저장되면 회원 화면에 빈 첫 10K 칸이 뜬다
       easyTxt: easyTxt.trim() || null,
       purpTxt: purpTxt.trim(),
       noteTxt: noteTxt.trim() || null,
@@ -470,7 +477,7 @@ function PlanForm({
 
         <div className="flex flex-col gap-1.5">
           <FieldLabel htmlFor="pb-plan-main" required>
-            A~D 훈련팀 세션
+            {MAIN_GROUP_NM} 세션
           </FieldLabel>
           <AutoGrowTextarea
             id="pb-plan-main"
@@ -485,7 +492,7 @@ function PlanForm({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <FieldLabel htmlFor="pb-plan-easy">E(첫 10K) 세션</FieldLabel>
+          <FieldLabel htmlFor="pb-plan-easy">{EASY_GROUP_NM} 세션</FieldLabel>
           <AutoGrowTextarea
             id="pb-plan-easy"
             value={easyTxt}
@@ -496,7 +503,7 @@ function PlanForm({
             placeholder="예: 6 × 400m"
             className={TEXTAREA_CLASS}
           />
-          <Caption>같은 세션을 개수만 줄여요. 비우면 A~D와 같은 것으로 보여요.</Caption>
+          <Caption>같은 세션을 개수만 줄여요. 비우면 {MAIN_GROUP_NM}과 같은 것으로 보여요.</Caption>
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -526,7 +533,7 @@ function PlanForm({
             placeholder="예: 게임팀 발표 · 장소 이동"
             className="h-12 rounded-xl border-[1.5px] text-[15px]"
           />
-          <Caption>팀 미션·행사·장소 변경 같은 한마디. 없으면 비워 두세요.</Caption>
+          <Caption>행사·장소 변경 같은 한마디. 없으면 비워 두세요.</Caption>
         </div>
       </div>
 

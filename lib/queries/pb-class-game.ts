@@ -18,7 +18,6 @@ import {
   type PbScoreGathering,
   type PbScoreGroup,
   type PbScoreMember,
-  type PbScoreMission,
   type PbScoreboard,
 } from "@/lib/pb-class-score";
 import {
@@ -39,7 +38,7 @@ import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import type { Database, Tables } from "@/lib/supabase/database.types";
 
 /**
- * 겨울 10K PB 클래스 2·3단계 조회 코어 — 게임팀·목표·기록·미션·점수판.
+ * 겨울 10K PB 클래스 2·3단계 조회 코어 — 게임팀·목표·기록·점수판.
  *
  * ## 규약 (`lib/queries/pb-class.ts`와 같다)
  * - **Supabase 클라이언트 주입식**: `server-only`·`next/*` 를 import 하지 않는다(vitest 가 직접 로드하고,
@@ -61,8 +60,6 @@ export type PbGameParticipant = PbScoreMember & {
   avatarUrl: string | null;
 };
 
-export type PbGameMission = PbScoreMission & { sortOrd: number };
-
 export type PbGame = {
   evt: PbEvent;
   cfg: PbClassCfg;
@@ -71,7 +68,6 @@ export type PbGame = {
   /** 측정 벙 연결의 wk_no — 연결 전이면 null(최종 기록 점수는 측정이 연결돼야 붙는다) */
   measureWkNo: number | null;
   groups: PbScoreGroup[];
-  missions: PbGameMission[];
   /** 승인 대기자까지 전원 — 점수판엔 승인된 사람만 들어간다 */
   participants: PbGameParticipant[];
   scoreboard: PbScoreboard;
@@ -89,8 +85,6 @@ export type PbGamePrtRow = PbPrtRow & {
 };
 export type PbRecRow = { prt_id: string; rec_type_cd: string; rec_sec: number; cnfm_yn: boolean };
 export type PbGrpRow = Pick<Tables<"evt_pb_grp_mst">, "grp_id" | "grp_nm" | "color_no" | "sort_ord">;
-export type PbMsnRow = Pick<Tables<"evt_pb_msn_mst">, "msn_id" | "wk_no" | "msn_nm" | "pt" | "sort_ord">;
-export type PbMsnRsltRow = { msn_id: string; grp_id: string };
 export type PbGthrRow = { gthr_id: string; stt_at: string; del_yn: boolean; crt_by: string };
 
 const isRecType = (v: string): v is PbRecType => (PB_REC_TYPES as readonly string[]).includes(v);
@@ -98,14 +92,6 @@ const isRecType = (v: string): v is PbRecType => (PB_REC_TYPES as readonly strin
 /** 팀 순서 — sort_ord, 같으면 이름 */
 function compareGroups(a: PbGrpRow, b: PbGrpRow): number {
   return a.sort_ord - b.sort_ord || a.grp_nm.localeCompare(b.grp_nm, "ko");
-}
-
-/** 미션 순서 — 주차 오름차순(주차 없는 미션은 맨 뒤), 같으면 sort_ord */
-function compareMissions(a: PbMsnRow, b: PbMsnRow): number {
-  const aw = a.wk_no ?? Number.POSITIVE_INFINITY;
-  const bw = b.wk_no ?? Number.POSITIVE_INFINITY;
-  if (aw !== bw) return aw < bw ? -1 : 1;
-  return a.sort_ord - b.sort_ord;
 }
 
 /**
@@ -151,7 +137,7 @@ function toScoreGatherings(args: {
 }
 
 /**
- * 게임 조립. DB 를 안 건드려서 경계(승인자만 점수판·늦은 합류·측정 주차·미션 정렬)를 테스트가 못박는다.
+ * 게임 조립. DB 를 안 건드려서 경계(승인자만 점수판·늦은 합류·측정 주차·팀 정렬)를 테스트가 못박는다.
  *
  * 점수판은 **승인된 참가자만** 넣는다 — 입금 확인 전 신청자가 팀 평균·전원 출석 판정의 분모에 끼면
  * 아직 등록도 안 된 사람 때문에 팀 점수가 깎인다. 대기자는 `participants`에는 남아 관리자가 승인하면 합류한다.
@@ -163,13 +149,11 @@ export function assembleGame(args: {
   prts: readonly PbGamePrtRow[];
   recs: readonly PbRecRow[];
   grps: readonly PbGrpRow[];
-  msns: readonly PbMsnRow[];
-  msnRslts: readonly PbMsnRsltRow[];
   gthrs: readonly PbGthrRow[];
   attds: readonly PbAttdRow[];
   nowIso: string;
 }): PbGame {
-  const { evt: evtRow, cfgRow, links, prts, recs, grps, msns, msnRslts, gthrs, attds, nowIso } = args;
+  const { evt: evtRow, cfgRow, links, prts, recs, grps, gthrs, attds, nowIso } = args;
   const evt = toPbEvent(evtRow);
   const cfg = cfgFromRow(cfgRow);
   const rule = ruleFromJson(cfgRow?.rule_json);
@@ -203,26 +187,10 @@ export function assembleGame(args: {
   const sortedGrps = [...grps].sort(compareGroups);
   const groups: PbScoreGroup[] = sortedGrps.map((g) => ({ grpId: g.grp_id, grpNm: g.grp_nm, colorNo: g.color_no }));
 
-  const succByMsn = new Map<string, string[]>();
-  for (const r of msnRslts) {
-    const list = succByMsn.get(r.msn_id) ?? [];
-    list.push(r.grp_id);
-    succByMsn.set(r.msn_id, list);
-  }
-  const missions: PbGameMission[] = [...msns].sort(compareMissions).map((m) => ({
-    msnId: m.msn_id,
-    wkNo: m.wk_no,
-    msnNm: m.msn_nm,
-    pt: m.pt,
-    sortOrd: m.sort_ord,
-    succGrpIds: succByMsn.get(m.msn_id) ?? [],
-  }));
-
   const scoreboard = computeScoreboard({
     members: participants.filter((p) => p.aprvYn),
     gatherings: toScoreGatherings({ gthrs, attds, links, evtSttDt: evt.sttDt, nowIso }),
     groups,
-    missions,
     rule,
     measureWkNo,
   });
@@ -234,7 +202,6 @@ export function assembleGame(args: {
     currentWkNo: currentWeekNo(evt.sttDt, nowIso),
     measureWkNo,
     groups,
-    missions,
     participants,
     scoreboard,
   };
@@ -277,7 +244,7 @@ export async function loadPbGame(
   if (!found) return null;
   const { evt, teamId } = found;
 
-  const [cfgRow, links, prtData, recs, grps, msns, msnRslts] = await Promise.all([
+  const [cfgRow, links, prtData, recs, grps] = await Promise.all([
     loadCfgRow(db, evtId),
     loadLinkRows(db, evtId, evt.stt_dt),
     fetchAllRows(
@@ -309,25 +276,6 @@ export async function loadPbGame(
           .eq("evt_id", evtId)
           .order("grp_id", { ascending: true }),
       { label: "pb-game:evt_pb_grp_mst" },
-    ),
-    fetchAllRows(
-      () =>
-        db
-          .from("evt_pb_msn_mst")
-          .select("msn_id, wk_no, msn_nm, pt, sort_ord")
-          .eq("evt_id", evtId)
-          .order("msn_id", { ascending: true }),
-      { label: "pb-game:evt_pb_msn_mst" },
-    ),
-    fetchAllRows(
-      () =>
-        db
-          .from("evt_pb_msn_rslt_rel")
-          .select("msn_id, grp_id, evt_pb_msn_mst!inner(evt_id)")
-          .eq("evt_pb_msn_mst.evt_id", evtId)
-          .order("msn_id", { ascending: true })
-          .order("grp_id", { ascending: true }),
-      { label: "pb-game:evt_pb_msn_rslt_rel" },
     ),
   ]);
 
@@ -390,8 +338,6 @@ export async function loadPbGame(
       cnfm_yn: r.cnfm_yn,
     })),
     grps,
-    msns,
-    msnRslts: msnRslts.map((r) => ({ msn_id: r.msn_id, grp_id: r.grp_id })),
     gthrs,
     attds,
     nowIso,

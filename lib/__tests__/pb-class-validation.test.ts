@@ -13,10 +13,10 @@ import {
   pbCfgSchema,
   pbGoalSecSchema,
   pbGroupInputSchema,
-  pbMissionInputSchema,
   pbParticipantUpdateSchema,
   pbRecordRowsSchema,
   pbRecSecSchema,
+  pbRecTypeSchema,
   pbRuleSchema,
   pbSessNoSchema,
   pbSessPlanSchema,
@@ -165,6 +165,15 @@ describe("기록·목표 스키마", () => {
     expect(pbRecSecSchema.safeParse(30.5).success).toBe(false);
   });
 
+  it("기록 종류는 네 가지뿐 — 회원 액션(setMyPbRecord)이 같은 스키마로 거른다", () => {
+    for (const t of ["BASE_5K", "MID_5K", "FINAL_10K", "DAEGU_10K"]) {
+      expect(pbRecTypeSchema.safeParse(t).success, t).toBe(true);
+    }
+    expect(pbRecTypeSchema.safeParse("NOPE").success).toBe(false);
+    expect(pbRecTypeSchema.safeParse("").success).toBe(false);
+    expect(pbRecTypeSchema.safeParse(undefined).success).toBe(false);
+  });
+
   it("목표는 20분~120분이고 문구는 분 단위로 말한다", () => {
     expect(pbGoalSecSchema.safeParse(1200).success).toBe(true);
     expect(pbGoalSecSchema.safeParse(7200).success).toBe(true);
@@ -181,18 +190,12 @@ describe("기록·목표 스키마", () => {
   });
 });
 
-describe("팀·미션·일괄 입력", () => {
+describe("팀·일괄 입력", () => {
   it("팀 이름은 공백을 걷고 1~30자, 색은 1~5 또는 null", () => {
     expect(pbGroupInputSchema.parse({ grpNm: "  가팀  ", colorNo: null })).toEqual({ grpNm: "가팀", colorNo: null });
     expect(pbGroupInputSchema.safeParse({ grpNm: "   ", colorNo: 1 }).success).toBe(false);
     expect(pbGroupInputSchema.safeParse({ grpNm: "가".repeat(31), colorNo: 1 }).success).toBe(false);
     expect(pbGroupInputSchema.safeParse({ grpNm: "가팀", colorNo: 6 }).success).toBe(false);
-  });
-
-  it("미션은 주차 없이(null)도 만들 수 있고 점수는 0~1000", () => {
-    expect(pbMissionInputSchema.safeParse({ wkNo: null, msnNm: "측정 전원 완주", pt: 30 }).success).toBe(true);
-    expect(pbMissionInputSchema.safeParse({ wkNo: 0, msnNm: "x", pt: 1 }).success).toBe(false);
-    expect(pbMissionInputSchema.safeParse({ wkNo: 1, msnNm: "x", pt: -1 }).success).toBe(false);
   });
 
   it("편성: 빈 훈련팀 코드는 null, 같은 참가자 중복은 거절", () => {

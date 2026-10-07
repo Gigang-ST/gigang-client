@@ -32,7 +32,7 @@ type PbScoreboardProps = {
 function TeamScoreHelp({ rule }: { rule: PbRule }) {
   return (
     <HelpTip title="팀 점수는 이렇게 매겨요">
-      팀 점수 = 주마다 팀원 1인당 평균 점수의 합 + 전원 출석 보너스 + 팀 미션.
+      팀 점수 = 주마다 팀원 1인당 평균 점수의 합 + 전원 출석 보너스.
       <br />
       합계가 아니라 평균이라 인원이 많다고 유리하지 않아요. 그 주 팀원이 모두 공식훈련에 나오면
       보너스 +{rule.pt.allAttend}점이에요.
@@ -141,8 +141,7 @@ export function PbScoreboard({ scoreboard, rule, myGrpId, me }: PbScoreboardProp
                       {isMine && <Micro className="shrink-0 font-semibold text-primary">내 팀</Micro>}
                     </div>
                     <Micro className="tabular-nums">
-                      평균 {formatPt(g.avgSum)} · 전원출석 +{formatPt(g.allAttendBonus)} · 미션 +
-                      {formatPt(g.missionBonus)}
+                      평균 {formatPt(g.avgSum)} · 전원출석 +{formatPt(g.allAttendBonus)}
                     </Micro>
                   </div>
                   <Body className="shrink-0 font-numeric text-2xl font-medium tabular-nums">

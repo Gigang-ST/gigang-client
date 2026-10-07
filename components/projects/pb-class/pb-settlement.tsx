@@ -2,6 +2,7 @@ import type { PbClassBoard } from "@/lib/queries/pb-class";
 
 import { StatCard } from "@/components/common/stat-card";
 import { Body, Caption, Micro } from "@/components/common/typography";
+import { PB_MONEY_USE_DETAIL_TXT, PB_MONEY_USE_TXT } from "./format";
 import { PbZone } from "./pb-zone";
 
 /**
@@ -23,7 +24,7 @@ export function PbSettlement({ board, myMemId }: { board: PbClassBoard; myMemId?
         {/* 보증금 합계는 두 칸 — 7자리 금액이 반칸에 들어가면 넘친다 */}
         <StatCard className="col-span-2" value={`${totals.depositSum.toLocaleString()}원`} label="보증금 합계" />
         <StatCard value={`${totals.refundSum.toLocaleString()}원`} label="환급 예정" />
-        <StatCard value={`${totals.unrefundedSum.toLocaleString()}원`} label="미환급 · 회식비·대회비" />
+        <StatCard value={`${totals.unrefundedSum.toLocaleString()}원`} label="미환급 · 회식비·운영비" />
       </div>
 
       {approved.length > 0 && (
@@ -53,6 +54,10 @@ export function PbSettlement({ board, myMemId }: { board: PbClassBoard; myMemId?
 
       <Caption className="leading-relaxed">
         출석이 늘면 매주 바뀌어요. 시즌이 끝나면 이 금액으로 정산해요.
+      </Caption>
+      {/* 「미환급」이 어디에 쓰이는지 — 안내 탭 정산 칸과 같은 문구(`format.ts`)라 한쪽만 옛 말로 남지 않는다 */}
+      <Caption className="break-keep leading-relaxed">
+        {`${PB_MONEY_USE_TXT}. ${PB_MONEY_USE_DETAIL_TXT}.`}
       </Caption>
     </PbZone>
   );
