@@ -95,6 +95,10 @@
 | `wk` | week (프로젝트 주차 — `wk_no`. PB 클래스는 수요일 00:00 KST 경계) |
 | `sess` | session (회차 — 공식훈련·측정 한 번) |
 | `rfnd` | refund (보증금 환급) |
+| `msn` | mission (팀 미션) |
+| `rslt` | result (판정 결과) |
+| `trn` | training (훈련 — `trn_grp_cd` 페이스 훈련팀) |
+| `cnfm` | confirm (운영진 확인 — `cnfm_yn`) |
 | `pb` | personal best (PB 클래스 — 출석 기반 프로젝트 `evt_type_cd = 'PB_CLASS'`) |
 
 ## 현재 v2 주요 테이블 약어
@@ -125,6 +129,10 @@
 | `evt_pb_cfg` | PB 클래스 프로젝트별 설정(총 회차·전액 기준·늦은 합류 주차·보증금·참가비) |
 | `evt_pb_prt_rel` | PB 클래스 참가 관계 — 마일리지 `evt_team_prt_rel`과 **일부러 분리** |
 | `evt_gthr_rel` | 프로젝트↔모임 연결(공식훈련·측정 회차 지정, `wk_no`=주차) |
+| `evt_pb_grp_mst` | PB 클래스 게임팀 |
+| `evt_pb_rec_hist` | PB 클래스 측정 기록(5K TT·10K TT·대구) |
+| `evt_pb_msn_mst` | PB 클래스 팀 미션 |
+| `evt_pb_msn_rslt_rel` | PB 클래스 팀 미션 성공 관계 |
 | `ttl_mst` | 칭호 마스터 |
 | `mem_ttl_rel` | 회원-칭호 관계 |
 | `brd_post_mst` | 게시글 마스터 (공지/업데이트) |

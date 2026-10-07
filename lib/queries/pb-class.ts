@@ -145,7 +145,7 @@ export type PbPrtRow = Pick<
 };
 export type PbAttdRow = { gthr_id: string; mem_id: string };
 
-function toPbEvent(row: PbEvtRow): PbEvent {
+export function toPbEvent(row: PbEvtRow): PbEvent {
   return {
     evtId: row.evt_id,
     evtNm: row.evt_nm,
@@ -286,12 +286,20 @@ export function assembleMyPbClass(args: {
 // ─────────────────────────────────────────
 
 /** 임베디드 관계는 1:1 이면 객체, 아니면 배열로 올 수 있다 — 첫 값으로 좁힌다 */
-function first<T>(v: T | T[] | null | undefined): T | null {
+export function first<T>(v: T | T[] | null | undefined): T | null {
   if (Array.isArray(v)) return v[0] ?? null;
   return v ?? null;
 }
 
-async function loadEvt(db: Db, evtId: string, teamId?: string): Promise<PbEvtRow | null> {
+/**
+ * 프로젝트 행 + 소속 팀 id. 2·3단계(`pb-class-game.ts`)가 팀 벙을 읽으려면 팀 id 가 필요해 같이 돌려준다.
+ * `loadEvt`는 이걸 감싸 phase-1 호출부 모양(행만)을 그대로 지킨다.
+ */
+export async function loadEvtWithTeam(
+  db: Db,
+  evtId: string,
+  teamId?: string,
+): Promise<{ evt: PbEvtRow; teamId: string } | null> {
   let q = db
     .from("evt_team_mst")
     .select("evt_id, evt_nm, stt_dt, end_dt, stts_enm, evt_type_cd, team_id")
@@ -302,21 +310,28 @@ async function loadEvt(db: Db, evtId: string, teamId?: string): Promise<PbEvtRow
   if (error) throw new Error(`loadPbEvt 조회 실패: ${error.message}`);
   if (!data || data.evt_type_cd !== PB_CLASS_TYPE) return null;
   return {
-    evt_id: data.evt_id,
-    evt_nm: data.evt_nm,
-    stt_dt: data.stt_dt,
-    end_dt: data.end_dt,
-    stts_enm: data.stts_enm,
+    teamId: data.team_id,
+    evt: {
+      evt_id: data.evt_id,
+      evt_nm: data.evt_nm,
+      stt_dt: data.stt_dt,
+      end_dt: data.end_dt,
+      stts_enm: data.stts_enm,
+    },
   };
 }
 
-async function loadCfgRow(db: Db, evtId: string): Promise<Tables<"evt_pb_cfg"> | null> {
+export async function loadEvt(db: Db, evtId: string, teamId?: string): Promise<PbEvtRow | null> {
+  return (await loadEvtWithTeam(db, evtId, teamId))?.evt ?? null;
+}
+
+export async function loadCfgRow(db: Db, evtId: string): Promise<Tables<"evt_pb_cfg"> | null> {
   const { data, error } = await db.from("evt_pb_cfg").select("*").eq("evt_id", evtId).maybeSingle();
   if (error) throw new Error(`loadPbCfg 조회 실패: ${error.message}`);
   return data;
 }
 
-async function loadLinkRows(db: Db, evtId: string, evtSttDt: string): Promise<PbLinkRow[]> {
+export async function loadLinkRows(db: Db, evtId: string, evtSttDt: string): Promise<PbLinkRow[]> {
   // 연결은 프로젝트당 많아야 십수 건(12주 + 측정)이라 한 번에 읽어도 상한에 닿지 않는다
   const { data, error } = await db
     .from("evt_gthr_rel")

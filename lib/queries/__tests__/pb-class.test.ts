@@ -77,6 +77,7 @@ describe("cfgFromRow", () => {
         late_join_wk_no: 5,
         deposit_amt: 20_000,
         entry_fee_amt: 5_000,
+        rule_json: {},
         created_at: "",
         updated_at: "",
       }),

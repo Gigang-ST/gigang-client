@@ -5,12 +5,12 @@ import { revalidatePath } from "next/cache";
 import { withAdmin } from "@/lib/actions/auth";
 import { dayjs, formatKST, parseEventTime } from "@/lib/dayjs";
 import {
-  PB_CLASS_TYPE,
   feesForJoinWeek,
   weekNoOf,
   type PbClassCfg,
   type PbSessType,
 } from "@/lib/pb-class";
+import { guardEvent, guardParticipant } from "@/lib/pb-class-guard";
 import { cfgFromRow, loadPbClassBoard, type PbClassBoard } from "@/lib/queries/pb-class";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -44,43 +44,6 @@ const GENERIC_FAIL = "처리에 실패했습니다";
 /** zod 첫 오류를 사람 말 한 줄로 */
 function firstIssue(error: { issues: { message: string }[] }): string {
   return error.issues[0]?.message ?? "입력값이 올바르지 않습니다";
-}
-
-type PbEvtGuard = { evt_id: string; stt_dt: string; end_dt: string };
-
-/**
- * 요청 팀의 PB_CLASS 프로젝트만 돌려준다. 다른 팀·다른 종류·없는 id는 전부 null —
- * 존재 여부를 구분해 알려 주지 않는다.
- */
-async function guardEvent(
-  db: ReturnType<typeof createAdminClient>,
-  evtId: string,
-  teamId: string,
-): Promise<PbEvtGuard | null> {
-  const { data } = await db
-    .from("evt_team_mst")
-    .select("evt_id, stt_dt, end_dt")
-    .eq("evt_id", evtId)
-    .eq("team_id", teamId)
-    .eq("evt_type_cd", PB_CLASS_TYPE)
-    .maybeSingle();
-  return data ?? null;
-}
-
-/** prt_id 로 지정되는 액션용 — 그 참가자가 요청 팀의 PB_CLASS 프로젝트 소속인지 한 번에 확인 */
-async function guardParticipant(
-  db: ReturnType<typeof createAdminClient>,
-  prtId: string,
-  teamId: string,
-): Promise<{ prt_id: string; evt_id: string } | null> {
-  const { data } = await db
-    .from("evt_pb_prt_rel")
-    .select("prt_id, evt_id, evt_team_mst!inner(team_id, evt_type_cd)")
-    .eq("prt_id", prtId)
-    .eq("evt_team_mst.team_id", teamId)
-    .eq("evt_team_mst.evt_type_cd", PB_CLASS_TYPE)
-    .maybeSingle();
-  return data ? { prt_id: data.prt_id, evt_id: data.evt_id } : null;
 }
 
 // ─────────────────────────────────────────

@@ -202,3 +202,15 @@ evt_team_mst (evt_type_cd='PB_CLASS')
 - 전액 기준 = `floor(남은 회차 × full ÷ tot)`, 남은 회차 = `tot − (join_wk_no − 1)` — **연결된 벙 수를 세지 않는다**
   (한파 취소로 연결이 빠져도 분모 고정). `join_wk_no ≥ late_join_wk_no`면 환급 없음(보증금 0).
 - 환급 = `floor(참가자.deposit_amt × min(출석, 기준) ÷ 기준)`.
+
+### 2·3단계 테이블 (`20261007130000_evt_pb_class_game.sql`)
+
+| 테이블/컬럼 | 핵심 | 제약 |
+|---|---|---|
+| `evt_pb_cfg.rule_json` | 배점·목표 규칙 jsonb — 앱이 `PB_DEFAULT_RULE`과 병합 | NOT NULL DEFAULT `{}` |
+| `evt_pb_grp_mst` | 게임팀 `grp_nm` · `color_no`(1~5) · `sort_ord` | UNIQUE(`evt_id`,`grp_nm`), CASCADE |
+| `evt_pb_prt_rel` + | `trn_grp_cd`(A~E) · `grp_id`(→게임팀, SET NULL) · `goal_sec`(1200~7200) | |
+| `evt_pb_rec_hist` | `rec_type_cd`(BASE_5K/MID_5K/FINAL_10K/DAEGU_10K) · `rec_sec` · `cnfm_yn` · `crt_by` | UNIQUE(`prt_id`,`rec_type_cd`) |
+| `evt_pb_msn_mst` / `evt_pb_msn_rslt_rel` | 팀 미션 / 성공(행 = 성공) | PK(`msn_id`,`grp_id`) |
+
+- **점수는 테이블이 없다** — `lib/pb-class-score.ts`가 벙·참석·기록·미션 판정에서 매번 계산한다(장부를 두면 원천과 갈라진다).
