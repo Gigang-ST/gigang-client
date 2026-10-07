@@ -129,7 +129,7 @@ export function PbGoalCard({ evtId, goalSec, goalMaxSec, editUntilWk, editable, 
               <Input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                placeholder="mm:ss  예) 55:00"
+                placeholder="예) 55:00 또는 5500"
                 aria-label="10K 목표 기록"
                 aria-invalid={error !== null}
                 autoComplete="off"

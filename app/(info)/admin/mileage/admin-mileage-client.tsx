@@ -91,10 +91,10 @@ function ProjectOption({ project: p }: { project: Project }) {
   const badge = STATUS_BADGE[p.stts_enm] ?? STATUS_BADGE.READY;
   return (
     <SelectItem value={p.evt_id}>
-      <span className="flex items-center gap-2">
-        <span>{p.evt_nm}</span>
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="truncate">{p.evt_nm}</span>
         <span
-          className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+          className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
             badge.variant === "default"
               ? "bg-primary text-primary-foreground"
               : badge.variant === "outline"
@@ -263,7 +263,7 @@ export function AdminMileageClient({ teamId }: { teamId: string }) {
                 }
               }}
             >
-              <SelectTrigger className="h-12 rounded-xl border-[1.5px] text-[15px]">
+              <SelectTrigger className="h-12 min-w-0 rounded-xl border-[1.5px] text-[15px] [&>span]:min-w-0">
                 <SelectValue placeholder="프로젝트 선택" />
               </SelectTrigger>
               <SelectContent>

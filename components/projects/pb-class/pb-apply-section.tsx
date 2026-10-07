@@ -100,7 +100,8 @@ export function PbApplySection({
                   </Micro>
                 )}
               </span>
-              <span className="flex items-baseline gap-1.5 tabular-nums">
+              {/* 정가(취소선)와 할인가는 한 덩어리로 — 375px에서 "원"만 다음 줄로 떨어지던 것 */}
+              <span className="flex shrink-0 items-baseline gap-1.5 whitespace-nowrap tabular-nums">
                 {depositDcAmt > 0 && (
                   <Micro className="line-through">{(depositAmt + depositDcAmt).toLocaleString()}원</Micro>
                 )}

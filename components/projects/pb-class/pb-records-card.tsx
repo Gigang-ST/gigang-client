@@ -166,7 +166,7 @@ function DaeguRow({ evtId, rec }: { evtId: string; rec: PbRecValue | undefined }
             <Input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="mm:ss 또는 h:mm:ss"
+              placeholder="예) 52:30 또는 5230"
               aria-label={label}
               aria-invalid={error !== null}
               autoComplete="off"
