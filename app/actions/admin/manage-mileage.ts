@@ -2,6 +2,7 @@
 
 import { withAdmin } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
+import { PB_CLASS_TYPE } from "@/lib/pb-class";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -48,7 +49,28 @@ export async function updateEvent(
   },
 ) {
   return withAdmin(async () => {
+    const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
+
+    // 참가자가 있는 프로젝트의 종류를 바꾸면 참가 행이 고아가 된다 — 마일리지 참가자는
+    // evt_team_prt_rel, PB 참가자는 evt_pb_prt_rel 에 있어서 바뀐 종류의 화면이 그들을 못 본다.
+    const { data: current } = await db
+      .from("evt_team_mst")
+      .select("evt_type_cd")
+      .eq("evt_id", evtId)
+      .eq("team_id", teamId)
+      .maybeSingle();
+    if (!current) return { ok: false, message: "이벤트를 찾을 수 없습니다" };
+    if (current.evt_type_cd !== input.evt_type_cd) {
+      const [mlg, pb] = await Promise.all([
+        db.from("evt_team_prt_rel").select("prt_id", { count: "exact", head: true }).eq("evt_id", evtId),
+        db.from("evt_pb_prt_rel").select("prt_id", { count: "exact", head: true }).eq("evt_id", evtId),
+      ]);
+      if ((mlg.count ?? 0) + (pb.count ?? 0) > 0) {
+        return { ok: false, message: "참가자가 있는 프로젝트는 종류를 바꿀 수 없습니다" };
+      }
+    }
+
     const { error } = await db
       .from("evt_team_mst")
       .update({
@@ -60,7 +82,8 @@ export async function updateEvent(
         desc_txt: input.desc_txt?.trim() || null,
         updated_at: dayjs().toISOString(),
       })
-      .eq("evt_id", evtId);
+      .eq("evt_id", evtId)
+      .eq("team_id", teamId);
     if (error) return { ok: false, message: "이벤트 수정에 실패했습니다" };
     return { ok: true, message: null };
   });
@@ -68,7 +91,31 @@ export async function updateEvent(
 
 export async function deleteEvent(evtId: string) {
   return withAdmin(async () => {
+    const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
+    const { data: evt } = await db
+      .from("evt_team_mst")
+      .select("evt_type_cd")
+      .eq("evt_id", evtId)
+      .eq("team_id", teamId)
+      .maybeSingle();
+    if (!evt) return { ok: false, message: "이벤트를 찾을 수 없습니다" };
+
+    // PB 클래스 참가 행은 보증금 기록이다 — evt_pb_* 가 ON DELETE CASCADE 라 프로젝트를 지우면
+    // 입금·환급 근거가 조용히 사라진다. 참가자가 있으면 지우지 말고 종료(CLOSED)로 닫게 한다.
+    if (evt.evt_type_cd === PB_CLASS_TYPE) {
+      const { count } = await db
+        .from("evt_pb_prt_rel")
+        .select("prt_id", { count: "exact", head: true })
+        .eq("evt_id", evtId);
+      if ((count ?? 0) > 0) {
+        return {
+          ok: false,
+          message: "참가자가 있는 PB 클래스는 삭제할 수 없습니다. 상태를 종료로 바꿔 주세요",
+        };
+      }
+    }
+
     await db.from("evt_mlg_mult_cfg").delete().eq("evt_id", evtId);
     await db.from("evt_team_prt_rel").delete().eq("evt_id", evtId);
     const { error } = await db.from("evt_team_mst").delete().eq("evt_id", evtId);

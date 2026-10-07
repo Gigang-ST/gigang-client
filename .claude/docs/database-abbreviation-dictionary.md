@@ -92,6 +92,10 @@
 | `cron` | cron (스케줄 표현식) |
 | `param` | parameter (파라미터) |
 | `cd_grp` | code group (공통코드 그룹) |
+| `wk` | week (프로젝트 주차 — `wk_no`. PB 클래스는 수요일 00:00 KST 경계) |
+| `sess` | session (회차 — 공식훈련·측정 한 번) |
+| `rfnd` | refund (보증금 환급) |
+| `pb` | personal best (PB 클래스 — 출석 기반 프로젝트 `evt_type_cd = 'PB_CLASS'`) |
 
 ## 현재 v2 주요 테이블 약어
 | 테이블 | 의미 |
@@ -118,6 +122,9 @@
 | `evt_mlg_mth_snap` | 마일리지 월별 목표/집계 스냅샷 |
 | `evt_mlg_act_hist` | 마일리지 활동 기록 이력 |
 | `evt_mlg_mult_cfg` | 마일리지 배율 설정 |
+| `evt_pb_cfg` | PB 클래스 프로젝트별 설정(총 회차·전액 기준·늦은 합류 주차·보증금·참가비) |
+| `evt_pb_prt_rel` | PB 클래스 참가 관계 — 마일리지 `evt_team_prt_rel`과 **일부러 분리** |
+| `evt_gthr_rel` | 프로젝트↔모임 연결(공식훈련·측정 회차 지정, `wk_no`=주차) |
 | `ttl_mst` | 칭호 마스터 |
 | `mem_ttl_rel` | 회원-칭호 관계 |
 | `brd_post_mst` | 게시글 마스터 (공지/업데이트) |

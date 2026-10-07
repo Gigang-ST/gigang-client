@@ -29,7 +29,7 @@ export type PbClassCfg = {
   /** 이 주차부터 합류하면 보증금 없이 참가비만 낸다(환급·팀전 없음) */
   lateJoinWkNo: number;
   /** 정식·W2~W5 합류자의 보증금 */
-  dpstAmt: number;
+  depositAmt: number;
   /** 참가비(돌려주지 않는다) */
   entryFeeAmt: number;
 };
@@ -38,7 +38,7 @@ export const PB_CLASS_DEFAULT_CFG: PbClassCfg = {
   totSessCnt: 13,
   fullRfndAttdCnt: 9,
   lateJoinWkNo: 6,
-  dpstAmt: 30_000,
+  depositAmt: 30_000,
   entryFeeAmt: 10_000,
 };
 
@@ -129,9 +129,9 @@ export function countAttd(
  * 환급액 = 보증금 × min(출석, 기준) ÷ 기준. 원 단위 내림.
  * 보증금은 **참가자 행의 `deposit_amt`**를 쓴다 — 늦은 합류자는 0이라 저절로 0원이 된다.
  */
-export function refundAmt(dpstAmt: number, attdCnt: number, required: number | null): number {
-  if (!required || dpstAmt <= 0) return 0;
-  return Math.floor((dpstAmt * Math.min(attdCnt, required)) / required);
+export function refundAmt(depositAmt: number, attdCnt: number, required: number | null): number {
+  if (!required || depositAmt <= 0) return 0;
+  return Math.floor((depositAmt * Math.min(attdCnt, required)) / required);
 }
 
 export type PbRefundSummary = {
@@ -149,16 +149,16 @@ export type PbRefundSummary = {
 /** 한 참가자의 출석·환급 요약 — 회원 화면과 관리자 표가 같은 값을 보게 한 곳에서 낸다 */
 export function summarizeRefund(args: {
   joinWkNo: number;
-  dpstAmt: number;
+  depositAmt: number;
   links: readonly PbSessLink[];
   attendedGthrIds: ReadonlySet<string>;
   cfg: PbClassCfg;
 }): PbRefundSummary {
-  const { joinWkNo, dpstAmt, links, attendedGthrIds, cfg } = args;
+  const { joinWkNo, depositAmt, links, attendedGthrIds, cfg } = args;
   const late = isLateJoin(joinWkNo, cfg);
   const attdCnt = countAttd(links, attendedGthrIds, joinWkNo);
   const required = requiredAttdCnt(joinWkNo, cfg);
-  const refund = refundAmt(dpstAmt, attdCnt, required);
+  const refund = refundAmt(depositAmt, attdCnt, required);
   return {
     joinWkNo,
     late,
@@ -166,7 +166,7 @@ export function summarizeRefund(args: {
     required,
     toFull: required === null ? null : Math.max(0, required - attdCnt),
     refund,
-    unrefunded: Math.max(0, dpstAmt - refund),
+    unrefunded: Math.max(0, depositAmt - refund),
   };
 }
 
@@ -233,9 +233,9 @@ export function buildSessStrip(args: {
 }
 
 /** 합류 주차에 맞는 납부액 — 늦은 합류면 보증금 0 */
-export function feesForJoinWeek(joinWkNo: number, cfg: PbClassCfg): { dpstAmt: number; entryFeeAmt: number } {
+export function feesForJoinWeek(joinWkNo: number, cfg: PbClassCfg): { depositAmt: number; entryFeeAmt: number } {
   return {
-    dpstAmt: isLateJoin(joinWkNo, cfg) ? 0 : cfg.dpstAmt,
+    depositAmt: isLateJoin(joinWkNo, cfg) ? 0 : cfg.depositAmt,
     entryFeeAmt: cfg.entryFeeAmt,
   };
 }

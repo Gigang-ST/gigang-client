@@ -142,7 +142,7 @@ describe("summarizeRefund", () => {
     const all = new Set(LINKS.map((l) => l.gthrId));
     const s = summarizeRefund({
       joinWkNo: 1,
-      dpstAmt: 30_000,
+      depositAmt: 30_000,
       links: withoutW7,
       attendedGthrIds: all,
       cfg: CFG,
@@ -157,7 +157,7 @@ describe("summarizeRefund", () => {
   it("4회 출석 정식 참가자: 13,333원 환급, 16,667원 미환급, 전액까지 5회", () => {
     const s = summarizeRefund({
       joinWkNo: 1,
-      dpstAmt: 30_000,
+      depositAmt: 30_000,
       links: LINKS,
       attendedGthrIds: new Set(["t1", "t2", "t3", "t4"]),
       cfg: CFG,
@@ -168,7 +168,7 @@ describe("summarizeRefund", () => {
   it("늦은 합류자는 출석은 세되 환급·전액까지는 없음", () => {
     const s = summarizeRefund({
       joinWkNo: 7,
-      dpstAmt: 0,
+      depositAmt: 0,
       links: LINKS,
       attendedGthrIds: new Set(["t7", "t8"]),
       cfg: CFG,
@@ -213,8 +213,8 @@ describe("buildSessStrip", () => {
 
 describe("feesForJoinWeek", () => {
   it("W5까지 4만 원(보증금 3만 + 참가비 1만), W6부터 1만 원", () => {
-    expect(feesForJoinWeek(1, CFG)).toEqual({ dpstAmt: 30_000, entryFeeAmt: 10_000 });
-    expect(feesForJoinWeek(5, CFG)).toEqual({ dpstAmt: 30_000, entryFeeAmt: 10_000 });
-    expect(feesForJoinWeek(6, CFG)).toEqual({ dpstAmt: 0, entryFeeAmt: 10_000 });
+    expect(feesForJoinWeek(1, CFG)).toEqual({ depositAmt: 30_000, entryFeeAmt: 10_000 });
+    expect(feesForJoinWeek(5, CFG)).toEqual({ depositAmt: 30_000, entryFeeAmt: 10_000 });
+    expect(feesForJoinWeek(6, CFG)).toEqual({ depositAmt: 0, entryFeeAmt: 10_000 });
   });
 });

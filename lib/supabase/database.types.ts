@@ -579,6 +579,45 @@ export type Database = {
         }
         Relationships: []
       }
+      evt_gthr_rel: {
+        Row: {
+          created_at: string
+          evt_id: string
+          gthr_id: string
+          sess_type_cd: string
+          wk_no: number
+        }
+        Insert: {
+          created_at?: string
+          evt_id: string
+          gthr_id: string
+          sess_type_cd: string
+          wk_no: number
+        }
+        Update: {
+          created_at?: string
+          evt_id?: string
+          gthr_id?: string
+          sess_type_cd?: string
+          wk_no?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evt_gthr_rel_evt_id_fkey"
+            columns: ["evt_id"]
+            isOneToOne: false
+            referencedRelation: "evt_team_mst"
+            referencedColumns: ["evt_id"]
+          },
+          {
+            foreignKeyName: "evt_gthr_rel_gthr_id_fkey"
+            columns: ["gthr_id"]
+            isOneToOne: true
+            referencedRelation: "gthr_mst"
+            referencedColumns: ["gthr_id"]
+          },
+        ]
+      }
       evt_mlg_act_hist: {
         Row: {
           act_dt: string
@@ -723,6 +762,101 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "evt_team_mst"
             referencedColumns: ["evt_id"]
+          },
+        ]
+      }
+      evt_pb_cfg: {
+        Row: {
+          created_at: string
+          deposit_amt: number
+          entry_fee_amt: number
+          evt_id: string
+          full_rfnd_attd_cnt: number
+          late_join_wk_no: number
+          tot_sess_cnt: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deposit_amt?: number
+          entry_fee_amt?: number
+          evt_id: string
+          full_rfnd_attd_cnt?: number
+          late_join_wk_no?: number
+          tot_sess_cnt?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deposit_amt?: number
+          entry_fee_amt?: number
+          evt_id?: string
+          full_rfnd_attd_cnt?: number
+          late_join_wk_no?: number
+          tot_sess_cnt?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evt_pb_cfg_evt_id_fkey"
+            columns: ["evt_id"]
+            isOneToOne: true
+            referencedRelation: "evt_team_mst"
+            referencedColumns: ["evt_id"]
+          },
+        ]
+      }
+      evt_pb_prt_rel: {
+        Row: {
+          aprv_at: string | null
+          aprv_yn: boolean
+          created_at: string
+          deposit_amt: number
+          entry_fee_amt: number
+          evt_id: string
+          join_wk_no: number
+          mem_id: string
+          prt_id: string
+          updated_at: string
+        }
+        Insert: {
+          aprv_at?: string | null
+          aprv_yn?: boolean
+          created_at?: string
+          deposit_amt: number
+          entry_fee_amt: number
+          evt_id: string
+          join_wk_no?: number
+          mem_id: string
+          prt_id?: string
+          updated_at?: string
+        }
+        Update: {
+          aprv_at?: string | null
+          aprv_yn?: boolean
+          created_at?: string
+          deposit_amt?: number
+          entry_fee_amt?: number
+          evt_id?: string
+          join_wk_no?: number
+          mem_id?: string
+          prt_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evt_pb_prt_rel_evt_id_fkey"
+            columns: ["evt_id"]
+            isOneToOne: false
+            referencedRelation: "evt_team_mst"
+            referencedColumns: ["evt_id"]
+          },
+          {
+            foreignKeyName: "evt_pb_prt_rel_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
           },
         ]
       }
