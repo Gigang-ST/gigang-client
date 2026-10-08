@@ -225,3 +225,7 @@ evt_team_mst (evt_type_cd='PB_CLASS')
 
 - PB `end_dt`는 서버가 `pbEndDtFor(stt_dt, cfg)`로 정한다(클라이언트 값 무시).
 - 프로젝트 삭제는 참가자(마일리지·PB)가 하나라도 있으면 거부 — 끝난 프로젝트는 `CLOSED`로 보관한다.
+
+### 훈련표 개편 (`20261008100000_evt_pb_sess_plan_kind.sql`)
+- `evt_pb_sess_plan`: **`phase_nm`·`purp_txt` 삭제**, `trn_kind_cd`(TT·SPD·HILL·THR·VO2·RACE·FART·TAPER, NOT NULL) · `self_trn_txt`(개인 훈련 안내, NULL) 추가.
+  종류 이름·속도·기르는 것은 코드 사전(`PB_TRN_KINDS`, `lib/pb-class-plan.ts`)이 정본이고 DB엔 코드만 둔다.

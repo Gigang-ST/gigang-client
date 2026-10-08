@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { dayjs } from "@/lib/dayjs";
 import { PB_CLASS_DEFAULT_CFG, summarizeRefund, type PbClassCfg } from "@/lib/pb-class";
-import { PB_DEFAULT_SESS_PLANS, PB_TRN_GROUPS } from "@/lib/pb-class-plan";
+import { PB_DEFAULT_SESS_PLANS, PB_TRN_GROUPS, PB_TRN_KINDS } from "@/lib/pb-class-plan";
 import { PB_DEFAULT_RULE } from "@/lib/pb-class-score";
 import type { PbEvent, PbParticipant, PbSession } from "@/lib/queries/pb-class";
 
@@ -263,7 +263,7 @@ describe("PbGuide — 규칙이 곧 안내", () => {
 
   it("훈련팀 표는 목표 시간 이름 + 10K 목표기록 + 대회 페이스만 — 알파벳도 주간 거리도 없다", () => {
     const out = html(createElement(PbGuide, { ...props, cfg: CFG }));
-    const table = out.slice(out.indexOf('id="pb-guide-groups"'), out.indexOf('id="pb-guide-score"'));
+    const table = out.slice(out.indexOf('id="pb-guide-groups"'), out.indexOf('id="pb-guide-kinds"'));
 
     for (const th of ["그룹", "10K 목표기록", "대회 페이스"]) expect(table).toContain(`>${th}<`);
     for (const nm of PB_TRN_GROUPS.map((g) => g.nm)) expect(table).toContain(nm);
@@ -287,12 +287,34 @@ describe("PbGuide — 규칙이 곧 안내", () => {
       ["D1", "50분 이하"],
     ] as const) {
       const out = html(createElement(PbGuide, { ...props, cfg: CFG, trnGrpCd: cd }));
-      const table = out.slice(out.indexOf('id="pb-guide-groups"'), out.indexOf('id="pb-guide-score"'));
+      const table = out.slice(out.indexOf('id="pb-guide-groups"'), out.indexOf('id="pb-guide-kinds"'));
 
       expect(table.match(/내 팀/g)).toHaveLength(1);
       expect(table.indexOf("내 팀")).toBeGreaterThan(table.indexOf(nm));
       expect(table).toMatch(/<tr class="bg-primary\/5">/);
     }
+  });
+
+  it("훈련 종류 사전 — 8가지 칩·속도·기르는 것, 단계·목적이라는 말은 없다", () => {
+    const out = html(createElement(PbGuide, { ...props, cfg: CFG }));
+    const kinds = out.slice(out.indexOf('id="pb-guide-kinds"'), out.indexOf('id="pb-guide-score"'));
+
+    expect(out).toContain('href="#pb-guide-kinds"');
+    expect(out).toContain(">훈련 종류<");
+    const all = Object.values(PB_TRN_KINDS);
+    expect(kinds.match(/<li /g)).toHaveLength(all.length);
+    for (const k of all) {
+      expect(kinds).toContain(`>${k.nm}</span>`);
+      expect(kinds).toContain(k.what);
+      expect(kinds).toContain(k.pace);
+    }
+    expect(kinds).toContain(">업힐 훈련</span>");
+    expect(kinds).toContain("12주 동안 이 8가지를 주마다 바꿔 가며 해요");
+    // 12주에 처음 나오는 순서 — 기록 측정이 맨 앞, 테이퍼가 맨 뒤
+    expect(kinds.indexOf(">기록 측정<")).toBeLessThan(kinds.indexOf(">파틀렉<"));
+    expect(kinds.indexOf(">레이스 페이스 훈련<")).toBeLessThan(kinds.indexOf(">테이퍼<"));
+    expect(out).not.toContain("목적");
+    expect(out).not.toContain("단계");
   });
 
   it("목표·기록·대구는 본인이 직접 올린다 — 운영진이 적는다는 말이 없다", () => {
@@ -321,7 +343,7 @@ describe("PbGuide — 규칙이 곧 안내", () => {
   });
 });
 
-describe("PbTraining — 주차별 훈련과 목적", () => {
+describe("PbTraining — 주차별 훈련 · 훈련 종류 · 내 P", () => {
   const base = {
     plans: PB_DEFAULT_SESS_PLANS,
     evt: EVT,
@@ -330,6 +352,13 @@ describe("PbTraining — 주차별 훈련과 목적", () => {
     me: null,
     trnGrpCd: null,
   };
+  /** 회차 하나의 마크업 — 13칸이 다 그려지므로(접힌 칸도 본문이 마크업에 있다) 칸 단위로 잘라 본다 */
+  const sessOf = (out: string, n: number) =>
+    out.slice(out.indexOf(`id="pb-sess-${n}"`), n < 13 ? out.indexOf(`id="pb-sess-${n + 1}"`) : undefined);
+  /** 문구 옆에 붙인 내 페이스 괄호 */
+  const PACE_SPAN = /text-primary">\(\d+:\d{2}(~\d+:\d{2})?\)<\/span>/;
+  /** 목표 45:00 · 1주차 5K 23:00 → 기록 환산(4:48)이 목표(4:30)보다 느려 P = 4:48 */
+  const slowRec = { goalSec: 2700, base5kSec: 1380, mid5kSec: null, midWkNo: 6 };
 
   it("주차 라벨은 「n주차 · M/D(요일)」, 측정은 「측정」이다", () => {
     const out = html(createElement(PbTraining, { ...base, phase: { kind: "week", wkNo: 5 } }));
@@ -337,9 +366,30 @@ describe("PbTraining — 주차별 훈련과 목적", () => {
     expect(out).toContain(">5주차</span>");
     expect(out).toContain("· 12/2(수) 19:30"); // 연결된 벙 시각(KST)
     expect(out).toContain(">측정</span>");
-    expect(out).toContain("목적");
-    expect(out).toContain(PB_DEFAULT_SESS_PLANS[4].purpTxt);
     expect(out).not.toMatch(/W\d/);
+  });
+
+  it("단계 대신 훈련 종류 칩 — 단계 이름도 목적 칸도 없다", () => {
+    const out = html(createElement(PbTraining, { ...base, phase: { kind: "week", wkNo: 5 } }));
+
+    for (const cd of new Set(PB_DEFAULT_SESS_PLANS.map((p) => p.kindCd))) {
+      expect(out).toContain(`>${PB_TRN_KINDS[cd].nm}</span>`);
+    }
+    expect(out).toContain(">업힐 훈련</span>");
+    expect(out).toContain(">VO2max 훈련</span>");
+    expect(sessOf(out, 3)).toContain(">업힐 훈련</span>");
+    expect(sessOf(out, 13)).toContain(">기록 측정</span>");
+    for (const phaseNm of ["기초", "점검", "강화", "특화", "마무리"]) expect(out).not.toContain(`>${phaseNm}<`);
+    expect(out).not.toContain("목적");
+    expect(out).not.toContain("단계");
+  });
+
+  it("펼친 칸은 그 종류의 속도와 기르는 것을 말한다", () => {
+    const out = html(createElement(PbTraining, { ...base, phase: { kind: "week", wkNo: 5 } }));
+    const wk5 = sessOf(out, 5); // 템포런 — 역치 훈련
+
+    expect(wk5).toContain(PB_TRN_KINDS.THR.what);
+    expect(wk5).toContain(PB_TRN_KINDS.THR.pace);
   });
 
   it("이번 주 칸 하나만 펼치고 짚는다", () => {
@@ -368,26 +418,30 @@ describe("PbTraining — 주차별 훈련과 목적", () => {
     expect(out).toContain("날짜 미정");
   });
 
-  it("첫 10K 그룹은 첫 10K 세션이 먼저, 38~50분 세션은 참고로 낮춘다", () => {
+  it("첫 10K 그룹 — 세션을 설명하는 38~50분 줄이 위, 내 줄(첫 10K)은 반전 꼬리표로 짚는다", () => {
+    // easyTxt 는 줄인 양(「6회」)만 적혀 있어 그것만 위에 세우면 무엇을 6회 하는지 모른다
     const out = html(createElement(PbTraining, { ...base, trnGrpCd: "E", phase: { kind: "week", wkNo: 2 } }));
-    const first = out.indexOf("같은 방식으로 6회");
-    const main = out.indexOf("400m를 목표 페이스보다 15초 빠르게");
-    expect(first).toBeGreaterThan(-1);
-    expect(first).toBeLessThan(main);
+    const wk4 = sessOf(out, 4); // 400m 반복 — 첫 10K 는 6회
+
+    expect(wk4.indexOf("400m @ P-15초")).toBeLessThan(wk4.indexOf(">6회<"));
+    expect(wk4).toMatch(/bg-foreground text-background">첫 10K</);
+    expect(wk4).toMatch(/bg-secondary text-muted-foreground">38~50분</);
     expect(out).toContain("내 훈련팀");
     expect(out).toContain(">첫 10K · 60분 이하<");
   });
 
   it("세션 꼬리표는 알파벳(A~D·E)이 아니라 38~50분 · 첫 10K · 전원이다", () => {
     const out = html(createElement(PbTraining, { ...base, trnGrpCd: "C", phase: { kind: "week", wkNo: 2 } }));
+    const wk4 = sessOf(out, 4);
 
     expect(out).toContain(">38~50분<");
     expect(out).toContain(">첫 10K<");
-    expect(out).toContain(">전원<"); // 타임트라이얼 같은 공통 세션
+    expect(out).toContain(">전원<"); // 기록 측정 같은 공통 세션
     expect(out).not.toContain(">A~D<");
     expect(out).not.toContain(">E<");
-    // 내 그룹(38~50분) 줄이 먼저고 첫 10K 줄은 참고
-    expect(out.indexOf("400m를 목표 페이스보다 15초 빠르게")).toBeLessThan(out.indexOf("같은 방식으로 6회"));
+    // 내 그룹(38~50분) 줄이 주인공이고 첫 10K 줄은 참고
+    expect(wk4).toMatch(/bg-foreground text-background">38~50분</);
+    expect(wk4).toMatch(/bg-secondary text-muted-foreground">첫 10K</);
   });
 
   it("내 훈련팀 카드는 목표 시간 이름 + 10K 목표기록 + 대회 페이스만 — 주간 거리는 없다", () => {
@@ -414,6 +468,102 @@ describe("PbTraining — 주차별 훈련과 목적", () => {
 
     expect(out).toContain("훈련팀은 1주차 5K 기록으로 정해져요");
     expect(out).not.toContain("내 훈련팀");
+  });
+
+  it("내 P 카드 — 기록이 목표보다 느리면 기록 기준, 이유와 환산 칸까지", () => {
+    const out = html(
+      createElement(PbTraining, {
+        ...base,
+        me: makeMe(1, []),
+        trnGrpCd: "C",
+        paceInput: slowRec,
+        phase: { kind: "week", wkNo: 2 },
+      }),
+    );
+
+    expect(out).toContain(">내 P<");
+    expect(out).toMatch(/>4:48<\/span><span[^>]*>\/km</);
+    expect(out).toContain("1주차 5K 기록 기준 — 목표 4:30보다 느려서");
+    // 환산 칸 — 훈련 문구와 같은 표기(「P-15초」)
+    for (const [label, pace] of [
+      ["P-15초", "4:33"],
+      ["P-10초", "4:38"],
+      ["P", "4:48"],
+      ["P+10초", "4:58"],
+      ["P+15초", "5:03"],
+    ]) {
+      expect(out).toMatch(new RegExp(`>${label.replace("+", "\\+")}</dt><dd[^>]*>${pace}</dd>`));
+    }
+    expect(out).toContain("조깅 · P+1:30~2:00");
+    expect(out).toContain(">6:18~6:48<");
+  });
+
+  it("내 P 카드 — 5K 기록이 목표보다 빠르면 목표 기준", () => {
+    const out = html(
+      createElement(PbTraining, {
+        ...base,
+        me: makeMe(1, []),
+        paceInput: { goalSec: 2700, base5kSec: 1200, mid5kSec: null, midWkNo: 6 },
+        phase: { kind: "week", wkNo: 2 },
+      }),
+    );
+
+    expect(out).toMatch(/>4:30<\/span><span[^>]*>\/km</);
+    expect(out).toContain("10K 목표 45:00 기준 — 5K 기록이 이미 목표보다 빨라요");
+  });
+
+  it("훈련 문구의 P 옆에 내 실제 페이스를 붙인다 — 원문 괄호는 건드리지 않는다", () => {
+    const out = html(
+      createElement(PbTraining, { ...base, me: makeMe(1, []), paceInput: slowRec, phase: { kind: "week", wkNo: 2 } }),
+    );
+
+    // 4주차 400m @ P-15초 → 4:33, 7주차 800m @ P-10~15초 → 4:33~4:38
+    expect(sessOf(out, 4)).toContain('400m @ P-15초<span class="font-medium tabular-nums text-primary">(4:33)</span>');
+    expect(sessOf(out, 7)).toContain('P-10~15초<span class="font-medium tabular-nums text-primary">(4:33~4:38)</span>');
+    // 11주차 — 맨 P 는 붙이고, 「(38분 이하는 3회)」는 원문 괄호라 그대로
+    expect(sessOf(out, 11)).toContain(
+      '3km @ P<span class="font-medium tabular-nums text-primary">(4:48)</span> → 4분 조깅 · 2회 (38분 이하는 3회)',
+    );
+    expect(out).not.toMatch(/text-primary">\(38분/);
+  });
+
+  it("P를 못 정하면 훈련팀 대회 페이스로 물러나고, 문구 옆 숫자는 세우지 않는다", () => {
+    const out = html(
+      createElement(PbTraining, {
+        ...base,
+        me: makeMe(1, []),
+        trnGrpCd: "C",
+        paceInput: { goalSec: null, base5kSec: null, mid5kSec: null, midWkNo: 6 },
+        phase: { kind: "week", wkNo: 2 },
+      }),
+    );
+
+    expect(out).toContain(">내 P<");
+    expect(out).toContain(">4:30/km<");
+    expect(out).toContain("훈련팀 대회 페이스");
+    expect(out).toContain("목표나 5K 기록을 올리면 내 P가 계산돼요");
+    expect(out).not.toMatch(PACE_SPAN);
+    expect(out).not.toContain("내 P 환산");
+  });
+
+  it("구경꾼에겐 내 P 카드도 문구 옆 숫자도 없다", () => {
+    const out = html(createElement(PbTraining, { ...base, phase: { kind: "week", wkNo: 2 } }));
+
+    expect(out).not.toContain(">내 P<");
+    expect(out).not.toContain("목표나 5K 기록을 올리면");
+    expect(out).not.toMatch(PACE_SPAN);
+  });
+
+  it("개인 훈련 — 회차마다 읽기만 하는 안내(체크 칸·버튼 없음)", () => {
+    const out = html(createElement(PbTraining, { ...base, me: makeMe(1, []), phase: { kind: "week", wkNo: 4 } }));
+
+    expect(out.match(/>개인 훈련</g)).toHaveLength(PB_DEFAULT_SESS_PLANS.length);
+    const wk4 = sessOf(out, 4); // 「이지런 2~3회 · 스트라이드 주 2회 · 장거리 1회 13km / 9km」를 한 줄에 하나씩
+    expect(wk4).toContain(">이지런 2~3회<");
+    expect(wk4).toContain(">스트라이드 주 2회<");
+    expect(wk4).toContain(">장거리 1회 13km / 9km<");
+    expect(sessOf(out, 1)).toContain(">장거리 1회 38~45분 12km / 50분·첫 10K 8km<"); // 붙은 가운뎃점은 안 자른다
+    expect(out).not.toMatch(/<input|<button|checkbox/);
   });
 
   it("참가자에겐 회차마다 내 출석 상태를 단다", () => {

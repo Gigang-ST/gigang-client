@@ -49,7 +49,16 @@ describe("ensureDefaultSessPlans", () => {
     const { db, inserted } = fakeDb({ evt: PB });
     await expect(ensureDefaultSessPlans(db, "e1")).resolves.toBe("seeded");
     expect(inserted).toHaveLength(PB_DEFAULT_SESS_PLANS.length);
-    expect(inserted[0]).toMatchObject({ evt_id: "e1", sess_no: 1, ttl: PB_DEFAULT_SESS_PLANS[0].ttl });
+    expect(inserted[0]).toMatchObject({
+      evt_id: "e1",
+      sess_no: 1,
+      ttl: PB_DEFAULT_SESS_PLANS[0].ttl,
+      trn_kind_cd: PB_DEFAULT_SESS_PLANS[0].kindCd,
+      self_trn_txt: PB_DEFAULT_SESS_PLANS[0].selfTxt,
+    });
+    // 지워진 컬럼(단계·목적)은 더 보내지 않는다 — 보내면 PostgREST 가 컬럼 없음으로 거절한다
+    expect(inserted[0]).not.toHaveProperty("phase_nm");
+    expect(inserted[0]).not.toHaveProperty("purp_txt");
   });
 
   it("이미 한 줄이라도 있으면 덮지 않는다(운영진이 고친 내용 보존)", async () => {
@@ -90,16 +99,5 @@ describe("ensureDefaultSessPlans", () => {
   it("그 밖의 실패는 던진다(호출부가 로그로 남긴다)", async () => {
     const { db } = fakeDb({ evt: PB, insert: { error: { message: "boom" } } });
     await expect(ensureDefaultSessPlans(db, "e1")).rejects.toThrow("boom");
-  });
-});
-
-describe("기본 훈련표 표기", () => {
-  it("코치 약어(크루즈·P±초·N × 거리)를 쓰지 않고, 반복 훈련엔 쉬는 방법이 적혀 있다", () => {
-    for (const p of PB_DEFAULT_SESS_PLANS) {
-      const txt = `${p.ttl} ${p.mainTxt} ${p.easyTxt ?? ""} ${p.purpTxt}`;
-      expect(txt).not.toMatch(/크루즈|최대산소섭취량|P[+-]\d|\d+\s*×\s*\d/);
-      if (p.mainTxt.includes("회")) expect(p.mainTxt).toMatch(/조깅|걷/);
-    }
-    expect(PB_DEFAULT_SESS_PLANS[6].purpTxt).toContain("VO2max");
   });
 });

@@ -9,7 +9,7 @@ import {
   wkLabel,
   type PbClassCfg,
 } from "@/lib/pb-class";
-import { PB_TRN_GROUPS } from "@/lib/pb-class-plan";
+import { PB_TRN_GROUPS, PB_TRN_KINDS } from "@/lib/pb-class-plan";
 import { type PbRule } from "@/lib/pb-class-score";
 import type { PbEvent, PbParticipant } from "@/lib/queries/pb-class";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,7 @@ import {
   formatPeriod,
   formatWon,
 } from "./format";
+import { PB_TRN_KIND_ORDER, PbKindBadge } from "./pb-kind-badge";
 import { trnGroupOf } from "./pb-training";
 import { PbZone } from "./pb-zone";
 
@@ -40,6 +41,7 @@ const TOC: { id: string; label: string }[] = [
   { id: "pb-guide-refund", label: "환급" },
   { id: "pb-guide-join", label: "중간 합류" },
   { id: "pb-guide-groups", label: "훈련팀" },
+  { id: "pb-guide-kinds", label: "훈련 종류" },
   { id: "pb-guide-score", label: "점수" },
   { id: "pb-guide-goal", label: "목표·기록" },
   { id: "pb-guide-daegu", label: "대구" },
@@ -115,7 +117,7 @@ function Glance({ evt, cfg, midWkNo }: { evt: PbEvent; cfg: PbClassCfg; midWkNo:
           </>,
           <>
             1주차{midWkNo !== null ? `·${wkLabel(midWkNo)}` : ""}엔 5K, 마지막 회차엔 10K를 재요. 그 사이는 주마다 다른
-            훈련이에요 — 「훈련」 탭에서 주차별 내용과 목적을 볼 수 있어요.
+            훈련이에요 — 「훈련」 탭에서 주차별 내용과 내 페이스(P)로 환산한 속도를 볼 수 있어요.
           </>,
           "공식훈련은 앱 벙으로 열려요. 벙에 참석해야 출석으로 인정돼요.",
         ]}
@@ -301,6 +303,41 @@ function Groups({ trnGrpCd }: { trnGrpCd: string | null }) {
   );
 }
 
+/**
+ * 훈련 종류 — 「훈련」 탭 칩이 무슨 뜻인지 한 곳에 모은 사전. 순서는 12주에 처음 나오는 순서(`PB_TRN_KIND_ORDER`)라
+ * 위에서부터 읽으면 시즌 흐름이 된다. 칩은 훈련 탭과 **같은 컴포넌트**다 — 따로 그리면 색이 한쪽만 바뀐다.
+ * 속도는 전부 P 기준이라 P가 무엇인지는 정의가 사는 곳(훈련 탭 머리말)으로 보낸다 — 여기서 공식을 다시 쓰면
+ * 두 문장이 갈라진다.
+ */
+function Kinds({ cfg }: { cfg: PbClassCfg }) {
+  const trainingWeeks = cfg.totSessCnt - 1;
+  return (
+    <PbZone
+      id="pb-guide-kinds"
+      label="Training Types"
+      lead={`${trainingWeeks}주 동안 이 ${PB_TRN_KIND_ORDER.length}가지를 주마다 바꿔 가며 해요`}
+    >
+      <ul className="flex flex-col">
+        {PB_TRN_KIND_ORDER.map((cd) => {
+          const k = PB_TRN_KINDS[cd];
+          return (
+            <li key={cd} className="rule-row flex flex-col gap-1 py-2.5">
+              <span className="flex items-center justify-between gap-3">
+                <PbKindBadge kindCd={cd} />
+                <Micro className="text-right tabular-nums">{k.pace}</Micro>
+              </span>
+              <Caption className="break-keep leading-snug text-foreground">{k.what}</Caption>
+            </li>
+          );
+        })}
+      </ul>
+      <Caption className="break-keep leading-relaxed">
+        속도는 모두 P(내 훈련 페이스) 기준이에요. 정하는 법은 「훈련」 탭 맨 위에 있어요.
+      </Caption>
+    </PbZone>
+  );
+}
+
 /** 배점 — `rule.pt` 그대로. 점수 이름은 점수판(`PB_PT_LABEL`)과 같은 말을 쓴다 */
 function Scoring({ rule, cfg }: { rule: PbRule; cfg: PbClassCfg }) {
   const { pt } = rule;
@@ -433,6 +470,7 @@ export function PbGuide({
       <Refund cfg={cfg} mlgAlumni={mlgAlumni} me={me} />
       <LateJoin cfg={cfg} />
       <Groups trnGrpCd={trnGrpCd} />
+      <Kinds cfg={cfg} />
       {rule && <Scoring rule={rule} cfg={cfg} />}
       {rule && <GoalRecords rule={rule} cfg={cfg} />}
       <Daegu />

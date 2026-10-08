@@ -65,11 +65,11 @@ const prt = (memId: string, memNm: string, extra: Partial<PbPrtRow> = {}): PbPrt
 
 const plan = (sessNo: number, extra: Partial<PbSessPlanRow> = {}): PbSessPlanRow => ({
   sess_no: sessNo,
-  phase_nm: "기초",
+  trn_kind_cd: "SPD",
   ttl: `${sessNo}회차 훈련`,
   main_txt: "본 훈련",
   easy_txt: null,
-  purp_txt: "목적",
+  self_trn_txt: "이지런 2회",
   note_txt: null,
   ...extra,
 });
@@ -210,20 +210,28 @@ describe("toSessPlans", () => {
   it("DB 컬럼을 camelCase 로 옮기고 회차 순으로 줄 세운다(입력 순서에 기대지 않는다)", () => {
     const out = toSessPlans([
       plan(3, { easy_txt: "6회", note_txt: "장소 이동" }),
-      plan(1, { phase_nm: "측정" }),
+      plan(1, { trn_kind_cd: "TT" }),
       plan(2),
     ]);
     expect(out.map((p) => p.sessNo)).toEqual([1, 2, 3]);
     expect(out[0]).toEqual({
       sessNo: 1,
-      phaseNm: "측정",
+      kindCd: "TT",
       ttl: "1회차 훈련",
       mainTxt: "본 훈련",
       easyTxt: null,
-      purpTxt: "목적",
+      selfTxt: "이지런 2회",
       noteTxt: null,
     });
     expect(out[2]).toMatchObject({ easyTxt: "6회", noteTxt: "장소 이동" });
+  });
+
+  it("목록 밖 종류 코드는 기록 측정으로 물러난다(화면이 죽지 않게)", () => {
+    expect(toSessPlans([plan(1, { trn_kind_cd: "ZZZ" })])[0].kindCd).toBe("TT");
+  });
+
+  it("개인 훈련이 없으면 null 그대로", () => {
+    expect(toSessPlans([plan(1, { self_trn_txt: null })])[0].selfTxt).toBeNull();
   });
 
   it("빈 입력이면 빈 배열", () => {

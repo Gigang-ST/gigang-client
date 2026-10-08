@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { PB_SESS_TYPES } from "@/lib/pb-class";
+import { PB_TRN_KIND_CDS } from "@/lib/pb-class-plan";
 import { PB_REC_TYPES } from "@/lib/pb-class-score";
 
 /**
@@ -111,11 +112,11 @@ export const pbSessPlanSchema = z.object({
     .int("회차 번호는 정수여야 합니다")
     .min(1, "회차 번호는 1 이상이어야 합니다")
     .max(52, "회차 번호는 52 이하여야 합니다"),
-  phaseNm: requiredText("단계", 10),
+  kindCd: z.enum(PB_TRN_KIND_CDS, { error: "훈련 종류를 골라 주세요" }),
   ttl: requiredText("제목", 60),
   mainTxt: requiredText("훈련 내용", 1000),
   easyTxt: optionalText("첫 10K 훈련 내용", 1000),
-  purpTxt: requiredText("목적", 1000),
+  selfTxt: optionalText("개인 훈련", 1000),
   noteTxt: optionalText("비고", 1000),
 });
 export type PbSessPlanInput = z.infer<typeof pbSessPlanSchema>;
