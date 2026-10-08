@@ -252,7 +252,8 @@ export function AdminMileageClient({ teamId }: { teamId: string }) {
 
       {/* 프로젝트 셀렉터 */}
       <div className="flex items-center gap-2 px-6">
-        <div className="flex-1">
+        {/* min-w-0 — 없으면 긴 프로젝트 이름이 셀렉터를 밀어 375px에서 페이지가 가로로 넘친다(「+」 버튼이 잘렸다) */}
+        <div className="min-w-0 flex-1">
           {projects.length > 0 ? (
             <Select
               value={projectId || "__none__"}
@@ -263,7 +264,7 @@ export function AdminMileageClient({ teamId }: { teamId: string }) {
                 }
               }}
             >
-              <SelectTrigger className="h-12 min-w-0 rounded-xl border-[1.5px] text-[15px] [&>span]:min-w-0">
+              <SelectTrigger className="h-12 w-full min-w-0 rounded-xl border-[1.5px] text-[15px] [&>span]:min-w-0 [&>span]:overflow-hidden">
                 <SelectValue placeholder="프로젝트 선택" />
               </SelectTrigger>
               <SelectContent>

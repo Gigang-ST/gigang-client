@@ -248,3 +248,35 @@ export const pbRecordRowsSchema = z
   .refine((rows) => new Set(rows.map((r) => `${r.prtId}:${r.recTypeCd}`)).size === rows.length, {
     message: "같은 기록이 두 번 들어 있습니다",
   });
+
+// ─────────────────────────────────────────
+// 공식훈련 벙 한 번에 열기
+// ─────────────────────────────────────────
+
+/** 한 번에 열 수 있는 초안 수 — 요청 크기 안전망(공식훈련 12 + 측정 1) */
+export const PB_SESS_DRAFT_MAX = 20;
+
+/** 벙 필드 한도는 `lib/validations/gathering.ts`와 같다(제목 100 · 장소 200 · 설명 2000) */
+export const pbSessDraftSchema = z.object({
+  wkNo: z.number({ error: "주차가 올바르지 않습니다" }).int().min(1).max(60),
+  sessType: pbSessTypeSchema,
+  gthrNm: z
+    .string({ error: "제목을 입력해 주세요" })
+    .trim()
+    .min(1, "제목을 입력해 주세요")
+    .max(100, "제목은 100자 이내로 입력해 주세요"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "날짜 형식이 올바르지 않습니다"),
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "시간 형식이 올바르지 않습니다"),
+  durMin: z
+    .number({ error: "소요 시간을 입력해 주세요" })
+    .int("소요 시간은 정수(분)여야 합니다")
+    .min(15, "소요 시간은 15분 이상이어야 합니다")
+    .max(300, "소요 시간은 300분 이하여야 합니다"),
+  locTxt: z.string().trim().max(200, "장소는 200자 이내로 입력해 주세요"),
+  descTxt: z.string().max(2000, "설명은 2000자 이내로 입력해 주세요"),
+});
+
+export const pbSessDraftsSchema = z
+  .array(pbSessDraftSchema)
+  .min(1, "열 벙이 없습니다")
+  .max(PB_SESS_DRAFT_MAX, `한 번에 ${PB_SESS_DRAFT_MAX}개까지만 열 수 있습니다`);

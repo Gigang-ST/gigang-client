@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 
 import { withAdmin } from "@/lib/actions/auth";
 import { dayjs, formatKST, parseEventTime } from "@/lib/dayjs";
@@ -13,7 +13,16 @@ import {
 } from "@/lib/pb-class";
 import { guardEvent, guardParticipant } from "@/lib/pb-class-guard";
 import { PB_DEFAULT_SESS_PLANS, type PbSessPlan } from "@/lib/pb-class-plan";
-import { cfgFromRow, isMileageAlumni, loadPbClassBoard, type PbClassBoard } from "@/lib/queries/pb-class";
+import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
+import { buildSessDrafts, draftEndIso, draftStartIso, type PbSessDraft } from "@/lib/pb-class-sessions";
+import {
+  cfgFromRow,
+  isMileageAlumni,
+  loadPbClassBoard,
+  loadSessPlanRows,
+  toSessPlans,
+  type PbClassBoard,
+} from "@/lib/queries/pb-class";
 import { ensureDefaultSessPlans } from "@/lib/pb-class-seed";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -26,6 +35,7 @@ import {
   pbMemIdSchema,
   pbParticipantUpdateSchema,
   pbPrtIdSchema,
+  pbSessDraftsSchema,
   pbSessNoSchema,
   pbSessPlanSchema,
   pbSessTypeSchema,
@@ -601,4 +611,193 @@ export async function deletePbSessPlan(evtId: string, sessNo: number): Promise<R
     revalidatePath("/projects");
     return { ok: true, message: null };
   });
+}
+
+// ─────────────────────────────────────────
+// 공식훈련 벙 한 번에 열기
+// ─────────────────────────────────────────
+
+/**
+ * 아직 벙이 안 걸린 공식훈련 주차의 초안을 만든다(저장 안 함) — 관리자가 장소·시간을 고친 뒤
+ * `createPbSessGatherings`로 한 번에 연다. 측정은 날짜 미정이라 초안에 없고, 이미 걸렸는지만 알려 준다.
+ */
+export async function getPbSessDrafts(
+  evtId: string,
+): Promise<
+  { ok: true; message: null; drafts: PbSessDraft[]; measureLinked: boolean } | { ok: false; message: string }
+> {
+  const parsedEvt = pbEvtIdSchema.safeParse(evtId);
+  if (!parsedEvt.success) return { ok: false, message: firstIssue(parsedEvt.error) };
+
+  return withAdmin(async () => {
+    const { teamId } = await getRequestTeamContext();
+    const db = createAdminClient();
+
+    const evt = await guardEvent(db, parsedEvt.data, teamId);
+    if (!evt) return { ok: false as const, message: NOT_FOUND };
+
+    try {
+      const [{ data: cfgRow, error: cfgError }, { data: links, error: linkError }, planRows] = await Promise.all([
+        db.from("evt_pb_cfg").select("*").eq("evt_id", parsedEvt.data).maybeSingle(),
+        // 삭제된 벙에 걸린 연결도 주차를 차지한다(주차당 연결 1개 제약) — del_yn 으로 거르지 않는다
+        db.from("evt_gthr_rel").select("wk_no, sess_type_cd").eq("evt_id", parsedEvt.data),
+        loadSessPlanRows(db, parsedEvt.data),
+      ]);
+      if (cfgError || linkError) throw new Error(cfgError?.message ?? linkError?.message);
+
+      const rels = links ?? [];
+      const drafts = buildSessDrafts({
+        evtSttDt: evt.stt_dt,
+        totSessCnt: cfgFromRow(cfgRow ?? null).totSessCnt,
+        plans: toSessPlans(planRows),
+        linkedWkNos: rels.map((r) => r.wk_no),
+      });
+      return {
+        ok: true as const,
+        message: null,
+        drafts,
+        measureLinked: rels.some((r) => r.sess_type_cd === "MEASURE"),
+      };
+    } catch (e) {
+      console.error("[getPbSessDrafts]", e);
+      return { ok: false as const, message: "벙 초안을 불러오지 못했습니다" };
+    }
+  });
+}
+
+function failMsg(created: number, why: string): string {
+  return created > 0
+    ? `${why}. 앞의 ${created}개는 이미 열렸어요 — 새로고침한 뒤 남은 것만 다시 열어 주세요`
+    : why;
+}
+
+/**
+ * 초안대로 벙(`gthr_mst`, 정기런)을 만들고 곧바로 이 프로젝트에 연결한다.
+ *
+ * - 정기런(`regular`)이다 — 개설 포인트는 일반(`general`) 벙에만 붙는다(기강포인트제도 §gthr_mst).
+ * - 알림·단톡방 공지·개설자 자동 참석은 **하지 않는다** — 12개를 한꺼번에 알리면 스팸이다. 공지는 운영진이 따로 한다.
+ * - 주차는 클라이언트 값을 믿지 않고 시작 시각에서 다시 계산해, 초안이 들고 온 `wkNo`와 다르면 거절한다.
+ * - 벙을 만든 뒤 연결이 실패하면 그 벙을 소프트삭제해 연결 안 된 고아가 남지 않게 한다.
+ *   중간에 실패하면 거기서 멈추고, 이미 연 것은 그대로 둔다(메시지에 개수를 적는다).
+ */
+export async function createPbSessGatherings(
+  evtId: string,
+  drafts: PbSessDraft[],
+): Promise<{ ok: boolean; message: string | null; created: number }> {
+  const parsedEvt = pbEvtIdSchema.safeParse(evtId);
+  if (!parsedEvt.success) return { ok: false, message: firstIssue(parsedEvt.error), created: 0 };
+  const parsedDrafts = pbSessDraftsSchema.safeParse(drafts);
+  if (!parsedDrafts.success) return { ok: false, message: firstIssue(parsedDrafts.error), created: 0 };
+
+  const res = await withAdmin(async ({ member }) => {
+    const { teamId } = await getRequestTeamContext();
+    const db = createAdminClient();
+
+    const evt = await guardEvent(db, parsedEvt.data, teamId);
+    if (!evt) return { ok: false, message: NOT_FOUND, created: 0 };
+
+    const [{ data: cfgRow, error: cfgError }, { data: links, error: linkError }] = await Promise.all([
+      db.from("evt_pb_cfg").select("*").eq("evt_id", parsedEvt.data).maybeSingle(),
+      db.from("evt_gthr_rel").select("wk_no, sess_type_cd").eq("evt_id", parsedEvt.data),
+    ]);
+    if (cfgError || linkError) return { ok: false, message: GENERIC_FAIL, created: 0 };
+
+    const lastTrainingWk = cfgFromRow(cfgRow ?? null).totSessCnt - 1;
+    const takenWk = new Set((links ?? []).map((l) => l.wk_no));
+    const measureTaken = (links ?? []).some((l) => l.sess_type_cd === "MEASURE");
+
+    // 전부 검증한 뒤에 쓴다 — 3번째 초안이 틀렸다고 앞의 둘만 열리는 일을 줄인다
+    const rows: { d: PbSessDraft; startIso: string; endIso: string; wkNo: number }[] = [];
+    const seenWk = new Set<number>();
+    let measureCnt = 0;
+    for (const d of parsedDrafts.data) {
+      const label = d.gthrNm;
+      const startIso = draftStartIso(d);
+      // 존재하지 않는 날짜(2/31)는 dayjs 가 다음 달로 넘겨 버린다 — 되읽어 같은지 본다
+      if (!dayjs(startIso).isValid() || formatKST(startIso, "YYYY-MM-DD") !== d.date) {
+        return { ok: false, message: `'${label}' 날짜가 올바르지 않습니다`, created: 0 };
+      }
+      const wkNo = weekNoOf(startIso, evt.stt_dt);
+      if (wkNo !== d.wkNo) {
+        return {
+          ok: false,
+          message: `'${label}' 날짜가 ${wkNo}주차예요 (초안은 ${d.wkNo}주차). 날짜를 그 주차 안으로 맞춰 주세요`,
+          created: 0,
+        };
+      }
+      if (wkNo < 1) return { ok: false, message: `'${label}' 프로젝트 시작 전 날짜예요`, created: 0 };
+      if (d.date > evt.end_dt) {
+        return { ok: false, message: `'${label}' 프로젝트 종료일 이후 날짜예요`, created: 0 };
+      }
+      if (d.sessType === "TRAINING" && wkNo > lastTrainingWk) {
+        return { ok: false, message: `'${label}' 공식훈련은 1~${lastTrainingWk}주차에만 열 수 있어요`, created: 0 };
+      }
+      if (d.sessType === "MEASURE") {
+        measureCnt += 1;
+        if (measureTaken || measureCnt > 1) {
+          return { ok: false, message: "측정 일정은 하나만 지정할 수 있어요", created: 0 };
+        }
+      }
+      if (takenWk.has(wkNo) || seenWk.has(wkNo)) {
+        return { ok: false, message: `${wkNo}주차엔 이미 연결된 벙이 있어요`, created: 0 };
+      }
+      seenWk.add(wkNo);
+      rows.push({ d, startIso, endIso: draftEndIso(d), wkNo });
+    }
+
+    let created = 0;
+    for (const { d, startIso, endIso, wkNo } of rows) {
+      const { data: gthr, error: gthrError } = await db
+        .from("gthr_mst")
+        .insert({
+          team_id: teamId,
+          gthr_nm: d.gthrNm,
+          gthr_type_enm: "regular",
+          sprt_cd: "running",
+          stt_at: startIso,
+          end_at: endIso,
+          loc_txt: d.locTxt === "" ? null : d.locTxt,
+          desc_txt: d.descTxt === "" ? null : d.descTxt,
+          crt_by: member.id,
+          del_yn: false,
+        })
+        .select("gthr_id")
+        .single();
+      if (gthrError || !gthr) {
+        console.error("[createPbSessGatherings] gthr_mst insert", gthrError?.message);
+        return { ok: false, message: failMsg(created, "벙을 만들지 못했습니다"), created };
+      }
+
+      const { error: relError } = await db.from("evt_gthr_rel").insert({
+        gthr_id: gthr.gthr_id,
+        evt_id: parsedEvt.data,
+        wk_no: wkNo,
+        sess_type_cd: d.sessType,
+      });
+      if (relError) {
+        console.error("[createPbSessGatherings] evt_gthr_rel insert", relError.message);
+        // 연결 안 된 벙이 일정에만 남지 않게 되돌린다(소프트삭제)
+        const { error: undoError } = await db
+          .from("gthr_mst")
+          .update({ del_yn: true, upd_at: dayjs().toISOString() })
+          .eq("gthr_id", gthr.gthr_id);
+        if (undoError) console.error("[createPbSessGatherings] 되돌리기 실패", undoError.message);
+        const why =
+          relError.code === "23505" ? `${wkNo}주차엔 이미 연결된 벙이 있어요` : "프로젝트에 연결하지 못했습니다";
+        return { ok: false, message: failMsg(created, why), created };
+      }
+      created += 1;
+    }
+
+    return { ok: true, message: `공식훈련 벙 ${created}개를 열었어요`, created };
+  });
+
+  // 하나라도 열렸으면 캘린더·프로젝트 화면 캐시를 턴다(중간 실패여도 이미 열린 건 보여야 한다).
+  // updateTag: 즉시 만료 + read-your-own-writes — createGathering 이 쓰는 것과 같은 호출이다.
+  const created = "created" in res ? res.created : 0;
+  if (created > 0) {
+    updateTag(HOME_CALENDAR_CACHE_TAG);
+    revalidatePath("/projects");
+  }
+  return { ok: res.ok, message: res.message, created };
 }

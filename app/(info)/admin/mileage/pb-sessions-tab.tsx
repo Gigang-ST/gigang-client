@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { AlertTriangle, Link2, Unlink } from "lucide-react";
+import { AlertTriangle, CalendarPlus, Link2, Unlink } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
+import { PbSessOpenDialog } from "./pb-sess-open-dialog";
 import { usePbBoard } from "./use-pb-board";
 
 /** `listPbLinkCandidates` 한 건 — 프로젝트 기간 안에서 아직 어느 프로젝트에도 안 걸린 벙 */
@@ -63,6 +64,8 @@ export function PbSessionsTab({ evtId }: { evtId: string }) {
   const [candError, setCandError] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [sessType, setSessType] = useState<PbSessType>("TRAINING");
+  // 공식훈련 벙 한 번에 열기 — 훅은 아래 조기 반환보다 위에 둔다
+  const [openBulk, setOpenBulk] = useState(false);
 
   if (loading) {
     return (
@@ -92,6 +95,8 @@ export function PbSessionsTab({ evtId }: { evtId: string }) {
   const trainingLinked = sessions.filter((s) => s.sessType === "TRAINING").length;
   const measureLinked = sessions.filter((s) => s.sessType === "MEASURE").length;
   const trainingTotal = Math.max(0, board.cfg.totSessCnt - 1);
+  // 아직 벙이 안 걸린 공식훈련 주차 수 — 0이면 「한 번에 열기」를 숨긴다(측정은 날짜가 정해지면 같은 화면에서 추가)
+  const unopened = Math.max(0, trainingTotal - trainingLinked);
 
   const openLinkDialog = async () => {
     setLinkOpen(true);
@@ -143,6 +148,22 @@ export function PbSessionsTab({ evtId }: { evtId: string }) {
           <Link2 className="size-4" />벙 연결
         </Button>
       </div>
+
+      {/* 벙을 하나씩 열고 연결하는 대신 — 초안을 보고 장소·시간만 고쳐 한 번에 연다(오너 지시) */}
+      {(unopened > 0 || measureLinked === 0) && (
+        <Button
+          variant="outline"
+          onClick={() => setOpenBulk(true)}
+          className="h-12 w-full gap-1.5 rounded-xl border-primary text-primary"
+        >
+          <CalendarPlus className="size-4" />
+          공식훈련 벙 한 번에 열기{unopened > 0 ? ` (${unopened}개)` : ""}
+        </Button>
+      )}
+      {/* 열 때만 마운트 — 닫으면 상태가 버려지고 다음에 열 때 초안을 새로 받는다 */}
+      {openBulk && (
+        <PbSessOpenDialog evtId={evtId} board={board} open onOpenChange={setOpenBulk} onDone={reload} />
+      )}
 
       {sessions.length === 0 ? (
         <EmptyState variant="card" message="연결된 벙이 없어요. 벙 연결로 공식훈련을 지정하세요." />

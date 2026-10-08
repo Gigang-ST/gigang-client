@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { Suspense, cache } from "react";
 
 import { nowKST } from "@/lib/dayjs";
 import { canEditGoal, goalEditLastWk } from "@/lib/pb-class-score";
@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 import { formatPeriod } from "./format";
 import { PbApplySection } from "./pb-apply-section";
+import { PbCrewAttendance, PbCrewEmpty, PbCrewSkeleton } from "./pb-crew-attendance";
 import { PbGoalCard } from "./pb-goal-card";
 import { PbGuide } from "./pb-guide";
 import { PbHero, pbPhaseOf } from "./pb-hero";
@@ -46,14 +47,38 @@ async function loadGameSafely(
 }
 
 /**
+ * 전원 출석 보드 — 크루 출석 그래프와 정산이 **같은 보드**를 읽는다. 두 섹션이 각자 Suspense 로
+ * 흘러가도 조회는 한 번만 돌게 요청 단위로 묶는다(React `cache` — 인자가 같으면 같은 Promise).
+ */
+const getPbBoard = cache(async (evtId: string, nowIso: string) => {
+  const { supabase } = await getCurrentMember();
+  return loadPbClassBoard(supabase, evtId, nowIso);
+});
+
+/**
  * 정산 — 전원 출석을 읽는 무거운 조회라 본문을 막지 않게 따로 흘려 보낸다(Suspense).
  * 위쪽 출석·점수 화면이 먼저 그려지고 이 구간만 스켈레톤으로 남는다.
  */
 async function PbSettlementSection({ evtId, myMemId, nowIso }: { evtId: string; myMemId: string; nowIso: string }) {
-  const { supabase } = await getCurrentMember();
-  const board = await loadPbClassBoard(supabase, evtId, nowIso);
+  const board = await getPbBoard(evtId, nowIso);
   if (!board) return null;
   return <PbSettlement board={board} myMemId={myMemId} />;
+}
+
+/**
+ * 크루 출석 그래프 — 정산과 같은 보드를 쓴다. 보조 정보라 조회가 흔들려도 내 현황 탭을 막지 않고
+ * 이 섹션만 접는다(정산은 돈이라 실패를 그대로 올린다 — 여기서 삼키는 건 그래프뿐이다).
+ */
+async function PbCrewSection({ evtId, myMemId, nowIso }: { evtId: string; myMemId: string; nowIso: string }) {
+  let board: Awaited<ReturnType<typeof getPbBoard>>;
+  try {
+    board = await getPbBoard(evtId, nowIso);
+  } catch (e) {
+    console.error("[pb-class] 크루 출석 보드 조회 실패", e);
+    return null;
+  }
+  if (!board) return null;
+  return <PbCrewAttendance board={board} myMemId={myMemId} />;
 }
 
 /** 조회 전·크루 밖일 때의 제목 — 히어로를 세울 데이터가 없을 때만 쓴다 */
@@ -195,7 +220,10 @@ export async function PbClassView({ event, view, readOnly = false, isInactive, i
   );
 }
 
-/** 내 현황 — 출석·환급 → 회차 → 팀 → 목표 → 기록 → 정산. 돈과 출석이 위, 게임이 아래 */
+/**
+ * 내 현황 — 출석·환급 → 회차 → 크루 출석 → 팀 → 목표 → 기록 → 정산. 돈과 출석이 위, 게임이 아래.
+ * 크루 출석은 「회차마다 내 출석」 바로 아래다 — 같은 회차 칸을 나에서 크루로 넓혀 보는 자리라서.
+ */
 function StatusTab({
   data,
   game,
@@ -219,6 +247,14 @@ function StatusTab({
     <>
       <PbMyStatus me={me} cfg={cfg} />
       <PbSessionStrip me={me} sessions={sessions} cfg={cfg} />
+      {/* 열린 회차가 없으면 그릴 선이 없다 — 전원 보드를 읽지 않고 빈 상태만 세운다 */}
+      {sessions.some((s) => s.held) ? (
+        <Suspense fallback={<PbCrewSkeleton />}>
+          <PbCrewSection evtId={evt.evtId} myMemId={memId} nowIso={nowIso} />
+        </Suspense>
+      ) : (
+        <PbCrewEmpty />
+      )}
 
       {game && gameMe && (
         <>
