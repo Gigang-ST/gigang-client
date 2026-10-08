@@ -12,6 +12,7 @@ import {
 } from "@/app/actions/admin/manage-pb-class";
 import { formatKST } from "@/lib/dayjs";
 import { PB_SESS_TYPE_LABEL, wkLabel, type PbSessType } from "@/lib/pb-class";
+import { buildSessSlots, type SessOpenOnly } from "@/lib/pb-class-sessions";
 import type { PbSession } from "@/lib/queries/pb-class";
 import { cn } from "@/lib/utils";
 import { gthrTypeLabels, type GthrType } from "@/lib/validations/gathering";
@@ -66,6 +67,8 @@ export function PbSessionsTab({ evtId }: { evtId: string }) {
   const [sessType, setSessType] = useState<PbSessType>("TRAINING");
   // 공식훈련 벙 한 번에 열기 — 훅은 아래 조기 반환보다 위에 둔다
   const [openBulk, setOpenBulk] = useState(false);
+  // 주차 하나만 여는 창의 대상(null = 닫힘)
+  const [openOnly, setOpenOnly] = useState<SessOpenOnly | null>(null);
 
   if (loading) {
     return (
@@ -97,6 +100,10 @@ export function PbSessionsTab({ evtId }: { evtId: string }) {
   const trainingTotal = Math.max(0, board.cfg.totSessCnt - 1);
   // 아직 벙이 안 걸린 공식훈련 주차 수 — 0이면 「한 번에 열기」를 숨긴다(측정은 날짜가 정해지면 같은 화면에서 추가)
   const unopened = Math.max(0, trainingTotal - trainingLinked);
+
+  const slots = buildSessSlots(sessions, trainingTotal);
+  // 다음에 열 칸 하나만 진하게(가장 이른 빈 주차, 다 열었으면 측정) — 열두 개가 다 같은 파란 버튼이면 어디부터인지 안 보인다
+  const nextOpenKey = slots.find((x) => x.kind === "open")?.key;
 
   const openLinkDialog = async () => {
     setLinkOpen(true);
@@ -149,67 +156,95 @@ export function PbSessionsTab({ evtId }: { evtId: string }) {
         </Button>
       </div>
 
-      {/* 벙을 하나씩 열고 연결하는 대신 — 초안을 보고 장소·시간만 고쳐 한 번에 연다(오너 지시) */}
-      {(unopened > 0 || measureLinked === 0) && (
-        <Button
-          variant="outline"
-          onClick={() => setOpenBulk(true)}
-          className="h-12 w-full gap-1.5 rounded-xl border-primary text-primary"
-        >
-          <CalendarPlus className="size-4" />
-          공식훈련 벙 한 번에 열기{unopened > 0 ? ` (${unopened}개)` : ""}
-        </Button>
-      )}
       {/* 열 때만 마운트 — 닫으면 상태가 버려지고 다음에 열 때 초안을 새로 받는다 */}
       {openBulk && (
         <PbSessOpenDialog evtId={evtId} board={board} open onOpenChange={setOpenBulk} onDone={reload} />
       )}
+      {openOnly && (
+        <PbSessOpenDialog
+          evtId={evtId}
+          board={board}
+          only={openOnly}
+          open
+          onOpenChange={(o) => !o && setOpenOnly(null)}
+          onDone={reload}
+        />
+      )}
 
-      {sessions.length === 0 ? (
-        <EmptyState variant="card" message="연결된 벙이 없어요. 벙 연결로 공식훈련을 지정하세요." />
-      ) : (
-        <div className="flex flex-col gap-3">
-          {sessions.map((s) => {
-            const status = sessStatus(s);
-            // 벙 날짜를 바꾸면 저장된 주차와 계산 주차가 갈린다 — 풀고 다시 걸면 서버가 다시 계산해 맞춘다
-            const mismatch = s.computedWkNo !== s.wkNo;
+      <div className="flex flex-col gap-3">
+        {slots.map((slot) => {
+          // 아직 안 열린 주차 — 그 주차 자리에서 바로 연다(매주 쓰는 주 흐름, 오너 지시)
+          if (slot.kind === "open") {
+            const only = slot.only;
+            const isMeasure = only.sessType === "MEASURE";
             return (
-              <CardItem key={s.gthrId} className="flex flex-col gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                    <Badge variant="outline">{wkLabel(s.wkNo)}</Badge>
-                    <Badge variant={s.sessType === "MEASURE" ? "default" : "secondary"}>
-                      {PB_SESS_TYPE_LABEL[s.sessType]}
-                    </Badge>
-                    <Badge variant={status.variant}>{status.label}</Badge>
-                  </div>
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    className="size-11 shrink-0 rounded-lg text-destructive hover:text-destructive"
-                    onClick={() => handleUnlink(s)}
-                    disabled={busyKey !== null}
-                    aria-label={`${s.gthrNm} 연결 해제`}
-                  >
-                    <Unlink className="size-4" />
-                  </Button>
+              <CardItem key={slot.key} variant="dashed" className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Badge variant="outline">{isMeasure ? "10K 측정" : wkLabel(only.wkNo)}</Badge>
+                  <Badge variant={isMeasure ? "default" : "secondary"}>{PB_SESS_TYPE_LABEL[only.sessType]}</Badge>
+                  <Badge variant="outline">벙 없음</Badge>
                 </div>
-                <Body className="truncate font-semibold">{s.gthrNm}</Body>
-                <Caption>
-                  {formatKST(s.sttAt, "M/D(dd) HH:mm")} · 참석 {s.attdCnt}/{board.totals.aprvCnt}
-                </Caption>
-                {mismatch && (
-                  <div className="flex items-start gap-1.5 rounded-lg bg-warning/10 p-2">
-                    <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warning" aria-hidden />
-                    <Caption className="text-warning">
-                      날짜가 바뀌어 {wkLabel(s.computedWkNo)}에 해당 — 연결을 풀고 다시 걸어주세요
-                    </Caption>
-                  </div>
-                )}
+                {/* 360px 에서 넘치지 않게 카드 폭을 꽉 채운 한 줄 버튼(44px 이상) */}
+                <Button
+                  variant={slot.key === nextOpenKey ? "default" : "outline"}
+                  onClick={() => setOpenOnly(only)}
+                  disabled={busyKey !== null}
+                  className="h-11 w-full gap-1.5 rounded-xl"
+                >
+                  <CalendarPlus className="size-4 shrink-0" />
+                  {isMeasure ? "10K 측정 벙 열기" : `${wkLabel(only.wkNo)} 훈련벙 열기`}
+                </Button>
               </CardItem>
             );
-          })}
-        </div>
+          }
+          const s = slot.session;
+          const status = sessStatus(s);
+          // 벙 날짜를 바꾸면 저장된 주차와 계산 주차가 갈린다 — 풀고 다시 걸면 서버가 다시 계산해 맞춘다
+          const mismatch = s.computedWkNo !== s.wkNo;
+          return (
+            <CardItem key={s.gthrId} className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                  <Badge variant="outline">{wkLabel(s.wkNo)}</Badge>
+                  <Badge variant={s.sessType === "MEASURE" ? "default" : "secondary"}>
+                    {PB_SESS_TYPE_LABEL[s.sessType]}
+                  </Badge>
+                  <Badge variant={status.variant}>{status.label}</Badge>
+                </div>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="size-11 shrink-0 rounded-lg text-destructive hover:text-destructive"
+                  onClick={() => handleUnlink(s)}
+                  disabled={busyKey !== null}
+                  aria-label={`${s.gthrNm} 연결 해제`}
+                >
+                  <Unlink className="size-4" />
+                </Button>
+              </div>
+              <Body className="truncate font-semibold">{s.gthrNm}</Body>
+              <Caption>
+                {formatKST(s.sttAt, "M/D(dd) HH:mm")} · 참석 {s.attdCnt}/{board.totals.aprvCnt}
+              </Caption>
+              {mismatch && (
+                <div className="flex items-start gap-1.5 rounded-lg bg-warning/10 p-2">
+                  <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warning" aria-hidden />
+                  <Caption className="text-warning">
+                    날짜가 바뀌어 {wkLabel(s.computedWkNo)}에 해당 — 연결을 풀고 다시 걸어주세요
+                  </Caption>
+                </div>
+              )}
+            </CardItem>
+          );
+        })}
+      </div>
+
+      {/* 주 흐름은 위의 주차별 버튼이다 — 한꺼번에는 보조(처음 12주를 몰아 열 때만) */}
+      {(unopened > 0 || measureLinked === 0) && (
+        <Button variant="outline" onClick={() => setOpenBulk(true)} className="h-11 w-full gap-1.5 rounded-xl">
+          <CalendarPlus className="size-4" />
+          공식훈련 벙 한 번에 열기{unopened > 0 ? ` (${unopened}개)` : ""}
+        </Button>
       )}
 
       <ResponsiveDrawer open={linkOpen} onOpenChange={setLinkOpen}>

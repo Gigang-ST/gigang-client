@@ -1,4 +1,5 @@
-// lib/pb-class-chart.ts — PB 클래스 「크루 출석」 그래프·출석표의 순수 계산
+// lib/pb-class-chart.ts — PB 클래스 점수판 그래프(누적 출석 · 팀 점수 · 10K 트랙)의 순수 계산
+// (출석표는 2026-10-08 오너가 걷었다 — 행의 `cells`는 그때 쓰던 칸 상태로, 회차 띠와 같은 판정이라 남겨 둔다)
 //
 // 마일리지런의 크루 진행 차트(`components/projects/crew-progress-chart.tsx`)와 같은 자리를 PB 클래스에서
 // 맡는다: 참가자 한 사람 한 사람이 회차마다 얼마나 나왔는지를 누적으로 쌓아 보여 준다.
@@ -375,6 +376,32 @@ export function buildPbTeamSeries(args: {
   });
 
   return { weeks, teams };
+}
+
+export type PbTeamGlance = {
+  /** 마지막으로 점수가 난 주차 */
+  wkNo: number;
+  /** 그 주에 가장 많이 얻은 팀 — 동점이면 여럿(순위표 순서) */
+  names: string[];
+  /** 모든 팀이 같은 점수를 얻었나 — 이름을 다 늘어놓지 않고 「모든 팀」으로 말한다 */
+  allTied: boolean;
+  gain: number;
+};
+
+/**
+ * 팀 그래프 위 한 줄 — **마지막 주차에 가장 많이 얻은 팀**. 누적 출석 면의 한 줄 요약과 짝이다.
+ *
+ * 누적 순위는 바로 위 순위표가 이미 말한다. 그래프만 말할 수 있는 건 「요즘 누가 치고 올라오나」라서
+ * 마지막 주의 증분을 고른다(툴팁의 「+12.5」와 같은 값). 시리즈가 끝나는 주는 정의상 누군가 점수를 얻은
+ * 주라 0점뿐인 경우는 없지만, 그래도 0이면 null — 「0점으로 가장 많이」는 말이 안 된다.
+ */
+export function teamGlance(series: PbTeamSeries): PbTeamGlance | null {
+  const i = series.weeks.length - 1;
+  if (i < 0 || series.teams.length === 0) return null;
+  const top = Math.max(...series.teams.map((t) => t.gain[i]));
+  if (!(top > 0)) return null;
+  const names = series.teams.filter((t) => t.gain[i] === top).map((t) => t.grpNm);
+  return { wkNo: series.weeks[i], names, allTied: series.teams.length > 1 && names.length === series.teams.length, gain: top };
 }
 
 const Y_STEPS = [5, 10, 20, 25, 50, 100, 200, 250, 500, 1000] as const;

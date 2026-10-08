@@ -3,7 +3,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { PB_DEFAULT_SESS_PLANS } from "@/lib/pb-class-plan";
-import type { PbSessDraft } from "@/lib/pb-class-sessions";
+import { buildSessSlots, type PbSessDraft } from "@/lib/pb-class-sessions";
+import type { PbSession } from "@/lib/queries/pb-class";
 
 import {
   hasBlockingError,
@@ -54,6 +55,42 @@ describe("공식훈련 벙 열기 — 줄 검증", () => {
   it("주차 기간을 벗어나면 경고한다", () => {
     const w = rowIssues(toRows([draft({ date: "2026-12-16" })])[0], EVT_STT).warnings;
     expect(w.some((m) => m.includes("1주차 기간"))).toBe(true);
+  });
+});
+
+describe("공식훈련 벙 열기 — 한 주차만 열기(single)", () => {
+  it("체크박스 없이 설명이 처음부터 펼쳐지고 장소 placeholder 가 예시를 보여 준다", () => {
+    const html = renderToStaticMarkup(
+      createElement(SessOpenRowList, {
+        rows: toRows([draft({ descTxt: "기본 설명 문구" })]),
+        evtSttDt: EVT_STT,
+        plans: PB_DEFAULT_SESS_PLANS,
+        single: true,
+        onChange: () => {},
+      }),
+    );
+    expect(html).not.toContain('role="checkbox"');
+    expect(html).toContain("<textarea");
+    expect(html).toContain("기본 설명 문구");
+    expect(html).toContain("예: 양재시민의숲 농구장");
+  });
+});
+
+describe("주차별 벙 열기 — 목록 칸", () => {
+  const sess = (over: Partial<PbSession>): PbSession => ({ gthrId: "g", wkNo: 1, sessType: "TRAINING", ...over }) as PbSession;
+  it("안 열린 주차는 자리로, 측정이 없으면 맨 끝에 측정 자리", () => {
+    const slots = buildSessSlots([sess({ gthrId: "a", wkNo: 2 })], 3);
+    expect(slots.map((s) => (s.kind === "open" ? s.key : `L${s.session.wkNo}`))).toEqual([
+      "open:1",
+      "L2",
+      "open:3",
+      "open:measure",
+    ]);
+  });
+  it("측정이 연결돼 있으면 측정 자리는 없다", () => {
+    const slots = buildSessSlots([sess({ gthrId: "m", wkNo: 4, sessType: "MEASURE" })], 3);
+    expect(slots.filter((s) => s.kind === "open")).toHaveLength(3);
+    expect(slots.at(-1)).toMatchObject({ kind: "linked" });
   });
 });
 

@@ -6,8 +6,14 @@ import { CalendarPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { createPbSessGatherings, getPbSessDrafts } from "@/app/actions/admin/manage-pb-class";
-import { wkLabel } from "@/lib/pb-class";
-import { buildMeasureDraft } from "@/lib/pb-class-sessions";
+import { weekNoOf, wkLabel } from "@/lib/pb-class";
+import {
+  buildMeasureDraft,
+  draftStartIso,
+  PB_SESS_DEFAULT_DUR_MIN,
+  PB_SESS_DEFAULT_TIME,
+  type SessOpenOnly,
+} from "@/lib/pb-class-sessions";
 import type { PbClassBoard } from "@/lib/queries/pb-class";
 
 import { EmptyState } from "@/components/common/empty-state";
@@ -25,22 +31,27 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 import { hasBlockingError, rowKeyOf, SessOpenRowList, toRows, type SessOpenRow } from "./pb-sess-open-rows";
 
-const DEFAULT_TIME = "19:30";
-const DEFAULT_DUR_MIN = 90;
+const DEFAULT_TIME = PB_SESS_DEFAULT_TIME;
+const DEFAULT_DUR_MIN = PB_SESS_DEFAULT_DUR_MIN;
 
 /**
- * 공식훈련 벙 한 번에 열기 — 서버가 만든 초안을 오너가 눈으로 보고 장소·시간을 고친 뒤 한꺼번에 만든다.
+ * 공식훈련 벙 열기 — 서버가 만든 초안을 오너가 눈으로 보고 장소·시간을 고친 뒤 만든다.
  * 「연결」이 아니라 「열기」다: 벙을 새로 만들면서 곧바로 이 프로젝트에 건다(오너 지시).
+ *
+ * `only`가 있으면 그 주차 한 칸만 여는 창이다(주 흐름: 매주 그 주 벙을 열 때 쓴다). 없으면 남은 전부를 한 번에.
+ * 두 모드는 같은 초안·같은 줄 컴포넌트·같은 `createPbSessGatherings` 를 쓴다 — 필드 정의가 둘이 되지 않게.
  */
 export function PbSessOpenDialog({
   evtId,
   board,
+  only,
   open,
   onOpenChange,
   onDone,
 }: {
   evtId: string;
   board: PbClassBoard;
+  only?: SessOpenOnly;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** 성공 뒤 — 보드 재조회 */
@@ -69,22 +80,41 @@ export function PbSessOpenDialog({
         setLoadError(res.message ?? "초안을 불러오지 못했어요");
         return;
       }
-      setRows(toRows(res.drafts));
+      const picked = only
+        ? only.sessType === "MEASURE"
+          ? res.measureDraft
+            ? [res.measureDraft]
+            : []
+          : res.drafts.filter((d) => d.wkNo === only.wkNo)
+        : res.drafts;
+      setRows(toRows(picked));
       setMeasureLinked(res.measureLinked);
       // 공통 값은 초안이 이미 정한 값을 존중한다(없으면 기본값)
-      setDurMin(res.drafts[0]?.durMin ?? DEFAULT_DUR_MIN);
-      setTime(res.drafts[0]?.time ?? DEFAULT_TIME);
-      setPlace(res.drafts[0]?.locTxt ?? "");
+      const first = picked[0] ?? res.measureDraft;
+      setDurMin(first?.durMin ?? DEFAULT_DUR_MIN);
+      setTime(first?.time ?? DEFAULT_TIME);
+      setPlace(first?.locTxt ?? "");
     });
     return () => {
       cancelled = true;
     };
+    // only 는 마운트 시점 값으로 충분하다 — 부모가 열 때마다 새로 마운트한다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [evtId]);
 
   const handleOpenChange = (next: boolean) => onOpenChange(next);
 
-  const updateRow = (next: SessOpenRow) =>
-    setRows((cur) => cur?.map((r) => (r.key === next.key ? next : r)) ?? cur);
+  const updateRow = (next: SessOpenRow) => {
+    // 측정 줄의 주차는 날짜에서 나온다 — 날짜·시간을 고치면 같이 다시 계산한다.
+    // 안 그러면 서버가 「초안은 N주차」로 거절한다(자리표시자 날짜를 바꾸는 게 정상 흐름이다).
+    // key 는 그대로 둔다(줄 식별자라 주차가 바뀌어도 같은 줄이다).
+    let fixed = next;
+    if (next.draft.sessType === "MEASURE" && /^\d{4}-\d{2}-\d{2}$/.test(next.draft.date) && /^\d{2}:\d{2}$/.test(next.draft.time)) {
+      const wkNo = weekNoOf(draftStartIso(next.draft), evtSttDt);
+      fixed = { ...next, draft: { ...next.draft, wkNo } };
+    }
+    setRows((cur) => cur?.map((r) => (r.key === fixed.key ? fixed : r)) ?? cur);
+  };
 
   /** 「전체 적용」 — 포함 여부와 상관없이 모든 줄에 채운다(체크를 나중에 켜도 값이 맞아 있게) */
   const applyAll = (patch: { locTxt?: string; time?: string }) =>
@@ -133,6 +163,12 @@ export function PbSessOpenDialog({
     }
   };
 
+  const title = !only
+    ? "공식훈련 벙 열기"
+    : only.sessType === "MEASURE"
+      ? "10K 측정 벙 열기"
+      : `${wkLabel(only.wkNo)} 훈련벙 열기`;
+
   return (
     <ResponsiveDrawer open={open} onOpenChange={handleOpenChange}>
       <ResponsiveDrawerContent
@@ -140,9 +176,11 @@ export function PbSessOpenDialog({
         drawerClassName="h-[95dvh] max-h-[95dvh]"
       >
         <ResponsiveDrawerHeader className="shrink-0 border-b border-border px-4 py-4 text-left">
-          <ResponsiveDrawerTitle>공식훈련 벙 열기</ResponsiveDrawerTitle>
+          <ResponsiveDrawerTitle>{title}</ResponsiveDrawerTitle>
           <ResponsiveDrawerDescription>
-            벙은 정기런으로 열려요. 알림은 따로 가지 않아요 — 다 열고 나서 공지해 주세요.
+            {only
+              ? "벙은 정기런으로 열려요. 알림은 따로 가지 않아요 — 열고 나서 공지해 주세요."
+              : "벙은 정기런으로 열려요. 알림은 따로 가지 않아요 — 다 열고 나서 공지해 주세요."}
           </ResponsiveDrawerDescription>
         </ResponsiveDrawerHeader>
 
@@ -156,7 +194,34 @@ export function PbSessOpenDialog({
           )}
           {loadError && <EmptyState variant="card" message={loadError} />}
 
-          {rows && (
+          {rows && only && (
+            <>
+              {rows.length === 0 && <EmptyState variant="card" message="이미 벙이 열려 있어요." />}
+              <SessOpenRowList
+                rows={rows}
+                evtSttDt={evtSttDt}
+                plans={board.sessPlans}
+                single
+                onChange={updateRow}
+              />
+              {rows.length > 0 && (
+                <div className="flex items-center gap-2 rounded-2xl bg-secondary/50 p-3">
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    min={10}
+                    step={5}
+                    value={durMin}
+                    aria-label="소요 시간(분)"
+                    onChange={(e) => setDurMin(Number(e.target.value) || 0)}
+                  />
+                  <Caption className="shrink-0">분 진행</Caption>
+                </div>
+              )}
+            </>
+          )}
+
+          {rows && !only && (
             <>
               <div className="flex flex-col gap-3 rounded-2xl bg-secondary/50 p-3">
                 <Caption className="font-semibold text-foreground">공통</Caption>
@@ -236,7 +301,7 @@ export function PbSessOpenDialog({
             className="h-[52px] w-full gap-1.5 rounded-xl text-base font-semibold"
           >
             <CalendarPlus className="size-4" />
-            {busy ? "여는 중..." : `벙 ${included.length}개 열기`}
+            {busy ? "여는 중..." : only ? "열기" : `벙 ${included.length}개 열기`}
           </Button>
         </div>
       </ResponsiveDrawerContent>

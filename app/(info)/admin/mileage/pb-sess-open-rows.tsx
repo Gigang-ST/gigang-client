@@ -82,15 +82,21 @@ export function SessOpenRowItem({
   row,
   evtSttDt,
   plan,
+  single = false,
   onChange,
 }: {
   row: SessOpenRow;
   evtSttDt: string;
   /** 같은 주차의 훈련표 — 종류 칩에 쓴다. 없으면 칩을 생략 */
   plan?: PbSessPlan;
+  /**
+   * 주차 하나만 여는 창 — 「열 것인가」 체크가 의미 없고(눌러서 연 창이다), 오너가 바로 고칠 설명이
+   * 접혀 있으면 한 번 더 눌러야 하므로 처음부터 펼친다. 같은 줄 컴포넌트를 쓰는 건 필드 정의를 한 곳에 두려는 것.
+   */
+  single?: boolean;
   onChange: (next: SessOpenRow) => void;
 }) {
-  const [descOpen, setDescOpen] = useState(false);
+  const [descOpen, setDescOpen] = useState(single);
   const { draft } = row;
   const { errors, warnings } = rowIssues(row, evtSttDt);
   const set = (patch: Partial<PbSessDraft>) => onChange({ ...row, draft: { ...draft, ...patch } });
@@ -101,11 +107,13 @@ export function SessOpenRowItem({
   return (
     <li className={cn("flex flex-col gap-2 rounded-2xl border border-border p-3", !row.include && "opacity-50")}>
       <div className="flex items-center gap-2">
-        <Checkbox
-          checked={row.include}
-          onCheckedChange={(v) => onChange({ ...row, include: v === true })}
-          aria-label={`${isMeasure ? "10K 측정" : wkLabel(draft.wkNo)} 열기`}
-        />
+        {!single && (
+          <Checkbox
+            checked={row.include}
+            onCheckedChange={(v) => onChange({ ...row, include: v === true })}
+            aria-label={`${isMeasure ? "10K 측정" : wkLabel(draft.wkNo)} 열기`}
+          />
+        )}
         <Badge variant="outline">{isMeasure ? "10K 측정" : wkLabel(draft.wkNo)}</Badge>
         {kind && <Badge variant="secondary">{kind.nm}</Badge>}
       </div>
@@ -130,7 +138,7 @@ export function SessOpenRowItem({
       </div>
       <Input
         value={draft.locTxt}
-        placeholder="장소"
+        placeholder="예: 양재시민의숲 농구장"
         aria-label="장소"
         onChange={(e) => set({ locTxt: e.target.value })}
       />
@@ -176,11 +184,13 @@ export function SessOpenRowList({
   rows,
   evtSttDt,
   plans,
+  single,
   onChange,
 }: {
   rows: readonly SessOpenRow[];
   evtSttDt: string;
   plans: readonly PbSessPlan[];
+  single?: boolean;
   onChange: (next: SessOpenRow) => void;
 }) {
   return (
@@ -190,6 +200,7 @@ export function SessOpenRowList({
           key={row.key}
           row={row}
           evtSttDt={evtSttDt}
+          single={single}
           // 측정 줄은 배지가 이미 「10K 측정」이라 훈련 종류 칩을 붙이지 않는다
           plan={row.draft.sessType === "TRAINING" ? plans.find((p) => p.sessNo === row.draft.wkNo) : undefined}
           onChange={onChange}

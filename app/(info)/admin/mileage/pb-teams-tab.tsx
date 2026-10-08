@@ -12,7 +12,7 @@ import {
   updatePbGroup,
 } from "@/app/actions/admin/manage-pb-class-game";
 import { wkLabel } from "@/lib/pb-class";
-import { PB_TRN_GROUPS } from "@/lib/pb-class-plan";
+import { PB_TRN_GROUPS, trnGroupNm } from "@/lib/pb-class-plan";
 import type { PbGame, PbGameParticipant } from "@/lib/queries/pb-class-game";
 
 import { Avatar } from "@/components/common/avatar";
@@ -23,7 +23,14 @@ import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-import { GroupDot, PB_GROUP_COLOR_NOS, PbGameLoadError, PbGameSkeleton, TrnGroupLabel } from "./pb-game-parts";
+import {
+  AutoTrnGroupLabel,
+  GroupDot,
+  PB_GROUP_COLOR_NOS,
+  PbGameLoadError,
+  PbGameSkeleton,
+  TrnGroupLabel,
+} from "./pb-game-parts";
 import { PbGroupDialog, type PbGroupFormValues } from "./pb-group-dialog";
 import { usePbGame, type PbRun } from "./use-pb-game";
 
@@ -39,9 +46,16 @@ export function trnGroupCodes(used: readonly (string | null)[]): string[] {
   const extra = [...new Set(used.filter((c): c is string => !!c && !std.includes(c)))].sort();
   return [...std, ...extra];
 }
-/** Radix Select는 빈 문자열 value를 못 쓴다 — 「없음」은 이 값으로 대신하고 저장 때 null로 되돌린다 */
+/**
+ * Radix Select는 빈 문자열 value를 못 쓴다 — null은 이 값으로 대신하고 저장 때 null로 되돌린다.
+ * 훈련팀에선 null이 「자동」(목표·기록으로 정해짐), 게임팀에선 「없음」이다.
+ */
 const NONE = "__none__";
 
+/**
+ * 편성 저장값. **`trnGrpCd`는 운영진 고정값(원값)**이다 — 화면이 보여 주는 실제 팀(고정 ?? 자동)이 아니다.
+ * 실제 팀으로 비교하면 자동인 사람이 전부 「바뀐 행」으로 잡히고, 저장하는 순간 자동 팀이 고정으로 굳는다.
+ */
 type Assign = { trnGrpCd: string | null; grpId: string | null };
 
 const sameAssign = (a: Assign, b: Assign) => a.trnGrpCd === b.trnGrpCd && a.grpId === b.grpId;
@@ -76,14 +90,14 @@ function TeamsBody({
   const { groups } = game;
   const locked = busyKey !== null;
   const approved = useMemo(() => game.participants.filter((p) => p.aprvYn), [game.participants]);
-  const trnCodes = useMemo(() => trnGroupCodes(game.participants.map((p) => p.trnGrpCd)), [game.participants]);
+  const trnCodes = useMemo(() => trnGroupCodes(game.participants.map((p) => p.trnGrpFixedCd)), [game.participants]);
   const groupIds = useMemo(() => new Set(groups.map((g) => g.grpId)), [groups]);
 
   // 배정은 「서버 값 위에 덮은 변경분」만 로컬에 든다. 서버 값을 state로 복사해 두면 재조회 때마다
   // 동기화 이펙트가 필요하고, 그 틈에 사람이 고친 값이 날아간다 — 변경분만 들면 저장 후 비우는 것으로 끝난다.
   const [drafts, setDrafts] = useState<Record<string, Assign>>({});
 
-  const baseOf = (p: PbGameParticipant): Assign => ({ trnGrpCd: p.trnGrpCd, grpId: p.grpId });
+  const baseOf = (p: PbGameParticipant): Assign => ({ trnGrpCd: p.trnGrpFixedCd, grpId: p.grpId });
   /** 지금 화면에 보이는 값 — 삭제돼 사라진 팀을 가리키는 변경분은 미배정으로 본다 */
   const viewOf = (p: PbGameParticipant): Assign => {
     const d = drafts[p.prtId] ?? baseOf(p);
@@ -328,6 +342,10 @@ function TeamsBody({
           <Shuffle className="size-4" />뱀 드래프트로 채우기
         </Button>
         <Caption>미배정 인원을 {wkLabel(1)} 5K 기록 빠른 순으로 세워 팀에 왕복 배분해요. 저장 전까지 바뀌지 않아요.</Caption>
+        <Caption className="break-keep">
+          훈련팀은 「자동」이면 목표와 최근 5K 기록(내 P)으로 정해지고, 기록이 바뀌면 따라 옮겨요. 다른 팀을 고르면 그 팀으로
+          고정돼요.
+        </Caption>
 
         {approved.length === 0 ? (
           <EmptyState variant="card" message="승인된 참가자가 없어요." />
@@ -365,15 +383,25 @@ function TeamsBody({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
+                          {/* 자동이 기본이라 맨 위 — 고르는 건 예외(인원 맞추기·쪼갠 반)일 때뿐이다 */}
+                          <SelectItem value={NONE}>
+                            <AutoTrnGroupLabel cd={p.trnGrpAutoCd} />
+                          </SelectItem>
                           {trnCodes.map((c) => (
                             <SelectItem key={c} value={c}>
                               <TrnGroupLabel cd={c} />
                             </SelectItem>
                           ))}
-                          <SelectItem value={NONE}>없음</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
+                    {/* 고정한 사람은 기록이 올라도 안 옮겨 간다 — 자동이면 어디였을지 옆에 두어 되돌릴지 판단하게 한다.
+                        들여쓰기는 라벨 칸(w-12) + 간격(gap-2)만큼 — 셀렉트 글자와 세로줄을 맞춘다 */}
+                    {v.trnGrpCd !== null && (
+                      <Micro className="-mt-1 pl-14">
+                        고정 · 자동이면 {trnGroupNm(p.trnGrpAutoCd) ?? "기록 전"}
+                      </Micro>
+                    )}
                     <div className="flex items-center gap-2">
                       <Micro className="w-12 shrink-0">게임팀</Micro>
                       <Select

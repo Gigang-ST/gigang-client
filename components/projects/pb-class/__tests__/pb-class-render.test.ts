@@ -281,6 +281,16 @@ describe("PbGuide — 규칙이 곧 안내", () => {
     expect(table).not.toContain("내 팀");
   });
 
+  it("훈련팀은 내 P로 저절로 정해진다고 말한다 — 「1주차 5K 기록으로」라는 옛 규칙은 없다(오너 2026-10-08)", () => {
+    const out = html(createElement(PbGuide, { ...props, cfg: CFG }));
+    const groups = out.slice(out.indexOf('id="pb-guide-groups"'), out.indexOf('id="pb-guide-kinds"'));
+
+    expect(groups).toContain("저절로 묶여요");
+    expect(groups).toContain("내 P(목표와 최근 5K 기록 중 느린 쪽)가 들어가는 줄로 저절로 정해져요");
+    expect(groups).toContain("중간점검 기록을 올리면 바뀔 수 있고");
+    expect(groups).not.toContain("1주차 5K 기록으로");
+  });
+
   it("내 훈련팀 행에만 내 팀 표시가 붙는다(쪼갠 반 D1도 D 행에)", () => {
     for (const [cd, nm] of [
       ["C", "45분 이하"],
@@ -463,11 +473,23 @@ describe("PbTraining — 주차별 훈련 · 훈련 종류 · 내 P", () => {
     expect(out).not.toContain("D1");
   });
 
-  it("훈련팀이 아직 없으면 정해지는 방법을 말한다", () => {
+  it("훈련팀이 아직 없으면 정해지는 방법(내 P)을 말한다", () => {
     const out = html(createElement(PbTraining, { ...base, me: makeMe(1, []), phase: { kind: "week", wkNo: 2 } }));
 
-    expect(out).toContain("훈련팀은 1주차 5K 기록으로 정해져요");
+    expect(out).toContain("훈련팀은 내 P로 정해져요");
+    expect(out).not.toContain("1주차 5K 기록으로 정해져요"); // 자동 배정 전의 옛 규칙
     expect(out).not.toContain("내 훈련팀");
+  });
+
+  it("훈련팀 카드는 어떻게 정해졌는지 한 줄 — 자동이면 내 P를 따라 바뀔 수 있고, 고정이면 그 말을 하지 않는다", () => {
+    const auto = html(createElement(PbTraining, { ...base, me: makeMe(1, []), trnGrpCd: "C", phase: { kind: "week", wkNo: 2 } }));
+    expect(auto).toContain("내 P를 따라 정해져요 · 중간점검 기록을 올리면 바뀔 수 있어요");
+
+    const fixed = html(
+      createElement(PbTraining, { ...base, me: makeMe(1, []), trnGrpCd: "C", trnGrpFixed: true, phase: { kind: "week", wkNo: 2 } }),
+    );
+    expect(fixed).toContain("운영진이 정한 팀이에요");
+    expect(fixed).not.toContain("내 P를 따라 정해져요");
   });
 
   it("내 P 카드 — 기록이 목표보다 느리면 기록 기준, 이유와 환산 칸까지", () => {

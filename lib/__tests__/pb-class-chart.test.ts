@@ -16,6 +16,7 @@ import {
   formatTrackTick,
   layoutTrackLanes,
   predicted10k,
+  teamGlance,
   teamWeekGains,
   teamYAxis,
   toPbCrewChartData,
@@ -503,6 +504,44 @@ describe("buildPbTeamSeries — 팀별 누적 점수", () => {
     // 50점 남짓이면 12.5 같은 눈금이 아니라 10·20 또는 20·40 …
     const small = { ...series, teams: [{ ...series.teams[0], total: 46 }] };
     expect(teamYAxis(small).ticks.every(Number.isInteger)).toBe(true);
+  });
+});
+
+describe("teamGlance — 팀 그래프 위 한 줄(마지막 주에 가장 많이 얻은 팀)", () => {
+  const team = (grpNm: string, gain: number[]) => ({
+    grpId: grpNm,
+    grpNm,
+    colorNo: 1,
+    rank: 1,
+    total: gain.reduce((a, b) => a + b, 0),
+    cum: gain,
+    gain,
+  });
+
+  it("마지막 주차의 증분이 가장 큰 팀 — 누적 1위가 아니라 그 주에 치고 올라온 팀", () => {
+    const g = teamGlance({ weeks: [1, 2], teams: [team("불꽃팀", [30, 2]), team("번개팀", [5, 12.5])] });
+    expect(g).toEqual({ wkNo: 2, names: ["번개팀"], allTied: false, gain: 12.5 });
+  });
+
+  it("동점이면 순위표 순서대로 여럿, 전 팀이 같으면 「모든 팀」으로", () => {
+    const tie = teamGlance({ weeks: [1], teams: [team("가", [10]), team("나", [10]), team("다", [3])] });
+    expect(tie).toMatchObject({ names: ["가", "나"], allTied: false });
+    const all = teamGlance({ weeks: [1], teams: [team("가", [10]), team("나", [10])] });
+    expect(all).toMatchObject({ allTied: true, gain: 10 });
+  });
+
+  it("실제 시리즈에서도 그 주 증분과 같은 값을 말한다", () => {
+    const series = buildPbTeamSeries({ scoreboard: scoreboardOf(), members: MEMBERS, rule: RULE })!;
+    const g = teamGlance(series)!;
+    const last = series.weeks.length - 1;
+    expect(g.wkNo).toBe(series.weeks[last]);
+    expect(g.gain).toBe(Math.max(...series.teams.map((t) => t.gain[last])));
+  });
+
+  it("마지막 주에 아무도 못 얻었거나 팀이 없으면 null — 「0점으로 가장 많이」는 말이 안 된다", () => {
+    expect(teamGlance({ weeks: [1], teams: [team("가", [0])] })).toBeNull();
+    expect(teamGlance({ weeks: [1], teams: [] })).toBeNull();
+    expect(teamGlance({ weeks: [], teams: [team("가", [])] })).toBeNull();
   });
 });
 

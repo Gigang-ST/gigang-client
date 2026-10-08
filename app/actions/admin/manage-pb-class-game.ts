@@ -223,6 +223,10 @@ export async function deletePbGroup(grpId: string): Promise<R> {
 // 편성(훈련팀·게임팀)
 // ─────────────────────────────────────────
 
+/**
+ * 편성 저장. `trnGrpCd`는 **운영진 고정 훈련팀**이고 null 이면 자동이다(목표·최근 5K 기록으로 정해진다 —
+ * `autoTrnGrpCd`). 자동 팀은 저장하지 않는다: 저장하면 기록이 바뀔 때마다 다시 써야 하고, 한 번 쓰면 고정과 구분이 안 된다.
+ */
 export async function assignPbParticipants(
   evtId: string,
   rows: { prtId: string; trnGrpCd: string | null; grpId: string | null }[],
