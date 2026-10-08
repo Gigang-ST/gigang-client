@@ -469,11 +469,13 @@ function MyPaceCard({
 /** 훈련표 머리 — 내 훈련팀(있으면) + 내 P(참가자) + 모든 세션 공통 규칙 */
 function PlanHeader({
   trnGrpCd,
+  trnGrpFixed,
   participant,
   paceInput,
   pace,
 }: {
   trnGrpCd: string | null;
+  trnGrpFixed: boolean;
   participant: boolean;
   paceInput: PbPaceInput | null;
   pace: PbTrainingPace | null;
@@ -498,12 +500,17 @@ function PlanHeader({
             {grp && (
               <Micro className="tabular-nums">{`10K 목표 ${formatSec(grp.goalSec)} 이내 · 대회 페이스 ${grp.paceTxt}`}</Micro>
             )}
+            {/* 팀이 왜 여기인지·언제 바뀌는지 — 자동 팀은 내 P를 따라가므로 중간점검 뒤에 옮겨 갈 수 있다고 미리 말한다.
+                운영진이 고정했으면 기록이 올라도 안 옮겨 가니 그 말을 하면 거짓말이 된다 */}
+            <Micro className="break-keep">
+              {trnGrpFixed ? "운영진이 정한 팀이에요" : "내 P를 따라 정해져요 · 중간점검 기록을 올리면 바뀔 수 있어요"}
+            </Micro>
           </span>
         </div>
       ) : (
         participant && (
           <Caption className="break-keep leading-relaxed">
-            훈련팀은 1주차 5K 기록으로 정해져요. 정해지면 내 팀 세션이 굵게 보여요.
+            훈련팀은 내 P로 정해져요. 정해지면 내 팀 세션이 굵게 보여요.
           </Caption>
         )
       )}
@@ -539,6 +546,7 @@ export function PbTraining({
   phase,
   me,
   trnGrpCd,
+  trnGrpFixed = false,
   paceInput = null,
 }: {
   plans: PbSessPlan[];
@@ -548,7 +556,10 @@ export function PbTraining({
   phase: PbPhase;
   /** 승인된 참가자만 — 회차별 출석 상태를 단다 */
   me: PbParticipant | null;
+  /** 실제 훈련팀(운영진 고정 ?? 자동) — 첫 10K 그룹이면 줄인 세션을 짚는다 */
   trnGrpCd: string | null;
+  /** 운영진이 고정한 팀인가 — 아니면 내 P를 따라 정해진 자동 팀이다 */
+  trnGrpFixed?: boolean;
   /**
    * 보는 사람의 목표·5K 기록(`pbPaceInputOf`) — 승인된 참가자이고 게임 조회가 됐을 때만.
    * null 이면 내 P 카드도 문구 옆 숫자도 없다. 게임 조회가 실패했을 때 「목표나 기록을 올리면…」이라고
@@ -578,7 +589,13 @@ export function PbTraining({
 
   return (
     <PbZone label="Weekly Plan" lead={lead}>
-      <PlanHeader trnGrpCd={trnGrpCd} participant={me !== null} paceInput={paceInput} pace={pace} />
+      <PlanHeader
+        trnGrpCd={trnGrpCd}
+        trnGrpFixed={trnGrpFixed}
+        participant={me !== null}
+        paceInput={paceInput}
+        pace={pace}
+      />
 
       <ol aria-label="주차별 훈련" className="mt-2 flex flex-col">
         {sorted.map((plan, i) => {

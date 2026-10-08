@@ -6,8 +6,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   PB_DEFAULT_SESS_PLANS,
+  PB_TRN_GROUPS,
   PB_TRN_KINDS,
   PB_TRN_KIND_CDS,
+  autoTrnGrpCd,
   fmtPace,
   trainingPace,
   withMyPace,
@@ -18,6 +20,7 @@ describe("trainingPace — 목표와 최근 측정 중 느린 쪽", () => {
     // 목표 45:00 → 4:30/km, 1주차 5K 23:00 → 10K 2877.6초 → 4:48/km
     expect(trainingPace({ goalSec: 2700, base5kSec: 1380, mid5kSec: null })).toEqual({
       sec: 288,
+      tenKSec: expect.closeTo(2877.3, 6),
       basis: "record",
       recLabel: "1주차 5K",
     });
@@ -84,6 +87,54 @@ describe("기본 훈련표", () => {
       if (/·\s*\d+(~\d+)?회/.test(p.mainTxt)) expect(p.mainTxt).toMatch(/조깅|걷/);
       expect(p.selfTxt).toBeTruthy();
     }
+  });
+});
+
+describe("autoTrnGrpCd — 내 P의 10K 시간이 들어가는 훈련팀(오너 2026-10-08: 기록 입력하면 알아서)", () => {
+  const byGoal = (goalSec: number | null) => autoTrnGrpCd(trainingPace({ goalSec, base5kSec: null, mid5kSec: null }));
+
+  it("경계는 「이하」 — 38:00은 38분 이하, 1초라도 넘으면 다음 칸", () => {
+    expect(byGoal(38 * 60)).toBe("A");
+    expect(byGoal(38 * 60 + 1)).toBe("B");
+    expect(byGoal(40 * 60)).toBe("B");
+    expect(byGoal(40 * 60 + 1)).toBe("C");
+    expect(byGoal(45 * 60)).toBe("C");
+    expect(byGoal(50 * 60)).toBe("D");
+    expect(byGoal(50 * 60 + 1)).toBe("E");
+    expect(byGoal(60 * 60)).toBe("E");
+  });
+
+  it("km당 반올림한 P(sec)가 아니라 반올림 전 10K 시간으로 가른다 — 38:04는 38분 이하가 아니다", () => {
+    // 38:04 = 228.4초/km → 반올림하면 228(=38:00)이라 sec × 10 으로 가르면 A 로 잘못 들어간다
+    expect(trainingPace({ goalSec: 2284, base5kSec: null, mid5kSec: null })?.sec).toBe(228);
+    expect(byGoal(2284)).toBe("B");
+  });
+
+  it("가장 느린 칸보다 느리면 그 칸(첫 10K)에 남는다 — 팀 없음으로 두지 않는다", () => {
+    expect(byGoal(72 * 60)).toBe("E");
+    expect(autoTrnGrpCd(trainingPace({ goalSec: null, base5kSec: 32 * 60, mid5kSec: null }))).toBe("E"); // 5K 32:00 → 66:43
+  });
+
+  it("목표와 기록 중 느린 쪽(=내 P)으로 간다", () => {
+    // 목표 38:00 인데 5K 20:00 → 10K 41:42 — 기록 쪽이 느려 45분 이하
+    expect(autoTrnGrpCd(trainingPace({ goalSec: 38 * 60, base5kSec: 1200, mid5kSec: null }))).toBe("C");
+    // 5K 18:13 → 10K 37:59 — 목표(40:00)가 더 느려 40분 이하
+    expect(autoTrnGrpCd(trainingPace({ goalSec: 40 * 60, base5kSec: 1093, mid5kSec: null }))).toBe("B");
+  });
+
+  it("중간점검 기록이 오르면 팀도 따라 옮긴다(최근 5K 기준)", () => {
+    // 1주차 5K 22:00 → 45:52(D) · 6주차 5K 21:30 → 44:49(C)
+    expect(autoTrnGrpCd(trainingPace({ goalSec: null, base5kSec: 1320, mid5kSec: null }))).toBe("D");
+    expect(autoTrnGrpCd(trainingPace({ goalSec: null, base5kSec: 1320, mid5kSec: 1290 }))).toBe("C");
+  });
+
+  it("목표도 기록도 없으면 null — 아직 안 정해짐", () => {
+    expect(autoTrnGrpCd(null)).toBeNull();
+    expect(byGoal(null)).toBeNull();
+  });
+
+  it("칸의 상한은 훈련팀 표(PB_TRN_GROUPS)에서 온다 — 각 칸의 상한 그대로 그 칸", () => {
+    for (const g of PB_TRN_GROUPS) expect(autoTrnGrpCd({ tenKSec: g.goalSec })).toBe(g.cd);
   });
 });
 

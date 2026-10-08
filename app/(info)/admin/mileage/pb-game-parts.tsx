@@ -55,6 +55,23 @@ export function TrnGroupLabel({ cd }: { cd: string }) {
   );
 }
 
+/**
+ * 「자동」 선택지 이름표 — 「자동 · 45분 이하 · C」 / 「자동 · 기록 전」.
+ *
+ * 저장값은 null(=자동)이지만 지금 어느 팀으로 계산됐는지를 같이 보여 준다. 「자동」만 적어 두면 운영진이
+ * 사람마다 회원 화면을 열어 봐야 실제 팀을 안다. 목표도 5K 기록도 없으면 계산할 게 없어 「기록 전」이다.
+ */
+export function AutoTrnGroupLabel({ cd }: { cd: string | null }) {
+  if (!cd) return <span>자동 · 기록 전</span>;
+  const nm = trnGroupNm(cd) ?? cd;
+  return (
+    <span>
+      자동 · {nm}
+      {nm !== cd && <Micro className="ml-1.5">· {cd}</Micro>}
+    </span>
+  );
+}
+
 /** 탭 첫 조회 로딩 — 세 탭 공통 */
 export function PbGameSkeleton() {
   return (

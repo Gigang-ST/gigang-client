@@ -8,6 +8,7 @@ import {
   weekNoOf,
   type PbClassCfg,
 } from "@/lib/pb-class";
+import { autoTrnGrpCd, trainingPace } from "@/lib/pb-class-plan";
 import {
   PB_REC_TYPES,
   computeScoreboard,
@@ -56,7 +57,18 @@ type Db = SupabaseClient<Database>;
 
 export type PbGameParticipant = PbScoreMember & {
   aprvYn: boolean;
+  /**
+   * **실제 훈련팀** = 운영진 고정(`trnGrpFixedCd`) ?? 자동(`trnGrpAutoCd`). 회원 화면은 전부 이 값을 읽는다.
+   * null 이면 아직 안 정해졌다(고정도 없고 목표·5K 기록도 없다).
+   */
   trnGrpCd: string | null;
+  /**
+   * 운영진이 고정한 훈련팀 — DB `evt_pb_prt_rel.trn_grp_cd` 원값. null = 자동.
+   * 관리자 편성 화면은 이 값을 고치고 저장한다 — 실제 팀(`trnGrpCd`)을 저장하면 자동인 사람이 전부 고정으로 굳는다.
+   */
+  trnGrpFixedCd: string | null;
+  /** 목표·최근 5K 기록(내 P)으로 정한 훈련팀(`autoTrnGrpCd`). 고정이 있어도 계산해 둔다 — 관리자가 비교해 본다 */
+  trnGrpAutoCd: string | null;
   avatarUrl: string | null;
 };
 
@@ -169,19 +181,32 @@ export function assembleGame(args: {
   }
 
   const participants: PbGameParticipant[] = prts
-    .map((p) => ({
-      prtId: p.prt_id,
-      memId: p.mem_id,
-      memNm: p.mem_nm,
-      joinWkNo: p.join_wk_no,
-      late: isLateJoin(p.join_wk_no, cfg),
-      grpId: p.grp_id,
-      goalSec: p.goal_sec,
-      recs: recsByPrt.get(p.prt_id) ?? {},
-      aprvYn: p.aprv_yn,
-      trnGrpCd: p.trn_grp_cd,
-      avatarUrl: p.avatar_url,
-    }))
+    .map((p) => {
+      const myRecs = recsByPrt.get(p.prt_id) ?? {};
+      // 훈련 탭의 내 P(`pbPaceInputOf`)와 같은 입력 — 확정 여부는 따지지 않는다(점수가 아니라 훈련 편성이라서)
+      const auto = autoTrnGrpCd(
+        trainingPace({
+          goalSec: p.goal_sec,
+          base5kSec: myRecs.BASE_5K?.sec ?? null,
+          mid5kSec: myRecs.MID_5K?.sec ?? null,
+        }),
+      );
+      return {
+        prtId: p.prt_id,
+        memId: p.mem_id,
+        memNm: p.mem_nm,
+        joinWkNo: p.join_wk_no,
+        late: isLateJoin(p.join_wk_no, cfg),
+        grpId: p.grp_id,
+        goalSec: p.goal_sec,
+        recs: myRecs,
+        aprvYn: p.aprv_yn,
+        trnGrpCd: p.trn_grp_cd ?? auto,
+        trnGrpFixedCd: p.trn_grp_cd,
+        trnGrpAutoCd: auto,
+        avatarUrl: p.avatar_url,
+      };
+    })
     .sort((a, b) => a.memNm.localeCompare(b.memNm, "ko"));
 
   const sortedGrps = [...grps].sort(compareGroups);

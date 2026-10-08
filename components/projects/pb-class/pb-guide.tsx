@@ -270,7 +270,7 @@ function LateJoin({ cfg }: { cfg: PbClassCfg }) {
 function Groups({ trnGrpCd }: { trnGrpCd: string | null }) {
   const mine = trnGroupOf(trnGrpCd);
   return (
-    <PbZone id="pb-guide-groups" label="Training Groups" lead="1주차 5K 기록으로 페이스가 비슷한 사람끼리 묶어요">
+    <PbZone id="pb-guide-groups" label="Training Groups" lead="페이스가 비슷한 사람끼리 저절로 묶여요">
       {/* 훈련팀은 알파벳이 아니라 목표 시간으로 부른다 — 표엔 목표기록과 대회 페이스만 둔다(주간 거리는 걷었다) */}
       <table className="w-full border-collapse">
         <thead>
@@ -296,8 +296,11 @@ function Groups({ trnGrpCd }: { trnGrpCd: string | null }) {
           })}
         </tbody>
       </table>
+      {/* 자동 배정(오너 2026-10-08) — 기준이 훈련 탭의 「내 P」와 같은 숫자라는 걸 말해 둔다. 경계 숫자는 위 표가 말한다.
+          「내 팀」이라는 말은 쓰지 않는다 — 표에서 그 말은 내 줄에 붙는 표시라, 캡션에도 있으면 표시가 흐려진다 */}
       <Caption className="break-keep leading-relaxed">
-        실력·인원에 따라 합치거나 쪼개요. 중간점검 기록으로 다시 나눌 수 있어요.
+        내 P(목표와 최근 5K 기록 중 느린 쪽)가 들어가는 줄로 저절로 정해져요. 중간점검 기록을 올리면 바뀔 수 있고, 인원에
+        따라 합치거나 옮기기도 해요.
       </Caption>
     </PbZone>
   );

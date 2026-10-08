@@ -7,6 +7,8 @@ import {
   buildSessDrafts,
   draftEndIso,
   draftStartIso,
+  measurePlaceholderDate,
+  pickDefaultPlace,
 } from "@/lib/pb-class-sessions";
 import { pbSessDraftsSchema } from "@/lib/validations/pb-class";
 
@@ -65,6 +67,35 @@ describe("buildMeasureDraft", () => {
     expect(m).toMatchObject({ wkNo: 13, sessType: "MEASURE", gthrNm: "PB 클래스 10K 기록 측정" });
     expect(m.descTxt).toContain("10K 기록 측정");
     expect(buildMeasureDraft({ evtSttDt: STT, plans: [], date: "2027-02-03" }).wkNo).toBe(14);
+  });
+});
+
+describe("pickDefaultPlace / measurePlaceholderDate", () => {
+  it("시작이 가장 늦은 벙의 장소를 고른다 (입력 순서 무관)", () => {
+    expect(
+      pickDefaultPlace([
+        { sttAt: "2026-11-11T10:30:00+00:00", locTxt: "여의도" },
+        { sttAt: "2026-11-18T10:30:00.000Z", locTxt: "양재시민의숲" },
+        { sttAt: "2026-11-04T10:30:00Z", locTxt: "반포" },
+      ]),
+    ).toBe("양재시민의숲");
+  });
+  it("장소가 빈 벙은 건너뛰고, 하나도 없으면 빈 문자열", () => {
+    expect(
+      pickDefaultPlace([
+        { sttAt: "2026-11-18T10:30:00Z", locTxt: " " },
+        { sttAt: "2026-11-11T10:30:00Z", locTxt: null },
+        { sttAt: "2026-11-04T10:30:00Z", locTxt: "반포" },
+      ]),
+    ).toBe("반포");
+    expect(pickDefaultPlace([{ sttAt: "2026-11-04T10:30:00Z", locTxt: null }])).toBe("");
+    expect(pickDefaultPlace([])).toBe("");
+  });
+  it("측정 자리표시자는 마지막 훈련 주차 다음 주 수요일, 초안 주차는 13", () => {
+    const date = measurePlaceholderDate(STT, 13);
+    expect(date).toBe("2027-01-27");
+    const m = buildMeasureDraft({ evtSttDt: STT, plans: PB_DEFAULT_SESS_PLANS, date, defaults: { locTxt: "반포" } });
+    expect(m).toMatchObject({ wkNo: 13, date, locTxt: "반포" });
   });
 });
 

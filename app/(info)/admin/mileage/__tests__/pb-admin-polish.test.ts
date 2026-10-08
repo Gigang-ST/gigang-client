@@ -9,7 +9,7 @@ import type { PbClassBoard } from "@/lib/queries/pb-class";
 import type { PbGame, PbGameParticipant } from "@/lib/queries/pb-class-game";
 
 import { parsePbCfgForm, toPbCfgForm } from "@/app/(info)/admin/mileage/pb-cfg-fields";
-import { TrnGroupLabel } from "@/app/(info)/admin/mileage/pb-game-parts";
+import { AutoTrnGroupLabel, TrnGroupLabel } from "@/app/(info)/admin/mileage/pb-game-parts";
 import { PbRecordsTab } from "@/app/(info)/admin/mileage/pb-records-tab";
 import { PbScoreTab } from "@/app/(info)/admin/mileage/pb-score-tab";
 import { PlanBody } from "@/app/(info)/admin/mileage/pb-sess-plan-tab";
@@ -212,6 +212,8 @@ function makeParticipant(over: Partial<PbGameParticipant> & { prtId: string; mem
     recs: {},
     aprvYn: true,
     trnGrpCd: null,
+    trnGrpFixedCd: null,
+    trnGrpAutoCd: null,
     avatarUrl: null,
     ...over,
   };
@@ -226,14 +228,18 @@ function makeGame(): PbGame {
     measureWkNo: null,
     groups: [{ grpId: "grp-1", grpNm: "불꽃팀", colorNo: 1 }],
     participants: [
+      // 운영진이 A로 고정 — 기록(1주차 5K 21:00 → 10K 43:47)대로면 45분 이하(C)
       makeParticipant({
         prtId: "p1",
         memNm: "홍길동",
         trnGrpCd: "A",
+        trnGrpFixedCd: "A",
+        trnGrpAutoCd: "C",
         goalSec: 2280,
         recs: { BASE_5K: rec(1260), DAEGU_10K: rec(2400) },
       }),
-      makeParticipant({ prtId: "p2", memNm: "김러너", trnGrpCd: "E", grpId: null }),
+      // 자동 — 목표 58:20 → 첫 10K
+      makeParticipant({ prtId: "p2", memNm: "김러너", trnGrpCd: "E", trnGrpAutoCd: "E", goalSec: 3500, grpId: null }),
     ],
     scoreboard: {
       groups: [
@@ -291,6 +297,23 @@ describe("훈련팀 — 목표 시간으로 부른다", () => {
   it("선택지는 표준 A~E + 이미 배정돼 있는 비표준 코드(중복 없이 정렬)", () => {
     expect(trnGroupCodes([])).toEqual(["A", "B", "C", "D", "E"]);
     expect(trnGroupCodes(["A", null, "D2", "D1", "D2", "E"])).toEqual(["A", "B", "C", "D", "E", "D1", "D2"]);
+  });
+
+  it("「자동」 선택지는 지금 계산된 팀을 같이 말한다 — 목표·기록이 없으면 「기록 전」", () => {
+    const auto = renderToStaticMarkup(createElement(AutoTrnGroupLabel, { cd: "C" }));
+    expect(auto).toContain("자동 · 45분 이하");
+    expect(auto).toContain("· C");
+    expect(renderToStaticMarkup(createElement(AutoTrnGroupLabel, { cd: null }))).toContain("자동 · 기록 전");
+  });
+
+  it("고정한 사람에게만 「고정 · 자동이면 …」을 단다 — 자동인 사람은 저장해도 고정으로 굳지 않는다", () => {
+    const html = renderTab(PbTeamsTab);
+    // 홍길동(A 고정)만 — 자동인 김러너 줄엔 없다
+    expect(html.match(/고정 · 자동이면/g)).toHaveLength(1);
+    expect(html).toContain("고정 · 자동이면 45분 이하");
+    // 실제 팀(trnGrpCd)이 아니라 원값(trnGrpFixedCd)과 비교한다 — 그렇지 않으면 자동인 김러너가 「바뀐 행」으로 잡혀
+    // 아무것도 안 고쳤는데 저장 버튼이 켜지고, 누르는 순간 첫 10K로 고정된다
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>배정 저장<\/button>/);
   });
 
   it("배정 행마다 훈련팀·게임팀 선택이 있고 미션 문구는 남지 않는다", () => {

@@ -14,7 +14,15 @@ import {
 import { guardEvent, guardParticipant } from "@/lib/pb-class-guard";
 import { PB_DEFAULT_SESS_PLANS, type PbSessPlan } from "@/lib/pb-class-plan";
 import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
-import { buildSessDrafts, draftEndIso, draftStartIso, type PbSessDraft } from "@/lib/pb-class-sessions";
+import {
+  buildMeasureDraft,
+  buildSessDrafts,
+  draftEndIso,
+  draftStartIso,
+  measurePlaceholderDate,
+  pickDefaultPlace,
+  type PbSessDraft,
+} from "@/lib/pb-class-sessions";
 import {
   cfgFromRow,
   isMileageAlumni,
@@ -624,7 +632,8 @@ export async function deletePbSessPlan(evtId: string, sessNo: number): Promise<R
 export async function getPbSessDrafts(
   evtId: string,
 ): Promise<
-  { ok: true; message: null; drafts: PbSessDraft[]; measureLinked: boolean } | { ok: false; message: string }
+  | { ok: true; message: null; drafts: PbSessDraft[]; measureLinked: boolean; measureDraft: PbSessDraft | null }
+  | { ok: false; message: string }
 > {
   const parsedEvt = pbEvtIdSchema.safeParse(evtId);
   if (!parsedEvt.success) return { ok: false, message: firstIssue(parsedEvt.error) };
@@ -640,24 +649,46 @@ export async function getPbSessDrafts(
       const [{ data: cfgRow, error: cfgError }, { data: links, error: linkError }, planRows] = await Promise.all([
         db.from("evt_pb_cfg").select("*").eq("evt_id", parsedEvt.data).maybeSingle(),
         // 삭제된 벙에 걸린 연결도 주차를 차지한다(주차당 연결 1개 제약) — del_yn 으로 거르지 않는다
-        db.from("evt_gthr_rel").select("wk_no, sess_type_cd").eq("evt_id", parsedEvt.data),
+        db.from("evt_gthr_rel").select("gthr_id, wk_no, sess_type_cd").eq("evt_id", parsedEvt.data),
         loadSessPlanRows(db, parsedEvt.data),
       ]);
       if (cfgError || linkError) throw new Error(cfgError?.message ?? linkError?.message);
 
       const rels = links ?? [];
+      const totSessCnt = cfgFromRow(cfgRow ?? null).totSessCnt;
+      const plans = toSessPlans(planRows);
+      const measureLinked = rels.some((r) => r.sess_type_cd === "MEASURE");
+
+      // 기본 장소 = 직전 PB 벙의 장소. 수요일 장소가 주마다 달라 고정값이 없다(삭제된 벙은 제외)
+      let locTxt = "";
+      const gthrIds = rels.map((r) => r.gthr_id);
+      if (gthrIds.length > 0) {
+        const { data: gthrs, error: gthrError } = await db
+          .from("gthr_mst")
+          .select("stt_at, loc_txt")
+          .in("gthr_id", gthrIds)
+          .eq("del_yn", false);
+        if (gthrError) throw new Error(gthrError.message);
+        locTxt = pickDefaultPlace((gthrs ?? []).map((g) => ({ sttAt: g.stt_at, locTxt: g.loc_txt })));
+      }
+
       const drafts = buildSessDrafts({
         evtSttDt: evt.stt_dt,
-        totSessCnt: cfgFromRow(cfgRow ?? null).totSessCnt,
-        plans: toSessPlans(planRows),
+        totSessCnt,
+        plans,
         linkedWkNos: rels.map((r) => r.wk_no),
+        defaults: { locTxt },
       });
-      return {
-        ok: true as const,
-        message: null,
-        drafts,
-        measureLinked: rels.some((r) => r.sess_type_cd === "MEASURE"),
-      };
+      // 측정 줄은 「N주차 훈련벙」과 같은 창에서 열린다 — 날짜는 자리표시자고 오너가 바꾼다
+      const measureDraft = measureLinked
+        ? null
+        : buildMeasureDraft({
+            evtSttDt: evt.stt_dt,
+            plans,
+            date: measurePlaceholderDate(evt.stt_dt, totSessCnt),
+            defaults: { locTxt },
+          });
+      return { ok: true as const, message: null, drafts, measureLinked, measureDraft };
     } catch (e) {
       console.error("[getPbSessDrafts]", e);
       return { ok: false as const, message: "벙 초안을 불러오지 못했습니다" };

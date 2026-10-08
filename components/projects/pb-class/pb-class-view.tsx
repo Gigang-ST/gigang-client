@@ -12,10 +12,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 import { formatPeriod } from "./format";
 import { PbApplySection } from "./pb-apply-section";
-import { PbCrewAttendance, PbCrewEmpty, PbCrewSkeleton } from "./pb-crew-attendance";
+import { PbCrewAttendance, PbCrewEmpty, PbCrewFailed, PbCrewSkeleton } from "./pb-crew-attendance";
+import { PbFlowZone } from "./pb-flow-zone";
 import { PbGoalCard } from "./pb-goal-card";
 import { PbGuide } from "./pb-guide";
 import { PbHero, pbPhaseOf } from "./pb-hero";
+import { PbMyScore } from "./pb-my-score";
 import { PbMyStatus } from "./pb-my-status";
 import { PbMyTeam } from "./pb-my-team";
 import { PbPendingCard } from "./pb-pending-card";
@@ -67,8 +69,9 @@ async function PbSettlementSection({ evtId, nowIso }: { evtId: string; nowIso: s
 }
 
 /**
- * 크루 출석 그래프 — 정산과 같은 보드를 쓴다. 보조 정보라 조회가 흔들려도 점수판 탭을 막지 않고
- * 이 섹션만 접는다(정산은 돈이라 실패를 그대로 올린다 — 여기서 삼키는 건 그래프뿐이다).
+ * 누적 출석 면 — 정산과 같은 보드를 쓴다. 보조 정보라 조회가 흔들려도 점수판 탭을 막지 않고
+ * 이 면만 안내로 바꾼다(정산은 돈이라 실패를 그대로 올린다 — 여기서 삼키는 건 그래프뿐이다).
+ * 예전처럼 null 로 접으면 세그먼트 「누적 출석」 아래가 빈칸이 되어 고장 난 화면처럼 보인다.
  */
 async function PbCrewSection({ evtId, myMemId, nowIso }: { evtId: string; myMemId: string; nowIso: string }) {
   let board: Awaited<ReturnType<typeof getPbBoard>>;
@@ -76,9 +79,9 @@ async function PbCrewSection({ evtId, myMemId, nowIso }: { evtId: string; myMemI
     board = await getPbBoard(evtId, nowIso);
   } catch (e) {
     console.error("[pb-class] 크루 출석 보드 조회 실패", e);
-    return null;
+    return <PbCrewFailed />;
   }
-  if (!board) return null;
+  if (!board) return <PbCrewFailed />;
   return <PbCrewAttendance board={board} myMemId={myMemId} />;
 }
 
@@ -178,6 +181,7 @@ export async function PbClassView({ event, view, readOnly = false, isInactive, i
           phase={phase}
           me={approved ? me : null}
           trnGrpCd={trnGrpCd}
+          trnGrpFixed={approved && !!gameMe?.trnGrpFixedCd}
           paceInput={paceInput}
         />
       )}
@@ -188,7 +192,7 @@ export async function PbClassView({ event, view, readOnly = false, isInactive, i
             scoreboard={game.scoreboard}
             rule={game.rule}
             myGrpId={approved ? (gameMe?.grpId ?? null) : null}
-            me={approved && gameMe ? { memId: member.id, late: gameMe.late } : null}
+            me={approved && gameMe ? { memId: member.id } : null}
             participants={game.participants}
             measureWkNo={game.measureWkNo}
             crew={
@@ -198,8 +202,13 @@ export async function PbClassView({ event, view, readOnly = false, isInactive, i
         ) : (
           <>
             <EmptyState variant="card" message="점수판을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요." />
-            {/* 크루 출석은 게임 조회와 무관한 출석 보드를 읽는다 — 점수판이 흔들려도 이건 선다 */}
-            {approved && <CrewAttendance evtId={evt.evtId} memId={member.id} nowIso={nowIso} sessions={sessions} />}
+            {/* 누적 출석은 게임 조회와 무관한 출석 보드를 읽는다 — 점수판이 흔들려도 이 면은 선다(팀 점수 면 없이) */}
+            {approved && (
+              <PbFlowZone
+                crew={<CrewAttendance evtId={evt.evtId} memId={member.id} nowIso={nowIso} sessions={sessions} />}
+                team={null}
+              />
+            )}
           </>
         ))}
 
@@ -232,8 +241,9 @@ export async function PbClassView({ event, view, readOnly = false, isInactive, i
 }
 
 /**
- * 크루 출석(누적 출석 · 출석표) — 점수판 탭에 선다(오너 2026-10-08: 「크루 누적출석 그거 점수판 쪽으로」).
- * 이름이 실리므로 승인된 참가자에게만 — 점수판(`PbScoreboard`)이 `me`가 있을 때만 이 노드를 그린다.
+ * 누적 출석 면 — 점수판 탭 맨 아래 「Week by Week」 칸에 선다(오너 2026-10-08: 「크루 누적출석 그거 점수판 쪽으로」,
+ * 같은 날 출석표는 걷고 그 자리에 팀 점수 그래프 — `PbFlowZone`).
+ * 남의 출석 흐름이 실리므로 승인된 참가자에게만 — 점수판(`PbScoreboard`)이 `me`가 있을 때만 이 노드를 붙인다.
  * 열린 회차가 없으면 그릴 선이 없어 전원 보드를 읽지 않고 빈 상태만 세운다.
  */
 function CrewAttendance({
@@ -256,8 +266,9 @@ function CrewAttendance({
 }
 
 /**
- * 내 현황 — 출석·환급 → 회차 → 팀 → 목표 → 기록 → 정산 합계. 돈과 출석이 위, 게임이 아래.
- * 크루 전체 이야기(누적 출석·출석표)는 점수판 탭으로 옮겼다 — 이 탭은 「나」만 말한다.
+ * 내 현황 — 출석·환급 → 회차 → 팀 → 내 점수 → 목표 → 기록 → 정산 합계. 돈과 출석이 위, 게임이 아래.
+ * 크루 전체 이야기(누적 출석)는 점수판 탭에 있다 — 이 탭은 「나」만 말한다. 그래서 「내 점수」는 점수판에서
+ * 이리로 왔다(오너 2026-10-08): 바로 위 내 게임팀과 붙어 「팀 → 그 팀에 내가 보탠 점수」로 읽힌다.
  */
 function StatusTab({
   data,
@@ -286,6 +297,11 @@ function StatusTab({
       {game && gameMe && (
         <>
           <PbMyTeam groups={game.groups} me={gameMe} />
+          {/* 팀 발표 전엔 누구도 점수를 못 받고, 늦은 합류는 팀전 밖이다 — 둘 다 바로 위 My Team이 이미 말하므로
+              「내 점수」 칸을 세우지 않는다(같은 안내가 두 칸 연달아 서면 군더더기다) */}
+          {game.groups.length > 0 && !gameMe.late && (
+            <PbMyScore memId={memId} scoreboard={game.scoreboard} rule={game.rule} />
+          )}
           <PbGoalCard
             evtId={evt.evtId}
             goalSec={gameMe.goalSec}

@@ -5,6 +5,7 @@
 // 주차는 초안이 들고 있는 값을 믿지 않는다 — 서버가 시작 시각에서 다시 계산한다(`weekNoOf`).
 
 import { dayjs } from "@/lib/dayjs";
+import type { PbSession } from "@/lib/queries/pb-class";
 import { weekNoOf, weekStartDt, wkLabel } from "@/lib/pb-class";
 import { PB_TRN_KINDS, type PbSessPlan } from "@/lib/pb-class-plan";
 
@@ -100,6 +101,29 @@ export function buildMeasureDraft(args: {
   };
 }
 
+/**
+ * 측정 벙 날짜의 자리표시자 — 마지막 훈련 주차 다음 주 수요일.
+ * 측정일은 오너가 정하는 값이라 정답이 아니다. 비워 두면 주차 계산이 안 돼 초안을 못 만들어서 가까운 날을 채워 둘 뿐이다.
+ */
+export function measurePlaceholderDate(evtSttDt: string, totSessCnt: number): string {
+  return weekStartDt(evtSttDt, totSessCnt);
+}
+
+/**
+ * 기본 장소 = 이미 걸린 PB 벙 중 시작이 가장 늦은 것의 장소.
+ * 수요일 정기런 장소가 주마다 옮겨 다녀서(prd 실측) 고정값을 못 박지 않고, 직전 장소를 이어 받는다.
+ * 장소가 비어 있는 벙은 건너뛴다 — 그 뒤에 장소가 있는 벙이 있으면 그걸 쓴다. 없으면 "".
+ */
+export function pickDefaultPlace(sessions: readonly { sttAt: string; locTxt: string | null }[]): string {
+  // 문자열 비교 대신 절대시각으로 — DB가 `+00:00`·`Z` 어느 표기로 줘도 순서가 같다
+  const sorted = [...sessions].sort((a, b) => dayjs(b.sttAt).valueOf() - dayjs(a.sttAt).valueOf());
+  for (const s of sorted) {
+    const loc = s.locTxt?.trim();
+    if (loc) return loc;
+  }
+  return "";
+}
+
 /** 초안의 시작 시각(KST 날짜+시간) → UTC ISO */
 export function draftStartIso(d: Pick<PbSessDraft, "date" | "time">): string {
   return dayjs.tz(`${d.date} ${d.time}`, "Asia/Seoul").toISOString();
@@ -108,4 +132,36 @@ export function draftStartIso(d: Pick<PbSessDraft, "date" | "time">): string {
 /** 초안의 종료 시각 = 시작 + durMin분 (절대시각 덧셈이라 타임존 무관) */
 export function draftEndIso(d: Pick<PbSessDraft, "date" | "time" | "durMin">): string {
   return dayjs(draftStartIso(d)).add(d.durMin, "minute").toISOString();
+}
+
+/** 주차 하나만 여는 창의 대상 — 훈련은 주차, 측정은 한 칸뿐이라 wkNo 를 안 쓴다 */
+export type SessOpenOnly = { sessType: "TRAINING"; wkNo: number } | { sessType: "MEASURE" };
+
+
+/**
+ * 회차 탭 목록 한 칸 — 연결된 벙이거나, 아직 벙이 없는 자리(여기서 바로 연다).
+ * 순서는 1..총훈련주차, 그 뒤 나머지(측정 등), 측정이 없으면 맨 끝에 측정 자리.
+ * 삭제된 벙에 걸린 주차도 `linked`다 — 주차당 연결 1개라 그 칸은 이미 차 있고 서버도 거절한다.
+ */
+export type SessSlot = { kind: "linked"; session: PbSession } | { kind: "open"; key: string; only: SessOpenOnly };
+
+export function buildSessSlots(sessions: readonly PbSession[], trainingTotal: number): SessSlot[] {
+  const out: SessSlot[] = [];
+  const used = new Set<PbSession>();
+  for (let wk = 1; wk <= trainingTotal; wk++) {
+    const linked = sessions.filter((s) => s.sessType === "TRAINING" && s.wkNo === wk);
+    if (linked.length === 0) {
+      out.push({ kind: "open", key: `open:${wk}`, only: { sessType: "TRAINING", wkNo: wk } });
+      continue;
+    }
+    for (const s of linked) {
+      used.add(s);
+      out.push({ kind: "linked", session: s });
+    }
+  }
+  for (const s of sessions) if (!used.has(s)) out.push({ kind: "linked", session: s });
+  if (!sessions.some((s) => s.sessType === "MEASURE")) {
+    out.push({ kind: "open", key: "open:measure", only: { sessType: "MEASURE" } });
+  }
+  return out;
 }

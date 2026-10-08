@@ -13,6 +13,7 @@ import {
 import type { PbClassBoard, PbParticipant, PbSession } from "@/lib/queries/pb-class";
 
 import { PbGoalCard } from "@/components/projects/pb-class/pb-goal-card";
+import { PbMyScore } from "@/components/projects/pb-class/pb-my-score";
 import { PbMyTeam } from "@/components/projects/pb-class/pb-my-team";
 import { PbRecordForm, PbRecordsCard, pbRecTypesOf } from "@/components/projects/pb-class/pb-records-card";
 import { PbScoreboard } from "@/components/projects/pb-class/pb-scoreboard";
@@ -121,43 +122,47 @@ describe("PbScoreboard", () => {
     expect(out.indexOf('data-mine="true"')).toBeLessThan(out.indexOf("불꽃팀"));
   });
 
-  it("팀이 아직 없으면 발표 전 안내만 서고 내 점수는 그리지 않는다", () => {
+  it("팀이 아직 없으면 발표 전 안내가 선다", () => {
     const out = html(
       createElement(PbScoreboard, { ...NO_GAME_EXTRAS,
         scoreboard: { members: [], groups: [] },
         rule: PB_DEFAULT_RULE,
         myGrpId: null,
-        me: { memId: "m1", late: false },
+        me: { memId: "m1" },
       }),
     );
 
     expect(out).toContain("팀 발표 전이에요");
-    expect(out).not.toContain("My Score");
   });
 
-  it("구경하는 사람(me 없음)에겐 내 점수 블록이 없다", () => {
-    const out = html(
-      createElement(PbScoreboard, { ...NO_GAME_EXTRAS, scoreboard: BOARD, rule: PB_DEFAULT_RULE, myGrpId: null, me: null }),
-    );
-
-    expect(out).not.toContain("My Score");
+  it("점수판엔 「내 점수」가 없다 — 내 현황 탭으로 옮겼다(오너 2026-10-08)", () => {
+    for (const me of [null, { memId: "m1" }]) {
+      const out = html(
+        createElement(PbScoreboard, { ...NO_GAME_EXTRAS, scoreboard: BOARD, rule: PB_DEFAULT_RULE, myGrpId: "g1", me }),
+      );
+      expect(out).not.toContain("My Score");
+      expect(out).not.toContain("내 점수");
+    }
   });
+});
+
+// ─────────────────────────────────────────
+// 내 점수 (내 현황 탭)
+// ─────────────────────────────────────────
+
+describe("PbMyScore", () => {
+  const myScore = (scoreboard: PbScoreboardData) =>
+    html(createElement(PbMyScore, { memId: "m1", scoreboard, rule: PB_DEFAULT_RULE }));
 
   it("내 점수는 0이 아닌 항목만 풀어 보여 준다", () => {
     const mine = memberScore({
       total: 36,
       byCd: { ATTEND: 30, JOIN: 6, HOST: 0, IMPROVE_MID: 0, IMPROVE_FINAL: 0, GOAL: 0 },
     });
-    const out = html(
-      createElement(PbScoreboard, { ...NO_GAME_EXTRAS,
-        scoreboard: { ...BOARD, members: [mine] },
-        rule: PB_DEFAULT_RULE,
-        myGrpId: "g1",
-        me: { memId: "m1", late: false },
-      }),
-    );
+    const out = myScore({ ...BOARD, members: [mine] });
 
     expect(out).toContain("My Score");
+    expect(out).toContain("내가 팀에 보탠 점수");
     expect(out).toContain("36점");
     expect(out).toContain("공식훈련 출석");
     expect(out).toContain("+30점");
@@ -167,42 +172,14 @@ describe("PbScoreboard", () => {
   });
 
   it("점수가 0이면 줄 대신 아직 없다고 말한다", () => {
-    const out = html(
-      createElement(PbScoreboard, { ...NO_GAME_EXTRAS,
-        scoreboard: BOARD,
-        rule: PB_DEFAULT_RULE,
-        myGrpId: "g1",
-        me: { memId: "m1", late: false },
-      }),
-    );
+    const out = myScore(BOARD);
 
     expect(out).toContain("0점");
     expect(out).toContain("아직 점수가 없어요");
   });
 
-  it("늦은 합류자에겐 0점 대신 팀전 제외를 말한다", () => {
-    const out = html(
-      createElement(PbScoreboard, { ...NO_GAME_EXTRAS,
-        scoreboard: BOARD,
-        rule: PB_DEFAULT_RULE,
-        myGrpId: null,
-        me: { memId: "m1", late: true },
-      }),
-    );
-
-    expect(out).toContain("늦은 합류는 팀 점수에 들어가지 않아요");
-    expect(out).not.toContain("아직 점수가 없어요");
-  });
-
   it("게임팀이 없는 참가자는 배정 안내가 선다", () => {
-    const out = html(
-      createElement(PbScoreboard, { ...NO_GAME_EXTRAS,
-        scoreboard: { ...BOARD, members: [memberScore({ inGame: false, grpId: null })] },
-        rule: PB_DEFAULT_RULE,
-        myGrpId: null,
-        me: { memId: "m1", late: false },
-      }),
-    );
+    const out = myScore({ ...BOARD, members: [memberScore({ inGame: false, grpId: null })] });
 
     expect(out).toContain("게임팀이 정해지면 점수가 쌓여요");
   });
@@ -230,7 +207,7 @@ describe("PbMyTeam", () => {
   const groups = BOARD.groups;
 
   it("훈련팀(목표 시간)과 게임팀(이름)을 나란히 말한다", () => {
-    const out = html(createElement(PbMyTeam, { groups, me: { trnGrpCd: "A", grpId: "g2", late: false } }));
+    const out = html(createElement(PbMyTeam, { groups, me: { trnGrpCd: "A", trnGrpFixedCd: null, grpId: "g2", late: false } }));
 
     expect(out).toContain("훈련팀");
     expect(out).toContain("게임팀");
@@ -242,14 +219,29 @@ describe("PbMyTeam", () => {
     expect(out).not.toContain("배정 전");
   });
 
-  it("아직 배정 전이면 두 줄 모두 배정 전이다", () => {
-    const out = html(createElement(PbMyTeam, { groups, me: { trnGrpCd: null, grpId: null, late: false } }));
+  it("훈련팀이 아직 안 정해졌으면 「배정 전」이 아니라 할 일을 말한다 — 게임팀만 배정 전", () => {
+    const out = html(
+      createElement(PbMyTeam, { groups, me: { trnGrpCd: null, trnGrpFixedCd: null, grpId: null, late: false } }),
+    );
 
-    expect(out.match(/배정 전/g)).toHaveLength(2);
+    // 훈련팀은 목표·기록으로 저절로 정해진다(오너 2026-10-08) — 기다릴 게 아니라 올리면 되는 일
+    expect(out).toContain("목표나 기록을 올리면 정해져요");
+    expect(out.match(/배정 전/g)).toHaveLength(1);
+  });
+
+  it("자동으로 정해진 팀엔 「목표·기록으로 정해져요」, 운영진이 고정한 팀엔 「운영진이 정했어요」", () => {
+    const auto = html(createElement(PbMyTeam, { groups, me: { trnGrpCd: "C", trnGrpFixedCd: null, grpId: "g2", late: false } }));
+    expect(auto).toContain(">45분 이하");
+    expect(auto).toContain("목표·기록으로 정해져요");
+    expect(auto).not.toContain("운영진이 정했어요");
+
+    const fixed = html(createElement(PbMyTeam, { groups, me: { trnGrpCd: "C", trnGrpFixedCd: "C", grpId: "g2", late: false } }));
+    expect(fixed).toContain("운영진이 정했어요");
+    expect(fixed).not.toContain("목표·기록으로 정해져요");
   });
 
   it("늦은 합류자는 게임팀을 배정 전이 아니라 해당 없음으로 말한다", () => {
-    const out = html(createElement(PbMyTeam, { groups, me: { trnGrpCd: "B", grpId: null, late: true } }));
+    const out = html(createElement(PbMyTeam, { groups, me: { trnGrpCd: "B", trnGrpFixedCd: null, grpId: null, late: true } }));
 
     expect(out).toContain("늦은 합류 — 팀전 대상이 아니에요");
     expect(out).toContain("해당 없음");
@@ -267,7 +259,7 @@ describe("PbMyTeam", () => {
       E: "첫 10K · 60분 이하",
     };
     for (const [cd, nm] of Object.entries(names)) {
-      const out = html(createElement(PbMyTeam, { groups, me: { trnGrpCd: cd, grpId: "g2", late: false } }));
+      const out = html(createElement(PbMyTeam, { groups, me: { trnGrpCd: cd, trnGrpFixedCd: cd, grpId: "g2", late: false } }));
       expect(out).toContain(`>${nm}<`);
       expect(out).not.toContain(`>${cd}<`);
     }

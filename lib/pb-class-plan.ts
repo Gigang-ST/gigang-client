@@ -184,6 +184,11 @@ const TEN_K_FACTOR = 2.085;
 export type PbTrainingPace = {
   /** km당 초 */
   sec: number;
+  /**
+   * 그 P의 10K 시간(초, **반올림 전**) — 훈련팀 자동 배정(`autoTrnGrpCd`)의 기준.
+   * `sec × 10`으로 되돌리면 안 된다: km당 초를 반올림한 뒤라 10초 단위로 뭉개져, 목표 38:04가 「38분 이하」로 들어간다.
+   */
+  tenKSec: number;
   /** 무엇으로 정했나 */
   basis: "goal" | "record";
   /** 기록 기준이면 어느 측정에서 왔나 */
@@ -202,13 +207,17 @@ export function trainingPace(args: {
   /** 중간점검 주차 — 설정값(`rule.midWkNo`). 화면 문구 「N주차 5K」에 쓴다 */
   midWkNo?: number;
 }): PbTrainingPace | null {
-  const goal = args.goalSec && args.goalSec > 0 ? args.goalSec / 10 : null;
+  // 비교는 10K 시간으로 한다 — km당으로 나눈 뒤 비교해도 순서는 같지만, 훈련팀 경계(38:00 등)가 10K 시간이라서
+  const goal = args.goalSec && args.goalSec > 0 ? args.goalSec : null;
   const latest = args.mid5kSec ?? args.base5kSec;
-  const rec = latest && latest > 0 ? (latest * TEN_K_FACTOR) / 10 : null;
+  const rec = latest && latest > 0 ? latest * TEN_K_FACTOR : null;
   const recLabel = args.mid5kSec ? `${args.midWkNo ?? 6}주차 5K` : args.base5kSec ? "1주차 5K" : null;
   if (goal === null && rec === null) return null;
-  if (rec !== null && (goal === null || rec > goal)) return { sec: Math.round(rec), basis: "record", recLabel };
-  return { sec: Math.round(goal as number), basis: "goal", recLabel: null };
+  if (rec !== null && (goal === null || rec > goal)) {
+    return { sec: Math.round(rec / 10), tenKSec: rec, basis: "record", recLabel };
+  }
+  const g = goal as number;
+  return { sec: Math.round(g / 10), tenKSec: g, basis: "goal", recLabel: null };
 }
 
 /** km당 초 → "4:38" */
@@ -262,6 +271,25 @@ export const PB_TRN_GROUPS: PbTrnGroup[] = [
 export function trnGroupNm(cd: string | null | undefined): string | null {
   if (!cd) return null;
   return PB_TRN_GROUPS.find((g) => g.cd === cd)?.nm ?? cd;
+}
+
+/** 목표 시간 짧은 순 — 자동 배정은 「상한이 내 10K 이상인 첫 칸」을 찾으므로 순서가 곧 규칙이다 */
+const TRN_GROUPS_BY_LIMIT = [...PB_TRN_GROUPS].sort((a, b) => a.goalSec - b.goalSec);
+
+/**
+ * 훈련팀 자동 배정 — 내 P의 10K 시간이 들어가는 칸(오너 2026-10-08: 「기록 입력하면 알아서 abcd 들어가게」).
+ *
+ * 상한이 그 시간 이상인 첫 칸이고, 가장 느린 칸(첫 10K)보다도 느리면 그 칸에 남긴다 — 한 시간 넘게 걸리는 사람을
+ * 「팀 없음」으로 두면 훈련표가 아무 줄도 짚지 못한다. P가 없으면(목표도 5K 기록도 없음) null = 아직 안 정해짐.
+ * 기준이 P라서 훈련 탭의 「내 P」와 팀이 늘 같은 숫자에서 나온다 — 중간점검 기록이 오르면 팀도 따라 옮긴다.
+ *
+ * DB `trn_grp_cd`는 이 값을 저장하지 않는다. 거기 든 값은 **운영진이 고정한 팀**이고(null = 자동),
+ * 실제 팀은 `고정 ?? 자동`이다(`lib/queries/pb-class-game.ts`). 저장하면 기록이 바뀔 때마다 다시 써야 한다.
+ */
+export function autoTrnGrpCd(pace: Pick<PbTrainingPace, "tenKSec"> | null): string | null {
+  if (!pace) return null;
+  const slowest = TRN_GROUPS_BY_LIMIT[TRN_GROUPS_BY_LIMIT.length - 1];
+  return (TRN_GROUPS_BY_LIMIT.find((g) => pace.tenKSec <= g.goalSec) ?? slowest).cd;
 }
 
 /** 첫 10K 그룹인가 — 훈련표에서 E 세션을 먼저 보여 줄지 */

@@ -232,6 +232,41 @@ describe("assembleGame — 측정 주차·기록", () => {
   });
 });
 
+describe("assembleGame — 훈련팀은 고정 ?? 자동(오너 2026-10-08)", () => {
+  const rec = (prtId: string, type: string, sec: number): PbRecRow => ({
+    prt_id: prtId,
+    rec_type_cd: type,
+    rec_sec: sec,
+    cnfm_yn: true,
+  });
+
+  const game = assembleGame({
+    ...base(),
+    prts: [
+      prt("a", "가나", { goal_sec: 2700 }), // 목표만 — 45:00 → C
+      prt("b", "나다", { goal_sec: 2700, trn_grp_cd: "D1" }), // 운영진 고정이 이긴다
+      prt("c", "다라"), // 목표도 기록도 없음 → 안 정해짐
+      prt("d", "라마"), // 기록만 — 6주차가 1주차를 이긴다
+    ],
+    recs: [rec("prt-d", "BASE_5K", 1320), rec("prt-d", "MID_5K", 1290)],
+  });
+  const of = (memId: string) => game.participants.find((p) => p.memId === memId)!;
+
+  it("고정이 없으면 목표·최근 5K 기록(내 P)으로 정한 팀이 실제 팀이다", () => {
+    expect(of("a")).toMatchObject({ trnGrpCd: "C", trnGrpFixedCd: null, trnGrpAutoCd: "C" });
+    // 1주차 22:00(→ 45:52, D)이 아니라 6주차 21:30(→ 44:49, C)
+    expect(of("d")).toMatchObject({ trnGrpCd: "C", trnGrpFixedCd: null, trnGrpAutoCd: "C" });
+  });
+
+  it("DB 값은 운영진 고정 — 자동보다 먼저다. 자동 값도 같이 실어 관리자가 비교한다", () => {
+    expect(of("b")).toMatchObject({ trnGrpCd: "D1", trnGrpFixedCd: "D1", trnGrpAutoCd: "C" });
+  });
+
+  it("고정도 없고 목표·기록도 없으면 null — 「배정 전」이 아니라 아직 안 정해짐", () => {
+    expect(of("c")).toMatchObject({ trnGrpCd: null, trnGrpFixedCd: null, trnGrpAutoCd: null });
+  });
+});
+
 describe("scoreWindow — 점수 대상 벙의 시간 창", () => {
   it("측정 벙이 있으면 그 벙이 열린 KST 날의 끝까지", () => {
     expect(scoreWindow(EVT, LINKS)).toEqual({
