@@ -47,8 +47,9 @@ async function loadGameSafely(
 }
 
 /**
- * 전원 출석 보드 — 크루 출석 그래프와 정산이 **같은 보드**를 읽는다. 두 섹션이 각자 Suspense 로
- * 흘러가도 조회는 한 번만 돌게 요청 단위로 묶는다(React `cache` — 인자가 같으면 같은 Promise).
+ * 전원 출석 보드 — 크루 출석(점수판 탭)과 정산 합계(내 현황 탭)가 **같은 보드**를 읽는다. 탭은 하나만
+ * 그려지지만, 한 탭 안에서 여러 섹션이 각자 Suspense 로 흘러가도 조회는 한 번만 돌게 요청 단위로 묶어 둔다
+ * (React `cache` — 인자가 같으면 같은 Promise).
  */
 const getPbBoard = cache(async (evtId: string, nowIso: string) => {
   const { supabase } = await getCurrentMember();
@@ -59,14 +60,14 @@ const getPbBoard = cache(async (evtId: string, nowIso: string) => {
  * 정산 — 전원 출석을 읽는 무거운 조회라 본문을 막지 않게 따로 흘려 보낸다(Suspense).
  * 위쪽 출석·점수 화면이 먼저 그려지고 이 구간만 스켈레톤으로 남는다.
  */
-async function PbSettlementSection({ evtId, myMemId, nowIso }: { evtId: string; myMemId: string; nowIso: string }) {
+async function PbSettlementSection({ evtId, nowIso }: { evtId: string; nowIso: string }) {
   const board = await getPbBoard(evtId, nowIso);
   if (!board) return null;
-  return <PbSettlement board={board} myMemId={myMemId} />;
+  return <PbSettlement board={board} />;
 }
 
 /**
- * 크루 출석 그래프 — 정산과 같은 보드를 쓴다. 보조 정보라 조회가 흔들려도 내 현황 탭을 막지 않고
+ * 크루 출석 그래프 — 정산과 같은 보드를 쓴다. 보조 정보라 조회가 흔들려도 점수판 탭을 막지 않고
  * 이 섹션만 접는다(정산은 돈이라 실패를 그대로 올린다 — 여기서 삼키는 건 그래프뿐이다).
  */
 async function PbCrewSection({ evtId, myMemId, nowIso }: { evtId: string; myMemId: string; nowIso: string }) {
@@ -110,7 +111,8 @@ type PbClassViewProps = {
  *
  * 예전엔 한 지면에 출석·팀·목표·기록·점수판·정산·규칙이 세로로 다 쌓여, 훈련 내용을 보러 온 사람도
  * 정산 표까지 내려가야 했다. 「지금 어디인가」(히어로)는 늘 위에 두고 나머지는 물으러 온 질문별로 탭을 갈랐다.
- * 탭은 URL(`?view=`)이라 서버가 **보는 탭 하나만** 그린다 — 정산(전원 출석 조회)은 내 현황 탭에서만 돈다.
+ * 탭은 URL(`?view=`)이라 서버가 **보는 탭 하나만** 그린다 — 전원 출석 조회는 정산 합계(내 현황)와
+ * 크루 출석(점수판, 승인된 참가자만) 탭에서만 돈다.
  */
 export async function PbClassView({ event, view, readOnly = false, isInactive, inactiveKind }: PbClassViewProps) {
   const { member, supabase } = await getCurrentMember();
@@ -187,9 +189,18 @@ export async function PbClassView({ event, view, readOnly = false, isInactive, i
             rule={game.rule}
             myGrpId={approved ? (gameMe?.grpId ?? null) : null}
             me={approved && gameMe ? { memId: member.id, late: gameMe.late } : null}
+            participants={game.participants}
+            measureWkNo={game.measureWkNo}
+            crew={
+              approved ? <CrewAttendance evtId={evt.evtId} memId={member.id} nowIso={nowIso} sessions={sessions} /> : null
+            }
           />
         ) : (
-          <EmptyState variant="card" message="점수판을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요." />
+          <>
+            <EmptyState variant="card" message="점수판을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요." />
+            {/* 크루 출석은 게임 조회와 무관한 출석 보드를 읽는다 — 점수판이 흔들려도 이건 선다 */}
+            {approved && <CrewAttendance evtId={evt.evtId} memId={member.id} nowIso={nowIso} sessions={sessions} />}
+          </>
         ))}
 
       {active === "guide" && (
@@ -221,8 +232,32 @@ export async function PbClassView({ event, view, readOnly = false, isInactive, i
 }
 
 /**
- * 내 현황 — 출석·환급 → 회차 → 크루 출석 → 팀 → 목표 → 기록 → 정산. 돈과 출석이 위, 게임이 아래.
- * 크루 출석은 「회차마다 내 출석」 바로 아래다 — 같은 회차 칸을 나에서 크루로 넓혀 보는 자리라서.
+ * 크루 출석(누적 출석 · 출석표) — 점수판 탭에 선다(오너 2026-10-08: 「크루 누적출석 그거 점수판 쪽으로」).
+ * 이름이 실리므로 승인된 참가자에게만 — 점수판(`PbScoreboard`)이 `me`가 있을 때만 이 노드를 그린다.
+ * 열린 회차가 없으면 그릴 선이 없어 전원 보드를 읽지 않고 빈 상태만 세운다.
+ */
+function CrewAttendance({
+  evtId,
+  memId,
+  nowIso,
+  sessions,
+}: {
+  evtId: string;
+  memId: string;
+  nowIso: string;
+  sessions: MyPbClass["sessions"];
+}) {
+  if (!sessions.some((s) => s.held)) return <PbCrewEmpty />;
+  return (
+    <Suspense fallback={<PbCrewSkeleton />}>
+      <PbCrewSection evtId={evtId} myMemId={memId} nowIso={nowIso} />
+    </Suspense>
+  );
+}
+
+/**
+ * 내 현황 — 출석·환급 → 회차 → 팀 → 목표 → 기록 → 정산 합계. 돈과 출석이 위, 게임이 아래.
+ * 크루 전체 이야기(누적 출석·출석표)는 점수판 탭으로 옮겼다 — 이 탭은 「나」만 말한다.
  */
 function StatusTab({
   data,
@@ -247,14 +282,6 @@ function StatusTab({
     <>
       <PbMyStatus me={me} cfg={cfg} />
       <PbSessionStrip me={me} sessions={sessions} cfg={cfg} />
-      {/* 열린 회차가 없으면 그릴 선이 없다 — 전원 보드를 읽지 않고 빈 상태만 세운다 */}
-      {sessions.some((s) => s.held) ? (
-        <Suspense fallback={<PbCrewSkeleton />}>
-          <PbCrewSection evtId={evt.evtId} myMemId={memId} nowIso={nowIso} />
-        </Suspense>
-      ) : (
-        <PbCrewEmpty />
-      )}
 
       {game && gameMe && (
         <>
@@ -279,7 +306,7 @@ function StatusTab({
       )}
 
       <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
-        <PbSettlementSection evtId={evt.evtId} myMemId={memId} nowIso={nowIso} />
+        <PbSettlementSection evtId={evt.evtId} nowIso={nowIso} />
       </Suspense>
     </>
   );

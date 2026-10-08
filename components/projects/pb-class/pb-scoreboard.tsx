@@ -1,3 +1,6 @@
+import type { ReactNode } from "react";
+
+import { buildPbTeamSeries, buildPbTrack } from "@/lib/pb-class-chart";
 import {
   PB_PT_CDS,
   PB_PT_LABEL,
@@ -5,6 +8,7 @@ import {
   type PbRule,
   type PbScoreboard,
 } from "@/lib/pb-class-score";
+import type { PbGameParticipant } from "@/lib/queries/pb-class-game";
 import { cn } from "@/lib/utils";
 
 import { EmptyState } from "@/components/common/empty-state";
@@ -14,7 +18,9 @@ import { StatCard } from "@/components/common/stat-card";
 import { Body, Caption, Micro } from "@/components/common/typography";
 import { CardItem } from "@/components/ui/card";
 import { formatPt } from "./format";
+import { PbPaceTrack } from "./pb-pace-track";
 import { PbTeamDot } from "./pb-team-color";
+import { PbTeamScoreFlow } from "./pb-team-score-flow";
 import { PbZone } from "./pb-zone";
 
 type PbScoreboardProps = {
@@ -25,8 +31,18 @@ type PbScoreboardProps = {
   /**
    * 승인된 참가자일 때만 넘긴다. 구경하는 사람(미신청·입금 대기)에겐 「내 점수」 블록 자체가 없다.
    * `late`는 팀전 제외라 점수 대신 안내가 선다.
+   * **10K 트랙·크루 출석도 이 값으로 연다** — 이름과 기록·출석이 같이 실리는 섹션이라 정산과 같은 공개 범위다.
    */
   me: { memId: string; late: boolean } | null;
+  /**
+   * 게임 참가자 전원(입금 대기자 포함 — 거르는 건 받는 쪽이 한다). 팀 그래프는 합류 주차(분모)를,
+   * 트랙은 기록·얼굴을 여기서 읽는다. 이 컴포넌트는 서버 컴포넌트라 받기만 해서는 클라이언트로 안 나간다.
+   */
+  participants: readonly PbGameParticipant[];
+  /** 측정 벙의 주차 — 팀 그래프 마지막 눈금을 「측정」으로 */
+  measureWkNo: number | null;
+  /** 크루 출석(전원 보드 조회 — 호출부가 Suspense 로 감싸 넘긴다). `me`가 있을 때만 그린다 */
+  crew?: ReactNode;
 };
 
 function TeamScoreHelp({ rule }: { rule: PbRule }) {
@@ -105,15 +121,31 @@ function MyScore({ me, scoreboard }: { me: { memId: string; late: boolean }; sco
 }
 
 /**
- * 팀 점수판 + 내 점수.
+ * 점수판 탭 — 팀 순위 → 팀 점수 흐름 → 내 점수 → 10K 트랙 → 크루 출석.
  *
  * 이건 기강 포인트(원장·히든 운영)가 아니라 **프로젝트 게임 점수**라 숫자를 그대로 연다 —
  * 그래서 이름도 「점수」다(「포인트」라고 부르면 히든인 제도와 헷갈린다).
  * 순위는 코어(`computeScoreboard`)가 매겨 정렬해 준 그대로 그린다. 여기서 다시 정렬하거나
  * 동점을 가르지 않는다 — 코어가 공동 순위로 매긴 걸 화면이 뒤집으면 두 화면의 등수가 갈린다.
+ *
+ * ## 순서
+ * 점수 이야기(팀 순위 → 그 순위가 쌓인 흐름 → 그중 내 몫)를 한 묶음으로 끝내고, 크루 이야기(지금 실력 →
+ * 같이 나온 기록)를 잇는다. 「내 점수」가 팀 숫자 바로 아래 있어야 「내가 저 선에 얼마를 보탰나」로 읽힌다 —
+ * 맨 끝에 두면 트랙·출석표를 다 지나서야 나와 팀 숫자와 떨어진다.
+ * 구경하는 사람(미신청·입금 대기)은 앞의 둘(팀 단위 숫자)만 본다 — 뒤 셋은 이름이 실린다.
  */
-export function PbScoreboard({ scoreboard, rule, myGrpId, me }: PbScoreboardProps) {
+export function PbScoreboard({ scoreboard, rule, myGrpId, me, participants, measureWkNo, crew }: PbScoreboardProps) {
   const { groups } = scoreboard;
+  const series = groups.length > 0 ? buildPbTeamSeries({ scoreboard, members: participants, rule }) : null;
+  // 트랙은 승인된 참가자에게만 — 데이터 자체를 그때만 만든다(만들어 두고 숨기면 RSC 로 실려 나간다)
+  const track = me
+    ? buildPbTrack({
+        participants,
+        rule,
+        myMemId: me.memId,
+        colorOfGrp: new Map(groups.map((g) => [g.grpId, g.colorNo])),
+      })
+    : null;
 
   return (
     <div className="flex flex-col gap-7">
@@ -156,12 +188,18 @@ export function PbScoreboard({ scoreboard, rule, myGrpId, me }: PbScoreboardProp
       )}
       </PbZone>
 
+      {/* 팀 발표 전엔 순위표가 이미 「발표 전」이라고 말한다 — 같은 말을 하는 빈 칸을 하나 더 세우지 않는다 */}
+      {groups.length > 0 && <PbTeamScoreFlow series={series} myGrpId={myGrpId} measureWkNo={measureWkNo} />}
+
       {/* 팀이 발표되기 전엔 누구도 점수를 못 받는다 — 빈 「내 점수」 블록을 세울 이유가 없다 */}
       {me && groups.length > 0 && (
         <PbZone label="My Score" lead="내가 팀에 보탠 점수" action={<PointRuleHelp rule={rule} />}>
           <MyScore me={me} scoreboard={scoreboard} />
         </PbZone>
       )}
+
+      {me && <PbPaceTrack track={track} rule={rule} />}
+      {me && crew}
     </div>
   );
 }
