@@ -114,11 +114,14 @@ export async function joinProject(
 
     const { data: evt, error: evtError } = await db
       .from("evt_team_mst")
-      .select("end_dt, stt_dt")
+      .select("end_dt, stt_dt, evt_type_cd")
       .eq("evt_id", evtId)
       .single();
 
     if (evtError || !evt) return { ok: false, message: "이벤트를 찾을 수 없습니다" };
+    // PB 클래스 등 다른 종류의 프로젝트는 참가자 테이블이 달라 이 경로로 신청받지 않는다 —
+    // 받으면 마일리지 목표(evt_mlg_mth_snap)가 엉뚱한 프로젝트에 생긴다
+    if (evt.evt_type_cd !== "MILEAGE_RUN") return { ok: false, message: "마일리지런 프로젝트가 아닙니다" };
 
     const curMonth = currentMonthKST();
     const evtStartMonth = evt.stt_dt.slice(0, 7) + "-01";

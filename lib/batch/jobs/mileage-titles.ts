@@ -160,6 +160,8 @@ export async function batchMileageTitles(
       .select("evt_id, evt_nm")
       .eq("team_id", ctx.teamId)
       .eq("stts_enm", "ACTIVE")
+      // 마일리지런만 — 같은 팀에 PB 클래스 등 다른 종류의 ACTIVE 프로젝트가 함께 돌 수 있다(참가자 테이블이 달라 평가 대상이 아니다)
+      .eq("evt_type_cd", "MILEAGE_RUN")
       .lte("stt_dt", baseMonthLastDay)
       .gte("end_dt", baseMonthStart)
       .order("stt_dt", { ascending: false });

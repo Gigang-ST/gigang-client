@@ -260,6 +260,14 @@ Postgres `jsonb`는 키를 **정렬해서 저장**한다(길이순 → 사전순
 ### `gthr_attd_rel`에는 취소 플래그가 없다 — 살아있는 행이 곧 유효 참석
 모임 참석 취소는 행을 UPDATE하지 않고 **삭제 + `gthr_attd_hist`에 이벤트 기록**(`evt_cd`)으로 처리한다. 따라서 참석 횟수 집계에 "취소 제외" 조건을 따로 걸 필요가 없고, 걸려고 컬럼을 찾으면 없다. 과거 참석만 세려면 `gthr_mst.stt_at < now()`를 더한다. 취소자 표시가 필요한 화면은 `gthr_attd_hist`를 별도 조회한다(`gathering-canceled-attendees.tsx` 선례). (2026-07-22 프로필 카드 `gthr_attd_cnt` 구현)
 
+### `gthr_attd_rel` 쓰기는 service role 경로로만 — 회원 세션 INSERT 정책은 없앴다
+참석 등록의 규칙(지난 모임 잠금·정원·승인제·참여조건)은 전부 서버 액션/RPC(`join_gthr_or_wait`·`admin_add_gthr_attendance`)에 있고
+RLS에는 없다. 그런데 `gthr_attd_rel_insert` 정책이 "본인 행·같은 팀"만 보고 열려 있어서, 브라우저 Supabase 클라이언트로
+직접 INSERT하면 그 규칙을 **전부** 건너뛰고 몇 주 지난 모임에 소급 참석을 넣을 수 있었다. 포인트까지는 참았지만 PB 클래스(#577)부터
+공식훈련 참석이 곧 보증금 환급액이라 돈이 새는 구멍이 되어 정책을 지웠다(`20261007115000_gthr_attd_rel_drop_member_insert.sql`).
+**새 참석 쓰기 경로를 만들 땐 회원 클라이언트가 아니라 `createAdminClient()` + RPC로 간다** — 회원 세션 INSERT는 이제 RLS 기본 거부로 실패한다.
+규칙을 RLS로 다시 옮기려 하지 말 것: 정원·승인제를 정책에 복제하면 RPC와 두 벌이 되어 반드시 갈라진다. (2026-10-07)
+
 ### 회원별 설정이 "조회 범위"를 바꾸면 localStorage가 아니라 쿠키다 (+ 팀 공용 캐시는 키를 쪼개지 말고 범위를 합집합으로)
 개인 설정을 붙일 때 홈 필터(`home-filter-type`)를 그대로 따라 localStorage + 마운트 후 복원으로 만들기 쉬운데, **그게 통하는 건 필터가 "이미 받아온 데이터를 거르기만" 하기 때문이다.** 설정이 *서버가 무엇을 조회할지*를 바꾸면 얘기가 다르다 — SSR은 localStorage를 못 읽어 기본값으로 그려 내려보내고, 마운트 후 다시 그리면서 ① 레이아웃이 통째로 재배치되고 ② 서버가 안 받아온 가장자리 데이터가 빈 채로 떴다가 뒤늦게 채워진다. **쿠키는 요청에 실려 오므로 첫 렌더부터 맞는다.**
 - 비용은 0에 가깝다: 대부분의 동적 페이지는 이미 `getCurrentMember()`(→`lib/supabase/server.ts`의 `cookies()`)로 쿠키를 읽고 Suspense 안에 있어서, **쿠키를 하나 더 읽어도 새 동적 경계가 안 생긴다**(빌드 표에서 `◐ Partial Prerender`가 유지되는지로 확인).

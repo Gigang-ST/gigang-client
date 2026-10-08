@@ -1,0 +1,353 @@
+import { Suspense, cache } from "react";
+
+import { nowKST } from "@/lib/dayjs";
+import { canEditGoal, goalEditLastWk } from "@/lib/pb-class-score";
+import { loadMyPbClass, loadPbClassBoard, type MyPbClass } from "@/lib/queries/pb-class";
+import { loadPbGame, type PbGame } from "@/lib/queries/pb-class-game";
+import { getCurrentMember } from "@/lib/queries/member";
+
+import { EmptyState } from "@/components/common/empty-state";
+import { Caption, H2 } from "@/components/common/typography";
+import { Skeleton } from "@/components/ui/skeleton";
+
+import { formatPeriod } from "./format";
+import { PbApplySection } from "./pb-apply-section";
+import { PbCrewAttendance, PbCrewEmpty, PbCrewFailed, PbCrewSkeleton } from "./pb-crew-attendance";
+import { PbFlowZone } from "./pb-flow-zone";
+import { PbGoalCard } from "./pb-goal-card";
+import { PbGuide } from "./pb-guide";
+import { PbHero, pbPhaseOf } from "./pb-hero";
+import { PbMyScore } from "./pb-my-score";
+import { PbMyStatus } from "./pb-my-status";
+import { PbMyTeam } from "./pb-my-team";
+import { PbPendingCard } from "./pb-pending-card";
+import { PbRecordsCard } from "./pb-records-card";
+import { PbScoreboard } from "./pb-scoreboard";
+import { PbSessionStrip } from "./pb-session-strip";
+import { PbSettlement } from "./pb-settlement";
+import { PbTraining, pbPaceInputOf } from "./pb-training";
+import { PbViewTabs, pbGuideTop, resolvePbView } from "./pb-view-tabs";
+
+/**
+ * 게임(팀·목표·기록·점수) 조회 — 실패해도 출석·환급 화면은 서야 한다.
+ *
+ * 돈이 걸린 건 `loadMyPbClass` 쪽이고 게임 층은 그 위에 얹힌 보조 정보다. 점수판 조회 하나가
+ * 흔들렸다고 보증금 환급 현황까지 에러 화면으로 막으면 사람 입장에선 더 큰 사고다.
+ * 대신 조용히 삼키지 않고 로그를 남긴다.
+ */
+async function loadGameSafely(
+  db: Parameters<typeof loadPbGame>[0],
+  evtId: string,
+  nowIso: string,
+): Promise<PbGame | null> {
+  try {
+    return await loadPbGame(db, evtId, nowIso);
+  } catch (e) {
+    console.error("[pb-class] loadPbGame 실패", e);
+    return null;
+  }
+}
+
+/**
+ * 전원 출석 보드 — 크루 출석(점수판 탭)과 정산 합계(내 현황 탭)가 **같은 보드**를 읽는다. 탭은 하나만
+ * 그려지지만, 한 탭 안에서 여러 섹션이 각자 Suspense 로 흘러가도 조회는 한 번만 돌게 요청 단위로 묶어 둔다
+ * (React `cache` — 인자가 같으면 같은 Promise).
+ */
+const getPbBoard = cache(async (evtId: string, nowIso: string) => {
+  const { supabase } = await getCurrentMember();
+  return loadPbClassBoard(supabase, evtId, nowIso);
+});
+
+/**
+ * 정산 — 전원 출석을 읽는 무거운 조회라 본문을 막지 않게 따로 흘려 보낸다(Suspense).
+ * 위쪽 출석·점수 화면이 먼저 그려지고 이 구간만 스켈레톤으로 남는다.
+ */
+async function PbSettlementSection({ evtId, nowIso }: { evtId: string; nowIso: string }) {
+  const board = await getPbBoard(evtId, nowIso);
+  if (!board) return null;
+  return <PbSettlement board={board} />;
+}
+
+/**
+ * 누적 출석 면 — 정산과 같은 보드를 쓴다. 보조 정보라 조회가 흔들려도 점수판 탭을 막지 않고
+ * 이 면만 안내로 바꾼다(정산은 돈이라 실패를 그대로 올린다 — 여기서 삼키는 건 그래프뿐이다).
+ * 예전처럼 null 로 접으면 세그먼트 「누적 출석」 아래가 빈칸이 되어 고장 난 화면처럼 보인다.
+ */
+async function PbCrewSection({ evtId, myMemId, nowIso }: { evtId: string; myMemId: string; nowIso: string }) {
+  let board: Awaited<ReturnType<typeof getPbBoard>>;
+  try {
+    board = await getPbBoard(evtId, nowIso);
+  } catch (e) {
+    console.error("[pb-class] 크루 출석 보드 조회 실패", e);
+    return <PbCrewFailed />;
+  }
+  if (!board) return <PbCrewFailed />;
+  return <PbCrewAttendance board={board} myMemId={myMemId} />;
+}
+
+/** 조회 전·크루 밖일 때의 제목 — 히어로를 세울 데이터가 없을 때만 쓴다 */
+function BareTitle({ event }: { event: PbClassViewProps["event"] }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <H2 className="break-keep">{event.evt_nm}</H2>
+      <Caption className="tabular-nums">{formatPeriod(event.stt_dt, event.end_dt)}</Caption>
+    </div>
+  );
+}
+
+type PbClassViewProps = {
+  event: { evt_id: string; evt_nm: string; stt_dt: string; end_dt: string };
+  /** `?view=` 원문 — 볼 수 없는 값이면 기본 탭으로 떨어진다(`resolvePbView`) */
+  view?: string;
+  /**
+   * 종료된 프로젝트를 보관용으로 여는 중 — 신청·목표 수정·대구 입력 등 **쓰기 어포던스를 전부** 거둔다.
+   * 서버 액션도 종료 프로젝트를 막아야 하지만, 화면이 버튼을 세워 두면 누르고 나서야 거절당한다.
+   */
+  readOnly?: boolean;
+  /** 비활성/탈퇴 회원 — 신청 시 공통 안내 게이트를 연다 */
+  isInactive: boolean;
+  inactiveKind?: "inactive" | "left";
+};
+
+/**
+ * 프로젝트 탭의 겨울 10K PB 클래스 뷰 — **히어로 + 탭(내 현황 · 훈련 · 점수판 · 안내)**.
+ *
+ * 예전엔 한 지면에 출석·팀·목표·기록·점수판·정산·규칙이 세로로 다 쌓여, 훈련 내용을 보러 온 사람도
+ * 정산 표까지 내려가야 했다. 「지금 어디인가」(히어로)는 늘 위에 두고 나머지는 물으러 온 질문별로 탭을 갈랐다.
+ * 탭은 URL(`?view=`)이라 서버가 **보는 탭 하나만** 그린다 — 전원 출석 조회는 정산 합계(내 현황)와
+ * 크루 출석(점수판, 승인된 참가자만) 탭에서만 돈다.
+ */
+export async function PbClassView({ event, view, readOnly = false, isInactive, inactiveKind }: PbClassViewProps) {
+  const { member, supabase } = await getCurrentMember();
+
+  // 로그인했지만 크루 가입 전 — 신청 대상이 아니다(참가자 행이 mem_id에 걸린다)
+  if (!member) {
+    return (
+      <>
+        <BareTitle event={event} />
+        <EmptyState variant="card" message="크루 가입을 마치면 참가 신청할 수 있어요." />
+      </>
+    );
+  }
+
+  // 두 조회는 서로 기다릴 이유가 없다 — 나란히 보낸다
+  const nowIso = nowKST().toISOString();
+  const [data, game] = await Promise.all([
+    loadMyPbClass(supabase, event.evt_id, member.id, nowIso),
+    loadGameSafely(supabase, event.evt_id, nowIso),
+  ]);
+  if (!data) {
+    return (
+      <>
+        <BareTitle event={event} />
+        <EmptyState variant="card" message="프로젝트 정보를 불러오지 못했어요." />
+      </>
+    );
+  }
+
+  const { evt, cfg, sessions, me } = data;
+  const approved = me?.aprvYn === true;
+  const { tabs, active } = resolvePbView(view, approved);
+  const phase = pbPhaseOf(evt, cfg, nowIso);
+  const gameMe = game?.participants.find((p) => p.memId === member.id) ?? null;
+  const trnGrpCd = approved ? (gameMe?.trnGrpCd ?? null) : null;
+  // 내 P 는 승인된 참가자에게만 — 구경꾼·입금 대기자에겐 훈련표만(그들의 목표·기록은 아직 게임에 없다)
+  const paceInput = approved && gameMe && game ? pbPaceInputOf(gameMe, game.rule.midWkNo) : null;
+
+  return (
+    <>
+      <div className="flex flex-col gap-5">
+        <PbHero evt={evt} cfg={cfg} sessions={sessions} nowIso={nowIso} me={approved ? me : null} />
+        <PbViewTabs evtId={evt.evtId} tabs={tabs} active={active} />
+      </div>
+
+      {active === "status" && approved && me && (
+        <StatusTab
+          data={data}
+          game={game}
+          memId={member.id}
+          nowIso={nowIso}
+          readOnly={readOnly}
+          gameMe={gameMe}
+        />
+      )}
+
+      {active === "training" && (
+        <PbTraining
+          plans={data.sessPlans ?? []}
+          evt={evt}
+          cfg={cfg}
+          sessions={sessions}
+          phase={phase}
+          me={approved ? me : null}
+          trnGrpCd={trnGrpCd}
+          trnGrpFixed={approved && !!gameMe?.trnGrpFixedCd}
+          paceInput={paceInput}
+        />
+      )}
+
+      {active === "score" &&
+        (game ? (
+          <PbScoreboard
+            scoreboard={game.scoreboard}
+            rule={game.rule}
+            myGrpId={approved ? (gameMe?.grpId ?? null) : null}
+            me={approved && gameMe ? { memId: member.id } : null}
+            participants={game.participants}
+            measureWkNo={game.measureWkNo}
+            crew={
+              approved ? <CrewAttendance evtId={evt.evtId} memId={member.id} nowIso={nowIso} sessions={sessions} /> : null
+            }
+          />
+        ) : (
+          <>
+            <EmptyState variant="card" message="점수판을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요." />
+            {/* 누적 출석은 게임 조회와 무관한 출석 보드를 읽는다 — 점수판이 흔들려도 이 면은 선다(팀 점수 면 없이) */}
+            {approved && (
+              <PbFlowZone
+                crew={<CrewAttendance evtId={evt.evtId} memId={member.id} nowIso={nowIso} sessions={sessions} />}
+                team={null}
+              />
+            )}
+          </>
+        ))}
+
+      {active === "guide" && (
+        <>
+          {/* 안내 탭이 기본인 사람(미신청·대기)에게 지금 할 일은 맨 위에 — 안내를 다 읽고 내려와 찾게 하지 않는다 */}
+          {pbGuideTop(readOnly, me) === "apply" && (
+            <PbApplySection
+              evtId={evt.evtId}
+              cfg={cfg}
+              currentWkNo={data.currentWkNo}
+              mlgAlumni={data.mlgAlumni ?? false}
+              isInactive={isInactive}
+              inactiveKind={inactiveKind}
+            />
+          )}
+          {pbGuideTop(readOnly, me) === "pending" && me && <PbPendingCard me={me} />}
+          <PbGuide
+            evt={evt}
+            cfg={cfg}
+            rule={game?.rule ?? null}
+            mlgAlumni={data.mlgAlumni ?? false}
+            me={me}
+            trnGrpCd={trnGrpCd}
+          />
+        </>
+      )}
+    </>
+  );
+}
+
+/**
+ * 누적 출석 면 — 점수판 탭 맨 아래 「Week by Week」 칸에 선다(오너 2026-10-08: 「크루 누적출석 그거 점수판 쪽으로」,
+ * 같은 날 출석표는 걷고 그 자리에 팀 점수 그래프 — `PbFlowZone`).
+ * 남의 출석 흐름이 실리므로 승인된 참가자에게만 — 점수판(`PbScoreboard`)이 `me`가 있을 때만 이 노드를 붙인다.
+ * 열린 회차가 없으면 그릴 선이 없어 전원 보드를 읽지 않고 빈 상태만 세운다.
+ */
+function CrewAttendance({
+  evtId,
+  memId,
+  nowIso,
+  sessions,
+}: {
+  evtId: string;
+  memId: string;
+  nowIso: string;
+  sessions: MyPbClass["sessions"];
+}) {
+  if (!sessions.some((s) => s.held)) return <PbCrewEmpty />;
+  return (
+    <Suspense fallback={<PbCrewSkeleton />}>
+      <PbCrewSection evtId={evtId} myMemId={memId} nowIso={nowIso} />
+    </Suspense>
+  );
+}
+
+/**
+ * 내 현황 — 출석·환급 → 회차 → 팀 → 내 점수 → 목표 → 기록 → 정산 합계. 돈과 출석이 위, 게임이 아래.
+ * 크루 전체 이야기(누적 출석)는 점수판 탭에 있다 — 이 탭은 「나」만 말한다. 그래서 「내 점수」는 점수판에서
+ * 이리로 왔다(오너 2026-10-08): 바로 위 내 게임팀과 붙어 「팀 → 그 팀에 내가 보탠 점수」로 읽힌다.
+ */
+function StatusTab({
+  data,
+  game,
+  gameMe,
+  memId,
+  nowIso,
+  readOnly,
+}: {
+  data: MyPbClass;
+  game: PbGame | null;
+  gameMe: PbGame["participants"][number] | null;
+  memId: string;
+  nowIso: string;
+  readOnly: boolean;
+}) {
+  const { evt, cfg, sessions, me } = data;
+  if (!me) return null;
+  const myScore = game?.scoreboard.members.find((m) => m.memId === memId);
+
+  return (
+    <>
+      <PbMyStatus me={me} cfg={cfg} />
+      <PbSessionStrip me={me} sessions={sessions} cfg={cfg} />
+
+      {game && gameMe && (
+        <>
+          <PbMyTeam groups={game.groups} me={gameMe} />
+          {/* 팀 발표 전엔 누구도 점수를 못 받고, 늦은 합류는 팀전 밖이다 — 둘 다 바로 위 My Team이 이미 말하므로
+              「내 점수」 칸을 세우지 않는다(같은 안내가 두 칸 연달아 서면 군더더기다) */}
+          {game.groups.length > 0 && !gameMe.late && (
+            <PbMyScore memId={memId} scoreboard={game.scoreboard} rule={game.rule} />
+          )}
+          <PbGoalCard
+            evtId={evt.evtId}
+            goalSec={gameMe.goalSec}
+            goalMaxSec={game.rule.goalMaxSec}
+            editUntilWk={goalEditLastWk(game.rule, gameMe.joinWkNo)}
+            editable={!readOnly && canEditGoal(game.currentWkNo, game.rule, gameMe.joinWkNo)}
+            achieved={myScore?.goalAchieved ?? false}
+          />
+          <PbRecordsCard
+            evtId={evt.evtId}
+            recs={gameMe.recs}
+            joinWkNo={gameMe.joinWkNo}
+            late={gameMe.late}
+            midWkNo={game.rule.midWkNo}
+            readOnly={readOnly}
+          />
+        </>
+      )}
+
+      <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
+        <PbSettlementSection evtId={evt.evtId} nowIso={nowIso} />
+      </Suspense>
+    </>
+  );
+}
+
+/** 페이지 Suspense 폴백 — 히어로·탭·첫 섹션 자리를 실제와 같은 높이로 잡아 둔다(레이아웃 밀림 방지) */
+export function PbClassSkeleton() {
+  return (
+    <div className="flex flex-col gap-7" aria-hidden>
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-6 w-20 rounded-full" />
+            </div>
+            <Skeleton className="h-7 w-48" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <Skeleton className="h-[72px] w-full rounded-2xl" />
+        </div>
+        <Skeleton className="h-[54px] w-full rounded-xl" />
+      </div>
+      <Skeleton className="h-48 w-full rounded-2xl" />
+      <Skeleton className="h-32 w-full rounded-2xl" />
+    </div>
+  );
+}

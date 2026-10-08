@@ -6,20 +6,13 @@ import { HeaderActions } from "@/components/common/header-actions";
 import { PageHeader } from "@/components/common/page-header";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { currentMonthKST, prevMonthStr } from "@/lib/dayjs";
+import { PB_CLASS_TYPE } from "@/lib/pb-class";
 import { MileageIntro } from "@/components/projects/mileage-intro";
 import { MileageRulesButton } from "@/components/projects/mileage-rules-button";
-import { MonthNavigator } from "@/components/projects/month-navigator";
-import { MonthTransitionProvider, TransitionOverlay } from "@/components/projects/month-transition";
-import { CrewProgressChartServer } from "@/components/projects/crew-progress-chart-server";
-import { JoinSection } from "@/components/projects/join-section";
-import { RandomReview } from "@/components/projects/random-review";
-import { CrewMonthlyStats } from "@/components/projects/crew-monthly-stats";
-import { MyStatus } from "@/components/projects/my-status";
-import { RefundStatus } from "@/components/projects/refund-status";
-import { MySportChart } from "@/components/projects/my-sport-chart-server";
-import { MyActivityList } from "@/components/projects/my-activity-list";
-import { ActivityLogFab } from "@/components/projects/activity-log-fab";
+import { MileageProjectView } from "@/components/projects/mileage-project-view";
+import { PbClassSkeleton, PbClassView } from "@/components/projects/pb-class/pb-class-view";
+import { ArchivedBanner, ProjectArchive } from "@/components/projects/project-archive";
+import { ProjectSwitcher } from "@/components/projects/project-switcher";
 
 /**
  * 비로그인은 `/auth/login`으로 튕기는 지면이다 — 크롤러는 내용을 볼 수 없다.
@@ -27,73 +20,55 @@ import { ActivityLogFab } from "@/components/projects/activity-log-fab";
  */
 export const metadata: Metadata = {
   title: "프로젝트",
-  description: "기강 러닝크루의 마일리지런 등 기간제 활동. 크루원 로그인이 필요합니다.",
+  description: "기강 러닝크루의 마일리지런·PB 클래스 등 기간제 활동. 크루원 로그인이 필요합니다.",
   robots: { index: false, follow: false },
 };
 
 export default async function ProjectsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; evt?: string; view?: string }>;
 }) {
-  const [{ user, member, supabase }, { teamId }] = await Promise.all([
+  const [{ user, member, supabase }, { teamId }, params] = await Promise.all([
     getCurrentMember(),
     getRequestTeamContext(),
+    searchParams,
   ]);
   if (!user) redirect("/auth/login");
 
-  // ACTIVE 이벤트 + 내 참여 정보를 단일 쿼리로 조회 (왕복 2→1)
-  const { data: event } = await supabase
+  // 진행 중(ACTIVE)과 지난(CLOSED) 프로젝트를 한 번에 읽는다 — 마일리지런과 PB 클래스가 공존할 수 있다.
+  // 준비 중(READY)은 회원에게 안 보인다(운영진이 열기 전 설정 단계). 최신 시작이 앞에 와서
+  // `?evt=`가 없을 때의 기본 선택이 된다.
+  const { data: rows } = await supabase
     .from("evt_team_mst")
-    .select(`
-      evt_id, evt_nm, stt_dt, end_dt, stts_enm,
-      evt_team_prt_rel!left(aprv_yn, mem_id)
-    `)
+    .select("evt_id, evt_nm, evt_type_cd, stt_dt, end_dt, stts_enm")
     .eq("team_id", teamId)
-    .eq("stts_enm", "ACTIVE")
-    .eq("evt_team_prt_rel.mem_id", member?.id ?? "")
-    .maybeSingle();
+    .in("stts_enm", ["ACTIVE", "CLOSED"])
+    .order("stt_dt", { ascending: false });
 
-  // 이벤트 없음 — 소개 + 규칙만 표시
+  const events = (rows ?? []).filter((e) => e.stts_enm === "ACTIVE");
+  const closed = (rows ?? []).filter((e) => e.stts_enm === "CLOSED");
+
+  // 선택 — `?evt=`가 지난 프로젝트면 **보관용(읽기 전용)**으로 연다. 진행 중 목록에 있으면 그것,
+  // 아니면(없거나 삭제된 id) 진행 중 첫 번째. 종료 프로젝트를 기본으로 고르진 않는다 — 지금 할 일이 아니라서.
+  const archived = closed.find((e) => e.evt_id === params.evt) ?? null;
+  const event = archived ?? events.find((e) => e.evt_id === params.evt) ?? events[0] ?? null;
+
+  const header = <PageHeader variant="editorial" label="Projects" title="프로젝트" action={<HeaderActions />} />;
+
+  // 진행 중 프로젝트 없음 — 소개 + 규칙 + (있으면) 지난 프로젝트
   if (!event) {
     return (
       <div className="flex flex-col gap-0">
-        <PageHeader
-          variant="editorial"
-          label="Projects"
-          title="프로젝트"
-          action={<HeaderActions />}
-        />
+        {header}
         <div className="flex flex-col gap-7 px-6 pb-24">
           <MileageIntro />
           <MileageRulesButton />
+          <ProjectArchive events={closed} />
         </div>
       </div>
     );
   }
-
-  // 월 결정 — 연습월(시작 -1)부터 종료월까지
-  const params = await searchParams;
-  const currentKST = currentMonthKST();
-  const practiceMonth = prevMonthStr(event.stt_dt);
-
-  const selectedMonth =
-    params.month &&
-    params.month >= practiceMonth &&
-    params.month <= event.end_dt
-      ? params.month
-      : currentKST >= practiceMonth && currentKST <= event.end_dt
-        ? currentKST
-        : event.stt_dt;
-
-  // join으로 함께 가져온 참여 정보 추출
-  const prtRows = event.evt_team_prt_rel ?? [];
-  const participation = prtRows.length > 0 ? prtRows[0] : null;
-
-  const isParticipant = participation !== null && participation.aprv_yn === true;
-
-  // 비로그인이면 신청 섹션 미표시
-  const showJoin = user !== null && !isParticipant;
 
   // 비활성/탈퇴 회원 — 참여 신청·기록 입력 등 쓰기 폼에서 공통 안내 게이트를 띄우기 위한 신호
   const isInactive = member !== null && member.status !== "active";
@@ -103,93 +78,46 @@ export default async function ProjectsPage({
       ? "left"
       : "inactive"
     : undefined;
+  const isPb = event.evt_type_cd === PB_CLASS_TYPE;
+  const readOnly = archived !== null;
 
   return (
     <div className="flex flex-col gap-0">
-      <PageHeader
-        variant="editorial"
-        label="Projects"
-        title="프로젝트"
-        action={<HeaderActions />}
-      />
+      {header}
       <div className="flex flex-col gap-7 px-6 pb-24">
-        <MonthTransitionProvider>
-          {/* 이벤트명 + 월 네비게이터 */}
-          <div className="flex min-w-0 items-center justify-between gap-3">
-            <h2 className="min-w-0 flex-1 truncate whitespace-nowrap text-lg font-bold tracking-tight sm:text-xl">
-              {event.evt_nm}
-            </h2>
-            <MonthNavigator
-              currentMonth={selectedMonth}
-              startMonth={event.stt_dt}
-              endMonth={event.end_dt}
+        {readOnly ? (
+          <ArchivedBanner hasActive={events.length > 0} />
+        ) : (
+          events.length > 1 && <ProjectSwitcher events={events} selectedId={event.evt_id} />
+        )}
+
+        {/* 뷰마다 자기 데이터를 직접 조회한다 — 전환 시 key가 달라 이전 프로젝트의 상태가 남지 않는다.
+            탭(`?view=`)은 key 에 넣지 않는다: 탭을 넘길 때 폴백으로 지면이 통째로 깜빡이지 않고
+            이전 탭을 그대로 둔 채 새 탭을 받아 갈아 끼운다(누른 탭엔 진행 막대가 선다). */}
+        <Suspense
+          key={event.evt_id}
+          fallback={isPb ? <PbClassSkeleton /> : <Skeleton className="h-64 w-full rounded-2xl" />}
+        >
+          {isPb ? (
+            <PbClassView
+              event={event}
+              view={params.view}
+              readOnly={readOnly}
+              isInactive={isInactive}
+              inactiveKind={inactiveKind}
             />
-          </div>
-
-          {/* 미참여 시 소개 */}
-          {!isParticipant && <MileageIntro />}
-
-          {/* 참여 신청 섹션 */}
-          {showJoin && (
-            <JoinSection
-              evtId={event.evt_id}
-              evtStartMonth={event.stt_dt}
-              evtEndMonth={event.end_dt}
-              existingPrt={participation}
+          ) : (
+            <MileageProjectView
+              event={event}
+              month={params.month}
+              readOnly={readOnly}
               isInactive={isInactive}
               inactiveKind={inactiveKind}
             />
           )}
+        </Suspense>
 
-          {/* 월별 동적 콘텐츠 — 전환 시 opacity 처리 */}
-          <TransitionOverlay className="-mt-2 flex flex-col gap-7">
-            <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
-              <CrewProgressChartServer
-                key={selectedMonth}
-                evtId={event.evt_id}
-                memId={isParticipant ? member!.id : undefined}
-                month={selectedMonth}
-                evtStartMonth={event.stt_dt}
-                evtEndMonth={event.end_dt}
-              />
-            </Suspense>
-            {isParticipant && member && (
-              <Suspense fallback={<Skeleton className="h-40 w-full rounded-2xl" />}>
-                <MyStatus evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
-              </Suspense>
-            )}
-            <Suspense fallback={null}>
-              <RandomReview evtId={event.evt_id} />
-            </Suspense>
-            <Suspense fallback={<Skeleton className="h-32 w-full rounded-2xl" />}>
-              <CrewMonthlyStats evtId={event.evt_id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
-            </Suspense>
-
-            {/* 참여자 전용 */}
-            {isParticipant && member && (
-              <>
-                <Suspense fallback={<Skeleton className="h-20 w-full rounded-2xl" />}>
-                  <RefundStatus
-                    evtId={event.evt_id}
-                    memId={member.id}
-                    evtStartMonth={event.stt_dt}
-                    evtEndMonth={event.end_dt}
-                    month={selectedMonth}
-                  />
-                </Suspense>
-                <Suspense fallback={<Skeleton className="h-40 w-full rounded-2xl" />}>
-                  <MySportChart evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
-                </Suspense>
-                <Suspense fallback={<Skeleton className="h-48 w-full rounded-2xl" />}>
-                  <MyActivityList evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} isInactive={isInactive} inactiveKind={inactiveKind} />
-                </Suspense>
-                <ActivityLogFab evtId={event.evt_id} memId={member.id} isInactive={isInactive} inactiveKind={inactiveKind} />
-              </>
-            )}
-          </TransitionOverlay>
-
-          <MileageRulesButton />
-        </MonthTransitionProvider>
+        <ProjectArchive events={closed} currentId={archived?.evt_id} />
       </div>
     </div>
   );

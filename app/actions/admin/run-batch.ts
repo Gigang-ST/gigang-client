@@ -39,6 +39,8 @@ export async function getActiveEvents() {
       .from("evt_team_mst")
       .select("evt_id, evt_nm")
       .eq("stts_enm", "ACTIVE")
+      // 배치(마일리지 칭호 등)를 돌릴 대상은 마일리지런뿐 — PB 클래스 등 다른 종류의 ACTIVE 프로젝트는 목록에서 뺀다
+      .eq("evt_type_cd", "MILEAGE_RUN")
       .order("stt_dt", { ascending: false });
     return (data ?? []) as { evt_id: string; evt_nm: string }[];
   });

@@ -579,6 +579,45 @@ export type Database = {
         }
         Relationships: []
       }
+      evt_gthr_rel: {
+        Row: {
+          created_at: string
+          evt_id: string
+          gthr_id: string
+          sess_type_cd: string
+          wk_no: number
+        }
+        Insert: {
+          created_at?: string
+          evt_id: string
+          gthr_id: string
+          sess_type_cd: string
+          wk_no: number
+        }
+        Update: {
+          created_at?: string
+          evt_id?: string
+          gthr_id?: string
+          sess_type_cd?: string
+          wk_no?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evt_gthr_rel_evt_id_fkey"
+            columns: ["evt_id"]
+            isOneToOne: false
+            referencedRelation: "evt_team_mst"
+            referencedColumns: ["evt_id"]
+          },
+          {
+            foreignKeyName: "evt_gthr_rel_gthr_id_fkey"
+            columns: ["gthr_id"]
+            isOneToOne: true
+            referencedRelation: "gthr_mst"
+            referencedColumns: ["gthr_id"]
+          },
+        ]
+      }
       evt_mlg_act_hist: {
         Row: {
           act_dt: string
@@ -719,6 +758,259 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "evt_mlg_mult_cfg_evt_id_fkey"
+            columns: ["evt_id"]
+            isOneToOne: false
+            referencedRelation: "evt_team_mst"
+            referencedColumns: ["evt_id"]
+          },
+        ]
+      }
+      evt_pb_cfg: {
+        Row: {
+          created_at: string
+          deposit_amt: number
+          entry_fee_amt: number
+          evt_id: string
+          full_rfnd_attd_cnt: number
+          late_join_wk_no: number
+          mlg_dc_amt: number
+          rule_json: Json
+          tot_sess_cnt: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deposit_amt?: number
+          entry_fee_amt?: number
+          evt_id: string
+          full_rfnd_attd_cnt?: number
+          late_join_wk_no?: number
+          mlg_dc_amt?: number
+          rule_json?: Json
+          tot_sess_cnt?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deposit_amt?: number
+          entry_fee_amt?: number
+          evt_id?: string
+          full_rfnd_attd_cnt?: number
+          late_join_wk_no?: number
+          mlg_dc_amt?: number
+          rule_json?: Json
+          tot_sess_cnt?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evt_pb_cfg_evt_id_fkey"
+            columns: ["evt_id"]
+            isOneToOne: true
+            referencedRelation: "evt_team_mst"
+            referencedColumns: ["evt_id"]
+          },
+        ]
+      }
+      evt_pb_grp_mst: {
+        Row: {
+          color_no: number | null
+          created_at: string
+          evt_id: string
+          grp_id: string
+          grp_nm: string
+          sort_ord: number
+          updated_at: string
+        }
+        Insert: {
+          color_no?: number | null
+          created_at?: string
+          evt_id: string
+          grp_id?: string
+          grp_nm: string
+          sort_ord?: number
+          updated_at?: string
+        }
+        Update: {
+          color_no?: number | null
+          created_at?: string
+          evt_id?: string
+          grp_id?: string
+          grp_nm?: string
+          sort_ord?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evt_pb_grp_mst_evt_id_fkey"
+            columns: ["evt_id"]
+            isOneToOne: false
+            referencedRelation: "evt_team_mst"
+            referencedColumns: ["evt_id"]
+          },
+        ]
+      }
+      evt_pb_prt_rel: {
+        Row: {
+          aprv_at: string | null
+          aprv_yn: boolean
+          created_at: string
+          deposit_amt: number
+          deposit_dc_amt: number
+          entry_fee_amt: number
+          evt_id: string
+          goal_sec: number | null
+          grp_id: string | null
+          join_wk_no: number
+          mem_id: string
+          prt_id: string
+          trn_grp_cd: string | null
+          updated_at: string
+        }
+        Insert: {
+          aprv_at?: string | null
+          aprv_yn?: boolean
+          created_at?: string
+          deposit_amt: number
+          deposit_dc_amt?: number
+          entry_fee_amt: number
+          evt_id: string
+          goal_sec?: number | null
+          grp_id?: string | null
+          join_wk_no?: number
+          mem_id: string
+          prt_id?: string
+          trn_grp_cd?: string | null
+          updated_at?: string
+        }
+        Update: {
+          aprv_at?: string | null
+          aprv_yn?: boolean
+          created_at?: string
+          deposit_amt?: number
+          deposit_dc_amt?: number
+          entry_fee_amt?: number
+          evt_id?: string
+          goal_sec?: number | null
+          grp_id?: string | null
+          join_wk_no?: number
+          mem_id?: string
+          prt_id?: string
+          trn_grp_cd?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evt_pb_prt_rel_evt_id_fkey"
+            columns: ["evt_id"]
+            isOneToOne: false
+            referencedRelation: "evt_team_mst"
+            referencedColumns: ["evt_id"]
+          },
+          {
+            foreignKeyName: "evt_pb_prt_rel_grp_id_fkey"
+            columns: ["grp_id"]
+            isOneToOne: false
+            referencedRelation: "evt_pb_grp_mst"
+            referencedColumns: ["grp_id"]
+          },
+          {
+            foreignKeyName: "evt_pb_prt_rel_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
+      evt_pb_rec_hist: {
+        Row: {
+          cnfm_yn: boolean
+          created_at: string
+          crt_by: string | null
+          prt_id: string
+          rec_id: string
+          rec_sec: number
+          rec_type_cd: string
+          updated_at: string
+        }
+        Insert: {
+          cnfm_yn?: boolean
+          created_at?: string
+          crt_by?: string | null
+          prt_id: string
+          rec_id?: string
+          rec_sec: number
+          rec_type_cd: string
+          updated_at?: string
+        }
+        Update: {
+          cnfm_yn?: boolean
+          created_at?: string
+          crt_by?: string | null
+          prt_id?: string
+          rec_id?: string
+          rec_sec?: number
+          rec_type_cd?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evt_pb_rec_hist_crt_by_fkey"
+            columns: ["crt_by"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "evt_pb_rec_hist_prt_id_fkey"
+            columns: ["prt_id"]
+            isOneToOne: false
+            referencedRelation: "evt_pb_prt_rel"
+            referencedColumns: ["prt_id"]
+          },
+        ]
+      }
+      evt_pb_sess_plan: {
+        Row: {
+          created_at: string
+          easy_txt: string | null
+          evt_id: string
+          main_txt: string
+          note_txt: string | null
+          self_trn_txt: string | null
+          sess_no: number
+          trn_kind_cd: string
+          ttl: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          easy_txt?: string | null
+          evt_id: string
+          main_txt: string
+          note_txt?: string | null
+          self_trn_txt?: string | null
+          sess_no: number
+          trn_kind_cd: string
+          ttl: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          easy_txt?: string | null
+          evt_id?: string
+          main_txt?: string
+          note_txt?: string | null
+          self_trn_txt?: string | null
+          sess_no?: number
+          trn_kind_cd?: string
+          ttl?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evt_pb_sess_plan_evt_id_fkey"
             columns: ["evt_id"]
             isOneToOne: false
             referencedRelation: "evt_team_mst"

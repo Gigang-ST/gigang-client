@@ -29,7 +29,7 @@ export async function getAdminStats(): Promise<AdminStats> {
     const { teamId } = await getRequestTeamContext();
     const admin = createAdminClient();
 
-    const [total, active, competitions, records, activeProjects, pendingPrt, unpaidResult, openFeedback, pendingAply] = await Promise.all([
+    const [total, active, competitions, records, activeProjects, pendingPrt, pendingPbPrt, unpaidResult, openFeedback, pendingAply] = await Promise.all([
       admin.from("team_mem_rel").select("*", { count: "exact", head: true }).eq("team_id", teamId).eq("vers", 0).eq("del_yn", false)
         .then((res) => { if (res.error) console.error("[getAdminStats] team_mem_rel error:", res.error, "teamId:", teamId); return res; }),
       admin.from("team_mem_rel").select("*", { count: "exact", head: true }).eq("team_id", teamId).eq("vers", 0).eq("del_yn", false).eq("mem_st_cd", "active"),
@@ -41,7 +41,10 @@ export async function getAdminStats(): Promise<AdminStats> {
 
       admin.from("rec_race_hist").select("*", { count: "exact", head: true }).eq("vers", 0).eq("del_yn", false),
       admin.from("evt_team_mst").select("*", { count: "exact", head: true }).eq("team_id", teamId).eq("stts_enm", "ACTIVE"),
-      admin.from("evt_team_prt_rel").select("evt_id, evt_team_mst!inner(team_id)", { count: "exact", head: true }).eq("aprv_yn", false).eq("evt_team_mst.team_id", teamId),
+      // 승인 대기는 **끝나지 않은** 프로젝트만 센다 — 종료(보관)한 프로젝트에 남은 대기 행이 배지를 영영 켜 두지 않게
+      admin.from("evt_team_prt_rel").select("evt_id, evt_team_mst!inner(team_id, stts_enm)", { count: "exact", head: true }).eq("aprv_yn", false).eq("evt_team_mst.team_id", teamId).neq("evt_team_mst.stts_enm", "CLOSED"),
+      // PB 클래스 입금 대기 — 참가자 테이블이 마일리지와 분리돼 있어 따로 세어 합친다
+      admin.from("evt_pb_prt_rel").select("evt_id, evt_team_mst!inner(team_id, stts_enm)", { count: "exact", head: true }).eq("aprv_yn", false).eq("evt_team_mst.team_id", teamId).neq("evt_team_mst.stts_enm", "CLOSED"),
       admin.rpc("get_admin_unpaid_active_count", { p_team_id: teamId }),
       admin.from("fdbk_mst").select("*", { count: "exact", head: true }).in("stts_enm", ["open", "in_review"]).eq("vers", 0).eq("del_yn", false),
       // 승인 대기 중인 모임 참가 신청 — **월 필터 없음**(다른 달 대기 건을 놓치지 않게).
@@ -65,7 +68,7 @@ export async function getAdminStats(): Promise<AdminStats> {
       pendingGatheringApplicationCount: pendingAply.count ?? 0,
       recentRecordCount: records.count ?? 0,
       activeProjectCount: activeProjects.count ?? 0,
-      pendingParticipationCount: pendingPrt.count ?? 0,
+      pendingParticipationCount: (pendingPrt.count ?? 0) + (pendingPbPrt.count ?? 0),
       unpaidMemberCount,
       openFeedbackCount: openFeedback.count ?? 0,
     };
