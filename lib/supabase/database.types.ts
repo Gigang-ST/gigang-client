@@ -978,9 +978,9 @@ export type Database = {
           evt_id: string
           main_txt: string
           note_txt: string | null
-          phase_nm: string
-          purp_txt: string
+          self_trn_txt: string | null
           sess_no: number
+          trn_kind_cd: string
           ttl: string
           updated_at: string
         }
@@ -990,9 +990,9 @@ export type Database = {
           evt_id: string
           main_txt: string
           note_txt?: string | null
-          phase_nm: string
-          purp_txt: string
+          self_trn_txt?: string | null
           sess_no: number
+          trn_kind_cd: string
           ttl: string
           updated_at?: string
         }
@@ -1002,9 +1002,9 @@ export type Database = {
           evt_id?: string
           main_txt?: string
           note_txt?: string | null
-          phase_nm?: string
-          purp_txt?: string
+          self_trn_txt?: string | null
           sess_no?: number
+          trn_kind_cd?: string
           ttl?: string
           updated_at?: string
         }

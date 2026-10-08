@@ -12,7 +12,7 @@ import {
   type PbSessLink,
   type PbSessType,
 } from "@/lib/pb-class";
-import type { PbSessPlan } from "@/lib/pb-class-plan";
+import { PB_TRN_KIND_CDS, type PbSessPlan, type PbTrnKindCd } from "@/lib/pb-class-plan";
 import { parseEventTime } from "@/lib/dayjs";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import type { Database, Tables } from "@/lib/supabase/database.types";
@@ -163,19 +163,24 @@ export type PbPrtRow = Pick<
 export type PbAttdRow = { gthr_id: string; mem_id: string };
 export type PbSessPlanRow = Pick<
   Tables<"evt_pb_sess_plan">,
-  "sess_no" | "phase_nm" | "ttl" | "main_txt" | "easy_txt" | "purp_txt" | "note_txt"
+  "sess_no" | "trn_kind_cd" | "ttl" | "main_txt" | "easy_txt" | "self_trn_txt" | "note_txt"
 >;
+
+/** DB 문자열 → 훈련 종류 코드. CHECK가 막지만 목록 밖 값이 오면 기록 측정으로 물러난다(화면이 죽지 않게) */
+function toKindCd(v: string): PbTrnKindCd {
+  return (PB_TRN_KIND_CDS as readonly string[]).includes(v) ? (v as PbTrnKindCd) : "TT";
+}
 
 /** 훈련표 행 → 화면 모양. 회차 순으로 줄을 세운다(DB 정렬에 기대지 않는다) */
 export function toSessPlans(rows: readonly PbSessPlanRow[]): PbSessPlan[] {
   return rows
     .map((r) => ({
       sessNo: r.sess_no,
-      phaseNm: r.phase_nm,
+      kindCd: toKindCd(r.trn_kind_cd),
       ttl: r.ttl,
       mainTxt: r.main_txt,
       easyTxt: r.easy_txt,
-      purpTxt: r.purp_txt,
+      selfTxt: r.self_trn_txt,
       noteTxt: r.note_txt,
     }))
     .sort((a, b) => a.sessNo - b.sessNo);
@@ -474,7 +479,7 @@ async function loadAttdRows(db: Db, gthrIds: readonly string[], memId?: string):
 export async function loadSessPlanRows(db: Db, evtId: string): Promise<PbSessPlanRow[]> {
   const { data, error } = await db
     .from("evt_pb_sess_plan")
-    .select("sess_no, phase_nm, ttl, main_txt, easy_txt, purp_txt, note_txt")
+    .select("sess_no, trn_kind_cd, ttl, main_txt, easy_txt, self_trn_txt, note_txt")
     .eq("evt_id", evtId)
     .order("sess_no", { ascending: true });
   if (error) throw new Error(`loadPbSessPlans 조회 실패: ${error.message}`);

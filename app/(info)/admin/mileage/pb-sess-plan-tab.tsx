@@ -11,9 +11,14 @@ import {
 } from "@/app/actions/admin/manage-pb-class";
 import { parseEventTime } from "@/lib/dayjs";
 import { weekStartDt, wkLabel } from "@/lib/pb-class";
-import { PB_DEFAULT_SESS_PLANS, type PbSessPlan } from "@/lib/pb-class-plan";
+import {
+  PB_DEFAULT_SESS_PLANS,
+  PB_TRN_KIND_CDS,
+  PB_TRN_KINDS,
+  type PbSessPlan,
+  type PbTrnKindCd,
+} from "@/lib/pb-class-plan";
 import type { PbClassBoard } from "@/lib/queries/pb-class";
-import { cn } from "@/lib/utils";
 
 import { EmptyState } from "@/components/common/empty-state";
 import {
@@ -35,9 +40,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 import { usePbBoard } from "./use-pb-board";
 import type { PbRun } from "./use-pb-game";
-
-/** 단계 이름 추천 — 기본 훈련표가 쓰는 말. 자유 입력도 되지만 칩으로 고르면 표기가 흩어지지 않는다 */
-const PHASE_PRESETS = ["측정", "기초", "점검", "강화", "특화", "마무리"] as const;
 
 /**
  * 회차 번호 → 화면 이름. 마지막 회차(= 총 회차)는 주차가 아니라 「측정」이다.
@@ -163,7 +165,7 @@ export function PlanBody({
             <Plus className="size-4" />회차 추가
           </Button>
         </div>
-        <Caption>회원 「훈련」 탭에 그대로 보여요. 목적은 &apos;오늘 이걸 왜 하는지&apos;를 한 줄로.</Caption>
+        <Caption>회원 「훈련」 탭에 그대로 보여요. 속도는 P±초로 — 회원 화면엔 각자 페이스가 옆에 붙어요.</Caption>
       </div>
 
       {plans.length === 0 ? (
@@ -211,7 +213,7 @@ export function PlanBody({
           <ResponsiveDrawerHeader className="shrink-0 border-b border-border px-4 py-4 text-left">
             <ResponsiveDrawerTitle>{dialog.target ? "훈련 수정" : "회차 추가"}</ResponsiveDrawerTitle>
             <ResponsiveDrawerDescription>
-              회원 「훈련」 탭에 이대로 보여요. 단계·제목·세션 내용은 꼭 채워 주세요.
+              회원 「훈련」 탭에 이대로 보여요. 훈련 종류·제목·세션 내용은 꼭 채워 주세요.
             </ResponsiveDrawerDescription>
           </ResponsiveDrawerHeader>
           <PlanForm
@@ -271,7 +273,9 @@ function PlanCard({
         <div className="flex min-w-0 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-1.5">
             <Badge variant={isMeasure ? "default" : "outline"}>{label}</Badge>
-            <Badge variant="secondary">{plan.phaseNm}</Badge>
+            <Badge variant="secondary">
+              {PB_TRN_KINDS[plan.kindCd].nm} · {PB_TRN_KINDS[plan.kindCd].pace}
+            </Badge>
             {range && <Micro>{range}</Micro>}
           </div>
           <Body className="font-semibold">{plan.ttl}</Body>
@@ -307,15 +311,17 @@ function PlanCard({
         <PlanField label={EASY_GROUP_NM}>
           {plan.easyTxt ? <Body>{plan.easyTxt}</Body> : <Caption>{MAIN_GROUP_NM}과 같아요</Caption>}
         </PlanField>
-        {/* 목적은 이 화면의 핵심이라 면을 따로 준다 — 세션 내용과 한 덩어리로 읽히면 "왜"가 묻힌다 */}
-        <div className="flex flex-col gap-0.5 rounded-xl bg-secondary/60 p-3">
-          <dt>
-            <Micro>목적</Micro>
-          </dt>
-          <dd className="whitespace-pre-line">
-            <Caption className="text-foreground">{plan.purpTxt}</Caption>
-          </dd>
-        </div>
+        {/* 개인 훈련은 읽기만 하는 안내다 — 공식 세션과 한 덩어리로 읽히지 않게 면을 따로 준다 */}
+        {plan.selfTxt && (
+          <div className="flex flex-col gap-0.5 rounded-xl bg-secondary/60 p-3">
+            <dt>
+              <Micro>개인 훈련</Micro>
+            </dt>
+            <dd className="whitespace-pre-line">
+              <Caption>{plan.selfTxt}</Caption>
+            </dd>
+          </div>
+        )}
         {plan.noteTxt && (
           <PlanField label="비고">
             <Caption className="text-foreground">{plan.noteTxt}</Caption>
@@ -336,7 +342,7 @@ function PlanCard({
 /* 폼                                                                  */
 /* ------------------------------------------------------------------ */
 
-/** 긴 글 칸의 글자 수 상한 — 서버 스키마(`pbSessPlanSchema`)·DB CHECK와 같은 값. 단계(10)·제목(60)은 칸에 직접 적었다 */
+/** 긴 글 칸의 글자 수 상한 — 서버 스키마(`pbSessPlanSchema`)·DB CHECK와 같은 값. 제목(60)은 칸에 직접 적었다 */
 const PLAN_TEXT_MAX = 1000;
 
 /** 입력칸 공통 — 정보 탭의 Input·textarea 규격(12px 반경, 1.5px 테두리, 15px 글자)에 맞춘다 */
@@ -365,34 +371,33 @@ function PlanForm({
   onSubmit: (plan: PbSessPlan) => void;
 }) {
   const isEdit = target !== null;
-  // 새 회차의 기본 번호는 비어 있는 가장 앞 번호, 마지막 번호면 단계도 「측정」으로 미리 채운다
+  // 새 회차의 기본 번호는 비어 있는 가장 앞 번호, 마지막 번호면 훈련 종류도 「기록 측정」으로 미리 채운다
   const firstFree = freeSessNos[0] ?? totSessCnt;
   const [sessNo, setSessNo] = useState(String(target?.sessNo ?? firstFree));
-  const [phaseNm, setPhaseNm] = useState(target?.phaseNm ?? (firstFree === totSessCnt ? "측정" : ""));
+  const [kindCd, setKindCd] = useState<PbTrnKindCd>(target?.kindCd ?? (firstFree === totSessCnt ? "TT" : "SPD"));
   const [ttl, setTtl] = useState(target?.ttl ?? "");
   const [mainTxt, setMainTxt] = useState(target?.mainTxt ?? "");
   const [easyTxt, setEasyTxt] = useState(target?.easyTxt ?? "");
-  const [purpTxt, setPurpTxt] = useState(target?.purpTxt ?? "");
+  const [selfTxt, setSelfTxt] = useState(target?.selfTxt ?? "");
   const [noteTxt, setNoteTxt] = useState(target?.noteTxt ?? "");
 
   const sessNoNum = Number(sessNo);
   const valid =
     Number.isInteger(sessNoNum) &&
     sessNoNum >= 1 &&
-    phaseNm.trim().length > 0 &&
     ttl.trim().length > 0 &&
-    mainTxt.trim().length > 0 &&
-    purpTxt.trim().length > 0;
+    mainTxt.trim().length > 0;
 
   const handleSubmit = () => {
     onSubmit({
       sessNo: sessNoNum,
-      phaseNm: phaseNm.trim(),
+      kindCd,
       ttl: ttl.trim(),
       mainTxt: mainTxt.trim(),
       // 비우면 「38~50분 그룹과 같음」(null) — 빈 문자열이 저장되면 회원 화면에 빈 첫 10K 칸이 뜬다
       easyTxt: easyTxt.trim() || null,
-      purpTxt: purpTxt.trim(),
+      // 비우면 개인 훈련 칸이 회원 화면에서 통째로 빠진다(null)
+      selfTxt: selfTxt.trim() || null,
       noteTxt: noteTxt.trim() || null,
     });
   };
@@ -432,33 +437,25 @@ function PlanForm({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <FieldLabel htmlFor="pb-plan-phase" required>
-            단계
-          </FieldLabel>
-          <Input
-            id="pb-plan-phase"
-            value={phaseNm}
-            maxLength={10}
-            onChange={(e) => setPhaseNm(e.target.value)}
-            placeholder="예: 기초"
-            className="h-12 rounded-xl border-[1.5px] text-[15px]"
-          />
-          <div className="flex flex-wrap gap-1.5">
-            {PHASE_PRESETS.map((p) => (
-              <button
-                key={p}
-                type="button"
-                aria-pressed={phaseNm.trim() === p}
-                onClick={() => setPhaseNm(p)}
-                className={cn(
-                  "inline-flex h-9 items-center rounded-full border-[1.5px] px-3 transition-colors",
-                  phaseNm.trim() === p ? "border-primary bg-primary/5" : "border-border",
-                )}
-              >
-                <Caption className={cn(phaseNm.trim() === p && "text-foreground")}>{p}</Caption>
-              </button>
-            ))}
-          </div>
+          <span id="pb-plan-kind-label" className="text-sm font-medium text-foreground">
+            훈련 종류
+            <RequiredMark />
+          </span>
+          <Select value={kindCd} onValueChange={(v) => setKindCd(v as PbTrnKindCd)}>
+            <SelectTrigger className="h-12 rounded-xl border-[1.5px] text-[15px]" aria-labelledby="pb-plan-kind-label">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PB_TRN_KIND_CDS.map((cd) => (
+                <SelectItem key={cd} value={cd}>
+                  {PB_TRN_KINDS[cd].nm}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Caption>
+            {PB_TRN_KINDS[kindCd].pace} · {PB_TRN_KINDS[kindCd].what}
+          </Caption>
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -507,20 +504,18 @@ function PlanForm({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <FieldLabel htmlFor="pb-plan-purp" required>
-            목적
-          </FieldLabel>
+          <FieldLabel htmlFor="pb-plan-self">개인 훈련</FieldLabel>
           <AutoGrowTextarea
-            id="pb-plan-purp"
-            value={purpTxt}
-            minRows={3}
-            maxRows={8}
+            id="pb-plan-self"
+            value={selfTxt}
+            minRows={2}
+            maxRows={6}
             maxLength={PLAN_TEXT_MAX}
-            onChange={(e) => setPurpTxt(e.target.value)}
-            placeholder="이 훈련을 왜 하는지"
+            onChange={(e) => setSelfTxt(e.target.value)}
+            placeholder="예: 이지런 2~3회 · 장거리 1회 12km / 8km"
             className={TEXTAREA_CLASS}
           />
-          <Caption>&apos;오늘 이걸 왜 하는지&apos;를 한 줄로 적어 주세요.</Caption>
+          <Caption>그 주 공식훈련 밖에서 각자 하는 훈련이에요. 안내만 하고 출석으로 인정하지 않아요.</Caption>
         </div>
 
         <div className="flex flex-col gap-1.5">

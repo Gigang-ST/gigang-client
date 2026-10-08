@@ -22,7 +22,7 @@ import { PbRecordsCard } from "./pb-records-card";
 import { PbScoreboard } from "./pb-scoreboard";
 import { PbSessionStrip } from "./pb-session-strip";
 import { PbSettlement } from "./pb-settlement";
-import { PbTraining } from "./pb-training";
+import { PbTraining, pbPaceInputOf } from "./pb-training";
 import { PbViewTabs, pbGuideTop, resolvePbView } from "./pb-view-tabs";
 
 /**
@@ -121,6 +121,8 @@ export async function PbClassView({ event, view, readOnly = false, isInactive, i
   const phase = pbPhaseOf(evt, cfg, nowIso);
   const gameMe = game?.participants.find((p) => p.memId === member.id) ?? null;
   const trnGrpCd = approved ? (gameMe?.trnGrpCd ?? null) : null;
+  // 내 P 는 승인된 참가자에게만 — 구경꾼·입금 대기자에겐 훈련표만(그들의 목표·기록은 아직 게임에 없다)
+  const paceInput = approved && gameMe && game ? pbPaceInputOf(gameMe, game.rule.midWkNo) : null;
 
   return (
     <>
@@ -149,6 +151,7 @@ export async function PbClassView({ event, view, readOnly = false, isInactive, i
           phase={phase}
           me={approved ? me : null}
           trnGrpCd={trnGrpCd}
+          paceInput={paceInput}
         />
       )}
 

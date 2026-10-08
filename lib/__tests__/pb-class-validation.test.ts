@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import { PB_CLASS_DEFAULT_CFG } from "@/lib/pb-class";
-import { PB_DEFAULT_SESS_PLANS } from "@/lib/pb-class-plan";
+import { PB_DEFAULT_SESS_PLANS, PB_TRN_KIND_CDS } from "@/lib/pb-class-plan";
 import { PB_DEFAULT_RULE } from "@/lib/pb-class-score";
 import {
   checkGoalCap,
@@ -67,11 +67,11 @@ describe("pbParticipantUpdateSchema — depositDcAmt", () => {
 describe("pbSessPlanSchema — 회차별 훈련표", () => {
   const valid = {
     sessNo: 2,
-    phaseNm: "기초",
+    kindCd: "SPD",
     ttl: "400m 반복",
     mainTxt: "8 × 400m @ P-15초",
     easyTxt: "6 × 400m",
-    purpTxt: "스피드 감각",
+    selfTxt: "이지런 2~3회",
     noteTxt: "게임팀 발표",
   };
 
@@ -91,9 +91,10 @@ describe("pbSessPlanSchema — 회차별 훈련표", () => {
     expect(r.mainTxt).toBe("8회");
   });
 
-  it("선택 칸(E 세션·비고)은 빈 문자열·공백이면 null 로 접는다 — 「없으면 A~D와 같음」 판정이 어긋나지 않게", () => {
-    const r = pbSessPlanSchema.parse({ ...valid, easyTxt: "   ", noteTxt: "" });
+  it("선택 칸(첫 10K 세션·개인 훈련·비고)은 빈 문자열·공백이면 null 로 접는다 — 「없으면 A~D와 같음」 판정이 어긋나지 않게", () => {
+    const r = pbSessPlanSchema.parse({ ...valid, easyTxt: "   ", selfTxt: " ", noteTxt: "" });
     expect(r.easyTxt).toBeNull();
+    expect(r.selfTxt).toBeNull();
     expect(r.noteTxt).toBeNull();
     expect(pbSessPlanSchema.parse({ ...valid, easyTxt: null, noteTxt: null })).toMatchObject({
       easyTxt: null,
@@ -101,22 +102,30 @@ describe("pbSessPlanSchema — 회차별 훈련표", () => {
     });
   });
 
-  it("필수 칸(단계·제목·훈련 내용·목적)은 비면 거절", () => {
-    for (const key of ["phaseNm", "ttl", "mainTxt", "purpTxt"] as const) {
+  it("필수 칸(제목·훈련 내용)은 비면 거절", () => {
+    for (const key of ["ttl", "mainTxt"] as const) {
       expect(pbSessPlanSchema.safeParse({ ...valid, [key]: "" }).success, key).toBe(false);
       expect(pbSessPlanSchema.safeParse({ ...valid, [key]: "   " }).success, key).toBe(false);
     }
   });
 
-  it("글자 수 상한 — 단계 10 · 제목 60 · 본문류 1000(DB CHECK 와 같다)", () => {
-    expect(pbSessPlanSchema.safeParse({ ...valid, phaseNm: "가".repeat(10) }).success).toBe(true);
-    expect(pbSessPlanSchema.safeParse({ ...valid, phaseNm: "가".repeat(11) }).success).toBe(false);
+  it("글자 수 상한 — 제목 60 · 본문류 1000(DB CHECK 와 같다)", () => {
     expect(pbSessPlanSchema.safeParse({ ...valid, ttl: "가".repeat(60) }).success).toBe(true);
     expect(pbSessPlanSchema.safeParse({ ...valid, ttl: "가".repeat(61) }).success).toBe(false);
-    for (const key of ["mainTxt", "easyTxt", "purpTxt", "noteTxt"] as const) {
+    for (const key of ["mainTxt", "easyTxt", "selfTxt", "noteTxt"] as const) {
       expect(pbSessPlanSchema.safeParse({ ...valid, [key]: "가".repeat(1000) }).success, key).toBe(true);
       expect(pbSessPlanSchema.safeParse({ ...valid, [key]: "가".repeat(1001) }).success, key).toBe(false);
     }
+  });
+
+  it("훈련 종류는 8개 코드만 — 목록 밖 값·빈 값은 거절", () => {
+    for (const cd of PB_TRN_KIND_CDS) {
+      expect(pbSessPlanSchema.safeParse({ ...valid, kindCd: cd }).success, cd).toBe(true);
+    }
+    expect(pbSessPlanSchema.safeParse({ ...valid, kindCd: "XXX" }).success).toBe(false);
+    expect(pbSessPlanSchema.safeParse({ ...valid, kindCd: "" }).success).toBe(false);
+    const { kindCd: _omit, ...noKind } = valid;
+    expect(pbSessPlanSchema.safeParse(noKind).success).toBe(false);
   });
 
   it("회차 번호는 1~52 정수", () => {

@@ -53,11 +53,11 @@ export async function ensureDefaultSessPlans(db: Db, evtId: string): Promise<PbS
     PB_DEFAULT_SESS_PLANS.map((p) => ({
       evt_id: evtId,
       sess_no: p.sessNo,
-      phase_nm: p.phaseNm,
+      trn_kind_cd: p.kindCd,
       ttl: p.ttl,
       main_txt: p.mainTxt,
       easy_txt: p.easyTxt,
-      purp_txt: p.purpTxt,
+      self_trn_txt: p.selfTxt,
       note_txt: p.noteTxt,
     })),
   );

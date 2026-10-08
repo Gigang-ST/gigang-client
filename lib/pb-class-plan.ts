@@ -1,157 +1,238 @@
-// lib/pb-class-plan.ts — PB 클래스 주차별 훈련표 기본값 + 안내 문구용 정적 정보
+// lib/pb-class-plan.ts — PB 클래스 회차별 훈련표 기본값 · 훈련 종류 사전 · 내 훈련 페이스(P) 계산
 //
-// 정본은 운영 레포 `project/261006_겨울10K-PB클래스/상세계획.md` §4(훈련팀)·§5(12주 훈련표).
-// 앱에서는 프로젝트마다 `evt_pb_sess_plan`에 들어가고(관리자가 고칠 수 있다), 아래는 관리자
-// 「기본 훈련표 불러오기」가 넣는 값이다. 「목적」은 계획서에 없던 칸이라 코칭 관점으로 채웠다 —
-// 회원이 "오늘 이걸 왜 하지?"를 화면에서 바로 알게 하려는 것.
+// 훈련 내용은 2026-10-08 오너가 「조사 수정안」으로 골랐다(다니엘스·맥밀런·히그던·테이퍼 메타분석 —
+// `docs/design/2026-10-08-pb-훈련표-선택.html`). 앱에서는 프로젝트마다 `evt_pb_sess_plan`에 들어가고
+// (진행중으로 열 때 자동, 관리자가 고칠 수 있다), 아래는 그 기본값이다.
+//
+// 표기 원칙(오너): 속도는 짧게 `P±초`, 쉬는 법·시간은 반복마다 빠짐없이, 「크루즈」 같은 모르는 용어는 안 쓴다.
+// 회차마다 「단계」 대신 **훈련 종류**(역치·VO2max…)를 단다 — 목적 문장은 다 "10K 단축"으로 읽혀서,
+// 종류 이름과 그 종류가 기르는 것 한 줄(`PB_TRN_KINDS`)이 대신한다.
+
+/** 훈련 종류 코드 — evt_pb_sess_plan.trn_kind_cd */
+export const PB_TRN_KIND_CDS = ["TT", "SPD", "HILL", "THR", "VO2", "RACE", "FART", "TAPER"] as const;
+export type PbTrnKindCd = (typeof PB_TRN_KIND_CDS)[number];
+
+/** 훈련 종류 사전 — 다니엘스 구간(T·I·R)과 10K 플랜의 통상 이름. 속도는 P 기준 */
+export const PB_TRN_KINDS: Record<PbTrnKindCd, { nm: string; pace: string; what: string }> = {
+  TT: { nm: "기록 측정", pace: "최선", what: "지금 실력 확인 — 내 P·훈련팀·목표를 정하는 기준" },
+  SPD: { nm: "스피드 훈련", pace: "P-15초 이상, 짧게", what: "다리 회전·주법 — 같은 속도를 덜 힘들게" },
+  HILL: { nm: "업힐 훈련", pace: "힘 있게", what: "다리 근력과 자세 — 평지 인터벌보다 부상 부담이 적다" },
+  THR: { nm: "역치 훈련", pace: "P+5~15초", what: "숨이 차기 직전 속도를 오래 버티는 힘(젖산역치)" },
+  VO2: { nm: "VO2max 훈련", pace: "P-10~15초", what: "심폐 최대치 — 높아지면 목표 페이스가 상대적으로 편해진다" },
+  RACE: { nm: "레이스 페이스 훈련", pace: "정확히 P", what: "목표 속도 감각과 레이스 지구력" },
+  FART: { nm: "파틀렉", pace: "빠르게 ↔ 조깅", what: "속도 전환 적응 — 고강도 입문" },
+  TAPER: { nm: "테이퍼", pace: "P, 양만 줄임", what: "피로 빼기 — 강도는 유지하고 양을 40~60% 줄인다" },
+};
 
 /** 회차 하나의 훈련 — sess_no 1~12는 그 주차 공식훈련, 13은 10K 측정 */
 export type PbSessPlan = {
   sessNo: number;
-  /** 단계 — 측정 · 기초 · 점검 · 강화 · 특화 · 마무리 */
-  phaseNm: string;
+  /** 훈련 종류 — 화면은 `PB_TRN_KINDS[kindCd]`로 이름·속도·기르는 것을 그린다 */
+  kindCd: PbTrnKindCd;
   /** 제목 한 줄 */
   ttl: string;
   /** 38~50분 그룹 세션 */
   mainTxt: string;
-  /** 첫 10K 그룹 세션 — 같은 세션을 P=6:00으로, 개수만 줄인다. 없으면 다른 그룹과 같음 */
+  /** 첫 10K 그룹 세션 — 같은 세션을 개수만 줄인다. 없으면 다른 그룹과 같음 */
   easyTxt: string | null;
-  /** 이 훈련을 하는 이유 */
-  purpTxt: string;
+  /** 개인 훈련 안내(그 주 공식훈련 밖에서 각자) — 읽기만 하는 글, 체크·기록 없음 */
+  selfTxt: string | null;
   /** 비고(행사·주의사항 등) */
   noteTxt: string | null;
 };
 
+/** 개인 훈련 한 줄 — 장거리 거리는 「38~45분 / 50분·첫 10K」 두 갈래로 적는다 */
+const self = (base: string, long: string, extra?: string) =>
+  `${base} · 장거리 1회 ${long}${extra ? ` · ${extra}` : ""}`;
+
 export const PB_DEFAULT_SESS_PLANS: PbSessPlan[] = [
-  // 표기 원칙(오너 피드백 2026-10-07): "크루즈", "P-15초", "6 × 800m" 같은 코치 약어를 쓰지 않는다.
-  // 「무엇을 얼마나 → 어떻게 쉬고 → 몇 번」을 문장으로 적고, 쉬는 시간은 반복 훈련마다 빠짐없이 적는다.
-  // 속도는 「목표 페이스」(머리말에 정의) 기준 ±초/km, 회복은 「천천히 조깅」(머리말에 정의).
   {
     sessNo: 1,
-    phaseNm: "측정",
+    kindCd: "TT",
     ttl: "킥오프 + 5K 기록 측정",
-    mainTxt: "5K를 처음부터 끝까지 내 최선의 속도로",
+    mainTxt: "워밍업 15분 + 드릴 → 5K 최선",
     easyTxt: null,
-    purpTxt: "지금 내 실력을 잰다. 이 기록으로 훈련팀과 10K 목표를 정하고, 12주 뒤 얼마나 빨라졌는지 견줄 기준기록이 된다.",
-    noteTxt: "기준기록 → 훈련팀·목표",
+    selfTxt: self("이지런 2회", "38~45분 12km / 50분·첫 10K 8km", "측정 다음 날은 쉬거나 20분 조깅"),
+    noteTxt: "기준기록 → 내 P·훈련팀·목표",
   },
   {
     sessNo: 2,
-    phaseNm: "기초",
-    ttl: "400m 반복",
-    mainTxt: "400m를 목표 페이스보다 15초 빠르게 → 200m 천천히 조깅 · 8회",
-    easyTxt: "같은 방식으로 6회",
-    purpTxt: "목표보다 조금 빠른 속도에 다리를 익힌다. 짧게 끊어서 자세가 무너지기 전에 끝내는 스피드 감각 훈련.",
+    kindCd: "FART",
+    ttl: "파틀렉 24분 + 스트라이드",
+    mainTxt: "1분 @ P-10초 ↔ 1분 조깅, 24분 → 스트라이드 20초 × 4",
+    easyTxt: "20분",
+    selfTxt: self("이지런 2~3회 · 스트라이드 20초 × 4 주 2회", "12km / 8km"),
     noteTxt: "게임팀 발표",
   },
   {
     sessNo: 3,
-    phaseNm: "기초",
-    ttl: "언덕 반복",
-    mainTxt: "오르막을 60~90초 힘 있게 → 내려오면서 걷거나 천천히 조깅 · 8회",
-    easyTxt: "같은 방식으로 6회",
-    purpTxt: "오르막이 다리 근력과 팔치기·발 디딤을 저절로 고쳐 준다. 평지 인터벌보다 부상 부담이 적은 '근력 스피드'.",
+    kindCd: "HILL",
+    ttl: "업힐 반복",
+    mainTxt: "오르막 60~75초 → 내려오며 조깅 · 6~8회",
+    easyTxt: "5~6회",
+    selfTxt: self("이지런 2~3회 · 스트라이드 주 2회", "13km / 9km"),
     noteTxt: "장소 이동",
   },
   {
     sessNo: 4,
-    phaseNm: "기초",
-    ttl: "템포런 20분",
-    mainTxt: "20분 동안 쉬지 않고 목표 페이스보다 15초 느리게",
-    easyTxt: "15분",
-    purpTxt: "숨이 차기 직전의 속도(젖산역치)를 오래 버티는 힘을 기른다. 10K 기록을 끌어올리는 엔진.",
+    kindCd: "SPD",
+    ttl: "400m 반복",
+    mainTxt: "400m @ P-15초 → 200m 조깅 · 8회",
+    easyTxt: "6회",
+    selfTxt: self("이지런 2~3회 · 스트라이드 주 2회", "13km / 9km"),
     noteTxt: null,
   },
   {
     sessNo: 5,
-    phaseNm: "기초",
-    ttl: "1.6km 반복",
-    mainTxt: "1.6km를 목표 페이스보다 10초 느리게 → 1분 천천히 조깅 · 3회",
-    easyTxt: "같은 방식으로 2회",
-    purpTxt: "템포런을 세 토막으로 나눠 그보다 조금 빠르게, 더 많이 쌓는다. 쉬는 시간이 짧아서 숨이 다 돌아오기 전에 다음 토막을 뛴다.",
+    kindCd: "THR",
+    ttl: "템포런 20분",
+    mainTxt: "20분 @ P+10~15초 연속",
+    easyTxt: "15분",
+    selfTxt: self("이지런 2~3회 · 스트라이드 주 2회", "14km / 10km"),
     noteTxt: null,
   },
   {
     sessNo: 6,
-    phaseNm: "점검",
+    kindCd: "TT",
     ttl: "5K 기록 측정 (중간점검)",
-    mainTxt: "5K를 처음부터 끝까지 내 최선의 속도로",
+    mainTxt: "워밍업 15분 + 드릴 → 5K 최선",
     easyTxt: null,
-    purpTxt: "6주 동안 얼마나 빨라졌는지 확인한다. 기준기록 대비 향상 점수가 붙고, 필요하면 훈련팀을 다시 나눈다.",
-    noteTxt: "재배정 · 향상 점수",
+    selfTxt: self("이지런 2회", "12km / 8km", "측정 주라 조금 줄여요"),
+    noteTxt: "내 P·훈련팀 다시 맞추기 · 향상 점수",
   },
   {
     sessNo: 7,
-    phaseNm: "강화",
+    kindCd: "VO2",
     ttl: "800m 반복",
-    mainTxt: "800m를 목표 페이스보다 10초 빠르게 → 400m 천천히 조깅(2~3분) · 6회",
-    easyTxt: "같은 방식으로 4회",
-    purpTxt: "VO2max를 올린다. VO2max가 높아지면 목표 페이스가 상대적으로 편해진다.",
+    mainTxt: "800m @ P-10~15초 → 2분 조깅 · 6회",
+    easyTxt: "4회",
+    selfTxt: self("이지런 2~3회 · 스트라이드 주 2회", "14km / 10km", "40분 이하는 장거리 마지막 3km를 P로"),
     noteTxt: null,
   },
   {
     sessNo: 8,
-    phaseNm: "강화",
+    kindCd: "THR",
     ttl: "템포런 12분 × 2",
-    mainTxt: "12분 목표 페이스보다 10초 느리게 → 2분 천천히 조깅 → 다시 12분",
+    mainTxt: "12분 @ P+5~10초 → 2분 조깅 → 12분",
     easyTxt: "10분 → 2분 조깅 → 10분",
-    purpTxt: "4주차보다 빠른 역치 속도를 두 번에 나눠 버틴다. 연말이라 부담은 낮추고 감각은 이어 간다.",
+    selfTxt: self("이지런 2~3회", "15km / 11km", "연말 일정에 맞춰 줄여도 괜찮아요"),
     noteTxt: "연말 주간",
   },
   {
     sessNo: 9,
-    phaseNm: "강화",
-    ttl: "파틀렉 30분",
-    mainTxt: "1분 빠르게(목표 페이스보다 10~15초 빠르게) ↔ 1분 천천히 조깅, 30분 동안 이어서",
-    easyTxt: "25분",
-    purpTxt: "빠르게·천천히를 번갈아 속도 전환에 몸을 적응시킨다. 레이스 중 치고 나갔다 리듬을 되찾는 연습.",
+    kindCd: "VO2",
+    ttl: "1km 반복",
+    mainTxt: "1km @ P-10~15초 → 2분30초 조깅 · 5회",
+    easyTxt: "4회",
+    selfTxt: self("이지런 2~3회 · 스트라이드 주 2회", "15km / 11km", "40분 이하는 장거리 마지막 4km를 P로"),
     noteTxt: "올해 마지막 런",
   },
   {
     sessNo: 10,
-    phaseNm: "특화",
+    kindCd: "RACE",
     ttl: "2km 반복",
-    mainTxt: "2km를 목표 페이스로 → 600m 천천히 조깅(약 3분) · 3회",
-    easyTxt: "같은 방식으로 2회",
-    purpTxt: "목표 페이스로 긴 구간을 버티는 레이스 지구력. 여기부터는 '목표 속도 그 자체'를 몸에 쌓는다.",
+    mainTxt: "2km @ P → 3분 조깅 · 3회",
+    easyTxt: "2회",
+    selfTxt: self("이지런 2~3회 · 스트라이드 주 2회", "16km / 12km"),
     noteTxt: null,
   },
   {
     sessNo: 11,
-    phaseNm: "특화",
-    ttl: "1km 반복",
-    mainTxt: "1km를 목표 페이스로 → 2분 천천히 조깅 · 4회",
-    easyTxt: "같은 방식으로 3회",
-    purpTxt: "시계를 안 봐도 목표 페이스를 맞추는 감각을 새긴다. 레이스 초반 오버페이스를 막는 연습.",
-    noteTxt: null,
+    kindCd: "RACE",
+    ttl: "3km 반복",
+    mainTxt: "3km @ P → 4분 조깅 · 2회 (38분 이하는 3회)",
+    easyTxt: "2.5km × 2",
+    selfTxt: self("이지런 2~3회 · 스트라이드 주 2회", "16km / 13km", "40분 이하는 장거리 마지막 4km를 P로"),
+    noteTxt: "12주의 정점 세션",
   },
   {
     sessNo: 12,
-    phaseNm: "마무리",
-    ttl: "레이스 리허설",
-    mainTxt: "6km를 쉬지 않고 목표 페이스로",
-    easyTxt: "4km",
-    purpTxt: "실전처럼 달려 페이스 배분·복장·보급을 점검한다. 이제부터는 피로를 빼고 측정일에 맞춘다.",
-    noteTxt: "마지막 공식훈련",
+    kindCd: "TAPER",
+    ttl: "짧은 레이스 페이스 + 스트라이드",
+    mainTxt: "1km @ P → 2분 조깅 · 3회 → 스트라이드 20초 × 4",
+    easyTxt: "1km × 2",
+    selfTxt: self("이지런 2회 · 스트라이드 주 2회", "12km / 9km", "양을 40~60% 줄여 피로 빼기"),
+    noteTxt: "마지막 공식훈련 · 장비·워밍업 리허설",
   },
   {
     sessNo: 13,
-    phaseNm: "측정",
+    kindCd: "TT",
     ttl: "10K 기록 측정",
-    mainTxt: "10K를 처음부터 끝까지 내 최선의 속도로",
+    mainTxt: "워밍업 15분 + 드릴 → 10K 최선",
     easyTxt: null,
-    purpTxt: "12주의 결과를 확인하는 날. 최종 기록으로 목표 달성과 향상 점수를 매긴다. 대구를 안 뛰어도 여기서 판정받는다.",
-    noteTxt: "13번째 회차 · 보증금 출석 포함",
+    selfTxt: "측정 전 이틀은 쉬거나 20분 조깅 · 측정 뒤엔 회복 조깅만",
+    noteTxt: "13번째 회차 · 보증금 출석 포함 · 날짜는 추후 일정",
   },
 ];
 
 /** 훈련표 머리말 — 모든 세션에 공통으로 붙는 것 */
 export const PB_PLAN_NOTES = [
-  "목표 페이스 = 내 10K 목표기록 ÷ 10 (예: 45분 → 4:30/km). 첫 10K 그룹은 6:00/km.",
-  "천천히 조깅 = 숨을 고르는 아주 편한 속도 — 옆 사람과 대화할 수 있을 만큼. 목표 페이스보다 km당 1분 30초~2분 느리게 (45분 목표면 6:00~6:30/km).",
+  "P = 내 훈련 페이스. 기본은 10K 목표 ÷ 10이고, 1·6주차 5K 기록으로 환산한 10K 페이스(5K × 2.085 ÷ 10)가 더 느리면 그걸 써요.",
+  "조깅 = 대화할 수 있는 편한 속도 (P보다 km당 1:30~2:00 느리게).",
+  "스트라이드 = 20초 동안 빠르게 가속했다가 걷듯이 회복 — 폼 연습이에요.",
   "모든 세션은 앞뒤로 워밍업 2~3km + 드릴, 쿨다운 1~2km를 붙여요.",
-  "개인 이지런·롱런은 각자 — 권장하지만 출석으로 인정하지 않아요.",
-]
+  "개인 훈련은 안내예요 — 출석으로 인정하지 않아요.",
+];
+
+// ─────────────────────────────────────────
+// 내 훈련 페이스(P) — 측정 기록 기준(오너 결정 2026-10-08)
+// ─────────────────────────────────────────
+
+/** 5K → 10K 환산 계수(Riegel 1.06) — 점수 규칙 기본값(`PB_DEFAULT_RULE.tenKFactor`)과 같은 값 */
+const TEN_K_FACTOR = 2.085;
+
+export type PbTrainingPace = {
+  /** km당 초 */
+  sec: number;
+  /** 무엇으로 정했나 */
+  basis: "goal" | "record";
+  /** 기록 기준이면 어느 측정에서 왔나 */
+  recLabel: string | null;
+};
+
+/**
+ * 내 P = 목표 페이스(10K 목표 ÷ 10)와 **가장 최근 5K 측정으로 환산한 10K 페이스** 중 **느린 쪽**.
+ * 목표보다 한참 느린 사람이 목표 페이스로 인터벌을 뛰면 과부하가 된다(다니엘스 — 훈련 페이스는 현재 기록으로).
+ * 둘 다 없으면 null(화면은 훈련팀의 대회 페이스로 물러난다).
+ */
+export function trainingPace(args: {
+  goalSec: number | null;
+  base5kSec: number | null;
+  mid5kSec: number | null;
+  /** 중간점검 주차 — 설정값(`rule.midWkNo`). 화면 문구 「N주차 5K」에 쓴다 */
+  midWkNo?: number;
+}): PbTrainingPace | null {
+  const goal = args.goalSec && args.goalSec > 0 ? args.goalSec / 10 : null;
+  const latest = args.mid5kSec ?? args.base5kSec;
+  const rec = latest && latest > 0 ? (latest * TEN_K_FACTOR) / 10 : null;
+  const recLabel = args.mid5kSec ? `${args.midWkNo ?? 6}주차 5K` : args.base5kSec ? "1주차 5K" : null;
+  if (goal === null && rec === null) return null;
+  if (rec !== null && (goal === null || rec > goal)) return { sec: Math.round(rec), basis: "record", recLabel };
+  return { sec: Math.round(goal as number), basis: "goal", recLabel: null };
+}
+
+/** km당 초 → "4:38" */
+export function fmtPace(sec: number): string {
+  const s = Math.round(sec);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/**
+ * 훈련 문구의 `P±N초`·`P±N~M초`·맨 `P` 옆에 내 실제 페이스를 붙인다 —
+ * "400m @ P-15초" → "400m @ P-15초(4:23)". 문구는 그대로 두고 괄호만 덧붙여, 같은 훈련표를 보는
+ * 사람마다 자기 숫자를 본다. 「P(」처럼 이미 붙은 곳은 건드리지 않는다.
+ */
+export function withMyPace(txt: string, pSec: number | null): string {
+  if (pSec === null) return txt;
+  return txt.replace(/P([+-])(\d+)(?:~(\d+))?초|P(?=[\s,)·]|$)/g, (m: string, sign?: string, a?: string, b?: string) => {
+    if (!sign) return `P(${fmtPace(pSec)})`;
+    const shift = (n: string) => pSec + (sign === "+" ? 1 : -1) * Number(n);
+    const lo = shift(a as string);
+    if (!b) return `${m}(${fmtPace(lo)})`;
+    const hi = shift(b);
+    return `${m}(${fmtPace(Math.min(lo, hi))}~${fmtPace(Math.max(lo, hi))})`;
+  });
+}
 
 /**
  * 훈련팀 — **목표 시간으로 부른다**(오너 지시 2026-10-07: "트레이닝그룹 ABCD는 목표 시간으로 불러라").

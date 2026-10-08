@@ -140,18 +140,22 @@ describe("훈련표 탭", () => {
     expect(html).toContain("훈련표 13/13회차");
   });
 
-  it("카드마다 단계·그룹 세션·목적을 보여 주고, 비고는 있을 때만 그린다", () => {
+  it("카드마다 훈련 종류·그룹 세션·개인 훈련을 보여 주고, 비고는 있을 때만 그린다", () => {
     const html = render(makeBoard({ sessPlans: PB_DEFAULT_SESS_PLANS.slice(0, 2) }));
     // 훈련팀을 목표 시간으로 부르므로 세션 칸도 같은 말이다 — A~E 코드는 화면에 안 나온다
     expect(html).toContain("38~50분 그룹");
     expect(html).toContain("첫 10K 그룹");
     expect(html).not.toContain("A~D");
     expect(html).not.toContain("E 첫 10K");
-    expect(html).toContain("목적");
+    expect(html).toContain("기록 측정");
+    expect(html).toContain("파틀렉");
+    expect(html).toContain("개인 훈련");
+    expect(html).not.toContain("목적");
     expect(html).toContain("킥오프 + 5K 기록 측정");
     // 1회차는 첫 10K 세션이 없어 「38~50분 그룹과 같아요」, 2회차는 따로 있다
     expect(html).toContain("38~50분 그룹과 같아요");
-    expect(html).toContain("같은 방식으로 6회");
+    expect(html).toContain(PB_DEFAULT_SESS_PLANS[1].easyTxt as string);
+    expect(html).toContain("이지런 2회");
     // 1·2회차 모두 비고가 있고, 같은 칸이 빈 회차(예: 4회차)에서는 라벨이 안 선다
     const noNote = render(makeBoard({ sessPlans: [PB_DEFAULT_SESS_PLANS[3]] }));
     expect(noNote).not.toContain("비고");
@@ -163,9 +167,10 @@ describe("훈련표 탭", () => {
     expect(html).not.toContain("2/3~2/9");
   });
 
-  it("안내 문구가 회원 「훈련」 탭과 이어진다는 걸 말한다", () => {
+  it("안내 문구가 회원 「훈련」 탭과 이어지고 P±초 표기를 알려 준다", () => {
     const html = render(makeBoard());
     expect(html).toContain("회원 「훈련」 탭에 그대로 보여요");
+    expect(html).toContain("속도는 P±초로");
   });
 
   it("비어 있으면 「기본 훈련표 불러오기」를 세운다(총 회차 13)", () => {

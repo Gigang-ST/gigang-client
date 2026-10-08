@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PB 클래스 훈련표 고르기</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --fg: #15171a; --muted: #6b7280; --line: #e5e7eb;
+    --primary: #2f6fed; --primary-soft: #e8f0fe;
+    --ok: #15803d; --ok-soft: #e7f6ec; --warn: #b45309; --warn-soft: #fdf3e2; --bad: #b91c1c; --bad-soft: #fdecec;
+    --chip: #f1f3f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1114; --card: #171a1f; --fg: #eceef1; --muted: #9aa2ad; --line: #2a2f37;
+      --primary: #6b9bff; --primary-soft: #1b2740;
+      --ok: #4ade80; --ok-soft: #13261a; --warn: #fbbf24; --warn-soft: #2a2110; --bad: #f87171; --bad-soft: #2c1414;
+      --chip: #22262d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: Pretendard, -apple-system, "Apple SD Gothic Neo", sans-serif; line-height: 1.55; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 32px 16px 120px; }
+  header h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.02em; }
+  header p { margin: 0; color: var(--muted); font-size: 14px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 16px 0 0; font-size: 13px; color: var(--muted); }
+  .legend b { color: var(--fg); font-weight: 600; }
+  h2 { font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 40px 0 12px; font-weight: 700; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; margin-bottom: 14px; }
+  .wk-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .wk-no { font-weight: 800; font-size: 18px; letter-spacing: -0.01em; }
+  .wk-date { color: var(--muted); font-size: 13px; }
+  .badge { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+  .b-ok { color: var(--ok); background: var(--ok-soft); }
+  .b-warn { color: var(--warn); background: var(--warn-soft); }
+  .b-bad { color: var(--bad); background: var(--bad-soft); }
+  .b-same { color: var(--muted); background: var(--chip); }
+  .why { font-size: 13px; color: var(--muted); margin: -4px 0 12px; }
+  .why b { color: var(--fg); }
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 640px) { .opts { grid-template-columns: 1fr; } }
+  .opt { position: relative; display: block; border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 14px 12px 40px; cursor: pointer; transition: border-color .15s, background .15s; }
+  .opt:hover { border-color: var(--muted); }
+  .opt input { position: absolute; left: 14px; top: 15px; accent-color: var(--primary); width: 16px; height: 16px; }
+  .opt.sel { border-color: var(--primary); background: var(--primary-soft); }
+  .opt-label { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 0.02em; margin-bottom: 4px; display: flex; gap: 6px; align-items: center; }
+  .phase { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 6px; background: var(--chip); color: var(--fg); }
+  .ttl { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+  .row { font-size: 14px; display: grid; grid-template-columns: 64px 1fr; gap: 2px 8px; }
+  .row .k { color: var(--muted); font-size: 12px; padding-top: 2px; }
+  .purp { margin-top: 8px; font-size: 13px; color: var(--muted); border-left: 3px solid var(--line); padding-left: 8px; }
+  .custom { grid-column: 1 / -1; }
+  textarea { width: 100%; min-height: 64px; margin-top: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 10px; font: inherit; font-size: 14px; background: var(--bg); color: var(--fg); resize: vertical; }
+  .note { margin-top: 10px; }
+  .note input { width: 100%; border: 1px dashed var(--line); border-radius: 10px; padding: 8px 10px; font: inherit; font-size: 13px; background: transparent; color: var(--fg); }
+  .gen .opts { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .gen .q { font-weight: 700; margin-bottom: 4px; }
+  .gen .q-desc { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+  .done { font-size: 13px; color: var(--ok); }
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(8px); border-top: 1px solid var(--line); }
+  .bar .in { max-width: 880px; margin: 0 auto; padding: 12px 16px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .progress { font-size: 13px; color: var(--muted); }
+  .progress b { color: var(--fg); }
+  button { font: inherit; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--fg); padding: 10px 14px; cursor: pointer; font-weight: 600; font-size: 14px; }
+  button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .toast { position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.on { opacity: 1; }
+  .src li { font-size: 13px; color: var(--muted); margin-bottom: 4px; word-break: break-all; }
+  .src a { color: var(--primary); }
+
+  .kind { font-size: 12px; font-weight: 800; padding: 2px 9px; border-radius: 999px; color: #fff; white-space: nowrap; flex-shrink: 0; }
+  .k-T { background: #d97706; } .k-I { background: #dc2626; } .k-R { background: #7c3aed; }
+  .k-H { background: #059669; } .k-P { background: #2563eb; } .k-F { background: #db2777; }
+  .k-X { background: #475569; } .k-TT { background: #111827; }
+  @media (prefers-color-scheme: dark) { .k-TT { background: #e5e7eb; color: #111827; } }
+  .dict { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px; }
+  .dict .card { margin: 0; }
+  .dict .d-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .dict .d-pace { font-size: 13px; font-weight: 700; }
+  .dict .d-body { font-size: 13px; color: var(--muted); }
+  .dict .d-body b { color: var(--fg); font-weight: 600; }
+  pre#out { white-space: pre-wrap; font-size: 13px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>겨울 10K PB 클래스 — 훈련표 고르기</h1>
+    <p>회차마다 <b>훈련 종류</b>를 확인하고 <b>지금 훈련표</b>(앱에 들어간 것)와 <b>조사 수정안</b>(다니엘스·맥밀런·히그던·테이퍼 연구) 중 하나를 고르거나 직접 쓰세요. 다 고르면 아래 「결과 복사」를 눌러 붙여 주시면 그대로 반영합니다.</p>
+    <div class="legend">
+      <span><b>P</b> = 내 10K 목표 페이스 (45분 목표 → 4:30/km)</span>
+      <span><b>조깅</b> = 대화할 수 있는 아주 편한 속도 (P보다 km당 1:30~2:00 느리게)</span>
+      <span><b>첫 10K</b> = 첫 10K · 60분 이하 그룹 (P = 6:00/km)</span>
+    </div>
+  </header>
+
+  <h2>훈련 종류</h2>
+  <p style="color:var(--muted);font-size:14px;margin:-4px 0 12px">10K는 결국 <b>역치</b>(오래 버티는 힘)와 <b>VO2max</b>(심폐 최대치)와 <b>레이스 페이스</b>(목표 속도 감각) 셋이 끌어올린다. 12주는 이 셋을 순서대로 쌓는 일이다.</p>
+  <div class="dict" id="dict"></div>
+
+  <h2>전체 방향</h2>
+  <div id="general"></div>
+
+  <h2>회차별 훈련</h2>
+  <div id="weeks"></div>
+
+  <h2>근거 · 출처</h2>
+  <div class="card">
+    <ul class="src">
+      <li>잭 다니엘스 — 역치(T)는 P+6~8초, VO2max 인터벌(I)은 P−13초 안팎(VDOT 50 기준), 세션당 상한 I 8%·T 10% (주간 거리 대비): <a href="https://en.wikipedia.org/wiki/Jack_Daniels_(coach)" target="_blank">Wikipedia</a> · <a href="https://rundida.com/tools/vdot-calculator/" target="_blank">VDOT 표</a></li>
+      <li>다니엘스 4단계 구성, 5~15K는 초반에 언덕·리듬: <a href="https://coachray.nz/2021/10/11/jack-daniels-phd-formulaic-approach-to-periodisation" target="_blank">coachray.nz</a></li>
+      <li>맥밀런 — 목표 페이스 반복을 1마일 → 2마일로 늘리고 정점 세션(3×3K @P)을 레이스 9~12일 전에: <a href="https://www.mcmillanrunning.com/the-best-10k-workout/" target="_blank">The Best 10K Workout</a></li>
+      <li>할 히그던 10K 중급·고급 — 중반 5K 레이스, 주 2~3회 강훈련: <a href="https://www.halhigdon.com/training-programs/10k-training/intermediate-10k/" target="_blank">중급</a> · <a href="https://www.halhigdon.com/training-programs/10k-training/advanced-10k/" target="_blank">고급</a></li>
+      <li>테이퍼 메타분석 — 강도·빈도는 유지, 양만 41~60% 줄이기: <a href="https://coachsci.sdsu.edu/csa/vol131/bosquet.htm" target="_blank">Bosquet 외, MSSE 2007</a></li>
+      <li>공신력 있는 한국어 10K 훈련 자료는 찾지 못했습니다(번역 블로그 정도).</li>
+    </ul>
+  </div>
+
+  <pre id="out"></pre>
+</div>
+
+<div class="bar"><div class="in">
+  <span class="progress" id="progress"></span>
+  <span style="display:flex; gap:8px;">
+    <button id="reset">처음부터</button>
+    <button class="primary" id="copy">결과 복사</button>
+  </span>
+</div></div>
+<div class="toast" id="toast">복사했어요 — 대화창에 붙여 주세요</div>
+
+<script>
+// 훈련 종류 — 다니엘스 구간(E·T·I·R)과 10K 플랜의 통상 이름. 속도는 P(10K 목표 페이스) 기준.
+const KINDS = {
+  T:  { nm: "역치 훈련", pace: "P+5~15초", what: "숨이 차기 직전 속도를 <b>오래 버티는 힘</b>(젖산역치). 10K의 엔진.", feel: "'편하게 힘들다' — 말은 짧게 끊긴다. 템포런·역치 인터벌." },
+  I:  { nm: "VO2max 훈련", pace: "P-10~15초 (5K 페이스 안팎)", what: "<b>심폐 최대치</b>를 올린다. 천장이 높아지면 목표 페이스가 상대적으로 편해진다.", feel: "3~5분 이내 반복, 회복은 달린 시간과 비슷하게. 마지막 회차가 힘들어야 정상." },
+  R:  { nm: "스피드 훈련", pace: "P-15초 이상 (짧게)", what: "<b>다리 회전·주법</b>(러닝 이코노미). 같은 속도를 덜 힘들게.", feel: "400m 이하로 짧고 빠르게, 회복은 충분히. 숨보다 다리가 먼저 무겁다." },
+  H:  { nm: "언덕 훈련", pace: "힘 있게 (속도는 안 봄)", what: "<b>다리 근력과 자세</b>. 평지 인터벌보다 부상 부담이 적다.", feel: "오르막 60~75초, 내려오며 회복." },
+  P:  { nm: "레이스 페이스 훈련", pace: "정확히 P", what: "<b>목표 속도 감각과 레이스 지구력</b>. 시계 없이도 P를 맞추게.", feel: "실전 블록 — 반복 거리를 늘려 가며 쌓는다." },
+  F:  { nm: "파틀렉", pace: "빠르게 ↔ 조깅 번갈아", what: "<b>속도 전환</b>에 몸을 적응. 그룹 안 실력 차이를 흡수하기 좋다.", feel: "정해진 구간 없이 시간으로. 고강도 입문용." },
+  X:  { nm: "테이퍼", pace: "P (양만 줄임)", what: "<b>피로 빼기</b> — 강도·빈도는 유지하고 양만 40~60% 줄인다.", feel: "측정·대회 직전 주. 다리가 가벼워야 정상." },
+  TT: { nm: "기록 측정", pace: "최선", what: "<b>지금 실력 확인</b> — 훈련 페이스·팀·목표를 정하는 기준.", feel: "워밍업 15분 + 드릴을 넉넉히." },
+};
+
+// 지금 앱 훈련표(#585 내용을 P±초 표기로 줄인 것)와 조사 수정안. 날짜는 시작 11/4(수) 기준.
+const WEEKS = [
+  { n: 1, date: "11/4", verdict: ["ok", "적절"], why: "1·6주차 5K 측정으로 페이스를 다시 잡는 구조는 히그던·맥밀런과 같다. 겨울 첫 모임의 전력 달리기라 <b>워밍업 15분 + 드릴</b>을 넉넉히.",
+    cur: { kind: "TT", phase: "측정", ttl: "킥오프 + 5K 기록 측정", main: "5K 최선을 다해", easy: null, purp: "지금 실력 측정 → 훈련팀·10K 목표를 정하는 기준기록" },
+    alt: { kind: "TT", phase: "측정", ttl: "킥오프 + 5K 기록 측정", main: "워밍업 15분 + 드릴 → 5K 최선을 다해", easy: null, purp: "현재 기록으로 훈련 페이스를 정한다" } },
+  { n: 2, date: "11/11", verdict: ["warn", "주의"], why: "400m @P-15초는 이번 12주에서 가장 날카로운 세션이라 <b>측정 바로 다음 주 첫 훈련으로는 세다</b>. 조사안은 파틀렉으로 몸을 먼저 열고 400m를 4주차로 미룬다.",
+    cur: { kind: "R", phase: "기초", ttl: "400m 반복", main: "400m @ P-15초 → 200m 조깅 · 8회", easy: "6회", purp: "목표보다 빠른 속도에 다리를 익힌다" },
+    alt: { kind: "F", phase: "도입", ttl: "파틀렉 24분 + 스트라이드", main: "1분 @ P-10초 ↔ 1분 조깅, 24분 → 스트라이드 20초 × 4", easy: "20분", purp: "고강도에 적응, 그룹 안의 속도 차이를 흡수" } },
+  { n: 3, date: "11/18", verdict: ["ok", "적절"], why: "초반 언덕은 다니엘스·맥밀런·허드슨 모두 둔다. 다만 60~90초는 센 편이라 <b>60~75초</b>, 회복은 내리막 조깅을 권장.",
+    cur: { kind: "H", phase: "기초", ttl: "언덕 반복", main: "오르막 60~90초 → 내려오며 걷기·조깅 · 8회", easy: "6회", purp: "다리 근력과 팔치기·발 디딤 — 부상 부담 적은 근력 스피드" },
+    alt: { kind: "H", phase: "도입", ttl: "언덕 반복", main: "오르막 60~75초 → 내려오며 조깅 · 6→8회", easy: "5~6회", purp: "근력과 주법" } },
+  { n: 4, date: "11/25", verdict: ["ok", "적절"], why: "템포 P+15초는 역치보다 살짝 느려 도입 단계로 알맞다. 조사안은 이 자리에 2주차의 400m를 넣고 템포를 5주차로 민다.",
+    cur: { kind: "T", phase: "기초", ttl: "템포런 20분", main: "20분 @ P+15초 연속", easy: "15분", purp: "젖산역치 — 숨이 차기 직전 속도를 오래 버티는 힘" },
+    alt: { kind: "R", phase: "도입", ttl: "400m 반복", main: "400m @ P-15초 → 200m 조깅 · 8회", easy: "6회", purp: "속도와 러닝 이코노미" } },
+  { n: 5, date: "12/2", verdict: ["warn", "주의"], why: "원안엔 회복이 없었는데 지금은 <b>1분 조깅이 들어가 있다</b>(#585). 조사안은 1.6km 반복을 빼고 템포 20분을 이 자리로 옮긴다 — 역치 첫 자극.",
+    cur: { kind: "T", phase: "기초", ttl: "1.6km 반복", main: "1.6km @ P+10초 → 1분 조깅 · 3회", easy: "2회", purp: "템포를 세 토막으로 나눠 더 많이 쌓기" },
+    alt: { kind: "T", phase: "도입", ttl: "템포런 20분", main: "20분 @ P+10~15초 연속", easy: "15분", purp: "역치 첫 자극" } },
+  { n: 6, date: "12/9", verdict: ["same", "같음"], why: "중반 5K 측정은 히그던·맥밀런도 둔다. 두 안이 같다.",
+    cur: { kind: "TT", phase: "점검", ttl: "5K 기록 측정 (중간점검)", main: "5K 최선을 다해", easy: null, purp: "6주 성과 확인 · 향상 점수 · 훈련팀 재배정" },
+    alt: { kind: "TT", phase: "점검", ttl: "5K 기록 측정 (중간점검)", main: "5K 최선을 다해", easy: null, purp: "페이스 재설정" } },
+  { n: 7, date: "12/16", verdict: ["ok", "적절"], why: "800m @P-10초는 5K 페이스 수준 — VO2max 자극으로 알맞다. 조사안은 회복을 거리(400m) 대신 <b>2분</b>으로 적고 속도 폭을 P-10~15초로.",
+    cur: { kind: "I", phase: "강화", ttl: "800m 반복", main: "800m @ P-10초 → 400m 조깅(2~3분) · 6회", easy: "4회", purp: "VO2max를 올린다" },
+    alt: { kind: "I", phase: "강화", ttl: "800m 반복", main: "800m @ P-10~15초 → 2분 조깅 · 6회", easy: "4회", purp: "VO2max" } },
+  { n: 8, date: "12/23", verdict: ["ok", "적절"], why: "템포 2세트는 역치 볼륨을 늘리는 세션. 세트 사이 2분 조깅은 이미 들어가 있다. 조사안은 강도를 P+5~10초로 조금 올린다.",
+    cur: { kind: "T", phase: "강화", ttl: "템포런 12분 × 2", main: "12분 @ P+10초 → 2분 조깅 → 12분", easy: "10분 × 2", purp: "4주차보다 빠른 역치를 두 번에 나눠 버티기 · 연말 주간" },
+    alt: { kind: "T", phase: "강화", ttl: "템포런 12분 × 2", main: "12분 @ P+5~10초 → 2분 조깅 → 12분", easy: "10분 × 2", purp: "역치 볼륨" } },
+  { n: 9, date: "12/30", verdict: ["warn", "주의"], why: "파틀렉은 실전기 직전에 두기엔 막연하다(원안엔 강도도 없었다). 조사안은 <b>1km 반복</b>으로 VO2max를 한 번 더 — 긴 반복.",
+    cur: { kind: "F", phase: "강화", ttl: "파틀렉 30분", main: "1분 @ P-10~15초 ↔ 1분 조깅, 30분", easy: "25분", purp: "속도 전환 적응 · 올해 마지막 런" },
+    alt: { kind: "I", phase: "강화", ttl: "1km 반복", main: "1km @ P-10~15초 → 2분30초 조깅 · 5회", easy: "4회", purp: "긴 반복으로 VO2max" } },
+  { n: 10, date: "1/6", verdict: ["ok", "적절"], why: "목표 페이스 블록의 핵심 세션. 조사안은 회복만 3분으로 적는다.",
+    cur: { kind: "P", phase: "특화", ttl: "2km 반복", main: "2km @ P → 600m 조깅(약 3분) · 3회", easy: "2회", purp: "목표 페이스로 긴 구간을 버티는 레이스 지구력" },
+    alt: { kind: "P", phase: "실전", ttl: "2km 반복", main: "2km @ P → 3분 조깅 · 3회", easy: "2회", purp: "목표 페이스 적응" } },
+  { n: 11, date: "1/13", verdict: ["bad", "문제"], why: "목표 페이스 거리가 10주차 6km → 11주차 4km로 <b>줄어 후퇴</b>한다. 목표 페이스 블록은 반복 거리를 늘려 가야 하고(맥밀런), 정점 세션을 측정 약 2주 전에 둔다.",
+    cur: { kind: "P", phase: "특화", ttl: "1km 반복", main: "1km @ P → 2분 조깅 · 4회", easy: "3회", purp: "목표 페이스 감각 새기기" },
+    alt: { kind: "P", phase: "실전", ttl: "3km 반복 — 12주의 정점", main: "3km @ P → 4분 조깅 · 2회 (38분 이하 그룹은 3회 가능)", easy: "2.5km × 2", purp: "12주의 정점 세션 — 측정 약 2주 전" } },
+  { n: 12, date: "1/20", verdict: ["bad", "문제"], why: "6km 연속 @P는 측정 7일 전에 치르는 <b>미니 레이스</b>다. 테이퍼는 강도·빈도는 유지하고 양만 40~60% 줄인다(Bosquet 2007).",
+    cur: { kind: "P", phase: "마무리", ttl: "레이스 리허설", main: "6km @ P 연속", easy: "4km", purp: "페이스 배분·복장·보급 점검" },
+    alt: { kind: "X", phase: "조정", ttl: "짧은 레이스 페이스 + 스트라이드", main: "1km @ P → 2분 조깅 · 3회 → 스트라이드 4회", easy: "1km × 2", purp: "강도는 유지하고 양만 줄이기 · 워밍업·장비 리허설" } },
+  { n: 13, date: "1/27 또는 2/3", verdict: ["same", "같음"], why: "두 안이 같다. 조사 쪽 권장은 측정일을 13주차(1/27)로 하나로 정해 두는 것 — 테이퍼를 거꾸로 짤 수 있다.",
+    cur: { kind: "TT", phase: "측정", ttl: "10K 기록 측정", main: "10K 최선을 다해", easy: null, purp: "12주 결과 — 최종 기록 · 목표 달성 · 향상 점수" },
+    alt: { kind: "TT", phase: "측정", ttl: "10K 기록 측정", main: "10K 최선을 다해", easy: null, purp: "결과 확인" } },
+];
+
+const GENERAL = [
+  { id: "kindLabel", q: "앱 훈련 탭 표시", desc: "지금 앱은 회차마다 「목적」 문장을 단다. 다 '10K 단축'으로 읽히니, 훈련 종류 이름(역치·VO2max·레이스 페이스…)과 그게 기르는 것 한 줄로 바꿀지.",
+    opts: [["alt", "훈련 종류로 표시", "칩: 역치 훈련 · P+5~15초 / 한 줄: 오래 버티는 힘"], ["cur", "지금처럼 목적 문장", "회차마다 따로 쓴 목적 한두 줄"]] },
+  { id: "phase", q: "단계 이름", desc: "2~5주차는 엄밀히 '기초(쉬운 달리기만 하는 기간)'가 아니라 품질 훈련을 시작하는 '도입'이다(다니엘스 2단계).",
+    opts: [["cur", "지금대로", "측정 · 기초 · 점검 · 강화 · 특화 · 마무리"], ["alt", "조사안", "측정 · 도입 · 점검 · 강화 · 실전 · 조정"]] },
+  { id: "pace", q: "훈련 페이스 기준", desc: "다니엘스는 목표가 아니라 현재 기록으로 훈련 페이스를 잡는다. 1·6주차 측정이 목표보다 한참 느린 사람이 목표 페이스로 인터벌을 뛰면 과부하가 된다.",
+    opts: [["cur", "목표 페이스(P) 그대로", "모두 P 기준. 단순하다"], ["alt", "측정 기록이 목표보다 느리면 그 기록 기준", "머리말에 한 줄: '1·6주차 5K 기록 × 2.085 ÷ 10이 P보다 느리면 그걸 P로 써요'"]] },
+  { id: "self", q: "개인 훈련 안내 (훈련 탭 머리말)", desc: "지도 세션은 주 1회라 최소치다(히그던 중급 주 2회·고급 3회). 나머지 날 안내가 결과를 좌우한다. 주간 거리는 적지 않는다.",
+    opts: [["cur", "지금대로", "'개인 이지런·롱런은 각자 — 출석으로 인정 안 함' 한 줄"], ["alt", "안내 추가", "쉬운 달리기 주 2~3회(대화 가능한 속도) · 스트라이드 20초 × 4~6 주 2회 · 장거리 주 1회(50분·첫 10K 8→13km, 38~45분 12→16km) · 12주차·측정 전은 개인 훈련량 40~60% 줄이기"]] },
+  { id: "measure", q: "10K 측정 날짜", desc: "",
+    opts: [["cur", "13~14주차 중 하루 (그때 정함)", "지금 규칙"], ["alt", "13주차(1/27)로 확정", "테이퍼(12주차)를 거꾸로 짤 수 있다"]] },
+];
+
+const KEY = "pb-plan-pick-v1";
+let state = {};
+try { state = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch { state = {}; }
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} };
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const planText = (p) => `[${KINDS[p.kind].nm}] ${p.ttl} — ${p.main}${p.easy ? ` / 첫 10K: ${p.easy}` : ""}`;
+
+function optBlock(name, value, label, plan, checked) {
+  const k = KINDS[plan.kind];
+  return `<label class="opt ${checked ? "sel" : ""}">
+    <input type="radio" name="${name}" value="${value}" ${checked ? "checked" : ""}>
+    <div class="opt-label">${esc(label)} <span class="phase">${esc(plan.phase)}</span></div>
+    <div style="display:flex;align-items:center;gap:8px;margin:2px 0 6px"><span class="kind k-${plan.kind}">${esc(k.nm)}</span><span class="wk-date">${esc(k.pace)}</span></div>
+    <div class="ttl">${esc(plan.ttl)}</div>
+    <div class="row"><span class="k">38~50분</span><span>${esc(plan.main)}</span>
+      ${plan.easy ? `<span class="k">첫 10K</span><span>${esc(plan.easy)}</span>` : ""}</div>
+  </label>`;
+}
+
+function renderDict() {
+  document.getElementById("dict").innerHTML = Object.entries(KINDS).map(([id, k]) => `
+    <div class="card">
+      <div class="d-head"><span class="kind k-${id}">${esc(k.nm)}</span><span class="d-pace">${esc(k.pace)}</span></div>
+      <div class="d-body">${k.what}<br>${esc(k.feel)}</div>
+    </div>`).join("");
+}
+
+function renderWeeks() {
+  document.getElementById("weeks").innerHTML = WEEKS.map((w) => {
+    const s = state["w" + w.n] || {};
+    const same = w.verdict[0] === "same";
+    return `<div class="card" data-wk="${w.n}">
+      <div class="wk-head">
+        <span class="wk-no">${w.n === 13 ? "측정" : w.n + "주차"}</span>
+        <span class="wk-date">${esc(w.date)}</span>
+        <span class="badge b-${w.verdict[0]}">${w.verdict[1]}</span>
+        ${s.pick ? `<span class="done">✓ 골랐어요</span>` : ""}
+      </div>
+      <div class="why">${w.why}</div>
+      <div class="opts">
+        ${optBlock("w" + w.n, "cur", "지금 훈련표", w.cur, s.pick === "cur")}
+        ${same ? "" : optBlock("w" + w.n, "alt", "조사 수정안", w.alt, s.pick === "alt")}
+        <label class="opt custom ${s.pick === "own" ? "sel" : ""}">
+          <input type="radio" name="w${w.n}" value="own" ${s.pick === "own" ? "checked" : ""}>
+          <div class="opt-label">직접 쓰기</div>
+          <textarea data-own="${w.n}" placeholder="예) 400m @ P-15초 → 200m 조깅 · 10회 / 첫 10K 6회">${esc(s.own ?? "")}</textarea>
+        </label>
+      </div>
+      <div class="note"><input data-note="${w.n}" placeholder="메모 (선택) — 장소·행사 등" value="${esc(s.note ?? "")}"></div>
+    </div>`;
+  }).join("");
+}
+
+function renderGeneral() {
+  document.getElementById("general").innerHTML = GENERAL.map((g) => {
+    const s = state["g_" + g.id] || {};
+    return `<div class="card gen" data-gen="${g.id}">
+      <div class="q">${esc(g.q)} ${s.pick ? `<span class="done">✓</span>` : ""}</div>
+      ${g.desc ? `<div class="q-desc">${esc(g.desc)}</div>` : ""}
+      <div class="opts">${g.opts.map(([v, l, d]) => `
+        <label class="opt ${s.pick === v ? "sel" : ""}">
+          <input type="radio" name="g_${g.id}" value="${v}" ${s.pick === v ? "checked" : ""}>
+          <div class="ttl">${esc(l)}</div><div class="purp" style="border:0;padding:0;margin:0">${esc(d)}</div>
+        </label>`).join("")}</div>
+    </div>`;
+  }).join("");
+}
+
+function progress() {
+  const done = WEEKS.filter((w) => state["w" + w.n]?.pick).length + GENERAL.filter((g) => state["g_" + g.id]?.pick).length;
+  document.getElementById("progress").innerHTML = `<b>${done}</b> / ${WEEKS.length + GENERAL.length} 골랐어요`;
+}
+
+function render() { renderGeneral(); renderWeeks(); progress(); }
+renderDict();
+
+document.addEventListener("change", (e) => {
+  const t = e.target;
+  if (t.type === "radio") {
+    const key = t.name;
+    state[key] = { ...(state[key] || {}), pick: t.value };
+    if (t.value === "own" && !state[key].own) {
+      const w = WEEKS.find((x) => "w" + x.n === key);
+      if (w) state[key].own = planText(w.cur);
+    }
+    save(); render();
+  }
+});
+document.addEventListener("input", (e) => {
+  const t = e.target;
+  if (t.dataset.own) { const k = "w" + t.dataset.own; state[k] = { ...(state[k] || {}), own: t.value }; save(); }
+  if (t.dataset.note) { const k = "w" + t.dataset.note; state[k] = { ...(state[k] || {}), note: t.value }; save(); }
+});
+
+function summary() {
+  const lines = ["[PB 클래스 훈련표 선택 결과]", ""];
+  for (const g of GENERAL) {
+    const s = state["g_" + g.id];
+    const opt = g.opts.find(([v]) => v === s?.pick);
+    lines.push(`- ${g.q}: ${opt ? opt[1] : "(안 고름)"}`);
+  }
+  lines.push("");
+  for (const w of WEEKS) {
+    const s = state["w" + w.n] || {};
+    const label = w.n === 13 ? "측정" : w.n + "주차";
+    let txt = "(안 고름)";
+    if (s.pick === "cur") txt = "지금대로 — " + planText(w.cur);
+    if (s.pick === "alt") txt = `조사안(${w.alt.phase}) — ` + planText(w.alt);
+    if (s.pick === "own") txt = "직접 — " + (s.own || "");
+    lines.push(`${label}: ${txt}${s.note ? `  [메모: ${s.note}]` : ""}`);
+  }
+  return lines.join("\n");
+}
+
+document.getElementById("copy").onclick = async () => {
+  const text = summary();
+  const out = document.getElementById("out");
+  try { await navigator.clipboard.writeText(text); const t = document.getElementById("toast"); t.classList.add("on"); setTimeout(() => t.classList.remove("on"), 1800); }
+  catch { /* 파일로 열면 클립보드가 막힐 수 있다 — 아래에 펼쳐 손으로 복사하게 */ }
+  out.textContent = text; out.style.display = "block"; out.scrollIntoView({ behavior: "smooth" });
+};
+document.getElementById("reset").onclick = () => { if (confirm("고른 것을 모두 지울까요?")) { state = {}; save(); render(); document.getElementById("out").style.display = "none"; } };
+
+render();
+</script>
+</body>
+</html>
