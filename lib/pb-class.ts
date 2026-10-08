@@ -32,7 +32,7 @@ export type PbClassCfg = {
   depositAmt: number;
   /** 참가비(돌려주지 않는다) */
   entryFeeAmt: number;
-  /** 마일리지런에 참가했던 사람의 보증금 할인액(오너 지시 2026-10-07) */
+  /** 마일리지런에 참가했던 사람의 참가비 할인액(오너 지시 2026-10-07, 보증금 → 참가비 2026-10-08) */
   mlgDcAmt: number;
 };
 
@@ -240,12 +240,15 @@ export function feesForJoinWeek(
   joinWkNo: number,
   cfg: PbClassCfg,
   opts: { mlgAlumni?: boolean } = {},
-): { depositAmt: number; entryFeeAmt: number; depositDcAmt: number } {
-  if (isLateJoin(joinWkNo, cfg)) return { depositAmt: 0, entryFeeAmt: cfg.entryFeeAmt, depositDcAmt: 0 };
-  // 마일리지런 참가자는 보증금에서 깎는다. 환급은 **실제로 낸 보증금** 기준이라(refundAmt 가 참가자 행의
-  // deposit_amt 를 쓴다) 9회를 채우면 깎인 금액 전액이 돌아온다 — 할인이 환급 공식을 건드리지 않게.
-  const dc = opts.mlgAlumni ? Math.min(cfg.mlgDcAmt, cfg.depositAmt) : 0;
-  return { depositAmt: cfg.depositAmt - dc, entryFeeAmt: cfg.entryFeeAmt, depositDcAmt: dc };
+): { depositAmt: number; entryFeeAmt: number; entryFeeDcAmt: number } {
+  // 마일리지런 참가자는 **참가비**에서 깎는다(오너 2026-10-08 — 보증금이 아니다). 보증금은 누구나 같아서
+  // 환급 표도 하나다. 참가비는 늦은 합류자도 내므로 할인도 똑같이 받는다. 참가비보다 크게는 못 깎는다.
+  const dc = opts.mlgAlumni ? Math.min(cfg.mlgDcAmt, cfg.entryFeeAmt) : 0;
+  return {
+    depositAmt: isLateJoin(joinWkNo, cfg) ? 0 : cfg.depositAmt,
+    entryFeeAmt: cfg.entryFeeAmt - dc,
+    entryFeeDcAmt: dc,
+  };
 }
 
 /**

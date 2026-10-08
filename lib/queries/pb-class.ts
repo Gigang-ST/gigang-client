@@ -70,10 +70,10 @@ export type PbParticipant = {
   depositAmt: number;
   entryFeeAmt: number;
   /**
-   * 신청 때 적용된 보증금 할인(마일리지런 참가자 할인). `depositAmt`는 **할인 뒤** 실제 보증금이라
-   * 환급 계산엔 들어가지 않고 화면 표시("5,000원 할인")·감사용이다.
+   * 신청 때 적용된 참가비 할인(마일리지런 참가자 할인). `entryFeeAmt`는 **할인 뒤** 실제 참가비다.
+   * 보증금·환급과는 무관하고 화면 표시("5,000원 할인")·감사용이다.
    */
-  depositDcAmt: number;
+  entryFeeDcAmt: number;
   aprvYn: boolean;
   aprvAt: string | null;
   summary: PbRefundSummary;
@@ -113,7 +113,7 @@ export type MyPbClass = {
   /** 회차별 훈련표(sessNo 오름차순). 비어 있으면 훈련표 섹션을 안 그린다 */
   sessPlans: PbSessPlan[];
   /**
-   * 같은 팀 마일리지런에 승인 참가한 적이 있는가 — 신청 **전에** 보증금 할인을 보여 주려는 값이다.
+   * 같은 팀 마일리지런에 승인 참가한 적이 있는가 — 신청 **전에** 참가비 할인을 보여 주려는 값이다.
    * 신청 때의 실제 할인은 `joinPbClass`가 서버에서 다시 판정하므로(이 값을 믿고 깎지 않는다) 표시용일 뿐이다.
    */
   mlgAlumni: boolean;
@@ -155,7 +155,7 @@ export type PbLinkRow = {
 };
 export type PbPrtRow = Pick<
   Tables<"evt_pb_prt_rel">,
-  "prt_id" | "mem_id" | "join_wk_no" | "deposit_amt" | "deposit_dc_amt" | "entry_fee_amt" | "aprv_yn" | "aprv_at"
+  "prt_id" | "mem_id" | "join_wk_no" | "deposit_amt" | "entry_fee_dc_amt" | "entry_fee_amt" | "aprv_yn" | "aprv_at"
 > & {
   mem_nm: string;
   avatar_url: string | null;
@@ -229,7 +229,7 @@ function toParticipant(
     joinWkNo: row.join_wk_no,
     depositAmt: row.deposit_amt,
     entryFeeAmt: row.entry_fee_amt,
-    depositDcAmt: row.deposit_dc_amt,
+    entryFeeDcAmt: row.entry_fee_dc_amt,
     aprvYn: row.aprv_yn,
     aprvAt: row.aprv_at,
     // 입금 대기자도 같은 함수로 요약한다 — 승인되면 숫자가 바뀌지 않고 그대로 확정된다
@@ -430,7 +430,7 @@ function toPrtRow(r: {
   mem_id: string;
   join_wk_no: number;
   deposit_amt: number;
-  deposit_dc_amt: number;
+  entry_fee_dc_amt: number;
   entry_fee_amt: number;
   aprv_yn: boolean;
   aprv_at: string | null;
@@ -442,7 +442,7 @@ function toPrtRow(r: {
     mem_id: r.mem_id,
     join_wk_no: r.join_wk_no,
     deposit_amt: r.deposit_amt,
-    deposit_dc_amt: r.deposit_dc_amt,
+    entry_fee_dc_amt: r.entry_fee_dc_amt,
     entry_fee_amt: r.entry_fee_amt,
     aprv_yn: r.aprv_yn,
     aprv_at: r.aprv_at,
@@ -452,7 +452,7 @@ function toPrtRow(r: {
 }
 
 const PRT_SELECT =
-  "prt_id, mem_id, join_wk_no, deposit_amt, deposit_dc_amt, entry_fee_amt, aprv_yn, aprv_at, mem_mst(mem_nm, avatar_url)";
+  "prt_id, mem_id, join_wk_no, deposit_amt, entry_fee_dc_amt, entry_fee_amt, aprv_yn, aprv_at, mem_mst(mem_nm, avatar_url)";
 
 /**
  * 연결된 벙들의 참석 행.
@@ -487,7 +487,7 @@ export async function loadSessPlanRows(db: Db, evtId: string): Promise<PbSessPla
 }
 
 // ─────────────────────────────────────────
-// 마일리지런 참가 이력 (보증금 할인 자격)
+// 마일리지런 참가 이력 (참가비 할인 자격)
 // ─────────────────────────────────────────
 
 /** evt_team_mst.evt_type_cd — 마일리지런. PB 할인 자격은 이 종류의 프로젝트 참가 이력으로만 본다 */
@@ -497,7 +497,7 @@ const MILEAGE_RUN_TYPE = "MILEAGE_RUN";
  * 마일리지런 이력이 있는가 = **같은 팀**의 `MILEAGE_RUN` 프로젝트에 **승인된**(`aprv_yn=true`) 참가 행이 하나라도 있다.
  *
  * - 승인만 센다: 신청만 하고 입금 확인이 안 된 사람은 실제로 참가한 게 아니다(거부는 행이 지워진다).
- * - 팀 범위: 다른 팀의 마일리지런 이력으로 이 팀 PB 보증금이 깎이지 않게 한다.
+ * - 팀 범위: 다른 팀의 마일리지런 이력으로 이 팀 PB 참가비가 깎이지 않게 한다.
  * - 프로젝트 상태(ACTIVE/CLOSED)는 안 본다 — 지난 시즌 참가자가 정확히 이 할인의 대상이다.
  * - **조회가 실패하면 던진다**(0건으로 눙치지 않는다). 신청 액션이 이걸로 금액을 정하므로, 에러를 「이력 없음」으로
  *   삼키면 할인 대상자가 말없이 5천 원을 더 내게 된다. 화면 표시용 호출부(`loadMyPbClass`)만 따로 물러난다.

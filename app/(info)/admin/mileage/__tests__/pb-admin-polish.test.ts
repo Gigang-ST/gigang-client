@@ -74,12 +74,12 @@ describe("PB 설정 폼 — 마일리지런 할인", () => {
     expect("cfg" in parsed && parsed.cfg).toEqual(PB_CLASS_DEFAULT_CFG);
   });
 
-  it("할인 0원은 허용하고, 보증금을 넘는 할인은 저장 전에 막는다", () => {
+  it("할인 0원은 허용하고, 참가비를 넘는 할인은 저장 전에 막는다(참가비에서 깎는 할인이라)", () => {
     expect("cfg" in parsePbCfgForm({ ...toPbCfgForm(PB_CLASS_DEFAULT_CFG), mlgDcAmt: "0" })).toBe(true);
-    const over = parsePbCfgForm({ ...toPbCfgForm(PB_CLASS_DEFAULT_CFG), mlgDcAmt: "50000" });
-    expect("error" in over && over.error).toContain("보증금");
-    // 보증금과 같은 금액까지는 괜찮다(0원 보증금이 되는 것일 뿐)
-    expect("cfg" in parsePbCfgForm({ ...toPbCfgForm(PB_CLASS_DEFAULT_CFG), mlgDcAmt: "30000" })).toBe(true);
+    const over = parsePbCfgForm({ ...toPbCfgForm(PB_CLASS_DEFAULT_CFG), mlgDcAmt: "10001" });
+    expect("error" in over && over.error).toContain("참가비");
+    // 참가비와 같은 금액까지는 괜찮다(참가비 0원이 되는 것일 뿐)
+    expect("cfg" in parsePbCfgForm({ ...toPbCfgForm(PB_CLASS_DEFAULT_CFG), mlgDcAmt: "10000" })).toBe(true);
   });
 
   it("숫자가 아닌 할인은 거른다", () => {

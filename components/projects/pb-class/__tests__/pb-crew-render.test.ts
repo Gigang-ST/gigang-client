@@ -57,7 +57,7 @@ function makePrt(
     joinWkNo,
     depositAmt,
     entryFeeAmt: CFG.entryFeeAmt,
-    depositDcAmt: 0,
+    entryFeeDcAmt: 0,
     aprvYn: opts.aprvYn ?? true,
     aprvAt: null,
     summary: summarizeRefund({ joinWkNo, depositAmt, links: sessions, attendedGthrIds: new Set(attended), cfg: CFG }),

@@ -111,8 +111,8 @@ function EditForm({
     const n = toInt(v);
     if (Number.isInteger(n) && n >= 1) {
       // 이미 마일리지런 할인을 받은 사람이면 새 주차에서도 할인을 이어 준다 — 정가로 되돌리면
-      // 주차만 바꿨는데 보증금이 슬그머니 올라간다(늦은 합류로 가면 어차피 0이다)
-      const fees = feesForJoinWeek(n, cfg, { mlgAlumni: participant.depositDcAmt > 0 });
+      // 주차만 바꿨는데 참가비가 슬그머니 올라간다(참가비 할인은 늦은 합류자도 받는다)
+      const fees = feesForJoinWeek(n, cfg, { mlgAlumni: participant.entryFeeDcAmt > 0 });
       setDeposit(String(fees.depositAmt));
       setEntryFee(String(fees.entryFeeAmt));
     }
@@ -330,9 +330,9 @@ function AddForm({
           </Caption>
         )}
         {/* 서버가 마일리지런 참가 이력을 보고 정한다 — 여기선 고를 수 없다는 것만 알려 준다.
-            할인이 0원이거나 늦은 합류(보증금 자체가 없음)면 해당 없는 말이라 안 띄운다 */}
-        {fees && fees.depositAmt > 0 && cfg.mlgDcAmt > 0 && (
-          <Caption>마일리지런 참가자면 할인이 자동으로 적용돼요 (보증금 −{cfg.mlgDcAmt.toLocaleString()}원).</Caption>
+            할인이 0원이면 해당 없는 말이라 안 띄운다(참가비 할인이라 늦은 합류자도 받는다) */}
+        {fees && cfg.mlgDcAmt > 0 && (
+          <Caption>마일리지런 참가자면 할인이 자동으로 적용돼요 (참가비 −{Math.min(cfg.mlgDcAmt, cfg.entryFeeAmt).toLocaleString()}원).</Caption>
         )}
       </div>
       <div className="shrink-0 border-t border-border p-4">

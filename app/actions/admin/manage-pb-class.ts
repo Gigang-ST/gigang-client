@@ -1,13 +1,17 @@
 "use server";
 
 import { revalidatePath, updateTag } from "next/cache";
+import { after } from "next/server";
 
 import { withAdmin } from "@/lib/actions/auth";
 import { dayjs, formatKST, parseEventTime } from "@/lib/dayjs";
+import { env } from "@/lib/env";
+import { notifyGatheringCreated } from "@/lib/gathering/kakao-dispatch";
 import {
   feesForJoinWeek,
   pbEndDtFor,
   weekNoOf,
+  wkLabel,
   type PbClassCfg,
   type PbSessType,
 } from "@/lib/pb-class";
@@ -33,6 +37,7 @@ import {
 } from "@/lib/queries/pb-class";
 import { ensureDefaultSessPlans } from "@/lib/pb-class-seed";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getRequestOrigin } from "@/lib/request-origin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import {
@@ -388,7 +393,7 @@ export async function deletePbParticipant(prtId: string): Promise<R> {
 
 export async function updatePbParticipant(
   prtId: string,
-  input: { joinWkNo: number; depositAmt: number; entryFeeAmt: number; depositDcAmt?: number },
+  input: { joinWkNo: number; depositAmt: number; entryFeeAmt: number; entryFeeDcAmt?: number },
 ): Promise<R> {
   const parsedPrt = pbPrtIdSchema.safeParse(prtId);
   if (!parsedPrt.success) return { ok: false, message: firstIssue(parsedPrt.error) };
@@ -402,16 +407,16 @@ export async function updatePbParticipant(
     if (!(await guardParticipant(db, parsedPrt.data, teamId))) return { ok: false, message: "참가자를 찾을 수 없습니다" };
 
     // 환급 계산은 이 행의 deposit_amt 를 쓴다 — 관리자가 실제 낸 금액으로 고칠 수 있어야 한다.
-    // deposit_dc_amt 는 표시용이라 환급엔 영향이 없지만, 보증금이 0(늦은 합류로 바꾼 경우 등)이면
-    // 「할인 받았다」는 기록이 남을 이유가 없어 0 으로 맞춘다 — 화면에 "보증금 0원, 할인 5,000원"이 뜨지 않게.
-    const dcAmt = parsedInput.data.depositAmt === 0 ? 0 : parsedInput.data.depositDcAmt;
+    // entry_fee_dc_amt 는 표시·감사용이라 환급엔 영향이 없다. 참가비 할인은 늦은 합류자도 받으므로
+    // 보증금이 0이 돼도 그대로 둔다(예전 보증금 할인 땐 0으로 지웠다).
+    const dcAmt = parsedInput.data.entryFeeDcAmt;
     const { error } = await db
       .from("evt_pb_prt_rel")
       .update({
         join_wk_no: parsedInput.data.joinWkNo,
         deposit_amt: parsedInput.data.depositAmt,
         entry_fee_amt: parsedInput.data.entryFeeAmt,
-        ...(dcAmt === undefined ? {} : { deposit_dc_amt: dcAmt }),
+        ...(dcAmt === undefined ? {} : { entry_fee_dc_amt: dcAmt }),
         updated_at: dayjs().toISOString(),
       })
       .eq("prt_id", parsedPrt.data);
@@ -461,7 +466,7 @@ export async function addPbParticipant(evtId: string, memId: string, joinWkNo: n
     if (cfgError) return { ok: false, message: GENERIC_FAIL };
 
     // 회원이 직접 신청할 때와 같은 할인을 적용한다 — 관리자 추가는 "카톡으로 먼저 받은 사람"이라 같은 사람이
-    // 어느 문으로 들어왔느냐에 따라 보증금이 달라지면 안 된다. 관리자가 실제 낸 금액이 다르면 수정으로 고친다.
+    // 어느 문으로 들어왔느냐에 따라 참가비가 달라지면 안 된다. 관리자가 실제 낸 금액이 다르면 수정으로 고친다.
     // 조회가 실패하면 할인 대상자에게 말없이 더 받게 되므로 행을 만들지 않고 실패로 돌려보낸다.
     let mlgAlumni: boolean;
     try {
@@ -478,7 +483,7 @@ export async function addPbParticipant(evtId: string, memId: string, joinWkNo: n
       mem_id: parsedMem.data,
       join_wk_no: parsedWk.data,
       deposit_amt: fees.depositAmt,
-      deposit_dc_amt: fees.depositDcAmt,
+      entry_fee_dc_amt: fees.entryFeeDcAmt,
       entry_fee_amt: fees.entryFeeAmt,
       aprv_yn: true,
       aprv_at: now,
@@ -706,7 +711,9 @@ function failMsg(created: number, why: string): string {
  * 초안대로 벙(`gthr_mst`, 정기런)을 만들고 곧바로 이 프로젝트에 연결한다.
  *
  * - 정기런(`regular`)이다 — 개설 포인트는 일반(`general`) 벙에만 붙는다(기강포인트제도 §gthr_mst).
- * - 알림·단톡방 공지·개설자 자동 참석은 **하지 않는다** — 12개를 한꺼번에 알리면 스팸이다. 공지는 운영진이 따로 한다.
+ * - **한 주차만 열면 단톡방 공지(노티봇)를 보낸다** — 모임 등록(`createGathering`)과 같은 문구·같은 경로다
+ *   (오너 2026-10-08). 여러 개를 한꺼번에 열면 보내지 않는다 — 12개가 연달아 올라가면 도배다. 그땐 각 벙의
+ *   공유 시트 「단톡방에 알림」으로 주차마다 올린다. 인앱 알림·개설자 자동 참석은 어느 쪽이든 하지 않는다.
  * - 주차는 클라이언트 값을 믿지 않고 시작 시각에서 다시 계산해, 초안이 들고 온 `wkNo`와 다르면 거절한다.
  * - 벙을 만든 뒤 연결이 실패하면 그 벙을 소프트삭제해 연결 안 된 고아가 남지 않게 한다.
  *   중간에 실패하면 거기서 멈추고, 이미 연 것은 그대로 둔다(메시지에 개수를 적는다).
@@ -776,6 +783,9 @@ export async function createPbSessGatherings(
       rows.push({ d, startIso, endIso: draftEndIso(d), wkNo });
     }
 
+    // 카톡 공지 링크용 origin — `after()` 안에선 요청 헤더를 못 읽으므로 여기서 받아 둔다(createGathering 과 같다)
+    const origin = rows.length === 1 ? await getRequestOrigin() : null;
+
     let created = 0;
     for (const { d, startIso, endIso, wkNo } of rows) {
       const { data: gthr, error: gthrError } = await db
@@ -792,7 +802,7 @@ export async function createPbSessGatherings(
           crt_by: member.id,
           del_yn: false,
         })
-        .select("gthr_id")
+        .select("gthr_id, short_id")
         .single();
       if (gthrError || !gthr) {
         console.error("[createPbSessGatherings] gthr_mst insert", gthrError?.message);
@@ -818,8 +828,35 @@ export async function createPbSessGatherings(
         return { ok: false, message: failMsg(created, why), created };
       }
       created += 1;
+
+      // 한 주차만 열었을 때만 — 응답을 기다리게 하지 않고, 실패는 sendKakao 안에서 삼킨다(벙은 이미 열렸다)
+      if (rows.length === 1) {
+        after(() =>
+          notifyGatheringCreated({
+            gthrId: gthr.gthr_id,
+            ref: gthr.short_id ?? gthr.gthr_id,
+            origin,
+            title: d.gthrNm,
+            sttAt: startIso,
+            endAt: endIso,
+            location: d.locTxt === "" ? null : d.locTxt,
+            authorName: member.full_name ?? null,
+            maxCount: null,
+          }),
+        );
+      }
     }
 
+    if (rows.length === 1) {
+      const what = rows[0].d.sessType === "MEASURE" ? "10K 측정 벙" : `${wkLabel(rows[0].wkNo)} 훈련벙`;
+      // 노티봇이 없는 환경(로컬·preview)에선 sendKakao 가 조용히 건너뛴다 — 보냈다고 말하지 않는다
+      const kakaoOn = Boolean(env.KAKAO_WEBHOOK_URL && env.KAKAO_ROOM);
+      return {
+        ok: true,
+        message: kakaoOn ? `${what}을 열었어요 — 단톡방에도 공지했어요` : `${what}을 열었어요`,
+        created,
+      };
+    }
     return { ok: true, message: `공식훈련 벙 ${created}개를 열었어요`, created };
   });
 

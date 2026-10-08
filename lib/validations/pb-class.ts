@@ -45,8 +45,8 @@ export const pbCfgSchema = z
       .min(2, "늦은 합류 주차는 2주차 이상이어야 합니다"),
     depositAmt: amtSchema("보증금"),
     entryFeeAmt: amtSchema("참가비"),
-    // 마일리지런 참가자 할인 — 상한 10만 원은 오타 방지 안전망이다. 보증금보다 커도 `feesForJoinWeek`가
-    // 보증금까지만 깎으므로(음수 보증금이 안 나온다) 보증금과의 대소는 따로 막지 않는다.
+    // 마일리지런 참가자 참가비 할인 — 상한 10만 원은 오타 방지 안전망이다. 참가비보다 커도 `feesForJoinWeek`가
+    // 참가비까지만 깎으므로(음수 참가비가 안 나온다) 참가비와의 대소는 따로 막지 않는다.
     mlgDcAmt: z
       .number({ error: "마일리지런 할인액을 입력해 주세요" })
       .int("마일리지런 할인액은 원 단위 정수여야 합니다")
@@ -77,7 +77,7 @@ export const pbParticipantUpdateSchema = z.object({
   depositAmt: amtSchema("보증금"),
   entryFeeAmt: amtSchema("참가비"),
   // 신청 때 적용된 할인(표시·감사용). 안 보내면 저장된 값을 그대로 둔다 — 이전 폼도 그대로 동작한다
-  depositDcAmt: amtSchema("보증금 할인").optional(),
+  entryFeeDcAmt: amtSchema("참가비 할인").optional(),
 });
 
 export type PbCfgInput = z.infer<typeof pbCfgSchema>;

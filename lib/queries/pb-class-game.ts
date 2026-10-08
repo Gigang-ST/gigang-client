@@ -277,7 +277,7 @@ export async function loadPbGame(
         db
           .from("evt_pb_prt_rel")
           .select(
-            "prt_id, mem_id, join_wk_no, deposit_amt, deposit_dc_amt, entry_fee_amt, aprv_yn, aprv_at, trn_grp_cd, grp_id, goal_sec, mem_mst(mem_nm, avatar_url)",
+            "prt_id, mem_id, join_wk_no, deposit_amt, entry_fee_dc_amt, entry_fee_amt, aprv_yn, aprv_at, trn_grp_cd, grp_id, goal_sec, mem_mst(mem_nm, avatar_url)",
           )
           .eq("evt_id", evtId)
           .order("prt_id", { ascending: true }),
@@ -311,7 +311,7 @@ export async function loadPbGame(
       mem_id: r.mem_id,
       join_wk_no: r.join_wk_no,
       deposit_amt: r.deposit_amt,
-      deposit_dc_amt: r.deposit_dc_amt,
+      entry_fee_dc_amt: r.entry_fee_dc_amt,
       entry_fee_amt: r.entry_fee_amt,
       aprv_yn: r.aprv_yn,
       aprv_at: r.aprv_at,

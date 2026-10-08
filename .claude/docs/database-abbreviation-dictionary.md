@@ -98,7 +98,7 @@
 | `rslt` | result (판정 결과) |
 | `trn` | training (훈련 — `trn_grp_cd` 페이스 훈련팀) |
 | `cnfm` | confirm (확인 — `cnfm_yn`. PB 기록은 회원이 직접 올려 늘 true) |
-| `dc` | discount (할인 — `deposit_dc_amt`, `mlg_dc_amt`) |
+| `dc` | discount (할인 — `entry_fee_dc_amt`, `mlg_dc_amt`) |
 | `plan` | plan (훈련표 — `evt_pb_sess_plan`) |
 | `kind` | kind (종류 — `trn_kind_cd` 훈련 종류) |
 | `self` | self (각자 — `self_trn_txt` 개인 훈련 안내) |
