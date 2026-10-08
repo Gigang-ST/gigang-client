@@ -76,7 +76,7 @@ function makeMe(joinWkNo: number, attended: string[], cfg: PbClassCfg = CFG): Pb
       cfg,
     }),
     attendedGthrIds: attended,
-    depositDcAmt: 0,
+    entryFeeDcAmt: 0,
   };
 }
 
@@ -190,8 +190,8 @@ describe("PbGuide — 규칙이 곧 안내", () => {
     expect(out).toContain("13회");
     expect(out).toContain("9회");
     expect(out).toContain("30,000원"); // 보증금
-    expect(out).toContain("마일리지런 참가자 보증금 −5,000원");
-    expect(out).toContain("할인돼도 9회 출석하면 낸 보증금 전액을 돌려받아요");
+    expect(out).toContain("마일리지런 참가자 참가비 −5,000원");
+    expect(out).toContain("참가비에서 깎아요. 보증금과 환급은 다른 사람과 같아요");
     expect(out).toContain(`+${PB_DEFAULT_RULE.pt.attend}`);
     expect(out).toContain(`+${PB_DEFAULT_RULE.pt.allAttend}점`);
     expect(out).toContain(String(PB_DEFAULT_RULE.tenKFactor));
@@ -236,12 +236,12 @@ describe("PbGuide — 규칙이 곧 안내", () => {
     expect(out).not.toContain("6주차~");
   });
 
-  it("마일리지런 참가자에겐 할인된 보증금으로 환급 표를 그린다", () => {
+  it("마일리지런 참가자도 환급 표는 같은 보증금이다 — 할인은 참가비에서 깎는다", () => {
     const out = html(createElement(PbGuide, { ...props, cfg: CFG, mlgAlumni: true }));
 
     expect(out).toContain("할인 대상이에요");
-    expect(out).toContain("보증금 25,000원 · 1주차 합류 기준");
-    expect(out).toMatch(/출석 9회<\/dt><dd[^>]*>25,000원/);
+    expect(out).toContain("보증금 30,000원 · 1주차 합류 기준");
+    expect(out).toMatch(/출석 9회<\/dt><dd[^>]*>30,000원/);
   });
 
   it("배점(rule)을 못 읽으면 점수·목표 칸을 지어내지 않고 목차에서도 뺀다", () => {
@@ -670,9 +670,12 @@ describe("신청·입금 대기 — 마일리지런 할인", () => {
   it("할인 대상이면 원래 금액을 지우고 사유와 깎인 금액을 보여 준다", () => {
     const out = html(createElement(PbApplySection, { evtId: "e1", cfg: CFG, currentWkNo: 1, mlgAlumni: true }));
 
-    expect(out).toContain("마일리지런 참가자 보증금 −5,000원");
-    expect(out).toMatch(/line-through[^>]*>30,000원/);
-    expect(out).toContain("25,000원");
+    expect(out).toContain("마일리지런 참가자 참가비 −5,000원");
+    // 지운 정가는 참가비(10,000)이고 보증금은 정가 그대로
+    expect(out).toMatch(/line-through[^>]*>10,000원/);
+    expect(out).not.toMatch(/line-through[^>]*>30,000원/);
+    expect(out).toContain("30,000원");
+    expect(out).toContain("5,000원");
     expect(out).toContain("35,000원으로 참가 신청");
   });
 
@@ -685,10 +688,10 @@ describe("신청·입금 대기 — 마일리지런 할인", () => {
 
   it("입금 대기 카드는 저장된 할인·금액을 그대로 적는다", () => {
     const out = html(
-      createElement(PbPendingCard, { me: { depositAmt: 25_000, entryFeeAmt: 10_000, depositDcAmt: 5_000, joinWkNo: 1 } }),
+      createElement(PbPendingCard, { me: { depositAmt: 30_000, entryFeeAmt: 5_000, entryFeeDcAmt: 5_000, joinWkNo: 1 } }),
     );
     expect(out).toContain("35,000");
-    expect(out).toContain("마일리지런 참가자 보증금 −5,000원");
+    expect(out).toContain("마일리지런 참가자 참가비 −5,000원");
   });
 });
 

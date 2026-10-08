@@ -11,14 +11,14 @@ import { PbZone } from "./pb-zone";
  *
  * 입금액은 **참가자 행에 저장된 금액**이다(서버가 신청 시점 주차·할인으로 확정한 값). 화면이 주차를
  * 다시 계산해 보여 주면 주 경계를 넘긴 사람이 신청 화면에서 본 금액과 다른 금액을 보게 된다.
- * 할인(`depositDcAmt`)도 저장값을 그대로 적는다 — 사유를 같이 적어야 남과 금액이 다른 이유가 읽힌다.
+ * 할인(`entryFeeDcAmt`)도 저장값을 그대로 적는다 — 사유를 같이 적어야 남과 금액이 다른 이유가 읽힌다.
  */
 export function PbPendingCard({
   me,
 }: {
-  me: Pick<PbParticipant, "depositAmt" | "entryFeeAmt" | "depositDcAmt" | "joinWkNo">;
+  me: Pick<PbParticipant, "depositAmt" | "entryFeeAmt" | "entryFeeDcAmt" | "joinWkNo">;
 }) {
-  const dc = me.depositDcAmt ?? 0;
+  const dc = me.entryFeeDcAmt ?? 0;
   const total = me.depositAmt + me.entryFeeAmt;
   return (
     <PbZone label="Pending" lead="신청했어요 — 입금이 확인되면 승인돼요">
@@ -34,18 +34,18 @@ export function PbPendingCard({
 
         <div className="flex flex-col rounded-xl bg-muted px-4 py-1">
           {me.depositAmt > 0 && (
-            <div className="rule-row flex items-start justify-between gap-3 py-3">
-              <span className="flex flex-col gap-0.5">
-                <Caption className="font-medium text-foreground">보증금</Caption>
-                {dc > 0 && (
-                  <Micro className="font-semibold text-primary">마일리지런 참가자 보증금 −{dc.toLocaleString()}원</Micro>
-                )}
-              </span>
+            <div className="rule-row flex items-baseline justify-between gap-3 py-3">
+              <Caption className="font-medium text-foreground">보증금</Caption>
               <Body className="tabular-nums">{me.depositAmt.toLocaleString()}원</Body>
             </div>
           )}
-          <div className="flex items-baseline justify-between gap-3 py-3">
-            <Caption className="font-medium text-foreground">참가비</Caption>
+          <div className="flex items-start justify-between gap-3 py-3">
+            <span className="flex flex-col gap-0.5">
+              <Caption className="font-medium text-foreground">참가비</Caption>
+              {dc > 0 && (
+                <Micro className="font-semibold text-primary">마일리지런 참가자 참가비 −{dc.toLocaleString()}원</Micro>
+              )}
+            </span>
             <Body className="tabular-nums">{me.entryFeeAmt.toLocaleString()}원</Body>
           </div>
         </div>

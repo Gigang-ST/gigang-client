@@ -219,8 +219,8 @@ evt_team_mst (evt_type_cd='PB_CLASS')
 
 | 테이블/컬럼 | 내용 |
 |---|---|
-| `evt_pb_cfg.mlg_dc_amt` | 마일리지런 참가자 보증금 할인액(기본 5,000) |
-| `evt_pb_prt_rel.deposit_dc_amt` | 신청 때 적용된 할인. `deposit_amt`는 할인 **뒤** 실제 보증금 — 환급은 이 값 기준 |
+| `evt_pb_cfg.mlg_dc_amt` | 마일리지런 참가자 **참가비** 할인액(기본 5,000). 보증금은 깎지 않는다(2026-10-08 오너 — 처음엔 보증금이었다) |
+| `evt_pb_prt_rel.entry_fee_dc_amt` | 신청 때 적용된 참가비 할인. `entry_fee_amt`는 할인 **뒤** 실제 참가비 — 표시·감사용, 환급과 무관. 옛 `deposit_dc_amt`는 `20261008200100`에서 지웠다 |
 | `evt_pb_sess_plan` | 회차별 훈련표 PK(`evt_id`,`sess_no`). `sess_no` 1~(N−1) = 그 주차 공식훈련, N = 10K 측정. 단계·제목·A~D·E·목적·비고 |
 
 - PB `end_dt`는 서버가 `pbEndDtFor(stt_dt, cfg)`로 정한다(클라이언트 값 무시).

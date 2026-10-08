@@ -178,10 +178,10 @@ export function PbParticipantsTab({ evtId, teamId }: { evtId: string; teamId: st
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
                     <Micro>{wkLabel(p.joinWkNo)} 합류</Micro>
-                    {/* 마일리지런에 참가했던 사람 — 보증금에서 이미 깎인 금액이라 납부액엔 반영돼 있다 */}
-                    {p.depositDcAmt > 0 && (
+                    {/* 마일리지런에 참가했던 사람 — 참가비에서 이미 깎인 금액이라 납부액엔 반영돼 있다 */}
+                    {p.entryFeeDcAmt > 0 && (
                       <Badge variant="outline" className="border-primary px-1.5 py-0">
-                        <Micro className="text-primary">마일리지런 −{p.depositDcAmt.toLocaleString()}원</Micro>
+                        <Micro className="text-primary">마일리지런 −{p.entryFeeDcAmt.toLocaleString()}원</Micro>
                       </Badge>
                     )}
                   </div>
@@ -202,7 +202,7 @@ export function PbParticipantsTab({ evtId, teamId }: { evtId: string; teamId: st
                 <InfoItem
                   label="납부"
                   value={wonText(p.depositAmt + p.entryFeeAmt)}
-                  note={p.depositDcAmt > 0 ? `마일리지런 할인 −${p.depositDcAmt.toLocaleString()}원 반영` : undefined}
+                  note={p.entryFeeDcAmt > 0 ? `마일리지런 할인 −${p.entryFeeDcAmt.toLocaleString()}원 반영` : undefined}
                 />
                 {!p.aprvYn && (
                   <InfoItem

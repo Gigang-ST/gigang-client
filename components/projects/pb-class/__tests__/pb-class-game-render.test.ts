@@ -511,7 +511,7 @@ function participant(over: { prtId: string; memId: string; memNm: string; joinWk
       cfg: CFG,
     }),
     attendedGthrIds: over.attended,
-    depositDcAmt: 0,
+    entryFeeDcAmt: 0,
   };
 }
 
