@@ -50,7 +50,7 @@ const prt = (memId: string, memNm: string, extra: Partial<PbGamePrtRow> = {}): P
   mem_id: memId,
   join_wk_no: 1,
   deposit_amt: 30_000,
-  deposit_dc_amt: 0,
+  entry_fee_dc_amt: 0,
   entry_fee_amt: 10_000,
   aprv_yn: true,
   aprv_at: "2026-11-01T00:00:00Z",

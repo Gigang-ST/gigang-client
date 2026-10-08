@@ -178,9 +178,10 @@ export function PbSessOpenDialog({
         <ResponsiveDrawerHeader className="shrink-0 border-b border-border px-4 py-4 text-left">
           <ResponsiveDrawerTitle>{title}</ResponsiveDrawerTitle>
           <ResponsiveDrawerDescription>
+            {/* 한 주차만 열면 서버가 노티봇으로 단톡방에 공지한다. 한꺼번에 열면 도배라 안 보낸다(createPbSessGatherings) */}
             {only
-              ? "벙은 정기런으로 열려요. 알림은 따로 가지 않아요 — 열고 나서 공지해 주세요."
-              : "벙은 정기런으로 열려요. 알림은 따로 가지 않아요 — 다 열고 나서 공지해 주세요."}
+              ? "벙은 정기런으로 열려요. 열면 노티봇이 단톡방에 공지해요."
+              : "벙은 정기런으로 열려요. 한꺼번에 열면 단톡방 공지는 안 가요 — 주차마다 벙 공유의 「단톡방에 알림」으로 올려 주세요."}
           </ResponsiveDrawerDescription>
         </ResponsiveDrawerHeader>
 

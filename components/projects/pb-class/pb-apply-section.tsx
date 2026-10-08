@@ -23,7 +23,7 @@ type PbApplySectionProps = {
   cfg: PbClassCfg;
   /** 서버가 잰 오늘(KST) 기준 프로젝트 주차 — 낼 금액이 이 값으로 갈린다 */
   currentWkNo: number;
-  /** 마일리지런 참가자인가 — 보증금 할인을 미리 보여 준다(확정은 서버 액션이 다시 판정) */
+  /** 마일리지런 참가자인가 — 참가비 할인을 미리 보여 준다(확정은 서버 액션이 다시 판정) */
   mlgAlumni: boolean;
   /** 비활성/탈퇴 회원 — true면 신청 시 공통 안내 게이트를 연다(마일리지런 신청과 같은 규칙) */
   isInactive?: boolean;
@@ -52,7 +52,7 @@ export function PbApplySection({
   const [pending, startTransition] = useTransition();
   const [inactiveGateOpen, setInactiveGateOpen] = useState(false);
 
-  const { depositAmt, entryFeeAmt, depositDcAmt } = feesForJoinWeek(currentWkNo, cfg, { mlgAlumni });
+  const { depositAmt, entryFeeAmt, entryFeeDcAmt } = feesForJoinWeek(currentWkNo, cfg, { mlgAlumni });
   const total = depositAmt + entryFeeAmt;
   const late = isLateJoin(currentWkNo, cfg);
   const required = late ? null : requiredAttdCnt(currentWkNo, cfg);
@@ -91,27 +91,27 @@ export function PbApplySection({
       <CardItem className="flex flex-col gap-4 p-5">
         <div className="flex flex-col rounded-xl bg-muted px-4 py-1">
           {!late && (
-            <div className="rule-row flex items-start justify-between gap-3 py-3">
-              <span className="flex flex-col gap-0.5">
-                <Caption className="font-medium text-foreground">보증금</Caption>
-                {depositDcAmt > 0 && (
-                  <Micro className="font-semibold text-primary">
-                    마일리지런 참가자 보증금 −{depositDcAmt.toLocaleString()}원
-                  </Micro>
-                )}
-              </span>
-              {/* 정가(취소선)와 할인가는 한 덩어리로 — 375px에서 "원"만 다음 줄로 떨어지던 것 */}
-              <span className="flex shrink-0 items-baseline gap-1.5 whitespace-nowrap tabular-nums">
-                {depositDcAmt > 0 && (
-                  <Micro className="line-through">{(depositAmt + depositDcAmt).toLocaleString()}원</Micro>
-                )}
-                <Body>{depositAmt.toLocaleString()}원</Body>
-              </span>
+            <div className="rule-row flex items-baseline justify-between gap-3 py-3">
+              <Caption className="font-medium text-foreground">보증금</Caption>
+              <Body className="tabular-nums">{depositAmt.toLocaleString()}원</Body>
             </div>
           )}
-          <div className="rule-row flex items-baseline justify-between gap-3 py-3">
-            <Caption className="font-medium text-foreground">참가비</Caption>
-            <Body className="tabular-nums">{entryFeeAmt.toLocaleString()}원</Body>
+          <div className="rule-row flex items-start justify-between gap-3 py-3">
+            <span className="flex flex-col gap-0.5">
+              <Caption className="font-medium text-foreground">참가비</Caption>
+              {entryFeeDcAmt > 0 && (
+                <Micro className="font-semibold text-primary">
+                  마일리지런 참가자 참가비 −{entryFeeDcAmt.toLocaleString()}원
+                </Micro>
+              )}
+            </span>
+            {/* 정가(취소선)와 할인가는 한 덩어리로 — 375px에서 "원"만 다음 줄로 떨어지던 것 */}
+            <span className="flex shrink-0 items-baseline gap-1.5 whitespace-nowrap tabular-nums">
+              {entryFeeDcAmt > 0 && (
+                <Micro className="line-through">{(entryFeeAmt + entryFeeDcAmt).toLocaleString()}원</Micro>
+              )}
+              <Body>{entryFeeAmt.toLocaleString()}원</Body>
+            </span>
           </div>
           <div className="flex items-baseline justify-between gap-3 py-3">
             <Caption className="font-semibold text-foreground">합계</Caption>

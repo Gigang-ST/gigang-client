@@ -77,7 +77,7 @@ export async function joinPbClass(evtId: string): Promise<ActionResult> {
         mem_id: member.id,
         join_wk_no: joinWkNo,
         deposit_amt: fees.depositAmt,
-        deposit_dc_amt: fees.depositDcAmt,
+        entry_fee_dc_amt: fees.entryFeeDcAmt,
         entry_fee_amt: fees.entryFeeAmt,
         aprv_yn: false,
       });

@@ -856,7 +856,7 @@ export type Database = {
           aprv_yn: boolean
           created_at: string
           deposit_amt: number
-          deposit_dc_amt: number
+          entry_fee_dc_amt: number
           entry_fee_amt: number
           evt_id: string
           goal_sec: number | null
@@ -872,7 +872,7 @@ export type Database = {
           aprv_yn?: boolean
           created_at?: string
           deposit_amt: number
-          deposit_dc_amt?: number
+          entry_fee_dc_amt?: number
           entry_fee_amt: number
           evt_id: string
           goal_sec?: number | null
@@ -888,7 +888,7 @@ export type Database = {
           aprv_yn?: boolean
           created_at?: string
           deposit_amt?: number
-          deposit_dc_amt?: number
+          entry_fee_dc_amt?: number
           entry_fee_amt?: number
           evt_id?: string
           goal_sec?: number | null

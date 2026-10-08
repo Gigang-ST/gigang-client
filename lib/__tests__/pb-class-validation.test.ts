@@ -43,24 +43,24 @@ describe("pbCfgSchema — 마일리지런 할인(mlgDcAmt)", () => {
     expect(high.success ? "" : high.error.issues[0].message).toContain("100,000원");
   });
 
-  it("할인액이 보증금보다 커도 스키마는 막지 않는다(fees 계산이 보증금까지만 깎는다)", () => {
-    expect(pbCfgSchema.safeParse({ ...PB_CLASS_DEFAULT_CFG, depositAmt: 3_000, mlgDcAmt: 5_000 }).success).toBe(true);
+  it("할인액이 참가비보다 커도 스키마는 막지 않는다(fees 계산이 참가비까지만 깎는다)", () => {
+    expect(pbCfgSchema.safeParse({ ...PB_CLASS_DEFAULT_CFG, entryFeeAmt: 3_000, mlgDcAmt: 5_000 }).success).toBe(true);
   });
 });
 
-describe("pbParticipantUpdateSchema — depositDcAmt", () => {
-  const base = { joinWkNo: 1, depositAmt: 25_000, entryFeeAmt: 10_000 };
+describe("pbParticipantUpdateSchema — entryFeeDcAmt", () => {
+  const base = { joinWkNo: 1, depositAmt: 30_000, entryFeeAmt: 5_000 };
 
   it("할인액은 선택 — 안 보내는 이전 폼도 통과한다", () => {
     const r = pbParticipantUpdateSchema.safeParse(base);
     expect(r.success).toBe(true);
-    expect(r.success && r.data.depositDcAmt).toBeUndefined();
+    expect(r.success && r.data.entryFeeDcAmt).toBeUndefined();
   });
 
   it("보내면 0 이상 정수만", () => {
-    expect(pbParticipantUpdateSchema.safeParse({ ...base, depositDcAmt: 5_000 }).success).toBe(true);
-    expect(pbParticipantUpdateSchema.safeParse({ ...base, depositDcAmt: -1 }).success).toBe(false);
-    expect(pbParticipantUpdateSchema.safeParse({ ...base, depositDcAmt: 1.5 }).success).toBe(false);
+    expect(pbParticipantUpdateSchema.safeParse({ ...base, entryFeeDcAmt: 5_000 }).success).toBe(true);
+    expect(pbParticipantUpdateSchema.safeParse({ ...base, entryFeeDcAmt: -1 }).success).toBe(false);
+    expect(pbParticipantUpdateSchema.safeParse({ ...base, entryFeeDcAmt: 1.5 }).success).toBe(false);
   });
 });
 

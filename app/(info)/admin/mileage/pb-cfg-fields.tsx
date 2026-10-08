@@ -41,9 +41,9 @@ export function parsePbCfgForm(form: PbCfgForm): { cfg: PbClassCfg } | { error: 
     return { error: "전액 환급 기준 출석은 1회 이상, 총 회차 이하여야 합니다" };
   }
   if (cfg.lateJoinWkNo < 2) return { error: "늦은 합류 시작 주차는 2주차 이상이어야 합니다" };
-  // `feesForJoinWeek`가 보증금 한도로 조용히 깎아 주긴 하지만, 0을 하나 더 친 오타(50000)를
+  // `feesForJoinWeek`가 참가비 한도로 조용히 깎아 주긴 하지만, 0을 하나 더 친 오타(50000)를
   // 말없이 받아 주면 운영자가 할인이 그만큼 적용된다고 믿는다 — 저장 전에 알려 준다.
-  if (cfg.mlgDcAmt > cfg.depositAmt) return { error: "마일리지런 할인은 보증금을 넘을 수 없습니다" };
+  if (cfg.mlgDcAmt > cfg.entryFeeAmt) return { error: "마일리지런 할인은 참가비를 넘을 수 없습니다" };
   return { cfg };
 }
 
@@ -64,13 +64,13 @@ const FIELDS: FieldDef[] = [
     hint: "이 주차부터 합류하면 보증금 없이 참가비만 내요",
   },
   { key: "depositAmt", label: "보증금", unit: "원" },
+  { key: "entryFeeAmt", label: "참가비", unit: "원", hint: "돌려주지 않는 금액" },
   {
     key: "mlgDcAmt",
-    label: "마일리지런 참가자 보증금 할인",
+    label: "마일리지런 참가자 참가비 할인",
     unit: "원",
-    hint: "마일리지런에 참가했던 멤버는 보증금에서 이만큼 깎아요. 환급은 실제로 낸 보증금 기준이에요",
+    hint: "마일리지런에 참가했던 멤버는 참가비에서 이만큼 깎아요. 보증금은 그대로예요",
   },
-  { key: "entryFeeAmt", label: "참가비", unit: "원", hint: "돌려주지 않는 금액" },
 ];
 
 /** PB 클래스 설정 6칸 — 프로젝트 정보 폼 안에 이어 붙는다 */

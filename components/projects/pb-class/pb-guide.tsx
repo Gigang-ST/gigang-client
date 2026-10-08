@@ -148,12 +148,12 @@ function Fees({ cfg, mlgAlumni }: { cfg: PbClassCfg; mlgAlumni: boolean }) {
         >
           <div className="flex items-center justify-between gap-2">
             <Caption className="font-semibold text-foreground">
-              마일리지런 참가자 보증금 −{cfg.mlgDcAmt.toLocaleString()}원
+              마일리지런 참가자 참가비 −{cfg.mlgDcAmt.toLocaleString()}원
             </Caption>
             {mlgAlumni && <Micro className="shrink-0 font-semibold text-primary">할인 대상이에요</Micro>}
           </div>
           <Caption className="break-keep leading-relaxed">
-            할인돼도 {cfg.fullRfndAttdCnt}회 출석하면 낸 보증금 전액을 돌려받아요.
+            참가비에서 깎아요. 보증금과 환급은 다른 사람과 같아요.
           </Caption>
         </div>
       )}
@@ -175,19 +175,12 @@ function FeeRow({ label, note, amt }: { label: string; note: string; amt: number
 
 /**
  * 출석 → 환급 표. 참가자면 **내 보증금·내 기준**으로, 아니면 정식 참가(1주차 합류) 기준으로 그린다 —
- * 마일리지런 할인을 받은 사람이 3만 원 표를 보고 계산하면 틀린다. 금액은 `refundAmt` 한 곳에서.
+ * 중간 합류자는 기준 횟수가, 운영진이 금액을 고친 사람은 보증금이 다르다. 금액은 `refundAmt` 한 곳에서.
+ * 마일리지런 할인은 참가비에서 깎으므로(보증금 무관) 이 표에 끼지 않는다.
  */
-function Refund({
-  cfg,
-  mlgAlumni,
-  me,
-}: {
-  cfg: PbClassCfg;
-  mlgAlumni: boolean;
-  me: PbParticipant | null;
-}) {
+function Refund({ cfg, me }: { cfg: PbClassCfg; me: PbParticipant | null }) {
   const mine = me && !me.summary.late && me.summary.required !== null;
-  const deposit = mine ? me.depositAmt : feesForJoinWeek(1, cfg, { mlgAlumni }).depositAmt;
+  const deposit = mine ? me.depositAmt : feesForJoinWeek(1, cfg).depositAmt;
   const required = mine ? me.summary.required! : requiredAttdCnt(1, cfg);
   const rows = required ? Array.from({ length: required }, (_, i) => i + 1) : [];
   const myAttd = mine ? me.summary.attdCnt : null;
@@ -470,7 +463,7 @@ export function PbGuide({
       <GuideToc ids={ids} />
       <Glance evt={evt} cfg={cfg} midWkNo={rule?.midWkNo ?? null} />
       <Fees cfg={cfg} mlgAlumni={mlgAlumni} />
-      <Refund cfg={cfg} mlgAlumni={mlgAlumni} me={me} />
+      <Refund cfg={cfg} me={me} />
       <LateJoin cfg={cfg} />
       <Groups trnGrpCd={trnGrpCd} />
       <Kinds cfg={cfg} />

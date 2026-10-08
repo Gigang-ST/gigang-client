@@ -54,7 +54,7 @@ const prt = (memId: string, memNm: string, extra: Partial<PbPrtRow> = {}): PbPrt
   mem_id: memId,
   join_wk_no: 1,
   deposit_amt: 30_000,
-  deposit_dc_amt: 0,
+  entry_fee_dc_amt: 0,
   entry_fee_amt: 10_000,
   aprv_yn: true,
   aprv_at: "2026-11-01T00:00:00Z",
@@ -332,22 +332,22 @@ describe("assembleBoard", () => {
     expect(drift.sessions[0]).toMatchObject({ wkNo: 5, computedWkNo: 3 });
   });
 
-  it("신청 때 적용된 할인(depositDcAmt)을 그대로 싣고, 합계·환급 계산엔 섞지 않는다", () => {
-    // 마일리지런 참가자: 정가 30,000 에서 5,000 을 깎아 실제 낸 25,000 이 deposit_amt 다
+  it("신청 때 적용된 할인(entryFeeDcAmt)을 그대로 싣고, 합계·환급 계산엔 섞지 않는다", () => {
+    // 마일리지런 참가자: 참가비 10,000 에서 5,000 을 깎았다 — 보증금은 정가 30,000 그대로
     const dc = assembleBoard({
       evt: EVT,
       cfgRow: null,
       links: LINKS,
-      prts: [prt("a", "가나", { deposit_amt: 25_000, deposit_dc_amt: 5_000 }), prt("b", "나다")],
+      prts: [prt("a", "가나", { entry_fee_amt: 5_000, entry_fee_dc_amt: 5_000 }), prt("b", "나다")],
       attds: attd("a", "t1", "t2"),
       nowIso: NOW,
     });
     const byNm = Object.fromEntries(dc.participants.map((p) => [p.memNm, p]));
-    expect(byNm["가나"].depositDcAmt).toBe(5_000);
-    expect(byNm["나다"].depositDcAmt).toBe(0);
-    // 환급은 실제 낸 보증금(25,000) 기준 — floor(25000 × 2 / 9) = 5,555. 할인액이 더해져 계산되지 않는다
-    expect(byNm["가나"].summary).toMatchObject({ refund: 5_555, unrefunded: 19_445 });
-    expect(dc.totals.depositSum).toBe(55_000);
+    expect(byNm["가나"].entryFeeDcAmt).toBe(5_000);
+    expect(byNm["나다"].entryFeeDcAmt).toBe(0);
+    // 할인은 참가비 쪽이라 환급·보증금 합계엔 끼지 않는다 — floor(30000 × 2 / 9) = 6,666
+    expect(byNm["가나"].summary).toMatchObject({ refund: 6_666, unrefunded: 23_334 });
+    expect(dc.totals.depositSum).toBe(60_000);
   });
 
   it("훈련표 행을 회차 순 sessPlans 로 싣는다 — 안 넘기면 빈 배열", () => {
@@ -417,7 +417,7 @@ describe("assembleMyPbClass", () => {
       evt: EVT,
       cfgRow: null,
       links: LINKS,
-      myPrt: prt("a", "가나", { deposit_amt: 25_000, deposit_dc_amt: 5_000 }),
+      myPrt: prt("a", "가나", { entry_fee_amt: 5_000, entry_fee_dc_amt: 5_000 }),
       myAttds: [],
       planRows: [plan(2), plan(1)],
       mlgAlumni: true,
@@ -425,7 +425,7 @@ describe("assembleMyPbClass", () => {
     });
     expect(my.mlgAlumni).toBe(true);
     expect(my.sessPlans.map((p) => p.sessNo)).toEqual([1, 2]);
-    expect(my.me).toMatchObject({ depositAmt: 25_000, depositDcAmt: 5_000 });
+    expect(my.me).toMatchObject({ depositAmt: 30_000, entryFeeAmt: 5_000, entryFeeDcAmt: 5_000 });
   });
 
   it("넘기지 않으면 mlgAlumni=false·sessPlans=[]", () => {

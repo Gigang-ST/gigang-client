@@ -362,11 +362,11 @@ export function ProjectInfoTab({ project, onSaved, onCancel, onDeleted }: Props)
                 value={`${wkLabel(Number(savedCfgForm.lateJoinWkNo))}부터 보증금 없음`}
               />
               <InfoRow label="보증금" value={`${Number(savedCfgForm.depositAmt).toLocaleString()}원`} />
+              <InfoRow label="참가비" value={`${Number(savedCfgForm.entryFeeAmt).toLocaleString()}원`} />
               <InfoRow
                 label="마일리지런 할인"
-                value={mlgDcAmt > 0 ? `보증금 −${mlgDcAmt.toLocaleString()}원` : "없음"}
+                value={mlgDcAmt > 0 ? `참가비 −${mlgDcAmt.toLocaleString()}원` : "없음"}
               />
-              <InfoRow label="참가비" value={`${Number(savedCfgForm.entryFeeAmt).toLocaleString()}원`} />
             </>
           )}
         </div>
