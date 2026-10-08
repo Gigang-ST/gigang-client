@@ -48,9 +48,12 @@ const BOARD: PbScoreboardData = {
 
 const html = (el: Parameters<typeof renderToStaticMarkup>[0]) => renderToStaticMarkup(el);
 
+/** 이 파일은 도움말 문구만 본다 — 팀 그래프·트랙에 쓸 참가자는 비워 둔다 */
+const NO_GAME_EXTRAS = { participants: [], measureWkNo: null };
+
 describe("점수판 도움말 — 팀 점수 공식", () => {
   const out = html(
-    createElement(PbScoreboard, {
+    createElement(PbScoreboard, { ...NO_GAME_EXTRAS,
       scoreboard: BOARD,
       rule: PB_DEFAULT_RULE,
       myGrpId: "g1",

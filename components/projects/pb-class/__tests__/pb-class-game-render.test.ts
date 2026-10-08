@@ -38,6 +38,12 @@ vi.mock("@/app/actions/pb-class", () => ({
 
 const html = (el: Parameters<typeof renderToStaticMarkup>[0]) => renderToStaticMarkup(el);
 
+/**
+ * 이 파일의 점수판 단언은 순위표·내 점수만 본다 — 팀 그래프·10K 트랙의 재료(참가자)는 비워 둔다.
+ * 그 섹션들과 공개 범위는 `pb-scoreboard-charts-render.test.ts`가 따로 지킨다.
+ */
+const NO_GAME_EXTRAS = { participants: [], measureWkNo: null };
+
 // ─────────────────────────────────────────
 // 점수판
 // ─────────────────────────────────────────
@@ -81,7 +87,7 @@ const BOARD: PbScoreboardData = {
 describe("PbScoreboard", () => {
   it("코어가 준 순서 그대로 순위·이름·점수를 그린다", () => {
     const out = html(
-      createElement(PbScoreboard, { scoreboard: BOARD, rule: PB_DEFAULT_RULE, myGrpId: null, me: null }),
+      createElement(PbScoreboard, { ...NO_GAME_EXTRAS, scoreboard: BOARD, rule: PB_DEFAULT_RULE, myGrpId: null, me: null }),
     );
 
     expect(out.indexOf("번개팀")).toBeLessThan(out.indexOf("불꽃팀"));
@@ -94,7 +100,7 @@ describe("PbScoreboard", () => {
 
   it("점수 근거 한 줄에 평균·전원출석이 따로 나온다 — 팀 미션은 없다(오너 지시)", () => {
     const out = html(
-      createElement(PbScoreboard, { scoreboard: BOARD, rule: PB_DEFAULT_RULE, myGrpId: null, me: null }),
+      createElement(PbScoreboard, { ...NO_GAME_EXTRAS, scoreboard: BOARD, rule: PB_DEFAULT_RULE, myGrpId: null, me: null }),
     );
 
     expect(out).toContain("평균 82.5 · 전원출석 +40");
@@ -104,7 +110,7 @@ describe("PbScoreboard", () => {
 
   it("내 팀만 테두리로 짚고 배지를 단다", () => {
     const out = html(
-      createElement(PbScoreboard, { scoreboard: BOARD, rule: PB_DEFAULT_RULE, myGrpId: "g1", me: null }),
+      createElement(PbScoreboard, { ...NO_GAME_EXTRAS, scoreboard: BOARD, rule: PB_DEFAULT_RULE, myGrpId: "g1", me: null }),
     );
 
     expect(out.match(/data-mine="true"/g)).toHaveLength(1);
@@ -117,7 +123,7 @@ describe("PbScoreboard", () => {
 
   it("팀이 아직 없으면 발표 전 안내만 서고 내 점수는 그리지 않는다", () => {
     const out = html(
-      createElement(PbScoreboard, {
+      createElement(PbScoreboard, { ...NO_GAME_EXTRAS,
         scoreboard: { members: [], groups: [] },
         rule: PB_DEFAULT_RULE,
         myGrpId: null,
@@ -131,7 +137,7 @@ describe("PbScoreboard", () => {
 
   it("구경하는 사람(me 없음)에겐 내 점수 블록이 없다", () => {
     const out = html(
-      createElement(PbScoreboard, { scoreboard: BOARD, rule: PB_DEFAULT_RULE, myGrpId: null, me: null }),
+      createElement(PbScoreboard, { ...NO_GAME_EXTRAS, scoreboard: BOARD, rule: PB_DEFAULT_RULE, myGrpId: null, me: null }),
     );
 
     expect(out).not.toContain("My Score");
@@ -143,7 +149,7 @@ describe("PbScoreboard", () => {
       byCd: { ATTEND: 30, JOIN: 6, HOST: 0, IMPROVE_MID: 0, IMPROVE_FINAL: 0, GOAL: 0 },
     });
     const out = html(
-      createElement(PbScoreboard, {
+      createElement(PbScoreboard, { ...NO_GAME_EXTRAS,
         scoreboard: { ...BOARD, members: [mine] },
         rule: PB_DEFAULT_RULE,
         myGrpId: "g1",
@@ -162,7 +168,7 @@ describe("PbScoreboard", () => {
 
   it("점수가 0이면 줄 대신 아직 없다고 말한다", () => {
     const out = html(
-      createElement(PbScoreboard, {
+      createElement(PbScoreboard, { ...NO_GAME_EXTRAS,
         scoreboard: BOARD,
         rule: PB_DEFAULT_RULE,
         myGrpId: "g1",
@@ -176,7 +182,7 @@ describe("PbScoreboard", () => {
 
   it("늦은 합류자에겐 0점 대신 팀전 제외를 말한다", () => {
     const out = html(
-      createElement(PbScoreboard, {
+      createElement(PbScoreboard, { ...NO_GAME_EXTRAS,
         scoreboard: BOARD,
         rule: PB_DEFAULT_RULE,
         myGrpId: null,
@@ -190,7 +196,7 @@ describe("PbScoreboard", () => {
 
   it("게임팀이 없는 참가자는 배정 안내가 선다", () => {
     const out = html(
-      createElement(PbScoreboard, {
+      createElement(PbScoreboard, { ...NO_GAME_EXTRAS,
         scoreboard: { ...BOARD, members: [memberScore({ inGame: false, grpId: null })] },
         rule: PB_DEFAULT_RULE,
         myGrpId: null,
@@ -567,34 +573,22 @@ describe("PbSettlement", () => {
     expect(out).not.toContain("대회 참가비");
   });
 
-  it("승인된 참가자만 목록에 올리고 입금 대기자는 뺀다", () => {
+  it("이름별 출석·환급 목록은 없다 — 합계만 남긴다(오너 2026-10-08)", () => {
     const out = html(createElement(PbSettlement, { board: board(people) }));
 
-    expect(out).toContain("가나다");
-    expect(out).toContain("라마바");
-    expect(out).not.toContain("대기자");
+    for (const nm of ["가나다", "라마바", "늦은이", "대기자"]) expect(out).not.toContain(nm);
+    expect(out).not.toContain("참가자별 출석·환급");
+    expect(out).not.toContain("환급 없음");
+    expect(out).not.toContain("<ul");
+    expect(out).not.toContain(">나<");
   });
 
-  it("출석 횟수와 환급액을 줄마다 찍는다", () => {
-    const out = html(createElement(PbSettlement, { board: board(people) }));
+  it("합계는 서버가 낸 값 그대로다 — 입금 대기자는 들어가지 않는다", () => {
+    const b = board(people);
+    const out = html(createElement(PbSettlement, { board: b }));
 
-    expect(out).toContain("3회");
-    expect(out).toContain("10,000원"); // 3회 출석 → 보증금의 3/9
-    expect(out).toMatch(/>0원</); // 출석 0회 — 30,000원 같은 큰 금액의 꼬리와 헷갈리지 않게 칸 전체로 본다
-  });
-
-  it("늦은 합류자는 0원이 아니라 환급 없음이다", () => {
-    const out = html(createElement(PbSettlement, { board: board(people) }));
-
-    expect(out).toContain("늦은이");
-    expect(out).toContain("환급 없음");
-    expect(out.match(/환급 없음/g)).toHaveLength(1); // 정식 참가자에겐 안 붙는다
-  });
-
-  it("내 줄에만 나 표시가 붙는다", () => {
-    const out = html(createElement(PbSettlement, { board: board(people), myMemId: "m2" }));
-
-    expect(out.match(/>나</g)).toHaveLength(1);
-    expect(out.indexOf(">나<")).toBeGreaterThan(out.indexOf("라마바"));
+    expect(b.totals.depositSum).toBe(2 * CFG.depositAmt); // 정식 둘 — 늦은 합류(0원)·대기자 제외
+    expect(out).toContain(`${b.totals.refundSum.toLocaleString()}원`);
+    expect(out).toContain(`${b.totals.unrefundedSum.toLocaleString()}원`);
   });
 });

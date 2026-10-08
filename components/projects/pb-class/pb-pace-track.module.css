@@ -1,0 +1,95 @@
+/*
+ * 10K 예상기록 트랙의 움직임 — 처음 보일 때 출발선에서 제자리까지 달려 들어오고, 그 뒤엔 제자리 조깅.
+ *
+ * 이 화면 하나만 쓰는 키프레임이라 globals.css 대신 여기(CSS 모듈)에 둔다 — 이름이 모듈로 갇혀
+ * 칭호 이펙트 수십 개가 사는 전역 키프레임과 부딪히지 않는다.
+ *
+ * 상태는 React 가 아니라 DOM 속성이 들고 있다(`data-run`·`data-offscreen` — 돌아보기 `RecapReveal`과 같은 방식).
+ * 기본(속성 없음)이 **완성된 모습**이라 JS 가 늦거나 모션을 줄여도 사람들은 제자리에 서 있다.
+ *
+ * 움직이는 건 transform 뿐이다(레이아웃을 건드리지 않아 컴포지터가 처리한다).
+ */
+
+/* 레일 = 트랙 안쪽 폭 전체를 차지하는 투명한 줄. translateX(%)가 자기 폭 기준이라 x% 만큼 밀면 곧 트랙의 x% 자리다 */
+.rail {
+  transform: translateX(var(--x));
+}
+
+/* 화면 아래에서 기다리는 동안 — 모두 출발선(왼쪽 끝)에 선다. 안 보이는 자리라 사람 눈엔 점프가 없다 */
+.field[data-run="pending"] .rail {
+  transform: translateX(0);
+}
+
+/* 출발 — 다 같은 시간에 도착하므로 멀리 가는(빠른) 사람이 실제로 더 빨리 달린다 */
+.field[data-run="go"] .rail {
+  transition: transform 1.5s cubic-bezier(0.32, 0.72, 0.24, 1) var(--delay, 0ms);
+}
+
+/* 제자리 조깅 — 2px 남짓 통통. 사람마다 박자를 어긋나게(--phase) 해서 다 같이 뛰는 기계처럼 안 보이게 */
+.body {
+  animation: pb-jog 0.44s ease-in-out infinite alternate;
+  animation-delay: var(--phase, 0ms);
+}
+
+.shadow {
+  animation: pb-jog-shadow 0.44s ease-in-out infinite alternate;
+  animation-delay: var(--phase, 0ms);
+}
+
+/* 달려 들어오는 동안은 보폭이 빠르고 몸이 앞으로 기운다 */
+.field[data-run="go"] .body {
+  animation-name: pb-sprint;
+  animation-duration: 0.15s;
+}
+
+.field[data-run="go"] .shadow {
+  animation-duration: 0.15s;
+}
+
+/* 화면 밖이면 멈춘다 — 안 보이는 30명이 계속 뛸 이유가 없다 */
+.field[data-offscreen] .body,
+.field[data-offscreen] .shadow {
+  animation-play-state: paused;
+}
+
+@keyframes pb-jog {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes pb-sprint {
+  from {
+    transform: translateY(0) rotate(5deg);
+  }
+  to {
+    transform: translateY(-3px) rotate(9deg);
+  }
+}
+
+@keyframes pb-jog-shadow {
+  from {
+    transform: scaleX(1);
+    opacity: 0.55;
+  }
+  to {
+    transform: scaleX(0.7);
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail,
+  .field[data-run] .rail {
+    transform: translateX(var(--x));
+    transition: none;
+  }
+
+  .body,
+  .shadow {
+    animation: none;
+  }
+}

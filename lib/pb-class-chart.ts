@@ -17,6 +17,7 @@
 
 import { formatKST } from "@/lib/dayjs";
 import { buildSessStrip, type PbClassCfg, type PbStripState } from "@/lib/pb-class";
+import type { PbGroupScore, PbRecType, PbRule, PbScoreMember, PbScoreboard } from "@/lib/pb-class-score";
 import type { PbParticipant, PbSession } from "@/lib/queries/pb-class";
 
 /** 열(회차) 하나의 상태 — 참가자와 무관한 회차 자체의 상태다 */
@@ -263,4 +264,363 @@ export function crewGlance(crew: PbCrewAttd): PbCrewGlance | null {
     all: col.eligibleCnt > 0 && col.attdCnt === col.eligibleCnt,
     fullCnt: crew.fullCnt,
   };
+}
+
+// ─────────────────────────────────────────
+// 팀별 점수 그래프 (점수판 — 누구에게나 공개)
+// ─────────────────────────────────────────
+//
+// 팀 점수는 저장하지 않고 `computeScoreboard`가 매번 낸다. 그래프도 그 결과(`PbScoreboard`)를
+// **같은 공식으로** 주차별로 쪼갤 뿐이다 — 주차 w 의 증분 = (그 주 등록 팀원 평균) + (그 주 전원 출석이면 보너스).
+// 쪼갠 조각을 다 더하면 순위표의 `PbGroupScore.total`과 같아야 한다. 다르면 그래프와 순위표가
+// 서로 다른 점수를 말하는 화면이 된다(테스트가 이 등식을 못박는다).
+
+export type PbTeamSeriesTeam = {
+  grpId: string;
+  grpNm: string;
+  colorNo: number | null;
+  rank: number;
+  /** 순위표와 같은 값 — 그래프 마지막 점이 반드시 이 값이다 */
+  total: number;
+  /** 주차별 누적 점수(소수 첫째 자리). `weeks`와 같은 길이 */
+  cum: number[];
+  /** 주차별 그 주에 얻은 점수(평균 + 전원 출석, 소수 첫째 자리). 툴팁의 「+12.5」 */
+  gain: number[];
+};
+
+export type PbTeamSeries = {
+  /** 1 … lastWk — 점수가 하나라도 난 마지막 주차까지 */
+  weeks: number[];
+  /** 순위표 순서 그대로(코어가 정렬한 순서 — 화면이 다시 정렬하지 않는다) */
+  teams: PbTeamSeriesTeam[];
+};
+
+type SeriesMemberLike = Pick<PbScoreMember, "prtId" | "joinWkNo">;
+
+/**
+ * 팀 하나의 주차별 증분(반올림 전) — 코어 `computeScoreboard`와 같은 규칙.
+ * - 분모는 **그 주에 등록돼 있던** 팀전 대상(늦은 합류 아님·이 팀 배정 = 코어의 `inGame`)이다.
+ *   합류 전 주차엔 분모에도 없다 — 중간 합류자를 받은 팀이 손해 보지 않게 하는 코어의 장치 그대로.
+ * - 전원 출석 보너스는 코어가 이미 판정한 주(`allAttendWeeks`)를 그대로 쓴다(여기서 다시 판정하지 않는다).
+ */
+export function teamWeekGains(args: {
+  grp: Pick<PbGroupScore, "grpId" | "allAttendWeeks">;
+  scoreboard: Pick<PbScoreboard, "members">;
+  joinWkByPrt: ReadonlyMap<string, number>;
+  rule: Pick<PbRule, "pt">;
+  lastWk: number;
+}): number[] {
+  const { grp, scoreboard, joinWkByPrt, rule, lastWk } = args;
+  const team = scoreboard.members.filter((m) => m.inGame && m.grpId === grp.grpId);
+  const bonusWeeks = new Set(grp.allAttendWeeks);
+
+  return Array.from({ length: lastWk }, (_, i) => {
+    const wk = i + 1;
+    // 합류 주차를 모르면(참가자 목록에서 빠진 이상한 경우) 1주차로 본다 — 코어도 그 사람을 팀에 넣어 계산했다
+    const reg = team.filter((m) => (joinWkByPrt.get(m.prtId) ?? 1) <= wk);
+    let gain = 0;
+    if (reg.length > 0) {
+      const sum = reg.reduce((s, m) => s + m.entries.filter((e) => e.wkNo === wk).reduce((a, e) => a + e.pt, 0), 0);
+      gain += sum / reg.length;
+    }
+    if (bonusWeeks.has(wk)) gain += rule.pt.allAttend;
+    return gain;
+  });
+}
+
+/**
+ * 팀별 누적 점수 시리즈. 팀이 없거나 아직 아무 점수도 안 났으면 null(그래프 대신 빈 상태가 선다).
+ *
+ * 마지막 점은 순위표의 `total`로 **맞춘다**: 같은 실수들을 코어와 다른 순서로 더하면 아주 드물게
+ * 반올림 경계(x.x5)에서 0.1 이 갈릴 수 있다. 그래프 끝과 순위표 숫자가 다르면 어느 쪽이 맞는지 알 길이
+ * 없으니 정본(순위표)에 붙인다. 증분 계산 자체가 코어와 같다는 건 `teamWeekGains` 테스트가 따로 지킨다.
+ */
+export function buildPbTeamSeries(args: {
+  scoreboard: PbScoreboard;
+  members: readonly SeriesMemberLike[];
+  rule: Pick<PbRule, "pt">;
+}): PbTeamSeries | null {
+  const { scoreboard, members, rule } = args;
+  if (scoreboard.groups.length === 0) return null;
+
+  const grpIds = new Set(scoreboard.groups.map((g) => g.grpId));
+  let lastWk = 0;
+  for (const m of scoreboard.members) {
+    if (!m.inGame || !m.grpId || !grpIds.has(m.grpId)) continue;
+    for (const e of m.entries) if (e.pt > 0) lastWk = Math.max(lastWk, e.wkNo);
+  }
+  for (const g of scoreboard.groups) for (const wk of g.allAttendWeeks) lastWk = Math.max(lastWk, wk);
+  if (lastWk === 0) return null;
+
+  const joinWkByPrt = new Map(members.map((m) => [m.prtId, m.joinWkNo]));
+  const weeks = Array.from({ length: lastWk }, (_, i) => i + 1);
+
+  const teams = scoreboard.groups.map((g): PbTeamSeriesTeam => {
+    const raw = teamWeekGains({ grp: g, scoreboard, joinWkByPrt, rule, lastWk });
+    let running = 0;
+    const cum = raw.map((v) => {
+      running += v;
+      return round1(running);
+    });
+    cum[cum.length - 1] = g.total;
+    return {
+      grpId: g.grpId,
+      grpNm: g.grpNm,
+      colorNo: g.colorNo,
+      rank: g.rank,
+      total: g.total,
+      cum,
+      gain: raw.map(round1),
+    };
+  });
+
+  return { weeks, teams };
+}
+
+const Y_STEPS = [5, 10, 20, 25, 50, 100, 200, 250, 500, 1000] as const;
+
+/**
+ * 세로축 — 1위 점수 위로 조금 여유를 두고, 눈금이 **정수로 딱 떨어지는** 간격(5·10·20·25·50…)을 고른다.
+ * 끝값을 4등분하면 12.5 같은 눈금이 생겨 점수판의 「정수면 정수로」(`formatPt`) 표기와 어긋난다.
+ * 눈금은 많아야 다섯 칸 — 200px 높이에 그 이상이면 글자가 붙는다.
+ */
+export function teamYAxis(series: PbTeamSeries): { max: number; ticks: number[] } {
+  const top = Math.max(0, ...series.teams.map((t) => t.total)) * 1.08;
+  const step = Y_STEPS.find((s) => Math.ceil(top / s) <= 5) ?? Y_STEPS[Y_STEPS.length - 1];
+  const max = Math.max(step, Math.ceil(top / step) * step);
+  return { max, ticks: Array.from({ length: max / step + 1 }, (_, i) => i * step) };
+}
+
+// ─────────────────────────────────────────
+// 10K 예상기록 트랙 (점수판 — 승인된 참가자에게만)
+// ─────────────────────────────────────────
+//
+// 가로 한 줄 트랙에 참가자를 예상 10K 기록 자리에 세운다 — **왼쪽이 느리고 오른쪽이 빠르다**(오너:
+// 「느린 사람 왼쪽 빠른 사람 오른쪽」). 결승선이 오른쪽에 있는 그림이라 빠를수록 앞서 있다.
+// 이름·기록이 같이 실리므로 크루 출석과 같은 공개 범위다(점수판이 승인된 참가자에게만 그린다).
+
+export type PbPredicted10k = {
+  sec: number;
+  /** 어디서 왔나 — 「10K 측정 기록」 / 「6주차 5K × 2.085」 / 「1주차 5K × 2.085」 */
+  basis: string;
+  src: Extract<PbRecType, "FINAL_10K" | "MID_5K" | "BASE_5K">;
+};
+
+/**
+ * 예상 10K = 측정 10K 실제 기록이 있으면 그것, 없으면 **가장 최근 5K**(중간점검 → 1주차) × 환산 계수.
+ *
+ * 기록의 확정 여부(`cnfm`)는 보지 않는다 — 기록은 이제 본인이 적는 즉시 확정된다(확인 단계 없음).
+ * 내 P(`trainingPace`)도 같은 기록을 같은 방식으로 읽는다 — 훈련 탭과 이 트랙이 다른 기록을 보지 않게.
+ * 대구마라톤 10K 는 시즌 밖 대회라 예상기록의 근거로 쓰지 않는다.
+ */
+export function predicted10k(
+  member: Pick<PbScoreMember, "recs">,
+  rule: Pick<PbRule, "tenKFactor" | "midWkNo">,
+): PbPredicted10k | null {
+  const valid = (t: PbRecType) => {
+    const sec = member.recs[t]?.sec;
+    return sec && sec > 0 ? sec : null;
+  };
+  const fin = valid("FINAL_10K");
+  if (fin) return { sec: fin, basis: "10K 측정 기록", src: "FINAL_10K" };
+  const factorTxt = String(rule.tenKFactor);
+  const mid = valid("MID_5K");
+  if (mid) {
+    return { sec: Math.round(mid * rule.tenKFactor), basis: `${rule.midWkNo}주차 5K × ${factorTxt}`, src: "MID_5K" };
+  }
+  const base = valid("BASE_5K");
+  if (base) return { sec: Math.round(base * rule.tenKFactor), basis: `1주차 5K × ${factorTxt}`, src: "BASE_5K" };
+  return null;
+}
+
+/**
+ * 레인 배치 — 가까이 선 사람끼리 포개지면 손가락으로 못 고른다. 왼쪽부터 훑으며 **첫 번째로 자리가 나는
+ * 레인**에 세운다(같은 레인 안에선 이웃과 `minGap` 이상 떨어진다). 레인이 `maxLanes`에 차면 더 쌓지 않고
+ * 이웃과 가장 덜 겹치는 레인에 끼운다 — 트랙이 끝없이 높아지는 것보다 조금 겹치는 쪽이 낫다.
+ *
+ * `pin`(나)은 맨 먼저 0번(맨 위) 레인에 세운다: 내 이름표는 늘 떠 있어서 맨 윗레인이어야 남을 가리지 않는다.
+ * 결정적이다(같은 입력 → 같은 배치) — 서버·클라이언트가 같은 그림을 그려야 하이드레이션이 흔들리지 않는다.
+ */
+export function layoutTrackLanes(
+  items: readonly { id: string; x: number; pin?: boolean }[],
+  opts: { minGap: number; maxLanes: number },
+): { laneOf: Map<string, number>; laneCnt: number } {
+  const { minGap, maxLanes } = opts;
+  const lanes: number[][] = [];
+  const laneOf = new Map<string, number>();
+  const place = (id: string, x: number, lane: number) => {
+    (lanes[lane] ??= []).push(x);
+    laneOf.set(id, lane);
+  };
+  const nearest = (lane: number[], x: number) => lane.reduce((d, v) => Math.min(d, Math.abs(v - x)), Infinity);
+
+  const pinned = items.filter((it) => it.pin);
+  const rest = items.filter((it) => !it.pin).sort((a, b) => a.x - b.x || a.id.localeCompare(b.id));
+  for (const it of pinned) place(it.id, it.x, 0);
+
+  for (const it of rest) {
+    const free = lanes.findIndex((lane) => nearest(lane, it.x) >= minGap);
+    if (free >= 0) {
+      place(it.id, it.x, free);
+    } else if (lanes.length < maxLanes) {
+      place(it.id, it.x, lanes.length);
+    } else {
+      // 꽉 찼다 — 가장 덜 겹치는 레인(같으면 위쪽). 내가 있는 0번 레인은 내 이름표 자리라 피한다
+      let best = -1;
+      let bestD = -1;
+      lanes.forEach((lane, i) => {
+        if (i === 0 && pinned.length > 0 && lanes.length > 1) return;
+        const d = nearest(lane, it.x);
+        if (d > bestD) {
+          best = i;
+          bestD = d;
+        }
+      });
+      place(it.id, it.x, Math.max(best, 0));
+    }
+  }
+  return { laneOf, laneCnt: Math.max(lanes.length, 1) };
+}
+
+/**
+ * 레인 간격의 기준 폭 — 360px 화면(갤럭시 기본)의 본문 312px 에서 트랙 안쪽 여백(16 × 2)을 뺀 280px.
+ * 위치가 % 라 넓은 화면에선 더 벌어질 뿐 좁아지지 않는다 — 가장 좁은 폭에서 32px 히트 영역이 안 겹치면 된다.
+ */
+export const TRACK_BASE_W = 280;
+/** 손가락 히트 영역(px) */
+export const TRACK_HIT = 32;
+/** 레인 상한 — 육상 트랙도 8레인이다 */
+export const TRACK_MAX_LANES = 8;
+
+export type PbTrackRunner = {
+  memId: string;
+  memNm: string;
+  avatarUrl: string | null;
+  /** 게임팀 색 번호 — 러너 테두리(유니폼 색) */
+  colorNo: number | null;
+  isMe: boolean;
+  sec: number;
+  basis: string;
+  /** 0 = 왼쪽 끝(느림) … 100 = 오른쪽 끝(빠름) */
+  x: number;
+  /** 0 = 맨 윗레인 */
+  lane: number;
+};
+
+export type PbTrack = {
+  /** 왼쪽 끝(느린 쪽) 초 */
+  slowSec: number;
+  /** 오른쪽 끝(빠른 쪽) 초 */
+  fastSec: number;
+  /** 축 눈금(초) — 왼쪽부터 */
+  ticks: { sec: number; x: number }[];
+  /** 그리는 순서 — 왼쪽(느린 사람)부터, 나는 맨 뒤라 포개져도 맨 위에 그려진다 */
+  runners: PbTrackRunner[];
+  laneCnt: number;
+  /** 트랙에 선 사람들의 중앙값 */
+  median: { sec: number; x: number };
+  /** 내 목표선 — 목표가 있을 때만 */
+  goal: { sec: number; x: number } | null;
+  /** 기록이 없어 트랙에 못 선 승인 참가자 수 */
+  missingCnt: number;
+  /** 그중에 내가 있나 */
+  meMissing: boolean;
+};
+
+type TrackPrtLike = Pick<PbScoreMember, "memId" | "memNm" | "grpId" | "goalSec" | "recs"> & {
+  aprvYn: boolean;
+  avatarUrl: string | null;
+};
+
+/** 눈금 간격 — 범위가 좁으면 2분, 보통 5분, 30분이 넘게 벌어지면 10분(280px 에 라벨이 7개 넘게 서면 서로 붙는다) */
+function trackTickStep(span: number): number {
+  if (span <= 12 * 60) return 120;
+  return span <= 30 * 60 ? 300 : 600;
+}
+
+/**
+ * 승인된 참가자 → 트랙. 아무도 기록이 없으면 null(빈 상태가 선다).
+ * 입금 대기자는 아직 참가자가 아니라 세지도 않는다(크루 출석·정산과 같은 경계).
+ */
+export function buildPbTrack(args: {
+  participants: readonly TrackPrtLike[];
+  rule: Pick<PbRule, "tenKFactor" | "midWkNo">;
+  myMemId: string | null;
+  colorOfGrp?: ReadonlyMap<string, number | null>;
+}): PbTrack | null {
+  const { participants, rule, myMemId, colorOfGrp } = args;
+  const approved = participants.filter((p) => p.aprvYn);
+
+  const placed: Omit<PbTrackRunner, "x" | "lane">[] = [];
+  let missingCnt = 0;
+  let meMissing = false;
+  for (const p of approved) {
+    const pred = predicted10k(p, rule);
+    if (!pred) {
+      missingCnt += 1;
+      if (p.memId === myMemId) meMissing = true;
+      continue;
+    }
+    placed.push({
+      memId: p.memId,
+      memNm: p.memNm,
+      avatarUrl: p.avatarUrl,
+      colorNo: p.grpId ? (colorOfGrp?.get(p.grpId) ?? null) : null,
+      isMe: p.memId === myMemId,
+      sec: pred.sec,
+      basis: pred.basis,
+    });
+  }
+  if (placed.length === 0) return null;
+
+  const me = approved.find((p) => p.memId === myMemId);
+  const goalSec = me?.goalSec && me.goalSec > 0 ? me.goalSec : null;
+
+  // 범위 = 트랙에 선 사람(+ 내 목표)의 양 끝에서 조금 더 벌려 **분 단위**로 끊는다 — 끝 사람이 가장자리에
+  // 붙지 않을 만큼만. 5분 단위로 끊으면 아무도 없는 구간이 트랙의 5분의 1을 먹고, 그만큼 사람들이
+  // 좁은 데 몰려 레인이 늘어난다(실측 픽스처: 35~40분이 통째로 비었다).
+  const secs = placed.map((r) => r.sec);
+  const lo = Math.min(...secs, goalSec ?? Infinity);
+  const hi = Math.max(...secs, goalSec ?? -Infinity);
+  const pad = Math.max(60, (hi - lo) * 0.08);
+  const fastSec = Math.max(0, Math.floor((lo - pad) / 60) * 60);
+  const slowSec = Math.ceil((hi + pad) / 60) * 60;
+  const span = slowSec - fastSec;
+  const xOf = (sec: number) => round1(((slowSec - sec) / span) * 100);
+
+  // 눈금은 범위 안의 딱 떨어지는 시각만(끝값이 49:00 이어도 눈금은 45:00·50:00)
+  const step = trackTickStep(span);
+  const ticks: PbTrack["ticks"] = [];
+  for (let s = Math.floor(slowSec / step) * step; s >= fastSec; s -= step) ticks.push({ sec: s, x: xOf(s) });
+
+  const withX = placed.map((r) => ({ ...r, x: xOf(r.sec) }));
+  const { laneOf, laneCnt } = layoutTrackLanes(
+    withX.map((r) => ({ id: r.memId, x: r.x, pin: r.isMe })),
+    { minGap: (TRACK_HIT / TRACK_BASE_W) * 100, maxLanes: TRACK_MAX_LANES },
+  );
+
+  const runners = withX
+    .map((r) => ({ ...r, lane: laneOf.get(r.memId) ?? 0 }))
+    .sort((a, b) => Number(a.isMe) - Number(b.isMe) || a.x - b.x || a.memNm.localeCompare(b.memNm, "ko"));
+
+  const sorted = [...secs].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const medianSec = Math.round(sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2);
+
+  return {
+    slowSec,
+    fastSec,
+    ticks,
+    runners,
+    laneCnt,
+    median: { sec: medianSec, x: xOf(medianSec) },
+    goal: goalSec ? { sec: goalSec, x: xOf(goalSec) } : null,
+    missingCnt,
+    meMissing,
+  };
+}
+
+/** 축 눈금 — 분 단위로 딱 떨어지므로 "60:00" / "45:00"(눈금은 짧아야 해서 1시간이 넘어도 시:분:초로 안 바꾼다) */
+export function formatTrackTick(sec: number): string {
+  return `${Math.round(sec / 60)}:00`;
 }
