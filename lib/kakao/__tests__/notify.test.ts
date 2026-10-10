@@ -28,7 +28,7 @@ describe("sendKakao", () => {
     vi.restoreAllMocks();
   });
 
-  it("브리지 계약대로 보낸다 — X-Webhook-Token + {room,msg}", async () => {
+  it("허브 계약대로 보낸다 — Authorization: Bearer + {room,msg}", async () => {
     const fetchFn = vi.fn().mockResolvedValue(okResponse());
 
     const result = await sendKakao("안녕", { fetchFn: fetchFn as unknown as typeof fetch });
@@ -37,8 +37,21 @@ describe("sendKakao", () => {
     const [url, init] = fetchFn.mock.calls[0];
     expect(url).toBe("https://bridge.example/webhook");
     expect(init.method).toBe("POST");
-    expect(init.headers["X-Webhook-Token"]).toBe("s3cret");
+    expect(init.headers.Authorization).toBe("Bearer s3cret");
+    expect(init.headers["X-Webhook-Token"]).toBeUndefined();
     expect(JSON.parse(init.body)).toEqual({ room: "기강웹TF", msg: "안녕" });
+  });
+
+  it("requestId 를 넘기면 request_id 로 실어 보낸다 — 허브가 같은 id 는 두 번 보내지 않는다", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(okResponse());
+
+    await sendKakao("안녕", { requestId: "gathering:g1:created", fetchFn: fetchFn as unknown as typeof fetch });
+
+    expect(JSON.parse(fetchFn.mock.calls[0][1].body)).toEqual({
+      room: "기강웹TF",
+      msg: "안녕",
+      request_id: "gathering:g1:created",
+    });
   });
 
   it("room 을 넘기면 기본방 대신 그 방으로 간다", async () => {
@@ -75,7 +88,7 @@ describe("sendKakao", () => {
 
     await sendKakao("안녕", { fetchFn: fetchFn as unknown as typeof fetch });
 
-    expect(fetchFn.mock.calls[0][1].headers["X-Webhook-Token"]).toBeUndefined();
+    expect(fetchFn.mock.calls[0][1].headers.Authorization).toBeUndefined();
   });
 
   it("5xx 여도 던지지 않고 재시도하지 않는다 — 카톡엔 이미 도착했을 수 있다", async () => {
