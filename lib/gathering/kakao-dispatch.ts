@@ -6,6 +6,9 @@
  *
  * **여기서 던지지 않는다.** 호출 시점엔 모임 쓰기가 이미 끝났고, 톡 발송 실패로 되돌릴 수 없다.
  *
+ * 등록·취소는 모임당 한 번뿐인 사건이라 `request_id` 를 고정해 붙인다 — 액션이 재실행돼도 허브가 한 번만 보낸다.
+ * 수정·수동 공지는 같은 모임에서 여러 번 나가는 게 정상이라 붙이지 않는다.
+ *
  * 한때 수정 공지에 10분 묶음 창(`gthr_mst.kakao_sent_at`)을 뒀다가 걷어냈다 — 장소를 고치고
  * 바로 또 고치는 건 **사람이 헷갈리는 중이라는 뜻**이라, 그 사이 공지를 삼키면 톡방에 남은
  * 마지막 안내가 틀린 값이 된다. 도배보다 그쪽이 나쁘다. 발송 자체가 일시·장소 변경으로만
@@ -36,7 +39,9 @@ function linkOf(facts: GatheringFacts): string | null {
 
 /** 모임 등록. */
 export async function notifyGatheringCreated(facts: GatheringFacts): Promise<void> {
-  await sendKakao(buildGatheringShareText({ ...facts, url: linkOf(facts) }));
+  await sendKakao(buildGatheringShareText({ ...facts, url: linkOf(facts) }), {
+    requestId: `gathering:${facts.gthrId}:created`,
+  });
 }
 
 /**
@@ -60,7 +65,9 @@ export async function notifyGatheringUpdated(
 
 /** 모임 취소 — 링크 없이. 모르면 사람이 실제로 헛걸음한다. */
 export async function notifyGatheringCanceled(facts: GatheringFacts): Promise<void> {
-  await sendKakao(buildGatheringCancelText(facts));
+  await sendKakao(buildGatheringCancelText(facts), {
+    requestId: `gathering:${facts.gthrId}:canceled`,
+  });
 }
 
 /**
