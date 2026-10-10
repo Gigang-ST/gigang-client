@@ -4,7 +4,9 @@ const sendKakao = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/kakao/notify", () => ({ sendKakao }));
 
 import {
+  announceGathering,
   notifyGatheringCanceled,
+  notifyGatheringCreated,
   notifyGatheringUpdated,
 } from "@/lib/gathering/kakao-dispatch";
 
@@ -74,5 +76,27 @@ describe("notifyGatheringCanceled", () => {
 
     expect(sendKakao).toHaveBeenCalledTimes(1);
     expect(sendKakao.mock.calls[0][0]).toContain("❌ 모임이 취소됐어요");
+  });
+});
+
+describe("request_id — 허브가 같은 사건을 두 번 보내지 않게", () => {
+  beforeEach(() => {
+    sendKakao.mockReset().mockResolvedValue({ ok: true });
+  });
+
+  it("등록·취소는 모임마다 고정 id 를 붙인다", async () => {
+    await notifyGatheringCreated({ gthrId: "g1", title: "번개", sttAt: STT });
+    await notifyGatheringCanceled({ gthrId: "g1", title: "번개", sttAt: STT });
+
+    expect(sendKakao.mock.calls[0][1]).toEqual({ requestId: "gathering:g1:created" });
+    expect(sendKakao.mock.calls[1][1]).toEqual({ requestId: "gathering:g1:canceled" });
+  });
+
+  it("수정과 수동 공지는 id 를 붙이지 않는다 — 같은 모임에서 여러 번 나가는 게 정상이다", async () => {
+    await notifyGatheringUpdated({ gthrId: "g1", title: "번개", sttAt: STT, location: "한강", prev: { sttAt: STT, location: "여의도" } });
+    await announceGathering({ gthrId: "g1", title: "번개", sttAt: STT });
+
+    expect(sendKakao.mock.calls[0][1]).toBeUndefined();
+    expect(sendKakao.mock.calls[1][1]).toBeUndefined();
   });
 });

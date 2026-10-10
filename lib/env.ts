@@ -6,7 +6,8 @@ export const env = createEnv({
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
     REVALIDATE_SECRET: z.string().min(1),
     KAKAO_CHAT_PASSWORD: z.string().optional(),
-    // 카톡 브리지(n8n) 웹훅 — 모임 등록·수정·취소를 단톡방에 알린다(lib/kakao/notify.ts).
+    // 카카오 허브 — 모임 등록·수정·취소를 단톡방에 알린다(lib/kakao/notify.ts).
+    // URL = https://kakao-api.jeongmin.dev/v1/messages, SECRET = 허브 gigang 서비스 API 키(kb_…).
     // 셋 다 optional: 미설정이면 발송만 꺼진다. 로컬·preview가 실제 톡방에 쏘지 않게 하는
     // 안전장치가 이 "미설정 = 비활성"이라, 값을 넣은 환경에서만 발송된다.
     KAKAO_WEBHOOK_URL: z.url().optional(),

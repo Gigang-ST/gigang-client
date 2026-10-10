@@ -1,12 +1,12 @@
 /**
- * 카톡 브리지(안드로이드 공기계 + n8n) 웹훅 클라이언트.
+ * 카카오 허브(https://kakao-api.jeongmin.dev) 발송 클라이언트.
  *
- * 97oxrunners-bot 의 `src/kakao/notify.ts` 와 **같은 계약**이다:
- * `POST` + `X-Webhook-Token` 헤더 + `{ room, msg }` 페이로드.
- * 계약을 바꿀 일이 생기면 봇 쪽도 함께 고쳐야 한다 — 같은 브리지를 두 앱이 쓴다.
+ * 계약: `POST {KAKAO_WEBHOOK_URL}` + `Authorization: Bearer {KAKAO_WEBHOOK_SECRET}` + `{ room, msg, request_id? }`.
+ * KAKAO_WEBHOOK_URL 은 `https://kakao-api.jeongmin.dev/v1/messages`, KAKAO_WEBHOOK_SECRET 은 허브 admin 에서 발급한
+ * gigang 서비스의 API 키(`kb_…`). 허브는 202 로 큐에 넣고 봇폰으로 보낸다. 문서: https://kakao-api.jeongmin.dev/docs
  *
- * **재시도하지 않는다.** 브리지 경로(폰 → n8n → CF)는 카톡엔 실제로 도착했는데 5xx 가
- * 올라오는 구간이 있다. 재시도하면 같은 공지가 톡방에 여러 번 뜬다 — 유실보다 중복이 나쁘다.
+ * **재시도하지 않는다.** 허브는 `request_id` 가 같으면 두 번 보내지 않지만, 공지마다 id 를 붙이지 않는 호출도 있어서
+ * 여기서 재시도하면 같은 공지가 톡방에 여러 번 뜰 수 있다 — 유실보다 중복이 나쁘다.
  *
  * **던지지 않는다.** 호출부는 모임 등록·수정·취소가 이미 성공한 뒤다. 톡 발송 실패로
  * 그 작업을 되돌릴 수 없고 되돌려서도 안 되므로, 실패는 로그로만 남기고 `false`를 돌려준다.
@@ -25,11 +25,12 @@ export type KakaoSendResult = {
  *
  * @param message 보낼 본문.
  * @param opts.room 방 이름. 생략하면 `KAKAO_ROOM`.
+ * @param opts.requestId 멱등 키. 같은 사건(예: 모임 등록 1건)에 고정값을 주면 허브가 중복 발송을 막는다.
  * @param opts.fetchFn 테스트 주입용.
  */
 export async function sendKakao(
   message: string,
-  opts: { room?: string | null; fetchFn?: typeof fetch } = {},
+  opts: { room?: string | null; requestId?: string; fetchFn?: typeof fetch } = {},
 ): Promise<KakaoSendResult> {
   const url = env.KAKAO_WEBHOOK_URL;
   const room = opts.room ?? env.KAKAO_ROOM;
@@ -47,9 +48,9 @@ export async function sendKakao(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(env.KAKAO_WEBHOOK_SECRET ? { "X-Webhook-Token": env.KAKAO_WEBHOOK_SECRET } : {}),
+        ...(env.KAKAO_WEBHOOK_SECRET ? { Authorization: `Bearer ${env.KAKAO_WEBHOOK_SECRET}` } : {}),
       },
-      body: JSON.stringify({ room, msg: message }),
+      body: JSON.stringify({ room, msg: message, ...(opts.requestId ? { request_id: opts.requestId } : {}) }),
     });
 
     if (!res.ok) {
