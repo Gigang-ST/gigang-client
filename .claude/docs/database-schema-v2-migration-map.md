@@ -38,7 +38,7 @@
 | (선택) `comp_evt_type` 참조용 | `ROAD_EVT_CD` | `5K`, `10K`, `HALF`, `FULL` |
 | (선택) `comp_evt_type` 참조용 | `ULTRA_EVT_CD` | `50K`, `80K`, `100K`, `100M` |
 | (선택) `comp_evt_type` 참조용 | `TRAIL_EVT_CD` | `20K`, `50K`, `100K`, `100M` |
-| (선택) `comp_evt_type` 참조용 | `TRI_EVT_CD` | `SPRINT`, `OLYMPIC`, `HALF`, `FULL` |
+| (선택) `comp_evt_type` 참조용 | `TRI_EVT_CD` | `SPRINT`, `OLYMPIC`, `HALF`, `FULL` — ⚠️ 마라톤 `FULL`·`HALF`와 같은 문자열이라 **`comp_sprt_cd` 없이 종목만 비교하면 철인과 마라톤이 섞인다**. 랭킹 RPC는 `TRIATHLON_*`으로 바꿔 읽는다(#581, `toRankingEvtCd`). 옛 백필 데이터는 `TRIATHLON_*`로 저장돼 있다 |
 | (선택) `comp_evt_type` 참조용 | `CYC_EVT_CD` | `GRANFONDO`, `ROAD_RACE`, `TIME_TRIAL`, `CRITERIUM` |
 | `comp_reg_rel.prt_role_cd` | `PRT_ROLE_CD` | `participant`, `cheering`, `volunteer` |
 | `rec_race_hist.rec_src_cd` | `REC_SRC_CD` | `manual`, `imported`, `api` |

@@ -2,7 +2,7 @@
 
 import { revalidateTag } from "next/cache";
 
-import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
+import { compEvtTypeContainsHangul, toRankingEvtCd } from "@/lib/comp-evt-type";
 import { withActive } from "@/lib/actions/auth";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import {
@@ -67,6 +67,24 @@ async function getTeamRaceRows(teamId: string) {
   return (data ?? []) as TeamRaceRow[];
 }
 
+/**
+ * 기록의 종목을 랭킹 RPC가 쓰는 코드로 바꾼다 — 철인 `FULL`은 `TRIATHLON_FULL`.
+ *
+ * 저장된 코드 그대로 RPC 결과와 대조하면 철인 기록을 마라톤 풀 후보와 견주게 되어,
+ * 13시간대 기록이 TOP10 밖이라며 캐시를 안 털고 킹 칸이 24시간 비어 있는다(#581).
+ */
+function rankingEvtCdOf(
+  target: {
+    comp_evt_cfg: { comp_evt_type: string } | { comp_evt_type: string }[] | null;
+    comp_mst: { comp_sprt_cd: string | null } | { comp_sprt_cd: string | null }[] | null;
+  },
+): string {
+  const evtCfg = Array.isArray(target.comp_evt_cfg) ? target.comp_evt_cfg[0] : target.comp_evt_cfg;
+  const comp = Array.isArray(target.comp_mst) ? target.comp_mst[0] : target.comp_mst;
+  const evtType = evtCfg?.comp_evt_type ?? "";
+  return evtType ? toRankingEvtCd(comp?.comp_sprt_cd, evtType) : "";
+}
+
 async function shouldInvalidateRecordsCacheOnSave(params: {
   teamId: string;
   eventType: string;
@@ -124,9 +142,16 @@ export async function saveRaceRecord(input: SaveRaceRecordInput) {
       return { ok: false as const, message: "저장에 실패했습니다. 다시 시도해 주세요." };
     }
 
+    const { data: comp, error: compError } = await admin
+      .from("comp_mst")
+      .select("comp_sprt_cd")
+      .eq("comp_id", input.competitionId)
+      .maybeSingle();
+    // 못 읽으면 철인을 못 가려 마라톤 코드로 판정한다 — 저장은 이미 끝났으니 막지 않고 흔적만 남긴다
+    if (compError) console.error("[save-race-record] 대회 스포츠 조회 실패", compError);
     const shouldInvalidate = await shouldInvalidateRecordsCacheOnSave({
-      teamId, eventType: normalizedEventType, recordTimeSec: input.totalSeconds,
-      memberId: member.id, memberGender: member.gender ?? null,
+      teamId, eventType: toRankingEvtCd(comp?.comp_sprt_cd, normalizedEventType),
+      recordTimeSec: input.totalSeconds, memberId: member.id, memberGender: member.gender ?? null,
     });
     if (shouldInvalidate) revalidateTag(`records:${teamId}`, "max");
 
@@ -142,7 +167,7 @@ export async function updateRaceRecord(recordId: string, recordTimeSec: number) 
   return withActive(async ({ member, supabase }) => {
     const { data: target, error: fetchError } = await supabase
       .from("rec_race_hist")
-      .select("race_result_id, comp_evt_cfg(comp_evt_type)")
+      .select("race_result_id, comp_evt_cfg(comp_evt_type), comp_mst(comp_sprt_cd)")
       .eq("race_result_id", recordId)
       .eq("mem_id", member.id)
       .eq("vers", 0)
@@ -160,8 +185,7 @@ export async function updateRaceRecord(recordId: string, recordTimeSec: number) 
       .eq("del_yn", false);
     if (error) return { ok: false as const, message: "수정에 실패했습니다." };
 
-    const eventType =
-      (Array.isArray(target.comp_evt_cfg) ? target.comp_evt_cfg[0] : target.comp_evt_cfg)?.comp_evt_type ?? "";
+    const eventType = rankingEvtCdOf(target);
 
     if (eventType) {
       const { teamId } = await getRequestTeamContext();
@@ -179,7 +203,7 @@ export async function deleteRaceRecord(recordId: string) {
   return withActive(async ({ member, supabase }) => {
     const { data: target, error: fetchError } = await supabase
       .from("rec_race_hist")
-      .select("race_result_id, comp_evt_cfg(comp_evt_type)")
+      .select("race_result_id, comp_evt_cfg(comp_evt_type), comp_mst(comp_sprt_cd)")
       .eq("race_result_id", recordId)
       .eq("mem_id", member.id)
       .eq("vers", 0)
@@ -197,8 +221,7 @@ export async function deleteRaceRecord(recordId: string) {
       .eq("del_yn", false);
     if (error) return { ok: false as const, message: "삭제에 실패했습니다." };
 
-    const eventType =
-      (Array.isArray(target.comp_evt_cfg) ? target.comp_evt_cfg[0] : target.comp_evt_cfg)?.comp_evt_type ?? "";
+    const eventType = rankingEvtCdOf(target);
 
     if (eventType) {
       const { teamId } = await getRequestTeamContext();
