@@ -27,6 +27,25 @@ export function sanitizeAsciiUpperCompEvtTypeInput(raw: string): string {
   return upper.replace(HANGUL_RE, "").replace(/[^A-Z0-9 \-_]/g, "");
 }
 
+/** 철인3종 기본 종목(공통코드 `TRI_EVT_CD`) — 마라톤 코드와 겹치는 접두어 없는 값 */
+const TRIATHLON_BARE_EVT_TYPES = new Set(["FULL", "HALF", "OLYMPIC", "SPRINT"]);
+
+/**
+ * 기강의 전당 랭킹이 쓰는 종목 코드.
+ *
+ * 철인 대회의 `FULL`·`HALF`·`OLYMPIC`·`SPRINT`를 `TRIATHLON_*`으로 바꾼다. 그대로 두면 철인
+ * 풀·하프가 마라톤 풀·하프와 같은 코드라 랭킹에서 섞인다(#581). 그 밖의 값은 정규화만 한다.
+ *
+ * **정본은 RPC `get_public_team_race_rankings`의 `evt_cd` CASE**고, 이 함수는 그 거울이다 —
+ * 저장 시 캐시무효화 판정(`save-race-record.ts`)이 RPC 결과와 같은 코드로 대조하려고 쓴다.
+ * 한쪽을 고치면 다른 쪽도 고친다.
+ */
+export function toRankingEvtCd(sprtCd: string | null | undefined, evtType: string): string {
+  const key = normalizeCompEvtTypeKey(evtType);
+  if (sprtCd === "triathlon" && TRIATHLON_BARE_EVT_TYPES.has(key)) return `TRIATHLON_${key}`;
+  return key;
+}
+
 /**
  * 종목 코드 → 화면 라벨.
  *
