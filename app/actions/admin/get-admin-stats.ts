@@ -1,9 +1,9 @@
 "use server";
 
 import { withAdminOrThrow } from "@/lib/actions/auth";
-import { currentMonthKST, nextMonthStr } from "@/lib/dayjs";
+import { currentMonthKST, nextMonthStr, nowKST } from "@/lib/dayjs";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, createUntypedAdminClient } from "@/lib/supabase/admin";
 
 export type AdminStats = {
   totalCount: number;
@@ -22,14 +22,26 @@ export type AdminStats = {
   pendingParticipationCount: number;
   unpaidMemberCount: number;
   openFeedbackCount: number;
+
+  /**
+   * 최근 7일 카카오 발송 실패 건수.
+   * 공지가 안 나간 것을 운영진이 **앱 안에서** 알아차리게 하는 유일한 표면이다 —
+   * 그 전까지는 Vercel 런타임 로그에만 남았다.
+   */
+  kakaoFailedCount: number;
 };
+
+/** 최근 7일 경계. 발송 이력은 timestamptz 라 절대 시각 비교면 충분하다(날짜 개념이 없다). */
+function sevenDaysAgoISO(): string {
+  return nowKST().subtract(7, "day").toISOString();
+}
 
 export async function getAdminStats(): Promise<AdminStats> {
   return withAdminOrThrow(async () => {
     const { teamId } = await getRequestTeamContext();
     const admin = createAdminClient();
 
-    const [total, active, competitions, records, activeProjects, pendingPrt, pendingPbPrt, unpaidResult, openFeedback, pendingAply] = await Promise.all([
+    const [total, active, competitions, records, activeProjects, pendingPrt, pendingPbPrt, unpaidResult, openFeedback, pendingAply, kakaoFailed] = await Promise.all([
       admin.from("team_mem_rel").select("*", { count: "exact", head: true }).eq("team_id", teamId).eq("vers", 0).eq("del_yn", false)
         .then((res) => { if (res.error) console.error("[getAdminStats] team_mem_rel error:", res.error, "teamId:", teamId); return res; }),
       admin.from("team_mem_rel").select("*", { count: "exact", head: true }).eq("team_id", teamId).eq("vers", 0).eq("del_yn", false).eq("mem_st_cd", "active"),
@@ -55,6 +67,12 @@ export async function getAdminStats(): Promise<AdminStats> {
         .eq("aply_st_cd", "pending")
         .eq("gthr_mst.team_id", teamId)
         .eq("gthr_mst.del_yn", false),
+      // 카카오 발송 실패 — 최근 7일. 팀 스코프가 없는 건 발송 자체가 팀 하나(단톡방 하나)라서다.
+      createUntypedAdminClient()
+        .from("kakao_send_hist")
+        .select("send_id", { count: "exact", head: true })
+        .eq("status", "failed")
+        .gte("crt_at", sevenDaysAgoISO()),
     ]);
 
     if (unpaidResult.error) console.error("[getAdminStats] unpaid count error:", unpaidResult.error);
@@ -71,6 +89,7 @@ export async function getAdminStats(): Promise<AdminStats> {
       pendingParticipationCount: (pendingPrt.count ?? 0) + (pendingPbPrt.count ?? 0),
       unpaidMemberCount,
       openFeedbackCount: openFeedback.count ?? 0,
+      kakaoFailedCount: kakaoFailed.count ?? 0,
     };
   });
 }

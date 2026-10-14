@@ -28,6 +28,7 @@
   "dependencies": {
     "@google/genai": "^2.8.0",
     "@hookform/resolvers": "^5.2.2",
+    "@kakao-bot/sdk": "0.2.0",
     "@next/third-parties": "^16.1.6",
     "@radix-ui/react-dialog": "^1.1.6",
     "@radix-ui/react-label": "^2.1.6",
