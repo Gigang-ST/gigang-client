@@ -31,7 +31,12 @@ function normEmail(s: string | null | undefined): string | null {
 
 export type OnboardingPhoneResult =
   | { ok: true; kind: "new" }
-  | { ok: true; kind: "pending" }
+  /**
+   * 번호로 찾은 회원(`mem_mst`)은 있는데 **이 팀에 현재 소속이 없다** — 관리자가 "삭제"해
+   * `vers=0` 슬롯이 비었거나(대부분), 다른 팀에서 온 계정. 둘 다 할 일이 같다:
+   * 기존 `mem_id` 에 OAuth 를 붙이고 소속 행을 새로 꽂는다(`onboardingRejoinDeletedMember`).
+   */
+  | { ok: true; kind: "rejoin"; memId: string }
   | { ok: true; kind: "active"; memId: string }
   | { ok: false; message: string };
 
@@ -78,9 +83,106 @@ export async function onboardingCheckPhone(
     .eq("del_yn", false)
     .maybeSingle();
 
-  const st = rel?.mem_st_cd ?? "pending";
-  if (st === "pending") return { ok: true, kind: "pending" };
+  // 소속 행이 없으면 **삭제된 회원**이다 — 재가입 경로로 보낸다.
+  //
+  // 예전엔 여기서 `pending` 을 돌려주고 폼이 "재가입 신청이 접수되었습니다" 화면을 세웠는데,
+  // **그 신청을 저장하는 코드가 없었다**(#163 에서 재가입 승인 흐름을 걷어낼 때 저장 코드만
+  // 지우고 이 분기와 안내 문구가 남았다). 본인은 접수된 줄 알고 기다리고, 관리자에겐 알림도
+  // 목록도 가지 않는 헛도는 화면이었다. prd `pending` 회원은 0명이다.
+  //
+  // 승인을 붙이지 않고 **바로 재가입**시키는 이유: 삭제는 미납이 0일 때만 허용되므로
+  // (`deleteMember` 의 미납 가드) 삭제된 사람은 빚 없이 깨끗이 나간 사람이고, 승인으로
+  // 거를 것이 없다. 게다가 삭제 회원은 `vers=0` 슬롯이 비어 **회원관리 목록에 뜨지 않아**
+  // 관리자에게 알림을 보내 봤자 누를 화면이 없다(복구 기능도 없다).
+  if (!rel) return { ok: true, kind: "rejoin", memId };
   return { ok: true, kind: "active", memId };
+}
+
+/**
+ * 삭제된 회원의 재가입 — 기존 `mem_id` 에 OAuth 를 붙이고 소속 행을 새로 꽂는다.
+ *
+ * **신규 가입 경로를 재사용할 수 없다.** `onboardingCreateMember` 는 `mem_id = auth.uid()` 로
+ * `mem_mst` 를 INSERT 하는데, 재가입자는 이미 옛 `mem_id` 로 된 `mem_mst` 가 있다. 다른 OAuth
+ * 계정으로 들어오면 uid 가 달라 같은 번호의 회원이 둘이 되고, 그 다음 번호 조회는
+ * "같은 번호로 등록된 회원이 여러 명"으로 막힌다.
+ *
+ * **admin 클라이언트를 쓴다.** 온보딩 자가 INSERT 정책(`team_mem_rel_insert_self_onboarding`)은
+ * `mem_id = auth.uid()` 를 요구하는데, 여기서 꽂는 건 **옛 mem_id** 라 그 정책을 통과하지 못한다.
+ *
+ * 과거 기록·포인트·칭호는 `mem_id` 로 매달려 있어 **그대로 이어진다**(의도된 동작 — 이슈 #571).
+ * 회비 잔액만은 0원으로 봉인한다(아래).
+ */
+export async function onboardingRejoinDeletedMember(args: {
+  memId: string;
+  provider: "kakao" | "google";
+  initialAvatarUrl?: string | null;
+}): Promise<{ ok: boolean; message?: string }> {
+  const { user } = await requireAuthUser();
+  if (!user) return { ok: false, message: "로그인이 필요합니다." };
+
+  const admin = createAdminClient();
+  const { teamId } = await getRequestTeamContext();
+
+  // 이미 소속이 있으면 아무것도 하지 않는다(멱등) — 재제출·뒤로가기로 두 번 불려도
+  // 두 번째 INSERT 가 UNIQUE(team_id, mem_id, vers) 에 걸려 에러 화면을 띄우지 않게.
+  const { data: existing } = await admin
+    .from("team_mem_rel")
+    .select("team_mem_id")
+    .eq("mem_id", args.memId)
+    .eq("team_id", teamId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (existing) return { ok: true };
+
+  const link = await onboardingLinkExistingMember(args);
+  if (!link.ok) return link;
+
+  const { error: eRel } = await admin.from("team_mem_rel").insert({
+    team_id: teamId,
+    mem_id: args.memId,
+    team_role_cd: "member",
+    mem_st_cd: "active",
+    join_dt: todayKST(),
+    vers: 0,
+    del_yn: false,
+  });
+  // 23505 = 경합으로 그 사이 누가 꽂았다 — 목적은 이뤄졌으므로 성공으로 본다.
+  if (eRel && eRel.code !== "23505") return { ok: false, message: eRel.message };
+
+  // 재가입 잔액 봉인 — 과거 스냅샷이 남아 있으면 0원 앵커로 끊는다. 미납자는 애초에
+  // 삭제되지 않으므로(`deleteMember` 가드) 여기서 지워지는 빚은 없다. 비치명.
+  const { data: pastSnap } = await admin
+    .from("fee_mem_bal_snap")
+    .select("bal_snap_id")
+    .eq("team_id", teamId)
+    .eq("mem_id", args.memId)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (pastSnap) {
+    const { error: sealErr } = await sealBalanceAnchor(admin, teamId, args.memId);
+    if (sealErr) console.error("[onboarding] 재가입 잔액 봉인 실패", args.memId, sealErr);
+  }
+
+  // 가입 시점 기반 칭호 재평가(뉴비 등) — 신규 가입과 같은 처리. 응답 완료 후 실행.
+  const { data: relRow } = await admin
+    .from("team_mem_rel")
+    .select("team_mem_id")
+    .eq("mem_id", args.memId)
+    .eq("team_id", teamId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (relRow?.team_mem_id) {
+    const teamMemId = relRow.team_mem_id;
+    after(() =>
+      evaluateAndGrantTitles({ trigger: "attendance", teamId, teamMemId }).catch((e) =>
+        console.error("[title-engine] 재가입 attendance 평가 실패", e),
+      ),
+    );
+  }
+
+  return { ok: true };
 }
 
 /** 기존 활동 회원: OAuth만 연결(mem_mst) */

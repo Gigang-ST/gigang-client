@@ -6,71 +6,66 @@ import { recalculateBalance } from "@/app/actions/dues/recalculate-balance";
 import { withAdmin } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
 import { sealBalanceAnchor } from "@/lib/dues/seal-anchor";
+import { insertNoti } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { koreanNameSchema } from "@/lib/validations/member";
 
-export async function approveMember(memberId: string) {
-  return withAdmin(async () => {
-    const { teamId } = await getRequestTeamContext();
-    const db = createAdminClient();
-    const { data: rel } = await db
-      .from("team_mem_rel")
-      .select("team_mem_id")
-      .eq("mem_id", memberId)
-      .eq("team_id", teamId)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .eq("mem_st_cd", "pending")
-      .maybeSingle();
-    if (!rel) return { ok: false, message: "승인할 수 있는 대상이 아닙니다" };
-    const { error } = await db.rpc("apply_team_mem_rel_change", {
-      p_team_mem_id: rel.team_mem_id,
-      p_changes: { mem_st_cd: "active" },
-      p_eff_at: dayjs().toISOString(),
-    });
-    if (error) return { ok: false, message: "승인에 실패했습니다" };
-    return { ok: true, message: null };
-  });
-}
-
-export async function rejectMember(memberId: string) {
-  return withAdmin(async () => {
-    const { teamId } = await getRequestTeamContext();
-    const db = createAdminClient();
-    const { data: rel } = await db
-      .from("team_mem_rel")
-      .select("team_mem_id")
-      .eq("mem_id", memberId)
-      .eq("team_id", teamId)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .eq("mem_st_cd", "pending")
-      .maybeSingle();
-    if (!rel) return { ok: false, message: "거절할 수 있는 대상이 아닙니다" };
-    const { error } = await db.rpc("apply_team_mem_rel_change", {
-      p_team_mem_id: rel.team_mem_id,
-      p_changes: { mem_st_cd: "inactive" },
-      p_eff_at: dayjs().toISOString(),
-    });
-    if (error) return { ok: false, message: "거절에 실패했습니다" };
-    return { ok: true, message: null };
-  });
+/**
+ * 회비 잔액(원) 조회 — 없으면 0. **음수가 미납, 양수가 예치금.**
+ *
+ * "삭제" 한 회원이 재가입하면 잔액을 0원 앵커로 봉인하므로(`sealBalanceAnchor` —
+ * 함수 주석이 "예치금·미납을 청산"이라고 적고 있다), 잔액이 0이 아닌 사람을 삭제하면
+ * **그 돈이 양쪽 방향 모두 조용히 사라진다.** 그걸 막는 가드가 쓰는 조회다.
+ */
+async function getBalanceAmount(
+  db: ReturnType<typeof createAdminClient>,
+  teamId: string,
+  memId: string,
+): Promise<number> {
+  const { data } = await db
+    .from("fee_mem_bal_snap")
+    .select("bal_amt")
+    .eq("team_id", teamId)
+    .eq("mem_id", memId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+  return data?.bal_amt ?? 0;
 }
 
 /**
- * 이름 변경 — 관리자가 회원의 이름(`mem_mst.mem_nm`)을 고친다.
+ * 재활성화 완료를 **본인에게** 알린다. 비치명 — 실패해도 재활성화 자체는 성립.
  *
- * 본인이 가입할 때 적은 이름이지만 오타·별명("효인" ↔ "김효인")으로 들어오는 일이 잦고,
- * 본인은 프로필 수정에서 고칠 수 있어도 **관리자에겐 고칠 자리가 없었다**.
+ * 상태 변경 중 유일하게 본인에게 통보하는 지점이다. 비활성·탈퇴는 본인이 참여를 시도할 때
+ * 차단 화면이 사유를 말해 주지만(`InactiveGateDialog`·프로필탭), 재활성화는 **본인이
+ * 요청해 놓고 기다리는 소식**이라 통보가 없으면 앱을 다시 열어 뭔가 해봐야 풀린 걸 안다.
+ * `reactivate_req`(관리자행 요청)와 짝을 이뤄 고리를 닫는다.
  *
- * ⚠️ **회비 입금자명 매칭이 이 이름을 본다**(`matchPayer`). 바꾸면 **아직 확정하지 않은**
- * 거래의 자동 매칭이 새 이름 기준으로 다시 계산된다(인박스는 읽는 시점에 매칭한다).
- * 이미 확정된 거래는 `mem_id`가 박혀 있어 영향이 없고, 학습된 별칭(`fee_payer_alias`)도
- * 그대로 남아 **옛 이름으로 들어온 입금은 계속 붙는다** — 잔액·부과 로직은 건드리지 않는다.
- *
- * `mem_mst`는 팀에 매이지 않은 전역 신원이라, 우리 팀 소속인지 먼저 확인하고 손댄다.
+ * 단건·일괄 두 경로가 **같이** 불러야 한다 — 한쪽만 걸면 일괄 재활성화된 사람은 통보를
+ * 못 받는데, 그 차이를 본인은 알 길이 없다.
  */
+async function notifyReactivated(teamId: string, memIds: string[]) {
+  await Promise.all(
+    memIds.map((memId) =>
+      insertNoti({
+        teamId,
+        memId,
+        notiTypeEnm: "reactivated",
+        notiNm: "다시 활동할 수 있어요",
+        notiCont: "운영진이 활동을 재개해 주셨어요. 모임·대회에 다시 참여할 수 있어요.",
+      }).catch((e) => console.error("[reactivated] 알림 발송 실패", memId, e)),
+    ),
+  );
+}
+
+/**
+ * `pending` 상태를 만드는 코드는 더 이상 없다 — 가입 승인 흐름은 #163 에서 걷어냈고,
+ * 그 뒤 남아 있던 approveMember·rejectMember 와 /admin/approvals 화면도 2026-10 에 지웠다
+ * (prd `pending` 회원 0명, 화면으로 가는 링크 0개). 삭제된 회원의 재가입은 승인 없이
+ * 본인이 끝낸다(`onboardingRejoinDeletedMember`).
+ */
+
 export async function updateMemberName(memberId: string, name: string) {
   return withAdmin(async () => {
     const parsed = koreanNameSchema.safeParse(name);
@@ -155,6 +150,35 @@ export async function deleteMember(memberId: string) {
       .maybeSingle();
     if (!rel) return { ok: false, message: "삭제할 수 있는 대상이 아닙니다" };
     if (rel.team_role_cd === "owner") return { ok: false, message: "크루장은 삭제할 수 없습니다" };
+
+    // 잔액이 0이 아니면 삭제할 수 없다 — **회비는 탈퇴로 사라지지 않는다**(이슈 #571).
+    //
+    // 삭제는 vers=0 슬롯을 비우고, 그 사람이 같은 번호로 재가입하면 과거 잔액을 0원으로
+    // 봉인한다(`sealBalanceAnchor`). 그래서 잔액을 남긴 채 삭제하면 그 돈이 증발한다.
+    //
+    // **양쪽을 다 막는다.** 처음엔 미납(음수)만 막았는데, 봉인은 부호를 가리지 않아
+    // 예치금(양수)도 똑같이 0으로 민다(prd 실측 34명·257,500원 보유, 최대 98,000원).
+    // 8천원 안 내서 정리된 사람이 다시 들어올 때 8천원이 남아야 한다면, 9만 8천원 맡기고
+    // 나간 사람이 다시 들어올 때 그 돈도 남아야 한다 — 한쪽만 지키면 규칙이 아니라 편의다.
+    //   - 미납이면 → 탈퇴(`left`)로 남긴다(상태 전환 시트의 "탈퇴 처리").
+    //   - 예치금이면 → 환급·정산해 0으로 만든 뒤 삭제한다.
+    //
+    // 이 가드가 "삭제된 사람 = 주고받을 돈이 없는 사람"을 보장하고, 그래야 삭제 회원의
+    // **무승인 자동 재가입**(`onboardingRejoinDeletedMember`)이 안전해진다. 둘은 한 쌍이라
+    // 따로 떼지 않는다 — 가드를 풀면 재가입이 돈을 지우는 경로가 된다.
+    const balance = await getBalanceAmount(db, teamId, memberId);
+    if (balance < 0) {
+      return {
+        ok: false,
+        message: `미납 회비 ${(-balance).toLocaleString()}원이 남아 있어 삭제할 수 없습니다. 탈퇴 처리로 남겨 주세요.`,
+      };
+    }
+    if (balance > 0) {
+      return {
+        ok: false,
+        message: `예치금 ${balance.toLocaleString()}원이 남아 있어 삭제할 수 없습니다. 환급·정산으로 잔액을 0원으로 맞춘 뒤 삭제해 주세요.`,
+      };
+    }
 
     // 삭제 = vers 밀기(vers=0 슬롯 비움) → 재가입 가능. 상태 이력 보존.
     const { error } = await db.rpc("apply_team_mem_rel_delete", {
@@ -274,6 +298,7 @@ export async function reactivateMember(memberId: string, resetBalance = false) {
     }
 
     await recalculateBalance([memberId]);
+    await notifyReactivated(teamId, [memberId]);
     revalidatePath("/admin/members");
     revalidatePath("/admin/dues");
     return { ok: true, message: null };
@@ -341,6 +366,7 @@ export async function batchReactivateMembers(memberIds: string[]) {
     }
     // 일괄은 잔액 보존(초기화 없음) — 비활성 기간 제외만 재계산에 반영.
     await recalculateBalance(rels.map((r) => r.mem_id));
+    await notifyReactivated(teamId, rels.map((r) => r.mem_id));
     revalidatePath("/admin/members");
     revalidatePath("/admin/dues");
     return { ok: true, message: null };
