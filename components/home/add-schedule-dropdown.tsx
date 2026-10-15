@@ -45,7 +45,7 @@ const items = [
     label: "개인 일정",
     sub: "나만 볼 수 있어요",
     icon: Lock,
-    color: "text-muted-foreground",
+    color: "text-personal",
     disabled: false,
   },
 ] as const;

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 
 import { useSearchParams } from "next/navigation";
 
-import { CalendarDays, ChevronLeft, ChevronRight, List, Lock, Share2 } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, List, Share2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { buildWeeklyShareText } from "@/components/home/build-weekly-share-text";
@@ -22,7 +22,7 @@ import { columnWeekday, weekdayColumn, weekdayLabels, type WeekStart } from "@/l
 import { clearDeepLinkParams } from "@/lib/notifications/deep-link";
 import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
-import { MEM_SCH_SELECT, memSchRowToRace } from "@/lib/personal-schedule";
+import { MEM_SCH_SELECT, memSchRowToRace, raceTimeKST } from "@/lib/personal-schedule";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { schPostTypeInlineLabel } from "@/lib/validations/schedule-types";
@@ -100,7 +100,15 @@ const GatheringDetailDialog = dynamic<GatheringDetailDialogProps>(
   { ssr: false }
 );
 
-import type { PersonalScheduleDialogProps } from "@/components/schedule/personal-schedule-dialog";
+import type { PersonalScheduleDialogProps, PersonalScheduleFormPrefill } from "@/components/schedule/personal-schedule-dialog";
+import type { PersonalScheduleDetailDialogProps } from "@/components/schedule/personal-schedule-detail-dialog";
+const PersonalScheduleDetailDialog = dynamic<PersonalScheduleDetailDialogProps>(
+  () =>
+    import("@/components/schedule/personal-schedule-detail-dialog").then(
+      (m) => m.PersonalScheduleDetailDialog
+    ),
+  { ssr: false }
+);
 const PersonalScheduleDialog = dynamic<PersonalScheduleDialogProps>(
   () =>
     import("@/components/schedule/personal-schedule-dialog").then(
@@ -267,10 +275,13 @@ export function MiniCalendar({
   // 방금 등록한 모임으로 상세가 열렸는지 — 공유 유도 안내 노출용
   const [gthrJustCreated, setGthrJustCreated] = useState(false);
 
-  // 개인 일정 다이얼로그 — target 이 있으면 수정, 없으면 만들기(defaultDate)
+  // 개인 일정 — 상세(서랍) + 폼(target 이 있으면 수정, 없으면 만들기 / prefill 이 있으면 복제)
+  const [prsnDetail, setPrsnDetail] = useState<CalendarRace | null>(null);
+  const [prsnDetailOpen, setPrsnDetailOpen] = useState(false);
   const [prsnOpen, setPrsnOpen] = useState(false);
   const [prsnTarget, setPrsnTarget] = useState<CalendarRace | null>(null);
   const [prsnDefaultDate, setPrsnDefaultDate] = useState<string | undefined>(undefined);
+  const [prsnPrefill, setPrsnPrefill] = useState<PersonalScheduleFormPrefill | null>(null);
 
   // 대회 선택 다이얼로그 상태
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -1190,14 +1201,15 @@ export function MiniCalendar({
 
   function openPersonalCreate(defaultDate: string) {
     setPrsnTarget(null);
+    setPrsnPrefill(null);
     setPrsnDefaultDate(defaultDate);
     setPrsnOpen(true);
   }
 
-  // 개인 일정은 상세 화면 없이 곧장 수정 폼이다(§PersonalScheduleDialog)
-  const openPersonalEdit = useCallback((race: CalendarRace) => {
-    setPrsnTarget(race);
-    setPrsnOpen(true);
+  // 개인 일정 상세 — 모임처럼 서랍으로 연다. 행에 있는 값이 전부라 추가 조회가 없다
+  const openPersonalDetail = useCallback((race: CalendarRace) => {
+    setPrsnDetail(race);
+    setPrsnDetailOpen(true);
   }, []);
 
   async function refreshMonthData() {
@@ -1463,9 +1475,10 @@ export function MiniCalendar({
                               lane.startsThisWeek ? "rounded-l-sm" : "",
                               lane.endsThisWeek ? "rounded-r-sm" : "",
                               outMonth && "opacity-40",
-                              // 개인 일정은 무채색 — 팀 일정(대회·정보·모임)의 색 체계 밖에 있다는 표시
+                              // 개인 일정은 청록(--personal). 늘 "내 일정"이라 참가 대회·참석 모임처럼
+                              // 진한 바 + 흰 글씨다 — 연하게 두면 아직 안 간 공개 일정으로 읽힌다
                               lane.race.type === "personal"
-                                ? "bg-foreground/10 text-foreground"
+                                ? "bg-personal/60 text-white"
                                 : lane.race.type === "mine"
                                 ? "bg-warning/60 text-white"
                                 : lane.race.type === "schedule"
@@ -1523,7 +1536,7 @@ export function MiniCalendar({
                         key={race.id}
                         onClick={() =>
                           isPersonal
-                            ? openPersonalEdit(race)
+                            ? openPersonalDetail(race)
                             : race.type === "schedule"
                             ? openSchPostDetail(race)
                             : isGathering
@@ -1535,7 +1548,7 @@ export function MiniCalendar({
                         <span
                           className={cn(
                             "w-0.5 shrink-0 self-stretch rounded-full",
-                            isPersonal ? "bg-muted-foreground"
+                            isPersonal ? "bg-personal"
                               : race.type === "schedule" ? "bg-info"
                               : isGathering ? "bg-violet-500"
                               : "bg-warning",
@@ -1639,8 +1652,7 @@ export function MiniCalendar({
                           </span>
                         )}
                         {isPersonal && (
-                          <span className="flex shrink-0 items-center gap-0.5 rounded-md border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                            <Lock className="size-2.5" aria-hidden />
+                          <span className="shrink-0 rounded-md border border-personal/40 bg-personal/10 px-2 py-0.5 text-[10px] font-medium text-personal">
                             개인
                           </span>
                         )}
@@ -1664,7 +1676,7 @@ export function MiniCalendar({
             initialMonthKey={viewMonth.slice(0, 7)}
             initialRaces={[...myRaces, ...schPosts, ...gigangRaces, ...gatherings, ...personalScheds]}
             filterType={filterType}
-            onClickPersonal={openPersonalEdit}
+            onClickPersonal={openPersonalDetail}
             onClickSchedule={openSchPostDetail}
             onClickCompetition={handleRaceClick}
             onClickGathering={openGatheringDetail}
@@ -1690,11 +1702,40 @@ export function MiniCalendar({
         <PersonalScheduleDialog
           open={prsnOpen}
           // 닫을 때 target 을 비우지 않는다 — 닫힘 애니메이션 중에 제목이 "추가"로 튄다.
-          // 다음에 열 때 openPersonalCreate/openPersonalEdit 가 덮어쓴다.
+          // 다음에 열 때 openPersonalCreate·상세의 수정/복제가 덮어쓴다.
           onOpenChange={setPrsnOpen}
           target={prsnTarget}
           defaultDate={prsnDefaultDate}
+          prefill={prsnPrefill}
           onSuccess={() => { void refreshMonthData(); }}
+        />
+      )}
+      {memberId && (
+        <PersonalScheduleDetailDialog
+          schedule={prsnDetail}
+          open={prsnDetailOpen}
+          onOpenChange={setPrsnDetailOpen}
+          onEdit={() => {
+            if (!prsnDetail) return;
+            setPrsnDetailOpen(false);
+            setPrsnPrefill(null);
+            setPrsnTarget(prsnDetail);
+            setPrsnOpen(true);
+          }}
+          onClone={() => {
+            if (!prsnDetail) return;
+            setPrsnDetailOpen(false);
+            setPrsnTarget(null);
+            // 제목·시각·메모만 — 날짜는 비워 다시 고르게 한다(§PersonalScheduleDialog)
+            setPrsnPrefill({
+              sch_nm: prsnDetail.title,
+              stt_tm: raceTimeKST(prsnDetail.evt_stt_at),
+              end_tm: raceTimeKST(prsnDetail.evt_end_at),
+              cont_txt: prsnDetail.cont_txt ?? null,
+            });
+            setPrsnOpen(true);
+          }}
+          onDeleted={() => { void refreshMonthData(); }}
         />
       )}
 

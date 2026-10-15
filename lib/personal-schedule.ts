@@ -44,3 +44,32 @@ export function memSchRowToRace(row: MemSchRow): CalendarRace {
 export function raceTimeKST(iso: string | null | undefined): string | null {
   return iso ? formatKST(iso, "HH:mm") : null;
 }
+
+/** 「최근 불러오기」 목록 한 줄 — 폼에 넣는 값(제목·시각·메모) + 목록 날짜 라벨 */
+export type RecentPersonalSchedule = Pick<MemSchRow, "mem_sch_id" | "sch_nm" | "sch_dt" | "stt_tm" | "end_tm" | "cont_txt">;
+
+/**
+ * 최근 불러오기 목록의 중복 제거 — 모임의 `dedupeRecentGatherings`와 같은 규칙.
+ * 같은 일정을 반복해서 넣는 사람을 위한 기능이라, 내용(제목·시각·메모)이 같으면 가장 최근 것 하나로 접는다.
+ * 날짜는 시그니처에서 뺀다(새 일정 기준이라 폼에 넣지 않는다). 입력은 최신순이어야 한다.
+ */
+export function dedupeRecentPersonalSchedules(
+  rows: RecentPersonalSchedule[],
+  limit = 8,
+): RecentPersonalSchedule[] {
+  const seen = new Set<string>();
+  const result: RecentPersonalSchedule[] = [];
+  for (const r of rows) {
+    const sig = [r.sch_nm, r.stt_tm ?? "", r.end_tm ?? "", r.cont_txt ?? ""].join("\u0000");
+    if (seen.has(sig)) continue;
+    seen.add(sig);
+    result.push(r);
+    if (result.length >= limit) break;
+  }
+  return result;
+}
+
+/** DB time(`HH:mm:ss`) → 폼 입력용 `HH:mm`. 종일(null)은 그대로 */
+export function tmToHHmm(tm: string | null): string | null {
+  return tm ? dayjs(`2000-01-01 ${tm}`).format("HH:mm") : null;
+}

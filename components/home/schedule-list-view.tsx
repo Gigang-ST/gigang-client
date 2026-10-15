@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { Lock, MapPin } from "lucide-react";
+import { MapPin } from "lucide-react";
 
 import { dayjs, todayKST } from "@/lib/dayjs";
 import { createClient } from "@/lib/supabase/client";
@@ -203,7 +203,7 @@ function ScheduleItem({ race, onClick }: { race: CalendarRace; onClick: () => vo
   );
 }
 
-// 개인 일정 아이템 — 무채색 띠 + 자물쇠. 시각이 없으면 종일
+// 개인 일정 아이템 — 청록(--personal) 띠 + 「개인」 배지. 시각이 없으면 종일
 function PersonalItem({ race, onClick }: { race: CalendarRace; onClick: () => void }) {
   const timeRange = formatTimeRange(race.evt_stt_at, race.evt_end_at) ?? "종일";
 
@@ -212,14 +212,13 @@ function PersonalItem({ race, onClick }: { race: CalendarRace; onClick: () => vo
       onClick={onClick}
       className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
     >
-      <span className="w-0.5 shrink-0 rounded-full bg-muted-foreground" />
+      <span className="w-0.5 shrink-0 rounded-full bg-personal" />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <Caption className="truncate font-medium text-foreground">{race.title}</Caption>
         <Micro className="tabular-nums text-muted-foreground">{timeRange}</Micro>
         {race.cont_txt && <Micro className="truncate text-muted-foreground">{race.cont_txt}</Micro>}
       </span>
-      <span className="flex shrink-0 items-center gap-0.5 self-center rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
-        <Lock className="size-2.5" aria-hidden />
+      <span className="shrink-0 self-center rounded-md border border-personal/40 bg-personal/10 px-2.5 py-1 text-[11px] font-medium text-personal">
         개인
       </span>
     </button>

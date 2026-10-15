@@ -12,7 +12,13 @@ process.env.TZ = "UTC";
 
 import { afterAll, describe, expect, it } from "vitest";
 
-import { memSchRowToRace, memSchTimeToIso, raceTimeKST } from "@/lib/personal-schedule";
+import {
+  dedupeRecentPersonalSchedules,
+  memSchRowToRace,
+  memSchTimeToIso,
+  raceTimeKST,
+  tmToHHmm,
+} from "@/lib/personal-schedule";
 import { personalScheduleSchema } from "@/lib/validations/personal-schedule";
 
 afterAll(() => {
@@ -83,5 +89,30 @@ describe("personalScheduleSchema", () => {
 
   it("공백뿐인 제목은 막는다", () => {
     expect(personalScheduleSchema.safeParse({ ...base, sch_nm: "   " }).success).toBe(false);
+  });
+});
+
+describe("최근 불러오기", () => {
+  const row = (id: string, sch_nm: string, sch_dt: string, stt_tm: string | null = null) => ({
+    mem_sch_id: id, sch_nm, sch_dt, stt_tm, end_tm: null, cont_txt: null,
+  });
+
+  it("내용(제목·시각·메모)이 같으면 날짜가 달라도 가장 최근 것 하나만 남긴다", () => {
+    const out = dedupeRecentPersonalSchedules([
+      row("c", "인터벌", "2027-03-17", "06:00:00"),
+      row("b", "인터벌", "2027-03-10", "06:00:00"),
+      row("a", "인터벌", "2027-03-10", "07:00:00"),
+    ]);
+    expect(out.map((r) => r.mem_sch_id)).toEqual(["c", "a"]);
+  });
+
+  it("개수 상한을 지킨다", () => {
+    const rows = Array.from({ length: 12 }, (_, i) => row(String(i), `일정${i}`, "2027-03-10"));
+    expect(dedupeRecentPersonalSchedules(rows, 8)).toHaveLength(8);
+  });
+
+  it("DB 시각(HH:mm:ss)을 폼 입력(HH:mm)으로 바꾼다", () => {
+    expect(tmToHHmm("06:05:00")).toBe("06:05");
+    expect(tmToHHmm(null)).toBeNull();
   });
 });

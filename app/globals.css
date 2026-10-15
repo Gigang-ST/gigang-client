@@ -51,6 +51,7 @@
   --color-warning-foreground: var(--warning-foreground);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
+  --color-personal: var(--personal);
 
   /* 종목별 색상 (Sport) — chart-* 의 시맨틱 토큰 */
   --color-sport-road-run: var(--sport-road-run);
@@ -113,6 +114,9 @@
   --warning-foreground: oklch(0.21 0 0);
   --info: oklch(0.623 0.188 260);
   --info-foreground: oklch(1 0 0);
+  /* 개인 일정(본인만 보는 일정) — 청록. 참석(success 초록)과 같은 계열이라 "내 것"으로 읽히고,
+     대회(주황)·정보(파랑)·모임(보라) 어느 것과도 색상이 겹치지 않는다 */
+  --personal: oklch(0.56 0.11 190);
 
   /* 종목별 색상 (= 차트 색상의 시맨틱 이름) */
   --sport-road-run: oklch(0.655 0.162 32);
@@ -182,6 +186,7 @@
   --warning-foreground: oklch(0.145 0 0);
   --info: oklch(0.7 0.188 260);
   --info-foreground: oklch(1 0 0);
+  --personal: oklch(0.7 0.11 190);
 
   /* 종목별 색상 */
   --sport-road-run: oklch(0.72 0.162 32);

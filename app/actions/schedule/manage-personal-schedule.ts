@@ -3,6 +3,7 @@
 import { dayjs } from "@/lib/dayjs";
 import { withActive, withMember } from "@/lib/actions/auth";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { dedupeRecentPersonalSchedules, type RecentPersonalSchedule } from "@/lib/personal-schedule";
 import {
   personalScheduleSchema,
   updatePersonalScheduleSchema,
@@ -79,5 +80,31 @@ export async function deletePersonalSchedule(mem_sch_id: string) {
 
     if (error) throw new Error("개인 일정 삭제에 실패했습니다.");
     if (!data?.length) throw new Error("일정을 찾을 수 없습니다.");
+  });
+}
+
+/** 불러오기 조회 개수 — 중복 제거 전 넉넉히 받아 최종 8개로 접는다(모임 불러오기와 같은 수) */
+const RECENT_FETCH_LIMIT = 30;
+const RECENT_RESULT_LIMIT = 8;
+
+/**
+ * 「최근 불러오기」 목록 — 내 개인 일정 최신순, 내용이 같은 건 하나로 접는다.
+ * 폼의 버튼을 눌렀을 때만 부른다(모임 `getRecentGatherings`와 같은 지연 조회).
+ */
+export async function getRecentPersonalSchedules(): Promise<RecentPersonalSchedule[]> {
+  return withMember(async ({ member, supabase }) => {
+    const { teamId } = await getRequestTeamContext();
+    const { data, error } = await supabase
+      .from("mem_sch_mst")
+      .select("mem_sch_id, sch_nm, sch_dt, stt_tm, end_tm, cont_txt")
+      .eq("mem_id", member.id)
+      .eq("team_id", teamId)
+      .eq("del_yn", false)
+      .order("sch_dt", { ascending: false })
+      .order("crt_at", { ascending: false })
+      .limit(RECENT_FETCH_LIMIT);
+
+    if (error) throw new Error("최근 개인 일정을 불러오지 못했습니다.");
+    return dedupeRecentPersonalSchedules(data ?? [], RECENT_RESULT_LIMIT);
   });
 }
