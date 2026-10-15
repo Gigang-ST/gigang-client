@@ -9,8 +9,10 @@ import { useForm } from "react-hook-form";
 
 import {
   buildEventTypeOptionList,
+  buildSortedEventTypeOptions,
   COMP_EVT_TYPE_OTHER as EVENT_TYPE_OTHER,
   sanitizeAsciiUpperCompEvtTypeInput,
+  sortCompEvtTypes,
 } from "@/lib/comp-evt-type";
 import { findMyRegistration, type RegistrationRow } from "@/lib/competition-registration";
 import { formatDateRange } from "@/lib/dayjs";
@@ -266,15 +268,21 @@ export function CompetitionDetailDialog({
     };
   }, [competition?.id, open, memberStatus.status, teamId]);
 
+  // 헤더 배지는 앞의 3개만 보여 준다 — 순서가 틀리면 긴 종목이 `+N` 뒤로 숨는다(#575).
+  // 들어오는 경로가 여럿이라 여기서 한 번 더 세운다.
+  const sortedEventTypes = useMemo(
+    () => sortCompEvtTypes(competition?.event_types ?? [], competition?.sport),
+    [competition?.event_types, competition?.sport],
+  );
+
   // comp_evt_cfg 종목 + 스포츠 기본값 중 아직 없는 것만 (맨 아래 기타는 SelectItem 별도)
   const eventTypeOptions = useMemo(() => {
-    const explicit = competition?.event_types ?? [];
     const sportDefaults = eventTypeCodesForSprtFromCmmRows(
       cmmCdRows,
       competition?.sport ?? null,
     );
-    return buildEventTypeOptionList(explicit, sportDefaults);
-  }, [cmmCdRows, competition?.event_types, competition?.sport]);
+    return buildSortedEventTypeOptions(sortedEventTypes, sportDefaults, competition?.sport);
+  }, [cmmCdRows, sortedEventTypes, competition?.sport]);
 
   useEffect(() => {
     if (!competition || !open) return;
@@ -456,13 +464,13 @@ export function CompetitionDetailDialog({
                 {sprtCdDisplayName(cmmCdRows, competition.sport)}
               </Badge>
             )}
-            {competition.event_types?.slice(0, 3).map((type) => (
+            {sortedEventTypes.slice(0, 3).map((type) => (
               <Badge key={type} variant="outline">
                 {type.toUpperCase()}
               </Badge>
             ))}
-            {(competition.event_types?.length ?? 0) > 3 && (
-              <Badge variant="outline">+{competition.event_types!.length - 3}</Badge>
+            {sortedEventTypes.length > 3 && (
+              <Badge variant="outline">+{sortedEventTypes.length - 3}</Badge>
             )}
           </div>
         </ResponsiveDrawerHeader>
@@ -594,31 +602,33 @@ export function CompetitionDetailDialog({
           {(() => {
             if (!competition) return null;
 
-            const sportEvents = eventTypeCodesForSprtFromCmmRows(
-              cmmCdRows,
-              competition.sport,
-            );
-            const hardestFirst = [...sportEvents].reverse();
-
             const getDisplayKey = (p: RegistrationWithMember) =>
               p.event_type ??
               (p.role === "participant"
                 ? "미정"
                 : roleLabels[p.role as keyof typeof roleLabels] ?? p.role);
 
-            const sortOrder = (key: string) => {
-              const idx = hardestFirst.indexOf(key);
-              if (idx !== -1) return idx;
-              if (key === "미정") return hardestFirst.length;
-              if (key === "봉사") return hardestFirst.length + 1;
-              if (key === "응원") return hardestFirst.length + 2;
-              return hardestFirst.length + 3;
-            };
-
             const publicTotal = publicDisplayCounts.reduce((s, r) => s + r.cnt, 0);
             const hasMemberRows = participants.length > 0;
             const showPublicOnly = !hasMemberRows && publicTotal > 0;
             if (!hasMemberRows && !showPublicOnly) return null;
+
+            // 종목은 헤더 배지·참가 종목 선택과 같은 기준(긴 종목부터, #575), 그 뒤에 미정·봉사·응원.
+            // 공통코드 기본 종목만 알던 시절엔 160K·60K 같은 종목이 전부 맨 뒤로 밀렸다.
+            const roleKeys = ["미정", "봉사", "응원"];
+            const presentKeys = hasMemberRows
+              ? participants.map(getDisplayKey)
+              : publicDisplayCounts.map((r) => r.display_key);
+            const eventOrder = sortCompEvtTypes(
+              [...new Set(presentKeys)].filter((key) => !roleKeys.includes(key)),
+              competition.sport,
+            );
+            const sortOrder = (key: string) => {
+              const idx = eventOrder.indexOf(key);
+              if (idx !== -1) return idx;
+              const roleIdx = roleKeys.indexOf(key);
+              return eventOrder.length + (roleIdx === -1 ? roleKeys.length : roleIdx);
+            };
 
             let sortedCounts: [string, number][] = [];
             let sortedParticipants: RegistrationWithMember[] = [];

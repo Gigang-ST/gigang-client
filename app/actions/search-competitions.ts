@@ -1,5 +1,6 @@
 "use server";
 
+import { toCompEvtTypes } from "@/lib/comp-evt-type";
 import { createClient } from "@/lib/supabase/server";
 
 export type SearchCompetition = {
@@ -31,7 +32,10 @@ export async function searchCompetitions(query: string): Promise<SearchCompetiti
     start_date: row.stt_dt,
     location: row.loc_nm,
     sport: row.comp_sprt_cd,
-    event_types: (((row as unknown as { comp_evt_cfg?: { comp_evt_type: string | null }[] }).comp_evt_cfg ?? []).map((e) => e.comp_evt_type?.toUpperCase()).filter(Boolean) as string[]),
+    event_types: toCompEvtTypes(
+      (row as unknown as { comp_evt_cfg?: { comp_evt_type: string | null }[] }).comp_evt_cfg,
+      row.comp_sprt_cd,
+    ),
   }));
 }
 
@@ -68,6 +72,9 @@ export async function listCompetitionsByRaceDate(raceDate: string): Promise<Sear
       start_date: row.stt_dt,
       location: row.loc_nm,
       sport: row.comp_sprt_cd,
-      event_types: (((row as unknown as { comp_evt_cfg?: { comp_evt_type: string | null }[] }).comp_evt_cfg ?? []).map((e) => e.comp_evt_type?.toUpperCase()).filter(Boolean) as string[]),
+      event_types: toCompEvtTypes(
+      (row as unknown as { comp_evt_cfg?: { comp_evt_type: string | null }[] }).comp_evt_cfg,
+      row.comp_sprt_cd,
+    ),
     }));
 }
