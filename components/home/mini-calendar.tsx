@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 import { buildWeeklyShareText } from "@/components/home/build-weekly-share-text";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
+import { COMPETITION_SELECT, toCompetition } from "@/lib/competition-row";
 import { buildRegistrationMap } from "@/lib/competition-registration";
 import {
   dayjs,
@@ -547,8 +548,8 @@ export function MiniCalendar({
     if (deepLinkCompId) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deepLinkCompId)
       const query = isUuid
-        ? supabase.from("comp_mst").select("comp_id, short_id, crt_by, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)").eq("comp_id", deepLinkCompId).maybeSingle()
-        : supabase.from("comp_mst").select("comp_id, short_id, crt_by, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)").eq("short_id", deepLinkCompId).maybeSingle()
+        ? supabase.from("comp_mst").select(COMPETITION_SELECT).eq("comp_id", deepLinkCompId).maybeSingle()
+        : supabase.from("comp_mst").select(COMPETITION_SELECT).eq("short_id", deepLinkCompId).maybeSingle()
 
       query.then(({ data }) => {
         if (cancelled) return
@@ -556,21 +557,7 @@ export function MiniCalendar({
           notifyDeepLinkMissing("대회")
           return
         }
-        setSelectedCompetition({
-          id: data.comp_id,
-          short_id: data.short_id ?? null,
-          crt_by: data.crt_by ?? null,
-          external_id: "",
-          sport: data.comp_sprt_cd ?? null,
-          title: data.comp_nm,
-          start_date: data.stt_dt,
-          end_date: data.end_dt ?? null,
-          location: data.loc_nm ?? null,
-          event_types: (data.comp_evt_cfg as { comp_evt_type: string | null }[])
-            .map((e) => e.comp_evt_type?.toUpperCase())
-            .filter((e): e is string => Boolean(e)),
-          source_url: data.src_url ?? null,
-        })
+        setSelectedCompetition(toCompetition(data))
         // 댓글은 기다리지 않는다 — undefined면 CommentSection이 자체 조회·로딩 표시 (인스턴트 오픈 원칙)
         setCompDetailInitialComments(undefined)
         clearDeepLinkParams()
@@ -739,27 +726,12 @@ export function MiniCalendar({
     try {
       const { data } = await supabase
         .from("comp_mst")
-        .select("comp_id, short_id, crt_by, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)")
+        .select(COMPETITION_SELECT)
         .eq("comp_id", race.id)
         .single();
       if (!data) return;
       // 그 사이 다른 대회가 열렸으면 늦게 온 응답을 버린다
-      setSelectedCompetition((prev) => prev && prev.id === race.id
-        ? {
-            ...prev,
-            short_id: data.short_id ?? null,
-            crt_by: data.crt_by ?? null,
-            sport: data.comp_sprt_cd ?? null,
-            title: data.comp_nm,
-            start_date: data.stt_dt,
-            end_date: data.end_dt ?? null,
-            location: data.loc_nm ?? null,
-            event_types: (data.comp_evt_cfg as { comp_evt_type: string | null }[])
-              .map((e) => e.comp_evt_type?.toUpperCase())
-              .filter((e): e is string => Boolean(e)),
-            source_url: data.src_url ?? null,
-          }
-        : prev);
+      setSelectedCompetition((prev) => prev && prev.id === race.id ? toCompetition(data) : prev);
     } finally {
       openingLock.current = false;
     }

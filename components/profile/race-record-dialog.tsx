@@ -3,9 +3,10 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 
 import {
-  buildEventTypeOptionList,
+  buildSortedEventTypeOptions,
   COMP_EVT_TYPE_OTHER as EVENT_TYPE_OTHER,
   sanitizeAsciiUpperCompEvtTypeInput,
+  toCompEvtTypes,
 } from "@/lib/comp-evt-type";
 import { timeStringToSeconds, secondsToTime } from "@/lib/dayjs";
 import {
@@ -157,7 +158,7 @@ export function RaceRecordDialog({
       cmmCdRows,
       selectedComp.sport || null,
     );
-    const list = buildEventTypeOptionList(selectedComp.event_types, sportDefaults);
+    const list = buildSortedEventTypeOptions(selectedComp.event_types, sportDefaults, selectedComp.sport);
     return [...list, EVENT_TYPE_OTHER];
   }, [cmmCdRows, selectedComp?.id, selectedComp?.event_types, selectedComp?.sport]);
 
@@ -222,7 +223,7 @@ export function RaceRecordDialog({
           start_date: comp.stt_dt,
           location: comp.loc_nm,
           sport: comp.comp_sprt_cd,
-          event_types: (comp.comp_evt_cfg ?? []).map((e) => e.comp_evt_type?.toUpperCase()),
+          event_types: toCompEvtTypes(comp.comp_evt_cfg, comp.comp_sprt_cd),
           registeredEventType: evt?.comp_evt_type ?? null,
           registrationCompEvtId: rowAny.comp_evt_id ?? null,
           hasRecord: recordedCompIds.has(comp.comp_id),

@@ -3,6 +3,7 @@
 import { revalidateTag } from "next/cache";
 
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
+import { COMPETITION_COLUMNS, toCompetition } from "@/lib/competition-row";
 import { todayKST } from "@/lib/dayjs";
 import { getCachedCmmCdRows, isValidCompSprtCd } from "@/lib/queries/cmm-cd-cached";
 import { withActive } from "@/lib/actions/auth";
@@ -53,8 +54,9 @@ export async function createCompetition(input: CreateCompetitionInput) {
         vers: 0, del_yn: false,
       })
       // short_id는 DB가 만들어 주므로 되받아야 한다 — 아래 반환값이 곧바로 상세 다이얼로그로
-      // 들어가고, 거기서 공유 링크와 수정 버튼 노출에 둘 다 쓰인다.
-      .select("comp_id, short_id, crt_by")
+      // 들어가고, 거기서 공유 링크와 수정 버튼 노출에 둘 다 쓰인다. 목록과 같은 컬럼을 되받아
+      // 같은 변환(toCompetition)을 거친다.
+      .select(COMPETITION_COLUMNS)
       .single();
 
     if (compErr || !comp) {
@@ -77,20 +79,12 @@ export async function createCompetition(input: CreateCompetitionInput) {
     revalidateTag("competitions", "max");
     return {
       ok: true, message: null,
-      competition: {
-        id: comp.comp_id,
-        // ⚠️ 이 객체는 곧바로 상세 다이얼로그로 들어간다(mini-calendar의 handleCompetitionCreated가
-        //    받자마자 연다). 그래서 둘 다 실어야 한다:
-        //    - crt_by 없으면 **방금 만든 사람이 자기 대회의 수정 버튼을 못 본다** — 날짜 오타를
-        //      알아채는 바로 그 순간이라 이게 빠지면 이 기능의 핵심 동선이 끊긴다
-        //    - short_id 없으면 그 화면의 공유 링크가 uuid로 나간다
-        short_id: comp.short_id ?? null,
-        crt_by: comp.crt_by ?? null,
-        external_id: `manual:${comp.comp_id}`, sport: input.sport,
-        title: input.title.trim(), start_date: input.startDate, end_date: input.endDate ?? null,
-        location: input.location.trim() || null, event_types: eventTypes,
-        source_url: input.sourceUrl.trim() || null,
-      },
+      // ⚠️ 이 객체는 곧바로 상세 다이얼로그로 들어간다(mini-calendar의 handleCompetitionCreated가
+      //    받자마자 연다). 그래서 short_id·crt_by를 둘 다 실어야 한다(COMPETITION_COLUMNS가 묶어 둔다):
+      //    - crt_by 없으면 **방금 만든 사람이 자기 대회의 수정 버튼을 못 본다** — 날짜 오타를
+      //      알아채는 바로 그 순간이라 이게 빠지면 이 기능의 핵심 동선이 끊긴다
+      //    - short_id 없으면 그 화면의 공유 링크가 uuid로 나간다
+      competition: toCompetition({ ...comp, comp_evt_types: eventTypes }),
     };
   });
 }
