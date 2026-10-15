@@ -112,3 +112,23 @@ describe("buildWeeklyShareText", () => {
     expect(buildWeeklyShareText([races[1]], ORIGIN, "gathering")).toBeNull();
   });
 });
+
+describe("buildWeeklyShareText — 개인 일정", () => {
+  // 이 텍스트는 단톡방(크루 전체)에 붙여넣어진다. 개인 일정이 섞이면 나만 보는 일정이 공개된다.
+  it("개인 일정은 어떤 필터에서도 싣지 않는다", () => {
+    const races = [
+      makeRace({ id: "p", title: "개인 비공개", start_date: today, type: "personal", evt_stt_at: atKST(today, "08:00") }),
+      makeRace({ id: "g", title: "공개 모임", start_date: today, type: "gathering", evt_stt_at: atKST(today, "09:00") }),
+    ];
+    for (const filter of ["all", "mine"] as const) {
+      const text = buildWeeklyShareText(races, ORIGIN, filter, today);
+      expect(text ?? "").not.toContain("개인 비공개");
+    }
+    expect(buildWeeklyShareText(races, ORIGIN, "all", today)).toContain("공개 모임");
+  });
+
+  it("개인 일정만 있는 주는 공유할 게 없다", () => {
+    const races = [makeRace({ id: "p", title: "개인 비공개", start_date: today, type: "personal" })];
+    expect(buildWeeklyShareText(races, ORIGIN, "mine", today)).toBeNull();
+  });
+});

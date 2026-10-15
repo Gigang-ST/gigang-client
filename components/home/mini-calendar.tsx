@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 
 import { useSearchParams } from "next/navigation";
 
-import { CalendarDays, ChevronLeft, ChevronRight, List, Share2 } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, List, Lock, Share2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { buildWeeklyShareText } from "@/components/home/build-weekly-share-text";
@@ -22,6 +22,7 @@ import { columnWeekday, weekdayColumn, weekdayLabels, type WeekStart } from "@/l
 import { clearDeepLinkParams } from "@/lib/notifications/deep-link";
 import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { ensureTeamCompPlanRel } from "@/lib/queries/ensure-team-comp-plan-rel";
+import { MEM_SCH_SELECT, memSchRowToRace } from "@/lib/personal-schedule";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { schPostTypeInlineLabel } from "@/lib/validations/schedule-types";
@@ -99,6 +100,15 @@ const GatheringDetailDialog = dynamic<GatheringDetailDialogProps>(
   { ssr: false }
 );
 
+import type { PersonalScheduleDialogProps } from "@/components/schedule/personal-schedule-dialog";
+const PersonalScheduleDialog = dynamic<PersonalScheduleDialogProps>(
+  () =>
+    import("@/components/schedule/personal-schedule-dialog").then(
+      (m) => m.PersonalScheduleDialog
+    ),
+  { ssr: false }
+);
+
 const ShareSheet = dynamic(
   () => import("@/components/common/share-sheet").then((m) => m.ShareSheet),
   { ssr: false }
@@ -121,7 +131,8 @@ export type CalendarRace = {
   short_id?: string | null;
   title: string;
   start_date: string;
-  type: "gigang" | "mine" | "schedule" | "gathering" | "gathering_mine";
+  /** personal = 개인 일정(mem_sch_mst) — 본인만 본다. 주간 공유 텍스트엔 절대 싣지 않는다 */
+  type: "gigang" | "mine" | "schedule" | "gathering" | "gathering_mine" | "personal";
   // 공통 선택 필드
   end_date?: string | null;
   location?: string | null;
@@ -177,7 +188,7 @@ type Cell = { date: string; day: number; inMonth: boolean };
 // 일정 표시 우선순위 — 하단 패널·그리드 이벤트 바 공용.
 // ① 내가 참여 중(모임참석·대회참가) ② 모임 ③ 정보 ④ 대회 순으로 위/앞에 배치한다.
 function eventDisplayOrder(r: CalendarRace): number {
-  if (r.type === "gathering_mine" || r.type === "mine") return 0; // 참여 중
+  if (r.type === "gathering_mine" || r.type === "mine" || r.type === "personal") return 0; // 참여 중·내 일정
   if (r.type === "gathering") return 1;
   if (r.type === "schedule") return 2;
   return 3; // gigang(비참여 대회)
@@ -204,6 +215,11 @@ export function MiniCalendar({
   const [myRaces, setMyRaces] = useState(initMine);
   const [schPosts, setSchPosts] = useState(initSchPosts);
   const [gatherings, setGatherings] = useState(initGatherings);
+  // 개인 일정 — 팀 공용 캐시(getCachedHomeCalendar)에 섞으면 남의 일정이 서빙되므로 SSR로 받지 않고
+  // 클라이언트가 본인 세션으로 직접 읽는다(RLS 본인 전용). 다른 종류와 **따로 들고 있는 게 중요하다**:
+  // 주간 공유(단톡방 텍스트)가 myRaces·schPosts·gigangRaces·gatherings 를 이어 붙여 조립하므로,
+  // 같은 배열에 넣으면 내 개인 일정이 단톡방으로 새어 나간다.
+  const [personalScheds, setPersonalScheds] = useState<CalendarRace[]>([]);
   const [listViewKey, setListViewKey] = useState(0);
   const [isPending, startTransition] = useTransition();
 
@@ -212,7 +228,7 @@ export function MiniCalendar({
   // 어느 달을 불러도 맵이 최신으로 복구되게 하기 위해서다 — 예전엔 마운트 때 딱 한 번만
   // 만들었고, 그 한 번을 놓치면(§fetchUserData) 그 페이지 세션 내내 빈 채로 남아 이미 신청한
   // 사람이 "정보 수정"이 아니라 "참가 신청"을 보게 됐다(→ INSERT → 23505 → 막다른 길).
-  type MonthData = { gigang: CalendarRace[]; mine: CalendarRace[]; schPosts: CalendarRace[]; gatherings: CalendarRace[]; regs: Record<string, CompetitionRegistration> };
+  type MonthData = { gigang: CalendarRace[]; mine: CalendarRace[]; schPosts: CalendarRace[]; gatherings: CalendarRace[]; personal: CalendarRace[]; regs: Record<string, CompetitionRegistration> };
   const monthCacheRef = useRef(new Map<string, MonthData>());
   const cacheVersionRef = useRef(0);
 
@@ -250,6 +266,11 @@ export function MiniCalendar({
   const [gthrEditTarget, setGthrEditTarget] = useState<CalendarRace | null>(null);
   // 방금 등록한 모임으로 상세가 열렸는지 — 공유 유도 안내 노출용
   const [gthrJustCreated, setGthrJustCreated] = useState(false);
+
+  // 개인 일정 다이얼로그 — target 이 있으면 수정, 없으면 만들기(defaultDate)
+  const [prsnOpen, setPrsnOpen] = useState(false);
+  const [prsnTarget, setPrsnTarget] = useState<CalendarRace | null>(null);
+  const [prsnDefaultDate, setPrsnDefaultDate] = useState<string | undefined>(undefined);
 
   // 대회 선택 다이얼로그 상태
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -561,7 +582,10 @@ export function MiniCalendar({
     weekStart,
   );
 
-  const allRaces = useMemo(() => [...myRaces, ...schPosts, ...gigangRaces, ...gatherings], [myRaces, schPosts, gigangRaces, gatherings]);
+  const allRaces = useMemo(
+    () => [...myRaces, ...schPosts, ...gigangRaces, ...gatherings, ...personalScheds],
+    [myRaces, schPosts, gigangRaces, gatherings, personalScheds],
+  );
 
   const filteredRaces = useMemo(() => allRaces.filter((r) => matchesFilter(r, filterType)), [allRaces, filterType]);
 
@@ -829,6 +853,19 @@ export function MiniCalendar({
     return { ok: true as const, message: "취소 완료" };
   };
 
+  // 개인 일정은 하루짜리(sch_dt)라 앞당긴 fetchStart 없이 그리드 범위 그대로 읽는다.
+  // 본인 세션 + RLS 본인 전용이라 mem_id 를 따로 걸지 않아도 남의 것은 안 온다(비로그인은 조회 안 함).
+  function fetchPersonal(gridStart: string, gridEnd: string) {
+    if (!memberId) return Promise.resolve({ data: null });
+    return supabase
+      .from("mem_sch_mst")
+      .select(MEM_SCH_SELECT)
+      .eq("team_id", teamId)
+      .eq("del_yn", false)
+      .gte("sch_dt", gridStart)
+      .lte("sch_dt", gridEnd);
+  }
+
   async function fetchMonthData(newMonth: string) {
     const [yStr, mStr] = newMonth.split("-");
     const y = parseInt(yStr, 10);
@@ -843,6 +880,7 @@ export function MiniCalendar({
       myRegsResult,
       { data: schPostRows },
       { data: gthrRows },
+      { data: prsnRows },
     ] = await Promise.all([
       supabase.rpc("get_public_team_competitions", { p_team_id: teamId, p_start: fetchStart, p_end: gridEnd }),
       memberId
@@ -860,6 +898,7 @@ export function MiniCalendar({
       memberId
         ? supabase.rpc("get_public_team_gatherings", { p_team_id: teamId, p_start: fetchStart, p_end: gridEnd, p_mem_id: memberId })
         : supabase.rpc("get_public_team_gatherings", { p_team_id: teamId, p_start: fetchStart, p_end: gridEnd }),
+      fetchPersonal(gridStart, gridEnd),
     ]);
 
     const newGigang: CalendarRace[] = (teamComps ?? [])
@@ -923,6 +962,7 @@ export function MiniCalendar({
       mine: newMine,
       schPosts: newSchPosts,
       gatherings: newGatherings,
+      personal: (prsnRows ?? []).map(memSchRowToRace),
       regs: buildRegistrationMap(myRegsResult.data),
     };
   }
@@ -955,6 +995,7 @@ export function MiniCalendar({
     setMyRaces(data.mine);
     setSchPosts(data.schPosts);
     setGatherings(data.gatherings);
+    setPersonalScheds(data.personal);
     // 달과 무관한 값이지만 여기서 같이 갱신한다 — 달을 한 번이라도 넘기면 등록 맵이 스스로 낫는다.
     setRegistrationsByCompetitionId(data.regs);
   }, []);
@@ -1009,7 +1050,7 @@ export function MiniCalendar({
       const m = parseInt(mStr, 10);
       const { start: gridStart, end: gridEnd, fetchStart } = gridDateRange(y, m, weekStart);
 
-      const [{ data: myRegs }, { data: gthrWithAttd }] = await Promise.all([
+      const [{ data: myRegs }, { data: gthrWithAttd }, { data: prsnRows }] = await Promise.all([
         // 내 대회 등록 — 등록 상세 필드 포함 (CompetitionDetailDialog에서 수정/취소에 필요)
         supabase
           .from("comp_reg_rel")
@@ -1027,6 +1068,8 @@ export function MiniCalendar({
           p_end: gridEnd,
           p_mem_id: memId,
         }),
+        // 개인 일정 — 팀 공용 캐시엔 없다(본인만 보는 것이라)
+        fetchPersonal(gridStart, gridEnd),
       ]);
 
       // 그 사이 쓰기가 있었으면 refreshMonthData가 이미 최신 상태를 넣어 뒀다. 늦게 온 이
@@ -1065,6 +1108,8 @@ export function MiniCalendar({
         });
         setMyRaces(races);
       }
+
+      if (prsnRows) setPersonalScheds(prsnRows.map(memSchRowToRace));
 
       // gathering is_attending overlay — 서버에서 "gathering"으로만 내려온 데이터에 참석 여부를 overlay
       if (gthrWithAttd) {
@@ -1141,6 +1186,18 @@ export function MiniCalendar({
     setSchDetailPost(race);
     setSchDetailInitialComments(undefined);
     setSchDetailOpen(true);
+  }, []);
+
+  function openPersonalCreate(defaultDate: string) {
+    setPrsnTarget(null);
+    setPrsnDefaultDate(defaultDate);
+    setPrsnOpen(true);
+  }
+
+  // 개인 일정은 상세 화면 없이 곧장 수정 폼이다(§PersonalScheduleDialog)
+  const openPersonalEdit = useCallback((race: CalendarRace) => {
+    setPrsnTarget(race);
+    setPrsnOpen(true);
   }, []);
 
   async function refreshMonthData() {
@@ -1406,7 +1463,10 @@ export function MiniCalendar({
                               lane.startsThisWeek ? "rounded-l-sm" : "",
                               lane.endsThisWeek ? "rounded-r-sm" : "",
                               outMonth && "opacity-40",
-                              lane.race.type === "mine"
+                              // 개인 일정은 무채색 — 팀 일정(대회·정보·모임)의 색 체계 밖에 있다는 표시
+                              lane.race.type === "personal"
+                                ? "bg-foreground/10 text-foreground"
+                                : lane.race.type === "mine"
                                 ? "bg-warning/60 text-white"
                                 : lane.race.type === "schedule"
                                   ? "bg-info/15 text-info"
@@ -1457,11 +1517,14 @@ export function MiniCalendar({
                     const isComp = race.type === "gigang" || race.type === "mine";
                     const isGathering = race.type === "gathering" || race.type === "gathering_mine";
                     const isGatheringMine = race.type === "gathering_mine";
+                    const isPersonal = race.type === "personal";
                     return (
                       <button
                         key={race.id}
                         onClick={() =>
-                          race.type === "schedule"
+                          isPersonal
+                            ? openPersonalEdit(race)
+                            : race.type === "schedule"
                             ? openSchPostDetail(race)
                             : isGathering
                               ? openGatheringDetail(race)
@@ -1472,7 +1535,8 @@ export function MiniCalendar({
                         <span
                           className={cn(
                             "w-0.5 shrink-0 self-stretch rounded-full",
-                            race.type === "schedule" ? "bg-info"
+                            isPersonal ? "bg-muted-foreground"
+                              : race.type === "schedule" ? "bg-info"
                               : isGathering ? "bg-violet-500"
                               : "bg-warning",
                           )}
@@ -1496,6 +1560,14 @@ export function MiniCalendar({
                             <Micro className="flex items-center gap-1 text-muted-foreground">
                               {race.location && <span className="truncate">{race.location}</span>}
                               {(race.cmntCount ?? 0) > 0 && <span>💬 {race.cmntCount}</span>}
+                            </Micro>
+                          )}
+                          {/* 개인 일정 — 시각이 없으면 종일. 댓글이 없는 종류라 💬 자리가 없다 */}
+                          {isPersonal && (
+                            <Micro className="text-muted-foreground tabular-nums">
+                              {race.evt_stt_at
+                                ? `${formatKST(race.evt_stt_at, "HH:mm")}${race.evt_end_at ? ` ~ ${formatKST(race.evt_end_at, "HH:mm")}` : ""}`
+                                : "종일"}
                             </Micro>
                           )}
                           {(race.type === "schedule" || isGathering) && (race.evt_stt_at || (race.cmntCount ?? 0) > 0) && (
@@ -1566,6 +1638,12 @@ export function MiniCalendar({
                             링크
                           </span>
                         )}
+                        {isPersonal && (
+                          <span className="flex shrink-0 items-center gap-0.5 rounded-md border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            <Lock className="size-2.5" aria-hidden />
+                            개인
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -1584,8 +1662,9 @@ export function MiniCalendar({
             teamId={teamId}
             memberId={memberId}
             initialMonthKey={viewMonth.slice(0, 7)}
-            initialRaces={[...myRaces, ...schPosts, ...gigangRaces, ...gatherings]}
+            initialRaces={[...myRaces, ...schPosts, ...gigangRaces, ...gatherings, ...personalScheds]}
             filterType={filterType}
+            onClickPersonal={openPersonalEdit}
             onClickSchedule={openSchPostDetail}
             onClickCompetition={handleRaceClick}
             onClickGathering={openGatheringDetail}
@@ -1602,6 +1681,20 @@ export function MiniCalendar({
             setGthrDefaultDate(view === "calendar" ? selectedDate : today);
             setGthrFormOpen(true);
           }}
+          onAddPersonal={() => openPersonalCreate(view === "calendar" ? selectedDate : today)}
+        />
+      )}
+
+      {/* 개인 일정 — 만들기·수정·복제·삭제 겸용. FAB 이 ready 회원에게만 뜨므로 비로그인은 닿지 않는다 */}
+      {memberId && (
+        <PersonalScheduleDialog
+          open={prsnOpen}
+          // 닫을 때 target 을 비우지 않는다 — 닫힘 애니메이션 중에 제목이 "추가"로 튄다.
+          // 다음에 열 때 openPersonalCreate/openPersonalEdit 가 덮어쓴다.
+          onOpenChange={setPrsnOpen}
+          target={prsnTarget}
+          defaultDate={prsnDefaultDate}
+          onSuccess={() => { void refreshMonthData(); }}
         />
       )}
 
