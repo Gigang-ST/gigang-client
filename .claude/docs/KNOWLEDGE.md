@@ -343,3 +343,19 @@ Next 16.1.6 `unstable-cache.js`는 캐시 콜백 안에서 또 `unstable_cache`�
 - **처방**: 캐시 없는 계산 함수 하나를 빼고, 두 캐시가 **각자** 그걸 부른다(`lib/queries/mileage-recap.ts`의 `computeLatestRecap`).
 - **덤 — 캐시 키에 "오늘"을 넣지 말고 콜백 안에서 읽는다**: 날짜가 키에 있으면 KST 자정마다 키가 바뀌어 그날 첫 요청이 캐시 없이 막힌다. 콜백 안에서 읽으면 판정이 최대 TTL만큼 늦을 뿐이고 그 사이엔 옛 값을 주며 뒤에서 갱신한다.
 (2026-10-01 마일리지런 시즌 돌아보기 — 리드 티저 캐시)
+
+### RLS·SECURITY DEFINER RPC에서 "본인"은 `auth.uid()`가 아니라 `v2_rls_resolve_mem_id()`
+`mem_mst.mem_id`는 로그인 id(`auth.uid()`)와 **다를 수 있다** — OAuth로 들어온 회원은 `oauth_kakao_id`/`oauth_google_id`가 `auth.uid()`다. `mem_id = auth.uid()`로 걸면 그런 회원은 **자기 행을 못 본다**(에러 없이 빈 결과). 본인 판정은 `public.v2_rls_resolve_mem_id()`, 팀 소속은 `v2_rls_auth_in_team(team_id)`로 한다.
+SECURITY DEFINER RPC에서 "내 것"을 고를 때도 같다 — **클라이언트가 넘기는 `p_mem_id`를 믿지 말고** 함수 안에서 `v2_rls_resolve_mem_id()`로 뽑는다. `p_mem_id`는 남의 id를 넣어도 그대로 통과한다(정의자 권한이라 RLS도 안 걸린다). `get_schedule_paged`의 개인 일정 분기가 이 방식이다.
+(2026-10-14 개인 일정 `mem_sch_mst`)
+
+### MCP `apply_migration`은 트랜잭션 안이라 `CREATE INDEX CONCURRENTLY`를 거부한다
+`ERROR: 25001: CREATE INDEX CONCURRENTLY cannot run inside a transaction block`. **처방:** 인덱스 본체는 `execute_sql`로 CONCURRENTLY 실행(트랜잭션 밖) → 이력은 같은 이름으로 `apply_migration`에 `CREATE INDEX IF NOT EXISTS …`(비동시, 이미 있어 no-op)를 넣어 남긴다. 저장소의 `*_idx.sql`은 CONCURRENTLY 그대로 둔다(정본은 운영 락 규약 쪽).
+(2026-10-14 `mem_sch_mst_idx`)
+
+### `globals.css`의 토큰(`:root`·`@theme`)을 고치면 dev 서버엔 반영이 안 된다 — `.next` 삭제 후 재시작
+**증상:** 새 색 토큰(예: `--personal`)을 추가·수정했는데 화면은 그대로다. 그 토큰을 쓰는 클래스(`bg-personal/60`)는 생성되지만 변수 정의가 빠져 **투명 바탕 + 기본 글씨색**으로 보여, 바꾸기 전과 거의 구분이 안 된다. dev 로그엔 `✓ Compiled`가 찍히고 에러도 없다.
+**원인:** Next 16 Turbopack의 디스크 캐시(`.next/dev/cache`)가 `globals.css`의 이전 컴파일 결과를 되살린다. **서버만 재시작해서는 안 풀린다**(실제로 재시작 후에도 같은 해시의 옛 CSS가 나갔다). tsx 쪽 변경은 정상 반영돼서 "코드는 맞는데 색이 안 바뀐다"로 보인다.
+**진단:** 서버가 내보내는 CSS를 직접 확인한다 — `curl -s localhost:3000/<페이지>`에서 `/_next/...css` 주소를 뽑아 받은 뒤 `grep -- "--토큰명:"`. 값이 옛것이거나 없으면 이 경우다. 같은 `globals.css`를 `@tailwindcss/postcss`로 따로 컴파일해 보면 정상으로 나온다.
+**해결:** dev 서버를 끄고 `.next`를 지운 뒤 다시 띄운다. 배포 빌드는 처음부터 컴파일하므로 영향이 없다.
+(2026-10-15 개인 일정 색 토큰)
