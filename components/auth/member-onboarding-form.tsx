@@ -193,8 +193,10 @@ export function MemberOnboardingForm({
       // 삭제된 회원 — 승인 없이 바로 소속을 되살린다(§onboardingRejoinDeletedMember).
       // 예전엔 "재가입 신청이 접수되었습니다" 화면에서 멈췄는데 접수되는 곳이 없었다.
       if (check.kind === "rejoin") {
+        // 대상은 **번호로 서버가 다시 해석한다** — memId 를 넘기면 남의 계정에 연결할 수
+        // 있는 경로가 된다(§matchMemberByPhone).
         const rejoin = await onboardingRejoinDeletedMember({
-          memId: check.memId,
+          phoneRaw: phoneValue,
           provider,
           initialAvatarUrl,
         });
@@ -207,7 +209,7 @@ export function MemberOnboardingForm({
       }
 
       const link = await onboardingLinkExistingMember({
-        memId: check.memId,
+        phoneRaw: phoneValue,
         provider,
         initialAvatarUrl,
       });

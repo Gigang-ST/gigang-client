@@ -17,13 +17,17 @@ import { koreanNameSchema } from "@/lib/validations/member";
  * "삭제" 한 회원이 재가입하면 잔액을 0원 앵커로 봉인하므로(`sealBalanceAnchor` —
  * 함수 주석이 "예치금·미납을 청산"이라고 적고 있다), 잔액이 0이 아닌 사람을 삭제하면
  * **그 돈이 양쪽 방향 모두 조용히 사라진다.** 그걸 막는 가드가 쓰는 조회다.
+ *
+ * 조회가 실패하면 **금액 대신 실패를 돌려준다.** 0 으로 눙치면 가드가 통과해 버리는데,
+ * 이 가드가 막으려던 게 바로 "잔액이 있는데 삭제되는" 경우다 — 돈을 지키는 장치가
+ * 조회 한 번 실패로 열리면 없는 것만 못하다. 막는 쪽으로 기운다(fail-closed).
  */
 async function getBalanceAmount(
   db: ReturnType<typeof createAdminClient>,
   teamId: string,
   memId: string,
-): Promise<number> {
-  const { data } = await db
+): Promise<{ ok: true; amount: number } | { ok: false }> {
+  const { data, error } = await db
     .from("fee_mem_bal_snap")
     .select("bal_amt")
     .eq("team_id", teamId)
@@ -31,7 +35,12 @@ async function getBalanceAmount(
     .eq("vers", 0)
     .eq("del_yn", false)
     .maybeSingle();
-  return data?.bal_amt ?? 0;
+  if (error) {
+    console.error("[deleteMember] 잔액 조회 실패", memId, error.message);
+    return { ok: false };
+  }
+  // 스냅샷이 아예 없으면 거래가 없었던 사람이다 — 0 원이 맞다.
+  return { ok: true, amount: data?.bal_amt ?? 0 };
 }
 
 /**
@@ -166,7 +175,11 @@ export async function deleteMember(memberId: string) {
     // 이 가드가 "삭제된 사람 = 주고받을 돈이 없는 사람"을 보장하고, 그래야 삭제 회원의
     // **무승인 자동 재가입**(`onboardingRejoinDeletedMember`)이 안전해진다. 둘은 한 쌍이라
     // 따로 떼지 않는다 — 가드를 풀면 재가입이 돈을 지우는 경로가 된다.
-    const balance = await getBalanceAmount(db, teamId, memberId);
+    const bal = await getBalanceAmount(db, teamId, memberId);
+    if (!bal.ok) {
+      return { ok: false, message: "회비 잔액을 확인하지 못해 삭제를 중단했습니다. 잠시 후 다시 시도해 주세요." };
+    }
+    const balance = bal.amount;
     if (balance < 0) {
       return {
         ok: false,

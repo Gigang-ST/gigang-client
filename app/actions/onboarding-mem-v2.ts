@@ -3,6 +3,7 @@
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient, createUntypedAdminClient } from "@/lib/supabase/admin";
+import { resolvePhoneMatch, type PhoneMatch } from "@/lib/onboarding-phone-match";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { digitsOnly, formatPhone, isValidPhone } from "@/lib/phone-utils";
 import { dayjs, todayKST } from "@/lib/dayjs";
@@ -35,9 +36,13 @@ export type OnboardingPhoneResult =
    * 번호로 찾은 회원(`mem_mst`)은 있는데 **이 팀에 현재 소속이 없다** — 관리자가 "삭제"해
    * `vers=0` 슬롯이 비었거나(대부분), 다른 팀에서 온 계정. 둘 다 할 일이 같다:
    * 기존 `mem_id` 에 OAuth 를 붙이고 소속 행을 새로 꽂는다(`onboardingRejoinDeletedMember`).
+   *
+   * ⚠️ **`mem_id` 를 돌려주지 않는다.** 이 액션은 로그인만 했으면 누구나 부를 수 있어
+   * 번호를 아는 사람에게 남의 `mem_id` 를 넘기는 꼴이 되고, 그 값을 다시 쓰기 액션에
+   * 넘기는 설계로 이어진다. 뒤따르는 액션들은 **번호를 받아 서버가 다시 해석한다.**
    */
-  | { ok: true; kind: "rejoin"; memId: string }
-  | { ok: true; kind: "active"; memId: string }
+  | { ok: true; kind: "rejoin" }
+  | { ok: true; kind: "active" }
   | { ok: false; message: string };
 
 /** 온보딩 1단계: 전화번호로 mem_mst(정본) 존재·팀 상태 확인 */
@@ -52,50 +57,80 @@ export async function onboardingCheckPhone(
     return { ok: false, message: "010으로 시작하는 11자리 번호를 입력해 주세요." };
   }
 
+  const match = await matchMemberByPhone(phoneRaw);
+  if (!match.ok) return match;
+
+  switch (match.value.kind) {
+    case "new":
+      return { ok: true, kind: "new" };
+    case "ambiguous":
+      return {
+        ok: false,
+        message: "같은 번호로 등록된 회원이 여러 명이라 관리자 확인이 필요합니다.",
+      };
+    // 소속 행이 없으면 **삭제된 회원**이다 — 재가입 경로로 보낸다.
+    //
+    // 예전엔 여기서 `pending` 을 돌려주고 폼이 "재가입 신청이 접수되었습니다" 화면을 세웠는데,
+    // **그 신청을 저장하는 코드가 없었다**(#163 에서 재가입 승인 흐름을 걷어낼 때 저장 코드만
+    // 지우고 이 분기와 안내 문구가 남았다). 본인은 접수된 줄 알고 기다리고, 관리자에겐 알림도
+    // 목록도 가지 않는 헛도는 화면이었다. prd `pending` 회원은 0명이다.
+    //
+    // 승인을 붙이지 않고 **바로 재가입**시키는 이유: 삭제는 잔액이 0일 때만 허용되므로
+    // (`deleteMember` 의 가드) 삭제된 사람은 주고받을 돈이 없는 사람이고, 승인으로 거를 것이
+    // 없다. 게다가 삭제 회원은 `vers=0` 슬롯이 비어 **회원관리 목록에 뜨지 않아** 관리자에게
+    // 알림을 보내 봤자 누를 화면이 없다(복구 기능도 없다).
+    case "rejoin":
+      return { ok: true, kind: "rejoin" };
+    case "active":
+      return { ok: true, kind: "active" };
+  }
+}
+
+/**
+ * 전화번호 → 이 팀 기준 온보딩 경로. **`mem_id` 를 만들어 내는 유일한 곳이다.**
+ *
+ * ⚠️ **`mem_id` 를 클라이언트에서 받지 않는다.** 서버 액션은 로그인만 했으면 누구나 임의
+ * 인자로 부를 수 있는데, `mem_id` 를 그대로 믿고 `onboardingLinkExistingMember` 를 태우면
+ * **남의 `mem_mst` 에 내 OAuth id 를 꽂을 수 있다** — 그리고 로그인은 `oauth_kakao_id` /
+ * `oauth_google_id` 로도 회원을 찾으므로(`fetchMemMstWithTeamRel`) 그대로 **계정 탈취**가 된다.
+ * 그래서 쓰기 액션들은 번호를 받아 여기서 다시 해석하고, 그 결과로만 움직인다.
+ * (번호를 아는 사람만 연결할 수 있다는 건 온보딩이 원래 기대하는 수준이다.)
+ *
+ * 판정 자체(0건·1건·2건 이상)는 `resolvePhoneMatch` 가 맡는다 — 틀리면 계정 탈취가 되는
+ * 분기라 DB 왕복에서 떼어 테스트로 못박는다.
+ */
+async function matchMemberByPhone(
+  phoneRaw: string,
+): Promise<{ ok: true; value: PhoneMatch } | { ok: false; message: string }> {
   const admin = createAdminClient();
   // DB phone_no 표기(하이픈·+82 등)와 무관하게 백필과 동일한 migration_v2_norm_phone 으로 매칭
   const { data: memIds, error: rpcErr } = await admin.rpc(
     "mem_mst_mem_ids_by_norm_phone",
     { p_input: phoneRaw.trim() },
   );
+  if (rpcErr) return { ok: false, message: "기존 회원 확인에 실패했습니다." };
 
-  if (rpcErr) {
-    return { ok: false, message: "기존 회원 확인에 실패했습니다." };
+  const ids = (memIds ?? []) as (string | null)[];
+  const narrowed = resolvePhoneMatch(ids, false);
+  // 회원이 없거나 여럿이면 소속을 볼 것도 없다.
+  if (narrowed.kind === "new" || narrowed.kind === "ambiguous") {
+    return { ok: true, value: narrowed };
   }
-  const ids = (memIds ?? []).filter(Boolean);
-  if (ids.length > 1) {
-    return {
-      ok: false,
-      message:
-        "같은 번호로 등록된 회원이 여러 명이라 관리자 확인이 필요합니다.",
-    };
-  }
-  const memId = ids[0];
-  if (!memId) return { ok: true, kind: "new" };
 
   const { teamId } = await getRequestTeamContext();
-  const { data: rel } = await admin
+  const { data: rel, error: relErr } = await admin
     .from("team_mem_rel")
     .select("mem_st_cd")
-    .eq("mem_id", memId)
+    .eq("mem_id", narrowed.memId)
     .eq("team_id", teamId)
     .eq("vers", 0)
     .eq("del_yn", false)
     .maybeSingle();
+  // 소속 조회가 실패하면 **멈춘다.** 여기서 눙치면 소속이 있는 사람을 "삭제된 회원"으로 보고
+  // 재가입 경로(소속 INSERT)로 보내게 된다.
+  if (relErr) return { ok: false, message: "기존 회원 확인에 실패했습니다." };
 
-  // 소속 행이 없으면 **삭제된 회원**이다 — 재가입 경로로 보낸다.
-  //
-  // 예전엔 여기서 `pending` 을 돌려주고 폼이 "재가입 신청이 접수되었습니다" 화면을 세웠는데,
-  // **그 신청을 저장하는 코드가 없었다**(#163 에서 재가입 승인 흐름을 걷어낼 때 저장 코드만
-  // 지우고 이 분기와 안내 문구가 남았다). 본인은 접수된 줄 알고 기다리고, 관리자에겐 알림도
-  // 목록도 가지 않는 헛도는 화면이었다. prd `pending` 회원은 0명이다.
-  //
-  // 승인을 붙이지 않고 **바로 재가입**시키는 이유: 삭제는 미납이 0일 때만 허용되므로
-  // (`deleteMember` 의 미납 가드) 삭제된 사람은 빚 없이 깨끗이 나간 사람이고, 승인으로
-  // 거를 것이 없다. 게다가 삭제 회원은 `vers=0` 슬롯이 비어 **회원관리 목록에 뜨지 않아**
-  // 관리자에게 알림을 보내 봤자 누를 화면이 없다(복구 기능도 없다).
-  if (!rel) return { ok: true, kind: "rejoin", memId };
-  return { ok: true, kind: "active", memId };
+  return { ok: true, value: resolvePhoneMatch(ids, Boolean(rel)) };
 }
 
 /**
@@ -113,34 +148,39 @@ export async function onboardingCheckPhone(
  * 회비 잔액만은 0원으로 봉인한다(아래).
  */
 export async function onboardingRejoinDeletedMember(args: {
-  memId: string;
+  /** ⚠️ `memId` 가 아니라 **번호**를 받는다 — 서버가 직접 해석한다(§matchMemberByPhone). */
+  phoneRaw: string;
   provider: "kakao" | "google";
   initialAvatarUrl?: string | null;
 }): Promise<{ ok: boolean; message?: string }> {
   const { user } = await requireAuthUser();
   if (!user) return { ok: false, message: "로그인이 필요합니다." };
 
+  const match = await matchMemberByPhone(args.phoneRaw);
+  if (!match.ok) return match;
+  // 재가입은 **"회원이 있고 현재 소속이 없다"일 때만** 성립한다.
+  //   - active  → 이미 소속이 있다. 멱등하게 성공으로 본다(재제출·뒤로가기).
+  //   - new     → 이 번호의 회원이 없다. 붙일 곳이 없으니 신규 가입으로 가야 한다.
+  //   - ambiguous → 누구에게 붙일지 정할 수 없다. 절대 추측하지 않는다.
+  if (match.value.kind === "active") return { ok: true };
+  if (match.value.kind !== "rejoin") {
+    return { ok: false, message: "재가입할 수 있는 회원 정보를 찾지 못했습니다." };
+  }
+  const memId = match.value.memId;
+
   const admin = createAdminClient();
   const { teamId } = await getRequestTeamContext();
 
-  // 이미 소속이 있으면 아무것도 하지 않는다(멱등) — 재제출·뒤로가기로 두 번 불려도
-  // 두 번째 INSERT 가 UNIQUE(team_id, mem_id, vers) 에 걸려 에러 화면을 띄우지 않게.
-  const { data: existing } = await admin
-    .from("team_mem_rel")
-    .select("team_mem_id")
-    .eq("mem_id", args.memId)
-    .eq("team_id", teamId)
-    .eq("vers", 0)
-    .eq("del_yn", false)
-    .maybeSingle();
-  if (existing) return { ok: true };
-
-  const link = await onboardingLinkExistingMember(args);
+  const link = await onboardingLinkExistingMember({
+    phoneRaw: args.phoneRaw,
+    provider: args.provider,
+    initialAvatarUrl: args.initialAvatarUrl,
+  });
   if (!link.ok) return link;
 
   const { error: eRel } = await admin.from("team_mem_rel").insert({
     team_id: teamId,
-    mem_id: args.memId,
+    mem_id: memId,
     team_role_cd: "member",
     mem_st_cd: "active",
     join_dt: todayKST(),
@@ -150,25 +190,18 @@ export async function onboardingRejoinDeletedMember(args: {
   // 23505 = 경합으로 그 사이 누가 꽂았다 — 목적은 이뤄졌으므로 성공으로 본다.
   if (eRel && eRel.code !== "23505") return { ok: false, message: eRel.message };
 
-  // 재가입 잔액 봉인 — 과거 스냅샷이 남아 있으면 0원 앵커로 끊는다. 미납자는 애초에
-  // 삭제되지 않으므로(`deleteMember` 가드) 여기서 지워지는 빚은 없다. 비치명.
-  const { data: pastSnap } = await admin
-    .from("fee_mem_bal_snap")
-    .select("bal_snap_id")
-    .eq("team_id", teamId)
-    .eq("mem_id", args.memId)
-    .eq("del_yn", false)
-    .maybeSingle();
-  if (pastSnap) {
-    const { error: sealErr } = await sealBalanceAnchor(admin, teamId, args.memId);
-    if (sealErr) console.error("[onboarding] 재가입 잔액 봉인 실패", args.memId, sealErr);
+  // 재가입 잔액 봉인 — 과거 스냅샷이 남아 있으면 0원 앵커로 끊는다. 잔액이 0인 사람만
+  // 삭제되므로(`deleteMember` 가드) 여기서 지워지는 돈은 없다. 비치명.
+  if (await hasPastBalanceSnapshot(admin, teamId, memId)) {
+    const { error: sealErr } = await sealBalanceAnchor(admin, teamId, memId);
+    if (sealErr) console.error("[onboarding] 재가입 잔액 봉인 실패", memId, sealErr);
   }
 
   // 가입 시점 기반 칭호 재평가(뉴비 등) — 신규 가입과 같은 처리. 응답 완료 후 실행.
   const { data: relRow } = await admin
     .from("team_mem_rel")
     .select("team_mem_id")
-    .eq("mem_id", args.memId)
+    .eq("mem_id", memId)
     .eq("team_id", teamId)
     .eq("vers", 0)
     .eq("del_yn", false)
@@ -185,14 +218,60 @@ export async function onboardingRejoinDeletedMember(args: {
   return { ok: true };
 }
 
-/** 기존 활동 회원: OAuth만 연결(mem_mst) */
+/**
+ * 이 팀·이 회원에게 **과거 회비 스냅샷이 있는가**(재가입 봉인 여부 판정).
+ *
+ * ⚠️ `vers` 를 걸지 않고 `.maybeSingle()` 로 물으면 안 된다. 재계산이 스냅샷을 갱신할 때
+ * 옛 `vers=0` 을 **`del_yn=false` 인 채** `vers>0` 으로 밀어 두므로(`sealBalanceAnchor` 주석),
+ * 대부분의 회원이 여러 행을 갖는다 — prd 실측 288명 중 **242명이 2행 이상**(최대 31행).
+ * 여러 행이면 `.maybeSingle()` 이 **에러를 반환하고 data 가 null** 이라, 조건이 조용히
+ * 거짓이 되어 **봉인이 통째로 건너뛰어진다.** 존재 여부만 물으므로 `.limit(1)` 로 자른다.
+ *
+ * 조회가 실패하면 **봉인하는 쪽으로 기운다**(true). 안 하면 과거 잔액이 재가입 회원에게
+ * 딸려오는데, 삭제 가드가 잔액 0만 통과시키므로 **과하게 봉인해도 잃을 돈이 없다.**
+ */
+async function hasPastBalanceSnapshot(
+  admin: ReturnType<typeof createAdminClient>,
+  teamId: string,
+  memId: string,
+): Promise<boolean> {
+  const { data, error } = await admin
+    .from("fee_mem_bal_snap")
+    .select("bal_snap_id")
+    .eq("team_id", teamId)
+    .eq("mem_id", memId)
+    .eq("del_yn", false)
+    .limit(1);
+  if (error) {
+    console.error("[onboarding] 과거 잔액 스냅샷 조회 실패 — 봉인 진행", memId, error.message);
+    return true;
+  }
+  return (data?.length ?? 0) > 0;
+}
+
+/**
+ * 기존 활동 회원: OAuth만 연결(mem_mst).
+ *
+ * ⚠️ **`memId` 가 아니라 번호를 받는다.** 이 함수는 admin 클라이언트로 `mem_mst` 의 OAuth id 를
+ * 덮어쓰는데, 로그인이 `oauth_kakao_id`/`oauth_google_id` 로도 회원을 찾으므로
+ * (`fetchMemMstWithTeamRel`) 남의 `mem_id` 를 넣을 수 있으면 **그 계정이 통째로 넘어간다.**
+ * 서버 액션은 로그인만 했으면 누구나 임의 인자로 부를 수 있으니, 대상은 반드시 서버가
+ * 번호로 다시 해석한다(§matchMemberByPhone).
+ */
 export async function onboardingLinkExistingMember(args: {
-  memId: string;
+  phoneRaw: string;
   provider: "kakao" | "google";
   initialAvatarUrl?: string | null;
 }): Promise<{ ok: boolean; message?: string }> {
   const { user } = await requireAuthUser();
   if (!user) return { ok: false, message: "로그인이 필요합니다." };
+
+  const match = await matchMemberByPhone(args.phoneRaw);
+  if (!match.ok) return match;
+  if (match.value.kind !== "active" && match.value.kind !== "rejoin") {
+    return { ok: false, message: "연결할 회원 정보를 찾지 못했습니다." };
+  }
+  const memId = match.value.memId;
 
   const admin = createAdminClient();
   const oauthMst =
@@ -206,7 +285,7 @@ export async function onboardingLinkExistingMember(args: {
       ...oauthMst,
       ...(args.initialAvatarUrl ? { avatar_url: args.initialAvatarUrl } : {}),
     })
-    .eq("mem_id", args.memId)
+    .eq("mem_id", memId)
     .eq("vers", 0)
     .eq("del_yn", false);
 
@@ -316,14 +395,7 @@ export async function onboardingCreateMember(args: {
   // 재가입 봉인: 과거에 이 팀에서 삭제된 이력(fee 스냅샷)이 남아 있으면, 그 과거 잔액이
   // 재가입 회원에게 딸려오지 않게 0원 앵커로 봉인한다. 재계산은 이 앵커 이후만 부과한다.
   // 신규 가입(과거 스냅샷 없음)은 건너뛴다. 비치명 — 실패해도 가입은 성립(로깅만).
-  const { data: pastSnap } = await admin
-    .from("fee_mem_bal_snap")
-    .select("bal_snap_id")
-    .eq("team_id", teamId)
-    .eq("mem_id", uid)
-    .eq("del_yn", false)
-    .maybeSingle();
-  if (pastSnap) {
+  if (await hasPastBalanceSnapshot(admin, teamId, uid)) {
     const { error: sealErr } = await sealBalanceAnchor(admin, teamId, uid);
     if (sealErr) console.error("[onboarding] 재가입 잔액 봉인 실패", uid, sealErr);
   }
