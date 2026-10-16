@@ -7,6 +7,7 @@ import { unstable_cache } from "next/cache";
 import { Suspense } from "react";
 import { RaceListView } from "@/components/races/race-list-view";
 import type { Competition } from "@/components/races/types";
+import { COMPETITION_SELECT, toCompetition } from "@/lib/competition-row";
 import { env } from "@/lib/env";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -25,34 +26,19 @@ const getUpcomingCompetitions = unstable_cache(
     const endOfYear = `${today.slice(0, 4)}-12-31`;
     const { data } = await supabase
       .from("comp_mst")
-      .select(
-        "comp_id, short_id, crt_by, ext_id, comp_sprt_cd, comp_nm, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)",
-      )
+      .select(COMPETITION_SELECT)
       .eq("vers", 0)
       .eq("del_yn", false)
       .gte("stt_dt", today)
       .lte("stt_dt", endOfYear)
       .order("stt_dt", { ascending: true });
-    const competitions: Competition[] = (data ?? []).map((row) => ({
-      id: row.comp_id,
-      // 공유 링크가 이걸 쓴다 — 안 실으면 상세 다이얼로그가 uuid로 폴백한다
-      short_id: row.short_id ?? null,
-      crt_by: row.crt_by ?? null,
-      external_id: row.ext_id ?? "",
-      sport: row.comp_sprt_cd,
-      title: row.comp_nm,
-      start_date: row.stt_dt,
-      end_date: row.end_dt,
-      location: row.loc_nm,
-      event_types: (row.comp_evt_cfg ?? []).map((e) => e.comp_evt_type?.toUpperCase()).filter(Boolean) as string[],
-      source_url: row.src_url,
-    }));
+    const competitions: Competition[] = (data ?? []).map(toCompetition);
     return { competitions, today };
   },
   // ⚠️ 페이로드 모양을 바꾸면 **키를 올린다**(`-v2`, `-v3`…). 안 올리면 배포 직후에도
   // 옛 캐시가 새 필드 없이 돌아와(revalidate 24시간) 고친 게 하루 동안 안 보인다 —
-  // short_id를 넣은 게 정확히 그 경우였다.
-  ["competitions-upcoming-v2"],
+  // short_id를 넣은 게 정확히 그 경우였다. v3: 종목 순서를 거리순으로 바꿈(#575).
+  ["competitions-upcoming-v3"],
   cacheOptions,
 );
 
@@ -68,21 +54,7 @@ async function fetchTeamCompetitionsForTeam(teamId: string) {
   const rows = (data ?? []) as Database["public"]["Functions"]["get_public_team_competitions"]["Returns"];
   const competitions = rows
     .filter((row) => (row.reg_count ?? 0) > 0)
-    .map((row) => {
-      return {
-        id: row.comp_id,
-        short_id: row.short_id ?? null,
-        crt_by: row.crt_by ?? null,
-        external_id: row.ext_id ?? "",
-        sport: row.comp_sprt_cd,
-        title: row.comp_nm,
-        start_date: row.stt_dt,
-        end_date: row.end_dt,
-        location: row.loc_nm,
-        event_types: (row.comp_evt_types ?? []).map((e) => e?.toUpperCase()).filter(Boolean),
-        source_url: row.src_url,
-      } as Competition;
-    });
+    .map(toCompetition);
 
   const regCounts: Record<string, number> = {};
   rows.forEach((row) => {

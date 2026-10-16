@@ -23,6 +23,7 @@
 | `amt` | 금액 |
 | `mth` | month 월 |
 | `id` | 식별자 |
+| `tm` | 시각(time — KST 벽시계 값, 날짜 없이). 예: `mem_sch_mst.stt_tm` |
 
 ## 도메인 약어
 | 약어 | 의미 |
@@ -154,6 +155,7 @@
 | `batch_run_hist` | 배치 실행 이력 |
 | `effect_mst` | 칭호 시각 이펙트 마스터 |
 | `mem_utmb_prf` | 회원 UTMB 프로필 (인덱스·최근 대회 기록) |
+| `mem_sch_mst` | 개인 일정 — 작성자 본인만 본다(`sch_dt` date + `stt_tm`/`end_tm` time). `sch_post_mst`와 **일부러 분리**(포인트·알림·공개 RPC 경로가 없다) |
 
 ## sch_post 도메인 컬럼 약어
 | 컬럼 | 의미 |

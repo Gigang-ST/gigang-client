@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Calendar, ChevronRight, MapPin, Plus, Trophy } from "lucide-react";
 
 import { sanitizeAsciiUpperCompEvtTypeInput } from "@/lib/comp-evt-type";
+import { COMPETITION_SELECT, toCompetition } from "@/lib/competition-row";
 import { dayjs, todayKST } from "@/lib/dayjs";
 import { defaultCompSprtCd } from "@/lib/comp-sprt-default";
 import {
@@ -111,7 +112,7 @@ export function CompetitionPickerDialog({
     void Promise.resolve(
       supabase
         .from("comp_mst")
-        .select("comp_id, comp_nm, comp_sprt_cd, stt_dt, end_dt, loc_nm, src_url, comp_evt_cfg(comp_evt_type)")
+        .select(COMPETITION_SELECT)
         .eq("vers", 0)
         .eq("del_yn", false)
         .eq("stt_dt", date)
@@ -121,17 +122,7 @@ export function CompetitionPickerDialog({
       setCompetitions(
         (data ?? [])
           .filter((c) => !excludedCompIds?.has(c.comp_id))
-          .map((c) => ({
-            id: c.comp_id,
-            external_id: "",
-            sport: c.comp_sprt_cd ?? null,
-            title: c.comp_nm,
-            start_date: c.stt_dt,
-            end_date: c.end_dt ?? null,
-            location: c.loc_nm ?? null,
-            event_types: (c.comp_evt_cfg as { comp_evt_type: string | null }[]).map((e) => e.comp_evt_type?.toUpperCase()).filter((e): e is string => Boolean(e)),
-            source_url: c.src_url ?? null,
-          })),
+          .map(toCompetition),
       );
     }).catch(() => {}).finally(() => {
       if (!cancelled) setLoading(false);

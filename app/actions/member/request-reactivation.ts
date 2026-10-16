@@ -67,6 +67,14 @@ export async function requestReactivation() {
     }
 
     const requesterName = member.full_name;
+    // 알림 제목은 **요청자의 상태**를 따른다 — 운영진이 목록에서 "풀어 달라"(비활성)와
+    // "다시 넣어 달라"(탈퇴)를 열어 보기 전에 구분할 수 있어야 한다. 탈퇴는 입금 확인 같은
+    // 선행 절차가 붙는 경우가 많아 처리 비용이 다르다.
+    const isLeft = member.status === "left";
+    const notiNm = isLeft ? "재가입 요청" : "활동 재개 문의";
+    const notiCont = isLeft
+      ? `${requesterName}님이 재가입을 요청하셨습니다.`
+      : `${requesterName}님이 활동 재개(재활성)를 요청하셨습니다.`;
     const teamMemId = selfTeamMemId;
     after(async () => {
       try {
@@ -74,8 +82,8 @@ export async function requestReactivation() {
           teamId,
           memIds: adminIds,
           notiTypeEnm: "reactivate_req",
-          notiNm: "활동 재개 문의",
-          notiCont: `${requesterName}님이 활동 재개(재활성)를 요청하셨습니다.`,
+          notiNm,
+          notiCont,
           refId: teamMemId,
           refTypeEnm: "member",
         });

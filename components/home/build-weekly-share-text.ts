@@ -60,6 +60,9 @@ export function buildWeeklyShareText(
   const seen = new Set<string>();
   const thisWeek = races
     .filter((r) => {
+      // 개인 일정은 단톡방에 절대 나가지 않는다. 호출부가 애초에 안 넘기지만(따로 든 state),
+      // 이 텍스트가 크루 전체에 붙여넣어지는 출구라 여기서 한 번 더 막는다.
+      if (r.type === "personal") return false;
       if (!matchesFilter(r, filterType)) return false;
       if (seen.has(r.id)) return false;
       seen.add(r.id);

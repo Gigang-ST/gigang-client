@@ -16,6 +16,7 @@ import { H2, Body, Caption, SectionLabel } from "@/components/common/typography"
 import { SegmentControl } from "@/components/common/segment-control";
 import { EmptyState } from "@/components/common/empty-state";
 import { duplicateNames, memberLabel } from "@/lib/dues/homonyms";
+import { buildDuesLeaveReason } from "@/lib/inactive-notice";
 import { cn } from "@/lib/utils";
 
 import type { LedgerRow } from "@/lib/queries/dues";
@@ -57,7 +58,8 @@ export function LedgerClient({
   }
 
   function onLeaveMember(row: LedgerRow) {
-    const amount = Math.abs(row.balance).toLocaleString();
+    const unpaid = Math.abs(row.balance);
+    const amount = unpaid.toLocaleString();
     const monthsLabel = row.months === 0 ? "1개월 미만" : `${row.months}개월`;
     if (!confirm(`${row.name}님을 탈퇴 처리할까요?\n현재 ${monthsLabel} 미납, ${amount}원입니다.`)) return;
 
@@ -65,7 +67,8 @@ export function LedgerClient({
     setRecalcMsg(null);
     startLeave(async () => {
       try {
-        const res = await leaveMemberFromDues(row.memId, `회비 ${amount}원 미납으로 관리자 탈퇴 처리`);
+        // 이 사유는 **본인 차단 화면에 그대로 뜬다** — 문구는 lib/inactive-notice 가 정한다.
+        const res = await leaveMemberFromDues(row.memId, buildDuesLeaveReason(unpaid));
         setRecalcMsg(res.ok ? `${row.name}님을 탈퇴 처리했습니다.` : res.message);
         if (res.ok) router.refresh();
       } catch {
