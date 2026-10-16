@@ -2,7 +2,7 @@ import { Suspense } from "react";
 
 import { redirect } from "next/navigation";
 
-import { getVisibleInactiveReason } from "@/lib/inactive-notice";
+import { getVisibleInactiveReason, statusReasonLabel } from "@/lib/inactive-notice";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getMemberCancelCount } from "@/lib/queries/member-cancel-count";
@@ -70,15 +70,23 @@ async function ProfileContent() {
     return (
       <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
         <div className="flex flex-col gap-1.5">
-          <Body className="font-semibold">계정이 비활성 상태예요</Body>
+          {/* 탈퇴를 "비활성"이라 부르지 않는다 — 할 일이 다르다(문의 vs 재가입 요청).
+              뭉뚱그리면 탈퇴한 사람은 자기가 다시 들어올 수 있다는 걸 모른 채 지나친다. */}
+          <Body className="font-semibold">
+            {member.status === "left" ? "탈퇴한 상태예요" : "계정이 비활성 상태예요"}
+          </Body>
           {/* "운영진에게 문의해 주세요"는 뺀다 — 바로 아래 버튼이 그 문의를 대신 보내 준다 */}
           <Caption>프로필 카드는 활동 중인 기강인에게만 보여요.</Caption>
         </div>
-        <InactiveReasonNote reason={getVisibleInactiveReason(member)} className="max-w-xs" />
-        {/* 다이얼로그와 같은 문의 경로 — 여긴 그 다이얼로그로 갈 길이 없어 버튼을 직접 세운다.
+        <InactiveReasonNote
+          reason={getVisibleInactiveReason(member)}
+          label={statusReasonLabel(member.status)}
+          className="max-w-xs"
+        />
+        {/* 다이얼로그와 같은 요청 경로 — 여긴 그 다이얼로그로 갈 길이 없어 버튼을 직접 세운다.
             "설정으로"는 두지 않는다: 이 화면에도 헤더 더보기(HeaderActions)가 그대로 떠 있어
-            같은 곳으로 가는 출구가 둘이 된다. 여기 남을 액션은 문의 하나뿐이다. */}
-        <ReactivationRequestButton />
+            같은 곳으로 가는 출구가 둘이 된다. 여기 남을 액션은 요청 하나뿐이다. */}
+        <ReactivationRequestButton kind={member.status === "left" ? "left" : "inactive"} />
       </div>
     );
   }

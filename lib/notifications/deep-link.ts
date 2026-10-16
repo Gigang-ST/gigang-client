@@ -76,6 +76,10 @@ const NOTI_ROUTE: Record<
   dues_check_req: () => null,
   // 재활성 문의 — 관리자가 바로 그 회원을 처리하도록 회원관리 딥링크(?member=team_mem_id)
   reactivate_req: (refId) => (refId ? `/admin/members?member=${refId}` : "/admin/members"),
+  // 재활성화 완료(본인) — 차단 화면이 서 있던 바로 그 자리로 보낸다. 프로필탭을 열면
+  // 막혀 있던 카드가 돌아와 있어 "풀렸다"가 눈으로 확인된다. 홈으로 보내면 평소 화면이라
+  // 알림이 말한 변화가 어디서 일어났는지 안 보인다.
+  reactivated: () => "/profile",
   sch_post_cmnt: (refId) => (refId ? `${SCHEDULE}?post=${refId}` : SCHEDULE),
   sch_post_new: (refId) => (refId ? `${SCHEDULE}?post=${refId}` : SCHEDULE),
   cmnt_mention: (refId, refType) => commentTargetRoute(refId, refType),
