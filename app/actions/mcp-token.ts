@@ -20,7 +20,13 @@ import { createMcpTokenSchema } from "@/lib/validations/mcp-token";
  * `verifyAdmin`은 요구하지 않는다 — 본인 토큰 발급/관리는 팀 멤버(가입 완료) 전원 허용(스펙 §3.1).
  */
 
-export type { McpTokenSummary };
+// ⚠️ `export type { McpTokenSummary }` 를 여기 두지 않는다.
+// `"use server"` 파일의 **별칭 재export 형태**(`export type { X }`)는 Turbopack 의 서버 액션
+// 변환이 값 export 로 취급해, dev 에서 `/mcp-tokens` 가 통째로 500 으로 죽는다
+// ("Export McpTokenSummary doesn't exist in target module"). 프로덕션 빌드는 통과해서
+// 배포는 멀쩡한데 **로컬 개발만** 막히는, 찾기 고약한 형태였다.
+// 타입이 필요한 쪽은 정본(`@/lib/mcp/issue-token`)에서 직접 가져온다.
+// 같은 파일의 `export type Foo = …` 선언형은 정상적으로 지워지므로 문제되지 않는다.
 
 export type CreateMcpTokenResult =
   | {
