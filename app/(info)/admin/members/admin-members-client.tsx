@@ -62,6 +62,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  formatStatusSince,
+  getMemberStatusSince,
+  statusSinceLabel,
+  type MemberStatusRow,
+  type MemberStatusSince,
+} from "@/lib/member-status-since";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { cn } from "@/lib/utils";
 import {
   Table,
@@ -91,6 +99,13 @@ type Member = {
   joined_at: string | null;
   inact_rsn_txt: string | null;
   bal_amt: number | null;
+  /**
+   * 지금 상태가 언제 시작됐나(비활성·탈퇴만, 그 밖은 null).
+   *
+   * 재가입 요청을 받은 운영진이 가장 먼저 묻는 게 "언제 나갔느냐"인데, 그 답이 한 컬럼에
+   * 없어 이력을 거슬러야 나온다 — 계산은 `lib/member-status-since.ts` 한 곳이다.
+   */
+  status_since: MemberStatusSince | null;
 };
 
 type MemberTitle = {
@@ -675,6 +690,14 @@ function StatusChangeSheet({
                 <Micro className="truncate">· {member.inact_rsn_txt}</Micro>
               )}
             </div>
+            {/* 날짜는 사유와 **다른 줄**에 둔다 — 같은 줄에 붙이면 자유 입력 사유가 긴
+                경우 truncate 에 먹혀 정작 판단에 필요한 날짜가 먼저 잘린다. */}
+            {member.status_since && (
+              <Micro>
+                {statusSinceLabel(member.status_since.status)}{" "}
+                {formatStatusSince(member.status_since)}
+              </Micro>
+            )}
           </div>
 
           {/* 전환 옵션 */}
@@ -712,12 +735,14 @@ function StatusChangeSheet({
                         placeholder="예: 장기 미참여, 자진 탈퇴 요청 등"
                         autoFocus
                       />
-                      {/* 비활성 사유만 본인에게 노출된다(탈퇴 사유는 안 보여준다) — 누르기 전에 알린다 */}
-                      {opt.action !== "leave" && (
-                        <Caption className="text-[12px] leading-snug text-primary">
-                          적은 사유는 본인이 참여를 시도할 때 그대로 보여요.
-                        </Caption>
-                      )}
+                      {/* 비활성·탈퇴 **둘 다** 본인에게 그대로 보인다 — 누르기 전에 알린다.
+                          예전엔 탈퇴 사유만 감췄고 그래서 이 경고도 비활성에만 붙어 있었는데,
+                          사유를 모르면 재가입 요청조차 못 한다는 이유로 2026-10 에 함께
+                          열었다(§lib/inactive-notice). 경고가 한쪽에만 남으면 운영진은 탈퇴
+                          사유를 여전히 안 보이는 메모로 알고 적는다. */}
+                      <Caption className="text-[12px] leading-snug text-primary">
+                        적은 사유는 본인이 참여를 시도할 때 그대로 보여요.
+                      </Caption>
                     </div>
                   )}
                   {isSelected && opt.action === "activate" && (
@@ -805,11 +830,11 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
   const loadMembers = useCallback(async () => {
     const supabase = createClient();
     try {
-      const [{ data: membersData }, { data: snapsData }] = await Promise.all([
+      const [{ data: membersData }, { data: snapsData }, historyRows] = await Promise.all([
         supabase
           .from("team_mem_rel")
           .select(
-            "team_mem_id, mem_id, team_role_cd, mem_st_cd, join_dt, inact_rsn_txt, mem_mst!inner(mem_nm, phone_no, email_addr, gdr_enm, birth_dt, avatar_url)",
+            "team_mem_id, mem_id, team_role_cd, mem_st_cd, join_dt, leave_dt, eff_at, inact_rsn_txt, mem_mst!inner(mem_nm, phone_no, email_addr, gdr_enm, birth_dt, avatar_url)",
           )
           .eq("team_id", teamId)
           .eq("vers", 0)
@@ -823,9 +848,42 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
           .eq("team_id", teamId)
           .eq("vers", 0)
           .eq("del_yn", false),
+        // 상태 이력(vers>0) — 전환일 계산에 쓴다. 상태·역할이 바뀔 때마다 한 행씩 쌓여
+        // **시간이 갈수록 느는 조회**라 끝까지 읽는다(§CLAUDE.md 대량 조회).
+        // 정렬은 PK(team_mem_id) — 이력 행은 저마다 새 PK라 유일하다.
+        fetchAllRows<{
+          mem_id: string;
+          vers: number;
+          mem_st_cd: string;
+          eff_at: string;
+          del_yn: boolean;
+          leave_dt: string | null;
+        }>(
+          () =>
+            supabase
+              .from("team_mem_rel")
+              .select("mem_id, vers, mem_st_cd, eff_at, del_yn, leave_dt")
+              .eq("team_id", teamId)
+              .gt("vers", 0)
+              .order("team_mem_id"),
+          { label: "admin-members-history" },
+        ).catch((e) => {
+          // 이력 조회가 실패해도 **목록은 떠야 한다** — 날짜 한 줄 때문에 회원관리가
+          // 통째로 비면 그게 더 큰 고장이다. 그 줄만 빠진다.
+          console.error("[admin-members] 상태 이력 조회 실패", e);
+          return [];
+        }),
       ]);
 
       const snapMap = new Map((snapsData ?? []).map((s) => [s.mem_id, s.bal_amt]));
+
+      // 사람별 타임라인으로 묶는다 — `getMemberStatusSince` 가 정본 + 이력을 한 배열로 받는다.
+      const historyByMem = new Map<string, MemberStatusRow[]>();
+      for (const h of historyRows) {
+        const list = historyByMem.get(h.mem_id);
+        if (list) list.push(h);
+        else historyByMem.set(h.mem_id, [h]);
+      }
 
       type Mst = {
         mem_nm: string;
@@ -839,6 +897,16 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
       setMembers(
         (membersData ?? []).map((r) => {
           const m = r.mem_mst as unknown as Mst;
+          const timeline: MemberStatusRow[] = [
+            {
+              vers: 0,
+              mem_st_cd: r.mem_st_cd,
+              eff_at: r.eff_at,
+              del_yn: false,
+              leave_dt: r.leave_dt,
+            },
+            ...(historyByMem.get(r.mem_id) ?? []),
+          ];
           return {
             id: r.mem_id,
             team_mem_id: r.team_mem_id,
@@ -853,6 +921,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
             joined_at: r.join_dt,
             inact_rsn_txt: r.inact_rsn_txt ?? null,
             bal_amt: snapMap.get(r.mem_id) ?? null,
+            status_since: getMemberStatusSince(timeline),
           };
         }),
       );
@@ -1344,6 +1413,14 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
                       : null
                   }
                 />
+                {/* 언제 나갔는지 — 재가입 요청을 받았을 때 가장 먼저 묻는 것이다.
+                    사유 바로 위에 둬서 "언제·왜"가 한 번에 읽히게 한다. */}
+                {selectedMember.status_since && (
+                  <InfoRow
+                    label={statusSinceLabel(selectedMember.status_since.status)}
+                    value={formatStatusSince(selectedMember.status_since)}
+                  />
+                )}
                 {(selectedMember.status === "inactive" || selectedMember.status === "left") && (
                   <InfoRow
                     label={selectedMember.status === "left" ? "탈퇴 사유" : "비활성 사유"}

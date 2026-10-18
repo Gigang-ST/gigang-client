@@ -19,6 +19,7 @@ import {
   MessageSquare,
   CalendarDays,
   KeyRound,
+  Send,
 } from "lucide-react";
 
 import {
@@ -155,11 +156,14 @@ function ToolCard({
   icon: Icon,
   label,
   hint,
+  accent,
 }: {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   hint?: string;
+  /** 처리해야 할 게 있을 때 — 회비 미납·미처리 건의와 같은 성격이라 빨갛게 뜬다. */
+  accent?: boolean;
 }) {
   return (
     <CardItem asChild className="flex flex-col gap-2">
@@ -171,7 +175,9 @@ function ToolCard({
           </span>
         </div>
         {hint && (
-          <span className="text-sm text-foreground">{hint}</span>
+          <span className={`text-sm ${accent ? "font-semibold text-destructive" : "text-foreground"}`}>
+            {hint}
+          </span>
         )}
       </Link>
     </CardItem>
@@ -215,6 +221,19 @@ export default function AdminDashboardPage() {
           icon={Bell}
           label="수동 알림 발송"
           hint="전체 또는 특정 멤버에게 알림 발송"
+        />
+        <ToolCard
+          href="/admin/kakao"
+          icon={Send}
+          label="카카오 발송 이력"
+          hint={
+            status === "success" && stats
+              ? stats.kakaoFailedCount > 0
+                ? `최근 7일 실패 ${stats.kakaoFailedCount}건`
+                : "최근 7일 정상"
+              : "단톡방 공지 발송 기록"
+          }
+          accent={status === "success" && (stats?.kakaoFailedCount ?? 0) > 0}
         />
         <ToolCard
           href="/admin/utmb-refresh"

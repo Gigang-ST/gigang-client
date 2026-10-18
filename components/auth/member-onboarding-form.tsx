@@ -30,6 +30,7 @@ import {
   onboardingCheckPhone,
   onboardingCreateMember,
   onboardingLinkExistingMember,
+  onboardingRejoinDeletedMember,
 } from "@/app/actions/onboarding-mem-v2";
 
 import { AppTabsGuide } from "@/components/auth/app-tabs-guide";
@@ -140,7 +141,6 @@ export function MemberOnboardingForm({
     | "profile"
     | "purpose"
     | "pledge"
-    | "pending"
     | "success"
   >(previewSuccess ? "success" : "phone");
   // 연락처는 위저드 공용 RHF 폼과 완전히 분리해 "확정값" 문자열로만 보관한다.
@@ -171,7 +171,7 @@ export function MemberOnboardingForm({
 
   /**
    * PhoneStep에서 형식 검증까지 끝난 연락처를 받아 기존회원 확인을 수행한다.
-   * new → 확정값 저장 후 details로, pending → 안내 화면, 기존회원 → 계정 연동 후 이동.
+   * new → 확정값 저장 후 details로, rejoin → 소속 복구 후 이동, 기존회원 → 계정 연동 후 이동.
    */
   const handlePhoneConfirm = async (phoneValue: string) => {
     setPhoneLoading(true);
@@ -190,13 +190,26 @@ export function MemberOnboardingForm({
         setStage("details");
         return;
       }
-      if (check.kind === "pending") {
-        setStage("pending");
+      // 삭제된 회원 — 승인 없이 바로 소속을 되살린다(§onboardingRejoinDeletedMember).
+      // 예전엔 "재가입 신청이 접수되었습니다" 화면에서 멈췄는데 접수되는 곳이 없었다.
+      if (check.kind === "rejoin") {
+        // 대상은 **번호로 서버가 다시 해석한다** — memId 를 넘기면 남의 계정에 연결할 수
+        // 있는 경로가 된다(§matchMemberByPhone).
+        const rejoin = await onboardingRejoinDeletedMember({
+          phoneRaw: phoneValue,
+          provider,
+          initialAvatarUrl,
+        });
+        if (!rejoin.ok) {
+          setPhoneServerError(rejoin.message ?? "재가입에 실패했습니다.");
+          return;
+        }
+        router.replace(safeNext);
         return;
       }
 
       const link = await onboardingLinkExistingMember({
-        memId: check.memId,
+        phoneRaw: phoneValue,
         provider,
         initialAvatarUrl,
       });
@@ -715,28 +728,6 @@ export function MemberOnboardingForm({
                   다음
                 </Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (stage === "pending") {
-    return (
-      <div className="flex flex-col gap-6">
-        <SignupProgress step={3} />
-        <Card className="bg-card border-border shadow-sm">
-          <CardHeader>
-            <H2>회원 정보 입력</H2>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-4 text-center">
-              <p className="text-sm text-muted-foreground">
-                재가입 신청이 접수되었습니다.
-                <br />
-                관리자 승인 후 이용 가능합니다.
-              </p>
             </div>
           </CardContent>
         </Card>

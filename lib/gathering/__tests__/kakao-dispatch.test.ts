@@ -88,15 +88,29 @@ describe("request_id — 허브가 같은 사건을 두 번 보내지 않게", (
     await notifyGatheringCreated({ gthrId: "g1", title: "번개", sttAt: STT });
     await notifyGatheringCanceled({ gthrId: "g1", title: "번개", sttAt: STT });
 
-    expect(sendKakao.mock.calls[0][1]).toEqual({ requestId: "gathering:g1:created" });
-    expect(sendKakao.mock.calls[1][1]).toEqual({ requestId: "gathering:g1:canceled" });
+    expect(sendKakao.mock.calls[0][1]).toMatchObject({ requestId: "gathering:g1:created" });
+    expect(sendKakao.mock.calls[1][1]).toMatchObject({ requestId: "gathering:g1:canceled" });
   });
 
   it("수정과 수동 공지는 id 를 붙이지 않는다 — 같은 모임에서 여러 번 나가는 게 정상이다", async () => {
     await notifyGatheringUpdated({ gthrId: "g1", title: "번개", sttAt: STT, location: "한강", prev: { sttAt: STT, location: "여의도" } });
     await announceGathering({ gthrId: "g1", title: "번개", sttAt: STT });
 
-    expect(sendKakao.mock.calls[0][1]).toBeUndefined();
-    expect(sendKakao.mock.calls[1][1]).toBeUndefined();
+    expect(sendKakao.mock.calls[0][1]?.requestId).toBeUndefined();
+    expect(sendKakao.mock.calls[1][1]?.requestId).toBeUndefined();
+  });
+
+  it("어느 사건이 보냈는지 출처를 함께 넘긴다 — 발송 이력에서 가려 보려고", async () => {
+    await notifyGatheringCreated({ gthrId: "g1", title: "번개", sttAt: STT });
+    await notifyGatheringUpdated({ gthrId: "g1", title: "번개", sttAt: STT, location: "한강", prev: { sttAt: STT, location: "여의도" } });
+    await notifyGatheringCanceled({ gthrId: "g1", title: "번개", sttAt: STT });
+    await announceGathering({ gthrId: "g1", title: "번개", sttAt: STT });
+
+    expect(sendKakao.mock.calls.map((c) => c[1]?.source?.type)).toEqual([
+      "gathering_created",
+      "gathering_updated",
+      "gathering_canceled",
+      "gathering_announce",
+    ]);
   });
 });

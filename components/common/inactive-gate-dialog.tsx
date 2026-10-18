@@ -9,6 +9,11 @@ import { getMyInactiveReason } from "@/app/actions/member/get-inactive-reason";
 import { useReactivationRequest } from "@/lib/hooks/use-reactivation-request";
 
 import { InactiveReasonNote } from "@/components/common/inactive-reason-note";
+import {
+  REACTIVATION_COPY,
+  REACTIVATION_SENT_DESC,
+  statusReasonLabel,
+} from "@/lib/inactive-notice";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,6 +36,10 @@ import {
 /** left 도 클라이언트에선 inactive 로 뭉쳐 오지만, 서버가 실제 상태를 알므로 문구만 분기 */
 type InactiveKind = "inactive" | "left";
 
+/**
+ * 이 다이얼로그만의 제목·설명. **버튼·접수 문구는 여기 두지 않는다** —
+ * `REACTIVATION_COPY`(`lib/inactive-notice`)를 프로필탭 차단 화면과 함께 본다.
+ */
 const COPY: Record<InactiveKind, { title: string; desc: string }> = {
   inactive: {
     title: "지금은 활동할 수 없어요",
@@ -38,7 +47,7 @@ const COPY: Record<InactiveKind, { title: string; desc: string }> = {
   },
   left: {
     title: "탈퇴한 상태예요",
-    desc: "회원님은 현재 탈퇴 처리된 상태예요. 다시 활동하려면 관리자 승인이 필요해요.",
+    desc: "회원님은 현재 탈퇴 처리된 상태예요. 다시 들어오려면 관리자 승인이 필요해요.",
   },
 };
 
@@ -56,6 +65,7 @@ export function InactiveGateDialog({
   const [reason, setReason] = useState<string | null>(null);
 
   const copy = COPY[kind];
+  const askCopy = REACTIVATION_COPY[kind];
 
   // 열릴 때마다 다시 묻고, **닫히면 버린다.**
   //
@@ -97,10 +107,8 @@ export function InactiveGateDialog({
               <Check className="size-6 text-success" />
             </div>
             <div className="flex flex-col gap-1">
-              <p className="text-base font-bold text-foreground">문의를 보냈어요</p>
-              <p className="text-[13px] text-muted-foreground">
-                관리자가 확인하면 다시 활동할 수 있어요.
-              </p>
+              <p className="text-base font-bold text-foreground">{askCopy.sentTitle}</p>
+              <p className="text-[13px] text-muted-foreground">{REACTIVATION_SENT_DESC}</p>
             </div>
             <Button
               variant="ghost"
@@ -120,13 +128,13 @@ export function InactiveGateDialog({
               <p className="text-[13px] leading-relaxed text-muted-foreground">{copy.desc}</p>
             </div>
 
-            <InactiveReasonNote reason={reason} />
+            <InactiveReasonNote reason={reason} label={statusReasonLabel(kind)} />
 
             {error && <p className="text-[13px] font-medium text-warning">{error}</p>}
 
             <div className="mt-1 flex w-full flex-col gap-2">
               <Button className="w-full" onClick={request} disabled={sending}>
-                {sending ? "보내는 중..." : "관리자에게 문의하기"}
+                {sending ? "보내는 중..." : askCopy.cta}
               </Button>
               <Button
                 variant="ghost"
