@@ -1,5 +1,6 @@
 "use server";
 
+import { toCompetition } from "@/lib/competition-row";
 import { createClient } from "@/lib/supabase/server";
 import type { Competition } from "@/components/races/types";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -32,17 +33,9 @@ export async function getPastGigangCompetitions(
   const rows = data ?? [];
   const list: Competition[] = rows
     .filter((row) => (row.reg_count ?? 0) > 0)
-    .map((row) => ({
-      id: row.comp_id,
-      external_id: row.ext_id ?? "",
-      sport: row.comp_sprt_cd,
-      title: row.comp_nm,
-      start_date: row.stt_dt,
-      end_date: row.end_dt,
-      location: row.loc_nm,
-      event_types: (row.comp_evt_types ?? []).map((e) => e?.toUpperCase()).filter(Boolean),
-      source_url: row.src_url,
-    }))
+    // 예전엔 손으로 만들면서 short_id·crt_by를 빠뜨려, 지난 대회 상세의 공유 링크가 uuid로
+    // 나가고 만든 사람이 수정 버튼을 못 봤다
+    .map(toCompetition)
     .sort((a, b) => b.start_date.localeCompare(a.start_date));
   return { list, nextBefore: startStr };
 }

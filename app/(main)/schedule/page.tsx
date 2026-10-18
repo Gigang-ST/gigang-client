@@ -179,7 +179,12 @@ async function HomeContent() {
     <div className="flex flex-col gap-0">
       <div className="flex flex-col gap-7 px-6 pb-6">
         <Suspense>
+          {/* 보는 사람(회원·팀)이 바뀌면 통째로 새로 마운트한다. AuthRefresher 는 로그인·로그아웃 때
+              router.refresh() 만 하는데, 그건 서버 props 만 갈고 클라이언트 state 는 남긴다 — 그러면
+              앞사람의 개인 일정(state·월 캐시)과 대회 등록 맵이 다음 사람 화면에 그대로 남는다.
+              (다른 탭에서 로그아웃해도 이 탭이 SIGNED_OUT 을 받아 같은 일이 생긴다) */}
           <MiniCalendar
+            key={`${teamId}:${currentMember?.id ?? "signed-out"}`}
             gigangRaces={calendarGigangRaces}
             myRaces={[]}
             schPosts={calendarSchPosts}

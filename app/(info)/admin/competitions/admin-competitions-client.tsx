@@ -22,7 +22,7 @@ import {
   sprtCdDisplayName,
   type CachedCmmCdRow,
 } from "@/lib/queries/cmm-cd-cached";
-import { sanitizeAsciiUpperCompEvtTypeInput } from "@/lib/comp-evt-type";
+import { sanitizeAsciiUpperCompEvtTypeInput, toCompEvtTypes } from "@/lib/comp-evt-type";
 import { createClient } from "@/lib/supabase/client";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { cn } from "@/lib/utils";
@@ -201,7 +201,10 @@ function CompetitionsContent({
         start_date: c.stt_dt as string,
         end_date: c.end_dt as string | null,
         location: c.loc_nm as string | null,
-        event_types: ((c.comp_evt_cfg as { comp_evt_type: string }[] | null) ?? []).map((e) => e.comp_evt_type?.toUpperCase()),
+        event_types: toCompEvtTypes(
+          c.comp_evt_cfg as { comp_evt_type: string | null }[] | null,
+          c.comp_sprt_cd as string | null,
+        ),
         source_url: c.src_url as string | null,
         registration_count: regCountByComp.get(c.comp_id as string) ?? 0,
       })),

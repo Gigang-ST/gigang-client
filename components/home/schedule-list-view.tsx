@@ -29,6 +29,7 @@ type Props = {
   initialMonthKey: string;
   initialRaces: CalendarRace[];
   filterType?: FilterType;
+  onClickPersonal: (race: CalendarRace) => void;
   onClickSchedule: (race: CalendarRace) => void;
   onClickCompetition: (race: CalendarRace) => void;
   onClickGathering: (race: CalendarRace) => void;
@@ -92,7 +93,19 @@ async function fetchAdjacent(
     const key = `${row.item_type}:${row.item_id}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    if (row.item_type === "sch_post") {
+    if (row.item_type === "personal") {
+      // 개인 일정 — RPC가 JWT 기준으로 본인 것만 싣는다(p_mem_id 아님). 시각은 이미 timestamptz.
+      results.push({
+        id: row.item_id,
+        title: row.item_nm,
+        start_date: row.start_date,
+        type: "personal",
+        cont_txt: row.cont_txt ?? null,
+        crt_by: row.crt_by ?? undefined,
+        evt_stt_at: row.evt_stt_at ?? null,
+        evt_end_at: row.evt_end_at ?? null,
+      });
+    } else if (row.item_type === "sch_post") {
       results.push({
         id: row.item_id,
         title: row.item_nm,
@@ -186,6 +199,28 @@ function ScheduleItem({ race, onClick }: { race: CalendarRace; onClick: () => vo
           링크
         </span>
       )}
+    </button>
+  );
+}
+
+// 개인 일정 아이템 — 청록(--personal) 띠 + 「개인」 배지. 시각이 없으면 종일
+function PersonalItem({ race, onClick }: { race: CalendarRace; onClick: () => void }) {
+  const timeRange = formatTimeRange(race.evt_stt_at, race.evt_end_at) ?? "종일";
+
+  return (
+    <button
+      onClick={onClick}
+      className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
+    >
+      <span className="w-0.5 shrink-0 rounded-full bg-personal" />
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <Caption className="truncate font-medium text-foreground">{race.title}</Caption>
+        <Micro className="tabular-nums text-muted-foreground">{timeRange}</Micro>
+        {race.cont_txt && <Micro className="truncate text-muted-foreground">{race.cont_txt}</Micro>}
+      </span>
+      <span className="shrink-0 self-center rounded-md border border-personal/40 bg-personal/10 px-2.5 py-1 text-[11px] font-medium text-personal">
+        개인
+      </span>
     </button>
   );
 }
@@ -307,6 +342,7 @@ export const ScheduleListView = memo(function ScheduleListView({
   initialMonthKey,
   initialRaces,
   filterType = "all",
+  onClickPersonal,
   onClickSchedule,
   onClickCompetition,
   onClickGathering,
@@ -489,7 +525,13 @@ export const ScheduleListView = memo(function ScheduleListView({
                         {/* 일정 목록 */}
                         <div className="flex min-w-0 flex-1 flex-col gap-2.5">
                           {filteredDateRaces.map((race) =>
-                            race.type === "schedule" ? (
+                            race.type === "personal" ? (
+                              <PersonalItem
+                                key={race.id}
+                                race={race}
+                                onClick={() => onClickPersonal(race)}
+                              />
+                            ) : race.type === "schedule" ? (
                               <ScheduleItem
                                 key={race.id}
                                 race={race}

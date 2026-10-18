@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { FileText, Plus, Trophy, Users } from "lucide-react";
+import { FileText, Lock, Plus, Trophy, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,7 @@ type Props = {
   onAddSchedule: () => void;
   onAddCompetition: () => void;
   onAddGathering: () => void;
+  onAddPersonal: () => void;
   defaultDate?: string;
 };
 
@@ -38,9 +39,18 @@ const items = [
     color: "text-violet-400",
     disabled: false,
   },
+  {
+    // 맨 아래 — 위 셋은 크루에 올리는 것, 이건 나만 보는 것이라 성격이 갈린다
+    key: "personal",
+    label: "개인 일정",
+    sub: "나만 볼 수 있어요",
+    icon: Lock,
+    color: "text-personal",
+    disabled: false,
+  },
 ] as const;
 
-export function AddScheduleDropdown({ onAddSchedule, onAddCompetition, onAddGathering }: Props) {
+export function AddScheduleDropdown({ onAddSchedule, onAddCompetition, onAddGathering, onAddPersonal }: Props) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -60,6 +70,7 @@ export function AddScheduleDropdown({ onAddSchedule, onAddCompetition, onAddGath
     if (key === "competition") onAddCompetition();
     if (key === "schedule") onAddSchedule();
     if (key === "gathering") onAddGathering();
+    if (key === "personal") onAddPersonal();
   }
 
   return (

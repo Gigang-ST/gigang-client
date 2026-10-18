@@ -2264,6 +2264,63 @@ export type Database = {
           },
         ]
       }
+      mem_sch_mst: {
+        Row: {
+          cont_txt: string | null
+          crt_at: string
+          del_yn: boolean
+          end_tm: string | null
+          mem_id: string
+          mem_sch_id: string
+          sch_dt: string
+          sch_nm: string
+          stt_tm: string | null
+          team_id: string
+          upd_at: string
+        }
+        Insert: {
+          cont_txt?: string | null
+          crt_at?: string
+          del_yn?: boolean
+          end_tm?: string | null
+          mem_id: string
+          mem_sch_id?: string
+          sch_dt: string
+          sch_nm: string
+          stt_tm?: string | null
+          team_id: string
+          upd_at?: string
+        }
+        Update: {
+          cont_txt?: string | null
+          crt_at?: string
+          del_yn?: boolean
+          end_tm?: string | null
+          mem_id?: string
+          mem_sch_id?: string
+          sch_dt?: string
+          sch_nm?: string
+          stt_tm?: string | null
+          team_id?: string
+          upd_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mem_sch_mst_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "mem_sch_mst_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
       mem_ttl_rel: {
         Row: {
           crt_at: string

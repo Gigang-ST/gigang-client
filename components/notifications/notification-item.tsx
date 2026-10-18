@@ -46,6 +46,7 @@ const NOTI_ICON: Record<string, React.ElementType> = {
   fdbk_new: MessageSquareText,
   fdbk_rspd: MessageSquareText,
   reactivate_req: Users,
+  reactivated: UserCheck,
 };
 
 function formatRelative(crtAt: string) {
