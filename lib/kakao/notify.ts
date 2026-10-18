@@ -37,7 +37,10 @@ export type KakaoSendResult = {
 };
 
 export type SendKakaoOptions = {
-  /** 방 이름. 생략하면 `KAKAO_ROOM`. */
+  /**
+   * 방. 이름이나 고정 ID(UUID) — 어드민 다시 보내기가 이력의 값을 그대로 넘긴다.
+   * 생략하면 `KAKAO_ROOM_ID`, 없으면 `KAKAO_ROOM`.
+   */
   room?: string | null;
   /** 멱등 키. 같은 사건(예: 모임 등록 1건)에 고정값을 주면 허브가 중복 발송을 막는다. */
   requestId?: string;
@@ -69,6 +72,28 @@ function hubOrigin(): string | null {
   }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type RoomTarget = { roomId: string } | { room: string };
+
+/** 보낼 방. 명시한 값(이름 또는 ID) → `KAKAO_ROOM_ID` → `KAKAO_ROOM` 순. */
+function roomTarget(explicit?: string | null): RoomTarget | null {
+  if (explicit) return UUID_RE.test(explicit) ? { roomId: explicit } : { room: explicit };
+  if (env.KAKAO_ROOM_ID) return { roomId: env.KAKAO_ROOM_ID };
+  if (env.KAKAO_ROOM) return { room: env.KAKAO_ROOM };
+  return null;
+}
+
+const apiKeyFromEnv = () => env.KAKAO_SERVICE_API_KEY ?? env.KAKAO_WEBHOOK_SECRET;
+
+/**
+ * 이 환경에서 노티봇 발송이 켜져 있는가. "단톡방에도 공지했어요" 같은 안내가
+ * `sendKakao` 와 다른 기준으로 판정하면 보내지도 않고 보냈다고 말하게 된다.
+ */
+export function isKakaoConfigured(): boolean {
+  return Boolean(hubOrigin() && apiKeyFromEnv() && roomTarget());
+}
+
 /**
  * 카톡방에 한 줄 보낸다. 성공·실패 모두 `kakao_send_hist` 에 한 행을 남긴다.
  *
@@ -79,18 +104,20 @@ export async function sendKakao(
   opts: SendKakaoOptions = {},
 ): Promise<KakaoSendResult> {
   const origin = hubOrigin();
-  const apiKey = env.KAKAO_WEBHOOK_SECRET;
-  const room = opts.room ?? env.KAKAO_ROOM;
+  const apiKey = apiKeyFromEnv();
+  const target = roomTarget(opts.room);
 
   // 미설정이면 조용히 끈다 — 로컬·preview 가 실제 톡방에 쏘지 않게 하는 안전장치가 이거다.
   // 환경변수를 넣은 환경에서만 발송된다. 키가 없으면 허브가 어차피 401 이므로 같이 묶는다.
-  if (!origin || !apiKey || !room) {
+  if (!origin || !apiKey || !target) {
     console.info("[kakao] 발송 비활성(환경변수 미설정) — skip", { bytes: message.length });
     return { ok: false, skipped: "disabled" };
   }
 
+  // 이력의 방 이름. ID 로 보냈으면 허브가 돌려준 이름으로 바꾼다(성공 시). 이름을 모르면 ID 를
+  // 남긴다 — 다시 보내기가 그 값을 넘기면 roomTarget 이 ID 로 알아본다.
   const log = {
-    room,
+    room: "room" in target ? target.room : (env.KAKAO_ROOM ?? target.roomId),
     message,
     requestId: opts.requestId ?? null,
     source: opts.source ?? null,
@@ -110,12 +137,13 @@ export async function sendKakao(
       ...(opts.fetchFn ? { fetch: opts.fetchFn } : {}),
     });
     const sent = await bot.sendMessage({
-      room,
+      ...target,
       text: message,
       ...(opts.requestId ? { requestId: opts.requestId } : {}),
     });
 
-    console.info("[kakao] 발송", { bytes: message.length, room, queued: sent.queued });
+    if ("roomId" in target && sent.room) log.room = sent.room;
+    console.info("[kakao] 발송", { bytes: message.length, room: log.room, queued: sent.queued });
     // 허브가 실제로 쓴 id 를 남긴다 — 안 넘겼으면 SDK 가 만들어 준 값이고,
     // 다시 보낼 때 그 값을 그대로 써야 허브가 중복을 막아 준다.
     requestId = sent.request_id;

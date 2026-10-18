@@ -5,8 +5,8 @@ import { after } from "next/server";
 
 import { withAdmin } from "@/lib/actions/auth";
 import { dayjs, formatKST, parseEventTime } from "@/lib/dayjs";
-import { env } from "@/lib/env";
 import { notifyGatheringCreated } from "@/lib/gathering/kakao-dispatch";
+import { isKakaoConfigured } from "@/lib/kakao/notify";
 import {
   feesForJoinWeek,
   pbEndDtFor,
@@ -850,7 +850,7 @@ export async function createPbSessGatherings(
     if (rows.length === 1) {
       const what = rows[0].d.sessType === "MEASURE" ? "10K 측정 벙" : `${wkLabel(rows[0].wkNo)} 훈련벙`;
       // 노티봇이 없는 환경(로컬·preview)에선 sendKakao 가 조용히 건너뛴다 — 보냈다고 말하지 않는다
-      const kakaoOn = Boolean(env.KAKAO_WEBHOOK_URL && env.KAKAO_ROOM);
+      const kakaoOn = isKakaoConfigured();
       return {
         ok: true,
         message: kakaoOn ? `${what}을 열었어요 — 단톡방에도 공지했어요` : `${what}을 열었어요`,

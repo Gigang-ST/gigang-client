@@ -8,6 +8,8 @@ const h = vi.hoisted(() => {
   const notify = vi.fn(async () => {});
   const env: Record<string, string | undefined> = {
     KAKAO_WEBHOOK_URL: "https://bridge.example/webhook",
+    // 키가 없으면 sendKakao 가 보내지 않으므로 "공지했어요" 판정(isKakaoConfigured)도 꺼진다.
+    KAKAO_WEBHOOK_SECRET: "s3cret",
     KAKAO_ROOM: "기강",
   };
 
@@ -81,6 +83,7 @@ beforeEach(() => {
   h.notify.mockClear();
   h.resetSeq();
   h.env.KAKAO_WEBHOOK_URL = "https://bridge.example/webhook";
+  h.env.KAKAO_WEBHOOK_SECRET = "s3cret";
   h.env.KAKAO_ROOM = "기강";
 });
 
