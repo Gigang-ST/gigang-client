@@ -6,6 +6,8 @@ const envMock = vi.hoisted(() => ({
   KAKAO_WEBHOOK_URL: undefined as string | undefined,
   KAKAO_WEBHOOK_SECRET: undefined as string | undefined,
   KAKAO_ROOM: undefined as string | undefined,
+  KAKAO_SERVICE_API_KEY: undefined as string | undefined,
+  KAKAO_ROOM_ID: undefined as string | undefined,
 }));
 vi.mock("@/lib/env", () => ({ env: envMock }));
 
@@ -13,7 +15,7 @@ vi.mock("@/lib/env", () => ({ env: envMock }));
 const recordKakaoSend = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/kakao/send-log", () => ({ recordKakaoSend }));
 
-import { sendKakao } from "@/lib/kakao/notify";
+import { isKakaoConfigured, sendKakao } from "@/lib/kakao/notify";
 
 /**
  * 허브처럼 받아 주는 fetch. **요청의 `request_id` 를 그대로 되돌려줘야 한다** —
@@ -42,6 +44,8 @@ describe("sendKakao", () => {
     envMock.KAKAO_WEBHOOK_URL = undefined;
     envMock.KAKAO_WEBHOOK_SECRET = "s3cret";
     envMock.KAKAO_ROOM = "기강웹TF";
+    envMock.KAKAO_SERVICE_API_KEY = undefined;
+    envMock.KAKAO_ROOM_ID = undefined;
     // 진짜 구현은 Promise<void> 라 호출부가 `.catch` 를 건다.
     recordKakaoSend.mockResolvedValue(undefined);
     vi.spyOn(console, "info").mockImplementation(() => {});
@@ -95,10 +99,84 @@ describe("sendKakao", () => {
     expect(sentBody(fetchFn).room).toBe("다른방");
   });
 
+  describe("콘솔 가이드 이름(KAKAO_SERVICE_API_KEY · KAKAO_ROOM_ID)", () => {
+    const ROOM_ID = "4b492fd2-bb84-43be-a663-4e5f087ffb2e";
+
+    it("KAKAO_ROOM_ID 가 있으면 방 이름 대신 고정 ID 경로로 보낸다 — 방 이름이 바뀌어도 안 끊긴다", async () => {
+      envMock.KAKAO_ROOM_ID = ROOM_ID;
+      const fetchFn = acceptingFetch({ room: "기강웹TF" });
+
+      const result = await sendKakao("안녕", { fetchFn: fetchFn as unknown as typeof fetch });
+
+      expect(result.ok).toBe(true);
+      expect(fetchFn.mock.calls[0][0]).toBe(`https://hub.example/v1/rooms/id/${ROOM_ID}/messages`);
+      expect(sentBody(fetchFn).room).toBeUndefined();
+    });
+
+    it("KAKAO_SERVICE_API_KEY 가 옛 KAKAO_WEBHOOK_SECRET 보다 우선한다", async () => {
+      envMock.KAKAO_SERVICE_API_KEY = "kb_new";
+      const fetchFn = acceptingFetch();
+
+      await sendKakao("안녕", { fetchFn: fetchFn as unknown as typeof fetch });
+
+      const init = fetchFn.mock.calls[0][1] as RequestInit;
+      expect((init.headers as Record<string, string>).Authorization).toBe("Bearer kb_new");
+    });
+
+    it("새 이름만 있어도 보낸다 — 옛 변수를 지운 뒤에도 동작", async () => {
+      envMock.KAKAO_WEBHOOK_SECRET = undefined;
+      envMock.KAKAO_ROOM = undefined;
+      envMock.KAKAO_SERVICE_API_KEY = "kb_new";
+      envMock.KAKAO_ROOM_ID = ROOM_ID;
+      const fetchFn = acceptingFetch({ room: "기강웹TF" });
+
+      const result = await sendKakao("안녕", { fetchFn: fetchFn as unknown as typeof fetch });
+
+      expect(result.ok).toBe(true);
+    });
+
+    it("이력에는 허브가 돌려준 방 이름을 남긴다 — 어드민에서 ID 대신 이름이 보이게", async () => {
+      envMock.KAKAO_ROOM = undefined;
+      envMock.KAKAO_ROOM_ID = ROOM_ID;
+      const fetchFn = acceptingFetch({ room: "기강웹TF" });
+
+      await sendKakao("안녕", { fetchFn: fetchFn as unknown as typeof fetch });
+
+      expect(recordKakaoSend).toHaveBeenCalledWith(expect.objectContaining({ room: "기강웹TF" }));
+    });
+
+    it("실패해서 이름을 모르면 ID 를 남기고, 다시 보내기는 그 ID 를 고정 ID 로 쓴다", async () => {
+      envMock.KAKAO_ROOM = undefined;
+      envMock.KAKAO_ROOM_ID = ROOM_ID;
+      const failing = vi.fn(async () => new Response("boom", { status: 503 }));
+      await sendKakao("안녕", { fetchFn: failing as unknown as typeof fetch });
+      expect(recordKakaoSend).toHaveBeenCalledWith(expect.objectContaining({ room: ROOM_ID }));
+
+      const fetchFn = acceptingFetch({ room: "기강웹TF" });
+      await sendKakao("안녕", { room: ROOM_ID, fetchFn: fetchFn as unknown as typeof fetch });
+      expect(fetchFn.mock.calls[0][0]).toBe(`https://hub.example/v1/rooms/id/${ROOM_ID}/messages`);
+    });
+  });
+
+  describe("isKakaoConfigured — 발송 여부를 말하는 쪽도 sendKakao 와 같은 판정을 쓴다", () => {
+    it("새 이름 · 옛 이름 어느 쪽 조합이든 켜진 것으로 본다", () => {
+      expect(isKakaoConfigured()).toBe(true);
+      envMock.KAKAO_HUB_URL = undefined;
+      envMock.KAKAO_WEBHOOK_URL = undefined;
+      expect(isKakaoConfigured()).toBe(false);
+      envMock.KAKAO_HUB_URL = "https://hub.example";
+      envMock.KAKAO_ROOM = undefined;
+      envMock.KAKAO_ROOM_ID = "4b492fd2-bb84-43be-a663-4e5f087ffb2e";
+      envMock.KAKAO_WEBHOOK_SECRET = undefined;
+      envMock.KAKAO_SERVICE_API_KEY = "kb_new";
+      expect(isKakaoConfigured()).toBe(true);
+    });
+  });
+
   describe("환경변수가 비면 아무것도 호출하지 않는다 — 로컬·preview 안전장치", () => {
     it.each([
       ["허브 주소", () => { envMock.KAKAO_HUB_URL = undefined; }],
-      ["방", () => { envMock.KAKAO_ROOM = undefined; }],
+      ["방", () => { envMock.KAKAO_ROOM = undefined; envMock.KAKAO_ROOM_ID = undefined; }],
       // 키 없이 쏘면 허브가 어차피 401 이라 보낼 이유가 없다.
       ["API 키", () => { envMock.KAKAO_WEBHOOK_SECRET = undefined; }],
     ])("%s 미설정", async (_label, unset) => {
