@@ -41,6 +41,7 @@ function linkOf(facts: GatheringFacts): string | null {
 export async function notifyGatheringCreated(facts: GatheringFacts): Promise<void> {
   await sendKakao(buildGatheringShareText({ ...facts, url: linkOf(facts) }), {
     requestId: `gathering:${facts.gthrId}:created`,
+    source: { type: "gathering_created", id: facts.gthrId },
   });
 }
 
@@ -60,13 +61,16 @@ export async function notifyGatheringUpdated(
   });
   if (changes.length === 0) return;
 
-  await sendKakao(buildGatheringUpdateText({ ...facts, url: linkOf(facts) }, changes));
+  await sendKakao(buildGatheringUpdateText({ ...facts, url: linkOf(facts) }, changes), {
+    source: { type: "gathering_updated", id: facts.gthrId },
+  });
 }
 
 /** 모임 취소 — 링크 없이. 모르면 사람이 실제로 헛걸음한다. */
 export async function notifyGatheringCanceled(facts: GatheringFacts): Promise<void> {
   await sendKakao(buildGatheringCancelText(facts), {
     requestId: `gathering:${facts.gthrId}:canceled`,
+    source: { type: "gathering_canceled", id: facts.gthrId },
   });
 }
 
@@ -79,5 +83,7 @@ export async function notifyGatheringCanceled(facts: GatheringFacts): Promise<vo
 export async function announceGathering(
   facts: GatheringFacts,
 ): Promise<Awaited<ReturnType<typeof sendKakao>>> {
-  return sendKakao(buildGatheringShareText({ ...facts, url: linkOf(facts) }));
+  return sendKakao(buildGatheringShareText({ ...facts, url: linkOf(facts) }), {
+    source: { type: "gathering_announce", id: facts.gthrId },
+  });
 }

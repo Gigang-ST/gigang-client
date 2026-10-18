@@ -10,6 +10,10 @@ export const env = createEnv({
     // URL = https://kakao-api.jeongmin.dev/v1/messages, SECRET = 허브 gigang 서비스 API 키(kb_…).
     // 셋 다 optional: 미설정이면 발송만 꺼진다. 로컬·preview가 실제 톡방에 쏘지 않게 하는
     // 안전장치가 이 "미설정 = 비활성"이라, 값을 넣은 환경에서만 발송된다.
+    // 허브 origin(예: https://kakao-api.jeongmin.dev). SDK 가 경로를 붙이므로 origin 만 있으면 된다.
+    KAKAO_HUB_URL: z.url().optional(),
+    // 옛 이름 — `/v1/messages` 까지 포함한 전체 주소였다. origin 으로 정규화해 계속 받는다
+    // (배포 환경변수를 바꾸기 전에 코드가 먼저 올라가도 발송이 멈추지 않게).
     KAKAO_WEBHOOK_URL: z.url().optional(),
     KAKAO_WEBHOOK_SECRET: z.string().min(1).optional(),
     KAKAO_ROOM: z.string().min(1).optional(),
@@ -54,6 +58,7 @@ export const env = createEnv({
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     REVALIDATE_SECRET: process.env.REVALIDATE_SECRET,
     KAKAO_CHAT_PASSWORD: process.env.KAKAO_CHAT_PASSWORD,
+    KAKAO_HUB_URL: process.env.KAKAO_HUB_URL,
     KAKAO_WEBHOOK_URL: process.env.KAKAO_WEBHOOK_URL,
     KAKAO_WEBHOOK_SECRET: process.env.KAKAO_WEBHOOK_SECRET,
     KAKAO_ROOM: process.env.KAKAO_ROOM,
