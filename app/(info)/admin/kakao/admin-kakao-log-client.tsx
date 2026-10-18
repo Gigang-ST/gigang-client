@@ -66,7 +66,14 @@ function StatusBadge({ log }: { log: KakaoSendLogRow }) {
   );
 }
 
-export function AdminKakaoLogClient({ logs }: { logs: KakaoSendLogRow[] }) {
+export function AdminKakaoLogClient({
+  logs,
+  tableMissing = false,
+}: {
+  logs: KakaoSendLogRow[];
+  /** 이 환경 DB 에 이력 테이블이 아직 없다 — 발송은 되고 기록만 안 남는다. */
+  tableMissing?: boolean;
+}) {
   const router = useRouter();
   const [openId, setOpenId] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<KakaoSendLogRow | null>(null);
@@ -99,10 +106,13 @@ export function AdminKakaoLogClient({ logs }: { logs: KakaoSendLogRow[] }) {
         </HelpTip>
       </div>
 
-      <Caption>
-        최근 {logs.length}건
-        {failedCount > 0 ? ` · 실패 ${failedCount}건` : " · 모두 정상"}
-      </Caption>
+      {/* 기록이 없는 환경에서 "모두 정상" 이라고 말하지 않는다 */}
+      {!tableMissing && (
+        <Caption>
+          최근 {logs.length}건
+          {failedCount > 0 ? ` · 실패 ${failedCount}건` : " · 모두 정상"}
+        </Caption>
+      )}
 
       {notice && (
         <CardItem className="bg-secondary">
@@ -110,7 +120,12 @@ export function AdminKakaoLogClient({ logs }: { logs: KakaoSendLogRow[] }) {
         </CardItem>
       )}
 
-      {logs.length === 0 ? (
+      {tableMissing ? (
+        <EmptyState
+          variant="card"
+          message="이 환경엔 발송 이력 저장소가 아직 준비되지 않았어요. 카톡 발송은 그대로 되고, 기록만 남지 않아요."
+        />
+      ) : logs.length === 0 ? (
         <EmptyState variant="card" message="아직 발송 기록이 없어요." />
       ) : (
         <div className="flex flex-col gap-2">

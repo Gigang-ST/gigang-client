@@ -11,5 +11,6 @@ export default async function AdminKakaoLogPage() {
   const admin = await verifyAdmin();
   if (!admin) redirect("/admin");
 
-  return <AdminKakaoLogClient logs={await getKakaoSendLogs()} />;
+  const { logs, tableMissing } = await getKakaoSendLogs();
+  return <AdminKakaoLogClient logs={logs} tableMissing={tableMissing} />;
 }

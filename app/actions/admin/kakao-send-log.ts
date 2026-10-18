@@ -61,8 +61,21 @@ const toRow = (r: Raw): KakaoSendLogRow => ({
   createdAt: r.crt_at,
 });
 
+export type KakaoSendLogs = {
+  logs: KakaoSendLogRow[];
+  /**
+   * 이 환경 DB 에 `kakao_send_hist` 가 아직 없다(마이그레이션 미적용). 발송은 그대로 되고
+   * 기록만 안 남는 상태라, 화면을 에러로 막지 않고 안내만 띄운다.
+   */
+  tableMissing: boolean;
+};
+
+/** PostgREST "스키마 캐시에 테이블 없음" · Postgres undefined_table. */
+const isMissingTable = (error: { code?: string }) =>
+  error.code === "PGRST205" || error.code === "42P01";
+
 /** 발송 이력 최신순. */
-export async function getKakaoSendLogs(): Promise<KakaoSendLogRow[]> {
+export async function getKakaoSendLogs(): Promise<KakaoSendLogs> {
   return withAdminOrThrow(async () => {
     const admin = createUntypedAdminClient();
     const { data, error } = await admin
@@ -70,8 +83,11 @@ export async function getKakaoSendLogs(): Promise<KakaoSendLogRow[]> {
       .select("*")
       .order("crt_at", { ascending: false })
       .limit(PAGE_SIZE);
-    if (error) throw new Error(`발송 이력을 불러오지 못했어요: ${error.message}`);
-    return ((data ?? []) as Raw[]).map(toRow);
+    if (error) {
+      if (isMissingTable(error)) return { logs: [], tableMissing: true };
+      throw new Error(`발송 이력을 불러오지 못했어요: ${error.message}`);
+    }
+    return { logs: ((data ?? []) as Raw[]).map(toRow), tableMissing: false };
   });
 }
 
