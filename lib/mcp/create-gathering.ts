@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { dayjs } from "@/lib/dayjs";
+import { notifyGatheringCreated } from "@/lib/gathering/kakao-dispatch";
 import type { OperatorContext } from "@/lib/mcp/auth";
 import { ToolDeniedError, ToolInputError } from "@/lib/mcp/queries";
 import { insertNotiMany } from "@/lib/notifications/insert-noti";
@@ -19,7 +20,8 @@ import { createGthrSchema } from "@/lib/validations/gathering";
  *
  * ## 앱과 맞춘 것 / 다른 것
  * - **맞춤**: 입력 검증(`createGthrSchema` 공유), KST→UTC 변환, 작성자 자동 참석,
- *   팀 전원 `gthr_new` 알림(인앱+푸시). 앱으로 만든 벙과 MCP 로 만든 벙이 다르게 굴면
+ *   팀 전원 `gthr_new` 알림(인앱+푸시), 단톡방 노티봇 공지(`notifyGatheringCreated` — 한때 빠져
+ *   있어 MCP 로 만든 정기런이 톡방에 안 떴다, #576). 앱으로 만든 벙과 MCP 로 만든 벙이 다르게 굴면
  *   "왜 알림이 안 왔지"가 도구 탓인지 알 수 없다.
  * - **다름**: ① admin 게이트(§안전장치) ② 감사행(`mcp_audit_log`) ③ `dry_run`
  *   ④ 알림을 `after()` 로 미루지 않고 인라인으로 보내 **실제 발송 인원을 응답에 싣는다**
@@ -27,8 +29,9 @@ import { createGthrSchema } from "@/lib/validations/gathering";
  *
  * ## service-role 클라이언트 주입식
  * 클라이언트를 인자로 받아 이 모듈은 `admin.ts`(server-only)를 import 하지 않는다
- * (queries.ts·send-push.ts 와 동일). 단 `insertNotiMany` 는 server-only 체인이라
- * 이 모듈을 테스트할 때는 `vi.mock("@/lib/notifications/insert-noti")` 가 필수다
+ * (queries.ts·send-push.ts 와 동일). 단 `insertNotiMany`·`notifyGatheringCreated` 는 server-only
+ * 체인이라 이 모듈을 테스트할 때는 `vi.mock("@/lib/notifications/insert-noti")`·
+ * `vi.mock("@/lib/gathering/kakao-dispatch")` 가 필수다(후자는 실제 단톡방 발송도 막는다)
  * ([[troubleshooting/vitest-server-only-trap]]).
  */
 
@@ -73,8 +76,15 @@ export type CreateGatheringResult = {
   max_prt_cnt: number | null;
   /** 실제 인앱 알림이 들어간 인원(수신거부 필터 반영). dry_run 이면 0. */
   notified_cnt: number;
+  /**
+   * 단톡방 노티봇 공지 결과. `skipped` = 이 환경에 발송 설정이 없음(local·preview) 또는 dry_run.
+   * `failed` 면 공유 시트의 「단톡방에 알림」으로 사람이 메꿔야 한다.
+   */
+  kakao_notice: KakaoNoticeResult;
   audit_id: string | null;
 };
+
+export type KakaoNoticeResult = "sent" | "skipped" | "failed";
 
 /**
  * KST 벽시계 문자열 → UTC ISO. 형식 위반은 안전 에러로 되돌린다(9시간 밀림 방지).
@@ -115,7 +125,7 @@ function toKstLabel(iso: string | null): string | null {
 
 /**
  * `create_gathering` 본체. admin 게이트 → 검증 → (dry_run 이면 여기서 종료) →
- * insert → 작성자 자동 참석 → 팀 알림 → 감사행.
+ * insert → 작성자 자동 참석 → 팀 알림 → 단톡방 공지 → 감사행.
  *
  * @param supabase service-role 클라이언트(라우트에서 주입). RLS 우회 — 스코프는 코드가 강제한다.
  * @param ctx      operator 컨텍스트. `team_id`·`mem_id` 는 여기서만 나온다(도구 인자로 안 받는다).
@@ -178,6 +188,7 @@ export async function createGatheringViaMcp(
       loc_txt: v.loc_txt ?? null,
       max_prt_cnt: v.max_prt_cnt ?? null,
       notified_cnt: 0,
+      kakao_notice: "skipped",
       audit_id: null,
     };
   }
@@ -244,6 +255,26 @@ export async function createGatheringViaMcp(
     console.error("[mcp] create_gathering 알림 발송 실패", e);
   }
 
+  // 단톡방 공지 — 앱과 같은 사실을 넘겨 같은 문구로 나간다. 인앱 알림처럼 인라인으로 불러
+  // 결과를 응답에 싣는다. 실패로 벙을 되돌리지 않는다(sendKakao 는 던지지 않지만 방어한다).
+  let kakaoNotice: KakaoNoticeResult = "failed";
+  try {
+    const sent = await notifyGatheringCreated({
+      gthrId,
+      ref: (created.short_id as string | null) ?? gthrId,
+      origin: baseUrl ?? null,
+      title: v.gthr_nm,
+      sttAt: sttIso,
+      endAt: endIso,
+      location: v.loc_txt ?? null,
+      authorName: ctx.mem_nm || null,
+      maxCount: v.max_prt_cnt ?? null,
+    });
+    kakaoNotice = sent.ok ? "sent" : sent.skipped ? "skipped" : "failed";
+  } catch (e) {
+    console.error("[mcp] create_gathering 단톡방 공지 실패", e);
+  }
+
   // 감사행 — send_push 와 같은 규약. 쓰기 도구는 누가 무엇을 만들었는지 남긴다.
   const auditId = crypto.randomUUID();
   const { error: auditErr } = await supabase.from("mcp_audit_log").insert({
@@ -261,8 +292,9 @@ export async function createGatheringViaMcp(
       loc_txt: v.loc_txt ?? null,
       max_prt_cnt: v.max_prt_cnt ?? null,
       notified_cnt: notifiedCnt,
+      kakao_notice: kakaoNotice,
     },
-    result_summary: `create_gathering ok: gthr_id=${gthrId} notified=${notifiedCnt}`,
+    result_summary: `create_gathering ok: gthr_id=${gthrId} notified=${notifiedCnt} kakao=${kakaoNotice}`,
   });
   if (auditErr) {
     console.error("[mcp] create_gathering 감사 기록 실패", auditErr.message);
@@ -282,6 +314,7 @@ export async function createGatheringViaMcp(
     loc_txt: v.loc_txt ?? null,
     max_prt_cnt: v.max_prt_cnt ?? null,
     notified_cnt: notifiedCnt,
+    kakao_notice: kakaoNotice,
     audit_id: auditId,
   };
 }

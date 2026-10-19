@@ -22,6 +22,15 @@ vi.mock("@/lib/notifications/insert-noti", () => ({
   insertNotiMany: insertNotiManyMock,
 }));
 
+// ⚠️ 실제 단톡방 발송 금지 — 노티봇 공지도 통째로 대체한다(#576).
+type KakaoResult = { ok: boolean; skipped?: "disabled" };
+const { notifyGatheringCreatedMock } = vi.hoisted(() => ({
+  notifyGatheringCreatedMock: vi.fn(async (_facts: unknown): Promise<KakaoResult> => ({ ok: true })),
+}));
+vi.mock("@/lib/gathering/kakao-dispatch", () => ({
+  notifyGatheringCreated: notifyGatheringCreatedMock,
+}));
+
 import { createGatheringViaMcp } from "@/lib/mcp/create-gathering";
 
 const TEAM_ID = "22222222-2222-4222-8222-222222222222";
@@ -127,6 +136,7 @@ function makeForbiddenSupabase() {
 
 beforeEach(() => {
   insertNotiManyMock.mockClear();
+  notifyGatheringCreatedMock.mockClear();
 });
 
 describe("create_gathering — admin 게이트(send_push 와 같은 급)", () => {
@@ -248,11 +258,13 @@ describe("create_gathering — dry_run 은 검증만 한다", () => {
 
     expect(touched).toEqual([]);
     expect(insertNotiManyMock).not.toHaveBeenCalled();
+    expect(notifyGatheringCreatedMock).not.toHaveBeenCalled();
     expect(result).toMatchObject({
       dry_run: true,
       gthr_id: null,
       gthr_url: null,
       notified_cnt: 0,
+      kakao_notice: "skipped",
       loc_txt: "잠수교",
     });
     // 해석된 일시는 그대로 돌려줘야 사람이 확인할 수 있다.
@@ -341,6 +353,59 @@ describe("create_gathering — 저장·자동참석·알림·감사", () => {
     expect(result.gthr_id).toBe(GTHR_ID);
     expect(result.notified_cnt).toBe(0);
     expect(calls.auditInsert).not.toBeNull();
+  });
+});
+
+describe("create_gathering — 단톡방 노티봇 공지(#576, 앱과 같은 문구)", () => {
+  it("앱 createGathering 과 같은 사실을 넘겨 공지하고 결과를 응답·감사행에 싣는다", async () => {
+    const { client, calls } = makeSupabase();
+    const result = await createGatheringViaMcp(
+      client,
+      ctxOf(),
+      validInput({ end_at: "2026-08-29 09:00", max_prt_cnt: 20 }),
+      "https://gigang.team",
+    );
+
+    expect(notifyGatheringCreatedMock).toHaveBeenCalledTimes(1);
+    expect(notifyGatheringCreatedMock.mock.calls[0][0]).toEqual({
+      gthrId: GTHR_ID,
+      ref: "gg7f2k",
+      origin: "https://gigang.team",
+      title: "토요일 한강 정기런",
+      sttAt: "2026-08-28T22:00:00.000Z",
+      endAt: "2026-08-29T00:00:00.000Z",
+      location: "잠수교",
+      authorName: "관리자",
+      maxCount: 20,
+    });
+    expect(result.kakao_notice).toBe("sent");
+    expect((calls.auditInsert?.params_json as Record<string, unknown>).kakao_notice).toBe("sent");
+  });
+
+  it("발송 설정이 없는 환경(local·preview)이면 skipped 로 조용히 넘어간다", async () => {
+    const { client } = makeSupabase();
+    notifyGatheringCreatedMock.mockResolvedValueOnce({ ok: false, skipped: "disabled" });
+
+    const result = await createGatheringViaMcp(client, ctxOf(), validInput());
+
+    expect(result.gthr_id).toBe(GTHR_ID);
+    expect(result.kakao_notice).toBe("skipped");
+  });
+
+  it("발송이 실패하거나 터져도 벙 개설은 성립하고 failed 로 알린다", async () => {
+    for (const fail of [
+      () => notifyGatheringCreatedMock.mockResolvedValueOnce({ ok: false }),
+      () => notifyGatheringCreatedMock.mockRejectedValueOnce(new Error("hub down")),
+    ]) {
+      const { client, calls } = makeSupabase();
+      fail();
+
+      const result = await createGatheringViaMcp(client, ctxOf(), validInput());
+
+      expect(result.gthr_id).toBe(GTHR_ID);
+      expect(result.kakao_notice).toBe("failed");
+      expect(calls.auditInsert).not.toBeNull();
+    }
   });
 });
 
