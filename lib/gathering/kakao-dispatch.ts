@@ -2,7 +2,8 @@
  * 모임 사건(등록·수정·취소)을 단톡방에 알린다.
  *
  * 액션은 "무슨 일이 있었는지"만 넘기고, 문구 조립·발송 판정은 전부 여기 모은다.
- * 셋 다 `after()` 안에서 불린다 — 발송이 느려도 등록 응답이 기다리지 않는다.
+ * 앱 액션에선 셋 다 `after()` 안에서 불린다 — 발송이 느려도 등록 응답이 기다리지 않는다.
+ * 운영 MCP `create_gathering` 만 등록 공지를 인라인으로 부른다(결과를 응답에 싣는다).
  *
  * **여기서 던지지 않는다.** 호출 시점엔 모임 쓰기가 이미 끝났고, 톡 발송 실패로 되돌릴 수 없다.
  *
@@ -37,9 +38,14 @@ function linkOf(facts: GatheringFacts): string | null {
   return buildGatheringShareUrl(facts.origin, facts.ref);
 }
 
-/** 모임 등록. */
-export async function notifyGatheringCreated(facts: GatheringFacts): Promise<void> {
-  await sendKakao(buildGatheringShareText({ ...facts, url: linkOf(facts) }), {
+/**
+ * 모임 등록. 결과를 돌려준다 — 앱은 `after()` 안이라 버리지만, 운영 MCP 는 인라인으로 불러
+ * 공지가 나갔는지를 응답에 싣는다(#576).
+ */
+export async function notifyGatheringCreated(
+  facts: GatheringFacts,
+): Promise<Awaited<ReturnType<typeof sendKakao>>> {
+  return sendKakao(buildGatheringShareText({ ...facts, url: linkOf(facts) }), {
     requestId: `gathering:${facts.gthrId}:created`,
     source: { type: "gathering_created", id: facts.gthrId },
   });
