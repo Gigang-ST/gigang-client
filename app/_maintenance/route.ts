@@ -1,10 +1,18 @@
-import { dayjs } from "@/lib/dayjs";
 import { OG_SLOGAN } from "@/lib/gathering-og";
-import { formatMaintenanceUntil } from "@/lib/maintenance";
-import { readMaintenanceConfig } from "@/lib/maintenance-config";
 
 /**
- * 점검 화면. `proxy.ts` 가 여기로 rewrite 한다.
+ * 점검 화면 — **보관용이다. 지금은 어떤 주소로도 열리지 않는다.**
+ *
+ * 2026-09-23 장애 후속(#552)으로 점검 모드를 만들었다. `proxy.ts` 가 요청마다 Vercel
+ * Global Config(옛 Edge Config)의 스위치를 읽어 켜져 있으면 여기로 rewrite 했는데,
+ * 그 읽기가 링크 prefetch·서버 액션까지 **거의 모든 요청**에서 돌아 한 달 15만 회
+ * (Hobby 무료 한도 5만의 300%)를 넘겼고 2026-10-22 Vercel 계정이 정지됐다.
+ * 그래서 스위치·판정·운영자 우회(`?bypass=`)를 전부 걷어내고 **화면만** 남겼다.
+ *
+ * 폴더 이름이 `_maintenance` 인 게 접근 차단 장치다 — Next.js 는 `_` 로 시작하는 폴더를
+ * 라우팅에서 뺀다(private folder). 그래서 `/maintenance` 도 `/_maintenance` 도 404 다.
+ * 되살리려면 폴더 이름을 `maintenance` 로 바꾸고, 이 화면으로 보내는 장치를 **요청마다
+ * 과금되는 호출 없이** 새로 만든다(§AGENTS.md 핵심 원칙 — Vercel 사용량).
  *
  * **페이지(`page.tsx`)가 아니라 Route Handler인 이유는 상태 코드다.** `NextResponse.rewrite`
  * 는 상태를 못 바꾸므로 페이지로 두면 200 이 나가고, 카톡 링크 미리보기·검색 크롤러가
@@ -16,7 +24,7 @@ import { readMaintenanceConfig } from "@/lib/maintenance-config";
  * `background-clip: text` + 훑고 지나가는 그라데이션.
  *
  * **로고만은 예외로 파일을 참조한다**(`/android-icon-192x192.png`, 11KB). `proxy.ts` 의
- * matcher 가 이미지 확장자를 제외하고 있어 점검 중에도 정적으로 서빙되고, 혹 못 불러와도
+ * matcher 가 이미지 확장자를 제외하고 있어 정적으로 서빙되고, 혹 못 불러와도
  * `alt` 만 남고 화면은 그대로 뜬다 — 원본 SVG 는 64KB 라 인라인으로 넣기엔 무겁다.
  *
  * 슬로건은 `OG_SLOGAN` 을 가져다 쓴다. 홈 헤더 티커·일정탭·OG 카드와 같은 상수라,
@@ -132,10 +140,9 @@ const ESCAPE: Record<string, string> = {
 };
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ESCAPE[c]);
 
-function render(untilLabel: string | null, lines: string[]): string {
-  const sub = untilLabel
-    ? `${escapeHtml(untilLabel)}까지 점검 예정이에요`
-    : "곧 돌아올게요";
+function render(lines: string[]): string {
+  // 종료 예정 시각("오후 10시까지 점검 예정이에요")은 스위치와 함께 읽던 값이라 같이 걷어냈다.
+  const sub = "곧 돌아올게요";
   const dots = '<span class="dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span>';
   // 맨 끝에 첫 줄을 한 번 더 붙인다 — 마지막에서 처음으로 넘어갈 때 튀지 않게.
   const items = [...lines, lines[0]]
@@ -241,12 +248,10 @@ function render(untilLabel: string | null, lines: string[]): string {
 </html>`;
 }
 
-async function handler(): Promise<Response> {
-  const config = await readMaintenanceConfig();
-  const untilLabel = formatMaintenanceUntil(config?.until ?? null, dayjs().tz("Asia/Seoul"));
+function handler(): Response {
   const lines = pickLines(TICKER_COUNT);
 
-  return new Response(render(untilLabel, lines), {
+  return new Response(render(lines), {
     status: 503,
     headers: {
       "Content-Type": "text/html; charset=utf-8",
@@ -257,5 +262,5 @@ async function handler(): Promise<Response> {
   });
 }
 
-// 점검 중엔 서버 액션(POST)도 이리로 온다 — GET 만 두면 405 가 나가 화면이 안 뜬다.
+// rewrite 로 보내면 서버 액션(POST)도 이리로 온다 — GET 만 두면 405 가 나가 화면이 안 뜬다.
 export { handler as GET, handler as POST };
