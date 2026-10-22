@@ -1,7 +1,9 @@
-import { getAll } from "@vercel/global-config";
+// ⚠️ 임시 비활성화(2026-10-22) — Global Config 읽기를 끈다. 아래 readMaintenanceConfig 주석 참조.
+// import { getAll } from "@vercel/global-config";
 
 import { env } from "@/lib/env";
-import { withTimeout, type MaintenanceConfig } from "@/lib/maintenance";
+// import { withTimeout } from "@/lib/maintenance";
+import type { MaintenanceConfig } from "@/lib/maintenance";
 
 /**
  * 점검 설정 읽기 — **Vercel Global Config**(옛 Edge Config)에서 가져온다.
@@ -21,7 +23,7 @@ import { withTimeout, type MaintenanceConfig } from "@/lib/maintenance";
  * Global Config 읽기 상한(ms). 평소 응답은 한 자릿수 ms 라 넉넉하고, 원격이 멈췄을 때
  * 화면 요청이 무는 지연의 상한이기도 하다. 넘으면 "못 읽음" = 정상 서비스로 떨어진다.
  */
-const CONFIG_READ_TIMEOUT_MS = 1000;
+// const CONFIG_READ_TIMEOUT_MS = 1000;
 
 export async function readMaintenanceConfig(): Promise<MaintenanceConfig | null> {
   // 로컬·프리뷰에서 Global Config 없이 화면만 확인할 때 쓰는 우회로.
@@ -30,6 +32,14 @@ export async function readMaintenanceConfig(): Promise<MaintenanceConfig | null>
     return { enabled: true, until: env.MAINTENANCE_UNTIL?.trim() || null };
   }
 
+  // ⚠️ 임시 비활성화(2026-10-22): proxy 가 이 함수를 **요청마다** 불러 Global Config 읽기가
+  // 한 달 15만 회(무료 한도 5만의 300%)를 넘겨 Vercel 계정이 정지됐다. 읽기 횟수를 줄이는
+  // 수정이 들어갈 때까지 원격 조회를 끄고 "못 읽음"(= 정상 서비스, fail-open)으로 고정한다.
+  // 이 동안 Global Config 스위치로는 점검 모드를 켤 수 없다(위 MAINTENANCE_MODE 환경변수는 동작).
+  // 되살리려면 아래 return 을 지우고 주석 처리한 블록과 위 import 두 줄을 원복한다.
+  return null;
+
+  /*
   try {
     // 연결 문자열(GLOBAL_CONFIG/EDGE_CONFIG)이 없으면 여기서 throw 한다 → catch → fail-open.
     // 상한을 거는 이유는 `withTimeout` 주석에 있다 — SDK 에 중단 장치가 없어서, 상한이 없으면
@@ -48,4 +58,5 @@ export async function readMaintenanceConfig(): Promise<MaintenanceConfig | null>
     // 로그도 남기지 않는다 — Global Config 미연결이 기본 상태인 로컬에서 매 요청 시끄러워진다.
     return null;
   }
+  */
 }

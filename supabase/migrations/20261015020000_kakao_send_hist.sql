@@ -55,14 +55,16 @@ CREATE INDEX IF NOT EXISTS kakao_send_hist_failed_idx
 
 -- 쓰기는 service_role 전용(앱이 발송 직후 기록한다).
 -- 읽기는 관리자만 — 본문에 모임 공지 전문이 들어 있고, 운영 도구라 일반 회원이 볼 이유가 없다.
+-- 관리자 판정은 batch 테이블과 같은 형태(20260531110000_fix_batch_rls_role_cd). mem_mst 에는
+-- auth_uid 컬럼이, team_mem_rel 에는 role_cd 컬럼이 없다 — 처음 버전이 그걸 써서 적용이 실패했다.
 ALTER TABLE public.kakao_send_hist ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "admin_select_kakao_send_hist" ON public.kakao_send_hist
-  FOR SELECT USING (
+  FOR SELECT TO authenticated USING (
     EXISTS (
       SELECT 1 FROM public.team_mem_rel tmr
-      WHERE tmr.mem_id = (SELECT mem_id FROM public.mem_mst WHERE auth_uid = auth.uid() LIMIT 1)
-        AND tmr.role_cd = 'ADMIN'
+      WHERE tmr.mem_id = public.v2_rls_resolve_mem_id()
+        AND tmr.team_role_cd IN ('owner', 'admin')
         AND tmr.vers = 0 AND tmr.del_yn = false
     )
   );
