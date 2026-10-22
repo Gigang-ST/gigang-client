@@ -37,6 +37,19 @@ Before any Next.js work, find and read the relevant doc in `node_modules/next/di
   - date 컬럼(`_dt`) 표시, 절대시각 차이(`diff(x,"minute")`), `toISOString()` 저장 → 그대로 안전
   - ESLint(`no-restricted-syntax`)가 위험한 형태를 막는다 — 회귀 테스트는 `lib/__tests__/kst-boundary.test.ts`
 - **환경변수**: `lib/env.ts`에서 import. `process.env` 직접 접근 금지 (t3-env가 런타임 검증)
+- **Vercel 사용량**: 기능을 넣을 때 **Vercel 사용 정책(Hobby 무료 한도)을 넘길 여지가 없는지** 먼저 확인한다.
+  한도를 넘으면 경고로 끝나지 않고 **팀 계정 전체가 정지**된다 — 2026-10-22 실제로 정지됐다(점검 모드가
+  요청마다 Global Config 를 읽어 한 달 15만 회, 한도 5만의 300%). 해제는 일회성 courtesy unblock 을 이미
+  썼으므로 **다음엔 Pro 전환 말고 길이 없다.**
+  - 읽기·호출·전송량 단위로 세는 Vercel 기능(Global/Edge Config, 함수 호출·CPU, 이미지 최적화 등)을 쓰면
+    **한 달에 몇 번 불릴지** 계산해 한도와 견준다. "평소 몇 ms라 가볍다"는 지연 얘기지 비용 얘기가 아니다.
+  - **`proxy.ts` 는 화면 하나에 여러 번 돈다** — 링크 prefetch(링크 1개당 2~3 요청), RSC 이동, 서버 액션,
+    앱 복귀 때의 `router.refresh()` 를 전부 거친다. 여기에 **요청마다 과금되는** 호출(Global Config 읽기 같은
+    Vercel 계량 항목)을 얹으면 사용자 수 × 그 배수로 불어난다. 지금 proxy 가 밖으로 나가는 호출은 Supabase
+    인증 하나다 — `updateSession()` 의 `getClaims()` 는 평소엔 캐시한 공개키(JWKS)로 서버 안에서 검증하고,
+    공개키를 새로 받거나 만료 토큰을 갱신할 때만 Supabase 를 부른다(요청 수가 아니라 MAU 기준이라 이
+    한도와 무관). 새 호출을 더하려면 요청 수에 비례해 세는지부터 확인한다.
+  - 배포 뒤 며칠은 Vercel 대시보드 Usage 에서 새로 생긴 항목의 기울기를 본다.
 - **대량 조회**: 결과가 **시간이 갈수록 느는** 조회(팀 전체·기간 전체 — 참석·기록·취소·칭호 보유·대회 목록…)는
   `fetchAllRows`(`lib/supabase/fetch-all.ts`)로 끝까지 읽는다. PostgREST는 1000행에서 **에러 없이** 자른다 —
   이걸로 세 번 사고가 났다. 지금 몇 백 행이어도 쓴다. 기준·예외는 `.claude/docs/coding-standards.md` §대량 조회
@@ -94,19 +107,11 @@ t3-env로 관리되며 `lib/env.ts`에서 import:
 | `VAPID_PRIVATE_KEY` | 서버 | 웹 푸시 발송 비밀키 (절대 노출 금지) |
 | `VAPID_SUBJECT` | 서버 | 웹 푸시 운영자 연락처 (`mailto:` 또는 `https://`) |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | 클라이언트 | 웹 푸시 구독 발급용 공개키 |
-| `MAINTENANCE_BYPASS_SECRET` | 서버 | 점검 중 운영자 우회 열쇠 (미설정 시 우회 차단) |
-| `MAINTENANCE_MODE` / `MAINTENANCE_UNTIL` | 서버 | 로컬에서 점검 화면 확인용 (운영 미사용) |
 
-> **점검 모드**: 스위치는 **Vercel Global Config**(옛 Edge Config)에 있다 — `maintenance`(boolean)와
-> `maintenanceUntil`(선택, **한국시간** `YYYY-MM-DD HH:mm`). 저장소를 Supabase 가 아니라 Vercel 쪽에
-> 둔 게 핵심이다: 점검이 필요한 상황은 대개 Supabase 가 죽은 때라, 스위치를 DB 에 두면 "점검 중인가?"를
-> 묻는 질문 자체가 타임아웃 난다. 값을 바꾸면 **재배포 없이 즉시** 반영된다.
-> 판정은 `lib/maintenance.ts`(순수·테스트됨) + `lib/maintenance-config.ts`(읽기), 분기는 `proxy.ts` 가
-> **`updateSession()` 앞에서** 한다 — 그 함수의 `getClaims()` 가 Supabase 장애 때 막히는 지점이라,
-> 뒤에 두면 점검 모드가 의미가 없다. 화면은 `app/maintenance/route.ts`(503 + `Retry-After`, 인라인 HTML).
-> **`/api/*` 는 점검 중에도 통과**시킨다(cron 2개·`/api/revalidate` 웹훅 유지).
-> Global Config 를 못 읽으면 **정상 서비스**로 떨어진다(fail-open) — 설정 저장소가 흔들렸다고 멀쩡한 앱을
-> 내리면 점검 모드가 장애의 원인이 된다.
+> **점검 모드는 없다**(2026-10 제거). 점검 화면 HTML 만 `app/_maintenance/route.ts` 에 보관돼 있고
+> `_` 폴더라 어떤 주소로도 열리지 않는다. 예전엔 `proxy.ts` 가 요청마다 Vercel Global Config 스위치를
+> 읽었는데 그게 무료 한도를 넘겨 계정이 정지됐다(§핵심 원칙 — Vercel 사용량). 되살린다면 그 파일
+> 머리 주석부터 읽을 것.
 
 > 웹 푸시: `push_sub_rel` 테이블(구독 정보) + `public/sw.js`(수신). 발송은 `insertNoti()`(`lib/notifications/insert-noti.ts`)가 인앱 알림 INSERT 직후 `sendPushToMember`를 fire-and-forget 호출 → 모든 알림 타입 자동 푸시. 설계·함정은 `.claude/docs/push-notification-design.md` / `KNOWLEDGE.md`. VAPID 키는 dev/prd 분리.
 
