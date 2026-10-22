@@ -44,8 +44,11 @@ Before any Next.js work, find and read the relevant doc in `node_modules/next/di
   - 읽기·호출·전송량 단위로 세는 Vercel 기능(Global/Edge Config, 함수 호출·CPU, 이미지 최적화 등)을 쓰면
     **한 달에 몇 번 불릴지** 계산해 한도와 견준다. "평소 몇 ms라 가볍다"는 지연 얘기지 비용 얘기가 아니다.
   - **`proxy.ts` 는 화면 하나에 여러 번 돈다** — 링크 prefetch(링크 1개당 2~3 요청), RSC 이동, 서버 액션,
-    앱 복귀 때의 `router.refresh()` 를 전부 거친다. 여기에 과금되는 외부 호출을 얹으면 사용자 수 × 그 배수로
-    불어난다. proxy 에는 서버 안에서 끝나는 일만 둔다.
+    앱 복귀 때의 `router.refresh()` 를 전부 거친다. 여기에 **요청마다 과금되는** 호출(Global Config 읽기 같은
+    Vercel 계량 항목)을 얹으면 사용자 수 × 그 배수로 불어난다. 지금 proxy 가 밖으로 나가는 호출은 Supabase
+    인증 하나다 — `updateSession()` 의 `getClaims()` 는 평소엔 캐시한 공개키(JWKS)로 서버 안에서 검증하고,
+    공개키를 새로 받거나 만료 토큰을 갱신할 때만 Supabase 를 부른다(요청 수가 아니라 MAU 기준이라 이
+    한도와 무관). 새 호출을 더하려면 요청 수에 비례해 세는지부터 확인한다.
   - 배포 뒤 며칠은 Vercel 대시보드 Usage 에서 새로 생긴 항목의 기울기를 본다.
 - **대량 조회**: 결과가 **시간이 갈수록 느는** 조회(팀 전체·기간 전체 — 참석·기록·취소·칭호 보유·대회 목록…)는
   `fetchAllRows`(`lib/supabase/fetch-all.ts`)로 끝까지 읽는다. PostgREST는 1000행에서 **에러 없이** 자른다 —
