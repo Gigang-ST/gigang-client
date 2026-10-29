@@ -18,6 +18,7 @@ import {
   notifyGatheringUpdated,
 } from "@/lib/gathering/kakao-dispatch";
 import { parseCancelResult } from "@/lib/gathering/cancel-result";
+import { EXEMPTION_EVT_TYPE } from "@/lib/gathering/join-condition";
 import { runPromotionFollowups } from "@/lib/gathering/promotion-followup";
 import {
   createGthrSchema,
@@ -29,6 +30,69 @@ import {
 function toUtcIso(localDt: string | null | undefined): string | null {
   if (!localDt) return null;
   return dayjs.tz(localDt, "Asia/Seoul").toISOString();
+}
+
+const EXEMPTION_PROJECT_ERROR = "참석 조건을 면제할 프로젝트를 찾을 수 없어요.";
+
+/**
+ * 면제 프로젝트 확정 — 횟수 조건이 없으면 null 로 접고, 있으면 **같은 팀의 PB 클래스**인지 본다.
+ *
+ * 접는 이유: 면제는 횟수 조건에 딸린 값이라(DB CHECK `ck_gthr_mst_exm_evt`) 폼에서 횟수를
+ * 비우면 면제도 뜻을 잃는다. 폼에 두 값을 같이 비우라고 시키는 대신 여기서 정리한다.
+ * 팀 검증은 IDOR 방어다 — evt_id 는 클라이언트 입력값이라 남의 팀 프로젝트를 밀어 넣을 수 있다.
+ */
+async function resolveExemptionEvtId({
+  evtId,
+  reqAttdCnt,
+  teamId,
+}: {
+  evtId: string | null;
+  reqAttdCnt: number | null;
+  teamId: string;
+}): Promise<string | null> {
+  if (evtId == null || reqAttdCnt == null) return null;
+  const { data } = await createUntypedAdminClient()
+    .from("evt_team_mst")
+    .select("evt_id")
+    .eq("evt_id", evtId)
+    .eq("team_id", teamId)
+    .eq("evt_type_cd", EXEMPTION_EVT_TYPE)
+    .maybeSingle();
+  if (!data) throw new Error(EXEMPTION_PROJECT_ERROR);
+  return evtId;
+}
+
+/** 면제 프로젝트 고르기 목록 한 줄 — 모임 폼의 참여 조건 칸이 그린다. */
+export type GatheringExemptionProject = {
+  evt_id: string;
+  evt_nm: string;
+  stts_enm: string;
+};
+
+/**
+ * 면제 프로젝트로 고를 수 있는 목록 — 팀의 PB 클래스 중 **끝나지 않은 것** + 지금 걸려 있는 것.
+ *
+ * 끝난 프로젝트를 빼는 건 새로 거는 경우의 얘기다. 이미 걸려 있는 프로젝트(`includeEvtId`)는
+ * 끝났어도 싣는다 — 안 실으면 수정 폼에서 선택값이 목록에 없어 빈칸으로 보이고, 사용자는
+ * 면제가 풀린 줄 안다. 프로젝트 목록은 팀 전체 공개(`evt_team_mst_select` = true)라 RLS 클라이언트로 읽는다.
+ */
+export async function listGatheringExemptionProjects(
+  includeEvtId?: string | null,
+): Promise<GatheringExemptionProject[]> {
+  return withMember(async ({ supabase }) => {
+    const { teamId } = await getRequestTeamContext();
+    const { data, error } = await supabase
+      .from("evt_team_mst")
+      .select("evt_id, evt_nm, stts_enm")
+      .eq("team_id", teamId)
+      .eq("evt_type_cd", EXEMPTION_EVT_TYPE)
+      .order("stt_dt", { ascending: false });
+    if (error) throw new Error("프로젝트 목록을 불러오지 못했어요.");
+
+    return ((data ?? []) as GatheringExemptionProject[]).filter(
+      (e) => e.stts_enm !== "CLOSED" || e.evt_id === includeEvtId,
+    );
+  });
 }
 
 export async function createGathering(input: {
@@ -43,11 +107,17 @@ export async function createGathering(input: {
   aprv_req_yn?: boolean;
   req_attd_cnt?: number | null;
   req_attd_months?: number | null;
+  exm_evt_id?: string | null;
 }) {
   // 모임 개설은 active 회원만 — 비활성/탈퇴는 클라이언트 게이트가 안내, 서버가 최종 방어.
   return withActive(async ({ member, supabase }) => {
     const { teamId } = await getRequestTeamContext();
     const parsed = createGthrSchema.parse({ ...input, team_id: teamId });
+    const exmEvtId = await resolveExemptionEvtId({
+      evtId: parsed.exm_evt_id ?? null,
+      reqAttdCnt: parsed.req_attd_cnt ?? null,
+      teamId,
+    });
 
     const { data, error } = await supabase
       .from("gthr_mst")
@@ -64,6 +134,7 @@ export async function createGathering(input: {
         aprv_req_yn: parsed.aprv_req_yn ?? false,
         req_attd_cnt: parsed.req_attd_cnt ?? null,
         req_attd_months: parsed.req_attd_months ?? null,
+        exm_evt_id: exmEvtId,
         crt_by: member.id,
         del_yn: false,
       })
@@ -162,17 +233,18 @@ export async function updateGathering(input: {
   aprv_req_yn?: boolean;
   req_attd_cnt?: number | null;
   req_attd_months?: number | null;
+  exm_evt_id?: string | null;
 }) {
   return withMember(async ({ member, supabase }) => {
     const parsed = updateGthrSchema.parse(input);
-    const { gthr_id, stt_at, end_at, ...rest } = parsed;
+    const { gthr_id, stt_at, end_at, exm_evt_id: exmInput, ...rest } = parsed;
 
     // 지난 모임(KST 날짜 기준) 수정 차단 — 관리자만 예외. 알림용 기존 모임명도 같이 조회.
     const { data: existing } = await supabase
       .from("gthr_mst")
       .select(
         // loc_txt·short_id 는 단톡방 변경 공지용 — 장소가 실제로 바뀌었는지 견주고 링크를 만든다.
-        "gthr_nm, stt_at, end_at, loc_txt, short_id, crt_by, aprv_req_yn, req_attd_cnt, req_attd_months, max_prt_cnt",
+        "gthr_nm, stt_at, end_at, loc_txt, short_id, crt_by, aprv_req_yn, req_attd_cnt, req_attd_months, exm_evt_id, max_prt_cnt",
       )
       .eq("gthr_id", gthr_id)
       .single();
@@ -206,6 +278,15 @@ export async function updateGathering(input: {
     if (nextReqMonths != null && nextReqCnt == null) {
       throw new Error(REQ_ATTD_PAIR_ERROR);
     }
+
+    // 면제 프로젝트도 기존값과 합쳐 본다 — 횟수만 지운 수정이면 면제도 같이 접혀야
+    // DB CHECK(ck_gthr_mst_exm_evt)에 안 걸린다. 값을 안 보낸 수정은 기존 면제를 그대로 둔다.
+    const { teamId: exmTeamId } = await getRequestTeamContext();
+    const nextExmEvtId = await resolveExemptionEvtId({
+      evtId: exmInput !== undefined ? exmInput : existing.exm_evt_id,
+      reqAttdCnt: nextReqCnt,
+      teamId: exmTeamId,
+    });
 
     // 승인제를 **끄는** 수정은 대기 건이 0일 때만 허용한다(설계 §9-g).
     // 자동 승인은 정원을 넘길 수 있고, 그냥 두면 신청자가 영원히 대기에 갇힌다 —
@@ -245,6 +326,7 @@ export async function updateGathering(input: {
         ...rest,
         ...(stt_at !== undefined && { stt_at: toUtcIso(stt_at)! }),
         ...(end_at !== undefined && { end_at: toUtcIso(end_at) }),
+        ...(nextExmEvtId !== existing.exm_evt_id && { exm_evt_id: nextExmEvtId }),
         upd_at: dayjs().toISOString(),
       })
       .eq("gthr_id", gthr_id);

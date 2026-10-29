@@ -17,6 +17,7 @@ import {
   evaluateJoinConditions,
   NO_JOIN_CONDITION,
   type JoinConditionResult,
+  type JoinConditionSpec,
 } from "@/lib/gathering/join-condition";
 import { insertNoti, insertNotiMany } from "@/lib/notifications/insert-noti";
 import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
@@ -102,7 +103,7 @@ export async function getMyGatheringApplication(gthrId: string): Promise<MyGathe
 
     const { data: gthr } = await admin
       .from("gthr_mst")
-      .select("req_attd_cnt, req_attd_months")
+      .select("req_attd_cnt, req_attd_months, exm_evt_id")
       .eq("gthr_id", gthrId)
       .eq("team_id", teamId)
       .eq("del_yn", false)
@@ -118,7 +119,7 @@ export async function getMyGatheringApplication(gthrId: string): Promise<MyGathe
         .eq("mem_id", member.id)
         .maybeSingle(),
       evaluateJoinConditions(admin, {
-        spec: gthr as { req_attd_cnt: number | null; req_attd_months: number | null },
+        spec: gthr as JoinConditionSpec,
         memId: member.id,
         teamId,
       }),

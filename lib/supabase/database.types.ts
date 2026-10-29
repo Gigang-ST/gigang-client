@@ -1953,6 +1953,7 @@ export type Database = {
           del_yn: boolean
           desc_txt: string | null
           end_at: string | null
+          exm_evt_id: string | null
           gthr_id: string
           gthr_nm: string
           gthr_type_enm: string
@@ -1973,6 +1974,7 @@ export type Database = {
           del_yn?: boolean
           desc_txt?: string | null
           end_at?: string | null
+          exm_evt_id?: string | null
           gthr_id?: string
           gthr_nm: string
           gthr_type_enm: string
@@ -1993,6 +1995,7 @@ export type Database = {
           del_yn?: boolean
           desc_txt?: string | null
           end_at?: string | null
+          exm_evt_id?: string | null
           gthr_id?: string
           gthr_nm?: string
           gthr_type_enm?: string
@@ -2013,6 +2016,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "mem_mst"
             referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "gthr_mst_exm_evt_id_fkey"
+            columns: ["exm_evt_id"]
+            isOneToOne: false
+            referencedRelation: "evt_team_mst"
+            referencedColumns: ["evt_id"]
           },
           {
             foreignKeyName: "gthr_mst_team_id_fkey"
