@@ -99,6 +99,7 @@ export interface GatheringDetailDialogProps {
     aprvReqYn?: boolean | null;
     reqAttdCnt?: number | null;
     reqAttdMonths?: number | null;
+    exmEvtId?: string | null;
     attendees?: GatheringAttendee[];
     canceledAttendees?: CanceledAttendee[];
     sprt_cd?: string | null;

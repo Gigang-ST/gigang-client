@@ -76,6 +76,7 @@ export type CreatedGathering = {
   aprvReqYn: boolean;
   reqAttdCnt: number | null;
   reqAttdMonths: number | null;
+  exmEvtId: string | null;
 };
 
 /** 복제("이 내용으로 새 모임") 등 등록 폼 내용 프리필. 일시는 새 모임 기준이라 제외. */
@@ -108,6 +109,7 @@ export type GatheringFormDialogProps = {
     aprv_req_yn?: boolean | null;
     req_attd_cnt?: number | null;
     req_attd_months?: number | null;
+    exm_evt_id?: string | null;
   };
   /** 등록(create) 성공 시 새 모임 id·데이터 전달. 수정(edit)일 땐 둘 다 undefined */
   onSuccess?: (createdGthrId?: string, createdRace?: CreatedGathering) => void | Promise<void>;
@@ -151,6 +153,7 @@ export function GatheringFormDialog({
       aprv_req_yn: false,
       req_attd_cnt: null,
       req_attd_months: null,
+      exm_evt_id: null,
     } as FormValues,
   });
 
@@ -162,6 +165,7 @@ export function GatheringFormDialog({
   const aprvReqYn = useWatch({ control: form.control, name: "aprv_req_yn" });
   const reqAttdCnt = useWatch({ control: form.control, name: "req_attd_cnt" });
   const reqAttdMonths = useWatch({ control: form.control, name: "req_attd_months" });
+  const exmEvtId = useWatch({ control: form.control, name: "exm_evt_id" });
 
   const persistKey = "gathering-form-draft";
   const { clear: clearDraft } = useFormPersist(persistKey, form, open && mode === "create");
@@ -189,6 +193,7 @@ export function GatheringFormDialog({
         aprv_req_yn: initialData.aprv_req_yn ?? false,
         req_attd_cnt: initialData.req_attd_cnt ?? null,
         req_attd_months: initialData.req_attd_months ?? null,
+        exm_evt_id: initialData.exm_evt_id ?? null,
       });
     } else {
       const defaultSttAt = defaultDate
@@ -303,6 +308,8 @@ export function GatheringFormDialog({
           aprvReqYn: values.aprv_req_yn ?? false,
           reqAttdCnt: values.req_attd_cnt ?? null,
           reqAttdMonths: values.req_attd_months ?? null,
+          // 횟수 조건이 없으면 서버가 면제를 접으므로 화면 데이터도 같이 접는다
+          exmEvtId: values.req_attd_cnt != null ? (values.exm_evt_id ?? null) : null,
         };
       }
       clearDraft();
@@ -556,6 +563,7 @@ export function GatheringFormDialog({
                 aprv_req_yn: aprvReqYn ?? false,
                 req_attd_cnt: reqAttdCnt ?? null,
                 req_attd_months: reqAttdMonths ?? null,
+                exm_evt_id: exmEvtId ?? null,
               }}
               disabled={isSubmitting}
               error={form.formState.errors.req_attd_cnt?.message ?? form.formState.errors.req_attd_months?.message ?? null}
@@ -563,6 +571,7 @@ export function GatheringFormDialog({
                 form.setValue("aprv_req_yn", v.aprv_req_yn, { shouldDirty: true });
                 form.setValue("req_attd_cnt", v.req_attd_cnt, { shouldDirty: true });
                 form.setValue("req_attd_months", v.req_attd_months, { shouldDirty: true });
+                form.setValue("exm_evt_id", v.exm_evt_id, { shouldDirty: true });
               }}
             />
 

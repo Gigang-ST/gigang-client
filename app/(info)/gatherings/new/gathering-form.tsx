@@ -55,6 +55,7 @@ type Props = {
     aprv_req_yn?: boolean | null;
     req_attd_cnt?: number | null;
     req_attd_months?: number | null;
+    exm_evt_id?: string | null;
   };
   onSuccess?: () => void;
 };
@@ -85,6 +86,7 @@ export function GatheringForm(props: Props) {
             aprv_req_yn: props.initialData.aprv_req_yn ?? false,
             req_attd_cnt: props.initialData.req_attd_cnt ?? null,
             req_attd_months: props.initialData.req_attd_months ?? null,
+            exm_evt_id: props.initialData.exm_evt_id ?? null,
           }
         : {
             gthr_type_enm: "general",
@@ -96,6 +98,7 @@ export function GatheringForm(props: Props) {
             aprv_req_yn: false,
             req_attd_cnt: null,
             req_attd_months: null,
+            exm_evt_id: null,
           },
   });
 
@@ -106,6 +109,7 @@ export function GatheringForm(props: Props) {
   const aprvReqYn = useWatch({ control: form.control, name: "aprv_req_yn" });
   const reqAttdCnt = useWatch({ control: form.control, name: "req_attd_cnt" });
   const reqAttdMonths = useWatch({ control: form.control, name: "req_attd_months" });
+  const exmEvtId = useWatch({ control: form.control, name: "exm_evt_id" });
 
   useEffect(() => {
     if (props.mode !== "edit") return;
@@ -120,6 +124,7 @@ export function GatheringForm(props: Props) {
       aprv_req_yn: props.initialData.aprv_req_yn ?? false,
       req_attd_cnt: props.initialData.req_attd_cnt ?? null,
       req_attd_months: props.initialData.req_attd_months ?? null,
+      exm_evt_id: props.initialData.exm_evt_id ?? null,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.mode === "edit" && props.initialData.gthr_id]);
@@ -341,6 +346,7 @@ export function GatheringForm(props: Props) {
             aprv_req_yn: aprvReqYn ?? false,
             req_attd_cnt: reqAttdCnt ?? null,
             req_attd_months: reqAttdMonths ?? null,
+            exm_evt_id: exmEvtId ?? null,
           }}
           disabled={isSubmitting}
           error={form.formState.errors.req_attd_cnt?.message ?? form.formState.errors.req_attd_months?.message ?? null}
@@ -348,6 +354,7 @@ export function GatheringForm(props: Props) {
             form.setValue("aprv_req_yn", v.aprv_req_yn, { shouldDirty: true });
             form.setValue("req_attd_cnt", v.req_attd_cnt, { shouldDirty: true });
             form.setValue("req_attd_months", v.req_attd_months, { shouldDirty: true });
+            form.setValue("exm_evt_id", v.exm_evt_id, { shouldDirty: true });
           }}
         />
 

@@ -132,7 +132,7 @@ type GatheringRow = GatheringRef &
   };
 
 const GTHR_COLS =
-  "gthr_id, gthr_nm, crt_by, team_id, aprv_req_yn, req_attd_cnt, req_attd_months, stt_at, end_at";
+  "gthr_id, gthr_nm, crt_by, team_id, aprv_req_yn, req_attd_cnt, req_attd_months, exm_evt_id, stt_at, end_at";
 
 /**
  * 모임 조회 + 팀 스코프 검증.
