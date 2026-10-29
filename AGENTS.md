@@ -40,7 +40,7 @@ Before any Next.js work, find and read the relevant doc in `node_modules/next/di
 - **Vercel 사용량**: 기능을 넣을 때 **Vercel 사용 정책(Hobby 무료 한도)을 넘길 여지가 없는지** 먼저 확인한다.
   한도를 넘으면 경고로 끝나지 않고 **팀 계정 전체가 정지**된다 — 2026-10-22 실제로 정지됐다(점검 모드가
   요청마다 Global Config 를 읽어 한 달 15만 회, 한도 5만의 300%). 해제는 일회성 courtesy unblock 을 이미
-  썼으므로 **다음엔 Pro 전환 말고 길이 없다.**
+  썼으므로 **다음엔 Pro 전환 말고 길이 없다.** (ADR-0002)
   - 읽기·호출·전송량 단위로 세는 Vercel 기능(Global/Edge Config, 함수 호출·CPU, 이미지 최적화 등)을 쓰면
     **한 달에 몇 번 불릴지** 계산해 한도와 견준다. "평소 몇 ms라 가볍다"는 지연 얘기지 비용 얘기가 아니다.
   - **`proxy.ts` 는 화면 하나에 여러 번 돈다** — 링크 prefetch(링크 1개당 2~3 요청), RSC 이동, 서버 액션,
@@ -59,6 +59,8 @@ Before any Next.js work, find and read the relevant doc in `node_modules/next/di
 - **멤버 조회**: `getCurrentMember()` (`lib/queries/member.ts`) — React cache()로 같은 렌더 내 중복 쿼리 방지
 - **폼 검증**: Zod 스키마를 `lib/validations/`에 정의하고 React Hook Form과 통합
 - **에이전트 활용**: 작업 영역에 맞는 서브에이전트에 위임할 것 (프론트엔드, 백엔드, DevOps)
+- **결정 기록(ADR)**: 이미 내린 결정은 `docs/decisions/`에 있다. **결정과 다르게 하려면 새 ADR부터** 쓴다 —
+  코드나 이 문서만 바꾸면 다음 사람이 옛 결정을 근거로 되돌린다. 쓰는 법·문서 자리 구분은 `docs/decisions/README.md`
 - 상세 코딩 규칙은 `.claude/docs/coding-standards.md` 참조
 
 ## 멤버 인증/조회 패턴
@@ -116,7 +118,7 @@ t3-env로 관리되며 `lib/env.ts`에서 import:
 > 웹 푸시: `push_sub_rel` 테이블(구독 정보) + `public/sw.js`(수신). 발송은 `insertNoti()`(`lib/notifications/insert-noti.ts`)가 인앱 알림 INSERT 직후 `sendPushToMember`를 fire-and-forget 호출 → 모든 알림 타입 자동 푸시. 설계·함정은 `.claude/docs/push-notification-design.md` / `KNOWLEDGE.md`. VAPID 키는 dev/prd 분리.
 
 > 기강 포인트: `pt_txn_hist` 원장에 원천 테이블(모임·대회·마일리지런·정보) **DB 트리거**가 자동 적립. 앱 코드에 훅 없음 — 새 쓰기 경로를 추가해도 적립은 자동으로 따라온다. 룰·트리거 매트릭스: `docs/design/2026-07-04-기강포인트제도.md`.
-> **노출 범위(2026-07-29 부분 해제)**: 총 획득 포인트는 **본인 프로필탭에서만** 숫자로 보인다(최근활동 헤더 우측 `N P` + HelpTip). 그 밖은 여전히 히든이다 — 남의 프로필 카드, 랭킹, 전광판에는 절대 노출하지 않고(공개되면 사실상 공개 랭킹이 된다) **적립 규칙·배점도 화면에 적지 않는다**(HelpTip은 "모임 참석·대회 출전·기록 등록으로 쌓여요" 한 줄까지). 전광판 활동량 랭킹은 계속 "활동량"으로 부른다.
+> **노출 범위(2026-07-29 부분 해제, ADR-0003)**: 총 획득 포인트는 **본인 프로필탭에서만** 숫자로 보인다(최근활동 헤더 우측 `N P` + HelpTip). 그 밖은 여전히 히든이다 — 남의 프로필 카드, 랭킹, 전광판에는 절대 노출하지 않고(공개되면 사실상 공개 랭킹이 된다) **적립 규칙·배점도 화면에 적지 않는다**(HelpTip은 "모임 참석·대회 출전·기록 등록으로 쌓여요" 한 줄까지). 전광판 활동량 랭킹은 계속 "활동량"으로 부른다.
 
 # 에이전트 구성
 
@@ -183,6 +185,7 @@ t3-env로 관리되며 `lib/env.ts`에서 import:
 
 ## 참고 문서
 
+- `docs/decisions/` — 결정 기록(ADR). "A와 B 중 A로 정했다, 이유는…"
 - `DESIGN.md` — 디자인 시스템 (토큰, 컴포넌트 카탈로그, AI 규칙)
 - `.claude/docs/coding-standards.md` — 코딩 컨벤션, 보안, JSDoc, Git 규칙
 - `.claude/docs/component-conventions.md` — 컴포넌트 작성 규칙, shadcn/ui 사용법
