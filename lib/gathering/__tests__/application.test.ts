@@ -105,6 +105,10 @@ type Cfg = {
   attdCount: number;
   updateRows: { aply_id: string }[];
   rpcResult: unknown;
+  /** 면제 프로젝트(evt_team_mst) 행 */
+  exmEvt: Record<string, unknown> | null;
+  /** 신청자의 면제 프로젝트 참가 행(evt_pb_prt_rel) */
+  pbPrt: { aprv_yn: boolean } | null;
 };
 
 let cfg: Cfg;
@@ -118,6 +122,8 @@ function setup(over: Partial<Cfg> = {}) {
     attdCount: 0,
     updateRows: [{ aply_id: "a1" }],
     rpcResult: "ok",
+    exmEvt: { evt_nm: "동계훈련 10K PB클래스 3기", team_id: "team-1", evt_type_cd: "PB_CLASS" },
+    pbPrt: null,
     ...over,
   };
   rpcCalls = [];
@@ -133,6 +139,8 @@ function setup(over: Partial<Cfg> = {}) {
         if (s.op === "upsert") return { error: null };
         return { data: cfg.existingAply };
       },
+      evt_team_mst: () => ({ data: cfg.exmEvt, error: null }),
+      evt_pb_prt_rel: () => ({ data: cfg.pbPrt, error: null }),
     },
     (name, args) => {
       rpcCalls.push({ name, args });
@@ -247,6 +255,59 @@ describe("applyToGathering", () => {
       gthrId: "g1", memId: "mem-1", teamId: "team-1", isAdmin: false,
     });
     expect(r.ok).toBe(true);
+  });
+
+  // ── 면제 프로젝트(OR) — 2026 송년회: 6회 이상 또는 동계훈련 승인 참가자 ──
+  const EXM_GTHR = { ...BASE_GTHR, req_attd_cnt: 6, req_attd_months: 6, exm_evt_id: "evt-pb" };
+
+  it("참석이 모자라도 면제 프로젝트 승인 참가자면 신청된다", async () => {
+    const { admin, seen } = setup({ gthr: EXM_GTHR, attdCount: 0, pbPrt: { aprv_yn: true } });
+    const r = await applyToGathering(admin, {
+      gthrId: "g1", memId: "mem-1", teamId: "team-1", isAdmin: false,
+    });
+    expect(r.ok).toBe(true);
+    // 참가 여부는 **신청자 본인** 행으로 본다 — 필터가 빠지면 아무 참가자 한 명이 문을 연다.
+    const prtQuery = seen.find((s) => s.table === "evt_pb_prt_rel")!;
+    expect(prtQuery.filters).toEqual(
+      expect.arrayContaining([["evt_id", "evt-pb"], ["mem_id", "mem-1"]]),
+    );
+  });
+
+  it("입금 확인 전 참가자는 면제되지 않고, 그 사정을 함께 돌려준다", async () => {
+    const { admin } = setup({ gthr: EXM_GTHR, attdCount: 2, pbPrt: { aprv_yn: false } });
+    const r = await applyToGathering(admin, {
+      gthrId: "g1", memId: "mem-1", teamId: "team-1", isAdmin: false,
+    });
+    expect(r.ok === false && r.code).toBe("condition_unmet");
+    expect(r.ok === false && r.conditions?.conditions[1]).toMatchObject({
+      cd: "evt_prt",
+      met: false,
+      current: "입금 확인 전",
+    });
+  });
+
+  // gthr_mst 행만 고쳐도 남의 팀 프로젝트를 가리킬 수 있다. 그 프로젝트 참가자에게 문을 열면 안 된다.
+  it("다른 팀 프로젝트를 가리키면 면제 줄을 버리고 원래 조건으로 판정한다", async () => {
+    const { admin } = setup({
+      gthr: EXM_GTHR,
+      attdCount: 0,
+      pbPrt: { aprv_yn: true },
+      exmEvt: { evt_nm: "남의 팀 클래스", team_id: "team-other", evt_type_cd: "PB_CLASS" },
+    });
+    const r = await applyToGathering(admin, {
+      gthrId: "g1", memId: "mem-1", teamId: "team-1", isAdmin: false,
+    });
+    expect(r.ok === false && r.code).toBe("condition_unmet");
+    expect(r.ok === false && r.conditions?.conditions).toHaveLength(1);
+  });
+
+  it("면제가 없는 모임은 프로젝트를 조회하지 않는다", async () => {
+    const { admin, seen } = setup({
+      gthr: { ...BASE_GTHR, req_attd_cnt: 6, req_attd_months: 6 },
+      attdCount: 6,
+    });
+    await applyToGathering(admin, { gthrId: "g1", memId: "mem-1", teamId: "team-1", isAdmin: false });
+    expect(seen.some((s) => s.table === "evt_pb_prt_rel" || s.table === "evt_team_mst")).toBe(false);
   });
 
   it("조건 집계는 아직 열리지 않은 모임을 빼고 센다", async () => {

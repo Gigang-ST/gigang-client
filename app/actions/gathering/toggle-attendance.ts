@@ -72,7 +72,7 @@ export async function toggleGatheringAttendance(
       admin
         .from("gthr_mst")
         .select(
-          "max_prt_cnt, stt_at, end_at, gthr_nm, crt_by, aprv_req_yn, req_attd_cnt, req_attd_months",
+          "max_prt_cnt, stt_at, end_at, gthr_nm, crt_by, aprv_req_yn, req_attd_cnt, req_attd_months, exm_evt_id",
         )
         .eq("gthr_id", gthr_id)
         .eq("team_id", teamId)

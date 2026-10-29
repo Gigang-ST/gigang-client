@@ -105,6 +105,12 @@ const gthrBaseSchema = z.object({
     .max(REQ_ATTD_MONTHS_MAX, `기간은 ${REQ_ATTD_MONTHS_MAX}개월 이하로 입력해 주세요.`)
     .nullable()
     .optional(),
+  /**
+   * 참석 조건 면제 프로젝트(OR) — 이 프로젝트의 승인 참가자는 횟수 없이 통과.
+   * 횟수 조건이 없으면 서버 액션이 null 로 접는다(폼이 횟수를 비우는 순간 면제도 뜻을 잃는다).
+   * 팀·종류(PB 클래스) 검증도 서버 액션이 한다 — 스키마는 DB 를 못 본다.
+   */
+  exm_evt_id: z.string().uuid().nullable().optional(),
 });
 
 export const createGthrSchema = gthrBaseSchema

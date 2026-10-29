@@ -42,6 +42,8 @@ type Props = {
     aprv_req_yn: boolean | null;
     req_attd_cnt: number | null;
     req_attd_months: number | null;
+    // 면제 프로젝트도 되돌려 보낸다 — 빠지면 수정 폼이 "면제 없음"으로 열려 저장 시 면제가 지워진다.
+    exm_evt_id: string | null;
   };
 };
 

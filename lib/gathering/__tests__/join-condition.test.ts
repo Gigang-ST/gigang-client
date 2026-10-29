@@ -4,7 +4,9 @@ import { dayjs } from "@/lib/dayjs";
 import {
   attdWindowStartISO,
   buildJoinConditions,
+  exemptionLabel,
   hasJoinCondition,
+  joinConditionErrorMessage,
   joinConditionLabel,
   NO_JOIN_CONDITION,
 } from "@/lib/gathering/join-condition";
@@ -106,6 +108,83 @@ describe("기간 없는 조건 (전체 기간)", () => {
   it("joinConditionLabel 도 같은 문구를 만든다 (화면·서버가 갈리지 않게)", () => {
     expect(joinConditionLabel(null, 3)).toBe("모임 참석 3회 이상");
     expect(joinConditionLabel(6, 6)).toBe("최근 6개월 모임 참석 6회 이상");
+  });
+});
+
+// 2026 송년회 — "최근 6개월 6회 이상 **또는** 동계훈련 승인 참가자".
+describe("면제 프로젝트 (OR)", () => {
+  const spec = { req_attd_cnt: 6, req_attd_months: 6, exm_evt_id: "evt-1" };
+  const evtNm = "동계훈련 10K PB클래스 3기";
+  const approved = { evtNm, joined: true, approved: true };
+  const pendingPay = { evtNm, joined: true, approved: false };
+  const outsider = { evtNm, joined: false, approved: false };
+
+  it("횟수가 모자라도 승인 참가자면 통과", () => {
+    const r = buildJoinConditions(spec, { attdCnt: 2, exemption: approved });
+    expect(r.ok).toBe(true);
+    expect(r.conditions.map((c) => [c.cd, c.met])).toEqual([
+      ["attd_cnt", false],
+      ["evt_prt", true],
+    ]);
+  });
+
+  it("참가자가 아니어도 횟수를 채우면 통과", () => {
+    expect(buildJoinConditions(spec, { attdCnt: 6, exemption: outsider }).ok).toBe(true);
+  });
+
+  it("둘 다 못 채우면 미달", () => {
+    expect(buildJoinConditions(spec, { attdCnt: 5, exemption: outsider }).ok).toBe(false);
+  });
+
+  // 승인은 운영진의 입금 확인이다. 신청만 한 사람까지 열면 승인제의 뜻이 사라진다.
+  it("신청만 하고 승인 전이면 면제되지 않는다", () => {
+    const r = buildJoinConditions(spec, { attdCnt: 0, exemption: pendingPay });
+    expect(r.ok).toBe(false);
+    expect(r.conditions[1]).toEqual({
+      cd: "evt_prt",
+      label: "동계훈련 10K PB클래스 3기 참가자",
+      met: false,
+      current: "입금 확인 전",
+    });
+  });
+
+  it("신청조차 안 했으면 상태를 덧붙이지 않는다", () => {
+    expect(buildJoinConditions(spec, { attdCnt: 0, exemption: outsider }).conditions[1].current).toBeNull();
+  });
+
+  // 프로젝트를 못 찾았거나 다른 팀이면 exemption 이 안 온다 — 원래 조건 하나로 판정한다.
+  it("면제 상태가 없으면 참석 횟수 조건만 남는다", () => {
+    const r = buildJoinConditions(spec, { attdCnt: 2, exemption: null });
+    expect(r.ok).toBe(false);
+    expect(r.conditions).toHaveLength(1);
+  });
+
+  // 면제는 횟수 조건에 딸린 값이다. 횟수가 없으면 애초에 조건이 없는 모임이다.
+  it("횟수 조건이 없으면 면제를 걸어도 조건 없음", () => {
+    const r = buildJoinConditions(
+      { req_attd_cnt: null, req_attd_months: null, exm_evt_id: "evt-1" },
+      { attdCnt: 0, exemption: outsider },
+    );
+    expect(r).toEqual(NO_JOIN_CONDITION);
+  });
+
+  it("문구는 프로젝트 이름에 '참가자'를 붙인다", () => {
+    expect(exemptionLabel(evtNm)).toBe("동계훈련 10K PB클래스 3기 참가자");
+  });
+
+  // 줄마다 "~이어야 참여할 수 있어요"를 붙이면 둘 다 채워야 하는 것처럼 읽힌다.
+  it("미달 안내는 '또는'으로 한 문장에 잇는다", () => {
+    const r = buildJoinConditions(spec, { attdCnt: 4, exemption: pendingPay });
+    expect(joinConditionErrorMessage(r)).toBe(
+      "최근 6개월 모임 참석 6회 이상 또는 동계훈련 10K PB클래스 3기 참가자여야 참여할 수 있어요. (현재 4회 · 입금 확인 전)",
+    );
+  });
+
+  it("조건이 하나면 안내도 예전 그대로다", () => {
+    const r = buildJoinConditions({ req_attd_cnt: 6, req_attd_months: 6 }, { attdCnt: 4 });
+    expect(joinConditionErrorMessage(r)).toBe(
+      "최근 6개월 모임 참석 6회 이상이어야 참여할 수 있어요. (현재 4회)",
+    );
   });
 });
 

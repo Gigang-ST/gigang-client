@@ -40,7 +40,7 @@ export default async function GatheringDetailPage({
     supabase
       .from("gthr_mst")
       .select(
-        "gthr_id, gthr_nm, gthr_type_enm, sprt_cd, stt_at, end_at, loc_txt, desc_txt, max_prt_cnt, crt_by, team_id, aprv_req_yn, req_attd_cnt, req_attd_months",
+        "gthr_id, gthr_nm, gthr_type_enm, sprt_cd, stt_at, end_at, loc_txt, desc_txt, max_prt_cnt, crt_by, team_id, aprv_req_yn, req_attd_cnt, req_attd_months, exm_evt_id",
       )
       .eq("gthr_id", id)
       .eq("del_yn", false)
@@ -174,6 +174,7 @@ export default async function GatheringDetailPage({
                 aprv_req_yn: gthr.aprv_req_yn ?? false,
                 req_attd_cnt: gthr.req_attd_cnt ?? null,
                 req_attd_months: gthr.req_attd_months ?? null,
+                exm_evt_id: gthr.exm_evt_id ?? null,
               }}
             />
           </div>

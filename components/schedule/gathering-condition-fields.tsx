@@ -1,16 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ChevronDown } from "lucide-react";
 
+import {
+  listGatheringExemptionProjects,
+  type GatheringExemptionProject,
+} from "@/app/actions/gathering/manage-gathering";
 import { cn } from "@/lib/utils";
 import { REQ_ATTD_CNT_MAX, REQ_ATTD_MONTHS_MAX } from "@/lib/validations/gathering";
 
 import { Caption, Micro } from "@/components/common/typography";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+
+/** Radix Select 는 빈 문자열 값을 못 쓴다 — "면제 없음"(null)을 이 값으로 표현한다. */
+const NO_EXEMPTION = "__none__";
+
+/** 끝난 프로젝트를 구분하는 상태값(이미 걸린 면제는 끝나도 목록에 남는다). */
+const CLOSED_STATUS = "CLOSED";
 
 /**
  * 모임 참여조건 · 승인제 설정 필드 — **생성 폼과 수정 폼이 공유한다.**
@@ -30,6 +47,8 @@ export type GatheringConditionValue = {
   aprv_req_yn: boolean;
   req_attd_cnt: number | null;
   req_attd_months: number | null;
+  /** 횟수 조건의 OR 면제 프로젝트 id. 횟수 조건에 딸린 값이라 횟수가 비면 서버가 접는다. */
+  exm_evt_id: string | null;
 };
 
 type Props = {
@@ -60,6 +79,22 @@ export function GatheringConditionFields({
   const [open, setOpen] = useState(conditionOn || value.aprv_req_yn);
   // 오류가 나면 접혀 있어도 펼친다 — 안 보이는 칸의 오류는 고칠 방법이 없다.
   const expanded = open || !!error;
+
+  // 면제 프로젝트 목록 — 펼쳐지고 횟수 조건이 켜진 첫 순간에 한 번만 부른다.
+  // ref 로 막는다: StrictMode 이중 실행·조건 껐다 켜기로 같은 요청이 반복되지 않게.
+  // (언마운트 뒤 setState 는 React 가 무시하므로 취소 플래그는 두지 않는다 — 두면 StrictMode 의
+  // 첫 실행 결과가 버려지고 ref 때문에 재요청도 안 해 목록이 영영 비는 함정이 생긴다.)
+  const [projects, setProjects] = useState<GatheringExemptionProject[] | null>(null);
+  const [projectsFailed, setProjectsFailed] = useState(false);
+  const requestedRef = useRef(false);
+  const includeEvtId = value.exm_evt_id;
+  useEffect(() => {
+    if (!expanded || !conditionOn || requestedRef.current) return;
+    requestedRef.current = true;
+    listGatheringExemptionProjects(includeEvtId)
+      .then(setProjects)
+      .catch(() => setProjectsFailed(true));
+  }, [expanded, conditionOn, includeEvtId]);
 
   /**
    * 빈 칸은 0이 아니라 "안 정함"(null)이다.
@@ -162,6 +197,17 @@ export function GatheringConditionFields({
               <Caption className="text-muted-foreground">회 이상</Caption>
             </div>
 
+            {/* ── 면제 프로젝트 — 횟수 조건이 있을 때만. 고른 프로젝트 참가자는 횟수와 무관하게 통과(OR) ── */}
+            {conditionOn && (
+              <ExemptionPicker
+                projects={projects}
+                failed={projectsFailed}
+                selected={value.exm_evt_id}
+                disabled={disabled}
+                onSelect={(id) => onChange({ ...value, exm_evt_id: id })}
+              />
+            )}
+
             {error ? (
               <Micro className="text-destructive">{error}</Micro>
             ) : conditionOn ? (
@@ -175,6 +221,54 @@ export function GatheringConditionFields({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** "또는 이 프로젝트 참가자" 고르기. 프로젝트가 없으면(이미 걸린 값도 없으면) 아예 안 그린다. */
+function ExemptionPicker({
+  projects,
+  failed,
+  selected,
+  disabled,
+  onSelect,
+}: {
+  projects: GatheringExemptionProject[] | null;
+  failed: boolean;
+  selected: string | null;
+  disabled?: boolean;
+  onSelect: (evtId: string | null) => void;
+}) {
+  if (failed) {
+    return <Micro className="text-destructive">프로젝트 목록을 불러오지 못했어요.</Micro>;
+  }
+  // 불러오는 중이거나 고를 프로젝트가 없으면 그리지 않는다(이미 건 값은 서버가 목록에 포함시켜 준다)
+  if (!projects || projects.length === 0) return null;
+
+  return (
+    <div className="mt-2 flex flex-col gap-1.5">
+      <Label htmlFor="exm-evt" className="text-[13px] font-normal">
+        또는 이 프로젝트 참가자
+      </Label>
+      <Select
+        value={selected ?? NO_EXEMPTION}
+        onValueChange={(v) => onSelect(v === NO_EXEMPTION ? null : v)}
+        disabled={disabled}
+      >
+        <SelectTrigger id="exm-evt" className="text-[13px]">
+          <SelectValue placeholder="면제 없음" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NO_EXEMPTION}>면제 없음</SelectItem>
+          {projects.map((p) => (
+            <SelectItem key={p.evt_id} value={p.evt_id}>
+              {p.evt_nm}
+              {p.stts_enm === CLOSED_STATUS ? " (종료)" : ""}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Micro>고른 프로젝트에 승인된 참가자는 참석 횟수와 상관없이 신청할 수 있어요.</Micro>
     </div>
   );
 }
