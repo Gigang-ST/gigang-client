@@ -1,0 +1,41 @@
+/* 인트로 전용 표기 — /intro 아래에서만 쓰인다. 전역 토큰(색 4개)은 globals.css의
+   @theme에 `intro-` 접두로 있고, 여기엔 그 위에 얹는 활자 규칙만 둔다. */
+.intro-scope {
+  --font-display: var(--font-russo), var(--font-pretendard), system-ui, sans-serif;
+  /* 한글은 단어 중간에서 끊지 않는다. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* Russo One은 단일 굵기·라틴 전용. 한글은 Pretendard로 떨어지며 제 굵기를 쓴다.
+   폭이 넓은 서체라 자간은 다시 죈다. */
+.intro-scope .caps {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.intro-scope .headline {
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: 0.92;
+  letter-spacing: -0.005em;
+}
+
+.intro-scope .headline.caps {
+  letter-spacing: -0.03em;
+}
+
+.intro-scope .tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-scope *,
+  .intro-scope *::before,
+  .intro-scope *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
+}
