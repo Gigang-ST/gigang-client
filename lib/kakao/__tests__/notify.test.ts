@@ -135,14 +135,14 @@ describe("sendKakao", () => {
       expect(result.ok).toBe(true);
     });
 
-    it("이력에는 허브가 돌려준 방 이름을 남긴다 — 어드민에서 ID 대신 이름이 보이게", async () => {
+    it("이력에는 고정 ID 를 유지한다 — 표시 이름이 바뀌어도 재시도 대상이 같게", async () => {
       envMock.KAKAO_ROOM = undefined;
       envMock.KAKAO_ROOM_ID = ROOM_ID;
       const fetchFn = acceptingFetch({ room: "기강웹TF" });
 
       await sendKakao("안녕", { fetchFn: fetchFn as unknown as typeof fetch });
 
-      expect(recordKakaoSend).toHaveBeenCalledWith(expect.objectContaining({ room: "기강웹TF" }));
+      expect(recordKakaoSend).toHaveBeenCalledWith(expect.objectContaining({ room: ROOM_ID }));
     });
 
     it("실패해서 이름을 모르면 ID 를 남기고, 다시 보내기는 그 ID 를 고정 ID 로 쓴다", async () => {
@@ -212,6 +212,20 @@ describe("sendKakao", () => {
     expect(result.ok).toBe(false);
     // 오늘 아침 사고가 이 모양이었다 — 와이파이가 끊겨 허브에 닿지 못했다.
     expect(result.failure).toMatchObject({ name: "KakaoTransportError", retryable: true });
+  });
+
+  it("응답이 유실돼도 자동 생성한 멱등 키를 이력에 남긴다", async () => {
+    const fetchFn = vi.fn().mockRejectedValue(new TypeError("response lost"));
+    envMock.KAKAO_ROOM_ID = "4b492fd2-bb84-43be-a663-4e5f087ffb2e";
+
+    await sendKakao("안녕", { fetchFn: fetchFn as unknown as typeof fetch });
+
+    const requestId = sentBody(fetchFn).request_id;
+    expect(requestId).toEqual(expect.any(String));
+    expect(recordKakaoSend).toHaveBeenCalledWith(expect.objectContaining({
+      requestId, room: envMock.KAKAO_ROOM_ID, status: "failed",
+    }));
+    expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
   it("409 는 재시도 불가로 기록한다 — 이미 접수된 건이라 다시 보내면 중복이다", async () => {

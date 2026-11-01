@@ -15,8 +15,8 @@ importers:
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.71.2(react@19.2.4))
       '@kakao-bot/sdk':
-        specifier: 0.2.0
-        version: 0.2.0
+        specifier: 0.3.0
+        version: 0.3.0
       '@next/third-parties':
         specifier: ^16.1.6
         version: 16.1.6(next@16.1.6(@babel/core@7.29.0)(@playwright/test@1.58.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)
@@ -958,8 +958,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@kakao-bot/sdk@0.2.0':
-    resolution: {integrity: sha512-0wpqEHkJvCkaN0zZDRpjpgzXSPelZ1vkOknzJbNq08QBIfdmdKAFypzcXbKirjmIO+DcmiO7GyGIa82Nj/3vNg==}
+  '@kakao-bot/sdk@0.3.0':
+    resolution: {integrity: sha512-S1WaU5+RLKMqpMtC+Vnyp5lhZbiVbq37Uwjzg8zPqUNReQm6Rjw/SXnMPt2hSw0CRPp1VikC/Wgm4kBb7jt09w==}
     engines: {node: '>=20.3'}
 
   '@mdx-js/react@3.1.1':
@@ -7431,7 +7431,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@kakao-bot/sdk@0.2.0': {}
+  '@kakao-bot/sdk@0.3.0': {}
 
   '@mdx-js/react@3.1.1(@types/react@19.2.14)(react@19.2.4)':
     dependencies:
