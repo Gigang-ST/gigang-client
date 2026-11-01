@@ -114,14 +114,17 @@ export async function resendKakao(sendId: string): Promise<ResendResult> {
 
     const row = data as Raw;
     // 버튼을 감추는 건 안내일 뿐이다 — send_id 만 알면 액션은 직접 불린다. 서버가 다시 판정한다.
-    if (row.status === "success") throw new Error("이미 보낸 건이에요.");
+    if (row.status === "success") throw new Error("이미 허브에 접수된 건이에요.");
+    if (!row.request_id) {
+      throw new Error("이전 요청 ID 가 없어 중복 여부를 확인할 수 없어요. 허브 발송 이력을 먼저 확인해 주세요.");
+    }
     if (!row.retryable) {
       throw new Error("이 실패는 다시 보내도 같은 결과예요. 원인을 먼저 확인해 주세요.");
     }
 
     const result = await sendKakao(row.msg_txt, {
       room: row.room_nm,
-      ...(row.request_id ? { requestId: row.request_id } : {}),
+      requestId: row.request_id,
       ...(row.src_type ? { source: { type: row.src_type, id: row.src_id } } : {}),
       resend: true,
       actorMemId: member.id,
@@ -129,7 +132,7 @@ export async function resendKakao(sendId: string): Promise<ResendResult> {
 
     revalidatePath("/admin/kakao");
 
-    if (result.ok) return { ok: true, message: "다시 보냈어요." };
+    if (result.ok) return { ok: true, message: "허브에 다시 접수했어요. 실제 전달 여부는 허브 발송 이력에서 확인해 주세요." };
     if (result.skipped === "disabled") {
       return { ok: false, message: "이 환경엔 노티봇이 연결돼 있지 않아요." };
     }

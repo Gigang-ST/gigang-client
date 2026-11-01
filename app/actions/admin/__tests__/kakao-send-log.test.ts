@@ -7,18 +7,22 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/kakao/notify", () => ({ sendKakao: vi.fn() }));
 vi.mock("@/lib/actions/auth", () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  withAdminOrThrow: async (fn: any) => fn(),
+  withAdminOrThrow: async (fn: any) => fn({ member: { id: "admin-1" } }),
 }));
 vi.mock("@/lib/supabase/admin", () => {
   const builder = {
     select: () => builder,
     order: () => builder,
     limit: async () => h.result,
+    eq: () => builder,
+    single: async () => h.result,
   };
   return { createUntypedAdminClient: () => ({ from: () => builder }) };
 });
 
-import { getKakaoSendLogs } from "@/app/actions/admin/kakao-send-log";
+import { sendKakao } from "@/lib/kakao/notify";
+
+import { getKakaoSendLogs, resendKakao } from "@/app/actions/admin/kakao-send-log";
 
 describe("getKakaoSendLogs", () => {
   beforeEach(() => {
@@ -61,5 +65,31 @@ describe("getKakaoSendLogs", () => {
     const res = await getKakaoSendLogs();
     expect(res.tableMissing).toBe(false);
     expect(res.logs.map((l) => l.sendId)).toEqual(["s1"]);
+  });
+});
+
+
+describe("resendKakao — 중복 발송 방지", () => {
+  beforeEach(() => {
+    vi.mocked(sendKakao).mockReset();
+    h.result = { data: {
+      send_id: "s1", room_nm: "4b492fd2-bb84-43be-a663-4e5f087ffb2e",
+      msg_txt: "안녕", request_id: "stable-request", status: "failed", retryable: true,
+    }, error: null };
+  });
+
+  it("응답 유실 후 다시 보내도 저장된 멱등 키와 고정 방 ID 를 유지한다", async () => {
+    vi.mocked(sendKakao).mockResolvedValue({ ok: true });
+    const result = await resendKakao("s1");
+    expect(sendKakao).toHaveBeenCalledWith("안녕", expect.objectContaining({
+      room: "4b492fd2-bb84-43be-a663-4e5f087ffb2e", requestId: "stable-request", resend: true,
+    }));
+    expect(result.message).toContain("접수");
+  });
+
+  it("멱등 키가 없는 과거 실패 이력은 새 키로 재발송하지 않는다", async () => {
+    (h.result.data as Record<string, unknown>).request_id = null;
+    await expect(resendKakao("s1")).rejects.toThrow("중복 여부");
+    expect(sendKakao).not.toHaveBeenCalled();
   });
 });

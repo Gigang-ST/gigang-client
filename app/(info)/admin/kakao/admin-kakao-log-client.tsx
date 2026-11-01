@@ -54,7 +54,7 @@ function StatusBadge({ log }: { log: KakaoSendLogRow }) {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success">
         <Check className="size-3" />
-        발송
+        접수
       </span>
     );
   }
@@ -101,7 +101,7 @@ export function AdminKakaoLogClient({
       <div className="flex items-center gap-2">
         <H2>카카오 발송 이력</H2>
         <HelpTip title="카카오 발송 이력">
-          단톡방으로 나간 공지의 성공·실패 기록이에요. 실패한 건은 다시 보낼 수 있어요.
+          허브 접수 결과예요. 접수는 단톡방 전달 완료를 뜻하지 않아요. 실제 전달 여부는 허브 발송 이력에서 확인해 주세요.
           허브에 닿지 못한 건(와이파이 끊김 등)은 공지가 아예 안 나간 거예요.
         </HelpTip>
       </div>

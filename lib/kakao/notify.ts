@@ -114,10 +114,10 @@ export async function sendKakao(
     return { ok: false, skipped: "disabled" };
   }
 
-  // 이력의 방 이름. ID 로 보냈으면 허브가 돌려준 이름으로 바꾼다(성공 시). 이름을 모르면 ID 를
-  // 남긴다 — 다시 보내기가 그 값을 넘기면 roomTarget 이 ID 로 알아본다.
+  // 이력은 다시 보내기의 대상이기도 하다. 고정 ID 로 보냈으면 표시 이름으로 바꾸지 않는다.
+  // 이름 변경·동명 방이 있어도 재시도 대상이 바뀌지 않게 한다.
   const log = {
-    room: "room" in target ? target.room : (env.KAKAO_ROOM ?? target.roomId),
+    room: "room" in target ? target.room : target.roomId,
     message,
     requestId: opts.requestId ?? null,
     source: opts.source ?? null,
@@ -127,7 +127,8 @@ export async function sendKakao(
   // 발송과 기록을 한 try 로 묶지 않는다 — 묶으면 **이력 기록이 터질 때 성공한 발송이 실패로
   // 뒤집힌다**. 공지는 이미 톡방에 가 있는데 호출부는 못 갔다고 믿는 상태가 가장 나쁘다.
   let result: KakaoSendResult;
-  let requestId = opts.requestId ?? null;
+  // 응답 유실 때도 같은 멱등 키를 기록해야 수동 재시도가 중복 발송을 만들지 않는다.
+  const requestId = opts.requestId ?? crypto.randomUUID();
 
   try {
     const bot = new KakaoBot({
@@ -139,14 +140,11 @@ export async function sendKakao(
     const sent = await bot.sendMessage({
       ...target,
       text: message,
-      ...(opts.requestId ? { requestId: opts.requestId } : {}),
+      requestId,
     });
 
-    if ("roomId" in target && sent.room) log.room = sent.room;
-    console.info("[kakao] 발송", { bytes: message.length, room: log.room, queued: sent.queued });
-    // 허브가 실제로 쓴 id 를 남긴다 — 안 넘겼으면 SDK 가 만들어 준 값이고,
-    // 다시 보낼 때 그 값을 그대로 써야 허브가 중복을 막아 준다.
-    requestId = sent.request_id;
+    console.info("[kakao] 허브 접수", { bytes: message.length, room: log.room, queued: sent.queued });
+    // 접수 성공은 수신자 전달 확인이 아니다. SDK 는 응답의 request_id 일치도 검증한다.
     result = { ok: true };
   } catch (error) {
     // SDK 가 던지는 것이 아닌 예외(우리 쪽 버그)도 여기로 온다. 호출부는 이미 커밋된 뒤라
