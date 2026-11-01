@@ -167,7 +167,7 @@ export function AdminKakaoLogClient({
                       </Caption>
                     )}
                     {log.status === "failed" &&
-                      (log.retryable ? (
+                      (log.retryable && log.requestId ? (
                         <Button
                           size="sm"
                           variant="outline"
@@ -177,6 +177,10 @@ export function AdminKakaoLogClient({
                           <RotateCcw className="size-4" />
                           다시 보내기
                         </Button>
+                      ) : log.retryable ? (
+                        <Caption>
+                          이전 요청 ID 가 없어 허브 발송 이력에서 접수 여부를 먼저 확인해 주세요.
+                        </Caption>
                       ) : (
                         <Caption>
                           다시 보내도 같은 결과예요. 원인을 먼저 확인해 주세요.
