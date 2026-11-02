@@ -22,7 +22,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 import { extractRaceRecordFromImage } from "@/app/actions/extract-race-record";
-import { saveRaceRecord } from "@/app/actions/save-race-record";
+import { saveRaceRecord, type SaveRaceRecordInput } from "@/app/actions/save-race-record";
 import { listCompetitionsByRaceDate } from "@/app/actions/search-competitions";
 
 import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";
@@ -75,6 +75,8 @@ export function RaceRecordDialog({
   onOpenChange,
   onSaved,
   competitionRegisterMemberStatus,
+  title = "기록 입력",
+  saveRecord = saveRaceRecord,
 }: {
   memberId: string;
   teamId: string;
@@ -85,6 +87,17 @@ export function RaceRecordDialog({
   onSaved: () => void;
   /** 대회 등록 다이얼로그용. 없으면 「대회 추가」는 표시하지 않는다. */
   competitionRegisterMemberStatus?: MemberStatus;
+  /** 다이얼로그 제목 — 관리자 대리 등록은 누구 기록인지 적는다 */
+  title?: string;
+  /**
+   * 저장 액션. 기본은 본인 기록 저장(`saveRaceRecord`).
+   * 관리자 대리 등록은 대상 회원을 묶은 `adminSaveRaceRecord` 를 넘긴다 — 대회 목록·종목·시간
+   * 입력은 `memberId` 기준이라 그대로 쓰고 저장만 갈아 끼운다.
+   * `grantedTitles` 를 안 돌려주면 칭호 획득 팝업도 안 뜬다(관리자가 받은 칭호가 아니다).
+   */
+  saveRecord?: (input: SaveRaceRecordInput) => Promise<
+    { ok: false; message: string } | { ok: true; grantedTitles?: string[] }
+  >;
 }) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -471,7 +484,7 @@ export function RaceRecordDialog({
     const bikeSeconds = isTriathlon ? timeStringToSeconds(bikeTime) : null;
     const runSeconds = isTriathlon ? timeStringToSeconds(runTime) : null;
 
-    const result = await saveRaceRecord({
+    const result = await saveRecord({
       competitionId: selectedComp.id,
       registrationCompEvtId: selectedComp.registrationCompEvtId,
       competitionTitle,
@@ -493,7 +506,7 @@ export function RaceRecordDialog({
     onSaved();
     onOpenChange(false);
 
-    if (result.grantedTitles && result.grantedTitles.length > 0) {
+    if ("grantedTitles" in result && result.grantedTitles && result.grantedTitles.length > 0) {
       setGrantedTitles(result.grantedTitles);
       setGrantedDismissable(false);
       if (grantedDismissTimerRef.current) clearTimeout(grantedDismissTimerRef.current);
@@ -540,7 +553,7 @@ export function RaceRecordDialog({
     <Dialog open={open} onOpenChange={onOpenChange} modal={!registerOpen}>
       <DialogContent ref={dialogContentRef} className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>기록 입력</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             {step === 0 && "기록증 사진을 올리거나 직접 입력해 주세요."}
             {step === 1 && "대회를 선택해 주세요."}
