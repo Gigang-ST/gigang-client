@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { deleteRecord, updateRecord } from "@/app/actions/admin/manage-record";
 import { adminSaveRaceRecord } from "@/app/actions/save-race-record";
 import {
@@ -26,11 +27,11 @@ import type { MemberStatus } from "@/components/races/types";
 
 import { RecordMemberPicker } from "./record-member-picker";
 
-/** 기록 등록 대상 후보(활동 중 회원). `birthDt`는 동명이인일 때만 채워진다. */
+/** 기록 등록 대상 후보(활동 중 회원). `label`은 동명이인이면 구분 값이 붙은 표시 이름. */
 export type RecordMemberOption = {
   memId: string;
   name: string;
-  birthDt: string | null;
+  label: string;
 };
 
 type RaceRecord = {
@@ -56,6 +57,7 @@ export function RecordsClient({
 }) {
   const [records, setRecords] = useState<RaceRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTime, setEditTime] = useState("");
@@ -64,18 +66,34 @@ export function RecordsClient({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [target, setTarget] = useState<RecordMemberOption | null>(null);
 
+  // 전부 읽고 **등록 최신순**으로 세운다. 예전엔 대회일 순 200건에서 잘라서, 지난 대회 기록을
+  // 대신 등록하면 저장은 됐는데 목록에 안 보였다(prd 263건 — 이미 63건이 잘려 있었다).
+  // 기록은 시간이 갈수록 느는 조회라 끝까지 읽는다(§대량 조회). 실패하면 빈 목록 대신 알린다.
   const loadRecords = useCallback(async () => {
     const supabase = createClient();
-    const { data } = await supabase
-      .from("rec_race_hist")
-      .select(
-        "race_result_id, comp_evt_cfg!fk_rec_race_hist__comp_evt_cfg_pair(comp_evt_type), rec_time_sec, race_nm, race_dt, mem_mst!fk_rec_race_hist__mem_mst(mem_nm)",
-      )
-      .eq("del_yn", false)
-      .eq("vers", 0)
-      .order("race_dt", { ascending: false })
-      .limit(200);
-    const mapped = (data ?? []).map((r) => ({
+    let data;
+    try {
+      data = await fetchAllRows(
+        () =>
+          supabase
+            .from("rec_race_hist")
+            .select(
+              "race_result_id, comp_evt_cfg!fk_rec_race_hist__comp_evt_cfg_pair(comp_evt_type), rec_time_sec, race_nm, race_dt, mem_mst!fk_rec_race_hist__mem_mst(mem_nm)",
+            )
+            .eq("del_yn", false)
+            .eq("vers", 0)
+            .order("crt_at", { ascending: false })
+            .order("race_result_id"),
+        { label: "admin-records:rec_race_hist" },
+      );
+    } catch (e) {
+      console.error(e);
+      setLoadError(true);
+      setLoading(false);
+      return;
+    }
+    setLoadError(false);
+    const mapped = data.map((r) => ({
       id: r.race_result_id,
       event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type ?? "UNKNOWN",
       record_time_sec: r.rec_time_sec,
@@ -262,11 +280,17 @@ export function RecordsClient({
         ))}
       </div>
 
-      {filtered.length === 0 && (
-        <div className="flex flex-col items-center gap-3 py-12">
-          <Timer className="size-12 text-muted-foreground/30" />
-          <p className="text-[15px] text-muted-foreground">기록이 없습니다</p>
-        </div>
+      {loadError ? (
+        <p className="py-12 text-center text-[15px] text-destructive">
+          기록을 불러오지 못했어요. 새로고침해 주세요.
+        </p>
+      ) : (
+        filtered.length === 0 && (
+          <div className="flex flex-col items-center gap-3 py-12">
+            <Timer className="size-12 text-muted-foreground/30" />
+            <p className="text-[15px] text-muted-foreground">기록이 없습니다</p>
+          </div>
+        )
       )}
 
       <RecordMemberPicker
@@ -290,7 +314,7 @@ export function RecordsClient({
             if (!open) setTarget(null);
           }}
           competitionRegisterMemberStatus={registrantStatus}
-          title={`${target.name}님 기록 등록`}
+          title={`${target.label}님 기록 등록`}
           saveRecord={(input) => adminSaveRaceRecord(target.memId, input)}
           onSaved={() => {
             setTarget(null);
