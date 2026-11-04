@@ -6,12 +6,12 @@ export const env = createEnv({
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
     REVALIDATE_SECRET: z.string().min(1),
     KAKAO_CHAT_PASSWORD: z.string().optional(),
-    // 카카오 허브 — 모임 등록·수정·취소를 단톡방에 알린다(lib/kakao/notify.ts).
+    // 노티봇 허브 — 모임 등록·수정·취소를 단톡방에 알린다(lib/kakao/notify.ts).
     // 이름은 허브 콘솔 개발자 가이드와 같다: KAKAO_HUB_URL · KAKAO_SERVICE_API_KEY · KAKAO_ROOM_ID.
     // 옛 이름(KAKAO_WEBHOOK_URL · KAKAO_WEBHOOK_SECRET · KAKAO_ROOM)도 계속 받는다.
     // 전부 optional: 미설정이면 발송만 꺼진다. 로컬·preview가 실제 톡방에 쏘지 않게 하는
     // 안전장치가 이 "미설정 = 비활성"이라, 값을 넣은 환경에서만 발송된다.
-    // 허브 origin(예: https://kakao-api.jeongmin.dev). SDK 가 경로를 붙이므로 origin 만 있으면 된다.
+    // 허브 origin(예: https://api.notibot.xyz). SDK 가 경로를 붙이므로 origin 만 있으면 된다.
     KAKAO_HUB_URL: z.url().optional(),
     // 옛 이름 — `/v1/messages` 까지 포함한 전체 주소였다. origin 으로 정규화해 계속 받는다
     // (배포 환경변수를 바꾸기 전에 코드가 먼저 올라가도 발송이 멈추지 않게).

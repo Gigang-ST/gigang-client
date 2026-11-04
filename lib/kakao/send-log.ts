@@ -7,7 +7,7 @@
  */
 import "server-only";
 
-import type { KakaoErrorJSON } from "@kakao-bot/sdk";
+import type { NotiBotErrorJSON } from "@noti-bot/sdk";
 
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 
@@ -29,7 +29,7 @@ export type RecordKakaoSendInput = {
   source: KakaoSendSource | null;
   resend: boolean;
   status: "success" | "failed";
-  failure?: KakaoErrorJSON;
+  failure?: NotiBotErrorJSON;
   /** 어드민에서 다시 보낸 경우 누른 사람. */
   actorMemId?: string | null;
 };

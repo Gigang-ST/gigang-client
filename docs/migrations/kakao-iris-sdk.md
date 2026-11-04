@@ -1,6 +1,6 @@
 # 노티봇 Iris 전환 시 기강 연동
 
-기강은 `lib/kakao/notify.ts` 한 곳에서 `@kakao-bot/sdk`의 `sendMessage`를 사용한다.
+기강은 `lib/kakao/notify.ts` 한 곳에서 `@noti-bot/sdk`의 `sendMessage`를 사용한다.
 Iris의 폰 주소·토큰이나 카카오 내부 방 ID를 기강에 넣지 않는다. 허브가 전송 계층을 맡는다.
 
 - `KAKAO_ROOM_ID`는 허브 콘솔에서 복사한 방 UUID다. 기존 `KAKAO_ROOM`보다 우선한다.

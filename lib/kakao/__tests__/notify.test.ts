@@ -237,7 +237,7 @@ describe("sendKakao", () => {
     const result = await sendKakao("안녕", { fetchFn: fetchFn as unknown as typeof fetch });
 
     expect(result.ok).toBe(false);
-    expect(result.failure).toMatchObject({ name: "KakaoApiError", status: 502, retryable: true });
+    expect(result.failure).toMatchObject({ name: "NotiBotApiError", status: 502, retryable: true });
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
@@ -248,7 +248,7 @@ describe("sendKakao", () => {
 
     expect(result.ok).toBe(false);
     // 오늘 아침 사고가 이 모양이었다 — 와이파이가 끊겨 허브에 닿지 못했다.
-    expect(result.failure).toMatchObject({ name: "KakaoTransportError", retryable: true });
+    expect(result.failure).toMatchObject({ name: "NotiBotTransportError", retryable: true });
   });
 
   it("응답이 유실돼도 자동 생성한 멱등 키를 이력에 남긴다", async () => {
@@ -305,7 +305,7 @@ describe("sendKakao", () => {
       expect(recordKakaoSend).toHaveBeenCalledWith(
         expect.objectContaining({
           status: "failed",
-          failure: expect.objectContaining({ name: "KakaoTransportError", retryable: true }),
+          failure: expect.objectContaining({ name: "NotiBotTransportError", retryable: true }),
         }),
       );
     });
