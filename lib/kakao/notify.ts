@@ -1,7 +1,7 @@
 /**
- * 카카오 허브(https://kakao-api.jeongmin.dev) 발송 클라이언트.
+ * 노티봇 허브(https://api.notibot.xyz) 발송 클라이언트.
  *
- * 전송은 공식 SDK(`@kakao-bot/sdk`)가 맡는다 — 손으로 짠 fetch 와 와이어 포맷은 같지만,
+ * 전송은 공식 SDK(`@noti-bot/sdk`)가 맡는다 — 손으로 짠 fetch 와 와이어 포맷은 같지만,
  * 타임아웃·오류 분류·`Retry-After` 해석을 SDK 가 들고 있다. 특히 **타임아웃과 네트워크 단절의
  * 구분은 SDK 만 할 수 있다**(자기 AbortSignal 이 터졌는지는 바깥에서 알 길이 없다).
  *
@@ -13,7 +13,7 @@
  * **던지지 않는다.** 호출부는 모임 등록·수정·취소가 이미 성공한 뒤다. 톡 발송 실패로
  * 그 작업을 되돌릴 수 없고 되돌려서도 안 되므로, 실패는 기록으로만 남기고 `ok: false` 를 돌려준다.
  */
-import { KakaoBot, isKakaoError, type KakaoErrorJSON } from "@kakao-bot/sdk";
+import { NotiBot, isNotiBotError, type NotiBotErrorJSON } from "@noti-bot/sdk";
 
 import { env } from "@/lib/env";
 import { recordKakaoSend, type KakaoSendSource } from "@/lib/kakao/send-log";
@@ -33,7 +33,7 @@ export type KakaoSendResult = {
   /** 보내지 않은 이유(미설정 등). 보냈으면 undefined. */
   skipped?: "disabled";
   /** 실패했을 때의 분류. 발송 이력에 그대로 저장된다. */
-  failure?: KakaoErrorJSON;
+  failure?: NotiBotErrorJSON;
 };
 
 export type SendKakaoOptions = {
@@ -44,6 +44,12 @@ export type SendKakaoOptions = {
   room?: string | null;
   /** 멱등 키. 같은 사건(예: 모임 등록 1건)에 고정값을 주면 허브가 중복 발송을 막는다. */
   requestId?: string;
+  /**
+   * 진짜 카톡 태그로 부를 사람 이름(예: `["이현근"]`). 본문의 `@이름` 자리가 태그가 되고, 없으면
+   * 맨 앞에 붙는다. 그 방 참여자 한 명으로 정해지지 않으면 허브가 보내지 않고
+   * `mention_name_unknown` / `mention_name_ambiguous` 로 거절한다 — 엉뚱한 사람을 부르지 않는다.
+   */
+  mentions?: string[];
   /** 어느 사건이 보낸 것인지 — 발송 이력에서 출처를 가리는 데만 쓴다. */
   source?: KakaoSendSource;
   /** 어드민에서 다시 보낸 건인가. 이력에 그렇게 남는다. */
@@ -131,7 +137,7 @@ export async function sendKakao(
   const requestId = opts.requestId ?? crypto.randomUUID();
 
   try {
-    const bot = new KakaoBot({
+    const bot = new NotiBot({
       baseUrl: origin,
       apiKey,
       timeoutMs: TIMEOUT_MS,
@@ -141,6 +147,7 @@ export async function sendKakao(
       ...target,
       text: message,
       requestId,
+      ...(opts.mentions?.length ? { mentions: opts.mentions } : {}),
     });
 
     console.info("[kakao] 허브 접수", { bytes: message.length, room: log.room, queued: sent.queued });
@@ -149,7 +156,7 @@ export async function sendKakao(
   } catch (error) {
     // SDK 가 던지는 것이 아닌 예외(우리 쪽 버그)도 여기로 온다. 호출부는 이미 커밋된 뒤라
     // 되돌릴 수 없으므로 삼키되, 분류를 남겨 어드민에서 원인이 보이게 한다.
-    const failure = isKakaoError(error)
+    const failure = isNotiBotError(error)
       ? error.toJSON()
       : {
           name: "UnexpectedError",

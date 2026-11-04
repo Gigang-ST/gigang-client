@@ -91,6 +91,43 @@ describe("sendKakao", () => {
     expect(sentBody(fetchFn).request_id).toBe("gathering:g1:created");
   });
 
+  it("mentions 를 넘기면 이름으로 태그하도록 허브에 그대로 넘긴다 — 없으면 키도 안 보낸다", async () => {
+    const fetchFn = acceptingFetch();
+
+    await sendKakao("@이현근 확인 부탁", {
+      mentions: ["이현근"],
+      fetchFn: fetchFn as unknown as typeof fetch,
+    });
+    await sendKakao("그냥 공지", { fetchFn: fetchFn as unknown as typeof fetch });
+
+    expect(sentBody(fetchFn)).toMatchObject({ msg: "@이현근 확인 부탁", mentions: ["이현근"] });
+    expect(JSON.parse(String(fetchFn.mock.calls[1][1].body))).not.toHaveProperty("mentions");
+  });
+
+  it("허브가 이름을 못 정하면(동명이인 등) 던지지 않고 실패로 기록한다", async () => {
+    const fetchFn = vi.fn(async () =>
+      Response.json(
+        {
+          error: "mention_name_ambiguous",
+          name: "김준",
+          candidates: [
+            { userId: "1", name: "김준민" },
+            { userId: "2", name: "김준호" },
+          ],
+        },
+        { status: 400 },
+      ),
+    );
+
+    const result = await sendKakao("x", {
+      mentions: ["김준"],
+      fetchFn: fetchFn as unknown as typeof fetch,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.failure).toMatchObject({ code: "mention_name_ambiguous" });
+  });
+
   it("room 을 넘기면 기본방 대신 그 방으로 간다", async () => {
     const fetchFn = acceptingFetch();
 
@@ -200,7 +237,7 @@ describe("sendKakao", () => {
     const result = await sendKakao("안녕", { fetchFn: fetchFn as unknown as typeof fetch });
 
     expect(result.ok).toBe(false);
-    expect(result.failure).toMatchObject({ name: "KakaoApiError", status: 502, retryable: true });
+    expect(result.failure).toMatchObject({ name: "NotiBotApiError", status: 502, retryable: true });
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
@@ -211,7 +248,7 @@ describe("sendKakao", () => {
 
     expect(result.ok).toBe(false);
     // 오늘 아침 사고가 이 모양이었다 — 와이파이가 끊겨 허브에 닿지 못했다.
-    expect(result.failure).toMatchObject({ name: "KakaoTransportError", retryable: true });
+    expect(result.failure).toMatchObject({ name: "NotiBotTransportError", retryable: true });
   });
 
   it("응답이 유실돼도 자동 생성한 멱등 키를 이력에 남긴다", async () => {
@@ -268,7 +305,7 @@ describe("sendKakao", () => {
       expect(recordKakaoSend).toHaveBeenCalledWith(
         expect.objectContaining({
           status: "failed",
-          failure: expect.objectContaining({ name: "KakaoTransportError", retryable: true }),
+          failure: expect.objectContaining({ name: "NotiBotTransportError", retryable: true }),
         }),
       );
     });
