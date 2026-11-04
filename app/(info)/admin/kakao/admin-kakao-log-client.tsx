@@ -38,15 +38,20 @@ const SOURCE_LABELS: Record<string, string> = {
 /**
  * 실패 이름 → 한 줄 설명.
  *
- * SDK 클래스 이름(`KakaoTimeoutError`)을 그대로 띄우면 운영진이 "이게 뭔가"를 또 물어야 한다.
+ * SDK 클래스 이름(`NotiBotTimeoutError`)을 그대로 띄우면 운영진이 "이게 뭔가"를 또 물어야 한다.
  * 여기서 갈라 주는 값은 **다음에 뭘 해야 하는가**다.
  */
 const FAILURE_LABELS: Record<string, string> = {
+  NotiBotTransportError: "허브에 닿지 못함",
+  NotiBotTimeoutError: "허브 응답 지연",
+  NotiBotApiError: "허브가 거절함",
+  NotiBotProtocolError: "허브 응답이 이상함",
+  UnexpectedError: "앱 오류",
+  // SDK 이름 변경(@kakao-bot/sdk → @noti-bot/sdk) 전에 쌓인 이력 행
   KakaoTransportError: "허브에 닿지 못함",
   KakaoTimeoutError: "허브 응답 지연",
   KakaoApiError: "허브가 거절함",
   KakaoProtocolError: "허브 응답이 이상함",
-  UnexpectedError: "앱 오류",
 };
 
 function StatusBadge({ log }: { log: KakaoSendLogRow }) {
