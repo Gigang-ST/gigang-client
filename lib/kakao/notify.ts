@@ -44,6 +44,12 @@ export type SendKakaoOptions = {
   room?: string | null;
   /** 멱등 키. 같은 사건(예: 모임 등록 1건)에 고정값을 주면 허브가 중복 발송을 막는다. */
   requestId?: string;
+  /**
+   * 진짜 카톡 태그로 부를 사람 이름(예: `["이현근"]`). 본문의 `@이름` 자리가 태그가 되고, 없으면
+   * 맨 앞에 붙는다. 그 방 참여자 한 명으로 정해지지 않으면 허브가 보내지 않고
+   * `mention_name_unknown` / `mention_name_ambiguous` 로 거절한다 — 엉뚱한 사람을 부르지 않는다.
+   */
+  mentions?: string[];
   /** 어느 사건이 보낸 것인지 — 발송 이력에서 출처를 가리는 데만 쓴다. */
   source?: KakaoSendSource;
   /** 어드민에서 다시 보낸 건인가. 이력에 그렇게 남는다. */
@@ -141,6 +147,7 @@ export async function sendKakao(
       ...target,
       text: message,
       requestId,
+      ...(opts.mentions?.length ? { mentions: opts.mentions } : {}),
     });
 
     console.info("[kakao] 허브 접수", { bytes: message.length, room: log.room, queued: sent.queued });
