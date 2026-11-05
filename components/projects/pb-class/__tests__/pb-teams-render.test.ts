@@ -26,6 +26,7 @@ vi.mock("@/components/projects/pb-class/pb-team-score-chart-dynamic", async () =
  * - 팀원 줄엔 얼굴·이름·훈련팀·예상 10K·빨라진 만큼·목표만. 출석 횟수는 팀 단위(「n/m명」)로만.
  * - 빨라지지 않은 사람·목표 없는 사람·0주 연속은 그 줄을 안 그린다(못한 건 세지 않는다).
  * - 구경꾼(`me` 없음)에겐 칸 자체가 없다.
+ * - 카드는 넘겨 보는 한 장씩(#624) — 첫 장은 내 팀, 팀 없음은 끝 장. 안 보이는 장도 마크업엔 있다.
  */
 const html = (el: Parameters<typeof renderToStaticMarkup>[0]) => renderToStaticMarkup(el);
 
@@ -140,8 +141,38 @@ describe("PbTeams", () => {
     expect(out.match(/data-team-photos="4"/g)).toHaveLength(1);
   });
 
-  it("팀 발표 전이면 빈 상태", () => {
-    expect(render({ ...DATA, teams: [] })).toContain("팀 발표 전이에요");
+  it("팀 발표 전이면 빈 상태 — 팀 없음 묶음은 한 장으로 남고 넘김 버튼은 없다", () => {
+    const out = render({ ...DATA, teams: [] });
+    expect(out).toContain("팀 발표 전이에요");
+    expect(slideOrder(out)).toEqual(["1/1 팀 없음"]);
+    expect(out).not.toContain("다음 팀");
+  });
+});
+
+/** 넘김 장의 순서 — 각 장의 aria-label(「n/총 이름」)을 마크업 순서대로 */
+const slideOrder = (out: string) => [...out.matchAll(/aria-roledescription="slide" aria-label="([^"]+)"/g)].map((m) => m[1]);
+
+describe("PbTeams — 넘김(#624)", () => {
+  it("첫 장은 내 팀 — 1위가 아니어도. 나머지는 순위 순서, 팀 없음은 맨 끝", () => {
+    const [a, b] = DATA.teams;
+    const third = { ...b, grpId: "C", grpNm: "바람팀", colorNo: 3, rank: 3 };
+    const data = { ...DATA, teams: [{ ...a, isMine: false }, b, { ...third, isMine: true }] };
+    expect(slideOrder(render(data))).toEqual(["1/4 바람팀 (내 팀)", "2/4 번개팀", "3/4 파도팀", "4/4 팀 없음"]);
+  });
+
+  it("내 팀이 없으면 1위부터", () => {
+    const [a, b] = DATA.teams;
+    const data = { ...DATA, teams: [b, { ...a, isMine: false }] };
+    expect(slideOrder(render(data))).toEqual(["1/3 번개팀", "2/3 파도팀", "3/3 팀 없음"]);
+  });
+
+  it("첫 장만 보이고 나머지는 가려진다 — 이전 버튼은 꺼져 있고(감기지 않음) 위치를 읽어 준다", () => {
+    const out = render();
+    expect(out.match(/data-active="true"/g)).toHaveLength(1);
+    expect(out.match(/aria-hidden="true" inert=""/g)).toHaveLength(2);
+    expect(out).toMatch(/<button[^>]*aria-label="이전 팀"[^>]*disabled=""/);
+    expect(out).not.toMatch(/<button[^>]*aria-label="다음 팀"[^>]*disabled=""/);
+    expect(out).toContain("번개팀 (내 팀), </span>1/3");
   });
 });
 
