@@ -1,9 +1,12 @@
 import { Suspense, cache } from "react";
 
 import { nowKST } from "@/lib/dayjs";
+import { buildPbCrewAttd, buildPbTeamSeries } from "@/lib/pb-class-chart";
 import { canEditGoal, goalEditLastWk } from "@/lib/pb-class-score";
+import { buildPbTeams, pickTeamPhotos } from "@/lib/pb-class-teams";
 import { loadMyPbClass, loadPbClassBoard, type MyPbClass } from "@/lib/queries/pb-class";
 import { loadPbGame, type PbGame } from "@/lib/queries/pb-class-game";
+import { loadPbTeamPhotos } from "@/lib/queries/pb-class-teams";
 import { getCurrentMember } from "@/lib/queries/member";
 
 import { EmptyState } from "@/components/common/empty-state";
@@ -25,6 +28,7 @@ import { PbRecordsCard } from "./pb-records-card";
 import { PbScoreboard } from "./pb-scoreboard";
 import { PbSessionStrip } from "./pb-session-strip";
 import { PbSettlement } from "./pb-settlement";
+import { PbTeams } from "./pb-teams";
 import { PbTraining, pbPaceInputOf } from "./pb-training";
 import { PbViewTabs, pbGuideTop, resolvePbView } from "./pb-view-tabs";
 
@@ -85,6 +89,67 @@ async function PbCrewSection({ evtId, myMemId, nowIso }: { evtId: string; myMemI
   return <PbCrewAttendance board={board} myMemId={myMemId} />;
 }
 
+/**
+ * ④ Teams 칸 — 팀 구성 + 팀 단위 운동 현황(#621). 출석은 누적 출석 면과 **같은 보드**(`getPbBoard`)를 읽어
+ * 같은 요청 안에선 한 번만 돈다. 보조 정보라 보드·사진 조회가 흔들려도 칸은 선다 — 보드가 없으면 출석 줄 없이
+ * 팀 구성만, 사진이 없으면 사진 줄 없이.
+ */
+async function PbTeamsSection({
+  game,
+  teamId,
+  me,
+  nowIso,
+}: {
+  game: PbGame;
+  teamId: string;
+  me: PbGame["participants"][number];
+  nowIso: string;
+}) {
+  const approvedPrts = game.participants.filter((p) => p.aprvYn);
+  const [board, posts] = await Promise.all([
+    getPbBoard(game.evt.evtId, nowIso).catch((e) => {
+      console.error("[pb-class] Teams 출석 보드 조회 실패", e);
+      return null;
+    }),
+    getCurrentMember()
+      .then(({ supabase }) =>
+        loadPbTeamPhotos(supabase, {
+          teamId,
+          memIds: approvedPrts.map((p) => p.memId),
+          sttDt: game.evt.sttDt,
+          names: new Map(approvedPrts.map((p) => [p.memId, { memNm: p.memNm, avatarUrl: p.avatarUrl }])),
+        }),
+      )
+      .catch((e) => {
+        console.error("[pb-class] Teams 사진 조회 실패", e);
+        return [];
+      }),
+  ]);
+
+  const sessions = board?.sessions ?? [];
+  const data = buildPbTeams({
+    participants: game.participants,
+    scoreboard: game.scoreboard,
+    rule: game.rule,
+    crew: buildPbCrewAttd({ sessions, participants: board?.participants ?? [], cfg: game.cfg, myMemId: me.memId }),
+    series: buildPbTeamSeries({ scoreboard: game.scoreboard, members: game.participants, rule: game.rule }),
+    heldWkNos: sessions.filter((s) => s.held).map((s) => s.wkNo),
+    myMemId: me.memId,
+    myGrpId: me.grpId,
+  });
+
+  // 사진은 게임팀에 든 사람 것만 — 팀 없음 묶음엔 걸지 않는다
+  const grpOfMem = new Map(data.teams.flatMap((t) => t.members.map((m) => [m.memId, t.grpId] as const)));
+  return (
+    <PbTeams
+      data={data}
+      measureWkNo={game.measureWkNo}
+      photosByGrp={pickTeamPhotos(posts, grpOfMem)}
+      viewer={{ teamId, memId: me.memId, memNm: me.memNm, avatarUrl: me.avatarUrl }}
+    />
+  );
+}
+
 /** 조회 전·크루 밖일 때의 제목 — 히어로를 세울 데이터가 없을 때만 쓴다 */
 function BareTitle({ event }: { event: PbClassViewProps["event"] }) {
   return (
@@ -97,6 +162,8 @@ function BareTitle({ event }: { event: PbClassViewProps["event"] }) {
 
 type PbClassViewProps = {
   event: { evt_id: string; evt_nm: string; stt_dt: string; end_dt: string };
+  /** 요청 팀 — 팀원 사진 조회·릴스 댓글에 쓴다 */
+  teamId: string;
   /** `?view=` 원문 — 볼 수 없는 값이면 기본 탭으로 떨어진다(`resolvePbView`) */
   view?: string;
   /**
@@ -117,7 +184,7 @@ type PbClassViewProps = {
  * 탭은 URL(`?view=`)이라 서버가 **보는 탭 하나만** 그린다 — 전원 출석 조회는 정산 합계(내 현황)와
  * 크루 출석(점수판, 승인된 참가자만) 탭에서만 돈다.
  */
-export async function PbClassView({ event, view, readOnly = false, isInactive, inactiveKind }: PbClassViewProps) {
+export async function PbClassView({ event, teamId, view, readOnly = false, isInactive, inactiveKind }: PbClassViewProps) {
   const { member, supabase } = await getCurrentMember();
 
   // 로그인했지만 크루 가입 전 — 신청 대상이 아니다(참가자 행이 mem_id에 걸린다)
@@ -197,6 +264,14 @@ export async function PbClassView({ event, view, readOnly = false, isInactive, i
             measureWkNo={game.measureWkNo}
             crew={
               approved ? <CrewAttendance evtId={evt.evtId} memId={member.id} nowIso={nowIso} sessions={sessions} /> : null
+            }
+            // 이름·목표가 실리는 칸 — 승인된 참가자에게만 만든다(구경꾼에겐 노드 자체가 없다)
+            teams={
+              approved && gameMe ? (
+                <Suspense fallback={<Skeleton className="h-96 w-full rounded-2xl" />}>
+                  <PbTeamsSection game={game} teamId={teamId} me={gameMe} nowIso={nowIso} />
+                </Suspense>
+              ) : null
             }
           />
         ) : (
