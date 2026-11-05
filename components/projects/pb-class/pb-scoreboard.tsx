@@ -36,6 +36,11 @@ type PbScoreboardProps = {
   measureWkNo: number | null;
   /** 누적 출석 면(전원 보드 조회 — 호출부가 Suspense 로 감싸 넘긴다). `me`가 있을 때만 붙인다 */
   crew?: ReactNode;
+  /**
+   * ④ Teams 칸(#621 — 팀 구성 + 팀 단위 운동 현황). 이름·목표가 실리므로 `me`가 있을 때만 붙인다.
+   * 출석 보드·사진을 따로 읽어 호출부가 Suspense 로 감싸 넘긴다.
+   */
+  teams?: ReactNode;
 };
 
 function TeamScoreHelp({ rule }: { rule: PbRule }) {
@@ -50,7 +55,8 @@ function TeamScoreHelp({ rule }: { rule: PbRule }) {
 }
 
 /**
- * 점수판 탭 — ① 팀 순위(Scoreboard) → ② 10K 예상기록(10K Forecast) → ③ 주차별 그래프(Week by Week: 누적 출석 | 팀 점수).
+ * 점수판 탭 — ① 팀 순위(Scoreboard) → ② 10K 예상기록(10K Forecast) → ③ 주차별 그래프(Week by Week: 누적 출석 | 팀 점수)
+ * → ④ 팀 구성과 팀별 흐름(Teams — #621, 승인된 참가자만).
  *
  * 이건 기강 포인트(원장·히든 운영)가 아니라 **프로젝트 게임 점수**라 숫자를 그대로 연다 —
  * 그래서 이름도 「점수」다(「포인트」라고 부르면 히든인 제도와 헷갈린다).
@@ -62,7 +68,7 @@ function TeamScoreHelp({ rule }: { rule: PbRule }) {
  * 「내 점수」는 내 현황 탭으로 옮겼다 — 이 탭은 크루·팀 이야기만 한다.
  * 구경하는 사람(미신청·입금 대기)은 ①과 ③의 팀 점수만 본다 — 나머지는 이름이 실린다.
  */
-export function PbScoreboard({ scoreboard, rule, myGrpId, me, participants, measureWkNo, crew }: PbScoreboardProps) {
+export function PbScoreboard({ scoreboard, rule, myGrpId, me, participants, measureWkNo, crew, teams }: PbScoreboardProps) {
   const { groups } = scoreboard;
   const series = groups.length > 0 ? buildPbTeamSeries({ scoreboard, members: participants, rule }) : null;
   // 트랙은 승인된 참가자에게만 — 데이터 자체를 그때만 만든다(만들어 두고 숨기면 RSC 로 실려 나간다)
@@ -123,6 +129,8 @@ export function PbScoreboard({ scoreboard, rule, myGrpId, me, participants, meas
       {me && <PbPaceTrack track={track} rule={rule} />}
 
       <PbFlowZone crew={me ? (crew ?? null) : null} team={team} />
+
+      {me && teams}
     </div>
   );
 }

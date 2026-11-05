@@ -101,6 +101,7 @@ export default async function ProjectsPage({
           {isPb ? (
             <PbClassView
               event={event}
+              teamId={teamId}
               view={params.view}
               readOnly={readOnly}
               isInactive={isInactive}
