@@ -259,3 +259,26 @@ export function pickTeamPhotos<T extends { mem_id: string }>(
   }
   return out;
 }
+
+/** Teams 칸에서 넘겨 보는 한 장 — 게임팀 카드이거나, 맨 끝의 「팀 없음」 묶음 */
+export type PbTeamSlide<T> = { kind: "team"; team: T } | { kind: "noTeam" };
+
+/**
+ * Teams 칸 넘김 순서(#624) — **내 팀이 첫 장**, 나머지는 순위 순서, 「팀 없음」 묶음은 맨 끝.
+ * 내 팀이 없으면(미배정·늦은 합류) 1위부터다. 같은 순위(공동)는 받은 순서(점수판 순서)를 지킨다.
+ * 사람이 이 칸에 와서 제일 먼저 궁금한 건 「우리 팀」이라 — 순위대로만 두면 하위 팀은 몇 장을 넘겨야 자기 팀이 나온다.
+ */
+export function orderPbTeamSlides<T extends Pick<PbTeamCard, "isMine" | "rank">>(
+  teams: readonly T[],
+  hasNoTeam: boolean,
+): PbTeamSlide<T>[] {
+  const byRank = teams
+    .map((t, i) => ({ t, i }))
+    .sort((a, b) => a.t.rank - b.t.rank || a.i - b.i)
+    .map((x) => x.t);
+  const mine = byRank.find((t) => t.isMine);
+  const ordered = mine ? [mine, ...byRank.filter((t) => t !== mine)] : byRank;
+  const slides: PbTeamSlide<T>[] = ordered.map((team) => ({ kind: "team", team }));
+  if (hasNoTeam) slides.push({ kind: "noTeam" });
+  return slides;
+}

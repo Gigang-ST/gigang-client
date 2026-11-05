@@ -15,7 +15,7 @@ import {
   type PbRecType,
   type PbScoreGathering,
 } from "@/lib/pb-class-score";
-import { buildPbTeams, pickTeamPhotos } from "@/lib/pb-class-teams";
+import { buildPbTeams, orderPbTeamSlides, pickTeamPhotos } from "@/lib/pb-class-teams";
 import type { PbParticipant, PbSession } from "@/lib/queries/pb-class";
 import type { PbGameParticipant } from "@/lib/queries/pb-class-game";
 
@@ -291,5 +291,28 @@ describe("pickTeamPhotos", () => {
     expect(out.get("A")?.map((p) => p.post_id)).toEqual(["p0", "p3"]);
     expect(out.get("B")?.map((p) => p.post_id)).toEqual(["p1", "p5"]);
     expect([...out.keys()].sort()).toEqual(["A", "B"]);
+  });
+});
+
+describe("orderPbTeamSlides — Teams 칸 넘김 순서(#624)", () => {
+  const t = (grpId: string, rank: number, isMine = false) => ({ grpId, rank, isMine });
+  const ids = (s: ReturnType<typeof orderPbTeamSlides<ReturnType<typeof t>>>) =>
+    s.map((x) => (x.kind === "team" ? x.team.grpId : "NO_TEAM"));
+
+  it("첫 장은 내 팀 — 나머지는 순위 순서, 팀 없음은 맨 끝", () => {
+    expect(ids(orderPbTeamSlides([t("A", 1), t("B", 2), t("C", 3, true)], true))).toEqual(["C", "A", "B", "NO_TEAM"]);
+  });
+
+  it("내 팀이 없으면 1위부터", () => {
+    expect(ids(orderPbTeamSlides([t("B", 2), t("A", 1), t("C", 3)], true))).toEqual(["A", "B", "C", "NO_TEAM"]);
+  });
+
+  it("공동 순위는 받은 순서를 지킨다", () => {
+    expect(ids(orderPbTeamSlides([t("A", 1), t("B", 1), t("C", 3)], false))).toEqual(["A", "B", "C"]);
+  });
+
+  it("팀 없음이 없으면 묶음 장도 없다 · 팀이 없으면 팀 없음 한 장", () => {
+    expect(ids(orderPbTeamSlides([t("A", 1, true)], false))).toEqual(["A"]);
+    expect(ids(orderPbTeamSlides([], true))).toEqual(["NO_TEAM"]);
   });
 });

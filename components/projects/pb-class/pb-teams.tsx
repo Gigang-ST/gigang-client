@@ -1,6 +1,13 @@
 import { wkLabel } from "@/lib/pb-class";
 import { formatSec } from "@/lib/pb-class-score";
-import { PB_STREAK_EMOJI, type PbTeamBar, type PbTeamCard, type PbTeamMember, type PbTeams as PbTeamsData } from "@/lib/pb-class-teams";
+import {
+  PB_STREAK_EMOJI,
+  orderPbTeamSlides,
+  type PbTeamBar,
+  type PbTeamCard,
+  type PbTeamMember,
+  type PbTeams as PbTeamsData,
+} from "@/lib/pb-class-teams";
 import type { StoryPost } from "@/lib/queries/story-posts";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +18,7 @@ import { CardItem } from "@/components/ui/card";
 import { formatPt } from "./format";
 import { PbTeamDot, teamColorClass } from "./pb-team-color";
 import { PbTeamPhotos, type PbTeamPhotosViewer } from "./pb-team-photos";
+import { PbTeamsCarousel, type PbTeamsCarouselSlide } from "./pb-teams-carousel";
 import { trnGroupLabel } from "./pb-training";
 import { PbZone } from "./pb-zone";
 
@@ -199,6 +207,7 @@ function TeamCard({
  * 이름이 실리는 칸이라 **승인된 참가자에게만** 그린다(10K 트랙·누적 출석과 같은 범위) — 호출부가 그때만 이 노드를 만든다.
  * 출석은 팀 단위(「n/m명」·출석률 막대)로만 말하고 팀원 줄엔 싣지 않는다 — 출석표를 걷은 결정(2026-10-08) 그대로다.
  * 팀원 목표는 승인 참가자끼리 공개한다(오너 2026-11-05). 계산은 전부 `lib/pb-class-teams.ts`.
+ * 카드는 한 번에 한 장 — 내 팀이 첫 장이고 옆으로 넘겨 다른 팀을 본다(#624, `PbTeamsCarousel`). 넘김만 클라이언트 섬이다.
  */
 export function PbTeams({
   data,
@@ -212,31 +221,48 @@ export function PbTeams({
   viewer: PbTeamPhotosViewer;
 }) {
   const { glance, teams, noTeam } = data;
+  // 넘김 순서(#624) — 내 팀 첫 장, 나머지 순위 순서, 팀 없음 끝 장. 카드는 여기(서버)서 그려 섬에 넘긴다 —
+  // 섬이 받는 건 이미 그린 마크업뿐이라 이름이 실린 데이터를 클라이언트 props 로 새로 만들지 않는다.
+  const slides: PbTeamsCarouselSlide[] = orderPbTeamSlides(teams, noTeam.length > 0).map((s) =>
+    s.kind === "team"
+      ? {
+          key: s.team.grpId,
+          label: s.team.isMine ? `${s.team.grpNm} (내 팀)` : s.team.grpNm,
+          colorNo: s.team.colorNo,
+          node: (
+            <TeamCard
+              t={s.team}
+              measureWkNo={measureWkNo}
+              photos={photosByGrp.get(s.team.grpId) ?? []}
+              viewer={viewer}
+            />
+          ),
+        }
+      : {
+          key: "no-team",
+          label: "팀 없음",
+          colorNo: null,
+          node: (
+            <CardItem variant="dashed" className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Body className="font-semibold text-muted-foreground">팀 없음</Body>
+                <Caption className="ml-auto tabular-nums">{noTeam.length}명</Caption>
+              </div>
+              <ul aria-label="팀 없는 참가자" className="flex flex-col">
+                {noTeam.map((m) => (
+                  <MemberRow key={m.memId} m={m} showJoin />
+                ))}
+              </ul>
+            </CardItem>
+          ),
+        },
+  );
   return (
     <PbZone label="Teams" lead="팀 구성과 팀별 흐름">
       {glance && <CrewLine g={glance} />}
 
-      {teams.length === 0 ? (
-        <EmptyState variant="card" message="팀 발표 전이에요" />
-      ) : (
-        teams.map((t) => (
-          <TeamCard key={t.grpId} t={t} measureWkNo={measureWkNo} photos={photosByGrp.get(t.grpId) ?? []} viewer={viewer} />
-        ))
-      )}
-
-      {noTeam.length > 0 && (
-        <CardItem variant="dashed" className="flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <Body className="font-semibold text-muted-foreground">팀 없음</Body>
-            <Caption className="ml-auto tabular-nums">{noTeam.length}명</Caption>
-          </div>
-          <ul aria-label="팀 없는 참가자" className="flex flex-col">
-            {noTeam.map((m) => (
-              <MemberRow key={m.memId} m={m} showJoin />
-            ))}
-          </ul>
-        </CardItem>
-      )}
+      {teams.length === 0 && <EmptyState variant="card" message="팀 발표 전이에요" />}
+      {slides.length > 0 && <PbTeamsCarousel slides={slides} />}
     </PbZone>
   );
 }
