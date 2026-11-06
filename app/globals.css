@@ -53,6 +53,7 @@
   --color-info-foreground: var(--info-foreground);
   --color-personal: var(--personal);
   --color-gathering: var(--gathering);
+  --color-gathering-ink: var(--gathering-ink);
 
   /* 종목별 색상 (Sport) — chart-* 의 시맨틱 토큰 */
   --color-sport-road-run: var(--sport-road-run);
@@ -122,6 +123,9 @@
   /* 모임 — 보라. 예전엔 화면마다 violet-400~800 리터럴이 제각각 박혀 있어 라이트에선 연보라 글씨가
      흰 지면에 묻히고(violet-400, 대비 2.7:1), 모임 상세 배지는 다크에서 흰 판(violet-50)으로 떴다 */
   --gathering: oklch(0.606 0.25 293);
+  /* 모임 색 틴트(bg-gathering/10·/20) 위 글자 — --gathering 그대로면 대비 3.4~3.9:1로 작은 글자가 흐리다.
+     한 단계 진하게 내려 5.2~6.8:1. 다크는 원래 색으로 충분하다(5.3~6.9:1) */
+  --gathering-ink: oklch(0.5 0.24 293);
 
   /* 종목별 색상 (= 차트 색상의 시맨틱 이름) */
   --sport-road-run: oklch(0.655 0.162 32);
@@ -193,6 +197,7 @@
   --info-foreground: oklch(1 0 0);
   --personal: oklch(0.75 0.13 215);
   --gathering: oklch(0.7 0.18 293);
+  --gathering-ink: oklch(0.7 0.18 293);
 
   /* 종목별 색상 */
   --sport-road-run: oklch(0.72 0.162 32);

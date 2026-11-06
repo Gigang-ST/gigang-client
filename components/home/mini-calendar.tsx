@@ -1445,7 +1445,9 @@ export function MiniCalendar({
                               gridRow: lane.slot + 1,
                             }}
                             className={cn(
-                              "overflow-hidden px-0.5 text-[7px] font-medium leading-[13px]",
+                              // 높이가 13px 한 줄로 고정이라 줄을 바꾸면 그 뒤가 통째로 잘린다. 어절 단위 줄바꿈(body keep-all)이면
+                              // 둘째 어절이 첫 줄에 일부도 못 남아 더 많이 잘리므로, 줄바꿈 없이 바 끝에서 자른다
+                              "overflow-hidden whitespace-nowrap px-0.5 text-[7px] font-medium leading-[13px]",
                               lane.startsThisWeek ? "rounded-l-sm" : "",
                               lane.endsThisWeek ? "rounded-r-sm" : "",
                               outMonth && "opacity-40",
@@ -1460,7 +1462,7 @@ export function MiniCalendar({
                                   : lane.race.type === "gathering_mine"
                                     ? "bg-gathering/60 text-white"
                                     : lane.race.type === "gathering"
-                                      ? "bg-gathering/20 text-gathering"
+                                      ? "bg-gathering/20 text-gathering-ink"
                                       : "bg-warning/15 text-warning",
                             )}
                           >
@@ -1537,7 +1539,7 @@ export function MiniCalendar({
                               )}
                             </span>
                             {isGathering && (race.post_type === "regular" || race.post_type === "event") && (
-                              <span className="shrink-0 rounded-full border border-gathering/40 bg-gathering/10 px-1.5 py-px text-[9px] font-medium leading-tight text-gathering">
+                              <span className="shrink-0 rounded-full border border-gathering/40 bg-gathering/10 px-1.5 py-px text-[9px] font-medium leading-tight text-gathering-ink">
                                 {race.post_type === "regular" ? "정기" : "이벤트"}
                               </span>
                             )}
@@ -1614,7 +1616,7 @@ export function MiniCalendar({
                               "shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-medium",
                               isGatheringMine
                                 ? "border-success/40 bg-success/10 text-success"
-                                : "border-gathering/40 bg-gathering/10 text-gathering",
+                                : "border-gathering/40 bg-gathering/10 text-gathering-ink",
                             )}
                           >
                             {isGatheringMine ? "참석" : "모임"}

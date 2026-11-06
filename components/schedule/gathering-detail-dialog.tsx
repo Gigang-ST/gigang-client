@@ -628,9 +628,9 @@ export function GatheringDetailDialog({
               {typeLabel && (() => {
                 const typeBadgeClass =
                   gathering.post_type === "regular"
-                    ? "border-gathering/60 bg-gathering/10 text-gathering"
+                    ? "border-gathering/60 bg-gathering/10 text-gathering-ink"
                     : gathering.post_type === "event"
-                      ? "border-gathering bg-gathering/20 text-gathering font-medium"
+                      ? "border-gathering bg-gathering/20 text-gathering-ink font-medium"
                       : undefined;
                 return (
                   <Badge

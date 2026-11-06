@@ -94,7 +94,7 @@ const signupStepGuide: Record<SignupStepLabel, { desc: string; optional?: boolea
   "기본 정보": { desc: "연락처·이름·성별·생일이면 돼요" },
   "러닝 프로필": { desc: "가까운 역·거리·페이스 — 건너뛰어도 돼요", optional: true },
   "가입 목적": { desc: "어떻게 알게 됐는지, 왜 왔는지 골라요" },
-  "참석 약속": { desc: "첫 모임 하나 고르기 — 나중에 해도 돼요" },
+  "참석 약속": { desc: "첫 참석을 약속해요 — 모임은 나중에 골라도 돼요" },
 };
 
 const signupSteps = SIGNUP_STEP_LABELS.map((label) => ({ label, ...signupStepGuide[label] }));
@@ -144,7 +144,7 @@ export default function NewbiePage() {
           <Caption className="tracking-[3px]">WELCOME TO</Caption>
           <H1 className="mt-2 text-[32px]">기강에 잘 오셨어요 👟</H1>
           <Body className="mt-3 block text-muted-foreground">
-            기본 정보와 가입 목적만 답하면 끝. 러닝 프로필은 건너뛰어도 돼요.
+            기본 정보·가입 목적을 답하고 첫 참석을 약속하면 끝. 러닝 프로필은 건너뛰어도 돼요.
           </Body>
         </section>
 
