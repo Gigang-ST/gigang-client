@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Check, ClipboardList, Lightbulb, ScrollText, ShieldCheck, type LucideIcon } from "lucide-react";
+import { ClipboardList, Lightbulb, ScrollText, ShieldCheck, type LucideIcon } from "lucide-react";
 
 import {
   SIGNUP_STEP_LABELS,
@@ -91,8 +91,8 @@ const activityChips = ["🏃 러닝", "🚴 자전거", "🏊 수영", "⛰️ �
 const signupStepGuide: Record<SignupStepLabel, { desc: string; optional?: boolean }> = {
   시작: { desc: "지금 보고 있는 안내예요" },
   로그인: { desc: "카카오·구글 계정으로 1초면 끝나요" },
-  "기본 정보": { desc: "이름·성별·생일만요" },
-  "러닝 프로필": { desc: "가까운 역·평균 거리 — 건너뛰어도 돼요", optional: true },
+  "기본 정보": { desc: "연락처·이름·성별·생일이면 돼요" },
+  "러닝 프로필": { desc: "가까운 역·거리·페이스 — 건너뛰어도 돼요", optional: true },
   "가입 목적": { desc: "어떻게 알게 됐는지, 왜 왔는지 골라요" },
   "참석 약속": { desc: "첫 모임 하나 고르기 — 나중에 해도 돼요" },
 };
@@ -178,16 +178,7 @@ export default function NewbiePage() {
           })}
         </CardItem>
 
-        {/* 3. 준비물 */}
-        <CardItem className="mt-4 flex items-center gap-3 bg-secondary/40 p-4">
-          <Check className="size-5 shrink-0 text-success" />
-          <Body className="text-muted-foreground">
-            <span className="font-semibold text-foreground">연락처</span>만
-            있으면 바로 시작할 수 있어요.
-          </Body>
-        </CardItem>
-
-        {/* 4. 활동 소개 */}
+        {/* 3. 활동 소개 — 예전 "연락처만 있으면" 카드는 기본 정보 단계 설명과 같은 말이라 걷어냈다 */}
         <section className="mt-8">
           <H2 className="text-base">이런 활동을 해요</H2>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -202,7 +193,7 @@ export default function NewbiePage() {
           </div>
         </section>
 
-        {/* 5. 더 알아보기 (기존 정보 보존) */}
+        {/* 4. 더 알아보기 (기존 정보 보존) */}
         <section className="mt-8">
           <Caption className="font-semibold text-foreground">
             ▸ 기강이 더 궁금하다면
@@ -341,7 +332,7 @@ export default function NewbiePage() {
           </div>
         </section>
 
-        {/* 6. 하단 고정 CTA */}
+        {/* 5. 하단 고정 CTA */}
         <div className="app-fixed fixed inset-x-0 bottom-0 z-50 bg-gradient-to-t from-background via-background/90 to-transparent px-4 pb-4 pt-6">
           <div className="mx-auto max-w-md">
             <div className="grid grid-cols-2 gap-2.5">
