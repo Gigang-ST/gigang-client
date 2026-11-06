@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 
 import Link from "next/link";
 
+import { HeaderSlogan } from "@/components/home/header-slogan";
+
 /** 헤더 중앙 롤링에 표시할 참석 예정 모임 (라벨은 서버에서 계산해 전달) */
 export type HeaderUpcoming = {
   /** 모임 상세 딥링크 (/schedule?gthr=gthr_id — uuid를 넘겨야 병렬 1 RTT 패스트패스를 탄다) */
@@ -18,19 +20,6 @@ export type HeaderUpcoming = {
 // 칩을 먼저 4초 보여주고 슬로건 8초 → 반복 (슬로건이 기본 상태, 칩은 리마인드)
 const CHIP_MS = 4000;
 const SLOGAN_MS = 8000;
-
-function Slogan() {
-  return (
-    <>
-      <p className="font-sans text-[6px] uppercase tracking-[0.15em] text-muted-foreground">
-        Since 2024.04.23
-      </p>
-      <p className="font-sans text-[13px] font-black italic uppercase leading-tight tracking-[-0.03em] text-foreground">
-        No time to be weak
-      </p>
-    </>
-  );
-}
 
 type Face = "chip" | "slogan";
 
@@ -69,7 +58,7 @@ export function HeaderTicker({ upcoming }: { upcoming: HeaderUpcoming | null }) 
       // inset-0 + items-center로 부모(h-8) 안에서 세로 가운데. left-0 right-0만 주면
       // 세로가 top:0에 붙어, 로딩 스켈레톤(가운데 정렬)에서 넘어올 때 슬로건이 위로 튄다.
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-        <Slogan />
+        <HeaderSlogan />
       </div>
     );
   }
@@ -85,7 +74,7 @@ export function HeaderTicker({ upcoming }: { upcoming: HeaderUpcoming | null }) 
     <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
       <div className="relative h-8 w-56">
         <div className={`absolute inset-0 flex flex-col items-center justify-center ${faceClass("slogan")}`}>
-          <Slogan />
+          <HeaderSlogan />
         </div>
         <div className={`absolute inset-0 flex items-center justify-center ${faceClass("chip")}`}>
           <Link
