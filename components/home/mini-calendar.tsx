@@ -1458,9 +1458,9 @@ export function MiniCalendar({
                                 : lane.race.type === "schedule"
                                   ? "bg-info/15 text-info"
                                   : lane.race.type === "gathering_mine"
-                                    ? "bg-violet-500/60 text-white"
+                                    ? "bg-gathering/60 text-white"
                                     : lane.race.type === "gathering"
-                                      ? "bg-violet-500/20 text-violet-600"
+                                      ? "bg-gathering/20 text-gathering"
                                       : "bg-warning/15 text-warning",
                             )}
                           >
@@ -1524,7 +1524,7 @@ export function MiniCalendar({
                             "w-0.5 shrink-0 self-stretch rounded-full",
                             isPersonal ? "bg-personal"
                               : race.type === "schedule" ? "bg-info"
-                              : isGathering ? "bg-violet-500"
+                              : isGathering ? "bg-gathering"
                               : "bg-warning",
                           )}
                         />
@@ -1537,7 +1537,7 @@ export function MiniCalendar({
                               )}
                             </span>
                             {isGathering && (race.post_type === "regular" || race.post_type === "event") && (
-                              <span className="shrink-0 rounded-full border border-violet-500/40 bg-violet-500/10 px-1.5 py-px text-[9px] font-medium leading-tight text-violet-400">
+                              <span className="shrink-0 rounded-full border border-gathering/40 bg-gathering/10 px-1.5 py-px text-[9px] font-medium leading-tight text-gathering">
                                 {race.post_type === "regular" ? "정기" : "이벤트"}
                               </span>
                             )}
@@ -1614,7 +1614,7 @@ export function MiniCalendar({
                               "shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-medium",
                               isGatheringMine
                                 ? "border-success/40 bg-success/10 text-success"
-                                : "border-violet-500/40 bg-violet-500/10 text-violet-400",
+                                : "border-gathering/40 bg-gathering/10 text-gathering",
                             )}
                           >
                             {isGatheringMine ? "참석" : "모임"}

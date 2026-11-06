@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Check } from "lucide-react";
+import { Check, ClipboardList, Lightbulb, ScrollText, ShieldCheck, type LucideIcon } from "lucide-react";
 
 import { SignupProgress } from "@/components/auth/signup-progress";
 import { H1, H2, Body, Caption } from "@/components/common/typography";
@@ -12,10 +12,10 @@ import { CardItem } from "@/components/ui/card";
 
 const announcements = {
   title: "신입회원 안내말씀",
-  icon: "📋",
+  icon: ClipboardList,
   sections: [
     {
-      heading: "📅 정기 러닝",
+      heading: "정기 러닝",
       items: [
         "격주 수요일 저녁 7:30 PM",
         "장소: 양재천·한강·여의도·남산 일대 (사전 공지)",
@@ -23,7 +23,7 @@ const announcements = {
       ],
     },
     {
-      heading: "🙏 요청사항",
+      heading: "요청사항",
       items: [
         "카카오톡 오픈채팅 참여 필수",
         "정기 러닝 참석 시 카톡에 미리 표시",
@@ -76,14 +76,7 @@ const runTypes = [
 ];
 
 /** 활동 칩 — 색상 토큰만 사용 */
-const activityChips = [
-  "🏃 러닝",
-  "🚴 자전거",
-  "🏊 수영",
-  "⛰️ 등산",
-  "🏅 대회",
-  "🎉 외 활동 다수",
-];
+const activityChips = ["🏃 러닝", "🚴 자전거", "🏊 수영", "⛰️ 등산", "🏅 대회", "🎉 외 활동 다수"];
 
 /** 가입 흐름 미리보기 — 필수 3 + 선택/약속 단계까지 실제 흐름 그대로 */
 const signupSteps = [
@@ -96,20 +89,21 @@ const signupSteps = [
 /* ─── 토글 컴포넌트 ─── */
 
 function Toggle({
-  icon,
+  icon: Icon,
   title,
   children,
 }: {
-  icon: string;
+  icon: LucideIcon;
   title: string;
   children: React.ReactNode;
 }) {
   return (
     <details className="overflow-hidden rounded-xl border-[1.5px] border-border">
       <summary className="flex cursor-pointer items-center justify-between bg-secondary/50 px-4 py-3.5 [&::-webkit-details-marker]:hidden">
-        <Body className="font-bold">
-          {icon} {title}
-        </Body>
+        <span className="flex items-center gap-2">
+          <Icon className="size-4 shrink-0 text-primary" strokeWidth={2} />
+          <Body className="font-bold">{title}</Body>
+        </span>
         <Caption className="transition-transform [[open]>&]:rotate-180">
           ▼
         </Caption>
@@ -167,7 +161,7 @@ export default function NewbiePage() {
 
         {/* 4. 활동 소개 */}
         <section className="mt-8">
-          <H2 className="text-base">✨ 이런 활동을 해요</H2>
+          <H2 className="text-base">이런 활동을 해요</H2>
           <div className="mt-3 flex flex-wrap gap-2">
             {activityChips.map((c) => (
               <span
@@ -202,7 +196,7 @@ export default function NewbiePage() {
               <Caption className="mt-2 block">{announcements.footer}</Caption>
             </Toggle>
 
-            <Toggle icon="📜" title="회칙">
+            <Toggle icon={ScrollText} title="회칙">
               <ul className="space-y-1.5 text-[13px] text-muted-foreground">
                 {rules.map((r) => (
                   <li key={r.label}>
@@ -213,7 +207,7 @@ export default function NewbiePage() {
               </ul>
             </Toggle>
 
-            <Toggle icon="🦺" title="러닝크루 안전수칙">
+            <Toggle icon={ShieldCheck} title="러닝크루 안전수칙">
               <ul className="space-y-1.5 text-[13px] text-muted-foreground">
                 {safetyRules.map((r) => (
                   <li key={r.label}>
@@ -225,16 +219,16 @@ export default function NewbiePage() {
                   <span className="font-bold text-foreground">필수 준비물</span>{" "}
                   — 일정에 따라 꼭 챙겨주세요.
                   <br />
-                  <span className="ml-3">🚴 자전거 → 헬멧</span>
+                  <span className="ml-3">자전거 → 헬멧</span>
                   <br />
-                  <span className="ml-3">🌙 야간 등산 → 랜턴, 등산화 등</span>
+                  <span className="ml-3">야간 등산 → 랜턴, 등산화 등</span>
                 </li>
               </ul>
             </Toggle>
 
-            <Toggle icon="💡" title="러닝팁 (등급·페이스·러닝화)">
+            <Toggle icon={Lightbulb} title="러닝팁 (등급·페이스·러닝화)">
               <Body className="mb-1.5 block text-[13px] font-bold">
-                🏅 등급표
+                등급표
               </Body>
               <table className="mb-4 w-full border-collapse text-[11px]">
                 <thead>
@@ -261,7 +255,7 @@ export default function NewbiePage() {
                 </tbody>
               </table>
               <Body className="mb-1.5 block text-[13px] font-bold">
-                🏃 러닝의 종류
+                러닝의 종류
               </Body>
               <ul className="list-disc space-y-1 pl-4 text-[13px] text-muted-foreground">
                 {runTypes.map((t) => (
@@ -273,7 +267,7 @@ export default function NewbiePage() {
               </ul>
 
               <Body className="mb-1.5 mt-4 block text-[13px] font-bold">
-                ❤️ 심박수 &amp; 페이스
+                심박수 &amp; 페이스
               </Body>
               <p className="mb-4 text-[13px] leading-relaxed text-muted-foreground">
                 심박수는 운동 강도의 지표입니다.
@@ -287,7 +281,7 @@ export default function NewbiePage() {
               </p>
 
               <Body className="mb-1.5 block text-[13px] font-bold">
-                🎯 난이도 설정 방법
+                난이도 설정 방법
               </Body>
               <p className="mb-4 text-[13px] leading-relaxed text-muted-foreground">
                 대화가 가능하면 →{" "}
@@ -304,7 +298,7 @@ export default function NewbiePage() {
               </p>
 
               <Body className="mb-1.5 block text-[13px] font-bold">
-                👟 러닝화
+                러닝화
               </Body>
               <p className="text-[13px] leading-relaxed text-muted-foreground">
                 입문자에게는 쿠셔닝이 충분한 데일리 러닝화를 추천합니다.

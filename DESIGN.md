@@ -24,6 +24,11 @@
 | `--info` | 예정, 안내 (파란) |
 | `--destructive` | DNF, 오류 (빨강) |
 | `--personal` | 개인 일정 — 본인만 보는 일정 (시안) |
+| `--gathering` | 모임 (보라) — 일정 탭의 모임 바·칩·종류 배지 |
+
+`--gathering`은 원래 토큰이 없어 화면마다 `violet-400`~`800` 리터럴이 제각각 박혀 있었다. 그 탓에 라이트에선
+연보라 글씨(`violet-400`)가 흰 지면에 묻히고, 모임 상세 배지는 다크에서 흰 판(`violet-50`)으로 떴다. **모임 색은
+이 토큰으로만 칠한다.**
 
 `--personal`은 일정 탭의 **네 번째 종류색**이다(대회 주황 · 정보 파랑 · 모임 보라 · 개인 시안). 색상환에서 비어 있던 자리를 골랐고, 참석 배지(`--success` 초록)와 같은 계열이라 "내 것"으로 읽힌다. 처음엔 무채색(회색)이었는데 다른 종류들 사이에서 꺼진 칸처럼 보인다는 피드백으로 바꿨다. 남은 다른 빈자리인 분홍은 일요일·오류 빨강과 붙어 경고로 읽힐 수 있어 고르지 않았다. 처음 고른 청록(190°, 채도 0.11)은 진한 바에서 이끼색으로 탁해져, 파랑 쪽으로 돌리고(215°) 채도를 올린 시안으로 바꿨다 — 정보(260°)와는 45° 떨어져 구분된다.
 
@@ -103,6 +108,11 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 | `<Caption>` | `span` | 13px | text-muted-foreground | 서브 정보, 필터 |
 | `<Micro>` | `span` | 11px | text-muted-foreground | 배지, 날짜 세부 |
 | `<SectionLabel>` | `span` | 12px semibold tracking-widest | text-muted-foreground | 영문 섹션 라벨 |
+
+**한글 줄바꿈은 어절 단위가 앱 기본값이다**(`body`에 `word-break: keep-all` + `overflow-wrap: break-word`).
+브라우저 기본은 글자 단위라 "건너뛰어도 돼 / 요."처럼 단어 한가운데서 끊긴다. 예전엔 화면마다 `break-keep`을
+따로 붙여서 오래된 화면만 끊겼다 — 이제 새 화면에 붙일 필요 없다. 한 어절이 칸보다 길면(URL·긴 영문)
+`break-word`가 그때만 잘라 칸을 뚫고 나가지 않는다.
 
 모든 타이포그래피 컴포넌트는 `className` prop으로 스타일 오버라이드 가능:
 

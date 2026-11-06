@@ -283,12 +283,12 @@ function GatheringItem({ race, onClick }: { race: CalendarRace; onClick: () => v
       onClick={onClick}
       className="flex w-full items-stretch gap-2.5 rounded-lg px-2 py-0.5 text-left transition-all active:scale-[0.98] active:bg-secondary hover:bg-secondary/60"
     >
-      <span className="w-0.5 shrink-0 rounded-full bg-violet-500" />
+      <span className="w-0.5 shrink-0 rounded-full bg-gathering" />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="flex min-w-0 items-center gap-1.5">
           <Caption className="truncate font-medium text-foreground">{race.title}</Caption>
           {(race.post_type === "regular" || race.post_type === "event") && (
-            <span className="shrink-0 rounded-full border border-violet-500/40 bg-violet-500/10 px-1.5 py-px text-[9px] font-medium leading-tight text-violet-400">
+            <span className="shrink-0 rounded-full border border-gathering/40 bg-gathering/10 px-1.5 py-px text-[9px] font-medium leading-tight text-gathering">
               {race.post_type === "regular" ? "정기" : "이벤트"}
             </span>
           )}
@@ -326,7 +326,7 @@ function GatheringItem({ race, onClick }: { race: CalendarRace; onClick: () => v
             "shrink-0 rounded-md border px-2.5 py-1 text-[11px] font-medium",
             isMine
               ? "border-success/40 bg-success/10 text-success"
-              : "border-violet-500/40 bg-violet-500/10 text-violet-400",
+              : "border-gathering/40 bg-gathering/10 text-gathering",
           )}
         >
           {isMine ? "참석" : "모임"}
