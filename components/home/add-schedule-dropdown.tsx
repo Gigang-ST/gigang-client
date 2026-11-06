@@ -36,7 +36,7 @@ const items = [
     label: "모임",
     sub: "일반, 정기런, 이벤트",
     icon: Users,
-    color: "text-violet-400",
+    color: "text-gathering",
     disabled: false,
   },
   {

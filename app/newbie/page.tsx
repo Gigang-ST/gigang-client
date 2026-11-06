@@ -1,21 +1,26 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Check } from "lucide-react";
+import { ClipboardList, Lightbulb, ScrollText, ShieldCheck, type LucideIcon } from "lucide-react";
 
-import { SignupProgress } from "@/components/auth/signup-progress";
+import {
+  SIGNUP_STEP_LABELS,
+  SignupProgress,
+  type SignupStepLabel,
+} from "@/components/auth/signup-progress";
 import { H1, H2, Body, Caption } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 /* ─── 토글 섹션 데이터 ─── */
 
 const announcements = {
   title: "신입회원 안내말씀",
-  icon: "📋",
+  icon: ClipboardList,
   sections: [
     {
-      heading: "📅 정기 러닝",
+      heading: "정기 러닝",
       items: [
         "격주 수요일 저녁 7:30 PM",
         "장소: 양재천·한강·여의도·남산 일대 (사전 공지)",
@@ -23,7 +28,7 @@ const announcements = {
       ],
     },
     {
-      heading: "🙏 요청사항",
+      heading: "요청사항",
       items: [
         "카카오톡 오픈채팅 참여 필수",
         "정기 러닝 참석 시 카톡에 미리 표시",
@@ -76,40 +81,42 @@ const runTypes = [
 ];
 
 /** 활동 칩 — 색상 토큰만 사용 */
-const activityChips = [
-  "🏃 러닝",
-  "🚴 자전거",
-  "🏊 수영",
-  "⛰️ 등산",
-  "🏅 대회",
-  "🎉 외 활동 다수",
-];
+const activityChips = ["🏃 러닝", "🚴 자전거", "🏊 수영", "⛰️ 등산", "🏅 대회", "🎉 외 활동 다수"];
 
-/** 가입 흐름 미리보기 — 필수 3 + 선택/약속 단계까지 실제 흐름 그대로 */
-const signupSteps = [
-  { label: "카카오로 로그인", desc: "1초면 끝나요" },
-  { label: "기본 정보 입력", desc: "이름·성별·생일만요" },
-  { label: "러닝 취향 (선택)", desc: "건너뛰어도 돼요" },
-  { label: "첫 모임 약속", desc: "클릭 한 번이면 끝" },
-];
+/**
+ * 가입 흐름 미리보기 — 단계 이름·순서·번호는 상단 진행바와 같은 목록(SIGNUP_STEP_LABELS)에서 온다.
+ * 여기선 설명만 붙인다. Record라서 진행바에 단계가 늘면 설명을 안 채운 채로는 타입 검사가 막는다.
+ * ⚠️ `optional`은 실제 폼과 맞춰야 한다 — 가입 목적은 "알게 된 경로"를 안 고르면 못 넘어가는 필수다.
+ */
+const signupStepGuide: Record<SignupStepLabel, { desc: string; optional?: boolean }> = {
+  시작: { desc: "지금 보고 있는 안내예요" },
+  로그인: { desc: "카카오·구글 계정으로 1초면 끝나요" },
+  "기본 정보": { desc: "연락처·이름·성별·생일이면 돼요" },
+  "러닝 프로필": { desc: "가까운 역·거리·페이스 — 건너뛰어도 돼요", optional: true },
+  "가입 목적": { desc: "어떻게 알게 됐는지, 왜 왔는지 골라요" },
+  "참석 약속": { desc: "첫 참석을 약속해요 — 모임은 나중에 골라도 돼요" },
+};
+
+const signupSteps = SIGNUP_STEP_LABELS.map((label) => ({ label, ...signupStepGuide[label] }));
 
 /* ─── 토글 컴포넌트 ─── */
 
 function Toggle({
-  icon,
+  icon: Icon,
   title,
   children,
 }: {
-  icon: string;
+  icon: LucideIcon;
   title: string;
   children: React.ReactNode;
 }) {
   return (
     <details className="overflow-hidden rounded-xl border-[1.5px] border-border">
       <summary className="flex cursor-pointer items-center justify-between bg-secondary/50 px-4 py-3.5 [&::-webkit-details-marker]:hidden">
-        <Body className="font-bold">
-          {icon} {title}
-        </Body>
+        <span className="flex items-center gap-2">
+          <Icon className="size-4 shrink-0 text-primary" strokeWidth={2} />
+          <Body className="font-bold">{title}</Body>
+        </span>
         <Caption className="transition-transform [[open]>&]:rotate-180">
           ▼
         </Caption>
@@ -137,37 +144,43 @@ export default function NewbiePage() {
           <Caption className="tracking-[3px]">WELCOME TO</Caption>
           <H1 className="mt-2 text-[32px]">기강에 잘 오셨어요 👟</H1>
           <Body className="mt-3 block text-muted-foreground">
-            기본 정보만 넣으면 가입 끝. 러닝 취향은 건너뛰어도 돼요.
+            기본 정보·가입 목적을 답하고 첫 참석을 약속하면 끝. 러닝 프로필은 건너뛰어도 돼요.
           </Body>
         </section>
 
-        {/* 2. 가입 3단계 미리보기 */}
-        <section className="mt-8 flex flex-col gap-2.5">
-          {signupSteps.map((s, i) => (
-            <CardItem key={s.label} className="flex items-center gap-3 p-4">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                {i + 1}
-              </span>
-              <div className="flex flex-col">
-                <Body className="font-semibold">{s.label}</Body>
-                <Caption>{s.desc}</Caption>
+        {/* 2. 가입 단계 미리보기 — 번호가 상단 진행바(1/6)와 같다. 이 페이지가 1번(지금 여기)이다.
+            카드 여섯 장을 쌓으면 무거워 한 장 안의 목록으로 묶는다 */}
+        <CardItem className="mt-8 flex flex-col p-0">
+          {signupSteps.map((s, i) => {
+            const current = i === 0;
+            return (
+              <div
+                key={s.label}
+                className={cn("flex items-center gap-3 px-4 py-3", i > 0 && "border-t border-border")}
+              >
+                <span
+                  className={cn(
+                    "flex size-7 shrink-0 items-center justify-center rounded-full text-sm font-bold",
+                    current ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary",
+                  )}
+                >
+                  {i + 1}
+                </span>
+                <div className="flex flex-col">
+                  <Body className="font-semibold">
+                    {s.label}
+                    {s.optional && <span className="font-normal text-muted-foreground"> (선택)</span>}
+                  </Body>
+                  <Caption>{s.desc}</Caption>
+                </div>
               </div>
-            </CardItem>
-          ))}
-        </section>
-
-        {/* 3. 준비물 */}
-        <CardItem className="mt-4 flex items-center gap-3 bg-secondary/40 p-4">
-          <Check className="size-5 shrink-0 text-success" />
-          <Body className="text-muted-foreground">
-            <span className="font-semibold text-foreground">연락처</span>만
-            있으면 바로 시작할 수 있어요.
-          </Body>
+            );
+          })}
         </CardItem>
 
-        {/* 4. 활동 소개 */}
+        {/* 3. 활동 소개 — 예전 "연락처만 있으면" 카드는 기본 정보 단계 설명과 같은 말이라 걷어냈다 */}
         <section className="mt-8">
-          <H2 className="text-base">✨ 이런 활동을 해요</H2>
+          <H2 className="text-base">이런 활동을 해요</H2>
           <div className="mt-3 flex flex-wrap gap-2">
             {activityChips.map((c) => (
               <span
@@ -180,7 +193,7 @@ export default function NewbiePage() {
           </div>
         </section>
 
-        {/* 5. 더 알아보기 (기존 정보 보존) */}
+        {/* 4. 더 알아보기 (기존 정보 보존) */}
         <section className="mt-8">
           <Caption className="font-semibold text-foreground">
             ▸ 기강이 더 궁금하다면
@@ -202,7 +215,7 @@ export default function NewbiePage() {
               <Caption className="mt-2 block">{announcements.footer}</Caption>
             </Toggle>
 
-            <Toggle icon="📜" title="회칙">
+            <Toggle icon={ScrollText} title="회칙">
               <ul className="space-y-1.5 text-[13px] text-muted-foreground">
                 {rules.map((r) => (
                   <li key={r.label}>
@@ -213,7 +226,7 @@ export default function NewbiePage() {
               </ul>
             </Toggle>
 
-            <Toggle icon="🦺" title="러닝크루 안전수칙">
+            <Toggle icon={ShieldCheck} title="러닝크루 안전수칙">
               <ul className="space-y-1.5 text-[13px] text-muted-foreground">
                 {safetyRules.map((r) => (
                   <li key={r.label}>
@@ -225,16 +238,16 @@ export default function NewbiePage() {
                   <span className="font-bold text-foreground">필수 준비물</span>{" "}
                   — 일정에 따라 꼭 챙겨주세요.
                   <br />
-                  <span className="ml-3">🚴 자전거 → 헬멧</span>
+                  <span className="ml-3">자전거 → 헬멧</span>
                   <br />
-                  <span className="ml-3">🌙 야간 등산 → 랜턴, 등산화 등</span>
+                  <span className="ml-3">야간 등산 → 랜턴, 등산화 등</span>
                 </li>
               </ul>
             </Toggle>
 
-            <Toggle icon="💡" title="러닝팁 (등급·페이스·러닝화)">
+            <Toggle icon={Lightbulb} title="러닝팁 (등급·페이스·러닝화)">
               <Body className="mb-1.5 block text-[13px] font-bold">
-                🏅 등급표
+                등급표
               </Body>
               <table className="mb-4 w-full border-collapse text-[11px]">
                 <thead>
@@ -261,7 +274,7 @@ export default function NewbiePage() {
                 </tbody>
               </table>
               <Body className="mb-1.5 block text-[13px] font-bold">
-                🏃 러닝의 종류
+                러닝의 종류
               </Body>
               <ul className="list-disc space-y-1 pl-4 text-[13px] text-muted-foreground">
                 {runTypes.map((t) => (
@@ -273,7 +286,7 @@ export default function NewbiePage() {
               </ul>
 
               <Body className="mb-1.5 mt-4 block text-[13px] font-bold">
-                ❤️ 심박수 &amp; 페이스
+                심박수 &amp; 페이스
               </Body>
               <p className="mb-4 text-[13px] leading-relaxed text-muted-foreground">
                 심박수는 운동 강도의 지표입니다.
@@ -287,7 +300,7 @@ export default function NewbiePage() {
               </p>
 
               <Body className="mb-1.5 block text-[13px] font-bold">
-                🎯 난이도 설정 방법
+                난이도 설정 방법
               </Body>
               <p className="mb-4 text-[13px] leading-relaxed text-muted-foreground">
                 대화가 가능하면 →{" "}
@@ -304,7 +317,7 @@ export default function NewbiePage() {
               </p>
 
               <Body className="mb-1.5 block text-[13px] font-bold">
-                👟 러닝화
+                러닝화
               </Body>
               <p className="text-[13px] leading-relaxed text-muted-foreground">
                 입문자에게는 쿠셔닝이 충분한 데일리 러닝화를 추천합니다.
@@ -319,7 +332,7 @@ export default function NewbiePage() {
           </div>
         </section>
 
-        {/* 6. 하단 고정 CTA */}
+        {/* 5. 하단 고정 CTA */}
         <div className="app-fixed fixed inset-x-0 bottom-0 z-50 bg-gradient-to-t from-background via-background/90 to-transparent px-4 pb-4 pt-6">
           <div className="mx-auto max-w-md">
             <div className="grid grid-cols-2 gap-2.5">

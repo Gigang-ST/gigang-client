@@ -52,6 +52,8 @@
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
   --color-personal: var(--personal);
+  --color-gathering: var(--gathering);
+  --color-gathering-ink: var(--gathering-ink);
 
   /* 종목별 색상 (Sport) — chart-* 의 시맨틱 토큰 */
   --color-sport-road-run: var(--sport-road-run);
@@ -118,6 +120,12 @@
      "내 것"으로 읽히고, 대회(주황)·정보(파랑, 45° 떨어짐)·모임(보라) 어느 것과도 겹치지 않는다.
      채도를 낮춘 초록빛 청록(190°, 0.11)은 진한 바에서 이끼색으로 탁해져 버렸다 */
   --personal: oklch(0.68 0.14 215);
+  /* 모임 — 보라. 예전엔 화면마다 violet-400~800 리터럴이 제각각 박혀 있어 라이트에선 연보라 글씨가
+     흰 지면에 묻히고(violet-400, 대비 2.7:1), 모임 상세 배지는 다크에서 흰 판(violet-50)으로 떴다 */
+  --gathering: oklch(0.606 0.25 293);
+  /* 모임 색 틴트(bg-gathering/10·/20) 위 글자 — --gathering 그대로면 대비 3.4~3.9:1로 작은 글자가 흐리다.
+     한 단계 진하게 내려 5.2~6.8:1. 다크는 원래 색으로 충분하다(5.3~6.9:1) */
+  --gathering-ink: oklch(0.5 0.24 293);
 
   /* 종목별 색상 (= 차트 색상의 시맨틱 이름) */
   --sport-road-run: oklch(0.655 0.162 32);
@@ -188,6 +196,8 @@
   --info: oklch(0.7 0.188 260);
   --info-foreground: oklch(1 0 0);
   --personal: oklch(0.75 0.13 215);
+  --gathering: oklch(0.7 0.18 293);
+  --gathering-ink: oklch(0.7 0.18 293);
 
   /* 종목별 색상 */
   --sport-road-run: oklch(0.72 0.162 32);
@@ -1342,6 +1352,11 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* 한글은 기본이 글자 단위 줄바꿈이라 "돼 / 요."처럼 단어 한가운데서 끊긴다 — 띄어쓰기 단위로만 끊는다.
+       그 대신 한 어절이 줄 폭보다 길면(URL·긴 영문) 칸을 뚫고 나가므로, 그때만 어디서든 자르게 break-word를 함께 둔다.
+       anywhere가 아니라 break-word인 이유: anywhere는 flex·표의 최소 폭 계산까지 바꿔 칸이 찌그러진다 */
+    word-break: keep-all;
+    overflow-wrap: break-word;
   }
 
   /* Safari date input 정규화 */

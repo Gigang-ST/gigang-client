@@ -15,6 +15,7 @@ import { getRequestTeamContext } from "@/lib/queries/request-team";
 
 import { HeaderActions } from "@/components/common/header-actions";
 import { PageHeader } from "@/components/common/page-header";
+import { HeaderSlogan } from "@/components/home/header-slogan";
 import { HeaderTicker, type HeaderUpcoming } from "@/components/home/header-ticker";
 import { MiniCalendar } from "@/components/home/mini-calendar";
 import type { CalendarRace } from "@/components/home/mini-calendar";
@@ -235,12 +236,7 @@ function HomeHeaderSkeleton() {
       }
       center={
         <div className="flex h-8 flex-col items-center justify-center">
-          <p className="font-sans text-[length:var(--text-slogan-eyebrow)] uppercase tracking-[var(--tracking-slogan-eyebrow)] text-muted-foreground">
-            Since 2024.04.23
-          </p>
-          <p className="font-sans text-[length:var(--text-label)] font-black italic uppercase leading-tight tracking-[var(--tracking-slogan)] text-foreground">
-            No time to be weak
-          </p>
+          <HeaderSlogan />
         </div>
       }
     />

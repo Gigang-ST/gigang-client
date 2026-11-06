@@ -2,8 +2,12 @@ import { cn } from "@/lib/utils";
 
 import { Caption } from "@/components/common/typography";
 
-const TOTAL_STEPS = 6;
-const STEP_LABELS = [
+/**
+ * 가입 단계 이름 — 진행바와 newbie 페이지의 단계 미리보기가 **같은 목록**을 본다.
+ * 예전엔 두 곳이 각자 들고 있어 진행바는 6단계, 미리보기는 4단계로 갈렸다(필수인 가입 목적이
+ * "선택"으로 묶여 안내되기까지 했다). 단계를 바꾸면 여기 하나만 고친다.
+ */
+export const SIGNUP_STEP_LABELS = [
   "시작",
   "로그인",
   "기본 정보",
@@ -11,6 +15,10 @@ const STEP_LABELS = [
   "가입 목적",
   "참석 약속",
 ] as const;
+export type SignupStepLabel = (typeof SIGNUP_STEP_LABELS)[number];
+
+const STEP_LABELS = SIGNUP_STEP_LABELS;
+const TOTAL_STEPS = STEP_LABELS.length;
 
 type SignupProgressProps = {
   /** 현재 단계 (1=시작, 2=로그인, 3=기본 정보, 4=러닝 프로필, 5=가입 목적, 6=참석 약속) */
