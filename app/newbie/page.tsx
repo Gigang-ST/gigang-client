@@ -3,10 +3,15 @@ import Link from "next/link";
 
 import { Check, ClipboardList, Lightbulb, ScrollText, ShieldCheck, type LucideIcon } from "lucide-react";
 
-import { SignupProgress } from "@/components/auth/signup-progress";
+import {
+  SIGNUP_STEP_LABELS,
+  SignupProgress,
+  type SignupStepLabel,
+} from "@/components/auth/signup-progress";
 import { H1, H2, Body, Caption } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 /* ─── 토글 섹션 데이터 ─── */
 
@@ -78,13 +83,21 @@ const runTypes = [
 /** 활동 칩 — 색상 토큰만 사용 */
 const activityChips = ["🏃 러닝", "🚴 자전거", "🏊 수영", "⛰️ 등산", "🏅 대회", "🎉 외 활동 다수"];
 
-/** 가입 흐름 미리보기 — 필수 3 + 선택/약속 단계까지 실제 흐름 그대로 */
-const signupSteps = [
-  { label: "카카오로 로그인", desc: "1초면 끝나요" },
-  { label: "기본 정보 입력", desc: "이름·성별·생일만요" },
-  { label: "러닝 취향 (선택)", desc: "건너뛰어도 돼요" },
-  { label: "첫 모임 약속", desc: "클릭 한 번이면 끝" },
-];
+/**
+ * 가입 흐름 미리보기 — 단계 이름·순서·번호는 상단 진행바와 같은 목록(SIGNUP_STEP_LABELS)에서 온다.
+ * 여기선 설명만 붙인다. Record라서 진행바에 단계가 늘면 설명을 안 채운 채로는 타입 검사가 막는다.
+ * ⚠️ `optional`은 실제 폼과 맞춰야 한다 — 가입 목적은 "알게 된 경로"를 안 고르면 못 넘어가는 필수다.
+ */
+const signupStepGuide: Record<SignupStepLabel, { desc: string; optional?: boolean }> = {
+  시작: { desc: "지금 보고 있는 안내예요" },
+  로그인: { desc: "카카오·구글 계정으로 1초면 끝나요" },
+  "기본 정보": { desc: "이름·성별·생일만요" },
+  "러닝 프로필": { desc: "가까운 역·평균 거리 — 건너뛰어도 돼요", optional: true },
+  "가입 목적": { desc: "어떻게 알게 됐는지, 왜 왔는지 골라요" },
+  "참석 약속": { desc: "첫 모임 하나 고르기 — 나중에 해도 돼요" },
+};
+
+const signupSteps = SIGNUP_STEP_LABELS.map((label) => ({ label, ...signupStepGuide[label] }));
 
 /* ─── 토글 컴포넌트 ─── */
 
@@ -131,24 +144,39 @@ export default function NewbiePage() {
           <Caption className="tracking-[3px]">WELCOME TO</Caption>
           <H1 className="mt-2 text-[32px]">기강에 잘 오셨어요 👟</H1>
           <Body className="mt-3 block text-muted-foreground">
-            기본 정보만 넣으면 가입 끝. 러닝 취향은 건너뛰어도 돼요.
+            기본 정보와 가입 목적만 답하면 끝. 러닝 프로필은 건너뛰어도 돼요.
           </Body>
         </section>
 
-        {/* 2. 가입 3단계 미리보기 */}
-        <section className="mt-8 flex flex-col gap-2.5">
-          {signupSteps.map((s, i) => (
-            <CardItem key={s.label} className="flex items-center gap-3 p-4">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                {i + 1}
-              </span>
-              <div className="flex flex-col">
-                <Body className="font-semibold">{s.label}</Body>
-                <Caption>{s.desc}</Caption>
+        {/* 2. 가입 단계 미리보기 — 번호가 상단 진행바(1/6)와 같다. 이 페이지가 1번(지금 여기)이다.
+            카드 여섯 장을 쌓으면 무거워 한 장 안의 목록으로 묶는다 */}
+        <CardItem className="mt-8 flex flex-col p-0">
+          {signupSteps.map((s, i) => {
+            const current = i === 0;
+            return (
+              <div
+                key={s.label}
+                className={cn("flex items-center gap-3 px-4 py-3", i > 0 && "border-t border-border")}
+              >
+                <span
+                  className={cn(
+                    "flex size-7 shrink-0 items-center justify-center rounded-full text-sm font-bold",
+                    current ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary",
+                  )}
+                >
+                  {i + 1}
+                </span>
+                <div className="flex flex-col">
+                  <Body className="font-semibold">
+                    {s.label}
+                    {s.optional && <span className="font-normal text-muted-foreground"> (선택)</span>}
+                  </Body>
+                  <Caption>{s.desc}</Caption>
+                </div>
               </div>
-            </CardItem>
-          ))}
-        </section>
+            );
+          })}
+        </CardItem>
 
         {/* 3. 준비물 */}
         <CardItem className="mt-4 flex items-center gap-3 bg-secondary/40 p-4">
