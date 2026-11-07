@@ -11,6 +11,7 @@ import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
 
 import { resolveOperator, type OperatorContext } from "@/lib/mcp/auth";
 import { createGatheringViaMcp } from "@/lib/mcp/create-gathering";
+import { createSchPostViaMcp } from "@/lib/mcp/create-sch-post";
 import {
   MAX_BATCH_ACTIVITIES,
   deleteMyActivity,
@@ -35,6 +36,7 @@ import { sendPush } from "@/lib/mcp/send-push";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 import { GTHR_SPRT_TYPES, GTHR_TYPES } from "@/lib/validations/gathering";
+import { SCH_POST_TYPES } from "@/lib/validations/schedule";
 
 /** MCP 도구 응답 도우미 — 사실 payload를 text JSON 으로 감싼다. */
 function textResult(payload: unknown) {
@@ -129,7 +131,9 @@ async function runTool<T>(
  *   **쿼리·발송 함수 안**에 있다(호출부가 늘어도 새지 않게).
  *
  * 도구는 두 갈래다:
- *   - **팀을 들여다보는 것**(운영진 용도) — 조회 6종 + 쓰기 2종(`send_push`·`create_gathering`).
+ *   - **팀을 들여다보는 것**(운영진 용도) — 조회 6종 + 쓰기 3종(`send_push`·`create_gathering`
+ *     ·`create_sch_post`). `create_sch_post` 만 admin 이 아니다 — 앱에서 소식은 활성 멤버 누구나
+ *     올리므로(#630) 그 범위를 그대로 따른다.
  *   - **내 것**(마일리지런 개인 도구 7종, #497) — 대상 멤버를 인자로 받지 않고 `ctx.mem_id` 로만
  *     스코프한다. admin 이어도 남의 기록에는 손대지 못한다.
  */
@@ -286,7 +290,8 @@ const handler = createMcpHandler(
         runTool(extra, (ctx, supabase) => listPushStatus(supabase, ctx.team_id)),
     );
 
-    // ── write 도구 2개. 모두 admin 전용 · ctx.team_id 스코프 · 감사 로그 필수. ──
+    // ── write 도구 3개. 모두 ctx.team_id 스코프 · 감사 로그 필수.
+    //    send_push·create_gathering 은 admin 전용, create_sch_post 는 앱과 같게 활성 멤버(#630). ──
 
     server.registerTool(
       "send_push",
@@ -345,6 +350,41 @@ const handler = createMcpHandler(
           // 최대 1시간 안 보인다(앱 생성 경로와 같은 함정, KNOWLEDGE.md).
           // 무효화는 **경로 계층인 여기** 몫이다: lib/mcp 의 도메인 코어는 next/* 를 모른다.
           // 라우트 핸들러라 `updateTag`(서버 액션 전용)는 throw 하므로 revalidateTag 를 쓴다.
+          if (!args.dry_run) revalidateTag(HOME_CALENDAR_CACHE_TAG, "max");
+          return result;
+        }),
+    );
+
+    server.registerTool(
+      "create_sch_post",
+      {
+        title: "일정 소식 등록",
+        description:
+          "우리 팀 일정 탭에 소식(대회 접수 정보·판매·세션·일반)을 올립니다. 앱과 같이 활성 멤버면 누구나 쓸 수 있습니다. " +
+          "일시는 **한국시간(KST) 기준 'YYYY-MM-DD HH:mm'** 으로 주세요(시간대 표기 없이 — 'Z'나 '+09:00'을 붙이면 거부됩니다). " +
+          "올리면 앱에서 올린 것과 똑같이 팀 전원에게 새 정보 알림이 나갑니다 — 되돌리기 어려우니, " +
+          "자연어에서 날짜를 뽑아낸 경우엔 먼저 dry_run=true 로 호출해 해석된 일시·유형을 사용자에게 확인받은 뒤 저장하세요. " +
+          "team_id 와 작성자는 토큰에서 채워집니다.",
+        inputSchema: {
+          sch_nm: z.string().min(1, "제목을 입력하세요.").max(100),
+          post_type: z
+            .enum(SCH_POST_TYPES)
+            .describe("race_entry(대회 접수) | sale(판매) | session(세션) | general(일반)"),
+          evt_stt_at: z.string().min(1, "시작 일시를 입력하세요."),
+          evt_end_at: z.string().nullable().optional(),
+          url: z.string().nullable().optional(),
+          cont_txt: z.string().max(1000).nullable().optional(),
+          dry_run: z
+            .boolean()
+            .optional()
+            .describe("true 면 검증만 하고 저장하지 않습니다(해석된 일시를 확인하는 용도)."),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, async (ctx, supabase) => {
+          const result = await createSchPostViaMcp(supabase, ctx, args, await resolveBaseUrl());
+          // 홈 캘린더 캐시를 턴다(create_gathering 과 같은 이유) — DB 웹훅(`/api/revalidate`)도
+          // sch_post_mst 를 보지만, 도구 응답을 받고 바로 일정 탭을 여는 사람에게 늦지 않게.
           if (!args.dry_run) revalidateTag(HOME_CALENDAR_CACHE_TAG, "max");
           return result;
         }),
