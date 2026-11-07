@@ -18,8 +18,8 @@ importers:
         specifier: ^16.1.6
         version: 16.1.6(next@16.1.6(@babel/core@7.29.0)(@playwright/test@1.58.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)
       '@noti-bot/sdk':
-        specifier: 0.7.0
-        version: 0.7.0
+        specifier: 0.8.0
+        version: 0.8.0
       '@radix-ui/react-dialog':
         specifier: ^1.1.6
         version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -1081,8 +1081,8 @@ packages:
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
 
-  '@noti-bot/sdk@0.7.0':
-    resolution: {integrity: sha512-BYtfTM3YyAIqgX+IIexV05u1X7NDpSwcSOZkxzbm9Iq6NR2/vVzuCutnegfoLeLI0GqhtnkB1E8JXNfuot36cQ==}
+  '@noti-bot/sdk@0.8.0':
+    resolution: {integrity: sha512-aiwV6ALH+S/yAP01g+hJ4V9od47SWzlo7AceYmi+xhgNJXT88JB5aP2KFA9R7n6JO70qPzhn3WwetOT3EbKnfg==}
     engines: {node: '>=20.3'}
 
   '@open-draft/deferred-promise@2.2.0':
@@ -7573,7 +7573,7 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
-  '@noti-bot/sdk@0.7.0': {}
+  '@noti-bot/sdk@0.8.0': {}
 
   '@open-draft/deferred-promise@2.2.0': {}
 
