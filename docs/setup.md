@@ -209,9 +209,17 @@ vercel link
 mise run env:all:pwsh
 ```
 
+## PR 미리보기에서 OAuth 로그인
 
+PR 미리보기(Vercel Preview)에서 카카오·구글로 로그인하면 미리보기로 돌아오지 않고 `https://dev.gigang.team/?code=…`로 떨어진다면 Supabase 허용 목록 문제다.
 
+- **원인**: 앱은 `redirectTo`로 미리보기 자기 주소(`<origin>/auth/callback`)를 넘긴다(`components/auth/login-form.tsx`). Supabase Auth는 이 주소가 **Redirect URLs** 허용 목록에 없으면 **Site URL(dev.gigang.team)로 대체**해 루트에 `?code=`만 붙여 보낸다.
+- **설정 위치**: dev Supabase(`gigang-website-dev`) → **Authentication → URL Configuration → Redirect URLs**
+- **넣는 값**: `https://*-gigangs-projects-afd6ab2d.vercel.app/**` (Supabase 와일드카드 `*`는 `.`을 넘지 않아 이 형태가 맞다)
+- **prod Supabase에는 넣지 않는다.** 미리보기는 dev Supabase를 쓴다.
+- **확인**: 미리보기에서 카카오 로그인 → 미리보기 주소의 `/auth/callback`을 거쳐 원래 화면으로 돌아오면 된다.
 
+> 2026-11-07 적용·확인(이슈 #637). 저장소의 `supabase/config.toml`은 로컬용이라 원격 Redirect URLs는 콘솔에서만 보인다. OAuth 없이 확인만 하려면 [개발 환경 전용 이메일 로그인](./dev-email-login.md)을 쓸 수 있다.
 
 ## 스크립트
 
