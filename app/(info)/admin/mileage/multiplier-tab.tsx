@@ -30,6 +30,20 @@ type Multiplier = {
 
 type Mode = "list" | "create" | "edit";
 
+/** 프로젝트의 배율 목록 조회 — 상태를 만지지 않는 순수 조회 */
+async function fetchMultipliers(evtId: string): Promise<Multiplier[]> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("evt_mlg_mult_cfg")
+    .select(
+      "mult_id, evt_id, mult_nm, mult_val, stt_dt, end_dt, active_yn, created_at",
+    )
+    .eq("evt_id", evtId)
+    .order("created_at", { ascending: false });
+
+  return (data ?? []) as Multiplier[];
+}
+
 export function MultiplierTab({ evtId }: { evtId: string }) {
   const [multipliers, setMultipliers] = useState<Multiplier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,27 +59,36 @@ export function MultiplierTab({ evtId }: { evtId: string }) {
     active_yn: true,
   });
 
+  // 프로젝트가 바뀌면 목록 화면으로 되돌리고 다시 불러온다 — 이펙트 본문에서 setState 하지 않고
+  // 렌더 중에 이전 값과 견줘 맞춘다(React 권장 패턴, 연쇄 렌더 없음)
+  const [loadedEvtId, setLoadedEvtId] = useState(evtId);
+  if (loadedEvtId !== evtId) {
+    setLoadedEvtId(evtId);
+    setMode("list");
+    setSelectedId("");
+    setForm({ mult_nm: "", mult_val: "", stt_dt: "", end_dt: "", active_yn: true });
+    setLoading(true);
+  }
+
+  // 저장·삭제 뒤 다시 불러오기(이벤트 핸들러에서 부른다)
   const loadMultipliers = useCallback(async () => {
     setLoading(true);
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("evt_mlg_mult_cfg")
-      .select(
-        "mult_id, evt_id, mult_nm, mult_val, stt_dt, end_dt, active_yn, created_at",
-      )
-      .eq("evt_id", evtId)
-      .order("created_at", { ascending: false });
-
-    setMultipliers((data ?? []) as Multiplier[]);
+    setMultipliers(await fetchMultipliers(evtId));
     setLoading(false);
   }, [evtId]);
 
   useEffect(() => {
-    setMode("list");
-    setSelectedId("");
-    setForm({ mult_nm: "", mult_val: "", stt_dt: "", end_dt: "", active_yn: true });
-    loadMultipliers();
-  }, [loadMultipliers]);
+    // 늦게 도착한 이전 프로젝트 응답이 새 목록을 덮지 않게 한다
+    let cancelled = false;
+    void fetchMultipliers(evtId).then((rows) => {
+      if (cancelled) return;
+      setMultipliers(rows);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [evtId]);
 
   const openCreate = () => {
     setSelectedId("");

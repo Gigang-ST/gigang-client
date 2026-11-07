@@ -30,38 +30,53 @@ type HistoryRow = {
   };
 };
 
+/** 최근 칭호 획득 이력 조회 — 상태를 만지지 않는 순수 조회 */
+async function fetchHistory(): Promise<HistoryRow[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("mem_ttl_rel")
+    .select(`
+      mem_ttl_id,
+      team_mem_id,
+      grnt_at,
+      grnt_by_mem_id,
+      grnt_rsn_txt,
+      team_mem_rel!inner(mem_mst!inner(mem_nm)),
+      ttl_mst!inner(ttl_nm)
+    `)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .order("grnt_at", { ascending: false })
+    .limit(200);
+
+  if (error) console.error("이력 조회 실패:", error);
+  return (data ?? []) as unknown as HistoryRow[];
+}
+
 export function AdminTitleHistoryClient() {
   const [rows, setRows] = useState<HistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
+  // 회수 뒤 다시 불러오기(이벤트 핸들러에서 부른다)
   const loadHistory = useCallback(async () => {
     setLoading(true);
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("mem_ttl_rel")
-      .select(`
-        mem_ttl_id,
-        team_mem_id,
-        grnt_at,
-        grnt_by_mem_id,
-        grnt_rsn_txt,
-        team_mem_rel!inner(mem_mst!inner(mem_nm)),
-        ttl_mst!inner(ttl_nm)
-      `)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .order("grnt_at", { ascending: false })
-      .limit(200);
-
-    if (error) console.error("이력 조회 실패:", error);
-    setRows((data ?? []) as unknown as HistoryRow[]);
+    setRows(await fetchHistory());
     setLoading(false);
   }, []);
 
+  // 첫 조회 — 응답 콜백에서만 setState 한다(이펙트 본문에서 동기로 부르지 않는다)
   useEffect(() => {
-    void loadHistory();
-  }, [loadHistory]);
+    let cancelled = false;
+    void fetchHistory().then((next) => {
+      if (cancelled) return;
+      setRows(next);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleRevoke = async (memTtlId: string) => {
     if (!confirm("이 멤버의 칭호를 회수하시겠습니까?")) return;
