@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Calendar, ExternalLink, MapPin, Pencil, Share2, Users } from "lucide-react";
 import { useForm } from "react-hook-form";
 
+import { analytics, createOnceGate } from "@/lib/analytics";
 import {
   buildEventTypeOptionList,
   buildSortedEventTypeOptions,
@@ -247,6 +248,21 @@ export function CompetitionDetailDialog({
     loadParticipants(competition.id);
   }, [competition?.id, open, loadParticipants]);
 
+  // GA race_registration_opened — 신청 폼이 보이는 회원(ready)이 상세를 연 시점, **열림당 1회**.
+  // 닫히면 관문을 비워 다음 열림을 다시 센다. 열린 채 다른 대회로 바뀌면 그 대회는 따로 센다.
+  const regOpenedGateRef = useRef(createOnceGate<string>());
+  useEffect(() => {
+    if (!open) {
+      regOpenedGateRef.current.reset();
+      return;
+    }
+    if (!competition || memberStatus.status !== "ready") return;
+    if (regOpenedGateRef.current.pass(competition.id)) {
+      analytics.raceRegistrationOpened(competition.id, competition.title);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 대회 id 기준으로만 센다(객체 참조 변경은 무시)
+  }, [open, competition?.id, memberStatus.status]);
+
   useEffect(() => {
     if (!competition || !open) {
       setPublicDisplayCounts([]);
@@ -404,6 +420,8 @@ export function CompetitionDetailDialog({
 
     setIsSaving(true);
     const payload = { role, eventType: resolvedEventType };
+    // 제출 시점에 등록이 없었을 때만 "신규 신청" — 정보 수정은 completed로 세지 않는다
+    const isNewRegistration = !activeRegistration;
 
     try {
       const result = activeRegistration
@@ -411,7 +429,10 @@ export function CompetitionDetailDialog({
         : await onCreate(competition.id, payload);
 
       if (result.message) setStatusMessage({ text: result.message, ok: result.ok });
-      if (result.ok) loadParticipants(competition.id);
+      if (result.ok) {
+        if (isNewRegistration) analytics.raceRegistrationCompleted(competition.id);
+        loadParticipants(competition.id);
+      }
     } catch (e) {
       reportSubmitFailure(e);
     } finally {

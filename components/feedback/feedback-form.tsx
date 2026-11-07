@@ -2,11 +2,23 @@
 
 import { useState, useTransition } from "react";
 
+import { analytics } from "@/lib/analytics";
+
 import { submitFeedback } from "@/app/actions/feedback/submit-feedback";
 
 import { Caption } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
+
+/**
+ * 건의 제출 + GA 집계. 진입이 아니라 **접수가 끝난 시점**에만 `feedback_submitted`를 보낸다
+ * (서버가 거절했거나 예외가 나면 안 센다). 발송 경계는 `__tests__/feedback-form-analytics.test.ts`가 지킨다.
+ */
+export async function submitFeedbackWithTracking(body: string) {
+  const result = await submitFeedback(body);
+  if (result.ok) analytics.feedbackSubmitted();
+  return result;
+}
 
 export function FeedbackForm() {
   const [body, setBody] = useState("");
@@ -19,7 +31,7 @@ export function FeedbackForm() {
     setError(null);
     setSubmitted(false);
     startTransition(async () => {
-      const result = await submitFeedback(body);
+      const result = await submitFeedbackWithTracking(body);
       if (!result.ok) {
         setError(result.message ?? "제출에 실패했습니다.");
       } else {
