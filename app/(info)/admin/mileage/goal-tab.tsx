@@ -27,6 +27,35 @@ type MonthlyGoalRow = {
   achv_yn: boolean;
 };
 
+/** 승인된 참여자 + 이름 조회 — 상태를 만지지 않는 순수 조회라 이펙트가 결과만 받아 반영한다 */
+async function fetchParticipants(evtId: string): Promise<ParticipantRow[]> {
+  const supabase = createClient();
+
+  const { data: prtData } = await supabase
+    .from("evt_team_prt_rel")
+    .select("prt_id, mem_id, stt_mth")
+    .eq("evt_id", evtId)
+    .eq("aprv_yn", true)
+    .order("stt_mth", { ascending: true });
+
+  if (!prtData || prtData.length === 0) return [];
+
+  const memIds = [...new Set(prtData.map((p) => p.mem_id))];
+  const { data: memData } = await supabase
+    .from("mem_mst")
+    .select("mem_id, mem_nm")
+    .in("mem_id", memIds);
+
+  const memNameById = new Map((memData ?? []).map((m) => [m.mem_id, m.mem_nm]));
+
+  return prtData.map((p) => ({
+    prt_id: p.prt_id,
+    mem_id: p.mem_id,
+    mem_nm: memNameById.get(p.mem_id) ?? null,
+    stt_mth: p.stt_mth,
+  }));
+}
+
 export function GoalTab({ evtId }: { evtId: string }) {
   const [members, setMembers] = useState<ParticipantRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,45 +66,26 @@ export function GoalTab({ evtId }: { evtId: string }) {
   const [editValue, setEditValue] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const loadMembers = useCallback(async () => {
+  // 프로젝트가 바뀌면 다시 불러오는 동안 스켈레톤을 띄운다 — 이펙트 본문에서 setState 하지 않고
+  // 렌더 중에 이전 값과 견줘 맞춘다(React 권장 패턴, 연쇄 렌더 없음)
+  const [loadedEvtId, setLoadedEvtId] = useState(evtId);
+  if (loadedEvtId !== evtId) {
+    setLoadedEvtId(evtId);
     setLoading(true);
-    const supabase = createClient();
-
-    const { data: prtData } = await supabase
-      .from("evt_team_prt_rel")
-      .select("prt_id, mem_id, stt_mth")
-      .eq("evt_id", evtId)
-      .eq("aprv_yn", true)
-      .order("stt_mth", { ascending: true });
-
-    if (!prtData || prtData.length === 0) {
-      setMembers([]);
-      setLoading(false);
-      return;
-    }
-
-    const memIds = [...new Set(prtData.map((p) => p.mem_id))];
-    const { data: memData } = await supabase
-      .from("mem_mst")
-      .select("mem_id, mem_nm")
-      .in("mem_id", memIds);
-
-    const memNameById = new Map((memData ?? []).map((m) => [m.mem_id, m.mem_nm]));
-
-    setMembers(
-      prtData.map((p) => ({
-        prt_id: p.prt_id,
-        mem_id: p.mem_id,
-        mem_nm: memNameById.get(p.mem_id) ?? null,
-        stt_mth: p.stt_mth,
-      })),
-    );
-    setLoading(false);
-  }, [evtId]);
+  }
 
   useEffect(() => {
-    loadMembers();
-  }, [loadMembers]);
+    // 늦게 도착한 이전 프로젝트 응답이 새 목록을 덮지 않게 한다
+    let cancelled = false;
+    void fetchParticipants(evtId).then((rows) => {
+      if (cancelled) return;
+      setMembers(rows);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [evtId]);
 
   const loadMonthlyGoals = useCallback(async (prtId: string) => {
     setLoadingGoals(prtId);
