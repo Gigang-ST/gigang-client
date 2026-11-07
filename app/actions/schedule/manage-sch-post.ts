@@ -2,12 +2,12 @@
 
 import { after } from "next/server";
 
-import { dayjs, nowKST } from "@/lib/dayjs";
+import { dayjs } from "@/lib/dayjs";
 import { withActive, withMember } from "@/lib/actions/auth";
 import { isPastLockedFor, PAST_EVENT_ERROR } from "@/lib/past-event";
-import { insertNotiMany } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { createUntypedAdminClient } from "@/lib/supabase/admin";
+import { insertSchPost, notifySchPostCreated } from "@/lib/sch-post";
+import { createAdminClient, createUntypedAdminClient } from "@/lib/supabase/admin";
 import { createSchPostSchema, updateSchPostSchema } from "@/lib/validations/schedule";
 
 function toUtcIso(localDt: string | null | undefined): string | null {
@@ -28,51 +28,29 @@ export async function createSchPost(input: {
     const { teamId } = await getRequestTeamContext();
     const parsed = createSchPostSchema.parse({ ...input, team_id: teamId });
 
-    const { data, error } = await supabase
-      .from("sch_post_mst")
-      .insert({
-        team_id: parsed.team_id, sch_nm: parsed.sch_nm,
-        post_type: parsed.post_type ?? "general",
-        evt_stt_at: toUtcIso(parsed.evt_stt_at)!,
-        evt_end_at: toUtcIso(parsed.evt_end_at),
-        url: parsed.url || null, cont_txt: parsed.cont_txt ?? null,
-        crt_by: member.id, vers: 0, del_yn: false,
-      })
-      .select("sch_post_id")
-      .single();
+    // 저장·알림은 운영 MCP(`create_sch_post`, #630)와 같은 코어를 쓴다(lib/sch-post.ts).
+    const created = await insertSchPost(supabase, {
+      teamId: parsed.team_id,
+      memId: member.id,
+      values: parsed,
+      sttIso: toUtcIso(parsed.evt_stt_at)!,
+      endIso: toUtcIso(parsed.evt_end_at),
+    });
 
-    if (error || !data) throw new Error("일정 등록에 실패했습니다.");
+    if (!created) throw new Error("일정 등록에 실패했습니다.");
 
-    const postId = data.sch_post_id;
+    const postId = created.sch_post_id;
     const authorId = member.id;
     const postName = parsed.sch_nm;
 
     after(async () => {
       try {
-        const admin = createUntypedAdminClient();
-
-        const { data: members } = await admin
-          .from("team_mem_rel")
-          .select("mem_id")
-          .eq("team_id", teamId)
-          .eq("vers", 0)
-          .eq("del_yn", false)
-          .neq("mem_id", authorId);
-
-        if (!members?.length) return;
-
         // 인앱+푸시 한 몸. pref 수신거부 필터는 관문(insertNotiMany)이 처리.
-        await insertNotiMany({
+        await notifySchPostCreated(createAdminClient(), {
           teamId,
-          memIds: members.map((m) => m.mem_id),
-          notiTypeEnm: "sch_post_new",
-          notiNm: `${nowKST().format("M월 D일")} 새 정보가 등록됐습니다.`,
-          notiCont: `[정보] ${postName}`,
-          // ref_id는 uuid 컬럼이다 — short_id(text)를 넣으면 INSERT가 통째로 실패해
-          // 크루원 전원의 알림이 조용히 사라진다(after 안 + try/catch라 등록은 성공한 채로).
-          // 딥링크는 안 깨진다: MiniCalendar가 short_id·uuid 양쪽을 받는다.
-          refId: postId,
-          refTypeEnm: "sch_post",
+          authorId,
+          postId,
+          postName,
         });
       } catch (e) {
         console.error("[sch_post_new] 알림 발송 실패", e);
