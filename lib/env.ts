@@ -18,7 +18,7 @@ export const env = createEnv({
     KAKAO_WEBHOOK_URL: z.url().optional(),
     KAKAO_WEBHOOK_SECRET: z.string().min(1).optional(),
     KAKAO_ROOM: z.string().min(1).optional(),
-    // 허브 서비스 API 키(kb_…). 옛 이름 KAKAO_WEBHOOK_SECRET 보다 우선한다.
+    // 허브 워크스페이스 API 키(nb_live_…). 옛 이름 KAKAO_WEBHOOK_SECRET 보다 우선한다.
     KAKAO_SERVICE_API_KEY: z.string().min(1).optional(),
     // 방 고정 ID(콘솔 방 상세에서 복사). 방 이름(KAKAO_ROOM)보다 우선한다 — 카톡방 이름이
     // 바뀌어도 발송이 끊기지 않는다.
