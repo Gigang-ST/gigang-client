@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { CardItem } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -113,6 +113,35 @@ const LEVEL_COLOR: Record<number, string> = {
   7: "text-orange-400", 8: "text-red-400", 9: "text-fuchsia-400", 10: "text-amber-300",
 };
 
+/** 이펙트 목록 + 사용 중인 멤버 수 조회 — 상태를 만지지 않는 순수 조회 */
+async function fetchEffectRows(): Promise<EffectRow[]> {
+  const supabase = createClient();
+  const [{ data: effects }, { data: profiles }] = await Promise.all([
+    supabase
+      .from("effect_mst")
+      .select("effect_cd, effect_nm, effect_type, rarity_level, sort_ord, use_yn, unlock_cond_json")
+      .order("effect_type", { ascending: true })
+      .order("rarity_level", { ascending: true })
+      .order("sort_ord", { ascending: true }),
+    supabase
+      .from("team_mem_rel")
+      .select("selected_badge_effect, selected_frame_cd")
+      .eq("del_yn", false),
+  ]);
+
+  const badgeCnt: Record<string, number> = {};
+  const frameCnt: Record<string, number> = {};
+  for (const p of profiles ?? []) {
+    if (p.selected_badge_effect) badgeCnt[p.selected_badge_effect] = (badgeCnt[p.selected_badge_effect] ?? 0) + 1;
+    if (p.selected_frame_cd) frameCnt[p.selected_frame_cd] = (frameCnt[p.selected_frame_cd] ?? 0) + 1;
+  }
+
+  return ((effects ?? []) as unknown as Omit<EffectRow, "use_cnt">[]).map((e) => ({
+    ...e,
+    use_cnt: e.effect_type === "badge" ? (badgeCnt[e.effect_cd] ?? 0) : (frameCnt[e.effect_cd] ?? 0),
+  }));
+}
+
 export function AdminEffectsClient() {
   const [rows, setRows] = useState<EffectRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,39 +151,18 @@ export function AdminEffectsClient() {
   const [selectedCd, setSelectedCd] = useState<string | null>(null);
   const [savingCond, setSavingCond] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const supabase = createClient();
-    const [{ data: effects }, { data: profiles }] = await Promise.all([
-      supabase
-        .from("effect_mst")
-        .select("effect_cd, effect_nm, effect_type, rarity_level, sort_ord, use_yn, unlock_cond_json")
-        .order("effect_type", { ascending: true })
-        .order("rarity_level", { ascending: true })
-        .order("sort_ord", { ascending: true }),
-      supabase
-        .from("team_mem_rel")
-        .select("selected_badge_effect, selected_frame_cd")
-        .eq("del_yn", false),
-    ]);
-
-    const badgeCnt: Record<string, number> = {};
-    const frameCnt: Record<string, number> = {};
-    for (const p of profiles ?? []) {
-      if (p.selected_badge_effect) badgeCnt[p.selected_badge_effect] = (badgeCnt[p.selected_badge_effect] ?? 0) + 1;
-      if (p.selected_frame_cd) frameCnt[p.selected_frame_cd] = (frameCnt[p.selected_frame_cd] ?? 0) + 1;
-    }
-
-    setRows(
-      ((effects ?? []) as unknown as Omit<EffectRow, "use_cnt">[]).map((e) => ({
-        ...e,
-        use_cnt: e.effect_type === "badge" ? (badgeCnt[e.effect_cd] ?? 0) : (frameCnt[e.effect_cd] ?? 0),
-      })),
-    );
-    setLoading(false);
+  // 첫 조회 — 응답 콜백에서만 setState 한다(이펙트 본문에서 동기로 부르지 않는다)
+  useEffect(() => {
+    let cancelled = false;
+    void fetchEffectRows().then((next) => {
+      if (cancelled) return;
+      setRows(next);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
-
-  useEffect(() => { void load(); }, [load]);
 
   const updateLevel = async (effectCd: string, newLevel: number) => {
     setSaving(effectCd);
