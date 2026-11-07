@@ -42,7 +42,7 @@ describe("sendKakao", () => {
   beforeEach(() => {
     envMock.KAKAO_HUB_URL = "https://hub.example";
     envMock.KAKAO_WEBHOOK_URL = undefined;
-    envMock.KAKAO_WEBHOOK_SECRET = "s3cret";
+    envMock.KAKAO_WEBHOOK_SECRET = "nb_test_s3cret";
     envMock.KAKAO_ROOM = "기강웹TF";
     envMock.KAKAO_SERVICE_API_KEY = undefined;
     envMock.KAKAO_ROOM_ID = undefined;
@@ -66,7 +66,7 @@ describe("sendKakao", () => {
     const [url, init] = fetchFn.mock.calls[0];
     expect(url).toBe("https://hub.example/v1/messages");
     expect(init.method).toBe("POST");
-    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer s3cret");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer nb_test_s3cret");
     expect(sentBody(fetchFn)).toMatchObject({ room: "기강웹TF", msg: "안녕" });
   });
 
@@ -151,19 +151,29 @@ describe("sendKakao", () => {
     });
 
     it("KAKAO_SERVICE_API_KEY 가 옛 KAKAO_WEBHOOK_SECRET 보다 우선한다", async () => {
-      envMock.KAKAO_SERVICE_API_KEY = "kb_new";
+      envMock.KAKAO_SERVICE_API_KEY = "nb_live_new";
       const fetchFn = acceptingFetch();
 
       await sendKakao("안녕", { fetchFn: fetchFn as unknown as typeof fetch });
 
       const init = fetchFn.mock.calls[0][1] as RequestInit;
-      expect((init.headers as Record<string, string>).Authorization).toBe("Bearer kb_new");
+      expect((init.headers as Record<string, string>).Authorization).toBe("Bearer nb_live_new");
+    });
+
+    it("옛 kb_ 키는 허브에 보내지 않고 실패로 남긴다 — 워크스페이스 키(nb_live_)로 바꿔야 한다", async () => {
+      envMock.KAKAO_SERVICE_API_KEY = "kb_old_key";
+      const fetchFn = acceptingFetch();
+
+      const result = await sendKakao("안녕", { fetchFn: fetchFn as unknown as typeof fetch });
+
+      expect(result.ok).toBe(false);
+      expect(fetchFn).not.toHaveBeenCalled();
     });
 
     it("새 이름만 있어도 보낸다 — 옛 변수를 지운 뒤에도 동작", async () => {
       envMock.KAKAO_WEBHOOK_SECRET = undefined;
       envMock.KAKAO_ROOM = undefined;
-      envMock.KAKAO_SERVICE_API_KEY = "kb_new";
+      envMock.KAKAO_SERVICE_API_KEY = "nb_live_new";
       envMock.KAKAO_ROOM_ID = ROOM_ID;
       const fetchFn = acceptingFetch({ room: "기강웹TF" });
 
@@ -205,7 +215,7 @@ describe("sendKakao", () => {
       envMock.KAKAO_ROOM = undefined;
       envMock.KAKAO_ROOM_ID = "4b492fd2-bb84-43be-a663-4e5f087ffb2e";
       envMock.KAKAO_WEBHOOK_SECRET = undefined;
-      envMock.KAKAO_SERVICE_API_KEY = "kb_new";
+      envMock.KAKAO_SERVICE_API_KEY = "nb_live_new";
       expect(isKakaoConfigured()).toBe(true);
     });
   });
