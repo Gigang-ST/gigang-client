@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -9,6 +9,7 @@ import { ChevronLeft } from "lucide-react";
 import Confetti from "react-confetti";
 import { useForm } from "react-hook-form";
 
+import { analytics, createOnceGate, type OnboardingStage } from "@/lib/analytics";
 import { formatKST } from "@/lib/dayjs";
 import { digitsOnly, formatPhone, isValidPhone } from "@/lib/phone-utils";
 import type { PledgeGathering } from "@/lib/queries/onboarding-gatherings";
@@ -135,14 +136,18 @@ export function MemberOnboardingForm({
   const previewSuccess =
     isDevModeEnabled() && searchParams.get("preview") === "success";
 
-  const [stage, setStage] = useState<
-    | "phone"
-    | "details"
-    | "profile"
-    | "purpose"
-    | "pledge"
-    | "success"
-  >(previewSuccess ? "success" : "phone");
+  const [stage, setStage] = useState<OnboardingStage>(
+    previewSuccess ? "success" : "phone",
+  );
+
+  // GA 가입 퍼널(onboarding_step 1~6) — 각 단계에 **처음 들어갈 때 한 번씩**.
+  // "이전"으로 되돌아갔다 다시 와도, StrictMode가 effect를 두 번 돌려도 관문이 막는다.
+  // 미리보기(?preview=success)는 실제 가입이 아니라 보내지 않는다.
+  const stageGateRef = useRef(createOnceGate<OnboardingStage>());
+  useEffect(() => {
+    if (previewSuccess) return;
+    if (stageGateRef.current.pass(stage)) analytics.onboardingStep(stage);
+  }, [stage, previewSuccess]);
   // 연락처는 위저드 공용 RHF 폼과 완전히 분리해 "확정값" 문자열로만 보관한다.
   // phone 단계(PhoneStep)가 자체 로컬 상태로 입력을 받고, 검증·기존회원 확인을
   // 통과한 값만 여기로 올라온다. 이후 단계에선 표시 전용 prop — 폼 필드로 존재하지
