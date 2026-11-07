@@ -25,7 +25,8 @@ import type { Database } from "@/lib/supabase/database.types";
  * - **방은 인자로 받지 않는다.** 환경 설정(`KAKAO_ROOM_ID` → `KAKAO_ROOM`)만 쓴다 — 엉뚱한 방으로
  *   새는 길을 아예 두지 않는다.
  * - **재시도하지 않는다**(`notify.ts` 원칙 — 중복이 유실보다 나쁘다). 실패면 분류를 돌려주고 판단은
- *   사람이 한다. 같은 `request_id` 로 다시 부르면 허브가 중복을 막는다.
+ *   사람이 한다. 같은 `request_id` 로 다시 부르면 허브가 중복을 막고, 응답은
+ *   `status: "duplicate"` 다(새로 나가지 않았다는 뜻).
  * - `request_id` 를 안 주면 여기서 만들어 응답에 싣는다 — 다시 보낼 때 같은 값을 쓰라고.
  *   dry_run 도 만들어 돌려준다: 미리보기 → 확인 → 같은 id 로 실제 발송하면, 같은 공지를 두 번
  *   부르더라도 허브가 두 번 보내지 않는다.
@@ -64,10 +65,12 @@ export type SendKakaoNoticeResult = {
   /**
    * - `preview`: dry_run — 보내지 않았다.
    * - `sent`: 허브가 접수했다(카톡 전달 확인은 아니다).
+   * - `duplicate`: 같은 `request_id` 를 허브가 이미 받아 둬서 **새로 보내지 않았다** — 단톡방엔 앞선
+   *   한 건만 있다. 실패가 아니니 다시 보낼 일도 없다. 발송 이력에도 `duplicate` 로 남는다.
    * - `skipped`: 이 환경엔 노티봇이 설정돼 있지 않아 보내지 않았다.
    * - `failed`: 허브가 거절했거나 닿지 않았다 — `failure` 참고.
    */
-  status: "preview" | "sent" | "skipped" | "failed";
+  status: "preview" | "sent" | "duplicate" | "skipped" | "failed";
   /** 보낼(보낸) 방 — 환경 설정의 방 ID 또는 이름. 노티봇이 꺼진 환경이면 null. */
   room: string | null;
   /** 이 환경에서 노티봇이 켜져 있는가 — dry_run 이면 "실제로 부르면 보내지는가". */
@@ -171,11 +174,13 @@ export async function sendKakaoNotice(
     actorMemId: ctx.mem_id,
   });
 
-  const status: SendKakaoNoticeResult["status"] = sent.ok
-    ? "sent"
-    : sent.skipped
-      ? "skipped"
-      : "failed";
+  const status: SendKakaoNoticeResult["status"] = sent.duplicate
+    ? "duplicate"
+    : sent.ok
+      ? "sent"
+      : sent.skipped
+        ? "skipped"
+        : "failed";
   const failure: KakaoNoticeFailure | null =
     status === "failed"
       ? {

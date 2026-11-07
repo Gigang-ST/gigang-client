@@ -190,9 +190,12 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 - **먼저 `dry_run: true` 로 불러 보세요.** 보내지 않고 보낼 방(`room`)·본문·태그와 `request_id` 를 돌려줍니다.
   사람이 확인한 뒤 **그 `request_id` 를 그대로 넣어** 실제로 보내면, 같은 공지를 두 번 부르더라도 허브가 두 번 보내지 않습니다.
   `will_send: false`(=`room: null`)면 이 환경엔 노티봇이 없어 실제로 불러도 안 나갑니다.
-- **`request_id` 를 안 주면 서버가 만들어 응답에 싣습니다.** 같은 값으로 다시 부르면 허브가 중복 발송을 막습니다.
+- **`request_id` 를 안 주면 서버가 만들어 응답에 싣습니다.** 같은 값으로 다시 부르면 허브가 중복 발송을 막고,
+  응답은 `status: "duplicate"` 로 옵니다 — 단톡방엔 앞선 한 건만 있고, 실패가 아니니 다시 보낼 일도 없습니다.
+  발송 이력에도 「중복(허브가 막음)」으로 남아 성공·실패 어느 쪽으로도 세지 않습니다.
 - **서버는 재시도하지 않습니다**(중복이 유실보다 나쁩니다). 응답 `status` 는
-  `sent`(허브 접수 — 카톡 전달 확인은 아님) / `skipped`(노티봇 미설정 환경 — local·preview) / `failed` 이고,
+  `sent`(허브 접수 — 카톡 전달 확인은 아님) / `duplicate`(같은 `request_id` 가 이미 접수돼 새로 안 보냄) /
+  `skipped`(노티봇 발송 설정이 없는 환경) / `failed` 이고,
   `failed` 면 `failure`(`name`·`code`·`http_status`·`message`·`retryable`)가 실립니다.
 - **태그(`mentions`)** 는 이름 목록입니다. 본문의 `@이름` 자리가 태그가 되고, 없으면 맨 앞에 붙습니다.
   단톡방 참여자 한 명으로 정해지지 않는 이름이면 허브가 보내지 않고 `failed`(`mention_name_unknown` / `mention_name_ambiguous`)로 돌아옵니다.
@@ -213,6 +216,11 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 - 이 기능은 DB 테이블 2개를 추가합니다:
   - `supabase/migrations/20260724150000_mcp_token_rel.sql` (개인 토큰)
   - `supabase/migrations/20260724180000_mcp_audit_log.sql` (발송 감사)
+- 단톡방 공지(`send_kakao_notice`)의 중복 표시는 발송 이력 상태값을 하나 넓힙니다(데이터 변경 없음):
+  - `supabase/migrations/20261107100000_kakao_send_hist_status_duplicate.sql` (CHECK 에 `duplicate` 추가, NOT VALID)
+  - `supabase/migrations/20261107100100_kakao_send_hist_status_duplicate_validate.sql` (제약 검증)
+  - **dev·prod Supabase 에 릴리스 전 선적용**하세요. 앱이 먼저 나가면 중복 응답의 이력 행이 제약에 걸려 안 남습니다
+    (발송·MCP 응답은 영향 없음 — 이력 기록 실패는 로그만 남깁니다).
 - **각 환경의 Supabase에 이 마이그레이션이 선적용돼야** 인증·발송이 동작합니다. 미적용 시 인증이 전부 401로 실패합니다(모임 취소 릴리스 전례와 동일 함정). 특히 **prod 릴리스 시 선적용 필수.**
 - 두 테이블 모두 RLS on + 정책 0개 = **service_role 전용**입니다.
 
@@ -226,7 +234,9 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `Connected` 안 뜸 | URL 확인(`/api/mcp/mcp`), 등록 후 **세션 재시작**. 해당 환경 배포·마이그레이션 상태 확인. |
 | `send_push`가 거부됨 | owner/admin 역할만 발송 가능. 조회는 가능. |
 | `send_kakao_notice`가 거부됨 | 단톡방 공지는 owner/admin 전용입니다(`dry_run` 도). |
-| `send_kakao_notice`가 `skipped` | 이 환경엔 노티봇 발송 설정(허브 주소·API 키·방)이 없습니다. local·preview 는 원래 안 나갑니다(안전장치). |
+| `send_kakao_notice`가 `skipped` | 이 환경엔 노티봇 발송 설정(허브 주소·API 키·방)이 없습니다. 설정이 없는 환경은 안 나갑니다(안전장치). |
+| `send_kakao_notice`가 `duplicate` | 같은 `request_id` 를 허브가 이미 받아 둬서 새로 보내지 않았습니다 — 단톡방엔 앞선 한 건만 있습니다. 정상입니다. 정말 한 번 더 보내야 하면 **새** `request_id` 로 부르세요(그러면 두 번째 공지가 실제로 나갑니다). |
+| 같은 `request_id` 재호출인데 `sent` 로 두 번 남음 | 이 기능 전(#631 이전)에 쌓인 이력이거나, 허브가 그 응답에 `duplicate` 를 싣지 않은 경우입니다. 단톡방에 실제로 몇 건 갔는지는 허브 발송 이력에서 확인하세요. |
 | `send_kakao_notice`가 `failed` | `failure.code` 를 보세요. `mention_name_unknown`·`mention_name_ambiguous` 는 태그 이름을 고쳐 **새로** 보내고, `retryable: true`(타임아웃·네트워크·429·5xx)면 **같은 `request_id`** 로 다시 부르거나 `/admin/kakao` 의 「다시 보내기」를 쓰세요. 새 `request_id` 로 보내면 이미 접수됐던 건이 한 번 더 나갈 수 있습니다. `idempotency_conflict` 는 이미 접수된 건입니다 — 다시 보내지 마세요. |
 | 어드민 「다시 보내기」로 보낸 공지에 태그가 빠짐 | 발송 이력은 본문만 저장하고 태그 목록은 저장하지 않아, 다시 보내기는 태그 없이 `@이름` 글자로 나갑니다. 태그가 중요하면 「다시 보내기」 대신 MCP 에서 같은 `request_id`·`mentions` 로 다시 부르세요. |
 | `create_gathering`이 일시를 거부함 | 한국시간 `YYYY-MM-DD HH:mm` 로 주세요. `Z`·`+09:00` 표기와 "내일 아침" 같은 자연어는 받지 않습니다. |

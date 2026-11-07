@@ -239,6 +239,22 @@ describe("send_kakao_notice — 발송 결과", () => {
     expect(sentOpts().mentions).toBeUndefined();
   });
 
+  it("duplicate: 허브가 같은 request_id 를 이미 받아 둔 건 — sent 와 구분해 돌려준다(#631)", async () => {
+    sendKakaoMock.mockResolvedValue({ ok: true, duplicate: true });
+    const { client, calls } = makeSupabase();
+
+    const r = await sendKakaoNotice(client, adminCtx(), {
+      message: "공지",
+      request_id: "hgworld-test-20261107-01",
+    });
+
+    expect(r.status).toBe("duplicate");
+    expect(r.failure).toBeNull();
+    expect(r.request_id).toBe("hgworld-test-20261107-01");
+    expect(sendKakaoMock).toHaveBeenCalledTimes(1);
+    expect((calls.auditInsert?.params_json as Record<string, unknown>).status).toBe("duplicate");
+  });
+
   it("skipped: 노티봇 미설정 환경 — 던지지 않고 skipped 로 돌려준다", async () => {
     sendKakaoMock.mockResolvedValue({ ok: false, skipped: "disabled" });
     defaultRoomMock.mockReturnValue(null);

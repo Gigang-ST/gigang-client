@@ -30,7 +30,8 @@ export type RecordKakaoSendInput = {
   requestId: string | null;
   source: KakaoSendSource | null;
   resend: boolean;
-  status: "success" | "failed";
+  /** `duplicate` = 같은 requestId 가 이미 접수돼 허브가 새로 보내지 않았다(성공으로 세지 않는다). */
+  status: "success" | "failed" | "duplicate";
   failure?: NotiBotErrorJSON;
   /** 어드민에서 다시 보낸 경우 누른 사람. */
   actorMemId?: string | null;

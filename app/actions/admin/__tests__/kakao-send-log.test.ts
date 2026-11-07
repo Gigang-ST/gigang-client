@@ -92,4 +92,16 @@ describe("resendKakao — 중복 발송 방지", () => {
     await expect(resendKakao("s1")).rejects.toThrow("중복 여부");
     expect(sendKakao).not.toHaveBeenCalled();
   });
+
+  it("중복(duplicate) 이력은 다시 보내지 않는다 — 허브가 이미 받아 둔 건이다(#631)", async () => {
+    (h.result.data as Record<string, unknown>).status = "duplicate";
+    await expect(resendKakao("s1")).rejects.toThrow("이미 같은 요청");
+    expect(sendKakao).not.toHaveBeenCalled();
+  });
+
+  it("다시 보냈는데 허브가 중복이라 하면 '새로 안 보냈다'고 말한다 — 실은 첫 요청이 접수돼 있었다", async () => {
+    vi.mocked(sendKakao).mockResolvedValue({ ok: true, duplicate: true });
+    const result = await resendKakao("s1");
+    expect(result).toEqual({ ok: true, message: expect.stringContaining("새로 보내지 않았어요") });
+  });
 });

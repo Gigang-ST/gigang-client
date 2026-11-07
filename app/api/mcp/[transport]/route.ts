@@ -331,7 +331,8 @@ const handler = createMcpHandler(
           "크루 카카오톡 단톡방에 노티봇으로 공지를 보냅니다. 운영진(admin) 전용입니다. " +
           "방은 고를 수 없고 서버 설정의 크루 단톡방으로만 갑니다. 보내면 되돌릴 수 없고 크루 전원에게 보이니, " +
           "**먼저 dry_run=true 로 불러** 보낼 방·본문을 사용자에게 보여 주고 확인받은 뒤, 응답의 request_id 를 그대로 넣어 실제로 보내세요. " +
-          "응답 status 는 sent(허브 접수) / skipped(이 환경엔 노티봇 미설정) / failed(failure 에 분류) 입니다. " +
+          "응답 status 는 sent(허브 접수) / duplicate(같은 request_id 가 이미 접수돼 새로 보내지 않음 — 실패 아님, 다시 보내지 마세요) / " +
+          "skipped(이 환경엔 노티봇 미설정) / failed(failure 에 분류) 입니다. " +
           "서버는 재시도하지 않습니다 — failed 를 다시 보낼 땐 반드시 같은 request_id 로 보내야 중복 발송이 안 납니다. " +
           "보낸 공지는 어드민 '카카오 발송 이력'에 'MCP 공지'로 남습니다.",
         inputSchema: {

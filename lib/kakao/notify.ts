@@ -32,6 +32,12 @@ export type KakaoSendResult = {
   ok: boolean;
   /** 보내지 않은 이유(미설정 등). 보냈으면 undefined. */
   skipped?: "disabled";
+  /**
+   * 허브가 **같은 `requestId` 로 이미 접수한 요청**이라 새로 보내지 않았다(`SendMessageResult.duplicate`).
+   * `ok` 는 그대로 true 다 — 호출부(모임 공지 등)에겐 "톡방에 그 공지가 있다"는 사실이 같기 때문이다.
+   * 새로 나간 건과 구분해야 하는 곳(MCP 공지 응답·발송 이력)만 이 값을 본다.
+   */
+  duplicate?: true;
   /** 실패했을 때의 분류. 발송 이력에 그대로 저장된다. */
   failure?: NotiBotErrorJSON;
 };
@@ -170,9 +176,9 @@ export async function sendKakao(
       ...(opts.mentions?.length ? { mentions: opts.mentions } : {}),
     });
 
-    console.info("[kakao] 허브 접수", { bytes: message.length, room: log.room, queued: sent.queued });
+    console.info("[kakao] 허브 접수", { bytes: message.length, room: log.room, queued: sent.queued, duplicate: sent.duplicate === true });
     // 접수 성공은 수신자 전달 확인이 아니다. SDK 는 응답의 request_id 일치도 검증한다.
-    result = { ok: true };
+    result = sent.duplicate === true ? { ok: true, duplicate: true } : { ok: true };
   } catch (error) {
     // SDK 가 던지는 것이 아닌 예외(우리 쪽 버그)도 여기로 온다. 호출부는 이미 커밋된 뒤라
     // 되돌릴 수 없으므로 삼키되, 분류를 남겨 어드민에서 원인이 보이게 한다.
@@ -190,7 +196,7 @@ export async function sendKakao(
   await recordKakaoSend({
     ...log,
     requestId,
-    status: result.ok ? "success" : "failed",
+    status: result.duplicate ? "duplicate" : result.ok ? "success" : "failed",
     ...(result.failure ? { failure: result.failure } : {}),
     actorMemId: opts.actorMemId ?? null,
   }).catch((e) => console.error("[kakao] 발송 이력 기록 실패", e));

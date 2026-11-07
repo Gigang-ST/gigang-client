@@ -341,6 +341,38 @@ describe("sendKakao", () => {
       );
     });
 
+    it("허브가 duplicate:true 로 답하면 결과에 싣고 이력은 duplicate 로 남긴다(#631)", async () => {
+      // 같은 request_id 재호출 — 허브는 2xx 를 주지만 새로 보내지 않는다(2026-11-07 실측: 톡방엔 1건).
+      const fetchFn = acceptingFetch({ queued: false, duplicate: true });
+
+      const result = await sendKakao("공지", {
+        requestId: "n-1",
+        source: { type: "mcp_notice", id: "audit-1" },
+        fetchFn: fetchFn as unknown as typeof fetch,
+      });
+
+      // ok 는 그대로 true — 모임 공지 등 기존 호출부는 ok 로만 판정하므로 동작이 안 바뀐다.
+      expect(result).toEqual({ ok: true, duplicate: true });
+      expect(recordKakaoSend).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "duplicate", requestId: "n-1" }),
+      );
+    });
+
+    it("duplicate 가 없거나 false 면 지금처럼 성공 — 결과 모양도 그대로 { ok: true }", async () => {
+      for (const extra of [{}, { duplicate: false }]) {
+        recordKakaoSend.mockClear();
+        const fetchFn = acceptingFetch(extra);
+
+        const result = await sendKakao("안녕", {
+          source: { type: "gathering_created", id: "g1" },
+          fetchFn: fetchFn as unknown as typeof fetch,
+        });
+
+        expect(result).toEqual({ ok: true });
+        expect(recordKakaoSend).toHaveBeenCalledWith(expect.objectContaining({ status: "success" }));
+      }
+    });
+
     it("실패하면 분류까지 함께 남긴다", async () => {
       const fetchFn = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
 
