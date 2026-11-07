@@ -93,6 +93,26 @@ function roomTarget(explicit?: string | null): RoomTarget | null {
 const apiKeyFromEnv = () => env.KAKAO_SERVICE_API_KEY ?? env.KAKAO_WEBHOOK_SECRET;
 
 /**
+ * 본문 길이 상한. SDK 가 이걸 넘으면 허브에 보내기 전에 `TypeError` 로 거절한다 —
+ * 미리 검증하는 쪽(MCP 도구 등)이 같은 숫자를 보게 여기 하나로 둔다.
+ */
+export const KAKAO_MESSAGE_MAX_LENGTH = 4000;
+
+/** 멱등 키 길이 상한(SDK 검증과 같은 값). */
+export const KAKAO_REQUEST_ID_MAX_LENGTH = 128;
+
+/**
+ * 방을 지정하지 않고 보내면 어느 방으로 가는가 — 발송 이력에 남는 값(방 ID 또는 이름)과 같다.
+ * 노티봇이 꺼진 환경(`isKakaoConfigured()` 가 false)이면 null. 보내기 전 미리보기용.
+ */
+export function defaultKakaoRoom(): string | null {
+  if (!isKakaoConfigured()) return null;
+  const target = roomTarget();
+  if (!target) return null;
+  return "room" in target ? target.room : target.roomId;
+}
+
+/**
  * 이 환경에서 노티봇 발송이 켜져 있는가. "단톡방에도 공지했어요" 같은 안내가
  * `sendKakao` 와 다른 기준으로 판정하면 보내지도 않고 보냈다고 말하게 된다.
  */

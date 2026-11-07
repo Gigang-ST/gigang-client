@@ -33,6 +33,7 @@ const SOURCE_LABELS: Record<string, string> = {
   gathering_canceled: "모임 취소",
   gathering_announce: "단톡방에 알림",
   pb_sess_open: "PB 훈련벙 개설",
+  mcp_notice: "MCP 공지",
 };
 
 /**

@@ -18,7 +18,9 @@ export type KakaoSendSource = {
     | "gathering_updated"
     | "gathering_canceled"
     | "gathering_announce"
-    | "pb_sess_open";
+    | "pb_sess_open"
+    /** 운영 MCP `send_kakao_notice` 로 운영진이 보낸 자유 문구 공지. id 는 MCP 감사행(`mcp_audit_log.audit_id`). */
+    | "mcp_notice";
   id?: string | null;
 };
 

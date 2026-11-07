@@ -15,7 +15,7 @@ vi.mock("@/lib/env", () => ({ env: envMock }));
 const recordKakaoSend = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/kakao/send-log", () => ({ recordKakaoSend }));
 
-import { isKakaoConfigured, sendKakao } from "@/lib/kakao/notify";
+import { defaultKakaoRoom, isKakaoConfigured, sendKakao } from "@/lib/kakao/notify";
 
 /**
  * 허브처럼 받아 주는 fetch. **요청의 `request_id` 를 그대로 되돌려줘야 한다** —
@@ -220,6 +220,19 @@ describe("sendKakao", () => {
     });
   });
 
+  describe("defaultKakaoRoom — 미리보기가 말하는 방은 sendKakao 가 실제로 쓰는 방이다", () => {
+    it("방 ID 가 이름보다 우선하고, 이력에 남는 값과 같다", () => {
+      expect(defaultKakaoRoom()).toBe("기강웹TF");
+      envMock.KAKAO_ROOM_ID = "4b492fd2-bb84-43be-a663-4e5f087ffb2e";
+      expect(defaultKakaoRoom()).toBe("4b492fd2-bb84-43be-a663-4e5f087ffb2e");
+    });
+
+    it("노티봇이 꺼진 환경이면 방이 설정돼 있어도 null — 보내지 않을 방을 보여주지 않는다", () => {
+      envMock.KAKAO_HUB_URL = undefined;
+      expect(defaultKakaoRoom()).toBeNull();
+    });
+  });
+
   describe("환경변수가 비면 아무것도 호출하지 않는다 — 로컬·preview 안전장치", () => {
     it.each([
       ["허브 주소", () => { envMock.KAKAO_HUB_URL = undefined; }],
@@ -302,6 +315,27 @@ describe("sendKakao", () => {
           // 안 넘겼으므로 SDK 가 만든 값이 그대로 올라와야 한다.
           requestId: JSON.parse(String(fetchFn.mock.calls[0][1].body)).request_id,
           source: { type: "gathering_created", id: "g1" },
+          resend: false,
+        }),
+      );
+    });
+
+    it("MCP 공지는 출처 mcp_notice 와 보낸 사람으로 남는다(#631)", async () => {
+      const fetchFn = acceptingFetch();
+
+      await sendKakao("공지", {
+        requestId: "n-1",
+        source: { type: "mcp_notice", id: "audit-1" },
+        actorMemId: "11111111-1111-1111-1111-111111111111",
+        fetchFn: fetchFn as unknown as typeof fetch,
+      });
+
+      expect(recordKakaoSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "success",
+          requestId: "n-1",
+          source: { type: "mcp_notice", id: "audit-1" },
+          actorMemId: "11111111-1111-1111-1111-111111111111",
           resend: false,
         }),
       );
