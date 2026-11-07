@@ -18,7 +18,9 @@ export type KakaoSendSource = {
     | "gathering_updated"
     | "gathering_canceled"
     | "gathering_announce"
-    | "pb_sess_open";
+    | "pb_sess_open"
+    /** 운영 MCP `send_kakao_notice` 로 운영진이 보낸 자유 문구 공지. id 는 MCP 감사행(`mcp_audit_log.audit_id`). */
+    | "mcp_notice";
   id?: string | null;
 };
 
@@ -28,7 +30,8 @@ export type RecordKakaoSendInput = {
   requestId: string | null;
   source: KakaoSendSource | null;
   resend: boolean;
-  status: "success" | "failed";
+  /** `duplicate` = 같은 requestId 가 이미 접수돼 허브가 새로 보내지 않았다(성공으로 세지 않는다). */
+  status: "success" | "failed" | "duplicate";
   failure?: NotiBotErrorJSON;
   /** 어드민에서 다시 보낸 경우 누른 사람. */
   actorMemId?: string | null;

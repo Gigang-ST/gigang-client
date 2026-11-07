@@ -15,7 +15,7 @@ vi.mock("@/lib/env", () => ({ env: envMock }));
 const recordKakaoSend = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/kakao/send-log", () => ({ recordKakaoSend }));
 
-import { isKakaoConfigured, sendKakao } from "@/lib/kakao/notify";
+import { defaultKakaoRoom, isKakaoConfigured, sendKakao } from "@/lib/kakao/notify";
 
 /**
  * 허브처럼 받아 주는 fetch. **요청의 `request_id` 를 그대로 되돌려줘야 한다** —
@@ -220,6 +220,19 @@ describe("sendKakao", () => {
     });
   });
 
+  describe("defaultKakaoRoom — 미리보기가 말하는 방은 sendKakao 가 실제로 쓰는 방이다", () => {
+    it("방 ID 가 이름보다 우선하고, 이력에 남는 값과 같다", () => {
+      expect(defaultKakaoRoom()).toBe("기강웹TF");
+      envMock.KAKAO_ROOM_ID = "4b492fd2-bb84-43be-a663-4e5f087ffb2e";
+      expect(defaultKakaoRoom()).toBe("4b492fd2-bb84-43be-a663-4e5f087ffb2e");
+    });
+
+    it("노티봇이 꺼진 환경이면 방이 설정돼 있어도 null — 보내지 않을 방을 보여주지 않는다", () => {
+      envMock.KAKAO_HUB_URL = undefined;
+      expect(defaultKakaoRoom()).toBeNull();
+    });
+  });
+
   describe("환경변수가 비면 아무것도 호출하지 않는다 — 로컬·preview 안전장치", () => {
     it.each([
       ["허브 주소", () => { envMock.KAKAO_HUB_URL = undefined; }],
@@ -305,6 +318,59 @@ describe("sendKakao", () => {
           resend: false,
         }),
       );
+    });
+
+    it("MCP 공지는 출처 mcp_notice 와 보낸 사람으로 남는다(#631)", async () => {
+      const fetchFn = acceptingFetch();
+
+      await sendKakao("공지", {
+        requestId: "n-1",
+        source: { type: "mcp_notice", id: "audit-1" },
+        actorMemId: "11111111-1111-1111-1111-111111111111",
+        fetchFn: fetchFn as unknown as typeof fetch,
+      });
+
+      expect(recordKakaoSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "success",
+          requestId: "n-1",
+          source: { type: "mcp_notice", id: "audit-1" },
+          actorMemId: "11111111-1111-1111-1111-111111111111",
+          resend: false,
+        }),
+      );
+    });
+
+    it("허브가 duplicate:true 로 답하면 결과에 싣고 이력은 duplicate 로 남긴다(#631)", async () => {
+      // 같은 request_id 재호출 — 허브는 2xx 를 주지만 새로 보내지 않는다(2026-11-07 실측: 톡방엔 1건).
+      const fetchFn = acceptingFetch({ queued: false, duplicate: true });
+
+      const result = await sendKakao("공지", {
+        requestId: "n-1",
+        source: { type: "mcp_notice", id: "audit-1" },
+        fetchFn: fetchFn as unknown as typeof fetch,
+      });
+
+      // ok 는 그대로 true — 모임 공지 등 기존 호출부는 ok 로만 판정하므로 동작이 안 바뀐다.
+      expect(result).toEqual({ ok: true, duplicate: true });
+      expect(recordKakaoSend).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "duplicate", requestId: "n-1" }),
+      );
+    });
+
+    it("duplicate 가 없거나 false 면 지금처럼 성공 — 결과 모양도 그대로 { ok: true }", async () => {
+      for (const extra of [{}, { duplicate: false }]) {
+        recordKakaoSend.mockClear();
+        const fetchFn = acceptingFetch(extra);
+
+        const result = await sendKakao("안녕", {
+          source: { type: "gathering_created", id: "g1" },
+          fetchFn: fetchFn as unknown as typeof fetch,
+        });
+
+        expect(result).toEqual({ ok: true });
+        expect(recordKakaoSend).toHaveBeenCalledWith(expect.objectContaining({ status: "success" }));
+      }
     });
 
     it("실패하면 분류까지 함께 남긴다", async () => {

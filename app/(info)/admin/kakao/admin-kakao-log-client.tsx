@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 
 import { useRouter } from "next/navigation";
 
-import { AlertTriangle, Check, RotateCcw, Zap } from "lucide-react";
+import { AlertTriangle, Check, Copy, RotateCcw, Zap } from "lucide-react";
 
 import {
   resendKakao,
@@ -33,6 +33,7 @@ const SOURCE_LABELS: Record<string, string> = {
   gathering_canceled: "모임 취소",
   gathering_announce: "단톡방에 알림",
   pb_sess_open: "PB 훈련벙 개설",
+  mcp_notice: "MCP 공지",
 };
 
 /**
@@ -63,6 +64,16 @@ function StatusBadge({ log }: { log: KakaoSendLogRow }) {
       </span>
     );
   }
+  // 같은 요청 ID 를 허브가 이미 받아 둔 건 — 단톡방엔 앞선 한 건만 있다. 성공(초록)으로 칠하면
+  // "두 번 나갔다"로 읽히고, 실패(빨강)로 칠하면 다시 보내려 든다. 둘 다 아닌 무채색.
+  if (log.status === "duplicate") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+        <Copy className="size-3" />
+        중복(허브가 막음)
+      </span>
+    );
+  }
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive">
       <AlertTriangle className="size-3" />
@@ -86,6 +97,8 @@ export function AdminKakaoLogClient({
   const [notice, setNotice] = useState<string | null>(null);
 
   const failedCount = logs.filter((l) => l.status === "failed").length;
+  // 중복은 성공·실패 어느 쪽으로도 세지 않는다 — "최근 N건"에서 따로 떼어 말한다.
+  const duplicateCount = logs.filter((l) => l.status === "duplicate").length;
 
   function doResend(log: KakaoSendLogRow) {
     startTransition(async () => {
@@ -108,6 +121,7 @@ export function AdminKakaoLogClient({
         <HelpTip title="카카오 발송 이력">
           허브 접수 결과예요. 접수는 단톡방 전달 완료를 뜻하지 않아요. 실제 전달 여부는 허브 발송 이력에서 확인해 주세요.
           허브에 닿지 못한 건(와이파이 끊김 등)은 공지가 아예 안 나간 거예요.
+          「중복」은 같은 요청을 허브가 이미 받아 둬서 새로 보내지 않은 건이에요 — 단톡방엔 앞선 한 건만 있어요.
         </HelpTip>
       </div>
 
@@ -116,6 +130,7 @@ export function AdminKakaoLogClient({
         <Caption>
           최근 {logs.length}건
           {failedCount > 0 ? ` · 실패 ${failedCount}건` : " · 모두 정상"}
+          {duplicateCount > 0 ? ` · 중복 ${duplicateCount}건(허브가 막음)` : ""}
         </Caption>
       )}
 

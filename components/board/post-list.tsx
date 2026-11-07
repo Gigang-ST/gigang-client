@@ -20,11 +20,15 @@ export function PostList({ initialPosts, type }: PostListProps) {
   const [loading, setLoading] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  // 게시판 종류가 바뀌면 새 첫 페이지로 다시 시작한다 — 이펙트 본문에서 setState 하지 않고
+  // 렌더 중에 이전 값과 견줘 맞춘다(React 권장 패턴, 연쇄 렌더 없음)
+  const [listType, setListType] = useState(type);
+  if (listType !== type) {
+    setListType(type);
     setPosts(initialPosts);
     setCursor(initialPosts.length > 0 ? initialPosts[initialPosts.length - 1].crt_at : null);
     setHasMore(initialPosts.length >= 20);
-  }, [type]);
+  }
 
   useEffect(() => {
     if (!hasMore) return;
