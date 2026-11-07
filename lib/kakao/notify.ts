@@ -32,6 +32,12 @@ export type KakaoSendResult = {
   ok: boolean;
   /** 보내지 않은 이유(미설정 등). 보냈으면 undefined. */
   skipped?: "disabled";
+  /**
+   * 허브가 **같은 `requestId` 로 이미 접수한 요청**이라 새로 보내지 않았다(`SendMessageResult.duplicate`).
+   * `ok` 는 그대로 true 다 — 호출부(모임 공지 등)에겐 "톡방에 그 공지가 있다"는 사실이 같기 때문이다.
+   * 새로 나간 건과 구분해야 하는 곳(MCP 공지 응답·발송 이력)만 이 값을 본다.
+   */
+  duplicate?: true;
   /** 실패했을 때의 분류. 발송 이력에 그대로 저장된다. */
   failure?: NotiBotErrorJSON;
 };
@@ -93,6 +99,26 @@ function roomTarget(explicit?: string | null): RoomTarget | null {
 const apiKeyFromEnv = () => env.KAKAO_SERVICE_API_KEY ?? env.KAKAO_WEBHOOK_SECRET;
 
 /**
+ * 본문 길이 상한. SDK 가 이걸 넘으면 허브에 보내기 전에 `TypeError` 로 거절한다 —
+ * 미리 검증하는 쪽(MCP 도구 등)이 같은 숫자를 보게 여기 하나로 둔다.
+ */
+export const KAKAO_MESSAGE_MAX_LENGTH = 4000;
+
+/** 멱등 키 길이 상한(SDK 검증과 같은 값). */
+export const KAKAO_REQUEST_ID_MAX_LENGTH = 128;
+
+/**
+ * 방을 지정하지 않고 보내면 어느 방으로 가는가 — 발송 이력에 남는 값(방 ID 또는 이름)과 같다.
+ * 노티봇이 꺼진 환경(`isKakaoConfigured()` 가 false)이면 null. 보내기 전 미리보기용.
+ */
+export function defaultKakaoRoom(): string | null {
+  if (!isKakaoConfigured()) return null;
+  const target = roomTarget();
+  if (!target) return null;
+  return "room" in target ? target.room : target.roomId;
+}
+
+/**
  * 이 환경에서 노티봇 발송이 켜져 있는가. "단톡방에도 공지했어요" 같은 안내가
  * `sendKakao` 와 다른 기준으로 판정하면 보내지도 않고 보냈다고 말하게 된다.
  */
@@ -150,9 +176,9 @@ export async function sendKakao(
       ...(opts.mentions?.length ? { mentions: opts.mentions } : {}),
     });
 
-    console.info("[kakao] 허브 접수", { bytes: message.length, room: log.room, queued: sent.queued });
+    console.info("[kakao] 허브 접수", { bytes: message.length, room: log.room, queued: sent.queued, duplicate: sent.duplicate === true });
     // 접수 성공은 수신자 전달 확인이 아니다. SDK 는 응답의 request_id 일치도 검증한다.
-    result = { ok: true };
+    result = sent.duplicate === true ? { ok: true, duplicate: true } : { ok: true };
   } catch (error) {
     // SDK 가 던지는 것이 아닌 예외(우리 쪽 버그)도 여기로 온다. 호출부는 이미 커밋된 뒤라
     // 되돌릴 수 없으므로 삼키되, 분류를 남겨 어드민에서 원인이 보이게 한다.
@@ -170,7 +196,7 @@ export async function sendKakao(
   await recordKakaoSend({
     ...log,
     requestId,
-    status: result.ok ? "success" : "failed",
+    status: result.duplicate ? "duplicate" : result.ok ? "success" : "failed",
     ...(result.failure ? { failure: result.failure } : {}),
     actorMemId: opts.actorMemId ?? null,
   }).catch((e) => console.error("[kakao] 발송 이력 기록 실패", e));

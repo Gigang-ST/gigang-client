@@ -8,6 +8,7 @@ import { revalidateTag } from "next/cache";
 import { z } from "zod";
 
 import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
+import { KAKAO_MESSAGE_MAX_LENGTH, KAKAO_REQUEST_ID_MAX_LENGTH } from "@/lib/kakao/notify";
 
 import { resolveOperator, type OperatorContext } from "@/lib/mcp/auth";
 import { createGatheringViaMcp } from "@/lib/mcp/create-gathering";
@@ -32,6 +33,10 @@ import {
   listRecentMembers,
   listTodayGatherings,
 } from "@/lib/mcp/queries";
+import {
+  KAKAO_NOTICE_MAX_MENTIONS,
+  sendKakaoNotice,
+} from "@/lib/mcp/send-kakao-notice";
 import { sendPush } from "@/lib/mcp/send-push";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
@@ -125,14 +130,14 @@ async function runTool<T>(
  *   토큰 해시·시크릿은 어떤 응답에도 노출하지 않는다.
  *
  * 권한: 도구 대부분은 인증된 팀 멤버면 호출할 수 있고, **앱이 관리자에게만 보여주는 것**만
- *   admin 으로 좁힌다(#496) — `send_push`·`list_members_attendance`·`create_gathering` 은
- *   도구째, `get_member_profile` 의 생년월일·성별과 `list_gathering_non_attendees` 의 참석
+ *   admin 으로 좁힌다(#496) — `send_push`·`send_kakao_notice`·`list_members_attendance`·
+ *   `create_gathering` 은 도구째, `get_member_profile` 의 생년월일·성별과 `list_gathering_non_attendees` 의 참석
  *   통계는 필드 단위로. 판정은 전부 `ctx.is_admin` 이며, 게이트는 도구 핸들러가 아니라
  *   **쿼리·발송 함수 안**에 있다(호출부가 늘어도 새지 않게).
  *
  * 도구는 두 갈래다:
- *   - **팀을 들여다보는 것**(운영진 용도) — 조회 6종 + 쓰기 3종(`send_push`·`create_gathering`
- *     ·`create_sch_post`). `create_sch_post` 만 admin 이 아니다 — 앱에서 소식은 활성 멤버 누구나
+ *   - **팀을 들여다보는 것**(운영진 용도) — 조회 6종 + 쓰기 4종(`send_push`·`send_kakao_notice`
+ *     ·`create_gathering`·`create_sch_post`). `create_sch_post` 만 admin 이 아니다 — 앱에서 소식은 활성 멤버 누구나
  *     올리므로(#630) 그 범위를 그대로 따른다.
  *   - **내 것**(마일리지런 개인 도구 7종, #497) — 대상 멤버를 인자로 받지 않고 `ctx.mem_id` 로만
  *     스코프한다. admin 이어도 남의 기록에는 손대지 못한다.
@@ -290,8 +295,8 @@ const handler = createMcpHandler(
         runTool(extra, (ctx, supabase) => listPushStatus(supabase, ctx.team_id)),
     );
 
-    // ── write 도구 3개. 모두 ctx.team_id 스코프 · 감사 로그 필수.
-    //    send_push·create_gathering 은 admin 전용, create_sch_post 는 앱과 같게 활성 멤버(#630). ──
+    // ── write 도구 4개. 모두 ctx.team_id 스코프 · 감사 로그 필수.
+    //    send_push·send_kakao_notice·create_gathering 은 admin 전용, create_sch_post 는 앱과 같게 활성 멤버(#630). ──
 
     server.registerTool(
       "send_push",
@@ -316,6 +321,47 @@ const handler = createMcpHandler(
             message: args.message,
           }),
         ),
+    );
+
+    server.registerTool(
+      "send_kakao_notice",
+      {
+        title: "단톡방 공지",
+        description:
+          "크루 카카오톡 단톡방에 노티봇으로 공지를 보냅니다. 운영진(admin) 전용입니다. " +
+          "방은 고를 수 없고 서버 설정의 크루 단톡방으로만 갑니다. 보내면 되돌릴 수 없고 크루 전원에게 보이니, " +
+          "**먼저 dry_run=true 로 불러** 보낼 방·본문을 사용자에게 보여 주고 확인받은 뒤, 응답의 request_id 를 그대로 넣어 실제로 보내세요. " +
+          "응답 status 는 sent(허브 접수) / duplicate(같은 request_id 가 이미 접수돼 새로 보내지 않음 — 실패 아님, 다시 보내지 마세요) / " +
+          "skipped(이 환경엔 노티봇 미설정) / failed(failure 에 분류) 입니다. " +
+          "서버는 재시도하지 않습니다 — failed 를 다시 보낼 땐 반드시 같은 request_id 로 보내야 중복 발송이 안 납니다. " +
+          "보낸 공지는 어드민 '카카오 발송 이력'에 'MCP 공지'로 남습니다.",
+        inputSchema: {
+          message: z
+            .string()
+            .min(1, "보낼 내용을 입력하세요.")
+            .max(KAKAO_MESSAGE_MAX_LENGTH)
+            .describe(`보낼 본문(최대 ${KAKAO_MESSAGE_MAX_LENGTH}자). 태그 자리는 '@이름'으로 쓰세요.`),
+          mentions: z
+            .array(z.string().min(1))
+            .max(KAKAO_NOTICE_MAX_MENTIONS)
+            .optional()
+            .describe(
+              "카톡 태그로 부를 사람 이름 목록. 본문의 '@이름' 자리가 태그가 되고, 없으면 맨 앞에 붙습니다. " +
+                "단톡방 참여자 한 명으로 정해지지 않는 이름이면 보내지 않고 failed 로 돌아옵니다.",
+            ),
+          request_id: z
+            .string()
+            .max(KAKAO_REQUEST_ID_MAX_LENGTH)
+            .optional()
+            .describe("멱등 키. 같은 값이면 허브가 두 번 보내지 않습니다. 생략하면 서버가 만들어 응답에 싣습니다."),
+          dry_run: z
+            .boolean()
+            .optional()
+            .describe("true 면 보내지 않고 보낼 방·본문 미리보기만 돌려줍니다."),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, (ctx, supabase) => sendKakaoNotice(supabase, ctx, args)),
     );
 
     server.registerTool(

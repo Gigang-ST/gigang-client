@@ -10,12 +10,18 @@ import { createUntypedAdminClient } from "@/lib/supabase/admin";
 /** 한 번에 보여줄 행 수. 목록은 "최근에 뭐가 나갔나"를 훑는 자리라 깊이 들어갈 일이 없다. */
 const PAGE_SIZE = 100;
 
+/**
+ * 이력 상태. `duplicate` 는 같은 request_id 가 이미 접수돼 허브가 새로 보내지 않은 건 — 단톡방엔
+ * 앞선 한 건만 있다. 성공·실패 어느 쪽으로도 세지 않는다.
+ */
+export type KakaoSendStatus = "success" | "failed" | "duplicate";
+
 export type KakaoSendLogRow = {
   sendId: string;
   room: string;
   message: string;
   requestId: string | null;
-  status: "success" | "failed";
+  status: KakaoSendStatus;
   errName: string | null;
   errMsg: string | null;
   httpStatus: number | null;
@@ -32,7 +38,7 @@ type Raw = {
   room_nm: string;
   msg_txt: string;
   request_id: string | null;
-  status: "success" | "failed";
+  status: KakaoSendStatus;
   err_name: string | null;
   err_msg: string | null;
   http_status: number | null;
@@ -115,6 +121,9 @@ export async function resendKakao(sendId: string): Promise<ResendResult> {
     const row = data as Raw;
     // 버튼을 감추는 건 안내일 뿐이다 — send_id 만 알면 액션은 직접 불린다. 서버가 다시 판정한다.
     if (row.status === "success") throw new Error("이미 허브에 접수된 건이에요.");
+    if (row.status === "duplicate") {
+      throw new Error("허브가 이미 같은 요청을 받아 둔 건이라 다시 보낼 게 없어요.");
+    }
     if (!row.request_id) {
       throw new Error("이전 요청 ID 가 없어 중복 여부를 확인할 수 없어요. 허브 발송 이력을 먼저 확인해 주세요.");
     }
@@ -132,6 +141,9 @@ export async function resendKakao(sendId: string): Promise<ResendResult> {
 
     revalidatePath("/admin/kakao");
 
+    if (result.duplicate) {
+      return { ok: true, message: "허브가 이미 받아 둔 건이라 새로 보내지 않았어요(중복 차단)." };
+    }
     if (result.ok) return { ok: true, message: "허브에 다시 접수했어요. 실제 전달 여부는 허브 발송 이력에서 확인해 주세요." };
     if (result.skipped === "disabled") {
       return { ok: false, message: "이 환경엔 노티봇이 연결돼 있지 않아요." };
