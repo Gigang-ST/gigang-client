@@ -112,6 +112,18 @@ describe("종목 탭 (#645)", () => {
     expect(tabs).toHaveLength(4);
     for (const tab of tabs) expect(tab).toMatch(/<svg[^>]*aria-hidden="true"/);
   });
+
+  it("철인3종·하이록스는 공식 로고를 글자색(currentColor) 단색으로 그린다 — 원래 색을 들고 오지 않는다", () => {
+    const tabs = render().match(/<button[^>]*aria-pressed[\s\S]*?<\/button>/g) ?? [];
+    const tri = tabs.find((t) => t.includes("철인3종")) ?? "";
+    const hyrox = tabs.find((t) => t.includes("하이록스")) ?? "";
+    expect(tri).toContain('viewBox="0 0 35.5 49"'); // M-dot
+    expect(hyrox).toContain('viewBox="0 0 520 72"'); // HYROX 워드마크
+    for (const tab of [tri, hyrox]) {
+      expect(tab).toContain('fill="currentColor"');
+      expect(tab).not.toMatch(/#[0-9a-f]{3,6}/i);
+    }
+  });
 });
 
 describe("마라톤 판", () => {
