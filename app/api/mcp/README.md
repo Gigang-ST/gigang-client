@@ -253,4 +253,23 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | 특정 멤버가 발송에서 빠짐 | 타 팀·비활성·미존재이거나 알림 수신거부. 발송은 우리 팀 활성 멤버로만 나갑니다. |
 | 토큰을 잃어버림 | 다시 볼 수 없습니다. 기존 토큰 폐기 후 새로 발급하세요. |
 
+---
+
+## 7. 도구 추가·변경 절차 (개발자)
+
+**앱에 기능을 추가·변경하면 이 MCP 도구도 같은 PR에서 추가·변경합니다.** 안 넣을 거면 PR 템플릿
+「운영 MCP 반영」에 이유를 적습니다([ADR-0006](../../../docs/decisions/0006-ops-mcp-with-feature.md)).
+
+1. **도메인 로직은 `lib/` 코어로 뺀다.** `app/actions/**` 서버 액션은 Supabase 세션 쿠키에 묶여 있어
+   MCP(`Authorization: Bearer <PAT>`)에서 그대로 부를 수 없습니다. 클라이언트를 주입받는 함수로 빼서
+   액션·MCP가 공유합니다(예: `lib/mileage-run.ts`, `lib/mcp/create-gathering.ts`).
+2. **입력 검증은 앱과 같은 스키마**(`lib/validations/*`)를 씁니다.
+3. **`app/api/mcp/[transport]/route.ts`에 `server.registerTool`로 등록**합니다. 신원·팀은 인자가 아니라
+   토큰 컨텍스트(`OperatorContext` — `ctx.mem_id`·`ctx.team_id`·`ctx.is_admin`)에서 옵니다.
+   권한은 앱과 같게 두고(§4 권한 경계), admin 판정은 핸들러가 아니라 쿼리·발송 함수 안에 둡니다.
+4. **앱 쓰기 경로가 하는 부수효과(캐시 무효화·알림 등)를 MCP 경로에서도 맞춥니다.** 액션의
+   `revalidateTag`·`revalidatePath` 등은 각 경로가 따로 맡습니다.
+5. **테스트**를 `app/api/mcp/__tests__/`에 추가합니다.
+6. **이 문서 §4 도구 표**에 한 줄 더하고, 쓰기 도구라면 약속(§4 아래 절)과 §6 트러블슈팅도 갱신합니다.
+
 문의: 운영/개발 담당(테크리드).
