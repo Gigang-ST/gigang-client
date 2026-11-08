@@ -97,6 +97,17 @@ const ctx: BoardContext = {
 
 /* ------------------------------------------------------------------ */
 
+describe("종목 탭 (#645)", () => {
+  it("러닝 · 트레일러닝 · 철인3종 · 하이록스 순서다 — 도로 종목 탭 이름은 '마라톤'이 아니라 '러닝'", () => {
+    const t = text(render());
+    const order = ["러닝", "트레일러닝", "철인3종", "하이록스"].map((label) => t.indexOf(label));
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    // 탭 줄(첫 탭 ~ 마지막 탭)에 옛 이름이 남지 않는다
+    expect(t.slice(order[0], order[3])).not.toContain("마라톤");
+  });
+});
+
 describe("마라톤 판", () => {
   const html = render();
 

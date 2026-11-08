@@ -159,10 +159,10 @@ export type BoardContext = {
 /* ------------------------------------------------------------------ */
 
 const CATEGORIES = [
-  { value: "marathon", label: "마라톤" },
+  { value: "marathon", label: "러닝" },
   { value: "trail", label: "트레일러닝" },
-  { value: "hyrox", label: "하이록스" },
   { value: "triathlon", label: "철인3종" },
+  { value: "hyrox", label: "하이록스" },
 ] as const;
 
 type CategoryKey = (typeof CATEGORIES)[number]["value"];
