@@ -4,6 +4,24 @@ import { useState } from "react";
 
 import Link from "next/link";
 
+import { secondsToTime } from "@/lib/dayjs";
+import {
+  HYROX_STATIONS,
+  HYROX_STATION_CODES,
+  formatHyroxGap,
+  hasHyroxStation,
+  hyroxSplitGaps,
+  hyroxStationHolders,
+  viewHyroxBy,
+  type HyroxBoard,
+  type HyroxEntry,
+  type HyroxGaps,
+  type HyroxSortKey,
+  type HyroxStationCode,
+  type HyroxStationHolder,
+  type HyroxView,
+  type HyroxViewEntry,
+} from "@/lib/hyrox";
 import { getFrameCls } from "@/lib/title-effects";
 import {
   flattenTriathlon,
@@ -28,7 +46,11 @@ import { CardItem } from "@/components/ui/card";
 type SelectMember = (memId: string, name: string) => void;
 
 /** 행 전체를 프로필 카드 진입점으로 쓰기 위한 공통 props */
-function memberRowProps(entry: { memId: string; name: string }, onSelect: SelectMember) {
+function memberRowProps(
+  entry: { memId: string; name: string },
+  onSelect: SelectMember,
+  actionLabel = "프로필 보기",
+) {
   return {
     role: "button" as const,
     tabIndex: 0,
@@ -39,7 +61,7 @@ function memberRowProps(entry: { memId: string; name: string }, onSelect: Select
         onSelect(entry.memId, entry.name);
       }
     },
-    "aria-label": `${entry.name} 프로필 보기`,
+    "aria-label": `${entry.name} ${actionLabel}`,
   };
 }
 
@@ -116,6 +138,8 @@ type RecordsData = {
   marathon: { events: MarathonEvent[] };
   trail: { entries: TrailEntry[] };
   triathlon: { events: TriathlonEvent[] };
+  /** 옛 캐시(v8 이하)엔 없다 — 없으면 빈 판 */
+  hyrox?: { boards: HyroxBoard[] };
   memberTitles: Record<string, MemberTitleBase>;
   memberMeta: Record<string, MemberMeta>;
 };
@@ -126,6 +150,8 @@ export type BoardContext = {
   memberMeta: Record<string, MemberMeta>;
   myMemId: string | null;
   onSelectMember: SelectMember;
+  /** 행을 눌렀을 때 하는 일의 이름(스크린리더용) — 하이록스 판은 프로필 대신 스플릿을 펼친다 */
+  rowActionLabel?: string;
 };
 
 /* ------------------------------------------------------------------ */
@@ -135,6 +161,7 @@ export type BoardContext = {
 const CATEGORIES = [
   { value: "marathon", label: "마라톤" },
   { value: "trail", label: "트레일러닝" },
+  { value: "hyrox", label: "하이록스" },
   { value: "triathlon", label: "철인3종" },
 ] as const;
 
@@ -302,7 +329,7 @@ function ChampionCard({
         CHAMPION_INTERACTIVE_CLS,
         getFrameCls(title?.frame_cd),
       )}
-      {...memberRowProps(entry, ctx.onSelectMember)}
+      {...memberRowProps(entry, ctx.onSelectMember, ctx.rowActionLabel)}
     >
       {children}
     </div>
@@ -320,12 +347,15 @@ function MyStandingBand({
   standing,
   unit,
   targetId,
+  onGo,
 }: {
   standing: MyStanding;
   /** 값 뒤에 붙는 말 — 시간 종목은 없고 트레일은 "지수" */
   unit?: string;
   /** 목록 안 내 행의 앵커. 내가 1위면 목록에 없으므로 준 쪽만 버튼이 된다 */
   targetId?: string;
+  /** 누를 때 먼저 할 일 — 하이록스 판은 내 행을 펼친다. 주면 내가 1위여도(목록에 없어도) 버튼이 된다 */
+  onGo?: () => void;
 }) {
   const body = (
     <>
@@ -346,12 +376,14 @@ function MyStandingBand({
   const cls =
     "flex w-full items-center gap-2 border-b border-border bg-primary/[0.07] px-6 py-2 text-left";
 
-  if (!targetId) return <div className={cls}>{body}</div>;
+  if (!targetId && !onGo) return <div className={cls}>{body}</div>;
 
   return (
     <button
       type="button"
       onClick={() => {
+        onGo?.();
+        if (!targetId) return;
         const target = document.getElementById(targetId);
         if (!target) return;
         target.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -375,7 +407,7 @@ function MyStandingBand({
  * 전당을 보고 "나도 올려야지"가 되는 게 이 화면의 자연스러운 출구인데, 기록 등록은
  * 프로필탭 다이얼로그에만 있어 여기서 갈 곳이 없었다.
  */
-function RegisterPrompt({ message }: { message: string }) {
+function RegisterPrompt({ message, linkLabel = "기록 등록" }: { message: string; linkLabel?: string }) {
   return (
     <div className="flex items-center gap-2 border-b border-border bg-muted/40 px-6 py-2">
       <span className="min-w-0 flex-1 truncate text-[11.5px] text-muted-foreground">{message}</span>
@@ -383,7 +415,7 @@ function RegisterPrompt({ message }: { message: string }) {
         href="/profile"
         className="shrink-0 rounded-full border border-primary/35 px-2.5 py-1 text-[12px] font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        기록 등록
+        {linkLabel}
       </Link>
     </div>
   );
@@ -466,7 +498,7 @@ function MarathonHalfCard({
         ROW_INTERACTIVE_CLS,
         getFrameCls(title?.frame_cd),
       )}
-      {...memberRowProps(entry, ctx.onSelectMember)}
+      {...memberRowProps(entry, ctx.onSelectMember, ctx.rowActionLabel)}
     >
       {/* 줄 1 — 순위 · 이름 · 칭호 */}
       <div className="flex min-w-0 items-center gap-1">
@@ -796,6 +828,560 @@ export function TriathlonContent({ events, ctx }: { events: TriathlonEvent[]; ct
 }
 
 /* ------------------------------------------------------------------ */
+/*  하이록스                                                           */
+/* ------------------------------------------------------------------ */
+
+const HYROX_HELP = (
+  <HelpTip title="HYROX" align="end" className="-my-2 size-8 text-muted-foreground hover:text-foreground">
+    1km 달리기 8번과 스테이션 8개를 번갈아 하는 종목이에요. 대회 완주 시간으로 순위를 매기고, 스테이션
+    기록은 입력한 사람만 보여요.
+  </HelpTip>
+);
+
+/** 정렬 칩·제호·표에 쓰는 이름 — 총시간 + 스테이션 8개(공식 순서) */
+const HYROX_SORTS: { key: HyroxSortKey; label: string }[] = [
+  { key: "TOTAL", label: "총시간" },
+  ...HYROX_STATIONS.map((s) => ({ key: s.code, label: s.label })),
+];
+const stationLabel = (code: HyroxStationCode) => HYROX_STATIONS.find((s) => s.code === code)?.label ?? code;
+
+/** 정렬 칩 앵커 — 아래 스테이션 표에서 기준을 바꾸면 여기로 올려 보낸다(바뀐 띠가 보이게) */
+const HYROX_SORT_ANCHOR = "hof-hyrox-sort";
+
+/** 펼침 패널 앵커 */
+const hyroxPanelId = (memId: string) => `hof-hyrox-panel-${memId}`;
+
+/**
+ * 정렬 칩 — 총시간 + 스테이션 8개, 가로로 흐른다.
+ *
+ * 부문 pill 바로 아래 두 번째 줄이라 같은 pill 모양을 쓰되 한 단계 작게 둔다. 이 부문에서 아무도 그 스테이션을
+ * 안 넣었으면 칩은 서 있되 꺼진다 — 칩이 생겼다 사라지면 줄이 매번 출렁인다.
+ */
+function HyroxSortChips({
+  value,
+  enabled,
+  onChange,
+}: {
+  value: HyroxSortKey;
+  enabled: ReadonlySet<HyroxSortKey>;
+  onChange: (key: HyroxSortKey) => void;
+}) {
+  return (
+    <div id={HYROX_SORT_ANCHOR} className="flex scroll-mt-4 gap-1.5 overflow-x-auto px-6 [scrollbar-width:none]">
+      {HYROX_SORTS.map((s) => {
+        const on = value === s.key;
+        const disabled = !enabled.has(s.key);
+        return (
+          <button
+            key={s.key}
+            type="button"
+            disabled={disabled}
+            aria-pressed={on}
+            onClick={() => onChange(s.key)}
+            className={cn(
+              "shrink-0 rounded-full border px-2.5 py-1 text-[12px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              on
+                ? "border-primary/40 bg-primary/10 font-semibold text-primary"
+                : "border-border text-muted-foreground hover:text-foreground",
+              disabled && "opacity-40",
+            )}
+          >
+            {s.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function GapCell({ sec }: { sec: number | null }) {
+  if (sec == null) return <td className="py-1.5 text-right text-muted-foreground">—</td>;
+  return (
+    <td
+      className={cn(
+        "py-1.5 text-right font-mono tabular-nums",
+        // 빠른 쪽(-)만 색을 준다 — 느린 쪽을 빨갛게 칠하면 남의 기록을 펼쳐 보는 자리가 성적표가 된다
+        sec < 0 ? "text-primary" : "text-foreground",
+      )}
+    >
+      {formatHyroxGap(sec)}
+    </td>
+  );
+}
+
+/**
+ * 펼침 패널 — 한 사람의 스테이션 8개와 **지금 기준의** 1위·바로 위 사람과의 차이.
+ *
+ * 총시간 순위만으로는 "어디서 벌고 잃었나"가 안 보인다. 내 행을 펼치면 그게 곧 내 약점 지도라 별도 "내 표"를
+ * 두지 않는다. 1위보다 가장 많이 잃은 스테이션 한 줄만 옅게 깔고 아래에 말로도 적는다(색만으론 이유를 모른다).
+ * 행을 누르면 프로필 대신 이게 열리므로 **멤버 카드는 패널 안 버튼**으로 간다.
+ */
+function HyroxGapPanel({
+  entry,
+  gaps,
+  isMe,
+  onOpenCard,
+}: {
+  entry: HyroxViewEntry;
+  gaps: HyroxGaps;
+  isMe: boolean;
+  onOpenCard: () => void;
+}) {
+  const hasSplits = gaps.rows.some((r) => r.sec != null);
+  const worstRow = gaps.worst ? gaps.rows.find((r) => r.code === gaps.worst) : undefined;
+
+  return (
+    <div id={hyroxPanelId(entry.memId)} className="flex flex-col gap-2 rounded-2xl border border-border bg-muted/30 p-3">
+      <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
+          <span className="truncate text-[13.5px] font-semibold text-foreground">{entry.name}</span>
+          <span className="shrink-0 font-mono text-[12px] tabular-nums text-muted-foreground">총 {entry.totalRecord}</span>
+        </div>
+        <Button type="button" variant="outline" size="xs" className="shrink-0" onClick={onOpenCard}>
+          멤버 카드
+        </Button>
+      </div>
+
+      {hasSplits ? (
+        <>
+          <p className="text-[11px] text-muted-foreground">
+            {gaps.leader ? (
+              <>
+                비교 · 1위 {gaps.leader.name}
+                {gaps.above && gaps.above.memId !== gaps.leader.memId && <> · 바로 위 {gaps.above.name}</>}
+              </>
+            ) : (
+              "이 기준 1위예요"
+            )}
+          </p>
+          <table className="w-full table-fixed text-[12px]">
+            <thead>
+              <tr className="text-[10px] text-muted-foreground">
+                <th className="w-[40%] pb-1 text-left font-normal">스테이션</th>
+                <th className="pb-1 text-right font-normal">기록</th>
+                <th className="pb-1 text-right font-normal">1위보다</th>
+                <th className="pb-1 text-right font-normal">바로 위보다</th>
+              </tr>
+            </thead>
+            <tbody>
+              {gaps.rows.map((r) => (
+                <tr
+                  key={r.code}
+                  className={cn("border-t border-border", r.code === gaps.worst && "bg-primary/[0.07]")}
+                >
+                  <td className="truncate py-1.5 text-foreground">{stationLabel(r.code)}</td>
+                  <td className="py-1.5 text-right font-mono tabular-nums text-foreground">
+                    {r.sec != null ? secondsToTime(r.sec) : "—"}
+                  </td>
+                  <GapCell sec={r.vsLeader} />
+                  <GapCell sec={r.vsAbove} />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {worstRow?.vsLeader != null && (
+            <p className="text-[11px] text-muted-foreground">
+              1위보다 가장 많이 벌어진 곳은{" "}
+              <b className="font-semibold text-foreground">{stationLabel(worstRow.code)}</b>
+              <span className="ml-1 font-mono tabular-nums text-foreground">{formatHyroxGap(worstRow.vsLeader)}</span>
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="py-1 text-[12px] text-muted-foreground">
+          스테이션 기록을 입력하지 않았어요.
+          {isMe && (
+            <>
+              {" "}
+              <Link href="/profile" className="font-semibold text-primary underline-offset-2 hover:underline">
+                프로필에서 기록을 고치면
+              </Link>{" "}
+              채울 수 있어요.
+            </>
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** 더블스 목록 행 — 2위부터. 스테이션 기준이면 큰 숫자 옆에 총시간을 작게 붙인다 */
+function HyroxListRow({ entry, ctx, showTotal }: { entry: HyroxViewEntry; ctx: BoardContext; showTotal: boolean }) {
+  const title = ctx.memberTitles[entry.memId];
+  const isMe = entry.memId === ctx.myMemId;
+  return (
+    <CardItem
+      id={isMe ? myRowId(entry.memId) : undefined}
+      className={cn("flex items-center gap-3 p-3", ROW_INTERACTIVE_CLS, getFrameCls(title?.frame_cd))}
+      {...memberRowProps(entry, ctx.onSelectMember, ctx.rowActionLabel)}
+    >
+      <RankMark rank={entry.rank} size="md" />
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-[15px] font-semibold text-foreground">{entry.name}</span>
+          {title && (
+            <TitleBadge
+              name={title.ttl_nm}
+              effect={title.badge_effect}
+              size="xs"
+              tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility, isHeld: title.isHeld }}
+            />
+          )}
+        </div>
+        <span className="truncate text-xs text-muted-foreground">{entry.raceName ?? "-"}</span>
+      </div>
+      <div className="flex shrink-0 flex-col items-end">
+        <span className="font-mono text-lg font-bold tabular-nums text-foreground">{entry.record}</span>
+        {showTotal && (
+          <span className="font-mono text-[10px] tabular-nums text-muted-foreground">총 {entry.totalRecord}</span>
+        )}
+      </div>
+    </CardItem>
+  );
+}
+
+/**
+ * 스테이션 기준에서 그 칸을 안 넣은 사람 — 순위 없이 뒤에 흐리게 모은다.
+ * 꼴찌로 세우면 "그 스테이션을 못했다"로 읽힌다. 눌러 펼치면 다른 스테이션 기록은 그대로 볼 수 있다.
+ */
+function HyroxMissingRow({ entry, ctx }: { entry: HyroxViewEntry; ctx: BoardContext }) {
+  const isMe = entry.memId === ctx.myMemId;
+  return (
+    <div
+      id={isMe ? myRowId(entry.memId) : undefined}
+      className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 opacity-70", ROW_INTERACTIVE_CLS)}
+      {...memberRowProps(entry, ctx.onSelectMember, ctx.rowActionLabel)}
+    >
+      <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{entry.name}</span>
+      <span className="shrink-0 font-mono text-[12px] tabular-nums text-muted-foreground">총 {entry.totalRecord}</span>
+    </div>
+  );
+}
+
+/**
+ * 스테이션별 팀 최고 — 8줄 × (남·여 | 더블스 1칸). 줄을 누르면 그 스테이션 기준으로 판이 바뀐다.
+ *
+ * 1위끼리만 나란히 놓던 옛 표는 "볼 게 별로 없다"는 피드백을 받았다 — 총시간 1위가 모든 스테이션에서
+ * 빠른 건 아니라서, 스테이션마다 주인이 갈리는 게 이 종목을 구경하는 재미다. 제호는 승패 어휘를 피해
+ * `STATION BEST`로 둔다(§기강의 전당 — RECORD HOLDER와 같은 이유).
+ * 아무도 스플릿을 안 넣었으면 표째 안 그린다.
+ */
+function HyroxStationBest({
+  columns,
+  current,
+  onPick,
+}: {
+  columns: { key: string; label: string; holders: Record<HyroxStationCode, HyroxStationHolder | null> }[];
+  current: HyroxSortKey;
+  onPick: (code: HyroxStationCode) => void;
+}) {
+  const any = columns.some((c) => Object.values(c.holders).some(Boolean));
+  if (!any) return null;
+
+  return (
+    <div className="flex flex-col gap-2 px-6">
+      <BoardRowLabel label="STATION BEST" />
+      <div className="flex flex-col">
+        <div className="flex gap-2 pb-1 text-[10px] text-muted-foreground">
+          <span className="w-[34%] shrink-0">스테이션</span>
+          {columns.map((c) => (
+            <span key={c.key} className="min-w-0 flex-1 text-right">
+              {c.label}
+            </span>
+          ))}
+        </div>
+        {HYROX_STATIONS.map((st) => {
+          const disabled = columns.every((c) => !c.holders[st.code]);
+          return (
+            <button
+              key={st.code}
+              type="button"
+              disabled={disabled}
+              aria-pressed={current === st.code}
+              aria-label={`${st.label} 기준으로 보기`}
+              onClick={() => onPick(st.code)}
+              className={cn(
+                "flex items-center gap-2 border-t border-border py-1.5 text-left text-[12px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                current === st.code ? "bg-primary/[0.07]" : "hover:bg-muted/40",
+              )}
+            >
+              <span className="w-[34%] shrink-0 truncate">
+                <span className="text-foreground">{st.label}</span>
+                <span className="ml-1 text-[10px] text-muted-foreground">{st.spec}</span>
+              </span>
+              {columns.map((c) => {
+                const h = c.holders[st.code];
+                return (
+                  <span key={c.key} className="flex min-w-0 flex-1 items-baseline justify-end gap-1">
+                    {h ? (
+                      <>
+                        <span className="truncate text-muted-foreground">{h.name}</span>
+                        <span className="shrink-0 font-mono font-semibold tabular-nums text-foreground">
+                          {secondsToTime(h.sec)}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </span>
+                );
+              })}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+type HyroxListKey = "male" | "female" | "all";
+
+/**
+ * 하이록스 판 — 부문 pill [오픈 · 프로 · 더블스] + 정렬 칩 [총시간 · 스테이션 8개].
+ *
+ * 오픈·프로는 남녀 규정(무게)이 달라 마라톤과 **같은 판**(MEN/WOMEN 띠 + 반칸 목록)을 쓴다 — 부품도 그대로
+ * 재사용한다(따로 만들면 띠·판독선 규칙이 한쪽만 고쳐진다). 더블스는 남·여·혼성 팀이 섞이는 팀 기록이라
+ * 트레일처럼 챔피언 하나 + 단일 목록이다. 릴레이는 판이 없다(`HYROX_DIVISIONS`).
+ *
+ * "구경하러 들어오는 화면"이 목표다(사용자 피드백 — 총시간 순위만 보이고 남의 스테이션 기록은 못 봤다):
+ * - **정렬 칩**: 스테이션을 고르면 띠·판독선·목록이 전부 그 스테이션 기준으로 다시 선다.
+ * - **행을 누르면 펼친다**: 그 사람의 8개 스테이션과 지금 기준 1위·바로 위와의 차이. 멤버 카드는 패널 안 버튼.
+ *   마라톤 판과 달리 행이 프로필을 열지 않는다 — 이 판에서 사람을 누르는 이유가 기록을 보려는 거라서.
+ * - **STATION BEST**: 스테이션마다 팀 최고 보유자. 줄을 누르면 그 스테이션 기준으로.
+ *
+ * @internal 렌더 테스트가 카테고리 전환 없이 이 판만 그려 보려고 꺼내 쓴다
+ */
+export function HyroxContent({
+  boards,
+  ctx,
+  initialSort = "TOTAL",
+  initialExpanded = null,
+}: {
+  boards: HyroxBoard[];
+  ctx: BoardContext;
+  /** @internal 렌더 테스트용 — 정적 렌더는 클릭을 못 하므로 시작 상태를 넘긴다 */
+  initialSort?: HyroxSortKey;
+  /** @internal 렌더 테스트용 */
+  initialExpanded?: string | null;
+}) {
+  const [selected, setSelected] = useState(boards[0]?.eventType ?? "");
+  const [sortKey, setSortKey] = useState<HyroxSortKey>(initialSort);
+  const [expanded, setExpanded] = useState<string | null>(initialExpanded);
+  const board = boards.find((b) => b.eventType === selected) ?? boards[0];
+
+  const lists: Record<HyroxListKey, HyroxEntry[]> = {
+    male: board?.male ?? [],
+    female: board?.female ?? [],
+    all: board?.all ?? [],
+  };
+  const everyone = [...lists.male, ...lists.female, ...lists.all];
+  const hasAny = everyone.length > 0;
+
+  // 부문을 바꿨는데 고른 스테이션이 그 부문엔 아무도 없으면 총시간으로 물러난다(빈 판을 세우지 않게)
+  const enabled = new Set<HyroxSortKey>([
+    "TOTAL",
+    ...HYROX_STATION_CODES.filter((code) => hasHyroxStation(everyone, code)),
+  ]);
+  const sort: HyroxSortKey = enabled.has(sortKey) ? sortKey : "TOTAL";
+  const isStation = sort !== "TOTAL";
+
+  const views: Record<HyroxListKey, HyroxView> = {
+    male: viewHyroxBy(lists.male, sort),
+    female: viewHyroxBy(lists.female, sort),
+    all: viewHyroxBy(lists.all, sort),
+  };
+
+  // 스테이션 기준이면 대회명 자리에 총시간을 앞세운다 — 큰 숫자가 총시간이 아니라는 걸 그 줄이 말한다
+  const show = (e: HyroxViewEntry): HyroxViewEntry =>
+    isStation ? { ...e, raceName: `총 ${e.totalRecord} · ${e.raceName ?? "-"}` } : e;
+
+  const male = splitChampion(views.male.ranked.map(show));
+  const female = splitChampion(views.female.ranked.map(show));
+  const all = splitChampion(views.all.ranked.map(show));
+  const missing = board?.byGender ? [...views.male.missing, ...views.female.missing] : views.all.missing;
+
+  const hctx: BoardContext = {
+    ...ctx,
+    onSelectMember: (memId) => setExpanded((prev) => (prev === memId ? null : memId)),
+    rowActionLabel: "스테이션 기록 펼치기",
+  };
+
+  const myView = (["male", "female", "all"] as const).map((k) => views[k]).find((v) =>
+    [...v.ranked, ...v.missing].some((e) => e.memId === ctx.myMemId),
+  );
+  const standing = myView ? getMyTimeStanding(myView.ranked, ctx.myMemId) : null;
+  const myMissing = !!myView && !standing;
+
+  /** 펼친 사람의 패널 — 그 사람이 든 목록을 찾아 격차를 잰다 */
+  const panelFor = (memId: string) => {
+    if (expanded !== memId) return null;
+    for (const v of Object.values(views)) {
+      const entry = [...v.ranked, ...v.missing].find((e) => e.memId === memId);
+      if (!entry) continue;
+      const gaps = hyroxSplitGaps(v, memId);
+      if (!gaps) return null;
+      return (
+        <HyroxGapPanel
+          entry={entry}
+          gaps={gaps}
+          isMe={memId === ctx.myMemId}
+          onOpenCard={() => ctx.onSelectMember(entry.memId, entry.name)}
+        />
+      );
+    }
+    return null;
+  };
+
+  const championPanel =
+    (male.champion && panelFor(male.champion.memId)) ||
+    (female.champion && panelFor(female.champion.memId)) ||
+    (all.champion && panelFor(all.champion.memId));
+
+  const pickStation = (code: HyroxStationCode) => {
+    setSortKey(code);
+    document.getElementById(HYROX_SORT_ANCHOR)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const bestColumns = board?.byGender
+    ? [
+        { key: "m", label: "남자", holders: hyroxStationHolders(lists.male) },
+        { key: "f", label: "여자", holders: hyroxStationHolders(lists.female) },
+      ]
+    : [{ key: "a", label: "팀 최고", holders: hyroxStationHolders(lists.all) }];
+
+  const pairs = Math.max(male.rest.length, female.rest.length);
+
+  return (
+    <>
+      <div className="flex gap-2 px-6">
+        {boards.map((b) => (
+          <Button
+            key={b.eventType}
+            type="button"
+            variant="ghost"
+            size="xs"
+            aria-pressed={board?.eventType === b.eventType}
+            onClick={() => {
+              setSelected(b.eventType);
+              setExpanded(null);
+            }}
+            className={cn(
+              "rounded-full px-3",
+              board?.eventType === b.eventType ? "bg-muted-foreground/20 text-foreground" : "text-muted-foreground",
+            )}
+          >
+            {b.label}
+          </Button>
+        ))}
+      </div>
+
+      {!board || !hasAny ? (
+        <div className="px-6">
+          <EmptyState
+            variant="card"
+            message="아직 등록된 하이록스 기록이 없어요. 첫 완주가 전당의 첫 줄이 됩니다."
+          />
+        </div>
+      ) : (
+        <>
+          <HyroxSortChips value={sort} enabled={enabled} onChange={setSortKey} />
+
+          <div className="flex flex-col">
+            <ChampionBand
+              eyebrow={isStation ? sort.replaceAll("_", " ") : "Record Holder"}
+              action={HYROX_HELP}
+            >
+              {board.byGender ? (
+                <div className="grid grid-cols-2 items-start gap-2.5">
+                  <MarathonChampionSlot who="MEN" entry={male.champion} ctx={hctx} />
+                  <MarathonChampionSlot who="WOMEN" entry={female.champion} ctx={hctx} />
+                </div>
+              ) : (
+                all.champion && (
+                  <ChampionCard entry={all.champion} ctx={hctx}>
+                    <div className="flex items-center gap-3">
+                      <Avatar
+                        src={ctx.memberMeta[all.champion.memId]?.avatar_url}
+                        seed={all.champion.memId}
+                        size="xl"
+                      />
+                      <ChampionNameBlock entry={all.champion} ctx={ctx} size="md" />
+                      <div className="shrink-0 text-right font-mono text-[24px] font-bold leading-none tracking-tight tabular-nums text-primary">
+                        {all.champion.record}
+                      </div>
+                    </div>
+                    <ChampionQuote text={ctx.memberMeta[all.champion.memId]?.intro_txt} />
+                    <p className="truncate text-[10px] text-muted-foreground">{all.champion.raceName ?? "-"}</p>
+                  </ChampionCard>
+                )
+              )}
+            </ChampionBand>
+
+            {standing ? (
+              <MyStandingBand
+                standing={standing}
+                targetId={standing.rank > 1 ? myRowId(ctx.myMemId ?? "") : undefined}
+                onGo={() => setExpanded(ctx.myMemId)}
+              />
+            ) : myMissing ? (
+              <RegisterPrompt message="이 스테이션 기록을 입력하지 않았어요" linkLabel="기록 수정" />
+            ) : (
+              ctx.myMemId && <RegisterPrompt message="이 부문에 등록한 기록이 없어요" />
+            )}
+          </div>
+
+          {championPanel && <div className="px-6">{championPanel}</div>}
+
+          {board.byGender
+            ? pairs > 0 && (
+                <div className="flex flex-col gap-2 px-6">
+                  {Array.from({ length: pairs }).map((_, i) => {
+                    const m = male.rest[i];
+                    const f = female.rest[i];
+                    const panel = (m && panelFor(m.memId)) || (f && panelFor(f.memId));
+                    return (
+                      <div key={i} className="flex flex-col gap-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <MarathonHalfCard entry={m} ctx={hctx} />
+                          <MarathonHalfCard entry={f} ctx={hctx} />
+                        </div>
+                        {panel}
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            : all.rest.length > 0 && (
+                <div className="flex flex-col gap-2 px-6">
+                  {all.rest.map((entry) => (
+                    <div key={entry.memId} className="flex flex-col gap-2">
+                      <HyroxListRow entry={entry} ctx={hctx} showTotal={isStation} />
+                      {panelFor(entry.memId)}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+          {missing.length > 0 && (
+            <div className="flex flex-col gap-1 px-6">
+              <BoardRowLabel label={`스테이션 기록 미입력 ${missing.length}명`} />
+              {missing.map((entry) => (
+                <div key={entry.memId} className="flex flex-col gap-2">
+                  <HyroxMissingRow entry={entry} ctx={hctx} />
+                  {panelFor(entry.memId)}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <HyroxStationBest columns={bestColumns} current={sort} onPick={pickStation} />
+        </>
+      )}
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  메인 컴포넌트                                                       */
 /* ------------------------------------------------------------------ */
 
@@ -844,6 +1430,7 @@ export function RecordsClient({
         <MarathonContent events={data.marathon.events} ctx={ctx} />
       )}
       {selectedCategory === "trail" && <TrailContent entries={data.trail.entries} ctx={ctx} />}
+      {selectedCategory === "hyrox" && <HyroxContent boards={data.hyrox?.boards ?? []} ctx={ctx} />}
       {selectedCategory === "triathlon" && (
         <TriathlonContent events={data.triathlon.events} ctx={ctx} />
       )}

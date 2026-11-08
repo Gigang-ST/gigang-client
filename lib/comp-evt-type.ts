@@ -30,10 +30,14 @@ export function sanitizeAsciiUpperCompEvtTypeInput(raw: string): string {
 /** 철인3종 기본 종목(공통코드 `TRI_EVT_CD`) — 마라톤 코드와 겹치는 접두어 없는 값 */
 const TRIATHLON_BARE_EVT_TYPES = new Set(["FULL", "HALF", "OLYMPIC", "SPRINT"]);
 
+/** 하이록스 부문(공통코드 `HYROX_EVT_CD`) — 랭킹 코드는 `HYROX_*` */
+const HYROX_BARE_EVT_TYPES = new Set(["OPEN", "PRO", "DOUBLES", "RELAY"]);
+
 /**
  * 기강의 전당 랭킹이 쓰는 종목 코드.
  *
- * 철인 대회의 `FULL`·`HALF`·`OLYMPIC`·`SPRINT`를 `TRIATHLON_*`으로 바꾼다. 그대로 두면 철인
+ * 철인 대회의 `FULL`·`HALF`·`OLYMPIC`·`SPRINT`를 `TRIATHLON_*`으로 바꾼다. 하이록스 대회의
+ * `OPEN`·`PRO`·`DOUBLES`·`RELAY`는 `HYROX_*`으로 바꾼다(#349). 그대로 두면 철인
  * 풀·하프가 마라톤 풀·하프와 같은 코드라 랭킹에서 섞인다(#581). 그 밖의 값은 정규화만 한다.
  *
  * **정본은 RPC `get_public_team_race_rankings`의 `evt_cd` CASE**고, 이 함수는 그 거울이다 —
@@ -43,6 +47,7 @@ const TRIATHLON_BARE_EVT_TYPES = new Set(["FULL", "HALF", "OLYMPIC", "SPRINT"]);
 export function toRankingEvtCd(sprtCd: string | null | undefined, evtType: string): string {
   const key = normalizeCompEvtTypeKey(evtType);
   if (sprtCd === "triathlon" && TRIATHLON_BARE_EVT_TYPES.has(key)) return `TRIATHLON_${key}`;
+  if (sprtCd === "hyrox" && HYROX_BARE_EVT_TYPES.has(key)) return `HYROX_${key}`;
   return key;
 }
 
