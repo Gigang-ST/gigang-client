@@ -56,6 +56,8 @@ Before any Next.js work, find and read the relevant doc in `node_modules/next/di
 - **프로젝트(`evt_team_mst`)는 타입이 여럿이다**(`MILEAGE_RUN` · `PB_CLASS`). 팀의 ACTIVE 프로젝트를 읽을 땐
   `evt_type_cd`로 거르고, **ACTIVE가 하나라고 가정하지 않는다**(`.maybeSingle()` 금지 — 둘이면 에러로 떨어진다).
   PB 참가자는 마일리지 `evt_team_prt_rel`이 아니라 `evt_pb_prt_rel`에 있다. 정본: `.claude/docs/database-schema-v2-event-domain.md` §6
+- **운영 MCP 같이 넣기**: 기능을 추가·변경하면 운영 MCP(`app/api/mcp`, `gigang-ops`) 도구도 **같은 PR에서**
+  추가·변경한다. 안 넣을 거면 이유를 PR 본문(템플릿 「운영 MCP 반영」)에 적는다. 절차는 `app/api/mcp/README.md` §7 (ADR-0006)
 - **멤버 조회**: `getCurrentMember()` (`lib/queries/member.ts`) — React cache()로 같은 렌더 내 중복 쿼리 방지
 - **폼 검증**: Zod 스키마를 `lib/validations/`에 정의하고 React Hook Form과 통합
 - **에이전트 활용**: 작업 영역에 맞는 서브에이전트에 위임할 것 (프론트엔드, 백엔드, DevOps)
