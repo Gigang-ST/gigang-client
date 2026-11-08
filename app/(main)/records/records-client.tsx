@@ -42,6 +42,8 @@ import { MemberCardDialogDynamic as MemberCardDialog } from "@/components/member
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 
+import { HyroxIcon, RunningIcon, TrailIcon, TriathlonIcon } from "./category-icons";
+
 /** 엔트리 행을 탭하면 그 멤버의 프로필 카드를 연다 */
 type SelectMember = (memId: string, name: string) => void;
 
@@ -159,10 +161,10 @@ export type BoardContext = {
 /* ------------------------------------------------------------------ */
 
 const CATEGORIES = [
-  { value: "marathon", label: "마라톤" },
-  { value: "trail", label: "트레일러닝" },
-  { value: "hyrox", label: "하이록스" },
-  { value: "triathlon", label: "철인3종" },
+  { value: "marathon", label: "러닝", Icon: RunningIcon },
+  { value: "trail", label: "트레일러닝", Icon: TrailIcon },
+  { value: "triathlon", label: "철인3종", Icon: TriathlonIcon },
+  { value: "hyrox", label: "하이록스", Icon: HyroxIcon },
 ] as const;
 
 type CategoryKey = (typeof CATEGORIES)[number]["value"];
@@ -1420,7 +1422,16 @@ export function RecordsClient({
       {/* 카테고리 — 세그먼트. 아래 종목 서브탭이 pill이라 두 층이 형태로 갈린다 */}
       <div className="px-6">
         <SegmentControl
-          segments={CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
+          segments={CATEGORIES.map(({ value, label, Icon }) => ({
+            value,
+            // 아이콘은 라벨 위로 쌓는다 — 375px에서 탭 하나가 약 80px이라 "트레일러닝" 옆엔 설 자리가 없다
+            label: (
+              <span className="flex flex-col items-center gap-1">
+                <Icon />
+                {label}
+              </span>
+            ),
+          }))}
           value={selectedCategory}
           onValueChange={(v) => setSelectedCategory(v as CategoryKey)}
         />

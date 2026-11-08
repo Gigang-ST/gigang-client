@@ -97,6 +97,35 @@ const ctx: BoardContext = {
 
 /* ------------------------------------------------------------------ */
 
+describe("종목 탭 (#645)", () => {
+  it("러닝 · 트레일러닝 · 철인3종 · 하이록스 순서다 — 도로 종목 탭 이름은 '마라톤'이 아니라 '러닝'", () => {
+    const t = text(render());
+    const order = ["러닝", "트레일러닝", "철인3종", "하이록스"].map((label) => t.indexOf(label));
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    // 탭 줄(첫 탭 ~ 마지막 탭)에 옛 이름이 남지 않는다
+    expect(t.slice(order[0], order[3])).not.toContain("마라톤");
+  });
+
+  it("탭 넷 모두 라벨 위에 아이콘이 선다 — 장식이라 스크린리더엔 숨긴다", () => {
+    const tabs = render().match(/<button[^>]*aria-pressed[\s\S]*?<\/button>/g) ?? [];
+    expect(tabs).toHaveLength(4);
+    for (const tab of tabs) expect(tab).toMatch(/<svg[^>]*aria-hidden="true"/);
+  });
+
+  it("철인3종·하이록스는 공식 로고를 글자색(currentColor) 단색으로 그린다 — 원래 색을 들고 오지 않는다", () => {
+    const tabs = render().match(/<button[^>]*aria-pressed[\s\S]*?<\/button>/g) ?? [];
+    const tri = tabs.find((t) => t.includes("철인3종")) ?? "";
+    const hyrox = tabs.find((t) => t.includes("하이록스")) ?? "";
+    expect(tri).toContain('viewBox="0 0 35.5 49"'); // M-dot
+    expect(hyrox).toContain('viewBox="0 0 520 72"'); // HYROX 워드마크
+    for (const tab of [tri, hyrox]) {
+      expect(tab).toContain('fill="currentColor"');
+      expect(tab).not.toMatch(/#[0-9a-f]{3,6}/i);
+    }
+  });
+});
+
 describe("마라톤 판", () => {
   const html = render();
 
