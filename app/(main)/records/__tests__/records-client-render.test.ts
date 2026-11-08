@@ -106,6 +106,12 @@ describe("종목 탭 (#645)", () => {
     // 탭 줄(첫 탭 ~ 마지막 탭)에 옛 이름이 남지 않는다
     expect(t.slice(order[0], order[3])).not.toContain("마라톤");
   });
+
+  it("탭 넷 모두 라벨 위에 아이콘이 선다 — 장식이라 스크린리더엔 숨긴다", () => {
+    const tabs = render().match(/<button[^>]*aria-pressed[\s\S]*?<\/button>/g) ?? [];
+    expect(tabs).toHaveLength(4);
+    for (const tab of tabs) expect(tab).toMatch(/<svg[^>]*aria-hidden="true"/);
+  });
 });
 
 describe("마라톤 판", () => {
