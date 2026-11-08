@@ -2,8 +2,11 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { buildHyroxBoards, type HyroxRankingRow } from "@/lib/hyrox";
+
 import {
   RecordsClient,
+  HyroxContent,
   TrailContent,
   TriathlonContent,
   type BoardContext,
@@ -93,6 +96,35 @@ const ctx: BoardContext = {
 };
 
 /* ------------------------------------------------------------------ */
+
+describe("종목 탭 (#645)", () => {
+  it("러닝 · 트레일러닝 · 철인3종 · 하이록스 순서다 — 도로 종목 탭 이름은 '마라톤'이 아니라 '러닝'", () => {
+    const t = text(render());
+    const order = ["러닝", "트레일러닝", "철인3종", "하이록스"].map((label) => t.indexOf(label));
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    // 탭 줄(첫 탭 ~ 마지막 탭)에 옛 이름이 남지 않는다
+    expect(t.slice(order[0], order[3])).not.toContain("마라톤");
+  });
+
+  it("탭 넷 모두 라벨 위에 아이콘이 선다 — 장식이라 스크린리더엔 숨긴다", () => {
+    const tabs = render().match(/<button[^>]*aria-pressed[\s\S]*?<\/button>/g) ?? [];
+    expect(tabs).toHaveLength(4);
+    for (const tab of tabs) expect(tab).toMatch(/<svg[^>]*aria-hidden="true"/);
+  });
+
+  it("철인3종·하이록스는 공식 로고를 글자색(currentColor) 단색으로 그린다 — 원래 색을 들고 오지 않는다", () => {
+    const tabs = render().match(/<button[^>]*aria-pressed[\s\S]*?<\/button>/g) ?? [];
+    const tri = tabs.find((t) => t.includes("철인3종")) ?? "";
+    const hyrox = tabs.find((t) => t.includes("하이록스")) ?? "";
+    expect(tri).toContain('viewBox="0 0 35.5 49"'); // M-dot
+    expect(hyrox).toContain('viewBox="0 0 520 72"'); // HYROX 워드마크
+    for (const tab of [tri, hyrox]) {
+      expect(tab).toContain('fill="currentColor"');
+      expect(tab).not.toMatch(/#[0-9a-f]{3,6}/i);
+    }
+  });
+});
 
 describe("마라톤 판", () => {
   const html = render();
@@ -281,5 +313,90 @@ describe("철인3종 판 — 순위가 아니라 명단", () => {
   it("올림픽 파생 칸은 비어도 점선으로 세우지 않는다", () => {
     // 빈 점선 칸은 킹 하나뿐 — "올림픽" 칩이 붙은 점선 칸이 생기면 미완성 표로 읽힌다
     expect(html.match(/border-dashed/g)?.length).toBe(1);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  하이록스 (#349)                                                    */
+/* ------------------------------------------------------------------ */
+
+describe("하이록스 판 — 오픈은 마라톤과 같은 남녀 띠, 스플릿 표는 입력이 있을 때만", () => {
+  const hx = (over: Partial<HyroxRankingRow>): HyroxRankingRow => ({
+    race_result_id: crypto.randomUUID(),
+    mem_id: "m1",
+    mem_nm: "송창준",
+    gdr_enm: "male",
+    evt_cd: "HYROX_OPEN",
+    rec_time_sec: 3900,
+    race_nm: "HYROX Seoul",
+    race_dt: "2026-05-10",
+    splits_json: null,
+    ...over,
+  });
+
+  const boards = buildHyroxBoards([
+    hx({ splits_json: { SKIERG: 250, WALL_BALL: 330 } }),
+    hx({ mem_id: "f1", mem_nm: "김여일", gdr_enm: "female", rec_time_sec: 4300 }),
+    hx({ mem_id: ME, mem_nm: "나", rec_time_sec: 4500, splits_json: { SKIERG: 270 } }),
+  ]);
+
+  it("부문 pill · 남녀 띠 · 내 판독선 격차가 선다", () => {
+    const t = text(renderToStaticMarkup(createElement(HyroxContent, { boards, ctx })));
+    expect(t).toContain("오픈");
+    expect(t).toContain("더블스");
+    expect(t).toContain("MEN");
+    expect(t).toContain("WOMEN");
+    expect(t).toContain("1:05:00");
+    expect(t).toContain("1위보다 +10:00");
+  });
+
+  it("정렬 칩과 스테이션 최고 표가 서고, 아무도 안 넣은 스테이션 칩은 꺼진다", () => {
+    const html = renderToStaticMarkup(createElement(HyroxContent, { boards, ctx }));
+    const t = text(html);
+    expect(t).toContain("총시간");
+    expect(t).toContain("STATION BEST");
+    expect(t).toContain("스키에르그");
+    // 남자 스키에르그 최고는 송창준 4:10, 로잉은 아무도 없다
+    expect(t).toContain("송창준4:10");
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>로잉<\/button>/);
+    expect(t).not.toContain("STATION SPLITS");
+  });
+
+  it("스테이션 기준이면 띠가 그 스테이션 주인으로 바뀌고, 큰 숫자 옆에 총시간이 붙는다", () => {
+    const t = text(renderToStaticMarkup(createElement(HyroxContent, { boards, ctx, initialSort: "SKIERG" })));
+    expect(t).toContain("SKIERG");
+    expect(t).toContain("총 1:05:00");
+    // 내 스키에르그 4:30 · 1위(4:10)보다 +0:20
+    expect(t).toContain("1위보다 +0:20");
+  });
+
+  it("행을 펼치면 스테이션별 1위·바로 위와의 차이와 멤버 카드 버튼이 선다", () => {
+    const t = text(renderToStaticMarkup(createElement(HyroxContent, { boards, ctx, initialExpanded: ME })));
+    expect(t).toContain("1위보다");
+    expect(t).toContain("바로 위보다");
+    expect(t).toContain("비교 · 1위 송창준");
+    expect(t).toContain("+0:20");
+    expect(t).toContain("멤버 카드");
+    expect(t).toContain("가장 많이 벌어진 곳은 스키에르그");
+  });
+
+  it("스플릿이 없는 사람을 펼치면 입력하지 않았다고 말한다", () => {
+    const t = text(renderToStaticMarkup(createElement(HyroxContent, { boards, ctx, initialExpanded: "f1" })));
+    expect(t).toContain("스테이션 기록을 입력하지 않았어요");
+  });
+
+  it("스플릿을 아무도 안 넣었으면 스테이션 최고 표를 그리지 않는다", () => {
+    const plain = buildHyroxBoards([hx({}), hx({ mem_id: "f1", gdr_enm: "female" })]);
+    const t = text(renderToStaticMarkup(createElement(HyroxContent, { boards: plain, ctx })));
+    expect(t).not.toContain("STATION BEST");
+  });
+
+  it("기록이 없으면 빈 칸이 첫 줄을 기다린다(옛 캐시처럼 판이 아예 없어도)", () => {
+    expect(text(renderToStaticMarkup(createElement(HyroxContent, { boards: buildHyroxBoards([]), ctx })))).toContain(
+      "아직 등록된 하이록스 기록이 없어요",
+    );
+    expect(text(renderToStaticMarkup(createElement(HyroxContent, { boards: [], ctx })))).toContain(
+      "아직 등록된 하이록스 기록이 없어요",
+    );
   });
 });

@@ -436,3 +436,12 @@ SECURITY DEFINER RPC에서 "내 것"을 고를 때도 같다 — **클라이언�
 **진단:** 서버가 내보내는 CSS를 직접 확인한다 — `curl -s localhost:3000/<페이지>`에서 `/_next/...css` 주소를 뽑아 받은 뒤 `grep -- "--토큰명:"`. 값이 옛것이거나 없으면 이 경우다. 같은 `globals.css`를 `@tailwindcss/postcss`로 따로 컴파일해 보면 정상으로 나온다.
 **해결:** dev 서버를 끄고 `.next`를 지운 뒤 다시 띄운다. 배포 빌드는 처음부터 컴파일하므로 영향이 없다.
 (2026-10-15 개인 일정 색 토큰)
+
+### GA4 커스텀 이벤트는 `lib/analytics.ts`의 `analytics.*`만 부르고, 정의할 때 호출부도 같은 PR에 넣는다
+`send()`가 `typeof window === "undefined" || !window.gtag`면 아무것도 안 하므로(SSR·gtag 미로드 무음) `"use client"` 핸들러·effect에서 그냥 부르면 된다. 측정 ID `G-H9LXJH97CZ`. **정의만 하고 호출부를 안 만들면 GA엔 영원히 0건**이다 — #297 전까지 이벤트 4개가 그 상태였다. 개인정보(이름·전화·이메일·생일)는 params에 싣지 않는다.
+현재 배선(2026-11, #297 — 옛 PR #350 대체):
+- `onboarding_step` `{ step, stage }` — 가입 폼(`member-onboarding-form.tsx`)이 단계에 **처음 들어갈 때 한 번씩**. 번호는 **실제 화면 순서** `ONBOARDING_STAGES`(phone 1 · details 2 · profile 3 · purpose 4 · pledge 5 · success 6)이고, 진행바 `SignupProgress` 번호(newbie·login 포함)와는 다른 축이다. 중복은 `createOnceGate` 관문이 막는다(뒤로 갔다 오기·StrictMode 이중 effect). 기존회원 연동·재가입은 phone 다음 바로 떠나므로 1까지만 찍힌다. `?preview=success`는 안 보낸다.
+- `feedback_submitted` — 건의 **제출 성공** 시점(`submitFeedbackWithTracking`). 예전 이름 `feedback_clicked`는 발송된 적 없어(GA 0건) 이름을 바꿔도 끊기는 데이터가 없었다.
+- `race_registration_opened` — 대회 상세 창을 **신청 폼이 보이는 회원(ready)**이 열었을 때 열림당 1회. 이미 신청한 사람(정보 수정 폼)도 센다.
+- `race_registration_completed` — 제출 시점에 `activeRegistration`이 없던 **신규 신청**이 성공했을 때만. 정보 수정은 안 센다.
+발송 경계 테스트: `lib/__tests__/analytics.test.ts` · `components/feedback/__tests__/feedback-form-analytics.test.ts`.

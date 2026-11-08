@@ -4,6 +4,8 @@ import { Suspense } from "react";
 import { unstable_cache } from "next/cache";
 
 import { secondsToTime } from "@/lib/dayjs";
+import { buildHyroxBoards, type HyroxRankingRow } from "@/lib/hyrox";
+import { fetchHyroxRankingRows } from "@/lib/queries/hyrox-rankings";
 import { getCurrentMember, getMyTitleNames } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { MARATHON_EVENTS, TRIATHLON_EVENTS } from "@/lib/records-board";
@@ -35,13 +37,29 @@ async function RecordsContent() {
   );
 }
 
+/**
+ * 하이록스 판 행. **실패해도 전당 전체를 죽이지 않는다** — 하이록스 판만 빈 채로 서고
+ * 다른 판은 그대로 보인다(예: 하이록스 RPC 마이그레이션이 아직 안 들어간 환경).
+ */
+async function getHyroxRows(
+  supabase: ReturnType<typeof createAdminClient>,
+  teamId: string,
+): Promise<HyroxRankingRow[]> {
+  try {
+    return await fetchHyroxRankingRows(supabase, teamId);
+  } catch (e) {
+    console.error("[records] 하이록스 기록 조회 실패", e);
+    return [];
+  }
+}
+
 function getCachedRecordsData(teamId: string) {
   return unstable_cache(
     async () => {
       const supabase = createAdminClient();
 
       // 마라톤 + 철인3종 기록, UTMB 프로필, 대표 칭호, 멤버 표면(얼굴·한마디) 동시 조회
-      const [{ data: raceData }, { data: utmbData }, { data: titleData }, { data: relData }] =
+      const [{ data: raceData }, { data: utmbData }, { data: titleData }, { data: relData }, hyroxRows] =
         await Promise.all([
           supabase.rpc("get_public_team_race_rankings", { p_team_id: teamId }),
           supabase.rpc("get_public_team_utmb_rankings", { p_team_id: teamId }),
@@ -64,6 +82,7 @@ function getCachedRecordsData(teamId: string) {
             .eq("team_id", teamId)
             .eq("vers", 0)
             .eq("del_yn", false),
+          getHyroxRows(supabase, teamId),
         ]);
 
       // mem_id → { ttl_nm, badge_effect, frame_cd } 맵
@@ -229,14 +248,18 @@ function getCachedRecordsData(teamId: string) {
         };
       });
 
+      // --- 하이록스 --- (계산은 MCP 조회 도구와 같은 lib/hyrox.ts)
+      const hyroxBoards = buildHyroxBoards(hyroxRows);
+
       // --- 멤버 표면(얼굴·한마디) ---
       // **챔피언 것만 담는다.** 이 표면을 쓰는 건 띠에 서는 사람들뿐이다
-      // (마라톤 종목 3개 × 남녀 + 트레일 1위 = 최대 7명). 목록 카드는 안 쓴다.
+      // (마라톤 종목 3개 × 남녀 + 트레일 1위 + 하이록스 부문별 1위 = 최대 12명). 목록 카드는 안 쓴다.
       // 팀 전원을 담으면 쓰지도 않을 수십 행이 캐시와 RSC payload에 매번 실려 나간다.
       const championIds = new Set<string>(
         [
           ...marathonEvents.flatMap((e) => [e.male[0]?.memId, e.female[0]?.memId]),
           trailEntries[0]?.memId,
+          ...hyroxBoards.flatMap((b) => [b.male[0]?.memId, b.female[0]?.memId, b.all[0]?.memId]),
         ].filter((id): id is string => !!id),
       );
 
@@ -258,6 +281,7 @@ function getCachedRecordsData(teamId: string) {
         marathon: { events: marathonEvents },
         trail: { entries: trailEntries },
         triathlon: { events: triathlonEvents },
+        hyrox: { boards: hyroxBoards },
         memberTitles,
         memberMeta,
       };
@@ -266,7 +290,8 @@ function getCachedRecordsData(teamId: string) {
     // 새 필드(recordSec·memberMeta) 없이 돌아와 챔피언 띠·판독선이 조용히 비어 보인다.
     // v7: RPC가 가입 전 기록을 거르게 되어(#528) 옛 캐시의 순위가 24시간 동안 남지 않게 올렸다.
     // v8: RPC가 철인 FULL·OLYMPIC 등을 TRIATHLON_*으로 읽게 되어(#581) 같은 이유로 올렸다.
-    [`records-team-v8-${teamId}`],
+    // v9: 하이록스 판(hyrox)이 페이로드에 더해졌다(#349).
+    [`records-team-v9-${teamId}`],
     { revalidate: 60 * 60 * 24, tags: ["records", `records:${teamId}`] },
   )();
 }
