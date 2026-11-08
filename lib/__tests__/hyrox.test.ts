@@ -4,6 +4,11 @@ import { toRankingEvtCd } from "@/lib/comp-evt-type";
 import {
   HYROX_DIVISIONS,
   buildHyroxBoards,
+  formatHyroxGap,
+  hasHyroxStation,
+  hyroxSplitGaps,
+  hyroxStationHolders,
+  viewHyroxBy,
   isHyroxSport,
   parseHyroxSplits,
   serializeHyroxSplits,
@@ -121,5 +126,74 @@ describe("buildHyroxBoards", () => {
   it("스플릿을 실어 나른다(깨진 칸은 버린다)", () => {
     const [open] = buildHyroxBoards([row({ splits_json: { SKIERG: 255, ROW: "x" } })]);
     expect(open.male[0].splits).toEqual({ SKIERG: 255 });
+  });
+});
+
+describe("구경용 보기 — 정렬·스테이션 최고·격차", () => {
+  const [open] = buildHyroxBoards([
+    row({ mem_id: "a", mem_nm: "가", rec_time_sec: 3900, splits_json: { SKIERG: 260, ROW: 250 } }),
+    row({ mem_id: "b", mem_nm: "나", rec_time_sec: 4000, splits_json: { SKIERG: 240, ROW: 280 } }),
+    row({ mem_id: "c", mem_nm: "다", rec_time_sec: 4100, splits_json: { SKIERG: 250 } }),
+    row({ mem_id: "d", mem_nm: "라", rec_time_sec: 4200 }),
+  ]);
+
+  it("총시간 기준은 순서 그대로, 총시간을 따로 든다", () => {
+    const v = viewHyroxBy(open.male, "TOTAL");
+    expect(v.ranked.map((e) => e.memId)).toEqual(["a", "b", "c", "d"]);
+    expect(v.missing).toEqual([]);
+    expect(v.ranked[0].totalRecord).toBe("1:05:00");
+  });
+
+  it("스테이션 기준은 그 칸으로 순위를 다시 매기고, 안 넣은 사람은 뒤로 뺀다", () => {
+    const v = viewHyroxBy(open.male, "SKIERG");
+    expect(v.ranked.map((e) => [e.memId, e.rank, e.record])).toEqual([
+      ["b", 1, "4:00"],
+      ["c", 2, "4:10"],
+      ["a", 3, "4:20"],
+    ]);
+    expect(v.ranked[0].totalRecord).toBe("1:06:40");
+    expect(v.missing.map((e) => e.memId)).toEqual(["d"]);
+  });
+
+  it("스테이션마다 최고 보유자가 갈린다", () => {
+    const h = hyroxStationHolders(open.male);
+    expect(h.SKIERG).toEqual({ memId: "b", name: "나", sec: 240 });
+    expect(h.ROW).toEqual({ memId: "a", name: "가", sec: 250 });
+    expect(h.WALL_BALL).toBeNull();
+    expect(hasHyroxStation(open.male, "ROW")).toBe(true);
+    expect(hasHyroxStation(open.male, "LUNGE")).toBe(false);
+  });
+
+  it("격차는 지금 기준의 1위·바로 위와 견주고, 가장 많이 잃은 곳을 짚는다", () => {
+    const g = hyroxSplitGaps(viewHyroxBy(open.male, "TOTAL"), "c")!;
+    expect(g.leader?.memId).toBe("a");
+    expect(g.above?.memId).toBe("b");
+    const ski = g.rows.find((r) => r.code === "SKIERG")!;
+    expect([ski.sec, ski.vsLeader, ski.vsAbove]).toEqual([250, -10, 10]);
+    const row_ = g.rows.find((r) => r.code === "ROW")!;
+    expect([row_.sec, row_.vsLeader]).toEqual([null, null]);
+    expect(g.worst).toBeNull(); // 1위보다 느린 칸이 없다
+
+    const gb = hyroxSplitGaps(viewHyroxBy(open.male, "TOTAL"), "b")!;
+    expect(gb.worst).toBe("ROW");
+  });
+
+  it("1위 본인은 비교 대상이 없고, 미입력자는 1위하고만 견준다", () => {
+    const top = hyroxSplitGaps(viewHyroxBy(open.male, "SKIERG"), "b")!;
+    expect(top.leader).toBeNull();
+    expect(top.rows.every((r) => r.vsLeader === null && r.vsAbove === null)).toBe(true);
+
+    const miss = hyroxSplitGaps(viewHyroxBy(open.male, "SKIERG"), "d")!;
+    expect(miss.leader?.memId).toBe("b");
+    expect(miss.above).toBeNull();
+    expect(miss.rows.every((r) => r.sec === null)).toBe(true);
+
+    expect(hyroxSplitGaps(viewHyroxBy(open.male, "TOTAL"), "zzz")).toBeNull();
+  });
+
+  it("격차 표기는 부호가 방향이다", () => {
+    expect(formatHyroxGap(12)).toBe("+0:12");
+    expect(formatHyroxGap(-75)).toBe("-1:15");
+    expect(formatHyroxGap(0)).toBe("0:00");
   });
 });

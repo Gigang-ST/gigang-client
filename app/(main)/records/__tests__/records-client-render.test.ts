@@ -321,20 +321,45 @@ describe("하이록스 판 — 오픈은 마라톤과 같은 남녀 띠, 스플�
     expect(t).toContain("1위보다 +10:00");
   });
 
-  it("스플릿 표는 1위와 나를 나란히 놓고, 빠른 칸을 칠한다", () => {
+  it("정렬 칩과 스테이션 최고 표가 서고, 아무도 안 넣은 스테이션 칩은 꺼진다", () => {
     const html = renderToStaticMarkup(createElement(HyroxContent, { boards, ctx }));
     const t = text(html);
-    expect(t).toContain("STATION SPLITS");
-    expect(t).toContain("남자 1위");
-    expect(t).toContain("나");
-    expect(t).toContain("4:10");
-    expect(t).toContain("4:30");
+    expect(t).toContain("총시간");
+    expect(t).toContain("STATION BEST");
+    expect(t).toContain("스키에르그");
+    // 남자 스키에르그 최고는 송창준 4:10, 로잉은 아무도 없다
+    expect(t).toContain("송창준4:10");
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>로잉<\/button>/);
+    expect(t).not.toContain("STATION SPLITS");
   });
 
-  it("스플릿을 아무도 안 넣었으면 표를 그리지 않는다", () => {
+  it("스테이션 기준이면 띠가 그 스테이션 주인으로 바뀌고, 큰 숫자 옆에 총시간이 붙는다", () => {
+    const t = text(renderToStaticMarkup(createElement(HyroxContent, { boards, ctx, initialSort: "SKIERG" })));
+    expect(t).toContain("SKIERG");
+    expect(t).toContain("총 1:05:00");
+    // 내 스키에르그 4:30 · 1위(4:10)보다 +0:20
+    expect(t).toContain("1위보다 +0:20");
+  });
+
+  it("행을 펼치면 스테이션별 1위·바로 위와의 차이와 멤버 카드 버튼이 선다", () => {
+    const t = text(renderToStaticMarkup(createElement(HyroxContent, { boards, ctx, initialExpanded: ME })));
+    expect(t).toContain("1위보다");
+    expect(t).toContain("바로 위보다");
+    expect(t).toContain("비교 · 1위 송창준");
+    expect(t).toContain("+0:20");
+    expect(t).toContain("멤버 카드");
+    expect(t).toContain("가장 많이 벌어진 곳은 스키에르그");
+  });
+
+  it("스플릿이 없는 사람을 펼치면 입력하지 않았다고 말한다", () => {
+    const t = text(renderToStaticMarkup(createElement(HyroxContent, { boards, ctx, initialExpanded: "f1" })));
+    expect(t).toContain("스테이션 기록을 입력하지 않았어요");
+  });
+
+  it("스플릿을 아무도 안 넣었으면 스테이션 최고 표를 그리지 않는다", () => {
     const plain = buildHyroxBoards([hx({}), hx({ mem_id: "f1", gdr_enm: "female" })]);
     const t = text(renderToStaticMarkup(createElement(HyroxContent, { boards: plain, ctx })));
-    expect(t).not.toContain("STATION SPLITS");
+    expect(t).not.toContain("STATION BEST");
   });
 
   it("기록이 없으면 빈 칸이 첫 줄을 기다린다(옛 캐시처럼 판이 아예 없어도)", () => {

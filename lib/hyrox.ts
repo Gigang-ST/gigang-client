@@ -203,3 +203,128 @@ function compareRows(a: HyroxRankingRow, b: HyroxRankingRow): number {
   if (ad !== bd) return ad < bd ? -1 : 1;
   return (a.mem_nm ?? "").localeCompare(b.mem_nm ?? "", "ko");
 }
+
+/* ------------------------------------------------------------------ */
+/*  구경용 보기 — 정렬 기준 · 스테이션 킹 · 스테이션별 격차              */
+/* ------------------------------------------------------------------ */
+
+/** 판을 세우는 기준 — 총시간 또는 스테이션 하나 */
+export type HyroxSortKey = "TOTAL" | HyroxStationCode;
+
+/** 기준을 적용한 행 — `record`/`recordSec` 은 **기준 값**(스테이션이면 그 스테이션 시간)이고 총시간은 따로 든다 */
+export type HyroxViewEntry = HyroxEntry & { totalRecord: string; totalSec: number };
+
+export type HyroxView = {
+  /** 기준 값이 있는 사람 — 순위를 다시 매긴다 */
+  ranked: HyroxViewEntry[];
+  /** 스테이션 기준인데 그 칸을 안 넣은 사람 — 순위 없이 뒤에 선다(총시간 기준이면 늘 빈 배열) */
+  missing: HyroxViewEntry[];
+};
+
+/**
+ * 한 목록(남·여·더블스)을 기준대로 다시 세운다.
+ *
+ * 스테이션 기준이면 그 칸이 있는 사람만 순위에 서고(동률은 총시간 순위가 앞선 사람), 칸을 안 넣은 사람은
+ * `missing` 으로 뺀다 — 0초나 꼴찌로 세우면 "그 스테이션을 못했다"로 읽힌다.
+ *
+ * @param entries `buildHyroxBoards` 의 한 목록(총시간 순)
+ * @param key 정렬 기준
+ */
+export function viewHyroxBy(entries: readonly HyroxEntry[], key: HyroxSortKey): HyroxView {
+  const withTotal = entries.map((e) => ({ ...e, totalRecord: e.record, totalSec: e.recordSec }));
+  if (key === "TOTAL") return { ranked: withTotal, missing: [] };
+
+  const has = withTotal.filter((e) => typeof e.splits[key] === "number");
+  const missing = withTotal.filter((e) => typeof e.splits[key] !== "number");
+  const ranked = [...has]
+    .sort((a, b) => (a.splits[key] as number) - (b.splits[key] as number) || a.rank - b.rank)
+    .map((e, i) => {
+      const sec = e.splits[key] as number;
+      return { ...e, rank: i + 1, record: secondsToTime(sec), recordSec: sec };
+    });
+  return { ranked, missing };
+}
+
+/** 이 목록에서 그 스테이션을 넣은 사람이 하나라도 있나 — 정렬 칩을 켤지 정한다 */
+export function hasHyroxStation(entries: readonly HyroxEntry[], code: HyroxStationCode): boolean {
+  return entries.some((e) => typeof e.splits[code] === "number");
+}
+
+export type HyroxStationHolder = { memId: string; name: string; sec: number };
+
+/**
+ * 스테이션마다 팀 최고 기록 보유자 — 목록 하나 기준(남·여·더블스 각각 부른다).
+ * 동률이면 총시간 순위가 앞선 사람.
+ */
+export function hyroxStationHolders(
+  entries: readonly HyroxEntry[],
+): Record<HyroxStationCode, HyroxStationHolder | null> {
+  const out = {} as Record<HyroxStationCode, HyroxStationHolder | null>;
+  for (const code of HYROX_STATION_CODES) {
+    const top = viewHyroxBy(entries, code).ranked[0];
+    out[code] = top ? { memId: top.memId, name: top.name, sec: top.recordSec } : null;
+  }
+  return out;
+}
+
+export type HyroxGapRow = {
+  code: HyroxStationCode;
+  /** 이 사람의 스테이션 시간 */
+  sec: number | null;
+  /** 기준 1위보다(+ 느림 / - 빠름). 비교할 칸이 없거나 본인이 1위면 `null` */
+  vsLeader: number | null;
+  /** 기준 바로 위 사람보다 */
+  vsAbove: number | null;
+};
+
+export type HyroxGaps = {
+  rows: HyroxGapRow[];
+  /** 비교 대상 — 화면 머리글에 이름을 쓴다 */
+  leader: { memId: string; name: string } | null;
+  above: { memId: string; name: string } | null;
+  /** 1위보다 가장 많이 잃은 스테이션(잃은 곳이 없으면 `null`) */
+  worst: HyroxStationCode | null;
+};
+
+/**
+ * 한 사람의 스테이션별 격차 — "어디서 시간을 잃나".
+ *
+ * 비교 대상은 **지금 보는 기준의** 1위와 바로 위 사람이다(총시간이면 총시간 순위, 스테이션이면 그 스테이션 순위).
+ * 기준 칸이 없어 순위에 못 선 사람(`missing`)은 1위하고만 비교한다.
+ *
+ * @param view `viewHyroxBy` 결과(이 사람이 들어 있는 목록)
+ * @param memId 펼친 사람
+ */
+export function hyroxSplitGaps(view: HyroxView, memId: string): HyroxGaps | null {
+  const idx = view.ranked.findIndex((e) => e.memId === memId);
+  const me = idx >= 0 ? view.ranked[idx] : view.missing.find((e) => e.memId === memId);
+  if (!me) return null;
+
+  const leaderEntry = view.ranked[0] && view.ranked[0].memId !== memId ? view.ranked[0] : null;
+  const aboveEntry = idx > 0 ? view.ranked[idx - 1] : null;
+  const diff = (other: HyroxEntry | null, code: HyroxStationCode, sec: number | null) => {
+    const o = other?.splits[code];
+    return sec != null && typeof o === "number" ? sec - o : null;
+  };
+
+  let worst: HyroxStationCode | null = null;
+  let worstGap = 0;
+  const rows = HYROX_STATION_CODES.map((code) => {
+    const sec = me.splits[code] ?? null;
+    const vsLeader = diff(leaderEntry, code, sec);
+    if (vsLeader != null && vsLeader > worstGap) {
+      worstGap = vsLeader;
+      worst = code;
+    }
+    return { code, sec, vsLeader, vsAbove: diff(aboveEntry, code, sec) };
+  });
+
+  const pick = (e: HyroxEntry | null) => (e ? { memId: e.memId, name: e.name } : null);
+  return { rows, leader: pick(leaderEntry), above: pick(aboveEntry), worst };
+}
+
+/** 격차 초 → `+0:12` / `-0:03` / `0:00`. 부호가 곧 방향이다(시간은 적을수록 좋다) */
+export function formatHyroxGap(sec: number): string {
+  if (sec === 0) return "0:00";
+  return `${sec > 0 ? "+" : "-"}${secondsToTime(Math.abs(sec))}`;
+}
