@@ -9,6 +9,7 @@ import {
   toCompEvtTypes,
 } from "@/lib/comp-evt-type";
 import { timeStringToSeconds, secondsToTime } from "@/lib/dayjs";
+import { HYROX_STATIONS, isHyroxSport } from "@/lib/hyrox";
 import {
   getCachedExtraction,
   hashImageFile,
@@ -134,6 +135,8 @@ export function RaceRecordDialog({
   const [swimTime, setSwimTime] = useState("");
   const [bikeTime, setBikeTime] = useState("");
   const [runTime, setRunTime] = useState("");
+  /** 하이록스 스테이션 구간 기록 입력값 {스테이션코드: "MM:SS"} — 선택 입력 */
+  const [stationTimes, setStationTimes] = useState<Record<string, string>>({});
 
   // OCR (0단계)
   const [ocrLoading, setOcrLoading] = useState(false);
@@ -163,6 +166,22 @@ export function RaceRecordDialog({
 
   // 트라이애슬론 여부 (step 3 시간 입력용)
   const isTriathlon = (selectedComp?.sport ?? "").includes("triathlon");
+  const isHyrox = isHyroxSport(selectedComp?.sport);
+
+  /** 하이록스 스테이션 입력을 초로 — 빈 칸은 null, 형식이 틀린 칸이 있으면 invalid */
+  const stationSeconds = useMemo(() => {
+    const out: Record<string, number | null> = {};
+    let invalid = false;
+    for (const st of HYROX_STATIONS) {
+      const raw = (stationTimes[st.code] ?? "").trim();
+      if (!raw) { out[st.code] = null; continue; }
+      const sec = timeStringToSeconds(raw);
+      if (!sec) invalid = true;
+      out[st.code] = sec || null;
+    }
+    return { splits: out, invalid };
+  }, [stationTimes]);
+  const stationTimesInvalid = isHyrox && stationSeconds.invalid;
 
   // 종목: comp_evt_cfg 기준 + 스포츠 기본값 중 아직 없는 것만 합침 + 기타(직접 입력, 영문·숫자만)
   const eventTypeOptions = useMemo(() => {
@@ -279,6 +298,7 @@ export function RaceRecordDialog({
       setSwimTime("");
       setBikeTime("");
       setRunTime("");
+      setStationTimes({});
       setError(null);
       fetchCompetitions();
     }
@@ -342,6 +362,7 @@ export function RaceRecordDialog({
     setSwimTime("");
     setBikeTime("");
     setRunTime("");
+    setStationTimes({});
     setError(null);
     applyOcrTimesToStep3();
     setStep(3);
@@ -389,6 +410,7 @@ export function RaceRecordDialog({
       return false;
     }
     if (!timeStringToSeconds(totalTime)) return false;
+    if (stationTimesInvalid) return false;
     if (isTriathlon) {
       if (
         !timeStringToSeconds(swimTime) ||
@@ -494,6 +516,7 @@ export function RaceRecordDialog({
       swimSeconds,
       bikeSeconds,
       runSeconds,
+      stationSplits: isHyrox ? stationSeconds.splits : null,
     });
 
     if (!result.ok) {
@@ -966,6 +989,37 @@ export function RaceRecordDialog({
                   }}
                 />
                 {ocrHint("total")}
+              </div>
+            )}
+
+            {isHyrox && (
+              /* 하이록스: 스테이션 구간 기록 — 선택 입력. 넣은 칸만 전당 스플릿 표에 선다 */
+              <div className="flex flex-col gap-2">
+                <div className="flex items-baseline justify-between">
+                  <label className="text-sm font-medium">스테이션 기록</label>
+                  <Micro>선택 · 넣은 칸만 보여요</Micro>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {HYROX_STATIONS.map((st) => (
+                    <div key={st.code} className="flex flex-col gap-1">
+                      <span className="text-xs text-muted-foreground">
+                        {st.label} <span className="text-[10px]">{st.spec}</span>
+                      </span>
+                      <Input
+                        placeholder="MM:SS"
+                        inputMode="numeric"
+                        aria-label={`${st.label} 기록`}
+                        value={stationTimes[st.code] ?? ""}
+                        onChange={(e) =>
+                          setStationTimes((p) => ({ ...p, [st.code]: formatTimeInput(e.target.value) }))
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+                {stationTimesInvalid && (
+                  <p className="text-xs text-destructive">스테이션 기록은 MM:SS 형식으로 입력해 주세요.</p>
+                )}
               </div>
             )}
 

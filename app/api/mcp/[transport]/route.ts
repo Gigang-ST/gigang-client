@@ -11,8 +11,10 @@ import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
 import { KAKAO_MESSAGE_MAX_LENGTH, KAKAO_REQUEST_ID_MAX_LENGTH } from "@/lib/kakao/notify";
 
 import { resolveOperator, type OperatorContext } from "@/lib/mcp/auth";
+import { HYROX_RECORD_DIVISIONS } from "@/lib/hyrox";
 import { createGatheringViaMcp } from "@/lib/mcp/create-gathering";
 import { createSchPostViaMcp } from "@/lib/mcp/create-sch-post";
+import { listHyroxCompetitions, listHyroxRankings, logHyroxRecord } from "@/lib/mcp/hyrox";
 import {
   MAX_BATCH_ACTIVITIES,
   deleteMyActivity,
@@ -432,6 +434,81 @@ const handler = createMcpHandler(
           // 홈 캘린더 캐시를 턴다(create_gathering 과 같은 이유) — DB 웹훅(`/api/revalidate`)도
           // sch_post_mst 를 보지만, 도구 응답을 받고 바로 일정 탭을 여는 사람에게 늦지 않게.
           if (!args.dry_run) revalidateTag(HOME_CALENDAR_CACHE_TAG, "max");
+          return result;
+        }),
+    );
+
+    // ── 하이록스 도구 3개(#349). 조회는 멤버 누구나(전당·대회 목록은 앱에서도 공개),
+    //    등록은 본인 기록 — member_id 로 남의 기록을 넣는 건 admin 만(앱의 「대신 등록」과 같은 범위). ──
+
+    server.registerTool(
+      "list_hyrox_rankings",
+      {
+        title: "하이록스 랭킹",
+        description:
+          "기강의 전당 하이록스 순위를 돌려줍니다 — 부문(OPEN 오픈·PRO 프로·DOUBLES 더블스)마다 사람당 가장 빠른 대회 기록 하나. " +
+          "오픈·프로는 남자(men)/여자(women)로 나뉘고 더블스는 한 줄(entries)입니다. 릴레이는 순위가 없습니다. " +
+          "각 줄에 입력된 스테이션 기록(splits, 'M:SS')이 실립니다.",
+        inputSchema: {
+          division: z.enum(["OPEN", "PRO", "DOUBLES"]).optional().describe("한 부문만 볼 때"),
+          gender: z.enum(["male", "female"]).optional().describe("오픈·프로에서 한쪽 성별만 볼 때"),
+        },
+      },
+      async (args, extra) => runTool(extra, (ctx, supabase) => listHyroxRankings(supabase, ctx, args)),
+    );
+
+    server.registerTool(
+      "list_hyrox_competitions",
+      {
+        title: "하이록스 대회 목록",
+        description:
+          "하이록스 대회를 최근 시작일부터 돌려줍니다(최대 50건) — log_hyrox_record 에 넣을 comp_id 를 고르는 용도입니다. " +
+          "찾는 대회가 없으면 앱(일정·대회)에서 대회를 먼저 등록해야 합니다(MCP 로는 대회를 만들지 않습니다).",
+        inputSchema: {
+          query: z.string().max(50).optional().describe("대회명 일부"),
+          from: z.string().optional().describe("이 날짜(YYYY-MM-DD) 이후 시작"),
+          to: z.string().optional().describe("이 날짜(YYYY-MM-DD)까지 시작"),
+        },
+      },
+      async (args, extra) => runTool(extra, (_ctx, supabase) => listHyroxCompetitions(supabase, args)),
+    );
+
+    server.registerTool(
+      "log_hyrox_record",
+      {
+        title: "하이록스 기록 등록",
+        description:
+          "하이록스 대회 기록 1건을 등록합니다. 기본은 **내 기록**이고, member_id 로 다른 회원의 기록을 넣는 건 운영진(admin)만 됩니다. " +
+          "comp_id 는 list_hyrox_competitions 로 확인하세요. total_time 은 'H:MM:SS'(예: 1:12:34), " +
+          "splits 는 스테이션별 'M:SS'(선택 — SKIERG·SLED_PUSH·SLED_PULL·BURPEE·ROW·FARMERS_CARRY·LUNGE·WALL_BALL). " +
+          "기록증·메시지에서 숫자를 뽑아낸 경우엔 먼저 dry_run=true 로 불러 해석된 값을 사용자에게 확인받은 뒤 저장하세요. " +
+          "수정·삭제 도구는 없습니다 — 잘못 넣었으면 앱 프로필탭에서 고치세요.",
+        inputSchema: {
+          comp_id: z.string().uuid("comp_id 는 uuid 여야 합니다."),
+          division: z.enum(HYROX_RECORD_DIVISIONS).describe("OPEN | PRO | DOUBLES | RELAY(릴레이는 저장만, 순위 없음)"),
+          total_time: z.string().min(1, "total_time 을 입력하세요."),
+          splits: z
+            .record(z.string(), z.string().nullable())
+            .optional()
+            .describe("스테이션 코드 → 'M:SS'. 모르는 칸은 빼세요."),
+          race_dt: z.string().optional().describe("여러 날짜 대회에서 뛴 날(YYYY-MM-DD). 기본은 대회 시작일"),
+          member_id: z.string().uuid().optional().describe("다른 회원 기록을 넣을 때만(admin)"),
+          dry_run: z.boolean().optional().describe("true 면 검증만 하고 저장하지 않습니다."),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, async (ctx, supabase) => {
+          const { team_mem_id: teamMemId, should_invalidate: shouldInvalidate, ...result } =
+            await logHyroxRecord(supabase, ctx, args);
+          if (result.saved) {
+            if (shouldInvalidate) revalidateTag(`records:${ctx.team_id}`, "max");
+            // 칭호 평가는 앱의 기록 저장과 같은 트리거 — 응답 밖에서 돌린다(획득은 ttl_grnt 알림으로 전해진다)
+            after(() =>
+              evaluateAndGrantTitles({ trigger: "race_record", teamId: ctx.team_id, teamMemId }).catch((e) =>
+                console.error("[title-engine] race_record(mcp) 평가 실패", e),
+              ),
+            );
+          }
           return result;
         }),
     );

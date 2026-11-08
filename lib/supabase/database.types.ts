@@ -2875,6 +2875,7 @@ export type Database = {
           rec_src_cd: string | null
           rec_time_sec: number
           run_time_sec: number | null
+          splits_json: Json | null
           swim_time_sec: number | null
           upd_at: string
           vers: number
@@ -2892,6 +2893,7 @@ export type Database = {
           rec_src_cd?: string | null
           rec_time_sec: number
           run_time_sec?: number | null
+          splits_json?: Json | null
           swim_time_sec?: number | null
           upd_at?: string
           vers?: number
@@ -2909,6 +2911,7 @@ export type Database = {
           rec_src_cd?: string | null
           rec_time_sec?: number
           run_time_sec?: number | null
+          splits_json?: Json | null
           swim_time_sec?: number | null
           upd_at?: string
           vers?: number
@@ -3409,6 +3412,20 @@ export type Database = {
         Returns: {
           active_count: number
           total_count: number
+        }[]
+      }
+      get_public_team_hyrox_rankings: {
+        Args: { p_team_id: string }
+        Returns: {
+          evt_cd: string
+          gdr_enm: Database["public"]["Enums"]["gender"]
+          mem_id: string
+          mem_nm: string
+          race_dt: string
+          race_nm: string
+          race_result_id: string
+          rec_time_sec: number
+          splits_json: Json
         }[]
       }
       get_public_team_race_rankings: {

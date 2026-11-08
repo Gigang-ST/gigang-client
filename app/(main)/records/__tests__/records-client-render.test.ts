@@ -2,8 +2,11 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { buildHyroxBoards, type HyroxRankingRow } from "@/lib/hyrox";
+
 import {
   RecordsClient,
+  HyroxContent,
   TrailContent,
   TriathlonContent,
   type BoardContext,
@@ -281,5 +284,65 @@ describe("철인3종 판 — 순위가 아니라 명단", () => {
   it("올림픽 파생 칸은 비어도 점선으로 세우지 않는다", () => {
     // 빈 점선 칸은 킹 하나뿐 — "올림픽" 칩이 붙은 점선 칸이 생기면 미완성 표로 읽힌다
     expect(html.match(/border-dashed/g)?.length).toBe(1);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  하이록스 (#349)                                                    */
+/* ------------------------------------------------------------------ */
+
+describe("하이록스 판 — 오픈은 마라톤과 같은 남녀 띠, 스플릿 표는 입력이 있을 때만", () => {
+  const hx = (over: Partial<HyroxRankingRow>): HyroxRankingRow => ({
+    race_result_id: crypto.randomUUID(),
+    mem_id: "m1",
+    mem_nm: "송창준",
+    gdr_enm: "male",
+    evt_cd: "HYROX_OPEN",
+    rec_time_sec: 3900,
+    race_nm: "HYROX Seoul",
+    race_dt: "2026-05-10",
+    splits_json: null,
+    ...over,
+  });
+
+  const boards = buildHyroxBoards([
+    hx({ splits_json: { SKIERG: 250, WALL_BALL: 330 } }),
+    hx({ mem_id: "f1", mem_nm: "김여일", gdr_enm: "female", rec_time_sec: 4300 }),
+    hx({ mem_id: ME, mem_nm: "나", rec_time_sec: 4500, splits_json: { SKIERG: 270 } }),
+  ]);
+
+  it("부문 pill · 남녀 띠 · 내 판독선 격차가 선다", () => {
+    const t = text(renderToStaticMarkup(createElement(HyroxContent, { boards, ctx })));
+    expect(t).toContain("오픈");
+    expect(t).toContain("더블스");
+    expect(t).toContain("MEN");
+    expect(t).toContain("WOMEN");
+    expect(t).toContain("1:05:00");
+    expect(t).toContain("1위보다 +10:00");
+  });
+
+  it("스플릿 표는 1위와 나를 나란히 놓고, 빠른 칸을 칠한다", () => {
+    const html = renderToStaticMarkup(createElement(HyroxContent, { boards, ctx }));
+    const t = text(html);
+    expect(t).toContain("STATION SPLITS");
+    expect(t).toContain("남자 1위");
+    expect(t).toContain("나");
+    expect(t).toContain("4:10");
+    expect(t).toContain("4:30");
+  });
+
+  it("스플릿을 아무도 안 넣었으면 표를 그리지 않는다", () => {
+    const plain = buildHyroxBoards([hx({}), hx({ mem_id: "f1", gdr_enm: "female" })]);
+    const t = text(renderToStaticMarkup(createElement(HyroxContent, { boards: plain, ctx })));
+    expect(t).not.toContain("STATION SPLITS");
+  });
+
+  it("기록이 없으면 빈 칸이 첫 줄을 기다린다(옛 캐시처럼 판이 아예 없어도)", () => {
+    expect(text(renderToStaticMarkup(createElement(HyroxContent, { boards: buildHyroxBoards([]), ctx })))).toContain(
+      "아직 등록된 하이록스 기록이 없어요",
+    );
+    expect(text(renderToStaticMarkup(createElement(HyroxContent, { boards: [], ctx })))).toContain(
+      "아직 등록된 하이록스 기록이 없어요",
+    );
   });
 });
