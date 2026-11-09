@@ -26,6 +26,7 @@
 | 15 | 기강 워드마크·정기 모임 템플릿을 팀 설정에 등록 | `20261109240000_team_cfg_wordmark_regular_template.sql` | ✅ | ☐ |
 | 16 | 기강 가입 폼에 「울산지부 가입이세요?」 안내 | `20261109250000_team_cfg_signup_other_teams.sql` | ✅ | ☐ |
 | 17 | 울산 회비 끄기(팀 설정 + 회비 면제 배치) | `20261109260000_ulsan_dues_off.sql` | ✅ | ☐ |
+| 18 | 팀 설정 `project.show_intro` 걷기(프로젝트 없을 때 소개 화면 제거) | `20261109270000_drop_project_show_intro.sql` | ✅ | ☐ |
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
@@ -161,7 +162,7 @@ select (select count(*) from batch_job_mst) as jobs,                        -- 8
   (옛 코드는 계속 effect_mst 를 읽고 쓴다 — 배포 전엔 기강 관리자가 이펙트를 바꾸지 않게 한다. 바꾸면 새 코드에선 안 보인다).
 - `cmm_cd_mst.team_id`(NULL = 공용) 칸을 더한다. 기존 회비 분류는 공용으로 남는다.
 - 기강 모임 계좌·채널 주소(오픈채팅·인스타·소모임·가민)를 기강 팀 설정에 넣는다.
-- 울산은 `project.show_intro = false` — 진행 중인 프로젝트가 없을 때 마일리지런 소개 대신 "진행 중인 프로젝트가 없어요"만 보인다.
+- 울산은 `project.show_intro = false` — ⚠️ 이 키는 18번에서 걷어낸다(소개 화면 자체를 없앴다). 9번 다음에 18번이 이 행을 내린다.
   ⚠️ **새 코드는 코드에 박힌 기강 계좌·채널을 더 이상 안 본다** — 이게 빠진 채 배포하면 기강 화면에서 계좌·채널이 사라진다.
 
 ```sql
@@ -269,9 +270,20 @@ select t.team_cd,
 from team_mst t order by 1;
 ```
 
+### 18. `20261109270000_drop_project_show_intro.sql`
+
+진행 중인 프로젝트가 없을 때 마일리지런 소개를 띄울지 정하던 키를 걷는다 — 이제 모든 팀(기강 포함)이 "진행 중인 프로젝트가 없어요"만
+본다(마일리지런은 기강 전용 ADR-0007, 프로젝트는 할 때 만든다). 새 코드는 이 키를 안 읽고 옛 코드는 행이 없으면 기본값(소개 보임)이라
+**배포 전후 언제 넣어도 안전하다.**
+
+```sql
+-- 확인: vers=0 행이 del_yn = true (vers 1 은 이력)
+select t.team_cd, c.vers, c.del_yn from team_cfg c join team_mst t using (team_id) where c.cfg_cd = 'project.show_intro' order by 1, 2;
+```
+
 ## 배포
 
-1. 위 1~9·12·15가 끝났는지 표에서 확인한다(10·11·13·14·16·17은 배포 뒤여도 된다).
+1. 위 1~9·12·15가 끝났는지 표에서 확인한다(10·11·13·14·16·17·18은 배포 뒤여도 된다).
 2. PR #649 머지 → dev → main 배포.
 3. 배포 후 확인
    - 기강 모임을 하나 만들거나 "단톡방에 알림"으로 카톡이 기강 방에 오는지

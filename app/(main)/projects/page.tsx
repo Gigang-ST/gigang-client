@@ -6,11 +6,8 @@ import { HeaderActions } from "@/components/common/header-actions";
 import { PageHeader } from "@/components/common/page-header";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { getTeamCfg } from "@/lib/team-cfg/read";
 import { EmptyState } from "@/components/common/empty-state";
 import { PB_CLASS_TYPE } from "@/lib/pb-class";
-import { MileageIntro } from "@/components/projects/mileage-intro";
-import { MileageRulesButton } from "@/components/projects/mileage-rules-button";
 import { MileageProjectView } from "@/components/projects/mileage-project-view";
 import { PbClassSkeleton, PbClassView } from "@/components/projects/pb-class/pb-class-view";
 import { ArchivedBanner, ProjectArchive } from "@/components/projects/project-archive";
@@ -58,23 +55,15 @@ export default async function ProjectsPage({
 
   const header = <PageHeader variant="editorial" label="Projects" title="프로젝트" action={<HeaderActions />} />;
 
-  // 진행 중 프로젝트 없음 — 소개 + 규칙 + (있으면) 지난 프로젝트.
-  // 소개는 팀 설정(`project.show_intro`)이 켠 팀만 — 마일리지런을 안 하는 팀에 그 소개를 띄우면
-  // 하지도 않는 프로젝트를 안내하게 된다(그 팀은 빈 상태 한 줄).
+  // 진행 중 프로젝트 없음 — 빈 상태 한 줄 + (있으면) 지난 프로젝트. 모든 팀 같다.
+  // 예전엔 마일리지런 소개·규칙을 띄웠는데(팀 설정 project.show_intro), 마일리지런은 기강 전용이고
+  // (ADR-0007) 프로젝트는 할 때 만들면 되는 거라 걷어냈다(유저 결정 2026-11-09).
   if (!event) {
-    const showIntro = await getTeamCfg(teamId, "project.show_intro");
     return (
       <div className="flex flex-col gap-0">
         {header}
         <div className="flex flex-col gap-7 px-6 pb-24">
-          {showIntro ? (
-            <>
-              <MileageIntro />
-              <MileageRulesButton />
-            </>
-          ) : (
-            <EmptyState variant="card" message="진행 중인 프로젝트가 없어요." />
-          )}
+          <EmptyState variant="card" message="진행 중인 프로젝트가 없어요." />
           <ProjectArchive events={closed} />
         </div>
       </div>
