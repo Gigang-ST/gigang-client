@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DEFAULT_FALLBACK_TEAM_ID } from "@/lib/constants/gigang-team";
+import { TEAM_ID_BY_CD } from "@/lib/constants/gigang-team";
 import { getCachedBoardPosts } from "@/lib/queries/board";
 import { BackHeader } from "@/components/back-header";
 import { BoardClient } from "./board-client";
@@ -11,8 +11,9 @@ export const metadata: Metadata = {
 };
 
 // 게시판은 공개 정적 페이지(SSG). 로그인·팀 컨텍스트에 의존하지 않는다.
-// 팀은 단일 팀(gigang)이라 상수로 고정 — 멀티팀이 생기면 request-team 기반으로 되살린다.
-const TEAM_ID = DEFAULT_FALLBACK_TEAM_ID;
+// TODO(멀티팀): 아직 기강으로 고정이다 — 울산 주소에서도 기강 공지가 나온다. 접속 팀 기준으로
+// 바꾸는 건 정적 생성(함수 호출 0)을 유지할 방법과 함께 따로 정리한다.
+const TEAM_ID = TEAM_ID_BY_CD.gigang;
 
 export default async function BoardPage() {
   const [notices, updates] = await Promise.all([

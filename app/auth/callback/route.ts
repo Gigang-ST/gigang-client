@@ -52,7 +52,15 @@ export async function GET(request: Request) {
       if (flow !== "link" && user) {
         const forwarded = request.headers.get("x-forwarded-host");
         const hostFromUrl = new URL(request.url).host;
-        const { teamId } = await resolveTeamContextFromHost(forwarded ?? hostFromUrl);
+        const teamCtx = resolveTeamContextFromHost(forwarded ?? hostFromUrl);
+        // 등록되지 않은 주소면 어느 팀 회원인지 판정할 수 없다 — 기강으로 폴백하지 않는다
+        // (페이지 경로라 proxy가 먼저 404로 끊지만, 그걸 지나온 경우의 방어선).
+        if (!teamCtx) {
+          return redirectClearingOAuthNext(
+            `${origin}/auth/error?error=${encodeURIComponent("등록되지 않은 주소입니다")}`,
+          );
+        }
+        const { teamId } = teamCtx;
 
         const admin = createAdminClient();
         const { data: mst } = await admin
