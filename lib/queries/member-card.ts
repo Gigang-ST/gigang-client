@@ -131,8 +131,12 @@ export type MemberCardData = MemberCardCompactData & {
   stats: {
     gthr_attd_cnt: number;
     comp_reg_cnt: number;
-    /** 원장 전체 누적 — 카드에는 숫자로 노출하지 않는다(활동 컨디션 판정 보조용) */
-    activity_score: number;
+    /**
+     * 원장 전체 누적 — **본인이 볼 때만 실린다**(남이 보면 `null`, ADR-0003). RPC 가 누구나(비로그인 포함)
+     * 부를 수 있는 함수라 예전엔 남의 포인트가 응답에 그대로 실렸다(2026-11 멀티팀 정리에서 막음).
+     * 카드에는 숫자로 노출하지 않는다 — 프로필탭(본인)에서만 쓴다.
+     */
+    activity_score: number | null;
     /** 최근 90일 활동 건수(모임 참석 + 대회 기록) — 컨디션 표정의 주 지표 */
     recent_actv_cnt: number;
   };

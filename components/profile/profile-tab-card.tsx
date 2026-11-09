@@ -108,7 +108,8 @@ export function ProfileTabCard({
           onManageRecords: () => setHistoryOpen(true),
           onAddRecord: () => setRecordOpen(true),
           onLinkUtmb: () => setUtmbOpen(true),
-          point: card.stats.activity_score,
+          // 본인 프로필이라 RPC 가 실어 준다. 혹시 비면(세션 판정 실패 등) 0 으로 — 남의 값이 올 일은 없다
+          point: card.stats.activity_score ?? 0,
           cancelCnt,
         }}
       />
