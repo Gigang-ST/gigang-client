@@ -34,10 +34,12 @@ export async function runBatch(jobId: string, params: BatchParams): Promise<Acti
 
 export async function getActiveEvents() {
   return withAdminOrThrow(async () => {
+    const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
     const { data } = await db
       .from("evt_team_mst")
       .select("evt_id, evt_nm")
+      .eq("team_id", teamId)
       .eq("stts_enm", "ACTIVE")
       // 배치(마일리지 칭호 등)를 돌릴 대상은 마일리지런뿐 — PB 클래스 등 다른 종류의 ACTIVE 프로젝트는 목록에서 뺀다
       .eq("evt_type_cd", "MILEAGE_RUN")
@@ -48,10 +50,13 @@ export async function getActiveEvents() {
 
 export async function getBatchJobs() {
   return withAdminOrThrow(async () => {
+    // 배치는 팀마다 한 벌씩 있다(job_cd 가 같아도 팀이 다르면 다른 행) — 접속한 팀 것만.
+    const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
     const { data: jobs } = await db
       .from("batch_job_mst")
       .select("*")
+      .eq("team_id", teamId)
       .eq("use_yn", true)
       .order("crt_at", { ascending: true });
     if (!jobs?.length) return [];
@@ -74,7 +79,16 @@ export async function getBatchJobs() {
 
 export async function getBatchRunHist(jobId: string, limit = 20) {
   return withAdminOrThrow(async () => {
+    const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
+    // 다른 팀 job_id 를 넘기면 그 팀 실행 이력(실행자 이름 포함)이 보인다 — 이 팀 배치인지 먼저 본다.
+    const { data: job } = await db
+      .from("batch_job_mst")
+      .select("job_id")
+      .eq("job_id", jobId)
+      .eq("team_id", teamId)
+      .maybeSingle();
+    if (!job) return [];
     const { data } = await db
       .from("batch_run_hist")
       .select("*, mem_mst(mem_nm)")

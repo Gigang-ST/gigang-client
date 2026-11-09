@@ -258,6 +258,7 @@ export type Database = {
           del_yn: boolean
           is_default_yn: boolean
           sort_ord: number
+          team_id: string | null
           upd_at: string
           use_yn: boolean
           vers: number
@@ -272,6 +273,7 @@ export type Database = {
           del_yn?: boolean
           is_default_yn?: boolean
           sort_ord?: number
+          team_id?: string | null
           upd_at?: string
           use_yn?: boolean
           vers?: number
@@ -286,6 +288,7 @@ export type Database = {
           del_yn?: boolean
           is_default_yn?: boolean
           sort_ord?: number
+          team_id?: string | null
           upd_at?: string
           use_yn?: boolean
           vers?: number
@@ -3047,6 +3050,112 @@ export type Database = {
           },
           {
             foreignKeyName: "fk_team_comp_plan_rel__team_mst"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
+      team_effect_cfg: {
+        Row: {
+          effect_cd: string
+          rarity_level: number
+          team_id: string
+          unlock_cond_json: Json | null
+          upd_at: string
+          upd_by: string | null
+          use_yn: boolean
+        }
+        Insert: {
+          effect_cd: string
+          rarity_level: number
+          team_id: string
+          unlock_cond_json?: Json | null
+          upd_at?: string
+          upd_by?: string | null
+          use_yn: boolean
+        }
+        Update: {
+          effect_cd?: string
+          rarity_level?: number
+          team_id?: string
+          unlock_cond_json?: Json | null
+          upd_at?: string
+          upd_by?: string | null
+          use_yn?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_effect_cfg_effect_cd_fkey"
+            columns: ["effect_cd"]
+            isOneToOne: false
+            referencedRelation: "effect_mst"
+            referencedColumns: ["effect_cd"]
+          },
+          {
+            foreignKeyName: "team_effect_cfg_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
+      team_mem_onbd_rel: {
+        Row: {
+          attd_pldg_at: string | null
+          crt_at: string
+          join_purp_cds: string[]
+          join_purp_txt: string | null
+          join_src_cd: string | null
+          join_src_txt: string | null
+          mem_id: string
+          pldg_gthr_id: string | null
+          team_id: string
+          upd_at: string
+        }
+        Insert: {
+          attd_pldg_at?: string | null
+          crt_at?: string
+          join_purp_cds?: string[]
+          join_purp_txt?: string | null
+          join_src_cd?: string | null
+          join_src_txt?: string | null
+          mem_id: string
+          pldg_gthr_id?: string | null
+          team_id: string
+          upd_at?: string
+        }
+        Update: {
+          attd_pldg_at?: string | null
+          crt_at?: string
+          join_purp_cds?: string[]
+          join_purp_txt?: string | null
+          join_src_cd?: string | null
+          join_src_txt?: string | null
+          mem_id?: string
+          pldg_gthr_id?: string | null
+          team_id?: string
+          upd_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_mem_onbd_rel_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "team_mem_onbd_rel_pldg_gthr_id_fkey"
+            columns: ["pldg_gthr_id"]
+            isOneToOne: false
+            referencedRelation: "gthr_mst"
+            referencedColumns: ["gthr_id"]
+          },
+          {
+            foreignKeyName: "team_mem_onbd_rel_team_id_fkey"
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "team_mst"

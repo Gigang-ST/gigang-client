@@ -7,10 +7,13 @@ import {
   runningProfileEditSchema,
   type RunningProfileEditValues,
 } from "@/lib/validations/member";
-import { createUntypedAdminClient } from "@/lib/supabase/admin";
+import { dayjs } from "@/lib/dayjs";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { createAdminClient, createUntypedAdminClient } from "@/lib/supabase/admin";
 
 /**
- * `/profile/edit` 러닝 프로필 저장 — mem_onbd_prf에서 카드 "소개"에 쓰이는 값만 다룬다.
+ * `/profile/edit` 러닝 프로필 저장 — 카드 "소개"에 쓰이는 값만 다룬다.
+ * 거리·페이스는 사람 것(mem_onbd_prf), 가입 목적은 팀별(team_mem_onbd_rel).
  *
  * `updateNearStation`과 같은 upsert(onConflict: mem_id) 패턴 — PostgREST upsert는 제공된
  * 컬럼만 UPDATE하므로 유입 경로·참석 약속(`attd_pldg_at`) 같은 온보딩 전용 컬럼은 그대로 남는다.
@@ -27,6 +30,7 @@ export async function updateRunningProfile(
   }
 
   return withMember(async ({ member }) => {
+    const { teamId } = await getRequestTeamContext();
     const admin = createUntypedAdminClient();
 
     const { error } = await admin.from("mem_onbd_prf").upsert(
@@ -34,15 +38,31 @@ export async function updateRunningProfile(
         mem_id: member.id,
         avg_run_dist_km: parsed.data.avgRunDistKm,
         avg_pace_cd: parsed.data.avgPaceCd,
-        join_purp_cds: parsed.data.joinPurpCds,
-        // 빈 문자열은 null로 — 카드가 "값 있음"으로 오판해 빈 인용구를 그리지 않게.
-        join_purp_txt: parsed.data.joinPurpTxt?.trim() || null,
       },
       { onConflict: "mem_id" },
     );
 
     if (error) {
       console.error("[profile] 러닝 프로필 저장 실패", member.id, error.message);
+      return { ok: false, message: "러닝 프로필 저장에 실패했습니다." };
+    }
+
+    // 가입 목적은 팀별(team_mem_onbd_rel) — 접속한 팀 것만 고친다.
+    // 유입 경로·참석 약속은 upsert 에 안 실었으므로 그대로 남는다(넛지 크론이 참조).
+    const { error: purpErr } = await createAdminClient().from("team_mem_onbd_rel").upsert(
+      {
+        team_id: teamId,
+        mem_id: member.id,
+        join_purp_cds: parsed.data.joinPurpCds,
+        // 빈 문자열은 null로 — 카드가 "값 있음"으로 오판해 빈 인용구를 그리지 않게.
+        join_purp_txt: parsed.data.joinPurpTxt?.trim() || null,
+        upd_at: dayjs().toISOString(),
+      },
+      { onConflict: "team_id,mem_id" },
+    );
+
+    if (purpErr) {
+      console.error("[profile] 가입 목적 저장 실패", member.id, purpErr.message);
       return { ok: false, message: "러닝 프로필 저장에 실패했습니다." };
     }
 

@@ -15,12 +15,13 @@ import { createUntypedAdminClient } from "@/lib/supabase/admin";
  * keep-alive 크론과 달리 이 라우트는 실제로 푸시를 발송하므로 인증이 필수다.
  *
  * 판정(§7.1):
- *   - 대상 공통: mem_onbd_prf.attd_pldg_at IS NOT NULL(개편 후 온보딩 가입자) AND
- *     mem_mst.del_yn = false AND team_mem_rel(mem_st_cd='active', vers=0, del_yn=false) AND
- *     gthr_attd_rel 0건(한 번도 참석 안 함)
- *   - D+14: 가입(crt_at) 후 14일 경과 AND newbie_nudge_14 미발송
- *   - D+28: 가입 후 28일 경과 AND newbie_nudge_28 미발송 (D+14 미발송이어도 28만 단독 발송 가능)
- *   - 중복 방지는 noti_mst에 해당 타입 발송 이력 존재 여부로 판정(별도 상태 컬럼 불필요)
+ *   - 판정 단위는 (팀, 사람) — 두 팀에 가입했으면 팀마다 따로 본다(멀티팀).
+ *   - 대상 공통: team_mem_onbd_rel.attd_pldg_at IS NOT NULL(그 팀 온보딩 가입자) AND
+ *     mem_mst.del_yn = false AND 그 팀 team_mem_rel(mem_st_cd='active', vers=0, del_yn=false) AND
+ *     그 팀 모임 gthr_attd_rel 0건(한 번도 참석 안 함)
+ *   - D+14: 그 팀 가입(attd_pldg_at) 후 14일 경과 AND 그 팀 newbie_nudge_14 미발송
+ *   - D+28: 가입 후 28일 경과 AND 그 팀 newbie_nudge_28 미발송 (D+14 미발송이어도 28만 단독 발송 가능)
+ *   - 중복 방지는 noti_mst에 그 팀 해당 타입 발송 이력 존재 여부로 판정(별도 상태 컬럼 불필요)
  *
  * 동시발송 방지(백엔드 리뷰 P0-2): 크론이 며칠 밀리면 28일 경과+14 미발송 회원이 due14/due28
  * 양쪽에 동시에 걸릴 수 있다. "28만 단독 발송 가능"의 취지(둘 중 하나만)를 지키기 위해
@@ -70,26 +71,33 @@ async function buildNudgeMessage(
     : "한 달 약속이 코앞이에요. 이번 주가 딱 좋은 타이밍! 부담 없이 나와요 🙌";
 }
 
-/** attd_pldg_at IS NOT NULL AND active AND 미참석(0건)인 회원 목록 조회 */
+/**
+ * 이 팀에 첫 모임을 약속하고(attd_pldg_at) 그 팀에서 active 인데 그 팀 모임에 한 번도 안 나온 회원.
+ *
+ * **(팀, 사람) 단위로 판정한다.** 두 팀에 가입한 사람은 팀마다 따로 약속했고 따로 넛지를 받는다 —
+ * 예전엔 사람 단위(mem_onbd_prf)라 기강에서 한 약속으로 울산 이름의 알림이 나가거나, 기강 모임에
+ * 나온 걸로 울산 넛지가 빠졌다. 경과일도 그 팀에 가입(약속)한 시각부터 센다.
+ */
 async function findCandidates(
   admin: ReturnType<typeof createUntypedAdminClient>,
 ): Promise<NudgeTarget[]> {
   const { data: pledged, error: pledgedErr } = await admin
-    .from("mem_onbd_prf")
-    .select("mem_id")
+    .from("team_mem_onbd_rel")
+    .select("team_id, mem_id, attd_pldg_at")
     .not("attd_pldg_at", "is", null);
 
   if (pledgedErr) {
     console.error("[cron/newbie-nudge] 서약 회원 조회 실패", pledgedErr.message);
     return [];
   }
-  if (!pledged?.length) return [];
+  const pledges = (pledged ?? []) as { team_id: string; mem_id: string; attd_pldg_at: string }[];
+  if (!pledges.length) return [];
 
-  const memIds = pledged.map((p: { mem_id: string }) => p.mem_id);
+  const memIds = [...new Set(pledges.map((p) => p.mem_id))];
 
   const { data: mems, error: memErr } = await admin
     .from("mem_mst")
-    .select("mem_id, crt_at")
+    .select("mem_id")
     .in("mem_id", memIds)
     .eq("del_yn", false);
 
@@ -97,15 +105,13 @@ async function findCandidates(
     console.error("[cron/newbie-nudge] mem_mst 조회 실패", memErr.message);
     return [];
   }
-  if (!mems?.length) return [];
+  const liveMems = new Set((mems ?? []).map((m: { mem_id: string }) => m.mem_id));
+  if (!liveMems.size) return [];
 
   const { data: rels, error: relErr } = await admin
     .from("team_mem_rel")
     .select("mem_id, team_id")
-    .in(
-      "mem_id",
-      mems.map((m: { mem_id: string }) => m.mem_id),
-    )
+    .in("mem_id", [...liveMems])
     .eq("mem_st_cd", "active")
     .eq("vers", 0)
     .eq("del_yn", false);
@@ -114,22 +120,22 @@ async function findCandidates(
     console.error("[cron/newbie-nudge] team_mem_rel 조회 실패", relErr.message);
     return [];
   }
-  if (!rels?.length) return [];
-
-  const teamByMemId = new Map(
-    (rels as { mem_id: string; team_id: string }[]).map((r) => [r.mem_id, r.team_id]),
+  const activeKey = new Set(
+    ((rels ?? []) as { mem_id: string; team_id: string }[]).map((r) => `${r.team_id}:${r.mem_id}`),
   );
 
-  const activeMems = mems.filter((m: { mem_id: string }) => teamByMemId.has(m.mem_id));
-  if (!activeMems.length) return [];
+  const active = pledges.filter(
+    (p) => liveMems.has(p.mem_id) && activeKey.has(`${p.team_id}:${p.mem_id}`),
+  );
+  if (!active.length) return [];
 
-  // 참석 이력 0건 필터 — gthr_attd_rel에 존재하는 mem_id를 조회해 제외한다.
+  // 참석 이력 0건 필터 — **그 팀 모임** 참석만 센다.
   const { data: attended, error: attdErr } = await admin
     .from("gthr_attd_rel")
-    .select("mem_id")
+    .select("mem_id, gthr_mst!inner(team_id)")
     .in(
       "mem_id",
-      activeMems.map((m: { mem_id: string }) => m.mem_id),
+      [...new Set(active.map((p) => p.mem_id))],
     );
 
   if (attdErr) {
@@ -137,37 +143,41 @@ async function findCandidates(
     return [];
   }
 
-  const attendedSet = new Set((attended ?? []).map((a: { mem_id: string }) => a.mem_id));
+  const attendedKey = new Set(
+    ((attended ?? []) as { mem_id: string; gthr_mst: { team_id: string } | { team_id: string }[] }[]).flatMap(
+      (a) => (Array.isArray(a.gthr_mst) ? a.gthr_mst : [a.gthr_mst]).map((g) => `${g.team_id}:${a.mem_id}`),
+    ),
+  );
 
-  return activeMems
-    .filter((m: { mem_id: string }) => !attendedSet.has(m.mem_id))
-    .map((m: { mem_id: string; crt_at: string }) => ({
-      memId: m.mem_id,
-      teamId: teamByMemId.get(m.mem_id)!,
-      crtAt: m.crt_at,
-    }));
+  return active
+    .filter((p) => !attendedKey.has(`${p.team_id}:${p.mem_id}`))
+    .map((p) => ({ memId: p.mem_id, teamId: p.team_id, crtAt: p.attd_pldg_at }));
 }
 
-/** 특정 알림 타입 발송 이력이 있는 mem_id Set (memIds가 비면 빈 Set) */
+/** 특정 알림 타입 발송 이력이 있는 (팀:사람) 키 Set — 넛지는 팀별이라 이력도 그 팀 것만 본다 */
 async function findAlreadyNotified(
   admin: ReturnType<typeof createUntypedAdminClient>,
-  memIds: string[],
+  targets: NudgeTarget[],
   notiTypeEnm: "newbie_nudge_14" | "newbie_nudge_28",
 ): Promise<Set<string>> {
-  if (memIds.length === 0) return new Set();
+  if (targets.length === 0) return new Set();
   const { data, error } = await admin
     .from("noti_mst")
-    .select("mem_id")
+    .select("team_id, mem_id")
     .eq("noti_type_enm", notiTypeEnm)
-    .in("mem_id", memIds);
+    .in("mem_id", [...new Set(targets.map((t) => t.memId))]);
 
   if (error) {
     console.error(`[cron/newbie-nudge] ${notiTypeEnm} 발송 이력 조회 실패`, error.message);
     // 조회 실패 시 안전하게 "이미 발송됨"으로 간주해 중복 발송을 막는다.
-    return new Set(memIds);
+    return new Set(targets.map(targetKey));
   }
-  return new Set((data ?? []).map((r: { mem_id: string }) => r.mem_id));
+  return new Set(
+    ((data ?? []) as { team_id: string; mem_id: string }[]).map((r) => `${r.team_id}:${r.mem_id}`),
+  );
 }
+
+const targetKey = (t: NudgeTarget) => `${t.teamId}:${t.memId}`;
 
 export async function GET(request: Request) {
   // Vercel Cron이 자동 첨부하는 Authorization: Bearer <CRON_SECRET> 헤더 검증.
@@ -199,18 +209,18 @@ export async function GET(request: Request) {
   });
 
   const [notified14, notified28] = await Promise.all([
-    findAlreadyNotified(admin, due14.map((c) => c.memId), "newbie_nudge_14"),
-    findAlreadyNotified(admin, due28.map((c) => c.memId), "newbie_nudge_28"),
+    findAlreadyNotified(admin, due14, "newbie_nudge_14"),
+    findAlreadyNotified(admin, due28, "newbie_nudge_28"),
   ]);
 
   // 동시발송 방지(P0-2): 크론이 며칠 밀리면 28일 경과+14 미발송 회원이 due14/due28 양쪽에
   // 걸릴 수 있다. 이 경우 더 급한 28을 우선 발송하고 14는 스킵해, 회원당 한 실행에
   // 최대 1건만 나가게 한다(설계 §7.1 "둘 중 하나만" 취지). "2주 지났어요"보다
   // "한 달 코앞이에요"가 시점상 맞기 때문.
-  const targets28 = due28.filter((c) => !notified28.has(c.memId));
-  const targets28MemIds = new Set(targets28.map((c) => c.memId));
+  const targets28 = due28.filter((c) => !notified28.has(targetKey(c)));
+  const targets28Keys = new Set(targets28.map(targetKey));
   const targets14 = due14.filter(
-    (c) => !notified14.has(c.memId) && !targets28MemIds.has(c.memId),
+    (c) => !notified14.has(targetKey(c)) && !targets28Keys.has(targetKey(c)),
   );
 
   // 팀별 멘트를 재사용하기 위해 캐시(팀 수가 적은 도메인이라 무방)

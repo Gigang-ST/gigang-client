@@ -2,7 +2,7 @@
 
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient, createUntypedAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, createAdminClientAs, createUntypedAdminClient } from "@/lib/supabase/admin";
 import { resolvePhoneMatch, type PhoneMatch } from "@/lib/onboarding-phone-match";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { digitsOnly, formatPhone, isValidPhone } from "@/lib/phone-utils";
@@ -273,18 +273,42 @@ export async function onboardingLinkExistingMember(args: {
   }
   const memId = match.value.memId;
 
-  const admin = createAdminClient();
-  const oauthMst =
-    args.provider === "kakao"
-      ? { oauth_kakao_id: user.id }
-      : { oauth_google_id: user.id };
+  // 로그인 연결 변경은 변경 이력에 남는다(값은 가려진다) — 본인이 어느 팀 주소에서 연결했는지 싣는다
+  const { teamId } = await getRequestTeamContext();
+  const admin = createAdminClientAs({ memId, teamId });
+
+  // 멀티팀: 다른 팀에서 이미 쓰고 있는 회원이 이 팀에 처음 들어오는 길이기도 하다.
+  // - 이미 **다른 계정**이 연결돼 있으면 바꾸지 않는다. 바꾸면 원래 계정으로는 기존 팀에 못 들어가고,
+  //   번호만 아는 사람이 연결된 회원을 가로챌 수 있다. 계정을 바꿔야 하면 운영진이 처리한다.
+  // - 프로필 사진은 **비어 있을 때만** 채운다. 예전엔 카카오 사진으로 늘 덮어써, 울산에 가입하는 순간
+  //   기강에서 쓰던 사진이 바뀌었다(사진은 사람 것 — 두 팀이 같이 본다).
+  const { data: cur, error: curErr } = await admin
+    .from("mem_mst")
+    .select("oauth_kakao_id, oauth_google_id, avatar_url")
+    .eq("mem_id", memId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (curErr || !cur) return { ok: false, message: "연결할 회원 정보를 찾지 못했습니다." };
+
+  const linkedId = args.provider === "kakao" ? cur.oauth_kakao_id : cur.oauth_google_id;
+  if (linkedId && linkedId !== user.id) {
+    const providerNm = args.provider === "kakao" ? "카카오" : "구글";
+    return {
+      ok: false,
+      message: `이미 다른 ${providerNm} 계정으로 가입된 회원이에요. 처음 가입할 때 쓴 계정으로 로그인해 주세요. 계정을 바꿔야 하면 운영진에게 문의해 주세요.`,
+    };
+  }
+
+  const patch = {
+    ...(linkedId ? {} : args.provider === "kakao" ? { oauth_kakao_id: user.id } : { oauth_google_id: user.id }),
+    ...(args.initialAvatarUrl && !cur.avatar_url ? { avatar_url: args.initialAvatarUrl } : {}),
+  };
+  if (Object.keys(patch).length === 0) return { ok: true }; // 이미 연결돼 있고 사진도 있다 — 바꿀 게 없다
 
   const { error: e1 } = await admin
     .from("mem_mst")
-    .update({
-      ...oauthMst,
-      ...(args.initialAvatarUrl ? { avatar_url: args.initialAvatarUrl } : {}),
-    })
+    .update(patch)
     .eq("mem_id", memId)
     .eq("vers", 0)
     .eq("del_yn", false);
@@ -296,7 +320,7 @@ export async function onboardingLinkExistingMember(args: {
 
 /**
  * 신규 가입: mem_mst(mem_id = auth.uid()) + 요청 Host 기준 팀 team_mem_rel
- *   + mem_onbd_prf(온보딩 프로필·참석 서약) + (선택) 참석 약속 모임 신청
+ *   + mem_onbd_prf(러닝 프로필) + team_mem_onbd_rel(팀별 가입 정보·참석 서약) + (선택) 참석 약속 모임 신청
  *
  * 처리 순서(설계 §2.2): mem_mst INSERT → team_mem_rel INSERT →
  * mem_onbd_prf INSERT(비치명) → pledgeGthrId 있으면 참석 INSERT(비치명).
@@ -418,8 +442,11 @@ export async function onboardingCreateMember(args: {
     );
   }
 
-  // mem_onbd_prf UPSERT — 실패해도 가입은 성공 처리(비치명). 넛지 크론 대상에서만 빠진다.
-  // upsert(onConflict: mem_id): 재제출(alreadyHadMember)로 이미 row가 있어도 멱등하게 갱신.
+  // 온보딩 프로필 UPSERT — 실패해도 가입은 성공 처리(비치명). 넛지 크론 대상에서만 빠진다.
+  // 재제출(alreadyHadMember)로 이미 row가 있어도 멱등하게 갱신.
+  // 두 군데로 나눠 쓴다: 가까운 역·거리·페이스는 **사람 것**(mem_onbd_prf, mem_id 하나),
+  // 가입 목적·유입 경로·첫 모임 약속은 **이 팀에 들어온 이유**(team_mem_onbd_rel, 팀+사람).
+  // 한 테이블에 두면 두 번째 팀 가입이 첫 팀의 가입 정보를 덮고, 넛지가 다른 팀 약속으로 나간다.
   const untypedAdmin = createUntypedAdminClient();
   const { error: eOnbdPrf } = await untypedAdmin.from("mem_onbd_prf").upsert(
     {
@@ -427,18 +454,31 @@ export async function onboardingCreateMember(args: {
       near_stn_nm: onbdProfile.nearStnNm,
       avg_run_dist_km: onbdProfile.avgRunDistKm,
       avg_pace_cd: onbdProfile.avgPaceCd,
-      join_purp_cds: onbdProfile.joinPurpCds,
-      join_purp_txt: onbdProfile.joinPurpTxt,
-      join_src_cd: onbdProfile.joinSrcCd,
-      join_src_txt: onbdProfile.joinSrcTxt,
-      attd_pldg_at: dayjs().toISOString(),
-      pldg_gthr_id: args.pledgeGthrId,
     },
     { onConflict: "mem_id" },
   );
 
   if (eOnbdPrf) {
     console.error("[onboarding] mem_onbd_prf UPSERT 실패 — 가입은 계속 진행", uid, eOnbdPrf.message);
+  }
+
+  const { error: eTeamOnbd } = await admin.from("team_mem_onbd_rel").upsert(
+    {
+      team_id: teamId,
+      mem_id: uid,
+      join_purp_cds: onbdProfile.joinPurpCds,
+      join_purp_txt: onbdProfile.joinPurpTxt,
+      join_src_cd: onbdProfile.joinSrcCd,
+      join_src_txt: onbdProfile.joinSrcTxt,
+      attd_pldg_at: dayjs().toISOString(),
+      pldg_gthr_id: args.pledgeGthrId,
+      upd_at: dayjs().toISOString(),
+    },
+    { onConflict: "team_id,mem_id" },
+  );
+
+  if (eTeamOnbd) {
+    console.error("[onboarding] team_mem_onbd_rel UPSERT 실패 — 가입은 계속 진행", uid, eTeamOnbd.message);
   }
 
   // 참석 약속 모임 신청 — toggleGatheringAttendance와 공유하는 joinGatheringWithCapCheck 사용
