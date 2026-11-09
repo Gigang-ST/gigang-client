@@ -134,20 +134,6 @@ export async function updateCompetition(
       };
     }
 
-    const { error: compErr } = await db
-      .from("comp_mst")
-      .update({
-        comp_nm: input.title.trim(),
-        comp_sprt_cd: input.sport.trim(),
-        stt_dt: input.startDate,
-        end_dt: input.endDate || null,
-        loc_nm: input.location.trim() || null,
-        src_url: input.sourceUrl.trim() || null,
-      })
-      .eq("comp_id", competitionId);
-
-    if (compErr) return { ok: false, message: "수정에 실패했습니다" };
-
     // 종목 목록은 diff로 반영한다 — 안 바뀐 종목의 comp_evt_id는 그대로 둔다.
     // ⚠️ 예전엔 전량 delete 후 insert했는데, comp_reg_rel.comp_evt_id가 이 id를 FK로
     //    참조한다(ON DELETE SET NULL). 종목 문자열이 그대로여도 delete+insert는 새
@@ -167,6 +153,56 @@ export async function updateCompetition(
     const nextTypeSet = new Set(nextTypes);
     const toRemove = (existingTypes ?? []).filter((row) => !nextTypeSet.has(row.comp_evt_type));
     const toAdd = nextTypes.filter((t) => !existingByType.has(t));
+
+    // 빼려는 종목을 누가 쓰고 있으면 막는다 — 대회는 **모든 팀 공용**이라, 종목 행을 지우면
+    // 그 종목으로 신청한 다른 팀 참가자의 comp_evt_id 까지 조용히 NULL 이 된다(ON DELETE SET NULL).
+    // 기록이 붙은 종목은 DB 가 삭제를 막아(RESTRICT) 이유 없이 "수정에 실패"만 떴다.
+    // 대회 정보 저장보다 **먼저** 본다 — 뒤에서 막으면 날짜·이름만 반쯤 저장된다.
+    if (toRemove.length > 0) {
+      const removeIds = toRemove.map((row) => row.comp_evt_id);
+      const [regRes, recRes] = await Promise.all([
+        db
+          .from("comp_reg_rel")
+          .select("comp_evt_id")
+          .in("comp_evt_id", removeIds)
+          .eq("vers", 0)
+          .eq("del_yn", false),
+        db.from("rec_race_hist").select("comp_evt_id").in("comp_evt_id", removeIds),
+      ]);
+      if (regRes.error || recRes.error) return { ok: false, message: "수정에 실패했습니다" };
+      const usedIds = new Set(
+        [...(regRes.data ?? []), ...(recRes.data ?? [])].map((r) => r.comp_evt_id),
+      );
+      const blocked = toRemove.filter((row) => usedIds.has(row.comp_evt_id));
+      if (blocked.length > 0) {
+        const parts = blocked.map((row) => {
+          const regCnt = (regRes.data ?? []).filter((r) => r.comp_evt_id === row.comp_evt_id).length;
+          const recCnt = (recRes.data ?? []).filter((r) => r.comp_evt_id === row.comp_evt_id).length;
+          const counts = [regCnt > 0 && `신청 ${regCnt}명`, recCnt > 0 && `기록 ${recCnt}건`]
+            .filter(Boolean)
+            .join("·");
+          return `${row.comp_evt_type}(${counts})`;
+        });
+        return {
+          ok: false,
+          message: `${parts.join(", ")} 종목은 신청·기록이 있어서 뺄 수 없어요(다른 팀 포함). 신청·기록을 먼저 정리해 주세요.`,
+        };
+      }
+    }
+
+    const { error: compErr } = await db
+      .from("comp_mst")
+      .update({
+        comp_nm: input.title.trim(),
+        comp_sprt_cd: input.sport.trim(),
+        stt_dt: input.startDate,
+        end_dt: input.endDate || null,
+        loc_nm: input.location.trim() || null,
+        src_url: input.sourceUrl.trim() || null,
+      })
+      .eq("comp_id", competitionId);
+
+    if (compErr) return { ok: false, message: "수정에 실패했습니다" };
 
     if (toRemove.length > 0) {
       const { error: delErr } = await db

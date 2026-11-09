@@ -25,7 +25,9 @@ export async function syncPersonRecordToOtherTeams(
     const teams = (await listMemberTeams(createAdminClient(), memId)).filter((t) => t.teamId !== currentTeamId);
     for (const t of teams) {
       revalidateTag(`records:${t.teamId}`, "max");
-      if (opts.evaluateTitles) {
+      // 칭호는 그 팀 **활동 회원**만 — 칭호 배치(lib/batch/jobs/titles.ts)와 같은 기준.
+      // 비활성인 팀에서 다른 팀 기록으로 칭호가 붙으면 안 된다. 랭킹 캐시는 위에서 그대로 턴다.
+      if (opts.evaluateTitles && t.active) {
         await evaluateAndGrantTitles({ trigger: "race_record", teamId: t.teamId, teamMemId: t.teamMemId }).catch((e) =>
           console.error("[title-engine] race_record(다른 팀) 평가 실패", t.teamId, e),
         );
