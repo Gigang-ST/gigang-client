@@ -115,11 +115,18 @@ export async function evaluateAndGrantTitles(
   // ⚠️ 멤버가 없거나(탈퇴) 평가할 칭호가 0건이면 나머지 조회는 헛돈다 — 직렬일 땐
   // early return으로 걸렀던 몫이다. 그 둘은 드물고(배치는 실존 멤버만 돈다) 왕복 2번은
   // 매번 드는 비용이라, 늘 아끼는 쪽을 택했다.
-  const [relRow, allTitles, existing] = await Promise.all([
+  //   ⑤ (마일리지 트리거만) 프로젝트가 이 팀 것인지
+  //
+  // ⚠️ 받은 teamId·teamMemId·projectId 가 **같은 팀인지 여기서 다시 본다.** 호출부가 실수로
+  // 다른 팀 소속 행이나 다른 팀 프로젝트를 넘기면, 이 팀 칭호가 남의 팀 활동으로 수여된다.
+  // ②에 팀 조건을 걸어 소속이 다르면 relRow 가 비어 아래에서 멈춘다.
+  const projectId = "projectId" in ctx ? ctx.projectId : null;
+  const [relRow, allTitles, existing, projectInTeam] = await Promise.all([
     db
       .from("team_mem_rel")
       .select("mem_id")
       .eq("team_mem_id", ctx.teamMemId)
+      .eq("team_id", ctx.teamId)
       .eq("vers", 0)
       .eq("del_yn", false)
       .maybeSingle()
@@ -134,9 +141,22 @@ export async function evaluateAndGrantTitles(
       .eq("vers", 0)
       .eq("del_yn", false)
       .then((r) => r.data),
+    projectId
+      ? db
+          .from("evt_team_mst")
+          .select("evt_id")
+          .eq("evt_id", projectId)
+          .eq("team_id", ctx.teamId)
+          .maybeSingle()
+          .then((r) => Boolean(r.data))
+      : Promise.resolve(true),
   ]);
 
   if (!relRow?.mem_id) return [];
+  if (!projectInTeam) {
+    console.warn("[title-engine] 다른 팀 프로젝트로 평가 요청 — 건너뜀", { teamId: ctx.teamId, projectId });
+    return [];
+  }
   const memId = relRow.mem_id;
 
   const titles = (allTitles as TtlMstRow[] ?? []).filter((t) => {

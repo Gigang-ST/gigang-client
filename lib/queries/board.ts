@@ -211,12 +211,20 @@ export async function hasUnreadBoardPosts(
   return { notice, update };
 }
 
-/** 게시글 읽음 이력 기록 */
+/** 게시글 읽음 이력 기록 — 접속한 팀 게시글일 때만 남긴다(다른 팀 글 id 로 이력이 쌓이지 않게) */
 export async function recordBoardPostRead(
   postId: string,
   memberId: string,
+  teamId: string,
 ): Promise<void> {
   const admin = createUntypedAdminClient();
+  const { data: post } = await admin
+    .from("brd_post_mst")
+    .select("post_id")
+    .eq("post_id", postId)
+    .eq("team_id", teamId)
+    .maybeSingle();
+  if (!post) return;
   await admin
     .from("brd_post_read_hist")
     .upsert({ post_id: postId, mem_id: memberId }, { onConflict: "post_id,mem_id" });

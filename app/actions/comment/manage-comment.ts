@@ -212,6 +212,9 @@ export async function updateComment(input: UpdateCommentInput) {
   const parsed = updateCommentSchema.parse(input)
   return withMember(async ({ member, supabase }) => {
     const admin = createAdminClient()
+    // 접속한 팀의 댓글만 고친다 — 그래야 아래 멘션을 "댓글의 팀" 회원으로 거르는 게 맞아진다.
+    // 예전엔 다른 팀 주소에서 고치면 멘션이 접속한 팀 기준으로 다시 저장됐다.
+    const { teamId } = await getRequestTeamContext()
 
     const { count } = await supabase.from("cmnt_mst").select("cmnt_id", { count: "exact", head: true }).eq("prnt_id", parsed.cmntId).eq("del_yn", false)
     if ((count ?? 0) > 0) return { ok: false as const, message: "답글이 달린 댓글은 수정할 수 없습니다." }
@@ -220,6 +223,7 @@ export async function updateComment(input: UpdateCommentInput) {
       .from("cmnt_mst")
       .update({ cont_txt: parsed.contTxt, edit_yn: true, upd_at: dayjs().toISOString() })
       .eq("cmnt_id", parsed.cmntId)
+      .eq("team_id", teamId)
       .eq("mem_id", member.id)
       .eq("del_yn", false)
       .select("cmnt_id")
@@ -227,8 +231,7 @@ export async function updateComment(input: UpdateCommentInput) {
     if (error || !updated?.length) return { ok: false as const, message: "댓글 수정 실패" }
 
     await admin.from("cmnt_mention_rel").delete().eq("cmnt_id", parsed.cmntId)
-    // 멘션은 이 팀 회원만(createComment 와 같은 이유)
-    const { teamId } = await getRequestTeamContext()
+    // 멘션은 이 팀 회원만(createComment 와 같은 이유). 위에서 이 팀 댓글만 고쳤으므로 팀 = 댓글의 팀
     const uniqueMentions = await filterMemIdsInTeam(
       admin,
       teamId,

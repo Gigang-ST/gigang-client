@@ -31,6 +31,12 @@ async function EffectsTabContent() {
   return <AdminEffectsClient teamId={teamId} />;
 }
 
+// 칭호 이력도 팀별 — 접속한 팀을 서버에서 정해 넘긴다(다른 탭과 같은 방식)
+async function HistoryTabContent() {
+  const { teamId } = await getRequestTeamContext();
+  return <AdminTitleHistoryClient teamId={teamId} />;
+}
+
 export default function AdminTitlesPage() {
   return (
     <AdminTitlesPageClient
@@ -44,7 +50,11 @@ export default function AdminTitlesPage() {
           <EffectsTabContent />
         </Suspense>
       }
-      historyContent={<AdminTitleHistoryClient />}
+      historyContent={
+        <Suspense fallback={<Fallback />}>
+          <HistoryTabContent />
+        </Suspense>
+      }
     />
   );
 }

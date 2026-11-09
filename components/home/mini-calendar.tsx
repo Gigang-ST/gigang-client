@@ -426,6 +426,8 @@ export function MiniCalendar({
     if (deepLinkGthrId) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deepLinkGthrId)
       const masterSelect = "gthr_id, short_id, gthr_nm, gthr_type_enm, stt_at, end_at, loc_txt, desc_txt, crt_by"
+      // 접속한 주소의 팀 것만 연다 — 모임은 누구나 볼 수 있지만, 울산 모임은 울산 주소에서만 열려야 한다.
+      // id 만으로 찾으면 gigang.team/schedule?gthr=<울산 모임> 처럼 남의 팀 모임이 뜬다. 다른 팀 것은 "없는 모임"으로 떨어진다.
 
       if (isUuid) {
         // 알림·헤더칩 딥링크(uuid): 마스터+상세+참석을 병렬 1 RTT로 조회 후 완결 상태로 오픈.
@@ -433,7 +435,7 @@ export function MiniCalendar({
         type GthrDetail = { max_prt_cnt: number | null; sprt_cd: string | null; aprv_req_yn: boolean | null; req_attd_cnt: number | null; req_attd_months: number | null; exm_evt_id: string | null; attendees: GatheringAttendee[] }
         const reqId = ++gthrOpenReqRef.current
         Promise.all([
-          supabase.from("gthr_mst").select(masterSelect).eq("gthr_id", deepLinkGthrId).maybeSingle(),
+          supabase.from("gthr_mst").select(masterSelect).eq("gthr_id", deepLinkGthrId).eq("team_id", teamId).maybeSingle(),
           supabase.rpc("get_gathering_detail", { p_gthr_id: deepLinkGthrId, p_team_id: teamId }),
           memberId
             ? supabase.from("gthr_attd_rel").select("attd_id").eq("gthr_id", deepLinkGthrId).eq("mem_id", memberId).maybeSingle()
@@ -482,7 +484,7 @@ export function MiniCalendar({
         })
       } else {
         // 공유 링크(short_id): uuid를 몰라 마스터 조회가 선행 — 이후 즉시 오픈+스켈레톤으로 채움
-        supabase.from("gthr_mst").select(masterSelect).eq("short_id", deepLinkGthrId).maybeSingle().then(({ data }) => {
+        supabase.from("gthr_mst").select(masterSelect).eq("short_id", deepLinkGthrId).eq("team_id", teamId).maybeSingle().then(({ data }) => {
           if (cancelled) return
           if (!data) {
             notifyDeepLinkMissing("모임")
@@ -515,10 +517,11 @@ export function MiniCalendar({
     let cancelled = false
     if (deepLinkPostId) {
       // short_id로 먼저 조회, 없으면 UUID fallback (기존 알림 호환)
+      // 모임 딥링크와 같이 접속한 주소의 팀 것만 연다
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deepLinkPostId)
       const query = isUuid
-        ? supabase.from("sch_post_mst").select("sch_post_id, short_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by").eq("sch_post_id", deepLinkPostId).maybeSingle()
-        : supabase.from("sch_post_mst").select("sch_post_id, short_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by").eq("short_id", deepLinkPostId).maybeSingle()
+        ? supabase.from("sch_post_mst").select("sch_post_id, short_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by").eq("sch_post_id", deepLinkPostId).eq("team_id", teamId).maybeSingle()
+        : supabase.from("sch_post_mst").select("sch_post_id, short_id, sch_nm, post_type, evt_stt_at, evt_end_at, url, cont_txt, crt_by").eq("short_id", deepLinkPostId).eq("team_id", teamId).maybeSingle()
 
       query.then(({ data }) => {
         if (cancelled) return

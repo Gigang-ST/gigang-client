@@ -103,8 +103,9 @@ export async function revokeMcpToken(tokenId: string): Promise<RevokeMcpTokenRes
   if (!tokenId) return { ok: false, message: "잘못된 요청입니다." };
 
   const admin = createAdminClient();
+  const { teamId } = await getRequestTeamContext();
   try {
-    await revokeMcpTokenMutation(admin, member.id, tokenId);
+    await revokeMcpTokenMutation(admin, member.id, teamId, tokenId);
     return { ok: true };
   } catch (e) {
     if (e instanceof McpTokenNotFoundError) {

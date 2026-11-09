@@ -21,6 +21,7 @@
 | 10 | 기강 오픈채팅 비밀번호를 팀 설정에 등록 | (아래 SQL — 사람이 직접) | ☐ | ☐ |
 | 11 | 캐시 무효화 웹훅에 팀 싣기 | `20261109200000_revalidate_webhook_team.sql` | ✅ | ☐ |
 | 12 | 건의 팀별 | `20261109210000_fdbk_team.sql` | ✅ | ☐ |
+| 13 | 모임·일정 읽기 — 로그인한 비회원도 비로그인과 같게 | `20261109220000_gthr_sch_post_select_authenticated_public.sql` | ✅ | ☐ |
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
@@ -201,9 +202,22 @@ select id, convert_from(body, 'utf8') from net.http_request_queue order by id de
 select t.team_cd, count(*) from fdbk_mst f join team_mst t using (team_id) group by 1;
 ```
 
+### 13. `20261109220000_gthr_sch_post_select_authenticated_public.sql`
+
+모임(`gthr_mst`)·일정(`sch_post_mst`)의 로그인 읽기 정책을 비로그인과 같은 `del_yn = false` 로 맞춘다. 그 팀 회원이
+아니면 로그인했어도 비로그인처럼 보여야 하는데, 로그인 정책만 "그 팀 회원"을 요구해 울산 주소에서 가입 중인 사람·
+기강 회원이 비로그인보다 덜 봤다. 같은 행을 비로그인이 이미 읽으므로 새로 열리는 데이터는 없고, 어느 팀 것을 보여줄지는
+앱이 접속 주소의 팀으로 건다. **배포 전후 언제 적용해도 안전하다**(옛 코드도 팀 조건을 직접 건다).
+
+```sql
+-- 확인: 네 정책 모두 (del_yn = false)
+select tablename, policyname, roles::text, qual from pg_policies
+where schemaname = 'public' and tablename in ('gthr_mst', 'sch_post_mst') and cmd = 'SELECT' order by 1, 2;
+```
+
 ## 배포
 
-1. 위 1~9·12가 끝났는지 표에서 확인한다(10·11은 배포 뒤여도 된다).
+1. 위 1~9·12가 끝났는지 표에서 확인한다(10·11·13은 배포 뒤여도 된다).
 2. PR #649 머지 → dev → main 배포.
 3. 배포 후 확인
    - 기강 모임을 하나 만들거나 "단톡방에 알림"으로 카톡이 기강 방에 오는지

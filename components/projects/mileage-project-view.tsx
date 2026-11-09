@@ -127,7 +127,7 @@ export async function MileageProjectView({
           </Suspense>
         )}
         <Suspense fallback={null}>
-          <RandomReview evtId={event.evt_id} />
+          <RandomReview evtId={event.evt_id} teamId={teamId} />
         </Suspense>
         <Suspense fallback={<Skeleton className="h-32 w-full rounded-2xl" />}>
           <CrewMonthlyStats evtId={event.evt_id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />

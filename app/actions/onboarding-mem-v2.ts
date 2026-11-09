@@ -405,7 +405,9 @@ export async function onboardingCreateMember(args: {
 
   if (eRel) {
     if (eRel.code !== "23505") {
-      await admin.from("mem_mst").delete().eq("mem_id", uid);
+      // 되돌리기는 **이번에 새로 저장한 사람 정보일 때만**. 이미 있던 사람(다른 팀 회원·앞선 시도)이면
+      // 그 정보는 이번 가입이 만든 게 아니라 지우면 안 된다 — 남아 있어도 재시도가 소속부터 이어서 저장한다.
+      if (!alreadyHadMember) await admin.from("mem_mst").delete().eq("mem_id", uid);
       return { ok: false, message: eRel.message };
     }
   }
