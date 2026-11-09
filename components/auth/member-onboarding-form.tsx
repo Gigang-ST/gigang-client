@@ -68,6 +68,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { safeNextPath } from "@/lib/safe-redirect";
 
 type MemberOnboardingFormProps = {
   userId: string;
@@ -136,8 +137,7 @@ export function MemberOnboardingForm({
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextParam = searchParams.get("next") ?? "/";
-  const safeNext =
-    nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/";
+  const safeNext = safeNextPath(nextParam, "/");
   const form = useForm<MemberOnboardingValues>({
     defaultValues: existingPerson
       ? {
