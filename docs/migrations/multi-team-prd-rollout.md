@@ -24,6 +24,7 @@
 | 13 | 모임·일정 읽기 — 로그인한 비회원도 비로그인과 같게 | `20261109220000_gthr_sch_post_select_authenticated_public.sql` | ✅ | ☐ |
 | 14 | 대회 원본·종목 관리자 정책에서 기강 id 고정 걷기 | `20261109230000_comp_admin_policy_any_team.sql` | ✅ | ☐ |
 | 15 | 기강 워드마크·정기 모임 템플릿을 팀 설정에 등록 | `20261109240000_team_cfg_wordmark_regular_template.sql` | ✅ | ☐ |
+| 16 | 기강 가입 폼에 「울산지부 가입이세요?」 안내 | `20261109250000_team_cfg_signup_other_teams.sql` | ✅ | ☐ |
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
@@ -243,9 +244,20 @@ select cfg_cd, left(cfg_val_json::text, 40) from team_cfg c join team_mst t usin
 where t.team_cd = 'gigang' and c.cfg_cd in ('brand.wordmark', 'gathering.regular_template') and c.vers = 0 and c.del_yn = false;
 ```
 
+### 16. `20261109250000_team_cfg_signup_other_teams.sql`
+
+기강 가입 폼 첫 화면에 「울산지부 가입이세요? 여기로 →」를 띄우는 팀 설정 행. 없으면 안내가 안 뜰 뿐이라
+**배포 전후 언제 넣어도 안전하다.**
+
+```sql
+-- 확인: [{"name": "울산지부", "team_cd": "ulsan"}]
+select cfg_val_json from team_cfg c join team_mst t using (team_id)
+where t.team_cd = 'gigang' and c.cfg_cd = 'signup.other_teams' and c.vers = 0 and c.del_yn = false;
+```
+
 ## 배포
 
-1. 위 1~9·12·15가 끝났는지 표에서 확인한다(10·11·13·14는 배포 뒤여도 된다).
+1. 위 1~9·12·15가 끝났는지 표에서 확인한다(10·11·13·14·16은 배포 뒤여도 된다).
 2. PR #649 머지 → dev → main 배포.
 3. 배포 후 확인
    - 기강 모임을 하나 만들거나 "단톡방에 알림"으로 카톡이 기강 방에 오는지

@@ -37,6 +37,7 @@ import {
 
 import { AppTabsGuide } from "@/components/auth/app-tabs-guide";
 import { AttendancePledgeStep } from "@/components/auth/attendance-pledge-step";
+import { OtherTeamHint, type OtherTeamLink } from "@/components/auth/other-team-hint";
 import { isDevModeEnabled } from "@/lib/dev-mode";
 import { SignupProgress } from "@/components/auth/signup-progress";
 import { StationCombobox } from "@/components/auth/station-combobox";
@@ -84,6 +85,8 @@ type MemberOnboardingFormProps = {
    * 미리 채운 폼으로 시작하며, 마지막에 신규 생성 대신 이 팀 가입(onboardingJoinTeam)을 부른다.
    */
   existingPerson?: OnboardingExistingPerson | null;
+  /** 「○○ 가입이세요? 여기로 →」 — 가입 폼 첫 화면에만 띄운다(팀 설정 signup.other_teams) */
+  otherTeams?: OtherTeamLink[];
 };
 
 /** 미리 채운 정보를 고치면 어디까지 바뀌는지 — 사람 정보는 가입한 모든 팀이 같이 쓴다 */
@@ -128,6 +131,7 @@ export function MemberOnboardingForm({
   kakaoOpenChatUrl = null,
   gatherings,
   existingPerson = null,
+  otherTeams = [],
 }: MemberOnboardingFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -787,6 +791,7 @@ export function MemberOnboardingForm({
   if (stage === "phone") {
     return (
       <PhoneStep
+        otherTeams={otherTeams}
         initialPhone={confirmedPhone}
         loading={phoneLoading}
         serverError={phoneServerError}
@@ -799,6 +804,8 @@ export function MemberOnboardingForm({
   return (
     <div className={cn("flex flex-col gap-6")}>
       <SignupProgress step={3} />
+      {/* 이미 있는 사람은 연락처 단계 없이 여기서 시작한다 — 그땐 여기가 첫 화면이라 안내를 띄운다 */}
+      {existingPerson ? <OtherTeamHint teams={otherTeams} /> : null}
       <Card className="bg-card border-border shadow-sm">
         <CardHeader>
           <H2>회원 정보 입력</H2>
@@ -952,11 +959,13 @@ export function MemberOnboardingForm({
  * 자동완성이 change 이벤트 없이 값만 써 넣어도, 화면에 보이는 값 그대로 검증된다.
  */
 function PhoneStep({
+  otherTeams,
   initialPhone,
   loading,
   serverError,
   onSubmit,
 }: {
+  otherTeams: OtherTeamLink[];
   initialPhone: string;
   loading: boolean;
   serverError: string | null;
@@ -986,6 +995,7 @@ function PhoneStep({
   return (
     <div className="flex flex-col gap-6">
       <SignupProgress step={3} />
+      <OtherTeamHint teams={otherTeams} />
       <Card className="bg-card border-border shadow-sm">
         <CardHeader>
           <H2>회원 정보 입력</H2>

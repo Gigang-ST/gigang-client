@@ -136,6 +136,19 @@ export const TEAM_CFG_REGISTRY = {
     description: "모임 만들기에서 「정기」를 고르면 채워지는 제목·시작 시각·비고. 비우면 자동으로 채우지 않아요.",
     visibility: "member",
   }),
+
+  /**
+   * 가입 폼 첫 화면에 띄우는 「다른 팀 가입이세요? 여기로 →」 안내 — 다른 팀에 가려다 이 주소로 온 사람을 넘겨준다.
+   * 주소는 적지 않고 팀 코드만 둔다 — 링크는 접속 환경(운영·dev·로컬)에 맞는 그 팀 주소로 만든다(`teamLinkOrigin`).
+   * 기본값 = 빈 목록(안내 없음).
+   */
+  "signup.other_teams": defineCfg({
+    schema: z.array(z.object({ team_cd: z.string().trim().min(1), name: z.string().trim().min(1) })),
+    default: [],
+    label: "다른 팀 가입 안내",
+    description: "가입 폼 첫 화면에 「○○ 가입이세요? 여기로 →」를 띄울 팀. 비우면 안 보여요.",
+    visibility: "public",
+  }),
 } as const;
 
 export type TeamCfgCd = keyof typeof TEAM_CFG_REGISTRY;
