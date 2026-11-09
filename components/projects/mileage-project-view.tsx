@@ -2,6 +2,8 @@ import { Suspense } from "react";
 
 import { prevMonthStr, currentMonthKST } from "@/lib/dayjs";
 import { getCurrentMember } from "@/lib/queries/member";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getTeamAccount } from "@/lib/team-social";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { MileageIntro } from "@/components/projects/mileage-intro";
@@ -47,7 +49,9 @@ export async function MileageProjectView({
   isInactive,
   inactiveKind,
 }: MileageProjectViewProps) {
-  const { member, supabase } = await getCurrentMember();
+  const [{ member, supabase }, { teamId }] = await Promise.all([getCurrentMember(), getRequestTeamContext()]);
+  // 입금 안내에 쓰는 이 팀 모임 계좌(팀 설정)
+  const account = await getTeamAccount(teamId);
 
   // 내 참여 정보 — 이 이벤트 한정. 미가입(member 없음)이면 조회할 mem_id가 없어 건너뛴다.
   const { data: prtRows } = member
@@ -101,6 +105,7 @@ export async function MileageProjectView({
           existingPrt={participation}
           isInactive={isInactive}
           inactiveKind={inactiveKind}
+          account={account}
         />
       )}
 

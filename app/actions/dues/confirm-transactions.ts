@@ -51,7 +51,7 @@ export async function confirmTransactions(items: ConfirmItem[]) {
     if (selErr) return { ok: false as const, message: "거래 조회에 실패했습니다." };
 
     // 로컬 변경(분류·매칭·프로젝트)을 병합한 "확정 시점의 최종 상태" 계산
-    const validCds = await getValidFeeItemCds(db);
+    const validCds = await getValidFeeItemCds(db, teamId);
     const merged = (txns ?? [])
       .filter((t) => !t.is_cfm_yn)
       .map((t) => {

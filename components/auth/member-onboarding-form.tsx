@@ -74,6 +74,8 @@ type MemberOnboardingFormProps = {
   initialAvatarUrl?: string | null;
   initialFullName?: string;
   kakaoChatPassword?: string;
+  /** 이 팀 오픈채팅 주소(팀 설정). 없으면 참여 버튼을 안 그린다 */
+  kakaoOpenChatUrl?: string | null;
   /** 6단계(참석 약속) 모임 선택 화면에 보여줄 열린 모임 목록 — 서버(onboarding/page.tsx)에서 조회해 전달 */
   gatherings: PledgeGathering[];
 };
@@ -106,8 +108,6 @@ const initialWizardProfile: WizardProfileState = {
   joinSrcTxt: "",
 };
 
-const KAKAO_OPEN_CHAT_URL = "https://open.kakao.com/o/grnMFGng";
-
 export function MemberOnboardingForm({
   userId: _userId,
   provider,
@@ -115,6 +115,7 @@ export function MemberOnboardingForm({
   initialAvatarUrl,
   initialFullName = "",
   kakaoChatPassword,
+  kakaoOpenChatUrl = null,
   gatherings,
 }: MemberOnboardingFormProps) {
   const router = useRouter();
@@ -425,7 +426,7 @@ export function MemberOnboardingForm({
               ) : null}
             </div>
 
-            {kakaoChatPassword ? (
+            {kakaoChatPassword && kakaoOpenChatUrl ? (
               <div className="w-full rounded-2xl border border-border bg-secondary/50 px-5 py-4 text-center">
                 <p className="text-xs text-muted-foreground">
                   오픈채팅 비밀번호
@@ -439,14 +440,16 @@ export function MemberOnboardingForm({
             <AppTabsGuide />
 
             <div className="flex w-full flex-col gap-2">
-              <a
-                href={KAKAO_OPEN_CHAT_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#FEE500] text-[15px] font-bold text-neutral-900 shadow-sm transition-colors hover:bg-[#fdd835]"
-              >
-                💬 카카오톡 오픈채팅 참여하기
-              </a>
+              {kakaoOpenChatUrl ? (
+                <a
+                  href={kakaoOpenChatUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#FEE500] text-[15px] font-bold text-neutral-900 shadow-sm transition-colors hover:bg-[#fdd835]"
+                >
+                  💬 카카오톡 오픈채팅 참여하기
+                </a>
+              ) : null}
               <Link
                 href="/"
                 className="flex h-12 items-center justify-center rounded-xl bg-primary text-[15px] font-semibold text-primary-foreground"

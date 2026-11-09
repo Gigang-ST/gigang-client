@@ -153,7 +153,7 @@ export async function uploadXlsx(formData: FormData) {
     }
 
     // 분류 유효성 집합 — 공통코드에 없는 분류는 'other'로 폴백 (업로드는 자동 분류라 중단보다 폴백이 안전)
-    const validCds = await getValidFeeItemCds(db);
+    const validCds = await getValidFeeItemCds(db, teamId);
 
     let autoDone = 0, needsReview = 0, excluded = 0, skipped = 0, skippedByCutoff = 0;
 

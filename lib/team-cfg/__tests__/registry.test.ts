@@ -36,3 +36,24 @@ describe("isTeamCfgCd", () => {
     expect(isTeamCfgCd("toString")).toBe(false);
   });
 });
+
+describe("다른 팀 값이 새면 안 되는 키 — 기본값이 비어 있다(멀티팀)", () => {
+  it("계좌·채널·오픈채팅 비밀번호는 행이 없으면 아무것도 안 보인다(기강 값을 기본으로 두지 않는다)", () => {
+    expect(resolveTeamCfgValue("bank.team_account", undefined)).toBeNull();
+    expect(resolveTeamCfgValue("social.channels", undefined)).toEqual({});
+    expect(resolveTeamCfgValue("social.kakao_open_chat_password", undefined)).toBeNull();
+  });
+
+  it("채널 주소가 URL 이 아니면 기본값(채널 없음)으로 물러난다", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(resolveTeamCfgValue("social.channels", { instagram: "not a url" })).toEqual({});
+    warn.mockRestore();
+  });
+});
+
+describe("project.show_intro — 프로젝트 없을 때 마일리지런 소개", () => {
+  it("행이 없으면 지금 기강 동작(보인다), 끈 팀은 안 보인다", () => {
+    expect(resolveTeamCfgValue("project.show_intro", undefined)).toBe(true);
+    expect(resolveTeamCfgValue("project.show_intro", false)).toBe(false);
+  });
+});

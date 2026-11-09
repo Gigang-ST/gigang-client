@@ -97,7 +97,7 @@ export async function addManualTransaction(input: AddManualTxnInput) {
     if (!input.feeItemCd) return { ok: false as const, message: "분류를 선택해 주세요." };
 
     // 분류 유효성: 공통코드(FEE_ITEM_CD)에 존재하는 cd 인지 검증
-    const validCds = await getValidFeeItemCds(db);
+    const validCds = await getValidFeeItemCds(db, teamId);
     if (!validCds.has(input.feeItemCd)) {
       return { ok: false as const, message: "존재하지 않는 분류입니다. 분류 항목을 확인해 주세요." };
     }

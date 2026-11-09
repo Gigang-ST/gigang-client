@@ -60,12 +60,26 @@ function render(
       isAdmin: false,
       isLoggedIn: true,
       weekStart: "sun",
+      // 채널 주소는 팀 설정에서 온다 — 테스트는 넷 다 있는 팀
+      channels: {
+        kakao_open_chat: "https://open.kakao.com/o/example",
+        instagram: "https://www.instagram.com/example",
+        somoim: "https://www.somoim.co.kr/example",
+        garmin: "https://connect.garmin.com/app/group/0",
+      },
       ...props,
     } as Parameters<typeof SettingsClient>[0]),
   );
 }
 
 describe("더보기 화면", () => {
+  it("채널이 하나도 없는 팀(설정 전)은 SOCIAL 칸째 안 그린다 — 다른 팀 채널로 채우지 않는다", () => {
+    const html = render({ channels: {} });
+    expect(html).not.toContain("SOCIAL");
+    expect(html).not.toContain("open.kakao.com");
+    expect(html).not.toContain("instagram.com");
+  });
+
   it("소셜이 맨 위에 서고, 두 덩어리 순서가 유지된다", () => {
     const t = text(render());
 

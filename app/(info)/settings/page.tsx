@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { hasUnreadBoardPosts } from "@/lib/queries/board";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getTeamChannels } from "@/lib/team-social";
 import { WEEK_START_COOKIE, parseWeekStart } from "@/lib/week-start";
 import { SettingsClient } from "@/components/settings/settings-client";
 
@@ -34,7 +35,7 @@ export default async function SettingsPage() {
   //   보러 들어온 사람에게만 보이므로 그 부작용이 없다.
   //
   // 잔액은 **스냅샷을 읽기만 한다**(회비 계산 로직은 손대지 않음).
-  const [boardUnread, balSnapRes] = await Promise.all([
+  const [boardUnread, balSnapRes, channels] = await Promise.all([
     hasUnreadBoardPosts(member?.id, teamId),
     member
       ? supabase
@@ -46,6 +47,7 @@ export default async function SettingsPage() {
           .eq("del_yn", false)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
+    getTeamChannels(teamId),
   ]);
 
   // 조회가 실패하면 점을 끈 채로 둔다 — 점 하나 때문에 설정 화면 전체를 못 열게 만들 수는
@@ -62,6 +64,7 @@ export default async function SettingsPage() {
       boardUnread={boardUnread}
       duesUnpaid={(balSnapRes.data?.bal_amt ?? 0) <= -DUES_DOT_MIN_UNPAID}
       weekStart={weekStart}
+      channels={channels}
     />
   );
 }

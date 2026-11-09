@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { getGhostMembers } from "@/lib/queries/ghost-members";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getTeamChannels } from "@/lib/team-social";
 import {
   getMyReactions,
   getReactionTotals,
@@ -87,6 +88,7 @@ async function StoryFeedSection() {
     reactionTotals,
     myReactions,
     recapTeaser,
+    channels,
   ] = await Promise.all([
       getStoryFeed(teamId),
       getTeamOverview(teamId),
@@ -102,6 +104,8 @@ async function StoryFeedSection() {
       // 끝난 마일리지런 시즌 — 종료 후 30일에만 값이 온다(창 밖이면 가벼운 조회 하나로 null).
       // 따로 캐시돼 있고 실패하면 null로 삼켜 홈을 막지 않는다(§getMileageRecapTeaser).
       getMileageRecapTeaser(teamId),
+      // 판권면 채널 — 이 팀 것(팀 설정, 서버 메모리 1분 캐시)
+      getTeamChannels(teamId),
     ]);
 
   // 응원 카운트(모두의 총합 + 내 몫)는 캐시된 피드(최대 5분 지연)에서 떼어내 매 요청 최신으로
@@ -172,6 +176,7 @@ async function StoryFeedSection() {
       // async 서버 컴포넌트라 client인 StoryClient 안에서 직접 렌더할 수 없다).
       mastheadActions={<HeaderActions />}
       recap={recap}
+      channels={channels}
     />
   );
 }

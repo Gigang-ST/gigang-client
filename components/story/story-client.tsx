@@ -32,6 +32,7 @@ import type { StoryPost } from "@/lib/queries/story-posts";
 import type { RecentTitleRow } from "@/lib/story-title";
 import type { TeamOverview } from "@/lib/queries/team-overview";
 import type { RecapTeaser } from "@/lib/mileage-recap";
+import type { TeamChannels } from "@/lib/team-channels";
 
 /**
  * /story 존 잠정 중단 토글 — **삭제가 아니라 잠정 중단이다**(2026-07-28 UI 정리).
@@ -72,6 +73,7 @@ export function StoryClient({
   reactions,
   mastheadActions,
   recap = null,
+  channels,
 }: {
   feed: StoryFeed;
   /** 크루 총량 — 기상대 상자에 쓴다 */
@@ -105,6 +107,8 @@ export function StoryClient({
   mastheadActions?: ReactNode;
   /** 끝난 마일리지런 시즌 — 종료 후 30일 동안 리드 맨 앞 칸(§story-lede ⓪). 없으면 null */
   recap?: RecapTeaser | null;
+  /** 판권면 채널(이 팀 팀 설정) — 없는 채널은 칸째 안 그린다 */
+  channels: TeamChannels;
 }) {
   const [selected, setSelected] = useState<{ memId: string; name: string } | null>(
     null,
@@ -313,7 +317,7 @@ export function StoryClient({
         {/* 소셜 — 지면 맨 끝. 판권면(masthead 반대편)처럼 크루 바깥으로 나가는 문을 모아둔다.
             소식이 없어도(hasAnything=false) 보여준다 — 채널은 지면 상태와 무관하다. */}
         <div className="px-6">
-          <SocialLinksGrid />
+          <SocialLinksGrid channels={channels} />
         </div>
       </div>
 

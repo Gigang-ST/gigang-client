@@ -1,3 +1,4 @@
+import { feeItemTeamFilter } from "@/lib/fee-items";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createClient } from "@/lib/supabase/server";
 
@@ -17,8 +18,10 @@ export default async function DuesPolicyPage() {
       .order("aply_stt_dt", { ascending: false }),
     supabase
       .from("cmm_cd_mst")
-      .select("cd_id, cd, cd_nm, sort_ord, is_default_yn, cmm_cd_grp_mst!inner(cd_grp_cd)")
+      .select("cd_id, cd, cd_nm, sort_ord, is_default_yn, team_id, cmm_cd_grp_mst!inner(cd_grp_cd)")
       .eq("cmm_cd_grp_mst.cd_grp_cd", "FEE_ITEM_CD")
+      // 공용 + 이 팀이 추가한 항목(§lib/fee-items)
+      .or(feeItemTeamFilter(teamId))
       .eq("vers", 0)
       .eq("del_yn", false)
       .order("sort_ord", { ascending: true }),
@@ -26,5 +29,5 @@ export default async function DuesPolicyPage() {
 
   const cleanedFeeItems = (feeItems ?? []).map(({ cmm_cd_grp_mst: _, ...rest }) => rest);
 
-  return <DuesPolicyClient policies={policies ?? []} feeItems={cleanedFeeItems} />;
+  return <DuesPolicyClient policies={policies ?? []} feeItems={cleanedFeeItems} teamId={teamId} />;
 }

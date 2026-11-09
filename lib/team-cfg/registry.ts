@@ -42,6 +42,68 @@ export const TEAM_CFG_REGISTRY = {
     description: "노티봇 허브 콘솔의 방 고정 ID. 비우면 이 팀은 단톡방 공지를 보내지 않아요.",
     visibility: "server",
   }),
+
+  /**
+   * 모임 계좌(회비·프로젝트 입금 안내). **기본값이 없다** — 비어 있으면 계좌 안내를 그리지 않는다.
+   * 기본값을 기강 계좌로 두면 다른 팀 회원이 기강 계좌로 돈을 보낸다.
+   * 번호는 화면에 보이는 형식(하이픈 포함)으로 넣는다 — 복사할 땐 숫자만 뽑는다.
+   */
+  "bank.team_account": defineCfg({
+    schema: z
+      .object({
+        bank: z.string().trim().min(1),
+        number: z.string().trim().min(1),
+        holder: z.string().trim().min(1),
+      })
+      .nullable(),
+    default: null,
+    label: "모임 계좌",
+    description: "회비·프로젝트 입금 안내에 보이는 계좌. 비우면 계좌 안내가 안 보여요.",
+    visibility: "member",
+  }),
+
+  /**
+   * 팀 채널(오픈채팅·인스타·소모임·가민) 주소. **기본값이 없다** — 없는 채널은 칸째 안 그린다.
+   * 다른 키처럼 기강 값을 기본으로 두면 다른 팀 화면에 기강 채널이 뜬다.
+   */
+  "social.channels": defineCfg({
+    schema: z.object({
+      kakao_open_chat: z.string().url().optional(),
+      instagram: z.string().url().optional(),
+      somoim: z.string().url().optional(),
+      garmin: z.string().url().optional(),
+    }),
+    default: {},
+    label: "팀 채널",
+    description: "오픈채팅·인스타·소모임·가민 주소. 비운 채널은 화면에 안 보여요.",
+    visibility: "public",
+  }),
+
+  /**
+   * 오픈채팅 비밀번호 — 그 팀 회원에게만 보인다(서버가 회원 여부를 다시 판정한다). 비밀값이라 `server`.
+   * 기본값 없음. ⚠️ 기강은 이 행을 넣기 전까지 예전 환경변수(`KAKAO_CHAT_PASSWORD`)로 동작한다(전환용 —
+   * `lib/team-social.ts`). 행을 넣은 뒤 환경변수와 그 분기를 지운다(runbook).
+   */
+  "social.kakao_open_chat_password": defineCfg({
+    schema: z.string().trim().min(1).nullable(),
+    default: null,
+    label: "오픈채팅 비밀번호",
+    description: "그 팀 회원에게만 보여요. 비우면 비밀번호 안내가 안 보여요.",
+    visibility: "server",
+  }),
+
+  /**
+   * 진행 중인 프로젝트가 없을 때 프로젝트 탭에 마일리지런 소개·규칙을 보여 줄지.
+   * 기본값 = 지금 기강 동작(보여 준다 — 시즌 사이에 다음 시즌을 기다리게).
+   * 마일리지런을 안 하는 팀은 끄면 "진행 중인 프로젝트가 없어요"만 보인다(울산, 2026-11-09 유저 결정).
+   */
+  "project.show_intro": defineCfg({
+    schema: z.boolean(),
+    default: true,
+    label: "프로젝트 소개 보이기",
+    description: "진행 중인 프로젝트가 없을 때 마일리지런 소개를 보여 줘요. 끄면 '진행 중인 프로젝트가 없어요'만 보여요.",
+    visibility: "member",
+  }),
 } as const;
 
 export type TeamCfgCd = keyof typeof TEAM_CFG_REGISTRY;

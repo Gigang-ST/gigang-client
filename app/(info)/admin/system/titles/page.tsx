@@ -25,6 +25,12 @@ async function TitlesTabContent() {
 return <AdminTitlesClient teamId={teamId} cmmCdRows={cmmCdRows} />;
 }
 
+// 이펙트 등급·사용 여부·해금 조건은 팀별(team_effect_cfg) — 접속한 팀을 서버에서 정해 넘긴다
+async function EffectsTabContent() {
+  const { teamId } = await getRequestTeamContext();
+  return <AdminEffectsClient teamId={teamId} />;
+}
+
 export default function AdminTitlesPage() {
   return (
     <AdminTitlesPageClient
@@ -33,7 +39,11 @@ export default function AdminTitlesPage() {
           <TitlesTabContent />
         </Suspense>
       }
-      effectsContent={<AdminEffectsClient />}
+      effectsContent={
+        <Suspense fallback={<Fallback />}>
+          <EffectsTabContent />
+        </Suspense>
+      }
       historyContent={<AdminTitleHistoryClient />}
     />
   );

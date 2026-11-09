@@ -2,7 +2,8 @@
 
 import { redirect } from "next/navigation";
 
-import { TEAM_ACCOUNT } from "@/lib/constants";
+import { feeItemTeamFilter } from "@/lib/fee-items";
+import { getTeamAccount } from "@/lib/team-social";
 import { DUES_QUEST } from "@/lib/constants/dues-quest";
 import { dayjs } from "@/lib/dayjs";
 import { calcExemption } from "@/lib/dues/calc-exemption";
@@ -67,6 +68,7 @@ export default async function MemberDuesPage() {
       .from("cmm_cd_mst")
       .select("cd, cd_nm, cmm_cd_grp_mst!inner(cd_grp_cd)")
       .eq("cmm_cd_grp_mst.cd_grp_cd", "FEE_ITEM_CD")
+      .or(feeItemTeamFilter(teamId))
       .eq("vers", 0)
       .eq("del_yn", false),
     supabase
@@ -157,7 +159,7 @@ export default async function MemberDuesPage() {
     <DuesHistoryClient
       balAmt={balAmt}
       lastCalcDt={snap?.last_calc_dt ? dayjs(snap.last_calc_dt).tz("Asia/Seoul").format("YY.MM.DD HH:mm") : null}
-      teamAccount={TEAM_ACCOUNT}
+      teamAccount={await getTeamAccount(teamId)}
       monthlyFeeAmt={monthlyFeeAmt}
       quest={quest}
       items={items}

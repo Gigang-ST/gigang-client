@@ -8,6 +8,7 @@ import { loadMyPbClass, loadPbClassBoard, type MyPbClass } from "@/lib/queries/p
 import { loadPbGame, type PbGame } from "@/lib/queries/pb-class-game";
 import { loadPbTeamPhotos } from "@/lib/queries/pb-class-teams";
 import { getCurrentMember } from "@/lib/queries/member";
+import { getTeamAccount } from "@/lib/team-social";
 
 import { EmptyState } from "@/components/common/empty-state";
 import { Caption, H2 } from "@/components/common/typography";
@@ -197,6 +198,9 @@ export async function PbClassView({ event, teamId, view, readOnly = false, isIna
     );
   }
 
+  // 입금 안내에 쓰는 이 팀 모임 계좌(팀 설정, 서버 메모리 1분 캐시)
+  const account = await getTeamAccount(teamId);
+
   // 두 조회는 서로 기다릴 이유가 없다 — 나란히 보낸다
   const nowIso = nowKST().toISOString();
   const [data, game] = await Promise.all([
@@ -298,9 +302,10 @@ export async function PbClassView({ event, teamId, view, readOnly = false, isIna
               mlgAlumni={data.mlgAlumni ?? false}
               isInactive={isInactive}
               inactiveKind={inactiveKind}
+              account={account}
             />
           )}
-          {pbGuideTop(readOnly, me) === "pending" && me && <PbPendingCard me={me} />}
+          {pbGuideTop(readOnly, me) === "pending" && me && <PbPendingCard me={me} account={account} />}
           <PbGuide
             evt={evt}
             cfg={cfg}

@@ -35,6 +35,7 @@ import { HelpTip } from "@/components/common/help-tip";
 import { ThemeToggle } from "@/components/common/theme-toggle";
 import { Body, Caption, Micro, SectionLabel } from "@/components/common/typography";
 import { SOCIAL_HELP_TEXT, SocialTiles } from "@/components/social-links";
+import { listTeamChannels, type TeamChannels } from "@/lib/team-channels";
 import { WeekStartControl } from "@/components/settings/week-start-control";
 
 import type { LucideIcon } from "lucide-react";
@@ -220,6 +221,7 @@ export function SettingsClient({
   boardUnread,
   duesUnpaid = false,
   weekStart,
+  channels,
 }: {
   isAdmin: boolean;
   /** 세션이 있는가 — 없으면 계정 그룹이 로그아웃 대신 로그인 한 줄이 된다 */
@@ -230,6 +232,8 @@ export function SettingsClient({
   duesUnpaid?: boolean;
   /** 주 시작 요일 — 서버가 쿠키에서 읽어 넘긴다(§lib/week-start) */
   weekStart: WeekStart;
+  /** 이 팀 채널(팀 설정). 하나도 없으면 SOCIAL 칸째 안 그린다 */
+  channels: TeamChannels;
 }) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -273,6 +277,7 @@ export function SettingsClient({
         {/* SOCIAL — 화면 최상단. 못 찾는 사람이 여는 방의 첫 칸이 답이어야 한다.
             헤더는 아래 그룹들과 같은 `SectionLabel` 층으로 그린다 — 전광판의 존 괘선
             (`StoryZoneHeader`)을 여기 가져오면 목록 사이에 남의 어휘가 끼어든다. */}
+        {listTeamChannels(channels).length > 0 && (
         <div className="flex flex-col">
           <div className="flex items-center gap-2.5 pb-3">
             <SectionLabel>SOCIAL</SectionLabel>
@@ -281,8 +286,9 @@ export function SettingsClient({
               <HelpTip title="기강 채널">{SOCIAL_HELP_TEXT}</HelpTip>
             </div>
           </div>
-          <SocialTiles autoOpenKakao={wantKakao} />
+          <SocialTiles channels={channels} autoOpenKakao={wantKakao} />
         </div>
+        )}
 
         {/* MY */}
         <div className="flex flex-col">

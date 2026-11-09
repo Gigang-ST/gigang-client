@@ -2,10 +2,11 @@ import { Suspense } from "react";
 
 import { redirect } from "next/navigation";
 
-import { env } from "@/lib/env";
 import { isDevModeEnabled } from "@/lib/dev-mode";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getOpenGatheringsForPledge } from "@/lib/queries/onboarding-gatherings";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getTeamChannels, getTeamKakaoPassword } from "@/lib/team-social";
 
 import { MemberOnboardingForm } from "@/components/auth/member-onboarding-form";
 
@@ -74,7 +75,13 @@ async function OnboardingContent({
     ? rawName.trim()
     : "";
 
-  const gatherings = await getOpenGatheringsForPledge();
+  const { teamId } = await getRequestTeamContext();
+  // 오픈채팅 주소·비밀번호는 이 팀 것(팀 설정) — 없는 팀은 안내를 안 그린다.
+  const [gatherings, channels, kakaoChatPassword] = await Promise.all([
+    getOpenGatheringsForPledge(),
+    getTeamChannels(teamId),
+    getTeamKakaoPassword(teamId),
+  ]);
 
   return (
     <div className="flex min-h-svh w-full items-center justify-center bg-background px-6">
@@ -85,7 +92,8 @@ async function OnboardingContent({
           email={user.email}
           initialAvatarUrl={initialAvatarUrl}
           initialFullName={initialFullName}
-          kakaoChatPassword={env.KAKAO_CHAT_PASSWORD ?? ""}
+          kakaoChatPassword={kakaoChatPassword ?? ""}
+          kakaoOpenChatUrl={channels.kakao_open_chat ?? null}
           gatherings={gatherings}
         />
       </div>
