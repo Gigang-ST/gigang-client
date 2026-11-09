@@ -4,14 +4,30 @@ import { useState, useTransition } from "react";
 
 import { useRouter } from "next/navigation";
 
-import { Plus, X } from "lucide-react";
+import { ChevronRight, Plus, X } from "lucide-react";
+import { toast } from "sonner";
 
-import { CFG_GROUPS, CFG_STATUS_LABEL, normalizeChannels, normalizeTeamLinks, type CfgStatus } from "@/lib/team-cfg/form";
+import {
+  CFG_GROUPS,
+  CFG_STATUS_LABEL,
+  EMPTY_SUMMARY,
+  isDefaultCfgValue,
+  normalizeChannels,
+  normalizeTeamLinks,
+  type CfgStatus,
+} from "@/lib/team-cfg/form";
 import type { CfgGroup, CfgInput, TeamCfgCd } from "@/lib/team-cfg/registry";
 import { cn } from "@/lib/utils";
 
 import { resetTeamSetting, saveTeamSetting } from "@/app/actions/admin/team-settings";
 
+import {
+  ResponsiveDrawer,
+  ResponsiveDrawerContent,
+  ResponsiveDrawerDescription,
+  ResponsiveDrawerHeader,
+  ResponsiveDrawerTitle,
+} from "@/components/common/responsive-drawer";
 import { Body, Caption, H2, Micro, SectionLabel } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
@@ -29,15 +45,24 @@ export type TeamSettingItem = {
   status: CfgStatus;
   /** 지금 동작하는 값. 비밀값은 null(브라우저로 내보내지 않는다) */
   value: unknown;
+  /** 목록 한 줄에 보일 요약(서버가 만든다 — 비밀값은 "설정됨"만) */
+  summary: string;
+  /** 사전의 기본값 — 「기본값으로」가 입력칸에 채우는 값. 비밀값은 null */
+  defaultValue: unknown;
 };
 
 type OtherTeam = { teamCd: string; teamNm: string };
 
 /**
- * 「팀 설정」 본문 — 사전 항목을 묶음별로 그리고, 항목마다 입력칸·저장·기본값으로 되돌리기를 둔다.
+ * 「팀 설정」 본문 — **요약 목록 + 눌러서 편집**. 한 줄에 이름과 지금 값 요약만 두고, 누르면 아래에서 시트가 올라와
+ * 설명·입력칸·저장·기본값으로가 그 안에 있다. 설정이 늘어도 목록은 줄만 쌓여 정신없어지지 않는다.
+ * 켜고 끄기는 줄에서 바로 바꾼다(시트를 열 만큼의 일이 아니다).
  * 입력칸 모양은 사전의 `input.kind` 가 정한다(새 모양은 아래 Editor 에 더한다).
  */
 export function TeamSettingsClient({ items, otherTeams }: { items: TeamSettingItem[]; otherTeams: OtherTeam[] }) {
+  const [openCd, setOpenCd] = useState<TeamCfgCd | null>(null);
+  const openItem = items.find((i) => i.cd === openCd) ?? null;
+
   return (
     <div className="flex flex-col gap-7 px-6 pb-10 pt-4">
       <div className="flex flex-col gap-1">
@@ -49,15 +74,84 @@ export function TeamSettingsClient({ items, otherTeams }: { items: TeamSettingIt
         const groupItems = items.filter((i) => i.group === group);
         if (groupItems.length === 0) return null;
         return (
-          <section key={group} className="flex flex-col gap-3">
+          <section key={group} className="flex flex-col gap-2">
             <SectionLabel>{label}</SectionLabel>
-            {groupItems.map((item) => (
-              <SettingCard key={item.cd} item={item} otherTeams={otherTeams} />
-            ))}
+            <CardItem className="flex flex-col p-0">
+              {groupItems.map((item, idx) => (
+                <SettingRow key={item.cd} item={item} first={idx === 0} onOpen={() => setOpenCd(item.cd)} />
+              ))}
+            </CardItem>
           </section>
         );
       })}
+
+      {openItem && (
+        <SettingSheet
+          // 다른 항목을 열면 입력 상태를 새로 잡는다
+          key={openItem.cd}
+          item={openItem}
+          otherTeams={otherTeams}
+          onClose={() => setOpenCd(null)}
+        />
+      )}
     </div>
+  );
+}
+
+/** 저장·되돌리기 공통 — 결과를 토스트로 알리고 화면을 새 값으로 다시 그린다 */
+function useSettingAction(cd: TeamCfgCd) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const run = (fn: () => Promise<{ ok: boolean; message: string | null }>, okText: string, onOk?: () => void) =>
+    startTransition(async () => {
+      const res = await fn();
+      if (!res.ok) {
+        toast.error(res.message ?? "실패했습니다");
+        return;
+      }
+      toast.success(okText);
+      onOk?.();
+      router.refresh();
+    });
+  return {
+    pending,
+    save: (value: unknown, onOk?: () => void) => run(() => saveTeamSetting(cd, value), "저장했어요", onOk),
+    reset: (onOk?: () => void) => run(() => resetTeamSetting(cd), "기본값으로 되돌렸어요", onOk),
+  };
+}
+
+/** 목록 한 줄 — 이름 + 지금 값 요약. 켜고 끄기는 스위치를 줄에 바로 둔다 */
+function SettingRow({ item, first, onOpen }: { item: TeamSettingItem; first: boolean; onOpen: () => void }) {
+  const { pending, save } = useSettingAction(item.cd);
+  const rowClass = cn(
+    "flex min-h-[52px] w-full items-center gap-3 px-4 py-3 text-left",
+    !first && "border-t border-border",
+  );
+
+  if (item.input.kind === "boolean") {
+    return (
+      <div className={rowClass}>
+        <Body className="flex-1 font-medium">{item.label}</Body>
+        <Caption>{item.summary}</Caption>
+        <Switch
+          checked={item.value === true}
+          disabled={pending}
+          onCheckedChange={(v) => save(v)}
+          aria-label={`${item.label} 켜고 끄기`}
+        />
+      </div>
+    );
+  }
+
+  const empty = item.summary === EMPTY_SUMMARY;
+  return (
+    <button type="button" onClick={onOpen} className={cn(rowClass, "transition-colors active:bg-secondary")}>
+      <Body className="shrink-0 font-medium">{item.label}</Body>
+      <Caption className={cn("min-w-0 flex-1 truncate text-right", empty && "text-muted-foreground/60")}>
+        {item.summary}
+      </Caption>
+      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+    </button>
   );
 }
 
@@ -74,51 +168,86 @@ function StatusBadge({ status }: { status: CfgStatus }) {
   );
 }
 
-function SettingCard({ item, otherTeams }: { item: TeamSettingItem; otherTeams: OtherTeam[] }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+/**
+ * 편집 시트 — 설명·입력칸·저장·기본값으로. 저장되면 닫힌다.
+ *
+ * 「기본값으로」는 **입력칸만 기본값으로 채운다** — 저장은 「저장」을 눌러야 한다(누르자마자 지워져 실제로 기강
+ * 채널이 날아갔다). 저장할 값이 기본값과 같으면 값을 쓰지 않고 이 크루 설정을 지워 기본값으로 돌린다 —
+ * 칸을 다 비우고 저장해도 같다.
+ */
+function SettingSheet({
+  item,
+  otherTeams,
+  onClose,
+}: {
+  item: TeamSettingItem;
+  otherTeams: OtherTeam[];
+  onClose: () => void;
+}) {
+  const { pending, save, reset } = useSettingAction(item.cd);
+  // 입력칸의 시작값. 「기본값으로」는 이것만 바꾸고 편집기를 다시 그린다(저장은 안 한다)
+  const [base, setBase] = useState<unknown>(item.value);
+  const [filledDefault, setFilledDefault] = useState(false);
+  const [editorKey, setEditorKey] = useState(0);
 
-  const run = (fn: () => Promise<{ ok: boolean; message: string | null }>, okText: string) => {
-    setMessage(null);
-    startTransition(async () => {
-      const res = await fn();
-      setMessage(res.ok ? { ok: true, text: okText } : { ok: false, text: res.message ?? "실패했습니다" });
-      if (res.ok) router.refresh();
-    });
+  const handleSave = (value: unknown) => {
+    if (isDefaultCfgValue(value, item.defaultValue)) {
+      // 기본값과 같다 — 이 크루가 정한 값이 있으면 지우고, 없으면 바꿀 게 없다
+      if (item.status === "set") reset(onClose);
+      else onClose();
+      return;
+    }
+    save(value, onClose);
   };
-  const save = (value: unknown) => run(() => saveTeamSetting(item.cd, value), "저장했어요");
-  const reset = () => run(() => resetTeamSetting(item.cd), "기본값으로 되돌렸어요");
 
   return (
-    <CardItem className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
-        <Body className="font-semibold">{item.label}</Body>
-        <StatusBadge status={item.status} />
-      </div>
-      <Caption>{item.description}</Caption>
+    <ResponsiveDrawer open onOpenChange={(open) => !open && onClose()}>
+      <ResponsiveDrawerContent className="flex max-h-[90svh] flex-col gap-0" dialogClassName="max-w-md">
+        <ResponsiveDrawerHeader className="px-4 py-4 text-left">
+          <div className="flex items-center justify-between gap-2">
+            <ResponsiveDrawerTitle>{item.label}</ResponsiveDrawerTitle>
+            <StatusBadge status={item.status} />
+          </div>
+          <ResponsiveDrawerDescription>{item.description}</ResponsiveDrawerDescription>
+        </ResponsiveDrawerHeader>
 
-      <Editor item={item} otherTeams={otherTeams} pending={pending} onSave={save} />
-
-      <div className="flex items-center justify-between gap-2">
-        {message ? (
-          <Caption className={message.ok ? "text-primary" : "text-destructive"}>{message.text}</Caption>
-        ) : (
-          <span />
-        )}
-        {item.status === "set" && (
-          <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={reset} className="text-muted-foreground">
-            기본값으로
-          </Button>
-        )}
-      </div>
-    </CardItem>
+        <div className="flex flex-col gap-3 overflow-y-auto px-4 pb-6">
+          {filledDefault && (
+            <Caption className="text-primary">기본값으로 채웠어요. 저장을 눌러야 반영돼요.</Caption>
+          )}
+          <Editor
+            key={editorKey}
+            item={{ ...item, value: base }}
+            cleared={filledDefault}
+            otherTeams={otherTeams}
+            pending={pending}
+            onSave={handleSave}
+          />
+          {item.status === "set" && !filledDefault && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={pending}
+              onClick={() => {
+                setBase(item.defaultValue);
+                setFilledDefault(true);
+                setEditorKey((k) => k + 1);
+              }}
+              className="self-center text-muted-foreground"
+            >
+              기본값으로
+            </Button>
+          )}
+        </div>
+      </ResponsiveDrawerContent>
+    </ResponsiveDrawer>
   );
 }
 
 function SaveButton({ pending, onClick }: { pending: boolean; onClick: () => void }) {
   return (
-    <Button type="button" size="sm" disabled={pending} onClick={onClick} className="self-end">
+    <Button type="button" disabled={pending} onClick={onClick} className="mt-1 w-full">
       {pending ? "저장 중…" : "저장"}
     </Button>
   );
@@ -126,22 +255,34 @@ function SaveButton({ pending, onClick }: { pending: boolean; onClick: () => voi
 
 function Editor({
   item,
+  cleared,
   otherTeams,
   pending,
   onSave,
 }: {
   item: TeamSettingItem;
+  /** 「기본값으로」를 눌렀다 — 비밀값 칸은 저장하면 지워진다고 안내한다 */
+  cleared: boolean;
   otherTeams: OtherTeam[];
   pending: boolean;
   onSave: (value: unknown) => void;
 }) {
   switch (item.input.kind) {
     case "boolean":
-      return <BooleanEditor value={item.value === true} pending={pending} onSave={onSave} />;
+      // 켜고 끄기는 목록 줄에서 바로 바꾼다 — 시트로 오지 않는다
+      return null;
     case "text":
       return <TextEditor value={(item.value as string | null) ?? ""} placeholder={item.input.placeholder} pending={pending} onSave={onSave} />;
     case "secret":
-      return <SecretEditor isSet={item.status === "set"} placeholder={item.input.placeholder} pending={pending} onSave={onSave} />;
+      return (
+        <SecretEditor
+          isSet={item.status === "set"}
+          cleared={cleared}
+          placeholder={item.input.placeholder}
+          pending={pending}
+          onSave={onSave}
+        />
+      );
     case "bank":
       return <BankEditor value={item.value as BankValue | null} pending={pending} onSave={onSave} />;
     case "channels":
@@ -162,16 +303,6 @@ function Editor({
 
 /* ─── 편집기 ─── */
 
-function BooleanEditor({ value, pending, onSave }: { value: boolean; pending: boolean; onSave: (v: unknown) => void }) {
-  // 켜고 끄기는 누르는 즉시 저장한다 — 저장 버튼까지 누르게 하면 바꾼 줄 알고 나가 버린다
-  return (
-    <div className="flex items-center justify-between">
-      <Body>{value ? "켜짐" : "꺼짐"}</Body>
-      <Switch checked={value} disabled={pending} onCheckedChange={(v) => onSave(v)} aria-label="켜고 끄기" />
-    </div>
-  );
-}
-
 function TextEditor({
   value,
   placeholder,
@@ -187,23 +318,26 @@ function TextEditor({
   return (
     <div className="flex flex-col gap-2">
       <Input value={text} placeholder={placeholder} onChange={(e) => setText(e.target.value)} />
-      <SaveButton pending={pending} onClick={() => onSave(text.trim())} />
+      <SaveButton pending={pending} onClick={() => onSave(text.trim() || null)} />
     </div>
   );
 }
 
 function SecretEditor({
   isSet,
+  cleared,
   placeholder,
   pending,
   onSave,
 }: {
   isSet: boolean;
+  cleared: boolean;
   placeholder?: string;
   pending: boolean;
   onSave: (v: unknown) => void;
 }) {
-  // 지금 값은 서버가 내려주지 않는다 — 새 값을 넣어 덮어쓰는 것만 된다
+  // 지금 값은 서버가 내려주지 않는다 — 새 값을 넣어 덮어쓰는 것만 된다.
+  // 「기본값으로」를 누른 뒤 빈 채로 저장하면 지운다(null — 시트가 기본값과 같다고 보고 설정을 지운다)
   const [text, setText] = useState("");
   return (
     <div className="flex flex-col gap-2">
@@ -211,13 +345,18 @@ function SecretEditor({
         type="password"
         autoComplete="off"
         value={text}
-        placeholder={isSet ? "설정돼 있어요 — 바꾸려면 새 값을 입력" : placeholder}
+        placeholder={
+          cleared ? "비워 두고 저장하면 지워져요" : isSet ? "설정돼 있어요 — 바꾸려면 새 값을 입력" : placeholder
+        }
         onChange={(e) => setText(e.target.value)}
       />
       <SaveButton
         pending={pending}
         onClick={() => {
-          if (!text.trim()) return;
+          if (!text.trim()) {
+            if (cleared) onSave(null);
+            return;
+          }
           onSave(text.trim());
           setText("");
         }}
@@ -237,7 +376,16 @@ function BankEditor({ value, pending, onSave }: { value: BankValue | null; pendi
       <LabeledInput label="은행" value={bank} onChange={setBank} placeholder="예: 카카오뱅크" />
       <LabeledInput label="계좌번호" value={number} onChange={setNumber} placeholder="예: 3333-00-0000000" />
       <LabeledInput label="예금주" value={holder} onChange={setHolder} placeholder="예: 홍길동(크루장)" />
-      <SaveButton pending={pending} onClick={() => onSave({ bank: bank.trim(), number: number.trim(), holder: holder.trim() })} />
+      <SaveButton
+        pending={pending}
+        onClick={() =>
+          onSave(
+            !bank.trim() && !number.trim() && !holder.trim()
+              ? null
+              : { bank: bank.trim(), number: number.trim(), holder: holder.trim() },
+          )
+        }
+      />
     </div>
   );
 }
@@ -302,7 +450,10 @@ function TemplateEditor({
         <Label>비고</Label>
         <Textarea value={desc} rows={8} onChange={(e) => setDesc(e.target.value)} />
       </div>
-      <SaveButton pending={pending} onClick={() => onSave({ title: title.trim(), default_time: time, desc })} />
+      <SaveButton
+        pending={pending}
+        onClick={() => onSave(!title.trim() && !desc.trim() ? null : { title: title.trim(), default_time: time, desc })}
+      />
     </div>
   );
 }

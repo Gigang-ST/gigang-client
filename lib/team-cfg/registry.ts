@@ -20,7 +20,7 @@ import { z } from "zod";
  * 관리자 「팀 설정」 화면(`/admin/team-settings`)이 묶는 칸. 화면은 이 사전을 보고 그리므로,
  * **키를 사전에 더하면 모든 팀의 설정 화면에 저절로 올라온다**(팀마다 빈 행을 미리 넣을 필요가 없다).
  */
-export type CfgGroup = "feature" | "brand" | "channel" | "content" | "secret";
+export type CfgGroup = "feature" | "member_info" | "operation" | "brand";
 
 /**
  * 입력칸 모양. `secret` 은 지금 값을 화면에 내보내지 않고(설정됨/안 됨만) 새 값 입력만 받는다.
@@ -44,6 +44,8 @@ type CfgDef<S extends z.ZodTypeAny> = {
   visibility: "server" | "member" | "public";
   group: CfgGroup;
   input: CfgInput;
+  /** 관리자 설정 화면에 올리지 않는다 — 거의 안 바꾸는 값이라 코드·마이그레이션으로 관리한다 */
+  hidden?: boolean;
 };
 
 function defineCfg<S extends z.ZodTypeAny>(def: CfgDef<S>): CfgDef<S> {
@@ -62,7 +64,7 @@ export const TEAM_CFG_REGISTRY = {
     label: "카톡 공지방 ID",
     description: "노티봇 허브 콘솔의 방 고정 ID. 비우면 이 팀은 단톡방 공지를 보내지 않아요.",
     visibility: "server",
-    group: "secret",
+    group: "operation",
     input: { kind: "secret", placeholder: "노티봇 허브의 방 고정 ID" },
   }),
 
@@ -83,7 +85,7 @@ export const TEAM_CFG_REGISTRY = {
     label: "모임 계좌",
     description: "회비·프로젝트 입금 안내에 보이는 계좌. 비우면 계좌 안내가 안 보여요.",
     visibility: "member",
-    group: "channel",
+    group: "member_info",
     input: { kind: "bank" },
   }),
 
@@ -102,7 +104,7 @@ export const TEAM_CFG_REGISTRY = {
     label: "팀 채널",
     description: "오픈채팅·인스타·소모임·가민 주소. 비운 채널은 화면에 안 보여요.",
     visibility: "public",
-    group: "channel",
+    group: "member_info",
     input: { kind: "channels" },
   }),
 
@@ -117,7 +119,7 @@ export const TEAM_CFG_REGISTRY = {
     label: "오픈채팅 비밀번호",
     description: "그 팀 회원에게만 보여요. 비우면 비밀번호 안내가 안 보여요.",
     visibility: "server",
-    group: "secret",
+    group: "member_info",
     input: { kind: "secret", placeholder: "오픈채팅 비밀번호" },
   }),
 
@@ -154,7 +156,7 @@ export const TEAM_CFG_REGISTRY = {
     label: "정기 모임 템플릿",
     description: "모임 만들기에서 「정기」를 고르면 채워지는 제목·시작 시각·비고. 비우면 자동으로 채우지 않아요.",
     visibility: "member",
-    group: "content",
+    group: "operation",
     input: { kind: "regular_template" },
   }),
 
@@ -169,8 +171,9 @@ export const TEAM_CFG_REGISTRY = {
     label: "다른 팀 가입 안내",
     description: "가입 폼 첫 화면에 「○○ 가입이세요? 여기로 →」를 띄울 팀. 비우면 안 보여요.",
     visibility: "public",
-    group: "content",
+    group: "operation",
     input: { kind: "team_links" },
+    hidden: true,
   }),
 
   /**

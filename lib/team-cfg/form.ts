@@ -1,4 +1,4 @@
-import type { CfgGroup } from "./registry";
+import type { CfgGroup, CfgInput } from "./registry";
 
 /**
  * 관리자 「팀 설정」 화면의 순수 규칙 — 묶음 순서·이름, 항목 상태, 입력값 정리.
@@ -6,14 +6,35 @@ import type { CfgGroup } from "./registry";
  * 회귀 테스트: `lib/team-cfg/__tests__/form.test.ts`.
  */
 
-/** 묶음 표시 순서와 이름 — 자주 만지는 것(기능)이 위, 거의 안 만지는 것(비밀값)이 아래 */
+/**
+ * 묶음 표시 순서와 이름 — **중요한 것부터**. 켜고 끄는 기능 → 회원이 직접 보는 안내(채널·비밀번호·계좌) →
+ * 운영진이 쓰는 것(공지방·템플릿) → 꾸미기.
+ */
 export const CFG_GROUPS: { group: CfgGroup; label: string }[] = [
   { group: "feature", label: "기능" },
-  { group: "brand", label: "크루 표기" },
-  { group: "channel", label: "채널·계좌" },
-  { group: "content", label: "템플릿·안내" },
-  { group: "secret", label: "비밀값" },
+  { group: "member_info", label: "크루 안내" },
+  { group: "operation", label: "운영" },
+  { group: "brand", label: "꾸미기" },
 ];
+
+/**
+ * 묶음 안 순서 — 중요한 것부터. 여기 없는 키(새로 더한 키)는 그 묶음 맨 뒤에 붙는다(빠지지 않는다).
+ */
+export const CFG_ORDER: readonly string[] = [
+  "feature.dues",
+  "social.channels",
+  "social.kakao_open_chat_password",
+  "bank.team_account",
+  "kakao.room_id",
+  "gathering.regular_template",
+  "brand.wordmark",
+];
+
+export function compareCfgOrder(a: string, b: string): number {
+  const ia = CFG_ORDER.indexOf(a);
+  const ib = CFG_ORDER.indexOf(b);
+  return (ia === -1 ? Number.MAX_SAFE_INTEGER : ia) - (ib === -1 ? Number.MAX_SAFE_INTEGER : ib);
+}
 
 /**
  * 항목 상태.
@@ -59,3 +80,46 @@ export function normalizeTeamLinks(rows: { team_cd: string; name: string }[]): {
     .map((r) => ({ team_cd: r.team_cd.trim(), name: r.name.trim() }))
     .filter((r) => r.team_cd && r.name);
 }
+
+/**
+ * 목록 한 줄에 보일 요약 — 누르기 전에 "지금 뭐가 들어 있나"를 말한다. 비밀값은 값 대신 설정 여부만.
+ * 빈 값이면 "설정 안 함"(목록이 흐리게 그린다).
+ */
+export function summarizeCfg(input: CfgInput, isSet: boolean, value: unknown): string {
+  switch (input.kind) {
+    case "boolean":
+      return value === true ? "켜짐" : "꺼짐";
+    case "secret":
+      return isSet ? "설정됨" : "설정 안 함";
+    case "text":
+      return typeof value === "string" && value.trim() ? value.trim() : "설정 안 함";
+    case "bank": {
+      const v = value as { bank?: string; number?: string } | null;
+      return v?.bank ? `${v.bank} ${v.number ?? ""}`.trim() : "설정 안 함";
+    }
+    case "channels": {
+      const n = Object.keys((value as Record<string, string> | null) ?? {}).length;
+      return n > 0 ? `${n}개 연결` : "설정 안 함";
+    }
+    case "regular_template": {
+      const v = value as { title?: string } | null;
+      return v?.title?.trim() ? v.title.trim() : "설정 안 함";
+    }
+    case "team_links": {
+      const rows = (value as { name: string }[] | null) ?? [];
+      return rows.length > 0 ? rows.map((r) => r.name).join(", ") : "설정 안 함";
+    }
+  }
+}
+
+export const EMPTY_SUMMARY = "설정 안 함";
+
+/**
+ * 저장하려는 값이 **기본값과 같은가** — 같으면 값을 저장하지 않고 이 크루 설정을 지워 기본값으로 돌린다
+ * (「기본값으로」를 누른 뒤 저장, 또는 칸을 다 비우고 저장). 기본값이 "없음"인 키는 빈 값이면 같다고 본다.
+ */
+export function isDefaultCfgValue(value: unknown, defaultValue: unknown): boolean {
+  if (isEmptyValue(defaultValue)) return isEmptyValue(value);
+  return JSON.stringify(value) === JSON.stringify(defaultValue);
+}
+

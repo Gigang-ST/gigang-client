@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { cfgStatus, CFG_GROUPS, isEmptyValue, normalizeChannels, normalizeTeamLinks } from "@/lib/team-cfg/form";
+import {
+  cfgStatus,
+  CFG_GROUPS,
+  CFG_ORDER,
+  compareCfgOrder,
+  isDefaultCfgValue,
+  isEmptyValue,
+  normalizeChannels,
+  normalizeTeamLinks,
+  summarizeCfg,
+} from "@/lib/team-cfg/form";
 import { TEAM_CFG_REGISTRY } from "@/lib/team-cfg/registry";
 
 describe("팀 설정 화면 규칙", () => {
@@ -40,10 +50,34 @@ describe("팀 설정 화면 규칙", () => {
     }
   });
 
-  it("비밀값 묶음은 화면에 값을 내보내지 않는 입력칸(secret)만 쓴다", () => {
+  it("서버만 읽는 값(비밀값)은 화면에 값을 내보내지 않는 입력칸(secret)만 쓴다", () => {
     for (const def of Object.values(TEAM_CFG_REGISTRY)) {
-      if (def.group === "secret") expect(def.input.kind).toBe("secret");
       if (def.visibility === "server") expect(def.input.kind).toBe("secret");
     }
+  });
+
+  it("순서: 중요도 목록에 있는 키가 앞, 목록에 없는 새 키는 뒤(빠지지 않는다)", () => {
+    expect(compareCfgOrder("feature.dues", "brand.wordmark")).toBeLessThan(0);
+    expect(compareCfgOrder("brand.wordmark", "new.key")).toBeLessThan(0);
+    // 순서 목록엔 사전에 있는 키만 — 이름을 바꾸고 목록을 안 고치면 그 키가 맨 뒤로 밀린다
+    for (const cd of CFG_ORDER) expect(Object.keys(TEAM_CFG_REGISTRY)).toContain(cd);
+  });
+
+  it("요약: 비밀값은 값 대신 설정 여부만, 빈 값은 '설정 안 함'", () => {
+    expect(summarizeCfg({ kind: "secret" }, true, "pw-1234")).toBe("설정됨");
+    expect(summarizeCfg({ kind: "secret" }, false, null)).toBe("설정 안 함");
+    expect(summarizeCfg({ kind: "boolean" }, false, true)).toBe("켜짐");
+    expect(summarizeCfg({ kind: "channels" }, true, { instagram: "https://a", somoim: "https://b" })).toBe("2개 연결");
+    expect(summarizeCfg({ kind: "channels" }, false, {})).toBe("설정 안 함");
+    expect(summarizeCfg({ kind: "bank" }, true, { bank: "카카오뱅크", number: "3333", holder: "x" })).toBe("카카오뱅크 3333");
+    expect(summarizeCfg({ kind: "text" }, false, null)).toBe("설정 안 함");
+  });
+
+  it("기본값과 같은 값을 저장하면 설정을 지운다 — 기본값이 없는 키는 빈 값이면 같다", () => {
+    expect(isDefaultCfgValue(null, null)).toBe(true);
+    expect(isDefaultCfgValue({}, {})).toBe(true);
+    expect(isDefaultCfgValue({ instagram: "https://a" }, {})).toBe(false);
+    expect(isDefaultCfgValue(true, true)).toBe(true);
+    expect(isDefaultCfgValue(false, true)).toBe(false);
   });
 });

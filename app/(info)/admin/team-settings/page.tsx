@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { verifyAdmin } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
-import { cfgStatus } from "@/lib/team-cfg/form";
+import { cfgStatus, compareCfgOrder, summarizeCfg } from "@/lib/team-cfg/form";
 import { resolveTeamCfgValue, TEAM_CFG_REGISTRY, type TeamCfgCd } from "@/lib/team-cfg/registry";
 
 import { TeamSettingsClient, type TeamSettingItem } from "./team-settings-client";
@@ -32,10 +32,16 @@ export default async function TeamSettingsPage() {
 
   const raw = new Map(((rows ?? []) as { cfg_cd: string; cfg_val_json: unknown }[]).map((r) => [r.cfg_cd, r.cfg_val_json]));
 
-  const items: TeamSettingItem[] = (Object.keys(TEAM_CFG_REGISTRY) as TeamCfgCd[]).map((cd) => {
+  // 설정 화면에 안 올리는 키(hidden)는 빼고, 중요도 순서로 세운다(묶음 순서는 화면이 정한다)
+  const keys = (Object.keys(TEAM_CFG_REGISTRY) as TeamCfgCd[])
+    .filter((cd) => !TEAM_CFG_REGISTRY[cd].hidden)
+    .sort(compareCfgOrder);
+
+  const items: TeamSettingItem[] = keys.map((cd) => {
     const def = TEAM_CFG_REGISTRY[cd];
     const isSet = raw.has(cd);
     const secret = def.input.kind === "secret";
+    const current = resolveTeamCfgValue(cd, isSet ? raw.get(cd) : undefined);
     return {
       cd,
       label: def.label,
@@ -43,8 +49,10 @@ export default async function TeamSettingsPage() {
       group: def.group,
       input: def.input,
       status: cfgStatus(isSet, def.default),
-      // 비밀값은 값을 싣지 않는다. 나머지는 지금 동작하는 값(정했으면 그 값, 아니면 기본값)
-      value: secret ? null : resolveTeamCfgValue(cd, isSet ? raw.get(cd) : undefined),
+      // 비밀값은 값을 싣지 않는다(요약도 "설정됨"만). 나머지는 지금 동작하는 값(정했으면 그 값, 아니면 기본값)
+      value: secret ? null : current,
+      summary: summarizeCfg(def.input, isSet, secret ? null : current),
+      defaultValue: secret ? null : def.default,
     };
   });
 
