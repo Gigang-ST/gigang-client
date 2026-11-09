@@ -6,6 +6,7 @@ import { decideOauthLink, OAUTH_LINK_BLOCKED_MESSAGE } from "@/lib/oauth-link";
 import { createAdminClient, createAdminClientAs, createUntypedAdminClient } from "@/lib/supabase/admin";
 import { resolvePhoneMatch, type PhoneMatch } from "@/lib/onboarding-phone-match";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { resolveLinkedMemId } from "@/lib/onboarding-existing-person";
 import { digitsOnly, formatPhone, isValidPhone } from "@/lib/phone-utils";
 import { dayjs, todayKST } from "@/lib/dayjs";
 import { sealBalanceAnchor } from "@/lib/dues/seal-anchor";
@@ -36,7 +37,8 @@ export type OnboardingPhoneResult =
   /**
    * 번호로 찾은 회원(`mem_mst`)은 있는데 **이 팀에 현재 소속이 없다** — 관리자가 "삭제"해
    * `vers=0` 슬롯이 비었거나(대부분), 다른 팀에서 온 계정. 둘 다 할 일이 같다:
-   * 기존 `mem_id` 에 OAuth 를 붙이고 소속 행을 새로 꽂는다(`onboardingRejoinDeletedMember`).
+   * 기존 `mem_id` 에 OAuth 를 붙이고(`onboardingLinkExistingMember`), 미리 채운 가입 폼을 거쳐
+   * 본인이 가입을 누르면 소속 행을 새로 꽂는다(`onboardingJoinTeam`).
    *
    * ⚠️ **`mem_id` 를 돌려주지 않는다.** 이 액션은 로그인만 했으면 누구나 부를 수 있어
    * 번호를 아는 사람에게 남의 `mem_id` 를 넘기는 꼴이 되고, 그 값을 다시 쓰기 액션에
@@ -135,49 +137,77 @@ async function matchMemberByPhone(
 }
 
 /**
- * 삭제된 회원의 재가입 — 기존 `mem_id` 에 OAuth 를 붙이고 소속 행을 새로 꽂는다.
+ * 이미 있는 사람의 이 팀 가입 — 다른 팀 회원이 처음 들어오거나, 이 팀에서 삭제됐던 회원이 다시 들어올 때.
  *
- * **신규 가입 경로를 재사용할 수 없다.** `onboardingCreateMember` 는 `mem_id = auth.uid()` 로
- * `mem_mst` 를 INSERT 하는데, 재가입자는 이미 옛 `mem_id` 로 된 `mem_mst` 가 있다. 다른 OAuth
- * 계정으로 들어오면 uid 가 달라 같은 번호의 회원이 둘이 되고, 그 다음 번호 조회는
- * "같은 번호로 등록된 회원이 여러 명"으로 막힌다.
+ * 예전엔 전화번호가 맞으면 **확인 없이 바로** 소속을 꽂았다(가입 목적·유입 경로·첫 모임도 안 받고).
+ * 그러면 다른 팀 주소에서 로그인만 눌러 봐도 그 팀 회원이 됐다. 지금은 폼이 사람 정보를 미리
+ * 채워 보여 주고, 팀 정보는 새로 받고, **본인이 마지막에 가입을 눌러야** 여기로 온다.
  *
- * **admin 클라이언트를 쓴다.** 온보딩 자가 INSERT 정책(`team_mem_rel_insert_self_onboarding`)은
- * `mem_id = auth.uid()` 를 요구하는데, 여기서 꽂는 건 **옛 mem_id** 라 그 정책을 통과하지 못한다.
+ * 사람 정보(이름·성별·생년월일·이메일·러닝 프로필)는 **사람 것**이라 고치면 가입한 모든 팀에
+ * 반영된다(폼이 그렇게 안내한다). 전화번호는 본인 확인 수단이라 여기서 바꾸지 않는다.
  *
- * 과거 기록·포인트·칭호는 `mem_id` 로 매달려 있어 **그대로 이어진다**(의도된 동작 — 이슈 #571).
- * 회비 잔액만은 0원으로 봉인한다(아래).
+ * 과거 기록·포인트·칭호는 `mem_id` 로 매달려 있어 **그대로 이어진다**(이슈 #571).
+ * 회비 잔액만은 재가입이면 0원으로 봉인한다(`finishTeamJoin`). 삭제 가드가 잔액 0만 통과시키므로
+ * (`deleteMember`) 승인 없이 들어와도 지워지는 돈이 없다.
  */
-export async function onboardingRejoinDeletedMember(args: {
-  /** ⚠️ `memId` 가 아니라 **번호**를 받는다 — 서버가 직접 해석한다(§matchMemberByPhone). */
-  phoneRaw: string;
-  provider: "kakao" | "google";
-  initialAvatarUrl?: string | null;
-}): Promise<{ ok: boolean; message?: string }> {
+export async function onboardingJoinTeam(args: {
+  fullName: string;
+  gender: "male" | "female";
+  birthday: string;
+  email: string | null;
+  onbdProfile: OnboardingProfileValues;
+  pledgeGthrId: string | null;
+}): Promise<
+  | { ok: true; alreadyRegistered?: boolean; pledgeJoined?: boolean; pledgeWaiting?: boolean }
+  | { ok: false; message: string }
+> {
+  const birthdayParsed = signupBirthdaySchema.safeParse(args.birthday);
+  if (!birthdayParsed.success) {
+    return { ok: false, message: birthdayParsed.error.issues[0]?.message ?? "생년월일을 확인해 주세요." };
+  }
+  const profileParsed = onboardingProfileSchema.safeParse(args.onbdProfile);
+  if (!profileParsed.success) {
+    return { ok: false, message: "온보딩 프로필 입력값이 올바르지 않습니다." };
+  }
+  const name = args.fullName.trim();
+  if (!/^[가-힣]{2,5}$/.test(name)) {
+    return { ok: false, message: "이름은 한글 2~5자로 입력해 주세요." };
+  }
+
   const { user } = await requireAuthUser();
   if (!user) return { ok: false, message: "로그인이 필요합니다." };
 
-  const match = await matchMemberByPhone(args.phoneRaw);
-  if (!match.ok) return match;
-  // 재가입은 **"회원이 있고 현재 소속이 없다"일 때만** 성립한다.
-  //   - active  → 이미 소속이 있다. 멱등하게 성공으로 본다(재제출·뒤로가기).
-  //   - new     → 이 번호의 회원이 없다. 붙일 곳이 없으니 신규 가입으로 가야 한다.
-  //   - ambiguous → 누구에게 붙일지 정할 수 없다. 절대 추측하지 않는다.
-  if (match.value.kind === "active") return { ok: true };
-  if (match.value.kind !== "rejoin") {
-    return { ok: false, message: "재가입할 수 있는 회원 정보를 찾지 못했습니다." };
-  }
-  const memId = match.value.memId;
-
   const admin = createAdminClient();
+  const memId = await resolveLinkedMemId(admin, user.id);
+  if (!memId) return { ok: false, message: "연결된 회원 정보를 찾지 못했습니다." };
+
   const { teamId } = await getRequestTeamContext();
 
-  const link = await onboardingLinkExistingMember({
-    phoneRaw: args.phoneRaw,
-    provider: args.provider,
-    initialAvatarUrl: args.initialAvatarUrl,
-  });
-  if (!link.ok) return link;
+  // 이미 이 팀 소속이면(재제출·뒤로가기) 멱등하게 성공으로 본다
+  const { data: curRel, error: curRelErr } = await admin
+    .from("team_mem_rel")
+    .select("team_mem_id")
+    .eq("mem_id", memId)
+    .eq("team_id", teamId)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (curRelErr) return { ok: false, message: "가입 정보를 확인하지 못했습니다." };
+  if (curRel) return { ok: true, alreadyRegistered: true };
+
+  // 사람 정보 갱신 — 변경 이력(chg_hist)에 "본인이 어느 팀 주소에서" 바꿨는지 남긴다
+  const { error: memErr } = await createAdminClientAs({ memId, teamId })
+    .from("mem_mst")
+    .update({
+      mem_nm: name,
+      gdr_enm: args.gender,
+      birth_dt: args.birthday,
+      ...(args.email !== null ? { email_addr: normEmail(args.email) } : {}),
+    })
+    .eq("mem_id", memId)
+    .eq("vers", 0)
+    .eq("del_yn", false);
+  if (memErr) return { ok: false, message: "회원 정보를 저장하지 못했습니다." };
 
   const { error: eRel } = await admin.from("team_mem_rel").insert({
     team_id: teamId,
@@ -188,35 +218,16 @@ export async function onboardingRejoinDeletedMember(args: {
     vers: 0,
     del_yn: false,
   });
-  // 23505 = 경합으로 그 사이 누가 꽂았다 — 목적은 이뤄졌으므로 성공으로 본다.
+  // 23505 = 경합으로 그 사이 누가 꽂았다 — 목적은 이뤄졌으므로 이어서 마무리한다
   if (eRel && eRel.code !== "23505") return { ok: false, message: eRel.message };
 
-  // 재가입 잔액 봉인 — 과거 스냅샷이 남아 있으면 0원 앵커로 끊는다. 잔액이 0인 사람만
-  // 삭제되므로(`deleteMember` 가드) 여기서 지워지는 돈은 없다. 비치명.
-  if (await hasPastBalanceSnapshot(admin, teamId, memId)) {
-    const { error: sealErr } = await sealBalanceAnchor(admin, teamId, memId);
-    if (sealErr) console.error("[onboarding] 재가입 잔액 봉인 실패", memId, sealErr);
-  }
-
-  // 가입 시점 기반 칭호 재평가(뉴비 등) — 신규 가입과 같은 처리. 응답 완료 후 실행.
-  const { data: relRow } = await admin
-    .from("team_mem_rel")
-    .select("team_mem_id")
-    .eq("mem_id", memId)
-    .eq("team_id", teamId)
-    .eq("vers", 0)
-    .eq("del_yn", false)
-    .maybeSingle();
-  if (relRow?.team_mem_id) {
-    const teamMemId = relRow.team_mem_id;
-    after(() =>
-      evaluateAndGrantTitles({ trigger: "attendance", teamId, teamMemId }).catch((e) =>
-        console.error("[title-engine] 재가입 attendance 평가 실패", e),
-      ),
-    );
-  }
-
-  return { ok: true };
+  const { pledgeJoined, pledgeWaiting } = await finishTeamJoin({
+    memId,
+    teamId,
+    onbdProfile: profileParsed.data,
+    pledgeGthrId: args.pledgeGthrId,
+  });
+  return { ok: true, pledgeJoined, pledgeWaiting };
 }
 
 /**
@@ -412,19 +423,46 @@ export async function onboardingCreateMember(args: {
     }
   }
 
+  const { pledgeJoined, pledgeWaiting } = await finishTeamJoin({
+    memId: uid,
+    teamId,
+    onbdProfile,
+    pledgeGthrId: args.pledgeGthrId,
+  });
+  return { ok: true, pledgeJoined, pledgeWaiting };
+}
+
+/**
+ * 소속 행을 넣은 **뒤** 할 일 — 신규 가입(`onboardingCreateMember`)과 다른 팀 가입·재가입
+ * (`onboardingJoinTeam`)이 공유한다. 각자 들면 한쪽만 봉인·칭호·첫 모임 신청을 빠뜨린다.
+ * 전부 비치명이다 — 가입(소속 행)은 이미 성립했다.
+ */
+async function finishTeamJoin({
+  memId,
+  teamId,
+  onbdProfile,
+  pledgeGthrId,
+}: {
+  memId: string;
+  teamId: string;
+  onbdProfile: OnboardingProfileValues;
+  pledgeGthrId: string | null;
+}): Promise<{ pledgeJoined: boolean; pledgeWaiting: boolean }> {
+  const admin = createAdminClient();
+
   // 재가입 봉인: 과거에 이 팀에서 삭제된 이력(fee 스냅샷)이 남아 있으면, 그 과거 잔액이
   // 재가입 회원에게 딸려오지 않게 0원 앵커로 봉인한다. 재계산은 이 앵커 이후만 부과한다.
   // 신규 가입(과거 스냅샷 없음)은 건너뛴다. 비치명 — 실패해도 가입은 성립(로깅만).
-  if (await hasPastBalanceSnapshot(admin, teamId, uid)) {
-    const { error: sealErr } = await sealBalanceAnchor(admin, teamId, uid);
-    if (sealErr) console.error("[onboarding] 재가입 잔액 봉인 실패", uid, sealErr);
+  if (await hasPastBalanceSnapshot(admin, teamId, memId)) {
+    const { error: sealErr } = await sealBalanceAnchor(admin, teamId, memId);
+    if (sealErr) console.error("[onboarding] 재가입 잔액 봉인 실패", memId, sealErr);
   }
 
   // 가입 직후 칭호 평가 (뉴비, 7월7일 등 가입 시점 기반) — 응답 완료 후 실행
   const { data: relRow } = await admin
     .from("team_mem_rel")
     .select("team_mem_id")
-    .eq("mem_id", uid)
+    .eq("mem_id", memId)
     .eq("team_id", teamId)
     .eq("vers", 0)
     .eq("del_yn", false)
@@ -446,7 +484,7 @@ export async function onboardingCreateMember(args: {
   const untypedAdmin = createUntypedAdminClient();
   const { error: eOnbdPrf } = await untypedAdmin.from("mem_onbd_prf").upsert(
     {
-      mem_id: uid,
+      mem_id: memId,
       near_stn_nm: onbdProfile.nearStnNm,
       avg_run_dist_km: onbdProfile.avgRunDistKm,
       avg_pace_cd: onbdProfile.avgPaceCd,
@@ -455,26 +493,26 @@ export async function onboardingCreateMember(args: {
   );
 
   if (eOnbdPrf) {
-    console.error("[onboarding] mem_onbd_prf UPSERT 실패 — 가입은 계속 진행", uid, eOnbdPrf.message);
+    console.error("[onboarding] mem_onbd_prf UPSERT 실패 — 가입은 계속 진행", memId, eOnbdPrf.message);
   }
 
   const { error: eTeamOnbd } = await admin.from("team_mem_onbd_rel").upsert(
     {
       team_id: teamId,
-      mem_id: uid,
+      mem_id: memId,
       join_purp_cds: onbdProfile.joinPurpCds,
       join_purp_txt: onbdProfile.joinPurpTxt,
       join_src_cd: onbdProfile.joinSrcCd,
       join_src_txt: onbdProfile.joinSrcTxt,
       attd_pldg_at: dayjs().toISOString(),
-      pldg_gthr_id: args.pledgeGthrId,
+      pldg_gthr_id: pledgeGthrId,
       upd_at: dayjs().toISOString(),
     },
     { onConflict: "team_id,mem_id" },
   );
 
   if (eTeamOnbd) {
-    console.error("[onboarding] team_mem_onbd_rel UPSERT 실패 — 가입은 계속 진행", uid, eTeamOnbd.message);
+    console.error("[onboarding] team_mem_onbd_rel UPSERT 실패 — 가입은 계속 진행", memId, eTeamOnbd.message);
   }
 
   // 참석 약속 모임 신청 — toggleGatheringAttendance와 공유하는 joinGatheringWithCapCheck 사용
@@ -485,23 +523,23 @@ export async function onboardingCreateMember(args: {
   // 경우다. 실패해도 가입 자체는 성공 + pledgeJoined:false (완료 화면에서 안내).
   let pledgeJoined = false;
   let pledgeWaiting = false;
-  if (args.pledgeGthrId) {
+  if (pledgeGthrId) {
     try {
       const result = await joinGatheringWithCapCheck(untypedAdmin, {
-        gthrId: args.pledgeGthrId,
-        memId: uid,
+        gthrId: pledgeGthrId,
+        memId: memId,
         teamId,
         isAdmin: false,
       });
       pledgeJoined = result.joined;
       pledgeWaiting = result.waiting;
       if (!result.joined && !result.waiting) {
-        console.error("[onboarding] 참석 약속 모임 신청 실패", uid, result.reason);
+        console.error("[onboarding] 참석 약속 모임 신청 실패", memId, result.reason);
       }
     } catch (e) {
-      console.error("[onboarding] 참석 약속 모임 신청 처리 중 오류", uid, e);
+      console.error("[onboarding] 참석 약속 모임 신청 처리 중 오류", memId, e);
     }
   }
 
-  return { ok: true, pledgeJoined, pledgeWaiting };
+  return { pledgeJoined, pledgeWaiting };
 }

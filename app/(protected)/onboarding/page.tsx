@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { isDevModeEnabled } from "@/lib/dev-mode";
+import { getOnboardingExistingPerson } from "@/lib/onboarding-existing-person";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getOpenGatheringsForPledge } from "@/lib/queries/onboarding-gatherings";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -77,16 +78,23 @@ async function OnboardingContent({
 
   const { teamId } = await getRequestTeamContext();
   // 오픈채팅 주소·비밀번호는 이 팀 것(팀 설정) — 없는 팀은 안내를 안 그린다.
-  const [gatherings, channels, kakaoChatPassword] = await Promise.all([
+  // 이미 있는 사람(다른 팀 회원·이 팀에서 삭제됐던 회원)이면 사람 정보를 미리 채운 폼을 보여 준다 —
+  // 바로 가입시키지 않고, 팀 정보는 새로 받고, 본인이 마지막에 가입을 누른다(onboardingJoinTeam).
+  const [gatherings, channels, kakaoChatPassword, existingPerson] = await Promise.all([
     getOpenGatheringsForPledge(),
     getTeamChannels(teamId),
     getTeamKakaoPassword(teamId),
+    getOnboardingExistingPerson(user.id),
   ]);
 
   return (
     <div className="flex min-h-svh w-full items-center justify-center bg-background px-6">
       <div className="w-full max-w-sm">
         <MemberOnboardingForm
+          // 전화번호로 기존 회원을 찾아 로그인을 붙인 뒤 새로 고치면 existingPerson 이 생긴다 —
+          // 폼 상태(단계·입력값)를 그 정보로 처음부터 다시 잡도록 다시 마운트한다
+          key={existingPerson ? "existing" : "new"}
+          existingPerson={existingPerson}
           userId={user.id}
           provider={user.app_metadata?.provider as "kakao" | "google"}
           email={user.email}
