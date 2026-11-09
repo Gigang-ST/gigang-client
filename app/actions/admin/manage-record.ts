@@ -3,7 +3,7 @@
 import { withAdmin } from "@/lib/actions/auth";
 import { isMemIdInTeam } from "@/lib/actions/team-scope";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, createAdminClientAs } from "@/lib/supabase/admin";
 
 /**
  * 대회 기록은 **사람 것**이다(팀에 속하지 않는다). 그래서 관리자는 "기록 주인이 자기 팀 회원일 때"만
@@ -12,9 +12,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
  */
 async function recordOwnerInTeam(
   db: ReturnType<typeof createAdminClient>,
+  teamId: string,
   recordId: string,
 ): Promise<boolean> {
-  const { teamId } = await getRequestTeamContext();
   const { data } = await db
     .from("rec_race_hist")
     .select("mem_id")
@@ -25,9 +25,11 @@ async function recordOwnerInTeam(
 }
 
 export async function deleteRecord(recordId: string) {
-  return withAdmin(async () => {
-    const db = createAdminClient();
-    if (!(await recordOwnerInTeam(db, recordId))) return { ok: false, message: "기록을 찾을 수 없습니다" };
+  return withAdmin(async ({ member }) => {
+    const { teamId } = await getRequestTeamContext();
+    // 행위자를 실어 보낸다 — 지운 기록 전체가 변경 이력(chg_hist)에 "누가·어느 팀 관리자로" 남아 복구할 수 있다
+    const db = createAdminClientAs({ memId: member.id, teamId });
+    if (!(await recordOwnerInTeam(db, teamId, recordId))) return { ok: false, message: "기록을 찾을 수 없습니다" };
     const { error } = await db.from("rec_race_hist").delete().eq("race_result_id", recordId);
     if (error) return { ok: false, message: "삭제에 실패했습니다" };
     return { ok: true, message: null };
@@ -42,9 +44,10 @@ export async function updateRecord(
     raceDate: string;
   },
 ) {
-  return withAdmin(async () => {
-    const db = createAdminClient();
-    if (!(await recordOwnerInTeam(db, recordId))) return { ok: false, message: "기록을 찾을 수 없습니다" };
+  return withAdmin(async ({ member }) => {
+    const { teamId } = await getRequestTeamContext();
+    const db = createAdminClientAs({ memId: member.id, teamId });
+    if (!(await recordOwnerInTeam(db, teamId, recordId))) return { ok: false, message: "기록을 찾을 수 없습니다" };
     const { error } = await db
       .from("rec_race_hist")
       .update({

@@ -18,6 +18,7 @@ const h = vi.hoisted(() => ({
   teamId: "team-ulsan",
   // 울산 주소로 접속한 울산 관리자(기강에선 일반 회원일 수도 있지만, 이 요청에선 울산 관리자다)
   member: { id: "mem-ulsan-admin", admin: true, status: "active" },
+  actors: [] as { memId: string; teamId: string }[],
 }));
 
 vi.mock("server-only", () => ({}));
@@ -58,6 +59,11 @@ vi.mock("@/lib/actions/auth", () => ({
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => h.db.asClient(),
   createUntypedAdminClient: () => h.db.asClient(),
+  // 행위자 헤더는 DB 트리거가 읽는다 — 여기선 같은 가짜 DB 를 돌려주고 받은 행위자만 남긴다
+  createAdminClientAs: (actor: { memId: string; teamId: string }) => {
+    h.actors.push(actor);
+    return h.db.asClient();
+  },
 }));
 
 import { grantTitle as grantTitleFromMembers } from "@/app/actions/admin/grant-title";
@@ -70,6 +76,7 @@ import {
 } from "@/app/actions/admin/manage-mileage";
 import { deleteActivity, joinProject, updateMonthlyGoal } from "@/app/actions/mileage-run";
 import { deleteRecord } from "@/app/actions/admin/manage-record";
+import { deleteRegistration } from "@/app/actions/admin/manage-competition";
 import { sendNotification } from "@/app/actions/admin/send-notification";
 import { createComment } from "@/app/actions/comment/manage-comment";
 import { deletePost } from "@/app/actions/delete-post";
@@ -116,6 +123,10 @@ beforeEach(() => {
     ],
     rec_race_hist: [{ race_result_id: "rec-a", mem_id: "mem-a", rec_time_sec: 3600 }],
     brd_post_mst: [{ post_id: "brd-gigang", team_id: GIGANG, del_yn: false }],
+    comp_reg_rel: [
+      // 임베디드 관계(team_comp_plan_rel!inner)는 가짜 DB 가 조인하지 않아 행에 미리 넣어 둔다
+      { comp_reg_id: "reg-gigang", team_comp_id: "plan-gigang", team_comp_plan_rel: { team_id: GIGANG } },
+    ],
     gthr_mst: [{ gthr_id: "9a1b2c3d-0000-4000-8000-000000000001", team_id: GIGANG, crt_by: "mem-a" }],
     mem_ttl_rel: [
       {
@@ -274,5 +285,26 @@ describe("게시판·대회 기록·댓글·알림·회비", () => {
     });
     expect(res.ok).toBe(false);
     expect(h.db.opsOn("fee_due_exm_cfg", "insert")).toHaveLength(0);
+  });
+});
+
+describe("변경 이력 행위자 · 대회 참가 신청", () => {
+  it("기록을 지울 땐 행위자(누가·어느 팀)를 실어 보낸다 — 지운 기록이 이력에 남는다", async () => {
+    h.teamId = GIGANG;
+    h.actors.length = 0;
+    expect((await deleteRecord("rec-a")).ok).toBe(true);
+    expect(h.actors).toContainEqual({ memId: "mem-ulsan-admin", teamId: GIGANG });
+  });
+
+  it("다른 팀 회원의 대회 참가 신청은 지울 수 없다", async () => {
+    const res = await deleteRegistration("reg-gigang");
+    expect(res.ok).toBe(false);
+    expect(h.db.tables.comp_reg_rel).toHaveLength(1);
+  });
+
+  it("우리 팀 신청은 지운다", async () => {
+    h.teamId = GIGANG;
+    expect((await deleteRegistration("reg-gigang")).ok).toBe(true);
+    expect(h.db.tables.comp_reg_rel).toHaveLength(0);
   });
 });

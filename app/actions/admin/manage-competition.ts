@@ -6,7 +6,7 @@ import { withActive, withAdmin } from "@/lib/actions/auth";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { getCachedCmmCdRows, isValidCompSprtCd } from "@/lib/queries/cmm-cd-cached";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, createAdminClientAs } from "@/lib/supabase/admin";
 
 /**
  * ⚠️ **이 파일이 전부 관리자 전용은 아니다.** 디렉터리 이름(`admin/`)에 속지 말 것 —
@@ -20,9 +20,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * 고쳐 쓰면 된다.
  */
 export async function deleteCompetition(competitionId: string) {
-  return withAdmin(async () => {
+  return withAdmin(async ({ member }) => {
     const { teamId } = await getRequestTeamContext();
-    const db = createAdminClient();
+    // 대회 원본은 공용이라 변경 이력에 "누가·어느 팀으로" 남긴다(chg_hist)
+    const db = createAdminClientAs({ memId: member.id, teamId });
 
     const { data: plans } = await db
       .from("team_comp_plan_rel")
@@ -108,7 +109,9 @@ export async function updateCompetition(
       };
     }
 
-    const db = createAdminClient();
+    // 대회 원본은 공용이라 변경 이력에 "누가·어느 팀으로" 남긴다(chg_hist)
+    const { teamId } = await getRequestTeamContext();
+    const db = createAdminClientAs({ memId: member.id, teamId });
 
     // 권한 판정 — UI가 버튼을 감추는 건 안내일 뿐이라 서버가 다시 본다.
     // `createAdminClient()`는 RLS를 우회하므로 이 검사가 유일한 관문이다.
@@ -195,7 +198,17 @@ export async function updateCompetition(
 
 export async function deleteRegistration(registrationId: string) {
   return withAdmin(async () => {
+    const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
+    // 접속한 팀의 참가 신청만 — 신청은 팀별 대회 계획(team_comp_plan_rel)에 붙는다.
+    // id 만으로 지우면 다른 팀 관리자가 이 팀 회원의 대회 신청을 지울 수 있었다.
+    const { data: reg } = await db
+      .from("comp_reg_rel")
+      .select("comp_reg_id, team_comp_plan_rel!inner(team_id)")
+      .eq("comp_reg_id", registrationId)
+      .eq("team_comp_plan_rel.team_id", teamId)
+      .maybeSingle();
+    if (!reg) return { ok: false, message: "신청을 찾을 수 없습니다" };
     const { error } = await db.from("comp_reg_rel").delete().eq("comp_reg_id", registrationId);
     if (error) return { ok: false, message: "삭제에 실패했습니다" };
     revalidateTag("competitions", "max");

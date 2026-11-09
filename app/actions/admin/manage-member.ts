@@ -8,7 +8,7 @@ import { dayjs } from "@/lib/dayjs";
 import { sealBalanceAnchor } from "@/lib/dues/seal-anchor";
 import { insertNoti } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, createAdminClientAs } from "@/lib/supabase/admin";
 import { koreanNameSchema } from "@/lib/validations/member";
 
 /**
@@ -76,7 +76,7 @@ async function notifyReactivated(teamId: string, memIds: string[]) {
  */
 
 export async function updateMemberName(memberId: string, name: string) {
-  return withAdmin(async () => {
+  return withAdmin(async ({ member }) => {
     const parsed = koreanNameSchema.safeParse(name);
     if (!parsed.success) {
       return {
@@ -87,7 +87,8 @@ export async function updateMemberName(memberId: string, name: string) {
     const newName = parsed.data;
 
     const { teamId } = await getRequestTeamContext();
-    const db = createAdminClient();
+    // 이름은 사람 것이라 다른 팀 화면에도 바뀐다 — 변경 이력에 "어느 팀 관리자가" 남게 행위자를 싣는다
+    const db = createAdminClientAs({ memId: member.id, teamId });
 
     const { data: rel } = await db
       .from("team_mem_rel")
