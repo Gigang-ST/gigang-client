@@ -23,8 +23,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * 이 라우트가 `keep-alive` 자리를 대신한다 — 매일 `batch_job_mst`를 조회하므로
  * **Supabase 슬립 방지 역할을 그대로 흡수**한다(별도 쿼리용 크론이 필요 없다).
  *
- * 인증: Vercel Cron이 붙이는 `Authorization: Bearer <CRON_SECRET>`을 직접 비교한다
- * (`newbie-nudge`와 같은 패턴). 이 라우트는 회비·칭호 데이터를 쓰므로 인증이 필수다.
+ * 인증: Vercel Cron이 붙이는 `Authorization: Bearer <CRON_SECRET>`을 직접 비교한다.
+ * 이 라우트는 회비·칭호 데이터를 쓰므로 인증이 필수다.
  *
  * 실행 대상: `use_yn = true` AND `freq_cd IS NOT NULL`(null = 수동 전용).
  *   - 이번 주기에 **성공 이력이 있으면 건너뛴다** → 크론이 밀려도 따라잡고,
@@ -64,7 +64,7 @@ async function notifyAdmins(
     .from("team_mem_rel")
     .select("mem_id")
     .eq("team_id", teamId)
-    .eq("role_cd", "ADMIN")
+    .in("team_role_cd", ["owner", "admin"])
     .eq("vers", 0)
     .eq("del_yn", false);
 

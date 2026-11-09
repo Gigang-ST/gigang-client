@@ -17,7 +17,7 @@ import { createAdminClient, createUntypedAdminClient } from "@/lib/supabase/admi
  *
  * `updateNearStation`과 같은 upsert(onConflict: mem_id) 패턴 — PostgREST upsert는 제공된
  * 컬럼만 UPDATE하므로 유입 경로·참석 약속(`attd_pldg_at`) 같은 온보딩 전용 컬럼은 그대로 남는다.
- * 참석 약속은 넛지 크론이 참조하니 이 액션이 절대 건드리면 안 된다.
+ * 참석 약속은 가입 시점 기록이라 이 액션이 절대 건드리면 안 된다.
  *
  * mem_onbd_prf row가 없는 개편 전 가입자는 upsert가 INSERT로 처리한다.
  */
@@ -48,7 +48,7 @@ export async function updateRunningProfile(
     }
 
     // 가입 목적은 팀별(team_mem_onbd_rel) — 접속한 팀 것만 고친다.
-    // 유입 경로·참석 약속은 upsert 에 안 실었으므로 그대로 남는다(넛지 크론이 참조).
+    // 유입 경로·참석 약속은 upsert 에 안 실었으므로 그대로 남는다(가입 시점 기록).
     const { error: purpErr } = await createAdminClient().from("team_mem_onbd_rel").upsert(
       {
         team_id: teamId,

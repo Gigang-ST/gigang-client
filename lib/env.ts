@@ -25,8 +25,8 @@ export const env = createEnv({
     // 더 이상 읽지 않는다 — 방 고정 ID 는 팀 설정(team_cfg `kakao.room_id`)으로 옮겼다.
     // 하나뿐인 환경변수 방으로 보내면 다른 팀 공지가 기강 단톡방으로 샌다. 배포 환경변수에서 지워도 된다.
     KAKAO_ROOM_ID: z.string().min(1).optional(),
-    // 뉴비 온보딩 미참석 넛지 크론(app/api/cron/newbie-nudge) 인증용.
-    // optional: 미설정 시 크론 라우트가 503으로 스스로 막는다(발송 사고 방지, 앱 기동은 막지 않음).
+    // 크론(app/api/cron/batch) 인증용 — Vercel Cron 이 `Authorization: Bearer <CRON_SECRET>` 을 붙여 부른다.
+    // optional: 미설정 시 크론 라우트가 503으로 스스로 막는다(사고 방지, 앱 기동은 막지 않음).
     CRON_SECRET: z.string().min(1).optional(),
     GEMINI_API_KEY: z.string().min(1).optional(),
     NODE_ENV: z.enum(["development", "production", "test"]),

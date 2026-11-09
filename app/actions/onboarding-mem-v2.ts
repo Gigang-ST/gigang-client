@@ -438,11 +438,11 @@ export async function onboardingCreateMember(args: {
     );
   }
 
-  // 온보딩 프로필 UPSERT — 실패해도 가입은 성공 처리(비치명). 넛지 크론 대상에서만 빠진다.
+  // 온보딩 프로필 UPSERT — 실패해도 가입은 성공 처리(비치명). 가입 정보만 비어 남는다.
   // 재제출(alreadyHadMember)로 이미 row가 있어도 멱등하게 갱신.
   // 두 군데로 나눠 쓴다: 가까운 역·거리·페이스는 **사람 것**(mem_onbd_prf, mem_id 하나),
   // 가입 목적·유입 경로·첫 모임 약속은 **이 팀에 들어온 이유**(team_mem_onbd_rel, 팀+사람).
-  // 한 테이블에 두면 두 번째 팀 가입이 첫 팀의 가입 정보를 덮고, 넛지가 다른 팀 약속으로 나간다.
+  // 한 테이블에 두면 두 번째 팀 가입이 첫 팀의 가입 정보를 덮는다.
   const untypedAdmin = createUntypedAdminClient();
   const { error: eOnbdPrf } = await untypedAdmin.from("mem_onbd_prf").upsert(
     {

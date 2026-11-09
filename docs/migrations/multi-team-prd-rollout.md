@@ -22,6 +22,7 @@
 | 11 | 캐시 무효화 웹훅에 팀 싣기 | `20261109200000_revalidate_webhook_team.sql` | ✅ | ☐ |
 | 12 | 건의 팀별 | `20261109210000_fdbk_team.sql` | ✅ | ☐ |
 | 13 | 모임·일정 읽기 — 로그인한 비회원도 비로그인과 같게 | `20261109220000_gthr_sch_post_select_authenticated_public.sql` | ✅ | ☐ |
+| 14 | 대회 원본·종목 관리자 정책에서 기강 id 고정 걷기 | `20261109230000_comp_admin_policy_any_team.sql` | ✅ | ☐ |
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
@@ -215,9 +216,22 @@ select tablename, policyname, roles::text, qual from pg_policies
 where schemaname = 'public' and tablename in ('gthr_mst', 'sch_post_mst') and cmd = 'SELECT' order by 1, 2;
 ```
 
+### 14. `20261109230000_comp_admin_policy_any_team.sql`
+
+대회 원본(`comp_mst`)·종목(`comp_evt_cfg`) 관리자 쓰기 정책이 기강 팀 id 로 고정돼 있던 것을 "어느 팀이든 owner·admin" 으로
+바꾼다(대회 원본은 공용, 아무 팀 관리자나 고칠 수 있다). 앱의 대회 쓰기는 service_role 이라 화면 동작은 그대로다 —
+**배포 전후 언제 적용해도 안전하다.**
+
+```sql
+-- 확인: 두 정책 모두 기강 id 가 없다(false)
+select policyname, (coalesce(qual, '') || coalesce(with_check, '')) like '%c0ffee00%' as still_hardcoded
+from pg_policies where schemaname = 'public'
+  and policyname in ('comp_mst_mutate_team_admin', 'comp_evt_cfg_mutate_team_admin');
+```
+
 ## 배포
 
-1. 위 1~9·12가 끝났는지 표에서 확인한다(10·11·13은 배포 뒤여도 된다).
+1. 위 1~9·12가 끝났는지 표에서 확인한다(10·11·13·14는 배포 뒤여도 된다).
 2. PR #649 머지 → dev → main 배포.
 3. 배포 후 확인
    - 기강 모임을 하나 만들거나 "단톡방에 알림"으로 카톡이 기강 방에 오는지

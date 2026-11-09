@@ -64,8 +64,8 @@
 | `fdbk_rspd` | 피드백 답변 | `/profile/feedback` |
 | `brd_notice` | 게시판 공지 | `/board/{ref_id}` (없으면 `/board?tab=notice`) |
 | `brd_update` | 게시판 업데이트 | `/board/{ref_id}` (없으면 `/board?tab=update`) |
-| `newbie_nudge_14` | 뉴비 미참석 넛지 (14일) | `/schedule` |
-| `newbie_nudge_28` | 뉴비 미참석 넛지 (28일) | `/schedule` |
+| `newbie_nudge_14` | 뉴비 미참석 넛지 (14일) — **발송 중단**(2026-11-09 크론 제거, 옛 알림 링크만 유지) | `/schedule` |
+| `newbie_nudge_28` | 뉴비 미참석 넛지 (28일) — **발송 중단**(2026-11-09 크론 제거, 옛 알림 링크만 유지) | `/schedule` |
 
 `cmnt_mention`·`cmnt_reply`의 분기(`commentTargetRoute`): `ref_type`이 `comp` → `?comp=`,
 `gathering` → `?gthr=`, 그 외 → `?post=`. `ref_id`가 없으면 `/schedule` 목록으로 떨어진다.
