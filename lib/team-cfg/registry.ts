@@ -16,13 +16,34 @@ import { z } from "zod";
  * 테이블·이력 규칙은 `supabase/migrations/20261109120000_team_cfg.sql`, 읽기는 `./read.ts`.
  */
 
+/**
+ * 관리자 「팀 설정」 화면(`/admin/team-settings`)이 묶는 칸. 화면은 이 사전을 보고 그리므로,
+ * **키를 사전에 더하면 모든 팀의 설정 화면에 저절로 올라온다**(팀마다 빈 행을 미리 넣을 필요가 없다).
+ */
+export type CfgGroup = "feature" | "brand" | "channel" | "content" | "secret";
+
+/**
+ * 입력칸 모양. `secret` 은 지금 값을 화면에 내보내지 않고(설정됨/안 됨만) 새 값 입력만 받는다.
+ * 새 모양이 필요하면 여기와 `app/(info)/admin/team-settings/team-settings-client.tsx` 의 편집기를 같이 늘린다.
+ */
+export type CfgInput =
+  | { kind: "boolean" }
+  | { kind: "text"; placeholder?: string }
+  | { kind: "secret"; placeholder?: string }
+  | { kind: "bank" }
+  | { kind: "channels" }
+  | { kind: "regular_template" }
+  | { kind: "team_links" };
+
 type CfgDef<S extends z.ZodTypeAny> = {
   schema: S;
   default: z.infer<S>;
-  /** 사람이 읽는 이름 — 나중에 관리자 설정 화면이 이걸로 입력칸을 그린다 */
+  /** 사람이 읽는 이름 — 관리자 「팀 설정」 화면이 이걸로 입력칸을 그린다 */
   label: string;
   description: string;
   visibility: "server" | "member" | "public";
+  group: CfgGroup;
+  input: CfgInput;
 };
 
 function defineCfg<S extends z.ZodTypeAny>(def: CfgDef<S>): CfgDef<S> {
@@ -41,6 +62,8 @@ export const TEAM_CFG_REGISTRY = {
     label: "카톡 공지방 ID",
     description: "노티봇 허브 콘솔의 방 고정 ID. 비우면 이 팀은 단톡방 공지를 보내지 않아요.",
     visibility: "server",
+    group: "secret",
+    input: { kind: "secret", placeholder: "노티봇 허브의 방 고정 ID" },
   }),
 
   /**
@@ -60,6 +83,8 @@ export const TEAM_CFG_REGISTRY = {
     label: "모임 계좌",
     description: "회비·프로젝트 입금 안내에 보이는 계좌. 비우면 계좌 안내가 안 보여요.",
     visibility: "member",
+    group: "channel",
+    input: { kind: "bank" },
   }),
 
   /**
@@ -77,6 +102,8 @@ export const TEAM_CFG_REGISTRY = {
     label: "팀 채널",
     description: "오픈채팅·인스타·소모임·가민 주소. 비운 채널은 화면에 안 보여요.",
     visibility: "public",
+    group: "channel",
+    input: { kind: "channels" },
   }),
 
   /**
@@ -90,6 +117,8 @@ export const TEAM_CFG_REGISTRY = {
     label: "오픈채팅 비밀번호",
     description: "그 팀 회원에게만 보여요. 비우면 비밀번호 안내가 안 보여요.",
     visibility: "server",
+    group: "secret",
+    input: { kind: "secret", placeholder: "오픈채팅 비밀번호" },
   }),
 
 
@@ -103,6 +132,8 @@ export const TEAM_CFG_REGISTRY = {
     label: "워드마크",
     description: "모임 공유 이미지 아래에 찍히는 팀 글자(예: GIGANG). 비우면 안 보여요.",
     visibility: "public",
+    group: "brand",
+    input: { kind: "text", placeholder: "예: GIGANG" },
   }),
 
   /**
@@ -123,6 +154,8 @@ export const TEAM_CFG_REGISTRY = {
     label: "정기 모임 템플릿",
     description: "모임 만들기에서 「정기」를 고르면 채워지는 제목·시작 시각·비고. 비우면 자동으로 채우지 않아요.",
     visibility: "member",
+    group: "content",
+    input: { kind: "regular_template" },
   }),
 
   /**
@@ -136,6 +169,8 @@ export const TEAM_CFG_REGISTRY = {
     label: "다른 팀 가입 안내",
     description: "가입 폼 첫 화면에 「○○ 가입이세요? 여기로 →」를 띄울 팀. 비우면 안 보여요.",
     visibility: "public",
+    group: "content",
+    input: { kind: "team_links" },
   }),
 
   /**
@@ -149,6 +184,8 @@ export const TEAM_CFG_REGISTRY = {
     label: "회비 기능",
     description: "회비 내역·미납 표시·관리자 회비 메뉴를 써요. 끄면 화면 어디에도 회비가 안 보여요.",
     visibility: "member",
+    group: "feature",
+    input: { kind: "boolean" },
   }),
 } as const;
 

@@ -71,6 +71,14 @@ export async function getTeamCfg<K extends TeamCfgCd>(teamId: string, cd: K): Pr
   return resolveTeamCfgValue(cd, snap.values.has(cd) ? snap.values.get(cd) : undefined);
 }
 
+/**
+ * 이 서버 인스턴스의 그 팀 캐시를 비운다 — 관리자가 설정을 저장한 직후 **저장한 사람에게는** 바로 보이게.
+ * 다른 인스턴스는 각자 1분 안에 새로 읽는다(그래서 "최대 1분 뒤 반영"이다).
+ */
+export function invalidateTeamCfgCache(teamId: string): void {
+  cache.delete(teamId);
+}
+
 /** 테스트 전용 — 메모리 캐시 비우기 */
 export function __clearTeamCfgCacheForTest(): void {
   cache.clear();

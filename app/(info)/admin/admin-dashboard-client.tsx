@@ -20,6 +20,7 @@ import {
   CalendarDays,
   KeyRound,
   Send,
+  SlidersHorizontal,
 } from "lucide-react";
 
 import {
@@ -278,6 +279,12 @@ export function AdminDashboardClient({ duesEnabled }: { duesEnabled: boolean }) 
       <section className="flex flex-col gap-3">
         <SectionLabel>시스템</SectionLabel>
         <div className="grid grid-cols-2 gap-3">
+          {/* 이 크루에만 적용되는 설정(회비 켜고 끄기·채널·워드마크·정기 모임 템플릿 등) — 팀 설정 사전에서 그린다 */}
+          <ToolCard
+            href="/admin/team-settings"
+            icon={SlidersHorizontal}
+            label="팀 설정"
+          />
           <ToolCard
             href="/admin/system/common-codes"
             icon={Code2}
