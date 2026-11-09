@@ -43,7 +43,7 @@ import { teamCacheTag } from "@/lib/team-cache-tag";
  * 활동 로그 입력. 정본은 `lib/mileage-run.ts`(액션·운영 MCP 공용 코어)에 있고
  * 여기서는 기존 import 경로를 유지하기 위해 재export 한다.
  */
-export type { ActivityLogInput } from "@/lib/mileage-run";
+// 타입은 `@/lib/mileage-run` 에서 가져다 쓴다 — "use server" 파일의 타입 재export 는 Turbopack dev 에서 모듈을 죽인다(save-race-record.ts 참고)
 
 type ActionResult = { ok: boolean; message: string | null; grantedTitles?: string[] };
 

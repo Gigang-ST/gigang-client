@@ -13,11 +13,9 @@ import {
 import { pickQuip } from "@/lib/quips";
 import { createClient } from "@/lib/supabase/client";
 
-import {
-  logActivitiesBatch,
-  uploadActivityPhoto,
-  type ActivityLogInput,
-} from "@/app/actions/mileage-run";
+import type { ActivityLogInput } from "@/lib/mileage-run";
+
+import { logActivitiesBatch, uploadActivityPhoto } from "@/app/actions/mileage-run";
 
 import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";
 import { PhotoPicker } from "@/components/common/photo-picker";

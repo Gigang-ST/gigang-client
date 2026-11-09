@@ -15,8 +15,9 @@ export async function getRequestOrigin(): Promise<string | null> {
   const host = h.get("x-forwarded-host") ?? h.get("host");
   if (!host) return null;
 
-  const isLocal =
-    host.startsWith("localhost") || host.startsWith("127.0.0.1") || host.endsWith(".localhost");
+  // 포트를 떼고 본다 — `ulsan.localhost:3000` 은 포트 때문에 endsWith(".localhost") 에 안 걸렸다
+  const hostname = host.split(",")[0].trim().replace(/:\d+$/, "");
+  const isLocal = hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".localhost");
   const proto = h.get("x-forwarded-proto") ?? (isLocal ? "http" : "https");
   return `${proto}://${host}`;
 }

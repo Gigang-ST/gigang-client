@@ -23,7 +23,8 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 import { extractRaceRecordFromImage } from "@/app/actions/extract-race-record";
-import { saveRaceRecord, type SaveRaceRecordInput } from "@/app/actions/save-race-record";
+import { saveRaceRecord } from "@/app/actions/save-race-record";
+import type { SaveRaceRecordInput } from "@/lib/race-record";
 import { listCompetitionsByRaceDate } from "@/app/actions/search-competitions";
 
 import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";

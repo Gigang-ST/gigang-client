@@ -19,7 +19,9 @@ import type { Database } from "@/lib/supabase/database.types";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 import { syncPersonRecordToOtherTeams } from "@/lib/records-revalidate";
 
-export type { SaveRaceRecordInput };
+// ⚠️ 이 파일("use server")에서 타입을 다시 내보내지 않는다 — Turbopack 이 `export type { … }` 를 값으로 남겨
+// 모듈을 불러오는 순간 "SaveRaceRecordInput is not defined" 로 죽고, 같은 화면의 서버 액션이 전부 실패했다
+// (프로필 칭호 이력·대표 칭호·기록 저장). 타입은 `@/lib/race-record` 에서 가져다 쓴다.
 
 /**
  * 기록의 종목을 랭킹 RPC가 쓰는 코드로 바꾼다 — 철인 `FULL`은 `TRIATHLON_FULL`, 하이록스 `OPEN`은 `HYROX_OPEN`.

@@ -1,7 +1,7 @@
 import { after, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { env } from "@/lib/env";
+import { getRequestOrigin } from "@/lib/request-origin";
 import { resolveTeamContextFromHost } from "@/lib/queries/request-team";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 
@@ -28,7 +28,11 @@ function redirectClearingOAuthNext(url: string | URL) {
 }
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  // 돌려보낼 주소는 **사용자가 실제로 들어온 주소**로 만든다(x-forwarded-host 기준 — getRequestOrigin).
+  // `request.url` 의 origin 은 로컬 개발 서버에서 `http://localhost:3000` 으로 고정돼, `ulsan.localhost` 로
+  // 로그인해도 기강 주소로 튕겼다(로그인 쿠키는 울산에 저장되고 화면은 기강 — 기강 로그인처럼 보였다).
+  const origin = (await getRequestOrigin()) ?? new URL(request.url).origin;
   const code = searchParams.get("code");
   const flow = searchParams.get("flow");
   const nextParam = searchParams.get("next");
@@ -101,14 +105,7 @@ export async function GET(request: Request) {
         }
       }
 
-      const forwardedHost = request.headers.get("x-forwarded-host");
-      const isLocalEnv = env.NODE_ENV === "development";
-      const location = isLocalEnv
-        ? `${origin}${resolvedNext}`
-        : forwardedHost
-          ? `https://${forwardedHost}${resolvedNext}`
-          : `${origin}${resolvedNext}`;
-      return redirectClearingOAuthNext(location);
+      return redirectClearingOAuthNext(`${origin}${resolvedNext}`);
     }
     console.error("OAuth exchange error:", error.message);
     return redirectClearingOAuthNext(
@@ -120,9 +117,7 @@ export async function GET(request: Request) {
   // error·error_description 을 붙여 돌려보낸다. 일반 오류 화면 대신 계정 연동 화면에서 안내한다.
   if (flow === "link") {
     console.error("[auth/callback] 계정 연동 실패", searchParams.get("error"), searchParams.get("error_description"));
-    const forwardedHost = request.headers.get("x-forwarded-host");
-    const base = env.NODE_ENV === "development" || !forwardedHost ? origin : `https://${forwardedHost}`;
-    return redirectClearingOAuthNext(`${base}/settings/accounts?link_error=1`);
+    return redirectClearingOAuthNext(`${origin}/settings/accounts?link_error=1`);
   }
 
   return redirectClearingOAuthNext(
