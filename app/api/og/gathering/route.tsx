@@ -7,6 +7,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { buildGatheringOgText, getGatheringOgSport, OG_COLORS, OG_SLOGAN } from "@/lib/gathering-og";
 import { getCachedGatheringOg } from "@/lib/queries/gathering-og";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getTeamCfg } from "@/lib/team-cfg/read";
 
 /**
  * 모임 OG 이미지 — `/api/og/gathering?g=<short_id|uuid>&v=<upd_at>`.
@@ -60,10 +61,12 @@ function fallback(req: NextRequest) {
 type CardProps = {
   text: ReturnType<typeof buildGatheringOgText>;
   sport: ReturnType<typeof getGatheringOgSport>;
+  /** 팀 워드마크(팀 설정 `brand.wordmark`). 없으면 글자 줄을 안 그린다 — 다른 팀 카드에 기강 글자가 찍히지 않게 */
+  wordmark: string | null;
 };
 
 /** 1200×630 카드 본체. try/catch 밖에서 element로 만들어 둔다(react-hooks/error-boundaries). */
-function GatheringCard({ text, sport }: CardProps) {
+function GatheringCard({ text, sport, wordmark }: CardProps) {
   return (
     <div
       style={{
@@ -199,18 +202,20 @@ function GatheringCard({ text, sport }: CardProps) {
             </div>
           )}
         </div>
-        <div
-          style={{
-            fontFamily: "Oswald",
-            fontWeight: 500,
-            fontSize: 20,
-            letterSpacing: "0.24em",
-            color: OG_COLORS.mutedForeground,
-            marginTop: 34,
-          }}
-        >
-          GIGANG
-        </div>
+        {wordmark ? (
+          <div
+            style={{
+              fontFamily: "Oswald",
+              fontWeight: 500,
+              fontSize: 20,
+              letterSpacing: "0.24em",
+              color: OG_COLORS.mutedForeground,
+              marginTop: 34,
+            }}
+          >
+            {wordmark}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -221,11 +226,14 @@ export async function GET(req: NextRequest) {
   if (!ref) return fallback(req);
 
   const { teamId } = await getRequestTeamContext();
-  const src = await getCachedGatheringOg(ref, teamId);
+  const [src, wordmark] = await Promise.all([
+    getCachedGatheringOg(ref, teamId),
+    getTeamCfg(teamId, "brand.wordmark"),
+  ]);
   if (!src) return fallback(req);
 
   const element = (
-    <GatheringCard text={buildGatheringOgText(src)} sport={getGatheringOgSport(src.sprt_cd)} />
+    <GatheringCard text={buildGatheringOgText(src)} sport={getGatheringOgSport(src.sprt_cd)} wordmark={wordmark} />
   );
 
   try {

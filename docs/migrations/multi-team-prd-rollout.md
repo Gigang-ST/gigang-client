@@ -23,6 +23,7 @@
 | 12 | 건의 팀별 | `20261109210000_fdbk_team.sql` | ✅ | ☐ |
 | 13 | 모임·일정 읽기 — 로그인한 비회원도 비로그인과 같게 | `20261109220000_gthr_sch_post_select_authenticated_public.sql` | ✅ | ☐ |
 | 14 | 대회 원본·종목 관리자 정책에서 기강 id 고정 걷기 | `20261109230000_comp_admin_policy_any_team.sql` | ✅ | ☐ |
+| 15 | 기강 워드마크·정기 모임 템플릿을 팀 설정에 등록 | `20261109240000_team_cfg_wordmark_regular_template.sql` | ☐ | ☐ |
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
@@ -229,9 +230,22 @@ from pg_policies where schemaname = 'public'
   and policyname in ('comp_mst_mutate_team_admin', 'comp_evt_cfg_mutate_team_admin');
 ```
 
+### 15. `20261109240000_team_cfg_wordmark_regular_template.sql` — ⚠️ 빠지면 배포 순간 기강 공유 카드 글자·정기 모임 자동 채움이 사라진다
+
+코드에 박혀 있던 기강 워드마크(`GIGANG`)와 정기 모임 템플릿(제목·19:30·비고)을 기강 팀 설정 행으로 옮긴다. 두 키 모두 기본값이
+없어서(다른 팀에 기강 값이 새지 않게) **행 없이 새 코드가 나가면** 기강 모임 공유 카드에서 `GIGANG` 이 빠지고, 정기 모임을 골라도
+자동으로 채워지지 않는다. 옛 코드와 함께 돌아도 안전하다(옛 코드는 이 행을 안 읽는다) — **배포 전에 넣는다.**
+울산 값은 울산 운영진이 정하면 같은 INSERT 로 넣는다.
+
+```sql
+-- 확인: 기강 두 행
+select cfg_cd, left(cfg_val_json::text, 40) from team_cfg c join team_mst t using (team_id)
+where t.team_cd = 'gigang' and c.cfg_cd in ('brand.wordmark', 'gathering.regular_template') and c.vers = 0 and c.del_yn = false;
+```
+
 ## 배포
 
-1. 위 1~9·12가 끝났는지 표에서 확인한다(10·11·13·14는 배포 뒤여도 된다).
+1. 위 1~9·12·15가 끝났는지 표에서 확인한다(10·11·13·14는 배포 뒤여도 된다).
 2. PR #649 머지 → dev → main 배포.
 3. 배포 후 확인
    - 기강 모임을 하나 만들거나 "단톡방에 알림"으로 카톡이 기강 방에 오는지

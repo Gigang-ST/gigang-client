@@ -104,6 +104,38 @@ export const TEAM_CFG_REGISTRY = {
     description: "진행 중인 프로젝트가 없을 때 마일리지런 소개를 보여 줘요. 끄면 '진행 중인 프로젝트가 없어요'만 보여요.",
     visibility: "member",
   }),
+
+  /**
+   * 워드마크 — 모임 공유 이미지(OG) 맨 아래에 찍는 팀 글자. **기본값이 없다** — 비어 있으면 글자 줄을 안 그린다.
+   * 기본값을 `GIGANG` 으로 두면 울산 모임 공유 카드에 기강 글자가 찍힌다.
+   */
+  "brand.wordmark": defineCfg({
+    schema: z.string().trim().min(1).max(30).nullable(),
+    default: null,
+    label: "워드마크",
+    description: "모임 공유 이미지 아래에 찍히는 팀 글자(예: GIGANG). 비우면 안 보여요.",
+    visibility: "public",
+  }),
+
+  /**
+   * 정기 모임 템플릿 — 모임 만들기에서 유형을 「정기」로 고르면 비어 있는 제목·비고와 시작 시각을 채운다.
+   * **기본값이 없다** — 비어 있으면 자동 채움을 하지 않는다(기강 코스·문구가 다른 팀에 채워지지 않게).
+   * 예전엔 `lib/gathering/templates.ts` 에 기강 문구가 상수로 박혀 있었다(2026-11-09 데이터로 옮김).
+   */
+  "gathering.regular_template": defineCfg({
+    schema: z
+      .object({
+        title: z.string().trim().min(1),
+        /** KST "HH:mm" — 날짜는 폼에서 고른 날을 유지하고 시각만 바꾼다 */
+        default_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+        desc: z.string(),
+      })
+      .nullable(),
+    default: null,
+    label: "정기 모임 템플릿",
+    description: "모임 만들기에서 「정기」를 고르면 채워지는 제목·시작 시각·비고. 비우면 자동으로 채우지 않아요.",
+    visibility: "member",
+  }),
 } as const;
 
 export type TeamCfgCd = keyof typeof TEAM_CFG_REGISTRY;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeHost, resolveTeamCdFromHost } from "@/lib/team-host";
+import { hostFamily, normalizeHost, resolveTeamCdFromHost, teamLinkOrigin } from "@/lib/team-host";
 import { resolveTeamContextFromHost } from "@/lib/queries/request-team";
 import { TEAM_ID_BY_CD } from "@/lib/constants/gigang-team";
 
@@ -102,3 +102,34 @@ describe("resolveTeamContextFromHost", () => {
     }
   });
 });
+
+/**
+ * 팀 링크 origin — 운영 MCP 처럼 "토큰 팀 것"을 가리키는 링크는 접속 주소가 아니라 그 팀 주소여야 한다.
+ * 울산 모임은 울산 주소에서만 열리므로, 기강 주소로 링크를 만들면 "없는 모임"으로 떨어진다.
+ */
+describe("teamLinkOrigin", () => {
+  it("접속 주소가 그 팀 주소면 그대로 쓴다", () => {
+    expect(teamLinkOrigin("ulsan", "ulsan.gigang.team")).toBe("https://ulsan.gigang.team");
+    expect(teamLinkOrigin("gigang", "gigang.team")).toBe("https://gigang.team");
+    expect(teamLinkOrigin("ulsan", "ulsan.localhost:3000")).toBe("http://ulsan.localhost:3000");
+  });
+
+  it("다른 팀 주소로 들어오면 같은 환경의 그 팀 주소로 바꾼다", () => {
+    expect(teamLinkOrigin("ulsan", "gigang.team")).toBe("https://ulsan.gigang.team");
+    expect(teamLinkOrigin("ulsan", "dev.gigang.team")).toBe("https://dev.ulsan.gigang.team");
+    expect(teamLinkOrigin("ulsan", "localhost:3000")).toBe("http://ulsan.localhost:3000");
+    expect(teamLinkOrigin("gigang", "ulsan.gigang.team")).toBe("https://gigang.team");
+  });
+
+  it("모르는 팀이면 null(호출부가 상대 경로로 물러난다)", () => {
+    expect(teamLinkOrigin("busan", "gigang.team")).toBeNull();
+  });
+
+  it("환경 판정", () => {
+    expect(hostFamily("gigang.team")).toBe("prd");
+    expect(hostFamily("dev.ulsan.gigang.team")).toBe("dev");
+    expect(hostFamily("gigang-client-dev.vercel.app")).toBe("dev");
+    expect(hostFamily("ulsan.localhost:3000")).toBe("local");
+  });
+});
+

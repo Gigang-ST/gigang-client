@@ -65,3 +65,47 @@ export function resolveTeamCdFromHost(host: string | null | undefined): string |
 
   return null;
 }
+
+/**
+ * 팀의 **정식 주소** — 접속 주소가 아니라 "그 팀 것"을 가리키는 링크를 만들 때 쓴다.
+ * 예: 운영 MCP 는 토큰이 팀에 묶여 있어, 울산 토큰으로 `gigang.team/api/mcp` 에 붙어도 링크는 울산 주소여야 한다
+ * (울산 모임은 울산 주소에서만 열린다). 주소를 바꿀 땐 위 표와 이 표를 같이 고친다.
+ */
+const CANONICAL_HOST_BY_TEAM: Readonly<Record<string, Record<HostFamily, string>>> = {
+  gigang: { prd: "gigang.team", dev: "dev.gigang.team", local: "localhost" },
+  ulsan: { prd: "ulsan.gigang.team", dev: "dev.ulsan.gigang.team", local: "ulsan.localhost" },
+};
+
+export type HostFamily = "prd" | "dev" | "local";
+
+/** 접속 주소가 운영·dev·로컬 중 어디인가 — 같은 환경 안에서 다른 팀 주소를 고르기 위해 */
+export function hostFamily(host: string | null | undefined): HostFamily {
+  const h = normalizeHost(host);
+  if (!h) return "prd";
+  if (h === "localhost" || h === "127.0.0.1" || h.endsWith(".localhost")) return "local";
+  if (h.startsWith("dev.") || h === "gigang-client-dev.vercel.app") return "dev";
+  // 미리보기 주소는 PR 확인용이라 dev 로 본다
+  if (h.startsWith(VERCEL_PREVIEW_PREFIX) && h.endsWith(VERCEL_PREVIEW_SUFFIX)) return "dev";
+  return "prd";
+}
+
+/** 팀 코드 + 환경 → 그 팀 정식 주소(포트 없음). 모르는 팀이면 null. */
+export function canonicalTeamHost(teamCd: string, family: HostFamily): string | null {
+  return CANONICAL_HOST_BY_TEAM[teamCd]?.[family] ?? null;
+}
+
+/**
+ * 링크 origin — 접속 주소가 **그 팀 주소면 그대로**, 다른 팀(또는 모르는) 주소면 같은 환경의 그 팀 정식 주소.
+ * 로컬은 접속 주소의 포트를 이어 붙인다. 정할 수 없으면 null(호출부가 상대 경로로 물러난다).
+ */
+export function teamLinkOrigin(teamCd: string, requestHost: string | null | undefined): string | null {
+  const raw = requestHost?.split(",")[0].trim() ?? "";
+  const family = hostFamily(raw);
+  const proto = family === "local" ? "http" : "https";
+  if (raw && resolveTeamCdFromHost(raw) === teamCd) return `${proto}://${raw.toLowerCase()}`;
+  const canonical = canonicalTeamHost(teamCd, family);
+  if (!canonical) return null;
+  const port = family === "local" ? (raw.match(/:(\d+)$/)?.[1] ?? null) : null;
+  return `${proto}://${canonical}${port ? `:${port}` : ""}`;
+}
+

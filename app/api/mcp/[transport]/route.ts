@@ -46,6 +46,8 @@ import { syncPersonRecordToOtherTeams } from "@/lib/records-revalidate";
 import { GTHR_SPRT_TYPES, GTHR_TYPES } from "@/lib/validations/gathering";
 import { SCH_POST_TYPES } from "@/lib/validations/schedule";
 import { teamCacheTag } from "@/lib/team-cache-tag";
+import { TEAM_ID_BY_CD } from "@/lib/constants/gigang-team";
+import { teamLinkOrigin } from "@/lib/team-host";
 
 /** MCP 도구 응답 도우미 — 사실 payload를 text JSON 으로 감싼다. */
 function textResult(payload: unknown) {
@@ -79,14 +81,17 @@ function afterMileageWrite(seeds: TitleEvalSeed[] = []) {
   }
 }
 
-async function resolveBaseUrl(): Promise<string | null> {
+/**
+ * 링크 origin 은 **토큰 팀의 주소**로 만든다. 토큰은 발급한 팀에 묶여 있어, 울산 토큰으로 `gigang.team/api/mcp`
+ * 에 붙어도 만든 모임은 울산 것이고 울산 주소에서만 열린다 — 예전처럼 요청 주소로 만들면 링크가 "없는 모임"으로 떨어졌다.
+ * 요청 주소가 그 팀 주소면 그대로 쓰고, 아니면 같은 환경의 그 팀 정식 주소(`lib/team-host.ts`).
+ */
+async function resolveBaseUrl(teamId: string): Promise<string | null> {
   try {
+    const teamCd = Object.entries(TEAM_ID_BY_CD).find(([, id]) => id === teamId)?.[0];
+    if (!teamCd) return null;
     const h = await headers();
-    const host = h.get("x-forwarded-host") ?? h.get("host");
-    if (!host) return null;
-    const proto =
-      h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-    return `${proto}://${host}`;
+    return teamLinkOrigin(teamCd, h.get("x-forwarded-host") ?? h.get("host"));
   } catch {
     return null;
   }
@@ -395,7 +400,7 @@ const handler = createMcpHandler(
       },
       async (args, extra) =>
         runTool(extra, async (ctx, supabase) => {
-          const result = await createGatheringViaMcp(supabase, ctx, args, await resolveBaseUrl());
+          const result = await createGatheringViaMcp(supabase, ctx, args, await resolveBaseUrl(ctx.team_id));
           // 홈 캘린더 캐시(1시간)를 턴다 — 안 하면 MCP 로 만든 모임이 일정탭 새로고침에서
           // 최대 1시간 안 보인다(앱 생성 경로와 같은 함정, KNOWLEDGE.md).
           // 무효화는 **경로 계층인 여기** 몫이다: lib/mcp 의 도메인 코어는 next/* 를 모른다.
@@ -432,7 +437,7 @@ const handler = createMcpHandler(
       },
       async (args, extra) =>
         runTool(extra, async (ctx, supabase) => {
-          const result = await createSchPostViaMcp(supabase, ctx, args, await resolveBaseUrl());
+          const result = await createSchPostViaMcp(supabase, ctx, args, await resolveBaseUrl(ctx.team_id));
           // 홈 캘린더 캐시를 턴다(create_gathering 과 같은 이유) — DB 웹훅(`/api/revalidate`)도
           // sch_post_mst 를 보지만, 도구 응답을 받고 바로 일정 탭을 여는 사람에게 늦지 않게.
           if (!args.dry_run) revalidateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, ctx.team_id), "max");

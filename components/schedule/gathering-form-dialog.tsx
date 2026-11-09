@@ -12,7 +12,6 @@ import { z } from "zod";
 
 import { dayjs } from "@/lib/dayjs";
 import type { RecentGathering } from "@/lib/gathering/dedupe-recent";
-import { REGULAR_GATHERING_TEMPLATE } from "@/lib/gathering/templates";
 import {
   GTHR_TYPES,
   GTHR_SPRT_TYPES,
@@ -24,6 +23,10 @@ import {
 
 import { createGathering, updateGathering } from "@/app/actions/gathering/manage-gathering";
 import { getRecentGatherings } from "@/app/actions/gathering/get-recent-gatherings";
+import {
+  getRegularGatheringTemplate,
+  type RegularGatheringTemplate,
+} from "@/app/actions/gathering/get-regular-template";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -157,8 +160,9 @@ export function GatheringFormDialog({
     } as FormValues,
   });
 
-  // dirtyFields를 구독해야 RHF가 필드 dirty 여부를 추적한다(정기 템플릿의 시작시간 보존 판정에 사용).
-  const { isSubmitting, dirtyFields } = form.formState;
+  // dirtyFields를 구독해야 RHF가 필드 dirty 여부를 추적한다(정기 템플릿의 시작시간 보존 판정 —
+  // getFieldState("stt_at").isDirty 가 이 구독에 기대므로 읽기만 하고 쓰지 않아도 지우지 않는다).
+  const { isSubmitting, dirtyFields: _dirtyFields } = form.formState;
   // 시작일시 구독 — 개설 일정 안내(GatheringScheduleHint)의 임박 판정에 사용.
   const sttAtWatch = useWatch({ control: form.control, name: "stt_at" });
   // 참여조건·승인제는 RHF 에 묶지 않은 공용 컴포넌트가 그린다(두 폼의 FormValues 타입이 달라서)
@@ -229,13 +233,24 @@ export function GatheringFormDialog({
     }
   }, [open, mode, initialData, defaultDate, prefill, form, persistKey]);
 
-  /** 유형 변경 핸들러. 정기(regular) 선택 시 비어있는 필드를 템플릿으로 채운다. */
-  function handleTypeChange(value: string) {
+  /**
+   * 유형 변경 핸들러. 정기(regular) 선택 시 비어있는 필드를 **이 팀의** 템플릿으로 채운다.
+   * 템플릿은 팀 설정(`gathering.regular_template`)이라 고를 때 서버에서 받아 온다 — 없는 팀은 채우지 않는다.
+   */
+  async function handleTypeChange(value: string) {
     form.setValue("gthr_type_enm", value as FormValues["gthr_type_enm"], { shouldDirty: true });
     // 템플릿 자동 채움은 신규 등록 시에만 — 수정 중 기존 값(특히 시작 시간)을 덮지 않도록.
     if (mode !== "create" || value !== "regular") return;
 
-    const t = REGULAR_GATHERING_TEMPLATE;
+    let t: RegularGatheringTemplate | null = null;
+    try {
+      t = await getRegularGatheringTemplate();
+    } catch (e) {
+      // 자동 채움은 편의 기능이라 못 받아 와도 폼은 그대로 쓴다
+      console.error("[gathering-form] 정기 템플릿 조회 실패", e);
+    }
+    // 받아 오는 사이 유형을 다시 바꿨으면 채우지 않는다
+    if (!t || form.getValues("gthr_type_enm") !== "regular") return;
     if (!form.getValues("gthr_nm")?.trim()) {
       form.setValue("gthr_nm", t.title, { shouldDirty: true });
     }
@@ -243,8 +258,9 @@ export function GatheringFormDialog({
       form.setValue("desc_txt", t.desc, { shouldDirty: true });
     }
     // 사용자가 시작 시간을 직접 건드리지 않았을 때만 정기런 기본 시각(19:30)으로. 날짜는 유지.
-    if (!dirtyFields.stt_at) {
-      const [hh, mm] = t.defaultTime.split(":").map(Number);
+    // dirty 여부는 받아 온 뒤 시점으로 다시 읽는다(await 사이 사용자가 시간을 건드렸을 수 있다)
+    if (!form.getFieldState("stt_at").isDirty) {
+      const [hh, mm] = t.default_time.split(":").map(Number);
       const cur = form.getValues("stt_at");
       const base = cur ? dayjs(cur) : dayjs().tz("Asia/Seoul");
       form.setValue("stt_at", base.hour(hh).minute(mm).second(0).format("YYYY-MM-DDTHH:mm"), {
