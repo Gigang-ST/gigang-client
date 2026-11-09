@@ -99,11 +99,14 @@ export async function issueMcpToken(
 export async function listMcpTokens(
   supabase: Db,
   memId: string,
+  teamId: string,
 ): Promise<McpTokenSummary[]> {
+  // 토큰은 발급한 팀에 묶인다 — 두 팀 가입자에게 다른 팀 토큰이 섞여 보이지 않게
   const { data, error } = await supabase
     .from("mcp_token_rel")
     .select("token_id, label, created_at, last_used_at, revoked_at")
     .eq("mem_id", memId)
+    .eq("team_id", teamId)
     .order("created_at", { ascending: false });
 
   if (error) throw error;

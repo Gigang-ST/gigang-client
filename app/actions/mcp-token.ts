@@ -85,7 +85,8 @@ export async function listMcpTokens(): Promise<ListMcpTokensResult> {
 
   const admin = createAdminClient();
   try {
-    const tokens = await listMcpTokensQuery(admin, member.id);
+    const { teamId } = await getRequestTeamContext();
+    const tokens = await listMcpTokensQuery(admin, member.id, teamId);
     return { ok: true, tokens };
   } catch (e) {
     console.error("[mcp-token] listMcpTokens error:", e);

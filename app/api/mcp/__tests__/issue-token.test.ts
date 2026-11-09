@@ -226,7 +226,7 @@ describe("listMcpTokens — AC-08 본인 목록", () => {
         }),
     } as unknown as SupabaseClient<Database>;
 
-    const tokens = await listMcpTokens(client, MEM_ID);
+    const tokens = await listMcpTokens(client, MEM_ID, TEAM_ID);
     expect(tokens).toEqual([
       { token_id: "a", label: "폰", created_at: "2026-07-24T00:00:00.000Z", last_used_at: null, revoked: false },
       {
