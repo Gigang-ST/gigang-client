@@ -482,7 +482,7 @@ function TitleSection({
   const handleGrant = async () => {
     if (!selectedTtlId) return;
     setGranting(true);
-    const result = await grantTitle(member.team_mem_id, selectedTtlId, teamId);
+    const result = await grantTitle(member.team_mem_id, selectedTtlId);
     if (result.ok) {
       setShowGrantPanel(false);
       await loadTitles();

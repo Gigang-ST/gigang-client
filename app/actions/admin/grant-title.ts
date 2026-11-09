@@ -3,12 +3,23 @@
 import { after } from "next/server";
 
 import { withAdmin } from "@/lib/actions/auth";
+import { isTeamMemIdInTeam } from "@/lib/actions/team-scope";
 import { insertNoti } from "@/lib/notifications/insert-noti";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export async function grantTitle(teamMemId: string, ttlId: string, teamId: string) {
+/**
+ * 관리자 수동 수여. 팀은 **서버가 접속 주소로 정한다** — 예전엔 브라우저가 teamId 를 넘겼고,
+ * 울산 관리자가 기강 teamId·기강 회원을 넘기면 기강 칭호를 기강 회원에게 줄 수 있었다.
+ */
+export async function grantTitle(teamMemId: string, ttlId: string) {
   return withAdmin(async ({ member }) => {
+    const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
+
+    if (!(await isTeamMemIdInTeam(db, teamId, teamMemId))) {
+      return { ok: false as const, message: "회원을 찾을 수 없습니다." };
+    }
 
     const { data: title } = await db
       .from("ttl_mst")
