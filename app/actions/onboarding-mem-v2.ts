@@ -26,6 +26,18 @@ async function requireAuthUser() {
   return { user };
 }
 
+/**
+ * 이 로그인이 **이미 회원(mem_mst)에 연결돼 있으면** 그 mem_id. 연결된 사람은 연락처 단계(번호 확인·신규 가입·
+ * 로그인 연결)를 거치면 안 된다 — 미리 채운 폼(onboardingJoinTeam)으로만 가입한다.
+ * 화면은 이미 그렇게 보내지만, 탭을 두 개 띄웠거나 뒤로가기로 옛 화면에 남은 경우 연락처 단계가 남아 있다.
+ * 그때 서버가 안 막으면 같은 로그인에 회원이 둘 붙어(새 mem_mst 또는 남의 mem_mst 에 OAuth) **로그인이 꼬인다.**
+ */
+async function linkedMemIdOf(authUserId: string): Promise<string | null> {
+  return resolveLinkedMemId(createAdminClient(), authUserId);
+}
+
+const ALREADY_LINKED_MESSAGE = "이미 회원 정보가 연결된 계정이에요. 새로고침하면 가입 화면이 다시 열려요.";
+
 function normEmail(s: string | null | undefined): string | null {
   if (!s) return null;
   const t = s.replace(/\u3000/g, " ").trim().toLowerCase();
@@ -54,6 +66,7 @@ export async function onboardingCheckPhone(
 ): Promise<OnboardingPhoneResult> {
   const { user } = await requireAuthUser();
   if (!user) return { ok: false, message: "로그인이 필요합니다." };
+  if (await linkedMemIdOf(user.id)) return { ok: false, message: ALREADY_LINKED_MESSAGE };
 
   const digits = digitsOnly(formatPhone(phoneRaw.trim()));
   if (!isValidPhone(digits)) {
@@ -284,6 +297,9 @@ export async function onboardingLinkExistingMember(args: {
     return { ok: false, message: "연결할 회원 정보를 찾지 못했습니다." };
   }
   const memId = match.value.memId;
+  // 이 로그인이 이미 **다른** 회원에 연결돼 있으면 막는다(같은 사람이면 이미 연결된 것 — 아래가 바꿀 게 없다)
+  const linkedMemId = await linkedMemIdOf(user.id);
+  if (linkedMemId && linkedMemId !== memId) return { ok: false, message: ALREADY_LINKED_MESSAGE };
 
   // 로그인 연결 변경은 변경 이력에 남는다(값은 가려진다) — 본인이 어느 팀 주소에서 연결했는지 싣는다
   const { teamId } = await getRequestTeamContext();
@@ -371,6 +387,9 @@ export async function onboardingCreateMember(args: {
   if (!user) return { ok: false, message: "로그인이 필요합니다." };
 
   const uid = user.id;
+  // 이미 연결된 사람은 새로 만들지 않는다 — 같은 로그인에 회원이 둘 붙는다. 첫 시도에서 mem_mst 만 들어가고
+  // 응답이 끊긴 재시도도 여기 걸리는데, 새로고침하면 화면이 그 사람으로 알아보고 이어서 가입시킨다(onboardingJoinTeam).
+  if (await linkedMemIdOf(uid)) return { ok: false, message: ALREADY_LINKED_MESSAGE };
   /** mem_mst DELETE 정책이 없어 롤백은 service_role 만 안전하다. */
   const admin = createAdminClient();
   const acctDigits = digitsOnly(args.bankAccountRaw);
