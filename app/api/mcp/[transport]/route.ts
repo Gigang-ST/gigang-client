@@ -45,6 +45,7 @@ import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 import { syncPersonRecordToOtherTeams } from "@/lib/records-revalidate";
 import { GTHR_SPRT_TYPES, GTHR_TYPES } from "@/lib/validations/gathering";
 import { SCH_POST_TYPES } from "@/lib/validations/schedule";
+import { teamCacheTag } from "@/lib/team-cache-tag";
 
 /** MCP 도구 응답 도우미 — 사실 payload를 text JSON 으로 감싼다. */
 function textResult(payload: unknown) {
@@ -399,7 +400,7 @@ const handler = createMcpHandler(
           // 최대 1시간 안 보인다(앱 생성 경로와 같은 함정, KNOWLEDGE.md).
           // 무효화는 **경로 계층인 여기** 몫이다: lib/mcp 의 도메인 코어는 next/* 를 모른다.
           // 라우트 핸들러라 `updateTag`(서버 액션 전용)는 throw 하므로 revalidateTag 를 쓴다.
-          if (!args.dry_run) revalidateTag(HOME_CALENDAR_CACHE_TAG, "max");
+          if (!args.dry_run) revalidateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, ctx.team_id), "max");
           return result;
         }),
     );
@@ -434,7 +435,7 @@ const handler = createMcpHandler(
           const result = await createSchPostViaMcp(supabase, ctx, args, await resolveBaseUrl());
           // 홈 캘린더 캐시를 턴다(create_gathering 과 같은 이유) — DB 웹훅(`/api/revalidate`)도
           // sch_post_mst 를 보지만, 도구 응답을 받고 바로 일정 탭을 여는 사람에게 늦지 않게.
-          if (!args.dry_run) revalidateTag(HOME_CALENDAR_CACHE_TAG, "max");
+          if (!args.dry_run) revalidateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, ctx.team_id), "max");
           return result;
         }),
     );

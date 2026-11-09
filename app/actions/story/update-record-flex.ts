@@ -7,6 +7,7 @@ import { dayjs } from "@/lib/dayjs";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { updateRecordFlexSchema } from "@/lib/validations/post";
+import { teamCacheTag } from "@/lib/team-cache-tag";
 
 export type UpdateRecordFlexResult =
   | { ok: false; message: string }
@@ -107,7 +108,7 @@ export async function updateRecordFlex(
       // `story-posts`만 무효화한다(작성·삭제와 같은 이유 — `story-feed`까지 날리면 한 건이
       // 피드 전체 캐시를 끌고 내려간다). `revalidateTag`가 아니라 `updateTag`인 것도 같다:
       // 고친 직후 `router.refresh()`가 낡은 캐시를 받아 "새로고침해야 바뀌는" 증상을 막는다.
-      updateTag("story-posts");
+      updateTag(teamCacheTag("story-posts", teamId));
       return { ok: true as const };
     });
   } catch (e) {

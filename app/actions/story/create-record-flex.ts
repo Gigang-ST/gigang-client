@@ -9,6 +9,7 @@ import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 import { uploadPostPhoto, removePostPhoto } from "@/lib/storage/post-photo";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createRecordFlexSchema } from "@/lib/validations/post";
+import { teamCacheTag } from "@/lib/team-cache-tag";
 
 export type CreateRecordFlexResult =
   | { ok: false; message: string }
@@ -89,7 +90,7 @@ export async function createRecordFlex(
       // stale-while-revalidate라 Next가 일부러 액션이 자기 쓰기를 되읽지 못하게 막는다. 그러면
       // 올리자마자 router.refresh()가 낡은 캐시를 받아 "새로고침해야 기록이 보이는" 증상이 난다.
       // (같은 이유·같은 처방이 createPledge에도 적용돼 있다.)
-      updateTag("story-posts");
+      updateTag(teamCacheTag("story-posts", teamId));
 
       // 깅스타그램 칭호(오운완·깅플루언서·연재작가·유물발굴)는 글이 올라가는 순간 확정된다.
       // **응답 밖에서** 돈다 — 글은 이미 저장·캐시 갱신까지 끝났고, 칭호 평가를 기다리게 하면

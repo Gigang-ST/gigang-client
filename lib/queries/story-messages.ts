@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isRequestAbortError } from "@/lib/supabase/is-abort-error";
+import { teamCacheTags } from "@/lib/team-cache-tag";
 
 /** 종이비행기 한마디 한 건 — `get_team_messages` RPC 반환 형태 */
 export type StoryMessage = {
@@ -58,6 +59,6 @@ export function getStoryMessages(teamId: string): Promise<StoryMessage[]> {
       return (data as StoryMessage[] | null) ?? [];
     },
     ["story-messages", teamId],
-    { tags: ["story-messages"], revalidate: 300 },
+    { tags: teamCacheTags("story-messages", teamId), revalidate: 300 },
   )();
 }

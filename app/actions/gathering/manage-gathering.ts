@@ -26,6 +26,7 @@ import {
   END_BEFORE_START_ERROR,
   REQ_ATTD_PAIR_ERROR,
 } from "@/lib/validations/gathering";
+import { teamCacheTag } from "@/lib/team-cache-tag";
 
 function toUtcIso(localDt: string | null | undefined): string | null {
   if (!localDt) return null;
@@ -217,7 +218,7 @@ export async function createGathering(input: {
     //  ② 웹훅이 쓰는 `revalidateTag(tag, "max")`는 stale-while-revalidate라 프로드에서도
     //     **바로 다음 읽기가 낡은 값**이다(KNOWLEDGE.md "저장했는데 안 보임").
     // 서버 액션 전용 `updateTag`는 즉시 만료 + read-your-own-writes 라 이 자리에 맞다.
-    updateTag(HOME_CALENDAR_CACHE_TAG);
+    updateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, teamId));
     return { gthr_id: gthrId, short_id: data.short_id };
   });
 }
@@ -391,7 +392,7 @@ export async function updateGathering(input: {
       }
     }
 
-    updateTag(HOME_CALENDAR_CACHE_TAG);
+    updateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, teamId));
 
     // gthr_nm이 생략됐을 때 빈 문자열로 알림이 발송되지 않도록 기존 모임명 사용
     const gthrNm = parsed.gthr_nm || (existing.gthr_nm ?? "");
@@ -493,7 +494,7 @@ export async function deleteGathering(gthr_id: string) {
 
     // 지운 모임이 달력·리스트에서 바로 사라지게 — 안 털면 홈 캘린더 캐시(1시간) 때문에
     // 삭제된 모임이 그대로 보이고, 눌러 열면 그제야 없다고 한다.
-    updateTag(HOME_CALENDAR_CACHE_TAG);
+    updateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, teamId));
 
     after(async () => {
       try {

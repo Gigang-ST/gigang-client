@@ -5,6 +5,7 @@ import { unstable_cache } from "next/cache";
 import { reactionKey, type MyReactionMap } from "@/lib/story-reaction";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isRequestAbortError } from "@/lib/supabase/is-abort-error";
+import { teamCacheTags } from "@/lib/team-cache-tag";
 
 import type { MemberCardCompactData } from "@/lib/queries/member-card";
 
@@ -221,7 +222,7 @@ export function getStoryFeed(teamId: string): Promise<StoryFeed> {
     ["story-feed", teamId],
     // `gatherings`는 뺐다 — 터는 쪽이 없어 한 번도 무효화된 적이 없다. 다시 넣지 말 것:
     // 모임 하나 바뀔 때마다 이 무거운 캐시(호출당 5,134버퍼)가 통째로 날아간다.
-    { tags: ["story-feed", "records", "competitions"], revalidate: 300 },
+    { tags: [...teamCacheTags("story-feed", teamId), "records", "competitions"], revalidate: 300 },
   )().catch(() => EMPTY_FEED);
 }
 

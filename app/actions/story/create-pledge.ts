@@ -7,6 +7,7 @@ import { withActive } from "@/lib/actions/auth";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createPledgeSchema } from "@/lib/validations/pledge";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { teamCacheTag } from "@/lib/team-cache-tag";
 
 export type CreatePledgeResult =
   | { ok: false; message: string }
@@ -77,7 +78,7 @@ export async function createPledge(input: { pldg_txt: string }): Promise<CreateP
       // (`pathWasRevalidated`를 안 찍는다 — next/dist/.../revalidate.js). 그래서 저장 직후
       // router.refresh()가 **낡은 캐시**를 받아 "새로고침해야 보이는" 증상이 났다. updateTag는
       // 즉시 만료 + read-your-own-writes라 내 화면도, Realtime을 받은 남의 화면도 바로 갱신된다.
-      updateTag("story-feed");
+      updateTag(teamCacheTag("story-feed", teamId));
       return { ok: true as const, pldg_id: data.pldg_id };
     });
   } catch (e) {

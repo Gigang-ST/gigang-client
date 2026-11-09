@@ -6,6 +6,7 @@ import { withActive } from "@/lib/actions/auth";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createMessageSchema } from "@/lib/validations/message";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { teamCacheTag } from "@/lib/team-cache-tag";
 
 export type CreateMessageResult =
   | { ok: false; message: string }
@@ -53,7 +54,7 @@ export async function createMessage(input: { msg_txt: string }): Promise<CreateM
         return { ok: false as const, message: "잠시 후 다시 시도해 주세요" };
       }
 
-      updateTag("story-messages");
+      updateTag(teamCacheTag("story-messages", teamId));
       return { ok: true as const, msg_id: data.msg_id };
     });
   } catch (e) {

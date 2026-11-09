@@ -3,6 +3,7 @@ import { unstable_cache } from "next/cache";
 import { STORY_POST_LIMIT } from "@/lib/story-post";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isRequestAbortError } from "@/lib/supabase/is-abort-error";
+import { teamCacheTags } from "@/lib/team-cache-tag";
 
 /** 전광판 기록 자랑 한 건 — `get_team_posts` RPC 반환 형태 */
 export type StoryPost = {
@@ -90,6 +91,6 @@ export function getStoryPosts(teamId: string): Promise<StoryPost[]> {
       return (data as StoryPost[] | null) ?? [];
     },
     ["story-posts", teamId],
-    { tags: ["story-posts"], revalidate: 300 },
+    { tags: teamCacheTags("story-posts", teamId), revalidate: 300 },
   )().catch((): StoryPost[] => []);
 }

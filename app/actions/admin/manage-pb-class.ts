@@ -53,6 +53,7 @@ import {
   pbSessPlanSchema,
   pbSessTypeSchema,
 } from "@/lib/validations/pb-class";
+import { teamCacheTag } from "@/lib/team-cache-tag";
 
 /**
  * 겨울 10K PB 클래스 관리자 액션.
@@ -865,7 +866,8 @@ export async function createPbSessGatherings(
   // updateTag: 즉시 만료 + read-your-own-writes — createGathering 이 쓰는 것과 같은 호출이다.
   const created = "created" in res ? res.created : 0;
   if (created > 0) {
-    updateTag(HOME_CALENDAR_CACHE_TAG);
+    const { teamId } = await getRequestTeamContext();
+    updateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, teamId));
     revalidatePath("/projects");
   }
   return { ok: res.ok, message: res.message, created };

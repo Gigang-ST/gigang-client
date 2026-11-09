@@ -19,6 +19,7 @@
 | 8 | 울산 시작 준비(배치 팀별·칭호 복사·가입 정보 팀별·셀프 가입 active 고정) | `20261109180000_team_start_ready.sql` | ✅ | ☐ |
 | 9 | 팀 설정 나머지(이펙트 팀별·회비 분류 팀 칸·기강 계좌/채널 등록) | `20261109190000_team_settings.sql` | ✅ | ☐ |
 | 10 | 기강 오픈채팅 비밀번호를 팀 설정에 등록 | (아래 SQL — 사람이 직접) | ☐ | ☐ |
+| 11 | 캐시 무효화 웹훅에 팀 싣기 | `20261109200000_revalidate_webhook_team.sql` | ✅ | ☐ |
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
@@ -177,9 +178,21 @@ insert into public.team_cfg (team_id, cfg_cd, cfg_val_json)
 values ('c0ffee00-0000-4000-8000-000000000001', 'social.kakao_open_chat_password', to_jsonb('여기에_비밀번호'::text));
 ```
 
+### 11. `20261109200000_revalidate_webhook_team.sql`
+
+캐시 무효화 트리거(`revalidate_records`)가 웹훅 body 에 그 행의 팀(`team_id`)을 같이 보낸다. 새 앱은 그 팀 캐시만 털고,
+옛 앱은 `team_id` 를 무시하고 지금처럼 전부 턴다 — **배포 전후 언제 적용해도 안전하다.**
+
+```sql
+-- 확인: 모임 하나를 건드려 대기열에 쌓인 요청 body 에 team_id 가 있는지(곧 처리돼 사라지므로 바로 본다)
+update gthr_mst set upd_at = upd_at where gthr_id = (select gthr_id from gthr_mst order by crt_at desc limit 1);
+select id, convert_from(body, 'utf8') from net.http_request_queue order by id desc limit 1;
+-- {"table": "gthr_mst", "team_id": "c0ffee00-…-0001"}
+```
+
 ## 배포
 
-1. 위 1~9가 끝났는지 표에서 확인한다(10은 배포 뒤여도 된다).
+1. 위 1~9가 끝났는지 표에서 확인한다(10·11은 배포 뒤여도 된다).
 2. PR #649 머지 → dev → main 배포.
 3. 배포 후 확인
    - 기강 모임을 하나 만들거나 "단톡방에 알림"으로 카톡이 기강 방에 오는지

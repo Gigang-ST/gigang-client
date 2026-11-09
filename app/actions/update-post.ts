@@ -7,6 +7,7 @@ import { BOARD_POSTS_CACHE_TAG, boardPostCacheTag } from "@/lib/queries/board";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { updatePostSchema } from "@/lib/validations/board";
 import { getKSTDate } from "@/lib/dayjs";
+import { teamCacheTag } from "@/lib/team-cache-tag";
 
 export async function updatePost(input: {
   post_id: string;
@@ -48,7 +49,7 @@ export async function updatePost(input: {
     if (error) throw new Error("게시글 수정에 실패했습니다.");
 
     // 목록 + 해당 글 상세 캐시 무효화 (앱 내 수정 경로)
-    revalidateTag(BOARD_POSTS_CACHE_TAG, "max");
+    revalidateTag(teamCacheTag(BOARD_POSTS_CACHE_TAG, teamId), "max");
     revalidateTag(boardPostCacheTag(input.post_id), "max");
   });
 }

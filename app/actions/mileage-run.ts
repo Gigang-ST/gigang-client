@@ -34,6 +34,7 @@ import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 import { activityLogBatchSchema, activityLogSchema } from "@/lib/validations/mileage";
+import { teamCacheTag } from "@/lib/team-cache-tag";
 
 // ─────────────────────────────────────────
 // 타입
@@ -68,6 +69,12 @@ function buildAppliedMults(evtId: string, multIds: string[], actDt: string) {
 export type UploadActivityPhotoResult =
   | { ok: false; message: string }
   | { ok: true; url: string };
+
+/** `evt_team_mst!inner(team_id)` 임베드 결과에서 시즌 팀 id — 배열·객체 둘 다 온다 */
+function pickSeasonTeamId(embed: { team_id: string } | { team_id: string }[] | null | undefined): string | null {
+  const row = Array.isArray(embed) ? embed[0] : embed;
+  return row?.team_id ?? null;
+}
 
 /**
  * 마일리지런 기록에 붙일 사진을 올리고 공개 URL을 돌려준다.
@@ -240,13 +247,15 @@ export async function logActivity(
     const db = createAdminClient();
     const { data: participant, error: participantErr } = await db
       .from("evt_team_prt_rel")
-      .select("prt_id")
+      .select("prt_id, evt_team_mst!inner(team_id)")
       .eq("evt_id", evtId)
       .eq("mem_id", member.id)
       .eq("aprv_yn", true)
       .single();
 
     if (participantErr || !participant) return { ok: false, message: "참여 신청 정보를 찾을 수 없습니다" };
+    // 사진 붙은 기록은 그 **시즌 팀**의 깅스타그램에 선다(트리거) — 그 팀 캐시를 턴다
+    const seasonTeamId = pickSeasonTeamId(participant.evt_team_mst);
 
     const { appliedMults, multValues, error: multErr } = await buildAppliedMults(evtId, validInput.applied_mult_ids, validInput.act_dt);
     if (multErr) return { ok: false, message: multErr };
@@ -276,7 +285,7 @@ export async function logActivity(
 
     // 사진이 붙었으면 지면이 바뀐다 — 전광판 캐시(5분)를 기다리지 않고 즉시 반영한다.
     // `revalidatePath("/projects")`만으론 /story의 `story-posts` 태그가 안 풀린다.
-    if (validInput.photo_url) updateTag("story-posts");
+    if (validInput.photo_url && seasonTeamId) updateTag(teamCacheTag("story-posts", seasonTeamId));
 
     try {
       await recalcGoalsFromMonth(evtId, participant.prt_id);
@@ -336,13 +345,15 @@ export async function logActivitiesBatch(
     const db = createAdminClient();
     const { data: participant, error: participantErr } = await db
       .from("evt_team_prt_rel")
-      .select("prt_id")
+      .select("prt_id, evt_team_mst!inner(team_id)")
       .eq("evt_id", evtId)
       .eq("mem_id", member.id)
       .eq("aprv_yn", true)
       .single();
 
     if (participantErr || !participant) return { ok: false, message: "참여 신청 정보를 찾을 수 없습니다" };
+    // 사진 붙은 기록은 그 **시즌 팀**의 깅스타그램에 선다(트리거) — 그 팀 캐시를 턴다
+    const seasonTeamId = pickSeasonTeamId(participant.evt_team_mst);
 
     const rows: {
       prt_id: string;
@@ -395,7 +406,7 @@ export async function logActivitiesBatch(
     if (error) return { ok: false, message: "활동 기록 저장에 실패했습니다" };
 
     // 한 건이라도 사진이 붙었으면 기강이야기 지면이 바뀐다(트리거가 post를 세운다)
-    if (rows.some((r) => r.photo_url)) updateTag("story-posts");
+    if (rows.some((r) => r.photo_url) && seasonTeamId) updateTag(teamCacheTag("story-posts", seasonTeamId));
 
     try {
       await recalcGoalsFromMonth(evtId, participant.prt_id);
@@ -527,7 +538,8 @@ export async function updateActivity(
       if (prevPath) await removePostPhoto(supabase, prevPath);
     }
     // 사진이 붙거나 떨어지면 기강이야기 지면이 바뀐다(트리거가 post를 세우거나 내린다)
-    if (prevPhotoUrl || nextPhotoUrl) updateTag("story-posts");
+    // 깅스타그램 행은 기록 **시즌 팀** 것이다(트리거) — 접속한 팀이 아니라 그 팀 캐시를 턴다
+    if (prevPhotoUrl || nextPhotoUrl) updateTag(teamCacheTag("story-posts", evtTeam?.team_id ?? teamId));
 
     try {
       await recalcGoalsFromMonth(existingParticipant.evt_id, existing.prt_id);
@@ -579,12 +591,16 @@ export async function deleteActivity(actId: string): Promise<ActionResult> {
 
     const { data: existing, error: fetchErr } = await db
       .from("evt_mlg_act_hist")
-      .select("act_id, prt_id, act_dt, photo_url, evt_team_prt_rel!inner(mem_id, evt_id)")
+      .select("act_id, prt_id, act_dt, photo_url, evt_team_prt_rel!inner(mem_id, evt_id, evt_team_mst!inner(team_id))")
       .eq("act_id", actId)
       .single();
 
     if (fetchErr || !existing) return { ok: false, message: "기록을 찾을 수 없습니다" };
-    const existingParticipant = existing.evt_team_prt_rel as { mem_id: string; evt_id: string };
+    const existingParticipant = existing.evt_team_prt_rel as {
+      mem_id: string;
+      evt_id: string;
+      evt_team_mst: { team_id: string } | { team_id: string }[];
+    };
     // 관리자 특권은 접속한 팀 시즌일 때만(updateActivity 와 같은 이유)
     const { teamId } = await getRequestTeamContext();
     const isAdmin = !!member.admin && (await isEvtInTeam(db, teamId, existingParticipant.evt_id));
@@ -604,7 +620,8 @@ export async function deleteActivity(actId: string): Promise<ActionResult> {
     if (photoUrl) {
       const path = postPhotoPathFromUrl(photoUrl);
       if (path) await removePostPhoto(supabase, path);
-      updateTag("story-posts");
+      // 깅스타그램 행은 기록 시즌 팀 것 — 그 팀 캐시를 턴다
+      updateTag(teamCacheTag("story-posts", pickSeasonTeamId(existingParticipant.evt_team_mst) ?? teamId));
     }
 
     try {

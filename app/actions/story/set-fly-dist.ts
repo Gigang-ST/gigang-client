@@ -4,6 +4,8 @@ import { updateTag } from "next/cache";
 
 import { withActive } from "@/lib/actions/auth";
 import { FLY_DIST_MAX } from "@/lib/story-throw";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { teamCacheTag } from "@/lib/team-cache-tag";
 
 export type SetFlyDistResult = { ok: boolean };
 
@@ -46,7 +48,10 @@ export async function setFlyDist(input: {
 
       // 하늘의 고도가 이 값으로 정해지므로, 기록됐을 때만 지면을 다시 그린다.
       // (false = 이미 던졌거나 남의 것 — 바뀐 게 없어 무효화할 이유가 없다.)
-      if (data === true) updateTag("story-messages");
+      if (data === true) {
+        const { teamId } = await getRequestTeamContext();
+        updateTag(teamCacheTag("story-messages", teamId));
+      }
 
       return { ok: data === true };
     });

@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
+import { teamCacheTags } from "@/lib/team-cache-tag";
 
 /** 게시판 목록·상세 공개 데이터 캐시 태그 (brd_post_mst 변경 시 무효화) */
 export const BOARD_POSTS_CACHE_TAG = "board-posts";
@@ -62,15 +63,20 @@ export async function getBoardPosts(
   }));
 }
 
-export async function getBoardPost(postId: string): Promise<BoardPost | null> {
+/**
+ * 게시글 하나 — **이 팀 글일 때만.** 글 id 만으로 읽으면 울산 주소에서 기강 글 링크를 열었을 때
+ * 기강 공지가 그대로 보인다(멀티팀). 다른 팀 글은 없는 글과 같게 null.
+ */
+export async function getBoardPost(teamId: string, postId: string): Promise<BoardPost | null> {
   const admin = createUntypedAdminClient();
 
   const { data: post, error } = await admin
     .from("brd_post_mst")
     .select("post_id, team_id, post_type_enm, post_nm, post_cont, writ_mem_id, pin_yn, crt_at, upd_at")
     .eq("post_id", postId)
+    .eq("team_id", teamId)
     .eq("del_yn", false)
-    .single();
+    .maybeSingle();
 
   if (error || !post) return null;
 
@@ -111,7 +117,7 @@ export function getCachedBoardPosts(
   return unstable_cache(
     () => getBoardPosts(teamId, type, { limit: 20 }),
     [`board-posts-${teamId}-${type}`],
-    { tags: [BOARD_POSTS_CACHE_TAG], revalidate: 3600 },
+    { tags: teamCacheTags(BOARD_POSTS_CACHE_TAG, teamId), revalidate: 3600 },
   )();
 }
 
@@ -150,7 +156,7 @@ export function getCachedBoardPostRefs(teamId: string): Promise<BoardPostRef[]> 
   return unstable_cache(
     () => getBoardPostRefs(teamId),
     [`board-post-refs-${teamId}`],
-    { tags: [BOARD_POSTS_CACHE_TAG], revalidate: 3600 },
+    { tags: teamCacheTags(BOARD_POSTS_CACHE_TAG, teamId), revalidate: 3600 },
   )();
 }
 
@@ -159,12 +165,13 @@ export function getCachedBoardPostRefs(teamId: string): Promise<BoardPostRef[]> 
  * 태그 2개: 전체 목록 무효화(board-posts)와 특정 글 무효화(board-post:{id}) 둘 다에 반응하도록 유지.
  * DB 직접 수정(트리거 → board-posts) / 앱 내 수정(revalidateTag(board-post:{id})) 어느 경로로든 갱신됨.
  */
-export function getCachedBoardPost(postId: string): Promise<BoardPost | null> {
+export function getCachedBoardPost(teamId: string, postId: string): Promise<BoardPost | null> {
   return unstable_cache(
-    () => getBoardPost(postId),
-    [`board-post-${postId}`],
+    () => getBoardPost(teamId, postId),
+    // 키에 팀을 넣는다 — 같은 글 id 라도 팀마다 결과가 다르다(다른 팀이면 null)
+    [`board-post-${teamId}-${postId}`],
     {
-      tags: [BOARD_POSTS_CACHE_TAG, boardPostCacheTag(postId)],
+      tags: [...teamCacheTags(BOARD_POSTS_CACHE_TAG, teamId), boardPostCacheTag(postId)],
       revalidate: 3600,
     },
   )();

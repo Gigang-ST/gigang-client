@@ -7,6 +7,7 @@ import { dayjs } from "@/lib/dayjs";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { postPhotoPathFromUrl, removePostPhoto } from "@/lib/storage/post-photo";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { teamCacheTag } from "@/lib/team-cache-tag";
 
 export type DeleteRecordFlexResult =
   | { ok: false; message: string }
@@ -98,7 +99,7 @@ export async function deleteRecordFlex(
       // 행을 내린 뒤에 파일을 정리한다 — 아무도 참조하지 않게 된 다음이라 안전하다.
       if (photoPath) await removePostPhoto(supabase, photoPath);
 
-      updateTag("story-posts");
+      updateTag(teamCacheTag("story-posts", teamId));
       return { ok: true as const };
     });
   } catch (e) {
