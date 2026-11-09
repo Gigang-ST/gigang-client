@@ -20,6 +20,7 @@
 | 9 | 팀 설정 나머지(이펙트 팀별·회비 분류 팀 칸·기강 계좌/채널 등록) | `20261109190000_team_settings.sql` | ✅ | ☐ |
 | 10 | 기강 오픈채팅 비밀번호를 팀 설정에 등록 | (아래 SQL — 사람이 직접) | ☐ | ☐ |
 | 11 | 캐시 무효화 웹훅에 팀 싣기 | `20261109200000_revalidate_webhook_team.sql` | ✅ | ☐ |
+| 12 | 건의 팀별 | `20261109210000_fdbk_team.sql` | ✅ | ☐ |
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
@@ -190,9 +191,19 @@ select id, convert_from(body, 'utf8') from net.http_request_queue order by id de
 -- {"table": "gthr_mst", "team_id": "c0ffee00-…-0001"}
 ```
 
+### 12. `20261109210000_fdbk_team.sql`
+
+건의(`fdbk_mst`)에 팀 칸을 더하고 기존 행(prd 5건, 전부 기강)을 기강으로 채운다. **기본값을 기강으로 둔다** —
+배포 전 옛 코드는 팀 없이 넣으므로, 기본값이 없으면 배포 전까지 건의 제출이 실패한다. 배포 뒤 기본값을 지운다(아래).
+
+```sql
+-- 확인: 빈 팀 없음, 전부 기강
+select t.team_cd, count(*) from fdbk_mst f join team_mst t using (team_id) group by 1;
+```
+
 ## 배포
 
-1. 위 1~9가 끝났는지 표에서 확인한다(10·11은 배포 뒤여도 된다).
+1. 위 1~9·12가 끝났는지 표에서 확인한다(10·11은 배포 뒤여도 된다).
 2. PR #649 머지 → dev → main 배포.
 3. 배포 후 확인
    - 기강 모임을 하나 만들거나 "단톡방에 알림"으로 카톡이 기강 방에 오는지
@@ -231,6 +242,8 @@ select id, convert_from(body, 'utf8') from net.http_request_queue order by id de
   `join_src_txt`·`attd_pldg_at`·`pldg_gthr_id`)를 지우는 마이그레이션을 따로 낸다. 남아 있는 동안은 다른 팀 관리자가
   두 팀 소속자의 옛 가입 경로를 볼 수 있다(`mem_onbd_prf_select_team_admin` — 지금은 해당자 1명).
 - 이펙트를 다 옮긴 뒤 `effect_mst` 의 `rarity_level`·`use_yn`·`unlock_cond_json` 은 "팀 행이 없을 때 기본값"으로만 쓰인다.
+- 건의 팀 칸의 전환용 기본값을 지운다(새 코드는 늘 팀을 넣는다):
+  `alter table fdbk_mst alter column team_id drop default;`
 - **울산 주소를 회원들에게 알리는 건** 이 PR 체크리스트(울산 시작 준비 등)가 끝난 뒤.
 
 ## 참고

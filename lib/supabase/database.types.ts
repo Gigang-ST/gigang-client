@@ -1141,6 +1141,7 @@ export type Database = {
           mem_id: string
           rspd_at: string | null
           stts_enm: Database["public"]["Enums"]["fdbk_stts_enm"]
+          team_id: string
           upd_at: string
           vers: number
         }
@@ -1153,6 +1154,7 @@ export type Database = {
           mem_id: string
           rspd_at?: string | null
           stts_enm?: Database["public"]["Enums"]["fdbk_stts_enm"]
+          team_id?: string
           upd_at?: string
           vers?: number
         }
@@ -1165,6 +1167,7 @@ export type Database = {
           mem_id?: string
           rspd_at?: string | null
           stts_enm?: Database["public"]["Enums"]["fdbk_stts_enm"]
+          team_id?: string
           upd_at?: string
           vers?: number
         }

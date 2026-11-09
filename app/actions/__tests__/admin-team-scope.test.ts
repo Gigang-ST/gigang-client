@@ -81,6 +81,8 @@ import { sendNotification } from "@/app/actions/admin/send-notification";
 import { createComment } from "@/app/actions/comment/manage-comment";
 import { deletePost } from "@/app/actions/delete-post";
 import { createExemption } from "@/app/actions/dues/create-exemption";
+import { respondFeedback } from "@/app/actions/feedback/respond-feedback";
+import { updateFeedbackStatus } from "@/app/actions/feedback/update-feedback-status";
 import { insertNotiMany } from "@/lib/notifications/insert-noti";
 
 beforeEach(() => {
@@ -123,6 +125,9 @@ beforeEach(() => {
     ],
     rec_race_hist: [{ race_result_id: "rec-a", mem_id: "mem-a", rec_time_sec: 3600 }],
     brd_post_mst: [{ post_id: "brd-gigang", team_id: GIGANG, del_yn: false }],
+    fdbk_mst: [
+      { fdbk_id: "fb-gigang", team_id: GIGANG, mem_id: "mem-a", cont_txt: "기강 건의", stts_enm: "open", adm_note_txt: null, del_yn: false },
+    ],
     comp_reg_rel: [
       // 임베디드 관계(team_comp_plan_rel!inner)는 가짜 DB 가 조인하지 않아 행에 미리 넣어 둔다
       { comp_reg_id: "reg-gigang", team_comp_id: "plan-gigang", team_comp_plan_rel: { team_id: GIGANG } },
@@ -306,5 +311,25 @@ describe("변경 이력 행위자 · 대회 참가 신청", () => {
     h.teamId = GIGANG;
     expect((await deleteRegistration("reg-gigang")).ok).toBe(true);
     expect(h.db.tables.comp_reg_rel).toHaveLength(0);
+  });
+});
+
+describe("건의 — 그 팀 운영진만", () => {
+  it("다른 팀 건의의 상태는 바꿀 수 없다", async () => {
+    const res = await updateFeedbackStatus("fb-gigang", "resolved");
+    expect(res.ok).toBe(false);
+    expect(h.db.tables.fdbk_mst[0].stts_enm).toBe("open");
+  });
+
+  it("다른 팀 건의에는 답변을 달 수 없고 알림도 안 간다", async () => {
+    const res = await respondFeedback("fb-gigang", "확인했어요");
+    expect(res.ok).toBe(false);
+    expect(h.db.tables.fdbk_mst[0].adm_note_txt).toBeNull();
+  });
+
+  it("우리 팀 건의는 처리한다", async () => {
+    h.teamId = GIGANG;
+    expect((await updateFeedbackStatus("fb-gigang", "resolved")).ok).toBe(true);
+    expect(h.db.tables.fdbk_mst[0].stts_enm).toBe("resolved");
   });
 });

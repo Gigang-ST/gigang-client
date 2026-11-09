@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { getCurrentMember } from "@/lib/queries/member";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createClient } from "@/lib/supabase/server";
 
 import { FeedbackForm } from "@/components/feedback/feedback-form";
@@ -19,6 +20,8 @@ export default async function ProfileFeedbackPage() {
   const { data } = await (supabase as any)
     .from("fdbk_mst")
     .select("fdbk_id, cont_txt, stts_enm, adm_note_txt, crt_at")
+    // 이 팀에 낸 것만 — 두 팀 소속자의 건의가 섞이지 않게(RLS 는 본인 것만 보여 준다)
+    .eq("team_id", (await getRequestTeamContext()).teamId)
     .eq("del_yn", false)
     .eq("vers", 0)
     .order("crt_at", { ascending: false })

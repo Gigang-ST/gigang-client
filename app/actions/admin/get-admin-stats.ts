@@ -58,7 +58,7 @@ export async function getAdminStats(): Promise<AdminStats> {
       // PB 클래스 입금 대기 — 참가자 테이블이 마일리지와 분리돼 있어 따로 세어 합친다
       admin.from("evt_pb_prt_rel").select("evt_id, evt_team_mst!inner(team_id, stts_enm)", { count: "exact", head: true }).eq("aprv_yn", false).eq("evt_team_mst.team_id", teamId).neq("evt_team_mst.stts_enm", "CLOSED"),
       admin.rpc("get_admin_unpaid_active_count", { p_team_id: teamId }),
-      admin.from("fdbk_mst").select("*", { count: "exact", head: true }).in("stts_enm", ["open", "in_review"]).eq("vers", 0).eq("del_yn", false),
+      admin.from("fdbk_mst").select("*", { count: "exact", head: true }).eq("team_id", teamId).in("stts_enm", ["open", "in_review"]).eq("vers", 0).eq("del_yn", false),
       // 승인 대기 중인 모임 참가 신청 — **월 필터 없음**(다른 달 대기 건을 놓치지 않게).
       // 삭제된 모임의 잔여 신청은 처리할 일이 아니므로 gthr_mst 를 inner 로 걸어 걸러낸다.
       admin
