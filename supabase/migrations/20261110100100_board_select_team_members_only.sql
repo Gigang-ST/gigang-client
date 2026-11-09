@@ -10,7 +10,8 @@ SET lock_timeout = '3s';
 DROP POLICY IF EXISTS brd_post_mst_select ON public.brd_post_mst;
 
 CREATE POLICY brd_post_mst_select ON public.brd_post_mst
-  FOR SELECT USING (
+  FOR SELECT TO authenticated
+  USING (
     del_yn = false
     AND public.v2_rls_auth_in_team(team_id)
   );

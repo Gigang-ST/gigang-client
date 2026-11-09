@@ -41,7 +41,7 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.mem_mst_guard_protected_columns() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.mem_mst_guard_protected_columns() FROM PUBLIC, anon;
 
 DROP TRIGGER IF EXISTS mem_mst_guard_protected_columns ON public.mem_mst;
 CREATE TRIGGER mem_mst_guard_protected_columns
@@ -72,7 +72,7 @@ AS $$
   );
 $$;
 
-REVOKE ALL ON FUNCTION public.v2_rls_auth_team_owner(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.v2_rls_auth_team_owner(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.v2_rls_auth_team_owner(uuid) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.team_mem_rel_guard_owner_and_keys()
@@ -88,6 +88,7 @@ BEGIN
   -- 소속 키는 사용자 세션에서 옮길 수 없다
   IF NEW.team_id IS DISTINCT FROM OLD.team_id
      OR NEW.mem_id IS DISTINCT FROM OLD.mem_id
+     OR NEW.vers IS DISTINCT FROM OLD.vers
   THEN
     RAISE EXCEPTION 'team_mem_rel: 소속 키는 직접 수정할 수 없습니다'
       USING ERRCODE = '42501';
@@ -108,7 +109,7 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.team_mem_rel_guard_owner_and_keys() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.team_mem_rel_guard_owner_and_keys() FROM PUBLIC, anon;
 
 DROP TRIGGER IF EXISTS team_mem_rel_guard_owner_and_keys ON public.team_mem_rel;
 CREATE TRIGGER team_mem_rel_guard_owner_and_keys
@@ -118,3 +119,35 @@ CREATE TRIGGER team_mem_rel_guard_owner_and_keys
 
 COMMENT ON FUNCTION public.team_mem_rel_guard_owner_and_keys() IS
   '사용자 세션의 team_mem_rel UPDATE 에서 team_id/mem_id 변경, owner 승격·강등·상태 변경(owner 아닌 호출자)을 막는다. service_role/RPC 는 통과.';
+
+-- INSERT: 사용자 세션이 owner 등급 행을 새로 만들려면 같은 팀 owner 여야 한다.
+-- (셀프 가입은 member 고정 정책, service_role/RPC 는 current_user 가 달라 통과)
+CREATE OR REPLACE FUNCTION public.team_mem_rel_guard_owner_insert()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  IF current_user NOT IN ('authenticated', 'anon') THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.team_role_cd = 'owner' AND NOT public.v2_rls_auth_team_owner(NEW.team_id) THEN
+    RAISE EXCEPTION 'team_mem_rel: owner 행은 owner 만 만들 수 있습니다'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.team_mem_rel_guard_owner_insert() FROM PUBLIC, anon;
+
+DROP TRIGGER IF EXISTS team_mem_rel_guard_owner_insert ON public.team_mem_rel;
+CREATE TRIGGER team_mem_rel_guard_owner_insert
+  BEFORE INSERT ON public.team_mem_rel
+  FOR EACH ROW
+  EXECUTE FUNCTION public.team_mem_rel_guard_owner_insert();
+
+COMMENT ON FUNCTION public.team_mem_rel_guard_owner_insert() IS
+  '사용자 세션의 team_mem_rel INSERT 에서 owner 등급 행은 같은 팀 owner 만 허용한다.';
