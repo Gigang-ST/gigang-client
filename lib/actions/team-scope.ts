@@ -28,6 +28,34 @@ export async function isTeamMemIdInTeam(db: Db, teamId: string, teamMemId: strin
   return Boolean(data);
 }
 
+/** 프로젝트(마일리지런·PB 시즌, `evt_team_mst`)가 이 팀 것인가 — 배율·참가자·활동 기록은 이걸 따라 팀이 정해진다 */
+export async function isEvtInTeam(db: Db, teamId: string, evtId: string): Promise<boolean> {
+  const { data } = await db
+    .from("evt_team_mst")
+    .select("evt_id")
+    .eq("evt_id", evtId)
+    .eq("team_id", teamId)
+    .maybeSingle();
+  return Boolean(data);
+}
+
+/**
+ * 받은 `mem_id` 목록 중 이 팀 소속만 남긴다 — 멘션·관리자 알림 대상처럼 브라우저가 고른 사람 목록용.
+ * 안 거르면 아무 mem_id 에나 이 팀 이름으로 알림·푸시가 간다.
+ */
+export async function filterMemIdsInTeam(db: Db, teamId: string, memIds: string[]): Promise<string[]> {
+  if (memIds.length === 0) return [];
+  const { data } = await db
+    .from("team_mem_rel")
+    .select("mem_id")
+    .in("mem_id", memIds)
+    .eq("team_id", teamId)
+    .eq("vers", 0)
+    .eq("del_yn", false);
+  const inTeam = new Set((data ?? []).map((r) => r.mem_id));
+  return memIds.filter((id) => inTeam.has(id));
+}
+
 /** 사람(`mem_id`)이 이 팀에 소속돼 있는가 — 사람 단위 데이터(기록 등)를 그 팀 관리자가 다룰 수 있는지 */
 export async function isMemIdInTeam(db: Db, teamId: string, memId: string): Promise<boolean> {
   const { data } = await db

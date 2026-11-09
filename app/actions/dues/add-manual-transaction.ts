@@ -3,6 +3,7 @@
 import { dayjs } from "@/lib/dayjs";
 
 import { withAdmin } from "@/lib/actions/auth";
+import { isMemIdInTeam } from "@/lib/actions/team-scope";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -120,6 +121,10 @@ export async function addManualTransaction(input: AddManualTxnInput) {
 
     // 회원 지정 시 matched, 미지정 시 unmatched
     const memId = input.memId?.trim() || null;
+    // 이 팀 회원으로만 매칭 — 안 거르면 이 팀 회비 장부에 다른 팀(또는 없는) 사람의 거래가 생긴다
+    if (memId && !(await isMemIdInTeam(db, teamId, memId))) {
+      return { ok: false as const, message: "회원을 찾을 수 없습니다." };
+    }
     const matchStatus = memId ? "matched" : "unmatched";
 
     const now = dayjs().tz("Asia/Seoul");

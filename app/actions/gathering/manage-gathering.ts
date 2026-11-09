@@ -238,6 +238,10 @@ export async function updateGathering(input: {
   return withMember(async ({ member, supabase }) => {
     const parsed = updateGthrSchema.parse(input);
     const { gthr_id, stt_at, end_at, exm_evt_id: exmInput, ...rest } = parsed;
+    // 접속한 팀의 모임만 — RLS 는 "내가 속한 아무 팀"을 통과시키고 member.admin 은 접속한 팀 기준이라,
+    // 안 거르면 두 팀 소속자가 다른 팀 모임을 이 팀 관리자 권한으로 고친다(실제론 0행 no-op 인데
+    // 성공으로 응답하고 변경 알림·카톡까지 나간다).
+    const { teamId: scopeTeamId } = await getRequestTeamContext();
 
     // 지난 모임(KST 날짜 기준) 수정 차단 — 관리자만 예외. 알림용 기존 모임명도 같이 조회.
     const { data: existing } = await supabase
@@ -247,6 +251,7 @@ export async function updateGathering(input: {
         "gthr_nm, stt_at, end_at, loc_txt, short_id, crt_by, aprv_req_yn, req_attd_cnt, req_attd_months, exm_evt_id, max_prt_cnt",
       )
       .eq("gthr_id", gthr_id)
+      .eq("team_id", scopeTeamId)
       .single();
     if (!existing) throw new Error("모임을 찾을 수 없습니다.");
 
@@ -457,10 +462,14 @@ export async function updateGathering(input: {
 
 export async function deleteGathering(gthr_id: string) {
   return withMember(async ({ member, supabase }) => {
+    // 접속한 팀의 모임만 — 안 거르면 울산 운영진이면서 기강 일반회원인 사람이 기강 모임을 지우고
+    // 기강 참석자에게 취소 알림·카톡 공지가 나간다(삭제는 service_role 이라 RLS 도 안 막는다).
+    const { teamId } = await getRequestTeamContext();
     const { data: gthr } = await supabase
       .from("gthr_mst")
       .select("crt_by, team_id, gthr_nm, stt_at, end_at, loc_txt")
       .eq("gthr_id", gthr_id)
+      .eq("team_id", teamId)
       .single();
     if (!gthr) throw new Error("모임을 찾을 수 없습니다.");
 

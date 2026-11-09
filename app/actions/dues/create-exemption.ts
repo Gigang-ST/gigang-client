@@ -1,6 +1,7 @@
 "use server";
 
 import { withAdmin } from "@/lib/actions/auth";
+import { isMemIdInTeam } from "@/lib/actions/team-scope";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -18,6 +19,8 @@ export async function createExemption({ memId, exmTpEnm, exmAmt, aplySttDt, aply
 
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
+    // 이 팀 회원에게만 — 안 거르면 이 팀 장부에 다른 팀 사람의 면제 규칙이 생긴다
+    if (!(await isMemIdInTeam(db, teamId, memId))) return { ok: false as const, message: "회원을 찾을 수 없습니다." };
 
     if (exmTpEnm === "part" && exmAmt) {
       const { data: policy } = await db.from("fee_policy_cfg").select("monthly_fee_amt").eq("team_id", teamId).eq("vers", 0).eq("del_yn", false).lte("aply_stt_dt", aplySttDt).gte("aply_end_dt", aplySttDt).order("aply_stt_dt", { ascending: false }).limit(1).maybeSingle();

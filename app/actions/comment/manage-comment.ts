@@ -4,6 +4,7 @@ import { after } from "next/server"
 
 import { dayjs } from "@/lib/dayjs"
 import { withActive, withMember } from "@/lib/actions/auth"
+import { filterMemIdsInTeam } from "@/lib/actions/team-scope"
 import { insertNoti, insertNotiMany } from "@/lib/notifications/insert-noti"
 import { getRequestTeamContext } from "@/lib/queries/request-team"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -17,6 +18,29 @@ import {
 } from "@/lib/validations/comment"
 import { evaluateAndGrantTitles } from "@/lib/titles/engine"
 
+/**
+ * 댓글 대상이 접속한 팀 것인가. 대회(`comp`)는 원본을 두 팀이 같이 쓰므로 팀을 묻지 않는다 —
+ * 그 대회 댓글은 이 댓글의 team_id 로 팀별로 갈린다.
+ * 안 거르면 다른 팀 모임·글에 이 팀 team_id 가 붙은 댓글이 생기고(본문은 안 보여도 개수는 오른다),
+ * 그 모임 개설자에게 다른 팀 이름으로 알림이 간다.
+ */
+async function commentTargetInTeam(
+  admin: ReturnType<typeof createAdminClient>,
+  teamId: string,
+  entityType: CreateCommentInput["entityType"],
+  entityId: string,
+): Promise<boolean> {
+  if (entityType === "comp") return true
+  const query =
+    entityType === "gathering"
+      ? admin.from("gthr_mst").select("team_id").eq("gthr_id", entityId)
+      : entityType === "sch_post"
+        ? admin.from("sch_post_mst").select("team_id").eq("sch_post_id", entityId)
+        : admin.from("post_mst").select("team_id").eq("post_id", entityId)
+  const { data } = await query.eq("team_id", teamId).maybeSingle()
+  return Boolean(data)
+}
+
 export async function createComment(input: CreateCommentInput) {
   const parsed = createCommentSchema.parse(input)
   // 작성은 active 회원만 — 비활성/탈퇴는 클라이언트 게이트가 안내하고, 서버가 최종 방어.
@@ -24,9 +48,19 @@ export async function createComment(input: CreateCommentInput) {
     const { teamId } = await getRequestTeamContext()
     const admin = createAdminClient()
 
+    if (!(await commentTargetInTeam(admin, teamId, parsed.entityType, parsed.entityId))) {
+      return { ok: false as const, message: "댓글을 달 대상을 찾을 수 없습니다." }
+    }
+
     if (parsed.prntId) {
-      const { data: parent } = await supabase.from("cmnt_mst").select("prnt_id").eq("cmnt_id", parsed.prntId).single()
-      if (parent?.prnt_id) return { ok: false as const, message: "답글의 답글은 허용되지 않습니다." }
+      const { data: parent } = await supabase
+        .from("cmnt_mst")
+        .select("prnt_id")
+        .eq("cmnt_id", parsed.prntId)
+        .eq("team_id", teamId)
+        .single()
+      if (!parent) return { ok: false as const, message: "원댓글을 찾을 수 없습니다." }
+      if (parent.prnt_id) return { ok: false as const, message: "답글의 답글은 허용되지 않습니다." }
     }
 
     const { data: cmnt, error } = await supabase
@@ -40,7 +74,12 @@ export async function createComment(input: CreateCommentInput) {
 
     if (error || !cmnt) return { ok: false as const, message: "댓글 저장 실패" }
 
-    const uniqueMentions = [...new Set(parsed.mentionedMemIds)].filter((id) => id !== member.id)
+    // 멘션은 이 팀 회원만 — 브라우저가 고른 목록이라, 안 거르면 아무 mem_id 에나 알림·푸시가 간다
+    const uniqueMentions = await filterMemIdsInTeam(
+      admin,
+      teamId,
+      [...new Set(parsed.mentionedMemIds)].filter((id) => id !== member.id),
+    )
 
     // 멘션 관계는 댓글 기능의 일부라 응답 전에 저장(렌더링에 필요).
     if (uniqueMentions.length > 0) {
@@ -188,7 +227,13 @@ export async function updateComment(input: UpdateCommentInput) {
     if (error || !updated?.length) return { ok: false as const, message: "댓글 수정 실패" }
 
     await admin.from("cmnt_mention_rel").delete().eq("cmnt_id", parsed.cmntId)
-    const uniqueMentions = [...new Set(parsed.mentionedMemIds)].filter((id) => id !== member.id)
+    // 멘션은 이 팀 회원만(createComment 와 같은 이유)
+    const { teamId } = await getRequestTeamContext()
+    const uniqueMentions = await filterMemIdsInTeam(
+      admin,
+      teamId,
+      [...new Set(parsed.mentionedMemIds)].filter((id) => id !== member.id),
+    )
     if (uniqueMentions.length > 0) {
       await admin.from("cmnt_mention_rel").insert(uniqueMentions.map((memId) => ({ cmnt_id: parsed.cmntId, mem_id: memId })))
     }

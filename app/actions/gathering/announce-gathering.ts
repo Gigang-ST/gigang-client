@@ -3,6 +3,7 @@
 import { withActive } from "@/lib/actions/auth";
 import { announceGathering } from "@/lib/gathering/kakao-dispatch";
 import { isPastLockedFor } from "@/lib/past-event";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getRequestOrigin } from "@/lib/request-origin";
 
 export type AnnounceGatheringResult =
@@ -24,10 +25,13 @@ export type AnnounceGatheringResult =
  */
 export async function announceGatheringToKakao(gthrId: string): Promise<AnnounceGatheringResult> {
   return withActive(async ({ member, supabase }) => {
+    // 접속한 팀의 모임만 — 카톡방은 팀 것이라, 안 거르면 두 팀 소속자가 다른 팀 모임을 이 팀 방에 올린다
+    const { teamId } = await getRequestTeamContext();
     const { data: gthr } = await supabase
       .from("gthr_mst")
       .select("gthr_nm, stt_at, end_at, loc_txt, short_id, max_prt_cnt, del_yn, mem_mst!gthr_mst_crt_by_fkey(mem_nm)")
       .eq("gthr_id", gthrId)
+      .eq("team_id", teamId)
       .single();
     if (!gthr || gthr.del_yn) throw new Error("모임을 찾을 수 없습니다.");
 

@@ -23,12 +23,14 @@ import {
   type ActivityLogInput,
 } from "@/lib/mileage-run";
 import { withActive } from "@/lib/actions/auth";
+import { isEvtInTeam } from "@/lib/actions/team-scope";
 import {
   postPhotoPathFromUrl,
   removePostPhoto,
   uploadPostPhoto,
 } from "@/lib/storage/post-photo";
 import { isOwnPostPhotoUrl } from "@/lib/storage/post-photo-url";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 import { activityLogBatchSchema, activityLogSchema } from "@/lib/validations/mileage";
@@ -110,12 +112,15 @@ export async function joinProject(
   hasSinglet: boolean,
 ): Promise<ActionResult> {
   return withActive(async ({ member }) => {
+    const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
 
+    // 접속한 팀의 시즌에만 신청받는다 — 안 거르면 울산 회원이 기강 마일리지런에 들어간다
     const { data: evt, error: evtError } = await db
       .from("evt_team_mst")
       .select("end_dt, stt_dt, evt_type_cd")
       .eq("evt_id", evtId)
+      .eq("team_id", teamId)
       .single();
 
     if (evtError || !evt) return { ok: false, message: "이벤트를 찾을 수 없습니다" };
@@ -437,7 +442,7 @@ export async function updateActivity(
   const validInput = parsed.data;
 
   return withActive(async ({ member, supabase }) => {
-    const isAdmin = !!member.admin;
+    const isTeamAdmin = !!member.admin;
     const db = createAdminClient();
 
     const { data: existing, error: fetchErr } = await db
@@ -455,6 +460,10 @@ export async function updateActivity(
     const evtTeam = Array.isArray(existingParticipant.evt_team_mst)
       ? existingParticipant.evt_team_mst[0]
       : existingParticipant.evt_team_mst;
+    // 관리자 특권(남의 기록·날짜 제한 무시)은 **접속한 팀 시즌일 때만**. member.admin 은 접속한 팀의
+    // 관리자라는 뜻이라, 다른 팀 시즌까지 적용하면 울산 관리자가 기강 기록을 고칠 수 있다.
+    const { teamId } = await getRequestTeamContext();
+    const isAdmin = isTeamAdmin && evtTeam?.team_id === teamId;
     if (!isAdmin && existingParticipant.mem_id !== member.id) {
       return { ok: false, message: "본인 기록만 수정할 수 있습니다" };
     }
@@ -566,7 +575,6 @@ export async function updateActivity(
 
 export async function deleteActivity(actId: string): Promise<ActionResult> {
   return withActive(async ({ member, supabase }) => {
-    const isAdmin = !!member.admin;
     const db = createAdminClient();
 
     const { data: existing, error: fetchErr } = await db
@@ -577,6 +585,9 @@ export async function deleteActivity(actId: string): Promise<ActionResult> {
 
     if (fetchErr || !existing) return { ok: false, message: "기록을 찾을 수 없습니다" };
     const existingParticipant = existing.evt_team_prt_rel as { mem_id: string; evt_id: string };
+    // 관리자 특권은 접속한 팀 시즌일 때만(updateActivity 와 같은 이유)
+    const { teamId } = await getRequestTeamContext();
+    const isAdmin = !!member.admin && (await isEvtInTeam(db, teamId, existingParticipant.evt_id));
     if (!isAdmin && existingParticipant.mem_id !== member.id) {
       return { ok: false, message: "본인 기록만 삭제할 수 있습니다" };
     }
@@ -614,12 +625,6 @@ export async function deleteActivity(actId: string): Promise<ActionResult> {
 
 export async function updateMonthlyGoal(goalId: string, newGoal: number): Promise<ActionResult> {
   return withActive(async ({ member }) => {
-    const isAdmin = !!member.admin;
-
-    if (!isAdmin && todayDayKST() > 14) {
-      return { ok: false, message: "목표는 매월 14일까지만 수정할 수 있습니다" };
-    }
-
     const db = createAdminClient();
 
     const { data: existing, error: fetchErr } = await db
@@ -631,6 +636,13 @@ export async function updateMonthlyGoal(goalId: string, newGoal: number): Promis
     if (fetchErr || !existing) return { ok: false, message: "목표를 찾을 수 없습니다" };
     const participant = existing.evt_team_prt_rel as { mem_id: string; evt_id: string };
     const evtId = participant.evt_id;
+    // 관리자 특권(14일 이후 수정·목표 낮추기·남의 목표)은 접속한 팀 시즌일 때만
+    const { teamId } = await getRequestTeamContext();
+    const isAdmin = !!member.admin && (await isEvtInTeam(db, teamId, evtId));
+
+    if (!isAdmin && todayDayKST() > 14) {
+      return { ok: false, message: "목표는 매월 14일까지만 수정할 수 있습니다" };
+    }
     if (!isAdmin && participant.mem_id !== member.id) return { ok: false, message: "본인 목표만 수정할 수 있습니다" };
     if (!isAdmin && newGoal < Number(existing.goal_mlg)) return { ok: false, message: "목표는 현재 값 이상으로만 설정할 수 있습니다" };
 

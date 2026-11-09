@@ -1,6 +1,7 @@
 "use server";
 
 import { withAdmin } from "@/lib/actions/auth";
+import { isMemIdInTeam } from "@/lib/actions/team-scope";
 import { dayjs } from "@/lib/dayjs";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -15,6 +16,8 @@ export async function addExemptionHist({ memId, aplyYm, exmAmt, rsnTxt }: { memI
 
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
+    // 이 팀 회원에게만(create-exemption 과 같은 이유)
+    if (!(await isMemIdInTeam(db, teamId, memId))) return { ok: false as const, message: "회원을 찾을 수 없습니다." };
     const { error } = await db.from("fee_due_exm_hist").insert({
       team_id: teamId, mem_id: memId, exm_cfg_id: null, aply_ym: normalizedYm,
       exm_amt: exmAmt, grant_src_enm: "manual", rsn_txt: rsnTxt?.trim() || null,
