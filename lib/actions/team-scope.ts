@@ -56,6 +56,25 @@ export async function filterMemIdsInTeam(db: Db, teamId: string, memIds: string[
   return memIds.filter((id) => inTeam.has(id));
 }
 
+/**
+ * 이 사람이 속한(탈퇴 제외) 팀 전부 — 사람 단위 데이터(대회 기록·UTMB)를 저장한 뒤
+ * 그 사람이 있는 **모든 팀**의 랭킹 캐시를 털고 칭호를 평가하는 데 쓴다.
+ * 접속한 팀만 다루면 다른 팀 전당은 최대 24시간 옛 순위가 보이고, 그 팀 칭호는 다음 기회까지 안 붙는다.
+ */
+export async function listMemberTeams(
+  db: Db,
+  memId: string,
+): Promise<{ teamId: string; teamMemId: string }[]> {
+  const { data } = await db
+    .from("team_mem_rel")
+    .select("team_id, team_mem_id")
+    .eq("mem_id", memId)
+    .neq("mem_st_cd", "left")
+    .eq("vers", 0)
+    .eq("del_yn", false);
+  return (data ?? []).map((r) => ({ teamId: r.team_id, teamMemId: r.team_mem_id }));
+}
+
 /** 사람(`mem_id`)이 이 팀에 소속돼 있는가 — 사람 단위 데이터(기록 등)를 그 팀 관리자가 다룰 수 있는지 */
 export async function isMemIdInTeam(db: Db, teamId: string, memId: string): Promise<boolean> {
   const { data } = await db

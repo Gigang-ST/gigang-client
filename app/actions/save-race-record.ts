@@ -2,6 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath, revalidateTag } from "next/cache";
+import { after } from "next/server";
 
 import { toRankingEvtCd } from "@/lib/comp-evt-type";
 import { withActive, withAdmin } from "@/lib/actions/auth";
@@ -16,6 +17,7 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
+import { syncPersonRecordToOtherTeams } from "@/lib/records-revalidate";
 
 export type { SaveRaceRecordInput };
 
@@ -61,6 +63,9 @@ async function insertRaceRecord(
   const grantedTitles = await evaluateAndGrantTitles({
     trigger: "race_record", teamId, teamMemId: owner.teamMemId,
   }).catch((e) => { console.error("[title-engine] race_record 평가 실패", e); return [] as string[]; });
+
+  // 기록은 사람 것 — 이 사람이 속한 다른 팀 전당·칭호에도 반영(응답 밖에서)
+  after(() => syncPersonRecordToOtherTeams(owner.memId, teamId, { evaluateTitles: true }));
 
   return { ok: true as const, message: null, grantedTitles };
 }
@@ -151,6 +156,8 @@ export async function updateRaceRecord(recordId: string, recordTimeSec: number) 
         teamId, eventType, recordTimeSec, memberId: member.id, memberGender: member.gender ?? null,
       });
       if (shouldInvalidate) revalidateTag(`records:${teamId}`, "max");
+      // 기록은 사람 것 — 다른 팀 전당도 턴다
+      await syncPersonRecordToOtherTeams(member.id, teamId);
     }
 
     return { ok: true as const, message: null };
@@ -187,6 +194,8 @@ export async function deleteRaceRecord(recordId: string) {
         teamId, eventType, memberId: member.id, memberGender: member.gender ?? null,
       });
       if (shouldInvalidate) revalidateTag(`records:${teamId}`, "max");
+      // 기록은 사람 것 — 다른 팀 전당도 턴다
+      await syncPersonRecordToOtherTeams(member.id, teamId);
     }
 
     return { ok: true as const, message: null };

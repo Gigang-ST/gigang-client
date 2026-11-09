@@ -102,6 +102,24 @@ export async function uploadActivityPhoto(
   }
 }
 
+/**
+ * 시즌(evt)의 팀에서 이 회원의 소속 행 — 칭호 평가의 팀·team_mem_id.
+ * 회원 ID 로만 찾으면 두 팀 소속자는 행이 둘이라 `maybeSingle` 이 에러로 떨어지고, 칭호 평가가
+ * 조용히 건너뛰어졌다(에러를 null 로 받아 if 를 지나쳤다). 시즌의 팀으로 좁힌다.
+ */
+async function teamMemForSeason(db: ReturnType<typeof createAdminClient>, memId: string, evtId: string) {
+  const { data: evt } = await db.from("evt_team_mst").select("team_id").eq("evt_id", evtId).maybeSingle();
+  if (!evt) return { data: null, error: null };
+  return db
+    .from("team_mem_rel")
+    .select("team_mem_id, team_id")
+    .eq("mem_id", memId)
+    .eq("team_id", evt.team_id)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+}
+
 // ─────────────────────────────────────────
 // 1. 프로젝트 참여 신청
 // ─────────────────────────────────────────
@@ -177,13 +195,7 @@ export async function joinProject(
 
     revalidatePath("/projects");
 
-    const { data: teamMemRow } = await db
-      .from("team_mem_rel")
-      .select("team_mem_id, team_id")
-      .eq("mem_id", member.id)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .maybeSingle();
+    const { data: teamMemRow } = await teamMemForSeason(db, member.id, evtId);
     if (teamMemRow) {
       const ctx = {
         trigger: "mileage_run" as const,
@@ -273,13 +285,7 @@ export async function logActivity(
       return { ok: false, message: "목표 재계산에 실패했습니다. 잠시 후 다시 시도해주세요" };
     }
 
-    const { data: teamMemRow, error: teamMemErr } = await db
-      .from("team_mem_rel")
-      .select("team_mem_id, team_id")
-      .eq("mem_id", member.id)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .maybeSingle();
+    const { data: teamMemRow, error: teamMemErr } = await teamMemForSeason(db, member.id, evtId);
     console.info("[title-engine] teamMemRow:", teamMemRow, "error:", teamMemErr);
     if (teamMemRow) {
       const ctx = {
@@ -398,13 +404,7 @@ export async function logActivitiesBatch(
       return { ok: false, message: "목표 재계산에 실패했습니다. 잠시 후 다시 시도해주세요" };
     }
 
-    const { data: teamMemRow } = await db
-      .from("team_mem_rel")
-      .select("team_mem_id, team_id")
-      .eq("mem_id", member.id)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .maybeSingle();
+    const { data: teamMemRow } = await teamMemForSeason(db, member.id, evtId);
     const allGranted: string[] = [];
     if (teamMemRow) {
       for (const actDt of uniqueDates) {

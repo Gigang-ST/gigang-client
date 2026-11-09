@@ -42,6 +42,7 @@ import {
 import { sendPush } from "@/lib/mcp/send-push";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
+import { syncPersonRecordToOtherTeams } from "@/lib/records-revalidate";
 import { GTHR_SPRT_TYPES, GTHR_TYPES } from "@/lib/validations/gathering";
 import { SCH_POST_TYPES } from "@/lib/validations/schedule";
 
@@ -507,6 +508,10 @@ const handler = createMcpHandler(
               evaluateAndGrantTitles({ trigger: "race_record", teamId: ctx.team_id, teamMemId }).catch((e) =>
                 console.error("[title-engine] race_record(mcp) 평가 실패", e),
               ),
+            );
+            // 기록은 사람 것 — 그 사람이 속한 다른 팀 전당·칭호에도 반영
+            after(() =>
+              syncPersonRecordToOtherTeams(result.member.mem_id, ctx.team_id, { evaluateTitles: true }),
             );
           }
           return result;
