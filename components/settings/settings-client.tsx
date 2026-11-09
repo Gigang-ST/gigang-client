@@ -22,6 +22,7 @@ import {
   Megaphone,
   Zap,
   CalendarDays,
+  Link2,
 } from "lucide-react";
 
 import { markBoardTypeRead } from "@/app/actions/mark-board-type-read";
@@ -400,6 +401,14 @@ export function SettingsClient({
                 chevron은 끈다: 눌러도 이동하지 않고 그 자리에서 실행된다. */}
             {isLoggedIn ? (
               <>
+                {/* 다른 로그인(카카오·구글)을 지금 계정에 더 붙이는 곳. 가입 화면은 이미 로그인이 붙은
+                    회원에 전화번호로 다른 로그인을 붙이지 못하게 막고 여기로 안내한다(§lib/oauth-link). */}
+                <MenuRow
+                  icon={Link2}
+                  label="계정 연동"
+                  sub="카카오·구글 로그인 추가"
+                  href="/settings/accounts"
+                />
                 <MenuRow
                   icon={LogOut}
                   label={loggingOut ? "로그아웃 중..." : "로그아웃"}

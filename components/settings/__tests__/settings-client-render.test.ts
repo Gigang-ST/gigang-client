@@ -183,6 +183,13 @@ describe("더보기 화면", () => {
     expect(html).toContain('href="/auth/login"');
   });
 
+  it("계정 연동은 로그인했을 때만 계정 그룹 맨 위에 선다 — 로그아웃보다 먼저", () => {
+    const t = text(render());
+    expect(t).toContain("계정 연동");
+    expect(t.indexOf("계정 연동")).toBeLessThan(t.indexOf("로그아웃"));
+    expect(text(render({ isLoggedIn: false }))).not.toContain("계정 연동");
+  });
+
   it("공지·업데이트 안읽음 점은 각 줄에 따로 붙는다", () => {
     const none = text(render({ boardUnread: { notice: false, update: false } }));
     expect(none).not.toContain("읽지 않은 공지");

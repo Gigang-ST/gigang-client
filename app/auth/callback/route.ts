@@ -116,6 +116,15 @@ export async function GET(request: Request) {
     );
   }
 
+  // 계정 연동(linkIdentity) 실패 — 그 계정이 이미 다른 회원으로 쓰이는 등. Supabase 가 code 없이
+  // error·error_description 을 붙여 돌려보낸다. 일반 오류 화면 대신 계정 연동 화면에서 안내한다.
+  if (flow === "link") {
+    console.error("[auth/callback] 계정 연동 실패", searchParams.get("error"), searchParams.get("error_description"));
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    const base = env.NODE_ENV === "development" || !forwardedHost ? origin : `https://${forwardedHost}`;
+    return redirectClearingOAuthNext(`${base}/settings/accounts?link_error=1`);
+  }
+
   return redirectClearingOAuthNext(
     `${origin}/auth/error?error=OAuthCallbackError+no+code`,
   );

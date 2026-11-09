@@ -2,6 +2,7 @@
 
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { decideOauthLink, OAUTH_LINK_BLOCKED_MESSAGE } from "@/lib/oauth-link";
 import { createAdminClient, createAdminClientAs, createUntypedAdminClient } from "@/lib/supabase/admin";
 import { resolvePhoneMatch, type PhoneMatch } from "@/lib/onboarding-phone-match";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -277,31 +278,24 @@ export async function onboardingLinkExistingMember(args: {
   const { teamId } = await getRequestTeamContext();
   const admin = createAdminClientAs({ memId, teamId });
 
-  // 멀티팀: 다른 팀에서 이미 쓰고 있는 회원이 이 팀에 처음 들어오는 길이기도 하다.
-  // - 이미 **다른 계정**이 연결돼 있으면 바꾸지 않는다. 바꾸면 원래 계정으로는 기존 팀에 못 들어가고,
-  //   번호만 아는 사람이 연결된 회원을 가로챌 수 있다. 계정을 바꿔야 하면 운영진이 처리한다.
-  // - 프로필 사진은 **비어 있을 때만** 채운다. 예전엔 카카오 사진으로 늘 덮어써, 울산에 가입하는 순간
-  //   기강에서 쓰던 사진이 바뀌었다(사진은 사람 것 — 두 팀이 같이 본다).
+  // 연결 판정은 `decideOauthLink` 한 곳(§lib/oauth-link) — 전화번호만으로는 본인 확인이 안 되므로
+  // **로그인이 하나도 없는 회원**(엑셀 시절 회원)에만 붙인다. 이미 다른 로그인이 붙은 회원이면 막고,
+  // 원래 계정으로 로그인한 뒤 더보기 → 계정 연동에서 추가하게 안내한다.
+  // 프로필 사진은 **비어 있을 때만** 채운다 — 사진은 사람 것이라 다른 팀 가입으로 바뀌면 안 된다.
   const { data: cur, error: curErr } = await admin
     .from("mem_mst")
-    .select("oauth_kakao_id, oauth_google_id, avatar_url")
+    .select("mem_id, oauth_kakao_id, oauth_google_id, avatar_url")
     .eq("mem_id", memId)
     .eq("vers", 0)
     .eq("del_yn", false)
     .maybeSingle();
   if (curErr || !cur) return { ok: false, message: "연결할 회원 정보를 찾지 못했습니다." };
 
-  const linkedId = args.provider === "kakao" ? cur.oauth_kakao_id : cur.oauth_google_id;
-  if (linkedId && linkedId !== user.id) {
-    const providerNm = args.provider === "kakao" ? "카카오" : "구글";
-    return {
-      ok: false,
-      message: `이미 다른 ${providerNm} 계정으로 가입된 회원이에요. 처음 가입할 때 쓴 계정으로 로그인해 주세요. 계정을 바꿔야 하면 운영진에게 문의해 주세요.`,
-    };
-  }
+  const decision = decideOauthLink(cur, user.id, args.provider);
+  if (decision.kind === "blocked") return { ok: false, message: OAUTH_LINK_BLOCKED_MESSAGE };
 
   const patch = {
-    ...(linkedId ? {} : args.provider === "kakao" ? { oauth_kakao_id: user.id } : { oauth_google_id: user.id }),
+    ...(decision.kind === "link" ? { [decision.column]: user.id } : {}),
     ...(args.initialAvatarUrl && !cur.avatar_url ? { avatar_url: args.initialAvatarUrl } : {}),
   };
   if (Object.keys(patch).length === 0) return { ok: true }; // 이미 연결돼 있고 사진도 있다 — 바꿀 게 없다
