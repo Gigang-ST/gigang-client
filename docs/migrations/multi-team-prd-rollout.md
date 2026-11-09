@@ -23,7 +23,7 @@
 | 12 | 건의 팀별 | `20261109210000_fdbk_team.sql` | ✅ | ☐ |
 | 13 | 모임·일정 읽기 — 로그인한 비회원도 비로그인과 같게 | `20261109220000_gthr_sch_post_select_authenticated_public.sql` | ✅ | ☐ |
 | 14 | 대회 원본·종목 관리자 정책에서 기강 id 고정 걷기 | `20261109230000_comp_admin_policy_any_team.sql` | ✅ | ☐ |
-| 15 | 기강 워드마크·정기 모임 템플릿을 팀 설정에 등록 | `20261109240000_team_cfg_wordmark_regular_template.sql` | ☐ | ☐ |
+| 15 | 기강 워드마크·정기 모임 템플릿을 팀 설정에 등록 | `20261109240000_team_cfg_wordmark_regular_template.sql` | ✅ | ☐ |
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
