@@ -5,6 +5,7 @@ const h = vi.hoisted(() => ({ result: { data: null as unknown, error: null as un
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/kakao/notify", () => ({ sendKakao: vi.fn() }));
+vi.mock("@/lib/queries/request-team", () => ({ getRequestTeamContext: async () => ({ teamId: "team-1" }) }));
 vi.mock("@/lib/actions/auth", () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   withAdminOrThrow: async (fn: any) => fn({ member: { id: "admin-1" } }),
@@ -82,6 +83,7 @@ describe("resendKakao — 중복 발송 방지", () => {
     vi.mocked(sendKakao).mockResolvedValue({ ok: true });
     const result = await resendKakao("s1");
     expect(sendKakao).toHaveBeenCalledWith("안녕", expect.objectContaining({
+      teamId: "team-1",
       room: "4b492fd2-bb84-43be-a663-4e5f087ffb2e", requestId: "stable-request", resend: true,
     }));
     expect(result.message).toContain("접수");

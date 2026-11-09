@@ -47,6 +47,7 @@ export async function announceGatheringToKakao(gthrId: string): Promise<Announce
 
     const author = Array.isArray(gthr.mem_mst) ? gthr.mem_mst[0] : gthr.mem_mst;
     const result = await announceGathering({
+      teamId,
       gthrId,
       ref: gthr.short_id ?? gthrId,
       origin: await getRequestOrigin(),

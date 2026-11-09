@@ -67,10 +67,11 @@ export async function getAdminStats(): Promise<AdminStats> {
         .eq("aply_st_cd", "pending")
         .eq("gthr_mst.team_id", teamId)
         .eq("gthr_mst.del_yn", false),
-      // 카카오 발송 실패 — 최근 7일. 팀 스코프가 없는 건 발송 자체가 팀 하나(단톡방 하나)라서다.
+      // 카카오 발송 실패 — 최근 7일, 이 팀 방 것만(카톡방이 팀별이 되면서 이력에도 팀이 붙었다)
       createUntypedAdminClient()
         .from("kakao_send_hist")
         .select("send_id", { count: "exact", head: true })
+        .eq("team_id", teamId)
         .eq("status", "failed")
         .gte("crt_at", sevenDaysAgoISO()),
     ]);

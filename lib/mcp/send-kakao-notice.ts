@@ -149,7 +149,8 @@ export async function sendKakaoNotice(
   }
   const requestId = requestedId || crypto.randomUUID();
 
-  const room = defaultKakaoRoom();
+  // 토큰의 팀 방 — 방이 없는 팀이면 null 이고 보내지 않는다(다른 팀 방으로 새지 않는다)
+  const room = await defaultKakaoRoom(ctx.team_id);
 
   if (input.dry_run) {
     return {
@@ -168,6 +169,7 @@ export async function sendKakaoNotice(
   // 감사행 id 를 먼저 뽑아 발송 이력의 출처 id 로 싣는다 — 이력 한 줄에서 MCP 감사행으로 이어진다.
   const auditId = crypto.randomUUID();
   const sent = await sendKakao(message, {
+    teamId: ctx.team_id,
     requestId,
     ...(mentions.length ? { mentions } : {}),
     source: { type: "mcp_notice", id: auditId },

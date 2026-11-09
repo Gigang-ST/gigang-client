@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { withAdminOrThrow } from "@/lib/actions/auth";
 import { sendKakao } from "@/lib/kakao/notify";
 import type { KakaoSendSource } from "@/lib/kakao/send-log";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 
 /** 한 번에 보여줄 행 수. 목록은 "최근에 뭐가 나갔나"를 훑는 자리라 깊이 들어갈 일이 없다. */
@@ -83,10 +84,13 @@ const isMissingTable = (error: { code?: string }) =>
 /** 발송 이력 최신순. */
 export async function getKakaoSendLogs(): Promise<KakaoSendLogs> {
   return withAdminOrThrow(async () => {
+    // 접속한 팀의 발송만 — 두 팀 이력이 한 목록에 섞이지 않게
+    const { teamId } = await getRequestTeamContext();
     const admin = createUntypedAdminClient();
     const { data, error } = await admin
       .from("kakao_send_hist")
       .select("*")
+      .eq("team_id", teamId)
       .order("crt_at", { ascending: false })
       .limit(PAGE_SIZE);
     if (error) {
@@ -110,11 +114,14 @@ export type ResendResult = { ok: boolean; message: string };
  */
 export async function resendKakao(sendId: string): Promise<ResendResult> {
   return withAdminOrThrow(async ({ member }) => {
+    // 접속한 팀의 발송만 다시 보낸다 — 다른 팀 실패 건을 이 팀 관리자가 그 팀 방으로 쏘지 않게
+    const { teamId } = await getRequestTeamContext();
     const admin = createUntypedAdminClient();
     const { data, error } = await admin
       .from("kakao_send_hist")
       .select("*")
       .eq("send_id", sendId)
+      .eq("team_id", teamId)
       .single();
     if (error || !data) throw new Error("발송 이력을 찾을 수 없어요.");
 
@@ -132,6 +139,7 @@ export async function resendKakao(sendId: string): Promise<ResendResult> {
     }
 
     const result = await sendKakao(row.msg_txt, {
+      teamId,
       room: row.room_nm,
       requestId: row.request_id,
       ...(row.src_type ? { source: { type: row.src_type, id: row.src_id } } : {}),

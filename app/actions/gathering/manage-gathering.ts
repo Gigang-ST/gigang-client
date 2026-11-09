@@ -161,6 +161,7 @@ export async function createGathering(input: {
 
         // 단톡방 공지 — 인앱 알림과 별개 경로다. 발송 실패는 안에서 삼킨다(모임은 이미 만들어졌다).
         await notifyGatheringCreated({
+          teamId,
           gthrId,
           ref: data.short_id ?? gthrId,
           origin,
@@ -421,6 +422,7 @@ export async function updateGathering(input: {
 
         // 단톡방 변경 공지 — 일시·장소가 실제로 바뀌었을 때만, 10분 묶음으로.
         await notifyGatheringUpdated({
+          teamId: scopeTeamId,
           gthrId: gthr_id,
           ref: existing.short_id ?? gthr_id,
           origin,
@@ -497,6 +499,7 @@ export async function deleteGathering(gthr_id: string) {
       try {
         // 단톡방 취소 공지 — 묶음 판정을 거치지 않는다. 모르면 사람이 실제로 헛걸음한다.
         await notifyGatheringCanceled({
+          teamId: gthr.team_id,
           gthrId: gthr_id,
           title: gthr.gthr_nm ?? "",
           sttAt: gthr.stt_at,
