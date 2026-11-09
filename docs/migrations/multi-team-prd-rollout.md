@@ -25,6 +25,7 @@
 | 14 | 대회 원본·종목 관리자 정책에서 기강 id 고정 걷기 | `20261109230000_comp_admin_policy_any_team.sql` | ✅ | ☐ |
 | 15 | 기강 워드마크·정기 모임 템플릿을 팀 설정에 등록 | `20261109240000_team_cfg_wordmark_regular_template.sql` | ✅ | ☐ |
 | 16 | 기강 가입 폼에 「울산지부 가입이세요?」 안내 | `20261109250000_team_cfg_signup_other_teams.sql` | ✅ | ☐ |
+| 17 | 울산 회비 끄기(팀 설정 + 회비 면제 배치) | `20261109260000_ulsan_dues_off.sql` | ✅ | ☐ |
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
@@ -255,9 +256,22 @@ select cfg_val_json from team_cfg c join team_mst t using (team_id)
 where t.team_cd = 'gigang' and c.cfg_cd = 'signup.other_teams' and c.vers = 0 and c.del_yn = false;
 ```
 
+### 17. `20261109260000_ulsan_dues_off.sql`
+
+울산 팀 설정 `feature.dues = false`(회비 내역·미납 점·관리자 회비 메뉴·대시보드 카드 숨김) + 울산 회비 면제 배치 끄기.
+행이 없으면 기본값(켬)이라 울산에 회비 메뉴가 보일 뿐 깨지진 않는다 — **배포 전후 언제 넣어도 안전하다**(울산 오픈 전엔 넣는다).
+
+```sql
+-- 확인: 울산 dues_cfg = false, dues_batch = false / 기강은 dues_cfg 없음(켬), dues_batch = true
+select t.team_cd,
+  (select cfg_val_json::text from team_cfg c where c.team_id = t.team_id and c.cfg_cd = 'feature.dues' and c.vers = 0) as dues_cfg,
+  (select use_yn from batch_job_mst b where b.team_id = t.team_id and b.job_cd = 'DUES_EXEMPTION_BATCH') as dues_batch
+from team_mst t order by 1;
+```
+
 ## 배포
 
-1. 위 1~9·12·15가 끝났는지 표에서 확인한다(10·11·13·14·16은 배포 뒤여도 된다).
+1. 위 1~9·12·15가 끝났는지 표에서 확인한다(10·11·13·14·16·17은 배포 뒤여도 된다).
 2. PR #649 머지 → dev → main 배포.
 3. 배포 후 확인
    - 기강 모임을 하나 만들거나 "단톡방에 알림"으로 카톡이 기강 방에 오는지

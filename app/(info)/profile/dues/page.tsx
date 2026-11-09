@@ -1,6 +1,6 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { feeItemTeamFilter } from "@/lib/fee-items";
 import { getTeamAccount } from "@/lib/team-social";
@@ -10,6 +10,7 @@ import { calcExemption } from "@/lib/dues/calc-exemption";
 import { isMonthCharged } from "@/lib/dues/ledger-replay";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getTeamCfg } from "@/lib/team-cfg/read";
 import { createClient } from "@/lib/supabase/server";
 
 import { DuesHistoryClient } from "./dues-history-client";
@@ -21,6 +22,8 @@ export default async function MemberDuesPage() {
   if (!member) redirect("/onboarding?next=/profile/dues");
 
   const { teamId } = await getRequestTeamContext();
+  // 회비를 안 쓰는 팀(팀 설정 feature.dues)은 이 화면이 없다 — 링크도 안 보이지만 주소로 들어와도 막는다
+  if (!(await getTeamCfg(teamId, "feature.dues"))) notFound();
   const supabase = await createClient();
 
   const nowKst = dayjs().tz("Asia/Seoul");

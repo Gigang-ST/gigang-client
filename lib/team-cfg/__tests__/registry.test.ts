@@ -57,3 +57,10 @@ describe("project.show_intro — 프로젝트 없을 때 마일리지런 소개"
     expect(resolveTeamCfgValue("project.show_intro", false)).toBe(false);
   });
 });
+
+describe("feature.dues — 회비 기능", () => {
+  it("행이 없으면 지금 기강 동작(켬), 끈 팀은 끔", () => {
+    expect(resolveTeamCfgValue("feature.dues", undefined)).toBe(true);
+    expect(resolveTeamCfgValue("feature.dues", false)).toBe(false);
+  });
+});

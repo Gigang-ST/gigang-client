@@ -149,6 +149,18 @@ export const TEAM_CFG_REGISTRY = {
     description: "가입 폼 첫 화면에 「○○ 가입이세요? 여기로 →」를 띄울 팀. 비우면 안 보여요.",
     visibility: "public",
   }),
+  /**
+   * 회비 기능 사용 여부. 기본값 = 지금 기강 동작(켬). 끈 팀은 회비가 화면 어디에도 안 나온다 —
+   * 더보기 「회비 내역」 줄·미납 점, 회비 내역 화면, 관리자 회비 메뉴·대시보드 카드(울산, 2026-11-09 유저 결정).
+   * 끈 팀의 회비 배치(DUES_EXEMPTION_BATCH)도 같이 꺼 둔다(마이그레이션에서 use_yn=false).
+   */
+  "feature.dues": defineCfg({
+    schema: z.boolean(),
+    default: true,
+    label: "회비 기능",
+    description: "회비 내역·미납 표시·관리자 회비 메뉴를 써요. 끄면 화면 어디에도 회비가 안 보여요.",
+    visibility: "member",
+  }),
 } as const;
 
 export type TeamCfgCd = keyof typeof TEAM_CFG_REGISTRY;

@@ -220,6 +220,7 @@ export function SettingsClient({
   isAdmin,
   isLoggedIn,
   boardUnread,
+  duesEnabled = true,
   duesUnpaid = false,
   weekStart,
   channels,
@@ -229,6 +230,8 @@ export function SettingsClient({
   isLoggedIn: boolean;
   /** 공지·업데이트 안읽음 — 각 메뉴 옆 dot. 없으면 둘 다 false로 온다 */
   boardUnread?: { notice: boolean; update: boolean };
+  /** 이 팀이 회비를 쓰는가(팀 설정 feature.dues) — 끄면 「회비 내역」 줄째 안 그린다 */
+  duesEnabled?: boolean;
   /** 회비 잔액이 마이너스인가 — "회비 내역" 줄 옆 dot */
   duesUnpaid?: boolean;
   /** 주 시작 요일 — 서버가 쿠키에서 읽어 넘긴다(§lib/week-start) */
@@ -294,7 +297,7 @@ export function SettingsClient({
         {/* MY */}
         <div className="flex flex-col">
           <SectionLabel>MY</SectionLabel>
-          {myItems.map((item) => (
+          {myItems.filter((item) => duesEnabled || item.href !== "/profile/dues").map((item) => (
             <MenuRow
               key={item.href}
               icon={item.icon}

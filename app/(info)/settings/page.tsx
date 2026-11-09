@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { hasUnreadBoardPosts } from "@/lib/queries/board";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getTeamCfg } from "@/lib/team-cfg/read";
 import { getTeamChannels } from "@/lib/team-social";
 import { WEEK_START_COOKIE, parseWeekStart } from "@/lib/week-start";
 import { SettingsClient } from "@/components/settings/settings-client";
@@ -35,9 +36,11 @@ export default async function SettingsPage() {
   //   보러 들어온 사람에게만 보이므로 그 부작용이 없다.
   //
   // 잔액은 **스냅샷을 읽기만 한다**(회비 계산 로직은 손대지 않음).
+  // 회비를 안 쓰는 팀은 「회비 내역」 줄째 안 그리고 잔액도 안 읽는다(팀 설정 feature.dues)
+  const duesEnabled = await getTeamCfg(teamId, "feature.dues");
   const [boardUnread, balSnapRes, channels] = await Promise.all([
     hasUnreadBoardPosts(member?.id, teamId),
-    member
+    member && duesEnabled
       ? supabase
           .from("fee_mem_bal_snap")
           .select("bal_amt")
@@ -62,6 +65,7 @@ export default async function SettingsPage() {
       isAdmin={isAdmin}
       isLoggedIn={!!user}
       boardUnread={boardUnread}
+      duesEnabled={duesEnabled}
       duesUnpaid={(balSnapRes.data?.bal_amt ?? 0) <= -DUES_DOT_MIN_UNPAID}
       weekStart={weekStart}
       channels={channels}

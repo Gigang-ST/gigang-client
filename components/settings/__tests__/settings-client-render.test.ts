@@ -157,6 +157,13 @@ describe("더보기 화면", () => {
     expect(t.indexOf("회비 미납")).toBeLessThan(t.indexOf("건의하기"));
   });
 
+  it("회비를 안 쓰는 팀은 '회비 내역' 줄도 미납 점도 없다 — 미납이어도", () => {
+    const t = text(render({ duesEnabled: false, duesUnpaid: true }));
+    expect(t).not.toContain("회비 내역");
+    expect(t).not.toContain("회비 미납");
+    expect(t).toContain("건의하기");
+  });
+
   it("로그아웃·회원 탈퇴도 같은 행 컴포넌트를 타고, 탈퇴는 아직 잠겨 있다", () => {
     const html = render();
     const t = text(html);
