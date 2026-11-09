@@ -116,6 +116,13 @@ beforeEach(() => {
       },
     ],
     evt_mlg_mth_snap: [
+      // 울산 관리자 본인이 기강 마일리지런에 참가해 둔 목표 — 울산 주소에서는 본인 것이라도 못 고친다
+      {
+        goal_id: "goal-own-gigang",
+        prt_id: "prt-own-gigang",
+        goal_mlg: 50,
+        evt_team_prt_rel: { mem_id: "mem-ulsan-admin", evt_id: "evt-gigang", evt_team_mst: { team_id: GIGANG } },
+      },
       {
         goal_id: "goal-gigang",
         prt_id: "prt-gigang",
@@ -239,6 +246,12 @@ describe("마일리지런 회원 액션 — 관리자 특권은 접속한 팀 �
 
   it("울산 관리자는 기강 회원의 월 목표를 고칠 수 없다", async () => {
     const res = await updateMonthlyGoal("goal-gigang", 10);
+    expect(res.ok).toBe(false);
+    expect(h.db.opsOn("evt_mlg_mth_snap", "update")).toHaveLength(0);
+  });
+
+  it("본인이 참가한 다른 팀 마일리지런이라도 이 팀 주소에서는 목표를 못 고친다", async () => {
+    const res = await updateMonthlyGoal("goal-own-gigang", 80);
     expect(res.ok).toBe(false);
     expect(h.db.opsOn("evt_mlg_mth_snap", "update")).toHaveLength(0);
   });

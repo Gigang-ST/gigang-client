@@ -23,7 +23,6 @@ import {
   type ActivityLogInput,
 } from "@/lib/mileage-run";
 import { withActive } from "@/lib/actions/auth";
-import { isEvtInTeam } from "@/lib/actions/team-scope";
 import {
   postPhotoPathFromUrl,
   removePostPhoto,
@@ -256,6 +255,11 @@ export async function logActivity(
     if (participantErr || !participant) return { ok: false, message: "참여 신청 정보를 찾을 수 없습니다" };
     // 사진 붙은 기록은 그 **시즌 팀**의 깅스타그램에 선다(트리거) — 그 팀 캐시를 턴다
     const seasonTeamId = pickSeasonTeamId(participant.evt_team_mst);
+    // 이 시즌이 **접속한 팀** 것일 때만 — 울산 주소에서 기강 마일리지런에 기록하지 못하게(관리자든 아니든).
+    // 다른 팀 시즌은 없는 것과 같게 다룬다. 이걸 지나면 member.admin(접속한 팀 관리자)이 곧 이 시즌 팀 관리자다.
+    if (seasonTeamId !== (await getRequestTeamContext()).teamId) {
+      return { ok: false, message: "참여 신청 정보를 찾을 수 없습니다" };
+    }
 
     const { appliedMults, multValues, error: multErr } = await buildAppliedMults(evtId, validInput.applied_mult_ids, validInput.act_dt);
     if (multErr) return { ok: false, message: multErr };
@@ -354,6 +358,11 @@ export async function logActivitiesBatch(
     if (participantErr || !participant) return { ok: false, message: "참여 신청 정보를 찾을 수 없습니다" };
     // 사진 붙은 기록은 그 **시즌 팀**의 깅스타그램에 선다(트리거) — 그 팀 캐시를 턴다
     const seasonTeamId = pickSeasonTeamId(participant.evt_team_mst);
+    // 이 시즌이 **접속한 팀** 것일 때만 — 울산 주소에서 기강 마일리지런에 기록하지 못하게(관리자든 아니든).
+    // 다른 팀 시즌은 없는 것과 같게 다룬다. 이걸 지나면 member.admin(접속한 팀 관리자)이 곧 이 시즌 팀 관리자다.
+    if (seasonTeamId !== (await getRequestTeamContext()).teamId) {
+      return { ok: false, message: "참여 신청 정보를 찾을 수 없습니다" };
+    }
 
     const rows: {
       prt_id: string;
@@ -471,10 +480,12 @@ export async function updateActivity(
     const evtTeam = Array.isArray(existingParticipant.evt_team_mst)
       ? existingParticipant.evt_team_mst[0]
       : existingParticipant.evt_team_mst;
-    // 관리자 특권(남의 기록·날짜 제한 무시)은 **접속한 팀 시즌일 때만**. member.admin 은 접속한 팀의
-    // 관리자라는 뜻이라, 다른 팀 시즌까지 적용하면 울산 관리자가 기강 기록을 고칠 수 있다.
+    // 이 시즌이 **접속한 팀** 것일 때만 — 울산 주소에서 기강 마일리지런에 기록하지 못하게(관리자든 아니든).
+    // 다른 팀 시즌은 없는 것과 같게 다룬다. 이걸 지나면 member.admin(접속한 팀 관리자)이 곧 이 시즌 팀 관리자다.
     const { teamId } = await getRequestTeamContext();
-    const isAdmin = isTeamAdmin && evtTeam?.team_id === teamId;
+    if (evtTeam?.team_id !== teamId) return { ok: false, message: "기록을 찾을 수 없습니다" };
+    // 관리자 특권(남의 기록·날짜 제한 무시) — 위에서 접속한 팀 시즌만 남겼으므로 접속한 팀 관리자면 된다
+    const isAdmin = isTeamAdmin;
     if (!isAdmin && existingParticipant.mem_id !== member.id) {
       return { ok: false, message: "본인 기록만 수정할 수 있습니다" };
     }
@@ -538,8 +549,8 @@ export async function updateActivity(
       if (prevPath) await removePostPhoto(supabase, prevPath);
     }
     // 사진이 붙거나 떨어지면 기강이야기 지면이 바뀐다(트리거가 post를 세우거나 내린다)
-    // 깅스타그램 행은 기록 **시즌 팀** 것이다(트리거) — 접속한 팀이 아니라 그 팀 캐시를 턴다
-    if (prevPhotoUrl || nextPhotoUrl) updateTag(teamCacheTag("story-posts", evtTeam?.team_id ?? teamId));
+    // 깅스타그램 행은 기록 시즌 팀 것(트리거) — 위에서 접속한 팀 시즌만 남겼다
+    if (prevPhotoUrl || nextPhotoUrl) updateTag(teamCacheTag("story-posts", teamId));
 
     try {
       await recalcGoalsFromMonth(existingParticipant.evt_id, existing.prt_id);
@@ -601,9 +612,13 @@ export async function deleteActivity(actId: string): Promise<ActionResult> {
       evt_id: string;
       evt_team_mst: { team_id: string } | { team_id: string }[];
     };
-    // 관리자 특권은 접속한 팀 시즌일 때만(updateActivity 와 같은 이유)
+    // 이 시즌이 **접속한 팀** 것일 때만 — 울산 주소에서 기강 마일리지런에 기록하지 못하게(관리자든 아니든).
+    // 다른 팀 시즌은 없는 것과 같게 다룬다. 이걸 지나면 member.admin(접속한 팀 관리자)이 곧 이 시즌 팀 관리자다.
     const { teamId } = await getRequestTeamContext();
-    const isAdmin = !!member.admin && (await isEvtInTeam(db, teamId, existingParticipant.evt_id));
+    if (pickSeasonTeamId(existingParticipant.evt_team_mst) !== teamId) {
+      return { ok: false, message: "기록을 찾을 수 없습니다" };
+    }
+    const isAdmin = !!member.admin;
     if (!isAdmin && existingParticipant.mem_id !== member.id) {
       return { ok: false, message: "본인 기록만 삭제할 수 있습니다" };
     }
@@ -620,8 +635,8 @@ export async function deleteActivity(actId: string): Promise<ActionResult> {
     if (photoUrl) {
       const path = postPhotoPathFromUrl(photoUrl);
       if (path) await removePostPhoto(supabase, path);
-      // 깅스타그램 행은 기록 시즌 팀 것 — 그 팀 캐시를 턴다
-      updateTag(teamCacheTag("story-posts", pickSeasonTeamId(existingParticipant.evt_team_mst) ?? teamId));
+      // 깅스타그램 행은 기록 시즌 팀 것 — 위에서 접속한 팀 시즌만 남겼다
+      updateTag(teamCacheTag("story-posts", teamId));
     }
 
     try {
@@ -646,16 +661,23 @@ export async function updateMonthlyGoal(goalId: string, newGoal: number): Promis
 
     const { data: existing, error: fetchErr } = await db
       .from("evt_mlg_mth_snap")
-      .select("goal_id, prt_id, goal_mlg, evt_team_prt_rel!inner(mem_id, evt_id)")
+      .select("goal_id, prt_id, goal_mlg, evt_team_prt_rel!inner(mem_id, evt_id, evt_team_mst!inner(team_id))")
       .eq("goal_id", goalId)
       .single();
 
     if (fetchErr || !existing) return { ok: false, message: "목표를 찾을 수 없습니다" };
-    const participant = existing.evt_team_prt_rel as { mem_id: string; evt_id: string };
+    const participant = existing.evt_team_prt_rel as {
+      mem_id: string;
+      evt_id: string;
+      evt_team_mst: { team_id: string } | { team_id: string }[];
+    };
     const evtId = participant.evt_id;
-    // 관리자 특권(14일 이후 수정·목표 낮추기·남의 목표)은 접속한 팀 시즌일 때만
+    // 이 시즌이 **접속한 팀** 것일 때만 — 울산 주소에서 기강 마일리지런에 기록하지 못하게(관리자든 아니든).
+    // 다른 팀 시즌은 없는 것과 같게 다룬다. 이걸 지나면 member.admin(접속한 팀 관리자)이 곧 이 시즌 팀 관리자다.
     const { teamId } = await getRequestTeamContext();
-    const isAdmin = !!member.admin && (await isEvtInTeam(db, teamId, evtId));
+    if (pickSeasonTeamId(participant.evt_team_mst) !== teamId) return { ok: false, message: "목표를 찾을 수 없습니다" };
+    // 관리자 특권(14일 이후 수정·목표 낮추기·남의 목표) — 접속한 팀 시즌만 남았으므로 접속한 팀 관리자면 된다
+    const isAdmin = !!member.admin;
 
     if (!isAdmin && todayDayKST() > 14) {
       return { ok: false, message: "목표는 매월 14일까지만 수정할 수 있습니다" };
