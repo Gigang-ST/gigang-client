@@ -2,14 +2,14 @@
 
 import { after } from "next/server";
 
-import { withMember } from "@/lib/actions/auth";
+import { withDuesMember } from "@/lib/actions/dues-guard";
 import { todayStartKST } from "@/lib/dayjs";
 import { insertNotiMany } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function requestDuesCheck() {
-  return withMember(async ({ member }) => {
+  return withDuesMember(async ({ member }) => {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
 
@@ -19,7 +19,7 @@ export async function requestDuesCheck() {
     // "오늘"의 시작은 KST 자정이다 — 서버(UTC)에서 재면 KST 새벽 요청이 어제로 잡힌다
     const todayStart = todayStartKST().toISOString();
 
-    const { data: existing } = await db.from("noti_mst").select("noti_id").eq("mem_id", owners[0].mem_id).eq("noti_type_enm", "dues_check_req").gte("crt_at", todayStart).limit(1).maybeSingle();
+    const { data: existing } = await db.from("noti_mst").select("noti_id").eq("mem_id", owners[0].mem_id).eq("team_id", teamId).eq("noti_type_enm", "dues_check_req").gte("crt_at", todayStart).limit(1).maybeSingle();
     if (existing) return { ok: false as const, message: "오늘 이미 요청하셨습니다." };
 
     // 인앱+푸시 발송은 응답 후 백그라운드로 (사용자 대기 없음). owner 전원에게.

@@ -19,36 +19,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { listTeamChannels, type TeamChannelKey, type TeamChannels } from "@/lib/team-channels";
 
-const KAKAO_OPEN_CHAT_URL = "https://open.kakao.com/o/grnMFGng";
+/**
+ * 채널 칸의 모양(이름·아이콘). **주소는 여기 없다** — 팀마다 다르므로 팀 설정(`social.channels`)에서
+ * 서버가 읽어 `channels` prop 으로 내려준다(`lib/team-social.ts`). 주소가 없는 채널은 칸째 안 그린다.
+ * 아이콘은 단색 SVG라 `currentColor`로 테마를 따라간다(컬러 PNG를 대체).
+ */
+const CHANNEL_META: Record<TeamChannelKey, { label: string; Icon: typeof KakaoIcon }> = {
+  kakao_open_chat: { label: "오픈채팅", Icon: KakaoIcon },
+  instagram: { label: "인스타", Icon: InstagramIcon },
+  somoim: { label: "소모임", Icon: SomoimIcon },
+  garmin: { label: "가민", Icon: GarminIcon },
+};
 
-/** 채널 넷. 아이콘은 단색 SVG라 `currentColor`로 테마를 따라간다(컬러 PNG를 대체) */
-const SOCIAL_LINKS = [
-  {
-    key: "kakao",
-    label: "오픈채팅",
-    href: KAKAO_OPEN_CHAT_URL,
-    Icon: KakaoIcon,
-  },
-  {
-    key: "instagram",
-    label: "인스타",
-    href: "https://www.instagram.com/team_gigang",
-    Icon: InstagramIcon,
-  },
-  {
-    key: "somoim",
-    label: "소모임",
-    href: "https://www.somoim.co.kr/3beed52a-0620-11ef-a71d-0aebcbdc4a071",
-    Icon: SomoimIcon,
-  },
-  {
-    key: "garmin",
-    label: "가민",
-    href: "https://connect.garmin.com/app/group/4857390",
-    Icon: GarminIcon,
-  },
-];
+function channelLinks(channels: TeamChannels) {
+  return listTeamChannels(channels).map((c) => ({ ...c, ...CHANNEL_META[c.key] }));
+}
 
 /**
  * 채널 블록 설명 — **전광판 판권면과 더보기가 같은 문장을 쓴다.**
@@ -82,14 +69,16 @@ type KakaoState =
   | { kind: "guest" }
   | { kind: "error" };
 
-export function SocialLinksRow() {
+export function SocialLinksRow({ channels }: { channels: TeamChannels }) {
   const [open, setOpen] = useState(false);
+  const links = channelLinks(channels);
+  if (links.length === 0) return null;
 
   return (
     <>
       <div className="flex items-center justify-center gap-5">
-        {SOCIAL_LINKS.map(({ key, label, href, Icon }) =>
-          key === "kakao" ? (
+        {links.map(({ key, label, href, Icon }) =>
+          key === "kakao_open_chat" ? (
             <button
               key={key}
               type="button"
@@ -154,11 +143,15 @@ export function SocialLinksRow() {
  * 하나뿐이라**, 채널이 하나 늘어도 고칠 곳은 한 곳이다.
  */
 export function SocialTiles({
+  channels,
   autoOpenKakao = false,
 }: {
+  /** 이 팀 채널 주소(팀 설정) — 없는 채널은 칸째 안 그린다 */
+  channels: TeamChannels;
   /** 딥링크(`/settings?social=kakao`)로 들어왔나 — 마운트 직후 비번 다이얼로그를 연다 */
   autoOpenKakao?: boolean;
 }) {
+  const kakaoUrl = channels.kakao_open_chat;
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<KakaoState>({ kind: "loading" });
   const started = useRef(false);
@@ -167,8 +160,8 @@ export function SocialTiles({
   // 매번 타이핑하는 대신 링크 한 줄로 답할 수 있게 하는 것이 이 경로의 존재 이유다.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (autoOpenKakao) setOpen(true);
-  }, [autoOpenKakao]);
+    if (autoOpenKakao && kakaoUrl) setOpen(true);
+  }, [autoOpenKakao, kakaoUrl]);
 
   // 조회 → 결과 반영. **시작할 때 상태를 건드리지 않는다** — 초기값이 이미 `loading`이라
   // 불필요하고, 이펙트 안에서 동기 `setState`를 하면 열자마자 재렌더가 한 번 더 돈다
@@ -202,11 +195,14 @@ export function SocialTiles({
     void load();
   }, [open, load]);
 
+  const links = channelLinks(channels);
+  if (links.length === 0) return null;
+
   return (
     <>
       <div className="grid grid-cols-4 gap-2.5">
-        {SOCIAL_LINKS.map(({ key, label, href, Icon }) =>
-          key === "kakao" ? (
+        {links.map(({ key, label, href, Icon }) =>
+          key === "kakao_open_chat" ? (
             <CardItem asChild key={key} className="flex flex-col items-center gap-2 py-3">
               <button type="button" onClick={() => setOpen(true)}>
                 <Icon className="size-7 text-foreground" />
@@ -255,7 +251,7 @@ export function SocialTiles({
                 </p>
               </div>
               <a
-                href={KAKAO_OPEN_CHAT_URL}
+                href={kakaoUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#FEE500] text-[15px] font-bold text-neutral-900"
@@ -314,7 +310,8 @@ export function SocialTiles({
  * 더보기 최상단에도 같은 격자가 서지만(§`settings-client`) **여기를 걷어내지 않는다** —
  * 발견 채널을 둘로 두는 것이 목적이고, 판권면은 이 지면의 마감 장치이기도 하다.
  */
-export function SocialLinksGrid() {
+export function SocialLinksGrid({ channels }: { channels: TeamChannels }) {
+  if (listTeamChannels(channels).length === 0) return null;
   return (
     <div className="flex flex-col">
       <StoryZoneHeader
@@ -323,7 +320,7 @@ export function SocialLinksGrid() {
         action={<HelpTip title="기강 채널">{SOCIAL_HELP_TEXT}</HelpTip>}
       />
       <div className="pt-3">
-        <SocialTiles />
+        <SocialTiles channels={channels} />
       </div>
     </div>
   );

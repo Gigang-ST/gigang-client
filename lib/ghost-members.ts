@@ -4,7 +4,7 @@ import type { GhostMember } from "@/lib/queries/ghost-members";
 
 /**
  * 현상수배 존의 순수 로직 — 조회(`lib/queries/ghost-members.ts`)와 분리해 테스트 가능하게 둔다
- * (`lib/story-pledge.ts`·`lib/story-post.ts`와 같은 자리).
+ * (`lib/story-post.ts`와 같은 자리).
  *
  * **왜 갈랐나**: 후보를 고르는 조건("100일 이상 안 나온 활동 멤버")은 시드와 무관한데,
  * 예전엔 순서까지 RPC가 정하느라 **시드가 인자로 들어가 캐시를 못 걸었다**. 필터는 캐시하고

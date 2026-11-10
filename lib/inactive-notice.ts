@@ -68,7 +68,7 @@ export const LEFT_ACTION_MESSAGE = "탈퇴한 회원입니다. 앱에서 재가�
 /**
  * 서버가 쓰기를 막을 때 돌려주는 문구. 사유가 있으면 끼워 넣는다.
  *
- * 이 문구는 `withActive` 를 쓰는 액션 전부(기강이야기 응원·팻말·한마디·깅스타그램 포함)가
+ * 이 문구는 `withActive` 를 쓰는 액션 전부(기강이야기 응원·깅스타그램 포함)가
  * 공유하므로, 여기 사유를 넣으면 다이얼로그가 없는 자리까지 한 번에 이유를 말하게 된다.
  */
 export function buildInactiveActionMessage(member: InactiveNoticeSource): string {

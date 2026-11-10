@@ -2,7 +2,8 @@
 
 import { dayjs } from "@/lib/dayjs";
 
-import { withAdmin } from "@/lib/actions/auth";
+import { withDuesAdmin } from "@/lib/actions/dues-guard";
+import { filterMemIdsInTeam } from "@/lib/actions/team-scope";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -30,7 +31,7 @@ export type ConfirmItem = {
  *  - 이미 확정/삭제된 건은 건너뜀
  */
 export async function confirmTransactions(items: ConfirmItem[]) {
-  return withAdmin(async ({ member }) => {
+  return withDuesAdmin(async ({ member }) => {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
 
@@ -50,7 +51,7 @@ export async function confirmTransactions(items: ConfirmItem[]) {
     if (selErr) return { ok: false as const, message: "거래 조회에 실패했습니다." };
 
     // 로컬 변경(분류·매칭·프로젝트)을 병합한 "확정 시점의 최종 상태" 계산
-    const validCds = await getValidFeeItemCds(db);
+    const validCds = await getValidFeeItemCds(db, teamId);
     const merged = (txns ?? [])
       .filter((t) => !t.is_cfm_yn)
       .map((t) => {
@@ -64,6 +65,13 @@ export async function confirmTransactions(items: ConfirmItem[]) {
         const prjId = feeItemCd === "event_fee" ? (it?.prjId !== undefined ? it.prjId : t.project_id) : null;
         return { ...t, fee_item_cd: feeItemCd, mem_id: memId, match_st_cd: matchStCd, project_id: prjId };
       });
+
+    // 새로 매칭한 회원은 이 팀 회원이어야 한다 — 하나라도 아니면 전체 거부(learn-aliases 와 같은 경계)
+    const newMemIds = [...new Set(items.map((it) => it.memId).filter((id): id is string => Boolean(id)))];
+    const inTeam = new Set(await filterMemIdsInTeam(db, teamId, newMemIds));
+    if (newMemIds.some((id) => !inTeam.has(id))) {
+      return { ok: false as const, message: "이 팀 회원이 아닌 사람이 매칭된 거래가 있습니다." };
+    }
 
     // 분류 유효성 검증 — 무효 분류가 있으면 전체 거부 (잘못된 확정 방지)
     const invalid = merged.find((t) => !t.fee_item_cd || !validCds.has(t.fee_item_cd));

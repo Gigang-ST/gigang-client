@@ -3,6 +3,7 @@ import type { PbParticipant } from "@/lib/queries/pb-class";
 
 import { Body, Caption, Micro } from "@/components/common/typography";
 import { AccountCopyButton } from "@/components/projects/account-copy-button";
+import type { TeamAccount } from "@/lib/team-channels";
 import { CardItem } from "@/components/ui/card";
 import { PbZone } from "./pb-zone";
 
@@ -15,8 +16,11 @@ import { PbZone } from "./pb-zone";
  */
 export function PbPendingCard({
   me,
+  account,
 }: {
   me: Pick<PbParticipant, "depositAmt" | "entryFeeAmt" | "entryFeeDcAmt" | "joinWkNo">;
+  /** 이 팀 모임 계좌(팀 설정) */
+  account: TeamAccount | null;
 }) {
   const dc = me.entryFeeDcAmt ?? 0;
   const total = me.depositAmt + me.entryFeeAmt;
@@ -50,7 +54,7 @@ export function PbPendingCard({
           </div>
         </div>
 
-        <AccountCopyButton />
+        <AccountCopyButton account={account} />
         <Caption className="text-center">입금이 확인되면 운영진이 승인해요.</Caption>
       </CardItem>
     </PbZone>

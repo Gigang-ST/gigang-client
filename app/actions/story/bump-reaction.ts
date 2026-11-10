@@ -47,12 +47,11 @@ async function isOnBoard(
     return feed.races.some((item) => item.entity_id === entityId);
   }
   // "actv": entity_id는 응원 대상 멤버의 mem_id — 멤버 기준 카운터를 쓰는 슬롯 전부가 공유한다
-  // (활동지수 · 목표 한마디 · 운동기록 · 칭호획득). 그래서 "지금 전광판에 사람으로 올라와
-  // 있나"를 네 출처로 확인한다 — 활동지수 랭킹 / 목표 팻말 / 기록 자랑 작성자 / 칭호획득 획득자.
+  // (활동지수 · 운동기록 · 칭호획득). 그래서 "지금 전광판에 사람으로 올라와 있나"를 세 출처로
+  // 확인한다 — 활동지수 랭킹 / 기록 자랑 작성자 / 칭호획득 획득자. (목표 팻말은 2026-11-10 기능째 지웠다.)
   // 활동지수 랭킹만 보면 랭킹 밖 멤버가 올린 기록·칭호에 응원할 때 거부된다.
   if (entityType === "actv") {
     if (feed.actv_rank.some((item) => item.mem_id === entityId)) return true;
-    if (feed.pledges.some((item) => item.mem_id === entityId)) return true;
     // 기록 자랑 작성자 — 캐시가 갈려 있어(story-posts) 이쪽만 따로 본다.
     const posts = await getStoryPosts(teamId);
     if (posts.some((p) => p.mem_id === entityId)) return true;

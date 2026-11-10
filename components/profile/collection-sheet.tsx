@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Check, X } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
+import { mergeTeamEffects } from "@/lib/team-effects";
 import { FRAME_CSS } from "@/lib/title-effects";
 import { cn } from "@/lib/utils";
 
@@ -223,12 +224,21 @@ export function CollectionSheet({
       // 이펙트 목록 (use_yn=false도 포함 — 표시하되 선택 불가)
       supabase
         .from("effect_mst")
-        .select("effect_cd, effect_nm, effect_type, rarity_level, use_yn, unlock_cond_json")
-        .order("rarity_level").order("sort_ord"),
-    ]).then(([titlesRes, ownedRes, effectsRes]) => {
+        .select("effect_cd, effect_nm, effect_type, rarity_level, sort_ord, use_yn, unlock_cond_json"),
+      // 이 팀이 고른 등급·사용 여부·해금 조건 — 없으면 effect_mst 값(§lib/team-effects)
+      supabase
+        .from("team_effect_cfg")
+        .select("effect_cd, rarity_level, use_yn, unlock_cond_json")
+        .eq("team_id", teamId),
+    ]).then(([titlesRes, ownedRes, effectsRes, teamEffRes]) => {
       setAllTitles((titlesRes.data ?? []) as unknown as AllTitle[]);
       setOwnedTitleIds(new Set((ownedRes.data ?? []).map((r) => r.ttl_id)));
-      setAllEffects((effectsRes.data ?? []) as EffectRow[]);
+      // 등급이 팀마다 달라서 정렬은 합친 뒤에 한다
+      const merged = mergeTeamEffects(
+        (effectsRes.data ?? []) as (EffectRow & { sort_ord: number })[],
+        teamEffRes.data ?? [],
+      ).sort((a, b) => a.rarity_level - b.rarity_level || a.sort_ord - b.sort_ord);
+      setAllEffects(merged);
     }).catch((e) => {
       console.error("[CollectionSheet] 데이터 로드 실패", e);
     }).finally(() => {

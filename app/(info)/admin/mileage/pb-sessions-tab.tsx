@@ -57,7 +57,7 @@ function sessStatus(s: PbSession): { label: string; variant: "destructive" | "se
   return { label: "완료", variant: "outline" };
 }
 
-export function PbSessionsTab({ evtId }: { evtId: string }) {
+export function PbSessionsTab({ evtId, kakaoEnabled }: { evtId: string; kakaoEnabled: boolean }) {
   const { board, loading, error, reload, run, busyKey } = usePbBoard(evtId);
 
   const [linkOpen, setLinkOpen] = useState(false);
@@ -158,12 +158,20 @@ export function PbSessionsTab({ evtId }: { evtId: string }) {
 
       {/* 열 때만 마운트 — 닫으면 상태가 버려지고 다음에 열 때 초안을 새로 받는다 */}
       {openBulk && (
-        <PbSessOpenDialog evtId={evtId} board={board} open onOpenChange={setOpenBulk} onDone={reload} />
+        <PbSessOpenDialog
+          evtId={evtId}
+          board={board}
+          kakaoEnabled={kakaoEnabled}
+          open
+          onOpenChange={setOpenBulk}
+          onDone={reload}
+        />
       )}
       {openOnly && (
         <PbSessOpenDialog
           evtId={evtId}
           board={board}
+          kakaoEnabled={kakaoEnabled}
           only={openOnly}
           open
           onOpenChange={(o) => !o && setOpenOnly(null)}

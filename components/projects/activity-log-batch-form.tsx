@@ -10,14 +10,11 @@ import {
   roundMileage,
   type MileageSport,
 } from "@/lib/mileage";
+import type { ActivityLogInput } from "@/lib/mileage-run";
 import { pickQuip } from "@/lib/quips";
 import { createClient } from "@/lib/supabase/client";
 
-import {
-  logActivitiesBatch,
-  uploadActivityPhoto,
-  type ActivityLogInput,
-} from "@/app/actions/mileage-run";
+import { logActivitiesBatch, uploadActivityPhoto } from "@/app/actions/mileage-run";
 
 import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";
 import { PhotoPicker } from "@/components/common/photo-picker";

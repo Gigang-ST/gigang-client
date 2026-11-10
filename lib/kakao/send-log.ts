@@ -25,6 +25,8 @@ export type KakaoSendSource = {
 };
 
 export type RecordKakaoSendInput = {
+  /** 어느 팀 공지였나 — 관리자 발송 이력·다시 보내기가 자기 팀 것만 다룬다 */
+  teamId: string;
   room: string;
   message: string;
   requestId: string | null;
@@ -41,6 +43,7 @@ export async function recordKakaoSend(input: RecordKakaoSendInput): Promise<void
   try {
     const supabase = createUntypedAdminClient();
     const { error } = await supabase.from("kakao_send_hist").insert({
+      team_id: input.teamId,
       room_nm: input.room,
       msg_txt: input.message,
       request_id: input.requestId,

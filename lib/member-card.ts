@@ -1,5 +1,6 @@
 import { parseEventTime, secondsToTime, todayStartKST } from "@/lib/dayjs";
 import { MOOD_SCALE, type MoodLevel } from "@/lib/mood-scale";
+import { visibleRecordCategories } from "@/lib/records-categories";
 import {
   JOIN_PURP_LABELS,
   JOIN_PURP_SHORT_LABELS,
@@ -180,22 +181,31 @@ export type PbRow = {
  *
  * 로드 3종은 값이 없어도 자리를 지키지만 **철인3종·사이클은 있을 때만** 붙인다 —
  * 로드 러너의 카드에 안 켜진 철인 칸까지 세우면 "해야 할 일"처럼 보인다.
+ *
+ * **팀의 기록 종목(`categories`, 랭킹탭과 같은 팀 설정)에 맞춰 거른다** — 러닝이 없으면 로드 3칸, 트레일이 없으면
+ * UTMB 줄, 철인3종이 없으면 철인 줄을 안 세운다(울산 = 트레일만 → UTMB 줄만). 사이클은 전당 종목에 없어 그대로
+ * (있을 때만). 기록을 지우는 게 아니라 이 팀 화면에서 안 보일 뿐이다 — 대회 기록은 사람 것이라 다른 팀 주소에선 보인다.
  */
 export function buildPbRows(
   bestRecords: MemberCardRecord[],
   utmbIndex: number | null,
+  categories: readonly string[] | null | undefined = null,
 ): PbRow[] {
+  const shown = visibleRecordCategories(categories ?? []);
+  const road = shown.includes("marathon");
+  const trail = shown.includes("trail");
+  const triathlon = shown.includes("triathlon");
   const byEvt = new Map<string, MemberCardRecord>();
   const others: MemberCardRecord[] = [];
   for (const rec of bestRecords) {
     if (rec.sport === "road_run") {
       byEvt.set(rec.evt.toUpperCase(), rec);
-    } else {
+    } else if (rec.sport !== "triathlon" || triathlon) {
       others.push(rec);
     }
   }
 
-  const rows: PbRow[] = PB_ROAD_SLATE.map((evt) => {
+  const rows: PbRow[] = (road ? PB_ROAD_SLATE : []).map((evt) => {
     const rec = byEvt.get(evt);
     return {
       label: evt,
@@ -216,15 +226,28 @@ export function buildPbRows(
     });
   }
 
-  rows.push({
-    label: "UTMB INDEX",
-    dotCls: utmbIndex != null ? getSportDotCls("trail_run") : "bg-border",
-    value: utmbIndex != null ? String(utmbIndex) : null,
-    isUtmb: true,
-    isNew: false,
-  });
+  if (trail) {
+    rows.push({
+      label: "UTMB INDEX",
+      dotCls: utmbIndex != null ? getSportDotCls("trail_run") : "bg-border",
+      value: utmbIndex != null ? String(utmbIndex) : null,
+      isUtmb: true,
+      isNew: false,
+    });
+  }
 
   return rows;
+}
+
+/**
+ * 페이스 추이를 세울까 — 팀의 기록 종목에 **러닝이 있고** 같은 종목 기록이 2건 이상일 때.
+ * 그래프는 로드(FULL·HALF·10K)만 그려서, 러닝을 안 세우는 팀(울산)엔 로드 칸과 함께 빠진다.
+ */
+export function showsPaceTrend(
+  records: MemberCardRaceRecord[] | undefined,
+  categories: readonly string[] | null | undefined = null,
+): boolean {
+  return visibleRecordCategories(categories ?? []).includes("marathon") && hasPaceTrend(records);
 }
 
 /** 미입력 칸에 찍을 문자열 — UTMB 인덱스는 시간이 아니라 점수라 자릿수를 흉내 내지 않는다 */

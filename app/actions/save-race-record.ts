@@ -2,6 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath, revalidateTag } from "next/cache";
+import { after } from "next/server";
 
 import { toRankingEvtCd } from "@/lib/comp-evt-type";
 import { withActive, withAdmin } from "@/lib/actions/auth";
@@ -16,8 +17,11 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
+import { syncPersonRecordToOtherTeams } from "@/lib/records-revalidate";
 
-export type { SaveRaceRecordInput };
+// ⚠️ 이 파일("use server")에서 타입을 다시 내보내지 않는다 — Turbopack 이 `export type { … }` 를 값으로 남겨
+// 모듈을 불러오는 순간 "SaveRaceRecordInput is not defined" 로 죽고, 같은 화면의 서버 액션이 전부 실패했다
+// (프로필 칭호 이력·대표 칭호·기록 저장). 타입은 `@/lib/race-record` 에서 가져다 쓴다.
 
 /**
  * 기록의 종목을 랭킹 RPC가 쓰는 코드로 바꾼다 — 철인 `FULL`은 `TRIATHLON_FULL`, 하이록스 `OPEN`은 `HYROX_OPEN`.
@@ -61,6 +65,9 @@ async function insertRaceRecord(
   const grantedTitles = await evaluateAndGrantTitles({
     trigger: "race_record", teamId, teamMemId: owner.teamMemId,
   }).catch((e) => { console.error("[title-engine] race_record 평가 실패", e); return [] as string[]; });
+
+  // 기록은 사람 것 — 이 사람이 속한 다른 팀 전당·칭호에도 반영(응답 밖에서)
+  after(() => syncPersonRecordToOtherTeams(owner.memId, teamId, { evaluateTitles: true }));
 
   return { ok: true as const, message: null, grantedTitles };
 }
@@ -151,6 +158,8 @@ export async function updateRaceRecord(recordId: string, recordTimeSec: number) 
         teamId, eventType, recordTimeSec, memberId: member.id, memberGender: member.gender ?? null,
       });
       if (shouldInvalidate) revalidateTag(`records:${teamId}`, "max");
+      // 기록은 사람 것 — 다른 팀 전당도 턴다
+      after(() => syncPersonRecordToOtherTeams(member.id, teamId));
     }
 
     return { ok: true as const, message: null };
@@ -187,6 +196,8 @@ export async function deleteRaceRecord(recordId: string) {
         teamId, eventType, memberId: member.id, memberGender: member.gender ?? null,
       });
       if (shouldInvalidate) revalidateTag(`records:${teamId}`, "max");
+      // 기록은 사람 것 — 다른 팀 전당도 턴다
+      after(() => syncPersonRecordToOtherTeams(member.id, teamId));
     }
 
     return { ok: true as const, message: null };

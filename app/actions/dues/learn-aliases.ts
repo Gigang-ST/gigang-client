@@ -2,7 +2,7 @@
 
 import { dayjs } from "@/lib/dayjs";
 
-import { withAdmin } from "@/lib/actions/auth";
+import { withDuesAdmin } from "@/lib/actions/dues-guard";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -20,7 +20,7 @@ export type AliasLearnItem = { rawName: string; memId: string };
  * 매칭되지 않아 "no unique or exclusion constraint matching the ON CONFLICT specification" 에러가 난다.
  */
 export async function learnAliases(items: AliasLearnItem[]) {
-  return withAdmin(async ({ member }) => {
+  return withDuesAdmin(async ({ member }) => {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
 

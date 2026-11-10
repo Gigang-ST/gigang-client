@@ -1,6 +1,6 @@
 "use server";
 
-import { withAdmin } from "@/lib/actions/auth";
+import { withDuesAdmin } from "@/lib/actions/dues-guard";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -11,7 +11,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * - 확정된 거래는 잔액에 반영되어 있으므로 먼저 확정 취소가 필요하다.
  */
 export async function deleteTransaction(txnId: string) {
-  return withAdmin(async () => {
+  return withDuesAdmin(async () => {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
 

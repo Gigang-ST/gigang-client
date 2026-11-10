@@ -8,12 +8,17 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { DevEmailLogin, isDevModeEnabled } from "@/components/auth/dev-email-login";
 import { SocialLinksRow } from "@/components/social-links";
+import type { TeamChannels } from "@/lib/team-channels";
 import { Button } from "@/components/ui/button";
 
 export function LoginForm({
   className,
+  channels,
   ...props
-}: React.ComponentPropsWithoutRef<"div">) {
+}: React.ComponentPropsWithoutRef<"div"> & {
+  /** 이 팀 채널(팀 설정) — 로그인 화면 하단 아이콘 줄 */
+  channels: TeamChannels;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [oauthProvider, setOauthProvider] = useState<"kakao" | "google" | null>(
     null,
@@ -109,7 +114,7 @@ export function LoginForm({
       </div>
 
       {/* Social Links */}
-      <SocialLinksRow />
+      <SocialLinksRow channels={channels} />
 
       {/* Footer */}
       <p className="w-[300px] text-center text-xs leading-relaxed text-[#A1A1AA]">

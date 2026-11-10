@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentMember } from "@/lib/queries/member";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import {
   getNotifications,
   getUnreadNotificationCount,
@@ -19,6 +20,8 @@ import {
 export async function GET(request: NextRequest) {
   const { member } = await getCurrentMember();
   if (!member) return NextResponse.json({ notifications: [] });
+  // 접속한 팀의 알림만(두 팀 가입자에게 섞여 보이지 않게)
+  const { teamId } = await getRequestTeamContext();
 
   const { searchParams } = new URL(request.url);
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "20", 10), 50);
@@ -26,13 +29,13 @@ export async function GET(request: NextRequest) {
 
   try {
     if (cursor) {
-      const notifications = await getNotifications(member.id, { cursor, limit });
+      const notifications = await getNotifications(member.id, teamId, { cursor, limit });
       return NextResponse.json({ notifications });
     }
 
     const [notifications, unreadCount] = await Promise.all([
-      getNotifications(member.id, { limit }),
-      getUnreadNotificationCount(member.id),
+      getNotifications(member.id, teamId, { limit }),
+      getUnreadNotificationCount(member.id, teamId),
     ]);
     return NextResponse.json({ notifications, unreadCount });
   } catch {

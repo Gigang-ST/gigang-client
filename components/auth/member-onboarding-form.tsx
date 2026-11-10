@@ -12,6 +12,7 @@ import { useForm } from "react-hook-form";
 import { analytics, createOnceGate, type OnboardingStage } from "@/lib/analytics";
 import { formatKST } from "@/lib/dayjs";
 import { digitsOnly, formatPhone, isValidPhone } from "@/lib/phone-utils";
+import type { OnboardingExistingPerson } from "@/lib/onboarding-existing-person";
 import type { PledgeGathering } from "@/lib/queries/onboarding-gatherings";
 import {
   AVG_PACE_CODES,
@@ -30,12 +31,13 @@ import { cn } from "@/lib/utils";
 import {
   onboardingCheckPhone,
   onboardingCreateMember,
+  onboardingJoinTeam,
   onboardingLinkExistingMember,
-  onboardingRejoinDeletedMember,
 } from "@/app/actions/onboarding-mem-v2";
 
 import { AppTabsGuide } from "@/components/auth/app-tabs-guide";
 import { AttendancePledgeStep } from "@/components/auth/attendance-pledge-step";
+import { OtherTeamHint, type OtherTeamLink } from "@/components/auth/other-team-hint";
 import { isDevModeEnabled } from "@/lib/dev-mode";
 import { SignupProgress } from "@/components/auth/signup-progress";
 import { StationCombobox } from "@/components/auth/station-combobox";
@@ -74,9 +76,22 @@ type MemberOnboardingFormProps = {
   initialAvatarUrl?: string | null;
   initialFullName?: string;
   kakaoChatPassword?: string;
+  /** 이 팀 오픈채팅 주소(팀 설정). 없으면 참여 버튼을 안 그린다 */
+  kakaoOpenChatUrl?: string | null;
   /** 6단계(참석 약속) 모임 선택 화면에 보여줄 열린 모임 목록 — 서버(onboarding/page.tsx)에서 조회해 전달 */
   gatherings: PledgeGathering[];
+  /**
+   * 이미 있는 사람(다른 팀 회원·이 팀에서 삭제됐던 회원)의 사람 정보. 있으면 연락처 단계를 건너뛰고
+   * 미리 채운 폼으로 시작하며, 마지막에 신규 생성 대신 이 팀 가입(onboardingJoinTeam)을 부른다.
+   */
+  existingPerson?: OnboardingExistingPerson | null;
+  /** 「○○ 가입이세요? 여기로 →」 — 가입 폼 첫 화면에만 띄운다(팀 설정 signup.other_teams) */
+  otherTeams?: OtherTeamLink[];
 };
+
+/** 미리 채운 정보를 고치면 어디까지 바뀌는지 — 사람 정보는 가입한 모든 팀이 같이 쓴다 */
+const EXISTING_PERSON_NOTICE =
+  "이미 가입한 팀에서 쓰던 정보를 불러왔어요. 수정하면 가입한 모든 팀의 회원정보가 함께 바뀌어요.";
 
 type MemberOnboardingValues = {
   fullName: string;
@@ -106,8 +121,6 @@ const initialWizardProfile: WizardProfileState = {
   joinSrcTxt: "",
 };
 
-const KAKAO_OPEN_CHAT_URL = "https://open.kakao.com/o/grnMFGng";
-
 export function MemberOnboardingForm({
   userId: _userId,
   provider,
@@ -115,7 +128,10 @@ export function MemberOnboardingForm({
   initialAvatarUrl,
   initialFullName = "",
   kakaoChatPassword,
+  kakaoOpenChatUrl = null,
   gatherings,
+  existingPerson = null,
+  otherTeams = [],
 }: MemberOnboardingFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -123,12 +139,19 @@ export function MemberOnboardingForm({
   const safeNext =
     nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/";
   const form = useForm<MemberOnboardingValues>({
-    defaultValues: {
-      fullName: initialFullName,
-      gender: "",
-      birthday: "",
-      emailInput: email ?? "",
-    },
+    defaultValues: existingPerson
+      ? {
+          fullName: existingPerson.fullName,
+          gender: existingPerson.gender,
+          birthday: existingPerson.birthday,
+          emailInput: existingPerson.email ?? email ?? "",
+        }
+      : {
+          fullName: initialFullName,
+          gender: "",
+          birthday: "",
+          emailInput: email ?? "",
+        },
   });
 
   // 개발 모드에서 ?preview=success 로 완료 화면을 바로 띄운다(실제 가입 없이 UI 확인용).
@@ -137,7 +160,7 @@ export function MemberOnboardingForm({
     isDevModeEnabled() && searchParams.get("preview") === "success";
 
   const [stage, setStage] = useState<OnboardingStage>(
-    previewSuccess ? "success" : "phone",
+    previewSuccess ? "success" : existingPerson ? "details" : "phone",
   );
 
   // GA 가입 퍼널(onboarding_step 1~6) — 각 단계에 **처음 들어갈 때 한 번씩**.
@@ -152,13 +175,21 @@ export function MemberOnboardingForm({
   // phone 단계(PhoneStep)가 자체 로컬 상태로 입력을 받고, 검증·기존회원 확인을
   // 통과한 값만 여기로 올라온다. 이후 단계에선 표시 전용 prop — 폼 필드로 존재하지
   // 않으므로 자동완성 오염이나 단계 왕복 시 값 유실/잔상이 구조적으로 불가능하다.
-  const [confirmedPhone, setConfirmedPhone] = useState("");
+  const [confirmedPhone, setConfirmedPhone] = useState(existingPerson?.phone ?? "");
   const [phoneLoading, setPhoneLoading] = useState(false);
   const [phoneServerError, setPhoneServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [wizardProfile, setWizardProfile] = useState<WizardProfileState>(
-    initialWizardProfile,
+    existingPerson
+      ? {
+          ...initialWizardProfile,
+          // 러닝 프로필은 사람 것이라 미리 채운다. 가입 목적·유입 경로는 팀 것이라 새로 받는다.
+          nearStnNm: existingPerson.nearStnNm,
+          avgRunDistKmInput: existingPerson.avgRunDistKm != null ? String(existingPerson.avgRunDistKm) : "",
+          avgPaceCd: existingPerson.avgPaceCd,
+        }
+      : initialWizardProfile,
   );
   const [purposeErrors, setPurposeErrors] = useState<{
     joinSrcCd?: string;
@@ -195,21 +226,22 @@ export function MemberOnboardingForm({
         setStage("details");
         return;
       }
-      // 삭제된 회원 — 승인 없이 바로 소속을 되살린다(§onboardingRejoinDeletedMember).
-      // 예전엔 "재가입 신청이 접수되었습니다" 화면에서 멈췄는데 접수되는 곳이 없었다.
+      // 이미 있는 사람인데 이 팀 소속이 없다(다른 팀 회원·이 팀에서 삭제됐던 회원).
+      // **바로 가입시키지 않는다** — 로그인만 붙이고 새로 고치면, 서버가 그 사람 정보를 미리 채운
+      // 폼(existingPerson)으로 다시 그린다. 가입은 본인이 마지막에 누른다(onboardingJoinTeam).
+      // 대상은 **번호로 서버가 다시 해석한다** — memId 를 넘기면 남의 계정에 연결할 수
+      // 있는 경로가 된다(§matchMemberByPhone).
       if (check.kind === "rejoin") {
-        // 대상은 **번호로 서버가 다시 해석한다** — memId 를 넘기면 남의 계정에 연결할 수
-        // 있는 경로가 된다(§matchMemberByPhone).
-        const rejoin = await onboardingRejoinDeletedMember({
+        const linked = await onboardingLinkExistingMember({
           phoneRaw: phoneValue,
           provider,
           initialAvatarUrl,
         });
-        if (!rejoin.ok) {
-          setPhoneServerError(rejoin.message ?? "재가입에 실패했습니다.");
+        if (!linked.ok) {
+          setPhoneServerError(linked.message ?? "연동에 실패했습니다.");
           return;
         }
-        router.replace(safeNext);
+        router.refresh();
         return;
       }
 
@@ -317,20 +349,31 @@ export function MemberOnboardingForm({
     setSubmitError(null);
 
     try {
-      const res = await onboardingCreateMember({
-        fullName: values.fullName,
-        gender: values.gender as "male" | "female",
-        birthday: values.birthday,
-        phoneDigits: digitsOnly(confirmedPhone),
-        email: emailValue,
-        // 계좌는 온보딩에서 받지 않는다(설계 §2.1) — 완료 화면 "/profile/bank" 링크로 유도
-        bankName: null,
-        bankAccountRaw: "",
-        provider,
-        initialAvatarUrl,
-        onbdProfile,
-        pledgeGthrId,
-      });
+      // 이미 있는 사람 — 새로 만들지 않고 이 팀에 가입한다. 이메일은 입력칸을 보였을 때(로그인 이메일이
+      // 없을 때)만 보낸다 — 로그인 이메일로 사람 정보의 이메일을 몰래 덮지 않게.
+      const res = existingPerson
+        ? await onboardingJoinTeam({
+            fullName: values.fullName,
+            gender: values.gender as "male" | "female",
+            birthday: values.birthday,
+            email: email ? null : values.emailInput.trim() || null,
+            onbdProfile,
+            pledgeGthrId,
+          })
+        : await onboardingCreateMember({
+            fullName: values.fullName,
+            gender: values.gender as "male" | "female",
+            birthday: values.birthday,
+            phoneDigits: digitsOnly(confirmedPhone),
+            email: emailValue,
+            // 계좌는 온보딩에서 받지 않는다(설계 §2.1) — 완료 화면 "/profile/bank" 링크로 유도
+            bankName: null,
+            bankAccountRaw: "",
+            provider,
+            initialAvatarUrl,
+            onbdProfile,
+            pledgeGthrId,
+          });
 
       if (!res.ok) {
         setSubmitError(res.message ?? "가입에 실패했습니다.");
@@ -425,7 +468,7 @@ export function MemberOnboardingForm({
               ) : null}
             </div>
 
-            {kakaoChatPassword ? (
+            {kakaoChatPassword && kakaoOpenChatUrl ? (
               <div className="w-full rounded-2xl border border-border bg-secondary/50 px-5 py-4 text-center">
                 <p className="text-xs text-muted-foreground">
                   오픈채팅 비밀번호
@@ -439,14 +482,16 @@ export function MemberOnboardingForm({
             <AppTabsGuide />
 
             <div className="flex w-full flex-col gap-2">
-              <a
-                href={KAKAO_OPEN_CHAT_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#FEE500] text-[15px] font-bold text-neutral-900 shadow-sm transition-colors hover:bg-[#fdd835]"
-              >
-                💬 카카오톡 오픈채팅 참여하기
-              </a>
+              {kakaoOpenChatUrl ? (
+                <a
+                  href={kakaoOpenChatUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#FEE500] text-[15px] font-bold text-neutral-900 shadow-sm transition-colors hover:bg-[#fdd835]"
+                >
+                  💬 카카오톡 오픈채팅 참여하기
+                </a>
+              ) : null}
               <Link
                 href="/"
                 className="flex h-12 items-center justify-center rounded-xl bg-primary text-[15px] font-semibold text-primary-foreground"
@@ -497,6 +542,9 @@ export function MemberOnboardingForm({
             <CardDescription>
               전부 선택 입력이에요. 나중에 프로필에서도 수정할 수 있어요.
             </CardDescription>
+            {existingPerson ? (
+              <Caption className="text-primary">{EXISTING_PERSON_NOTICE}</Caption>
+            ) : null}
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-6">
@@ -743,6 +791,7 @@ export function MemberOnboardingForm({
   if (stage === "phone") {
     return (
       <PhoneStep
+        otherTeams={otherTeams}
         initialPhone={confirmedPhone}
         loading={phoneLoading}
         serverError={phoneServerError}
@@ -755,12 +804,19 @@ export function MemberOnboardingForm({
   return (
     <div className={cn("flex flex-col gap-6")}>
       <SignupProgress step={3} />
+      {/* 이미 있는 사람은 연락처 단계 없이 여기서 시작한다 — 그땐 여기가 첫 화면이라 안내를 띄운다 */}
+      {existingPerson ? <OtherTeamHint teams={otherTeams} /> : null}
       <Card className="bg-card border-border shadow-sm">
         <CardHeader>
           <H2>회원 정보 입력</H2>
           <CardDescription>
-            가입에 필요한 기본 정보를 입력해 주세요.
+            {existingPerson
+              ? "이 팀에서 쓸 기본 정보를 확인해 주세요."
+              : "가입에 필요한 기본 정보를 입력해 주세요."}
           </CardDescription>
+          {existingPerson ? (
+            <Caption className="text-primary">{EXISTING_PERSON_NOTICE}</Caption>
+          ) : null}
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -869,18 +925,21 @@ export function MemberOnboardingForm({
                   <Button type="submit" className="w-full">
                     다음
                   </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground"
-                    onClick={() => {
-                      form.clearErrors();
-                      setStage("phone");
-                    }}
-                  >
-                    번호 다시 입력
-                  </Button>
+                  {/* 이미 있는 사람은 번호가 본인 확인 수단이라 여기서 바꾸지 않는다 */}
+                  {existingPerson ? null : (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground"
+                      onClick={() => {
+                        form.clearErrors();
+                        setStage("phone");
+                      }}
+                    >
+                      번호 다시 입력
+                    </Button>
+                  )}
                 </div>
               </div>
             </form>
@@ -900,11 +959,13 @@ export function MemberOnboardingForm({
  * 자동완성이 change 이벤트 없이 값만 써 넣어도, 화면에 보이는 값 그대로 검증된다.
  */
 function PhoneStep({
+  otherTeams,
   initialPhone,
   loading,
   serverError,
   onSubmit,
 }: {
+  otherTeams: OtherTeamLink[];
   initialPhone: string;
   loading: boolean;
   serverError: string | null;
@@ -934,6 +995,7 @@ function PhoneStep({
   return (
     <div className="flex flex-col gap-6">
       <SignupProgress step={3} />
+      <OtherTeamHint teams={otherTeams} />
       <Card className="bg-card border-border shadow-sm">
         <CardHeader>
           <H2>회원 정보 입력</H2>

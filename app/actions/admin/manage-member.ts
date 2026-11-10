@@ -8,7 +8,7 @@ import { dayjs } from "@/lib/dayjs";
 import { sealBalanceAnchor } from "@/lib/dues/seal-anchor";
 import { insertNoti } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, createAdminClientAs } from "@/lib/supabase/admin";
 import { koreanNameSchema } from "@/lib/validations/member";
 
 /**
@@ -72,11 +72,11 @@ async function notifyReactivated(teamId: string, memIds: string[]) {
  * `pending` 상태를 만드는 코드는 더 이상 없다 — 가입 승인 흐름은 #163 에서 걷어냈고,
  * 그 뒤 남아 있던 approveMember·rejectMember 와 /admin/approvals 화면도 2026-10 에 지웠다
  * (prd `pending` 회원 0명, 화면으로 가는 링크 0개). 삭제된 회원의 재가입은 승인 없이
- * 본인이 끝낸다(`onboardingRejoinDeletedMember`).
+ * 본인이 끝낸다(`onboardingJoinTeam` — 미리 채운 가입 폼을 거쳐 직접 가입).
  */
 
 export async function updateMemberName(memberId: string, name: string) {
-  return withAdmin(async () => {
+  return withAdmin(async ({ member }) => {
     const parsed = koreanNameSchema.safeParse(name);
     if (!parsed.success) {
       return {
@@ -87,7 +87,8 @@ export async function updateMemberName(memberId: string, name: string) {
     const newName = parsed.data;
 
     const { teamId } = await getRequestTeamContext();
-    const db = createAdminClient();
+    // 이름은 사람 것이라 다른 팀 화면에도 바뀐다 — 변경 이력에 "어느 팀 관리자가" 남게 행위자를 싣는다
+    const db = createAdminClientAs({ memId: member.id, teamId });
 
     const { data: rel } = await db
       .from("team_mem_rel")
@@ -173,7 +174,7 @@ export async function deleteMember(memberId: string) {
     //   - 예치금이면 → 환급·정산해 0으로 만든 뒤 삭제한다.
     //
     // 이 가드가 "삭제된 사람 = 주고받을 돈이 없는 사람"을 보장하고, 그래야 삭제 회원의
-    // **무승인 자동 재가입**(`onboardingRejoinDeletedMember`)이 안전해진다. 둘은 한 쌍이라
+    // **무승인 재가입**(`onboardingJoinTeam`)이 안전해진다. 둘은 한 쌍이라
     // 따로 떼지 않는다 — 가드를 풀면 재가입이 돈을 지우는 경로가 된다.
     const bal = await getBalanceAmount(db, teamId, memberId);
     if (!bal.ok) {

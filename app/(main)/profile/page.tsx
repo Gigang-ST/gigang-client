@@ -8,6 +8,7 @@ import { getCurrentMember } from "@/lib/queries/member";
 import { getMemberCancelCount } from "@/lib/queries/member-cancel-count";
 import { getPublicMemberCard } from "@/lib/queries/member-card";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getTeamCfg } from "@/lib/team-cfg/read";
 
 import { HeaderActions } from "@/components/common/header-actions";
 import { InactiveReasonNote } from "@/components/common/inactive-reason-note";
@@ -39,6 +40,7 @@ async function ProfileContent() {
     cmmCdRows,
     { data: titleRows },
     cancelCnt,
+    titlesEnabled,
   ] = await Promise.all([
     getPublicMemberCard(supabase, member.id, teamId),
     supabase
@@ -58,6 +60,8 @@ async function ProfileContent() {
     // 모임 취소 수 — 본인 화면 전용이라 공개 카드 RPC에 싣지 않고 따로 센다.
     // 같은 모임 여러 번 취소는 1번, 다시 참석한 모임은 빼는 규칙이 lib/gathering/cancel-stats.ts 에 있다.
     getMemberCancelCount(supabase, member.id, teamId),
+    // 칭호 기능 — 끈 팀은 대표 칭호 자리·컬렉션·획득 이력 진입점을 안 세운다(칭호 자체는 카드 RPC가 안 싣는다)
+    getTeamCfg(teamId, "feature.titles"),
   ]);
 
   // RPC는 `mem_st_cd = 'active'`만 돌려준다 — 비활성·탈퇴 상태면 카드가 통째로 비므로
@@ -131,6 +135,7 @@ async function ProfileContent() {
         teamId={teamId}
         card={card}
         cancelCnt={cancelCnt}
+        titlesEnabled={titlesEnabled}
         utmb={
           utmbProfile?.utmb_prf_url && utmbProfile?.utmb_idx != null
             ? {

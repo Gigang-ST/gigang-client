@@ -3,6 +3,7 @@ import { unstable_cache } from "next/cache";
 
 import type { GatheringOgSource } from "@/lib/gathering-og";
 import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
+import { teamCacheTags } from "@/lib/team-cache-tag";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -49,6 +50,6 @@ export function getCachedGatheringOg(
       };
     },
     ["gathering-og", teamId, ref],
-    { tags: [HOME_CALENDAR_CACHE_TAG], revalidate: 3600 },
+    { tags: teamCacheTags(HOME_CALENDAR_CACHE_TAG, teamId), revalidate: 3600 },
   )();
 }

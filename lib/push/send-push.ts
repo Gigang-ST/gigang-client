@@ -97,16 +97,20 @@ async function sendToSub(
  * 특정 멤버 1명의 모든 기기(구독)에 푸시를 발송한다.
  */
 export async function sendPushToMember(
+  teamId: string,
   memId: string,
   payload: PushPayload,
 ): Promise<void> {
   if (!ensureVapidConfigured()) return;
 
+  // **그 팀 주소로 등록한 기기만.** 구독은 주소(서비스워커)마다 따로라, 팀을 안 거르면 울산 알림이
+  // gigang.team 에서 켠 기기로도 가고 — 딥링크가 상대경로라 — 눌렀을 때 기강 주소에서 열려 "없음"이 된다.
   const admin = createUntypedAdminClient();
   const { data: subs, error } = await admin
     .from("push_sub_rel")
     .select("endpoint, p256dh, auth, mem_id")
-    .eq("mem_id", memId);
+    .eq("mem_id", memId)
+    .eq("team_id", teamId);
 
   if (error) {
     console.error("[push] 구독 조회 실패", memId, error.message);
@@ -125,6 +129,7 @@ export async function sendPushToMember(
  * 대량 발송(팀 전체 등)에서 멤버별 개별 조회(N+1)를 피하기 위한 배치 경로.
  */
 export async function sendPushToMembers(
+  teamId: string,
   payloadByMemId: Map<string, PushPayload>,
 ): Promise<void> {
   if (!ensureVapidConfigured()) return;
@@ -135,7 +140,8 @@ export async function sendPushToMembers(
   const { data: subs, error } = await admin
     .from("push_sub_rel")
     .select("endpoint, p256dh, auth, mem_id")
-    .in("mem_id", memIds);
+    .in("mem_id", memIds)
+    .eq("team_id", teamId); // 그 팀 주소로 등록한 기기만(sendPushToMember 와 같은 이유)
 
   if (error) {
     console.error("[push] 구독 일괄 조회 실패", error.message);

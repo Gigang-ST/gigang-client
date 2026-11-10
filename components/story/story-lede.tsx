@@ -40,7 +40,6 @@ import {
 
 import { goToLogin } from "@/lib/auth/go-to-login";
 import { compEvtTypeKm, compEvtTypeLabel } from "@/lib/comp-evt-type";
-import { dedupePledgesByMember } from "@/lib/story-pledge";
 import { pickActvLeadIndex, pickRandomPostIndex } from "@/lib/story-post";
 import { reactionKey } from "@/lib/story-reaction";
 import {
@@ -63,18 +62,6 @@ import type { StoryPost } from "@/lib/queries/story-posts";
 import type { RecentTitleRow } from "@/lib/story-title";
 import type { RecapTeaser } from "@/lib/mileage-recap";
 import type { TitleDescVisibility } from "@/components/common/title-badge";
-
-/**
- * 목표 한마디 리드 슬롯(§⑤) 잠정 중단 토글.
- *
- * **삭제가 아니라 잠정 중단이다** — 2026-07-28 UI 정리로 화면에서만 내렸다. 되살리려면
- * 이 상수를 true로 되돌리면 된다(슬롯 생성 블록·ORDER 편입이 다시 살아난다).
- *
- * 성능: false일 때 §⑤ 블록 자체가 실행되지 않아 dedupePledgesByMember 계산도 돌지 않는다.
- * 데이터(feed.pledges)는 get_team_story_feed RPC에 CTE로 묶여 어차피 오므로 추가 비용은 없다
- * — 여기선 그걸 슬롯으로 만들지 않을 뿐이다. 하단 PledgeSigns 존도 함께 중단(§story-client).
- */
-const SHOW_PLEDGE_LEDE = false;
 
 /** 자동 전환 간격 — 한 장씩, 끝에 닿으면 처음으로 되돌아온다 */
 const ROTATE_MS = 4000;
@@ -318,8 +305,8 @@ function rotate<T>(arr: T[], n: number): T[] {
  * 지면에서 빠지는 사람이 없게(우측 레일 대신 시간으로 모두에게 자리를 준다).
  *
  * 스와이프 순서는 `ORDER`가 정한다: (시즌 완주) → 깅스타그램 → 활동지수 → 새 얼굴 →
- * 목표 한마디 → 완주기록 → 칭호획득 → 대회. (목표 한마디는 `SHOW_PLEDGE_LEDE=false`로 잠정
- * 중단이라 실제로 뜨는 건 여섯이다. 시즌 완주는 마일리지런 종료 후 30일에만 선다.)
+ * 완주기록 → 칭호획득 → 대회. (시즌 완주는 마일리지런 종료 후 30일에만 선다.)
+ * 예전 「목표 한마디」 칸(§⑤)은 2026-11-10 기능째 지웠다 — 되살릴 땐 그 커밋을 본다.
  *
  * **랜덤 슬롯은 초기값을 서버가 뽑아 넘긴다**(첫 화면부터 랜덤·하이드레이션 안전). 이후
  * 굴리는 건 자동전환/수동 한 바퀴 완주 때만 — 한 사이클 내내는 고정이라 뒤로 스와이프해도
@@ -332,8 +319,6 @@ function buildLedes(
   posts: StoryPost[],
   /** 새 얼굴 대표 회전량 — 최근 30일 새 얼굴 중 대표를 굴린다(§②) */
   newbiePick: number,
-  /** 각오 칸에 실을 인덱스(§⑤) */
-  pledgePick: number,
   /** 기록 칸의 회전량(§③) */
   recordPick: number,
   /** 활동지수 대표 인덱스 — 상위 3명 중 하나(§④) */
@@ -633,46 +618,6 @@ function buildLedes(
     });
   }
 
-  // ⑤ 목표 한마디 — 존재하는 목표 중 **하나만** 싣는다. 활동지수 슬롯과 같은 방식으로
-  //    (명조 헤드라인=목표 문장 + 프로필 부품[칭호·소개] + 응원) 그린다. 응원 대상은 목표
-  //    팻말이 아니라 **그 목표를 쓴 사람**이다 — entity_type "actv" + mem_id로 무한 응원(🔥 대박).
-  //    피드 캐시엔 이 응원 수가 없어(0에서 시작) 최신 집계(reactions.totals/mine)를 buildEntity가 얹는다.
-  //    최고기록·러닝프로필은 이 슬롯에서 안 쓴다(칭호·소개만) — 목표 문장과 경쟁해 시선이 흩어진다.
-  //    어느 목표를 고를지는 호출자가 정한다(`pledgePick`) — 여기서 Math.random()을 쓰면
-  //    서버와 클라이언트가 다른 목표를 골라 하이드레이션이 깨진다.
-  // SHOW_PLEDGE_LEDE=false면 이 슬롯을 통째로 건너뛴다(잠정 중단 — 파일 상단 상수 주석 참조).
-  const pledgePool = SHOW_PLEDGE_LEDE ? dedupePledgesByMember(feed.pledges) : [];
-  const pledgeLead = pledgePool[pledgePick % Math.max(pledgePool.length, 1)];
-  if (SHOW_PLEDGE_LEDE && pledgeLead) {
-    ledes.push({
-      key: `pledge-${pledgeLead.pldg_id}`,
-      kicker: "여러분께 고합니다",
-      hero: "headline",
-      entity: buildEntity("actv", pledgeLead.mem_id, "fire", 0),
-      // 사람·수치·레일은 쓰지 않는다 — 아래 profile 렌더가 프로필 부품으로 통째로 그린다.
-      people: [],
-      moreCount: 0,
-      // 헤드라인이 곧 목표 문장(따옴표로 인용). standfirst는 profile 분기에서 안 쓰인다.
-      headline: `“${pledgeLead.pldg_txt}”`,
-      standfirst: "",
-      figure: null,
-      figureLabel: null,
-      profile: {
-        person: {
-          mem_id: pledgeLead.mem_id,
-          mem_nm: pledgeLead.mem_nm,
-          avatar_url: pledgeLead.avatar_url,
-          badge_effect: pledgeLead.badge_effect,
-          intro_txt: pledgeLead.intro_txt,
-          primary_title: pledgeLead.primary_title,
-        },
-        // 칭호(이름 옆) → 소개 한마디(왼쪽). 러닝 프로필·최고기록은 뺀다 — 목표 문장이 이미
-        // 헤드라인으로 서 있어, 부품을 더하면 시선만 흩어진다.
-        parts: ["title", "intro"],
-      },
-    });
-  }
-
   // ⑥ 운동 기록 — 레코드보드에 올라온 자랑 중 **랜덤 1건**. 하단 격자존은 그대로 두고,
   //    리드에선 사진 한 장을 크게 + 한마디 + 수치(종목·거리·날짜) + 올린 사람으로 세운다.
   //    주인공은 "그 사람이 한 운동"이라 러닝 프로필(페이스·역 등 간단 프로필)은 넣지 않는다 —
@@ -710,7 +655,7 @@ function buildLedes(
       // 기록 자랑도 응원을 받는다(🔥 대박) — 사진까지 올려 내놓은 기록이라 응원받기 가장
       // 자연스러운 자리인데, 예전엔 이 슬롯만 응원이 없어 3밴드 footer 오른쪽이 비었다.
       //
-      // **응원 대상은 글이 아니라 그 기록을 올린 사람이다** — 활동지수·목표 한마디 슬롯과
+      // **응원 대상은 글이 아니라 그 기록을 올린 사람이다** — 활동지수 슬롯과
       // 같은 멤버 기준 카운터(`actv` + mem_id)를 쓴다. 예전엔 `post` + post_id(글 단위)였는데,
       // 이 슬롯은 매 진입마다 16건 중 랜덤 1건을 세우므로 방금 응원한 글이 다음 진입엔 거의
       // 안 돌아온다 — 카운터는 DB에 정상 누적되는데도 "눌러도 반영이 안 된다"로 보였다.
@@ -820,7 +765,7 @@ function buildLedes(
   // 뒤쪽 셋은 **완주기록 → 칭호획득 → 대회** 순이다: 해낸 일(기록) 옆에 그 결과로 받은
   // 것(칭호)을 붙이고, 앞으로의 일(대회)을 맨 끝에 둬 "지나온 것 → 다가올 것"으로 닫는다.
   // 시즌 완주(recap)는 맨 앞 — 한 시즌에 한 번 오는 소식이다(§⓪).
-  const ORDER = ["recap", "post", "actv", "newbie", "pledge", "record", "title", "race"];
+  const ORDER = ["recap", "post", "actv", "newbie", "record", "title", "race"];
   const rank = (key: string) => {
     const i = ORDER.findIndex((p) => key.startsWith(`${p}-`));
     return i === -1 ? ORDER.length : i;
@@ -846,7 +791,6 @@ export function StoryLede({
   grants,
   initialTitlePick,
   initialNewbiePick,
-  initialPledgePick,
   initialRecordPick,
   initialActvPick,
   initialPostPick,
@@ -867,7 +811,6 @@ export function StoryLede({
   /** 리드 각 랜덤 슬롯의 진입 인덱스 — 서버가 매 요청 뽑아 넘긴다(§story/page.tsx).
    *  첫 화면부터 랜덤이고 하이드레이션이 안전하다(렌더 중 Math.random 금지). */
   initialNewbiePick: number;
-  initialPledgePick: number;
   initialRecordPick: number;
   initialActvPick: number;
   initialPostPick: number;
@@ -884,7 +827,6 @@ export function StoryLede({
   // 굴리는 건 자동전환/수동이 **한 바퀴를 완주하는 순간**에만(아래 타이머·go). 한 사이클
   // 내내는 고정이라 뒤로 스와이프해도 방금 본 슬롯이 안 바뀐다.
   const [newbiePick, setNewbiePick] = useState(initialNewbiePick);
-  const [pledgePick, setPledgePick] = useState(initialPledgePick);
   const [recordPick, setRecordPick] = useState(initialRecordPick);
   const [actvPick, setActvPick] = useState(initialActvPick);
   const [postPick, setPostPick] = useState(initialPostPick);
@@ -894,7 +836,6 @@ export function StoryLede({
     reactions,
     posts,
     newbiePick,
-    pledgePick,
     recordPick,
     actvPick,
     postPick,
@@ -1021,14 +962,13 @@ export function StoryLede({
    * 한 바퀴 완주 시 모든 랜덤 슬롯을 한꺼번에 다시 뽑는다.
    *
    * 매 전환마다 굴리면 뒤로 스와이프했을 때 방금 본 슬롯이 이미 바뀌어 있다 — 그래서 한
-   * 사이클(마지막 장 → 처음) 단위로만 굴린다. 회전 계열(새얼굴·기록·각오)은 인덱스를 계속
+   * 사이클(마지막 장 → 처음) 단위로만 굴린다. 회전 계열(새얼굴·기록)은 인덱스를 계속
    * 키워도 buildLedes가 pool 길이로 나눠 쓰므로 안전하고, 운동기록·활동지수는 pool 크기에
    * 맞춰 새로 뽑는다. effect 밖(콜백)에서만 부른다 — 렌더 순수성 유지.
    */
   const rerollAllPicks = useCallback(() => {
     setNewbiePick((n) => n + 1 + Math.floor(Math.random() * 3));
-    setPledgePick((n) => n + 1 + Math.floor(Math.random() * 3));
-    // 기록도 단건 회전이라 새얼굴·목표처럼 한 바퀴마다 1~3칸 밀어 다음 대표가 바뀌게 한다.
+    // 기록도 단건 회전이라 새얼굴처럼 한 바퀴마다 1~3칸 밀어 다음 대표가 바뀌게 한다.
     setRecordPick((n) => n + 1 + Math.floor(Math.random() * 3));
     setActvPick(() => pickActvLeadIndex(feed.actv_rank.length));
     setPostPick(() => pickRandomPostIndex(posts.length));
@@ -1186,7 +1126,7 @@ export function StoryLede({
    *
    * 슬롯마다 성격이 달라 무엇을 싣는지는 여기서 갈리지만, 자리와 높이는 하나다:
    * **그 대회의 대표 숫자**(예정=D-39 / 완주=3:54:15) · 날짜·종목·거리(운동기록).
-   * 활동지수·목표 한마디·새 얼굴은 실을 사실이 없어 비운다(오른쪽 응원만 남는다).
+   * 활동지수·새 얼굴은 실을 사실이 없어 비운다(오른쪽 응원만 남는다).
    * 한 줄을 넘기지 않는다 — footer 높이가 흔들리면 body가 따라 흔들린다.
    */
   const footNote = lede.recap ? (
@@ -1703,7 +1643,7 @@ export function StoryLede({
                 )}
             </>
           ) : lede.profile ? (
-            /* 활동지수(§④)·목표 한마디(§⑤) — 프로필 부품 조합.
+            /* 활동지수(§④) — 프로필 부품 조합.
                응원 버튼은 여기서 그리지 않는다(footer가 맡는다). */
             /* PB 블록은 걷어냈다 — 이 슬롯의 주어는 이번 달 활동(오른쪽 27px 수치)이고,
                그 아래 자리는 소개 한마디가 이미 쓰고 있다. 역대 PB까지 얹으면 "이번 달"

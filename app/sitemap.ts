@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 import { SITE_URL } from "@/config";
 import { dayjs } from "@/lib/dayjs";
-import { DEFAULT_FALLBACK_TEAM_ID } from "@/lib/constants/gigang-team";
+import { TEAM_ID_BY_CD } from "@/lib/constants/gigang-team";
 import { getCachedBoardPostRefs } from "@/lib/queries/board";
 import { INDEXABLE_ROUTES } from "@/lib/seo/indexable-routes";
 
@@ -46,7 +46,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
  */
 async function boardPostRoutes(): Promise<MetadataRoute.Sitemap> {
   try {
-    const posts = await getCachedBoardPostRefs(DEFAULT_FALLBACK_TEAM_ID);
+    // TODO(멀티팀): 아직 기강 글만 싣는다 — 팀별 사이트맵은 게시판 팀 분리와 함께.
+    const posts = await getCachedBoardPostRefs(TEAM_ID_BY_CD.gigang);
 
     return posts.map((post) => ({
       url: new URL(`/board/${post.post_id}`, SITE_URL).toString(),

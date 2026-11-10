@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getCachedBoardPost } from "@/lib/queries/board";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { boardPostDescription } from "@/lib/seo/board-post-meta";
 import { PostDetail } from "@/components/board/post-detail";
 
@@ -17,7 +18,8 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const post = await getCachedBoardPost(id);
+  const { teamId } = await getRequestTeamContext();
+  const post = await getCachedBoardPost(teamId, id);
   if (!post) return { title: "글을 찾을 수 없습니다", robots: { index: false } };
 
   return {
@@ -35,14 +37,16 @@ export async function generateMetadata({
 }
 
 // 게시판 상세는 공개 온디맨드 캐시 페이지. 읽음 처리·권한 계산은 클라에서 서버액션으로 수행한다.
+// 접속한 팀의 글만 연다 — 다른 팀 글 id 는 없는 글(404)과 같다.
 export default async function BoardPostPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const { teamId } = await getRequestTeamContext();
 
-  const post = await getCachedBoardPost(id);
+  const post = await getCachedBoardPost(teamId, id);
   if (!post) notFound();
 
   return <PostDetail post={post} />;

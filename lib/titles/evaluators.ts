@@ -584,12 +584,15 @@ export async function evalUtmbIdxRankInternal(
 export async function evalMileageJoinedInternal(
   _rule: CondMileageJoined,
   memId: string,
+  teamId: string,
   db: DB,
 ): Promise<boolean> {
+  // 이 팀 시즌 참가만 센다 — 안 거르면 기강 마일리지런 참가만으로 울산 "참가" 칭호가 붙는다
   const { data } = await db
     .from("evt_team_prt_rel")
-    .select("prt_id")
+    .select("prt_id, evt_team_mst!inner(team_id)")
     .eq("mem_id", memId)
+    .eq("evt_team_mst.team_id", teamId)
     .limit(1)
     .maybeSingle();
   return data !== null;
@@ -1122,7 +1125,7 @@ export async function evaluateCondition(
       return evalUtmbIdxRankInternal(rule, memId, ctx.teamId, db);
 
     case "mileage_joined":
-      return evalMileageJoinedInternal(rule, memId, db);
+      return evalMileageJoinedInternal(rule, memId, ctx.teamId, db);
 
     case "mileage_goal_achieved_months":
       return ctx.trigger === "mileage_run"

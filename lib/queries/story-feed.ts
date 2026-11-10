@@ -5,6 +5,7 @@ import { unstable_cache } from "next/cache";
 import { reactionKey, type MyReactionMap } from "@/lib/story-reaction";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isRequestAbortError } from "@/lib/supabase/is-abort-error";
+import { teamCacheTags } from "@/lib/team-cache-tag";
 
 import type { MemberCardCompactData } from "@/lib/queries/member-card";
 
@@ -28,7 +29,7 @@ export type RctnCd = (typeof RCTN_CODES)[number];
  * **여기 유니온 + `bump-reaction`의 `ENTITY_TYPES`·`isOnBoard`** 세 곳이 관문 역할을 한다.
  *
  * · `newbie`/`record`/`race` 피드 항목(entity_id = 그 항목의 id)
- * · `actv`  멤버 기준(entity_id = mem_id) — 활동지수·목표 한마디 슬롯이 공유한다
+ * · `actv`  멤버 기준(entity_id = mem_id) — 활동지수·깅스타그램·칭호획득 슬롯이 공유한다
  * · `post`  기록 자랑(entity_id = post_id) — 캐시가 갈려 있어 검증도 `getStoryPosts`를 본다
  */
 export type StoryEntityType = "newbie" | "record" | "race" | "actv" | "post";
@@ -137,33 +138,6 @@ export type StoryActvRankEntry = {
 
 
 /**
- * 멤버 목표 한마디(한 줄 다짐) — 만료 없이 누적, 최근순 노출.
- *
- * 리드 "목표 한마디" 슬롯은 활동지수 슬롯과 같은 방식(PersonProfile 부품: 칭호·소개)으로 그린다.
- * 그래서 칭호·소개·배지·프레임을 옵셔널로 싣는다 — actv_rank와 마찬가지로 구버전 RPC(배포 스큐)에선
- * 없을 수 있어 **전부 옵셔널**(부품이 빠질 뿐 크래시하지 않는다). 러닝프로필·최고기록은 이 슬롯에서
- * 쓰지 않으므로 싣지 않는다.
- *
- * 응원은 pldg row가 아니라 **멤버 기준**으로 건다(entity_type "actv" + mem_id — 활동지수 슬롯과 동일).
- * 그래서 `ReactableItem`(entity_type/rctn_cd 등)을 상속하지 않는다 — 응원 대상은 목표 팻말이 아니라
- * 그 목표를 쓴 사람이다.
- */
-export type StoryPledge = {
-  pldg_id: string;
-  mem_id: string;
-  mem_nm: string;
-  avatar_url: string | null;
-  pldg_txt: string;
-  /** ISO timestamptz 문자열 — 표시 시 dayjs(val)로 상대시간 변환 */
-  crt_at: string;
-  /** 프로필 부품(리드 목표 슬롯 전용) — 배포 스큐 안전을 위해 옵셔널. actv_rank와 같은 방식 */
-  badge_effect?: string;
-  frame_cd?: string;
-  intro_txt?: string | null;
-  primary_title?: MemberCardCompactData["primary_title"];
-};
-
-/**
  * 전광판 피드.
  *
  * `month_rank`(이달의 참석왕)·`week_stat`(이번 주 합계)은 **걷어냈다** — 읽는 화면이 없어진
@@ -176,7 +150,6 @@ export type StoryFeed = {
   records: StoryRecord[];
   races: StoryRace[];
   actv_rank: StoryActvRankEntry[];
-  pledges: StoryPledge[];
 };
 
 const EMPTY_FEED: StoryFeed = {
@@ -184,7 +157,6 @@ const EMPTY_FEED: StoryFeed = {
   records: [],
   races: [],
   actv_rank: [],
-  pledges: [],
 };
 
 /**
@@ -221,7 +193,7 @@ export function getStoryFeed(teamId: string): Promise<StoryFeed> {
     ["story-feed", teamId],
     // `gatherings`는 뺐다 — 터는 쪽이 없어 한 번도 무효화된 적이 없다. 다시 넣지 말 것:
     // 모임 하나 바뀔 때마다 이 무거운 캐시(호출당 5,134버퍼)가 통째로 날아간다.
-    { tags: ["story-feed", "records", "competitions"], revalidate: 300 },
+    { tags: [...teamCacheTags("story-feed", teamId), "records", "competitions"], revalidate: 300 },
   )().catch(() => EMPTY_FEED);
 }
 

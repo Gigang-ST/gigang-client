@@ -29,27 +29,22 @@ const h = vi.hoisted(() => {
 
   const from = vi.fn((table: string) => {
     if (table === "noti_pref_cfg") {
-      return {
-        select: () => ({
-          eq: (col: string, val: string) => {
-            prefEqArgs.push([col, val]);
-            return {
-              eq: (col2: string, val2: string) => {
-                prefEqArgs.push([col2, val2]);
-                return {
-                  // insertNoti: .maybeSingle()
-                  maybeSingle: async () => prefRow,
-                  // insertNotiMany: .in("mem_id", ids) 를 await → 수신거부 목록
-                  in: (_col: string, _ids: string[]) => ({
-                    then: (resolve: (v: unknown) => void) =>
-                      resolve({ data: many.disabledPrefs, error: null }),
-                  }),
-                };
-              },
-            };
-          },
+      // eq 를 몇 번이든 이어 붙일 수 있는 빌더 — 조건 수(팀·회원·타입·사용여부)가 늘어도 깨지지 않게.
+      // 걸린 조건은 전부 prefEqArgs 에 남겨 단언한다.
+      const builder: Record<string, unknown> = {
+        select: () => builder,
+        eq: (col: string, val: string) => {
+          prefEqArgs.push([col, val]);
+          return builder;
+        },
+        // insertNoti: .maybeSingle()
+        maybeSingle: async () => prefRow,
+        // insertNotiMany: .in("mem_id", ids) 를 await → 수신거부 목록
+        in: (_col: string, _ids: string[]) => ({
+          then: (resolve: (v: unknown) => void) => resolve({ data: many.disabledPrefs, error: null }),
         }),
       };
+      return builder;
     }
     if (table === "noti_mst") {
       return { insert: insertMock };
@@ -110,6 +105,21 @@ describe("insertNoti — prefTypeEnm 수신거부 판단", () => {
     });
 
     expect(h.insertMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("수신 설정은 팀별로 본다 — 다른 팀에서 끈 설정이 이 팀 알림을 막지 않게", async () => {
+    await insertNoti({ teamId: "team-ulsan", memId: "mem-1", notiTypeEnm: "gthr_upd", notiNm: "수정 알림" });
+
+    expect(h.prefEqArgs).toContainEqual(["team_id", "team-ulsan"]);
+  });
+
+  it("푸시는 알림이 생긴 팀으로 보낸다 — 그 팀 주소로 등록한 기기에만 가게", async () => {
+    const { sendPushToMember } = await import("@/lib/push/send-push");
+    vi.mocked(sendPushToMember).mockClear();
+
+    await insertNoti({ teamId: "team-ulsan", memId: "mem-1", notiTypeEnm: "gthr_upd", notiNm: "수정 알림" });
+
+    expect(vi.mocked(sendPushToMember).mock.calls[0][0]).toBe("team-ulsan");
   });
 
   it("prefTypeEnm 미지정 시 notiTypeEnm 기준으로 수신거부를 판단한다(기존 동작 유지)", async () => {

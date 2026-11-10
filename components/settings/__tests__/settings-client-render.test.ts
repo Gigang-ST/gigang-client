@@ -60,12 +60,26 @@ function render(
       isAdmin: false,
       isLoggedIn: true,
       weekStart: "sun",
+      // 채널 주소는 팀 설정에서 온다 — 테스트는 넷 다 있는 팀
+      channels: {
+        kakao_open_chat: "https://open.kakao.com/o/example",
+        instagram: "https://www.instagram.com/example",
+        somoim: "https://www.somoim.co.kr/example",
+        garmin: "https://connect.garmin.com/app/group/0",
+      },
       ...props,
     } as Parameters<typeof SettingsClient>[0]),
   );
 }
 
 describe("더보기 화면", () => {
+  it("채널이 하나도 없는 팀(설정 전)은 SOCIAL 칸째 안 그린다 — 다른 팀 채널로 채우지 않는다", () => {
+    const html = render({ channels: {} });
+    expect(html).not.toContain("SOCIAL");
+    expect(html).not.toContain("open.kakao.com");
+    expect(html).not.toContain("instagram.com");
+  });
+
   it("소셜이 맨 위에 서고, 두 덩어리 순서가 유지된다", () => {
     const t = text(render());
 
@@ -143,6 +157,13 @@ describe("더보기 화면", () => {
     expect(t.indexOf("회비 미납")).toBeLessThan(t.indexOf("건의하기"));
   });
 
+  it("회비를 안 쓰는 팀은 '회비 내역' 줄도 미납 점도 없다 — 미납이어도", () => {
+    const t = text(render({ duesEnabled: false, duesUnpaid: true }));
+    expect(t).not.toContain("회비 내역");
+    expect(t).not.toContain("회비 미납");
+    expect(t).toContain("건의하기");
+  });
+
   it("로그아웃·회원 탈퇴도 같은 행 컴포넌트를 타고, 탈퇴는 아직 잠겨 있다", () => {
     const html = render();
     const t = text(html);
@@ -167,6 +188,13 @@ describe("더보기 화면", () => {
     expect(t).not.toContain("로그아웃");
     expect(t).not.toContain("회원 탈퇴");
     expect(html).toContain('href="/auth/login"');
+  });
+
+  it("계정 연동은 로그인했을 때만 계정 그룹 맨 위에 선다 — 로그아웃보다 먼저", () => {
+    const t = text(render());
+    expect(t).toContain("계정 연동");
+    expect(t.indexOf("계정 연동")).toBeLessThan(t.indexOf("로그아웃"));
+    expect(text(render({ isLoggedIn: false }))).not.toContain("계정 연동");
   });
 
   it("공지·업데이트 안읽음 점은 각 줄에 따로 붙는다", () => {

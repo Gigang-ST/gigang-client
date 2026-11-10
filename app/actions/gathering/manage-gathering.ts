@@ -26,6 +26,7 @@ import {
   END_BEFORE_START_ERROR,
   REQ_ATTD_PAIR_ERROR,
 } from "@/lib/validations/gathering";
+import { teamCacheTag } from "@/lib/team-cache-tag";
 
 function toUtcIso(localDt: string | null | undefined): string | null {
   if (!localDt) return null;
@@ -161,6 +162,7 @@ export async function createGathering(input: {
 
         // 단톡방 공지 — 인앱 알림과 별개 경로다. 발송 실패는 안에서 삼킨다(모임은 이미 만들어졌다).
         await notifyGatheringCreated({
+          teamId,
           gthrId,
           ref: data.short_id ?? gthrId,
           origin,
@@ -216,7 +218,7 @@ export async function createGathering(input: {
     //  ② 웹훅이 쓰는 `revalidateTag(tag, "max")`는 stale-while-revalidate라 프로드에서도
     //     **바로 다음 읽기가 낡은 값**이다(KNOWLEDGE.md "저장했는데 안 보임").
     // 서버 액션 전용 `updateTag`는 즉시 만료 + read-your-own-writes 라 이 자리에 맞다.
-    updateTag(HOME_CALENDAR_CACHE_TAG);
+    updateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, teamId));
     return { gthr_id: gthrId, short_id: data.short_id };
   });
 }
@@ -238,6 +240,10 @@ export async function updateGathering(input: {
   return withMember(async ({ member, supabase }) => {
     const parsed = updateGthrSchema.parse(input);
     const { gthr_id, stt_at, end_at, exm_evt_id: exmInput, ...rest } = parsed;
+    // 접속한 팀의 모임만 — RLS 는 "내가 속한 아무 팀"을 통과시키고 member.admin 은 접속한 팀 기준이라,
+    // 안 거르면 두 팀 소속자가 다른 팀 모임을 이 팀 관리자 권한으로 고친다(실제론 0행 no-op 인데
+    // 성공으로 응답하고 변경 알림·카톡까지 나간다).
+    const { teamId: scopeTeamId } = await getRequestTeamContext();
 
     // 지난 모임(KST 날짜 기준) 수정 차단 — 관리자만 예외. 알림용 기존 모임명도 같이 조회.
     const { data: existing } = await supabase
@@ -247,6 +253,7 @@ export async function updateGathering(input: {
         "gthr_nm, stt_at, end_at, loc_txt, short_id, crt_by, aprv_req_yn, req_attd_cnt, req_attd_months, exm_evt_id, max_prt_cnt",
       )
       .eq("gthr_id", gthr_id)
+      .eq("team_id", scopeTeamId)
       .single();
     if (!existing) throw new Error("모임을 찾을 수 없습니다.");
 
@@ -385,7 +392,7 @@ export async function updateGathering(input: {
       }
     }
 
-    updateTag(HOME_CALENDAR_CACHE_TAG);
+    updateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, teamId));
 
     // gthr_nm이 생략됐을 때 빈 문자열로 알림이 발송되지 않도록 기존 모임명 사용
     const gthrNm = parsed.gthr_nm || (existing.gthr_nm ?? "");
@@ -416,6 +423,7 @@ export async function updateGathering(input: {
 
         // 단톡방 변경 공지 — 일시·장소가 실제로 바뀌었을 때만, 10분 묶음으로.
         await notifyGatheringUpdated({
+          teamId: scopeTeamId,
           gthrId: gthr_id,
           ref: existing.short_id ?? gthr_id,
           origin,
@@ -457,10 +465,14 @@ export async function updateGathering(input: {
 
 export async function deleteGathering(gthr_id: string) {
   return withMember(async ({ member, supabase }) => {
+    // 접속한 팀의 모임만 — 안 거르면 울산 운영진이면서 기강 일반회원인 사람이 기강 모임을 지우고
+    // 기강 참석자에게 취소 알림·카톡 공지가 나간다(삭제는 service_role 이라 RLS 도 안 막는다).
+    const { teamId } = await getRequestTeamContext();
     const { data: gthr } = await supabase
       .from("gthr_mst")
       .select("crt_by, team_id, gthr_nm, stt_at, end_at, loc_txt")
       .eq("gthr_id", gthr_id)
+      .eq("team_id", teamId)
       .single();
     if (!gthr) throw new Error("모임을 찾을 수 없습니다.");
 
@@ -482,12 +494,13 @@ export async function deleteGathering(gthr_id: string) {
 
     // 지운 모임이 달력·리스트에서 바로 사라지게 — 안 털면 홈 캘린더 캐시(1시간) 때문에
     // 삭제된 모임이 그대로 보이고, 눌러 열면 그제야 없다고 한다.
-    updateTag(HOME_CALENDAR_CACHE_TAG);
+    updateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, teamId));
 
     after(async () => {
       try {
         // 단톡방 취소 공지 — 묶음 판정을 거치지 않는다. 모르면 사람이 실제로 헛걸음한다.
         await notifyGatheringCanceled({
+          teamId: gthr.team_id,
           gthrId: gthr_id,
           title: gthr.gthr_nm ?? "",
           sttAt: gthr.stt_at,

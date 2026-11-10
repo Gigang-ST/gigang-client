@@ -69,8 +69,9 @@ export async function executeBatch(
   // ⚠️ **job의 팀과 실행 컨텍스트의 팀이 같은지 서버에서 다시 본다.**
   // 핸들러는 `ctx.teamId`로 데이터를 처리하고 이력은 `jobId`로 남으므로, 검증이 없으면
   // 남의 팀 `job_id`로 **내 팀 데이터를 돌리고 그 팀 이력에 기록**하는 어긋남이 생긴다.
-  // `team_id`가 비어 있는 job(팀 미지정)은 예전 행이라 통과시킨다 — 크론은 애초에 걸러낸다.
-  if (job.team_id && job.team_id !== ctx.teamId) {
+  // `team_id`가 비어 있는 job(팀 미지정)도 막는다 — 예전엔 통과시켰는데, 그러면 아무 팀이나 그 job 으로
+  // 자기 팀 데이터를 돌릴 수 있었다. 2026-11-09 dev·prd 모두 팀 빈 job 0건 확인.
+  if (job.team_id !== ctx.teamId) {
     return { ok: false, message: "다른 팀의 배치는 실행할 수 없습니다", runId: null, result: null };
   }
 

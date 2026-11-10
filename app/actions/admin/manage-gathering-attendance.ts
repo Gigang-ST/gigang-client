@@ -10,6 +10,7 @@ import { runPromotionFollowups } from "@/lib/gathering/promotion-followup";
 import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient, createUntypedAdminClient } from "@/lib/supabase/admin";
+import { teamCacheTag } from "@/lib/team-cache-tag";
 
 /** createAdminClient는 RLS를 우회하므로, 대상 모임이 현재 팀 소속인지 서버에서 직접 확인한다 (IDOR 방지). */
 async function verifyGatheringInTeam(
@@ -78,7 +79,7 @@ export async function removeGatheringAttendance(gthrId: string, memId: string, r
       });
       if (error) return { ok: false, message: "참석 취소에 실패했습니다" };
       if (data !== "ok") return { ok: false, message: "취소할 참석 내역이 없습니다" };
-      bustGatheringCaches(gthrId);
+      bustGatheringCaches(gthrId, teamId);
       return { ok: true, message: null };
     }
 
@@ -93,7 +94,7 @@ export async function removeGatheringAttendance(gthrId: string, memId: string, r
     });
     if (error) return { ok: false, message: "참석 취소에 실패했습니다" };
 
-    bustGatheringCaches(gthrId);
+    bustGatheringCaches(gthrId, teamId);
 
     // 운영진이 뺀 것도 자리가 나는 사건이다. 뒷처리(승급 알림 · 빈 자리 알림 · 승급자 칭호)는
     // 본인 취소 경로와 **같은 함수**로 응답 밖에서 돈다 — 예전엔 여기만 칭호 평가가 빠져 있어
@@ -129,8 +130,8 @@ export async function removeGatheringAttendance(gthrId: string, memId: string, r
  * 운영진이 추가·제거해도 남의 화면과 새로고침 후 숫자가 최대 1시간 낡았다(KNOWLEDGE §홈 캘린더 —
  * "쓰기 액션마다 updateTag"). updateTag 는 서버 액션 본문 전용이라 after() 안에서 부르지 않는다.
  */
-function bustGatheringCaches(gthrId: string) {
-  updateTag(HOME_CALENDAR_CACHE_TAG);
+function bustGatheringCaches(gthrId: string, teamId: string) {
+  updateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, teamId));
   revalidatePath(`/gatherings/${gthrId}`);
 }
 

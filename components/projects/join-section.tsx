@@ -17,6 +17,7 @@ import { analytics } from "@/lib/analytics";
 
 import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";
 import { AccountCopyButton } from "@/components/projects/account-copy-button";
+import type { TeamAccount } from "@/lib/team-channels";
 import { Caption } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
@@ -35,6 +36,8 @@ type JoinSectionProps = {
 	isInactive?: boolean;
 	/** 비활성/탈퇴 세부 구분 — InactiveGateDialog 문구 분기용 */
 	inactiveKind?: "inactive" | "left";
+	/** 이 팀 모임 계좌(팀 설정). 없으면 계좌 안내가 "운영진에게 문의"로 물러난다 */
+	account: TeamAccount | null;
 };
 
 type GoalPreset = "50" | "100" | "custom";
@@ -46,6 +49,7 @@ export function JoinSection({
 	existingPrt,
 	isInactive = false,
 	inactiveKind,
+	account,
 }: JoinSectionProps) {
 	const router = useRouter();
 	const [goalPreset, setGoalPreset] = useState<GoalPreset>("50");
@@ -72,7 +76,7 @@ export function JoinSection({
             </Caption>
             <Caption>입금 확인 후 승인이 진행됩니다.</Caption>
           </div>
-          <AccountCopyButton />
+          <AccountCopyButton account={account} />
         </div>
       </CardItem>
     );
@@ -209,7 +213,7 @@ export function JoinSection({
         <Caption className="text-foreground font-semibold block">
           모임 계좌로 참가비를 입금하셔야 합니다
         </Caption>
-        <AccountCopyButton />
+        <AccountCopyButton account={account} />
       </div>
 
       {/* 참여하기 버튼 */}

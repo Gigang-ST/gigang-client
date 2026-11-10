@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { withAdmin } from "@/lib/actions/auth";
+import { isEvtInTeam } from "@/lib/actions/team-scope";
 import { dayjs } from "@/lib/dayjs";
 import { PB_CLASS_DEFAULT_CFG, PB_CLASS_TYPE, pbEndDtFor } from "@/lib/pb-class";
 import { ensureDefaultSessPlans } from "@/lib/pb-class-seed";
@@ -247,6 +248,25 @@ export async function deleteEvent(evtId: string) {
   });
 }
 
+// ─────────────────────────────────────────
+// 팀 경계 — 배율·참가자는 시즌(evt_id)을 따라 팀이 정해진다.
+// service_role 이라 RLS 가 없어서 id 만으로 찾으면 다른 팀 시즌의 배율·참가자를 고칠 수 있었다.
+// ─────────────────────────────────────────
+
+type AdminDb = ReturnType<typeof createAdminClient>;
+
+async function multInTeam(db: AdminDb, teamId: string, multId: string): Promise<boolean> {
+  const { data } = await db.from("evt_mlg_mult_cfg").select("evt_id").eq("mult_id", multId).maybeSingle();
+  if (!data?.evt_id) return false;
+  return isEvtInTeam(db, teamId, data.evt_id);
+}
+
+async function prtInTeam(db: AdminDb, teamId: string, prtId: string): Promise<boolean> {
+  const { data } = await db.from("evt_team_prt_rel").select("evt_id").eq("prt_id", prtId).maybeSingle();
+  if (!data?.evt_id) return false;
+  return isEvtInTeam(db, teamId, data.evt_id);
+}
+
 export async function createMultiplier(input: {
   evt_id: string;
   mult_nm: string;
@@ -256,7 +276,9 @@ export async function createMultiplier(input: {
   active_yn: boolean;
 }) {
   return withAdmin(async () => {
+    const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
+    if (!(await isEvtInTeam(db, teamId, input.evt_id))) return { ok: false, message: "프로젝트를 찾을 수 없습니다" };
     const { error } = await db.from("evt_mlg_mult_cfg").insert({
       evt_id: input.evt_id,
       mult_nm: input.mult_nm.trim(),
@@ -281,7 +303,9 @@ export async function updateMultiplier(
   },
 ) {
   return withAdmin(async () => {
+    const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
+    if (!(await multInTeam(db, teamId, multId))) return { ok: false, message: "배율을 찾을 수 없습니다" };
     const { error } = await db
       .from("evt_mlg_mult_cfg")
       .update({
@@ -300,7 +324,9 @@ export async function updateMultiplier(
 
 export async function deleteMultiplier(multId: string) {
   return withAdmin(async () => {
+    const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
+    if (!(await multInTeam(db, teamId, multId))) return { ok: false, message: "배율을 찾을 수 없습니다" };
     const { error } = await db.from("evt_mlg_mult_cfg").delete().eq("mult_id", multId);
     if (error) return { ok: false, message: "배율 삭제에 실패했습니다" };
     return { ok: true, message: null };
@@ -309,7 +335,9 @@ export async function deleteMultiplier(multId: string) {
 
 export async function approveParticipation(prtId: string) {
   return withAdmin(async () => {
+    const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
+    if (!(await prtInTeam(db, teamId, prtId))) return { ok: false, message: "참가자를 찾을 수 없습니다" };
     const { error } = await db
       .from("evt_team_prt_rel")
       .update({ aprv_yn: true, aprv_at: dayjs().toISOString(), updated_at: dayjs().toISOString() })
@@ -321,7 +349,9 @@ export async function approveParticipation(prtId: string) {
 
 export async function rejectParticipation(prtId: string) {
   return withAdmin(async () => {
+    const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
+    if (!(await prtInTeam(db, teamId, prtId))) return { ok: false, message: "참가자를 찾을 수 없습니다" };
     const { error } = await db.from("evt_team_prt_rel").delete().eq("prt_id", prtId);
     if (error) return { ok: false, message: "거부 처리에 실패했습니다" };
     return { ok: true, message: null };
@@ -340,7 +370,9 @@ export async function updateParticipation(
   },
 ) {
   return withAdmin(async () => {
+    const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
+    if (!(await prtInTeam(db, teamId, prtId))) return { ok: false, message: "참가자를 찾을 수 없습니다" };
     const { error } = await db
       .from("evt_team_prt_rel")
       .update({
@@ -360,7 +392,9 @@ export async function updateParticipation(
 
 export async function revokeApproval(prtId: string) {
   return withAdmin(async () => {
+    const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
+    if (!(await prtInTeam(db, teamId, prtId))) return { ok: false, message: "참가자를 찾을 수 없습니다" };
     const { error } = await db
       .from("evt_team_prt_rel")
       .update({ aprv_yn: false, aprv_at: null, updated_at: dayjs().toISOString() })
@@ -372,7 +406,9 @@ export async function revokeApproval(prtId: string) {
 
 export async function deleteParticipation(prtId: string) {
   return withAdmin(async () => {
+    const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
+    if (!(await prtInTeam(db, teamId, prtId))) return { ok: false, message: "참가자를 찾을 수 없습니다" };
     const { error } = await db.from("evt_team_prt_rel").delete().eq("prt_id", prtId);
     if (error) return { ok: false, message: "삭제에 실패했습니다" };
     return { ok: true, message: null };

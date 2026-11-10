@@ -13,6 +13,50 @@ const compat = new FlatCompat({
   baseDirectory: __dirname,
 });
 
+// "오늘/지금"을 tz 없이 판정하는 것을 막는 선택자(아래 규칙 블록의 설명 참고).
+// `no-restricted-syntax` 는 블록마다 **통째로 덮어써지는** 규칙이라, 파일 범위를 좁힌 블록
+// (`app/actions/**`)에서도 같은 목록을 다시 넣어야 KST 검사가 사라지지 않는다 — 그래서 상수로 뺀다.
+const KST_SYNTAX_RULES = [
+  {
+    // ① 인자 없이도 타임존에 휘둘리는 연산 — 항상 금지
+    selector:
+      "CallExpression[callee.type='MemberExpression'][callee.object.type='CallExpression'][callee.object.callee.name='dayjs'][callee.object.arguments.length=0][callee.property.name=/^(format|startOf|endOf|date|month|year|day)$/]",
+    message:
+      "tz 없는 dayjs()로 날짜를 다루면 서버(UTC)와 브라우저(KST)의 '오늘'이 갈립니다. @/lib/dayjs의 nowKST()·todayKST()·todayStartKST()를 쓰세요. (절대시각 저장 dayjs().toISOString()은 그대로 두면 됩니다.)",
+  },
+  {
+    // ② 비교·차이는 **단위가 날짜일 때만** 위험하다.
+    //    `dayjs().diff(x, "minute")`은 두 절대시각의 경과시간이라 어느 타임존에서 재도
+    //    같은 값이 나온다(알림 "N분 전"이 그 예다). 반면 `diff(x, "day")`는 달력 날짜를
+    //    세는 것이라 서 있는 자리가 답을 바꾼다. 단위로 갈라야 오탐 없이 진짜만 잡힌다.
+    selector:
+      "CallExpression[callee.type='MemberExpression'][callee.object.type='CallExpression'][callee.object.callee.name='dayjs'][callee.object.arguments.length=0][callee.property.name=/^(diff|isSame|isBefore|isAfter)$/][arguments.1.value=/^(d|day|days|w|week|weeks|M|month|months|y|year|years)$/]",
+    message:
+      "날짜 단위 비교는 KST로 고정해야 합니다 — 서버(UTC)와 브라우저(KST)의 '오늘'이 달라 하루가 어긋납니다. @/lib/dayjs의 todayStartKST()·nowKST()를 쓰고, 상대편 date 문자열은 parseEventTime()으로 KST 자정에 고정하세요.",
+  },
+];
+
+// "use server" 파일의 **타입 재export** 를 막는다. Turbopack dev 에서 그 서버 액션 모듈이 통째로 죽는다 —
+// `mcp-token.ts`·`mileage-run.ts` 두 번 났고 둘 다 화면을 눌러 보고서야 알았다. 타입은 정본(`lib/`)에서
+// 바로 가져다 쓴다. `export type X = {...}` 선언은 괜찮다(재export 가 아니다).
+const USE_SERVER_EXPORT_RULES = [
+  {
+    selector: "ExportNamedDeclaration[exportKind='type'][specifiers.length>0]",
+    message:
+      '"use server" 파일에서 타입을 재export 하지 마세요(Turbopack dev 에서 액션 모듈이 죽습니다). 쓰는 쪽이 정본(lib/…)에서 바로 import 하게 하세요.',
+  },
+  {
+    selector: "ExportSpecifier[exportKind='type']",
+    message:
+      '"use server" 파일에서 타입을 재export 하지 마세요(Turbopack dev 에서 액션 모듈이 죽습니다). 쓰는 쪽이 정본(lib/…)에서 바로 import 하게 하세요.',
+  },
+  {
+    selector: "ExportAllDeclaration[exportKind='type']",
+    message:
+      '"use server" 파일에서 타입을 재export 하지 마세요(Turbopack dev 에서 액션 모듈이 죽습니다).',
+  },
+];
+
 const eslintConfig = [
   { ignores: [".next/", "scripts/", ".storybook/"] },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
@@ -77,25 +121,14 @@ const eslintConfig = [
       // (자손 선택자로 넓히면 올바른 `.tz()` 체인까지 오탐이 난다). 그런 형태는 리뷰로 거른다.
       "no-restricted-syntax": [
         "error",
-        {
-          // ① 인자 없이도 타임존에 휘둘리는 연산 — 항상 금지
-          selector:
-            "CallExpression[callee.type='MemberExpression'][callee.object.type='CallExpression'][callee.object.callee.name='dayjs'][callee.object.arguments.length=0][callee.property.name=/^(format|startOf|endOf|date|month|year|day)$/]",
-          message:
-            "tz 없는 dayjs()로 날짜를 다루면 서버(UTC)와 브라우저(KST)의 '오늘'이 갈립니다. @/lib/dayjs의 nowKST()·todayKST()·todayStartKST()를 쓰세요. (절대시각 저장 dayjs().toISOString()은 그대로 두면 됩니다.)",
-        },
-        {
-          // ② 비교·차이는 **단위가 날짜일 때만** 위험하다.
-          //    `dayjs().diff(x, "minute")`은 두 절대시각의 경과시간이라 어느 타임존에서 재도
-          //    같은 값이 나온다(알림 "N분 전"이 그 예다). 반면 `diff(x, "day")`는 달력 날짜를
-          //    세는 것이라 서 있는 자리가 답을 바꾼다. 단위로 갈라야 오탐 없이 진짜만 잡힌다.
-          selector:
-            "CallExpression[callee.type='MemberExpression'][callee.object.type='CallExpression'][callee.object.callee.name='dayjs'][callee.object.arguments.length=0][callee.property.name=/^(diff|isSame|isBefore|isAfter)$/][arguments.1.value=/^(d|day|days|w|week|weeks|M|month|months|y|year|years)$/]",
-          message:
-            "날짜 단위 비교는 KST로 고정해야 합니다 — 서버(UTC)와 브라우저(KST)의 '오늘'이 달라 하루가 어긋납니다. @/lib/dayjs의 todayStartKST()·nowKST()를 쓰고, 상대편 date 문자열은 parseEventTime()으로 KST 자정에 고정하세요.",
-        },
+        ...KST_SYNTAX_RULES,
       ],
     },
+  },
+  // 서버 액션 파일 — KST 검사는 그대로 두고 타입 재export 금지를 더한다(같은 규칙이라 목록을 합쳐 넣는다).
+  {
+    files: ["app/actions/**/*.ts"],
+    rules: { "no-restricted-syntax": ["error", ...KST_SYNTAX_RULES, ...USE_SERVER_EXPORT_RULES] },
   },
   // `lib/dayjs.ts`는 dayjs를 감싸 KST 규약을 세우는 **정본**이라, 여기서만 원본을 들여온다.
   // (이 예외가 없으면 규칙이 자기 자신의 구현을 막는다.) flat config는 뒤 블록이 이기므로

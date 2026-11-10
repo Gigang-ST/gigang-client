@@ -229,7 +229,8 @@ const MEM_ID = "aaaaaaaa-0000-4000-8000-000000000001";
 /**
  * `getMemberProfile` 용 최소 Supabase 스텁.
  * - team_mem_rel: `.select(…)` 문자열을 관측하고, await 하면 임베디드 mem_mst 1행을 반환한다.
- * - mem_onbd_prf: 러닝 프로필 배치 조회(빈 결과) — 별도 builder 라 select 관측값을 덮지 않는다.
+ * - mem_onbd_prf · team_mem_onbd_rel: 러닝 프로필·팀별 가입 목적 배치 조회(빈 결과) — 별도 builder 라
+ *   select 관측값을 덮지 않는다.
  *
  * `memMst` 는 "DB 가 실제로 돌려준 것"을 흉내 낸다 — 비-admin 경로에서는 select 에서 빠졌으므로
  * birth_dt·gdr_enm 키가 애초에 없는 객체를 넘긴다.
@@ -259,11 +260,13 @@ function makeProfileSupabase(memMst: Record<string, unknown>) {
   };
   const onbdBuilder: Record<string, unknown> = {
     select: () => onbdBuilder,
+    eq: () => onbdBuilder,
     in: () => onbdBuilder,
     then: (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
   };
   const client = {
-    from: (table: string) => (table === "mem_onbd_prf" ? onbdBuilder : relBuilder),
+    from: (table: string) =>
+      table === "mem_onbd_prf" || table === "team_mem_onbd_rel" ? onbdBuilder : relBuilder,
   } as unknown as SupabaseClient<Database>;
   return { client, captured };
 }

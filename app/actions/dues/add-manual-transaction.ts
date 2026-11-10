@@ -2,7 +2,8 @@
 
 import { dayjs } from "@/lib/dayjs";
 
-import { withAdmin } from "@/lib/actions/auth";
+import { withDuesAdmin } from "@/lib/actions/dues-guard";
+import { isMemIdInTeam } from "@/lib/actions/team-scope";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -81,7 +82,7 @@ async function getOrCreateManualBatch(
  * - txn_tm 은 현재 KST 시각으로 채워 중복방지 인덱스 충돌을 피한다.
  */
 export async function addManualTransaction(input: AddManualTxnInput) {
-  return withAdmin(async ({ member }) => {
+  return withDuesAdmin(async ({ member }) => {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
 
@@ -96,7 +97,7 @@ export async function addManualTransaction(input: AddManualTxnInput) {
     if (!input.feeItemCd) return { ok: false as const, message: "분류를 선택해 주세요." };
 
     // 분류 유효성: 공통코드(FEE_ITEM_CD)에 존재하는 cd 인지 검증
-    const validCds = await getValidFeeItemCds(db);
+    const validCds = await getValidFeeItemCds(db, teamId);
     if (!validCds.has(input.feeItemCd)) {
       return { ok: false as const, message: "존재하지 않는 분류입니다. 분류 항목을 확인해 주세요." };
     }
@@ -120,6 +121,10 @@ export async function addManualTransaction(input: AddManualTxnInput) {
 
     // 회원 지정 시 matched, 미지정 시 unmatched
     const memId = input.memId?.trim() || null;
+    // 이 팀 회원으로만 매칭 — 안 거르면 이 팀 회비 장부에 다른 팀(또는 없는) 사람의 거래가 생긴다
+    if (memId && !(await isMemIdInTeam(db, teamId, memId))) {
+      return { ok: false as const, message: "회원을 찾을 수 없습니다." };
+    }
     const matchStatus = memId ? "matched" : "unmatched";
 
     const now = dayjs().tz("Asia/Seoul");

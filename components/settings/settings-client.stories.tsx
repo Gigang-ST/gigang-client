@@ -5,6 +5,15 @@ const meta = {
   title: "Settings/SettingsClient",
   component: SettingsClient,
   parameters: { layout: "fullscreen" },
+  // 채널 주소는 팀 설정에서 온다 — 스토리는 예시 값
+  args: {
+    channels: {
+      kakao_open_chat: "https://open.kakao.com/o/example",
+      instagram: "https://www.instagram.com/example",
+      somoim: "https://www.somoim.co.kr/example",
+      garmin: "https://connect.garmin.com/app/group/0",
+    },
+  },
 } satisfies Meta<typeof SettingsClient>;
 
 export default meta;

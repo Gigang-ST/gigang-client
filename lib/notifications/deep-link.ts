@@ -111,13 +111,16 @@ const NOTI_ROUTE: Record<
   // refId가 post_id라 상세로 바로 가고, 없으면 해당 탭 목록으로 떨어진다.
   brd_notice: (refId) => (refId ? `/board/${refId}` : "/board?tab=notice"),
   brd_update: (refId) => (refId ? `/board/${refId}` : "/board?tab=update"),
-  // 뉴비 온보딩 미참석 넛지 — 일정으로 랜딩(설계 §7.1). "나와 보라"는 알림이라
+  // 뉴비 온보딩 미참석 넛지 — 일정으로 랜딩(설계 §7.1). 발송 크론은 2026-11-09 걷어냈지만
+  // 이미 받은 알림이 남아 있어 링크는 둔다. "나와 보라"는 알림이라
   // 목적지는 달력이어야 한다. 예전 `/`는 홈이 곧 달력이라 성립했지만 지금은 전광판이다.
   newbie_nudge_14: () => SCHEDULE,
   newbie_nudge_28: () => SCHEDULE,
   // 자동 배치 실패 — 운영진에게만 간다. 결과·이력을 그 자리에서 보고 다시 돌릴 수 있게
   // 배치 관리 화면으로(설계 §3.4). 관리자가 아니면 그 화면이 막으므로 별도 분기는 없다.
   batch_failed: () => "/admin/system/batch",
+  // owner 만 바꾸는 팀 설정(계좌·카톡방)이 바뀜 — 운영진이 무엇이 바뀌었는지 바로 보게
+  team_cfg_chg: () => "/admin/team-settings",
 };
 
 /** 알림 타입+ref로 딥링크 URL을 해석한다. 매핑이 없으면 null. */

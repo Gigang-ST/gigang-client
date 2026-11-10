@@ -143,7 +143,7 @@ export function roundMileage(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-// 비즈니스 상수
+// 비즈니스 상수 — 기강 전용 금액이다(마일리지런은 기강 전용 프로젝트, ADR-0007). 다른 팀용으로 일반화하지 않는다.
 export const DEPOSIT_PER_MONTH = 10_000;
 /** 참가비: 싱글렛 미보유 */
 export const ENTRY_FEE = 20_000;

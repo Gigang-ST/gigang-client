@@ -20,6 +20,7 @@ import {
   type MyGatheringApplication,
 } from "@/app/actions/gathering/manage-application";
 import { announceGatheringToKakao } from "@/app/actions/gathering/announce-gathering";
+import { canAnnounceToKakao } from "@/lib/gathering/can-announce";
 import { deleteGathering } from "@/app/actions/gathering/manage-gathering";
 import { toggleGatheringAttendance } from "@/app/actions/gathering/toggle-attendance";
 import { GatheringApplyButton } from "@/app/(info)/gatherings/[id]/gathering-apply-button";
@@ -107,6 +108,11 @@ export interface GatheringDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   teamId: string;
+  /**
+   * 이 팀이 노티봇(카톡 공지방)을 쓰나. 안 쓰면 공유 시트에 「단톡방에 알림」을 안 세운다 — 세워 두면 누를 때마다
+   * "보낼 수 없어요"만 뜬다. 일반 공유(복사·카톡 공유)는 그대로다.
+   */
+  kakaoAnnounce?: boolean;
   currentMemberId?: string;
   /** 뷰어가 비활성/탈퇴 — 보기는 열되 참석·댓글 등 쓰기는 안내 게이트로 대체 */
   viewerInactive?: boolean;
@@ -134,6 +140,7 @@ export function GatheringDetailDialog({
   open,
   onOpenChange,
   teamId,
+  kakaoAnnounce = false,
   currentMemberId,
   viewerInactive,
   viewerInactiveKind,
@@ -924,8 +931,12 @@ export function GatheringDetailDialog({
       timeLabel={formatShareDateTime(gathering.evt_stt_at ?? gathering.start_date, gathering.evt_end_at)}
       pageUrl={sharePageUrl}
       shareText={gthrShareText}
-      // 노티봇 원버튼 — 활동 멤버면 누구나(남의 모임도), 지난 모임 제외. 서버가 다시 판정한다.
-      onAnnounce={currentMemberId && !viewerInactive && !isPastLocked ? () => announceGatheringToKakao(gathering.id) : undefined}
+      // 노티봇 원버튼 — 팀이 노티봇을 쓸 때만, 활동 멤버면 누구나(남의 모임도), 지난 모임 제외(§lib/gathering/can-announce)
+      onAnnounce={
+        canAnnounceToKakao({ kakaoAnnounce, currentMemberId, viewerInactive, isPastLocked })
+          ? () => announceGatheringToKakao(gathering.id)
+          : undefined
+      }
     />
     <InactiveGateDialog open={inactiveGateOpen} onOpenChange={setInactiveGateOpen} kind={viewerInactiveKind} />
     <GatheringCancelDialog

@@ -117,6 +117,8 @@ async function evaluateTeam(
   // 칭호 목록은 **루프 밖에서 한 번**만 읽는다. 안에서 부르면 멤버 수만큼(수백 번)
   // 같은 `ttl_mst` 전체 조회가 나간다 — dev에서 배치가 30초를 넘긴 원인 중 하나였다.
   const autoTitles = await loadAutoTitles(db, teamId);
+  // 평가할 칭호가 없으면(칭호 기능을 끈 팀 포함) 멤버를 돌 이유가 없다 — 돌면 멤버마다 조회 3번이 헛돈다
+  if (autoTitles.length === 0) return { evaluated: 0, changes: [], errors: [] };
 
   // 실행 1회짜리 조회 캐시를 **모든 멤버가 공유한다.** 팀 공통 조회(그 달 모임 수·팀 댓글
   // 1위·응원 원장)가 멤버 수만큼 반복되던 걸 1번으로 묶는다 — 월 배치 20초의 주범이었다.
