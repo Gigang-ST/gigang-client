@@ -63,13 +63,13 @@ export function StoryClient({
   overview: TeamOverview;
   /** 오래 안 나온 멤버 — 현상수배존에 쓴다 */
   ghosts: GhostMember[];
-  /** 기록 자랑 — 팻말존에 쓴다. 피드와 캐시 태그가 갈려 있어 별도 prop이다 */
+  /** 기록 자랑(깅스타그램) — 격자·리드에 쓴다. 피드와 캐시 태그가 갈려 있어 별도 prop이다 */
   posts: StoryPost[];
   /** 칭호획득 — 리드 칭호 슬롯에 쓴다. 피드와 캐시 태그가 갈려 있어 별도 prop이다 */
   grants: RecentTitleRow[];
   initialTitlePick: number;
   /** 리드 각 랜덤 슬롯의 진입 인덱스 — 서버가 매 요청 뽑아 넘긴다(깜빡임·하이드레이션 안전).
-   *  새 얼굴·각오·기록·활동지수·운동기록이 첫 화면부터 랜덤이고, 한 바퀴마다 클라가 재추첨한다. */
+   *  새 얼굴·기록·활동지수·운동기록이 첫 화면부터 랜덤이고, 한 바퀴마다 클라가 재추첨한다. */
   initialPostPick: number;
   initialNewbiePick: number;
   initialRecordPick: number;
@@ -165,8 +165,9 @@ export function StoryClient({
           teamId={teamId}
         />
 
-        {/* 종이비행기 한마디(msg_mst)·목표 한마디 팻말(pldg_mst) 존은 2026-11-10 기능째 지웠다(오래 꺼져 있었다).
-            DB 테이블은 남아 있다 — 되살릴 땐 그 커밋을 되돌린다. */}
+        {/* 종이비행기 한마디·목표 한마디 팻말 존은 2026-11-10 기능째 지웠다(오래 꺼져 있었다). 코드뿐 아니라
+            테이블(msg_mst·pldg_mst)·함수도 지웠다(마이그레이션 20261110109000) — 되살릴 땐 그 커밋과 옛 마이그레이션의
+            테이블·함수 정의를 함께 되돌린다. */}
 
         {/* 새 얼굴 — 최근 3명 + 더보기 */}
         <StorySection

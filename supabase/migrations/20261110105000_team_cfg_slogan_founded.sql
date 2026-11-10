@@ -8,6 +8,8 @@
 -- 그래서 **행 없이 새 코드가 나가면** 기강 일정 탭 헤더 가운데가 비고 공유 카드 슬로건이 빠진다 — 배포 전에 넣는다.
 -- 옛 코드는 이 행을 안 읽으므로 먼저 넣어도 안전하다. 키 정의는 `lib/team-cfg/registry.ts`.
 
+SET lock_timeout = '3s';
+
 INSERT INTO public.team_cfg (team_id, cfg_cd, cfg_val_json)
 SELECT t.team_id, v.cfg_cd, v.cfg_val_json
 FROM (VALUES

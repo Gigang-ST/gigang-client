@@ -65,6 +65,8 @@ async function notifyAdmins(
     .select("mem_id")
     .eq("team_id", teamId)
     .in("team_role_cd", ["owner", "admin"])
+    // 떠난(비활성·탈퇴) 운영진은 역할이 남아 있어도 받지 않는다 — notifySensitiveChange 와 같은 기준
+    .eq("mem_st_cd", "active")
     .eq("vers", 0)
     .eq("del_yn", false);
 

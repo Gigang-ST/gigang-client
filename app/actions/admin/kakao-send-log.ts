@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { withAdminOrThrow } from "@/lib/actions/auth";
-import { sendKakao } from "@/lib/kakao/notify";
+import { KAKAO_ROOM_UNRESOLVED, sendKakao } from "@/lib/kakao/notify";
 import type { KakaoSendSource } from "@/lib/kakao/send-log";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
@@ -140,7 +140,8 @@ export async function resendKakao(sendId: string): Promise<ResendResult> {
 
     const result = await sendKakao(row.msg_txt, {
       teamId,
-      room: row.room_nm,
+      // 설정을 못 읽어 실패한 건은 방 칸이 자리표시라, 넘기지 않고 팀 설정에서 방을 다시 정한다
+      room: row.room_nm === KAKAO_ROOM_UNRESOLVED ? null : row.room_nm,
       requestId: row.request_id,
       ...(row.src_type ? { source: { type: row.src_type, id: row.src_id } } : {}),
       resend: true,

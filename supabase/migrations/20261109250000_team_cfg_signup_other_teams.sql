@@ -5,6 +5,8 @@
 -- (`lib/team-host.ts` teamLinkOrigin). 키 정의는 `lib/team-cfg/registry.ts`, 기본값은 빈 목록(안내 없음).
 -- 울산 쪽(기강으로 넘겨주기)은 필요하면 같은 INSERT 로 넣는다.
 
+SET lock_timeout = '3s';
+
 INSERT INTO public.team_cfg (team_id, cfg_cd, cfg_val_json)
 SELECT t.team_id, 'signup.other_teams', '[{"team_cd": "ulsan", "name": "울산지부"}]'::jsonb
 FROM public.team_mst t

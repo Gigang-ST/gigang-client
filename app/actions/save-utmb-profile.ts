@@ -1,5 +1,7 @@
 "use server";
 
+import { after } from "next/server";
+
 import { revalidateTag } from "next/cache";
 
 import { withActive } from "@/lib/actions/auth";
@@ -34,7 +36,7 @@ export async function saveUtmbProfile(input: SaveUtmbProfileInput) {
 
     revalidateTag(`records:${teamId}`, "max");
     // UTMB 는 사람 것 — 이 사람이 속한 다른 팀 전당(트레일)도 턴다
-    await syncPersonRecordToOtherTeams(member.id, teamId);
+    after(() => syncPersonRecordToOtherTeams(member.id, teamId));
     return { ok: true as const, message: null };
   });
 }
@@ -49,7 +51,7 @@ export async function deleteUtmbProfile() {
 
     revalidateTag(`records:${teamId}`, "max");
     // UTMB 는 사람 것 — 이 사람이 속한 다른 팀 전당(트레일)도 턴다
-    await syncPersonRecordToOtherTeams(member.id, teamId);
+    after(() => syncPersonRecordToOtherTeams(member.id, teamId));
     return { ok: true as const, message: null };
   });
 }

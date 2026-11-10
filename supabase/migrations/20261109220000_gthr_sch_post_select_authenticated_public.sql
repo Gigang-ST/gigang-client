@@ -11,6 +11,8 @@
 --
 -- 쓰기(INSERT·UPDATE·DELETE) 정책은 그대로다 — 참석·댓글·수정은 여전히 그 팀 회원만.
 
+SET lock_timeout = '3s';
+
 ALTER POLICY gthr_mst_select ON public.gthr_mst
   USING (del_yn = false);
 

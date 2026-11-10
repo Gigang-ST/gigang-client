@@ -7,6 +7,8 @@
 --                                   예전 `lib/gathering/templates.ts` 상수(문구는 한 글자도 바꾸지 않았다)
 -- 울산 값은 울산 운영진이 정하면 같은 INSERT 로 넣는다(그 전엔 울산 카드엔 글자가 없고, 정기 자동 채움도 없다).
 
+SET lock_timeout = '3s';
+
 INSERT INTO public.team_cfg (team_id, cfg_cd, cfg_val_json)
 SELECT t.team_id, v.cfg_cd, v.cfg_val_json
 FROM (SELECT team_id FROM public.team_mst WHERE team_cd = 'gigang') t

@@ -21,8 +21,9 @@
 | 10 | 기강 오픈채팅 비밀번호를 팀 설정에 등록 | (아래 SQL — 사람이 직접) | ☐ | ☐ |
 | 11 | 캐시 무효화 웹훅에 팀 싣기 | `20261109200000_revalidate_webhook_team.sql` | ✅ | ☐ |
 | 12 | 건의 팀별 | `20261109210000_fdbk_team.sql` | ✅ | ☐ |
+| 12-b | 건의 팀별 조회 인덱스 — **단독 실행**(CONCURRENTLY) | `20261109210500_fdbk_team_index.sql` | ✅ | ☐ |
 | 13 | 모임·일정 읽기 — 로그인한 비회원도 비로그인과 같게 | `20261109220000_gthr_sch_post_select_authenticated_public.sql` | ✅ | ☐ |
-| 14 | 대회 원본·종목 관리자 정책에서 기강 id 고정 걷기 | `20261109230000_comp_admin_policy_any_team.sql` | ✅ | ☐ |
+| 14 | 대회 원본·종목 관리자 정책에서 기강 id 고정 걷기(활동 중 운영진만) | `20261109230000_comp_admin_policy_any_team.sql` | ✅ | ☐ |
 | 15 | 기강 워드마크·정기 모임 템플릿을 팀 설정에 등록 | `20261109240000_team_cfg_wordmark_regular_template.sql` | ✅ | ☐ |
 | 16 | 기강 가입 폼에 「울산지부 가입이세요?」 안내 | `20261109250000_team_cfg_signup_other_teams.sql` | ✅ | ☐ |
 | 17 | 울산 회비 끄기(팀 설정) | `20261109260000_ulsan_dues_off.sql` | ✅ | ☐ |
@@ -40,6 +41,13 @@
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
 
 ## 시작 전 — 되돌릴 준비 (필수)
+
+> **모든 파일 첫 문장이 `SET lock_timeout = '3s';` 다**(PR #649 리뷰 반영, supabase/migrations/README 규칙). 테이블 락을
+> 3초 안에 못 잡으면 그 파일이 **에러로 멈추고 아무것도 바뀌지 않는다** — 앱이 락 뒤에 줄 서서 멈추는 것보다 낫다.
+> 멈추면 잠시 뒤 **같은 파일을 다시 실행**하면 된다(전부 다시 돌려도 안전하게 짜여 있다).
+>
+> 함수 본문을 고치는 파일(6·8·22·25·26)은 지금 정의에서 정해진 글자를 찾아 바꾼다. 찾기 전에 줄바꿈을 LF 로 통일하므로
+> Windows 에서 체크아웃한 파일을 써도 된다. 못 찾으면 에러로 멈춘다 — 앞 번호가 빠졌는지부터 본다.
 
 이 묶음엔 **되돌리기 어려운 변경**이 있다: 포인트 함수 옛 시그니처 DROP(7), 공개 조회 함수 본문 덮어쓰기(6·8·11),
 유니크 제약 교체(3·8·20), 정책 교체(5·13·14). 마이그레이션 파일만으로는 이전 상태로 못 돌린다.
@@ -260,6 +268,16 @@ select id, convert_from(body, 'utf8') from net.http_request_queue order by id de
 select t.team_cd, count(*) from fdbk_mst f join team_mst t using (team_id) group by 1;
 ```
 
+### 12-b. `20261109210500_fdbk_team_index.sql` — 단독 실행
+
+12번에 섞여 있던 인덱스를 떼어 낸 파일이다. `CREATE INDEX CONCURRENTLY` 는 트랜잭션 안에서 못 돌아서 **이 파일만 따로**
+실행한다(SQL Editor 에서 이 파일 하나만). 테이블 쓰기를 막지 않는다. 12번 뒤 언제든(배포 전후 무관).
+
+```sql
+-- 확인: 인덱스가 있고 유효하다(indisvalid = true)
+select i.relname, x.indisvalid from pg_index x join pg_class i on i.oid = x.indexrelid where i.relname = 'ix_fdbk_mst_team_stts';
+```
+
 ### 13. `20261109220000_gthr_sch_post_select_authenticated_public.sql`
 
 모임(`gthr_mst`)·일정(`sch_post_mst`)의 로그인 읽기 정책을 비로그인과 같은 `del_yn = false` 로 맞춘다. 그 팀 회원이
@@ -276,12 +294,14 @@ where schemaname = 'public' and tablename in ('gthr_mst', 'sch_post_mst') and cm
 ### 14. `20261109230000_comp_admin_policy_any_team.sql`
 
 대회 원본(`comp_mst`)·종목(`comp_evt_cfg`) 관리자 쓰기 정책이 기강 팀 id 로 고정돼 있던 것을 "어느 팀이든 owner·admin" 으로
-바꾼다(대회 원본은 공용, 아무 팀 관리자나 고칠 수 있다). 앱의 대회 쓰기는 service_role 이라 화면 동작은 그대로다 —
-**배포 전후 언제 적용해도 안전하다.**
+바꾼다(대회 원본은 공용, 아무 팀 관리자나 고칠 수 있다). **활동 중(active)인 운영진만** — 탈퇴·비활성이 돼도 역할은 남아서,
+조건이 없으면 떠난 관리자가 공개 키로 직접 요청해 공용 대회를 고칠 수 있었다(PR #649 리뷰). 앱의 대회 쓰기는 service_role 이라
+화면 동작은 그대로다 — **배포 전후 언제 적용해도 안전하다.**
 
 ```sql
--- 확인: 두 정책 모두 기강 id 가 없다(false)
-select policyname, (coalesce(qual, '') || coalesce(with_check, '')) like '%c0ffee00%' as still_hardcoded
+-- 확인: 두 정책 모두 기강 id 가 없고(false) 활동 중 조건이 있다(true)
+select policyname, (coalesce(qual, '') || coalesce(with_check, '')) like '%c0ffee00%' as still_hardcoded,
+       qual like '%mem_st_cd%' and with_check like '%mem_st_cd%' as active_only
 from pg_policies where schemaname = 'public'
   and policyname in ('comp_mst_mutate_team_admin', 'comp_evt_cfg_mutate_team_admin');
 ```
@@ -409,7 +429,7 @@ from team_mst t join lateral (select mem_id from team_mem_rel m where m.team_id 
 
 ## 배포
 
-1. 위 1~9·12·15·19·21·26이 끝났는지 표에서 확인하고, **2번의 배포 직전 필수 확인(기강 카톡방 1행)**을 다시 돌린다
+1. 위 1~9·12·12-b·15·19·21·26이 끝났는지 표에서 확인하고, **2번의 배포 직전 필수 확인(기강 카톡방 1행)**을 다시 돌린다
    (10·11·13·14·16·17·18은 배포 뒤여도 된다).
 2. PR #649 머지 → dev → main 배포.
 3. 배포 후 확인

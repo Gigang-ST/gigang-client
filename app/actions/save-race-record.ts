@@ -159,7 +159,7 @@ export async function updateRaceRecord(recordId: string, recordTimeSec: number) 
       });
       if (shouldInvalidate) revalidateTag(`records:${teamId}`, "max");
       // 기록은 사람 것 — 다른 팀 전당도 턴다
-      await syncPersonRecordToOtherTeams(member.id, teamId);
+      after(() => syncPersonRecordToOtherTeams(member.id, teamId));
     }
 
     return { ok: true as const, message: null };
@@ -197,7 +197,7 @@ export async function deleteRaceRecord(recordId: string) {
       });
       if (shouldInvalidate) revalidateTag(`records:${teamId}`, "max");
       // 기록은 사람 것 — 다른 팀 전당도 턴다
-      await syncPersonRecordToOtherTeams(member.id, teamId);
+      after(() => syncPersonRecordToOtherTeams(member.id, teamId));
     }
 
     return { ok: true as const, message: null };

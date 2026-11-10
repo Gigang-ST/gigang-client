@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { mergeTeamEffects } from "@/lib/team-effects";
 import { CardItem } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -128,12 +129,18 @@ async function fetchEffectRows(teamId: string): Promise<EffectRow[]> {
       .from("team_effect_cfg")
       .select("effect_cd, rarity_level, use_yn, unlock_cond_json")
       .eq("team_id", teamId),
-    supabase
-      .from("team_mem_rel")
-      .select("selected_badge_effect, selected_frame_cd")
-      .eq("team_id", teamId)
-      .eq("vers", 0)
-      .eq("del_yn", false),
+    // 팀 전원을 센다 — 회원이 늘수록 커지는 조회라 1000행에서 잘리지 않게 끝까지 읽는다(AGENTS.md §대량 조회)
+    fetchAllRows(
+      () =>
+        supabase
+          .from("team_mem_rel")
+          .select("team_mem_id, selected_badge_effect, selected_frame_cd")
+          .eq("team_id", teamId)
+          .eq("vers", 0)
+          .eq("del_yn", false)
+          .order("team_mem_id"),
+      { label: "이펙트 사용 수" },
+    ).then((data) => ({ data })),
   ]);
   const effects = mergeTeamEffects(
     (baseEffects ?? []) as unknown as Omit<EffectRow, "use_cnt">[],

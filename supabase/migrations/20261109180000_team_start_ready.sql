@@ -128,6 +128,8 @@ BEGIN
     IF v_orig IS NULL THEN
       RAISE EXCEPTION '함수 % 가 없습니다', f.fn;
     END IF;
+    -- 줄바꿈 통일 — Windows 에서 체크아웃한(CRLF) 파일로 로컬 DB 를 만들면 함수 본문에  이 섞여 아래 찾기가 어긋난다(PR #649 리뷰)
+    v_orig := replace(v_orig, E'\r\n', E'\n');
     v_def := v_orig;
 
     FOR r IN SELECT * FROM _onbd_patch WHERE fn = f.fn ORDER BY ord LOOP

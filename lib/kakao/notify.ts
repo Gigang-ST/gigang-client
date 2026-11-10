@@ -99,6 +99,12 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 type RoomTarget = { roomId: string } | { room: string };
 
+/**
+ * 팀 설정(카톡방)을 못 읽어 실패한 건의 발송 이력 방 칸 — **진짜 방 이름이 아니다**. 재발송은 이 값을 넘기지 말고
+ * 방을 다시 정해야 한다(`resendKakaoSend`). 예전엔 이 글자를 방 이름으로 넘겨 몇 번을 다시 보내도 실제 방에 안 갔다.
+ */
+export const KAKAO_ROOM_UNRESOLVED = "(설정 조회 실패)";
+
 function toTarget(value: string): RoomTarget {
   return UUID_RE.test(value) ? { roomId: value } : { room: value };
 }
@@ -178,7 +184,7 @@ export async function sendKakao(
     console.error("[kakao] 카톡방 설정을 못 읽어 보내지 못함", { teamId: opts.teamId, failure });
     await recordKakaoSend({
       teamId: opts.teamId,
-      room: "(설정 조회 실패)",
+      room: KAKAO_ROOM_UNRESOLVED,
       message,
       requestId: opts.requestId ?? crypto.randomUUID(),
       source: opts.source ?? null,

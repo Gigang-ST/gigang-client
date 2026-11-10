@@ -6,12 +6,18 @@
 --
 -- 앱의 대회 등록·수정·삭제는 서버에서 service_role 로 처리해(RLS 우회) 화면 동작은 바뀌지 않는다.
 -- 정책이 걸리는 건 앱을 거치지 않는 직접 요청뿐이라, 정책을 규칙에 맞추는 정리다.
+--
+-- **활동 중인(active) 운영진만** 고친다 — 탈퇴·비활성이 돼도 역할(admin)은 남아서, 조건이 없으면 떠난 관리자가
+-- 공개 키로 직접 요청해 모든 팀이 같이 쓰는 대회를 고치거나 지울 수 있었다(PR #649 리뷰). v2_rls_auth_team_owner_or_admin 과 같은 기준.
+
+SET lock_timeout = '3s';
 
 ALTER POLICY comp_mst_mutate_team_admin ON public.comp_mst
   USING (EXISTS (
     SELECT 1 FROM public.team_mem_rel r
     WHERE r.mem_id = public.v2_rls_resolve_mem_id()
       AND r.team_role_cd = ANY (ARRAY['owner'::text, 'admin'::text])
+      AND r.mem_st_cd = 'active'
       AND r.vers = 0
       AND r.del_yn = false
   ))
@@ -19,6 +25,7 @@ ALTER POLICY comp_mst_mutate_team_admin ON public.comp_mst
     SELECT 1 FROM public.team_mem_rel r
     WHERE r.mem_id = public.v2_rls_resolve_mem_id()
       AND r.team_role_cd = ANY (ARRAY['owner'::text, 'admin'::text])
+      AND r.mem_st_cd = 'active'
       AND r.vers = 0
       AND r.del_yn = false
   ));
@@ -28,6 +35,7 @@ ALTER POLICY comp_evt_cfg_mutate_team_admin ON public.comp_evt_cfg
     SELECT 1 FROM public.team_mem_rel r
     WHERE r.mem_id = public.v2_rls_resolve_mem_id()
       AND r.team_role_cd = ANY (ARRAY['owner'::text, 'admin'::text])
+      AND r.mem_st_cd = 'active'
       AND r.vers = 0
       AND r.del_yn = false
   ))
@@ -35,6 +43,7 @@ ALTER POLICY comp_evt_cfg_mutate_team_admin ON public.comp_evt_cfg
     SELECT 1 FROM public.team_mem_rel r
     WHERE r.mem_id = public.v2_rls_resolve_mem_id()
       AND r.team_role_cd = ANY (ARRAY['owner'::text, 'admin'::text])
+      AND r.mem_st_cd = 'active'
       AND r.vers = 0
       AND r.del_yn = false
   ));

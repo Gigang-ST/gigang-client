@@ -4,6 +4,8 @@
 -- 프로젝트는 할 때 만들면 되는 거라, 이제 모든 팀이 "진행 중인 프로젝트가 없어요"만 본다 — 키를 읽는 코드가 없다.
 -- 20261109190000 이 넣은 울산 행(false)을 내린다(del_yn 소프트삭제 — 이력은 team_cfg 트리거가 남긴다).
 
+SET lock_timeout = '3s';
+
 UPDATE public.team_cfg
 SET del_yn = true, upd_at = now()
 WHERE cfg_cd = 'project.show_intro'

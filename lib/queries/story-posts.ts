@@ -25,7 +25,7 @@ export type StoryPost = {
   dst_km: number | null;
   /** 종목 — 마일리지런 `evt_mlg_sprt_enm` 값 문자열 */
   sprt_enm: string | null;
-  /** 활동일 (YYYY-MM-DD). 팻말에 찍히는 날짜는 작성일이 아니라 이것 */
+  /** 활동일 (YYYY-MM-DD). 화면에 찍히는 날짜는 작성일이 아니라 이것 */
   act_dt: string | null;
   /** manual=직접 작성, mlg_auto=마일리지런에서 자동 유입 */
   src_enm: "manual" | "mlg_auto";

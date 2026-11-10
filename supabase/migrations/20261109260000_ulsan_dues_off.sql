@@ -4,6 +4,8 @@
 --    lib/team-cfg/registry.ts, 기본값 true = 기강 동작).
 --    (회비 면제 배치는 울산에 아예 만들지 않는다 — 20261109180000 참고.)
 
+SET lock_timeout = '3s';
+
 INSERT INTO public.team_cfg (team_id, cfg_cd, cfg_val_json)
 SELECT t.team_id, 'feature.dues', 'false'::jsonb
 FROM public.team_mst t

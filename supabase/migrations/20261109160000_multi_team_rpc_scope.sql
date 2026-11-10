@@ -49,6 +49,8 @@ BEGIN
     SELECT pg_get_functiondef(p.oid) INTO v_def
     FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public' AND p.proname = r.fn;
+    -- 줄바꿈 통일 — Windows 에서 체크아웃한(CRLF) 파일로 로컬 DB 를 만들면 함수 본문에  이 섞여 아래 찾기가 어긋난다(PR #649 리뷰)
+    v_def := replace(v_def, E'\r\n', E'\n');
 
     IF v_def IS NULL THEN
       RAISE EXCEPTION '[%] 함수 % 가 없습니다', r.ord, r.fn;

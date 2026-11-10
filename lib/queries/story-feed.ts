@@ -29,7 +29,7 @@ export type RctnCd = (typeof RCTN_CODES)[number];
  * **여기 유니온 + `bump-reaction`의 `ENTITY_TYPES`·`isOnBoard`** 세 곳이 관문 역할을 한다.
  *
  * · `newbie`/`record`/`race` 피드 항목(entity_id = 그 항목의 id)
- * · `actv`  멤버 기준(entity_id = mem_id) — 활동지수·목표 한마디 슬롯이 공유한다
+ * · `actv`  멤버 기준(entity_id = mem_id) — 활동지수·깅스타그램·칭호획득 슬롯이 공유한다
  * · `post`  기록 자랑(entity_id = post_id) — 캐시가 갈려 있어 검증도 `getStoryPosts`를 본다
  */
 export type StoryEntityType = "newbie" | "record" | "race" | "actv" | "post";

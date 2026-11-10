@@ -56,10 +56,17 @@ function notifySensitiveChange(teamId: string, cd: TeamCfgCd, actor: { id: strin
  * (`team_cfg_keep_history`)가 이력 행으로 남긴다. 반영은 최대 1분(다른 서버 인스턴스의 설정 캐시) —
  * 저장한 인스턴스의 캐시는 바로 비운다.
  */
+/**
+ * 화면에 안 올리는 키(`hidden` — 다른 팀 가입 안내 등)는 **저장·되돌리기도 막는다**. 화면엔 없어도 서버 액션은
+ * 화면과 별개로 열려 있어, 관리자가 직접 부르면 바뀌었다(PR #649 리뷰). 이런 키는 코드·마이그레이션으로만 바꾼다.
+ */
+const HIDDEN_MESSAGE = "이 설정은 화면에서 바꾸지 않아요(코드·마이그레이션으로 관리)";
+
 export async function saveTeamSetting(cd: string, value: unknown): Promise<Result> {
   return withAdmin(async ({ member }) => {
     if (!isTeamCfgCd(cd)) return { ok: false, message: "알 수 없는 설정입니다" };
-    const def = TEAM_CFG_REGISTRY[cd] as { ownerOnly?: boolean };
+    const def = TEAM_CFG_REGISTRY[cd] as { ownerOnly?: boolean; hidden?: boolean };
+    if (def.hidden) return { ok: false, message: HIDDEN_MESSAGE };
     if (def.ownerOnly && !member.owner) return { ok: false, message: OWNER_ONLY_MESSAGE };
     const parsed = TEAM_CFG_REGISTRY[cd].schema.safeParse(value);
     if (!parsed.success) {
@@ -113,7 +120,8 @@ export async function saveTeamSetting(cd: string, value: unknown): Promise<Resul
 export async function resetTeamSetting(cd: string): Promise<Result> {
   return withAdmin(async ({ member }) => {
     if (!isTeamCfgCd(cd)) return { ok: false, message: "알 수 없는 설정입니다" };
-    const def = TEAM_CFG_REGISTRY[cd] as { ownerOnly?: boolean };
+    const def = TEAM_CFG_REGISTRY[cd] as { ownerOnly?: boolean; hidden?: boolean };
+    if (def.hidden) return { ok: false, message: HIDDEN_MESSAGE };
     if (def.ownerOnly && !member.owner) return { ok: false, message: OWNER_ONLY_MESSAGE };
     const { teamId } = await getRequestTeamContext();
     const db = createUntypedAdminClient();

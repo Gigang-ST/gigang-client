@@ -9,6 +9,8 @@
 --    (`lib/team-titles.ts`), 새로 주는 건 엔진·배치·관리자 수여가 같은 설정을 보고 멈춘다.
 -- 3) 울산 feature.titles = false. 이미 받은 칭호 행은 지우지 않는다(울산은 0개).
 
+SET lock_timeout = '3s';
+
 CREATE OR REPLACE FUNCTION public.team_feature_on(p_team_id uuid, p_cfg_cd text, p_default boolean)
 RETURNS boolean
 LANGUAGE sql
@@ -28,7 +30,8 @@ REVOKE ALL ON FUNCTION public.team_feature_on(uuid, text, boolean) FROM PUBLIC, 
 
 DO $$
 DECLARE
-  d text := pg_get_functiondef('public.get_public_member_card(uuid, uuid)'::regprocedure);
+  -- 줄바꿈 통일 — Windows 에서 체크아웃한(CRLF) 파일로 로컬 DB 를 만들면 함수 본문에  이 섞여 아래 찾기가 어긋난다(PR #649 리뷰)
+  d text := replace(pg_get_functiondef('public.get_public_member_card(uuid, uuid)'::regprocedure), E'\r\n', E'\n');
   r text[][] := ARRAY[
     ARRAY[
       'AND (mt.exp_at IS NULL OR mt.exp_at > now())',

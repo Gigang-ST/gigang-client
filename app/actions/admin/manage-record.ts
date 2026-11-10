@@ -1,5 +1,7 @@
 "use server";
 
+import { after } from "next/server";
+
 import { revalidateTag } from "next/cache";
 
 import { withAdmin } from "@/lib/actions/auth";
@@ -33,7 +35,7 @@ async function recordOwnerInTeam(
  */
 async function refreshRankings(teamId: string, memId: string) {
   revalidateTag(`records:${teamId}`, "max");
-  await syncPersonRecordToOtherTeams(memId, teamId);
+  after(() => syncPersonRecordToOtherTeams(memId, teamId));
 }
 
 export async function deleteRecord(recordId: string) {

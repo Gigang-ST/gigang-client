@@ -23,14 +23,6 @@ export type EditableRunningProfile = {
 export async function getRunningProfile(
   memId: string,
 ): Promise<EditableRunningProfile> {
-  const empty: EditableRunningProfile = {
-    nearStnNm: null,
-    avgRunDistKm: null,
-    avgPaceCd: null,
-    joinPurpCds: [],
-    joinPurpTxt: null,
-  };
-
   const supabase = await createClient();
   const { teamId } = await getRequestTeamContext();
   const [{ data, error }, { data: purp, error: purpErr }] = await Promise.all([
@@ -47,12 +39,14 @@ export async function getRunningProfile(
       .maybeSingle(),
   ]);
 
+  // 조회 실패를 빈 프로필로 돌려주면 안 된다 — 편집 폼이 빈칸으로 열리고, 그대로 저장하면 실제 거리·페이스·역·
+  // 가입 목적이 빈 값으로 덮인다(PR #649 리뷰). 던져서 편집 화면이 오류로 멈추게 한다(다시 열면 된다).
   const err = error ?? purpErr;
   if (err) {
     if (!isRequestAbortError(err)) {
       console.error("[onboarding] 러닝 프로필 조회 실패", err.message);
     }
-    return empty;
+    throw new Error("러닝 프로필을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.");
   }
 
   return {

@@ -8,9 +8,12 @@
 -- 22번(feature_titles)과 같은 방식이고, 그보다 뒤여야 한다(둘 다 같은 함수를 고친다). 옛 코드는 이 칸을 읽지 않아
 -- 배포 전에 넣어도 안전하다 — 넣지 않고 새 코드가 나가면 울산 카드에 빈 로드 칸이 보일 뿐이다.
 
+SET lock_timeout = '3s';
+
 DO $$
 DECLARE
-  d text := pg_get_functiondef('public.get_public_member_card(uuid, uuid)'::regprocedure);
+  -- 줄바꿈 통일 — Windows 에서 체크아웃한(CRLF) 파일로 로컬 DB 를 만들면 함수 본문에  이 섞여 아래 찾기가 어긋난다(PR #649 리뷰)
+  d text := replace(pg_get_functiondef('public.get_public_member_card(uuid, uuid)'::regprocedure), E'\r\n', E'\n');
   anchor text := '''rctn_recv_cnt'', (SELECT cnt FROM rctn_recv),';
   addition text := '''record_categories'', (SELECT c.cfg_val_json FROM public.team_cfg c
                      WHERE c.team_id = p_team_id AND c.cfg_cd = ''records.categories''

@@ -2576,54 +2576,6 @@ export type Database = {
           },
         ]
       }
-      msg_mst: {
-        Row: {
-          crt_at: string
-          del_yn: boolean
-          fly_dist: number | null
-          mem_id: string
-          msg_id: string
-          msg_txt: string
-          team_id: string
-          upd_at: string
-        }
-        Insert: {
-          crt_at?: string
-          del_yn?: boolean
-          fly_dist?: number | null
-          mem_id: string
-          msg_id?: string
-          msg_txt: string
-          team_id: string
-          upd_at?: string
-        }
-        Update: {
-          crt_at?: string
-          del_yn?: boolean
-          fly_dist?: number | null
-          mem_id?: string
-          msg_id?: string
-          msg_txt?: string
-          team_id?: string
-          upd_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "msg_mst_mem_id_fkey"
-            columns: ["mem_id"]
-            isOneToOne: false
-            referencedRelation: "mem_mst"
-            referencedColumns: ["mem_id"]
-          },
-          {
-            foreignKeyName: "msg_mst_team_id_fkey"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "team_mst"
-            referencedColumns: ["team_id"]
-          },
-        ]
-      }
       noti_mst: {
         Row: {
           batch_id: string | null
@@ -2719,54 +2671,6 @@ export type Database = {
           },
           {
             foreignKeyName: "noti_pref_cfg_team_id_fkey"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "team_mst"
-            referencedColumns: ["team_id"]
-          },
-        ]
-      }
-      pldg_mst: {
-        Row: {
-          crt_at: string
-          del_yn: boolean
-          float_at: string
-          mem_id: string
-          pldg_id: string
-          pldg_txt: string
-          team_id: string
-          upd_at: string
-        }
-        Insert: {
-          crt_at?: string
-          del_yn?: boolean
-          float_at?: string
-          mem_id: string
-          pldg_id?: string
-          pldg_txt: string
-          team_id: string
-          upd_at?: string
-        }
-        Update: {
-          crt_at?: string
-          del_yn?: boolean
-          float_at?: string
-          mem_id?: string
-          pldg_id?: string
-          pldg_txt?: string
-          team_id?: string
-          upd_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "pldg_mst_mem_id_fkey"
-            columns: ["mem_id"]
-            isOneToOne: false
-            referencedRelation: "mem_mst"
-            referencedColumns: ["mem_id"]
-          },
-          {
-            foreignKeyName: "pldg_mst_team_id_fkey"
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "team_mst"
@@ -3822,15 +3726,7 @@ export type Database = {
         Args: { p_seed?: string; p_team_id: string }
         Returns: Json
       }
-      get_team_messages: {
-        Args: { p_limit?: number; p_team_id: string }
-        Returns: Json
-      }
       get_team_overview: { Args: { p_team_id: string }; Returns: Json }
-      get_team_pledges: {
-        Args: { p_limit?: number; p_team_id: string }
-        Returns: Json
-      }
       get_team_posts: {
         Args: {
           p_limit?: number
@@ -4013,10 +3909,6 @@ export type Database = {
         Returns: boolean
       }
       rls_is_team_member: { Args: { p_team_id: string }; Returns: boolean }
-      set_message_fly_dist: {
-        Args: { p_dist: number; p_msg_id: string }
-        Returns: boolean
-      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       v2_rls_auth_in_team: { Args: { p_team_id: string }; Returns: boolean }

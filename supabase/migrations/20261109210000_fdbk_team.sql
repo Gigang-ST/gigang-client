@@ -25,7 +25,7 @@ ALTER TABLE public.fdbk_mst
 COMMENT ON COLUMN public.fdbk_mst.team_id IS
   '건의를 낸 팀(접속한 팀). 그 팀 관리자만 보고 처리한다. 기본값(기강)은 배포 전 옛 코드용 — 배포 후 제거.';
 
-CREATE INDEX IF NOT EXISTS ix_fdbk_mst_team_stts ON public.fdbk_mst (team_id, stts_enm);
+-- 팀별 조회 인덱스는 별도 파일 20261109210500_fdbk_team_index.sql(CONCURRENTLY — 다른 DDL 과 섞지 않는다, README)
 
 -- 본인 INSERT 정책: 내가 속한 팀으로만 낼 수 있게(지금 앱은 서버가 넣지만, 정책도 같은 경계로)
 DROP POLICY IF EXISTS fdbk_mst_insert_self ON public.fdbk_mst;

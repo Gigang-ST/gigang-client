@@ -55,7 +55,7 @@ export function RecordFlexFeed({
   teamId,
 }: {
   posts: StoryPost[];
-  /** 로그인 사용자 — 없으면 "올리기" 버튼을 감춘다(목표 한마디·응원과 동일 정책) */
+  /** 로그인 사용자 — 없으면 "올리기" 버튼을 감춘다(응원과 동일 정책) */
   myMemId: string | null;
   /** 관리자면 남의 기록도 지울 수 있다 — 서버가 최종 방어하고 여긴 노출 판정만 */
   isAdmin?: boolean;

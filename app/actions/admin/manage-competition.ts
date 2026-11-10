@@ -5,8 +5,10 @@ import { revalidateTag } from "next/cache";
 import { withActive, withAdmin } from "@/lib/actions/auth";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { getCachedCmmCdRows, isValidCompSprtCd } from "@/lib/queries/cmm-cd-cached";
+import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient, createAdminClientAs } from "@/lib/supabase/admin";
+import { teamCacheTag } from "@/lib/team-cache-tag";
 
 /**
  * ⚠️ **이 파일이 전부 관리자 전용은 아니다.** 디렉터리 이름(`admin/`)에 속지 말 것 —
@@ -247,7 +249,9 @@ export async function deleteRegistration(registrationId: string) {
     if (!reg) return { ok: false, message: "신청을 찾을 수 없습니다" };
     const { error } = await db.from("comp_reg_rel").delete().eq("comp_reg_id", registrationId);
     if (error) return { ok: false, message: "삭제에 실패했습니다" };
-    revalidateTag("competitions", "max");
+    // 참가 신청은 팀 것 — 이 팀의 일정·피드만 비운다(전역 competitions 는 모든 팀 피드를 다시 계산하게 했다, #653)
+    revalidateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, teamId), "max");
+    revalidateTag(teamCacheTag("story-feed", teamId), "max");
     return { ok: true, message: null };
   });
 }

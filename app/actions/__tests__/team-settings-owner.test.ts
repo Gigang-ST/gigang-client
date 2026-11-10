@@ -66,3 +66,16 @@ describe("팀 설정 — owner 전용", () => {
     expect(h.notified).toEqual([]);
   });
 });
+
+describe("팀 설정 — 화면에 안 올리는(hidden) 키", () => {
+  // 화면엔 없어도 서버 액션은 직접 부를 수 있다 — 액션이 막아야 한다(PR #649 리뷰). 이런 키는 마이그레이션으로만 바꾼다.
+  it("관리자·owner 모두 저장도 되돌리기도 못 한다", async () => {
+    for (const owner of [false, true]) {
+      h.member = { id: owner ? "mem-owner" : "mem-admin", full_name: "운영진", admin: true, owner };
+      await expect(saveTeamSetting("signup.other_teams", [{ team_cd: "ulsan", name: "아무 글자" }])).resolves.toMatchObject({ ok: false });
+      await expect(resetTeamSetting("signup.other_teams")).resolves.toMatchObject({ ok: false });
+    }
+    expect(h.db.opsOn("team_cfg", "insert")).toHaveLength(0);
+    expect(h.db.opsOn("team_cfg", "update")).toHaveLength(0);
+  });
+});

@@ -9,9 +9,12 @@
 -- 3) 두 테이블을 읽는 함수가 하나도 안 남았는지 확인한 뒤 실시간 목록에서 빼고 테이블을 지운다.
 
 -- 1) 홈 피드 함수
+SET lock_timeout = '3s';
+
 DO $$
 DECLARE
-  d text := pg_get_functiondef('public.get_team_story_feed(uuid, uuid)'::regprocedure);
+  -- 줄바꿈 통일 — Windows 에서 체크아웃한(CRLF) 파일로 로컬 DB 를 만들면 함수 본문에  이 섞여 아래 찾기가 어긋난다(PR #649 리뷰)
+  d text := replace(pg_get_functiondef('public.get_team_story_feed(uuid, uuid)'::regprocedure), E'\r\n', E'\n');
   cte_from int;
   cte_to int;
   key_from int;

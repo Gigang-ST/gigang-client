@@ -4,7 +4,7 @@ const h = vi.hoisted(() => ({ result: { data: null as unknown, error: null as un
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/lib/kakao/notify", () => ({ sendKakao: vi.fn() }));
+vi.mock("@/lib/kakao/notify", () => ({ sendKakao: vi.fn(), KAKAO_ROOM_UNRESOLVED: "(설정 조회 실패)" }));
 vi.mock("@/lib/queries/request-team", () => ({ getRequestTeamContext: async () => ({ teamId: "team-1" }) }));
 vi.mock("@/lib/actions/auth", () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -87,6 +87,15 @@ describe("resendKakao — 중복 발송 방지", () => {
       room: "4b492fd2-bb84-43be-a663-4e5f087ffb2e", requestId: "stable-request", resend: true,
     }));
     expect(result.message).toContain("접수");
+  });
+
+  // 설정(카톡방)을 못 읽어 실패한 건은 방 칸이 자리표시다 — 그 글자를 방 이름으로 넘기면 몇 번을 보내도 실제 방에
+  // 안 간다(PR #649 리뷰). 방을 넘기지 않아야 팀 설정에서 방을 다시 정한다.
+  it("설정을 못 읽어 실패한 건은 방을 넘기지 않고 다시 정하게 한다", async () => {
+    (h.result.data as Record<string, unknown>).room_nm = "(설정 조회 실패)";
+    vi.mocked(sendKakao).mockResolvedValue({ ok: true });
+    await resendKakao("s1");
+    expect(sendKakao).toHaveBeenCalledWith("안녕", expect.objectContaining({ room: null, requestId: "stable-request" }));
   });
 
   it("멱등 키가 없는 과거 실패 이력은 새 키로 재발송하지 않는다", async () => {
