@@ -22,11 +22,13 @@ import { RecordsClient } from "./records-client";
 async function RecordsContent() {
   const { teamId } = await getRequestTeamContext();
   // getCurrentMember()는 React cache()라 getMyTitleNames() 안의 호출과 합쳐진다(쿼리 추가 없음).
-  const [cachedData, myTitleNames, { member }, titlesEnabled] = await Promise.all([
+  const [cachedData, myTitleNames, { member }, titlesEnabled, categories] = await Promise.all([
     getCachedRecordsData(teamId),
     getMyTitleNames(),
     getCurrentMember(),
     getTeamCfg(teamId, "feature.titles"),
+    // 세울 종목(팀 설정) — 하나면 종목 탭 줄 없이 그 종목만(울산 = 트레일러닝)
+    getTeamCfg(teamId, "records.categories"),
   ]);
   // 칭호 기능을 끈 팀은 챔피언 띠에 칭호를 안 싣는다 — 캐시는 칭호를 실은 채라 넘기기 직전에 걷는다
   const serializedData = titlesEnabled ? cachedData : { ...cachedData, memberTitles: {} };
@@ -37,6 +39,7 @@ async function RecordsContent() {
       myTitleNames={titlesEnabled ? [...myTitleNames] : []}
       myMemId={member?.id ?? null}
       teamId={teamId}
+      categories={categories}
     />
   );
 }

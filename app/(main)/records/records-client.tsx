@@ -22,6 +22,12 @@ import {
   type HyroxView,
   type HyroxViewEntry,
 } from "@/lib/hyrox";
+import {
+  RECORD_CATEGORIES,
+  RECORD_CATEGORY_KEYS,
+  type RecordCategoryKey,
+  visibleRecordCategories,
+} from "@/lib/records-categories";
 import { getFrameCls } from "@/lib/title-effects";
 import {
   flattenTriathlon,
@@ -37,6 +43,7 @@ import { Avatar } from "@/components/common/avatar";
 import { EmptyState } from "@/components/common/empty-state";
 import { HelpTip } from "@/components/common/help-tip";
 import { SegmentControl } from "@/components/common/segment-control";
+import { Body } from "@/components/common/typography";
 import { TitleBadge } from "@/components/common/title-badge";
 import { MemberCardDialogDynamic as MemberCardDialog } from "@/components/members/member-card-dialog-dynamic";
 import { Button } from "@/components/ui/button";
@@ -160,14 +167,17 @@ export type BoardContext = {
 /*  카테고리 탭 정의                                                    */
 /* ------------------------------------------------------------------ */
 
-const CATEGORIES = [
-  { value: "marathon", label: "러닝", Icon: RunningIcon },
-  { value: "trail", label: "트레일러닝", Icon: TrailIcon },
-  { value: "triathlon", label: "철인3종", Icon: TriathlonIcon },
-  { value: "hyrox", label: "하이록스", Icon: HyroxIcon },
-] as const;
+/** 종목 이름·순서는 `RECORD_CATEGORIES`(팀 설정 `records.categories` 와 같은 목록)가 정본 — 여기선 아이콘만 붙인다 */
+const CATEGORY_ICONS: Record<RecordCategoryKey, () => React.JSX.Element> = {
+  marathon: RunningIcon,
+  trail: TrailIcon,
+  triathlon: TriathlonIcon,
+  hyrox: HyroxIcon,
+};
 
-type CategoryKey = (typeof CATEGORIES)[number]["value"];
+const CATEGORIES = RECORD_CATEGORIES.map((c) => ({ ...c, Icon: CATEGORY_ICONS[c.value] }));
+
+type CategoryKey = RecordCategoryKey;
 
 /* ------------------------------------------------------------------ */
 /*  순위 표시                                                          */
@@ -1392,15 +1402,23 @@ export function RecordsClient({
   myTitleNames = [],
   myMemId = null,
   teamId,
+  categories = RECORD_CATEGORY_KEYS,
 }: {
   data: RecordsData;
   myTitleNames?: string[];
   myMemId?: string | null;
   teamId: string;
+  /** 팀이 세우는 종목(팀 설정 `records.categories`). 하나면 종목 탭 줄 없이 그 종목 이름을 고정으로 세운다 */
+  categories?: readonly string[];
 }) {
   const myTitleNameSet = new Set(myTitleNames);
   const [selectedMember, setSelectedMember] = useState<{ memId: string; name: string } | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<CategoryKey>("marathon");
+  const visible = visibleRecordCategories(categories);
+  const tabs = CATEGORIES.filter((c) => visible.includes(c.value));
+  const onlyTab = tabs.length === 1 ? tabs[0] : null;
+  const [pickedCategory, setSelectedCategory] = useState<CategoryKey>(visible[0]);
+  // 설정이 바뀌어 고른 탭이 사라졌으면 첫 탭으로 — 빈 판이 서지 않게
+  const selectedCategory = visible.includes(pickedCategory) ? pickedCategory : visible[0];
 
   // memberTitles에 isHeld 주입
   const memberTitles: Record<string, MemberTitle> = Object.fromEntries(
@@ -1419,23 +1437,32 @@ export function RecordsClient({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* 카테고리 — 세그먼트. 아래 종목 서브탭이 pill이라 두 층이 형태로 갈린다 */}
-      <div className="px-6">
-        <SegmentControl
-          segments={CATEGORIES.map(({ value, label, Icon }) => ({
-            value,
-            // 아이콘은 라벨 위로 쌓는다 — 375px에서 탭 하나가 약 80px이라 "트레일러닝" 옆엔 설 자리가 없다
-            label: (
-              <span className="flex flex-col items-center gap-1">
-                <Icon />
-                {label}
-              </span>
-            ),
-          }))}
-          value={selectedCategory}
-          onValueChange={(v) => setSelectedCategory(v as CategoryKey)}
-        />
-      </div>
+      {/* 카테고리 — 세그먼트. 아래 종목 서브탭이 pill이라 두 층이 형태로 갈린다.
+          종목이 하나뿐인 팀(울산 = 트레일러닝)은 고를 게 없어 탭 줄 대신 그 종목 이름을 고정으로 세운다 —
+          고를 게 하나인 세그먼트는 장식이다(§PB 점수판과 같은 규칙). */}
+      {onlyTab ? (
+        <div className="flex items-center gap-2 px-6 text-foreground">
+          <onlyTab.Icon />
+          <Body className="font-bold">{onlyTab.label}</Body>
+        </div>
+      ) : (
+        <div className="px-6">
+          <SegmentControl
+            segments={tabs.map(({ value, label, Icon }) => ({
+              value,
+              // 아이콘은 라벨 위로 쌓는다 — 375px에서 탭 하나가 약 80px이라 "트레일러닝" 옆엔 설 자리가 없다
+              label: (
+                <span className="flex flex-col items-center gap-1">
+                  <Icon />
+                  {label}
+                </span>
+              ),
+            }))}
+            value={selectedCategory}
+            onValueChange={(v) => setSelectedCategory(v as CategoryKey)}
+          />
+        </div>
+      )}
 
       {selectedCategory === "marathon" && (
         <MarathonContent events={data.marathon.events} ctx={ctx} />

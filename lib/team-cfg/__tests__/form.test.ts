@@ -81,3 +81,16 @@ describe("팀 설정 화면 규칙", () => {
     expect(isDefaultCfgValue(false, true)).toBe(false);
   });
 });
+
+describe("summarizeCfg — 여러 개 고르기(전당 종목)", () => {
+  const input = TEAM_CFG_REGISTRY["records.categories"].input;
+
+  it("고른 종목을 보기 순서대로 이어 쓴다(저장 순서와 무관)", () => {
+    expect(summarizeCfg(input, true, ["hyrox", "marathon"])).toBe("러닝 · 하이록스");
+  });
+
+  it("기본값(넷 다)과 같으면 설정을 지운다 — 기강은 행 없이 넷 다", () => {
+    expect(isDefaultCfgValue(["marathon", "trail", "triathlon", "hyrox"], TEAM_CFG_REGISTRY["records.categories"].default)).toBe(true);
+    expect(isDefaultCfgValue(["trail"], TEAM_CFG_REGISTRY["records.categories"].default)).toBe(false);
+  });
+});

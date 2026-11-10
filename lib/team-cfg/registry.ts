@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { parseEventTime } from "@/lib/dayjs";
+import { RECORD_CATEGORIES, RECORD_CATEGORY_KEYS } from "@/lib/records-categories";
 
 /**
  * 팀 설정 사전 — `team_cfg` 에 들어갈 수 있는 키의 **정본**.
@@ -35,7 +36,9 @@ export type CfgInput =
   | { kind: "bank" }
   | { kind: "channels" }
   | { kind: "regular_template" }
-  | { kind: "team_links" };
+  | { kind: "team_links" }
+  /** 여러 개 고르기(체크박스) — 저장은 `options` 순서대로, 최소 하나 */
+  | { kind: "choices"; options: readonly { value: string; label: string }[] };
 
 type CfgDef<S extends z.ZodTypeAny> = {
   schema: S;
@@ -272,6 +275,24 @@ export const TEAM_CFG_REGISTRY = {
     input: { kind: "boolean" },
     // 못 읽었을 땐 끈다 — 회비와 같은 이유(켬으로 물러나면 칭호를 안 쓰는 팀에 그 순간 칭호 화면이 열린다)
     onReadError: false,
+  }),
+
+  /**
+   * 기강의 전당(랭킹탭)에 세울 종목. 기본값 = 넷 다(지금 기강 동작). 하나만 고르면 랭킹탭 맨 위 종목 탭 줄을 없애고
+   * 그 종목 이름을 고정으로 세운다(울산 = 트레일러닝만, 2026-11-10 유저 결정). 탭 순서는 고른 순서와 무관하게
+   * `RECORD_CATEGORIES` 순서다. 기록 등록(프로필)은 이 설정과 무관하다 — 어느 종목이든 올릴 수 있다.
+   */
+  "records.categories": defineCfg({
+    schema: z
+      .array(z.enum(RECORD_CATEGORY_KEYS))
+      .min(1, "종목을 하나는 골라야 해요")
+      .refine((v) => new Set(v).size === v.length, "같은 종목이 두 번 들어 있어요"),
+    default: [...RECORD_CATEGORY_KEYS],
+    label: "전당 종목",
+    description: "랭킹탭(기강의 전당)에 세울 종목. 하나만 고르면 맨 위 종목 탭 없이 그 종목만 보여요.",
+    visibility: "public",
+    group: "feature",
+    input: { kind: "choices", options: RECORD_CATEGORIES },
   }),
 } as const;
 

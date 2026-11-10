@@ -31,6 +31,7 @@
 | 20 | **배포 뒤** 전환용 장치 걷기(알림 설정 옛 유니크·기본값, 카톡 이력 팀 NOT NULL, 건의 기본값) | `20261110110000_after_deploy_cleanup.sql` | ✅ | ☐ |
 | 21 | 슬로건·창설일을 팀 설정에 등록(기강 + 울산) — **배포 전** | `20261110105000_team_cfg_slogan_founded.sql` | ✅ | ☐ |
 | 22 | 칭호 기능 켜고 끄기(`team_feature_on` 함수·카드 함수 칭호 거르기·울산 끔) | `20261110106000_feature_titles.sql` | ✅ | ☐ |
+| 23 | 울산 전당 종목 = 트레일러닝만(`records.categories`) | `20261110107000_ulsan_records_trail.sql` | ✅ | ☐ |
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
@@ -365,6 +366,17 @@ select t.team_cd, public.team_feature_on(t.team_id, 'feature.titles', true) as t
   (select count(*) from mem_ttl_rel r join team_mem_rel m using (team_mem_id) where m.team_id = t.team_id and r.vers = 0 and r.del_yn = false) as held
 from team_mst t order by 1;
 select position('feature.titles' in pg_get_functiondef('public.get_public_member_card(uuid, uuid)'::regprocedure)) > 0; -- true
+```
+
+### 23. `20261110107000_ulsan_records_trail.sql`
+
+울산 랭킹탭(기강의 전당)에 트레일러닝만 세운다 — 종목이 하나라 맨 위 종목 탭 줄 없이 트레일러닝 판만 보인다. 기강은 행이 없어
+기본값(넷 다)이다. 행이 없으면 넷 다 보일 뿐이라 **배포 전후 언제 넣어도 안전하다.**
+
+```sql
+-- 확인: 울산 ["trail"], 기강 행 없음
+select t.team_cd, c.cfg_val_json from team_mst t
+left join team_cfg c on c.team_id = t.team_id and c.cfg_cd = 'records.categories' and c.vers = 0 and c.del_yn = false order by 1;
 ```
 
 ## 배포

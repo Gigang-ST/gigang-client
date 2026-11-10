@@ -24,6 +24,7 @@ export const CFG_GROUPS: { group: CfgGroup; label: string }[] = [
 export const CFG_ORDER: readonly string[] = [
   "feature.dues",
   "feature.titles",
+  "records.categories",
   "social.channels",
   "social.kakao_open_chat_password",
   "bank.team_account",
@@ -112,6 +113,11 @@ export function summarizeCfg(input: CfgInput, isSet: boolean, value: unknown): s
     case "team_links": {
       const rows = (value as { name: string }[] | null) ?? [];
       return rows.length > 0 ? rows.map((r) => r.name).join(", ") : "설정 안 함";
+    }
+    case "choices": {
+      const picked = Array.isArray(value) ? (value as string[]) : [];
+      const labels = input.options.filter((o) => picked.includes(o.value)).map((o) => o.label);
+      return labels.length > 0 ? labels.join(" · ") : "설정 안 함";
     }
   }
 }

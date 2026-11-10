@@ -400,3 +400,25 @@ describe("하이록스 판 — 오픈은 마라톤과 같은 남녀 띠, 스플�
     );
   });
 });
+
+describe("기강의 전당 — 팀이 세우는 종목(records.categories)", () => {
+  it("넷 다면 종목 탭 줄이 선다", () => {
+    const html = render();
+    expect(html).toContain("aria-pressed");
+    for (const label of ["러닝", "트레일러닝", "철인3종", "하이록스"]) expect(text(html)).toContain(label);
+  });
+
+  it("하나만 고르면 탭 줄 없이 그 종목 이름이 고정으로 서고, 그 판이 열린다(울산 = 트레일러닝)", () => {
+    const html = render({ categories: ["trail"] });
+    expect(text(html)).not.toContain("하이록스");
+    expect(text(html)).toContain("트레일러닝");
+    expect(text(html)).not.toContain("철인3종");
+    expect(text(html)).toContain("UTMB");
+  });
+
+  it("고른 것만 탭이 되고 순서는 정본 순서다", () => {
+    const t = text(render({ categories: ["hyrox", "marathon"] }));
+    expect(t).not.toContain("트레일러닝");
+    expect(t.indexOf("러닝")).toBeLessThan(t.indexOf("하이록스"));
+  });
+});

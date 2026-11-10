@@ -31,6 +31,7 @@ import {
 import { Body, Caption, H2, Micro, SectionLabel } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -285,9 +286,9 @@ function SettingSheet({
   );
 }
 
-function SaveButton({ pending, onClick }: { pending: boolean; onClick: () => void }) {
+function SaveButton({ pending, disabled, onClick }: { pending: boolean; disabled?: boolean; onClick: () => void }) {
   return (
-    <Button type="button" disabled={pending} onClick={onClick} className="mt-1 w-full">
+    <Button type="button" disabled={pending || disabled} onClick={onClick} className="mt-1 w-full">
       {pending ? "저장 중…" : "저장"}
     </Button>
   );
@@ -329,6 +330,15 @@ function Editor({
       return <ChannelsEditor value={(item.value as Record<string, string>) ?? {}} pending={pending} onSave={onSave} />;
     case "regular_template":
       return <TemplateEditor value={item.value as TemplateValue | null} pending={pending} onSave={onSave} />;
+    case "choices":
+      return (
+        <ChoicesEditor
+          options={item.input.options}
+          value={Array.isArray(item.value) ? (item.value as string[]) : []}
+          pending={pending}
+          onSave={onSave}
+        />
+      );
     case "team_links":
       return (
         <TeamLinksEditor
@@ -342,6 +352,35 @@ function Editor({
 }
 
 /* ─── 편집기 ─── */
+
+/** 여러 개 고르기 — 저장은 보기 순서대로(누른 순서와 무관), 하나도 안 고르면 저장을 막는다 */
+function ChoicesEditor({
+  options,
+  value,
+  pending,
+  onSave,
+}: {
+  options: readonly { value: string; label: string }[];
+  value: string[];
+  pending: boolean;
+  onSave: (v: unknown) => void;
+}) {
+  const [picked, setPicked] = useState<string[]>(value);
+  const ordered = options.map((o) => o.value).filter((v) => picked.includes(v));
+  const toggle = (v: string) => setPicked((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
+  return (
+    <div className="flex flex-col gap-1">
+      {options.map((o) => (
+        <Label key={o.value} className="flex min-h-11 cursor-pointer items-center gap-3 font-normal">
+          <Checkbox checked={picked.includes(o.value)} onCheckedChange={() => toggle(o.value)} />
+          <Body>{o.label}</Body>
+        </Label>
+      ))}
+      {ordered.length === 0 && <Caption className="text-destructive">하나는 골라야 해요</Caption>}
+      <SaveButton pending={pending} disabled={ordered.length === 0} onClick={() => onSave(ordered)} />
+    </div>
+  );
+}
 
 function TextEditor({
   value,
