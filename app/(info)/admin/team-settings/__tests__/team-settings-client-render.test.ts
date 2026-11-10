@@ -41,13 +41,14 @@ function itemsFor(overrides: Partial<Record<TeamCfgCd, unknown>> = {}) {
         value: secret ? null : current,
         summary: summarizeCfg(def.input, isSet, secret ? null : current),
         defaultValue: secret ? null : def.default,
+        ownerOnly: Boolean((def as { ownerOnly?: boolean }).ownerOnly),
       };
     });
 }
 
-function render(items = itemsFor()) {
+function render(items = itemsFor(), isOwner = true) {
   return renderToStaticMarkup(
-    createElement(TeamSettingsClient, { items, otherTeams: [{ teamCd: "ulsan", teamNm: "울산지부" }] }),
+    createElement(TeamSettingsClient, { items, otherTeams: [{ teamCd: "ulsan", teamNm: "울산지부" }], isOwner }),
   );
 }
 
@@ -87,5 +88,11 @@ describe("팀 설정 화면 — 요약 목록", () => {
     const html = render(items);
     expect(html).not.toContain("secret-1234");
     expect(text(html)).toContain("설정됨");
+  });
+
+  it("owner 가 아닌 관리자에겐 owner 전용 설정(계좌·카톡방)이 잠겨 보인다 — owner 에겐 안 잠긴다", () => {
+    const locked = text(render(itemsFor(), false));
+    expect(locked).toContain("owner만 바꿀 수 있어요");
+    expect(text(render(itemsFor(), true))).not.toContain("owner만 바꿀 수 있어요");
   });
 });

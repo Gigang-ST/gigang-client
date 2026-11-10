@@ -49,6 +49,8 @@ export type TeamSettingItem = {
   summary: string;
   /** 사전의 기본값 — 「기본값으로」가 입력칸에 채우는 값. 비밀값은 null */
   defaultValue: unknown;
+  /** owner 만 바꾸는 설정(계좌·카톡방) — owner 가 아닌 관리자에겐 잠근다(서버 액션도 막는다) */
+  ownerOnly: boolean;
 };
 
 type OtherTeam = { teamCd: string; teamNm: string };
@@ -59,7 +61,16 @@ type OtherTeam = { teamCd: string; teamNm: string };
  * 켜고 끄기는 줄에서 바로 바꾼다(시트를 열 만큼의 일이 아니다).
  * 입력칸 모양은 사전의 `input.kind` 가 정한다(새 모양은 아래 Editor 에 더한다).
  */
-export function TeamSettingsClient({ items, otherTeams }: { items: TeamSettingItem[]; otherTeams: OtherTeam[] }) {
+export function TeamSettingsClient({
+  items,
+  otherTeams,
+  isOwner,
+}: {
+  items: TeamSettingItem[];
+  otherTeams: OtherTeam[];
+  /** 이 팀 owner 인가 — 아니면 owner 전용 설정 줄을 잠근다 */
+  isOwner: boolean;
+}) {
   const [openCd, setOpenCd] = useState<TeamCfgCd | null>(null);
   const openItem = items.find((i) => i.cd === openCd) ?? null;
 
@@ -78,7 +89,13 @@ export function TeamSettingsClient({ items, otherTeams }: { items: TeamSettingIt
             <SectionLabel>{label}</SectionLabel>
             <CardItem className="flex flex-col p-0">
               {groupItems.map((item, idx) => (
-                <SettingRow key={item.cd} item={item} first={idx === 0} onOpen={() => setOpenCd(item.cd)} />
+                <SettingRow
+                  key={item.cd}
+                  item={item}
+                  first={idx === 0}
+                  locked={item.ownerOnly && !isOwner}
+                  onOpen={() => setOpenCd(item.cd)}
+                />
               ))}
             </CardItem>
           </section>
@@ -121,12 +138,35 @@ function useSettingAction(cd: TeamCfgCd) {
 }
 
 /** 목록 한 줄 — 이름 + 지금 값 요약. 켜고 끄기는 스위치를 줄에 바로 둔다 */
-function SettingRow({ item, first, onOpen }: { item: TeamSettingItem; first: boolean; onOpen: () => void }) {
+function SettingRow({
+  item,
+  first,
+  locked,
+  onOpen,
+}: {
+  item: TeamSettingItem;
+  first: boolean;
+  /** owner 전용 설정인데 owner 가 아니다 — 값만 보이고 눌리지 않는다 */
+  locked: boolean;
+  onOpen: () => void;
+}) {
   const { pending, save } = useSettingAction(item.cd);
   const rowClass = cn(
     "flex min-h-[52px] w-full items-center gap-3 px-4 py-3 text-left",
     !first && "border-t border-border",
   );
+
+  if (locked) {
+    return (
+      <div className={rowClass}>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <Body className="font-medium">{item.label}</Body>
+          <Micro>owner만 바꿀 수 있어요</Micro>
+        </div>
+        <Caption className="min-w-0 truncate text-right">{item.summary}</Caption>
+      </div>
+    );
+  }
 
   if (item.input.kind === "boolean") {
     return (

@@ -119,6 +119,8 @@ const NOTI_ROUTE: Record<
   // 자동 배치 실패 — 운영진에게만 간다. 결과·이력을 그 자리에서 보고 다시 돌릴 수 있게
   // 배치 관리 화면으로(설계 §3.4). 관리자가 아니면 그 화면이 막으므로 별도 분기는 없다.
   batch_failed: () => "/admin/system/batch",
+  // owner 만 바꾸는 팀 설정(계좌·카톡방)이 바뀜 — 운영진이 무엇이 바뀌었는지 바로 보게
+  team_cfg_chg: () => "/admin/team-settings",
 };
 
 /** 알림 타입+ref로 딥링크 URL을 해석한다. 매핑이 없으면 null. */

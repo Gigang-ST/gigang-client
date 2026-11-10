@@ -53,6 +53,7 @@ export default async function TeamSettingsPage() {
       value: secret ? null : current,
       summary: summarizeCfg(def.input, isSet, secret ? null : current),
       defaultValue: secret ? null : def.default,
+      ownerOnly: Boolean((def as { ownerOnly?: boolean }).ownerOnly),
     };
   });
 
@@ -61,5 +62,5 @@ export default async function TeamSettingsPage() {
     teamNm: t.team_nm,
   }));
 
-  return <TeamSettingsClient items={items} otherTeams={otherTeams} />;
+  return <TeamSettingsClient items={items} otherTeams={otherTeams} isOwner={admin.owner} />;
 }
