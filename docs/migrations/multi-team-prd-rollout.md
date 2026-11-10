@@ -36,7 +36,7 @@
 | 24 | 울산 모임 기본 종목 = 트레일러닝(`gathering.default_sport`) | `20261110108000_ulsan_gathering_trail.sql` | ✅ | ☐ |
 | 25 | **배포 뒤** 목표 한마디·종이비행기 걷기(피드 함수에서 빼고 함수 3개·테이블 2개 삭제) | `20261110109000_drop_pledge_message.sql` | ✅ | ☐ |
 | 26 | 프로필 카드에 그 팀의 기록 종목 싣기(`record_categories`) — **배포 전**, 22번 뒤 | `20261110110500_member_card_record_categories.sql` | ✅ | ☐ |
-| 27 | 링크 미리보기·탭 제목 문구를 팀 설정으로(`brand.name`·`seo.*`, 기강·모보브) — **배포 전** (브랜치 `feature/multi-team-phase2`) | `20261110111000_team_seo_cfg.sql` | ☐ | ☐ |
+| 27 | 링크 미리보기·탭 제목 문구를 팀 설정으로(`brand.name`·`seo.*`, 기강·모보브) — **배포 전** (브랜치 `feature/multi-team-phase2`) | `20261110111000_team_seo_cfg.sql` | ✅ | ☐ |
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
