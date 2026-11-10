@@ -13,6 +13,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getTeamCfgStrict } from "@/lib/team-cfg/read";
 import { insertNoti } from "@/lib/notifications/insert-noti";
 
 import { evaluateCondition, evaluateConditionFromSnapshot } from "./evaluators";
@@ -50,11 +51,16 @@ type TtlMstRow = {
  *
  * 배치는 **루프 밖에서 한 번** 불러 `evaluateAndGrantTitles`에 넘긴다 — 멤버마다 부르면
  * 같은 조회가 멤버 수만큼 반복된다.
+ *
+ * **칭호 기능을 끈 팀(`feature.titles`)은 빈 목록이다** — 실시간 평가·배치가 모두 여기를 거쳐 함께 멈춘다.
+ * 설정을 못 읽으면 아래 조회 실패와 같은 이유로 **던진다**(빈 목록으로 넘기면 배치가 성공으로 끝나 그 기간 수여가 빠진다).
  */
 export async function loadAutoTitles(
   db: ReturnType<typeof createAdminClient>,
   teamId: string,
 ): Promise<TtlMstRow[]> {
+  if (!(await getTeamCfgStrict(teamId, "feature.titles"))) return [];
+
   const { data, error } = await db
     .from("ttl_mst")
     .select("ttl_id, ttl_nm, cond_rule_json, eff_stt_dt")

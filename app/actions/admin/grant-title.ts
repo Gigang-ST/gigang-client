@@ -7,6 +7,7 @@ import { isTeamMemIdInTeam } from "@/lib/actions/team-scope";
 import { insertNoti } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getTeamCfg } from "@/lib/team-cfg/read";
 
 /**
  * 관리자 수동 수여. 팀은 **서버가 접속 주소로 정한다** — 예전엔 브라우저가 teamId 를 넘겼고,
@@ -15,6 +16,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export async function grantTitle(teamMemId: string, ttlId: string) {
   return withAdmin(async ({ member }) => {
     const { teamId } = await getRequestTeamContext();
+    // 칭호 기능을 끈 팀엔 주지 않는다 — 화면 메뉴는 숨기지만 서버 액션은 화면과 별개로 열려 있다
+    if (!(await getTeamCfg(teamId, "feature.titles"))) {
+      return { ok: false as const, message: "칭호 기능을 쓰지 않는 크루예요." };
+    }
     const db = createAdminClient();
 
     if (!(await isTeamMemIdInTeam(db, teamId, teamMemId))) {

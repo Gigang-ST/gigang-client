@@ -255,6 +255,24 @@ export const TEAM_CFG_REGISTRY = {
     // 못 읽었을 땐 끈다 — 기본값(켬)으로 물러나면 회비를 안 쓰는 팀에 그 순간 회비 메뉴·관리자 회비 화면이 열린다
     onReadError: false,
   }),
+
+  /**
+   * 칭호 기능 사용 여부. 기본값 = 지금 기강 동작(켬). 끈 팀은 칭호가 화면 어디에도 안 나오고(대표 칭호·컬렉션·
+   * 획득 이력·카드 칭호·기강이야기 「칭호획득」·전당 칭호·관리자 칭호 메뉴) **새로 주지도 않는다**(자동 평가·배치·
+   * 관리자 수여). 이미 준 칭호 행은 지우지 않는다 — 다시 켜면 그대로 돌아온다(울산, 2026-11-10 유저 결정).
+   * 카드 팝업은 DB 함수(`get_public_member_card`)가 같은 설정을 직접 읽는다(`team_feature_on`).
+   */
+  "feature.titles": defineCfg({
+    schema: z.boolean(),
+    default: true,
+    label: "칭호 기능",
+    description: "칭호를 주고 카드·프로필에 보여요. 끄면 새로 주지 않고 화면 어디에도 칭호가 안 보여요.",
+    visibility: "member",
+    group: "feature",
+    input: { kind: "boolean" },
+    // 못 읽었을 땐 끈다 — 회비와 같은 이유(켬으로 물러나면 칭호를 안 쓰는 팀에 그 순간 칭호 화면이 열린다)
+    onReadError: false,
+  }),
 } as const;
 
 export type TeamCfgCd = keyof typeof TEAM_CFG_REGISTRY;

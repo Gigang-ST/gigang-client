@@ -7,14 +7,15 @@ import type { CfgGroup, CfgInput } from "./registry";
  */
 
 /**
- * 묶음 표시 순서와 이름 — **중요한 것부터**. 켜고 끄는 기능 → 회원이 직접 보는 안내(채널·비밀번호·계좌) →
- * 운영진이 쓰는 것(공지방·템플릿) → 꾸미기.
+ * 묶음 표시 순서와 이름 — **팀의 근간부터**. 기본 설정(창설일·슬로건·워드마크) → 운영진이 쓰는 것(공지방·템플릿) →
+ * 회원이 직접 보는 안내(채널·비밀번호·계좌) → 켜고 끄는 기능(2026-11-10 유저 결정).
+ * `brand` 묶음을 예전엔 「꾸미기」라 불렀는데, 창설일·슬로건은 꾸밈이 아니라 팀이 누구인지라 「기본 설정」으로 바꿨다.
  */
 export const CFG_GROUPS: { group: CfgGroup; label: string }[] = [
-  { group: "feature", label: "기능" },
-  { group: "member_info", label: "크루 안내" },
+  { group: "brand", label: "기본 설정" },
   { group: "operation", label: "운영" },
-  { group: "brand", label: "꾸미기" },
+  { group: "member_info", label: "크루 안내" },
+  { group: "feature", label: "기능" },
 ];
 
 /**
@@ -22,6 +23,7 @@ export const CFG_GROUPS: { group: CfgGroup; label: string }[] = [
  */
 export const CFG_ORDER: readonly string[] = [
   "feature.dues",
+  "feature.titles",
   "social.channels",
   "social.kakao_open_chat_password",
   "bank.team_account",

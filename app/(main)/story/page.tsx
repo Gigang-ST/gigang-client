@@ -24,6 +24,8 @@ import {
 import { buildTitleLeadPool, pickTitleLedeStart } from "@/lib/story-title";
 import { getTeamOverview } from "@/lib/queries/team-overview";
 import { getRecentTitleGrants } from "@/lib/queries/story-titles";
+import { getTeamCfg } from "@/lib/team-cfg/read";
+import { stripTitlesIfOff } from "@/lib/team-titles";
 import { getMileageRecapTeaser } from "@/lib/queries/mileage-recap";
 import { pickTeaserFaces } from "@/lib/mileage-recap";
 
@@ -79,16 +81,17 @@ async function StoryFeedSection() {
   );
 
   const [
-    feed,
+    rawFeed,
     overview,
     ghosts,
-    posts,
-    grants,
+    rawPosts,
+    rawGrants,
     { member },
     reactionTotals,
     myReactions,
     recapTeaser,
     channels,
+    titlesEnabled,
   ] = await Promise.all([
       getStoryFeed(teamId),
       getTeamOverview(teamId),
@@ -106,7 +109,22 @@ async function StoryFeedSection() {
       getMileageRecapTeaser(teamId),
       // 판권면 채널 — 이 팀 것(팀 설정, 서버 메모리 1분 캐시)
       getTeamChannels(teamId),
+      // 칭호 기능 — 끈 팀은 「칭호획득」 칸을 안 세우고 사람에게 붙은 칭호를 걷는다(§lib/team-titles)
+      getTeamCfg(teamId, "feature.titles"),
     ]);
+
+  // 칭호 기능을 끈 팀 — 피드·기록은 칭호를 실은 채 캐시돼 오므로 화면에 넘기기 직전에 걷는다(§lib/team-titles)
+  const feed = titlesEnabled
+    ? rawFeed
+    : {
+        ...rawFeed,
+        newbies: stripTitlesIfOff(rawFeed.newbies, false),
+        records: stripTitlesIfOff(rawFeed.records, false),
+        actv_rank: stripTitlesIfOff(rawFeed.actv_rank, false),
+        pledges: stripTitlesIfOff(rawFeed.pledges, false),
+      };
+  const posts = stripTitlesIfOff(rawPosts, titlesEnabled);
+  const grants = titlesEnabled ? rawGrants : [];
 
   // 응원 카운트(모두의 총합 + 내 몫)는 캐시된 피드(최대 5분 지연)에서 떼어내 매 요청 최신으로
   // 읽는다 — 남이 누른 것도 실시간에 가깝게 쌓여 보이고, 새로고침해도 내 몫이 유지된다.

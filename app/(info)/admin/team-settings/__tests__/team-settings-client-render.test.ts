@@ -61,9 +61,9 @@ describe("팀 설정 화면 — 요약 목록", () => {
     }
   });
 
-  it("묶음이 중요도 순서로 선다 — 기능 → 크루 안내 → 운영 → 꾸미기", () => {
+  it("묶음이 팀의 근간부터 선다 — 기본 설정 → 운영 → 크루 안내 → 기능", () => {
     const t = text(render());
-    const order = ["기능", "크루 안내", "운영", "꾸미기"].map((l) => t.indexOf(l));
+    const order = ["기본 설정", "운영", "크루 안내", "기능"].map((l) => t.indexOf(l));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
   });

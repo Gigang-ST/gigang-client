@@ -81,10 +81,10 @@ export type MemberCardEdit = {
   onEditAvatar: () => void;
   /** 한마디 줄 탭 → 한 줄 인라인 편집 */
   onEditIntro: () => void;
-  /** 대표 칭호 옆 연필 → 내 컬렉션 */
-  onEditTitles: () => void;
-  /** 하단 칭호 섹션 우측 "획득 이력" → 언제 무엇을 땄나(시간축) */
-  onOpenTitleHistory: () => void;
+  /** 대표 칭호 옆 연필 → 내 컬렉션. **없으면 칭호 기능을 끈 팀**이라 `?` 껍데기·연필을 안 그린다 */
+  onEditTitles?: () => void;
+  /** 하단 칭호 섹션 우측 "획득 이력" → 언제 무엇을 땄나(시간축). 없으면 그 버튼을 안 그린다 */
+  onOpenTitleHistory?: () => void;
   /** 러닝 프로필 + 가입 목적 — 같은 테이블·같은 액션이라 진입점도 하나다 */
   onEditProfile: () => void;
   onManageRecords: () => void;
@@ -436,7 +436,7 @@ export function MemberCardDetail({
                 }}
               />
             ) : (
-              edit && (
+              edit?.onEditTitles && (
                 <button
                   type="button"
                   onClick={edit.onEditTitles}
@@ -448,7 +448,7 @@ export function MemberCardDetail({
               )
             )}
 
-            {edit && (
+            {edit?.onEditTitles && (
               <button
                 type="button"
                 onClick={edit.onEditTitles}
@@ -922,7 +922,7 @@ export function MemberCardDetail({
                 <SectionLabel>
                   칭호 ({data.titles.length})
                 </SectionLabel>
-                {edit && (
+                {edit?.onOpenTitleHistory && (
                   <button
                     type="button"
                     onClick={edit.onOpenTitleHistory}

@@ -822,11 +822,14 @@ export function AdminMembersClient({
   teamId,
   initialTeamMemId,
   duesEnabled,
+  titlesEnabled,
 }: {
   teamId: string;
   initialTeamMemId?: string;
   /** 이 팀이 회비를 쓰는가(팀 설정 `feature.dues`) — 안 쓰면 회비잔액 열·잔액 처리를 안 그린다 */
   duesEnabled: boolean;
+  /** 이 팀이 칭호를 쓰는가(팀 설정 `feature.titles`) — 안 쓰면 멤버 상세의 칭호 수여 칸을 안 그린다 */
+  titlesEnabled: boolean;
 }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1461,7 +1464,7 @@ export function AdminMembersClient({
               />
 
               {/* 칭호 관리 */}
-              <TitleSection member={selectedMember} teamId={teamId} />
+              {titlesEnabled && <TitleSection member={selectedMember} teamId={teamId} />}
 
               {/* 액션 버튼 */}
               <div className="flex flex-col gap-2">

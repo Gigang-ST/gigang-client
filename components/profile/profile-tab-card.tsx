@@ -40,6 +40,7 @@ export function ProfileTabCard({
   teamId,
   card,
   cancelCnt,
+  titlesEnabled,
   utmb,
   primaryTtlId,
   maxRarityLevel,
@@ -52,6 +53,8 @@ export function ProfileTabCard({
   card: MemberCardData;
   /** 모임 취소 수(운영진이 뺀 것 포함) — 공개 카드 RPC 밖에서 따로 받는다(본인 화면 전용) */
   cancelCnt: number;
+  /** 팀이 칭호 기능을 쓰나(`feature.titles`) — 끄면 대표 칭호 자리·컬렉션·획득 이력을 안 세운다 */
+  titlesEnabled: boolean;
   /** UTMB 연동 다이얼로그의 현재값 — 카드가 쓰는 `utmb_index`보다 상세하다(URL·최근 대회) */
   utmb: UtmbProfile | null;
   primaryTtlId: string | null;
@@ -72,7 +75,7 @@ export function ProfileTabCard({
   // 칭호 획득 알림(`ttl_grnt`)의 딥링크가 이 시트를 바로 연다 — 프로필로만 보내면
   // "무엇이 새로 생겼는지"를 알 길이 없어 알림이 절반만 일한다(`lib/notifications/deep-link.ts`).
   const searchParams = useSearchParams();
-  const wantTitleHistory = searchParams.get("ttl") === "history";
+  const wantTitleHistory = titlesEnabled && searchParams.get("ttl") === "history";
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (wantTitleHistory) setTitleHistoryOpen(true);
@@ -102,8 +105,9 @@ export function ProfileTabCard({
           onOpenPublicCard: () => setPublicCardOpen(true),
           onEditAvatar: () => setAvatarOpen(true),
           onEditIntro: () => setIntroOpen(true),
-          onEditTitles: () => setCollectionOpen(true),
-          onOpenTitleHistory: () => setTitleHistoryOpen(true),
+          // 칭호 기능을 끈 팀은 진입점을 안 넘긴다 — 카드가 대표 칭호 `?`·연필·「획득 이력」을 안 그린다
+          onEditTitles: titlesEnabled ? () => setCollectionOpen(true) : undefined,
+          onOpenTitleHistory: titlesEnabled ? () => setTitleHistoryOpen(true) : undefined,
           onEditProfile: () => router.push(RUNNING_PROFILE_HREF),
           onManageRecords: () => setHistoryOpen(true),
           onAddRecord: () => setRecordOpen(true),
@@ -130,22 +134,23 @@ export function ProfileTabCard({
         onSaved={setIntro}
       />
 
-      <CollectionSheet
-        open={collectionOpen}
-        onClose={() => setCollectionOpen(false)}
-        teamMemId={teamMemId}
-        teamId={teamId}
-        currentPrimaryTtlId={primaryTtlId}
-        currentBadgeEffect={card.badge_effect}
-        currentFrameCd={card.frame_cd}
-        maxRarityLevel={maxRarityLevel}
-        memberName={card.mem_nm}
-      />
+      {titlesEnabled && (
+        <>
+          <CollectionSheet
+            open={collectionOpen}
+            onClose={() => setCollectionOpen(false)}
+            teamMemId={teamMemId}
+            teamId={teamId}
+            currentPrimaryTtlId={primaryTtlId}
+            currentBadgeEffect={card.badge_effect}
+            currentFrameCd={card.frame_cd}
+            maxRarityLevel={maxRarityLevel}
+            memberName={card.mem_nm}
+          />
 
-      <TitleHistorySheet
-        open={titleHistoryOpen}
-        onOpenChange={setTitleHistoryOpen}
-      />
+          <TitleHistorySheet open={titleHistoryOpen} onOpenChange={setTitleHistoryOpen} />
+        </>
+      )}
 
       {/* 남들에게 보이는 내 카드 — 같은 판의 공개 뷰라 편집 어포던스가 하나도 없다.
           고치는 자리는 이 탭 한 곳이고, 팝업은 결과를 확인하는 자리다. */}

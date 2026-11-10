@@ -30,6 +30,7 @@
 | 19 | 알림 유형 `team_cfg_chg`(owner 전용 설정 변경 알림) | `20261110100000_noti_type_team_cfg_chg.sql` | ✅ | ☐ |
 | 20 | **배포 뒤** 전환용 장치 걷기(알림 설정 옛 유니크·기본값, 카톡 이력 팀 NOT NULL, 건의 기본값) | `20261110110000_after_deploy_cleanup.sql` | ✅ | ☐ |
 | 21 | 슬로건·창설일을 팀 설정에 등록(기강 + 울산) — **배포 전** | `20261110105000_team_cfg_slogan_founded.sql` | ✅ | ☐ |
+| 22 | 칭호 기능 켜고 끄기(`team_feature_on` 함수·카드 함수 칭호 거르기·울산 끔) | `20261110106000_feature_titles.sql` | ✅ | ☐ |
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
@@ -349,6 +350,21 @@ select pg_get_constraintdef(oid) from pg_constraint where conname = 'noti_mst_no
 -- 확인: 네 행 — 기강 2024-04-23 / No time to be weak, 울산 2026-11-28 / Climb hard, run wild
 select t.team_cd, c.cfg_cd, c.cfg_val_json from team_cfg c join team_mst t using (team_id)
 where c.cfg_cd in ('brand.slogan', 'brand.founded_dt') and c.vers = 0 and c.del_yn = false order by 1, 2;
+```
+
+### 22. `20261110106000_feature_titles.sql`
+
+칭호 기능 켜고 끄기(`feature.titles`, 기본 켬). ① DB 함수 `team_feature_on(팀, 키, 기본값)` 을 만들고(일반 역할 실행 권한 없음),
+② 카드 함수 `get_public_member_card` 가 칭호를 끈 팀이면 칭호·대표 칭호·이펙트·프레임을 안 싣게 **지금 정의에서 세 곳만 바꿔** 다시
+만든다(바꿀 곳을 정확히 한 번씩 못 찾으면 에러로 멈춘다 — 그때는 6번 적용 여부부터 본다), ③ 울산 `feature.titles = false`.
+옛 코드는 이 설정을 안 읽고, 기강은 행이 없어 켬이라 **배포 전후 언제 넣어도 안전하다**(6번 뒤여야 한다).
+
+```sql
+-- 확인: 기강 titles_on = true · 칭호 수 그대로, 울산 titles_on = false
+select t.team_cd, public.team_feature_on(t.team_id, 'feature.titles', true) as titles_on,
+  (select count(*) from mem_ttl_rel r join team_mem_rel m using (team_mem_id) where m.team_id = t.team_id and r.vers = 0 and r.del_yn = false) as held
+from team_mst t order by 1;
+select position('feature.titles' in pg_get_functiondef('public.get_public_member_card(uuid, uuid)'::regprocedure)) > 0; -- true
 ```
 
 ## 배포

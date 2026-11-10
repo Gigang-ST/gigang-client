@@ -192,8 +192,11 @@ function ToolCard({
 export function AdminDashboardClient({
   duesEnabled,
   kakaoEnabled,
+  titlesEnabled,
 }: {
   duesEnabled: boolean;
+  /** 칭호 기능을 쓰나(`feature.titles`) — 끈 팀은 「칭호 관리」 카드를 안 세운다 */
+  titlesEnabled: boolean;
   /** 카톡 공지방(노티봇)을 쓰나 — 안 쓰면 보낼 일도 기록도 없어 「카카오 발송 이력」 카드를 안 세운다 */
   kakaoEnabled: boolean;
 }) {
@@ -299,11 +302,13 @@ export function AdminDashboardClient({
             icon={Code2}
             label="공통코드 관리"
           />
-          <ToolCard
-            href="/admin/system/titles"
-            icon={BadgeCheck}
-            label="칭호 관리"
-          />
+          {titlesEnabled && (
+            <ToolCard
+              href="/admin/system/titles"
+              icon={BadgeCheck}
+              label="칭호 관리"
+            />
+          )}
           <ToolCard
             href="/admin/system/batch"
             icon={ServerCog}
