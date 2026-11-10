@@ -809,7 +809,7 @@ export function MemberCardDetail({
             </section>
           )}
 
-          {/* ── ④ 개인 최고기록 ───────────────────────────────
+          {/* ── ④ 개인 기록 ───────────────────────────────
               빈 판 대신 칸을 늘 세운다(FULL/HALF/10K + 있는 종목 + UTMB INDEX):
               채워야 할 칸이 몇 개인지가 눈에 보이고, 기록을 넣은 뒤에도 레이아웃이 안 바뀐다.
               팀의 기록 종목에 맞춰 거른 뒤 **세울 칸이 하나도 없으면**(예: 하이록스만 하는 팀) 공개판은 섹션째
@@ -818,7 +818,7 @@ export function MemberCardDetail({
           <section className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
               <SectionLabel>
-                개인 최고기록
+                개인 기록
               </SectionLabel>
               {edit && (
                 <div className="flex shrink-0 items-center gap-1">

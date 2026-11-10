@@ -69,7 +69,7 @@ function render(data: Partial<MemberCardData>, edit = false) {
 
 /** 화면에 뜬 섹션 라벨을 나온 순서대로 — 순서가 곧 이 개편의 결과물이다 */
 function sectionOrder(html: string): string[] {
-  const labels = ["러닝 프로필", "최근활동", "다음 대회", "개인 최고기록", "칭호"];
+  const labels = ["러닝 프로필", "최근활동", "다음 대회", "개인 기록", "칭호"];
   return labels
     .map((label) => ({ label, at: html.indexOf(`>${label}`) }))
     .filter((s) => s.at >= 0)
@@ -78,12 +78,12 @@ function sectionOrder(html: string): string[] {
 }
 
 describe("편집판(내 프로필탭)", () => {
-  it("섹션 순서: 러닝 프로필 → 최근활동 → 다음 대회 → 개인 최고기록", () => {
+  it("섹션 순서: 러닝 프로필 → 최근활동 → 다음 대회 → 개인 기록", () => {
     expect(sectionOrder(render({}, true))).toEqual([
       "러닝 프로필",
       "최근활동",
       "다음 대회",
-      "개인 최고기록",
+      "개인 기록",
     ]);
   });
 
@@ -195,12 +195,12 @@ describe("편집판(내 프로필탭)", () => {
 describe("공개판(남이 보는 카드)", () => {
   it("내가 적는 것은 비면 아예 안 뜬다", () => {
     const html = render({});
-    expect(sectionOrder(html)).toEqual(["최근활동", "개인 최고기록"]);
+    expect(sectionOrder(html)).toEqual(["최근활동", "개인 기록"]);
     expect(html).not.toContain("다른 사람들에게 내 러닝 프로필을 공유해보세요");
     expect(html).not.toContain("기강 팀원들과 대회에 참석해보세요");
   });
 
-  it("쌓이는 격자(최근활동·개인 최고기록)는 비어도 자리를 지킨다", () => {
+  it("쌓이는 격자(최근활동·개인 기록)는 비어도 자리를 지킨다", () => {
     const html = render({});
     expect(html).toContain("최근활동");
     expect(html).toContain("--:--");
@@ -295,10 +295,10 @@ describe("기록 종목이 트레일만인 팀의 카드", () => {
     }
   });
 
-  it("세울 칸이 없으면 공개판은 「개인 최고기록」째 빠지고, 편집판은 「기록 추가」를 남긴다", () => {
-    expect(render({ record_categories: ["hyrox"] })).not.toContain("개인 최고기록");
+  it("세울 칸이 없으면 공개판은 「개인 기록」째 빠지고, 편집판은 「기록 추가」를 남긴다", () => {
+    expect(render({ record_categories: ["hyrox"] })).not.toContain("개인 기록");
     const edit = render({ record_categories: ["hyrox"] }, true);
-    expect(edit).toContain("개인 최고기록");
+    expect(edit).toContain("개인 기록");
     expect(edit).toContain("기록 추가");
   });
 });
