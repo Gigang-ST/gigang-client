@@ -138,6 +138,7 @@ export function CollectionSheet({
   currentFrameCd,
   maxRarityLevel,
   memberName,
+  wordmark,
 }: {
   open: boolean;
   onClose: () => void;
@@ -148,6 +149,8 @@ export function CollectionSheet({
   currentFrameCd: string | null;
   maxRarityLevel: number;
   memberName: string;
+  /** 칭호를 안 고른 미리보기에 찍는 팀 글자(GIGANG·MOVOF — 팀 설정 워드마크, §lib/team-copy) */
+  wordmark: string;
 }) {
   const [tab, setTab] = useState<Tab>("title");
   const [ownedTitleIds, setOwnedTitleIds] = useState<Set<string>>(new Set());
@@ -190,7 +193,7 @@ export function CollectionSheet({
 
   // 뱃지 미리보기는 저장될 selectedTtlId 기준
   const selectedTitle = allTitles.find((t) => t.ttl_id === selectedTtlId);
-  const previewName = selectedTitle?.ttl_nm ?? "GIGANG";
+  const previewName = selectedTitle?.ttl_nm ?? wordmark;
 
   // 데이터 로드
    

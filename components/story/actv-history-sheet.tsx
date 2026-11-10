@@ -7,6 +7,7 @@ import {
   type ActvHistoryEntry,
 } from "@/app/actions/story/actv-history";
 import { ACTV_HELP_TEXT, getActvMonthLabel, getActvTypeLabel } from "@/lib/activity-index";
+import type { TeamCopy } from "@/lib/team-copy";
 import { dayjs } from "@/lib/dayjs";
 
 import { Body, Caption } from "@/components/common/typography";
@@ -37,12 +38,15 @@ export function ActvHistorySheet({
   memNm,
   open,
   onOpenChange,
+  copy,
 }: {
   /** null이면 닫힌 상태로 취급 */
   memId: string | null;
   memNm: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** 팀 문구 — 사진 지면 활동 이름(기강 깅스타그램, 그 밖 갤러리 — §lib/team-copy) */
+  copy: Pick<TeamCopy, "galleryName">;
 }) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
@@ -142,7 +146,7 @@ export function ActvHistorySheet({
                     </span>
                     <div className="flex min-w-0 flex-1 flex-col">
                       <span className="truncate text-[14px] text-foreground">
-                        {getActvTypeLabel(entry.actv_type)}
+                        {getActvTypeLabel(entry.actv_type, copy)}
                       </span>
                       {/* 무엇으로 얻었는지 — 예: "정모 참석: 6월 정기런" */}
                       {entry.rsn_txt && (

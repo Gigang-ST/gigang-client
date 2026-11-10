@@ -14,7 +14,7 @@ import { deleteActivity } from "@/app/actions/mileage-run";
 import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";
 import { SegmentControl } from "@/components/common/segment-control";
 import { H2, Body, Caption, Micro } from "@/components/common/typography";
-import { ActivityLogForm } from "@/components/projects/activity-log-form";
+import { ActivityLogForm, type ActivityLogFormCopy } from "@/components/projects/activity-log-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
@@ -39,6 +39,8 @@ import {
 
 
 type Props = {
+  /** 팀 문구 — 수정 폼에 넘긴다(§lib/team-copy) */
+  copy: ActivityLogFormCopy;
   evtId: string;
   memId: string;
   prtId: string;
@@ -74,7 +76,7 @@ function buildMonthSegments(startDt: string, endDt: string) {
   return segments;
 }
 
-export function RecordsClient({ evtId, memId, prtId, evtStartDt, evtEndDt, initialMonth, initialRecords, isInactive = false, inactiveKind }: Props) {
+export function RecordsClient({ evtId, memId, prtId, evtStartDt, evtEndDt, initialMonth, initialRecords, isInactive = false, inactiveKind, copy }: Props) {
   const segments = buildMonthSegments(evtStartDt, evtEndDt);
 
   // 첫 달은 서버에서 prefetch한 데이터로 시작 → 진입 시 깜빡임 없음
@@ -272,6 +274,7 @@ export function RecordsClient({ evtId, memId, prtId, evtStartDt, evtEndDt, initi
               onSuccess={handleEditSuccess}
               isInactive={isInactive}
               inactiveKind={inactiveKind}
+              copy={copy}
             />
           )}
         </SheetContent>

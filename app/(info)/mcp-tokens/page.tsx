@@ -4,6 +4,7 @@ import { listMcpTokens } from "@/app/actions/mcp-token";
 import { getCurrentMember } from "@/lib/queries/member";
 
 import { McpTokensClient } from "./mcp-tokens-client";
+import { getTeamCopy } from "@/lib/queries/team-copy";
 
 export const metadata = { title: "MCP 토큰" };
 
@@ -16,5 +17,6 @@ export default async function McpTokensPage() {
   const result = await listMcpTokens();
   const initialTokens = result.ok ? result.tokens : [];
 
-  return <McpTokensClient initialTokens={initialTokens} />;
+  const { crewName } = await getTeamCopy();
+  return <McpTokensClient initialTokens={initialTokens} crewName={crewName} />;
 }

@@ -13,17 +13,19 @@
 export type MoodLevel = "blazing" | "steady" | "resting" | "dormant";
 
 /**
- * 단계별 라벨과 게이지 점등 칸수.
+ * 단계별 게이지 점등 칸수.
  *
- * 양 끝(그 자체/실종)만 "기강"을 쓰고 중간 두 단계는 사실대로 — 과장하지 않기 위해서.
+ * **단계 이름표는 팀 문구로 옮겼다**(`lib/team-copy.ts` 의 `moodLabels`, 2026-11-10). 기강 이름표
+ * 「기강 그 자체 / 기강 잡아 / 기며든다」는 「기강」(규율) 말장난이라 다른 팀에 옮기면 말이 안 돼서다.
+ * 다른 팀은 중립 이름표(불타는 중 / 꾸준히 / 스며드는 중 / 실종)를 쓴다.
  * `message`는 지표마다 근거가 달라서(개인은 활동 건수, 크루는 4주 대비) 여기 두지 않는다.
  */
 export const MOOD_SCALE = {
-  blazing: { label: "기강 그 자체", litSteps: 4 },
-  steady: { label: "기강 잡아", litSteps: 3 },
-  resting: { label: "기며든다", litSteps: 2 },
-  dormant: { label: "실종", litSteps: 1 },
-} as const satisfies Record<MoodLevel, { label: string; litSteps: number }>;
+  blazing: { litSteps: 4 },
+  steady: { litSteps: 3 },
+  resting: { litSteps: 2 },
+  dormant: { litSteps: 1 },
+} as const satisfies Record<MoodLevel, { litSteps: number }>;
 
 /** 게이지 총 칸수 — 4단계이므로 4 */
 export const MOOD_STEPS = 4;

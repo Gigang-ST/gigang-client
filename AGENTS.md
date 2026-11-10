@@ -56,6 +56,11 @@ Before any Next.js work, find and read the relevant doc in `node_modules/next/di
 - **프로젝트(`evt_team_mst`)는 타입이 여럿이다**(`MILEAGE_RUN` · `PB_CLASS`). 팀의 ACTIVE 프로젝트를 읽을 땐
   `evt_type_cd`로 거르고, **ACTIVE가 하나라고 가정하지 않는다**(`.maybeSingle()` 금지 — 둘이면 에러로 떨어진다).
   PB 참가자는 마일리지 `evt_team_prt_rel`이 아니라 `evt_pb_prt_rel`에 있다. 정본: `.claude/docs/database-schema-v2-event-domain.md` §6
+- **화면 문구에 팀 이름을 박지 않는다**(「기강」·「기강인」·「깅스타그램」). 팀이 여럿이다(울산 = 모보브).
+  서버 페이지가 `getTeamCopy()`(`lib/queries/team-copy.ts`)로 팀 문구를 꺼내 **props 로** 내려 준다 — 크루 이름·호칭·
+  「{이름}의 전당」·말투가 들어 있다. 조사는 `josa()`(`lib/josa.ts` — 「기강은」/「모보브는」). 「기강」 뜻에 기댄 말장난은
+  `lib/team-copy.ts` 의 `TEAM_VOICE`(없는 팀은 중립 문구). 팀 문구는 요청 주소를 읽으므로 **Suspense 안에서만** 부른다
+  (미리 만드는 껍데기에서 부르면 그 페이지 전체가 껍데기 없이 그려진다). 새 팀 절차는 `docs/new-team-checklist.md`
 - **운영 MCP 같이 넣기**: 기능을 추가·변경하면 운영 MCP(`app/api/mcp`, `gigang-ops`) 도구도 **같은 PR에서**
   추가·변경한다. 안 넣을 거면 이유를 PR 본문(템플릿 「운영 MCP 반영」)에 적는다. 절차는 `app/api/mcp/README.md` §7 (ADR-0006)
 - **멤버 조회**: `getCurrentMember()` (`lib/queries/member.ts`) — React cache()로 같은 렌더 내 중복 쿼리 방지

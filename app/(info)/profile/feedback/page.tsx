@@ -5,6 +5,7 @@ import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createClient } from "@/lib/supabase/server";
 
 import { FeedbackForm } from "@/components/feedback/feedback-form";
+import { getTeamCopy } from "@/lib/queries/team-copy";
 import { FeedbackList, type FeedbackItem } from "@/components/feedback/feedback-list";
 
 export const metadata = { title: "건의하기" };
@@ -38,7 +39,7 @@ export default async function ProfileFeedbackPage() {
 
   return (
     <div className="flex flex-col gap-7 px-6 pb-6 pt-4">
-      <FeedbackForm />
+      <FeedbackForm crewName={(await getTeamCopy()).crewName} />
       <FeedbackList items={items} />
     </div>
   );

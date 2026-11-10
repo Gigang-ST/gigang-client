@@ -36,6 +36,8 @@ function recentlyDismissed(): boolean {
 type PwaInstallPromptProps = {
   /** banner=전역 하단 고정(7일 dismiss), inline=가입 완료 카드 내부 */
   variant?: "banner" | "inline";
+  /** 안내 제목 — 팀 문구(기강 「📲 기강이 풀렸군…」, 그 밖 중립 — §lib/team-copy) */
+  title: string;
   className?: string;
 };
 
@@ -50,6 +52,7 @@ type PwaInstallPromptProps = {
 export function PwaInstallPrompt({
   variant = "banner",
   className,
+  title,
 }: PwaInstallPromptProps) {
   const [visible, setVisible] = useState(false);
   const [iosGuide, setIosGuide] = useState(false);
@@ -155,7 +158,7 @@ export function PwaInstallPrompt({
         <div className="flex items-start gap-2">
           <div className="flex-1">
             <Body className="font-bold leading-snug">
-              📲 기강이 풀렸군. 홈 화면에 모시고 알림 켜라!
+              {title}
             </Body>
             <Caption className="mt-1 block leading-relaxed">
               홈 화면에 추가해야{" "}

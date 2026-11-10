@@ -1,5 +1,6 @@
 "use client";
 
+import type { CardCopy } from "@/components/members/member-card-dialog";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
@@ -239,6 +240,7 @@ export function MemberCardDetail({
   data,
   locked = false,
   edit,
+  copy,
 }: {
   memId: string;
   data: MemberCardData;
@@ -252,6 +254,8 @@ export function MemberCardDetail({
   locked?: boolean;
   /** 편집판(내 프로필탭)에서만 전달 — §MemberCardEdit */
   edit?: MemberCardEdit;
+  /** 팀 문구 — 크루 이름·호칭·컨디션 이름표(§lib/team-copy) */
+  copy: CardCopy;
 }) {
   const isEdit = edit != null;
 
@@ -277,7 +281,7 @@ export function MemberCardDetail({
     isEdit ? undefined : `board-rise board-rise-${step}`;
 
   const daysSinceJoin = getDaysSinceJoin(data.join_dt);
-  const mood = getActivityMood(data.stats.recent_actv_cnt, data.last_actv_dt);
+  const mood = getActivityMood(data.stats.recent_actv_cnt, data.last_actv_dt, copy);
   const intro = getMemberIntro(data.running_profile);
   const dday = data.upcoming_race ? getRaceDday(data.upcoming_race.stt_dt) : null;
 
@@ -802,7 +806,7 @@ export function MemberCardDetail({
                 // 프로필에서 바로 밀어 넣을 성격이 아니고, 대회 탭이 이미 하단 바에 상시로 있다.
                 <EmptyState
                   variant="card"
-                  message="기강 팀원들과 대회에 참석해보세요"
+                  message={`${copy.crewName} 팀원들과 대회에 참석해보세요`}
                   className="py-5 text-[13px]"
                 />
               )}
@@ -982,7 +986,7 @@ export function MemberCardDetail({
           <div className="absolute inset-0 flex flex-col items-center justify-start gap-3 px-6 pt-14 text-center">
             <div className="flex flex-col items-center gap-1.5">
               <Lock className="size-5 text-muted-foreground" />
-              <Body className="font-semibold">기강인만 볼 수 있어요</Body>
+              <Body className="font-semibold">{copy.memberNoun}만 볼 수 있어요</Body>
               <Caption>로그인하면 기록·활동·칭호를 모두 볼 수 있어요.</Caption>
             </div>
             <Button size="sm" onClick={() => goToLogin()}>

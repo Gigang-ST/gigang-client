@@ -40,12 +40,14 @@ function buildLine(race: CalendarRace): string {
  * 일정이 하나도 없으면 null 반환 (호출부에서 안내 토스트 처리).
  *
  * @param races 캘린더에 로드된 전체 항목 (대회·일정·모임, 중복 id 허용 — 내부에서 dedupe)
+ * @param crewName 크루 이름(「이번 주 기강 모임」의 「기강」 — §lib/team-copy). 기본값이 없다 — 다른 팀 공유 문구에 기강이 박히지 않게
  * @param origin 사이트 주소 (예: https://gigang.team)
  * @param filterType 현재 필터 칩 — 걸려 있으면 그 종류만 공유 (기본 "all")
  * @param baseDate 주간 기준 날짜 'YYYY-MM-DD' — 캘린더뷰는 선택 날짜, 리스트뷰는 오늘 (기본 오늘)
  */
 export function buildWeeklyShareText(
   races: CalendarRace[],
+  crewName: string,
   origin: string,
   filterType: FilterType = "all",
   baseDate?: string,
@@ -81,7 +83,7 @@ export function buildWeeklyShareText(
   // 오늘이 속한 주만 "이번 주" — 미래 주 선택 시엔 범위만 표기
   const isCurrentWeek = today >= start && today <= end;
   return [
-    `🗓️ ${isCurrentWeek ? "이번 주 " : ""}기강 ${FILTER_HEADER_LABEL[filterType]} (${rangeLabel})`,
+    `🗓️ ${isCurrentWeek ? "이번 주 " : ""}${crewName} ${FILTER_HEADER_LABEL[filterType]} (${rangeLabel})`,
     "",
     ...thisWeek.map(buildLine),
     "",

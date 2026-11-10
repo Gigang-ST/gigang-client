@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { getGhostMembers } from "@/lib/queries/ghost-members";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getTeamCopy } from "@/lib/queries/team-copy";
 import { getTeamChannels } from "@/lib/team-social";
 import {
   getMyReactions,
@@ -88,6 +89,7 @@ async function StoryFeedSection() {
     recapTeaser,
     channels,
     titlesEnabled,
+    copy,
   ] = await Promise.all([
       getStoryFeed(teamId),
       getTeamOverview(teamId),
@@ -106,6 +108,8 @@ async function StoryFeedSection() {
       getTeamChannels(teamId),
       // 칭호 기능 — 끈 팀은 「칭호획득」 칸을 안 세우고 사람에게 붙은 칭호를 걷는다(§lib/team-titles)
       getTeamCfg(teamId, "feature.titles"),
+      // 팀 문구 — 크루 이름·호칭·기능 이름·말투(§lib/team-copy). 서버 메모리 캐시라 조회 비용 없음
+      getTeamCopy(),
     ]);
 
   // 칭호 기능을 끈 팀 — 피드·기록은 칭호를 실은 채 캐시돼 오므로 화면에 넘기기 직전에 걷는다(§lib/team-titles)
@@ -182,6 +186,7 @@ async function StoryFeedSection() {
       mastheadActions={<HeaderActions />}
       recap={recap}
       channels={channels}
+      copy={copy}
     />
   );
 }
@@ -202,7 +207,8 @@ function StorySkeleton() {
       <div className="flex min-h-[60vh] flex-col items-center justify-center px-6">
         <Image
           src="/logo.webp"
-          alt="기강"
+          // 「불러오는 중」 장식이라 읽어 줄 이름이 없다(alt="") — 미리 만드는 껍데기라 팀 이름을 넣을 수도 없다
+          alt=""
           width={512}
           height={512}
           priority

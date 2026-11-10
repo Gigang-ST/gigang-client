@@ -1,4 +1,5 @@
 import { getCurrentMember } from "@/lib/queries/member";
+import { getTeamCopy } from "@/lib/queries/team-copy";
 
 import { PushPermissionPrompt } from "@/components/push-permission-prompt";
 
@@ -18,6 +19,14 @@ export async function PushPermissionPromptGate() {
   } catch {
     loggedIn = false;
   }
+  if (!loggedIn) return null;
 
-  return <PushPermissionPrompt loggedIn={loggedIn} />;
+  // 안내 제목은 팀마다 다르다(§lib/team-copy). 못 읽으면 배너를 안 세운다 — 다른 팀 문구로 물러나지 않는다
+  let title: string;
+  try {
+    title = (await getTeamCopy()).pushPromptTitle;
+  } catch {
+    return null;
+  }
+  return <PushPermissionPrompt loggedIn={loggedIn} title={title} />;
 }

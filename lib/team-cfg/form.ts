@@ -34,6 +34,7 @@ export const CFG_ORDER: readonly string[] = [
   "gathering.default_sport",
   "gathering.regular_template",
   "brand.name",
+  "brand.member_noun",
   "brand.slogan",
   "brand.founded_dt",
   "brand.wordmark",

@@ -1,4 +1,5 @@
 import { currentMonthKST, nowKST, todayKST } from "@/lib/dayjs";
+import type { TeamCopy } from "@/lib/team-copy";
 
 /**
  * 기강 활동량 — 표시 규칙 한 곳.
@@ -23,11 +24,15 @@ const ACTV_TYPE_LABEL: Record<string, string> = {
   mlg_record: "마일리지런 기록",
   mlg_goal: "마일리지런 목표 달성",
   sch_post: "정보 등록",
-  post_record: "깅스타그램",
   manual: "운영 조정",
 };
 
-export function getActvTypeLabel(actvType: string): string {
+/**
+ * 활동 종류 → 화면 라벨. 사진 지면(`post_record`)은 팀마다 이름이 달라 팀 문구에서 가져온다
+ * (기강 「깅스타그램」, 그 밖 「갤러리」 — `lib/team-copy.ts`).
+ */
+export function getActvTypeLabel(actvType: string, copy: Pick<TeamCopy, "galleryName">): string {
+  if (actvType === "post_record") return copy.galleryName;
   return ACTV_TYPE_LABEL[actvType] ?? "활동";
 }
 

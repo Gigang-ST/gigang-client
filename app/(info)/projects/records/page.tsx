@@ -4,6 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { currentMonthKST, prevMonthStr } from "@/lib/dayjs";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getTeamCopy } from "@/lib/queries/team-copy";
 import { fetchActivityRecords } from "@/lib/queries/activity-records";
 import { RecordsClient } from "./records-client";
 
@@ -52,11 +53,15 @@ export default async function ProjectRecordsPage() {
   // 첫 화면에 보여줄 달의 기록을 서버에서 미리 조회 → 클라 useEffect 깜빡임 제거.
   // (월 전환은 클라이언트에서 계속 조회하므로 SPA 전환 속도는 유지)
   const initialMonth = resolveDefaultMonth(event.stt_dt, event.end_dt);
-  const initialRecords = await fetchActivityRecords(supabase, prt.prt_id, initialMonth);
+  const [initialRecords, copy] = await Promise.all([
+    fetchActivityRecords(supabase, prt.prt_id, initialMonth),
+    getTeamCopy(),
+  ]);
 
   return (
     <Suspense fallback={<Skeleton className="mx-6 mt-4 h-96 rounded-2xl" />}>
       <RecordsClient
+        copy={copy}
         evtId={event.evt_id}
         memId={member.id}
         prtId={prt.prt_id}

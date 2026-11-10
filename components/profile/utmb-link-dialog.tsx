@@ -44,6 +44,7 @@ export function UtmbLinkDialog({
 	onOpenChange,
 	utmb,
 	onSaved,
+	hallName,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
@@ -51,6 +52,8 @@ export function UtmbLinkDialog({
 	utmb: UtmbProfile | null;
 	/** 저장·삭제 후 호출. `null`이면 연동 해제 */
 	onSaved: (next: UtmbProfile | null) => void;
+	/** 랭킹 탭 이름(「{크루}의 전당」 — §lib/team-copy) — 해제 확인 문구에 쓴다 */
+	hallName: string;
 }) {
 	const [utmbUrl, setUtmbUrl] = useState("");
 	const [utmbIndex, setUtmbIndex] = useState<number | null>(null);
@@ -236,7 +239,7 @@ export function UtmbLinkDialog({
 		// 연결이고, 실제로 전당 트레일 판에서 내려가므로 그 결과까지 미리 말해 준다.
 		if (
 			!window.confirm(
-				"UTMB 연동을 해제할까요?\n기강의 전당 트레일 순위에서도 내려갑니다.",
+				`UTMB 연동을 해제할까요?\n${hallName} 트레일 순위에서도 내려갑니다.`,
 			)
 		)
 			return;

@@ -13,6 +13,7 @@ import { getCachedHomeCalendar } from "@/lib/queries/home-calendar";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getSiteMetaInput } from "@/lib/queries/site-metadata";
+import { getTeamCopy } from "@/lib/queries/team-copy";
 import { buildHeaderBrand } from "@/lib/team-brand";
 import { getTeamCfg } from "@/lib/team-cfg/read";
 
@@ -106,13 +107,15 @@ async function HomeContent() {
   // 캐시된 공개 데이터 조회 — DB 쿼리 0개 (캐시 히트 시)
   // 카톡 공지방(노티봇) — 방이 없는 팀은 노티봇을 안 쓰는 팀이라 「단톡방에 알림」 버튼을 안 세운다.
   // 방 ID 는 비밀값이라 있다/없다만 내려보낸다(서버 메모리 1분 캐시 — §team-cfg/read).
-  const [{ comps: calendarComps, schPosts: schPostRows, gatherings: gthrRows }, cmmCdRows, kakaoRoomId, defaultGthrSprtCd] =
+  const [{ comps: calendarComps, schPosts: schPostRows, gatherings: gthrRows }, cmmCdRows, kakaoRoomId, defaultGthrSprtCd, copy] =
     await Promise.all([
       getCachedHomeCalendar(teamId, year, month),
       getCachedCmmCdRows(),
       getTeamCfg(teamId, "kakao.room_id"),
       // 모임 만들기를 열 때 먼저 골라 둘 종목(울산 = 트레일러닝)
       getTeamCfg(teamId, "gathering.default_sport"),
+      // 팀 문구 — 주간 일정 제목·공유 문구·프로필 카드(§lib/team-copy)
+      getTeamCopy(),
     ]);
 
   // memberStatus 판별 (기존 로직 유지)
@@ -212,6 +215,7 @@ async function HomeContent() {
             weekStart={weekStart}
             kakaoAnnounce={Boolean(kakaoRoomId)}
             defaultGthrSprtCd={defaultGthrSprtCd}
+            copy={copy}
           />
         </Suspense>
       </div>

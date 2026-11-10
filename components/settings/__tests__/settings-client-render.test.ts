@@ -2,6 +2,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import { buildTeamCopy } from "@/lib/team-copy";
+
 /**
  * 더보기 화면이 실제로 무엇을 어떤 **순서로** 그리는지 마크업으로 못박는다.
  *
@@ -60,6 +62,8 @@ function render(
       isAdmin: false,
       isLoggedIn: true,
       weekStart: "sun",
+      // 기강 팀 문구 — 이 테스트의 기대 문구(「기강 소개」 등)가 기강 것이다(§lib/team-copy)
+      copy: buildTeamCopy({ teamCd: "gigang", crewName: "기강", memberNoun: "기강인", wordmark: "GIGANG" }),
       // 채널 주소는 팀 설정에서 온다 — 테스트는 넷 다 있는 팀
       channels: {
         kakao_open_chat: "https://open.kakao.com/o/example",

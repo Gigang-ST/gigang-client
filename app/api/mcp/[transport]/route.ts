@@ -453,7 +453,7 @@ const handler = createMcpHandler(
       {
         title: "하이록스 랭킹",
         description:
-          "기강의 전당 하이록스 순위를 돌려줍니다 — 부문(OPEN 오픈·PRO 프로·DOUBLES 더블스)마다 사람당 가장 빠른 대회 기록 하나. " +
+          "전당(랭킹 탭) 하이록스 순위를 돌려줍니다 — 부문(OPEN 오픈·PRO 프로·DOUBLES 더블스)마다 사람당 가장 빠른 대회 기록 하나. " +
           "오픈·프로는 남자(men)/여자(women)로 나뉘고 더블스는 한 줄(entries)입니다. 릴레이는 순위가 없습니다. " +
           "각 줄에 입력된 스테이션 기록(splits, 'M:SS')이 실립니다.",
         inputSchema: {
@@ -581,7 +581,7 @@ const handler = createMcpHandler(
         description:
           "내 마일리지런 활동을 1건 등록합니다. 마일리지는 서버가 계산합니다. " +
           "배율은 조건(모임 참석·벙주 여부·인원수 등)을 서버가 알 수 없어 자동으로 붙지 않습니다 — 해당되는 것만 multipliers 에 이름으로 적어 주세요(앱 폼의 체크박스와 같습니다). " +
-          "⚠️ MCP로 넣은 기록은 사진을 붙일 수 없어 기강이야기(깅스타그램)에는 뜨지 않습니다 — 수치·후기는 정상 저장됩니다. 사진까지 올리려면 앱을 쓰세요.",
+          "⚠️ MCP로 넣은 기록은 사진을 붙일 수 없어 홈 사진 지면(기강은 깅스타그램)에는 뜨지 않습니다 — 수치·후기는 정상 저장됩니다. 사진까지 올리려면 앱을 쓰세요.",
         inputSchema: {
           act_dt: z.string().describe("YYYY-MM-DD (KST)"),
           sport: z.enum(["RUNNING", "TRAIL", "CYCLING", "SWIMMING"]),
@@ -606,7 +606,7 @@ const handler = createMcpHandler(
         description:
           `내 마일리지런 활동을 한 번에 여러 건 등록합니다(최대 ${MAX_BATCH_ACTIVITIES}건). ` +
           "한 건이라도 검증에 걸리면 아무것도 저장하지 않습니다. 배율은 기록마다 따로 고릅니다(안 적으면 미적용). " +
-          "⚠️ 사진은 붙일 수 없어 기강이야기(깅스타그램)에는 뜨지 않습니다.",
+          "⚠️ 사진은 붙일 수 없어 홈 사진 지면(기강은 깅스타그램)에는 뜨지 않습니다.",
         inputSchema: {
           activities: z
             .array(

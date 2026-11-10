@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { buildHyroxBoards, type HyroxRankingRow } from "@/lib/hyrox";
+import { buildTeamCopy } from "@/lib/team-copy";
 
 import {
   RecordsClient,
@@ -77,6 +78,7 @@ const DATA = {
 function render(overrides: Partial<Parameters<typeof RecordsClient>[0]> = {}) {
   return renderToStaticMarkup(
     createElement(RecordsClient, {
+      copy: buildTeamCopy({ teamCd: "gigang", crewName: "기강", memberNoun: "기강인", wordmark: "GIGANG" }),
       data: DATA,
       myTitleNames: [],
       myMemId: ME,

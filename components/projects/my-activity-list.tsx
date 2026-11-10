@@ -1,5 +1,6 @@
 import { nextMonthStr } from "@/lib/dayjs";
 import { getEventLogsMonthly } from "@/lib/queries/project-data";
+import { getTeamCopy } from "@/lib/queries/team-copy";
 import {
   MyActivityListClient,
   type ActivityRecord,
@@ -30,7 +31,7 @@ export async function MyActivityList({
   const nextMonth = nextMonthStr(month);
 
   // 당월 로그만 조회
-  const allLogs = await getEventLogsMonthly(evtId, month);
+  const [allLogs, copy] = await Promise.all([getEventLogsMonthly(evtId, month), getTeamCopy()]);
 
   const myMonthLogs = allLogs
     .filter(
@@ -58,6 +59,7 @@ export async function MyActivityList({
 
   return (
     <MyActivityListClient
+      copy={copy}
       initialRecords={records}
       evtId={evtId}
       memId={memId}

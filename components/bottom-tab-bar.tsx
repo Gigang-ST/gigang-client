@@ -46,7 +46,8 @@ type TabIcon = LucideIcon | typeof StoryLogoIcon;
 const TABS = [
   { label: "랭킹", href: "/records", key: "records", icon: Medal as TabIcon, hideLabel: false },
   { label: "일정", href: "/schedule", key: "schedule", icon: CalendarDays as TabIcon, hideLabel: false },
-  { label: "기강", href: "/", key: "story", icon: StoryLogoIcon as TabIcon, hideLabel: true },
+  // 이름은 화면에 안 보이고(hideLabel) 화면낭독에만 쓰인다 — 팀 이름 대신 실제 목적지 「홈」(팀과 무관해 정적 셸에 둘 수 있다)
+  { label: "홈", href: "/", key: "story", icon: StoryLogoIcon as TabIcon, hideLabel: true },
   { label: "프로젝트", href: "/projects", key: "projects", icon: Zap as TabIcon, hideLabel: false },
   { label: "프로필", href: "/profile", key: "profile", icon: User as TabIcon, hideLabel: false },
 ] as const;

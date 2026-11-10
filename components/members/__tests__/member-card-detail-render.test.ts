@@ -3,6 +3,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { MemberCardDetail } from "@/components/members/member-card-detail";
+import { buildTeamCopy } from "@/lib/team-copy";
+
+/** 기강 팀 문구 — 이 테스트의 기대 문구(「기강인만 볼 수 있어요」 등)가 기강 것이다 */
+const COPY = buildTeamCopy({ teamCd: "gigang", crewName: "기강", memberNoun: "기강인", wordmark: "GIGANG" });
 
 import type { MemberCardData } from "@/lib/queries/member-card";
 
@@ -62,6 +66,7 @@ function render(data: Partial<MemberCardData>, edit = false) {
     createElement(MemberCardDetail, {
       memId: "11111111-1111-4111-8111-111111111111",
       data: { ...BASE, ...data },
+      copy: COPY,
       ...(edit ? { edit: EDIT } : {}),
     }),
   );
@@ -263,6 +268,7 @@ describe("칭호 기능을 끈 팀의 편집판", () => {
       createElement(MemberCardDetail, {
         memId: "11111111-1111-4111-8111-111111111111",
         data: { ...BASE, ...data },
+        copy: COPY,
         edit: editWithoutTitles,
       }),
     );

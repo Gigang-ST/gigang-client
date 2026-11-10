@@ -1,6 +1,7 @@
 import { Suspense, cache } from "react";
 
 import { nowKST } from "@/lib/dayjs";
+import { getTeamCopy } from "@/lib/queries/team-copy";
 import { buildPbCrewAttd, buildPbTeamSeries } from "@/lib/pb-class-chart";
 import { canEditGoal, goalEditLastWk } from "@/lib/pb-class-score";
 import { buildPbTeams, pickTeamPhotos } from "@/lib/pb-class-teams";
@@ -107,7 +108,7 @@ async function PbTeamsSection({
   nowIso: string;
 }) {
   const approvedPrts = game.participants.filter((p) => p.aprvYn);
-  const [board, posts] = await Promise.all([
+  const [board, posts, copy] = await Promise.all([
     getPbBoard(game.evt.evtId, nowIso).catch((e) => {
       console.error("[pb-class] Teams 출석 보드 조회 실패", e);
       return null;
@@ -125,6 +126,7 @@ async function PbTeamsSection({
         console.error("[pb-class] Teams 사진 조회 실패", e);
         return [];
       }),
+    getTeamCopy(),
   ]);
 
   const sessions = board?.sessions ?? [];
@@ -146,7 +148,7 @@ async function PbTeamsSection({
       data={data}
       measureWkNo={game.measureWkNo}
       photosByGrp={pickTeamPhotos(posts, grpOfMem)}
-      viewer={{ teamId, memId: me.memId, memNm: me.memNm, avatarUrl: me.avatarUrl }}
+      viewer={{ teamId, memId: me.memId, memNm: me.memNm, avatarUrl: me.avatarUrl, copy }}
     />
   );
 }

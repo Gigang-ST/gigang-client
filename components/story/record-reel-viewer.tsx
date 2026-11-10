@@ -17,6 +17,7 @@ import { Avatar } from "@/components/common/avatar";
 import { TitleBadge } from "@/components/common/title-badge";
 import { RecordCommentBar } from "@/components/story/record-comment-bar";
 import { RecordCommentSheet } from "@/components/story/record-comment-sheet";
+import type { TeamCopy } from "@/lib/team-copy";
 import { RecordCommentTicker } from "@/components/story/record-comment-ticker";
 import { Dialog } from "@/components/ui/dialog";
 
@@ -61,6 +62,7 @@ export function RecordReelViewer({
   onRequestDelete,
   onRequestEdit,
   onCommentCountChange,
+  copy,
 }: {
   posts: StoryPost[];
   /** 격자에서 누른 카드의 post_id — 이 장부터 연다 */
@@ -97,6 +99,8 @@ export function RecordReelViewer({
    * 어긋날 수 없다.
    */
   onCommentCountChange?: (postId: string, count: number) => void;
+  /** 팀 문구 — 화면낭독 제목·댓글창 설명의 크루 이름·사진 지면 이름(§lib/team-copy) */
+  copy: Pick<TeamCopy, "crewName" | "galleryName">;
 }) {
   const cardRefs = useRef<Map<string, HTMLElement>>(new Map());
   /**
@@ -258,7 +262,7 @@ export function RecordReelViewer({
           onPointerDownOutside={(e) => e.preventDefault()}
         >
           <DialogPrimitive.Title className="sr-only">
-            기강 기록 자세히 보기
+            {copy.crewName} 기록 자세히 보기
           </DialogPrimitive.Title>
 
           {/* 상단 바 — 삭제(⋮)와 닫기(✕). 필름 카운터는 뺐다(피드백). 사진 위에 떠 있어
@@ -344,6 +348,7 @@ export function RecordReelViewer({
         myName={myName}
         myAvatarUrl={myAvatarUrl}
         isAdmin={isAdmin}
+        galleryName={copy.galleryName}
       />
     </Dialog>
   );

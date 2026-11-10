@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { EmptyState } from "@/components/common/empty-state";
 import { RecapPage } from "@/components/projects/recap/recap-page";
+import { getTeamCopy } from "@/lib/queries/team-copy";
 import { Button } from "@/components/ui/button";
 import { dayjs, nowKST } from "@/lib/dayjs";
 import { RECAP_SEASON_EXTRAS } from "@/lib/mileage-recap-seasons";
@@ -60,6 +61,7 @@ export default async function MileageRecapPage() {
       myMemId={member.id}
       party={upcomingParty}
       groupPhotoUrls={extras?.groupPhotoUrls ?? []}
+      crewName={(await getTeamCopy()).crewName}
     />
   );
 }

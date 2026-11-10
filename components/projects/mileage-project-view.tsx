@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { prevMonthStr, currentMonthKST } from "@/lib/dayjs";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getTeamCopy } from "@/lib/queries/team-copy";
 import { getTeamAccount } from "@/lib/team-social";
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -49,7 +50,12 @@ export async function MileageProjectView({
   isInactive,
   inactiveKind,
 }: MileageProjectViewProps) {
-  const [{ member, supabase }, { teamId }] = await Promise.all([getCurrentMember(), getRequestTeamContext()]);
+  const [{ member, supabase }, { teamId }, copy] = await Promise.all([
+    getCurrentMember(),
+    getRequestTeamContext(),
+    // 팀 문구 — 소개의 크루 이름, 기록 폼의 지면 이름·한마디 예시(§lib/team-copy)
+    getTeamCopy(),
+  ]);
   // 입금 안내에 쓰는 이 팀 모임 계좌(팀 설정)
   const account = await getTeamAccount(teamId);
 
@@ -94,7 +100,7 @@ export async function MileageProjectView({
       </div>
 
       {/* 미참여 시 소개 */}
-      {!isParticipant && !readOnly && <MileageIntro />}
+      {!isParticipant && !readOnly && <MileageIntro crewName={copy.crewName} />}
 
       {/* 참여 신청 섹션 */}
       {showJoin && (
@@ -152,7 +158,7 @@ export async function MileageProjectView({
               <MyActivityList evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} readOnly={readOnly} isInactive={isInactive} inactiveKind={inactiveKind} />
             </Suspense>
             {!readOnly && (
-              <ActivityLogFab evtId={event.evt_id} memId={member.id} isInactive={isInactive} inactiveKind={inactiveKind} />
+              <ActivityLogFab evtId={event.evt_id} memId={member.id} isInactive={isInactive} inactiveKind={inactiveKind} copy={copy} />
             )}
           </>
         )}

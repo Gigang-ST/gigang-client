@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { josa } from "@/lib/josa";
 import Link from "next/link";
 
 import { Avatar } from "@/components/common/avatar";
@@ -486,7 +487,7 @@ export function RecapNumbers({ recap }: { recap: RecapView }) {
 
 const HEAT = ["bg-muted", "bg-primary/25", "bg-primary/45", "bg-primary/70", "bg-primary"];
 
-export function RecapCalendar({ recap }: { recap: RecapView }) {
+export function RecapCalendar({ recap, crewName }: { recap: RecapView; crewName: string }) {
   const { months, totals, event, busiestDay } = recap;
   const everyDay = totals.activeDays >= event.days;
 
@@ -500,13 +501,13 @@ export function RecapCalendar({ recap }: { recap: RecapView }) {
           <>
             {event.days}일 동안 하루도 안 빠지고,
             <br />
-            <span className="font-semibold text-foreground">우리 기강은 뛰었어요</span>
+            <span className="font-semibold text-foreground">우리 {josa(crewName, "은/는")} 뛰었어요</span>
           </>
         ) : (
           <>
             {event.days}일 중{" "}
-            <span className="font-semibold text-foreground">{totals.activeDays}일</span>, 우리
-            기강은 함께 뛰었어요
+            <span className="font-semibold text-foreground">{totals.activeDays}일</span>, 우리{" "}
+            {josa(crewName, "은/는")} 함께 뛰었어요
           </>
         )
       }
@@ -814,7 +815,7 @@ export function RecapAwards({
 /*  마지막 날                                                            */
 /* ------------------------------------------------------------------ */
 
-export function RecapLastDay({ recap }: { recap: RecapView }) {
+export function RecapLastDay({ recap, crewName }: { recap: RecapView; crewName: string }) {
   const last = recap.lastDay;
   if (!last) return null;
   const quotes = last.memories.filter((m) => m.text);
@@ -827,7 +828,7 @@ export function RecapLastDay({ recap }: { recap: RecapView }) {
         <>
           {dayjs(last.date).format("M월 D일")}, 마지막 날까지
           <br />
-          <span className="font-semibold text-foreground">우리 기강은 멈추지 않았어요</span> ·{" "}
+          <span className="font-semibold text-foreground">우리 {josa(crewName, "은/는")} 멈추지 않았어요</span> ·{" "}
           {last.people}명
         </>
       }
@@ -933,10 +934,12 @@ export function RecapFinale({
   recap,
   party,
   groupPhotoUrls,
+  crewName,
 }: {
   recap: RecapView;
   party: RecapParty | null;
   groupPhotoUrls: string[];
+  crewName: string;
 }) {
   return (
     <RecapReveal className="flex flex-col items-center gap-3 px-6 text-center">
@@ -965,7 +968,7 @@ export function RecapFinale({
               <div className="relative aspect-square overflow-hidden rounded-sm bg-muted">
                 <Image
                   src={url}
-                  alt="기강 단체사진"
+                  alt={`${crewName} 단체사진`}
                   fill
                   sizes="33vw"
                   className="object-cover"

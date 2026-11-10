@@ -15,6 +15,7 @@ import {
 } from "@/lib/mileage";
 import type { ActivityLogInput } from "@/lib/mileage-run";
 import { pickQuip } from "@/lib/quips";
+import type { TeamCopy } from "@/lib/team-copy";
 import { createClient } from "@/lib/supabase/client";
 import { activityLogSchema } from "@/lib/validations/mileage";
 
@@ -54,7 +55,12 @@ type EventMultiplier = {
   end_dt: string | null;
 };
 
+/** 기록 폼이 쓰는 팀 문구 — 사진 안내문의 지면 이름·한마디 예시(§lib/team-copy) */
+export type ActivityLogFormCopy = Pick<TeamCopy, "storyName" | "galleryName" | "quips">;
+
 export type ActivityLogFormProps = {
+  /** 팀 문구(§lib/team-copy) */
+  copy: ActivityLogFormCopy;
   evtId: string;
   memId: string;
   editData?: {
@@ -97,6 +103,7 @@ export function ActivityLogForm({
   onSuccess,
   isInactive = false,
   inactiveKind,
+  copy,
 }: ActivityLogFormProps) {
   const today = todayKST();
 
@@ -111,7 +118,7 @@ export function ActivityLogForm({
   const [inactiveGateOpen, setInactiveGateOpen] = useState(false);
   // 예시 문구는 열 때 한 번 뽑고 입력 중엔 고정한다 — 이 폼은 수정 시트 안에서만 마운트되므로
   // (`editTarget && <ActivityLogForm …>`) 서버가 다른 문구로 그려 놓을 일이 없다
-  const [quip] = useState(pickQuip);
+  const [quip] = useState(() => pickQuip(copy.quips));
 
   // 사진 — 새로 고른 파일과 "이미 올라가 있던 URL"을 따로 든다.
   // 수정 화면에서 셋이 갈린다: 파일 있음=교체, 파일 없고 URL 있음=그대로, 둘 다 없음=지움.
@@ -410,7 +417,7 @@ export function ActivityLogForm({
             색은 primary — 안내이지 오류가 아니다. destructive를 쓰면 같은 화면의 실제
             오류 메시지와 구분이 안 돼 입력이 잘못된 줄로 읽힌다(다건 폼과 동일 규칙). */}
         <p className="text-[13px] text-primary">
-          사진 추가 시, 기강이야기의 깅스타그램에도 등록돼요.
+          사진 추가 시, {copy.storyName}의 {copy.galleryName}에도 등록돼요.
         </p>
       </div>
 

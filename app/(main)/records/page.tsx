@@ -8,6 +8,7 @@ import { buildHyroxBoards, type HyroxRankingRow } from "@/lib/hyrox";
 import { fetchHyroxRankingRows } from "@/lib/queries/hyrox-rankings";
 import { getCurrentMember, getMyTitleNames } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getTeamCopy } from "@/lib/queries/team-copy";
 import { getTeamCfg } from "@/lib/team-cfg/read";
 import { MARATHON_EVENTS, TRIATHLON_EVENTS } from "@/lib/records-board";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -22,13 +23,14 @@ import { RecordsClient } from "./records-client";
 async function RecordsContent() {
   const { teamId } = await getRequestTeamContext();
   // getCurrentMember()는 React cache()라 getMyTitleNames() 안의 호출과 합쳐진다(쿼리 추가 없음).
-  const [cachedData, myTitleNames, { member }, titlesEnabled, categories] = await Promise.all([
+  const [cachedData, myTitleNames, { member }, titlesEnabled, categories, copy] = await Promise.all([
     getCachedRecordsData(teamId),
     getMyTitleNames(),
     getCurrentMember(),
     getTeamCfg(teamId, "feature.titles"),
     // 세울 종목(팀 설정) — 하나면 종목 탭 줄 없이 그 종목만(울산 = 트레일러닝)
     getTeamCfg(teamId, "records.categories"),
+    getTeamCopy(),
   ]);
   // 칭호 기능을 끈 팀은 챔피언 띠에 칭호를 안 싣는다 — 캐시는 칭호를 실은 채라 넘기기 직전에 걷는다
   const serializedData = titlesEnabled ? cachedData : { ...cachedData, memberTitles: {} };
@@ -40,6 +42,7 @@ async function RecordsContent() {
       myMemId={member?.id ?? null}
       teamId={teamId}
       categories={categories}
+      copy={copy}
     />
   );
 }
@@ -326,11 +329,24 @@ function RecordsSkeleton() {
   );
 }
 
-export const metadata: Metadata = {
-  title: "기강의 전당 — 크루 최고 기록",
-  description: "기강 러닝크루 종목별 최고 기록. 5K·10K·하프·풀코스 크루원 기록을 모았습니다.",
-  alternates: { canonical: "/records" },
-};
+/**
+ * 제목은 팀 기준(「{크루}의 전당」 — §lib/team-copy). 설명은 아직 기강 내용이라 그대로 둔다 — 지면별 설명은 팀 고유 내용이라
+ * 따로 쓴다(#650). 이 지면은 본문이 이미 요청 때 그려져(Suspense) 메타데이터가 요청을 읽어도 정적 셸이 안 깨진다.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = await getTeamCopy();
+  return {
+    title: `${copy.hallName} — 크루 최고 기록`,
+    description: "기강 러닝크루 종목별 최고 기록. 5K·10K·하프·풀코스 크루원 기록을 모았습니다.",
+    alternates: { canonical: "/records" },
+  };
+}
+
+/** 탭 제목 — 팀 이름이 들어가 요청 때 채운다. 기다리는 동안은 같은 높이의 빈 자리(글자가 튀지 않게) */
+async function HallTitle() {
+  const copy = await getTeamCopy();
+  return copy.hallName;
+}
 
 export default function RecordsPage() {
   void getRequestTeamContext();
@@ -340,7 +356,11 @@ export default function RecordsPage() {
       <PageHeader
         variant="editorial"
         label="Hall of Fame"
-        title="기강의 전당"
+        title={
+          <Suspense fallback={<span className="invisible">전당</span>}>
+            <HallTitle />
+          </Suspense>
+        }
         action={<HeaderActions />}
       />
       <Suspense fallback={<RecordsSkeleton />}>

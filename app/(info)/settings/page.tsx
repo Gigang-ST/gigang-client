@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { hasUnreadBoardPosts } from "@/lib/queries/board";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getTeamCopy } from "@/lib/queries/team-copy";
 import { getTeamCfg } from "@/lib/team-cfg/read";
 import { getTeamChannels } from "@/lib/team-social";
 import { WEEK_START_COOKIE, parseWeekStart } from "@/lib/week-start";
@@ -38,7 +39,7 @@ export default async function SettingsPage() {
   // 잔액은 **스냅샷을 읽기만 한다**(회비 계산 로직은 손대지 않음).
   // 회비를 안 쓰는 팀은 「회비 내역」 줄째 안 그리고 잔액도 안 읽는다(팀 설정 feature.dues)
   const duesEnabled = await getTeamCfg(teamId, "feature.dues");
-  const [boardUnread, balSnapRes, channels] = await Promise.all([
+  const [boardUnread, balSnapRes, channels, copy] = await Promise.all([
     hasUnreadBoardPosts(member?.id, teamId),
     member && duesEnabled
       ? supabase
@@ -51,6 +52,7 @@ export default async function SettingsPage() {
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
     getTeamChannels(teamId),
+    getTeamCopy(),
   ]);
 
   // 조회가 실패하면 점을 끈 채로 둔다 — 점 하나 때문에 설정 화면 전체를 못 열게 만들 수는
@@ -69,6 +71,7 @@ export default async function SettingsPage() {
       duesUnpaid={(balSnapRes.data?.bal_amt ?? 0) <= -DUES_DOT_MIN_UNPAID}
       weekStart={weekStart}
       channels={channels}
+      copy={copy}
     />
   );
 }
