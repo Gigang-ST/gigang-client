@@ -17,8 +17,6 @@ import { ActvPile } from "@/components/story/actv-pile";
 import { PresenceCount } from "@/components/story/presence-count";
 import { SocialLinksGrid } from "@/components/social-links";
 import { GhostWanted } from "@/components/story/ghost-wanted";
-import { MessagePlanes } from "@/components/story/message-planes";
-import { PledgeSigns } from "@/components/story/pledge-signs";
 import { RecordFlexFeed } from "@/components/story/record-flex-feed";
 import { StoryLede } from "@/components/story/story-lede";
 import { StoryMasthead } from "@/components/story/story-masthead";
@@ -27,24 +25,11 @@ import { StorySection } from "@/components/story/story-section";
 
 import type { GhostMember } from "@/lib/queries/ghost-members";
 import type { StoryFeed, StoryReactionCounts } from "@/lib/queries/story-feed";
-import type { StoryMessage } from "@/lib/queries/story-messages";
 import type { StoryPost } from "@/lib/queries/story-posts";
 import type { RecentTitleRow } from "@/lib/story-title";
 import type { TeamOverview } from "@/lib/queries/team-overview";
 import type { RecapTeaser } from "@/lib/mileage-recap";
 import type { TeamChannels } from "@/lib/team-channels";
-
-/**
- * /story 존 잠정 중단 토글 — **삭제가 아니라 잠정 중단이다**(2026-07-28 UI 정리).
- *
- * 되살리려면 해당 상수를 true로 되돌린다. 그러면 존 렌더가 다시 살아난다.
- * 성능: false일 땐 존 컴포넌트가 렌더 트리에서 통째로 빠진다(자식의 이펙트·구독·상태도 안 돈다).
- * - 종이비행기는 서버 쿼리(getStoryMessages)까지 함께 끊어야 진짜로 비용이 0이 된다 →
- *   그 조치는 app/(main)/story/page.tsx에서. messages prop은 이제 항상 [] 로 온다.
- * - 목표 한마디는 리드 슬롯도 함께 중단(components/story/story-lede.tsx의 SHOW_PLEDGE_LEDE).
- */
-const SHOW_MESSAGE_PLANES = false;
-const SHOW_PLEDGE_SIGNS = false;
 
 /**
  * 기강이야기 — 크루 소식 지면.
@@ -62,10 +47,8 @@ export function StoryClient({
   initialTitlePick,
   initialPostPick,
   initialNewbiePick,
-  initialPledgePick,
   initialRecordPick,
   initialActvPick,
-  messages,
   teamId,
   myMemId,
   isAdmin,
@@ -89,11 +72,8 @@ export function StoryClient({
    *  새 얼굴·각오·기록·활동지수·운동기록이 첫 화면부터 랜덤이고, 한 바퀴마다 클라가 재추첨한다. */
   initialPostPick: number;
   initialNewbiePick: number;
-  initialPledgePick: number;
   initialRecordPick: number;
   initialActvPick: number;
-  /** 종이비행기 한마디 — 24시간 만료. 각오와 별개 데이터(msg_mst), 별도 캐시·별도 RPC */
-  messages: StoryMessage[];
   teamId: string;
   /** 로그인 사용자 — 본인 카드면 한마디를 바로 수정할 수 있다 */
   myMemId: string | null;
@@ -155,7 +135,6 @@ export function StoryClient({
           grants={grants}
           initialTitlePick={initialTitlePick}
           initialNewbiePick={initialNewbiePick}
-          initialPledgePick={initialPledgePick}
           initialRecordPick={initialRecordPick}
           initialActvPick={initialActvPick}
           initialPostPick={initialPostPick}
@@ -186,27 +165,8 @@ export function StoryClient({
           teamId={teamId}
         />
 
-        {/* 종이비행기 한마디 — 24시간 뒤 사라지는 한 줄(msg_mst).
-            각오와 **별개 데이터**다: 저긴 팻말·1인 1개·만료 없음, 여긴 비행기·1인 N개·하루살이.
-            잠정 중단(SHOW_MESSAGE_PLANES) — 되살리려면 상수를 true로(파일 상단 주석 참조). */}
-        {SHOW_MESSAGE_PLANES && (
-          <MessagePlanes
-            messages={messages}
-            teamId={teamId}
-            myMemId={myMemId}
-            me={me}
-          />
-        )}
-
-        {/* 각오 팻말 — 코스변 손팻말. 만료 없이 쌓인다(1인 1개, 새로 쓰면 이전 것이 내려간다).
-            잠정 중단(SHOW_PLEDGE_SIGNS) — 리드 슬롯(SHOW_PLEDGE_LEDE)과 함께 되살린다. */}
-        {SHOW_PLEDGE_SIGNS && (
-          <PledgeSigns
-            pledges={feed.pledges}
-            myMemId={myMemId}
-            onSelectMember={selectMember}
-          />
-        )}
+        {/* 종이비행기 한마디(msg_mst)·목표 한마디 팻말(pldg_mst) 존은 2026-11-10 기능째 지웠다(오래 꺼져 있었다).
+            DB 테이블은 남아 있다 — 되살릴 땐 그 커밋을 되돌린다. */}
 
         {/* 새 얼굴 — 최근 3명 + 더보기 */}
         <StorySection

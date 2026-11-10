@@ -11,10 +11,6 @@ import {
   getReactionTotals,
   getStoryFeed,
 } from "@/lib/queries/story-feed";
-// 종이비행기 한마디(getStoryMessages) 잠정 중단(2026-07-28). MessagePlanes 존을 화면에서
-// 내리면서 RPC도 함께 끊어 비용을 0으로 만든다 — 되살릴 땐 이 import와 Promise.all 항목,
-// messages prop([])을 원복하고 story-client의 SHOW_MESSAGE_PLANES를 true로.
-// import { getStoryMessages } from "@/lib/queries/story-messages";
 import { getStoryPosts } from "@/lib/queries/story-posts";
 import {
   pickActvLeadIndex,
@@ -98,7 +94,6 @@ async function StoryFeedSection() {
       getGhostMembers(teamId, ghostSeed),
       getStoryPosts(teamId),
       getRecentTitleGrants(teamId),
-      // getStoryMessages(teamId), — 종이비행기 잠정 중단(위 import 주석 참조)
       getCurrentMember(),
       // 응원 총합은 **멤버와 무관한 공개 집계**라 여기서 같이 출발한다. 예전엔 내 몫과 한
       // 함수로 묶여 있어 총합까지 멤버 조회 뒤에 줄을 섰다 — 그만큼이 임계경로였다.
@@ -121,7 +116,6 @@ async function StoryFeedSection() {
         newbies: stripTitlesIfOff(rawFeed.newbies, false),
         records: stripTitlesIfOff(rawFeed.records, false),
         actv_rank: stripTitlesIfOff(rawFeed.actv_rank, false),
-        pledges: stripTitlesIfOff(rawFeed.pledges, false),
       };
   const posts = stripTitlesIfOff(rawPosts, titlesEnabled);
   const grants = titlesEnabled ? rawGrants : [];
@@ -143,9 +137,6 @@ async function StoryFeedSection() {
   // Math.random은 렌더 순수성 룰에 걸려 헬퍼로 빼 둔다.
   const initialPostPick = pickRandomPostIndex(posts.length);
   const initialNewbiePick = pickRandomPostIndex(feed.newbies.length);
-  // 목표 한마디 리드 슬롯 잠정 중단(story-lede의 SHOW_PLEDGE_LEDE=false) — 서버 랜덤을
-  // 돌릴 이유가 없어 0으로 넘긴다. 되살릴 땐 pickRandomPostIndex(feed.pledges.length)로 원복.
-  const initialPledgePick = 0;
   const initialRecordPick = pickRandomPostIndex(feed.records.length);
   const initialActvPick = pickActvLeadIndex(feed.actv_rank.length);
   // 칭호획득 슬롯의 대표 회전 시작 오프셋 — 방문마다 다른 사람에서 시작한다(첫 화면 다양성).
@@ -171,14 +162,10 @@ async function StoryFeedSection() {
       posts={posts}
       initialPostPick={initialPostPick}
       initialNewbiePick={initialNewbiePick}
-      initialPledgePick={initialPledgePick}
       initialRecordPick={initialRecordPick}
       initialActvPick={initialActvPick}
       grants={grants}
       initialTitlePick={initialTitlePick}
-      // 종이비행기 잠정 중단 — 쿼리를 끊었으니 항상 빈 목록. 되살릴 땐 위 Promise.all에
-      // getStoryMessages를 되살리고 messages={messages}로 원복(파일 상단 import 주석 참조).
-      messages={[]}
       teamId={teamId}
       myMemId={member?.id ?? null}
       // 기록 삭제 권한 — 관리자는 남의 기록도 지울 수 있다(작성자 판정은 myMemId가 한다).

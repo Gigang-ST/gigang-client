@@ -26,7 +26,7 @@ export type CreateRecordFlexResult =
  * 프로필 사진으로 때운 빈 칸이 생기고, 그건 기록 격자가 아니라 얼굴 격자가 된다.
  *
  * 사진이 있어 `FormData`로 받는다(각오와 달리 JSON이 아니다). 업로드는 세션 클라이언트로
- * `post-photos` 버킷에, DB INSERT는 admin 클라이언트로 한다 — `createPledge`와 같은 경계다.
+ * `post-photos` 버킷에, DB INSERT는 admin 클라이언트로 한다(권한은 서버 액션이 먼저 본다).
  *
  * 순서가 중요하다: **사진 업로드를 먼저, INSERT를 나중에** 한다. 반대로 하면 업로드가 실패했을 때
  * 사진 없는 행이 남는다(격자는 사진이 없으면 아예 안 세운다 — RPC가 거른다). 대신 INSERT가
@@ -89,7 +89,6 @@ export async function createRecordFlex(
       // `revalidateTag(tag, "max")`가 아니라 `updateTag(tag)`다 — 프로필을 준 revalidateTag는
       // stale-while-revalidate라 Next가 일부러 액션이 자기 쓰기를 되읽지 못하게 막는다. 그러면
       // 올리자마자 router.refresh()가 낡은 캐시를 받아 "새로고침해야 기록이 보이는" 증상이 난다.
-      // (같은 이유·같은 처방이 createPledge에도 적용돼 있다.)
       updateTag(teamCacheTag("story-posts", teamId));
 
       // 깅스타그램 칭호(오운완·깅플루언서·연재작가·유물발굴)는 글이 올라가는 순간 확정된다.
@@ -107,7 +106,7 @@ export async function createRecordFlex(
       return { ok: true as const, post_id: data.post_id };
     });
   } catch (e) {
-    // withActive는 비로그인·비활성이면 throw한다 — createPledge와 동일하게 결과값으로 변환
+    // withActive는 비로그인·비활성이면 throw한다 — 결과값으로 변환
     const message = e instanceof Error ? e.message : "잠시 후 다시 시도해 주세요";
     return { ok: false, message };
   }

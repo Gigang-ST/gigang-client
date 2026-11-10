@@ -138,33 +138,6 @@ export type StoryActvRankEntry = {
 
 
 /**
- * 멤버 목표 한마디(한 줄 다짐) — 만료 없이 누적, 최근순 노출.
- *
- * 리드 "목표 한마디" 슬롯은 활동지수 슬롯과 같은 방식(PersonProfile 부품: 칭호·소개)으로 그린다.
- * 그래서 칭호·소개·배지·프레임을 옵셔널로 싣는다 — actv_rank와 마찬가지로 구버전 RPC(배포 스큐)에선
- * 없을 수 있어 **전부 옵셔널**(부품이 빠질 뿐 크래시하지 않는다). 러닝프로필·최고기록은 이 슬롯에서
- * 쓰지 않으므로 싣지 않는다.
- *
- * 응원은 pldg row가 아니라 **멤버 기준**으로 건다(entity_type "actv" + mem_id — 활동지수 슬롯과 동일).
- * 그래서 `ReactableItem`(entity_type/rctn_cd 등)을 상속하지 않는다 — 응원 대상은 목표 팻말이 아니라
- * 그 목표를 쓴 사람이다.
- */
-export type StoryPledge = {
-  pldg_id: string;
-  mem_id: string;
-  mem_nm: string;
-  avatar_url: string | null;
-  pldg_txt: string;
-  /** ISO timestamptz 문자열 — 표시 시 dayjs(val)로 상대시간 변환 */
-  crt_at: string;
-  /** 프로필 부품(리드 목표 슬롯 전용) — 배포 스큐 안전을 위해 옵셔널. actv_rank와 같은 방식 */
-  badge_effect?: string;
-  frame_cd?: string;
-  intro_txt?: string | null;
-  primary_title?: MemberCardCompactData["primary_title"];
-};
-
-/**
  * 전광판 피드.
  *
  * `month_rank`(이달의 참석왕)·`week_stat`(이번 주 합계)은 **걷어냈다** — 읽는 화면이 없어진
@@ -177,7 +150,6 @@ export type StoryFeed = {
   records: StoryRecord[];
   races: StoryRace[];
   actv_rank: StoryActvRankEntry[];
-  pledges: StoryPledge[];
 };
 
 const EMPTY_FEED: StoryFeed = {
@@ -185,7 +157,6 @@ const EMPTY_FEED: StoryFeed = {
   records: [],
   races: [],
   actv_rank: [],
-  pledges: [],
 };
 
 /**
