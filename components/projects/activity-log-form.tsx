@@ -13,11 +13,10 @@ import {
   MILEAGE_SPORT_LABELS,
   type MileageSport,
 } from "@/lib/mileage";
+import type { ActivityLogInput } from "@/lib/mileage-run";
 import { pickQuip } from "@/lib/quips";
 import { createClient } from "@/lib/supabase/client";
 import { activityLogSchema } from "@/lib/validations/mileage";
-
-import type { ActivityLogInput } from "@/lib/mileage-run";
 
 import { logActivity, updateActivity, uploadActivityPhoto } from "@/app/actions/mileage-run";
 

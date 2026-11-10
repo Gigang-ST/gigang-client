@@ -10,10 +10,9 @@ import {
   roundMileage,
   type MileageSport,
 } from "@/lib/mileage";
+import type { ActivityLogInput } from "@/lib/mileage-run";
 import { pickQuip } from "@/lib/quips";
 import { createClient } from "@/lib/supabase/client";
-
-import type { ActivityLogInput } from "@/lib/mileage-run";
 
 import { logActivitiesBatch, uploadActivityPhoto } from "@/app/actions/mileage-run";
 
