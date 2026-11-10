@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { parseEventTime } from "@/lib/dayjs";
 import { RECORD_CATEGORIES, RECORD_CATEGORY_KEYS } from "@/lib/records-categories";
+import { GTHR_SPRT_TYPES, gthrSprtLabels } from "@/lib/validations/gathering";
 
 /**
  * 팀 설정 사전 — `team_cfg` 에 들어갈 수 있는 키의 **정본**.
@@ -37,8 +38,13 @@ export type CfgInput =
   | { kind: "channels" }
   | { kind: "regular_template" }
   | { kind: "team_links" }
-  /** 여러 개 고르기(체크박스) — 저장은 `options` 순서대로, 최소 하나 */
-  | { kind: "choices"; options: readonly { value: string; label: string }[] };
+  /**
+   * 여러 개 고르기(체크박스), 최소 하나. `orderable` 이면 위아래로 순서를 바꿀 수 있고 **고른 순서 그대로** 저장한다
+   * (화면이 그 순서로 세운다). 아니면 `options` 순서로 저장한다.
+   */
+  | { kind: "choices"; options: readonly { value: string; label: string }[]; orderable?: boolean }
+  /** 하나 고르기 */
+  | { kind: "choice"; options: readonly { value: string; label: string }[] };
 
 type CfgDef<S extends z.ZodTypeAny> = {
   schema: S;
@@ -227,6 +233,20 @@ export const TEAM_CFG_REGISTRY = {
   }),
 
   /**
+   * 모임 만들기를 열 때 먼저 골라 두는 종목. 기본값 = 러닝(지금 기강 동작). 울산은 트레일러닝(2026-11-10 유저 결정).
+   * 새로 만들 때만 쓴다 — 수정·「이 내용으로 새 모임」은 원래 모임 종목을 따른다.
+   */
+  "gathering.default_sport": defineCfg({
+    schema: z.enum(GTHR_SPRT_TYPES),
+    default: "running",
+    label: "모임 기본 종목",
+    description: "모임 만들기를 열면 먼저 골라져 있는 종목이에요.",
+    visibility: "member",
+    group: "operation",
+    input: { kind: "choice", options: GTHR_SPRT_TYPES.map((v) => ({ value: v, label: gthrSprtLabels[v] })) },
+  }),
+
+  /**
    * 가입 폼 첫 화면에 띄우는 「다른 팀 가입이세요? 여기로 →」 안내 — 다른 팀에 가려다 이 주소로 온 사람을 넘겨준다.
    * 주소는 적지 않고 팀 코드만 둔다 — 링크는 접속 환경(운영·dev·로컬)에 맞는 그 팀 주소로 만든다(`teamLinkOrigin`).
    * 기본값 = 빈 목록(안내 없음).
@@ -278,9 +298,9 @@ export const TEAM_CFG_REGISTRY = {
   }),
 
   /**
-   * 기강의 전당(랭킹탭)에 세울 종목. 기본값 = 넷 다(지금 기강 동작). 하나만 고르면 랭킹탭 맨 위 종목 탭 줄을 없애고
-   * 그 종목 이름을 고정으로 세운다(울산 = 트레일러닝만, 2026-11-10 유저 결정). 탭 순서는 고른 순서와 무관하게
-   * `RECORD_CATEGORIES` 순서다. 기록 등록(프로필)은 이 설정과 무관하다 — 어느 종목이든 올릴 수 있다.
+   * 기강의 전당(랭킹탭)에 세울 종목과 **그 순서**(저장된 순서대로 탭이 서고, 첫 종목이 처음 열린다). 기본값 = 넷 다
+   * 지금 순서(기강). 하나만 고르면 랭킹탭 맨 위 종목 탭 줄을 없애고 그 종목 이름을 고정으로 세운다(울산 = 트레일러닝만,
+   * 2026-11-10 유저 결정). 기록 등록(프로필)은 이 설정과 무관하다 — 어느 종목이든 올릴 수 있다.
    */
   "records.categories": defineCfg({
     schema: z
@@ -289,10 +309,10 @@ export const TEAM_CFG_REGISTRY = {
       .refine((v) => new Set(v).size === v.length, "같은 종목이 두 번 들어 있어요"),
     default: [...RECORD_CATEGORY_KEYS],
     label: "전당 종목",
-    description: "랭킹탭(기강의 전당)에 세울 종목. 하나만 고르면 맨 위 종목 탭 없이 그 종목만 보여요.",
+    description: "랭킹탭(기강의 전당)에 세울 종목과 순서. 위에 둔 종목이 먼저 나와요. 하나만 고르면 종목 탭 없이 그 종목만 보여요.",
     visibility: "public",
     group: "feature",
-    input: { kind: "choices", options: RECORD_CATEGORIES },
+    input: { kind: "choices", options: RECORD_CATEGORIES, orderable: true },
   }),
 } as const;
 

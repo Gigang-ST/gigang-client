@@ -27,6 +27,7 @@ import { MEM_SCH_SELECT, memSchRowToRace, raceTimeKST } from "@/lib/personal-sch
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { schPostTypeInlineLabel } from "@/lib/validations/schedule-types";
+import type { GthrSprtType } from "@/lib/validations/gathering";
 import type { SchPostType } from "@/lib/validations/schedule-types";
 
 import { SportTag } from "@/components/schedule/sport-tag";
@@ -190,6 +191,8 @@ type MiniCalendarProps = {
   weekStart: WeekStart;
   /** 이 팀이 노티봇(카톡 공지방)을 쓰나 — 안 쓰면 모임 공유 시트에 「단톡방에 알림」이 안 선다 */
   kakaoAnnounce: boolean;
+  /** 모임 만들기를 열 때 먼저 골라 둘 종목(팀 설정 `gathering.default_sport`) */
+  defaultGthrSprtCd: GthrSprtType;
 };
 
 import { type FilterType, FILTER_TYPES, matchesFilter } from "./schedule-filter";
@@ -219,6 +222,7 @@ export function MiniCalendar({
   initialRegistrationsByCompetitionId,
   weekStart,
   kakaoAnnounce,
+  defaultGthrSprtCd,
 }: MiniCalendarProps) {
   const weekdays = useMemo(() => weekdayLabels(weekStart), [weekStart]);
   const supabase = useMemo(() => createClient(), []);
@@ -1736,6 +1740,7 @@ export function MiniCalendar({
         open={gthrFormOpen}
         onOpenChange={(v) => { setGthrFormOpen(v); if (!v) { setGthrEditTarget(null); setGthrPrefill(null); } }}
         mode={gthrEditTarget ? "edit" : "create"}
+        defaultSprtCd={defaultGthrSprtCd}
         defaultDate={!gthrEditTarget ? gthrDefaultDate : undefined}
         prefill={!gthrEditTarget ? gthrPrefill ?? undefined : undefined}
         initialData={gthrEditTarget ? {

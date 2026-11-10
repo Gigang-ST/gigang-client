@@ -562,7 +562,7 @@ function CompetitionsContent({
           <Input
             value={form.location}
             onChange={(e) => setForm({ ...form, location: e.target.value })}
-            placeholder="서울 여의도"
+            placeholder="예: ○○시 ○○공원"
             className="h-12 rounded-xl border-[1.5px] text-[15px]"
           />
         </div>

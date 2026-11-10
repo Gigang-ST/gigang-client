@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 
 import { useRouter } from "next/navigation";
 
-import { ChevronRight, Plus, X } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronUp, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -334,7 +334,17 @@ function Editor({
       return (
         <ChoicesEditor
           options={item.input.options}
+          orderable={item.input.orderable ?? false}
           value={Array.isArray(item.value) ? (item.value as string[]) : []}
+          pending={pending}
+          onSave={onSave}
+        />
+      );
+    case "choice":
+      return (
+        <ChoiceEditor
+          options={item.input.options}
+          value={typeof item.value === "string" ? item.value : ""}
           pending={pending}
           onSave={onSave}
         />
@@ -353,31 +363,93 @@ function Editor({
 
 /* ─── 편집기 ─── */
 
-/** 여러 개 고르기 — 저장은 보기 순서대로(누른 순서와 무관), 하나도 안 고르면 저장을 막는다 */
+/**
+ * 여러 개 고르기 — 하나도 안 고르면 저장을 막는다.
+ * `orderable` 이면 줄마다 위아래 버튼이 서고, 보이는 줄 순서 그대로(고른 것만) 저장한다. 고른 줄이 위에, 안 고른 줄이
+ * 아래에 처음 놓인다. 아니면 보기 순서대로 저장한다(누른 순서와 무관).
+ */
 function ChoicesEditor({
+  options,
+  orderable,
+  value,
+  pending,
+  onSave,
+}: {
+  options: readonly { value: string; label: string }[];
+  orderable: boolean;
+  value: string[];
+  pending: boolean;
+  onSave: (v: unknown) => void;
+}) {
+  const [picked, setPicked] = useState<string[]>(value);
+  const [rows, setRows] = useState<string[]>(() =>
+    orderable
+      ? [...value.filter((v) => options.some((o) => o.value === v)), ...options.map((o) => o.value).filter((v) => !value.includes(v))]
+      : options.map((o) => o.value),
+  );
+  const ordered = rows.filter((v) => picked.includes(v));
+  const toggle = (v: string) => setPicked((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
+  const move = (i: number, d: -1 | 1) =>
+    setRows((prev) => {
+      const next = [...prev];
+      [next[i], next[i + d]] = [next[i + d], next[i]];
+      return next;
+    });
+  const labelOf = (v: string) => options.find((o) => o.value === v)?.label ?? v;
+  return (
+    <div className="flex flex-col gap-1">
+      {orderable && <Caption>위에 둔 종목이 먼저 나와요.</Caption>}
+      {rows.map((v, i) => (
+        <div key={v} className="flex min-h-11 items-center gap-2">
+          <Label className="flex flex-1 cursor-pointer items-center gap-3 font-normal">
+            <Checkbox checked={picked.includes(v)} onCheckedChange={() => toggle(v)} />
+            <Body>{labelOf(v)}</Body>
+          </Label>
+          {orderable && (
+            <>
+              <Button type="button" variant="ghost" size="icon" disabled={i === 0} onClick={() => move(i, -1)} aria-label={`${labelOf(v)} 위로`}>
+                <ChevronUp className="size-4" />
+              </Button>
+              <Button type="button" variant="ghost" size="icon" disabled={i === rows.length - 1} onClick={() => move(i, 1)} aria-label={`${labelOf(v)} 아래로`}>
+                <ChevronDown className="size-4" />
+              </Button>
+            </>
+          )}
+        </div>
+      ))}
+      {ordered.length === 0 && <Caption className="text-destructive">하나는 골라야 해요</Caption>}
+      <SaveButton pending={pending} disabled={ordered.length === 0} onClick={() => onSave(ordered)} />
+    </div>
+  );
+}
+
+/** 하나 고르기 — 고른 줄에 체크가 선다 */
+function ChoiceEditor({
   options,
   value,
   pending,
   onSave,
 }: {
   options: readonly { value: string; label: string }[];
-  value: string[];
+  value: string;
   pending: boolean;
   onSave: (v: unknown) => void;
 }) {
-  const [picked, setPicked] = useState<string[]>(value);
-  const ordered = options.map((o) => o.value).filter((v) => picked.includes(v));
-  const toggle = (v: string) => setPicked((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
+  const [picked, setPicked] = useState(value);
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1" role="radiogroup">
       {options.map((o) => (
         <Label key={o.value} className="flex min-h-11 cursor-pointer items-center gap-3 font-normal">
-          <Checkbox checked={picked.includes(o.value)} onCheckedChange={() => toggle(o.value)} />
+          <Checkbox
+            checked={picked === o.value}
+            onCheckedChange={() => setPicked(o.value)}
+            role="radio"
+            aria-checked={picked === o.value}
+          />
           <Body>{o.label}</Body>
         </Label>
       ))}
-      {ordered.length === 0 && <Caption className="text-destructive">하나는 골라야 해요</Caption>}
-      <SaveButton pending={pending} disabled={ordered.length === 0} onClick={() => onSave(ordered)} />
+      <SaveButton pending={pending} disabled={!picked} onClick={() => onSave(picked)} />
     </div>
   );
 }

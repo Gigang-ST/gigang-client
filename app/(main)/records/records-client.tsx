@@ -1414,7 +1414,8 @@ export function RecordsClient({
   const myTitleNameSet = new Set(myTitleNames);
   const [selectedMember, setSelectedMember] = useState<{ memId: string; name: string } | null>(null);
   const visible = visibleRecordCategories(categories);
-  const tabs = CATEGORIES.filter((c) => visible.includes(c.value));
+  // 팀 설정 순서 그대로 — 위에 둔 종목이 먼저(그리고 처음 열린다)
+  const tabs = visible.map((v) => CATEGORIES.find((c) => c.value === v)!);
   const onlyTab = tabs.length === 1 ? tabs[0] : null;
   const [pickedCategory, setSelectedCategory] = useState<CategoryKey>(visible[0]);
   // 설정이 바뀌어 고른 탭이 사라졌으면 첫 탭으로 — 빈 판이 서지 않게

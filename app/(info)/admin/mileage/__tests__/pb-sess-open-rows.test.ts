@@ -72,7 +72,7 @@ describe("공식훈련 벙 열기 — 한 주차만 열기(single)", () => {
     expect(html).not.toContain('role="checkbox"');
     expect(html).toContain("<textarea");
     expect(html).toContain("기본 설명 문구");
-    expect(html).toContain("예: 양재시민의숲 농구장");
+    expect(html).toContain("예: ○○공원 입구");
   });
 });
 

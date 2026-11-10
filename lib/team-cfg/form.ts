@@ -29,6 +29,7 @@ export const CFG_ORDER: readonly string[] = [
   "social.kakao_open_chat_password",
   "bank.team_account",
   "kakao.room_id",
+  "gathering.default_sport",
   "gathering.regular_template",
   "brand.slogan",
   "brand.founded_dt",
@@ -116,9 +117,14 @@ export function summarizeCfg(input: CfgInput, isSet: boolean, value: unknown): s
     }
     case "choices": {
       const picked = Array.isArray(value) ? (value as string[]) : [];
-      const labels = input.options.filter((o) => picked.includes(o.value)).map((o) => o.label);
+      // 순서를 고르는 칸이면 저장된 순서 그대로(그게 화면 순서다), 아니면 보기 순서로
+      const labels = input.orderable
+        ? picked.map((v) => input.options.find((o) => o.value === v)?.label).filter((l): l is string => Boolean(l))
+        : input.options.filter((o) => picked.includes(o.value)).map((o) => o.label);
       return labels.length > 0 ? labels.join(" · ") : "설정 안 함";
     }
+    case "choice":
+      return input.options.find((o) => o.value === value)?.label ?? "설정 안 함";
   }
 }
 

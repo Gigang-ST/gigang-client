@@ -19,6 +19,7 @@ import {
   gthrSprtLabels,
   createGthrFormSchema,
   type CreateGthrInput,
+  type GthrSprtType,
 } from "@/lib/validations/gathering";
 
 import { createGathering, updateGathering } from "@/app/actions/gathering/manage-gathering";
@@ -96,6 +97,11 @@ export type GatheringFormDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: "create" | "edit";
+  /**
+   * 새로 만들 때 먼저 골라 둘 종목(팀 설정 `gathering.default_sport` — 울산 = 트레일러닝). 없으면 러닝.
+   * 수정은 원래 모임 종목을 따른다. 종목이 비어 있던 옛 모임은 러닝으로 둔다(종목 칸이 생기기 전 모임은 전부 기강 러닝이었다).
+   */
+  defaultSprtCd?: GthrSprtType;
   defaultDate?: string;
   /** create 모드 전용 내용 프리필 — 지정 시 임시저장 draft보다 우선한다 (명시적 액션이므로) */
   prefill?: GatheringFormPrefill;
@@ -126,6 +132,7 @@ export function GatheringFormDialog({
   open,
   onOpenChange,
   mode,
+  defaultSprtCd = "running",
   defaultDate,
   prefill,
   initialData,
@@ -148,7 +155,7 @@ export function GatheringFormDialog({
     defaultValues: {
       gthr_nm: "",
       gthr_type_enm: "general",
-      sprt_cd: "running",
+      sprt_cd: defaultSprtCd,
       stt_at: "",
       end_at: null,
       loc_txt: "",
@@ -208,7 +215,7 @@ export function GatheringFormDialog({
         form.reset({
           gthr_nm: prefill.gthr_nm,
           gthr_type_enm: prefill.gthr_type_enm as CreateGthrInput["gthr_type_enm"],
-          sprt_cd: (prefill.sprt_cd ?? "running") as CreateGthrInput["sprt_cd"],
+          sprt_cd: (prefill.sprt_cd ?? defaultSprtCd) as CreateGthrInput["sprt_cd"],
           stt_at: defaultSttAt,
           end_at: null,
           loc_txt: prefill.loc_txt ?? "",
@@ -223,7 +230,7 @@ export function GatheringFormDialog({
         form.reset({
           gthr_nm: "",
           gthr_type_enm: "general",
-          sprt_cd: "running",
+          sprt_cd: defaultSprtCd,
           stt_at: defaultSttAt,
           end_at: null,
           loc_txt: "",
@@ -231,7 +238,7 @@ export function GatheringFormDialog({
         });
       }
     }
-  }, [open, mode, initialData, defaultDate, prefill, form, persistKey]);
+  }, [open, mode, initialData, defaultDate, defaultSprtCd, prefill, form, persistKey]);
 
   /**
    * 유형 변경 핸들러. 정기(regular) 선택 시 비어있는 필드를 **이 팀의** 템플릿으로 채운다.
@@ -375,7 +382,7 @@ export function GatheringFormDialog({
                 <FormItem>
                   <FormLabel>제목 <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
-                    <Input placeholder="예: 양재천 자유러닝" {...field} />
+                    <Input placeholder="예: 주말 모닝런" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -471,7 +478,7 @@ export function GatheringFormDialog({
                   <FormLabel>장소 <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="예: 여의도역 9호선 B1 클룸보관함"
+                      placeholder="예: ○○역 2번 출구 앞"
                       {...field}
                       value={field.value ?? ""}
                     />

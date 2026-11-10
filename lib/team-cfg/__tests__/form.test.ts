@@ -85,8 +85,12 @@ describe("팀 설정 화면 규칙", () => {
 describe("summarizeCfg — 여러 개 고르기(전당 종목)", () => {
   const input = TEAM_CFG_REGISTRY["records.categories"].input;
 
-  it("고른 종목을 보기 순서대로 이어 쓴다(저장 순서와 무관)", () => {
-    expect(summarizeCfg(input, true, ["hyrox", "marathon"])).toBe("러닝 · 하이록스");
+  it("고른 종목을 저장된 순서 그대로 이어 쓴다 — 그게 랭킹탭 탭 순서다", () => {
+    expect(summarizeCfg(input, true, ["hyrox", "marathon"])).toBe("하이록스 · 러닝");
+  });
+
+  it("하나 고르기(모임 기본 종목)는 고른 종목 이름", () => {
+    expect(summarizeCfg(TEAM_CFG_REGISTRY["gathering.default_sport"].input, true, "trail_run")).toBe("트레일러닝");
   });
 
   it("기본값(넷 다)과 같으면 설정을 지운다 — 기강은 행 없이 넷 다", () => {

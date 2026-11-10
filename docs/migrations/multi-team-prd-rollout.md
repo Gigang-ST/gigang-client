@@ -32,6 +32,8 @@
 | 21 | 슬로건·창설일을 팀 설정에 등록(기강 + 울산) — **배포 전** | `20261110105000_team_cfg_slogan_founded.sql` | ✅ | ☐ |
 | 22 | 칭호 기능 켜고 끄기(`team_feature_on` 함수·카드 함수 칭호 거르기·울산 끔) | `20261110106000_feature_titles.sql` | ✅ | ☐ |
 | 23 | 울산 전당 종목 = 트레일러닝만(`records.categories`) | `20261110107000_ulsan_records_trail.sql` | ✅ | ☐ |
+| 24 | 울산 모임 기본 종목 = 트레일러닝(`gathering.default_sport`) | `20261110108000_ulsan_gathering_trail.sql` | ✅ | ☐ |
+| 25 | **배포 뒤** 목표 한마디·종이비행기 걷기(피드 함수에서 빼고 함수 3개·테이블 2개 삭제) | `20261110109000_drop_pledge_message.sql` | ✅ | ☐ |
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
@@ -379,6 +381,17 @@ select t.team_cd, c.cfg_val_json from team_mst t
 left join team_cfg c on c.team_id = t.team_id and c.cfg_cd = 'records.categories' and c.vers = 0 and c.del_yn = false order by 1;
 ```
 
+### 24. `20261110108000_ulsan_gathering_trail.sql`
+
+울산 모임 만들기를 열면 트레일러닝이 먼저 골라져 있게 한다. 기강은 행이 없어 기본값(러닝)이다. 행이 없으면 러닝으로 열릴
+뿐이라 **배포 전후 언제 넣어도 안전하다.**
+
+```sql
+-- 확인: 울산 "trail_run", 기강 행 없음
+select t.team_cd, c.cfg_val_json from team_mst t
+left join team_cfg c on c.team_id = t.team_id and c.cfg_cd = 'gathering.default_sport' and c.vers = 0 and c.del_yn = false order by 1;
+```
+
 ## 배포
 
 1. 위 1~9·12·15·19·21이 끝났는지 표에서 확인하고, **2번의 배포 직전 필수 확인(기강 카톡방 1행)**을 다시 돌린다
@@ -402,6 +415,17 @@ left join team_cfg c on c.team_id = t.team_id and c.cfg_cd = 'records.categories
               where table_name = 'kakao_send_hist' and column_name = 'team_id') as kakao_team_nullable, -- NO
             (select column_default from information_schema.columns
               where table_name = 'fdbk_mst' and column_name = 'team_id') as fdbk_default;                -- null
+     ```
+   - **25번 `20261110109000_drop_pledge_message.sql` 도 배포 뒤에 적용한다** — 홈 피드 함수에서 목표 한마디를 빼고
+     `get_team_pledges`·`get_team_messages`·`set_message_fly_dist` 와 `pldg_mst`·`msg_mst` 를 지운다(prd 데이터 0건).
+     **배포 전에 적용하면** 옛 코드의 응원 검사(`feed.pledges.some`)가 빈 칸을 읽다 오류가 나 깅스타그램·칭호 대표 응원이 실패한다.
+     6번보다 뒤여야 한다(6번이 피드 함수를 다시 만든다). 자를 곳을 못 찾으면 에러로 멈춘다 — 그땐 6번 적용 여부부터 본다.
+     ```sql
+     -- 확인: 피드 결과에 pledges 칸이 없고, 테이블·함수가 0
+     select (select array_agg(k order by k) from jsonb_object_keys(public.get_team_story_feed(t.team_id)) k) as keys
+     from team_mst t where t.team_cd = 'gigang';                                                       -- {actv_rank,newbies,races,records}
+     select (select count(*) from pg_class where relname in ('pldg_mst', 'msg_mst')) as tables,          -- 0
+            (select count(*) from pg_proc where proname in ('get_team_pledges', 'get_team_messages', 'set_message_fly_dist')) as funcs; -- 0
      ```
    - 기강 화면에 모임 계좌(프로젝트 신청·회비 내역)와 채널 4칸(홈 맨 아래·더보기·로그인)이 그대로 보이는지
    - **가입 정보 옮기기 다시**(8번과 배포 사이 공백 메우기 — 여러 번 돌려도 안전):

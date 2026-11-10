@@ -416,9 +416,11 @@ describe("기강의 전당 — 팀이 세우는 종목(records.categories)", () 
     expect(text(html)).toContain("UTMB");
   });
 
-  it("고른 것만 탭이 되고 순서는 정본 순서다", () => {
+  it("고른 것만 탭이 되고, 팀 설정에 둔 순서 그대로 선다 — 첫 종목이 처음 열린다", () => {
     const t = text(render({ categories: ["hyrox", "marathon"] }));
     expect(t).not.toContain("트레일러닝");
-    expect(t.indexOf("러닝")).toBeLessThan(t.indexOf("하이록스"));
+    expect(t.indexOf("하이록스")).toBeLessThan(t.indexOf("러닝"));
+    // 하이록스 판이 열려 있다
+    expect(t).toContain("하이록스 기록이 없어요");
   });
 });
