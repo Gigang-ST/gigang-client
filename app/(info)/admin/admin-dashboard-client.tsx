@@ -189,7 +189,14 @@ function ToolCard({
  * 관리 대시보드 본문. 팀 설정에 따라 숨길 카드가 있어(회비 끈 팀은 회비 관리 카드) 서버(page.tsx)가
  * 정해서 넘긴다 — 통계를 받은 뒤에 숨기면 카드가 떴다 사라진다.
  */
-export function AdminDashboardClient({ duesEnabled }: { duesEnabled: boolean }) {
+export function AdminDashboardClient({
+  duesEnabled,
+  kakaoEnabled,
+}: {
+  duesEnabled: boolean;
+  /** 카톡 공지방(노티봇)을 쓰나 — 안 쓰면 보낼 일도 기록도 없어 「카카오 발송 이력」 카드를 안 세운다 */
+  kakaoEnabled: boolean;
+}) {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [status, setStatus] = useState<FetchStatus>("loading");
   const [revalidating, setRevalidating] = useState(false);
@@ -231,19 +238,21 @@ export function AdminDashboardClient({ duesEnabled }: { duesEnabled: boolean }) 
           label="수동 알림 발송"
           hint="전체 또는 특정 멤버에게 알림 발송"
         />
-        <ToolCard
-          href="/admin/kakao"
-          icon={Send}
-          label="카카오 발송 이력"
-          hint={
-            status === "success" && stats
-              ? stats.kakaoFailedCount > 0
-                ? `최근 7일 실패 ${stats.kakaoFailedCount}건`
-                : "최근 7일 정상"
-              : "단톡방 공지 발송 기록"
-          }
-          accent={status === "success" && (stats?.kakaoFailedCount ?? 0) > 0}
-        />
+        {kakaoEnabled && (
+          <ToolCard
+            href="/admin/kakao"
+            icon={Send}
+            label="카카오 발송 이력"
+            hint={
+              status === "success" && stats
+                ? stats.kakaoFailedCount > 0
+                  ? `최근 7일 실패 ${stats.kakaoFailedCount}건`
+                  : "최근 7일 정상"
+                : "단톡방 공지 발송 기록"
+            }
+            accent={status === "success" && (stats?.kakaoFailedCount ?? 0) > 0}
+          />
+        )}
         <ToolCard
           href="/admin/utmb-refresh"
           icon={RefreshCw}

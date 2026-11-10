@@ -125,7 +125,7 @@ function pickDefaultProject(list: Project[]): Project | null {
   );
 }
 
-export function AdminMileageClient({ teamId }: { teamId: string }) {
+export function AdminMileageClient({ teamId, kakaoEnabled }: { teamId: string; kakaoEnabled: boolean }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -360,7 +360,7 @@ export function AdminMileageClient({ teamId }: { teamId: string }) {
 
       {activeTab === "sessions" && projectId && (
         <div className="px-6">
-          <PbSessionsTab key={projectId} evtId={projectId} />
+          <PbSessionsTab key={projectId} evtId={projectId} kakaoEnabled={kakaoEnabled} />
         </div>
       )}
 

@@ -188,6 +188,8 @@ type MiniCalendarProps = {
    * 모든 날짜가 한 칸 밀리는 재배치가 보인다.
    */
   weekStart: WeekStart;
+  /** 이 팀이 노티봇(카톡 공지방)을 쓰나 — 안 쓰면 모임 공유 시트에 「단톡방에 알림」이 안 선다 */
+  kakaoAnnounce: boolean;
 };
 
 import { type FilterType, FILTER_TYPES, matchesFilter } from "./schedule-filter";
@@ -216,6 +218,7 @@ export function MiniCalendar({
   initialMemberStatus,
   initialRegistrationsByCompetitionId,
   weekStart,
+  kakaoAnnounce,
 }: MiniCalendarProps) {
   const weekdays = useMemo(() => weekdayLabels(weekStart), [weekStart]);
   const supabase = useMemo(() => createClient(), []);
@@ -1768,6 +1771,7 @@ export function MiniCalendar({
         open={gthrDetailOpen}
         onOpenChange={setGthrDetailOpen}
         teamId={teamId}
+        kakaoAnnounce={kakaoAnnounce}
         currentMemberId={viewerMemberId}
         viewerInactive={viewerInactive}
         viewerInactiveKind={viewerInactiveKind}

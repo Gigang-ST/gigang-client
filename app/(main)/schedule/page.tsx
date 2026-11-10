@@ -103,10 +103,13 @@ async function HomeContent() {
   const { end: gridEnd } = gridDateRange(year, month, weekStart);
 
   // 캐시된 공개 데이터 조회 — DB 쿼리 0개 (캐시 히트 시)
-  const [{ comps: calendarComps, schPosts: schPostRows, gatherings: gthrRows }, cmmCdRows] =
+  // 카톡 공지방(노티봇) — 방이 없는 팀은 노티봇을 안 쓰는 팀이라 「단톡방에 알림」 버튼을 안 세운다.
+  // 방 ID 는 비밀값이라 있다/없다만 내려보낸다(서버 메모리 1분 캐시 — §team-cfg/read).
+  const [{ comps: calendarComps, schPosts: schPostRows, gatherings: gthrRows }, cmmCdRows, kakaoRoomId] =
     await Promise.all([
       getCachedHomeCalendar(teamId, year, month),
       getCachedCmmCdRows(),
+      getTeamCfg(teamId, "kakao.room_id"),
     ]);
 
   // memberStatus 판별 (기존 로직 유지)
@@ -204,6 +207,7 @@ async function HomeContent() {
             initialMemberStatus={initialMemberStatus}
             initialRegistrationsByCompetitionId={{}}
             weekStart={weekStart}
+            kakaoAnnounce={Boolean(kakaoRoomId)}
           />
         </Suspense>
       </div>
