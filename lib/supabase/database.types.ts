@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -211,6 +211,42 @@ export type Database = {
           },
         ]
       }
+      chg_hist: {
+        Row: {
+          actor_mem_id: string | null
+          actor_src_cd: string
+          actor_team_id: string | null
+          chg_cols_json: Json
+          chg_id: string
+          chg_tp_cd: string
+          crt_at: string
+          row_id: string
+          tbl_nm: string
+        }
+        Insert: {
+          actor_mem_id?: string | null
+          actor_src_cd: string
+          actor_team_id?: string | null
+          chg_cols_json: Json
+          chg_id?: string
+          chg_tp_cd: string
+          crt_at?: string
+          row_id: string
+          tbl_nm: string
+        }
+        Update: {
+          actor_mem_id?: string | null
+          actor_src_cd?: string
+          actor_team_id?: string | null
+          chg_cols_json?: Json
+          chg_id?: string
+          chg_tp_cd?: string
+          crt_at?: string
+          row_id?: string
+          tbl_nm?: string
+        }
+        Relationships: []
+      }
       cmm_cd_grp_mst: {
         Row: {
           cd_grp_cd: string
@@ -300,6 +336,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "cmm_cd_grp_mst"
             referencedColumns: ["cd_grp_id"]
+          },
+          {
+            foreignKeyName: "cmm_cd_mst_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
           },
         ]
       }
@@ -859,8 +902,8 @@ export type Database = {
           aprv_yn: boolean
           created_at: string
           deposit_amt: number
-          entry_fee_dc_amt: number
           entry_fee_amt: number
+          entry_fee_dc_amt: number
           evt_id: string
           goal_sec: number | null
           grp_id: string | null
@@ -875,8 +918,8 @@ export type Database = {
           aprv_yn?: boolean
           created_at?: string
           deposit_amt: number
-          entry_fee_dc_amt?: number
           entry_fee_amt: number
+          entry_fee_dc_amt?: number
           evt_id: string
           goal_sec?: number | null
           grp_id?: string | null
@@ -891,8 +934,8 @@ export type Database = {
           aprv_yn?: boolean
           created_at?: string
           deposit_amt?: number
-          entry_fee_dc_amt?: number
           entry_fee_amt?: number
+          entry_fee_dc_amt?: number
           evt_id?: string
           goal_sec?: number | null
           grp_id?: string | null
@@ -1154,7 +1197,7 @@ export type Database = {
           mem_id: string
           rspd_at?: string | null
           stts_enm?: Database["public"]["Enums"]["fdbk_stts_enm"]
-          team_id?: string
+          team_id: string
           upd_at?: string
           vers?: number
         }
@@ -1178,6 +1221,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "mem_mst"
             referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "fdbk_mst_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
           },
         ]
       }
@@ -2084,6 +2134,78 @@ export type Database = {
           },
         ]
       }
+      kakao_send_hist: {
+        Row: {
+          crt_at: string
+          crt_by: string | null
+          err_code: string | null
+          err_msg: string | null
+          err_name: string | null
+          http_status: number | null
+          msg_txt: string
+          request_id: string | null
+          resend_yn: boolean
+          retryable: boolean
+          room_nm: string
+          send_id: string
+          src_id: string | null
+          src_type: string | null
+          status: string
+          team_id: string
+        }
+        Insert: {
+          crt_at?: string
+          crt_by?: string | null
+          err_code?: string | null
+          err_msg?: string | null
+          err_name?: string | null
+          http_status?: number | null
+          msg_txt: string
+          request_id?: string | null
+          resend_yn?: boolean
+          retryable?: boolean
+          room_nm: string
+          send_id?: string
+          src_id?: string | null
+          src_type?: string | null
+          status: string
+          team_id: string
+        }
+        Update: {
+          crt_at?: string
+          crt_by?: string | null
+          err_code?: string | null
+          err_msg?: string | null
+          err_name?: string | null
+          http_status?: number | null
+          msg_txt?: string
+          request_id?: string | null
+          resend_yn?: boolean
+          retryable?: boolean
+          room_nm?: string
+          send_id?: string
+          src_id?: string | null
+          src_type?: string | null
+          status?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kakao_send_hist_crt_by_fkey"
+            columns: ["crt_by"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "kakao_send_hist_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
       mcp_audit_log: {
         Row: {
           actor_mem_id: string
@@ -2571,18 +2693,21 @@ export type Database = {
           mem_id: string
           noti_type_enm: string
           pref_id: string
+          team_id: string
         }
         Insert: {
           enabled_yn?: boolean | null
           mem_id: string
           noti_type_enm: string
           pref_id?: string
+          team_id: string
         }
         Update: {
           enabled_yn?: boolean | null
           mem_id?: string
           noti_type_enm?: string
           pref_id?: string
+          team_id?: string
         }
         Relationships: [
           {
@@ -2591,6 +2716,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "mem_mst"
             referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "noti_pref_cfg_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
           },
         ]
       }
@@ -3012,6 +3144,67 @@ export type Database = {
           },
         ]
       }
+      team_cfg: {
+        Row: {
+          cfg_cd: string
+          cfg_val_json: Json
+          crt_at: string
+          crt_by: string | null
+          del_yn: boolean
+          team_cfg_id: string
+          team_id: string
+          upd_at: string
+          upd_by: string | null
+          vers: number
+        }
+        Insert: {
+          cfg_cd: string
+          cfg_val_json: Json
+          crt_at?: string
+          crt_by?: string | null
+          del_yn?: boolean
+          team_cfg_id?: string
+          team_id: string
+          upd_at?: string
+          upd_by?: string | null
+          vers?: number
+        }
+        Update: {
+          cfg_cd?: string
+          cfg_val_json?: Json
+          crt_at?: string
+          crt_by?: string | null
+          del_yn?: boolean
+          team_cfg_id?: string
+          team_id?: string
+          upd_at?: string
+          upd_by?: string | null
+          vers?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_cfg_crt_by_fkey"
+            columns: ["crt_by"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "team_cfg_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+          {
+            foreignKeyName: "team_cfg_upd_by_fkey"
+            columns: ["upd_by"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
       team_comp_plan_rel: {
         Row: {
           comp_id: string
@@ -3102,6 +3295,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "team_mst"
             referencedColumns: ["team_id"]
+          },
+          {
+            foreignKeyName: "team_effect_cfg_upd_by_fkey"
+            columns: ["upd_by"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
           },
         ]
       }
@@ -3519,13 +3719,6 @@ export type Database = {
           stt_at: string
         }[]
       }
-      get_public_team_member_stats: {
-        Args: { p_team_id: string }
-        Returns: {
-          active_count: number
-          total_count: number
-        }[]
-      }
       get_public_team_hyrox_rankings: {
         Args: { p_team_id: string }
         Returns: {
@@ -3538,6 +3731,13 @@ export type Database = {
           race_result_id: string
           rec_time_sec: number
           splits_json: Json
+        }[]
+      }
+      get_public_team_member_stats: {
+        Args: { p_team_id: string }
+        Returns: {
+          active_count: number
+          total_count: number
         }[]
       }
       get_public_team_race_rankings: {
@@ -3618,9 +3818,10 @@ export type Database = {
           url: string
         }[]
       }
-      get_team_ghost_members:
-        | { Args: { p_team_id: string }; Returns: Json }
-        | { Args: { p_seed?: string; p_team_id: string }; Returns: Json }
+      get_team_ghost_members: {
+        Args: { p_seed?: string; p_team_id: string }
+        Returns: Json
+      }
       get_team_messages: {
         Args: { p_limit?: number; p_team_id: string }
         Returns: Json
@@ -3713,16 +3914,26 @@ export type Database = {
         Returns: Database["public"]["Enums"]["pt_actv_type_enm"]
       }
       pt_intro_dt: { Args: never; Returns: string }
-      pt_net_by_ref: {
-        Args: {
-          p_actv: Database["public"]["Enums"]["pt_actv_type_enm"]
-          p_mem_id: string
-          p_ref_id: string
-        }
-        Returns: number
-      }
+      pt_net_by_ref:
+        | {
+            Args: {
+              p_actv: Database["public"]["Enums"]["pt_actv_type_enm"]
+              p_mem_id: string
+              p_ref_id: string
+            }
+            Returns: number
+          }
+        | {
+            Args: {
+              p_actv: Database["public"]["Enums"]["pt_actv_type_enm"]
+              p_mem_id: string
+              p_ref_id: string
+              p_team_id: string
+            }
+            Returns: number
+          }
       pt_net_mlg_record: {
-        Args: { p_aply_dt: string; p_mem_id: string }
+        Args: { p_aply_dt: string; p_mem_id: string; p_team_id: string }
         Returns: number
       }
       pt_net_post_record: { Args: { p_post_id: string }; Returns: number }
@@ -3735,11 +3946,12 @@ export type Database = {
           p_aply_dt: string
           p_mem_id: string
           p_src: Database["public"]["Enums"]["post_src_enm"]
+          p_team_id: string
         }
         Returns: number
       }
       pt_post_record_mlg_auto_cnt: {
-        Args: { p_aply_dt: string; p_mem_id: string }
+        Args: { p_aply_dt: string; p_mem_id: string; p_team_id: string }
         Returns: number
       }
       pt_revoke: {

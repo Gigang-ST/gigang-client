@@ -27,9 +27,36 @@
 | 16 | 기강 가입 폼에 「울산지부 가입이세요?」 안내 | `20261109250000_team_cfg_signup_other_teams.sql` | ✅ | ☐ |
 | 17 | 울산 회비 끄기(팀 설정 + 회비 면제 배치) | `20261109260000_ulsan_dues_off.sql` | ✅ | ☐ |
 | 18 | 팀 설정 `project.show_intro` 걷기(프로젝트 없을 때 소개 화면 제거) | `20261109270000_drop_project_show_intro.sql` | ✅ | ☐ |
+| 19 | 알림 유형 `team_cfg_chg`(owner 전용 설정 변경 알림) | `20261110100000_noti_type_team_cfg_chg.sql` | ✅ | ☐ |
+| 20 | **배포 뒤** 전환용 장치 걷기(알림 설정 옛 유니크·기본값, 카톡 이력 팀 NOT NULL, 건의 기본값) | `20261110110000_after_deploy_cleanup.sql` | ✅ | ☐ |
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
+
+## 시작 전 — 되돌릴 준비 (필수)
+
+이 묶음엔 **되돌리기 어려운 변경**이 있다: 포인트 함수 옛 시그니처 DROP(7), 공개 조회 함수 본문 덮어쓰기(6·8·11),
+유니크 제약 교체(3·8·20), 정책 교체(5·13·14). 마이그레이션 파일만으로는 이전 상태로 못 돌린다.
+
+1. **백업을 확인한다** — Supabase 대시보드 → Database → Backups 에서 오늘 날짜 백업이 있는지 본다
+   (없거나 PITR 이 꺼져 있으면 아래 2로 최소한 함수·정책 정의라도 떠 둔다).
+2. **바뀔 함수·정책 정의를 떠 둔다**(문제가 생기면 이 결과를 그대로 실행해 되돌린다):
+   ```sql
+   select p.proname, pg_get_functiondef(p.oid)
+   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname in (
+     'get_public_member_card','get_team_story_feed','get_public_team_competitions','get_public_team_gatherings',
+     'get_public_team_sch_posts','get_schedule_paged','revalidate_records','v2_rls_auth_in_team',
+     'v2_rls_auth_team_owner_or_admin','pt_earn','pt_revoke','pt_earn_mlg_record','pt_revoke_mlg_record',
+     'pt_earn_post_record','pt_trg_rec_race_hist','pt_net_mlg_record','pt_post_record_mlg_auto_cnt','pt_post_record_amt_for');
+   select tablename, policyname, cmd, qual, with_check from pg_policies where schemaname = 'public' order by 1, 2;
+   ```
+3. **사전 점검** — 이름이 다르면 `DROP ... IF EXISTS` 가 조용히 건너뛰고 뒤 INSERT 가 실패한다:
+   ```sql
+   select conname from pg_constraint where conrelid = 'public.batch_job_mst'::regclass and contype = 'u'; -- batch_job_mst_job_cd_key
+   select count(*) from (select mem_id, noti_type_enm from noti_pref_cfg group by 1, 2 having count(*) > 1) x;  -- 0
+   ```
+   (2026-11-10 prd 확인: 배치 유니크 이름 일치 · 알림 설정 중복 0)
 
 ## 배포 전 (prd SQL Editor 또는 MCP)
 
@@ -38,6 +65,7 @@ Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두
 ### 1. `20261109120000_team_cfg.sql`
 
 파일 내용을 그대로 실행한다. 옛 코드와 함께 돌아도 안전하다(옛 코드는 이 테이블을 모른다).
+발송 이력의 팀 칸엔 기본값(기강)을 둔다 — 배포 전 옛 코드가 남기는 행도 팀이 채워진다. 기본값 제거·NOT NULL 은 20번(배포 뒤).
 
 ```sql
 -- 확인: 테이블·트리거·RLS, 발송 이력의 팀 칸이 다 채워졌는지
@@ -60,22 +88,35 @@ select team_id, cfg_val_json from team_cfg where cfg_cd = 'kakao.room_id' and ve
 ```
 
 울산은 넣지 않는다 — 방이 없으면 울산 공지는 보내지 않는다(기강 방으로 새지 않는다). 울산이 노티봇을 쓰게 되면 그때 같은 INSERT 로 울산 방을 넣는다.
+배포 뒤에는 기강 owner 가 관리자 → 팀 설정 → 「카톡 공지방 ID」에서 바꿀 수 있다(owner 만 — 바뀌면 다른 운영진에게 알림).
 
-### 3. `20261109130000_noti_pref_cfg_team.sql` — **배포 직전에**
+**⛔ 배포 직전 필수 확인 — 0행이면 배포하지 않는다.** 방이 없는 것과 "안 쓰는 팀"은 코드가 구분하지 못한다
+(방 미설정은 일부러 끈 것으로 보고 이력도 남기지 않는다). 기강 방이 빠진 채 나가면 모임 개설·변경·**취소** 공지가 조용히 끊긴다.
+```sql
+select count(*) from team_cfg
+where team_id = 'c0ffee00-0000-4000-8000-000000000001' and cfg_cd = 'kakao.room_id' and vers = 0 and del_yn = false; -- 1
+```
 
-⚠️ 이 마이그레이션은 옛 코드와 맞지 않는다. 적용 후 새 코드가 배포되기 전까지 **알림 수신 설정 저장이 실패한다**
-(유니크 제약이 바뀌고 `team_id` 가 필수가 된다). 알림 발송 자체는 영향 없다. 그래서 머지·배포 직전에 실행한다.
+### 3. `20261109130000_noti_pref_cfg_team.sql`
+
+**두 단계 중 첫 단계**(2026-11-10 정정). 옛 유니크 `(mem_id, noti_type_enm)` 은 **남기고** 새 유니크
+`(team_id, mem_id, noti_type_enm)` 만 더하며, 팀 칸엔 기본값(기강)을 둔다 — 옛 코드(`onConflict: "mem_id,noti_type_enm"`, 팀 없이)와
+새 코드가 둘 다 돈다. 옛 유니크·기본값 제거는 20번(배포 뒤). 그 사이엔 한 사람이 두 팀에서 같은 알림을 따로 못 끄지만,
+울산 회원이 생기기 전이라 문제없다.
 
 ```sql
 -- 확인
 select (select count(*) from noti_pref_cfg where team_id is null) as null_team, -- 0
        (select string_agg(pg_get_constraintdef(oid), ' | ') from pg_constraint
-         where conrelid = 'public.noti_pref_cfg'::regclass and contype = 'u') as uniq; -- UNIQUE (team_id, mem_id, noti_type_enm)
+         where conrelid = 'public.noti_pref_cfg'::regclass and contype = 'u') as uniq; -- 옛 UNIQUE (mem_id, noti_type_enm) | 새 UNIQUE (team_id, mem_id, noti_type_enm)
 ```
 
 ### 4. `20261109140000_chg_hist.sql`
 
 옛 코드와 함께 돌아도 안전하다(이력만 쌓이고, 행위자 헤더가 없으면 "누가"가 비어 남는다).
+이력 기록이 실패해도 원래 수정·삭제는 막지 않는다(경고만 남긴다 — 2026-11-10).
+회원 정보에서 값 대신 「가림」으로 남기는 칸은 계좌번호·생일·이메일·로그인 연결이다. **이름·전화번호·은행명은 바뀐 값이 그대로 남는다**
+("누가 언제 무엇으로 바꿨나"를 남기려는 이력 — 2026-11-10 유저 결정). 이력은 지우지 않고 보관한다.
 
 ```sql
 -- 확인: 대상 5개 테이블에 트리거
@@ -100,6 +141,8 @@ select (select count(*) from team_mem_rel where mem_id = v2_rls_resolve_mem_id()
        (select count(*) from gthr_mst) as gatherings;                                                  -- 0
 rollback;
 ```
+⚠️ `gatherings = 0` 은 **13번 적용 전에만** 맞다. 13번(로그인한 비회원도 공개 모임을 본다) 뒤에 다시 돌리면 0이 아니게 나오는데,
+그건 의도된 동작이다(오탐). 13번 뒤 재확인할 땐 `own_rel = 1` 만 본다.
 
 ### 6. `20261109160000_multi_team_rpc_scope.sql`
 
@@ -281,9 +324,19 @@ from team_mst t order by 1;
 select t.team_cd, c.vers, c.del_yn from team_cfg c join team_mst t using (team_id) where c.cfg_cd = 'project.show_intro' order by 1, 2;
 ```
 
+### 19. `20261110100000_noti_type_team_cfg_chg.sql`
+
+알림 유형 목록에 `team_cfg_chg` 를 더한다(owner 전용 설정 — 모임 계좌·카톡 공지방 — 이 바뀌면 그 팀 owner·관리자에게 알림).
+옛 코드는 이 유형을 안 쓰므로 언제 적용해도 안전하다. 목록은 2026-11-10 prd 와 같은 것에 하나를 더한 것이다.
+
+```sql
+select pg_get_constraintdef(oid) from pg_constraint where conname = 'noti_mst_noti_type_enm_check'; -- 끝에 'team_cfg_chg'
+```
+
 ## 배포
 
-1. 위 1~9·12·15가 끝났는지 표에서 확인한다(10·11·13·14·16·17·18은 배포 뒤여도 된다).
+1. 위 1~9·12·15·19가 끝났는지 표에서 확인하고, **2번의 배포 직전 필수 확인(기강 카톡방 1행)**을 다시 돌린다
+   (10·11·13·14·16·17·18은 배포 뒤여도 된다).
 2. PR #649 머지 → dev → main 배포.
 3. 배포 후 확인
    - 기강 모임을 하나 만들거나 "단톡방에 알림"으로 카톡이 기강 방에 오는지
@@ -293,9 +346,16 @@ select t.team_cd, c.vers, c.del_yn from team_cfg c join team_mst t using (team_i
      select tbl_nm, chg_tp_cd, actor_src_cd, actor_mem_id, actor_team_id, chg_cols_json, crt_at
      from chg_hist order by crt_at desc limit 5;
      ```
-   - 1번과 배포 사이에 옛 코드가 남긴 발송 이력이 있으면 팀을 채운다:
+   - **20번 `20261110110000_after_deploy_cleanup.sql` 을 배포 직후 적용한다** — 알림 설정 옛 유니크·기본값 제거,
+     발송 이력 빈 팀 백필 + NOT NULL, 건의 기본값 제거. **배포 전에 적용하면** 옛 코드의 알림 설정 저장·건의 제출이 실패한다.
      ```sql
-     update kakao_send_hist set team_id = 'c0ffee00-0000-4000-8000-000000000001' where team_id is null;
+     -- 확인
+     select (select string_agg(pg_get_constraintdef(oid), ' | ') from pg_constraint
+              where conrelid = 'public.noti_pref_cfg'::regclass and contype = 'u') as noti_uniq,          -- 새 유니크 하나만
+            (select is_nullable from information_schema.columns
+              where table_name = 'kakao_send_hist' and column_name = 'team_id') as kakao_team_nullable, -- NO
+            (select column_default from information_schema.columns
+              where table_name = 'fdbk_mst' and column_name = 'team_id') as fdbk_default;                -- null
      ```
    - 기강 화면에 모임 계좌(프로젝트 신청·회비 내역)와 채널 4칸(홈 맨 아래·더보기·로그인)이 그대로 보이는지
    - **가입 정보 옮기기 다시**(8번과 배포 사이 공백 메우기 — 여러 번 돌려도 안전):
@@ -322,8 +382,9 @@ select t.team_cd, c.vers, c.del_yn from team_cfg c join team_mst t using (team_i
   `join_src_txt`·`attd_pldg_at`·`pldg_gthr_id`)를 지우는 마이그레이션을 따로 낸다. 남아 있는 동안은 다른 팀 관리자가
   두 팀 소속자의 옛 가입 경로를 볼 수 있다(`mem_onbd_prf_select_team_admin` — 지금은 해당자 1명).
 - 이펙트를 다 옮긴 뒤 `effect_mst` 의 `rarity_level`·`use_yn`·`unlock_cond_json` 은 "팀 행이 없을 때 기본값"으로만 쓰인다.
-- 건의 팀 칸의 전환용 기본값을 지운다(새 코드는 늘 팀을 넣는다):
-  `alter table fdbk_mst alter column team_id drop default;`
+- (건의·알림 설정·발송 이력의 전환용 기본값 제거는 20번 마이그레이션으로 옮겼다 — 위 「배포」 3.)
+- ⚠️ **탈퇴자 개인정보 파기 기능을 만들 때** 변경 이력(`chg_hist`, `tbl_nm = 'mem_mst'`)에 남은 **이름·전화번호·은행명 값도 같이 지운다.**
+  이력은 기간 없이 보관하고 그 칸들은 가리지 않으므로, 회원 정보만 지우면 이력에 옛 값이 남는다(첫 파기 기한 2027-07-16).
 - **울산 주소를 회원들에게 알리는 건** 이 PR 체크리스트(울산 시작 준비 등)가 끝난 뒤.
 
 ## 참고

@@ -8,7 +8,8 @@
 -- - 대상 테이블에 AFTER UPDATE/DELETE 트리거 — 코드가 빼먹을 수 없게. INSERT 는 원본 행 자체가 기록이라 안 남긴다.
 -- - UPDATE 는 **바뀐 칸만** 전/후 값, DELETE 는 **지운 행 전체**(복구용). 대회 기록은 실제 삭제를 유지하고
 --   이 이력으로 복구한다(소프트삭제로 바꾸면 기록을 읽는 앱 14곳·RPC 7개·포인트 트리거가 전부 바뀌어야 한다).
--- - 개인정보(전화·계좌·생일·이메일·로그인 연결)는 값 대신 {"masked": true} — 이력이 개인정보 사본이 되지 않게.
+-- - 개인정보(계좌번호·생일·이메일·로그인 연결)는 값 대신 {"masked": true} — 이력이 개인정보 사본이 되지 않게.
+--   이름·전화번호는 "누가 언제 무엇으로 바꿨나"를 남기려고 값을 그대로 둔다(2026-11-10 유저 결정). 탈퇴자 파기 때 이력의 값도 같이 지운다.
 -- - 행위자: 서버(service_role)는 요청 헤더 x-gg-actor-mem-id / x-gg-actor-team-id(앱의 createAdminClientAs 가 싣는다),
 --   회원 세션(authenticated)은 로그인 정보로, 그 밖(SQL 편집기 등)은 'sql'. 헤더를 빠뜨려도 이력은 행위자 없이 남는다.
 -- - 읽기: service_role 전용(RLS on, 정책 없음).
@@ -105,8 +106,14 @@ BEGIN
     v_src := 'sql';
   END IF;
 
-  INSERT INTO public.chg_hist (tbl_nm, row_id, chg_tp_cd, chg_cols_json, actor_mem_id, actor_team_id, actor_src_cd)
-  VALUES (TG_TABLE_NAME, v_old ->> v_pk, TG_OP, v_cols, v_actor, v_team, v_src);
+  -- 이력은 꼬리다 — 이력 기록이 실패해도 **원래 수정·삭제를 되돌리지 않는다**(AFTER 트리거의 예외는 본 작업까지
+  -- 롤백시킨다). 실패는 경고로 남기고 넘어간다(2026-11-10 2차 리뷰).
+  BEGIN
+    INSERT INTO public.chg_hist (tbl_nm, row_id, chg_tp_cd, chg_cols_json, actor_mem_id, actor_team_id, actor_src_cd)
+    VALUES (TG_TABLE_NAME, v_old ->> v_pk, TG_OP, v_cols, v_actor, v_team, v_src);
+  EXCEPTION WHEN others THEN
+    RAISE WARNING 'chg_hist_capture: 이력 기록 실패(본 작업은 계속) % %: %', TG_TABLE_NAME, v_old ->> v_pk, SQLERRM;
+  END;
 
   RETURN NULL;
 END;
@@ -118,7 +125,7 @@ DROP TRIGGER IF EXISTS chg_hist_capture ON public.mem_mst;
 CREATE TRIGGER chg_hist_capture
   AFTER UPDATE OR DELETE ON public.mem_mst
   FOR EACH ROW EXECUTE FUNCTION public.chg_hist_capture(
-    'mem_id', '{phone_no,bank_acct_no,birth_dt,email_addr,oauth_kakao_id,oauth_google_id}'
+    'mem_id', '{bank_acct_no,birth_dt,email_addr,oauth_kakao_id,oauth_google_id}'
   );
 
 DROP TRIGGER IF EXISTS chg_hist_capture ON public.rec_race_hist;

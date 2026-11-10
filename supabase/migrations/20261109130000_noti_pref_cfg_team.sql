@@ -6,13 +6,18 @@
 --
 -- 앱: app/actions/upsert-noti-pref.ts 의 onConflict 가 (team_id, mem_id, noti_type_enm) 를 쓴다 —
 -- 이 마이그레이션이 먼저 들어가야 한다(유니크 제약이 없으면 upsert 가 실패한다).
+--
+-- ⚠️ **두 단계다**(2026-11-10 2차 리뷰). 배포 전 옛 코드는 `onConflict: "mem_id,noti_type_enm"` + 팀 없이 쓴다.
+-- 그래서 여기서는 옛 유니크를 **남기고** 새 유니크만 더하며, 팀 칸엔 기본값(기강)을 둔다 — 옛 코드·새 코드 둘 다 돈다.
+-- 옛 유니크·기본값 제거는 배포 뒤 `20261110110000_after_deploy_cleanup.sql`. 그때까진 한 사람이 두 팀에서
+-- 같은 알림을 따로 설정할 수 없다(옛 유니크가 막는다) — 울산 회원이 생기기 전에 정리하면 된다.
 SET lock_timeout = '3s';
 
 ALTER TABLE public.noti_pref_cfg ADD COLUMN IF NOT EXISTS team_id uuid REFERENCES public.team_mst(team_id);
 UPDATE public.noti_pref_cfg SET team_id = 'c0ffee00-0000-4000-8000-000000000001' WHERE team_id IS NULL;
+ALTER TABLE public.noti_pref_cfg ALTER COLUMN team_id SET DEFAULT 'c0ffee00-0000-4000-8000-000000000001'::uuid;
 ALTER TABLE public.noti_pref_cfg ALTER COLUMN team_id SET NOT NULL;
 
-ALTER TABLE public.noti_pref_cfg DROP CONSTRAINT IF EXISTS noti_pref_cfg_mem_id_noti_type_enm_key;
 ALTER TABLE public.noti_pref_cfg DROP CONSTRAINT IF EXISTS uq_noti_pref_cfg_team_mem_type;
 ALTER TABLE public.noti_pref_cfg
   ADD CONSTRAINT uq_noti_pref_cfg_team_mem_type UNIQUE (team_id, mem_id, noti_type_enm);

@@ -1,8 +1,11 @@
 "use server";
 
+import { revalidateTag } from "next/cache";
+
 import { withAdmin } from "@/lib/actions/auth";
 import { isMemIdInTeam } from "@/lib/actions/team-scope";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { syncPersonRecordToOtherTeams } from "@/lib/records-revalidate";
 import { createAdminClient, createAdminClientAs } from "@/lib/supabase/admin";
 
 /**
@@ -14,14 +17,23 @@ async function recordOwnerInTeam(
   db: ReturnType<typeof createAdminClient>,
   teamId: string,
   recordId: string,
-): Promise<boolean> {
+): Promise<string | null> {
   const { data } = await db
     .from("rec_race_hist")
     .select("mem_id")
     .eq("race_result_id", recordId)
     .maybeSingle();
-  if (!data?.mem_id) return false;
-  return isMemIdInTeam(db, teamId, data.mem_id);
+  if (!data?.mem_id) return null;
+  return (await isMemIdInTeam(db, teamId, data.mem_id)) ? data.mem_id : null;
+}
+
+/**
+ * 기록이 바뀌면 전당(랭킹) 캐시를 턴다 — 이 팀 것 + 그 사람이 속한 다른 팀 것(기록은 사람 것).
+ * 안 털면 관리자가 고친 기록이 전당에 최대 24시간 옛 값으로 남는다(회원이 직접 고칠 때와 같은 처리).
+ */
+async function refreshRankings(teamId: string, memId: string) {
+  revalidateTag(`records:${teamId}`, "max");
+  await syncPersonRecordToOtherTeams(memId, teamId);
 }
 
 export async function deleteRecord(recordId: string) {
@@ -29,9 +41,11 @@ export async function deleteRecord(recordId: string) {
     const { teamId } = await getRequestTeamContext();
     // 행위자를 실어 보낸다 — 지운 기록 전체가 변경 이력(chg_hist)에 "누가·어느 팀 관리자로" 남아 복구할 수 있다
     const db = createAdminClientAs({ memId: member.id, teamId });
-    if (!(await recordOwnerInTeam(db, teamId, recordId))) return { ok: false, message: "기록을 찾을 수 없습니다" };
+    const ownerMemId = await recordOwnerInTeam(db, teamId, recordId);
+    if (!ownerMemId) return { ok: false, message: "기록을 찾을 수 없습니다" };
     const { error } = await db.from("rec_race_hist").delete().eq("race_result_id", recordId);
     if (error) return { ok: false, message: "삭제에 실패했습니다" };
+    await refreshRankings(teamId, ownerMemId);
     return { ok: true, message: null };
   });
 }
@@ -47,7 +61,8 @@ export async function updateRecord(
   return withAdmin(async ({ member }) => {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClientAs({ memId: member.id, teamId });
-    if (!(await recordOwnerInTeam(db, teamId, recordId))) return { ok: false, message: "기록을 찾을 수 없습니다" };
+    const ownerMemId = await recordOwnerInTeam(db, teamId, recordId);
+    if (!ownerMemId) return { ok: false, message: "기록을 찾을 수 없습니다" };
     const { error } = await db
       .from("rec_race_hist")
       .update({
@@ -57,6 +72,7 @@ export async function updateRecord(
       })
       .eq("race_result_id", recordId);
     if (error) return { ok: false, message: "수정에 실패했습니다" };
+    await refreshRankings(teamId, ownerMemId);
     return { ok: true, message: null };
   });
 }

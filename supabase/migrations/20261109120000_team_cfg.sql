@@ -72,4 +72,7 @@ REVOKE ALL ON FUNCTION public.team_cfg_keep_history() FROM public, anon, authent
 -- 지금까지의 발송은 전부 기강 방으로 나갔으므로 기강으로 채운다.
 ALTER TABLE public.kakao_send_hist ADD COLUMN IF NOT EXISTS team_id uuid REFERENCES public.team_mst(team_id);
 UPDATE public.kakao_send_hist SET team_id = 'c0ffee00-0000-4000-8000-000000000001' WHERE team_id IS NULL;
+-- 배포 전 옛 코드는 팀 없이 쓴다 — 그 사이 행도 기강으로 채워지게 기본값을 둔다(전환용).
+-- 배포 뒤 `20261110110000_after_deploy_cleanup.sql` 이 기본값을 지우고 NOT NULL 로 묶는다(빈 팀 행이 영영 안 보이는 일이 없게).
+ALTER TABLE public.kakao_send_hist ALTER COLUMN team_id SET DEFAULT 'c0ffee00-0000-4000-8000-000000000001'::uuid;
 COMMENT ON COLUMN public.kakao_send_hist.team_id IS '어느 팀 공지였나. 2026-11-09 이전 행은 전부 기강(당시 방이 하나뿐).';
