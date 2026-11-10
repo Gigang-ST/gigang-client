@@ -16,7 +16,7 @@
 | 5 | RLS 정리(마일리지 읽기·팀 칸 고정·배치·탈퇴자·미납 함수) | `20261109150000_multi_team_rls.sql` | ✅ | ☐ |
 | 6 | 공개 조회 함수 팀 구분(댓글 수·피드 활동 수·카드 포인트) | `20261109160000_multi_team_rpc_scope.sql` | ✅ | ☐ |
 | 7 | 기강 포인트 팀별 적립·회수 | `20261109170000_points_per_team.sql` | ✅ | ☐ |
-| 8 | 울산 시작 준비(배치 팀별·칭호 복사·가입 정보 팀별·셀프 가입 active 고정) | `20261109180000_team_start_ready.sql` | ✅ | ☐ |
+| 8 | 울산 시작 준비(배치 팀별 유일 조건·가입 정보 팀별·셀프 가입 active 고정 — 울산 배치·칭호는 안 만든다) | `20261109180000_team_start_ready.sql` | ✅ | ☐ |
 | 9 | 팀 설정 나머지(이펙트 팀별·회비 분류 팀 칸·기강 계좌/채널 등록) | `20261109190000_team_settings.sql` | ✅ | ☐ |
 | 10 | 기강 오픈채팅 비밀번호를 팀 설정에 등록 | (아래 SQL — 사람이 직접) | ☐ | ☐ |
 | 11 | 캐시 무효화 웹훅에 팀 싣기 | `20261109200000_revalidate_webhook_team.sql` | ✅ | ☐ |
@@ -25,7 +25,7 @@
 | 14 | 대회 원본·종목 관리자 정책에서 기강 id 고정 걷기 | `20261109230000_comp_admin_policy_any_team.sql` | ✅ | ☐ |
 | 15 | 기강 워드마크·정기 모임 템플릿을 팀 설정에 등록 | `20261109240000_team_cfg_wordmark_regular_template.sql` | ✅ | ☐ |
 | 16 | 기강 가입 폼에 「울산지부 가입이세요?」 안내 | `20261109250000_team_cfg_signup_other_teams.sql` | ✅ | ☐ |
-| 17 | 울산 회비 끄기(팀 설정 + 회비 면제 배치) | `20261109260000_ulsan_dues_off.sql` | ✅ | ☐ |
+| 17 | 울산 회비 끄기(팀 설정) | `20261109260000_ulsan_dues_off.sql` | ✅ | ☐ |
 | 18 | 팀 설정 `project.show_intro` 걷기(프로젝트 없을 때 소개 화면 제거) | `20261109270000_drop_project_show_intro.sql` | ✅ | ☐ |
 | 19 | 알림 유형 `team_cfg_chg`(owner 전용 설정 변경 알림) | `20261110100000_noti_type_team_cfg_chg.sql` | ✅ | ☐ |
 | 20 | **배포 뒤** 전환용 장치 걷기(알림 설정 옛 유니크·기본값, 카톡 이력 팀 NOT NULL, 건의 기본값) | `20261110110000_after_deploy_cleanup.sql` | ✅ | ☐ |
@@ -180,8 +180,8 @@ order by 1, 2;
 
 ### 8. `20261109180000_team_start_ready.sql`
 
-- 배치 유일 조건을 `(job_cd, team_id)` 로 바꾸고 기강 배치 4개를 울산에 복사한다.
-- 기강 **자동** 칭호를 울산에 복사한다(수여 칭호·특정 회원 기준 칭호 '서브현근' 제외). prd 는 기강 100개 중 자동만.
+- 배치 유일 조건을 `(job_cd, team_id)` 로 바꾼다. **울산엔 배치·칭호를 만들지 않는다**(2026-11-10 결정) — 회비 끔,
+  마일리지런은 기강 전용, 칭호 0개라 칭호 배치도 할 일이 없다. 울산이 칭호를 만들면 그때 그 팀 배치 행만 넣는다.
 - 새 테이블 `team_mem_onbd_rel`(팀별 가입 목적·유입 경로·첫 모임 약속)을 만들고 기강 값을 옮긴다.
   회원 카드·기강이야기 함수의 가입 목적을 새 테이블에서 읽게 바꾼다(함수별로 다 바꾼 뒤 한 번에 다시 만든다).
 - 셀프 가입 정책에 `mem_st_cd = 'active'` 를 더한다.
@@ -191,8 +191,8 @@ order by 1, 2;
 
 ```sql
 -- 확인
-select (select count(*) from batch_job_mst) as jobs,                        -- 8 (팀당 4)
-       (select count(*) from ttl_mst t join team_mst m using (team_id) where m.team_cd = 'ulsan' and t.vers = 0) as ulsan_titles,
+select (select count(*) from batch_job_mst) as jobs,                        -- 4 (기강만)
+       (select count(*) from ttl_mst t join team_mst m using (team_id) where m.team_cd = 'ulsan' and t.vers = 0) as ulsan_titles, -- 0
        (select count(*) from team_mem_onbd_rel) as onbd_new,
        (select count(*) from mem_onbd_prf) as onbd_old,                       -- onbd_new 와 같거나 조금 적다(기강 소속이 없는 행)
        (pg_get_functiondef('public.get_public_member_card(uuid,uuid)'::regprocedure) like '%tj.join_purp_cds%') as card_ok,
@@ -227,6 +227,10 @@ select (select count(*) from team_effect_cfg) as eff_rows,               -- effe
 insert into public.team_cfg (team_id, cfg_cd, cfg_val_json)
 values ('c0ffee00-0000-4000-8000-000000000001', 'social.kakao_open_chat_password', to_jsonb('여기에_비밀번호'::text));
 ```
+
+> ⚠️ **전환 분기를 지우기 전까지는 비워도 안 사라진다.** 팀 설정 화면에서 이 값을 비우면(되돌리기) 안내 문구
+> 「비우면 비밀번호 안내가 안 보여요」와 달리 **환경변수의 예전 비밀번호가 다시 보인다.** 이 행을 넣은 뒤
+> 「배포 후 정리」의 전환 분기·환경변수 삭제까지 끝내야 문구와 동작이 맞는다.
 
 ### 11. `20261109200000_revalidate_webhook_team.sql`
 
@@ -302,11 +306,11 @@ where t.team_cd = 'gigang' and c.cfg_cd = 'signup.other_teams' and c.vers = 0 an
 
 ### 17. `20261109260000_ulsan_dues_off.sql`
 
-울산 팀 설정 `feature.dues = false`(회비 내역·미납 점·관리자 회비 메뉴·대시보드 카드 숨김) + 울산 회비 면제 배치 끄기.
+울산 팀 설정 `feature.dues = false`(회비 내역·미납 점·관리자 회비 메뉴·대시보드 카드 숨김). 울산 회비 배치는 8번에서 아예 안 만든다.
 행이 없으면 기본값(켬)이라 울산에 회비 메뉴가 보일 뿐 깨지진 않는다 — **배포 전후 언제 넣어도 안전하다**(울산 오픈 전엔 넣는다).
 
 ```sql
--- 확인: 울산 dues_cfg = false, dues_batch = false / 기강은 dues_cfg 없음(켬), dues_batch = true
+-- 확인: 울산 dues_cfg = false, dues_batch = null(행 없음) / 기강은 dues_cfg 없음(켬), dues_batch = true
 select t.team_cd,
   (select cfg_val_json::text from team_cfg c where c.team_id = t.team_id and c.cfg_cd = 'feature.dues' and c.vers = 0) as dues_cfg,
   (select use_yn from batch_job_mst b where b.team_id = t.team_id and b.job_cd = 'DUES_EXEMPTION_BATCH') as dues_batch
@@ -375,6 +379,16 @@ select pg_get_constraintdef(oid) from pg_constraint where conname = 'noti_mst_no
 
 ## 배포 후 정리 (급하지 않음)
 
+- **울산 owner 지정** — prd 울산엔 owner·admin 이 아무도 없다(2026-11-10 확인). 모임 계좌·카톡 공지방은 owner 만
+  바꿀 수 있고 owner 는 화면에서 못 정하므로, 첫 owner 는 그 사람이 울산에 가입한 뒤 SQL 로 세운다
+  (역할 변경은 이력 함수로 — 직접 UPDATE 하면 변경 이력 버전이 안 남는다):
+  ```sql
+  select public.apply_team_mem_rel_change(r.team_mem_id, '{"team_role_cd":"owner"}'::jsonb, now())
+  from team_mem_rel r
+  where r.team_id = 'c0ffee00-0000-4000-8000-000000000002' and r.mem_id = '<울산 owner mem_id>'
+    and r.vers = 0 and r.del_yn = false;
+  ```
+  그 뒤 admin 은 owner 가 관리자 화면에서 지정한다.
 - 운영·dev Vercel 환경변수 `KAKAO_ROOM_ID`·`KAKAO_ROOM` 삭제 — 더 이상 읽지 않는다(남아 있어도 무시된다).
 - 10번(기강 오픈채팅 비밀번호 행)을 넣은 뒤: `lib/team-social.ts` 의 기강 전환 분기와 `lib/env.ts` 의
   `KAKAO_CHAT_PASSWORD`, Vercel 환경변수 `KAKAO_CHAT_PASSWORD` 를 지운다.
