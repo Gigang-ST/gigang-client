@@ -1,7 +1,9 @@
 import "server-only";
 import webpush from "web-push";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
+import { teamCdOf } from "@/lib/constants/gigang-team";
 import { env } from "@/lib/env";
+import { getTeamSite } from "@/lib/team-site";
 
 /**
  * 웹 푸시 발송 유틸 (Node 런타임 전용).
@@ -45,7 +47,24 @@ export type PushPayload = {
   url?: string;
   /** 알림 그룹핑/중복 제거용 태그 */
   tag?: string;
+  /**
+   * 알림 큰 아이콘·상태바 배지 경로 — **보내는 함수가 팀 기준으로 채운다**(`withTeamIcons`, 호출부는 안 넣는다).
+   * 서비스워커는 주소마다 같은 `sw.js` 라 팀을 모른다. 예전엔 거기 기강 아이콘이 박혀 울산 알림도 기강 아이콘이었다.
+   */
+  icon?: string;
+  badge?: string;
 };
+
+/** 팀 알림 아이콘을 페이로드에 싣는다(`lib/team-site.ts`). 표에 없는 팀이면 안 싣는다 — 다른 팀 아이콘으로 물러나지 않는다 */
+export function withTeamIcons(teamId: string, payload: PushPayload): PushPayload {
+  const teamCd = teamCdOf(teamId);
+  const site = teamCd ? getTeamSite(teamCd) : {};
+  return {
+    ...payload,
+    ...(site.notificationIcon ? { icon: site.notificationIcon } : {}),
+    ...(site.notificationBadge ? { badge: site.notificationBadge } : {}),
+  };
+}
 
 /**
  * 특정 멤버 1명의 모든 기기(구독)에 푸시를 발송한다.
@@ -118,7 +137,7 @@ export async function sendPushToMember(
   }
   if (!subs || subs.length === 0) return;
 
-  const body = JSON.stringify(payload);
+  const body = JSON.stringify(withTeamIcons(teamId, payload));
   await Promise.all(subs.map((sub: SubRow) => sendToSub(admin, sub, body)));
 }
 
@@ -153,7 +172,7 @@ export async function sendPushToMembers(
     (subs as SubRow[]).map((sub) => {
       const payload = payloadByMemId.get(sub.mem_id);
       if (!payload) return Promise.resolve();
-      return sendToSub(admin, sub, JSON.stringify(payload));
+      return sendToSub(admin, sub, JSON.stringify(withTeamIcons(teamId, payload)));
     }),
   );
 }

@@ -12,3 +12,9 @@ export const TEAM_ID_BY_CD: Record<string, string> = {
   // 울산지부(임시 주소 ulsan.gigang.team). 시드: 20261109110000_seed_team_ulsan.sql
   ulsan: "c0ffee00-0000-4000-8000-000000000002",
 };
+
+/** `team_id → team_cd` (위 표의 역방향). 모르는 팀이면 null — 요청 주소 없이 팀 ID 만 들고 있는 곳(푸시 발송)이 쓴다 */
+export function teamCdOf(teamId: string): string | null {
+  for (const [cd, id] of Object.entries(TEAM_ID_BY_CD)) if (id === teamId) return cd;
+  return null;
+}

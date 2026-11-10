@@ -22,25 +22,11 @@ import "./globals.css";
 import { shellWidthBootScript } from "@/lib/app-shell";
 import { getSiteMetaInput } from "@/lib/queries/site-metadata";
 import { buildSiteMetadata } from "@/lib/seo/site-metadata";
-import { jsonLdScript, organizationJsonLd } from "@/lib/seo/structured-data";
-
-/** 팀과 무관한 고정분. 팀마다 다른 것(제목·설명·썸네일·크루 이름·네이버 소유확인)은 `generateMetadata` 가 얹는다 */
-const STATIC_METADATA: Metadata = {
-  icons: {
-    icon: [
-      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
-      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
-      { url: "/favicon-96x96.png", sizes: "96x96", type: "image/png" },
-    ],
-    apple: [
-      { url: "/apple-icon-180x180.png", sizes: "180x180", type: "image/png" },
-    ],
-  },
-};
+import { TeamJsonLd } from "@/components/seo/team-json-ld";
 
 /**
- * 사이트 공통 메타데이터 — **들어온 주소의 팀** 기준(링크 미리보기·탭 제목·검색결과). 계산은
- * `lib/seo/site-metadata.ts`, 문구는 팀 설정(`brand.name`·`seo.*`), 썸네일은 `lib/team-site.ts`.
+ * 사이트 공통 메타데이터 — **들어온 주소의 팀** 기준(링크 미리보기·탭 제목·검색결과·탭 아이콘·설치 앱 정보). 계산은
+ * `lib/seo/site-metadata.ts`, 문구는 팀 설정(`brand.name`·`seo.*`), 썸네일·아이콘·manifest 는 `lib/team-site.ts`.
  *
  * 요청 헤더를 읽어도 정적 지면이 동적으로 바뀌지 않는다 — 아래 body 에 이미 쿠키를 읽는 Suspense 섬이 있어 모든
  * 지면이 요청마다 그려지고 있다(그 섬을 다 걷어내면 Next 가 "generateMetadata 만 동적" 빌드 에러를 낸다).
@@ -48,8 +34,7 @@ const STATIC_METADATA: Metadata = {
  */
 export async function generateMetadata(): Promise<Metadata> {
   const input = await getSiteMetaInput();
-  if (!input) return STATIC_METADATA;
-  return { ...STATIC_METADATA, ...buildSiteMetadata(input) };
+  return input ? buildSiteMetadata(input) : {};
 }
 
 export const viewport: Viewport = {
@@ -97,11 +82,11 @@ export default function RootLayout({
             이게 없으면 새로고침마다 기본 폭으로 그렸다가 넓어지는 점프가 보인다. */}
         <script dangerouslySetInnerHTML={{ __html: shellWidthBootScript }} />
         {/* 구조화 데이터 — 검색엔진에 "이 사이트는 어떤 단체인가"를 기계가 읽는 형태로 준다.
-            본문 텍스트만으로는 크루 이름·활동 지역·공식 SNS가 엮이지 않는다. */}
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: jsonLdScript(organizationJsonLd) }}
-        />
+            본문 텍스트만으로는 크루 이름·활동 지역·공식 SNS가 엮이지 않는다. 들어온 주소의 팀 것이라
+            요청 헤더를 읽어서 Suspense 안에 둔다(§components/seo/team-json-ld.tsx). */}
+        <Suspense fallback={null}>
+          <TeamJsonLd />
+        </Suspense>
         <Providers>
           {/* 앱 셸 — 데스크톱에서 본문을 폰 폭으로 묶는다(globals.css `.app-shell`).
               모바일에선 max-width가 안 걸려 아무 영향이 없다. 셸 안의 `fixed` 요소는

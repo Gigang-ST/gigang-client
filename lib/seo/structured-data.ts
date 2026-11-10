@@ -1,10 +1,9 @@
-import { SITE_URL } from "@/config";
+import type { TeamChannels } from "@/lib/team-channels";
+import type { TeamOrganization } from "@/lib/team-site";
 
 /**
- * 조직 구조화 데이터(JSON-LD) — 네이버 「연관 채널」용.
- *
- * ⚠ **기강 전용 값이다** — 지금은 루트 레이아웃이 모든 주소에 싣는다(울산 주소에도 기강 조직으로 나간다).
- * 팀별로 나누려면 body 의 Suspense 섬으로 옮겨야 해서(정적 셸 → 스트리밍) 네이버 수집에 영향이 없는지 보고 따로 한다.
+ * 조직 구조화 데이터(JSON-LD) — 네이버 「연관 채널」용. **팀마다 따로** 만든다(순수 함수 —
+ * 재료 모으기·그리기는 `components/seo/team-json-ld.tsx`, 회귀 테스트 `lib/seo/__tests__/structured-data.test.ts`).
  *
  * 본문 텍스트만으로는 "기강"이라는 두 글자가 크루 이름인지 보통명사인지 기계가 못 가른다
  * (`기강스포츠팀`을 검색하면 "대표팀 기강 확립" 류 뉴스가 나온다, 2026-09-01 확인).
@@ -18,43 +17,51 @@ import { SITE_URL } from "@/config";
  * (그래서 `sport` 대신 `Organization`에도 유효한 `knowsAbout`을 쓴다.)
  *
  * 발급된 채널은 서치어드바이저 [요청 > 채널 제출]에서 한 번 더 제출해야 한다.
- * **네이버 블로그를 만들면 여기 `sameAs`에 넣는 것이 가장 값이 크다** — 네이버는 자사
+ * **네이버 블로그를 만들면 팀 설정 채널에 넣는 것이 가장 값이 크다** — 네이버는 자사
  * 서비스를 우대하고, 연관채널은 그걸 사이트와 잇는 공식 통로다.
  *
- * `sameAs` 링크는 `components/social-links.tsx`가 화면에 그리는 것과 같은 곳이다 —
- * 한쪽을 바꾸면 다른 쪽도 맞춰야 한다.
+ * `sameAs` 는 팀 설정 `social.channels` — 화면의 채널 버튼(`components/social-links.tsx`)과 **같은 출처**라 한쪽만
+ * 바뀌지 않는다(예전엔 이 파일에 기강 주소 4개가 따로 박혀 있었다). 이름 변형·지역·종목은 `lib/team-site.ts`.
  */
-export const organizationJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  name: "기강 러닝크루",
-  alternateName: ["기강", "기강 스포츠팀", "양재천 러닝크루 기강"],
-  url: SITE_URL,
-  logo: `${SITE_URL}/logo.webp`,
-  image: `${SITE_URL}/teams/gigang/og.png`,
-  description:
-    "양재천·강남에서 함께 달리는 러닝크루 기강. 운동을 좋아하는 사람들이 모여 만든 스포츠 팀으로 러닝, 자전거, 수영, 여행을 함께합니다.",
-  knowsAbout: ["러닝", "자전거", "수영", "마라톤", "트레일러닝"],
-  areaServed: {
-    "@type": "Place",
-    name: "서울 양재천·강남 일대",
-  },
-  sameAs: [
-    "https://www.instagram.com/team_gigang",
-    "https://open.kakao.com/o/grnMFGng",
-    "https://www.somoim.co.kr/3beed52a-0620-11ef-a71d-0aebcbdc4a071",
-    "https://connect.garmin.com/app/group/4857390",
-  ],
-} as const;
+
+/** `sameAs` 순서 — 예전 기강 고정 목록과 같은 순서(인스타 → 오픈채팅 → 소모임 → 가민) */
+const SAME_AS_ORDER: readonly (keyof TeamChannels)[] = ["instagram", "kakao_open_chat", "somoim", "garmin"];
+
+export type OrganizationJsonLdInput = {
+  organization: TeamOrganization;
+  /** 팀 정식 운영 주소(`https://gigang.team`) — url·logo·image 를 이걸로 붙인다 */
+  canonicalOrigin: string;
+  description: string | null;
+  channels: TeamChannels;
+  logo?: string;
+  image?: string;
+};
+
+export function buildOrganizationJsonLd(input: OrganizationJsonLdInput) {
+  const { organization: org, canonicalOrigin: origin } = input;
+  const sameAs = SAME_AS_ORDER.flatMap((key) => (input.channels[key] ? [input.channels[key] as string] : []));
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: org.name,
+    alternateName: [...org.alternateName],
+    url: origin,
+    ...(input.logo ? { logo: `${origin}${input.logo}` } : {}),
+    ...(input.image ? { image: `${origin}${input.image}` } : {}),
+    ...(input.description ? { description: input.description } : {}),
+    knowsAbout: [...org.knowsAbout],
+    areaServed: { "@type": "Place", name: org.areaServed },
+    ...(sameAs.length ? { sameAs } : {}),
+  };
+}
 
 /**
  * JSON-LD를 `<script>`에 넣을 수 있는 문자열로 만든다.
  *
  * `<`를 유니코드로 바꾸는 건 Next.js 공식 가이드의 권고다 — `JSON.stringify`는 XSS에
  * 쓰이는 문자열을 걸러 주지 않아서, 값에 `</script>`가 섞이면 태그가 끊긴다.
- * 지금 넣는 값은 전부 이 파일의 상수라 위험하지 않지만, 나중에 DB에서 온 값
- * (모임 이름·회원 이름 따위)을 여기 태우는 순간 바로 문제가 되는 자리다.
+ * **지금은 팀 설정(운영진이 넣는 설명·채널 주소)이 여기 실린다** — 이 처리가 빠지면 바로 문제가 되는 자리다.
  */
 export function jsonLdScript(data: unknown): string {
-  return JSON.stringify(data).replace(/</g, "\u003c");
+  return JSON.stringify(data).replace(/</g, "\\u003c");
 }

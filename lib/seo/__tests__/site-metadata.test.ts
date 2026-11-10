@@ -47,6 +47,20 @@ describe("buildSiteMetadata — 기강은 예전 고정 metadata 와 같은 값"
     expect((m.twitter as { images: string[] }).images).toEqual(["https://gigang.team/teams/gigang/twitter.png"]);
     expect(m.verification?.other?.["naver-site-verification"]).toBe("1133f48045ef9b8e0f086eae69f7b1e17a5e57d1");
   });
+
+  it("탭 아이콘·iOS 아이콘·설치 앱 정보·윈도 타일은 원래 자리(루트) 그대로 — 이미 설치된 기강 앱이 안 깨지게", () => {
+    const m = buildSiteMetadata(GIGANG);
+    expect(m.icons).toEqual({
+      icon: [
+        { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+        { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+        { url: "/favicon-96x96.png", sizes: "96x96", type: "image/png" },
+      ],
+      apple: [{ url: "/apple-icon-180x180.png", sizes: "180x180", type: "image/png" }],
+    });
+    expect(m.manifest).toBe("/manifest.webmanifest");
+    expect(m.other).toEqual({ "msapplication-config": "/browserconfig.xml" });
+  });
 });
 
 describe("buildSiteMetadata — 다른 팀", () => {
@@ -67,6 +81,11 @@ describe("buildSiteMetadata — 다른 팀", () => {
     expect((m.openGraph as Og).images?.[0].url).toBe("https://ulsan.gigang.team/teams/ulsan/og.png");
     expect((m.twitter as { images: string[] }).images).toEqual(["https://ulsan.gigang.team/teams/ulsan/og.png"]);
     expect(m).not.toHaveProperty("verification");
+    // 아이콘·설치 앱 정보도 자기 폴더 것
+    expect(m.manifest).toBe("/teams/ulsan/manifest.webmanifest");
+    expect(m.other).toEqual({ "msapplication-config": "/teams/ulsan/browserconfig.xml" });
+    expect(JSON.stringify(m.icons)).not.toMatch(/"\/(favicon|apple-icon)/);
+    expect(JSON.stringify(m.icons)).toMatch(/\/teams\/ulsan\/favicon-32x32\.png/);
   });
 
   it("썸네일은 요청 주소로, 대표 주소는 운영 주소로 — dev 에서 공유해도 이미지가 (배포 전) 운영 404 를 안 가리킨다", () => {
@@ -83,7 +102,9 @@ describe("buildSiteMetadata — 다른 팀", () => {
     const og = m.openGraph as Og;
     expect(og).not.toHaveProperty("siteName");
     expect(og).not.toHaveProperty("images");
-    expect(JSON.stringify(m)).not.toMatch(/기강|gigang\.team\/teams/);
+    expect(m).not.toHaveProperty("icons");
+    expect(m).not.toHaveProperty("manifest");
+    expect(JSON.stringify(m)).not.toMatch(/기강|gigang\.team\/teams|favicon|manifest/);
   });
 });
 

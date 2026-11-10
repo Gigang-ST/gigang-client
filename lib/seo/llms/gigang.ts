@@ -1,4 +1,9 @@
-# 기강 (Gigang)
+/**
+ * 기강 llms.txt 본문 — LLM·에이전트용 사이트 안내문(llms.txt 규약). `app/llms.txt/route.ts` 가 기강 주소에서만 내보낸다.
+ * 예전엔 `public/llms.txt` 정적 파일이라 울산 주소에서도 이 기강 소개가 나갔다(2026-11-10 팀별로).
+ * 주소는 기강 정식 주소(gigang.team) 고정이다 — 이 문서는 기강 사이트를 소개하는 글이라서.
+ */
+export const GIGANG_LLMS_TXT = `# 기강 (Gigang)
 
 > 운동을 좋아하는 사람들이 모여 만든 스포츠 팀입니다. 서울 양재천·강남 일대에서 러닝을
 > 중심으로 자전거·수영·등산·트레일런·클라이밍 등을 함께하며, 모임 일정과 대회 기록을
@@ -12,7 +17,7 @@
 
 ## 공개 지면
 
-- [홈 — 기강 전광판](https://gigang.team/): 크루의 요즘 활동을 한 장에 모은 지면. 팀 활동량(심박수), 새 얼굴, 최근 기록, 목표 한마디를 보여줍니다. `/story` 로도 같은 화면에 닿습니다.
+- [홈 — 기강 전광판](https://gigang.team/): 크루의 요즘 활동을 한 장에 모은 지면. 팀 활동량(심박수), 새 얼굴, 최근 기록, 목표 한마디를 보여줍니다. \`/story\` 로도 같은 화면에 닿습니다.
 - [기강의 전당](https://gigang.team/records): 종목별(풀코스·하프·10K·트레일·철인3종) 크루 내 최고기록 보유자.
 - [일정](https://gigang.team/schedule): 모임과 대회 일정 달력.
 - [대회 목록](https://gigang.team/races): 크루원이 참가하는 대회.
@@ -29,3 +34,4 @@
 - [이용약관](https://gigang.team/terms)
 - [개인정보 처리방침](https://gigang.team/privacy)
 - [운영 정책](https://gigang.team/policy): 안전수칙과 모임 운영 기준.
+`;

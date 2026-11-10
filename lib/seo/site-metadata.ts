@@ -121,5 +121,24 @@ export function buildSiteMetadata(input: SiteMetaInput): Metadata {
       statusBarStyle: "default",
       ...(text.name ? { title: text.name } : {}),
     },
+    ...siteIconMetadata(input.site),
+  };
+}
+
+/** 탭 아이콘·iOS 홈 화면 아이콘·설치 앱 정보·윈도 타일 — 팀 파일 표에 있는 것만 */
+function siteIconMetadata(site: TeamSite): Metadata {
+  const favicons = site.favicons ?? [];
+  const apple = site.appleIcons ?? [];
+  return {
+    ...(favicons.length || apple.length
+      ? {
+          icons: {
+            ...(favicons.length ? { icon: favicons.map((i) => ({ ...i, type: "image/png" })) } : {}),
+            ...(apple.length ? { apple: apple.map((i) => ({ ...i, type: "image/png" })) } : {}),
+          },
+        }
+      : {}),
+    ...(site.manifest ? { manifest: site.manifest } : {}),
+    ...(site.msTileConfig ? { other: { "msapplication-config": site.msTileConfig } } : {}),
   };
 }

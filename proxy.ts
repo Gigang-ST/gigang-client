@@ -33,8 +33,10 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - images - .svg, .png, .jpg, .jpeg, .gif, .webp
+     * - teams/ - 팀별 정적 파일(썸네일·아이콘·manifest·윈도 타일 설정, `lib/team-site.ts`). 쿠키 없이 오는 요청
+     *   (브라우저의 manifest 조회, 카톡·네이버 봇)이 로그인으로 302 되지 않게 통째로 뺀다. **정적 파일만 둔다.**
      * Feel free to modify this pattern to include more paths.
      */
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|teams/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
