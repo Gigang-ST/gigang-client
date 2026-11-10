@@ -1,7 +1,10 @@
-import { SITE_URL, siteContent } from "@/config";
+import { SITE_URL } from "@/config";
 
 /**
  * 조직 구조화 데이터(JSON-LD) — 네이버 「연관 채널」용.
+ *
+ * ⚠ **기강 전용 값이다** — 지금은 루트 레이아웃이 모든 주소에 싣는다(울산 주소에도 기강 조직으로 나간다).
+ * 팀별로 나누려면 body 의 Suspense 섬으로 옮겨야 해서(정적 셸 → 스트리밍) 네이버 수집에 영향이 없는지 보고 따로 한다.
  *
  * 본문 텍스트만으로는 "기강"이라는 두 글자가 크루 이름인지 보통명사인지 기계가 못 가른다
  * (`기강스포츠팀`을 검색하면 "대표팀 기강 확립" 류 뉴스가 나온다, 2026-09-01 확인).
@@ -28,8 +31,9 @@ export const organizationJsonLd = {
   alternateName: ["기강", "기강 스포츠팀", "양재천 러닝크루 기강"],
   url: SITE_URL,
   logo: `${SITE_URL}/logo.webp`,
-  image: `${SITE_URL}/opengraph-image.png`,
-  description: siteContent.metadata.description,
+  image: `${SITE_URL}/teams/gigang/og.png`,
+  description:
+    "양재천·강남에서 함께 달리는 러닝크루 기강. 운동을 좋아하는 사람들이 모여 만든 스포츠 팀으로 러닝, 자전거, 수영, 여행을 함께합니다.",
   knowsAbout: ["러닝", "자전거", "수영", "마라톤", "트레일러닝"],
   areaServed: {
     "@type": "Place",

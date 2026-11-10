@@ -13,6 +13,8 @@ import type { CfgGroup, CfgInput } from "./registry";
  */
 export const CFG_GROUPS: { group: CfgGroup; label: string }[] = [
   { group: "brand", label: "기본 설정" },
+  // 링크 미리보기·검색결과 문구 — 팀이 누구인지(기본 설정) 바로 다음, 바깥에 어떻게 보이는지라서
+  { group: "seo", label: "검색·공유" },
   { group: "operation", label: "운영" },
   { group: "member_info", label: "크루 안내" },
   { group: "feature", label: "기능" },
@@ -31,9 +33,13 @@ export const CFG_ORDER: readonly string[] = [
   "kakao.room_id",
   "gathering.default_sport",
   "gathering.regular_template",
+  "brand.name",
   "brand.slogan",
   "brand.founded_dt",
   "brand.wordmark",
+  "seo.title",
+  "seo.title_suffix",
+  "seo.description",
 ];
 
 export function compareCfgOrder(a: string, b: string): number {

@@ -8,6 +8,7 @@ import { buildGatheringOgText, getGatheringOgSport, OG_COLORS } from "@/lib/gath
 import { getCachedGatheringOg } from "@/lib/queries/gathering-og";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getTeamCfg } from "@/lib/team-cfg/read";
+import { getTeamSite } from "@/lib/team-site";
 
 /**
  * 모임 OG 이미지 — `/api/og/gathering?g=<short_id|uuid>&v=<upd_at>`.
@@ -50,9 +51,14 @@ function loadFonts() {
   return fontsPromise;
 }
 
-/** 모임이 없거나(삭제·오타) 그리기에 실패하면 사이트 기본 OG로 물러난다 — 카드에 이미지 칸이 비는 것보단 낫다 */
-function fallback(req: NextRequest) {
-  return NextResponse.redirect(new URL("/opengraph-image.png", req.url), {
+/**
+ * 모임이 없거나(삭제·오타) 그리기에 실패하면 **그 팀** 사이트 썸네일로 물러난다 — 카드에 이미지 칸이 비는 것보단 낫다.
+ * 팀 썸네일이 없으면(파일 표에 없는 팀) 404 — 다른 팀 그림으로 물러나지 않는다(`lib/team-site.ts`).
+ */
+function fallback(req: NextRequest, teamCd: string | null) {
+  const og = teamCd ? getTeamSite(teamCd).ogImage : undefined;
+  if (!og) return new NextResponse(null, { status: 404 });
+  return NextResponse.redirect(new URL(og.path, req.url), {
     status: 302,
     headers: { "Cache-Control": "public, max-age=60, s-maxage=300" },
   });
@@ -226,16 +232,16 @@ function GatheringCard({ text, sport, wordmark, slogan }: CardProps) {
 }
 
 export async function GET(req: NextRequest) {
+  const { teamId, teamCd } = await getRequestTeamContext();
   const ref = req.nextUrl.searchParams.get("g");
-  if (!ref) return fallback(req);
+  if (!ref) return fallback(req, teamCd);
 
-  const { teamId } = await getRequestTeamContext();
   const [src, wordmark, slogan] = await Promise.all([
     getCachedGatheringOg(ref, teamId),
     getTeamCfg(teamId, "brand.wordmark"),
     getTeamCfg(teamId, "brand.slogan"),
   ]);
-  if (!src) return fallback(req);
+  if (!src) return fallback(req, teamCd);
 
   const element = (
     <GatheringCard text={buildGatheringOgText(src)} sport={getGatheringOgSport(src.sprt_cd)} wordmark={wordmark} slogan={slogan} />
@@ -253,6 +259,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (e) {
     console.error("[og/gathering] 이미지 생성 실패", e instanceof Error ? e.message : e);
-    return fallback(req);
+    return fallback(req, teamCd);
   }
 }

@@ -12,6 +12,7 @@ import { getCachedGatheringOg } from "@/lib/queries/gathering-og";
 import { getCachedHomeCalendar } from "@/lib/queries/home-calendar";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getSiteMetaInput } from "@/lib/queries/site-metadata";
 import { buildHeaderBrand } from "@/lib/team-brand";
 import { getTeamCfg } from "@/lib/team-cfg/read";
 
@@ -282,10 +283,14 @@ export async function generateMetadata({
   const { gthr } = await searchParams;
   if (typeof gthr !== "string" || !gthr) return SCHEDULE_METADATA;
 
-  const [{ teamId }, origin] = await Promise.all([getRequestTeamContext(), getRequestOrigin()]);
+  const [{ teamId }, origin, site] = await Promise.all([
+    getRequestTeamContext(),
+    getRequestOrigin(),
+    getSiteMetaInput(),
+  ]);
   const src = await getCachedGatheringOg(gthr, teamId);
   // 이미지는 요청 호스트 기준 절대 URL — metadataBase(프로덕션)로 채워지면 dev에서 404다.
-  return src ? buildGatheringMetadata(src, origin) : SCHEDULE_METADATA;
+  return src ? buildGatheringMetadata(src, origin, site?.name ?? null) : SCHEDULE_METADATA;
 }
 
 export default function SchedulePage() {

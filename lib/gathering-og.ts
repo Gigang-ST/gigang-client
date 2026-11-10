@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 
-import { siteContent } from "@/config";
 import { dayjs, formatKST } from "@/lib/dayjs";
 import { gthrSprtLabels, type GthrSprtType } from "@/lib/validations/gathering";
 
@@ -134,10 +133,14 @@ export function gatheringOgImagePath(src: GatheringOgSource): string {
  * `metadataBase`(= 프로덕션 `SITE_URL`)로 채워서, dev·preview에서 공유한 링크의 `og:image`가
  * 프로덕션을 가리킨다 — 거기엔 그 모임도 (배포 전엔) 라우트도 없어 404가 되고 카톡은 빈 흰
  * 칸을 띄운다(2026-09-23 dev 실측). `getRequestOrigin()`이 같은 이유로 이미 존재한다.
+ *
+ * `siteName` 은 그 팀 크루 이름(팀 설정 `brand.name`) — 예전엔 기강이 박혀 있어 울산 모임 카드에도 「기강」이 찍혔다.
+ * 없으면 칸째 안 내보낸다(다른 팀 이름으로 물러나지 않는다).
  */
 export function buildGatheringMetadata(
   src: GatheringOgSource,
   origin?: string | null,
+  siteName?: string | null,
 ): Metadata {
   const text = buildGatheringOgText(src);
   const path = gatheringOgImagePath(src);
@@ -154,7 +157,7 @@ export function buildGatheringMetadata(
     alternates: { canonical: "/schedule" },
     openGraph: {
       type: "website",
-      siteName: siteContent.brand.fullName,
+      ...(siteName ? { siteName } : {}),
       locale: "ko_KR",
       title: text.title,
       description: text.description,

@@ -19,35 +19,13 @@ import { PwaInstallPromptGate } from "@/components/pwa-install-prompt-gate";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 
 import "./globals.css";
-import { NAVER_SITE_VERIFICATION, SITE_URL, siteContent } from "@/config";
 import { shellWidthBootScript } from "@/lib/app-shell";
+import { getSiteMetaInput } from "@/lib/queries/site-metadata";
+import { buildSiteMetadata } from "@/lib/seo/site-metadata";
 import { jsonLdScript, organizationJsonLd } from "@/lib/seo/structured-data";
 
-export const metadata: Metadata = {
-  metadataBase: new URL(SITE_URL),
-  /**
-   * `default`는 홈 제목, `template`은 하위 지면 제목이다.
-   * 지면마다 제목이 갈려야 검색결과에서 서로 다른 문서로 잡힌다 — 전 지면이 "기강"
-   * 하나를 쓰면 중복 문서로 묶여 색인에서 밀린다.
-   */
-  title: {
-    default: siteContent.metadata.searchTitle,
-    template: siteContent.metadata.titleTemplate,
-  },
-  description: siteContent.metadata.description,
-  /** 홈의 대표 URL. www 호스트로 들어와도 apex 한 곳으로 모은다. */
-  alternates: { canonical: "/" },
-  /**
-   * 네이버 서치어드바이저 소유확인 태그.
-   *
-   * 파일 업로드 방식을 안 쓴 이유: `public/naverXXXX.html`을 올려도 `proxy.ts` matcher가
-   * `.html`을 제외하지 않아 미들웨어를 타고, `PUBLIC_PATHS`에 없으면 쿠키 없는
-   * 네이버 요청이 /auth/login으로 302된다(`llms.txt`가 겪은 그 함정). 태그는 그 경로를
-   * 아예 안 탄다.
-   */
-  verification: {
-    other: { "naver-site-verification": NAVER_SITE_VERIFICATION },
-  },
+/** 팀과 무관한 고정분. 팀마다 다른 것(제목·설명·썸네일·크루 이름·네이버 소유확인)은 `generateMetadata` 가 얹는다 */
+const STATIC_METADATA: Metadata = {
   icons: {
     icon: [
       { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
@@ -58,25 +36,21 @@ export const metadata: Metadata = {
       { url: "/apple-icon-180x180.png", sizes: "180x180", type: "image/png" },
     ],
   },
-  openGraph: {
-    title: siteContent.metadata.searchTitle,
-    description: siteContent.metadata.description,
-    siteName: siteContent.brand.fullName,
-    url: SITE_URL,
-    locale: "ko_KR",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: siteContent.metadata.searchTitle,
-    description: siteContent.metadata.description,
-  },
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "기강",
-  },
 };
+
+/**
+ * 사이트 공통 메타데이터 — **들어온 주소의 팀** 기준(링크 미리보기·탭 제목·검색결과). 계산은
+ * `lib/seo/site-metadata.ts`, 문구는 팀 설정(`brand.name`·`seo.*`), 썸네일은 `lib/team-site.ts`.
+ *
+ * 요청 헤더를 읽어도 정적 지면이 동적으로 바뀌지 않는다 — 아래 body 에 이미 쿠키를 읽는 Suspense 섬이 있어 모든
+ * 지면이 요청마다 그려지고 있다(그 섬을 다 걷어내면 Next 가 "generateMetadata 만 동적" 빌드 에러를 낸다).
+ * 카톡(`facebookexternalhit`)·네이버(`Yeti`)는 Next 의 htmlLimitedBots 라 `<head>` 를 다 채워 받는다.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const input = await getSiteMetaInput();
+  if (!input) return STATIC_METADATA;
+  return { ...STATIC_METADATA, ...buildSiteMetadata(input) };
+}
 
 export const viewport: Viewport = {
   width: "device-width",

@@ -92,7 +92,7 @@ describe("gatheringOgImagePath", () => {
 
 describe("buildGatheringMetadata", () => {
   it("제목·설명·이미지가 한 출처에서 나오고 canonical은 /schedule 고정", () => {
-    const m = buildGatheringMetadata(src());
+    const m = buildGatheringMetadata(src(), undefined, "기강");
     expect(m.title).toBe("수요 한강 나이트런 10K");
     expect(m.description).toBe("9월 24일 (목) 오후 8:00 · 뚝섬유원지역 3번 출구");
     expect(m.alternates?.canonical).toBe("/schedule");
@@ -119,5 +119,12 @@ describe("buildGatheringMetadata", () => {
     // origin을 못 읽으면(null) 상대경로로 물러나 metadataBase가 채운다
     const fallback = buildGatheringMetadata(src(), null).openGraph as { images: { url: string }[] };
     expect(fallback.images[0].url).toBe("/api/og/gathering?g=9klzyNd&v=1789873200");
+  });
+
+  it("사이트 이름은 그 팀 크루 이름 — 없으면 칸째 안 내보낸다(기강으로 물러나지 않는다)", () => {
+    const movof = buildGatheringMetadata(src(), null, "모보브").openGraph as { siteName?: string };
+    expect(movof.siteName).toBe("모보브");
+    const none = buildGatheringMetadata(src(), null, null).openGraph as { siteName?: string };
+    expect(none).not.toHaveProperty("siteName");
   });
 });

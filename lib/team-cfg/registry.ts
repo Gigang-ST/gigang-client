@@ -24,7 +24,7 @@ import { GTHR_SPRT_TYPES, gthrSprtLabels } from "@/lib/validations/gathering";
  * 관리자 「팀 설정」 화면(`/admin/team-settings`)이 묶는 칸. 화면은 이 사전을 보고 그리므로,
  * **키를 사전에 더하면 모든 팀의 설정 화면에 저절로 올라온다**(팀마다 빈 행을 미리 넣을 필요가 없다).
  */
-export type CfgGroup = "feature" | "member_info" | "operation" | "brand";
+export type CfgGroup = "feature" | "member_info" | "operation" | "brand" | "seo";
 
 /**
  * 입력칸 모양. `secret` 은 지금 값을 화면에 내보내지 않고(설정됨/안 됨만) 새 값 입력만 받는다.
@@ -208,6 +208,55 @@ export const TEAM_CFG_REGISTRY = {
     visibility: "public",
     group: "brand",
     input: { kind: "text", placeholder: "예: 2024-04-23" },
+  }),
+
+  /**
+   * 크루 이름 — 링크 미리보기의 사이트 이름(`og:site_name`)·iOS 홈 화면 제목. **기본값이 없다** — 기본값을 「기강」으로
+   * 두면 설정을 안 채운 팀의 공유 카드에 기강 이름이 찍힌다. 비어 있으면 그 칸을 안 내보낸다.
+   * `team_mst.team_nm`(관리용 이름, 울산은 「울산지부」)과 다르다 — 이건 사람들에게 보이는 크루 이름이다(울산 = 모보브).
+   */
+  "brand.name": defineCfg({
+    schema: z.string().trim().min(1).max(20).nullable(),
+    default: null,
+    label: "크루 이름",
+    description: "링크 미리보기에 사이트 이름으로 보여요(예: 기강). 비우면 안 보여요.",
+    visibility: "public",
+    group: "brand",
+    input: { kind: "text", placeholder: "예: 기강" },
+  }),
+
+  /**
+   * 검색·공유 문구 — 홈 제목·탭 제목·설명. 화면에 쓰는 크루 이름(`brand.name`)과 **따로 둔다**: 「기강」 단독은
+   * 동음이의어라 검색에 안 걸려서 기강은 제목에 「러닝크루」·활동 지역을 일부러 넣었다(2026-09-01 네이버 실검색).
+   * 이름으로 제목을 조합하면 그 제목이 깨진다. 셋 다 **기본값이 없다** — 기강 문구가 다른 팀 미리보기에 뜨지 않게.
+   * 읽는 곳은 `lib/seo/site-metadata.ts` 한 곳.
+   */
+  "seo.title": defineCfg({
+    schema: z.string().trim().min(1).max(60).nullable(),
+    default: null,
+    label: "홈 제목",
+    description: "링크 미리보기·검색결과에 뜨는 제목. 크루 이름만 쓰면 검색에 안 걸릴 수 있어 활동 지역·종목을 같이 넣는 게 좋아요.",
+    visibility: "public",
+    group: "seo",
+    input: { kind: "text", placeholder: "예: 기강 러닝크루 | 양재천·강남 러닝 스포츠팀" },
+  }),
+  "seo.title_suffix": defineCfg({
+    schema: z.string().trim().min(1).max(30).nullable(),
+    default: null,
+    label: "탭 제목 뒤에 붙는 말",
+    description: "다른 화면 제목 뒤에 「일정 | ○○」처럼 붙어요. 비우면 크루 이름이 붙어요.",
+    visibility: "public",
+    group: "seo",
+    input: { kind: "text", placeholder: "예: 기강 러닝크루" },
+  }),
+  "seo.description": defineCfg({
+    schema: z.string().trim().min(1).max(160).nullable(),
+    default: null,
+    label: "설명 한 줄",
+    description: "링크 미리보기·검색결과 제목 아래에 보이는 소개(160자까지). 비우면 슬로건이 보여요.",
+    visibility: "public",
+    group: "seo",
+    input: { kind: "text", placeholder: "예: 양재천·강남에서 함께 달리는 러닝크루" },
   }),
 
   /**
