@@ -20,6 +20,7 @@ import {
   type MyGatheringApplication,
 } from "@/app/actions/gathering/manage-application";
 import { announceGatheringToKakao } from "@/app/actions/gathering/announce-gathering";
+import { canAnnounceToKakao } from "@/lib/gathering/can-announce";
 import { deleteGathering } from "@/app/actions/gathering/manage-gathering";
 import { toggleGatheringAttendance } from "@/app/actions/gathering/toggle-attendance";
 import { GatheringApplyButton } from "@/app/(info)/gatherings/[id]/gathering-apply-button";
@@ -930,9 +931,9 @@ export function GatheringDetailDialog({
       timeLabel={formatShareDateTime(gathering.evt_stt_at ?? gathering.start_date, gathering.evt_end_at)}
       pageUrl={sharePageUrl}
       shareText={gthrShareText}
-      // 노티봇 원버튼 — 팀이 노티봇을 쓸 때만, 활동 멤버면 누구나(남의 모임도), 지난 모임 제외. 서버가 다시 판정한다.
+      // 노티봇 원버튼 — 팀이 노티봇을 쓸 때만, 활동 멤버면 누구나(남의 모임도), 지난 모임 제외(§lib/gathering/can-announce)
       onAnnounce={
-        kakaoAnnounce && currentMemberId && !viewerInactive && !isPastLocked
+        canAnnounceToKakao({ kakaoAnnounce, currentMemberId, viewerInactive, isPastLocked })
           ? () => announceGatheringToKakao(gathering.id)
           : undefined
       }

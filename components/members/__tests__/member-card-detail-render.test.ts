@@ -249,3 +249,37 @@ describe("공개판(남이 보는 카드)", () => {
     expect(html).toContain("합정역");
   });
 });
+
+// 칭호 기능을 끈 팀(feature.titles=false, 울산) — 프로필탭(ProfileTabCard)은 칭호 진입점을 안 넘긴다.
+// 카드는 「진입점이 없으면 안 그린다」만 지키면 된다. 칭호 데이터가 남아 있어도(다른 팀에서 끈 경우) 고칠 자리가 새지 않게
+// 칭호를 실은 채로 본다.
+describe("칭호 기능을 끈 팀의 편집판", () => {
+  const titles = [
+    { ttl_nm: "뉴비", ttl_desc: null, desc_visibility: "others" as const, rarity_level: 1, ttl_ctgr_cd: "base" },
+  ];
+  const editWithoutTitles = { ...EDIT, onEditTitles: undefined, onOpenTitleHistory: undefined };
+  const renderOff = (data: Partial<MemberCardData>) =>
+    renderToStaticMarkup(
+      createElement(MemberCardDetail, {
+        memId: "11111111-1111-4111-8111-111111111111",
+        data: { ...BASE, ...data },
+        edit: editWithoutTitles,
+      }),
+    );
+
+  it("대표 칭호 `?` 껍데기와 연필이 없다", () => {
+    const html = renderOff({ primary_title: null });
+    expect(html).not.toContain("대표 칭호 고르기");
+    expect(html).not.toContain("대표 칭호 수정");
+  });
+
+  it("「획득 이력」 버튼이 없다", () => {
+    expect(renderOff({ titles })).not.toContain("획득 이력");
+  });
+
+  it("다른 편집 진입점(한마디·러닝 프로필)은 그대로다 — 칭호만 걷힌다", () => {
+    const html = renderOff({ primary_title: null });
+    expect(html).toContain("홍길동");
+    expect(render({ primary_title: null }, true)).toContain("대표 칭호 고르기");
+  });
+});
