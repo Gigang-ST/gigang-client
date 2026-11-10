@@ -30,7 +30,7 @@ REVOKE ALL ON FUNCTION public.team_feature_on(uuid, text, boolean) FROM PUBLIC, 
 
 DO $$
 DECLARE
-  -- 줄바꿈 통일 — Windows 에서 체크아웃한(CRLF) 파일로 로컬 DB 를 만들면 함수 본문에  이 섞여 아래 찾기가 어긋난다(PR #649 리뷰)
+  -- 줄바꿈 통일 — Windows 에서 체크아웃한(CRLF) 파일로 로컬 DB 를 만들면 함수 본문에 \r 이 섞여 아래 찾기가 어긋난다(PR #649 리뷰)
   d text := replace(pg_get_functiondef('public.get_public_member_card(uuid, uuid)'::regprocedure), E'\r\n', E'\n');
   r text[][] := ARRAY[
     ARRAY[
