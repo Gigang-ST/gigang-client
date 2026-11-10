@@ -57,3 +57,14 @@ describe("feature.dues — 회비 기능", () => {
     expect(resolveTeamCfgValue("feature.dues", false)).toBe(false);
   });
 });
+
+describe("social.channels — 링크로 나가는 주소는 http(s) 만", () => {
+  it("javascript: 같은 주소는 형식 오류로 기본값(채널 없음)으로 물러난다", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(resolveTeamCfgValue("social.channels", { instagram: "javascript:alert(1)" })).toEqual({});
+    expect(resolveTeamCfgValue("social.channels", { instagram: "https://www.instagram.com/x" })).toEqual({
+      instagram: "https://www.instagram.com/x",
+    });
+    warn.mockRestore();
+  });
+});

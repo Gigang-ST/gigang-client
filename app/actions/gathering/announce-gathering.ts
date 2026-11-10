@@ -70,8 +70,13 @@ export async function announceGatheringToKakao(gthrId: string): Promise<Announce
     });
 
     if (result.ok) return { ok: true };
-    if (result.skipped === "disabled") {
-      return { ok: false, reason: "disabled", message: "이 환경엔 노티봇이 연결돼 있지 않아요." };
+    // 회원이 누르는 버튼이라 내부 사정(노티봇 키·방 미설정·설정 조회 실패)은 말하지 않는다 — 관리자 문의로 안내.
+    // 원인은 서버 로그·발송 이력(실패일 때)에 남는다.
+    if (result.skipped) {
+      return { ok: false, reason: "disabled", message: "단톡방 알림을 보낼 수 없어요. 관리자에게 문의해 주세요." };
+    }
+    if (result.failure?.name === "TeamCfgReadError") {
+      return { ok: false, reason: "disabled", message: "단톡방 알림을 보낼 수 없어요. 잠시 뒤 다시 시도하거나 관리자에게 문의해 주세요." };
     }
     return {
       ok: false,

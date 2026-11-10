@@ -14,9 +14,13 @@ vi.mock("@/lib/env", () => ({ env: envMock }));
 // 방은 팀 설정(team_cfg kakao.room_id)에서 온다 — 팀별 방을 테스트마다 갈아끼운다.
 const TEAM = "team-gigang";
 const OTHER_TEAM = "team-ulsan";
-const cfgMock = vi.hoisted(() => ({ rooms: {} as Record<string, string | null> }));
+const cfgMock = vi.hoisted(() => ({ rooms: {} as Record<string, string | null>, readFails: false }));
 vi.mock("@/lib/team-cfg/read", () => ({
   getTeamCfg: async (teamId: string) => cfgMock.rooms[teamId] ?? null,
+  getTeamCfgStrict: async (teamId: string) => {
+    if (cfgMock.readFails) throw new Error(`팀 설정 조회 실패 (team=${teamId})`);
+    return cfgMock.rooms[teamId] ?? null;
+  },
 }));
 
 // 이력 기록은 service-role 로 DB 에 쓴다 — 여기서는 "무엇을 남기려 했는지"만 본다.
@@ -247,10 +251,28 @@ describe("sendKakao", () => {
       const result = await sendKakao("울산 모임", { teamId: OTHER_TEAM, fetchFn: fetchFn as unknown as typeof fetch });
 
       expect(fetchFn).not.toHaveBeenCalled();
-      expect(result).toEqual({ ok: false, skipped: "disabled" });
+      // 일부러 안 쓰는 팀이라 실패가 아니다 — 이력에 남기지 않는다(울산은 모임마다 쌓인다)
+      expect(result).toEqual({ ok: false, skipped: "no_room" });
       expect(recordKakaoSend).not.toHaveBeenCalled();
       expect(await isKakaoConfigured(OTHER_TEAM)).toBe(false);
       expect(await defaultKakaoRoom(OTHER_TEAM)).toBeNull();
+    });
+
+    it("방 설정을 **못 읽으면** 미설정과 달리 실패로 이력에 남긴다 — 기강 공지가 조용히 끊기지 않게", async () => {
+      cfgMock.readFails = true;
+      const fetchFn = vi.fn();
+      try {
+        const result = await sendKakao("기강 모임", { teamId: TEAM, fetchFn: fetchFn as unknown as typeof fetch });
+        expect(fetchFn).not.toHaveBeenCalled();
+        expect(result).toMatchObject({ ok: false, failure: { name: "TeamCfgReadError", retryable: true } });
+        expect(recordKakaoSend).toHaveBeenCalledWith(
+          expect.objectContaining({ teamId: TEAM, status: "failed", failure: expect.objectContaining({ name: "TeamCfgReadError" }) }),
+        );
+        // 미리보기는 깨지지 않고 "없음"으로 물러난다
+        expect(await defaultKakaoRoom(TEAM)).toBeNull();
+      } finally {
+        cfgMock.readFails = false;
+      }
     });
 
     it("팀마다 자기 방으로 간다", async () => {
@@ -287,7 +309,8 @@ describe("sendKakao", () => {
       const result = await sendKakao("안녕", { teamId: TEAM, fetchFn: fetchFn as unknown as typeof fetch });
 
       expect(fetchFn).not.toHaveBeenCalled();
-      expect(result).toEqual({ ok: false, skipped: "disabled" });
+      // 방이 빠진 건 "이 팀은 안 쓴다"(no_room), 나머지는 "이 환경엔 노티봇이 없다"(disabled)
+      expect(result).toEqual({ ok: false, skipped: _label === "방" ? "no_room" : "disabled" });
       // 보내지 않은 것은 이력에도 남기지 않는다 — 로컬에서 쓰레기 행이 쌓인다.
       expect(recordKakaoSend).not.toHaveBeenCalled();
     });

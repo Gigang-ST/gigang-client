@@ -156,6 +156,9 @@ export async function resendKakao(sendId: string): Promise<ResendResult> {
     if (result.skipped === "disabled") {
       return { ok: false, message: "이 환경엔 노티봇이 연결돼 있지 않아요." };
     }
+    if (result.skipped === "no_room") {
+      return { ok: false, message: "이 팀은 카톡 공지방이 설정되지 않았어요. 관리자 → 팀 설정에서 등록할 수 있어요." };
+    }
     return { ok: false, message: result.failure?.message ?? "다시 보내지 못했어요." };
   });
 }

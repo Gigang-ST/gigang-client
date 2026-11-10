@@ -48,7 +48,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 vi.mock("next/server", () => ({ after: (fn: () => unknown) => { void fn(); } }));
 vi.mock("@/lib/env", () => ({ env: h.env }));
 // 방은 팀 설정(team_cfg kakao.room_id)에서 온다 — 이 팀(team-1)엔 방이 있다
-vi.mock("@/lib/team-cfg/read", () => ({ getTeamCfg: async () => "기강" }));
+vi.mock("@/lib/team-cfg/read", () => ({ getTeamCfg: async () => "기강", getTeamCfgStrict: async () => "기강" }));
 vi.mock("@/lib/gathering/kakao-dispatch", () => ({ notifyGatheringCreated: h.notify }));
 vi.mock("@/lib/request-origin", () => ({ getRequestOrigin: async () => "https://gigang.team" }));
 vi.mock("@/lib/queries/request-team", () => ({ getRequestTeamContext: async () => ({ teamId: "team-1" }) }));

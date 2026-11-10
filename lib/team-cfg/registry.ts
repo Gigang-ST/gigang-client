@@ -46,11 +46,33 @@ type CfgDef<S extends z.ZodTypeAny> = {
   input: CfgInput;
   /** 관리자 설정 화면에 올리지 않는다 — 거의 안 바꾸는 값이라 코드·마이그레이션으로 관리한다 */
   hidden?: boolean;
+  /**
+   * 설정을 **못 읽었을 때**(DB 오류) 쓸 값. 없으면 `default`.
+   * 기본값이 '없음'인 키는 그대로 안전하지만, 기본값이 '켬'인 키는 실패 순간 그 기능을 꺼 둔 팀(울산)에서도
+   * 켜진다 — 그런 키는 여기에 보수적인 값(끔)을 준다. 기강도 그 순간엔 꺼지지만 잠깐이고 다른 팀으로 새지 않는다.
+   */
+  onReadError?: z.infer<S>;
+  /**
+   * **owner 만** 바꾼다 — 돈·공지가 걸린 값(계좌·카톡방). 관리자 누구나 바꾸면 계좌가 바뀌어도 아무도 모른다.
+   * 바뀌면 그 팀 owner·관리자에게 알림이 간다(`app/actions/admin/team-settings.ts`). 2026-11-10 유저 결정.
+   */
+  ownerOnly?: boolean;
 };
 
 function defineCfg<S extends z.ZodTypeAny>(def: CfgDef<S>): CfgDef<S> {
   return def;
 }
+
+/**
+ * 채널 주소 — http(s) 만. `z.string().url()` 은 `javascript:` 같은 주소도 통과시켜, 관리자가 넣은 값이
+ * 회원 화면의 링크(`<a href>`)로 그대로 나가면 누르는 순간 스크립트가 돈다. 길이도 묶는다.
+ */
+const channelUrl = z
+  .string()
+  .trim()
+  .max(500)
+  .url()
+  .refine((v) => /^https?:\/\//i.test(v), "http:// 또는 https:// 로 시작하는 주소만 넣을 수 있어요");
 
 export const TEAM_CFG_REGISTRY = {
   /**
@@ -66,6 +88,7 @@ export const TEAM_CFG_REGISTRY = {
     visibility: "server",
     group: "operation",
     input: { kind: "secret", placeholder: "노티봇 허브의 방 고정 ID" },
+    ownerOnly: true,
   }),
 
   /**
@@ -87,6 +110,7 @@ export const TEAM_CFG_REGISTRY = {
     visibility: "member",
     group: "member_info",
     input: { kind: "bank" },
+    ownerOnly: true,
   }),
 
   /**
@@ -95,10 +119,10 @@ export const TEAM_CFG_REGISTRY = {
    */
   "social.channels": defineCfg({
     schema: z.object({
-      kakao_open_chat: z.string().url().optional(),
-      instagram: z.string().url().optional(),
-      somoim: z.string().url().optional(),
-      garmin: z.string().url().optional(),
+      kakao_open_chat: channelUrl.optional(),
+      instagram: channelUrl.optional(),
+      somoim: channelUrl.optional(),
+      garmin: channelUrl.optional(),
     }),
     default: {},
     label: "팀 채널",
@@ -189,6 +213,8 @@ export const TEAM_CFG_REGISTRY = {
     visibility: "member",
     group: "feature",
     input: { kind: "boolean" },
+    // 못 읽었을 땐 끈다 — 기본값(켬)으로 물러나면 회비를 안 쓰는 팀에 그 순간 회비 메뉴·관리자 회비 화면이 열린다
+    onReadError: false,
   }),
 } as const;
 
@@ -203,6 +229,12 @@ export function isTeamCfgCd(cd: string): cd is TeamCfgCd {
  * DB 값 → 사전 형식. 행이 없거나(`undefined`) 형식이 틀리면 기본값.
  * 순수 함수 — 회귀 테스트 `lib/team-cfg/__tests__/registry.test.ts`.
  */
+/** 설정을 못 읽었을 때 쓸 값 — 키의 `onReadError`, 없으면 기본값 */
+export function resolveTeamCfgReadErrorValue<K extends TeamCfgCd>(cd: K): TeamCfgValue<K> {
+  const def = TEAM_CFG_REGISTRY[cd] as CfgDef<z.ZodTypeAny>;
+  return (def.onReadError !== undefined ? def.onReadError : def.default) as TeamCfgValue<K>;
+}
+
 export function resolveTeamCfgValue<K extends TeamCfgCd>(cd: K, raw: unknown): TeamCfgValue<K> {
   const def = TEAM_CFG_REGISTRY[cd];
   if (raw === undefined) return def.default as TeamCfgValue<K>;
