@@ -1,6 +1,6 @@
 "use server";
 
-import { withAdmin } from "@/lib/actions/auth";
+import { withDuesAdmin } from "@/lib/actions/dues-guard";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -24,7 +24,7 @@ async function getFeeItemGroupId(db: ReturnType<typeof createAdminClient>) {
 }
 
 export async function addFeeItem({ cd, cdNm, sortOrd }: { cd: string; cdNm: string; sortOrd: number }) {
-  return withAdmin(async () => {
+  return withDuesAdmin(async () => {
     const { teamId } = await getRequestTeamContext();
     if (!cd.trim() || !cdNm.trim()) return { ok: false as const, message: "코드와 항목명을 입력해주세요." };
     if (!/^[a-z][a-z0-9_]*$/.test(cd.trim())) return { ok: false as const, message: "코드는 영문 소문자·숫자·밑줄만 허용됩니다." };
@@ -44,7 +44,7 @@ export async function addFeeItem({ cd, cdNm, sortOrd }: { cd: string; cdNm: stri
 }
 
 export async function updateFeeItem({ cdId, cdNm }: { cdId: string; cdNm: string }) {
-  return withAdmin(async () => {
+  return withDuesAdmin(async () => {
     if (!cdNm.trim()) return { ok: false as const, message: "항목명을 입력해주세요." };
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
@@ -62,7 +62,7 @@ export async function updateFeeItem({ cdId, cdNm }: { cdId: string; cdNm: string
 }
 
 export async function reorderFeeItems(items: { cdId: string; sortOrd: number }[]) {
-  return withAdmin(async () => {
+  return withDuesAdmin(async () => {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
     // 이 팀 항목만 순서를 바꾼다 — 공용 항목은 조건에 안 걸려 그대로 남는다(화면도 공용 항목은 못 옮긴다)
@@ -78,7 +78,7 @@ export async function reorderFeeItems(items: { cdId: string; sortOrd: number }[]
 }
 
 export async function deleteFeeItem(cdId: string) {
-  return withAdmin(async () => {
+  return withDuesAdmin(async () => {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
     const { data: item } = await db.from("cmm_cd_mst").select("cd, team_id").eq("cd_id", cdId).maybeSingle();

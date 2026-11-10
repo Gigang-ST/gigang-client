@@ -2,7 +2,7 @@
 
 import { dayjs } from "@/lib/dayjs";
 
-import { withAdmin } from "@/lib/actions/auth";
+import { withDuesAdmin } from "@/lib/actions/dues-guard";
 import { isMemIdInTeam } from "@/lib/actions/team-scope";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -82,7 +82,7 @@ async function getOrCreateManualBatch(
  * - txn_tm 은 현재 KST 시각으로 채워 중복방지 인덱스 충돌을 피한다.
  */
 export async function addManualTransaction(input: AddManualTxnInput) {
-  return withAdmin(async ({ member }) => {
+  return withDuesAdmin(async ({ member }) => {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
 

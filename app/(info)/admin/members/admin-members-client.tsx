@@ -587,10 +587,13 @@ function StatusChangeSheet({
   onDeactivate,
   onLeave,
   onReactivate,
+  duesEnabled,
 }: {
   member: Member;
   open: boolean;
   busy: boolean;
+  /** 이 팀이 회비를 쓰는가 — 안 쓰면 재활성화의 「회비 잔액 처리」를 묻지 않는다 */
+  duesEnabled: boolean;
   onOpenChange: (open: boolean) => void;
   onDeactivate: (memberId: string, reason: string) => void;
   onLeave: (memberId: string, reason: string) => void;
@@ -752,7 +755,7 @@ function StatusChangeSheet({
                       </Caption>
                     </div>
                   )}
-                  {isSelected && opt.action === "activate" && (
+                  {isSelected && opt.action === "activate" && duesEnabled && (
                     <div className="flex flex-col gap-1.5 pl-4">
                       <Label className="text-[12px]">회비 잔액 처리</Label>
                       <div className="flex gap-2">
@@ -815,7 +818,16 @@ function StatusChangeSheet({
 // 메인 컴포넌트
 // ---------------------------------------------------------------------------
 
-export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: string; initialTeamMemId?: string }) {
+export function AdminMembersClient({
+  teamId,
+  initialTeamMemId,
+  duesEnabled,
+}: {
+  teamId: string;
+  initialTeamMemId?: string;
+  /** 이 팀이 회비를 쓰는가(팀 설정 `feature.dues`) — 안 쓰면 회비잔액 열·잔액 처리를 안 그린다 */
+  duesEnabled: boolean;
+}) {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"members" | "participation">("members");
@@ -1263,7 +1275,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
                   />
                 </div>
               </TableHead>
-              {["이름", "성별", "생년월일", "가입일자", "연락처", "회원상태", "회비잔액"].map((h) => (
+              {["이름", "성별", "생년월일", "가입일자", "연락처", "회원상태", ...(duesEnabled ? ["회비잔액"] : [])].map((h) => (
                 <TableHead key={h} className="text-center text-xs whitespace-nowrap">{h}</TableHead>
               ))}
             </TableRow>
@@ -1271,7 +1283,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
           <TableBody>
             {statusFiltered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="py-10 text-center">
+                <TableCell colSpan={duesEnabled ? 8 : 7} className="py-10 text-center">
                   <Caption className="text-muted-foreground">회원이 없습니다.</Caption>
                 </TableCell>
               </TableRow>
@@ -1323,6 +1335,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
                         )}
                     </div>
                   </TableCell>
+                  {duesEnabled && (
                   <TableCell className="text-center">
                     {member.bal_amt === null ? (
                       <Caption className="text-xs text-muted-foreground">-</Caption>
@@ -1336,6 +1349,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
                       </Caption>
                     )}
                   </TableCell>
+                  )}
                 </TableRow>
               );
             })}
@@ -1617,6 +1631,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
           onDeactivate={handleSheetDeactivate}
           onLeave={handleSheetLeave}
           onReactivate={handleSheetReactivate}
+          duesEnabled={duesEnabled}
         />
       )}
     </div>

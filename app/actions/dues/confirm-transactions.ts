@@ -2,7 +2,7 @@
 
 import { dayjs } from "@/lib/dayjs";
 
-import { withAdmin } from "@/lib/actions/auth";
+import { withDuesAdmin } from "@/lib/actions/dues-guard";
 import { filterMemIdsInTeam } from "@/lib/actions/team-scope";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -31,7 +31,7 @@ export type ConfirmItem = {
  *  - 이미 확정/삭제된 건은 건너뜀
  */
 export async function confirmTransactions(items: ConfirmItem[]) {
-  return withAdmin(async ({ member }) => {
+  return withDuesAdmin(async ({ member }) => {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
 

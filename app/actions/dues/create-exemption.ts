@@ -1,6 +1,6 @@
 "use server";
 
-import { withAdmin } from "@/lib/actions/auth";
+import { withDuesAdmin } from "@/lib/actions/dues-guard";
 import { isMemIdInTeam } from "@/lib/actions/team-scope";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -13,7 +13,7 @@ export async function createExemption({ memId, exmTpEnm, exmAmt, aplySttDt, aply
   aplyEndDt: string;
   rsnTxt: string;
 }) {
-  return withAdmin(async ({ member }) => {
+  return withDuesAdmin(async ({ member }) => {
     if (exmTpEnm === "part" && (!exmAmt || exmAmt <= 0)) return { ok: false as const, message: "부분 면제는 양수 금액을 입력해야 합니다." };
     if (aplySttDt > aplyEndDt) return { ok: false as const, message: "시작일이 종료일보다 늦을 수 없습니다." };
 

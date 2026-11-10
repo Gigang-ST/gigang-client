@@ -4,7 +4,7 @@ import crypto from "crypto";
 
 import { dayjs } from "@/lib/dayjs";
 
-import { withAdmin } from "@/lib/actions/auth";
+import { withDuesAdmin } from "@/lib/actions/dues-guard";
 import { matchPayer, type MemberRef, type AliasRef } from "@/lib/dues/match-payer";
 import { bucketOf } from "@/lib/dues/upload-bucketize";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -40,7 +40,7 @@ function inferItemCd(io: "deposit" | "withdrawal", txnTp: string): "due" | "expe
 }
 
 export async function uploadXlsx(formData: FormData) {
-  return withAdmin(async ({ member }) => {
+  return withDuesAdmin(async ({ member }) => {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
 

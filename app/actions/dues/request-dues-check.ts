@@ -2,14 +2,14 @@
 
 import { after } from "next/server";
 
-import { withMember } from "@/lib/actions/auth";
+import { withDuesMember } from "@/lib/actions/dues-guard";
 import { todayStartKST } from "@/lib/dayjs";
 import { insertNotiMany } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function requestDuesCheck() {
-  return withMember(async ({ member }) => {
+  return withDuesMember(async ({ member }) => {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
 
