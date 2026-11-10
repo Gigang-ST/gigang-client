@@ -128,6 +128,12 @@ export type MemberCardData = MemberCardCompactData & {
    * 배포 스큐 시 `undefined` → 카운터를 0으로 그린다.
    */
   rctn_recv_cnt?: number;
+  /**
+   * 이 카드를 보는 **팀의 기록 종목**(팀 설정 `records.categories` — 랭킹탭과 같은 값). 카드 함수가 같이 실어 준다 —
+   * 팝업은 브라우저가 이 함수를 직접 불러서, 설정을 따로 받으면 요청이 하나 는다. `null`/없음 = 설정 안 함 = 넷 다.
+   * 기록 칸·페이스 추이를 이 종목에 맞춰 거른다(`buildPbRows` · `showsPaceTrend`).
+   */
+  record_categories?: string[] | null;
   stats: {
     gthr_attd_cnt: number;
     comp_reg_cnt: number;

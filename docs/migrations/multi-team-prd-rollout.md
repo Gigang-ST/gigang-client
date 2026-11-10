@@ -34,6 +34,7 @@
 | 23 | 울산 전당 종목 = 트레일러닝만(`records.categories`) | `20261110107000_ulsan_records_trail.sql` | ✅ | ☐ |
 | 24 | 울산 모임 기본 종목 = 트레일러닝(`gathering.default_sport`) | `20261110108000_ulsan_gathering_trail.sql` | ✅ | ☐ |
 | 25 | **배포 뒤** 목표 한마디·종이비행기 걷기(피드 함수에서 빼고 함수 3개·테이블 2개 삭제) | `20261110109000_drop_pledge_message.sql` | ✅ | ☐ |
+| 26 | 프로필 카드에 그 팀의 기록 종목 싣기(`record_categories`) — **배포 전**, 22번 뒤 | `20261110110500_member_card_record_categories.sql` | ✅ | ☐ |
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
@@ -392,9 +393,23 @@ select t.team_cd, c.cfg_val_json from team_mst t
 left join team_cfg c on c.team_id = t.team_id and c.cfg_cd = 'gathering.default_sport' and c.vers = 0 and c.del_yn = false order by 1;
 ```
 
+### 26. `20261110110500_member_card_record_categories.sql` — 22번 뒤, 배포 전
+
+카드 함수(`get_public_member_card`) 결과에 그 팀의 기록 종목(`records.categories`) 칸 `record_categories` 를 얹는다. 화면이
+이 값으로 프로필 기록 칸(FULL·HALF·10K / UTMB / 철인)과 페이스 추이를 랭킹탭과 같은 종목으로 거른다(울산 = UTMB 줄만).
+함수 본문의 한 자리(`'rctn_recv_cnt'` 앞)에만 끼워 다시 만든다 — 못 찾으면 멈춘다. 22번과 같은 함수를 고치므로 **22번 뒤**에.
+옛 코드는 이 칸을 안 읽어 배포 전에 넣어도 안전하다(빠지면 울산 카드에 빈 로드 칸이 보일 뿐).
+
+```sql
+-- 확인: 울산 ["trail"], 기강 null(= 넷 다)
+select t.team_cd, public.get_public_member_card(r.mem_id, t.team_id) -> 'record_categories'
+from team_mst t join lateral (select mem_id from team_mem_rel m where m.team_id = t.team_id and m.vers = 0 and m.del_yn = false
+  and m.mem_st_cd = 'active' limit 1) r on true order by 1;
+```
+
 ## 배포
 
-1. 위 1~9·12·15·19·21이 끝났는지 표에서 확인하고, **2번의 배포 직전 필수 확인(기강 카톡방 1행)**을 다시 돌린다
+1. 위 1~9·12·15·19·21·26이 끝났는지 표에서 확인하고, **2번의 배포 직전 필수 확인(기강 카톡방 1행)**을 다시 돌린다
    (10·11·13·14·16·17·18은 배포 뒤여도 된다).
 2. PR #649 머지 → dev → main 배포.
 3. 배포 후 확인

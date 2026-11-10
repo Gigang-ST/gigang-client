@@ -6,6 +6,7 @@ import {
   getRunningProfileSlots,
   hasPaceTrend,
   pbEmptyValue,
+  showsPaceTrend,
 } from "@/lib/member-card";
 
 import type {
@@ -148,5 +149,35 @@ describe("getRunningProfileSlots — 미입력도 자리를 지킨다", () => {
       near_stn_nm: "  ",
     });
     expect(slots.every((s) => s.value === null)).toBe(true);
+  });
+});
+
+describe("buildPbRows · showsPaceTrend — 팀의 기록 종목(랭킹탭과 같은 설정)에 맞춘다", () => {
+  const tri: MemberCardRecord = { sport: "triathlon", evt: "OLYMPIC", rec_time_sec: 9000, race_nm: null, race_dt: null };
+  const cyc: MemberCardRecord = { sport: "cycling", evt: "", rec_time_sec: 9000, race_nm: null, race_dt: null };
+  const trend = [pace("10K", "2026-03-01"), pace("10K", "2026-04-01")];
+
+  it("설정 안 함(null)·옛 응답(undefined)은 넷 다 — 기강은 지금 그대로", () => {
+    expect(buildPbRows([tri], 500, null).map((r) => r.label)).toEqual(["FULL", "HALF", "10K", "철인3종", "UTMB INDEX"]);
+    expect(buildPbRows([tri], 500, undefined)).toEqual(buildPbRows([tri], 500));
+    expect(showsPaceTrend(trend, null)).toBe(true);
+  });
+
+  it("트레일만(울산): 로드 3칸·철인 줄·페이스 추이가 빠지고 UTMB 줄만 남는다 — 기록이 있어도", () => {
+    const rows = buildPbRows([road("FULL", 13331), tri], 500, ["trail"]);
+    expect(rows.map((r) => r.label)).toEqual(["UTMB INDEX"]);
+    expect(showsPaceTrend(trend, ["trail"])).toBe(false);
+  });
+
+  it("러닝만: UTMB 줄이 빠진다", () => {
+    expect(buildPbRows([], 500, ["marathon"]).map((r) => r.label)).toEqual(["FULL", "HALF", "10K"]);
+  });
+
+  it("사이클은 전당 종목에 없어 기록이 있으면 그대로 선다", () => {
+    expect(buildPbRows([cyc], null, ["trail"]).map((r) => r.label)).toEqual(["사이클", "UTMB INDEX"]);
+  });
+
+  it("세울 칸이 하나도 없을 수 있다(하이록스만) — 카드가 섹션째 뺀다", () => {
+    expect(buildPbRows([road("FULL", 13331)], 500, ["hyrox"])).toEqual([]);
   });
 });

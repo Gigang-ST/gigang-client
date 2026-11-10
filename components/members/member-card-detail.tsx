@@ -24,7 +24,7 @@ import {
   getMemberIntro,
   getRaceDday,
   getRunningProfileSlots,
-  hasPaceTrend,
+  showsPaceTrend,
   pbEmptyValue,
   toPaceChartRecords,
   MOOD_STEPS,
@@ -282,8 +282,9 @@ export function MemberCardDetail({
   const dday = data.upcoming_race ? getRaceDday(data.upcoming_race.stt_dt) : null;
 
   const profileSlots = getRunningProfileSlots(data.running_profile);
-  const pbRows = buildPbRows(data.best_records, data.utmb_index);
-  const showPace = hasPaceTrend(data.race_records);
+  // 기록 칸·페이스 추이는 이 팀의 기록 종목(랭킹탭과 같은 설정)에 맞춘다 — 카드 함수가 같이 실어 준다
+  const pbRows = buildPbRows(data.best_records, data.utmb_index, data.record_categories);
+  const showPace = showsPaceTrend(data.race_records, data.record_categories);
   const recvCnt = data.rctn_recv_cnt ?? 0;
 
   const visibleTitles = titlesOpen
@@ -810,7 +811,10 @@ export function MemberCardDetail({
 
           {/* ── ④ 개인 최고기록 ───────────────────────────────
               빈 판 대신 칸을 늘 세운다(FULL/HALF/10K + 있는 종목 + UTMB INDEX):
-              채워야 할 칸이 몇 개인지가 눈에 보이고, 기록을 넣은 뒤에도 레이아웃이 안 바뀐다. */}
+              채워야 할 칸이 몇 개인지가 눈에 보이고, 기록을 넣은 뒤에도 레이아웃이 안 바뀐다.
+              팀의 기록 종목에 맞춰 거른 뒤 **세울 칸이 하나도 없으면**(예: 하이록스만 하는 팀) 공개판은 섹션째
+              빼고, 편집판은 「기록 추가」 진입점이 사라지지 않게 머리줄만 남긴다. */}
+          {(pbRows.length > 0 || edit) && (
           <section className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
               <SectionLabel>
@@ -902,6 +906,7 @@ export function MemberCardDetail({
               ))}
             </ul>
           </section>
+          )}
 
           {/* ── ⑤ 페이스 추이 ────────────────────────────────
               같은 종목 2건 이상일 때만 — 점 하나짜리는 추이가 아니다. 0일 때 보여줄 형태가

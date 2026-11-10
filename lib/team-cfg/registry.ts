@@ -298,7 +298,9 @@ export const TEAM_CFG_REGISTRY = {
   }),
 
   /**
-   * 기강의 전당(랭킹탭)에 세울 종목과 **그 순서**(저장된 순서대로 탭이 서고, 첫 종목이 처음 열린다). 기본값 = 넷 다
+   * 이 팀의 **기록 종목** — 기강의 전당(랭킹탭)에 세울 종목과 **그 순서**(저장된 순서대로 탭이 서고, 첫 종목이 처음
+   * 열린다), 그리고 **프로필 카드의 기록 칸·페이스 추이**도 같은 종목만 세운다(카드 함수가 이 값을 실어 준다 —
+   * `get_public_member_card` 의 `record_categories`, 2026-11-10 유저 결정). 기본값 = 넷 다
    * 지금 순서(기강). 하나만 고르면 랭킹탭 맨 위 종목 탭 줄을 없애고 그 종목 이름을 고정으로 세운다(울산 = 트레일러닝만,
    * 2026-11-10 유저 결정). 기록 등록(프로필)은 이 설정과 무관하다 — 어느 종목이든 올릴 수 있다.
    */
@@ -308,8 +310,9 @@ export const TEAM_CFG_REGISTRY = {
       .min(1, "종목을 하나는 골라야 해요")
       .refine((v) => new Set(v).size === v.length, "같은 종목이 두 번 들어 있어요"),
     default: [...RECORD_CATEGORY_KEYS],
-    label: "전당 종목",
-    description: "랭킹탭(기강의 전당)에 세울 종목과 순서. 위에 둔 종목이 먼저 나와요. 하나만 고르면 종목 탭 없이 그 종목만 보여요.",
+    label: "기록 종목",
+    description:
+      "랭킹탭과 프로필 기록 칸에 세울 종목과 순서. 위에 둔 종목이 랭킹탭에 먼저 나오고, 하나만 고르면 종목 탭 없이 그 종목만 보여요. 프로필엔 고른 종목의 기록 칸만 보여요(러닝이 없으면 FULL·HALF·10K와 페이스 그래프도 빠져요).",
     visibility: "public",
     group: "feature",
     input: { kind: "choices", options: RECORD_CATEGORIES, orderable: true },

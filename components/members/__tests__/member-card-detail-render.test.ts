@@ -283,3 +283,22 @@ describe("칭호 기능을 끈 팀의 편집판", () => {
     expect(render({ primary_title: null }, true)).toContain("대표 칭호 고르기");
   });
 });
+
+// 팀의 기록 종목(records.categories) — 카드 함수가 record_categories 로 실어 준다. 울산 = 트레일만.
+describe("기록 종목이 트레일만인 팀의 카드", () => {
+  it("로드 칸(FULL·HALF·10K) 없이 UTMB 줄만 선다 — 편집판·공개판 모두", () => {
+    for (const edit of [true, false]) {
+      const html = render({ record_categories: ["trail"], utmb_index: 512 }, edit);
+      expect(html).toContain("UTMB INDEX");
+      expect(html).not.toContain(">FULL<");
+      expect(html).not.toContain(">HALF<");
+    }
+  });
+
+  it("세울 칸이 없으면 공개판은 「개인 최고기록」째 빠지고, 편집판은 「기록 추가」를 남긴다", () => {
+    expect(render({ record_categories: ["hyrox"] })).not.toContain("개인 최고기록");
+    const edit = render({ record_categories: ["hyrox"] }, true);
+    expect(edit).toContain("개인 최고기록");
+    expect(edit).toContain("기록 추가");
+  });
+});
