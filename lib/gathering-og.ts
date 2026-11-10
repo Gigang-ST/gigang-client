@@ -42,7 +42,10 @@ export const OG_COLORS = {
   boardMuted: "#878c99",
 } as const;
 
-/** 크루 슬로건 — 홈 헤더 티커(`components/home/header-ticker.tsx`)와 같은 문구 */
+/**
+ * 기강 슬로건 — **점검 화면(`app/_maintenance/route.ts`) 전용**으로만 남았다. 일정 탭 헤더·모임 공유 이미지는
+ * 팀 설정 `brand.slogan` 을 읽는다(팀마다 다르다, 2026-11-10). 새 화면에서 이 상수를 쓰지 말 것 — 울산에 기강 문구가 뜬다.
+ */
 export const OG_SLOGAN = "No time to be weak";
 
 export type OgSportBlock = { label: string; bg: string; fg: string };

@@ -27,6 +27,8 @@ export const CFG_ORDER: readonly string[] = [
   "bank.team_account",
   "kakao.room_id",
   "gathering.regular_template",
+  "brand.slogan",
+  "brand.founded_dt",
   "brand.wordmark",
 ];
 

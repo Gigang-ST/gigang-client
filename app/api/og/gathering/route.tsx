@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { ImageResponse } from "next/og";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { buildGatheringOgText, getGatheringOgSport, OG_COLORS, OG_SLOGAN } from "@/lib/gathering-og";
+import { buildGatheringOgText, getGatheringOgSport, OG_COLORS } from "@/lib/gathering-og";
 import { getCachedGatheringOg } from "@/lib/queries/gathering-og";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getTeamCfg } from "@/lib/team-cfg/read";
@@ -63,10 +63,12 @@ type CardProps = {
   sport: ReturnType<typeof getGatheringOgSport>;
   /** 팀 워드마크(팀 설정 `brand.wordmark`). 없으면 글자 줄을 안 그린다 — 다른 팀 카드에 기강 글자가 찍히지 않게 */
   wordmark: string | null;
+  /** 팀 슬로건(팀 설정 `brand.slogan`). 없으면 맨 위 줄을 안 그린다 — 다른 팀 카드에 기강 슬로건이 찍히지 않게 */
+  slogan: string | null;
 };
 
 /** 1200×630 카드 본체. try/catch 밖에서 element로 만들어 둔다(react-hooks/error-boundaries). */
-function GatheringCard({ text, sport, wordmark }: CardProps) {
+function GatheringCard({ text, sport, wordmark, slogan }: CardProps) {
   return (
     <div
       style={{
@@ -135,19 +137,21 @@ function GatheringCard({ text, sport, wordmark }: CardProps) {
         }}
       >
         {/* 슬로건 — 홈 헤더와 같은 어법(black · italic · uppercase). 이탤릭 폰트가 없어 skew로 기울인다 */}
-        <div
-          style={{
-            fontWeight: 800,
-            fontSize: 22,
-            letterSpacing: "-0.03em",
-            textTransform: "uppercase",
-            transform: "skewX(-10deg)",
-            color: OG_COLORS.foreground,
-            marginBottom: 22,
-          }}
-        >
-          {OG_SLOGAN}
-        </div>
+        {slogan ? (
+          <div
+            style={{
+              fontWeight: 800,
+              fontSize: 22,
+              letterSpacing: "-0.03em",
+              textTransform: "uppercase",
+              transform: "skewX(-10deg)",
+              color: OG_COLORS.foreground,
+              marginBottom: 22,
+            }}
+          >
+            {slogan}
+          </div>
+        ) : null}
         <div
           style={{
             display: "flex",
@@ -226,14 +230,15 @@ export async function GET(req: NextRequest) {
   if (!ref) return fallback(req);
 
   const { teamId } = await getRequestTeamContext();
-  const [src, wordmark] = await Promise.all([
+  const [src, wordmark, slogan] = await Promise.all([
     getCachedGatheringOg(ref, teamId),
     getTeamCfg(teamId, "brand.wordmark"),
+    getTeamCfg(teamId, "brand.slogan"),
   ]);
   if (!src) return fallback(req);
 
   const element = (
-    <GatheringCard text={buildGatheringOgText(src)} sport={getGatheringOgSport(src.sprt_cd)} wordmark={wordmark} />
+    <GatheringCard text={buildGatheringOgText(src)} sport={getGatheringOgSport(src.sprt_cd)} wordmark={wordmark} slogan={slogan} />
   );
 
   try {

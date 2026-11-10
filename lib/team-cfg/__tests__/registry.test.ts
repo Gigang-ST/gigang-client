@@ -68,3 +68,17 @@ describe("social.channels — 링크로 나가는 주소는 http(s) 만", () => 
     warn.mockRestore();
   });
 });
+
+describe("brand.founded_dt — 창설일", () => {
+  it("YYYY-MM-DD 날짜는 그대로, 행이 없으면 없음(줄을 안 그린다)", () => {
+    expect(resolveTeamCfgValue("brand.founded_dt", "2026-11-28")).toBe("2026-11-28");
+    expect(resolveTeamCfgValue("brand.founded_dt", undefined)).toBeNull();
+  });
+
+  it("형식이 틀리거나 없는 날짜(2월 30일)는 기본값(없음)으로 물러난다 — 다음 달로 넘어가 찍히지 않게", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(resolveTeamCfgValue("brand.founded_dt", "2024.04.23")).toBeNull();
+    expect(resolveTeamCfgValue("brand.founded_dt", "2026-02-30")).toBeNull();
+    warn.mockRestore();
+  });
+});

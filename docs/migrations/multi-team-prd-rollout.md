@@ -29,6 +29,7 @@
 | 18 | 팀 설정 `project.show_intro` 걷기(프로젝트 없을 때 소개 화면 제거) | `20261109270000_drop_project_show_intro.sql` | ✅ | ☐ |
 | 19 | 알림 유형 `team_cfg_chg`(owner 전용 설정 변경 알림) | `20261110100000_noti_type_team_cfg_chg.sql` | ✅ | ☐ |
 | 20 | **배포 뒤** 전환용 장치 걷기(알림 설정 옛 유니크·기본값, 카톡 이력 팀 NOT NULL, 건의 기본값) | `20261110110000_after_deploy_cleanup.sql` | ✅ | ☐ |
+| 21 | 슬로건·창설일을 팀 설정에 등록(기강 + 울산) — **배포 전** | `20261110105000_team_cfg_slogan_founded.sql` | ✅ | ☐ |
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
@@ -337,9 +338,22 @@ select t.team_cd, c.vers, c.del_yn from team_cfg c join team_mst t using (team_i
 select pg_get_constraintdef(oid) from pg_constraint where conname = 'noti_mst_noti_type_enm_check'; -- 끝에 'team_cfg_chg'
 ```
 
+### 21. `20261110105000_team_cfg_slogan_founded.sql` — ⚠️ 빠지면 배포 순간 기강 일정 탭 헤더 가운데가 빈다
+
+일정 탭 헤더 가운데 「Since 2024.04.23 / No time to be weak」와 모임 공유 이미지 맨 위 슬로건이 코드에 박혀 있던 걸 팀 설정
+(`brand.slogan` · `brand.founded_dt`)으로 옮긴다. 울산 값도 같이 넣는다 — 창설일 2026-11-28, 슬로건 `Climb hard, run wild`
+(임시 문구, 울산 운영진이 팀 설정 화면에서 바꾼다). 두 키 모두 기본값이 없어 **행 없이 새 코드가 나가면** 기강 헤더 가운데가 비고
+공유 카드 슬로건이 빠진다. 옛 코드는 이 행을 안 읽어 **배포 전에 넣는다.** 파일 시각이 20번보다 앞이지만 번호는 나중에 더해서 21이다.
+
+```sql
+-- 확인: 네 행 — 기강 2024-04-23 / No time to be weak, 울산 2026-11-28 / Climb hard, run wild
+select t.team_cd, c.cfg_cd, c.cfg_val_json from team_cfg c join team_mst t using (team_id)
+where c.cfg_cd in ('brand.slogan', 'brand.founded_dt') and c.vers = 0 and c.del_yn = false order by 1, 2;
+```
+
 ## 배포
 
-1. 위 1~9·12·15·19가 끝났는지 표에서 확인하고, **2번의 배포 직전 필수 확인(기강 카톡방 1행)**을 다시 돌린다
+1. 위 1~9·12·15·19·21이 끝났는지 표에서 확인하고, **2번의 배포 직전 필수 확인(기강 카톡방 1행)**을 다시 돌린다
    (10·11·13·14·16·17·18은 배포 뒤여도 된다).
 2. PR #649 머지 → dev → main 배포.
 3. 배포 후 확인

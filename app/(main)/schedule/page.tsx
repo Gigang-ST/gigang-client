@@ -12,10 +12,11 @@ import { getCachedGatheringOg } from "@/lib/queries/gathering-og";
 import { getCachedHomeCalendar } from "@/lib/queries/home-calendar";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { buildHeaderBrand } from "@/lib/team-brand";
+import { getTeamCfg } from "@/lib/team-cfg/read";
 
 import { HeaderActions } from "@/components/common/header-actions";
 import { PageHeader } from "@/components/common/page-header";
-import { HeaderSlogan } from "@/components/home/header-slogan";
 import { HeaderTicker, type HeaderUpcoming } from "@/components/home/header-ticker";
 import { MiniCalendar } from "@/components/home/mini-calendar";
 import type { CalendarRace } from "@/components/home/mini-calendar";
@@ -43,7 +44,13 @@ async function HomeHeader() {
         .maybeSingle()
     : Promise.resolve({ data: null });
 
-  const { data: upcomingRow } = await upcomingPromise;
+  // 슬로건·창설일은 팀 설정 — 서버 메모리 1분 캐시라 이 헤더가 매번 읽어도 DB·Vercel 계량이 늘지 않는다(§team-cfg/read)
+  const [{ data: upcomingRow }, slogan, foundedDt] = await Promise.all([
+    upcomingPromise,
+    getTeamCfg(teamId, "brand.slogan"),
+    getTeamCfg(teamId, "brand.founded_dt"),
+  ]);
+  const brand = buildHeaderBrand(foundedDt, slogan);
 
   let upcoming: HeaderUpcoming | null = null;
   if (upcomingRow) {
@@ -72,7 +79,7 @@ async function HomeHeader() {
       action={<HeaderActions />}
       center={
         <div className="relative h-8 w-full">
-          <HeaderTicker upcoming={upcoming} />
+          <HeaderTicker upcoming={upcoming} brand={brand} />
         </div>
       }
     />
@@ -220,8 +227,10 @@ function HomeSkeleton() {
 }
 
 function HomeHeaderSkeleton() {
-  // 본 헤더와 같은 editorial 골격 + 가운데 슬로건. 데이터가 오기 전(티커의 다음 모임
-  // 조회 중)에도 높이·간격이 동일해 로딩→로드 전환에 헤더가 튀지 않는다.
+  // 본 헤더와 같은 editorial 골격. 데이터가 오기 전(티커의 다음 모임 조회 중)에도 높이·간격이
+  // 동일해 로딩→로드 전환에 헤더가 튀지 않는다. 가운데 슬로건 자리는 **같은 높이의 빈칸**이다 —
+  // 이 뼈대는 빌드 때 한 장 만들어 모든 주소에 같이 보여 줘서 어느 팀인지 모르고, 문구를 넣으면 그게
+  // 다른 팀 화면에 스친다(§HeaderSlogan).
   return (
     <PageHeader
       variant="editorial"
@@ -234,11 +243,7 @@ function HomeHeaderSkeleton() {
           <div className="size-8 shrink-0" />
         </div>
       }
-      center={
-        <div className="flex h-8 flex-col items-center justify-center">
-          <HeaderSlogan />
-        </div>
-      }
+      center={<div className="h-8" />}
     />
   );
 }

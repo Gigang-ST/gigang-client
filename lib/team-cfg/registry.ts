@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { parseEventTime } from "@/lib/dayjs";
+
 /**
  * 팀 설정 사전 — `team_cfg` 에 들어갈 수 있는 키의 **정본**.
  *
@@ -73,6 +75,13 @@ const channelUrl = z
   .max(500)
   .url()
   .refine((v) => /^https?:\/\//i.test(v), "http:// 또는 https:// 로 시작하는 주소만 넣을 수 있어요");
+
+/** 날짜 하나(YYYY-MM-DD). 형식만 보면 `2026-02-30` 같은 없는 날도 통과해 화면에 3월 2일로 찍힌다 — 되읽어 같아야 한다 */
+const dateOnly = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "2024-04-23 처럼 넣어 주세요")
+  .refine((v) => parseEventTime(v).format("YYYY-MM-DD") === v, "없는 날짜예요");
 
 export const TEAM_CFG_REGISTRY = {
   /**
@@ -160,6 +169,36 @@ export const TEAM_CFG_REGISTRY = {
     visibility: "public",
     group: "brand",
     input: { kind: "text", placeholder: "예: GIGANG" },
+  }),
+
+  /**
+   * 슬로건 — 일정 탭 헤더 가운데(큰 글자)와 모임 공유 이미지(OG) 맨 위에 찍는다. **기본값이 없다** — 비어 있으면
+   * 그 줄을 안 그린다. 기본값을 기강 문구로 두면 울산 화면·공유 카드에 기강 슬로건이 뜬다.
+   * 예전엔 `components/home/header-slogan.tsx`·`lib/gathering-og.ts` 에 기강 문구가 박혀 있었다(2026-11-10 데이터로 옮김).
+   * 헤더 가운데 폭(224px)에 13px 굵은 대문자로 들어가야 해서 짧게 묶는다 — 넘치면 화면이 `…` 로 자른다.
+   */
+  "brand.slogan": defineCfg({
+    schema: z.string().trim().min(1).max(24).nullable(),
+    default: null,
+    label: "슬로건",
+    description: "일정 탭 맨 위와 모임 공유 이미지에 대문자로 찍히는 한 줄(24자까지). 비우면 안 보여요.",
+    visibility: "public",
+    group: "brand",
+    input: { kind: "text", placeholder: "예: No time to be weak" },
+  }),
+
+  /**
+   * 창설일 — 일정 탭 헤더 슬로건 위 작은 글자 「Since 2024.04.23」. **기본값이 없다**(비어 있으면 안 그린다).
+   * 아직 안 온 날(울산 2026-11-28)이어도 그대로 찍는다 — 창설 예정일도 그 크루의 시작일이다.
+   */
+  "brand.founded_dt": defineCfg({
+    schema: dateOnly.nullable(),
+    default: null,
+    label: "창설일",
+    description: "일정 탭 맨 위 슬로건 위에 「Since 2024.04.23」로 보여요. 비우면 안 보여요.",
+    visibility: "public",
+    group: "brand",
+    input: { kind: "text", placeholder: "예: 2024-04-23" },
   }),
 
   /**
