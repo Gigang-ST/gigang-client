@@ -1,4 +1,5 @@
 import { GIGANG_LLMS_TXT } from "@/lib/seo/llms/gigang";
+import { TEAM_LOGO } from "@/lib/team-logo";
 
 /**
  * 팀별 **정적 파일·주소에 묶인 값** — 배포와 함께 나가는 것들이라 팀 설정(`team_cfg`, DB)이 아니라 코드에 둔다.
@@ -59,7 +60,7 @@ export type TeamSite = {
   /** 푸시 알림 — 큰 아이콘(컬러)·상태바 배지(흰 실루엣 + 투명 배경). `lib/push/send-push.ts` 가 페이로드에 싣는다 */
   notificationIcon?: string;
   notificationBadge?: string;
-  /** 로고 원본(투명 배경) — 구조화 데이터 `logo` */
+  /** 로고 원본(투명 배경) — 구조화 데이터 `logo`. 경로의 정본은 `lib/team-logo.ts`(화면 안 로고와 같은 그림) */
   logo?: string;
   /** `/llms.txt` 본문(LLM·에이전트용 사이트 안내문). 없으면 그 주소의 `/llms.txt` 는 404 — `app/llms.txt/route.ts` */
   llmsTxt?: string;
@@ -94,7 +95,7 @@ export const TEAM_SITE: Readonly<Record<string, TeamSite>> = {
     msTileConfig: "/browserconfig.xml",
     notificationIcon: "/GIGANG.png",
     notificationBadge: "/notification-badge.png",
-    logo: "/logo.webp",
+    logo: TEAM_LOGO.gigang.logo,
     organization: {
       name: "기강 러닝크루",
       alternateName: ["기강", "기강 스포츠팀", "양재천 러닝크루 기강"],
@@ -117,7 +118,7 @@ export const TEAM_SITE: Readonly<Record<string, TeamSite>> = {
     msTileConfig: ulsan("browserconfig.xml"),
     notificationIcon: ulsan("notification-icon.png"),
     notificationBadge: ulsan("notification-badge.png"),
-    logo: ulsan("logo.png"),
+    logo: TEAM_LOGO.ulsan.logo,
     organization: {
       name: "모보브 트레일러닝 크루",
       alternateName: ["모보브", "MOVOF", "울산 트레일러닝 크루 모보브"],

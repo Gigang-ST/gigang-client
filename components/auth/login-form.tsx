@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { DevEmailLogin, isDevModeEnabled } from "@/components/auth/dev-email-login";
+import { TeamLogoImage } from "@/components/common/team-logo-image";
 import { SocialLinksRow } from "@/components/social-links";
 import type { TeamChannels } from "@/lib/team-channels";
 import { Button } from "@/components/ui/button";
@@ -64,7 +65,8 @@ export function LoginForm({
     >
       {/* Logo */}
       <div className="flex flex-col items-center gap-3">
-        <Image src="/logo.webp" alt="기강" width={80} height={80} priority className="dark:invert" />
+        {/* 팀 로고 — 로그인 화면은 미리 만드는 껍데기라 브라우저가 주소로 고른다(§lib/team-logo) */}
+        <TeamLogoImage width={80} height={80} priority className="size-20 dark:invert" />
         <p className="w-[280px] text-center text-[15px] leading-relaxed text-muted-foreground">
           운동을 좋아하는 사람들이 모여
           <br />

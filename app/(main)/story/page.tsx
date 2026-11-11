@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import { Suspense } from "react";
 
 import { getGhostMembers } from "@/lib/queries/ghost-members";
@@ -28,6 +27,7 @@ import { getMileageRecapTeaser } from "@/lib/queries/mileage-recap";
 import { pickTeaserFaces } from "@/lib/mileage-recap";
 
 import { HeaderActions } from "@/components/common/header-actions";
+import { TeamLogoImage } from "@/components/common/team-logo-image";
 import { StoryClient } from "@/components/story/story-client";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -199,6 +199,7 @@ async function StoryFeedSection() {
  * 지면 로딩 — 제호는 데이터 없이도 그릴 수 있으니 형태만 잡고, 그 아래에
  * 메인 로고를 은은히 깜빡여 "불러오는 중"임을 브랜드로 알린다(무색 스켈레톤 대신).
  * 로고는 라이트/다크 공통으로 보이게 `dark:invert`(로그인 화면과 같은 규칙).
+ * 로고는 **팀 로고**다 — 이 화면은 미리 만드는 껍데기라 팀을 몰라, 브라우저가 이어받는 순간 주소로 고른다(`TeamLogoImage`).
  */
 function StorySkeleton() {
   return (
@@ -209,10 +210,9 @@ function StorySkeleton() {
         <div className="rule-masthead mt-1 w-full" />
       </div>
       <div className="flex min-h-[60vh] flex-col items-center justify-center px-6">
-        <Image
-          src="/logo.webp"
-          // 「불러오는 중」 장식이라 읽어 줄 이름이 없다(alt="") — 미리 만드는 껍데기라 팀 이름을 넣을 수도 없다
-          alt=""
+        <TeamLogoImage
+          // 「불러오는 중」 장식이라 읽어 줄 이름이 없다(alt="")
+          decorative
           width={512}
           height={512}
           priority
