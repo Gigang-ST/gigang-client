@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { buildTeamCopy } from "@/lib/team-copy";
+import {
+  CARD_COPY_KEYS,
+  buildTeamCopy,
+  pageDescription,
+  pickTeamCopy,
+  type PageDescriptionKey,
+} from "@/lib/team-copy";
 
 const gigang = buildTeamCopy({ teamCd: "gigang", crewName: "기강", memberNoun: "기강인", wordmark: "GIGANG" });
 const movof = buildTeamCopy({ teamCd: "ulsan", crewName: "모보브", memberNoun: null });
@@ -83,5 +89,65 @@ describe("buildTeamCopy — 다른 팀", () => {
   it("아무것도 안 정한 새 팀은 중립어 — 크루·크루원", () => {
     expect(blank).toMatchObject({ crewName: "크루", memberNoun: "크루원", wordmark: "크루", hallName: "크루의 전당", storyName: "크루이야기" });
     expect(JSON.stringify(blank)).not.toContain("기강");
+  });
+});
+
+describe("buildTeamCopy — 팀 설정을 못 읽거나 비어도 이름과 말투가 같은 팀으로 맞물린다", () => {
+  it("기강: 설정이 다 비어도(조회 실패·마이그레이션 전 배포) 팀 기본 이름 — 「크루이야기」에 「기강이 빠졌군」이 섞이지 않는다", () => {
+    const failed = buildTeamCopy({ teamCd: "gigang", crewName: null, memberNoun: null, wordmark: null });
+    expect(failed).toMatchObject({
+      crewName: "기강",
+      memberNoun: "기강인",
+      wordmark: "GIGANG",
+      hallName: "기강의 전당",
+      storyName: "기강이야기",
+    });
+    // 이름·말투가 둘 다 기강 — 설정이 있을 때와 똑같다
+    expect(failed).toEqual(gigang);
+  });
+
+  it("팀 설정 값이 있으면 그게 이긴다(팀 기본 이름보다 우선)", () => {
+    const renamed = buildTeamCopy({ teamCd: "gigang", crewName: "기강 크루", memberNoun: "기강러", wordmark: null });
+    expect(renamed).toMatchObject({ crewName: "기강 크루", memberNoun: "기강러", hallName: "기강 크루의 전당" });
+  });
+
+  it("말투 표에 없는 팀은 설정을 못 읽으면 중립어 + 중립 말투 — 역시 섞이지 않는다", () => {
+    const failed = buildTeamCopy({ teamCd: "ulsan", crewName: null, memberNoun: null });
+    expect(failed).toMatchObject({ crewName: "크루", memberNoun: "크루원", galleryName: "갤러리" });
+    expect(JSON.stringify(failed)).not.toContain("기강");
+  });
+});
+
+const PAGE_KEYS: PageDescriptionKey[] = [
+  "board", "join", "newbie", "rules", "terms", "privacy", "policy", "schedule", "races", "records", "projects", "recap",
+];
+
+describe("pageDescription — 지면 검색 설명", () => {
+  it("기강은 다듬어 둔 문장 그대로(2026-11-11 이전 지면 metadata)", () => {
+    expect(pageDescription("records", "gigang", "기강")).toBe(
+      "기강 러닝크루 종목별 최고 기록. 5K·10K·하프·풀코스 크루원 기록을 모았습니다.",
+    );
+    expect(pageDescription("schedule", "gigang", "기강")).toBe(
+      "기강 러닝크루의 다가오는 러닝·자전거·수영 모임과 참가 대회 일정.",
+    );
+    expect(pageDescription("join", "gigang", "기강")).toContain("양재천·강남");
+  });
+
+  it("다른 팀은 모든 지면이 그 팀 이름의 중립 문장 — 「기강」·기강 지역·종목이 안 남는다", () => {
+    for (const key of PAGE_KEYS) {
+      const d = pageDescription(key, "ulsan", "모보브");
+      expect(d).toContain("모보브");
+      expect(d).not.toMatch(/기강|양재천|강남/);
+    }
+    expect(pageDescription("races", "ulsan", "모보브")).toMatch(/^모보브가 /); // 조사
+  });
+});
+
+describe("pickTeamCopy — 화면별로 필요한 칸만 넘긴다", () => {
+  it("고른 칸만 실린다 — 헤드라인·한마디 묶음 같은 큰 칸이 카드 화면에 따라가지 않는다", () => {
+    const card = pickTeamCopy(gigang, CARD_COPY_KEYS);
+    expect(Object.keys(card).sort()).toEqual([...CARD_COPY_KEYS].sort());
+    expect(card).not.toHaveProperty("actvHeadlines");
+    expect(card.memberNoun).toBe("기강인");
   });
 });

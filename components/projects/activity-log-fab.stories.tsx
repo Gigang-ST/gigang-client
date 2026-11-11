@@ -1,4 +1,4 @@
-import { buildTeamCopy } from "@/lib/team-copy";
+import { GIGANG_COPY } from "@/lib/__fixtures__/team-copy";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { ActivityLogFab } from "@/components/projects/activity-log-fab";
 
@@ -6,7 +6,7 @@ const meta = {
   title: "Projects/ActivityLogFab",
   component: ActivityLogFab,
   // 스토리는 기강 팀 문구로 그린다(§lib/team-copy)
-  args: { copy: buildTeamCopy({ teamCd: "gigang", crewName: "기강", memberNoun: "기강인", wordmark: "GIGANG" }) },
+  args: { copy: GIGANG_COPY },
   parameters: { layout: "fullscreen" },
 } satisfies Meta<typeof ActivityLogFab>;
 

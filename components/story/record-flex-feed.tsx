@@ -23,7 +23,7 @@ import { RecordDeleteDialog } from "@/components/story/record-delete-dialog";
 import { RecordFlexCreateDialog } from "@/components/story/record-flex-create-dialog";
 import { RecordFlexEditDialog } from "@/components/story/record-flex-edit-dialog";
 import { RecordReelViewer } from "@/components/story/record-reel-viewer";
-import type { TeamCopy } from "@/lib/team-copy";
+import type { StoryCopy } from "@/lib/team-copy";
 import { StoryZoneHeader } from "@/components/story/story-zone-header";
 
 import type { StoryPost } from "@/lib/queries/story-posts";
@@ -69,7 +69,7 @@ export function RecordFlexFeed({
   /** 릴스 뷰어 안에서 여는 프로필 카드에 넘긴다 */
   teamId: string;
   /** 팀 문구 — 지면 이름(기강 깅스타그램, 그 밖 갤러리)·호칭(§lib/team-copy) */
-  copy: TeamCopy;
+  copy: StoryCopy;
 }) {
   const [writing, setWriting] = useState(false);
   /** 릴스 뷰어에서 처음 열 카드 — null이면 닫힘 */

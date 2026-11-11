@@ -8,7 +8,8 @@ import { buildHyroxBoards, type HyroxRankingRow } from "@/lib/hyrox";
 import { fetchHyroxRankingRows } from "@/lib/queries/hyrox-rankings";
 import { getCurrentMember, getMyTitleNames } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { getTeamCopy } from "@/lib/queries/team-copy";
+import { getTeamCopy, getTeamPageDescription } from "@/lib/queries/team-copy";
+import { CARD_COPY_KEYS, pickTeamCopy } from "@/lib/team-copy";
 import { getTeamCfg } from "@/lib/team-cfg/read";
 import { MARATHON_EVENTS, TRIATHLON_EVENTS } from "@/lib/records-board";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -42,7 +43,7 @@ async function RecordsContent() {
       myMemId={member?.id ?? null}
       teamId={teamId}
       categories={categories}
-      copy={copy}
+      copy={pickTeamCopy(copy, CARD_COPY_KEYS)}
     />
   );
 }
@@ -330,14 +331,14 @@ function RecordsSkeleton() {
 }
 
 /**
- * 제목은 팀 기준(「{크루}의 전당」 — §lib/team-copy). 설명은 아직 기강 내용이라 그대로 둔다 — 지면별 설명은 팀 고유 내용이라
- * 따로 쓴다(#650). 이 지면은 본문이 이미 요청 때 그려져(Suspense) 메타데이터가 요청을 읽어도 정적 셸이 안 깨진다.
+ * 제목은 팀 기준(「{크루}의 전당」), 설명도 팀 기준(기강은 다듬어 둔 문장 그대로 — §lib/team-copy pageDescription).
+ * 이 지면은 본문이 이미 요청 때 그려져(Suspense) 메타데이터가 요청을 읽어도 정적 셸이 안 깨진다.
  */
 export async function generateMetadata(): Promise<Metadata> {
   const copy = await getTeamCopy();
   return {
     title: `${copy.hallName} — 크루 최고 기록`,
-    description: "기강 러닝크루 종목별 최고 기록. 5K·10K·하프·풀코스 크루원 기록을 모았습니다.",
+    description: await getTeamPageDescription("records"),
     alternates: { canonical: "/records" },
   };
 }

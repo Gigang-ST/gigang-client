@@ -15,7 +15,7 @@ import {
 } from "@/lib/mileage";
 import type { ActivityLogInput } from "@/lib/mileage-run";
 import { pickQuip } from "@/lib/quips";
-import type { TeamCopy } from "@/lib/team-copy";
+import type { ActivityFormCopy } from "@/lib/team-copy";
 import { createClient } from "@/lib/supabase/client";
 import { activityLogSchema } from "@/lib/validations/mileage";
 
@@ -55,8 +55,8 @@ type EventMultiplier = {
   end_dt: string | null;
 };
 
-/** 기록 폼이 쓰는 팀 문구 — 사진 안내문의 지면 이름·한마디 예시(§lib/team-copy) */
-export type ActivityLogFormCopy = Pick<TeamCopy, "storyName" | "galleryName" | "quips">;
+/** 기록 폼이 쓰는 팀 문구 — 사진 안내문의 지면 이름·한마디 예시(정의·키 묶음은 `lib/team-copy.ts`) */
+export type ActivityLogFormCopy = ActivityFormCopy;
 
 export type ActivityLogFormProps = {
   /** 팀 문구(§lib/team-copy) */

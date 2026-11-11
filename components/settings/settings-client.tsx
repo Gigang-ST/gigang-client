@@ -36,7 +36,7 @@ import { HelpTip } from "@/components/common/help-tip";
 import { ThemeToggle } from "@/components/common/theme-toggle";
 import { Body, Caption, Micro, SectionLabel } from "@/components/common/typography";
 import { SocialTiles, socialHelpText, socialLeadText } from "@/components/social-links";
-import type { TeamCopy } from "@/lib/team-copy";
+import type { SettingsCopy } from "@/lib/team-copy";
 import { listTeamChannels, type TeamChannels } from "@/lib/team-channels";
 import { WeekStartControl } from "@/components/settings/week-start-control";
 
@@ -243,7 +243,7 @@ export function SettingsClient({
   /** 이 팀 채널(팀 설정). 하나도 없으면 SOCIAL 칸째 안 그린다 */
   channels: TeamChannels;
   /** 팀 문구 — 크루 이름·호칭·정식 이름(§lib/team-copy) */
-  copy: Pick<TeamCopy, "crewName" | "memberNoun" | "orgName">;
+  copy: SettingsCopy;
 }) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);

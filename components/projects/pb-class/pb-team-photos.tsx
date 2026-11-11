@@ -7,7 +7,7 @@ import type { StoryPost } from "@/lib/queries/story-posts";
 
 import { MemberCardDialogDynamic as MemberCardDialog } from "@/components/members/member-card-dialog-dynamic";
 import { RecordReelViewer } from "@/components/story/record-reel-viewer";
-import type { TeamCopy } from "@/lib/team-copy";
+import type { PbPhotosCopy } from "@/lib/team-copy";
 
 /** 릴스 뷰어가 댓글·프로필 카드에 쓰는 「보는 사람」 정보 */
 export type PbTeamPhotosViewer = {
@@ -16,7 +16,7 @@ export type PbTeamPhotosViewer = {
   memNm: string | null;
   avatarUrl: string | null;
   /** 팀 문구 — 릴스 뷰어·프로필 카드에 넘긴다(§lib/team-copy) */
-  copy: TeamCopy;
+  copy: PbPhotosCopy;
 };
 
 /**

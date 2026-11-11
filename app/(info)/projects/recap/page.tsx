@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTeamPageDescription } from "@/lib/queries/team-copy";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -16,11 +17,14 @@ import { getRequestTeamContext } from "@/lib/queries/request-team";
  * 크루원 전용 지면 — 사람별 기록·한마디·사진이 이름과 함께 실린다(프로젝트 탭과 같은 문턱).
  * 색인시키면 로그인 화면이 이 제목으로 검색결과에 남는다.
  */
-export const metadata: Metadata = {
-  title: "마일리지런 돌아보기",
-  description: "기강 마일리지런 시즌을 재미로 돌아보는 지면. 크루원 로그인이 필요합니다.",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: "마일리지런 돌아보기",
+    // 검색 설명은 팀 기준(§lib/team-copy pageDescription) — 기강은 다듬어 둔 문장 그대로, 다른 팀은 크루 이름으로 만든 중립 문장
+    description: await getTeamPageDescription("recap"),
+    robots: { index: false, follow: false },
+  };
+}
 
 /**
  * 마일리지런 시즌 돌아보기 — **가장 최근에 끝난 시즌** 하나를 크루 전체가 스크롤로 훑는다.
@@ -34,10 +38,14 @@ export default async function MileageRecapPage() {
   if (!user) redirect("/auth/login?next=/projects/recap");
   if (!member) redirect("/onboarding?next=/projects/recap");
 
-  const recap = await getLatestMileageRecap(teamId).catch((error: unknown) => {
-    console.error("[MileageRecapPage] 돌아보기 조회 실패", error);
-    return null;
-  });
+  // 돌아보기와 팀 문구(「우리 ○○는 뛰었어요」의 크루 이름)를 함께 읽는다
+  const [recap, copy] = await Promise.all([
+    getLatestMileageRecap(teamId).catch((error: unknown) => {
+      console.error("[MileageRecapPage] 돌아보기 조회 실패", error);
+      return null;
+    }),
+    getTeamCopy(),
+  ]);
 
   if (!recap) {
     return (
@@ -61,7 +69,7 @@ export default async function MileageRecapPage() {
       myMemId={member.id}
       party={upcomingParty}
       groupPhotoUrls={extras?.groupPhotoUrls ?? []}
-      crewName={(await getTeamCopy()).crewName}
+      crewName={copy.crewName}
     />
   );
 }

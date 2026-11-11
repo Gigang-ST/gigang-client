@@ -1,6 +1,7 @@
 import { nextMonthStr } from "@/lib/dayjs";
 import { getEventLogsMonthly } from "@/lib/queries/project-data";
 import { getTeamCopy } from "@/lib/queries/team-copy";
+import { ACTIVITY_FORM_COPY_KEYS, pickTeamCopy } from "@/lib/team-copy";
 import {
   MyActivityListClient,
   type ActivityRecord,
@@ -59,7 +60,7 @@ export async function MyActivityList({
 
   return (
     <MyActivityListClient
-      copy={copy}
+      copy={pickTeamCopy(copy, ACTIVITY_FORM_COPY_KEYS)}
       initialRecords={records}
       evtId={evtId}
       memId={memId}

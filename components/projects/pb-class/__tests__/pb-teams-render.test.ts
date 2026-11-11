@@ -1,5 +1,5 @@
+import { GIGANG_COPY } from "@/lib/__fixtures__/team-copy";
 import { createElement } from "react";
-import { buildTeamCopy } from "@/lib/team-copy";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -86,7 +86,7 @@ const DATA: PbTeamsData = {
 };
 
 const posts = (n: number) => Array.from({ length: n }, (_, i) => ({ post_id: `p${i}`, mem_id: "me" }) as StoryPost);
-const VIEWER = { teamId: "t1", memId: "me", memNm: "홍길동", avatarUrl: null, copy: buildTeamCopy({ teamCd: "gigang", crewName: "기강", memberNoun: "기강인", wordmark: "GIGANG" }) };
+const VIEWER = { teamId: "t1", memId: "me", memNm: "홍길동", avatarUrl: null, copy: GIGANG_COPY };
 
 function render(data = DATA, photos = new Map([["A", posts(4)]])) {
   return html(createElement(PbTeams, { data, measureWkNo: 13, photosByGrp: photos, viewer: VIEWER }));

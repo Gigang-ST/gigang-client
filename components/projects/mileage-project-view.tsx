@@ -4,6 +4,7 @@ import { prevMonthStr, currentMonthKST } from "@/lib/dayjs";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getTeamCopy } from "@/lib/queries/team-copy";
+import { ACTIVITY_FORM_COPY_KEYS, pickTeamCopy } from "@/lib/team-copy";
 import { getTeamAccount } from "@/lib/team-social";
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -158,7 +159,7 @@ export async function MileageProjectView({
               <MyActivityList evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} readOnly={readOnly} isInactive={isInactive} inactiveKind={inactiveKind} />
             </Suspense>
             {!readOnly && (
-              <ActivityLogFab evtId={event.evt_id} memId={member.id} isInactive={isInactive} inactiveKind={inactiveKind} copy={copy} />
+              <ActivityLogFab evtId={event.evt_id} memId={member.id} isInactive={isInactive} inactiveKind={inactiveKind} copy={pickTeamCopy(copy, ACTIVITY_FORM_COPY_KEYS)} />
             )}
           </>
         )}

@@ -4,6 +4,7 @@ import { hasUnreadBoardPosts } from "@/lib/queries/board";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getTeamCopy } from "@/lib/queries/team-copy";
+import { SETTINGS_COPY_KEYS, pickTeamCopy } from "@/lib/team-copy";
 import { getTeamCfg } from "@/lib/team-cfg/read";
 import { getTeamChannels } from "@/lib/team-social";
 import { WEEK_START_COOKIE, parseWeekStart } from "@/lib/week-start";
@@ -71,7 +72,7 @@ export default async function SettingsPage() {
       duesUnpaid={(balSnapRes.data?.bal_amt ?? 0) <= -DUES_DOT_MIN_UNPAID}
       weekStart={weekStart}
       channels={channels}
-      copy={copy}
+      copy={pickTeamCopy(copy, SETTINGS_COPY_KEYS)}
     />
   );
 }

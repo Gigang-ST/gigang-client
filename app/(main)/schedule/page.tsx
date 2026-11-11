@@ -13,7 +13,8 @@ import { getCachedHomeCalendar } from "@/lib/queries/home-calendar";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getSiteMetaInput } from "@/lib/queries/site-metadata";
-import { getTeamCopy } from "@/lib/queries/team-copy";
+import { getTeamCopy, getTeamPageDescription } from "@/lib/queries/team-copy";
+import { CARD_COPY_KEYS, pickTeamCopy } from "@/lib/team-copy";
 import { buildHeaderBrand } from "@/lib/team-brand";
 import { getTeamCfg } from "@/lib/team-cfg/read";
 
@@ -215,7 +216,7 @@ async function HomeContent() {
             weekStart={weekStart}
             kakaoAnnounce={Boolean(kakaoRoomId)}
             defaultGthrSprtCd={defaultGthrSprtCd}
-            copy={copy}
+            copy={pickTeamCopy(copy, CARD_COPY_KEYS)}
           />
         </Suspense>
       </div>
@@ -261,11 +262,14 @@ function HomeHeaderSkeleton() {
 }
 
 /** 일정(달력) 지면 — 예전 홈(`/`). 홈 자리는 전광판이 가져갔다. */
-const SCHEDULE_METADATA: Metadata = {
-  title: "모임 일정",
-  description: "기강 러닝크루의 다가오는 러닝·자전거·수영 모임과 참가 대회 일정.",
-  alternates: { canonical: "/schedule" },
-};
+async function scheduleMetadata(): Promise<Metadata> {
+  return {
+    title: "모임 일정",
+    // 검색 설명은 팀 기준(§lib/team-copy pageDescription) — 기강은 다듬어 둔 문장 그대로, 다른 팀은 크루 이름으로 만든 중립 문장
+    description: await getTeamPageDescription("schedule"),
+    alternates: { canonical: "/schedule" },
+  };
+}
 
 /**
  * `?gthr=<short_id|uuid>` 딥링크는 **그 모임의** 제목·설명·이미지를 낸다.
@@ -285,7 +289,7 @@ export async function generateMetadata({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<Metadata> {
   const { gthr } = await searchParams;
-  if (typeof gthr !== "string" || !gthr) return SCHEDULE_METADATA;
+  if (typeof gthr !== "string" || !gthr) return scheduleMetadata();
 
   const [{ teamId }, origin, site] = await Promise.all([
     getRequestTeamContext(),
@@ -294,7 +298,7 @@ export async function generateMetadata({
   ]);
   const src = await getCachedGatheringOg(gthr, teamId);
   // 이미지는 요청 호스트 기준 절대 URL — metadataBase(프로덕션)로 채워지면 dev에서 404다.
-  return src ? buildGatheringMetadata(src, origin, site?.name ?? null) : SCHEDULE_METADATA;
+  return src ? buildGatheringMetadata(src, origin, site?.name ?? null) : scheduleMetadata();
 }
 
 export default function SchedulePage() {

@@ -1,3 +1,4 @@
+import { josa } from "@/lib/josa";
 import type { MoodLevel } from "@/lib/mood-scale";
 
 /**
@@ -8,7 +9,8 @@ import type { MoodLevel } from "@/lib/mood-scale";
  *
  * ## 세 갈래 (유저 결정 2026-11-10)
  * 1. **크루 이름·호칭 = 팀 설정** — `brand.name`(크루 이름) · `brand.member_noun`(회원 호칭). 운영진이 화면에서 바꾼다.
- *    비어 있으면 중립어(「크루」·「크루원」) — **다른 팀 이름으로 물러나지 않는다.**
+ *    비어 있거나 못 읽으면 **팀 기본 이름**(아래 말투 표 — 기강 「기강」·「기강인」), 그것도 없으면 중립어(「크루」·「크루원」).
+ *    **다른 팀 이름으로는 물러나지 않는다.**
  * 2. **기능 이름 = 크루 이름으로 자동** — 「{이름}의 전당」「{이름}이야기」. 설정을 따로 두지 않는다.
  * 3. **팀 전용 말투 = 이 파일의 표(`TEAM_VOICE`)** — 「기강이 빠졌군. 알림 켜라!」처럼 「기강」(규율)이라는 단어 뜻에
  *    기댄 말장난은 다른 이름에 옮기면 말이 안 된다. 표에 있는 팀만 자기 말투를 쓰고, 없으면 중립 문구다.
@@ -31,6 +33,15 @@ export type CardMoodMessages = Record<Exclude<MoodLevel, "dormant">, string>;
  * 말장난 줄(`puns`)은 **더해지는** 것 — 중립 묶음에 그 팀만의 줄을 같은 자리에 끼운다.
  */
 type TeamVoice = {
+  /**
+   * **팀 기본 이름** — 팀 설정(`brand.name`·`brand.member_noun`·`brand.wordmark`)이 비었거나 **못 읽었을 때** 쓴다.
+   * 이게 없으면 설정 조회가 한 번 실패한 순간 이름은 「크루」로 빠지는데 말장난(팀 코드로 붙는다)은 「기강이 빠졌군」
+   * 그대로라 한 화면에 두 팀 말투가 섞인다(리뷰 2026-11-11). prd 에 마이그레이션보다 코드가 먼저 나가도 같은 일이 난다.
+   * 팀 코드는 실패해도 알고 있으니(주소에서 온다) 이름도 여기서 채운다. 팀 설정 값이 있으면 그게 이긴다.
+   */
+  crewName?: string;
+  memberNoun?: string;
+  wordmark?: string;
   /** 정식 단체명(더보기 푸터 「© 2026 ○○」) — 없으면 크루 이름 */
   orgName?: string;
   /** 「깅스타그램」처럼 이름에서 못 만드는 사진 지면 이름 */
@@ -51,6 +62,8 @@ type TeamVoice = {
   extraHeadlines?: { before: number; text: string }[];
   /** 한마디 예시에 더할 줄(맨 앞) */
   extraQuips?: string[];
+  /** 지면 검색 설명(`<meta name="description">`) — 그 팀이 다듬은 문장. 없는 지면은 크루 이름으로 만든 중립 문장 */
+  pageDescriptions?: Partial<Record<PageDescriptionKey, string>>;
 };
 
 const NEUTRAL_VOICE = {
@@ -61,13 +74,18 @@ const NEUTRAL_VOICE = {
   actvKicker: "이번 달 가장 뜨거운",
   moodLabels: { blazing: "불타는 중", steady: "꾸준히", resting: "스며드는 중", dormant: "실종" },
   cardMood: { blazing: "내가 곧 기준", steady: "슬슬 시동 거는 중", resting: "관심이 생기는 정도" },
-} as const satisfies Required<Omit<TeamVoice, "extraHeadlines" | "extraQuips" | "orgName">>;
+} as const satisfies Required<
+  Omit<TeamVoice, "extraHeadlines" | "extraQuips" | "orgName" | "crewName" | "memberNoun" | "wordmark" | "pageDescriptions">
+>;
 
 /**
  * 팀별 말투 표. **기강 값은 2026-11-10 이전 화면 문구 그대로다** — 바꾸면 기강 화면이 바뀐다(테스트가 지킨다).
  */
 const TEAM_VOICE: Readonly<Record<string, TeamVoice>> = {
   gigang: {
+    crewName: "기강",
+    memberNoun: "기강인",
+    wordmark: "GIGANG",
     orgName: "기강 스포츠 팀",
     galleryName: "깅스타그램",
     galleryLabel: "Gingstargram",
@@ -81,8 +99,56 @@ const TEAM_VOICE: Readonly<Record<string, TeamVoice>> = {
     extraHeadlines: [{ before: 9, text: "{name}, 이번 달 기강을 혼자 다 잡았다" }],
     // 기강 어휘 자폭 — 기강 목소리의 시그니처(원래 묶음 맨 앞)
     extraQuips: ["기강 잡으러 나갔다가 기강 잡혔다"],
+    // 검색에 걸리게 「러닝크루」·지역·종목을 넣어 다듬은 문장(2026-09 네이버 대응) — 2026-11-11 이전 그대로
+    pageDescriptions: {
+      board: "기강 러닝크루 공지사항과 업데이트 소식.",
+      join: "기강 러닝크루 가입 신청. 양재천·강남 정기 모임 장소와 시간, 크루 규칙, 문의 방법을 확인하고 신청하세요.",
+      newbie: "기강 러닝크루에 처음 오시는 분을 위한 안내. 가입 절차, 러닝 등급, 안전수칙, 회비를 한 장에 정리했습니다.",
+      rules: "기강 러닝크루 회칙 — 함께 달리기 위해 지키는 활동 원칙.",
+      terms: "기강 러닝크루 서비스 이용약관.",
+      privacy: "기강 러닝크루 개인정보처리방침 — 수집 항목, 이용 목적, 보관 기간.",
+      policy: "기강 러닝크루 운영정책 — 안전수칙과 모임 운영 기준.",
+      schedule: "기강 러닝크루의 다가오는 러닝·자전거·수영 모임과 참가 대회 일정.",
+      races: "기강 러닝크루가 함께 나가는 마라톤·대회 일정과 크루원 참가 현황.",
+      records: "기강 러닝크루 종목별 최고 기록. 5K·10K·하프·풀코스 크루원 기록을 모았습니다.",
+      projects: "기강 러닝크루의 마일리지런·PB 클래스 등 기간제 활동. 크루원 로그인이 필요합니다.",
+      recap: "기강 마일리지런 시즌을 재미로 돌아보는 지면. 크루원 로그인이 필요합니다.",
+    },
   },
 };
+
+/**
+ * 지면 검색 설명 — 지면마다. 그 팀이 다듬은 문장이 없으면 크루 이름으로 만든 **중립 문장**(종목·지역 같은 그 팀 고유 내용은
+ * 넣지 않는다 — 모르는 걸 지어내지 않게). 지면 본문(가입 안내·약관)은 아직 기강 것이다 — #650.
+ */
+export type PageDescriptionKey =
+  | "board" | "join" | "newbie" | "rules" | "terms" | "privacy" | "policy"
+  | "schedule" | "races" | "records" | "projects" | "recap";
+
+const NEUTRAL_PAGE_DESCRIPTIONS: Record<PageDescriptionKey, (crew: string) => string> = {
+  board: (c) => `${c} 공지사항과 업데이트 소식.`,
+  join: (c) => `${c} 가입 신청. 모임 장소와 시간, 크루 규칙, 문의 방법을 확인하고 신청하세요.`,
+  newbie: (c) => `${c}에 처음 오시는 분을 위한 안내. 가입 절차, 안전수칙, 회비를 한 장에 정리했습니다.`,
+  rules: (c) => `${c} 회칙 — 함께 달리기 위해 지키는 활동 원칙.`,
+  terms: (c) => `${c} 서비스 이용약관.`,
+  privacy: (c) => `${c} 개인정보처리방침 — 수집 항목, 이용 목적, 보관 기간.`,
+  policy: (c) => `${c} 운영정책 — 안전수칙과 모임 운영 기준.`,
+  schedule: (c) => `${c}의 다가오는 모임과 참가 대회 일정.`,
+  races: (c) => `${josa(c, "이/가")} 함께 나가는 대회 일정과 크루원 참가 현황.`,
+  records: (c) => `${c} 종목별 최고 기록. 크루원 기록을 모았습니다.`,
+  projects: (c) => `${c}의 기간제 활동(프로젝트). 크루원 로그인이 필요합니다.`,
+  recap: (c) => `${c} 프로젝트 시즌을 재미로 돌아보는 지면. 크루원 로그인이 필요합니다.`,
+};
+
+/** 지면 검색 설명 — 팀 코드 + 그 팀 크루 이름(`TeamCopy.crewName`) */
+export function pageDescription(key: PageDescriptionKey, teamCd: string, crewName: string): string {
+  return TEAM_VOICE[teamCd]?.pageDescriptions?.[key] ?? NEUTRAL_PAGE_DESCRIPTIONS[key](crewName);
+}
+
+/** 팀 기본 크루 이름(말투 표) — 팀 설정을 못 읽었을 때 링크 미리보기 사이트 이름도 같은 이름을 쓰게(`lib/queries/site-metadata.ts`) */
+export function teamDefaultCrewName(teamCd: string): string | null {
+  return TEAM_VOICE[teamCd]?.crewName ?? null;
+}
 
 /**
  * 홈 리드 활동지수 헤드라인 — 모든 팀 공통 묶음. `{name}` = 대표 이름, `{crew}` = 크루 이름.
@@ -160,9 +226,10 @@ export type TeamCopyInput = {
 };
 
 export function buildTeamCopy(input: TeamCopyInput): TeamCopy {
-  const crewName = input.crewName?.trim() || NEUTRAL_CREW_NAME;
-  const memberNoun = input.memberNoun?.trim() || NEUTRAL_MEMBER_NOUN;
   const voice = TEAM_VOICE[input.teamCd] ?? {};
+  // 팀 설정 → 팀 기본 이름(말투 표) → 중립어. 다른 팀 이름으로는 절대 안 물러난다
+  const crewName = input.crewName?.trim() || voice.crewName || NEUTRAL_CREW_NAME;
+  const memberNoun = input.memberNoun?.trim() || voice.memberNoun || NEUTRAL_MEMBER_NOUN;
 
   const headlines: string[] = BASE_HEADLINES.map((h) => h.replaceAll("{crew}", crewName));
   // 뒤에서부터 끼워야 앞 자리 번호가 안 밀린다
@@ -173,7 +240,7 @@ export function buildTeamCopy(input: TeamCopyInput): TeamCopy {
   return {
     crewName,
     memberNoun,
-    wordmark: input.wordmark?.trim() || crewName,
+    wordmark: input.wordmark?.trim() || voice.wordmark || crewName,
     hallName: `${crewName}의 전당`,
     storyName: `${crewName}이야기`,
     orgName: voice.orgName ?? crewName,
@@ -188,3 +255,52 @@ export function buildTeamCopy(input: TeamCopyInput): TeamCopy {
     quips: [...(voice.extraQuips ?? []), ...BASE_QUIPS],
   };
 }
+
+/**
+ * **화면별로 필요한 칸만** 골라 클라이언트로 넘긴다 — 팀 문구 전체(헤드라인 14줄·한마디 12줄 등)를 통째로 넘기면 페이지를
+ * 이동할 때마다 쓰지도 않는 문구가 RSC payload 에 실린다(리뷰 2026-11-11). 타입만 `Pick<>` 으로 좁혀선 소용없다 — 서버는
+ * 받은 객체를 그대로 직렬화한다. 서버 페이지가 `pickTeamCopy(copy, ○○_COPY_KEYS)` 로 넘긴다.
+ *
+ * 키 묶음은 이 파일(클라이언트 아닌 모듈)에 둔다 — "use client" 파일에서 export 한 배열은 서버에서 참조값이 돼 못 쓴다.
+ */
+export function pickTeamCopy<K extends keyof TeamCopy>(copy: TeamCopy, keys: readonly K[]): Pick<TeamCopy, K> {
+  const out = {} as Pick<TeamCopy, K>;
+  for (const k of keys) out[k] = copy[k];
+  return out;
+}
+
+/** 프로필 카드(다이얼로그·상세) */
+export const CARD_COPY_KEYS = ["crewName", "memberNoun", "moodLabels", "cardMood"] as const;
+export type CardCopy = Pick<TeamCopy, (typeof CARD_COPY_KEYS)[number]>;
+
+/** 마일리지런 기록 폼(단건·다건) — 사진 안내문의 지면 이름·한마디 예시 */
+export const ACTIVITY_FORM_COPY_KEYS = ["storyName", "galleryName", "quips"] as const;
+export type ActivityFormCopy = Pick<TeamCopy, (typeof ACTIVITY_FORM_COPY_KEYS)[number]>;
+
+/** 홈(전광판) 전체 — 리드·심박·갤러리·현상수배·채널·카드 */
+export const STORY_COPY_KEYS = [
+  ...CARD_COPY_KEYS,
+  "storyName",
+  "galleryName",
+  "galleryLabel",
+  "actvKicker",
+  "actvHeadlines",
+  "quips",
+] as const;
+export type StoryCopy = Pick<TeamCopy, (typeof STORY_COPY_KEYS)[number]>;
+
+/** 프로필 탭 — 카드 + 칭호 미리보기 워드마크 + UTMB 해제 문구의 전당 이름 */
+export const PROFILE_COPY_KEYS = [...CARD_COPY_KEYS, "wordmark", "hallName"] as const;
+export type ProfileCopy = Pick<TeamCopy, (typeof PROFILE_COPY_KEYS)[number]>;
+
+/** PB 팀 사진 — 릴스 뷰어(크루 이름·지면 이름) + 카드 */
+export const PB_PHOTOS_COPY_KEYS = [...CARD_COPY_KEYS, "galleryName"] as const;
+export type PbPhotosCopy = Pick<TeamCopy, (typeof PB_PHOTOS_COPY_KEYS)[number]>;
+
+/** 더보기 — 채널 머리·도움말, 크루 소개 줄, 푸터 */
+export const SETTINGS_COPY_KEYS = ["crewName", "memberNoun", "orgName"] as const;
+export type SettingsCopy = Pick<TeamCopy, (typeof SETTINGS_COPY_KEYS)[number]>;
+
+/** 가입 위저드 — 크루 이름·설치 안내 */
+export const ONBOARDING_COPY_KEYS = ["crewName", "installPromptTitle"] as const;
+export type OnboardingCopy = Pick<TeamCopy, (typeof ONBOARDING_COPY_KEYS)[number]>;

@@ -10,6 +10,7 @@ import { getPublicMemberCard } from "@/lib/queries/member-card";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getTeamCfg } from "@/lib/team-cfg/read";
 import { getTeamCopy } from "@/lib/queries/team-copy";
+import { PROFILE_COPY_KEYS, pickTeamCopy } from "@/lib/team-copy";
 
 import { HeaderActions } from "@/components/common/header-actions";
 import { InactiveReasonNote } from "@/components/common/inactive-reason-note";
@@ -140,7 +141,7 @@ async function ProfileContent() {
         card={card}
         cancelCnt={cancelCnt}
         titlesEnabled={titlesEnabled}
-        copy={copy}
+        copy={pickTeamCopy(copy, PROFILE_COPY_KEYS)}
         utmb={
           utmbProfile?.utmb_prf_url && utmbProfile?.utmb_idx != null
             ? {

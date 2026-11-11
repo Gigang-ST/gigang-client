@@ -6,6 +6,7 @@ import { getGhostMembers } from "@/lib/queries/ghost-members";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getTeamCopy } from "@/lib/queries/team-copy";
+import { STORY_COPY_KEYS, pickTeamCopy } from "@/lib/team-copy";
 import { getTeamChannels } from "@/lib/team-social";
 import {
   getMyReactions,
@@ -143,6 +144,8 @@ async function StoryFeedSection() {
   const initialNewbiePick = pickRandomPostIndex(feed.newbies.length);
   const initialRecordPick = pickRandomPostIndex(feed.records.length);
   const initialActvPick = pickActvLeadIndex(feed.actv_rank.length);
+  // 활동지수 헤드라인은 대표와 **따로** 굴린다 — 대표 번호(0~2)를 그대로 쓰면 14줄 중 앞 3줄만 나온다(리뷰 2026-11-11)
+  const initialHeadlinePick = pickRandomPostIndex(copy.actvHeadlines.length);
   // 칭호획득 슬롯의 대표 회전 시작 오프셋 — 방문마다 다른 사람에서 시작한다(첫 화면 다양성).
   // 기준은 칭호 수가 아니라 **사람 pool 길이**(사람별 최신 1건 dedupe — §lib/story-title.ts).
   // 이후 전진은 클라가 한 바퀴 완주마다 +1 — 랜덤이 아니라 회전이라 전원이 빠짐없이 오른다.
@@ -168,6 +171,7 @@ async function StoryFeedSection() {
       initialNewbiePick={initialNewbiePick}
       initialRecordPick={initialRecordPick}
       initialActvPick={initialActvPick}
+      initialHeadlinePick={initialHeadlinePick}
       grants={grants}
       initialTitlePick={initialTitlePick}
       teamId={teamId}
@@ -186,7 +190,7 @@ async function StoryFeedSection() {
       mastheadActions={<HeaderActions />}
       recap={recap}
       channels={channels}
-      copy={copy}
+      copy={pickTeamCopy(copy, STORY_COPY_KEYS)}
     />
   );
 }

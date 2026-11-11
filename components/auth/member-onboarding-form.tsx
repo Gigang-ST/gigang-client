@@ -1,7 +1,7 @@
 "use client";
 
 import { josa } from "@/lib/josa";
-import type { TeamCopy } from "@/lib/team-copy";
+import type { OnboardingCopy } from "@/lib/team-copy";
 import { useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
@@ -73,7 +73,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 type MemberOnboardingFormProps = {
   /** 팀 문구 — 크루 이름·설치 안내 제목(§lib/team-copy) */
-  copy: Pick<TeamCopy, "crewName" | "installPromptTitle">;
+  copy: OnboardingCopy;
   userId: string;
   provider: "kakao" | "google";
   email?: string | null;

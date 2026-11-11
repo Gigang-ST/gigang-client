@@ -14,9 +14,9 @@ export default async function McpTokensPage() {
   if (!user) redirect("/auth/login?next=/mcp-tokens");
   if (!member) redirect("/onboarding?next=/mcp-tokens");
 
-  const result = await listMcpTokens();
+  // 토큰 목록과 팀 문구(안내문의 크루 이름)를 함께 읽는다
+  const [result, copy] = await Promise.all([listMcpTokens(), getTeamCopy()]);
   const initialTokens = result.ok ? result.tokens : [];
 
-  const { crewName } = await getTeamCopy();
-  return <McpTokensClient initialTokens={initialTokens} crewName={crewName} />;
+  return <McpTokensClient initialTokens={initialTokens} crewName={copy.crewName} />;
 }

@@ -8,7 +8,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, List, Share2 } from "lucide-re
 import { toast } from "sonner";
 
 import { buildWeeklyShareText } from "@/components/home/build-weekly-share-text";
-import type { TeamCopy } from "@/lib/team-copy";
+import type { CardCopy } from "@/lib/team-copy";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { COMPETITION_SELECT, toCompetition } from "@/lib/competition-row";
 import { buildRegistrationMap } from "@/lib/competition-registration";
@@ -175,7 +175,7 @@ export type CalendarRace = {
 
 type MiniCalendarProps = {
   /** 팀 문구 — 주간 일정 제목·공유 문구의 크루 이름, 모임 상세의 프로필 카드(§lib/team-copy) */
-  copy: TeamCopy;
+  copy: CardCopy;
   gigangRaces: CalendarRace[];
   myRaces: CalendarRace[];
   schPosts: CalendarRace[];

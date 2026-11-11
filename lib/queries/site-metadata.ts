@@ -8,6 +8,7 @@ import { buildRequestOrigin, pickRequestHost } from "@/lib/request-origin";
 import type { SiteMetaInput } from "@/lib/seo/site-metadata";
 import { getTeamCfg } from "@/lib/team-cfg/read";
 import { canonicalTeamHost } from "@/lib/team-host";
+import { teamDefaultCrewName } from "@/lib/team-copy";
 import { getTeamSite } from "@/lib/team-site";
 
 /**
@@ -58,7 +59,8 @@ export const getSiteMetaInput = cache(async (): Promise<SiteMetaInput | null> =>
   return {
     canonicalOrigin: team.canonicalOrigin,
     requestOrigin: team.requestOrigin,
-    name,
+    // 크루 이름 설정을 못 읽었거나 비었으면 팀 기본 이름 — 화면 문구(`getTeamCopy`)와 같은 이름으로 맞물리게
+    name: name ?? teamDefaultCrewName(team.teamCd),
     title,
     titleSuffix,
     description,

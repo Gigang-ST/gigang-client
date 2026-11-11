@@ -2,6 +2,7 @@ import { Suspense, cache } from "react";
 
 import { nowKST } from "@/lib/dayjs";
 import { getTeamCopy } from "@/lib/queries/team-copy";
+import { PB_PHOTOS_COPY_KEYS, pickTeamCopy } from "@/lib/team-copy";
 import { buildPbCrewAttd, buildPbTeamSeries } from "@/lib/pb-class-chart";
 import { canEditGoal, goalEditLastWk } from "@/lib/pb-class-score";
 import { buildPbTeams, pickTeamPhotos } from "@/lib/pb-class-teams";
@@ -148,7 +149,7 @@ async function PbTeamsSection({
       data={data}
       measureWkNo={game.measureWkNo}
       photosByGrp={pickTeamPhotos(posts, grpOfMem)}
-      viewer={{ teamId, memId: me.memId, memNm: me.memNm, avatarUrl: me.avatarUrl, copy }}
+      viewer={{ teamId, memId: me.memId, memNm: me.memNm, avatarUrl: me.avatarUrl, copy: pickTeamCopy(copy, PB_PHOTOS_COPY_KEYS) }}
     />
   );
 }

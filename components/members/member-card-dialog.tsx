@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Body, Caption } from "@/components/common/typography";
 import { MemberCardDetail } from "@/components/members/member-card-detail";
-import type { TeamCopy } from "@/lib/team-copy";
+import type { CardCopy } from "@/lib/team-copy";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -89,8 +89,8 @@ export interface MemberCardDialogProps {
   copy: CardCopy;
 }
 
-/** 카드가 쓰는 팀 문구 — 여는 쪽이 전체 `TeamCopy`를 넘겨도 된다 */
-export type CardCopy = Pick<TeamCopy, "crewName" | "memberNoun" | "moodLabels" | "cardMood">;
+/** 카드가 쓰는 팀 문구 — 정의는 `lib/team-copy.ts`(서버가 `CARD_COPY_KEYS` 로 골라 넘긴다) */
+export type { CardCopy } from "@/lib/team-copy";
 
 export function MemberCardDialog({
   memId,

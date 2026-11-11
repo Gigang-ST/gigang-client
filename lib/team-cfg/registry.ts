@@ -211,15 +211,16 @@ export const TEAM_CFG_REGISTRY = {
   }),
 
   /**
-   * 크루 이름 — 링크 미리보기의 사이트 이름(`og:site_name`)·iOS 홈 화면 제목. **기본값이 없다** — 기본값을 「기강」으로
-   * 두면 설정을 안 채운 팀의 공유 카드에 기강 이름이 찍힌다. 비어 있으면 그 칸을 안 내보낸다.
+   * 크루 이름 — **앱 전체의 크루 이름**(「○○에 합류」「○○의 전당」「○○이야기」 등 화면 곳곳, `lib/team-copy.ts`)이자
+   * 링크 미리보기 사이트 이름·iOS 홈 화면 제목. **기본값이 없다** — 기본값을 「기강」으로 두면 설정을 안 채운 팀에 기강 이름이
+   * 뜬다. 비어 있으면 팀 기본 이름(코드의 말투 표 — 기강 「기강」), 그것도 없으면 「크루」.
    * `team_mst.team_nm`(관리용 이름, 울산은 「울산지부」)과 다르다 — 이건 사람들에게 보이는 크루 이름이다(울산 = 모보브).
    */
   "brand.name": defineCfg({
     schema: z.string().trim().min(1).max(20).nullable(),
     default: null,
     label: "크루 이름",
-    description: "링크 미리보기에 사이트 이름으로 보여요(예: 기강). 비우면 안 보여요.",
+    description: "화면 곳곳(「○○에 합류」「○○의 전당」 등)과 링크 미리보기에 쓰는 크루 이름이에요. 비우면 팀 기본 이름, 그것도 없으면 「크루」로 보여요.",
     visibility: "public",
     group: "brand",
     input: { kind: "text", placeholder: "예: 기강" },
@@ -228,13 +229,13 @@ export const TEAM_CFG_REGISTRY = {
   /**
    * 회원 호칭 — 「기강인만 볼 수 있어요」「기강인 42명의 이번 주 심박」의 「기강인」 자리(`lib/team-copy.ts`).
    * 크루 이름에 「인」만 붙이면 어색한 팀이 있어(「모보브인」) 따로 둔다(유저 결정 2026-11-10).
-   * **기본값 없음** — 비어 있으면 중립어 「크루원」(기강 호칭으로 물러나지 않는다).
+   * **기본값 없음** — 비어 있으면 팀 기본 호칭(코드의 말투 표), 그것도 없으면 중립어 「크루원」(다른 팀 호칭으로 물러나지 않는다).
    */
   "brand.member_noun": defineCfg({
     schema: z.string().trim().min(1).max(10).nullable(),
     default: null,
     label: "회원 호칭",
-    description: "화면에서 회원을 부르는 말(예: 기강인). 비우면 「크루원」으로 보여요.",
+    description: "화면에서 회원을 부르는 말(예: 기강인). 비우면 팀 기본 호칭, 그것도 없으면 「크루원」으로 보여요.",
     visibility: "public",
     group: "brand",
     input: { kind: "text", placeholder: "예: 기강인" },

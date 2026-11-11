@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTeamPageDescription } from "@/lib/queries/team-copy";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,11 +18,14 @@ import { ProjectSwitcher } from "@/components/projects/project-switcher";
  * 비로그인은 `/auth/login`으로 튕기는 지면이다 — 크롤러는 내용을 볼 수 없다.
  * 색인시키면 로그인 화면이 "프로젝트"라는 제목으로 검색결과에 남는다.
  */
-export const metadata: Metadata = {
-  title: "프로젝트",
-  description: "기강 러닝크루의 마일리지런·PB 클래스 등 기간제 활동. 크루원 로그인이 필요합니다.",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: "프로젝트",
+    // 검색 설명은 팀 기준(§lib/team-copy pageDescription) — 기강은 다듬어 둔 문장 그대로, 다른 팀은 크루 이름으로 만든 중립 문장
+    description: await getTeamPageDescription("projects"),
+    robots: { index: false, follow: false },
+  };
+}
 
 export default async function ProjectsPage({
   searchParams,

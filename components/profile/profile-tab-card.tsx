@@ -1,6 +1,6 @@
 "use client";
 
-import type { TeamCopy } from "@/lib/team-copy";
+import type { ProfileCopy } from "@/lib/team-copy";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -64,7 +64,7 @@ export function ProfileTabCard({
   cmmCdRows: CachedCmmCdRow[];
   competitionRegisterMemberStatus: MemberStatus;
   /** 팀 문구 — 크루 이름·호칭·컨디션 이름표·전당 이름·워드마크(§lib/team-copy) */
-  copy: TeamCopy;
+  copy: ProfileCopy;
 }) {
   const router = useRouter();
   const [collectionOpen, setCollectionOpen] = useState(false);

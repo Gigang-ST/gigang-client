@@ -1,10 +1,10 @@
-import { buildTeamCopy } from "@/lib/team-copy";
+import { GIGANG_COPY } from "@/lib/__fixtures__/team-copy";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { SocialLinksRow, SocialLinksGrid } from "@/components/social-links";
 import type { TeamChannels } from "@/lib/team-channels";
 
 /** 스토리는 기강 팀 문구로 그린다(§lib/team-copy) */
-const COPY = buildTeamCopy({ teamCd: "gigang", crewName: "기강", memberNoun: "기강인", wordmark: "GIGANG" });
+const COPY = GIGANG_COPY;
 
 /** 스토리용 예시 채널(실제 값은 팀 설정에서 온다) */
 const CHANNELS: TeamChannels = {

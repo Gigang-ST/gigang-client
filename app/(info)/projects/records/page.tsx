@@ -5,6 +5,7 @@ import { currentMonthKST, prevMonthStr } from "@/lib/dayjs";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getTeamCopy } from "@/lib/queries/team-copy";
+import { ACTIVITY_FORM_COPY_KEYS, pickTeamCopy } from "@/lib/team-copy";
 import { fetchActivityRecords } from "@/lib/queries/activity-records";
 import { RecordsClient } from "./records-client";
 
@@ -61,7 +62,7 @@ export default async function ProjectRecordsPage() {
   return (
     <Suspense fallback={<Skeleton className="mx-6 mt-4 h-96 rounded-2xl" />}>
       <RecordsClient
-        copy={copy}
+        copy={pickTeamCopy(copy, ACTIVITY_FORM_COPY_KEYS)}
         evtId={event.evt_id}
         memId={member.id}
         prtId={prt.prt_id}

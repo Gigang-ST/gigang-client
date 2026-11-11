@@ -1,12 +1,12 @@
+import { GIGANG_COPY } from "@/lib/__fixtures__/team-copy";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { MemberCardDetail } from "@/components/members/member-card-detail";
-import { buildTeamCopy } from "@/lib/team-copy";
 
 /** 기강 팀 문구 — 이 테스트의 기대 문구(「기강인만 볼 수 있어요」 등)가 기강 것이다 */
-const COPY = buildTeamCopy({ teamCd: "gigang", crewName: "기강", memberNoun: "기강인", wordmark: "GIGANG" });
+const COPY = GIGANG_COPY;
 
 import type { MemberCardData } from "@/lib/queries/member-card";
 

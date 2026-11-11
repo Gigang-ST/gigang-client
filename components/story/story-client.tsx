@@ -31,7 +31,7 @@ import type { TeamOverview } from "@/lib/queries/team-overview";
 import type { RecapTeaser } from "@/lib/mileage-recap";
 import type { TeamChannels } from "@/lib/team-channels";
 import { josa } from "@/lib/josa";
-import type { TeamCopy } from "@/lib/team-copy";
+import type { StoryCopy } from "@/lib/team-copy";
 
 /**
  * 기강이야기 — 크루 소식 지면.
@@ -51,6 +51,7 @@ export function StoryClient({
   initialNewbiePick,
   initialRecordPick,
   initialActvPick,
+  initialHeadlinePick,
   teamId,
   myMemId,
   isAdmin,
@@ -77,6 +78,8 @@ export function StoryClient({
   initialNewbiePick: number;
   initialRecordPick: number;
   initialActvPick: number;
+  /** 활동지수 헤드라인 진입 번호 — 대표와 따로 굴린다(§story-lede) */
+  initialHeadlinePick: number;
   teamId: string;
   /** 로그인 사용자 — 본인 카드면 한마디를 바로 수정할 수 있다 */
   myMemId: string | null;
@@ -93,7 +96,7 @@ export function StoryClient({
   /** 판권면 채널(이 팀 팀 설정) — 없는 채널은 칸째 안 그린다 */
   channels: TeamChannels;
   /** 팀 문구 — 크루 이름·호칭·기능 이름·말투(§lib/team-copy). 서버 페이지가 내려 준다 */
-  copy: TeamCopy;
+  copy: StoryCopy;
 }) {
   const [selected, setSelected] = useState<{ memId: string; name: string } | null>(
     null,
@@ -142,6 +145,7 @@ export function StoryClient({
           initialNewbiePick={initialNewbiePick}
           initialRecordPick={initialRecordPick}
           initialActvPick={initialActvPick}
+          initialHeadlinePick={initialHeadlinePick}
           initialPostPick={initialPostPick}
           onSelectMember={selectMember}
           teamId={teamId}

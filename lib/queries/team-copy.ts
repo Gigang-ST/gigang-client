@@ -4,7 +4,7 @@ import { cache } from "react";
 
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getTeamCfg } from "@/lib/team-cfg/read";
-import { buildTeamCopy, type TeamCopy } from "@/lib/team-copy";
+import { buildTeamCopy, pageDescription, type PageDescriptionKey, type TeamCopy } from "@/lib/team-copy";
 
 /**
  * 지금 요청의 팀 문구(`lib/team-copy.ts`). 서버 페이지가 불러 **props 로 내려 준다**(Context 를 쓰지 않는다 — AGENTS.md
@@ -22,3 +22,13 @@ export const getTeamCopy = cache(async (): Promise<TeamCopy> => {
   ]);
   return buildTeamCopy({ teamCd, crewName, memberNoun, wordmark });
 });
+
+/**
+ * 지면 검색 설명(`<meta name="description">`) — 그 팀이 다듬은 문장, 없으면 크루 이름으로 만든 중립 문장(§lib/team-copy).
+ * 지면의 `generateMetadata` 가 부른다. 루트 레이아웃에 이미 요청 때 그리는 섬이 있어 지면 메타데이터가 요청을 읽어도
+ * 정적 셸이 안 깨진다(§app/layout.tsx).
+ */
+export async function getTeamPageDescription(key: PageDescriptionKey): Promise<string> {
+  const [{ teamCd }, copy] = await Promise.all([getRequestTeamContext(), getTeamCopy()]);
+  return pageDescription(key, teamCd, copy.crewName);
+}

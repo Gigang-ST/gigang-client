@@ -9,6 +9,7 @@ import { getCurrentMember } from "@/lib/queries/member";
 import { getOpenGatheringsForPledge } from "@/lib/queries/onboarding-gatherings";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getTeamCopy } from "@/lib/queries/team-copy";
+import { ONBOARDING_COPY_KEYS, pickTeamCopy } from "@/lib/team-copy";
 import { getTeamChannels, getTeamKakaoPassword } from "@/lib/team-social";
 import { getTeamCfg } from "@/lib/team-cfg/read";
 import { teamLinkOrigin } from "@/lib/team-host";
@@ -119,7 +120,7 @@ async function OnboardingContent({
           kakaoChatPassword={kakaoChatPassword ?? ""}
           kakaoOpenChatUrl={channels.kakao_open_chat ?? null}
           gatherings={gatherings}
-          copy={copy}
+          copy={pickTeamCopy(copy, ONBOARDING_COPY_KEYS)}
         />
       </div>
     </div>
