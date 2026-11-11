@@ -6,26 +6,25 @@ import { CalendarDays, Medal, User, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { analytics } from "@/lib/analytics";
-import { useTeamLogo } from "@/lib/use-team-logo";
 
 /**
  * 기강 탭 아이콘 — 메인 로고(원형 엠블럼)를 CSS mask로 박는다.
  * 로고를 실루엣 마스크로 써서 `bg-current`로 물들여야 다른 탭처럼 활성(파랑)/
  * 비활성(회색) 색 전환이 먹는다 — 색 있는 로고 이미지를 그대로 쓰면 항상 검정이라
- * 톤이 따로 논다. 마스크 소스는 **팀 로고 실루엣**(`lib/team-logo.ts` 의 `mark` — 기강 `public/logo-mark.png`).
+ * 톤이 따로 논다. 마스크 소스는 **팀 로고 실루엣** — CSS 변수 `--team-logo-mark`(`lib/team-logo.ts` 의 `teamLogoCss`).
+ * 탭바는 미리 만드는 껍데기라 팀을 모르지만, 그리기 전 스크립트가 `<html data-team>` 을 붙여 두어 **첫 화면부터** 그 팀 로고가
+ * 걸린다(`lib/team-host.ts` 의 `teamHostBootScript`). 모르는 주소면 변수가 없어 투명 마스크로 물러난다(빈 칸 — 다른 팀 로고 아님).
  * 로고 안에 이미 팀 이름 글자가 있으므로 이 탭만 아래 텍스트 라벨을 뺀다(`hideLabel`).
- *
- * 마스크를 아직 모르면(미리 만든 껍데기 — 팀을 모른다) **같은 크기의 빈 자리**만 둔다. 다른 팀 로고로 채우지 않는다.
  */
-function StoryLogoIcon({ className, mark }: { className?: string; mark?: string | null }) {
-  if (!mark) return <span className={cn("inline-block", className)} aria-hidden />;
-  const url = `url(${mark})`;
+const TEAM_MARK = "var(--team-logo-mark, linear-gradient(transparent, transparent))";
+
+function StoryLogoIcon({ className }: { className?: string }) {
   return (
     <span
       className={cn("inline-block bg-current", className)}
       style={{
-        maskImage: url,
-        WebkitMaskImage: url,
+        maskImage: TEAM_MARK,
+        WebkitMaskImage: TEAM_MARK,
         maskRepeat: "no-repeat",
         WebkitMaskRepeat: "no-repeat",
         maskPosition: "center",
@@ -61,16 +60,9 @@ const TABS = [
  * @param logoLabel 가운데 로고 탭의 화면낭독 이름 — 크루 이름(가입 직후 탭 안내와 같은 이름, §components/auth/app-tabs-guide).
  *   탭바는 미리 만드는 껍데기에 있어 팀을 모르므로, 껍데기에선 「홈」으로 그리고 요청 때 크루 이름으로 바꿔 그린다
  *   (`BottomTabBarGate`). 예전엔 로고 탭에 이름이 아예 없어 화면낭독기가 이름 없는 링크로 읽었다.
- * @param logoMark 가운데 로고 마스크 — 요청 때 그리는 탭바(`BottomTabBarGate`)는 서버가 팀을 알아 넘긴다. 없으면(껍데기)
- *   브라우저 주소로 고른다(`useTeamLogo`, 하이드레이션 직후).
  */
-export function BottomTabBar({
-  logoLabel = "홈",
-  logoMark,
-}: { logoLabel?: string; logoMark?: string } = {}) {
+export function BottomTabBar({ logoLabel = "홈" }: { logoLabel?: string } = {}) {
   const pathname = usePathname();
-  const browserLogo = useTeamLogo();
-  const mark = logoMark ?? browserLogo?.mark ?? null;
 
   return (
     <nav className="app-fixed fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background pb-[env(safe-area-inset-bottom,0px)]">
@@ -114,11 +106,7 @@ export function BottomTabBar({
                   로고 탭  = 44px(size-11)          → 위아래 6px
                   일반 탭  = 24px + 4px + 16px = 44px → 위아래 6px (아이콘+gap+라벨)
                   라벨은 leading-4로 줄높이를 고정해야 이 계산이 실제와 어긋나지 않는다. */}
-              {tab.key === "story" ? (
-                <StoryLogoIcon className="size-11" mark={mark} />
-              ) : (
-                <Icon className={cn(tab.hideLabel ? "size-11" : "size-6")} />
-              )}
+              <Icon className={cn(tab.hideLabel ? "size-11" : "size-6")} />
               {!tab.hideLabel && (
                 // 한 줄 고정 — 라벨이 길어져도 줄바꿈으로 탭 높이가 늘지 않는다(위 44px 계산 유지).
                 <span className="max-w-full truncate text-[10px] font-medium leading-4">

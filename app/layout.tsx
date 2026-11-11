@@ -20,6 +20,8 @@ import { ServiceWorkerRegister } from "@/components/service-worker-register";
 
 import "./globals.css";
 import { shellWidthBootScript } from "@/lib/app-shell";
+import { teamLogoCss } from "@/lib/team-logo";
+import { teamHostBootScript } from "@/lib/team-host";
 import { getSiteMetaInput } from "@/lib/queries/site-metadata";
 import { buildSiteMetadata } from "@/lib/seo/site-metadata";
 import { TeamJsonLd } from "@/components/seo/team-json-ld";
@@ -81,6 +83,11 @@ export default function RootLayout({
         {/* 셸 폭 — 첫 페인트 전에 저장된 폭을 적용한다(next-themes가 테마에 하는 것과 같은 이유).
             이게 없으면 새로고침마다 기본 폭으로 그렸다가 넓어지는 점프가 보인다. */}
         <script dangerouslySetInnerHTML={{ __html: shellWidthBootScript }} />
+        {/* 팀 — 첫 페인트 전에 주소로 `<html data-team>` 을 붙이고(§lib/team-host teamHostBootScript), 그 팀 로고를 CSS 변수로 건다
+            (§lib/team-logo teamLogoCss). 탭바 로고·홈 로딩 워터마크는 미리 만든 껍데기에 있어 서버가 팀을 모르는데, 이게 있어야
+            첫 화면부터 그 팀 로고가 나온다(없으면 새로고침마다 비었다가 튀어나온다). 셸 폭 스크립트와 같은 이유 — 빼지 않는다. */}
+        <script dangerouslySetInnerHTML={{ __html: teamHostBootScript }} />
+        <style dangerouslySetInnerHTML={{ __html: teamLogoCss }} />
         {/* 구조화 데이터 — 검색엔진에 "이 사이트는 어떤 단체인가"를 기계가 읽는 형태로 준다.
             본문 텍스트만으로는 크루 이름·활동 지역·공식 SNS가 엮이지 않는다. 들어온 주소의 팀 것이라
             요청 헤더를 읽어서 Suspense 안에 둔다(§components/seo/team-json-ld.tsx). */}

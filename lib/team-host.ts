@@ -38,6 +38,8 @@ const TEAM_CD_BY_HOST: Readonly<Record<string, string>> = {
  */
 const VERCEL_PREVIEW_PREFIX = "gigang-client-";
 const VERCEL_PREVIEW_SUFFIX = "-gigangs-projects-afd6ab2d.vercel.app";
+/** 미리보기 주소가 여는 팀 */
+const PREVIEW_TEAM_CD = "gigang";
 
 /** Host 헤더 값을 비교용으로 다듬는다 — 첫 값만(x-forwarded-host는 쉼표 목록일 수 있다), 포트·끝점 제거, 소문자. */
 export function normalizeHost(host: string | null | undefined): string | null {
@@ -52,7 +54,9 @@ export function resolveTeamCdFromHost(host: string | null | undefined): string |
   const h = normalizeHost(host);
   if (!h) return null;
 
-  const exact = TEAM_CD_BY_HOST[h];
+  // 표에 **실제로 있는 키**만 — `TEAM_CD_BY_HOST[h]` 로 바로 읽으면 주소가 `constructor` 같은 기본 속성 이름일 때
+  // 함수가 나와 「아는 팀」으로 통과했다(그리기 전 스크립트와 대조하는 테스트가 잡았다)
+  const exact = Object.hasOwn(TEAM_CD_BY_HOST, h) ? TEAM_CD_BY_HOST[h] : undefined;
   if (exact) return exact;
 
   if (
@@ -60,11 +64,31 @@ export function resolveTeamCdFromHost(host: string | null | undefined): string |
     h.endsWith(VERCEL_PREVIEW_SUFFIX) &&
     h.length > VERCEL_PREVIEW_PREFIX.length + VERCEL_PREVIEW_SUFFIX.length
   ) {
-    return "gigang";
+    return PREVIEW_TEAM_CD;
   }
 
   return null;
 }
+
+/**
+ * **그리기 전에** 도는 인라인 스크립트 — 주소로 팀을 판정해 `<html data-team="ulsan">` 을 붙인다(`app/layout.tsx`).
+ *
+ * 미리 만들어 두는 껍데기(정적 셸)는 어느 팀 주소로 올지 모른 채 빌드 때 한 번 그려진다. 그래서 하단 탭바 로고·홈 로딩 워터마크처럼
+ * 껍데기에 있는 팀 그림은 서버가 못 고른다. 이 표시를 붙여 두면 CSS(`teamLogoCss`, `lib/team-logo.ts`)가 **첫 화면부터** 그 팀
+ * 그림을 고른다 — 브라우저가 페이지를 이어받을 때까지 비워 두면 새로고침마다 로고가 비었다가 튀어나왔다(리뷰 2026-11-11).
+ * 화면 폭의 `shellWidthBootScript`(`lib/app-shell.ts`)와 같은 이유·같은 자리다. **빼지 않는다.**
+ *
+ * 판정 규칙은 `resolveTeamCdFromHost` 와 **같아야 한다** — 같은 표(`TEAM_CD_BY_HOST`)·접두사·접미사를 문자열로 박아 넣고,
+ * 회귀 테스트(`lib/__tests__/team-host.test.ts`)가 스크립트를 실제로 돌려 두 결과를 주소마다 대조한다.
+ * 모르는 주소면 아무것도 안 붙인다(다른 팀 그림으로 물러나지 않는다). `<html>` 은 `suppressHydrationWarning` 이라 하이드레이션 경고가 없다.
+ */
+export const teamHostBootScript = `(function(){try{
+var h=(location.host||"").split(",")[0].trim().toLowerCase().replace(/:\\d+$/,"").replace(/\\.$/,"");
+var m=${JSON.stringify(TEAM_CD_BY_HOST)},t=Object.prototype.hasOwnProperty.call(m,h)?m[h]:null;
+var P=${JSON.stringify(VERCEL_PREVIEW_PREFIX)},S=${JSON.stringify(VERCEL_PREVIEW_SUFFIX)};
+if(!t&&h.indexOf(P)===0&&h.length>P.length+S.length&&h.slice(-S.length)===S)t=${JSON.stringify(PREVIEW_TEAM_CD)};
+if(t)document.documentElement.setAttribute("data-team",t);
+}catch(e){}})();`;
 
 /**
  * 팀의 **정식 주소** — 접속 주소가 아니라 "그 팀 것"을 가리키는 링크를 만들 때 쓴다.
