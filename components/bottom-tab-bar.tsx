@@ -11,16 +11,20 @@ import { analytics } from "@/lib/analytics";
  * 기강 탭 아이콘 — 메인 로고(원형 엠블럼)를 CSS mask로 박는다.
  * 로고를 실루엣 마스크로 써서 `bg-current`로 물들여야 다른 탭처럼 활성(파랑)/
  * 비활성(회색) 색 전환이 먹는다 — 색 있는 로고 이미지를 그대로 쓰면 항상 검정이라
- * 톤이 따로 논다. 마스크 소스는 로고 전체(테두리 영문 포함) 실루엣(`public/logo-mark.png`).
- * 로고 안에 이미 "기강" 글자가 있으므로 이 탭만 아래 텍스트 라벨을 뺀다(`hideLabel`).
+ * 톤이 따로 논다. 마스크 소스는 **팀 로고 실루엣** — CSS 변수 `--team-logo-mark`(`lib/team-logo.ts` 의 `teamLogoCss`).
+ * 탭바는 미리 만드는 껍데기라 팀을 모르지만, 그리기 전 스크립트가 `<html data-team>` 을 붙여 두어 **첫 화면부터** 그 팀 로고가
+ * 걸린다(`lib/team-host.ts` 의 `teamHostBootScript`). 모르는 주소면 변수가 없어 투명 마스크로 물러난다(빈 칸 — 다른 팀 로고 아님).
+ * 로고 안에 이미 팀 이름 글자가 있으므로 이 탭만 아래 텍스트 라벨을 뺀다(`hideLabel`).
  */
+const TEAM_MARK = "var(--team-logo-mark, linear-gradient(transparent, transparent))";
+
 function StoryLogoIcon({ className }: { className?: string }) {
   return (
     <span
       className={cn("inline-block bg-current", className)}
       style={{
-        maskImage: "url(/logo-mark.png)",
-        WebkitMaskImage: "url(/logo-mark.png)",
+        maskImage: TEAM_MARK,
+        WebkitMaskImage: TEAM_MARK,
         maskRepeat: "no-repeat",
         WebkitMaskRepeat: "no-repeat",
         maskPosition: "center",

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import { Suspense } from "react";
 
 import { getGhostMembers } from "@/lib/queries/ghost-members";
@@ -199,6 +198,8 @@ async function StoryFeedSection() {
  * 지면 로딩 — 제호는 데이터 없이도 그릴 수 있으니 형태만 잡고, 그 아래에
  * 메인 로고를 은은히 깜빡여 "불러오는 중"임을 브랜드로 알린다(무색 스켈레톤 대신).
  * 로고는 라이트/다크 공통으로 보이게 `dark:invert`(로그인 화면과 같은 규칙).
+ * 로고는 **팀 로고**다 — 이 화면은 미리 만드는 껍데기라 서버가 팀을 모르지만, 그리기 전 스크립트가 붙인 `<html data-team>` 으로
+ * CSS 변수 `--team-logo` 가 걸려 첫 화면부터 그 팀 로고가 나온다(§lib/team-logo). 장식이라 그림 설명은 없다(aria-hidden).
  */
 function StorySkeleton() {
   return (
@@ -209,16 +210,12 @@ function StorySkeleton() {
         <div className="rule-masthead mt-1 w-full" />
       </div>
       <div className="flex min-h-[60vh] flex-col items-center justify-center px-6">
-        <Image
-          src="/logo.webp"
-          // 「불러오는 중」 장식이라 읽어 줄 이름이 없다(alt="") — 미리 만드는 껍데기라 팀 이름을 넣을 수도 없다
-          alt=""
-          width={512}
-          height={512}
-          priority
+        <div
+          aria-hidden
+          style={{ backgroundImage: "var(--team-logo)" }}
           // 화면에 꽉 차게 키우되 회색으로 옅게 — grayscale로 색을 빼고 낮은 투명도로
           // "불러오는 중"임을 은은히 알린다(무색 스켈레톤 대신 브랜드 워터마크).
-          className="h-auto w-full max-w-xs animate-pulse opacity-10 grayscale dark:opacity-[0.08] dark:invert"
+          className="aspect-square w-full max-w-xs animate-pulse bg-contain bg-center bg-no-repeat opacity-10 grayscale dark:opacity-[0.08] dark:invert"
         />
       </div>
     </div>

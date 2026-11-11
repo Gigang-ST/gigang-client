@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hostFamily, normalizeHost, resolveTeamCdFromHost, teamLinkOrigin } from "@/lib/team-host";
+import { hostFamily, normalizeHost, resolveTeamCdFromHost, teamHostBootScript, teamLinkOrigin } from "@/lib/team-host";
 import { resolveTeamContextFromHost } from "@/lib/queries/request-team";
 import { TEAM_ID_BY_CD } from "@/lib/constants/gigang-team";
 
@@ -133,3 +133,42 @@ describe("teamLinkOrigin", () => {
   });
 });
 
+
+/**
+ * 그리기 전 스크립트(`teamHostBootScript`)를 실제로 돌려 `<html data-team>` 을 읽는다.
+ * 스크립트와 `resolveTeamCdFromHost` 가 갈라지면 첫 화면 로고가 서버 판정과 다른 팀 것이 된다 — 주소마다 대조한다.
+ */
+function bootTeam(host: string): string | null {
+  const attrs: Record<string, string> = {};
+  const document = { documentElement: { setAttribute: (k: string, v: string) => (attrs[k] = v) } };
+  new Function("document", "location", teamHostBootScript)(document, { host });
+  return attrs["data-team"] ?? null;
+}
+
+describe("teamHostBootScript — 첫 페인트 전 팀 판정이 서버 판정과 같다", () => {
+  const hosts = [
+    "gigang.team",
+    "www.gigang.team",
+    "dev.gigang.team",
+    "Gigang.Team",
+    "gigang.team.",
+    "gigang-client-theta.vercel.app",
+    "gigang-client-dev.vercel.app",
+    "gigang-client-abc123-gigangs-projects-afd6ab2d.vercel.app",
+    "gigang-client-git-feature-x-gigangs-projects-afd6ab2d.vercel.app",
+    "gigang-client--gigangs-projects-afd6ab2d.vercel.app",
+    "ulsan.gigang.team",
+    "dev.ulsan.gigang.team",
+    "localhost",
+    "localhost:3000",
+    "127.0.0.1:3000",
+    "ulsan.localhost:3000",
+    "unknown.example.com",
+    "evil-gigangs-projects-afd6ab2d.vercel.app",
+    "constructor",
+    "",
+  ];
+  it.each(hosts)("%s", (host) => {
+    expect(bootTeam(host)).toBe(resolveTeamCdFromHost(host));
+  });
+});
