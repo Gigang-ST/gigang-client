@@ -1,5 +1,6 @@
 import { dayjs } from "@/lib/dayjs";
 
+import { feeItemTeamFilter } from "@/lib/fee-items";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -189,11 +190,14 @@ export type FeeItemOption = { cd: string; label: string };
  * 인박스 triage 3분류(회비/프로젝트/제외)와 달리 지출·물품 등 전 도메인이 필요하다.
  */
 export async function getFeeItemOptions(): Promise<FeeItemOption[]> {
+  const { teamId } = await getRequestTeamContext();
   const db = createAdminClient();
   const { data, error } = await db
     .from("cmm_cd_mst")
     .select("cd, cd_nm, sort_ord, cmm_cd_grp_mst!inner(cd_grp_cd)")
     .eq("cmm_cd_grp_mst.cd_grp_cd", "FEE_ITEM_CD")
+    // 공용 + 이 팀이 추가한 항목(§lib/fee-items)
+    .or(feeItemTeamFilter(teamId))
     .eq("vers", 0)
     .eq("del_yn", false)
     .order("sort_ord", { ascending: true });
@@ -425,6 +429,7 @@ export async function getMemberDuesDetail(memId: string): Promise<MemberDuesDeta
         .from("cmm_cd_mst")
         .select("cd, cd_nm, cmm_cd_grp_mst!inner(cd_grp_cd)")
         .eq("cmm_cd_grp_mst.cd_grp_cd", "FEE_ITEM_CD")
+        .or(feeItemTeamFilter(teamId))
         .eq("vers", 0)
         .eq("del_yn", false),
     ]);

@@ -1,6 +1,6 @@
 "use server";
 
-import { withAdmin } from "@/lib/actions/auth";
+import { withDuesAdmin } from "@/lib/actions/dues-guard";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -8,7 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * 회비 프로젝트(모금) 생성. 활성 이름 중복은 유니크 인덱스(uk_fee_prj_mst_team_nm)가 막는다.
  */
 export async function createProject(input: { name: string; memo?: string | null }) {
-  return withAdmin(async ({ member }) => {
+  return withDuesAdmin(async ({ member }) => {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
 
@@ -43,7 +43,7 @@ export async function createProject(input: { name: string; memo?: string | null 
  * 프로젝트 모금 상태 변경. closed 되면 인박스 선택지에서 빠진다(이미 귀속된 거래는 유지).
  */
 export async function setProjectStatus(prjId: string, stCd: "active" | "closed") {
-  return withAdmin(async () => {
+  return withDuesAdmin(async () => {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
 

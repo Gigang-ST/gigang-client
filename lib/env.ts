@@ -7,8 +7,9 @@ export const env = createEnv({
     REVALIDATE_SECRET: z.string().min(1),
     KAKAO_CHAT_PASSWORD: z.string().optional(),
     // 노티봇 허브 — 모임 등록·수정·취소를 단톡방에 알린다(lib/kakao/notify.ts).
-    // 이름은 허브 콘솔 개발자 가이드와 같다: KAKAO_HUB_URL · KAKAO_SERVICE_API_KEY · KAKAO_ROOM_ID.
-    // 옛 이름(KAKAO_WEBHOOK_URL · KAKAO_WEBHOOK_SECRET · KAKAO_ROOM)도 계속 받는다.
+    // 이름은 허브 콘솔 개발자 가이드와 같다: KAKAO_HUB_URL · KAKAO_SERVICE_API_KEY.
+    // 옛 이름(KAKAO_WEBHOOK_URL · KAKAO_WEBHOOK_SECRET)도 계속 받는다.
+    // ⚠️ **방은 여기서 정하지 않는다** — 팀마다 다르므로 팀 설정(team_cfg `kakao.room_id`)에 있다(2026-11 멀티팀).
     // 전부 optional: 미설정이면 발송만 꺼진다. 로컬·preview가 실제 톡방에 쏘지 않게 하는
     // 안전장치가 이 "미설정 = 비활성"이라, 값을 넣은 환경에서만 발송된다.
     // 허브 origin(예: https://api.notibot.xyz). SDK 가 경로를 붙이므로 origin 만 있으면 된다.
@@ -17,14 +18,15 @@ export const env = createEnv({
     // (배포 환경변수를 바꾸기 전에 코드가 먼저 올라가도 발송이 멈추지 않게).
     KAKAO_WEBHOOK_URL: z.url().optional(),
     KAKAO_WEBHOOK_SECRET: z.string().min(1).optional(),
+    // 더 이상 읽지 않는다(방은 team_cfg). 배포 환경변수에서 지워도 된다 — 남아 있어도 무시된다.
     KAKAO_ROOM: z.string().min(1).optional(),
     // 허브 워크스페이스 API 키(nb_live_…). 옛 이름 KAKAO_WEBHOOK_SECRET 보다 우선한다.
     KAKAO_SERVICE_API_KEY: z.string().min(1).optional(),
-    // 방 고정 ID(콘솔 방 상세에서 복사). 방 이름(KAKAO_ROOM)보다 우선한다 — 카톡방 이름이
-    // 바뀌어도 발송이 끊기지 않는다.
+    // 더 이상 읽지 않는다 — 방 고정 ID 는 팀 설정(team_cfg `kakao.room_id`)으로 옮겼다.
+    // 하나뿐인 환경변수 방으로 보내면 다른 팀 공지가 기강 단톡방으로 샌다. 배포 환경변수에서 지워도 된다.
     KAKAO_ROOM_ID: z.string().min(1).optional(),
-    // 뉴비 온보딩 미참석 넛지 크론(app/api/cron/newbie-nudge) 인증용.
-    // optional: 미설정 시 크론 라우트가 503으로 스스로 막는다(발송 사고 방지, 앱 기동은 막지 않음).
+    // 크론(app/api/cron/batch) 인증용 — Vercel Cron 이 `Authorization: Bearer <CRON_SECRET>` 을 붙여 부른다.
+    // optional: 미설정 시 크론 라우트가 503으로 스스로 막는다(사고 방지, 앱 기동은 막지 않음).
     CRON_SECRET: z.string().min(1).optional(),
     GEMINI_API_KEY: z.string().min(1).optional(),
     NODE_ENV: z.enum(["development", "production", "test"]),

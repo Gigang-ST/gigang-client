@@ -14,6 +14,7 @@ import { deleteActivity } from "@/app/actions/mileage-run";
 
 import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";
 import { Body, Caption, Micro } from "@/components/common/typography";
+import type { ActivityLogFormCopy } from "@/components/projects/activity-log-form";
 import { ActivityLogForm } from "@/components/projects/activity-log-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,6 +50,8 @@ export type ActivityRecord = {
 };
 
 type Props = {
+  /** 팀 문구 — 수정 폼에 넘긴다(§lib/team-copy) */
+  copy: ActivityLogFormCopy;
   initialRecords: ActivityRecord[];
   evtId: string;
   memId: string;
@@ -77,6 +80,7 @@ export function MyActivityListClient({
   readOnly = false,
   isInactive = false,
   inactiveKind,
+  copy,
 }: Props) {
   const router = useRouter();
   const [deleteTarget, setDeleteTarget] = useState<ActivityRecord | null>(null);
@@ -230,6 +234,7 @@ export function MyActivityListClient({
               onSuccess={handleEditSuccess}
               isInactive={isInactive}
               inactiveKind={inactiveKind}
+              copy={copy}
             />
           )}
         </SheetContent>

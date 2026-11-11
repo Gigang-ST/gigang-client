@@ -2,6 +2,8 @@
 
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getTeamCfg } from "@/lib/team-cfg/read";
+import { stripTitlesIfOff } from "@/lib/team-titles";
 import { isUUID } from "@/lib/utils";
 import type { StoryPost } from "@/lib/queries/story-posts";
 
@@ -53,7 +55,9 @@ export async function loadStoryPost(
     }
 
     // RPC는 항상 배열을 준다(없으면 빈 배열) — 딥링크 대상이 삭제됐거나 사진이 없으면 여기.
-    const posts = (data as StoryPost[] | null) ?? [];
+    // 칭호 기능을 끈 팀은 작성자 칭호를 걷는다(첫 화면과 같게 — §lib/team-titles)
+    const titlesEnabled = await getTeamCfg(teamId, "feature.titles");
+    const posts = stripTitlesIfOff((data as StoryPost[] | null) ?? [], titlesEnabled);
     return { ok: true, post: posts[0] ?? null };
   } catch (e) {
     console.error("[loadStoryPost] 기록 단건 조회 예외", e);

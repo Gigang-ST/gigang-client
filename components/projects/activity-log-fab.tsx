@@ -12,10 +12,13 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { ActivityLogBatchForm } from "./activity-log-batch-form";
+import type { ActivityLogFormCopy } from "./activity-log-form";
 import { analytics } from "@/lib/analytics";
 
 type ActivityLogFabProps = {
   evtId: string;
+  /** 팀 문구 — 다건 폼에 넘긴다(§lib/team-copy) */
+  copy: ActivityLogFormCopy;
   memId: string;
   /** 비활성/탈퇴 회원 — true면 기록 저장 시도 시 공통 안내 게이트를 연다 */
   isInactive?: boolean;
@@ -23,7 +26,7 @@ type ActivityLogFabProps = {
   inactiveKind?: "inactive" | "left";
 };
 
-export function ActivityLogFab({ evtId, memId: _memId, isInactive = false, inactiveKind }: ActivityLogFabProps) {
+export function ActivityLogFab({ evtId, memId: _memId, isInactive = false, inactiveKind, copy }: ActivityLogFabProps) {
   const [open, setOpen] = useState(false);
   const [showSuccessNotice, setShowSuccessNotice] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
@@ -141,6 +144,7 @@ export function ActivityLogFab({ evtId, memId: _memId, isInactive = false, inact
             onSuccess={handleSuccess}
             isInactive={isInactive}
             inactiveKind={inactiveKind}
+            copy={copy}
           />
         </SheetContent>
       </Sheet>

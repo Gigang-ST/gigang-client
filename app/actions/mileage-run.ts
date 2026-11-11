@@ -29,19 +29,18 @@ import {
   uploadPostPhoto,
 } from "@/lib/storage/post-photo";
 import { isOwnPostPhotoUrl } from "@/lib/storage/post-photo-url";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 import { activityLogBatchSchema, activityLogSchema } from "@/lib/validations/mileage";
+import { teamCacheTag } from "@/lib/team-cache-tag";
 
 // ─────────────────────────────────────────
 // 타입
 // ─────────────────────────────────────────
 
-/**
- * 활동 로그 입력. 정본은 `lib/mileage-run.ts`(액션·운영 MCP 공용 코어)에 있고
- * 여기서는 기존 import 경로를 유지하기 위해 재export 한다.
- */
-export type { ActivityLogInput } from "@/lib/mileage-run";
+// 활동 로그 입력 타입(`ActivityLogInput`)의 정본은 `@/lib/mileage-run` — 쓰는 쪽이 거기서 바로 가져간다.
+// "use server" 파일의 타입 재export 는 Turbopack dev 에서 모듈을 죽인다(lint 가 막는다 — eslint.config.mjs).
 
 type ActionResult = { ok: boolean; message: string | null; grantedTitles?: string[] };
 
@@ -66,6 +65,12 @@ function buildAppliedMults(evtId: string, multIds: string[], actDt: string) {
 export type UploadActivityPhotoResult =
   | { ok: false; message: string }
   | { ok: true; url: string };
+
+/** `evt_team_mst!inner(team_id)` 임베드 결과에서 시즌 팀 id — 배열·객체 둘 다 온다 */
+function pickSeasonTeamId(embed: { team_id: string } | { team_id: string }[] | null | undefined): string | null {
+  const row = Array.isArray(embed) ? embed[0] : embed;
+  return row?.team_id ?? null;
+}
 
 /**
  * 마일리지런 기록에 붙일 사진을 올리고 공개 URL을 돌려준다.
@@ -100,6 +105,24 @@ export async function uploadActivityPhoto(
   }
 }
 
+/**
+ * 시즌(evt)의 팀에서 이 회원의 소속 행 — 칭호 평가의 팀·team_mem_id.
+ * 회원 ID 로만 찾으면 두 팀 소속자는 행이 둘이라 `maybeSingle` 이 에러로 떨어지고, 칭호 평가가
+ * 조용히 건너뛰어졌다(에러를 null 로 받아 if 를 지나쳤다). 시즌의 팀으로 좁힌다.
+ */
+async function teamMemForSeason(db: ReturnType<typeof createAdminClient>, memId: string, evtId: string) {
+  const { data: evt } = await db.from("evt_team_mst").select("team_id").eq("evt_id", evtId).maybeSingle();
+  if (!evt) return { data: null, error: null };
+  return db
+    .from("team_mem_rel")
+    .select("team_mem_id, team_id")
+    .eq("mem_id", memId)
+    .eq("team_id", evt.team_id)
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+}
+
 // ─────────────────────────────────────────
 // 1. 프로젝트 참여 신청
 // ─────────────────────────────────────────
@@ -110,12 +133,15 @@ export async function joinProject(
   hasSinglet: boolean,
 ): Promise<ActionResult> {
   return withActive(async ({ member }) => {
+    const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
 
+    // 접속한 팀의 시즌에만 신청받는다 — 안 거르면 울산 회원이 기강 마일리지런에 들어간다
     const { data: evt, error: evtError } = await db
       .from("evt_team_mst")
       .select("end_dt, stt_dt, evt_type_cd")
       .eq("evt_id", evtId)
+      .eq("team_id", teamId)
       .single();
 
     if (evtError || !evt) return { ok: false, message: "이벤트를 찾을 수 없습니다" };
@@ -172,13 +198,7 @@ export async function joinProject(
 
     revalidatePath("/projects");
 
-    const { data: teamMemRow } = await db
-      .from("team_mem_rel")
-      .select("team_mem_id, team_id")
-      .eq("mem_id", member.id)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .maybeSingle();
+    const { data: teamMemRow } = await teamMemForSeason(db, member.id, evtId);
     if (teamMemRow) {
       const ctx = {
         trigger: "mileage_run" as const,
@@ -223,13 +243,20 @@ export async function logActivity(
     const db = createAdminClient();
     const { data: participant, error: participantErr } = await db
       .from("evt_team_prt_rel")
-      .select("prt_id")
+      .select("prt_id, evt_team_mst!inner(team_id)")
       .eq("evt_id", evtId)
       .eq("mem_id", member.id)
       .eq("aprv_yn", true)
       .single();
 
     if (participantErr || !participant) return { ok: false, message: "참여 신청 정보를 찾을 수 없습니다" };
+    // 사진 붙은 기록은 그 **시즌 팀**의 깅스타그램에 선다(트리거) — 그 팀 캐시를 턴다
+    const seasonTeamId = pickSeasonTeamId(participant.evt_team_mst);
+    // 이 시즌이 **접속한 팀** 것일 때만 — 울산 주소에서 기강 마일리지런에 기록하지 못하게(관리자든 아니든).
+    // 다른 팀 시즌은 없는 것과 같게 다룬다. 이걸 지나면 member.admin(접속한 팀 관리자)이 곧 이 시즌 팀 관리자다.
+    if (seasonTeamId !== (await getRequestTeamContext()).teamId) {
+      return { ok: false, message: "참여 신청 정보를 찾을 수 없습니다" };
+    }
 
     const { appliedMults, multValues, error: multErr } = await buildAppliedMults(evtId, validInput.applied_mult_ids, validInput.act_dt);
     if (multErr) return { ok: false, message: multErr };
@@ -259,7 +286,7 @@ export async function logActivity(
 
     // 사진이 붙었으면 지면이 바뀐다 — 전광판 캐시(5분)를 기다리지 않고 즉시 반영한다.
     // `revalidatePath("/projects")`만으론 /story의 `story-posts` 태그가 안 풀린다.
-    if (validInput.photo_url) updateTag("story-posts");
+    if (validInput.photo_url && seasonTeamId) updateTag(teamCacheTag("story-posts", seasonTeamId));
 
     try {
       await recalcGoalsFromMonth(evtId, participant.prt_id);
@@ -268,13 +295,7 @@ export async function logActivity(
       return { ok: false, message: "목표 재계산에 실패했습니다. 잠시 후 다시 시도해주세요" };
     }
 
-    const { data: teamMemRow, error: teamMemErr } = await db
-      .from("team_mem_rel")
-      .select("team_mem_id, team_id")
-      .eq("mem_id", member.id)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .maybeSingle();
+    const { data: teamMemRow, error: teamMemErr } = await teamMemForSeason(db, member.id, evtId);
     console.info("[title-engine] teamMemRow:", teamMemRow, "error:", teamMemErr);
     if (teamMemRow) {
       const ctx = {
@@ -325,13 +346,20 @@ export async function logActivitiesBatch(
     const db = createAdminClient();
     const { data: participant, error: participantErr } = await db
       .from("evt_team_prt_rel")
-      .select("prt_id")
+      .select("prt_id, evt_team_mst!inner(team_id)")
       .eq("evt_id", evtId)
       .eq("mem_id", member.id)
       .eq("aprv_yn", true)
       .single();
 
     if (participantErr || !participant) return { ok: false, message: "참여 신청 정보를 찾을 수 없습니다" };
+    // 사진 붙은 기록은 그 **시즌 팀**의 깅스타그램에 선다(트리거) — 그 팀 캐시를 턴다
+    const seasonTeamId = pickSeasonTeamId(participant.evt_team_mst);
+    // 이 시즌이 **접속한 팀** 것일 때만 — 울산 주소에서 기강 마일리지런에 기록하지 못하게(관리자든 아니든).
+    // 다른 팀 시즌은 없는 것과 같게 다룬다. 이걸 지나면 member.admin(접속한 팀 관리자)이 곧 이 시즌 팀 관리자다.
+    if (seasonTeamId !== (await getRequestTeamContext()).teamId) {
+      return { ok: false, message: "참여 신청 정보를 찾을 수 없습니다" };
+    }
 
     const rows: {
       prt_id: string;
@@ -384,7 +412,7 @@ export async function logActivitiesBatch(
     if (error) return { ok: false, message: "활동 기록 저장에 실패했습니다" };
 
     // 한 건이라도 사진이 붙었으면 기강이야기 지면이 바뀐다(트리거가 post를 세운다)
-    if (rows.some((r) => r.photo_url)) updateTag("story-posts");
+    if (rows.some((r) => r.photo_url) && seasonTeamId) updateTag(teamCacheTag("story-posts", seasonTeamId));
 
     try {
       await recalcGoalsFromMonth(evtId, participant.prt_id);
@@ -393,13 +421,7 @@ export async function logActivitiesBatch(
       return { ok: false, message: "목표 재계산에 실패했습니다. 잠시 후 다시 시도해주세요" };
     }
 
-    const { data: teamMemRow } = await db
-      .from("team_mem_rel")
-      .select("team_mem_id, team_id")
-      .eq("mem_id", member.id)
-      .eq("vers", 0)
-      .eq("del_yn", false)
-      .maybeSingle();
+    const { data: teamMemRow } = await teamMemForSeason(db, member.id, evtId);
     const allGranted: string[] = [];
     if (teamMemRow) {
       for (const actDt of uniqueDates) {
@@ -437,7 +459,7 @@ export async function updateActivity(
   const validInput = parsed.data;
 
   return withActive(async ({ member, supabase }) => {
-    const isAdmin = !!member.admin;
+    const isTeamAdmin = !!member.admin;
     const db = createAdminClient();
 
     const { data: existing, error: fetchErr } = await db
@@ -455,6 +477,12 @@ export async function updateActivity(
     const evtTeam = Array.isArray(existingParticipant.evt_team_mst)
       ? existingParticipant.evt_team_mst[0]
       : existingParticipant.evt_team_mst;
+    // 이 시즌이 **접속한 팀** 것일 때만 — 울산 주소에서 기강 마일리지런에 기록하지 못하게(관리자든 아니든).
+    // 다른 팀 시즌은 없는 것과 같게 다룬다. 이걸 지나면 member.admin(접속한 팀 관리자)이 곧 이 시즌 팀 관리자다.
+    const { teamId } = await getRequestTeamContext();
+    if (evtTeam?.team_id !== teamId) return { ok: false, message: "기록을 찾을 수 없습니다" };
+    // 관리자 특권(남의 기록·날짜 제한 무시) — 위에서 접속한 팀 시즌만 남겼으므로 접속한 팀 관리자면 된다
+    const isAdmin = isTeamAdmin;
     if (!isAdmin && existingParticipant.mem_id !== member.id) {
       return { ok: false, message: "본인 기록만 수정할 수 있습니다" };
     }
@@ -518,7 +546,8 @@ export async function updateActivity(
       if (prevPath) await removePostPhoto(supabase, prevPath);
     }
     // 사진이 붙거나 떨어지면 기강이야기 지면이 바뀐다(트리거가 post를 세우거나 내린다)
-    if (prevPhotoUrl || nextPhotoUrl) updateTag("story-posts");
+    // 깅스타그램 행은 기록 시즌 팀 것(트리거) — 위에서 접속한 팀 시즌만 남겼다
+    if (prevPhotoUrl || nextPhotoUrl) updateTag(teamCacheTag("story-posts", teamId));
 
     try {
       await recalcGoalsFromMonth(existingParticipant.evt_id, existing.prt_id);
@@ -566,17 +595,27 @@ export async function updateActivity(
 
 export async function deleteActivity(actId: string): Promise<ActionResult> {
   return withActive(async ({ member, supabase }) => {
-    const isAdmin = !!member.admin;
     const db = createAdminClient();
 
     const { data: existing, error: fetchErr } = await db
       .from("evt_mlg_act_hist")
-      .select("act_id, prt_id, act_dt, photo_url, evt_team_prt_rel!inner(mem_id, evt_id)")
+      .select("act_id, prt_id, act_dt, photo_url, evt_team_prt_rel!inner(mem_id, evt_id, evt_team_mst!inner(team_id))")
       .eq("act_id", actId)
       .single();
 
     if (fetchErr || !existing) return { ok: false, message: "기록을 찾을 수 없습니다" };
-    const existingParticipant = existing.evt_team_prt_rel as { mem_id: string; evt_id: string };
+    const existingParticipant = existing.evt_team_prt_rel as {
+      mem_id: string;
+      evt_id: string;
+      evt_team_mst: { team_id: string } | { team_id: string }[];
+    };
+    // 이 시즌이 **접속한 팀** 것일 때만 — 울산 주소에서 기강 마일리지런에 기록하지 못하게(관리자든 아니든).
+    // 다른 팀 시즌은 없는 것과 같게 다룬다. 이걸 지나면 member.admin(접속한 팀 관리자)이 곧 이 시즌 팀 관리자다.
+    const { teamId } = await getRequestTeamContext();
+    if (pickSeasonTeamId(existingParticipant.evt_team_mst) !== teamId) {
+      return { ok: false, message: "기록을 찾을 수 없습니다" };
+    }
+    const isAdmin = !!member.admin;
     if (!isAdmin && existingParticipant.mem_id !== member.id) {
       return { ok: false, message: "본인 기록만 삭제할 수 있습니다" };
     }
@@ -593,7 +632,8 @@ export async function deleteActivity(actId: string): Promise<ActionResult> {
     if (photoUrl) {
       const path = postPhotoPathFromUrl(photoUrl);
       if (path) await removePostPhoto(supabase, path);
-      updateTag("story-posts");
+      // 깅스타그램 행은 기록 시즌 팀 것 — 위에서 접속한 팀 시즌만 남겼다
+      updateTag(teamCacheTag("story-posts", teamId));
     }
 
     try {
@@ -614,23 +654,31 @@ export async function deleteActivity(actId: string): Promise<ActionResult> {
 
 export async function updateMonthlyGoal(goalId: string, newGoal: number): Promise<ActionResult> {
   return withActive(async ({ member }) => {
+    const db = createAdminClient();
+
+    const { data: existing, error: fetchErr } = await db
+      .from("evt_mlg_mth_snap")
+      .select("goal_id, prt_id, goal_mlg, evt_team_prt_rel!inner(mem_id, evt_id, evt_team_mst!inner(team_id))")
+      .eq("goal_id", goalId)
+      .single();
+
+    if (fetchErr || !existing) return { ok: false, message: "목표를 찾을 수 없습니다" };
+    const participant = existing.evt_team_prt_rel as {
+      mem_id: string;
+      evt_id: string;
+      evt_team_mst: { team_id: string } | { team_id: string }[];
+    };
+    const evtId = participant.evt_id;
+    // 이 시즌이 **접속한 팀** 것일 때만 — 울산 주소에서 기강 마일리지런에 기록하지 못하게(관리자든 아니든).
+    // 다른 팀 시즌은 없는 것과 같게 다룬다. 이걸 지나면 member.admin(접속한 팀 관리자)이 곧 이 시즌 팀 관리자다.
+    const { teamId } = await getRequestTeamContext();
+    if (pickSeasonTeamId(participant.evt_team_mst) !== teamId) return { ok: false, message: "목표를 찾을 수 없습니다" };
+    // 관리자 특권(14일 이후 수정·목표 낮추기·남의 목표) — 접속한 팀 시즌만 남았으므로 접속한 팀 관리자면 된다
     const isAdmin = !!member.admin;
 
     if (!isAdmin && todayDayKST() > 14) {
       return { ok: false, message: "목표는 매월 14일까지만 수정할 수 있습니다" };
     }
-
-    const db = createAdminClient();
-
-    const { data: existing, error: fetchErr } = await db
-      .from("evt_mlg_mth_snap")
-      .select("goal_id, prt_id, goal_mlg, evt_team_prt_rel!inner(mem_id, evt_id)")
-      .eq("goal_id", goalId)
-      .single();
-
-    if (fetchErr || !existing) return { ok: false, message: "목표를 찾을 수 없습니다" };
-    const participant = existing.evt_team_prt_rel as { mem_id: string; evt_id: string };
-    const evtId = participant.evt_id;
     if (!isAdmin && participant.mem_id !== member.id) return { ok: false, message: "본인 목표만 수정할 수 있습니다" };
     if (!isAdmin && newGoal < Number(existing.goal_mlg)) return { ok: false, message: "목표는 현재 값 이상으로만 설정할 수 있습니다" };
 

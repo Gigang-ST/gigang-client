@@ -13,15 +13,13 @@ export default async function BoardEditPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const post = await getBoardPost(id);
+  const { teamId } = await getRequestTeamContext();
+  // 이 팀 글만 읽는다 — 다른 팀 글은 없는 글
+  const post = await getBoardPost(teamId, id);
   if (!post) notFound();
 
   const { member } = await getCurrentMember();
   if (!member) redirect("/");
-
-  const { teamId } = await getRequestTeamContext();
-
-  if (post.team_id !== teamId) redirect(`/board/${id}`);
 
   const canEdit = member.admin || member.id === post.writ_mem_id;
   if (!canEdit) redirect(`/board/${id}`);

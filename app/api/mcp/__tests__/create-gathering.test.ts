@@ -368,6 +368,8 @@ describe("create_gathering — 단톡방 노티봇 공지(#576, 앱과 같은 �
 
     expect(notifyGatheringCreatedMock).toHaveBeenCalledTimes(1);
     expect(notifyGatheringCreatedMock.mock.calls[0][0]).toEqual({
+      // 토큰의 팀 방으로 간다 — 다른 팀 방으로 새지 않는다
+      teamId: TEAM_ID,
       gthrId: GTHR_ID,
       ref: "gg7f2k",
       origin: "https://gigang.team",

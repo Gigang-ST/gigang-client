@@ -1,14 +1,16 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
-import { TEAM_ACCOUNT } from "@/lib/constants";
+import { feeItemTeamFilter } from "@/lib/fee-items";
+import { getTeamAccount } from "@/lib/team-social";
 import { DUES_QUEST } from "@/lib/constants/dues-quest";
 import { dayjs } from "@/lib/dayjs";
 import { calcExemption } from "@/lib/dues/calc-exemption";
 import { isMonthCharged } from "@/lib/dues/ledger-replay";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getTeamCfg } from "@/lib/team-cfg/read";
 import { createClient } from "@/lib/supabase/server";
 
 import { DuesHistoryClient } from "./dues-history-client";
@@ -20,6 +22,8 @@ export default async function MemberDuesPage() {
   if (!member) redirect("/onboarding?next=/profile/dues");
 
   const { teamId } = await getRequestTeamContext();
+  // 회비를 안 쓰는 팀(팀 설정 feature.dues)은 이 화면이 없다 — 링크도 안 보이지만 주소로 들어와도 막는다
+  if (!(await getTeamCfg(teamId, "feature.dues"))) notFound();
   const supabase = await createClient();
 
   const nowKst = dayjs().tz("Asia/Seoul");
@@ -67,6 +71,7 @@ export default async function MemberDuesPage() {
       .from("cmm_cd_mst")
       .select("cd, cd_nm, cmm_cd_grp_mst!inner(cd_grp_cd)")
       .eq("cmm_cd_grp_mst.cd_grp_cd", "FEE_ITEM_CD")
+      .or(feeItemTeamFilter(teamId))
       .eq("vers", 0)
       .eq("del_yn", false),
     supabase
@@ -157,7 +162,7 @@ export default async function MemberDuesPage() {
     <DuesHistoryClient
       balAmt={balAmt}
       lastCalcDt={snap?.last_calc_dt ? dayjs(snap.last_calc_dt).tz("Asia/Seoul").format("YY.MM.DD HH:mm") : null}
-      teamAccount={TEAM_ACCOUNT}
+      teamAccount={await getTeamAccount(teamId)}
       monthlyFeeAmt={monthlyFeeAmt}
       quest={quest}
       items={items}

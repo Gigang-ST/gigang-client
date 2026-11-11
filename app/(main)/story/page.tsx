@@ -1,19 +1,17 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import { Suspense } from "react";
 
 import { getGhostMembers } from "@/lib/queries/ghost-members";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getTeamCopy } from "@/lib/queries/team-copy";
+import { STORY_COPY_KEYS, pickTeamCopy } from "@/lib/team-copy";
+import { getTeamChannels } from "@/lib/team-social";
 import {
   getMyReactions,
   getReactionTotals,
   getStoryFeed,
 } from "@/lib/queries/story-feed";
-// 종이비행기 한마디(getStoryMessages) 잠정 중단(2026-07-28). MessagePlanes 존을 화면에서
-// 내리면서 RPC도 함께 끊어 비용을 0으로 만든다 — 되살릴 땐 이 import와 Promise.all 항목,
-// messages prop([])을 원복하고 story-client의 SHOW_MESSAGE_PLANES를 true로.
-// import { getStoryMessages } from "@/lib/queries/story-messages";
 import { getStoryPosts } from "@/lib/queries/story-posts";
 import {
   pickActvLeadIndex,
@@ -23,6 +21,8 @@ import {
 import { buildTitleLeadPool, pickTitleLedeStart } from "@/lib/story-title";
 import { getTeamOverview } from "@/lib/queries/team-overview";
 import { getRecentTitleGrants } from "@/lib/queries/story-titles";
+import { getTeamCfg } from "@/lib/team-cfg/read";
+import { stripTitlesIfOff } from "@/lib/team-titles";
 import { getMileageRecapTeaser } from "@/lib/queries/mileage-recap";
 import { pickTeaserFaces } from "@/lib/mileage-recap";
 
@@ -78,22 +78,24 @@ async function StoryFeedSection() {
   );
 
   const [
-    feed,
+    rawFeed,
     overview,
     ghosts,
-    posts,
-    grants,
+    rawPosts,
+    rawGrants,
     { member },
     reactionTotals,
     myReactions,
     recapTeaser,
+    channels,
+    titlesEnabled,
+    copy,
   ] = await Promise.all([
       getStoryFeed(teamId),
       getTeamOverview(teamId),
       getGhostMembers(teamId, ghostSeed),
       getStoryPosts(teamId),
       getRecentTitleGrants(teamId),
-      // getStoryMessages(teamId), — 종이비행기 잠정 중단(위 import 주석 참조)
       getCurrentMember(),
       // 응원 총합은 **멤버와 무관한 공개 집계**라 여기서 같이 출발한다. 예전엔 내 몫과 한
       // 함수로 묶여 있어 총합까지 멤버 조회 뒤에 줄을 섰다 — 그만큼이 임계경로였다.
@@ -102,7 +104,25 @@ async function StoryFeedSection() {
       // 끝난 마일리지런 시즌 — 종료 후 30일에만 값이 온다(창 밖이면 가벼운 조회 하나로 null).
       // 따로 캐시돼 있고 실패하면 null로 삼켜 홈을 막지 않는다(§getMileageRecapTeaser).
       getMileageRecapTeaser(teamId),
+      // 판권면 채널 — 이 팀 것(팀 설정, 서버 메모리 1분 캐시)
+      getTeamChannels(teamId),
+      // 칭호 기능 — 끈 팀은 「칭호획득」 칸을 안 세우고 사람에게 붙은 칭호를 걷는다(§lib/team-titles)
+      getTeamCfg(teamId, "feature.titles"),
+      // 팀 문구 — 크루 이름·호칭·기능 이름·말투(§lib/team-copy). 서버 메모리 캐시라 조회 비용 없음
+      getTeamCopy(),
     ]);
+
+  // 칭호 기능을 끈 팀 — 피드·기록은 칭호를 실은 채 캐시돼 오므로 화면에 넘기기 직전에 걷는다(§lib/team-titles)
+  const feed = titlesEnabled
+    ? rawFeed
+    : {
+        ...rawFeed,
+        newbies: stripTitlesIfOff(rawFeed.newbies, false),
+        records: stripTitlesIfOff(rawFeed.records, false),
+        actv_rank: stripTitlesIfOff(rawFeed.actv_rank, false),
+      };
+  const posts = stripTitlesIfOff(rawPosts, titlesEnabled);
+  const grants = titlesEnabled ? rawGrants : [];
 
   // 응원 카운트(모두의 총합 + 내 몫)는 캐시된 피드(최대 5분 지연)에서 떼어내 매 요청 최신으로
   // 읽는다 — 남이 누른 것도 실시간에 가깝게 쌓여 보이고, 새로고침해도 내 몫이 유지된다.
@@ -121,11 +141,10 @@ async function StoryFeedSection() {
   // Math.random은 렌더 순수성 룰에 걸려 헬퍼로 빼 둔다.
   const initialPostPick = pickRandomPostIndex(posts.length);
   const initialNewbiePick = pickRandomPostIndex(feed.newbies.length);
-  // 목표 한마디 리드 슬롯 잠정 중단(story-lede의 SHOW_PLEDGE_LEDE=false) — 서버 랜덤을
-  // 돌릴 이유가 없어 0으로 넘긴다. 되살릴 땐 pickRandomPostIndex(feed.pledges.length)로 원복.
-  const initialPledgePick = 0;
   const initialRecordPick = pickRandomPostIndex(feed.records.length);
   const initialActvPick = pickActvLeadIndex(feed.actv_rank.length);
+  // 활동지수 헤드라인은 대표와 **따로** 굴린다 — 대표 번호(0~2)를 그대로 쓰면 14줄 중 앞 3줄만 나온다(리뷰 2026-11-11)
+  const initialHeadlinePick = pickRandomPostIndex(copy.actvHeadlines.length);
   // 칭호획득 슬롯의 대표 회전 시작 오프셋 — 방문마다 다른 사람에서 시작한다(첫 화면 다양성).
   // 기준은 칭호 수가 아니라 **사람 pool 길이**(사람별 최신 1건 dedupe — §lib/story-title.ts).
   // 이후 전진은 클라가 한 바퀴 완주마다 +1 — 랜덤이 아니라 회전이라 전원이 빠짐없이 오른다.
@@ -149,14 +168,11 @@ async function StoryFeedSection() {
       posts={posts}
       initialPostPick={initialPostPick}
       initialNewbiePick={initialNewbiePick}
-      initialPledgePick={initialPledgePick}
       initialRecordPick={initialRecordPick}
       initialActvPick={initialActvPick}
+      initialHeadlinePick={initialHeadlinePick}
       grants={grants}
       initialTitlePick={initialTitlePick}
-      // 종이비행기 잠정 중단 — 쿼리를 끊었으니 항상 빈 목록. 되살릴 땐 위 Promise.all에
-      // getStoryMessages를 되살리고 messages={messages}로 원복(파일 상단 import 주석 참조).
-      messages={[]}
       teamId={teamId}
       myMemId={member?.id ?? null}
       // 기록 삭제 권한 — 관리자는 남의 기록도 지울 수 있다(작성자 판정은 myMemId가 한다).
@@ -172,6 +188,8 @@ async function StoryFeedSection() {
       // async 서버 컴포넌트라 client인 StoryClient 안에서 직접 렌더할 수 없다).
       mastheadActions={<HeaderActions />}
       recap={recap}
+      channels={channels}
+      copy={pickTeamCopy(copy, STORY_COPY_KEYS)}
     />
   );
 }
@@ -180,6 +198,8 @@ async function StoryFeedSection() {
  * 지면 로딩 — 제호는 데이터 없이도 그릴 수 있으니 형태만 잡고, 그 아래에
  * 메인 로고를 은은히 깜빡여 "불러오는 중"임을 브랜드로 알린다(무색 스켈레톤 대신).
  * 로고는 라이트/다크 공통으로 보이게 `dark:invert`(로그인 화면과 같은 규칙).
+ * 로고는 **팀 로고**다 — 이 화면은 미리 만드는 껍데기라 서버가 팀을 모르지만, 그리기 전 스크립트가 붙인 `<html data-team>` 으로
+ * CSS 변수 `--team-logo` 가 걸려 첫 화면부터 그 팀 로고가 나온다(§lib/team-logo). 장식이라 그림 설명은 없다(aria-hidden).
  */
 function StorySkeleton() {
   return (
@@ -190,15 +210,12 @@ function StorySkeleton() {
         <div className="rule-masthead mt-1 w-full" />
       </div>
       <div className="flex min-h-[60vh] flex-col items-center justify-center px-6">
-        <Image
-          src="/logo.webp"
-          alt="기강"
-          width={512}
-          height={512}
-          priority
+        <div
+          aria-hidden
+          style={{ backgroundImage: "var(--team-logo)" }}
           // 화면에 꽉 차게 키우되 회색으로 옅게 — grayscale로 색을 빼고 낮은 투명도로
           // "불러오는 중"임을 은은히 알린다(무색 스켈레톤 대신 브랜드 워터마크).
-          className="h-auto w-full max-w-xs animate-pulse opacity-10 grayscale dark:opacity-[0.08] dark:invert"
+          className="aspect-square w-full max-w-xs animate-pulse bg-contain bg-center bg-no-repeat opacity-10 grayscale dark:opacity-[0.08] dark:invert"
         />
       </div>
     </div>

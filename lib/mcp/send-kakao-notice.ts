@@ -67,7 +67,7 @@ export type SendKakaoNoticeResult = {
    * - `sent`: 허브가 접수했다(카톡 전달 확인은 아니다).
    * - `duplicate`: 같은 `request_id` 를 허브가 이미 받아 둬서 **새로 보내지 않았다** — 단톡방엔 앞선
    *   한 건만 있다. 실패가 아니니 다시 보낼 일도 없다. 발송 이력에도 `duplicate` 로 남는다.
-   * - `skipped`: 이 환경엔 노티봇이 설정돼 있지 않아 보내지 않았다.
+   * - `skipped`: 이 환경엔 노티봇이 설정돼 있지 않거나, 이 팀이 카톡 공지방을 설정하지 않아 보내지 않았다.
    * - `failed`: 허브가 거절했거나 닿지 않았다 — `failure` 참고.
    */
   status: "preview" | "sent" | "duplicate" | "skipped" | "failed";
@@ -149,7 +149,8 @@ export async function sendKakaoNotice(
   }
   const requestId = requestedId || crypto.randomUUID();
 
-  const room = defaultKakaoRoom();
+  // 토큰의 팀 방 — 방이 없는 팀이면 null 이고 보내지 않는다(다른 팀 방으로 새지 않는다)
+  const room = await defaultKakaoRoom(ctx.team_id);
 
   if (input.dry_run) {
     return {
@@ -168,6 +169,7 @@ export async function sendKakaoNotice(
   // 감사행 id 를 먼저 뽑아 발송 이력의 출처 id 로 싣는다 — 이력 한 줄에서 MCP 감사행으로 이어진다.
   const auditId = crypto.randomUUID();
   const sent = await sendKakao(message, {
+    teamId: ctx.team_id,
     requestId,
     ...(mentions.length ? { mentions } : {}),
     source: { type: "mcp_notice", id: auditId },

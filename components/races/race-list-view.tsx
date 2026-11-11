@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 import { getMentionMembers } from "@/app/actions/comment/get-mention-members";
 import { getOrCreateCompEvtIdForParticipation } from "@/app/actions/get-or-create-comp-evt-for-participation";
 import { getPastGigangCompetitions } from "@/app/actions/get-past-gigang-competitions";
-import { revalidateCompetitions } from "@/app/actions/revalidate-competitions";
+import { revalidateCompetitions, revalidateTeamCompetitionPlans } from "@/app/actions/revalidate-competitions";
 
 import type { MemberOption } from "@/components/comment/mention-input";
 import { Button } from "@/components/ui/button";
@@ -388,7 +388,7 @@ export function RaceListView({
 			...prev,
 			[competitionId]: (prev[competitionId] ?? 0) + 1,
 		}));
-		await revalidateCompetitions();
+		await revalidateTeamCompetitionPlans();
 		router.refresh();
 
 		return { ok: true as const, message: "참가 신청 완료" };
@@ -482,7 +482,7 @@ export function RaceListView({
 			return { ...prev, [competitionId]: updated };
 		});
 		if (newCount <= 0) {
-			await revalidateCompetitions();
+			await revalidateTeamCompetitionPlans();
 			router.refresh();
 		}
 		return { ok: true as const, message: "취소 완료" };

@@ -25,9 +25,11 @@ type Policy = {
 export function DuesPolicyClient({
   policies,
   feeItems,
+  teamId,
 }: {
   policies: Policy[];
   feeItems: FeeItem[];
+  teamId: string;
 }) {
   const [isPending, startTransition] = useTransition();
   const [showPolicyForm, setShowPolicyForm] = useState(false);
@@ -113,7 +115,7 @@ export function DuesPolicyClient({
       </div>
 
       {/* 입금항목 섹션 — 공용 컴포넌트 (업로드 화면과 공유) */}
-      <FeeItemManager feeItems={feeItems} />
+      <FeeItemManager feeItems={feeItems} teamId={teamId} />
     </div>
   );
 }

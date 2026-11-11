@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getCachedBoardPost } from "@/lib/queries/board";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getSiteMetaInput } from "@/lib/queries/site-metadata";
 import { boardPostDescription } from "@/lib/seo/board-post-meta";
+import { siteOpenGraphBase } from "@/lib/seo/site-metadata";
 import { PostDetail } from "@/components/board/post-detail";
 
 /**
@@ -17,7 +20,8 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const post = await getCachedBoardPost(id);
+  const [{ teamId }, site] = await Promise.all([getRequestTeamContext(), getSiteMetaInput()]);
+  const post = await getCachedBoardPost(teamId, id);
   if (!post) return { title: "글을 찾을 수 없습니다", robots: { index: false } };
 
   return {
@@ -25,6 +29,9 @@ export async function generateMetadata({
     description: boardPostDescription(post.post_cont, post.post_nm),
     alternates: { canonical: `/board/${id}` },
     openGraph: {
+      // openGraph 를 세우면 루트 것이 통째로 덮여서 사이트 이름·썸네일을 여기서 다시 깐다
+      // (예전엔 `app/opengraph-image.png` 파일 규칙이 지면마다 따로 붙여 줬다).
+      ...(site ? siteOpenGraphBase(site) : {}),
       type: "article",
       title: post.post_nm,
       description: boardPostDescription(post.post_cont, post.post_nm),
@@ -35,14 +42,16 @@ export async function generateMetadata({
 }
 
 // 게시판 상세는 공개 온디맨드 캐시 페이지. 읽음 처리·권한 계산은 클라에서 서버액션으로 수행한다.
+// 접속한 팀의 글만 연다 — 다른 팀 글 id 는 없는 글(404)과 같다.
 export default async function BoardPostPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const { teamId } = await getRequestTeamContext();
 
-  const post = await getCachedBoardPost(id);
+  const post = await getCachedBoardPost(teamId, id);
   if (!post) notFound();
 
   return <PostDetail post={post} />;

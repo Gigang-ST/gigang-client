@@ -8,12 +8,20 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { DevEmailLogin, isDevModeEnabled } from "@/components/auth/dev-email-login";
 import { SocialLinksRow } from "@/components/social-links";
+import type { TeamChannels } from "@/lib/team-channels";
 import { Button } from "@/components/ui/button";
 
 export function LoginForm({
   className,
+  channels,
+  logo,
   ...props
-}: React.ComponentPropsWithoutRef<"div">) {
+}: React.ComponentPropsWithoutRef<"div"> & {
+  /** 이 팀 채널(팀 설정) — 로그인 화면 하단 아이콘 줄 */
+  channels: TeamChannels;
+  /** 이 팀 로고(`lib/team-logo.ts`) + 그림 설명(팀 설정의 크루 이름). 로고 표에 없는 팀이면 null — 빈 자리만 둔다 */
+  logo: { src: string; alt: string } | null;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [oauthProvider, setOauthProvider] = useState<"kakao" | "google" | null>(
     null,
@@ -59,7 +67,12 @@ export function LoginForm({
     >
       {/* Logo */}
       <div className="flex flex-col items-center gap-3">
-        <Image src="/logo.webp" alt="기강" width={80} height={80} priority className="dark:invert" />
+        {/* 팀 로고 — 로그인 페이지(서버)가 팀을 읽고 골라 넘긴다(§lib/team-logo). 미리 받기(priority)가 걸린다 */}
+        {logo ? (
+          <Image src={logo.src} alt={logo.alt} width={80} height={80} priority className="dark:invert" />
+        ) : (
+          <div aria-hidden className="size-20" />
+        )}
         <p className="w-[280px] text-center text-[15px] leading-relaxed text-muted-foreground">
           운동을 좋아하는 사람들이 모여
           <br />
@@ -109,7 +122,7 @@ export function LoginForm({
       </div>
 
       {/* Social Links */}
-      <SocialLinksRow />
+      <SocialLinksRow channels={channels} />
 
       {/* Footer */}
       <p className="w-[300px] text-center text-xs leading-relaxed text-[#A1A1AA]">

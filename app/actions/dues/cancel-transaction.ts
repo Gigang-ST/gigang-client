@@ -2,7 +2,7 @@
 
 import { dayjs } from "@/lib/dayjs";
 
-import { withAdmin } from "@/lib/actions/auth";
+import { withDuesAdmin } from "@/lib/actions/dues-guard";
 import { LEDGER_EPOCH } from "@/lib/dues/ledger-replay";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -21,7 +21,7 @@ import { recalculateBalance } from "@/app/actions/dues/recalculate-balance";
  * 녹아 있는 원장 전환 이전 납부 — 리플레이 범위 밖이므로 취소를 거부한다.
  */
 export async function cancelTransaction(txnId: string) {
-  return withAdmin(async () => {
+  return withDuesAdmin(async () => {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
 

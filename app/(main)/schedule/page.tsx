@@ -12,10 +12,14 @@ import { getCachedGatheringOg } from "@/lib/queries/gathering-og";
 import { getCachedHomeCalendar } from "@/lib/queries/home-calendar";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getSiteMetaInput } from "@/lib/queries/site-metadata";
+import { getTeamCopy, getTeamPageDescription } from "@/lib/queries/team-copy";
+import { CARD_COPY_KEYS, pickTeamCopy } from "@/lib/team-copy";
+import { buildHeaderBrand } from "@/lib/team-brand";
+import { getTeamCfg } from "@/lib/team-cfg/read";
 
 import { HeaderActions } from "@/components/common/header-actions";
 import { PageHeader } from "@/components/common/page-header";
-import { HeaderSlogan } from "@/components/home/header-slogan";
 import { HeaderTicker, type HeaderUpcoming } from "@/components/home/header-ticker";
 import { MiniCalendar } from "@/components/home/mini-calendar";
 import type { CalendarRace } from "@/components/home/mini-calendar";
@@ -43,7 +47,13 @@ async function HomeHeader() {
         .maybeSingle()
     : Promise.resolve({ data: null });
 
-  const { data: upcomingRow } = await upcomingPromise;
+  // 슬로건·창설일은 팀 설정 — 서버 메모리 1분 캐시라 이 헤더가 매번 읽어도 DB·Vercel 계량이 늘지 않는다(§team-cfg/read)
+  const [{ data: upcomingRow }, slogan, foundedDt] = await Promise.all([
+    upcomingPromise,
+    getTeamCfg(teamId, "brand.slogan"),
+    getTeamCfg(teamId, "brand.founded_dt"),
+  ]);
+  const brand = buildHeaderBrand(foundedDt, slogan);
 
   let upcoming: HeaderUpcoming | null = null;
   if (upcomingRow) {
@@ -72,7 +82,7 @@ async function HomeHeader() {
       action={<HeaderActions />}
       center={
         <div className="relative h-8 w-full">
-          <HeaderTicker upcoming={upcoming} />
+          <HeaderTicker upcoming={upcoming} brand={brand} />
         </div>
       }
     />
@@ -96,10 +106,17 @@ async function HomeContent() {
   const { end: gridEnd } = gridDateRange(year, month, weekStart);
 
   // 캐시된 공개 데이터 조회 — DB 쿼리 0개 (캐시 히트 시)
-  const [{ comps: calendarComps, schPosts: schPostRows, gatherings: gthrRows }, cmmCdRows] =
+  // 카톡 공지방(노티봇) — 방이 없는 팀은 노티봇을 안 쓰는 팀이라 「단톡방에 알림」 버튼을 안 세운다.
+  // 방 ID 는 비밀값이라 있다/없다만 내려보낸다(서버 메모리 1분 캐시 — §team-cfg/read).
+  const [{ comps: calendarComps, schPosts: schPostRows, gatherings: gthrRows }, cmmCdRows, kakaoRoomId, defaultGthrSprtCd, copy] =
     await Promise.all([
       getCachedHomeCalendar(teamId, year, month),
       getCachedCmmCdRows(),
+      getTeamCfg(teamId, "kakao.room_id"),
+      // 모임 만들기를 열 때 먼저 골라 둘 종목(울산 = 트레일러닝)
+      getTeamCfg(teamId, "gathering.default_sport"),
+      // 팀 문구 — 주간 일정 제목·공유 문구·프로필 카드(§lib/team-copy)
+      getTeamCopy(),
     ]);
 
   // memberStatus 판별 (기존 로직 유지)
@@ -197,6 +214,9 @@ async function HomeContent() {
             initialMemberStatus={initialMemberStatus}
             initialRegistrationsByCompetitionId={{}}
             weekStart={weekStart}
+            kakaoAnnounce={Boolean(kakaoRoomId)}
+            defaultGthrSprtCd={defaultGthrSprtCd}
+            copy={pickTeamCopy(copy, CARD_COPY_KEYS)}
           />
         </Suspense>
       </div>
@@ -220,8 +240,10 @@ function HomeSkeleton() {
 }
 
 function HomeHeaderSkeleton() {
-  // 본 헤더와 같은 editorial 골격 + 가운데 슬로건. 데이터가 오기 전(티커의 다음 모임
-  // 조회 중)에도 높이·간격이 동일해 로딩→로드 전환에 헤더가 튀지 않는다.
+  // 본 헤더와 같은 editorial 골격. 데이터가 오기 전(티커의 다음 모임 조회 중)에도 높이·간격이
+  // 동일해 로딩→로드 전환에 헤더가 튀지 않는다. 가운데 슬로건 자리는 **같은 높이의 빈칸**이다 —
+  // 이 뼈대는 빌드 때 한 장 만들어 모든 주소에 같이 보여 줘서 어느 팀인지 모르고, 문구를 넣으면 그게
+  // 다른 팀 화면에 스친다(§HeaderSlogan).
   return (
     <PageHeader
       variant="editorial"
@@ -234,21 +256,20 @@ function HomeHeaderSkeleton() {
           <div className="size-8 shrink-0" />
         </div>
       }
-      center={
-        <div className="flex h-8 flex-col items-center justify-center">
-          <HeaderSlogan />
-        </div>
-      }
+      center={<div className="h-8" />}
     />
   );
 }
 
 /** 일정(달력) 지면 — 예전 홈(`/`). 홈 자리는 전광판이 가져갔다. */
-const SCHEDULE_METADATA: Metadata = {
-  title: "모임 일정",
-  description: "기강 러닝크루의 다가오는 러닝·자전거·수영 모임과 참가 대회 일정.",
-  alternates: { canonical: "/schedule" },
-};
+async function scheduleMetadata(): Promise<Metadata> {
+  return {
+    title: "모임 일정",
+    // 검색 설명은 팀 기준(§lib/team-copy pageDescription) — 기강은 다듬어 둔 문장 그대로, 다른 팀은 크루 이름으로 만든 중립 문장
+    description: await getTeamPageDescription("schedule"),
+    alternates: { canonical: "/schedule" },
+  };
+}
 
 /**
  * `?gthr=<short_id|uuid>` 딥링크는 **그 모임의** 제목·설명·이미지를 낸다.
@@ -268,12 +289,16 @@ export async function generateMetadata({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<Metadata> {
   const { gthr } = await searchParams;
-  if (typeof gthr !== "string" || !gthr) return SCHEDULE_METADATA;
+  if (typeof gthr !== "string" || !gthr) return scheduleMetadata();
 
-  const [{ teamId }, origin] = await Promise.all([getRequestTeamContext(), getRequestOrigin()]);
+  const [{ teamId }, origin, site] = await Promise.all([
+    getRequestTeamContext(),
+    getRequestOrigin(),
+    getSiteMetaInput(),
+  ]);
   const src = await getCachedGatheringOg(gthr, teamId);
   // 이미지는 요청 호스트 기준 절대 URL — metadataBase(프로덕션)로 채워지면 dev에서 404다.
-  return src ? buildGatheringMetadata(src, origin) : SCHEDULE_METADATA;
+  return src ? buildGatheringMetadata(src, origin, site?.name ?? null) : scheduleMetadata();
 }
 
 export default function SchedulePage() {

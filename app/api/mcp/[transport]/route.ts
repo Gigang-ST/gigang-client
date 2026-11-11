@@ -42,8 +42,12 @@ import {
 import { sendPush } from "@/lib/mcp/send-push";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
+import { syncPersonRecordToOtherTeams } from "@/lib/records-revalidate";
 import { GTHR_SPRT_TYPES, GTHR_TYPES } from "@/lib/validations/gathering";
 import { SCH_POST_TYPES } from "@/lib/validations/schedule";
+import { teamCacheTag } from "@/lib/team-cache-tag";
+import { TEAM_ID_BY_CD } from "@/lib/constants/gigang-team";
+import { teamLinkOrigin } from "@/lib/team-host";
 
 /** MCP 도구 응답 도우미 — 사실 payload를 text JSON 으로 감싼다. */
 function textResult(payload: unknown) {
@@ -77,14 +81,17 @@ function afterMileageWrite(seeds: TitleEvalSeed[] = []) {
   }
 }
 
-async function resolveBaseUrl(): Promise<string | null> {
+/**
+ * 링크 origin 은 **토큰 팀의 주소**로 만든다. 토큰은 발급한 팀에 묶여 있어, 울산 토큰으로 `gigang.team/api/mcp`
+ * 에 붙어도 만든 모임은 울산 것이고 울산 주소에서만 열린다 — 예전처럼 요청 주소로 만들면 링크가 "없는 모임"으로 떨어졌다.
+ * 요청 주소가 그 팀 주소면 그대로 쓰고, 아니면 같은 환경의 그 팀 정식 주소(`lib/team-host.ts`).
+ */
+async function resolveBaseUrl(teamId: string): Promise<string | null> {
   try {
+    const teamCd = Object.entries(TEAM_ID_BY_CD).find(([, id]) => id === teamId)?.[0];
+    if (!teamCd) return null;
     const h = await headers();
-    const host = h.get("x-forwarded-host") ?? h.get("host");
-    if (!host) return null;
-    const proto =
-      h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-    return `${proto}://${host}`;
+    return teamLinkOrigin(teamCd, h.get("x-forwarded-host") ?? h.get("host"));
   } catch {
     return null;
   }
@@ -393,12 +400,12 @@ const handler = createMcpHandler(
       },
       async (args, extra) =>
         runTool(extra, async (ctx, supabase) => {
-          const result = await createGatheringViaMcp(supabase, ctx, args, await resolveBaseUrl());
+          const result = await createGatheringViaMcp(supabase, ctx, args, await resolveBaseUrl(ctx.team_id));
           // 홈 캘린더 캐시(1시간)를 턴다 — 안 하면 MCP 로 만든 모임이 일정탭 새로고침에서
           // 최대 1시간 안 보인다(앱 생성 경로와 같은 함정, KNOWLEDGE.md).
           // 무효화는 **경로 계층인 여기** 몫이다: lib/mcp 의 도메인 코어는 next/* 를 모른다.
           // 라우트 핸들러라 `updateTag`(서버 액션 전용)는 throw 하므로 revalidateTag 를 쓴다.
-          if (!args.dry_run) revalidateTag(HOME_CALENDAR_CACHE_TAG, "max");
+          if (!args.dry_run) revalidateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, ctx.team_id), "max");
           return result;
         }),
     );
@@ -430,10 +437,10 @@ const handler = createMcpHandler(
       },
       async (args, extra) =>
         runTool(extra, async (ctx, supabase) => {
-          const result = await createSchPostViaMcp(supabase, ctx, args, await resolveBaseUrl());
+          const result = await createSchPostViaMcp(supabase, ctx, args, await resolveBaseUrl(ctx.team_id));
           // 홈 캘린더 캐시를 턴다(create_gathering 과 같은 이유) — DB 웹훅(`/api/revalidate`)도
           // sch_post_mst 를 보지만, 도구 응답을 받고 바로 일정 탭을 여는 사람에게 늦지 않게.
-          if (!args.dry_run) revalidateTag(HOME_CALENDAR_CACHE_TAG, "max");
+          if (!args.dry_run) revalidateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, ctx.team_id), "max");
           return result;
         }),
     );
@@ -446,7 +453,7 @@ const handler = createMcpHandler(
       {
         title: "하이록스 랭킹",
         description:
-          "기강의 전당 하이록스 순위를 돌려줍니다 — 부문(OPEN 오픈·PRO 프로·DOUBLES 더블스)마다 사람당 가장 빠른 대회 기록 하나. " +
+          "전당(랭킹 탭) 하이록스 순위를 돌려줍니다 — 부문(OPEN 오픈·PRO 프로·DOUBLES 더블스)마다 사람당 가장 빠른 대회 기록 하나. " +
           "오픈·프로는 남자(men)/여자(women)로 나뉘고 더블스는 한 줄(entries)입니다. 릴레이는 순위가 없습니다. " +
           "각 줄에 입력된 스테이션 기록(splits, 'M:SS')이 실립니다.",
         inputSchema: {
@@ -507,6 +514,10 @@ const handler = createMcpHandler(
               evaluateAndGrantTitles({ trigger: "race_record", teamId: ctx.team_id, teamMemId }).catch((e) =>
                 console.error("[title-engine] race_record(mcp) 평가 실패", e),
               ),
+            );
+            // 기록은 사람 것 — 그 사람이 속한 다른 팀 전당·칭호에도 반영
+            after(() =>
+              syncPersonRecordToOtherTeams(result.member.mem_id, ctx.team_id, { evaluateTitles: true }),
             );
           }
           return result;
@@ -570,7 +581,7 @@ const handler = createMcpHandler(
         description:
           "내 마일리지런 활동을 1건 등록합니다. 마일리지는 서버가 계산합니다. " +
           "배율은 조건(모임 참석·벙주 여부·인원수 등)을 서버가 알 수 없어 자동으로 붙지 않습니다 — 해당되는 것만 multipliers 에 이름으로 적어 주세요(앱 폼의 체크박스와 같습니다). " +
-          "⚠️ MCP로 넣은 기록은 사진을 붙일 수 없어 기강이야기(깅스타그램)에는 뜨지 않습니다 — 수치·후기는 정상 저장됩니다. 사진까지 올리려면 앱을 쓰세요.",
+          "⚠️ MCP로 넣은 기록은 사진을 붙일 수 없어 홈 사진 지면(기강은 깅스타그램)에는 뜨지 않습니다 — 수치·후기는 정상 저장됩니다. 사진까지 올리려면 앱을 쓰세요.",
         inputSchema: {
           act_dt: z.string().describe("YYYY-MM-DD (KST)"),
           sport: z.enum(["RUNNING", "TRAIL", "CYCLING", "SWIMMING"]),
@@ -595,7 +606,7 @@ const handler = createMcpHandler(
         description:
           `내 마일리지런 활동을 한 번에 여러 건 등록합니다(최대 ${MAX_BATCH_ACTIVITIES}건). ` +
           "한 건이라도 검증에 걸리면 아무것도 저장하지 않습니다. 배율은 기록마다 따로 고릅니다(안 적으면 미적용). " +
-          "⚠️ 사진은 붙일 수 없어 기강이야기(깅스타그램)에는 뜨지 않습니다.",
+          "⚠️ 사진은 붙일 수 없어 홈 사진 지면(기강은 깅스타그램)에는 뜨지 않습니다.",
         inputSchema: {
           activities: z
             .array(

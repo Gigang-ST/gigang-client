@@ -4,9 +4,11 @@ import { join } from "node:path";
 import { ImageResponse } from "next/og";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { buildGatheringOgText, getGatheringOgSport, OG_COLORS, OG_SLOGAN } from "@/lib/gathering-og";
+import { buildGatheringOgText, getGatheringOgSport, OG_COLORS } from "@/lib/gathering-og";
 import { getCachedGatheringOg } from "@/lib/queries/gathering-og";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getTeamCfg } from "@/lib/team-cfg/read";
+import { getTeamSite } from "@/lib/team-site";
 
 /**
  * 모임 OG 이미지 — `/api/og/gathering?g=<short_id|uuid>&v=<upd_at>`.
@@ -49,9 +51,14 @@ function loadFonts() {
   return fontsPromise;
 }
 
-/** 모임이 없거나(삭제·오타) 그리기에 실패하면 사이트 기본 OG로 물러난다 — 카드에 이미지 칸이 비는 것보단 낫다 */
-function fallback(req: NextRequest) {
-  return NextResponse.redirect(new URL("/opengraph-image.png", req.url), {
+/**
+ * 모임이 없거나(삭제·오타) 그리기에 실패하면 **그 팀** 사이트 썸네일로 물러난다 — 카드에 이미지 칸이 비는 것보단 낫다.
+ * 팀 썸네일이 없으면(파일 표에 없는 팀) 404 — 다른 팀 그림으로 물러나지 않는다(`lib/team-site.ts`).
+ */
+function fallback(req: NextRequest, teamCd: string | null) {
+  const og = teamCd ? getTeamSite(teamCd).ogImage : undefined;
+  if (!og) return new NextResponse(null, { status: 404 });
+  return NextResponse.redirect(new URL(og.path, req.url), {
     status: 302,
     headers: { "Cache-Control": "public, max-age=60, s-maxage=300" },
   });
@@ -60,10 +67,14 @@ function fallback(req: NextRequest) {
 type CardProps = {
   text: ReturnType<typeof buildGatheringOgText>;
   sport: ReturnType<typeof getGatheringOgSport>;
+  /** 팀 워드마크(팀 설정 `brand.wordmark`). 없으면 글자 줄을 안 그린다 — 다른 팀 카드에 기강 글자가 찍히지 않게 */
+  wordmark: string | null;
+  /** 팀 슬로건(팀 설정 `brand.slogan`). 없으면 맨 위 줄을 안 그린다 — 다른 팀 카드에 기강 슬로건이 찍히지 않게 */
+  slogan: string | null;
 };
 
 /** 1200×630 카드 본체. try/catch 밖에서 element로 만들어 둔다(react-hooks/error-boundaries). */
-function GatheringCard({ text, sport }: CardProps) {
+function GatheringCard({ text, sport, wordmark, slogan }: CardProps) {
   return (
     <div
       style={{
@@ -132,19 +143,21 @@ function GatheringCard({ text, sport }: CardProps) {
         }}
       >
         {/* 슬로건 — 홈 헤더와 같은 어법(black · italic · uppercase). 이탤릭 폰트가 없어 skew로 기울인다 */}
-        <div
-          style={{
-            fontWeight: 800,
-            fontSize: 22,
-            letterSpacing: "-0.03em",
-            textTransform: "uppercase",
-            transform: "skewX(-10deg)",
-            color: OG_COLORS.foreground,
-            marginBottom: 22,
-          }}
-        >
-          {OG_SLOGAN}
-        </div>
+        {slogan ? (
+          <div
+            style={{
+              fontWeight: 800,
+              fontSize: 22,
+              letterSpacing: "-0.03em",
+              textTransform: "uppercase",
+              transform: "skewX(-10deg)",
+              color: OG_COLORS.foreground,
+              marginBottom: 22,
+            }}
+          >
+            {slogan}
+          </div>
+        ) : null}
         <div
           style={{
             display: "flex",
@@ -199,33 +212,39 @@ function GatheringCard({ text, sport }: CardProps) {
             </div>
           )}
         </div>
-        <div
-          style={{
-            fontFamily: "Oswald",
-            fontWeight: 500,
-            fontSize: 20,
-            letterSpacing: "0.24em",
-            color: OG_COLORS.mutedForeground,
-            marginTop: 34,
-          }}
-        >
-          GIGANG
-        </div>
+        {wordmark ? (
+          <div
+            style={{
+              fontFamily: "Oswald",
+              fontWeight: 500,
+              fontSize: 20,
+              letterSpacing: "0.24em",
+              color: OG_COLORS.mutedForeground,
+              marginTop: 34,
+            }}
+          >
+            {wordmark}
+          </div>
+        ) : null}
       </div>
     </div>
   );
 }
 
 export async function GET(req: NextRequest) {
+  const { teamId, teamCd } = await getRequestTeamContext();
   const ref = req.nextUrl.searchParams.get("g");
-  if (!ref) return fallback(req);
+  if (!ref) return fallback(req, teamCd);
 
-  const { teamId } = await getRequestTeamContext();
-  const src = await getCachedGatheringOg(ref, teamId);
-  if (!src) return fallback(req);
+  const [src, wordmark, slogan] = await Promise.all([
+    getCachedGatheringOg(ref, teamId),
+    getTeamCfg(teamId, "brand.wordmark"),
+    getTeamCfg(teamId, "brand.slogan"),
+  ]);
+  if (!src) return fallback(req, teamCd);
 
   const element = (
-    <GatheringCard text={buildGatheringOgText(src)} sport={getGatheringOgSport(src.sprt_cd)} />
+    <GatheringCard text={buildGatheringOgText(src)} sport={getGatheringOgSport(src.sprt_cd)} wordmark={wordmark} slogan={slogan} />
   );
 
   try {
@@ -240,6 +259,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (e) {
     console.error("[og/gathering] 이미지 생성 실패", e instanceof Error ? e.message : e);
-    return fallback(req);
+    return fallback(req, teamCd);
   }
 }

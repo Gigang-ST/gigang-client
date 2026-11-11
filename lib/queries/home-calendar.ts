@@ -4,6 +4,7 @@ import { unstable_cache } from "next/cache";
 
 import { gridFetchRange } from "@/lib/dayjs";
 import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
+import { teamCacheTags } from "@/lib/team-cache-tag";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // 태그 정본은 의존성 없는 모듈에 있다 — 서버 액션이 이 파일(server-only)을 끌어오지 않게.
@@ -61,7 +62,7 @@ function createCachedHomeCalendar(teamId: string, year: number, month: number) {
     [`home-calendar-v2-${teamId}-${year}-${month}`],
     // revalidate: 무효화 주경로는 DB 트리거 웹훅(revalidateTag)이고,
     // 시간 만료는 웹훅 유실 시 영구 stale을 막는 안전망 (stale-while-revalidate라 대기 유저 없음)
-    { tags: [HOME_CALENDAR_CACHE_TAG], revalidate: 3600 },
+    { tags: teamCacheTags(HOME_CALENDAR_CACHE_TAG, teamId), revalidate: 3600 },
   );
 }
 

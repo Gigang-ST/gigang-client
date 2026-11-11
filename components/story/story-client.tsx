@@ -17,8 +17,6 @@ import { ActvPile } from "@/components/story/actv-pile";
 import { PresenceCount } from "@/components/story/presence-count";
 import { SocialLinksGrid } from "@/components/social-links";
 import { GhostWanted } from "@/components/story/ghost-wanted";
-import { MessagePlanes } from "@/components/story/message-planes";
-import { PledgeSigns } from "@/components/story/pledge-signs";
 import { RecordFlexFeed } from "@/components/story/record-flex-feed";
 import { StoryLede } from "@/components/story/story-lede";
 import { StoryMasthead } from "@/components/story/story-masthead";
@@ -27,23 +25,13 @@ import { StorySection } from "@/components/story/story-section";
 
 import type { GhostMember } from "@/lib/queries/ghost-members";
 import type { StoryFeed, StoryReactionCounts } from "@/lib/queries/story-feed";
-import type { StoryMessage } from "@/lib/queries/story-messages";
 import type { StoryPost } from "@/lib/queries/story-posts";
 import type { RecentTitleRow } from "@/lib/story-title";
 import type { TeamOverview } from "@/lib/queries/team-overview";
 import type { RecapTeaser } from "@/lib/mileage-recap";
-
-/**
- * /story 존 잠정 중단 토글 — **삭제가 아니라 잠정 중단이다**(2026-07-28 UI 정리).
- *
- * 되살리려면 해당 상수를 true로 되돌린다. 그러면 존 렌더가 다시 살아난다.
- * 성능: false일 땐 존 컴포넌트가 렌더 트리에서 통째로 빠진다(자식의 이펙트·구독·상태도 안 돈다).
- * - 종이비행기는 서버 쿼리(getStoryMessages)까지 함께 끊어야 진짜로 비용이 0이 된다 →
- *   그 조치는 app/(main)/story/page.tsx에서. messages prop은 이제 항상 [] 로 온다.
- * - 목표 한마디는 리드 슬롯도 함께 중단(components/story/story-lede.tsx의 SHOW_PLEDGE_LEDE).
- */
-const SHOW_MESSAGE_PLANES = false;
-const SHOW_PLEDGE_SIGNS = false;
+import type { TeamChannels } from "@/lib/team-channels";
+import { josa } from "@/lib/josa";
+import type { StoryCopy } from "@/lib/team-copy";
 
 /**
  * 기강이야기 — 크루 소식 지면.
@@ -61,10 +49,9 @@ export function StoryClient({
   initialTitlePick,
   initialPostPick,
   initialNewbiePick,
-  initialPledgePick,
   initialRecordPick,
   initialActvPick,
-  messages,
+  initialHeadlinePick,
   teamId,
   myMemId,
   isAdmin,
@@ -72,26 +59,27 @@ export function StoryClient({
   reactions,
   mastheadActions,
   recap = null,
+  channels,
+  copy,
 }: {
   feed: StoryFeed;
   /** 크루 총량 — 기상대 상자에 쓴다 */
   overview: TeamOverview;
   /** 오래 안 나온 멤버 — 현상수배존에 쓴다 */
   ghosts: GhostMember[];
-  /** 기록 자랑 — 팻말존에 쓴다. 피드와 캐시 태그가 갈려 있어 별도 prop이다 */
+  /** 기록 자랑(깅스타그램) — 격자·리드에 쓴다. 피드와 캐시 태그가 갈려 있어 별도 prop이다 */
   posts: StoryPost[];
   /** 칭호획득 — 리드 칭호 슬롯에 쓴다. 피드와 캐시 태그가 갈려 있어 별도 prop이다 */
   grants: RecentTitleRow[];
   initialTitlePick: number;
   /** 리드 각 랜덤 슬롯의 진입 인덱스 — 서버가 매 요청 뽑아 넘긴다(깜빡임·하이드레이션 안전).
-   *  새 얼굴·각오·기록·활동지수·운동기록이 첫 화면부터 랜덤이고, 한 바퀴마다 클라가 재추첨한다. */
+   *  새 얼굴·기록·활동지수·운동기록이 첫 화면부터 랜덤이고, 한 바퀴마다 클라가 재추첨한다. */
   initialPostPick: number;
   initialNewbiePick: number;
-  initialPledgePick: number;
   initialRecordPick: number;
   initialActvPick: number;
-  /** 종이비행기 한마디 — 24시간 만료. 각오와 별개 데이터(msg_mst), 별도 캐시·별도 RPC */
-  messages: StoryMessage[];
+  /** 활동지수 헤드라인 진입 번호 — 대표와 따로 굴린다(§story-lede) */
+  initialHeadlinePick: number;
   teamId: string;
   /** 로그인 사용자 — 본인 카드면 한마디를 바로 수정할 수 있다 */
   myMemId: string | null;
@@ -105,6 +93,10 @@ export function StoryClient({
   mastheadActions?: ReactNode;
   /** 끝난 마일리지런 시즌 — 종료 후 30일 동안 리드 맨 앞 칸(§story-lede ⓪). 없으면 null */
   recap?: RecapTeaser | null;
+  /** 판권면 채널(이 팀 팀 설정) — 없는 채널은 칸째 안 그린다 */
+  channels: TeamChannels;
+  /** 팀 문구 — 크루 이름·호칭·기능 이름·말투(§lib/team-copy). 서버 페이지가 내려 준다 */
+  copy: StoryCopy;
 }) {
   const [selected, setSelected] = useState<{ memId: string; name: string } | null>(
     null,
@@ -134,7 +126,7 @@ export function StoryClient({
     // 선택되며 OS 하이라이트(기기에 따라 초록/파랑 띠)가 칠해진다. 읽고 제스처하는 곳이지
     // 텍스트를 복사하는 곳이 아니라, 전체에 걸어 그 하이라이트를 없앤다.
     <div className="flex flex-col select-none break-keep">
-      <StoryMasthead actions={mastheadActions} />
+      <StoryMasthead actions={mastheadActions} title={copy.storyName} />
 
       {/* 접속자 얼굴은 **여기 없다** — 2026-09-16부터 전역 레이어가 하단 탭바 위에 그린다
           (§components/presence/presence-layer.tsx). 이 지면엔 개수를 말하는 라벨만 남는다.
@@ -151,15 +143,16 @@ export function StoryClient({
           grants={grants}
           initialTitlePick={initialTitlePick}
           initialNewbiePick={initialNewbiePick}
-          initialPledgePick={initialPledgePick}
           initialRecordPick={initialRecordPick}
           initialActvPick={initialActvPick}
+          initialHeadlinePick={initialHeadlinePick}
           initialPostPick={initialPostPick}
           onSelectMember={selectMember}
           teamId={teamId}
           myMemId={myMemId}
           me={me}
           recap={recap}
+          copy={copy}
         />
       </div>
 
@@ -169,7 +162,7 @@ export function StoryClient({
 
       <div className="flex flex-col gap-8 pb-8 pt-6">
         {/* 기강 오버뷰 — 개별 소식(리드) 다음에 크루 전체 활동 지수(심박수) */}
-        <StoryPulse overview={overview} />
+        <StoryPulse overview={overview} copy={copy} />
 
         {/* 기록 자랑 — 인스타형 격자. 한 칸을 누르면 릴스 뷰어가 이 장부터 풀스크린으로 열리고,
             위아래로 밀어 다음 발자국을 본다. 뷰어 안 이름·프사를 누르면 프로필 카드가 그 위에
@@ -180,36 +173,19 @@ export function StoryClient({
           isAdmin={isAdmin}
           me={me}
           teamId={teamId}
+          copy={copy}
         />
 
-        {/* 종이비행기 한마디 — 24시간 뒤 사라지는 한 줄(msg_mst).
-            각오와 **별개 데이터**다: 저긴 팻말·1인 1개·만료 없음, 여긴 비행기·1인 N개·하루살이.
-            잠정 중단(SHOW_MESSAGE_PLANES) — 되살리려면 상수를 true로(파일 상단 주석 참조). */}
-        {SHOW_MESSAGE_PLANES && (
-          <MessagePlanes
-            messages={messages}
-            teamId={teamId}
-            myMemId={myMemId}
-            me={me}
-          />
-        )}
-
-        {/* 각오 팻말 — 코스변 손팻말. 만료 없이 쌓인다(1인 1개, 새로 쓰면 이전 것이 내려간다).
-            잠정 중단(SHOW_PLEDGE_SIGNS) — 리드 슬롯(SHOW_PLEDGE_LEDE)과 함께 되살린다. */}
-        {SHOW_PLEDGE_SIGNS && (
-          <PledgeSigns
-            pledges={feed.pledges}
-            myMemId={myMemId}
-            onSelectMember={selectMember}
-          />
-        )}
+        {/* 종이비행기 한마디·목표 한마디 팻말 존은 2026-11-10 기능째 지웠다(오래 꺼져 있었다). 코드뿐 아니라
+            테이블(msg_mst·pldg_mst)·함수도 지웠다(마이그레이션 20261110109000) — 되살릴 땐 그 커밋과 옛 마이그레이션의
+            테이블·함수 정의를 함께 되돌린다. */}
 
         {/* 새 얼굴 — 최근 3명 + 더보기 */}
         <StorySection
           label="New Members"
           lead={
             feed.newbies.length > 0
-              ? `최근 30일, ${feed.newbies.length}명이 기강에 합류`
+              ? `최근 30일, ${feed.newbies.length}명이 ${copy.crewName}에 합류`
               : undefined
           }
           items={feed.newbies}
@@ -218,7 +194,7 @@ export function StoryClient({
           unit="명"
           headerAction={
             <HelpTip title="새 얼굴">
-              최근 30일 안에 새로 들어온 기강인이에요. 카드를 누르면 러닝 프로필과
+              최근 30일 안에 새로 들어온 {josa(copy.memberNoun, "이에요/예요")}. 카드를 누르면 러닝 프로필과
               소개 한마디를 볼 수 있어요.
             </HelpTip>
           }
@@ -261,13 +237,13 @@ export function StoryClient({
             리드가 이번 달 활동량을 말하는 줄이니, 내 내역도 같은 줄에서 답한다. */}
         <StorySection
           label="Activity Index"
-          lead={`${getActvMonthLabel()} 기강 활동량`}
+          lead={`${getActvMonthLabel()} ${copy.crewName} 활동량`}
           items={feed.actv_rank}
           initial={feed.actv_rank.length}
           max={feed.actv_rank.length}
           unit="명"
           headerAction={
-            <HelpTip title="기강 활동량">{ACTV_HELP_TEXT}</HelpTip>
+            <HelpTip title={`${copy.crewName} 활동량`}>{ACTV_HELP_TEXT}</HelpTip>
           }
           leadAction={
             myMemId && feed.actv_rank.some((e) => e.mem_id === myMemId) ? (
@@ -297,7 +273,7 @@ export function StoryClient({
         </StorySection>
 
         {/* 현상수배 — 오래 안 나온 얼굴들을 애정 어린 호출로 */}
-        <GhostWanted ghosts={ghosts} onSelectMember={selectMember} />
+        <GhostWanted ghosts={ghosts} onSelectMember={selectMember} memberNoun={copy.memberNoun} />
 
         {!hasAnything && (
           <div className="px-6 text-center">
@@ -313,7 +289,7 @@ export function StoryClient({
         {/* 소셜 — 지면 맨 끝. 판권면(masthead 반대편)처럼 크루 바깥으로 나가는 문을 모아둔다.
             소식이 없어도(hasAnything=false) 보여준다 — 채널은 지면 상태와 무관하다. */}
         <div className="px-6">
-          <SocialLinksGrid />
+          <SocialLinksGrid channels={channels} copy={copy} />
         </div>
       </div>
 
@@ -325,6 +301,7 @@ export function StoryClient({
         onOpenChange={(open) => {
           if (!open) setSelected(null);
         }}
+        copy={copy}
       />
 
       <ActvHistorySheet
@@ -334,6 +311,7 @@ export function StoryClient({
         onOpenChange={(open) => {
           if (!open) setHistory(null);
         }}
+        copy={copy}
       />
     </div>
   );

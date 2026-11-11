@@ -15,9 +15,13 @@ import { H1 } from "@/components/common/typography";
  * 다른 탭은 안 주므로 라벨·제목만 남는다.
  */
 
-type PageHeaderProps = React.HTMLAttributes<HTMLDivElement> & {
-  /** 페이지 제목 */
-  title: string;
+// HTML 의 `title`(툴팁 문자열) 속성은 빼고 아래 제목(ReactNode)으로 쓴다
+type PageHeaderProps = Omit<React.HTMLAttributes<HTMLDivElement>, "title"> & {
+  /**
+   * 페이지 제목. 보통은 문자열이고, 팀마다 다른 제목(랭킹 탭 「{크루}의 전당」)은 작은 Suspense 섬을 넘긴다 —
+   * 헤더는 미리 만들어 두는 껍데기라 팀을 모르기 때문이다(§app/(main)/records/page.tsx).
+   */
+  title: React.ReactNode;
   /** 우측 액션 영역 (아이콘 버튼, 링크 등) */
   action?: React.ReactNode;
   /** 판형 — 기본은 기존 모양 유지 */

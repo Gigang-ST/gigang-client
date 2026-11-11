@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
+import { mergeTeamEffects } from "@/lib/team-effects";
 import { CardItem } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -113,21 +115,40 @@ const LEVEL_COLOR: Record<number, string> = {
   7: "text-orange-400", 8: "text-red-400", 9: "text-fuchsia-400", 10: "text-amber-300",
 };
 
-/** 이펙트 목록 + 사용 중인 멤버 수 조회 — 상태를 만지지 않는 순수 조회 */
-async function fetchEffectRows(): Promise<EffectRow[]> {
+/**
+ * 이펙트 목록 + 사용 중인 멤버 수 조회 — 상태를 만지지 않는 순수 조회.
+ * 등급·사용 여부·해금 조건은 **이 팀 값**(team_effect_cfg)으로 합치고, 사용 수도 이 팀 회원만 센다.
+ */
+async function fetchEffectRows(teamId: string): Promise<EffectRow[]> {
   const supabase = createClient();
-  const [{ data: effects }, { data: profiles }] = await Promise.all([
+  const [{ data: baseEffects }, { data: teamEffects }, { data: profiles }] = await Promise.all([
     supabase
       .from("effect_mst")
-      .select("effect_cd, effect_nm, effect_type, rarity_level, sort_ord, use_yn, unlock_cond_json")
-      .order("effect_type", { ascending: true })
-      .order("rarity_level", { ascending: true })
-      .order("sort_ord", { ascending: true }),
+      .select("effect_cd, effect_nm, effect_type, rarity_level, sort_ord, use_yn, unlock_cond_json"),
     supabase
-      .from("team_mem_rel")
-      .select("selected_badge_effect, selected_frame_cd")
-      .eq("del_yn", false),
+      .from("team_effect_cfg")
+      .select("effect_cd, rarity_level, use_yn, unlock_cond_json")
+      .eq("team_id", teamId),
+    // 팀 전원을 센다 — 회원이 늘수록 커지는 조회라 1000행에서 잘리지 않게 끝까지 읽는다(AGENTS.md §대량 조회)
+    fetchAllRows(
+      () =>
+        supabase
+          .from("team_mem_rel")
+          .select("team_mem_id, selected_badge_effect, selected_frame_cd")
+          .eq("team_id", teamId)
+          .eq("vers", 0)
+          .eq("del_yn", false)
+          .order("team_mem_id"),
+      { label: "이펙트 사용 수" },
+    ).then((data) => ({ data })),
   ]);
+  const effects = mergeTeamEffects(
+    (baseEffects ?? []) as unknown as Omit<EffectRow, "use_cnt">[],
+    teamEffects ?? [],
+  ).sort(
+    (a, b) =>
+      a.effect_type.localeCompare(b.effect_type) || a.rarity_level - b.rarity_level || a.sort_ord - b.sort_ord,
+  );
 
   const badgeCnt: Record<string, number> = {};
   const frameCnt: Record<string, number> = {};
@@ -136,13 +157,13 @@ async function fetchEffectRows(): Promise<EffectRow[]> {
     if (p.selected_frame_cd) frameCnt[p.selected_frame_cd] = (frameCnt[p.selected_frame_cd] ?? 0) + 1;
   }
 
-  return ((effects ?? []) as unknown as Omit<EffectRow, "use_cnt">[]).map((e) => ({
+  return effects.map((e) => ({
     ...e,
     use_cnt: e.effect_type === "badge" ? (badgeCnt[e.effect_cd] ?? 0) : (frameCnt[e.effect_cd] ?? 0),
   }));
 }
 
-export function AdminEffectsClient() {
+export function AdminEffectsClient({ teamId }: { teamId: string }) {
   const [rows, setRows] = useState<EffectRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -154,7 +175,7 @@ export function AdminEffectsClient() {
   // 첫 조회 — 응답 콜백에서만 setState 한다(이펙트 본문에서 동기로 부르지 않는다)
   useEffect(() => {
     let cancelled = false;
-    void fetchEffectRows().then((next) => {
+    void fetchEffectRows(teamId).then((next) => {
       if (cancelled) return;
       setRows(next);
       setLoading(false);
@@ -162,7 +183,7 @@ export function AdminEffectsClient() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [teamId]);
 
   const updateLevel = async (effectCd: string, newLevel: number) => {
     setSaving(effectCd);

@@ -2,6 +2,10 @@ import { Suspense } from "react";
 
 import { prevMonthStr, currentMonthKST } from "@/lib/dayjs";
 import { getCurrentMember } from "@/lib/queries/member";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getTeamCopy } from "@/lib/queries/team-copy";
+import { ACTIVITY_FORM_COPY_KEYS, pickTeamCopy } from "@/lib/team-copy";
+import { getTeamAccount } from "@/lib/team-social";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { MileageIntro } from "@/components/projects/mileage-intro";
@@ -47,7 +51,14 @@ export async function MileageProjectView({
   isInactive,
   inactiveKind,
 }: MileageProjectViewProps) {
-  const { member, supabase } = await getCurrentMember();
+  const [{ member, supabase }, { teamId }, copy] = await Promise.all([
+    getCurrentMember(),
+    getRequestTeamContext(),
+    // 팀 문구 — 소개의 크루 이름, 기록 폼의 지면 이름·한마디 예시(§lib/team-copy)
+    getTeamCopy(),
+  ]);
+  // 입금 안내에 쓰는 이 팀 모임 계좌(팀 설정)
+  const account = await getTeamAccount(teamId);
 
   // 내 참여 정보 — 이 이벤트 한정. 미가입(member 없음)이면 조회할 mem_id가 없어 건너뛴다.
   const { data: prtRows } = member
@@ -90,7 +101,7 @@ export async function MileageProjectView({
       </div>
 
       {/* 미참여 시 소개 */}
-      {!isParticipant && !readOnly && <MileageIntro />}
+      {!isParticipant && !readOnly && <MileageIntro crewName={copy.crewName} />}
 
       {/* 참여 신청 섹션 */}
       {showJoin && (
@@ -101,6 +112,7 @@ export async function MileageProjectView({
           existingPrt={participation}
           isInactive={isInactive}
           inactiveKind={inactiveKind}
+          account={account}
         />
       )}
 
@@ -122,7 +134,7 @@ export async function MileageProjectView({
           </Suspense>
         )}
         <Suspense fallback={null}>
-          <RandomReview evtId={event.evt_id} />
+          <RandomReview evtId={event.evt_id} teamId={teamId} />
         </Suspense>
         <Suspense fallback={<Skeleton className="h-32 w-full rounded-2xl" />}>
           <CrewMonthlyStats evtId={event.evt_id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} />
@@ -147,7 +159,7 @@ export async function MileageProjectView({
               <MyActivityList evtId={event.evt_id} memId={member.id} month={selectedMonth} evtStartMonth={event.stt_dt} evtEndMonth={event.end_dt} readOnly={readOnly} isInactive={isInactive} inactiveKind={inactiveKind} />
             </Suspense>
             {!readOnly && (
-              <ActivityLogFab evtId={event.evt_id} memId={member.id} isInactive={isInactive} inactiveKind={inactiveKind} />
+              <ActivityLogFab evtId={event.evt_id} memId={member.id} isInactive={isInactive} inactiveKind={inactiveKind} copy={pickTeamCopy(copy, ACTIVITY_FORM_COPY_KEYS)} />
             )}
           </>
         )}

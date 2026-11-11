@@ -22,7 +22,8 @@ const TAB_GUIDE = [
   },
   {
     icon: Newspaper,
-    name: "기강",
+    // 가운데 탭 이름은 크루 이름(기강·모보브) — 아래 컴포넌트가 채운다
+    name: "",
     desc: "크루 소식을 보고, 한마디를 날리고, 서로 응원해요",
   },
   {
@@ -42,7 +43,7 @@ const TAB_GUIDE = [
   },
 ] as const;
 
-export function AppTabsGuide() {
+export function AppTabsGuide({ crewName }: { crewName: string }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [active, setActive] = useState(0);
 
@@ -72,7 +73,7 @@ export function AppTabsGuide() {
   return (
     <div className="flex w-full flex-col gap-2.5">
       <div className="flex items-center justify-between">
-        <SectionLabel>기강 앱 둘러보기</SectionLabel>
+        <SectionLabel>{crewName} 앱 둘러보기</SectionLabel>
         <Caption className="text-[11px]">옆으로 넘겨보세요 →</Caption>
       </div>
 
@@ -82,21 +83,22 @@ export function AppTabsGuide() {
         onKeyDown={handleKeyDown}
         tabIndex={0}
         role="group"
-        aria-label="기강 앱 탭 소개 — 좌우 화살표로 넘기기"
+        aria-label={`${crewName} 앱 탭 소개 — 좌우 화살표로 넘기기`}
         className="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {TAB_GUIDE.map((tab) => {
           const Icon = tab.icon;
+          const name = tab.name || crewName;
           return (
             <div
-              key={tab.name}
+              key={name}
               className="flex w-full shrink-0 snap-center items-center gap-3 rounded-xl bg-secondary/40 px-4 py-3"
             >
               <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-background text-primary">
                 <Icon className="size-5" />
               </div>
               <div className="flex min-w-0 flex-col">
-                <Body className="font-semibold">{tab.name}</Body>
+                <Body className="font-semibold">{name}</Body>
                 <Caption>{tab.desc}</Caption>
               </div>
             </div>
@@ -107,7 +109,8 @@ export function AppTabsGuide() {
       <div className="flex items-center justify-center gap-1.5">
         {TAB_GUIDE.map((tab, i) => (
           <span
-            key={tab.name}
+            // 고정 목록이라 순번 키로 충분하다(가운데 탭 이름은 팀마다 달라 키로 못 쓴다)
+            key={i}
             className={cn(
               "size-1.5 rounded-full transition-colors",
               i === active ? "bg-primary" : "bg-muted",

@@ -30,7 +30,14 @@ const DISMISS_KEY = "push-prompt-dismissed";
  * - 거부하면 다시 자동으로 조르지 않는다 — localStorage 영구 dismiss.
  *   마음 바뀌면 우측 상단 알림 설정 토글에서 직접 켠다.
  */
-export function PushPermissionPrompt({ loggedIn }: { loggedIn: boolean }) {
+export function PushPermissionPrompt({
+  loggedIn,
+  title,
+}: {
+  loggedIn: boolean;
+  /** 안내 제목 — 팀 문구(기강 「🔔 기강이 빠졌군…」, 그 밖 중립 — §lib/team-copy) */
+  title: string;
+}) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -92,7 +99,7 @@ export function PushPermissionPrompt({ loggedIn }: { loggedIn: boolean }) {
             <Bell className="size-5 text-foreground" aria-hidden="true" />
           </div>
           <div className="flex-1 pt-0.5">
-            <Body className="font-bold">🔔 기강이 빠졌군. 알림 켜라!</Body>
+            <Body className="font-bold">{title}</Body>
             <Caption className="mt-1 block leading-relaxed text-foreground/80">
               <span className="font-semibold text-foreground">새 모임</span> ·{" "}
               <span className="font-semibold text-foreground">새 정보</span> ·{" "}

@@ -381,7 +381,7 @@ export function PresenceLayer({
     null,
   );
   // 채널 effect는 **원시값**에만 의존해야 한다. `me`는 서버가 매 렌더 새로 만드는 객체 리터럴
-  // (page.tsx의 `me={{ id, name, avatarUrl }}`)이라, deps에 객체를 그대로 두면 각오 Realtime이
+  // (page.tsx의 `me={{ id, name, avatarUrl }}`)이라, deps에 객체를 그대로 두면 다른 곳의
   // 부른 router.refresh() 한 번에도 참조가 바뀌어 **채널이 통째로 재구독**된다 — 접속자 얼굴이
   // 깜빡 사라졌다 나타나고 공 위치·물리가 매번 초기화된다.
   const meId = me?.id ?? null;

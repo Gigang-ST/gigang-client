@@ -215,6 +215,7 @@ export async function createGatheringViaMcp(
   let kakaoNotice: KakaoNoticeResult = "failed";
   try {
     const sent = await notifyGatheringCreated({
+      teamId: ctx.team_id,
       gthrId,
       ref: (created.short_id as string | null) ?? gthrId,
       origin: baseUrl ?? null,

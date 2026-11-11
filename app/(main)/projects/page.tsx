@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTeamPageDescription } from "@/lib/queries/team-copy";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -6,9 +7,8 @@ import { HeaderActions } from "@/components/common/header-actions";
 import { PageHeader } from "@/components/common/page-header";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { EmptyState } from "@/components/common/empty-state";
 import { PB_CLASS_TYPE } from "@/lib/pb-class";
-import { MileageIntro } from "@/components/projects/mileage-intro";
-import { MileageRulesButton } from "@/components/projects/mileage-rules-button";
 import { MileageProjectView } from "@/components/projects/mileage-project-view";
 import { PbClassSkeleton, PbClassView } from "@/components/projects/pb-class/pb-class-view";
 import { ArchivedBanner, ProjectArchive } from "@/components/projects/project-archive";
@@ -18,11 +18,14 @@ import { ProjectSwitcher } from "@/components/projects/project-switcher";
  * 비로그인은 `/auth/login`으로 튕기는 지면이다 — 크롤러는 내용을 볼 수 없다.
  * 색인시키면 로그인 화면이 "프로젝트"라는 제목으로 검색결과에 남는다.
  */
-export const metadata: Metadata = {
-  title: "프로젝트",
-  description: "기강 러닝크루의 마일리지런·PB 클래스 등 기간제 활동. 크루원 로그인이 필요합니다.",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: "프로젝트",
+    // 검색 설명은 팀 기준(§lib/team-copy pageDescription) — 기강은 다듬어 둔 문장 그대로, 다른 팀은 크루 이름으로 만든 중립 문장
+    description: await getTeamPageDescription("projects"),
+    robots: { index: false, follow: false },
+  };
+}
 
 export default async function ProjectsPage({
   searchParams,
@@ -56,14 +59,15 @@ export default async function ProjectsPage({
 
   const header = <PageHeader variant="editorial" label="Projects" title="프로젝트" action={<HeaderActions />} />;
 
-  // 진행 중 프로젝트 없음 — 소개 + 규칙 + (있으면) 지난 프로젝트
+  // 진행 중 프로젝트 없음 — 빈 상태 한 줄 + (있으면) 지난 프로젝트. 모든 팀 같다.
+  // 예전엔 마일리지런 소개·규칙을 띄웠는데(팀 설정 project.show_intro), 마일리지런은 기강 전용이고
+  // (ADR-0007) 프로젝트는 할 때 만들면 되는 거라 걷어냈다(유저 결정 2026-11-09).
   if (!event) {
     return (
       <div className="flex flex-col gap-0">
         {header}
         <div className="flex flex-col gap-7 px-6 pb-24">
-          <MileageIntro />
-          <MileageRulesButton />
+          <EmptyState variant="card" message="진행 중인 프로젝트가 없어요." />
           <ProjectArchive events={closed} />
         </div>
       </div>

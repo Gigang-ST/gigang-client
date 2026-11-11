@@ -1,5 +1,7 @@
 import { parseEventTime, secondsToTime, todayStartKST } from "@/lib/dayjs";
 import { MOOD_SCALE, type MoodLevel } from "@/lib/mood-scale";
+import type { TeamCopy } from "@/lib/team-copy";
+import { visibleRecordCategories } from "@/lib/records-categories";
 import {
   JOIN_PURP_LABELS,
   JOIN_PURP_SHORT_LABELS,
@@ -37,9 +39,12 @@ export type ActivityMood = {
 
 export { MOOD_STEPS } from "@/lib/mood-scale";
 
-/** 단계 키 + 한마디 → 컨디션. 라벨·칸수는 공유 척도에서 가져온다(어휘 드리프트 방지) */
-function mood(level: MoodLevel, message: string): ActivityMood {
-  return { level, ...MOOD_SCALE[level], message };
+/** 컨디션 말 — 단계 이름표와 한마디는 팀마다 다르다(기강은 「기강」 말장난, 그 밖 중립 — `lib/team-copy.ts`) */
+export type MoodWords = Pick<TeamCopy, "moodLabels" | "cardMood">;
+
+/** 단계 키 + 한마디 → 컨디션. 칸수는 공유 척도, 이름표는 팀 문구에서 가져온다 */
+function mood(level: MoodLevel, label: string, message: string): ActivityMood {
+  return { level, label, ...MOOD_SCALE[level], message };
 }
 
 /**
@@ -50,14 +55,16 @@ function mood(level: MoodLevel, message: string): ActivityMood {
  *
  * @param recentCount 최근 90일 모임 참석 + 대회 기록 건수
  * @param lastActvDt  마지막 활동일(YYYY-MM-DD). 없으면 활동 이력 자체가 없음
+ * @param words       그 팀 이름표·한마디(`TeamCopy`)
  */
 export function getActivityMood(
   recentCount: number,
   lastActvDt: string | null,
+  words: MoodWords,
 ): ActivityMood {
-  if (recentCount >= 10) return mood("blazing", "내가 곧 기강의 기준");
-  if (recentCount >= 6) return mood("steady", "슬슬 기강 좀 잡아볼까");
-  if (recentCount >= 1) return mood("resting", "기강에 관심이 생기는 정도");
+  if (recentCount >= 10) return mood("blazing", words.moodLabels.blazing, words.cardMood.blazing);
+  if (recentCount >= 6) return mood("steady", words.moodLabels.steady, words.cardMood.steady);
+  if (recentCount >= 1) return mood("resting", words.moodLabels.resting, words.cardMood.resting);
 
   // 90일간 활동 0 — 이력이 아예 없는 신규와 오래 쉰 멤버를 구분한다.
   // 날짜 차이는 **양쪽 다 KST**로 맞춘다 — 한쪽만 고치면 여전히 어긋난다(§lib/dayjs nowKST).
@@ -67,6 +74,7 @@ export function getActivityMood(
 
   return mood(
     "dormant",
+    words.moodLabels.dormant,
     days == null ? "첫 발자국을 기다리는 중" : `${days}일째 실종… 수배 중`,
   );
 }
@@ -180,22 +188,31 @@ export type PbRow = {
  *
  * 로드 3종은 값이 없어도 자리를 지키지만 **철인3종·사이클은 있을 때만** 붙인다 —
  * 로드 러너의 카드에 안 켜진 철인 칸까지 세우면 "해야 할 일"처럼 보인다.
+ *
+ * **팀의 기록 종목(`categories`, 랭킹탭과 같은 팀 설정)에 맞춰 거른다** — 러닝이 없으면 로드 3칸, 트레일이 없으면
+ * UTMB 줄, 철인3종이 없으면 철인 줄을 안 세운다(울산 = 트레일만 → UTMB 줄만). 사이클은 전당 종목에 없어 그대로
+ * (있을 때만). 기록을 지우는 게 아니라 이 팀 화면에서 안 보일 뿐이다 — 대회 기록은 사람 것이라 다른 팀 주소에선 보인다.
  */
 export function buildPbRows(
   bestRecords: MemberCardRecord[],
   utmbIndex: number | null,
+  categories: readonly string[] | null | undefined = null,
 ): PbRow[] {
+  const shown = visibleRecordCategories(categories ?? []);
+  const road = shown.includes("marathon");
+  const trail = shown.includes("trail");
+  const triathlon = shown.includes("triathlon");
   const byEvt = new Map<string, MemberCardRecord>();
   const others: MemberCardRecord[] = [];
   for (const rec of bestRecords) {
     if (rec.sport === "road_run") {
       byEvt.set(rec.evt.toUpperCase(), rec);
-    } else {
+    } else if (rec.sport !== "triathlon" || triathlon) {
       others.push(rec);
     }
   }
 
-  const rows: PbRow[] = PB_ROAD_SLATE.map((evt) => {
+  const rows: PbRow[] = (road ? PB_ROAD_SLATE : []).map((evt) => {
     const rec = byEvt.get(evt);
     return {
       label: evt,
@@ -216,15 +233,28 @@ export function buildPbRows(
     });
   }
 
-  rows.push({
-    label: "UTMB INDEX",
-    dotCls: utmbIndex != null ? getSportDotCls("trail_run") : "bg-border",
-    value: utmbIndex != null ? String(utmbIndex) : null,
-    isUtmb: true,
-    isNew: false,
-  });
+  if (trail) {
+    rows.push({
+      label: "UTMB INDEX",
+      dotCls: utmbIndex != null ? getSportDotCls("trail_run") : "bg-border",
+      value: utmbIndex != null ? String(utmbIndex) : null,
+      isUtmb: true,
+      isNew: false,
+    });
+  }
 
   return rows;
+}
+
+/**
+ * 페이스 추이를 세울까 — 팀의 기록 종목에 **러닝이 있고** 같은 종목 기록이 2건 이상일 때.
+ * 그래프는 로드(FULL·HALF·10K)만 그려서, 러닝을 안 세우는 팀(울산)엔 로드 칸과 함께 빠진다.
+ */
+export function showsPaceTrend(
+  records: MemberCardRaceRecord[] | undefined,
+  categories: readonly string[] | null | undefined = null,
+): boolean {
+  return visibleRecordCategories(categories ?? []).includes("marathon") && hasPaceTrend(records);
 }
 
 /** 미입력 칸에 찍을 문자열 — UTMB 인덱스는 시간이 아니라 점수라 자릿수를 흉내 내지 않는다 */

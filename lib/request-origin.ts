@@ -1,5 +1,38 @@
 import { headers } from "next/headers";
 
+import { normalizeHost } from "@/lib/team-host";
+
+/**
+ * 요청이 들어온 **호스트 원문의 첫 값**(포트 포함) — `x-forwarded-host ?? host`.
+ *
+ * 프록시를 여러 번 지나면 `x-forwarded-host: a.com, b.com` 처럼 쉼표 목록이 온다. 첫 값이 사용자가 친 주소다.
+ * 팀 판정(`resolveTeamContextFromHost`)과 돌려보낼 주소(`buildRequestOrigin`)가 **같은 값**을 봐야 한다 —
+ * 로그인 콜백에서 둘의 출처가 갈려 있었다(한쪽은 `request.url` 로 대체 — 로컬에선 늘 `localhost:3000`).
+ */
+export function pickRequestHost(forwardedHost: string | null, host: string | null): string | null {
+  const raw = forwardedHost ?? host;
+  if (!raw) return null;
+  const first = raw.split(",")[0].trim().toLowerCase().replace(/\.(?=:\d+$|$)/, "");
+  return first.length > 0 ? first : null;
+}
+
+/**
+ * 호스트(포트 포함)와 `x-forwarded-proto` → origin. 순수 함수 — 회귀 테스트 `lib/__tests__/request-origin.test.ts`.
+ *
+ * - proto 도 쉼표 목록(`https,http`)일 수 있어 **첫 값**만 쓰고, http/https 가 아니면 버린다.
+ * - proto 가 없으면 로컬(`localhost`·`127.0.0.1`·`*.localhost`)은 http, 나머지는 https.
+ *   로컬 판정은 포트를 떼고 본다(`normalizeHost`) — `ulsan.localhost:3000` 이 포트 때문에 안 걸렸었다.
+ */
+export function buildRequestOrigin(host: string | null, forwardedProto: string | null): string | null {
+  if (!host) return null;
+  const hostname = normalizeHost(host);
+  if (!hostname) return null;
+  const isLocal = hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".localhost");
+  const protoFirst = forwardedProto?.split(",")[0].trim().toLowerCase();
+  const proto = protoFirst === "http" || protoFirst === "https" ? protoFirst : isLocal ? "http" : "https";
+  return `${proto}://${host}`;
+}
+
 /**
  * 현재 요청의 origin(`https://gigang.team` 등).
  *
@@ -12,11 +45,5 @@ import { headers } from "next/headers";
  */
 export async function getRequestOrigin(): Promise<string | null> {
   const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  if (!host) return null;
-
-  const isLocal =
-    host.startsWith("localhost") || host.startsWith("127.0.0.1") || host.endsWith(".localhost");
-  const proto = h.get("x-forwarded-proto") ?? (isLocal ? "http" : "https");
-  return `${proto}://${host}`;
+  return buildRequestOrigin(pickRequestHost(h.get("x-forwarded-host"), h.get("host")), h.get("x-forwarded-proto"));
 }

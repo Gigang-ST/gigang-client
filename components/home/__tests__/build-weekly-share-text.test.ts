@@ -34,7 +34,7 @@ describe("buildWeeklyShareText", () => {
 
   it("남은 일정이 없으면 null을 반환한다", () => {
     const races = [makeRace({ id: "a", title: "어제 모임", start_date: yesterday, type: "gathering" })];
-    expect(buildWeeklyShareText(races, ORIGIN)).toBeNull();
+    expect(buildWeeklyShareText(races, "기강", ORIGIN)).toBeNull();
   });
 
   it("지난 요일·다음 주는 빼고 남은 일정만 시간순으로 담는다", () => {
@@ -45,7 +45,7 @@ describe("buildWeeklyShareText", () => {
       makeRace({ id: "out", title: "다음 주 모임", start_date: nextWeek, type: "gathering" }),
       makeRace({ id: "earlier", title: "오늘 대회", start_date: today, type: "gigang", regCount: 2, evt_stt_at: atKST(today, "07:00") }),
     ];
-    const text = buildWeeklyShareText(races, ORIGIN)!;
+    const text = buildWeeklyShareText(races, "기강", ORIGIN)!;
     expect(text).toContain("이번 주 기강 일정");
     expect(text).toContain(ORIGIN);
     expect(text).not.toContain("어제 모임");
@@ -61,7 +61,7 @@ describe("buildWeeklyShareText", () => {
       makeRace({ id: "dup", title: "중복 대회", start_date: today, type: "mine", regCount: 1 }),
       makeRace({ id: "dup", title: "중복 대회", start_date: today, type: "gigang", regCount: 1 }),
     ];
-    const text = buildWeeklyShareText(races, ORIGIN)!;
+    const text = buildWeeklyShareText(races, "기강", ORIGIN)!;
     expect(text.match(/중복 대회/g)).toHaveLength(1);
   });
 
@@ -69,7 +69,7 @@ describe("buildWeeklyShareText", () => {
     const races = [
       makeRace({ id: "g", title: "정원 모임", start_date: today, type: "gathering_mine", regCount: 5, maxPrtCnt: 10, evt_stt_at: atKST(today, "07:30") }),
     ];
-    const text = buildWeeklyShareText(races, ORIGIN)!;
+    const text = buildWeeklyShareText(races, "기강", ORIGIN)!;
     expect(text).toContain("07:30  정원 모임");
     expect(text).not.toContain("5/10");
     expect(text).not.toContain("명");
@@ -84,7 +84,7 @@ describe("buildWeeklyShareText", () => {
     ];
     // 다음 주 수요일을 선택한 상황
     const wednesday = dayjs(nextMonday).add(2, "day").format("YYYY-MM-DD");
-    const text = buildWeeklyShareText(races, ORIGIN, "all", wednesday)!;
+    const text = buildWeeklyShareText(races, "기강", ORIGIN, "all", wednesday)!;
     expect(text).toContain("다음주 월요 모임"); // 기준일 이전 요일도 미래 주면 포함
     expect(text).toContain("다음주 일요 대회");
     expect(text).not.toContain("이번 주"); // 미래 주는 범위만 표기
@@ -96,7 +96,7 @@ describe("buildWeeklyShareText", () => {
     const races = [
       makeRace({ id: "p1", title: "지난주 모임", start_date: lastWednesday, type: "gathering" }),
     ];
-    expect(buildWeeklyShareText(races, ORIGIN, "all", lastWednesday)).toBeNull();
+    expect(buildWeeklyShareText(races, "기강", ORIGIN, "all", lastWednesday)).toBeNull();
   });
 
   it("필터가 걸려 있으면 해당 종류만 담고 헤더에 필터명을 쓴다", () => {
@@ -104,12 +104,12 @@ describe("buildWeeklyShareText", () => {
       makeRace({ id: "g1", title: "모임A", start_date: today, type: "gathering" }),
       makeRace({ id: "c1", title: "대회B", start_date: today, type: "gigang" }),
     ];
-    const text = buildWeeklyShareText(races, ORIGIN, "gathering")!;
+    const text = buildWeeklyShareText(races, "기강", ORIGIN, "gathering")!;
     expect(text).toContain("이번 주 기강 모임");
     expect(text).toContain("모임A");
     expect(text).not.toContain("대회B");
     // 필터에 맞는 항목이 없으면 null
-    expect(buildWeeklyShareText([races[1]], ORIGIN, "gathering")).toBeNull();
+    expect(buildWeeklyShareText([races[1]], "기강", ORIGIN, "gathering")).toBeNull();
   });
 });
 
@@ -121,14 +121,14 @@ describe("buildWeeklyShareText — 개인 일정", () => {
       makeRace({ id: "g", title: "공개 모임", start_date: today, type: "gathering", evt_stt_at: atKST(today, "09:00") }),
     ];
     for (const filter of ["all", "mine"] as const) {
-      const text = buildWeeklyShareText(races, ORIGIN, filter, today);
+      const text = buildWeeklyShareText(races, "기강", ORIGIN, filter, today);
       expect(text ?? "").not.toContain("개인 비공개");
     }
-    expect(buildWeeklyShareText(races, ORIGIN, "all", today)).toContain("공개 모임");
+    expect(buildWeeklyShareText(races, "기강", ORIGIN, "all", today)).toContain("공개 모임");
   });
 
   it("개인 일정만 있는 주는 공유할 게 없다", () => {
     const races = [makeRace({ id: "p", title: "개인 비공개", start_date: today, type: "personal" })];
-    expect(buildWeeklyShareText(races, ORIGIN, "mine", today)).toBeNull();
+    expect(buildWeeklyShareText(races, "기강", ORIGIN, "mine", today)).toBeNull();
   });
 });

@@ -177,7 +177,7 @@ export function GatheringForm(props: Props) {
             <FormItem>
               <FormLabel>제목 <span className="text-destructive">*</span></FormLabel>
               <FormControl>
-                <Input placeholder="예: 양재천 자유러닝" {...field} />
+                <Input placeholder="예: 주말 모닝런" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -265,7 +265,7 @@ export function GatheringForm(props: Props) {
             <FormItem>
               <FormLabel>장소 <span className="text-destructive">*</span></FormLabel>
               <FormControl>
-                <Input placeholder="예: 여의도역 9호선 B1 클룸보관함" {...field} value={field.value ?? ""} />
+                <Input placeholder="예: ○○역 2번 출구 앞" {...field} value={field.value ?? ""} />
               </FormControl>
               <FormMessage />
             </FormItem>

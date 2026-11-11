@@ -78,10 +78,15 @@ export function RecordsClient({
           supabase
             .from("rec_race_hist")
             .select(
-              "race_result_id, comp_evt_cfg!fk_rec_race_hist__comp_evt_cfg_pair(comp_evt_type), rec_time_sec, race_nm, race_dt, mem_mst!fk_rec_race_hist__mem_mst(mem_nm)",
+              "race_result_id, comp_evt_cfg!fk_rec_race_hist__comp_evt_cfg_pair(comp_evt_type), rec_time_sec, race_nm, race_dt, mem_mst!fk_rec_race_hist__mem_mst!inner(mem_nm, team_mem_rel!inner(team_id, vers, del_yn))",
             )
             .eq("del_yn", false)
             .eq("vers", 0)
+            // 대회 기록은 사람 것이라 팀 칸이 없다 — 이 팀 회원의 기록만 보인다(수정·삭제 권한
+            // recordOwnerInTeam 과 같은 기준). 두 팀 소속자의 기록은 양쪽 관리자에게 다 보인다(의도).
+            .eq("mem_mst.team_mem_rel.team_id", teamId)
+            .eq("mem_mst.team_mem_rel.vers", 0)
+            .eq("mem_mst.team_mem_rel.del_yn", false)
             .order("crt_at", { ascending: false })
             .order("race_result_id"),
         { label: "admin-records:rec_race_hist" },
@@ -103,7 +108,7 @@ export function RecordsClient({
     }));
     setRecords(mapped as RaceRecord[]);
     setLoading(false);
-  }, []);
+  }, [teamId]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
