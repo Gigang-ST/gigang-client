@@ -2687,7 +2687,6 @@ export type Database = {
           dst_km: number | null
           mem_id: string
           photo_url: string | null
-          pldg_txt: string | null
           post_id: string
           post_type_enm: Database["public"]["Enums"]["post_type_enm"]
           ref_id: string | null
@@ -2705,7 +2704,6 @@ export type Database = {
           dst_km?: number | null
           mem_id: string
           photo_url?: string | null
-          pldg_txt?: string | null
           post_id?: string
           post_type_enm: Database["public"]["Enums"]["post_type_enm"]
           ref_id?: string | null
@@ -2723,7 +2721,6 @@ export type Database = {
           dst_km?: number | null
           mem_id?: string
           photo_url?: string | null
-          pldg_txt?: string | null
           post_id?: string
           post_type_enm?: Database["public"]["Enums"]["post_type_enm"]
           ref_id?: string | null
@@ -3933,7 +3930,7 @@ export type Database = {
       member_status: "active" | "inactive" | "banned" | "pending"
       participation_role: "participant" | "cheering" | "volunteer"
       post_src_enm: "manual" | "mlg_auto"
-      post_type_enm: "pledge" | "record_flex"
+      post_type_enm: "record_flex"
       pt_actv_type_enm:
         | "regular_attend"
         | "gthr_attend"
@@ -4085,7 +4082,7 @@ export const Constants = {
       member_status: ["active", "inactive", "banned", "pending"],
       participation_role: ["participant", "cheering", "volunteer"],
       post_src_enm: ["manual", "mlg_auto"],
-      post_type_enm: ["pledge", "record_flex"],
+      post_type_enm: ["record_flex"],
       pt_actv_type_enm: [
         "regular_attend",
         "gthr_attend",

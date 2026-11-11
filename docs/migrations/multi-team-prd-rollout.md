@@ -38,6 +38,7 @@
 | 26 | 프로필 카드에 그 팀의 기록 종목 싣기(`record_categories`) — **배포 전**, 22번 뒤 | `20261110110500_member_card_record_categories.sql` | ✅ | ☐ |
 | 27 | 링크 미리보기·탭 제목 문구를 팀 설정으로(`brand.name`·`seo.*`, 기강·모보브) — **배포 전** (브랜치 `feature/multi-team-phase2`) | `20261110111000_team_seo_cfg.sql` | ✅ | ☐ |
 | 28 | 기강 회원 호칭 「기강인」(`brand.member_noun`) — 배포 전 권장(빠져도 코드 기본값으로 안 깨짐), 27번 뒤 | `20261110112000_team_member_noun.sql` | ✅ | ☐ |
+| 29 | **배포 뒤, 25번 뒤** `post_mst` 의 옛 목표 한마디 잔재 걷기(`pldg_txt` 칸·길이 제약·enum `'pledge'`, #654) | `20261111100000_drop_post_pledge_remnant.sql` | ☐ | ☐ |
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
@@ -491,6 +492,19 @@ left join team_cfg c on c.team_id = t.team_id and c.cfg_cd = 'brand.member_noun'
      from team_mst t where t.team_cd = 'gigang';                                                       -- {actv_rank,newbies,races,records}
      select (select count(*) from pg_class where relname in ('pldg_mst', 'msg_mst')) as tables,          -- 0
             (select count(*) from pg_proc where proname in ('get_team_pledges', 'get_team_messages', 'set_message_fly_dist')) as funcs; -- 0
+     ```
+   - **29번 `20261111100000_drop_post_pledge_remnant.sql` 은 25번 확인이 끝난 뒤에 적용한다**(#654) — `post_mst` 의 `pldg_txt` 칸과
+     길이 제약을 지우고 enum `post_type_enm` 에서 `'pledge'` 를 뺀다(새 타입으로 갈아 끼움, prd 790행이라 테이블 다시 쓰기는 순간).
+     **25번보다 먼저 돌리면 안 된다** — 옛 피드 함수가 `LANGUAGE sql` 이라 칸이 조용히 지워지고 홈 피드가 다음 호출에서 터진다.
+     그래서 파일 첫 단계가 `pldg_mst` 가 남았거나 이 칸·값을 쓰는 함수·행이 있으면 **아무것도 안 바꾸고 멈춘다**
+     (2026-11-11 prd 에서 실제로 멈추는 것 확인, dev 에서 트랜잭션 모의 실행 통과). 멈추면 25번 적용 여부부터 본다.
+     옛 코드는 이 칸·값을 안 써서 배포 전후 어느 쪽 코드와도 맞지만, 25번이 배포 뒤라 결국 이것도 배포 뒤다.
+     ```sql
+     -- 확인: enum 은 record_flex 하나, 칸·옛 타입 0, 행 수 그대로
+     select (select string_agg(enumlabel, ',') from pg_enum where enumtypid = 'public.post_type_enm'::regtype) as enum_vals, -- record_flex
+            (select count(*) from information_schema.columns where table_name = 'post_mst' and column_name = 'pldg_txt') as pldg_col, -- 0
+            (select count(*) from pg_type where typname = 'post_type_enm_old') as old_type,                                    -- 0
+            (select count(*) from post_mst) as rows;                                                                        -- 적용 전과 같다
      ```
    - 기강 화면에 모임 계좌(프로젝트 신청·회비 내역)와 채널 4칸(홈 맨 아래·더보기·로그인)이 그대로 보이는지
    - **가입 정보 옮기기 다시**(8번과 배포 사이 공백 메우기 — 여러 번 돌려도 안전):
