@@ -5,6 +5,8 @@ import { Suspense } from "react";
 import { getGhostMembers } from "@/lib/queries/ghost-members";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getTeamCopy } from "@/lib/queries/team-copy";
+import { STORY_COPY_KEYS, pickTeamCopy } from "@/lib/team-copy";
 import { getTeamChannels } from "@/lib/team-social";
 import {
   getMyReactions,
@@ -88,6 +90,7 @@ async function StoryFeedSection() {
     recapTeaser,
     channels,
     titlesEnabled,
+    copy,
   ] = await Promise.all([
       getStoryFeed(teamId),
       getTeamOverview(teamId),
@@ -106,6 +109,8 @@ async function StoryFeedSection() {
       getTeamChannels(teamId),
       // 칭호 기능 — 끈 팀은 「칭호획득」 칸을 안 세우고 사람에게 붙은 칭호를 걷는다(§lib/team-titles)
       getTeamCfg(teamId, "feature.titles"),
+      // 팀 문구 — 크루 이름·호칭·기능 이름·말투(§lib/team-copy). 서버 메모리 캐시라 조회 비용 없음
+      getTeamCopy(),
     ]);
 
   // 칭호 기능을 끈 팀 — 피드·기록은 칭호를 실은 채 캐시돼 오므로 화면에 넘기기 직전에 걷는다(§lib/team-titles)
@@ -139,6 +144,8 @@ async function StoryFeedSection() {
   const initialNewbiePick = pickRandomPostIndex(feed.newbies.length);
   const initialRecordPick = pickRandomPostIndex(feed.records.length);
   const initialActvPick = pickActvLeadIndex(feed.actv_rank.length);
+  // 활동지수 헤드라인은 대표와 **따로** 굴린다 — 대표 번호(0~2)를 그대로 쓰면 14줄 중 앞 3줄만 나온다(리뷰 2026-11-11)
+  const initialHeadlinePick = pickRandomPostIndex(copy.actvHeadlines.length);
   // 칭호획득 슬롯의 대표 회전 시작 오프셋 — 방문마다 다른 사람에서 시작한다(첫 화면 다양성).
   // 기준은 칭호 수가 아니라 **사람 pool 길이**(사람별 최신 1건 dedupe — §lib/story-title.ts).
   // 이후 전진은 클라가 한 바퀴 완주마다 +1 — 랜덤이 아니라 회전이라 전원이 빠짐없이 오른다.
@@ -164,6 +171,7 @@ async function StoryFeedSection() {
       initialNewbiePick={initialNewbiePick}
       initialRecordPick={initialRecordPick}
       initialActvPick={initialActvPick}
+      initialHeadlinePick={initialHeadlinePick}
       grants={grants}
       initialTitlePick={initialTitlePick}
       teamId={teamId}
@@ -182,6 +190,7 @@ async function StoryFeedSection() {
       mastheadActions={<HeaderActions />}
       recap={recap}
       channels={channels}
+      copy={pickTeamCopy(copy, STORY_COPY_KEYS)}
     />
   );
 }
@@ -202,7 +211,8 @@ function StorySkeleton() {
       <div className="flex min-h-[60vh] flex-col items-center justify-center px-6">
         <Image
           src="/logo.webp"
-          alt="기강"
+          // 「불러오는 중」 장식이라 읽어 줄 이름이 없다(alt="") — 미리 만드는 껍데기라 팀 이름을 넣을 수도 없다
+          alt=""
           width={512}
           height={512}
           priority

@@ -1,0 +1,16 @@
+{
+  "name": "모보브",
+  "short_name": "모보브",
+  "description": "울산에서 함께 산을 달리는 트레일러닝 크루 모보브(MOVOF).",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "icons": [
+    { "src": "/teams/ulsan/android-icon-72x72.png", "sizes": "72x72", "type": "image/png" },
+    { "src": "/teams/ulsan/android-icon-96x96.png", "sizes": "96x96", "type": "image/png" },
+    { "src": "/teams/ulsan/android-icon-144x144.png", "sizes": "144x144", "type": "image/png" },
+    { "src": "/teams/ulsan/android-icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/teams/ulsan/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

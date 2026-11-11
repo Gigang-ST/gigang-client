@@ -23,6 +23,7 @@ import { RecordDeleteDialog } from "@/components/story/record-delete-dialog";
 import { RecordFlexCreateDialog } from "@/components/story/record-flex-create-dialog";
 import { RecordFlexEditDialog } from "@/components/story/record-flex-edit-dialog";
 import { RecordReelViewer } from "@/components/story/record-reel-viewer";
+import type { StoryCopy } from "@/lib/team-copy";
 import { StoryZoneHeader } from "@/components/story/story-zone-header";
 
 import type { StoryPost } from "@/lib/queries/story-posts";
@@ -53,6 +54,7 @@ export function RecordFlexFeed({
   isAdmin,
   me,
   teamId,
+  copy,
 }: {
   posts: StoryPost[];
   /** 로그인 사용자 — 없으면 "올리기" 버튼을 감춘다(응원과 동일 정책) */
@@ -66,6 +68,8 @@ export function RecordFlexFeed({
   me: { id: string; name: string; avatarUrl: string | null } | null;
   /** 릴스 뷰어 안에서 여는 프로필 카드에 넘긴다 */
   teamId: string;
+  /** 팀 문구 — 지면 이름(기강 깅스타그램, 그 밖 갤러리)·호칭(§lib/team-copy) */
+  copy: StoryCopy;
 }) {
   const [writing, setWriting] = useState(false);
   /** 릴스 뷰어에서 처음 열 카드 — null이면 닫힘 */
@@ -426,11 +430,11 @@ export function RecordFlexFeed({
     <section className="flex flex-col">
       <StoryZoneHeader
         bleed
-        label="Gingstargram"
+        label={copy.galleryLabel}
         lead="우리가 남긴 발자국"
         action={
-          <HelpTip title="깅스타그램">
-            기강인들의 일상을 나누는 곳이에요. 운동이든 일상이든, 기강인의 삶을 편하게
+          <HelpTip title={copy.galleryName}>
+            {copy.memberNoun}들의 일상을 나누는 곳이에요. 운동이든 일상이든, {copy.memberNoun}의 삶을 편하게
             공유해보세요.
           </HelpTip>
         }
@@ -596,7 +600,7 @@ export function RecordFlexFeed({
         </div>
       )}
 
-      <RecordFlexCreateDialog open={writing} onOpenChange={setWriting} />
+      <RecordFlexCreateDialog open={writing} onOpenChange={setWriting} copy={copy} />
 
       {/* 릴스 뷰어 — 격자 한 칸을 누르면 이 장부터 풀스크린으로. 격자 목록(더보기로 이어붙인
           것까지)에 딥링크로 받아온 한 건을 얹은 `reelPosts`를 넘긴다(§reelPosts).
@@ -619,6 +623,7 @@ export function RecordFlexFeed({
         // 릴스 ⋮ 메뉴도 같은 확인 다이얼로그를 연다(격자 길게누르기와 한 곳에서 처리).
         onRequestDelete={(p) => setDeleting(p)}
         onRequestEdit={(p) => setEditing(p)}
+        copy={copy}
       />
 
       {/* 삭제 확인 — 격자 길게누르기와 릴스 ⋮ 메뉴가 함께 쓴다. 지운 뒤 릴스가 열려 있으면
@@ -636,6 +641,7 @@ export function RecordFlexFeed({
           그 장에 그대로 남으므로 보던 사진으로 돌아오는 게 맞다(refresh는 다이얼로그가 부른다). */}
       <RecordFlexEditDialog
         post={editing}
+        quips={copy.quips}
         open={editing !== null}
         onOpenChange={(o) => {
           if (!o) setEditing(null);
@@ -664,6 +670,7 @@ export function RecordFlexFeed({
           if (!o) setReelMember(null);
         }}
         stacked
+        copy={copy}
       />
     </section>
   );

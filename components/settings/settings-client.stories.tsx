@@ -1,3 +1,4 @@
+import { GIGANG_COPY } from "@/lib/__fixtures__/team-copy";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { SettingsClient } from "@/components/settings/settings-client";
 
@@ -7,6 +8,7 @@ const meta = {
   parameters: { layout: "fullscreen" },
   // 채널 주소는 팀 설정에서 온다 — 스토리는 예시 값
   args: {
+    copy: GIGANG_COPY,
     channels: {
       kakao_open_chat: "https://open.kakao.com/o/example",
       instagram: "https://www.instagram.com/example",

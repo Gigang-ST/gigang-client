@@ -35,7 +35,8 @@ import type { WeekStart } from "@/lib/week-start";
 import { HelpTip } from "@/components/common/help-tip";
 import { ThemeToggle } from "@/components/common/theme-toggle";
 import { Body, Caption, Micro, SectionLabel } from "@/components/common/typography";
-import { SOCIAL_HELP_TEXT, SocialTiles } from "@/components/social-links";
+import { SocialTiles, socialHelpText, socialLeadText } from "@/components/social-links";
+import type { SettingsCopy } from "@/lib/team-copy";
 import { listTeamChannels, type TeamChannels } from "@/lib/team-channels";
 import { WeekStartControl } from "@/components/settings/week-start-control";
 
@@ -96,10 +97,12 @@ const myItems: MenuItem[] = [
  * - `기강 소개`: 예전 이름은 "도움말 및 지원"이었는데 목적지(`/join`)는 크루 소개·모임장소·
  *   회칙이라 이름이 딴소리를 했다. 문의 창구는 위 "건의하기"가 이미 맡고 있다.
  */
-const crewItems: MenuItem[] = [
-  { label: "대회 목록", href: "/races", icon: Trophy },
-  { label: "기강 소개", href: "/join", icon: LifeBuoy },
-];
+function crewItems(crewName: string): MenuItem[] {
+  return [
+    { label: "대회 목록", href: "/races", icon: Trophy },
+    { label: `${crewName} 소개`, href: "/join", icon: LifeBuoy },
+  ];
+}
 
 /**
  * 법적 문서 — 푸터로 내려간 셋.
@@ -224,6 +227,7 @@ export function SettingsClient({
   duesUnpaid = false,
   weekStart,
   channels,
+  copy,
 }: {
   isAdmin: boolean;
   /** 세션이 있는가 — 없으면 계정 그룹이 로그아웃 대신 로그인 한 줄이 된다 */
@@ -238,6 +242,8 @@ export function SettingsClient({
   weekStart: WeekStart;
   /** 이 팀 채널(팀 설정). 하나도 없으면 SOCIAL 칸째 안 그린다 */
   channels: TeamChannels;
+  /** 팀 문구 — 크루 이름·호칭·정식 이름(§lib/team-copy) */
+  copy: SettingsCopy;
 }) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -285,9 +291,9 @@ export function SettingsClient({
         <div className="flex flex-col">
           <div className="flex items-center gap-2.5 pb-3">
             <SectionLabel>SOCIAL</SectionLabel>
-            <Caption>기강이 모여 있는 곳</Caption>
+            <Caption>{socialLeadText(copy.crewName)}</Caption>
             <div className="-my-2 ml-auto flex items-center">
-              <HelpTip title="기강 채널">{SOCIAL_HELP_TEXT}</HelpTip>
+              <HelpTip title={`${copy.crewName} 채널`}>{socialHelpText(copy)}</HelpTip>
             </div>
           </div>
           <SocialTiles channels={channels} autoOpenKakao={wantKakao} />
@@ -344,7 +350,7 @@ export function SettingsClient({
             dot={unread.update}
             dotLabel="읽지 않은 업데이트"
           />
-          {crewItems.map((item) => (
+          {crewItems(copy.crewName).map((item) => (
             <MenuRow
               key={item.href}
               icon={item.icon}
@@ -469,12 +475,12 @@ export function SettingsClient({
         {/* 버전도 푸터로 왔다 — 한 줄을 차지할 만큼 자주 보는 값이 아니고, 문의할 때
             찾을 수만 있으면 된다. */}
         <div className="flex items-baseline gap-1.5">
-          <span className="text-sm font-bold text-muted-foreground">기강</span>
+          <span className="text-sm font-bold text-muted-foreground">{copy.crewName}</span>
           <span className="font-numeric text-xs text-muted-foreground/70">
             {APP_VERSION}
           </span>
         </div>
-        <span className="text-xs text-muted-foreground/70">{`© ${nowKST().year()} 기강 스포츠 팀`}</span>
+        <span className="text-xs text-muted-foreground/70">{`© ${nowKST().year()} ${copy.orgName}`}</span>
         <Micro className="text-muted-foreground/70">
           운동을 좋아하는 사람들이 함께 만드는 팀
         </Micro>

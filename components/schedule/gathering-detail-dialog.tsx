@@ -55,6 +55,7 @@ import {
 import { Caption, Micro } from "@/components/common/typography";
 import type { CalendarRace } from "@/components/home/mini-calendar";
 import { MemberCardDialogDynamic as MemberCardDialog } from "@/components/members/member-card-dialog-dynamic";
+import type { CardCopy } from "@/components/members/member-card-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -94,6 +95,8 @@ export type GatheringAttendee = {
 };
 
 export interface GatheringDetailDialogProps {
+  /** 팀 문구 — 참석자 프로필 카드에 넘긴다(§lib/team-copy) */
+  cardCopy: CardCopy;
   gathering: (CalendarRace & {
     maxPrtCnt?: number | null;
     /** 승인제·참여조건 — 신청 흐름은 모임 상세 페이지가 맡고 여기선 안내만 한다 */
@@ -136,6 +139,7 @@ export interface GatheringDetailDialogProps {
 }
 
 export function GatheringDetailDialog({
+  cardCopy,
   gathering,
   open,
   onOpenChange,
@@ -961,6 +965,7 @@ export function GatheringDetailDialog({
         if (!open) setSelectedMember(null);
       }}
       stacked
+      copy={cardCopy}
     />
 
     </>

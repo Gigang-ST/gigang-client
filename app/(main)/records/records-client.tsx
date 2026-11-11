@@ -46,6 +46,7 @@ import { SegmentControl } from "@/components/common/segment-control";
 import { Body } from "@/components/common/typography";
 import { TitleBadge } from "@/components/common/title-badge";
 import { MemberCardDialogDynamic as MemberCardDialog } from "@/components/members/member-card-dialog-dynamic";
+import type { CardCopy } from "@/components/members/member-card-dialog";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 
@@ -1403,6 +1404,7 @@ export function RecordsClient({
   myMemId = null,
   teamId,
   categories = RECORD_CATEGORY_KEYS,
+  copy,
 }: {
   data: RecordsData;
   myTitleNames?: string[];
@@ -1410,6 +1412,8 @@ export function RecordsClient({
   teamId: string;
   /** 팀이 세우는 종목(팀 설정 `records.categories`). 하나면 종목 탭 줄 없이 그 종목 이름을 고정으로 세운다 */
   categories?: readonly string[];
+  /** 팀 문구 — 프로필 카드에 넘긴다(§lib/team-copy) */
+  copy: CardCopy;
 }) {
   const myTitleNameSet = new Set(myTitleNames);
   const [selectedMember, setSelectedMember] = useState<{ memId: string; name: string } | null>(null);
@@ -1482,6 +1486,7 @@ export function RecordsClient({
         onOpenChange={(open) => {
           if (!open) setSelectedMember(null);
         }}
+        copy={copy}
       />
     </div>
   );

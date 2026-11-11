@@ -9,6 +9,8 @@ import { getMemberCancelCount } from "@/lib/queries/member-cancel-count";
 import { getPublicMemberCard } from "@/lib/queries/member-card";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getTeamCfg } from "@/lib/team-cfg/read";
+import { getTeamCopy } from "@/lib/queries/team-copy";
+import { PROFILE_COPY_KEYS, pickTeamCopy } from "@/lib/team-copy";
 
 import { HeaderActions } from "@/components/common/header-actions";
 import { InactiveReasonNote } from "@/components/common/inactive-reason-note";
@@ -41,6 +43,7 @@ async function ProfileContent() {
     { data: titleRows },
     cancelCnt,
     titlesEnabled,
+    copy,
   ] = await Promise.all([
     getPublicMemberCard(supabase, member.id, teamId),
     supabase
@@ -62,6 +65,8 @@ async function ProfileContent() {
     getMemberCancelCount(supabase, member.id, teamId),
     // 칭호 기능 — 끈 팀은 대표 칭호 자리·컬렉션·획득 이력 진입점을 안 세운다(칭호 자체는 카드 RPC가 안 싣는다)
     getTeamCfg(teamId, "feature.titles"),
+    // 팀 문구 — 크루 이름·호칭·컨디션 이름표(§lib/team-copy)
+    getTeamCopy(),
   ]);
 
   // RPC는 `mem_st_cd = 'active'`만 돌려준다 — 비활성·탈퇴 상태면 카드가 통째로 비므로
@@ -80,7 +85,7 @@ async function ProfileContent() {
             {member.status === "left" ? "탈퇴한 상태예요" : "계정이 비활성 상태예요"}
           </Body>
           {/* "운영진에게 문의해 주세요"는 뺀다 — 바로 아래 버튼이 그 문의를 대신 보내 준다 */}
-          <Caption>프로필 카드는 활동 중인 기강인에게만 보여요.</Caption>
+          <Caption>프로필 카드는 활동 중인 {copy.memberNoun}에게만 보여요.</Caption>
         </div>
         <InactiveReasonNote
           reason={getVisibleInactiveReason(member)}
@@ -136,6 +141,7 @@ async function ProfileContent() {
         card={card}
         cancelCnt={cancelCnt}
         titlesEnabled={titlesEnabled}
+        copy={pickTeamCopy(copy, PROFILE_COPY_KEYS)}
         utmb={
           utmbProfile?.utmb_prf_url && utmbProfile?.utmb_idx != null
             ? {

@@ -1,5 +1,5 @@
 /**
- * 한마디 예시 문구(placeholder) 풀 — 깅스타그램·마일리지런(단건·다건) **세 입력이 공유한다.**
+ * 한마디 예시 문구(placeholder) 뽑기 — 사진 지면(기강 깅스타그램)·마일리지런(단건·다건) **세 입력이 공유한다.**
  *
  * 한 곳에 모아 둔 이유는 톤이 갈리는 걸 막기 위해서다. 예전엔 깅스타그램만 예시문
  * ("오늘 날씨가 너무 좋았어요")이고 마일리지런 둘은 지시문("한 줄 후기를 남겨보세요")이라,
@@ -16,26 +16,8 @@
  * - **전부 운동 문구로 채우지 않는다.** 깅스타그램은 일상까지 넓힌 존이라(DESIGN.md),
  *   풀이 러닝 일색이면 화면이 그 존을 다시 운동으로 좁힌다.
  */
-export const QUIPS = [
-  // 기강 어휘 자폭 — 이 앱의 시그니처
-  "기강 잡으러 나갔다가 기강 잡혔다",
-  // 현상수배존과 물린 내부 농담 — 오래 잠수 타다 올리는 사람 몫
-  "수배 풀렸습니다",
-
-  // 보고체 — 반말 명령조("켜라!")를 존댓말 보고로 받아치는 대비
-  "이상 없음. 다리만 없음",
-  "임무 완수. 무릎은 전사",
-  "완주했습니다. 폼은 버렸습니다",
-
-  // 자폭 — 칭호 "돈을 달린다"·"억울해?" 계열
-  "무릎이 사직서를 냈다",
-  "10km 뛰고 20km 먹었다",
-  "달린 건 5km, 자랑은 50km",
-  "다리보다 지갑이 먼저 털렸다",
-  "심장이 퇴사하겠다는데",
-  "앞사람만 보고 뛰었더니 끝나 있었다",
-  "치킨 먹으려고 뛴 건 비밀",
-] as const;
+// 문구 묶음은 팀 문구(`lib/team-copy.ts` 의 BASE_QUIPS + 팀 전용 줄)로 옮겼다(2026-11-10 팀별로).
+// 「기강 잡으러 나갔다가 기강 잡혔다」 같은 기강 어휘 자폭은 기강에만 붙는다 — 다른 팀은 공통 묶음만.
 
 /** 문자열 → 32bit 해시(FNV-1a). 같은 seed는 언제 어디서 계산해도 같은 값 */
 function hashSeed(seed: string): number {
@@ -48,7 +30,7 @@ function hashSeed(seed: string): number {
 }
 
 /**
- * 예시 문구 한 개를 뽑는다.
+ * 예시 문구 한 개를 뽑는다. `quips` 는 그 팀 묶음(`TeamCopy.quips`).
  *
  * `seed`를 주면 해시로 **고정**되고(같은 seed = 항상 같은 문구), 없으면 랜덤이다.
  * 다건 폼처럼 여러 칸이 한 화면에 서는 자리는 행 id를 seed로 넘긴다 — 별도 상태 필드 없이
@@ -60,10 +42,10 @@ function hashSeed(seed: string): number {
  * 어긋난다. 현재 세 호출부는 모두 열릴 때만 마운트된다(`if (!open) return` · `editTarget && …`).
  * 페이지에 직접 얹을 일이 생기면 seed를 주거나 마운트 후 useEffect로 뽑을 것.
  */
-export function pickQuip(seed?: string): string {
+export function pickQuip(quips: readonly string[], seed?: string): string {
   const idx =
     seed === undefined
-      ? Math.floor(Math.random() * QUIPS.length)
-      : hashSeed(seed) % QUIPS.length;
-  return QUIPS[idx];
+      ? Math.floor(Math.random() * quips.length)
+      : hashSeed(seed) % quips.length;
+  return quips[idx];
 }

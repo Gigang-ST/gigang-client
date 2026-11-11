@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTeamPageDescription } from "@/lib/queries/team-copy";
 import { Skeleton } from "@/components/ui/skeleton";
 import { H1 } from "@/components/common/typography";
 import { createClient as createPublicClient } from "@supabase/supabase-js";
@@ -103,11 +104,14 @@ function RacesSkeleton() {
   );
 }
 
-export const metadata: Metadata = {
-  title: "참가 대회",
-  description: "기강 러닝크루가 함께 나가는 마라톤·대회 일정과 크루원 참가 현황.",
-  alternates: { canonical: "/races" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: "참가 대회",
+    // 검색 설명은 팀 기준(§lib/team-copy pageDescription) — 기강은 다듬어 둔 문장 그대로, 다른 팀은 크루 이름으로 만든 중립 문장
+    description: await getTeamPageDescription("races"),
+    alternates: { canonical: "/races" },
+  };
+}
 
 export default function RacesPage() {
   void getRequestTeamContext();

@@ -36,9 +36,14 @@
 | 24 | 울산 모임 기본 종목 = 트레일러닝(`gathering.default_sport`) | `20261110108000_ulsan_gathering_trail.sql` | ✅ | ☐ |
 | 25 | **배포 뒤** 목표 한마디·종이비행기 걷기(피드 함수에서 빼고 함수 3개·테이블 2개 삭제) | `20261110109000_drop_pledge_message.sql` | ✅ | ☐ |
 | 26 | 프로필 카드에 그 팀의 기록 종목 싣기(`record_categories`) — **배포 전**, 22번 뒤 | `20261110110500_member_card_record_categories.sql` | ✅ | ☐ |
+| 27 | 링크 미리보기·탭 제목 문구를 팀 설정으로(`brand.name`·`seo.*`, 기강·모보브) — **배포 전** (브랜치 `feature/multi-team-phase2`) | `20261110111000_team_seo_cfg.sql` | ✅ | ☐ |
+| 28 | 기강 회원 호칭 「기강인」(`brand.member_noun`) — 배포 전 권장(빠져도 코드 기본값으로 안 깨짐), 27번 뒤 | `20261110112000_team_member_noun.sql` | ✅ | ☐ |
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
+⚠️ **Redirect URLs 는 `https://ulsan.gigang.team/**` 꼴이어야 한다.** 앱은 `redirectTo` 에 늘 `?next=…` 를 붙여 보내는데
+Supabase 는 쿼리까지 포함한 전체 주소를 패턴과 맞춘다 — `/auth/callback` 정확한 주소로는 안 걸려 **Site URL(기강)로 대체**된다.
+dev 에서 실제로 울산 로그인이 `dev.gigang.team` 으로 튕겼다(2026-11-10, 인증 로그 `referer` 로 확인). prd 도 같은지 배포 전에 본다.
 
 ## 시작 전 — 되돌릴 준비 (필수)
 
@@ -427,9 +432,34 @@ from team_mst t join lateral (select mem_id from team_mem_rel m where m.team_id 
   and m.mem_st_cd = 'active' limit 1) r on true order by 1;
 ```
 
+### 27. `20261110111000_team_seo_cfg.sql` — 배포 전
+
+링크 미리보기(카톡 카드 제목·설명·사이트 이름)·탭 제목 뒤 말을 팀 설정 네 키로 넣는다. 기강 값은 옛 `config.ts` 문구 그대로,
+모보브(울산) 값은 임시. 네 키 모두 **기본값이 없어서** 행 없이 새 코드가 나가면 **기강 링크 미리보기 제목·설명·탭 제목 뒤 말이
+비거나 「기강」 한 단어로 줄어든다**(크루 이름만 코드 기본값으로 물러난다) — 꼭 배포 전에. 옛 코드는 이 키를 안 읽어 미리 넣어도 아무 일 없다. 썸네일 그림은 DB 가 아니라 코드(`public/teams/<팀>/og.png`)다.
+
+```sql
+-- 확인: 팀마다 4행(brand.name · seo.description · seo.title · seo.title_suffix)
+select t.team_cd, c.cfg_cd, c.cfg_val_json from team_mst t
+join team_cfg c on c.team_id = t.team_id and c.vers = 0 and c.del_yn = false
+where c.cfg_cd = 'brand.name' or c.cfg_cd like 'seo.%' order by 1, 2;
+```
+
+### 28. `20261110112000_team_member_noun.sql` — 배포 전
+
+화면의 「기강인」 자리(프로필 카드·전광판 심박·새 얼굴 등)를 팀 설정 `brand.member_noun` 으로 옮겼다. 행이 없어도
+**기강 화면은 안 깨진다** — 크루 이름·호칭·워드마크는 코드의 팀 기본 이름(`lib/team-copy.ts` TEAM_VOICE)으로 물러난다
+(설정 조회가 실패해도 마찬가지 — 리뷰 2026-11-11). 이 행은 운영진이 팀 설정 화면에서 지금 값을 보고 고치게 하는 것. 울산은 넣지 않는다(크루원).
+
+```sql
+-- 확인: 기강 "기강인", 울산 행 없음
+select t.team_cd, c.cfg_val_json from team_mst t
+left join team_cfg c on c.team_id = t.team_id and c.cfg_cd = 'brand.member_noun' and c.vers = 0 and c.del_yn = false order by 1;
+```
+
 ## 배포
 
-1. 위 1~9·12·12-b·15·19·21·26이 끝났는지 표에서 확인하고, **2번의 배포 직전 필수 확인(기강 카톡방 1행)**을 다시 돌린다
+1. 위 1~9·12·12-b·15·19·21·26·27·28이 끝났는지 표에서 확인하고, **2번의 배포 직전 필수 확인(기강 카톡방 1행)**을 다시 돌린다
    (10·11·13·14·16·17·18은 배포 뒤여도 된다).
 2. PR #649 머지 → dev → main 배포.
 3. 배포 후 확인

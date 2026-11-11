@@ -1,5 +1,7 @@
 "use client";
 
+import { josa } from "@/lib/josa";
+import type { TeamCopy } from "@/lib/team-copy";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getKakaoChatPassword } from "@/app/actions/social/get-kakao-password";
@@ -46,9 +48,17 @@ function channelLinks(channels: TeamChannels) {
  *   번역투로 읽힌다. 기준점을 밝혀 "앱 밖"이라고 쓴다.
  * - **"가입한 기강인"은 겹말이다** — 기강인이면 이미 가입한 사람이고, "가입한"이 앱 가입인지
  *   채팅방 가입인지 되레 헷갈리게 만든다.
+ *
+ * 크루 이름·호칭은 팀 문구에서 온다(§lib/team-copy) — 기강은 「…기강 소식이… 기강인에게만…」 그대로.
  */
-export const SOCIAL_HELP_TEXT =
-  "앱 밖에서 기강 소식이 오가는 곳이에요. 오픈채팅 비밀번호는 기강인에게만 보여요.";
+export function socialHelpText(copy: Pick<TeamCopy, "crewName" | "memberNoun">): string {
+  return `앱 밖에서 ${copy.crewName} 소식이 오가는 곳이에요. 오픈채팅 비밀번호는 ${copy.memberNoun}에게만 보여요.`;
+}
+
+/** 채널 블록 머리 — 「기강이 모여 있는 곳」 / 「모보브가 모여 있는 곳」(전광판 판권면·더보기 공통) */
+export function socialLeadText(crewName: string): string {
+  return `${josa(crewName, "이/가")} 모여 있는 곳`;
+}
 
 /**
  * 비번 다이얼로그의 상태 — **한 값으로 든다.**
@@ -310,14 +320,21 @@ export function SocialTiles({
  * 더보기 최상단에도 같은 격자가 서지만(§`settings-client`) **여기를 걷어내지 않는다** —
  * 발견 채널을 둘로 두는 것이 목적이고, 판권면은 이 지면의 마감 장치이기도 하다.
  */
-export function SocialLinksGrid({ channels }: { channels: TeamChannels }) {
+export function SocialLinksGrid({
+  channels,
+  copy,
+}: {
+  channels: TeamChannels;
+  /** 팀 문구 — 크루 이름·호칭(§lib/team-copy) */
+  copy: Pick<TeamCopy, "crewName" | "memberNoun">;
+}) {
   if (listTeamChannels(channels).length === 0) return null;
   return (
     <div className="flex flex-col">
       <StoryZoneHeader
         label="Social"
-        lead="기강이 모여 있는 곳"
-        action={<HelpTip title="기강 채널">{SOCIAL_HELP_TEXT}</HelpTip>}
+        lead={socialLeadText(copy.crewName)}
+        action={<HelpTip title={`${copy.crewName} 채널`}>{socialHelpText(copy)}</HelpTip>}
       />
       <div className="pt-3">
         <SocialTiles channels={channels} />

@@ -8,6 +8,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, List, Share2 } from "lucide-re
 import { toast } from "sonner";
 
 import { buildWeeklyShareText } from "@/components/home/build-weekly-share-text";
+import type { CardCopy } from "@/lib/team-copy";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { COMPETITION_SELECT, toCompetition } from "@/lib/competition-row";
 import { buildRegistrationMap } from "@/lib/competition-registration";
@@ -173,6 +174,8 @@ export type CalendarRace = {
 };
 
 type MiniCalendarProps = {
+  /** 팀 문구 — 주간 일정 제목·공유 문구의 크루 이름, 모임 상세의 프로필 카드(§lib/team-copy) */
+  copy: CardCopy;
   gigangRaces: CalendarRace[];
   myRaces: CalendarRace[];
   schPosts: CalendarRace[];
@@ -223,6 +226,7 @@ export function MiniCalendar({
   weekStart,
   kakaoAnnounce,
   defaultGthrSprtCd,
+  copy,
 }: MiniCalendarProps) {
   const weekdays = useMemo(() => weekdayLabels(weekStart), [weekStart]);
   const supabase = useMemo(() => createClient(), []);
@@ -1225,6 +1229,7 @@ export function MiniCalendar({
       selectedDate.slice(0, 7) === viewMonth.slice(0, 7) ? selectedDate : viewMonth;
     const text = buildWeeklyShareText(
       [...myRaces, ...schPosts, ...gigangRaces, ...gatherings],
+      copy.crewName,
       window.location.origin,
       filterType,
       view === "calendar" ? calendarBase : today,
@@ -1730,7 +1735,7 @@ export function MiniCalendar({
         open={weeklyShareOpen}
         onOpenChange={setWeeklyShareOpen}
         headerTitle="주간 일정 공유하기"
-        title="이번 주 기강 일정"
+        title={`이번 주 ${copy.crewName} 일정`}
         timeLabel=""
         shareText={weeklyShareText}
       />
@@ -1773,6 +1778,7 @@ export function MiniCalendar({
       {/* 모임 상세 다이얼로그 */}
       <GatheringDetailDialog
         gathering={gthrDetailRace}
+        cardCopy={copy}
         open={gthrDetailOpen}
         onOpenChange={setGthrDetailOpen}
         teamId={teamId}

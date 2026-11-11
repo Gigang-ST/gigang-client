@@ -1,5 +1,6 @@
 "use client";
 
+import type { ProfileCopy } from "@/lib/team-copy";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -46,6 +47,7 @@ export function ProfileTabCard({
   maxRarityLevel,
   cmmCdRows,
   competitionRegisterMemberStatus,
+  copy,
 }: {
   memId: string;
   teamMemId: string;
@@ -61,6 +63,8 @@ export function ProfileTabCard({
   maxRarityLevel: number;
   cmmCdRows: CachedCmmCdRow[];
   competitionRegisterMemberStatus: MemberStatus;
+  /** 팀 문구 — 크루 이름·호칭·컨디션 이름표·전당 이름·워드마크(§lib/team-copy) */
+  copy: ProfileCopy;
 }) {
   const router = useRouter();
   const [collectionOpen, setCollectionOpen] = useState(false);
@@ -116,6 +120,7 @@ export function ProfileTabCard({
           point: card.stats.activity_score ?? 0,
           cancelCnt,
         }}
+        copy={copy}
       />
 
       <AvatarEditDialog
@@ -146,6 +151,7 @@ export function ProfileTabCard({
             currentFrameCd={card.frame_cd}
             maxRarityLevel={maxRarityLevel}
             memberName={card.mem_nm}
+            wordmark={copy.wordmark}
           />
 
           <TitleHistorySheet open={titleHistoryOpen} onOpenChange={setTitleHistoryOpen} />
@@ -160,6 +166,7 @@ export function ProfileTabCard({
         teamId={teamId}
         open={publicCardOpen}
         onOpenChange={setPublicCardOpen}
+        copy={copy}
       />
 
       <RaceRecordDialog
@@ -190,6 +197,7 @@ export function ProfileTabCard({
           setUtmbState(next);
           router.refresh();
         }}
+        hallName={copy.hallName}
       />
     </>
   );

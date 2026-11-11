@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { MileageRulesContent } from "./mileage-rules-content";
 
-export function MileageIntro() {
+export function MileageIntro({ crewName }: { crewName: string }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -22,7 +22,7 @@ export function MileageIntro() {
         <p className="text-sm text-muted-foreground leading-relaxed">
           🏃‍♂️ 러닝, 🚴 자전거, 🏊 수영 — 뭐든 좋아요!
           <br />
-          매월 나만의 목표를 세우고, 기강 크루와 함께 달려보세요.
+          매월 나만의 목표를 세우고, {crewName} 크루와 함께 달려보세요.
           <br />
           종목별 활동이 마일리지로 환산되어 달성률로 기록됩니다.
           <br />

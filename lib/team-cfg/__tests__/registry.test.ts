@@ -44,6 +44,12 @@ describe("다른 팀 값이 새면 안 되는 키 — 기본값이 비어 있다
     expect(resolveTeamCfgValue("social.kakao_open_chat_password", undefined)).toBeNull();
   });
 
+  it("크루 이름·링크 미리보기 문구도 행이 없으면 없음 — 새 팀 공유 카드에 「기강 러닝크루 | 양재천·강남」이 뜨지 않게", () => {
+    for (const cd of ["brand.name", "seo.title", "seo.title_suffix", "seo.description"] as const) {
+      expect(resolveTeamCfgValue(cd, undefined)).toBeNull();
+    }
+  });
+
   it("채널 주소가 URL 이 아니면 기본값(채널 없음)으로 물러난다", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(resolveTeamCfgValue("social.channels", { instagram: "not a url" })).toEqual({});

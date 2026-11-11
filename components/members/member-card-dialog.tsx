@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Body, Caption } from "@/components/common/typography";
 import { MemberCardDetail } from "@/components/members/member-card-detail";
+import type { CardCopy } from "@/lib/team-copy";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -81,7 +82,15 @@ export interface MemberCardDialogProps {
   onOpenChange: (open: boolean) => void;
   /** 다른 다이얼로그 위에 열릴 때 z-index를 올린다 */
   stacked?: boolean;
+  /**
+   * 팀 문구 — 크루 이름·호칭·컨디션 이름표(§lib/team-copy). 카드를 여는 화면의 서버 페이지가 `getTeamCopy()`로 내려 준다.
+   * 카드 함수(RPC)는 팀 문구를 모르므로 여기서 받는다.
+   */
+  copy: CardCopy;
 }
+
+/** 카드가 쓰는 팀 문구 — 정의는 `lib/team-copy.ts`(서버가 `CARD_COPY_KEYS` 로 골라 넘긴다) */
+export type { CardCopy } from "@/lib/team-copy";
 
 export function MemberCardDialog({
   memId,
@@ -90,6 +99,7 @@ export function MemberCardDialog({
   open,
   onOpenChange,
   stacked = false,
+  copy,
 }: MemberCardDialogProps) {
   const supabase = useMemo(() => createClient(), []);
   const [state, setState] = useState<KeyedState>({
@@ -217,6 +227,7 @@ export function MemberCardDialog({
               // 확인 전(null)에는 가리지 않는다 — 잠깐 가렸다 열리면 깜빡임으로 보인다.
               // 비로그인으로 확정됐을 때만 실적 존을 덮는다.
               locked={loggedIn === false}
+              copy={copy}
             />
           )}
 
@@ -225,7 +236,7 @@ export function MemberCardDialog({
               <Body className="font-semibold">
                 {memNm ? `${memNm}님` : "이 멤버"}은 함께 달렸던 멤버예요
               </Body>
-              <Caption>지금은 기강에서 활동하고 있지 않아요.</Caption>
+              <Caption>지금은 {copy.crewName}에서 활동하고 있지 않아요.</Caption>
             </div>
           )}
 

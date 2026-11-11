@@ -1,3 +1,4 @@
+import { GIGANG_COPY } from "@/lib/__fixtures__/team-copy";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -77,6 +78,7 @@ const DATA = {
 function render(overrides: Partial<Parameters<typeof RecordsClient>[0]> = {}) {
   return renderToStaticMarkup(
     createElement(RecordsClient, {
+      copy: GIGANG_COPY,
       data: DATA,
       myTitleNames: [],
       myMemId: ME,

@@ -1,5 +1,6 @@
 import { parseEventTime, secondsToTime, todayStartKST } from "@/lib/dayjs";
 import { MOOD_SCALE, type MoodLevel } from "@/lib/mood-scale";
+import type { TeamCopy } from "@/lib/team-copy";
 import { visibleRecordCategories } from "@/lib/records-categories";
 import {
   JOIN_PURP_LABELS,
@@ -38,9 +39,12 @@ export type ActivityMood = {
 
 export { MOOD_STEPS } from "@/lib/mood-scale";
 
-/** 단계 키 + 한마디 → 컨디션. 라벨·칸수는 공유 척도에서 가져온다(어휘 드리프트 방지) */
-function mood(level: MoodLevel, message: string): ActivityMood {
-  return { level, ...MOOD_SCALE[level], message };
+/** 컨디션 말 — 단계 이름표와 한마디는 팀마다 다르다(기강은 「기강」 말장난, 그 밖 중립 — `lib/team-copy.ts`) */
+export type MoodWords = Pick<TeamCopy, "moodLabels" | "cardMood">;
+
+/** 단계 키 + 한마디 → 컨디션. 칸수는 공유 척도, 이름표는 팀 문구에서 가져온다 */
+function mood(level: MoodLevel, label: string, message: string): ActivityMood {
+  return { level, label, ...MOOD_SCALE[level], message };
 }
 
 /**
@@ -51,14 +55,16 @@ function mood(level: MoodLevel, message: string): ActivityMood {
  *
  * @param recentCount 최근 90일 모임 참석 + 대회 기록 건수
  * @param lastActvDt  마지막 활동일(YYYY-MM-DD). 없으면 활동 이력 자체가 없음
+ * @param words       그 팀 이름표·한마디(`TeamCopy`)
  */
 export function getActivityMood(
   recentCount: number,
   lastActvDt: string | null,
+  words: MoodWords,
 ): ActivityMood {
-  if (recentCount >= 10) return mood("blazing", "내가 곧 기강의 기준");
-  if (recentCount >= 6) return mood("steady", "슬슬 기강 좀 잡아볼까");
-  if (recentCount >= 1) return mood("resting", "기강에 관심이 생기는 정도");
+  if (recentCount >= 10) return mood("blazing", words.moodLabels.blazing, words.cardMood.blazing);
+  if (recentCount >= 6) return mood("steady", words.moodLabels.steady, words.cardMood.steady);
+  if (recentCount >= 1) return mood("resting", words.moodLabels.resting, words.cardMood.resting);
 
   // 90일간 활동 0 — 이력이 아예 없는 신규와 오래 쉰 멤버를 구분한다.
   // 날짜 차이는 **양쪽 다 KST**로 맞춘다 — 한쪽만 고치면 여전히 어긋난다(§lib/dayjs nowKST).
@@ -68,6 +74,7 @@ export function getActivityMood(
 
   return mood(
     "dormant",
+    words.moodLabels.dormant,
     days == null ? "첫 발자국을 기다리는 중" : `${days}일째 실종… 수배 중`,
   );
 }

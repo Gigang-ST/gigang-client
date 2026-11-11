@@ -31,6 +31,8 @@ import {
   type PersonProfilePerson,
 } from "@/components/story/person-profile";
 import { RecordReelViewer } from "@/components/story/record-reel-viewer";
+import { josa } from "@/lib/josa";
+import type { StoryCopy } from "@/lib/team-copy";
 import { StoryReactionButton } from "@/components/story/story-reaction-button";
 import {
   Popover,
@@ -90,26 +92,11 @@ const WINDOW_DAYS = 30;
 const BUMP_STORE_KEY = "gigang:story:my-bumps";
 
 /**
- * 활동지수 슬롯(§④) 헤드라인 멘트 — `{name}`이 대표 이름으로 치환된다.
- * 한 바퀴마다 대표(actvPick)와 함께 굴러 매번 다른 문구가 걸린다(같은 pick으로 묶어 자연스럽게).
- * "요즘 제일 뜨거운" 결을 살린 캐주얼 톤. 활동량 수치는 말하지 않는다(히든 운영).
+ * 활동지수 슬롯(§④) 헤드라인 멘트는 팀 문구(`TeamCopy.actvHeadlines`, §lib/team-copy)로 옮겼다 — `{name}`이 대표 이름으로
+ * 치환된다. 헤드라인 번호(`headlinePick`)는 **대표(actvPick)와 따로** 굴린다 — 대표 번호는 상위 3명 중 하나(0~2)라
+ * 그걸 그대로 쓰면 14줄 중 앞 3줄만 나왔다(리뷰 2026-11-11). 한 바퀴마다 둘 다 새로 뽑는다.
+ * 「기강을 혼자 다 잡았다」 같은 「기강」(규율) 말장난 줄은 기강에만 붙는다.
  */
-const ACTV_HEADLINES = [
-  "{name}, 요즘 제일 뜨겁다",
-  "{name}, 지칠 줄을 모른다",
-  "{name}, 이번 달 기강의 기준",
-  "{name}, 오늘도 달리고 있다",
-  "{name}, 두 발이 쉬질 않는다",
-  "이번 달, {name}의 심장은 쉬지 않았다",
-  "{name}, 심장에 모터라도 달았나",
-  "이번 달 가장 뜨거운 심장, {name}",
-  "쉬는 법을 잊은 사람, {name}",
-  "{name}, 이번 달 기강을 혼자 다 잡았다",
-  "아무도 못 말린다, 이번 달 {name}",
-  "{name}, 이번 달 러닝화 밑창 갈아치울 기세",
-  "이번 달 기강의 심박수는 {name} 담당",
-  "{name}, 이번 달 기강의 페이스메이커",
-];
 
 type Person = { mem_id: string; mem_nm: string; avatar_url: string | null };
 
@@ -325,6 +312,8 @@ function buildLedes(
   actvPick: number,
   /** 기록자랑 칸에 실을 인덱스(§⑥) */
   postPick: number,
+  /** 활동지수 헤드라인 번호(§④) — 대표와 따로 굴린다 */
+  headlinePick: number,
   /** 칭호획득 — 최근 30일 수여를 칭호별 묶음으로(§⑦) */
   grants: RecentTitleRow[],
   /** 칭호획득 대표 회전 오프셋(§⑦) — 한 바퀴마다 +1 전진(lib/story-title.ts의 pickTitleLead) */
@@ -333,6 +322,8 @@ function buildLedes(
   myMemId: string | null,
   /** 끝난 마일리지런 시즌 — 종료 후 30일 동안만 온다(§⓪). 없으면 null */
   recap: RecapTeaser | null,
+  /** 팀 문구 — 크루 이름·호칭·말투(§lib/team-copy) */
+  copy: StoryCopy,
 ): Lede[] {
   const ledes: Lede[] = [];
 
@@ -423,7 +414,7 @@ function buildLedes(
       headline: race.comp_nm,
       // 대회명을 누르면 상세로 — short_id가 있으면 그걸 쓴다(공유 링크와 같은 형태).
       headlineHref: `/schedule?comp=${race.short_id ?? race.comp_id}`,
-      standfirst: `${dayjs(race.stt_dt).format("M월 D일")}, 기강인 ${runnerCnt}명이 출발선에 선다`,
+      standfirst: `${dayjs(race.stt_dt).format("M월 D일")}, ${copy.memberNoun} ${runnerCnt}명이 출발선에 선다`,
       figure: getRaceDday(race.stt_dt),
       figureLabel: null,
       raceRoster: roster,
@@ -450,7 +441,7 @@ function buildLedes(
       // 사람·수치·레일은 아래 newbie 전용 렌더가 통째로 그린다.
       people: [],
       moreCount: 0,
-      headline: `${newbieLead.mem_nm}, 기강에 합류하다`,
+      headline: `${newbieLead.mem_nm}, ${copy.crewName}에 합류하다`,
       standfirst: "",
       figure: null,
       figureLabel: null,
@@ -578,7 +569,7 @@ function buildLedes(
     const lead = actvRank[leadIdx];
     ledes.push({
       key: `actv-${lead.mem_id}`,
-      kicker: "이번 달 기강 잡는",
+      kicker: copy.actvKicker,
       hero: "headline",
       // 응원 대상은 이 대표 멤버 — entity_type "actv" + mem_id로 무한 응원(🔥 대박)을 받는다.
       // 피드 캐시엔 이 응원 수가 없어(actv는 원천 테이블이 아니다) 하한 0에서 시작하고,
@@ -588,7 +579,7 @@ function buildLedes(
       people: [],
       moreCount: 0,
       // 명조 헤드라인 — 여러 멘트 중 하나(대표와 같은 actvPick으로 골라 한 바퀴마다 함께 굴린다).
-      headline: ACTV_HEADLINES[actvPick % ACTV_HEADLINES.length].replace(
+      headline: copy.actvHeadlines[headlinePick % copy.actvHeadlines.length].replace(
         "{name}",
         lead.mem_nm,
       ),
@@ -650,7 +641,7 @@ function buildLedes(
       key: `post-${post.post_id}`,
       // "운동 기록"은 딱딱해 친목 러닝크루 톤에 안 맞는다 — "오늘, 기강은"으로 서술체.
       // 오늘 기강 회원이 이렇게 달렸다는 이야기가 사진·한마디로 이어지는 결.
-      kicker: "오늘, 기강은",
+      kicker: `오늘, ${josa(copy.crewName, "은/는")}`,
       hero: "photo",
       // 기록 자랑도 응원을 받는다(🔥 대박) — 사진까지 올려 내놓은 기록이라 응원받기 가장
       // 자연스러운 자리인데, 예전엔 이 슬롯만 응원이 없어 3밴드 footer 오른쪽이 비었다.
@@ -708,7 +699,7 @@ function buildLedes(
     ledes.push({
       // 대표가 바뀌면 key도 바뀌어 슬롯 진입 모션이 다시 돈다(다른 슬롯과 같은 동작).
       key: `title-${lead.person.mem_id}`,
-      kicker: "기강에 새 역사를 쓰다",
+      kicker: `${copy.crewName}에 새 역사를 쓰다`,
       hero: "headline",
       // 응원 대상은 대표 멤버 — 활동지수·목표 슬롯과 같은 멤버 기준 카운터(actv).
       // 피드 캐시엔 이 응원 수가 없어 하한 0에서 시작한다(활동지수 슬롯과 동일).
@@ -793,12 +784,14 @@ export function StoryLede({
   initialNewbiePick,
   initialRecordPick,
   initialActvPick,
+  initialHeadlinePick,
   initialPostPick,
   onSelectMember,
   teamId,
   myMemId,
   me,
   recap,
+  copy,
 }: {
   feed: StoryFeed;
   /** 응원 집계 (모두의 총합 + 내 몫) — 응원 버튼 카운트 보정용 */
@@ -813,6 +806,8 @@ export function StoryLede({
   initialNewbiePick: number;
   initialRecordPick: number;
   initialActvPick: number;
+  /** 활동지수 헤드라인 진입 번호 — 서버가 헤드라인 수 안에서 뽑는다 */
+  initialHeadlinePick: number;
   initialPostPick: number;
   onSelectMember: (memId: string, name: string) => void;
   /** 아래 릴스 뷰어(운동기록 슬롯의 사진 탭)의 댓글에 넘긴다 */
@@ -821,6 +816,8 @@ export function StoryLede({
   me: { id: string; name: string; avatarUrl: string | null } | null;
   /** 끝난 마일리지런 시즌 — 종료 후 30일 동안만 맨 앞 칸(§⓪). 없으면 null */
   recap: RecapTeaser | null;
+  /** 팀 문구(§lib/team-copy) */
+  copy: StoryCopy;
 }) {
   // 모든 랜덤 슬롯의 pick — 서버가 뽑은 초기값에서 출발한다(첫 화면부터 랜덤·하이드레이션
   // 안전). 렌더 중 Math.random()을 부르면 서버·클라가 다른 걸 골라 하이드레이션이 깨진다.
@@ -830,6 +827,7 @@ export function StoryLede({
   const [recordPick, setRecordPick] = useState(initialRecordPick);
   const [actvPick, setActvPick] = useState(initialActvPick);
   const [postPick, setPostPick] = useState(initialPostPick);
+  const [headlinePick, setHeadlinePick] = useState(initialHeadlinePick);
   const [titlePick, setTitlePick] = useState(initialTitlePick);
   const ledes = buildLedes(
     feed,
@@ -839,10 +837,12 @@ export function StoryLede({
     recordPick,
     actvPick,
     postPick,
+    headlinePick,
     grants,
     titlePick,
     myMemId,
     recap,
+    copy,
   );
   const total = ledes.length;
 
@@ -972,10 +972,11 @@ export function StoryLede({
     setRecordPick((n) => n + 1 + Math.floor(Math.random() * 3));
     setActvPick(() => pickActvLeadIndex(feed.actv_rank.length));
     setPostPick(() => pickRandomPostIndex(posts.length));
+    setHeadlinePick(() => pickRandomPostIndex(copy.actvHeadlines.length));
     // 칭호는 랜덤 재추첨이 아니라 **대표 전진**이다 — +1로 획득자 전원이 돌아가며
     // 대표가 된다(§lib/story-title.ts pickTitleLead).
     setTitlePick((n) => n + 1);
-  }, [feed.actv_rank.length, posts.length]);
+  }, [feed.actv_rank.length, posts.length, copy.actvHeadlines.length]);
 
   /**
    * 손이 닿았다 — 4초 완전히 멈췄다가 게이지를 처음부터 다시 굴린다(총 8초 뒤 다음 장).
@@ -1237,7 +1238,7 @@ export function StoryLede({
   return (
     <section
       ref={sectionRef}
-      aria-label="오늘의 기강"
+      aria-label={`오늘의 ${copy.crewName}`}
       onPointerDown={(e) => {
         dragStart.current = { x: e.clientX, y: e.clientY };
       }}
@@ -2031,6 +2032,7 @@ export function StoryLede({
         myMemId={myMemId}
         myName={me?.name}
         myAvatarUrl={me?.avatarUrl}
+        copy={copy}
       />
     </section>
   );

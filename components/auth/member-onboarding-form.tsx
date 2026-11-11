@@ -1,5 +1,7 @@
 "use client";
 
+import { josa } from "@/lib/josa";
+import type { OnboardingCopy } from "@/lib/team-copy";
 import { useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
@@ -70,6 +72,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 
 type MemberOnboardingFormProps = {
+  /** 팀 문구 — 크루 이름·설치 안내 제목(§lib/team-copy) */
+  copy: OnboardingCopy;
   userId: string;
   provider: "kakao" | "google";
   email?: string | null;
@@ -132,6 +136,7 @@ export function MemberOnboardingForm({
   gatherings,
   existingPerson = null,
   otherTeams = [],
+  copy,
 }: MemberOnboardingFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -306,7 +311,7 @@ export function MemberOnboardingForm({
   const validatePurpose = () => {
     const errors: typeof purposeErrors = {};
     if (!wizardProfile.joinSrcCd) {
-      errors.joinSrcCd = "기강을 어떻게 알게 되셨는지 선택해 주세요.";
+      errors.joinSrcCd = `${josa(copy.crewName, "을/를")} 어떻게 알게 되셨는지 선택해 주세요.`;
     } else if (
       wizardProfile.joinSrcCd === "ETC" &&
       !wizardProfile.joinSrcTxt.trim()
@@ -404,10 +409,10 @@ export function MemberOnboardingForm({
     const paceMsg = !wizardProfile.avgPaceCd
       ? "페이스는 같이 뛰다 보면 금방 알게 돼요.\n잘 오셨어요!"
       : wizardProfile.avgPaceCd === "P730_OVER"
-        ? "슬로우러닝 환영이에요.\n기강은 같이 달리는 게 전부예요 🙌"
+        ? `슬로우러닝 환영이에요.\n${josa(copy.crewName, "은/는")} 같이 달리는 게 전부예요 🙌`
         : wizardProfile.avgPaceCd === "UNKNOWN"
           ? "페이스는 같이 뛰다 보면 금방 알게 돼요.\n잘 오셨어요!"
-          : `${PACE_LABELS[wizardProfile.avgPaceCd]} 페이스요? 기강이랑 딱 맞는 속도예요.\n첫 모임에서 봬요 🔥`;
+          : `${PACE_LABELS[wizardProfile.avgPaceCd]} 페이스요? ${josa(copy.crewName, "이랑/랑")} 딱 맞는 속도예요.\n첫 모임에서 봬요 🔥`;
 
     // 참석 확정이든 대기 등록이든 "그 모임"을 찾아 이름·날짜를 보여준다 —
     // 갈리는 건 아래 문구뿐이다. 대기는 실패가 아니라서 마감 안내로 밀지 않는다.
@@ -440,7 +445,7 @@ export function MemberOnboardingForm({
             <div className="text-center">
               <h3 className="text-2xl font-bold">가입 완료! 🎉</h3>
               <p className="mt-1.5 text-sm text-muted-foreground">
-                기강에 오신 것을 환영합니다.
+                {copy.crewName}에 오신 것을 환영합니다.
               </p>
               <p className="mt-3 whitespace-pre-line text-sm font-medium text-foreground">
                 {paceMsg}
@@ -479,7 +484,7 @@ export function MemberOnboardingForm({
               </div>
             ) : null}
 
-            <AppTabsGuide />
+            <AppTabsGuide crewName={copy.crewName} />
 
             <div className="flex w-full flex-col gap-2">
               {kakaoOpenChatUrl ? (
@@ -498,7 +503,7 @@ export function MemberOnboardingForm({
               >
                 일정 보러 가기
               </Link>
-              <PwaInstallPrompt variant="inline" />
+              <PwaInstallPrompt variant="inline" title={copy.installPromptTitle} />
               <Link
                 href="/profile/bank"
                 className="text-center text-xs font-medium text-muted-foreground underline"
@@ -665,7 +670,7 @@ export function MemberOnboardingForm({
                 ref={joinSrcSectionRef}
                 className="flex flex-col gap-2 scroll-mt-6"
               >
-                <Label>기강은 어떻게 알게 되셨어요?</Label>
+                <Label>{josa(copy.crewName, "은/는")} 어떻게 알게 되셨어요?</Label>
                 <div className="flex flex-wrap gap-2">
                   {JOIN_SRC_CODES.map((code) => (
                     <Chip
@@ -706,7 +711,7 @@ export function MemberOnboardingForm({
                 ref={joinPurpSectionRef}
                 className="flex flex-col gap-2 scroll-mt-6"
               >
-                <Label>기강에서 뭘 하고 싶으세요?</Label>
+                <Label>{copy.crewName}에서 뭘 하고 싶으세요?</Label>
                 <div className="flex flex-wrap gap-2">
                   {JOIN_PURP_CODES.map((code) => {
                     const selected = wizardProfile.joinPurpCds.includes(code);
