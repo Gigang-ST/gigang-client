@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { buildRequestOrigin, pickRequestHost } from "@/lib/request-origin";
 import { resolveTeamContextFromHost } from "@/lib/queries/request-team";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
+import { safeNextPath } from "@/lib/safe-redirect";
 
 function readCookie(rawCookie: string | null, key: string) {
   if (!rawCookie) return null;
@@ -43,9 +44,7 @@ export async function GET(request: Request) {
   const cookieNext = readCookie(request.headers.get("cookie"), "oauth_next");
   const defaultNext = flow === "link" ? "/profile" : "/onboarding";
   const nextCandidate = nextParam ?? cookieNext;
-  const next = nextCandidate?.startsWith("/") && !nextCandidate.startsWith("//")
-    ? nextCandidate
-    : defaultNext;
+  const next = safeNextPath(nextCandidate, defaultNext);
 
   if (code) {
     const supabase = await createClient();
