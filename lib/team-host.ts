@@ -70,14 +70,45 @@ export function resolveTeamCdFromHost(host: string | null | undefined): string |
   return null;
 }
 
+/** 이 팀으로 판정되는 정확한 주소들(포트 없음) — 미리보기 접미사 규칙은 빠진다 */
+export function hostsOfTeam(teamCd: string): string[] {
+  return Object.keys(TEAM_CD_BY_HOST).filter((h) => TEAM_CD_BY_HOST[h] === teamCd);
+}
+
+/**
+ * `/manifest.webmanifest` 를 **그 팀 manifest 로** 돌린다 — `next.config.ts` 의 `redirects()` 가 쓴다(#658).
+ *
+ * 루트 `public/manifest.webmanifest` 는 기강 것이다(이미 설치된 기강 앱이 그 주소를 들고 있어 옮기지 않는다 — `lib/team-site.ts`).
+ * 화면은 `<link rel="manifest">` 로 각 팀 파일을 가리키니 실사용엔 영향이 없지만, 울산 주소로 이 경로를 **직접** 열면 기강 이름·아이콘이
+ * 나왔다. 정적 파일이라 proxy 를 안 타므로(matcher 제외) 주소 조건 리다이렉트로 돌린다. 팀 파일 자리는 `/teams/<팀 코드>/` 약속을
+ * 따르고, 그 약속은 테스트가 `TEAM_SITE` 와 대조한다(`lib/__tests__/team-host.test.ts`). 기강 주소는 손대지 않는다.
+ */
+export function teamManifestRedirects() {
+  const teams = new Set(Object.values(TEAM_CD_BY_HOST).filter((cd) => cd !== "gigang"));
+  return [...teams].flatMap((teamCd) =>
+    hostsOfTeam(teamCd).map((host) => ({
+      source: "/manifest.webmanifest",
+      has: [{ type: "host" as const, value: host }],
+      destination: `/teams/${teamCd}/manifest.webmanifest`,
+      permanent: false,
+    })),
+  );
+}
+
 /**
  * 한 팀 전용 화면 → 그 화면의 주인 팀. 다른 팀 주소로 들어오면 그 팀의 홈(`/`)으로 보낸다.
  *
- * `/intro`는 서울 기강 전용 랜딩이다 — 사진·구호가 기강 것이라 팀별 문구로 바꾸지 않는다(2026-11-15 결정).
+ * - `/intro`는 서울 기강 전용 랜딩이다 — 사진·구호가 기강 것이라 팀별 문구로 바꾸지 않는다(2026-11-15 결정).
+ * - `/join`(크루 소개)·`/rules`(회칙)는 본문 전체가 기강 운영 내용이다 — 양재천·영동2교 집결, 단장 연락처, 86년생 나이 제한,
+ *   회비. 다른 팀 운영 내용은 아직 없어 지어낼 수 없으므로 그 팀 주소에선 홈으로 보낸다(#658). 더보기 「○○ 소개」 줄도
+ *   이 표를 보고 숨는다(`app/(info)/settings/page.tsx`), 사이트맵도 이 표로 거른다(`app/sitemap.ts`).
+ *   그 팀 소개를 만들게 되면 여기서 빼고 지면을 팀별로 나눈다.
  * proxy에서 쓰므로 순수 문자열 비교만 한다(이 파일 머리 주석과 같은 이유).
  */
 const TEAM_ONLY_PATHS: Readonly<Record<string, string>> = {
   "/intro": "gigang",
+  "/join": "gigang",
+  "/rules": "gigang",
 };
 
 /** 이 팀이 이 화면을 못 여는가 → 보낼 곳(`/`). 열 수 있으면 `null`. 끝 `/` 붙은 주소도 같은 화면으로 본다. */

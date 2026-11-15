@@ -6,6 +6,7 @@ import {
   pageDescription,
   pickTeamCopy,
   type PageDescriptionKey,
+  withCrewPhrase,
 } from "@/lib/team-copy";
 
 const gigang = buildTeamCopy({ teamCd: "gigang", crewName: "기강", memberNoun: "기강인", wordmark: "GIGANG" });
@@ -149,5 +150,15 @@ describe("pickTeamCopy — 화면별로 필요한 칸만 넘긴다", () => {
     expect(Object.keys(card).sort()).toEqual([...CARD_COPY_KEYS].sort());
     expect(card).not.toHaveProperty("actvHeadlines");
     expect(card.memberNoun).toBe("기강인");
+  });
+});
+
+describe("withCrewPhrase — 「{이름} 크루와」 (#658)", () => {
+  it("이름 뒤에 「크루와」, 이름이 이미 「크루」로 끝나면 조사만", () => {
+    expect(withCrewPhrase("기강")).toBe("기강 크루와");
+    expect(withCrewPhrase("모보브")).toBe("모보브 크루와");
+    expect(withCrewPhrase("크루")).toBe("크루와");
+    expect(withCrewPhrase("모보브 크루")).toBe("모보브 크루와");
+    expect(withCrewPhrase("  ")).toBe("크루와");
   });
 });

@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 import { execSync } from "child_process";
 import bundleAnalyzer from "@next/bundle-analyzer";
 
+import { teamManifestRedirects } from "./lib/team-host";
+
 function getGitVersion(): string {
   try {
     return execSync("git describe --tags --abbrev=0", { encoding: "utf-8" }).trim();
@@ -57,6 +59,8 @@ const nextConfig: NextConfig = {
         destination: "https://gigang.team/:path*",
         permanent: true,
       },
+      // 기강 아닌 팀 주소의 `/manifest.webmanifest` → 그 팀 파일(정적 파일이라 proxy 를 안 탄다, §lib/team-host)
+      ...teamManifestRedirects(),
     ];
   },
 };

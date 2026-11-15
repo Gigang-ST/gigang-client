@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/sheet";
 import { MileageRulesContent } from "./mileage-rules-content";
 
-export function MileageRulesButton() {
+export function MileageRulesButton({ crewName }: { crewName: string }) {
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -27,7 +27,7 @@ export function MileageRulesButton() {
         <SheetHeader>
           <SheetTitle>마일리지런 규칙</SheetTitle>
         </SheetHeader>
-        <MileageRulesContent />
+        <MileageRulesContent crewName={crewName} />
       </SheetContent>
     </Sheet>
   );

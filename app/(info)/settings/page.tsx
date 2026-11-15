@@ -6,6 +6,7 @@ import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getTeamCopy } from "@/lib/queries/team-copy";
 import { SETTINGS_COPY_KEYS, pickTeamCopy } from "@/lib/team-copy";
 import { getTeamCfg } from "@/lib/team-cfg/read";
+import { teamOnlyPathRedirect } from "@/lib/team-host";
 import { getTeamChannels } from "@/lib/team-social";
 import { WEEK_START_COOKIE, parseWeekStart } from "@/lib/week-start";
 import { SettingsClient } from "@/components/settings/settings-client";
@@ -22,7 +23,7 @@ const DUES_DOT_MIN_UNPAID = 4000;
 
 export default async function SettingsPage() {
   const { user, member, supabase } = await getCurrentMember();
-  const { teamId } = await getRequestTeamContext();
+  const { teamId, teamCd } = await getRequestTeamContext();
   const isAdmin = member?.admin ?? false;
 
   // 현재 시작 요일은 서버가 읽어 내려준다 — 컨트롤이 첫 렌더부터 실제 값을 켠 채로 뜬다.
@@ -70,6 +71,7 @@ export default async function SettingsPage() {
       boardUnread={boardUnread}
       duesEnabled={duesEnabled}
       duesUnpaid={(balSnapRes.data?.bal_amt ?? 0) <= -DUES_DOT_MIN_UNPAID}
+      showCrewIntro={teamOnlyPathRedirect("/join", teamCd) === null}
       weekStart={weekStart}
       channels={channels}
       copy={pickTeamCopy(copy, SETTINGS_COPY_KEYS)}

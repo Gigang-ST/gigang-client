@@ -23,7 +23,15 @@ describe("teamOnlyPathRedirect", () => {
     expect(teamOnlyPathRedirect("/intro/", "ulsan")).toBe("/");
   });
 
+  // 크루 소개·회칙은 본문이 기강 운영 내용이라 기강 전용(#658)
+  it.each(["/join", "/rules", "/join/"])("%s 도 기강 전용 — 기강은 열고 다른 팀은 홈으로", (path) => {
+    expect(teamOnlyPathRedirect(path, "gigang")).toBeNull();
+    expect(teamOnlyPathRedirect(path, "ulsan")).toBe("/");
+  });
+
   it("전용 화면이 아니면 손대지 않는다", () => {
+    expect(teamOnlyPathRedirect("/newbie", "ulsan")).toBeNull();
+    expect(teamOnlyPathRedirect("/joined", "ulsan")).toBeNull();
     expect(teamOnlyPathRedirect("/", "ulsan")).toBeNull();
     expect(teamOnlyPathRedirect("/introduce", "ulsan")).toBeNull();
     expect(teamOnlyPathRedirect("/constructor", "ulsan")).toBeNull();

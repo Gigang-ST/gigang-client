@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { hostFamily, normalizeHost, resolveTeamCdFromHost, teamHostBootScript, teamLinkOrigin } from "@/lib/team-host";
+import { hostFamily, normalizeHost, resolveTeamCdFromHost, teamHostBootScript, teamLinkOrigin, teamManifestRedirects } from "@/lib/team-host";
+import { TEAM_SITE } from "@/lib/team-site";
 import { resolveTeamContextFromHost } from "@/lib/queries/request-team";
 import { TEAM_ID_BY_CD } from "@/lib/constants/gigang-team";
 
@@ -170,5 +171,28 @@ describe("teamHostBootScript — 첫 페인트 전 팀 판정이 서버 판정�
   ];
   it.each(hosts)("%s", (host) => {
     expect(bootTeam(host)).toBe(resolveTeamCdFromHost(host));
+  });
+});
+
+describe("teamManifestRedirects — 기강 아닌 팀 주소의 /manifest.webmanifest (#658)", () => {
+  const redirects = teamManifestRedirects();
+
+  it("울산 주소는 울산 manifest 로, 기강 주소는 손대지 않는다", () => {
+    const hosts = redirects.map((r) => r.has[0].value);
+    expect(hosts).toEqual(expect.arrayContaining(["ulsan.gigang.team", "dev.ulsan.gigang.team", "ulsan.localhost"]));
+    expect(hosts).not.toContain("gigang.team");
+    expect(hosts).not.toContain("localhost");
+    for (const r of redirects) {
+      expect(r.source).toBe("/manifest.webmanifest");
+      expect(r.permanent).toBe(false);
+    }
+  });
+
+  it("목적지는 그 팀 사이트 표(TEAM_SITE)의 manifest 와 같다", () => {
+    for (const r of redirects) {
+      const teamCd = resolveTeamCdFromHost(r.has[0].value);
+      expect(teamCd).not.toBeNull();
+      expect(r.destination).toBe(TEAM_SITE[teamCd!].manifest);
+    }
   });
 });
