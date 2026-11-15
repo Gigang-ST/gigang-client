@@ -18,7 +18,7 @@
 | 7 | 기강 포인트 팀별 적립·회수 | `20261109170000_points_per_team.sql` | ✅ | ✅ |
 | 8 | 울산 시작 준비(배치 팀별 유일 조건·가입 정보 팀별·셀프 가입 active 고정 — 울산 배치·칭호는 안 만든다) | `20261109180000_team_start_ready.sql` | ✅ | ✅ |
 | 9 | 팀 설정 나머지(이펙트 팀별·회비 분류 팀 칸·기강 계좌/채널 등록) | `20261109190000_team_settings.sql` | ✅ | ✅ |
-| 10 | 기강 오픈채팅 비밀번호를 팀 설정에 등록 | (아래 SQL — 사람이 직접) | ☐ | ☐ |
+| 10 | 기강 오픈채팅 비밀번호를 팀 설정에 등록 | (아래 SQL — 사람이 직접) | ✅ | ✅ (2026-11-15, 화면 값과 일치 확인) |
 | 11 | 캐시 무효화 웹훅에 팀 싣기 | `20261109200000_revalidate_webhook_team.sql` | ✅ | ✅ |
 | 12 | 건의 팀별 | `20261109210000_fdbk_team.sql` | ✅ | ✅ |
 | 12-b | 건의 팀별 조회 인덱스 — **단독 실행**(CONCURRENTLY) | `20261109210500_fdbk_team_index.sql` | ✅ | ✅ (execute_sql 로 `CREATE INDEX` 한 문장만, 이력 행은 직접) |
@@ -255,9 +255,8 @@ insert into public.team_cfg (team_id, cfg_cd, cfg_val_json)
 values ('c0ffee00-0000-4000-8000-000000000001', 'social.kakao_open_chat_password', to_jsonb('여기에_비밀번호'::text));
 ```
 
-> ⚠️ **전환 분기를 지우기 전까지는 비워도 안 사라진다.** 팀 설정 화면에서 이 값을 비우면(되돌리기) 안내 문구
-> 「비우면 비밀번호 안내가 안 보여요」와 달리 **환경변수의 예전 비밀번호가 다시 보인다.** 이 행을 넣은 뒤
-> 「배포 후 정리」의 전환 분기·환경변수 삭제까지 끝내야 문구와 동작이 맞는다.
+> 2026-11-15: dev·prd 둘 다 행을 넣었고, 전환 분기와 `KAKAO_CHAT_PASSWORD`(코드)를 걷었다. 이제 비우면 정말로 안 보인다
+> (안내 문구와 동작이 같다). Vercel 환경변수 `KAKAO_CHAT_PASSWORD` 는 남아 있어도 읽지 않는다 — 지울 것.
 
 ### 11. `20261109200000_revalidate_webhook_team.sql`
 
@@ -542,8 +541,8 @@ left join team_cfg c on c.team_id = t.team_id and c.cfg_cd = 'brand.member_noun'
   ```
   그 뒤 admin 은 owner 가 관리자 화면에서 지정한다.
 - 운영·dev Vercel 환경변수 `KAKAO_ROOM_ID`·`KAKAO_ROOM` 삭제 — 더 이상 읽지 않는다(남아 있어도 무시된다).
-- 10번(기강 오픈채팅 비밀번호 행)을 넣은 뒤: `lib/team-social.ts` 의 기강 전환 분기와 `lib/env.ts` 의
-  `KAKAO_CHAT_PASSWORD`, Vercel 환경변수 `KAKAO_CHAT_PASSWORD` 를 지운다.
+- ~~10번 뒤 전환 분기·`lib/env.ts` 의 `KAKAO_CHAT_PASSWORD` 삭제~~ — 코드는 걷었다(2026-11-15). 남은 건 Vercel 환경변수
+  `KAKAO_CHAT_PASSWORD` 삭제뿐(운영·dev, 팀 계정 필요).
 - 가입 정보 옮기기를 다시 돌린 뒤(위) `mem_onbd_prf` 의 옛 칸 6개(`join_purp_cds`·`join_purp_txt`·`join_src_cd`·
   `join_src_txt`·`attd_pldg_at`·`pldg_gthr_id`)를 지우는 마이그레이션을 따로 낸다. 남아 있는 동안은 다른 팀 관리자가
   두 팀 소속자의 옛 가입 경로를 볼 수 있다(`mem_onbd_prf_select_team_admin` — 지금은 해당자 1명).
