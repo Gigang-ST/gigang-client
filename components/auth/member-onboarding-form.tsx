@@ -70,6 +70,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { safeNextPath } from "@/lib/safe-redirect";
 
 type MemberOnboardingFormProps = {
   /** 팀 문구 — 크루 이름·설치 안내 제목(§lib/team-copy) */
@@ -141,8 +142,7 @@ export function MemberOnboardingForm({
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextParam = searchParams.get("next") ?? "/";
-  const safeNext =
-    nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/";
+  const safeNext = safeNextPath(nextParam, "/");
   const form = useForm<MemberOnboardingValues>({
     defaultValues: existingPerson
       ? {

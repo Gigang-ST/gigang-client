@@ -15,6 +15,7 @@ import { getTeamCfg } from "@/lib/team-cfg/read";
 import { teamLinkOrigin } from "@/lib/team-host";
 
 import { MemberOnboardingForm } from "@/components/auth/member-onboarding-form";
+import { safeNextPath } from "@/lib/safe-redirect";
 
 async function OnboardingContent({
   searchParams,
@@ -23,10 +24,7 @@ async function OnboardingContent({
 }) {
   const params = await searchParams;
   const nextParam = params.next ?? "/";
-  const safeNext =
-    nextParam.startsWith("/") && !nextParam.startsWith("//")
-      ? nextParam
-      : "/";
+  const safeNext = safeNextPath(nextParam, "/");
 
   // 개발 모드 완료 화면 미리보기(?preview=success) — 이미 가입된 회원도 리다이렉트하지
   // 않고 폼을 렌더해 완료 화면 UI를 확인할 수 있게 한다. 운영에선 dev 모드가 꺼져 무시.
