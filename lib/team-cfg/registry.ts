@@ -166,6 +166,38 @@ export const TEAM_CFG_REGISTRY = {
 
 
   /**
+   * 운영 주체·개인정보 보호 책임자 — 약관(운영 주체)·개인정보처리방침(보호 책임자)에 적히는 이름(`lib/legal-docs.ts`, #658).
+   * **기본값이 없다** — 기강 값을 기본으로 두면 다른 팀 회원이 동의하는 문서에 기강 책임자가 적힌다. 비어 있으면 「크루 운영진」.
+   * 기강은 못 읽었을 때도 코드의 팀 기본값(`lib/legal-docs.ts` 기강 표)으로 물러난다. 문서에 실리는 이름이라 owner 만 바꾼다.
+   */
+  "legal.operator": defineCfg({
+    schema: z.string().trim().min(1).max(40).nullable(),
+    default: null,
+    label: "운영 주체·개인정보 책임자",
+    description: "이용약관(운영 주체)과 개인정보처리방침(개인정보 보호 책임자)에 적히는 이름. 비우면 「크루 운영진」으로 보여요.",
+    visibility: "public",
+    group: "member_info",
+    input: { kind: "text", placeholder: "예: 홍길동 (크루장)" },
+    ownerOnly: true,
+  }),
+
+  /**
+   * 개인정보 문의 연락처 — 개인정보처리방침의 보호 책임자 연락처(열람·정정·삭제 요청 창구, `lib/legal-docs.ts`, #658).
+   * 이메일이면 「이메일:」, 그 밖(전화 등)이면 「연락처:」로 적힌다. **기본값이 없다** — 비어 있으면 연락처를 지어내지 않고
+   * 「운영진에게 문의(앱의 건의하기)」로 안내한다. 공개 문서에 실리는 값이라 owner 만 바꾼다.
+   */
+  "legal.contact": defineCfg({
+    schema: z.string().trim().min(1).max(100).nullable(),
+    default: null,
+    label: "개인정보 문의 연락처",
+    description: "개인정보처리방침에 공개되는 책임자 연락처(이메일이나 전화). 비우면 「운영진에게 문의해 주세요」로 보여요.",
+    visibility: "public",
+    group: "member_info",
+    input: { kind: "text", placeholder: "예: team@example.com" },
+    ownerOnly: true,
+  }),
+
+  /**
    * 워드마크 — 모임 공유 이미지(OG) 맨 아래에 찍는 팀 글자. **기본값이 없다** — 비어 있으면 글자 줄을 안 그린다.
    * 기본값을 `GIGANG` 으로 두면 울산 모임 공유 카드에 기강 글자가 찍힌다.
    */
