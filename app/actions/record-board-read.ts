@@ -2,6 +2,7 @@
 
 import { getCurrentMember } from "@/lib/queries/member";
 import { recordBoardPostRead } from "@/lib/queries/board";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 
 /**
  * 게시글 읽음 이력을 기록한다.
@@ -13,5 +14,6 @@ export async function recordBoardReadAction(postId: string): Promise<void> {
   const { member } = await getCurrentMember();
   if (!member) return;
 
-  await recordBoardPostRead(postId, member.id);
+  const { teamId } = await getRequestTeamContext();
+  await recordBoardPostRead(postId, member.id, teamId);
 }

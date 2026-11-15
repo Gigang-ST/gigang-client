@@ -1,5 +1,6 @@
 "use client";
 
+import { josa } from "@/lib/josa";
 import { dayjs } from "@/lib/dayjs";
 
 import { Avatar } from "@/components/common/avatar";
@@ -20,9 +21,12 @@ import type { GhostMember } from "@/lib/queries/ghost-members";
 export function GhostWanted({
   ghosts,
   onSelectMember,
+  memberNoun,
 }: {
   ghosts: GhostMember[];
   onSelectMember: (memId: string, name: string) => void;
+  /** 회원 호칭(기강인·크루원 — §lib/team-copy) */
+  memberNoun: string;
 }) {
   if (ghosts.length === 0) return null;
 
@@ -34,7 +38,7 @@ export function GhostWanted({
         lead="요즘 안 보이는 얼굴들 — 현상수배 중"
         action={
           <HelpTip title="현상수배">
-            100일 넘게 모임에도 대회에도 보이지 않는 기강인이에요. 목격하면 러닝화를
+            100일 넘게 모임에도 대회에도 보이지 않는 {josa(memberNoun, "이에요/예요")}. 목격하면 러닝화를
             신겨 출발선까지 데려와 주세요.
           </HelpTip>
         }

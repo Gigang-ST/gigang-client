@@ -211,8 +211,10 @@ export async function loadMemberSnapshots(
   // 7-1. 참여자 조회 (mem_id → prt_id, evt_id)
   let prtQuery = db
     .from("evt_team_prt_rel")
-    .select("prt_id, mem_id, evt_id, evt_team_mst!inner(stt_dt, end_dt)")
+    .select("prt_id, mem_id, evt_id, evt_team_mst!inner(stt_dt, end_dt, team_id)")
     .in("mem_id", memIds)
+    // 평가하는 팀의 시즌만 — 두 팀 소속자는 다른 팀 시즌 참가 행이 Map 을 덮어써 엉뚱한 시즌으로 평가됐다
+    .eq("evt_team_mst.team_id", teamId)
     .eq("aprv_yn", true);
   if (evtId) prtQuery = prtQuery.eq("evt_id", evtId);
   const { data: prtRows } = await prtQuery;

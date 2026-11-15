@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { toast } from "sonner";
 
-import { Bell, Coins, MessageCircle, Trophy, Trash2, FileText, Users, UserCheck, UserPlus, UserX, MessageSquareText } from "lucide-react";
+import { Bell, Coins, MessageCircle, Settings, Trophy, Trash2, FileText, Users, UserCheck, UserPlus, UserX, MessageSquareText } from "lucide-react";
 
 import { dayjs, formatKST } from "@/lib/dayjs";
 import { mutateNotifications } from "@/lib/notifications/refresh";
@@ -47,6 +47,7 @@ const NOTI_ICON: Record<string, React.ElementType> = {
   fdbk_rspd: MessageSquareText,
   reactivate_req: Users,
   reactivated: UserCheck,
+  team_cfg_chg: Settings,
 };
 
 function formatRelative(crtAt: string) {

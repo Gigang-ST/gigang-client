@@ -23,6 +23,7 @@ import { insertNoti, insertNotiMany } from "@/lib/notifications/insert-noti";
 import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
+import { teamCacheTag } from "@/lib/team-cache-tag";
 
 /**
  * 모임 참가 신청·심사 서버 액션.
@@ -47,11 +48,11 @@ function toActionResult(r: ApplicationResult): ActionResult {
 }
 
 /** 모임 상세 두 경로(직접 URL · 일정탭 딥링크)의 캐시를 함께 턴다. */
-function revalidateGathering(gthrId: string) {
+function revalidateGathering(gthrId: string, teamId: string) {
   revalidatePath(`/gatherings/${gthrId}`);
   revalidatePath("/schedule");
   // 승인은 gthr_attd_rel 을 늘리므로 달력·리스트의 참석자 수가 바뀐다.
-  updateTag(HOME_CALENDAR_CACHE_TAG);
+  updateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, teamId));
 }
 
 /**
@@ -317,7 +318,7 @@ export async function applyToGatheringAction(gthrId: string, memo?: string): Pro
     });
     if (!result.ok) return toActionResult(result);
 
-    revalidateGathering(gthrId);
+    revalidateGathering(gthrId, teamId);
 
     // 알림은 응답 밖에서 — 신청 버튼이 웹푸시 외부 HTTP 를 기다리지 않게.
     after(async () => {
@@ -362,7 +363,7 @@ export async function cancelMyApplicationAction(
     });
     if (!result.ok) return toActionResult(result);
 
-    revalidateGathering(gthrId);
+    revalidateGathering(gthrId, teamId);
 
     // 개설자에게만 알린다 — 취소는 자리가 하나 비는 사건이라 정원을 관리하는 사람이 알아야 한다.
     // 수신거부는 기존 참석 취소(gthr_cncl) 설정으로 묶는다: 사용자에겐 같은 사건이다.
@@ -401,7 +402,7 @@ export async function approveApplicationAction(
     });
     if (!result.ok) return toActionResult(result);
 
-    revalidateGathering(gthrId);
+    revalidateGathering(gthrId, teamId);
     after(() => notifyApplicant(teamId, memId, gthrId, result.gathering, "aprv", null));
 
     return { ok: true };
@@ -428,7 +429,7 @@ export async function rejectApplicationAction(
     });
     if (!result.ok) return toActionResult(result);
 
-    revalidateGathering(gthrId);
+    revalidateGathering(gthrId, teamId);
     after(() =>
       notifyApplicant(teamId, memId, gthrId, result.gathering, "rjct", reason?.trim() || null),
     );

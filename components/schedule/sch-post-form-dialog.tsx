@@ -174,7 +174,7 @@ export function SchPostFormDialog({
                 <FormItem>
                   <FormLabel>제목 <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
-                    <Input placeholder="예: 동아마라톤 접수, 나이키 슈퍼위크 등" {...field} />
+                    <Input placeholder="예: 대회 접수 마감, 용품 할인 소식 등" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

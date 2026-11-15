@@ -7,6 +7,7 @@ import type { StoryPost } from "@/lib/queries/story-posts";
 
 import { MemberCardDialogDynamic as MemberCardDialog } from "@/components/members/member-card-dialog-dynamic";
 import { RecordReelViewer } from "@/components/story/record-reel-viewer";
+import type { PbPhotosCopy } from "@/lib/team-copy";
 
 /** 릴스 뷰어가 댓글·프로필 카드에 쓰는 「보는 사람」 정보 */
 export type PbTeamPhotosViewer = {
@@ -14,6 +15,8 @@ export type PbTeamPhotosViewer = {
   memId: string;
   memNm: string | null;
   avatarUrl: string | null;
+  /** 팀 문구 — 릴스 뷰어·프로필 카드에 넘긴다(§lib/team-copy) */
+  copy: PbPhotosCopy;
 };
 
 /**
@@ -75,6 +78,7 @@ export function PbTeamPhotos({
         myMemId={viewer.memId}
         myName={viewer.memNm}
         myAvatarUrl={viewer.avatarUrl}
+        copy={viewer.copy}
       />
 
       <MemberCardDialog
@@ -86,6 +90,7 @@ export function PbTeamPhotos({
           if (!o) setMember(null);
         }}
         stacked
+        copy={viewer.copy}
       />
     </>
   );

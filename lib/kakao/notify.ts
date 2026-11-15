@@ -17,6 +17,7 @@ import { NotiBot, isNotiBotError, type NotiBotErrorJSON } from "@noti-bot/sdk";
 
 import { env } from "@/lib/env";
 import { recordKakaoSend, type KakaoSendSource } from "@/lib/kakao/send-log";
+import { getTeamCfgStrict } from "@/lib/team-cfg/read";
 
 /**
  * 허브 응답을 기다리는 시간.
@@ -30,8 +31,13 @@ const TIMEOUT_MS = 10_000;
 export type KakaoSendResult = {
   /** 허브가 2xx 로 접수했는가. 미설정(비활성)이면 false. */
   ok: boolean;
-  /** 보내지 않은 이유(미설정 등). 보냈으면 undefined. */
-  skipped?: "disabled";
+  /**
+   * 일부러 보내지 않은 이유. 보냈거나 실패했으면 undefined. **둘 다 실패가 아니라 이력에 남기지 않는다.**
+   * - `disabled` — 이 환경에 노티봇 키가 없다(로컬·미리보기 안전장치)
+   * - `no_room` — 이 팀이 카톡방을 설정하지 않았다(그 팀은 카톡 공지를 안 쓴다 — 예: 울산)
+   * 설정을 **못 읽은** 경우는 여기가 아니라 `failure`(이력에 남는다)로 온다 — 미설정과 섞이면 기강 공지가 조용히 끊긴다.
+   */
+  skipped?: "disabled" | "no_room";
   /**
    * 허브가 **같은 `requestId` 로 이미 접수한 요청**이라 새로 보내지 않았다(`SendMessageResult.duplicate`).
    * `ok` 는 그대로 true 다 — 호출부(모임 공지 등)에겐 "톡방에 그 공지가 있다"는 사실이 같기 때문이다.
@@ -44,8 +50,13 @@ export type KakaoSendResult = {
 
 export type SendKakaoOptions = {
   /**
-   * 방. 이름이나 고정 ID(UUID) — 어드민 다시 보내기가 이력의 값을 그대로 넘긴다.
-   * 생략하면 `KAKAO_ROOM_ID`, 없으면 `KAKAO_ROOM`.
+   * 어느 팀 공지인가. **방은 이 팀의 설정(`team_cfg` `kakao.room_id`)에서 고른다.**
+   * 예전엔 환경변수 방 하나로 보내 울산 모임 공지가 기강 단톡방으로 샜다. 방이 없는 팀은 보내지 않는다.
+   */
+  teamId: string;
+  /**
+   * 방. 이름이나 고정 ID(UUID) — 어드민 다시 보내기가 이력의 값을 그대로 넘긴다(그 이력은 같은 팀 것만).
+   * 생략하면 팀 설정의 방.
    */
   room?: string | null;
   /** 멱등 키. 같은 사건(예: 모임 등록 1건)에 고정값을 주면 허브가 중복 발송을 막는다. */
@@ -88,12 +99,25 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 type RoomTarget = { roomId: string } | { room: string };
 
-/** 보낼 방. 명시한 값(이름 또는 ID) → `KAKAO_ROOM_ID` → `KAKAO_ROOM` 순. */
-function roomTarget(explicit?: string | null): RoomTarget | null {
-  if (explicit) return UUID_RE.test(explicit) ? { roomId: explicit } : { room: explicit };
-  if (env.KAKAO_ROOM_ID) return { roomId: env.KAKAO_ROOM_ID };
-  if (env.KAKAO_ROOM) return { room: env.KAKAO_ROOM };
-  return null;
+/**
+ * 팀 설정(카톡방)을 못 읽어 실패한 건의 발송 이력 방 칸 — **진짜 방 이름이 아니다**. 재발송은 이 값을 넘기지 말고
+ * 방을 다시 정해야 한다(`resendKakaoSend`). 예전엔 이 글자를 방 이름으로 넘겨 몇 번을 다시 보내도 실제 방에 안 갔다.
+ */
+export const KAKAO_ROOM_UNRESOLVED = "(설정 조회 실패)";
+
+function toTarget(value: string): RoomTarget {
+  return UUID_RE.test(value) ? { roomId: value } : { room: value };
+}
+
+/**
+ * 보낼 방. 명시한 값(다시 보내기) → 팀 설정의 방. **다른 팀 방이나 환경변수 방으로 대신 보내지 않는다.**
+ * (환경변수 `KAKAO_ROOM_ID`·`KAKAO_ROOM` 은 더 이상 읽지 않는다 — 기강 방은 기강 팀 설정으로 옮겼다.)
+ */
+async function roomTarget(teamId: string, explicit?: string | null): Promise<RoomTarget | null> {
+  if (explicit) return toTarget(explicit);
+  // 엄격 조회 — 조회 실패를 "방 없음"으로 바꾸지 않는다(호출부가 실패 이력으로 남긴다)
+  const roomId = await getTeamCfgStrict(teamId, "kakao.room_id");
+  return roomId ? toTarget(roomId) : null;
 }
 
 const apiKeyFromEnv = () => env.KAKAO_SERVICE_API_KEY ?? env.KAKAO_WEBHOOK_SECRET;
@@ -108,22 +132,24 @@ export const KAKAO_MESSAGE_MAX_LENGTH = 4000;
 export const KAKAO_REQUEST_ID_MAX_LENGTH = 128;
 
 /**
- * 방을 지정하지 않고 보내면 어느 방으로 가는가 — 발송 이력에 남는 값(방 ID 또는 이름)과 같다.
- * 노티봇이 꺼진 환경(`isKakaoConfigured()` 가 false)이면 null. 보내기 전 미리보기용.
+ * 이 팀 공지가 어느 방으로 가는가 — 발송 이력에 남는 값(방 ID 또는 이름)과 같다.
+ * 노티봇이 꺼진 환경이거나 이 팀에 방이 없으면 null. 보내기 전 미리보기용.
  */
-export function defaultKakaoRoom(): string | null {
-  if (!isKakaoConfigured()) return null;
-  const target = roomTarget();
+export async function defaultKakaoRoom(teamId: string): Promise<string | null> {
+  if (!hubOrigin() || !apiKeyFromEnv()) return null;
+  // 미리보기·안내용이라 설정을 못 읽으면 "없음"으로 물러난다(조회 실패 로그는 read.ts 가 이미 남겼다).
+  // 실제 발송(sendKakao)은 같은 실패를 실패 이력으로 남긴다.
+  const target = await roomTarget(teamId).catch(() => null);
   if (!target) return null;
   return "room" in target ? target.room : target.roomId;
 }
 
 /**
- * 이 환경에서 노티봇 발송이 켜져 있는가. "단톡방에도 공지했어요" 같은 안내가
+ * 이 팀의 노티봇 발송이 켜져 있는가(허브·키가 있고 팀 방이 있다). "단톡방에도 공지했어요" 같은 안내가
  * `sendKakao` 와 다른 기준으로 판정하면 보내지도 않고 보냈다고 말하게 된다.
  */
-export function isKakaoConfigured(): boolean {
-  return Boolean(hubOrigin() && apiKeyFromEnv() && roomTarget());
+export async function isKakaoConfigured(teamId: string): Promise<boolean> {
+  return (await defaultKakaoRoom(teamId)) !== null;
 }
 
 /**
@@ -133,22 +159,51 @@ export function isKakaoConfigured(): boolean {
  */
 export async function sendKakao(
   message: string,
-  opts: SendKakaoOptions = {},
+  opts: SendKakaoOptions,
 ): Promise<KakaoSendResult> {
   const origin = hubOrigin();
   const apiKey = apiKeyFromEnv();
-  const target = roomTarget(opts.room);
 
   // 미설정이면 조용히 끈다 — 로컬·preview 가 실제 톡방에 쏘지 않게 하는 안전장치가 이거다.
-  // 환경변수를 넣은 환경에서만 발송된다. 키가 없으면 허브가 어차피 401 이므로 같이 묶는다.
-  if (!origin || !apiKey || !target) {
+  // 환경변수(허브·키)를 넣은 환경에서만 발송된다. 키가 없으면 허브가 어차피 401 이므로 같이 묶는다.
+  if (!origin || !apiKey) {
     console.info("[kakao] 발송 비활성(환경변수 미설정) — skip", { bytes: message.length });
     return { ok: false, skipped: "disabled" };
+  }
+  // 이 팀에 방이 없으면 보내지 않는다 — 다른 팀 방으로 대신 보내는 일은 없다.
+  // 방을 **못 읽었으면** 실패다 — 이력에 남겨 관리자 화면 실패 건수에 잡히게 한다(미설정과 다르다).
+  let target: RoomTarget | null;
+  try {
+    target = await roomTarget(opts.teamId, opts.room);
+  } catch (e) {
+    const failure: NotiBotErrorJSON = {
+      name: "TeamCfgReadError",
+      message: e instanceof Error ? e.message : String(e),
+      retryable: true,
+    };
+    console.error("[kakao] 카톡방 설정을 못 읽어 보내지 못함", { teamId: opts.teamId, failure });
+    await recordKakaoSend({
+      teamId: opts.teamId,
+      room: KAKAO_ROOM_UNRESOLVED,
+      message,
+      requestId: opts.requestId ?? crypto.randomUUID(),
+      source: opts.source ?? null,
+      resend: opts.resend ?? false,
+      status: "failed",
+      failure,
+      actorMemId: opts.actorMemId ?? null,
+    }).catch((err) => console.error("[kakao] 발송 이력 기록 실패", err));
+    return { ok: false, failure };
+  }
+  if (!target) {
+    console.info("[kakao] 이 팀은 카톡방 미설정 — skip", { teamId: opts.teamId, bytes: message.length });
+    return { ok: false, skipped: "no_room" };
   }
 
   // 이력은 다시 보내기의 대상이기도 하다. 고정 ID 로 보냈으면 표시 이름으로 바꾸지 않는다.
   // 이름 변경·동명 방이 있어도 재시도 대상이 바뀌지 않게 한다.
   const log = {
+    teamId: opts.teamId,
     room: "room" in target ? target.room : target.roomId,
     message,
     requestId: opts.requestId ?? null,

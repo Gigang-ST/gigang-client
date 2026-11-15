@@ -1,6 +1,7 @@
 "use server";
 
 import { withMember } from "@/lib/actions/auth";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import {
   dedupeRecentGatherings,
   type RecentGathering,
@@ -14,14 +15,17 @@ const RESULT_LIMIT = 8;
  * 현재 멤버가 만든 최근 모임을 "불러오기" 목록용으로 조회한다.
  *
  * - 본인이 개설(crt_by)한 활성 모임만, 시작일 최신순으로 FETCH_LIMIT개.
+ * - 접속한 팀의 모임만 — 두 팀 소속자가 울산에서 불러오면 기강 모임(장소·문구)이 섞이면 안 된다.
  * - 내용(제목·유형·종목·장소·최대인원·비고)이 같은 모임은 최근 것 하나로 접어 최대 RESULT_LIMIT개 반환.
  * - 지연 로딩(폼의 "최근 모임 불러오기" 버튼 클릭 시)으로만 호출되어 부하를 최소화한다.
  */
 export async function getRecentGatherings(): Promise<RecentGathering[]> {
   return withMember(async ({ member, supabase }) => {
+    const { teamId } = await getRequestTeamContext();
     const { data, error } = await supabase
       .from("gthr_mst")
       .select("gthr_id, gthr_nm, gthr_type_enm, sprt_cd, loc_txt, max_prt_cnt, desc_txt, stt_at")
+      .eq("team_id", teamId)
       .eq("crt_by", member.id)
       .eq("del_yn", false)
       .order("stt_at", { ascending: false })

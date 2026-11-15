@@ -1,10 +1,13 @@
 "use server";
 
 import { withMember } from "@/lib/actions/auth";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 
 export async function deleteNotification(notiId: string) {
   return withMember(async ({ member }) => {
+    // 접속한 팀 알림만 — 일괄 삭제(deleteAllNotifications)와 같은 기준
+    const { teamId } = await getRequestTeamContext();
     const admin = createUntypedAdminClient();
     // ⚠️ 에러를 삼키지 않는다 — `deleteAllNotifications`와 같은 이유다. 화면은 낙관적으로
     // 먼저 지우는데(§mutateNotifications), 여기서 실패를 감추면 **지워지지 않았는데 지워진
@@ -14,7 +17,8 @@ export async function deleteNotification(notiId: string) {
       .from("noti_mst")
       .update({ del_yn: true })
       .eq("noti_id", notiId)
-      .eq("mem_id", member.id);
+      .eq("mem_id", member.id)
+      .eq("team_id", teamId);
     if (error) throw error;
   });
 }

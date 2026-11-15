@@ -1,6 +1,7 @@
 "use server";
 
 import { withAdmin } from "@/lib/actions/auth";
+import { isTeamMemIdInTeam } from "@/lib/actions/team-scope";
 import { cmmCdRowsForGrp, getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -158,6 +159,21 @@ export async function grantTitle(ttlId: string, teamMemId: string, rsn: string |
   return withAdmin(async ({ member }) => {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
+
+    // 칭호와 회원이 둘 다 접속한 팀 것이어야 한다. service_role 이라 RLS 가 없어서, 확인하지 않으면
+    // 다른 팀 칭호가 이 팀 행으로 섞여 들어가고 isPrmy 면 다른 팀 회원의 대표 칭호까지 내려간다.
+    const { data: title } = await db
+      .from("ttl_mst")
+      .select("ttl_id")
+      .eq("ttl_id", ttlId)
+      .eq("team_id", teamId)
+      .eq("vers", 0)
+      .eq("del_yn", false)
+      .maybeSingle();
+    if (!title) return { ok: false, message: "칭호를 찾을 수 없습니다" };
+    if (!(await isTeamMemIdInTeam(db, teamId, teamMemId))) {
+      return { ok: false, message: "회원을 찾을 수 없습니다" };
+    }
 
     const { data: existing } = await db
       .from("mem_ttl_rel")

@@ -8,6 +8,7 @@ import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { BOARD_POSTS_CACHE_TAG } from "@/lib/queries/board";
 import { insertNotiForTeam } from "@/lib/notifications/insert-noti";
 import { createPostSchema } from "@/lib/validations/board";
+import { teamCacheTag } from "@/lib/team-cache-tag";
 
 export async function createPost(input: {
   post_type_enm: "notice" | "update";
@@ -35,7 +36,7 @@ export async function createPost(input: {
 
     // 목록 캐시 무효화 (새 글이라 상세 태그는 아직 없음). DB 트리거도 동일 태그를 치지만
     // 앱에서 즉시 무효화해 작성 직후 목록에 바로 반영되도록 한다(트리거 웹훅은 비동기).
-    revalidateTag(BOARD_POSTS_CACHE_TAG, "max");
+    revalidateTag(teamCacheTag(BOARD_POSTS_CACHE_TAG, teamId), "max");
 
     // 팀 전체에 알림 — 게시판 아이콘을 걷어내면서(햄버거=설정으로 통합) "새 공지/업데이트가
     // 있다"를 알릴 창구가 알림 벨 하나로 모인다. 그래서 작성 시점에 알림을 쏴야 한다.

@@ -134,7 +134,7 @@ export type LogActivityResult = {
 };
 
 const NO_PHOTO_NOTICE =
-  "MCP로 넣은 기록은 사진이 없어 기강이야기(깅스타그램)에는 뜨지 않아요. 수치와 후기는 정상 저장됩니다.";
+  "MCP로 넣은 기록은 사진이 없어 홈 사진 지면(기강은 깅스타그램)에는 뜨지 않아요. 수치와 후기는 정상 저장됩니다.";
 
 /** `aply_mults` JSON 을 표시용으로 좁힌다(mult_id 는 사람이 읽을 값이 아니다). */
 function toDisplayMults(raw: unknown): { mult_nm: string; mult_val: number }[] {

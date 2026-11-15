@@ -2,7 +2,7 @@
 
 import { dayjs } from "@/lib/dayjs";
 
-import { withAdmin } from "@/lib/actions/auth";
+import { withDuesAdmin } from "@/lib/actions/dues-guard";
 import { capExemptionAmount } from "@/lib/dues/calc-exemption";
 import {
   LEDGER_EPOCH,
@@ -42,7 +42,7 @@ function getTxnInfo(raw: unknown): TxnInfo {
  * 합산·마킹한다 → 합치면 전체 면제가 정확히 한 번씩 반영된다.
  */
 export async function recalculateBalance(memIds?: string[]) {
-  return withAdmin(async ({ member }) => {
+  return withDuesAdmin(async ({ member }) => {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
 

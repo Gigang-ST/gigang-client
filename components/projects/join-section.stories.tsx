@@ -15,6 +15,8 @@ export const NotJoined: Story = {
     evtId: "evt-001",
     evtStartMonth: "2026-05-01",
     evtEndMonth: "2026-09-01",
+    // 계좌는 팀 설정에서 온다 — 스토리는 예시 값
+    account: { bank: "예시은행", number: "123-45-678", holder: "예시 운영진" },
     existingPrt: null,
   },
   render: (args) => (
@@ -29,6 +31,8 @@ export const PendingApproval: Story = {
     evtId: "evt-001",
     evtStartMonth: "2026-05-01",
     evtEndMonth: "2026-09-01",
+    // 계좌는 팀 설정에서 온다 — 스토리는 예시 값
+    account: { bank: "예시은행", number: "123-45-678", holder: "예시 운영진" },
     existingPrt: { aprv_yn: false },
   },
   render: (args) => (

@@ -666,9 +666,11 @@ describe("탭", () => {
   });
 });
 
+const ACCOUNT = { bank: "예시은행", number: "123-45-678", holder: "예시 운영진" };
+
 describe("신청·입금 대기 — 마일리지런 할인", () => {
   it("할인 대상이면 원래 금액을 지우고 사유와 깎인 금액을 보여 준다", () => {
-    const out = html(createElement(PbApplySection, { evtId: "e1", cfg: CFG, currentWkNo: 1, mlgAlumni: true }));
+    const out = html(createElement(PbApplySection, { evtId: "e1", cfg: CFG, currentWkNo: 1, mlgAlumni: true, account: ACCOUNT }));
 
     expect(out).toContain("마일리지런 참가자 참가비 −5,000원");
     // 지운 정가는 참가비(10,000)이고 보증금은 정가 그대로
@@ -680,7 +682,7 @@ describe("신청·입금 대기 — 마일리지런 할인", () => {
   });
 
   it("중간 합류면 주차와 줄어든 기준을 말한다(W 표기 없이)", () => {
-    const out = html(createElement(PbApplySection, { evtId: "e1", cfg: CFG, currentWkNo: 3, mlgAlumni: false }));
+    const out = html(createElement(PbApplySection, { evtId: "e1", cfg: CFG, currentWkNo: 3, mlgAlumni: false, account: ACCOUNT }));
     expect(out).toContain("3주차 합류 — 7회 나오면 보증금 전액");
     expect(out).not.toMatch(/W\d/);
     expect(out).not.toContain("line-through");
@@ -688,10 +690,25 @@ describe("신청·입금 대기 — 마일리지런 할인", () => {
 
   it("입금 대기 카드는 저장된 할인·금액을 그대로 적는다", () => {
     const out = html(
-      createElement(PbPendingCard, { me: { depositAmt: 30_000, entryFeeAmt: 5_000, entryFeeDcAmt: 5_000, joinWkNo: 1 } }),
+      createElement(PbPendingCard, {
+        me: { depositAmt: 30_000, entryFeeAmt: 5_000, entryFeeDcAmt: 5_000, joinWkNo: 1 },
+        account: ACCOUNT,
+      }),
     );
     expect(out).toContain("35,000");
     expect(out).toContain("마일리지런 참가자 참가비 −5,000원");
+    expect(out).toContain("예시은행 123-45-678");
+  });
+
+  it("팀 계좌가 설정되지 않았으면 다른 팀 계좌 대신 운영진 문의로 물러난다(멀티팀)", () => {
+    const out = html(
+      createElement(PbPendingCard, {
+        me: { depositAmt: 30_000, entryFeeAmt: 5_000, entryFeeDcAmt: 0, joinWkNo: 1 },
+        account: null,
+      }),
+    );
+    expect(out).toContain("입금 계좌는 운영진에게 물어봐 주세요");
+    expect(out).not.toContain("3333");
   });
 });
 

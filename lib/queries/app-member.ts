@@ -17,6 +17,8 @@ export type AppMemberProfile = {
   joined_at: string;
   status: string;
   admin: boolean;
+  /** 이 팀의 owner 인가 — owner 만 바꾸는 설정(계좌·카톡방 등)을 가른다. owner 는 `admin` 도 true 다 */
+  owner: boolean;
   /** 선택한 배지 이펙트 코드 (effect_mst.effect_cd) */
   selected_badge_effect: string | null;
   /** 선택한 카드 프레임 코드 (effect_mst.effect_cd) */
@@ -109,6 +111,7 @@ export function mapMstRelToAppMemberProfile(
     joined_at: rel.join_dt ?? "",
     status: rel.mem_st_cd,
     admin,
+    owner: rel.team_role_cd === "owner",
     selected_badge_effect: rel.selected_badge_effect ?? null,
     selected_frame_cd: rel.selected_frame_cd ?? null,
     intro_txt: rel.intro_txt ?? null,

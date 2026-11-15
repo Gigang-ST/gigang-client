@@ -3,6 +3,7 @@
 import { withActive } from "@/lib/actions/auth";
 import { announceGathering } from "@/lib/gathering/kakao-dispatch";
 import { isPastLockedFor } from "@/lib/past-event";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getRequestOrigin } from "@/lib/request-origin";
 
 export type AnnounceGatheringResult =
@@ -24,10 +25,13 @@ export type AnnounceGatheringResult =
  */
 export async function announceGatheringToKakao(gthrId: string): Promise<AnnounceGatheringResult> {
   return withActive(async ({ member, supabase }) => {
+    // 접속한 팀의 모임만 — 카톡방은 팀 것이라, 안 거르면 두 팀 소속자가 다른 팀 모임을 이 팀 방에 올린다
+    const { teamId } = await getRequestTeamContext();
     const { data: gthr } = await supabase
       .from("gthr_mst")
       .select("gthr_nm, stt_at, end_at, loc_txt, short_id, max_prt_cnt, del_yn, mem_mst!gthr_mst_crt_by_fkey(mem_nm)")
       .eq("gthr_id", gthrId)
+      .eq("team_id", teamId)
       .single();
     if (!gthr || gthr.del_yn) throw new Error("모임을 찾을 수 없습니다.");
 
@@ -43,6 +47,7 @@ export async function announceGatheringToKakao(gthrId: string): Promise<Announce
 
     const author = Array.isArray(gthr.mem_mst) ? gthr.mem_mst[0] : gthr.mem_mst;
     const result = await announceGathering({
+      teamId,
       gthrId,
       ref: gthr.short_id ?? gthrId,
       origin: await getRequestOrigin(),
@@ -65,8 +70,13 @@ export async function announceGatheringToKakao(gthrId: string): Promise<Announce
     });
 
     if (result.ok) return { ok: true };
-    if (result.skipped === "disabled") {
-      return { ok: false, reason: "disabled", message: "이 환경엔 노티봇이 연결돼 있지 않아요." };
+    // 회원이 누르는 버튼이라 내부 사정(노티봇 키·방 미설정·설정 조회 실패)은 말하지 않는다 — 관리자 문의로 안내.
+    // 원인은 서버 로그·발송 이력(실패일 때)에 남는다.
+    if (result.skipped) {
+      return { ok: false, reason: "disabled", message: "단톡방 알림을 보낼 수 없어요. 관리자에게 문의해 주세요." };
+    }
+    if (result.failure?.name === "TeamCfgReadError") {
+      return { ok: false, reason: "disabled", message: "단톡방 알림을 보낼 수 없어요. 잠시 뒤 다시 시도하거나 관리자에게 문의해 주세요." };
     }
     return {
       ok: false,

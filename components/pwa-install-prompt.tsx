@@ -1,5 +1,7 @@
 "use client";
 
+import { usePathname } from "next/navigation";
+
 import { useEffect, useState } from "react";
 
 import { Share, X } from "lucide-react";
@@ -36,6 +38,8 @@ function recentlyDismissed(): boolean {
 type PwaInstallPromptProps = {
   /** banner=전역 하단 고정(7일 dismiss), inline=가입 완료 카드 내부 */
   variant?: "banner" | "inline";
+  /** 안내 제목 — 팀 문구(기강 「📲 기강이 풀렸군…」, 그 밖 중립 — §lib/team-copy) */
+  title: string;
   className?: string;
 };
 
@@ -50,7 +54,9 @@ type PwaInstallPromptProps = {
 export function PwaInstallPrompt({
   variant = "banner",
   className,
+  title,
 }: PwaInstallPromptProps) {
+  const pathname = usePathname();
   const [visible, setVisible] = useState(false);
   const [iosGuide, setIosGuide] = useState(false);
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
@@ -83,6 +89,9 @@ export function PwaInstallPrompt({
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, [variant]);
 
+  // 인트로(/intro)는 한 화면짜리 연출이라 설치 배너가 그 위에 올라오면 안 된다.
+  // 훅은 전부 돈 뒤에 가른다(훅 순서 고정).
+  if (pathname === "/intro") return null;
   if (!visible) return null;
 
   // 정책: 웹(브라우저)에서는 푸시 권한을 요청하지 않는다 (iOS·Android 공통).
@@ -155,7 +164,7 @@ export function PwaInstallPrompt({
         <div className="flex items-start gap-2">
           <div className="flex-1">
             <Body className="font-bold leading-snug">
-              📲 기강이 풀렸군. 홈 화면에 모시고 알림 켜라!
+              {title}
             </Body>
             <Caption className="mt-1 block leading-relaxed">
               홈 화면에 추가해야{" "}

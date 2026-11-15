@@ -447,7 +447,7 @@ export function ProfileEditForm({
             value={joinPurpTxt}
             onChange={(e) => setJoinPurpTxt(e.target.value)}
             maxLength={PURP_TXT_MAX}
-            placeholder="한강에서 달리기할 사람 찾아요"
+            placeholder="같이 달릴 사람을 찾고 있어요"
             className="rounded-xl border-[1.5px] text-[15px]"
           />
           <div className="flex items-center justify-end gap-2">

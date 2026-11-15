@@ -38,15 +38,18 @@ export async function savePushSubscription(input: SaveSubscriptionInput) {
 /**
  * 현재 멤버의 특정 기기 구독을 삭제한다 (푸시 토글 OFF).
  * endpoint 기준으로 삭제하며, 본인 소유 여부도 mem_id로 한 번 더 가드한다.
+ * 접속한 팀의 구독만 지운다 — 저장(savePushSubscription)이 팀을 실어 넣는 것과 짝.
  */
 export async function deletePushSubscription(endpoint: string) {
   return withMember(async ({ member }) => {
+    const { teamId } = await getRequestTeamContext();
     const admin = createUntypedAdminClient();
     const { error } = await admin
       .from("push_sub_rel")
       .delete()
       .eq("endpoint", endpoint)
-      .eq("mem_id", member.id);
+      .eq("mem_id", member.id)
+      .eq("team_id", teamId);
     if (error) throw new Error(`구독 삭제 실패: ${error.message}`);
   });
 }

@@ -3,11 +3,21 @@
 import { revalidatePath } from "next/cache";
 
 import { withActive } from "@/lib/actions/auth";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getTeamCfg } from "@/lib/team-cfg/read";
 import { introTxtSchema } from "@/lib/validations/member";
+
+/** 칭호 기능을 끈 팀이면 거절 문구 — 프로필탭은 진입점을 숨기지만 액션은 화면과 별개로 열려 있다 */
+async function titlesOffMessage(): Promise<string | null> {
+  const { teamId } = await getRequestTeamContext();
+  return (await getTeamCfg(teamId, "feature.titles")) ? null : "칭호 기능을 쓰지 않는 크루예요.";
+}
 
 export async function setPrimaryTitle(ttlId: string | null) {
   return withActive(async ({ member }) => {
+    const off = await titlesOffMessage();
+    if (off) return { ok: false, message: off };
     const db = createAdminClient();
 
     await db.from("mem_ttl_rel")
@@ -34,6 +44,8 @@ export async function setPrimaryTitle(ttlId: string | null) {
 
 export async function setSelectedEffect(badgeEffect: string | null, frameCd: string | null) {
   return withActive(async ({ member }) => {
+    const off = await titlesOffMessage();
+    if (off) return { ok: false, message: off };
     const db = createAdminClient();
     const { error } = await db.from("team_mem_rel")
       .update({ selected_badge_effect: badgeEffect, selected_frame_cd: frameCd })

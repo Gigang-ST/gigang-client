@@ -362,7 +362,8 @@ export function CompetitionDetailDialog({
       sourceUrl: data.sourceUrl,
     });
     if (!result.ok) {
-      editForm.setError("root", { message: "수정에 실패했습니다." });
+      // 서버가 이유를 주면 그대로 보여 준다(예: 신청·기록이 있는 종목은 뺄 수 없다)
+      editForm.setError("root", { message: result.message ?? "수정에 실패했습니다." });
       return;
     }
     setEditing(false);

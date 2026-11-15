@@ -40,6 +40,7 @@ export function RecordFlexEditDialog({
   onOpenChange,
   onSaved,
   stacked = true,
+  quips,
 }: {
   /** null이면 닫힌 상태 */
   post: StoryPost | null;
@@ -53,6 +54,8 @@ export function RecordFlexEditDialog({
    */
   onSaved?: (postId: string, cmntTxt: string | null) => void;
   stacked?: boolean;
+  /** 한마디 예시 묶음 — 그 팀 것(`TeamCopy.quips`, §lib/team-copy) */
+  quips: readonly string[];
 }) {
   // 닫혀 있을 땐 폼을 언마운트한다 — 재진입 시 이전 편집값이 남지 않게(effect로 되돌리는 대신).
   // 다른 장을 열었을 때 앞 장의 한마디가 그대로 떠 있는 걸 막는 것도 겸한다.
@@ -72,6 +75,7 @@ export function RecordFlexEditDialog({
       onOpenChange={onOpenChange}
       onSaved={onSaved}
       stacked={stacked}
+      quips={quips}
     />
   );
 }
@@ -81,11 +85,13 @@ function RecordFlexEditForm({
   onOpenChange,
   onSaved,
   stacked,
+  quips,
 }: {
   post: StoryPost;
   onOpenChange: (open: boolean) => void;
   onSaved?: (postId: string, cmntTxt: string | null) => void;
   stacked: boolean;
+  quips: readonly string[];
 }) {
   const router = useRouter();
   const initialValue = post.cmnt_txt ?? "";
@@ -94,7 +100,7 @@ function RecordFlexEditForm({
   // 예시 문구는 작성 폼과 같은 풀에서 뽑는다 — 한마디를 지우고 다시 쓸 때 빈 칸이 되는데,
   // 그 자리에 안내문("한마디를 남겨보세요")만 서 있으면 작성 때와 톤이 갈린다.
   // 열 때 한 번 뽑고 고정한다: 이 폼은 `key={post_id}`로 마운트되므로 장이 바뀔 때만 새로 뽑힌다.
-  const [quip] = useState(pickQuip);
+  const [quip] = useState(() => pickQuip(quips));
 
   const trimmed = value.trim();
   const tooLong = trimmed.length > POST_CMNT_MAX;

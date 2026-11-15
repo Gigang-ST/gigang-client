@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTeamPageDescription } from "@/lib/queries/team-copy";
 import Link from "next/link";
 
 import { ClipboardList, Lightbulb, ScrollText, ShieldCheck, type LucideIcon } from "lucide-react";
@@ -128,11 +129,14 @@ function Toggle({
 
 /* ─── 페이지 ─── */
 
-export const metadata: Metadata = {
-  title: "신입 가입 안내",
-  description: "기강 러닝크루에 처음 오시는 분을 위한 안내. 가입 절차, 러닝 등급, 안전수칙, 회비를 한 장에 정리했습니다.",
-  alternates: { canonical: "/newbie" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: "신입 가입 안내",
+    // 검색 설명은 팀 기준(§lib/team-copy pageDescription) — 기강은 다듬어 둔 문장 그대로, 다른 팀은 크루 이름으로 만든 중립 문장
+    description: await getTeamPageDescription("newbie"),
+    alternates: { canonical: "/newbie" },
+  };
+}
 
 export default function NewbiePage() {
   return (

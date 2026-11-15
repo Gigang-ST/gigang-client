@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 
 import { withAdminOrThrow } from "@/lib/actions/auth";
-import { sendKakao } from "@/lib/kakao/notify";
+import { KAKAO_ROOM_UNRESOLVED, sendKakao } from "@/lib/kakao/notify";
 import type { KakaoSendSource } from "@/lib/kakao/send-log";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 
 /** 한 번에 보여줄 행 수. 목록은 "최근에 뭐가 나갔나"를 훑는 자리라 깊이 들어갈 일이 없다. */
@@ -83,10 +84,13 @@ const isMissingTable = (error: { code?: string }) =>
 /** 발송 이력 최신순. */
 export async function getKakaoSendLogs(): Promise<KakaoSendLogs> {
   return withAdminOrThrow(async () => {
+    // 접속한 팀의 발송만 — 두 팀 이력이 한 목록에 섞이지 않게
+    const { teamId } = await getRequestTeamContext();
     const admin = createUntypedAdminClient();
     const { data, error } = await admin
       .from("kakao_send_hist")
       .select("*")
+      .eq("team_id", teamId)
       .order("crt_at", { ascending: false })
       .limit(PAGE_SIZE);
     if (error) {
@@ -110,11 +114,14 @@ export type ResendResult = { ok: boolean; message: string };
  */
 export async function resendKakao(sendId: string): Promise<ResendResult> {
   return withAdminOrThrow(async ({ member }) => {
+    // 접속한 팀의 발송만 다시 보낸다 — 다른 팀 실패 건을 이 팀 관리자가 그 팀 방으로 쏘지 않게
+    const { teamId } = await getRequestTeamContext();
     const admin = createUntypedAdminClient();
     const { data, error } = await admin
       .from("kakao_send_hist")
       .select("*")
       .eq("send_id", sendId)
+      .eq("team_id", teamId)
       .single();
     if (error || !data) throw new Error("발송 이력을 찾을 수 없어요.");
 
@@ -132,7 +139,9 @@ export async function resendKakao(sendId: string): Promise<ResendResult> {
     }
 
     const result = await sendKakao(row.msg_txt, {
-      room: row.room_nm,
+      teamId,
+      // 설정을 못 읽어 실패한 건은 방 칸이 자리표시라, 넘기지 않고 팀 설정에서 방을 다시 정한다
+      room: row.room_nm === KAKAO_ROOM_UNRESOLVED ? null : row.room_nm,
       requestId: row.request_id,
       ...(row.src_type ? { source: { type: row.src_type, id: row.src_id } } : {}),
       resend: true,
@@ -147,6 +156,9 @@ export async function resendKakao(sendId: string): Promise<ResendResult> {
     if (result.ok) return { ok: true, message: "허브에 다시 접수했어요. 실제 전달 여부는 허브 발송 이력에서 확인해 주세요." };
     if (result.skipped === "disabled") {
       return { ok: false, message: "이 환경엔 노티봇이 연결돼 있지 않아요." };
+    }
+    if (result.skipped === "no_room") {
+      return { ok: false, message: "이 팀은 카톡 공지방이 설정되지 않았어요. 관리자 → 팀 설정에서 등록할 수 있어요." };
     }
     return { ok: false, message: result.failure?.message ?? "다시 보내지 못했어요." };
   });

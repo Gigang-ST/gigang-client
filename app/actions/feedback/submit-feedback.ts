@@ -20,7 +20,8 @@ export async function submitFeedback(body: string) {
     const db = createUntypedAdminClient();
     const { data: inserted, error } = await db
       .from("fdbk_mst")
-      .insert({ mem_id: member.id, cont_txt: parsed.data.body })
+      // 건의는 그 팀 운영진에게 하는 말 — 접속한 팀으로 남긴다(그 팀 관리자만 본다)
+      .insert({ mem_id: member.id, team_id: teamId, cont_txt: parsed.data.body })
       .select("fdbk_id")
       .single();
 

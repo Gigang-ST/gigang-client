@@ -53,6 +53,7 @@ import {
   pbSessPlanSchema,
   pbSessTypeSchema,
 } from "@/lib/validations/pb-class";
+import { teamCacheTag } from "@/lib/team-cache-tag";
 
 /**
  * 겨울 10K PB 클래스 관리자 액션.
@@ -833,6 +834,7 @@ export async function createPbSessGatherings(
       if (rows.length === 1) {
         after(() =>
           notifyGatheringCreated({
+            teamId,
             gthrId: gthr.gthr_id,
             ref: gthr.short_id ?? gthr.gthr_id,
             origin,
@@ -850,7 +852,7 @@ export async function createPbSessGatherings(
     if (rows.length === 1) {
       const what = rows[0].d.sessType === "MEASURE" ? "10K 측정 벙" : `${wkLabel(rows[0].wkNo)} 훈련벙`;
       // 노티봇이 없는 환경(로컬·preview)에선 sendKakao 가 조용히 건너뛴다 — 보냈다고 말하지 않는다
-      const kakaoOn = isKakaoConfigured();
+      const kakaoOn = await isKakaoConfigured(teamId);
       return {
         ok: true,
         message: kakaoOn ? `${what}을 열었어요 — 단톡방에도 공지했어요` : `${what}을 열었어요`,
@@ -864,7 +866,8 @@ export async function createPbSessGatherings(
   // updateTag: 즉시 만료 + read-your-own-writes — createGathering 이 쓰는 것과 같은 호출이다.
   const created = "created" in res ? res.created : 0;
   if (created > 0) {
-    updateTag(HOME_CALENDAR_CACHE_TAG);
+    const { teamId } = await getRequestTeamContext();
+    updateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, teamId));
     revalidatePath("/projects");
   }
   return { ok: res.ok, message: res.message, created };

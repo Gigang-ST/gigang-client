@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isRequestAbortError } from "@/lib/supabase/is-abort-error";
+import { teamCacheTags } from "@/lib/team-cache-tag";
 
 import type { RecentTitleRow } from "@/lib/story-title";
 
@@ -53,6 +54,6 @@ export function getRecentTitleGrants(teamId: string): Promise<RecentTitleRow[]> 
       return normalizeRows(data);
     },
     ["story-titles", teamId],
-    { tags: ["story-titles"], revalidate: 300 },
+    { tags: teamCacheTags("story-titles", teamId), revalidate: 300 },
   )();
 }

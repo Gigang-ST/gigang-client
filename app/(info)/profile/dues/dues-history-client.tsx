@@ -35,7 +35,8 @@ type QuestData = { ym: string; result: ExemptionResult; maxAttendCnt: number };
 type Props = {
   balAmt: number | null;
   lastCalcDt: string | null;
-  teamAccount: { bank: string; number: string; holder: string };
+  /** 이 팀 모임 계좌(팀 설정). 없으면 계좌 칸을 안 그린다 */
+  teamAccount: { bank: string; number: string; holder: string } | null;
   monthlyFeeAmt: number | null;
   quest: QuestData | null;
   items: HistoryItem[];
@@ -129,13 +130,15 @@ export function DuesHistoryClient({ balAmt, lastCalcDt, teamAccount, monthlyFeeA
 
         <Separator className="my-1" />
 
-        {/* 모임 계좌 */}
-        <div className="flex flex-col items-center gap-0.5 rounded-xl bg-muted px-4 py-3">
-          <Caption className="text-muted-foreground mb-1">모임 계좌</Caption>
-          <Body className="font-bold">{teamAccount.bank}</Body>
-          <Body className="font-mono text-lg font-bold tracking-wide">{teamAccount.number}</Body>
-          <Caption className="mt-0.5">{teamAccount.holder}</Caption>
-        </div>
+        {/* 모임 계좌 — 팀 설정에 없으면 칸째 안 그린다 */}
+        {teamAccount && (
+          <div className="flex flex-col items-center gap-0.5 rounded-xl bg-muted px-4 py-3">
+            <Caption className="text-muted-foreground mb-1">모임 계좌</Caption>
+            <Body className="font-bold">{teamAccount.bank}</Body>
+            <Body className="font-mono text-lg font-bold tracking-wide">{teamAccount.number}</Body>
+            <Caption className="mt-0.5">{teamAccount.holder}</Caption>
+          </div>
+        )}
       </CardItem>
 
       {/* 출석 감면 퀘스트 (당월 실시간) */}

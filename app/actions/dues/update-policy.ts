@@ -1,11 +1,11 @@
 "use server";
 
-import { withAdmin } from "@/lib/actions/auth";
+import { withDuesAdmin } from "@/lib/actions/dues-guard";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function updatePolicy({ aplySttDt, aplyEndDt, monthlyFeeAmt }: { aplySttDt: string; aplyEndDt: string; monthlyFeeAmt: number }) {
-  return withAdmin(async () => {
+  return withDuesAdmin(async () => {
     if (aplySttDt > aplyEndDt) return { ok: false as const, message: "시작일이 종료일보다 늦을 수 없습니다." };
     if (monthlyFeeAmt <= 0) return { ok: false as const, message: "월 회비는 0보다 커야 합니다." };
 

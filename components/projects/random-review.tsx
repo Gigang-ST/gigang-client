@@ -5,9 +5,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 import { RandomReviewRotator, type ReviewLine } from "@/components/projects/random-review-rotator";
 
-type RandomReviewProps = { evtId: string };
+type RandomReviewProps = { evtId: string; teamId: string };
 
-export async function RandomReview({ evtId }: RandomReviewProps) {
+export async function RandomReview({ evtId, teamId }: RandomReviewProps) {
   const supabase = createAdminClient();
 
   const today = todayKST();
@@ -34,6 +34,11 @@ export async function RandomReview({ evtId }: RandomReviewProps) {
         )`,
       )
       .eq("evt_team_prt_rel.evt_id", evtId)
+      // 칭호·배지는 팀 것이다 — 두 팀 소속자는 소속 행이 둘이라, 거르지 않으면 [0]이 다른 팀 칭호를 집는다.
+      // left 임베드에 거는 조건이라 후기(부모 행)는 떨어지지 않고 이 팀 소속 행만 남는다.
+      .eq("evt_team_prt_rel.mem_mst.team_mem_rel.team_id", teamId)
+      .eq("evt_team_prt_rel.mem_mst.team_mem_rel.vers", 0)
+      .eq("evt_team_prt_rel.mem_mst.team_mem_rel.del_yn", false)
       .not("review", "is", null)
       .neq("review", "")
       .gte("act_dt", sevenDaysAgo)

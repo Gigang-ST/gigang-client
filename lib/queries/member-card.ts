@@ -128,11 +128,21 @@ export type MemberCardData = MemberCardCompactData & {
    * 배포 스큐 시 `undefined` → 카운터를 0으로 그린다.
    */
   rctn_recv_cnt?: number;
+  /**
+   * 이 카드를 보는 **팀의 기록 종목**(팀 설정 `records.categories` — 랭킹탭과 같은 값). 카드 함수가 같이 실어 준다 —
+   * 팝업은 브라우저가 이 함수를 직접 불러서, 설정을 따로 받으면 요청이 하나 는다. `null`/없음 = 설정 안 함 = 넷 다.
+   * 기록 칸·페이스 추이를 이 종목에 맞춰 거른다(`buildPbRows` · `showsPaceTrend`).
+   */
+  record_categories?: string[] | null;
   stats: {
     gthr_attd_cnt: number;
     comp_reg_cnt: number;
-    /** 원장 전체 누적 — 카드에는 숫자로 노출하지 않는다(활동 컨디션 판정 보조용) */
-    activity_score: number;
+    /**
+     * 원장 전체 누적 — **본인이 볼 때만 실린다**(남이 보면 `null`, ADR-0003). RPC 가 누구나(비로그인 포함)
+     * 부를 수 있는 함수라 예전엔 남의 포인트가 응답에 그대로 실렸다(2026-11 멀티팀 정리에서 막음).
+     * 카드에는 숫자로 노출하지 않는다 — 프로필탭(본인)에서만 쓴다.
+     */
+    activity_score: number | null;
     /** 최근 90일 활동 건수(모임 참석 + 대회 기록) — 컨디션 표정의 주 지표 */
     recent_actv_cnt: number;
   };

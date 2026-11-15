@@ -10,14 +10,12 @@ import {
   roundMileage,
   type MileageSport,
 } from "@/lib/mileage";
+import type { ActivityLogInput } from "@/lib/mileage-run";
 import { pickQuip } from "@/lib/quips";
+import type { ActivityLogFormCopy } from "@/components/projects/activity-log-form";
 import { createClient } from "@/lib/supabase/client";
 
-import {
-  logActivitiesBatch,
-  uploadActivityPhoto,
-  type ActivityLogInput,
-} from "@/app/actions/mileage-run";
+import { logActivitiesBatch, uploadActivityPhoto } from "@/app/actions/mileage-run";
 
 import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";
 import { PhotoPicker } from "@/components/common/photo-picker";
@@ -58,6 +56,8 @@ type ActivityDraft = {
 
 type ActivityLogBatchFormProps = {
   evtId: string;
+  /** 팀 문구 — 사진 안내문의 지면 이름·한마디 예시(§lib/team-copy) */
+  copy: ActivityLogFormCopy;
   onSuccess: (savedCount: number, grantedTitles: string[]) => void;
   /** 비활성/탈퇴 회원 — true면 저장 시도 시 공통 안내 게이트를 연다 */
   isInactive?: boolean;
@@ -84,7 +84,7 @@ function createDraft(today: string): ActivityDraft {
   };
 }
 
-export function ActivityLogBatchForm({ evtId, onSuccess, isInactive = false, inactiveKind }: ActivityLogBatchFormProps) {
+export function ActivityLogBatchForm({ evtId, onSuccess, isInactive = false, inactiveKind, copy }: ActivityLogBatchFormProps) {
   const today = todayKST();
   const [multipliers, setMultipliers] = useState<EventMultiplier[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -390,7 +390,7 @@ export function ActivityLogBatchForm({ evtId, onSuccess, isInactive = false, ina
                 <Input
                   type="text"
                   maxLength={200}
-                  placeholder={pickQuip(d.id)}
+                  placeholder={pickQuip(copy.quips, d.id)}
                   value={d.review}
                   onChange={(e) => updateDraft(d.id, { review: e.target.value })}
                   className="h-10 rounded-lg border text-sm"
@@ -411,7 +411,7 @@ export function ActivityLogBatchForm({ evtId, onSuccess, isInactive = false, ina
                     안내이지 오류가 아니므로 destructive(빨강)를 쓰지 않는다 — 같은 화면의
                     실제 오류 메시지와 색이 같으면 입력이 잘못된 줄로 읽힌다. */}
                 <p className="text-[12px] text-primary">
-                  사진 추가 시, 기강이야기의 깅스타그램에도 등록돼요.
+                  사진 추가 시, {copy.storyName}의 {copy.galleryName}에도 등록돼요.
                 </p>
               </div>
                 </div>

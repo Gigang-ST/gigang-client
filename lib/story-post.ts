@@ -6,7 +6,7 @@
  * 런타임에 터진다("'server-only' cannot be imported from a Client Component").
  * 타입체크·빌드는 통과하고 **브라우저에서만** 드러나는 종류라 이렇게 갈라 둔다.
  *
- * 같은 이유로 `story-reaction.ts`·`story-pledge.ts`도 쿼리 파일과 분리돼 있다.
+ * 같은 이유로 `story-reaction.ts`도 쿼리 파일과 분리돼 있다.
  */
 
 /**

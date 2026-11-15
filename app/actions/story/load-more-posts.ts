@@ -2,6 +2,8 @@
 
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getTeamCfg } from "@/lib/team-cfg/read";
+import { stripTitlesIfOff } from "@/lib/team-titles";
 import { STORY_POST_LIMIT } from "@/lib/story-post";
 import type { StoryPost } from "@/lib/queries/story-posts";
 
@@ -57,7 +59,9 @@ export async function loadMorePosts(offset: number): Promise<LoadMoreResult> {
       return { ok: false };
     }
 
-    return { ok: true, posts: (data as StoryPost[] | null) ?? [] };
+    // 칭호 기능을 끈 팀은 작성자 칭호를 걷는다(첫 화면과 같게 — §lib/team-titles)
+    const titlesEnabled = await getTeamCfg(teamId, "feature.titles");
+    return { ok: true, posts: stripTitlesIfOff((data as StoryPost[] | null) ?? [], titlesEnabled) };
   } catch (e) {
     console.error("[loadMorePosts] 기록 자랑 추가 조회 예외", e);
     return { ok: false };

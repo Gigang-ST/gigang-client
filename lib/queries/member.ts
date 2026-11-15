@@ -67,22 +67,6 @@ export const getCurrentMember = cache(async () => {
 });
 
 /**
- * 현재 로그인한 유저가 보유한 칭호 ID Set을 반환한다.
- * 비로그인 또는 미가입이면 빈 Set 반환.
- */
-export async function getMyTitleIds(): Promise<Set<string>> {
-  const { member, supabase } = await getCurrentMember();
-  if (!member) return new Set();
-  const { data } = await supabase
-    .from("mem_ttl_rel")
-    .select("ttl_id")
-    .eq("mem_id", member.id)
-    .eq("vers", 0)
-    .eq("del_yn", false);
-  return new Set((data ?? []).map((r) => r.ttl_id));
-}
-
-/**
  * 현재 로그인한 유저가 보유한 칭호명 Set을 반환한다.
  * 비로그인 또는 미가입이면 빈 Set 반환.
  */
@@ -113,7 +97,7 @@ export async function verifyAdmin() {
   const { member } = await getCurrentMember();
   if (!member) return null;
   if (!member.admin) return null;
-  return { id: member.id, admin: true };
+  return { id: member.id, admin: true, owner: member.owner };
 }
 
 /**

@@ -30,7 +30,7 @@ export const POST_PHOTO_TYPES = [
  * 마일리지런에선 선택(수치가 본체라 사진 없이도 기록은 성립한다).
  *
  * 사진은 여기서 검증하지 않는다 — `File`은 FormData로 오므로 서버 액션이 크기·타입을 직접 본다.
- * 클라이언트 검증은 UX 편의고 실제 강제는 서버 액션이 한다(createPledgeSchema와 동일 원칙).
+ * 클라이언트 검증은 UX 편의고 실제 강제는 서버 액션이 한다.
  */
 export const createRecordFlexSchema = z.object({
   /**

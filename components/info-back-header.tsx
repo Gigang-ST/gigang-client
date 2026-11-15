@@ -31,6 +31,7 @@ const TITLES: Record<string, string> = {
   "/profile/bank": "계좌 정보",
   "/profile/dues": "회비 내역",
   "/profile/feedback": "건의하기",
+  "/settings/accounts": "계정 연동",
 };
 
 /**
@@ -50,6 +51,7 @@ const FALLBACKS: Record<string, string> = {
   // 앱 안에서 이리로 오는 링크가 설정 한 곳뿐이라, 정상 진입이면 어차피 여기로 돌아간다.
   // 이 줄이 사는 자리는 북마크·딥링크로 곧장 들어온 경우다.
   "/mcp-tokens": "/settings",
+  "/settings/accounts": "/settings",
 };
 
 export function InfoBackHeader() {

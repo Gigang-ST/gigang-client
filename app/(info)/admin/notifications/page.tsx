@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { verifyAdmin } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getTeamCfg } from "@/lib/team-cfg/read";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import type { NotiTypeEnm } from "@/app/actions/admin/send-notification";
@@ -87,7 +88,10 @@ export default async function AdminNotificationsPage({ searchParams }: { searchP
   const history = Array.from(batchMap.values()).slice(0, 20);
 
   const initialSelectedIds = memIdsParam ? memIdsParam.split(",").filter(Boolean) : [];
-  const tmpl = template ? (NOTI_TEMPLATES[template] ?? null) : null;
+  // 회비를 안 쓰는 팀엔 「회비 안내」 템플릿을 채워 주지 않는다(보내기도 액션이 막는다)
+  const duesEnabled = await getTeamCfg(teamId, "feature.dues");
+  const tmpl =
+    template && (template !== "dues_notice" || duesEnabled) ? (NOTI_TEMPLATES[template] ?? null) : null;
 
   return (
     <AdminNotificationsClient

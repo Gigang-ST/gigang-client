@@ -33,8 +33,6 @@ export const activityLogSchema = activityLogBaseSchema.extend({
     .optional(),
 });
 
-export type ActivityLogInput = z.infer<typeof activityLogSchema>;
-
 /** 마일리지런 활동 로그 다건 등록 폼 */
 export const activityLogBatchSchema = z
   .array(activityLogSchema)

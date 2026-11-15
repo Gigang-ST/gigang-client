@@ -32,6 +32,7 @@ export function RecapPage({
   myMemId,
   party = null,
   groupPhotoUrls = [],
+  crewName,
 }: {
   recap: MileageRecap;
   myMemId: string | null;
@@ -39,6 +40,8 @@ export function RecapPage({
   party?: RecapParty | null;
   /** 마무리 인사 위 단체사진들(`RECAP_SEASON_EXTRAS`) */
   groupPhotoUrls?: string[];
+  /** 크루 이름(「우리 기강은 뛰었어요」 — §lib/team-copy) */
+  crewName: string;
 }) {
   // 사람별 집계는 **내 것만** 넘긴다 — 전원 몫을 클라이언트 payload에 실을 이유가 없다.
   const { members, ...view } = recap;
@@ -63,12 +66,12 @@ export function RecapPage({
         <RecapAwards recap={view} winnerMemories={extras.winnerMemories} />
       </RecapCelebrate>
       <RecapNumbers recap={view} />
-      <RecapCalendar recap={view} />
+      <RecapCalendar recap={view} crewName={crewName} />
       <RecapCities recap={view} />
       <RecapRhythm recap={view} />
       <RecapBonus recap={view} />
-      <RecapLastDay recap={view} />
-      <RecapFinale recap={view} party={party} groupPhotoUrls={groupPhotoUrls} />
+      <RecapLastDay recap={view} crewName={crewName} />
+      <RecapFinale recap={view} party={party} groupPhotoUrls={groupPhotoUrls} crewName={crewName} />
     </div>
   );
 }

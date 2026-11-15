@@ -267,7 +267,7 @@ export function CompetitionRegisterDialog({
               <Label htmlFor="comp-title">대회명 *</Label>
               <Input
                 id="comp-title"
-                placeholder="예: 2026 서울마라톤"
+                placeholder="예: 2026 ○○마라톤"
                 {...register("title")}
               />
               {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
@@ -324,7 +324,7 @@ export function CompetitionRegisterDialog({
               <Label htmlFor="comp-location">장소 *</Label>
               <Input
                 id="comp-location"
-                placeholder="예: 서울 여의도"
+                placeholder="예: ○○시 ○○공원"
                 {...register("location")}
               />
               {errors.location && <p className="text-xs text-destructive">{errors.location.message}</p>}

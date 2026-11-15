@@ -21,11 +21,14 @@ export async function respondFeedback(id: string, adminNote: string) {
       .from("fdbk_mst")
       .update({ adm_note_txt: parsed.data.adminNote ?? null, rspd_at: dayjs().toISOString() })
       .eq("fdbk_id", id)
+      // 이 팀 건의만 — 다른 팀 건의에 답변을 달고 이 팀 이름으로 알림을 보내지 않게
+      .eq("team_id", teamId)
       .eq("del_yn", false)
       .select("mem_id, cont_txt")
-      .single();
+      .maybeSingle();
 
     if (error) return { ok: false, message: "답변 저장에 실패했습니다." };
+    if (!updated) return { ok: false, message: "건의를 찾을 수 없습니다." };
 
     // 답변이 비어있지 않을 때만 작성자에게 알림 (비차단)
     if (updated && parsed.data.adminNote) {

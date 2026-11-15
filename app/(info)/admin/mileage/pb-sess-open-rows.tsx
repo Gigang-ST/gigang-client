@@ -138,7 +138,7 @@ export function SessOpenRowItem({
       </div>
       <Input
         value={draft.locTxt}
-        placeholder="예: 양재시민의숲 농구장"
+        placeholder="예: ○○공원 입구"
         aria-label="장소"
         onChange={(e) => set({ locTxt: e.target.value })}
       />

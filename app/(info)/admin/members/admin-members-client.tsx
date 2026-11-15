@@ -295,7 +295,7 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function OnboardingSection({ memId }: { memId: string }) {
+function OnboardingSection({ memId, teamId }: { memId: string; teamId: string }) {
   const [profile, setProfile] = useState<OnboardingProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -304,18 +304,25 @@ function OnboardingSection({ memId }: { memId: string }) {
     // effect 안에서 동기 setState를 부르지 않는다.
     let alive = true;
     const supabase = createClient();
-    // RLS mem_onbd_prf_select_team_admin 이 팀 관리자에게 팀원 온보딩 조회를 허용한다.
-    supabase
-      .from("mem_onbd_prf")
-      .select(
-        "near_stn_nm, avg_run_dist_km, avg_pace_cd, join_purp_cds, join_purp_txt, join_src_cd, join_src_txt",
-      )
-      .eq("mem_id", memId)
-      .maybeSingle()
+    // RLS(mem_onbd_prf_select_team_admin · team_mem_onbd_rel_select_team_admin)가 팀 관리자에게
+    // 팀원 온보딩 조회를 허용한다. 러닝 프로필은 사람 것, 가입 목적·유입 경로는 **이 팀 것**만 읽는다.
+    Promise.all([
+      supabase
+        .from("mem_onbd_prf")
+        .select("near_stn_nm, avg_run_dist_km, avg_pace_cd")
+        .eq("mem_id", memId)
+        .maybeSingle(),
+      supabase
+        .from("team_mem_onbd_rel")
+        .select("join_purp_cds, join_purp_txt, join_src_cd, join_src_txt")
+        .eq("team_id", teamId)
+        .eq("mem_id", memId)
+        .maybeSingle(),
+    ])
       .then(
-        ({ data }) => {
+        ([{ data: run }, { data: join }]) => {
           if (!alive) return;
-          setProfile((data as OnboardingProfile) ?? null);
+          setProfile(run || join ? ({ ...run, ...join } as OnboardingProfile) : null);
           setLoading(false);
         },
         // 네트워크 실패 등으로 reject 되면 스켈레톤이 영영 안 걷히므로 로딩만 해제
@@ -327,7 +334,7 @@ function OnboardingSection({ memId }: { memId: string }) {
     return () => {
       alive = false;
     };
-  }, [memId]);
+  }, [memId, teamId]);
 
   const paceLabel = profile?.avg_pace_cd
     ? (PACE_LABELS[profile.avg_pace_cd as keyof typeof PACE_LABELS] ??
@@ -482,7 +489,7 @@ function TitleSection({
   const handleGrant = async () => {
     if (!selectedTtlId) return;
     setGranting(true);
-    const result = await grantTitle(member.team_mem_id, selectedTtlId, teamId);
+    const result = await grantTitle(member.team_mem_id, selectedTtlId);
     if (result.ok) {
       setShowGrantPanel(false);
       await loadTitles();
@@ -580,10 +587,13 @@ function StatusChangeSheet({
   onDeactivate,
   onLeave,
   onReactivate,
+  duesEnabled,
 }: {
   member: Member;
   open: boolean;
   busy: boolean;
+  /** 이 팀이 회비를 쓰는가 — 안 쓰면 재활성화의 「회비 잔액 처리」를 묻지 않는다 */
+  duesEnabled: boolean;
   onOpenChange: (open: boolean) => void;
   onDeactivate: (memberId: string, reason: string) => void;
   onLeave: (memberId: string, reason: string) => void;
@@ -745,7 +755,7 @@ function StatusChangeSheet({
                       </Caption>
                     </div>
                   )}
-                  {isSelected && opt.action === "activate" && (
+                  {isSelected && opt.action === "activate" && duesEnabled && (
                     <div className="flex flex-col gap-1.5 pl-4">
                       <Label className="text-[12px]">회비 잔액 처리</Label>
                       <div className="flex gap-2">
@@ -808,7 +818,19 @@ function StatusChangeSheet({
 // 메인 컴포넌트
 // ---------------------------------------------------------------------------
 
-export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: string; initialTeamMemId?: string }) {
+export function AdminMembersClient({
+  teamId,
+  initialTeamMemId,
+  duesEnabled,
+  titlesEnabled,
+}: {
+  teamId: string;
+  initialTeamMemId?: string;
+  /** 이 팀이 회비를 쓰는가(팀 설정 `feature.dues`) — 안 쓰면 회비잔액 열·잔액 처리를 안 그린다 */
+  duesEnabled: boolean;
+  /** 이 팀이 칭호를 쓰는가(팀 설정 `feature.titles`) — 안 쓰면 멤버 상세의 칭호 수여 칸을 안 그린다 */
+  titlesEnabled: boolean;
+}) {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"members" | "participation">("members");
@@ -1256,7 +1278,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
                   />
                 </div>
               </TableHead>
-              {["이름", "성별", "생년월일", "가입일자", "연락처", "회원상태", "회비잔액"].map((h) => (
+              {["이름", "성별", "생년월일", "가입일자", "연락처", "회원상태", ...(duesEnabled ? ["회비잔액"] : [])].map((h) => (
                 <TableHead key={h} className="text-center text-xs whitespace-nowrap">{h}</TableHead>
               ))}
             </TableRow>
@@ -1264,7 +1286,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
           <TableBody>
             {statusFiltered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="py-10 text-center">
+                <TableCell colSpan={duesEnabled ? 8 : 7} className="py-10 text-center">
                   <Caption className="text-muted-foreground">회원이 없습니다.</Caption>
                 </TableCell>
               </TableRow>
@@ -1316,6 +1338,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
                         )}
                     </div>
                   </TableCell>
+                  {duesEnabled && (
                   <TableCell className="text-center">
                     {member.bal_amt === null ? (
                       <Caption className="text-xs text-muted-foreground">-</Caption>
@@ -1329,6 +1352,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
                       </Caption>
                     )}
                   </TableCell>
+                  )}
                 </TableRow>
               );
             })}
@@ -1430,7 +1454,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
               </div>
 
               {/* 온보딩 러닝 프로필 — 회원별 remount로 이전 회원 값 잔상 방지 */}
-              <OnboardingSection key={selectedMember.id} memId={selectedMember.id} />
+              <OnboardingSection key={selectedMember.id} memId={selectedMember.id} teamId={teamId} />
 
               {/* 참여 현황 — 모임·대회 참여 요약/월별/최근 활동 */}
               <ParticipationSection
@@ -1440,7 +1464,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
               />
 
               {/* 칭호 관리 */}
-              <TitleSection member={selectedMember} teamId={teamId} />
+              {titlesEnabled && <TitleSection member={selectedMember} teamId={teamId} />}
 
               {/* 액션 버튼 */}
               <div className="flex flex-col gap-2">
@@ -1610,6 +1634,7 @@ export function AdminMembersClient({ teamId, initialTeamMemId }: { teamId: strin
           onDeactivate={handleSheetDeactivate}
           onLeave={handleSheetLeave}
           onReactivate={handleSheetReactivate}
+          duesEnabled={duesEnabled}
         />
       )}
     </div>

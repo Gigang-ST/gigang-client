@@ -19,7 +19,7 @@ describe("notifyGatheringUpdated", () => {
 
   it("일시·장소가 안 바뀌었으면 보내지 않는다", async () => {
     await notifyGatheringUpdated({
-      gthrId: "g1",
+      teamId: "team-1", gthrId: "g1",
       title: "번개",
       sttAt: STT,
       location: "여의도",
@@ -33,14 +33,14 @@ describe("notifyGatheringUpdated", () => {
     // 고치고 바로 또 고치는 건 사람이 헷갈리는 중이라는 뜻이다. 중간을 삼키면
     // 톡방에 남은 마지막 안내가 틀린 값이 된다.
     await notifyGatheringUpdated({
-      gthrId: "g1",
+      teamId: "team-1", gthrId: "g1",
       title: "번개",
       sttAt: STT,
       location: "탄천",
       prev: { sttAt: STT, location: "여의도" },
     });
     await notifyGatheringUpdated({
-      gthrId: "g1",
+      teamId: "team-1", gthrId: "g1",
       title: "번개",
       sttAt: STT,
       location: "한강",
@@ -53,7 +53,7 @@ describe("notifyGatheringUpdated", () => {
 
   it("링크는 origin·ref 가 둘 다 있을 때만 붙인다", async () => {
     await notifyGatheringUpdated({
-      gthrId: "g1",
+      teamId: "team-1", gthrId: "g1",
       ref: "abc",
       origin: "https://dev.gigang.team",
       title: "번개",
@@ -72,7 +72,7 @@ describe("notifyGatheringCanceled", () => {
   });
 
   it("변경 판정 없이 언제나 보낸다", async () => {
-    await notifyGatheringCanceled({ gthrId: "g1", title: "번개", sttAt: STT });
+    await notifyGatheringCanceled({ teamId: "team-1", gthrId: "g1", title: "번개", sttAt: STT });
 
     expect(sendKakao).toHaveBeenCalledTimes(1);
     expect(sendKakao.mock.calls[0][0]).toContain("❌ 모임이 취소됐어요");
@@ -85,26 +85,26 @@ describe("request_id — 허브가 같은 사건을 두 번 보내지 않게", (
   });
 
   it("등록·취소는 모임마다 고정 id 를 붙인다", async () => {
-    await notifyGatheringCreated({ gthrId: "g1", title: "번개", sttAt: STT });
-    await notifyGatheringCanceled({ gthrId: "g1", title: "번개", sttAt: STT });
+    await notifyGatheringCreated({ teamId: "team-1", gthrId: "g1", title: "번개", sttAt: STT });
+    await notifyGatheringCanceled({ teamId: "team-1", gthrId: "g1", title: "번개", sttAt: STT });
 
     expect(sendKakao.mock.calls[0][1]).toMatchObject({ requestId: "gathering:g1:created" });
     expect(sendKakao.mock.calls[1][1]).toMatchObject({ requestId: "gathering:g1:canceled" });
   });
 
   it("수정과 수동 공지는 id 를 붙이지 않는다 — 같은 모임에서 여러 번 나가는 게 정상이다", async () => {
-    await notifyGatheringUpdated({ gthrId: "g1", title: "번개", sttAt: STT, location: "한강", prev: { sttAt: STT, location: "여의도" } });
-    await announceGathering({ gthrId: "g1", title: "번개", sttAt: STT });
+    await notifyGatheringUpdated({ teamId: "team-1", gthrId: "g1", title: "번개", sttAt: STT, location: "한강", prev: { sttAt: STT, location: "여의도" } });
+    await announceGathering({ teamId: "team-1", gthrId: "g1", title: "번개", sttAt: STT });
 
     expect(sendKakao.mock.calls[0][1]?.requestId).toBeUndefined();
     expect(sendKakao.mock.calls[1][1]?.requestId).toBeUndefined();
   });
 
   it("어느 사건이 보냈는지 출처를 함께 넘긴다 — 발송 이력에서 가려 보려고", async () => {
-    await notifyGatheringCreated({ gthrId: "g1", title: "번개", sttAt: STT });
-    await notifyGatheringUpdated({ gthrId: "g1", title: "번개", sttAt: STT, location: "한강", prev: { sttAt: STT, location: "여의도" } });
-    await notifyGatheringCanceled({ gthrId: "g1", title: "번개", sttAt: STT });
-    await announceGathering({ gthrId: "g1", title: "번개", sttAt: STT });
+    await notifyGatheringCreated({ teamId: "team-1", gthrId: "g1", title: "번개", sttAt: STT });
+    await notifyGatheringUpdated({ teamId: "team-1", gthrId: "g1", title: "번개", sttAt: STT, location: "한강", prev: { sttAt: STT, location: "여의도" } });
+    await notifyGatheringCanceled({ teamId: "team-1", gthrId: "g1", title: "번개", sttAt: STT });
+    await announceGathering({ teamId: "team-1", gthrId: "g1", title: "번개", sttAt: STT });
 
     expect(sendKakao.mock.calls.map((c) => c[1]?.source?.type)).toEqual([
       "gathering_created",
@@ -112,5 +112,20 @@ describe("request_id — 허브가 같은 사건을 두 번 보내지 않게", (
       "gathering_canceled",
       "gathering_announce",
     ]);
+  });
+});
+
+describe("팀별 방", () => {
+  beforeEach(() => {
+    sendKakao.mockReset().mockResolvedValue({ ok: true });
+  });
+
+  it("모임의 팀을 넘겨 그 팀 방으로 보낸다 — 다른 팀 방으로 새지 않게", async () => {
+    await notifyGatheringCreated({ teamId: "team-ulsan", gthrId: "g9", title: "트레일", sttAt: STT });
+    await notifyGatheringCanceled({ teamId: "team-ulsan", gthrId: "g9", title: "트레일", sttAt: STT });
+    await announceGathering({ teamId: "team-ulsan", gthrId: "g9", title: "트레일", sttAt: STT });
+
+    for (const call of sendKakao.mock.calls) expect(call[1]).toMatchObject({ teamId: "team-ulsan" });
+    expect(sendKakao).toHaveBeenCalledTimes(3);
   });
 });

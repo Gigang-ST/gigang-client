@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
-export const metadata: Metadata = {
-  title: "회칙",
-  description: "기강 러닝크루 회칙 — 함께 달리기 위해 지키는 활동 원칙.",
-  alternates: { canonical: "/rules" },
-};
+import { getTeamPageDescription } from "@/lib/queries/team-copy";
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: "회칙",
+    // 검색 설명은 팀 기준(§lib/team-copy pageDescription) — 기강은 다듬어 둔 문장 그대로, 다른 팀은 크루 이름으로 만든 중립 문장
+    description: await getTeamPageDescription("rules"),
+    alternates: { canonical: "/rules" },
+  };
+}
 
 export default function RulesPage() {
   const rules = {

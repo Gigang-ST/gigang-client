@@ -113,7 +113,7 @@ function IntroEditForm({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             maxLength={INTRO_TXT_MAX}
-            placeholder="올해는 서브4 간다"
+            placeholder="올해도 부상 없이 무사 완주!"
             autoFocus
             onKeyDown={(e) => {
               if (e.key === "Enter") {

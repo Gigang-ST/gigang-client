@@ -32,7 +32,7 @@ type Props = {
   initialTokens: McpTokenSummary[];
 };
 
-export function McpTokensClient({ initialTokens }: Props) {
+export function McpTokensClient({ initialTokens, crewName }: Props & { crewName: string }) {
   const router = useRouter();
   const [tokens, setTokens] = useState(initialTokens);
   const [label, setLabel] = useState("");
@@ -98,7 +98,7 @@ export function McpTokensClient({ initialTokens }: Props) {
       <div className="flex flex-col gap-2">
         <Body className="font-semibold">MCP 토큰</Body>
         <Caption>
-          운영 AI 도구(MCP 클라이언트)를 기강 데이터에 연결할 때 쓰는 개인 액세스 토큰입니다.
+          운영 AI 도구(MCP 클라이언트)를 {crewName} 데이터에 연결할 때 쓰는 개인 액세스 토큰입니다.
           발급된 토큰은 발급 직후 한 번만 볼 수 있으니 안전한 곳에 보관하세요.
         </Caption>
       </div>

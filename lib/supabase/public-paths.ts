@@ -9,6 +9,8 @@
 /** 완전 일치로 공개되는 경로. prefix 매칭이면 하위 경로까지 덩달아 열린다. */
 const PUBLIC_PATHS = [
   "/",
+  // 인트로 — 비로그인 첫 화면. 사진은 .webp라 matcher를 안 타고, 목록은 빌드 때 코드에 박힌다.
+  "/intro",
   "/rules",
   "/join",
   "/newbie",
@@ -21,8 +23,8 @@ const PUBLIC_PATHS = [
   "/privacy",
   "/policy",
   "/settings",
-  // public/llms.txt — LLM·에이전트용 사이트 안내문(llms.txt 규약).
-  // proxy matcher가 `.txt`를 제외하지 않아 정적 파일인데도 미들웨어를 탄다.
+  // /llms.txt — LLM·에이전트용 사이트 안내문(llms.txt 규약). 팀별 라우트(app/llms.txt/route.ts).
+  // proxy matcher가 `.txt`를 제외하지 않아 미들웨어를 탄다.
   // 여기서 빠지면 쿠키 없는 요청이 로그인으로 302되어 파일이 조용히 죽는다.
   "/llms.txt",
   // 검색엔진용 두 파일(app/robots.ts · app/sitemap.ts가 생성).

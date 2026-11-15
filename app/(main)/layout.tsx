@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 
 import { BottomTabBar } from "@/components/bottom-tab-bar";
+import { BottomTabBarGate } from "@/components/bottom-tab-bar-gate";
 import { PresenceFloor } from "@/components/presence/presence-floor";
 import { PushPermissionPromptGate } from "@/components/push-permission-prompt-gate";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -48,7 +49,10 @@ export default function MainLayout({
           <PushPermissionPromptGate />
         </Suspense>
       </Suspense>
-      <BottomTabBar />
+      {/* 탭바 — 껍데기엔 같은 모양(로고 탭 이름 「홈」)으로 서 있다가 요청 때 크루 이름을 단 탭바로 바뀐다(§bottom-tab-bar-gate) */}
+      <Suspense fallback={<BottomTabBar />}>
+        <BottomTabBarGate />
+      </Suspense>
       {/* 탭바가 있는 화면임을 전역 접속자 레이어에 알린다 — 아무것도 그리지 않는다.
           레이어는 `<body>` 직계라 자기가 어느 라우트 그룹에 있는지 모른다(§presence-floor). */}
       <PresenceFloor />

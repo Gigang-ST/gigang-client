@@ -45,20 +45,39 @@ export async function getAdminStats(): Promise<AdminStats> {
       admin.from("team_mem_rel").select("*", { count: "exact", head: true }).eq("team_id", teamId).eq("vers", 0).eq("del_yn", false)
         .then((res) => { if (res.error) console.error("[getAdminStats] team_mem_rel error:", res.error, "teamId:", teamId); return res; }),
       admin.from("team_mem_rel").select("*", { count: "exact", head: true }).eq("team_id", teamId).eq("vers", 0).eq("del_yn", false).eq("mem_st_cd", "active"),
+      // 이 달 대회 — 대회 원본(comp_mst)은 모든 팀 공용이라 그대로 세면 다른 팀 대회까지 합쳐진다.
+      // 이 팀 일정에 올라간 대회(team_comp_plan_rel)만 센다 — 일정 화면(get_public_team_competitions)과 같은 기준.
       (() => {
         const monthStart = currentMonthKST();
         const monthEnd = nextMonthStr(monthStart);
-        return admin.from("comp_mst").select("*", { count: "exact", head: true }).eq("vers", 0).eq("del_yn", false).gte("stt_dt", monthStart).lt("stt_dt", monthEnd);
+        return admin
+          .from("team_comp_plan_rel")
+          .select("team_comp_id, comp_mst!inner(vers, del_yn, stt_dt)", { count: "exact", head: true })
+          .eq("team_id", teamId)
+          .eq("vers", 0)
+          .eq("del_yn", false)
+          .eq("comp_mst.vers", 0)
+          .eq("comp_mst.del_yn", false)
+          .gte("comp_mst.stt_dt", monthStart)
+          .lt("comp_mst.stt_dt", monthEnd);
       })(),
 
-      admin.from("rec_race_hist").select("*", { count: "exact", head: true }).eq("vers", 0).eq("del_yn", false),
+      // 기록 — 대회 기록은 사람 것이라 팀 칸이 없다. 이 팀 회원의 기록만 센다(기록 관리 목록·권한과 같은 기준).
+      admin
+        .from("rec_race_hist")
+        .select("race_result_id, mem_mst!fk_rec_race_hist__mem_mst!inner(team_mem_rel!inner(team_id, vers, del_yn))", { count: "exact", head: true })
+        .eq("vers", 0)
+        .eq("del_yn", false)
+        .eq("mem_mst.team_mem_rel.team_id", teamId)
+        .eq("mem_mst.team_mem_rel.vers", 0)
+        .eq("mem_mst.team_mem_rel.del_yn", false),
       admin.from("evt_team_mst").select("*", { count: "exact", head: true }).eq("team_id", teamId).eq("stts_enm", "ACTIVE"),
       // 승인 대기는 **끝나지 않은** 프로젝트만 센다 — 종료(보관)한 프로젝트에 남은 대기 행이 배지를 영영 켜 두지 않게
       admin.from("evt_team_prt_rel").select("evt_id, evt_team_mst!inner(team_id, stts_enm)", { count: "exact", head: true }).eq("aprv_yn", false).eq("evt_team_mst.team_id", teamId).neq("evt_team_mst.stts_enm", "CLOSED"),
       // PB 클래스 입금 대기 — 참가자 테이블이 마일리지와 분리돼 있어 따로 세어 합친다
       admin.from("evt_pb_prt_rel").select("evt_id, evt_team_mst!inner(team_id, stts_enm)", { count: "exact", head: true }).eq("aprv_yn", false).eq("evt_team_mst.team_id", teamId).neq("evt_team_mst.stts_enm", "CLOSED"),
       admin.rpc("get_admin_unpaid_active_count", { p_team_id: teamId }),
-      admin.from("fdbk_mst").select("*", { count: "exact", head: true }).in("stts_enm", ["open", "in_review"]).eq("vers", 0).eq("del_yn", false),
+      admin.from("fdbk_mst").select("*", { count: "exact", head: true }).eq("team_id", teamId).in("stts_enm", ["open", "in_review"]).eq("vers", 0).eq("del_yn", false),
       // 승인 대기 중인 모임 참가 신청 — **월 필터 없음**(다른 달 대기 건을 놓치지 않게).
       // 삭제된 모임의 잔여 신청은 처리할 일이 아니므로 gthr_mst 를 inner 로 걸어 걸러낸다.
       admin
@@ -67,10 +86,11 @@ export async function getAdminStats(): Promise<AdminStats> {
         .eq("aply_st_cd", "pending")
         .eq("gthr_mst.team_id", teamId)
         .eq("gthr_mst.del_yn", false),
-      // 카카오 발송 실패 — 최근 7일. 팀 스코프가 없는 건 발송 자체가 팀 하나(단톡방 하나)라서다.
+      // 카카오 발송 실패 — 최근 7일, 이 팀 방 것만(카톡방이 팀별이 되면서 이력에도 팀이 붙었다)
       createUntypedAdminClient()
         .from("kakao_send_hist")
         .select("send_id", { count: "exact", head: true })
+        .eq("team_id", teamId)
         .eq("status", "failed")
         .gte("crt_at", sevenDaysAgoISO()),
     ]);

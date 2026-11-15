@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { Pencil, Trash2, Plus, Check, X, ChevronUp, ChevronDown } from "lucide-react";
 
 import { addFeeItem, updateFeeItem, deleteFeeItem, reorderFeeItems } from "@/app/actions/dues/manage-fee-items";
+import { isOwnFeeItem } from "@/lib/fee-items";
 
 import { Body, Caption, SectionLabel } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
@@ -19,13 +20,18 @@ export type FeeItem = {
   cd_nm: string;
   sort_ord: number;
   is_default_yn: boolean;
+  /** NULL = 모든 팀 공용 기본 분류(잠김), 값 = 그 팀이 추가한 항목(§lib/fee-items) */
+  team_id: string | null;
 };
 
 /**
  * 거래 분류 항목(FEE_ITEM_CD) 관리 UI.
  * 회비 정책 화면과 업로드 화면에서 공용으로 사용한다.
+ *
+ * 기본 분류(공용)는 맨 위에 잠긴 채로 서고, 이 팀이 추가한 항목만 이름·순서·삭제를 고친다 —
+ * 공용 항목을 고치면 모든 팀이 바뀐다(서버 액션도 같은 경계로 막는다).
  */
-export function FeeItemManager({ feeItems: initialFeeItems }: { feeItems: FeeItem[] }) {
+export function FeeItemManager({ feeItems: initialFeeItems, teamId }: { feeItems: FeeItem[]; teamId: string }) {
   const [isPending, startTransition] = useTransition();
   const [feeItems, setFeeItems] = useState<FeeItem[]>(initialFeeItems);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -33,17 +39,22 @@ export function FeeItemManager({ feeItems: initialFeeItems }: { feeItems: FeeIte
   const [showAddForm, setShowAddForm] = useState(false);
   const [addForm, setAddForm] = useState({ cd: "", cdNm: "" });
 
+  // 공용(잠김) 먼저, 이 팀 항목 다음 — 순서 바꾸기는 이 팀 항목끼리만
+  const sharedItems = feeItems.filter((i) => !isOwnFeeItem(i, teamId));
+  const ownItems = feeItems.filter((i) => isOwnFeeItem(i, teamId));
+  const ownSortBase = sharedItems.reduce((m, i) => Math.max(m, i.sort_ord), 0);
+
   function moveItem(idx: number, direction: "up" | "down") {
     const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= feeItems.length) return;
+    if (swapIdx < 0 || swapIdx >= ownItems.length) return;
     const prevItems = feeItems; // 저장 실패 시 되돌릴 이전 순서 보관
-    const newItems = [...feeItems];
-    [newItems[idx], newItems[swapIdx]] = [newItems[swapIdx], newItems[idx]];
-    const reordered = newItems.map((item, i) => ({ ...item, sort_ord: i + 1 }));
-    setFeeItems(reordered);
+    const newOwn = [...ownItems];
+    [newOwn[idx], newOwn[swapIdx]] = [newOwn[swapIdx], newOwn[idx]];
+    const reorderedOwn = newOwn.map((item, i) => ({ ...item, sort_ord: ownSortBase + i + 1 }));
+    setFeeItems([...sharedItems, ...reorderedOwn]);
     startTransition(async () => {
       try {
-        const res = await reorderFeeItems(reordered.map((item) => ({ cdId: item.cd_id, sortOrd: item.sort_ord })));
+        const res = await reorderFeeItems(reorderedOwn.map((item) => ({ cdId: item.cd_id, sortOrd: item.sort_ord })));
         // 저장 실패 시 화면 순서와 DB 순서가 어긋나므로 이전 순서로 롤백
         if (res && !res.ok) {
           setFeeItems(prevItems);
@@ -105,7 +116,17 @@ export function FeeItemManager({ feeItems: initialFeeItems }: { feeItems: FeeIte
       <SectionLabel>거래 분류 항목 관리</SectionLabel>
       <Caption className="text-muted-foreground">입금·출금 거래에 붙는 분류 태그를 관리합니다.</Caption>
 
-      {feeItems.map((item, idx) => (
+      {sharedItems.map((item) => (
+        <CardItem key={item.cd_id} className="flex items-center justify-between gap-2 px-3 py-2">
+          <div className="flex items-baseline gap-2 min-w-0">
+            <Body className="font-semibold truncate">{item.cd_nm}</Body>
+            <Caption className="text-muted-foreground shrink-0">{item.cd}</Caption>
+          </div>
+          <Caption className="shrink-0 text-muted-foreground">기본</Caption>
+        </CardItem>
+      ))}
+
+      {ownItems.map((item, idx) => (
         <CardItem key={item.cd_id} className="flex items-center justify-between gap-2 px-3 py-2">
           {editingId === item.cd_id ? (
             <>
@@ -138,7 +159,7 @@ export function FeeItemManager({ feeItems: initialFeeItems }: { feeItems: FeeIte
                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveItem(idx, "up")} disabled={isPending || idx === 0}>
                   <ChevronUp className="h-4 w-4" />
                 </Button>
-                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveItem(idx, "down")} disabled={isPending || idx === feeItems.length - 1}>
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveItem(idx, "down")} disabled={isPending || idx === ownItems.length - 1}>
                   <ChevronDown className="h-4 w-4" />
                 </Button>
                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(item)} disabled={isPending}>

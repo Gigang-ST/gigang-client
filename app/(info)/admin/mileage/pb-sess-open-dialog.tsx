@@ -44,6 +44,7 @@ const DEFAULT_DUR_MIN = PB_SESS_DEFAULT_DUR_MIN;
 export function PbSessOpenDialog({
   evtId,
   board,
+  kakaoEnabled,
   only,
   open,
   onOpenChange,
@@ -51,6 +52,8 @@ export function PbSessOpenDialog({
 }: {
   evtId: string;
   board: PbClassBoard;
+  /** 팀이 노티봇(카톡 공지방)을 쓰나 — 안 쓰면 공지 얘기를 빼고 "정기런으로 열려요"만 말한다 */
+  kakaoEnabled: boolean;
   only?: SessOpenOnly;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -179,9 +182,11 @@ export function PbSessOpenDialog({
           <ResponsiveDrawerTitle>{title}</ResponsiveDrawerTitle>
           <ResponsiveDrawerDescription>
             {/* 한 주차만 열면 서버가 노티봇으로 단톡방에 공지한다. 한꺼번에 열면 도배라 안 보낸다(createPbSessGatherings) */}
-            {only
-              ? "벙은 정기런으로 열려요. 열면 노티봇이 단톡방에 공지해요."
-              : "벙은 정기런으로 열려요. 한꺼번에 열면 단톡방 공지는 안 가요 — 주차마다 벙 공유의 「단톡방에 알림」으로 올려 주세요."}
+            {!kakaoEnabled
+              ? "벙은 정기런으로 열려요."
+              : only
+                ? "벙은 정기런으로 열려요. 열면 노티봇이 단톡방에 공지해요."
+                : "벙은 정기런으로 열려요. 한꺼번에 열면 단톡방 공지는 안 가요 — 주차마다 벙 공유의 「단톡방에 알림」으로 올려 주세요."}
           </ResponsiveDrawerDescription>
         </ResponsiveDrawerHeader>
 

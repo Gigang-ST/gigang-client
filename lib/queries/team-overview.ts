@@ -4,6 +4,7 @@ import { unstable_cache } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isRequestAbortError } from "@/lib/supabase/is-abort-error";
+import { teamCacheTags } from "@/lib/team-cache-tag";
 
 /** 한 주(월요일 시작, KST)의 크루 합계 */
 export type TeamWeek = {
@@ -95,6 +96,6 @@ export function getTeamOverview(teamId: string): Promise<TeamOverview> {
     ["team-overview", teamId],
     // `gatherings`는 뺐다 — 터는 쪽이 없어 한 번도 무효화된 적이 없다.
     // 주 단위 집계라 1시간 TTL로 충분하다.
-    { tags: ["team-overview", "records"], revalidate: 3600 },
+    { tags: [...teamCacheTags("team-overview", teamId), "records"], revalidate: 3600 },
   )().catch(() => EMPTY_OVERVIEW);
 }

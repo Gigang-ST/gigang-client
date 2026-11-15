@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTeamPageDescription } from "@/lib/queries/team-copy";
 
 /**
  * 약관류는 열려 있지만 검색으로 찾아올 지면이 아니다 — `robots.ts`에서 크롤을 막고
@@ -6,11 +7,14 @@ import type { Metadata } from "next";
  * 비워 두면 루트 값을 상속해 **홈과 같은 제목·설명을 쓰는 문서**가 되고, 네이버는
  * 그걸 중복 문서로 본다(웹마스터 가이드 「동일 설명문 발견」).
  */
-export const metadata: Metadata = {
-  title: "개인정보처리방침",
-  description: "기강 러닝크루 개인정보처리방침 — 수집 항목, 이용 목적, 보관 기간.",
-  robots: { index: false, follow: true },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: "개인정보처리방침",
+    // 검색 설명은 팀 기준(§lib/team-copy pageDescription) — 기강은 다듬어 둔 문장 그대로, 다른 팀은 크루 이름으로 만든 중립 문장
+    description: await getTeamPageDescription("privacy"),
+    robots: { index: false, follow: true },
+  };
+}
 
 export default function PrivacyPage() {
   const policy = {

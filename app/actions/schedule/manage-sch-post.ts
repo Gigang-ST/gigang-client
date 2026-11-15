@@ -73,12 +73,15 @@ export async function updateSchPost(input: {
   return withMember(async ({ member, supabase }) => {
     const parsed = updateSchPostSchema.parse(input);
     const { sch_post_id, ...fields } = parsed;
+    // 접속한 팀의 일정만 — member.admin 은 접속한 팀 기준이라 다른 팀 일정에 쓰면 안 된다
+    const { teamId } = await getRequestTeamContext();
 
     // 지난 일정(KST 날짜 기준) 수정 차단 — 관리자만 예외
     const { data: existing } = await supabase
       .from("sch_post_mst")
       .select("evt_stt_at, evt_end_at, crt_by")
       .eq("sch_post_id", sch_post_id)
+      .eq("team_id", teamId)
       .single();
     if (!existing) throw new Error("일정을 찾을 수 없습니다.");
 
@@ -109,10 +112,13 @@ export async function updateSchPost(input: {
 
 export async function deleteSchPost(sch_post_id: string) {
   return withMember(async ({ member, supabase }) => {
+    // 접속한 팀의 일정만 — 삭제는 service_role 이라 RLS 도 막지 않는다
+    const { teamId } = await getRequestTeamContext();
     const { data: post } = await supabase
       .from("sch_post_mst")
       .select("crt_by, team_id, evt_stt_at, evt_end_at")
       .eq("sch_post_id", sch_post_id)
+      .eq("team_id", teamId)
       .single();
     if (!post) throw new Error("일정을 찾을 수 없습니다.");
 

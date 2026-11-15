@@ -20,7 +20,7 @@ export async function submitFeedbackWithTracking(body: string) {
   return result;
 }
 
-export function FeedbackForm() {
+export function FeedbackForm({ crewName }: { crewName: string }) {
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -45,7 +45,7 @@ export function FeedbackForm() {
     <form onSubmit={handleSubmit}>
       <CardItem className="flex flex-col gap-3 p-4">
         <textarea
-          placeholder="기강 활동이나 앱 이용 중 불편한 점, 개선 아이디어 등을 자유롭게 남겨주세요."
+          placeholder={`${crewName} 활동이나 앱 이용 중 불편한 점, 개선 아이디어 등을 자유롭게 남겨주세요.`}
           value={body}
           onChange={(e) => setBody(e.target.value)}
           maxLength={2000}

@@ -4,8 +4,10 @@ import { revalidateTag } from "next/cache";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 import { withMember } from "@/lib/actions/auth";
 import { BOARD_POSTS_CACHE_TAG, boardPostCacheTag } from "@/lib/queries/board";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { updatePostSchema } from "@/lib/validations/board";
 import { getKSTDate } from "@/lib/dayjs";
+import { teamCacheTag } from "@/lib/team-cache-tag";
 
 export async function updatePost(input: {
   post_id: string;
@@ -15,9 +17,17 @@ export async function updatePost(input: {
   pin_yn?: boolean;
 }) {
   return withMember(async ({ member }) => {
+    // 접속한 팀의 글만 — member.admin 은 접속한 팀 기준이라 다른 팀 공지에 쓰면 안 된다
+    const { teamId } = await getRequestTeamContext();
     const admin = createUntypedAdminClient();
 
-    const { data: existing } = await admin.from("brd_post_mst").select("writ_mem_id, team_id").eq("post_id", input.post_id).eq("del_yn", false).single();
+    const { data: existing } = await admin
+      .from("brd_post_mst")
+      .select("writ_mem_id, team_id")
+      .eq("post_id", input.post_id)
+      .eq("team_id", teamId)
+      .eq("del_yn", false)
+      .single();
     if (!existing) throw new Error("게시글을 찾을 수 없습니다.");
 
     const isAuthor = existing.writ_mem_id === member.id;
@@ -39,7 +49,7 @@ export async function updatePost(input: {
     if (error) throw new Error("게시글 수정에 실패했습니다.");
 
     // 목록 + 해당 글 상세 캐시 무효화 (앱 내 수정 경로)
-    revalidateTag(BOARD_POSTS_CACHE_TAG, "max");
+    revalidateTag(teamCacheTag(BOARD_POSTS_CACHE_TAG, teamId), "max");
     revalidateTag(boardPostCacheTag(input.post_id), "max");
   });
 }

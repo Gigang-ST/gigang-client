@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { createRecordFlex } from "@/app/actions/story/create-record-flex";
 import { todayKST } from "@/lib/dayjs";
 import { pickQuip } from "@/lib/quips";
+import type { TeamCopy } from "@/lib/team-copy";
 import { createRecordFlexSchema, POST_CMNT_MAX } from "@/lib/validations/post";
 
 import { PhotoPicker } from "@/components/common/photo-picker";
@@ -36,7 +37,6 @@ type FormValues = z.input<typeof createRecordFlexSchema>;
  * **말투는 격자존(`RecordFlexFeed`)과 맞춘다 — "올린다/자랑한다".** 예전엔 이 존이
  * 코스변 팻말이라 "꽂는다"였는데, 인스타형 사진 격자 + 릴스 뷰어로 바뀌면서 코스도
  * 팻말도 없어졌다. 지금 "꽂기"라고 하면 화면에 없는 물건을 가리키는 말이 된다.
- * (팻말 어휘는 목표 한마디 존 `PledgeSigns`가 계속 쓴다 — 거긴 실제로 코스변 팻말이다.)
  *
  * **거리·종목 입력이 없다.** 이 지면의 기록은 수치를 겨루는 게 아니라 친목·응원이라
  * 사진·한마디·날짜면 충분하다. 수치가 필요한 사람은 마일리지런에 올리고, 거기에 사진을
@@ -52,9 +52,12 @@ type FormValues = z.input<typeof createRecordFlexSchema>;
 export function RecordFlexCreateDialog({
   open,
   onOpenChange,
+  copy,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** 팀 문구 — 작성창 제목·안내문의 지면 이름, 한마디 예시 묶음(§lib/team-copy) */
+  copy: Pick<TeamCopy, "galleryLabel" | "storyName" | "quips">;
 }) {
   // 닫혀 있으면 폼을 통째로 언마운트한다 — 재진입 시 이전 입력·미리보기가 남지 않게
   if (!open) {
@@ -64,13 +67,15 @@ export function RecordFlexCreateDialog({
       </ResponsiveDrawer>
     );
   }
-  return <RecordFlexCreateForm onOpenChange={onOpenChange} />;
+  return <RecordFlexCreateForm onOpenChange={onOpenChange} copy={copy} />;
 }
 
 function RecordFlexCreateForm({
   onOpenChange,
+  copy,
 }: {
   onOpenChange: (open: boolean) => void;
+  copy: Pick<TeamCopy, "galleryLabel" | "storyName" | "quips">;
 }) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
@@ -78,7 +83,7 @@ function RecordFlexCreateForm({
   const [saving, setSaving] = useState(false);
   // 예시 문구는 열 때 한 번 뽑고 입력 중엔 고정한다 — 이 폼은 열릴 때만 마운트되므로(위 `if (!open)`)
   // 서버가 다른 문구로 그려 놓을 일이 없다
-  const [quip] = useState(pickQuip);
+  const [quip] = useState(() => pickQuip(copy.quips));
 
   const {
     register,
@@ -134,7 +139,7 @@ function RecordFlexCreateForm({
         dialogClassName="max-w-sm"
       >
         <ResponsiveDrawerHeader className="px-4 py-4 text-left">
-          <ResponsiveDrawerTitle>Gingstargram</ResponsiveDrawerTitle>
+          <ResponsiveDrawerTitle>{copy.galleryLabel}</ResponsiveDrawerTitle>
         </ResponsiveDrawerHeader>
 
         <form
@@ -162,7 +167,7 @@ function RecordFlexCreateForm({
             <Caption className={photoError ? "text-destructive" : undefined}>
               {photoError
                 ? "사진을 한 장 올려주세요."
-                : "사진이 있어야 기강이야기에 올라가요"}
+                : `사진이 있어야 ${copy.storyName}에 올라가요`}
             </Caption>
           </div>
 

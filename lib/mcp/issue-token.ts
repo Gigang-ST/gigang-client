@@ -99,11 +99,14 @@ export async function issueMcpToken(
 export async function listMcpTokens(
   supabase: Db,
   memId: string,
+  teamId: string,
 ): Promise<McpTokenSummary[]> {
+  // 토큰은 발급한 팀에 묶인다 — 두 팀 가입자에게 다른 팀 토큰이 섞여 보이지 않게
   const { data, error } = await supabase
     .from("mcp_token_rel")
     .select("token_id, label, created_at, last_used_at, revoked_at")
     .eq("mem_id", memId)
+    .eq("team_id", teamId)
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -119,12 +122,14 @@ export async function listMcpTokens(
 
 /**
  * 본인 소유 토큰을 폐기한다(`revoked_at = now()`). `mem_id` eq 필터로 남의 토큰 폐기를 원천 차단하고,
+ * 목록(listMcpTokens)과 같이 접속한 팀(`team_id`)에서 발급한 토큰만 다룬다.
  * 이미 폐기된 토큰을 다시 조작하지 않도록 `revoked_at is null` 조건도 함께 건다.
  * 매칭되는 행이 없으면(미존재·이미 폐기·본인 소유 아님을 구분하지 않고) `McpTokenNotFoundError`.
  */
 export async function revokeMcpToken(
   supabase: Db,
   memId: string,
+  teamId: string,
   tokenId: string,
 ): Promise<void> {
   const { data, error } = await supabase
@@ -132,6 +137,7 @@ export async function revokeMcpToken(
     .update({ revoked_at: new Date().toISOString() })
     .eq("token_id", tokenId)
     .eq("mem_id", memId)
+    .eq("team_id", teamId)
     .is("revoked_at", null)
     .select("token_id")
     .maybeSingle();

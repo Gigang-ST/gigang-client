@@ -226,7 +226,7 @@ describe("listMcpTokens — AC-08 본인 목록", () => {
         }),
     } as unknown as SupabaseClient<Database>;
 
-    const tokens = await listMcpTokens(client, MEM_ID);
+    const tokens = await listMcpTokens(client, MEM_ID, TEAM_ID);
     expect(tokens).toEqual([
       { token_id: "a", label: "폰", created_at: "2026-07-24T00:00:00.000Z", last_used_at: null, revoked: false },
       {
@@ -253,10 +253,11 @@ describe("revokeMcpToken — 본인 스코프 강제", () => {
         ),
     } as unknown as SupabaseClient<Database>;
 
-    await revokeMcpToken(client, MEM_ID, TOKEN_ID);
+    await revokeMcpToken(client, MEM_ID, TEAM_ID, TOKEN_ID);
 
     expect(eqCalls).toContainEqual(["token_id", TOKEN_ID]);
     expect(eqCalls).toContainEqual(["mem_id", MEM_ID]);
+    expect(eqCalls).toContainEqual(["team_id", TEAM_ID]);
   });
 
   it("남의 토큰이거나 존재하지 않으면(쿼리 결과 0행) McpTokenNotFoundError를 던진다", async () => {
@@ -264,7 +265,7 @@ describe("revokeMcpToken — 본인 스코프 강제", () => {
       from: () => makeUpdateBuilder({ data: null, error: null }),
     } as unknown as SupabaseClient<Database>;
 
-    await expect(revokeMcpToken(client, OTHER_MEM_ID, TOKEN_ID)).rejects.toBeInstanceOf(
+    await expect(revokeMcpToken(client, OTHER_MEM_ID, TEAM_ID, TOKEN_ID)).rejects.toBeInstanceOf(
       McpTokenNotFoundError,
     );
   });
@@ -274,7 +275,7 @@ describe("revokeMcpToken — 본인 스코프 강제", () => {
       from: () => makeUpdateBuilder({ data: null, error: null }),
     } as unknown as SupabaseClient<Database>;
 
-    await expect(revokeMcpToken(client, MEM_ID, TOKEN_ID)).rejects.toBeInstanceOf(
+    await expect(revokeMcpToken(client, MEM_ID, TEAM_ID, TOKEN_ID)).rejects.toBeInstanceOf(
       McpTokenNotFoundError,
     );
   });

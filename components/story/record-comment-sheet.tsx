@@ -42,6 +42,7 @@ export function RecordCommentSheet({
   isAdmin,
   initialComments,
   onCommentsChange,
+  galleryName,
 }: {
   postId: string | null;
   /** 시트 제목에 쓴다 — "누구의 기록"에 다는 댓글인지 */
@@ -66,6 +67,8 @@ export function RecordCommentSheet({
    * 같은 데이터를 쓰기 때문이다. 실시간 구독을 걷어낸 뒤로(§성능 점검 C) **이게 유일한 경로다.**
    */
   onCommentsChange?: (postId: string, comments: CmntRow[]) => void;
+  /** 사진 지면 이름(기강 「깅스타그램」, 그 밖 「갤러리」 — §lib/team-copy) — 화면낭독 설명에 쓴다 */
+  galleryName: string;
 }) {
   const [members, setMembers] = useState<MemberOption[] | null>(null);
 
@@ -120,7 +123,7 @@ export function RecordCommentSheet({
             {postAuthorName ? `${postAuthorName}님의 기록` : "댓글"}
           </ResponsiveDrawerTitle>
           <ResponsiveDrawerDescription className="sr-only">
-            깅스타그램 댓글
+            {galleryName} 댓글
           </ResponsiveDrawerDescription>
         </ResponsiveDrawerHeader>
 

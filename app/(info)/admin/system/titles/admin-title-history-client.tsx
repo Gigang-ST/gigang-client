@@ -30,8 +30,12 @@ type HistoryRow = {
   };
 };
 
-/** 최근 칭호 획득 이력 조회 — 상태를 만지지 않는 순수 조회 */
-async function fetchHistory(): Promise<HistoryRow[]> {
+/**
+ * 최근 칭호 획득 이력 조회 — 상태를 만지지 않는 순수 조회.
+ * 칭호는 팀 소유라 접속한 팀 것만 읽는다 — 두 팀 관리자를 겸하면 RLS 로는 두 팀 이력이 다 보여 섞였다.
+ * 회수(revokeTitle)도 같은 칸(mem_ttl_rel.team_id)으로 거른다.
+ */
+async function fetchHistory(teamId: string): Promise<HistoryRow[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("mem_ttl_rel")
@@ -44,6 +48,7 @@ async function fetchHistory(): Promise<HistoryRow[]> {
       team_mem_rel!inner(mem_mst!inner(mem_nm)),
       ttl_mst!inner(ttl_nm)
     `)
+    .eq("team_id", teamId)
     .eq("vers", 0)
     .eq("del_yn", false)
     .order("grnt_at", { ascending: false })
@@ -53,7 +58,7 @@ async function fetchHistory(): Promise<HistoryRow[]> {
   return (data ?? []) as unknown as HistoryRow[];
 }
 
-export function AdminTitleHistoryClient() {
+export function AdminTitleHistoryClient({ teamId }: { teamId: string }) {
   const [rows, setRows] = useState<HistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [revokingId, setRevokingId] = useState<string | null>(null);
@@ -61,14 +66,14 @@ export function AdminTitleHistoryClient() {
   // 회수 뒤 다시 불러오기(이벤트 핸들러에서 부른다)
   const loadHistory = useCallback(async () => {
     setLoading(true);
-    setRows(await fetchHistory());
+    setRows(await fetchHistory(teamId));
     setLoading(false);
-  }, []);
+  }, [teamId]);
 
   // 첫 조회 — 응답 콜백에서만 setState 한다(이펙트 본문에서 동기로 부르지 않는다)
   useEffect(() => {
     let cancelled = false;
-    void fetchHistory().then((next) => {
+    void fetchHistory(teamId).then((next) => {
       if (cancelled) return;
       setRows(next);
       setLoading(false);
@@ -76,7 +81,7 @@ export function AdminTitleHistoryClient() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [teamId]);
 
   const handleRevoke = async (memTtlId: string) => {
     if (!confirm("이 멤버의 칭호를 회수하시겠습니까?")) return;

@@ -1,3 +1,4 @@
+import { feeItemTeamFilter } from "@/lib/fee-items";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -7,11 +8,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
  */
 export async function getValidFeeItemCds(
   db: ReturnType<typeof createAdminClient>,
+  teamId: string,
 ): Promise<Set<string>> {
   const { data, error } = await db
     .from("cmm_cd_mst")
     .select("cd, cmm_cd_grp_mst!inner(cd_grp_cd)")
     .eq("cmm_cd_grp_mst.cd_grp_cd", "FEE_ITEM_CD")
+    // 공용 + 이 팀 항목 — 다른 팀이 만든 분류로 이 팀 거래를 분류하지 못하게(§lib/fee-items)
+    .or(feeItemTeamFilter(teamId))
     .eq("vers", 0)
     .eq("del_yn", false);
   // 조회 실패를 빈 집합으로 삼키면 정상 분류도 "존재하지 않는 분류"로 거부되거나

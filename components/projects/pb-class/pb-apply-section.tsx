@@ -13,6 +13,7 @@ import { feesForJoinWeek, isLateJoin, requiredAttdCnt, wkLabel, type PbClassCfg 
 import { InactiveGateDialog } from "@/components/common/inactive-gate-dialog";
 import { Body, Caption, Micro } from "@/components/common/typography";
 import { AccountCopyButton } from "@/components/projects/account-copy-button";
+import type { TeamAccount } from "@/lib/team-channels";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 import { formatWon } from "./format";
@@ -28,6 +29,8 @@ type PbApplySectionProps = {
   /** 비활성/탈퇴 회원 — true면 신청 시 공통 안내 게이트를 연다(마일리지런 신청과 같은 규칙) */
   isInactive?: boolean;
   inactiveKind?: "inactive" | "left";
+  /** 이 팀 모임 계좌(팀 설정) */
+  account: TeamAccount | null;
 };
 
 /**
@@ -47,6 +50,7 @@ export function PbApplySection({
   mlgAlumni,
   isInactive = false,
   inactiveKind,
+  account,
 }: PbApplySectionProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -130,7 +134,7 @@ export function PbApplySection({
 
         <div className="flex flex-col gap-3 rounded-xl bg-muted p-4 text-center">
           <Caption className="block font-semibold text-foreground">신청 후 모임 계좌로 입금해 주세요</Caption>
-          <AccountCopyButton />
+          <AccountCopyButton account={account} />
         </div>
 
         <Button onClick={handleJoin} disabled={pending} className="h-[52px] w-full rounded-xl text-base font-semibold">

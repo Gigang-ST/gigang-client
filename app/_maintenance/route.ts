@@ -27,8 +27,8 @@ import { OG_SLOGAN } from "@/lib/gathering-og";
  * matcher 가 이미지 확장자를 제외하고 있어 정적으로 서빙되고, 혹 못 불러와도
  * `alt` 만 남고 화면은 그대로 뜬다 — 원본 SVG 는 64KB 라 인라인으로 넣기엔 무겁다.
  *
- * 슬로건은 `OG_SLOGAN` 을 가져다 쓴다. 홈 헤더 티커·일정탭·OG 카드와 같은 상수라,
- * 문구를 바꿀 때 여기만 옛말로 남는 일이 없다.
+ * 슬로건은 `OG_SLOGAN`(기강 문구 상수)을 쓴다. 일정탭·OG 카드는 2026-11-10 팀 설정 `brand.slogan` 으로
+ * 옮겨 갔다 — 되살릴 땐 이 화면도 요청 팀의 설정을 읽게 바꿀 것(지금은 기강 문구 고정이다).
  */
 
 // `export const dynamic` 은 쓰지 않는다 — 이 프로젝트는 cacheComponents 모드라

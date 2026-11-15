@@ -4,7 +4,8 @@ import { revalidateTag } from "next/cache";
 
 import { withAdminOrThrow } from "@/lib/actions/auth";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { revalidateRecordsForMembers } from "@/lib/records-revalidate";
+import { createAdminClientAs } from "@/lib/supabase/admin";
 import { fetchUtmbIndex } from "@/app/actions/utmb";
 
 export type RefreshRow = {
@@ -25,9 +26,10 @@ const REQUEST_DELAY_MS = 500;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function refreshUtmbIndexes(): Promise<RefreshResult> {
-  return withAdminOrThrow(async () => {
+  return withAdminOrThrow(async ({ member }) => {
     const { teamId } = await getRequestTeamContext();
-    const admin = createAdminClient();
+    // UTMB 는 사람 것 — 변경 이력에 "어느 팀 관리자의 일괄 갱신인지" 남긴다
+    const admin = createAdminClientAs({ memId: member.id, teamId });
 
     const { data: teamMembers, error: teamErr } = await admin
       .from("team_mem_rel")
@@ -101,7 +103,11 @@ export async function refreshUtmbIndexes(): Promise<RefreshResult> {
       { updated: 0, unchanged: 0, failed: 0 },
     );
 
-    if (summary.updated > 0) revalidateTag(`records:${teamId}`, "max");
+    if (summary.updated > 0) {
+      revalidateTag(`records:${teamId}`, "max");
+      // UTMB 는 사람 것 — 갱신된 사람이 속한 다른 팀 전당도 턴다
+      await revalidateRecordsForMembers(rows.filter((r) => r.status === "updated").map((r) => r.memId));
+    }
 
     return { rows, summary };
   });

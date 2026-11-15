@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTeamPageDescription } from "@/lib/queries/team-copy";
 
 const intro = {
   heading: "기강단 소개",
@@ -145,11 +146,14 @@ const contact = {
 
 const feeRule = rules.items.find((item) => item.id === 5);
 
-export const metadata: Metadata = {
-  title: "가입 신청",
-  description: "기강 러닝크루 가입 신청. 양재천·강남 정기 모임 장소와 시간, 크루 규칙, 문의 방법을 확인하고 신청하세요.",
-  alternates: { canonical: "/join" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: "가입 신청",
+    // 검색 설명은 팀 기준(§lib/team-copy pageDescription) — 기강은 다듬어 둔 문장 그대로, 다른 팀은 크루 이름으로 만든 중립 문장
+    description: await getTeamPageDescription("join"),
+    alternates: { canonical: "/join" },
+  };
+}
 
 export default function JoinPage() {
   return (

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { HeaderSlogan } from "@/components/home/header-slogan";
+import { hasHeaderBrand, type HeaderBrand } from "@/lib/team-brand";
 
 /** 헤더 중앙 롤링에 표시할 참석 예정 모임 (라벨은 서버에서 계산해 전달) */
 export type HeaderUpcoming = {
@@ -27,15 +28,17 @@ type Face = "chip" | "slogan";
  * 홈 헤더 중앙 슬로건 자리 — 참석 예정 모임(D-5 이내)이 있으면
  * 슬로건과 모임 칩을 슬롯처럼 위로 굴려가며 교차 표시한다.
  * 없으면 기존과 동일하게 슬로건 고정 (세로 공간 변화 없음).
+ * 팀에 슬로건·창설일이 둘 다 없으면 굴리지 않고 칩만 세운다 — 빈 면이 굴러오면 칩이 사라졌다 나타나기만 한다.
  */
-export function HeaderTicker({ upcoming }: { upcoming: HeaderUpcoming | null }) {
+export function HeaderTicker({ upcoming, brand }: { upcoming: HeaderUpcoming | null; brand: HeaderBrand }) {
+  const rolls = hasHeaderBrand(brand);
   // 첫 페인트에 칩부터 보여준다 (앱을 열자마자 다가오는 모임을 확인)
   const [active, setActive] = useState<Face>("chip");
   // 다음에 등장할 면 — 전환 없이 아래에 대기시켰다가 다음 프레임에 위로 올라오게 한다
   const [entering, setEntering] = useState<Face | null>(null);
 
   useEffect(() => {
-    if (!upcoming) return;
+    if (!upcoming || !rolls) return;
     const timer = setTimeout(
       () => {
         const next: Face = active === "chip" ? "slogan" : "chip";
@@ -51,14 +54,14 @@ export function HeaderTicker({ upcoming }: { upcoming: HeaderUpcoming | null }) 
       active === "chip" ? CHIP_MS : SLOGAN_MS,
     );
     return () => clearTimeout(timer);
-  }, [active, upcoming]);
+  }, [active, upcoming, rolls]);
 
   if (!upcoming) {
     return (
       // inset-0 + items-center로 부모(h-8) 안에서 세로 가운데. left-0 right-0만 주면
       // 세로가 top:0에 붙어, 로딩 스켈레톤(가운데 정렬)에서 넘어올 때 슬로건이 위로 튄다.
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-        <HeaderSlogan />
+        <HeaderSlogan brand={brand} />
       </div>
     );
   }
@@ -74,7 +77,7 @@ export function HeaderTicker({ upcoming }: { upcoming: HeaderUpcoming | null }) 
     <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
       <div className="relative h-8 w-56">
         <div className={`absolute inset-0 flex flex-col items-center justify-center ${faceClass("slogan")}`}>
-          <HeaderSlogan />
+          <HeaderSlogan brand={brand} />
         </div>
         <div className={`absolute inset-0 flex items-center justify-center ${faceClass("chip")}`}>
           <Link

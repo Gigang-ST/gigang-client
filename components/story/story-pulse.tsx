@@ -1,5 +1,6 @@
 "use client";
 
+import type { TeamCopy } from "@/lib/team-copy";
 import { dayjs, nowKST } from "@/lib/dayjs";
 import { getTeamPulse } from "@/lib/team-pulse";
 
@@ -43,7 +44,14 @@ import type { TeamOverview } from "@/lib/queries/team-overview";
  * **우측정렬**로 건다 — 밴드 우측의 `BPM / 한 단어`와 같은 오른쪽 끝에 맞물려, 그 숫자에 딸린
  * 캡션으로 읽힌다. 왼쪽에 두면 밴드와 무관한 별개 문장처럼 떠 있다.
  */
-export function StoryPulse({ overview }: { overview: TeamOverview }) {
+export function StoryPulse({
+  overview,
+  copy,
+}: {
+  overview: TeamOverview;
+  /** 팀 문구 — 크루 이름·호칭(§lib/team-copy) */
+  copy: Pick<TeamCopy, "crewName" | "memberNoun">;
+}) {
   // 캐시에 남은 옛 payload에는 weeks/months 필드 자체가 아예 없을 수 있다(RPC를 바꿔도
   // unstable_cache는 최대 1시간 옛 모양을 그대로 준다). 타입상 배열이어도 런타임엔
   // undefined일 수 있어, 필드가 없는 경우만 지면 한 칸 때문에 /story 전체가 죽지 않게
@@ -78,8 +86,8 @@ export function StoryPulse({ overview }: { overview: TeamOverview }) {
   // 읽히므로 숫자 없는 리드로 물러난다.
   const lead =
     overview.mem_cnt > 0
-      ? `기강인 ${overview.mem_cnt}명의 이번 주 심박`
-      : "이번 주 기강 심박";
+      ? `${copy.memberNoun} ${overview.mem_cnt}명의 이번 주 심박`
+      : `이번 주 ${copy.crewName} 심박`;
 
   return (
     <section className="flex flex-col">
@@ -89,8 +97,8 @@ export function StoryPulse({ overview }: { overview: TeamOverview }) {
         label="Team Pulse"
         lead={lead}
         action={
-          <HelpTip title="기강 오버뷰">
-            심박수는 이번 주 기강 활동량을 지난 4주 평균과 견줘 나타내요. 아래
+          <HelpTip title={`${copy.crewName} 오버뷰`}>
+            심박수는 이번 주 {copy.crewName} 활동량을 지난 4주 평균과 견줘 나타내요. 아래
             수치는 이번 달 합계이고, 기록은 대회 기록과 운동 기록을 합한 값이에요.
           </HelpTip>
         }

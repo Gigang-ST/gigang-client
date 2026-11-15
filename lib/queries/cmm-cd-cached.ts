@@ -39,6 +39,8 @@ async function loadAllCmmCdRows(): Promise<CachedCmmCdRow[]> {
     supabase
       .from("cmm_cd_mst")
       .select("cd_grp_id, cd, cd_nm, sort_ord")
+      // 모든 팀이 같이 보는 캐시라 공용 코드만 싣는다 — 팀이 추가한 항목(회비 분류 등)은 각 화면이 팀으로 걸러 읽는다
+      .is("team_id", null)
       .eq("vers", 0)
       .eq("del_yn", false)
       .eq("use_yn", true),

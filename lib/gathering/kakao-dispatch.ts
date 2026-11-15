@@ -26,6 +26,8 @@ import {
 } from "@/lib/gathering/share-text";
 
 type GatheringFacts = Omit<GatheringShareInput, "url"> & {
+  /** 모임의 팀 — 그 팀 카톡방(`team_cfg` kakao.room_id)으로 간다. 방이 없으면 보내지 않는다 */
+  teamId: string;
   gthrId: string;
   /** 딥링크용 식별자(short_id 우선). 없으면 링크를 붙이지 않는다. */
   ref?: string | null;
@@ -46,6 +48,7 @@ export async function notifyGatheringCreated(
   facts: GatheringFacts,
 ): Promise<Awaited<ReturnType<typeof sendKakao>>> {
   return sendKakao(buildGatheringShareText({ ...facts, url: linkOf(facts) }), {
+    teamId: facts.teamId,
     requestId: `gathering:${facts.gthrId}:created`,
     source: { type: "gathering_created", id: facts.gthrId },
   });
@@ -68,6 +71,7 @@ export async function notifyGatheringUpdated(
   if (changes.length === 0) return;
 
   await sendKakao(buildGatheringUpdateText({ ...facts, url: linkOf(facts) }, changes), {
+    teamId: facts.teamId,
     source: { type: "gathering_updated", id: facts.gthrId },
   });
 }
@@ -75,6 +79,7 @@ export async function notifyGatheringUpdated(
 /** 모임 취소 — 링크 없이. 모르면 사람이 실제로 헛걸음한다. */
 export async function notifyGatheringCanceled(facts: GatheringFacts): Promise<void> {
   await sendKakao(buildGatheringCancelText(facts), {
+    teamId: facts.teamId,
     requestId: `gathering:${facts.gthrId}:canceled`,
     source: { type: "gathering_canceled", id: facts.gthrId },
   });
@@ -90,6 +95,7 @@ export async function announceGathering(
   facts: GatheringFacts,
 ): Promise<Awaited<ReturnType<typeof sendKakao>>> {
   return sendKakao(buildGatheringShareText({ ...facts, url: linkOf(facts) }), {
+    teamId: facts.teamId,
     source: { type: "gathering_announce", id: facts.gthrId },
   });
 }

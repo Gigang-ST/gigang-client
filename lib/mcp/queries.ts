@@ -107,7 +107,8 @@ export type TodayGatheringRow = {
 };
 
 /**
- * 가입 온보딩 러닝 프로필(`mem_onbd_prf`, mem_id 키·팀무관). 코드는 라벨로 디코딩해 노출한다.
+ * 가입 온보딩 러닝 프로필 — 역·거리·페이스는 사람 것(`mem_onbd_prf`), 가입 목적은 팀별(`team_mem_onbd_rel`).
+ * 코드는 라벨로 디코딩해 노출한다.
  * 유입경로(join_src)·전화·이메일·계좌는 원천 테이블 어디에도 select 하지 않는다(M-03 불변식).
  */
 export type RunningProfile = {
@@ -318,28 +319,39 @@ async function fetchActiveMemberSeeds(
 }
 
 /**
- * mem_id 목록으로 가입 온보딩 러닝 프로필을 배치 조회한다(쿼리 1회, `.in`).
- * 팀 무관(mem_onbd_prf는 mem_id 키) — team_id 필터는 걸지 않고 호출측 mem_id 목록으로만 스코프.
+ * mem_id 목록으로 가입 온보딩 러닝 프로필을 배치 조회한다(테이블마다 쿼리 1회, `.in`).
+ * 역·거리·페이스(`mem_onbd_prf`)는 사람 것이라 호출측 mem_id 목록으로만 스코프하고,
+ * 가입 목적(`team_mem_onbd_rel`)은 **이 팀 것만** 읽는다 — 다른 팀에 들어온 이유가 섞이지 않게.
  * 온보딩 개편 전 가입자 등 행이 없는 멤버는 Map에 없음 → 호출측에서 null/[] 기본값 처리.
  */
 async function fetchRunningProfiles(
   supabase: Db,
+  teamId: string,
   memIds: readonly string[],
 ): Promise<Map<string, RunningProfile>> {
   const map = new Map<string, RunningProfile>();
   if (memIds.length === 0) return map;
-  const { data, error } = await supabase
-    .from("mem_onbd_prf")
-    .select("mem_id, near_stn_nm, avg_run_dist_km, avg_pace_cd, join_purp_cds")
-    .in("mem_id", memIds);
+  const [{ data, error }, { data: purps, error: purpErr }] = await Promise.all([
+    supabase
+      .from("mem_onbd_prf")
+      .select("mem_id, near_stn_nm, avg_run_dist_km, avg_pace_cd")
+      .in("mem_id", memIds),
+    supabase
+      .from("team_mem_onbd_rel")
+      .select("mem_id, join_purp_cds")
+      .eq("team_id", teamId)
+      .in("mem_id", memIds),
+  ]);
   if (error) throw error;
+  if (purpErr) throw purpErr;
+  const purpByMem = new Map((purps ?? []).map((r) => [r.mem_id, r.join_purp_cds]));
   for (const r of data ?? []) {
     map.set(r.mem_id, {
       near_stn: r.near_stn_nm ?? null,
       // numeric 컬럼은 드라이버가 문자열로 줄 수 있어 명시적으로 숫자화한다(lib/queries/onboarding-profile.ts 동일 패턴).
       avg_run_dist_km: r.avg_run_dist_km != null ? Number(r.avg_run_dist_km) : null,
       avg_pace: decodePaceLabel(r.avg_pace_cd ?? null),
-      join_purposes: decodeJoinPurposes(r.join_purp_cds),
+      join_purposes: decodeJoinPurposes(purpByMem.get(r.mem_id) ?? null),
     });
   }
   return map;
@@ -440,6 +452,7 @@ export async function listRecentMembers(
   });
   const profiles = await fetchRunningProfiles(
     supabase,
+    teamId,
     rows.map((r) => r.mem_id),
   );
   return rows.map((r) => ({
@@ -532,6 +545,7 @@ export async function getMemberProfile(
   });
   const profiles = await fetchRunningProfiles(
     supabase,
+    teamId,
     rows.map((r) => r.mem_id).filter((id) => id !== ""),
   );
   return rows.map((r) => ({

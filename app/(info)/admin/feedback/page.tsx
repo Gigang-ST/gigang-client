@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { verifyAdmin } from "@/lib/queries/member";
+import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 
 import { H2 } from "@/components/common/typography";
@@ -12,10 +13,13 @@ export default async function AdminFeedbackPage() {
   const admin = await verifyAdmin();
   if (!admin) redirect("/admin");
 
+  // 이 팀에 들어온 건의만 — 건의는 그 팀 운영진에게 하는 말이다
+  const { teamId } = await getRequestTeamContext();
   const db = createUntypedAdminClient();
   const { data } = await db
     .from("fdbk_mst")
     .select("fdbk_id, mem_id, cont_txt, stts_enm, adm_note_txt, rspd_at, crt_at, mem_mst!inner(mem_nm)")
+    .eq("team_id", teamId)
     .eq("del_yn", false)
     .eq("vers", 0)
     .order("crt_at", { ascending: false })

@@ -20,10 +20,11 @@ self.addEventListener("push", (event) => {
     payload = event.data ? event.data.json() : {};
   } catch {
     // 페이로드 파싱 실패 시 빈 알림 방지: 본문만 텍스트로 시도
-    payload = { title: "기강", body: event.data ? event.data.text() : "" };
+    // 팀 이름을 모르니(sw.js 는 모든 팀 주소가 같은 파일) 특정 팀 이름을 쓰지 않는다
+    payload = { title: "새 알림", body: event.data ? event.data.text() : "" };
   }
 
-  const title = payload.title || "기강";
+  const title = payload.title || "새 알림";
   const url = payload.url || "/";
   // 개별 알림만 띄운다. 같은 앱 알림의 "N개" 묶음(접으면 1줄, 펼치면 개별)은
   // 안드로이드 OS가 자동으로 처리하므로 수동 요약을 만들지 않는다.
@@ -31,10 +32,13 @@ self.addEventListener("push", (event) => {
     Promise.allSettled([
       self.registration.showNotification(title, {
         body: payload.body || "",
+        // 아이콘은 **서버가 팀 기준으로 실어 보낸다**(lib/push/send-push.ts `withTeamIcons`, 파일 표 lib/team-site.ts).
+        // 이 파일은 모든 팀 주소가 같이 쓰므로 여기에 특정 팀 아이콘을 박지 않는다(예전엔 기강 아이콘이 박혀
+        // 울산 알림도 기강 아이콘이었다). 없으면 브라우저 기본 아이콘.
         // icon(우측 large icon): 알림에 표시할 대표 이미지(컬러 로고).
-        icon: "/GIGANG.png",
+        ...(payload.icon ? { icon: payload.icon } : {}),
         // badge(상태바 단색 아이콘): 흰색 실루엣 + 투명 배경 전용 PNG.
-        badge: "/notification-badge.png",
+        ...(payload.badge ? { badge: payload.badge } : {}),
         tag: payload.tag || `gigang-${Date.now()}`,
         data: { url },
       }),

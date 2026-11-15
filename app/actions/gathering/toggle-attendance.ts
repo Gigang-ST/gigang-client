@@ -23,6 +23,7 @@ import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
+import { teamCacheTag } from "@/lib/team-cache-tag";
 
 /**
  * 참석 토글 결과.
@@ -142,7 +143,7 @@ export async function toggleGatheringAttendance(
       if (waitCancelErr) throw new Error("대기 취소에 실패했습니다.");
 
       revalidatePath(`/gatherings/${gthr_id}`);
-      updateTag(HOME_CALENDAR_CACHE_TAG);
+      updateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, teamId));
       return { state: "none" };
     }
 
@@ -182,7 +183,7 @@ export async function toggleGatheringAttendance(
       // revalidatePath("/")는 무효화할 캐시가 없어 불필요 — 모임 상세 직접 URL만 무효화한다.
       revalidatePath(`/gatherings/${gthr_id}`);
       // 참석자 수는 달력·리스트 칩에 그대로 찍히므로 홈 캘린더 캐시도 즉시 턴다.
-      updateTag(HOME_CALENDAR_CACHE_TAG);
+      updateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, teamId));
 
       // 뒷일(모임장 알림 · 칭호 평가)은 **응답 밖에서** 돈다.
       //
@@ -268,7 +269,7 @@ export async function toggleGatheringAttendance(
 
     // 홈(/)은 dynamic이라 revalidate 불필요(위 취소 경로 주석 참고). 모임 상세 직접 URL만 무효화.
     revalidatePath(`/gatherings/${gthr_id}`);
-    updateTag(HOME_CALENDAR_CACHE_TAG);
+    updateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, teamId));
 
     // 만석이라 대기로 들어간 경우 — 순번은 **서버가 정한다.** 클라이언트가 낙관적으로
     // 지어낼 수 없는 값이라 여기서 계산해 돌려준다(설계 §9).

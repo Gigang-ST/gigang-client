@@ -64,6 +64,7 @@ export async function insertNoti(input: NotiInput): Promise<void> {
     .from("noti_pref_cfg")
     .select("enabled_yn")
     .eq("mem_id", input.memId)
+    .eq("team_id", input.teamId)
     .eq("noti_type_enm", input.prefTypeEnm ?? input.notiTypeEnm)
     .maybeSingle();
 
@@ -93,6 +94,7 @@ export async function insertNoti(input: NotiInput): Promise<void> {
   // 푸시 실패가 인앱 알림 흐름을 막지 않도록 try/catch로 격리.
   try {
     await sendPushToMember(
+      input.teamId,
       input.memId,
       toPushPayload(
         inserted.noti_id,
@@ -151,6 +153,7 @@ export async function insertNotiMany(
   const { data: disabledPrefs } = await admin
     .from("noti_pref_cfg")
     .select("mem_id")
+    .eq("team_id", input.teamId)
     .eq("noti_type_enm", input.prefTypeEnm ?? input.notiTypeEnm)
     .eq("enabled_yn", false)
     .in("mem_id", input.memIds);
@@ -203,7 +206,7 @@ export async function insertNotiMany(
         ),
       );
     }
-    await sendPushToMembers(payloadByMemId);
+    await sendPushToMembers(input.teamId, payloadByMemId);
   } catch (err) {
     console.error("[push] insertNotiMany 발송 실패", err);
   }

@@ -18,8 +18,13 @@ export type NotificationPref = {
   enabled_yn: boolean;
 };
 
+/**
+ * 알림은 **팀별**이다 — 두 팀에 가입한 사람이 울산 주소에서 기강 알림을 보면 눌러도 없는 글로 가고,
+ * 뱃지 숫자도 두 팀이 합쳐진다. 조회·일괄 처리는 전부 접속한 팀(`teamId`)으로 거른다.
+ */
 export async function getUnreadNotificationCount(
   memberId: string | null | undefined,
+  teamId: string,
 ): Promise<number> {
   if (!memberId) return 0;
 
@@ -28,6 +33,7 @@ export async function getUnreadNotificationCount(
     .from("noti_mst")
     .select("*", { count: "exact", head: true })
     .eq("mem_id", memberId)
+    .eq("team_id", teamId)
     .eq("del_yn", false)
     .eq("read_yn", false);
 
@@ -42,6 +48,7 @@ export async function getUnreadNotificationCount(
 
 export async function getNotifications(
   memberId: string,
+  teamId: string,
   options: { cursor?: string; limit?: number } = {},
 ): Promise<Notification[]> {
   const admin = createUntypedAdminClient();
@@ -53,6 +60,7 @@ export async function getNotifications(
       "noti_id, team_id, mem_id, noti_type_enm, noti_nm, noti_cont, ref_id, ref_type_enm, read_yn, crt_at",
     )
     .eq("mem_id", memberId)
+    .eq("team_id", teamId)
     .eq("del_yn", false)
     .order("crt_at", { ascending: false })
     .limit(limit);
@@ -68,12 +76,15 @@ export async function getNotifications(
 
 export async function getNotificationPrefs(
   memberId: string,
+  teamId: string,
 ): Promise<NotificationPref[]> {
   const admin = createUntypedAdminClient();
+  // 수신 설정도 팀별 — 기강 모임 알림을 끈다고 울산 모임 알림까지 꺼지지 않게
   const { data } = await admin
     .from("noti_pref_cfg")
     .select("noti_type_enm, enabled_yn")
-    .eq("mem_id", memberId);
+    .eq("mem_id", memberId)
+    .eq("team_id", teamId);
 
   return (data ?? []) as NotificationPref[];
 }

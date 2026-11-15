@@ -1,6 +1,6 @@
 "use server";
 
-import { withAdmin } from "@/lib/actions/auth";
+import { withDuesAdmin } from "@/lib/actions/dues-guard";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -12,7 +12,7 @@ export async function updateExemption({ exmCfgId, exmTpEnm, exmAmt, aplySttDt, a
   aplyEndDt: string;
   rsnTxt: string;
 }) {
-  return withAdmin(async () => {
+  return withDuesAdmin(async () => {
     if (exmTpEnm === "part" && (!exmAmt || exmAmt <= 0)) return { ok: false as const, message: "부분 면제는 양수 금액을 입력해야 합니다." };
     if (aplySttDt > aplyEndDt) return { ok: false as const, message: "시작일이 종료일보다 늦을 수 없습니다." };
     if (!rsnTxt.trim()) return { ok: false as const, message: "사유를 입력해주세요." };
@@ -34,7 +34,7 @@ export async function updateExemption({ exmCfgId, exmTpEnm, exmAmt, aplySttDt, a
 }
 
 export async function deleteExemption(exmCfgId: string) {
-  return withAdmin(async () => {
+  return withDuesAdmin(async () => {
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClient();
     const { error } = await db.from("fee_due_exm_cfg").update({ del_yn: true }).eq("exm_cfg_id", exmCfgId).eq("team_id", teamId).eq("vers", 0);

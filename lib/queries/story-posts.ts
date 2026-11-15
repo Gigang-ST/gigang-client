@@ -3,6 +3,7 @@ import { unstable_cache } from "next/cache";
 import { STORY_POST_LIMIT } from "@/lib/story-post";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isRequestAbortError } from "@/lib/supabase/is-abort-error";
+import { teamCacheTags } from "@/lib/team-cache-tag";
 
 /** 전광판 기록 자랑 한 건 — `get_team_posts` RPC 반환 형태 */
 export type StoryPost = {
@@ -24,7 +25,7 @@ export type StoryPost = {
   dst_km: number | null;
   /** 종목 — 마일리지런 `evt_mlg_sprt_enm` 값 문자열 */
   sprt_enm: string | null;
-  /** 활동일 (YYYY-MM-DD). 팻말에 찍히는 날짜는 작성일이 아니라 이것 */
+  /** 활동일 (YYYY-MM-DD). 화면에 찍히는 날짜는 작성일이 아니라 이것 */
   act_dt: string | null;
   /** manual=직접 작성, mlg_auto=마일리지런에서 자동 유입 */
   src_enm: "manual" | "mlg_auto";
@@ -90,6 +91,6 @@ export function getStoryPosts(teamId: string): Promise<StoryPost[]> {
       return (data as StoryPost[] | null) ?? [];
     },
     ["story-posts", teamId],
-    { tags: ["story-posts"], revalidate: 300 },
+    { tags: teamCacheTags("story-posts", teamId), revalidate: 300 },
   )().catch((): StoryPost[] => []);
 }
