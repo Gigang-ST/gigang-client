@@ -9,6 +9,7 @@ import { useState } from "react";
 import { DevEmailLogin, isDevModeEnabled } from "@/components/auth/dev-email-login";
 import { SocialLinksRow } from "@/components/social-links";
 import { Button } from "@/components/ui/button";
+import { safeNextPath } from "@/lib/safe-redirect";
 
 export function LoginForm({
   className,
@@ -21,10 +22,7 @@ export function LoginForm({
 
   const searchParams = useSearchParams();
   const nextParam = searchParams.get("next");
-  const safeNext =
-    nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//")
-      ? nextParam
-      : "/onboarding";
+  const safeNext = safeNextPath(nextParam, "/onboarding");
 
   const handleOAuthLogin = async (provider: "kakao" | "google") => {
     const supabase = createClient();
