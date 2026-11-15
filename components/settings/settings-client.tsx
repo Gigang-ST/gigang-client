@@ -97,10 +97,11 @@ const myItems: MenuItem[] = [
  * - `기강 소개`: 예전 이름은 "도움말 및 지원"이었는데 목적지(`/join`)는 크루 소개·모임장소·
  *   회칙이라 이름이 딴소리를 했다. 문의 창구는 위 "건의하기"가 이미 맡고 있다.
  */
-function crewItems(crewName: string): MenuItem[] {
+function crewItems(crewName: string, showCrewIntro: boolean): MenuItem[] {
   return [
     { label: "대회 목록", href: "/races", icon: Trophy },
-    { label: `${crewName} 소개`, href: "/join", icon: LifeBuoy },
+    // 소개(`/join`)는 기강 운영 내용이라 기강 전용이다 — 다른 팀은 줄째 숨긴다(#658, `lib/team-host` TEAM_ONLY_PATHS)
+    ...(showCrewIntro ? [{ label: `${crewName} 소개`, href: "/join", icon: LifeBuoy }] : []),
   ];
 }
 
@@ -225,6 +226,7 @@ export function SettingsClient({
   boardUnread,
   duesEnabled = true,
   duesUnpaid = false,
+  showCrewIntro = true,
   weekStart,
   channels,
   copy,
@@ -238,6 +240,8 @@ export function SettingsClient({
   duesEnabled?: boolean;
   /** 회비 잔액이 마이너스인가 — "회비 내역" 줄 옆 dot */
   duesUnpaid?: boolean;
+  /** 「○○ 소개」 줄을 세우는가 — 소개 지면(`/join`)을 이 팀이 열 수 있을 때만(기강 전용, #658) */
+  showCrewIntro?: boolean;
   /** 주 시작 요일 — 서버가 쿠키에서 읽어 넘긴다(§lib/week-start) */
   weekStart: WeekStart;
   /** 이 팀 채널(팀 설정). 하나도 없으면 SOCIAL 칸째 안 그린다 */
@@ -350,7 +354,7 @@ export function SettingsClient({
             dot={unread.update}
             dotLabel="읽지 않은 업데이트"
           />
-          {crewItems(copy.crewName).map((item) => (
+          {crewItems(copy.crewName, showCrewIntro).map((item) => (
             <MenuRow
               key={item.href}
               icon={item.icon}

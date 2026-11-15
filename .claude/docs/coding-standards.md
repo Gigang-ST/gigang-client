@@ -82,7 +82,7 @@ const rows = await fetchAllRows(
 ## 보안 규칙
 
 - `.env`, `.env.*`, `secrets/` 파일 접근 금지
-- API 키, 시크릿을 코드에 하드코딩 금지 → 환경변수 사용 (예: `KAKAO_CHAT_PASSWORD`)
+- API 키, 시크릿을 코드에 하드코딩 금지 → 환경변수 사용 (예: `REVALIDATE_SECRET`). 팀마다 다른 비밀값(오픈채팅 비밀번호 등)은 팀 설정 `team_cfg` 의 `server` 키로
 - 서버 전용 비밀 값은 `process.env`로 서버 컴포넌트에서만 읽기 (클라이언트 번들 노출 방지)
 - `x-webhook-secret` 등 인증 헤더 검증 필수
 - XSS, SQL Injection 등 OWASP Top 10 방지

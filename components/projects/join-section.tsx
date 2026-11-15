@@ -38,6 +38,8 @@ type JoinSectionProps = {
 	inactiveKind?: "inactive" | "left";
 	/** 이 팀 모임 계좌(팀 설정). 없으면 계좌 안내가 "운영진에게 문의"로 물러난다 */
 	account: TeamAccount | null;
+	/** 크루 이름(팀 문구) — 싱글렛 문구 */
+	crewName: string;
 };
 
 type GoalPreset = "50" | "100" | "custom";
@@ -50,6 +52,7 @@ export function JoinSection({
 	isInactive = false,
 	inactiveKind,
 	account,
+	crewName,
 }: JoinSectionProps) {
 	const router = useRouter();
 	const [goalPreset, setGoalPreset] = useState<GoalPreset>("50");
@@ -182,7 +185,7 @@ export function JoinSection({
 					className="accent-primary w-4 h-4"
 				/>
 				<Caption className="text-foreground">
-					기강 싱글렛을 이미 보유하고 있어요
+					{crewName} 싱글렛을 이미 보유하고 있어요
 				</Caption>
 			</label>
 

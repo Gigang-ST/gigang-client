@@ -113,6 +113,7 @@ export async function MileageProjectView({
           isInactive={isInactive}
           inactiveKind={inactiveKind}
           account={account}
+          crewName={copy.crewName}
         />
       )}
 
@@ -165,7 +166,7 @@ export async function MileageProjectView({
         )}
       </TransitionOverlay>
 
-      <MileageRulesButton />
+      <MileageRulesButton crewName={copy.crewName} />
     </MonthTransitionProvider>
   );
 }

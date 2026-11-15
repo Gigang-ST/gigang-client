@@ -9,36 +9,44 @@
 |---|---|---|---|---|
 | 0-a | 본인 등급·상태 셀프 변경 막기 (PR #647) | `20261109100000_team_mem_rel_update_admin_only.sql` | ✅ | ✅ (SQL Editor, 이력 없음) |
 | 0-b | 울산 팀 행 (`c0ffee00-…-0002`, `ulsan`, `울산지부`) | `20261109110000_seed_team_ulsan.sql` | ✅ | ✅ |
-| 1 | 팀 설정 `team_cfg` + 카톡 발송 이력 팀 칸 | `20261109120000_team_cfg.sql` | ✅ | ☐ |
-| 2 | 기강 카톡방을 팀 설정에 등록 | (아래 SQL) | ✅ | ☐ |
-| 3 | 알림 수신 설정 팀별 | `20261109130000_noti_pref_cfg_team.sql` | ✅ | ☐ |
-| 4 | 변경 이력 `chg_hist` + 트리거 | `20261109140000_chg_hist.sql` | ✅ | ☐ |
-| 5 | RLS 정리(마일리지 읽기·팀 칸 고정·배치·탈퇴자·미납 함수) | `20261109150000_multi_team_rls.sql` | ✅ | ☐ |
-| 6 | 공개 조회 함수 팀 구분(댓글 수·피드 활동 수·카드 포인트) | `20261109160000_multi_team_rpc_scope.sql` | ✅ | ☐ |
-| 7 | 기강 포인트 팀별 적립·회수 | `20261109170000_points_per_team.sql` | ✅ | ☐ |
-| 8 | 울산 시작 준비(배치 팀별 유일 조건·가입 정보 팀별·셀프 가입 active 고정 — 울산 배치·칭호는 안 만든다) | `20261109180000_team_start_ready.sql` | ✅ | ☐ |
-| 9 | 팀 설정 나머지(이펙트 팀별·회비 분류 팀 칸·기강 계좌/채널 등록) | `20261109190000_team_settings.sql` | ✅ | ☐ |
-| 10 | 기강 오픈채팅 비밀번호를 팀 설정에 등록 | (아래 SQL — 사람이 직접) | ☐ | ☐ |
-| 11 | 캐시 무효화 웹훅에 팀 싣기 | `20261109200000_revalidate_webhook_team.sql` | ✅ | ☐ |
-| 12 | 건의 팀별 | `20261109210000_fdbk_team.sql` | ✅ | ☐ |
-| 12-b | 건의 팀별 조회 인덱스 — **단독 실행**(CONCURRENTLY) | `20261109210500_fdbk_team_index.sql` | ✅ | ☐ |
-| 13 | 모임·일정 읽기 — 로그인한 비회원도 비로그인과 같게 | `20261109220000_gthr_sch_post_select_authenticated_public.sql` | ✅ | ☐ |
-| 14 | 대회 원본·종목 관리자 정책에서 기강 id 고정 걷기(활동 중 운영진만) | `20261109230000_comp_admin_policy_any_team.sql` | ✅ | ☐ |
-| 15 | 기강 워드마크·정기 모임 템플릿을 팀 설정에 등록 | `20261109240000_team_cfg_wordmark_regular_template.sql` | ✅ | ☐ |
-| 16 | 기강 가입 폼에 「울산지부 가입이세요?」 안내 | `20261109250000_team_cfg_signup_other_teams.sql` | ✅ | ☐ |
-| 17 | 울산 회비 끄기(팀 설정) | `20261109260000_ulsan_dues_off.sql` | ✅ | ☐ |
-| 18 | 팀 설정 `project.show_intro` 걷기(프로젝트 없을 때 소개 화면 제거) | `20261109270000_drop_project_show_intro.sql` | ✅ | ☐ |
-| 19 | 알림 유형 `team_cfg_chg`(owner 전용 설정 변경 알림) | `20261110100000_noti_type_team_cfg_chg.sql` | ✅ | ☐ |
-| 20 | **배포 뒤** 전환용 장치 걷기(알림 설정 옛 유니크·기본값, 카톡 이력 팀 NOT NULL, 건의 기본값) | `20261110110000_after_deploy_cleanup.sql` | ✅ | ☐ |
-| 21 | 슬로건·창설일을 팀 설정에 등록(기강 + 울산) — **배포 전** | `20261110105000_team_cfg_slogan_founded.sql` | ✅ | ☐ |
-| 22 | 칭호 기능 켜고 끄기(`team_feature_on` 함수·카드 함수 칭호 거르기·울산 끔) | `20261110106000_feature_titles.sql` | ✅ | ☐ |
-| 23 | 울산 전당 종목 = 트레일러닝만(`records.categories`) | `20261110107000_ulsan_records_trail.sql` | ✅ | ☐ |
-| 24 | 울산 모임 기본 종목 = 트레일러닝(`gathering.default_sport`) | `20261110108000_ulsan_gathering_trail.sql` | ✅ | ☐ |
-| 25 | **배포 뒤** 목표 한마디·종이비행기 걷기(피드 함수에서 빼고 함수 3개·테이블 2개 삭제) | `20261110109000_drop_pledge_message.sql` | ✅ | ☐ |
-| 26 | 프로필 카드에 그 팀의 기록 종목 싣기(`record_categories`) — **배포 전**, 22번 뒤 | `20261110110500_member_card_record_categories.sql` | ✅ | ☐ |
-| 27 | 링크 미리보기·탭 제목 문구를 팀 설정으로(`brand.name`·`seo.*`, 기강·모보브) — **배포 전** (브랜치 `feature/multi-team-phase2`) | `20261110111000_team_seo_cfg.sql` | ✅ | ☐ |
-| 28 | 기강 회원 호칭 「기강인」(`brand.member_noun`) — 배포 전 권장(빠져도 코드 기본값으로 안 깨짐), 27번 뒤 | `20261110112000_team_member_noun.sql` | ✅ | ☐ |
-| 29 | **배포 뒤, 25번 뒤** `post_mst` 의 옛 목표 한마디 잔재 걷기(`pldg_txt` 칸·길이 제약·enum `'pledge'`, #654) | `20261111100000_drop_post_pledge_remnant.sql` | ☐ | ☐ |
+| 1 | 팀 설정 `team_cfg` + 카톡 발송 이력 팀 칸 | `20261109120000_team_cfg.sql` | ✅ | ✅ |
+| 2 | 기강 카톡방을 팀 설정에 등록 | (아래 SQL) | ✅ | ✅ (execute_sql, 발송 이력 `room_nm` 최근 성공값) |
+| 3 | 알림 수신 설정 팀별 | `20261109130000_noti_pref_cfg_team.sql` | ✅ | ✅ |
+| 4 | 변경 이력 `chg_hist` + 트리거 | `20261109140000_chg_hist.sql` | ✅ | ✅ |
+| 5 | RLS 정리(마일리지 읽기·팀 칸 고정·배치·탈퇴자·미납 함수) | `20261109150000_multi_team_rls.sql` | ✅ | ✅ |
+| 6 | 공개 조회 함수 팀 구분(댓글 수·피드 활동 수·카드 포인트) | `20261109160000_multi_team_rpc_scope.sql` | ✅ | ✅ |
+| 7 | 기강 포인트 팀별 적립·회수 | `20261109170000_points_per_team.sql` | ✅ | ✅ |
+| 8 | 울산 시작 준비(배치 팀별 유일 조건·가입 정보 팀별·셀프 가입 active 고정 — 울산 배치·칭호는 안 만든다) | `20261109180000_team_start_ready.sql` | ✅ | ✅ |
+| 9 | 팀 설정 나머지(이펙트 팀별·회비 분류 팀 칸·기강 계좌/채널 등록) | `20261109190000_team_settings.sql` | ✅ | ✅ |
+| 10 | 기강 오픈채팅 비밀번호를 팀 설정에 등록 | (아래 SQL — 사람이 직접) | ✅ | ✅ (2026-11-15, 화면 값과 일치 확인) |
+| 11 | 캐시 무효화 웹훅에 팀 싣기 | `20261109200000_revalidate_webhook_team.sql` | ✅ | ✅ |
+| 12 | 건의 팀별 | `20261109210000_fdbk_team.sql` | ✅ | ✅ |
+| 12-b | 건의 팀별 조회 인덱스 — **단독 실행**(CONCURRENTLY) | `20261109210500_fdbk_team_index.sql` | ✅ | ✅ (execute_sql 로 `CREATE INDEX` 한 문장만, 이력 행은 직접) |
+| 13 | 모임·일정 읽기 — 로그인한 비회원도 비로그인과 같게 | `20261109220000_gthr_sch_post_select_authenticated_public.sql` | ✅ | ✅ |
+| 14 | 대회 원본·종목 관리자 정책에서 기강 id 고정 걷기(활동 중 운영진만) | `20261109230000_comp_admin_policy_any_team.sql` | ✅ | ✅ |
+| 15 | 기강 워드마크·정기 모임 템플릿을 팀 설정에 등록 | `20261109240000_team_cfg_wordmark_regular_template.sql` | ✅ | ✅ |
+| 16 | 기강 가입 폼에 「울산지부 가입이세요?」 안내 | `20261109250000_team_cfg_signup_other_teams.sql` | ✅ | ✅ |
+| 17 | 울산 회비 끄기(팀 설정) | `20261109260000_ulsan_dues_off.sql` | ✅ | ✅ |
+| 18 | 팀 설정 `project.show_intro` 걷기(프로젝트 없을 때 소개 화면 제거) | `20261109270000_drop_project_show_intro.sql` | ✅ | ✅ |
+| 19 | 알림 유형 `team_cfg_chg`(owner 전용 설정 변경 알림) | `20261110100000_noti_type_team_cfg_chg.sql` | ✅ | ✅ |
+| 20 | **배포 뒤** 전환용 장치 걷기(알림 설정 옛 유니크·기본값, 카톡 이력 팀 NOT NULL, 건의 기본값) | `20261110110000_after_deploy_cleanup.sql` | ✅ | ✅ |
+| 21 | 슬로건·창설일을 팀 설정에 등록(기강 + 울산) — **배포 전** | `20261110105000_team_cfg_slogan_founded.sql` | ✅ | ✅ |
+| 22 | 칭호 기능 켜고 끄기(`team_feature_on` 함수·카드 함수 칭호 거르기·울산 끔) | `20261110106000_feature_titles.sql` | ✅ | ✅ |
+| 23 | 울산 전당 종목 = 트레일러닝만(`records.categories`) | `20261110107000_ulsan_records_trail.sql` | ✅ | ✅ |
+| 24 | 울산 모임 기본 종목 = 트레일러닝(`gathering.default_sport`) | `20261110108000_ulsan_gathering_trail.sql` | ✅ | ✅ |
+| 25 | **배포 뒤** 목표 한마디·종이비행기 걷기(피드 함수에서 빼고 함수 3개·테이블 2개 삭제) | `20261110109000_drop_pledge_message.sql` | ✅ | ✅ |
+| 26 | 프로필 카드에 그 팀의 기록 종목 싣기(`record_categories`) — **배포 전**, 22번 뒤 | `20261110110500_member_card_record_categories.sql` | ✅ | ✅ |
+| 27 | 링크 미리보기·탭 제목 문구를 팀 설정으로(`brand.name`·`seo.*`, 기강·모보브) — **배포 전** (브랜치 `feature/multi-team-phase2`) | `20261110111000_team_seo_cfg.sql` | ✅ | ✅ |
+| 28 | 기강 회원 호칭 「기강인」(`brand.member_noun`) — 배포 전 권장(빠져도 코드 기본값으로 안 깨짐), 27번 뒤 | `20261110112000_team_member_noun.sql` | ✅ | ✅ |
+| 29 | **배포 뒤, 25번 뒤** `post_mst` 의 옛 목표 한마디 잔재 걷기(`pldg_txt` 칸·길이 제약·enum `'pledge'`, #654) | `20261111100000_drop_post_pledge_remnant.sql` | ✅ (prd 뒤 2026-11-15, 86행 그대로) | ✅ (prd 791행 그대로) |
+| 30 | (보안 #652, 이 롤아웃과 별개로 hotfix #661 로 먼저 나감) 회원·소속 행 셀프 수정 범위 제한 | `20261111090000_member_rows_self_update_guard.sql` | ✅ | ✅ (이 롤아웃 전부터 적용됨) |
+| 31 | (보안 #652, 위와 같음) 게시판 읽기 그 팀 회원만 | `20261111090100_board_select_team_members_only.sql` | ✅ | ✅ (이 롤아웃 전부터 적용됨) |
+| 32 | 약관 3종 팀별 — 운영 주체·연락처를 팀 설정에(`legal.operator`·`legal.contact`, 기강 2행 + 울산 운영 주체 송창준, #658) — 배포 전 권장(빠져도 기강 문서는 코드 기본값으로 그대로) | `20261115100000_team_legal_cfg.sql` | ☐ | ☐ |
+
+prd 적용(1~29, 10 제외): 2026-11-15. 배포 전 단계 12:38~12:48 UTC, PR #648(dev→main) 머지 12:53 UTC(`75ceddc`) ·
+운영 배포 완료 12:56 UTC, 20·25·29는 그 직후. 적용 기록(`schema_migrations`) 버전은 파일 이름 버전으로 맞춰 뒀다
+(MCP `apply_migration` 은 호출 시각으로 남긴다). 배포 뒤 「가입 정보 옮기기 다시」는 영향 0행(8번과 배포 사이 공백 없음).
+30·31 은 이 순서와 의존이 없다 — 기록용으로만 둔다. 29번은 prd 가 먼저 들어갔고 dev 는 같은 날 뒤따라 적용했다.
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
@@ -248,9 +256,8 @@ insert into public.team_cfg (team_id, cfg_cd, cfg_val_json)
 values ('c0ffee00-0000-4000-8000-000000000001', 'social.kakao_open_chat_password', to_jsonb('여기에_비밀번호'::text));
 ```
 
-> ⚠️ **전환 분기를 지우기 전까지는 비워도 안 사라진다.** 팀 설정 화면에서 이 값을 비우면(되돌리기) 안내 문구
-> 「비우면 비밀번호 안내가 안 보여요」와 달리 **환경변수의 예전 비밀번호가 다시 보인다.** 이 행을 넣은 뒤
-> 「배포 후 정리」의 전환 분기·환경변수 삭제까지 끝내야 문구와 동작이 맞는다.
+> 2026-11-15: dev·prd 둘 다 행을 넣었고, 전환 분기와 `KAKAO_CHAT_PASSWORD`(코드)를 걷었다. 이제 비우면 정말로 안 보인다
+> (안내 문구와 동작이 같다). Vercel 환경변수 `KAKAO_CHAT_PASSWORD` 는 남아 있어도 읽지 않는다 — 지울 것.
 
 ### 11. `20261109200000_revalidate_webhook_team.sql`
 
@@ -458,6 +465,19 @@ select t.team_cd, c.cfg_val_json from team_mst t
 left join team_cfg c on c.team_id = t.team_id and c.cfg_cd = 'brand.member_noun' and c.vers = 0 and c.del_yn = false order by 1;
 ```
 
+### 32. `20261115100000_team_legal_cfg.sql` — 배포 전 권장(#658)
+
+약관·개인정보처리방침·운영정책을 팀별 문서로 나눴다(`lib/legal-docs.ts`). 운영 주체·책임자·연락처는 팀 설정에서 읽는다.
+행이 없어도 **기강 문서는 안 바뀐다**(코드의 기강 기본값). 울산은 이 행이 들어가야 「운영 주체는 송창준」이 적히고, 없으면
+「크루 운영진」으로 나온다. 울산 연락처는 아직 없다 — 받으면 owner 가 팀 설정 화면 「크루 안내 → 개인정보 문의 연락처」에 넣는다.
+
+```sql
+-- 확인: 기강 2행(operator·contact), 울산 1행(operator)
+select t.team_cd, c.cfg_cd, c.cfg_val_json from team_mst t
+join team_cfg c on c.team_id = t.team_id and c.vers = 0 and c.del_yn = false
+where c.cfg_cd like 'legal.%' order by 1, 2;
+```
+
 ## 배포
 
 1. 위 1~9·12·12-b·15·19·21·26·27·28이 끝났는지 표에서 확인하고, **2번의 배포 직전 필수 확인(기강 카톡방 1행)**을 다시 돌린다
@@ -535,11 +555,13 @@ left join team_cfg c on c.team_id = t.team_id and c.cfg_cd = 'brand.member_noun'
   ```
   그 뒤 admin 은 owner 가 관리자 화면에서 지정한다.
 - 운영·dev Vercel 환경변수 `KAKAO_ROOM_ID`·`KAKAO_ROOM` 삭제 — 더 이상 읽지 않는다(남아 있어도 무시된다).
-- 10번(기강 오픈채팅 비밀번호 행)을 넣은 뒤: `lib/team-social.ts` 의 기강 전환 분기와 `lib/env.ts` 의
-  `KAKAO_CHAT_PASSWORD`, Vercel 환경변수 `KAKAO_CHAT_PASSWORD` 를 지운다.
+- ~~10번 뒤 전환 분기·`lib/env.ts` 의 `KAKAO_CHAT_PASSWORD` 삭제~~ — 코드는 걷었다(2026-11-15). 남은 건 Vercel 환경변수
+  `KAKAO_CHAT_PASSWORD` 삭제뿐(운영·dev, 팀 계정 필요).
 - 가입 정보 옮기기를 다시 돌린 뒤(위) `mem_onbd_prf` 의 옛 칸 6개(`join_purp_cds`·`join_purp_txt`·`join_src_cd`·
   `join_src_txt`·`attd_pldg_at`·`pldg_gthr_id`)를 지우는 마이그레이션을 따로 낸다. 남아 있는 동안은 다른 팀 관리자가
   두 팀 소속자의 옛 가입 경로를 볼 수 있다(`mem_onbd_prf_select_team_admin` — 지금은 해당자 1명).
+  → 마이그레이션 `20261115110000_drop_mem_onbd_prf_legacy_cols.sql` (옮기기 다시 영향 0행 확인 뒤, 2026-11-15). dev → prd 순으로
+  적용한다. 어느 팀 소속도 없는 사람의 옛 가입 정보는 함께 지워진다(prd 2명·dev 0명).
 - 이펙트를 다 옮긴 뒤 `effect_mst` 의 `rarity_level`·`use_yn`·`unlock_cond_json` 은 "팀 행이 없을 때 기본값"으로만 쓰인다.
 - (건의·알림 설정·발송 이력의 전환용 기본값 제거는 20번 마이그레이션으로 옮겼다 — 위 「배포」 3.)
 - ⚠️ **탈퇴자 개인정보 파기 기능을 만들 때** 변경 이력(`chg_hist`, `tbl_nm = 'mem_mst'`)에 남은 **이름·전화번호·은행명 값도 같이 지운다.**

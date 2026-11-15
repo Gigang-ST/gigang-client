@@ -4,6 +4,7 @@ import { dayjs } from "@/lib/dayjs";
 import { getCachedBoardPostRefs } from "@/lib/queries/board";
 import { getSiteTeam } from "@/lib/queries/site-metadata";
 import { INDEXABLE_ROUTES } from "@/lib/seo/indexable-routes";
+import { teamOnlyPathRedirect } from "@/lib/team-host";
 
 /**
  * `/sitemap.xml` — 색인 대상 공개 지면 목록. **들어온 주소의 팀** 기준 — 주소는 그 팀 정식 주소로, 게시글은 그 팀 글만.
@@ -23,7 +24,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const origin = team.canonicalOrigin;
   const now = dayjs().toDate();
 
-  const staticRoutes = INDEXABLE_ROUTES.map(
+  // 한 팀 전용 지면(크루 소개·회칙 — 기강)은 다른 팀 사이트맵에 싣지 않는다 — 실으면 홈으로 튕기는 주소를 안내하게 된다
+  const staticRoutes = INDEXABLE_ROUTES.filter(({ path }) => teamOnlyPathRedirect(path, team.teamCd) === null).map(
     ({ path, changeFrequency, priority }) => ({
       url: new URL(path, origin).toString(),
       // 지면 대부분이 DB 에서 매번 바뀌는 화면이라 문서별 최종 수정시각을 정직하게 뽑을

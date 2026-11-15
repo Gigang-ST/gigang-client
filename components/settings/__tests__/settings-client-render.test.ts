@@ -1,4 +1,4 @@
-import { GIGANG_COPY } from "@/lib/__fixtures__/team-copy";
+import { GIGANG_COPY, ULSAN_COPY } from "@/lib/__fixtures__/team-copy";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -209,5 +209,16 @@ describe("더보기 화면", () => {
     const t = text(render({ boardUnread: { notice: true, update: false } }));
     expect(t).toContain("읽지 않은 공지");
     expect(t).not.toContain("읽지 않은 업데이트");
+  });
+
+  // 울산(모보브) — 소개 지면(`/join`)이 기강 전용이라 「○○ 소개」 줄째 없고, 화면 어디에도 「기강」이 안 남는다(#658)
+  it("다른 팀은 소개 줄이 없고 「기강」 글자가 하나도 없다", () => {
+    const html = render({ copy: ULSAN_COPY, showCrewIntro: false });
+    const t = text(html);
+    expect(t).not.toContain("소개");
+    expect(html).not.toContain('href="/join"');
+    expect(t).not.toContain("기강");
+    expect(t).toContain("© ");
+    expect(t).toContain("모보브");
   });
 });

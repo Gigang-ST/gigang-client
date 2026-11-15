@@ -5,7 +5,6 @@ export const env = createEnv({
   server: {
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
     REVALIDATE_SECRET: z.string().min(1),
-    KAKAO_CHAT_PASSWORD: z.string().optional(),
     // 노티봇 허브 — 모임 등록·수정·취소를 단톡방에 알린다(lib/kakao/notify.ts).
     // 이름은 허브 콘솔 개발자 가이드와 같다: KAKAO_HUB_URL · KAKAO_SERVICE_API_KEY.
     // 옛 이름(KAKAO_WEBHOOK_URL · KAKAO_WEBHOOK_SECRET)도 계속 받는다.
@@ -52,7 +51,6 @@ export const env = createEnv({
   runtimeEnv: {
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     REVALIDATE_SECRET: process.env.REVALIDATE_SECRET,
-    KAKAO_CHAT_PASSWORD: process.env.KAKAO_CHAT_PASSWORD,
     KAKAO_HUB_URL: process.env.KAKAO_HUB_URL,
     KAKAO_WEBHOOK_URL: process.env.KAKAO_WEBHOOK_URL,
     KAKAO_WEBHOOK_SECRET: process.env.KAKAO_WEBHOOK_SECRET,
