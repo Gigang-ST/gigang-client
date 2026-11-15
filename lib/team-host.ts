@@ -71,6 +71,24 @@ export function resolveTeamCdFromHost(host: string | null | undefined): string |
 }
 
 /**
+ * 한 팀 전용 화면 → 그 화면의 주인 팀. 다른 팀 주소로 들어오면 그 팀의 홈(`/`)으로 보낸다.
+ *
+ * `/intro`는 서울 기강 전용 랜딩이다 — 사진·구호가 기강 것이라 팀별 문구로 바꾸지 않는다(2026-11-15 결정).
+ * proxy에서 쓰므로 순수 문자열 비교만 한다(이 파일 머리 주석과 같은 이유).
+ */
+const TEAM_ONLY_PATHS: Readonly<Record<string, string>> = {
+  "/intro": "gigang",
+};
+
+/** 이 팀이 이 화면을 못 여는가 → 보낼 곳(`/`). 열 수 있으면 `null`. 끝 `/` 붙은 주소도 같은 화면으로 본다. */
+export function teamOnlyPathRedirect(pathname: string, teamCd: string | null): string | null {
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  const owner = Object.hasOwn(TEAM_ONLY_PATHS, path) ? TEAM_ONLY_PATHS[path] : undefined;
+  if (!owner || owner === teamCd) return null;
+  return "/";
+}
+
+/**
  * **그리기 전에** 도는 인라인 스크립트 — 주소로 팀을 판정해 `<html data-team="ulsan">` 을 붙인다(`app/layout.tsx`).
  *
  * 미리 만들어 두는 껍데기(정적 셸)는 어느 팀 주소로 올지 모른 채 빌드 때 한 번 그려진다. 그래서 하단 탭바 로고·홈 로딩 워터마크처럼
