@@ -145,6 +145,16 @@ export function pageDescription(key: PageDescriptionKey, teamCd: string, crewNam
   return TEAM_VOICE[teamCd]?.pageDescriptions?.[key] ?? NEUTRAL_PAGE_DESCRIPTIONS[key](crewName);
 }
 
+/**
+ * 「{이름} 크루와」 — 이름이 이미 「크루」로 끝나면(중립어 「크루」 포함) 「크루 크루와」가 되니 이름에 조사만 붙인다(#658).
+ * 마일리지런 소개(`components/projects/mileage-intro.tsx`)가 쓴다.
+ */
+export function withCrewPhrase(crewName: string): string {
+  const name = crewName.trim();
+  if (!name) return "크루와";
+  return name.endsWith("크루") ? josa(name, "과/와") : `${name} 크루와`;
+}
+
 /** 팀 기본 크루 이름(말투 표) — 팀 설정을 못 읽었을 때 링크 미리보기 사이트 이름도 같은 이름을 쓰게(`lib/queries/site-metadata.ts`) */
 export function teamDefaultCrewName(teamCd: string): string | null {
   return TEAM_VOICE[teamCd]?.crewName ?? null;

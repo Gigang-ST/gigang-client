@@ -255,6 +255,9 @@ export async function GET(req: NextRequest) {
       headers: {
         // `v`(upd_at)가 URL에 박혀 있어 내용이 바뀌면 URL도 바뀐다 — 길게 캐시해도 된다.
         "Cache-Control": "public, max-age=86400, s-maxage=31536000, immutable",
+        // 그림이 팀(주소)마다 다르다(워드마크·슬로건) — 같은 경로를 다른 팀 주소가 공유 캐시에서 꺼내 가지 않게 주소를 캐시 키에
+        // 넣는다. Vercel 은 지금도 도메인별로 캐시하지만 그 동작에 기대지 않는다(#658)
+        Vary: "Host",
       },
     });
   } catch (e) {

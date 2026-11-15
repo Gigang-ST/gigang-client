@@ -29,6 +29,10 @@ import { OG_SLOGAN } from "@/lib/gathering-og";
  *
  * 슬로건은 `OG_SLOGAN`(기강 문구 상수)을 쓴다. 일정탭·OG 카드는 2026-11-10 팀 설정 `brand.slogan` 으로
  * 옮겨 갔다 — 되살릴 땐 이 화면도 요청 팀의 설정을 읽게 바꿀 것(지금은 기강 문구 고정이다).
+ *
+ * ⚠ **되살릴 때 팀별로 바꿀 곳**(#658 — 열리지 않는 화면이라 지금은 손대지 않았다): `<title>`의 「기강」, 로고
+ * (`/android-icon-192x192.png` → `lib/team-site.ts` 의 그 팀 아이콘), 로딩 문구의 「기강의 전당」, 위 `OG_SLOGAN`.
+ * 크루 이름은 `getTeamCopy()`(`lib/queries/team-copy.ts`)에서 꺼낸다.
  */
 
 // `export const dynamic` 은 쓰지 않는다 — 이 프로젝트는 cacheComponents 모드라

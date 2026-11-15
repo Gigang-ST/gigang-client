@@ -1,4 +1,5 @@
-export function MileageRulesContent() {
+/** `crewName` — 싱글렛 할인 문구의 크루 이름(팀 문구). 「기강 싱글렛」이 다른 팀 화면에 뜨지 않게(#658) */
+export function MileageRulesContent({ crewName }: { crewName: string }) {
   return (
     <div className="space-y-5 text-sm">
       <section className="space-y-2">
@@ -63,7 +64,7 @@ export function MileageRulesContent() {
       <section className="space-y-2">
         <h3 className="font-semibold">참가비 & 회식비</h3>
         <p className="text-muted-foreground leading-relaxed">
-          참가비는 이벤트 개월 수 × 만원 + 2만원 (기강 싱글렛 보유 시 -1만원).
+          참가비는 이벤트 개월 수 × 만원 + 2만원 ({crewName} 싱글렛 보유 시 -1만원).
           <br />
           미환급 보증금 + 1만원이 회식비 풀로 적립되며,
           참여 개월 수에 비례하여 배분됩니다.
