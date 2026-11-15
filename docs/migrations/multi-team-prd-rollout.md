@@ -41,6 +41,7 @@
 | 29 | **배포 뒤, 25번 뒤** `post_mst` 의 옛 목표 한마디 잔재 걷기(`pldg_txt` 칸·길이 제약·enum `'pledge'`, #654) | `20261111100000_drop_post_pledge_remnant.sql` | ✅ (prd 뒤 2026-11-15, 86행 그대로) | ✅ (prd 791행 그대로) |
 | 30 | (보안 #652, 이 롤아웃과 별개로 hotfix #661 로 먼저 나감) 회원·소속 행 셀프 수정 범위 제한 | `20261111090000_member_rows_self_update_guard.sql` | ✅ | ✅ (이 롤아웃 전부터 적용됨) |
 | 31 | (보안 #652, 위와 같음) 게시판 읽기 그 팀 회원만 | `20261111090100_board_select_team_members_only.sql` | ✅ | ✅ (이 롤아웃 전부터 적용됨) |
+| 32 | 약관 3종 팀별 — 운영 주체·연락처를 팀 설정에(`legal.operator`·`legal.contact`, 기강 2행 + 울산 운영 주체 송창준, #658) — 배포 전 권장(빠져도 기강 문서는 코드 기본값으로 그대로) | `20261115100000_team_legal_cfg.sql` | ☐ | ☐ |
 
 prd 적용(1~29, 10 제외): 2026-11-15. 배포 전 단계 12:38~12:48 UTC, PR #648(dev→main) 머지 12:53 UTC(`75ceddc`) ·
 운영 배포 완료 12:56 UTC, 20·25·29는 그 직후. 적용 기록(`schema_migrations`) 버전은 파일 이름 버전으로 맞춰 뒀다
@@ -463,6 +464,19 @@ where c.cfg_cd = 'brand.name' or c.cfg_cd like 'seo.%' order by 1, 2;
 -- 확인: 기강 "기강인", 울산 행 없음
 select t.team_cd, c.cfg_val_json from team_mst t
 left join team_cfg c on c.team_id = t.team_id and c.cfg_cd = 'brand.member_noun' and c.vers = 0 and c.del_yn = false order by 1;
+```
+
+### 32. `20261115100000_team_legal_cfg.sql` — 배포 전 권장(#658)
+
+약관·개인정보처리방침·운영정책을 팀별 문서로 나눴다(`lib/legal-docs.ts`). 운영 주체·책임자·연락처는 팀 설정에서 읽는다.
+행이 없어도 **기강 문서는 안 바뀐다**(코드의 기강 기본값). 울산은 이 행이 들어가야 「운영 주체는 송창준」이 적히고, 없으면
+「크루 운영진」으로 나온다. 울산 연락처는 아직 없다 — 받으면 owner 가 팀 설정 화면 「크루 안내 → 개인정보 문의 연락처」에 넣는다.
+
+```sql
+-- 확인: 기강 2행(operator·contact), 울산 1행(operator)
+select t.team_cd, c.cfg_cd, c.cfg_val_json from team_mst t
+join team_cfg c on c.team_id = t.team_id and c.vers = 0 and c.del_yn = false
+where c.cfg_cd like 'legal.%' order by 1, 2;
 ```
 
 ## 배포

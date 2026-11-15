@@ -30,6 +30,8 @@ export const CFG_ORDER: readonly string[] = [
   "social.channels",
   "social.kakao_open_chat_password",
   "bank.team_account",
+  "legal.operator",
+  "legal.contact",
   "kakao.room_id",
   "gathering.default_sport",
   "gathering.regular_template",
