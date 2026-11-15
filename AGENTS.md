@@ -95,6 +95,12 @@ feature/* ──squash merge──▶ dev ──merge commit──▶ main
 
 - PR 제목: Conventional Commits 형식 필수 (`feat`, `fix`, `chore`, `refactor`, `ci`, `perf`, `docs`, `style`, `test`, `build`, `revert`)
 - `main` 머지 시 GitHub Action이 자동 semver 태그 + Release 생성
+- **PR 크기·나누기**: 큰 작업은 단계별 PR로 나눈다. 한 PR은 리뷰어가 한 번에 읽을 수 있는 크기(대략 변경 1,000줄·파일 30개 안팎)를 넘기지 않는다. 넘을 것 같으면 이슈에 단계 계획을 먼저 적는다 (예: 판정·시드 → 권한·데이터 경계 → 설정 → 화면 문구)
+  - 관련 없는 정리·리팩터링·이름 변경은 별도 PR로 낸다
+  - 리뷰가 시작된 뒤 범위를 크게 늘리지 않는다. 추가 작업은 후속 PR로 낸다
+  - DB 마이그레이션이 있는 PR은 본문에 **운영 적용 순서**(배포 전/후 구분)를 짧게 적는다
+  - 운영(prd) DB 적용은 PR이 dev에 머지된 뒤에만 한다 (긴급 보안 수정은 예외, PR 본문에 사유)
+  - 한 번에 바꿔야 하는 전환 작업 등 예외는 PR 본문에 이유를 적는다
 
 ## 명령어
 
