@@ -117,7 +117,6 @@ t3-env로 관리되며 `lib/env.ts`에서 import:
 |------|---------------|------|
 | `SUPABASE_SERVICE_ROLE_KEY` | 서버 | Supabase 관리자 클라이언트 |
 | `REVALIDATE_SECRET` | 서버 | 웹훅 revalidation 시크릿 |
-| `KAKAO_CHAT_PASSWORD` | 서버 | 카카오톡 채팅방 비밀번호 |
 | `NEXT_PUBLIC_SUPABASE_URL` | 클라이언트 | Supabase 프로젝트 URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | 클라이언트 | Supabase 공개 키 |
 | `NEXT_PUBLIC_ENABLE_DEV_MODE` | 클라이언트 | 개발 모드 활성화 (이메일 로그인 등) |

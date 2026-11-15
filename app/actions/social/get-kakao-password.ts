@@ -32,7 +32,7 @@ export async function getKakaoChatPassword(): Promise<KakaoPasswordResult> {
     // 멤버 판정을 통과했는데 값이 없으면 사용자 상태가 아니라 **설정 사고**다.
     console.error(
       "[social] 오픈채팅 비밀번호 미설정 — 멤버에게 비번을 못 보여준다. 팀 설정(team_cfg)의 " +
-        "social.kakao_open_chat_password 를 넣을 것(기강은 전환 기간 동안 KAKAO_CHAT_PASSWORD 환경변수도 본다).",
+        "social.kakao_open_chat_password 를 넣을 것.",
       teamId,
     );
     return { status: "unavailable" };

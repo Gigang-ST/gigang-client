@@ -152,8 +152,7 @@ export const TEAM_CFG_REGISTRY = {
 
   /**
    * 오픈채팅 비밀번호 — 그 팀 회원에게만 보인다(서버가 회원 여부를 다시 판정한다). 비밀값이라 `server`.
-   * 기본값 없음. ⚠️ 기강은 이 행을 넣기 전까지 예전 환경변수(`KAKAO_CHAT_PASSWORD`)로 동작한다(전환용 —
-   * `lib/team-social.ts`). 행을 넣은 뒤 환경변수와 그 분기를 지운다(runbook).
+   * 기본값 없음 — 행이 없으면 안 보인다(예전 환경변수 `KAKAO_CHAT_PASSWORD` 전환 분기는 2026-11-15 걷었다).
    */
   "social.kakao_open_chat_password": defineCfg({
     schema: z.string().trim().min(1).nullable(),
