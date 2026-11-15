@@ -38,14 +38,14 @@
 | 26 | 프로필 카드에 그 팀의 기록 종목 싣기(`record_categories`) — **배포 전**, 22번 뒤 | `20261110110500_member_card_record_categories.sql` | ✅ | ✅ |
 | 27 | 링크 미리보기·탭 제목 문구를 팀 설정으로(`brand.name`·`seo.*`, 기강·모보브) — **배포 전** (브랜치 `feature/multi-team-phase2`) | `20261110111000_team_seo_cfg.sql` | ✅ | ✅ |
 | 28 | 기강 회원 호칭 「기강인」(`brand.member_noun`) — 배포 전 권장(빠져도 코드 기본값으로 안 깨짐), 27번 뒤 | `20261110112000_team_member_noun.sql` | ✅ | ✅ |
-| 29 | **배포 뒤, 25번 뒤** `post_mst` 의 옛 목표 한마디 잔재 걷기(`pldg_txt` 칸·길이 제약·enum `'pledge'`, #654) | `20261111100000_drop_post_pledge_remnant.sql` | ☐ | ✅ (prd 791행 그대로) |
+| 29 | **배포 뒤, 25번 뒤** `post_mst` 의 옛 목표 한마디 잔재 걷기(`pldg_txt` 칸·길이 제약·enum `'pledge'`, #654) | `20261111100000_drop_post_pledge_remnant.sql` | ✅ (prd 뒤 2026-11-15, 86행 그대로) | ✅ (prd 791행 그대로) |
 | 30 | (보안 #652, 이 롤아웃과 별개로 hotfix #661 로 먼저 나감) 회원·소속 행 셀프 수정 범위 제한 | `20261111090000_member_rows_self_update_guard.sql` | ✅ | ✅ (이 롤아웃 전부터 적용됨) |
 | 31 | (보안 #652, 위와 같음) 게시판 읽기 그 팀 회원만 | `20261111090100_board_select_team_members_only.sql` | ✅ | ✅ (이 롤아웃 전부터 적용됨) |
 
 prd 적용(1~29, 10 제외): 2026-11-15. 배포 전 단계 12:38~12:48 UTC, PR #648(dev→main) 머지 12:53 UTC(`75ceddc`) ·
 운영 배포 완료 12:56 UTC, 20·25·29는 그 직후. 적용 기록(`schema_migrations`) 버전은 파일 이름 버전으로 맞춰 뒀다
 (MCP `apply_migration` 은 호출 시각으로 남긴다). 배포 뒤 「가입 정보 옮기기 다시」는 영향 0행(8번과 배포 사이 공백 없음).
-30·31 은 이 순서와 의존이 없다 — 기록용으로만 둔다. ⚠️ 29번은 dev 에 아직 안 들어갔다(prd 가 먼저).
+30·31 은 이 순서와 의존이 없다 — 기록용으로만 둔다. 29번은 prd 가 먼저 들어갔고 dev 는 같은 날 뒤따라 적용했다.
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
 Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
