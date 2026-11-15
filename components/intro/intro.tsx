@@ -3,18 +3,32 @@
 import Image from "next/image";
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
-import { fetchBurstFrames, STATIC_MEDIA } from "@/lib/intro/media";
+import { BURST_FRAMES, LOGO_MARK, planIntroMedia } from "@/lib/intro/media";
 
-const IntroContext = createContext<{ done: boolean; frames: string[] }>({
+type IntroState = {
+  done: boolean;
+  /** Burst frames in play order (fixed at build time). */
+  frames: readonly string[];
+  /** Photos fetched so far. The burst skips frames not in here yet. */
+  ready: ReadonlySet<string>;
+  /** Let go of photos the page has finished with (see `retained`). */
+  release: (srcs?: readonly string[]) => void;
+};
+
+const IntroContext = createContext<IntroState>({
   done: false,
   frames: [],
+  ready: new Set(),
+  release: () => {},
 });
 
 /** True once the door has opened and the page underneath may start moving. */
@@ -22,19 +36,27 @@ export function useIntroDone() {
   return useContext(IntroContext).done;
 }
 
-/** The burst frames the splash actually fetched, in play order. */
-export function useBurstFrames() {
-  return useContext(IntroContext).frames;
+/** Burst frames, what has arrived, and a way to release them once used. */
+export function useIntroMedia() {
+  const { frames, ready, release } = useContext(IntroContext);
+  return { frames, ready, release };
 }
 
 const MINIMUM_HOLD = 900;
 /** Never hold the door shut longer than this, however slow the network is. */
 const PATIENCE = 9000;
+/** Background fetches at once — few enough that the next frame in play order
+ *  is not starved by ones far behind it. */
+const DEFERRED_PARALLEL = 3;
 
-/** Held for the life of the page so the decoded bitmaps stay in the
- *  browser's memory cache. Drop the reference and each frame goes back to
- *  the network — which is exactly the flicker this exists to prevent. */
-const retained: HTMLImageElement[] = [];
+/**
+ * Each preloaded image is held until the page is done with it, so its bytes
+ * stay in the memory cache and the swap in the burst is instant. It is not
+ * held forever: the line photos are let go when the burst starts and the
+ * burst's when it lands — the URLs are immutable-cached, so anything dropped
+ * early comes back from the disk cache, not the network.
+ */
+const retained = new Map<string, HTMLImageElement>();
 
 function preload(src: string) {
   return new Promise<void>((resolve) => {
@@ -42,26 +64,35 @@ function preload(src: string) {
     img.onload = () => resolve();
     img.onerror = () => resolve();
     img.src = src;
-    retained.push(img);
+    retained.set(src, img);
   });
 }
 
 /**
- * The splash fetches every photograph the page will show before it opens, so
- * nothing pops in later — the burst in particular has to be instant. The mark
- * holds the screen while that happens, then zooms past the viewer.
+ * The splash waits only for what the first seconds need — the line
+ * backgrounds, the mark, the opening and the landing of the burst
+ * (`planIntroMedia`). The rest of the burst is fetched in play order while the
+ * lines run (~12s before the burst), and anything still missing when its turn
+ * comes is skipped. The mark holds the screen while the critical part loads,
+ * then zooms past the viewer.
  */
 export function Intro({ children }: { children: ReactNode }) {
   const reduced = useReducedMotion();
   const [loaded, setLoaded] = useState(false);
   const [done, setDone] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [frames, setFrames] = useState<string[]>([]);
+  const [ready, setReady] = useState<ReadonlySet<string>>(() => new Set());
 
   useEffect(() => {
     let cancelled = false;
     const started = performance.now();
+    const { critical, deferred } = planIntroMedia(BURST_FRAMES);
     let settled = 0;
+
+    const arrived = (src: string) => {
+      if (cancelled) return;
+      setReady((prev) => new Set(prev).add(src));
+    };
 
     const open = () => {
       if (cancelled) return;
@@ -76,25 +107,49 @@ export function Intro({ children }: { children: ReactNode }) {
       window.setTimeout(resolve, PATIENCE),
     );
 
-    const everything = fetchBurstFrames().then((burst) => {
-      if (!cancelled) setFrames(burst);
-      const media = [...STATIC_MEDIA, ...burst];
-      return Promise.all(
-        media.map((src: string) =>
-          preload(src).then(() => {
-            settled += 1;
-            if (!cancelled) setProgress(settled / media.length);
-          }),
-        ),
-      );
-    });
+    const essentials = Promise.all(
+      critical.map((src) =>
+        preload(src).then(() => {
+          settled += 1;
+          arrived(src);
+          if (!cancelled) setProgress(settled / critical.length);
+        }),
+      ),
+    );
 
-    Promise.race([everything, patience]).then(open);
+    // Behind the show: start once the essentials are in (or patience ran out),
+    // so the background never competes with what holds the door.
+    const queue = [...deferred];
+    const worker = async () => {
+      while (!cancelled && queue.length > 0) {
+        const src = queue.shift()!;
+        await preload(src);
+        arrived(src);
+      }
+    };
+
+    Promise.race([essentials, patience]).then(() => {
+      open();
+      for (let k = 0; k < DEFERRED_PARALLEL; k += 1) void worker();
+    });
 
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const release = useCallback((srcs?: readonly string[]) => {
+    if (!srcs) {
+      retained.clear();
+      return;
+    }
+    for (const src of srcs) retained.delete(src);
+  }, []);
+
+  const value = useMemo(
+    () => ({ done, frames: BURST_FRAMES, ready, release }),
+    [done, ready, release],
+  );
 
   // The page must not scroll behind the door.
   useEffect(() => {
@@ -107,7 +162,7 @@ export function Intro({ children }: { children: ReactNode }) {
   }, [done]);
 
   return (
-    <IntroContext.Provider value={{ done, frames }}>
+    <IntroContext.Provider value={value}>
       {children}
       <AnimatePresence onExitComplete={() => setDone(true)}>
         {!loaded && (
@@ -142,7 +197,7 @@ export function Intro({ children }: { children: ReactNode }) {
               {/* The mark fills as the crew arrives: a ghost of it waits, and
                   the real one rises into place from the bottom. */}
               <Image
-                src="/logo-mark.png"
+                src={LOGO_MARK}
                 alt=""
                 aria-hidden
                 width={440}
@@ -157,7 +212,7 @@ export function Intro({ children }: { children: ReactNode }) {
                 transition={{ duration: 0.35, ease: "easeOut" }}
               >
                 <Image
-                  src="/logo-mark.png"
+                  src={LOGO_MARK}
                   alt="기강"
                   width={440}
                   height={440}

@@ -1,11 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
-import { useBurstFrames } from "@/components/intro/intro";
+import { useIntroMedia } from "@/components/intro/intro";
 import { JOIN_URL } from "@/lib/intro/data";
+import { LINE_FRAMES, nextReadyFrame } from "@/lib/intro/media";
 
 /** Frames go by faster than you can name them. That is the crew. */
 const FRAME_MS = 170;
@@ -17,7 +18,13 @@ const HEADLINE =
 
 export function Burst({ play }: { play: boolean }) {
   const reduced = useReducedMotion();
-  const BURST = useBurstFrames();
+  const { frames: BURST, ready, release } = useIntroMedia();
+  /** The run reads this between frames, so a frame that arrives mid-run is
+   *  picked up without restarting the timer chain. */
+  const readyRef = useRef(ready);
+  useEffect(() => {
+    readyRef.current = ready;
+  }, [ready]);
   const [i, setI] = useState(0);
   const [settled, setSettled] = useState(false);
   const last = Math.max(0, BURST.length - 1);
@@ -35,6 +42,15 @@ export function Burst({ play }: { play: boolean }) {
       window.location.href = JOIN_URL;
     }, 520);
   };
+  // The lines are behind us once the burst opens; the burst's own frames are
+  // done with once it lands (the last one stays mounted in the DOM).
+  useEffect(() => {
+    if (play) release(LINE_FRAMES);
+  }, [play, release]);
+  useEffect(() => {
+    if (landed) release();
+  }, [landed, release]);
+
   useEffect(() => {
     if (!play || BURST.length === 0 || reduced) return;
 
@@ -42,8 +58,9 @@ export function Burst({ play }: { play: boolean }) {
     let timer = 0;
 
     const advance = () => {
-      frame += 1;
-      if (frame >= BURST.length) {
+      // Frames still on the wire are skipped, not waited for.
+      frame = nextReadyFrame(BURST, frame, readyRef.current);
+      if (frame < 0) {
         setSettled(true);
         return;
       }
@@ -56,7 +73,7 @@ export function Burst({ play }: { play: boolean }) {
 
     timer = window.setTimeout(advance, FRAME_MS);
     return () => window.clearTimeout(timer);
-  }, [play, reduced, BURST.length]);
+  }, [play, reduced, BURST]);
 
   return (
     <motion.div
@@ -73,26 +90,29 @@ export function Burst({ play }: { play: boolean }) {
           : { duration: 1.5, delay: 0.3, ease: [0.16, 1, 0.3, 1] }
       }
     >
-      {/* Only the frame on screen is in the document — with 77 of them,
+      {/* Only the frame on screen is in the document — with dozens of them,
           keeping every one mounted costs a live layer each. The next frame
-          rides along invisibly so the swap has nothing to fetch. */}
+          that has arrived rides along invisibly so the swap has nothing to
+          fetch. */}
       {BURST.length > 0 &&
-        [frame, (frame + 1) % BURST.length].map((n, slot) => (
-          <Image
-            key={BURST[n]}
-            src={BURST[n]}
-            alt=""
-            fill
-            sizes="100vw"
-            // The splash fetched these exact files. The optimizer would
-            // rewrite the URL and miss that cache on every frame — one fresh
-            // request per 170ms, and a blank frame while it waits.
-            unoptimized
-            loading="eager"
-            className="object-cover"
-            style={{ opacity: slot === 0 ? 1 : 0 }}
-          />
-        ))}
+        [frame, nextReadyFrame(BURST, frame, ready)]
+          .filter((n) => n >= 0)
+          .map((n, slot) => (
+            <Image
+              key={BURST[n]}
+              src={BURST[n]}
+              alt=""
+              fill
+              sizes="100vw"
+              // The splash fetched these exact files. The optimizer would
+              // rewrite the URL and miss that cache on every frame — one fresh
+              // request per 170ms, and a blank frame while it waits.
+              unoptimized
+              loading="eager"
+              className="object-cover"
+              style={{ opacity: slot === 0 ? 1 : 0 }}
+            />
+          ))}
 
       {/* A little shade under the landing, none during the run — the type
           takes its colour from the photograph by difference. */}
@@ -167,7 +187,11 @@ export function Burst({ play }: { play: boolean }) {
             // Rises into the opening once it is wide enough to stand in.
             initial={{ opacity: 0, y: "45%" }}
             animate={play ? { opacity: 1, y: "0%" } : {}}
-            transition={{ duration: 0.55, delay: 0.45, ease: [0.16, 1, 0.3, 1] }}
+            transition={{
+              duration: 0.55,
+              delay: 0.45,
+              ease: [0.16, 1, 0.3, 1],
+            }}
           >
             With Gigang
           </motion.span>

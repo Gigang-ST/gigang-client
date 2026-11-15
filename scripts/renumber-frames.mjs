@@ -1,14 +1,11 @@
 /**
  * Close the gaps in public/crew/frames after deleting frames.
  *
- * The page reads the folder at request time, so gaps are harmless — this is
- * only for keeping the names tidy once the pruning is done. Play order is the
- * current numeric order, so the run still ends on whatever is last now.
- *
- * ⚠️ /crew is served with a 1-year immutable Cache-Control (next.config.ts), so
- * renumbering hands an existing name to a different photograph — returning
- * visitors keep the old one until their cache expires. Prefer leaving gaps;
- * run this only when the folder is being rebuilt anyway.
+ * The build lists the folder (scripts/gen-intro-media.mjs), so gaps are
+ * harmless — this is only for keeping the names tidy once the pruning is done.
+ * Play order is the current numeric order, so the run still ends on whatever
+ * is last now. Renumbering is safe for returning visitors: every URL carries a
+ * content hash, so a name handed to a different photograph is a new URL.
  *
  *   pnpm frames:renumber
  */

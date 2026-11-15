@@ -15,17 +15,40 @@
 
 ## 바꾸는 법
 
-**같은 이름으로 덮어쓰지 않는다.** 이 폴더는 브라우저가 1년간 묻지 않고 쓰는
-immutable 캐시라(`next.config.ts`의 `/lines` 헤더 — 프레임마다 재검증이 돌면 연출이
-깜빡여서), 같은 이름에 다른 내용을 넣으면 재방문자는 옛 사진을 본다. 새 파일은
-이름을 바꿔 넣고(`01b-no-give-up.webp` 등) `lib/intro/media.ts`의 `LINE_FRAMES`
-경로를 그 이름으로 고친다. 확장자를 바꿨을 때도 같다.
+**같은 이름으로 덮어쓰면 된다.** 이 폴더는 1년 immutable 캐시지만(`next.config.ts` —
+프레임마다 재검증이 돌면 연출이 깜빡여서), 페이지는 파일을 늘 `?v=<내용 해시>`를 붙여
+부른다. 해시는 빌드 때 `scripts/gen-intro-media.mjs`가 붙이므로(postinstall·dev·build 때
+자동), 내용이 바뀌면 주소가 바뀌어 재방문자도 새 사진을 받는다. 로컬에서 바로 보려면
+`pnpm intro:media`. 이름이나 확장자를 바꿨다면 `lib/intro/media.ts`의 `LINE_FILES`도 고친다
+(테스트가 어긋남을 잡는다).
 
-원본이 크면 미리 줄여서 넣는 편이 낫다 (가로 1600px, 품질 70 정도):
+버스트 사진(`public/crew/frames/`)은 목록도 빌드가 만든다 — 폴더에 넣고 빼기만 하면
+다음 빌드에 반영된다. 재생 순서는 파일 이름 순이다.
+
+### 넣기 전에 줄인다
+
+넣은 뒤 한 번 돌린다(이 프로젝트에 이미 있는 sharp를 쓴다):
 
 ```
-cwebp -q 70 -resize 1600 0 원본.jpg -o 01-no-give-up.webp
+pnpm intro:compress          # 기준을 넘는 파일만 webp로 줄인다(제자리)
+pnpm intro:compress --check  # 줄이지 않고 확인만
 ```
+
+| 폴더 | 긴 변 | webp 품질 | 장당 목표 |
+|---|---|---|---|
+| `public/lines` | 2400px | 75 | 400KB 이하 |
+| `public/crew/frames` | 1080px | 70 | 150KB 안팎 (합계 3MB 이하) |
+
+이미 기준을 지킨 webp는 다시 굽지 않는다(손실이 쌓여서). **원본 화질을 남겨야 하면
+원본은 저장소 밖(드라이브 등)에 두고**, 여기엔 줄인 것만 넣는다 — 저장소에 원본을 넣으면
+클론·배포마다 그 무게를 진다.
+
+### 첫 화면이 기다리는 것
+
+스플래시는 문장 배경 5장·로고·버스트 앞 6장·버스트 마지막 장만 받고 열린다
+(`planIntroMedia`). 나머지 버스트는 문장이 흐르는 약 12초 동안 뒤에서 받고, 차례가 왔는데
+아직 못 받은 장은 건너뛴다. 그래서 버스트 사진을 늘려도 첫 화면은 느려지지 않지만,
+문장 배경을 무겁게 넣으면 그만큼 첫 화면이 늦어진다.
 
 ## 사진 고를 때
 
@@ -42,5 +65,5 @@ cwebp -q 70 -resize 1600 0 원본.jpg -o 01-no-give-up.webp
 ## 문장을 더하거나 뺄 때
 
 문장 목록은 `components/intro/hero.tsx`의 `TAILS`에 있다. 거기서 빼면
-`lib/intro/media.ts`의 `LINE_FRAMES`와 `lib/intro/data.ts`의 `crewFrames`에서도
+`lib/intro/media.ts`의 `LINE_FILES`와 `lib/intro/data.ts`의 `crewFrames`에서도
 같은 줄을 빼고, 이 폴더의 파일 번호를 앞당긴다 — 셋의 순서가 곧 매핑이다.

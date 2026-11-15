@@ -3,7 +3,10 @@
   "type": "module",
   "scripts": {
     "prepare": "husky",
+    "postinstall": "node scripts/gen-intro-media.mjs",
+    "predev": "node scripts/gen-intro-media.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/gen-intro-media.mjs",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
@@ -14,7 +17,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "frames:renumber": "node scripts/renumber-frames.mjs"
+    "frames:renumber": "node scripts/renumber-frames.mjs",
+    "intro:media": "node scripts/gen-intro-media.mjs",
+    "intro:compress": "node scripts/compress-intro-media.mjs"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
