@@ -560,7 +560,7 @@ where c.cfg_cd like 'legal.%' order by 1, 2;
 - 가입 정보 옮기기를 다시 돌린 뒤(위) `mem_onbd_prf` 의 옛 칸 6개(`join_purp_cds`·`join_purp_txt`·`join_src_cd`·
   `join_src_txt`·`attd_pldg_at`·`pldg_gthr_id`)를 지우는 마이그레이션을 따로 낸다. 남아 있는 동안은 다른 팀 관리자가
   두 팀 소속자의 옛 가입 경로를 볼 수 있다(`mem_onbd_prf_select_team_admin` — 지금은 해당자 1명).
-  → 마이그레이션 `20261115100000_drop_mem_onbd_prf_legacy_cols.sql` (옮기기 다시 영향 0행 확인 뒤, 2026-11-15). dev → prd 순으로
+  → 마이그레이션 `20261115110000_drop_mem_onbd_prf_legacy_cols.sql` (옮기기 다시 영향 0행 확인 뒤, 2026-11-15). dev → prd 순으로
   적용한다. 어느 팀 소속도 없는 사람의 옛 가입 정보는 함께 지워진다(prd 2명·dev 0명).
 - 이펙트를 다 옮긴 뒤 `effect_mst` 의 `rarity_level`·`use_yn`·`unlock_cond_json` 은 "팀 행이 없을 때 기본값"으로만 쓰인다.
 - (건의·알림 설정·발송 이력의 전환용 기본값 제거는 20번 마이그레이션으로 옮겼다 — 위 「배포」 3.)
