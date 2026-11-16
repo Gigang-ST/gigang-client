@@ -25,6 +25,7 @@ import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { RaceRecordDialog } from "@/components/profile/race-record-dialog";
 import type { MemberStatus } from "@/components/races/types";
 
+import { adminRecordEventLabel } from "./record-event-label";
 import { RecordMemberPicker } from "./record-member-picker";
 
 /** 기록 등록 대상 후보(활동 중 회원). `label`은 동명이인이면 구분 값이 붙은 표시 이름. */
@@ -78,7 +79,7 @@ export function RecordsClient({
           supabase
             .from("rec_race_hist")
             .select(
-              "race_result_id, comp_evt_cfg!fk_rec_race_hist__comp_evt_cfg_pair(comp_evt_type), rec_time_sec, race_nm, race_dt, mem_mst!fk_rec_race_hist__mem_mst!inner(mem_nm, team_mem_rel!inner(team_id, vers, del_yn))",
+              "race_result_id, comp_evt_cfg!fk_rec_race_hist__comp_evt_cfg_pair(comp_evt_type), comp_mst!fk_rec_race_hist__comp_mst(comp_sprt_cd), rec_time_sec, race_nm, race_dt, mem_mst!fk_rec_race_hist__mem_mst!inner(mem_nm, team_mem_rel!inner(team_id, vers, del_yn))",
             )
             .eq("del_yn", false)
             .eq("vers", 0)
@@ -100,7 +101,13 @@ export function RecordsClient({
     setLoadError(false);
     const mapped = data.map((r) => ({
       id: r.race_result_id,
-      event_type: (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type ?? "UNKNOWN",
+      // 스포츠까지 붙여 찍는다 — 코드만이면 철인 FULL 과 마라톤 FULL 이 같은 배지라 섞여도 못 가린다(#581).
+      // 검색도 이 문자열을 보므로 "트라이애슬론"·"하이록스" 로 종목째 거를 수 있다.
+      event_type: adminRecordEventLabel(
+        cmmCdRows,
+        (Array.isArray(r.comp_mst) ? r.comp_mst[0] : r.comp_mst)?.comp_sprt_cd,
+        (Array.isArray(r.comp_evt_cfg) ? r.comp_evt_cfg[0] : r.comp_evt_cfg)?.comp_evt_type ?? "",
+      ),
       record_time_sec: r.rec_time_sec,
       race_name: r.race_nm,
       race_date: r.race_dt,
@@ -108,7 +115,7 @@ export function RecordsClient({
     }));
     setRecords(mapped as RaceRecord[]);
     setLoading(false);
-  }, [teamId]);
+  }, [teamId, cmmCdRows]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
