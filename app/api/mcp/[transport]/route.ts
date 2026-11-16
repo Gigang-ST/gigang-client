@@ -13,6 +13,7 @@ import { KAKAO_MESSAGE_MAX_LENGTH, KAKAO_REQUEST_ID_MAX_LENGTH } from "@/lib/kak
 import { resolveOperator, type OperatorContext } from "@/lib/mcp/auth";
 import { HYROX_RECORD_DIVISIONS } from "@/lib/hyrox";
 import { createGatheringViaMcp } from "@/lib/mcp/create-gathering";
+import { updateGatheringViaMcp } from "@/lib/mcp/update-gathering";
 import { createSchPostViaMcp } from "@/lib/mcp/create-sch-post";
 import { listHyroxCompetitions, listHyroxRankings, logHyroxRecord } from "@/lib/mcp/hyrox";
 import {
@@ -304,8 +305,8 @@ const handler = createMcpHandler(
         runTool(extra, (ctx, supabase) => listPushStatus(supabase, ctx.team_id)),
     );
 
-    // ── write 도구 4개. 모두 ctx.team_id 스코프 · 감사 로그 필수.
-    //    send_push·send_kakao_notice·create_gathering 은 admin 전용, create_sch_post 는 앱과 같게 활성 멤버(#630). ──
+    // ── write 도구 5개. 모두 ctx.team_id 스코프 · 감사 로그 필수.
+    //    send_push·send_kakao_notice·create_gathering 은 admin 전용, update_gathering 은 작성자 또는 admin(#644), create_sch_post 는 앱과 같게 활성 멤버(#630). ──
 
     server.registerTool(
       "send_push",
@@ -406,6 +407,44 @@ const handler = createMcpHandler(
           // 무효화는 **경로 계층인 여기** 몫이다: lib/mcp 의 도메인 코어는 next/* 를 모른다.
           // 라우트 핸들러라 `updateTag`(서버 액션 전용)는 throw 하므로 revalidateTag 를 쓴다.
           if (!args.dry_run) revalidateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, ctx.team_id), "max");
+          return result;
+        }),
+    );
+
+    server.registerTool(
+      "update_gathering",
+      {
+        title: "모임 수정",
+        description:
+          "기존 모임의 이름·일시·장소·정원·본문을 고칩니다. 모임 작성자 또는 운영진(admin)만 실행할 수 있고 우리 팀 모임만 고칠 수 있습니다(지난 모임은 운영진만). " +
+          "gathering_id(uuid, list_today_gatherings 로 확인)와 **바꿀 필드만** 주세요 — 안 준 필드는 그대로입니다. " +
+          "일시는 **한국시간(KST) 기준 'YYYY-MM-DD HH:mm'** 으로 주세요(시간대 표기 없이). " +
+          "dry_run=true 면 저장하지 않고 필드별 전/후(changes)만 돌려주니, 먼저 호출해 사용자에게 확인받은 뒤 저장하세요. " +
+          "알림은 기본으로 보내지 않습니다 — notify=true 일 때만 참석자에게 변경 알림(일시·장소가 바뀌면 단톡방 공지 포함)이 나갑니다. " +
+          "응답은 바뀐 필드 목록(changed_fields)과 전/후(changes)입니다.",
+        inputSchema: {
+          gathering_id: z.string().uuid("gathering_id 는 uuid 여야 합니다."),
+          gthr_nm: z.string().min(1, "제목을 입력하세요.").max(100).optional(),
+          stt_at: z.string().min(1, "시작 일시를 입력하세요.").optional(),
+          end_at: z.string().nullable().optional().describe("null 이면 종료 일시를 지웁니다."),
+          loc_txt: z.string().max(200).optional(),
+          max_prt_cnt: z.number().int().min(1).nullable().optional().describe("null 이면 정원 제한을 없앱니다."),
+          desc_txt: z.string().max(2000).nullable().optional().describe("모임 본문(설명). null 이면 비웁니다."),
+          dry_run: z.boolean().optional().describe("true 면 저장하지 않고 전/후 비교만 돌려줍니다."),
+          notify: z
+            .boolean()
+            .optional()
+            .describe("true 일 때만 참석자 변경 알림을 보냅니다. 기본 false."),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, async (ctx, supabase) => {
+          const result = await updateGatheringViaMcp(supabase, ctx, args, await resolveBaseUrl(ctx.team_id));
+          // 홈 캘린더 캐시와 모임 상세를 턴다(create_gathering 과 같은 이유). 바뀐 게 없으면 안 턴다.
+          if (!args.dry_run && result.changed_fields.length > 0) {
+            revalidateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, ctx.team_id), "max");
+            revalidatePath(`/gatherings/${args.gathering_id}`);
+          }
           return result;
         }),
     );
