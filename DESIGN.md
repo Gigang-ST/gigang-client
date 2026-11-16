@@ -987,6 +987,10 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
   (TS 거울 `toRankingEvtCd`). 판 계산은 `lib/hyrox.ts`의 `buildHyroxBoards` 한 곳 — 운영 MCP `list_hyrox_rankings`도 이걸 쓴다.
   - 부문 pill `오픈 · 프로 · 더블스`. 오픈·프로는 남녀 규정이 달라 **마라톤과 같은 판**(부품도 재사용), 더블스는 혼성 팀이
     섞인 팀 기록이라 챔피언 하나 + 단일 목록. **릴레이는 판이 없다**(4인 팀 기록) — 저장만 된다.
+  - **판은 종목 `hyrox` 대회의 부문 코드 코스만 읽는다.** 운영 첫 하이록스 대회가 기본 종목(로드 러닝) + 직접 입력 코스
+    (`OPEN SINGLE`·`OPEN DOUBLE`)로 등록돼 판이 통째로 비었다(#671). 기록이 붙으면 코스를 못 바꾸므로 **등록·수정 때 막는다**
+    (`hyroxCompetitionIssue` — 이름에 HYROX·하이록스가 있으면 종목 하이록스, 하이록스면 코스는 OPEN·PRO·DOUBLES·RELAY만).
+    기록 저장 코어도 하이록스 대회에 부문 코드가 아닌 코스를 새로 만들지 못하게 한다.
   - **구경하러 들어오는 판이다.** 처음엔 1위끼리만 나란히 놓는 스플릿 표였는데 "남의 스테이션 기록을 못 보고, 표에 볼 게
     별로 없다"는 피드백을 받아 세 갈래로 바꿨다(계산은 전부 `lib/hyrox.ts` 순수 함수 — `viewHyroxBy`·`hyroxSplitGaps`·`hyroxStationHolders`).
     - **정렬 칩** `총시간 · 스테이션 8개`(부문 pill 아래 한 단계 작은 pill). 스테이션을 고르면 띠·판독선·목록이 전부 그 스테이션
@@ -1027,7 +1031,7 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
   - `TRIATHLON_SPRINT`는 칸이 없다(기록 0건). 생기면 칸을 세울지 그때 정한다.
 - **카테고리는 `SegmentControl`, 종목은 pill.** 둘 다 pill이던 시절엔 나란히 뜬 두 줄이 같은 층으로
   읽혔다. 형태를 갈라 층을 만든다.
-- 캐시 키는 `records-team-v9-*` — 페이로드 모양을 바꾸거나 RPC가 순위를 다르게 내기 시작하면 **키를 올린다**. 안 올리면 배포 직후 남아
+- 캐시 키는 `records-team-v10-*` — 페이로드 모양을 바꾸거나 RPC가 순위를 다르게 내기 시작하면 **키를 올린다**. 안 올리면 배포 직후 남아
   있는 옛 캐시가 새 필드 없이 돌아와 띠·판독선이 조용히 빈다.
 - **프로필 표면(한마디·대표 칭호·배지/프레임·프사)을 고쳐도 전당 캐시는 안 턴다.**
   그 표면이 전당에 보이는 건 종목별 1위뿐인데 무효화는 작성자를 못 가려서,

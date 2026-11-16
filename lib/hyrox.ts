@@ -115,6 +115,53 @@ export const HYROX_DIVISIONS = [
 export const HYROX_RECORD_DIVISIONS = ["OPEN", "PRO", "DOUBLES", "RELAY"] as const;
 export type HyroxRecordDivision = (typeof HYROX_RECORD_DIVISIONS)[number];
 
+/** 부문 코드가 하이록스 기록 부문(`OPEN`·`PRO`·`DOUBLES`·`RELAY`)인가 — 대소문자·앞뒤 공백 무시 */
+export function isHyroxRecordDivision(eventType: string | null | undefined): boolean {
+  return (HYROX_RECORD_DIVISIONS as readonly string[]).includes((eventType ?? "").trim().toUpperCase());
+}
+
+/* ------------------------------------------------------------------ */
+/*  대회 등록·수정 검사 (#671)                                          */
+/* ------------------------------------------------------------------ */
+
+/** 대회명이 하이록스 대회로 보이는가 */
+const HYROX_NAME_RE = /hyrox|하이록스/i;
+
+export const HYROX_SPORT_MISMATCH_MESSAGE =
+  "하이록스 대회는 종목을 「하이록스」로 골라 주세요 — 그래야 전당 하이록스 랭킹에 올라가요.";
+export const HYROX_DIVISION_MESSAGE =
+  "하이록스 코스는 OPEN·PRO·DOUBLES·RELAY 중에서 골라 주세요(싱글은 OPEN·PRO, 더블은 DOUBLES).";
+
+/**
+ * 대회 등록·수정 값이 하이록스 판에 잡히는 모양인지 검사한다(순수).
+ *
+ * 전당 하이록스 판과 MCP 는 **종목이 `hyrox` 인 대회의 `OPEN`·`PRO`·`DOUBLES` 코스**만 읽는다. 운영에서
+ * 「서울 하이록스」가 기본 종목(로드 러닝) 그대로, 코스는 직접 입력한 `OPEN SINGLE`·`OPEN DOUBLE` 로
+ * 등록돼 기록이 판에 하나도 안 잡혔다(#671). 저장 뒤엔 기록이 붙어 코스를 못 바꾸므로 **등록 때** 막는다.
+ *
+ * - 이름에 HYROX·하이록스가 있는데 종목이 하이록스가 아니면 → 종목
+ * - 종목이 하이록스인데 코스가 부문 코드가 아니면 → 코스
+ *
+ * @param input.title 대회명
+ * @param input.sport `comp_sprt_cd`
+ * @param input.eventTypes 코스 목록(정규화 전 값이어도 된다)
+ * @returns 문제가 있으면 어느 칸인지와 안내 문구, 없으면 `null`
+ */
+export function hyroxCompetitionIssue(input: {
+  title: string;
+  sport: string;
+  eventTypes: readonly string[];
+}): { field: "sport" | "eventTypes"; message: string } | null {
+  if (isHyroxSport(input.sport)) {
+    const bad = input.eventTypes
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0 && !isHyroxRecordDivision(t));
+    return bad.length > 0 ? { field: "eventTypes", message: HYROX_DIVISION_MESSAGE } : null;
+  }
+  if (HYROX_NAME_RE.test(input.title)) return { field: "sport", message: HYROX_SPORT_MISMATCH_MESSAGE };
+  return null;
+}
+
 /** 하이록스 판 RPC(`get_public_team_hyrox_rankings`) 한 행 */
 export type HyroxRankingRow = {
   race_result_id: string;

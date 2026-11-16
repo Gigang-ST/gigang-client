@@ -4,6 +4,7 @@ import { revalidateTag } from "next/cache";
 
 import { withActive, withAdmin } from "@/lib/actions/auth";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
+import { hyroxCompetitionIssue } from "@/lib/hyrox";
 import { getCachedCmmCdRows, isValidCompSprtCd } from "@/lib/queries/cmm-cd-cached";
 import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -110,6 +111,10 @@ export async function updateCompetition(
         message: "종목은 한글을 사용할 수 없습니다. 영문·숫자로 입력해 주세요.",
       };
     }
+
+    // 하이록스 대회 종목·코스(#671) — 등록과 같은 검사. 아래 diff 가 시작되기 전에 본다
+    const hyroxIssue = hyroxCompetitionIssue({ title: input.title, sport: input.sport, eventTypes: nextTypes });
+    if (hyroxIssue) return { ok: false, message: hyroxIssue.message };
 
     // 대회 원본은 공용이라 변경 이력에 "누가·어느 팀으로" 남긴다(chg_hist)
     const { teamId } = await getRequestTeamContext();

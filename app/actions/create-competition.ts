@@ -5,6 +5,7 @@ import { revalidateTag } from "next/cache";
 import { compEvtTypeContainsHangul } from "@/lib/comp-evt-type";
 import { COMPETITION_COLUMNS, toCompetition } from "@/lib/competition-row";
 import { todayKST } from "@/lib/dayjs";
+import { hyroxCompetitionIssue } from "@/lib/hyrox";
 import { getCachedCmmCdRows, isValidCompSprtCd } from "@/lib/queries/cmm-cd-cached";
 import { withActive } from "@/lib/actions/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -40,6 +41,11 @@ export async function createCompetition(input: CreateCompetitionInput) {
     if (eventTypes.some((evt) => compEvtTypeContainsHangul(evt))) {
       return { ok: false, message: "종목은 한글을 사용할 수 없습니다. 영문·숫자로 입력해 주세요." };
     }
+
+    // 하이록스 대회는 종목·코스가 맞아야 전당 판에 잡힌다(#671). 폼 검증과 같은 함수 — 폼을 안 거치는
+    // 길(기록 입력의 대회 추가·관리자 화면)도 여기서 막힌다
+    const hyroxIssue = hyroxCompetitionIssue({ title: input.title, sport: input.sport, eventTypes });
+    if (hyroxIssue) return { ok: false, message: hyroxIssue.message };
 
     const admin = createAdminClient();
     const { data: comp, error: compErr } = await admin

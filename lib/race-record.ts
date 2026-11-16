@@ -9,7 +9,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { compEvtTypeContainsHangul, toRankingEvtCd } from "@/lib/comp-evt-type";
-import { serializeHyroxSplits } from "@/lib/hyrox";
+import { HYROX_DIVISION_MESSAGE, isHyroxRecordDivision, isHyroxSport, serializeHyroxSplits } from "@/lib/hyrox";
 import { normalizeCompEvtType, resolveCompEvtIdForRaceRecord } from "@/lib/server/comp-evt-cfg";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -153,6 +153,21 @@ export async function insertRaceRecordCore(
   }
   const normalizedEventType = normalizeCompEvtType(input.eventType);
 
+  // 대회 스포츠는 저장 전에 읽는다 — 하이록스 부문 검사(#671)와 아래 캐시 판정이 같이 쓴다
+  const { data: comp, error: compError } = await admin
+    .from("comp_mst")
+    .select("comp_sprt_cd")
+    .eq("comp_id", input.competitionId)
+    .maybeSingle();
+  // 못 읽으면 철인·하이록스를 못 가려 맨 코드로 판정한다 — 저장은 막지 않고 흔적만 남긴다
+  if (compError) console.error("[race-record] 대회 스포츠 조회 실패", compError);
+
+  // 하이록스 판은 OPEN·PRO·DOUBLES 만 읽는다. 「기타」로 OPEN SINGLE 같은 코스를 새로 만들면
+  // 기록이 판에 영영 안 잡히고, 붙은 뒤엔 코스를 바꿀 수도 없다(#671)
+  if (isHyroxSport(comp?.comp_sprt_cd) && !isHyroxRecordDivision(normalizedEventType)) {
+    return { ok: false, message: HYROX_DIVISION_MESSAGE };
+  }
+
   const resolved = await resolveCompEvtIdForRaceRecord(
     admin, input.competitionId, normalizedEventType, input.registrationCompEvtId,
   );
@@ -175,13 +190,6 @@ export async function insertRaceRecordCore(
     return { ok: false, message: "저장에 실패했습니다. 다시 시도해 주세요." };
   }
 
-  const { data: comp, error: compError } = await admin
-    .from("comp_mst")
-    .select("comp_sprt_cd")
-    .eq("comp_id", input.competitionId)
-    .maybeSingle();
-  // 못 읽으면 철인·하이록스를 못 가려 맨 코드로 판정한다 — 저장은 이미 끝났으니 막지 않고 흔적만 남긴다
-  if (compError) console.error("[race-record] 대회 스포츠 조회 실패", compError);
   const shouldInvalidate = await shouldInvalidateRecordsCacheOnSave(admin, {
     teamId, eventType: toRankingEvtCd(comp?.comp_sprt_cd, normalizedEventType),
     recordTimeSec: input.totalSeconds, memberId: owner.memId, memberGender: owner.gender,

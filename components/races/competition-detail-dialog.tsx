@@ -561,6 +561,9 @@ export function CompetitionDetailDialog({
                 <Input type="url" {...editForm.register("sourceUrl")} />
               </div>
               {editForm.formState.errors.endDate && <p className="text-xs text-destructive">{editForm.formState.errors.endDate.message}</p>}
+              {/* 하이록스 종목·코스 검사(#671) — 이 칸들엔 따로 오류 자리가 없어 여기 모아 보인다 */}
+              {editForm.formState.errors.sport && <p className="text-xs text-destructive">{editForm.formState.errors.sport.message}</p>}
+              {editForm.formState.errors.eventTypes && <p className="text-xs text-destructive">{editForm.formState.errors.eventTypes.message}</p>}
               {editForm.formState.errors.root && <p className="text-xs text-destructive">{editForm.formState.errors.root.message}</p>}
               <div className="flex gap-2">
                 <Button type="submit" disabled={editForm.formState.isSubmitting} className="flex-1">

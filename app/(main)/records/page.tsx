@@ -302,7 +302,8 @@ function getCachedRecordsData(teamId: string) {
     // v7: RPC가 가입 전 기록을 거르게 되어(#528) 옛 캐시의 순위가 24시간 동안 남지 않게 올렸다.
     // v8: RPC가 철인 FULL·OLYMPIC 등을 TRIATHLON_*으로 읽게 되어(#581) 같은 이유로 올렸다.
     // v9: 하이록스 판(hyrox)이 페이로드에 더해졌다(#349).
-    [`records-team-v9-${teamId}`],
+    // v10: 운영 하이록스 대회 보정(#671 — 종목·코스를 DB 에서 고친다)이 24시간 옛 빈 판으로 남지 않게 올렸다.
+    [`records-team-v10-${teamId}`],
     { revalidate: 60 * 60 * 24, tags: ["records", `records:${teamId}`] },
   )();
 }
