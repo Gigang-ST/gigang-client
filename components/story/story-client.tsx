@@ -16,6 +16,7 @@ import { ActvHistorySheet } from "@/components/story/actv-history-sheet";
 import { ActvPile } from "@/components/story/actv-pile";
 import { PresenceCount } from "@/components/story/presence-count";
 import { SocialLinksGrid } from "@/components/social-links";
+import { StoryLegalFooter } from "@/components/story/story-legal-footer";
 import { GhostWanted } from "@/components/story/ghost-wanted";
 import { RecordFlexFeed } from "@/components/story/record-flex-feed";
 import { StoryLede } from "@/components/story/story-lede";
@@ -291,6 +292,7 @@ export function StoryClient({
         <div className="px-6">
           <SocialLinksGrid channels={channels} copy={copy} />
         </div>
+        <StoryLegalFooter copy={copy} />
       </div>
 
       <MemberCardDialog
