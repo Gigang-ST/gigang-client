@@ -14,6 +14,9 @@ import {
   LogOut,
   Loader2,
   Pencil,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 
 import { dayjs } from "@/lib/dayjs";
@@ -37,6 +40,13 @@ import {
 } from "@/app/actions/admin/manage-member";
 import { revokeTitle } from "@/app/actions/admin/revoke-title";
 
+import {
+  DEFAULT_MEMBER_SORT,
+  nextMemberSort,
+  sortMembers,
+  type MemberSort,
+  type MemberSortKey,
+} from "./member-sort";
 import { ParticipationSection } from "./participation-section";
 import { ParticipationTab } from "./participation-tab";
 
@@ -69,6 +79,8 @@ import {
   type MemberStatusRow,
   type MemberStatusSince,
 } from "@/lib/member-status-since";
+import { memberRemovalBlockReason, type ManageActor } from "@/lib/member-manage-guard";
+import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { cn } from "@/lib/utils";
 import {
@@ -96,6 +108,8 @@ type Member = {
   avatar_url: string | null;
   status: string | null;
   admin: boolean | null;
+  /** 크루장(owner) — 누구도 비활성·탈퇴·삭제할 수 없다 */
+  owner: boolean;
   joined_at: string | null;
   inact_rsn_txt: string | null;
   bal_amt: number | null;
@@ -132,7 +146,6 @@ const STATUS_META: Record<
   active: { label: "활성", dot: "bg-success", text: "text-success", badgeClass: "bg-success/10 text-success border-success/20" },
   inactive: { label: "비활성", dot: "bg-warning", text: "text-warning", badgeClass: "bg-warning/10 text-warning border-warning/20" },
   left: { label: "탈퇴", dot: "bg-destructive", text: "text-destructive", badgeClass: "bg-destructive/10 text-destructive border-destructive/20" },
-  pending: { label: "대기", dot: "bg-muted-foreground", text: "text-muted-foreground", badgeClass: "bg-muted text-muted-foreground border-border" },
 };
 
 const DEFAULT_STATUS_META = {
@@ -153,8 +166,8 @@ function StatusBadge({ status }: { status: string | null }) {
 }
 
 /**
- * 클릭 가능한 상태 배지. active/inactive/left 만 전환 시트를 연다(pending은 승인
- * 대기 흐름이 별도이므로 클릭 불가 — 기존 배지 그대로 표시).
+ * 클릭 가능한 상태 배지. active/inactive/left 만 전환 시트를 연다(그 밖의 값은 클릭 불가 —
+ * 배지만 표시). 승인 대기(`pending`)는 만드는 경로가 없어(2026-10 승인 흐름 제거) 라벨도 두지 않는다.
  */
 function StatusBadgeButton({
   status,
@@ -588,10 +601,13 @@ function StatusChangeSheet({
   onLeave,
   onReactivate,
   duesEnabled,
+  blockReason,
 }: {
   member: Member;
   open: boolean;
   busy: boolean;
+  /** 비활성·탈퇴를 못 하는 대상이면 그 이유(운영진 보호 등) — 재활성화는 그대로 연다 */
+  blockReason: string | null;
   /** 이 팀이 회비를 쓰는가 — 안 쓰면 재활성화의 「회비 잔액 처리」를 묻지 않는다 */
   duesEnabled: boolean;
   onOpenChange: (open: boolean) => void;
@@ -605,6 +621,7 @@ function StatusChangeSheet({
 
   const meta = statusMeta(member.status);
 
+  // 안내 문구의 「회비」는 회비를 쓰는 팀에서만 말한다 — 울산 관리자에게 없는 회비를 약속하지 않게
   const options: {
     action: StatusAction;
     label: string;
@@ -617,14 +634,18 @@ function StatusChangeSheet({
     options.push({
       action: "deactivate",
       label: "비활성으로",
-      desc: "회비 자동 제외·참여 차단. 언제든 되돌릴 수 있어요.",
+      desc: duesEnabled
+        ? "회비 자동 제외·참여 차단. 언제든 되돌릴 수 있어요."
+        : "참여 차단. 언제든 되돌릴 수 있어요.",
       icon: UserMinus,
       tone: "text-warning",
     });
     options.push({
       action: "leave",
       label: "탈퇴 처리",
-      desc: "크루를 나감으로 기록. 탈퇴일 저장 + 회비 제외.",
+      desc: duesEnabled
+        ? "크루를 나감으로 기록. 탈퇴일 저장 + 회비 제외."
+        : "크루를 나감으로 기록. 탈퇴일 저장.",
       icon: LogOut,
       tone: "text-destructive",
     });
@@ -632,14 +653,18 @@ function StatusChangeSheet({
     options.push({
       action: "activate",
       label: "활성으로",
-      desc: "회비 부과·참여 재개. 비활성 기간은 회비에서 자동 제외.",
+      desc: duesEnabled
+        ? "회비 부과·참여 재개. 비활성 기간은 회비에서 자동 제외."
+        : "참여 재개.",
       icon: UserCheck,
       tone: "text-success",
     });
     options.push({
       action: "leave",
       label: "탈퇴 처리",
-      desc: "크루를 나감으로 기록. 탈퇴일 저장 + 회비 제외.",
+      desc: duesEnabled
+        ? "크루를 나감으로 기록. 탈퇴일 저장 + 회비 제외."
+        : "크루를 나감으로 기록. 탈퇴일 저장.",
       icon: LogOut,
       tone: "text-destructive",
     });
@@ -647,11 +672,17 @@ function StatusChangeSheet({
     options.push({
       action: "activate",
       label: "활성으로",
-      desc: "회비 부과·참여 재개. 비활성 기간은 회비에서 자동 제외.",
+      desc: duesEnabled
+        ? "회비 부과·참여 재개. 비활성 기간은 회비에서 자동 제외."
+        : "참여 재개.",
       icon: UserCheck,
       tone: "text-success",
     });
   }
+
+  // 못 하는 처리는 선택지째 빼고 이유를 한 줄로 말한다 — 눌러 보고 나서야 막히지 않게
+  const visibleOptions = blockReason ? options.filter((o) => o.action === "activate") : options;
+  const hiddenByBlock = !!blockReason && visibleOptions.length < options.length;
 
   const handleSelect = (action: StatusAction) => {
     setPendingAction(action);
@@ -710,9 +741,13 @@ function StatusChangeSheet({
             )}
           </div>
 
+          {hiddenByBlock && (
+            <Caption className="text-[12px] leading-snug">{blockReason}</Caption>
+          )}
+
           {/* 전환 옵션 */}
           <div className="flex flex-col gap-2">
-            {options.map((opt) => {
+            {visibleOptions.map((opt) => {
               const Icon = opt.icon;
               const isSelected = pendingAction === opt.action;
               return (
@@ -823,6 +858,9 @@ export function AdminMembersClient({
   initialTeamMemId,
   duesEnabled,
   titlesEnabled,
+  viewer,
+  cmmCdRows,
+  participationDataStart,
 }: {
   teamId: string;
   initialTeamMemId?: string;
@@ -830,15 +868,25 @@ export function AdminMembersClient({
   duesEnabled: boolean;
   /** 이 팀이 칭호를 쓰는가(팀 설정 `feature.titles`) — 안 쓰면 멤버 상세의 칭호 수여 칸을 안 그린다 */
   titlesEnabled: boolean;
+  /** 지금 화면을 보는 관리자 — 운영진 보호 판정(크루장만 운영진을 처리) */
+  viewer: ManageActor;
+  /** 공통코드 — 대회 신청 줄 스포츠 이름 */
+  cmmCdRows: CachedCmmCdRow[];
+  /** 참여 탭 「전체」 기간 시작일(팀별, YYYY-MM-DD) */
+  participationDataStart: string;
 }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+  // 명단 조회 실패 — 빈 목록("회원이 없습니다")과 구분해 다시 시도를 세운다
+  const [loadError, setLoadError] = useState(false);
   const [tab, setTab] = useState<"members" | "participation">("members");
   const [search, setSearch] = useState("");
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [actioning, setActioning] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive" | "left">("all");
+  // 헤더 정렬 — 기본은 가입일 최신순(예전 목록 순서). 검색·상태 필터를 거친 결과에 건다
+  const [sort, setSort] = useState<MemberSort>(DEFAULT_MEMBER_SORT);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deactivateTarget, setDeactivateTarget] = useState<{ ids: string[] } | null>(null);
   const [deactivateReason, setDeactivateReason] = useState("");
@@ -852,24 +900,37 @@ export function AdminMembersClient({
   const loadMembers = useCallback(async () => {
     const supabase = createClient();
     try {
-      const [{ data: membersData }, { data: snapsData }, historyRows] = await Promise.all([
-        supabase
-          .from("team_mem_rel")
-          .select(
-            "team_mem_id, mem_id, team_role_cd, mem_st_cd, join_dt, leave_dt, eff_at, inact_rsn_txt, mem_mst!inner(mem_nm, phone_no, email_addr, gdr_enm, birth_dt, avatar_url)",
-          )
-          .eq("team_id", teamId)
-          .eq("vers", 0)
-          .eq("del_yn", false)
-          .eq("mem_mst.vers", 0)
-          .eq("mem_mst.del_yn", false)
-          .order("join_dt", { ascending: false }),
-        supabase
-          .from("fee_mem_bal_snap")
-          .select("mem_id, bal_amt")
-          .eq("team_id", teamId)
-          .eq("vers", 0)
-          .eq("del_yn", false),
+      // 회원 명단·잔액은 탈퇴자까지 쌓여 **시간이 갈수록 는다** — 1000행에서 에러 없이
+      // 잘리면 뒤쪽(가입이 오래된) 회원이 목록에서 조용히 사라지므로 끝까지 읽는다(§CLAUDE.md 대량 조회).
+      // 실패하면 던진다 — 예전엔 에러를 버려 "회원이 없습니다"로 보였다.
+      const [membersData, snapsData, historyRows] = await Promise.all([
+        fetchAllRows(
+          () =>
+            supabase
+              .from("team_mem_rel")
+              .select(
+                "team_mem_id, mem_id, team_role_cd, mem_st_cd, join_dt, leave_dt, eff_at, inact_rsn_txt, mem_mst!inner(mem_nm, phone_no, email_addr, gdr_enm, birth_dt, avatar_url)",
+              )
+              .eq("team_id", teamId)
+              .eq("vers", 0)
+              .eq("del_yn", false)
+              .eq("mem_mst.vers", 0)
+              .eq("mem_mst.del_yn", false)
+              .order("join_dt", { ascending: false })
+              .order("team_mem_id", { ascending: true }),
+          { label: "admin-members-list" },
+        ),
+        fetchAllRows(
+          () =>
+            supabase
+              .from("fee_mem_bal_snap")
+              .select("mem_id, bal_amt")
+              .eq("team_id", teamId)
+              .eq("vers", 0)
+              .eq("del_yn", false)
+              .order("bal_snap_id", { ascending: true }),
+          { label: "admin-members-balance" },
+        ),
         // 상태 이력(vers>0) — 전환일 계산에 쓴다. 상태·역할이 바뀔 때마다 한 행씩 쌓여
         // **시간이 갈수록 느는 조회**라 끝까지 읽는다(§CLAUDE.md 대량 조회).
         // 정렬은 PK(team_mem_id) — 이력 행은 저마다 새 PK라 유일하다.
@@ -897,7 +958,7 @@ export function AdminMembersClient({
         }),
       ]);
 
-      const snapMap = new Map((snapsData ?? []).map((s) => [s.mem_id, s.bal_amt]));
+      const snapMap = new Map(snapsData.map((s) => [s.mem_id, s.bal_amt]));
 
       // 사람별 타임라인으로 묶는다 — `getMemberStatusSince` 가 정본 + 이력을 한 배열로 받는다.
       const historyByMem = new Map<string, MemberStatusRow[]>();
@@ -917,7 +978,7 @@ export function AdminMembersClient({
       };
 
       setMembers(
-        (membersData ?? []).map((r) => {
+        membersData.map((r) => {
           const m = r.mem_mst as unknown as Mst;
           const timeline: MemberStatusRow[] = [
             {
@@ -940,6 +1001,7 @@ export function AdminMembersClient({
             avatar_url: m.avatar_url,
             status: r.mem_st_cd,
             admin: r.team_role_cd === "admin" || r.team_role_cd === "owner",
+            owner: r.team_role_cd === "owner",
             joined_at: r.join_dt,
             inact_rsn_txt: r.inact_rsn_txt ?? null,
             bal_amt: snapMap.get(r.mem_id) ?? null,
@@ -947,12 +1009,19 @@ export function AdminMembersClient({
           };
         }),
       );
+      setLoadError(false);
+    } catch (e) {
+      console.error("[admin-members] 회원 목록 조회 실패", e);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
   }, [teamId]);
 
   useEffect(() => {
+    // 마운트 시 명단 fetch — 외부(네트워크) 동기화 effect라 set-state-in-effect는 오탐
+    // (setState는 전부 await 뒤에서 일어난다)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadMembers();
   }, [loadMembers]);
 
@@ -982,9 +1051,21 @@ export function AdminMembersClient({
     return true;
   });
 
-  const activeSelectedIds = [...selectedIds].filter(
-    (id) => statusFiltered.find((m) => m.id === id)?.status === "active",
+  /** 이 회원을 비활성·탈퇴·삭제할 수 없으면 그 이유 — 서버 액션과 같은 판정(lib/member-manage-guard) */
+  const blockReasonFor = (m: Member) =>
+    memberRemovalBlockReason(viewer, {
+      memId: m.id,
+      roleCd: m.owner ? "owner" : m.admin ? "admin" : "member",
+    });
+
+  const sortedMembers = sortMembers(statusFiltered, sort);
+
+  const selectedActive = statusFiltered.filter(
+    (m) => selectedIds.has(m.id) && m.status === "active",
   );
+  const activeSelectedIds = selectedActive.filter((m) => !blockReasonFor(m)).map((m) => m.id);
+  // 선택했지만 일괄 비활성에서 빠지는 사람(운영진·크루장·본인) — 빠진다는 걸 말해 준다
+  const skippedActiveCnt = selectedActive.length - activeSelectedIds.length;
   const reactivatableSelectedIds = [...selectedIds].filter((id) => {
     const status = statusFiltered.find((m) => m.id === id)?.status;
     return status === "inactive" || status === "left";
@@ -1158,6 +1239,23 @@ export function AdminMembersClient({
     <div className="flex flex-col gap-4 px-6 pb-6 pt-4">
       <H2>회원 관리</H2>
 
+      {loadError && (
+        <div className="flex flex-col gap-3">
+          <EmptyState variant="card" message="회원 목록을 불러오지 못했습니다." />
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-center"
+            onClick={() => {
+              setLoading(true);
+              loadMembers();
+            }}
+          >
+            다시 시도
+          </Button>
+        </div>
+      )}
+
       {/* 회원 목록 ↔ 참여 통계 탭 */}
       <SegmentControl
         segments={[
@@ -1174,6 +1272,7 @@ export function AdminMembersClient({
 
       {tab === "participation" && (
         <ParticipationTab
+          dataStart={participationDataStart}
           members={members}
           onSelectMember={(memId) => {
             const found = members.find((m) => m.id === memId);
@@ -1262,6 +1361,13 @@ export function AdminMembersClient({
           <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
             선택 해제
           </Button>
+          {skippedActiveCnt > 0 && (
+            <Caption className="w-full text-[12px]">
+              {viewer.isOwner
+                ? `크루장·본인 ${skippedActiveCnt}명은 비활성 설정에서 빠져요.`
+                : `운영진·크루장·본인 ${skippedActiveCnt}명은 비활성 설정에서 빠져요 — 운영진은 크루장만 처리할 수 있어요.`}
+            </Caption>
+          )}
         </div>
       )}
 
@@ -1278,9 +1384,41 @@ export function AdminMembersClient({
                   />
                 </div>
               </TableHead>
-              {["이름", "성별", "생년월일", "가입일자", "연락처", "회원상태", ...(duesEnabled ? ["회비잔액"] : [])].map((h) => (
-                <TableHead key={h} className="text-center text-xs whitespace-nowrap">{h}</TableHead>
-              ))}
+              {(
+                [
+                  ["name", "이름"],
+                  ["gender", "성별"],
+                  ["birthday", "생년월일"],
+                  ["joined", "가입일자"],
+                  ["phone", "연락처"],
+                  ["status", "회원상태"],
+                  ...(duesEnabled ? ([["balance", "회비잔액"]] as const) : []),
+                ] as const satisfies readonly (readonly [MemberSortKey, string])[]
+              ).map(([key, label]) => {
+                const active = sort.key === key;
+                const Icon = !active ? ArrowUpDown : sort.dir === "asc" ? ArrowUp : ArrowDown;
+                return (
+                  <TableHead
+                    key={key}
+                    className="p-0 text-center text-xs whitespace-nowrap"
+                    aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+                  >
+                    {/* 헤더 칸 전체가 버튼 — 휴대폰에서 글자만 겨냥하지 않게 높이·좌우를 넉넉히 잡는다.
+                        정렬 안 된 열에도 흐린 화살표를 둬서 "눌러서 정렬된다"는 걸 보여 준다 */}
+                    <button
+                      type="button"
+                      onClick={() => setSort((prev) => nextMemberSort(prev, key))}
+                      className={cn(
+                        "inline-flex h-11 w-full items-center justify-center gap-0.5 px-2.5 transition-colors active:bg-muted",
+                        active ? "font-semibold text-foreground" : "text-muted-foreground",
+                      )}
+                    >
+                      {label}
+                      <Icon className={cn("size-3 shrink-0", !active && "opacity-40")} />
+                    </button>
+                  </TableHead>
+                );
+              })}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1291,7 +1429,7 @@ export function AdminMembersClient({
                 </TableCell>
               </TableRow>
             )}
-            {statusFiltered.map((member) => {
+            {sortedMembers.map((member) => {
               const isChecked = selectedIds.has(member.id);
               return (
                 <TableRow
@@ -1429,14 +1567,17 @@ export function AdminMembersClient({
                       : null
                   }
                 />
-                <InfoRow
-                  label="회비잔액"
-                  value={
-                    selectedMember.bal_amt !== null
-                      ? `${selectedMember.bal_amt > 0 ? "+" : ""}${selectedMember.bal_amt.toLocaleString()}원`
-                      : null
-                  }
-                />
+                {/* 회비를 안 쓰는 팀(울산)은 목록 열처럼 상세에서도 뺀다 — 늘 "-"인 줄만 남는다 */}
+                {duesEnabled && (
+                  <InfoRow
+                    label="회비잔액"
+                    value={
+                      selectedMember.bal_amt !== null
+                        ? `${selectedMember.bal_amt > 0 ? "+" : ""}${selectedMember.bal_amt.toLocaleString()}원`
+                        : null
+                    }
+                  />
+                )}
                 {/* 언제 나갔는지 — 재가입 요청을 받았을 때 가장 먼저 묻는 것이다.
                     사유 바로 위에 둬서 "언제·왜"가 한 번에 읽히게 한다. */}
                 {selectedMember.status_since && (
@@ -1458,6 +1599,7 @@ export function AdminMembersClient({
 
               {/* 참여 현황 — 모임·대회 참여 요약/월별/최근 활동 */}
               <ParticipationSection
+                cmmCdRows={cmmCdRows}
                 key={`participation-${selectedMember.id}`}
                 memId={selectedMember.id}
                 teamId={teamId}
@@ -1504,8 +1646,14 @@ export function AdminMembersClient({
                   </Button>
                 )}
 
-                {/* 삭제는 시각적으로 분리 — 구분선 + 간격을 두어 실수 클릭 방지 */}
+                {/* 삭제는 시각적으로 분리 — 구분선 + 간격을 두어 실수 클릭 방지.
+                    못 하는 대상(운영진·크루장·본인)이면 버튼 대신 이유를 보인다 */}
                 <div className="mt-2 border-t border-border pt-2">
+                  {blockReasonFor(selectedMember) ? (
+                    <Caption className="block px-1 py-2 text-[12px]">
+                      {blockReasonFor(selectedMember)}
+                    </Caption>
+                  ) : (
                   <Button
                     variant="outline"
                     onClick={() =>
@@ -1520,6 +1668,7 @@ export function AdminMembersClient({
                     <UserX className="size-4 text-destructive" />
                     <span className="text-[15px] font-medium text-destructive">회원 삭제</span>
                   </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1635,6 +1784,7 @@ export function AdminMembersClient({
           onLeave={handleSheetLeave}
           onReactivate={handleSheetReactivate}
           duesEnabled={duesEnabled}
+          blockReason={blockReasonFor(statusChangeMember)}
         />
       )}
     </div>
