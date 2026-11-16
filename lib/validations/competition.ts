@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { COMP_EVT_TYPE_OTHER } from "@/lib/comp-evt-type";
 import { todayKST } from "@/lib/dayjs";
+import { hyroxCompetitionIssue } from "@/lib/hyrox";
 import type { Enums } from "@/lib/supabase/database.types";
 
 export type CompetitionRegisterDatePolicy = "future-only" | "allow-past";
@@ -33,7 +34,22 @@ function buildCompetitionRegisterSchema(datePolicy: CompetitionRegisterDatePolic
       message: "참가 코스를 1개 이상 선택해 주세요.",
       path: ["selectedEventTypes"],
     },
-  );
+  )
+  // 하이록스 대회는 종목·코스가 맞아야 전당 판에 잡힌다(#671) — 서버 액션도 같은 함수로 다시 본다
+  .superRefine((data, ctx) => {
+    const issue = hyroxCompetitionIssue({
+      title: data.title,
+      sport: data.sport,
+      eventTypes: data.selectedEventTypes.filter((t) => t !== COMP_EVT_TYPE_OTHER),
+    });
+    if (issue) {
+      ctx.addIssue({
+        code: "custom",
+        message: issue.message,
+        path: [issue.field === "sport" ? "sport" : "selectedEventTypes"],
+      });
+    }
+  });
 
   if (datePolicy === "allow-past") {
     return baseSchema;
@@ -66,6 +82,11 @@ export const competitionEditSchema = z
   .refine((data) => !data.endDate || data.endDate >= data.startDate, {
     message: "종료일은 시작일 이후여야 합니다.",
     path: ["endDate"],
+  })
+  // 하이록스 대회 종목·코스(#671) — 등록 폼과 같은 검사
+  .superRefine((data, ctx) => {
+    const issue = hyroxCompetitionIssue(data);
+    if (issue) ctx.addIssue({ code: "custom", message: issue.message, path: [issue.field] });
   });
 
 export type CompetitionEditValues = z.infer<typeof competitionEditSchema>;

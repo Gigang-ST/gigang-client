@@ -41,18 +41,22 @@
 | 29 | **배포 뒤, 25번 뒤** `post_mst` 의 옛 목표 한마디 잔재 걷기(`pldg_txt` 칸·길이 제약·enum `'pledge'`, #654) | `20261111100000_drop_post_pledge_remnant.sql` | ✅ (prd 뒤 2026-11-15, 86행 그대로) | ✅ (prd 791행 그대로) |
 | 30 | (보안 #652, 이 롤아웃과 별개로 hotfix #661 로 먼저 나감) 회원·소속 행 셀프 수정 범위 제한 | `20261111090000_member_rows_self_update_guard.sql` | ✅ | ✅ (이 롤아웃 전부터 적용됨) |
 | 31 | (보안 #652, 위와 같음) 게시판 읽기 그 팀 회원만 | `20261111090100_board_select_team_members_only.sql` | ✅ | ✅ (이 롤아웃 전부터 적용됨) |
-| 32 | 약관 3종 팀별 — 운영 주체·연락처를 팀 설정에(`legal.operator`·`legal.contact`, 기강 2행 + 울산 운영 주체 송창준, #658) — 배포 전 권장(빠져도 기강 문서는 코드 기본값으로 그대로) | `20261115100000_team_legal_cfg.sql` | ☐ | ☐ |
+| 32 | 약관 3종 팀별 — 운영 주체·연락처를 팀 설정에(`legal.operator`·`legal.contact`, 기강 2행 + 울산 운영 주체 송창준, #658) — 배포 전 권장(빠져도 기강 문서는 코드 기본값으로 그대로) | `20261115100000_team_legal_cfg.sql` | ✅ (2026-11-15) | ✅ (2026-11-16, 3행) |
+| 33 | `mem_onbd_prf` 옛 가입 정보 칸 6개 삭제(#667, 아래 「남은 일」) — 배포 전후 무관 | `20261115110000_drop_mem_onbd_prf_legacy_cols.sql` | ✅ (2026-11-15, 7행 그대로) | ✅ (2026-11-15, 150행 그대로) |
 
 prd 적용(1~29, 10 제외): 2026-11-15. 배포 전 단계 12:38~12:48 UTC, PR #648(dev→main) 머지 12:53 UTC(`75ceddc`) ·
 운영 배포 완료 12:56 UTC, 20·25·29는 그 직후. 적용 기록(`schema_migrations`) 버전은 파일 이름 버전으로 맞춰 뒀다
 (MCP `apply_migration` 은 호출 시각으로 남긴다). 배포 뒤 「가입 정보 옮기기 다시」는 영향 0행(8번과 배포 사이 공백 없음).
 30·31 은 이 순서와 의존이 없다 — 기록용으로만 둔다. 29번은 prd 가 먼저 들어갔고 dev 는 같은 날 뒤따라 적용했다.
+두 번째 운영 배포(PR #664 — #663·#665·#666·#667·#668): 32번 prd 적용 뒤 2026-11-16 머지(`222ce79`). 33번은 그 전에 이미 dev·prd 적용.
+0-a 는 SQL Editor 로 넣어 `schema_migrations` 에 이름이 없고, 0-b 도 이름이 없다 — 둘 다 효과(정책·울산 팀 행)는 2026-11-16 확인.
 
 바깥 설정(이미 끝남): Vercel 도메인 `ulsan.gigang.team`(운영) · `dev.ulsan.gigang.team`(dev),
-Supabase Redirect URLs `https://ulsan.gigang.team/auth/callback`(prd) · dev 두 줄.
+Supabase Redirect URLs — prd `https://gigang.team/**` · `https://ulsan.gigang.team/**`, dev 는 `https://dev.ulsan.gigang.team/**`
+포함 5줄(2026-11-15 대시보드 확인).
 ⚠️ **Redirect URLs 는 `https://ulsan.gigang.team/**` 꼴이어야 한다.** 앱은 `redirectTo` 에 늘 `?next=…` 를 붙여 보내는데
 Supabase 는 쿼리까지 포함한 전체 주소를 패턴과 맞춘다 — `/auth/callback` 정확한 주소로는 안 걸려 **Site URL(기강)로 대체**된다.
-dev 에서 실제로 울산 로그인이 `dev.gigang.team` 으로 튕겼다(2026-11-10, 인증 로그 `referer` 로 확인). prd 도 같은지 배포 전에 본다.
+dev 에서 실제로 울산 로그인이 `dev.gigang.team` 으로 튕겼다(2026-11-10, 인증 로그 `referer` 로 확인).
 
 ## 시작 전 — 되돌릴 준비 (필수)
 
@@ -257,7 +261,7 @@ values ('c0ffee00-0000-4000-8000-000000000001', 'social.kakao_open_chat_password
 ```
 
 > 2026-11-15: dev·prd 둘 다 행을 넣었고, 전환 분기와 `KAKAO_CHAT_PASSWORD`(코드)를 걷었다. 이제 비우면 정말로 안 보인다
-> (안내 문구와 동작이 같다). Vercel 환경변수 `KAKAO_CHAT_PASSWORD` 는 남아 있어도 읽지 않는다 — 지울 것.
+> (안내 문구와 동작이 같다). Vercel 환경변수 `KAKAO_CHAT_PASSWORD` 는 운영·dev 둘 다 지웠다(2026-11-16).
 
 ### 11. `20261109200000_revalidate_webhook_team.sql`
 
@@ -554,14 +558,15 @@ where c.cfg_cd like 'legal.%' order by 1, 2;
     and r.vers = 0 and r.del_yn = false;
   ```
   그 뒤 admin 은 owner 가 관리자 화면에서 지정한다.
-- 운영·dev Vercel 환경변수 `KAKAO_ROOM_ID`·`KAKAO_ROOM` 삭제 — 더 이상 읽지 않는다(남아 있어도 무시된다).
-- ~~10번 뒤 전환 분기·`lib/env.ts` 의 `KAKAO_CHAT_PASSWORD` 삭제~~ — 코드는 걷었다(2026-11-15). 남은 건 Vercel 환경변수
-  `KAKAO_CHAT_PASSWORD` 삭제뿐(운영·dev, 팀 계정 필요).
+- ~~운영·dev Vercel 환경변수 `KAKAO_ROOM_ID`·`KAKAO_ROOM` 삭제~~ — 2026-11-16 지웠다(`KAKAO_ROOM` 은 원래 없었다).
+  `lib/env.ts` 의 두 선언은 아직 남아 있다(optional 이라 무해 — 걷는 건 별도 PR).
+- ~~10번 뒤 전환 분기·`lib/env.ts` 의 `KAKAO_CHAT_PASSWORD` 삭제~~ — 코드는 걷었다(2026-11-15), Vercel 환경변수도
+  운영·dev 둘 다 지웠다(2026-11-16).
 - 가입 정보 옮기기를 다시 돌린 뒤(위) `mem_onbd_prf` 의 옛 칸 6개(`join_purp_cds`·`join_purp_txt`·`join_src_cd`·
   `join_src_txt`·`attd_pldg_at`·`pldg_gthr_id`)를 지우는 마이그레이션을 따로 낸다. 남아 있는 동안은 다른 팀 관리자가
   두 팀 소속자의 옛 가입 경로를 볼 수 있다(`mem_onbd_prf_select_team_admin` — 지금은 해당자 1명).
   → 마이그레이션 `20261115110000_drop_mem_onbd_prf_legacy_cols.sql` (옮기기 다시 영향 0행 확인 뒤, 2026-11-15). dev → prd 순으로
-  적용한다. 어느 팀 소속도 없는 사람의 옛 가입 정보는 함께 지워진다(prd 2명·dev 0명).
+  적용한다. 어느 팀 소속도 없는 사람의 옛 가입 정보는 함께 지워진다(prd 2명·dev 0명). → **dev·prd 적용 끝(2026-11-15, 33번).**
 - 이펙트를 다 옮긴 뒤 `effect_mst` 의 `rarity_level`·`use_yn`·`unlock_cond_json` 은 "팀 행이 없을 때 기본값"으로만 쓰인다.
 - (건의·알림 설정·발송 이력의 전환용 기본값 제거는 20번 마이그레이션으로 옮겼다 — 위 「배포」 3.)
 - ⚠️ **탈퇴자 개인정보 파기 기능을 만들 때** 변경 이력(`chg_hist`, `tbl_nm = 'mem_mst'`)에 남은 **이름·전화번호·은행명 값도 같이 지운다.**

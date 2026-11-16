@@ -75,9 +75,9 @@ function toMcpEntry(e: HyroxEntry): McpHyroxEntry {
 /**
  * 하이록스 순위 — 부문마다 사람당 가장 빠른 기록 하나. 전당과 같은 규칙(가입 전 기록 제외 등)은 RPC 가 지킨다.
  *
- * @param input.division 한 부문만(`OPEN`·`PRO`·`DOUBLES`). 없으면 전부. 릴레이는 판이 없다
- * @param input.gender 오픈·프로에서 한쪽만(`male`·`female`)
- * @returns 부문별 판. 오픈·프로는 `men`/`women`, 더블스는 `entries`
+ * @param input.division 한 부문만(`OPEN`·`DOUBLES`). 없으면 전부. 릴레이는 판이 없다
+ * @param input.gender 오픈에서 한쪽만(`male`·`female`)
+ * @returns 부문별 판. 오픈은 `men`/`women`, 더블스는 `entries`
  */
 export async function listHyroxRankings(
   supabase: Db,

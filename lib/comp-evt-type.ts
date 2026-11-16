@@ -30,7 +30,10 @@ export function sanitizeAsciiUpperCompEvtTypeInput(raw: string): string {
 /** 철인3종 기본 종목(공통코드 `TRI_EVT_CD`) — 마라톤 코드와 겹치는 접두어 없는 값 */
 const TRIATHLON_BARE_EVT_TYPES = new Set(["FULL", "HALF", "OLYMPIC", "SPRINT"]);
 
-/** 하이록스 부문(공통코드 `HYROX_EVT_CD`) — 랭킹 코드는 `HYROX_*` */
+/**
+ * 하이록스 부문(공통코드 `HYROX_EVT_CD`) — 랭킹 코드는 `HYROX_*`.
+ * PRO 는 받지 않게 됐지만(#671) 랭킹 RPC 가 여전히 PRO 를 `HYROX_PRO` 로 바꾸므로 이 거울도 그대로 둔다.
+ */
 const HYROX_BARE_EVT_TYPES = new Set(["OPEN", "PRO", "DOUBLES", "RELAY"]);
 
 /**
