@@ -11,8 +11,17 @@ import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getTeamCopy, getTeamPageDescription } from "@/lib/queries/team-copy";
 import { CARD_COPY_KEYS, pickTeamCopy } from "@/lib/team-copy";
 import { getTeamCfg } from "@/lib/team-cfg/read";
-import { MARATHON_EVENTS, TRIATHLON_EVENTS } from "@/lib/records-board";
+import {
+  MARATHON_EVENTS,
+  buildTriathlonBoards,
+  pickTriathlonSplits,
+  triathlonSeriesLabel,
+  triathlonSplitKey,
+  type TriathlonRankRow,
+  type TriathlonSplits,
+} from "@/lib/records-board";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 
 import { HeaderActions } from "@/components/common/header-actions";
 import { PageHeader } from "@/components/common/page-header";
@@ -62,6 +71,50 @@ async function getHyroxRows(
     console.error("[records] 하이록스 기록 조회 실패", e);
     return [];
   }
+}
+
+/** 철인 기록 한 건에 랭킹 RPC가 안 실어 주는 것 — 구간 기록과 대회 묶음 이름 */
+type TriathlonDetail = { splits: TriathlonSplits | null; series: string | null };
+
+/**
+ * 철인 기록의 구간(수영·자전거·달리기)과 대회 묶음(`triathlonSeriesLabel`) — 랭킹 RPC엔 둘 다 없어 원본 기록에서 읽는다.
+ *
+ * 철인 기록이 있는 사람들의 **철인 대회 기록**을 대회(`comp_mst`)와 함께 받아
+ * (사람 · 완주 시간 · 대회 이름) 키로 묶는다(`triathlonSplitKey`). 한 사람의 기록은 시간이 갈수록
+ * 늘어나므로 `fetchAllRows`로 끝까지 읽는다. **실패해도 전당은 그대로 선다** — 구간 줄과 대회 칩만 빠진다.
+ */
+async function getTriathlonDetails(
+  supabase: ReturnType<typeof createAdminClient>,
+  memIds: string[],
+): Promise<Map<string, TriathlonDetail>> {
+  const out = new Map<string, TriathlonDetail>();
+  if (memIds.length === 0) return out;
+  try {
+    const rows = await fetchAllRows(
+      () =>
+        supabase
+          .from("rec_race_hist")
+          .select(
+            "race_result_id, mem_id, rec_time_sec, race_nm, swim_time_sec, bike_time_sec, run_time_sec, comp_mst!inner(comp_nm, loc_nm, comp_sprt_cd)",
+          )
+          .in("mem_id", memIds)
+          .eq("vers", 0)
+          .eq("del_yn", false)
+          .eq("comp_mst.comp_sprt_cd", "triathlon")
+          .order("race_result_id", { ascending: true }),
+      { label: "triathlon-details" },
+    );
+    for (const r of rows) {
+      const comp = Array.isArray(r.comp_mst) ? r.comp_mst[0] : r.comp_mst;
+      out.set(triathlonSplitKey(r.mem_id, r.rec_time_sec, r.race_nm), {
+        splits: pickTriathlonSplits(r),
+        series: comp ? triathlonSeriesLabel(comp) : null,
+      });
+    }
+  } catch (e) {
+    console.error("[records] 철인 구간·대회 조회 실패", e);
+  }
+  return out;
 }
 
 function getCachedRecordsData(teamId: string) {
@@ -209,66 +262,39 @@ function getCachedRecordsData(teamId: string) {
           utmbProfileUrl: r.url,
         }));
 
-      // --- 철인3종 ---
-      const olympicRows = (pbData ?? [])
-        .filter((r) => r.event_type === "TRIATHLON_OLYMPIC")
-        .map((r) => {
-          const member = r.member as unknown as { id: string; full_name: string; gender: string };
-          return {
-            memId: member.id,
-            name: member.full_name,
-            record: secondsToTime(r.record_time_sec),
-            raceName: r.race_name,
-            sortKey: r.record_time_sec,
-          };
-        });
-
-      const triathlonEvents = TRIATHLON_EVENTS.map((evt) => {
-        let rows;
-        if (evt.filter) {
-          rows = olympicRows
-            .filter((r) => evt.filter(r.raceName))
-            .sort((a, b) => a.sortKey - b.sortKey);
-        } else {
-          rows = (pbData ?? [])
-            .filter((r) => r.event_type === evt.eventType)
-            .map((r) => {
-              const member = r.member as unknown as { id: string; full_name: string; gender: string };
-              return {
-                memId: member.id,
-                name: member.full_name,
-                record: secondsToTime(r.record_time_sec),
-                raceName: r.race_name,
-                sortKey: r.record_time_sec,
-              };
-            })
-            .sort((a, b) => a.sortKey - b.sortKey);
-        }
-
-        return {
-          eventType: evt.eventType,
-          label: evt.label,
-          entries: rows.map((r, i) => ({
-            rank: i + 1,
-            memId: r.memId,
-            name: r.name,
-            record: r.record,
-            recordSec: r.sortKey,
-            raceName: r.raceName,
-          })),
-        };
-      });
+      // --- 철인3종 --- 코스(킹·하프·올림픽)별 · 남녀별 판, 올림픽은 대회별 판까지(#683).
+      // 대회마다 순위를 다시 매겨야 해서 최고기록(pbData)이 아니라 RPC 행 전부를 쓴다.
+      // 구간 기록·대회 묶음은 랭킹 RPC에 없어 원본 기록에서 붙인다.
+      const triRows: TriathlonRankRow[] = (raceData ?? [])
+        .filter((r) => r.evt_cd?.toUpperCase().startsWith("TRIATHLON_"))
+        .map((r) => ({
+          memId: r.mem_id,
+          name: r.mem_nm ?? "",
+          gender: r.gdr_enm ?? "male",
+          evtCd: r.evt_cd.toUpperCase(),
+          recordSec: r.rec_time_sec,
+          raceName: r.race_nm ?? "",
+        }));
+      const triDetails = await getTriathlonDetails(supabase, [...new Set(triRows.map((r) => r.memId))]);
+      const triathlonEvents = buildTriathlonBoards(triRows, (r) =>
+        triDetails.get(triathlonSplitKey(r.memId, r.recordSec, r.raceName)),
+      );
 
       // --- 하이록스 --- (계산은 MCP 조회 도구와 같은 lib/hyrox.ts)
       const hyroxBoards = buildHyroxBoards(hyroxRows);
 
       // --- 멤버 표면(얼굴·한마디) ---
       // **챔피언 것만 담는다.** 이 표면을 쓰는 건 띠에 서는 사람들뿐이다
-      // (마라톤 종목 3개 × 남녀 + 트레일 1위 + 하이록스 부문별 1위 = 최대 12명). 목록 카드는 안 쓴다.
-      // 팀 전원을 담으면 쓰지도 않을 수십 행이 캐시와 RSC payload에 매번 실려 나간다.
+      // (마라톤 종목 3개 × 남녀 + 트레일 1위 + 하이록스 부문별 1위 + 철인 코스 3개 × 남녀 + 올림픽 대회별 1위).
+      // 목록 카드는 안 쓴다. 팀 전원을 담으면 쓰지도 않을 수십 행이 캐시와 RSC payload에 매번 실려 나간다.
       const championIds = new Set<string>(
         [
           ...marathonEvents.flatMap((e) => [e.male[0]?.memId, e.female[0]?.memId]),
+          ...triathlonEvents.flatMap((e) => [
+            e.male[0]?.memId,
+            e.female[0]?.memId,
+            ...e.series.flatMap((s) => [s.male[0]?.memId, s.female[0]?.memId]),
+          ]),
           trailEntries[0]?.memId,
           ...hyroxBoards.flatMap((b) => [b.male[0]?.memId, b.female[0]?.memId, b.all[0]?.memId]),
         ].filter((id): id is string => !!id),
@@ -304,7 +330,9 @@ function getCachedRecordsData(teamId: string) {
     // v9: 하이록스 판(hyrox)이 페이로드에 더해졌다(#349).
     // v10: 운영 하이록스 대회 보정(#671 — 종목·코스를 DB 에서 고친다)이 24시간 옛 빈 판으로 남지 않게 올렸다.
     // v11: 하이록스 프로 판을 뺐다(#671) — v10 으로 미리보기에 쌓인 프로 판 캐시가 남지 않게.
-    [`records-team-v11-${teamId}`],
+    // v12: 철인 판이 코스별 남녀(male/female) + 구간 기록(splits) + 올림픽 대회별 판(series)으로 바뀌었다(#683).
+    // v13: 철인 판에 구간 기준 판(legs)·구간 1위(legLeaders)·트랜지션이 더해졌다(#683 — v12 미리보기 캐시가 남지 않게).
+    [`records-team-v13-${teamId}`],
     { revalidate: 60 * 60 * 24, tags: ["records", `records:${teamId}`] },
   )();
 }
