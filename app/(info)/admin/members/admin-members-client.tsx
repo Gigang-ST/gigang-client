@@ -605,6 +605,7 @@ function StatusChangeSheet({
 
   const meta = statusMeta(member.status);
 
+  // 안내 문구의 「회비」는 회비를 쓰는 팀에서만 말한다 — 울산 관리자에게 없는 회비를 약속하지 않게
   const options: {
     action: StatusAction;
     label: string;
@@ -617,14 +618,18 @@ function StatusChangeSheet({
     options.push({
       action: "deactivate",
       label: "비활성으로",
-      desc: "회비 자동 제외·참여 차단. 언제든 되돌릴 수 있어요.",
+      desc: duesEnabled
+        ? "회비 자동 제외·참여 차단. 언제든 되돌릴 수 있어요."
+        : "참여 차단. 언제든 되돌릴 수 있어요.",
       icon: UserMinus,
       tone: "text-warning",
     });
     options.push({
       action: "leave",
       label: "탈퇴 처리",
-      desc: "크루를 나감으로 기록. 탈퇴일 저장 + 회비 제외.",
+      desc: duesEnabled
+        ? "크루를 나감으로 기록. 탈퇴일 저장 + 회비 제외."
+        : "크루를 나감으로 기록. 탈퇴일 저장.",
       icon: LogOut,
       tone: "text-destructive",
     });
@@ -632,14 +637,18 @@ function StatusChangeSheet({
     options.push({
       action: "activate",
       label: "활성으로",
-      desc: "회비 부과·참여 재개. 비활성 기간은 회비에서 자동 제외.",
+      desc: duesEnabled
+        ? "회비 부과·참여 재개. 비활성 기간은 회비에서 자동 제외."
+        : "참여 재개.",
       icon: UserCheck,
       tone: "text-success",
     });
     options.push({
       action: "leave",
       label: "탈퇴 처리",
-      desc: "크루를 나감으로 기록. 탈퇴일 저장 + 회비 제외.",
+      desc: duesEnabled
+        ? "크루를 나감으로 기록. 탈퇴일 저장 + 회비 제외."
+        : "크루를 나감으로 기록. 탈퇴일 저장.",
       icon: LogOut,
       tone: "text-destructive",
     });
@@ -647,7 +656,9 @@ function StatusChangeSheet({
     options.push({
       action: "activate",
       label: "활성으로",
-      desc: "회비 부과·참여 재개. 비활성 기간은 회비에서 자동 제외.",
+      desc: duesEnabled
+        ? "회비 부과·참여 재개. 비활성 기간은 회비에서 자동 제외."
+        : "참여 재개.",
       icon: UserCheck,
       tone: "text-success",
     });
@@ -833,6 +844,8 @@ export function AdminMembersClient({
 }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+  // 명단 조회 실패 — 빈 목록("회원이 없습니다")과 구분해 다시 시도를 세운다
+  const [loadError, setLoadError] = useState(false);
   const [tab, setTab] = useState<"members" | "participation">("members");
   const [search, setSearch] = useState("");
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
@@ -852,24 +865,37 @@ export function AdminMembersClient({
   const loadMembers = useCallback(async () => {
     const supabase = createClient();
     try {
-      const [{ data: membersData }, { data: snapsData }, historyRows] = await Promise.all([
-        supabase
-          .from("team_mem_rel")
-          .select(
-            "team_mem_id, mem_id, team_role_cd, mem_st_cd, join_dt, leave_dt, eff_at, inact_rsn_txt, mem_mst!inner(mem_nm, phone_no, email_addr, gdr_enm, birth_dt, avatar_url)",
-          )
-          .eq("team_id", teamId)
-          .eq("vers", 0)
-          .eq("del_yn", false)
-          .eq("mem_mst.vers", 0)
-          .eq("mem_mst.del_yn", false)
-          .order("join_dt", { ascending: false }),
-        supabase
-          .from("fee_mem_bal_snap")
-          .select("mem_id, bal_amt")
-          .eq("team_id", teamId)
-          .eq("vers", 0)
-          .eq("del_yn", false),
+      // 회원 명단·잔액은 탈퇴자까지 쌓여 **시간이 갈수록 는다** — 1000행에서 에러 없이
+      // 잘리면 뒤쪽(가입이 오래된) 회원이 목록에서 조용히 사라지므로 끝까지 읽는다(§CLAUDE.md 대량 조회).
+      // 실패하면 던진다 — 예전엔 에러를 버려 "회원이 없습니다"로 보였다.
+      const [membersData, snapsData, historyRows] = await Promise.all([
+        fetchAllRows(
+          () =>
+            supabase
+              .from("team_mem_rel")
+              .select(
+                "team_mem_id, mem_id, team_role_cd, mem_st_cd, join_dt, leave_dt, eff_at, inact_rsn_txt, mem_mst!inner(mem_nm, phone_no, email_addr, gdr_enm, birth_dt, avatar_url)",
+              )
+              .eq("team_id", teamId)
+              .eq("vers", 0)
+              .eq("del_yn", false)
+              .eq("mem_mst.vers", 0)
+              .eq("mem_mst.del_yn", false)
+              .order("join_dt", { ascending: false })
+              .order("team_mem_id", { ascending: true }),
+          { label: "admin-members-list" },
+        ),
+        fetchAllRows(
+          () =>
+            supabase
+              .from("fee_mem_bal_snap")
+              .select("mem_id, bal_amt")
+              .eq("team_id", teamId)
+              .eq("vers", 0)
+              .eq("del_yn", false)
+              .order("bal_snap_id", { ascending: true }),
+          { label: "admin-members-balance" },
+        ),
         // 상태 이력(vers>0) — 전환일 계산에 쓴다. 상태·역할이 바뀔 때마다 한 행씩 쌓여
         // **시간이 갈수록 느는 조회**라 끝까지 읽는다(§CLAUDE.md 대량 조회).
         // 정렬은 PK(team_mem_id) — 이력 행은 저마다 새 PK라 유일하다.
@@ -897,7 +923,7 @@ export function AdminMembersClient({
         }),
       ]);
 
-      const snapMap = new Map((snapsData ?? []).map((s) => [s.mem_id, s.bal_amt]));
+      const snapMap = new Map(snapsData.map((s) => [s.mem_id, s.bal_amt]));
 
       // 사람별 타임라인으로 묶는다 — `getMemberStatusSince` 가 정본 + 이력을 한 배열로 받는다.
       const historyByMem = new Map<string, MemberStatusRow[]>();
@@ -917,7 +943,7 @@ export function AdminMembersClient({
       };
 
       setMembers(
-        (membersData ?? []).map((r) => {
+        membersData.map((r) => {
           const m = r.mem_mst as unknown as Mst;
           const timeline: MemberStatusRow[] = [
             {
@@ -947,12 +973,19 @@ export function AdminMembersClient({
           };
         }),
       );
+      setLoadError(false);
+    } catch (e) {
+      console.error("[admin-members] 회원 목록 조회 실패", e);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
   }, [teamId]);
 
   useEffect(() => {
+    // 마운트 시 명단 fetch — 외부(네트워크) 동기화 effect라 set-state-in-effect는 오탐
+    // (setState는 전부 await 뒤에서 일어난다)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadMembers();
   }, [loadMembers]);
 
@@ -1157,6 +1190,23 @@ export function AdminMembersClient({
   return (
     <div className="flex flex-col gap-4 px-6 pb-6 pt-4">
       <H2>회원 관리</H2>
+
+      {loadError && (
+        <div className="flex flex-col gap-3">
+          <EmptyState variant="card" message="회원 목록을 불러오지 못했습니다." />
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-center"
+            onClick={() => {
+              setLoading(true);
+              loadMembers();
+            }}
+          >
+            다시 시도
+          </Button>
+        </div>
+      )}
 
       {/* 회원 목록 ↔ 참여 통계 탭 */}
       <SegmentControl
@@ -1429,14 +1479,17 @@ export function AdminMembersClient({
                       : null
                   }
                 />
-                <InfoRow
-                  label="회비잔액"
-                  value={
-                    selectedMember.bal_amt !== null
-                      ? `${selectedMember.bal_amt > 0 ? "+" : ""}${selectedMember.bal_amt.toLocaleString()}원`
-                      : null
-                  }
-                />
+                {/* 회비를 안 쓰는 팀(울산)은 목록 열처럼 상세에서도 뺀다 — 늘 "-"인 줄만 남는다 */}
+                {duesEnabled && (
+                  <InfoRow
+                    label="회비잔액"
+                    value={
+                      selectedMember.bal_amt !== null
+                        ? `${selectedMember.bal_amt > 0 ? "+" : ""}${selectedMember.bal_amt.toLocaleString()}원`
+                        : null
+                    }
+                  />
+                )}
                 {/* 언제 나갔는지 — 재가입 요청을 받았을 때 가장 먼저 묻는 것이다.
                     사유 바로 위에 둬서 "언제·왜"가 한 번에 읽히게 한다. */}
                 {selectedMember.status_since && (

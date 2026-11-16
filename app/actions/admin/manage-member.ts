@@ -9,6 +9,7 @@ import { sealBalanceAnchor } from "@/lib/dues/seal-anchor";
 import { insertNoti } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient, createAdminClientAs } from "@/lib/supabase/admin";
+import { getTeamCfg } from "@/lib/team-cfg/read";
 import { koreanNameSchema } from "@/lib/validations/member";
 
 /**
@@ -304,7 +305,9 @@ export async function reactivateMember(memberId: string, resetBalance = false) {
     });
     if (error) return { ok: false, message: "활성화에 실패했습니다" };
 
-    if (resetBalance) {
+    // 회비를 안 쓰는 팀(울산)은 잔액을 건드리지 않는다 — 화면은 이 선택지를 숨기지만 서버 액션은
+    // 직접 부를 수 있어, 숨김만으론 회비 원장에 0원 앵커가 생긴다(재계산은 withDuesAdmin 이 막는다).
+    if (resetBalance && (await getTeamCfg(teamId, "feature.dues"))) {
       // 잔액 초기화: 0원 앵커로 봉인(과거 예치금·미납 청산). 재계산이 anchor_yn 앵커를
       // 잡아 재활성 다음 달부터만 부과. 봉인 실패는 잔액 오염으로 이어지므로 표면화.
       const { error: sealErr } = await sealBalanceAnchor(db, teamId, memberId);
