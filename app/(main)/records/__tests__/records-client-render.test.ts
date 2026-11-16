@@ -268,43 +268,42 @@ describe("트레일 판 — 성별을 나누지 않아 띠 구성이 다르다",
 /* ------------------------------------------------------------------ */
 
 describe("철인3종 판 — 코스별 RECORD HOLDER + 순위 격자 (#683)", () => {
-  const tri = (rank: number, memId: string, name: string, record: string, recordSec: number, raceName: string, splits: { swim: number | null; bike: number | null; run: number | null } | null = null) => ({
+  type Splits = { swim: number | null; bike: number | null; run: number | null } | null;
+  const tri = (rank: number, memId: string, name: string, record: string, recordSec: number, raceName: string, splits: Splits = null) => ({
     rank, memId, name, record, recordSec, raceName, splits,
   });
+  const half = [
+    tri(1, "m1", "박정후", "4:41:22", 16882, "구미 70.3", { swim: 1930, bike: 9000, run: 5500 }),
+    tri(2, "p2", "이도경", "5:02:11", 18131, "고성 70.3"),
+    tri(3, ME, "나", "5:30:00", 19800, "구례 70.3", { swim: 2400, bike: null, run: 7000 }),
+  ];
   const events = [
-    { eventType: "TRIATHLON_FULL", label: "킹", male: [], female: [] },
+    { eventType: "TRIATHLON_FULL", label: "킹", male: [], female: [], series: [] },
+    { eventType: "TRIATHLON_HALF", label: "하프", male: half, female: [], series: [] },
     {
-      eventType: "TRIATHLON_HALF",
-      label: "하프",
-      male: [
-        tri(1, "m1", "박정후", "4:41:22", 16882, "구미 70.3", { swim: 1930, bike: 9000, run: 5500 }),
-        tri(2, "p2", "이도경", "5:02:11", 18131, "고성 70.3"),
-        tri(3, ME, "나", "5:30:00", 19800, "구례 70.3", { swim: 2400, bike: null, run: 7000 }),
+      eventType: "TRIATHLON_OLYMPIC",
+      label: "올림픽",
+      male: [tri(1, "p4", "강호남", "2:32:28", 9148, "창원 대회"), tri(2, "p3", "이현근", "2:40:11", 9611, "2024 통영 월드 트라이애슬론 컵")],
+      female: [],
+      series: [
+        { label: "통영", male: [tri(1, "p3", "이현근", "2:40:11", 9611, "2024 통영 월드 트라이애슬론 컵")], female: [] },
+        { label: "창원", male: [tri(1, "p4", "강호남", "2:32:28", 9148, "창원 대회")], female: [] },
       ],
-      female: [],
     },
-    {
-      eventType: "TRIATHLON_OLYMPIC_TY",
-      label: "올림픽 · 통영",
-      male: [tri(1, "p3", "강태오", "2:18:47", 8327, "통영 트라이애슬론")],
-      female: [],
-    },
-    { eventType: "TRIATHLON_OLYMPIC_ETC", label: "올림픽", male: [], female: [] },
-    { eventType: "TRIATHLON_SPRINT", label: "스프린트", male: [], female: [] },
   ];
   const html = renderToStaticMarkup(createElement(TriathlonContent, { events, ctx }));
   const t = text(html);
 
-  it("기록 있는 코스 + 킹만 탭으로 선다 — 빈 올림픽·스프린트 탭은 없다", () => {
+  it("코스 탭은 킹 · 하프 · 올림픽 셋 — 비어 있는 킹도 선다", () => {
     expect(html).toContain(">킹<");
     expect(html).toContain(">하프<");
-    expect(html).toContain(">올림픽 · 통영<");
-    expect(html).not.toContain(">올림픽<");
+    expect(html).toContain(">올림픽<");
     expect(html).not.toContain(">스프린트<");
   });
 
-  it("처음엔 기록이 있는 첫 코스(하프)가 열린다", () => {
+  it("처음엔 기록이 있는 첫 코스(하프)가 열리고, 하프엔 대회 칩이 없다", () => {
     expect(html).toMatch(/aria-pressed="true"[^>]*>하프</);
+    expect(html).not.toContain("대회별 보기");
   });
 
   it("RECORD HOLDER 띠에 남·녀 칸이 서고, 1위는 띠로 올라간다", () => {
@@ -337,7 +336,38 @@ describe("철인3종 판 — 코스별 RECORD HOLDER + 순위 격자 (#683)", ()
   it("코스 규격과 완주 인원을 판 아래에 깐다", () => {
     expect(t).toContain("COURSE");
     expect(t).toContain("90km");
-    expect(t).toContain("완주 3명");
+    expect(t).toContain("지금까지 완주 3명");
+  });
+
+  it("올림픽은 「전체」가 기본 — 모든 대회 기록이 한 판, 대회 칩이 선다", () => {
+    const o = renderToStaticMarkup(createElement(TriathlonContent, { events, ctx, initialEvent: "TRIATHLON_OLYMPIC" }));
+    const ot = text(o);
+    expect(o).toContain('aria-label="대회별 보기"');
+    expect(o).toMatch(/aria-pressed="true"[^>]*>전체</);
+    expect(o).toContain(">통영<");
+    expect(o).toContain(">창원<");
+    expect(ot).toContain("강호남"); // 전체 1위
+    expect(o).toContain('aria-label="2위"');
+    expect(ot).toContain("지금까지 완주 2명");
+  });
+
+  it("대회 칩을 고르면 그 대회 기록만으로 같은 판 — 완주 인원도 그 대회 기준", () => {
+    const o = renderToStaticMarkup(
+      createElement(TriathlonContent, { events, ctx, initialEvent: "TRIATHLON_OLYMPIC", initialSeries: "통영" }),
+    );
+    const ot = text(o);
+    expect(o).toMatch(/aria-pressed="true"[^>]*>통영</);
+    expect(ot).toContain("이현근");
+    expect(ot).not.toContain("강호남");
+    expect(ot).toContain("통영에서 완주 1명");
+  });
+
+  it("올림픽 대회가 하나뿐이면 칩 줄을 숨긴다", () => {
+    const one = events.map((e) =>
+      e.eventType === "TRIATHLON_OLYMPIC" ? { ...e, series: e.series.slice(0, 1) } : e,
+    );
+    const o = renderToStaticMarkup(createElement(TriathlonContent, { events: one, ctx, initialEvent: "TRIATHLON_OLYMPIC" }));
+    expect(o).not.toContain("대회별 보기");
   });
 
   it("완주자 없는 킹을 열면 빈 띠 + 등록 안내가 선다", () => {
@@ -349,7 +379,7 @@ describe("철인3종 판 — 코스별 RECORD HOLDER + 순위 격자 (#683)", ()
     expect(king).toContain("첫 완주가 전당의 첫 줄이 됩니다");
   });
 
-  it("어느 코스에도 기록이 없고 킹도 없으면 빈 상태 하나만 선다", () => {
+  it("판이 하나도 없으면 빈 상태 하나만 선다", () => {
     const none = text(renderToStaticMarkup(createElement(TriathlonContent, { events: [], ctx })));
     expect(none).toContain("아직 등록된 철인3종 기록이 없어요");
   });

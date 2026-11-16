@@ -2,13 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   TRIATHLON_EVENTS,
+  buildTriathlonBoards,
   defaultTriathlonEvent,
   getMyIndexStanding,
   getMyTimeStanding,
   pickTriathlonSplits,
   splitChampion,
+  triathlonSeriesLabel,
   triathlonSplitKey,
-  visibleTriathlonEvents,
+  type TriathlonRankRow,
 } from "@/lib/records-board";
 
 const time = (rank: number, memId: string, recordSec: number) => ({
@@ -80,41 +82,105 @@ describe("getMyIndexStanding — 클수록 상위", () => {
   });
 });
 
-describe("철인3종 — 코스별 판 (#683)", () => {
-  const ev = (eventType: string, male: unknown[] = [], female: unknown[] = []) => ({ eventType, male, female });
-  const events = [
-    ev("TRIATHLON_FULL"),
-    ev("TRIATHLON_HALF", [{ name: "박정후" }], [{ name: "이도경" }]),
-    ev("TRIATHLON_OLYMPIC_TY", [{ name: "강태오" }]),
-    ev("TRIATHLON_OLYMPIC_ETC"),
-    ev("TRIATHLON_SPRINT"),
-  ];
-
-  it("기록 있는 코스 + 킹만 탭으로 세운다 — 비어 있는 파생 칸·스프린트는 숨긴다", () => {
-    expect(visibleTriathlonEvents(events).map((e) => e.eventType)).toEqual([
-      "TRIATHLON_FULL",
-      "TRIATHLON_HALF",
-      "TRIATHLON_OLYMPIC_TY",
-    ]);
-  });
-
-  it("스프린트도 기록이 생기면 탭이 선다", () => {
-    const withSprint = events.map((e) => (e.eventType === "TRIATHLON_SPRINT" ? ev(e.eventType, [], [{}]) : e));
-    expect(visibleTriathlonEvents(withSprint).map((e) => e.eventType)).toContain("TRIATHLON_SPRINT");
+describe("철인3종 — 코스 탭 (#683)", () => {
+  it("코스 탭은 킹 · 하프 · 올림픽 셋으로 고정이고, 대회 칩은 올림픽만", () => {
+    expect(TRIATHLON_EVENTS.map((e) => e.label)).toEqual(["킹", "하프", "올림픽"]);
+    expect(TRIATHLON_EVENTS.filter((e) => e.bySeries).map((e) => e.eventType)).toEqual(["TRIATHLON_OLYMPIC"]);
+    expect(TRIATHLON_EVENTS[0].legs).toEqual({ swim: "3.8", bike: "180.2", run: "42.2" });
   });
 
   it("처음 열 코스는 기록이 있는 첫 코스 — 빈 킹을 먼저 열지 않는다", () => {
-    expect(defaultTriathlonEvent(visibleTriathlonEvents(events))).toBe("TRIATHLON_HALF");
-  });
-
-  it("어느 코스에도 기록이 없으면 첫 코스(킹)를 연다", () => {
-    expect(defaultTriathlonEvent([ev("TRIATHLON_FULL")])).toBe("TRIATHLON_FULL");
+    const ev = (eventType: string, n: number) => ({ eventType, male: Array(n).fill({}), female: [] });
+    expect(defaultTriathlonEvent([ev("TRIATHLON_FULL", 0), ev("TRIATHLON_HALF", 0), ev("TRIATHLON_OLYMPIC", 2)])).toBe(
+      "TRIATHLON_OLYMPIC",
+    );
+    expect(defaultTriathlonEvent([ev("TRIATHLON_FULL", 0)])).toBe("TRIATHLON_FULL");
     expect(defaultTriathlonEvent([])).toBe("");
   });
+});
 
-  it("코스 탭 순서는 거리 내림차순이고 규격 거리를 갖는다", () => {
-    expect(TRIATHLON_EVENTS.map((e) => e.label)).toEqual(["킹", "하프", "올림픽 · 통영", "올림픽", "스프린트"]);
-    expect(TRIATHLON_EVENTS[0].legs).toEqual({ swim: "3.8", bike: "180.2", run: "42.2" });
+describe("철인 대회 묶음 이름 — 같은 대회 시리즈를 한 칩으로", () => {
+  it("대회 지역(loc_nm)이 있으면 그것 — 행정 단위 접미사는 뗀다", () => {
+    expect(triathlonSeriesLabel({ loc_nm: "통영", comp_nm: "2024 통영 월드 트라이애슬론 컵" })).toBe("통영");
+    expect(triathlonSeriesLabel({ loc_nm: "통영시", comp_nm: "2025 통영 월드 트라이애슬론 컵" })).toBe("통영");
+    expect(triathlonSeriesLabel({ loc_nm: "충주시 탄금호", comp_nm: "x" })).toBe("충주");
+  });
+
+  it("지역이 없으면 대회 이름에서 연도·회차를 걷고 첫 낱말", () => {
+    expect(triathlonSeriesLabel({ loc_nm: null, comp_nm: "제6회 창원특례시 마산만 전국 트라이애슬론 대회" })).toBe("창원");
+    expect(triathlonSeriesLabel({ loc_nm: "", comp_nm: "2025년 대구 트라이애슬론" })).toBe("대구");
+  });
+
+  it("떼고 한 글자만 남는 지명은 그대로 둔다(대구 → 대 가 되지 않게)", () => {
+    expect(triathlonSeriesLabel({ loc_nm: "대구", comp_nm: "" })).toBe("대구");
+  });
+
+  it("뽑을 게 없으면 null", () => {
+    expect(triathlonSeriesLabel({ loc_nm: null, comp_nm: "2025 제3회" })).toBeNull();
+    expect(triathlonSeriesLabel({})).toBeNull();
+  });
+});
+
+describe("buildTriathlonBoards — 코스별·대회별 판", () => {
+  const row = (memId: string, gender: string, evtCd: string, recordSec: number, raceName: string): TriathlonRankRow => ({
+    memId,
+    name: memId,
+    gender,
+    evtCd,
+    recordSec,
+    raceName,
+  });
+  const rows = [
+    row("a", "male", "TRIATHLON_OLYMPIC", 9600, "2024 통영 월드 트라이애슬론 컵"),
+    row("a", "male", "TRIATHLON_OLYMPIC", 9000, "2025 통영 월드 트라이애슬론 컵"),
+    row("b", "male", "TRIATHLON_OLYMPIC", 8800, "제6회 창원특례시 마산만 전국 트라이애슬론 대회"),
+    row("b", "male", "TRIATHLON_OLYMPIC", 9900, "2025 통영 월드 트라이애슬론 컵"),
+    row("c", "female", "TRIATHLON_OLYMPIC", 10000, "알 수 없는 대회"),
+    row("k", "male", "TRIATHLON_FULL", 48540, "2026 구례 아이언맨대회"),
+    row("s", "male", "TRIATHLON_SPRINT", 4000, "스프린트 대회"),
+  ];
+  const series: Record<string, string> = {
+    "2024 통영 월드 트라이애슬론 컵": "통영",
+    "2025 통영 월드 트라이애슬론 컵": "통영",
+    "제6회 창원특례시 마산만 전국 트라이애슬론 대회": "창원",
+  };
+  const boards = buildTriathlonBoards(rows, (r) => ({
+    splits: r.memId === "a" && r.recordSec === 9000 ? { swim: 1800, bike: null, run: null } : null,
+    series: series[r.raceName ?? ""] ?? null,
+  }));
+  const olympic = boards.find((b) => b.eventType === "TRIATHLON_OLYMPIC")!;
+
+  it("코스 셋만 만든다 — 스프린트 기록은 어느 판에도 서지 않는다", () => {
+    expect(boards.map((b) => b.eventType)).toEqual(["TRIATHLON_FULL", "TRIATHLON_HALF", "TRIATHLON_OLYMPIC"]);
+    expect(boards.flatMap((b) => [...b.male, ...b.female]).some((e) => e.memId === "s")).toBe(false);
+  });
+
+  it("전체 판은 한 사람의 가장 빠른 기록 하나로 순위를 매긴다", () => {
+    expect(olympic.male.map((e) => [e.rank, e.memId, e.recordSec])).toEqual([
+      [1, "b", 8800],
+      [2, "a", 9000],
+    ]);
+    expect(olympic.female.map((e) => e.memId)).toEqual(["c"]);
+  });
+
+  it("대회별 판은 연도가 달라도 같은 대회를 한 묶음으로 — 그 대회 안의 최고 기록으로 다시 순위", () => {
+    const ty = olympic.series.find((s) => s.label === "통영")!;
+    expect(ty.male.map((e) => [e.rank, e.memId, e.recordSec])).toEqual([
+      [1, "a", 9000],
+      [2, "b", 9900],
+    ]);
+  });
+
+  it("묶음은 완주자 많은 순, 이름을 못 뽑은 대회는 맨 끝 「기타」", () => {
+    expect(olympic.series.map((s) => s.label)).toEqual(["통영", "창원", "기타"]);
+  });
+
+  it("구간 기록은 그 사람의 그 기록에 붙는다", () => {
+    expect(olympic.series.find((s) => s.label === "통영")!.male[0].splits).toEqual({ swim: 1800, bike: null, run: null });
+  });
+
+  it("킹·하프는 대회별 판을 만들지 않는다", () => {
+    expect(boards.find((b) => b.eventType === "TRIATHLON_FULL")!.series).toEqual([]);
   });
 });
 

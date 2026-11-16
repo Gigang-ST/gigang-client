@@ -35,7 +35,6 @@ import {
   getMyIndexStanding,
   getMyTimeStanding,
   splitChampion,
-  visibleTriathlonEvents,
   type MyStanding,
   type TriathlonSplits,
 } from "@/lib/records-board";
@@ -134,11 +133,13 @@ type TrailEntry = {
 /** 철인 행 = 마라톤 행 + 구간 기록(넣은 사람만) */
 type TriathlonEntry = RankingEntry & { splits?: TriathlonSplits | null };
 
-type TriathlonEvent = {
+type TriathlonBoardSides = { male: TriathlonEntry[]; female: TriathlonEntry[] };
+
+type TriathlonEvent = TriathlonBoardSides & {
   eventType: string;
   label: string;
-  male: TriathlonEntry[];
-  female: TriathlonEntry[];
+  /** 대회별 판(올림픽만) — 묶음 이름(「통영」)별 같은 모양의 판 */
+  series?: (TriathlonBoardSides & { label: string })[];
 };
 
 type RecordsData = {
@@ -835,7 +836,16 @@ function TriEmptyHolder() {
  * 사람이 적은 판(코스당 1~2명)은 목록이 짧아 아래가 텅 빈다. 그 자리를 "이 코스가 어떤 거리인가"로
  * 채운다 — 철인 판에서만 말할 수 있는 정보이고, 사람 기록이 아니라 규격이라 데이터가 없어도 사실이다.
  */
-function TriCourseCard({ legs, finishers }: { legs: { swim: string; bike: string; run: string }; finishers: number }) {
+function TriCourseCard({
+  legs,
+  finishers,
+  where,
+}: {
+  legs: { swim: string; bike: string; run: string };
+  finishers: number;
+  /** 대회 칩을 골랐으면 그 대회 이름 — 완주 인원이 그 대회 기준임을 말한다 */
+  where?: string;
+}) {
   return (
     <div className="flex flex-col gap-2 px-6">
       <BoardRowLabel label="COURSE" />
@@ -854,7 +864,8 @@ function TriCourseCard({ legs, finishers }: { legs: { swim: string; bike: string
       <p className="text-center text-[11px] text-muted-foreground">
         {finishers > 0 ? (
           <>
-            지금까지 완주 <b className="font-semibold text-foreground">{finishers}명</b> · 다음 완주가 이 판에 이어져요
+            {where ? `${where}에서 ` : "지금까지 "}완주 <b className="font-semibold text-foreground">{finishers}명</b> · 다음
+            완주가 이 판에 이어져요
           </>
         ) : (
           "아직 완주자가 없어요 · 첫 완주가 전당의 첫 줄이 됩니다"
@@ -864,14 +875,19 @@ function TriCourseCard({ legs, finishers }: { legs: { swim: string; bike: string
   );
 }
 
+/** 올림픽 대회 칩 기본값 — 모든 올림픽 거리 대회를 한 판으로 */
+const TRI_SERIES_ALL = "__all__";
+
 /**
- * 철인3종 판 — 코스 pill [킹 · 하프 · 올림픽 · …] → RECORD HOLDER 남·녀 → 내 기록 → 2위부터 반칸 격자 → 코스 규격.
+ * 철인3종 판 — 코스 pill [킹 · 하프 · 올림픽] (+ 올림픽만 대회 칩 [전체 · 통영 · …])
+ * → RECORD HOLDER 남·녀 → 내 기록 → 2위부터 반칸 격자 → 코스 규격.
  *
  * 예전엔 코스를 칩으로 내린 한 줄 명단이었다(종목이 다르면 한 줄로 순위를 못 매겨서). 코스를 탭으로 가르면
  * 그 안에선 순위가 성립하므로 러닝 판과 **같은 부품**(띠·판독선·반칸 카드)을 그대로 쓴다 — 따로 만들면 띠·판독선
  * 규칙이 한쪽만 고쳐진다. 철인다운 것은 구간 기록(넣은 사람만)과 코스 규격 두 가지만 더한다.
  *
- * 기록 없는 코스는 탭째 숨긴다(킹만 비어도 남는다 — `showWhenEmpty`).
+ * 코스 탭은 **셋으로 고정**이다(기록이 없어도 선다). 대회 칩은 올림픽만, 그것도 대회가 둘 이상일 때만 선다 —
+ * 고를 게 하나인 칩 줄은 장식이다. 칩을 고르면 띠·판독선·격자·완주 인원이 전부 그 대회 기준으로 다시 선다.
  *
  * @internal 렌더 테스트가 카테고리 전환 없이 이 판만 그려 보려고 꺼내 쓴다
  */
@@ -879,17 +895,20 @@ export function TriathlonContent({
   events,
   ctx,
   initialEvent,
+  initialSeries,
 }: {
   events: TriathlonEvent[];
   ctx: BoardContext;
   /** @internal 렌더 테스트용 — 정적 렌더는 클릭을 못 하므로 시작 코스를 넘긴다 */
   initialEvent?: string;
+  /** @internal 렌더 테스트용 — 시작 대회 칩(묶음 이름) */
+  initialSeries?: string;
 }) {
   // 옛 캐시(v11 이하)는 male/female 없이 entries만 들고 온다 — 키를 올렸지만 혹시 섞여 와도 빈 판으로 선다
-  const safe = events.map((e) => ({ ...e, male: e.male ?? [], female: e.female ?? [] }));
-  const visible = visibleTriathlonEvents(safe);
-  const [selected, setSelected] = useState(initialEvent ?? defaultTriathlonEvent(visible));
-  const current = visible.find((e) => e.eventType === selected) ?? visible[0];
+  const safe = events.map((e) => ({ ...e, male: e.male ?? [], female: e.female ?? [], series: e.series ?? [] }));
+  const [selected, setSelected] = useState(initialEvent ?? defaultTriathlonEvent(safe));
+  const [seriesPick, setSeriesPick] = useState(initialSeries ?? TRI_SERIES_ALL);
+  const current = safe.find((e) => e.eventType === selected) ?? safe[0];
 
   if (!current) {
     return (
@@ -899,38 +918,65 @@ export function TriathlonContent({
     );
   }
 
-  const male = splitChampion(current.male);
-  const female = splitChampion(current.female);
+  const seriesChips = current.series.length > 1 ? current.series : [];
+  const series = seriesChips.find((s) => s.label === seriesPick);
+  const board = series ?? current;
+
+  const male = splitChampion(board.male);
+  const female = splitChampion(board.female);
   const maxRows = Math.max(male.rest.length, female.rest.length);
-  const finishers = current.male.length + current.female.length;
+  const finishers = board.male.length + board.female.length;
   const legs = TRIATHLON_EVENTS.find((e) => e.eventType === current.eventType)?.legs;
 
-  const standing =
-    getMyTimeStanding(current.male, ctx.myMemId) ?? getMyTimeStanding(current.female, ctx.myMemId);
+  const standing = getMyTimeStanding(board.male, ctx.myMemId) ?? getMyTimeStanding(board.female, ctx.myMemId);
 
   return (
     <>
-      {/* 코스 서브탭 — 러닝 판의 종목 pill과 같은 모양. 다섯 개가 다 서면 좁은 폭에서 가로로 흐른다 */}
-      {visible.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto px-6 [scrollbar-width:none]">
-          {visible.map((evt) => (
-            <Button
-              key={evt.eventType}
-              type="button"
-              variant="ghost"
-              size="xs"
-              aria-pressed={current.eventType === evt.eventType}
-              onClick={() => setSelected(evt.eventType)}
-              className={cn(
-                "shrink-0 rounded-full px-3",
-                current.eventType === evt.eventType
-                  ? "bg-muted-foreground/20 text-foreground"
-                  : "text-muted-foreground",
-              )}
-            >
-              {evt.label}
-            </Button>
-          ))}
+      {/* 코스 서브탭 — 러닝 판의 종목 pill과 같은 모양 */}
+      <div className="flex gap-2 px-6">
+        {safe.map((evt) => (
+          <Button
+            key={evt.eventType}
+            type="button"
+            variant="ghost"
+            size="xs"
+            aria-pressed={current.eventType === evt.eventType}
+            onClick={() => {
+              setSelected(evt.eventType);
+              setSeriesPick(TRI_SERIES_ALL);
+            }}
+            className={cn(
+              "shrink-0 rounded-full px-3",
+              current.eventType === evt.eventType ? "bg-muted-foreground/20 text-foreground" : "text-muted-foreground",
+            )}
+          >
+            {evt.label}
+          </Button>
+        ))}
+      </div>
+
+      {/* 대회 칩 — 코스 pill 아래 두 번째 줄이라 한 단계 작은 테두리 pill(하이록스 정렬 칩과 같은 층) */}
+      {seriesChips.length > 0 && (
+        <div className="flex gap-1.5 overflow-x-auto px-6 [scrollbar-width:none]" aria-label="대회별 보기">
+          {[{ label: TRI_SERIES_ALL }, ...seriesChips].map((s) => {
+            const on = (series?.label ?? TRI_SERIES_ALL) === s.label;
+            return (
+              <button
+                key={s.label}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setSeriesPick(s.label)}
+                className={cn(
+                  "shrink-0 rounded-full border px-2.5 py-1 text-[12px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  on
+                    ? "border-primary/40 bg-primary/10 font-semibold text-primary"
+                    : "border-border text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {s.label === TRI_SERIES_ALL ? "전체" : s.label}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -961,7 +1007,9 @@ export function TriathlonContent({
             targetId={standing.rank > 1 ? myRowId(ctx.myMemId ?? "") : undefined}
           />
         ) : (
-          ctx.myMemId && <RegisterPrompt message="이 코스에 등록한 기록이 없어요" />
+          ctx.myMemId && (
+            <RegisterPrompt message={series ? "이 대회에 등록한 기록이 없어요" : "이 코스에 등록한 기록이 없어요"} />
+          )
         )}
       </div>
 
@@ -984,7 +1032,7 @@ export function TriathlonContent({
         </div>
       )}
 
-      {legs && <TriCourseCard legs={legs} finishers={finishers} />}
+      {legs && <TriCourseCard legs={legs} finishers={finishers} where={series?.label} />}
     </>
   );
 }
