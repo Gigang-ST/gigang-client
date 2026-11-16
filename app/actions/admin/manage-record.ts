@@ -61,6 +61,10 @@ export async function updateRecord(
   },
 ) {
   return withAdmin(async ({ member }) => {
+    // 0초·음수·소수 기록은 막는다 — 화면 파서는 "0:00" 을 0초로 받는데, 저장되면 전당 맨 위에 선다
+    if (!Number.isInteger(input.recordTimeSec) || input.recordTimeSec <= 0) {
+      return { ok: false, message: "기록 시간이 올바르지 않습니다" };
+    }
     const { teamId } = await getRequestTeamContext();
     const db = createAdminClientAs({ memId: member.id, teamId });
     const ownerMemId = await recordOwnerInTeam(db, teamId, recordId);
