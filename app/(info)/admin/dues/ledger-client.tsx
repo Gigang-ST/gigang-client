@@ -142,11 +142,13 @@ export function LedgerClient({
       ) : (
         <CardItem className="flex flex-col divide-y divide-border p-0 overflow-hidden">
           {shown.map((r) => (
-            <div key={r.memId} className="flex items-center justify-between gap-3 px-4 py-3">
+            // 폭이 모자라면(미납 행은 버튼이 셋이라 휴대폰에서 자주) 버튼 묶음이 다음 줄로 내려간다.
+            // 예전엔 한 줄에 우겨 넣어 왼쪽 칸이 0으로 눌려 「11개월 미납」이 한 자씩 세로로 꺾였다(#678).
+            <div key={r.memId} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3">
               {/* 이름 영역 = 회원별 납부 근거 드릴다운 진입점 (QS-7) */}
               <Link href={`/admin/dues/members/${r.memId}`} className="flex min-w-0 flex-col gap-0.5">
                 <Body className="font-semibold underline-offset-2 hover:underline">{memberLabel(r, dupNames)}</Body>
-                <Caption>
+                <Caption className="whitespace-nowrap">
                   {r.balance === 0
                     ? "정상"
                     : r.months === 0
@@ -154,7 +156,7 @@ export function LedgerClient({
                       : `${r.months}개월 ${r.balance < 0 ? "미납" : "예치"}`}
                 </Caption>
               </Link>
-              <div className="flex items-center gap-2">
+              <div className="ml-auto flex shrink-0 items-center gap-2">
                 <Body
                   className={cn(
                     "font-semibold whitespace-nowrap",
