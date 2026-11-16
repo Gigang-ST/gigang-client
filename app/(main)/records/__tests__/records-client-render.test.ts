@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { buildHyroxBoards, type HyroxRankingRow } from "@/lib/hyrox";
+import { buildTriathlonBoards } from "@/lib/records-board";
 
 import {
   RecordsClient,
@@ -267,31 +268,30 @@ describe("트레일 판 — 성별을 나누지 않아 띠 구성이 다르다",
 
 /* ------------------------------------------------------------------ */
 
-describe("철인3종 판 — 코스별 RECORD HOLDER + 순위 격자 (#683)", () => {
+describe("철인3종 판 — 코스별 RECORD HOLDER + 순위 격자 + 구간 기준 (#683)", () => {
   type Splits = { swim: number | null; bike: number | null; run: number | null } | null;
-  const tri = (rank: number, memId: string, name: string, record: string, recordSec: number, raceName: string, splits: Splits = null) => ({
-    rank, memId, name, record, recordSec, raceName, splits,
+  const row = (memId: string, name: string, evtCd: string, recordSec: number, raceName: string) => ({
+    memId, name, gender: "male", evtCd, recordSec, raceName,
   });
-  const half = [
-    tri(1, "m1", "박정후", "4:41:22", 16882, "구미 70.3", { swim: 1930, bike: 9000, run: 5500 }),
-    tri(2, "p2", "이도경", "5:02:11", 18131, "고성 70.3"),
-    tri(3, ME, "나", "5:30:00", 19800, "구례 70.3", { swim: 2400, bike: null, run: 7000 }),
-  ];
-  const events = [
-    { eventType: "TRIATHLON_FULL", label: "킹", male: [], female: [], series: [] },
-    { eventType: "TRIATHLON_HALF", label: "하프", male: half, female: [], series: [] },
-    {
-      eventType: "TRIATHLON_OLYMPIC",
-      label: "올림픽",
-      male: [tri(1, "p4", "강호남", "2:32:28", 9148, "창원 대회"), tri(2, "p3", "이현근", "2:40:11", 9611, "2024 통영 월드 트라이애슬론 컵")],
-      female: [],
-      series: [
-        { label: "통영", male: [tri(1, "p3", "이현근", "2:40:11", 9611, "2024 통영 월드 트라이애슬론 컵")], female: [] },
-        { label: "창원", male: [tri(1, "p4", "강호남", "2:32:28", 9148, "창원 대회")], female: [] },
-      ],
-    },
-  ];
-  const html = renderToStaticMarkup(createElement(TriathlonContent, { events, ctx }));
+  const detail: Record<string, { splits: Splits; series: string | null }> = {
+    m1: { splits: { swim: 1930, bike: 9000, run: 5500 }, series: null }, // 트랜지션 452 = 7:32
+    [ME]: { splits: { swim: 2400, bike: null, run: 7000 }, series: null }, // 자전거 결측 → 트랜지션 없음
+    p3: { splits: { swim: 1925, bike: 4586, run: 2752 }, series: "통영" }, // 트랜지션 348 = 5:48
+    p4: { splits: null, series: "창원" },
+  };
+  const events = buildTriathlonBoards(
+    [
+      row("m1", "박정후", "TRIATHLON_HALF", 16882, "구미 70.3"),
+      row("p2", "이도경", "TRIATHLON_HALF", 18131, "고성 70.3"),
+      row(ME, "나", "TRIATHLON_HALF", 19800, "구례 70.3"),
+      row("p4", "강호남", "TRIATHLON_OLYMPIC", 9148, "창원 대회"),
+      row("p3", "이현근", "TRIATHLON_OLYMPIC", 9611, "2024 통영 월드 트라이애슬론 컵"),
+    ],
+    (r) => detail[r.memId],
+  );
+  const render = (props: Partial<Parameters<typeof TriathlonContent>[0]> = {}) =>
+    renderToStaticMarkup(createElement(TriathlonContent, { events, ctx, ...props }));
+  const html = render();
   const t = text(html);
 
   it("코스 탭은 킹 · 하프 · 올림픽 셋 — 비어 있는 킹도 선다", () => {
@@ -311,7 +311,6 @@ describe("철인3종 판 — 코스별 RECORD HOLDER + 순위 격자 (#683)", ()
     expect(t).toContain("MEN");
     expect(t).toContain("WOMEN");
     expect(t).toContain("박정후");
-    // 1위는 목록에 배지로 다시 서지 않는다 — 목록은 2위부터
     expect(html).not.toContain('aria-label="1위"');
     expect(html).toContain('aria-label="2위"');
   });
@@ -327,34 +326,72 @@ describe("철인3종 판 — 코스별 RECORD HOLDER + 순위 격자 (#683)", ()
     expect(t).toContain("+48:38");
   });
 
-  it("구간 기록은 넣은 사람만 — 빈 구간은 —, 안 넣은 사람은 격자째 없다", () => {
+  it("구간 기록은 넣은 사람만 4칸(수영·자전거·러닝·트랜지션) — 결측 칸은 —", () => {
     expect(html.match(/aria-label="구간 기록"/g)?.length).toBe(2);
     expect(t).toContain("32:10"); // 1위 수영
-    expect(t).toContain("SWIM");
+    expect(t).toContain("7:32"); // 1위 트랜지션
+    expect(t).toContain("T1+T2");
   });
 
-  it("코스 규격과 완주 인원을 판 아래에 깐다", () => {
+  it("구간 1위 보유자 카드엔 작은 표시가 붙는다 — 네 구간을 다 가졌으면 「전 구간 1위」 하나", () => {
+    // 박정후(m1)는 네 구간 모두 1위, 나는 자전거가 비어 1위가 없다
+    expect(t).toContain("전 구간 1위");
+    expect(t).not.toContain("수영 1위");
+    const partial = buildTriathlonBoards(
+      [row("x", "엑스", "TRIATHLON_HALF", 20000, "A"), row("y", "와이", "TRIATHLON_HALF", 21000, "B")],
+      (r) => ({
+        splits: r.memId === "x" ? { swim: 2000, bike: 9000, run: 7000 } : { swim: 1900, bike: 9500, run: 7500 },
+        series: null,
+      }),
+    );
+    const pt = text(renderToStaticMarkup(createElement(TriathlonContent, { events: partial, ctx })));
+    expect(pt).toContain("수영 1위"); // 와이
+    expect(pt).toContain("자전거 1위"); // 엑스
+    expect(pt).not.toContain("전 구간 1위");
+  });
+
+  it("기준 칩 — 전체 · 수영 · 자전거 · 러닝 · 트랜지션, 기본은 전체", () => {
+    expect(html).toContain('aria-label="종목 기준"');
+    expect(html).toMatch(/aria-pressed="true"[^>]*>전체</);
+    for (const l of ["수영", "자전거", "러닝", "트랜지션"]) expect(t).toContain(l);
+  });
+
+  it("수영 기준이면 수영 기록 순으로 다시 서고, 완주 시간은 보조 — 수영 기록 없는 사람은 빠진다", () => {
+    const s = text(render({ initialLeg: "swim" }));
+    expect(s).toContain("SWIM Record Holder");
+    expect(s).toContain("전체 4:41:22 · 구미 70.3");
+    expect(s).toContain("내 수영 기록");
+    expect(s).toContain("+7:50"); // 2400 - 1930
+    expect(s).not.toContain("이도경");
+    expect(s).toContain("수영 기록을 넣지 않은 1명은 이 기준에서 빠졌어요");
+  });
+
+  it("트랜지션 기준은 세 구간이 다 있는 기록만", () => {
+    const s = text(render({ initialLeg: "transition" }));
+    expect(s).toContain("T1+T2 Record Holder");
+    expect(s).toContain("트랜지션 기록을 넣지 않은 2명은 이 기준에서 빠졌어요");
+  });
+
+  it("코스 규격과 완주 인원을 판 아래에 깐다 — 트랜지션은 거리 없이 설명만", () => {
     expect(t).toContain("COURSE");
     expect(t).toContain("90km");
     expect(t).toContain("지금까지 완주 3명");
+    expect(t).toContain("트랜지션(T1+T2)");
   });
 
   it("올림픽은 「전체」가 기본 — 모든 대회 기록이 한 판, 대회 칩이 선다", () => {
-    const o = renderToStaticMarkup(createElement(TriathlonContent, { events, ctx, initialEvent: "TRIATHLON_OLYMPIC" }));
+    const o = render({ initialEvent: "TRIATHLON_OLYMPIC" });
     const ot = text(o);
     expect(o).toContain('aria-label="대회별 보기"');
-    expect(o).toMatch(/aria-pressed="true"[^>]*>전체</);
     expect(o).toContain(">통영<");
     expect(o).toContain(">창원<");
-    expect(ot).toContain("강호남"); // 전체 1위
+    expect(ot).toContain("강호남");
     expect(o).toContain('aria-label="2위"');
     expect(ot).toContain("지금까지 완주 2명");
   });
 
   it("대회 칩을 고르면 그 대회 기록만으로 같은 판 — 완주 인원도 그 대회 기준", () => {
-    const o = renderToStaticMarkup(
-      createElement(TriathlonContent, { events, ctx, initialEvent: "TRIATHLON_OLYMPIC", initialSeries: "통영" }),
-    );
+    const o = render({ initialEvent: "TRIATHLON_OLYMPIC", initialSeries: "통영" });
     const ot = text(o);
     expect(o).toMatch(/aria-pressed="true"[^>]*>통영</);
     expect(ot).toContain("이현근");
@@ -363,25 +400,19 @@ describe("철인3종 판 — 코스별 RECORD HOLDER + 순위 격자 (#683)", ()
   });
 
   it("올림픽 대회가 하나뿐이면 칩 줄을 숨긴다", () => {
-    const one = events.map((e) =>
-      e.eventType === "TRIATHLON_OLYMPIC" ? { ...e, series: e.series.slice(0, 1) } : e,
-    );
-    const o = renderToStaticMarkup(createElement(TriathlonContent, { events: one, ctx, initialEvent: "TRIATHLON_OLYMPIC" }));
-    expect(o).not.toContain("대회별 보기");
+    const one = events.map((e) => (e.eventType === "TRIATHLON_OLYMPIC" ? { ...e, series: e.series.slice(0, 1) } : e));
+    expect(render({ events: one, initialEvent: "TRIATHLON_OLYMPIC" })).not.toContain("대회별 보기");
   });
 
   it("완주자 없는 킹을 열면 빈 띠 + 등록 안내가 선다", () => {
-    const king = text(
-      renderToStaticMarkup(createElement(TriathlonContent, { events, ctx: { ...ctx, myMemId: "nobody" }, initialEvent: "TRIATHLON_FULL" })),
-    );
+    const king = text(render({ ctx: { ...ctx, myMemId: "nobody" }, initialEvent: "TRIATHLON_FULL" }));
     expect(king).toContain("첫 완주자 자리");
     expect(king).toContain("기록 등록");
     expect(king).toContain("첫 완주가 전당의 첫 줄이 됩니다");
   });
 
   it("판이 하나도 없으면 빈 상태 하나만 선다", () => {
-    const none = text(renderToStaticMarkup(createElement(TriathlonContent, { events: [], ctx })));
-    expect(none).toContain("아직 등록된 철인3종 기록이 없어요");
+    expect(text(render({ events: [] }))).toContain("아직 등록된 철인3종 기록이 없어요");
   });
 });
 

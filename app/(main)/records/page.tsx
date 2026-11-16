@@ -331,7 +331,8 @@ function getCachedRecordsData(teamId: string) {
     // v10: 운영 하이록스 대회 보정(#671 — 종목·코스를 DB 에서 고친다)이 24시간 옛 빈 판으로 남지 않게 올렸다.
     // v11: 하이록스 프로 판을 뺐다(#671) — v10 으로 미리보기에 쌓인 프로 판 캐시가 남지 않게.
     // v12: 철인 판이 코스별 남녀(male/female) + 구간 기록(splits) + 올림픽 대회별 판(series)으로 바뀌었다(#683).
-    [`records-team-v12-${teamId}`],
+    // v13: 철인 판에 구간 기준 판(legs)·구간 1위(legLeaders)·트랜지션이 더해졌다(#683 — v12 미리보기 캐시가 남지 않게).
+    [`records-team-v13-${teamId}`],
     { revalidate: 60 * 60 * 24, tags: ["records", `records:${teamId}`] },
   )();
 }

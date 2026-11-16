@@ -200,6 +200,44 @@ export function sortTriathlonSeries<S extends { label: string; male: readonly un
 }
 
 /* ------------------------------------------------------------------ */
+/*  철인 구간 — 수영 · 자전거 · 러닝 · 트랜지션                          */
+/* ------------------------------------------------------------------ */
+
+/** 구간 기록 + 트랜지션(T1+T2 합). 트랜지션은 저장 칸이 없어 완주 시간에서 세 구간을 뺀다 */
+export type TriathlonLegs = TriathlonSplits & { transition: number | null };
+
+export type TriathlonLegKey = keyof TriathlonLegs;
+
+/**
+ * 구간 — 순서·이름·색이 한 곳. 화면의 4칸·비율 막대·기준 토글이 전부 이 순서를 쓴다.
+ *
+ * 색은 종목 토큰(`--sport-*`, DESIGN.md §종목) 안에서 고른다: 수영 = 철인(청록 — 물), 자전거 = 사이클,
+ * 러닝 = 로드 러닝. 트랜지션은 종목이 아니라 갈아타는 시간이라 무채색(`muted-foreground`)으로 둔다.
+ * 클래스 문자열은 Tailwind가 찾을 수 있게 통째로 적는다(조립하면 스캐너가 못 본다).
+ */
+export const TRIATHLON_LEGS = [
+  { key: "swim", label: "수영", code: "SWIM", bar: "bg-sport-triathlon", dot: "bg-sport-triathlon" },
+  { key: "bike", label: "자전거", code: "BIKE", bar: "bg-sport-cycling", dot: "bg-sport-cycling" },
+  { key: "run", label: "러닝", code: "RUN", bar: "bg-sport-road-run", dot: "bg-sport-road-run" },
+  { key: "transition", label: "트랜지션", code: "T1+T2", bar: "bg-muted-foreground/50", dot: "bg-muted-foreground/50" },
+] as const satisfies readonly { key: TriathlonLegKey; label: string; code: string; bar: string; dot: string }[];
+
+/**
+ * 트랜지션(T1+T2) — 완주 시간 − 수영 − 자전거 − 러닝. 기록 입력 화면(「트랜지션 자동 계산」)과 같은 정의다.
+ * 세 구간 중 하나라도 없으면 `null`(나머지를 다 트랜지션으로 몰면 거짓말이 된다), 음수면 입력 오류라 `null`.
+ */
+export function triathlonTransition(splits: TriathlonSplits | null, totalSec: number): number | null {
+  if (!splits || splits.swim == null || splits.bike == null || splits.run == null) return null;
+  const t = totalSec - splits.swim - splits.bike - splits.run;
+  return t >= 0 ? t : null;
+}
+
+/** 구간 기록에 트랜지션을 더한다. 구간이 하나도 없으면 `null` 그대로 */
+export function withTransition(splits: TriathlonSplits | null, totalSec: number): TriathlonLegs | null {
+  return splits ? { ...splits, transition: triathlonTransition(splits, totalSec) } : null;
+}
+
+/* ------------------------------------------------------------------ */
 /*  철인 판 만들기                                                     */
 /* ------------------------------------------------------------------ */
 
@@ -217,15 +255,33 @@ export type TriathlonBoardEntry = {
   rank: number;
   memId: string;
   name: string;
+  /** 큰 숫자 — 「전체」 기준이면 완주 시간, 구간 기준이면 그 구간 시간 */
   record: string;
   recordSec: number;
   raceName: string | null;
-  splits: TriathlonSplits | null;
+  splits: TriathlonLegs | null;
+  /** 구간 기준 판에서만 — 같은 기록의 완주 시간(보조 표시) */
+  totalRecord?: string;
+  /** 구간 기준 판에서만 — 같은 기록의 완주 시간(초). 비율 막대의 분모 */
+  totalSec?: number;
 };
 
 export type TriathlonBoard = { male: TriathlonBoardEntry[]; female: TriathlonBoardEntry[] };
-export type TriathlonSeriesBoard = TriathlonBoard & { label: string };
-export type TriathlonEventBoard = TriathlonBoard & {
+
+/** 구간 기준 판 — 그 구간 기록이 없는 사람은 빠지고 `missing`으로만 센다 */
+export type TriathlonLegBoard = TriathlonBoard & { missing: number };
+
+/**
+ * 한 판(코스 전체 또는 대회 하나) — 「전체」 판 + 구간별 판 + 구간 1위 표.
+ * `legLeaders`는 memId → 그 사람이 1위인 구간들(남·녀 각각, 동률이면 모두). 카드의 「수영 1위」 표시가 쓴다.
+ */
+export type TriathlonViews = TriathlonBoard & {
+  legs: Record<TriathlonLegKey, TriathlonLegBoard>;
+  legLeaders: Record<string, TriathlonLegKey[]>;
+};
+
+export type TriathlonSeriesBoard = TriathlonViews & { label: string };
+export type TriathlonEventBoard = TriathlonViews & {
   eventType: string;
   label: string;
   /** 대회별 판 — `bySeries` 코스(올림픽)만 채운다. 묶음이 하나뿐이어도 담고, 칩을 숨길지는 화면이 정한다 */
@@ -235,44 +291,82 @@ export type TriathlonEventBoard = TriathlonBoard & {
 /** 묶음 이름을 못 뽑은 대회 — 칩에서 빠지지 않게 한 곳에 모은다 */
 export const TRIATHLON_SERIES_ETC = "기타";
 
-/** 한 사람당 가장 빠른 한 줄만 남겨 남·녀 순위를 매긴다 */
-function rankTriathlon(
+const GENDERS = ["male", "female"] as const;
+
+/**
+ * 한 사람당 가장 빠른 한 줄만 남겨 남·녀 순위를 매긴다.
+ * `secOf`가 순위 기준(완주 시간 또는 구간 시간) — `null`이면 그 줄은 이 판에 못 선다.
+ */
+function rankBy(
   rows: readonly TriathlonRankRow[],
-  splitsOf: (row: TriathlonRankRow) => TriathlonSplits | null,
-): TriathlonBoard {
-  const best = new Map<string, TriathlonRankRow>();
+  legsOf: (row: TriathlonRankRow) => TriathlonLegs | null,
+  leg: TriathlonLegKey | null,
+): TriathlonLegBoard {
+  const secOf = (r: TriathlonRankRow) => (leg ? (legsOf(r)?.[leg] ?? null) : r.recordSec);
+  const best = new Map<string, { row: TriathlonRankRow; sec: number }>();
+  const everyone = new Map<string, string>();
   for (const r of rows) {
+    everyone.set(r.memId, r.gender);
+    const sec = secOf(r);
+    if (sec == null) continue;
     const cur = best.get(r.memId);
-    if (!cur || r.recordSec < cur.recordSec) best.set(r.memId, r);
+    if (!cur || sec < cur.sec) best.set(r.memId, { row: r, sec });
   }
   const side = (gender: string) =>
     [...best.values()]
-      .filter((r) => r.gender === gender)
-      .sort((a, b) => a.recordSec - b.recordSec)
-      .map((r, i) => ({
+      .filter(({ row }) => row.gender === gender)
+      .sort((a, b) => a.sec - b.sec)
+      .map(({ row, sec }, i) => ({
         rank: i + 1,
-        memId: r.memId,
-        name: r.name,
-        record: secondsToTime(r.recordSec),
-        recordSec: r.recordSec,
-        raceName: r.raceName,
-        splits: splitsOf(r),
+        memId: row.memId,
+        name: row.name,
+        record: secondsToTime(sec),
+        recordSec: sec,
+        raceName: row.raceName,
+        splits: legsOf(row),
+        ...(leg ? { totalRecord: secondsToTime(row.recordSec), totalSec: row.recordSec } : {}),
       }));
-  return { male: side("male"), female: side("female") };
+  const missing = [...everyone].filter(
+    ([memId, gender]) => !best.has(memId) && (GENDERS as readonly string[]).includes(gender),
+  ).length;
+  return { male: side("male"), female: side("female"), missing };
+}
+
+/** 한 판의 모든 기준(전체 + 구간 4개)과 구간 1위 표 */
+function viewsOf(
+  rows: readonly TriathlonRankRow[],
+  legsOf: (row: TriathlonRankRow) => TriathlonLegs | null,
+): TriathlonViews {
+  const total = rankBy(rows, legsOf, null);
+  const legs = Object.fromEntries(
+    TRIATHLON_LEGS.map((l) => [l.key, rankBy(rows, legsOf, l.key)]),
+  ) as Record<TriathlonLegKey, TriathlonLegBoard>;
+
+  const legLeaders: Record<string, TriathlonLegKey[]> = {};
+  for (const l of TRIATHLON_LEGS) {
+    for (const g of GENDERS) {
+      const list = legs[l.key][g];
+      for (const e of list.filter((x) => x.recordSec === list[0]?.recordSec)) {
+        (legLeaders[e.memId] ??= []).push(l.key);
+      }
+    }
+  }
+  return { male: total.male, female: total.female, legs, legLeaders };
 }
 
 /**
- * 철인 판 전부 — 코스(킹·하프·올림픽)마다 남·녀 순위, 올림픽은 대회 묶음별 순위까지.
+ * 철인 판 전부 — 코스(킹·하프·올림픽)마다 남·녀 순위, 올림픽은 대회 묶음별 순위까지. 판마다 구간 기준 판도 함께.
  *
  * 순위는 **그 판 안에서 한 사람의 가장 빠른 기록**으로 매긴다. 그래서 「전체」와 「통영」의 1위가 다를 수 있고,
- * 통영을 두 번 뛴 사람은 통영 판에 빠른 쪽 하나로 선다. 랭킹 RPC 행을 그대로 받는다(입단 전 기록 제외 등 산정
+ * 통영을 두 번 뛴 사람은 통영 판에 빠른 쪽 하나로 선다. 구간 기준도 같다 — 사람당 그 판에서 그 구간이 가장 빠른
+ * 기록 하나(완주 시간이 가장 빠른 기록과 다를 수 있다). 랭킹 RPC 행을 그대로 받는다(입단 전 기록 제외 등 산정
  * 규칙은 RPC가 이미 걸렀다). `detailOf`는 원본 기록에서 읽은 구간·묶음 이름 — 못 찾으면 구간 없음·「기타」.
  */
 export function buildTriathlonBoards(
   rows: readonly TriathlonRankRow[],
   detailOf: (row: TriathlonRankRow) => { splits: TriathlonSplits | null; series: string | null } | undefined,
 ): TriathlonEventBoard[] {
-  const splitsOf = (r: TriathlonRankRow) => detailOf(r)?.splits ?? null;
+  const legsOf = (r: TriathlonRankRow) => withTransition(detailOf(r)?.splits ?? null, r.recordSec);
   return TRIATHLON_EVENTS.map((evt) => {
     const mine = rows.filter((r) => r.evtCd === evt.eventType);
     const series: TriathlonSeriesBoard[] = [];
@@ -282,12 +376,12 @@ export function buildTriathlonBoards(
         const label = detailOf(r)?.series ?? TRIATHLON_SERIES_ETC;
         groups.set(label, [...(groups.get(label) ?? []), r]);
       }
-      for (const [label, g] of groups) series.push({ label, ...rankTriathlon(g, splitsOf) });
+      for (const [label, g] of groups) series.push({ label, ...viewsOf(g, legsOf) });
     }
     return {
       eventType: evt.eventType,
       label: evt.label,
-      ...rankTriathlon(mine, splitsOf),
+      ...viewsOf(mine, legsOf),
       series: sortTriathlonSeries(series),
     };
   });

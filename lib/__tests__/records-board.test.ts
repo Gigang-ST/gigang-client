@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   TRIATHLON_EVENTS,
+  TRIATHLON_LEGS,
   buildTriathlonBoards,
   defaultTriathlonEvent,
   getMyIndexStanding,
@@ -10,6 +11,8 @@ import {
   splitChampion,
   triathlonSeriesLabel,
   triathlonSplitKey,
+  triathlonTransition,
+  withTransition,
   type TriathlonRankRow,
 } from "@/lib/records-board";
 
@@ -176,7 +179,7 @@ describe("buildTriathlonBoards — 코스별·대회별 판", () => {
   });
 
   it("구간 기록은 그 사람의 그 기록에 붙는다", () => {
-    expect(olympic.series.find((s) => s.label === "통영")!.male[0].splits).toEqual({ swim: 1800, bike: null, run: null });
+    expect(olympic.series.find((s) => s.label === "통영")!.male[0].splits).toEqual({ swim: 1800, bike: null, run: null, transition: null });
   });
 
   it("킹·하프는 대회별 판을 만들지 않는다", () => {
@@ -202,5 +205,92 @@ describe("철인 구간 기록", () => {
     expect(triathlonSplitKey("m1", 16882, "구미 70.3")).toBe(triathlonSplitKey("m1", 16882, "구미 70.3"));
     expect(triathlonSplitKey("m1", 16882, "구미 70.3")).not.toBe(triathlonSplitKey("m1", 16883, "구미 70.3"));
     expect(triathlonSplitKey("m1", 1, null)).toBe("m1|1|");
+  });
+});
+
+describe("철인 트랜지션 — 완주 시간 − 수영 − 자전거 − 러닝", () => {
+  it("세 구간이 다 있으면 나머지가 T1+T2", () => {
+    expect(triathlonTransition({ swim: 1930, bike: 9000, run: 5500 }, 16882)).toBe(452);
+  });
+
+  it("하나라도 없으면 없음 — 나머지를 트랜지션으로 몰지 않는다", () => {
+    expect(triathlonTransition({ swim: 1930, bike: null, run: 5500 }, 16882)).toBeNull();
+    expect(triathlonTransition(null, 16882)).toBeNull();
+  });
+
+  it("음수면 입력 오류라 표시하지 않는다", () => {
+    expect(triathlonTransition({ swim: 6000, bike: 6000, run: 6000 }, 16882)).toBeNull();
+  });
+
+  it("0초는 그대로 둔다", () => {
+    expect(triathlonTransition({ swim: 100, bike: 100, run: 100 }, 300)).toBe(0);
+  });
+
+  it("withTransition은 구간 기록에 트랜지션을 붙이고, 구간이 없으면 null", () => {
+    expect(withTransition({ swim: 1, bike: 2, run: 3 }, 10)).toEqual({ swim: 1, bike: 2, run: 3, transition: 4 });
+    expect(withTransition(null, 10)).toBeNull();
+  });
+
+  it("구간 순서·이름은 수영 · 자전거 · 러닝 · 트랜지션", () => {
+    expect(TRIATHLON_LEGS.map((l) => l.label)).toEqual(["수영", "자전거", "러닝", "트랜지션"]);
+  });
+});
+
+describe("buildTriathlonBoards — 구간 기준 판과 구간 1위", () => {
+  const row = (memId: string, gender: string, recordSec: number, raceName: string): TriathlonRankRow => ({
+    memId,
+    name: memId,
+    gender,
+    evtCd: "TRIATHLON_OLYMPIC",
+    recordSec,
+    raceName,
+  });
+  const splits: Record<string, { swim: number | null; bike: number | null; run: number | null } | null> = {
+    "a|A1": { swim: 1800, bike: 4600, run: 2700 }, // 총 9300, T 200
+    "a|A2": { swim: 1700, bike: 4800, run: 2800 }, // 총 9500, T 200 — 수영은 이 기록이 더 빠르다
+    "b|B1": { swim: 1750, bike: 4500, run: null }, // 트랜지션 없음
+    "c|C1": null,
+    "w|W1": { swim: 2000, bike: 5000, run: 3000 }, // 총 10300, T 300
+  };
+  const rows = [
+    row("a", "male", 9300, "A1"),
+    row("a", "male", 9500, "A2"),
+    row("b", "male", 9400, "B1"),
+    row("c", "male", 9000, "C1"),
+    row("w", "female", 10300, "W1"),
+  ];
+  const olympic = buildTriathlonBoards(rows, (r) => ({ splits: splits[`${r.memId}|${r.raceName}`], series: "통영" })).find(
+    (b) => b.eventType === "TRIATHLON_OLYMPIC",
+  )!;
+
+  it("전체 기준은 완주 시간 순 — 구간이 없는 사람도 선다", () => {
+    expect(olympic.male.map((e) => e.memId)).toEqual(["c", "a", "b"]);
+    expect(olympic.male[1].splits?.transition).toBe(200);
+  });
+
+  it("구간 기준은 사람당 그 구간이 가장 빠른 기록 하나로 — 완주가 가장 빠른 기록과 다를 수 있다", () => {
+    const swim = olympic.legs.swim;
+    expect(swim.male.map((e) => [e.memId, e.recordSec, e.totalRecord])).toEqual([
+      ["a", 1700, "2:38:20"],
+      ["b", 1750, "2:36:40"],
+    ]);
+    expect(swim.male[0].record).toBe("28:20");
+  });
+
+  it("구간 기록이 없는 사람은 그 판에서 빠지고 인원만 센다", () => {
+    expect(olympic.legs.swim.missing).toBe(1); // c
+    expect(olympic.legs.transition.male.map((e) => e.memId)).toEqual(["a"]);
+    expect(olympic.legs.transition.missing).toBe(2); // b, c
+  });
+
+  it("구간 1위는 남·녀 각각 — 동률이면 둘 다", () => {
+    expect(olympic.legLeaders.a.sort()).toEqual(["run", "swim", "transition"]);
+    expect(olympic.legLeaders.b).toEqual(["bike"]);
+    expect(olympic.legLeaders.w.sort()).toEqual(["bike", "run", "swim", "transition"]);
+    expect(olympic.legLeaders.c).toBeUndefined();
+  });
+
+  it("대회별 판도 같은 구간 판을 갖는다", () => {
+    expect(olympic.series[0].legs.swim.male[0].memId).toBe("a");
   });
 });

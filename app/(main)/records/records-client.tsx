@@ -35,8 +35,10 @@ import {
   getMyIndexStanding,
   getMyTimeStanding,
   splitChampion,
+  TRIATHLON_LEGS,
   type MyStanding,
-  type TriathlonSplits,
+  type TriathlonLegKey,
+  type TriathlonLegs,
 } from "@/lib/records-board";
 import { cn } from "@/lib/utils";
 
@@ -130,16 +132,22 @@ type TrailEntry = {
   utmbProfileUrl: string | null;
 };
 
-/** 철인 행 = 마라톤 행 + 구간 기록(넣은 사람만) */
-type TriathlonEntry = RankingEntry & { splits?: TriathlonSplits | null };
+/** 철인 행 = 마라톤 행 + 구간 기록(넣은 사람만) + 구간 기준 판의 완주 시간 */
+type TriathlonEntry = RankingEntry & { splits?: TriathlonLegs | null; totalRecord?: string; totalSec?: number };
 
 type TriathlonBoardSides = { male: TriathlonEntry[]; female: TriathlonEntry[] };
 
-type TriathlonEvent = TriathlonBoardSides & {
+/** 한 판 — 전체 + 구간별 판 + 구간 1위 표(옛 캐시엔 뒤 둘이 없다) */
+type TriathlonViewsData = TriathlonBoardSides & {
+  legs?: Record<TriathlonLegKey, TriathlonBoardSides & { missing: number }>;
+  legLeaders?: Record<string, TriathlonLegKey[]>;
+};
+
+type TriathlonEvent = TriathlonViewsData & {
   eventType: string;
   label: string;
   /** 대회별 판(올림픽만) — 묶음 이름(「통영」)별 같은 모양의 판 */
-  series?: (TriathlonBoardSides & { label: string })[];
+  series?: (TriathlonViewsData & { label: string })[];
 };
 
 type RecordsData = {
@@ -770,43 +778,105 @@ export function TrailContent({ entries, ctx }: { entries: TrailEntry[]; ctx: Boa
     </>
   );
 }
-
 /* ------------------------------------------------------------------ */
 /*  철인3종 — 코스별 판 (#683)                                          */
 /* ------------------------------------------------------------------ */
 
-/** 구간 이름 — 계기판 머리글(영문)과 같은 결로 쓴다 */
-const TRI_LEGS = [
-  { key: "swim", label: "SWIM", ko: "수영" },
-  { key: "bike", label: "BIKE", ko: "자전거" },
-  { key: "run", label: "RUN", ko: "달리기" },
-] as const;
+const legOf = (key: TriathlonLegKey) => TRIATHLON_LEGS.find((l) => l.key === key)!;
+
+const LEADER_CHIP_CLS =
+  "inline-flex items-center gap-1 rounded-full border border-border px-1.5 py-px text-[9.5px] leading-tight text-muted-foreground";
 
 /**
- * 구간 기록 3칸(SWIM · BIKE · RUN). **넣은 사람만** 선다 — 셋 다 비었으면 줄째 안 그린다
- * (빈 격자를 세우면 "구간 기록이 0"으로 읽히고, 없는 값을 지어내는 것과 다를 바 없다).
- * 하나만 비었으면 그 칸만 `—`.
+ * 구간 1위 표시 — 「수영 1위」. 판 안에서 그 구간이 가장 빠른 사람(남·녀 각각)에게만, 작게.
+ * 네 구간을 다 가졌으면 칩 넷 대신 「전 구간 1위」 하나 — 칩이 카드를 덮으면 배지 판이 된다.
  */
-function TriSplitGrid({ splits }: { splits?: TriathlonSplits | null }) {
-  if (!splits) return null;
+function TriLegLeaderChips({ legs }: { legs?: TriathlonLegKey[] }) {
+  if (!legs?.length) return null;
+  if (TRIATHLON_LEGS.every((l) => legs.includes(l.key))) {
+    return (
+      <div className="flex">
+        <span className={LEADER_CHIP_CLS}>전 구간 1위</span>
+      </div>
+    );
+  }
   return (
-    <dl className="grid grid-cols-3 gap-1 border-t border-border pt-1.5" aria-label="구간 기록">
-      {TRI_LEGS.map((leg) => {
-        const sec = splits[leg.key];
+    <div className="flex flex-wrap gap-1">
+      {legs.map((key) => {
+        const leg = legOf(key);
         return (
-          <div key={leg.key} className="min-w-0">
-            <dt className="font-mono text-[8.5px] tracking-[0.14em] text-muted-foreground">
-              <abbr title={leg.ko} className="no-underline">
-                {leg.label}
-              </abbr>
-            </dt>
-            <dd className="truncate font-mono text-[10.5px] font-semibold tabular-nums text-foreground">
-              {sec != null ? secondsToTime(sec) : "—"}
-            </dd>
-          </div>
+          <span key={key} className={LEADER_CHIP_CLS}>
+            <span aria-hidden className={cn("size-1.5 rounded-full", leg.dot)} />
+            {leg.label} 1위
+          </span>
         );
       })}
-    </dl>
+    </div>
+  );
+}
+
+/**
+ * 구간 기록 — 비율 막대(완주 시간 대비 구간 비중) + 수영·자전거·러닝·트랜지션 4칸(2×2).
+ *
+ * **넣은 사람만** 선다 — 구간이 하나도 없으면 줄째 안 그린다(빈 격자는 "구간 기록이 0"으로 읽힌다).
+ * 하나만 비었으면 그 칸만 `—`(트랜지션은 세 구간이 다 있어야 계산된다). 4칸을 한 줄로 세우면 반칸 카드(약 147px)에서
+ * `1:16:26`이 잘려 2×2로 두고, 칸마다 이름 위·기록 아래로 쌓는다(옆으로 두면 반칸에서 또 잘린다). 고른 기준 구간은 진하게, 나머지 막대는 옅게.
+ */
+function TriSplitGrid({
+  splits,
+  totalSec,
+  focus,
+  leaders,
+}: {
+  splits?: TriathlonLegs | null;
+  totalSec: number;
+  focus: TriathlonLegKey | null;
+  leaders?: TriathlonLegKey[];
+}) {
+  if (!splits) return null;
+  return (
+    <div className="flex flex-col gap-1.5 border-t border-border pt-1.5">
+      <TriLegLeaderChips legs={leaders} />
+      {totalSec > 0 && (
+        <div aria-hidden className="flex h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          {TRIATHLON_LEGS.map((leg) => {
+            const sec = splits[leg.key];
+            if (sec == null) return null;
+            return (
+              <span
+                key={leg.key}
+                className={cn("h-full", leg.bar, focus && focus !== leg.key && "opacity-35")}
+                style={{ width: `${(sec / totalSec) * 100}%` }}
+              />
+            );
+          })}
+        </div>
+      )}
+      <dl className="grid grid-cols-2 gap-x-2 gap-y-1" aria-label="구간 기록">
+        {TRIATHLON_LEGS.map((leg) => {
+          const sec = splits[leg.key];
+          const on = focus === leg.key;
+          return (
+            <div key={leg.key} className="min-w-0">
+              <dt className="flex items-center gap-1 font-mono text-[8.5px] tracking-[0.08em] text-muted-foreground">
+                <span aria-hidden className={cn("size-1.5 rounded-full", leg.dot)} />
+                <abbr title={leg.label} className="no-underline">
+                  {leg.code}
+                </abbr>
+              </dt>
+              <dd
+                className={cn(
+                  "truncate font-mono text-[11px] leading-tight tabular-nums",
+                  on ? "font-bold text-primary" : "font-semibold text-foreground",
+                )}
+              >
+                {sec != null ? secondsToTime(sec) : "—"}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+    </div>
   );
 }
 
@@ -814,7 +884,7 @@ function TriSplitGrid({ splits }: { splits?: TriathlonSplits | null }) {
  * 비어 있는 RECORD HOLDER 자리 — 철인은 코스당 1~2명이라 남·녀 한쪽이 비는 일이 흔하다.
  * 한 줄 회색 글씨로 두면 띠 반쪽이 꺼진 것처럼 보여, 카드와 같은 크기의 점선 칸으로 자리를 지킨다.
  */
-function TriEmptyHolder() {
+function TriEmptyHolder({ byLeg }: { byLeg?: boolean }) {
   return (
     <CardItem
       variant="dashed"
@@ -822,7 +892,7 @@ function TriEmptyHolder() {
     >
       <span className="text-[12px] font-semibold text-muted-foreground">첫 완주자 자리</span>
       <span className="text-[10.5px] leading-snug text-muted-foreground">
-        이 코스를 완주하면
+        {byLeg ? "구간 기록을 넣으면" : "이 코스를 완주하면"}
         <br />
         여기 서요
       </span>
@@ -835,6 +905,7 @@ function TriEmptyHolder() {
  *
  * 사람이 적은 판(코스당 1~2명)은 목록이 짧아 아래가 텅 빈다. 그 자리를 "이 코스가 어떤 거리인가"로
  * 채운다 — 철인 판에서만 말할 수 있는 정보이고, 사람 기록이 아니라 규격이라 데이터가 없어도 사실이다.
+ * 트랜지션은 거리가 없어 칸을 두지 않고 한 줄로만 말한다.
  */
 function TriCourseCard({
   legs,
@@ -850,17 +921,23 @@ function TriCourseCard({
     <div className="flex flex-col gap-2 px-6">
       <BoardRowLabel label="COURSE" />
       <div className="grid grid-cols-3 gap-2">
-        {TRI_LEGS.map((leg) => (
+        {TRIATHLON_LEGS.filter((l) => l.key !== "transition").map((leg) => (
           <div key={leg.key} className="flex flex-col items-center gap-0.5 rounded-2xl bg-muted/50 py-2.5">
-            <span className="font-mono text-[9px] tracking-[0.18em] text-muted-foreground">{leg.label}</span>
+            <span className="flex items-center gap-1 font-mono text-[9px] tracking-[0.18em] text-muted-foreground">
+              <span aria-hidden className={cn("size-1.5 rounded-full", leg.dot)} />
+              {leg.code}
+            </span>
             <span className="font-mono text-[17px] font-bold leading-none tabular-nums text-foreground">
-              {legs[leg.key]}
+              {legs[leg.key as "swim" | "bike" | "run"]}
               <span className="ml-0.5 text-[10px] font-normal text-muted-foreground">km</span>
             </span>
-            <span className="text-[10px] text-muted-foreground">{leg.ko}</span>
+            <span className="text-[10px] text-muted-foreground">{leg.label}</span>
           </div>
         ))}
       </div>
+      <p className="text-center text-[10.5px] text-muted-foreground">
+        트랜지션(T1+T2)은 종목 사이에 갈아타는 시간 — 완주 시간에서 세 구간을 뺀 값이에요
+      </p>
       <p className="text-center text-[11px] text-muted-foreground">
         {finishers > 0 ? (
           <>
@@ -878,16 +955,46 @@ function TriCourseCard({
 /** 올림픽 대회 칩 기본값 — 모든 올림픽 거리 대회를 한 판으로 */
 const TRI_SERIES_ALL = "__all__";
 
+/** 두 번째·세 번째 줄 칩 — 코스 pill보다 한 단계 작은 테두리 pill(하이록스 정렬 칩과 같은 층) */
+function TriChip({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={onClick}
+      className={cn(
+        "flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[12px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        on
+          ? "border-primary/40 bg-primary/10 font-semibold text-primary"
+          : "border-border text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** 칩 줄 머리 — 「대회」·「기준」. 줄이 둘이 되면 무엇을 고르는 줄인지 말해야 한다 */
+function TriChipRow({ label, aria, children }: { label: string; aria: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-1.5 overflow-x-auto px-6 [scrollbar-width:none]" aria-label={aria}>
+      <span className="w-7 shrink-0 text-[10.5px] text-muted-foreground">{label}</span>
+      {children}
+    </div>
+  );
+}
+
 /**
- * 철인3종 판 — 코스 pill [킹 · 하프 · 올림픽] (+ 올림픽만 대회 칩 [전체 · 통영 · …])
+ * 철인3종 판 — 코스 pill [킹 · 하프 · 올림픽] (+ 올림픽만 대회 칩 [전체 · 통영 · …]) + 기준 칩 [전체 · 수영 · 자전거 · 러닝 · 트랜지션]
  * → RECORD HOLDER 남·녀 → 내 기록 → 2위부터 반칸 격자 → 코스 규격.
  *
  * 예전엔 코스를 칩으로 내린 한 줄 명단이었다(종목이 다르면 한 줄로 순위를 못 매겨서). 코스를 탭으로 가르면
  * 그 안에선 순위가 성립하므로 러닝 판과 **같은 부품**(띠·판독선·반칸 카드)을 그대로 쓴다 — 따로 만들면 띠·판독선
- * 규칙이 한쪽만 고쳐진다. 철인다운 것은 구간 기록(넣은 사람만)과 코스 규격 두 가지만 더한다.
+ * 규칙이 한쪽만 고쳐진다. 철인다운 것은 구간 기록(넣은 사람만)·구간 기준 판·구간 1위·코스 규격이다.
  *
  * 코스 탭은 **셋으로 고정**이다(기록이 없어도 선다). 대회 칩은 올림픽만, 그것도 대회가 둘 이상일 때만 선다 —
- * 고를 게 하나인 칩 줄은 장식이다. 칩을 고르면 띠·판독선·격자·완주 인원이 전부 그 대회 기준으로 다시 선다.
+ * 고를 게 하나인 칩 줄은 장식이다. 기준을 구간으로 바꾸면 큰 숫자가 그 구간 기록이 되고(완주 시간은 보조),
+ * 구간 기록이 없는 사람은 그 판에서 빠져 인원만 작게 남는다.
  *
  * @internal 렌더 테스트가 카테고리 전환 없이 이 판만 그려 보려고 꺼내 쓴다
  */
@@ -896,6 +1003,7 @@ export function TriathlonContent({
   ctx,
   initialEvent,
   initialSeries,
+  initialLeg = null,
 }: {
   events: TriathlonEvent[];
   ctx: BoardContext;
@@ -903,11 +1011,14 @@ export function TriathlonContent({
   initialEvent?: string;
   /** @internal 렌더 테스트용 — 시작 대회 칩(묶음 이름) */
   initialSeries?: string;
+  /** @internal 렌더 테스트용 — 시작 기준 구간(null = 전체) */
+  initialLeg?: TriathlonLegKey | null;
 }) {
   // 옛 캐시(v11 이하)는 male/female 없이 entries만 들고 온다 — 키를 올렸지만 혹시 섞여 와도 빈 판으로 선다
   const safe = events.map((e) => ({ ...e, male: e.male ?? [], female: e.female ?? [], series: e.series ?? [] }));
   const [selected, setSelected] = useState(initialEvent ?? defaultTriathlonEvent(safe));
   const [seriesPick, setSeriesPick] = useState(initialSeries ?? TRI_SERIES_ALL);
+  const [leg, setLeg] = useState<TriathlonLegKey | null>(initialLeg);
   const current = safe.find((e) => e.eventType === selected) ?? safe[0];
 
   if (!current) {
@@ -920,15 +1031,33 @@ export function TriathlonContent({
 
   const seriesChips = current.series.length > 1 ? current.series : [];
   const series = seriesChips.find((s) => s.label === seriesPick);
-  const board = series ?? current;
+  const base = series ?? current;
+  const legBoard = leg ? base.legs?.[leg] : undefined;
+  const board = legBoard ?? base;
+  const leaders = base.legLeaders ?? {};
 
-  const male = splitChampion(board.male);
-  const female = splitChampion(board.female);
+  // 구간 기준이면 대회명 자리에 완주 시간을 앞세운다 — 큰 숫자가 완주 시간이 아니라는 걸 그 줄이 말한다(하이록스 스테이션 기준과 같은 어법)
+  const show = (e: TriathlonEntry): TriathlonEntry =>
+    leg && e.totalRecord ? { ...e, raceName: `전체 ${e.totalRecord} · ${e.raceName ?? "-"}` } : e;
+  const male = splitChampion(board.male.map(show));
+  const female = splitChampion(board.female.map(show));
   const maxRows = Math.max(male.rest.length, female.rest.length);
-  const finishers = board.male.length + board.female.length;
+  const finishers = base.male.length + base.female.length;
   const legs = TRIATHLON_EVENTS.find((e) => e.eventType === current.eventType)?.legs;
+  const legInfo = leg ? legOf(leg) : null;
 
   const standing = getMyTimeStanding(board.male, ctx.myMemId) ?? getMyTimeStanding(board.female, ctx.myMemId);
+
+  /** 카드 아래 구간 줄 — 막대의 분모는 그 기록의 완주 시간 */
+  const extra = (e?: TriathlonEntry | null) =>
+    e && (
+      <TriSplitGrid
+        splits={e.splits}
+        totalSec={leg ? (e.totalSec ?? 0) : e.recordSec}
+        focus={leg}
+        leaders={leaders[e.memId]}
+      />
+    );
 
   return (
     <>
@@ -955,48 +1084,51 @@ export function TriathlonContent({
         ))}
       </div>
 
-      {/* 대회 칩 — 코스 pill 아래 두 번째 줄이라 한 단계 작은 테두리 pill(하이록스 정렬 칩과 같은 층) */}
-      {seriesChips.length > 0 && (
-        <div className="flex gap-1.5 overflow-x-auto px-6 [scrollbar-width:none]" aria-label="대회별 보기">
-          {[{ label: TRI_SERIES_ALL }, ...seriesChips].map((s) => {
-            const on = (series?.label ?? TRI_SERIES_ALL) === s.label;
-            return (
-              <button
+      <div className="flex flex-col gap-2">
+        {seriesChips.length > 0 && (
+          <TriChipRow label="대회" aria="대회별 보기">
+            {[{ label: TRI_SERIES_ALL }, ...seriesChips].map((s) => (
+              <TriChip
                 key={s.label}
-                type="button"
-                aria-pressed={on}
+                on={(series?.label ?? TRI_SERIES_ALL) === s.label}
                 onClick={() => setSeriesPick(s.label)}
-                className={cn(
-                  "shrink-0 rounded-full border px-2.5 py-1 text-[12px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  on
-                    ? "border-primary/40 bg-primary/10 font-semibold text-primary"
-                    : "border-border text-muted-foreground hover:text-foreground",
-                )}
               >
                 {s.label === TRI_SERIES_ALL ? "전체" : s.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
+              </TriChip>
+            ))}
+          </TriChipRow>
+        )}
+
+        <TriChipRow label="기준" aria="종목 기준">
+          <TriChip on={leg == null} onClick={() => setLeg(null)}>
+            전체
+          </TriChip>
+          {TRIATHLON_LEGS.map((l) => (
+            <TriChip key={l.key} on={leg === l.key} onClick={() => setLeg(l.key)}>
+              <span aria-hidden className={cn("size-1.5 rounded-full", l.dot)} />
+              {l.label}
+            </TriChip>
+          ))}
+        </TriChipRow>
+      </div>
 
       {/* 띠와 판독선은 한 덩이 — 사이에 간격이 생기면 판독선이 목록의 첫 행으로 읽힌다 */}
       <div className="flex flex-col">
-        <ChampionBand eyebrow="Record Holder">
+        <ChampionBand eyebrow={legInfo ? `${legInfo.code} Record Holder` : "Record Holder"}>
           <div className="grid grid-cols-2 items-start gap-2.5">
             <MarathonChampionSlot
               who="MEN"
               entry={male.champion}
               ctx={ctx}
-              extra={<TriSplitGrid splits={male.champion?.splits} />}
-              empty={<TriEmptyHolder />}
+              extra={extra(male.champion)}
+              empty={<TriEmptyHolder byLeg={!!leg && finishers > 0} />}
             />
             <MarathonChampionSlot
               who="WOMEN"
               entry={female.champion}
               ctx={ctx}
-              extra={<TriSplitGrid splits={female.champion?.splits} />}
-              empty={<TriEmptyHolder />}
+              extra={extra(female.champion)}
+              empty={<TriEmptyHolder byLeg={!!leg && finishers > 0} />}
             />
           </div>
         </ChampionBand>
@@ -1004,11 +1136,20 @@ export function TriathlonContent({
         {standing ? (
           <MyStandingBand
             standing={standing}
+            unit={legInfo ? `${legInfo.label} 기록` : undefined}
             targetId={standing.rank > 1 ? myRowId(ctx.myMemId ?? "") : undefined}
           />
         ) : (
           ctx.myMemId && (
-            <RegisterPrompt message={series ? "이 대회에 등록한 기록이 없어요" : "이 코스에 등록한 기록이 없어요"} />
+            <RegisterPrompt
+              message={
+                leg
+                  ? `이 판에 내 ${legInfo?.label} 기록이 없어요`
+                  : series
+                    ? "이 대회에 등록한 기록이 없어요"
+                    : "이 코스에 등록한 기록이 없어요"
+              }
+            />
           )
         )}
       </div>
@@ -1017,19 +1158,17 @@ export function TriathlonContent({
         <div className="flex flex-col gap-2 px-6">
           {Array.from({ length: maxRows }).map((_, i) => (
             <div key={i} className="grid grid-cols-2 gap-2">
-              <MarathonHalfCard
-                entry={male.rest[i]}
-                ctx={ctx}
-                extra={<TriSplitGrid splits={male.rest[i]?.splits} />}
-              />
-              <MarathonHalfCard
-                entry={female.rest[i]}
-                ctx={ctx}
-                extra={<TriSplitGrid splits={female.rest[i]?.splits} />}
-              />
+              <MarathonHalfCard entry={male.rest[i]} ctx={ctx} extra={extra(male.rest[i])} />
+              <MarathonHalfCard entry={female.rest[i]} ctx={ctx} extra={extra(female.rest[i])} />
             </div>
           ))}
         </div>
+      )}
+
+      {legBoard && legBoard.missing > 0 && (
+        <p className="px-6 text-[11px] text-muted-foreground">
+          {legInfo?.label} 기록을 넣지 않은 {legBoard.missing}명은 이 기준에서 빠졌어요
+        </p>
       )}
 
       {legs && <TriCourseCard legs={legs} finishers={finishers} where={series?.label} />}
