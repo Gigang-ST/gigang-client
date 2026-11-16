@@ -1,5 +1,5 @@
 /**
- * 기강의 전당(랭킹탭) 표시 규칙 — 챔피언 띠·내 기록 판독선·철인 명단이 공유하는 판정 한 곳.
+ * 기강의 전당(랭킹탭) 표시 규칙 — 챔피언 띠·내 기록 판독선·철인 코스 판이 공유하는 판정 한 곳.
  *
  * 화면 컴포넌트가 각자 "1위를 어떻게 떼나 / 격차를 어떻게 쓰나"를 들고 있으면 세 카테고리가
  * 조금씩 어긋난다. 순수 함수로 모아 두고 회귀 테스트(`lib/__tests__/records-board.test.ts`)가 못박는다.
@@ -19,31 +19,57 @@ export const MARATHON_EVENTS = [
 ] as const;
 
 /**
- * 철인3종 종목.
+ * 철인3종 코스 — 전당 철인 판의 하위 탭(pill) 순서이기도 하다(거리 내림차순).
  *
- * `chip` — 행에 다는 짧은 라벨. `label`(관리 표기)과 갈라 두는 이유는 칩이 행 안에서 폭을 먹기 때문이다.
- * `showWhenEmpty` — 완주자가 0명이어도 점선 칸으로 자리를 지킬 종목. **킹만** 켠다:
- *   전당의 빈 칸은 "첫 완주가 첫 줄이 된다"고 말하는 자리인데, 올림픽을 통영/기타로 가른
- *   파생 칸까지 빈 채로 세우면 안내가 아니라 미완성 표로 읽힌다.
+ * `label` — pill 이름. 짧게 둔다(375px 한 줄에 다섯 개가 서야 한다).
+ * `legs` — 그 코스의 **규정 거리**(수영·자전거·달리기). 탭 아래 한 줄로 깔아 "무슨 코스인지"를 말한다.
+ *   사람 기록이 아니라 코스 규격이라 데이터가 없어도 지어낸 값이 아니다. 통영 올림픽도 표준 올림픽 거리다.
+ * `showWhenEmpty` — 완주자가 0명이어도 탭으로 자리를 지킬 코스. **킹만** 켠다:
+ *   빈 탭은 "첫 완주가 첫 줄이 된다"고 말하는 자리인데, 올림픽을 통영/기타로 가른 파생 칸이나
+ *   스프린트까지 빈 채로 세우면 안내가 아니라 미완성 표로 읽힌다(기록 없는 코스는 숨긴다, #683).
+ * `filter` — RPC 코드 하나(`TRIATHLON_OLYMPIC`)를 대회 이름으로 다시 가르는 파생 칸만 갖는다.
  */
 export const TRIATHLON_EVENTS = [
-  { eventType: "TRIATHLON_FULL", label: "킹", chip: "킹", filter: null, showWhenEmpty: true },
-  { eventType: "TRIATHLON_HALF", label: "하프", chip: "하프", filter: null, showWhenEmpty: false },
+  {
+    eventType: "TRIATHLON_FULL",
+    label: "킹",
+    legs: { swim: "3.8", bike: "180.2", run: "42.2" },
+    filter: null,
+    showWhenEmpty: true,
+  },
+  {
+    eventType: "TRIATHLON_HALF",
+    label: "하프",
+    legs: { swim: "1.9", bike: "90", run: "21.1" },
+    filter: null,
+    showWhenEmpty: false,
+  },
   {
     eventType: "TRIATHLON_OLYMPIC_TY",
-    label: "올림픽 - 통영",
-    chip: "올림픽 · 통영",
+    label: "올림픽 · 통영",
+    legs: { swim: "1.5", bike: "40", run: "10" },
     filter: (name: string | null) => name?.includes("통영") ?? false,
     showWhenEmpty: false,
   },
   {
     eventType: "TRIATHLON_OLYMPIC_ETC",
-    label: "올림픽 - 기타",
-    chip: "올림픽",
+    label: "올림픽",
+    legs: { swim: "1.5", bike: "40", run: "10" },
     filter: (name: string | null) => !(name?.includes("통영") ?? false),
     showWhenEmpty: false,
   },
+  {
+    // RPC는 #581부터 SPRINT를 TRIATHLON_SPRINT로 내려 주는데 받을 칸이 없었다.
+    // 기록이 생기면 탭이 서고, 없으면 숨는다(showWhenEmpty=false).
+    eventType: "TRIATHLON_SPRINT",
+    label: "스프린트",
+    legs: { swim: "0.75", bike: "20", run: "5" },
+    filter: null,
+    showWhenEmpty: false,
+  },
 ] as const;
+
+export type TriathlonEventType = (typeof TRIATHLON_EVENTS)[number]["eventType"];
 
 /* ------------------------------------------------------------------ */
 /*  챔피언 떼기                                                        */
@@ -128,36 +154,50 @@ export function getMyIndexStanding(
 }
 
 /* ------------------------------------------------------------------ */
-/*  철인3종 — 순위가 아니라 명단                                        */
+/*  철인3종 — 코스별 판 (#683)                                          */
 /* ------------------------------------------------------------------ */
 
-export type TriathlonRow<T> = { chip: string; entry: T };
-
 /**
- * 종목별로 갈라 담긴 철인3종을 한 명단으로 편다.
- *
- * **순위 배지를 달지 않는다**: 종목이 다르면 애초에 한 줄로 순위를 매길 수 없다
- * (킹 1위와 올림픽 1위가 나란히 1위다). 종목을 칩으로 내리고 거리 내림차순 → 기록순으로만 세운다.
- * 사람이 늘어 종목 하나가 목록다워지면 그때 그 안에서 순위를 붙이면 된다.
+ * 구간 기록(초). 기록 등록 때 선택 입력이라 구간마다 비어 있을 수 있다.
+ * 셋 다 비면 `null`로 둔다 — 빈 SWIM/BIKE/RUN 격자를 세우면 "구간 기록이 0"처럼 읽힌다.
  */
-export function flattenTriathlon<T>(
-  events: readonly { eventType: string; entries: readonly T[] }[],
-): TriathlonRow<T>[] {
-  const chipOf = new Map(TRIATHLON_EVENTS.map((e) => [e.eventType as string, e.chip as string]));
-  return events.flatMap((evt) =>
-    evt.entries.map((entry) => ({ chip: chipOf.get(evt.eventType) ?? evt.eventType, entry })),
-  );
+export type TriathlonSplits = { swim: number | null; bike: number | null; run: number | null };
+
+/** DB 행(`rec_race_hist`의 *_time_sec)에서 구간 기록을 뽑는다. 하나도 없으면 `null` */
+export function pickTriathlonSplits(row: {
+  swim_time_sec: number | null;
+  bike_time_sec: number | null;
+  run_time_sec: number | null;
+}): TriathlonSplits | null {
+  const pos = (v: number | null) => (v != null && v > 0 ? v : null);
+  const splits = { swim: pos(row.swim_time_sec), bike: pos(row.bike_time_sec), run: pos(row.run_time_sec) };
+  return splits.swim == null && splits.bike == null && splits.run == null ? null : splits;
 }
 
 /**
- * 완주자가 없어 점선 칸으로 남길 종목들.
- * `showWhenEmpty`가 켜진 종목만, 그마저 비었을 때만 돌려준다.
+ * 랭킹 행과 원본 기록 행을 잇는 키. 랭킹 RPC가 기록 id를 안 내려 줘서
+ * (사람 · 완주 시간 · 대회 이름) 셋으로 맞춘다 — 같은 사람이 같은 대회를 같은 초로 두 번 완주할 일은 없다.
  */
-export function getEmptyTriathlonSlots(
-  events: readonly { eventType: string; entries: readonly unknown[] }[],
-): { eventType: string; chip: string }[] {
-  const countOf = new Map(events.map((e) => [e.eventType, e.entries.length]));
-  return TRIATHLON_EVENTS.filter((e) => e.showWhenEmpty && (countOf.get(e.eventType) ?? 0) === 0).map(
-    (e) => ({ eventType: e.eventType, chip: e.chip }),
-  );
+export function triathlonSplitKey(memId: string, recordSec: number, raceName: string | null): string {
+  return `${memId}|${recordSec}|${raceName ?? ""}`;
+}
+
+/**
+ * 탭으로 세울 코스 — 기록이 있는 코스 + `showWhenEmpty`(킹). 순서는 `TRIATHLON_EVENTS` 그대로.
+ * 기록 없는 파생 칸(올림픽·통영 등)까지 세우면 빈 탭을 눌러 보는 일만 는다.
+ */
+export function visibleTriathlonEvents<E extends { eventType: string; male: readonly unknown[]; female: readonly unknown[] }>(
+  events: readonly E[],
+): E[] {
+  const show = new Map(TRIATHLON_EVENTS.map((e) => [e.eventType as string, e.showWhenEmpty as boolean]));
+  return events.filter((e) => e.male.length + e.female.length > 0 || (show.get(e.eventType) ?? false));
+}
+
+/**
+ * 처음 열 코스 — 기록이 있는 첫 코스. 킹은 비어도 탭이 서지만, 들어오자마자 빈 판을 보여 줄 이유는 없다.
+ */
+export function defaultTriathlonEvent(
+  events: readonly { eventType: string; male: readonly unknown[]; female: readonly unknown[] }[],
+): string {
+  return (events.find((e) => e.male.length + e.female.length > 0) ?? events[0])?.eventType ?? "";
 }

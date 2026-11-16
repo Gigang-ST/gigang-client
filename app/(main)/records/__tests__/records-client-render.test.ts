@@ -267,54 +267,91 @@ describe("트레일 판 — 성별을 나누지 않아 띠 구성이 다르다",
 
 /* ------------------------------------------------------------------ */
 
-describe("철인3종 판 — 순위가 아니라 명단", () => {
+describe("철인3종 판 — 코스별 RECORD HOLDER + 순위 격자 (#683)", () => {
+  const tri = (rank: number, memId: string, name: string, record: string, recordSec: number, raceName: string, splits: { swim: number | null; bike: number | null; run: number | null } | null = null) => ({
+    rank, memId, name, record, recordSec, raceName, splits,
+  });
   const events = [
-    { eventType: "TRIATHLON_FULL", label: "킹", entries: [] },
+    { eventType: "TRIATHLON_FULL", label: "킹", male: [], female: [] },
     {
       eventType: "TRIATHLON_HALF",
       label: "하프",
-      entries: [
-        { rank: 1, memId: "p1", name: "박정후", record: "4:41:22", recordSec: 16882, raceName: "구미 70.3" },
-        { rank: 2, memId: "p2", name: "이도경", record: "5:02:11", recordSec: 18131, raceName: "고성 70.3" },
+      male: [
+        tri(1, "m1", "박정후", "4:41:22", 16882, "구미 70.3", { swim: 1930, bike: 9000, run: 5500 }),
+        tri(2, "p2", "이도경", "5:02:11", 18131, "고성 70.3"),
+        tri(3, ME, "나", "5:30:00", 19800, "구례 70.3", { swim: 2400, bike: null, run: 7000 }),
       ],
+      female: [],
     },
     {
       eventType: "TRIATHLON_OLYMPIC_TY",
-      label: "올림픽 - 통영",
-      entries: [
-        { rank: 1, memId: "p3", name: "강태오", record: "2:18:47", recordSec: 8327, raceName: "통영 트라이애슬론" },
-      ],
+      label: "올림픽 · 통영",
+      male: [tri(1, "p3", "강태오", "2:18:47", 8327, "통영 트라이애슬론")],
+      female: [],
     },
-    { eventType: "TRIATHLON_OLYMPIC_ETC", label: "올림픽 - 기타", entries: [] },
+    { eventType: "TRIATHLON_OLYMPIC_ETC", label: "올림픽", male: [], female: [] },
+    { eventType: "TRIATHLON_SPRINT", label: "스프린트", male: [], female: [] },
   ];
   const html = renderToStaticMarkup(createElement(TriathlonContent, { events, ctx }));
+  const t = text(html);
 
-  it("띠를 세우지 않는다 — 세 명 중 하나를 올리면 목록에 둘이 남는다", () => {
-    expect(html).not.toContain("Record Holder");
+  it("기록 있는 코스 + 킹만 탭으로 선다 — 빈 올림픽·스프린트 탭은 없다", () => {
+    expect(html).toContain(">킹<");
+    expect(html).toContain(">하프<");
+    expect(html).toContain(">올림픽 · 통영<");
+    expect(html).not.toContain(">올림픽<");
+    expect(html).not.toContain(">스프린트<");
   });
 
-  it("순위 배지를 달지 않는다 — 종목이 다르면 한 줄로 순위를 매길 수 없다", () => {
-    expect(html).not.toContain('aria-label="1위"');
-    expect(html).not.toContain('aria-label="2위"');
+  it("처음엔 기록이 있는 첫 코스(하프)가 열린다", () => {
+    expect(html).toMatch(/aria-pressed="true"[^>]*>하프</);
   });
 
-  it("종목은 칩으로 내린다", () => {
-    const t = text(html);
-    expect(t).toContain("하프");
-    expect(t).toContain("올림픽 · 통영");
+  it("RECORD HOLDER 띠에 남·녀 칸이 서고, 1위는 띠로 올라간다", () => {
+    expect(html).toContain("Record Holder");
+    expect(t).toContain("MEN");
+    expect(t).toContain("WOMEN");
     expect(t).toContain("박정후");
+    // 1위는 목록에 배지로 다시 서지 않는다 — 목록은 2위부터
+    expect(html).not.toContain('aria-label="1위"');
+    expect(html).toContain('aria-label="2위"');
   });
 
-  it("완주자 없는 킹은 점선 칸으로 자리를 지키고 등록으로 보낸다", () => {
-    const t = text(html);
-    expect(t).toContain("첫 완주가 전당의 첫 줄이 됩니다");
-    expect(t).toContain("기록 등록");
+  it("비어 있는 여자 칸은 점선 자리로 지킨다", () => {
+    expect(t).toContain("첫 완주자 자리");
     expect(html).toContain("border-dashed");
   });
 
-  it("올림픽 파생 칸은 비어도 점선으로 세우지 않는다", () => {
-    // 빈 점선 칸은 킹 하나뿐 — "올림픽" 칩이 붙은 점선 칸이 생기면 미완성 표로 읽힌다
-    expect(html.match(/border-dashed/g)?.length).toBe(1);
+  it("내 기록 판독선이 1위와의 격차를 단다", () => {
+    expect(t).toContain("내 기록");
+    expect(t).toContain("1위보다");
+    expect(t).toContain("+48:38");
+  });
+
+  it("구간 기록은 넣은 사람만 — 빈 구간은 —, 안 넣은 사람은 격자째 없다", () => {
+    expect(html.match(/aria-label="구간 기록"/g)?.length).toBe(2);
+    expect(t).toContain("32:10"); // 1위 수영
+    expect(t).toContain("SWIM");
+  });
+
+  it("코스 규격과 완주 인원을 판 아래에 깐다", () => {
+    expect(t).toContain("COURSE");
+    expect(t).toContain("90km");
+    expect(t).toContain("완주 3명");
+  });
+
+  it("완주자 없는 킹을 열면 빈 띠 + 등록 안내가 선다", () => {
+    const king = text(
+      renderToStaticMarkup(createElement(TriathlonContent, { events, ctx: { ...ctx, myMemId: "nobody" }, initialEvent: "TRIATHLON_FULL" })),
+    );
+    expect(king).toContain("첫 완주자 자리");
+    expect(king).toContain("기록 등록");
+    expect(king).toContain("첫 완주가 전당의 첫 줄이 됩니다");
+  });
+
+  it("어느 코스에도 기록이 없고 킹도 없으면 빈 상태 하나만 선다", () => {
+    const none = text(renderToStaticMarkup(createElement(TriathlonContent, { events: [], ctx })));
+    expect(none).toContain("아직 등록된 철인3종 기록이 없어요");
   });
 });
 

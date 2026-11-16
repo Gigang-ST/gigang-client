@@ -30,12 +30,14 @@ import {
 } from "@/lib/records-categories";
 import { getFrameCls } from "@/lib/title-effects";
 import {
-  flattenTriathlon,
-  getEmptyTriathlonSlots,
+  TRIATHLON_EVENTS,
+  defaultTriathlonEvent,
   getMyIndexStanding,
   getMyTimeStanding,
   splitChampion,
+  visibleTriathlonEvents,
   type MyStanding,
+  type TriathlonSplits,
 } from "@/lib/records-board";
 import { cn } from "@/lib/utils";
 
@@ -129,19 +131,14 @@ type TrailEntry = {
   utmbProfileUrl: string | null;
 };
 
-type TriathlonEntry = {
-  rank: number;
-  memId: string;
-  name: string;
-  record: string;
-  recordSec: number;
-  raceName: string | null;
-};
+/** 철인 행 = 마라톤 행 + 구간 기록(넣은 사람만) */
+type TriathlonEntry = RankingEntry & { splits?: TriathlonSplits | null };
 
 type TriathlonEvent = {
   eventType: string;
   label: string;
-  entries: TriathlonEntry[];
+  male: TriathlonEntry[];
+  female: TriathlonEntry[];
 };
 
 type RecordsData = {
@@ -455,10 +452,16 @@ function MarathonChampionSlot({
   who,
   entry,
   ctx,
+  extra,
+  empty,
 }: {
   who: string;
   entry: RankingEntry | null;
   ctx: BoardContext;
+  /** 기록·대회명 아래 덧붙일 줄 — 철인 판의 구간 기록. 안 주면 마라톤·하이록스 그대로 */
+  extra?: React.ReactNode;
+  /** 빈 칸 자리. 안 주면 "아직 기록이 없어요" 한 줄 */
+  empty?: React.ReactNode;
 }) {
   const meta = entry ? ctx.memberMeta[entry.memId] : undefined;
 
@@ -482,9 +485,10 @@ function MarathonChampionSlot({
               {entry.raceName ?? "-"}
             </div>
           </div>
+          {extra}
         </ChampionCard>
       ) : (
-        <p className="py-3 text-[11px] text-muted-foreground">아직 기록이 없어요</p>
+        (empty ?? <p className="py-3 text-[11px] text-muted-foreground">아직 기록이 없어요</p>)
       )}
     </div>
   );
@@ -494,9 +498,12 @@ function MarathonChampionSlot({
 function MarathonHalfCard({
   entry,
   ctx,
+  extra,
 }: {
   entry?: RankingEntry;
   ctx: BoardContext;
+  /** 기록 아래 덧붙일 줄 — 철인 판의 구간 기록. 안 주면 마라톤·하이록스 그대로 */
+  extra?: React.ReactNode;
 }) {
   if (!entry) return <div />;
   const title = ctx.memberTitles[entry.memId];
@@ -538,6 +545,7 @@ function MarathonHalfCard({
           {entry.record}
         </span>
       </div>
+      {extra}
     </CardItem>
   );
 }
@@ -763,80 +771,221 @@ export function TrailContent({ entries, ctx }: { entries: TrailEntry[]; ctx: Boa
 }
 
 /* ------------------------------------------------------------------ */
-/*  철인3종 — 순위가 아니라 명단                                        */
+/*  철인3종 — 코스별 판 (#683)                                          */
 /* ------------------------------------------------------------------ */
 
-const CHIP_CLS =
-  "shrink-0 rounded-full bg-muted px-2 py-1 text-[10px] leading-none text-muted-foreground";
+/** 구간 이름 — 계기판 머리글(영문)과 같은 결로 쓴다 */
+const TRI_LEGS = [
+  { key: "swim", label: "SWIM", ko: "수영" },
+  { key: "bike", label: "BIKE", ko: "자전거" },
+  { key: "run", label: "RUN", ko: "달리기" },
+] as const;
 
-/** @internal 렌더 테스트가 카테고리 전환 없이 이 판만 그려 보려고 꺼내 쓴다 */
-export function TriathlonContent({ events, ctx }: { events: TriathlonEvent[]; ctx: BoardContext }) {
-  const rows = flattenTriathlon(events);
-  const emptySlots = getEmptyTriathlonSlots(events);
+/**
+ * 구간 기록 3칸(SWIM · BIKE · RUN). **넣은 사람만** 선다 — 셋 다 비었으면 줄째 안 그린다
+ * (빈 격자를 세우면 "구간 기록이 0"으로 읽히고, 없는 값을 지어내는 것과 다를 바 없다).
+ * 하나만 비었으면 그 칸만 `—`.
+ */
+function TriSplitGrid({ splits }: { splits?: TriathlonSplits | null }) {
+  if (!splits) return null;
+  return (
+    <dl className="grid grid-cols-3 gap-1 border-t border-border pt-1.5" aria-label="구간 기록">
+      {TRI_LEGS.map((leg) => {
+        const sec = splits[leg.key];
+        return (
+          <div key={leg.key} className="min-w-0">
+            <dt className="font-mono text-[8.5px] tracking-[0.14em] text-muted-foreground">
+              <abbr title={leg.ko} className="no-underline">
+                {leg.label}
+              </abbr>
+            </dt>
+            <dd className="truncate font-mono text-[10.5px] font-semibold tabular-nums text-foreground">
+              {sec != null ? secondsToTime(sec) : "—"}
+            </dd>
+          </div>
+        );
+      })}
+    </dl>
+  );
+}
 
-  if (rows.length === 0 && emptySlots.length === 0) {
+/**
+ * 비어 있는 RECORD HOLDER 자리 — 철인은 코스당 1~2명이라 남·녀 한쪽이 비는 일이 흔하다.
+ * 한 줄 회색 글씨로 두면 띠 반쪽이 꺼진 것처럼 보여, 카드와 같은 크기의 점선 칸으로 자리를 지킨다.
+ */
+function TriEmptyHolder() {
+  return (
+    <CardItem
+      variant="dashed"
+      className="flex min-h-[132px] flex-col items-center justify-center gap-1 p-2.5 text-center"
+    >
+      <span className="text-[12px] font-semibold text-muted-foreground">첫 완주자 자리</span>
+      <span className="text-[10.5px] leading-snug text-muted-foreground">
+        이 코스를 완주하면
+        <br />
+        여기 서요
+      </span>
+    </CardItem>
+  );
+}
+
+/**
+ * 코스 규격 — SWIM · BIKE · RUN 거리 + 완주 인원. 판 맨 아래에 늘 선다.
+ *
+ * 사람이 적은 판(코스당 1~2명)은 목록이 짧아 아래가 텅 빈다. 그 자리를 "이 코스가 어떤 거리인가"로
+ * 채운다 — 철인 판에서만 말할 수 있는 정보이고, 사람 기록이 아니라 규격이라 데이터가 없어도 사실이다.
+ */
+function TriCourseCard({ legs, finishers }: { legs: { swim: string; bike: string; run: string }; finishers: number }) {
+  return (
+    <div className="flex flex-col gap-2 px-6">
+      <BoardRowLabel label="COURSE" />
+      <div className="grid grid-cols-3 gap-2">
+        {TRI_LEGS.map((leg) => (
+          <div key={leg.key} className="flex flex-col items-center gap-0.5 rounded-2xl bg-muted/50 py-2.5">
+            <span className="font-mono text-[9px] tracking-[0.18em] text-muted-foreground">{leg.label}</span>
+            <span className="font-mono text-[17px] font-bold leading-none tabular-nums text-foreground">
+              {legs[leg.key]}
+              <span className="ml-0.5 text-[10px] font-normal text-muted-foreground">km</span>
+            </span>
+            <span className="text-[10px] text-muted-foreground">{leg.ko}</span>
+          </div>
+        ))}
+      </div>
+      <p className="text-center text-[11px] text-muted-foreground">
+        {finishers > 0 ? (
+          <>
+            지금까지 완주 <b className="font-semibold text-foreground">{finishers}명</b> · 다음 완주가 이 판에 이어져요
+          </>
+        ) : (
+          "아직 완주자가 없어요 · 첫 완주가 전당의 첫 줄이 됩니다"
+        )}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * 철인3종 판 — 코스 pill [킹 · 하프 · 올림픽 · …] → RECORD HOLDER 남·녀 → 내 기록 → 2위부터 반칸 격자 → 코스 규격.
+ *
+ * 예전엔 코스를 칩으로 내린 한 줄 명단이었다(종목이 다르면 한 줄로 순위를 못 매겨서). 코스를 탭으로 가르면
+ * 그 안에선 순위가 성립하므로 러닝 판과 **같은 부품**(띠·판독선·반칸 카드)을 그대로 쓴다 — 따로 만들면 띠·판독선
+ * 규칙이 한쪽만 고쳐진다. 철인다운 것은 구간 기록(넣은 사람만)과 코스 규격 두 가지만 더한다.
+ *
+ * 기록 없는 코스는 탭째 숨긴다(킹만 비어도 남는다 — `showWhenEmpty`).
+ *
+ * @internal 렌더 테스트가 카테고리 전환 없이 이 판만 그려 보려고 꺼내 쓴다
+ */
+export function TriathlonContent({
+  events,
+  ctx,
+  initialEvent,
+}: {
+  events: TriathlonEvent[];
+  ctx: BoardContext;
+  /** @internal 렌더 테스트용 — 정적 렌더는 클릭을 못 하므로 시작 코스를 넘긴다 */
+  initialEvent?: string;
+}) {
+  // 옛 캐시(v11 이하)는 male/female 없이 entries만 들고 온다 — 키를 올렸지만 혹시 섞여 와도 빈 판으로 선다
+  const safe = events.map((e) => ({ ...e, male: e.male ?? [], female: e.female ?? [] }));
+  const visible = visibleTriathlonEvents(safe);
+  const [selected, setSelected] = useState(initialEvent ?? defaultTriathlonEvent(visible));
+  const current = visible.find((e) => e.eventType === selected) ?? visible[0];
+
+  if (!current) {
     return (
       <div className="px-6">
-        <EmptyState variant="card" message="아직 등록된 철인3종 기록이 없어요." />
+        <EmptyState variant="card" message="아직 등록된 철인3종 기록이 없어요. 첫 완주가 전당의 첫 줄이 됩니다." />
       </div>
     );
   }
 
-  return (
-    <div className="flex flex-col gap-2 px-6">
-      {rows.map(({ chip, entry }) => {
-        const title = ctx.memberTitles[entry.memId];
-        return (
-          <CardItem
-            key={`${chip}-${entry.memId}`}
-            className={cn(
-              "flex items-center gap-3 p-3",
-              ROW_INTERACTIVE_CLS,
-              getFrameCls(title?.frame_cd),
-            )}
-            {...memberRowProps(entry, ctx.onSelectMember)}
-          >
-            <span className={CHIP_CLS}>{chip}</span>
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <span className="truncate text-[15px] font-semibold text-foreground">
-                  {entry.name}
-                </span>
-                {title && (
-                  <TitleBadge
-                    name={title.ttl_nm}
-                    effect={title.badge_effect}
-                    size="xs"
-                    tooltip={{ desc: title.ttl_desc, visibility: title.desc_visibility, isHeld: title.isHeld }}
-                  />
-                )}
-              </div>
-              <span className="truncate text-xs text-muted-foreground">{entry.raceName ?? "-"}</span>
-            </div>
-            <span className="shrink-0 font-mono text-lg font-bold tabular-nums text-foreground">
-              {entry.record}
-            </span>
-          </CardItem>
-        );
-      })}
+  const male = splitChampion(current.male);
+  const female = splitChampion(current.female);
+  const maxRows = Math.max(male.rest.length, female.rest.length);
+  const finishers = current.male.length + current.female.length;
+  const legs = TRIATHLON_EVENTS.find((e) => e.eventType === current.eventType)?.legs;
 
-      {/* 전당의 빈 칸은 채우라고 말한다 */}
-      {emptySlots.map((slot) => (
-        <CardItem key={slot.eventType} variant="dashed" className="flex items-center gap-3 p-3.5">
-          <span className={CHIP_CLS}>{slot.chip}</span>
-          <p className="min-w-0 flex-1 text-xs leading-relaxed text-muted-foreground">
-            아직 완주자가 없어요.
-            <br />첫 완주가 전당의 첫 줄이 됩니다.
-          </p>
-          <Link
-            href="/profile"
-            className="shrink-0 rounded-full border border-primary/35 px-2.5 py-1 text-[12px] font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            기록 등록
-          </Link>
-        </CardItem>
-      ))}
-    </div>
+  const standing =
+    getMyTimeStanding(current.male, ctx.myMemId) ?? getMyTimeStanding(current.female, ctx.myMemId);
+
+  return (
+    <>
+      {/* 코스 서브탭 — 러닝 판의 종목 pill과 같은 모양. 다섯 개가 다 서면 좁은 폭에서 가로로 흐른다 */}
+      {visible.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto px-6 [scrollbar-width:none]">
+          {visible.map((evt) => (
+            <Button
+              key={evt.eventType}
+              type="button"
+              variant="ghost"
+              size="xs"
+              aria-pressed={current.eventType === evt.eventType}
+              onClick={() => setSelected(evt.eventType)}
+              className={cn(
+                "shrink-0 rounded-full px-3",
+                current.eventType === evt.eventType
+                  ? "bg-muted-foreground/20 text-foreground"
+                  : "text-muted-foreground",
+              )}
+            >
+              {evt.label}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {/* 띠와 판독선은 한 덩이 — 사이에 간격이 생기면 판독선이 목록의 첫 행으로 읽힌다 */}
+      <div className="flex flex-col">
+        <ChampionBand eyebrow="Record Holder">
+          <div className="grid grid-cols-2 items-start gap-2.5">
+            <MarathonChampionSlot
+              who="MEN"
+              entry={male.champion}
+              ctx={ctx}
+              extra={<TriSplitGrid splits={male.champion?.splits} />}
+              empty={<TriEmptyHolder />}
+            />
+            <MarathonChampionSlot
+              who="WOMEN"
+              entry={female.champion}
+              ctx={ctx}
+              extra={<TriSplitGrid splits={female.champion?.splits} />}
+              empty={<TriEmptyHolder />}
+            />
+          </div>
+        </ChampionBand>
+
+        {standing ? (
+          <MyStandingBand
+            standing={standing}
+            targetId={standing.rank > 1 ? myRowId(ctx.myMemId ?? "") : undefined}
+          />
+        ) : (
+          ctx.myMemId && <RegisterPrompt message="이 코스에 등록한 기록이 없어요" />
+        )}
+      </div>
+
+      {maxRows > 0 && (
+        <div className="flex flex-col gap-2 px-6">
+          {Array.from({ length: maxRows }).map((_, i) => (
+            <div key={i} className="grid grid-cols-2 gap-2">
+              <MarathonHalfCard
+                entry={male.rest[i]}
+                ctx={ctx}
+                extra={<TriSplitGrid splits={male.rest[i]?.splits} />}
+              />
+              <MarathonHalfCard
+                entry={female.rest[i]}
+                ctx={ctx}
+                extra={<TriSplitGrid splits={female.rest[i]?.splits} />}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {legs && <TriCourseCard legs={legs} finishers={finishers} />}
+    </>
   );
 }
 
