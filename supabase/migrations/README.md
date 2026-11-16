@@ -59,3 +59,5 @@ ALTER TABLE public.<table> VALIDATE CONSTRAINT <table>_<col>_not_null;
 - [ ] 인덱스는 `CONCURRENTLY`인가 (그리고 그 파일엔 인덱스만 있는가)
 - [ ] 대량 백필을 한 트랜잭션에 몰아넣지 않았는가
 - [ ] 핫테이블(`noti_mst`, `mem_mst`, `team_mem_rel` 등) 변경이면 비피크 배포 계획이 있는가
+
+> 파일을 실제 DB에 **적용**하는 순서(컬럼 조회 → dev → 버전 대조 → 승인 후 prd)는 [`.claude/docs/migration-apply.md`](../../.claude/docs/migration-apply.md).
