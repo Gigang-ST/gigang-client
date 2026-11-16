@@ -14,6 +14,9 @@ import {
   LogOut,
   Loader2,
   Pencil,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 
 import { dayjs } from "@/lib/dayjs";
@@ -37,6 +40,13 @@ import {
 } from "@/app/actions/admin/manage-member";
 import { revokeTitle } from "@/app/actions/admin/revoke-title";
 
+import {
+  DEFAULT_MEMBER_SORT,
+  nextMemberSort,
+  sortMembers,
+  type MemberSort,
+  type MemberSortKey,
+} from "./member-sort";
 import { ParticipationSection } from "./participation-section";
 import { ParticipationTab } from "./participation-tab";
 
@@ -875,6 +885,8 @@ export function AdminMembersClient({
   const [actioning, setActioning] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive" | "left">("all");
+  // 헤더 정렬 — 기본은 가입일 최신순(예전 목록 순서). 검색·상태 필터를 거친 결과에 건다
+  const [sort, setSort] = useState<MemberSort>(DEFAULT_MEMBER_SORT);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deactivateTarget, setDeactivateTarget] = useState<{ ids: string[] } | null>(null);
   const [deactivateReason, setDeactivateReason] = useState("");
@@ -1045,6 +1057,8 @@ export function AdminMembersClient({
       memId: m.id,
       roleCd: m.owner ? "owner" : m.admin ? "admin" : "member",
     });
+
+  const sortedMembers = sortMembers(statusFiltered, sort);
 
   const selectedActive = statusFiltered.filter(
     (m) => selectedIds.has(m.id) && m.status === "active",
@@ -1370,9 +1384,41 @@ export function AdminMembersClient({
                   />
                 </div>
               </TableHead>
-              {["이름", "성별", "생년월일", "가입일자", "연락처", "회원상태", ...(duesEnabled ? ["회비잔액"] : [])].map((h) => (
-                <TableHead key={h} className="text-center text-xs whitespace-nowrap">{h}</TableHead>
-              ))}
+              {(
+                [
+                  ["name", "이름"],
+                  ["gender", "성별"],
+                  ["birthday", "생년월일"],
+                  ["joined", "가입일자"],
+                  ["phone", "연락처"],
+                  ["status", "회원상태"],
+                  ...(duesEnabled ? ([["balance", "회비잔액"]] as const) : []),
+                ] as const satisfies readonly (readonly [MemberSortKey, string])[]
+              ).map(([key, label]) => {
+                const active = sort.key === key;
+                const Icon = !active ? ArrowUpDown : sort.dir === "asc" ? ArrowUp : ArrowDown;
+                return (
+                  <TableHead
+                    key={key}
+                    className="p-0 text-center text-xs whitespace-nowrap"
+                    aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+                  >
+                    {/* 헤더 칸 전체가 버튼 — 휴대폰에서 글자만 겨냥하지 않게 높이·좌우를 넉넉히 잡는다.
+                        정렬 안 된 열에도 흐린 화살표를 둬서 "눌러서 정렬된다"는 걸 보여 준다 */}
+                    <button
+                      type="button"
+                      onClick={() => setSort((prev) => nextMemberSort(prev, key))}
+                      className={cn(
+                        "inline-flex h-11 w-full items-center justify-center gap-0.5 px-2.5 transition-colors active:bg-muted",
+                        active ? "font-semibold text-foreground" : "text-muted-foreground",
+                      )}
+                    >
+                      {label}
+                      <Icon className={cn("size-3 shrink-0", !active && "opacity-40")} />
+                    </button>
+                  </TableHead>
+                );
+              })}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1383,7 +1429,7 @@ export function AdminMembersClient({
                 </TableCell>
               </TableRow>
             )}
-            {statusFiltered.map((member) => {
+            {sortedMembers.map((member) => {
               const isChecked = selectedIds.has(member.id);
               return (
                 <TableRow
