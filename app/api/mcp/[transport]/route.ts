@@ -453,12 +453,12 @@ const handler = createMcpHandler(
       {
         title: "하이록스 랭킹",
         description:
-          "전당(랭킹 탭) 하이록스 순위를 돌려줍니다 — 부문(OPEN 오픈·PRO 프로·DOUBLES 더블스)마다 사람당 가장 빠른 대회 기록 하나. " +
-          "오픈·프로는 남자(men)/여자(women)로 나뉘고 더블스는 한 줄(entries)입니다. 릴레이는 순위가 없습니다. " +
+          "전당(랭킹 탭) 하이록스 순위를 돌려줍니다 — 부문(OPEN 오픈·DOUBLES 더블스)마다 사람당 가장 빠른 대회 기록 하나. " +
+          "오픈은 남자(men)/여자(women)로 나뉘고 더블스는 한 줄(entries)입니다. 릴레이는 순위가 없고, 프로 부문은 받지 않습니다(싱글은 전부 오픈). " +
           "각 줄에 입력된 스테이션 기록(splits, 'M:SS')이 실립니다.",
         inputSchema: {
-          division: z.enum(["OPEN", "PRO", "DOUBLES"]).optional().describe("한 부문만 볼 때"),
-          gender: z.enum(["male", "female"]).optional().describe("오픈·프로에서 한쪽 성별만 볼 때"),
+          division: z.enum(["OPEN", "DOUBLES"]).optional().describe("한 부문만 볼 때"),
+          gender: z.enum(["male", "female"]).optional().describe("오픈에서 한쪽 성별만 볼 때"),
         },
       },
       async (args, extra) => runTool(extra, (ctx, supabase) => listHyroxRankings(supabase, ctx, args)),
@@ -492,7 +492,7 @@ const handler = createMcpHandler(
           "수정·삭제 도구는 없습니다 — 잘못 넣었으면 앱 프로필탭에서 고치세요.",
         inputSchema: {
           comp_id: z.string().uuid("comp_id 는 uuid 여야 합니다."),
-          division: z.enum(HYROX_RECORD_DIVISIONS).describe("OPEN | PRO | DOUBLES | RELAY(릴레이는 저장만, 순위 없음)"),
+          division: z.enum(HYROX_RECORD_DIVISIONS).describe("OPEN | DOUBLES | RELAY(릴레이는 저장만, 순위 없음). 프로 부문은 없다 — 싱글은 OPEN"),
           total_time: z.string().min(1, "total_time 을 입력하세요."),
           splits: z
             .record(z.string(), z.string().nullable())
