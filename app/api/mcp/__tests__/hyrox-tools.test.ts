@@ -52,13 +52,15 @@ beforeEach(() => insertCoreMock.mockClear());
 
 describe("parseHyroxRecordInput", () => {
   it("시간 문자열을 초로, 스플릿 키는 대문자로 받는다", () => {
-    const p = parseHyroxRecordInput({ ...BASE, division: "pro", splits: { skierg: "4:15", ROW: "" } });
-    expect(p).toEqual({ division: "PRO", totalSec: 4354, splits: { SKIERG: 255 } });
+    const p = parseHyroxRecordInput({ ...BASE, division: "doubles", splits: { skierg: "4:15", ROW: "" } });
+    expect(p).toEqual({ division: "DOUBLES", totalSec: 4354, splits: { SKIERG: 255 } });
   });
 
   it("모르는 스테이션·부문·형식은 거부한다", () => {
     expect(() => parseHyroxRecordInput({ ...BASE, splits: { RUN: "4:00" } })).toThrow(ToolInputError);
     expect(() => parseHyroxRecordInput({ ...BASE, division: "ELITE" })).toThrow(ToolInputError);
+    // 프로 부문은 없앴다(#671)
+    expect(() => parseHyroxRecordInput({ ...BASE, division: "PRO" })).toThrow(ToolInputError);
     expect(() => parseHyroxRecordInput({ ...BASE, total_time: "72분" })).toThrow(ToolInputError);
   });
 

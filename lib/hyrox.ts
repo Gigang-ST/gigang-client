@@ -101,21 +101,24 @@ export function sumHyroxSplits(splits: HyroxSplits): number | null {
 /**
  * 전당에 서는 부문 — 랭킹 코드는 RPC 가 `HYROX_` 접두어를 붙여 내린다.
  *
- * `byGender` — 오픈·프로는 남녀가 무게·종목 규정이 달라 남/여 판을 가른다. 더블스는 남·여·혼성 팀이
+ * `byGender` — 오픈은 남녀가 무게 규정이 달라 남/여 판을 가른다. 더블스는 남·여·혼성 팀이
  * 섞이고 기록이 팀 기록이라 한 줄로 세운다. **릴레이는 판이 없다**(4인 팀 기록이라 개인 순위가 아니다) —
  * 저장은 되지만 전당엔 안 선다.
+ *
+ * **프로 부문은 없다**(#671, 2026-11-16 결정) — 크루에 프로 참가자가 없어 판·입력·MCP 에서 모두 뺐다.
+ * 싱글은 전부 OPEN 으로 받는다. 공통코드 `HYROX_EVT_CD` 의 PRO 도 `use_yn=false`
+ * (`20261116100000_hyrox_pro_code_off.sql`). RPC 는 옛 PRO 행이 있으면 `HYROX_PRO` 로 내리지만 그 판은 안 선다.
  */
 export const HYROX_DIVISIONS = [
   { eventType: "HYROX_OPEN", code: "OPEN", label: "오픈", byGender: true },
-  { eventType: "HYROX_PRO", code: "PRO", label: "프로", byGender: true },
   { eventType: "HYROX_DOUBLES", code: "DOUBLES", label: "더블스", byGender: false },
 ] as const;
 
 /** 기록 등록에서 고를 수 있는 부문 — 판이 없는 릴레이도 저장은 된다 */
-export const HYROX_RECORD_DIVISIONS = ["OPEN", "PRO", "DOUBLES", "RELAY"] as const;
+export const HYROX_RECORD_DIVISIONS = ["OPEN", "DOUBLES", "RELAY"] as const;
 export type HyroxRecordDivision = (typeof HYROX_RECORD_DIVISIONS)[number];
 
-/** 부문 코드가 하이록스 기록 부문(`OPEN`·`PRO`·`DOUBLES`·`RELAY`)인가 — 대소문자·앞뒤 공백 무시 */
+/** 부문 코드가 하이록스 기록 부문(`OPEN`·`DOUBLES`·`RELAY`)인가 — 대소문자·앞뒤 공백 무시 */
 export function isHyroxRecordDivision(eventType: string | null | undefined): boolean {
   return (HYROX_RECORD_DIVISIONS as readonly string[]).includes((eventType ?? "").trim().toUpperCase());
 }
@@ -130,12 +133,12 @@ const HYROX_NAME_RE = /hyrox|하이록스/i;
 export const HYROX_SPORT_MISMATCH_MESSAGE =
   "하이록스 대회는 종목을 「하이록스」로 골라 주세요 — 그래야 전당 하이록스 랭킹에 올라가요.";
 export const HYROX_DIVISION_MESSAGE =
-  "하이록스 코스는 OPEN·PRO·DOUBLES·RELAY 중에서 골라 주세요(싱글은 OPEN·PRO, 더블은 DOUBLES).";
+  "하이록스 코스는 OPEN·DOUBLES·RELAY 중에서 골라 주세요(싱글은 OPEN, 더블은 DOUBLES).";
 
 /**
  * 대회 등록·수정 값이 하이록스 판에 잡히는 모양인지 검사한다(순수).
  *
- * 전당 하이록스 판과 MCP 는 **종목이 `hyrox` 인 대회의 `OPEN`·`PRO`·`DOUBLES` 코스**만 읽는다. 운영에서
+ * 전당 하이록스 판과 MCP 는 **종목이 `hyrox` 인 대회의 `OPEN`·`DOUBLES` 코스**만 읽는다. 운영에서
  * 「서울 하이록스」가 기본 종목(로드 러닝) 그대로, 코스는 직접 입력한 `OPEN SINGLE`·`OPEN DOUBLE` 로
  * 등록돼 기록이 판에 하나도 안 잡혔다(#671). 저장 뒤엔 기록이 붙어 코스를 못 바꾸므로 **등록 때** 막는다.
  *

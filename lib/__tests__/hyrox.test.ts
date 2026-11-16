@@ -93,7 +93,7 @@ describe("buildHyroxBoards", () => {
     expect(open.male[0].record).toBe("1:05:00");
   });
 
-  it("오픈·프로는 남녀가 갈리고 더블스는 한 줄이다", () => {
+  it("오픈은 남녀가 갈리고 더블스는 한 줄이다", () => {
     const boards = buildHyroxBoards([
       row({ mem_id: "m1" }),
       row({ mem_id: "f1", gdr_enm: "female" }),
@@ -109,9 +109,10 @@ describe("buildHyroxBoards", () => {
     expect(doubles.male).toEqual([]);
   });
 
-  it("릴레이는 판이 없고, 기록이 없는 부문도 빈 판으로 남는다", () => {
-    const boards = buildHyroxBoards([row({ evt_cd: "HYROX_RELAY" })]);
-    expect(boards.map((b) => b.eventType)).toEqual(["HYROX_OPEN", "HYROX_PRO", "HYROX_DOUBLES"]);
+  it("릴레이·프로는 판이 없고, 기록이 없는 부문도 빈 판으로 남는다", () => {
+    // 프로 부문은 없앴다(#671) — 옛 PRO 행이 RPC 로 내려와도 어느 판에도 서지 않는다
+    const boards = buildHyroxBoards([row({ evt_cd: "HYROX_RELAY" }), row({ mem_id: "p1", evt_cd: "HYROX_PRO" })]);
+    expect(boards.map((b) => b.eventType)).toEqual(["HYROX_OPEN", "HYROX_DOUBLES"]);
     expect(boards.every((b) => b.male.length + b.female.length + b.all.length === 0)).toBe(true);
   });
 

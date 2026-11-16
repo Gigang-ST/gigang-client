@@ -40,7 +40,7 @@ export type RaceRecordOwner = {
  * 남/여 판이 갈리는 랭킹 코드 — 이 종목은 같은 성별끼리만 TOP10 을 견준다.
  * 성별을 섞어 견주면 여자 판에 새 기록이 들어와도 "TOP10 밖"으로 보고 캐시를 안 턴다.
  */
-const GENDER_SPLIT_EVENTS = new Set(["FULL", "HALF", "10K", "HYROX_OPEN", "HYROX_PRO"]);
+const GENDER_SPLIT_EVENTS = new Set(["FULL", "HALF", "10K", "HYROX_OPEN"]);
 
 type TeamRaceRow = {
   mem_id: string;
@@ -162,7 +162,7 @@ export async function insertRaceRecordCore(
   // 못 읽으면 철인·하이록스를 못 가려 맨 코드로 판정한다 — 저장은 막지 않고 흔적만 남긴다
   if (compError) console.error("[race-record] 대회 스포츠 조회 실패", compError);
 
-  // 하이록스 판은 OPEN·PRO·DOUBLES 만 읽는다. 「기타」로 OPEN SINGLE 같은 코스를 새로 만들면
+  // 하이록스 판은 OPEN·DOUBLES 만 읽는다(프로 부문은 없다). 「기타」로 OPEN SINGLE 같은 코스를 새로 만들면
   // 기록이 판에 영영 안 잡히고, 붙은 뒤엔 코스를 바꿀 수도 없다(#671)
   if (isHyroxSport(comp?.comp_sprt_cd) && !isHyroxRecordDivision(normalizedEventType)) {
     return { ok: false, message: HYROX_DIVISION_MESSAGE };

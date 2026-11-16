@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// cmm-cd-cached 가 env 를 읽는다 — 선택지 함수는 순수라 값은 필요 없다
+vi.mock("@/lib/env", () => ({ env: {} }));
 
 import {
   HYROX_DIVISION_MESSAGE,
@@ -6,6 +9,7 @@ import {
   hyroxCompetitionIssue,
   isHyroxRecordDivision,
 } from "@/lib/hyrox";
+import { eventTypeCodesForSprtFromCmmRows } from "@/lib/queries/cmm-cd-cached";
 import { competitionEditSchema, competitionRegisterSchemaAllowPast } from "@/lib/validations/competition";
 
 /**
@@ -33,8 +37,14 @@ describe("hyroxCompetitionIssue", () => {
 
   it("하이록스 종목 + 부문 코드는 통과(소문자·공백 무시)", () => {
     expect(
-      hyroxCompetitionIssue({ title: "서울 하이록스", sport: "hyrox", eventTypes: [" open", "PRO", "DOUBLES", "RELAY"] }),
+      hyroxCompetitionIssue({ title: "서울 하이록스", sport: "hyrox", eventTypes: [" open", "DOUBLES", "RELAY"] }),
     ).toBeNull();
+  });
+
+  it("프로 부문은 없앴다 — PRO 코스는 막는다", () => {
+    expect(hyroxCompetitionIssue({ title: "서울 하이록스", sport: "hyrox", eventTypes: ["OPEN", "PRO"] })?.field).toBe(
+      "eventTypes",
+    );
   });
 
   it("이름에 하이록스가 없는 다른 종목 대회는 건드리지 않는다", () => {
@@ -47,6 +57,7 @@ describe("isHyroxRecordDivision", () => {
     expect(isHyroxRecordDivision("OPEN")).toBe(true);
     expect(isHyroxRecordDivision(" doubles ")).toBe(true);
     expect(isHyroxRecordDivision("OPEN SINGLE")).toBe(false);
+    expect(isHyroxRecordDivision("PRO")).toBe(false);
     expect(isHyroxRecordDivision(null)).toBe(false);
   });
 });
@@ -86,5 +97,23 @@ describe("대회 폼 스키마 — 하이록스 검사", () => {
   it("수정 폼: 같은 검사", () => {
     const r = competitionEditSchema.safeParse({ ...base, sport: "hyrox", eventTypes: ["PRO DOUBLE"] });
     expect(r.error?.issues.map((i) => i.path.join("."))).toContain("eventTypes");
+  });
+});
+
+describe("코스 선택지 — 하이록스는 PRO 를 거른다", () => {
+  const rows = [
+    { cd_grp_cd: "HYROX_EVT_CD", cd: "OPEN", cd_nm: "OPEN", sort_ord: 1 },
+    { cd_grp_cd: "HYROX_EVT_CD", cd: "PRO", cd_nm: "PRO", sort_ord: 2 },
+    { cd_grp_cd: "HYROX_EVT_CD", cd: "DOUBLES", cd_nm: "DOUBLES", sort_ord: 3 },
+    { cd_grp_cd: "HYROX_EVT_CD", cd: "RELAY", cd_nm: "RELAY", sort_ord: 4 },
+    { cd_grp_cd: "ROAD_EVT_CD", cd: "10K", cd_nm: "10K", sort_ord: 1 },
+  ];
+
+  it("공통코드에 PRO 가 남아 있어도 선택지엔 안 뜬다(끄는 마이그레이션 전에도)", () => {
+    expect(eventTypeCodesForSprtFromCmmRows(rows, "hyrox")).toEqual(["OPEN", "DOUBLES", "RELAY"]);
+  });
+
+  it("다른 종목은 그대로", () => {
+    expect(eventTypeCodesForSprtFromCmmRows(rows, "road_run")).toEqual(["10K"]);
   });
 });

@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 
 import { normalizeCompEvtTypeKey } from "@/lib/comp-evt-type";
 import { evtGrpCdForSprt } from "@/lib/comp-sprt-to-evt-grp";
+import { isHyroxRecordDivision, isHyroxSport } from "@/lib/hyrox";
 import { COMMON_CODES_CACHE_TAG } from "@/lib/common-codes-cache-tag";
 import { env } from "@/lib/env";
 import type { Database } from "@/lib/supabase/database.types";
@@ -116,7 +117,10 @@ export function eventTypeCodesForSprtFromCmmRows(
 ): string[] {
   const grp = evtGrpCdForSprt(sprtCd);
   if (!grp) return [];
-  return cmmCdRowsForGrp(rows, grp).map(({ cd }) => normalizeCompEvtTypeKey(cd));
+  const codes = cmmCdRowsForGrp(rows, grp).map(({ cd }) => normalizeCompEvtTypeKey(cd));
+  // 하이록스는 받는 부문(OPEN·DOUBLES·RELAY)만 — 프로는 없앴다(#671). 공통코드 PRO 를 끄는 마이그레이션이
+  // 들어가기 전이나, 누가 다시 켜도 선택지에 안 뜨게 여기서 한 번 더 거른다
+  return isHyroxSport(sprtCd) ? codes.filter(isHyroxRecordDivision) : codes;
 }
 
 /** COMP_SPRT_CD 표시명 (캐시에 없으면 코드 그대로) */

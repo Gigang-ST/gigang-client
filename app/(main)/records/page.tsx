@@ -303,7 +303,8 @@ function getCachedRecordsData(teamId: string) {
     // v8: RPC가 철인 FULL·OLYMPIC 등을 TRIATHLON_*으로 읽게 되어(#581) 같은 이유로 올렸다.
     // v9: 하이록스 판(hyrox)이 페이로드에 더해졌다(#349).
     // v10: 운영 하이록스 대회 보정(#671 — 종목·코스를 DB 에서 고친다)이 24시간 옛 빈 판으로 남지 않게 올렸다.
-    [`records-team-v10-${teamId}`],
+    // v11: 하이록스 프로 판을 뺐다(#671) — v10 으로 미리보기에 쌓인 프로 판 캐시가 남지 않게.
+    [`records-team-v11-${teamId}`],
     { revalidate: 60 * 60 * 24, tags: ["records", `records:${teamId}`] },
   )();
 }

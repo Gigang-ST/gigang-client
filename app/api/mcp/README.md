@@ -129,12 +129,13 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 
 | 도구 | 입력 | 하는 일 | 권한 |
 |------|------|---------|------|
-| `list_hyrox_rankings` | `division?`(`OPEN`·`PRO`·`DOUBLES`), `gender?`(`male`·`female`) | 부문별 순위(사람당 가장 빠른 대회 기록 1건) + 입력된 스테이션 기록 | 멤버 |
+| `list_hyrox_rankings` | `division?`(`OPEN`·`DOUBLES`), `gender?`(`male`·`female`) | 부문별 순위(사람당 가장 빠른 대회 기록 1건) + 입력된 스테이션 기록 | 멤버 |
 | `list_hyrox_competitions` | `query?`, `from?`·`to?`(YYYY-MM-DD) | 하이록스 대회 목록(최근 시작일부터 최대 50건) — 등록할 `comp_id` 고르기용 | 멤버 |
-| `log_hyrox_record` | `comp_id`, `division`(`OPEN`·`PRO`·`DOUBLES`·`RELAY`), `total_time`, `splits?`, `race_dt?`, `member_id?`, `dry_run?` | 하이록스 대회 기록 1건 등록 | 본인 (**`member_id` 로 남의 기록은 admin**) |
+| `log_hyrox_record` | `comp_id`, `division`(`OPEN`·`DOUBLES`·`RELAY`), `total_time`, `splits?`, `race_dt?`, `member_id?`, `dry_run?` | 하이록스 대회 기록 1건 등록 | 본인 (**`member_id` 로 남의 기록은 admin**) |
 
-- **부문**: 오픈·프로는 남녀 판이 갈리고(`men`/`women`), 더블스는 한 줄(`entries`)입니다.
+- **부문**: 오픈은 남녀 판이 갈리고(`men`/`women`), 더블스는 한 줄(`entries`)입니다.
   **릴레이는 저장만 되고 순위엔 서지 않습니다**(4인 팀 기록이라 개인 순위가 아닙니다).
+  **프로 부문은 없습니다**(#671 — 크루에 프로 참가자가 없어 싱글은 전부 `OPEN`). `PRO` 를 넣으면 거부합니다.
 - **시간**: `total_time` 은 `H:MM:SS`(예: `1:12:34`), `splits` 는 스테이션 코드별 `M:SS` 입니다 —
   `SKIERG`·`SLED_PUSH`·`SLED_PULL`·`BURPEE`·`ROW`·`FARMERS_CARRY`·`LUNGE`·`WALL_BALL`. 모르는 칸은 빼면 됩니다.
   스테이션 합이 총시간보다 길면 단위를 헷갈린 것으로 보고 거부합니다.
