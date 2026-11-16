@@ -7,7 +7,6 @@ import { ArrowDownWideNarrow, ArrowUpNarrowWide, X } from "lucide-react";
 
 import {
   HOT_THRESHOLD,
-  PARTICIPATION_DATA_EPOCH,
   RECENT_WINDOW_DAYS,
 } from "@/lib/constants/participation";
 import { dayjs } from "@/lib/dayjs";
@@ -88,7 +87,10 @@ const EMPTY_STAT: Omit<MemberParticipationStat, "memId"> = {
   imminentCnt: 0,
 };
 
-function periodRange(period: Period): { from: string; to: string } {
+/**
+ * @param dataStart 「전체」의 시작일 — 팀별(첫 모임이 열린 달, 기강은 7월). 페이지가 계산해 내려 준다.
+ */
+function periodRange(period: Period, dataStart: string): { from: string; to: string } {
   const now = dayjs().tz(KST);
   const nextMonth = now.add(1, "month").startOf("month").format("YYYY-MM-DD");
   if (period === "month")
@@ -98,15 +100,18 @@ function periodRange(period: Period): { from: string; to: string } {
       from: now.startOf("month").subtract(2, "month").format("YYYY-MM-DD"),
       to: nextMonth,
     };
-  return { from: PARTICIPATION_DATA_EPOCH, to: nextMonth };
+  return { from: dataStart, to: nextMonth };
 }
 
 export function ParticipationTab({
   members,
   onSelectMember,
+  dataStart,
 }: {
   members: ParticipationTabMember[];
   onSelectMember: (memId: string) => void;
+  /** 「전체」 기간 시작일(YYYY-MM-DD, 팀별) */
+  dataStart: string;
 }) {
   const [period, setPeriod] = useState<Period>("month");
   // 기간별 조회 결과 — stats=null 은 실패. loading/error 는 파생값으로 계산해
@@ -123,7 +128,7 @@ export function ParticipationTab({
   // 키에 실제 날짜 범위를 포함해, 자정/월 경계를 넘긴 뒤 낡은 범위 결과가 재사용되지 않게 한다.
   const cacheRef = useRef(new Map<string, ParticipationStats>());
   const cacheKey = (p: Period) => {
-    const { from, to } = periodRange(p);
+    const { from, to } = periodRange(p, dataStart);
     return `${p}|${from}|${to}`;
   };
 
@@ -145,10 +150,10 @@ export function ParticipationTab({
   };
 
   useEffect(() => {
-    const key = cacheKey(period);
+    const { from, to } = periodRange(period, dataStart);
+    const key = `${period}|${from}|${to}`; // cacheKey 와 같은 모양
     if (cacheRef.current.has(key)) return; // 캐시 히트 — selectPeriod에서 이미 반영
     let alive = true;
-    const { from, to } = periodRange(period);
     getParticipationStats(from, to).then(
       (res) => {
         if (!alive) return;
@@ -162,9 +167,15 @@ export function ParticipationTab({
     return () => {
       alive = false;
     };
-  }, [period, retryTick]);
+  }, [period, retryTick, dataStart]);
 
   const now = dayjs().tz(KST);
+  // 「전체」 라벨 — 올해면 「7월」, 해를 넘기면 「2026년 7월」 (dataStart 는 날짜 문자열이라 로컬 파싱이 안전)
+  const dataStartDay = dayjs(dataStart);
+  const dataStartLabel =
+    dataStartDay.year() === now.year()
+      ? dataStartDay.format("M월")
+      : dataStartDay.format("YYYY년 M월");
 
   const rows = useMemo(() => {
     const statMap = new Map((stats?.members ?? []).map((s) => [s.memId, s]));
@@ -271,7 +282,7 @@ export function ParticipationTab({
             }`}
           >
             {PERIOD_LABELS[p]}
-            {p === "all" && " (7월~)"}
+            {p === "all" && ` (${dataStartLabel}~)`}
           </button>
         ))}
       </div>

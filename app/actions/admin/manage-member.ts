@@ -10,6 +10,7 @@ import { insertNoti } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient, createAdminClientAs } from "@/lib/supabase/admin";
 import { getTeamCfg } from "@/lib/team-cfg/read";
+import { memberRemovalBlockReason } from "@/lib/member-manage-guard";
 import { koreanNameSchema } from "@/lib/validations/member";
 
 /**
@@ -161,6 +162,12 @@ export async function deleteMember(memberId: string) {
       .maybeSingle();
     if (!rel) return { ok: false, message: "삭제할 수 있는 대상이 아닙니다" };
     if (rel.team_role_cd === "owner") return { ok: false, message: "크루장은 삭제할 수 없습니다" };
+    // 운영진은 크루장만 삭제할 수 있다(#676) — 판정은 화면과 같은 함수
+    const blocked = memberRemovalBlockReason(
+      { memId: member.id, isOwner: member.owner },
+      { memId: memberId, roleCd: rel.team_role_cd },
+    );
+    if (blocked) return { ok: false, message: blocked };
 
     // 잔액이 0이 아니면 삭제할 수 없다 — **회비는 탈퇴로 사라지지 않는다**(이슈 #571).
     //
@@ -213,7 +220,7 @@ export async function deactivateMember(memberId: string, reason?: string) {
     const db = createAdminClient();
     const { data: rel } = await db
       .from("team_mem_rel")
-      .select("team_mem_id")
+      .select("team_mem_id, team_role_cd")
       .eq("mem_id", memberId)
       .eq("team_id", teamId)
       .eq("vers", 0)
@@ -222,6 +229,12 @@ export async function deactivateMember(memberId: string, reason?: string) {
       .neq("team_role_cd", "owner")
       .maybeSingle();
     if (!rel) return { ok: false, message: "비활성화할 수 있는 대상이 아닙니다" };
+    // 운영진은 크루장만 비활성화할 수 있다(#676)
+    const blocked = memberRemovalBlockReason(
+      { memId: member.id, isOwner: member.owner },
+      { memId: memberId, roleCd: rel.team_role_cd },
+    );
+    if (blocked) return { ok: false, message: blocked };
     const { error } = await db.rpc("apply_team_mem_rel_change", {
       p_team_mem_id: rel.team_mem_id,
       p_changes: { mem_st_cd: "inactive", inact_rsn_txt: reason ?? null },
@@ -248,7 +261,7 @@ export async function leaveMemberFromDues(memberId: string, reason?: string) {
     // (이미 left면 재처리 무의미 → 제외.)
     const { data: rel } = await db
       .from("team_mem_rel")
-      .select("team_mem_id")
+      .select("team_mem_id, team_role_cd")
       .eq("mem_id", memberId)
       .eq("team_id", teamId)
       .eq("vers", 0)
@@ -257,11 +270,18 @@ export async function leaveMemberFromDues(memberId: string, reason?: string) {
       .neq("team_role_cd", "owner")
       .maybeSingle();
     if (!rel) return { ok: false, message: "탈퇴 처리할 수 있는 대상이 아닙니다" };
+    // 운영진은 크루장만 탈퇴 처리할 수 있다(#676) — 회비 화면의 미납 탈퇴도 이 액션이라 같이 걸린다
+    const blocked = memberRemovalBlockReason(
+      { memId: member.id, isOwner: member.owner },
+      { memId: memberId, roleCd: rel.team_role_cd },
+    );
+    if (blocked) return { ok: false, message: blocked };
     const { error } = await db.rpc("apply_team_mem_rel_change", {
       p_team_mem_id: rel.team_mem_id,
       p_changes: {
         mem_st_cd: "left",
-        inact_rsn_txt: reason || "관리자 탈퇴 처리",
+        // 사유는 본인이 차단 화면에서 그대로 읽는다 — 비었을 때도 본인에게 하는 말로 둔다
+        inact_rsn_txt: reason?.trim() || "운영진이 탈퇴 처리했어요",
         leave_dt: dayjs().tz("Asia/Seoul").format("YYYY-MM-DD"),
       },
       p_eff_at: nowIso,
@@ -337,7 +357,11 @@ export async function batchDeactivateMembers(memberIds: string[], reason?: strin
       .eq("del_yn", false)
       .eq("mem_st_cd", "active");
 
-    const safe = (rels ?? []).filter((r) => r.mem_id !== member.id && r.team_role_cd !== "owner");
+    // 본인·크루장, 그리고 크루장이 아니면 운영진도 뺀다(#676) — 단건과 같은 판정
+    const actor = { memId: member.id, isOwner: member.owner };
+    const safe = (rels ?? []).filter(
+      (r) => !memberRemovalBlockReason(actor, { memId: r.mem_id, roleCd: r.team_role_cd }),
+    );
     if (!safe.length) return { ok: false, message: "처리 가능한 대상이 없습니다" };
 
     const effAt = dayjs().toISOString();

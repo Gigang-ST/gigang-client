@@ -69,6 +69,8 @@ import {
   type MemberStatusRow,
   type MemberStatusSince,
 } from "@/lib/member-status-since";
+import { memberRemovalBlockReason, type ManageActor } from "@/lib/member-manage-guard";
+import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { cn } from "@/lib/utils";
 import {
@@ -96,6 +98,8 @@ type Member = {
   avatar_url: string | null;
   status: string | null;
   admin: boolean | null;
+  /** 크루장(owner) — 누구도 비활성·탈퇴·삭제할 수 없다 */
+  owner: boolean;
   joined_at: string | null;
   inact_rsn_txt: string | null;
   bal_amt: number | null;
@@ -132,7 +136,6 @@ const STATUS_META: Record<
   active: { label: "활성", dot: "bg-success", text: "text-success", badgeClass: "bg-success/10 text-success border-success/20" },
   inactive: { label: "비활성", dot: "bg-warning", text: "text-warning", badgeClass: "bg-warning/10 text-warning border-warning/20" },
   left: { label: "탈퇴", dot: "bg-destructive", text: "text-destructive", badgeClass: "bg-destructive/10 text-destructive border-destructive/20" },
-  pending: { label: "대기", dot: "bg-muted-foreground", text: "text-muted-foreground", badgeClass: "bg-muted text-muted-foreground border-border" },
 };
 
 const DEFAULT_STATUS_META = {
@@ -153,8 +156,8 @@ function StatusBadge({ status }: { status: string | null }) {
 }
 
 /**
- * 클릭 가능한 상태 배지. active/inactive/left 만 전환 시트를 연다(pending은 승인
- * 대기 흐름이 별도이므로 클릭 불가 — 기존 배지 그대로 표시).
+ * 클릭 가능한 상태 배지. active/inactive/left 만 전환 시트를 연다(그 밖의 값은 클릭 불가 —
+ * 배지만 표시). 승인 대기(`pending`)는 만드는 경로가 없어(2026-10 승인 흐름 제거) 라벨도 두지 않는다.
  */
 function StatusBadgeButton({
   status,
@@ -588,10 +591,13 @@ function StatusChangeSheet({
   onLeave,
   onReactivate,
   duesEnabled,
+  blockReason,
 }: {
   member: Member;
   open: boolean;
   busy: boolean;
+  /** 비활성·탈퇴를 못 하는 대상이면 그 이유(운영진 보호 등) — 재활성화는 그대로 연다 */
+  blockReason: string | null;
   /** 이 팀이 회비를 쓰는가 — 안 쓰면 재활성화의 「회비 잔액 처리」를 묻지 않는다 */
   duesEnabled: boolean;
   onOpenChange: (open: boolean) => void;
@@ -664,6 +670,10 @@ function StatusChangeSheet({
     });
   }
 
+  // 못 하는 처리는 선택지째 빼고 이유를 한 줄로 말한다 — 눌러 보고 나서야 막히지 않게
+  const visibleOptions = blockReason ? options.filter((o) => o.action === "activate") : options;
+  const hiddenByBlock = !!blockReason && visibleOptions.length < options.length;
+
   const handleSelect = (action: StatusAction) => {
     setPendingAction(action);
     setReason("");
@@ -721,9 +731,13 @@ function StatusChangeSheet({
             )}
           </div>
 
+          {hiddenByBlock && (
+            <Caption className="text-[12px] leading-snug">{blockReason}</Caption>
+          )}
+
           {/* 전환 옵션 */}
           <div className="flex flex-col gap-2">
-            {options.map((opt) => {
+            {visibleOptions.map((opt) => {
               const Icon = opt.icon;
               const isSelected = pendingAction === opt.action;
               return (
@@ -834,6 +848,9 @@ export function AdminMembersClient({
   initialTeamMemId,
   duesEnabled,
   titlesEnabled,
+  viewer,
+  cmmCdRows,
+  participationDataStart,
 }: {
   teamId: string;
   initialTeamMemId?: string;
@@ -841,6 +858,12 @@ export function AdminMembersClient({
   duesEnabled: boolean;
   /** 이 팀이 칭호를 쓰는가(팀 설정 `feature.titles`) — 안 쓰면 멤버 상세의 칭호 수여 칸을 안 그린다 */
   titlesEnabled: boolean;
+  /** 지금 화면을 보는 관리자 — 운영진 보호 판정(크루장만 운영진을 처리) */
+  viewer: ManageActor;
+  /** 공통코드 — 대회 신청 줄 스포츠 이름 */
+  cmmCdRows: CachedCmmCdRow[];
+  /** 참여 탭 「전체」 기간 시작일(팀별, YYYY-MM-DD) */
+  participationDataStart: string;
 }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -966,6 +989,7 @@ export function AdminMembersClient({
             avatar_url: m.avatar_url,
             status: r.mem_st_cd,
             admin: r.team_role_cd === "admin" || r.team_role_cd === "owner",
+            owner: r.team_role_cd === "owner",
             joined_at: r.join_dt,
             inact_rsn_txt: r.inact_rsn_txt ?? null,
             bal_amt: snapMap.get(r.mem_id) ?? null,
@@ -1015,9 +1039,19 @@ export function AdminMembersClient({
     return true;
   });
 
-  const activeSelectedIds = [...selectedIds].filter(
-    (id) => statusFiltered.find((m) => m.id === id)?.status === "active",
+  /** 이 회원을 비활성·탈퇴·삭제할 수 없으면 그 이유 — 서버 액션과 같은 판정(lib/member-manage-guard) */
+  const blockReasonFor = (m: Member) =>
+    memberRemovalBlockReason(viewer, {
+      memId: m.id,
+      roleCd: m.owner ? "owner" : m.admin ? "admin" : "member",
+    });
+
+  const selectedActive = statusFiltered.filter(
+    (m) => selectedIds.has(m.id) && m.status === "active",
   );
+  const activeSelectedIds = selectedActive.filter((m) => !blockReasonFor(m)).map((m) => m.id);
+  // 선택했지만 일괄 비활성에서 빠지는 사람(운영진·크루장·본인) — 빠진다는 걸 말해 준다
+  const skippedActiveCnt = selectedActive.length - activeSelectedIds.length;
   const reactivatableSelectedIds = [...selectedIds].filter((id) => {
     const status = statusFiltered.find((m) => m.id === id)?.status;
     return status === "inactive" || status === "left";
@@ -1224,6 +1258,7 @@ export function AdminMembersClient({
 
       {tab === "participation" && (
         <ParticipationTab
+          dataStart={participationDataStart}
           members={members}
           onSelectMember={(memId) => {
             const found = members.find((m) => m.id === memId);
@@ -1312,6 +1347,13 @@ export function AdminMembersClient({
           <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
             선택 해제
           </Button>
+          {skippedActiveCnt > 0 && (
+            <Caption className="w-full text-[12px]">
+              {viewer.isOwner
+                ? `크루장·본인 ${skippedActiveCnt}명은 비활성 설정에서 빠져요.`
+                : `운영진·크루장·본인 ${skippedActiveCnt}명은 비활성 설정에서 빠져요 — 운영진은 크루장만 처리할 수 있어요.`}
+            </Caption>
+          )}
         </div>
       )}
 
@@ -1511,6 +1553,7 @@ export function AdminMembersClient({
 
               {/* 참여 현황 — 모임·대회 참여 요약/월별/최근 활동 */}
               <ParticipationSection
+                cmmCdRows={cmmCdRows}
                 key={`participation-${selectedMember.id}`}
                 memId={selectedMember.id}
                 teamId={teamId}
@@ -1557,8 +1600,14 @@ export function AdminMembersClient({
                   </Button>
                 )}
 
-                {/* 삭제는 시각적으로 분리 — 구분선 + 간격을 두어 실수 클릭 방지 */}
+                {/* 삭제는 시각적으로 분리 — 구분선 + 간격을 두어 실수 클릭 방지.
+                    못 하는 대상(운영진·크루장·본인)이면 버튼 대신 이유를 보인다 */}
                 <div className="mt-2 border-t border-border pt-2">
+                  {blockReasonFor(selectedMember) ? (
+                    <Caption className="block px-1 py-2 text-[12px]">
+                      {blockReasonFor(selectedMember)}
+                    </Caption>
+                  ) : (
                   <Button
                     variant="outline"
                     onClick={() =>
@@ -1573,6 +1622,7 @@ export function AdminMembersClient({
                     <UserX className="size-4 text-destructive" />
                     <span className="text-[15px] font-medium text-destructive">회원 삭제</span>
                   </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1688,6 +1738,7 @@ export function AdminMembersClient({
           onLeave={handleSheetLeave}
           onReactivate={handleSheetReactivate}
           duesEnabled={duesEnabled}
+          blockReason={blockReasonFor(statusChangeMember)}
         />
       )}
     </div>

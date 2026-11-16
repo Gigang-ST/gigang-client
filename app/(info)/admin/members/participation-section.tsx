@@ -15,6 +15,8 @@ import {
   type CancelHistRow,
   type CancelRecord,
 } from "@/lib/gathering/cancel-stats";
+import { adminRecordEventLabel } from "@/app/(info)/admin/records/record-event-label";
+import type { CachedCmmCdRow } from "@/lib/queries/cmm-cd-cached";
 import { createClient } from "@/lib/supabase/client";
 
 import { EmptyState } from "@/components/common/empty-state";
@@ -55,7 +57,7 @@ type CompRegRow = {
   crt_at: string;
   comp_evt_cfg: { comp_evt_type: string } | null;
   team_comp_plan_rel: {
-    comp_mst: { comp_nm: string; stt_dt: string } | null;
+    comp_mst: { comp_nm: string; stt_dt: string; comp_sprt_cd: string | null } | null;
   };
 };
 
@@ -133,9 +135,12 @@ function KindBadge({ kind }: { kind: TimelineItem["kind"] }) {
 export function ParticipationSection({
   memId,
   teamId,
+  cmmCdRows,
 }: {
   memId: string;
   teamId: string;
+  /** 공통코드 — 대회 신청 줄 스포츠 이름(「트라이애슬론 · FULL」) */
+  cmmCdRows: readonly CachedCmmCdRow[];
 }) {
   const [data, setData] = useState<Participation | null>(null);
   const [loading, setLoading] = useState(true);
@@ -169,7 +174,7 @@ export function ParticipationSection({
       supabase
         .from("comp_reg_rel")
         .select(
-          "comp_reg_id, crt_at, comp_evt_cfg(comp_evt_type), team_comp_plan_rel!inner(team_id, del_yn, comp_mst!inner(comp_nm, stt_dt))",
+          "comp_reg_id, crt_at, comp_evt_cfg(comp_evt_type), team_comp_plan_rel!inner(team_id, del_yn, comp_mst!inner(comp_nm, stt_dt, comp_sprt_cd))",
         )
         .eq("mem_id", memId)
         .eq("vers", 0)
@@ -245,8 +250,15 @@ export function ParticipationSection({
             id: `c-${r.comp_reg_id}`,
             kind: "comp",
             date: r.crt_at,
+            // 종목은 스포츠와 함께 — 코드만 찍으면 철인 FULL 과 마라톤 FULL 이 같아 보인다(#673 기록관리와 같은 표기)
             label: `${r.team_comp_plan_rel.comp_mst?.comp_nm ?? "대회"} 신청${
-              r.comp_evt_cfg?.comp_evt_type ? ` · ${r.comp_evt_cfg.comp_evt_type}` : ""
+              r.comp_evt_cfg?.comp_evt_type
+                ? ` · ${adminRecordEventLabel(
+                    cmmCdRows,
+                    r.team_comp_plan_rel.comp_mst?.comp_sprt_cd,
+                    r.comp_evt_cfg.comp_evt_type,
+                  )}`
+                : ""
             }`,
           })),
           ...races.map((r): TimelineItem => {
@@ -298,7 +310,7 @@ export function ParticipationSection({
     return () => {
       alive = false;
     };
-  }, [memId, teamId]);
+  }, [memId, teamId, cmmCdRows]);
 
   const maxMonthly = useMemo(
     () => Math.max(1, ...(data?.monthly.map((m) => m.count) ?? [1])),
@@ -329,8 +341,12 @@ export function ParticipationSection({
     <div className="flex flex-col gap-3">
       <div className="flex items-baseline gap-2">
         <SectionLabel>참여 현황</SectionLabel>
-        {/* 참여 탭(기간 필터)과 달리 시트는 전체 기간 집계 — 기준을 명시해 혼동 방지 */}
-        <Caption className="text-[11px]">전체 기간</Caption>
+        {/* 참여 탭(기간 필터)과 달리 시트는 전체 기간 집계 — 기준을 명시해 혼동 방지.
+            회색 작은 글씨 「전체 기간」만으론 탭 숫자와 다른 이유가 안 읽혀 탭과의 관계까지 적는다 */}
+        <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[11px] font-semibold text-foreground">
+          전체 기간
+        </span>
+        <Caption className="text-[11px]">참여 탭 숫자는 고른 기간 기준</Caption>
       </div>
 
       {loading ? (
