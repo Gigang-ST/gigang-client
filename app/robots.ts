@@ -1,11 +1,12 @@
 import type { MetadataRoute } from "next";
 
 import { getSiteTeam } from "@/lib/queries/site-metadata";
-import { DISALLOWED_PREFIXES } from "@/lib/seo/indexable-routes";
+import { buildRobots } from "@/lib/seo/robots";
 
 /**
  * `/robots.txt` — 크롤러 정책과 사이트맵 위치. **들어온 주소의 팀** 기준이다(울산 주소면 울산 사이트맵을 가리킨다).
  * 예전엔 기강 주소 고정이라 울산 주소의 robots 가 기강 사이트맵을 안내했다(2026-11-10 팀별로).
+ * 규칙 본문(AI 크롤러 허용 포함)은 `lib/seo/robots.ts` — 테스트가 순수 함수로 지킨다.
  *
  * 이게 없으면 `/robots.txt` 요청이 Next.js not-found로 떨어져 **HTML이 200으로**
  * 응답한다(소프트 404). 네이버 서치어드바이저는 robots.txt를 별도 검증 항목으로
@@ -19,22 +20,5 @@ import { DISALLOWED_PREFIXES } from "@/lib/seo/indexable-routes";
  */
 export default async function robots(): Promise<MetadataRoute.Robots> {
   const team = await getSiteTeam();
-  const origin = team?.canonicalOrigin ?? null;
-  return {
-    rules: [
-      {
-        userAgent: "*",
-        allow: "/",
-        disallow: DISALLOWED_PREFIXES,
-      },
-      // 네이버 Yeti는 명시적으로 한 번 더 허용해 둔다. 기본 규칙으로도 열리지만,
-      // 서치어드바이저 robots.txt 검증에서 대상 봇이 눈에 보이는 편이 낫다.
-      {
-        userAgent: "Yeti",
-        allow: "/",
-        disallow: DISALLOWED_PREFIXES,
-      },
-    ],
-    ...(origin ? { sitemap: `${origin}/sitemap.xml`, host: origin } : {}),
-  };
+  return buildRobots(team?.canonicalOrigin ?? null);
 }

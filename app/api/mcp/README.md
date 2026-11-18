@@ -82,6 +82,38 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `update_gathering` | `gathering_id`(uuid) + 바꿀 필드만(`gthr_nm`, `stt_at`, `end_at`, `loc_txt`, `max_prt_cnt`, `desc_txt`), `dry_run?`, `notify?` | 모임 수정 — 바뀐 필드 목록·전/후 반환. 알림은 `notify: true` 일 때만 | **모임 작성자 또는 admin** |
 | `create_sch_post` | `sch_nm`, `post_type`(`race_entry`·`sale`·`session`·`general`), `evt_stt_at`, `evt_end_at?`, `url?`, `cont_txt?`, `dry_run?` | 일정 탭에 소식(대회 접수 정보·판매·세션·일반) 등록 — 팀 전원 새 정보 알림 | 멤버 (앱과 같음) |
 
+### 대회 도구 (#700)
+
+대회를 찾고, 추가하고, 참가 신청을 합니다. 웹의 대회 추가(`createCompetition`)·참가 신청과 **같은 검증·저장 순서**를 탑니다
+(추가는 `lib/competition-create.ts` 코어를 웹과 공유).
+
+| 도구 | 입력 | 하는 일 | 권한 |
+|------|------|---------|------|
+| `list_competitions` | `query?`(대회명 일부), `from?`·`to?`(YYYY-MM-DD), `sport?` | 대회 목록(시작일 최신순 최대 50건) — `comp_id`·종목·**내 신청 상태** | 멤버 |
+| `create_competition` | `title`, `sport`, `start_date`, `end_date?`, `location`, `event_types[]`, `source_url`, `dry_run?` | 대회 추가. 같은 이름·시작일 대회가 있으면 **만들지 않고 기존 것** 반환(`status: exists`) | **admin** |
+| `register_competition` | `comp_id`, `role?`(`participant`·`cheering`·`volunteer`), `event_type?`, `member_id?`·`member_name?`, `dry_run?` | 참가 신청 — 기본은 **내** 신청, admin 은 다른 회원을 **대신** 신청 | 본인 (**남을 대신은 admin**) |
+
+- **`create_competition` 은 admin 전용**입니다 — 이슈가 관리자 폼과 같은 권한을 요구했고, 웹의 서버 액션은 활성 멤버에게도 열려 있지만
+  MCP 는 더 좁게 둡니다(대회는 팀 공용 데이터라 AI 가 아무 이름으로 만들면 목록이 더러워집니다).
+  필수 입력은 관리자 폼과 같습니다: 대회명·종목(`COMP_SPRT_CD` 코드)·시작일·장소·공식 URL·코스 1개 이상. 지난 대회는 거부(기록 입력에서 추가),
+  코스는 영문·숫자(한글 거부), 하이록스는 종목·코스 규칙(#671)을 같은 함수로 검사합니다. **먼저 `dry_run: true`** 로 해석된 값·중복 여부를 확인하세요.
+- **같은 대회는 만들지 않습니다.** 이름(공백·대소문자 무시)과 시작일이 같은 대회가 있으면 `status: "exists"` 로 그 대회를 돌려줍니다.
+  `list_competitions` 로 먼저 찾아보면 더 빠릅니다.
+- **`register_competition`**: `participant`(기본)는 `event_type`(코스) 필수, `cheering`·`volunteer` 는 종목 없이 신청합니다. 대회에 없는 코스는 웹처럼 대회에 붙습니다
+  (`dry_run` 에서는 만들지 않음). 이미 신청돼 있으면 **고치지 않고** `status: "already_registered"` 와 현재 상태를 돌려줍니다(바꾸려면 앱 대회 상세에서 수정).
+- **관리자 대리 등록**: admin 이 `member_id`(uuid) 또는 `member_name`(이름 완전일치, 대소문자 무시)을 주면 그 회원 이름으로 신청합니다.
+  대상은 **우리 팀 활동 중 회원**만이고, **이름이 여럿에 맞으면(동명이인) 아무도 등록하지 않고** `status: "ambiguous_member"` 와 `candidates`(id·이름·가입일)만 돌려줍니다 —
+  그중 `member_id` 를 골라 다시 부르세요. admin 이 아닌 멤버가 다른 회원을 지정하면 거부합니다(본인 id 는 허용).
+- **알림은 없습니다.** 팀 알림·단톡 공지·대상 회원 알림 모두 보내지 않습니다(웹 신청과 같습니다). 포인트·칭호는 DB 트리거·후속 평가가 웹 신청과 똑같이 따라옵니다.
+  일정·피드 캐시는 웹처럼 비웁니다. 두 쓰기 도구 모두 감사 로그(`mcp_audit_log`)에 한 줄 남고, 대리 등록은 실행자와 대상이 둘 다 기록됩니다.
+- 수정·삭제 도구는 없습니다 — 잘못 만들었으면 `comp_url` 로 들어가 웹에서 고치고, 잘못 신청했으면 앱 대회 상세에서 취소하세요.
+
+예시 질문:
+- "2027 고성 아이언맨 70.3 있는지 찾아줘" / "11월 마라톤 대회 뭐 있어?"
+- (admin) "2027-06-06 강원 고성, 아이언맨 70.3(HALF) 대회 추가해줘. 저장 전에 먼저 보여줘"
+- "그 대회 나 HALF 로 신청해줘" / "서울마라톤 응원으로 신청해줘"
+- (admin) "고성 70.3 에 김철수, 이영희 HALF 로 신청해줘 — 동명이인이면 알려줘"
+
 ### 마일리지런 개인 도구 (내 기록)
 
 위 도구들이 "운영진이 팀을 들여다보는" 것이라면, 아래는 전부 **내 기록**입니다.
@@ -181,9 +213,11 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `send_push` (도구째) | 쓰기 — 되돌릴 수 없고 크루원에게 직접 나갑니다 |
 | `send_kakao_notice` (도구째) | 쓰기 — 되돌릴 수 없고 단톡방 크루 전원에게 보입니다 |
 | `create_gathering` (도구째) | 쓰기 — 만드는 순간 팀 전원에게 새 모임 알림이 나갑니다 |
+| `create_competition` (도구째) | 쓰기 — 대회는 팀 공용 데이터라 마구 만들면 목록이 오염됩니다. 앱의 서버 액션보다 좁게 둡니다 |
+| `register_competition` 의 **`member_id`·`member_name`**(남을 대신 신청만) | 앱에서 남의 참가 신청을 넣는 화면은 없고(관리자 화면은 목록·삭제), 본인 신청은 멤버 누구나 합니다 |
+| `log_hyrox_record` 의 **`member_id`**(남의 기록 등록만) | 앱에서 남의 대회 기록을 넣는 건 관리자 「대신 등록」뿐입니다. 본인 기록은 멤버 누구나 넣습니다 |
 
 `update_gathering` 은 admin 전용이 아니라 **작성자 또는 admin** 입니다(앱의 수정 권한과 같습니다).
-| `log_hyrox_record` 의 **`member_id`**(남의 기록 등록만) | 앱에서 남의 대회 기록을 넣는 건 관리자 「대신 등록」뿐입니다. 본인 기록은 멤버 누구나 넣습니다 |
 
 `create_sch_post`(일정 소식 등록)는 **admin 전용이 아닙니다.** 앱에서 소식은 활성 멤버 누구나 올리고
 (`createSchPost` 의 `withActive`), MCP 토큰도 활성 멤버만 통과하므로 같은 범위입니다 — 앱보다 넓지도
@@ -301,6 +335,10 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | 특정 멤버가 발송에서 빠짐 | 타 팀·비활성·미존재이거나 알림 수신거부. 발송은 우리 팀 활성 멤버로만 나갑니다. |
 | `log_hyrox_record`가 "하이록스 대회가 아닙니다" | `comp_id` 가 다른 종목 대회입니다. `list_hyrox_competitions` 로 확인하세요. 목록에 없으면 앱에서 대회를 먼저 등록해야 합니다. |
 | 하이록스 도구가 "요청을 처리하지 못했습니다" | 그 환경 DB 에 하이록스 마이그레이션(`20261108100000_hyrox_ranking.sql`)이 아직 안 들어갔을 수 있습니다(§5). |
+| `create_competition` 이 거부됨 | 대회 추가는 owner/admin 전용입니다(`dry_run` 도). 입력 오류면 메시지의 필드(날짜 형식·종목 코드·코스·URL)를 고치세요. |
+| `create_competition` 이 `exists` 를 돌려줌 | 같은 이름·시작일 대회가 이미 있어 만들지 않았습니다. 정상입니다 — 돌려준 `comp_id` 를 쓰세요. 이름·날짜가 다른 대회라면 둘 중 하나를 바꿔 다시 부르세요. |
+| `register_competition` 이 `ambiguous_member` | 같은 이름의 활동 회원이 여럿입니다. 아무도 등록하지 않았습니다 — `candidates` 의 `member_id` 로 다시 부르세요. |
+| `register_competition` 이 `already_registered` | 이미 그 대회에 신청돼 있습니다(바꾸지 않음). 참여 방식·종목은 앱 대회 상세에서 수정하세요. |
 | 토큰을 잃어버림 | 다시 볼 수 없습니다. 기존 토큰 폐기 후 새로 발급하세요. |
 
 ---
