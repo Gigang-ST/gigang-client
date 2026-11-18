@@ -13,6 +13,7 @@
 // - **못한 것은 세지 않는다.** 빨라진 사람만 「▲」를 달고, 전원 출석 연속이 0이면 안 그린다.
 // - 승인된 참가자만 센다(입금 대기자는 아직 참가자가 아니다 — 점수판·트랙과 같은 경계).
 
+import { dayjs } from "@/lib/dayjs";
 import { crewGlance, predicted10k, type PbCrewAttd, type PbTeamSeries } from "@/lib/pb-class-chart";
 import type { PbRule, PbScoreboard, PbScoreMember } from "@/lib/pb-class-score";
 
@@ -281,4 +282,22 @@ export function orderPbTeamSlides<T extends Pick<PbTeamCard, "isMine" | "rank">>
   const slides: PbTeamSlide<T>[] = ordered.map((team) => ({ kind: "team", team }));
   if (hasNoTeam) slides.push({ kind: "noTeam" });
   return slides;
+}
+
+/**
+ * 다가오는 훈련 고르기(#698) — 삭제 안 됐고 **시작 시각이 지금보다 뒤**인 연결 벙 중 가장 이른 하나.
+ * 지난 회차는 절대 섞지 않는다(시작한 순간 후보에서 빠진다). 없으면 null.
+ */
+export function pickNextTraining(
+  links: readonly { gthrId: string; sttAt: string | null; delYn: boolean }[],
+  nowIso: string,
+): { gthrId: string; sttAt: string } | null {
+  const now = dayjs(nowIso);
+  let best: { gthrId: string; sttAt: string } | null = null;
+  for (const l of links) {
+    if (l.delYn || !l.sttAt) continue;
+    if (!dayjs(l.sttAt).isAfter(now)) continue;
+    if (!best || dayjs(l.sttAt).isBefore(dayjs(best.sttAt))) best = { gthrId: l.gthrId, sttAt: l.sttAt };
+  }
+  return best;
 }

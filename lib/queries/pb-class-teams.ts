@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { StoryPost } from "@/lib/queries/story-posts";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import type { Database } from "@/lib/supabase/database.types";
+import { pickNextTraining } from "@/lib/pb-class-teams";
 
 type Db = SupabaseClient<Database>;
 
@@ -64,4 +65,45 @@ export async function loadPbTeamPhotos(
       crt_at: r.crt_at,
     };
   });
+}
+
+/** 다가오는 공식훈련 한 회차 — 참석을 누른 사람 id 와 함께 */
+export type PbNextTraining = {
+  gthrId: string;
+  /** 시작 시각(timestamptz ISO) */
+  sttAt: string;
+  /** 참석 누른 사람 전원(프로젝트 참가자가 아닌 사람도 포함 — 모임 상세의 참석 수와 같다) */
+  attendeeIds: string[];
+};
+
+/**
+ * 이 프로젝트에 연결된 공식훈련·측정 벙 중 **아직 시작하지 않은 가장 가까운 회차**와 그 참석자(#698).
+ *
+ * 누적 출석 보드(`loadPbClassBoard`)는 지난 회차만 세고 캐시도 물고 있어 쓰지 않는다 — 참석 취소·누름이
+ * 바로 보이려면 이 조회는 요청마다 읽는다(두 번의 가벼운 SELECT). 권한은 별도 필요 없다:
+ * `evt_gthr_rel`·`gthr_mst`·`gthr_attd_rel` SELECT 정책이 모두 「같은 팀 멤버」라 일반 팀원 세션으로 읽힌다.
+ * 삭제(한파 취소)된 벙은 `gthr_mst` RLS 가 걸러 임베드가 null 로 온다 — 건너뛴다.
+ * 다가오는 회차가 없으면 null.
+ */
+export async function loadNextPbTraining(db: Db, evtId: string, nowIso: string): Promise<PbNextTraining | null> {
+  const { data, error } = await db
+    .from("evt_gthr_rel")
+    .select("gthr_id, gthr_mst(stt_at, del_yn)")
+    .eq("evt_id", evtId);
+  if (error) throw new Error(`loadNextPbTraining 조회 실패: ${error.message}`);
+
+  const next = pickNextTraining(
+    (data ?? []).map((r) => {
+      const g = Array.isArray(r.gthr_mst) ? r.gthr_mst[0] : r.gthr_mst;
+      return { gthrId: r.gthr_id, sttAt: g?.stt_at ?? null, delYn: g?.del_yn ?? true };
+    }),
+    nowIso,
+  );
+  if (!next) return null;
+
+  const rows = await fetchAllRows(
+    () => db.from("gthr_attd_rel").select("mem_id").eq("gthr_id", next.gthrId).order("attd_id", { ascending: true }),
+    { label: "pb-teams:next-gthr_attd_rel" },
+  );
+  return { ...next, attendeeIds: rows.map((r) => r.mem_id) };
 }

@@ -192,3 +192,31 @@ describe("PbScoreboard — Teams 칸 노출", () => {
     expect(out).not.toContain("data-teams-slot");
   });
 });
+
+describe("PbTeams — 다음 훈련 참석(#698)", () => {
+  const NEXT = { sttAt: "2026-11-25T19:30:00+09:00", attendeeIds: ["me", "b", "outsider"] };
+  const renderNext = (next: typeof NEXT | null) =>
+    html(
+      createElement(PbTeams, {
+        data: DATA,
+        measureWkNo: 13,
+        photosByGrp: new Map(),
+        viewer: VIEWER,
+        next,
+      }),
+    );
+
+  it("위 한 줄 — 날짜·시간·참석 인원, 참석 누른 팀원 옆에만 표시", () => {
+    const out = renderNext(NEXT);
+    expect(out).toContain("다음 훈련:");
+    expect(out).toContain("11/25(수) 19:30");
+    expect(out).toContain("3명");
+    // 홍길동(me)은 카드에 보이는 첫 장(번개팀)에 표시가 선다
+    expect(out.match(/다음 훈련 참석/g)?.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("다가오는 회차가 없으면 한 줄도 표시도 없다", () => {
+    const out = renderNext(null);
+    expect(out).not.toContain("다음 훈련");
+  });
+});
