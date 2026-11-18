@@ -79,6 +79,7 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `send_push` | `member_ids`(uuid[]), `title`, `message` | 지정 멤버에게 인앱+웹푸시 발송 | **admin** |
 | `send_kakao_notice` | `message`(최대 4000자), `mentions?`(이름[]), `request_id?`, `dry_run?` | 크루 카톡 단톡방에 노티봇 공지(자유 문구) — 방은 서버 설정으로 고정, 어드민 발송 이력에 남음 | **admin** |
 | `create_gathering` | `gthr_nm`, `gthr_type_enm`, `sprt_cd`, `stt_at`, `end_at?`, `loc_txt?`, `desc_txt?`, `max_prt_cnt?`, `dry_run?` | 새 모임(벙) 개설 — 작성자 자동 참석 + 팀 전원 알림 | **admin** |
+| `update_gathering` | `gathering_id`(uuid) + 바꿀 필드만(`gthr_nm`, `stt_at`, `end_at`, `loc_txt`, `max_prt_cnt`, `desc_txt`), `dry_run?`, `notify?` | 모임 수정 — 바뀐 필드 목록·전/후 반환. 알림은 `notify: true` 일 때만 | **모임 작성자 또는 admin** |
 | `create_sch_post` | `sch_nm`, `post_type`(`race_entry`·`sale`·`session`·`general`), `evt_stt_at`, `evt_end_at?`, `url?`, `cont_txt?`, `dry_run?` | 일정 탭에 소식(대회 접수 정보·판매·세션·일반) 등록 — 팀 전원 새 정보 알림 | 멤버 (앱과 같음) |
 
 ### 대회 도구 (#700)
@@ -216,6 +217,8 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `register_competition` 의 **`member_id`·`member_name`**(남을 대신 신청만) | 앱에서 남의 참가 신청을 넣는 화면은 없고(관리자 화면은 목록·삭제), 본인 신청은 멤버 누구나 합니다 |
 | `log_hyrox_record` 의 **`member_id`**(남의 기록 등록만) | 앱에서 남의 대회 기록을 넣는 건 관리자 「대신 등록」뿐입니다. 본인 기록은 멤버 누구나 넣습니다 |
 
+`update_gathering` 은 admin 전용이 아니라 **작성자 또는 admin** 입니다(앱의 수정 권한과 같습니다).
+
 `create_sch_post`(일정 소식 등록)는 **admin 전용이 아닙니다.** 앱에서 소식은 활성 멤버 누구나 올리고
 (`createSchPost` 의 `withActive`), MCP 토큰도 활성 멤버만 통과하므로 같은 범위입니다 — 앱보다 넓지도
 좁지도 않습니다. 팀은 토큰의 팀으로만 정해지고(인자로 `team_id` 를 넣어도 무시), 작성자는 토큰 주인입니다.
@@ -233,7 +236,19 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
   응답에 `gthr_url`(상세 링크)·`stt_at_kst`(저장된 시각)·`notified_cnt`(실제 알림 인원)·
   `kakao_notice`(단톡방 공지 `sent` / `skipped` / `failed`)가 실립니다. `failed` 면 모임 공유 시트의
   「단톡방에 알림」으로 다시 보내세요.
-- 수정·삭제 도구는 없습니다 — 잘못 만들었으면 `gthr_url` 로 들어가 웹에서 고치거나 지우세요.
+- 수정은 `update_gathering`(아래), 삭제 도구는 없습니다 — 지우려면 `gthr_url` 로 들어가 웹에서 지우세요.
+
+### 모임 수정(`update_gathering`)
+
+- `gathering_id` + **바꿀 필드만** 줍니다(이름·일시·장소·정원·본문). 안 준 필드는 그대로이고, 종류·종목·승인제·참여조건은 웹에서 고칩니다.
+  일시는 `create_gathering` 과 같은 KST `YYYY-MM-DD HH:mm`. `end_at`·`max_prt_cnt`·`desc_txt` 에 `null` 을 주면 비웁니다.
+- **먼저 `dry_run: true`.** 저장하지 않고 `changes`(필드별 `before`/`after`, 일시는 KST)만 돌려줍니다.
+- 응답은 `changed_fields`(실제로 달라진 필드)·`changes`·`notified_cnt`·`promoted_cnt`·`kakao_notice`·`audit_id`. 같은 값을 다시 주면 `changed_fields` 가 비고 아무것도 쓰지 않습니다.
+- **권한: 모임 작성자 또는 admin.** 팀은 토큰의 팀으로만 정해져 다른 팀 모임은 "찾을 수 없음"입니다. 지난 모임은 앱처럼 admin 만 고칩니다.
+- **알림은 기본으로 안 보냅니다**(앱은 항상 보냅니다). `notify: true` 일 때만 작성자를 뺀 참석자에게 `gthr_upd` 알림이 가고,
+  일시·장소가 바뀌었으면 단톡방 변경 공지도 요청합니다(`kakao_notice`: `requested`/`skipped`/`failed`).
+- 정원을 **늘리면** 앱처럼 대기자가 참석으로 올라갑니다(`promoted_cnt`). 승급 자체는 `notify` 와 무관하게 일어나고,
+  승급 알림·빈 자리 알림만 `notify: true` 일 때 나갑니다.
 
 ### 일정 소식 등록(`create_sch_post`) — `create_gathering` 과 같은 약속
 

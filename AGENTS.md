@@ -72,6 +72,7 @@ Before any Next.js work, find and read the relevant doc in `node_modules/next/di
 - **결정 기록(ADR)**: 이미 내린 결정은 `docs/decisions/`에 있다. **결정과 다르게 하려면 새 ADR부터** 쓴다 —
   코드나 이 문서만 바꾸면 다음 사람이 옛 결정을 근거로 되돌린다. 쓰는 법·문서 자리 구분은 `docs/decisions/README.md`
 - 상세 코딩 규칙은 `.claude/docs/coding-standards.md` 참조
+- **DB 마이그레이션을 실제 DB에 적용할 때**(dev·prd, 워커 위임 포함)는 `.claude/docs/migration-apply.md` 순서를 따른다 — 컬럼 조회 → dev 적용·검증 → 버전 대조 → 사람 승인 뒤 prd
 
 ## 멤버 인증/조회 패턴
 
