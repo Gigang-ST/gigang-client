@@ -12,6 +12,12 @@ import { KAKAO_MESSAGE_MAX_LENGTH, KAKAO_REQUEST_ID_MAX_LENGTH } from "@/lib/kak
 
 import { resolveOperator, type OperatorContext } from "@/lib/mcp/auth";
 import { HYROX_RECORD_DIVISIONS } from "@/lib/hyrox";
+import {
+  REGISTER_ROLES,
+  createCompetitionViaMcp,
+  listCompetitions,
+  registerCompetitionViaMcp,
+} from "@/lib/mcp/competition";
 import { createGatheringViaMcp } from "@/lib/mcp/create-gathering";
 import { createSchPostViaMcp } from "@/lib/mcp/create-sch-post";
 import { listHyroxCompetitions, listHyroxRankings, logHyroxRecord } from "@/lib/mcp/hyrox";
@@ -40,6 +46,7 @@ import {
   sendKakaoNotice,
 } from "@/lib/mcp/send-kakao-notice";
 import { sendPush } from "@/lib/mcp/send-push";
+import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 import { syncPersonRecordToOtherTeams } from "@/lib/records-revalidate";
@@ -441,6 +448,89 @@ const handler = createMcpHandler(
           // 홈 캘린더 캐시를 턴다(create_gathering 과 같은 이유) — DB 웹훅(`/api/revalidate`)도
           // sch_post_mst 를 보지만, 도구 응답을 받고 바로 일정 탭을 여는 사람에게 늦지 않게.
           if (!args.dry_run) revalidateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, ctx.team_id), "max");
+          return result;
+        }),
+    );
+
+    // ── 대회 도구 3개(#700). 조회·신청은 멤버(신청은 본인 것만), 대회 추가는 admin 전용.
+    //    팀 알림·단톡 공지는 보내지 않는다(웹과 같다). ──
+
+    server.registerTool(
+      "list_competitions",
+      {
+        title: "대회 찾기",
+        description:
+          "대회를 이름 일부·시작일 기간·종목(sport)으로 찾습니다(시작일 최신순 최대 50건). " +
+          "comp_id·종목(event_types)·내 신청 상태(my_registration)가 실립니다 — create_competition 전에 같은 대회가 이미 있는지, " +
+          "register_competition 에 넣을 comp_id 를 고르는 용도입니다.",
+        inputSchema: {
+          query: z.string().max(50).optional().describe("대회명 일부"),
+          from: z.string().optional().describe("이 날짜(YYYY-MM-DD) 이후 시작"),
+          to: z.string().optional().describe("이 날짜(YYYY-MM-DD)까지 시작"),
+          sport: z.string().max(30).optional().describe("종목 코드(COMP_SPRT_CD, 예: road_run·triathlon·hyrox)"),
+        },
+      },
+      async (args, extra) => runTool(extra, (ctx, supabase) => listCompetitions(supabase, ctx, args)),
+    );
+
+    server.registerTool(
+      "create_competition",
+      {
+        title: "대회 추가",
+        description:
+          "대회를 새로 등록합니다(관리자 대회 등록 폼과 같은 필드·검증). 운영진(admin) 전용입니다. " +
+          "같은 이름·시작일 대회가 이미 있으면 만들지 않고 기존 것을 돌려줍니다(status=exists). " +
+          "날짜는 YYYY-MM-DD, 지난 대회는 거부됩니다(기록 입력에서 추가). sport 는 종목 공통코드, event_types 는 코스(영문·숫자, 1개 이상). " +
+          "먼저 dry_run=true 로 불러 해석된 값을 사용자에게 확인받은 뒤 저장하세요. 팀 알림·단톡 공지는 보내지 않습니다. " +
+          "수정·삭제 도구는 없습니다 — 잘못 만들었으면 comp_url 로 들어가 웹에서 고치세요.",
+        inputSchema: {
+          title: z.string().min(1, "대회명을 입력하세요.").max(200),
+          sport: z.string().min(1, "종목을 입력하세요.").max(30).describe("COMP_SPRT_CD 코드값"),
+          start_date: z.string().min(1).describe("시작일 YYYY-MM-DD"),
+          end_date: z.string().nullable().optional().describe("종료일 YYYY-MM-DD(하루짜리면 생략)"),
+          location: z.string().min(1, "장소를 입력하세요.").max(200),
+          event_types: z.array(z.string().min(1)).min(1, "코스를 1개 이상 입력하세요.").max(20),
+          source_url: z.string().min(1, "공식 URL 을 입력하세요.").max(500),
+          dry_run: z.boolean().optional().describe("true 면 검증·중복 확인만 하고 저장하지 않습니다."),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, async (ctx, supabase) => {
+          const cmmRows = await getCachedCmmCdRows();
+          const result = await createCompetitionViaMcp(supabase, ctx, args, cmmRows, await resolveBaseUrl(ctx.team_id));
+          // 웹 `createCompetition` 과 같은 무효화 — 대회 원본 캐시
+          if (result.status === "created") revalidateTag("competitions", "max");
+          return result;
+        }),
+    );
+
+    server.registerTool(
+      "register_competition",
+      {
+        title: "대회 참가 신청",
+        description:
+          "대회 참가 신청을 합니다 — 기본은 **내** 신청이고, 운영진(admin)만 member_id 또는 member_name 으로 다른 회원을 대신 신청할 수 있습니다" +
+          "(이름이 여럿에 맞으면 등록하지 않고 candidates 만 돌려줍니다 — member_id 로 다시 부르세요. 대상은 우리 팀 활동 회원, 알림은 가지 않습니다). role 은 participant(참가, 기본)·cheering(응원)·volunteer(봉사). " +
+          "participant 는 event_type(코스, 예: FULL·HALF·10K)이 필수이고 대회에 없는 코스면 웹처럼 대회에 붙습니다. " +
+          "이미 신청돼 있으면 바꾸지 않고 현재 상태를 돌려줍니다(status=already_registered). " +
+          "comp_id 는 list_competitions 로 확인하세요. 먼저 dry_run=true 로 불러 확인받은 뒤 신청하세요. 팀 알림·단톡 공지는 보내지 않습니다.",
+        inputSchema: {
+          comp_id: z.string().uuid("comp_id 는 uuid 여야 합니다."),
+          role: z.enum(REGISTER_ROLES).optional().describe("participant(기본) | cheering | volunteer"),
+          event_type: z.string().max(50).nullable().optional().describe("참가 코스(participant 일 때 필수)"),
+          member_id: z.string().uuid().optional().describe("대신 신청할 회원 uuid(admin). 안 주면 내 신청"),
+          member_name: z.string().max(50).optional().describe("대신 신청할 회원 이름(admin, 완전일치). 동명이인이면 등록 안 하고 후보만 반환"),
+          dry_run: z.boolean().optional().describe("true 면 신청하지 않고 결과만 미리 봅니다."),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, async (ctx, supabase) => {
+          const result = await registerCompetitionViaMcp(supabase, ctx, args);
+          if (result.status === "registered") {
+            // 웹 신청 뒤 `revalidateTeamCompetitionPlans` 와 같다 — 이 팀의 일정·피드 캐시만
+            revalidateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, ctx.team_id), "max");
+            revalidateTag(teamCacheTag("story-feed", ctx.team_id), "max");
+          }
           return result;
         }),
     );

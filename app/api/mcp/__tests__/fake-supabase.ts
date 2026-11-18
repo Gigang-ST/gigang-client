@@ -81,6 +81,10 @@ class FakeQuery implements PromiseLike<{ data: unknown; error: unknown }> {
     this.filters.push({ col, kind: "lte", val });
     return this;
   }
+  ilike(col: string, pattern: string) {
+    this.filters.push({ col, kind: "ilike", val: pattern });
+    return this;
+  }
   in(col: string, val: unknown[]) {
     this.filters.push({ col, kind: "in", val });
     return this;
@@ -113,6 +117,11 @@ class FakeQuery implements PromiseLike<{ data: unknown; error: unknown }> {
           return (actual as string) <= (f.val as string);
         case "in":
           return (f.val as unknown[]).includes(actual);
+        case "ilike": {
+          // `%조각%` 만 쓴다 — 부분 문자열 대소문자 무시 일치로 흉내 낸다
+          const needle = String(f.val).replace(/%/g, "").toLowerCase();
+          return String(actual ?? "").toLowerCase().includes(needle);
+        }
         default:
           return true;
       }
@@ -216,6 +225,14 @@ export class FakeSupabase {
         return { act_id: `act00000-0000-4000-8000-${n}` };
       case "gthr_mst":
         return { gthr_id: `gth00000-0000-4000-8000-${n}`, short_id: `s${n}` };
+      case "comp_mst":
+        return { comp_id: `cmp00000-0000-4000-8000-${n}`, short_id: `c${n}`, crt_at: "2026-11-19T00:00:00Z" };
+      case "comp_evt_cfg":
+        return { comp_evt_id: `evt00000-0000-4000-8000-${n}` };
+      case "team_comp_plan_rel":
+        return { team_comp_id: `tcp00000-0000-4000-8000-${n}` };
+      case "comp_reg_rel":
+        return { comp_reg_id: `reg00000-0000-4000-8000-${n}` };
       default:
         return {};
     }
