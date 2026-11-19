@@ -1,6 +1,7 @@
 "use server";
 
-import { confirmTransactions, type ConfirmItem } from "@/app/actions/dues/confirm-transactions";
+import { confirmTransactions } from "@/app/actions/dues/confirm-transactions";
+import type { ConfirmItem } from "@/lib/dues/confirm-core";
 import { recalculateBalance } from "@/app/actions/dues/recalculate-balance";
 import { learnAliases } from "@/app/actions/dues/learn-aliases";
 

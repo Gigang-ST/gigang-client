@@ -20,6 +20,20 @@ import {
 } from "@/lib/mcp/competition";
 import { createGatheringViaMcp } from "@/lib/mcp/create-gathering";
 import { updateGatheringViaMcp } from "@/lib/mcp/update-gathering";
+import {
+  BALANCES_DEFAULT_LIMIT,
+  INBOX_DEFAULT_LIMIT,
+  INBOX_MAX_LIMIT,
+  MAX_CONFIRM_ITEMS,
+  MAX_UPLOAD_ROWS,
+  MAX_XLSX_BASE64_LENGTH,
+  cancelDuesTxn,
+  confirmDuesTxns,
+  getDuesBalances,
+  listDuesInbox,
+  reclassifyDuesTxn,
+  uploadDuesXlsx,
+} from "@/lib/mcp/dues";
 import { createSchPostViaMcp } from "@/lib/mcp/create-sch-post";
 import { listHyroxCompetitions, listHyroxRankings, logHyroxRecord } from "@/lib/mcp/hyrox";
 import {
@@ -56,6 +70,7 @@ import { SCH_POST_TYPES } from "@/lib/validations/schedule";
 import { teamCacheTag } from "@/lib/team-cache-tag";
 import { TEAM_ID_BY_CD } from "@/lib/constants/gigang-team";
 import { teamLinkOrigin } from "@/lib/team-host";
+import { getTeamCfg } from "@/lib/team-cfg/read";
 
 /** MCP 도구 응답 도우미 — 사실 payload를 text JSON 으로 감싼다. */
 function textResult(payload: unknown) {
@@ -136,6 +151,23 @@ async function runTool<T>(
 }
 
 /**
+ * 회비 도구 실행 래퍼 — `runTool` + **회비 기능이 켜진 팀만**(앱의 `withDuesAdmin` 과 같은 경계).
+ * 회비를 안 쓰는 팀(울산)의 admin 토큰으로도 회비 데이터를 읽거나 쓰지 못하게 한다.
+ * 팀 설정 조회가 실패하면 앱처럼 끈 것으로 본다(`getTeamCfg` 의 실패 시 값).
+ */
+async function runDuesTool<T>(
+  extra: { authInfo?: { extra?: unknown } },
+  fn: (ctx: OperatorContext, supabase: ReturnType<typeof createAdminClient>) => Promise<T>,
+) {
+  return runTool(extra, async (ctx, supabase) => {
+    if (!(await getTeamCfg(ctx.team_id, "feature.dues"))) {
+      throw new ToolInputError("이 팀은 회비 기능을 쓰지 않아요.");
+    }
+    return fn(ctx, supabase);
+  });
+}
+
+/**
  * 기강 운영 MCP — Streamable HTTP 엔드포인트.
  *
  * 라우트 위치가 `app/api/mcp/[transport]/route.ts` 이므로 basePath 는 `/api/mcp`,
@@ -156,6 +188,8 @@ async function runTool<T>(
  *   - **팀을 들여다보는 것**(운영진 용도) — 조회 6종 + 쓰기 4종(`send_push`·`send_kakao_notice`
  *     ·`create_gathering`·`create_sch_post`). `create_sch_post` 만 admin 이 아니다 — 앱에서 소식은 활성 멤버 누구나
  *     올리므로(#630) 그 범위를 그대로 따른다.
+ *   - **회비 도구 6종**(#702 — `upload_dues_xlsx`·`list_dues_inbox`·`confirm_dues_txns`·`cancel_dues_txn`·
+ *     `reclassify_dues_txn`·`get_dues_balances`) — 전부 admin 전용 + 회비 기능이 켜진 팀만(`runDuesTool`).
  *   - **내 것**(마일리지런 개인 도구 7종, #497) — 대상 멤버를 인자로 받지 않고 `ctx.mem_id` 로만
  *     스코프한다. admin 이어도 남의 기록에는 손대지 못한다.
  */
@@ -806,6 +840,166 @@ const handler = createMcpHandler(
           return result;
         }),
     );
+    // ── 회비 도구 6개(#702). 전부 admin 전용 · 회비 기능이 켜진 팀만 · 쓰기는 dry_run 지원 · 감사행 필수.
+    //    도메인 규칙은 앱 서버 액션과 같은 코어(`lib/dues/*-core.ts`)를 부른다. 입금자명·금액은 로그에 남기지 않는다. ──
+
+    server.registerTool(
+      "upload_dues_xlsx",
+      {
+        title: "회비 거래내역 업로드",
+        description:
+          "카카오뱅크 거래내역을 **미확정 거래로 적재**합니다(확정은 하지 않습니다). 운영진(admin) 전용. " +
+          "입력은 xlsx_base64(복호화된 엑셀 파일 base64)와 rows(거래 행 JSON) 중 **정확히 하나**입니다. " +
+          "같은 파일·같은 행 묶음을 두 번 올려도, 이미 적재된 거래가 섞여 있어도 중복 적재되지 않고 요약의 skipped 로 셉니다. " +
+          "이미 마감된 회원의 과거 거래는 skippedByCutoff 로 건너뜁니다. " +
+          "응답 summary: total(읽은 행) · autoDone(자동 확정 후보) · needsReview(확인필요) · excluded(제외·지출) · skipped(중복) · skippedByCutoff. " +
+          "**먼저 dry_run=true 로 불러** 무엇이 새로 들어가는지 확인한 뒤 실제로 올리세요. 다음 단계는 list_dues_inbox.",
+        inputSchema: {
+          file_name: z.string().min(1).max(200).describe("업로드 이력에 남길 파일 이름(예: 2026-11.xlsx)"),
+          xlsx_base64: z.string().min(1).max(MAX_XLSX_BASE64_LENGTH).optional().describe("거래내역 엑셀 파일을 base64 로 인코딩한 값"),
+          rows: z
+            .array(
+              z.object({
+                txn_dt: z.string().describe("거래일 YYYY-MM-DD"),
+                txn_tm: z.string().describe("거래 시각 HH:mm:ss(KST) — 필수(중복 방지 키)"),
+                amount: z.number().int().positive().describe("금액(원, 양수)"),
+                io: z.enum(["deposit", "withdrawal"]).describe("deposit=입금, withdrawal=출금"),
+                name: z.string().min(1).describe("거래 내용(입금자명)"),
+                memo: z.string().nullable().optional(),
+                txn_tp: z.string().nullable().optional().describe("거래구분(예: 예금이자). 이자·타행자동이체는 기타로 분류됩니다."),
+              }),
+            )
+            .max(MAX_UPLOAD_ROWS)
+            .optional()
+            .describe("엑셀 대신 거래 행을 직접 넘길 때"),
+          dry_run: z.boolean().optional().describe("true 면 적재하지 않고 요약만 계산합니다."),
+        },
+      },
+      async (args, extra) =>
+        runDuesTool(extra, (ctx, supabase) =>
+          uploadDuesXlsx(supabase, ctx, {
+            fileName: args.file_name,
+            xlsxBase64: args.xlsx_base64,
+            rows: args.rows,
+            dryRun: args.dry_run,
+          }),
+        ),
+    );
+
+    server.registerTool(
+      "list_dues_inbox",
+      {
+        title: "회비 처리 대기 목록",
+        description:
+          "미확정(처리 대기) 회비 거래 목록입니다. 운영진(admin) 전용. 앱 「회비 > 처리」와 같은 3버킷으로 나눕니다: " +
+          "autoDone(이름이 한 회원에게 정확히 맞는 회비 입금) · needsReview(미매칭·동명이인·프로젝트 후보 — 사람이 분류를 정해야 함) · excluded(출금·기타). " +
+          "auto_eligible=true 인 건만 confirm_dues_txns 의 auto 로 일괄 확정됩니다(금액이 월회비 배수가 아니면 자동에서 빠집니다). " +
+          "확인필요 건에는 후보 회원(candidates)이 붙고, 응답 머리에 확정에 쓸 분류 코드(fee_items)와 모금 중 프로젝트(projects)가 실립니다. " +
+          "입금자명·금액이 들어 있으니 필요한 만큼만 사용자에게 보여 주세요.",
+        inputSchema: {
+          bucket: z.enum(["autoDone", "needsReview", "excluded"]).optional().describe("한 버킷만 보고 싶을 때"),
+          limit: z.number().int().min(1).max(INBOX_MAX_LIMIT).optional().describe(`기본 ${INBOX_DEFAULT_LIMIT}`),
+        },
+      },
+      async (args, extra) =>
+        runDuesTool(extra, (ctx, supabase) => listDuesInbox(supabase, ctx, { bucket: args.bucket, limit: args.limit })),
+    );
+
+    server.registerTool(
+      "confirm_dues_txns",
+      {
+        title: "회비 거래 확정",
+        description:
+          "처리 대기 거래를 확정합니다. 운영진(admin) 전용. 회비(due)+회원이면 납부원장이 만들어지고 그 회원 잔액이 다시 계산됩니다. " +
+          "**확인필요 건은 items 에 txn_id 와 fee_item_cd 를 명시해야만 확정됩니다.** auto=true 는 자동 후보(list_dues_inbox 의 auto_eligible)만 더합니다. " +
+          "분류: 회비 due(mem_id 필수) · 프로젝트 event_fee(project_id 필수) · 지출 expense(출금) · 제외 other. 출금을 회비·프로젝트로, 입금을 지출로 확정할 수는 없습니다. " +
+          "mem_id 는 이 팀 회원 uuid 입니다(후보는 candidates, 그 밖은 get_member_profile 로 찾으세요). remember_alias=true 면 입금자명을 그 회원의 별칭으로 기억해 다음 업로드부터 자동 매칭합니다. " +
+          "검증을 못 넘은 건은 skipped 에 사유와 함께 남고 나머지는 진행됩니다. **먼저 dry_run=true 로 불러** 확정될 건과 skipped 사유를 확인하세요.",
+        inputSchema: {
+          items: z
+            .array(
+              z.object({
+                txn_id: z.string().uuid(),
+                fee_item_cd: z.string().min(1).optional().describe("분류 코드(due·event_fee·expense·other·…). 확인필요 건은 필수"),
+                mem_id: z.string().uuid().optional().describe("납부·관련 회원. 안 주면 저장된 매칭 유지(매칭을 지우는 기능은 없습니다)"),
+                project_id: z.string().uuid().optional().describe("event_fee 일 때 귀속 프로젝트(list_dues_inbox.projects)"),
+                remember_alias: z.boolean().optional(),
+              }),
+            )
+            .max(MAX_CONFIRM_ITEMS)
+            .optional(),
+          auto: z.boolean().optional().describe("true 면 자동 확정 후보를 전부 더합니다."),
+          dry_run: z.boolean().optional().describe("true 면 확정하지 않고 결과만 미리 봅니다."),
+        },
+      },
+      async (args, extra) =>
+        runDuesTool(extra, (ctx, supabase) =>
+          confirmDuesTxns(supabase, ctx, { items: args.items, auto: args.auto, dryRun: args.dry_run }),
+        ),
+    );
+
+    server.registerTool(
+      "cancel_dues_txn",
+      {
+        title: "회비 거래 확정 취소",
+        description:
+          "확정된 거래 1건을 처리 대기로 되돌립니다(납부원장 취소 + 그 회원 잔액 재계산). 운영진(admin) 전용. " +
+          "원장 전환 이전 개시잔액에 포함된 거래는 취소할 수 없습니다(거부 사유가 응답에 담깁니다). 먼저 dry_run=true 로 가능 여부를 확인하세요.",
+        inputSchema: {
+          txn_id: z.string().uuid(),
+          dry_run: z.boolean().optional(),
+        },
+      },
+      async (args, extra) =>
+        runDuesTool(extra, (ctx, supabase) => cancelDuesTxn(supabase, ctx, { txnId: args.txn_id, dryRun: args.dry_run })),
+    );
+
+    server.registerTool(
+      "reclassify_dues_txn",
+      {
+        title: "회비 거래 재분류",
+        description:
+          "이미 확정된 거래의 분류·회원·프로젝트를 바꿉니다(확정 취소 → 새 값으로 재확정, 영향받은 회원 잔액 재계산). 운영진(admin) 전용. " +
+          "취소 가능 여부와 새 값을 먼저 둘 다 검증하고, 재확정이 실패하면 원래 값으로 되돌려 둡니다. 같은 값으로는 바꿀 수 없습니다. " +
+          "분류 규칙은 confirm_dues_txns 와 같습니다(회비=mem_id 필수, 프로젝트=project_id 필수). 먼저 dry_run=true 로 from→to 를 확인하세요.",
+        inputSchema: {
+          txn_id: z.string().uuid(),
+          fee_item_cd: z.string().min(1),
+          mem_id: z.string().uuid().optional(),
+          project_id: z.string().uuid().optional(),
+          remember_alias: z.boolean().optional(),
+          dry_run: z.boolean().optional(),
+        },
+      },
+      async (args, extra) =>
+        runDuesTool(extra, (ctx, supabase) =>
+          reclassifyDuesTxn(supabase, ctx, {
+            txnId: args.txn_id,
+            feeItemCd: args.fee_item_cd,
+            memId: args.mem_id,
+            projectId: args.project_id,
+            rememberAlias: args.remember_alias,
+            dryRun: args.dry_run,
+          }),
+        ),
+    );
+
+    server.registerTool(
+      "get_dues_balances",
+      {
+        title: "회원 회비 예치·미납 현황",
+        description:
+          "활성 회원의 회비 잔액 현황입니다. 운영진(admin) 전용. balance 음수=미납, 양수=예치이고 months 는 월회비 단위 환산(내림)입니다. " +
+          "미납이 큰 순으로 정렬되며 summary 에 인원·합계가 담깁니다. 잔액은 앱 회비 원장(스냅샷)과 같은 값입니다 — 통장 잔액과의 대조는 별도입니다.",
+        inputSchema: {
+          status: z.enum(["미납", "정상", "예치"]).optional(),
+          limit: z.number().int().min(1).max(500).optional().describe(`기본 ${BALANCES_DEFAULT_LIMIT}`),
+        },
+      },
+      async (args, extra) =>
+        runDuesTool(extra, (ctx, supabase) => getDuesBalances(supabase, ctx, { status: args.status, limit: args.limit })),
+    );
+
   },
   {
     serverInfo: { name: "gigang-ops-mcp", version: "0.1.0" },
