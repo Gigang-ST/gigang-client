@@ -4,6 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { dayjs } from "@/lib/dayjs";
 
+import { amountHintOf } from "@/lib/dues/amount-hint";
+import { loadAmountContext } from "@/lib/dues/load-amount-context";
 import { matchPayer, type MemberRef, type AliasRef } from "@/lib/dues/match-payer";
 import { bucketOf } from "@/lib/dues/upload-bucketize";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
@@ -155,6 +157,16 @@ export async function ingestDuesRows(
 
   if (existing) return { ok: false, message: "이미 처리된 파일입니다." };
 
+  // 금액으로 명목 먼저 가르기(#708) — 업로드 이력 INSERT 전에 읽는다(실패해도 같은 파일을 다시 올릴 수 있게).
+  // 조회 실패는 삼키지 않는다: 삼키면 힌트 없이 회비로 자동 확정된다.
+  let amountCtx: Awaited<ReturnType<typeof loadAmountContext>>;
+  try {
+    amountCtx = await loadAmountContext(db, teamId);
+  } catch (e) {
+    console.error("[ingestDuesRows] 금액 맥락 조회 실패:", e instanceof Error ? e.message : "unknown");
+    return { ok: false, message: "프로젝트 참가비 조회에 실패했습니다. 다시 시도하세요." };
+  }
+
   let updId: string | null = null;
   if (!dryRun) {
     const { data: upd, error: updErr } = await db
@@ -254,7 +266,13 @@ export async function ingestDuesRows(
     const match = matchPayer(row.raw_name, memberRefs, aliasRefs);
     const matchStatus = match.status; // "matched" | "unmatched" | "ambiguous"
     const memId = match.memId;
-    const bucket = bucketOf({ io: row.txn_io_enm, itemCd: row.fee_item_cd, matchStatus });
+    const amountHint =
+      row.fee_item_cd === "due"
+        ? amountHintOf({ io: row.txn_io_enm, amt: row.txn_amt, memId, rules: amountCtx.rules, monthlyFeeAmt: amountCtx.monthlyFeeAmt })
+        : null;
+    // 프로젝트 참가비와 같은 금액이면 분류를 프로젝트로 먼저 제안한다(귀속 프로젝트는 운영자가 고른다)
+    const itemCd = amountHint?.kind === "project" && validCds.has("event_fee") ? "event_fee" : row.fee_item_cd;
+    const bucket = bucketOf({ io: row.txn_io_enm, itemCd, matchStatus, amountHint });
     if (bucket === "autoDone") autoDone++;
     else if (bucket === "needsReview") needsReview++;
     else excluded++;
@@ -282,7 +300,7 @@ export async function ingestDuesRows(
     }
 
     // 공통코드에 없는 분류면 'other'로 폴백
-    const feeItemCd = validCds.has(row.fee_item_cd) ? row.fee_item_cd : "other";
+    const feeItemCd = validCds.has(itemCd) ? itemCd : "other";
 
     if (dryRun) {
       const k = dedupKey(row);

@@ -5,6 +5,8 @@ import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import { LEDGER_EPOCH } from "@/lib/dues/ledger-replay";
+import { amountHintForRow, type AmountHint } from "@/lib/dues/amount-hint";
+import { loadAmountContext } from "@/lib/dues/load-amount-context";
 import { matchPayer, type MemberRef, type AliasRef } from "@/lib/dues/match-payer";
 import { bucketOf } from "@/lib/dues/upload-bucketize";
 import { duplicateNames } from "@/lib/dues/homonyms";
@@ -24,6 +26,8 @@ export type InboxTxn = {
   feeItemCd: string | null;
   /** 저장된 프로젝트 귀속 — 수동 등록·확정취소로 재노출된 event_fee 행의 기본값 시드 */
   projectId: string | null;
+  /** 금액으로 본 명목 힌트(#708) — 프로젝트 참가비와 같은 금액 / 월회비 단위가 아닌 금액. 없으면 null */
+  amountHint: AmountHint | null;
   bucket: "autoDone" | "needsReview" | "excluded";
   candidates: { memId: string; name: string; score: number; birthDt: string | null }[];
 };
@@ -90,14 +94,20 @@ export async function getInboxTxns(): Promise<{
     .order("txn_dt", { ascending: true });
   if (rowsErr) throw new Error(`거래 조회 실패: ${rowsErr.message}`);
 
+  // 금액으로 명목 먼저 가르기(#708) — 이름이 맞아도 금액이 프로젝트 참가비·비월회비면 확인필요로 내린다
+  const amountCtx = await loadAmountContext(db, teamId);
+
   const txns: InboxTxn[] = (rows ?? []).map((r) => {
     const match = matchPayer(r.raw_name, memberRefs, aliasRefs);
     const matchStatus = (r.match_st_cd ?? match.status) as InboxTxn["matchStatus"];
     const io = r.txn_io_enm as "deposit" | "withdrawal";
+    const itemCd = r.fee_item_cd ?? "other";
+    const amountHint = amountHintForRow({ io, itemCd, amt: r.txn_amt, memId: r.mem_id, ctx: amountCtx });
     const bucket = bucketOf({
       io,
-      itemCd: r.fee_item_cd ?? "other",
+      itemCd,
       matchStatus,
+      amountHint,
     });
     return {
       txnId: r.txn_id,
@@ -111,6 +121,7 @@ export async function getInboxTxns(): Promise<{
       feeItemCd: r.fee_item_cd,
       projectId: r.project_id,
       bucket,
+      amountHint,
       candidates: match.candidates.map((c) => ({ ...c, birthDt: birthFor(c.memId, c.name) })),
     };
   });

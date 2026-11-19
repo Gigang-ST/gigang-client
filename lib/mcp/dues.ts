@@ -2,6 +2,8 @@ import crypto from "crypto";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { amountHintForRow, amountHintLabel, type AmountHint } from "@/lib/dues/amount-hint";
+import { loadAmountContext, type AmountContext } from "@/lib/dues/load-amount-context";
 import { cancelTransactionCore } from "@/lib/dues/cancel-core";
 import { confirmTransactionsCore, type ConfirmItem } from "@/lib/dues/confirm-core";
 import { duplicateNames } from "@/lib/dues/homonyms";
@@ -145,22 +147,25 @@ type TxnRow = {
 const TXN_COLS =
   "txn_id, txn_dt, txn_tm, txn_amt, txn_io_enm, raw_name, raw_memo, mem_id, match_st_cd, fee_item_cd, project_id, is_cfm_yn";
 
-function bucketOfRow(t: TxnRow): Bucket {
+/** 금액 힌트(#708) — 앱 처리 화면과 같은 판정(`amountHintForRow`)이다. ctx 가 없으면(분류를 직접 지정하는 경로) 보지 않는다. */
+function hintOfRow(t: TxnRow, amountCtx: AmountContext | null): AmountHint | null {
+  if (!amountCtx) return null;
+  return amountHintForRow({
+    io: t.txn_io_enm as "deposit" | "withdrawal",
+    itemCd: t.fee_item_cd ?? "other",
+    amt: t.txn_amt,
+    memId: t.mem_id,
+    ctx: amountCtx,
+  });
+}
+
+function bucketOfRow(t: TxnRow, amountCtx: AmountContext | null = null): Bucket {
   return bucketOf({
     io: t.txn_io_enm as "deposit" | "withdrawal",
     itemCd: t.fee_item_cd ?? "other",
     matchStatus: (t.match_st_cd ?? "unmatched") as "matched" | "unmatched" | "ambiguous",
+    amountHint: hintOfRow(t, amountCtx),
   });
-}
-
-/**
- * 자동 확정 후보에서 뺄 금액인가 — 월회비 단위가 아닌 입금은 회비가 아닐 수 있다(프로젝트 참가비·기부 등).
- * 금액 힌트 규칙(#708 · PR #714)이 들어오기 전까지의 보수적 안전장치다: 이름이 맞아도 금액이 월회비의
- * 배수가 아니면 자동으로 확정하지 않고 확인필요로 둔다.
- */
-function isMonthlyFeeUnit(amt: number, monthlyFee: number | null): boolean {
-  if (!monthlyFee || monthlyFee <= 0) return false;
-  return amt % monthlyFee === 0;
 }
 
 // ─────────────────────────────── upload_dues_xlsx ───────────────────────────────
@@ -295,6 +300,8 @@ export type InboxItem = {
   bucket: Bucket;
   /** 자동 확정 후보인가(`confirm_dues_txns` 의 auto 가 집는 건) */
   auto_eligible: boolean;
+  /** 금액으로 본 명목 힌트(프로젝트 참가비와 같은 금액·월회비 단위 아님) — 있으면 자동에서 빠지고 확인필요다 */
+  amount_hint: string | null;
   candidates: { mem_id: string; name: string; score: number; birth_dt: string | null }[];
 };
 
@@ -361,10 +368,11 @@ export async function listDuesInbox(
   requireAdmin(ctx);
   const limit = Math.min(input.limit ?? INBOX_DEFAULT_LIMIT, INBOX_MAX_LIMIT);
 
-  const [rows, mctx, monthly, feeItems, projects] = await Promise.all([
+  const [rows, mctx, monthly, amountCtx, feeItems, projects] = await Promise.all([
     loadUnconfirmed(db, ctx.team_id),
     loadMatchContext(db, ctx.team_id),
     latestMonthlyFee(db, ctx.team_id),
+    loadAmountContext(db, ctx.team_id),
     loadFeeItems(db, ctx.team_id),
     loadActiveProjects(db, ctx.team_id),
   ]);
@@ -373,7 +381,7 @@ export async function listDuesInbox(
   const counts = { total: rows.length, auto: 0, needs_review: 0, excluded: 0 };
 
   const all: InboxItem[] = rows.map((r) => {
-    const bucket = bucketOfRow(r);
+    const bucket = bucketOfRow(r, amountCtx);
     const match = matchPayer(r.raw_name, mctx.memberRefs, mctx.aliasRefs);
     if (bucket === "autoDone") counts.auto++;
     else if (bucket === "needsReview") counts.needs_review++;
@@ -392,7 +400,8 @@ export async function listDuesInbox(
       mem_nm: r.mem_id ? (mctx.nameById.get(r.mem_id) ?? null) : null,
       project_id: r.project_id,
       bucket,
-      auto_eligible: bucket === "autoDone" && isMonthlyFeeUnit(r.txn_amt, monthly),
+      auto_eligible: bucket === "autoDone",
+      amount_hint: ((h) => (h ? amountHintLabel(h) : null))(hintOfRow(r, amountCtx)),
       // 후보는 확인필요 건에만 — 나머지는 이미 정해졌다. 생년월일은 동명이인 구분에만 쓴다.
       candidates:
         bucket === "needsReview"
@@ -489,8 +498,9 @@ function planItem(
   validCds: Set<string>,
   inTeamMemIds: Set<string> | null,
   validPrjIds: Set<string> | null = null,
+  amountCtx: AmountContext | null = null,
 ): Planned | string {
-  const bucket = bucketOfRow(t);
+  const bucket = bucketOfRow(t, amountCtx);
   const explicitDecision = req.fee_item_cd !== undefined;
   if (bucket === "needsReview" && !explicitDecision) {
     return "확인필요 건입니다 — fee_item_cd(회비 due·프로젝트 event_fee·제외 other 등)를 직접 지정해야 확정됩니다.";
@@ -549,12 +559,13 @@ export async function confirmDuesTxns(db: Db, ctx: OperatorContext, input: Confi
   }
   const byId = new Map(rows.map((r) => [r.txn_id, r]));
 
+  // 금액 힌트(#708): 자동 후보 판정과 확정 검증이 앱 처리 화면과 같은 기준을 쓴다
+  const amountCtx = await loadAmountContext(db, ctx.team_id);
   if (input.auto) {
-    const monthly = await latestMonthlyFee(db, ctx.team_id);
     const unconfirmed = await loadUnconfirmed(db, ctx.team_id);
     for (const t of unconfirmed) {
       if (requests.has(t.txn_id)) continue;
-      if (bucketOfRow(t) !== "autoDone" || !isMonthlyFeeUnit(t.txn_amt, monthly)) continue;
+      if (bucketOfRow(t, amountCtx) !== "autoDone") continue;
       if (requests.size >= MAX_CONFIRM_ITEMS) break;
       requests.set(t.txn_id, { txn_id: t.txn_id });
       byId.set(t.txn_id, t);
@@ -576,7 +587,7 @@ export async function confirmDuesTxns(db: Db, ctx: OperatorContext, input: Confi
       skipped.push({ txn_id: txnId, reason: "이미 확정된 거래입니다(고치려면 reclassify_dues_txn)." });
       continue;
     }
-    const p = planItem(t, req, validCds, inTeam, validPrjIds);
+    const p = planItem(t, req, validCds, inTeam, validPrjIds, amountCtx);
     if (typeof p === "string") skipped.push({ txn_id: txnId, reason: p });
     else planned.push(p);
   }

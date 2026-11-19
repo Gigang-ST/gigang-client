@@ -101,6 +101,9 @@ function seed(extra: Record<string, Row[]> = {}) {
     fee_mem_bal_snap: [],
     fee_policy_cfg: [{ team_id: TEAM, vers: 0, del_yn: false, monthly_fee_amt: 2000, aply_stt_dt: "2026-01-01" }],
     cmm_cd_mst: ["due", "event_fee", "expense", "other"].map(code),
+    evt_team_mst: [],
+    evt_pb_cfg: [],
+    evt_pb_prt_rel: [],
     fee_prj_mst: [{ prj_id: PRJ, prj_nm: "겨울 프로젝트", team_id: TEAM, st_cd: "active", vers: 0, del_yn: false, crt_at: "2026-11-01" }],
     fee_txn_hist: [
       txn(T_AUTO, { mem_id: M1, match_st_cd: "matched" }),
@@ -196,12 +199,15 @@ describe("upload_dues_xlsx", () => {
 });
 
 describe("list_dues_inbox", () => {
-  it("미확정만 3버킷으로 나누고, 월회비 단위가 아닌 자동 후보는 auto_eligible=false 로 둔다", async () => {
+  it("미확정만 3버킷으로 나누고, 월회비 단위가 아닌 이름 일치 입금은 확인필요(amount_hint)로 내린다", async () => {
     const r = await listDuesInbox(client(), admin());
-    expect(r.counts).toEqual({ total: 4, auto: 2, needs_review: 1, excluded: 1 });
+    expect(r.counts).toEqual({ total: 4, auto: 1, needs_review: 2, excluded: 1 });
     const byId = new Map(r.items.map((i) => [i.txn_id, i]));
     expect(byId.get(T_AUTO)?.auto_eligible).toBe(true);
+    expect(byId.get(T_AUTO)?.amount_hint).toBeNull();
     expect(byId.get(T_ODD)?.auto_eligible).toBe(false);
+    expect(byId.get(T_ODD)?.bucket).toBe("needsReview");
+    expect(byId.get(T_ODD)?.amount_hint).toContain("월회비 단위");
     expect(byId.has(T_DONE)).toBe(false);
     expect(byId.get(T_AUTO)?.mem_nm).toBe("홍길동");
     expect(r.projects).toEqual([{ prj_id: PRJ, name: "겨울 프로젝트" }]);
@@ -210,7 +216,7 @@ describe("list_dues_inbox", () => {
 
   it("bucket 필터와 limit 을 적용한다", async () => {
     const r = await listDuesInbox(client(), admin(), { bucket: "needsReview" });
-    expect(r.items.map((i) => i.txn_id)).toEqual([T_REVIEW]);
+    expect(r.items.map((i) => i.txn_id).sort()).toEqual([T_ODD, T_REVIEW].sort());
     const r2 = await listDuesInbox(client(), admin(), { limit: 1 });
     expect(r2.returned).toBe(1);
     expect(r2.truncated).toBe(true);
@@ -229,6 +235,25 @@ describe("confirm_dues_txns", () => {
     expect(db.tables.fee_due_pay_hist).toHaveLength(1);
     expect(recalcMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ memIds: [M1] }));
     expect(r.audit_id).not.toBeNull();
+  });
+
+  it("진행 중 프로젝트 참가비와 같은 금액이면 월회비 배수여도 auto 에서 빠지고 프로젝트 힌트가 붙는다", async () => {
+    const EVT = "ffffffff-0000-4000-8000-000000000001";
+    db.tables.evt_team_mst = [{ evt_id: EVT, evt_nm: "동계 클래스", team_id: TEAM, evt_type_cd: "PB_CLASS", stts_enm: "ACTIVE" }];
+    db.tables.evt_pb_cfg = [{ evt_id: EVT, deposit_amt: 30000, entry_fee_amt: 10000, mlg_dc_amt: 5000 }];
+    db.tables.evt_pb_prt_rel = [{ prt_id: "p1", evt_id: EVT, mem_id: M1, deposit_amt: 30000, entry_fee_amt: 10000 }];
+    // T_AUTO 금액을 참가비(40,000 = 월회비 2,000 의 배수)로 바꾼다
+    const row = db.tables.fee_txn_hist.find((t) => t.txn_id === T_AUTO)!;
+    row.txn_amt = 40000;
+    const inbox = await listDuesInbox(client(), admin());
+    const item = inbox.items.find((i) => i.txn_id === T_AUTO)!;
+    expect(item.bucket).toBe("needsReview");
+    expect(item.auto_eligible).toBe(false);
+    expect(item.amount_hint).toContain("동계 클래스");
+    expect(item.amount_hint).toContain("등록자예요");
+    const r = await confirmDuesTxns(client(), admin(), { auto: true });
+    expect(r.confirmed_txn_ids).toEqual([]);
+    expect(db.tables.fee_txn_hist.find((t) => t.txn_id === T_AUTO)?.is_cfm_yn).toBe(false);
   });
 
   it("확인필요 건은 fee_item_cd 를 명시해야만 확정된다", async () => {
