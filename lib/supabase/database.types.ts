@@ -1231,6 +1231,54 @@ export type Database = {
           },
         ]
       }
+      fee_bal_adj_hist: {
+        Row: {
+          adj_amt: number
+          adj_by_mem_id: string
+          adj_id: string
+          crt_at: string
+          del_yn: boolean
+          mem_id: string
+          rsn_txt: string
+          rvt_at: string | null
+          rvt_by_mem_id: string | null
+          rvt_rsn_txt: string | null
+          team_id: string
+          upd_at: string
+          vers: number
+        }
+        Insert: {
+          adj_amt: number
+          adj_by_mem_id: string
+          adj_id?: string
+          crt_at?: string
+          del_yn?: boolean
+          mem_id: string
+          rsn_txt: string
+          rvt_at?: string | null
+          rvt_by_mem_id?: string | null
+          rvt_rsn_txt?: string | null
+          team_id: string
+          upd_at?: string
+          vers?: number
+        }
+        Update: {
+          adj_amt?: number
+          adj_by_mem_id?: string
+          adj_id?: string
+          crt_at?: string
+          del_yn?: boolean
+          mem_id?: string
+          rsn_txt?: string
+          rvt_at?: string | null
+          rvt_by_mem_id?: string | null
+          rvt_rsn_txt?: string | null
+          team_id?: string
+          upd_at?: string
+          vers?: number
+        }
+        Relationships: []
+      }
       fee_due_exm_cfg: {
         Row: {
           aply_end_dt: string

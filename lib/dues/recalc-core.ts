@@ -8,6 +8,7 @@ import {
   buildChargeMonths,
   firstChargeMonth,
   replayPays,
+  sumAnchorAdjustments,
   sumReflectedExemptions,
   type ReplayPay,
 } from "@/lib/dues/ledger-replay";
@@ -271,7 +272,24 @@ export async function recalculateBalanceCore(
         anchor?.crt_at ?? null,
       );
 
-      const baseBal = (anchor?.bal_amt ?? 0) + reflectedExmSum;
+      // 관리자 개시잔액 조정(#704) — 앵커 이후 만든 유효(되돌리지 않은) 조정을 개시잔액에 얹는다.
+      const { data: adjRows, error: adjErr } = await db
+        .from("fee_bal_adj_hist")
+        .select("adj_amt, crt_at")
+        .eq("team_id", teamId)
+        .eq("mem_id", mid)
+        .eq("del_yn", false);
+      // 실패를 0으로 넘기면 조정이 조용히 빠진 잔액이 저장된다 — 이 사람은 건너뛴다.
+      if (adjErr) {
+        errors.push(`잔액 조정 조회 실패 (${mid}): ${adjErr.message}`);
+        return;
+      }
+      const adjSum = sumAnchorAdjustments(
+        (adjRows ?? []).map((a) => ({ adjAmt: a.adj_amt, crtAt: a.crt_at })),
+        anchor?.crt_at ?? null,
+      );
+
+      const baseBal = (anchor?.bal_amt ?? 0) + reflectedExmSum + adjSum;
 
       // ⑥ 새 커서 — 리플레이한 마지막 거래 시각. 납부가 없으면 앵커 커서, 그마저 없으면
       //    가입월 초(cursorFloor — 첫 부과월이 아님에 주의). now 나 미래 시각으로 두면

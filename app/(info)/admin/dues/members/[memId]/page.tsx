@@ -10,10 +10,12 @@ import { Body, Caption, H2, Micro } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 
+import { BalanceAdjustPanel } from "./balance-adjust-panel";
+
 /**
  * 관리자용 회원별 회비 상세 — 원장 드릴다운(QS-7).
  * "이 회원 잔액이 어떤 입금·면제·거래로 만들어졌나"를 시간순으로 보여준다.
- * 개별 건의 정정(확정취소)은 인박스 '처리됨'에서 한다 — 여기는 읽기 전용 근거 화면.
+ * 개별 건의 정정(확정취소)은 인박스 처리됨에서 하고, 여기서는 개시잔액 조정(#704)만 한다.
  */
 export default async function AdminMemberDuesPage({
   params,
@@ -24,7 +26,7 @@ export default async function AdminMemberDuesPage({
   const detail = await getMemberDuesDetail(memId);
   if (!detail) notFound();
 
-  const { memName, balAmt, lastCalcDt, items } = detail;
+  const { memName, balAmt, lastCalcDt, anchorAmt, adjustments, items } = detail;
   const balColor = balAmt === null ? "" : balAmt < 0 ? "text-destructive" : balAmt > 0 ? "text-success" : "";
 
   return (
@@ -47,6 +49,8 @@ export default async function AdminMemberDuesPage({
           {balAmt === null ? "—" : `${balAmt > 0 ? "+" : ""}${balAmt.toLocaleString()}원`}
         </Body>
       </CardItem>
+
+      <BalanceAdjustPanel memId={memId} anchorAmt={anchorAmt} adjustments={adjustments} />
 
       {items.length === 0 ? (
         <EmptyState variant="card" message="기록된 내역이 없습니다." />
