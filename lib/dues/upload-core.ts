@@ -23,6 +23,8 @@ export type ParsedRow = {
   txn_dt: string;
   txn_tm: string | null;
   txn_amt: number;
+  /** 엑셀 거래후잔액(통장 잔액). 열이 없거나 비면 null */
+  txn_bal_amt: number | null;
   txn_io_enm: "deposit" | "withdrawal";
   raw_name: string;
   raw_memo: string | null;
@@ -68,6 +70,7 @@ export async function parseKakaoXlsx(buffer: Buffer): Promise<ParsedRow[]> {
   const tpIdx = header.findIndex((h) => h?.includes("거래구분"));
   const nameIdx = header.findIndex((h) => h?.includes("내용"));
   const memoIdx = header.findIndex((h) => h?.includes("메모"));
+  const balIdx = header.findIndex((h) => h?.includes("잔액"));
 
   return raw.slice(2).flatMap((r): ParsedRow[] => {
     const dtRaw = String(r[dtIdx] ?? "").trim();
@@ -76,6 +79,8 @@ export async function parseKakaoXlsx(buffer: Buffer): Promise<ParsedRow[]> {
     const tp = String(r[tpIdx] ?? "").trim();
     const name = String(r[nameIdx] ?? "").trim();
     const memo = String(r[memoIdx] ?? "").trim() || null;
+    const balRaw = balIdx >= 0 ? String(r[balIdx] ?? "").replace(/,/g, "").trim() : "";
+    const balParsed = balRaw ? parseInt(balRaw, 10) : NaN;
 
     if (!dtRaw || !amtRaw || !name) return [];
     const { date, time } = parseDatetime(dtRaw);
@@ -87,6 +92,7 @@ export async function parseKakaoXlsx(buffer: Buffer): Promise<ParsedRow[]> {
         txn_dt: date,
         txn_tm: time,
         txn_amt: amt,
+        txn_bal_amt: Number.isNaN(balParsed) ? null : balParsed,
         txn_io_enm: io,
         raw_name: name,
         raw_memo: memo,
@@ -297,6 +303,7 @@ export async function ingestDuesRows(
       txn_dt: row.txn_dt,
       txn_tm: row.txn_tm,
       txn_amt: row.txn_amt,
+      txn_bal_amt: row.txn_bal_amt,
       txn_io_enm: row.txn_io_enm,
       raw_name: row.raw_name,
       raw_memo: row.raw_memo,
@@ -314,6 +321,19 @@ export async function ingestDuesRows(
       else if (bucket === "needsReview") needsReview--;
       else excluded--;
       skipped++;
+      // 누적 엑셀을 다시 올리면 과거 거래의 통장 잔액이 비어 있던 곳을 채운다(이미 값이 있으면 건드리지 않는다).
+      if (row.txn_bal_amt !== null) {
+        let fill = db
+          .from("fee_txn_hist")
+          .update({ txn_bal_amt: row.txn_bal_amt })
+          .eq("team_id", teamId)
+          .eq("txn_dt", row.txn_dt)
+          .eq("txn_amt", row.txn_amt)
+          .eq("raw_name", row.raw_name)
+          .is("txn_bal_amt", null);
+        fill = row.txn_tm ? fill.eq("txn_tm", row.txn_tm) : fill.is("txn_tm", null);
+        await fill;
+      }
     } else if (error) {
       // 원인 코드만 남긴다 — 이름·금액·메모는 로그에 싣지 않는다.
       console.error("[ingestDuesRows] 거래 INSERT 실패:", error.code);

@@ -1703,6 +1703,7 @@ export type Database = {
           raw_name: string
           team_id: string
           txn_amt: number
+          txn_bal_amt: number | null
           txn_dt: string
           txn_id: string
           txn_io_enm: Database["public"]["Enums"]["fee_txn_io_enm"]
@@ -1726,6 +1727,7 @@ export type Database = {
           raw_name: string
           team_id: string
           txn_amt: number
+          txn_bal_amt?: number | null
           txn_dt: string
           txn_id?: string
           txn_io_enm: Database["public"]["Enums"]["fee_txn_io_enm"]
@@ -1749,6 +1751,7 @@ export type Database = {
           raw_name?: string
           team_id?: string
           txn_amt?: number
+          txn_bal_amt?: number | null
           txn_dt?: string
           txn_id?: string
           txn_io_enm?: Database["public"]["Enums"]["fee_txn_io_enm"]
