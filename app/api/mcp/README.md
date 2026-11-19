@@ -81,7 +81,7 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `create_gathering` | `gthr_nm`, `gthr_type_enm`, `sprt_cd`, `stt_at`, `end_at?`, `loc_txt?`, `desc_txt?`, `max_prt_cnt?`, `dry_run?` | 새 모임(벙) 개설 — 작성자 자동 참석 + 팀 전원 알림 | **admin** |
 | `update_gathering` | `gathering_id`(uuid) + 바꿀 필드만(`gthr_nm`, `stt_at`, `end_at`, `loc_txt`, `max_prt_cnt`, `desc_txt`), `dry_run?`, `notify?` | 모임 수정 — 바뀐 필드 목록·전/후 반환. 알림은 `notify: true` 일 때만 | **모임 작성자 또는 admin** |
 | `create_sch_post` | `sch_nm`, `post_type`(`race_entry`·`sale`·`session`·`general`), `evt_stt_at`, `evt_end_at?`, `url?`, `cont_txt?`, `dry_run?` | 일정 탭에 소식(대회 접수 정보·판매·세션·일반) 등록 — 팀 전원 새 정보 알림 | 멤버 (앱과 같음) |
-| `upload_dues_xlsx` | `file_name`, `xlsx_base64` **또는** `rows`, `dry_run?` | 카카오뱅크 거래내역을 **미확정 거래로 적재**(중복 방지 유지) — 요약(자동·확인필요·제외·중복·과거 건너뜀) 반환 | **admin** · 회비 사용 팀 |
+| `upload_dues_xlsx` | `file_name`, `xlsx_base64` **또는** `rows`(`txn_tm` 필수), `dry_run?` | 카카오뱅크 거래내역을 **미확정 거래로 적재**(중복 방지 유지) — 요약(자동·확인필요·제외·중복·과거 건너뜀) 반환 | **admin** · 회비 사용 팀 |
 | `list_dues_inbox` | `bucket?`(`autoDone`·`needsReview`·`excluded`), `limit?` | 처리 대기(미확정) 거래 + 후보 회원 + 확정에 쓸 분류 코드·모금 중 프로젝트 | **admin** · 회비 사용 팀 |
 | `confirm_dues_txns` | `items?`[{`txn_id`, `fee_item_cd?`, `mem_id?`, `project_id?`, `remember_alias?`}], `auto?`, `dry_run?` | 거래 확정(회비+회원이면 납부원장 + 잔액 재계산) | **admin** · 회비 사용 팀 |
 | `cancel_dues_txn` | `txn_id`, `dry_run?` | 확정 취소 — 처리 대기로 되돌리고 잔액 재계산 | **admin** · 회비 사용 팀 |
@@ -257,7 +257,8 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 - **`remember_alias: true`**: 회비 + 회원 지정 건의 입금자명을 그 회원의 별칭으로 기억해 다음 업로드부터 자동 매칭합니다(확정 성공 뒤에만).
 - **`reclassify_dues_txn`** 은 취소 가능 여부와 새 값을 둘 다 검증한 뒤에 씁니다. 재확정이 실패하면 원래 값으로 되돌려 확정해 둡니다. 원장 전환 이전 개시잔액에 녹은 거래는 취소·재분류할 수 없습니다.
 - **로그·감사**: 쓰기는 `mcp_audit_log` 에 건수·거래 id 만 남깁니다. **입금자명·금액·메모는 감사행·서버 로그에 싣지 않습니다.** 다만 `list_dues_inbox`·`get_dues_balances` 응답에는 이름·금액이 들어 있으니 사용자에게 필요한 만큼만 보여 주세요. 계좌번호는 어디에도 없습니다.
-- 확정 뒤 잔액 재계산에 실패하면(확정은 끝난 상태) 오류로 알립니다 — 재계산은 리플레이라 다시 돌리면 복구됩니다.
+- **재계산만 실패한 경우는 오류가 아니라 상태로 돌려줍니다**(이미 바뀐 것을 「안 됐다」로 오해해 재시도하지 않게). `confirm_dues_txns`·`cancel_dues_txn` 은 `status: "recalc_failed"` + `recalc_pending_mem_ids`(잔액이 낡은 회원), `reclassify_dues_txn` 은 `status` 가 `reclassified`·`reclassified_recalc_failed`·`restored`(새 값 확정 실패 → 원래 값으로 되돌려 확정함)·`left_pending`(원복도 실패 — 처리 대기에 남음, `list_dues_inbox` 로 확인) 중 하나이고 `detail` 에 한 줄 사유가 담깁니다. 이 경우에도 감사행에 거래 id 와 상태가 남습니다. 재계산은 리플레이라 다시 돌리면 복구됩니다.
+- `mem_id` 는 **지정만** 합니다 — 안 주면 저장된 매칭을 유지하고, 매칭을 지우는 기능은 없습니다. 잘못된 `project_id`·`mem_id` 는 그 건만 `skipped` 로 빠지고 나머지는 진행합니다.
 
 
 ### 모임 개설(`create_gathering`) — 쓰기 도구라 몇 가지 약속이 있습니다

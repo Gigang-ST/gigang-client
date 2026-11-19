@@ -83,6 +83,10 @@ class FakeQuery implements PromiseLike<{ data: unknown; error: unknown }> {
     this.filters.push({ col, kind: "lte", val });
     return this;
   }
+  lt(col: string, val: unknown) {
+    this.filters.push({ col, kind: "lt", val });
+    return this;
+  }
   ilike(col: string, pattern: string) {
     this.filters.push({ col, kind: "ilike", val: pattern });
     return this;
@@ -126,6 +130,8 @@ class FakeQuery implements PromiseLike<{ data: unknown; error: unknown }> {
           return (actual as string) >= (f.val as string);
         case "lte":
           return (actual as string) <= (f.val as string);
+        case "lt":
+          return (actual as string) < (f.val as string);
         case "in":
           return (f.val as unknown[]).includes(actual);
         case "ilike": {

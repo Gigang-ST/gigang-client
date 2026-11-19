@@ -102,6 +102,9 @@ export async function cancelTransactionCore(
       console.error("[cancelTransaction] 취소 후 재계산 실패:", recalc.message);
       return {
         ok: false as const,
+        /** 거래 자체는 이미 취소됐다 — 호출자가 「아무것도 안 바뀜」과 구분할 수 있게 한다. */
+        cancelled: true as const,
+        memId: txn.mem_id,
         message: "취소는 됐지만 잔액 재계산에 실패했습니다. 잔액 원장에서 '전체 재계산'을 실행하면 복구됩니다.",
       };
     }

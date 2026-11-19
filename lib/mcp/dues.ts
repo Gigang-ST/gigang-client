@@ -167,7 +167,8 @@ function isMonthlyFeeUnit(amt: number, monthlyFee: number | null): boolean {
 
 export type UploadRowInput = {
   txn_dt: string;
-  txn_tm?: string | null;
+  /** 거래 시각 HH:mm:ss — 필수. 비면 중복 방지 키가 안 걸려 같은 행이 두 번 들어갈 수 있다. */
+  txn_tm: string;
   amount: number;
   io: "deposit" | "withdrawal";
   name: string;
@@ -195,14 +196,14 @@ const TIME_RE = /^\d{2}:\d{2}:\d{2}$/;
 function rowsFromJson(rows: UploadRowInput[]): ParsedRow[] {
   return rows.map((r, i) => {
     if (!DATE_RE.test(r.txn_dt)) throw new ToolInputError(`rows[${i}].txn_dt 는 YYYY-MM-DD 여야 합니다.`);
-    if (r.txn_tm != null && !TIME_RE.test(r.txn_tm)) throw new ToolInputError(`rows[${i}].txn_tm 는 HH:mm:ss 여야 합니다.`);
+    if (typeof r.txn_tm !== "string" || !TIME_RE.test(r.txn_tm)) throw new ToolInputError(`rows[${i}].txn_tm 는 HH:mm:ss 여야 합니다(필수 — 중복 방지 키).`);
     if (!Number.isInteger(r.amount) || r.amount <= 0) throw new ToolInputError(`rows[${i}].amount 는 양의 정수여야 합니다.`);
     const name = r.name.trim();
     if (!name) throw new ToolInputError(`rows[${i}].name 이 비었습니다.`);
     const tp = (r.txn_tp ?? "").trim();
     return {
       txn_dt: r.txn_dt,
-      txn_tm: r.txn_tm ?? null,
+      txn_tm: r.txn_tm,
       txn_amt: r.amount,
       txn_io_enm: r.io,
       raw_name: name,
@@ -446,7 +447,17 @@ export type ConfirmDuesResult = {
   alias_learned: number;
   audit_id: string | null;
   confirmed_txn_ids: string[];
+  /** ok = 끝. recalc_failed = 확정은 끝났으나 잔액 재계산 실패 — recalc_pending_mem_ids 회원의 잔액이 낡았다. */
+  status: "ok" | "recalc_failed";
+  recalc_pending_mem_ids: string[];
 };
+
+/** 이 팀의 (삭제 안 된) 프로젝트 id — 묶음 확정에서 잘못된 project_id 가 전체를 막지 않게 건별로 거른다. */
+async function loadTeamProjectIds(db: Db, teamId: string): Promise<Set<string>> {
+  const { data, error } = await db.from("fee_prj_mst").select("prj_id").eq("team_id", teamId).eq("del_yn", false);
+  if (error) throw new Error(`프로젝트 조회 실패: ${error.message}`);
+  return new Set((data ?? []).map((p) => p.prj_id));
+}
 
 /** 분류·방향 규칙 — 출금을 수입 분류로, 입금을 지출로 바꾸는 사고를 막는다(앱 일괄 재분류와 같은 경계). */
 function directionIssue(io: string, feeItemCd: string): string | null {
@@ -457,7 +468,15 @@ function directionIssue(io: string, feeItemCd: string): string | null {
   return null;
 }
 
-type Planned = { item: ConfirmItem; rawName: string; remember: boolean; finalCd: string; finalMemId: string | null };
+type Planned = {
+  item: ConfirmItem;
+  rawName: string;
+  remember: boolean;
+  finalCd: string;
+  finalMemId: string | null;
+  /** 확정 시 납부원장이 만들어져 잔액이 바뀌는 회원(회비 + 매칭된 회원). 없으면 null. */
+  payMemId: string | null;
+};
 
 /**
  * 거래 한 건의 결정(분류·회원·프로젝트)을 검증해 코어에 넘길 항목으로 만든다. 문제가 있으면 사유 문자열.
@@ -468,6 +487,7 @@ function planItem(
   req: ConfirmDuesItemInput,
   validCds: Set<string>,
   inTeamMemIds: Set<string> | null,
+  validPrjIds: Set<string> | null = null,
 ): Planned | string {
   const bucket = bucketOfRow(t);
   const explicitDecision = req.fee_item_cd !== undefined;
@@ -481,17 +501,20 @@ function planItem(
 
   const finalMemId = req.mem_id !== undefined && req.mem_id !== null ? req.mem_id : t.mem_id;
   if (req.mem_id && inTeamMemIds && !inTeamMemIds.has(req.mem_id)) return "이 팀 회원이 아닙니다.";
-  if (finalCd === "due" && !finalMemId) {
+  // 납부원장은 「회비 + 매칭됨 + 회원」일 때만 생긴다(코어 규칙) — 같은 조건으로 미리 판정한다.
+  const payMemId = finalCd === "due" ? (req.mem_id ? req.mem_id : t.match_st_cd === "matched" ? t.mem_id : null) : null;
+  if (finalCd === "due" && !payMemId) {
     return "회비로 확정하려면 mem_id(납부 회원)가 필요합니다 — 회원 없이 확정하면 개인 잔액에 반영되지 않습니다.";
   }
   const finalPrj = finalCd === "event_fee" ? (req.project_id !== undefined ? req.project_id : t.project_id) : null;
   if (finalCd === "event_fee" && !finalPrj) return "프로젝트로 확정하려면 project_id 가 필요합니다.";
+  if (finalPrj && validPrjIds && !validPrjIds.has(finalPrj)) return "존재하지 않는 프로젝트입니다.";
 
   const item: ConfirmItem = { txnId: t.txn_id };
   if (req.fee_item_cd !== undefined) item.feeItemCd = req.fee_item_cd;
   if (req.mem_id !== undefined) item.memId = req.mem_id;
   if (req.project_id !== undefined) item.prjId = req.project_id;
-  return { item, rawName: t.raw_name, remember: Boolean(req.remember_alias), finalCd, finalMemId: finalMemId ?? null };
+  return { item, rawName: t.raw_name, remember: Boolean(req.remember_alias), finalCd, finalMemId: finalMemId ?? null, payMemId };
 }
 
 /**
@@ -539,6 +562,7 @@ export async function confirmDuesTxns(db: Db, ctx: OperatorContext, input: Confi
 
   const [validCds, mctx] = await Promise.all([getValidFeeItemCds(db, ctx.team_id), loadMatchContext(db, ctx.team_id)]);
   const inTeam = new Set(mctx.memberRefs.map((m) => m.memId));
+  const validPrjIds = await loadTeamProjectIds(db, ctx.team_id);
 
   const planned: Planned[] = [];
   for (const [txnId, req] of requests) {
@@ -551,7 +575,7 @@ export async function confirmDuesTxns(db: Db, ctx: OperatorContext, input: Confi
       skipped.push({ txn_id: txnId, reason: "이미 확정된 거래입니다(고치려면 reclassify_dues_txn)." });
       continue;
     }
-    const p = planItem(t, req, validCds, inTeam);
+    const p = planItem(t, req, validCds, inTeam, validPrjIds);
     if (typeof p === "string") skipped.push({ txn_id: txnId, reason: p });
     else planned.push(p);
   }
@@ -567,42 +591,51 @@ export async function confirmDuesTxns(db: Db, ctx: OperatorContext, input: Confi
 
   const confirmedIds = new Set(core.confirmedTxnIds ?? []);
   const confirmedPlans = planned.filter((p) => confirmedIds.has(p.item.txnId));
-  const balanceAffecting = confirmedPlans.filter((p) => p.finalCd === "due" && p.finalMemId).length;
+  const balanceAffecting = confirmedPlans.filter((p) => p.payMemId).length;
 
   let recalculated = 0;
   let aliasLearned = 0;
   let auditId: string | null = null;
+  let status: ConfirmDuesResult["status"] = "ok";
+  let pendingMemIds: string[] = [];
 
   if (!dryRun && confirmedPlans.length > 0) {
     // 별칭 학습은 확정이 성공한 뒤에만(거부된 판단이 다음 업로드 규칙으로 남지 않게). 실패해도 확정은 유지.
     const aliasItems = confirmedPlans
-      .filter((p) => p.remember && p.finalCd === "due" && p.finalMemId)
-      .map((p) => ({ rawName: p.rawName, memId: p.finalMemId! }));
+      .filter((p) => p.remember && p.payMemId)
+      .map((p) => ({ rawName: p.rawName, memId: p.payMemId! }));
     if (aliasItems.length) {
       const a = await learnAliasesCore(db, { teamId: ctx.team_id, actorMemId: ctx.mem_id, items: aliasItems });
       if (a.ok) aliasLearned = a.learned;
       else console.error("[mcp] confirm_dues_txns 별칭 학습 실패");
     }
 
-    const memIds = [...new Set(confirmedPlans.filter((p) => p.finalCd === "due" && p.finalMemId).map((p) => p.finalMemId!))];
+    const memIds = [...new Set(confirmedPlans.filter((p) => p.payMemId).map((p) => p.payMemId!))];
     if (memIds.length) {
       const r = await recalculateBalanceCore(db, { teamId: ctx.team_id, actorMemId: ctx.mem_id, memIds });
       if (!r.ok) {
-        // 확정은 끝났다 — 잔액만 낡은 상태. 리플레이라 다음 재계산에서 복구된다. 사유 원문은 로그로만.
-        console.error("[mcp] confirm_dues_txns 재계산 실패:", r.message);
-        throw new ToolInputError(
-          `확정은 ${core.confirmed}건 완료됐으나 잔액 재계산에 실패했습니다. 같은 회원들에 대해 다시 재계산이 필요합니다.`,
-        );
+        // 확정은 끝났다 — 잔액만 낡은 상태. 리플레이라 다음 재계산에서 복구된다. 던지지 않고 상태로 알린다
+        // (던지면 에이전트가 「아무것도 안 됐다」고 오해해 같은 건을 다시 시도한다).
+        console.error("[mcp] confirm_dues_txns 재계산 실패");
+        status = "recalc_failed";
+        pendingMemIds = memIds;
+      } else {
+        recalculated = r.updatedCount;
       }
-      recalculated = r.updatedCount;
     }
 
     auditId = await writeAudit(
       db,
       ctx,
       "confirm_dues_txns",
-      { txn_ids: confirmedPlans.map((p) => p.item.txnId), auto: Boolean(input.auto), skipped: skipped.length },
-      `confirm_dues_txns ok: confirmed=${core.confirmed} recalculated=${recalculated}`,
+      {
+        txn_ids: confirmedPlans.map((p) => p.item.txnId),
+        auto: Boolean(input.auto),
+        skipped: skipped.length,
+        status,
+        recalc_pending_mem_ids: pendingMemIds,
+      },
+      `confirm_dues_txns ${status}: confirmed=${core.confirmed} recalculated=${recalculated}`,
     );
   }
 
@@ -615,12 +648,22 @@ export async function confirmDuesTxns(db: Db, ctx: OperatorContext, input: Confi
     alias_learned: aliasLearned,
     audit_id: auditId,
     confirmed_txn_ids: confirmedPlans.map((p) => p.item.txnId),
+    status,
+    recalc_pending_mem_ids: pendingMemIds,
   };
 }
 
 // ─────────────────────────────── cancel_dues_txn ───────────────────────────────
 
-export type CancelDuesResult = { dry_run: boolean; txn_id: string; cancelled: boolean; audit_id: string | null };
+export type CancelDuesResult = {
+  dry_run: boolean;
+  txn_id: string;
+  cancelled: boolean;
+  audit_id: string | null;
+  /** ok = 끝. recalc_failed = 취소는 됐으나 잔액 재계산 실패 — recalc_pending_mem_ids 회원 잔액이 낡았다. */
+  status: "ok" | "recalc_failed";
+  recalc_pending_mem_ids: string[];
+};
 
 /**
  * `cancel_dues_txn` — 확정된 거래 1건을 미확정으로 되돌린다(납부원장 취소 + 잔액 재계산). 되돌린 거래는 처리 대기로 돌아간다.
@@ -639,13 +682,30 @@ export async function cancelDuesTxn(
     txnId: input.txnId,
     dryRun,
   });
-  if (!r.ok) throw new ToolInputError(r.message);
+  // 취소는 끝났는데 재계산만 실패한 경우는 오류가 아니라 상태로 돌려준다(감사도 남긴다).
+  const recalcFailed = !r.ok && "cancelled" in r && r.cancelled;
+  if (!r.ok && !recalcFailed) throw new ToolInputError(r.message);
+  const status: CancelDuesResult["status"] = recalcFailed ? "recalc_failed" : "ok";
+  const pending = recalcFailed && r.memId ? [r.memId] : [];
 
   let auditId: string | null = null;
   if (!dryRun) {
-    auditId = await writeAudit(db, ctx, "cancel_dues_txn", { txn_id: input.txnId }, "cancel_dues_txn ok");
+    auditId = await writeAudit(
+      db,
+      ctx,
+      "cancel_dues_txn",
+      { txn_id: input.txnId, status, recalc_pending_mem_ids: pending },
+      `cancel_dues_txn ${status}`,
+    );
   }
-  return { dry_run: dryRun, txn_id: input.txnId, cancelled: !dryRun, audit_id: auditId };
+  return {
+    dry_run: dryRun,
+    txn_id: input.txnId,
+    cancelled: !dryRun,
+    audit_id: auditId,
+    status,
+    recalc_pending_mem_ids: pending,
+  };
 }
 
 // ─────────────────────────────── reclassify_dues_txn ───────────────────────────────
@@ -666,6 +726,17 @@ export type ReclassifyResult = {
   to: { fee_item_cd: string; mem_id: string | null; project_id: string | null };
   recalculated_members: number;
   audit_id: string | null;
+  /**
+   * 끝난 단계가 어디까지인지:
+   * - reclassified: 새 값으로 확정 완료, 잔액도 갱신.
+   * - reclassified_recalc_failed: 새 값으로 확정 완료, 잔액 재계산만 실패(recalc_pending_mem_ids 가 낡음).
+   * - restored: 새 값 확정에 실패해 원래 값으로 되돌려 확정함(거래는 원래대로).
+   * - left_pending: 새 값 확정도 원복도 실패 — 거래가 처리 대기에 남았다(list_dues_inbox 로 확인).
+   */
+  status: "reclassified" | "reclassified_recalc_failed" | "restored" | "left_pending";
+  /** restored·left_pending 일 때 실패 사유(도구용 한 줄) */
+  detail: string | null;
+  recalc_pending_mem_ids: string[];
 };
 
 /**
@@ -691,11 +762,13 @@ export async function reclassifyDuesTxn(db: Db, ctx: OperatorContext, input: Rec
   const [validCds, mctx] = await Promise.all([getValidFeeItemCds(db, ctx.team_id), loadMatchContext(db, ctx.team_id)]);
   const inTeam = new Set(mctx.memberRefs.map((m) => m.memId));
   // 재확정 값 검증은 「확인필요 건은 분류 명시」 규칙을 이미 만족한다(feeItemCd 필수 입력).
+  const validPrjIds = await loadTeamProjectIds(db, ctx.team_id);
   const plan = planItem(
     t,
     { txn_id: t.txn_id, fee_item_cd: input.feeItemCd, mem_id: input.memId, project_id: input.projectId, remember_alias: input.rememberAlias },
     validCds,
     inTeam,
+    validPrjIds,
   );
   if (typeof plan === "string") throw new ToolInputError(plan);
 
@@ -719,53 +792,77 @@ export async function reclassifyDuesTxn(db: Db, ctx: OperatorContext, input: Rec
   if (!preConfirm.ok) throw new ToolInputError(preConfirm.message);
 
   if (dryRun) {
-    return { dry_run: true, txn_id: t.txn_id, from, to, recalculated_members: 0, audit_id: null };
+    return {
+      dry_run: true,
+      txn_id: t.txn_id,
+      from,
+      to,
+      recalculated_members: 0,
+      audit_id: null,
+      status: "reclassified",
+      detail: null,
+      recalc_pending_mem_ids: [],
+    };
   }
 
-  const cancel = await cancelTransactionCore(db, { teamId: ctx.team_id, actorMemId: ctx.mem_id, txnId: t.txn_id });
-  if (!cancel.ok) throw new ToolInputError(cancel.message);
+  const actor = { teamId: ctx.team_id, actorMemId: ctx.mem_id };
+  const cancel = await cancelTransactionCore(db, { ...actor, txnId: t.txn_id });
+  // 취소 자체가 안 됐으면 아무것도 안 바뀐 것이다. 취소는 됐는데 재계산만 실패했으면(cancelled) 아래로 계속 진행한다 —
+  // 여기서 던지면 거래가 처리 대기에 방치된다. 재계산은 마지막에 한 번 더 한다.
+  const cancelRecalcFailed = !cancel.ok && "cancelled" in cancel && cancel.cancelled;
+  if (!cancel.ok && !cancelRecalcFailed) throw new ToolInputError(cancel.message);
 
-  const confirm = await confirmTransactionsCore(db, { teamId: ctx.team_id, actorMemId: ctx.mem_id, items: [plan.item] });
+  const memIds = [
+    ...new Set([from.mem_id, plan.payMemId, ...(plan.finalCd === "due" ? [plan.finalMemId] : [])].filter((v): v is string => Boolean(v))),
+  ];
+  const finish = async (
+    status: ReclassifyResult["status"],
+    detail: string | null,
+    recalculated: number,
+    pending: string[],
+  ): Promise<ReclassifyResult> => {
+    const auditId = await writeAudit(
+      db,
+      ctx,
+      "reclassify_dues_txn",
+      { txn_id: t.txn_id, from_cd: from.fee_item_cd, to_cd: to.fee_item_cd, status, recalc_pending_mem_ids: pending },
+      `reclassify_dues_txn ${status}: ${from.fee_item_cd}->${to.fee_item_cd}`,
+    );
+    return { dry_run: false, txn_id: t.txn_id, from, to, recalculated_members: recalculated, audit_id: auditId, status, detail, recalc_pending_mem_ids: pending };
+  };
+
+  const confirm = await confirmTransactionsCore(db, { ...actor, items: [plan.item] });
   if (!confirm.ok || confirm.confirmed !== 1) {
     // 원래 값으로 되돌려 확정 — 처리 대기에 방치되지 않게
     const restoreItem: ConfirmItem = { txnId: t.txn_id };
     if (t.fee_item_cd) restoreItem.feeItemCd = t.fee_item_cd;
     if (t.mem_id) restoreItem.memId = t.mem_id;
     if (t.project_id) restoreItem.prjId = t.project_id;
-    const restore = await confirmTransactionsCore(db, { teamId: ctx.team_id, actorMemId: ctx.mem_id, items: [restoreItem] });
-    if (t.mem_id) await recalculateBalanceCore(db, { teamId: ctx.team_id, actorMemId: ctx.mem_id, memIds: [t.mem_id] });
-    throw new ToolInputError(
-      `재분류에 실패해 ${restore.ok && restore.confirmed === 1 ? "원래 분류로 되돌려 두었습니다" : "거래가 처리 대기로 돌아가 있습니다(list_dues_inbox 로 확인하세요)"}.`,
+    const restore = await confirmTransactionsCore(db, { ...actor, items: [restoreItem] });
+    const restored = restore.ok && restore.confirmed === 1;
+    const rr = await recalculateBalanceCore(db, { ...actor, memIds });
+    const pending = rr.ok ? [] : memIds;
+    return finish(
+      restored ? "restored" : "left_pending",
+      restored
+        ? "new_value_confirm_failed: original value re-confirmed"
+        : "new_value_confirm_failed and restore_failed: txn is unconfirmed (see list_dues_inbox)",
+      rr.ok ? rr.updatedCount : 0,
+      pending,
     );
   }
 
-  if (plan.remember && plan.finalCd === "due" && plan.finalMemId) {
-    await learnAliasesCore(db, {
-      teamId: ctx.team_id,
-      actorMemId: ctx.mem_id,
-      items: [{ rawName: plan.rawName, memId: plan.finalMemId }],
-    });
+  if (plan.remember && plan.payMemId) {
+    await learnAliasesCore(db, { ...actor, items: [{ rawName: plan.rawName, memId: plan.payMemId }] });
   }
 
-  const memIds = [...new Set([from.mem_id, plan.finalCd === "due" ? plan.finalMemId : null].filter((v): v is string => Boolean(v)))];
-  let recalculated = 0;
-  if (memIds.length) {
-    const r = await recalculateBalanceCore(db, { teamId: ctx.team_id, actorMemId: ctx.mem_id, memIds });
-    if (!r.ok) {
-      console.error("[mcp] reclassify_dues_txn 재계산 실패:", r.message);
-      throw new ToolInputError("재분류는 끝났으나 잔액 재계산에 실패했습니다. 해당 회원들에 대해 다시 재계산이 필요합니다.");
-    }
-    recalculated = r.updatedCount;
+  if (memIds.length === 0) return finish("reclassified", null, 0, []);
+  const r = await recalculateBalanceCore(db, { ...actor, memIds });
+  if (!r.ok) {
+    console.error("[mcp] reclassify_dues_txn 재계산 실패");
+    return finish("reclassified_recalc_failed", "reclassified but balance recalculation failed", 0, memIds);
   }
-
-  const auditId = await writeAudit(
-    db,
-    ctx,
-    "reclassify_dues_txn",
-    { txn_id: t.txn_id, from_cd: from.fee_item_cd, to_cd: to.fee_item_cd },
-    `reclassify_dues_txn ok: ${from.fee_item_cd}->${to.fee_item_cd}`,
-  );
-  return { dry_run: false, txn_id: t.txn_id, from, to, recalculated_members: recalculated, audit_id: auditId };
+  return finish("reclassified", null, r.updatedCount, []);
 }
 
 // ─────────────────────────────── get_dues_balances ───────────────────────────────

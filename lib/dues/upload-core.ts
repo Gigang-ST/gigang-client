@@ -316,7 +316,7 @@ export async function ingestDuesRows(
       skipped++;
     } else if (error) {
       // 원인 코드만 남긴다 — 이름·금액·메모는 로그에 싣지 않는다.
-      console.error("[ingestDuesRows] 거래 INSERT 실패:", error.code, error.message);
+      console.error("[ingestDuesRows] 거래 INSERT 실패:", error.code);
       return { ok: false, message: `거래 저장 중 오류가 발생했습니다. (${error.code})` };
     }
   }

@@ -861,7 +861,7 @@ const handler = createMcpHandler(
             .array(
               z.object({
                 txn_dt: z.string().describe("거래일 YYYY-MM-DD"),
-                txn_tm: z.string().nullable().optional().describe("거래 시각 HH:mm:ss(KST). 없으면 중복 방지가 약해집니다 — 가능하면 넣으세요."),
+                txn_tm: z.string().describe("거래 시각 HH:mm:ss(KST) — 필수(중복 방지 키)"),
                 amount: z.number().int().positive().describe("금액(원, 양수)"),
                 io: z.enum(["deposit", "withdrawal"]).describe("deposit=입금, withdrawal=출금"),
                 name: z.string().min(1).describe("거래 내용(입금자명)"),
@@ -921,8 +921,8 @@ const handler = createMcpHandler(
               z.object({
                 txn_id: z.string().uuid(),
                 fee_item_cd: z.string().min(1).optional().describe("분류 코드(due·event_fee·expense·other·…). 확인필요 건은 필수"),
-                mem_id: z.string().uuid().nullable().optional().describe("납부·관련 회원. 안 주면 저장된 매칭 유지"),
-                project_id: z.string().uuid().nullable().optional().describe("event_fee 일 때 귀속 프로젝트(list_dues_inbox.projects)"),
+                mem_id: z.string().uuid().optional().describe("납부·관련 회원. 안 주면 저장된 매칭 유지(매칭을 지우는 기능은 없습니다)"),
+                project_id: z.string().uuid().optional().describe("event_fee 일 때 귀속 프로젝트(list_dues_inbox.projects)"),
                 remember_alias: z.boolean().optional(),
               }),
             )
@@ -965,8 +965,8 @@ const handler = createMcpHandler(
         inputSchema: {
           txn_id: z.string().uuid(),
           fee_item_cd: z.string().min(1),
-          mem_id: z.string().uuid().nullable().optional(),
-          project_id: z.string().uuid().nullable().optional(),
+          mem_id: z.string().uuid().optional(),
+          project_id: z.string().uuid().optional(),
           remember_alias: z.boolean().optional(),
           dry_run: z.boolean().optional(),
         },

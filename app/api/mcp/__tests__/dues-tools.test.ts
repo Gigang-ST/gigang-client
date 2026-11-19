@@ -257,19 +257,22 @@ describe("confirm_dues_txns", () => {
     const miss = await confirmDuesTxns(client(), admin(), { items: [{ txn_id: T_REVIEW, fee_item_cd: "event_fee" }] });
     expect(miss.skipped[0].reason).toContain("project_id");
 
-    await expect(
-      confirmDuesTxns(client(), admin(), {
-        items: [{ txn_id: T_REVIEW, fee_item_cd: "event_fee", project_id: "ffffffff-0000-4000-8000-00000000dead" }],
-      }),
-    ).rejects.toBeInstanceOf(ToolInputError);
+    // 잘못된 project_id 는 그 건만 건너뛰고 나머지 묶음은 진행한다(전체 거부 아님)
+    const mixed = await confirmDuesTxns(client(), admin(), {
+      items: [
+        { txn_id: T_REVIEW, fee_item_cd: "event_fee", project_id: "ffffffff-0000-4000-8000-00000000dead", mem_id: M2 },
+        { txn_id: T_AUTO },
+      ],
+    });
+    expect(mixed.skipped).toEqual([{ txn_id: T_REVIEW, reason: "존재하지 않는 프로젝트입니다." }]);
+    expect(mixed.confirmed_txn_ids).toEqual([T_AUTO]);
 
     const ok = await confirmDuesTxns(client(), admin(), {
       items: [{ txn_id: T_REVIEW, fee_item_cd: "event_fee", project_id: PRJ, mem_id: M2 }],
     });
     expect(ok.confirmed).toBe(1);
     expect(db.tables.fee_txn_hist.find((t) => t.txn_id === T_REVIEW)).toMatchObject({ project_id: PRJ, fee_item_cd: "event_fee" });
-    expect(db.tables.fee_due_pay_hist).toHaveLength(0);
-    expect(recalcMock).not.toHaveBeenCalled();
+    expect(db.tables.fee_due_pay_hist.filter((p) => p.src_txn_id === T_REVIEW)).toHaveLength(0);
   });
 
   it("방향 규칙: 출금은 회비로, 입금은 지출로 확정할 수 없다", async () => {
@@ -369,5 +372,124 @@ describe("get_dues_balances", () => {
 
     const only = await getDuesBalances(client(), admin(), { status: "예치" });
     expect(only.members.map((m) => m.mem_id)).toEqual([M2]);
+  });
+});
+
+describe("보강: 입력·정확도", () => {
+  it("rows 경로는 txn_tm 이 필수다(빈 시각은 중복 방지 키가 안 걸린다)", async () => {
+    const row = { txn_dt: "2026-11-11", amount: 4000, io: "deposit" as const, name: "홍길동" };
+    await expect(
+      uploadDuesXlsx(client(), admin(), { fileName: "a", rows: [row as never] }),
+    ).rejects.toThrow("txn_tm");
+    await expect(
+      uploadDuesXlsx(client(), admin(), { fileName: "a", rows: [{ ...row, txn_tm: "9시" }] }),
+    ).rejects.toThrow("txn_tm");
+  });
+
+  it("balance_affecting 은 납부원장이 실제로 만들어지는 건만 센다(매칭 안 된 저장 회원은 제외)", async () => {
+    db = seed({
+      fee_txn_hist: [
+        txn(T_AUTO, { mem_id: M1, match_st_cd: "matched" }),
+        // 회원 id 는 있으나 매칭 상태가 matched 가 아님 → 코어가 원장을 안 만든다
+        txn(T_REVIEW, { mem_id: M2, match_st_cd: "ambiguous" }),
+      ],
+    });
+    const r = await confirmDuesTxns(client(), admin(), {
+      items: [{ txn_id: T_AUTO }, { txn_id: T_REVIEW, fee_item_cd: "due" }],
+    });
+    expect(r.skipped.map((s) => s.txn_id)).toEqual([T_REVIEW]);
+    expect(r.balance_affecting).toBe(1);
+    expect(db.tables.fee_due_pay_hist).toHaveLength(1);
+  });
+});
+
+describe("보강: 업로드(base64 엑셀)", () => {
+  async function xlsxBase64(rows: (string | number)[][]) {
+    const XLSX = await import("xlsx");
+    const filler = Array.from({ length: 9 }, () => ["x"]);
+    const header = ["거래일시", "구분", "거래금액", "거래구분", "내용", "메모"];
+    const ws = XLSX.utils.aoa_to_sheet([...filler, ["조회 정보"], header, ...rows] as never);
+    // 헤더는 range:9 이후 둘째 줄(index 1) — 위에서 filler 9줄 + 안내 1줄 + 헤더
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "s");
+    return (XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer).toString("base64");
+  }
+
+  it("엑셀을 읽어 dry_run 요약을 계산하고, 같은 파일을 두 번 올리면 두 번째는 거부한다", async () => {
+    const b64 = await xlsxBase64([
+      ["2026.11.11 09:00:00", "입금", "4,000", "체크카드", "홍길동", ""],
+      ["2026.11.11 09:10:00", "출금", "7,000", "체크카드", "문구점", ""],
+    ]);
+    const dry = await uploadDuesXlsx(client(), admin(), { fileName: "a.xlsx", xlsxBase64: b64, dryRun: true });
+    expect(dry.source).toBe("xlsx");
+    expect(dry.summary).toMatchObject({ total: 2, autoDone: 1, excluded: 1 });
+    expect(db.opsOn("fee_txn_hist", "insert")).toHaveLength(0);
+
+    const real = await uploadDuesXlsx(client(), admin(), { fileName: "a.xlsx", xlsxBase64: b64 });
+    expect(real.summary.total).toBe(2);
+    expect(db.opsOn("fee_txn_hist", "insert")).toHaveLength(2);
+    await expect(uploadDuesXlsx(client(), admin(), { fileName: "a.xlsx", xlsxBase64: b64 })).rejects.toThrow("이미 처리된 파일");
+  });
+
+  it("엑셀이 아닌 바이트는 파싱 실패로 거부한다", async () => {
+    const junk = Buffer.from("not an excel file").toString("base64");
+    await expect(uploadDuesXlsx(client(), admin(), { fileName: "a.xlsx", xlsxBase64: junk })).rejects.toBeInstanceOf(ToolInputError);
+  });
+});
+
+describe("보강: 실패 경로", () => {
+  it("확정 뒤 재계산이 실패해도 던지지 않고 상태·대기 회원과 감사행을 남긴다", async () => {
+    recalcMock.mockResolvedValueOnce({ ok: false, message: "boom", updatedCount: 0 } as never);
+    const r = await confirmDuesTxns(client(), admin(), { auto: true });
+    expect(r.status).toBe("recalc_failed");
+    expect(r.recalc_pending_mem_ids).toEqual([M1]);
+    expect(r.confirmed).toBe(1);
+    expect(r.audit_id).not.toBeNull();
+    const audit = db.opsOn("mcp_audit_log", "insert")[0].payload as { params_json: { status: string; txn_ids: string[] } };
+    expect(audit.params_json).toMatchObject({ status: "recalc_failed", txn_ids: [T_AUTO] });
+  });
+
+  it("취소는 됐는데 재계산만 실패하면 status=recalc_failed 로 알리고 감사를 남긴다", async () => {
+    cancelMock.mockResolvedValueOnce({ ok: false, cancelled: true, memId: M1, message: "x" } as never);
+    const r = await cancelDuesTxn(client(), admin(), { txnId: T_DONE });
+    expect(r).toMatchObject({ cancelled: true, status: "recalc_failed", recalc_pending_mem_ids: [M1] });
+    expect(r.audit_id).not.toBeNull();
+  });
+
+  function cancelFlips() {
+    cancelMock.mockImplementation(async (_db, input) => {
+      const row = db.tables.fee_txn_hist.find((t) => t.txn_id === input.txnId)!;
+      if (!input.dryRun) row.is_cfm_yn = false;
+      return { ok: true as const, message: null, memId: M1, txnId: input.txnId };
+    });
+  }
+
+  it("재분류 중 취소 단계 재계산이 실패해도 끝까지 재확정하고 상태로 알린다", async () => {
+    cancelMock.mockImplementation(async (_db, input) => {
+      if (!(input as { dryRun?: boolean }).dryRun) db.tables.fee_txn_hist.find((t) => t.txn_id === input.txnId)!.is_cfm_yn = false;
+      return (input as { dryRun?: boolean }).dryRun
+        ? { ok: true as const, message: null, memId: M1, txnId: input.txnId }
+        : ({ ok: false, cancelled: true, memId: M1, message: "recalc" } as never);
+    });
+    recalcMock.mockResolvedValueOnce({ ok: false, message: "boom" } as never);
+    const r = await reclassifyDuesTxn(client(), admin(), { txnId: T_DONE, feeItemCd: "due", memId: M2 });
+    expect(r.status).toBe("reclassified_recalc_failed");
+    expect(r.recalc_pending_mem_ids.sort()).toEqual([M1, M2].sort());
+    expect(db.tables.fee_txn_hist.find((t) => t.txn_id === T_DONE)).toMatchObject({ is_cfm_yn: true, mem_id: M2 });
+    expect(r.audit_id).not.toBeNull();
+  });
+
+  it("새 값 재확정이 실패하면 원래 값으로 되돌려 확정하고 restored 로 알린다", async () => {
+    cancelFlips();
+    // 새 값 재확정의 첫 UPDATE 한 번만 DB 오류로 만든다(원복 확정은 정상 동작).
+    let hits = 0;
+    Object.defineProperty(db.errors, "fee_txn_hist:update", {
+      configurable: true,
+      get: () => (hits++ === 0 ? { message: "fail" } : undefined),
+    });
+    const r = await reclassifyDuesTxn(client(), admin(), { txnId: T_DONE, feeItemCd: "other" });
+    expect(r.status).toBe("restored");
+    expect(db.tables.fee_txn_hist.find((t) => t.txn_id === T_DONE)).toMatchObject({ is_cfm_yn: true, fee_item_cd: "due", mem_id: M1 });
+    expect(r.audit_id).not.toBeNull();
   });
 });
