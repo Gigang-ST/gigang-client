@@ -4,6 +4,7 @@ import { feeItemTeamFilter } from "@/lib/fee-items";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+import { LEDGER_EPOCH } from "@/lib/dues/ledger-replay";
 import { matchPayer, type MemberRef, type AliasRef } from "@/lib/dues/match-payer";
 import { bucketOf } from "@/lib/dues/upload-bucketize";
 import { duplicateNames } from "@/lib/dues/homonyms";
@@ -364,7 +365,24 @@ export type MemberDuesDetail = {
   memName: string;
   balAmt: number | null;
   lastCalcDt: string | null;
+  /** 개시잔액(앵커 스냅샷 bal_amt) — 앵커가 없으면 null(신규 회원) */
+  anchorAmt: number | null;
+  /** 관리자 조정 이력(최신순, 되돌린 건 포함) */
+  adjustments: MemberBalAdj[];
   items: MemberDuesItem[];
+};
+
+export type MemberBalAdj = {
+  adjId: string;
+  adjAmt: number;
+  reason: string;
+  adjByName: string | null;
+  createdAt: string;
+  reverted: boolean;
+  revertReason: string | null;
+  revertedAt: string | null;
+  /** 앵커 이후 만든 조정이라 잔액에 실제로 반영되는가(재활성 청산 앵커 이전 조정은 false) */
+  counted: boolean;
 };
 
 /**
@@ -436,6 +454,44 @@ export async function getMemberDuesDetail(memId: string): Promise<MemberDuesDeta
 
   if (!mem) return null;
 
+  // 개시잔액 — recalculateBalance 의 앵커 선택 규칙과 같다(anchor_yn 우선, 그다음 가장 오래된 시딩 스냅샷).
+  const [{ data: anchor }, { data: adjRows }] = await Promise.all([
+    db
+      .from("fee_mem_bal_snap")
+      .select("bal_amt, crt_at")
+      .eq("team_id", teamId)
+      .eq("mem_id", memId)
+      .eq("del_yn", false)
+      .or(`anchor_yn.eq.true,crt_at.lt.${dayjs(LEDGER_EPOCH).toISOString()}`)
+      .order("anchor_yn", { ascending: false })
+      .order("crt_at", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+    db
+      .from("fee_bal_adj_hist")
+      .select("adj_id, adj_amt, rsn_txt, adj_by_mem_id, crt_at, del_yn, rvt_rsn_txt, rvt_at")
+      .eq("team_id", teamId)
+      .eq("mem_id", memId)
+      .order("crt_at", { ascending: false })
+      .limit(100),
+  ]);
+  const adjByIds = [...new Set((adjRows ?? []).map((a) => a.adj_by_mem_id))];
+  const { data: adjByMems } = adjByIds.length
+    ? await db.from("mem_mst").select("mem_id, mem_nm").in("mem_id", adjByIds).eq("vers", 0).eq("del_yn", false)
+    : { data: [] };
+  const adjByName = new Map((adjByMems ?? []).map((m) => [m.mem_id, m.mem_nm]));
+  const adjustments: MemberBalAdj[] = (adjRows ?? []).map((a) => ({
+    adjId: a.adj_id,
+    adjAmt: a.adj_amt,
+    reason: a.rsn_txt,
+    adjByName: adjByName.get(a.adj_by_mem_id) ?? null,
+    createdAt: a.crt_at,
+    reverted: a.del_yn,
+    revertReason: a.rvt_rsn_txt,
+    revertedAt: a.rvt_at,
+    counted: !anchor?.crt_at || dayjs(a.crt_at).isAfter(dayjs(anchor.crt_at)),
+  }));
+
   const itemLabelMap = new Map((feeItemCds ?? []).map((c) => [c.cd, c.cd_nm]));
 
   const items: MemberDuesItem[] = [
@@ -476,6 +532,8 @@ export async function getMemberDuesDetail(memId: string): Promise<MemberDuesDeta
     memName: mem.mem_nm,
     balAmt: snap?.bal_amt ?? null,
     lastCalcDt: snap?.last_calc_dt ?? null,
+    anchorAmt: anchor?.bal_amt ?? null,
+    adjustments,
     items,
   };
 }
