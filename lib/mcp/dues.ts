@@ -205,6 +205,7 @@ function rowsFromJson(rows: UploadRowInput[]): ParsedRow[] {
       txn_dt: r.txn_dt,
       txn_tm: r.txn_tm,
       txn_amt: r.amount,
+      txn_bal_amt: null,
       txn_io_enm: r.io,
       raw_name: name,
       raw_memo: r.memo?.trim() || null,

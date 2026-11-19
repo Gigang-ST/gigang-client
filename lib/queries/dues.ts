@@ -627,3 +627,66 @@ export async function getDuesLedger(): Promise<{
     },
   };
 }
+
+export type DuesOverview = {
+  /** 통장 잔액 = 가장 늦은 거래의 거래 후 잔액. 한 번도 기록되지 않았으면 null */
+  bankBalance: number | null;
+  /** 통장 잔액이 기록된 마지막 거래 일자(YYYY-MM-DD) */
+  bankAsOfDt: string | null;
+  /** 프로젝트별 보유액(모금액 − 출금, 확정 거래 기준) — 지출 귀속(#707) 전이라 모금액에 가깝다 */
+  projects: { prjId: string; name: string; stCd: "active" | "closed"; amt: number }[];
+  projectTotal: number;
+  /** 예치금 합계 = 활성 회원 중 잔액이 0보다 큰 사람의 합 */
+  prepaidTotal: number;
+  prepaidCount: number;
+  /** 미납 합계(참고) = 활성 회원 중 잔액이 0보다 작은 사람의 합(절댓값) */
+  unpaidTotal: number;
+  unpaidCount: number;
+  /** 자유 회비 = 통장 잔액 − 프로젝트 − 예치금. 통장 잔액이 없으면 null */
+  freeFund: number | null;
+};
+
+/**
+ * 통장 전체 잔액·명목별 현황(#706). 통장 잔액 = 프로젝트별 보유액 + 예치금 합계 + 자유 회비(나머지).
+ * 자유 회비는 나머지라 합은 늘 맞게 나오므로, 나머지가 음수인지(명목 합이 통장보다 큼)로 어긋남을 본다.
+ */
+export async function getDuesOverview(): Promise<DuesOverview> {
+  const { teamId } = await getRequestTeamContext();
+  const db = createAdminClient();
+
+  const [projects, ledger, { data: latest, error: latestErr }] = await Promise.all([
+    getProjects(),
+    getDuesLedger(),
+    db
+      .from("fee_txn_hist")
+      .select("txn_dt, txn_bal_amt")
+      .eq("team_id", teamId)
+      .eq("del_yn", false)
+      .not("txn_bal_amt", "is", null)
+      .order("txn_dt", { ascending: false })
+      .order("txn_tm", { ascending: false, nullsFirst: false })
+      .limit(1),
+  ]);
+  if (latestErr) throw new Error(`통장 잔액 조회 실패: ${latestErr.message}`);
+
+  const bankBalance = latest?.[0]?.txn_bal_amt ?? null;
+  const projectRows = projects
+    .filter((p) => p.totalAmt !== 0 || p.stCd === "active")
+    .map((p) => ({ prjId: p.prjId, name: p.name, stCd: p.stCd, amt: p.totalAmt }));
+  const projectTotal = projectRows.reduce((s, p) => s + p.amt, 0);
+  const prepaid = ledger.rows.filter((r) => r.balance > 0);
+  const unpaid = ledger.rows.filter((r) => r.balance < 0);
+  const prepaidTotal = prepaid.reduce((s, r) => s + r.balance, 0);
+
+  return {
+    bankBalance,
+    bankAsOfDt: latest?.[0]?.txn_dt ?? null,
+    projects: projectRows,
+    projectTotal,
+    prepaidTotal,
+    prepaidCount: prepaid.length,
+    unpaidTotal: unpaid.reduce((s, r) => s - r.balance, 0),
+    unpaidCount: unpaid.length,
+    freeFund: bankBalance === null ? null : bankBalance - projectTotal - prepaidTotal,
+  };
+}
