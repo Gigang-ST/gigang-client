@@ -893,7 +893,7 @@ const handler = createMcpHandler(
         description:
           "미확정(처리 대기) 회비 거래 목록입니다. 운영진(admin) 전용. 앱 「회비 > 처리」와 같은 3버킷으로 나눕니다: " +
           "autoDone(이름이 한 회원에게 정확히 맞는 회비 입금) · needsReview(미매칭·동명이인·프로젝트 후보 — 사람이 분류를 정해야 함) · excluded(출금·기타). " +
-          "auto_eligible=true 인 건만 confirm_dues_txns 의 auto 로 일괄 확정됩니다(금액이 월회비 배수가 아니면 자동에서 빠집니다). " +
+          "auto_eligible=true 인 건만 confirm_dues_txns 의 auto 로 일괄 확정됩니다(금액이 진행 중 프로젝트 참가비와 같거나 월회비 배수가 아니면 이름이 맞아도 자동에서 빠지고 needsReview 가 되며, 이유는 amount_hint 에 실립니다). " +
           "확인필요 건에는 후보 회원(candidates)이 붙고, 응답 머리에 확정에 쓸 분류 코드(fee_items)와 모금 중 프로젝트(projects)가 실립니다. " +
           "입금자명·금액이 들어 있으니 필요한 만큼만 사용자에게 보여 주세요.",
         inputSchema: {

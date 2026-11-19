@@ -1,3 +1,4 @@
+import type { AmountHint } from "@/lib/dues/amount-hint";
 import type { MatchStatus } from "@/lib/dues/match-payer";
 
 export type Bucket = "autoDone" | "needsReview" | "excluded";
@@ -16,9 +17,11 @@ export function bucketOf(input: {
   io: "deposit" | "withdrawal";
   itemCd: string; // 'due' | 'expense' | 'other' | ...
   matchStatus: MatchStatus;
+  /** 금액 힌트(#708) — 있으면 이름이 맞아도 회비로 자동 확정하지 않고 확인필요로 보낸다 */
+  amountHint?: AmountHint | null;
 }): Bucket {
   if (input.io === "withdrawal") return "excluded";
   if (input.itemCd !== "due" && input.itemCd !== "event_fee") return "excluded";
-  if (input.itemCd === "due" && input.matchStatus === "matched") return "autoDone";
+  if (input.itemCd === "due" && input.matchStatus === "matched" && !input.amountHint) return "autoDone";
   return "needsReview";
 }
