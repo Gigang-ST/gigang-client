@@ -8,7 +8,7 @@ import { amountHintLabel } from "@/lib/dues/amount-hint";
 import { memberLabel } from "@/lib/dues/homonyms";
 import type { Decision, ItemCd } from "@/lib/dues/confirm-payload";
 import { canReclassifyTo } from "@/lib/dues/confirm-scope";
-import { carriesProject, DECISION_ITEM_LABEL, isItemDecided, isMemberlessItemCd, itemOrderFor } from "@/lib/dues/fee-item-direction";
+import { canLearnAlias, carriesProject, DECISION_ITEM_LABEL, isItemDecided, isMemberlessItemCd, itemOrderFor } from "@/lib/dues/fee-item-direction";
 import type { InboxTxn, MemberOption, ProjectOption } from "@/lib/queries/dues";
 
 import { Body, Caption, Micro } from "@/components/common/typography";
@@ -42,7 +42,7 @@ const BUCKET_BADGE: Record<InboxTxn["bucket"], { label: string; cls: string }> =
 
 /**
  * 통합 테이블의 행 1건.
- * - editable(needsReview): 분류 Select + 회비·프로젝트면 후보 칩·직접선택(+회비는 기억하기),
+ * - editable(needsReview): 분류 Select + 회비·프로젝트면 후보 칩·직접선택(+회비·프로젝트는 기억하기),
  *   프로젝트면 귀속 프로젝트 Select 추가.
  * - 읽기(autoDone/excluded): 저장값을 텍스트로만 표시.
  * 키보드: 행 자체(빈 영역) 포커스 시 1/2/3=분류, ↑/↓=행 이동, Enter=다음.
@@ -193,7 +193,7 @@ export function InboxRow({
                 </SelectContent>
               </Select>
             )}
-            {decision.itemCd === "due" && decision.memId && (
+            {canLearnAlias(decision.itemCd) && decision.memId && (
               <label className="flex items-center gap-1.5">
                 <Checkbox
                   checked={decision.remember}

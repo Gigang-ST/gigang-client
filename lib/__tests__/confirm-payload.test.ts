@@ -48,19 +48,23 @@ describe("buildConfirmPayload", () => {
     expect(items).toEqual([{ txnId: "r1", feeItemCd: "due", memId: "m1", prjId: null }]);
   });
 
-  it("aliasLearn은 remember && 회비 && memId 인 것만", () => {
+  it("aliasLearn은 remember && 회비·프로젝트 && memId 인 것만(지출·제외 등은 안 배운다)", () => {
     const decisions: Record<string, Decision> = {
       r1: d({ memId: "m1", itemCd: "due", remember: true }),
       r2: d({ memId: "m2", itemCd: "due", remember: false }),
       r3: d({ memId: "m3", itemCd: "event_fee", remember: true, prjId: "p1" }),
+      r5: d({ memId: "m5", itemCd: "other", remember: true }),
       r4: d({ memId: null, itemCd: "due", remember: true }),
     };
     const { aliasLearn } = buildConfirmPayload({
       autoDone: [], excluded: [],
-      review: [ref("r1", "회비홍길동"), ref("r2"), ref("r3"), ref("r4")],
+      review: [ref("r1", "회비홍길동"), ref("r2"), ref("r3", "프로젝트입금"), ref("r4"), ref("r5")],
       decisions,
     });
-    expect(aliasLearn).toEqual([{ rawName: "회비홍길동", memId: "m1" }]);
+    expect(aliasLearn).toEqual([
+      { rawName: "회비홍길동", memId: "m1" },
+      { rawName: "프로젝트입금", memId: "m3" },
+    ]);
   });
 
   it("items 순서는 autoDone → excluded → review", () => {

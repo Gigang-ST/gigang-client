@@ -15,6 +15,14 @@ export function carriesProject(feeItemCd: string | null | undefined): boolean {
   return feeItemCd === "event_fee" || feeItemCd === EXPENSE_CD;
 }
 
+/**
+ * 입금자명을 회원 별칭으로 기억할 수 있는 분류 — 회비·프로젝트(#709).
+ * 별칭은 분류와 무관하게 회원 단위(`fee_payer_alias`)라, 회원이 붙는 입금 분류면 어디서든 기억한다.
+ */
+export function canLearnAlias(feeItemCd: string | null | undefined): boolean {
+  return feeItemCd === "due" || feeItemCd === "event_fee";
+}
+
 /** 인박스 판단 어휘 — 회원 잔액을 안 건드리는 분류 3종까지 포함 */
 export type DecisionItemCd = "due" | "event_fee" | "expense" | "other" | "opr_fund" | "fund_return" | "dep_refund";
 
