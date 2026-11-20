@@ -7,7 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 
 import { getValidFeeItemCds } from "@/app/actions/dues/validate-fee-item";
-import { DEP_REFUND_CD, directionIssue } from "@/lib/dues/fee-item-direction";
+import { carriesProject, DEP_REFUND_CD, directionIssue } from "@/lib/dues/fee-item-direction";
 
 type Db = SupabaseClient<Database>;
 
@@ -17,7 +17,7 @@ export type ConfirmItem = {
   feeItemCd?: string | null;
   /** 확정과 함께 적용할 회원 매칭(로컬로 바꾼 값). 없으면 기존 매칭 유지. */
   memId?: string | null;
-  /** 프로젝트(event_fee) 귀속. 없으면(undefined) 기존 값 유지, null이면 해제. */
+  /** 프로젝트 귀속(event_fee 입금 · expense 출금). 없으면(undefined) 기존 값 유지, null이면 해제. */
   prjId?: string | null;
 };
 
@@ -75,9 +75,9 @@ export async function confirmTransactionsCore(
       // 매칭을 새로 지정했으면 matched 로 승격
       const memId = it?.memId !== undefined && it.memId !== null ? it.memId : t.mem_id;
       const matchStCd = it?.memId ? "matched" : t.match_st_cd;
-      // 프로젝트 귀속은 undefined=유지, null=해제, 값=지정. 회비/제외 분류면 항상 해제
+      // 프로젝트 귀속은 undefined=유지, null=해제, 값=지정. 프로젝트·지출 외 분류면 항상 해제
       // (분류를 프로젝트→회비로 바꿔 확정할 때 낡은 귀속이 남지 않도록).
-      const prjId = feeItemCd === "event_fee" ? (it?.prjId !== undefined ? it.prjId : t.project_id) : null;
+      const prjId = carriesProject(feeItemCd) ? (it?.prjId !== undefined ? it.prjId : t.project_id) : null;
       return { ...t, fee_item_cd: feeItemCd, mem_id: memId, match_st_cd: matchStCd, project_id: prjId };
     });
 

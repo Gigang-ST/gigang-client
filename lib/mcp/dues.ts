@@ -21,7 +21,7 @@ import {
 import { bucketOf, type Bucket } from "@/lib/dues/upload-bucketize";
 import { feeItemTeamFilter } from "@/lib/fee-items";
 import type { OperatorContext } from "@/lib/mcp/auth";
-import { DEP_REFUND_CD, directionIssue } from "@/lib/dues/fee-item-direction";
+import { carriesProject, DEP_REFUND_CD, directionIssue } from "@/lib/dues/fee-item-direction";
 import { ToolDeniedError, ToolInputError } from "@/lib/mcp/queries";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import type { Database } from "@/lib/supabase/database.types";
@@ -514,7 +514,7 @@ function planItem(
   if (finalCd === DEP_REFUND_CD && !refundMemId) {
     return "예치금 환급으로 확정하려면 mem_id(환급받는 회원)가 필요합니다.";
   }
-  const finalPrj = finalCd === "event_fee" ? (req.project_id !== undefined ? req.project_id : t.project_id) : null;
+  const finalPrj = carriesProject(finalCd) ? (req.project_id !== undefined ? req.project_id : t.project_id) : null;
   if (finalCd === "event_fee" && !finalPrj) return "프로젝트로 확정하려면 project_id 가 필요합니다.";
   if (finalPrj && validPrjIds && !validPrjIds.has(finalPrj)) return "존재하지 않는 프로젝트입니다.";
 
@@ -782,7 +782,7 @@ export async function reclassifyDuesTxn(db: Db, ctx: OperatorContext, input: Rec
   if (typeof plan === "string") throw new ToolInputError(plan);
 
   const from = { fee_item_cd: t.fee_item_cd, mem_id: t.mem_id, project_id: t.project_id };
-  const finalPrj = plan.finalCd === "event_fee" ? (input.projectId !== undefined ? input.projectId : t.project_id) : null;
+  const finalPrj = carriesProject(plan.finalCd) ? (input.projectId !== undefined ? input.projectId : t.project_id) : null;
   const to = { fee_item_cd: plan.finalCd, mem_id: plan.finalMemId, project_id: finalPrj ?? null };
   if (from.fee_item_cd === to.fee_item_cd && from.mem_id === to.mem_id && (from.project_id ?? null) === to.project_id) {
     throw new ToolInputError("이미 같은 분류·회원·프로젝트로 확정돼 있습니다.");

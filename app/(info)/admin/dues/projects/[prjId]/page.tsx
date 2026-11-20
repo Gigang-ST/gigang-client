@@ -14,7 +14,7 @@ import { ProjectCancelButton } from "./project-cancel-button";
 import { ProjectStatusButton } from "./project-status-button";
 
 /**
- * 프로젝트(모금) 상세 — 참여자 명단·모금액 (SP2).
+ * 프로젝트(모금) 상세 — 참여자 명단·모금·지출·남은 돈 (SP2, #707).
  * 귀속된 확정 거래만 집계한다(인박스에 남은 미확정 귀속은 제외).
  * 개별 건 정정은 처리 화면의 '처리됨'에서.
  */
@@ -40,21 +40,38 @@ export default async function DuesProjectDetailPage({
       </div>
       {detail.memo && <Caption>{detail.memo}</Caption>}
 
-      <CardItem className="flex items-center justify-between p-4">
-        <div className="flex flex-col gap-0.5">
-          <Caption>모금액 (확정 기준)</Caption>
-          <Micro>
-            {detail.stCd === "active" ? "모금 중 — 거래 처리에서 귀속 가능" : "마감됨"} ·{" "}
-            {detail.rows.length}건
-          </Micro>
+      <CardItem className="flex flex-col gap-2 p-4">
+        <div className="flex items-center justify-between">
+          <Caption>모금 (확정 기준)</Caption>
+          <Body className="font-semibold">+{detail.raisedAmt.toLocaleString()}원</Body>
         </div>
-        <Body className="text-lg font-bold">{detail.totalAmt.toLocaleString()}원</Body>
+        <div className="flex items-center justify-between">
+          <Caption>지출</Caption>
+          <Body className="font-semibold">-{detail.spentAmt.toLocaleString()}원</Body>
+        </div>
+        <div className="flex items-center justify-between border-t border-border pt-2">
+          <div className="flex flex-col gap-0.5">
+            <Caption className="text-foreground">남은 돈</Caption>
+            <Micro>
+              {detail.stCd === "active"
+                ? "모금 중 — 거래 처리에서 입금(프로젝트)·출금(지출) 귀속 가능"
+                : "마감됨 — 정산 완료로 보고 통장 보유액은 0으로 잡아요"}{" "}
+              · {detail.rows.length}건
+            </Micro>
+          </div>
+          <Body className="text-lg font-bold">{detail.remainingAmt.toLocaleString()}원</Body>
+        </div>
+        {detail.stCd === "closed" && detail.remainingAmt !== 0 && (
+          <Micro className="text-warning">
+            마감했는데 남은 돈이 {detail.remainingAmt.toLocaleString()}원이에요. 이 돈은 자유 회비에 섞여 계산돼요.
+          </Micro>
+        )}
       </CardItem>
 
       {detail.rows.length === 0 ? (
         <EmptyState
           variant="card"
-          message="아직 귀속된 거래가 없습니다. 거래내역 처리에서 분류를 '프로젝트'로 지정해 보세요."
+          message="아직 귀속된 거래가 없습니다. 거래내역 처리에서 입금은 '프로젝트', 출금은 '지출'로 분류하고 이 프로젝트를 골라 보세요."
         />
       ) : (
         <CardItem className="flex flex-col divide-y divide-border p-0 overflow-hidden">
@@ -65,7 +82,7 @@ export default async function DuesProjectDetailPage({
                 <Micro>
                   {dayjs(r.txnDt).format("YY.MM.DD")}
                   {r.memName && r.memName !== r.rawName ? ` · 입금자명 ${r.rawName}` : ""}
-                  {!r.memName ? " · 회원 미매칭" : ""}
+                  {r.io === "withdrawal" ? " · 지출" : !r.memName ? " · 회원 미매칭" : ""}
                 </Micro>
               </div>
               <div className="flex shrink-0 items-center gap-2">
