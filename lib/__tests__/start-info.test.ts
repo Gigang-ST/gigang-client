@@ -134,3 +134,17 @@ describe("운영 MCP 시작 정보 요약", () => {
     });
   });
 });
+
+describe("시간 파싱 경계값", () => {
+  it("0:00:00 은 거절, 상·하한(10:00 · 24:00:00)은 포함, 그 밖은 거절", () => {
+    expect(parseRecTime("0:00:00")).toBeNull();
+    expect(parseRecTime("9:59")).toBeNull();
+    expect(parseRecTime("10:00")).toBe(600);
+    expect(parseRecTime("24:00:00")).toBe(86400);
+    expect(parseRecTime("24:00:01")).toBeNull();
+  });
+  it("100:00 은 100분(6000초)으로 읽는다 — 분 칸은 3자리까지", () => {
+    expect(parseRecTime("100:00")).toBe(6000);
+    expect(parseRecTime("1000:00")).toBeNull();
+  });
+});

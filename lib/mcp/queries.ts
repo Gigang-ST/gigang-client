@@ -126,9 +126,10 @@ export type RunningProfile = {
   join_purposes: string[];
   /**
    * 시작 정보(이슈 #719) — 본인이 적은 경력·주간 거리·기록. **자기신고 기준선**이라 대회 기록이 아니다.
+   * **admin 응답에만 키가 생긴다**(생일·성별과 같은 방식 — 비-admin 은 select 에서부터 뺀다).
    * 입력한 적 없으면 null. `entered_at`·`entered_via` 로 가입 때 적은 값과 나중에 채운 값을 가른다.
    */
-  start_info: StartInfoSummary | null;
+  start_info?: StartInfoSummary | null;
 };
 
 export type StartInfoSummary = {
@@ -384,27 +385,49 @@ async function fetchActiveMemberSeeds(
 async function fetchRunningProfiles(
   supabase: Db,
   teamId: string,
+  isAdmin: boolean,
   memIds: readonly string[],
 ): Promise<Map<string, RunningProfile>> {
   const map = new Map<string, RunningProfile>();
   if (memIds.length === 0) return map;
-  const [{ data, error }, { data: purps, error: purpErr }, { data: recs, error: recErr }] = await Promise.all([
-    supabase
-      .from("mem_onbd_prf")
-      .select(
-        "mem_id, near_stn_nm, avg_run_dist_km, avg_pace_cd, run_career_cd, wkly_dist_cd, start_rec_none_yn, start_info_src_cd, start_info_at",
-      )
-      .in("mem_id", memIds),
+  // 시작 정보(경력·주간 거리·자기신고 기록)는 admin 에게만 — 비-admin 은 칸도 기록 테이블도 아예 안 읽는다.
+  // select 문자열을 합치면 타입 파서가 못 읽어 리터럴 둘로 갈랐다.
+  const prfQuery = isAdmin
+    ? supabase
+        .from("mem_onbd_prf")
+        .select(
+          "mem_id, near_stn_nm, avg_run_dist_km, avg_pace_cd, run_career_cd, wkly_dist_cd, start_rec_none_yn, start_info_src_cd, start_info_at",
+        )
+        .in("mem_id", memIds)
+    : supabase
+        .from("mem_onbd_prf")
+        .select("mem_id, near_stn_nm, avg_run_dist_km, avg_pace_cd")
+        .in("mem_id", memIds);
+  const [prfRes, { data: purps, error: purpErr }, { data: recs, error: recErr }] = await Promise.all([
+    prfQuery,
     supabase
       .from("team_mem_onbd_rel")
       .select("mem_id, join_purp_cds")
       .eq("team_id", teamId)
       .in("mem_id", memIds),
-    supabase.from("mem_start_rec_rel").select("mem_id, dist_cd, rec_sec").in("mem_id", memIds),
+    isAdmin
+      ? supabase.from("mem_start_rec_rel").select("mem_id, dist_cd, rec_sec").in("mem_id", memIds)
+      : Promise.resolve({ data: null, error: null }),
   ]);
-  if (error) throw error;
+  if (prfRes.error) throw prfRes.error;
   if (purpErr) throw purpErr;
   if (recErr) throw recErr;
+  const data = prfRes.data as Array<{
+    mem_id: string;
+    near_stn_nm: string | null;
+    avg_run_dist_km: number | string | null;
+    avg_pace_cd: string | null;
+    run_career_cd?: string | null;
+    wkly_dist_cd?: string | null;
+    start_rec_none_yn?: boolean | null;
+    start_info_src_cd?: string | null;
+    start_info_at?: string | null;
+  }> | null;
   const recsByMem = new Map<string, { dist_cd: string; rec_sec: number }[]>();
   for (const r of recs ?? []) {
     const list = recsByMem.get(r.mem_id) ?? [];
@@ -419,7 +442,7 @@ async function fetchRunningProfiles(
       avg_run_dist_km: r.avg_run_dist_km != null ? Number(r.avg_run_dist_km) : null,
       avg_pace: decodePaceLabel(r.avg_pace_cd ?? null),
       join_purposes: decodeJoinPurposes(purpByMem.get(r.mem_id) ?? null),
-      start_info: buildStartInfoSummary(r, recsByMem.get(r.mem_id) ?? []),
+      ...(isAdmin ? { start_info: buildStartInfoSummary(r, recsByMem.get(r.mem_id) ?? []) } : {}),
     });
   }
   return map;
@@ -430,7 +453,6 @@ const EMPTY_RUNNING_PROFILE: RunningProfile = {
   avg_run_dist_km: null,
   avg_pace: null,
   join_purposes: [],
-  start_info: null,
 };
 
 /** 과거(이미 시작된) 팀 모임 참석 이벤트 목록 — 5.3/5.5 공통 기반. */
@@ -496,6 +518,7 @@ export async function listTodayGatherings(
 export async function listRecentMembers(
   supabase: Db,
   teamId: string,
+  isAdmin: boolean,
   limit = 10,
 ): Promise<RecentMemberRow[]> {
   const { data, error } = await supabase
@@ -522,11 +545,13 @@ export async function listRecentMembers(
   const profiles = await fetchRunningProfiles(
     supabase,
     teamId,
+    isAdmin,
     rows.map((r) => r.mem_id),
   );
   return rows.map((r) => ({
     ...r,
     ...(profiles.get(r.mem_id) ?? EMPTY_RUNNING_PROFILE),
+    ...(isAdmin && !profiles.has(r.mem_id) ? { start_info: null } : {}),
   }));
 }
 
@@ -615,11 +640,13 @@ export async function getMemberProfile(
   const profiles = await fetchRunningProfiles(
     supabase,
     teamId,
+    isAdmin,
     rows.map((r) => r.mem_id).filter((id) => id !== ""),
   );
   return rows.map((r) => ({
     ...r,
     ...(profiles.get(r.mem_id) ?? EMPTY_RUNNING_PROFILE),
+    ...(isAdmin && !profiles.has(r.mem_id) ? { start_info: null } : {}),
   }));
 }
 

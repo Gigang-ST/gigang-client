@@ -180,7 +180,7 @@ async function runDuesTool<T>(
  *
  * 권한: 도구 대부분은 인증된 팀 멤버면 호출할 수 있고, **앱이 관리자에게만 보여주는 것**만
  *   admin 으로 좁힌다(#496) — `send_push`·`send_kakao_notice`·`list_members_attendance`·
- *   `create_gathering` 은 도구째, `get_member_profile` 의 생년월일·성별과 `list_gathering_non_attendees` 의 참석
+ *   `create_gathering` 은 도구째, `get_member_profile` 의 생년월일·성별(+ `list_recent_members` 포함 시작 정보)과 `list_gathering_non_attendees` 의 참석
  *   통계는 필드 단위로. 판정은 전부 `ctx.is_admin` 이며, 게이트는 도구 핸들러가 아니라
  *   **쿼리·발송 함수 안**에 있다(호출부가 늘어도 새지 않게).
  *
@@ -266,14 +266,14 @@ const handler = createMcpHandler(
       {
         title: "최근 가입 멤버",
         description:
-          "우리 팀에 최근 가입한 멤버 목록을 가입일 최신순으로 반환합니다. 가까운 역·평균 러닝 거리·평균 페이스·가입 목적(가입 온보딩 러닝 프로필) 포함. limit 기본 10.",
+          "우리 팀에 최근 가입한 멤버 목록을 가입일 최신순으로 반환합니다. 가까운 역·평균 러닝 거리·평균 페이스·가입 목적(가입 온보딩 러닝 프로필) 포함. 시작 정보(경력·주간 거리·자기신고 기록)는 운영진(admin)에게만 포함됩니다. limit 기본 10.",
         inputSchema: {
           limit: z.number().int().min(1).max(100).optional(),
         },
       },
       async (args, extra) =>
         runTool(extra, (ctx, supabase) =>
-          listRecentMembers(supabase, ctx.team_id, args.limit ?? 10),
+          listRecentMembers(supabase, ctx.team_id, ctx.is_admin, args.limit ?? 10),
         ),
     );
 
@@ -298,7 +298,7 @@ const handler = createMcpHandler(
       {
         title: "멤버 프로필",
         description:
-          "우리 팀 멤버 프로필(이름·가입일·역할·상태·소개·아바타, 가까운 역·평균 러닝 거리·평균 페이스·가입 목적)을 조회합니다. member_id(uuid) 또는 name 중 하나로 조회. 생년월일·성별은 운영진(admin)에게만 포함됩니다. 연락처·계좌 정보는 반환하지 않습니다.",
+          "우리 팀 멤버 프로필(이름·가입일·역할·상태·소개·아바타, 가까운 역·평균 러닝 거리·평균 페이스·가입 목적)을 조회합니다. member_id(uuid) 또는 name 중 하나로 조회. 생년월일·성별·시작 정보(경력·주간 거리·자기신고 기록)는 운영진(admin)에게만 포함됩니다. 연락처·계좌 정보는 반환하지 않습니다.",
         inputSchema: {
           member_id: z.string().uuid("member_id 는 uuid 여야 합니다.").optional(),
           name: z.string().min(1).optional(),
