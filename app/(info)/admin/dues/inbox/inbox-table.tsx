@@ -9,7 +9,14 @@ import { deleteTransaction } from "@/app/actions/dues/delete-transaction";
 import { buildConfirmPayload, type Decision, type ItemCd } from "@/lib/dues/confirm-payload";
 import { canReclassifyTo, isDecisionRow, isReclassified } from "@/lib/dues/confirm-scope";
 import { DEPOSIT_ITEM_ORDER, WITHDRAWAL_ITEM_ORDER, carriesProject, isItemDecided, itemOrderFor, type DecisionItemCd } from "@/lib/dues/fee-item-direction";
-import { duplicateNames } from "@/lib/dues/homonyms";
+import { duplicateNames, memberLabel } from "@/lib/dues/homonyms";
+import {
+  isProcessedFilterActive,
+  PROCESSED_PAGE_SIZE,
+  processedFilterToQuery,
+  processedPageCount,
+  type ProcessedFilter,
+} from "@/lib/dues/processed-filter";
 import type { FeeItemOption, InboxTxn, MemberOption, ProcessedTxn, ProjectOption } from "@/lib/queries/dues";
 
 import { EmptyState } from "@/components/common/empty-state";
@@ -67,7 +74,8 @@ export function InboxTable({
   members,
   txns,
   processed,
-  processedCapped,
+  processedTotal,
+  processedFilter,
   processedError = false,
   feeItems,
   projects,
@@ -75,8 +83,10 @@ export function InboxTable({
   members: MemberOption[];
   txns: InboxTxn[];
   processed: ProcessedTxn[];
-  /** 처리됨 목록이 조회 한도에 걸려 잘렸는지 — 잘렸으면 화면에 고지한다. */
-  processedCapped: boolean;
+  /** 처리됨 필터에 걸린 전체 건수 — 쪽 수 계산용 */
+  processedTotal: number;
+  /** 처리됨 목록의 현재 필터·쪽(URL 쿼리에서 읽은 값) */
+  processedFilter: ProcessedFilter;
   /** 처리됨 조회 실패(핵심 triage 저니는 살아있음) — 탭 안에서만 안내한다. */
   processedError?: boolean;
   /** 수동 등록 분류 선택지 — FEE_ITEM_CD 전체 */
@@ -129,7 +139,17 @@ export function InboxTable({
     return byFilter.filter((t) => t.rawName.includes(q) || String(t.amt).includes(q));
   }, [txns, filter, query]);
 
-  // 처리됨(확정 완료) 행 — 감사·정정용. 서버 정렬(cfm_at desc) 유지, 같은 검색어 적용.
+  // 처리됨 필터·쪽은 URL 쿼리가 정본이다(서버가 그 값으로 조회). 바꾸면 쿼리만 갈아 끼운다.
+  const processedPages = processedPageCount(processedTotal);
+  function setProcessedFilter(patch: Partial<ProcessedFilter>) {
+    const next = { ...processedFilter, ...patch };
+    // 쪽 외의 조건이 바뀌면 1쪽으로
+    if (!("page" in patch)) next.page = 1;
+    const qs = processedFilterToQuery(next);
+    router.replace(qs ? `?${qs}` : "?", { scroll: false });
+  }
+
+  // 처리됨(확정 완료) 행 — 감사·정정용. 서버 정렬(cfm_at desc) 유지, 같은 검색어 적용(현재 쪽 안에서).
   const visibleProcessed = useMemo(() => {
     if (filter !== "processed") return [];
     const q = query.trim();
@@ -284,7 +304,7 @@ export function InboxTable({
     { key: "needsReview", label: "확인필요", count: review.length },
     { key: "autoDone", label: "자동", count: autoDone.length },
     { key: "excluded", label: "제외", count: excluded.length },
-    { key: "processed", label: "처리됨", count: processed.length },
+    { key: "processed", label: "처리됨", count: processedTotal },
   ];
 
   return (
@@ -317,13 +337,89 @@ export function InboxTable({
         />
       </div>
 
+      {filter === "processed" && (
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="flex flex-col gap-1">
+            <Micro className="text-muted-foreground">거래일 시작</Micro>
+            <Input
+              type="date"
+              value={processedFilter.from ?? ""}
+              onChange={(e) => setProcessedFilter({ from: e.target.value || null })}
+              className="h-8 w-36"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <Micro className="text-muted-foreground">거래일 끝</Micro>
+            <Input
+              type="date"
+              value={processedFilter.to ?? ""}
+              onChange={(e) => setProcessedFilter({ to: e.target.value || null })}
+              className="h-8 w-36"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <Micro className="text-muted-foreground">회원</Micro>
+            <select
+              value={processedFilter.memId ?? ""}
+              onChange={(e) => setProcessedFilter({ memId: e.target.value || null })}
+              className="h-8 w-40 rounded-md border border-input bg-background px-2 text-sm"
+            >
+              <option value="">전체</option>
+              {members.map((m) => (
+                <option key={m.memId} value={m.memId}>
+                  {memberLabel(m, dupNames)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <Micro className="text-muted-foreground">분류</Micro>
+            <select
+              value={processedFilter.itemCd ?? ""}
+              onChange={(e) => setProcessedFilter({ itemCd: e.target.value || null })}
+              className="h-8 w-36 rounded-md border border-input bg-background px-2 text-sm"
+            >
+              <option value="">전체</option>
+              {feeItems.map((f) => (
+                <option key={f.cd} value={f.cd}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {isProcessedFilterActive(processedFilter) && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => router.replace("?", { scroll: false })}
+            >
+              필터 지우기
+            </Button>
+          )}
+        </div>
+      )}
+
       {filter === "processed" ? (
         processedError ? (
           <EmptyState variant="card" message="처리된 거래를 불러오지 못했습니다. 새로고침해 주세요." />
         ) : visibleProcessed.length === 0 ? (
           <EmptyState
             variant="card"
-            message={query.trim() ? "검색 결과가 없습니다." : "아직 처리된 거래가 없습니다."}
+            message={
+              query.trim()
+                ? "이 쪽에는 검색 결과가 없습니다."
+                : isProcessedFilterActive(processedFilter) || processedFilter.page > 1
+                  ? "조건에 맞는 처리된 거래가 없습니다."
+                  : "아직 처리된 거래가 없습니다."
+            }
+            action={
+              processedFilter.page > 1 ? (
+                <Button type="button" size="sm" variant="outline" onClick={() => setProcessedFilter({ page: 1 })}>
+                  1쪽으로
+                </Button>
+              ) : undefined
+            }
           />
         ) : (
           <div className="overflow-x-auto">
@@ -343,11 +439,35 @@ export function InboxTable({
                 <ProcessedRows txns={visibleProcessed} busyId={cancelBusyId} onCancel={onCancelProcessed} />
               </tbody>
             </table>
-            {processedCapped && (
-              <Micro className="mt-2 block text-muted-foreground">
-                최근 처리분만 표시됩니다 — 더 오래된 건은 검색으로도 나오지 않아요.
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <Micro className="text-muted-foreground">
+                총 {processedTotal.toLocaleString()}건 · 한 쪽 {PROCESSED_PAGE_SIZE}건
+                {query.trim() ? " · 검색은 현재 쪽 안에서만 찾아요" : ""}
               </Micro>
-            )}
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  disabled={processedFilter.page <= 1}
+                  onClick={() => setProcessedFilter({ page: processedFilter.page - 1 })}
+                >
+                  이전
+                </Button>
+                <Micro>
+                  {processedFilter.page} / {processedPages}
+                </Micro>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  disabled={processedFilter.page >= processedPages}
+                  onClick={() => setProcessedFilter({ page: processedFilter.page + 1 })}
+                >
+                  다음
+                </Button>
+              </div>
+            </div>
           </div>
         )
       ) : txns.length === 0 ? (

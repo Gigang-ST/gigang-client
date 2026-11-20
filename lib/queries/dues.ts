@@ -12,6 +12,7 @@ import { matchPayer, type MemberRef, type AliasRef } from "@/lib/dues/match-paye
 import { bucketOf } from "@/lib/dues/upload-bucketize";
 import { duplicateNames } from "@/lib/dues/homonyms";
 import { calcFreeFund, sumOperatorFundNet } from "@/lib/dues/overview-calc";
+import { PROCESSED_PAGE_SIZE, type ProcessedFilter } from "@/lib/dues/processed-filter";
 
 export type MemberOption = { memId: string; name: string; birthDt: string | null };
 
@@ -151,27 +152,36 @@ export type ProcessedTxn = {
   cfmByName: string | null;
 };
 
-/** 처리됨 목록 기본 조회 건수 — 오래된 건은 검색으로 못 찾는 대신 화면·전송량을 지킨다. */
-export const PROCESSED_TXN_LIMIT = 200;
+export type ProcessedPage = { rows: ProcessedTxn[]; total: number };
 
 /**
- * 처리됨(확정 완료) 거래 조회 — 감사·정정용. 최근 확정순으로 최대 PROCESSED_TXN_LIMIT 건.
+ * 처리됨(확정 완료) 거래 조회 — 감사·정정용. 최근 확정순, 필터(거래일 기간·회원·분류)와 쪽 넘김.
  * 확정 시각·확정자를 함께 내려 "언제 누가 어떻게 처리했는지"를 화면에서 확인할 수 있게 한다.
+ * 한 쪽만 읽으므로(PROCESSED_PAGE_SIZE) 1000행 절단 대상이 아니다 — total 은 count 로 따로 센다.
  */
-export async function getProcessedTxns(): Promise<ProcessedTxn[]> {
+export async function getProcessedTxns(filter: ProcessedFilter): Promise<ProcessedPage> {
   const { teamId } = await getRequestTeamContext();
   const db = createAdminClient();
 
-  const { data: rows, error } = await db
+  const fromIdx = (filter.page - 1) * PROCESSED_PAGE_SIZE;
+  let q = db
     .from("fee_txn_hist")
     .select(
       "txn_id, txn_dt, txn_amt, raw_name, fee_item_cd, cfm_at, mem:mem_mst!fk_fee_txn_hist__mem_mst(mem_nm), cfm_by:mem_mst!fk_fee_txn_hist__cfm_mem_mst(mem_nm), prj:fee_prj_mst!fk_fee_txn_hist__fee_prj_mst(prj_nm)",
+      { count: "exact" },
     )
     .eq("team_id", teamId)
     .eq("is_cfm_yn", true)
-    .eq("del_yn", false)
+    .eq("del_yn", false);
+  if (filter.from) q = q.gte("txn_dt", filter.from);
+  if (filter.to) q = q.lte("txn_dt", filter.to);
+  if (filter.memId) q = q.eq("mem_id", filter.memId);
+  if (filter.itemCd) q = q.eq("fee_item_cd", filter.itemCd);
+  // cfm_at 은 일괄 확정에서 겹칠 수 있어 PK 를 덧붙인다(쪽 경계에서 행이 겹치거나 빠지지 않게).
+  const { data: rows, error, count } = await q
     .order("cfm_at", { ascending: false })
-    .limit(PROCESSED_TXN_LIMIT);
+    .order("txn_id", { ascending: false })
+    .range(fromIdx, fromIdx + PROCESSED_PAGE_SIZE - 1);
   if (error) throw new Error(`처리된 거래 조회 실패: ${error.message}`);
 
   const nameOf = (raw: unknown): string | null => {
@@ -184,17 +194,20 @@ export async function getProcessedTxns(): Promise<ProcessedTxn[]> {
     return (item as { prj_nm: string } | null)?.prj_nm ?? null;
   };
 
-  return (rows ?? []).map((r) => ({
-    txnId: r.txn_id,
-    txnDt: r.txn_dt,
-    amt: r.txn_amt,
-    rawName: r.raw_name,
-    memName: nameOf(r.mem),
-    feeItemCd: r.fee_item_cd,
-    prjName: prjNameOf(r.prj),
-    cfmAt: r.cfm_at as string,
-    cfmByName: nameOf(r.cfm_by),
-  }));
+  return {
+    total: count ?? 0,
+    rows: (rows ?? []).map((r) => ({
+      txnId: r.txn_id,
+      txnDt: r.txn_dt,
+      amt: r.txn_amt,
+      rawName: r.raw_name,
+      memName: nameOf(r.mem),
+      feeItemCd: r.fee_item_cd,
+      prjName: prjNameOf(r.prj),
+      cfmAt: r.cfm_at as string,
+      cfmByName: nameOf(r.cfm_by),
+    })),
+  };
 }
 
 export type FeeItemOption = { cd: string; label: string };
