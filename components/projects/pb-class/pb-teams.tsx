@@ -1,3 +1,6 @@
+import { Check } from "lucide-react";
+
+import { formatKST } from "@/lib/dayjs";
 import { wkLabel } from "@/lib/pb-class";
 import { formatSec } from "@/lib/pb-class-score";
 import {
@@ -99,7 +102,7 @@ function TeamBars({ bars, colorNo }: { bars: PbTeamBar[]; colorNo: number | null
 }
 
 /** 팀원 한 줄 — 얼굴·이름·훈련팀 / 예상 10K · 빨라진 만큼 · 목표. **출석은 싣지 않는다** */
-function MemberRow({ m, showJoin }: { m: PbTeamMember; showJoin?: boolean }) {
+function MemberRow({ m, showJoin, rsvp }: { m: PbTeamMember; showJoin?: boolean; rsvp?: boolean }) {
   const trn = trnGroupLabel(m.trnGrpCd);
   const sub = [trn ? `훈련 ${trn}` : "훈련팀 정해지기 전", showJoin && m.joinWkNo > 1 ? `${wkLabel(m.joinWkNo)} 합류` : null]
     .filter(Boolean)
@@ -113,6 +116,12 @@ function MemberRow({ m, showJoin }: { m: PbTeamMember; showJoin?: boolean }) {
           {m.isMe && <span className="ml-1 text-[11px] font-semibold text-primary">나</span>}
         </Body>
         <Micro className="truncate">{sub}</Micro>
+        {rsvp && (
+          <Micro className="flex items-center gap-0.5 font-semibold text-success">
+            <Check aria-hidden className="size-3" />
+            다음 훈련 참석
+          </Micro>
+        )}
       </div>
       <div className="flex shrink-0 flex-col items-end">
         <Body className="font-numeric font-medium tabular-nums">
@@ -133,11 +142,13 @@ function TeamCard({
   measureWkNo,
   photos,
   viewer,
+  rsvpIds,
 }: {
   t: PbTeamCard;
   measureWkNo: number | null;
   photos: StoryPost[];
   viewer: PbTeamPhotosViewer;
+  rsvpIds?: ReadonlySet<string>;
 }) {
   const weekLabel = t.week ? (t.week.wkNo === measureWkNo ? "측정" : wkLabel(t.week.wkNo)) : null;
   return (
@@ -191,7 +202,7 @@ function TeamCard({
       ) : (
         <ul aria-label={`${t.grpNm} 팀원`} className="flex flex-col">
           {t.members.map((m) => (
-            <MemberRow key={m.memId} m={m} />
+            <MemberRow key={m.memId} m={m} rsvp={rsvpIds?.has(m.memId)} />
           ))}
         </ul>
       )}
@@ -214,13 +225,17 @@ export function PbTeams({
   measureWkNo,
   photosByGrp,
   viewer,
+  next,
 }: {
   data: PbTeamsData;
   measureWkNo: number | null;
   photosByGrp: ReadonlyMap<string, StoryPost[]>;
   viewer: PbTeamPhotosViewer;
+  /** 다가오는 공식훈련(#698) — 없으면 표시도 없다 */
+  next?: { sttAt: string; attendeeIds: readonly string[] } | null;
 }) {
   const { glance, teams, noTeam } = data;
+  const rsvpIds = next ? new Set(next.attendeeIds) : undefined;
   // 넘김 순서(#624) — 내 팀 첫 장, 나머지 순위 순서, 팀 없음 끝 장. 카드는 여기(서버)서 그려 섬에 넘긴다 —
   // 섬이 받는 건 이미 그린 마크업뿐이라 이름이 실린 데이터를 클라이언트 props 로 새로 만들지 않는다.
   const slides: PbTeamsCarouselSlide[] = orderPbTeamSlides(teams, noTeam.length > 0).map((s) =>
@@ -234,6 +249,7 @@ export function PbTeams({
               t={s.team}
               measureWkNo={measureWkNo}
               photos={photosByGrp.get(s.team.grpId) ?? []}
+              rsvpIds={rsvpIds}
               viewer={viewer}
             />
           ),
@@ -250,7 +266,7 @@ export function PbTeams({
               </div>
               <ul aria-label="팀 없는 참가자" className="flex flex-col">
                 {noTeam.map((m) => (
-                  <MemberRow key={m.memId} m={m} showJoin />
+                  <MemberRow key={m.memId} m={m} showJoin rsvp={rsvpIds?.has(m.memId)} />
                 ))}
               </ul>
             </CardItem>
@@ -259,6 +275,12 @@ export function PbTeams({
   );
   return (
     <PbZone label="Teams" lead="팀 구성과 팀별 흐름">
+      {next && (
+        <Body className="break-keep text-muted-foreground" data-next-training>
+          다음 훈련: <span className="font-semibold text-foreground">{formatKST(next.sttAt, "M/D(dd) HH:mm")}</span> · 참석{" "}
+          <span className="font-semibold tabular-nums text-foreground">{next.attendeeIds.length}명</span>
+        </Body>
+      )}
       {glance && <CrewLine g={glance} />}
 
       {teams.length === 0 && <EmptyState variant="card" message="팀 발표 전이에요" />}
