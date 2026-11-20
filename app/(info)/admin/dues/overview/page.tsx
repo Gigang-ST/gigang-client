@@ -1,5 +1,4 @@
-import { H2, Body, Caption, Micro, SectionLabel } from "@/components/common/typography";
-import { CardItem } from "@/components/ui/card";
+import { H2, Caption, Micro, SectionLabel } from "@/components/common/typography";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getDuesOverview } from "@/lib/queries/dues";
 import { cn } from "@/lib/utils";
@@ -8,32 +7,32 @@ const won = (n: number) => `${n.toLocaleString()}원`;
 
 type RowData = { key?: string; label: string; hint?: string; value: string; strong?: boolean };
 
-/** 항목·금액 두 열 표 — 금액은 오른쪽 정렬·줄바꿈 금지(숫자 자릿수가 세로로 맞는다). */
+/** 항목·금액 표 — 회원 관리 화면과 같은 표 모양(테두리 래퍼 + ui/table). 금액은 오른쪽 정렬·줄바꿈 금지. */
 function DuesTable({ rows }: { rows: RowData[] }) {
   return (
-    <CardItem className="overflow-hidden p-0">
+    <div className="overflow-x-auto rounded-2xl border border-border">
       <Table>
         <TableHeader>
-          <TableRow className="bg-muted/40 hover:bg-muted/40">
-            <TableHead className="h-8 px-3">항목</TableHead>
-            <TableHead className="h-8 px-3 text-right">금액</TableHead>
+          <TableRow>
+            <TableHead className="text-xs">항목</TableHead>
+            <TableHead className="text-right text-xs whitespace-nowrap">금액</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.map((r) => (
             <TableRow key={r.key ?? r.label}>
-              <TableCell className="whitespace-normal px-3 py-2 align-top">
-                <Body className={cn("block", r.strong && "font-semibold")}>{r.label}</Body>
+              <TableCell className="whitespace-normal align-top">
+                <Caption className={cn("block text-xs text-foreground", r.strong && "font-semibold")}>{r.label}</Caption>
                 {r.hint && <Micro className="block">{r.hint}</Micro>}
               </TableCell>
-              <TableCell className="px-3 py-2 text-right align-top tabular-nums">
-                <Body className={cn(r.strong && "font-semibold")}>{r.value}</Body>
+              <TableCell className="text-right align-top tabular-nums">
+                <Caption className={cn("text-xs whitespace-nowrap text-foreground", r.strong && "font-semibold")}>{r.value}</Caption>
               </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
-    </CardItem>
+    </div>
   );
 }
 

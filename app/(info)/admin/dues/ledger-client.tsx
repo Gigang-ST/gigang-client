@@ -10,7 +10,6 @@ import { leaveMemberFromDues } from "@/app/actions/admin/manage-member";
 import { recalculateBalance } from "@/app/actions/dues/recalculate-balance";
 
 import { Button } from "@/components/ui/button";
-import { CardItem } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,7 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { H2, Body, Caption, SectionLabel } from "@/components/common/typography";
+import { H2, Caption, SectionLabel } from "@/components/common/typography";
 import { SegmentControl } from "@/components/common/segment-control";
 import { EmptyState } from "@/components/common/empty-state";
 import { duplicateNames, memberLabel } from "@/lib/dues/homonyms";
@@ -147,48 +146,53 @@ export function LedgerClient({
       {shown.length === 0 ? (
         <EmptyState variant="card" message="조건에 맞는 회원이 없습니다." />
       ) : (
-        // 한 회원 = 한 행(회원 | 금액 | 더보기). 버튼 셋을 늘어놓으면 휴대폰(384px)에서 줄이 내려가 카드가 커져서
-        // 면제·탈퇴·독려는 ⋯ 메뉴로 모았다.
-        <CardItem className="overflow-hidden p-0">
+        // 회원 관리 화면과 같은 표(overflow-x-auto + rounded-2xl 테두리). 한 회원 = 한 행이고,
+        // 면제·탈퇴·독려는 ⋯ 메뉴로 모아 384px 폰에서도 가로 스크롤 없이 한 줄에 들어간다.
+        <div className="overflow-x-auto rounded-2xl border border-border">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableHead className="h-8 px-3">회원</TableHead>
-                <TableHead className="h-8 px-3 text-right">금액</TableHead>
-                <TableHead className="h-8 w-10 px-1">
-                  <span className="sr-only">작업</span>
-                </TableHead>
+              <TableRow>
+                {["회원", "상태"].map((h) => (
+                  <TableHead key={h} className="text-center text-xs whitespace-nowrap">
+                    {h}
+                  </TableHead>
+                ))}
+                <TableHead className="text-right text-xs whitespace-nowrap">금액</TableHead>
+                <TableHead className="w-10 text-center text-xs whitespace-nowrap">동작</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {shown.map((r) => (
                 <TableRow key={r.memId}>
-                  {/* 이름 영역 = 회원별 납부 근거 드릴다운 진입점 (QS-7) */}
-                  <TableCell className="whitespace-normal px-3 py-2">
-                    <Link href={`/admin/dues/members/${r.memId}`} className="flex min-w-0 flex-col">
-                      <Body className="font-semibold underline-offset-2 hover:underline">{memberLabel(r, dupNames)}</Body>
-                      <Caption className="whitespace-nowrap">
-                        {r.balance === 0
-                          ? "정상"
-                          : r.months === 0
-                            ? `1개월 미만 ${r.balance < 0 ? "미납" : "예치"}`
-                            : `${r.months}개월 ${r.balance < 0 ? "미납" : "예치"}`}
+                  {/* 이름 칸 = 회원별 납부 근거 드릴다운 진입점 (QS-7) */}
+                  <TableCell className="text-center">
+                    <Link href={`/admin/dues/members/${r.memId}`}>
+                      <Caption className="text-xs font-semibold whitespace-nowrap text-foreground underline-offset-2 hover:underline">
+                        {memberLabel(r, dupNames)}
                       </Caption>
                     </Link>
                   </TableCell>
-                  <TableCell className="px-3 py-2 text-right tabular-nums">
-                    <Body
+                  <TableCell className="text-center">
+                    <Caption className="text-xs whitespace-nowrap">
+                      {r.balance === 0
+                        ? "정상"
+                        : r.months === 0
+                          ? `1개월 미만 ${r.balance < 0 ? "미납" : "예치"}`
+                          : `${r.months}개월 ${r.balance < 0 ? "미납" : "예치"}`}
+                    </Caption>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    <Caption
                       className={cn(
-                        "font-semibold whitespace-nowrap",
-                        r.balance < 0 && "text-destructive",
-                        r.balance > 0 && "text-success",
+                        "text-xs font-semibold whitespace-nowrap",
+                        r.balance < 0 ? "text-destructive" : r.balance > 0 ? "text-success" : "text-foreground",
                       )}
                     >
                       {r.balance > 0 ? "+" : ""}
                       {r.balance.toLocaleString()}원
-                    </Body>
+                    </Caption>
                   </TableCell>
-                  <TableCell className="px-1 py-2">
+                  <TableCell className="px-1 text-center">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button size="icon" variant="ghost" className="size-8" aria-label={`${r.name} 작업`}>
@@ -219,7 +223,7 @@ export function LedgerClient({
               ))}
             </TableBody>
           </Table>
-        </CardItem>
+        </div>
       )}
     </div>
   );
