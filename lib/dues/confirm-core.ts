@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 
 import { getValidFeeItemCds } from "@/app/actions/dues/validate-fee-item";
+import { directionIssue } from "@/lib/dues/fee-item-direction";
 
 type Db = SupabaseClient<Database>;
 
@@ -57,7 +58,7 @@ export async function confirmTransactionsCore(
   // 대상 거래 일괄 조회
   const { data: txns, error: selErr } = await db
     .from("fee_txn_hist")
-    .select("txn_id, mem_id, txn_amt, txn_dt, fee_item_cd, is_cfm_yn, match_st_cd, project_id")
+    .select("txn_id, mem_id, txn_amt, txn_dt, txn_io_enm, fee_item_cd, is_cfm_yn, match_st_cd, project_id")
     .eq("team_id", teamId)
     .eq("del_yn", false)
     .in("txn_id", txnIds);
@@ -91,6 +92,13 @@ export async function confirmTransactionsCore(
   const invalid = merged.find((t) => !t.fee_item_cd || !validCds.has(t.fee_item_cd));
   if (invalid) {
     return { ok: false as const, message: "분류가 없거나 유효하지 않은 거래가 있습니다." };
+  }
+
+  // 분류·입출금 방향 검증 — 출금을 회비·프로젝트로, 입금을 지출·예치금 환급으로 확정하는 사고 차단(#710).
+  // 운영 MCP 는 건별로 미리 거르지만 앱 인박스는 이 코어가 마지막 관문이다.
+  const wrongWay = merged.find((t) => directionIssue(t.txn_io_enm, t.fee_item_cd ?? "") !== null);
+  if (wrongWay) {
+    return { ok: false as const, message: directionIssue(wrongWay.txn_io_enm, wrongWay.fee_item_cd ?? "")! };
   }
 
   // 프로젝트 귀속 검증 — 클라이언트 결정 규칙(프로젝트=귀속 필수)을 서버도 강제한다.

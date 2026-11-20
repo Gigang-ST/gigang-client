@@ -21,6 +21,7 @@ import {
 import { bucketOf, type Bucket } from "@/lib/dues/upload-bucketize";
 import { feeItemTeamFilter } from "@/lib/fee-items";
 import type { OperatorContext } from "@/lib/mcp/auth";
+import { directionIssue } from "@/lib/dues/fee-item-direction";
 import { ToolDeniedError, ToolInputError } from "@/lib/mcp/queries";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import type { Database } from "@/lib/supabase/database.types";
@@ -467,15 +468,6 @@ async function loadTeamProjectIds(db: Db, teamId: string): Promise<Set<string>> 
   const { data, error } = await db.from("fee_prj_mst").select("prj_id").eq("team_id", teamId).eq("del_yn", false);
   if (error) throw new Error(`프로젝트 조회 실패: ${error.message}`);
   return new Set((data ?? []).map((p) => p.prj_id));
-}
-
-/** 분류·방향 규칙 — 출금을 수입 분류로, 입금을 지출로 바꾸는 사고를 막는다(앱 일괄 재분류와 같은 경계). */
-function directionIssue(io: string, feeItemCd: string): string | null {
-  if (io === "withdrawal" && (feeItemCd === "due" || feeItemCd === "event_fee")) {
-    return "출금은 회비·프로젝트 분류로 확정할 수 없습니다.";
-  }
-  if (io === "deposit" && feeItemCd === "expense") return "입금은 지출 분류로 확정할 수 없습니다.";
-  return null;
 }
 
 type Planned = {

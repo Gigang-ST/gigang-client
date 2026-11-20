@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { amountHintLabel } from "@/lib/dues/amount-hint";
 import { memberLabel } from "@/lib/dues/homonyms";
 import type { Decision, ItemCd } from "@/lib/dues/confirm-payload";
+import { canReclassifyTo } from "@/lib/dues/confirm-scope";
+import { DECISION_ITEM_LABEL, isNeutralItemCd, itemOrderFor } from "@/lib/dues/fee-item-direction";
 import type { InboxTxn, MemberOption, ProjectOption } from "@/lib/queries/dues";
 
 import { Body, Caption, Micro } from "@/components/common/typography";
@@ -23,8 +25,7 @@ import {
 
 import { MemberCombobox } from "./member-combobox";
 
-export const ITEM_LABEL: Record<ItemCd, string> = { due: "회비", event_fee: "프로젝트", other: "제외" };
-export const ITEM_ORDER: ItemCd[] = ["due", "event_fee", "other"];
+export const ITEM_LABEL: Record<ItemCd, string> = DECISION_ITEM_LABEL;
 
 export function memberNameById(members: MemberOption[]): Map<string, string> {
   return new Map(members.map((m) => [m.memId, m.name]));
@@ -84,13 +85,14 @@ export function InboxRow({
     !editable ||
     (!!decision &&
       (decision.itemCd === "other" ||
+        isNeutralItemCd(decision.itemCd) ||
         (decision.itemCd === "due" ? !!decision.memId : !!decision.prjId)));
   const badge = BUCKET_BADGE[txn.bucket];
 
   function handleKeyDown(e: KeyboardEvent<HTMLTableRowElement>) {
     if (e.target !== e.currentTarget) return;
-    if (editable && e.key === "1") { onChange({ itemCd: "due" }); e.preventDefault(); }
-    else if (editable && e.key === "2") { onChange({ itemCd: "event_fee" }); e.preventDefault(); }
+    if (editable && e.key === "1" && canReclassifyTo(txn.io, "due")) { onChange({ itemCd: "due" }); e.preventDefault(); }
+    else if (editable && e.key === "2" && canReclassifyTo(txn.io, "event_fee")) { onChange({ itemCd: "event_fee" }); e.preventDefault(); }
     else if (editable && e.key === "3") { onChange({ itemCd: "other" }); e.preventDefault(); }
     else if (e.key === "ArrowDown") { onArrow(1); e.preventDefault(); }
     else if (e.key === "ArrowUp") { onArrow(-1); e.preventDefault(); }
@@ -128,7 +130,7 @@ export function InboxRow({
           <Caption className="text-foreground">
             {txn.bucket === "autoDone" && txn.memId ? (nameById.get(txn.memId) ?? "—") : "—"}
           </Caption>
-        ) : decision && decision.itemCd !== "other" ? (
+        ) : decision && decision.itemCd !== "other" && !isNeutralItemCd(decision.itemCd) ? (
           <div className="flex flex-wrap items-center gap-1.5">
             {txn.candidates.length === 0 && <Caption>후보 없음</Caption>}
             {txn.candidates.map((c) => (
@@ -161,7 +163,7 @@ export function InboxRow({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {ITEM_ORDER.map((cd) => (
+                {itemOrderFor(txn.io).map((cd) => (
                   <SelectItem key={cd} value={cd}>
                     {ITEM_LABEL[cd]}
                   </SelectItem>
