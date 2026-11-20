@@ -1,4 +1,4 @@
-import type { ConfirmItem } from "@/app/actions/dues/confirm-transactions";
+import type { ConfirmItem } from "@/lib/dues/confirm-core";
 
 export type ItemCd = "due" | "event_fee" | "other";
 

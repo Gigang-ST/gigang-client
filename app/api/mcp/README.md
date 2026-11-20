@@ -79,7 +79,46 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `send_push` | `member_ids`(uuid[]), `title`, `message` | 지정 멤버에게 인앱+웹푸시 발송 | **admin** |
 | `send_kakao_notice` | `message`(최대 4000자), `mentions?`(이름[]), `request_id?`, `dry_run?` | 크루 카톡 단톡방에 노티봇 공지(자유 문구) — 방은 서버 설정으로 고정, 어드민 발송 이력에 남음 | **admin** |
 | `create_gathering` | `gthr_nm`, `gthr_type_enm`, `sprt_cd`, `stt_at`, `end_at?`, `loc_txt?`, `desc_txt?`, `max_prt_cnt?`, `dry_run?` | 새 모임(벙) 개설 — 작성자 자동 참석 + 팀 전원 알림 | **admin** |
+| `update_gathering` | `gathering_id`(uuid) + 바꿀 필드만(`gthr_nm`, `stt_at`, `end_at`, `loc_txt`, `max_prt_cnt`, `desc_txt`), `dry_run?`, `notify?` | 모임 수정 — 바뀐 필드 목록·전/후 반환. 알림은 `notify: true` 일 때만 | **모임 작성자 또는 admin** |
 | `create_sch_post` | `sch_nm`, `post_type`(`race_entry`·`sale`·`session`·`general`), `evt_stt_at`, `evt_end_at?`, `url?`, `cont_txt?`, `dry_run?` | 일정 탭에 소식(대회 접수 정보·판매·세션·일반) 등록 — 팀 전원 새 정보 알림 | 멤버 (앱과 같음) |
+| `upload_dues_xlsx` | `file_name`, `xlsx_base64` **또는** `rows`(`txn_tm` 필수), `dry_run?` | 카카오뱅크 거래내역을 **미확정 거래로 적재**(중복 방지 유지) — 요약(자동·확인필요·제외·중복·과거 건너뜀) 반환 | **admin** · 회비 사용 팀 |
+| `list_dues_inbox` | `bucket?`(`autoDone`·`needsReview`·`excluded`), `limit?` | 처리 대기(미확정) 거래 + 후보 회원 + 확정에 쓸 분류 코드·모금 중 프로젝트 | **admin** · 회비 사용 팀 |
+| `confirm_dues_txns` | `items?`[{`txn_id`, `fee_item_cd?`, `mem_id?`, `project_id?`, `remember_alias?`}], `auto?`, `dry_run?` | 거래 확정(회비+회원이면 납부원장 + 잔액 재계산) | **admin** · 회비 사용 팀 |
+| `cancel_dues_txn` | `txn_id`, `dry_run?` | 확정 취소 — 처리 대기로 되돌리고 잔액 재계산 | **admin** · 회비 사용 팀 |
+| `reclassify_dues_txn` | `txn_id`, `fee_item_cd`, `mem_id?`, `project_id?`, `remember_alias?`, `dry_run?` | 확정된 거래의 분류·회원·프로젝트 변경(취소 → 재확정) | **admin** · 회비 사용 팀 |
+| `get_dues_balances` | `status?`(`미납`·`정상`·`예치`), `limit?` | 활성 회원 회비 잔액(예치/미납) 현황 + 인원·합계 | **admin** · 회비 사용 팀 |
+
+### 대회 도구 (#700)
+
+대회를 찾고, 추가하고, 참가 신청을 합니다. 웹의 대회 추가(`createCompetition`)·참가 신청과 **같은 검증·저장 순서**를 탑니다
+(추가는 `lib/competition-create.ts` 코어를 웹과 공유).
+
+| 도구 | 입력 | 하는 일 | 권한 |
+|------|------|---------|------|
+| `list_competitions` | `query?`(대회명 일부), `from?`·`to?`(YYYY-MM-DD), `sport?` | 대회 목록(시작일 최신순 최대 50건) — `comp_id`·종목·**내 신청 상태** | 멤버 |
+| `create_competition` | `title`, `sport`, `start_date`, `end_date?`, `location`, `event_types[]`, `source_url`, `dry_run?` | 대회 추가. 같은 이름·시작일 대회가 있으면 **만들지 않고 기존 것** 반환(`status: exists`) | **admin** |
+| `register_competition` | `comp_id`, `role?`(`participant`·`cheering`·`volunteer`), `event_type?`, `member_id?`·`member_name?`, `dry_run?` | 참가 신청 — 기본은 **내** 신청, admin 은 다른 회원을 **대신** 신청 | 본인 (**남을 대신은 admin**) |
+
+- **`create_competition` 은 admin 전용**입니다 — 이슈가 관리자 폼과 같은 권한을 요구했고, 웹의 서버 액션은 활성 멤버에게도 열려 있지만
+  MCP 는 더 좁게 둡니다(대회는 팀 공용 데이터라 AI 가 아무 이름으로 만들면 목록이 더러워집니다).
+  필수 입력은 관리자 폼과 같습니다: 대회명·종목(`COMP_SPRT_CD` 코드)·시작일·장소·공식 URL·코스 1개 이상. 지난 대회는 거부(기록 입력에서 추가),
+  코스는 영문·숫자(한글 거부), 하이록스는 종목·코스 규칙(#671)을 같은 함수로 검사합니다. **먼저 `dry_run: true`** 로 해석된 값·중복 여부를 확인하세요.
+- **같은 대회는 만들지 않습니다.** 이름(공백·대소문자 무시)과 시작일이 같은 대회가 있으면 `status: "exists"` 로 그 대회를 돌려줍니다.
+  `list_competitions` 로 먼저 찾아보면 더 빠릅니다.
+- **`register_competition`**: `participant`(기본)는 `event_type`(코스) 필수, `cheering`·`volunteer` 는 종목 없이 신청합니다. 대회에 없는 코스는 웹처럼 대회에 붙습니다
+  (`dry_run` 에서는 만들지 않음). 이미 신청돼 있으면 **고치지 않고** `status: "already_registered"` 와 현재 상태를 돌려줍니다(바꾸려면 앱 대회 상세에서 수정).
+- **관리자 대리 등록**: admin 이 `member_id`(uuid) 또는 `member_name`(이름 완전일치, 대소문자 무시)을 주면 그 회원 이름으로 신청합니다.
+  대상은 **우리 팀 활동 중 회원**만이고, **이름이 여럿에 맞으면(동명이인) 아무도 등록하지 않고** `status: "ambiguous_member"` 와 `candidates`(id·이름·가입일)만 돌려줍니다 —
+  그중 `member_id` 를 골라 다시 부르세요. admin 이 아닌 멤버가 다른 회원을 지정하면 거부합니다(본인 id 는 허용).
+- **알림은 없습니다.** 팀 알림·단톡 공지·대상 회원 알림 모두 보내지 않습니다(웹 신청과 같습니다). 포인트·칭호는 DB 트리거·후속 평가가 웹 신청과 똑같이 따라옵니다.
+  일정·피드 캐시는 웹처럼 비웁니다. 두 쓰기 도구 모두 감사 로그(`mcp_audit_log`)에 한 줄 남고, 대리 등록은 실행자와 대상이 둘 다 기록됩니다.
+- 수정·삭제 도구는 없습니다 — 잘못 만들었으면 `comp_url` 로 들어가 웹에서 고치고, 잘못 신청했으면 앱 대회 상세에서 취소하세요.
+
+예시 질문:
+- "2027 고성 아이언맨 70.3 있는지 찾아줘" / "11월 마라톤 대회 뭐 있어?"
+- (admin) "2027-06-06 강원 고성, 아이언맨 70.3(HALF) 대회 추가해줘. 저장 전에 먼저 보여줘"
+- "그 대회 나 HALF 로 신청해줘" / "서울마라톤 응원으로 신청해줘"
+- (admin) "고성 70.3 에 김철수, 이영희 HALF 로 신청해줘 — 동명이인이면 알려줘"
 
 ### 마일리지런 개인 도구 (내 기록)
 
@@ -180,11 +219,47 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `send_push` (도구째) | 쓰기 — 되돌릴 수 없고 크루원에게 직접 나갑니다 |
 | `send_kakao_notice` (도구째) | 쓰기 — 되돌릴 수 없고 단톡방 크루 전원에게 보입니다 |
 | `create_gathering` (도구째) | 쓰기 — 만드는 순간 팀 전원에게 새 모임 알림이 나갑니다 |
+| `create_competition` (도구째) | 쓰기 — 대회는 팀 공용 데이터라 마구 만들면 목록이 오염됩니다. 앱의 서버 액션보다 좁게 둡니다 |
+| `register_competition` 의 **`member_id`·`member_name`**(남을 대신 신청만) | 앱에서 남의 참가 신청을 넣는 화면은 없고(관리자 화면은 목록·삭제), 본인 신청은 멤버 누구나 합니다 |
+| 회비 도구 6종 `upload_dues_xlsx`·`list_dues_inbox`·`confirm_dues_txns`·`cancel_dues_txn`·`reclassify_dues_txn`·`get_dues_balances` (도구째) | 회비 거래·잔액은 앱에서도 관리자에게만 보이고, 확정은 개인 잔액을 바꿉니다. 회비 기능이 꺼진 팀(`feature.dues=false`)은 admin 이어도 거부 |
 | `log_hyrox_record` 의 **`member_id`**(남의 기록 등록만) | 앱에서 남의 대회 기록을 넣는 건 관리자 「대신 등록」뿐입니다. 본인 기록은 멤버 누구나 넣습니다 |
+
+`update_gathering` 은 admin 전용이 아니라 **작성자 또는 admin** 입니다(앱의 수정 권한과 같습니다).
 
 `create_sch_post`(일정 소식 등록)는 **admin 전용이 아닙니다.** 앱에서 소식은 활성 멤버 누구나 올리고
 (`createSchPost` 의 `withActive`), MCP 토큰도 활성 멤버만 통과하므로 같은 범위입니다 — 앱보다 넓지도
 좁지도 않습니다. 팀은 토큰의 팀으로만 정해지고(인자로 `team_id` 를 넣어도 무시), 작성자는 토큰 주인입니다.
+
+### 회비 도구(#702) — 화면 조작 없이 업로드·확정·정정
+
+회비 > 처리 화면에서 하던 일(엑셀 올리기 → 확인필요 판단 → 확정 → 되돌리기)을 에이전트가 직접 합니다.
+**판단(누구 입금인지·무슨 명목인지)은 에이전트와 운영진이 하고, 도구는 앱과 같은 규칙으로 안전하게 기록합니다.**
+도메인 규칙은 앱 서버 액션과 같은 코어(`lib/dues/*-core.ts`)를 공유하므로 앱과 MCP 결과가 갈라지지 않습니다.
+
+권장 흐름:
+
+1. `upload_dues_xlsx` (`dry_run: true` → 요약 확인 → 실제 업로드) — 엑셀은 복호화된 파일을 base64 로, 또는 `rows` 로 거래 행을 직접.
+2. `list_dues_inbox` — `autoDone`(자동 후보)·`needsReview`(사람이 분류)·`excluded`(출금·기타)로 나뉜 대기 목록.
+3. `confirm_dues_txns` (`auto: true` 로 자동 후보 일괄, `items` 로 확인필요 건 개별) — **먼저 `dry_run: true`**.
+4. 잘못 확정했으면 `cancel_dues_txn`(처리 대기로 복귀) 또는 `reclassify_dues_txn`(분류·회원·프로젝트 바로 변경).
+5. `get_dues_balances` 로 예치/미납 현황 확인.
+
+약속:
+
+- **admin 전용 + 회비 기능이 켜진 팀만.** 앱의 회비 액션과 같은 경계입니다(회비를 안 쓰는 팀은 admin 토큰이어도 거부).
+- **확인필요 건은 `txn_id` 와 `fee_item_cd` 를 명시해야만 확정됩니다.** `auto: true` 는 `auto_eligible` 건(이름이 한 회원에게 정확히 맞는 회비 입금)만 집습니다.
+  금액이 진행 중 프로젝트(PB 클래스) 참가비와 같거나 월회비의 배수가 아니면 이름이 맞아도 자동에서 빠지고 확인필요가 됩니다(이유는 `amount_hint`). 앱 「처리」 화면과 같은 판정(`lib/dues/amount-hint.ts`)입니다.
+- **분류**: 회비 `due`(`mem_id` 필수) · 프로젝트 `event_fee`(`project_id` 필수, `list_dues_inbox.projects` 의 모금 중 프로젝트) · 지출 `expense` · 제외 `other`.
+  출금을 회비·프로젝트로, 입금을 지출로 확정할 수 없습니다. 회원 없이 회비로 확정하면 개인 잔액에 반영되지 않으므로 거부합니다.
+- **중복 방지는 앱과 같습니다.** 같은 파일(해시)·같은 행 묶음을 두 번 올려도, 이미 적재된 거래(날짜·시각·금액·이름·입출금이 같은 거래)가 섞여 있어도 두 번 들어가지 않고 `skipped` 로 셉니다. 이미 마감된 회원의 과거 거래는 `skippedByCutoff`.
+- **`dry_run`**(`upload_dues_xlsx`·`confirm_dues_txns`·`cancel_dues_txn`·`reclassify_dues_txn`): 같은 검증을 돌리되 아무것도 쓰지 않고 결과만 돌려줍니다.
+- **검증 못 넘은 건은 `skipped` 에 사유와 함께** 남고 나머지는 진행합니다(`confirm_dues_txns`). 확정 중간에 실패하면 이번 호출의 확정은 전부 되돌립니다.
+- **`remember_alias: true`**: 회비 + 회원 지정 건의 입금자명을 그 회원의 별칭으로 기억해 다음 업로드부터 자동 매칭합니다(확정 성공 뒤에만).
+- **`reclassify_dues_txn`** 은 취소 가능 여부와 새 값을 둘 다 검증한 뒤에 씁니다. 재확정이 실패하면 원래 값으로 되돌려 확정해 둡니다. 원장 전환 이전 개시잔액에 녹은 거래는 취소·재분류할 수 없습니다.
+- **로그·감사**: 쓰기는 `mcp_audit_log` 에 건수·거래 id 만 남깁니다. **입금자명·금액·메모는 감사행·서버 로그에 싣지 않습니다.** 다만 `list_dues_inbox`·`get_dues_balances` 응답에는 이름·금액이 들어 있으니 사용자에게 필요한 만큼만 보여 주세요. 계좌번호는 어디에도 없습니다.
+- **재계산만 실패한 경우는 오류가 아니라 상태로 돌려줍니다**(이미 바뀐 것을 「안 됐다」로 오해해 재시도하지 않게). `confirm_dues_txns`·`cancel_dues_txn` 은 `status: "recalc_failed"` + `recalc_pending_mem_ids`(잔액이 낡은 회원), `reclassify_dues_txn` 은 `status` 가 `reclassified`·`reclassified_recalc_failed`·`restored`(새 값 확정 실패 → 원래 값으로 되돌려 확정함)·`left_pending`(원복도 실패 — 처리 대기에 남음, `list_dues_inbox` 로 확인) 중 하나이고 `detail` 에 한 줄 사유가 담깁니다. 이 경우에도 감사행에 거래 id 와 상태가 남습니다. 재계산은 리플레이라 다시 돌리면 복구됩니다.
+- `mem_id` 는 **지정만** 합니다 — 안 주면 저장된 매칭을 유지하고, 매칭을 지우는 기능은 없습니다. 잘못된 `project_id`·`mem_id` 는 그 건만 `skipped` 로 빠지고 나머지는 진행합니다.
+
 
 ### 모임 개설(`create_gathering`) — 쓰기 도구라 몇 가지 약속이 있습니다
 
@@ -199,7 +274,19 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
   응답에 `gthr_url`(상세 링크)·`stt_at_kst`(저장된 시각)·`notified_cnt`(실제 알림 인원)·
   `kakao_notice`(단톡방 공지 `sent` / `skipped` / `failed`)가 실립니다. `failed` 면 모임 공유 시트의
   「단톡방에 알림」으로 다시 보내세요.
-- 수정·삭제 도구는 없습니다 — 잘못 만들었으면 `gthr_url` 로 들어가 웹에서 고치거나 지우세요.
+- 수정은 `update_gathering`(아래), 삭제 도구는 없습니다 — 지우려면 `gthr_url` 로 들어가 웹에서 지우세요.
+
+### 모임 수정(`update_gathering`)
+
+- `gathering_id` + **바꿀 필드만** 줍니다(이름·일시·장소·정원·본문). 안 준 필드는 그대로이고, 종류·종목·승인제·참여조건은 웹에서 고칩니다.
+  일시는 `create_gathering` 과 같은 KST `YYYY-MM-DD HH:mm`. `end_at`·`max_prt_cnt`·`desc_txt` 에 `null` 을 주면 비웁니다.
+- **먼저 `dry_run: true`.** 저장하지 않고 `changes`(필드별 `before`/`after`, 일시는 KST)만 돌려줍니다.
+- 응답은 `changed_fields`(실제로 달라진 필드)·`changes`·`notified_cnt`·`promoted_cnt`·`kakao_notice`·`audit_id`. 같은 값을 다시 주면 `changed_fields` 가 비고 아무것도 쓰지 않습니다.
+- **권한: 모임 작성자 또는 admin.** 팀은 토큰의 팀으로만 정해져 다른 팀 모임은 "찾을 수 없음"입니다. 지난 모임은 앱처럼 admin 만 고칩니다.
+- **알림은 기본으로 안 보냅니다**(앱은 항상 보냅니다). `notify: true` 일 때만 작성자를 뺀 참석자에게 `gthr_upd` 알림이 가고,
+  일시·장소가 바뀌었으면 단톡방 변경 공지도 요청합니다(`kakao_notice`: `requested`/`skipped`/`failed`).
+- 정원을 **늘리면** 앱처럼 대기자가 참석으로 올라갑니다(`promoted_cnt`). 승급 자체는 `notify` 와 무관하게 일어나고,
+  승급 알림·빈 자리 알림만 `notify: true` 일 때 나갑니다.
 
 ### 일정 소식 등록(`create_sch_post`) — `create_gathering` 과 같은 약속
 
@@ -286,6 +373,10 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | 특정 멤버가 발송에서 빠짐 | 타 팀·비활성·미존재이거나 알림 수신거부. 발송은 우리 팀 활성 멤버로만 나갑니다. |
 | `log_hyrox_record`가 "하이록스 대회가 아닙니다" | `comp_id` 가 다른 종목 대회입니다. `list_hyrox_competitions` 로 확인하세요. 목록에 없으면 앱에서 대회를 먼저 등록해야 합니다. |
 | 하이록스 도구가 "요청을 처리하지 못했습니다" | 그 환경 DB 에 하이록스 마이그레이션(`20261108100000_hyrox_ranking.sql`)이 아직 안 들어갔을 수 있습니다(§5). |
+| `create_competition` 이 거부됨 | 대회 추가는 owner/admin 전용입니다(`dry_run` 도). 입력 오류면 메시지의 필드(날짜 형식·종목 코드·코스·URL)를 고치세요. |
+| `create_competition` 이 `exists` 를 돌려줌 | 같은 이름·시작일 대회가 이미 있어 만들지 않았습니다. 정상입니다 — 돌려준 `comp_id` 를 쓰세요. 이름·날짜가 다른 대회라면 둘 중 하나를 바꿔 다시 부르세요. |
+| `register_competition` 이 `ambiguous_member` | 같은 이름의 활동 회원이 여럿입니다. 아무도 등록하지 않았습니다 — `candidates` 의 `member_id` 로 다시 부르세요. |
+| `register_competition` 이 `already_registered` | 이미 그 대회에 신청돼 있습니다(바꾸지 않음). 참여 방식·종목은 앱 대회 상세에서 수정하세요. |
 | 토큰을 잃어버림 | 다시 볼 수 없습니다. 기존 토큰 폐기 후 새로 발급하세요. |
 
 ---

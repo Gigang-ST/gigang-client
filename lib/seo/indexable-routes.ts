@@ -48,7 +48,6 @@ export const DISALLOWED_PREFIXES = [
   // 비로그인이면 /auth/login 으로 튕긴다 — 크롤러가 볼 내용이 없다.
   "/projects",
   "/board/write",
-  "/terms",
-  "/privacy",
+  // /terms·/privacy는 막지 않는다(#695) — Google 브랜드 인증이 공개 링크로 쓴다. 색인은 페이지 메타 noindex가 막는다.
   "/policy",
 ];

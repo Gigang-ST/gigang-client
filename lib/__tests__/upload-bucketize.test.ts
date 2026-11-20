@@ -21,6 +21,11 @@ describe("bucketOf", () => {
   it("입금+프로젝트(event_fee) → 확인필요 (귀속 판단 필요)", () => {
     expect(bucketOf({ io: "deposit", itemCd: "event_fee", matchStatus: "matched" })).toBe("needsReview");
   });
+  it("입금+회비+매칭이어도 금액 힌트가 있으면 확인필요 (#708)", () => {
+    const hint = { kind: "nonUnit", monthlyFeeAmt: 4000 } as const;
+    expect(bucketOf({ io: "deposit", itemCd: "due", matchStatus: "matched", amountHint: hint })).toBe("needsReview");
+    expect(bucketOf({ io: "deposit", itemCd: "due", matchStatus: "matched", amountHint: null })).toBe("autoDone");
+  });
   it("triage 어휘 밖 분류(goods·커스텀)는 제외 — 확인필요에 두면 기본 결정이 분류를 덮어쓴다", () => {
     expect(bucketOf({ io: "deposit", itemCd: "goods", matchStatus: "matched" })).toBe("excluded");
     expect(bucketOf({ io: "deposit", itemCd: "custom_cd", matchStatus: "unmatched" })).toBe("excluded");

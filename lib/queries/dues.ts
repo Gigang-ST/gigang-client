@@ -4,6 +4,9 @@ import { feeItemTeamFilter } from "@/lib/fee-items";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+import { LEDGER_EPOCH } from "@/lib/dues/ledger-replay";
+import { amountHintForRow, type AmountHint } from "@/lib/dues/amount-hint";
+import { loadAmountContext } from "@/lib/dues/load-amount-context";
 import { matchPayer, type MemberRef, type AliasRef } from "@/lib/dues/match-payer";
 import { bucketOf } from "@/lib/dues/upload-bucketize";
 import { duplicateNames } from "@/lib/dues/homonyms";
@@ -23,6 +26,8 @@ export type InboxTxn = {
   feeItemCd: string | null;
   /** 저장된 프로젝트 귀속 — 수동 등록·확정취소로 재노출된 event_fee 행의 기본값 시드 */
   projectId: string | null;
+  /** 금액으로 본 명목 힌트(#708) — 프로젝트 참가비와 같은 금액 / 월회비 단위가 아닌 금액. 없으면 null */
+  amountHint: AmountHint | null;
   bucket: "autoDone" | "needsReview" | "excluded";
   candidates: { memId: string; name: string; score: number; birthDt: string | null }[];
 };
@@ -89,14 +94,20 @@ export async function getInboxTxns(): Promise<{
     .order("txn_dt", { ascending: true });
   if (rowsErr) throw new Error(`거래 조회 실패: ${rowsErr.message}`);
 
+  // 금액으로 명목 먼저 가르기(#708) — 이름이 맞아도 금액이 프로젝트 참가비·비월회비면 확인필요로 내린다
+  const amountCtx = await loadAmountContext(db, teamId);
+
   const txns: InboxTxn[] = (rows ?? []).map((r) => {
     const match = matchPayer(r.raw_name, memberRefs, aliasRefs);
     const matchStatus = (r.match_st_cd ?? match.status) as InboxTxn["matchStatus"];
     const io = r.txn_io_enm as "deposit" | "withdrawal";
+    const itemCd = r.fee_item_cd ?? "other";
+    const amountHint = amountHintForRow({ io, itemCd, amt: r.txn_amt, memId: r.mem_id, ctx: amountCtx });
     const bucket = bucketOf({
       io,
-      itemCd: r.fee_item_cd ?? "other",
+      itemCd,
       matchStatus,
+      amountHint,
     });
     return {
       txnId: r.txn_id,
@@ -110,6 +121,7 @@ export async function getInboxTxns(): Promise<{
       feeItemCd: r.fee_item_cd,
       projectId: r.project_id,
       bucket,
+      amountHint,
       candidates: match.candidates.map((c) => ({ ...c, birthDt: birthFor(c.memId, c.name) })),
     };
   });
@@ -364,7 +376,24 @@ export type MemberDuesDetail = {
   memName: string;
   balAmt: number | null;
   lastCalcDt: string | null;
+  /** 개시잔액(앵커 스냅샷 bal_amt) — 앵커가 없으면 null(신규 회원) */
+  anchorAmt: number | null;
+  /** 관리자 조정 이력(최신순, 되돌린 건 포함) */
+  adjustments: MemberBalAdj[];
   items: MemberDuesItem[];
+};
+
+export type MemberBalAdj = {
+  adjId: string;
+  adjAmt: number;
+  reason: string;
+  adjByName: string | null;
+  createdAt: string;
+  reverted: boolean;
+  revertReason: string | null;
+  revertedAt: string | null;
+  /** 앵커 이후 만든 조정이라 잔액에 실제로 반영되는가(재활성 청산 앵커 이전 조정은 false) */
+  counted: boolean;
 };
 
 /**
@@ -436,6 +465,44 @@ export async function getMemberDuesDetail(memId: string): Promise<MemberDuesDeta
 
   if (!mem) return null;
 
+  // 개시잔액 — recalculateBalance 의 앵커 선택 규칙과 같다(anchor_yn 우선, 그다음 가장 오래된 시딩 스냅샷).
+  const [{ data: anchor }, { data: adjRows }] = await Promise.all([
+    db
+      .from("fee_mem_bal_snap")
+      .select("bal_amt, crt_at")
+      .eq("team_id", teamId)
+      .eq("mem_id", memId)
+      .eq("del_yn", false)
+      .or(`anchor_yn.eq.true,crt_at.lt.${dayjs(LEDGER_EPOCH).toISOString()}`)
+      .order("anchor_yn", { ascending: false })
+      .order("crt_at", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+    db
+      .from("fee_bal_adj_hist")
+      .select("adj_id, adj_amt, rsn_txt, adj_by_mem_id, crt_at, del_yn, rvt_rsn_txt, rvt_at")
+      .eq("team_id", teamId)
+      .eq("mem_id", memId)
+      .order("crt_at", { ascending: false })
+      .limit(100),
+  ]);
+  const adjByIds = [...new Set((adjRows ?? []).map((a) => a.adj_by_mem_id))];
+  const { data: adjByMems } = adjByIds.length
+    ? await db.from("mem_mst").select("mem_id, mem_nm").in("mem_id", adjByIds).eq("vers", 0).eq("del_yn", false)
+    : { data: [] };
+  const adjByName = new Map((adjByMems ?? []).map((m) => [m.mem_id, m.mem_nm]));
+  const adjustments: MemberBalAdj[] = (adjRows ?? []).map((a) => ({
+    adjId: a.adj_id,
+    adjAmt: a.adj_amt,
+    reason: a.rsn_txt,
+    adjByName: adjByName.get(a.adj_by_mem_id) ?? null,
+    createdAt: a.crt_at,
+    reverted: a.del_yn,
+    revertReason: a.rvt_rsn_txt,
+    revertedAt: a.rvt_at,
+    counted: !anchor?.crt_at || dayjs(a.crt_at).isAfter(dayjs(anchor.crt_at)),
+  }));
+
   const itemLabelMap = new Map((feeItemCds ?? []).map((c) => [c.cd, c.cd_nm]));
 
   const items: MemberDuesItem[] = [
@@ -476,6 +543,8 @@ export async function getMemberDuesDetail(memId: string): Promise<MemberDuesDeta
     memName: mem.mem_nm,
     balAmt: snap?.bal_amt ?? null,
     lastCalcDt: snap?.last_calc_dt ?? null,
+    anchorAmt: anchor?.bal_amt ?? null,
+    adjustments,
     items,
   };
 }
@@ -567,5 +636,68 @@ export async function getDuesLedger(): Promise<{
       ok: rows.filter((r) => r.status === "정상").length,
       prepaid: rows.filter((r) => r.status === "예치").length,
     },
+  };
+}
+
+export type DuesOverview = {
+  /** 통장 잔액 = 가장 늦은 거래의 거래 후 잔액. 한 번도 기록되지 않았으면 null */
+  bankBalance: number | null;
+  /** 통장 잔액이 기록된 마지막 거래 일자(YYYY-MM-DD) */
+  bankAsOfDt: string | null;
+  /** 프로젝트별 보유액(모금액 − 출금, 확정 거래 기준) — 지출 귀속(#707) 전이라 모금액에 가깝다 */
+  projects: { prjId: string; name: string; stCd: "active" | "closed"; amt: number }[];
+  projectTotal: number;
+  /** 예치금 합계 = 활성 회원 중 잔액이 0보다 큰 사람의 합 */
+  prepaidTotal: number;
+  prepaidCount: number;
+  /** 미납 합계(참고) = 활성 회원 중 잔액이 0보다 작은 사람의 합(절댓값) */
+  unpaidTotal: number;
+  unpaidCount: number;
+  /** 자유 회비 = 통장 잔액 − 프로젝트 − 예치금. 통장 잔액이 없으면 null */
+  freeFund: number | null;
+};
+
+/**
+ * 통장 전체 잔액·명목별 현황(#706). 통장 잔액 = 프로젝트별 보유액 + 예치금 합계 + 자유 회비(나머지).
+ * 자유 회비는 나머지라 합은 늘 맞게 나오므로, 나머지가 음수인지(명목 합이 통장보다 큼)로 어긋남을 본다.
+ */
+export async function getDuesOverview(): Promise<DuesOverview> {
+  const { teamId } = await getRequestTeamContext();
+  const db = createAdminClient();
+
+  const [projects, ledger, { data: latest, error: latestErr }] = await Promise.all([
+    getProjects(),
+    getDuesLedger(),
+    db
+      .from("fee_txn_hist")
+      .select("txn_dt, txn_bal_amt")
+      .eq("team_id", teamId)
+      .eq("del_yn", false)
+      .not("txn_bal_amt", "is", null)
+      .order("txn_dt", { ascending: false })
+      .order("txn_tm", { ascending: false, nullsFirst: false })
+      .limit(1),
+  ]);
+  if (latestErr) throw new Error(`통장 잔액 조회 실패: ${latestErr.message}`);
+
+  const bankBalance = latest?.[0]?.txn_bal_amt ?? null;
+  const projectRows = projects
+    .filter((p) => p.totalAmt !== 0 || p.stCd === "active")
+    .map((p) => ({ prjId: p.prjId, name: p.name, stCd: p.stCd, amt: p.totalAmt }));
+  const projectTotal = projectRows.reduce((s, p) => s + p.amt, 0);
+  const prepaid = ledger.rows.filter((r) => r.balance > 0);
+  const unpaid = ledger.rows.filter((r) => r.balance < 0);
+  const prepaidTotal = prepaid.reduce((s, r) => s + r.balance, 0);
+
+  return {
+    bankBalance,
+    bankAsOfDt: latest?.[0]?.txn_dt ?? null,
+    projects: projectRows,
+    projectTotal,
+    prepaidTotal,
+    prepaidCount: prepaid.length,
+    unpaidTotal: unpaid.reduce((s, r) => s - r.balance, 0),
+    unpaidCount: unpaid.length,
+    freeFund: bankBalance === null ? null : bankBalance - projectTotal - prepaidTotal,
   };
 }

@@ -230,3 +230,17 @@ export function sumReflectedExemptions(
     : exms;
   return counted.reduce((sum, e) => sum + e.exmAmt, 0);
 }
+
+export type AnchorAdj = { adjAmt: number; crtAt: string };
+
+/**
+ * 개시잔액 조정(fee_bal_adj_hist, 되돌린 건 제외)의 합. sumReflectedExemptions 와 같은 규칙 —
+ * 앵커 생성(crt_at) 이후에 만든 조정만 센다. 재활성 0원 청산 앵커가 새로 생기면 그 이전 조정은
+ * 청산 대상 과거에 대한 것이라 자동으로 빠진다. 앵커가 없으면 전부 합산.
+ */
+export function sumAnchorAdjustments(adjs: AnchorAdj[], anchorCrtAt: string | null): number {
+  const counted = anchorCrtAt
+    ? adjs.filter((a) => dayjs(a.crtAt).isAfter(dayjs(anchorCrtAt)))
+    : adjs;
+  return counted.reduce((sum, a) => sum + a.adjAmt, 0);
+}

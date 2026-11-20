@@ -1,7 +1,7 @@
 -- #720 · #721 운영(prd) 데이터 보정 — 7/16 상태 일괄 정리의 탈퇴일 바로잡기 + 활동 회원 1명 복구
 -- ⚠️ 운영 적용은 사람 승인 뒤 수동으로 돌린다. (supabase/migrations 가 아니라 여기 둔 이유: 특정 시점의 일회성 보정이라
 --    새 환경·dev 에서 돌 이유가 없다. 대상이 없으면 0행이다 — 2026-11-16-hyrox-671-data-fix.sql 과 같은 방식.)
--- ⚠️ 돌리기 전에 먼저 supabase/migrations/20261120100000_team_mem_rel_status_chg_hist.sql 을 적용해 둔다.
+-- ⚠️ 돌리기 전에 먼저 supabase/migrations/20261120120000_team_mem_rel_status_chg_hist.sql 을 적용해 둔다.
 --    그러면 아래 UPDATE 가 변경 이력(chg_hist, 처리자='sql')에 전/후 값으로 남아 되돌릴 근거가 된다.
 -- ⚠️ 처음엔 맨 끝 COMMIT 을 ROLLBACK 으로 바꿔 NOTICE 와 확인 쿼리 결과만 본 뒤, 맞으면 COMMIT 으로 다시 돌린다.
 --
@@ -19,11 +19,13 @@
 --
 -- ■ 고치는 것
 --   A) 일반 대상: eff_at ← 바로 앞 비활성 행의 eff_at, leave_dt ← 그 시각의 KST 날짜(가입일보다 앞서지 않게 보정).
---   B) 복구 대상(#721): 위 대상 중 정본이면서 마일리지런(MILEAGE_RUN) 참여 승인(aprv_yn)이 있는 회원.
+--   B) 복구 대상(#721): **운영자가 확인해 아래 v_restore_mem_id 에 mem_id 를 직접 넣었을 때만** 실행한다(기본 NULL = 복구 안 함 —
+--      이 경우 그 회원도 A 로 다른 대상과 똑같이 탈퇴일만 정정된다). 후보는 NOTICE 로 보여 준다:
+--      위 대상 중 정본이면서 마일리지런(MILEAGE_RUN) 참여 승인(aprv_yn)이 있는 회원.
 --      일괄 정리가 하기 전 상태(비활성)로 되돌린다 — mem_st_cd='inactive', leave_dt=NULL, eff_at ← 앞 행의 eff_at,
 --      사유도 앞 행의 값으로. 활동(active)으로 올릴지는 운영자가 정한다 — 올린다면 이 SQL 이 아니라 관리 화면의
 --      「재활성화」로 한다(잔액 초기화 여부·상태 이력·처리자 기록이 앱 로직으로 정확히 남는다).
---      이 조건에 맞는 사람이 둘 이상이면 멈춘다(사람이 판단).
+--      넣은 mem_id 가 대상(정본)에 없으면 멈춘다.
 --
 -- ■ 회비(#423/#424) 영향 — 없음
 --   회비 제외 기간은 team_mem_rel 이력에서 **active 구간**만 만들어 판정한다(lib/dues/ledger-replay.ts buildActiveIntervals).
@@ -39,6 +41,10 @@
 BEGIN;
 SET LOCAL lock_timeout = '3s';
 
+-- ▼▼ 운영자 확인 전엔 NULL 로 둔다. 확인된 복구 대상의 mem_id 를 따옴표 안에 넣으면 B) 가 켜진다. ▼▼
+CREATE TEMP TABLE _fix720_cfg ON COMMIT DROP AS
+SELECT NULL::uuid AS restore_mem_id;   -- (v_restore_mem_id) 예: SELECT '00000000-0000-0000-0000-000000000000'::uuid AS restore_mem_id;
+
 CREATE TEMP TABLE _fix720 ON COMMIT DROP AS
 SELECT
   t.team_mem_id                                           AS tgt_id,
@@ -46,6 +52,8 @@ SELECT
   p.eff_at                                                AS prev_eff_at,
   p.inact_rsn_txt                                         AS prev_rsn,
   GREATEST((p.eff_at AT TIME ZONE 'Asia/Seoul')::date, t.join_dt) AS new_leave_dt,
+  (t.vers = 0 AND t.mem_id = (SELECT restore_mem_id FROM _fix720_cfg))
+                                                          AS restore_yn,
   (
     t.vers = 0
     AND EXISTS (
@@ -56,7 +64,7 @@ SELECT
         AND pr.aprv_yn = true
         AND em.evt_type_cd = 'MILEAGE_RUN'
     )
-  )                                                       AS restore_yn
+  )                                                       AS cand_yn
 FROM public.team_mem_rel t
 JOIN LATERAL (
   SELECT x.*
@@ -81,15 +89,19 @@ DECLARE
   v_cur   integer;
   v_hist  integer;
   v_rest  integer;
+  v_cand  integer;
+  v_cfg   uuid;
 BEGIN
   SELECT count(*), count(*) FILTER (WHERE tgt_vers = 0), count(*) FILTER (WHERE tgt_vers > 0),
-         count(*) FILTER (WHERE restore_yn)
-    INTO v_total, v_cur, v_hist, v_rest
+         count(*) FILTER (WHERE restore_yn), count(*) FILTER (WHERE cand_yn)
+    INTO v_total, v_cur, v_hist, v_rest, v_cand
   FROM _fix720;
-  RAISE NOTICE '#720 대상: 전체 % (정본 % · 재활성돼 이력으로 밀린 행 %), 그중 복구 대상 %', v_total, v_cur, v_hist, v_rest;
-  IF v_rest > 1 THEN
-    RAISE EXCEPTION '복구 대상이 2명 이상(%) — 사람이 확인 뒤 조건을 좁힐 것', v_rest;
+  SELECT restore_mem_id INTO v_cfg FROM _fix720_cfg;
+  RAISE NOTICE '복구 후보(마일리지런 참여 승인) %명 — 운영자 확인 전엔 복구하지 않는다(v_restore_mem_id 비어 있음 = %)', v_cand, v_cfg IS NULL;
+  IF v_cfg IS NOT NULL AND v_rest = 0 THEN
+    RAISE EXCEPTION '지정한 복구 mem_id 가 대상(정본)에 없다 — 확인할 것';
   END IF;
+  RAISE NOTICE '#720 대상: 전체 % (정본 % · 재활성돼 이력으로 밀린 행 %), 그중 복구 대상 %', v_total, v_cur, v_hist, v_rest;
   IF v_total > 100 THEN
     RAISE EXCEPTION '대상이 예상(약 70)보다 훨씬 많다(%) — 조건 점검', v_total;
   END IF;
