@@ -22,11 +22,6 @@ export const DECISION_ITEM_LABEL: Record<DecisionItemCd, string> = {
   other: "제외",
 };
 
-/** 회원·프로젝트를 붙이지 않는 분류(회원 잔액에도 프로젝트 보유액에도 안 들어간다) */
-export function isNeutralItemCd(cd: string): boolean {
-  return cd === OPR_FUND_CD || cd === FUND_RETURN_CD || cd === DEP_REFUND_CD;
-}
-
 /** 입금 행에서 고를 수 있는 분류 */
 export const DEPOSIT_ITEM_ORDER: DecisionItemCd[] = ["due", "event_fee", "opr_fund", "fund_return", "other"];
 /** 출금 행에서 고를 수 있는 분류 */
@@ -47,4 +42,19 @@ export function directionIssue(io: string | null | undefined, feeItemCd: string)
   if (io === "deposit" && feeItemCd === "expense") return "입금은 지출 분류로 확정할 수 없습니다.";
   if (io === "deposit" && feeItemCd === DEP_REFUND_CD) return "입금은 예치금 환급 분류로 확정할 수 없습니다.";
   return null;
+}
+
+/** 회원을 붙이지 않는 분류(제외·운영자금·공금 반환) — 예치금 환급은 환급받는 회원이 필수라 여기 없다 */
+export function isMemberlessItemCd(cd: string): boolean {
+  return cd === "other" || cd === OPR_FUND_CD || cd === FUND_RETURN_CD;
+}
+
+/**
+ * 인박스 행의 결정이 끝났는가 — 회비·예치금 환급=회원 필수, 프로젝트=귀속 프로젝트 필수,
+ * 제외·운영자금·공금 반환=분류만. 화면(행 강조)과 확정 범위가 같은 규칙을 쓴다.
+ */
+export function isItemDecided(d: { itemCd: string; memId: string | null; prjId: string | null }): boolean {
+  if (isMemberlessItemCd(d.itemCd)) return true;
+  if (d.itemCd === "event_fee") return !!d.prjId;
+  return !!d.memId;
 }

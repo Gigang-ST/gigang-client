@@ -7,7 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 
 import { getValidFeeItemCds } from "@/app/actions/dues/validate-fee-item";
-import { directionIssue } from "@/lib/dues/fee-item-direction";
+import { DEP_REFUND_CD, directionIssue } from "@/lib/dues/fee-item-direction";
 
 type Db = SupabaseClient<Database>;
 
@@ -94,11 +94,19 @@ export async function confirmTransactionsCore(
     return { ok: false as const, message: "분류가 없거나 유효하지 않은 거래가 있습니다." };
   }
 
-  // 분류·입출금 방향 검증 — 출금을 회비·프로젝트로, 입금을 지출·예치금 환급으로 확정하는 사고 차단(#710).
-  // 운영 MCP 는 건별로 미리 거르지만 앱 인박스는 이 코어가 마지막 관문이다.
-  const wrongWay = merged.find((t) => directionIssue(t.txn_io_enm, t.fee_item_cd ?? "") !== null);
+  // 분류·입출금 방향 검증 — 이번 호출이 분류를 직접 바꾼(feeItemCd 전송) 행만 대상.
+  // 저장값만으로 확정되는 기존 행(autoDone·excluded)은 프로젝트 귀속 검증처럼 관용한다(기존 데이터를 인질로 잡지 않는다).
+  const wrongWay = merged.find((t) => {
+    const it = itemMap.get(t.txn_id);
+    return it?.feeItemCd != null && directionIssue(t.txn_io_enm, t.fee_item_cd ?? "") !== null;
+  });
   if (wrongWay) {
     return { ok: false as const, message: directionIssue(wrongWay.txn_io_enm, wrongWay.fee_item_cd ?? "")! };
+  }
+
+  // 예치금 환급(#710)은 환급받는 회원이 있어야 그 회원 예치금에서 빠진다 — 회원 없이는 잔액에 반영되지 않는다.
+  if (merged.some((t) => t.fee_item_cd === DEP_REFUND_CD && !t.mem_id)) {
+    return { ok: false as const, message: "예치금 환급은 환급받는 회원을 지정해야 확정할 수 있습니다." };
   }
 
   // 프로젝트 귀속 검증 — 클라이언트 결정 규칙(프로젝트=귀속 필수)을 서버도 강제한다.

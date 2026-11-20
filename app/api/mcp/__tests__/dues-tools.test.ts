@@ -100,7 +100,7 @@ function seed(extra: Record<string, Row[]> = {}) {
     fee_payer_alias: [],
     fee_mem_bal_snap: [],
     fee_policy_cfg: [{ team_id: TEAM, vers: 0, del_yn: false, monthly_fee_amt: 2000, aply_stt_dt: "2026-01-01" }],
-    cmm_cd_mst: ["due", "event_fee", "expense", "other"].map(code),
+    cmm_cd_mst: ["due", "event_fee", "expense", "other", "opr_fund", "fund_return", "dep_refund"].map(code),
     evt_team_mst: [],
     evt_pb_cfg: [],
     evt_pb_prt_rel: [],
@@ -305,6 +305,28 @@ describe("confirm_dues_txns", () => {
     expect(out.skipped[0].reason).toContain("출금");
     const inn = await confirmDuesTxns(client(), admin(), { items: [{ txn_id: T_REVIEW, fee_item_cd: "expense" }] });
     expect(inn.skipped[0].reason).toContain("입금");
+  });
+
+  it("새 분류(#710): 운영자금·공금 반환은 입출금 모두, 예치금 환급은 출금에 회원이 있어야 확정된다", async () => {
+    const op = await confirmDuesTxns(client(), admin(), {
+      items: [
+        { txn_id: T_REVIEW, fee_item_cd: "opr_fund" },
+        { txn_id: T_OUT, fee_item_cd: "fund_return" },
+      ],
+    });
+    expect(op.confirmed).toBe(2);
+    expect(op.balance_affecting).toBe(0);
+  });
+
+  it("예치금 환급: 회원 없으면 거부, 입금은 거부, 회원이 있으면 확정되고 그 회원 잔액을 다시 계산한다", async () => {
+    const noMem = await confirmDuesTxns(client(), admin(), { items: [{ txn_id: T_OUT, fee_item_cd: "dep_refund" }] });
+    expect(noMem.skipped[0].reason).toContain("mem_id");
+    const inn = await confirmDuesTxns(client(), admin(), { items: [{ txn_id: T_REVIEW, fee_item_cd: "dep_refund", mem_id: M1 }] });
+    expect(inn.skipped[0].reason).toContain("입금");
+    const ok = await confirmDuesTxns(client(), admin(), { items: [{ txn_id: T_OUT, fee_item_cd: "dep_refund", mem_id: M1 }] });
+    expect(ok.confirmed).toBe(1);
+    expect(ok.balance_affecting).toBe(1);
+    expect(recalcMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ memIds: [M1] }));
   });
 
   it("이미 확정된 건·없는 건은 사유와 함께 건너뛰고 나머지는 진행한다", async () => {

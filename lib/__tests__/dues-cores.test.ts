@@ -20,6 +20,7 @@ vi.mock("@/lib/dues/recalc-core", async (importOriginal) => {
 });
 
 import { cancelTransactionCore } from "@/lib/dues/cancel-core";
+import { confirmTransactionsCore } from "@/lib/dues/confirm-core";
 import * as recalcModule from "@/lib/dues/recalc-core";
 
 const TEAM = "22222222-2222-4222-8222-222222222222";
@@ -127,6 +128,7 @@ describe("recalculateBalanceCore", () => {
       fee_due_pay_hist: [{ team_id: TEAM, mem_id: M1, pay_id: "p1", pay_amt: 4000, pay_dt: "2026-10-05", pay_st_cd: "paid", vers: 0, del_yn: false }],
       fee_due_exm_cfg: [],
       fee_due_exm_hist: [],
+      fee_txn_hist: [],
       ...extra,
     });
   }
@@ -155,11 +157,67 @@ describe("recalculateBalanceCore", () => {
     expect(f.rpcCalls[0].args).toMatchObject({ p_total_paid: 0 });
   });
 
+  it("예치금 환급(확정 dep_refund 출금)은 그 회원 순납부에서 빠지고, 미확정·다른 회원 건은 안 센다(#710)", async () => {
+    const refund = (over: Row = {}): Row => ({
+      team_id: TEAM, mem_id: M1, fee_item_cd: "dep_refund", is_cfm_yn: true, del_yn: false,
+      txn_amt: 1500, txn_dt: "2026-11-01", txn_tm: "09:00:00", ...over,
+    });
+    const f = ledger({
+      fee_txn_hist: [refund(), refund({ txn_amt: 700, is_cfm_yn: false }), refund({ txn_amt: 900, mem_id: "other" })],
+    });
+    await actual(asDb(f), { teamId: TEAM, actorMemId: ACTOR, memIds: [M1] });
+    expect(f.rpcCalls[0].args).toMatchObject({ p_total_paid: 4000 - 1500 });
+  });
+
   it("RPC 가 실패하면 회원별 오류를 모아 ok:false 로 돌려준다", async () => {
     const f = ledger();
     f.rpcError = { message: "boom" };
     const r = await actual(asDb(f), { teamId: TEAM, actorMemId: ACTOR, memIds: [M1] });
     expect(r.ok).toBe(false);
     expect(r.message).toContain(M1);
+  });
+});
+
+describe("confirmTransactionsCore — 분류·방향 검증(#710)", () => {
+  const code = (cd: string) => ({
+    cd, cd_nm: cd, sort_ord: 1, team_id: null, vers: 0, del_yn: false,
+    cmm_cd_grp_mst: { cd_grp_cd: "FEE_ITEM_CD" },
+  });
+  const pending = (id: string, over: Row = {}): Row => ({
+    txn_id: id, team_id: TEAM, is_cfm_yn: false, del_yn: false, mem_id: null, match_st_cd: "unmatched",
+    project_id: null, txn_amt: 5000, txn_dt: "2026-11-10", txn_io_enm: "withdrawal", fee_item_cd: "expense", ...over,
+  });
+  const db = (txns: Row[]) =>
+    new FakeSupabase({
+      fee_txn_hist: txns,
+      fee_due_pay_hist: [],
+      fee_prj_mst: [],
+      team_mem_rel: [{ team_id: TEAM, mem_id: M1, vers: 0, del_yn: false, mem_st_cd: "active" }],
+      cmm_cd_mst: ["due", "event_fee", "expense", "other", "opr_fund", "fund_return", "dep_refund"].map(code),
+    });
+
+  it("사용자가 바꾼 분류가 방향에 안 맞으면 거부하고 아무것도 쓰지 않는다", async () => {
+    const f = db([pending("a")]);
+    const r = await confirmTransactionsCore(asDb(f), { teamId: TEAM, actorMemId: ACTOR, items: [{ txnId: "a", feeItemCd: "due", memId: M1 }] });
+    expect(r.ok).toBe(false);
+    expect(f.tables.fee_txn_hist[0].is_cfm_yn).toBe(false);
+    const g = db([pending("b", { txn_io_enm: "deposit", fee_item_cd: "due" })]);
+    const r2 = await confirmTransactionsCore(asDb(g), { teamId: TEAM, actorMemId: ACTOR, items: [{ txnId: "b", feeItemCd: "dep_refund", memId: M1 }] });
+    expect(r2.ok).toBe(false);
+  });
+
+  it("저장값만으로 확정되는 기존 행은 방향이 안 맞아도 관용한다", async () => {
+    const f = db([pending("c", { txn_io_enm: "deposit", fee_item_cd: "expense" })]);
+    const r = await confirmTransactionsCore(asDb(f), { teamId: TEAM, actorMemId: ACTOR, items: [{ txnId: "c" }] });
+    expect(r).toMatchObject({ ok: true, confirmed: 1 });
+  });
+
+  it("예치금 환급은 회원이 없으면 거부, 있으면 확정되지만 납부원장은 만들지 않는다", async () => {
+    const f = db([pending("d")]);
+    const no = await confirmTransactionsCore(asDb(f), { teamId: TEAM, actorMemId: ACTOR, items: [{ txnId: "d", feeItemCd: "dep_refund" }] });
+    expect(no.ok).toBe(false);
+    const ok = await confirmTransactionsCore(asDb(f), { teamId: TEAM, actorMemId: ACTOR, items: [{ txnId: "d", feeItemCd: "dep_refund", memId: M1 }] });
+    expect(ok).toMatchObject({ ok: true, confirmed: 1 });
+    expect(f.tables.fee_due_pay_hist).toHaveLength(0);
   });
 });

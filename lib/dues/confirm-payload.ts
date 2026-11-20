@@ -1,5 +1,5 @@
 import type { ConfirmItem } from "@/lib/dues/confirm-core";
-import { isNeutralItemCd, type DecisionItemCd } from "@/lib/dues/fee-item-direction";
+import { isMemberlessItemCd, type DecisionItemCd } from "@/lib/dues/fee-item-direction";
 
 export type ItemCd = DecisionItemCd;
 
@@ -37,7 +37,7 @@ export function buildConfirmPayload(input: {
     return {
       txnId: t.txnId,
       feeItemCd: d.itemCd,
-      memId: d.itemCd === "other" || isNeutralItemCd(d.itemCd) ? null : d.memId,
+      memId: isMemberlessItemCd(d.itemCd) ? null : d.memId,
       prjId: d.itemCd === "event_fee" ? d.prjId : null,
     };
   });

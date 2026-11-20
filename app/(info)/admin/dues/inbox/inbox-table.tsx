@@ -8,7 +8,7 @@ import { confirmAndRecalc } from "@/app/actions/dues/confirm-and-recalc";
 import { deleteTransaction } from "@/app/actions/dues/delete-transaction";
 import { buildConfirmPayload, type Decision, type ItemCd } from "@/lib/dues/confirm-payload";
 import { canReclassifyTo, isDecisionRow, isReclassified } from "@/lib/dues/confirm-scope";
-import { DEPOSIT_ITEM_ORDER, WITHDRAWAL_ITEM_ORDER, isNeutralItemCd, type DecisionItemCd } from "@/lib/dues/fee-item-direction";
+import { DEPOSIT_ITEM_ORDER, WITHDRAWAL_ITEM_ORDER, isItemDecided, type DecisionItemCd } from "@/lib/dues/fee-item-direction";
 import { duplicateNames } from "@/lib/dues/homonyms";
 import type { FeeItemOption, InboxTxn, MemberOption, ProcessedTxn, ProjectOption } from "@/lib/queries/dues";
 
@@ -145,7 +145,7 @@ export function InboxTable({
   // (inbox-row.tsx의 decided 계산과 반드시 같은 규칙을 유지할 것)
   const decidedRows = decisionRows.filter((t) => {
     const d = decisions[t.txnId];
-    return d && (d.itemCd === "other" || isNeutralItemCd(d.itemCd) || (d.itemCd === "due" ? !!d.memId : !!d.prjId));
+    return d && isItemDecided(d);
   });
   const undecidedCount = decisionRows.length - decidedRows.length;
 

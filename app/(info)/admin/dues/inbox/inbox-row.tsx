@@ -8,7 +8,7 @@ import { amountHintLabel } from "@/lib/dues/amount-hint";
 import { memberLabel } from "@/lib/dues/homonyms";
 import type { Decision, ItemCd } from "@/lib/dues/confirm-payload";
 import { canReclassifyTo } from "@/lib/dues/confirm-scope";
-import { DECISION_ITEM_LABEL, isNeutralItemCd, itemOrderFor } from "@/lib/dues/fee-item-direction";
+import { DECISION_ITEM_LABEL, isItemDecided, isMemberlessItemCd, itemOrderFor } from "@/lib/dues/fee-item-direction";
 import type { InboxTxn, MemberOption, ProjectOption } from "@/lib/queries/dues";
 
 import { Body, Caption, Micro } from "@/components/common/typography";
@@ -80,13 +80,8 @@ export function InboxRow({
   /** 다른 행 삭제 진행 중 — 중복 실행 방지 */
   deleteBusy: boolean;
 }) {
-  // 결정 조건: 회비=회원 필수, 프로젝트=귀속 프로젝트 필수(회원은 권장·선택), 제외=분류만.
-  const decided =
-    !editable ||
-    (!!decision &&
-      (decision.itemCd === "other" ||
-        isNeutralItemCd(decision.itemCd) ||
-        (decision.itemCd === "due" ? !!decision.memId : !!decision.prjId)));
+  // 결정 조건: 회비·예치금 환급=회원 필수, 프로젝트=귀속 프로젝트 필수(회원은 권장·선택), 제외·운영자금·공금 반환=분류만.
+  const decided = !editable || (!!decision && isItemDecided(decision));
   const badge = BUCKET_BADGE[txn.bucket];
 
   function handleKeyDown(e: KeyboardEvent<HTMLTableRowElement>) {
@@ -130,7 +125,7 @@ export function InboxRow({
           <Caption className="text-foreground">
             {txn.bucket === "autoDone" && txn.memId ? (nameById.get(txn.memId) ?? "—") : "—"}
           </Caption>
-        ) : decision && decision.itemCd !== "other" && !isNeutralItemCd(decision.itemCd) ? (
+        ) : decision && !isMemberlessItemCd(decision.itemCd) ? (
           <div className="flex flex-wrap items-center gap-1.5">
             {txn.candidates.length === 0 && <Caption>후보 없음</Caption>}
             {txn.candidates.map((c) => (
