@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { dayjs, nowKST } from "@/lib/dayjs";
 import type { Enums } from "@/lib/supabase/database.types";
+import { EMPTY_START_INFO, startInfoSchema } from "@/lib/validations/start-info";
 
 /** DB gender enum + 빈 문자열(미선택) 허용 */
 const genderValues = ["male", "female", ""] as const;
@@ -103,10 +104,15 @@ export const JOIN_PURP_CODES = [
   "RACE",
   "FRIENDS",
   "HABIT",
+  // 이슈 #719 — 뒤에 덧붙인다(기존 칩 순서·저장된 선택값은 그대로)
+  "FIRST_FINISH",
+  "PB",
+  "HEALTH",
 ] as const;
 
 /** 유입 경로 칩 코드 (공통코드 그룹 JOIN_SRC) */
-export const JOIN_SRC_CODES = ["FRIEND", "INSTA", "SOMOIM", "DAANGN", "ETC"] as const;
+// 이슈 #719 — 검색·대회를 더하되 "기타"는 계속 맨 끝(기존 칩끼리의 순서는 그대로)
+export const JOIN_SRC_CODES = ["FRIEND", "INSTA", "SOMOIM", "DAANGN", "SEARCH", "EVENT", "ETC"] as const;
 
 /** 평균 페이스 코드 — DB ck_mem_onbd_prf_avg_pace_cd CHECK 제약과 동일 목록 */
 export const AVG_PACE_CODES = [
@@ -149,6 +155,9 @@ export const JOIN_PURP_LABELS: Record<(typeof JOIN_PURP_CODES)[number], string> 
   RACE: "대회에 같이 나가고 싶어요",
   FRIENDS: "새로운 친구를 만나고 싶어요",
   HABIT: "운동 습관을 만들고 싶어요",
+  FIRST_FINISH: "첫 10K·하프·풀 완주를 하고 싶어요",
+  PB: "기록을 단축하고 싶어요",
+  HEALTH: "건강·다이어트를 하고 싶어요",
 };
 
 /**
@@ -164,6 +173,9 @@ export const JOIN_PURP_SHORT_LABELS: Record<(typeof JOIN_PURP_CODES)[number], st
   RACE: "대회",
   FRIENDS: "친목",
   HABIT: "운동 습관",
+  FIRST_FINISH: "첫 완주",
+  PB: "기록 단축",
+  HEALTH: "건강·다이어트",
 };
 
 /** 유입 경로 칩 라벨 (설계 §3.5) */
@@ -172,6 +184,8 @@ export const JOIN_SRC_LABELS: Record<(typeof JOIN_SRC_CODES)[number], string> = 
   INSTA: "인스타그램",
   SOMOIM: "소모임",
   DAANGN: "당근",
+  SEARCH: "검색",
+  EVENT: "대회",
   ETC: "기타",
 };
 
@@ -184,6 +198,8 @@ export const onboardingProfileSchema = z.object({
   joinPurpTxt: z.string().max(500).nullable(),
   joinSrcCd: z.enum(JOIN_SRC_CODES),
   joinSrcTxt: z.string().max(200).nullable(),
+  /** 시작 정보(이슈 #719) — 경력·주간 거리·기록. 전부 선택이라 비어 있어도 된다 */
+  startInfo: startInfoSchema.default(EMPTY_START_INFO),
 });
 
 export type OnboardingProfileValues = z.infer<typeof onboardingProfileSchema>;

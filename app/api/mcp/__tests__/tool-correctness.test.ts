@@ -266,7 +266,8 @@ function makeProfileSupabase(memMst: Record<string, unknown>) {
   };
   const client = {
     from: (table: string) =>
-      table === "mem_onbd_prf" || table === "team_mem_onbd_rel" ? onbdBuilder : relBuilder,
+      table === "mem_onbd_prf" || table === "team_mem_onbd_rel" || table === "mem_start_rec_rel"
+        ? onbdBuilder : relBuilder,
   } as unknown as SupabaseClient<Database>;
   return { client, captured };
 }

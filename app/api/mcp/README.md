@@ -71,9 +71,9 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 |------|------|---------|------|
 | `whoami` | — | 내 신원(mem_id·team·admin 여부) 확인 | 멤버 |
 | `list_today_gatherings` | `date?`(YYYY-MM-DD, 기본 오늘) | 오늘(또는 지정일) 모임 + **모임 설명(난이도)** + 각 참석자 수 | 멤버 |
-| `list_recent_members` | `limit?`(기본 10) | 최근 가입 멤버 + **러닝 프로필(가까운 역·평균 거리·페이스·가입 목적)** | 멤버 |
+| `list_recent_members` | `limit?`(기본 10) | 최근 가입 멤버 + **러닝 프로필(가까운 역·평균 거리·페이스·가입 목적 + 시작 정보: 경력·주간 거리·자기신고 기록·입력 시각)** | 멤버 |
 | `list_members_attendance` | `limit?` | 멤버별 참석 횟수·마지막 참석일(오래 안 나온 순) | **admin** |
-| `get_member_profile` | `member_id`(uuid) 또는 `name` | 멤버 프로필(이름·가입일·역할·소개·아바타 + **생일·성별은 admin 만**) + **러닝 프로필(가까운 역·평균 거리·페이스·가입 목적)** | 멤버 |
+| `get_member_profile` | `member_id`(uuid) 또는 `name` | 멤버 프로필(이름·가입일·역할·소개·아바타 + **생일·성별은 admin 만**) + **러닝 프로필(가까운 역·평균 거리·페이스·가입 목적 + 시작 정보: 경력·주간 거리·자기신고 기록·입력 시각)** | 멤버 |
 | `list_gathering_non_attendees` | `gathering_id`(uuid) | 특정 모임 미참석자 명단 (+ **참석 현황은 admin 만**) | 멤버 |
 | `list_push_status` | — | 멤버별 웹푸시 구독 여부 | 멤버 |
 | `send_push` | `member_ids`(uuid[]), `title`, `message` | 지정 멤버에게 인앱+웹푸시 발송 | **admin** |

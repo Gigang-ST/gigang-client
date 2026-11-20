@@ -9,6 +9,7 @@ import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { resolveLinkedMemId } from "@/lib/onboarding-existing-person";
 import { digitsOnly, formatPhone, isValidPhone } from "@/lib/phone-utils";
 import { dayjs, todayKST } from "@/lib/dayjs";
+import { saveStartInfo } from "@/lib/start-info-save";
 import { sealBalanceAnchor } from "@/lib/dues/seal-anchor";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 import { joinGatheringWithCapCheck } from "@/lib/gathering/join-gathering";
@@ -514,6 +515,10 @@ async function finishTeamJoin({
   if (eOnbdPrf) {
     console.error("[onboarding] mem_onbd_prf UPSERT 실패 — 가입은 계속 진행", memId, eOnbdPrf.message);
   }
+
+  // 시작 정보(경력·주간 거리·기록, 이슈 #719) — 선택 입력이라 실패해도 가입은 성립(로깅만)
+  const startRes = await saveStartInfo(memId, onbdProfile.startInfo, "SIGNUP");
+  if (!startRes.ok) console.error("[onboarding] 시작 정보 저장 실패 — 가입은 계속 진행", memId, startRes.message);
 
   const { error: eTeamOnbd } = await admin.from("team_mem_onbd_rel").upsert(
     {

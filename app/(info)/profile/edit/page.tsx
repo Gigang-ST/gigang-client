@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRunningProfile } from "@/lib/queries/onboarding-profile";
+import { getStartInfo } from "@/lib/queries/start-info";
 import { ProfileEditForm } from "@/components/profile/profile-edit-form";
 
 export default async function ProfileEditPage() {
@@ -9,7 +10,10 @@ export default async function ProfileEditPage() {
   if (!user) redirect("/auth/login");
   if (!member) redirect("/onboarding");
 
-  const runningProfile = await getRunningProfile(member.id);
+  const [runningProfile, startInfo] = await Promise.all([
+    getRunningProfile(member.id),
+    getStartInfo(member.id),
+  ]);
 
   return (
     // key를 매 진입(서버 렌더)마다 새로 부여해 폼을 새로 mount 시킨다.
@@ -28,6 +32,7 @@ export default async function ProfileEditPage() {
         avatar_url: member.avatar_url,
       }}
       initialRunningProfile={runningProfile}
+      initialStartInfo={startInfo}
     />
   );
 }
