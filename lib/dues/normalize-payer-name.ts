@@ -17,3 +17,27 @@ export function normalizePayerName(raw: string): string {
   s = s.replace(/^회비/, "").replace(/회비$/, "");
   return s.toLowerCase();
 }
+
+/** 입금자명 꼬리말 후보(정규화된 형태, 긴 것부터). 예: "이름기강회비", "이름 회비 선금". */
+const PAYER_SUFFIX_TOKENS = ["기강회비", "회비선금", "선금", "회비", "기강"];
+
+/**
+ * 정규화된 입금자명 끝에 붙은 꼬리말(기강회비·회비 선금 등)을 떼어 낸다.
+ * 입력은 `normalizePayerName` 결과여야 한다. 떼어 낼 게 없으면 입력 그대로 돌려준다.
+ * 이름 자체가 꼬리말뿐이면(전부 떼면 빈 문자열) 원본을 돌려준다.
+ */
+export function stripPayerSuffix(norm: string): string {
+  let s = norm;
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const t of PAYER_SUFFIX_TOKENS) {
+      if (s.length > t.length && s.endsWith(t)) {
+        s = s.slice(0, -t.length);
+        changed = true;
+        break;
+      }
+    }
+  }
+  return s;
+}

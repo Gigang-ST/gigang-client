@@ -1,4 +1,4 @@
-import { normalizePayerName } from "@/lib/dues/normalize-payer-name";
+import { normalizePayerName, stripPayerSuffix } from "@/lib/dues/normalize-payer-name";
 
 export type MemberRef = { memId: string; name: string };
 export type AliasRef = { rawNameNorm: string; memId: string };
@@ -7,7 +7,7 @@ export type MatchStatus = "matched" | "ambiguous" | "unmatched";
 export type MatchResult = {
   status: MatchStatus;
   memId: string | null;
-  via: "alias" | "exact" | null;
+  via: "alias" | "exact" | "suffix" | null;
   candidates: MatchCandidate[];
 };
 
@@ -43,6 +43,25 @@ export function matchPayer(rawName: string, members: MemberRef[], aliases: Alias
       status: "ambiguous", memId: null, via: null,
       candidates: exact.map((m) => ({ memId: m.memId, name: m.name, score: 1 })),
     };
+  }
+
+  // (2.5) 꼬리말(기강회비·회비 선금 등) 제거 후 실명 정확일치 — 단일일 때만 자동.
+  //       동명이인(2명 이상)은 자동 확정하지 않고 후보와 함께 확인필요로 둔다.
+  const stripped = stripPayerSuffix(norm);
+  if (stripped !== norm) {
+    const sufHits = normed.filter((m) => m.norm === stripped);
+    if (sufHits.length === 1) {
+      return {
+        status: "matched", memId: sufHits[0].memId, via: "suffix",
+        candidates: [{ memId: sufHits[0].memId, name: sufHits[0].name, score: 1 }],
+      };
+    }
+    if (sufHits.length > 1) {
+      return {
+        status: "ambiguous", memId: null, via: null,
+        candidates: sufHits.map((m) => ({ memId: m.memId, name: m.name, score: 1 })),
+      };
+    }
   }
 
   // (3) 부분 포함(양방향) → 후보 제시(자동 확정 안 함)

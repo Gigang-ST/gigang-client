@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizePayerName } from "@/lib/dues/normalize-payer-name";
+import { normalizePayerName, stripPayerSuffix } from "@/lib/dues/normalize-payer-name";
 
 describe("normalizePayerName", () => {
   it("공백 제거", () => {
@@ -21,5 +21,16 @@ describe("normalizePayerName", () => {
   });
   it("빈 입력은 빈 문자열", () => {
     expect(normalizePayerName("   ")).toBe("");
+  });
+});
+
+describe("stripPayerSuffix", () => {
+  it("끝 꼬리말 제거", () => {
+    expect(stripPayerSuffix("홍길동기강회비")).toBe("홍길동");
+    expect(stripPayerSuffix("홍길동회비선금")).toBe("홍길동");
+  });
+  it("꼬리말이 없거나 전부 꼬리말이면 그대로", () => {
+    expect(stripPayerSuffix("홍길동")).toBe("홍길동");
+    expect(stripPayerSuffix("기강")).toBe("기강");
   });
 });

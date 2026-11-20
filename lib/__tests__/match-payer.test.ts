@@ -29,6 +29,20 @@ describe("matchPayer", () => {
     expect(r.memId).toBe("m1");
     expect(r.via).toBe("exact");
   });
+  it("꼬리말(기강회비·회비 선금) 제거 후 단일 일치 → matched/suffix", () => {
+    for (const raw of ["김철수기강회비", "김철수 회비 선금", "김철수 기강"]) {
+      const r = matchPayer(raw, members, []);
+      expect(r.status).toBe("matched");
+      expect(r.memId).toBe("m1");
+      expect(r.via).toBe("suffix");
+    }
+  });
+  it("꼬리말 제거 후 동명이인 → 자동 매칭 안 하고 ambiguous", () => {
+    const r = matchPayer("이영희기강회비", members, []);
+    expect(r.status).toBe("ambiguous");
+    expect(r.memId).toBeNull();
+    expect(r.candidates.map((c) => c.memId).sort()).toEqual(["m3", "m4"]);
+  });
   it("동명이인 → ambiguous + 후보 2명", () => {
     const r = matchPayer("이영희", members, []);
     expect(r.status).toBe("ambiguous");
