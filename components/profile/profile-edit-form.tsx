@@ -18,6 +18,16 @@ import {
 import { updateProfile } from "@/app/actions/update-profile";
 import { updateNearStation } from "@/app/actions/profile/update-near-station";
 import { updateRunningProfile } from "@/app/actions/profile/update-running-profile";
+import { updateStartInfo } from "@/app/actions/profile/update-start-info";
+import { StartInfoFields } from "@/components/profile/start-info-fields";
+import { formatKST } from "@/lib/dayjs";
+import type { StartInfoRead } from "@/lib/queries/start-info";
+import {
+  draftFromValues,
+  draftToValues,
+  START_INFO_SRC_LABELS,
+  type StartInfoDraft,
+} from "@/lib/validations/start-info";
 import { compressAvatarFile } from "@/lib/image/avatar-compress";
 import { useBackNav } from "@/lib/use-back-nav";
 import { cn } from "@/lib/utils";
@@ -70,9 +80,11 @@ export type InitialRunningProfile = {
 export function ProfileEditForm({
   member,
   initialRunningProfile,
+  initialStartInfo,
 }: {
   member: MemberData;
   initialRunningProfile: InitialRunningProfile;
+  initialStartInfo: StartInfoRead;
 }) {
   // 저장 후 복귀. 직접 진입(알림 딥링크 등)이면 뒤로 갈 데가 없어 맨 `router.back()`은
   // 조용히 죽는다 — 토스트만 뜨고 폼에 남아 다시 저장을 누르게 된다(#450).
@@ -97,6 +109,8 @@ export function ProfileEditForm({
   const [joinPurpTxt, setJoinPurpTxt] = useState(
     initialRunningProfile.joinPurpTxt ?? "",
   );
+  // 시작 정보(이슈 #719)는 mem_start_rec_rel 까지 걸쳐 있어 별도 액션으로 저장한다.
+  const [startDraft, setStartDraft] = useState<StartInfoDraft>(() => draftFromValues(initialStartInfo));
   const [compressing, setCompressing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -184,6 +198,16 @@ export function ProfileEditForm({
     !sameStrArray(joinPurpCds, initialRunningProfile.joinPurpCds) ||
     joinPurpTxt.trim() !== (initialRunningProfile.joinPurpTxt ?? "").trim();
 
+  const startValues = draftToValues(startDraft);
+  const startDirty =
+    JSON.stringify(startValues) !==
+    JSON.stringify({
+      runCareerCd: initialStartInfo.runCareerCd,
+      wklyDistCd: initialStartInfo.wklyDistCd,
+      recNone: initialStartInfo.recNone,
+      records: initialStartInfo.records,
+    });
+
   // 저장 버튼은 하나 — 수정된 섹션만 골라서 해당 액션을 호출한다.
   async function onSubmit(data: ProfileEditValues) {
     if (distError) {
@@ -235,6 +259,10 @@ export function ProfileEditForm({
         );
       }
 
+      if (startDirty) {
+        tasks.push(withTimeout(updateStartInfo(startValues)));
+      }
+
       const results = await Promise.all(tasks);
       const failed = results.find((r) => !r.ok);
       if (failed) {
@@ -255,7 +283,8 @@ export function ProfileEditForm({
     (!isDirty &&
       avatarState.kind === "current" &&
       !stationDirty &&
-      !runningDirty);
+      !runningDirty &&
+      !startDirty);
 
   return (
     <div className="flex flex-col gap-6 px-6 pb-6 pt-4">
@@ -456,6 +485,23 @@ export function ProfileEditForm({
             </Caption>
           </div>
         </div>
+      </div>
+
+      {/* ── 시작 정보 — 경력·주간 거리·기록(자기신고). 가입 때 건너뛴 사람도 여기서 채운다 ── */}
+      <div
+        id="start-info"
+        className="flex scroll-mt-20 flex-col gap-4 rounded-2xl border-[1.5px] border-border p-4"
+      >
+        <div className="flex flex-col gap-0.5">
+          <Label className="text-[15px] font-semibold">러닝 이력</Label>
+          <Caption>
+            운영진이 참고하는 시작점 정보예요. 남에게는 보이지 않아요.
+            {initialStartInfo.enteredAt
+              ? ` (${START_INFO_SRC_LABELS[initialStartInfo.srcCd ?? "PROFILE"]} ${formatKST(initialStartInfo.enteredAt, "YYYY.MM.DD")} 입력)`
+              : ""}
+          </Caption>
+        </div>
+        <StartInfoFields value={startDraft} onChange={setStartDraft} />
       </div>
 
       {/* 저장 버튼 */}

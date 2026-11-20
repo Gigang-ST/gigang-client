@@ -2400,7 +2400,13 @@ export type Database = {
           crt_at: string
           mem_id: string
           near_stn_nm: string | null
+          run_career_cd: string | null
+          start_info_at: string | null
+          start_info_src_cd: string | null
+          start_info_upd_at: string | null
+          start_rec_none_yn: boolean
           upd_at: string
+          wkly_dist_cd: string | null
         }
         Insert: {
           avg_pace_cd?: string | null
@@ -2408,7 +2414,13 @@ export type Database = {
           crt_at?: string
           mem_id: string
           near_stn_nm?: string | null
+          run_career_cd?: string | null
+          start_info_at?: string | null
+          start_info_src_cd?: string | null
+          start_info_upd_at?: string | null
+          start_rec_none_yn?: boolean
           upd_at?: string
+          wkly_dist_cd?: string | null
         }
         Update: {
           avg_pace_cd?: string | null
@@ -2416,7 +2428,13 @@ export type Database = {
           crt_at?: string
           mem_id?: string
           near_stn_nm?: string | null
+          run_career_cd?: string | null
+          start_info_at?: string | null
+          start_info_src_cd?: string | null
+          start_info_upd_at?: string | null
+          start_rec_none_yn?: boolean
           upd_at?: string
+          wkly_dist_cd?: string | null
         }
         Relationships: [
           {
@@ -2552,6 +2570,41 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ttl_mst"
             referencedColumns: ["team_id", "ttl_id"]
+          },
+        ]
+      }
+      mem_start_rec_rel: {
+        Row: {
+          crt_at: string
+          dist_cd: string
+          mem_id: string
+          rec_sec: number
+          src_cd: string
+          upd_at: string
+        }
+        Insert: {
+          crt_at?: string
+          dist_cd: string
+          mem_id: string
+          rec_sec: number
+          src_cd?: string
+          upd_at?: string
+        }
+        Update: {
+          crt_at?: string
+          dist_cd?: string
+          mem_id?: string
+          rec_sec?: number
+          src_cd?: string
+          upd_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mem_start_rec_rel_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
           },
         ]
       }

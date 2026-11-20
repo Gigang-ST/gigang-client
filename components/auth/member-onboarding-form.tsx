@@ -41,6 +41,13 @@ import { AppTabsGuide } from "@/components/auth/app-tabs-guide";
 import { AttendancePledgeStep } from "@/components/auth/attendance-pledge-step";
 import { OtherTeamHint, type OtherTeamLink } from "@/components/auth/other-team-hint";
 import { isDevModeEnabled } from "@/lib/dev-mode";
+import { StartInfoFields } from "@/components/profile/start-info-fields";
+import {
+  draftToValues,
+  EMPTY_START_INFO_DRAFT,
+  hasStartInfo,
+  type StartInfoDraft,
+} from "@/lib/validations/start-info";
 import { SignupProgress } from "@/components/auth/signup-progress";
 import { StationCombobox } from "@/components/auth/station-combobox";
 import { Caption, H2 } from "@/components/common/typography";
@@ -114,6 +121,8 @@ type WizardProfileState = {
   joinPurpTxt: string;
   joinSrcCd: (typeof JOIN_SRC_CODES)[number] | null;
   joinSrcTxt: string;
+  /** 시작 정보(이슈 #719) — 전부 선택, 4단계의 접힌 영역 */
+  startInfo: StartInfoDraft;
 };
 
 const initialWizardProfile: WizardProfileState = {
@@ -124,6 +133,7 @@ const initialWizardProfile: WizardProfileState = {
   joinPurpTxt: "",
   joinSrcCd: null,
   joinSrcTxt: "",
+  startInfo: EMPTY_START_INFO_DRAFT,
 };
 
 export function MemberOnboardingForm({
@@ -348,6 +358,7 @@ export function MemberOnboardingForm({
       // validatePurpose에서 필수 검증하므로 이 시점엔 항상 값이 있음
       joinSrcCd: wizardProfile.joinSrcCd ?? "ETC",
       joinSrcTxt: wizardProfile.joinSrcTxt.trim() || null,
+      startInfo: draftToValues(wizardProfile.startInfo),
     };
 
     setSubmitting(true);
@@ -622,6 +633,12 @@ export function MemberOnboardingForm({
                 </Select>
               </div>
 
+              <StartInfoFields
+                collapsible
+                value={wizardProfile.startInfo}
+                onChange={(startInfo) => setWizardProfile((prev) => ({ ...prev, startInfo }))}
+              />
+
               <div className="flex gap-2">
                 <Button
                   type="button"
@@ -641,7 +658,8 @@ export function MemberOnboardingForm({
                 >
                   {wizardProfile.nearStnNm ||
                   wizardProfile.avgRunDistKmInput.trim() ||
-                  wizardProfile.avgPaceCd
+                  wizardProfile.avgPaceCd ||
+                  hasStartInfo(draftToValues(wizardProfile.startInfo))
                     ? "다음"
                     : "건너뛰기"}
                 </Button>

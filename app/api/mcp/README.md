@@ -71,9 +71,9 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 |------|------|---------|------|
 | `whoami` | — | 내 신원(mem_id·team·admin 여부) 확인 | 멤버 |
 | `list_today_gatherings` | `date?`(YYYY-MM-DD, 기본 오늘) | 오늘(또는 지정일) 모임 + **모임 설명(난이도)** + 각 참석자 수 | 멤버 |
-| `list_recent_members` | `limit?`(기본 10) | 최근 가입 멤버 + **러닝 프로필(가까운 역·평균 거리·페이스·가입 목적)** | 멤버 |
+| `list_recent_members` | `limit?`(기본 10) | 최근 가입 멤버 + **러닝 프로필(가까운 역·평균 거리·페이스·가입 목적)** + **시작 정보(경력·주간 거리·자기신고 기록·입력 시각)는 admin 만** | 멤버 |
 | `list_members_attendance` | `limit?` | 멤버별 참석 횟수·마지막 참석일(오래 안 나온 순) | **admin** |
-| `get_member_profile` | `member_id`(uuid) 또는 `name` | 멤버 프로필(이름·가입일·역할·소개·아바타 + **생일·성별은 admin 만**) + **러닝 프로필(가까운 역·평균 거리·페이스·가입 목적)** | 멤버 |
+| `get_member_profile` | `member_id`(uuid) 또는 `name` | 멤버 프로필(이름·가입일·역할·소개·아바타 + **생일·성별은 admin 만**) + **러닝 프로필(가까운 역·평균 거리·페이스·가입 목적)** + **시작 정보(경력·주간 거리·자기신고 기록·입력 시각)는 admin 만** | 멤버 |
 | `list_gathering_non_attendees` | `gathering_id`(uuid) | 특정 모임 미참석자 명단 (+ **참석 현황은 admin 만**) | 멤버 |
 | `list_push_status` | — | 멤버별 웹푸시 구독 여부 | 멤버 |
 | `send_push` | `member_ids`(uuid[]), `title`, `message` | 지정 멤버에게 인앱+웹푸시 발송 | **admin** |
@@ -215,6 +215,7 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 |------|---------------|
 | `list_members_attendance` (도구째) | 같은 통계가 앱엔 관리자 전용 화면(`admin/members` 참여 현황)에만 있습니다 |
 | `get_member_profile` 의 **생년월일·성별** (필드만) | 공개 프로필 카드(`get_public_member_card`)에 없는 값이고, 앱에선 관리자 화면·본인 프로필 수정에만 보입니다 |
+| `get_member_profile`·`list_recent_members` 의 **시작 정보**(`start_info` — 경력·주간 거리·자기신고 기록) (필드만) | 앱에선 본인 프로필 수정에서만 보이고 남에게는 안 보입니다(화면에 "운영진이 참고하는 정보"로 안내). 비-admin 은 칸·기록 테이블을 아예 조회하지 않고 키 자체가 없습니다 |
 | `list_gathering_non_attendees` 의 **참석 횟수·마지막 참석시각** (필드만) | 위 `list_members_attendance` 와 **같은 통계**입니다. 도구 하나만 막으면 옆 도구로 그대로 나갑니다 |
 | `send_push` (도구째) | 쓰기 — 되돌릴 수 없고 크루원에게 직접 나갑니다 |
 | `send_kakao_notice` (도구째) | 쓰기 — 되돌릴 수 없고 단톡방 크루 전원에게 보입니다 |
