@@ -122,7 +122,7 @@ export async function toggleAdmin(memberId: string, isAdmin: boolean) {
     if (member.id === memberId) return { ok: false, message: "본인의 관리자 권한은 변경할 수 없습니다" };
 
     const { teamId } = await getRequestTeamContext();
-    const db = createAdminClient();
+    const db = createAdminClientAs({ memId: member.id, teamId });
     const { data: rel, error: relErr } = await db
       .from("team_mem_rel")
       .select("team_mem_id, team_role_cd")
@@ -150,7 +150,7 @@ export async function deleteMember(memberId: string) {
     if (member.id === memberId) return { ok: false, message: "본인은 삭제할 수 없습니다" };
 
     const { teamId } = await getRequestTeamContext();
-    const db = createAdminClient();
+    const db = createAdminClientAs({ memId: member.id, teamId });
 
     const { data: rel } = await db
       .from("team_mem_rel")
@@ -217,7 +217,7 @@ export async function deactivateMember(memberId: string, reason?: string) {
     if (member.id === memberId) return { ok: false, message: "본인을 비활성화할 수 없습니다" };
 
     const { teamId } = await getRequestTeamContext();
-    const db = createAdminClient();
+    const db = createAdminClientAs({ memId: member.id, teamId });
     const { data: rel } = await db
       .from("team_mem_rel")
       .select("team_mem_id, team_role_cd")
@@ -255,7 +255,7 @@ export async function leaveMemberFromDues(memberId: string, reason?: string) {
     if (member.id === memberId) return { ok: false, message: "본인은 탈퇴 처리할 수 없습니다" };
 
     const { teamId } = await getRequestTeamContext();
-    const db = createAdminClient();
+    const db = createAdminClientAs({ memId: member.id, teamId });
     const nowIso = dayjs().toISOString();
     // 상태 전환 시트가 active·inactive 회원 모두 "탈퇴 처리"를 노출하므로 둘 다 대상.
     // (이미 left면 재처리 무의미 → 제외.)
@@ -302,9 +302,9 @@ export async function leaveMemberFromDues(memberId: string, reason?: string) {
  * 무효화 + anchor_yn 개시잔액 생성), false(기본)면 기존 잔액(예치금·미납)을 보존한다.
  */
 export async function reactivateMember(memberId: string, resetBalance = false) {
-  return withAdmin(async () => {
+  return withAdmin(async ({ member }) => {
     const { teamId } = await getRequestTeamContext();
-    const db = createAdminClient();
+    const db = createAdminClientAs({ memId: member.id, teamId });
     const { data: rel } = await db
       .from("team_mem_rel")
       .select("team_mem_id")
@@ -346,7 +346,7 @@ export async function batchDeactivateMembers(memberIds: string[], reason?: strin
   if (!memberIds.length) return { ok: false, message: "대상이 없습니다" };
   return withAdmin(async ({ member }) => {
     const { teamId } = await getRequestTeamContext();
-    const db = createAdminClient();
+    const db = createAdminClientAs({ memId: member.id, teamId });
 
     const { data: rels } = await db
       .from("team_mem_rel")
@@ -383,9 +383,9 @@ export async function batchDeactivateMembers(memberIds: string[], reason?: strin
 
 export async function batchReactivateMembers(memberIds: string[]) {
   if (!memberIds.length) return { ok: false, message: "대상이 없습니다" };
-  return withAdmin(async () => {
+  return withAdmin(async ({ member }) => {
     const { teamId } = await getRequestTeamContext();
-    const db = createAdminClient();
+    const db = createAdminClientAs({ memId: member.id, teamId });
     const { data: rels } = await db
       .from("team_mem_rel")
       .select("team_mem_id, mem_id")
