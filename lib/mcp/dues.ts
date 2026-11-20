@@ -21,7 +21,7 @@ import {
 import { bucketOf, type Bucket } from "@/lib/dues/upload-bucketize";
 import { feeItemTeamFilter } from "@/lib/fee-items";
 import type { OperatorContext } from "@/lib/mcp/auth";
-import { carriesProject, DEP_REFUND_CD, directionIssue } from "@/lib/dues/fee-item-direction";
+import { canLearnAlias, carriesProject, DEP_REFUND_CD, directionIssue } from "@/lib/dues/fee-item-direction";
 import { ToolDeniedError, ToolInputError } from "@/lib/mcp/queries";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import type { Database } from "@/lib/supabase/database.types";
@@ -53,7 +53,7 @@ function requireAdmin(ctx: OperatorContext): void {
   if (!ctx.is_admin) throw new ToolDeniedError();
 }
 
-async function writeAudit(
+export async function writeAudit(
   db: Db,
   ctx: OperatorContext,
   tool: string,
@@ -437,7 +437,7 @@ export type ConfirmDuesItemInput = {
   fee_item_cd?: string;
   mem_id?: string | null;
   project_id?: string | null;
-  /** 회비 + 회원 지정 건이면 입금자명을 별칭으로 기억(다음 업로드부터 자동 매칭) */
+  /** 회비·프로젝트 + 회원 지정 건이면 입금자명을 별칭으로 기억(다음 업로드부터 자동 매칭) */
   remember_alias?: boolean;
 };
 
@@ -479,6 +479,13 @@ type Planned = {
   /** 확정 시 납부원장이 만들어져 잔액이 바뀌는 회원(회비 + 매칭된 회원). 없으면 null. */
   payMemId: string | null;
 };
+
+/** 입금자명을 별칭으로 기억할 회원 — 회비는 납부 회원, 프로젝트는 지정·매칭된 회원(#709). 없으면 null. */
+function aliasMemIdOf(p: Planned): string | null {
+  if (p.finalCd === "due") return p.payMemId;
+  if (canLearnAlias(p.finalCd)) return p.finalMemId;
+  return null;
+}
 
 /**
  * 거래 한 건의 결정(분류·회원·프로젝트)을 검증해 코어에 넘길 항목으로 만든다. 문제가 있으면 사유 문자열.
@@ -611,8 +618,8 @@ export async function confirmDuesTxns(db: Db, ctx: OperatorContext, input: Confi
   if (!dryRun && confirmedPlans.length > 0) {
     // 별칭 학습은 확정이 성공한 뒤에만(거부된 판단이 다음 업로드 규칙으로 남지 않게). 실패해도 확정은 유지.
     const aliasItems = confirmedPlans
-      .filter((p) => p.remember && p.payMemId && p.finalCd === "due")
-      .map((p) => ({ rawName: p.rawName, memId: p.payMemId! }));
+      .filter((p) => p.remember && aliasMemIdOf(p))
+      .map((p) => ({ rawName: p.rawName, memId: aliasMemIdOf(p)! }));
     if (aliasItems.length) {
       const a = await learnAliasesCore(db, { teamId: ctx.team_id, actorMemId: ctx.mem_id, items: aliasItems });
       if (a.ok) aliasLearned = a.learned;
@@ -861,8 +868,9 @@ export async function reclassifyDuesTxn(db: Db, ctx: OperatorContext, input: Rec
     );
   }
 
-  if (plan.remember && plan.payMemId && plan.finalCd === "due") {
-    await learnAliasesCore(db, { ...actor, items: [{ rawName: plan.rawName, memId: plan.payMemId }] });
+  const aliasMemId = aliasMemIdOf(plan);
+  if (plan.remember && aliasMemId) {
+    await learnAliasesCore(db, { ...actor, items: [{ rawName: plan.rawName, memId: aliasMemId }] });
   }
 
   if (memIds.length === 0) return finish("reclassified", null, 0, []);

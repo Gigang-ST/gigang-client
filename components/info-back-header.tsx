@@ -30,6 +30,7 @@ const TITLES: Record<string, string> = {
   "/profile/edit": "프로필 수정",
   "/profile/bank": "계좌 정보",
   "/profile/dues": "회비 내역",
+  "/profile/coupons": "내 쿠폰",
   "/profile/feedback": "건의하기",
   "/settings/accounts": "계정 연동",
 };

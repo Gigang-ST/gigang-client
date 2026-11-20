@@ -1,5 +1,5 @@
 import type { ConfirmItem } from "@/lib/dues/confirm-core";
-import { carriesProject, isMemberlessItemCd, type DecisionItemCd } from "@/lib/dues/fee-item-direction";
+import { canLearnAlias, carriesProject, isMemberlessItemCd, type DecisionItemCd } from "@/lib/dues/fee-item-direction";
 
 export type ItemCd = DecisionItemCd;
 
@@ -19,7 +19,7 @@ type TxnRef = { txnId: string; rawName: string };
  * - review: 로컬 판단(분류·회원·프로젝트)을 함께 넘긴다. 회원 매칭은 회비뿐 아니라
  *   프로젝트(event_fee)에도 저장한다 — "누가 이 프로젝트에 냈나"가 명단의 핵심.
  *   제외(other)만 memId를 비운다. prjId는 프로젝트 분류에서만.
- * - aliasLearn: "기억하기" 체크된 회비+회원 건만(확정 성공 후 학습).
+ * - aliasLearn: "기억하기" 체크된 회비·프로젝트+회원 건만(확정 성공 후 학습).
  */
 export function buildConfirmPayload(input: {
   autoDone: TxnRef[];
@@ -44,7 +44,7 @@ export function buildConfirmPayload(input: {
 
   const aliasLearn = input.review
     .map((t) => ({ t, d: input.decisions[t.txnId] }))
-    .filter(({ d }) => d.remember && d.itemCd === "due" && d.memId)
+    .filter(({ d }) => d.remember && canLearnAlias(d.itemCd) && d.memId)
     .map(({ t, d }) => ({ rawName: t.rawName, memId: d.memId! }));
 
   return { items: [...autoDoneItems, ...excludedItems, ...reviewItems], aliasLearn };
