@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { amountHintLabel } from "@/lib/dues/amount-hint";
 import { memberLabel } from "@/lib/dues/homonyms";
 import type { Decision, ItemCd } from "@/lib/dues/confirm-payload";
+import { canReclassifyTo } from "@/lib/dues/confirm-scope";
+import { DECISION_ITEM_LABEL, isItemDecided, isMemberlessItemCd, itemOrderFor } from "@/lib/dues/fee-item-direction";
 import type { InboxTxn, MemberOption, ProjectOption } from "@/lib/queries/dues";
 
 import { Body, Caption, Micro } from "@/components/common/typography";
@@ -23,8 +25,7 @@ import {
 
 import { MemberCombobox } from "./member-combobox";
 
-export const ITEM_LABEL: Record<ItemCd, string> = { due: "회비", event_fee: "프로젝트", other: "제외" };
-export const ITEM_ORDER: ItemCd[] = ["due", "event_fee", "other"];
+export const ITEM_LABEL: Record<ItemCd, string> = DECISION_ITEM_LABEL;
 
 export function memberNameById(members: MemberOption[]): Map<string, string> {
   return new Map(members.map((m) => [m.memId, m.name]));
@@ -79,18 +80,14 @@ export function InboxRow({
   /** 다른 행 삭제 진행 중 — 중복 실행 방지 */
   deleteBusy: boolean;
 }) {
-  // 결정 조건: 회비=회원 필수, 프로젝트=귀속 프로젝트 필수(회원은 권장·선택), 제외=분류만.
-  const decided =
-    !editable ||
-    (!!decision &&
-      (decision.itemCd === "other" ||
-        (decision.itemCd === "due" ? !!decision.memId : !!decision.prjId)));
+  // 결정 조건: 회비·예치금 환급=회원 필수, 프로젝트=귀속 프로젝트 필수(회원은 권장·선택), 제외·운영자금·공금 반환=분류만.
+  const decided = !editable || (!!decision && isItemDecided(decision));
   const badge = BUCKET_BADGE[txn.bucket];
 
   function handleKeyDown(e: KeyboardEvent<HTMLTableRowElement>) {
     if (e.target !== e.currentTarget) return;
-    if (editable && e.key === "1") { onChange({ itemCd: "due" }); e.preventDefault(); }
-    else if (editable && e.key === "2") { onChange({ itemCd: "event_fee" }); e.preventDefault(); }
+    if (editable && e.key === "1" && canReclassifyTo(txn.io, "due")) { onChange({ itemCd: "due" }); e.preventDefault(); }
+    else if (editable && e.key === "2" && canReclassifyTo(txn.io, "event_fee")) { onChange({ itemCd: "event_fee" }); e.preventDefault(); }
     else if (editable && e.key === "3") { onChange({ itemCd: "other" }); e.preventDefault(); }
     else if (e.key === "ArrowDown") { onArrow(1); e.preventDefault(); }
     else if (e.key === "ArrowUp") { onArrow(-1); e.preventDefault(); }
@@ -128,7 +125,7 @@ export function InboxRow({
           <Caption className="text-foreground">
             {txn.bucket === "autoDone" && txn.memId ? (nameById.get(txn.memId) ?? "—") : "—"}
           </Caption>
-        ) : decision && decision.itemCd !== "other" ? (
+        ) : decision && !isMemberlessItemCd(decision.itemCd) ? (
           <div className="flex flex-wrap items-center gap-1.5">
             {txn.candidates.length === 0 && <Caption>후보 없음</Caption>}
             {txn.candidates.map((c) => (
@@ -161,7 +158,7 @@ export function InboxRow({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {ITEM_ORDER.map((cd) => (
+                {itemOrderFor(txn.io).map((cd) => (
                   <SelectItem key={cd} value={cd}>
                     {ITEM_LABEL[cd]}
                   </SelectItem>

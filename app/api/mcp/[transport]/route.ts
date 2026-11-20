@@ -912,7 +912,7 @@ const handler = createMcpHandler(
         description:
           "처리 대기 거래를 확정합니다. 운영진(admin) 전용. 회비(due)+회원이면 납부원장이 만들어지고 그 회원 잔액이 다시 계산됩니다. " +
           "**확인필요 건은 items 에 txn_id 와 fee_item_cd 를 명시해야만 확정됩니다.** auto=true 는 자동 후보(list_dues_inbox 의 auto_eligible)만 더합니다. " +
-          "분류: 회비 due(mem_id 필수) · 프로젝트 event_fee(project_id 필수) · 지출 expense(출금) · 제외 other. 출금을 회비·프로젝트로, 입금을 지출로 확정할 수는 없습니다. " +
+          "분류: 회비 due(mem_id 필수) · 프로젝트 event_fee(project_id 필수) · 지출 expense(출금) · 운영자금 입출금 opr_fund · 공금 반환 fund_return · 예치금 환급 dep_refund(출금) · 제외 other. 운영자금·공금 반환은 회원 잔액에 안 들어가고(현황에서 자유 회비와 따로 집계), 예치금 환급은 mem_id(환급받는 회원) 필수이며 그 회원 예치금에서 빠집니다(운영자가 운영자금을 넣었다 뺀 거래를 회비로 잡지 마세요). 출금을 회비·프로젝트로, 입금을 지출·예치금 환급으로 확정할 수는 없습니다. " +
           "mem_id 는 이 팀 회원 uuid 입니다(후보는 candidates, 그 밖은 get_member_profile 로 찾으세요). remember_alias=true 면 입금자명을 그 회원의 별칭으로 기억해 다음 업로드부터 자동 매칭합니다. " +
           "검증을 못 넘은 건은 skipped 에 사유와 함께 남고 나머지는 진행됩니다. **먼저 dry_run=true 로 불러** 확정될 건과 skipped 사유를 확인하세요.",
         inputSchema: {
@@ -920,7 +920,7 @@ const handler = createMcpHandler(
             .array(
               z.object({
                 txn_id: z.string().uuid(),
-                fee_item_cd: z.string().min(1).optional().describe("분류 코드(due·event_fee·expense·other·…). 확인필요 건은 필수"),
+                fee_item_cd: z.string().min(1).optional().describe("분류 코드(due·event_fee·expense·opr_fund·fund_return·dep_refund·other·…). 확인필요 건은 필수"),
                 mem_id: z.string().uuid().optional().describe("납부·관련 회원. 안 주면 저장된 매칭 유지(매칭을 지우는 기능은 없습니다)"),
                 project_id: z.string().uuid().optional().describe("event_fee 일 때 귀속 프로젝트(list_dues_inbox.projects)"),
                 remember_alias: z.boolean().optional(),

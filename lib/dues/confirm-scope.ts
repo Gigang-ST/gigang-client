@@ -1,4 +1,5 @@
 import type { Bucket } from "@/lib/dues/upload-bucketize";
+import { itemOrderFor, type DecisionItemCd } from "@/lib/dues/fee-item-direction";
 
 /**
  * 거래내역 처리 인박스의 "재분류/확정 스코프" 판정 (순수 함수).
@@ -32,4 +33,12 @@ export function isDecisionRow(bucket: Bucket, hasItemCdOverride: boolean): boole
  */
 export function canReclassify(io: "deposit" | "withdrawal"): boolean {
   return io === "deposit";
+}
+
+/**
+ * 이 행을 그 분류로 바꿀 수 있는가(#710) — 입금은 회비·프로젝트·운영자금·공금 반환·제외,
+ * 출금은 예치금 환급·운영자금·공금 반환·제외. 출금을 수입 분류(회비·프로젝트)로 바꾸는 사고를 막는다.
+ */
+export function canReclassifyTo(io: "deposit" | "withdrawal", itemCd: string): boolean {
+  return itemOrderFor(io).includes(itemCd as DecisionItemCd);
 }
