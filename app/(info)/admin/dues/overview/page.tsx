@@ -75,14 +75,14 @@ export default async function DuesOverviewPage() {
               <Row
                 key={p.prjId}
                 label={p.name}
-                hint={p.stCd === "closed" ? "마감" : "모금 중"}
+                hint={p.stCd === "closed" ? `정산 완료 · 남은 돈 ${won(p.remainingAmt)}은 자유 회비로` : "모금 중 · 모금 − 지출"}
                 value={won(p.amt)}
               />
             ))}
           </CardItem>
         )}
         <Caption>
-          지출이 프로젝트에 귀속되기 전이라(#707) 지금은 모금액(입금 − 귀속된 출금) 기준이에요. 이미 쓴 돈이 남아 있는 것처럼 보일 수 있어요.
+          프로젝트 보유액 = 모금 − 프로젝트에 귀속한 지출이에요. 지출을 프로젝트에 귀속하지 않으면 자유 회비에서 빠진 것으로 계산돼요. 마감한 프로젝트는 정산 완료로 보고 0으로 표시해요.
         </Caption>
       </div>
 

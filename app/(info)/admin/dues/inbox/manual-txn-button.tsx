@@ -68,7 +68,7 @@ export function ManualTxnButton({
         rawName,
         feeItemCd: itemCd,
         memId,
-        prjId: itemCd === "event_fee" ? prjId : null,
+        prjId: itemCd === "event_fee" || itemCd === "expense" ? prjId : null,
         memo: memo || null,
       });
       if (res.ok) {
@@ -144,14 +144,17 @@ export function ManualTxnButton({
                 </Select>
               </div>
             </div>
-            {itemCd === "event_fee" && (
+            {(itemCd === "event_fee" || itemCd === "expense") && (
               <div className="flex flex-col gap-1.5">
-                <Label>귀속 프로젝트</Label>
-                <Select value={prjId ?? ""} onValueChange={setPrjId}>
+                <Label>{itemCd === "expense" ? "귀속 프로젝트 (선택)" : "귀속 프로젝트"}</Label>
+                <Select value={prjId ?? (itemCd === "expense" ? "__no_project" : "")} onValueChange={(v) => setPrjId(v === "__no_project" ? null : v)}>
                   <SelectTrigger>
                     <SelectValue placeholder="프로젝트 선택…" />
                   </SelectTrigger>
                   <SelectContent>
+                    {itemCd === "expense" && (
+                      <SelectItem value="__no_project">귀속 안 함 (자유 회비에서 지출)</SelectItem>
+                    )}
                     {projects.length === 0 && (
                       <SelectItem value="__none" disabled>
                         모금 중인 프로젝트 없음

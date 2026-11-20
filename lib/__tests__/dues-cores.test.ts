@@ -220,4 +220,31 @@ describe("confirmTransactionsCore — 분류·방향 검증(#710)", () => {
     expect(ok).toMatchObject({ ok: true, confirmed: 1 });
     expect(f.tables.fee_due_pay_hist).toHaveLength(0);
   });
+
+  it("지출(expense)은 프로젝트 귀속을 달 수 있고(선택), 회비·제외 분류로 바꾸면 귀속이 비워진다(#707)", async () => {
+    const PRJ = "bbbbbbbb-0000-4000-8000-000000000001";
+    const f = db([pending("p1"), pending("p2")]);
+    f.tables.fee_prj_mst.push({ prj_id: PRJ, team_id: TEAM, del_yn: false });
+    const r = await confirmTransactionsCore(asDb(f), {
+      teamId: TEAM, actorMemId: ACTOR,
+      items: [{ txnId: "p1", feeItemCd: "expense", prjId: PRJ }, { txnId: "p2", feeItemCd: "expense" }],
+    });
+    expect(r).toMatchObject({ ok: true, confirmed: 2 });
+    expect(f.tables.fee_txn_hist.find((t) => t.txn_id === "p1")!.project_id).toBe(PRJ);
+    expect(f.tables.fee_txn_hist.find((t) => t.txn_id === "p2")!.project_id).toBeNull();
+    const g = db([pending("p3", { project_id: PRJ })]);
+    g.tables.fee_prj_mst.push({ prj_id: PRJ, team_id: TEAM, del_yn: false });
+    const o = await confirmTransactionsCore(asDb(g), { teamId: TEAM, actorMemId: ACTOR, items: [{ txnId: "p3", feeItemCd: "opr_fund" }] });
+    expect(o.ok).toBe(true);
+    expect(g.tables.fee_txn_hist[0].project_id).toBeNull();
+  });
+
+  it("다른 팀 프로젝트로 지출을 귀속하면 거부한다(#707)", async () => {
+    const f = db([pending("q1")]);
+    const r = await confirmTransactionsCore(asDb(f), {
+      teamId: TEAM, actorMemId: ACTOR, items: [{ txnId: "q1", feeItemCd: "expense", prjId: "bbbbbbbb-0000-4000-8000-0000000000ff" }],
+    });
+    expect(r.ok).toBe(false);
+    expect(f.tables.fee_txn_hist[0].is_cfm_yn).toBe(false);
+  });
 });

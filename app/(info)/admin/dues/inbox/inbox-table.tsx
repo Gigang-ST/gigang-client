@@ -8,7 +8,7 @@ import { confirmAndRecalc } from "@/app/actions/dues/confirm-and-recalc";
 import { deleteTransaction } from "@/app/actions/dues/delete-transaction";
 import { buildConfirmPayload, type Decision, type ItemCd } from "@/lib/dues/confirm-payload";
 import { canReclassifyTo, isDecisionRow, isReclassified } from "@/lib/dues/confirm-scope";
-import { DEPOSIT_ITEM_ORDER, WITHDRAWAL_ITEM_ORDER, isItemDecided, type DecisionItemCd } from "@/lib/dues/fee-item-direction";
+import { DEPOSIT_ITEM_ORDER, WITHDRAWAL_ITEM_ORDER, carriesProject, isItemDecided, itemOrderFor, type DecisionItemCd } from "@/lib/dues/fee-item-direction";
 import { duplicateNames } from "@/lib/dues/homonyms";
 import type { FeeItemOption, InboxTxn, MemberOption, ProcessedTxn, ProjectOption } from "@/lib/queries/dues";
 
@@ -50,11 +50,16 @@ const BULK_ITEM_ORDER: DecisionItemCd[] = [
 function defaultDecision(t: InboxTxn): Decision {
   // 금액이 프로젝트 참가비와 같으면(#708) 이름이 맞아도 프로젝트부터 제안한다 — 귀속 프로젝트는 운영자가 고른다
   const isEventFee = t.feeItemCd === "event_fee" || t.amountHint?.kind === "project";
+  // 출금은 회비·프로젝트가 될 수 없다 — 저장된 분류가 출금 어휘면 그대로, 아니면 지출부터(#707)
+  const withdrawalCd = itemOrderFor("withdrawal").includes(t.feeItemCd as DecisionItemCd)
+    ? (t.feeItemCd as DecisionItemCd)
+    : "expense";
+  const itemCd: DecisionItemCd = t.io === "withdrawal" ? withdrawalCd : isEventFee ? "event_fee" : "due";
   return {
     memId: t.memId ?? (t.candidates.length === 1 ? t.candidates[0].memId : null),
-    itemCd: isEventFee ? "event_fee" : "due",
+    itemCd,
     remember: false,
-    prjId: isEventFee ? t.projectId : null,
+    prjId: carriesProject(itemCd) ? t.projectId : null,
   };
 }
 

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { calcFreeFund, sumOperatorFundNet } from "@/lib/dues/overview-calc";
 import { canReclassifyTo } from "@/lib/dues/confirm-scope";
 import { buildConfirmPayload } from "@/lib/dues/confirm-payload";
-import { directionIssue, isItemDecided, itemOrderFor } from "@/lib/dues/fee-item-direction";
+import { carriesProject, directionIssue, isItemDecided, itemOrderFor } from "@/lib/dues/fee-item-direction";
 
 describe("directionIssue", () => {
   it("출금은 회비·프로젝트로 확정할 수 없다", () => {
@@ -95,5 +95,28 @@ describe("buildConfirmPayload — 예치금 환급", () => {
     });
     expect(items).toEqual([{ txnId: "t2", feeItemCd: "dep_refund", memId: "m1", prjId: null }]);
     expect(aliasLearn).toEqual([]);
+  });
+});
+
+describe("지출의 프로젝트 귀속(#707)", () => {
+  it("프로젝트·지출만 귀속을 단다", () => {
+    expect(carriesProject("event_fee")).toBe(true);
+    expect(carriesProject("expense")).toBe(true);
+    expect(carriesProject("due")).toBe(false);
+    expect(carriesProject("opr_fund")).toBe(false);
+  });
+  it("출금 행에서 지출을 고를 수 있고, 프로젝트 없이도 결정된 것이다", () => {
+    expect(itemOrderFor("withdrawal")).toContain("expense");
+    expect(itemOrderFor("deposit")).not.toContain("expense");
+    expect(isItemDecided({ itemCd: "expense", memId: null, prjId: null })).toBe(true);
+  });
+  it("지출 결정은 프로젝트는 유지하고 회원은 비워 보낸다", () => {
+    const { items } = buildConfirmPayload({
+      autoDone: [],
+      excluded: [],
+      review: [{ txnId: "t", rawName: "대관" }],
+      decisions: { t: { memId: "m1", itemCd: "expense", remember: false, prjId: "p1" } },
+    });
+    expect(items).toEqual([{ txnId: "t", feeItemCd: "expense", memId: null, prjId: "p1" }]);
   });
 });

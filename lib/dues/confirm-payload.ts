@@ -1,5 +1,5 @@
 import type { ConfirmItem } from "@/lib/dues/confirm-core";
-import { isMemberlessItemCd, type DecisionItemCd } from "@/lib/dues/fee-item-direction";
+import { carriesProject, isMemberlessItemCd, type DecisionItemCd } from "@/lib/dues/fee-item-direction";
 
 export type ItemCd = DecisionItemCd;
 
@@ -7,7 +7,7 @@ export type Decision = {
   memId: string | null;
   itemCd: ItemCd;
   remember: boolean;
-  /** 프로젝트(event_fee) 귀속 대상 — 프로젝트 분류에서만 의미 있음 */
+  /** 프로젝트 귀속 대상 — 프로젝트(필수)·지출(선택) 분류에서만 의미 있음 */
   prjId: string | null;
 };
 
@@ -38,7 +38,7 @@ export function buildConfirmPayload(input: {
       txnId: t.txnId,
       feeItemCd: d.itemCd,
       memId: isMemberlessItemCd(d.itemCd) ? null : d.memId,
-      prjId: d.itemCd === "event_fee" ? d.prjId : null,
+      prjId: carriesProject(d.itemCd) ? d.prjId : null,
     };
   });
 
