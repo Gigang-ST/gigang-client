@@ -34,3 +34,13 @@ describe("stripPayerSuffix", () => {
     expect(stripPayerSuffix("기강")).toBe("기강");
   });
 });
+
+describe("stripPayerSuffix 단독 꼬리말 보호", () => {
+  it("떼고 남는 이름이 1글자면 단독 꼬리말은 안 뗀다", () => {
+    expect(stripPayerSuffix("김기강")).toBe("김기강");
+    expect(stripPayerSuffix("이회비")).toBe("이회비");
+  });
+  it("복합 꼬리말은 그대로 뗀다", () => {
+    expect(stripPayerSuffix("김철수기강회비")).toBe("김철수");
+  });
+});
