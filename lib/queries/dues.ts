@@ -2,6 +2,7 @@ import { dayjs } from "@/lib/dayjs";
 
 import { feeItemTeamFilter } from "@/lib/fee-items";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { projectMoney } from "@/lib/dues/project-money";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import { LEDGER_EPOCH } from "@/lib/dues/ledger-replay";
@@ -10,6 +11,7 @@ import { loadAmountContext } from "@/lib/dues/load-amount-context";
 import { matchPayer, type MemberRef, type AliasRef } from "@/lib/dues/match-payer";
 import { bucketOf } from "@/lib/dues/upload-bucketize";
 import { duplicateNames } from "@/lib/dues/homonyms";
+import { calcFreeFund, sumOperatorFundNet } from "@/lib/dues/overview-calc";
 
 export type MemberOption = { memId: string; name: string; birthDt: string | null };
 
@@ -241,13 +243,19 @@ export type ProjectSummary = {
   stCd: "active" | "closed";
   memo: string | null;
   crtAt: string;
-  /** 확정된 귀속 입금 합계(모금액) − 출금 */
-  totalAmt: number;
+  /** 확정된 귀속 입금 합계(모금액) */
+  raisedAmt: number;
+  /** 확정된 귀속 출금 합계(지출, #707) */
+  spentAmt: number;
+  /** 남은 돈 = 모금 − 지출 */
+  remainingAmt: number;
+  /** 통장에서 이 프로젝트 몫으로 잡는 보유액 — 마감(정산 완료)이면 남은 돈이 있어도 0(자유 회비로 돌아간다) */
+  heldAmt: number;
   txnCount: number;
 };
 
 /**
- * 프로젝트 목록 + 모금액 집계. 집계는 확정(is_cfm_yn=true) 거래만 —
+ * 프로젝트 목록 + 모금·지출·남은 돈 집계. 집계는 확정(is_cfm_yn=true) 거래만 —
  * 인박스에 남아 있는 미확정 귀속은 아직 돈으로 치지 않는다.
  */
 export async function getProjects(): Promise<ProjectSummary[]> {
@@ -273,23 +281,29 @@ export async function getProjects(): Promise<ProjectSummary[]> {
   if (prjErr) throw new Error(`프로젝트 조회 실패: ${prjErr.message}`);
   if (txnErr) throw new Error(`프로젝트 집계 실패: ${txnErr.message}`);
 
-  const agg = new Map<string, { total: number; count: number }>();
+  const agg = new Map<string, { raised: number; spent: number; count: number }>();
   for (const t of txns ?? []) {
-    const cur = agg.get(t.project_id!) ?? { total: 0, count: 0 };
-    cur.total += t.txn_io_enm === "deposit" ? t.txn_amt : -t.txn_amt;
+    const cur = agg.get(t.project_id!) ?? { raised: 0, spent: 0, count: 0 };
+    if (t.txn_io_enm === "deposit") cur.raised += t.txn_amt;
+    else cur.spent += t.txn_amt;
     cur.count += 1;
     agg.set(t.project_id!, cur);
   }
 
-  return (prjs ?? []).map((p) => ({
-    prjId: p.prj_id,
-    name: p.prj_nm,
-    stCd: p.st_cd as "active" | "closed",
-    memo: p.memo_txt,
-    crtAt: p.crt_at,
-    totalAmt: agg.get(p.prj_id)?.total ?? 0,
-    txnCount: agg.get(p.prj_id)?.count ?? 0,
-  }));
+  return (prjs ?? []).map((p) => {
+    const a = agg.get(p.prj_id);
+    const stCd = p.st_cd as "active" | "closed";
+    const m = projectMoney(a?.raised ?? 0, a?.spent ?? 0, stCd);
+    return {
+      prjId: p.prj_id,
+      name: p.prj_nm,
+      stCd,
+      memo: p.memo_txt,
+      crtAt: p.crt_at,
+      ...m,
+      txnCount: a?.count ?? 0,
+    };
+  });
 }
 
 export type ProjectTxnRow = {
@@ -306,7 +320,10 @@ export type ProjectDetail = {
   name: string;
   stCd: "active" | "closed";
   memo: string | null;
-  totalAmt: number;
+  raisedAmt: number;
+  spentAmt: number;
+  remainingAmt: number;
+  heldAmt: number;
   rows: ProjectTxnRow[];
 };
 
@@ -354,7 +371,11 @@ export async function getProjectDetail(prjId: string): Promise<ProjectDetail | n
     name: prj.prj_nm,
     stCd: prj.st_cd as "active" | "closed",
     memo: prj.memo_txt,
-    totalAmt: rows.reduce((s, r) => s + (r.io === "deposit" ? r.amt : -r.amt), 0),
+    ...projectMoney(
+      rows.filter((r) => r.io === "deposit").reduce((s, r) => s + r.amt, 0),
+      rows.filter((r) => r.io === "withdrawal").reduce((s, r) => s + r.amt, 0),
+      prj.st_cd as "active" | "closed",
+    ),
     rows,
   };
 }
@@ -644,8 +665,8 @@ export type DuesOverview = {
   bankBalance: number | null;
   /** 통장 잔액이 기록된 마지막 거래 일자(YYYY-MM-DD) */
   bankAsOfDt: string | null;
-  /** 프로젝트별 보유액(모금액 − 출금, 확정 거래 기준) — 지출 귀속(#707) 전이라 모금액에 가깝다 */
-  projects: { prjId: string; name: string; stCd: "active" | "closed"; amt: number }[];
+  /** 프로젝트별 보유액(모금 − 귀속된 지출, 확정 거래 기준). 마감(정산 완료)이면 0 — 남은 돈은 자유 회비로 돌아간다(#707) */
+  projects: { prjId: string; name: string; stCd: "active" | "closed"; amt: number; remainingAmt: number }[];
   projectTotal: number;
   /** 예치금 합계 = 활성 회원 중 잔액이 0보다 큰 사람의 합 */
   prepaidTotal: number;
@@ -653,21 +674,30 @@ export type DuesOverview = {
   /** 미납 합계(참고) = 활성 회원 중 잔액이 0보다 작은 사람의 합(절댓값) */
   unpaidTotal: number;
   unpaidCount: number;
-  /** 자유 회비 = 통장 잔액 − 프로젝트 − 예치금. 통장 잔액이 없으면 null */
+  /** 운영자금·공금 반환 순액(입금 − 출금, 확정 거래) — 회비도 프로젝트도 아니라 자유 회비에서 따로 뗀다(#710) */
+  operatorFundNet: number;
+  /** 자유 회비 = 통장 잔액 − 프로젝트 − 예치금 − 운영자금·공금 순액. 통장 잔액이 없으면 null */
   freeFund: number | null;
 };
 
 /**
- * 통장 전체 잔액·명목별 현황(#706). 통장 잔액 = 프로젝트별 보유액 + 예치금 합계 + 자유 회비(나머지).
+ * 통장 전체 잔액·명목별 현황(#706). 통장 잔액 = 프로젝트별 보유액 + 예치금 합계 + 운영자금·공금 순액 + 자유 회비(나머지).
  * 자유 회비는 나머지라 합은 늘 맞게 나오므로, 나머지가 음수인지(명목 합이 통장보다 큼)로 어긋남을 본다.
  */
 export async function getDuesOverview(): Promise<DuesOverview> {
   const { teamId } = await getRequestTeamContext();
   const db = createAdminClient();
 
-  const [projects, ledger, { data: latest, error: latestErr }] = await Promise.all([
+  const [projects, ledger, { data: fundTxns, error: fundErr }, { data: latest, error: latestErr }] = await Promise.all([
     getProjects(),
     getDuesLedger(),
+    db
+      .from("fee_txn_hist")
+      .select("fee_item_cd, txn_io_enm, txn_amt")
+      .eq("team_id", teamId)
+      .eq("is_cfm_yn", true)
+      .eq("del_yn", false)
+      .in("fee_item_cd", ["opr_fund", "fund_return"]),
     db
       .from("fee_txn_hist")
       .select("txn_dt, txn_bal_amt")
@@ -679,11 +709,13 @@ export async function getDuesOverview(): Promise<DuesOverview> {
       .limit(1),
   ]);
   if (latestErr) throw new Error(`통장 잔액 조회 실패: ${latestErr.message}`);
+  if (fundErr) throw new Error(`운영자금 조회 실패: ${fundErr.message}`);
+  const operatorFundNet = sumOperatorFundNet(fundTxns ?? []);
 
   const bankBalance = latest?.[0]?.txn_bal_amt ?? null;
   const projectRows = projects
-    .filter((p) => p.totalAmt !== 0 || p.stCd === "active")
-    .map((p) => ({ prjId: p.prjId, name: p.name, stCd: p.stCd, amt: p.totalAmt }));
+    .filter((p) => p.remainingAmt !== 0 || p.heldAmt !== 0 || p.stCd === "active")
+    .map((p) => ({ prjId: p.prjId, name: p.name, stCd: p.stCd, amt: p.heldAmt, remainingAmt: p.remainingAmt }));
   const projectTotal = projectRows.reduce((s, p) => s + p.amt, 0);
   const prepaid = ledger.rows.filter((r) => r.balance > 0);
   const unpaid = ledger.rows.filter((r) => r.balance < 0);
@@ -698,6 +730,7 @@ export async function getDuesOverview(): Promise<DuesOverview> {
     prepaidCount: prepaid.length,
     unpaidTotal: unpaid.reduce((s, r) => s - r.balance, 0),
     unpaidCount: unpaid.length,
-    freeFund: bankBalance === null ? null : bankBalance - projectTotal - prepaidTotal,
+    operatorFundNet,
+    freeFund: calcFreeFund({ bankBalance, projectTotal, prepaidTotal, operatorFundNet }),
   };
 }

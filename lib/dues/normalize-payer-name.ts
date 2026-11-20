@@ -17,3 +17,39 @@ export function normalizePayerName(raw: string): string {
   s = s.replace(/^회비/, "").replace(/회비$/, "");
   return s.toLowerCase();
 }
+
+/** 복합 꼬리말(정규화된 형태, 긴 것부터). 이름 끝에 우연히 붙을 일이 거의 없어 그대로 뗀다. */
+// "1월 회비 선금"은 숫자가 빠져 "월회비선금"이 된다.
+const COMPOUND_SUFFIXES = ["월회비선금", "기강회비", "회비선금", "월회비"];
+/** 단독 꼬리말. 실명 끝 글자와 겹칠 수 있어(김기강 → 김기) 떼고 남는 이름이 2글자 이상일 때만 뗀다. */
+const SINGLE_SUFFIXES = ["선금", "회비", "기강"];
+const MIN_NAME_LEN_AFTER_SINGLE = 2;
+
+/**
+ * 정규화된 입금자명 끝에 붙은 꼬리말(기강회비·회비 선금 등)을 떼어 낸다.
+ * 입력은 `normalizePayerName` 결과여야 한다. 떼어 낼 게 없으면 입력 그대로 돌려준다.
+ * 이름 자체가 꼬리말뿐이면(전부 떼면 빈 문자열) 원본을 돌려준다.
+ */
+export function stripPayerSuffix(norm: string): string {
+  let s = norm;
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const t of COMPOUND_SUFFIXES) {
+      if (s.length > t.length && s.endsWith(t)) {
+        s = s.slice(0, -t.length);
+        changed = true;
+        break;
+      }
+    }
+    if (changed) continue;
+    for (const t of SINGLE_SUFFIXES) {
+      if (s.length - t.length >= MIN_NAME_LEN_AFTER_SINGLE && s.endsWith(t)) {
+        s = s.slice(0, -t.length);
+        changed = true;
+        break;
+      }
+    }
+  }
+  return s;
+}

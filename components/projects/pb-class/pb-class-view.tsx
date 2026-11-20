@@ -8,7 +8,7 @@ import { canEditGoal, goalEditLastWk } from "@/lib/pb-class-score";
 import { buildPbTeams, pickTeamPhotos } from "@/lib/pb-class-teams";
 import { loadMyPbClass, loadPbClassBoard, type MyPbClass } from "@/lib/queries/pb-class";
 import { loadPbGame, type PbGame } from "@/lib/queries/pb-class-game";
-import { loadPbTeamPhotos } from "@/lib/queries/pb-class-teams";
+import { loadNextPbTraining, loadPbTeamPhotos } from "@/lib/queries/pb-class-teams";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getTeamAccount } from "@/lib/team-social";
 
@@ -109,7 +109,7 @@ async function PbTeamsSection({
   nowIso: string;
 }) {
   const approvedPrts = game.participants.filter((p) => p.aprvYn);
-  const [board, posts, copy] = await Promise.all([
+  const [board, posts, copy, next] = await Promise.all([
     getPbBoard(game.evt.evtId, nowIso).catch((e) => {
       console.error("[pb-class] Teams 출석 보드 조회 실패", e);
       return null;
@@ -128,6 +128,13 @@ async function PbTeamsSection({
         return [];
       }),
     getTeamCopy(),
+    // 다가오는 훈련 참석(#698) — 보조 정보라 실패해도 칸은 선다. 캐시 없이 요청마다 읽어 누름·취소가 바로 보인다
+    getCurrentMember()
+      .then(({ supabase }) => loadNextPbTraining(supabase, game.evt.evtId, nowIso))
+      .catch((e) => {
+        console.error("[pb-class] Teams 다음 훈련 조회 실패", e);
+        return null;
+      }),
   ]);
 
   const sessions = board?.sessions ?? [];
@@ -148,6 +155,7 @@ async function PbTeamsSection({
     <PbTeams
       data={data}
       measureWkNo={game.measureWkNo}
+      next={next}
       photosByGrp={pickTeamPhotos(posts, grpOfMem)}
       viewer={{ teamId, memId: me.memId, memNm: me.memNm, avatarUrl: me.avatarUrl, copy: pickTeamCopy(copy, PB_PHOTOS_COPY_KEYS) }}
     />

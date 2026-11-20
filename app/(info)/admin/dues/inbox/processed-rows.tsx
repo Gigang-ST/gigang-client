@@ -13,6 +13,9 @@ const PROCESSED_ITEM_LABEL: Record<string, string> = {
   expense: "지출",
   goods: "물품",
   other: "제외",
+  opr_fund: "운영자금",
+  fund_return: "공금 반환",
+  dep_refund: "예치금 환급",
 };
 
 /**

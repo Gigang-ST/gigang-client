@@ -244,3 +244,16 @@ export function sumAnchorAdjustments(adjs: AnchorAdj[], anchorCrtAt: string | nu
     : adjs;
   return counted.reduce((sum, a) => sum + a.adjAmt, 0);
 }
+
+export type ReplayRefund = { amt: number; txnAt: string };
+
+/**
+ * 예치금 환급(#710, 확정된 출금 거래) 합계 — replayPays 와 같은 앵커 커서 규칙.
+ * 앵커 커서 이전 환급은 앵커 잔액에 이미 녹아 있어 세지 않는다. 앵커가 없으면 전부 센다.
+ */
+export function sumRefunds(refunds: ReplayRefund[], anchorCursor: string | null): number {
+  const counted = anchorCursor
+    ? refunds.filter((r) => dayjs(r.txnAt).isAfter(dayjs(anchorCursor)))
+    : refunds;
+  return counted.reduce((sum, r) => sum + r.amt, 0);
+}

@@ -15,7 +15,7 @@ import {
   type PbRecType,
   type PbScoreGathering,
 } from "@/lib/pb-class-score";
-import { buildPbTeams, orderPbTeamSlides, pickTeamPhotos } from "@/lib/pb-class-teams";
+import { buildPbTeams, orderPbTeamSlides, pickNextTraining, pickTeamPhotos } from "@/lib/pb-class-teams";
 import type { PbParticipant, PbSession } from "@/lib/queries/pb-class";
 import type { PbGameParticipant } from "@/lib/queries/pb-class-game";
 
@@ -314,5 +314,25 @@ describe("orderPbTeamSlides — Teams 칸 넘김 순서(#624)", () => {
   it("팀 없음이 없으면 묶음 장도 없다 · 팀이 없으면 팀 없음 한 장", () => {
     expect(ids(orderPbTeamSlides([t("A", 1, true)], false))).toEqual(["A"]);
     expect(ids(orderPbTeamSlides([], true))).toEqual(["NO_TEAM"]);
+  });
+});
+
+describe("pickNextTraining (#698)", () => {
+  const now = "2026-11-18T12:00:00+09:00";
+  const g = (gthrId: string, sttAt: string | null, delYn = false) => ({ gthrId, sttAt, delYn });
+
+  it("아직 시작 안 한 가장 이른 회차를 고른다 — 지난 회차는 섞지 않는다", () => {
+    const next = pickNextTraining(
+      [g("past", "2026-11-11T19:30:00+09:00"), g("w3", "2026-12-02T19:30:00+09:00"), g("w2", "2026-11-25T19:30:00+09:00")],
+      now,
+    );
+    expect(next?.gthrId).toBe("w2");
+  });
+  it("삭제된 벙·시각 없는 벙은 건너뛴다", () => {
+    expect(pickNextTraining([g("x", "2026-11-25T19:30:00+09:00", true), g("y", null)], now)).toBeNull();
+  });
+  it("이미 시작한 회차(시작 시각 == 지금)는 다가오는 회차가 아니다", () => {
+    expect(pickNextTraining([g("a", now)], now)).toBeNull();
+    expect(pickNextTraining([], now)).toBeNull();
   });
 });

@@ -7,7 +7,8 @@ import { cancelTransaction } from "@/app/actions/dues/cancel-transaction";
 import { confirmAndRecalc } from "@/app/actions/dues/confirm-and-recalc";
 import { deleteTransaction } from "@/app/actions/dues/delete-transaction";
 import { buildConfirmPayload, type Decision, type ItemCd } from "@/lib/dues/confirm-payload";
-import { canReclassify, isDecisionRow, isReclassified } from "@/lib/dues/confirm-scope";
+import { canReclassifyTo, isDecisionRow, isReclassified } from "@/lib/dues/confirm-scope";
+import { DEPOSIT_ITEM_ORDER, WITHDRAWAL_ITEM_ORDER, carriesProject, isItemDecided, itemOrderFor, type DecisionItemCd } from "@/lib/dues/fee-item-direction";
 import { duplicateNames } from "@/lib/dues/homonyms";
 import type { FeeItemOption, InboxTxn, MemberOption, ProcessedTxn, ProjectOption } from "@/lib/queries/dues";
 
@@ -25,12 +26,18 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
-import { InboxRow, ITEM_LABEL, ITEM_ORDER, memberNameById } from "./inbox-row";
+import { InboxRow, ITEM_LABEL, memberNameById } from "./inbox-row";
 import { ManualTxnButton } from "./manual-txn-button";
 import { ProcessedRows } from "./processed-rows";
 import { UploadXlsxButton } from "./upload-xlsx-button";
 
 type Filter = "all" | "needsReview" | "autoDone" | "excluded" | "processed";
+
+/** 일괄 분류 버튼 — 입금·출금 어휘의 합집합(순서 유지). 행마다 바꿀 수 있는 것만 적용된다. */
+const BULK_ITEM_ORDER: DecisionItemCd[] = [
+  ...DEPOSIT_ITEM_ORDER,
+  ...WITHDRAWAL_ITEM_ORDER.filter((cd) => !DEPOSIT_ITEM_ORDER.includes(cd)),
+];
 
 /**
  * 확인필요 행의 초기 판단값.
@@ -43,11 +50,16 @@ type Filter = "all" | "needsReview" | "autoDone" | "excluded" | "processed";
 function defaultDecision(t: InboxTxn): Decision {
   // 금액이 프로젝트 참가비와 같으면(#708) 이름이 맞아도 프로젝트부터 제안한다 — 귀속 프로젝트는 운영자가 고른다
   const isEventFee = t.feeItemCd === "event_fee" || t.amountHint?.kind === "project";
+  // 출금은 회비·프로젝트가 될 수 없다 — 저장된 분류가 출금 어휘면 그대로, 아니면 지출부터(#707)
+  const withdrawalCd = itemOrderFor("withdrawal").includes(t.feeItemCd as DecisionItemCd)
+    ? (t.feeItemCd as DecisionItemCd)
+    : "expense";
+  const itemCd: DecisionItemCd = t.io === "withdrawal" ? withdrawalCd : isEventFee ? "event_fee" : "due";
   return {
     memId: t.memId ?? (t.candidates.length === 1 ? t.candidates[0].memId : null),
-    itemCd: isEventFee ? "event_fee" : "due",
+    itemCd,
     remember: false,
-    prjId: isEventFee ? t.projectId : null,
+    prjId: carriesProject(itemCd) ? t.projectId : null,
   };
 }
 
@@ -138,7 +150,7 @@ export function InboxTable({
   // (inbox-row.tsx의 decided 계산과 반드시 같은 규칙을 유지할 것)
   const decidedRows = decisionRows.filter((t) => {
     const d = decisions[t.txnId];
-    return d && (d.itemCd === "other" || (d.itemCd === "due" ? !!d.memId : !!d.prjId));
+    return d && isItemDecided(d);
   });
   const undecidedCount = decisionRows.length - decidedRows.length;
 
@@ -183,10 +195,10 @@ export function InboxTable({
   }
 
   function bulkSetItemCd(itemCd: ItemCd) {
-    // 선택된 '입금' 행만 분류를 바꾼다(출금 제외). 자동·제외 행이면 결정(편집) 흐름에 편입된다.
+    // 선택된 행 중 그 분류로 바꿀 수 있는 행만 바꾼다(출금은 회비·프로젝트 불가 — canReclassifyTo). 자동·제외 행이면 결정(편집) 흐름에 편입된다.
     const ids = [...selected].filter((id) => {
       const t = txns.find((x) => x.txnId === id);
-      return !!t && canReclassify(t.io);
+      return !!t && canReclassifyTo(t.io, itemCd);
     });
     setOverrides((prev) => {
       const next = { ...prev };
@@ -391,13 +403,13 @@ export function InboxTable({
       {selected.size > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <Caption className="text-foreground">선택 {selected.size}건</Caption>
-          {ITEM_ORDER.map((cd) => (
+          {BULK_ITEM_ORDER.map((cd) => (
             <Button key={cd} type="button" size="xs" variant="outline" onClick={() => bulkSetItemCd(cd)}>
               {ITEM_LABEL[cd]}로
             </Button>
           ))}
           <Micro className="text-muted-foreground">
-            선택한 행만 확정됩니다 · 분류 버튼은 선택한 입금 행에 적용(자동·제외 포함)
+            선택한 행만 확정됩니다 · 분류 버튼은 바꿀 수 있는 선택 행에 적용(입금: 회비·프로젝트·운영자금·공금 반환·제외 / 출금: 예치금 환급·운영자금·공금 반환·제외)
           </Micro>
         </div>
       )}

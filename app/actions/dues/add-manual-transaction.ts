@@ -7,6 +7,7 @@ import { isMemIdInTeam } from "@/lib/actions/team-scope";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+import { carriesProject } from "@/lib/dues/fee-item-direction";
 import { getValidFeeItemCds } from "@/app/actions/dues/validate-fee-item";
 
 type AddManualTxnInput = {
@@ -16,7 +17,7 @@ type AddManualTxnInput = {
   rawName: string;
   feeItemCd: string;
   memId?: string | null;
-  /** 프로젝트(event_fee) 귀속 — event_fee 분류에서만 저장 */
+  /** 프로젝트 귀속 — event_fee(필수)·expense(선택) 분류에서만 저장 */
   prjId?: string | null;
   memo?: string | null;
 };
@@ -103,9 +104,12 @@ export async function addManualTransaction(input: AddManualTxnInput) {
     }
 
     // 프로젝트 분류는 귀속 필수 + 이 팀의 프로젝트인지 검증(타 팀 prjId 주입 차단)
-    const prjId = input.feeItemCd === "event_fee" ? (input.prjId?.trim() || null) : null;
-    if (input.feeItemCd === "event_fee") {
-      if (!prjId) return { ok: false as const, message: "귀속 프로젝트를 선택해 주세요." };
+    // 지출(expense)은 귀속이 선택 — 고르면 그 프로젝트의 남은 돈에서 빠진다(#707).
+    const prjId = carriesProject(input.feeItemCd) ? (input.prjId?.trim() || null) : null;
+    if (input.feeItemCd === "event_fee" && !prjId) {
+      return { ok: false as const, message: "귀속 프로젝트를 선택해 주세요." };
+    }
+    if (prjId) {
       const { data: prj } = await db
         .from("fee_prj_mst")
         .select("prj_id")

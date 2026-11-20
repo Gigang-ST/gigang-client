@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 /**
- * 프로젝트(모금) 목록 화면. 생성 다이얼로그 + 프로젝트별 모금액·건수 요약.
+ * 프로젝트(모금) 목록 화면. 생성 다이얼로그 + 프로젝트별 모금·지출·남은 돈 요약.
  * 상태 변경·명단은 상세 화면에서 한다.
  */
 export function ProjectsClient({ projects }: { projects: ProjectSummary[] }) {
@@ -62,7 +62,7 @@ export function ProjectsClient({ projects }: { projects: ProjectSummary[] }) {
       </div>
       <Caption>
         단체복·야유회 같은 프로젝트성 입금을 모아 봅니다. 거래내역 처리에서 분류를
-        &lsquo;프로젝트&rsquo;로 하고 여기 만든 프로젝트에 귀속시키면 명단·모금액이 집계됩니다.
+        &lsquo;프로젝트&rsquo;로 하고 여기 만든 프로젝트에 귀속시키면 명단·모금액이 집계되고, 출금을 &lsquo;지출&rsquo;로 하고 같은 프로젝트에 귀속시키면 남은 돈이 줄어듭니다.
       </Caption>
 
       {projects.length === 0 ? (
@@ -92,10 +92,14 @@ export function ProjectsClient({ projects }: { projects: ProjectSummary[] }) {
                             )}
                           </div>
                           <Micro>
-                            {p.txnCount}건{p.memo ? ` · ${p.memo}` : ""}
+                            모금 {p.raisedAmt.toLocaleString()}원 · 지출 {p.spentAmt.toLocaleString()}원 · {p.txnCount}건
+                            {p.memo ? ` · ${p.memo}` : ""}
                           </Micro>
                         </div>
-                        <Body className="shrink-0 font-semibold">{p.totalAmt.toLocaleString()}원</Body>
+                        <div className="flex shrink-0 flex-col items-end gap-0.5">
+                          <Body className="font-semibold">{p.remainingAmt.toLocaleString()}원</Body>
+                          <Micro>{p.stCd === "closed" ? "정산 완료 · 보유 0" : "남은 돈"}</Micro>
+                        </div>
                       </Link>
                     ))}
                   </CardItem>

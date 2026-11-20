@@ -21,6 +21,7 @@ import {
 import { bucketOf, type Bucket } from "@/lib/dues/upload-bucketize";
 import { feeItemTeamFilter } from "@/lib/fee-items";
 import type { OperatorContext } from "@/lib/mcp/auth";
+import { carriesProject, DEP_REFUND_CD, directionIssue } from "@/lib/dues/fee-item-direction";
 import { ToolDeniedError, ToolInputError } from "@/lib/mcp/queries";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import type { Database } from "@/lib/supabase/database.types";
@@ -469,15 +470,6 @@ async function loadTeamProjectIds(db: Db, teamId: string): Promise<Set<string>> 
   return new Set((data ?? []).map((p) => p.prj_id));
 }
 
-/** 분류·방향 규칙 — 출금을 수입 분류로, 입금을 지출로 바꾸는 사고를 막는다(앱 일괄 재분류와 같은 경계). */
-function directionIssue(io: string, feeItemCd: string): string | null {
-  if (io === "withdrawal" && (feeItemCd === "due" || feeItemCd === "event_fee")) {
-    return "출금은 회비·프로젝트 분류로 확정할 수 없습니다.";
-  }
-  if (io === "deposit" && feeItemCd === "expense") return "입금은 지출 분류로 확정할 수 없습니다.";
-  return null;
-}
-
 type Planned = {
   item: ConfirmItem;
   rawName: string;
@@ -517,7 +509,12 @@ function planItem(
   if (finalCd === "due" && !payMemId) {
     return "회비로 확정하려면 mem_id(납부 회원)가 필요합니다 — 회원 없이 확정하면 개인 잔액에 반영되지 않습니다.";
   }
-  const finalPrj = finalCd === "event_fee" ? (req.project_id !== undefined ? req.project_id : t.project_id) : null;
+  // 예치금 환급(#710)은 어느 회원의 예치금에서 빼는 건지가 정해져야 한다 — 회원 없이는 잔액에 반영할 수 없다.
+  const refundMemId = finalCd === DEP_REFUND_CD ? (req.mem_id ? req.mem_id : t.mem_id) : null;
+  if (finalCd === DEP_REFUND_CD && !refundMemId) {
+    return "예치금 환급으로 확정하려면 mem_id(환급받는 회원)가 필요합니다.";
+  }
+  const finalPrj = carriesProject(finalCd) ? (req.project_id !== undefined ? req.project_id : t.project_id) : null;
   if (finalCd === "event_fee" && !finalPrj) return "프로젝트로 확정하려면 project_id 가 필요합니다.";
   if (finalPrj && validPrjIds && !validPrjIds.has(finalPrj)) return "존재하지 않는 프로젝트입니다.";
 
@@ -525,7 +522,7 @@ function planItem(
   if (req.fee_item_cd !== undefined) item.feeItemCd = req.fee_item_cd;
   if (req.mem_id !== undefined) item.memId = req.mem_id;
   if (req.project_id !== undefined) item.prjId = req.project_id;
-  return { item, rawName: t.raw_name, remember: Boolean(req.remember_alias), finalCd, finalMemId: finalMemId ?? null, payMemId };
+  return { item, rawName: t.raw_name, remember: Boolean(req.remember_alias), finalCd, finalMemId: finalMemId ?? null, payMemId: payMemId ?? refundMemId };
 }
 
 /**
@@ -614,7 +611,7 @@ export async function confirmDuesTxns(db: Db, ctx: OperatorContext, input: Confi
   if (!dryRun && confirmedPlans.length > 0) {
     // 별칭 학습은 확정이 성공한 뒤에만(거부된 판단이 다음 업로드 규칙으로 남지 않게). 실패해도 확정은 유지.
     const aliasItems = confirmedPlans
-      .filter((p) => p.remember && p.payMemId)
+      .filter((p) => p.remember && p.payMemId && p.finalCd === "due")
       .map((p) => ({ rawName: p.rawName, memId: p.payMemId! }));
     if (aliasItems.length) {
       const a = await learnAliasesCore(db, { teamId: ctx.team_id, actorMemId: ctx.mem_id, items: aliasItems });
@@ -785,7 +782,7 @@ export async function reclassifyDuesTxn(db: Db, ctx: OperatorContext, input: Rec
   if (typeof plan === "string") throw new ToolInputError(plan);
 
   const from = { fee_item_cd: t.fee_item_cd, mem_id: t.mem_id, project_id: t.project_id };
-  const finalPrj = plan.finalCd === "event_fee" ? (input.projectId !== undefined ? input.projectId : t.project_id) : null;
+  const finalPrj = carriesProject(plan.finalCd) ? (input.projectId !== undefined ? input.projectId : t.project_id) : null;
   const to = { fee_item_cd: plan.finalCd, mem_id: plan.finalMemId, project_id: finalPrj ?? null };
   if (from.fee_item_cd === to.fee_item_cd && from.mem_id === to.mem_id && (from.project_id ?? null) === to.project_id) {
     throw new ToolInputError("이미 같은 분류·회원·프로젝트로 확정돼 있습니다.");
@@ -864,7 +861,7 @@ export async function reclassifyDuesTxn(db: Db, ctx: OperatorContext, input: Rec
     );
   }
 
-  if (plan.remember && plan.payMemId) {
+  if (plan.remember && plan.payMemId && plan.finalCd === "due") {
     await learnAliasesCore(db, { ...actor, items: [{ rawName: plan.rawName, memId: plan.payMemId }] });
   }
 

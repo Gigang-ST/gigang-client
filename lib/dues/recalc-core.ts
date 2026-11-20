@@ -8,6 +8,7 @@ import {
   buildChargeMonths,
   firstChargeMonth,
   replayPays,
+  sumRefunds,
   sumAnchorAdjustments,
   sumReflectedExemptions,
   type ReplayPay,
@@ -144,6 +145,30 @@ export async function recalculateBalanceCore(
       });
       const { totalPaid, lastTxnAt, lastPayId } = replayPays(
         replayInput,
+        anchor?.last_calc_at ?? null,
+      );
+
+      // ③-2 예치금 환급(#710) — 확정된 dep_refund 출금은 그 회원 잔액에서 빠진다(납부의 반대 방향).
+      //     납부원장이 아니라 거래에서 직접 읽으므로 확정 취소(is_cfm_yn=false)면 자동으로 빠진다.
+      //     RPC 는 p_total_paid 를 합산만 하므로 순납부(납부 − 환급)로 넘긴다.
+      const { data: refundTxns, error: refundErr } = await db
+        .from("fee_txn_hist")
+        .select("txn_amt, txn_dt, txn_tm")
+        .eq("team_id", teamId)
+        .eq("mem_id", mid)
+        .eq("fee_item_cd", "dep_refund")
+        .eq("is_cfm_yn", true)
+        .eq("del_yn", false);
+      // 실패를 0으로 넘기면 환급이 조용히 빠진 잔액이 저장된다 — 이 사람은 건너뛴다.
+      if (refundErr) {
+        errors.push(`예치금 환급 조회 실패 (${mid}): ${refundErr.message}`);
+        return;
+      }
+      const totalRefunded = sumRefunds(
+        (refundTxns ?? []).map((r) => ({
+          amt: r.txn_amt,
+          txnAt: dayjs.tz(`${r.txn_dt}T${r.txn_tm ?? "00:00:00"}`, "Asia/Seoul").toISOString(),
+        })),
         anchor?.last_calc_at ?? null,
       );
 
@@ -301,7 +326,7 @@ export async function recalculateBalanceCore(
         p_team_id: teamId,
         p_mem_id: mid,
         p_base_bal: baseBal,
-        p_total_paid: totalPaid,
+        p_total_paid: totalPaid - totalRefunded,
         p_total_charged: totalCharged,
         p_now: now.toISOString(),
         p_last_calc_at: newCursor,

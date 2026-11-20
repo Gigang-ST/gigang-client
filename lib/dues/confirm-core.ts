@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 
 import { getValidFeeItemCds } from "@/app/actions/dues/validate-fee-item";
+import { carriesProject, DEP_REFUND_CD, directionIssue } from "@/lib/dues/fee-item-direction";
 
 type Db = SupabaseClient<Database>;
 
@@ -16,7 +17,7 @@ export type ConfirmItem = {
   feeItemCd?: string | null;
   /** 확정과 함께 적용할 회원 매칭(로컬로 바꾼 값). 없으면 기존 매칭 유지. */
   memId?: string | null;
-  /** 프로젝트(event_fee) 귀속. 없으면(undefined) 기존 값 유지, null이면 해제. */
+  /** 프로젝트 귀속(event_fee 입금 · expense 출금). 없으면(undefined) 기존 값 유지, null이면 해제. */
   prjId?: string | null;
 };
 
@@ -57,7 +58,7 @@ export async function confirmTransactionsCore(
   // 대상 거래 일괄 조회
   const { data: txns, error: selErr } = await db
     .from("fee_txn_hist")
-    .select("txn_id, mem_id, txn_amt, txn_dt, fee_item_cd, is_cfm_yn, match_st_cd, project_id")
+    .select("txn_id, mem_id, txn_amt, txn_dt, txn_io_enm, fee_item_cd, is_cfm_yn, match_st_cd, project_id")
     .eq("team_id", teamId)
     .eq("del_yn", false)
     .in("txn_id", txnIds);
@@ -74,9 +75,9 @@ export async function confirmTransactionsCore(
       // 매칭을 새로 지정했으면 matched 로 승격
       const memId = it?.memId !== undefined && it.memId !== null ? it.memId : t.mem_id;
       const matchStCd = it?.memId ? "matched" : t.match_st_cd;
-      // 프로젝트 귀속은 undefined=유지, null=해제, 값=지정. 회비/제외 분류면 항상 해제
+      // 프로젝트 귀속은 undefined=유지, null=해제, 값=지정. 프로젝트·지출 외 분류면 항상 해제
       // (분류를 프로젝트→회비로 바꿔 확정할 때 낡은 귀속이 남지 않도록).
-      const prjId = feeItemCd === "event_fee" ? (it?.prjId !== undefined ? it.prjId : t.project_id) : null;
+      const prjId = carriesProject(feeItemCd) ? (it?.prjId !== undefined ? it.prjId : t.project_id) : null;
       return { ...t, fee_item_cd: feeItemCd, mem_id: memId, match_st_cd: matchStCd, project_id: prjId };
     });
 
@@ -91,6 +92,21 @@ export async function confirmTransactionsCore(
   const invalid = merged.find((t) => !t.fee_item_cd || !validCds.has(t.fee_item_cd));
   if (invalid) {
     return { ok: false as const, message: "분류가 없거나 유효하지 않은 거래가 있습니다." };
+  }
+
+  // 분류·입출금 방향 검증 — 이번 호출이 분류를 직접 바꾼(feeItemCd 전송) 행만 대상.
+  // 저장값만으로 확정되는 기존 행(autoDone·excluded)은 프로젝트 귀속 검증처럼 관용한다(기존 데이터를 인질로 잡지 않는다).
+  const wrongWay = merged.find((t) => {
+    const it = itemMap.get(t.txn_id);
+    return it?.feeItemCd != null && directionIssue(t.txn_io_enm, t.fee_item_cd ?? "") !== null;
+  });
+  if (wrongWay) {
+    return { ok: false as const, message: directionIssue(wrongWay.txn_io_enm, wrongWay.fee_item_cd ?? "")! };
+  }
+
+  // 예치금 환급(#710)은 환급받는 회원이 있어야 그 회원 예치금에서 빠진다 — 회원 없이는 잔액에 반영되지 않는다.
+  if (merged.some((t) => t.fee_item_cd === DEP_REFUND_CD && !t.mem_id)) {
+    return { ok: false as const, message: "예치금 환급은 환급받는 회원을 지정해야 확정할 수 있습니다." };
   }
 
   // 프로젝트 귀속 검증 — 클라이언트 결정 규칙(프로젝트=귀속 필수)을 서버도 강제한다.
