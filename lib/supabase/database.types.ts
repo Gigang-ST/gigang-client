@@ -595,6 +595,92 @@ export type Database = {
           },
         ]
       }
+      cpn_mst: {
+        Row: {
+          cpn_amt: number | null
+          cpn_id: string
+          cpn_tp_cd: string
+          cpn_txt: string
+          crt_at: string
+          del_yn: boolean
+          exp_dt: string | null
+          mem_id: string
+          reg_by_mem_id: string
+          team_id: string
+          upd_at: string
+          used_by_mem_id: string | null
+          used_dt: string | null
+          used_memo_txt: string | null
+          used_yn: boolean
+          vers: number
+        }
+        Insert: {
+          cpn_amt?: number | null
+          cpn_id?: string
+          cpn_tp_cd: string
+          cpn_txt: string
+          crt_at?: string
+          del_yn?: boolean
+          exp_dt?: string | null
+          mem_id: string
+          reg_by_mem_id: string
+          team_id: string
+          upd_at?: string
+          used_by_mem_id?: string | null
+          used_dt?: string | null
+          used_memo_txt?: string | null
+          used_yn?: boolean
+          vers?: number
+        }
+        Update: {
+          cpn_amt?: number | null
+          cpn_id?: string
+          cpn_tp_cd?: string
+          cpn_txt?: string
+          crt_at?: string
+          del_yn?: boolean
+          exp_dt?: string | null
+          mem_id?: string
+          reg_by_mem_id?: string
+          team_id?: string
+          upd_at?: string
+          used_by_mem_id?: string | null
+          used_dt?: string | null
+          used_memo_txt?: string | null
+          used_yn?: boolean
+          vers?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_cpn_mst__mem_mst"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "fk_cpn_mst__reg_mem_mst"
+            columns: ["reg_by_mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+          {
+            foreignKeyName: "fk_cpn_mst__team_mst"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_mst"
+            referencedColumns: ["team_id"]
+          },
+          {
+            foreignKeyName: "fk_cpn_mst__used_mem_mst"
+            columns: ["used_by_mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
+          },
+        ]
+      }
       effect_mst: {
         Row: {
           effect_cd: string

@@ -87,6 +87,8 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `cancel_dues_txn` | `txn_id`, `dry_run?` | 확정 취소 — 처리 대기로 되돌리고 잔액 재계산 | **admin** · 회비 사용 팀 |
 | `reclassify_dues_txn` | `txn_id`, `fee_item_cd`, `mem_id?`, `project_id?`, `remember_alias?`, `dry_run?` | 확정된 거래의 분류·회원·프로젝트 변경(취소 → 재확정) | **admin** · 회비 사용 팀 |
 | `get_dues_balances` | `status?`(`미납`·`정상`·`예치`), `limit?` | 활성 회원 회비 잔액(예치/미납) 현황 + 인원·합계 | **admin** · 회비 사용 팀 |
+| `issue_coupons` | `items`(`mem_id`·`type`·`text`·`amount?`·`exp_dt?`), `dry_run?` | 쿠폰(싱글렛 할인·대회 참가지원·프로젝트 참가비 할인·기타)을 회원별로 기록 — 장부일 뿐 자동 차감 없음 | **admin** · 회비 사용 팀 |
+| `list_coupons` | `mem_id?`(admin), `status?`(`active`·`used`·`expired`) | 쿠폰 목록 — admin 은 팀 전체, 일반 회원은 내 쿠폰만 | 인증 멤버 · 회비 사용 팀 |
 
 ### 대회 도구 (#700)
 
@@ -223,6 +225,7 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `create_competition` (도구째) | 쓰기 — 대회는 팀 공용 데이터라 마구 만들면 목록이 오염됩니다. 앱의 서버 액션보다 좁게 둡니다 |
 | `register_competition` 의 **`member_id`·`member_name`**(남을 대신 신청만) | 앱에서 남의 참가 신청을 넣는 화면은 없고(관리자 화면은 목록·삭제), 본인 신청은 멤버 누구나 합니다 |
 | 회비 도구 6종 `upload_dues_xlsx`·`list_dues_inbox`·`confirm_dues_txns`·`cancel_dues_txn`·`reclassify_dues_txn`·`get_dues_balances` (도구째) | 회비 거래·잔액은 앱에서도 관리자에게만 보이고, 확정은 개인 잔액을 바꿉니다. 회비 기능이 꺼진 팀(`feature.dues=false`)은 admin 이어도 거부 |
+| 쿠폰 발급 `issue_coupons` (도구째) | 쿠폰 발급은 운영진 업무입니다(앱 「회비 > 쿠폰」과 같은 경계). `list_coupons` 는 admin 이 아니면 인자와 무관하게 **내 쿠폰만** 돌려줍니다 |
 | `log_hyrox_record` 의 **`member_id`**(남의 기록 등록만) | 앱에서 남의 대회 기록을 넣는 건 관리자 「대신 등록」뿐입니다. 본인 기록은 멤버 누구나 넣습니다 |
 
 `update_gathering` 은 admin 전용이 아니라 **작성자 또는 admin** 입니다(앱의 수정 권한과 같습니다).
@@ -261,6 +264,15 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 - **재계산만 실패한 경우는 오류가 아니라 상태로 돌려줍니다**(이미 바뀐 것을 「안 됐다」로 오해해 재시도하지 않게). `confirm_dues_txns`·`cancel_dues_txn` 은 `status: "recalc_failed"` + `recalc_pending_mem_ids`(잔액이 낡은 회원), `reclassify_dues_txn` 은 `status` 가 `reclassified`·`reclassified_recalc_failed`·`restored`(새 값 확정 실패 → 원래 값으로 되돌려 확정함)·`left_pending`(원복도 실패 — 처리 대기에 남음, `list_dues_inbox` 로 확인) 중 하나이고 `detail` 에 한 줄 사유가 담깁니다. 이 경우에도 감사행에 거래 id 와 상태가 남습니다. 재계산은 리플레이라 다시 돌리면 복구됩니다.
 - `mem_id` 는 **지정만** 합니다 — 안 주면 저장된 매칭을 유지하고, 매칭을 지우는 기능은 없습니다. 잘못된 `project_id`·`mem_id` 는 그 건만 `skipped` 로 빠지고 나머지는 진행합니다.
 
+
+### 쿠폰 기록(#712) — 실물 쿠폰의 웹 장부
+
+송년회에서 나눠 주는 실물 쿠폰을 잃어버려도 되게 회원별로 적어 둡니다. **장부일 뿐이라 금액 자동 차감·지원금 연동은 없습니다**(사용 처리는 사용일·메모만 남김, 앱 「회비 > 쿠폰」 화면).
+
+- `issue_coupons`: `type` 은 `SINGLET`(싱글렛 할인권) · `COMP_SUPPORT`(대회 참가지원) · `PRJ_FEE`(프로젝트 참가비 할인) · `ETC`(기타). `text` 에 쿠폰 내용을 글로 적고, `amount`·`exp_dt` 는 비워도 됩니다(비우면 금액 없음·기한 없음). **먼저 `dry_run: true`**. 같은 내용을 두 번 보내면 두 장이 발급되므로 발급 뒤 `list_coupons` 로 확인하세요. 검증을 못 넘은 항목은 `skipped` 에 사유와 함께 남고 나머지는 진행합니다.
+- `exp_dt` 는 **그 날까지 유효**(KST)입니다 — 만료일 당일은 `active`, 다음 날부터 `expired`.
+- 감사행(`mcp_audit_log`)에는 건수·쿠폰 id 만 남기고 회원·내용·금액은 싣지 않습니다.
+- 사용 처리·발급 취소는 MCP 도구 없이 앱 화면에서만 합니다.
 
 ### 모임 개설(`create_gathering`) — 쓰기 도구라 몇 가지 약속이 있습니다
 

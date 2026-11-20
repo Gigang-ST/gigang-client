@@ -34,6 +34,8 @@ import {
   reclassifyDuesTxn,
   uploadDuesXlsx,
 } from "@/lib/mcp/dues";
+import { issueCouponsViaMcp, listCouponsViaMcp } from "@/lib/mcp/coupons";
+import { COUPON_ISSUE_MAX, COUPON_TEXT_MAX, COUPON_TYPES } from "@/lib/validations/coupon";
 import { createSchPostViaMcp } from "@/lib/mcp/create-sch-post";
 import { listHyroxCompetitions, listHyroxRankings, logHyroxRecord } from "@/lib/mcp/hyrox";
 import {
@@ -190,6 +192,7 @@ async function runDuesTool<T>(
  *     올리므로(#630) 그 범위를 그대로 따른다.
  *   - **회비 도구 6종**(#702 — `upload_dues_xlsx`·`list_dues_inbox`·`confirm_dues_txns`·`cancel_dues_txn`·
  *     `reclassify_dues_txn`·`get_dues_balances`) — 전부 admin 전용 + 회비 기능이 켜진 팀만(`runDuesTool`).
+ *   - **쿠폰 도구 2종**(#712 — `issue_coupons` admin 전용 · `list_coupons` admin 전체/회원 본인 것만) — 회비 기능이 켜진 팀만(`runDuesTool`).
  *   - **내 것**(마일리지런 개인 도구 7종, #497) — 대상 멤버를 인자로 받지 않고 `ctx.mem_id` 로만
  *     스코프한다. admin 이어도 남의 기록에는 손대지 못한다.
  */
@@ -998,6 +1001,68 @@ const handler = createMcpHandler(
       },
       async (args, extra) =>
         runDuesTool(extra, (ctx, supabase) => getDuesBalances(supabase, ctx, { status: args.status, limit: args.limit })),
+    );
+
+    // ── 쿠폰 기록 도구 2개(#712). 회비 기능이 켜진 팀만. 발급은 admin 전용 · dry_run 지원 · 감사행 필수. ──
+
+    server.registerTool(
+      "issue_coupons",
+      {
+        title: "쿠폰 발급",
+        description:
+          "송년회 등에서 나눠 준 실물 쿠폰을 회원별로 웹에 기록합니다. 운영진(admin) 전용. 기록 장부일 뿐이라 금액 자동 차감·지원금 연동은 없습니다(사용 처리 + 메모만). " +
+          "종류: SINGLET 싱글렛 할인권 · COMP_SUPPORT 대회 참가지원 · PRJ_FEE 프로젝트 참가비 할인 · ETC 기타. " +
+          "text 는 쿠폰 내용을 글로 적는 칸입니다(예: '싱글렛 1만원 할인', '대회 참가비 50% 지원'). amount(원)와 exp_dt(유효기간, 이 날까지)는 선택이라 비워도 됩니다(비우면 금액 없음·기한 없음). " +
+          "mem_id 는 이 팀 회원 uuid 입니다(get_member_profile 등으로 찾으세요). 검증을 못 넘은 항목은 skipped 에 사유와 함께 남고 나머지는 진행됩니다. " +
+          "같은 내용을 두 번 보내면 두 장이 발급되니, **먼저 dry_run=true 로 불러** 확인하고 실제 발급 뒤에는 list_coupons 로 확인하세요.",
+        inputSchema: {
+          items: z
+            .array(
+              z.object({
+                mem_id: z.string().uuid("mem_id 는 uuid 여야 합니다."),
+                type: z.enum(COUPON_TYPES),
+                text: z.string().min(1).max(COUPON_TEXT_MAX).describe("쿠폰 내용(자유 텍스트)"),
+                amount: z.number().int().min(0).nullable().optional().describe("금액(원, 선택)"),
+                exp_dt: z.string().nullable().optional().describe("유효기간 YYYY-MM-DD(이 날까지, KST). 생략하면 기한 없음"),
+              }),
+            )
+            .min(1)
+            .max(COUPON_ISSUE_MAX),
+          dry_run: z.boolean().optional().describe("true 면 발급하지 않고 검증 결과만 봅니다."),
+        },
+      },
+      async (args, extra) =>
+        runDuesTool(extra, async (ctx, supabase) => {
+          const result = await issueCouponsViaMcp(supabase, ctx, {
+            items: args.items.map((i) => ({
+              memId: i.mem_id,
+              cpnTpCd: i.type,
+              cpnTxt: i.text,
+              cpnAmt: i.amount ?? null,
+              expDt: i.exp_dt ?? null,
+            })),
+            dryRun: args.dry_run,
+          });
+          if (!result.dry_run) revalidatePath("/profile/coupons");
+          return result;
+        }),
+    );
+
+    server.registerTool(
+      "list_coupons",
+      {
+        title: "쿠폰 목록",
+        description:
+          "쿠폰 기록을 봅니다. 운영진(admin)은 팀 전체(mem_id 로 한 회원만 좁힐 수 있음), 일반 회원은 **내 쿠폰만**(mem_id 를 줘도 무시)입니다. " +
+          "status: active 사용 가능 · used 사용함 · expired 기간 만료(유효기간은 그 날까지 유효, KST 기준). 취소된 쿠폰은 나오지 않습니다. " +
+          "회원 id·쿠폰 내용·금액이 들어 있으니 필요한 만큼만 사용자에게 보여 주세요.",
+        inputSchema: {
+          mem_id: z.string().uuid().optional().describe("admin 전용 — 이 회원의 쿠폰만"),
+          status: z.enum(["active", "used", "expired"]).optional(),
+        },
+      },
+      async (args, extra) =>
+        runDuesTool(extra, (ctx, supabase) => listCouponsViaMcp(supabase, ctx, { memId: args.mem_id, status: args.status })),
     );
 
   },

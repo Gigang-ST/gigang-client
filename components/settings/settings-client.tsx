@@ -23,6 +23,7 @@ import {
   Zap,
   CalendarDays,
   Link2,
+  Ticket,
 } from "lucide-react";
 
 import { markBoardTypeRead } from "@/app/actions/mark-board-type-read";
@@ -80,11 +81,15 @@ type MenuItem = {
   icon: LucideIcon;
 };
 
+/** 회비를 쓰는 팀에만 서는 줄 — 쿠폰 기록(#712)은 회비 화면 묶음이라 같이 숨는다 */
+const DUES_ONLY_HREFS = new Set(["/profile/dues", "/profile/coupons"]);
+
 /** 내 것 — 나에 관한 것을 보고 고치는 자리 */
 const myItems: MenuItem[] = [
   { label: "프로필 수정", href: "/profile/edit", icon: UserPen },
   { label: "계좌 정보", href: "/profile/bank", icon: CreditCard },
   { label: "회비 내역", href: "/profile/dues", icon: Wallet },
+  { label: "내 쿠폰", href: "/profile/coupons", icon: Ticket },
   { label: "건의하기", href: "/profile/feedback", icon: MessageSquare },
 ];
 
@@ -307,7 +312,7 @@ export function SettingsClient({
         {/* MY */}
         <div className="flex flex-col">
           <SectionLabel>MY</SectionLabel>
-          {myItems.filter((item) => duesEnabled || item.href !== "/profile/dues").map((item) => (
+          {myItems.filter((item) => duesEnabled || !DUES_ONLY_HREFS.has(item.href)).map((item) => (
             <MenuRow
               key={item.href}
               icon={item.icon}
