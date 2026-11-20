@@ -44,3 +44,8 @@ scripts/check-migration-history.sh applied.tsv
 - **저장소 파일 이름을 DB 버전에 맞추는 것을 기본으로 한다**(파일 `git mv`). 이미 적용된 DB 의 이력은 건드리지 않는다. 단, 같은 이름이 dev·prd 에서 버전이 서로 다르면 한쪽 기준만 맞출 수 있다 — 이때 `supabase db push` 가 어긋난 쪽을 미적용으로 보지 않도록 해당 DB 의 `schema_migrations.version` 을 파일 버전으로 고치는 UPDATE 가 필요하다(prd 는 사람 승인 뒤에만, 적용 순서는 `.claude/docs/migration-apply.md`).
 - **앞으로**: MCP `apply_migration` 으로 적용했다면, 적용 직후 `select version from supabase_migrations.schema_migrations where name = '<이름>'` 로 찍힌 버전을 확인해 파일 이름을 그 버전에 맞춘다. 이름은 DB·파일이 같게 둔다(대조 스크립트가 이름 기준이다).
 - 이 PR 은 137건의 일괄 개명·UPDATE 를 하지 않았다(범위·위험). 방침 확정 후 후속 PR 로 낸다.
+
+## 같은 버전 파일 중복 해소
+
+`20260529120000` 을 쓰는 파일이 둘이었다(`drop_title_point_columns` · `ttl_mst_drop_is_event_yn`). 적용 기록표는 버전당 1행이라 `supabase db push` 가 막힌다. `ttl_mst_drop_is_event_yn` 을 `20260529120001` 로 개명했다(실행 순서 유지: 앞 파일과 `140000` 사이).
+이미 파일 효과가 반영된 DB 의 기록은 `supabase migration repair 20260529120001 --status applied` 로 맞춘다(prd 는 사람 승인 뒤에만).
