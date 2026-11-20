@@ -4,6 +4,7 @@ import type { KeyboardEvent } from "react";
 
 import { dayjs } from "@/lib/dayjs";
 import { cn } from "@/lib/utils";
+import { amountHintLabel } from "@/lib/dues/amount-hint";
 import { memberLabel } from "@/lib/dues/homonyms";
 import type { Decision, ItemCd } from "@/lib/dues/confirm-payload";
 import type { InboxTxn, MemberOption, ProjectOption } from "@/lib/queries/dues";
@@ -118,6 +119,9 @@ export function InboxRow({
       </td>
       <td className="px-2 py-2 text-right">
         <Body className="font-semibold">{txn.amt.toLocaleString()}원</Body>
+        {txn.amountHint && (
+          <Micro className="mt-0.5 block text-warning">{amountHintLabel(txn.amountHint)}</Micro>
+        )}
       </td>
       <td className="px-2 py-2">
         {!editable ? (

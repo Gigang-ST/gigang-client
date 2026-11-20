@@ -41,6 +41,8 @@ class FakeQuery implements PromiseLike<{ data: unknown; error: unknown }> {
   private orderCol: string | null = null;
   private orderAsc = true;
   private limitN: number | null = null;
+  private rangeFrom: number | null = null;
+  private rangeTo: number | null = null;
 
   constructor(
     private db: FakeSupabase,
@@ -81,6 +83,10 @@ class FakeQuery implements PromiseLike<{ data: unknown; error: unknown }> {
     this.filters.push({ col, kind: "lte", val });
     return this;
   }
+  lt(col: string, val: unknown) {
+    this.filters.push({ col, kind: "lt", val });
+    return this;
+  }
   ilike(col: string, pattern: string) {
     this.filters.push({ col, kind: "ilike", val: pattern });
     return this;
@@ -102,6 +108,15 @@ class FakeQuery implements PromiseLike<{ data: unknown; error: unknown }> {
     this.limitN = n;
     return this;
   }
+  /** PostgREST `.or()` 필터 문자열은 해석하지 않는다 — 팀 범위 같은 보조 조건은 시드로 맞춘다. */
+  or(_filter: string) {
+    return this;
+  }
+  range(from: number, to: number) {
+    this.rangeFrom = from;
+    this.rangeTo = to;
+    return this;
+  }
 
   private matches(row: Row): boolean {
     return this.filters.every((f) => {
@@ -115,6 +130,8 @@ class FakeQuery implements PromiseLike<{ data: unknown; error: unknown }> {
           return (actual as string) >= (f.val as string);
         case "lte":
           return (actual as string) <= (f.val as string);
+        case "lt":
+          return (actual as string) < (f.val as string);
         case "in":
           return (f.val as unknown[]).includes(actual);
         case "ilike": {
@@ -173,6 +190,7 @@ class FakeQuery implements PromiseLike<{ data: unknown; error: unknown }> {
       });
     }
     if (this.limitN !== null) out = out.slice(0, this.limitN);
+    if (this.rangeFrom !== null && this.rangeTo !== null) out = out.slice(this.rangeFrom, this.rangeTo + 1);
     return { data: out, error: null };
   }
 
@@ -233,6 +251,10 @@ export class FakeSupabase {
         return { team_comp_id: `tcp00000-0000-4000-8000-${n}` };
       case "comp_reg_rel":
         return { comp_reg_id: `reg00000-0000-4000-8000-${n}` };
+      case "fee_xlsx_upd_hist":
+        return { upd_id: `upd00000-0000-4000-8000-${n}` };
+      case "fee_txn_hist":
+        return { txn_id: `txn00000-0000-4000-8000-${n}` };
       default:
         return {};
     }

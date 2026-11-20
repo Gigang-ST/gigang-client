@@ -1231,6 +1231,54 @@ export type Database = {
           },
         ]
       }
+      fee_bal_adj_hist: {
+        Row: {
+          adj_amt: number
+          adj_by_mem_id: string
+          adj_id: string
+          crt_at: string
+          del_yn: boolean
+          mem_id: string
+          rsn_txt: string
+          rvt_at: string | null
+          rvt_by_mem_id: string | null
+          rvt_rsn_txt: string | null
+          team_id: string
+          upd_at: string
+          vers: number
+        }
+        Insert: {
+          adj_amt: number
+          adj_by_mem_id: string
+          adj_id?: string
+          crt_at?: string
+          del_yn?: boolean
+          mem_id: string
+          rsn_txt: string
+          rvt_at?: string | null
+          rvt_by_mem_id?: string | null
+          rvt_rsn_txt?: string | null
+          team_id: string
+          upd_at?: string
+          vers?: number
+        }
+        Update: {
+          adj_amt?: number
+          adj_by_mem_id?: string
+          adj_id?: string
+          crt_at?: string
+          del_yn?: boolean
+          mem_id?: string
+          rsn_txt?: string
+          rvt_at?: string | null
+          rvt_by_mem_id?: string | null
+          rvt_rsn_txt?: string | null
+          team_id?: string
+          upd_at?: string
+          vers?: number
+        }
+        Relationships: []
+      }
       fee_due_exm_cfg: {
         Row: {
           aply_end_dt: string
@@ -1703,6 +1751,7 @@ export type Database = {
           raw_name: string
           team_id: string
           txn_amt: number
+          txn_bal_amt: number | null
           txn_dt: string
           txn_id: string
           txn_io_enm: Database["public"]["Enums"]["fee_txn_io_enm"]
@@ -1726,6 +1775,7 @@ export type Database = {
           raw_name: string
           team_id: string
           txn_amt: number
+          txn_bal_amt?: number | null
           txn_dt: string
           txn_id?: string
           txn_io_enm: Database["public"]["Enums"]["fee_txn_io_enm"]
@@ -1749,6 +1799,7 @@ export type Database = {
           raw_name?: string
           team_id?: string
           txn_amt?: number
+          txn_bal_amt?: number | null
           txn_dt?: string
           txn_id?: string
           txn_io_enm?: Database["public"]["Enums"]["fee_txn_io_enm"]
@@ -2349,7 +2400,13 @@ export type Database = {
           crt_at: string
           mem_id: string
           near_stn_nm: string | null
+          run_career_cd: string | null
+          start_info_at: string | null
+          start_info_src_cd: string | null
+          start_info_upd_at: string | null
+          start_rec_none_yn: boolean
           upd_at: string
+          wkly_dist_cd: string | null
         }
         Insert: {
           avg_pace_cd?: string | null
@@ -2357,7 +2414,13 @@ export type Database = {
           crt_at?: string
           mem_id: string
           near_stn_nm?: string | null
+          run_career_cd?: string | null
+          start_info_at?: string | null
+          start_info_src_cd?: string | null
+          start_info_upd_at?: string | null
+          start_rec_none_yn?: boolean
           upd_at?: string
+          wkly_dist_cd?: string | null
         }
         Update: {
           avg_pace_cd?: string | null
@@ -2365,7 +2428,13 @@ export type Database = {
           crt_at?: string
           mem_id?: string
           near_stn_nm?: string | null
+          run_career_cd?: string | null
+          start_info_at?: string | null
+          start_info_src_cd?: string | null
+          start_info_upd_at?: string | null
+          start_rec_none_yn?: boolean
           upd_at?: string
+          wkly_dist_cd?: string | null
         }
         Relationships: [
           {
@@ -2501,6 +2570,41 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ttl_mst"
             referencedColumns: ["team_id", "ttl_id"]
+          },
+        ]
+      }
+      mem_start_rec_rel: {
+        Row: {
+          crt_at: string
+          dist_cd: string
+          mem_id: string
+          rec_sec: number
+          src_cd: string
+          upd_at: string
+        }
+        Insert: {
+          crt_at?: string
+          dist_cd: string
+          mem_id: string
+          rec_sec: number
+          src_cd?: string
+          upd_at?: string
+        }
+        Update: {
+          crt_at?: string
+          dist_cd?: string
+          mem_id?: string
+          rec_sec?: number
+          src_cd?: string
+          upd_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mem_start_rec_rel_mem_id_fkey"
+            columns: ["mem_id"]
+            isOneToOne: false
+            referencedRelation: "mem_mst"
+            referencedColumns: ["mem_id"]
           },
         ]
       }

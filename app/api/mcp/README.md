@@ -71,9 +71,9 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 |------|------|---------|------|
 | `whoami` | — | 내 신원(mem_id·team·admin 여부) 확인 | 멤버 |
 | `list_today_gatherings` | `date?`(YYYY-MM-DD, 기본 오늘) | 오늘(또는 지정일) 모임 + **모임 설명(난이도)** + 각 참석자 수 | 멤버 |
-| `list_recent_members` | `limit?`(기본 10) | 최근 가입 멤버 + **러닝 프로필(가까운 역·평균 거리·페이스·가입 목적)** | 멤버 |
+| `list_recent_members` | `limit?`(기본 10) | 최근 가입 멤버 + **러닝 프로필(가까운 역·평균 거리·페이스·가입 목적)** + **시작 정보(경력·주간 거리·자기신고 기록·입력 시각)는 admin 만** | 멤버 |
 | `list_members_attendance` | `limit?` | 멤버별 참석 횟수·마지막 참석일(오래 안 나온 순) | **admin** |
-| `get_member_profile` | `member_id`(uuid) 또는 `name` | 멤버 프로필(이름·가입일·역할·소개·아바타 + **생일·성별은 admin 만**) + **러닝 프로필(가까운 역·평균 거리·페이스·가입 목적)** | 멤버 |
+| `get_member_profile` | `member_id`(uuid) 또는 `name` | 멤버 프로필(이름·가입일·역할·소개·아바타 + **생일·성별은 admin 만**) + **러닝 프로필(가까운 역·평균 거리·페이스·가입 목적)** + **시작 정보(경력·주간 거리·자기신고 기록·입력 시각)는 admin 만** | 멤버 |
 | `list_gathering_non_attendees` | `gathering_id`(uuid) | 특정 모임 미참석자 명단 (+ **참석 현황은 admin 만**) | 멤버 |
 | `list_push_status` | — | 멤버별 웹푸시 구독 여부 | 멤버 |
 | `send_push` | `member_ids`(uuid[]), `title`, `message` | 지정 멤버에게 인앱+웹푸시 발송 | **admin** |
@@ -81,6 +81,12 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `create_gathering` | `gthr_nm`, `gthr_type_enm`, `sprt_cd`, `stt_at`, `end_at?`, `loc_txt?`, `desc_txt?`, `max_prt_cnt?`, `dry_run?` | 새 모임(벙) 개설 — 작성자 자동 참석 + 팀 전원 알림 | **admin** |
 | `update_gathering` | `gathering_id`(uuid) + 바꿀 필드만(`gthr_nm`, `stt_at`, `end_at`, `loc_txt`, `max_prt_cnt`, `desc_txt`), `dry_run?`, `notify?` | 모임 수정 — 바뀐 필드 목록·전/후 반환. 알림은 `notify: true` 일 때만 | **모임 작성자 또는 admin** |
 | `create_sch_post` | `sch_nm`, `post_type`(`race_entry`·`sale`·`session`·`general`), `evt_stt_at`, `evt_end_at?`, `url?`, `cont_txt?`, `dry_run?` | 일정 탭에 소식(대회 접수 정보·판매·세션·일반) 등록 — 팀 전원 새 정보 알림 | 멤버 (앱과 같음) |
+| `upload_dues_xlsx` | `file_name`, `xlsx_base64` **또는** `rows`(`txn_tm` 필수), `dry_run?` | 카카오뱅크 거래내역을 **미확정 거래로 적재**(중복 방지 유지) — 요약(자동·확인필요·제외·중복·과거 건너뜀) 반환 | **admin** · 회비 사용 팀 |
+| `list_dues_inbox` | `bucket?`(`autoDone`·`needsReview`·`excluded`), `limit?` | 처리 대기(미확정) 거래 + 후보 회원 + 확정에 쓸 분류 코드·모금 중 프로젝트 | **admin** · 회비 사용 팀 |
+| `confirm_dues_txns` | `items?`[{`txn_id`, `fee_item_cd?`, `mem_id?`, `project_id?`, `remember_alias?`}], `auto?`, `dry_run?` | 거래 확정(회비+회원이면 납부원장 + 잔액 재계산) | **admin** · 회비 사용 팀 |
+| `cancel_dues_txn` | `txn_id`, `dry_run?` | 확정 취소 — 처리 대기로 되돌리고 잔액 재계산 | **admin** · 회비 사용 팀 |
+| `reclassify_dues_txn` | `txn_id`, `fee_item_cd`, `mem_id?`, `project_id?`, `remember_alias?`, `dry_run?` | 확정된 거래의 분류·회원·프로젝트 변경(취소 → 재확정) | **admin** · 회비 사용 팀 |
+| `get_dues_balances` | `status?`(`미납`·`정상`·`예치`), `limit?` | 활성 회원 회비 잔액(예치/미납) 현황 + 인원·합계 | **admin** · 회비 사용 팀 |
 
 ### 대회 도구 (#700)
 
@@ -209,12 +215,14 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 |------|---------------|
 | `list_members_attendance` (도구째) | 같은 통계가 앱엔 관리자 전용 화면(`admin/members` 참여 현황)에만 있습니다 |
 | `get_member_profile` 의 **생년월일·성별** (필드만) | 공개 프로필 카드(`get_public_member_card`)에 없는 값이고, 앱에선 관리자 화면·본인 프로필 수정에만 보입니다 |
+| `get_member_profile`·`list_recent_members` 의 **시작 정보**(`start_info` — 경력·주간 거리·자기신고 기록) (필드만) | 앱에선 본인 프로필 수정에서만 보이고 남에게는 안 보입니다(화면에 "운영진이 참고하는 정보"로 안내). 비-admin 은 칸·기록 테이블을 아예 조회하지 않고 키 자체가 없습니다 |
 | `list_gathering_non_attendees` 의 **참석 횟수·마지막 참석시각** (필드만) | 위 `list_members_attendance` 와 **같은 통계**입니다. 도구 하나만 막으면 옆 도구로 그대로 나갑니다 |
 | `send_push` (도구째) | 쓰기 — 되돌릴 수 없고 크루원에게 직접 나갑니다 |
 | `send_kakao_notice` (도구째) | 쓰기 — 되돌릴 수 없고 단톡방 크루 전원에게 보입니다 |
 | `create_gathering` (도구째) | 쓰기 — 만드는 순간 팀 전원에게 새 모임 알림이 나갑니다 |
 | `create_competition` (도구째) | 쓰기 — 대회는 팀 공용 데이터라 마구 만들면 목록이 오염됩니다. 앱의 서버 액션보다 좁게 둡니다 |
 | `register_competition` 의 **`member_id`·`member_name`**(남을 대신 신청만) | 앱에서 남의 참가 신청을 넣는 화면은 없고(관리자 화면은 목록·삭제), 본인 신청은 멤버 누구나 합니다 |
+| 회비 도구 6종 `upload_dues_xlsx`·`list_dues_inbox`·`confirm_dues_txns`·`cancel_dues_txn`·`reclassify_dues_txn`·`get_dues_balances` (도구째) | 회비 거래·잔액은 앱에서도 관리자에게만 보이고, 확정은 개인 잔액을 바꿉니다. 회비 기능이 꺼진 팀(`feature.dues=false`)은 admin 이어도 거부 |
 | `log_hyrox_record` 의 **`member_id`**(남의 기록 등록만) | 앱에서 남의 대회 기록을 넣는 건 관리자 「대신 등록」뿐입니다. 본인 기록은 멤버 누구나 넣습니다 |
 
 `update_gathering` 은 admin 전용이 아니라 **작성자 또는 admin** 입니다(앱의 수정 권한과 같습니다).
@@ -222,6 +230,37 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 `create_sch_post`(일정 소식 등록)는 **admin 전용이 아닙니다.** 앱에서 소식은 활성 멤버 누구나 올리고
 (`createSchPost` 의 `withActive`), MCP 토큰도 활성 멤버만 통과하므로 같은 범위입니다 — 앱보다 넓지도
 좁지도 않습니다. 팀은 토큰의 팀으로만 정해지고(인자로 `team_id` 를 넣어도 무시), 작성자는 토큰 주인입니다.
+
+### 회비 도구(#702) — 화면 조작 없이 업로드·확정·정정
+
+회비 > 처리 화면에서 하던 일(엑셀 올리기 → 확인필요 판단 → 확정 → 되돌리기)을 에이전트가 직접 합니다.
+**판단(누구 입금인지·무슨 명목인지)은 에이전트와 운영진이 하고, 도구는 앱과 같은 규칙으로 안전하게 기록합니다.**
+도메인 규칙은 앱 서버 액션과 같은 코어(`lib/dues/*-core.ts`)를 공유하므로 앱과 MCP 결과가 갈라지지 않습니다.
+
+권장 흐름:
+
+1. `upload_dues_xlsx` (`dry_run: true` → 요약 확인 → 실제 업로드) — 엑셀은 복호화된 파일을 base64 로, 또는 `rows` 로 거래 행을 직접.
+2. `list_dues_inbox` — `autoDone`(자동 후보)·`needsReview`(사람이 분류)·`excluded`(출금·기타)로 나뉜 대기 목록.
+3. `confirm_dues_txns` (`auto: true` 로 자동 후보 일괄, `items` 로 확인필요 건 개별) — **먼저 `dry_run: true`**.
+4. 잘못 확정했으면 `cancel_dues_txn`(처리 대기로 복귀) 또는 `reclassify_dues_txn`(분류·회원·프로젝트 바로 변경).
+5. `get_dues_balances` 로 예치/미납 현황 확인.
+
+약속:
+
+- **admin 전용 + 회비 기능이 켜진 팀만.** 앱의 회비 액션과 같은 경계입니다(회비를 안 쓰는 팀은 admin 토큰이어도 거부).
+- **확인필요 건은 `txn_id` 와 `fee_item_cd` 를 명시해야만 확정됩니다.** `auto: true` 는 `auto_eligible` 건(이름이 한 회원에게 정확히 맞는 회비 입금)만 집습니다.
+  금액이 진행 중 프로젝트(PB 클래스) 참가비와 같거나 월회비의 배수가 아니면 이름이 맞아도 자동에서 빠지고 확인필요가 됩니다(이유는 `amount_hint`). 앱 「처리」 화면과 같은 판정(`lib/dues/amount-hint.ts`)입니다.
+- **분류**: 회비 `due`(`mem_id` 필수) · 프로젝트 `event_fee`(`project_id` 필수, `list_dues_inbox.projects` 의 모금 중 프로젝트) · 지출 `expense` · 제외 `other`.
+  출금을 회비·프로젝트로, 입금을 지출로 확정할 수 없습니다. 회원 없이 회비로 확정하면 개인 잔액에 반영되지 않으므로 거부합니다.
+- **중복 방지는 앱과 같습니다.** 같은 파일(해시)·같은 행 묶음을 두 번 올려도, 이미 적재된 거래(날짜·시각·금액·이름·입출금이 같은 거래)가 섞여 있어도 두 번 들어가지 않고 `skipped` 로 셉니다. 이미 마감된 회원의 과거 거래는 `skippedByCutoff`.
+- **`dry_run`**(`upload_dues_xlsx`·`confirm_dues_txns`·`cancel_dues_txn`·`reclassify_dues_txn`): 같은 검증을 돌리되 아무것도 쓰지 않고 결과만 돌려줍니다.
+- **검증 못 넘은 건은 `skipped` 에 사유와 함께** 남고 나머지는 진행합니다(`confirm_dues_txns`). 확정 중간에 실패하면 이번 호출의 확정은 전부 되돌립니다.
+- **`remember_alias: true`**: 회비 + 회원 지정 건의 입금자명을 그 회원의 별칭으로 기억해 다음 업로드부터 자동 매칭합니다(확정 성공 뒤에만).
+- **`reclassify_dues_txn`** 은 취소 가능 여부와 새 값을 둘 다 검증한 뒤에 씁니다. 재확정이 실패하면 원래 값으로 되돌려 확정해 둡니다. 원장 전환 이전 개시잔액에 녹은 거래는 취소·재분류할 수 없습니다.
+- **로그·감사**: 쓰기는 `mcp_audit_log` 에 건수·거래 id 만 남깁니다. **입금자명·금액·메모는 감사행·서버 로그에 싣지 않습니다.** 다만 `list_dues_inbox`·`get_dues_balances` 응답에는 이름·금액이 들어 있으니 사용자에게 필요한 만큼만 보여 주세요. 계좌번호는 어디에도 없습니다.
+- **재계산만 실패한 경우는 오류가 아니라 상태로 돌려줍니다**(이미 바뀐 것을 「안 됐다」로 오해해 재시도하지 않게). `confirm_dues_txns`·`cancel_dues_txn` 은 `status: "recalc_failed"` + `recalc_pending_mem_ids`(잔액이 낡은 회원), `reclassify_dues_txn` 은 `status` 가 `reclassified`·`reclassified_recalc_failed`·`restored`(새 값 확정 실패 → 원래 값으로 되돌려 확정함)·`left_pending`(원복도 실패 — 처리 대기에 남음, `list_dues_inbox` 로 확인) 중 하나이고 `detail` 에 한 줄 사유가 담깁니다. 이 경우에도 감사행에 거래 id 와 상태가 남습니다. 재계산은 리플레이라 다시 돌리면 복구됩니다.
+- `mem_id` 는 **지정만** 합니다 — 안 주면 저장된 매칭을 유지하고, 매칭을 지우는 기능은 없습니다. 잘못된 `project_id`·`mem_id` 는 그 건만 `skipped` 로 빠지고 나머지는 진행합니다.
+
 
 ### 모임 개설(`create_gathering`) — 쓰기 도구라 몇 가지 약속이 있습니다
 

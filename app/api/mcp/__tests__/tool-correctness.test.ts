@@ -236,7 +236,11 @@ const MEM_ID = "aaaaaaaa-0000-4000-8000-000000000001";
  * birth_dt·gdr_enm 키가 애초에 없는 객체를 넘긴다.
  */
 function makeProfileSupabase(memMst: Record<string, unknown>) {
-  const captured: { select: string | null } = { select: null };
+  const captured: { select: string | null; tables: string[]; prfSelect: string | null } = {
+    select: null,
+    tables: [],
+    prfSelect: null,
+  };
   const relBuilder: Record<string, unknown> = {
     select: (s: string) => {
       captured.select = s;
@@ -258,15 +262,32 @@ function makeProfileSupabase(memMst: Record<string, unknown>) {
         error: null,
       }),
   };
-  const onbdBuilder: Record<string, unknown> = {
-    select: () => onbdBuilder,
-    eq: () => onbdBuilder,
-    in: () => onbdBuilder,
-    then: (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+  const makeOnbd = (table: string) => {
+    const b: Record<string, unknown> = {
+      select: (sel: string) => {
+        if (table === "mem_onbd_prf") captured.prfSelect = sel;
+        return b;
+      },
+      eq: () => b,
+      in: () => b,
+      then: (resolve: (v: unknown) => void) =>
+        resolve({
+          data:
+            table === "mem_onbd_prf"
+              ? [{ mem_id: MEM_ID, near_stn_nm: null, start_info_at: "2026-11-20T01:00:00Z", run_career_cd: "Y1_3" }]
+              : [],
+          error: null,
+        }),
+    };
+    return b;
   };
   const client = {
-    from: (table: string) =>
-      table === "mem_onbd_prf" || table === "team_mem_onbd_rel" ? onbdBuilder : relBuilder,
+    from: (table: string) => {
+      captured.tables.push(table);
+      return table === "mem_onbd_prf" || table === "team_mem_onbd_rel" || table === "mem_start_rec_rel"
+        ? makeOnbd(table)
+        : relBuilder;
+    },
   } as unknown as SupabaseClient<Database>;
   return { client, captured };
 }
@@ -300,6 +321,21 @@ describe("#496 get_member_profile — 생년월일·성별은 admin 응답에만
     // `birth_dt: undefined` 로 남기지 않는다 — 키 존재 자체를 형상으로 못박는다.
     expect("birth_dt" in rows[0]).toBe(false);
     expect("gdr_enm" in rows[0]).toBe(false);
+  });
+
+  it("시작 정보: admin 만 받는다 — 비-admin 은 칸·기록 테이블을 읽지도 않고 키도 없다", async () => {
+    const admin = makeProfileSupabase(adminMemMst);
+    const a = await getMemberProfile(admin.client, TEAM_ID, true, { memberId: MEM_ID });
+    expect(admin.captured.prfSelect).toContain("run_career_cd");
+    expect(admin.captured.tables).toContain("mem_start_rec_rel");
+    expect(a[0].start_info).toMatchObject({ run_career: "1~3년" });
+
+    const member = makeProfileSupabase(memberMemMst);
+    const m = await getMemberProfile(member.client, TEAM_ID, false, { memberId: MEM_ID });
+    expect(member.captured.prfSelect).not.toContain("run_career_cd");
+    expect(member.captured.prfSelect).not.toContain("start_info");
+    expect(member.captured.tables).not.toContain("mem_start_rec_rel");
+    expect("start_info" in m[0]).toBe(false);
   });
 
   it("비-admin 도 공개 프로필 카드에 이미 있는 필드는 그대로 받는다(도구는 계속 멤버 허용)", async () => {

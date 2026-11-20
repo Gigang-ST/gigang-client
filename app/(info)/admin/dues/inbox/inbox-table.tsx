@@ -41,7 +41,8 @@ type Filter = "all" | "needsReview" | "autoDone" | "excluded" | "processed";
  *   확정 가능(그 전엔 미결정으로 강조). 낮은 확신의 자동추측이 그대로 반영되는 것을 막는다.
  */
 function defaultDecision(t: InboxTxn): Decision {
-  const isEventFee = t.feeItemCd === "event_fee";
+  // 금액이 프로젝트 참가비와 같으면(#708) 이름이 맞아도 프로젝트부터 제안한다 — 귀속 프로젝트는 운영자가 고른다
+  const isEventFee = t.feeItemCd === "event_fee" || t.amountHint?.kind === "project";
   return {
     memId: t.memId ?? (t.candidates.length === 1 ? t.candidates[0].memId : null),
     itemCd: isEventFee ? "event_fee" : "due",

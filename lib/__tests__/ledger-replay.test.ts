@@ -8,6 +8,7 @@ import {
   isFullyActiveMonth,
   isMonthCharged,
   replayPays,
+  sumAnchorAdjustments,
   sumReflectedExemptions,
   type ExmRuleRange,
   type PolicyRange,
@@ -305,5 +306,21 @@ describe("sumReflectedExemptions", () => {
       { exmAmt: 1500, updAt: "2026-08-15T00:00:00+09:00" }, // 청산 이후 → 포함
     ];
     expect(sumReflectedExemptions(exms, anchorCrtAt)).toBe(1500);
+  });
+});
+
+describe("sumAnchorAdjustments", () => {
+  const adjs = [
+    { adjAmt: 5000, crtAt: "2026-07-10T00:00:00Z" },
+    { adjAmt: -2000, crtAt: "2026-08-01T00:00:00Z" },
+  ];
+  it("앵커가 없으면 전부 합산", () => {
+    expect(sumAnchorAdjustments(adjs, null)).toBe(3000);
+  });
+  it("앵커 이후 조정만 합산(재활성 청산 앵커 이전 조정은 제외)", () => {
+    expect(sumAnchorAdjustments(adjs, "2026-07-20T00:00:00Z")).toBe(-2000);
+  });
+  it("조정이 없으면 0", () => {
+    expect(sumAnchorAdjustments([], "2026-07-20T00:00:00Z")).toBe(0);
   });
 });

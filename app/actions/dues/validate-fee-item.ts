@@ -1,5 +1,7 @@
 import { feeItemTeamFilter } from "@/lib/fee-items";
-import { createAdminClient } from "@/lib/supabase/admin";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import type { Database } from "@/lib/supabase/database.types";
 
 /**
  * FEE_ITEM_CD 공통코드 그룹에 존재하는 유효한 분류 cd 집합을 조회한다.
@@ -7,7 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * fee_txn_hist 에는 더 이상 CHECK 제약이 없으므로 적재 전 이 집합으로 검증한다.
  */
 export async function getValidFeeItemCds(
-  db: ReturnType<typeof createAdminClient>,
+  db: SupabaseClient<Database>,
   teamId: string,
 ): Promise<Set<string>> {
   const { data, error } = await db
