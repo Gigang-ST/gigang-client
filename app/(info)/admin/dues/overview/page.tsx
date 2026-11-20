@@ -1,5 +1,4 @@
-import { H2, Caption, Micro, SectionLabel } from "@/components/common/typography";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { H2, Body, Caption, Micro, SectionLabel } from "@/components/common/typography";
 import { getDuesOverview } from "@/lib/queries/dues";
 import { cn } from "@/lib/utils";
 
@@ -7,31 +6,31 @@ const won = (n: number) => `${n.toLocaleString()}원`;
 
 type RowData = { key?: string; label: string; hint?: string; value: string; strong?: boolean };
 
-/** 항목·금액 표 — 회원 관리 화면과 같은 표 모양(테두리 래퍼 + ui/table). 금액은 오른쪽 정렬·줄바꿈 금지. */
+/** 항목·금액 표 — 처리됨 표(inbox/processed-rows)와 같은 모양: 윗선 + 행마다 아랫선, px-2 py-2, 금액 오른쪽 굵게. */
 function DuesTable({ rows }: { rows: RowData[] }) {
   return (
-    <div className="overflow-x-auto rounded-2xl border border-border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="text-xs">항목</TableHead>
-            <TableHead className="text-right text-xs whitespace-nowrap">금액</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
+    <div className="overflow-x-auto">
+      <table className="w-full border-t border-border text-sm">
+        <thead>
+          <tr className="border-b border-border text-left">
+            <th className="px-2 py-2"><Caption>항목</Caption></th>
+            <th className="px-2 py-2 text-right"><Caption>금액</Caption></th>
+          </tr>
+        </thead>
+        <tbody>
           {rows.map((r) => (
-            <TableRow key={r.key ?? r.label}>
-              <TableCell className="whitespace-normal align-top">
-                <Caption className={cn("block text-xs text-foreground", r.strong && "font-semibold")}>{r.label}</Caption>
+            <tr key={r.key ?? r.label} className="border-b border-border align-top">
+              <td className="px-2 py-2">
+                <Body className={cn("block", r.strong && "font-semibold")}>{r.label}</Body>
                 {r.hint && <Micro className="block">{r.hint}</Micro>}
-              </TableCell>
-              <TableCell className="text-right align-top tabular-nums">
-                <Caption className={cn("text-xs whitespace-nowrap text-foreground", r.strong && "font-semibold")}>{r.value}</Caption>
-              </TableCell>
-            </TableRow>
+              </td>
+              <td className="px-2 py-2 text-right">
+                <Body className="font-semibold whitespace-nowrap">{r.value}</Body>
+              </td>
+            </tr>
           ))}
-        </TableBody>
-      </Table>
+        </tbody>
+      </table>
     </div>
   );
 }

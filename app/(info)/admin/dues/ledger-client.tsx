@@ -16,9 +16,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { H2, Caption, SectionLabel } from "@/components/common/typography";
+import { H2, Body, Caption, SectionLabel } from "@/components/common/typography";
 import { SegmentControl } from "@/components/common/segment-control";
 import { EmptyState } from "@/components/common/empty-state";
 import { duplicateNames, memberLabel } from "@/lib/dues/homonyms";
@@ -146,53 +145,51 @@ export function LedgerClient({
       {shown.length === 0 ? (
         <EmptyState variant="card" message="조건에 맞는 회원이 없습니다." />
       ) : (
-        // 회원 관리 화면과 같은 표(overflow-x-auto + rounded-2xl 테두리). 한 회원 = 한 행이고,
-        // 면제·탈퇴·독려는 ⋯ 메뉴로 모아 384px 폰에서도 가로 스크롤 없이 한 줄에 들어간다.
-        <div className="overflow-x-auto rounded-2xl border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {["회원", "상태"].map((h) => (
-                  <TableHead key={h} className="text-center text-xs whitespace-nowrap">
-                    {h}
-                  </TableHead>
-                ))}
-                <TableHead className="text-right text-xs whitespace-nowrap">금액</TableHead>
-                <TableHead className="w-10 text-center text-xs whitespace-nowrap">동작</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+        // 처리됨 표(inbox/processed-rows)와 같은 모양 — 테두리 상자 없이 윗선 + 행마다 아랫선.
+        // 한 회원 = 한 행이고 면제·탈퇴·독려는 ⋯ 메뉴로 모아 384px 폰에서도 한 줄에 들어간다.
+        <div className="overflow-x-auto">
+          <table className="w-full border-t border-border text-sm">
+            <thead>
+              <tr className="border-b border-border text-left">
+                <th className="px-2 py-2"><Caption>회원</Caption></th>
+                <th className="px-2 py-2"><Caption>상태</Caption></th>
+                <th className="px-2 py-2 text-right"><Caption>금액</Caption></th>
+                <th className="px-2 py-2"><Caption>동작</Caption></th>
+              </tr>
+            </thead>
+            <tbody>
               {shown.map((r) => (
-                <TableRow key={r.memId}>
+                <tr key={r.memId} className="border-b border-border align-top">
                   {/* 이름 칸 = 회원별 납부 근거 드릴다운 진입점 (QS-7) */}
-                  <TableCell className="text-center">
+                  <td className="px-2 py-2">
                     <Link href={`/admin/dues/members/${r.memId}`}>
-                      <Caption className="text-xs font-semibold whitespace-nowrap text-foreground underline-offset-2 hover:underline">
+                      <Caption className="whitespace-nowrap text-foreground underline-offset-2 hover:underline">
                         {memberLabel(r, dupNames)}
                       </Caption>
                     </Link>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Caption className="text-xs whitespace-nowrap">
+                  </td>
+                  <td className="px-2 py-2">
+                    <Caption className="whitespace-nowrap text-foreground">
                       {r.balance === 0
                         ? "정상"
                         : r.months === 0
                           ? `1개월 미만 ${r.balance < 0 ? "미납" : "예치"}`
                           : `${r.months}개월 ${r.balance < 0 ? "미납" : "예치"}`}
                     </Caption>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    <Caption
+                  </td>
+                  <td className="px-2 py-2 text-right">
+                    <Body
                       className={cn(
-                        "text-xs font-semibold whitespace-nowrap",
-                        r.balance < 0 ? "text-destructive" : r.balance > 0 ? "text-success" : "text-foreground",
+                        "font-semibold whitespace-nowrap",
+                        r.balance < 0 && "text-destructive",
+                        r.balance > 0 && "text-success",
                       )}
                     >
                       {r.balance > 0 ? "+" : ""}
                       {r.balance.toLocaleString()}원
-                    </Caption>
-                  </TableCell>
-                  <TableCell className="px-1 text-center">
+                    </Body>
+                  </td>
+                  <td className="px-2 py-1">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button size="icon" variant="ghost" className="size-8" aria-label={`${r.name} 작업`}>
@@ -218,11 +215,11 @@ export function LedgerClient({
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
               ))}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </div>
       )}
     </div>
