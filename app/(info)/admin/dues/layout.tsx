@@ -15,20 +15,20 @@ export default async function DuesAdminLayout({ children }: { children: React.Re
 
   return (
     <div className="flex flex-col gap-0">
-      <nav className="flex gap-4 border-b border-border px-6 py-3">
-        <Link href="/admin/dues">
+      <nav className="scrollbar-none flex gap-4 overflow-x-auto whitespace-nowrap border-b border-border px-6 py-3">
+        <Link className="shrink-0" href="/admin/dues">
           <Caption className="text-foreground">📒 잔액 원장</Caption>
         </Link>
-        <Link href="/admin/dues/inbox">
+        <Link className="shrink-0" href="/admin/dues/inbox">
           <Caption className="text-foreground">📥 처리</Caption>
         </Link>
-        <Link href="/admin/dues/overview">
+        <Link className="shrink-0" href="/admin/dues/overview">
           <Caption className="text-foreground">💰 잔액 현황</Caption>
         </Link>
-        <Link href="/admin/dues/coupons">
+        <Link className="shrink-0" href="/admin/dues/coupons">
           <Caption className="text-foreground">🎟️ 쿠폰</Caption>
         </Link>
-        <Link href="/admin/dues/projects">
+        <Link className="shrink-0" href="/admin/dues/projects">
           <Caption className="text-foreground">🎯 프로젝트</Caption>
         </Link>
       </nav>
