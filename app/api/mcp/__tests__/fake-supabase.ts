@@ -253,6 +253,8 @@ export class FakeSupabase {
         return { comp_reg_id: `reg00000-0000-4000-8000-${n}` };
       case "fee_xlsx_upd_hist":
         return { upd_id: `upd00000-0000-4000-8000-${n}` };
+      case "cpn_mst":
+        return { cpn_id: `cccccccc-0000-4000-8000-${n}`, crt_at: "2026-11-20T00:00:00Z", vers: 0, del_yn: false, used_yn: false };
       case "fee_txn_hist":
         return { txn_id: `txn00000-0000-4000-8000-${n}` };
       default:

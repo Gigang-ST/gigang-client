@@ -53,7 +53,7 @@ function requireAdmin(ctx: OperatorContext): void {
   if (!ctx.is_admin) throw new ToolDeniedError();
 }
 
-async function writeAudit(
+export async function writeAudit(
   db: Db,
   ctx: OperatorContext,
   tool: string,
