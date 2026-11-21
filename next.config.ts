@@ -37,20 +37,6 @@ const nextConfig: NextConfig = {
    * Vercel 대시보드의 도메인 리다이렉트 설정으로도 같은 일을 할 수 있다 —
    * 그쪽을 켜면 이 블록은 중복이니 하나만 남긴다.
    */
-  /**
-   * 인트로 사진(/crew, /lines)은 브라우저가 1년간 묻지 않고 쓴다 — max-age=0이면 버스트에서
-   * 프레임마다 재검증이 돌아 깜빡임으로 보인다(랜딩 저장소에서 실측: 24회 → 0회).
-   * 페이지는 이 파일들을 늘 `?v=<내용 해시>`를 붙여 부른다(scripts/gen-intro-media.mjs가
-   * 빌드 때 붙인다). 같은 이름으로 덮어써도 내용이 바뀌면 주소가 바뀌어 재방문자도 새 사진을
-   * 받는다. 해시 없이 이 경로를 부르는 코드를 새로 만들지 않는다 — 그 주소는 1년간 안 바뀐다.
-   */
-  async headers() {
-    const year = "public, max-age=31536000, immutable";
-    return [
-      { source: "/crew/:path*", headers: [{ key: "Cache-Control", value: year }] },
-      { source: "/lines/:path*", headers: [{ key: "Cache-Control", value: year }] },
-    ];
-  },
   async redirects() {
     return [
       {
