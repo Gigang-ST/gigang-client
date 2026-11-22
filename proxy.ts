@@ -22,7 +22,7 @@ export async function proxy(request: NextRequest) {
     const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
     const teamCd = resolveTeamCdFromHost(host);
     if (!teamCd) return unknownHostResponse();
-    // 한 팀 전용 화면(지금은 기강 랜딩 `/intro`)을 다른 팀 주소로 열면 그 팀 홈으로. 페이지에서 주소를 읽으면
+    // 한 팀 전용 화면(지금은 `/join`·`/rules`)을 다른 팀 주소로 열면 그 팀 홈으로. 페이지에서 주소를 읽으면
     // 미리 만들어 두는 정적 화면이 요청마다 그려져야 해서, 이미 주소를 판정한 이 자리에서 끊는다(추가 호출 없음).
     const to = teamOnlyPathRedirect(request.nextUrl.pathname, teamCd);
     if (to) return NextResponse.redirect(new URL(to, request.url));
