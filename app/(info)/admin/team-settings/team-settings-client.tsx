@@ -20,6 +20,9 @@ import type { CfgGroup, CfgInput, TeamCfgCd } from "@/lib/team-cfg/registry";
 import { cn } from "@/lib/utils";
 
 import { resetTeamSetting, saveTeamSetting } from "@/app/actions/admin/team-settings";
+import type { GuideSection } from "@/lib/newbie-guide";
+
+import { GuideSectionsEditor, LinesEditor } from "./newbie-guide-editors";
 
 import {
   ResponsiveDrawer,
@@ -345,6 +348,23 @@ function Editor({
         <ChoiceEditor
           options={item.input.options}
           value={typeof item.value === "string" ? item.value : ""}
+          pending={pending}
+          onSave={onSave}
+        />
+      );
+    case "lines":
+      return (
+        <LinesEditor
+          value={Array.isArray(item.value) ? (item.value as string[]) : []}
+          placeholder={item.input.placeholder}
+          pending={pending}
+          onSave={onSave}
+        />
+      );
+    case "guide_sections":
+      return (
+        <GuideSectionsEditor
+          value={Array.isArray(item.value) ? (item.value as GuideSection[]) : []}
           pending={pending}
           onSave={onSave}
         />

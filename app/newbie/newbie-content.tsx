@@ -1,6 +1,17 @@
 import Link from "next/link";
 
-import { ClipboardList, Lightbulb, ScrollText, ShieldCheck, type LucideIcon } from "lucide-react";
+import {
+  CalendarDays,
+  ClipboardList,
+  Info,
+  Lightbulb,
+  MapPin,
+  ScrollText,
+  ShieldCheck,
+  type LucideIcon,
+} from "lucide-react";
+
+import { GuideMarkdown } from "@/components/common/guide-markdown";
 
 import { SignupProgress } from "@/components/auth/signup-progress";
 import { H1, H2, Body, Caption } from "@/components/common/typography";
@@ -8,92 +19,26 @@ import { hasRunningProfileStep, type SignupStepLabel, type TeamSignup } from "@/
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 import { josa } from "@/lib/josa";
+import { visibleGuideSections, type GuideIconKey, type GuideSection } from "@/lib/newbie-guide";
 import { cn } from "@/lib/utils";
 
 /**
  * 신입 가입 안내(가입 위저드 1단계) 본문. 서버 페이지(`./page.tsx`)가 팀 문구를 읽어 넘긴다 — 이 파일은 요청을 읽지 않아
  * 렌더 테스트가 팀별로 그려 볼 수 있다(`app/newbie/__tests__/newbie-content-render.test.ts`).
  *
- * 가입 단계는 팀 가입 설정(`lib/team-signup.ts`)을 따른다 — 모비는 러닝 프로필 단계가 없다(#748). **활동 칩·「더 알아보기」
- * (정기 러닝·회칙·안전수칙·등급표)는 기강 운영 내용**이라 같은 표의 `crewGuide` 팀(기강)에서만 세운다(#658). 다른 팀 운영
- * 내용은 아직 없어 지어내지 않는다 — 생기면 같은 페이지에 그 팀 칸을 더한다.
+ * 가입 단계는 팀 가입 설정(`lib/team-signup.ts`)을 따른다 — 모비는 러닝 프로필 단계가 없다(#748).
+ * **「이런 활동을 해요」 칩과 「더 알아보기」 칸은 팀 설정**(`newbie.activities` · `newbie.sections`, §lib/newbie-guide)이다 —
+ * 예전엔 기강 운영 안내가 이 파일에 박혀 기강에서만 섰다(#658). 이제 각 팀 운영진이 관리자 「팀 설정」에서 칸을 더하고
+ * 마크다운으로 쓴다. 비어 있는 팀(모비 처음)은 두 영역 다 안 그린다.
  */
 export type NewbieContentProps = {
   /** 크루 이름(팀 문구) */
   crewName: string;
-  /** 팀 가입 설정 — 단계 목록·운영 안내 노출 */
-  signup: Pick<TeamSignup, "steps" | "crewGuide">;
+  /** 팀 가입 설정 — 단계 목록 */
+  signup: Pick<TeamSignup, "steps">;
+  /** 팀 설정의 신입 안내 — 칩·칸 목록 */
+  guide: { activities: readonly string[]; sections: readonly GuideSection[] };
 };
-
-/* ─── 토글 섹션 데이터 ─── */
-
-const announcements = {
-  title: "신입회원 안내말씀",
-  icon: ClipboardList,
-  sections: [
-    {
-      heading: "정기 러닝",
-      items: [
-        "격주 수요일 저녁 7:30 PM",
-        "장소: 양재천·한강·여의도·남산 일대 (사전 공지)",
-        "카카오톡에서 공지 확인",
-      ],
-    },
-    {
-      heading: "요청사항",
-      items: [
-        "카카오톡 오픈채팅 참여 필수",
-        "정기 러닝 참석 시 카톡에 미리 표시",
-        "모임 후 뒷정리 참여해 주세요.",
-      ],
-    },
-  ],
-  footer: "문의: IG @leegun_indie_pnk / 카카오톡 winsu",
-};
-
-const rules = [
-  { label: "자유 모임 개설", desc: "누구나 자유롭게 모임을 만들 수 있습니다." },
-  { label: "나이 제한", desc: "86년생부터 가입 가능" },
-  {
-    label: "카톡 참석 표시",
-    desc: "정기 러닝 참석 시 카카오톡에 미리 표시",
-  },
-  { label: "Sport Team 활동", desc: "팀 활동에 적극 참여해 주세요." },
-  { label: "회비", desc: "월 2,000원" },
-  { label: "기타", desc: "지각 시 스쿼트 등 재밌는 벌칙이 있어요 😄" },
-];
-
-const safetyRules = [
-  { label: "보행자 조심", desc: "좁은 길에서는 한 줄로 달리기" },
-  {
-    label: "선두 수신호",
-    desc: "선두가 방향 전환/정지 신호, 후미가 복명복창",
-  },
-  { label: "그룹 규모", desc: "최대 6명 그룹으로 나눠 달리기" },
-  { label: "초보자 질주 금지", desc: "무리한 페이스는 부상의 원인!" },
-];
-
-const grades = [
-  { grade: "런린이", criteria: "5km 러닝 불가" },
-  { grade: "입문", criteria: "5km 30분 내 러닝 가능" },
-  { grade: "초보", criteria: "대회 참여 경험자부터" },
-  { grade: "중수", criteria: "꾸준히 대회 참여 & 기록 단축 중" },
-  { grade: "고수", criteria: "실력자!" },
-  { grade: "최고존엄", criteria: "넘사벽" },
-];
-
-const runTypes = [
-  { name: "조깅", desc: "대화 가능한 편한 페이스 (회복/워밍업)" },
-  {
-    name: "LSD (Long Slow Distance)",
-    desc: "천천히 오래 달리기 (지구력 향상)",
-  },
-  { name: "인터벌", desc: "빠르게/천천히 반복 (스피드 향상)" },
-  { name: "지속주 (템포런)", desc: "일정 페이스 유지 (젖산역치 향상)" },
-];
-
-/** 활동 칩 — 색상 토큰만 사용 */
-const activityChips = ["🏃 러닝", "🚴 자전거", "🏊 수영", "⛰️ 등산", "🏅 대회", "🎉 외 활동 다수"];
 
 /**
  * 가입 흐름 미리보기 — 단계 이름·순서·번호는 상단 진행바와 같은 목록(팀 가입 설정 `steps`)에서 온다.
@@ -109,6 +54,17 @@ const signupStepGuide: Record<SignupStepLabel, { desc: string; optional?: boolea
   "참석 약속": { desc: "첫 참석을 약속해요 — 모임은 나중에 골라도 돼요" },
 };
 
+
+/** 칸 아이콘 키 → 그림(§lib/newbie-guide GUIDE_ICONS) */
+const GUIDE_ICON: Record<GuideIconKey, LucideIcon> = {
+  notice: ClipboardList,
+  rules: ScrollText,
+  safety: ShieldCheck,
+  tip: Lightbulb,
+  place: MapPin,
+  schedule: CalendarDays,
+  info: Info,
+};
 
 /* ─── 토글 컴포넌트 ─── */
 
@@ -137,8 +93,9 @@ function Toggle({
   );
 }
 
-export function NewbieContent({ crewName, signup }: NewbieContentProps) {
-  const { crewGuide } = signup;
+export function NewbieContent({ crewName, signup, guide }: NewbieContentProps) {
+  const sections = visibleGuideSections(guide.sections);
+  const { activities } = guide;
   const signupSteps = signup.steps.map((label) => ({ label, ...signupStepGuide[label] }));
   // 「러닝 프로필은 건너뛰어도 돼요」는 그 단계가 있는 팀에서만 — 없는 팀에 말하면 없는 단계를 안내하게 된다
   const runningProfileNote = hasRunningProfileStep(signup) ? " 러닝 프로필은 건너뛰어도 돼요." : "";
@@ -185,13 +142,12 @@ export function NewbieContent({ crewName, signup }: NewbieContentProps) {
           })}
         </CardItem>
 
-        {/* 3. 활동 소개 — 예전 "연락처만 있으면" 카드는 기본 정보 단계 설명과 같은 말이라 걷어냈다.
-            3·4는 기강 운영 내용이라 기강에서만 세운다(#658) */}
-        {crewGuide && (
+        {/* 3. 활동 소개 — 팀 설정 「이런 활동을 해요」(newbie.activities). 비어 있으면 줄째 안 그린다 */}
+        {activities.length > 0 && (
           <section className="mt-8">
             <H2 className="text-base">이런 활동을 해요</H2>
             <div className="mt-3 flex flex-wrap gap-2">
-              {activityChips.map((c) => (
+              {activities.map((c) => (
                 <span
                   key={c}
                   className="rounded-full bg-secondary px-3.5 py-1.5 text-[13px] font-semibold text-secondary-foreground"
@@ -203,143 +159,18 @@ export function NewbieContent({ crewName, signup }: NewbieContentProps) {
           </section>
         )}
 
-        {/* 4. 더 알아보기 (기존 정보 보존) */}
-        {crewGuide && (
+        {/* 4. 더 알아보기 — 팀 설정 「더 알아보기」(newbie.sections) 칸 목록. 보이는 칸이 없으면 째로 안 그린다 */}
+        {sections.length > 0 && (
           <section className="mt-8">
             <Caption className="font-semibold text-foreground">
               ▸ {josa(crewName, "이/가")} 더 궁금하다면
             </Caption>
             <div className="mt-3 flex flex-col gap-2">
-              <Toggle icon={announcements.icon} title={announcements.title}>
-                {announcements.sections.map((s) => (
-                  <div key={s.heading} className="mb-3 last:mb-0">
-                    <Body className="mb-1 block text-[13px] font-bold">
-                      {s.heading}
-                    </Body>
-                    <ul className="list-disc pl-4 text-[13px] text-muted-foreground">
-                      {s.items.map((item) => (
-                        <li key={item}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-                <Caption className="mt-2 block">{announcements.footer}</Caption>
-              </Toggle>
-
-              <Toggle icon={ScrollText} title="회칙">
-                <ul className="space-y-1.5 text-[13px] text-muted-foreground">
-                  {rules.map((r) => (
-                    <li key={r.label}>
-                      <span className="font-bold text-foreground">{r.label}</span>{" "}
-                      — {r.desc}
-                    </li>
-                  ))}
-                </ul>
-              </Toggle>
-
-              <Toggle icon={ShieldCheck} title="모임 안전수칙">
-                <ul className="space-y-1.5 text-[13px] text-muted-foreground">
-                  {safetyRules.map((r) => (
-                    <li key={r.label}>
-                      <span className="font-bold text-foreground">{r.label}</span>{" "}
-                      — {r.desc}
-                    </li>
-                  ))}
-                  <li>
-                    <span className="font-bold text-foreground">필수 준비물</span>{" "}
-                    — 일정에 따라 꼭 챙겨주세요.
-                    <br />
-                    <span className="ml-3">자전거 → 헬멧</span>
-                    <br />
-                    <span className="ml-3">야간 등산 → 랜턴, 등산화 등</span>
-                  </li>
-                </ul>
-              </Toggle>
-
-              <Toggle icon={Lightbulb} title="러닝팁 (등급·페이스·러닝화)">
-                <Body className="mb-1.5 block text-[13px] font-bold">
-                  등급표
-                </Body>
-                <table className="mb-4 w-full border-collapse text-[11px]">
-                  <thead>
-                    <tr className="bg-secondary/70">
-                      <th className="border border-border px-2 py-1.5 text-left font-semibold">
-                        등급
-                      </th>
-                      <th className="border border-border px-2 py-1.5 text-left font-semibold">
-                        기준
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {grades.map((g) => (
-                      <tr key={g.grade}>
-                        <td className="border border-border px-2 py-1.5">
-                          {g.grade}
-                        </td>
-                        <td className="border border-border px-2 py-1.5">
-                          {g.criteria}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <Body className="mb-1.5 block text-[13px] font-bold">
-                  러닝의 종류
-                </Body>
-                <ul className="list-disc space-y-1 pl-4 text-[13px] text-muted-foreground">
-                  {runTypes.map((t) => (
-                    <li key={t.name}>
-                      <span className="font-bold text-foreground">{t.name}</span>{" "}
-                      — {t.desc}
-                    </li>
-                  ))}
-                </ul>
-
-                <Body className="mb-1.5 mt-4 block text-[13px] font-bold">
-                  심박수 &amp; 페이스
-                </Body>
-                <p className="mb-4 text-[13px] leading-relaxed text-muted-foreground">
-                  심박수는 운동 강도의 지표입니다.
-                  <br />
-                  최대 심박수의 60~70% → 유산소 구간
-                  <br />
-                  최대 심박수의 80% 이상 → 무산소 구간
-                  <br />
-                  <br />
-                  페이스(min/km)는 1km를 달리는 데 걸리는 시간입니다.
-                </p>
-
-                <Body className="mb-1.5 block text-[13px] font-bold">
-                  난이도 설정 방법
-                </Body>
-                <p className="mb-4 text-[13px] leading-relaxed text-muted-foreground">
-                  대화가 가능하면 →{" "}
-                  <span className="font-bold text-foreground">Easy</span>
-                  <br />
-                  문장이 끊기면 →{" "}
-                  <span className="font-bold text-foreground">Moderate</span>
-                  <br />
-                  단어만 나오면 →{" "}
-                  <span className="font-bold text-foreground">Hard</span>
-                  <br />
-                  <br />
-                  초보자는 Easy 70% + Moderate 30%로 시작하세요.
-                </p>
-
-                <Body className="mb-1.5 block text-[13px] font-bold">
-                  러닝화
-                </Body>
-                <p className="text-[13px] leading-relaxed text-muted-foreground">
-                  입문자에게는 쿠셔닝이 충분한 데일리 러닝화를 추천합니다.
-                  <br />
-                  나이키 페가수스, 아식스 노바블라스트, 호카 클리프톤 등이
-                  대표적이에요.
-                  <br />
-                  <br />
-                  자세한 건 모임에서 알려드릴게요! 👟
-                </p>
-              </Toggle>
+              {sections.map((s, i) => (
+                <Toggle key={`${i}-${s.title}`} icon={GUIDE_ICON[s.icon]} title={s.title}>
+                  <GuideMarkdown body={s.body} />
+                </Toggle>
+              ))}
             </div>
           </section>
         )}

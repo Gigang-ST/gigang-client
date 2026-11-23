@@ -3,6 +3,7 @@ import { z } from "zod";
 import { parseEventTime } from "@/lib/dayjs";
 import { RECORD_CATEGORIES, RECORD_CATEGORY_KEYS } from "@/lib/records-categories";
 import { GTHR_SPRT_TYPES, gthrSprtLabels } from "@/lib/validations/gathering";
+import { guideActivitiesSchema, guideSectionsSchema } from "@/lib/newbie-guide";
 
 /**
  * 팀 설정 사전 — `team_cfg` 에 들어갈 수 있는 키의 **정본**.
@@ -24,7 +25,7 @@ import { GTHR_SPRT_TYPES, gthrSprtLabels } from "@/lib/validations/gathering";
  * 관리자 「팀 설정」 화면(`/admin/team-settings`)이 묶는 칸. 화면은 이 사전을 보고 그리므로,
  * **키를 사전에 더하면 모든 팀의 설정 화면에 저절로 올라온다**(팀마다 빈 행을 미리 넣을 필요가 없다).
  */
-export type CfgGroup = "feature" | "member_info" | "operation" | "brand" | "seo";
+export type CfgGroup = "feature" | "member_info" | "newbie" | "operation" | "brand" | "seo";
 
 /**
  * 입력칸 모양. `secret` 은 지금 값을 화면에 내보내지 않고(설정됨/안 됨만) 새 값 입력만 받는다.
@@ -38,6 +39,10 @@ export type CfgInput =
   | { kind: "channels" }
   | { kind: "regular_template" }
   | { kind: "team_links" }
+  /** 짧은 글 여러 줄(한 줄에 하나) — 칩 목록 등 */
+  | { kind: "lines"; placeholder?: string }
+  /** 신입 안내 칸 목록(제목·아이콘·마크다운 본문·보이기) — 행 추가·삭제·순서(§lib/newbie-guide) */
+  | { kind: "guide_sections" }
   /**
    * 여러 개 고르기(체크박스), 최소 하나. `orderable` 이면 위아래로 순서를 바꿀 수 있고 **고른 순서 그대로** 저장한다
    * (화면이 그 순서로 세운다). 아니면 `options` 순서로 저장한다.
@@ -412,6 +417,35 @@ export const TEAM_CFG_REGISTRY = {
     visibility: "public",
     group: "feature",
     input: { kind: "choices", options: RECORD_CATEGORIES, orderable: true },
+  }),
+
+  /**
+   * 신입 안내(`/newbie`) 「이런 활동을 해요」 칩(#650, 2026-11-23). **기본값이 없다** — 비어 있으면 그 줄째 안 그린다.
+   * 예전엔 기강 칩이 화면 코드에 박혀 기강에서만 섰다(`crewGuide`). 기강 값은 마이그레이션이 그대로 옮겨 넣었다.
+   */
+  "newbie.activities": defineCfg({
+    schema: guideActivitiesSchema,
+    default: [],
+    label: "이런 활동을 해요",
+    description: "신입 안내 화면에 칩으로 보여요. 한 줄에 하나씩(이모지 포함 20자까지). 비우면 이 줄이 안 보여요.",
+    visibility: "public",
+    group: "newbie",
+    input: { kind: "lines", placeholder: "예: 🏃 러닝" },
+  }),
+
+  /**
+   * 신입 안내 「더 알아보기」 칸 목록 — 칸마다 제목·아이콘·마크다운 본문·보이기(#650). **기본값이 없다** — 보이는 칸이 없으면
+   * 「더 알아보기」째 안 그린다. 기강의 안내말씀·회칙·모임 안전수칙·러닝팁은 마이그레이션이 지금 문구 그대로 옮겨 넣었다.
+   */
+  "newbie.sections": defineCfg({
+    schema: guideSectionsSchema,
+    default: [],
+    label: "더 알아보기",
+    description:
+      "신입 안내 화면 아래 펼쳐 보는 칸들(안내말씀·회칙·안전수칙 등). 칸을 더하고 지우고 순서를 바꿀 수 있고, 본문은 게시판처럼 마크다운으로 써요. 엔터를 누르면 화면에서도 줄이 바뀌어요.",
+    visibility: "public",
+    group: "newbie",
+    input: { kind: "guide_sections" },
   }),
 } as const;
 
