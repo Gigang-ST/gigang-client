@@ -64,6 +64,11 @@ type TeamVoice = {
   extraQuips?: string[];
   /** 지면 검색 설명(`<meta name="description">`) — 그 팀이 다듬은 문장. 없는 지면은 크루 이름으로 만든 중립 문장 */
   pageDescriptions?: Partial<Record<PageDescriptionKey, string>>;
+  /**
+   * 홈 푸터 서비스 소개(`serviceIntro`)의 모임 종류 — 「{이름}는 **러닝** 모임과 대회·기록을…」. 없으면 종류 없이 「모임과」
+   * (모르는 종목을 지어내지 않는다). 팀 설정 「모임 기본 종목」에서 뽑지 않는 건, 그건 모임 만들기의 첫 선택값이라 뜻이 달라서다.
+   */
+  gatheringKind?: string;
 };
 
 const NEUTRAL_VOICE = {
@@ -75,7 +80,7 @@ const NEUTRAL_VOICE = {
   moodLabels: { blazing: "불타는 중", steady: "꾸준히", resting: "스며드는 중", dormant: "실종" },
   cardMood: { blazing: "내가 곧 기준", steady: "슬슬 시동 거는 중", resting: "관심이 생기는 정도" },
 } as const satisfies Required<
-  Omit<TeamVoice, "extraHeadlines" | "extraQuips" | "orgName" | "crewName" | "memberNoun" | "wordmark" | "pageDescriptions">
+  Omit<TeamVoice, "extraHeadlines" | "extraQuips" | "orgName" | "crewName" | "memberNoun" | "wordmark" | "pageDescriptions" | "gatheringKind">
 >;
 
 /**
@@ -87,6 +92,7 @@ const TEAM_VOICE: Readonly<Record<string, TeamVoice>> = {
     memberNoun: "기강인",
     wordmark: "GIGANG",
     orgName: "기강 스포츠 팀",
+    gatheringKind: "러닝",
     galleryName: "깅스타그램",
     galleryLabel: "Gingstargram",
     pushPromptTitle: "🔔 기강이 빠졌군. 알림 켜라!",
@@ -223,6 +229,11 @@ export type TeamCopy = {
   /** 홈 리드 활동지수 헤드라인 — `{name}` 만 남아 있다(크루 이름은 채워 둠) */
   actvHeadlines: readonly string[];
   quips: readonly string[];
+  /**
+   * 홈 푸터 서비스 소개 — Google 브랜드 인증(#651)이 로그아웃 홈에서 찾는 「앱 목적」 문장. 조사는 이름 받침을 따른다.
+   * 기강 문장은 2026-11-17 심사를 통과한 그대로다(테스트가 지킨다).
+   */
+  serviceIntro: string;
 };
 
 export type TeamCopyInput = {
@@ -263,6 +274,9 @@ export function buildTeamCopy(input: TeamCopyInput): TeamCopy {
     cardMood: voice.cardMood ?? NEUTRAL_VOICE.cardMood,
     actvHeadlines: headlines,
     quips: [...(voice.extraQuips ?? []), ...BASE_QUIPS],
+    serviceIntro:
+      `${josa(crewName, "은/는")} ${voice.gatheringKind ? `${voice.gatheringKind} ` : ""}모임과 대회·기록을 한곳에서 관리하는 ` +
+      "크루 서비스예요. 모임 일정을 확인하고 참석을 신청하며, 대회 출전과 개인 기록을 남기고 함께 나눌 수 있어요.",
   };
 }
 
@@ -287,9 +301,11 @@ export type CardCopy = Pick<TeamCopy, (typeof CARD_COPY_KEYS)[number]>;
 export const ACTIVITY_FORM_COPY_KEYS = ["storyName", "galleryName", "quips"] as const;
 export type ActivityFormCopy = Pick<TeamCopy, (typeof ACTIVITY_FORM_COPY_KEYS)[number]>;
 
-/** 홈(전광판) 전체 — 리드·심박·갤러리·현상수배·채널·카드 */
+/** 홈(전광판) 전체 — 리드·심박·갤러리·현상수배·채널·카드·푸터(서비스 소개·© 단체명) */
 export const STORY_COPY_KEYS = [
   ...CARD_COPY_KEYS,
+  "serviceIntro",
+  "orgName",
   "storyName",
   "galleryName",
   "galleryLabel",

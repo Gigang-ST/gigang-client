@@ -128,6 +128,14 @@ export function resolveContact(ctx: Pick<LegalContext, "teamCd" | "contact">): s
   return ctx.contact?.trim() || teamLegal(ctx.teamCd).contactFallback || null;
 }
 
+/** 홈 푸터의 운영·문의 줄 — 약관과 같은 값. 운영 주체가 어디에도 없으면(「크루 운영진」으로 물러나는 경우) 줄째 안 싣는다 */
+export type FooterContacts = { operator: string | null; contact: string | null };
+
+export function resolveFooterContacts(ctx: Pick<LegalContext, "teamCd" | "operator" | "contact">): FooterContacts {
+  const operator = resolveOperator(ctx);
+  return { operator: operator === NEUTRAL_OPERATOR ? null : operator, contact: resolveContact(ctx) };
+}
+
 /** 번호는 실린 조항 순서대로 매긴다 — 회비 조항이 빠지면 뒤 번호가 당겨진다 */
 function numbered(sections: (Omit<LegalSection, "id"> | false)[]): LegalSection[] {
   return sections.filter((s): s is Omit<LegalSection, "id"> => s !== false).map((s, i) => ({ id: i + 1, ...s }));
