@@ -13,6 +13,7 @@ import { saveStartInfo } from "@/lib/start-info-save";
 import { sealBalanceAnchor } from "@/lib/dues/seal-anchor";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 import { joinGatheringWithCapCheck } from "@/lib/gathering/join-gathering";
+import { getTeamSignup, hasRunningProfileStep, isTeamJoinPurposes } from "@/lib/team-signup";
 import {
   onboardingProfileSchema,
   signupBirthdaySchema,
@@ -183,6 +184,8 @@ export async function onboardingJoinTeam(args: {
   if (!profileParsed.success) {
     return { ok: false, message: "온보딩 프로필 입력값이 올바르지 않습니다." };
   }
+  const purposeError = await teamJoinPurposeError(profileParsed.data.joinPurpCds);
+  if (purposeError) return { ok: false, message: purposeError };
   const name = args.fullName.trim();
   if (!/^[가-힣]{2,5}$/.test(name)) {
     return { ok: false, message: "이름은 한글 2~5자로 입력해 주세요." };
@@ -380,6 +383,8 @@ export async function onboardingCreateMember(args: {
   if (!profileParsed.success) {
     return { ok: false, message: "온보딩 프로필 입력값이 올바르지 않습니다." };
   }
+  const purposeError = await teamJoinPurposeError(profileParsed.data.joinPurpCds);
+  if (purposeError) return { ok: false, message: purposeError };
   const onbdProfile = profileParsed.data;
   const supabase = await createClient();
   const {
@@ -453,6 +458,15 @@ export async function onboardingCreateMember(args: {
 }
 
 /**
+ * 고른 가입 목적이 이 팀 칩인가(§lib/team-signup, #748) — 화면은 팀 칩만 보여 주지만 액션은 직접 부를 수 있어 서버가 다시 본다.
+ * 어긋나면 사람에게 보일 문장, 맞으면 null.
+ */
+async function teamJoinPurposeError(codes: readonly string[]): Promise<string | null> {
+  const { teamCd } = await getRequestTeamContext();
+  return isTeamJoinPurposes(getTeamSignup(teamCd), codes) ? null : "가입 목적을 다시 골라 주세요.";
+}
+
+/**
  * 소속 행을 넣은 **뒤** 할 일 — 신규 가입(`onboardingCreateMember`)과 다른 팀 가입·재가입
  * (`onboardingJoinTeam`)이 공유한다. 각자 들면 한쪽만 봉인·칭호·첫 모임 신청을 빠뜨린다.
  * 전부 비치명이다 — 가입(소속 행)은 이미 성립했다.
@@ -502,23 +516,28 @@ async function finishTeamJoin({
   // 가입 목적·유입 경로·첫 모임 약속은 **이 팀에 들어온 이유**(team_mem_onbd_rel, 팀+사람).
   // 한 테이블에 두면 두 번째 팀 가입이 첫 팀의 가입 정보를 덮는다.
   const untypedAdmin = createUntypedAdminClient();
-  const { error: eOnbdPrf } = await untypedAdmin.from("mem_onbd_prf").upsert(
-    {
-      mem_id: memId,
-      near_stn_nm: onbdProfile.nearStnNm,
-      avg_run_dist_km: onbdProfile.avgRunDistKm,
-      avg_pace_cd: onbdProfile.avgPaceCd,
-    },
-    { onConflict: "mem_id" },
-  );
+  // 러닝 프로필 단계가 없는 팀(모비, #748)은 이 두 저장을 건너뛴다 — 폼이 그 값을 안 받으므로, 다른 팀에서 이미 적어 둔
+  // 사람의 러닝 프로필·시작 정보를 빈 값으로 덮어쓰게 된다.
+  const { teamCd } = await getRequestTeamContext();
+  if (hasRunningProfileStep(getTeamSignup(teamCd))) {
+    const { error: eOnbdPrf } = await untypedAdmin.from("mem_onbd_prf").upsert(
+      {
+        mem_id: memId,
+        near_stn_nm: onbdProfile.nearStnNm,
+        avg_run_dist_km: onbdProfile.avgRunDistKm,
+        avg_pace_cd: onbdProfile.avgPaceCd,
+      },
+      { onConflict: "mem_id" },
+    );
 
-  if (eOnbdPrf) {
-    console.error("[onboarding] mem_onbd_prf UPSERT 실패 — 가입은 계속 진행", memId, eOnbdPrf.message);
+    if (eOnbdPrf) {
+      console.error("[onboarding] mem_onbd_prf UPSERT 실패 — 가입은 계속 진행", memId, eOnbdPrf.message);
+    }
+
+    // 시작 정보(경력·주간 거리·기록, 이슈 #719) — 선택 입력이라 실패해도 가입은 성립(로깅만)
+    const startRes = await saveStartInfo(memId, onbdProfile.startInfo, "SIGNUP");
+    if (!startRes.ok) console.error("[onboarding] 시작 정보 저장 실패 — 가입은 계속 진행", memId, startRes.message);
   }
-
-  // 시작 정보(경력·주간 거리·기록, 이슈 #719) — 선택 입력이라 실패해도 가입은 성립(로깅만)
-  const startRes = await saveStartInfo(memId, onbdProfile.startInfo, "SIGNUP");
-  if (!startRes.ok) console.error("[onboarding] 시작 정보 저장 실패 — 가입은 계속 진행", memId, startRes.message);
 
   const { error: eTeamOnbd } = await admin.from("team_mem_onbd_rel").upsert(
     {

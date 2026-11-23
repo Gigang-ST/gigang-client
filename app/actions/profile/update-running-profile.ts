@@ -9,6 +9,7 @@ import {
 } from "@/lib/validations/member";
 import { dayjs } from "@/lib/dayjs";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { getTeamSignup, isTeamJoinPurposes } from "@/lib/team-signup";
 import { createAdminClient, createUntypedAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -30,7 +31,11 @@ export async function updateRunningProfile(
   }
 
   return withMember(async ({ member }) => {
-    const { teamId } = await getRequestTeamContext();
+    const { teamId, teamCd } = await getRequestTeamContext();
+    // 가입 목적은 이 팀 칩만(§lib/team-signup, #748) — 가입 때와 같은 검사
+    if (!isTeamJoinPurposes(getTeamSignup(teamCd), parsed.data.joinPurpCds)) {
+      return { ok: false, message: "가입 목적을 다시 골라 주세요." };
+    }
     const admin = createUntypedAdminClient();
 
     const { error } = await admin.from("mem_onbd_prf").upsert(

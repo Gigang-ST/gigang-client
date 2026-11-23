@@ -2,12 +2,9 @@ import Link from "next/link";
 
 import { ClipboardList, Lightbulb, ScrollText, ShieldCheck, type LucideIcon } from "lucide-react";
 
-import {
-  SIGNUP_STEP_LABELS,
-  SignupProgress,
-  type SignupStepLabel,
-} from "@/components/auth/signup-progress";
+import { SignupProgress } from "@/components/auth/signup-progress";
 import { H1, H2, Body, Caption } from "@/components/common/typography";
+import { hasRunningProfileStep, type SignupStepLabel, type TeamSignup } from "@/lib/team-signup";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
 import { josa } from "@/lib/josa";
@@ -17,14 +14,15 @@ import { cn } from "@/lib/utils";
  * 신입 가입 안내(가입 위저드 1단계) 본문. 서버 페이지(`./page.tsx`)가 팀 문구를 읽어 넘긴다 — 이 파일은 요청을 읽지 않아
  * 렌더 테스트가 팀별로 그려 볼 수 있다(`app/newbie/__tests__/newbie-content-render.test.ts`).
  *
- * 가입 단계·시작 버튼은 모든 팀 공통이고, **활동 칩·「더 알아보기」(정기 러닝·회칙·안전수칙·등급표)는 기강 운영 내용**이라
- * 기강에서만 세운다(#658). 다른 팀 운영 내용은 아직 없어 지어내지 않는다 — 생기면 팀별 안내로 나눈다.
+ * 가입 단계는 팀 가입 설정(`lib/team-signup.ts`)을 따른다 — 모비는 러닝 프로필 단계가 없다(#748). **활동 칩·「더 알아보기」
+ * (정기 러닝·회칙·안전수칙·등급표)는 기강 운영 내용**이라 같은 표의 `crewGuide` 팀(기강)에서만 세운다(#658). 다른 팀 운영
+ * 내용은 아직 없어 지어내지 않는다 — 생기면 같은 페이지에 그 팀 칸을 더한다.
  */
 export type NewbieContentProps = {
   /** 크루 이름(팀 문구) */
   crewName: string;
-  /** 기강 운영 안내를 세우는가 */
-  crewGuide: boolean;
+  /** 팀 가입 설정 — 단계 목록·운영 안내 노출 */
+  signup: Pick<TeamSignup, "steps" | "crewGuide">;
 };
 
 /* ─── 토글 섹션 데이터 ─── */
@@ -98,7 +96,7 @@ const runTypes = [
 const activityChips = ["🏃 러닝", "🚴 자전거", "🏊 수영", "⛰️ 등산", "🏅 대회", "🎉 외 활동 다수"];
 
 /**
- * 가입 흐름 미리보기 — 단계 이름·순서·번호는 상단 진행바와 같은 목록(SIGNUP_STEP_LABELS)에서 온다.
+ * 가입 흐름 미리보기 — 단계 이름·순서·번호는 상단 진행바와 같은 목록(팀 가입 설정 `steps`)에서 온다.
  * 여기선 설명만 붙인다. Record라서 진행바에 단계가 늘면 설명을 안 채운 채로는 타입 검사가 막는다.
  * ⚠️ `optional`은 실제 폼과 맞춰야 한다 — 가입 목적은 "알게 된 경로"를 안 고르면 못 넘어가는 필수다.
  */
@@ -111,7 +109,6 @@ const signupStepGuide: Record<SignupStepLabel, { desc: string; optional?: boolea
   "참석 약속": { desc: "첫 참석을 약속해요 — 모임은 나중에 골라도 돼요" },
 };
 
-const signupSteps = SIGNUP_STEP_LABELS.map((label) => ({ label, ...signupStepGuide[label] }));
 
 /* ─── 토글 컴포넌트 ─── */
 
@@ -140,21 +137,25 @@ function Toggle({
   );
 }
 
-export function NewbieContent({ crewName, crewGuide }: NewbieContentProps) {
+export function NewbieContent({ crewName, signup }: NewbieContentProps) {
+  const { crewGuide } = signup;
+  const signupSteps = signup.steps.map((label) => ({ label, ...signupStepGuide[label] }));
+  // 「러닝 프로필은 건너뛰어도 돼요」는 그 단계가 있는 팀에서만 — 없는 팀에 말하면 없는 단계를 안내하게 된다
+  const runningProfileNote = hasRunningProfileStep(signup) ? " 러닝 프로필은 건너뛰어도 돼요." : "";
   return (
     <>
-      <SignupProgress step={1} />
+      <SignupProgress step="시작" steps={signup.steps} />
       <div className="mx-auto max-w-md px-6 pb-44 pt-[calc(env(safe-area-inset-top,0px)+5rem)]">
         {/* 1. 히어로 */}
         <section className="text-center">
           <Caption className="tracking-[3px]">WELCOME TO</Caption>
           <H1 className="mt-2 text-[32px]">{crewName}에 잘 오셨어요 👟</H1>
           <Body className="mt-3 block text-muted-foreground">
-            기본 정보·가입 목적을 답하고 첫 참석을 약속하면 끝. 러닝 프로필은 건너뛰어도 돼요.
+            기본 정보·가입 목적을 답하고 첫 참석을 약속하면 끝.{runningProfileNote}
           </Body>
         </section>
 
-        {/* 2. 가입 단계 미리보기 — 번호가 상단 진행바(1/6)와 같다. 이 페이지가 1번(지금 여기)이다.
+        {/* 2. 가입 단계 미리보기 — 번호가 상단 진행바(1/N)와 같다. 이 페이지가 1번(지금 여기)이다.
             카드 여섯 장을 쌓으면 무거워 한 장 안의 목록으로 묶는다 */}
         <CardItem className="mt-8 flex flex-col p-0">
           {signupSteps.map((s, i) => {
@@ -236,7 +237,7 @@ export function NewbieContent({ crewName, crewGuide }: NewbieContentProps) {
                 </ul>
               </Toggle>
 
-              <Toggle icon={ShieldCheck} title="러닝크루 안전수칙">
+              <Toggle icon={ShieldCheck} title="모임 안전수칙">
                 <ul className="space-y-1.5 text-[13px] text-muted-foreground">
                   {safetyRules.map((r) => (
                     <li key={r.label}>

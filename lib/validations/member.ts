@@ -108,6 +108,10 @@ export const JOIN_PURP_CODES = [
   "FIRST_FINISH",
   "PB",
   "HEALTH",
+  // 이슈 #748 — 트레일러닝 크루(모비) 목록용. 어느 팀이 어떤 칩을 보여 주는지는 `lib/team-signup.ts`
+  "MT_MATE",
+  "TRAIL_START",
+  "TRAIL_FINISH",
 ] as const;
 
 /** 유입 경로 칩 코드 (공통코드 그룹 JOIN_SRC) */
@@ -158,6 +162,9 @@ export const JOIN_PURP_LABELS: Record<(typeof JOIN_PURP_CODES)[number], string> 
   FIRST_FINISH: "첫 10K·하프·풀 완주를 하고 싶어요",
   PB: "기록을 단축하고 싶어요",
   HEALTH: "건강·다이어트를 하고 싶어요",
+  MT_MATE: "같이 산에 갈 사람이 필요해요",
+  TRAIL_START: "트레일러닝을 시작해 보고 싶어요",
+  TRAIL_FINISH: "첫 트레일 대회를 완주하고 싶어요",
 };
 
 /**
@@ -176,6 +183,9 @@ export const JOIN_PURP_SHORT_LABELS: Record<(typeof JOIN_PURP_CODES)[number], st
   FIRST_FINISH: "첫 완주",
   PB: "기록 단축",
   HEALTH: "건강·다이어트",
+  MT_MATE: "산 메이트",
+  TRAIL_START: "트레일 입문",
+  TRAIL_FINISH: "첫 트레일 완주",
 };
 
 /** 유입 경로 칩 라벨 (설계 §3.5) */

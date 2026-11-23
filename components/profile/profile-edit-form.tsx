@@ -81,10 +81,13 @@ export function ProfileEditForm({
   member,
   initialRunningProfile,
   initialStartInfo,
+  joinPurposes = JOIN_PURP_CODES,
 }: {
   member: MemberData;
   initialRunningProfile: InitialRunningProfile;
   initialStartInfo: StartInfoRead;
+  /** 이 팀 가입 목적 칩(§lib/team-signup, #748). 생략하면 전체 */
+  joinPurposes?: readonly (typeof JOIN_PURP_CODES)[number][];
 }) {
   // 저장 후 복귀. 직접 진입(알림 딥링크 등)이면 뒤로 갈 데가 없어 맨 `router.back()`은
   // 조용히 죽는다 — 토스트만 뜨고 폼에 남아 다시 저장을 누르게 된다(#450).
@@ -444,7 +447,7 @@ export function ProfileEditForm({
         <div className="flex flex-col gap-2">
           <Label>목적 (선택)</Label>
           <div className="flex flex-wrap gap-1.5">
-            {JOIN_PURP_CODES.map((cd) => {
+            {joinPurposes.map((cd) => {
               const selected = joinPurpCds.includes(cd);
               return (
                 <button

@@ -5,6 +5,7 @@ import { SignupProgress } from "@/components/auth/signup-progress";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
 import { getTeamCopy } from "@/lib/queries/team-copy";
 import { teamLogoFor } from "@/lib/team-logo";
+import { getTeamSignup } from "@/lib/team-signup";
 import { getTeamChannels } from "@/lib/team-social";
 
 export default async function Page({
@@ -22,7 +23,7 @@ export default async function Page({
   const isSignupFlow = next === "/onboarding";
   return (
     <>
-      {isSignupFlow && <SignupProgress step={2} />}
+      {isSignupFlow && <SignupProgress step="로그인" steps={getTeamSignup(teamCd).steps} />}
       <Suspense
         fallback={
           <div className="flex min-h-svh w-full items-center justify-center">

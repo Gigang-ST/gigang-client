@@ -1237,7 +1237,7 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 
 | 컴포넌트 | 파일 | Props | 용도 |
 |----------|------|-------|------|
-| SignupProgress | `auth/signup-progress.tsx` | `step` (1~6), `done?` | 가입 위저드 6단계 공유 진행바 (newbie·login·onboarding 상단 고정). 단계 이름은 `SIGNUP_STEP_LABELS` 하나 — newbie 단계 미리보기도 이걸 읽는다 |
+| SignupProgress | `auth/signup-progress.tsx` | `step`(단계 이름), `steps?`, `done?` | 가입 위저드 공유 진행바 (newbie·login·onboarding 상단 고정). **단계는 팀마다 다르다**(기강 6 · 모비 5 — 러닝 프로필 없음, #748) — 번호가 아니라 단계 이름을 받고, 단계 목록은 팀 가입 설정 `getTeamSignup(teamCd).steps`(`lib/team-signup.ts`)를 넘긴다. newbie 단계 미리보기·가입 목적 칩도 같은 표를 읽는다 |
 | PwaInstallPrompt | `pwa-install-prompt.tsx` | `variant` ("banner"\|"inline") | 홈 화면 설치 유도. standalone·인앱이면 미표시. banner=전역 하단(7일 dismiss), inline=가입 완료 화면 |
 | PushPermissionPrompt | `push-permission-prompt.tsx` | — | 첫 진입 푸시 알림 권한 유도 배너(전역 하단). 데스크톱·iOS미설치 미표시, 거부 시 영구 dismiss. 띄울 때 설치 배너 억제 |
 
