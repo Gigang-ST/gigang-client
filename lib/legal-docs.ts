@@ -5,7 +5,7 @@ import { josaOf } from "@/lib/josa";
  * (`lib/__tests__/legal-docs.test.ts`). 지면은 `app/(info)/terms|privacy|policy/page.tsx`, 값을 모으는 건 `lib/queries/legal.ts`.
  *
  * 2026-11-15 전에는 세 문서가 기강 고정이라(「러닝크루 기강과 기강 앱(gigang.team)」·책임자 이현근·86년생) 울산 회원도 기강 문서에
- * 동의하게 됐다. 결정(2026-11-11 hglee): 울산 모보브의 운영 주체·개인정보 책임자는 송창준 — 팀 설정 `legal.operator` 로 넣는다.
+ * 동의하게 됐다. 결정(2026-11-11 hglee): 울산 모비의 운영 주체·개인정보 책임자는 송창준 — 팀 설정 `legal.operator` 로 넣는다.
  *
  * ## 무엇이 팀마다 갈리나
  * - **크루 이름·앱 주소·전당/사진 지면 이름** — 팀 문구(`TeamCopy`)와 요청 주소에서.
@@ -90,6 +90,28 @@ const TEAM_LEGAL: Readonly<Record<string, TeamLegal>> = {
         effectiveDate: "2026-09-30",
         history: ["2026-03-02 제정", "2026-09-30 개정 — 사진 게시·제재 절차·비활성 조항 정비"],
       },
+    },
+  },
+  // 울산 모비 — 2026-11-23 송창준 회신으로 확정. 가입 나이는 기강과 같다(가입 폼 검증 `lib/validations/member.ts` 도 같은 기준).
+  // 연락처는 기강처럼 이메일만 싣는다(약관은 비로그인도 본다). 시행일 = 울산 공개일.
+  ulsan: {
+    contactFallback: "zkzkdksek2@naver.com",
+    termsAge: ["1986년생부터 성인까지 가입할 수 있습니다.", "가입 자격을 충족하지 않는 사실이 확인되면 가입이 취소될 수 있습니다."],
+    privacyAge: [
+      "모비는 1986년생부터 성인까지 가입할 수 있으며, 미성년자의 개인정보는 수집하지 않습니다.",
+      "가입 연령에 해당하지 않는 사실이 확인되면 해당 정보를 지체 없이 파기합니다.",
+    ],
+    services: [
+      "정기 및 비정기 트레일러닝·산행 모임 운영",
+      "일정·공지 제공 및 앱 알림(웹 푸시) 발송",
+      "대회 기록 관리 및 크루 내 기록 랭킹",
+      "사진·글 공유(갤러리), 댓글",
+      "크루 프로젝트 운영",
+    ],
+    meta: {
+      terms: { effectiveDate: "2026-11-28", history: ["2026-11-28 제정"] },
+      privacy: { effectiveDate: "2026-11-28", history: ["2026-11-28 제정"] },
+      policy: { effectiveDate: "2026-11-28", history: ["2026-11-28 제정"] },
     },
   },
 };

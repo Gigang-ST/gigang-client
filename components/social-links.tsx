@@ -55,7 +55,7 @@ export function socialHelpText(copy: Pick<TeamCopy, "crewName" | "memberNoun">):
   return `앱 밖에서 ${copy.crewName} 소식이 오가는 곳이에요. 오픈채팅 비밀번호는 ${copy.memberNoun}에게만 보여요.`;
 }
 
-/** 채널 블록 머리 — 「기강이 모여 있는 곳」 / 「모보브가 모여 있는 곳」(전광판 판권면·더보기 공통) */
+/** 채널 블록 머리 — 「기강이 모여 있는 곳」 / 「모비가 모여 있는 곳」(전광판 판권면·더보기 공통) */
 export function socialLeadText(crewName: string): string {
   return `${josa(crewName, "이/가")} 모여 있는 곳`;
 }

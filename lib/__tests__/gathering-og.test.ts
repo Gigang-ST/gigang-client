@@ -122,8 +122,8 @@ describe("buildGatheringMetadata", () => {
   });
 
   it("사이트 이름은 그 팀 크루 이름 — 없으면 칸째 안 내보낸다(기강으로 물러나지 않는다)", () => {
-    const movof = buildGatheringMetadata(src(), null, "모보브").openGraph as { siteName?: string };
-    expect(movof.siteName).toBe("모보브");
+    const mobby = buildGatheringMetadata(src(), null, "모비").openGraph as { siteName?: string };
+    expect(mobby.siteName).toBe("모비");
     const none = buildGatheringMetadata(src(), null, null).openGraph as { siteName?: string };
     expect(none).not.toHaveProperty("siteName");
   });

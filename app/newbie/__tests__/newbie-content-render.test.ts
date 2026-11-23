@@ -22,10 +22,10 @@ describe("신입 가입 안내", () => {
     expect(t).toContain("기강 둘러보기");
   });
 
-  it("울산(모보브)은 크루 이름으로 인사하고 기강 운영 안내를 싣지 않는다", () => {
-    const t = text(renderToStaticMarkup(createElement(NewbieContent, { crewName: "모보브", crewGuide: false })));
-    expect(t).toContain("모보브에 잘 오셨어요");
-    expect(t).toContain("모보브 둘러보기");
+  it("울산(모비)은 크루 이름으로 인사하고 기강 운영 안내를 싣지 않는다", () => {
+    const t = text(renderToStaticMarkup(createElement(NewbieContent, { crewName: "모비", crewGuide: false })));
+    expect(t).toContain("모비에 잘 오셨어요");
+    expect(t).toContain("모비 둘러보기");
     expect(t).toContain("시작하기");
     for (const word of ["기강", "양재천", "86년생", "회칙", "최고존엄", "winsu"]) {
       expect(t).not.toContain(word);

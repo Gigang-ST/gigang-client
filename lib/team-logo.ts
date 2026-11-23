@@ -2,7 +2,7 @@ import { resolveTeamCdFromHost } from "@/lib/team-host";
 
 /**
  * 팀 로고 — **화면 안** 로고(하단 탭바 가운데·홈 로딩 워터마크·로그인 화면)와 네이버 구조화 데이터 `logo` 가 쓰는 그림의 정본.
- * 순수 데이터라 서버·브라우저 어디서든 읽는다. 2026-11-11 전에는 `/logo.webp`·`/logo-mark.png` 고정이라 울산(모보브)에도 기강 로고였다.
+ * 순수 데이터라 서버·브라우저 어디서든 읽는다. 2026-11-11 전에는 `/logo.webp`·`/logo-mark.png` 고정이라 울산(모비)에도 기강 로고였다.
  *
  * ## 자리마다 고르는 법
  * - **하단 탭바·홈 로딩 워터마크** — 미리 만들어 두는 껍데기(정적 셸)라 서버가 팀을 모른다. 그리기 전 스크립트
@@ -25,7 +25,7 @@ export type TeamLogo = {
 
 export const TEAM_LOGO: Readonly<Record<string, TeamLogo>> = {
   gigang: { logo: "/logo.webp", mark: "/logo-mark.png" },
-  // 임시 로고(TEAM MOVOF ULSAN 배지) — 진짜 로고가 오면 이 파일만 바꾼다. 원본이 검정 + 투명이라 마스크로도 그대로 쓴다
+  // 「mob by」 워드마크(2026-11-23 확정). 검정 + 투명이라 마스크로도 그대로 쓴다
   ulsan: { logo: "/teams/ulsan/logo.png", mark: "/teams/ulsan/logo.png" },
 };
 
