@@ -64,6 +64,11 @@ type TeamVoice = {
   extraQuips?: string[];
   /** 지면 검색 설명(`<meta name="description">`) — 그 팀이 다듬은 문장. 없는 지면은 크루 이름으로 만든 중립 문장 */
   pageDescriptions?: Partial<Record<PageDescriptionKey, string>>;
+  /**
+   * 홈 푸터 서비스 소개(`serviceIntro`)의 모임 종류 — 「{이름}는 **러닝** 모임과 대회·기록을…」. 없으면 종류 없이 「모임과」
+   * (모르는 종목을 지어내지 않는다). 팀 설정 「모임 기본 종목」에서 뽑지 않는 건, 그건 모임 만들기의 첫 선택값이라 뜻이 달라서다.
+   */
+  gatheringKind?: string;
 };
 
 const NEUTRAL_VOICE = {
@@ -75,7 +80,7 @@ const NEUTRAL_VOICE = {
   moodLabels: { blazing: "불타는 중", steady: "꾸준히", resting: "스며드는 중", dormant: "실종" },
   cardMood: { blazing: "내가 곧 기준", steady: "슬슬 시동 거는 중", resting: "관심이 생기는 정도" },
 } as const satisfies Required<
-  Omit<TeamVoice, "extraHeadlines" | "extraQuips" | "orgName" | "crewName" | "memberNoun" | "wordmark" | "pageDescriptions">
+  Omit<TeamVoice, "extraHeadlines" | "extraQuips" | "orgName" | "crewName" | "memberNoun" | "wordmark" | "pageDescriptions" | "gatheringKind">
 >;
 
 /**
@@ -119,6 +124,8 @@ const TEAM_VOICE: Readonly<Record<string, TeamVoice>> = {
   ulsan: {
     crewName: "모비",
     wordmark: "MOBBY",
+    // 홈 푸터 소개 「모비는 트레일러닝·산행 모임과…」(#746 이 이 칸을 읽는다)
+    gatheringKind: "트레일러닝·산행",
     // 검색에 걸리게 지역·종목을 넣는다. 크루 소개·회칙(`/join`·`/rules`)은 기강 전용 지면이라 없다(§lib/team-host TEAM_ONLY_PATHS)
     pageDescriptions: {
       board: "울산 트레일러닝 크루 모비 공지사항과 업데이트 소식.",
