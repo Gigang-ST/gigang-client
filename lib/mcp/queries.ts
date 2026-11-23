@@ -514,6 +514,93 @@ export async function listTodayGatherings(
   });
 }
 
+export type MyGatheringRow = {
+  gthr_id: string;
+  gthr_nm: string;
+  gthr_type_enm: string;
+  stt_at: string;
+  end_at: string | null;
+  loc_txt: string | null;
+  attendee_cnt: number;
+  /** 내 참석 신청 시각(`gthr_attd_rel.crt_at`). */
+  applied_at: string | null;
+};
+
+/** `list_my_gatherings` 기본 조회 폭(일) — 오늘 ~ +30일. */
+export const MY_GATHERINGS_DEFAULT_DAYS = 30;
+/** 조회 기간 상한(일) — 실수로 수년치를 요청해 응답이 커지는 걸 막는다. */
+export const MY_GATHERINGS_MAX_DAYS = 366;
+
+/**
+ * 내가 참석 신청한 팀 모임(KST 기간, 양끝 날짜 포함) — 시작 시각 오름차순.
+ *
+ * 대상 멤버를 인자로 받지 않고 호출자(`memId`)로만 스코프한다 — admin 이어도 남의 것은 못 본다.
+ * 참석 취소는 `gthr_attd_rel` 행 삭제라 행이 있으면 곧 참석 중이고, 삭제·취소된 모임은
+ * `gthr_mst.del_yn` 으로 걸러진다(모임 취소 = 소프트 삭제).
+ */
+export async function listMyGatherings(
+  supabase: Db,
+  teamId: string,
+  memId: string,
+  range: { from?: string; to?: string } = {},
+): Promise<MyGatheringRow[]> {
+  const fromDay = kstDayRange(range.from).day;
+  const toDay =
+    range.to ??
+    dayjs.tz(fromDay, KST).add(MY_GATHERINGS_DEFAULT_DAYS, "day").format("YYYY-MM-DD");
+  const startIso = kstDayRange(fromDay).startIso;
+  const endIso = kstDayRange(toDay).endIso;
+  if (endIso <= startIso) {
+    throw new ToolInputError("to 는 from 보다 같거나 늦은 날짜여야 합니다.");
+  }
+  const spanDays = dayjs(endIso).diff(dayjs(startIso), "day");
+  if (spanDays > MY_GATHERINGS_MAX_DAYS) {
+    throw new ToolInputError(`조회 기간은 최대 ${MY_GATHERINGS_MAX_DAYS}일입니다.`);
+  }
+
+  const data = await fetchAllRows(
+    () =>
+      supabase
+        .from("gthr_attd_rel")
+        .select(
+          "attd_id, crt_at, gthr_mst!inner(gthr_id, gthr_nm, gthr_type_enm, stt_at, end_at, loc_txt, gthr_attd_rel(count))",
+        )
+        .eq("mem_id", memId)
+        .eq("gthr_mst.team_id", teamId)
+        .eq("gthr_mst.del_yn", false)
+        .gte("gthr_mst.stt_at", startIso)
+        .lt("gthr_mst.stt_at", endIso)
+        .order("attd_id", { ascending: true }),
+    { label: "mcp:my-gatherings" },
+  );
+
+  type Mst = {
+    gthr_id: string;
+    gthr_nm: string;
+    gthr_type_enm: string;
+    stt_at: string;
+    end_at: string | null;
+    loc_txt: string | null;
+    gthr_attd_rel: Array<{ count: number }> | null;
+  };
+  const rows: MyGatheringRow[] = [];
+  for (const r of data) {
+    const g = pickOne(r.gthr_mst as Mst | Mst[]);
+    if (!g) continue;
+    rows.push({
+      gthr_id: g.gthr_id,
+      gthr_nm: g.gthr_nm,
+      gthr_type_enm: g.gthr_type_enm,
+      stt_at: g.stt_at,
+      end_at: g.end_at ?? null,
+      loc_txt: g.loc_txt ?? null,
+      attendee_cnt: g.gthr_attd_rel?.[0]?.count ?? 0,
+      applied_at: (r.crt_at as string | null) ?? null,
+    });
+  }
+  return rows.sort((a, b) => dayjs(a.stt_at).valueOf() - dayjs(b.stt_at).valueOf());
+}
+
 /** §5.2 최근 가입 멤버(join_dt desc nulls last, crt_at desc). */
 export async function listRecentMembers(
   supabase: Db,
